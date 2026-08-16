@@ -36,7 +36,7 @@
               "custom_name": "WorkerNameSub"
             },
             {
-              "note": "REVIEWER 전용(useUsers role=WORKER, /users). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 '미선택 안내' 섹션이 KPI/차트/표 대신 렌더된다.",
+              "note": "REVIEWER 전용(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 '미선택 안내' 섹션이 KPI/차트/표 대신 렌더된다.",
               "type": "Select",
               "label": "작업자 선택",
               "state": "default",
@@ -44,7 +44,7 @@
               "options": []
             }
           ],
-          "description": "역할별 헤더 — REVIEWER: 제목 '작업자 통계' + 우측 작업자 선택 select(useUsers role=WORKER size=100). WORKER: 제목 '나의 통계', select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.",
+          "description": "역할별 헤더 — REVIEWER: 제목 '작업자 통계' + 우측 작업자 선택 select(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER: 제목 '나의 통계', select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.",
           "references_apis": [
             "API-056",
             "API-001"
@@ -211,8 +211,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "8b6e96d8bbcf23329410fc00cd0df2e18a204bafe89b50fbf75b05af724cd9be",
-          "generated_at": "2026-08-15T00:01:09.101Z",
+          "source_hash": "d5b165f28e18de3b36f5580037b398b1de2aff6d4f522d0518962480d8bbf849",
+          "generated_at": "2026-08-16T12:43:59.925Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -224,12 +224,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 26,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.6KB)",
+    "current_version": 28,
+    "stale": true,
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.7KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T00:01:09.102Z",
+    "last_updated_at": "2026-08-16T12:43:59.925Z",
     "created_at": "2026-05-30T07:55:14.624Z"
   }
 }

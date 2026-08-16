@@ -119,7 +119,7 @@
               "custom_name": "Slider"
             },
             {
-              "note": "카드별 독립 폼이며 값이 하나라도 변경되어야(isDirty) 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.",
+              "note": "카드별 독립 폼이며 값이 하나라도 변경되어야 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.",
               "type": "Button",
               "label": "저장",
               "columns": [],
@@ -144,21 +144,24 @@
                 "색상",
                 "모자이크",
                 "블러"
-              ]
+              ],
+              "binds_to": "configs.kpst.deid.masking-type"
             },
             {
               "note": "실수. 감지 영역을 얼마나 넓게 덮을지",
               "type": "Custom",
               "label": "마스킹 범위 0.5~2.0",
               "columns": [],
-              "options": []
+              "options": [],
+              "binds_to": "configs.kpst.deid.masking-range"
             },
             {
               "note": "비식별 서버가 처리 프레임을 자기 DB 에 남길지",
               "type": "Custom",
               "label": "프레임 저장 여부",
               "columns": [],
-              "options": []
+              "options": [],
+              "binds_to": "configs.kpst.deid.db-save"
             },
             {
               "note": "연동 서버 주소 카드. 기본은 잠금 상태로 읽기 전용이다",
@@ -274,7 +277,7 @@
               "custom_name": "OverallStatusRow"
             }
           ],
-          "description": "useHealth() 로 GET /manage/health 를 5초 폴링(read-only). 컴포넌트별(DB/디스크/관제서버/포털서버/AI서버/비식별서버) 상태(UP/DOWN/OUT_OF_SERVICE)와 latencyMs 표시, 컴포넌트에 상세 URL 정보가 있으면 보조 텍스트로 함께 표시한다. 컴포넌트 목록이 비어 있으면 전체 상태 요약 1행으로 대체 표시한다. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.",
+          "description": "GET /manage/health 를 5초 폴링한다(read-only). 응답이 돌려주는 컴포넌트(비식별 서버/AI 추론 서버/데이터베이스)별 상태(UP/DOWN 등)를 표시한다. 목록은 응답이 돌려준 컴포넌트를 그대로 그리며 화면이 점검 대상 목록을 따로 갖지 않는다. 컴포넌트 목록이 비어 있으면 전체 상태 요약 1행으로 대체 표시한다. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.",
           "references_apis": [
             "API-090"
           ],
@@ -330,6 +333,7 @@
       ],
       "brownfield": {
         "status": "new",
+        "decided_by": "ADR-046",
         "change_kind": [
           "capability-add"
         ],
@@ -361,25 +365,29 @@
           "surface": "page",
           "sections": [],
           "description": "",
-          "source_hash": "09f6a665a9d5b495e817500d526b72a745ce74b812534b83c53defcf49357f2c",
-          "generated_at": "2026-08-13T00:54:55.630Z",
-          "generated_by": "sections-deterministic-generator",
+          "source_hash": "03fb758d93a7ad8e7a1cfcd6a2638e0d5b39c84333bfa6db46274c50f6cacfae",
+          "generated_at": "2026-08-16T12:44:00.707Z",
+          "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
       ],
       "uses_constants": [],
       "external_designs": [],
-      "realizes_use_cases": [],
+      "realizes_use_cases": [
+        "UC-031",
+        "UC-006",
+        "UC-013"
+      ],
       "covered_by_acceptances": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 24,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.2KB)",
+    "current_version": 30,
+    "stale": true,
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.3KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T00:54:55.630Z",
+    "last_updated_at": "2026-08-16T12:44:00.707Z",
     "created_at": "2026-05-30T07:55:42.105Z"
   }
 }

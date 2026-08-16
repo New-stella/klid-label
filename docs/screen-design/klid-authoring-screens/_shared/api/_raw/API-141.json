@@ -74,7 +74,7 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "2차 헬스체크 endpoint(HealthController) — 갭 대조로 신규 등록"
+        "diff_summary": "2차 신규 — 인증 없이 호출하는 경량 애플리케이션 상태 점검 채널"
       },
       "deprecated": false,
       "parameters": [],
@@ -93,12 +93,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "신규 등록 — 코드 실측(HealthController) 갭 대조 결과 MISSING(인프라) 항목. permitAll 헬스체크 endpoint.",
+    "change_summary": "요약에서 구현 클래스명과 등록 경위를 걷어내고 이 채널이 무엇인지만 남긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-07-30T07:03:27.605Z",
+    "last_updated_at": "2026-08-16T09:44:40.024Z",
     "created_at": "2026-07-30T07:03:27.605Z"
   }
 }

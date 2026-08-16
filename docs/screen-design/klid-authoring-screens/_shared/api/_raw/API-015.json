@@ -101,6 +101,10 @@
                     "format": "date-time",
                     "nullable": true,
                     "description": "제출일시 (updDt alias)"
+                  },
+                  "needsRecheck": {
+                    "type": "boolean",
+                    "description": "재검토 필요 여부(ERD-015 영상진행상태.재검토여부/REVLT_YN 매핑). 검수 승인(APPROVED) 이후 라벨·메타가 수정되어 검수자가 다시 승인해야 하는 상태이면 true, 그 외에는 false."
                   }
                 },
                 "description": "검수 반려 후 전이된 검수 단건 (IN_REVIEW → REJECTED). LS_DATA_ISSUE 이력 INSERT."
@@ -173,7 +177,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "반려 사유(reason) 누락 등 입력 검증 실패 (RejectRequest @Valid). ErrorCode=INVALID_INPUT",
+          "description": "반려 사유(reason) 누락 등 입력 검증 실패 (RejectRequest 검증). ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -335,17 +339,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 표기 손상 최종 정정 — 냙관적→낙관적 1건. 유니코드 이스케이프 유래 음절 오류(블록 시그니처·희귀음절·docs 정본 대조로 검출). 의미·정책 변경 없이 표기만 정정.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T01:59:46.498Z",
+    "last_updated_at": "2026-08-16T12:22:54.541Z",
     "created_at": "2026-05-30T06:58:37.447Z"
   }
 }

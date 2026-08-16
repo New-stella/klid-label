@@ -121,7 +121,7 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "base64 이미지 + clip_id + frame_index를 받아 트래킹된 detections를 반환한다. clip_id별로 트래커 인스턴스를 격리/캐시하며 frame_index=0이면 트래커를 리셋(새 인스턴스)한다. /predict와 동일 응답 구조이며 detections[*].track_id가 트래커 부여 ID다(저신뢰 detection은 null 가능). detector_backend에 따라 yolox/rtdetr로 dispatch하고, mock 조건 시 mock 응답을 반환한다. 저작도구 내부 stateless 추론, 인증 없음.",
+      "description": "base64 이미지 + clip_id + frame_index를 받아 트래킹된 detections를 반환한다. clip_id별로 트래커 인스턴스를 격리/캐시하며 frame_index=0이면 트래커를 리셋(새 인스턴스)한다. /predict와 동일 응답 구조이며 detections[*].track_id가 트래커 부여 ID다(저신뢰 detection은 null 가능). 탐지는 YOLOX(ONNX Runtime)이고 track_id 부여는 ByteTrack 이며, 설정으로 백엔드를 고르지 않는 단일 백엔드다. mock 조건 시 mock 응답을 반환한다. 저작도구 내부 stateless 추론, 인증 없음.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -184,17 +184,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "누락 API 등록 — ai-server YOLO 트래킹 추론(routers/yolo.py) 코드 기준 신규 등록. clip_id별 트래커 격리, frame_index=0이면 리셋. bare DTO 응답, 무인증",
+    "change_summary": "API-119(/infer/yolo/track) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). YOLO 온디맨드 추적을 수행하는 ai-server 추론 primitive 로 FEAT-001(AI 보조 라벨링)을 지지하므로 연결한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-07-07T07:34:07.410Z",
+    "last_updated_at": "2026-08-16T08:33:17.053Z",
     "created_at": "2026-07-07T07:34:07.410Z"
   }
 }

@@ -337,17 +337,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검수 승인 API 에 재승인 규정을 추가한다. 재검토 필요 표시(needsRecheck=true)가 선 이미 APPROVED 영상은 이 엔드포인트를 다시 호출해 승인할 수 있으며, 이때 ①상태 전이는 일어나지 않고(이미 APPROVED) ②재검토 필요 표시가 해제되며 ③축적된 변경분을 실어 산출 재생성·TASK_MODIFIED 통지가 그 시점에 일어난다(EVT-006). 표시가 서지 않은 채 이미 APPROVED 인 영상을 다시 승인 요청하면 기존과 동일하게 409 CONFLICT 로 거부된다 — 이 구분을 200/409 응답 설명에 명시했다. 응답 스키마에 needsRecheck(boolean) 필드를 추가했다(하위호환, 추가만). 최초 승인의 동작·응답·권한은 무변경이다.",
+    "change_summary": "API→FEAT 직접 링크(implements)가 전건 공란이었다. 이 엔드포인트가 실제로 구현하는 프로젝트 레벨 기능(FEAT-008)으로 채운다 — 이미 이 도메인의 DFEAT(DFEAT-021/024/025 등)가 specializes_feature 로 같은 FEAT 를 가리키고 있어 계층이 정합한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T17:17:41.562Z",
+    "last_updated_at": "2026-08-16T07:16:16.188Z",
     "created_at": "2026-05-30T06:58:31.347Z"
   }
 }

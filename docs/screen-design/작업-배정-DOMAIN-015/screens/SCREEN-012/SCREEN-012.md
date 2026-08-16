@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 34
-last_updated_at: 2026-08-14T23:56:31.580Z
+version: 39
+last_updated_at: 2026-08-16T09:56:01.951Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:03.360Z
-sync_session: 5
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:51:24.173Z
+sync_session: 6
+stale: true
+status: CHANGED
+prev_version: 34
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-136]]", "[[API-137]]", "[[API-116]]", "[[API-187]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
+  realizes_use_cases: ["[[UC-029]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v34 → v39**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
@@ -37,7 +42,7 @@ draft
 
 ## purpose
 
-본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면. 정렬은 시간축 단일 기준(컬럼 헤더 정렬만)이며, '지금 처리할 것'은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다르며 통일하지 않는다). 필터·집계는 BE 가 전체 데이터 기준으로 계산하며 현재 페이지 20건 안에서 재필터링하지 않는다(REVIEWER 한정, WORKER는 /v1/assignments 가 서버 필터를 지원하지 않아 클라이언트 필터 유지). 접근: REVIEWER/WORKER.
+본인에게 할당된(WORKER) 또는 처리 완료된 전체(REVIEWER) 영상 작업 목록을 조회하고 라벨링·마킹으로 진입하는 화면. 정렬은 시간축 단일 기준(컬럼 헤더 정렬만)이며, '지금 처리할 것'은 KPI 카드(REVIEWER 5장: 전체/미배정/작업중/검수요청/반려)와 이벤트유형 필터로 표현한다. 필터 축은 두 개로 분리 — 배치상태(status, 이 화면은 COMPLETED 고정)와 워크플로상태(workStatus, KPI 카드·select 공유). 미등록 정렬 키는 이 화면(/v1/tasks/board*)에서 strict 400(검수목록의 lenient 200 폴백과 의도적으로 다르며 통일하지 않는다). 필터·집계는 BE 가 전체 데이터 기준으로 계산하며 현재 페이지 20건 안에서 재필터링하지 않는다 — 필터 축(검색어·상태·이벤트유형)은 REVIEWER·WORKER 공통으로 서버가 전체 데이터 기준 처리한다. KPI 집계만 역할별로 갈린다: REVIEWER 는 별도 요약 API로 서버 집계하고, WORKER 는 그런 API가 없어 현재 로드된 페이지 데이터로 클라이언트 집계한다. 접근: REVIEWER/WORKER.
 
 ## sections
 
@@ -122,7 +127,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 역할별 분기 — 검수자는 서버 조회(API-137, 배치완료 전체 기준) 결과를 옵션으로 쓰고 서버 필터(eventTypeCd)로 위임한다. 작업자는 본인 배정 목록에서 옵션을 모아 현재 페이지 안에서만 거른다. ★표시명이 같은 유형코드들은 옵션 1건으로 접히며 값은 그룹 대표코드(그룹 내 최소 유형코드)다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
+- **note**: 역할별 분기 — 검수자는 서버 조회(API-137, 배치완료 전체 기준) 결과를 옵션으로 쓰고 서버 필터(eventTypeCd)로 위임한다. 작업자도 별도 서버 조회 결과를 옵션으로 쓰고 서버 필터(eventTypeCd)로 위임한다 — 본인 배정 전체 데이터 기준이며 현재 페이지 안에서 다시 거르지 않는다. ★표시명이 같은 유형코드들은 옵션 1건으로 접히며 값은 그룹 대표코드(그룹 내 최소 유형코드)다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
 - **type**: Select
 - **label**: 이벤트: 전체/동적 이벤트 유형
 
@@ -136,7 +141,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: 검수자에는 미배정 옵션이 추가되며, 현재 페이지 안에서만 거른다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
+- **note**: 검수자에게는 미배정 옵션이 추가된다. 상태 필터도 이벤트유형과 마찬가지로 역할 무관 서버 필터로 위임되며 현재 페이지 안에서 다시 거르지 않는다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
 - **type**: Select
 - **label**: 상태: 전체/미배정(REVIEWER)/대기/진행중/검수대기/완료/반려
 
@@ -218,7 +223,7 @@ _(empty)_
 
 **description**:
 
-검수자는 검색어·이벤트유형·작업자를 서버(작업 목록 조회 API)로 위임한다 — 현재 페이지 결과를 다시 거르지 않는다. ★4개 입력 모두 대기 상태를 거치며, '조회' 버튼 클릭(또는 Enter 제출) 시에만 실제 조회 조건으로 일괄 적용되어 서버 재조회가 일어난다 — 입력마다 즉시 재조회되지 않는다. KPI 카드 클릭만 이 대기 상태를 건너뛰고 즉시 적용된다. 배치 상태 축은 화면에 필터 UI 가 없고 완료 상태로 고정되어 있다(부제 문구와 한 몸). 워크플로 상태는 목록 select 로도 선택 가능하나 KPI 카드가 같은 축을 대표한다. 작업자는 워크플로 필터·정렬을 지원하지 않는 목록 조회만 쓰므로 검색어·상태·이벤트유형 모두 현재 페이지 안에서만 거른다. 이벤트유형 옵션 소스도 역할별로 다르다 — 검수자는 서버 조회, 작업자는 본인 배정 목록에서 수집.
+검수자는 검색어·이벤트유형·작업자를 서버(작업 목록 조회 API)로 위임한다 — 현재 페이지 결과를 다시 거르지 않는다. ★4개 입력 모두 대기 상태를 거치며, '조회' 버튼 클릭(또는 Enter 제출) 시에만 실제 조회 조건으로 일괄 적용되어 서버 재조회가 일어난다 — 입력마다 즉시 재조회되지 않는다. KPI 카드 클릭만 이 대기 상태를 건너뛰고 즉시 적용된다. 배치 상태 축은 화면에 필터 UI 가 없고 완료 상태로 고정되어 있다(부제 문구와 한 몸). 워크플로 상태는 목록 select 로도 선택 가능하나 KPI 카드가 같은 축을 대표한다. 작업자도 검색어·상태·이벤트유형 필터를 서버(작업 배정 목록 조회 API)로 위임한다 — 전체 데이터 기준이며 현재 페이지 안에서 다시 거르지 않는다. 이벤트유형 옵션 소스는 역할마다 별도 서버 엔드포인트를 쓴다 — 검수자·작업자 모두 서버 조회 결과를 옵션으로 받으며 현재 페이지에서 수집하지 않는다.
 
 ★이벤트유형은 '표시명 그룹' 축이다 — 같은 표시명의 유형코드들을 옵션 1건으로 접는다(대표코드=그룹 내 최소 유형코드). 필터 파라미터는 표시명이 아니라 이벤트 코드이며, 대표/비대표 어느 코드든 그룹 전체로 확장해 매칭한다(북마크 하위호환). 절단(옵션이 상한을 넘어 일부만 노출)은 접은 뒤 판정하며, 절단 시 필터 하단에 안내 문구가 노출된다. 미등록 코드도 자기 그룹으로 남긴다.
 
@@ -657,7 +662,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 배정/검수 워크플로 이벤트(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT) 6종과 개인정보 선언 변경·초기화 감사 이벤트(PRIVACY_META_UPDATE/PRIVACY_META_RESET) 2종, 총 8종을 조회한다(API-072). 이벤트별로 좌측 점 색상이 다르게 표시된다.
+- **note**: 배정/검수 워크플로 이벤트(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT) 6종과 개인정보 선언 변경·초기화 감사 이벤트(PRIVACY_META_UPDATE/PRIVACY_META_RESET) 2종, 총 8종을 조회한다(API-116). 이벤트별로 좌측 점 색상이 다르게 표시된다.
 - **type**: Timeline
 - **label**: 배정 이력
 
@@ -676,7 +681,7 @@ _(empty)_
 - PRIVACY_META_UPDATE
 - PRIVACY_META_RESET
 
-- **triggers_api**: API-072
+- **triggers_api**: API-116
 
 #### [3]
 
@@ -725,7 +730,7 @@ _(empty)_
 
 **references_apis**:
 
-- API-072
+- API-116
 
 **references_features**:
 
@@ -779,6 +784,20 @@ ADR-001
 ### diff_summary
 
 1차 프로젝트 단위 → 2차 영상 단위 작업 목록
+
+### legacy_source
+
+#### type
+
+screen
+
+#### identifier
+
+SKKLID-UI-03-02-14
+
+#### legacy_artifact_id
+
+LEGACY-112
 
 ## surface_kind
 
@@ -838,8 +857,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 94af57fa1726e38dcf6f184fc6397525bd9eb99d486d5ea680dfd379d4db671c
-- **generated_at**: 2026-08-14T23:56:31.580Z
+- **source_hash**: bfc81b8d69603af0dc03456ad6c296a3ba7953d96686033d761e04458ce5d0b4
+- **generated_at**: 2026-08-16T09:56:01.950Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
@@ -856,7 +875,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-029
 
 ## covered_by_acceptances
 

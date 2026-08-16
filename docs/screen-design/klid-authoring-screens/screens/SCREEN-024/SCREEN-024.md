@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-024
 type: screen_spec
-version: 20
-last_updated_at: 2026-08-13T01:02:41.725Z
+version: 22
+last_updated_at: 2026-08-16T10:10:51.603Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.681Z
-sync_session: 12
+synced_at: 2026-08-16T12:52:08.638Z
+sync_session: 13
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 20
 raw: ./_raw/SCREEN-024.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-001]]", "[[API-004]]", "[[API-003]]"]
+  consumes_apis: ["[[API-001]]", "[[API-004]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-030]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v20 → v22**
+> change_summary: consumes_apis 에 사용자 단건 조회가 남아 있었으나 이 화면의 어느 섹션도 그것을 쓰지 않는다 — 수정 모달은 테이블 행 데이터로 열리며 별도 단건 조회를 하지 않는다고 이미 명시돼 있다. 실제 소비는 목록 조회와 역할 수정 둘뿐이라 잔재 링크를 걷어낸다. 사용자 단건 조회 자체는 계약으로 남으며, 이 화면이 소비자가 아닐 뿐이다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 사용자 관리 화면
 
@@ -381,7 +386,6 @@ web
 
 - API-001
 - API-004
-- API-003
 
 ## implementation
 
@@ -447,7 +451,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-030
 
 ## covered_by_acceptances
 

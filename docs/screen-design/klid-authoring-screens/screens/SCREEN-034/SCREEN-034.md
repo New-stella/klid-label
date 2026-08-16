@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-034
 type: screen_spec
-version: 13
-last_updated_at: 2026-08-13T01:02:44.258Z
+version: 15
+last_updated_at: 2026-08-16T09:35:10.935Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.694Z
-sync_session: 12
+synced_at: 2026-08-16T12:52:08.652Z
+sync_session: 13
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 13
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v13 → v15**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (8.1KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 라벨링 화면
 
@@ -249,7 +253,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: CanvasShell을 portalMode로 조립. 컨테이너 크기 측정(ResizeObserver 미의존) 후 프레임 이미지(GET /portal/uploads/frames/{uldFrmeSn}/image 추정) + 프레임 라벨(GET .../labels)을 로드해 캔버스에 표시. 이미지 blob 로딩 중 중앙 스피너 오버레이.
+- **description**: CanvasShell을 portalMode로 조립. 컨테이너 크기 측정(ResizeObserver 미의존) 후 프레임 이미지(GET /portal/uploads/frames/{uldFrmeSn}/image = API-149) + 프레임 라벨(GET .../labels)을 로드해 캔버스에 표시. 이미지 blob 로딩 중 중앙 스피너 오버레이.
 
 **references_apis**:
 
@@ -407,14 +411,15 @@ _(empty)_
 - **label**: 포털 업로드 라벨링 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 5bdb668fab18ee11c2fbe65013450545e82c9b5d8b21043515cbcd52efb97e62
-- **generated_at**: 2026-08-13T01:02:44.258Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 97addd9a7cc825c2e07caca17450573b083200addbe30b327559d6b01970995a
+- **generated_at**: 2026-08-16T09:35:10.934Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

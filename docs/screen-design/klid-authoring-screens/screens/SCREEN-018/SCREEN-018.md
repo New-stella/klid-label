@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-018
 type: screen_spec
-version: 23
-last_updated_at: 2026-08-13T01:02:39.923Z
+version: 24
+last_updated_at: 2026-08-16T07:16:42.940Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.669Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.631Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 23
 raw: ./_raw/SCREEN-018.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-008]]", "[[API-138]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-023]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v23 → v24**
+> change_summary: realizes_use_cases 가 공란이었다. 이 화면(검수 목록, consumes_apis=API-008/API-138)은 UC-023(검수 승인·반려) 플로우의 진입점(REVIEWER 가 검수 대상을 찾아 상세로 진입)이라 UC-023 을 realizes 한다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 목록 화면
 
@@ -462,7 +467,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-023
 
 ## covered_by_acceptances
 

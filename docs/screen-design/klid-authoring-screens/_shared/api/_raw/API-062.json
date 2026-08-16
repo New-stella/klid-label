@@ -72,7 +72,7 @@
                   },
                   "augProcSttsCd": {
                     "type": "string",
-                    "description": "검수 상태 코드 (승인 후 ACCEPTED)"
+                    "description": "검수 결정 상태 코드 — 채택 후 ACCEPTED. 키 이름은 기존 계약을 보존하려고 그대로 두었으나 값이 오는 곳은 검수 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)이며, 생성 결과 축(AUG_PROC_STTS_CD)은 이 요청으로 바뀌지 않는다."
                   },
                   "decisionUserNo": {
                     "type": "string",
@@ -115,6 +115,38 @@
             "errorCode": null
           },
           "description": "승인 성공. data 에 갱신된 AugmentSummaryResponse.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "해상도 파생 결과는 검수 대상이 아닙니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "해상도 파생 결과를 대상으로 채택을 시도. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -220,7 +252,7 @@
         "change_kind": [
           "redesign"
         ],
-        "diff_summary": "증강 수락 → 새 영상 생성(FEAT-004)"
+        "diff_summary": "증강 채택 = 검수 결정 기록(FEAT-004). 새 영상 생성은 증강 결과 콜백이 담당한다"
       },
       "deprecated": false,
       "parameters": [
@@ -234,7 +266,7 @@
           "description": "증강 식별자"
         }
       ],
-      "description": "증강 결과를 수락해 새 영상(RAW_SN)으로 생성한다. REVIEWER 전용.",
+      "description": "증강 결과를 채택한다. 검수 결정을 검수 축에 기록할 뿐 새 영상을 만들지 않는다 — 파생 영상은 증강 결과 콜백을 받은 시점에 이미 생성돼 있다. 채택되면 그 파생 영상이 작업목록·배정 등재 게이트를 통과한다. REVIEWER 전용.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -251,12 +283,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "D007-POL-012: 해상도 파생은 검수 대상이 아니라 채택 시도가 400 으로 거부되는데 응답 목록에 400 자체가 없었다. 형제 취소 엔드포인트와 같은 형식으로 추가한다. 기존 응답(200/401/403/404)은 변경 없음.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:36:59.287Z",
+    "last_updated_at": "2026-08-16T09:37:20.646Z",
     "created_at": "2026-05-30T07:25:41.827Z"
   }
 }

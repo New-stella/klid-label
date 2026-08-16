@@ -160,17 +160,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-009"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 구간에서 거부하는 412 를 신설했다. 같은 리소스의 저장 경로가 이 구간에 막히는데 승인 경로만 열려 있으면 차단이 우회된다 — 신고 구간은 비식별 결과가 잘못됐다고 알려진 구간이라, 그 위에서 내린 승인 판정이 신고 해소 뒤 그대로 확정돼 외부로 나간다. 기존 응답은 그대로 두고 412 만 추가했다.",
+    "change_summary": "D010 P1(D010-LINK-004): implements_features 공란 → FEAT-009(VLM 시계열 메타 검토·수정). 근거: DFEAT-050(specializes_feature=FEAT-009)이 이 API 를 구현체로 지목(implemented_by_endpoints).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T10:52:52.809Z",
+    "last_updated_at": "2026-08-16T07:22:06.995Z",
     "created_at": "2026-07-24T01:29:57.529Z"
   }
 }

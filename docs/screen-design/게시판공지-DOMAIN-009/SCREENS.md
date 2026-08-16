@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-15T14:28:04.403Z (session 4) |
+| last sync | 2026-08-16T12:51:47.715Z (session 5) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/게시판공지-DOMAIN-009 |
@@ -18,10 +18,10 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]], [[API-097]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-099]], [[API-100]], [[API-101]], [[API-106]], [[API-107]], [[API-108]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-036]] | 공지 작성 화면 | UNCHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
-| [[SCREEN-037]] | 공지 수정 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
+| [[SCREEN-030]] | 공지 목록 화면 | CHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-031]] | 공지 상세 화면 | CHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-036]] | 공지 작성 화면 | CHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
+| [[SCREEN-037]] | 공지 수정 화면 | CHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -58,8 +58,22 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[ROLE-001]] | permission_role | CHANGED (v7→v8) |
-| [[ROLE-002]] | permission_role | CHANGED (v5→v6) |
+| [[API-095]] | api_endpoint | CHANGED (v3→v6) |
+| [[API-096]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-097]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-098]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-099]] | api_endpoint | CHANGED (v3→v6) |
+| [[API-100]] | api_endpoint | CHANGED (v4→v8) |
+| [[API-101]] | api_endpoint | CHANGED (v4→v8) |
+| [[API-106]] | api_endpoint | CHANGED (v6→v9) |
+| [[API-107]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-108]] | api_endpoint | CHANGED (v3→v6) |
+| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
+| [[SD-011]] | screen_design | CHANGED (v4→v6) |
+| [[SCREEN-030]] | screen_spec | CHANGED (v20→v23) |
+| [[SCREEN-031]] | screen_spec | CHANGED (v22→v29) |
+| [[SCREEN-036]] | screen_spec | CHANGED (v7→v8) |
+| [[SCREEN-037]] | screen_spec | CHANGED (v7→v8) |
 
 ## Obsidian 볼트로 보기
 

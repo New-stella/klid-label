@@ -250,7 +250,7 @@
         "change_kind": [
           "add"
         ],
-        "diff_summary": "ADR-013 예외 — 포털 업로드 자산 상세 조회 신설(V107, PortalUploadController#getUpload)"
+        "diff_summary": "ADR-013 예외 — 포털 업로드 자산 상세 조회 신설"
       },
       "deprecated": false,
       "parameters": [
@@ -266,7 +266,7 @@
           "description": "조회할 업로드 자산 식별자(PK)"
         }
       ],
-      "description": "PORTAL_USER 본인 업로드 자산 1건의 상세 정보와 프레임 요약 목록을 조회한다. 소유자 스코프 리포지토리로만 조회하며(IDOR/CWE-639 차단) 타 사용자 자산이거나 부재 시 403(자원 열거 방지 — 404 대신 403 통일).",
+      "description": "PORTAL_USER 본인 업로드 자산 1건의 상세 정보와 프레임 요약 목록을 조회한다. 소유자 스코프로만 조회하며(IDOR/CWE-639 차단) 타 사용자 자산이거나 부재 시 403(자원 열거 방지 — 404 대신 403 통일).",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -281,12 +281,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "코드 실측 신규 등록 — PortalUploadController#getUpload (포털 업로드 자산 상세+프레임 요약)",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-07-30T07:02:07.913Z",
+    "last_updated_at": "2026-08-16T12:23:12.916Z",
     "created_at": "2026-07-30T07:02:07.913Z"
   }
 }

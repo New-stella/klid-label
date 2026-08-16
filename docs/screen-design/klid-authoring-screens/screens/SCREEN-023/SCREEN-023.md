@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-023
 type: screen_spec
-version: 35
-last_updated_at: 2026-08-14T23:44:28.985Z
+version: 39
+last_updated_at: 2026-08-16T09:41:35.447Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.680Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.637Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 35
 raw: ./_raw/SCREEN-023.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-188]]", "[[API-189]]", "[[API-190]]", "[[API-175]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-002]]", "[[UC-010]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v35 → v39**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (20.8KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 증강 결과 화면
 
@@ -105,7 +110,7 @@ _(empty)_
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ### 잡 상태 배너 / 결과 지표
 
@@ -214,7 +219,7 @@ _(empty)_
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ### 작업 요약 카드
 
@@ -247,7 +252,7 @@ _(empty)_
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ### 영상별 결과 섹션
 
@@ -271,7 +276,9 @@ _(empty)_
 - WINTER
 - NIGHT
 - RAIN
-- RESOLUTION
+- RESL_1080P
+- RESL_720P
+- RESL_480P
 
 #### [2]
 
@@ -364,7 +371,7 @@ _(empty)_
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ### 결과 항목 진행 상태 · 취소
 
@@ -458,11 +465,12 @@ _(empty)_
 
 **references_apis**:
 
-_(empty)_
+- API-188
+- API-189
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ### 활용 결정 카드(DecisionCard)
 
@@ -585,10 +593,11 @@ _(empty)_
 
 - API-062
 - API-063
+- API-190
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ### 로딩 / 에러 / 잘못된 영상 번호
 
@@ -633,7 +642,7 @@ _(empty)_
 
 **references_features**:
 
-_(empty)_
+- FEAT-004
 
 ## brownfield
 
@@ -707,8 +716,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: b6378cba1eef487d108c876574759581bbda1fa6b31b9136d02efab139325ba7
-- **generated_at**: 2026-08-14T23:44:28.985Z
+- **description**: 
+- **source_hash**: 7c3a7fbf2ddb7c7e9a5c48e37f9e1e36942227d3f05410abf11e2e1a24d06611
+- **generated_at**: 2026-08-16T09:41:35.446Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -725,7 +735,8 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-002
+- UC-010
 
 ## covered_by_acceptances
 

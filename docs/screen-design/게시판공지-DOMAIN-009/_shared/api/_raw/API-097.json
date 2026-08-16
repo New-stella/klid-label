@@ -65,8 +65,8 @@
                   "mdfcnDt": {
                     "type": "string",
                     "format": "date-time",
-                    "nullable": true,
-                    "description": "최종 수정 일시 (생성 직후 null)"
+                    "nullable": false,
+                    "description": "최종 수정 일시 — NOT NULL. 생성 시점에 등록일시(regDt)와 동일 값으로 채워진다(미수정 상태에서도 null 이 아니다)."
                   },
                   "pubStatus": {
                     "enum": [
@@ -75,6 +75,11 @@
                     ],
                     "type": "string",
                     "description": "발행 상태 (생성 직후 DRAFT)"
+                  },
+                  "writerName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "작성자 표시명(LS_ACNT_USER.USER_NM). REG_ID 가 없거나 숫자가 아니거나 사용자 마스터에 없으면(탈퇴·계정 삭제) null — 화면은 null 이면 regId 로 폴백한다."
                   },
                   "attachments": {
                     "type": "array",
@@ -111,8 +116,9 @@
               "title": "신규 공지",
               "pinned": false,
               "content": "본문 내용",
-              "mdfcnDt": null,
+              "mdfcnDt": "2026-06-15T10:00:00",
               "pubStatus": "DRAFT",
+              "writerName": "검수자01",
               "attachments": []
             },
             "message": null,
@@ -151,7 +157,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "제목/본문 누락 등 @Valid 검증 실패. ErrorCode=INVALID_INPUT",
+          "description": "제목/본문 누락 등 검증 실패. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -215,13 +221,13 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 외 역할(WORKER/PORTAL_USER) 접근. @PreAuthorize hasRole('REVIEWER'). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 외 역할(WORKER/PORTAL_USER) 접근. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         }
       },
       "brownfield": {
-        "notes": "커밋 9ca1d33",
         "status": "new",
+        "decided_by": "ADR-014",
         "change_kind": [
           "feature-add"
         ],
@@ -229,32 +235,28 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "REVIEWER 전용 게시글 작성. 생성 시 PUB_STTS_CD='DRAFT'. 첨부파일은 UUID 기반 안전 파일명으로 저장하고 원본 파일명은 DB 보관. 응답 201 + ApiResponse<NoticeResponse>.",
+      "description": "REVIEWER 전용 게시글 작성. 생성 시 PBLCN_STTS_CD='DRAFT'. 첨부파일은 UUID 기반 안전 파일명으로 저장하고 원본 파일명은 DB 보관. 응답 201 + ApiResponse<NoticeResponse>.",
       "request_body": {
         "schema": {
           "type": "object",
           "required": [
-            "noticeTitle",
-            "noticeCn"
+            "title",
+            "content"
           ],
           "properties": {
-            "pinYn": {
-              "enum": [
-                "Y",
-                "N"
-              ],
-              "type": "string",
-              "default": "N",
-              "description": "상단 고정 여부"
-            },
-            "noticeCn": {
-              "type": "string",
-              "description": "게시글 본문 (텍스트)"
-            },
-            "noticeTitle": {
+            "title": {
               "type": "string",
               "maxLength": 200,
-              "description": "게시글 제목"
+              "description": "게시글 제목 — 공백만 입력하면 거부된다."
+            },
+            "pinned": {
+              "type": "boolean",
+              "default": false,
+              "description": "상단 고정 여부. 생략하면 고정하지 않는다."
+            },
+            "content": {
+              "type": "string",
+              "description": "게시글 본문 (텍스트) — 공백만 입력하면 거부된다."
             }
           }
         },
@@ -269,17 +271,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — 201 ApiResponse<NoticeResponse>(DRAFT 생성, 첨부 빈 배열) schema + 400/401/403 에러 응답 + example (NoticeController.create / NoticeResponse.from(saved) 코드 기준)",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:03:11.643Z",
+    "last_updated_at": "2026-08-16T12:23:04.726Z",
     "created_at": "2026-06-05T04:56:50.086Z"
   }
 }

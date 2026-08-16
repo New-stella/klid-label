@@ -109,7 +109,7 @@
                         "dataSttsCd": {
                           "type": "string",
                           "nullable": true,
-                          "description": "데이터 상태 코드 (PENDING/BATCH_PROCESSING/BATCH_COMPLETED/BATCH_FAILED 등)"
+                          "description": "데이터 상태 코드 (PENDING/MARKING_READY/PROCESSING/COMPLETED/FAILED 등)"
                         },
                         "evntTypeCd": {
                           "type": "string",
@@ -200,7 +200,7 @@
                   "rawSn": 1,
                   "regDt": "2026-01-15T09:30:00",
                   "prvcYn": "Y",
-                  "status": "BATCH_COMPLETED",
+                  "status": "COMPLETED",
                   "cctvName": "종로구 CCTV-01",
                   "localGov": "서울 종로구",
                   "eventName": "FALL",
@@ -208,7 +208,7 @@
                   "vmsCctvId": "CCTV-01",
                   "vmsClipId": "CLIP-001",
                   "capturedAt": "2026-01-15T09:30:00",
-                  "dataSttsCd": "BATCH_COMPLETED",
+                  "dataSttsCd": "COMPLETED",
                   "evntTypeCd": "FALL",
                   "exportedAt": null,
                   "frameCount": 120,
@@ -288,12 +288,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "권한을 명시한다. 내부 채널의 검수자·작업자만 호출할 수 있으며 영상 단위 접근 범위는 별도 가드가 좁힌다.",
+    "change_summary": "dataSttsCd 설명과 예시가 실재하지 않는 값(BATCH_PROCESSING/BATCH_COMPLETED/BATCH_FAILED)을 공표하고 있었다. 실제 LsDataRaw 배치 단계 값 집합(PENDING/MARKING_READY/PROCESSING/COMPLETED/FAILED)으로 정정하고, 마킹 화면이 필수로 참조하는 MARKING_READY 를 포함시킨다. path/method/응답 필드명/타입은 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:54:59.009Z",
+    "last_updated_at": "2026-08-16T00:07:39.668Z",
     "created_at": "2026-05-30T07:22:44.356Z"
   }
 }

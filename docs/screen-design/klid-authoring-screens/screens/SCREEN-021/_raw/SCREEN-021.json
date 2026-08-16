@@ -26,7 +26,7 @@
               "options": []
             },
             {
-              "note": "data-testid=download-report-btn, loading 상태 지원",
+              "note": "다운로드 중 로딩 상태 표시",
               "type": "Button",
               "label": "리포트 다운로드",
               "columns": [],
@@ -35,7 +35,7 @@
               "triggers_api": "API-058"
             }
           ],
-          "description": "'전체 구축 현황' 제목과 우측 '리포트 다운로드' 버튼. 버튼 클릭 시 downloadReport('MONTH') 호출 → CSV blob 을 받아 a[download] 로 저장(파일명은 고정 prefix+ISO 날짜, 사용자 입력 미반영). 다운 중 loading, 완료/실패 시 토스트.",
+          "description": "'전체 구축 현황' 제목과 우측 '리포트 다운로드' 버튼. 버튼 클릭 시 period=MONTH 고정값으로 리포트를 요청해 CSV 파일로 저장한다(파일명은 고정 prefix+ISO 날짜, 사용자 입력 미반영). 다운로드 중 로딩 상태 표시, 완료/실패 시 토스트.",
           "references_apis": [
             "API-058"
           ],
@@ -118,7 +118,7 @@
               "custom_name": "ProcessingStackBar"
             }
           ],
-          "description": "카드 1개로 구성 — 헤더에 '처리현황' 제목과 우측 '전체 N건' 텍스트, 본문에 가로 스택형 진행바(완료/처리중/대기/실패 4구간, 폭=비율) + 하단 4항목 범례 리스트(각 항목 색상점+라벨+건수+비율%). 개별 카드 5개·grid-cols-5 레이아웃이 아니다.",
+          "description": "카드 1개로 구성 — 헤더에 '처리현황' 제목과 우측 '전체 N건' 텍스트, 본문에 가로 스택형 진행바(완료/처리중/대기/실패 4구간, 폭=비율) + 하단 4항목 범례 리스트(각 항목 색상점+라벨+건수+비율%). 개별 카드 5개로 나눠 표시하지 않는다.",
           "references_apis": [
             "API-057"
           ],
@@ -130,7 +130,7 @@
           "layout": "dashboard",
           "components": [
             {
-              "note": "SimpleBarChart (recharts BarChart)",
+              "note": "막대 차트",
               "type": "Chart",
               "label": "일별 전체 작업량 (최근 30일)",
               "columns": [],
@@ -138,7 +138,7 @@
               "binds_to": "overall.dailyCounts"
             }
           ],
-          "description": "최근 30일 일별 작업량 막대차트(SimpleBarChart, recharts). dailyCounts[].date/count 매핑. data-testid=daily-trend-chart, xAxisInterval=5.",
+          "description": "최근 30일 일별 작업량 막대차트. dailyCounts[].date/count 매핑. X축 눈금은 5일 간격으로 표시한다.",
           "references_apis": [
             "API-057"
           ],
@@ -150,14 +150,14 @@
           "layout": "dashboard",
           "components": [
             {
-              "note": "SimplePieChart (recharts PieChart) + 범례. 검수완료 기준(approvedEventDistribution).",
+              "note": "파이 차트 + 범례. 검수완료 기준(approvedEventDistribution).",
               "type": "Chart",
               "label": "이벤트 분포 파이차트",
               "columns": [],
               "options": []
             },
             {
-              "note": "data-testid=event-distribution-grid. 고정 6종이 아니라 서버가 내려주는 카테고리 전체(count 0 포함)를 categoryKey 오름차순으로 순회 렌더 — 개수 가변. 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다.",
+              "note": "고정 6종이 아니라 서버가 내려주는 카테고리 전체(count 0 포함)를 categoryKey 오름차순으로 순회 렌더 — 개수 가변. 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다.",
               "type": "List",
               "label": "이벤트 분포 가로 리스트 (개수 가변)",
               "columns": [],
@@ -165,7 +165,7 @@
               "binds_to": "overall.eventDistribution"
             }
           ],
-          "description": "검수완료 기준(approvedEventDistribution) 이벤트 유형 분포. 좌측 SimplePieChart + 범례, 우측 라벨+건수 가로 리스트(개수 가변 — 서버가 수집 대상 카테고리를 count 0 포함해 전부 반환하므로 그대로 렌더). eventDistribution 을 code별 count 로 매핑.",
+          "description": "검수완료 기준(approvedEventDistribution) 이벤트 유형 분포. 좌측 파이 차트 + 범례, 우측 라벨+건수 가로 리스트(개수 가변 — 서버가 수집 대상 카테고리를 count 0 포함해 전부 반환하므로 그대로 렌더). eventDistribution 을 code별 count 로 매핑.",
           "references_apis": [
             "API-057"
           ],
@@ -177,7 +177,7 @@
           "layout": "list",
           "components": [
             {
-              "note": "data-testid=worker-stats-table, 헤더 클릭 정렬",
+              "note": "헤더 클릭으로 정렬",
               "type": "Table",
               "label": "작업자별 현황",
               "columns": [
@@ -247,9 +247,9 @@
           "surface": "page",
           "sections": [],
           "description": "",
-          "source_hash": "ea66b479f1416730474e19688b3527f8edf1c16d4a17e47bb1a496d3087ccf7e",
-          "generated_at": "2026-08-14T23:56:31.650Z",
-          "generated_by": "sections-deterministic-generator",
+          "source_hash": "6cb8412e19d1ecb58d60d05f11aacd0ce638cbdf9ea19a4795e3930a3a38e555",
+          "generated_at": "2026-08-16T12:44:00.316Z",
+          "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
       ],
@@ -260,12 +260,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 23,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.2KB)",
+    "current_version": 25,
+    "stale": true,
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.8KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T23:56:31.650Z",
+    "last_updated_at": "2026-08-16T12:44:00.316Z",
     "created_at": "2026-05-30T07:55:19.594Z"
   }
 }

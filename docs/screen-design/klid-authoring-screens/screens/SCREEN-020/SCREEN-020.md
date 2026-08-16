@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-020
 type: screen_spec
-version: 26
-last_updated_at: 2026-08-15T00:01:09.102Z
+version: 28
+last_updated_at: 2026-08-16T12:43:59.925Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.674Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.633Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 26
 raw: ./_raw/SCREEN-020.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-001]]", "[[API-056]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v26 → v28**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.7KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업자 통계 화면
 
@@ -81,7 +85,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: REVIEWER 전용(useUsers role=WORKER, /users). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 '미선택 안내' 섹션이 KPI/차트/표 대신 렌더된다.
+- **note**: REVIEWER 전용(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 '미선택 안내' 섹션이 KPI/차트/표 대신 렌더된다.
 - **type**: Select
 - **label**: 작업자 선택
 - **state**: default
@@ -94,7 +98,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 역할별 헤더 — REVIEWER: 제목 '작업자 통계' + 우측 작업자 선택 select(useUsers role=WORKER size=100). WORKER: 제목 '나의 통계', select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.
+- **description**: 역할별 헤더 — REVIEWER: 제목 '작업자 통계' + 우측 작업자 선택 select(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER: 제목 '나의 통계', select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.
 
 **references_apis**:
 
@@ -398,8 +402,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 8b6e96d8bbcf23329410fc00cd0df2e18a204bafe89b50fbf75b05af724cd9be
-- **generated_at**: 2026-08-15T00:01:09.101Z
+- **source_hash**: d5b165f28e18de3b36f5580037b398b1de2aff6d4f522d0518962480d8bbf849
+- **generated_at**: 2026-08-16T12:43:59.925Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

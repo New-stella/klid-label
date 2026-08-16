@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 24
-last_updated_at: 2026-08-13T00:54:55.630Z
+version: 30
+last_updated_at: 2026-08-16T12:44:00.707Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.682Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.639Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 24
 raw: ./_raw/SCREEN-025.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-194]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-031]]", "[[UC-006]]", "[[UC-013]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v24 → v30**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.3KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 시스템 설정 화면
 
@@ -243,7 +248,7 @@ _(empty)_
 
 #### [11]
 
-- **note**: 카드별 독립 폼이며 값이 하나라도 변경되어야(isDirty) 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.
+- **note**: 카드별 독립 폼이며 값이 하나라도 변경되어야 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.
 - **type**: Button
 - **label**: 저장
 
@@ -290,6 +295,8 @@ _(empty)_
 - 모자이크
 - 블러
 
+- **binds_to**: configs.kpst.deid.masking-type
+
 #### [14]
 
 - **note**: 실수. 감지 영역을 얼마나 넓게 덮을지
@@ -304,6 +311,8 @@ _(empty)_
 
 _(empty)_
 
+- **binds_to**: configs.kpst.deid.masking-range
+
 #### [15]
 
 - **note**: 비식별 서버가 처리 프레임을 자기 DB 에 남길지
@@ -317,6 +326,8 @@ _(empty)_
 **options**:
 
 _(empty)_
+
+- **binds_to**: configs.kpst.deid.db-save
 
 #### [16]
 
@@ -529,7 +540,7 @@ _(empty)_
 
 - **custom_name**: OverallStatusRow
 
-- **description**: useHealth() 로 GET /manage/health 를 5초 폴링(read-only). 컴포넌트별(DB/디스크/관제서버/포털서버/AI서버/비식별서버) 상태(UP/DOWN/OUT_OF_SERVICE)와 latencyMs 표시, 컴포넌트에 상세 URL 정보가 있으면 보조 텍스트로 함께 표시한다. 컴포넌트 목록이 비어 있으면 전체 상태 요약 1행으로 대체 표시한다. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.
+- **description**: GET /manage/health 를 5초 폴링한다(read-only). 응답이 돌려주는 컴포넌트(비식별 서버/AI 추론 서버/데이터베이스)별 상태(UP/DOWN 등)를 표시한다. 목록은 응답이 돌려준 컴포넌트를 그대로 그리며 화면이 점검 대상 목록을 따로 갖지 않는다. 컴포넌트 목록이 비어 있으면 전체 상태 요약 1행으로 대체 표시한다. 상태별 색상 배지(정상/연결 끊김/서비스 중단). 편집 불가, actuator/health 실시간 조회 안내 문구.
 
 **references_apis**:
 
@@ -637,6 +648,10 @@ _(empty)_
 
 new
 
+### decided_by
+
+ADR-046
+
 ### change_kind
 
 - capability-add
@@ -696,9 +711,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 09f6a665a9d5b495e817500d526b72a745ce74b812534b83c53defcf49357f2c
-- **generated_at**: 2026-08-13T00:54:55.630Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 03fb758d93a7ad8e7a1cfcd6a2638e0d5b39c84333bfa6db46274c50f6cacfae
+- **generated_at**: 2026-08-16T12:44:00.707Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -714,7 +729,9 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-031
+- UC-006
+- UC-013
 
 ## covered_by_acceptances
 

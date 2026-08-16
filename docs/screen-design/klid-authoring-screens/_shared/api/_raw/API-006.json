@@ -54,7 +54,7 @@
                   },
                   "channel": {
                     "enum": [
-                      "CONTROL",
+                      "INTERNAL",
                       "PORTAL"
                     ],
                     "type": "string",
@@ -85,13 +85,13 @@
               "name": "홍길동",
               "role": "WORKER",
               "userId": "worker01",
-              "channel": "CONTROL"
+              "channel": "INTERNAL"
             },
             "message": null,
             "success": true,
             "errorCode": null
           },
-          "description": "조회 성공. JWT 클레임에서 sub/role/channel 을 추출해 MeResponse 로 반환.",
+          "description": "조회 성공. JWT 클레임에서 sub/role/channel 을 추출해 응답 데이터로 반환.",
           "content_type": "application/json"
         },
         "401": {
@@ -123,7 +123,7 @@
             "success": false,
             "errorCode": "UNAUTHORIZED"
           },
-          "description": "토큰 없음/만료/검증 실패 (TokenClaims principal 아님). ErrorCode=UNAUTHORIZED",
+          "description": "토큰 없음/만료/검증 실패 (인증 주체가 확인되지 않음). ErrorCode=UNAUTHORIZED",
           "content_type": "application/json"
         }
       },
@@ -148,12 +148,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 필드 설명에서 내부 구현 클래스명을 걷어내고 값의 출처를 역할로 서술한다. 이 저장소를 모르는 사람에게는 클래스명이 아무 정보도 주지 않는다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:44:57.045Z",
+    "last_updated_at": "2026-08-16T12:22:53.645Z",
     "created_at": "2026-05-30T06:56:53.578Z"
   }
 }

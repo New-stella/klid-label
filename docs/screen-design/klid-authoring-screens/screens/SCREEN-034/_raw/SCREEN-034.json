@@ -118,7 +118,7 @@
               "options": []
             }
           ],
-          "description": "CanvasShell을 portalMode로 조립. 컨테이너 크기 측정(ResizeObserver 미의존) 후 프레임 이미지(GET /portal/uploads/frames/{uldFrmeSn}/image 추정) + 프레임 라벨(GET .../labels)을 로드해 캔버스에 표시. 이미지 blob 로딩 중 중앙 스피너 오버레이.",
+          "description": "CanvasShell을 portalMode로 조립. 컨테이너 크기 측정(ResizeObserver 미의존) 후 프레임 이미지(GET /portal/uploads/frames/{uldFrmeSn}/image = API-149) + 프레임 라벨(GET .../labels)을 로드해 캔버스에 표시. 이미지 blob 로딩 중 중앙 스피너 오버레이.",
           "references_apis": [],
           "references_features": []
         },
@@ -199,10 +199,11 @@
           "label": "포털 업로드 라벨링 화면 — 와이어프레임",
           "width": 1440,
           "surface": "page",
+          "platform": "web",
           "sections": [],
-          "source_hash": "5bdb668fab18ee11c2fbe65013450545e82c9b5d8b21043515cbcd52efb97e62",
-          "generated_at": "2026-08-13T01:02:44.258Z",
-          "generated_by": "sections-deterministic-generator",
+          "source_hash": "97addd9a7cc825c2e07caca17450573b083200addbe30b327559d6b01970995a",
+          "generated_at": "2026-08-16T09:35:10.934Z",
+          "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
       ],
@@ -215,12 +216,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 15,
     "stale": false,
     "stale_reason": null,
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (8.1KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T01:02:44.258Z",
+    "last_updated_at": "2026-08-16T09:35:10.935Z",
     "created_at": "2026-07-30T07:11:22.693Z"
   }
 }

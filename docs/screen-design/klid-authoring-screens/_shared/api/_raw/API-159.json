@@ -137,7 +137,7 @@
         "change_kind": [
           "add"
         ],
-        "diff_summary": "ADR-013 예외 — 포털 업로드 원본 파일 다운로드 신설(Phase 4, PortalUploadLabelController#downloadFile)"
+        "diff_summary": "ADR-013 예외 — 포털 업로드 원본 파일 다운로드 신설"
       },
       "deprecated": false,
       "parameters": [
@@ -168,12 +168,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 표기 손상 정정 — 인젠션→인젝션 1건. 유니코드 이스케이프 유래 음절 오류로 추정되며 의미·정책 변경 없음(표기만 정정).",
+    "change_summary": "변경요약에서 내부 회차·구현 심볼 표기를 걷어낸다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T01:09:08.991Z",
+    "last_updated_at": "2026-08-16T09:32:12.806Z",
     "created_at": "2026-07-30T07:07:54.970Z"
   }
 }

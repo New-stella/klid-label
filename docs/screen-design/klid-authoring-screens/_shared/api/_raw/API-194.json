@@ -30,13 +30,17 @@
               "data": {
                 "type": "object",
                 "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "발급된 단기 토큰. 연동 서버 주소 키를 저장할 때 X-Admin-Session 헤더로 전송한다."
+                  },
                   "expiresAt": {
                     "type": "string",
                     "format": "date-time",
                     "description": "발급된 단기 토큰의 만료 일시"
                   }
                 },
-                "description": "발급 결과. 토큰 자체는 서버가 발급해 함께 전달하며, 전달 방식은 구현 계약이다."
+                "description": "발급 결과. 발급된 단기 토큰과 만료 일시를 함께 돌려준다."
               },
               "message": {
                 "type": "string",
@@ -56,6 +60,7 @@
           },
           "example": {
             "data": {
+              "token": "********",
               "expiresAt": "2026-08-10T09:10:00"
             },
             "message": null,
@@ -63,6 +68,38 @@
             "errorCode": null
           },
           "description": "발급 성공. 만료 일시를 함께 돌려준다. 유효기간 기본 10분.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "adminPassword 는 4~100자여야 합니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패. 관리자 패스워드가 비어 있거나 허용 길이(4~100자)를 벗어난 경우다. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -164,6 +201,7 @@
       },
       "brownfield": {
         "status": "new",
+        "decided_by": "ADR-046",
         "change_kind": [
           "capability-add"
         ],
@@ -176,17 +214,19 @@
         "schema": {
           "type": "object",
           "required": [
-            "password"
+            "adminPassword"
           ],
           "properties": {
-            "password": {
+            "adminPassword": {
               "type": "string",
+              "maxLength": 100,
+              "minLength": 4,
               "description": "관리자 공유 패스워드. 어떤 응답에도, 어떤 로그에도 다시 나타나지 않는다."
             }
           }
         },
         "example": {
-          "password": "********"
+          "adminPassword": "********"
         },
         "required": true,
         "content_type": "application/json"
@@ -207,12 +247,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "유효기간 상한을 30분으로 확정해 서술에 수치를 박는다. 기존에는 상한이 있다는 사실만 적혀 있어 얼마까지 늘릴 수 있는지 판정할 근거가 본문에 없었고, 그러면 상한 강제라는 조항이 실질적으로 검증 불가능해진다. 기본 10분은 그대로다.",
+    "change_summary": "연동 서버 주소 설정 결정(ADR-046)을 근거로 연결한다. 참조 필드만으로는 그래프가 이어지지 않아 이 결정이 추적되지 않았다. 본문은 바꾸지 않고 근거 필드만 채운다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-10T07:46:46.801Z",
+    "last_updated_at": "2026-08-16T04:05:04.678Z",
     "created_at": "2026-08-10T07:38:17.632Z"
   }
 }

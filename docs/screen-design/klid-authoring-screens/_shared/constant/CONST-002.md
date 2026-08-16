@@ -2,14 +2,10 @@
 logicraft_item: CONST-002
 type: constant
 version: 3
-status: CHANGED
-prev_version: 2
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/CONST-002.json
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v2 → v3**
-> change_summary: 연결 ITEM 의 소속 도메인이 바뀐 데 따른 재확인. 바뀐 것은 그 문서가 어느 도메인에 속하는지라는 분류이고 이 문서가 참조하는 결정·계약의 내용은 그대로다. 이 문서에는 도메인을 이어받아 저장해 두는 필드가 없어 재계산할 값도 없음을 확인했다. 본문은 바꾸지 않는다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # CocoClasses — COCO-80 검출 클래스 allowlist
 

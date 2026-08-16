@@ -33,7 +33,7 @@
                   "jobId": {
                     "type": "integer",
                     "format": "int64",
-                    "description": "외부 시스템 jobId (placeholder)"
+                    "description": "요청 접수 식별자 — 실제 엔티티를 가리키지 않는 임시값이다. 외부 시스템이 발급한 작업 식별자가 아니며 결과 조회 이동에도 쓰지 않는다. 결과 화면 이동 대상은 요청 본문에 실은 원본 영상 번호다."
                   },
                   "typeCount": {
                     "type": "integer",
@@ -78,7 +78,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "요청 성공 (jobId 발급). 외부 미연동 단계이므로 jobId 는 placeholder 시퀀스.",
+          "description": "요청이 수락되어 위탁 예약 행이 확정된다. 외부 위탁 전송은 AFTER_COMMIT 이후 비동기로 이뤄지므로 이 응답 시점에는 아직 외부 접수를 기다리는 중일 수 있다(SCREEN-022.purpose 와 동일 계약).",
           "content_type": "application/json"
         },
         "400": {
@@ -129,7 +129,7 @@
             "success": false,
             "errorCode": "NOT_REVIEWED"
           },
-          "description": "입력 검증 실패(INVALID_INPUT) 또는 미검수 영상 포함(NOT_REVIEWED). NOT_REVIEWED 시 data 에 blockedVideoIds 배열이 담긴다(GlobalExceptionHandler details 매핑).",
+          "description": "입력 검증 실패(INVALID_INPUT) 또는 미검수 영상 포함(NOT_REVIEWED). NOT_REVIEWED 시 data 에 blockedVideoIds 배열이 담긴다(오류 응답의 상세 항목으로 매핑).",
           "content_type": "application/json"
         },
         "401": {
@@ -261,6 +261,103 @@
       "deprecated": false,
       "parameters": [],
       "description": "검수 완료된 영상에 대해 외부 증강 시스템에 증강을 요청한다. 검수자 전용이다.\n\n[검수 완료 영상만 대상이다] 미검수 영상이 섞여 있으면 400 으로 거부하며 어느 영상이 막혔는지 응답에 함께 담는다.\n\n[생성 조건 5필드는 전부 필수이며 자유 문자열이다] 시간·계절·날씨·지형·심각도를 입력하면 가공 없이 외부 규격의 생성 조건으로 전달되고 요청 원문이 보관된다. 서버는 값 자체를 좁히지 않는다 — 필수·공백금지·길이 상한과 보이지 않는 문자 제거만 검증한다. 증강 종류는 이 자유 문자열에서 파생하지 않고 별도 목록으로 받는다. 자유 문자열이 종류 판정에 흘러가면 산출물 경로가 조작될 수 있기 때문이다.\n\n[같은 조건으로 몇 번이든 다시 요청할 수 있다] 생성 결과가 매번 다르므로 원하는 결과가 나오지 않으면 동일 조건 재요청이 정당한 동선이다. 서버는 중복을 막지 않으며 연타 방지는 화면이 책임진다. 그 결과 같은 영상·같은 종류의 파생이 여러 건 공존할 수 있어, 결과를 구분하는 축은 요청 시 보관된 생성 조건 원문이다.\n\n[파생본에서는 요청할 수 없다] 파생 깊이는 1 로 고정돼 있어 이미 파생인 영상은 400 으로 거부된다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "videoIds",
+            "types",
+            "prompt"
+          ],
+          "properties": {
+            "types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "WINTER",
+                  "NIGHT",
+                  "RAIN"
+                ],
+                "type": "string"
+              },
+              "maxItems": 1,
+              "minItems": 1,
+              "description": "요청 증강 유형 — WINTER/NIGHT/RAIN 중 정확히 1개. 저작도구 내부 식별자(LS_DATA_AUG.AUG_TYPE_CD)라 자유 문자열이 아니라 enum 3종으로 닫는다(경로 순회 CWE-22, RESL_ 네임스페이스 침범 방지)"
+            },
+            "prompt": {
+              "type": "object",
+              "required": [
+                "time",
+                "season",
+                "weather",
+                "terrain",
+                "severity"
+              ],
+              "properties": {
+                "time": {
+                  "type": "string",
+                  "example": "NIGHT",
+                  "maxLength": 50,
+                  "description": "시간대"
+                },
+                "season": {
+                  "type": "string",
+                  "example": "WINTER",
+                  "maxLength": 50,
+                  "description": "계절"
+                },
+                "terrain": {
+                  "type": "string",
+                  "example": "ROAD",
+                  "maxLength": 50,
+                  "description": "지형"
+                },
+                "weather": {
+                  "type": "string",
+                  "example": "RAIN",
+                  "maxLength": 50,
+                  "description": "날씨"
+                },
+                "severity": {
+                  "type": "string",
+                  "example": "HIGH",
+                  "maxLength": 50,
+                  "description": "심각도"
+                }
+              },
+              "description": "생성 조건 5필드 — 전부 필수(하나라도 비면 결과가 비결정적이 된다). 값은 자유 문자열(연동명세서 v1.1 §4.1 이 허용값 enum 을 정의하지 않는다) — 필수·공백금지·50자 이내만 검증하고 값 자체를 좁히지 않는다."
+            },
+            "videoIds": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "maxItems": 1,
+              "minItems": 1,
+              "description": "검수 완료된 영상 ID — 정확히 1건(양수). 단일 선택 계약(2026-06)"
+            }
+          },
+          "description": "외부 생성형 AI 증강 요청 본문. 동일 (영상×종류) 재요청을 차단하지 않는다(ADR-044)."
+        },
+        "example": {
+          "types": [
+            "WINTER"
+          ],
+          "prompt": {
+            "time": "NIGHT",
+            "season": "WINTER",
+            "terrain": "ROAD",
+            "weather": "RAIN",
+            "severity": "HIGH"
+          },
+          "videoIds": [
+            2001
+          ]
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -277,12 +374,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:49:51.335Z",
+    "last_updated_at": "2026-08-16T12:22:58.005Z",
     "created_at": "2026-05-30T07:25:31.922Z"
   }
 }

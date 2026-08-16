@@ -80,7 +80,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "토큰 발급 성공(@ResponseStatus 201).",
+          "description": "토큰 발급 성공(201).",
           "content_type": "application/json"
         },
         "400": {
@@ -122,11 +122,11 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "dev 전용 테스트 JWT 발급(DevTokenController) — 갭 대조로 신규 등록. authoring.dev.login.enabled 토글 기본 true(local/dev/stg)"
+        "diff_summary": "dev 전용 테스트 JWT 발급 — 2차 신설. authoring.dev.login.enabled 토글 기본 true(local/dev/stg)"
       },
       "deprecated": false,
       "parameters": [],
-      "description": "authoring.dev.login.enabled=true(환경변수 DEV_LOGIN_ENABLED) 일 때만 엔드포인트가 노출된다. 미설정이거나 false 면 프로파일과 무관하게 존재하지 않아 404 가 된다(fail-closed). 로컬·개발·검증 프로파일은 기본값이 true 라 기존 동작이 유지된다.\n\nHS256 서명된 테스트 용 토큰을 즉시 발급한다(인증 불필요 — 토큰을 얻는 진입점이라 같은 설정 조건 아래에서만 열린다). 역할과 채널 조합은 검수자·작업자는 내부 채널, 포털 회원은 포털 채널만 허용한다. 응답에 서명 비밀값은 포함되지 않는다.",
+      "description": "authoring.dev.login.enabled=true(환경변수 DEV_LOGIN_ENABLED) 일 때만 엔드포인트가 노출된다. 미설정이거나 false 면 프로파일과 무관하게 존재하지 않아 404 가 된다(fail-closed). local/dev 프로파일은 기본값이 true 다. stg/prd(운영 계열)는 기본값이 false 이며, 그 값을 뒤집어 켠 채 기동을 시도하면 부팅 자체를 거부한다(fail-closed) — 인증 없이 임의 권한 토큰을 발급하는 경로라 운영에서 켜지면 인증 체계 전체가 우회되기 때문이다.\n\nHS256 서명된 테스트 용 토큰을 즉시 발급한다(인증 불필요 — 토큰을 얻는 진입점이라 같은 설정 조건 아래에서만 열린다). 역할과 채널 조합은 검수자·작업자는 내부 채널, 포털 회원은 포털 채널만 허용한다. 응답에 서명 비밀값은 포함되지 않는다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -195,12 +195,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설명에서 내부 설정 클래스명을 걷어낸다. 노출 조건(설정 플래그)·역할과 채널 조합 제한·응답에 시크릿 미포함은 그대로다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:50:40.851Z",
+    "last_updated_at": "2026-08-16T12:23:15.134Z",
     "created_at": "2026-07-30T07:06:26.013Z"
   }
 }

@@ -101,6 +101,10 @@
                     "format": "date-time",
                     "nullable": true,
                     "description": "제출일시 (updDt alias)"
+                  },
+                  "needsRecheck": {
+                    "type": "boolean",
+                    "description": "재검토 필요 여부(ERD-015 영상진행상태.재검토여부/REVLT_YN 매핑). 검수 승인(APPROVED) 이후 라벨·메타가 수정되어 검수자가 다시 승인해야 하는 상태이면 true, 그 외에는 false."
                   }
                 },
                 "description": "검수 제출 후 전이된 검수 단건 (status → REVIEW_PENDING)"
@@ -303,17 +307,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 표기 손상 최종 정정 — 냙관적→낙관적 1건. 유니코드 이스케이프 유래 음절 오류(블록 시그니처·희귀음절·docs 정본 대조로 검출). 의미·정책 변경 없이 표기만 정정.",
+    "change_summary": "API→FEAT 직접 링크(implements)가 전건 공란이었다. 이 엔드포인트가 실제로 구현하는 프로젝트 레벨 기능(FEAT-008)으로 채운다 — 이미 이 도메인의 DFEAT(DFEAT-021/024/025 등)가 specializes_feature 로 같은 FEAT 를 가리키고 있어 계층이 정합한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T01:59:46.137Z",
+    "last_updated_at": "2026-08-16T07:16:15.996Z",
     "created_at": "2026-05-30T06:58:18.503Z"
   }
 }

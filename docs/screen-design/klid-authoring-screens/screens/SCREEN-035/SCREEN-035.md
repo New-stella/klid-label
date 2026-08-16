@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-035
 type: screen_spec
-version: 15
-last_updated_at: 2026-08-13T01:02:44.578Z
+version: 16
+last_updated_at: 2026-08-16T07:22:17.328Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.695Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.653Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 15
 raw: ./_raw/SCREEN-035.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-024]]", "[[API-025]]", "[[API-026]]", "[[API-027]]", "[[API-028]]", "[[API-029]]", "[[API-030]]", "[[API-031]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-028]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v15 → v16**
+> change_summary: D010 P1(D010-LINK-007): realizes_use_cases=[] → UC-028(related_screens 에 SCREEN-035 보유) 배선.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨 관리 화면
 
@@ -654,7 +659,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-028
 
 ## covered_by_acceptances
 

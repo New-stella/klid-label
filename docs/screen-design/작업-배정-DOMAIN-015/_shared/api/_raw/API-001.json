@@ -264,7 +264,7 @@
       },
       "brownfield": {
         "status": "preserved",
-        "diff_summary": "1차 사용자·권한(LS_USER_*, ERD-001 preserved) 기반 사용자 목록 조회"
+        "diff_summary": "1차 사용자·권한(LS_ACNT_USER, ERD-001 deprecated — 1차 원형) 기반 사용자 목록 조회"
       },
       "deprecated": false,
       "parameters": [],
@@ -277,17 +277,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<Page<UserSummaryResponse>> 본문 schema + 400/401/403 에러 응답 + example (실제 UserController/DTO 코드 기준)",
+    "change_summary": "[brownfield.diff_summary 정정] 두 오류를 바로잡았다. ①ERD-001 은 status=deprecated 인데 'preserved' 로 적혀 있었다. ②물리 사용자 마스터 테이블은 LS_USER_* 접두 패턴이 아니라 LS_ACNT_USER(V1 baseline) 다 — ADR-043 으로 관제 공유 MNG_ACCT_USER 에서 저작도구 소유로 이관되며 확정된 이름.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T06:57:42.501Z",
+    "last_updated_at": "2026-08-16T01:57:11.404Z",
     "created_at": "2026-05-30T06:56:21.419Z"
   }
 }

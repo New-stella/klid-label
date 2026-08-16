@@ -198,7 +198,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "PORTAL_USER 아닌 채널/역할(@PreAuthorize). ErrorCode=FORBIDDEN",
+          "description": "PORTAL_USER 아닌 채널/역할. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -267,7 +267,7 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "2차 포털 프레임 라벨 Load (R16)"
+        "diff_summary": "2차 포털 프레임 라벨 Load"
       },
       "deprecated": false,
       "parameters": [
@@ -297,12 +297,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 게이트의 412 응답을 계약에 추가. 포털 경로도 내부와 같은 단일 판정기를 재사용한다.",
+    "change_summary": "응답 설명의 어노테이션 표기와 변경요약의 내부 회차 표기를 걷어낸다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:49:53.028Z",
+    "last_updated_at": "2026-08-16T09:32:11.872Z",
     "created_at": "2026-06-19T00:58:33.287Z"
   }
 }

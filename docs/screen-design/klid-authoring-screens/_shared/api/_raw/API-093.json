@@ -53,30 +53,12 @@
                     "description": "외곽 폴리곤 좌표 [[x,y], ...] (Douglas-Peucker 단순화, 최소 3정점)"
                   }
                 },
-                "description": "SAM2 클릭/박스 분할 결과 (Sam2SegmentResponse)"
-              },
-              "mock": {
-                "type": "boolean",
-                "description": "ai-server mock 응답 여부. true면 FE에서 자동 적용 차단"
-              },
-              "score": {
-                "type": "number",
-                "description": "분할 신뢰도 0.0~1.0 (소수 4자리)"
+                "description": "SAM2 분할 결과 (Sam2SegmentResponse)"
               },
               "message": {
                 "type": "string",
                 "nullable": true,
                 "description": "응답 메시지 (성공 시 null)"
-              },
-              "polygon": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
-                },
-                "description": "외곽 폴리곤 좌표 [[x,y], ...] (Douglas-Peucker 단순화, 최소 3정점)"
               },
               "success": {
                 "type": "boolean",
@@ -383,17 +365,19 @@
         "last_updated": "2026-06-05T05:06:15.398Z"
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설명에서 내부 구현 클래스명과 프레임워크 표기 기법을 걷어낸다. 배타 검증·원본 실행 정책·좌표 검증·상한 등 계약은 그대로다.",
+    "change_summary": "API-093(sam2-segment) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). 이 API 를 구현체로 갖는 DFEAT-018 이 FEAT-001(AI 보조 라벨링)을 specialize 하므로 동일하게 연결한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:53:47.837Z",
+    "last_updated_at": "2026-08-16T08:33:14.888Z",
     "created_at": "2026-06-04T06:40:50.264Z"
   }
 }

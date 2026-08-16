@@ -28,7 +28,7 @@
             "type": "string",
             "format": "binary"
           },
-          "description": "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지 바이너리(ResponseEntity<Resource>). FE 는 Bearer 토큰 포함 axios fetch 후 blob URL 로 표시(<img> 직접 src 금지). useImageBlob(portalMode) 경로.",
+          "description": "데이터마트 노출(검수 완료) 영상의 비식별 프레임 이미지 바이너리. FE 는 Bearer 토큰 포함 axios fetch 후 blob URL 로 표시(<img> 직접 src 금지). 이 경로의 응답은 저장하지 않는다(Cache-Control: no-store) — 클라이언트가 이전 응답을 재사용하면 신고 직후에도 마스킹 실패 프레임이 계속 표시된다.",
           "content_type": "image/*"
         },
         "401": {
@@ -144,7 +144,7 @@
             "success": false,
             "errorCode": "PRECONDITION_FAILED"
           },
-          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 이 경로의 응답은 저장하지 않는다(Cache-Control: no-store) — 클라이언트가 이전 응답을 재사용하면 신고 직후에도 마스킹 실패 프레임이 계속 표시된다. 포털 사용자가 직접 올린 업로드 자산은 이 게이트의 대상이 아니다.",
+          "description": "비식별 누락 신고가 열려 있는 영상이라 거부. ErrorCode=PRECONDITION_FAILED. 포털 사용자가 직접 올린 업로드 자산은 이 게이트의 대상이 아니다.",
           "content_type": "application/json"
         }
       },
@@ -153,7 +153,7 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "2차 포털 프레임 이미지 서빙 (R16)"
+        "diff_summary": "2차 포털 프레임 이미지 서빙"
       },
       "deprecated": false,
       "parameters": [
@@ -183,12 +183,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 게이트의 412 응답을 계약에 추가. 포털로 내보내는 내부 파이프라인 비식별 프레임이라 신고 구간에 차단된다.",
+    "change_summary": "no-store 계약을 412 설명에서 200 성공 응답으로 옮긴다 — 캐시 대상은 이미지 바이너리를 돌려주는 200 이라 그쪽에 적혀야 계약으로 읽힌다. 프레임워크 반환형·프론트엔드 훅 표기도 걷어낸다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:49:58.311Z",
+    "last_updated_at": "2026-08-16T09:32:11.934Z",
     "created_at": "2026-06-19T00:59:05.589Z"
   }
 }

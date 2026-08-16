@@ -67,7 +67,7 @@
                               "trackId": {
                                 "type": "integer",
                                 "nullable": true,
-                                "description": "ultralytics 트래커 부여 객체 ID (저신뢰 fallback 시 null)"
+                                "description": "ByteTrack 트래커가 부여한 객체 ID (미확정 트랙이거나 트래커를 사용할 수 없으면 null)"
                               }
                             }
                           },
@@ -315,7 +315,7 @@
             "success": false,
             "errorCode": "EXTERNAL_API_ERROR"
           },
-          "description": "ai-server 연동 실패 / 잘못된 응답 (Resilience4j). ErrorCode=EXTERNAL_API_ERROR → HTTP 502 BAD_GATEWAY (sam2-track 문서의 503 표기와 달리 실제 코드 매핑은 502)",
+          "description": "ai-server 연동 실패 / 잘못된 응답 (Resilience4j). ErrorCode=EXTERNAL_API_ERROR → HTTP 502 BAD_GATEWAY",
           "content_type": "application/json"
         }
       },
@@ -378,17 +378,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설명에서 내부 구현 클래스명을 걷어낸다. 배치 자동라벨링과 별개의 온디맨드 경로라는 경계는 그대로 유지했다.",
+    "change_summary": "API-123 502 응답 description에 다른 문서(sam2-track/API-020)의 과거 오표기를 언급하는 감사성 메모(\"sam2-track 문서의 503 표기와 달리 실제 코드 매핑은 502\")가 남아 있었다(감사 지적 — API-020과 같은 유형의 오염). 현재 사실(502 BAD_GATEWAY)만 남기고 타 문서 이력 서술을 제거한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:45:12.208Z",
+    "last_updated_at": "2026-08-16T08:38:30.365Z",
     "created_at": "2026-07-14T05:40:05.673Z"
   }
 }

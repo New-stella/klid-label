@@ -237,17 +237,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-004"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "증강 진행률 조회를 계약으로 신설한다. 결과 화면이 폴링하는 대상인데 정의서에 없어, 진행 표시를 무엇으로 그리는지와 얼마나 자주 물어야 하는지가 계약에 없었다.",
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "REQ-023의 domain_id 변경이 implements로 2-hop 전파",
+    "change_summary": "D007-LINK-002: 동일(진행률 조회)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:06:19.382Z",
+    "last_updated_at": "2026-08-16T07:09:02.424Z",
     "created_at": "2026-08-07T03:06:19.382Z"
   }
 }

@@ -160,17 +160,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 표기 손상 최종 정정 — 폐곱선→폐곡선 2건. 유니코드 이스케이프 유래 음절 오류(블록 시그니처·희귀음절·docs 정본 대조로 검출). 의미·정책 변경 없이 표기만 정정.",
+    "change_summary": "API-120(/infer/sam2/segment) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). BE sam2-segment(API-093) 가 프록시하는 ai-server 추론 primitive 로 FEAT-001(AI 보조 라벨링)을 지지하므로 연결한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T01:59:47.355Z",
+    "last_updated_at": "2026-08-16T08:33:18.694Z",
     "created_at": "2026-07-07T07:34:49.728Z"
   }
 }

@@ -37,7 +37,7 @@
                   },
                   "status": {
                     "type": "string",
-                    "description": "복구 후 상태"
+                    "description": "복구 후 검수 결정 상태 — 반려가 재오픈되어 미결정(PENDING)으로 돌아간다. 생성 결과 상태(외부 처리 축)는 이 요청으로 바뀌지 않는다."
                   },
                   "augTypeCd": {
                     "type": "string",
@@ -65,7 +65,7 @@
           "example": {
             "data": {
               "id": 1,
-              "status": "ACCEPTED",
+              "status": "PENDING",
               "augTypeCd": "WINTER"
             },
             "message": null,
@@ -238,6 +238,7 @@
       },
       "brownfield": {
         "status": "new",
+        "decided_by": "ADR-045",
         "diff_summary": "2차 신설 — 반려로 폐기된 파생영상을 유예 내에 되돌리는 경로"
       },
       "deprecated": false,
@@ -287,17 +288,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-004"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "요청 예시 문구를 자연스러운 표현으로 다듬는다. 스키마·필수 여부·의미는 그대로다.",
+    "change_summary": "D007-CNT-016: 응답 status 가 어느 상태축인지 밝히고 예시를 실제 값으로 맞춘다 — 축을 안 밝힌 탓에 바로 위의 \"미결정으로 돌아간다\" 와 모순처럼 읽혔고 예시는 채택됨을 보이고 있었다. · D007-POL-013: 변경 근거 결정(검수 결정 축 분리와 미사용 파생 폐기·복구)을 brownfield.decided_by 로 명시한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:14:52.777Z",
+    "last_updated_at": "2026-08-16T09:36:15.555Z",
     "created_at": "2026-08-07T03:08:28.655Z"
   }
 }

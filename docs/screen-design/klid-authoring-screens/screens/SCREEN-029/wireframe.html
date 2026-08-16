@@ -76,7 +76,7 @@
           </div>
           <div class="wf-stack wf-mt">
             <span class="wf-muted">KonvaCanvasStage</span><span class="wf-help">ImageLayer + LabelsLayer + OverlayLayer</span>
-            <span class="wf-muted">useLabels(portalMode)</span><span class="wf-help">GET /v1/portal/frames/{srcSn}/labels</span>
+            <span class="wf-muted">FrameLabelLoader</span><span class="wf-help">GET /v1/portal/frames/{srcSn}/labels</span>
           </div>
         </div>
         <div class="wf-card">
@@ -118,7 +118,7 @@
           </div>
           <div class="wf-stack wf-mt">
             <span class="wf-muted">ObjectClassTree</span><span class="wf-help">className 그룹화 트리 + 선택/삭제</span>
-            <div class="wf-field"><label class="wf-label">라벨</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">선택 객체 라벨 변경 — useLabelMasters 옵션</span>
+            <div class="wf-field"><label class="wf-label">라벨</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">선택 객체 라벨 변경 — 라벨 마스터 옵션</span>
             <div class="wf-field"><label class="wf-label">X/Y/W/H 좌표</label><input class="wf-input" /></div><span class="wf-help">BBOX 좌표 편집 — 경계 clamp</span>
           </div>
         </div>
@@ -166,7 +166,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 라벨링 헤더 바</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 상단 라이트 톤 바(LabelHeader, h-14). 좌: × 닫기(dirty 시 저장확인 모달) + 프레임 식별(#srcSn). 중앙: 저장상태(● 편집 중/✓ 저장됨). 포털 모드(channel=PORTAL)에서는 [검수제출]·[비식별 누락 신고]가 모두 미노출(검수제출 WORKER 전용, canReportDeident=!portalMode). 히스토리 진입은 채널과 무관하게 헤더에 두지 않는다 — 편집을 어느 버전에서 시작할지 고르는 일은 내부 채널의 라벨링 진입 시 띄우는 모달이 맡고, 포털에는 버전 관리 자체가 없다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 상단 라이트 톤 바(LabelHeader). 좌: × 닫기(dirty 시 저장확인 모달) + 프레임 식별(#srcSn). 중앙: 저장상태(● 편집 중/✓ 저장됨). 포털 모드(channel=PORTAL)에서는 [검수제출]·[비식별 누락 신고]가 모두 미노출(검수제출 WORKER 전용, canReportDeident=!portalMode). 히스토리 진입은 채널과 무관하게 헤더에 두지 않는다 — 편집을 어느 버전에서 시작할지 고르는 일은 내부 채널의 라벨링 진입 시 띄우는 모달이 맡고, 포털에는 버전 관리 자체가 없다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(× 닫기)<p class="wf-help" style="margin:2px 0 0">dirty&gt;0 시 저장확인 모달, 아니면 navigate(-1)</p></li><li>Heading(프레임 #srcSn)<p class="wf-help" style="margin:2px 0 0">포털은 cctvName 대신 프레임 식별</p></li><li>Text(● 편집 중 / ✓ 저장됨)<p class="wf-help" style="margin:2px 0 0">dirty 상태</p></li></ul></div>
     </div>
   </div>
@@ -204,8 +204,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑤ 우측 객체·속성 패널</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 고정 패널(w-72) 2단. (1) 객체 목록(ObjectClassTree): 목록 상단에 현재 프레임의 객체 수를 표시한다. 라벨을 className으로 그룹화, 펼치기/접기, 형태(BBOX/POLYGON), 행 선택(selectLabel)·삭제(removeLabel). (2) 객체 속성(ObjectAttributePanel): 선택 객체의 라벨 드롭다운(useLabelMasters=API-024 화이트리스트), BBOX X/Y/W/H 좌표 편집(경계 clamp). 시계열 메타(TimeseriesSidePanel)는 포털 모드에서 미렌더(!portalMode) — 포털 미노출(과거 '코드 불일치' 노트는 해소됨).</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(객체 목록) · → API-110<p class="wf-help" style="margin:2px 0 0">className 그룹화 트리 + 선택/삭제</p></li><li>Select(라벨) · → API-024<p class="wf-help" style="margin:2px 0 0">선택 객체 라벨 변경 — useLabelMasters 옵션</p></li><li>Input(X/Y/W/H 좌표)<p class="wf-help" style="margin:2px 0 0">BBOX 좌표 편집 — 경계 clamp</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 고정 패널 2단. (1) 객체 목록(ObjectClassTree): 목록 상단에 현재 프레임의 객체 수를 표시한다. 라벨을 className으로 그룹화, 펼치기/접기, 형태(BBOX/POLYGON), 행 선택(selectLabel)·삭제(removeLabel). (2) 객체 속성(ObjectAttributePanel): 선택 객체의 라벨 드롭다운(API-024 화이트리스트), BBOX X/Y/W/H 좌표 편집(경계 clamp). 시계열 메타(TimeseriesSidePanel)는 포털 모드에서 미렌더(!portalMode) — 포털 미노출(과거 '코드 불일치' 노트는 해소됨).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(객체 목록) · → API-110<p class="wf-help" style="margin:2px 0 0">className 그룹화 트리 + 선택/삭제</p></li><li>Select(라벨) · → API-024<p class="wf-help" style="margin:2px 0 0">선택 객체 라벨 변경 — 라벨 마스터 옵션</p></li><li>Input(X/Y/W/H 좌표)<p class="wf-help" style="margin:2px 0 0">BBOX 좌표 편집 — 경계 clamp</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-024</li></ul></div>
     </div>
   </div>
@@ -234,7 +234,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑧ 로딩·에러·잘못된 ID 상태</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 라이트 톤 상태 화면. 라벨 로딩 중(Spinner), 라벨 조회 실패(에러 메시지+뒤로가기), 잘못된 프레임 ID(NaN 가드+뒤로가기). useLabels(GET /v1/portal/frames/{srcSn}/labels=API-110)의 isLoading/error 분기.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>풀스크린 라이트 톤 상태 화면. 라벨 로딩 중(Spinner), 라벨 조회 실패(에러 메시지+뒤로가기), 잘못된 프레임 ID(NaN 가드+뒤로가기). 프레임 라벨 조회(API-110)의 로딩·오류 분기.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨 로딩)</li><li>Alert(라벨 조회 실패)</li><li>Button(뒤로 가기)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-110</li></ul></div>
     </div>

@@ -102,7 +102,25 @@
                         "description": "검수 대기"
                       }
                     },
-                    "description": "처리 현황 5카드"
+                    "description": "처리 현황 5개 상태별 건수(대기/승인/반려/진행중/검수대기). 화면의 표현 방식(카드·스택바 등)은 규정하지 않는다."
+                  },
+                  "dailyCounts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "description": "일자 (yyyy-MM-dd)"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "해당일 검수 완료 수"
+                        }
+                      }
+                    },
+                    "description": "최근 30일(오늘 포함) 일별 검수 완료 건수 — 일별 작업량 막대차트용. 항상 정확히 30건이며 작업이 없던 날도 count=0 으로 채워진다. date 는 yyyy-MM-dd 오름차순이고 마지막 항목이 오늘이다. 집계 기준은 전체(모든 작업자)이며 approvedVideoCount 와 같은 원천을 쓴다."
                   },
                   "eventDistribution": {
                     "type": "array",
@@ -124,7 +142,17 @@
                         }
                       }
                     },
-                    "description": "이벤트 6종 분포"
+                    "description": "관제 카테고리 기준 이벤트 분포(개수 가변 — 서버가 수집 대상 카테고리를 count=0 포함해 전부 반환한다)."
+                  },
+                  "approvedImageCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수 승인(APPROVED) 영상에 속한 프레임 누적 건수 — 이미지 학습데이터 카드의 주 수치. 항상 approvedImageCount <= cumulativeImageCount."
+                  },
+                  "approvedVideoCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수 승인(APPROVED) 영상 누적 건수 — 영상 학습데이터 카드의 주 수치. processing.approved 와 동일 원천이다."
                   },
                   "cumulativeImageCount": {
                     "type": "integer",
@@ -135,6 +163,28 @@
                     "type": "integer",
                     "format": "int64",
                     "description": "누적 영상 건수"
+                  },
+                  "approvedEventDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "검수 승인 영상 단위 이벤트 분포. 카테고리 구성·순서는 eventDistribution 과 같고 데이터가 없는 카테고리도 count=0 으로 포함된다."
                   }
                 },
                 "description": "전체 구축 현황"
@@ -175,15 +225,30 @@
                 "inProgress": 8,
                 "reviewPending": 4
               },
+              "dailyCounts": [
+                {
+                  "date": "2026-06-14",
+                  "count": 5
+                }
+              ],
               "eventDistribution": [
                 {
                   "count": 120,
                   "label": "쓰러짐",
-                  "eventTypeCd": "FALL"
+                  "eventTypeCd": "EV02000201"
                 }
               ],
+              "approvedImageCount": 43120,
+              "approvedVideoCount": 340,
               "cumulativeImageCount": 102345,
-              "cumulativeVideoCount": 4980
+              "cumulativeVideoCount": 4980,
+              "approvedEventDistribution": [
+                {
+                  "count": 98,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ]
             },
             "message": null,
             "success": true,
@@ -278,12 +343,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "작업자별 집계 항목에 진행 건수(inProgress)와 오토라벨 비율(autoLabelRate) 두 지표를 추가한다. 작업자 현황 표가 6개 지표를 보여주는데 응답이 3개 지표만 공급해 진행·오토라벨 두 값의 공급원이 없었다. 기존 필드·응답 구조·상태코드는 그대로 두고 추가만 하여 하위호환을 유지한다. 함께 정정한 것 — 승인율 범위 서술을 0.0~1.0 에서 0~100 백분율로 바로잡았다(화면이 100에서 이 값을 빼 반려율을 구하므로 백분율이 실제 계약이며, 두 신규 비율 필드도 같은 범위를 쓴다). 조회 성공 설명과 작업자별 집계 설명에서 진행 단계를 서술하던 문구를 걷어내고 사양만 남겼다. 예시에도 작업자 1건을 채워 항목 구조를 보이게 했다.",
+    "change_summary": "P1 반영: processing 설명 \"5카드\"(SCREEN-021 이 이미 폐기한 개별 카드 레이아웃)를 데이터 의미 서술로 교체 — API 는 표현 방식을 규정하지 않는다. 이벤트 분포 예시 eventTypeCd 를 EV02000201 로 정정 — 2곳.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-08T04:47:02.277Z",
+    "last_updated_at": "2026-08-16T09:00:53.960Z",
     "created_at": "2026-05-30T07:25:15.653Z"
   }
 }

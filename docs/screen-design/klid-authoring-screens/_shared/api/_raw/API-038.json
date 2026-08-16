@@ -235,7 +235,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 권한 없음 (@PreAuthorize). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "409": {
@@ -272,8 +272,9 @@
         }
       },
       "brownfield": {
-        "status": "preserved",
-        "diff_summary": "1차 라벨링 프리셋 관리"
+        "status": "modified",
+        "decided_by": "ADR-034",
+        "diff_summary": "1차 라벨링 프리셋 관리 — ADR-034(프리셋-마스터 단일화)로 저장모델·요청 계약이 반전(코드 문자열 스냅샷 → 마스터 PK(labelId) 실시간 join)돼 preserved 로 남을 수 없다."
       },
       "deprecated": false,
       "parameters": [],
@@ -344,12 +345,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "요청 본문 규격을 신설한다. 생성 요청이 eventTypeCd 를 어떻게 보내야 하는지가 규격에 아예 없어 응답 쪽 정정만으로는 계약이 반쪽이었다. 라벨은 코드 문자열이 아니라 라벨 마스터 PK(labelId)로 지정하며 형태(BBOX/POLYGON)는 마스터가 소유하므로 요청에서 받지 않는다.",
+    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-11T23:22:25.787Z",
+    "last_updated_at": "2026-08-16T09:52:38.298Z",
     "created_at": "2026-05-30T07:22:21.003Z"
   }
 }

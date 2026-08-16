@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-033
 type: screen_spec
-version: 11
-last_updated_at: 2026-08-13T01:02:43.946Z
+version: 13
+last_updated_at: 2026-08-16T09:35:10.864Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.693Z
-sync_session: 12
+synced_at: 2026-08-16T12:52:08.651Z
+sync_session: 13
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 11
 raw: ./_raw/SCREEN-033.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v11 → v13**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (6.5KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 화면
 
@@ -179,7 +183,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 단일 영상 파일 선택(accept mp4/mov/avi) 후 '영상 업로드' 클릭 시 기존 TUS 재개 가능 업로드 훅(useTusUpload, endpointBase=/portal/uploads/tus)으로 청크 업로드 시작. 진행 중 progressbar(0~100%) + 취소 불가 표시, 실패 시 에러 메시지, 업로드 중 파일 input 비활성.
+- **description**: 단일 영상 파일 선택(accept mp4/mov/avi) 후 '영상 업로드' 클릭 시 TUS 재개 가능 업로드(endpointBase=/portal/uploads/tus)으로 청크 업로드 시작. 진행 중 progressbar(0~100%) + 취소 불가 표시, 실패 시 에러 메시지, 업로드 중 파일 input 비활성.
 
 **references_apis**:
 
@@ -259,7 +263,7 @@ _(empty)_
 
 - **variant**: outline
 
-- **description**: 본인 업로드 자산 목록(usePortalUploads, GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청.
+- **description**: 본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청.
 
 **references_apis**:
 
@@ -332,14 +336,15 @@ _(empty)_
 - **label**: 포털 업로드 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: c6dcb39b261d3a90a31794e6b36f6ecc18d3e13896453759f58326cc96037e99
-- **generated_at**: 2026-08-13T01:02:43.945Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: cf74cd687e9c21a518f9548230348e16256d0dff8ce23ef981697848df64b705
+- **generated_at**: 2026-08-16T09:35:10.864Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

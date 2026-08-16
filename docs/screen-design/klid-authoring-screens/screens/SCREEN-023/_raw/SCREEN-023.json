@@ -43,7 +43,9 @@
           "references_apis": [
             "API-061"
           ],
-          "references_features": []
+          "references_features": [
+            "FEAT-004"
+          ]
         },
         {
           "name": "잡 상태 배너 / 결과 지표",
@@ -101,7 +103,9 @@
           "references_apis": [
             "API-061"
           ],
-          "references_features": []
+          "references_features": [
+            "FEAT-004"
+          ]
         },
         {
           "name": "작업 요약 카드",
@@ -121,7 +125,9 @@
           "references_apis": [
             "API-061"
           ],
-          "references_features": []
+          "references_features": [
+            "FEAT-004"
+          ]
         },
         {
           "name": "영상별 결과 섹션",
@@ -137,7 +143,9 @@
                 "WINTER",
                 "NIGHT",
                 "RAIN",
-                "RESOLUTION"
+                "RESL_1080P",
+                "RESL_720P",
+                "RESL_480P"
               ]
             },
             {
@@ -188,7 +196,9 @@
           "references_apis": [
             "API-061"
           ],
-          "references_features": []
+          "references_features": [
+            "FEAT-004"
+          ]
         },
         {
           "name": "결과 항목 진행 상태 · 취소",
@@ -245,8 +255,13 @@
             }
           ],
           "description": "결과 항목별 진행 상태 — 위탁 증강 3종에서 생성이 진행 중인 항목에 표시한다(해상도 파생은 대상이 아니다). 진행률(완료/전체 건수, 0~100% 또는 산출 불가 사유)과 취소 가능 시 취소 버튼을 함께 보여준다. 취소는 REVIEWER 전용이며 사유는 선택 입력이고, 하나의 요청이 여러 건으로 나뉘어 위탁되므로 일부만 취소되는 결과도 정상이다.",
-          "references_apis": [],
-          "references_features": []
+          "references_apis": [
+            "API-188",
+            "API-189"
+          ],
+          "references_features": [
+            "FEAT-004"
+          ]
         },
         {
           "name": "활용 결정 카드(DecisionCard)",
@@ -311,9 +326,12 @@
           "description": "결과 항목별 활용 결정. 채택/반려는 검수 결정만 기록하며 파생 영상 자체를 새로 만들지 않는다 — 파생 영상은 이 화면에 결과가 표시되는 시점에 이미 생성돼 있고, 사람의 결정은 그 파생을 작업목록·배정에 등재할지(채택) 폐기할지(반려)를 정할 뿐이다. 노출 규칙 — 해상도 파생 항목은 결정 카드를 표시하지 않는다(내부 생성물이라 검수 대상이 아니다), 그 외는 결정이 이미 내려졌거나 결정 가능 상태면 표시한다. 결정 대기=[채택]/[반려](반려는 사유 입력 대화상자로 사유 필수·최대 500자), 채택됨=채택됨+결정일시, 반려됨=반려됨+결정일시+사유+폐기 유예 안내(폐기 일시/실삭제 예정 일시/실삭제 여부/복구 가능 여부). 반려 항목에는 [복구] 버튼이 남아 반려 자체를 되돌리고 검수를 재오픈한다(표식만 지우면 반쪽 복구다). 복구 가능 여부는 서버가 계산한 값을 그대로 쓴다(재유도 금지 — 눌러도 반드시 실패하는 버튼을 만들지 않는다). 실삭제된 항목은 복구 불가·재요청 안내. 항목별 상태값(생성 중/프레임 준비 중/준비 완료/비식별 신고로 보류/생성 실패/취소됨/삭제됨/이전 결과물이라 연결 끊김)이 비교 이미지가 없는 이유를 설명한다. 채택 API-062, 반려 API-063.",
           "references_apis": [
             "API-062",
-            "API-063"
+            "API-063",
+            "API-190"
           ],
-          "references_features": []
+          "references_features": [
+            "FEAT-004"
+          ]
         },
         {
           "name": "로딩 / 에러 / 잘못된 영상 번호",
@@ -339,7 +357,9 @@
           "references_apis": [
             "API-061"
           ],
-          "references_features": []
+          "references_features": [
+            "FEAT-004"
+          ]
         }
       ],
       "brownfield": {
@@ -379,25 +399,29 @@
           "surface": "page",
           "platform": "web",
           "sections": [],
-          "source_hash": "b6378cba1eef487d108c876574759581bbda1fa6b31b9136d02efab139325ba7",
-          "generated_at": "2026-08-14T23:44:28.985Z",
+          "description": "",
+          "source_hash": "7c3a7fbf2ddb7c7e9a5c48e37f9e1e36942227d3f05410abf11e2e1a24d06611",
+          "generated_at": "2026-08-16T09:41:35.446Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
       ],
       "uses_constants": [],
       "external_designs": [],
-      "realizes_use_cases": [],
+      "realizes_use_cases": [
+        "UC-002",
+        "UC-010"
+      ],
       "covered_by_acceptances": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 35,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (19.7KB)",
+    "current_version": 39,
+    "stale": true,
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (20.8KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T23:44:28.985Z",
+    "last_updated_at": "2026-08-16T09:41:35.447Z",
     "created_at": "2026-05-30T07:55:29.340Z"
   }
 }

@@ -261,7 +261,7 @@
         "change_kind": [
           "add"
         ],
-        "diff_summary": "ADR-013 예외 — 포털 업로드 프레임 라벨 전체교체 신설(Phase 4, PortalUploadLabelController#replaceLabels)"
+        "diff_summary": "ADR-013 예외 — 포털 업로드 프레임 라벨 전체교체 신설"
       },
       "deprecated": false,
       "parameters": [
@@ -277,7 +277,7 @@
           "description": "라벨을 교체할 프레임 식별자(PK)"
         }
       ],
-      "description": "본인 업로드 프레임의 라벨을 전체교체한다(멱등). 빈 배열은 전체 삭제로 유효하다. 부모 자산이 READY 상태가 아니면 409. lblTypeCd 는 BBOX|POLYGON 만 허용(fail-closed, 그 외 400). 좌표는 BBOX=정확히 2점, POLYGON=3~200점, 각 좌표는 [x,y] 유한 숫자여야 함(NaN/Infinity 거부). 라벨명(label)은 최대 80자. 입력 검증(시그니처/개수/좌표) 전량을 DELETE 이전에 끝내며 검증 실패 시 기존 라벨을 유지한다(400). 프레임 비관적 락으로 동시 PUT 을 직렬화한다. 컨트롤러 레벨 @Size(max=500) + 서비스 레벨 이중 강제.",
+      "description": "본인 업로드 프레임의 라벨을 전체교체한다(멱등). 빈 배열은 전체 삭제로 유효하다. 부모 자산이 READY 상태가 아니면 409. lblTypeCd 는 BBOX|POLYGON 만 허용(fail-closed, 그 외 400). 좌표는 BBOX=정확히 2점, POLYGON=3~200점, 각 좌표는 [x,y] 유한 숫자여야 함(NaN/Infinity 거부). 라벨명(label)은 최대 80자. 입력 검증(시그니처/개수/좌표) 전량을 DELETE 이전에 끝내며 검증 실패 시 기존 라벨을 유지한다(400). 프레임 비관적 락으로 동시 PUT 을 직렬화한다.",
       "request_body": {
         "schema": {
           "type": "array",
@@ -337,12 +337,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 표기 손상 최종 정정 — 컴트롤러→컨트롤러 1건. 유니코드 이스케이프 유래 음절 오류(블록 시그니처·희귀음절·docs 정본 대조로 검출). 의미·정책 변경 없이 표기만 정정.",
+    "change_summary": "요청 배열 상한은 요청 본문 스키마가 이미 규정하므로, 구현 계층·어노테이션을 적은 문장을 본문에서 뺀다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T01:59:47.694Z",
+    "last_updated_at": "2026-08-16T09:32:12.541Z",
     "created_at": "2026-07-30T07:06:27.047Z"
   }
 }

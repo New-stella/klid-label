@@ -217,6 +217,53 @@
         }
       ],
       "description": "라벨의 속성값을 일괄 upsert한다. REVIEWER/WORKER. 접근 검증은 라벨 객체가 속한 프레임의 영상 기준이며, 작업자는 본인에게 배정된 영상의 객체만 수정할 수 있다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "values"
+          ],
+          "properties": {
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "attrId"
+                ],
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 1000,
+                    "description": "속성값"
+                  },
+                  "attrId": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "라벨 속성 정의 PK"
+                  }
+                }
+              },
+              "description": "객체별 속성값 일괄 upsert 목록"
+            }
+          }
+        },
+        "example": {
+          "values": [
+            {
+              "value": "yes",
+              "attrId": 11
+            },
+            {
+              "value": "N",
+              "attrId": 12
+            }
+          ]
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -231,12 +278,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 구간에서 거부하는 412 를 신설하고, 접근 검증이 영상 단위(라벨 객체가 속한 프레임의 영상) 기준임을 본문과 403 설명에 명시했다. 라벨 저장이 이미 같은 근거로 412 를 규정하는데 이 저장 경로만 열려 있어 축이 비대칭이었다. 또 역할만으로는 다른 작업자에게 배정된 영상의 속성값을 덮어쓸 수 있어 접근 검증 기준을 계약에 드러냈다.",
+    "change_summary": "D010 P1(D010-SCH-006): request_body 통째 부재 → LabelAttrValueUpsertRequest(코드 실물) 배선.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T10:52:21.653Z",
+    "last_updated_at": "2026-08-16T07:26:08.120Z",
     "created_at": "2026-05-30T07:20:03.884Z"
   }
 }

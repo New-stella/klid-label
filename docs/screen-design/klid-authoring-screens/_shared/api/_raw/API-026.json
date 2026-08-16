@@ -124,7 +124,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "입력값 검증 실패 (@Valid). ErrorCode=INVALID_INPUT",
+          "description": "입력값 검증 실패. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -188,7 +188,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 권한 없음 (@PreAuthorize). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -272,7 +272,61 @@
           "description": "라벨 마스터 식별자"
         }
       ],
-      "description": "라벨 마스터 코드를 수정한다. REVIEWER 전용.",
+      "description": "라벨 마스터를 수정한다. REVIEWER 전용.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "name",
+            "color",
+            "type"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1,
+              "description": "라벨명"
+            },
+            "type": {
+              "enum": [
+                "BBOX",
+                "POLYGON",
+                "POINT",
+                "SKELETON"
+              ],
+              "type": "string",
+              "description": "라벨 형태. SKELETON=COCO-17 키포인트(POINT 예약어 재해석 아님)"
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9A-F]{6}$",
+              "description": "대문자 hex(#RRGGBB). 소문자 입력 시 400"
+            },
+            "sortNo": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "정렬 순서"
+            },
+            "dtctTypeCd": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 20,
+              "description": "AI(COCO) 검출 클래스 매핑. 미지정=미매핑. COCO 80 클래스명 아니면 400"
+            }
+          }
+        },
+        "example": {
+          "name": "사람",
+          "type": "BBOX",
+          "color": "#EF4444",
+          "sortNo": 1,
+          "dtctTypeCd": "person"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -281,17 +335,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<LabelMasterResponse> 200 본문 schema + 400/401/403/404/409 에러 응답 + example (실제 LabelMasterController.update/@PreAuthorize(REVIEWER) 코드 기준)",
+    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:02:06.228Z",
+    "last_updated_at": "2026-08-16T09:52:37.798Z",
     "created_at": "2026-05-30T07:20:17.867Z"
   }
 }

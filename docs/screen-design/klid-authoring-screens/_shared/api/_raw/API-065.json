@@ -95,7 +95,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "입력 검증 실패 — status 화이트리스트 위반 / completed 인데 결과 객체나 서술이 비어있음 / 서술 길이 초과 / 일치도 범위·자릿수 위반 / results 를 배열로 보냄 / failed 인데 error 누락 등(@Valid + 서비스 검증). ErrorCode=INVALID_INPUT",
+          "description": "입력 검증 실패 — status 화이트리스트 위반 / completed 인데 결과 객체나 서술이 비어있음 / 서술 길이 초과 / 일치도 범위·자릿수 위반 / results 를 배열로 보냄 / failed 인데 error 누락 등(요청 스키마 검증 + 서비스 검증). ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -127,7 +127,7 @@
             "success": false,
             "errorCode": "UNAUTHORIZED"
           },
-          "description": "request_id 발급 게이트 실패 — 미발급 request_id 이거나(WebhookIdempotencyLedger 조회 실패) request_id 에 매핑된 rawSn 이 없음. HMAC 서명 검증은 이 경로에 적용되지 않는다(무서명 규격). ErrorCode=UNAUTHORIZED",
+          "description": "request_id 발급 게이트 실패 — 미발급 request_id 이거나(멱등 원장 조회 실패) request_id 에 매핑된 rawSn 이 없음. HMAC 서명 검증은 이 경로에 적용되지 않는다(무서명 규격). ErrorCode=UNAUTHORIZED",
           "content_type": "application/json"
         },
         "403": {
@@ -388,18 +388,18 @@
       },
       "uses_constants": [],
       "implements_features": [
-        "FEAT-004"
+        "FEAT-009"
       ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 15,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "입력 검증 실패 사유 목록을 현행 계약에 맞춘다. 구간 역전과 구간 중복은 폐기된 배열 규격의 검증이라 더 이상 일어나지 않고, 지금 거부되는 것은 서술 누락·길이 초과·일치도 범위 위반과 결과를 배열로 보내는 경우다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·커밋 해시 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T10:37:27.176Z",
+    "last_updated_at": "2026-08-16T12:24:32.543Z",
     "created_at": "2026-05-30T07:25:56.951Z"
   }
 }

@@ -20,7 +20,7 @@
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">작업자 통계</span><span class="wf-help">REVIEWER 는 제목 '작업자 통계'(부제 '작업자별 통계를 확인합니다.'), WORKER 는 제목 '나의 통계'(부제 '나의 작업 통계를 확인합니다.') — 역할별로 제목·부제가 분기된다.</span>
         <span class="wf-muted">WorkerNameSub</span><span class="wf-help">구현에 따라 렌더 여부가 다르다 — 작업자 select 자체가 선택된 이름을 보여주므로 이 서브타이틀을 생략하는 구현도 있다. 필드(workerStat.workerName)는 항상 응답에 존재한다.</span>
-        <div class="wf-field"><label class="wf-label">작업자 선택</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">REVIEWER 전용(useUsers role=WORKER, /users). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 …</span>
+        <div class="wf-field"><label class="wf-label">작업자 선택</label><select class="wf-select"><option>선택</option></select></div><span class="wf-help">REVIEWER 전용(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가…</span>
       </div>
     </div>
     <div class="wf-card">
@@ -96,8 +96,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 헤더·작업자 선택</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>역할별 헤더 — REVIEWER: 제목 '작업자 통계' + 우측 작업자 선택 select(useUsers role=WORKER size=100). WORKER: 제목 '나의 통계', select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(작업자 통계)<p class="wf-help" style="margin:2px 0 0">REVIEWER 는 제목 '작업자 통계'(부제 '작업자별 통계를 확인합니다.'), WORKER 는 제목 '나의 통계'(부제 '나의 작업 통계를 확인합니다.') — 역할별로 제목·부제가 분기된다.</p></li><li>Custom(조회 대상 작업자명) · binds workerStat.workerName<p class="wf-help" style="margin:2px 0 0">구현에 따라 렌더 여부가 다르다 — 작업자 select 자체가 선택된 이름을 보여주므로 이 서브타이틀을 생략하는 구현도 있다. 필드(workerStat.workerName)는 항상 응답에 존재한다.</p></li><li>Select(작업자 선택)<p class="wf-help" style="margin:2px 0 0">REVIEWER 전용(useUsers role=WORKER, /users). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 '미선택 안내' 섹션이 KPI/차트/표 대신 렌더된다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>역할별 헤더 — REVIEWER: 제목 '작업자 통계' + 우측 작업자 선택 select(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER: 제목 '나의 통계', select 미노출(claims.sub 고정). 대상 workerId 결정: REVIEWER=선택값(초기값 없음, 자동 폴백 없음), WORKER=claims.sub.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(작업자 통계)<p class="wf-help" style="margin:2px 0 0">REVIEWER 는 제목 '작업자 통계'(부제 '작업자별 통계를 확인합니다.'), WORKER 는 제목 '나의 통계'(부제 '나의 작업 통계를 확인합니다.') — 역할별로 제목·부제가 분기된다.</p></li><li>Custom(조회 대상 작업자명) · binds workerStat.workerName<p class="wf-help" style="margin:2px 0 0">구현에 따라 렌더 여부가 다르다 — 작업자 select 자체가 선택된 이름을 보여주므로 이 서브타이틀을 생략하는 구현도 있다. 필드(workerStat.workerName)는 항상 응답에 존재한다.</p></li><li>Select(작업자 선택)<p class="wf-help" style="margin:2px 0 0">REVIEWER 전용(대상: WORKER 역할 사용자 목록, /users, size=100). WORKER 본인은 claims.sub 로 고정되어 select 자체가 렌더되지 않는다. 초기값 없음(자동 폴백 없음) — REVIEWER 가 아무것도 선택하지 않으면 대상 workerId 가 비어 있어 아래 '미선택 안내' 섹션이 KPI/차트/표 대신 렌더된다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-056</li><li>API-001</li></ul></div>
     </div>
   </div>

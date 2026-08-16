@@ -232,7 +232,7 @@
         "change_kind": [
           "add"
         ],
-        "diff_summary": "포털 TUS 영상 업로드 세션 생성 신설(PortalTusUploadController#create)"
+        "diff_summary": "포털 TUS 영상 업로드 세션 생성 신설"
       },
       "deprecated": false,
       "parameters": [
@@ -287,12 +287,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "포털 영상 업로드 세션 생성 성공 응답의 계약을 본문이 아니라 헤더로 명시했다 — 이 응답은 본문을 내려주지 않으므로 채워야 할 것은 예시가 아니라 헤더 계약이다. 세션 식별자는 Location 헤더의 경로 마지막 구간으로만 전달되며 클라이언트는 그 값을 이후 조회·전송 요청의 경로변수로 쓴다. 본문이 없으므로 응답 미디어 타입도 비웠다.",
+    "change_summary": "변경요약에서 내부 회차·구현 심볼 표기를 걷어낸다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T04:29:19.171Z",
+    "last_updated_at": "2026-08-16T09:32:12.979Z",
     "created_at": "2026-07-30T07:09:00.939Z"
   }
 }

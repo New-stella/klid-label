@@ -44,7 +44,7 @@
                   },
                   "versionHash": {
                     "type": "string",
-                    "description": "새 버전 스냅샷 해시 (SHA-256)"
+                    "description": "대상 버전 스냅샷 해시 (SHA-256)"
                   },
                   "registeredAt": {
                     "type": "string",
@@ -56,7 +56,7 @@
                     "description": "등록자 (REG_ID)"
                   }
                 },
-                "description": "롤백으로 생성된 새 active 버전 (VersionResponse.Item)"
+                "description": "재활성화된 대상 버전 (VersionResponse.Item)"
               },
               "message": {
                 "type": "string",
@@ -86,7 +86,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "롤백 성공. 지정 버전의 라벨 스냅샷으로 되돌리고 새 active 버전이 생성된다(LS_LABEL_VERSION 기록). data 에 새 버전 정보.",
+          "description": "롤백 성공. 지정 버전의 라벨 스냅샷으로 되돌린다 — 대상 버전 행이 다시 active 로 전환되며 새 버전 행은 적층되지 않는다(롤백 결과 해시는 대상 스냅샷과 항상 동일). 되돌리기 행위(누가·언제·어느 버전으로)는 라벨 변경 이력에 기록된다. 이미 해당 버전이 active 면 라벨을 재작성하지 않고 이력·통지도 발행하지 않는 멱등 no-op 이다. data 에 재활성화된 대상 버전 정보.",
           "content_type": "application/json"
         },
         "400": {
@@ -240,7 +240,11 @@
         "change_kind": [
           "redesign"
         ],
-        "diff_summary": "DB 스냅샷 롤백 (FEAT-002)"
+        "diff_summary": "DB 스냅샷 롤백 (FEAT-002)",
+        "legacy_source": {
+          "type": "module",
+          "legacy_artifact_id": "LEGACY-004"
+        }
       },
       "deprecated": false,
       "parameters": [
@@ -255,6 +259,27 @@
         }
       ],
       "description": "대상 스냅샷을 다시 활성 상태로 되돌린다. 새 버전 행을 쌓지 않는다 — 되돌린 결과의 내용이 대상 스냅샷 그 자체라 다시 계산한 해시가 대상 행과 같아지고, 프레임과 해시 조합이 유일해야 하므로 같은 행을 또 넣을 수 없기 때문이다. 누가 언제 어느 버전으로 되돌렸는지는 라벨 변경 이력에 남긴다. REVIEWER/WORKER. 이력 패널에서 되돌릴 버전을 고르고 확인 단계를 거치면 호출된다. 과거 산출 회차를 불러와 저장으로 확정하는 흐름과 공존하며, 그 흐름은 버전 축을 바꾸지 않는다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "srcSn"
+          ],
+          "properties": {
+            "srcSn": {
+              "type": "integer",
+              "format": "int64",
+              "description": "롤백 대상 프레임 식별자 (DATA_SRC_SN). 이 프레임의 라벨을 지정 버전 스냅샷으로 되돌린다."
+            }
+          },
+          "description": "롤백 대상 프레임 식별자"
+        },
+        "example": {
+          "srcSn": 1
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -271,12 +296,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "FEAT-002 의 버전 생성 시점 정정을 반영해 재검토했다. 되돌리기 계약은 버전이 언제 만들어지는지와 무관해 변경이 없다.",
+    "current_version": 10,
+    "stale": true,
+    "stale_reason": "REQ-009의 data.constraints 변경이 implements로 2-hop 전파",
+    "change_summary": "D010 P1(D010-STL-011): status=modified 인데 legacy_source 공란 → LEGACY-004(1차 저작도구 핵심 모듈) 배선. 근거: 롤백 API 는 diff_summary 가 \"1차 X → 2차 Y\" 형태로 1차 predecessor 존재를 명시하고, 같은 도메인 UC-032·DOMAIN-010 자신이 이미 LEGACY-004 를 legacy_source 로 쓰고 있어 동일 축.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-12T02:25:53.669Z",
+    "last_updated_at": "2026-08-16T07:22:39.811Z",
     "created_at": "2026-05-30T07:22:12.501Z"
   }
 }

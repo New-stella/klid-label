@@ -82,7 +82,7 @@
                         }
                       }
                     },
-                    "description": "공지사항 (V1.x 스텁 — 항상 빈 배열)"
+                    "description": "공지사항 목록 (게시판 연동 전이라 항상 빈 배열을 반환한다)"
                   },
                   "myTaskCount": {
                     "type": "integer",
@@ -124,7 +124,7 @@
                         }
                       }
                     },
-                    "description": "영상 단위 이벤트 6종 분포"
+                    "description": "관제 카테고리 기준 영상 단위 이벤트 분포(개수 가변 — 서버가 수집 대상 카테고리를 count=0 포함해 전부 반환한다)."
                   },
                   "imageDistribution": {
                     "type": "array",
@@ -146,7 +146,17 @@
                         }
                       }
                     },
-                    "description": "프레임 단위 이벤트 6종 분포"
+                    "description": "관제 카테고리 기준 프레임 단위 이벤트 분포(개수 가변 — 서버가 수집 대상 카테고리를 count=0 포함해 전부 반환한다)."
+                  },
+                  "approvedImageCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수 승인(APPROVED) 영상에 속한 프레임 누적 건수 — 이미지 학습데이터 카드의 주 수치. 항상 approvedImageCount <= cumulativeImageCount."
+                  },
+                  "approvedVideoCount": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "검수 승인(APPROVED) 영상 누적 건수 — 영상 학습데이터 카드의 주 수치. completedCount 와 동일 원천을 쓴다."
                   },
                   "cumulativeImageCount": {
                     "type": "integer",
@@ -157,6 +167,50 @@
                     "type": "integer",
                     "format": "int64",
                     "description": "영상 누적 건수"
+                  },
+                  "approvedEventDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "검수 승인 영상 단위 이벤트 분포. 카테고리 구성·순서는 eventDistribution 과 같고 데이터가 없는 카테고리도 count=0 으로 포함된다."
+                  },
+                  "approvedImageDistribution": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "누적 카운트"
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "화면 표기용 한글 라벨"
+                        },
+                        "eventTypeCd": {
+                          "type": "string",
+                          "description": "이벤트 코드"
+                        }
+                      }
+                    },
+                    "description": "검수 승인 영상의 프레임 단위 이벤트 분포. 카테고리 구성·순서는 imageDistribution 과 같다."
                   }
                 },
                 "description": "대시보드 요약"
@@ -194,18 +248,34 @@
                 {
                   "count": 120,
                   "label": "쓰러짐",
-                  "eventTypeCd": "FALL"
+                  "eventTypeCd": "EV02000201"
                 }
               ],
               "imageDistribution": [
                 {
                   "count": 3400,
                   "label": "쓰러짐",
-                  "eventTypeCd": "FALL"
+                  "eventTypeCd": "EV02000201"
                 }
               ],
+              "approvedImageCount": 43120,
+              "approvedVideoCount": 340,
               "cumulativeImageCount": 102345,
-              "cumulativeVideoCount": 4980
+              "cumulativeVideoCount": 4980,
+              "approvedEventDistribution": [
+                {
+                  "count": 98,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ],
+              "approvedImageDistribution": [
+                {
+                  "count": 2870,
+                  "label": "쓰러짐",
+                  "eventTypeCd": "EV02000201"
+                }
+              ]
             },
             "message": null,
             "success": true,
@@ -294,17 +364,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<DashboardSummaryResponse> 본문 schema + 401/403 (실제 StatsController.summary / DashboardSummaryResponse DTO 코드 기준)",
+    "change_summary": "P1 반영: notices 설명에서 버전·구현상태 잡담 제거(공지 미배선 사실만 남김), 이벤트 분포 예시 eventTypeCd 를 실제 표시명 그룹 대표코드 형식(EV02000201)으로 정정 — 4곳(구 값 FALL 은 어느 코드 체계에도 없다).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:01:31.321Z",
+    "last_updated_at": "2026-08-16T09:00:53.800Z",
     "created_at": "2026-05-30T07:25:07.111Z"
   }
 }

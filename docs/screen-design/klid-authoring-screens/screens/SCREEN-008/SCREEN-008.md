@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 34
-last_updated_at: 2026-08-14T04:35:35.042Z
+version: 35
+last_updated_at: 2026-08-16T07:53:11.305Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.660Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.626Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 34
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-042]]", "[[API-047]]", "[[API-070]]", "[[API-071]]", "[[API-181]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
+  realizes_use_cases: ["[[UC-018]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v34 → v35**
+> change_summary: UC-018(영상 적재)의 related_screens 가 이미 SCREEN-008 을 지목한다 — 반대 방향 realizes_use_cases 를 연결해 양방향 추적성을 갖춘다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 처리 현황 화면
 
@@ -669,7 +674,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-018
 
 ## covered_by_acceptances
 

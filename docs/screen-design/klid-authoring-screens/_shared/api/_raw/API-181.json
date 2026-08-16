@@ -35,12 +35,12 @@
                   "properties": {
                     "label": {
                       "type": "string",
-                      "description": "카테고리 한글명(MAP CD_TYPE='02' EVNT_NM, 없으면 categoryKey 폴백)"
+                      "description": "카테고리 한글명 — 운영자 표시명(OPTR_INDCT_NM) → 관제 수신 유형명(EVNT_NM) → 카테고리명(LS_EVNT_CTGRY.EVNT_CTGRY_NM) → 유형코드(EVNT_TYPE_CD) 순 4단 폴백으로 결정한다(공백만 있는 값은 값 없음으로 간주 — NULLIF(TRIM(...),'')). 판정 단일 원천은 표시명 결정 정책 한 곳이다(복제 금지)."
                     },
                     "categoryKey": {
                       "type": "string",
-                      "example": "020002",
-                      "description": "카테고리 키 = EVNT_CLS_CD+EVNT_CTGRY_CD"
+                      "example": "EV01000101",
+                      "description": "그룹 대표 유형코드 — 표시명이 같은 유형코드들을 묶은 그룹의 대표값(그룹 내 최소 유형코드)"
                     },
                     "memberCodes": {
                       "type": "array",
@@ -70,7 +70,7 @@
             "data": [
               {
                 "label": "침수",
-                "categoryKey": "020002",
+                "categoryKey": "EV01000101",
                 "memberCodes": [
                   "EV01000101",
                   "EV01000102",
@@ -119,7 +119,7 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "이벤트 타입 필터 옵션(카테고리 dedup) 조회 API 신설(Phase 2) — GET /event-types/labels(API-117, 코드→라벨 맵)과 별개 엔드포인트"
+        "diff_summary": "이벤트 타입 필터 옵션(카테고리 dedup) 조회 API 신설 — GET /event-types/labels(API-117, 코드→라벨 맵)과 별개 엔드포인트"
       },
       "deprecated": false,
       "parameters": [],
@@ -139,12 +139,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "그룹핑 축을 카테고리에서 표시명으로 정정하고 내부 구현 클래스명을 걷어낸다. 지금은 표시명이 같은 유형코드들을 접는 방식이며, 카테고리 단위로 적어 두면 표시명을 지정했을 때 그룹이 쪼개지는 동작을 설명할 수 없다. 인가도 역할 제한이 없다는 서술을 실제(검수자·작업자 필요)로 바로잡았다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:57:39.677Z",
+    "last_updated_at": "2026-08-16T12:23:17.308Z",
     "created_at": "2026-07-30T07:16:53.494Z"
   }
 }

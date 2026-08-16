@@ -208,7 +208,10 @@
       },
       "brownfield": {
         "status": "new",
-        "diff_summary": "고도화 신규 — 관리 화면 헬스 폴링 엔드포인트(코드엔 구현됨, LogiCraft 미등록이었던 것 보완)"
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "고도화 신규 — 관리 화면이 주기적으로 폴링하는 외부 연동 헬스 조회 채널"
       },
       "deprecated": false,
       "parameters": [],
@@ -227,12 +230,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 표기 손상 정정 — control-db 핀 결과→control-db 핑 결과 1건. 유니코드 이스케이프 유래 음절 오류로 추정되며 의미·정책 변경 없음(표기만 정정).",
+    "change_summary": "요약에서 구현 상태와 등록 경위를 걷어내고 이 채널이 무엇인지만 남긴다. 변경 성격도 함께 채운다 — 이 도메인의 다른 엔드포인트는 모두 갖고 있는데 이것만 비어 있었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T01:09:06.604Z",
+    "last_updated_at": "2026-08-16T09:44:39.778Z",
     "created_at": "2026-06-01T10:13:04.545Z"
   }
 }

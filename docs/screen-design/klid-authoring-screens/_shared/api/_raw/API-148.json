@@ -135,7 +135,7 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "촬영환경 레거시 파생 동결값 정정 대상 dry-run 조회(DatasetVideoMetaBackfillDevController) — 갭 대조로 신규 등록. 운영(stg/prd) 미노출"
+        "diff_summary": "촬영환경 레거시 파생 동결값 정정 대상 dry-run 조회 — 고도화 신규. 운영(stg/prd) 미노출"
       },
       "deprecated": false,
       "parameters": [],
@@ -154,12 +154,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설명에서 프레임워크 표기 기법과 내부 설정 클래스명을 걷어내고 노출 범위를 사실로 서술한다. 조회 전용이라는 성질과 실행 경로 분리 원칙은 그대로다.",
+    "change_summary": "변경 요약에서 컨트롤러 클래스명과 작업 서술을 걷어낸다. 어느 클래스가 이 경로를 노출하는지와 이 항목이 어떤 절차로 등록됐는지는 계약이 아니다. 경로·권한·요청·응답은 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:46:30.211Z",
+    "last_updated_at": "2026-08-16T10:03:49.353Z",
     "created_at": "2026-07-30T07:04:44.860Z"
   }
 }

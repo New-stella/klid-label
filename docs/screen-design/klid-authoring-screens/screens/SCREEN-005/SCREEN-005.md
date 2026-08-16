@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 70
-last_updated_at: 2026-08-15T09:27:46.926Z
+version: 75
+last_updated_at: 2026-08-16T12:43:58.718Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.655Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.623Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 70
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-018]]", "[[API-019]]", "[[API-020]]", "[[API-021]]", "[[API-024]]", "[[API-032]]", "[[API-066]]", "[[API-067]]", "[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]", "[[API-123]]", "[[API-124]]", "[[API-125]]", "[[API-126]]", "[[API-127]]", "[[API-128]]", "[[API-129]]", "[[API-132]]", "[[API-134]]", "[[API-133]]", "[[API-135]]", "[[API-093]]", "[[API-182]]", "[[API-012]]", "[[API-178]]", "[[API-022]]", "[[API-023]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-183]]", "[[API-184]]", "[[API-177]]", "[[API-195]]", "[[API-196]]", "[[API-197]]"]
+  consumes_apis: ["[[API-018]]", "[[API-019]]", "[[API-020]]", "[[API-021]]", "[[API-024]]", "[[API-032]]", "[[API-066]]", "[[API-067]]", "[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]", "[[API-123]]", "[[API-124]]", "[[API-125]]", "[[API-126]]", "[[API-127]]", "[[API-128]]", "[[API-129]]", "[[API-132]]", "[[API-134]]", "[[API-133]]", "[[API-135]]", "[[API-093]]", "[[API-182]]", "[[API-012]]", "[[API-178]]", "[[API-022]]", "[[API-023]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-183]]", "[[API-184]]", "[[API-177]]", "[[API-195]]", "[[API-196]]", "[[API-197]]", "[[API-034]]", "[[API-035]]", "[[API-036]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
+  realizes_use_cases: ["[[UC-004]]", "[[UC-005]]", "[[UC-006]]", "[[UC-007]]", "[[UC-008]]", "[[UC-021]]", "[[UC-022]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v70 → v75**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (55.8KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 
@@ -884,7 +889,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 구성은 아래 컴포넌트 목록이 정본이다. 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount>0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(zod 1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상·비식별 미수행 영상·검수가 승인된 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★검수가 승인된 영상도 같은 방식으로 버튼을 비활성화하고 사유를 툴팁으로 안내한다('검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다'). ★신고 성공 후 라벨 캐시는 invalidateQueries 가 아니라 removeQueries 로 제거한다(srcSn 있으면 LABEL_KEYS.byVideo, 없으면 LABEL_KEYS.all) — useLabels 가 staleTime 30초 + refetchOnWindowFocus:false + gcTime 5분 이라 invalidate 만 하면 이탈 후 30초 내 재진입 시 재조회가 아예 일어나지 않아 412 도 잠금 배너도 없이 캐시된 라벨 좌표가 그려진다(라벨 좌표는 개인정보 위치를 특정하는 정보, CWE-359). 판정 기준: 게이트가 닫힐 때만 removeQueries, 단순 정합성 갱신은 invalidateQueries.
+- **description**: 구성은 아래 컴포넌트 목록이 정본이다. 저장 확인 모달: × 닫기 시 미저장 변경(dirtyCount>0)이 있으면 노출 — '저장 후 닫기'(API-019)/'저장 없이 닫기'/'취소' 3옵션. beforeunload 가드 동반. 비식별 누락 신고 모달(DeidentReportButton): 사유 textarea(1~1000자) 입력 후 POST /v1/labels/{srcSn}/deident-report(API-032) → 작업락 + DE_IDNTF_YN='F'. 응답 — 409(이미 재처리 중)/403(본인 배정 아님)/404(영상 없음)/412(파생영상·비식별 미수행 영상·검수가 승인된 영상). ★파생영상(videoDetail.derivative=true)은 버튼 자체를 비활성화하고 사유를 툴팁으로 안내한다('이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다') — 부모 rawSn 은 노출하지 않고 원본으로 유도하지도 않는다. 412 응답 시에도 동일 안내를 안전망으로 노출. ★검수가 승인된 영상도 같은 방식으로 버튼을 비활성화하고 사유를 툴팁으로 안내한다('검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다'). ★신고 성공 후 라벨 캐시는 갱신 대상 표시만으로 끝내지 않고 완전히 제거한다 — 캐시가 남아 있으면 이탈 후 짧은 시간 내 재진입 시 재조회가 일어나지 않아 잠금 안내 없이 낡은 라벨 좌표가 그려질 수 있다(라벨 좌표는 개인정보 위치를 특정하는 정보). 판정 기준: 접근 자체가 막히는 변화는 캐시를 제거하고, 단순 정합성 갱신은 갱신 대상 표시로 충분하다.
 
 **references_apis**:
 
@@ -1420,7 +1425,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 영상 단위(LS_DATA_RAW, V163). GET/PUT /v1/videos/{rawSn}/privacy-meta. 프레임 축과 입도가 다른 별개 축
+- **note**: 영상 단위(LS_DATA_RAW). GET/PUT /v1/videos/{rawSn}/privacy-meta. 프레임 축과 입도가 다른 별개 축
 - **type**: Custom
 - **label**: 개인정보 메타 (영상 축)
 
@@ -1454,7 +1459,7 @@ _(empty)_
 
 - **custom_name**: VideoMetaPanel
 
-- **description**: 이 섹션의 패널들은 우측 패널의 '메타' 탭 안에서 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션 순서로 다른 메타 패널들과 함께 세로로 나열한다('메타' 탭으로 전환해야 보이며, 항상 보이는 독립 패널이 아니다). ★개인정보 패널은 프레임 축(LS_DATA_SRC)과 영상 축(LS_DATA_RAW, V163)이 입도가 다른 별개 축이다 — 두 값이 달라도 모순이 아니며('영상 어딘가엔 있지만 이 프레임엔 없다') 각각 export JSON 의 image / video 블록으로 나간다. GET 응답은 수동값 우선 + 기본상수 프리필 + *Source(MANUAL/DERIVED) 병기다(상수 원천은 BE 의 단일 정책 지점 — 화면이 하드코딩하지 않는다). ⚠ FE 는 사용자가 직접 고르지 않은 필드를 null 로 전송해야 한다 — DERIVED 프리필을 그대로 되돌려 보내면 기본상수가 사람의 판정으로 승격되며 BE 는 출처를 알 수 없어 막지 못한다. 비식별 누락 신고 구간에는 개인정보 PUT 이 412 로 차단된다(영상 축·프레임 축 양쪽, 단건+벌크 모두 — 한쪽만 막으면 비대칭을 옆으로 옮길 뿐이다). GET 은 차단하지 않는다(값이 PII 가 아니고 막으면 화면이 안 뜬다). 촬영환경(날씨/시간대/계절)은 PII 축이 아니라 신고 게이트 제외이다. 승인 후 수정은 그 영상을 재검수 대상으로 되돌리고, 검수자가 그 수정을 다시 승인한 시점에 export 를 새 버전으로 전량 재생성한 뒤 성공 이후 TASK_MODIFIED 를 발송한다.
+- **description**: 이 섹션의 패널들은 우측 패널의 '메타' 탭 안에서 촬영환경 → 영상축 개인정보 → 프레임 설명 → 프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션 순서로 다른 메타 패널들과 함께 세로로 나열한다('메타' 탭으로 전환해야 보이며, 항상 보이는 독립 패널이 아니다). ★개인정보 패널은 프레임 축(LS_DATA_SRC)과 영상 축(LS_DATA_RAW)이 입도가 다른 별개 축이다 — 두 값이 달라도 모순이 아니며('영상 어딘가엔 있지만 이 프레임엔 없다') 각각 export JSON 의 image / video 블록으로 나간다. GET 응답은 수동값 우선 + 기본상수 프리필 + *Source(MANUAL/DERIVED) 병기다(상수 원천은 BE 의 단일 정책 지점 — 화면이 하드코딩하지 않는다). ⚠ FE 는 사용자가 직접 고르지 않은 필드를 null 로 전송해야 한다 — DERIVED 프리필을 그대로 되돌려 보내면 기본상수가 사람의 판정으로 승격되며 BE 는 출처를 알 수 없어 막지 못한다. 비식별 누락 신고 구간에는 개인정보 PUT 이 412 로 차단된다(영상 축·프레임 축 양쪽, 단건+벌크 모두 — 한쪽만 막으면 비대칭을 옆으로 옮길 뿐이다). GET 은 차단하지 않는다(값이 PII 가 아니고 막으면 화면이 안 뜬다). 촬영환경(날씨/시간대/계절)은 PII 축이 아니라 신고 게이트 제외이다. 승인 후 수정은 그 영상을 재검수 대상으로 되돌리고, 검수자가 그 수정을 다시 승인한 시점에 export 를 새 버전으로 전량 재생성한 뒤 성공 이후 TASK_MODIFIED 를 발송한다.
 
 **references_apis**:
 
@@ -1877,6 +1882,9 @@ web
 - API-195
 - API-196
 - API-197
+- API-034
+- API-035
+- API-036
 
 ## implementation
 
@@ -1920,9 +1928,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: bd3eb4eb71a44866664c436c0d4cb441d6e74c457efdc97155bf89614323b55f
-- **generated_at**: 2026-08-15T09:27:46.925Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 078c350eee27c7dde763bf7bad6c96ffe81af5e9de843237337aee430a4780c8
+- **generated_at**: 2026-08-16T12:43:58.718Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -1938,7 +1946,13 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-004
+- UC-005
+- UC-006
+- UC-007
+- UC-008
+- UC-021
+- UC-022
 
 ## covered_by_acceptances
 

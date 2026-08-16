@@ -235,7 +235,7 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "포털 DB에서 사용자가 선택한 영상의 라벨/메타를 Load한다. PORTAL_USER 전용.",
+      "description": "저작도구 DB의 검수 승인(APPROVED) 자산에서 사용자가 선택한 영상의 라벨/메타를 Load한다 — 포털 DB를 읽지 않는다. PORTAL_USER 전용.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -250,12 +250,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 설명에서 내부 구현 클래스명과 프레임워크 표기 기법을 걷어내고 인가 조건만 남긴다.",
+    "change_summary": "설명의 조달원 서술을 정정한다 — 이 엔드포인트는 포털 DB가 아니라 저작도구 DB의 검수 승인(APPROVED) 자산에서 라벨/메타를 Load한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:45:06.977Z",
+    "last_updated_at": "2026-08-16T06:08:35.675Z",
     "created_at": "2026-05-30T07:27:30.274Z"
   }
 }

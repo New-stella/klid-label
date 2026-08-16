@@ -73,7 +73,7 @@
                         "commentSn": {
                           "type": "integer",
                           "format": "int64",
-                          "description": "댓글 PK (ISSUE_COMMENT_SN)"
+                          "description": "댓글 PK (CMNT_SN)"
                         },
                         "authorName": {
                           "type": "string",
@@ -205,7 +205,7 @@
                         "commentSn": {
                           "type": "integer",
                           "format": "int64",
-                          "description": "댓글 PK (ISSUE_COMMENT_SN)"
+                          "description": "댓글 PK (CMNT_SN)"
                         },
                         "authorName": {
                           "type": "string",
@@ -323,7 +323,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "issueRsn 누락 등 @Valid 검증 실패 / srcSn 이 해당 영상 소속 아님(verifyFrameBelongsToVideo). ErrorCode=INVALID_INPUT",
+          "description": "content 누락 등 요청 검증 실패 / srcSn 이 해당 영상 소속 아님. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -387,12 +387,12 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "WORKER 가 미배정 영상에 등록 시도(본인 배정 검증) / PORTAL_USER 접근. @PreAuthorize hasAnyRole('WORKER','REVIEWER'). ErrorCode=FORBIDDEN",
+          "description": "WORKER 가 미배정 영상에 등록 시도(본인 배정 검증) / PORTAL_USER 접근. 허용 역할은 WORKER·REVIEWER 다. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         }
       },
       "brownfield": {
-        "notes": "근거: docs/v2-wiki/21-issue-channel.md, 커밋 fb9debb. ADR 미작성",
+        "notes": "ADR 미작성",
         "status": "new",
         "change_kind": [
           "feature-add"
@@ -417,7 +417,7 @@
         "schema": {
           "type": "object",
           "required": [
-            "issueRsn"
+            "content"
           ],
           "properties": {
             "srcSn": {
@@ -426,10 +426,10 @@
               "nullable": true,
               "description": "선택적 프레임 참조 (LS_DATA_SRC.SRC_SN) — 특정 프레임 관련 문의 시"
             },
-            "issueRsn": {
+            "content": {
               "type": "string",
               "maxLength": 1000,
-              "description": "문의 사유/내용"
+              "description": "문의 사유/내용 (LS_DATA_ISSUE.ISSUE_RSN)"
             }
           }
         },
@@ -445,17 +445,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "DB 물리 테이블명을 표준용어에 맞춰 개명한 것을 반영한다. LS_TASK_ASSIGNMENT 를 LS_TASK_ALTMNT 로(배정=ALTMNT), LS_TASK_EVENT_LOG 를 LS_TASK_EVNT_LOG 로(이벤트=EVNT) 바꾼다. 인덱스·제약 이름도 테이블 접두를 따라간다. 컬럼 ASSIGNMENT_ID 는 사업표준용어 「배정아이디」 등록분이라 그대로 둔다 — 테이블명은 용어 등록으로 보호되지 않아 단어 축 판정을 받는다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T05:33:52.981Z",
+    "last_updated_at": "2026-08-16T12:23:06.888Z",
     "created_at": "2026-06-05T04:58:17.859Z"
   }
 }

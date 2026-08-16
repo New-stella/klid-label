@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-026
 type: screen_spec
-version: 22
-last_updated_at: 2026-08-14T23:56:31.719Z
+version: 26
+last_updated_at: 2026-08-16T12:44:01.133Z
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:12.661Z
-sync_session: 7
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:51:56.067Z
+sync_session: 8
+stale: true
+status: CHANGED
+prev_version: 22
 raw: ./_raw/SCREEN-026.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-037]]", "[[API-038]]", "[[API-039]]", "[[API-040]]", "[[API-041]]", "[[API-117]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-032]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v22 → v26**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (12.6KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 프리셋 관리 화면
 
@@ -250,7 +255,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 프리셋 목록을 반응형 카드 그리드(좁은 화면 1열, 중간 2열, 넓은 화면 3열)로 표시한다(클라이언트 측 페이지네이션, 9건/페이지 변형과 10건/페이지·2열 변형이 있다). 각 카드: 프리셋명 + 매핑 이벤트 배지(없으면 '미매핑') + 설명(2줄까지, 없으면 '설명이 없습니다.') + 라벨 코드 칩 목록(앞 6개 + 초과시 '+N') + 라벨 개수 + 수정일. ★라벨 칩의 이름·색·형태는 프리셋에 저장된 값이 아니라 라벨 마스터를 조회 시점에 실시간 join 해 가져온다 — 마스터를 고치면 기존 프리셋 표시도 즉시 바뀌고, 마스터에 매칭되지 않는 레거시 코드는 오류 없이 '미연결'로 표시된다(칩에 '· 미연결' 접미사). REVIEWER일 때 카드 우상단에 수정·삭제·복제 버튼. 복제 버튼은 클릭 즉시 서버에 복제를 요청해 이름 끝에 ' (복사본)' 접미사가 붙은 새 프리셋을 생성한다 — 매핑 이벤트 타입은 상속되지 않고 미매핑으로 초기화된다. 로딩 시 Skeleton(6개 변형·4개 변형), 0건이면 빈 상태 안내(REVIEWER면 안내 영역에 '새 프리셋 만들기' 버튼도 함께 노출 — 헤더의 '프리셋 추가' 버튼과 동일하게 편집 모달을 신규 모드로 연다), 에러 시 ErrorState 배너.
+- **description**: 프리셋 목록을 반응형 카드 그리드(좁은 화면 1열, 중간 2열, 넓은 화면 3열)로 표시한다(클라이언트 측 페이지네이션, 9건/페이지). 각 카드: 프리셋명 + 매핑 이벤트 배지(없으면 '미매핑') + 설명(2줄까지, 없으면 '설명이 없습니다.') + 라벨 코드 칩 목록(앞 6개 + 초과시 '+N') + 라벨 개수 + 수정일. ★라벨 칩의 이름·색·형태는 프리셋에 저장된 값이 아니라 라벨 마스터를 조회 시점에 실시간 join 해 가져온다 — 마스터를 고치면 기존 프리셋 표시도 즉시 바뀌고, 마스터에 매칭되지 않는 레거시 코드는 오류 없이 '미연결'로 표시된다(칩에 '· 미연결' 접미사). REVIEWER일 때 카드 우상단에 수정·삭제·복제 버튼. 복제 버튼은 클릭 즉시 서버에 복제를 요청해 이름 끝에 ' (복사본)' 접미사가 붙은 새 프리셋을 생성한다 — 매핑 이벤트 타입은 상속되지 않고 미매핑으로 초기화된다. 로딩 시 Skeleton(6개 변형·4개 변형), 0건이면 빈 상태 안내(REVIEWER면 안내 영역에 '새 프리셋 만들기' 버튼도 함께 노출 — 헤더의 '프리셋 추가' 버튼과 동일하게 편집 모달을 신규 모드로 연다), 에러 시 ErrorState 배너.
 
 **references_apis**:
 
@@ -490,11 +495,15 @@ _(empty)_
 
 ### status
 
-preserved
+modified
+
+### decided_by
+
+ADR-034
 
 ### diff_summary
 
-1차 라벨링 프리셋 관리
+1차 라벨링 프리셋 관리 — ADR-034(프리셋-마스터 단일화)로 저장모델·요청 계약이 반전(코드 문자열 스냅샷 → 마스터 PK(labelId) 실시간 join)돼 preserved 로 남을 수 없다.
 
 ### legacy_source
 
@@ -566,9 +575,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 4d1573ac8ffbb5b18f50370f9fbc73c635e07b9d944d193579da66b9a7d814df
-- **generated_at**: 2026-08-14T23:56:31.719Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: fe4846825d313dde4dbaef0c5437a1d7c70590dfb5eac8adaff6694919232dc8
+- **generated_at**: 2026-08-16T12:44:01.132Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -584,7 +593,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-032
 
 ## covered_by_acceptances
 

@@ -5,31 +5,34 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-15T14:28:12.095Z (session 4) |
-| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 153 |
+| Last sync | 2026-08-16T12:51:14.260Z (session 5) |
+| Mode | SYNC — NEW 3 / CHANGED 9 / UNCHANGED 152 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 7 | false | UNCHANGED |
-| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 7 | true | CHANGED |
-| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 5 | false | UNCHANGED |
-| [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | CHANGED |
-| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 4 | false | UNCHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 11 | false | UNCHANGED |
+| [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 9 | false | CHANGED |
+| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 10 | false | CHANGED |
+| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 6 | false | CHANGED |
+| [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
+| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 7 | false | CHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 12 | false | CHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
-| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 3 | false | CHANGED |
+| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 4 | true | CHANGED |
+| [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | NEW |
+| [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 2 | false | NEW |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 3 | false | NEW |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 8 | true | CHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | CHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | CHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 44 | false | UNCHANGED |
-| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | false | CHANGED |
+| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | false | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 11 | true | CHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 19 | true | CHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 12 | false | CHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 20 | false | CHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

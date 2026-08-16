@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-037
 type: screen_spec
-version: 7
-last_updated_at: 2026-08-13T01:02:45.294Z
+version: 8
+last_updated_at: 2026-08-16T08:33:59.836Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:04.362Z
-sync_session: 4
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:51:47.679Z
+sync_session: 5
+stale: true
+status: CHANGED
+prev_version: 7
 raw: ./_raw/SCREEN-037.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-096]]", "[[API-098]]", "[[API-106]]", "[[API-108]]"]
   required_roles: ["[[ROLE-001]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v7 → v8**
+> change_summary: decided_by=ADR-014 명시 — ADR-014 가 이 화면을 references 로 붙잡고 있는데 역방향(decided_by)이 비어 있었다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 수정 화면
 
@@ -298,6 +302,10 @@ _(empty)_
 ### status
 
 new
+
+### decided_by
+
+ADR-014
 
 ### change_kind
 

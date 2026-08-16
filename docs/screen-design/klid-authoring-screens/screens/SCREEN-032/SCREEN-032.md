@@ -1,24 +1,25 @@
 ---
 logicraft_item: SCREEN-032
 type: screen_spec
-version: 22
-last_updated_at: 2026-08-15T14:15:11.953Z
+version: 23
+last_updated_at: 2026-08-16T07:12:37.508Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.691Z
-sync_session: 12
-stale: false
+synced_at: 2026-08-16T12:52:08.650Z
+sync_session: 13
+stale: true
 status: CHANGED
-prev_version: 21
+prev_version: 22
 raw: ./_raw/SCREEN-032.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-094]]", "[[API-109]]", "[[API-202]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-016]]"]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v21 → v22**
-> change_summary: 이 화면이 소비하는 계약 목록에 비식별 산출물 후보 조회를 추가한다. 해소 처리를 하려면 어느 산출물로 해소하는지 먼저 골라야 하고, 그 후보 목록은 서버가 요청 시점에 다시 열거해 돌려준다. 화면은 그 목록에서 고른 값만 해소 요청에 실으며 서버는 받은 파일명으로 경로를 조립하지 않는다. 즉 이 조회는 보조 편의가 아니라 해소 요청의 허용 목록이자 경로 조작 방어의 기준점이라, 계약이 목록에서 빠져 있으면 그 제약이 문서에서 사라진다. 화면 구성과 나머지 서술은 바꾸지 않는다.
+> ⚠️ **버전 변경 감지 — logicraft v22 → v23**
+> change_summary: 이 화면이 어느 유스케이스를 실현하는지 역방향 연결이 비어 있었다. 유스케이스 쪽은 이미 이 화면을 선언하고 있어 한쪽만 채워져 있던 것을 맞춘다.
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 비식별 신고 관리 화면
@@ -411,7 +412,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-016
 
 ## covered_by_acceptances
 

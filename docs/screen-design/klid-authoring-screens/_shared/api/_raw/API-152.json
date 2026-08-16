@@ -216,11 +216,11 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "dev 전용 영상 업로드 + 오토라벨 파이프라인 트리거(DevAutolabelTestController) — 갭 대조로 신규 등록. authoring.dev.upload.enabled 토글 기본 false"
+        "diff_summary": "dev 전용 영상 업로드 + 오토라벨 파이프라인 트리거 — 2차 신설. authoring.dev.upload.enabled 토글 기본 false"
       },
       "deprecated": false,
       "parameters": [],
-      "description": "authoring.dev.upload.enabled=true(env DEV_UPLOAD_ENABLED) 일 때만 빈이 등록되어 endpoint 가 노출된다(기본 false, fail-closed, ADR-039). 미설정/false 면 prd·dev 무관하게 빈 부재(404). 추가로 @PreAuthorize(\"hasRole('REVIEWER')\") 권한 가드. multipart/form-data 로 영상 파일과 JSON 메타데이터를 함께 업로드한다. 응답은 즉시(200) 반환되고 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다. 허용 확장자: mp4/webm/mov/avi, 기본 최대 500MB.",
+      "description": "authoring.dev.upload.enabled=true(env DEV_UPLOAD_ENABLED) 일 때만 빈이 등록되어 endpoint 가 노출된다(기본 false, fail-closed, ADR-039). 미설정/false 면 prd·dev 무관하게 빈 부재(404). 추가로 REVIEWER 권한 가드. multipart/form-data 로 영상 파일과 JSON 메타데이터를 함께 업로드한다. 응답은 즉시(200) 반환되고 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다. 허용 확장자: mp4/webm/mov/avi, 기본 최대 500MB.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -277,7 +277,7 @@
                 "eventTypeCd": {
                   "type": "string",
                   "pattern": "^EV[0-9]{8}$",
-                  "description": "관제 마스터(MNG_EX_EVNT_TYPE) 상세 이벤트 코드(EV+숫자 8자리). 예: EV02000201(쓰러짐)"
+                  "description": "저작도구 소유 이벤트유형 마스터(LS_EVNT_TYPE.EVNT_TYPE_CD) 상세 이벤트 코드(EV+숫자 8자리). 예: EV02000201(쓰러짐)"
                 }
               },
               "description": "AutolabelTestRequest JSON 메타데이터"
@@ -312,12 +312,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "CCTV 식별자에 등록 여부 검증이 있는 것처럼 적혀 있던 것을 정정했다 — 대조할 CCTV 마스터 테이블이 관제 2차에서 제거돼 검증할 원천 자체가 없고, 실제로는 형식만 본다. 이 서술대로 구현하면 존재하지 않는 마스터를 조회하는 코드를 만들게 되고, 소비자는 정상 식별자가 400 으로 거부될 것으로 오해한다. 400 사유 목록에서도 같은 항목을 걷어냈다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T05:49:00.036Z",
+    "last_updated_at": "2026-08-16T12:23:14.674Z",
     "created_at": "2026-07-30T07:05:56.454Z"
   }
 }

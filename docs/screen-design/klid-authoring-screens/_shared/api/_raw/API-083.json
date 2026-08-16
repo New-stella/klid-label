@@ -197,7 +197,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "PORTAL_USER 이 아닌 채널/역할 (@PreAuthorize hasRole PORTAL_USER). ErrorCode=FORBIDDEN",
+          "description": "PORTAL_USER 이 아닌 채널/역할. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "412": {
@@ -257,12 +257,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 게이트의 412 응답을 계약에 추가. 저장과 조회가 같은 자원을 다루므로 응답 계약도 대칭이어야 한다.",
+    "change_summary": "응답 설명에서 프레임워크 어노테이션 표기를 걷어낸다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:50:24.247Z",
+    "last_updated_at": "2026-08-16T09:32:13.400Z",
     "created_at": "2026-05-30T07:27:40.905Z"
   }
 }

@@ -5,36 +5,36 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 게시판·공지 |
 | 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
-| Last sync | 2026-08-15T14:28:04.409Z (session 4) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 165 |
+| Last sync | 2026-08-16T12:51:47.721Z (session 5) |
+| Mode | SYNC — NEW 0 / CHANGED 16 / UNCHANGED 151 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/게시판공지-DOMAIN-009 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[API-095]] | api_endpoint | GET /v1/notices | 3 | false | UNCHANGED |
-| [[API-096]] | api_endpoint | GET /v1/notices/{id} | 3 | false | UNCHANGED |
-| [[API-097]] | api_endpoint | POST /v1/notices | 3 | false | UNCHANGED |
-| [[API-098]] | api_endpoint | PUT /v1/notices/{id} | 3 | false | UNCHANGED |
-| [[API-099]] | api_endpoint | DELETE /v1/notices/{id} | 3 | false | UNCHANGED |
-| [[API-100]] | api_endpoint | POST /v1/notices/{id}/publish | 4 | false | UNCHANGED |
-| [[API-101]] | api_endpoint | POST /v1/notices/{id}/unpublish | 4 | false | UNCHANGED |
-| [[API-106]] | api_endpoint | POST /v1/notices/{id}/attachments | 6 | false | UNCHANGED |
-| [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 3 | false | UNCHANGED |
-| [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 3 | false | UNCHANGED |
+| [[API-095]] | api_endpoint | GET /v1/notices | 6 | false | CHANGED |
+| [[API-096]] | api_endpoint | GET /v1/notices/{id} | 7 | false | CHANGED |
+| [[API-097]] | api_endpoint | POST /v1/notices | 7 | false | CHANGED |
+| [[API-098]] | api_endpoint | PUT /v1/notices/{id} | 7 | false | CHANGED |
+| [[API-099]] | api_endpoint | DELETE /v1/notices/{id} | 6 | false | CHANGED |
+| [[API-100]] | api_endpoint | POST /v1/notices/{id}/publish | 8 | false | CHANGED |
+| [[API-101]] | api_endpoint | POST /v1/notices/{id}/unpublish | 8 | false | CHANGED |
+| [[API-106]] | api_endpoint | POST /v1/notices/{id}/attachments | 9 | false | CHANGED |
+| [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 7 | false | CHANGED |
+| [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 6 | false | CHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 8 | true | CHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | CHANGED |
-| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 20 | false | UNCHANGED |
-| [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 22 | false | UNCHANGED |
-| [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 7 | false | UNCHANGED |
-| [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 7 | false | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | CHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | UNCHANGED |
+| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 23 | true | CHANGED |
+| [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 29 | true | CHANGED |
+| [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | CHANGED |
+| [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 8 | true | CHANGED |
 | [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 5 | false | UNCHANGED |
 | [[SD-008]] | screen_design | SCREEN-036 공지 작성 화면 | 4 | false | UNCHANGED |
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 7 | false | UNCHANGED |
-| [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 4 | false | UNCHANGED |
+| [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | CHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |

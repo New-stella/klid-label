@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 12
-last_updated_at: 2026-08-14T23:44:29.054Z
+version: 15
+last_updated_at: 2026-08-16T09:35:10.731Z
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:13.686Z
-sync_session: 12
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:52:08.645Z
+sync_session: 13
+stale: true
+status: CHANGED
+prev_version: 12
 raw: ./_raw/SCREEN-028.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-115]]"]
   required_roles: ["[[ROLE-003]]"]
+  realizes_use_cases: ["[[UC-024]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v12 → v15**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (7.8KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 홈 화면
 
@@ -37,7 +42,7 @@ draft
 
 ## purpose
 
-PORTAL_USER가 진입하는 포털 메인 화면. 데이터마트에서 검수 완료(APPROVED)되고 프레임 1건 이상 보유한 영상만 노출하며, 영상 카드 또는 '시작하기' 버튼 클릭 시 해당 영상 첫 프레임(firstSrcSn)의 라벨링 화면(/portal/label/{srcSn})으로 진입한다. 헤더에 본인 자산 업로드 관리 화면(/portal/uploads) 진입 링크('내 업로드')를 제공한다. KPI 2종(영상 수/라벨링 완료 — 라벨링 완료는 현재 0 고정 표시, 집계 연동은 후속)을 노출한다. 오토라벨링·SAM2·VLM·검수·버전관리는 포털 전 구간에서 미제공. 반응형(WCAG 2.1 AA). 접근: PORTAL_USER.
+PORTAL_USER가 진입하는 포털 메인 화면. 데이터마트에서 검수 완료(APPROVED)되고 프레임 1건 이상 보유한 영상만 노출하며, 영상 카드 또는 '시작하기' 버튼 클릭 시 해당 영상 첫 프레임(firstSrcSn)의 라벨링 화면(/portal/label/{srcSn})으로 진입한다. 헤더에 본인 자산 업로드 관리 화면(/portal/uploads) 진입 링크('내 업로드')를 제공한다. KPI 2종(영상 수/라벨링 완료 — 라벨링 완료는 현재 0 고정 표시)을 노출한다. 오토라벨링·SAM2·VLM·검수·버전관리는 포털 전 구간에서 미제공. 반응형(WCAG 2.1 AA). 접근: PORTAL_USER.
 
 ## sections
 
@@ -123,7 +128,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 현재 0 고정 — 라벨링 완료 집계 연동은 후속
+- **note**: 현재 0 고정
 - **type**: Stat
 - **label**: 라벨링 완료
 
@@ -135,7 +140,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: KPI 2개 그리드. '영상 수'는 데이터마트 목록(API-115) totalElements, '라벨링 완료'는 현재 0으로 고정 표시(집계 미연동, 후속 과제).
+- **description**: KPI 2개 그리드. '영상 수'는 데이터마트 목록(API-115) totalElements, '라벨링 완료'는 현재 0으로 고정 표시(집계 미연동).
 
 **references_apis**:
 
@@ -312,6 +317,20 @@ GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVE
 
 _(empty)_
 
+## brownfield
+
+### status
+
+new
+
+### change_kind
+
+- capability-add
+
+### diff_summary
+
+2차 포털 메인(홈) 화면 — 데이터마트 검수 완료(APPROVED) 영상 목록 진입점
+
 ## surface_kind
 
 web
@@ -360,8 +379,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: d761ab1cf938c664698717f5db9faf50df8998c5e8e949c2887160f37b65e6a5
-- **generated_at**: 2026-08-14T23:44:29.054Z
+- **source_hash**: 2cc2760f0bdda63411bebd1ad8395111a7f8a5a1fd6a7028386ea8311367f1e0
+- **generated_at**: 2026-08-16T09:35:10.731Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -378,7 +397,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-024
 
 ## covered_by_acceptances
 

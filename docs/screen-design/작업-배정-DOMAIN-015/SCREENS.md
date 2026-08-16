@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-15T14:28:03.393Z (session 5) |
+| last sync | 2026-08-16T12:51:24.208Z (session 6) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/작업-배정-DOMAIN-015 |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-012]] | 작업 목록 화면 | CHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
@@ -52,8 +52,18 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[ROLE-001]] | permission_role | CHANGED (v7→v8) |
-| [[ROLE-002]] | permission_role | CHANGED (v5→v6) |
+| [[API-001]] | api_endpoint | CHANGED (v2→v3) |
+| [[API-070]] | api_endpoint | CHANGED (v5→v8) |
+| [[API-071]] | api_endpoint | CHANGED (v4→v7) |
+| [[API-072]] | api_endpoint | CHANGED (v4→v10) |
+| [[API-073]] | api_endpoint | CHANGED (v4→v9) |
+| [[API-116]] | api_endpoint | CHANGED (v3→v8) |
+| [[API-136]] | api_endpoint | CHANGED (v1→v4) |
+| [[API-137]] | api_endpoint | CHANGED (v3→v6) |
+| [[API-187]] | api_endpoint | CHANGED (v1→v2) |
+| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
+| [[SCREEN-012]] | screen_spec | CHANGED (v34→v39) |
+| [[UC-029]] | use_case | CHANGED (v5→v9) |
 
 ## Obsidian 볼트로 보기
 

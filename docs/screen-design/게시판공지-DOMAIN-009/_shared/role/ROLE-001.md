@@ -1,14 +1,14 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 8
+version: 10
 status: CHANGED
-prev_version: 7
+prev_version: 8
 raw: ./_raw/ROLE-001.json
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v7 → v8**
-> change_summary: 연결 화면 변경에 따른 재확인. 이 문서의 축과 화면 변경 내용이 겹치지 않고, 폐기된 화면이나 인터페이스를 가리키는 참조도 없음을 확인했다. 본문은 바꾸지 않는다.
+> ⚠️ **버전 변경 감지 — logicraft v8 → v10**
+> change_summary: 사용자 관리 화면에 create 액션이 선언돼 있었으나 그 화면에는 사용자 생성이 없다 — 행 조작은 수정 하나뿐이고, 사용자 마스터는 역할 클레임 시 자동등록되므로 이 역할이 사용자를 만드는 경로는 설계상 존재하지 않는다. actions 에서 create 를 걷어내고 그 결정을 condition 에 남겨 다음에 누락으로 오해되지 않게 한다.
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수자 (REVIEWER)
@@ -163,10 +163,9 @@ ADMIN
 **actions**:
 
 - view
-- create
 - update
 
-- **condition**: 사용자 관리
+- **condition**: 사용자 관리 — 목록 조회·검색·역할 수정. 사용자 생성은 두지 않는다(사용자 마스터는 역할 클레임 시 자동등록된다). 계정 활성 여부는 외부 시스템 소유라 읽기 전용이다
 - **target_id**: SCREEN-024
 - **target_kind**: screen_spec
 
@@ -319,8 +318,10 @@ ADMIN
 **actions**:
 
 - view
+- update
+- delete
 
-- **condition**: 공지 상세 조회
+- **condition**: 공지 상세 조회·발행·발행취소·삭제 — 발행 제어와 삭제는 이 역할만 할 수 있다
 - **target_id**: SCREEN-031
 - **target_kind**: screen_spec
 

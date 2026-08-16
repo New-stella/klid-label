@@ -353,9 +353,10 @@
                       ],
                       "properties": {
                         "id": {
-                          "type": "string",
+                          "type": "integer",
+                          "format": "int64",
                           "nullable": true,
-                          "description": "기존 라벨 식별자. 새로 그린 라벨이면 비운다."
+                          "description": "기존 라벨 식별자(LS_DATA_LBL.LBL_SN). 새로 그린 라벨이면 비운다."
                         },
                         "points": {
                           "type": "array",
@@ -375,18 +376,23 @@
                           "description": "라벨 마스터 PK. 라벨을 만들거나 분류를 바꾸는 모든 경로가 이 값을 채워야 한다. 비운 채로 저장하면 다시 조회할 때 마스터 조인이 끊겨 표시 색상과 라벨명과 속성 정의가 함께 사라진다."
                         },
                         "trackId": {
-                          "type": "integer",
+                          "type": "string",
                           "format": "int64",
+                          "pattern": "^[A-Za-z0-9._:-]+$",
                           "nullable": true,
-                          "description": "같은 객체를 프레임 사이에서 잇는 추적 식별자"
+                          "maxLength": 30,
+                          "description": "같은 객체를 프레임 사이에서 잇는 추적 식별자. null 이면 현재 값을 그대로 둔다(하위호환). 영숫자와 . _ : - 만 허용(LS_DATA_LBL.TRCK_ID VARCHAR(30))."
                         },
                         "lblTypeCd": {
                           "enum": [
                             "BBOX",
-                            "POLYGON"
+                            "POLYGON",
+                            "SEGMENT",
+                            "TRACK",
+                            "SKELETON"
                           ],
                           "type": "string",
-                          "description": "도형 종류"
+                          "description": "도형 종류(LabelItemDto.lblTypeCd 패턴과 일치)"
                         }
                       }
                     },
@@ -529,10 +535,14 @@
                 {
                   "id": "9001",
                   "points": [
-                    120,
-                    80,
-                    260,
-                    400
+                    [
+                      120,
+                      80
+                    ],
+                    [
+                      260,
+                      400
+                    ]
                   ],
                   "labelId": 12,
                   "trackId": 7,
@@ -574,12 +584,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "검수 완료 이력이 있는 영상의 프레임 폐기·복원 차단과 그 예외를 계약에 명문화한다. 입력값 검증 실패 응답 설명과 편집분의 프레임 폐기 여부 필드 설명에 각각 덧붙였다. 판정 축이 경로가 아니라 프레임마다의 값 비교라는 점을 함께 적었다 — 경로 단위로 두면 회차를 한 번 불러오는 것만으로 제약이 통째로 우회되고, 필드 존재로 두면 화면이 회차 값을 그대로 실어 보내는 정상 저장까지 모두 거부되기 때문이다.",
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "REQ-009의 data.constraints 변경이 implements로 2-hop 전파",
+    "change_summary": "D010 P1(D010-SCH-007): 계약↔구현(VideoLabelSaveRequest.FrameEdit.items=LabelItemDto) 타입 불일치 3건 정정 — ①id: string→integer/int64(구현 Long) ②trackId: integer/int64→string(≤30자, 영숫자+._:- 패턴, 구현 String+패턴 일치, Sam2TrackRequest.trackId 와 동일 축) ③lblTypeCd enum: [BBOX,POLYGON] 2값→[BBOX,POLYGON,SEGMENT,TRACK,SKELETON] 5값(LabelItemDto 패턴과 정합, points.description 의 SKELETON 언급과의 자기모순도 해소). (label 필드 자체의 부재는 SCH-005/P0 라운드에서 이미 \"사용자 판단 필요\"로 분리돼 있어 이번 라운드에서 건드리지 않음 — labelId 단일진실원 확정정책과 코드의 @NotBlank label 요구가 충돌하는 별개 정책 사안)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T08:57:52.897Z",
+    "last_updated_at": "2026-08-16T07:26:42.072Z",
     "created_at": "2026-08-10T14:22:47.710Z"
   }
 }

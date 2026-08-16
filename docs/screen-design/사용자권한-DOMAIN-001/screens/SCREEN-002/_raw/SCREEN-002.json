@@ -27,13 +27,13 @@
             },
             {
               "type": "Custom",
-              "label": "관리자에게 받은 패스워드로 역할을 부여받으세요.",
+              "label": "검수자에게 받은 패스워드로 역할을 부여받으세요.",
               "columns": [],
               "options": [],
               "custom_name": "SubText"
             }
           ],
-          "description": "인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(관리자에게 받은 패스워드로 역할을 부여받으세요).",
+          "description": "인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(검수자에게 받은 패스워드로 역할을 부여받으세요).",
           "references_apis": [],
           "references_features": []
         },
@@ -70,7 +70,7 @@
               "columns": [],
               "options": [],
               "binds_to": "adminPassword",
-              "placeholder": "관리자에게 받은 패스워드를 입력하세요"
+              "placeholder": "검수자에게 받은 패스워드를 입력하세요"
             },
             {
               "note": "실패 시에만 role=alert 로 노출",
@@ -98,12 +98,12 @@
         }
       ],
       "brownfield": {
-        "status": "modified",
+        "status": "new",
         "decided_by": "ADR-012",
         "change_kind": [
           "redesign"
         ],
-        "diff_summary": "2차 role+channel 클레임 분기 화면"
+        "diff_summary": "2차 role+channel 클레임 분기 화면 — 1차 GPKI 인증서 기반 로그인에는 없던 2차 전용 자가부여 온보딩 화면"
       },
       "surface_kind": "web",
       "consumes_apis": [
@@ -126,8 +126,8 @@
           "surface": "page",
           "platform": "web",
           "sections": [],
-          "source_hash": "0d8b2986ef7579d2f2eff9c5882cfc1046a17739f9540a119bee4a0357e6107e",
-          "generated_at": "2026-08-14T23:44:28.748Z",
+          "source_hash": "d3a0988c15ad3a19bb1688a09442a1bde8a94f5f019beb5a51f3389e537a5992",
+          "generated_at": "2026-08-16T12:43:57.924Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -139,12 +139,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 14,
+    "current_version": 17,
     "stale": false,
     "stale_reason": null,
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.3KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T23:44:28.748Z",
+    "last_updated_at": "2026-08-16T12:43:57.924Z",
     "created_at": "2026-05-30T07:53:26.824Z"
   }
 }

@@ -5,271 +5,272 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | - 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-15T14:28:13.846Z (session 12) |
-| Mode | SYNC — NEW 0 / CHANGED 31 / UNCHANGED 418 |
+| Last sync | 2026-08-16T12:52:08.851Z (session 13) |
+| Mode | SYNC — NEW 1 / CHANGED 217 / UNCHANGED 232 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[AC-001]] | acceptance | 증강 영상 생성 요청 수용 | 5 | false | UNCHANGED |
-| [[AC-002]] | acceptance | 증강 결과 수신·새 영상 등록 | 6 | false | UNCHANGED |
-| [[AC-003]] | acceptance | 해상도 변경 파생영상 생성·좌표 재계산 | 6 | false | UNCHANGED |
-| [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 5 | false | UNCHANGED |
-| [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 5 | false | UNCHANGED |
-| [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 5 | false | UNCHANGED |
+| [[AC-001]] | acceptance | 증강 영상 생성 요청 수용 | 9 | false | CHANGED |
+| [[AC-002]] | acceptance | 증강 결과 수신·새 영상 등록 | 8 | true | CHANGED |
+| [[AC-003]] | acceptance | 해상도 변경 파생영상 생성·좌표 재계산 | 7 | true | CHANGED |
+| [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 7 | false | CHANGED |
+| [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 7 | true | CHANGED |
+| [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | CHANGED |
 | [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 5 | false | UNCHANGED |
-| [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 10 | false | UNCHANGED |
-| [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 12 | false | UNCHANGED |
-| [[AC-010]] | acceptance | 증강 영상 활용 여부 검수 | 6 | false | UNCHANGED |
-| [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 7 | false | UNCHANGED |
-| [[AC-013]] | acceptance | 비식별 옵션 설정 | 6 | false | CHANGED |
-| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 7 | true | CHANGED |
-| [[AC-017]] | acceptance | 실영상 라벨링·메타 가공 | 4 | false | CHANGED |
+| [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 11 | false | CHANGED |
+| [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 15 | false | CHANGED |
+| [[AC-010]] | acceptance | 증강 영상 활용 여부 검수 | 7 | false | CHANGED |
+| [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 9 | false | CHANGED |
+| [[AC-013]] | acceptance | 비식별 옵션 설정 | 8 | false | CHANGED |
+| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 10 | false | CHANGED |
+| [[AC-017]] | acceptance | 실영상 라벨링·메타 가공 | 5 | false | CHANGED |
 | [[AC-018]] | acceptance | 다양한 환경 증강 영상 확보 | 5 | false | UNCHANGED |
-| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 5 | false | UNCHANGED |
-| [[AC-020]] | acceptance | 다양한 환경·산불 유형 학습데이터 제작 | 4 | false | CHANGED |
-| [[AC-021]] | acceptance | 생성된 영상 라벨링으로 학습데이터셋 편입 | 5 | false | CHANGED |
-| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 6 | false | UNCHANGED |
-| [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | CHANGED |
-| [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 5 | false | CHANGED |
-| [[AC-025]] | acceptance | 관제 인입 → 폴링 적재 정상 흐름 수용 | 3 | false | UNCHANGED |
-| [[AC-026]] | acceptance | 인입 중복 방어·파일 미도착 백오프 | 3 | false | UNCHANGED |
-| [[AC-027]] | acceptance | 자동/수동 마킹 완료·잔여 배치 트리거 | 3 | false | UNCHANGED |
-| [[AC-028]] | acceptance | 마킹에서 도출된 VLM 위탁 입력(frame_policy·event_type) | 3 | false | UNCHANGED |
-| [[API-001]] | api_endpoint | GET /v1/users | 2 | false | UNCHANGED |
+| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 6 | false | CHANGED |
+| [[AC-020]] | acceptance | 다양한 환경·산불 유형 학습데이터 제작 | 4 | false | UNCHANGED |
+| [[AC-021]] | acceptance | 생성된 영상 라벨링으로 학습데이터셋 편입 | 5 | false | UNCHANGED |
+| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 7 | true | CHANGED |
+| [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
+| [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 5 | false | UNCHANGED |
+| [[AC-025]] | acceptance | 관제 인입 → 폴링 적재 정상 흐름 수용 | 6 | false | CHANGED |
+| [[AC-026]] | acceptance | 인입 중복 방어·파일 미도착 백오프 | 5 | false | CHANGED |
+| [[AC-027]] | acceptance | 자동/수동 마킹 완료·잔여 배치 트리거 | 5 | true | CHANGED |
+| [[AC-028]] | acceptance | 마킹에서 도출된 VLM 위탁 입력(frame_policy·event_type) | 5 | true | CHANGED |
+| [[API-001]] | api_endpoint | GET /v1/users | 3 | false | CHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
-| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 3 | false | UNCHANGED |
-| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 3 | false | UNCHANGED |
-| [[API-005]] | api_endpoint | GET /v1/users/me | 4 | false | UNCHANGED |
-| [[API-006]] | api_endpoint | GET /v1/me | 5 | false | UNCHANGED |
-| [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 4 | false | UNCHANGED |
-| [[API-008]] | api_endpoint | GET /v1/reviews | 8 | false | UNCHANGED |
-| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 5 | false | UNCHANGED |
-| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 3 | false | UNCHANGED |
-| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 3 | false | UNCHANGED |
-| [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 4 | false | UNCHANGED |
-| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 4 | false | UNCHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 8 | false | UNCHANGED |
-| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 4 | false | UNCHANGED |
-| [[API-016]] | api_endpoint | POST /v1/meta/{metaReviewSn}/approve | 2 | false | UNCHANGED |
-| [[API-017]] | api_endpoint | POST /v1/meta/{metaReviewSn}/reject | 2 | false | UNCHANGED |
+| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 4 | false | CHANGED |
+| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 5 | false | CHANGED |
+| [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | CHANGED |
+| [[API-006]] | api_endpoint | GET /v1/me | 8 | false | CHANGED |
+| [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 6 | false | CHANGED |
+| [[API-008]] | api_endpoint | GET /v1/reviews | 11 | false | CHANGED |
+| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 8 | false | CHANGED |
+| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | CHANGED |
+| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | CHANGED |
+| [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | CHANGED |
+| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | CHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 9 | false | CHANGED |
+| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 7 | false | CHANGED |
+| [[API-016]] | api_endpoint | POST /v1/meta/{metaReviewSn}/approve | 3 | false | CHANGED |
+| [[API-017]] | api_endpoint | POST /v1/meta/{metaReviewSn}/reject | 4 | false | CHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 4 | false | UNCHANGED |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
-| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 6 | false | UNCHANGED |
-| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 4 | false | UNCHANGED |
+| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 7 | true | CHANGED |
+| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 7 | false | CHANGED |
 | [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
-| [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 3 | false | UNCHANGED |
-| [[API-024]] | api_endpoint | GET /v1/manage/labels | 4 | false | UNCHANGED |
-| [[API-025]] | api_endpoint | POST /v1/manage/labels | 5 | false | UNCHANGED |
-| [[API-026]] | api_endpoint | PUT /v1/manage/labels/{id} | 2 | false | UNCHANGED |
-| [[API-027]] | api_endpoint | DELETE /v1/manage/labels/{id} | 2 | false | UNCHANGED |
+| [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | CHANGED |
+| [[API-024]] | api_endpoint | GET /v1/manage/labels | 5 | false | CHANGED |
+| [[API-025]] | api_endpoint | POST /v1/manage/labels | 8 | false | CHANGED |
+| [[API-026]] | api_endpoint | PUT /v1/manage/labels/{id} | 5 | false | CHANGED |
+| [[API-027]] | api_endpoint | DELETE /v1/manage/labels/{id} | 4 | false | CHANGED |
 | [[API-028]] | api_endpoint | GET /v1/manage/labels/{labelId}/attrs | 3 | false | UNCHANGED |
-| [[API-029]] | api_endpoint | POST /v1/manage/labels/{labelId}/attrs | 2 | false | UNCHANGED |
-| [[API-030]] | api_endpoint | PUT /v1/manage/labels/{labelId}/attrs/{attrId} | 2 | false | UNCHANGED |
-| [[API-031]] | api_endpoint | DELETE /v1/manage/labels/{labelId}/attrs/{attrId} | 2 | false | UNCHANGED |
-| [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 6 | false | UNCHANGED |
-| [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 7 | false | UNCHANGED |
-| [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 8 | false | UNCHANGED |
-| [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 8 | false | UNCHANGED |
-| [[API-037]] | api_endpoint | GET /v1/manage/presets | 3 | false | UNCHANGED |
-| [[API-038]] | api_endpoint | POST /v1/manage/presets | 5 | false | UNCHANGED |
-| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 4 | false | UNCHANGED |
-| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 2 | false | UNCHANGED |
-| [[API-041]] | api_endpoint | POST /v1/manage/presets/{id}/clone | 3 | false | UNCHANGED |
-| [[API-042]] | api_endpoint | GET /v1/videos | 4 | false | UNCHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 11 | false | UNCHANGED |
+| [[API-029]] | api_endpoint | POST /v1/manage/labels/{labelId}/attrs | 4 | false | CHANGED |
+| [[API-030]] | api_endpoint | PUT /v1/manage/labels/{labelId}/attrs/{attrId} | 4 | false | CHANGED |
+| [[API-031]] | api_endpoint | DELETE /v1/manage/labels/{labelId}/attrs/{attrId} | 3 | false | CHANGED |
+| [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 8 | false | CHANGED |
+| [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 8 | true | CHANGED |
+| [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 10 | true | CHANGED |
+| [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 10 | true | CHANGED |
+| [[API-037]] | api_endpoint | GET /v1/manage/presets | 5 | false | CHANGED |
+| [[API-038]] | api_endpoint | POST /v1/manage/presets | 7 | false | CHANGED |
+| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 6 | false | CHANGED |
+| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 3 | false | CHANGED |
+| [[API-041]] | api_endpoint | POST /v1/manage/presets/{id}/clone | 4 | false | CHANGED |
+| [[API-042]] | api_endpoint | GET /v1/videos | 5 | false | CHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 12 | false | CHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | [[API-045]] | api_endpoint | GET /v1/videos/{rawSn}/auto-summary | 2 | false | UNCHANGED |
-| [[API-046]] | api_endpoint | GET /v1/videos/{rawSn}/frames/{frameNo}/image | 4 | false | UNCHANGED |
-| [[API-047]] | api_endpoint | POST /v1/videos/{rawSn}/markings | 4 | false | UNCHANGED |
-| [[API-055]] | api_endpoint | GET /v1/stats/summary | 2 | false | UNCHANGED |
-| [[API-056]] | api_endpoint | GET /v1/stats/worker | 4 | false | UNCHANGED |
-| [[API-057]] | api_endpoint | GET /v1/stats/overall | 3 | false | UNCHANGED |
-| [[API-058]] | api_endpoint | GET /v1/stats/report | 2 | false | UNCHANGED |
+| [[API-046]] | api_endpoint | GET /v1/videos/{rawSn}/frames/{frameNo}/image | 5 | false | CHANGED |
+| [[API-047]] | api_endpoint | POST /v1/videos/{rawSn}/markings | 10 | false | CHANGED |
+| [[API-055]] | api_endpoint | GET /v1/stats/summary | 4 | false | CHANGED |
+| [[API-056]] | api_endpoint | GET /v1/stats/worker | 5 | false | CHANGED |
+| [[API-057]] | api_endpoint | GET /v1/stats/overall | 5 | false | CHANGED |
+| [[API-058]] | api_endpoint | GET /v1/stats/report | 3 | false | CHANGED |
 | [[API-059]] | api_endpoint | GET /v1/augments | 6 | false | UNCHANGED |
-| [[API-060]] | api_endpoint | POST /v1/augments/request | 6 | false | UNCHANGED |
-| [[API-061]] | api_endpoint | GET /v1/augments/{jobId}/result | 8 | false | UNCHANGED |
-| [[API-062]] | api_endpoint | POST /v1/augments/{id}/accept | 4 | false | UNCHANGED |
-| [[API-063]] | api_endpoint | POST /v1/augments/{id}/reject | 4 | false | UNCHANGED |
-| [[API-065]] | api_endpoint | POST /v1/vlm/callback | 11 | false | CHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 3 | false | UNCHANGED |
-| [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 3 | false | UNCHANGED |
-| [[API-068]] | api_endpoint | GET /v1/manage/configs | 3 | false | UNCHANGED |
-| [[API-069]] | api_endpoint | PUT /v1/manage/configs/{key} | 5 | false | UNCHANGED |
-| [[API-070]] | api_endpoint | POST /v1/assignments | 5 | false | UNCHANGED |
-| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 4 | false | UNCHANGED |
-| [[API-072]] | api_endpoint | GET /v1/assignments | 4 | false | UNCHANGED |
-| [[API-073]] | api_endpoint | GET /v1/tasks/board | 4 | false | UNCHANGED |
-| [[API-074]] | api_endpoint | GET /v1/tasks/{rawSn}/summary | 5 | false | UNCHANGED |
-| [[API-075]] | api_endpoint | GET /v1/tasks/{rawSn}/labels | 5 | false | UNCHANGED |
-| [[API-076]] | api_endpoint | GET /v1/tasks/{rawSn}/meta | 4 | false | UNCHANGED |
-| [[API-081]] | api_endpoint | GET /v1/portal/datamart/labels | 4 | false | UNCHANGED |
-| [[API-082]] | api_endpoint | POST /v1/portal/user-labels | 5 | false | UNCHANGED |
-| [[API-083]] | api_endpoint | GET /v1/portal/user-labels | 3 | false | UNCHANGED |
-| [[API-084]] | api_endpoint | GET /v1/videos/{rawSn}/stream | 3 | false | UNCHANGED |
-| [[API-090]] | api_endpoint | GET /v1/manage/health | 3 | false | UNCHANGED |
-| [[API-091]] | api_endpoint | POST /v1/videos/{rawSn}/deident-report | 6 | false | UNCHANGED |
-| [[API-092]] | api_endpoint | POST /v1/videos/{rawSn}/resolution | 6 | false | UNCHANGED |
-| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 7 | false | UNCHANGED |
-| [[API-094]] | api_endpoint | POST /v1/deident-reports/{rprtSn}/resolve | 7 | false | CHANGED |
-| [[API-095]] | api_endpoint | GET /v1/notices | 3 | false | UNCHANGED |
-| [[API-096]] | api_endpoint | GET /v1/notices/{id} | 3 | false | UNCHANGED |
-| [[API-097]] | api_endpoint | POST /v1/notices | 3 | false | UNCHANGED |
-| [[API-098]] | api_endpoint | PUT /v1/notices/{id} | 3 | false | UNCHANGED |
-| [[API-099]] | api_endpoint | DELETE /v1/notices/{id} | 3 | false | UNCHANGED |
-| [[API-100]] | api_endpoint | POST /v1/notices/{id}/publish | 4 | false | UNCHANGED |
-| [[API-101]] | api_endpoint | POST /v1/notices/{id}/unpublish | 4 | false | UNCHANGED |
-| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 8 | false | UNCHANGED |
-| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 5 | false | UNCHANGED |
-| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 5 | false | UNCHANGED |
-| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 3 | false | UNCHANGED |
-| [[API-106]] | api_endpoint | POST /v1/notices/{id}/attachments | 6 | false | UNCHANGED |
-| [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 3 | false | UNCHANGED |
-| [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 3 | false | UNCHANGED |
-| [[API-109]] | api_endpoint | GET /v1/deident-reports | 3 | false | UNCHANGED |
-| [[API-110]] | api_endpoint | GET /v1/portal/frames/{srcSn}/labels | 2 | false | UNCHANGED |
-| [[API-111]] | api_endpoint | GET /v1/portal/frames/{srcSn}/image | 2 | false | UNCHANGED |
-| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 3 | false | CHANGED |
-| [[API-113]] | api_endpoint | POST /infer/yolo/predict | 2 | false | UNCHANGED |
+| [[API-060]] | api_endpoint | POST /v1/augments/request | 10 | false | CHANGED |
+| [[API-061]] | api_endpoint | GET /v1/augments/{jobId}/result | 10 | false | CHANGED |
+| [[API-062]] | api_endpoint | POST /v1/augments/{id}/accept | 6 | false | CHANGED |
+| [[API-063]] | api_endpoint | POST /v1/augments/{id}/reject | 8 | false | CHANGED |
+| [[API-065]] | api_endpoint | POST /v1/vlm/callback | 15 | false | CHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | CHANGED |
+| [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 5 | false | CHANGED |
+| [[API-068]] | api_endpoint | GET /v1/manage/configs | 4 | false | CHANGED |
+| [[API-069]] | api_endpoint | PUT /v1/manage/configs/{key} | 8 | false | CHANGED |
+| [[API-070]] | api_endpoint | POST /v1/assignments | 8 | false | CHANGED |
+| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | CHANGED |
+| [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | CHANGED |
+| [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | CHANGED |
+| [[API-074]] | api_endpoint | GET /v1/tasks/{rawSn}/summary | 7 | false | CHANGED |
+| [[API-075]] | api_endpoint | GET /v1/tasks/{rawSn}/labels | 8 | false | CHANGED |
+| [[API-076]] | api_endpoint | GET /v1/tasks/{rawSn}/meta | 8 | false | CHANGED |
+| [[API-081]] | api_endpoint | GET /v1/portal/datamart/labels | 5 | false | CHANGED |
+| [[API-082]] | api_endpoint | POST /v1/portal/user-labels | 7 | false | CHANGED |
+| [[API-083]] | api_endpoint | GET /v1/portal/user-labels | 4 | false | CHANGED |
+| [[API-084]] | api_endpoint | GET /v1/videos/{rawSn}/stream | 6 | false | CHANGED |
+| [[API-090]] | api_endpoint | GET /v1/manage/health | 4 | false | CHANGED |
+| [[API-091]] | api_endpoint | POST /v1/videos/{rawSn}/deident-report | 10 | false | CHANGED |
+| [[API-092]] | api_endpoint | POST /v1/videos/{rawSn}/resolution | 7 | true | CHANGED |
+| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 9 | false | CHANGED |
+| [[API-094]] | api_endpoint | POST /v1/deident-reports/{rprtSn}/resolve | 9 | false | CHANGED |
+| [[API-095]] | api_endpoint | GET /v1/notices | 6 | false | CHANGED |
+| [[API-096]] | api_endpoint | GET /v1/notices/{id} | 7 | false | CHANGED |
+| [[API-097]] | api_endpoint | POST /v1/notices | 7 | false | CHANGED |
+| [[API-098]] | api_endpoint | PUT /v1/notices/{id} | 7 | false | CHANGED |
+| [[API-099]] | api_endpoint | DELETE /v1/notices/{id} | 6 | false | CHANGED |
+| [[API-100]] | api_endpoint | POST /v1/notices/{id}/publish | 8 | false | CHANGED |
+| [[API-101]] | api_endpoint | POST /v1/notices/{id}/unpublish | 8 | false | CHANGED |
+| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | CHANGED |
+| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 9 | false | CHANGED |
+| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | CHANGED |
+| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | CHANGED |
+| [[API-106]] | api_endpoint | POST /v1/notices/{id}/attachments | 9 | false | CHANGED |
+| [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 7 | false | CHANGED |
+| [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 6 | false | CHANGED |
+| [[API-109]] | api_endpoint | GET /v1/deident-reports | 5 | false | CHANGED |
+| [[API-110]] | api_endpoint | GET /v1/portal/frames/{srcSn}/labels | 3 | false | CHANGED |
+| [[API-111]] | api_endpoint | GET /v1/portal/frames/{srcSn}/image | 3 | false | CHANGED |
+| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 4 | true | CHANGED |
+| [[API-113]] | api_endpoint | POST /infer/yolo/predict | 3 | false | CHANGED |
 | [[API-114]] | api_endpoint | GET /v1/videos/{rawSn}/stream-url | 1 | false | UNCHANGED |
 | [[API-115]] | api_endpoint | GET /v1/portal/datamart/videos | 2 | false | UNCHANGED |
-| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 3 | false | UNCHANGED |
-| [[API-117]] | api_endpoint | GET /v1/event-types/labels | 1 | false | UNCHANGED |
-| [[API-118]] | api_endpoint | GET /v1/system/scheduler/health | 1 | false | UNCHANGED |
-| [[API-119]] | api_endpoint | POST /infer/yolo/track | 1 | false | UNCHANGED |
-| [[API-120]] | api_endpoint | POST /infer/sam2/segment | 2 | false | UNCHANGED |
-| [[API-121]] | api_endpoint | POST /infer/sam2/track | 1 | false | UNCHANGED |
+| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | CHANGED |
+| [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | CHANGED |
+| [[API-118]] | api_endpoint | GET /v1/system/scheduler/health | 2 | false | CHANGED |
+| [[API-119]] | api_endpoint | POST /infer/yolo/track | 3 | false | CHANGED |
+| [[API-120]] | api_endpoint | POST /infer/sam2/segment | 3 | false | CHANGED |
+| [[API-121]] | api_endpoint | POST /infer/sam2/track | 3 | true | CHANGED |
 | [[API-122]] | api_endpoint | POST /infer/vlm/verify-objects | 2 | false | UNCHANGED |
-| [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 3 | false | UNCHANGED |
-| [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 5 | false | UNCHANGED |
+| [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 6 | false | CHANGED |
+| [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 6 | false | CHANGED |
 | [[API-125]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/merge | 2 | false | UNCHANGED |
 | [[API-126]] | api_endpoint | DELETE /v1/videos/{rawSn}/tracks/{trackId} | 2 | false | UNCHANGED |
 | [[API-127]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/{trackId}/split | 2 | false | UNCHANGED |
 | [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | UNCHANGED |
 | [[API-129]] | api_endpoint | PUT /v1/frames/{srcSn}/description | 5 | false | UNCHANGED |
-| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 1 | false | UNCHANGED |
-| [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 2 | false | UNCHANGED |
-| [[API-134]] | api_endpoint | PUT /v1/videos/{rawSn}/event-annotation | 3 | false | UNCHANGED |
-| [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 2 | false | UNCHANGED |
-| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 1 | false | UNCHANGED |
-| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 3 | false | UNCHANGED |
-| [[API-138]] | api_endpoint | GET /v1/reviews/summary | 2 | false | UNCHANGED |
-| [[API-139]] | api_endpoint | POST /v1/portal/uploads/images | 2 | false | UNCHANGED |
-| [[API-140]] | api_endpoint | GET /v1/portal/uploads/{uldSn} | 1 | false | UNCHANGED |
-| [[API-141]] | api_endpoint | GET /health | 1 | false | UNCHANGED |
-| [[API-142]] | api_endpoint | GET /v1/portal/uploads | 1 | false | UNCHANGED |
-| [[API-143]] | api_endpoint | POST /v1/dev/batch/scan | 2 | false | UNCHANGED |
-| [[API-144]] | api_endpoint | POST /v1/dev/batch/trigger | 1 | false | UNCHANGED |
-| [[API-145]] | api_endpoint | POST /v1/dev/batch/trigger/next | 1 | false | UNCHANGED |
-| [[API-146]] | api_endpoint | GET /v1/dev/batch/pending | 3 | false | UNCHANGED |
-| [[API-147]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/frames | 1 | false | UNCHANGED |
-| [[API-148]] | api_endpoint | GET /v1/dev/dataset-video-meta/shooting-env-correction-targets | 2 | false | UNCHANGED |
-| [[API-149]] | api_endpoint | GET /v1/portal/uploads/frames/{uldFrmeSn}/image | 2 | false | UNCHANGED |
-| [[API-150]] | api_endpoint | POST /v1/dev/dataset-video-meta/shooting-env-corrections | 2 | false | UNCHANGED |
-| [[API-151]] | api_endpoint | DELETE /v1/portal/uploads/{uldSn} | 1 | false | UNCHANGED |
-| [[API-152]] | api_endpoint | POST /v1/dev/autolabel-test | 2 | false | UNCHANGED |
-| [[API-153]] | api_endpoint | POST /v1/dev/tokens | 2 | false | UNCHANGED |
-| [[API-154]] | api_endpoint | PUT /v1/portal/uploads/frames/{uldFrmeSn}/labels | 3 | false | UNCHANGED |
-| [[API-155]] | api_endpoint | GET /v1/portal/uploads/frames/{uldFrmeSn}/labels | 1 | false | UNCHANGED |
-| [[API-156]] | api_endpoint | OPTIONS /v1/uploads | 1 | false | UNCHANGED |
-| [[API-157]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/export | 2 | false | UNCHANGED |
-| [[API-158]] | api_endpoint | POST /v1/uploads | 2 | false | UNCHANGED |
-| [[API-159]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/file | 2 | false | UNCHANGED |
-| [[API-160]] | api_endpoint | HEAD /v1/uploads/{uploadId} | 2 | false | UNCHANGED |
-| [[API-161]] | api_endpoint | OPTIONS /v1/portal/uploads/tus | 2 | false | UNCHANGED |
-| [[API-162]] | api_endpoint | PATCH /v1/uploads/{uploadId} | 2 | false | UNCHANGED |
-| [[API-163]] | api_endpoint | POST /v1/portal/uploads/tus | 2 | false | UNCHANGED |
-| [[API-164]] | api_endpoint | DELETE /v1/uploads/{uploadId} | 1 | false | UNCHANGED |
-| [[API-165]] | api_endpoint | POST /v1/genai/callback | 2 | false | UNCHANGED |
-| [[API-166]] | api_endpoint | HEAD /v1/portal/uploads/tus/{uldId} | 2 | false | UNCHANGED |
-| [[API-167]] | api_endpoint | POST /v1/videos/{rawSn}/batch/retry | 9 | false | UNCHANGED |
+| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 2 | false | CHANGED |
+| [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 3 | false | CHANGED |
+| [[API-134]] | api_endpoint | PUT /v1/videos/{rawSn}/event-annotation | 4 | false | CHANGED |
+| [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 3 | false | CHANGED |
+| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | CHANGED |
+| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | CHANGED |
+| [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | CHANGED |
+| [[API-139]] | api_endpoint | POST /v1/portal/uploads/images | 3 | false | CHANGED |
+| [[API-140]] | api_endpoint | GET /v1/portal/uploads/{uldSn} | 3 | false | CHANGED |
+| [[API-141]] | api_endpoint | GET /health | 2 | false | CHANGED |
+| [[API-142]] | api_endpoint | GET /v1/portal/uploads | 2 | false | CHANGED |
+| [[API-143]] | api_endpoint | POST /v1/dev/batch/scan | 3 | false | CHANGED |
+| [[API-144]] | api_endpoint | POST /v1/dev/batch/trigger | 3 | false | CHANGED |
+| [[API-145]] | api_endpoint | POST /v1/dev/batch/trigger/next | 3 | false | CHANGED |
+| [[API-146]] | api_endpoint | GET /v1/dev/batch/pending | 5 | false | CHANGED |
+| [[API-147]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/frames | 2 | false | CHANGED |
+| [[API-148]] | api_endpoint | GET /v1/dev/dataset-video-meta/shooting-env-correction-targets | 3 | false | CHANGED |
+| [[API-149]] | api_endpoint | GET /v1/portal/uploads/frames/{uldFrmeSn}/image | 3 | false | CHANGED |
+| [[API-150]] | api_endpoint | POST /v1/dev/dataset-video-meta/shooting-env-corrections | 3 | false | CHANGED |
+| [[API-151]] | api_endpoint | DELETE /v1/portal/uploads/{uldSn} | 2 | false | CHANGED |
+| [[API-152]] | api_endpoint | POST /v1/dev/autolabel-test | 4 | false | CHANGED |
+| [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | CHANGED |
+| [[API-154]] | api_endpoint | PUT /v1/portal/uploads/frames/{uldFrmeSn}/labels | 4 | false | CHANGED |
+| [[API-155]] | api_endpoint | GET /v1/portal/uploads/frames/{uldFrmeSn}/labels | 2 | false | CHANGED |
+| [[API-156]] | api_endpoint | OPTIONS /v1/uploads | 2 | false | CHANGED |
+| [[API-157]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/export | 3 | false | CHANGED |
+| [[API-158]] | api_endpoint | POST /v1/uploads | 3 | false | CHANGED |
+| [[API-159]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/file | 3 | false | CHANGED |
+| [[API-160]] | api_endpoint | HEAD /v1/uploads/{uploadId} | 3 | false | CHANGED |
+| [[API-161]] | api_endpoint | OPTIONS /v1/portal/uploads/tus | 3 | false | CHANGED |
+| [[API-162]] | api_endpoint | PATCH /v1/uploads/{uploadId} | 5 | false | CHANGED |
+| [[API-163]] | api_endpoint | POST /v1/portal/uploads/tus | 3 | false | CHANGED |
+| [[API-164]] | api_endpoint | DELETE /v1/uploads/{uploadId} | 2 | false | CHANGED |
+| [[API-165]] | api_endpoint | POST /v1/genai/callback | 6 | true | CHANGED |
+| [[API-166]] | api_endpoint | HEAD /v1/portal/uploads/tus/{uldId} | 3 | false | CHANGED |
+| [[API-167]] | api_endpoint | POST /v1/videos/{rawSn}/batch/retry | 10 | false | CHANGED |
 | [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | UNCHANGED |
-| [[API-169]] | api_endpoint | PATCH /v1/portal/uploads/tus/{uldId} | 4 | false | UNCHANGED |
+| [[API-169]] | api_endpoint | PATCH /v1/portal/uploads/tus/{uldId} | 6 | false | CHANGED |
 | [[API-170]] | api_endpoint | PUT /v1/videos/{rawSn}/environment-meta | 3 | false | UNCHANGED |
-| [[API-171]] | api_endpoint | DELETE /v1/portal/uploads/tus/{uldId} | 2 | false | UNCHANGED |
+| [[API-171]] | api_endpoint | DELETE /v1/portal/uploads/tus/{uldId} | 3 | false | CHANGED |
 | [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 3 | false | UNCHANGED |
 | [[API-173]] | api_endpoint | PUT /v1/frames/{srcSn}/privacy-meta | 5 | false | UNCHANGED |
 | [[API-174]] | api_endpoint | PUT /v1/frames/privacy-meta | 5 | false | UNCHANGED |
 | [[API-175]] | api_endpoint | GET /v1/frames/{srcSn}/deid-image | 2 | false | UNCHANGED |
 | [[API-176]] | api_endpoint | GET /v1/frames/{srcSn}/label-history | 3 | false | UNCHANGED |
-| [[API-177]] | api_endpoint | GET /v1/manage/labels/detect-candidates | 3 | false | UNCHANGED |
-| [[API-178]] | api_endpoint | POST /v1/reviews/{videoId}/cancel-submit | 5 | false | UNCHANGED |
-| [[API-179]] | api_endpoint | GET /v1/videos/{rawSn}/resolution | 2 | false | UNCHANGED |
-| [[API-181]] | api_endpoint | GET /v1/event-types | 3 | false | UNCHANGED |
-| [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 3 | false | CHANGED |
+| [[API-177]] | api_endpoint | GET /v1/manage/labels/detect-candidates | 4 | false | CHANGED |
+| [[API-178]] | api_endpoint | POST /v1/reviews/{videoId}/cancel-submit | 8 | false | CHANGED |
+| [[API-179]] | api_endpoint | GET /v1/videos/{rawSn}/resolution | 5 | false | CHANGED |
+| [[API-181]] | api_endpoint | GET /v1/event-types | 7 | false | CHANGED |
+| [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 3 | false | UNCHANGED |
 | [[API-183]] | api_endpoint | GET /v1/videos/{rawSn}/privacy-meta | 1 | false | UNCHANGED |
 | [[API-184]] | api_endpoint | PUT /v1/videos/{rawSn}/privacy-meta | 2 | false | UNCHANGED |
 | [[API-185]] | api_endpoint | GET /v1/manage/event-types | 1 | false | UNCHANGED |
 | [[API-186]] | api_endpoint | PATCH /v1/manage/event-types/{evntTypeCd} | 2 | false | UNCHANGED |
-| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 1 | false | UNCHANGED |
-| [[API-188]] | api_endpoint | GET /v1/augments/{id}/progress | 1 | false | UNCHANGED |
-| [[API-189]] | api_endpoint | POST /v1/augments/{id}/cancel | 1 | false | UNCHANGED |
-| [[API-190]] | api_endpoint | POST /v1/augments/{id}/restore | 2 | false | UNCHANGED |
+| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 2 | false | CHANGED |
+| [[API-188]] | api_endpoint | GET /v1/augments/{id}/progress | 2 | true | CHANGED |
+| [[API-189]] | api_endpoint | POST /v1/augments/{id}/cancel | 2 | true | CHANGED |
+| [[API-190]] | api_endpoint | POST /v1/augments/{id}/restore | 4 | false | CHANGED |
 | [[API-191]] | api_endpoint | POST /v1/control-ingests/{rcptnSn}/requeue | 2 | false | UNCHANGED |
 | [[API-192]] | api_endpoint | POST /v1/control-ingests/requeue | 4 | false | UNCHANGED |
-| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 1 | false | UNCHANGED |
-| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 2 | false | UNCHANGED |
+| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 2 | false | CHANGED |
+| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 4 | false | CHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 6 | false | UNCHANGED |
-| [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 6 | false | UNCHANGED |
-| [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 4 | false | CHANGED |
+| [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 8 | true | CHANGED |
+| [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 4 | false | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-199]] | api_endpoint | POST /v1/videos/batch/retry | 2 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 2 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 3 | false | UNCHANGED |
+| [[API-202]] | api_endpoint | GET /v1/deident-reports/{rprtSn}/deident-candidates | 2 | false | NEW |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
-| [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | false | CHANGED |
+| [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
 | [[NAV-002]] | navigation_tree | 포털 메뉴 (PORTAL) | 5 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 8 | true | CHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | CHANGED |
-| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 6 | false | CHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | CHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | UNCHANGED |
+| [[ROLE-003]] | permission_role | 포털 회원 (PORTAL_USER) | 6 | false | UNCHANGED |
 | [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 13 | false | UNCHANGED |
-| [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 14 | false | UNCHANGED |
+| [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 17 | false | CHANGED |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 10 | false | UNCHANGED |
-| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 8 | false | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 70 | false | UNCHANGED |
-| [[SCREEN-006]] | screen_spec | 마킹 화면 | 37 | false | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 34 | false | UNCHANGED |
+| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | CHANGED |
+| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 75 | true | CHANGED |
+| [[SCREEN-006]] | screen_spec | 마킹 화면 | 41 | true | CHANGED |
+| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 35 | true | CHANGED |
 | [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 44 | false | UNCHANGED |
-| [[SCREEN-010]] | screen_spec | 로드 버전 선택 | 34 | false | UNCHANGED |
-| [[SCREEN-011]] | screen_spec | 대시보드 화면 | 16 | false | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 34 | false | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 23 | false | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 28 | false | UNCHANGED |
-| [[SCREEN-020]] | screen_spec | 작업자 통계 화면 | 26 | false | UNCHANGED |
-| [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 23 | false | UNCHANGED |
-| [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 33 | false | UNCHANGED |
-| [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 35 | false | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 20 | false | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 24 | false | UNCHANGED |
-| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 22 | false | UNCHANGED |
-| [[SCREEN-027]] | screen_spec | 영상 업로드 | 24 | false | UNCHANGED |
-| [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 12 | false | UNCHANGED |
-| [[SCREEN-029]] | screen_spec | 포털 라벨링 화면 | 31 | false | UNCHANGED |
-| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 20 | false | UNCHANGED |
-| [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 22 | false | UNCHANGED |
-| [[SCREEN-032]] | screen_spec | 비식별 신고 관리 화면 | 22 | false | CHANGED |
-| [[SCREEN-033]] | screen_spec | 포털 업로드 화면 | 11 | false | UNCHANGED |
-| [[SCREEN-034]] | screen_spec | 포털 업로드 라벨링 화면 | 13 | false | UNCHANGED |
-| [[SCREEN-035]] | screen_spec | 라벨 관리 화면 | 15 | false | UNCHANGED |
-| [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 7 | false | UNCHANGED |
-| [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 7 | false | UNCHANGED |
+| [[SCREEN-010]] | screen_spec | 로드 버전 선택 | 37 | true | CHANGED |
+| [[SCREEN-011]] | screen_spec | 대시보드 화면 | 18 | true | CHANGED |
+| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 39 | true | CHANGED |
+| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 24 | true | CHANGED |
+| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 29 | true | CHANGED |
+| [[SCREEN-020]] | screen_spec | 작업자 통계 화면 | 28 | true | CHANGED |
+| [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 25 | true | CHANGED |
+| [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 36 | true | CHANGED |
+| [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 39 | true | CHANGED |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 22 | false | CHANGED |
+| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 30 | true | CHANGED |
+| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 26 | true | CHANGED |
+| [[SCREEN-027]] | screen_spec | 영상 업로드 | 26 | true | CHANGED |
+| [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 15 | true | CHANGED |
+| [[SCREEN-029]] | screen_spec | 포털 라벨링 화면 | 34 | true | CHANGED |
+| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 23 | true | CHANGED |
+| [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 29 | true | CHANGED |
+| [[SCREEN-032]] | screen_spec | 비식별 신고 관리 화면 | 23 | true | CHANGED |
+| [[SCREEN-033]] | screen_spec | 포털 업로드 화면 | 13 | false | CHANGED |
+| [[SCREEN-034]] | screen_spec | 포털 업로드 라벨링 화면 | 15 | false | CHANGED |
+| [[SCREEN-035]] | screen_spec | 라벨 관리 화면 | 16 | true | CHANGED |
+| [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | CHANGED |
+| [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 8 | true | CHANGED |
 | [[SCREEN-038]] | screen_spec | 이벤트유형 관리 화면 | 5 | false | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | false | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 11 | false | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 5 | false | UNCHANGED |
-| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | false | CHANGED |
+| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | false | UNCHANGED |
 | [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | false | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | false | UNCHANGED |
 | [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 5 | false | UNCHANGED |
 | [[SD-008]] | screen_design | SCREEN-036 공지 작성 화면 | 4 | false | UNCHANGED |
 | [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 7 | false | UNCHANGED |
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 7 | false | UNCHANGED |
-| [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 4 | false | UNCHANGED |
-| [[SD-012]] | screen_design | SCREEN-006 마킹 화면 | 7 | false | UNCHANGED |
+| [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | CHANGED |
+| [[SD-012]] | screen_design | SCREEN-006 마킹 화면 | 8 | false | CHANGED |
 | [[SD-013]] | screen_design | SCREEN-008 영상 처리 현황 화면 | 3 | false | UNCHANGED |
 | [[SD-014]] | screen_design | SCREEN-011 대시보드 화면 | 3 | false | UNCHANGED |
 | [[SD-015]] | screen_design | SCREEN-025 시스템 설정 화면 | 3 | false | UNCHANGED |
@@ -293,31 +294,31 @@
 | [[SD-033]] | screen_design | SCREEN-027 영상 업로드 | 9 | false | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
 | [[SHELL-002]] | app_shell | 포털 채널 셸 | 4 | false | UNCHANGED |
-| [[UC-001]] | use_case | 증강 영상 생성 요청 | 10 | false | CHANGED |
-| [[UC-002]] | use_case | 증강 결과 수신·등록 | 11 | false | CHANGED |
-| [[UC-003]] | use_case | 해상도 변경 수행 | 9 | false | CHANGED |
-| [[UC-004]] | use_case | 객체 자동 추적 | 11 | false | UNCHANGED |
-| [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 8 | false | UNCHANGED |
-| [[UC-006]] | use_case | 라벨링 정밀도 조절 | 7 | false | UNCHANGED |
-| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 9 | false | UNCHANGED |
-| [[UC-008]] | use_case | 버전 비교·복구 | 10 | false | UNCHANGED |
-| [[UC-009]] | use_case | 검수 완료·수정 통지 | 16 | false | UNCHANGED |
-| [[UC-010]] | use_case | 증강 영상 활용 여부 검수 | 11 | false | CHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 11 | true | CHANGED |
-| [[UC-013]] | use_case | 비식별 옵션 설정 | 8 | false | CHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 19 | true | CHANGED |
-| [[UC-018]] | use_case | 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재) | 12 | false | CHANGED |
-| [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 13 | false | CHANGED |
-| [[UC-021]] | use_case | 라벨 편집·임시저장 | 14 | false | UNCHANGED |
-| [[UC-022]] | use_case | VLM 시계열 메타 검토 | 14 | false | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 19 | false | UNCHANGED |
-| [[UC-024]] | use_case | 포털 라벨 작업 (조회·수정·다운로드) | 10 | false | UNCHANGED |
-| [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 7 | false | CHANGED |
-| [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 5 | false | CHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 5 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 4 | false | CHANGED |
-| [[UC-031]] | use_case | 시스템 운영 설정 관리 | 5 | false | UNCHANGED |
-| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 4 | false | CHANGED |
+| [[UC-001]] | use_case | 증강 영상 생성 요청 | 12 | true | CHANGED |
+| [[UC-002]] | use_case | 증강 결과 수신·등록 | 13 | true | CHANGED |
+| [[UC-003]] | use_case | 해상도 변경 수행 | 11 | true | CHANGED |
+| [[UC-004]] | use_case | 객체 자동 추적 | 13 | false | CHANGED |
+| [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 10 | false | CHANGED |
+| [[UC-006]] | use_case | 라벨링 정밀도 조절 | 9 | false | CHANGED |
+| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 12 | false | CHANGED |
+| [[UC-008]] | use_case | 버전 비교·복구 | 13 | true | CHANGED |
+| [[UC-009]] | use_case | 검수 완료·수정 통지 | 19 | false | CHANGED |
+| [[UC-010]] | use_case | 증강 영상 활용 여부 검수 | 13 | false | CHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 12 | false | CHANGED |
+| [[UC-013]] | use_case | 비식별 옵션 설정 | 8 | false | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 20 | false | CHANGED |
+| [[UC-018]] | use_case | 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재) | 16 | false | CHANGED |
+| [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 16 | false | CHANGED |
+| [[UC-021]] | use_case | 라벨 편집·임시저장 | 20 | false | CHANGED |
+| [[UC-022]] | use_case | VLM 시계열 메타 검토 | 17 | false | CHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 22 | false | CHANGED |
+| [[UC-024]] | use_case | 포털 라벨 작업 (조회·수정·다운로드) | 13 | true | CHANGED |
+| [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 10 | false | CHANGED |
+| [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 5 | false | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 9 | false | CHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 7 | true | CHANGED |
+| [[UC-031]] | use_case | 시스템 운영 설정 관리 | 7 | false | CHANGED |
+| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 6 | true | CHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

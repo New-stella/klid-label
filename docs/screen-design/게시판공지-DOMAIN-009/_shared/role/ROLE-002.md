@@ -2,14 +2,10 @@
 logicraft_item: ROLE-002
 type: permission_role
 version: 6
-status: CHANGED
-prev_version: 5
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/ROLE-002.json
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v5 → v6**
-> change_summary: 연결 화면 변경에 따른 재확인. 이 문서의 축과 화면 변경 내용이 겹치지 않고, 폐기된 화면이나 인터페이스를 가리키는 참조도 없음을 확인했다. 본문은 바꾸지 않는다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 작업자 (WORKER)
 

@@ -1,18 +1,24 @@
 ---
 logicraft_item: SCREEN-004
 type: screen_spec
-version: 8
-last_updated_at: 2026-08-13T01:02:39.357Z
+version: 11
+last_updated_at: 2026-08-16T12:43:58.305Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-15T14:28:03.825Z
-sync_session: 4
+synced_at: 2026-08-16T12:51:31.905Z
+sync_session: 5
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 8
 raw: ./_raw/SCREEN-004.json
 wireframe: ./wireframe.html
+links:
+  consumes_apis: ["[[API-153]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v8 → v11**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.3KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 개발용 로그인 화면
 
@@ -175,7 +181,7 @@ _(empty)_
 
 #### [5]
 
-- **note**: 제출 중 disabled + '발급 중…'. POST /api/v1/dev/tokens (API ITEM 미등록)
+- **note**: 제출 중 disabled + '발급 중…'. POST /api/v1/dev/tokens
 - **type**: Button
 - **label**: 토큰 발급 + 진입
 
@@ -193,7 +199,7 @@ _(empty)_
 
 **references_apis**:
 
-_(empty)_
+- API-153
 
 **references_features**:
 
@@ -219,7 +225,7 @@ web
 
 ## consumes_apis
 
-_(empty)_
+- API-153
 
 ## implementation
 
@@ -260,9 +266,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 6812f38c7e5fe40e22176c738560bc5a03b3fa955e81de9934ca27ee086bb92b
-- **generated_at**: 2026-08-13T01:02:39.357Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: db9086586b1a94902f629231c46e3a1d87bd153776a8f8e07ed98c796120eca2
+- **generated_at**: 2026-08-16T12:43:58.304Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
