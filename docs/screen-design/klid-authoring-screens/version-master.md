@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | - 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-16T14:18:45.182Z (session 14) |
+| Last sync | 2026-08-16T14:27:41.439Z (session 15) |
 | Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 448 |
 | 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/klid-authoring-screens |
 
@@ -36,7 +36,7 @@
 | [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 5 | false | UNCHANGED |
 | [[AC-025]] | acceptance | 관제 인입 → 폴링 적재 정상 흐름 수용 | 6 | false | UNCHANGED |
 | [[AC-026]] | acceptance | 인입 중복 방어·파일 미도착 백오프 | 5 | false | UNCHANGED |
-| [[AC-027]] | acceptance | 자동/수동 마킹 완료·잔여 배치 트리거 | 6 | false | CHANGED |
+| [[AC-027]] | acceptance | 자동/수동 마킹 완료·잔여 배치 트리거 | 6 | false | UNCHANGED |
 | [[AC-028]] | acceptance | 마킹에서 도출된 VLM 위탁 입력(frame_policy·event_type) | 5 | true | UNCHANGED |
 | [[API-001]] | api_endpoint | GET /v1/users | 3 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
@@ -209,7 +209,7 @@
 | [[API-190]] | api_endpoint | POST /v1/augments/{id}/restore | 4 | false | UNCHANGED |
 | [[API-191]] | api_endpoint | POST /v1/control-ingests/{rcptnSn}/requeue | 2 | false | UNCHANGED |
 | [[API-192]] | api_endpoint | POST /v1/control-ingests/requeue | 4 | false | UNCHANGED |
-| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 2 | false | UNCHANGED |
+| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 3 | false | CHANGED |
 | [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 4 | false | UNCHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 6 | false | UNCHANGED |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 8 | true | UNCHANGED |
@@ -231,7 +231,7 @@
 | [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 17 | false | UNCHANGED |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 10 | false | UNCHANGED |
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 75 | true | UNCHANGED |
+| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 76 | false | CHANGED |
 | [[SCREEN-006]] | screen_spec | 마킹 화면 | 41 | true | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 35 | true | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 44 | false | UNCHANGED |
@@ -308,7 +308,7 @@
 | [[UC-013]] | use_case | 비식별 옵션 설정 | 8 | false | UNCHANGED |
 | [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 20 | false | UNCHANGED |
 | [[UC-018]] | use_case | 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재) | 16 | false | UNCHANGED |
-| [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 17 | false | CHANGED |
+| [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 17 | false | UNCHANGED |
 | [[UC-021]] | use_case | 라벨 편집·임시저장 | 20 | false | UNCHANGED |
 | [[UC-022]] | use_case | VLM 시계열 메타 검토 | 17 | false | UNCHANGED |
 | [[UC-023]] | use_case | 검수 승인·반려 | 22 | false | UNCHANGED |
