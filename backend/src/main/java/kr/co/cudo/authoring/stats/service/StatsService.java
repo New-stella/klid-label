@@ -153,8 +153,9 @@ public class StatsService {
      * (categoryKey 오름차순)를 그대로 유지해 그리드 칸 순서를 고정한다.
      *
      * <p><b>비수집 코드 제외 정책</b>: 비수집(CLCT_YN='N') 코드(예 기타 상황 EV07000201)와 ignore
-     * 대분류('08')는 filterOptions 에 포함되지 않으므로 자연히 그리드에서 제외된다 — 필터 옵션
-     * 14종 정책과 일관. raw 에 비수집 코드 카운트가 있어도 어떤 카테고리에도 합산되지 않는다.
+     * 대분류('08')는 filterOptions 에 포함되지 않으므로 자연히 그리드에서 제외된다 — {@link EventTypeService}
+     * 의 필터 옵션 정책과 일관(그 옵션 개수 자체가 등록 유형·표시명 그룹핑·제외 대분류 설정에 따라
+     * 달라지는 값이라 고정 개수가 아니다). raw 에 비수집 코드 카운트가 있어도 어떤 카테고리에도 합산되지 않는다.
      *
      * <p>반환 {@link EventDistributionItem} 의 첫 필드({@code eventTypeCd})는 UI 약어 코드가 아닌
      * categoryKey(예 {@code "020002"})를 담는다 (DTO 구조 유지, 값 의미만 변경).

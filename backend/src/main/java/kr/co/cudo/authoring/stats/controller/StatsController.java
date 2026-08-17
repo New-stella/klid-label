@@ -45,7 +45,7 @@ public class StatsController {
 
     @Operation(
             summary = "대시보드 요약 (REVIEWER/WORKER)",
-            description = "처리 대기/완료/반려 KPI + 이미지·영상 누적 + 관제 카테고리 기준 이벤트 분포(9종) + 내 작업(WORKER 만 채움). " +
+            description = "처리 대기/완료/반려 KPI + 이미지·영상 누적 + 관제 카테고리 기준 이벤트 분포(EventTypeService.filterOptions() 등록 유형 기준 — 표시명 그룹핑·제외 대분류 설정에 따라 달라지는 값이라 고정 개수가 아니다) + 내 작업(WORKER 만 채움). " +
                     "누적/분포는 두 기준을 함께 제공한다 — cumulative*/eventDistribution/imageDistribution 은 검수 여부와 무관한 " +
                     "전체 기준이고, approvedImageCount/approvedVideoCount/approvedEventDistribution/approvedImageDistribution 은 " +
                     "검수완료(APPROVED) 영상만 집계한 학습데이터 확정 기준이다(항상 approved* <= 전체)."
@@ -86,7 +86,7 @@ public class StatsController {
 
     @Operation(
             summary = "전체 구축 현황 (REVIEWER 전용)",
-            description = "누적 이미지/영상 카드 + 처리 현황 5종 카운트(대기/배정/검수중/승인/반려) + 관제 카테고리 기준 이벤트 분포(9종) + 작업자별 표. " +
+            description = "누적 이미지/영상 카드 + 처리 현황 5종 카운트(대기/배정/검수중/승인/반려) + 관제 카테고리 기준 이벤트 분포(EventTypeService.filterOptions() 등록 유형 기준 — 고정 개수가 아니다) + 작업자별 표. " +
                     "누적/분포는 두 기준을 함께 제공한다 — cumulative*/eventDistribution 은 검수 여부와 무관한 전체 기준이고, " +
                     "approvedImageCount/approvedVideoCount/approvedEventDistribution 은 검수완료(APPROVED) 영상만 집계한 " +
                     "학습데이터 확정 기준이다(approvedVideoCount 는 processing.approved 와 동일 값)."
