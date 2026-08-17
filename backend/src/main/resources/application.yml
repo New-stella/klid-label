@@ -470,7 +470,9 @@ authoring:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}
     # ffprobe 바이너리 경로 — 영상 기술메타/duration 추출 전 경로의 단일 진실원 키.
-    #   사용처: BrampVideoProbe · PortalVideoProbeFfprobe · DurationProbeFfprobe · DevAutolabelTestService.
+    #   사용처: BrampVideoProbe · PortalVideoProbeFfprobe · DurationProbeFfprobe.
+    #   (dev 업로드는 자체 ffprobe 래퍼를 버리고 BrampVideoProbe 를 재사용하므로 이 키를 간접 사용한다 —
+    #    영상 길이와 기술메타를 «한 번의 호출» 결과에서 함께 뽑으려면 프로브가 하나여야 한다)
     #   (과거 BrampVideoProbe 만 미정의 키 authoring.ffprobe.binary 를 읽어 FFPROBE_BIN 주입이 누락됐다)
     ffprobe-binary: ${FFPROBE_BIN:ffprobe}
   # Phase 2 — 관제서버 outbound 완료/수정 통지.
@@ -566,6 +568,12 @@ authoring:
       enabled: ${DEV_LOGIN_ENABLED:false}
     upload:
       enabled: ${DEV_UPLOAD_ENABLED:false}
+      # 즉시 실행 업로드가 올린 파일에서 영상 기술메타(LS_DATA_META 의 video.*)를 읽어 적재할지.
+      #   - 기본 true — 누락된 동작을 메우는 것이라 끄는 쪽이 예외다(ffprobe 는 영상 길이 추출로
+      #     이미 매 업로드마다 1회 호출되므로 추가 전제가 없다 — 그 한 결과를 함께 쓴다).
+      #   - false 로 끄면 기동 로그(INFO)에 그 사실이 남는다(운영자 추적용).
+      #   - 사용자 «입력» 기술메타는 이 토글과 무관하게 이 경로에서 전송되지 않는다(요청 계약 6필드).
+      extract-technical-meta: ${DEV_UPLOAD_EXTRACT_TECHNICAL_META:true}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
 # + 포털 전용 이미지/영상 업로드 정책 (PortalUploadProperties 바인딩)

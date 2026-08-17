@@ -388,4 +388,26 @@ describe('영상 업로드 — 적재 경로와 단일 입력 폼', () => {
     expect(screen.queryByTestId('unsent-notice-출처유형')).toBeNull();
     expect(screen.queryByTestId('unsent-notice-영상 기술메타')).toBeNull();
   });
+
+  it('기술메타_묶음의_안내는_서버가_채운다는_사실을_담는다', () => {
+    // given — 즉시 실행 경로. 입력값은 버려지지만 서버가 올린 파일에서 읽어 채운다.
+    renderWithProviders(<DevAutolabelTestPage />);
+
+    // then — «전송되지 않습니다» 만 적으면 거짓이 된다(서버가 파일에서 읽어 채우므로).
+    const notice = screen.getByTestId('unsent-notice-영상 기술메타');
+    expect(notice.textContent).toContain('입력값이 전송되지 않습니다');
+    expect(notice.textContent).toContain('서버가 올린 영상 파일에서 읽을 수 있는 항목을 직접 채웁니다');
+    // 서버 설정으로 끌 수 있고 화면은 그 값을 모른다 — 켜졌든 꺼졌든 참인 표현이어야 한다.
+    expect(notice.textContent).toContain('서버 설정에 따라 생략될 수 있습니다');
+  });
+
+  it('다른_묶음의_안내는_전송되지_않는다는_서술을_유지한다', () => {
+    // given — 위치·CCTV 제원 등은 파일에서 읽을 수 없어 진짜로 버려진다.
+    renderWithProviders(<DevAutolabelTestPage />);
+
+    // then — 전부 같은 문구로 통일하면 이쪽이 거짓이 된다.
+    const notice = screen.getByTestId('unsent-notice-위치 · CCTV 제원');
+    expect(notice.textContent).toContain('이 항목이 전송되지 않습니다');
+    expect(notice.textContent).not.toContain('서버가 올린 영상 파일에서 읽을 수 있는 항목');
+  });
 });

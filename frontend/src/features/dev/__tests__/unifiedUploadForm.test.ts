@@ -4,6 +4,7 @@ import { PrvcType } from '@/features/dev/types';
 import {
   EVENT_TYPE_MANUAL_OPTION,
   MULTIPART_MAX_BYTES,
+  SERVER_FILLED_GROUPS,
   UNSENT_GROUPS,
   UploadRoute,
   canStartUpload,
@@ -165,6 +166,21 @@ describe('단일 업로드 폼 — 즉시 실행 경로 payload', () => {
 
     // then — 계약에 없는 4묶음. 화면이 이 목록으로 "이 경로에서는 전송되지 않음"을 알린다.
     expect(groups).toEqual(['출처유형', '위치 · CCTV 제원', '이벤트 · 관제일지', '영상 기술메타']);
+  });
+
+  it('기술메타만_서버가_파일에서_읽어_채우는_묶음으로_표시된다', () => {
+    // given/when — «전송되지 않는다» 와 «채워지지 않는다» 는 다른 축이다.
+    //   서버는 올린 파일을 조사해 video.* 기술메타를 채우므로 이 묶음만 안내 문구가 다르다.
+    // then
+    expect(SERVER_FILLED_GROUPS).toEqual(['영상 기술메타']);
+    // 파일에서 읽을 수 없는 묶음은 진짜로 버려진다 — 여기에 들어오면 화면이 거짓을 말한다.
+    expect(SERVER_FILLED_GROUPS).not.toContain('위치 · CCTV 제원');
+    expect(SERVER_FILLED_GROUPS).not.toContain('이벤트 · 관제일지');
+    expect(SERVER_FILLED_GROUPS).not.toContain('출처유형');
+    // 안내는 «그 경로에서 전송되지 않는 묶음» 에만 뜨므로 이 목록은 그 부분집합이어야 한다.
+    expect(UNSENT_GROUPS[UploadRoute.IMMEDIATE]).toEqual(
+      expect.arrayContaining([...SERVER_FILLED_GROUPS]),
+    );
   });
 
   it('영상_길이는_즉시_실행_payload_에_실리지_않는다 — 서버가_ffprobe_로_채운다', () => {

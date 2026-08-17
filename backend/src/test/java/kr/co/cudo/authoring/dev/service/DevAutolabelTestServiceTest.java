@@ -1,5 +1,9 @@
 package kr.co.cudo.authoring.dev.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.runner.DevPipelineRunner;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -7,7 +11,11 @@ import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestResponse;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.video.service.VideoMetaService;
+import kr.co.cudo.authoring.video.service.port.VideoProbe;
+import kr.co.cudo.authoring.video.service.port.VideoProbe.VideoMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,14 +29,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,6 +59,8 @@ class DevAutolabelTestServiceTest {
     private VideoRepository videoRepository;
     private DevPipelineRunner devPipelineRunner;
     private EventTypeService eventTypeService;
+    private VideoProbe videoProbe;
+    private VideoMetaService videoMetaService;
 
     private DevAutolabelTestService service;
 
@@ -55,19 +71,35 @@ class DevAutolabelTestServiceTest {
     /** dev 업로드 도구가 받는 관제 상세 EV-코드 (쓰러짐 카테고리 020002 의 대표 코드). */
     private static final String VALID_EV_CODE = "EV02000201";
 
+    /** 기본 probe 결과 — 60초 + 기술메타 전 필드 채움. */
+    private static VideoMeta fullMeta() {
+        return new VideoMeta(1920, 1080, "h264", 30.0, 4_500_000L, 60_000L, 12_345_678L);
+    }
+
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         devPipelineRunner = mock(DevPipelineRunner.class);
         eventTypeService = mock(EventTypeService.class);
+        videoProbe = mock(VideoProbe.class);
+        videoMetaService = mock(VideoMetaService.class);
         // 기본: 유효 EV-코드는 관제 마스터에 등록되어 categoryKey 를 반환한다.
         given(eventTypeService.filterKeyOf(VALID_EV_CODE)).willReturn(Optional.of("020002"));
-        service = new DevAutolabelTestService(
+        given(videoProbe.probe(any(Path.class))).willReturn(fullMeta());
+        service = newService(MAX_FILE_SIZE, true);
+    }
+
+    /** 기술메타 적재 토글·크기 한도만 바꿔 서비스를 새로 만든다(공용 mock 재사용). */
+    private DevAutolabelTestService newService(long maxFileSize, boolean technicalMetaEnabled) {
+        return new DevAutolabelTestService(
                 videoRepository,
                 devPipelineRunner,
                 eventTypeService,
+                videoProbe,
+                videoMetaService,
                 storageRoot.toString(),
-                MAX_FILE_SIZE
+                maxFileSize,
+                technicalMetaEnabled
         );
     }
 
@@ -186,9 +218,7 @@ class DevAutolabelTestServiceTest {
     @DisplayName("파일_크기_초과_413_PAYLOAD_TOO_LARGE")
     void 파일크기_초과() {
         // maxFileSize 를 4 bytes 로 매우 작게 설정
-        DevAutolabelTestService smallLimitService = new DevAutolabelTestService(
-                videoRepository, devPipelineRunner, eventTypeService,
-                storageRoot.toString(), 4L);
+        DevAutolabelTestService smallLimitService = newService(4L, true);
 
         MultipartFile file = mp4File("big.mp4", new byte[]{1, 2, 3, 4, 5});
 
@@ -308,11 +338,10 @@ class DevAutolabelTestServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
     }
 
-    /** durationProbe 주입형 서비스 — ffprobe 의존 격리. */
-    private DevAutolabelTestService serviceWithProbe(DevAutolabelTestService.DurationProbe probe) {
-        return new DevAutolabelTestService(
-                videoRepository, devPipelineRunner, eventTypeService,
-                storageRoot.toString(), MAX_FILE_SIZE, "ffprobe", probe);
+    /** duration(초) 만 지정한 probe 결과 — 기술메타 축은 이 테스트들의 관심 밖이다. */
+    private void givenProbeDurationMs(Long durationMs) {
+        given(videoProbe.probe(any(Path.class)))
+                .willReturn(new VideoMeta(1920, 1080, "h264", 30.0, 4_500_000L, durationMs, 1_000L));
     }
 
     @Test
@@ -321,11 +350,11 @@ class DevAutolabelTestServiceTest {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
         given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(101L));
 
-        // ffprobe stub — 정확히 137초 반환
-        DevAutolabelTestService localService = serviceWithProbe(path -> 137);
+        // ffprobe stub — 정확히 137초(=137,000ms) 반환
+        givenProbeDurationMs(137_000L);
 
         MultipartFile file = mp4File("video.mp4", new byte[]{1, 2, 3, 4});
-        AutolabelTestResponse response = localService.upload(file, validMeta());
+        AutolabelTestResponse response = service.upload(file, validMeta());
 
         assertThat(response.rawSn()).isEqualTo(101L);
 
@@ -341,13 +370,12 @@ class DevAutolabelTestServiceTest {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
 
         // ffprobe 가 RuntimeException 던지는 stub — 손상된 영상 시뮬레이션
-        DevAutolabelTestService localService = serviceWithProbe(path -> {
-            throw new IllegalStateException("ffprobe call failed: corrupted file");
-        });
+        willThrow(new IllegalStateException("ffprobe call failed: corrupted file"))
+                .given(videoProbe).probe(any(Path.class));
 
         MultipartFile file = mp4File("corrupt.mp4", new byte[]{1, 2, 3});
 
-        assertThatThrownBy(() -> localService.upload(file, validMeta()))
+        assertThatThrownBy(() -> service.upload(file, validMeta()))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
 
@@ -356,14 +384,30 @@ class DevAutolabelTestServiceTest {
     }
 
     @Test
+    @DisplayName("ffprobe가_길이를_모르면_400_INVALID_INPUT — 지어내지_않는다")
+    void ffprobe_길이_미상_거부() {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+
+        // durationMs=null(미상) — 0 으로 단정하지 않고 추출 실패로 다룬다.
+        givenProbeDurationMs(null);
+        MultipartFile file = mp4File("unknown.mp4", new byte[]{1, 2});
+
+        assertThatThrownBy(() -> service.upload(file, validMeta()))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(videoRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("ffprobe_0초_반환시_400_INVALID_INPUT")
     void ffprobe_0초_반환_거부() {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
 
-        DevAutolabelTestService localService = serviceWithProbe(path -> 0);
+        givenProbeDurationMs(0L);
         MultipartFile file = mp4File("zero.mp4", new byte[]{1, 2});
 
-        assertThatThrownBy(() -> localService.upload(file, validMeta()))
+        assertThatThrownBy(() -> service.upload(file, validMeta()))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
 
@@ -375,10 +419,10 @@ class DevAutolabelTestServiceTest {
     void ffprobe_상한_초과_거부() {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
 
-        DevAutolabelTestService localService = serviceWithProbe(path -> 7201);
+        givenProbeDurationMs(7_201_000L);
         MultipartFile file = mp4File("toolong.mp4", new byte[]{1, 2});
 
-        assertThatThrownBy(() -> localService.upload(file, validMeta()))
+        assertThatThrownBy(() -> service.upload(file, validMeta()))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT);
 
@@ -391,10 +435,9 @@ class DevAutolabelTestServiceTest {
         given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
         given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(500L));
 
-        DevAutolabelTestService localService = serviceWithProbe(path -> 60);
         MultipartFile file = mp4File("new.mp4", new byte[]{1, 2, 3});
 
-        AutolabelTestResponse response = localService.upload(file, validMeta());
+        AutolabelTestResponse response = service.upload(file, validMeta());
 
         assertThat(response.rawSn()).isEqualTo(500L);
         assertThat(response.pipelineStatus()).isEqualTo("PROCESSING");
@@ -402,5 +445,209 @@ class DevAutolabelTestServiceTest {
         // 단계 토글/마킹 분기 없이 단일 runAsync(rawSn) 으로 위임한다.
         await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
                 verify(devPipelineRunner).runAsync(eq(500L)));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 영상 기술메타(video.*) 적재 — 즉시 실행 경로 [@design SCREEN-027]
+    //   이 경로는 VideoIngestedEvent 를 발행하지 않아 VideoMetaExtractBridge →
+    //   AsyncVideoMetaRunner(= video.* 를 쓰는 유일한 통로)가 트리거되지 않았고,
+    //   그래서 ffprobe 자동 추출조차 일어나지 않았다.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** 기술메타 적재의 유일한 통로 — 서비스가 새 적재 경로를 만들지 않았음을 이 검증이 고정한다. */
+    private VideoMeta capturedStoredMeta() {
+        ArgumentCaptor<VideoMeta> captor = ArgumentCaptor.forClass(VideoMeta.class);
+        verify(videoMetaService).upsertVideoMeta(eq(101L), captor.capture());
+        return captor.getValue();
+    }
+
+    private void givenSaveReturns(Long rawSn) {
+        given(videoRepository.findByVmsClipId(any())).willReturn(Optional.empty());
+        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(rawSn));
+    }
+
+    @Test
+    @DisplayName("즉시_실행_업로드가_영상_기술메타를_적재한다")
+    void 즉시_실행_업로드가_영상_기술메타를_적재한다() throws Exception {
+        // given — ffprobe 가 기술메타 전 필드를 돌려준다.
+        givenSaveReturns(101L);
+
+        // when
+        service.upload(mp4File("video.mp4", new byte[]{1, 2, 3, 4}), validMeta());
+
+        // then — 기존 통로(VideoMetaService)로 probe 결과가 그대로 넘어간다.
+        VideoMeta stored = capturedStoredMeta();
+        assertThat(stored.width()).isEqualTo(1920);
+        assertThat(stored.height()).isEqualTo(1080);
+        assertThat(stored.codecName()).isEqualTo("h264");
+        assertThat(stored.fps()).isEqualTo(30.0);
+        assertThat(stored.bitRate()).isEqualTo(4_500_000L);
+        assertThat(stored.durationMs()).isEqualTo(60_000L);
+        assertThat(stored.fileSize()).isEqualTo(12_345_678L);
+    }
+
+    @Test
+    @DisplayName("추출할_수_없는_항목은_비워_두고_지어내지_않는다")
+    void 추출할_수_없는_항목은_비워_두고_지어내지_않는다() throws Exception {
+        // given — 코덱·비트레이트·파일크기 미상 + 비디오 스트림 해상도 없음(0). 길이만 확보.
+        givenSaveReturns(101L);
+        given(videoProbe.probe(any(Path.class)))
+                .willReturn(new VideoMeta(0, 0, null, null, null, 45_000L, null));
+
+        // when
+        service.upload(mp4File("partial.mp4", new byte[]{1, 2}), validMeta());
+
+        // then — 없는 값을 0·빈문자열·추정치로 채우지 않고 미상(null/0)을 그대로 넘긴다.
+        //   실제 skip(= 행 미생성)은 VideoMetaService 가 담당한다(VideoMetaServiceTest).
+        VideoMeta stored = capturedStoredMeta();
+        assertThat(stored.codecName()).isNull();
+        assertThat(stored.bitRate()).isNull();
+        assertThat(stored.fileSize()).isNull();
+        assertThat(stored.width()).isZero();
+        assertThat(stored.height()).isZero();
+        assertThat(stored.durationMs()).isEqualTo(45_000L);
+    }
+
+    @Test
+    @DisplayName("옵션을_끄면_기술메타를_적재하지_않는다")
+    void 옵션을_끄면_기술메타를_적재하지_않는다() throws Exception {
+        // given
+        givenSaveReturns(101L);
+        DevAutolabelTestService off = newService(MAX_FILE_SIZE, false);
+
+        // when — 업로드 자체는 정상 완료된다(끄는 것은 부가 기능만).
+        AutolabelTestResponse response = off.upload(mp4File("v.mp4", new byte[]{1, 2}), validMeta());
+
+        // then
+        assertThat(response.rawSn()).isEqualTo(101L);
+        verify(videoMetaService, never()).upsertVideoMeta(anyLong(), any(VideoMeta.class));
+    }
+
+    @Test
+    @DisplayName("기술메타를_껐다는_사실이_기동_로그로_남는다")
+    void 기술메타를_껐다는_사실이_기동_로그로_남는다() {
+        // given/when — 요청마다 도배하지 않고 빈 생성 시점에 1회만 알린다.
+        ListAppender<ILoggingEvent> logs = attachLogAppender();
+        try {
+            newService(MAX_FILE_SIZE, false);
+
+            // then
+            assertThat(logs.list.stream()
+                    .filter(e -> e.getLevel() == Level.INFO)
+                    .map(ILoggingEvent::getFormattedMessage))
+                    .as("운영자가 '왜 기술메타가 없지' 를 추적할 수 있어야 한다")
+                    .anyMatch(m -> m.contains("technical meta extraction disabled"));
+        } finally {
+            serviceLogger().detachAppender(logs);
+        }
+    }
+
+    @Test
+    @DisplayName("기술메타_적재가_실패해도_업로드는_성공한다")
+    void 기술메타_적재가_실패해도_업로드는_성공한다() throws Exception {
+        // given — 적재 통로가 터진다(부가 기능의 실패).
+        givenSaveReturns(101L);
+        willThrow(new IllegalStateException("meta store blew up"))
+                .given(videoMetaService).upsertVideoMeta(anyLong(), any(VideoMeta.class));
+
+        // when/then — 2xx 상당(정상 반환). duration 400 과 달리 업로드를 죽이지 않는다.
+        AutolabelTestResponse response =
+                service.upload(mp4File("v.mp4", new byte[]{1, 2}), validMeta());
+
+        assertThat(response.rawSn()).isEqualTo(101L);
+        assertThat(response.pipelineStatus()).isEqualTo("PROCESSING");
+        // 파이프라인도 계속 간다 — 기술메타 실패가 후속 단계를 막지 않는다.
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                verify(devPipelineRunner).runAsync(eq(101L)));
+    }
+
+    @Test
+    @DisplayName("기술메타_적재_실패는_로그로_남는다")
+    void 기술메타_적재_실패는_로그로_남는다() throws Exception {
+        // given
+        givenSaveReturns(101L);
+        willThrow(new IllegalStateException("meta store blew up"))
+                .given(videoMetaService).upsertVideoMeta(anyLong(), any(VideoMeta.class));
+        ListAppender<ILoggingEvent> logs = attachLogAppender();
+
+        try {
+            // when
+            service.upload(mp4File("v.mp4", new byte[]{1, 2}), validMeta());
+
+            // then — 조용히 삼키지 않는다.
+            assertThat(logs.list.stream()
+                    .filter(e -> e.getLevel() == Level.WARN)
+                    .map(ILoggingEvent::getFormattedMessage))
+                    .anyMatch(m -> m.contains("technical meta store failed"));
+        } finally {
+            serviceLogger().detachAppender(logs);
+        }
+    }
+
+    @Test
+    @DisplayName("프로브를_두_번_호출하지_않는다")
+    void 프로브를_두_번_호출하지_않는다() throws Exception {
+        // given — 호출 횟수와 «넘긴 결과가 그 호출의 결과인지» 를 함께 본다.
+        givenSaveReturns(101L);
+        AtomicInteger calls = new AtomicInteger();
+        given(videoProbe.probe(any(Path.class))).willAnswer(inv -> {
+            // 호출마다 다른 값을 돌려주므로, 두 번 불렀다면 duration 과 기술메타가 갈린다.
+            long ms = 10_000L * calls.incrementAndGet();
+            return new VideoMeta(1920, 1080, "h264", 30.0, 1L, ms, 1L);
+        });
+
+        // when
+        service.upload(mp4File("v.mp4", new byte[]{1, 2}), validMeta());
+
+        // then — ffprobe 프로세스를 두 번 띄우지 않는다.
+        assertThat(calls.get()).isEqualTo(1);
+        verify(videoProbe).probe(any(Path.class));
+        // LS_DATA_RAW 의 길이와 기술메타의 길이가 «같은 한 번의 결과» 다.
+        ArgumentCaptor<LsDataRaw> rawCaptor = ArgumentCaptor.forClass(LsDataRaw.class);
+        verify(videoRepository).save(rawCaptor.capture());
+        assertThat(rawCaptor.getValue().getDurationSec()).isEqualTo(10);
+        assertThat(capturedStoredMeta().durationMs()).isEqualTo(10_000L);
+    }
+
+    @Test
+    @DisplayName("기존_video_메타_키_집합_밖의_키를_만들지_않는다")
+    void 기존_video_메타_키_집합_밖의_키를_만들지_않는다() throws Exception {
+        // given — 실제 VideoMetaService 를 통과시켜 최종 META_KEY 를 관측한다.
+        //   키 집합의 진실원은 VideoMetaService(KEY_FPS…KEY_RESOLUTION) 이며 아래는 그 고정 사본이다.
+        Set<String> knownKeys = Set.of(
+                "video.fps", "video.codec", "video.bit_rate",
+                "video.duration_ms", "video.filesize", "video.resolution");
+        LsDataMetaRepository metaRepository = mock(LsDataMetaRepository.class);
+        LsDataIngestRepository ingestRepository = mock(LsDataIngestRepository.class);
+        VideoMetaService realMetaService =
+                new VideoMetaService(metaRepository, videoRepository, ingestRepository);
+        DevAutolabelTestService real = new DevAutolabelTestService(
+                videoRepository, devPipelineRunner, eventTypeService,
+                videoProbe, realMetaService, storageRoot.toString(), MAX_FILE_SIZE, true);
+        givenSaveReturns(101L);
+
+        // when
+        real.upload(mp4File("v.mp4", new byte[]{1, 2}), validMeta());
+
+        // then — 새 키(video.* 밖 또는 미등록 video.* 키)를 만들지 않는다. 소비처가 읽지 않는다.
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(metaRepository, org.mockito.Mockito.atLeastOnce())
+                .upsertMeta(eq(101L), keyCaptor.capture(), anyString());
+        List<String> keys = keyCaptor.getAllValues();
+        assertThat(keys).isNotEmpty();
+        assertThat(keys).allMatch(k -> k.startsWith(VideoMetaService.KEY_PREFIX));
+        assertThat(knownKeys).containsAll(keys);
+    }
+
+    private static ch.qos.logback.classic.Logger serviceLogger() {
+        return (ch.qos.logback.classic.Logger)
+                org.slf4j.LoggerFactory.getLogger(DevAutolabelTestService.class);
+    }
+
+    private static ListAppender<ILoggingEvent> attachLogAppender() {
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        serviceLogger().addAppender(appender);
+        return appender;
     }
 }

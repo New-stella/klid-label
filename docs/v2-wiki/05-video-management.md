@@ -88,6 +88,22 @@
 - 만료 정리: `EXPIRES_AT`(+24h) TTL + `@Scheduled` 정리 잡(`TusUploadCleanupJob`, 1h 간격)
 - FE: `useTusUpload` 훅 + `TusUploadPanel`(진행률 + 일시정지/재개). 폼은 인입 29컬럼을 **식별 / 위치·CCTV / 이벤트 / 기술메타(선택)** 4그룹으로 나눠 받고, 기술메타 그룹에는 "비우면 서버가 파일에서 자동 추출"을 명시한다. 완료 문구는 **"영상 등록 생성"이 아니라 "인입 대기"** 다(업로드 완료 ≠ 적재). 기존 multipart 경로(`/v1/dev/upload`)는 fallback 유지
 
+### 5.2-1 「파이프라인 즉시 실행」 경로의 영상 기술메타 (2026-08-17)
+
+같은 화면(`/dev/upload`, SC-027)의 다른 적재 경로다 — 올린 즉시 `LS_DATA_RAW` 1행을 만들고 비식별→마킹 대기까지 이어진다(위 TUS 경로는 `LS_DATA_INGEST` 원장에 적재해 주기 배치가 훑는다).
+
+- **이 경로는 영상 기술메타가 아예 생성되지 않았다** — `VideoIngestedEvent` 를 발행하지 않아 그 이벤트에 물린 `VideoMetaExtractBridge`→`AsyncVideoMetaRunner`(§5.5.2 의 `video.*` 를 쓰는 유일한 통로)가 트리거되지 않았고, 그래서 **ffprobe 자동 추출조차 일어나지 않았다**
+- **이제 업로드된 파일에서 읽을 수 있는 항목을 `LS_DATA_META` 의 `video.*` 로 적재한다.** 적재는 §5.5.2 의 `VideoMetaService` 에 **위임**한다 — 키 집합(6종)과 "미상 필드는 저장하지 않는다"(값 0 과 미상을 구분) 판정을 그 서비스가 소유하므로, 여기서 `video.*` 를 조립하면 **두 번째 진실원**이 된다. 인입 병합 오버로드가 아니라 probe 단독 오버로드를 쓴다(이 경로에는 인입 행이 없다)
+- ★ **ffprobe 는 업로드 1건당 1회다** — 영상 길이(`LS_DATA_RAW.VDO_LEN_SEC`)와 기술메타를 **같은 한 결과에서** 뽑는다. 구 구현은 이 서비스가 `net.bramp` FFprobe 를 직접 감싼 **duration 전용 래퍼**를 따로 갖고 있었는데, 그것을 남긴 채 기술메타를 더하면 프로세스가 두 번 뜨고 두 적재값이 갈릴 수 있다. 그래서 그 래퍼를 버리고 기존 포트 `VideoProbe`(운영 구현 `BrampVideoProbe`)를 재사용한다
+- **뽑을 수 없는 항목은 비워 둔다** — 지어내지 않는다(색심도·화소 표기를 채우지 않는 §5.2 인입 back-fill 원칙과 같다). 길이 미상은 0 으로 단정하지 않고 **추출 실패(400)** 로 다룬다
+- **트랜잭션 경계 — 적재는 커밋 이후(afterCommit)** 다. `LS_DATA_META.RAW_SN` 에 FK(`fk_ls_data_meta_raw`)가 있고 `VideoMetaService` 는 `REQUIRES_NEW`(별 커넥션)로 쓰므로, 업로드 트랜잭션 안에서 부르면 아직 커밋되지 않은 `LS_DATA_RAW` 행이 보이지 않아 **FK 위반으로 실패**한다. 파이프라인 트리거를 afterCommit 에 태우는 것과 같은 이유(read-after-write 가시성)라 **같은 콜백**에 태운다
+- **fail-open** — 기술메타는 부가 기능이라 적재 실패가 업로드를 되돌리지 않는다(길이 추출 실패는 종전대로 400). 다만 조용히 삼키지 않고 WARN 으로 남긴다. ⚠ afterCommit 콜백의 예외는 `commit()` 밖으로 전파되므로 **거기서 반드시 잡아야** 커밋된 업로드가 5xx 로 보이지 않는다
+- **옵션** `authoring.dev.upload.extract-technical-meta`(env `DEV_UPLOAD_EXTRACT_TECHNICAL_META`) — **기본 켜짐**. 누락된 동작을 메우는 것이고 ffprobe 는 길이 추출로 이미 매 업로드마다 호출되므로 끄는 쪽이 예외다. 끄면 그 사실이 **기동 로그(INFO) 1회**로 남는다(요청마다 도배하지 않되 "왜 기술메타가 없지"를 추적할 수 있어야 한다 — 요청 단위는 DEBUG)
+- ⚠ **사용자 «입력» 기술메타는 이 경로에서 여전히 전송되지 않는다** — 요청 계약(`AutolabelTestRequest`)은 6필드로 좁고, 위치·CCTV 제원 등을 `LS_DATA_RAW` 로 복사하지 않는 것이 확정 설계이며 `LS_DATA_INGEST` INSERT 통로는 **단 하나**로 잠겨 있다(`LsDataIngestWriteGuardTest`). 채우는 것은 **파일에서 측정한 값**뿐이다
+- **화면 안내가 그 사실을 갈라 말한다** — 「영상 기술메타」 묶음만 *"입력값은 전송되지 않고, 서버가 올린 영상 파일에서 읽을 수 있는 항목을 직접 채웁니다(서버 설정에 따라 생략될 수 있습니다)"* 이고, 파일에서 읽을 수 없는 다른 묶음(위치·CCTV 제원·이벤트·관제일지·출처유형)은 *"전송되지 않습니다"* 를 유지한다. 전부 같은 문구로 통일하면 한쪽이 거짓이 된다. FE 단일 원천은 `unifiedUploadForm.ts(SERVER_FILLED_GROUPS)` 이고 문구는 `UploadRouteFields.tsx(UnsentNotice)` 한 곳에만 있다
+  - ⚠ **설정으로 끈 상태를 FE 는 알 수 없다** — 그래서 «채워집니다» 로 단정하지 않고 «읽을 수 있는 항목을 채웁니다(설정에 따라 생략될 수 있습니다)» 로 적어 **켜졌든 꺼졌든 참인 표현**으로 둔다. 그 값을 FE 로 내려주는 계약을 새로 만드는 것은 이 화면의 범위가 아니다
+- 코드: `dev/service/DevAutolabelTestService.java`(`probeOnce`·`resolveDurationSec`·`storeTechnicalMeta`)
+
 ### 업로드 검증 (보안)
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수
 - 경로 순회(`..`) 차단(`Path.normalize` + 기준 경로 검증, CWE-22)
@@ -149,6 +165,7 @@
 - **내부 업로드분은 인입 행이 이미 채워져 온다** (2026-08-06) — 업로드 완료 시점 back-fill(§5.2)이 인입 8컬럼을 채우므로 여기서는 그 값이 우선 채택되고 ffprobe 폴백이 대개 불필요해진다. **이 절의 규칙 자체는 무변경**이며(소스 우선순위·키 단위 폴백 동일), 두 축이 **같은 ffprobe 원천**을 쓰므로 값이 갈리지 않는다
 - ⚠ **`video.bit_rate` 만 ffprobe 전용**: 인입 `BIT` 은 **색심도 표기**(`24bit`)이지 비트레이트가 아니다. 소비처가 `LS_DATASET_VIDEO_META.BIT_RT`(BIGINT)라 `'24bit'` 를 흘리면 파싱 실패로 값이 사라진다. 어노테이션 `bit` 을 색심도로 바꾸려면 `BIT_RT` 타입 확장이 선행돼야 한다(별도 과제)
 - **관제 수신값은 신뢰 경계 밖**: fps 양수 유한 실수 · 길이/파일크기 양수 · 해상도 `WIDTHxHEIGHT` 형식만 채택하고, 위반한 키는 담지 않아 그 키만 ffprobe 폴백으로 넘어간다
+- ★ **dev 업로드의 「파이프라인 즉시 실행」 경로도 이제 이 6키를 채운다 (2026-08-17)** — 그 경로는 `VideoIngestedEvent` 를 발행하지 않아 그 이벤트에 물린 `VideoMetaExtractBridge`→`AsyncVideoMetaRunner`(= `video.*` 를 쓰는 유일한 통로)가 **트리거되지 않았고, 그래서 사용자 입력값은 물론 ffprobe 자동 추출조차 일어나지 않았다**(적재 후 `LS_DATA_META` 에 `video.*` 0건). 이제 `DevAutolabelTestService` 가 업로드된 파일을 조사해 **같은 `VideoMetaService` 통로**로 적재한다 → §5.2-1
 - 코드: `video/service/VideoMetaService.java`(병합·검증), `batch/runner/AsyncVideoMetaRunner.java`(probe 생략 판정)
 
 ## 5.5.3 영상 처리 현황 목록 검색·필터 (`GET /v1/videos`)

@@ -11,6 +11,7 @@ import {
 import { PRVC_OPTIONS } from '@/features/dev/components/devUploadForm';
 import {
   EVENT_TYPE_MANUAL_OPTION,
+  SERVER_FILLED_GROUPS,
   UNSENT_GROUPS,
   UPLOAD_ROUTE_OPTIONS,
   UploadRoute,
@@ -70,14 +71,33 @@ export function UploadRouteField({
  *
  * 조용한 손실(입력은 받았는데 실리지 않음) 차단용이다. 필드를 비활성화하지 않는 이유는 «두 경로가
  * 같은 폼» 이라는 계약을 지켜야 하기 때문이다 — 경로에 따라 입력칸이 잠기면 폼이 갈라진다.
+ *
+ * <p>문구는 두 갈래다({@link SERVER_FILLED_GROUPS}). 영상 기술메타는 **입력값은 버려지지만 서버가
+ * 올린 파일에서 읽어 채우므로**, «전송되지 않습니다» 만 알리면 거짓이 된다. 반대로 위치·CCTV 제원
+ * 처럼 파일에서 읽을 수 없는 묶음은 진짜로 버려지므로 기존 문구를 그대로 쓴다.
+ *
+ * <p>⚠ 서버가 채우는 동작은 서버 설정으로 끌 수 있고 **화면은 그 설정을 알 수 없다**. 그래서
+ * «채워집니다» 로 단정하지 않고 «서버가 읽을 수 있는 항목을 채웁니다(설정에 따라 생략될 수
+ * 있습니다)» 로 적는다 — 설정이 켜져 있든 꺼져 있든 참인 표현이어야 한다. 그 값을 FE 로 내려주는
+ * 계약을 새로 만드는 것은 이 화면의 범위가 아니다. [@design SCREEN-027]
  */
 export function UnsentNotice({ group, route }: { group: string; route: UploadRoute }) {
   if (!UNSENT_GROUPS[route].includes(group)) return null;
   const routeLabel = UPLOAD_ROUTE_OPTIONS.find((o) => o.value === route)?.label ?? '';
   return (
     <p data-testid={`unsent-notice-${group}`} className="text-sub text-warning-700">
-      ※ 지금 고른 «{routeLabel}» 경로에서는 이 항목이 전송되지 않습니다. 값은 폼에 남아 있으며 경로를
-      바꾸면 전송됩니다.
+      {SERVER_FILLED_GROUPS.includes(group) ? (
+        <>
+          ※ 지금 고른 «{routeLabel}» 경로에서는 이 입력값이 전송되지 않습니다. 대신 서버가 올린 영상
+          파일에서 읽을 수 있는 항목을 직접 채웁니다(서버 설정에 따라 생략될 수 있습니다). 값은 폼에
+          남아 있으며 경로를 바꾸면 입력값이 그대로 전송됩니다.
+        </>
+      ) : (
+        <>
+          ※ 지금 고른 «{routeLabel}» 경로에서는 이 항목이 전송되지 않습니다. 값은 폼에 남아 있으며
+          경로를 바꾸면 전송됩니다.
+        </>
+      )}
     </p>
   );
 }
