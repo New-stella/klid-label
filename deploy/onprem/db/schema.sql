@@ -57,8 +57,16 @@ CREATE TABLE klid_at.ls_acnt_user (
     user_eml_addr character varying(320),
     use_yn character(1) DEFAULT 'Y'::bpchar NOT NULL,
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    mdfcn_dt timestamp without time zone
+    mdfcn_dt timestamp without time zone,
+    last_lgn_dt timestamp without time zone
 );
+
+
+--
+-- Name: COLUMN ls_acnt_user.last_lgn_dt; Type: COMMENT; Schema: klid_at; Owner: -
+--
+
+COMMENT ON COLUMN klid_at.ls_acnt_user.last_lgn_dt IS '최종로그인일시 — 맨 나중에 접속한 시각. 한 번도 접속하지 않았으면 NULL(기본값을 넣지 않는다).';
 
 
 --

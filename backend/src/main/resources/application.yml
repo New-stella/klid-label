@@ -17,7 +17,7 @@ spring:
       # (content-type 이 multipart/form-data 가 아니면 파싱하지 않음) → TUS 무영향.
       #
       # ★ 한도 값의 기준은 프로파일마다 다르다 — 공통은 비운영(local/dev/stg) 기준이다.
-      #   - 공통 500MB/1200MB: dev 업로드(/v1/dev/autolabel-test) 영상 개당 500MB 를 수용해야 해서
+      #   - 공통 500MB/1200MB: dev 업로드(/v1/dev/upload) 영상 개당 500MB 를 수용해야 해서
       #     local/dev/stg 가 동일 값을 각자 복붙하고 있던 것을 공통으로 승격했다.
       #   - 운영(prd)은 dev 업로드 경로가 없으므로 application-prd.yml 에서 21MB/1100MB 로 **다시 조인다**
       #     (이미지 개당 20MB 서비스 검증 + 1MB 헤드룸, 요청당 50장 → 50×21MB=1050MB + 헤드룸).
@@ -209,6 +209,16 @@ authoring:
   #   - 로컬 기본값은 application-local.yml 에 명시.
   auth:
     admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:}
+  user:
+    last-login:
+      # 최종로그인일시(LS_ACNT_USER.LAST_LGN_DT) 기록 최소 간격(분).
+      #   저작도구엔 독립 로그인 UI 가 없어 기록 지점이 <JWT 검증을 통과한 요청>이고 그 경로는 모든
+      #   요청에서 돈다. 이 값이 없으면 요청 수만큼 DB 쓰기가 발생하므로, 기록기가 넘기는
+      #   (now - 이 값) 창을 조건부 UPDATE 의 WHERE 절이 판정한다.
+      #   ★ 2노드 Active-Active 라 애플리케이션 로컬 캐시가 아니라 <DB 조건절>이 정확성의 근거다.
+      #   0·음수·파싱 실패는 throttle 무력화와 같으므로 기동을 실패시키지 않고 기본값(5)으로 폴백한다
+      #   (부가 기록 기능이라 잘못된 설정 하나로 앱이 뜨지 않는 편이 더 해롭다).
+      throttle-minutes: ${USER_LAST_LOGIN_THROTTLE_MINUTES:5}
   jwt:
     # 서명 알고리즘은 설정값이 아니라 코드 상수다 — 발급은 Jwts.SIG.HS256, 검증은 SecretKeyResolver 의
     #   HMAC 키(Keys.hmacShaKeyFor)로 고정. alg 를 설정으로 뽑으면 alg=none/약한 알고리즘 주입 표면이 생긴다(CWE-347).
@@ -545,7 +555,7 @@ authoring:
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
-  # [개발/검수 전용] dev 로그인(/v1/dev/tokens)·dev 업로드(/v1/dev/autolabel-test) 토글.
+  # [개발/검수 전용] dev 로그인(/v1/dev/tokens)·dev 업로드(/v1/dev/upload) 토글.
   #   - 기본 false(fail-closed) — 미설정 시 prd 든 어디든 빈 부재로 endpoint 미노출.
   #   - DevTokenController/Service·DevAutolabelTest*·DevPipelineRunner 가 @ConditionalOnProperty 로 게이팅,
   #     SecurityConfig 도 authoring.dev.login.enabled 를 읽어 permitAll 매처를 조건부 추가한다.

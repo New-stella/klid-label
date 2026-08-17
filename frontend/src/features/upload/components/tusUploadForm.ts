@@ -99,7 +99,9 @@ function nowLocalDateTime(): string {
 
 export function initialForm(): TusFormState {
   return {
-    vmsClipId: `tus-${Date.now()}`,
+    // 프로토콜명(TUS)은 사용자에게 보이는 문구에 쓰지 않는다 — 이 값은 입력칸에 그대로
+    // 노출되고 저장 파일명이 된다. 중복 방지를 위해 시각을 붙인다.
+    vmsClipId: `upload-${Date.now()}`,
     cctvId: 'CCTV-001',
     srcType: 'USER_ULD',
     lclgvCd: '11680',

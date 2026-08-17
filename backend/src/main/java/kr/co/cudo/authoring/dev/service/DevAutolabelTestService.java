@@ -58,8 +58,19 @@ public class DevAutolabelTestService {
     /** CWE-434 영상 확장자 allowlist (소문자 비교). */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("mp4", "webm", "mov", "avi");
 
-    /** 업로드된 파일을 저장할 storage 하위 디렉토리. */
-    private static final String UPLOAD_SUBDIR = "autolabel-test";
+    /**
+     * 업로드된 파일을 저장할 storage 하위 디렉토리.
+     *
+     * <p>★이 상수를 읽는 곳은 <b>쓰기 경로 계산뿐</b>이다({@link #resolveSafeStoragePath}
+     * → 호출처는 {@link #upload} 하나). {@code LS_DATA_RAW.FILE_PATH} 에는 <b>절대 경로</b>가
+     * 적재되므로 하류 소비자(프레임 추출·export·스트리밍)는 DB 적재값을 읽고 이 상수를
+     * 재조합하지 않는다. 따라서 값을 바꿔도 <b>새로 올리는 파일만</b> 새 디렉터리로 가고
+     * 기존 영상은 적재된 절대 경로로 그대로 열린다 — 구 디렉터리와 공존할 뿐 유실이 아니다.
+     *
+     * <p>⚠ 그러므로 기존 파일을 옮기는 마이그레이션을 만들지 말 것. DB 경로가 구 디렉터리를
+     * 가리키므로 파일을 옮기면 오히려 그 영상이 열리지 않는다.
+     */
+    private static final String UPLOAD_SUBDIR = "dev-upload";
 
     /** ffprobe 가 추출 가능한 최소 duration 상한 — `LS_DATA_RAW.DURATION_SEC` 유효 범위(2h). */
     private static final int MAX_DURATION_SEC = 7200;
@@ -84,7 +95,7 @@ public class DevAutolabelTestService {
             DevPipelineRunner devPipelineRunner,
             EventTypeService eventTypeService,
             @Value("${authoring.storage.raw-path:./storage/raw}") String storageRawPath,
-            @Value("${authoring.dev.autolabel-test.max-file-size:524288000}") long maxFileSize,
+            @Value("${authoring.dev.upload.max-file-size:524288000}") long maxFileSize,
             @Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String ffprobePath
     ) {
         this(videoRepository, devPipelineRunner, eventTypeService,

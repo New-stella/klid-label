@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.common.security;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,8 @@ public class SecurityConfig {
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
+    /** 최종로그인일시 기록기 — JWT 필터가 INTERNAL 요청마다 호출한다(@design SCREEN-024). */
+    private final LastLoginRecorder lastLoginRecorder;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -44,7 +47,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                     CorsConfigurationSource corsConfigurationSource) throws Exception {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver);
+        JwtAuthenticationFilter jwtFilter =
+                new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver, lastLoginRecorder);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
@@ -107,7 +111,7 @@ public class SecurityConfig {
                         //   + devTokenEndpointEnabled(permitAll 매처 부재) 이중 차단으로 보호. 기본 false(fail-closed).
                         // (DEV_FIX CWE-862: /v1/dev/batch/** 는 permitAll 제거 — 아래 /v1/dev/** REVIEWER
                         //  가드가 적용되어 dev/stg/local 에서도 인증 없이 파이프라인/스캔 트리거 불가.
-                        //  Phase 3: /v1/dev/autolabel/** 은퇴, dev 업로드 /v1/dev/autolabel-test 도 동일 REVIEWER 가드.)
+                        //  Phase 3: /v1/dev/autolabel/** 은퇴, dev 업로드 /v1/dev/upload 도 동일 REVIEWER 가드.)
                         auth.requestMatchers(
                                 "/v1/dev/tokens", "/v1/dev/tokens/**").permitAll();
                     }

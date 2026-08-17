@@ -37,6 +37,33 @@ function makeFile(size: number): File {
   return new File([new Uint8Array(size)], 'clip.mp4', { type: 'video/mp4' });
 }
 
+/**
+ * 적재 경로를 «관제 인입 재현» 으로 바꾼다.
+ *
+ * 폼이 한 벌로 합쳐지면서 기본 경로가 «파이프라인 즉시 실행»(통째 전송)이 되었다. 청크 전송
+ * 계약(세션 생성 바디·일시정지·재개)을 보려면 먼저 이 경로를 골라야 한다 — 입력 필드 구성은
+ * 두 경로가 같으므로 폼 내용은 이 선택에 영향받지 않는다.
+ */
+async function chooseIngestRoute(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('radio', { name: /관제 인입 재현/ }));
+}
+
+/**
+ * 선택 입력 묶음을 펼친다 — 필수가 어디인지 묻히지 않게 처음에는 접혀 있다.
+ *
+ * 접힘은 `hidden` 이라 값·DOM 은 보존되지만(조회는 성공) 숨은 요소는 클릭·타이핑이 안 되므로,
+ * 안의 입력을 만지는 테스트는 먼저 펼쳐야 한다.
+ */
+async function expandGroup(
+  user: ReturnType<typeof userEvent.setup>,
+  titlePart: string,
+): Promise<void> {
+  const toggle = screen.getByRole('button', { name: new RegExp(titlePart) });
+  if (toggle.getAttribute('aria-expanded') !== 'true') {
+    await user.click(toggle);
+  }
+}
+
 describe('TUS 업로드 클라이언트', () => {
   let mock: MockAdapter;
 
@@ -308,9 +335,18 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     mock.restore();
   });
 
-  /** 패널을 렌더하고 검증이벤트유형 select 트리거를 돌려준다(label 연결이 전제 — 접근성 가드 겸용). */
-  function renderPanelAndGetSelect(): HTMLElement {
+  /**
+   * 패널을 렌더하고 «관제 인입 재현» 경로로 바꾼 뒤 검증이벤트유형 select 트리거를 돌려준다.
+   *
+   * 검증이벤트유형은 선택 묶음(이벤트 · 관제일지) 안에 있어 먼저 펼쳐야 조작할 수 있다.
+   * (label 연결이 전제 — 접근성 가드 겸용)
+   */
+  async function renderPanelAndGetSelect(
+    user: ReturnType<typeof userEvent.setup>,
+  ): Promise<HTMLElement> {
     render(<TusUploadPanel />);
+    await chooseIngestRoute(user);
+    await expandGroup(user, '이벤트 · 관제일지');
     return screen.getByLabelText('검증이벤트유형');
   }
 
@@ -328,7 +364,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
       'upload-offset': '5',
     });
 
-    const fileInput = document.getElementById('tus-file') as HTMLInputElement;
+    const fileInput = document.getElementById('dev-upload-file') as HTMLInputElement;
     await user.upload(fileInput, makeFile(5));
     await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
@@ -341,7 +377,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('검증이벤트유형_select에_6종_옵션과_직접입력이_렌더된다', async () => {
     // given/when — dev 업로드 패널 렌더
     const user = userEvent.setup();
-    const select = renderPanelAndGetSelect();
+    const select = await renderPanelAndGetSelect(user);
 
     // 미지정이 기본 선택 — 필수 필드가 아니다(미지정 업로드도 위탁되며 벤더 응답이 판정한다).
     expect(select).toHaveTextContent('미지정 (AI 검증 위탁 생략)');
@@ -366,7 +402,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('직접입력을_고르면_자유입력칸이_열리고_그_값이_전송된다', async () => {
     // given — 프리셋에 없는 값을 시험해야 하는 경우(벤더가 enum 을 넓혔거나 미지 값 확인)
     const user = userEvent.setup();
-    const select = renderPanelAndGetSelect();
+    const select = await renderPanelAndGetSelect(user);
     await selectRadixOption(user, select, '직접 입력');
 
     // when
@@ -381,7 +417,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('프리셋에서_직접입력으로_바꾸면_이전_프리셋값이_남지_않는다', async () => {
     // given — 프리셋을 골랐다가 마음을 바꾼 동선
     const user = userEvent.setup();
-    const select = renderPanelAndGetSelect();
+    const select = await renderPanelAndGetSelect(user);
     await selectRadixOption(user, select, '화재 (fire)');
 
     // when — 직접 입력으로 전환(아무것도 타이핑하지 않는다)
@@ -396,7 +432,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('직접입력칸은_20자를_넘겨_입력할_수_없다', async () => {
     // given — 컬럼이 VARCHAR(20) 이라 초과분은 저장되지 않는다(BE 도 400 으로 막는다).
     const user = userEvent.setup();
-    const select = renderPanelAndGetSelect();
+    const select = await renderPanelAndGetSelect(user);
     await selectRadixOption(user, select, '직접 입력');
 
     // when
@@ -410,7 +446,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('옵션_라벨은_한글병기이고_전송값은_영문_enum이다', async () => {
     // given/when
     const user = userEvent.setup();
-    const select = renderPanelAndGetSelect();
+    const select = await renderPanelAndGetSelect(user);
     await user.click(select);
 
     // then — 라벨은 한글 병기(값은 벤더 규격 소문자 원문 — 라벨을 전송하면 벤더가 거부하므로
@@ -438,7 +474,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('선택한_값이_업로드_세션_생성_바디에_담긴다', async () => {
     // given
     const user = userEvent.setup();
-    const select = renderPanelAndGetSelect();
+    const select = await renderPanelAndGetSelect(user);
 
     // when — 화재 선택 후 업로드
     await selectRadixOption(user, select, '화재 (fire)');
@@ -451,7 +487,7 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('미지정이면_검증이벤트유형이_전송되지_않는다', async () => {
     // given — 아무것도 고르지 않은 기본 상태
     const user = userEvent.setup();
-    renderPanelAndGetSelect();
+    await renderPanelAndGetSelect(user);
 
     // when
     const body = await uploadAndReadCreateBody(user);
@@ -463,9 +499,10 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     expect(body.srcType).toBe('USER_ULD');
   });
 
-  it('select는_label과_연결되어_있다', () => {
+  it('select는_label과_연결되어_있다', async () => {
     // given/when — getByLabelText 는 htmlFor/id 연결이 없으면 실패한다
-    const select = renderPanelAndGetSelect();
+    const user = userEvent.setup();
+    const select = await renderPanelAndGetSelect(user);
 
     // then
     expect(select.tagName).toBe('BUTTON');
@@ -480,14 +517,30 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
    * 이쪽은 관제 코드 체계의 유형 식별자(`LS_DATA_INGEST.EVNT_TYPE_CD`)이고 적재가
    * `LS_DATA_RAW` 로 복사해 **마킹 진입 조건**이 된다. 이 입력이 없으면 업로드한 영상은
    * 비식별까지만 가고 마킹에서 400 으로 멈춘다.
+   *
+   * ★ 입력 위치가 «이벤트 · 관제일지 묶음의 자유 텍스트 칸» → **폼 상단 공통 영역의
+   * «이벤트유형»(마스터 조회 select + 직접 입력)** 으로 옮겨졌다. 두 경로가 같은 코드를 보내야
+   * 하므로 이 개념의 입력은 화면에 한 곳만 둔다. 검증 의도는 그대로다.
+   *
+   * 마스터 조회는 화면(페이지)이 하므로 폼만 단독 렌더하면 옵션이 비어 있다 — 그래서 여기서는
+   * «직접 입력» 통로로 코드를 넣는다(관제가 코드를 넓혔을 때 쓰는 바로 그 통로다).
    */
+  async function renderPanelAndOpenManualEventCode(
+    user: ReturnType<typeof userEvent.setup>,
+  ): Promise<HTMLInputElement> {
+    render(<TusUploadPanel />);
+    await chooseIngestRoute(user);
+    await selectRadixOption(user, screen.getByLabelText('이벤트유형'), '직접 입력');
+    return screen.getByLabelText('이벤트유형코드 직접 입력') as HTMLInputElement;
+  }
+
   it('★이벤트유형코드가_입력되면_그대로_전송된다 — 마킹_진입_조건이다', async () => {
     // given
     const user = userEvent.setup();
-    render(<TusUploadPanel />);
+    const input = await renderPanelAndOpenManualEventCode(user);
 
     // when — 관제 코드 체계 표기 그대로 입력
-    await user.type(screen.getByLabelText('이벤트유형코드'), 'EV01000101');
+    await user.type(input, 'EV01000101');
     const body = await uploadAndReadCreateBody(user);
 
     // then — BE record 필드명이 곧 JSON 키다. 검증이벤트유형과 섞이지 않는다.
@@ -498,10 +551,10 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   it('★이벤트유형코드는_소문자로_입력해도_대문자로_전송된다 — 표기실수는_다른_값이_아니다', async () => {
     // given — BE 형식 검증이 대문자·숫자·'_' 라 소문자 그대로면 400 이 된다
     const user = userEvent.setup();
-    render(<TusUploadPanel />);
+    const input = await renderPanelAndOpenManualEventCode(user);
 
     // when
-    await user.type(screen.getByLabelText('이벤트유형코드'), 'ev01000101');
+    await user.type(input, 'ev01000101');
     const body = await uploadAndReadCreateBody(user);
 
     // then
@@ -509,9 +562,10 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
   });
 
   it('★이벤트유형코드_미입력이면_키_자체를_보내지_않는다 — 관제_미송신_상태의_재현이다', async () => {
-    // given — 아무것도 입력하지 않은 기본 상태
+    // given — 아무것도 고르지 않은 기본 상태(옵션도 없다 = 관제 미송신 재현)
     const user = userEvent.setup();
     render(<TusUploadPanel />);
+    await chooseIngestRoute(user);
 
     // when
     const body = await uploadAndReadCreateBody(user);
@@ -520,10 +574,10 @@ describe('TUS 업로드 폼 — 검증이벤트유형 (@req R7)', () => {
     expect('evntTypeCd' in body).toBe(false);
   });
 
-  it('★이벤트유형코드_입력은_label과_연결되고_20자로_제한된다 — 컬럼폭_VARCHAR(20)', () => {
+  it('★이벤트유형코드_입력은_label과_연결되고_20자로_제한된다 — 컬럼폭_VARCHAR(20)', async () => {
     // given/when — getByLabelText 는 htmlFor/id 연결이 없으면 실패한다(접근성 가드 겸용)
-    render(<TusUploadPanel />);
-    const input = screen.getByLabelText('이벤트유형코드') as HTMLInputElement;
+    const user = userEvent.setup();
+    const input = await renderPanelAndOpenManualEventCode(user);
 
     // then — 입구에서 막지 않으면 INSERT 시점 DB 오류가 된다
     expect(input.maxLength).toBe(20);
@@ -548,9 +602,11 @@ describe('TUS 업로드 폼 — 기관코드 제거 (V185)', () => {
     mock.restore();
   });
 
-  it('기관코드_입력칸이_없다', () => {
-    // given/when — dev 업로드 패널 렌더
+  it('기관코드_입력칸이_없다', async () => {
+    // given/when — dev 업로드 패널 렌더 + 선택 묶음(위치 · CCTV 제원)을 펼친다
+    const user = userEvent.setup();
     render(<TusUploadPanel />);
+    await expandGroup(user, '위치 · CCTV 제원');
 
     // then — 입력칸 소멸. 같은 fieldset 의 다른 입력은 그대로다(과잉 삭제 가드).
     expect(screen.queryByLabelText('기관코드')).toBeNull();
@@ -562,6 +618,7 @@ describe('TUS 업로드 폼 — 기관코드 제거 (V185)', () => {
     // given — 기관코드 없이도 업로드가 끝까지 간다(제거가 제출을 깨뜨리지 않는다)
     const user = userEvent.setup();
     render(<TusUploadPanel />);
+    await chooseIngestRoute(user);
     mock.onPost('/uploads').reply(201, null, {
       'tus-resumable': '1.0.0',
       location: '/v1/uploads/u-ogcd',
@@ -573,7 +630,7 @@ describe('TUS 업로드 폼 — 기관코드 제거 (V185)', () => {
     });
 
     // when
-    const fileInput = document.getElementById('tus-file') as HTMLInputElement;
+    const fileInput = document.getElementById('dev-upload-file') as HTMLInputElement;
     await user.upload(fileInput, makeFile(5));
     await user.click(screen.getByRole('button', { name: '업로드 시작' }));
     await screen.findByTestId('tus-completed');
@@ -594,11 +651,28 @@ describe('업로드 화면 노출 문구', () => {
     // given/when
     const { container } = render(<TusUploadPanel />);
 
-    // then — 프로토콜명·모델명·내부 설계 용어는 노출하지 않는다
+    // then — 프로토콜명·모델명은 노출하지 않는다
     expect(container.textContent).not.toMatch(/TUS/i);
     expect(container.textContent).not.toMatch(/VLM/i);
-    expect(container.textContent).not.toContain('관제 인입 재현');
     // 대체 문구는 남아 있어야 한다(문구 자체가 사라지는 회귀 차단)
-    expect(screen.getByText('대용량 영상 업로드 (이어서 올리기 지원)')).toBeInTheDocument();
+    expect(screen.getByText('영상 파일 · 메타 입력')).toBeInTheDocument();
+    // 「이어서 올리기」 이점은 경로 설명으로 계속 안내된다(제목에서 옮겨졌을 뿐 사라지지 않았다)
+    expect(container.textContent).toContain('이어 올리기 지원');
+  });
+
+  /**
+   * ★ 구 가드 폐기 — 「'관제 인입 재현' 이 화면에 나오면 안 된다」.
+   *
+   * 그 낱말은 이제 **사용자가 고르는 적재 경로의 이름**이라 확정 사양이 그대로 쓴다. 구 가드는
+   * 경로 선택지가 없던 시절 내부 설계 용어가 문구로 새는 것을 막던 것이고, 지금은 반대로
+   * **선택지가 사라지는 것**을 막아야 한다.
+   */
+  it('적재_경로_두_선택지가_사용자_문구로_노출된다', () => {
+    // given/when
+    render(<TusUploadPanel />);
+
+    // then
+    expect(screen.getByRole('radio', { name: /파이프라인 즉시 실행/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /관제 인입 재현/ })).toBeInTheDocument();
   });
 });

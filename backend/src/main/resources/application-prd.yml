@@ -27,7 +27,7 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   # 운영(prd) multipart 한도 — 공통(500MB/1200MB)보다 **좁게 조인다**.
-  #   공통값은 dev 업로드(/v1/dev/autolabel-test) 영상 500MB 를 수용하기 위한 비운영 기준이고,
+  #   공통값은 dev 업로드(/v1/dev/upload) 영상 500MB 를 수용하기 위한 비운영 기준이고,
   #   prd 에는 dev 업로드 경로 자체가 없다(authoring.dev.upload.enabled 기본 false).
   #   운영에 필요한 multipart 는 포털 이미지 업로드뿐 — 개당 20MB(서비스 검증) + 1MB 헤드룸,
   #   요청당 최대 50장(50×21MB=1050MB) + 헤드룸으로 1100MB.

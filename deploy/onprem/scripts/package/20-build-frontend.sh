@@ -33,7 +33,7 @@ ensure_dir "${OUT}"
 # 빌드 시점 주입 변수(필요 시 환경변수로 override 가능)
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api/v1}"
 export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-localStorage}"
-# 온프렘 번들은 dev 라우트(/dev/login·/dev/autolabel-test)를 dist 에 포함하되,
+# 온프렘 번들은 dev 라우트(/dev/login·/dev/upload)를 dist 에 포함하되,
 # 실제 게이팅은 BE DEV_LOGIN_ENABLED / DEV_UPLOAD_ENABLED 런타임 토글이 결정한다
 # (FE 라우트만 존재, BE off 면 /v1/dev/* 호출 시 404). 관제서버 미기동 브링업 대비.
 export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"

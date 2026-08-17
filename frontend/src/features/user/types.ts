@@ -20,8 +20,19 @@ export interface User {
    */
   role: Role | null;
   active: boolean;
+  /** 등록일(가입 시각) — BE `regDt`. */
   createdAt: string;
-  lastLoginAt?: string;
+  /**
+   * 최신 로그인 — BE `lastLgnDt`(최종로그인일시). **한 번도 접속하지 않았으면 `null`** 이다.
+   *
+   * ⚠ **`createdAt` 으로 폴백하지 말 것.** 두 값은 용도가 다른 별개 축이다(등록일=가입 이력 /
+   * 최신 로그인=휴면 계정 판단). 이 필드가 생기기 전 화면은 `lastLoginAt ?? createdAt` 폴백으로
+   * **가입 시각을 "최근 로그인" 헤더 아래 표시**했다(거짓 표기). 값이 없으면 미접속으로 그린다.
+   *
+   * ⚠ 타입은 `null` 을 선언하지만, 구 응답·목 데이터는 필드 자체가 없을 수 있으므로 읽는 쪽은
+   * `?? null` 로 `undefined` 까지 함께 좁힌다(`role` 과 동일 규약).
+   */
+  lastLoginAt: string | null;
 }
 
 /**

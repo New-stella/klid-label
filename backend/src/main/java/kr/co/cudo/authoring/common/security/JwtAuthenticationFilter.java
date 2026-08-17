@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
+import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -30,10 +31,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
+    private final LastLoginRecorder lastLoginRecorder;
 
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
                                    JwtIssuerValidator issuerValidator,
-                                   UserRoleResolver userRoleResolver) {
+                                   UserRoleResolver userRoleResolver,
+                                   LastLoginRecorder lastLoginRecorder) {
         if (keyResolver == null) {
             throw new IllegalArgumentException("keyResolver must not be null (fail-closed)");
         }
@@ -43,9 +46,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (userRoleResolver == null) {
             throw new IllegalArgumentException("userRoleResolver must not be null (fail-closed)");
         }
+        // 기록기 부재는 <배선 버그>다 — 인증은 계속 되지만 최종로그인일시가 조용히 영원히 비어
+        // 사용자 관리 화면이 다시 "데이터가 없는 컬럼" 으로 돌아간다. 기록 <실패> 시의 fail-open 은
+        // 기록기 내부 책임이고, 기록기 <부재> 는 여기서 즉시 드러낸다.
+        if (lastLoginRecorder == null) {
+            throw new IllegalArgumentException("lastLoginRecorder must not be null (wiring bug)");
+        }
         this.keyResolver = keyResolver;
         this.issuerValidator = issuerValidator;
         this.userRoleResolver = userRoleResolver;
+        this.lastLoginRecorder = lastLoginRecorder;
     }
 
     @Override
@@ -95,6 +105,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (channel == Channel.INTERNAL) {
                     Long userNo = parseUserNo(body.getSubject());
                     role = userNo == null ? null : userRoleResolver.resolve(userNo);
+                    // 최종로그인일시 기록 (V12 · @design SCREEN-024) — 저작도구엔 독립 로그인 UI 가 없어
+                    //   "로그인" 이벤트가 존재하지 않는다. 관측 가능한 가장 가까운 사실이 <검증을 통과한
+                    //   요청>이라 여기가 기록 지점이다.
+                    //   * 매 요청 UPDATE 가 아니다 — 기록기가 넘기는 throttle 창을 DB 조건절이 판정한다.
+                    //   * 기록 실패는 요청을 죽이지 않는다(fail-open, 기록기 내부에서 흡수).
+                    //   * 역할 해석 성공 여부와 무관하게 기록한다 — 역할 미배정(role=null)이어도
+                    //     "그 사용자가 접속했다"는 사실은 참이며, 인가 결과에 따라 기록이 갈리면
+                    //     휴면 계정 판단이 왜곡된다.
+                    //   ★ PORTAL 채널은 기록하지 않는다 — 포털 토큰의 sub 는 문자열 식별자로 쓰이고
+                    //     이 마스터의 USER_NO 와의 매핑이 확인되지 않았다. 추측으로 조인하면 남의 행에
+                    //     접속 기록을 쓰게 된다(CWE-639).
+                    lastLoginRecorder.record(userNo);
                 } else {
                     role = Role.PORTAL_USER;
                 }

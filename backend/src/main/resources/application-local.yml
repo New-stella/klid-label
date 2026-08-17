@@ -9,7 +9,7 @@
 # ============================================================================
 spring:
   # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
-  #   (dev 업로드 /v1/dev/autolabel-test 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
+  #   (dev 업로드 /v1/dev/upload 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
   datasource:
     control:
       jdbc-url: jdbc:postgresql://127.0.0.1:5432/klid_system
@@ -99,7 +99,7 @@ authoring:
   #    http://localhost:5174 가 Spring CorsFilter 의 403 "Invalid CORS request" 로 거부되던 버그를 교정)
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:13000,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:13000}
-  # [개발/검수 전용] /v1/dev/autolabel-test 업로드 한도 (bytes) — 500MB 기본.
+  # [개발/검수 전용] /v1/dev/upload 업로드 한도 (bytes) — 500MB 기본.
   #   서비스 레이어에서 multipart 한도와 별개로 이중 가드. (authoring.dev.* — kpst 오배치 동반 교정)
   dev:
     # [개발/검수 전용] dev 로그인/업로드 토글 — local 은 항상 ON(기존 @Profile("!prd") 와 동일 동작 유지).
@@ -107,8 +107,9 @@ authoring:
       enabled: true
     upload:
       enabled: true
-    autolabel-test:
-      max-file-size: ${AUTHORING_DEV_AUTOLABEL_TEST_MAX_FILE_SIZE:524288000}
+      # 게이팅 키(upload.enabled)와 같은 prefix 로 합쳐 둔다 — 별도 prefix 로 떨어져 있으면
+      # 한쪽만 고쳐도 조용히 기본값으로 동작한다(개명 이력은 DevUploadPathRenameGuardTest 참조).
+      max-file-size: ${AUTHORING_DEV_UPLOAD_MAX_FILE_SIZE:524288000}
     # [로컬 전용] dev-seed.sql(db/seed) 자동 적재 — bootRun(local) 시 별도 psql 수동 실행 불필요.
     #   DevSeedRunner 가 Flyway 마이그레이션 이후 controlDataSource 에 멱등 적재한다.
     #   @Profile("local") + 본 토글 이중 게이팅 — prd/dev/stg 에서는 절대 실행되지 않음.

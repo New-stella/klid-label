@@ -21,6 +21,8 @@ const UNASSIGNED_USER: User = {
   role: null,
   active: true,
   createdAt: '2026-01-01T00:00:00',
+  // 한 번도 접속하지 않은 계정 — 등록일과 별개 축이라 폴백 값을 넣지 않는다.
+  lastLoginAt: null,
 };
 
 const ASSIGNED_USER: User = {
@@ -30,6 +32,7 @@ const ASSIGNED_USER: User = {
   role: Role.WORKER,
   active: true,
   createdAt: '2026-01-01T00:00:00',
+  lastLoginAt: '2026-08-16T14:30:00',
 };
 
 describe('User 타입', () => {

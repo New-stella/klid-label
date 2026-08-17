@@ -18,7 +18,15 @@ import java.time.LocalDateTime;
  *   <li>{@code role}      = LS_USER_ROLE 의 ROLE_CD (LS 역할 없으면 null 미배정 — 기본값 부여 안 함)</li>
  *   <li>{@code active}    = ('Y' == useYn)</li>
  *   <li>{@code createdAt} = {@code regDt}</li>
+ *   <li>{@code lastLoginAt} = {@code lastLgnDt} (최종로그인일시 — <b>미접속이면 null</b>)</li>
  * </ul>
+ *
+ * <p><b>★ {@code createdAt} 과 {@code lastLoginAt} 은 별개 축이며 서로를 대체하지 않는다.</b>
+ * 등록일은 가입 이력이고 최종로그인일시는 휴면 계정 판단용이다. 값이 없을 때 등록일로 폴백하지
+ * 않는다 — 과거 화면이 그 폴백을 넣어 <b>가입 시각을 "최근 로그인" 으로 표시</b>했고(거짓 표기),
+ * 그것이 이 필드를 만든 이유다. 미접속은 {@code null} 로 내려보내고 표기는 화면이 담당한다.
+ *
+ * @design SCREEN-024
  */
 public record UserSummaryResponse(
         // FE 호환 alias
@@ -29,13 +37,15 @@ public record UserSummaryResponse(
         String role,
         Boolean active,
         LocalDateTime createdAt,
+        LocalDateTime lastLoginAt,
         // BE 원본 필드 (호환 유지)
         Long userNo,
         String userId,
         String userNm,
         String userEmail,
         String useYn,
-        LocalDateTime regDt
+        LocalDateTime regDt,
+        LocalDateTime lastLgnDt
 ) {
     /** 단순 매핑 — 역할 미주입(null 미배정). */
     public static UserSummaryResponse from(LsAcntUser user) {
@@ -57,12 +67,14 @@ public record UserSummaryResponse(
                 resolvedRole,
                 isActive,
                 user.getRegDt(),
+                user.getLastLgnDt(),
                 user.getUserNo(),
                 user.getUserId(),
                 user.getUserNm(),
                 user.getUserEmlAddr(),
                 user.getUseYn(),
-                user.getRegDt()
+                user.getRegDt(),
+                user.getLastLgnDt()
         );
     }
 }

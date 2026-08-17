@@ -90,7 +90,7 @@ class DevAutolabelTestServiceTest {
     private LsDataRaw savedRaw(Long rawSn) {
         LsDataRaw raw = LsDataRaw.createFromIngest(
                 "TEST-CLIP-001", "CCTV-001", VALID_EV_CODE, "1168000000",
-                "ANONY", "autolabel-test/x.mp4", null, 60);
+                "ANONY", "dev-upload/x.mp4", null, 60);
         setRawSn(raw, rawSn);
         return raw;
     }
@@ -116,7 +116,7 @@ class DevAutolabelTestServiceTest {
         AutolabelTestResponse response = service.upload(file, validMeta());
 
         assertThat(response.rawSn()).isEqualTo(42L);
-        assertThat(response.savedFilePath()).startsWith("autolabel-test/").endsWith(".mp4");
+        assertThat(response.savedFilePath()).startsWith("dev-upload/").endsWith(".mp4");
         assertThat(response.pipelineStatus()).isEqualTo("PROCESSING");
         assertThat(response.startedAt()).isGreaterThan(0L);
 
@@ -132,6 +132,28 @@ class DevAutolabelTestServiceTest {
         assertThat(captured.getVmsCctvId()).isEqualTo("CCTV-001");
         assertThat(captured.getPrvcTypeCd()).isEqualTo("ANONY");
         assertThat(captured.getDurationSec()).isEqualTo(60);
+    }
+
+    @Test
+    @DisplayName("저장_서브디렉터리가_dev_upload_이고_저장경로가_그_디렉터리_아래로_계산된다")
+    void 저장_서브디렉터리_개명_가드() throws Exception {
+        // given: 저장 서브디렉터리 개명(구 이름은 DevUploadPathRenameGuardTest 참조) 회귀 가드.
+        //   응답의 상대 경로만 보면 "접두어가 맞다"까지만 알 수 있으므로, 실제 파일이 어느
+        //   디렉터리에 떨어졌는지(=UPLOAD_SUBDIR 이 쓰기 경로 계산에 실제로 반영됐는지)까지 본다.
+        given(videoRepository.findByVmsClipId("TEST-CLIP-001")).willReturn(Optional.empty());
+        given(videoRepository.save(any(LsDataRaw.class))).willReturn(savedRaw(7L));
+
+        // when
+        AutolabelTestResponse response = service.upload(
+                mp4File("sample.mp4", new byte[]{1, 2, 3, 4}), validMeta());
+
+        // then: 응답 상대 경로의 첫 세그먼트 = 실제 저장 디렉터리 = dev-upload
+        assertThat(response.savedFilePath()).startsWith("dev-upload/");
+        Path saved = storageRoot.resolve(response.savedFilePath());
+        assertThat(Files.exists(saved)).isTrue();
+        assertThat(saved.getParent()).isEqualTo(storageRoot.resolve("dev-upload"));
+        // ⚠ 기존 영상은 LS_DATA_RAW 에 절대 경로가 적재돼 있어 구 디렉터리에서 그대로 열린다 —
+        //   파일을 옮기는 마이그레이션을 만들면 오히려 그 영상이 열리지 않는다.
     }
 
     @Test
@@ -253,7 +275,7 @@ class DevAutolabelTestServiceTest {
         AutolabelTestResponse response = service.upload(file, validMeta());
 
         // 응답은 storage 기준 상대 경로만 — 절대경로 X, 사용자 입력 파일명 미포함
-        assertThat(response.savedFilePath()).startsWith("autolabel-test/").endsWith(".mp4");
+        assertThat(response.savedFilePath()).startsWith("dev-upload/").endsWith(".mp4");
         assertThat(response.savedFilePath()).doesNotContain("..").doesNotContain("passwd");
 
         // 저장된 실제 경로가 storage 하위인지 검증

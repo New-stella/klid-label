@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * dev 업로드(/v1/dev/autolabel-test) 빈은 {@code authoring.dev.upload.enabled} 프로퍼티로만 게이팅된다.
+ * dev 업로드(/v1/dev/upload) 빈은 {@code authoring.dev.upload.enabled} 프로퍼티로만 게이팅된다.
  *
  * <p>{@code @Profile("!prd")} → {@code @ConditionalOnProperty} 전환. 기본값 false(fail-closed) 라
  * 미설정/false 면 prd·dev 무관하게 빈 부재. true 면 prd 에서도 등록(폐쇄망 bring-up).

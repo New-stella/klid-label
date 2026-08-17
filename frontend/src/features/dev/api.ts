@@ -1,4 +1,4 @@
-// [개발/검수 전용] 오토라벨 테스트 API — BE: POST /api/v1/dev/autolabel-test
+// [개발/검수 전용] dev 영상 업로드 API — BE: POST /api/v1/dev/upload [@design API-152]
 //
 // 보안:
 // - 파일은 `file` part 로, 메타는 `meta` part (application/json Blob) 로 분리 전송.
@@ -27,6 +27,6 @@ export function uploadAutolabelTest(
     new Blob([JSON.stringify(meta)], { type: 'application/json' }),
   );
   return apiClient
-    .post<AutolabelTestResult>('/dev/autolabel-test', fd)
+    .post<AutolabelTestResult>('/dev/upload', fd)
     .then((r) => r.data);
 }

@@ -1,4 +1,4 @@
-// [개발/검수 전용] 오토라벨 테스트 도메인 타입 (BE: /api/v1/dev/autolabel-test)
+// [개발/검수 전용] dev 영상 업로드 도메인 타입 (BE: /api/v1/dev/upload)
 //
 // BE: kr.co.cudo.authoring.dev.dto.AutolabelTestRequest / AutolabelTestResponse 와 1:1 미러.
 // 운영(prd) 환경에서는 endpoint 가 부재하므로 본 타입은 dev/local/stg 채널에서만 사용된다.

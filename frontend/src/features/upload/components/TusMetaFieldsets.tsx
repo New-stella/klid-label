@@ -36,7 +36,9 @@ export interface FieldsetProps {
   disabled: boolean;
 }
 
-const FIELDSET_CLASS = 'space-y-3 rounded-lg border border-gray-200 p-4';
+// 테두리·여백은 감싸는 쪽(식별 정보는 패널의 카드, 선택 묶음은 CollapsibleFieldGroup)이 준다 —
+// fieldset 이 자기 테두리를 들면 접이식 묶음 안에서 테두리가 이중으로 겹친다.
+const FIELDSET_CLASS = 'space-y-3';
 const LEGEND_CLASS = 'px-1 text-body font-medium text-gray-800';
 
 /**
@@ -275,18 +277,11 @@ export function EventFieldset({ form, onField, onValue, disabled }: FieldsetProp
           disabled={disabled}
         />
         {/*
-          이벤트유형코드 — 관제가 인입 평면값으로 싣는 값의 재현 입력이다. 프리셋 select 로 좁히지
-          않는다: 관제 코드 체계는 우리 소유가 아니고 미등록 코드도 실제로 들어오며, 적재가 처음 보는
-          코드를 이벤트유형 마스터에 자동 등록한다. 좁히면 관제가 코드를 넓힐 때 우리가 먼저 막는다.
+          이벤트유형코드 입력은 이 묶음에 두지 않는다 — 두 경로가 같은 코드를 보내야 하므로 폼 상단
+          공통 영역의 «이벤트유형» 한 곳(`UploadRouteFields.EventTypeField`)이 소유한다. 여기 자유
+          입력칸을 함께 두면 같은 개념의 입력이 두 개가 되어 어느 값이 전송되는지 갈린다.
+          미등록 코드를 넣는 통로(관제가 코드를 넓힐 때)는 그 select 의 «직접 입력» 이 잇는다.
         */}
-        <TextField
-          label="이벤트유형코드"
-          hint="예: EV01000101 — 미입력 시 이 영상은 마킹 단계에서 막힙니다"
-          maxLength={20}
-          value={form.evntTypeCd}
-          onChange={onField('evntTypeCd')}
-          disabled={disabled}
-        />
         <VrfcEvntTypeField form={form} onValue={onValue} disabled={disabled} />
       </div>
       <Field>

@@ -118,9 +118,9 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | 포털 (데이터마트 Load·사용자 라벨) | 포털 (PORTAL_USER) | 0 |
 | 마킹 (비식별 영상 스트리밍) | 마킹 화면 — 비식별 mock 으로 `DE_IDNTF_YN='Y'` 선행 필요 | 0 (mock) |
 | 관제 자동 적재 픽업 | `POST /api/v1/dev/batch/scan` (REVIEWER) → 시드 클립 LS_DATA_RAW 적재 | 0 |
-| 배치/오토라벨 (YOLOX·SAM2) | 업로드 `POST /api/v1/dev/autolabel-test` 또는 `POST /api/v1/dev/batch/trigger?rawSn=` | ai-server(내부, 실추론) |
+| 배치/오토라벨 (YOLOX·SAM2) | 업로드 `POST /api/v1/dev/upload` 또는 `POST /api/v1/dev/batch/trigger?rawSn=` | ai-server(내부, 실추론) |
 
-> 시드 클립(`DEV-CLIP-*`)의 `FILE_PATH` 는 실파일이 없을 수 있어 픽업·적재·이벤트 발행까지 검증된다. 마킹/프레임 추출까지 끝까지 돌리려면 `POST /api/v1/dev/autolabel-test` 로 실제 영상을 업로드한다.
+> 시드 클립(`DEV-CLIP-*`)의 `FILE_PATH` 는 실파일이 없을 수 있어 픽업·적재·이벤트 발행까지 검증된다. 마킹/프레임 추출까지 끝까지 돌리려면 `POST /api/v1/dev/upload` 로 실제 영상을 업로드한다.
 
 ---
 

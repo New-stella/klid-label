@@ -59,6 +59,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       (파괴적 기능의 fail-open 차단), <b>시드가 없으면 기능이 죽은 채 배포된다</b> — 즉
  *       「폴백 금지」와 이 시드는 세트다. {@code ON CONFLICT DO NOTHING} 이라 재적용이 운영자가
  *       바꿔 둔 값을 되돌리지 않는다</li>
+ *   <li>{@code V12} — {@code LS_ACNT_USER.LAST_LGN_DT}(최종로그인일시) 신설. 사용자 관리 화면이
+ *       「최신 로그인」 컬럼을 그리는데 그 데이터가 존재하지 않아 등록일을 폴백으로 표시하고 있었다
+ *       (거짓 표기). nullable 이며 <b>기존 행을 백필하지 않는다</b> — 이 컬럼 이전의 접속 기록은
+ *       어디에도 없어 무엇을 넣어도 지어낸 값이다. NULL 허용 + DEFAULT 없는 ADD COLUMN 이라
+ *       하위호환이고(구 jar 는 컬럼을 모르는 SQL 을 만든다) 롤링 재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -94,7 +99,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "9001");
     }
 
     @Test
@@ -112,6 +117,7 @@ class FlywaySquashBaselineIT {
                         //   'V1__' 보다 앞에 온다('0' < '_') — 버전 번호 순이 아니다.
                         "V10__add_ls_issue_comment_issue_fk.sql",
                         "V11__seed_portal_retention_config.sql",
+                        "V12__add_ls_acnt_user_last_lgn_dt.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",

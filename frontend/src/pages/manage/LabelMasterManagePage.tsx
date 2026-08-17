@@ -56,6 +56,55 @@ import {
  */
 const TH_CLASS = 'px-4 py-3 text-left text-table-header uppercase tracking-wide text-gray-600';
 
+// [design: SCREEN-035] AI 탐지 매핑 표시 — 목록에서 매핑 상태를 바로 보인다.
+//
+// ★별도 컬럼을 만들지 않는다. 표시 자리는 **`라벨명` 셀 안의 칩**이고 컬럼 구성
+// (라벨명/형태/색상/정렬순/관리)은 그대로다(회귀 가드: LabelMasterManagePage.detectMapping.test).
+//
+// ★공용 `Badge`(UI-111) 를 쓰지 않는 이유: 그 컴포넌트의 variant 는 `pinned|success|neutral`
+//   로 공지 도메인 의미에 묶여 있다. 주의 톤이 필요한 '미매핑'에 `pinned`(중요·고정)를 빌려
+//   쓰면 코드가 거짓을 말하고, variant 를 새로 추가하는 것은 공용 컴포넌트(카탈로그) 계약
+//   변경이라 이 범위 밖이다. 그래서 이 화면 안에 국소 표시 컴포넌트로 둔다
+//   (같은 판단의 선례가 `PresetCodeChip` 이다).
+const MAPPING_CHIP_BASE =
+  'ml-2 inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-label font-semibold align-middle';
+/** 매핑됨 — 정보 톤(primary-700 on primary-50 = 9.42:1 AAA). */
+const MAPPING_CHIP_MAPPED = 'border-primary-100 bg-primary-50 text-primary-700';
+/**
+ * 미매핑 — 주의 톤(warning-700 on warning-50). 조치가 필요한 상태라 중립이 아니다:
+ * 매핑이 없는 라벨은 도메인 규칙상 **AI 탐지에서 선택할 수 없다**(`AutolabelOnlineService` 가
+ * 마스터 매핑 화이트리스트와의 교집합만 추론 서버로 보낸다).
+ */
+const MAPPING_CHIP_UNMAPPED = 'border-warning-200 bg-warning-50 text-warning-700';
+
+interface DetectMappingChipProps {
+  labelId: number;
+  /** 매핑된 검출 클래스명(COCO, 영문). 미매핑이면 null. */
+  dtctTypeCd: string | null;
+}
+
+/**
+ * AI 탐지 매핑 칩 — 매핑된 검출 클래스명 또는 '미매핑' 표기.
+ *
+ * 접근성: 색만으로 정보를 전달하지 않는다(항상 텍스트가 함께 있다). 칩 텍스트 단독으로는
+ * `person` 이 무슨 축인지 알 수 없으므로 **축 이름을 sr-only 로 병기**한다 — 시각 표기까지
+ * 늘리면 라벨명 셀이 장황해진다.
+ *
+ * 값은 텍스트로만 렌더한다(XSS 방어 — dangerouslySetInnerHTML 미사용).
+ */
+function DetectMappingChip({ labelId, dtctTypeCd }: DetectMappingChipProps) {
+  const mapped = dtctTypeCd != null;
+  return (
+    <span
+      data-testid={`label-detect-mapping-${labelId}`}
+      className={cn(MAPPING_CHIP_BASE, mapped ? MAPPING_CHIP_MAPPED : MAPPING_CHIP_UNMAPPED)}
+    >
+      <span className="sr-only">{mapped ? 'AI 탐지 매핑 ' : 'AI 탐지 '}</span>
+      <span>{mapped ? dtctTypeCd : '미매핑'}</span>
+    </span>
+  );
+}
+
 export function LabelMasterManagePage() {
   const { data, isLoading, error } = useLabelMasters();
   const createMutation = useCreateLabelMaster();
@@ -242,7 +291,11 @@ export function LabelMasterManagePage() {
                   data-testid={`label-master-row-${m.labelId}`}
                   className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-rowHover"
                 >
-                  <td className="px-4 py-3 font-medium text-gray-900">{m.name}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    {m.name}
+                    {/* [design: SCREEN-035] AI 탐지 매핑은 별도 컬럼이 아니라 이 셀 안의 칩이다. */}
+                    <DetectMappingChip labelId={m.labelId} dtctTypeCd={m.dtctTypeCd} />
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{TYPE_LABEL[m.type]}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-2">

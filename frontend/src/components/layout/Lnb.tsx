@@ -81,7 +81,7 @@ export function registerDevToolsMenu(menu: MenuGroup[]): void {
   menu.push({
     group: DEV_TOOLS_GROUP,
     items: [
-      { label: '영상 업로드', path: '/dev/autolabel-test', allow: ['REVIEWER'] },
+      { label: '영상 업로드', path: '/dev/upload', allow: ['REVIEWER'] },
     ],
   });
 }

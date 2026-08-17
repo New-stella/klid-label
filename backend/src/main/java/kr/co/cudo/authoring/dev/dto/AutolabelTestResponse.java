@@ -14,7 +14,7 @@ public record AutolabelTestResponse(
         Long rawSn,
 
         @Schema(description = "저장된 파일의 storage 기준 상대 경로 (절대 경로 미노출)",
-                example = "autolabel-test/abc-123.mp4")
+                example = "dev-upload/abc-123.mp4")
         String savedFilePath,
 
         @Schema(description = "파이프라인 상태 — PROCESSING (비동기 시작) 또는 ACCEPTED",
