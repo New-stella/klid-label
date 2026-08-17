@@ -5,6 +5,7 @@
 > 최초 작성 2026-07-25 · 갱신 2026-07-30(1회차 최신화) · 갱신 2026-08-03(★4·★5 추가 — 2026-08-03 사용자 확정 5건 반영)
 > · **갱신 2026-08-04(3차 전수 검증 확정분 반영 — ★6·★7 추가, #1 "포털 SAM2" 해소 확정)**
 > · **갱신 2026-08-06(#13 — VLM 위탁·콜백이 `describe`→`verify` 규격으로 전환됨을 반영)**
+> · **갱신 2026-08-17(#11 "다운로드 기간 제한" 해소 — 구 V1.5 "포털 다운로드는 포털 자체 책임" 정책 폐기, [F-12](F-portal.md) 신설)**
 
 ---
 
@@ -63,7 +64,7 @@
 | 8 | Quartz 클러스터링 실제 활성 | B | **✅ 확정.** 공통 `application.yml` 은 `${QUARTZ_CLUSTERED:false}`(local/dev 단일 노드)이나 **stg/prd 는 기본 `true`**, `QuartzClusteringGuard`(`@PostConstruct`)가 배포 환경에서 false 면 **기동 거부**. 온프렘 `env.template:226` 도 `true`. ⚠ 클러스터링은 **트리거 중복 발화만** 막고 잡 내부 레이스는 원자 클레임이 별도로 막는다(상호 대체 불가) |
 | 9 | 동시 저장 Race(라벨 full-replace) | C | **✅ 확정.** 낙관적 버전 토큰 `labelVersion`(요청 **선택 필드** — 미첨부 시 검사 skip = 하위호환) + 프레임 행 비관적 락. 락 획득 시점 DB 값과 CAS(스칼라 프로젝션으로 1차 캐시 우회), 불일치 시 **409**. 무변경 저장은 버전 미증가 |
 | 10 | 좌표 이미지 경계 초과 저장 검증 부재 | C | **✅ 확정 — 단 2축으로 갈린다. ★3 참조** |
-| 11 | 다운로드 기간 제한("본인 데이터 기간 내") | F | **미해소 유지.** 해당 검증 로직 여전히 없음 |
+| 11 | 다운로드 기간 제한("본인 데이터 기간 내") | F | **✅ 해소(2026-08-17, 구 정책 → 폐기).** 구 V1.5 확정 "포털 데이터마트 다운로드는 포털 자체 책임"은 뒤집혔다 — 사용자 확정으로 저작도구가 직접 구현한다. `GET /v1/portal/datamart/videos/{rawSn}/download`(라벨 JSON+비식별 프레임 이미지+비식별 영상 ZIP, 200/403/410/412/429) 신설 + **보존기간 만료 자동 삭제**(데이터마트 저장 라벨 기본 7일, 업로드 자산 READY 기본 7일/FAILED 기본 1일, 하한 1) 로 "기간 내"가 실제로 강제된다. 판정 단일 원천은 `PortalRetentionPolicy`. 만료 예정 시각은 **저장 컬럼이 아니라 조회 시점 파생값**(`DatamartVideoResponse.myLabelExpiresAt` · `PortalUploadResponse/PortalUploadDetailResponse.expiresAt`)이라 보존기간 설정을 바꾸면 다음 조회부터 즉시 달라진다. 삭제는 **비가역**이며 복구 경로가 없다. ⚠ **화면(SCREEN-028) 다운로드 버튼은 이번 범위 밖** — 백엔드 API만 신설됐고 FE 회귀 테스트는 여전히 "다운로드 UI 없음"을 단언한다(별도 라운드 예정). 상세는 [F-12](F-portal.md) |
 | 12 | 데이터마트 저장/조회·이미지 서빙 rate limit 부재 | F | **미해소 유지(부재 확인).** `PortalLabelService`(user-labels 저장/조회, 데이터마트 목록, `serveFrameImage`)에 없음. 업로드·SAM2·TUS 에만 존재 |
 | 13 | VLM 콜백·IntelliVIX v2.0.1 계약 | B·G | **🔶 부분 해소(2026-08-06 갱신).** BE 가 쓰는 엔드포인트는 **`/v1/videovlm/verify` 하나**이며 콜백 `results` 는 **단일 객체 `{accuracy, description}`** 이다 — 구 서술의 `/v1/videovlm/describe`(구간 배열)는 **폐기**. 적재 metaKey 는 `vlm.description`(검수큐 진입) + `vlm.accuracy`(화면 전용·미진입). request_id echo·4xx 비재시도는 그대로. ⚠ **타임아웃 "이중 구조(블록 45s ↔ 클라이언트 10s)" 서술도 폐기** — Phase C-1 논블로킹 전환으로 `.block(45s)` 자체가 없고 유일한 타임아웃은 `vlm.client.timeout-seconds`(기본 10s)다. 미확정은 **IntelliVIX 실서버(목 아님) 대조**(오류코드 카탈로그·재시도 정책·`accuracy` 필수 여부)로 좁혀짐 |
 | 14 | imgsz 무효(640 고정) 실효 검증 방법 | G | **미해소 유지.** ai-server 는 07-25 이후 커밋 0건 |

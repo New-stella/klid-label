@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -37,6 +38,22 @@ public interface LsPortalUldLblRepository extends JpaRepository<LsPortalUldLbl, 
 
     /** 업로드 전체 라벨(소유자 스코프) — export/조회 대비. */
     List<LsPortalUldLbl> findAllByUldSnAndPortalUserNo(Long uldSn, String portalUserNo);
+
+    /**
+     * 자산별 라벨 마지막 저장일({@code MAX(REG_DT)}) — 보존기간 만료 예정 시각의 기준점 한쪽.
+     * @design DFEAT-055
+     *
+     * <p>목록 한 페이지의 자산 집합을 <b>단일 집계 쿼리</b>로 모은다(자산마다 조회하면 N+1). 상세 조회도
+     * 같은 메서드에 자산 1건만 담아 호출해 <b>판정 경로를 하나로</b> 유지한다. 소유자 스코프를 WHERE 에
+     * 강제한다(IDOR) — 자산 자체가 소유자 스코프라 결과는 같지만 조건을 빼면 그 보장이 조회 순서에 의존한다.
+     *
+     * @return {@code [uldSn, MAX(regDt)]} 행 목록 — 라벨이 없는 자산은 <b>행 자체가 없다</b>
+     */
+    @Query("select l.uldSn, max(l.regDt) from LsPortalUldLbl l "
+            + "where l.portalUserNo = :portalUserNo and l.uldSn in :uldSns "
+            + "group by l.uldSn")
+    List<Object[]> findMaxRegDtGroupedByUldSn(@Param("portalUserNo") String portalUserNo,
+                                              @Param("uldSns") Collection<Long> uldSns);
 
     // ===== Phase 1 IT 호환 파생 메서드 =====
 

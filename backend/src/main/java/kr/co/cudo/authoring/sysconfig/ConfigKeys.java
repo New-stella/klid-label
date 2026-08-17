@@ -57,6 +57,36 @@ public final class ConfigKeys {
     public static final String AUTOLABEL_POLYGON_MAX_BOXES = "autolabel.polygon.max-boxes";
 
     /**
+     * 포털 보존기간 3종 — 보존일수가 지난 포털 데이터를 삭제 배치가 정리하는 기준(일). @design DFEAT-055
+     *
+     * <ul>
+     *   <li>{@code portal.datamart.retention-days} : 데이터마트 영상에 포털 사용자가 저장한 라벨</li>
+     *   <li>{@code portal.upload.retention-days} : 포털 사용자가 업로드한 자산 중 정상 처리(READY)된 것</li>
+     *   <li>{@code portal.upload.failed-retention-days} : 같은 업로드 자산 중 처리 실패(FAILED)한 것</li>
+     * </ul>
+     *
+     * <p>실패분을 별도 키로 둔 것은 <b>의도</b>다 — 실패 자산은 사용자가 다시 올리면 되는 잔여물이라
+     * 정상 자산과 같은 기간을 붙잡아 둘 이유가 없다. 두 축을 한 키로 합치면 둘 중 하나는 반드시
+     * 틀린 기간으로 운영된다.
+     *
+     * <h3>★ 하한이 1 인 이유 — 0·음수는 "즉시 삭제"다</h3>
+     * <p>이 값은 <b>파괴적 배치</b>의 기준선이다. 0 이 들어가면 "오늘 것까지 지운다"가 되어 방금 저장한
+     * 라벨·방금 올린 파일이 <b>다음 스윕에 곧바로 사라지고</b>, 음수면 미래 시각이 커트라인이 되어
+     * 전량이 대상이 된다. 어느 쪽이든 복구 수단이 없으므로 값 자체를 입구에서 막는다
+     * ({@link #NUMBER_RANGE} 하한 1). 상한(3650=10년)은 실질 무제한과 같되 오타로 들어온 천문학적
+     * 값이 커트라인 계산을 넘치게 하는 것을 막는 상식선이다.
+     *
+     * <h3>★ 시드가 왜 필수인가 — 이 키들은 폴백하지 않는다</h3>
+     * <p>다른 설정 키는 조회 실패 시 서비스 상수로 폴백하지만(fail-safe), 이 3키를 읽는 삭제 배치는
+     * <b>값이 없으면 폴백하지 않고 그 회차를 건너뛴다</b>. 파괴적 기능이 fail-open 하면 "기본값 7 로
+     * 알아서 지웠다"가 되기 때문이다. 그 대가로 <b>시드가 없으면 기능이 죽은 채 배포된다</b> —
+     * 폴백 금지와 시드는 <b>세트</b>이며 한쪽만 두면 안 된다(V11 시드).
+     */
+    public static final String PORTAL_DATAMART_RETENTION_DAYS      = "portal.datamart.retention-days";
+    public static final String PORTAL_UPLOAD_RETENTION_DAYS        = "portal.upload.retention-days";
+    public static final String PORTAL_UPLOAD_FAILED_RETENTION_DAYS = "portal.upload.failed-retention-days";
+
+    /**
      * 이벤트 필터 옵션에서 제외할 관제 대분류 코드(EVNT_CLS_CD) 목록.
      * <p>
      * JSON 배열 문자열(예 {@code ["08"]}). 기본값 {@code ["08"]}(배회) 시드.
@@ -121,6 +151,8 @@ public final class ConfigKeys {
             YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU,
             POLYGON_SIMPLIFY_TOLERANCE,
             PORTAL_UPLOAD_FRAME_INTERVAL_SEC,
+            PORTAL_DATAMART_RETENTION_DAYS, PORTAL_UPLOAD_RETENTION_DAYS,
+            PORTAL_UPLOAD_FAILED_RETENTION_DAYS,
             AUTOLABEL_POLYGON_MAX_BOXES,
             EVENT_EXCLUDED_CLASS_CODES,
             KPST_DEID_MASKING_TYPE, KPST_DEID_MASKING_RANGE, KPST_DEID_DB_SAVE,
@@ -143,15 +175,26 @@ public final class ConfigKeys {
             CONTROL_NOTIFY_URL,              "STRING"
     );
 
-    /** NUMBER(정수) 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책). */
-    public static final Map<String, int[]> NUMBER_RANGE = Map.of(
-            BATCH_INTERVAL_SEC,  new int[]{10, 3600},
-            BATCH_CONCURRENCY,   new int[]{1, 10},
-            YOLO_CONF_THRESHOLD, new int[]{25, 80},
-            YOLO_IMGSZ,          new int[]{320, 1920},
-            YOLO_IOU,            new int[]{30, 80},
-            PORTAL_UPLOAD_FRAME_INTERVAL_SEC, new int[]{1, 600},
-            AUTOLABEL_POLYGON_MAX_BOXES, new int[]{1, 100}
+    /**
+     * NUMBER(정수) 키별 허용 범위 [min, max] (DB설계서 §5A.4 정책).
+     *
+     * <p>{@code Map.of} 가 아니라 {@code Map.ofEntries} 인 것은 <b>키 개수 상한(10) 때문</b>이다 —
+     * 여기가 상한에 닿아 있으면 다음 키를 등록하려는 사람이 뜻을 알 수 없는 컴파일 오류를 만나고,
+     * 그때 급히 "범위 등록을 생략"하는 쪽으로 도망가면 그 키는 <b>무검증</b>이 된다
+     * ({@code SystemConfigService.validateNumberRange} — 등록 누락 = 무제한 허용).
+     */
+    public static final Map<String, int[]> NUMBER_RANGE = Map.ofEntries(
+            Map.entry(BATCH_INTERVAL_SEC,  new int[]{10, 3600}),
+            Map.entry(BATCH_CONCURRENCY,   new int[]{1, 10}),
+            Map.entry(YOLO_CONF_THRESHOLD, new int[]{25, 80}),
+            Map.entry(YOLO_IMGSZ,          new int[]{320, 1920}),
+            Map.entry(YOLO_IOU,            new int[]{30, 80}),
+            Map.entry(PORTAL_UPLOAD_FRAME_INTERVAL_SEC, new int[]{1, 600}),
+            // 포털 보존기간 3종 — 하한 1 은 "즉시 삭제" 차단이다(0·음수 금지, 위 상수 javadoc 참조).
+            Map.entry(PORTAL_DATAMART_RETENTION_DAYS,      new int[]{1, 3650}),
+            Map.entry(PORTAL_UPLOAD_RETENTION_DAYS,        new int[]{1, 3650}),
+            Map.entry(PORTAL_UPLOAD_FAILED_RETENTION_DAYS, new int[]{1, 3650}),
+            Map.entry(AUTOLABEL_POLYGON_MAX_BOXES, new int[]{1, 100})
     );
 
     /**

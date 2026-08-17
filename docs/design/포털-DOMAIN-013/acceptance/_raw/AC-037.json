@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-037",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "실패한 업로드 자산은 더 짧은 보존기간으로 삭제된다",
+    "slug": "실패한-업로드-자산은-더-짧은-보존기간으로-삭제된다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "FAILED 전이 시각은 LsPortalUld.markFailed()가 설정하는 mdfcn_dt 이다(코드 실측). 기존 30분 고착 스위프(failStuckUploads)가 PROCESSING→FAILED 로 바꿀 직후의 mdfcn_dt 가 그대로 이 축의 기준점이 된다 — 두 배치가 자연스럽게 이어진다. 파일 삭제는 실경로 검증(deleteUpload 와 같은 판정기 공유) 후에만 수행하며 판정 실패 시 그 자산의 삭제만 건너뛴다(배치 전체 중단 아님).",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "그 자산의 LS_PORTAL_ULD 행과 연결된 LS_PORTAL_ULD_FRME/LS_PORTAL_ULD_LBL 이 삭제되고 저장소 원본/프레임 파일이 함께 삭제된다"
+        ],
+        "when": [
+          "FAILED 전이로부터 1일 경과 후 보존기간 만료 자동 삭제 배치가 실행된다"
+        ],
+        "given": [
+          "업로드 자산이 FAILED 로 전이했다(mdfcn_dt 가 그 전이 시각)",
+          "portal.upload.failed-retention-days = 1, portal.upload.retention-days = 7 로 설정되어 있다"
+        ],
+        "and_examples": [
+          {
+            "case": "같은 시각에 등록된 READY 자산(등록일로부터 1일만 경과)",
+            "result": "READY 축 보존기간(7일)이 적용되어 아직 삭제되지 않는다 — 두 축은 독립적으로 판정된다"
+          },
+          {
+            "case": "실경로 검증(realWithinBase 기반) 실패로 특정 파일 삭제가 거부된 경우",
+            "result": "그 자산의 DB 행은 이번 tick 에서 삭제되지 않고(파일이 남았는데 DB 만 지우면 어느 파일인지 알 수 없게 된다), 다음 tick 에 재후보된다"
+          }
+        ]
+      },
+      "statement": "FAILED 상태 업로드 자산은 READY 상태보다 짧은 보존기간(기본 1일) 경과 시 DB 행과 저장소 파일이 함께 삭제된다",
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — FAILED 자산 1일 단축 보존기간(DFEAT-055).",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "capability-add"
+        ]
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-024"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
+    "change_summary": "사용자 확정 — FAILED 업로드 자산의 1일 단축 보존기간 및 DB+파일 삭제를 인수기준으로 등록",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T01:11:43.358Z",
+    "created_at": "2026-08-17T01:11:43.358Z"
+  }
+}

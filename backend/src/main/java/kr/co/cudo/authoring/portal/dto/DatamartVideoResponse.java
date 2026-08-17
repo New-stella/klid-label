@@ -14,6 +14,12 @@ import java.time.LocalDateTime;
  * <p>MED-3: {@code lastUpdatedAt} 은 {@code LS_RAW_DATA_STATUS.UPD_DT}(마지막 상태 변경 일시)이다.
  * 정확한 검수 승인 시각을 보존하는 별도 컬럼이 없어 '승인 시각'이 아닌 '최종 갱신 일시'를 노출한다.
  * (재승인 전 다른 상태 전이가 끼면 approvedAt 으로 해석될 때 오해를 일으키므로 의미에 맞게 명명)
+ *
+ * <p>{@code myLabelExpiresAt} 은 본인 저장 라벨의 보존기간 만료 예정 시각이다. @design AC-033, DFEAT-055
+ * <b>저장되지 않는 파생값</b>으로, 조회 시점의 {@code portal.datamart.retention-days} 설정값으로 매번
+ * 재계산된다 — 설정이 바뀌면 다음 조회부터 값이 달라지므로 <b>클라이언트는 캐시하지 말 것</b>.
+ * 본인 저장 라벨이 없거나 보존기간 설정이 없으면 {@code null}. 판정은
+ * {@code PortalRetentionPolicy} 한 곳에서만 한다(재유도 금지).
  */
 public record DatamartVideoResponse(
         Long rawSn,
@@ -21,6 +27,7 @@ public record DatamartVideoResponse(
         String eventName,
         long frameCount,
         Long firstSrcSn,
-        LocalDateTime lastUpdatedAt
+        LocalDateTime lastUpdatedAt,
+        LocalDateTime myLabelExpiresAt
 ) {
 }

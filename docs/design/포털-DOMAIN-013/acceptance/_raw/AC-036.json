@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-036",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "처리 중인 업로드 자산은 보존기간 만료 삭제 대상이 아니다",
+    "slug": "처리-중인-업로드-자산은-보존기간-만료-삭제-대상이-아니다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "처리 중인 자산을 지우면 프레임 추출 러너와 경쟁해 파일-DB 불일치가 난다 — 삭제 후보 조건에 uld_stts_cd IN ('READY','FAILED') 를 리터럴로 명시해야 한다(DFEAT-055).",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "그 자산은 삭제 후보에서 제외되며 DB 행과 파일이 모두 보존된다"
+        ],
+        "when": [
+          "보존기간 만료 자동 삭제 배치가 실행된다"
+        ],
+        "given": [
+          "업로드 자산이 PROCESSING 상태다",
+          "자산 등록일(REG_DT)로부터 portal.upload.retention-days 가 이미 지났다"
+        ],
+        "and_examples": [
+          {
+            "case": "그 자산이 이후 READY 로 전이한 경우",
+            "result": "그 시점부터 마지막 작업일 기준 portal.upload.retention-days 가 적용된다"
+          },
+          {
+            "case": "그 자산이 30분 고착(갱신 없음)으로 기존 스위프(failStuckUploads)가 FAILED 로 전이시키는 경우",
+            "result": "그 이후부터 FAILED 축 보존기간(portal.upload.failed-retention-days)이 적용된다"
+          }
+        ]
+      },
+      "statement": "프레임 추출이 진행 중인(PROCESSING) 업로드 자산은 등록일로부터 보존기간이 지나도 자동 삭제되지 않는다",
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — 업로드 축 보존기간 배치 안전장치(DFEAT-055).",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "capability-add"
+        ]
+      },
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-024"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
+    "change_summary": "사용자 확정 — PROCESSING 상태 업로드 자산의 보존기간 삭제 제외를 인수기준으로 등록",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T01:11:14.796Z",
+    "created_at": "2026-08-17T01:11:14.796Z"
+  }
+}

@@ -1,6 +1,6 @@
 # F. 포털(외부 채널) — 테스트 케이스
 
-> 180 케이스(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정 · 회차 5 에서 177→180, 포털 TUS 존재 오라클 차단 `TC-TUS-033~035` 신설)
+> 201 케이스(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로) · 계층: unit / integration / security · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-05 머지 회차 7 정정 · 회차 5 에서 177→180, 포털 TUS 존재 오라클 차단 `TC-TUS-033~035` 신설 · **회차 6 에서 180→201, F-12 데이터마트 ZIP 다운로드·보존기간 만료 자동 삭제 신설**)
 
 ## 변경 이력
 
@@ -11,6 +11,7 @@
 | 3 | 2026-08-04 | 8건 | 0건 | 0건 | **3차 전수 검증 회차(4파트 병렬 + 병합)** — 2차 HIGH 3건(`/v1/portal/datamart/labels` 게이트 전무·라벨 body-size 필터 URL인코딩 우회·포털 SAM2 노출) **전건 해소 실동작 확증**. F-4 머리말 폐기범위 오기 정정(`075~078`→`075~077`, TC-PORTAL-078은 활성 케이스) + F-3/F-4 절 간 `TC-PORTAL-060~062` ID 충돌 경고 블록 신설 + TC-PORTAL-075~077 폐기 삭제일 정정(08-02→08-03) + TC-PORTAL-038/052·TC-PORTALUP-021/022 근거 `file:line` 드리프트 정정 + F-3 채번 주의 노트 갱신(058~062 반영, 다음 신규 063부터). 신규 FAIL 0건(3건은 전부 F-5 2차 이슈 미해소 이월), 신규 PARTIAL 0건(5건 전부 이월). 상세는 `docs/검증결과/2026-08-03/3차/F-result.md`·`ISSUES.md` 참조 |
 | 4 | 2026-08-05 | 3건 | 0건 | 0건 | **ID 중복 3건 해소 — 재번호(케이스 내용·행 수 불변)**. F-3 절(데이터마트 사용자 라벨 저장)의 신규 3건을 `TC-PORTAL-060`·`061`·`062` → **`TC-PORTAL-095`·`096`·`097`** 로 옮겼다. 같은 3개 ID 를 F-4 절(포털 SAM2 미제공 확정)이 함께 쓰고 있었고, **외부 참조가 걸린 쪽은 F-4** 다(`docs/검증결과/2026-08-02/2차/F-result.md:622-624` · 같은 회차 `ISSUES.md` 의 **F-ISSUE-41** 이 `TC-PORTAL-060/061` 을 포털 SAM2 케이스로 인용) — 그래서 참조 영향이 없는 F-3 쪽을 재번호했다. 새 번호는 이 문서의 `TC-PORTAL` **마지막 번호(094) 다음부터** 채번(저장소 규칙). 회차 2 머리말의 "별도 판단이 필요해 이번 정정 범위에서 제외" 유보는 이로써 해소. 행 수 불변이라 **총계(177) 영향 없음** ⚠ **머지 합류(2026-08-05)로 회차 번호 3 → 4 재부여** — main 의 회차 3(3차 전수 검증)과 겹쳤다. |
 | 5 | 2026-08-07 | 3건(TC-TUS-012 · TC-PORTAL-072 · 072c) | 3건(TC-TUS-033~035) | 0건 | **★포털 TUS 세션의 존재 오라클 차단 — 소유자 불일치 403 → 404**(내부 업로드 [B-23](B-batch-deidentify.md) 과 같은 규약). **TC-TUS-012 의 구 기대값 403 은 폐기** — 403 은 "그 세션은 있는데 네 것이 아니다"가 되어 응답 코드가 **세션 존재 오라클**이 된다(CWE-209). 이제 `HEAD`·`PATCH`·`DELETE` 3경로 모두 미존재와 **상태코드도 메시지도 동일한 404** 이고(TC-TUS-033), 거부는 offset·완료 검사·파일 삭제보다 **먼저** 평가돼 부수효과가 0 이다(TC-TUS-034). ⚠ **인증 401 · 역할 403 · 만료 410 · offset 409 는 불변**(TC-TUS-035 가 회귀 가드) — 소유자 본인의 정상 재개 흐름은 달라지지 않았다. ⚠ 한 경로라도 403 을 남기면 그 경로로 같은 판별이 가능해 나머지 차단이 무의미해진다(오라클은 가장 느슨한 경로를 따라간다). 그 밖에 좌측 도구바 컴포넌트 개명(`DarkToolbar` → `ToolBar`)에 따라 TC-PORTAL-072·072c 의 근거 테스트 파일명을 정정했다 — **기대결과 불변** |
+| 6 | 2026-08-17 | 0건 | 21건(TC-PORTAL-098~109, TC-PORTALUP-088~096) | 0건 | **★F-12 신설 — 구 V1.5 "포털 데이터마트 다운로드는 포털 자체 책임" 정책 폐기(사용자 확정).** 데이터마트 작업 데이터 ZIP 다운로드(`GET /v1/portal/datamart/videos/{rawSn}/download`, 200/403/410/412/429) + 보존기간 만료 자동 삭제(데이터마트 라벨·업로드 자산 READY/FAILED 독립 축) + 만료 예정 시각 조회 시점 파생 노출(`myLabelExpiresAt`/`expiresAt`)을 검증 대상에 추가했다. [UNCERTAINTIES.md #11](UNCERTAINTIES.md) "미해소 유지" 판정도 이 회차에서 해소로 갱신. 기존 F-7 절의 `TC-PORTALUP-055~058`(업로드 자산 원본 다운로드)은 **별개 축이라 무변경**. ⚠ **화면(SCREEN-028) 다운로드 버튼 배선은 이번 범위 밖** — 백엔드 API만 신설, TC-PORTAL-072~074(FE 포털 제약 회귀)는 무변경 |
 
 > **2026-08-05 헤더 카운트 정정(케이스 내용 변경 없음)**: 머리말 총계 169 → **177** 로 실측 정정. 후속 회차가 행을 추가하면서 머리말만 169 로 남아 있었다 — [README](README.md) 최신화 이력에는 이미 "회차 2 … F 169→177" 로 기록돼 있어 **README 와 이 파일 머리말이 서로 달랐다**. **카운트 기준 = 표 행 실측(폐기 행 포함)**.
 >
@@ -277,4 +278,61 @@
 | TC-PORTAL-093 | 포털 프레임 추출 풀 관제 배치와 격리 | 추출 실행 | - | portalExtractExecutor 별도 풀 | integration | Med | PortalFrameExtractRunner.java |
 | TC-PORTAL-094 | 포털 자산은 데이터마트 View 미노출 | 포털 자산 존재 | 데이터마트 뷰 | 미포함 | integration | Med | PortalUploadLabelService.java |
 
-> **불확실 항목**: #1 포털 SAM2(문서=미제공, 확정됨 — 07-30 재확인: 여전히 정책 위반, 다만 전송 픽셀은 비식별본으로 교체되고 신고 게이트가 배선됨) · #5 frame-interval **확정: 5초**(07-30 해소, DB 시드=코드 폴백=5) · #11 다운로드 기간 제한(미확정 유지) · #12 데이터마트/이미지 서빙 rate limit 부재(미확정 유지 — user-labels·datamart 목록·`PortalLabelService#serveFrameImage`에는 여전히 rate limiter 없음, 업로드/SAM2/TUS만 있음) → [UNCERTAINTIES.md](UNCERTAINTIES.md)
+## F-12. 데이터마트 ZIP 다운로드 · 보존기간 만료 자동 삭제 (★2026-08-17 신설 — 구 V1.5 "포털 다운로드는 포털 자체 책임" 정책 폐기)
+
+> ★확정(2026-08-17, 사용자 확정): 구 V1.5 "포털 데이터마트 다운로드는 포털 자체 책임 · 다운로드 기간
+> 제한 미해소"는 **뒤집혔다**. `GET /v1/portal/datamart/videos/{rawSn}/download`(라벨 JSON + 비식별
+> 프레임 이미지 + 비식별 영상 ZIP)와 **보존기간 만료 자동 삭제**(데이터마트 저장 라벨·업로드 자산)가
+> 신설됐다 — [UNCERTAINTIES.md #11](UNCERTAINTIES.md) 참조.
+>
+> ⚠ **화면(SCREEN-028) 다운로드 버튼은 이번 범위 밖이다.** 백엔드 API만 신설됐고, 포털 홈 다운로드
+> 버튼 배선은 별도 라운드에서 진행한다. 아래 TC-PORTAL-072/073 및 `LabelingPagePortalRestrictions.test.tsx`
+> 계열 FE 회귀 테스트는 여전히 "다운로드 UI 없음"을 단언하며 이번 변경으로 손대지 않는다.
+>
+> ⚠ **F-7 절의 `TC-PORTALUP-055~058`("원본 다운로드")과는 축이 다르다** — 그건 포털 **업로드 자산**
+> (본인 이미지/영상 업로드, `PortalUploadLabelService`)의 export/원본 파일 다운로드이고, 이 절은
+> **데이터마트 영상**(관제 인입 → 검수 완료 영상, `PortalDatamartDownloadService`)의 작업 데이터
+> 다운로드다. 혼동 금지.
+
+### F-12a. 데이터마트 작업 데이터 ZIP 다운로드 (API-203)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|----------------|
+| TC-PORTAL-098 (신규) | 정상 다운로드 — labels.json + 비식별 프레임 이미지 + 비식별 영상 | APPROVED, 본인 저장 라벨 존재, 비식별 영상 존재 | GET /v1/portal/datamart/videos/{rawSn}/download | 200, ZIP({rawSn}/labels.json + {rawSn}/frames/{FRM_NO 4자리 zero-pad}.jpg + {rawSn}/video.{ext}) | integration | High | PortalDatamartDownloadController.java(download), PortalDatamartDownloadTxService.java(plan), PortalDatamartDownloadService.java(download) |
+| TC-PORTAL-099 (신규) | 데이터마트 미노출(비APPROVED 또는 미존재) → 403, 신고 상태를 묻지 않는다 | 비APPROVED 또는 미존재 rawSn | 동일 | 403(FORBIDDEN). 판정 순서가 고정(③노출→④신고→⑤라벨0건)이라 미노출 영상의 신고 여부가 응답으로 새지 않는다(CWE-209 오라클 차단) | security | High | PortalDatamartDownloadTxService.java(plan), PortalDatamartDownloadServiceTest.java(notApproved_forbidden_beforeDeidentGate) |
+| TC-PORTAL-100 (신규) | 비식별 누락 신고 구간(`DE_IDNTF_YN='F'`) → 412 | APPROVED + 신고 중 | 동일 | 412(PRECONDITION_FAILED), ZIP 미생성. `resolveDeidPath` 호출 이전에 독립 게이트로 평가 — 신고 영상이 "영상 없는 200"으로 새지 않는다 | security | High | PortalDatamartDownloadTxService.java(plan), PortalDatamartDownloadServiceTest.java(underDeidentReport_preconditionFailed) |
+| TC-PORTAL-101 (신규) | 본인 저장 라벨 0건 → 410 | APPROVED + 비신고, 본인 저장분 없음(신규 미작업 또는 보존기간 만료 삭제) | 동일 | 410(GONE) | unit | High | PortalDatamartDownloadTxService.java(plan), PortalDatamartDownloadServiceTest.java(noSavedLabel_gone) |
+| TC-PORTAL-102 (신규) | per-user 속도 제한 초과 → 429 | 같은 사용자 연속 GET(분당 3회 초과) | 동일 | 429(TOO_MANY_REQUESTS), 자원 판정(403/412/410) 이전에 차단되어 그 비용이 발생하지 않는다. 사용자별 격리(타 사용자 무영향) | security | High | PortalDatamartDownloadController.java(acquireDownloadPermit), PortalDatamartDownloadControllerRateLimitTest.java(과도한_다운로드_요청은_429로_제한되고_자원_판정에_도달하지_않는다 · 제한은_사용자별로_격리된다_다른_사용자는_영향없음) |
+| TC-PORTAL-103 (신규) | 원본 폴백 없음 — 비식별 경로 부재 시 원본 영상은 어떤 경우에도 담기지 않는다 | 비식별 경로 null | 동일 | 원본(비식별 이전) 영상은 ZIP에 포함되지 않는다(AC-034 불변 규칙). 서브트리 검증 실패 프레임도 같은 원칙(`resolveFrameImages`)으로 사유 코드만 로그에 남기고 조용히 빠지나, 이 조합의 전용 단위 테스트는 아직 없다 | security | High | PortalDatamartDownloadService.java(resolveDeidVideo, resolveFrameImages), PortalDatamartDownloadServiceTest.java(noDeidVideo_neverFallsBackToOriginal) |
+| TC-PORTAL-104 (신규) | 비식별 영상이 없으면 영상 없이 라벨·이미지만 담긴다 | APPROVED, 비식별 영상 이력 없음 | 동일 | 200, ZIP에 video.* 엔트리가 생성되지 않는다(labels.json + frames만) | integration | Med | PortalDatamartDownloadService.java(resolveDeidVideo), PortalDatamartDownloadServiceTest.java(noDeidVideo_zipHasLabelsAndFramesOnly) |
+| TC-PORTAL-105 (신규) | 다른 사용자의 저장 라벨은 담기지 않는다(본인만) | 타 사용자 저장분 존재 | 동일 | labels.json 에 본인 저장분만 반영, 타 사용자 저장분은 병합 대상 아님 | security | High | PortalDatamartDownloadTxService.java(plan), PortalDatamartDownloadServiceTest.java(otherUsersLabelsNotIncluded) |
+| TC-PORTAL-106 (신규) | 응답은 no-store, 파일명은 서버 생성 고정명 | - | 동일 | `Cache-Control: no-store`(신고 게이트가 매 요청 재평가되어야 함), `Content-Disposition` 파일명에 사용자 입력 미포함(CWE-113 여지 구조적으로 없음) | security | Med | PortalDatamartDownloadService.java(download), PortalDatamartDownloadServiceTest.java(responseHeaders) |
+
+### F-12b. 보존기간 만료 자동 삭제 — 축 A: 데이터마트 저장 라벨
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|----------------|
+| TC-PORTAL-107 (신규) | 보존기간(기본 7일) 경과 시 그룹 조건부 DELETE — 2노드 멱등 | (사용자, 영상) 그룹의 `MAX(REG_DT)` 가 커트라인보다 이전 | 스윕 실행 | 해당 그룹 라벨 삭제, 2노드 동시 실행돼도 두 번째 노드는 0행(파일이 없어 클레임 단계 불요) | integration | High | PortalRetentionSweepTxService.java(sweepDatamartLabels), LsPortalUserLabelRepository.java(findExpiredLabelGroups, deleteExpiredLabelGroup), PortalRetentionSweepTxServiceTest.java(만료_그룹마다_조건부_삭제를_호출하고_실제로_지워진_그룹만_센다) |
+| TC-PORTAL-108 (신규) | 보존기간 설정(`portal.datamart.retention-days`) 부재 시 미삭제 — 조회조차 하지 않는다 | 설정 행 없음 | 스윕 실행 | 그 회차를 skip(ERROR 로그), 폴백 상수 없이 0건 반환 — 파괴적 배치는 fail-open 하지 않는다 | security | High | PortalRetentionSweepTxService.java(sweepDatamartLabels), PortalRetentionSweepTxServiceTest.java(데이터마트_보존기간_설정이_없으면_라벨을_한_건도_지우지_않고_조회조차_하지_않는다) |
+| TC-PORTAL-109 (신규) | `myLabelExpiresAt` 은 저장 컬럼이 아니라 조회 시점 파생값 | 보존기간 7→14일로 변경 후 재조회 | GET /v1/portal/datamart/videos | 만료 예정 시각이 다음 조회부터 즉시 갱신(마이그레이션·백필 없음). 본인 저장분이 없으면 null, 보존기간 설정이 없으면 그 필드만 null(목록 전체는 정상 200) | unit | Med | PortalLabelService.java(listDatamartVideos), PortalDatamartVideosServiceTest.java(포털_데이터마트_목록_보존기간을_7에서_14로_바꾸고_재조회하면_만료예정시각이_갱신된다_AC033 · 포털_데이터마트_목록_보존기간_설정이_없으면_만료예정시각만_null이고_목록은_정상_반환) |
+
+### F-12c. 보존기간 만료 자동 삭제 — 축 B: 업로드 자산 (READY·FAILED 독립 판정)
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|----------------|
+| TC-PORTALUP-088 (신규) | READY 자산 만료 시 파일 먼저 → DB 나중 순서로 삭제 | READY, 보존기간(기본 7일) 경과 | 스윕 실행 | 파일 삭제 성공 후에만 DB 행 삭제. 순서가 뒤집히면 DB 가 먼저 사라져 어느 파일을 지워야 하는지 알 수 없어진다 | integration | High | PortalRetentionSweepJob.java(sweepExpiredUploads), PortalRetentionSweepJobTest.java(파일을_먼저_지운_뒤에_DB행을_지운다) |
+| TC-PORTALUP-089 (신규) | FAILED(기본 1일)와 READY(기본 7일)는 서로 다른 보존기간으로 독립 판정된다 | 같은 시각 등록, 한쪽은 FAILED 한쪽은 READY | 스윕 실행 | FAILED 는 1일 경과로 먼저 삭제되고, READY 는 7일이 안 지나 남는다(AC-037) | integration | High | PortalRetentionSweepTxService.java(findExpiredUploads), PortalRetentionSweepIT.java(같은_시각_등록이어도_FAILED는_1일로_삭제되고_READY는_7일이라_남는다) |
+| TC-PORTALUP-090 (신규) | PROCESSING·UPLOADED 자산은 삭제 대상이 될 수 없다(만료 없음) | PROCESSING, 등록일로부터 보존기간 경과 | 스윕 실행 | 후보 쿼리 자체가 READY/FAILED 상태 리터럴로 스코프돼 있어 DB 행·파일 모두 그대로 남는다(AC-036) | security | High | PortalRetentionSweepTxService.java(findExpiredUploads), PortalRetentionSweepIT.java(처리중_자산은_등록일로부터_보존기간이_지나도_DB행과_파일이_모두_남는다) |
+| TC-PORTALUP-091 (신규) | READY 설정만 부재 시 READY 축만 skip, FAILED 축은 정상 동작(축 독립) | `portal.upload.retention-days` 부재, `portal.upload.failed-retention-days` 존재 | 스윕 실행 | READY 후보 0건(ERROR 로그) + FAILED 후보는 정상 조회·삭제 — 한쪽 설정 부재가 다른 축을 막지 않는다 | security | Med | PortalRetentionSweepTxService.java(findExpiredUploads), PortalRetentionSweepTxServiceTest.java(READY_설정만_없으면_READY축만_건너뛰고_FAILED축은_그대로_동작한다) |
+| TC-PORTALUP-092 (신규) | 파일 경로 판정 실패(ESCAPED/UNRESOLVABLE) 시 DB 행 보존 — 다음 회차 재후보 | 저장 경로가 허용 서브트리 밖을 가리킴 | 스윕 실행 | 파일 삭제를 건너뛰고 DB 행도 지우지 않는다(fail-closed — 원본 삭제보다 고아 파일 존치가 안전). 그 자산의 실패가 나머지 자산 처리를 막지 않는다 | security | High | PortalRetentionSweepJob.java(deleteFiles), PortalRetentionSweepJobTest.java(경로_중간_디렉터리가_저장루트_밖을_가리키면_DB행을_지우지_않고_대상파일도_살아있다 · 저장루트_밖_절대경로가_적재돼_있으면_그_자산을_건너뛰고_DB행을_남긴다 · 한_자산의_경로_판정_실패가_다음_자산_처리를_막지_않는다) |
+| TC-PORTALUP-093 (신규) | 파일이 이미 없어도(ABSENT) 멱등 성공으로 DB 행을 지운다 | 파일 부재(이미 삭제됨) | 스윕 실행 | ABSENT 는 실패가 아니라 "지울 것이 없다"로 통과 — DB 행 삭제까지 정상 완료(재시도 삭제가 영구 실패하지 않게) | unit | Med | PortalRetentionSweepJob.java(deleteFiles), PortalRetentionSweepJobTest.java(파일이_이미_없어도_정상_처리해_DB행을_지운다) |
+| TC-PORTALUP-094 (신규) | 2노드 동시 스윕은 조건부 DELETE 로 한쪽만 삭제(멱등, 오류 없음) | 2노드 동시 실행 | deleteExpiredReady/deleteExpiredFailed | 같은 커트라인으로 재판정하는 조건부 UPDATE/DELETE — 먼저 처리한 노드만 1행, 다른 노드는 0행이고 예외가 나지 않는다 | integration | High | LsPortalUldRepository.java(deleteExpiredReady, deleteExpiredFailed), PortalRetentionSweepIT.java(같은_후보에_배치를_두_번_돌려도_두_번째는_0행이고_오류가_없다) |
+| TC-PORTALUP-095 (신규) | `expiresAt` 노출 — READY/FAILED 기준점이 다르다 | READY(등록일·라벨 최종 저장일 중 늦은 쪽), FAILED(FAILED 전이 시각) | GET /portal/uploads, GET /portal/uploads/{uldSn} | 목록·상세 응답에 `expiresAt` 동봉, 두 상태가 같은 판정기(`PortalRetentionPolicy`)를 쓰되 기준점만 다르다. PROCESSING/UPLOADED 는 `expiresAt=null`(고지할 만료 자체가 없음) | unit | Med | PortalUploadService.java(listUploads, getUpload), PortalRetentionPolicyTest.java |
+| TC-PORTALUP-096 (신규) | 보존일수 하한(1) — 0/음수 설정 저장은 거부된다 | 설정 변경 요청 | `portal.datamart.retention-days`=0 또는 음수 | 400(입력값 검증 실패), 저장 미수행. 0 은 "오늘 것까지 지운다", 음수는 미래 시각이 커트라인이 되어 전량이 대상이 된다 — 복구 수단이 없는 파괴적 배치라 값 자체를 입구에서 막는다(`NUMBER_RANGE` 하한 1, 상한 3650) | security | High | ConfigKeys.java(PORTAL_DATAMART_RETENTION_DAYS, NUMBER_RANGE), SystemConfigService.java |
+
+> **알려진 한계(인지·수용)**: per-user 속도 제한(TC-PORTAL-102)은 형제 제한기(`portalUpload`·`portalUserLabel`)와
+> 동일하게 **노드별 in-memory** 라 2노드 Active-Active 배포에서는 실질 한도가 분당 3회의 2배다 — 분산
+> 제한기를 새로 도입하지 않는 것은 확정 사항([UNCERTAINTIES.md #12](UNCERTAINTIES.md)의 형제 축과 동일한 성질).
+> 보존기간 만료 삭제는 **비가역**이며, 삭제된 라벨·업로드 자산을 되살리는 API·배치는 없다.
+
+> **불확실 항목**: #1 포털 SAM2(문서=미제공, 확정됨 — 07-30 재확인: 여전히 정책 위반, 다만 전송 픽셀은 비식별본으로 교체되고 신고 게이트가 배선됨) · #5 frame-interval **확정: 5초**(07-30 해소, DB 시드=코드 폴백=5) · #11 다운로드 기간 제한 **확정: 해소**(2026-08-17, 위 F-12 절 참조) · #12 데이터마트/이미지 서빙 rate limit 부재(미확정 유지 — user-labels·datamart 목록·`PortalLabelService#serveFrameImage`에는 여전히 rate limiter 없음, 업로드/SAM2/TUS/**다운로드(TC-PORTAL-102)** 에만 있음) → [UNCERTAINTIES.md](UNCERTAINTIES.md)

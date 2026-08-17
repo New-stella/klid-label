@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 15
+version: 17
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:56.534Z
-status: NEW
-prev_version: null
-content_hash: 65b505cde158f2659a2fdf26c9b6766d91a6ae0039fa5758b7ac8dcfb2c3549a
-stale: true
+synced_at: 2026-08-17T01:34:32.964Z
+status: CHANGED
+prev_version: 15
+content_hash: a1a0a661615b56c73c8d65cc3fe2bac06a5a0b9a52808243e4ee19c9fef43e3c
+stale: false
 raw: ./_raw/SCREEN-028.json
 links:
   belongs_to_domain: ["[[DOMAIN-013]]"]
-  consumes: ["[[API-115]]"]
+  consumes: ["[[API-115]]", "[[API-203]]"]
   realizes: ["[[UC-024]]"]
-  references: ["[[API-115]]"]
+  references: ["[[API-115]]", "[[API-203]]"]
   requires: ["[[ROLE-003]]"]
   designs_backward: ["[[SD-024]]"]
   granted_on_backward: ["[[ROLE-003]]"]
@@ -293,8 +293,9 @@ _(empty)_
 
 #### [5]
 
-- **type**: Text
-- **label**: ※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 결과 파일 제공은 포털 시스템에서 별도로 안내됩니다.
+- **note**: 카드 클릭 영역과 분리된 버튼. myLabelExpiresAt 이 null 이면 비활성 + '저장된 라벨이 없습니다' 툴팁. non-null 이면 '만료: YYYY-MM-DD' 텍스트 병기. 클릭 시 blob 응답을 받아 브라우저 다운로드 트리거(JWT 인증 하 직링크 불가).
+- **type**: Custom
+- **label**: 영상 카드 다운로드 버튼(만료일 표시 포함)
 
 **columns**:
 
@@ -304,15 +305,19 @@ _(empty)_
 
 _(empty)_
 
+- **custom_name**: DatamartVideoDownloadAction
+- **triggers_api**: API-203
+
 **description**:
 
-GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수, 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.' 하단에 본인 데이터 전용·다운로드 별도 안내 고정 문구.
+GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수 + (본인 저장 라벨이 있는 경우) 만료 예정일 + 다운로드 버튼, 카드 본체 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.'
 
 목록 아래에 페이지네이션을 둔다. 서버가 페이징으로 내려주는데 화면에 페이지를 옮길 수단이 없으면 첫 페이지 영상만 도달할 수 있고 나머지는 존재해도 고를 수 없다. 페이지를 옮기면 주소의 page 값을 갱신해 뒤로가기와 북마크가 동작하게 하며, 이는 내부 목록 화면이 쓰는 방식과 같다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.
 
 **references_apis**:
 
 - API-115
+- API-203
 
 **references_features**:
 
@@ -339,6 +344,7 @@ web
 ## consumes_apis
 
 - API-115
+- API-203
 
 ## implementation
 

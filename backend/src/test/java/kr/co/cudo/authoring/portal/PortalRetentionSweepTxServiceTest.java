@@ -1,0 +1,227 @@
+package kr.co.cudo.authoring.portal;
+
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.portal.entity.LsPortalUld;
+import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
+import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
+import kr.co.cudo.authoring.portal.service.PortalRetentionSweepTxService;
+import kr.co.cudo.authoring.portal.service.PortalRetentionSweepTxService.Axis;
+import kr.co.cudo.authoring.portal.service.PortalRetentionSweepTxService.ExpiredUpload;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.lang.reflect.Field;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+/**
+ * 보존기간 만료 삭제의 <b>트랜잭션 경계 서비스</b> 단위 테스트. @design DFEAT-055, AC-032, AC-036, AC-037
+ *
+ * <p>여기서 지키는 것은 <b>"설정이 없으면 아무것도 지우지 않는다"</b>와 <b>"READY·FAILED 두 축이 각자의
+ * 보존기간으로 독립 판정된다"</b> 둘이다. 실 SQL 의 삭제 조건은 {@code PortalRetentionSweepIT} 가,
+ * 파일→DB 순서와 경로 판정 실패 처리는 {@code PortalRetentionSweepJobTest} 가 담당한다.
+ *
+ * <p>정책({@link PortalRetentionPolicy})은 mock 하지 않고 <b>실물</b>을 쓴다 — 설정 부재가
+ * {@code OptionalInt.empty} 로 전달되는 경로 자체가 이 테스트의 검증 대상이라 그 사이에 mock 을
+ * 끼우면 정작 지켜야 할 배선이 빠진다.
+ */
+class PortalRetentionSweepTxServiceTest {
+
+    private LsPortalUserLabelRepository userLabelRepository;
+    private LsPortalUldRepository uldRepository;
+    private LsPortalUldFrmeRepository frmeRepository;
+    private SystemConfigService systemConfigService;
+    private PortalRetentionSweepTxService txService;
+
+    @BeforeEach
+    void setUp() {
+        userLabelRepository = mock(LsPortalUserLabelRepository.class);
+        uldRepository = mock(LsPortalUldRepository.class);
+        frmeRepository = mock(LsPortalUldFrmeRepository.class);
+        systemConfigService = mock(SystemConfigService.class);
+        txService = new PortalRetentionSweepTxService(
+                userLabelRepository, uldRepository, frmeRepository,
+                new PortalRetentionPolicy(systemConfigService));
+    }
+
+    // ------------------------------------------------------------- 설정 부재 = 아무것도 지우지 않는다
+
+    @Test
+    @DisplayName("데이터마트_보존기간_설정이_없으면_라벨을_한_건도_지우지_않고_조회조차_하지_않는다")
+    void datamartSweepSkippedWhenSettingAbsent() {
+        settingAbsent(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS);
+
+        int deleted = txService.sweepDatamartLabels();
+
+        assertThat(deleted).isZero();
+        // 상수 폴백이 생기면 여기서 후보 조회·삭제가 일어난다 — 폴백 금지의 실효 지점.
+        verifyNoInteractions(userLabelRepository);
+    }
+
+    @Test
+    @DisplayName("업로드_보존기간_설정이_둘_다_없으면_후보를_한_건도_찾지_않는다")
+    void uploadSweepSkippedWhenBothSettingsAbsent() {
+        settingAbsent(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS);
+        settingAbsent(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS);
+
+        List<ExpiredUpload> candidates = txService.findExpiredUploads();
+
+        assertThat(candidates).isEmpty();
+        verifyNoInteractions(uldRepository);
+        verifyNoInteractions(frmeRepository);
+    }
+
+    @Test
+    @DisplayName("READY_설정만_없으면_READY축만_건너뛰고_FAILED축은_그대로_동작한다")
+    void axesAreGatedIndependentlyBySetting() {
+        settingAbsent(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(1);
+        when(uldRepository.findExpiredFailed(any(LocalDateTime.class)))
+                .thenReturn(List.of(uld(7L, LsPortalUld.STTS_FAILED)));
+        when(frmeRepository.findAllByUldSnOrderByFrmeNo(anyLong())).thenReturn(List.of());
+
+        List<ExpiredUpload> candidates = txService.findExpiredUploads();
+
+        assertThat(candidates).extracting(ExpiredUpload::uldSn).containsExactly(7L);
+        assertThat(candidates).extracting(ExpiredUpload::axis).containsExactly(Axis.FAILED);
+    }
+
+    // ------------------------------------------------------------- 데이터마트 축
+
+    @Test
+    @DisplayName("만료_그룹마다_조건부_삭제를_호출하고_실제로_지워진_그룹만_센다")
+    void datamartSweepCountsOnlyActuallyDeletedGroups() {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
+        when(userLabelRepository.findExpiredLabelGroups(any(LocalDateTime.class)))
+                .thenReturn(List.of(new Object[]{"alice", 11L}, new Object[]{"bob", 22L}));
+        // alice 는 이 노드가 삭제(3행), bob 은 타 노드 선점 또는 재작업으로 만료 해제(0행).
+        when(userLabelRepository.deleteExpiredLabelGroup(eq("alice"), eq(11L), any(LocalDateTime.class)))
+                .thenReturn(3);
+        when(userLabelRepository.deleteExpiredLabelGroup(eq("bob"), eq(22L), any(LocalDateTime.class)))
+                .thenReturn(0);
+
+        assertThat(txService.sweepDatamartLabels()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("데이터마트_커트라인은_설정_일수만큼_과거다")
+    void datamartCutoffIsRetentionDaysAgo() {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
+        when(userLabelRepository.findExpiredLabelGroups(any(LocalDateTime.class))).thenReturn(List.of());
+
+        txService.sweepDatamartLabels();
+
+        ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
+        org.mockito.Mockito.verify(userLabelRepository).findExpiredLabelGroups(cutoff.capture());
+        assertThat(Duration.between(cutoff.getValue(), LocalDateTime.now()).toHours())
+                .isBetween(167L, 169L);
+    }
+
+    // ------------------------------------------------------------- 업로드 축
+
+    @Test
+    @DisplayName("READY축과_FAILED축이_각자의_보존기간으로_독립_조회된다")
+    void readyAndFailedAxesUseTheirOwnCutoff() {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(7);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(1);
+        when(uldRepository.findExpiredReady(any(LocalDateTime.class)))
+                .thenReturn(List.of(uld(1L, LsPortalUld.STTS_READY)));
+        when(uldRepository.findExpiredFailed(any(LocalDateTime.class)))
+                .thenReturn(List.of(uld(2L, LsPortalUld.STTS_FAILED)));
+        when(frmeRepository.findAllByUldSnOrderByFrmeNo(anyLong())).thenReturn(List.of());
+
+        List<ExpiredUpload> candidates = txService.findExpiredUploads();
+
+        ArgumentCaptor<LocalDateTime> ready = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> failed = ArgumentCaptor.forClass(LocalDateTime.class);
+        org.mockito.Mockito.verify(uldRepository).findExpiredReady(ready.capture());
+        org.mockito.Mockito.verify(uldRepository).findExpiredFailed(failed.capture());
+
+        // 7일 vs 1일 — 두 축이 같은 커트라인을 쓰면 한쪽은 반드시 틀린 기간으로 지운다.
+        assertThat(Duration.between(ready.getValue(), LocalDateTime.now()).toHours())
+                .isBetween(167L, 169L);
+        assertThat(Duration.between(failed.getValue(), LocalDateTime.now()).toHours())
+                .isBetween(23L, 25L);
+        assertThat(candidates).extracting(ExpiredUpload::axis)
+                .containsExactly(Axis.READY, Axis.FAILED);
+        // 후보가 스캔 커트라인을 그대로 실어 삭제문이 같은 기준으로 재판정한다.
+        assertThat(candidates.get(0).cutoff()).isEqualTo(ready.getValue());
+        assertThat(candidates.get(1).cutoff()).isEqualTo(failed.getValue());
+    }
+
+    @Test
+    @DisplayName("후보는_프레임_파일과_원본_파일_경로를_중복없이_모은다")
+    void candidateCollectsFrameAndSourceFilePaths() {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(7);
+        settingAbsent(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS);
+        LsPortalUld target = uld(9L, LsPortalUld.STTS_READY);
+        setField(target, "filePathNm", "/store/v.mp4");
+        when(uldRepository.findExpiredReady(any(LocalDateTime.class))).thenReturn(List.of(target));
+        when(frmeRepository.findAllByUldSnOrderByFrmeNo(9L)).thenReturn(List.of(
+                LsPortalUldFrme.create(9L, 0, "/store/frames/0.jpg"),
+                LsPortalUldFrme.create(9L, 1, "/store/frames/1.jpg"),
+                // 이미지 자산은 원본과 대표 프레임이 같은 파일이라 중복이 들어온다.
+                LsPortalUldFrme.create(9L, 2, "/store/v.mp4")));
+
+        List<ExpiredUpload> candidates = txService.findExpiredUploads();
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).filePaths())
+                .containsExactly("/store/frames/0.jpg", "/store/frames/1.jpg", "/store/v.mp4");
+    }
+
+    @Test
+    @DisplayName("축에_맞는_조건부_삭제_쿼리로_위임한다")
+    void deleteDelegatesToAxisSpecificQuery() {
+        LocalDateTime cutoff = LocalDateTime.of(2026, 8, 10, 0, 0);
+        when(uldRepository.deleteExpiredReady(1L, cutoff)).thenReturn(1);
+        when(uldRepository.deleteExpiredFailed(2L, cutoff)).thenReturn(1);
+
+        assertThat(txService.deleteExpiredUpload(
+                new ExpiredUpload(1L, Axis.READY, cutoff, List.of()))).isEqualTo(1);
+        assertThat(txService.deleteExpiredUpload(
+                new ExpiredUpload(2L, Axis.FAILED, cutoff, List.of()))).isEqualTo(1);
+    }
+
+    // ------------------------------------------------------------- 헬퍼
+
+    /** 설정 행이 없을 때의 실제 동작 — {@code SystemConfigService.getInt} 는 예외를 던진다. */
+    private void settingAbsent(String key) {
+        when(systemConfigService.getInt(key))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 없음"));
+    }
+
+    private static LsPortalUld uld(long uldSn, String status) {
+        LsPortalUld uld = LsPortalUld.createVideo("u1", "v.mp4", null, 1024L, "video/mp4");
+        setField(uld, "uldSn", uldSn);
+        setField(uld, "uldSttsCd", status);
+        return uld;
+    }
+
+    private static void setField(Object target, String name, Object value) {
+        try {
+            Field f = target.getClass().getDeclaredField(name);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}

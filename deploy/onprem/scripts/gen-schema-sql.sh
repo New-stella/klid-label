@@ -14,7 +14,8 @@ set -euo pipefail
 #     + V7(관제 통지 누적 상태코드 폭 정합) + V8(웹훅 멱등 원장 적용일시 표준용어 개명)
 #     + V9(작업 배정·이벤트 로그 테이블 표준용어 개명)
 #     + V10(이슈 댓글 참조 무결성 FK 부착 — ERD-023)
-#     열뿐이다. 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
+#     + V11(포털 보존기간 설정 3키 시드 — DFEAT-055)
+#     뿐이다(개수는 적지 않는다 — 파일이 늘 때마다 낡는다). 구 180개(V0~V185)는 backend/src/test/resources/db-archive/migration/ 에 보존돼 있고
 #     Flyway 는 읽지 않는다.
 #
 #   ★ 대상 스키마는 앱과 같은 축(${DB_SCHEMA:-klid_at})이다.

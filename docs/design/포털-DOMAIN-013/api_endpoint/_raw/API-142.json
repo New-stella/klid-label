@@ -73,6 +73,12 @@
                           "nullable": true,
                           "description": "추출된 프레임 수"
                         },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "보존기간 만료 예정 시각 = GREATEST(regDt, 그 자산 라벨의 MAX(regDt)) + portal.upload.retention-days(READY) 또는 mdfcnDt + portal.upload.failed-retention-days(FAILED). PROCESSING 상태 자산은 삭제 대상이 아니므로 null. 조회 시점의 보존기간 설정값 기준 계산값이며 저장되지 않는다(파생 필드). 설정이 바뀌면 다음 조회부터 값이 달라진다 — 클라이언트는 캐시하지 말고 매 조회마다 갱신할 것."
+                        },
                         "failRsnCn": {
                           "type": "string",
                           "nullable": true,
@@ -341,12 +347,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "변경요약에서 내부 회차·구현 심볼 표기를 걷어낸다.",
+    "change_summary": "사용자 확정 — 보존기간 만료 예정 시각(expiresAt) 응답 필드 신설(하위호환 추가만). READY/FAILED 축별 계산식이 다름을 명시",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:12.176Z",
+    "last_updated_at": "2026-08-17T01:17:50.767Z",
     "created_at": "2026-07-30T07:03:34.468Z"
   }
 }

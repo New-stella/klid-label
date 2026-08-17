@@ -6,9 +6,14 @@ import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUld;
 import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.portal.dto.PortalUploadDetailResponse;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
+import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
 import kr.co.cudo.authoring.portal.service.PortalUploadService;
+import kr.co.cudo.authoring.sysconfig.ConfigKeys;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +31,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -58,6 +65,8 @@ class PortalUploadServiceTest {
 
     private LsPortalUldRepository uldRepository;
     private LsPortalUldFrmeRepository frmeRepository;
+    private LsPortalUldLblRepository lblRepository;
+    private SystemConfigService systemConfigService;
     private PortalUploadService service;
     private final AtomicLong uldSeq = new AtomicLong(100);
     private final AtomicLong frmeSeq = new AtomicLong(500);
@@ -66,11 +75,15 @@ class PortalUploadServiceTest {
     void setUp() {
         uldRepository = mock(LsPortalUldRepository.class);
         frmeRepository = mock(LsPortalUldFrmeRepository.class);
+        lblRepository = mock(LsPortalUldLblRepository.class);
+        systemConfigService = mock(SystemConfigService.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4", "mov", "avi"), storageDir.toString(),
                 List.of("jpg", "jpeg", "png"), 1024L, 3, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        service = new PortalUploadService(uldRepository, frmeRepository, props);
+        service = new PortalUploadService(uldRepository, frmeRepository, props, lblRepository,
+                new PortalRetentionPolicy(systemConfigService),
+                new kr.co.cudo.authoring.portal.service.PortalStoragePathGuard(props));
 
         when(uldRepository.save(any(LsPortalUld.class))).thenAnswer(inv -> {
             LsPortalUld u = inv.getArgument(0);
@@ -346,6 +359,204 @@ class PortalUploadServiceTest {
                 .isEqualTo(ErrorCode.INVALID_INPUT);
         verify(uldRepository, never()).findAllByPortalUserNoAndUldTypeCd(any(), any(), any());
         verify(uldRepository, never()).findAllByPortalUserNo(any(), any());
+    }
+
+    // ======================== 보존기간 만료 예정 시각 (AC-033 / AC-037 / DFEAT-055) ========================
+
+    private static final LocalDateTime REG_DT = LocalDateTime.of(2026, 8, 1, 10, 0);
+
+    /** 상태·시각을 지정한 자산 1건 — 엔티티 팩토리는 시각을 now 로 박으므로 리플렉션으로 고정한다. */
+    private LsPortalUld asset(long uldSn, String status, LocalDateTime regDt, LocalDateTime mdfcnDt) {
+        LsPortalUld uld = LsPortalUld.createImage(ALICE, "a.jpg", "/x", 8L, "image/jpeg");
+        setField(uld, "uldSn", uldSn);
+        setField(uld, "uldSttsCd", status);
+        setField(uld, "regDt", regDt);
+        setField(uld, "mdfcnDt", mdfcnDt);
+        return uld;
+    }
+
+    private void stubRetentionDays(Integer ready, Integer failed) {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(ready);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(failed);
+    }
+
+    /** 라벨 마지막 저장일 집계 결과 stub — 인자로 준 자산만 라벨을 가진다. */
+    private void stubLastLabelSavedAt(Object... uldSnThenTime) {
+        List<Object[]> rows = new java.util.ArrayList<>();
+        for (int i = 0; i < uldSnThenTime.length; i += 2) {
+            rows.add(new Object[]{uldSnThenTime[i], uldSnThenTime[i + 1]});
+        }
+        when(lblRepository.findMaxRegDtGroupedByUldSn(eq(ALICE), any())).thenReturn(rows);
+    }
+
+    private List<PortalUploadResponse> listAll(LsPortalUld... assets) {
+        Pageable pageable = PageRequest.of(0, 20);
+        when(uldRepository.findAllByPortalUserNo(eq(ALICE), any()))
+                .thenReturn(new PageImpl<>(List.of(assets), pageable, assets.length));
+        return service.listUploads(ALICE, null, pageable).getContent();
+    }
+
+    @Test
+    @DisplayName("READY_자산_라벨이_없으면_등록일_기준으로_만료예정시각이_계산된다")
+    void readyExpiryFromRegDtWhenNoLabel() {
+        // given: READY, 라벨 0건, 보존기간 7일
+        stubRetentionDays(7, 1);
+        stubLastLabelSavedAt();
+
+        // when
+        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+
+        // then: 등록일 + 7일
+        assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("READY_자산_라벨_저장일이_등록일보다_늦으면_라벨_저장일이_기준이_된다")
+    void readyExpiryUsesLaterLabelSavedAt() {
+        // given: 등록 후 3일 뒤 라벨 저장
+        stubRetentionDays(7, 1);
+        LocalDateTime labelSavedAt = REG_DT.plusDays(3);
+        stubLastLabelSavedAt(1L, labelSavedAt);
+
+        // when
+        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+
+        // then: 늦은 쪽(라벨 저장일) + 7일 — 작업 중이면 만료가 계속 밀린다
+        assertThat(res.get(0).expiresAt()).isEqualTo(labelSavedAt.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("READY_자산_라벨_저장일이_등록일보다_이르면_등록일이_기준이_된다")
+    void readyExpiryUsesLaterRegDt() {
+        // given: 라벨 저장일이 등록일보다 과거(데이터 이관 등) — 늦은 쪽은 등록일
+        stubRetentionDays(7, 1);
+        stubLastLabelSavedAt(1L, REG_DT.minusDays(2));
+
+        // when
+        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+
+        // then
+        assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("FAILED_자산은_전이시각_기준_단축_보존기간이며_같은시각_READY_자산과_독립_판정된다")
+    void failedExpiryIsIndependentFromReady() {
+        // given: 같은 시각 등록. failed 는 mdfcnDt(전이 시각)이 기준 — AC-037 and_examples[1]
+        stubRetentionDays(7, 1);
+        stubLastLabelSavedAt();
+        LocalDateTime failedAt = REG_DT.plusHours(5);
+
+        // when
+        List<PortalUploadResponse> res = listAll(
+                asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT),
+                asset(2L, LsPortalUld.STTS_FAILED, REG_DT, failedAt));
+
+        // then: 두 축이 서로 다른 기준점·기간으로 계산된다
+        assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
+        assertThat(res.get(1).expiresAt()).isEqualTo(failedAt.plusDays(1));
+    }
+
+    @Test
+    @DisplayName("PROCESSING과_UPLOADED_자산은_삭제_대상이_아니므로_만료예정시각이_null이다")
+    void nonDeletableStatusesHaveNoExpiry() {
+        // given
+        stubRetentionDays(7, 1);
+        stubLastLabelSavedAt();
+
+        // when
+        List<PortalUploadResponse> res = listAll(
+                asset(1L, LsPortalUld.STTS_PROCESSING, REG_DT, REG_DT),
+                asset(2L, LsPortalUld.STTS_UPLOADED, REG_DT, REG_DT));
+
+        // then
+        assertThat(res.get(0).expiresAt()).isNull();
+        assertThat(res.get(1).expiresAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("보존기간_설정을_7에서_14로_바꾸고_다시_조회하면_만료예정시각이_갱신된다_AC033")
+    void expiryIsRecomputedWhenRetentionSettingChanges() {
+        // given: 7일로 한 번 조회
+        stubRetentionDays(7, 1);
+        stubLastLabelSavedAt();
+        LsPortalUld ready = asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT);
+        assertThat(listAll(ready).get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
+
+        // when: 설정만 14일로 변경 후 같은 자산을 재조회 (저장된 값이 아니라 파생값이어야 한다)
+        stubRetentionDays(14, 1);
+        List<PortalUploadResponse> res = listAll(ready);
+
+        // then: 캐시 고착 없이 새 설정값으로 재계산
+        assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(14));
+    }
+
+    @Test
+    @DisplayName("보존기간_설정이_없으면_만료예정시각만_null이고_목록_조회는_성공한다")
+    void missingRetentionConfigNullsOnlyTheField() {
+        // given: 설정 행 부재 — getInt 가 예외를 던진다(이 3키는 폴백하지 않는다)
+        when(systemConfigService.getInt(any()))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 없음"));
+        stubLastLabelSavedAt();
+
+        // when
+        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+
+        // then: 500 으로 깨지지 않고 그 필드만 비운다
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).uldSn()).isEqualTo(1L);
+        assertThat(res.get(0).expiresAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("목록_3건이어도_라벨_집계쿼리와_설정조회는_각_1회다_N플러스1_부재")
+    void listDoesNotIssuePerRowQueries() {
+        // given: 자산 3건
+        stubRetentionDays(7, 1);
+        stubLastLabelSavedAt(1L, REG_DT.plusDays(1));
+
+        // when
+        List<PortalUploadResponse> res = listAll(
+                asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT),
+                asset(2L, LsPortalUld.STTS_READY, REG_DT, REG_DT),
+                asset(3L, LsPortalUld.STTS_FAILED, REG_DT, REG_DT));
+
+        // then: 행 수와 무관하게 집계 1회 + 설정 키별 1회
+        assertThat(res).hasSize(3);
+        verify(lblRepository, times(1)).findMaxRegDtGroupedByUldSn(eq(ALICE), any());
+        verify(systemConfigService, times(1)).getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS);
+        verify(systemConfigService, times(1)).getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS);
+    }
+
+    @Test
+    @DisplayName("빈_목록이면_라벨_집계쿼리도_설정조회도_하지_않는다")
+    void emptyListSkipsLookups() {
+        // given / when
+        List<PortalUploadResponse> res = listAll();
+
+        // then
+        assertThat(res).isEmpty();
+        verify(lblRepository, never()).findMaxRegDtGroupedByUldSn(any(), any());
+        verify(systemConfigService, never()).getInt(any());
+    }
+
+    @Test
+    @DisplayName("자산_상세응답에도_목록과_동일한_만료예정시각이_실린다")
+    void detailCarriesExpiry() {
+        // given
+        stubRetentionDays(7, 1);
+        LocalDateTime labelSavedAt = REG_DT.plusDays(2);
+        stubLastLabelSavedAt(42L, labelSavedAt);
+        LsPortalUld uld = asset(42L, LsPortalUld.STTS_READY, REG_DT, REG_DT);
+        when(uldRepository.findByUldSnAndPortalUserNo(42L, ALICE)).thenReturn(Optional.of(uld));
+        when(frmeRepository.findAllByUldSnOrderByFrmeNo(42L)).thenReturn(List.of());
+
+        // when
+        PortalUploadDetailResponse res = service.getUpload(42L, ALICE);
+
+        // then
+        assertThat(res.expiresAt()).isEqualTo(labelSavedAt.plusDays(7));
+        verify(lblRepository, times(1)).findMaxRegDtGroupedByUldSn(eq(ALICE), any());
     }
 
     // ======================== 프레임 목록 IDOR (#7) ========================

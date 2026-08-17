@@ -53,6 +53,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       (설계 ERD-023 이 규정한 참조 무결성이 구현에서만 빠져 있었다). 고아 댓글을 먼저 정리한 뒤
  *       제약을 건다. V5·V7·V8·V9 와 같은 이유로 <b>신규 설치도 FK 없이 만들어진 뒤 여기서 부착</b>된다
  *       (no-op 이 아니다)</li>
+ *   <li>{@code V11} — 포털 보존기간 설정 3키 시드({@code portal.datamart.retention-days} ·
+ *       {@code portal.upload.retention-days} · {@code portal.upload.failed-retention-days}).
+ *       이 3키를 읽는 삭제 배치는 값이 없을 때 상수로 폴백하지 않고 그 회차를 건너뛰므로
+ *       (파괴적 기능의 fail-open 차단), <b>시드가 없으면 기능이 죽은 채 배포된다</b> — 즉
+ *       「폴백 금지」와 이 시드는 세트다. {@code ON CONFLICT DO NOTHING} 이라 재적용이 운영자가
+ *       바꿔 둔 값을 되돌리지 않는다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -88,7 +94,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "9001");
     }
 
     @Test
@@ -105,6 +111,7 @@ class FlywaySquashBaselineIT {
                         // ⚠ 순서는 <파일명 사전순>이다(listSql 의 sorted). 'V10' 은 두 자리라
                         //   'V1__' 보다 앞에 온다('0' < '_') — 버전 번호 순이 아니다.
                         "V10__add_ls_issue_comment_issue_fk.sql",
+                        "V11__seed_portal_retention_config.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",

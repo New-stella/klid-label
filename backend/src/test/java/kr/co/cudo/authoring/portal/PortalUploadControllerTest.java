@@ -262,6 +262,39 @@ class PortalUploadControllerTest {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * 실 스택(실 DB + V11 시드 + 신설 집계 JPQL)에서 만료 예정 시각이 실제로 실려 나오는지 확인한다.
+     * @design AC-033, DFEAT-055
+     *
+     * <p>단위 테스트는 리포지토리를 mock 하므로 집계 쿼리가 <b>실행되는지</b>는 검증하지 못한다.
+     * 여기서만 실 쿼리가 돌고, 보존기간 설정 행({@code portal.upload.retention-days})이 시드로
+     * 실재하는지도 함께 드러난다(시드가 없으면 값이 null 로 내려와 이 테스트가 깨진다).
+     */
+    @Test
+    @DisplayName("업로드_직후_목록과_상세에_보존기간_만료예정시각이_등록일_기준으로_실린다")
+    void listAndDetailCarryExpiresAt() throws Exception {
+        long uldSn = uploadOk(aliceToken, file("a.png", PNG)).get(0).path("uldSn").asLong();
+
+        MvcResult listResult = mockMvc.perform(
+                        get("/v1/portal/uploads").header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode row = new ObjectMapper().readTree(listResult.getResponse().getContentAsString())
+                .path("data").path("content").get(0);
+
+        // READY 자산이므로 등록일 + portal.upload.retention-days(시드 7일)
+        java.time.LocalDateTime regDt = java.time.LocalDateTime.parse(row.path("regDt").asText());
+        assertThat(row.path("expiresAt").isNull()).isFalse();
+        assertThat(java.time.LocalDateTime.parse(row.path("expiresAt").asText()))
+                .isEqualTo(regDt.plusDays(7));
+
+        // 상세도 같은 값 — 목록과 판정기를 공유한다.
+        mockMvc.perform(get("/v1/portal/uploads/" + uldSn)
+                        .header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expiresAt").value(regDt.plusDays(7).toString()));
+    }
+
     @Test
     @DisplayName("목록조회_type필터_IMAGE만_반환")
     void listTypeFilterImage() throws Exception {

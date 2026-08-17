@@ -1,0 +1,67 @@
+{
+  "item": {
+    "id": "AC-033",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "만료 예정 시각은 조회 시점 설정값 기준 파생값이다",
+    "slug": "만료-예정-시각은-조회-시점-설정값-기준-파생값이다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "클라이언트가 이 값을 캐시해 두면 설정 변경이 화면에 즉시 반영되지 않는다 — 응답 필드 설명에 이 성질을 명시해야 한다(API-115/API-140/API-142 문서화 대상).",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "응답의 myLabelExpiresAt 이 저장일+14일로 갱신되어 내려온다(값이 DB 컬럼으로 고정 저장된 것이 아니라 조회마다 재계산된다)"
+        ],
+        "when": [
+          "관리자가 portal.datamart.retention-days 를 14일로 변경한 다음 같은 사용자가 다시 영상 목록을 조회한다"
+        ],
+        "given": [
+          "데이터마트 영상에 본인 저장 라벨이 있고 portal.datamart.retention-days 가 7일로 설정되어 있다",
+          "이 상태에서 영상 목록을 조회해 myLabelExpiresAt 값을 확인했다(저장일+7일)"
+        ],
+        "and_examples": [
+          {
+            "case": "업로드 축 자산 목록/상세 응답의 expiresAt 도 동일하게 portal.upload.retention-days 설정 변경을 즉시 반영한다",
+            "result": "두 축 모두 설정값을 캐시하지 않고 매 조회시 재계산한다"
+          }
+        ]
+      },
+      "statement": "응답의 만료 예정 시각은 저장되지 않는 파생값이며, 보존기간 설정이 바뀌면 이미 저장된 라벨의 만료 예정도 다음 조회부터 즉시 달라진다",
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — 응답 필드 신설(API-115/140/142)의 성질을 고정한다.",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "capability-add"
+        ]
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-024"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
+    "change_summary": "한글 오타 재정정 — 직전 patch 에서 다시 잘못된 이스케이프(컴럼)를 넣은 것을 기계 검증된 이스케이프(컬럼)로 정정",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T01:13:05.584Z",
+    "created_at": "2026-08-17T01:10:00.652Z"
+  }
+}

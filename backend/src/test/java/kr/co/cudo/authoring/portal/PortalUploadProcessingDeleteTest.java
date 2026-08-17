@@ -39,7 +39,11 @@ class PortalUploadProcessingDeleteTest {
                 5_368_709_120L, List.of("mp4"), "./storage/raw/portal",
                 List.of("jpg"), 20_971_520L, 50, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        PortalUploadService service = new PortalUploadService(uldRepository, frmeRepository, props);
+        PortalUploadService service = new PortalUploadService(uldRepository, frmeRepository, props,
+                mock(kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository.class),
+                new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
+                        mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
+                new kr.co.cudo.authoring.portal.service.PortalStoragePathGuard(props));
 
         LsPortalUld uld = LsPortalUld.createVideo(OWNER, "v.mp4", "/p/v.mp4", 1024L, "video/mp4");
         setField(uld, "uldSttsCd", LsPortalUld.STTS_PROCESSING);

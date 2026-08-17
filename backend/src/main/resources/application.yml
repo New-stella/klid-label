@@ -579,6 +579,16 @@ portal:
     sweep:
       interval-ms: ${PORTAL_SWEEP_INTERVAL_MS:1800000}             # 30 m 주기
       initial-delay-ms: ${PORTAL_SWEEP_INITIAL_DELAY_MS:600000}    # 부팅 후 10 m 뒤 첫 실행
+  # 보존기간 만료 자동 삭제 잡(PortalRetentionSweepJob) 스케줄 — 데이터마트 라벨 + 업로드 자산 2축.
+  #   ★ 보존일수(portal.datamart.retention-days 등)는 여기가 아니라 LS_SYSTEM_CONFIG 가 소유한다
+  #     (REVIEWER 가 화면에서 조정). 여기 있는 것은 <스윕 주기>뿐이며, 주기를 바꿔도 보존기간은
+  #     달라지지 않는다 — 삭제 시점 판정은 언제나 커트라인이 한다.
+  #   보존기간은 일 단위라 1 h 주기로 충분하다. 기동 직후 마이그레이션·캐시 준비와 겹치지 않게
+  #   초기 지연을 형제 스윕보다 길게 둔다.
+  retention:
+    sweep:
+      interval-ms: ${PORTAL_RETENTION_SWEEP_INTERVAL_MS:3600000}          # 1 h 주기
+      initial-delay-ms: ${PORTAL_RETENTION_SWEEP_INITIAL_DELAY_MS:900000} # 부팅 후 15 m 뒤 첫 실행
 
 # UC018 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).
@@ -785,6 +795,16 @@ resilience4j:
       #    timeout-duration=0: 대기 없이 즉시 429.
       portalUserLabel:
         limit-for-period: 300
+        limit-refresh-period: 1m
+        timeout-duration: 0
+      # API-203 (CWE-770) — 포털 데이터마트 작업 데이터 ZIP 다운로드 사용자별 요청량 제한 config.
+      #  - per-user 이름(portalDatamartDownload-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - 한도 근거: 산출물에 비식별 영상이 포함되면 한 요청의 입출력 부담이 크므로 연타를 막는다
+      #    (사용자 확정 — 분당 3회). timeout-duration=0: 대기 없이 즉시 429.
+      #  - ⚠ 형제 제한기와 동일하게 <노드별 in-memory> 라 2노드에서는 실질 한도가 2배다.
+      #    이는 인지·수용된 성질이며 이를 이유로 분산 제한기를 도입하지 않는다.
+      portalDatamartDownload:
+        limit-for-period: 3
         limit-refresh-period: 1m
         timeout-duration: 0
 
