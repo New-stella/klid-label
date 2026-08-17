@@ -1,7 +1,12 @@
 # DOMAIN-013 포털 — 구현 진입점
 
 > 이 문서는 결정적 생성물이다. ITEM 본문은 각 `[[ID]]` 파일이 진실원이며 여기 옮겨 적지 않는다.
-> 스코프 정본은 `.kit-scope.json`(66건) · 버전은 `version-master.md`.
+> 스코프 정본은 `.kit-scope.json`(76건, 2026-08-17 재동기화로 66건→76건) · 버전은 `version-master.md`.
+>
+> **2026-08-17 구현 라운드 반영(브랜치 `domain-check`, 커밋 `8b03f184`)**: 포털 작업 데이터 ZIP 다운로드(API-203) +
+> 보존기간 만료 자동삭제 배치(DFEAT-055, 2축) + 만료 예정 시각 3응답 노출(API-115/140/142 개정) + 실경로 판정 단일화(AC-037).
+> 구현 ITEM: `API-203`·`DFEAT-055`·`AC-032`(in_progress)·`AC-033`·`AC-034`·`AC-035`·`AC-036`·`AC-037`·`API-115`·`API-140`·`API-142`·`DFEAT-044`·`UC-024`(in_progress).
+> IMPREC 기록은 `IMPREC-008`~`IMPREC-020`(13건). 아래 "구현 현황" 표·인덱스는 이 라운드 실측으로 갱신했다.
 
 ## 도메인 (bounded context)
 
@@ -50,19 +55,37 @@
 | 13 | C4 컴포넌트 | [[CMP-009]] |
 | 14 | INT 외부 연동 | [[INT-009]] |
 | 15 | SD 고충실 시안 | [[SD-024]] · [[SD-025]] · [[SD-026]] · [[SD-027]] |
+| — | AC 수용(2026-08-17 재동기화 신설) | [[AC-032]] · [[AC-033]] · [[AC-034]] · [[AC-035]] · [[AC-036]] · [[AC-037]] |
+| — | APP_SHELL / NAVIGATION_TREE(2026-08-17 재동기화 신설) | [[SHELL-002]] · [[NAV-002]] |
 
-> ⚠ 이번 키트에 **0건**인 단계: CONST 상수값, AC 수용, FEAT 상위 기능 — 해당 축은 설계가 없거나 `domain_id` 미설정이다.
+> ⚠ 이번 키트에 **0건**인 단계: CONST 상수값, FEAT 상위 기능 — 해당 축은 설계가 없거나 `domain_id` 미설정이다(전역 각 2건/9건, 도메인 미설정으로 전량 누락 — `version-master.md` 참조).
+> **구 서술 정정(2026-08-17)** — *"AC 수용 0건"* 은 더 이상 사실이 아니다. 2026-08 다운로드 재동기화로 `AC-032`~`AC-037` 6건이 신설됐다(`acceptance/` 디렉터리 실측 6건). `APP_SHELL`(SHELL-002)·`NAVIGATION_TREE`(NAV-002)도 이번에 처음 추가된 타입이다.
 
 ## 구현 현황 (ITEM 의 implementation 필드 — 설계 쪽 주장)
 
+> ⚠ **2026-08-17 라운드 갱신** — 아래 건수·표는 2026-08-17 다운로드 시점(로컬 키트 스냅샷, 전부 `planned/0`)에
+> 이번 구현 라운드에서 실제로 생성한 IMPREC(`IMPREC-008`~`IMPREC-020`, 13건)의 결과를 **수기로 반영**한 값이다.
+> 로컬 `.md` 파일 본문 자체(`## implementation` 섹션)는 아직 `planned/0` 그대로다 — 최신 상태를 보려면
+> LogiCraft 에서 재조회하거나 `/mc-logi-implement-kit` SYNC 를 다시 돌려야 한다. **이 라운드가 손대지 않은
+> 나머지 항목(NFR·ERD·SEQ·SCREEN·ROLE 등)은 재검증하지 않았으므로 표의 기존 값을 그대로 두었다.**
+
 | status | 건수 |
 |---|---|
-| planned | 30 |
-| implemented | 26 |
-| (미기재) | 10 |
+| planned | 28 (30 − DFEAT-044 − UC-024) |
+| implemented | 34 (26 + DFEAT-044 + API-203 + DFEAT-055 + AC-033~037[5건]) |
+| in_progress | 2 (UC-024 + AC-032) |
+| (미기재) | 12 (기존 10 + SHELL-002·NAV-002 — 이 타입은 구현 필드 자체가 없다) |
 
 | ITEM | type | status | progress |
 |---|---|---|---|
+| [[API-203]] | api_endpoint | implemented | 100 |
+| [[DFEAT-055]] | domain_feature | implemented | 100 |
+| [[AC-033]] | acceptance | implemented | 100 |
+| [[AC-034]] | acceptance | implemented | 100 |
+| [[AC-035]] | acceptance | implemented | 100 |
+| [[AC-036]] | acceptance | implemented | 100 |
+| [[AC-037]] | acceptance | implemented | 90 |
+| [[AC-032]] | acceptance | in_progress | 70 |
 | [[API-024]] | api_endpoint | implemented | 100 |
 | [[API-081]] | api_endpoint | implemented | 100 |
 | [[API-082]] | api_endpoint | implemented | 100 |
@@ -90,7 +113,7 @@
 | [[INT-009]] | integration_point | implemented | 0 |
 | [[SCREEN-029]] | screen_spec | implemented | 100 |
 | [[DFEAT-043]] | domain_feature | planned | 0 |
-| [[DFEAT-044]] | domain_feature | planned | 0 |
+| [[DFEAT-044]] | domain_feature | implemented | 100 |
 | [[ERD-018]] | erd | planned | 0 |
 | [[ERD-026]] | erd | planned | 0 |
 | [[ERD-028]] | erd | planned | 0 |
@@ -117,7 +140,7 @@
 | [[SCREEN-034]] | screen_spec | planned | 0 |
 | [[SEQ-016]] | diagram_sequence | planned | 0 |
 | [[SEQ-019]] | diagram_sequence | planned | 0 |
-| [[UC-024]] | use_case | planned | 0 |
+| [[UC-024]] | use_case | in_progress | 70 |
 | [[UC-027]] | use_case | planned | 0 |
 
 > ⚠ 이 표는 **설계가 스스로 적은 주장**이다. 코드와 대조되지 않았다 — 그 대조가 `/mc-logi-implement-review` 의 몫이다.
@@ -152,7 +175,8 @@
 ### domain_event (1)
 - [[EVT-012]] — PortalVideoUploaded
 
-### api_endpoint (22)
+### api_endpoint (23)
+- [[API-203]] — GET /v1/portal/datamart/videos/{rawSn}/download (2026-08 신설)
 - [[API-024]] — GET /v1/manage/labels
 - [[API-081]] — GET /v1/portal/datamart/labels
 - [[API-082]] — POST /v1/portal/user-labels
@@ -176,10 +200,19 @@
 - [[API-169]] — PATCH /v1/portal/uploads/tus/{uldId}
 - [[API-171]] — DELETE /v1/portal/uploads/tus/{uldId}
 
-### domain_feature (3)
+### domain_feature (4)
 - [[DFEAT-043]] — 데이터마트 영상 등록·기존 라벨 Load
 - [[DFEAT-044]] — 포털 사용자 라벨 수정·저장·다운로드 (사용자별 격리)
 - [[DFEAT-053]] — 포털 자산 업로드·수동 라벨링
+- [[DFEAT-055]] — 포털 작업 데이터 보존기간 만료 자동 삭제 (데이터마트·업로드 공통, 2026-08 신설)
+
+### acceptance (6, 2026-08 신설)
+- [[AC-032]] — 데이터마트 다운로드 — 보존기간 경계에서 GONE 전환
+- [[AC-033]] — 만료 예정 시각은 조회 시점 설정값 기준 파생값이다
+- [[AC-034]] — 비식별 영상 부재 시 다운로드는 라벨·이미지만 담는다
+- [[AC-035]] — 데이터마트 다운로드는 본인 저장 라벨만 담는다
+- [[AC-036]] — 처리 중인 업로드 자산은 보존기간 만료 삭제 대상이 아니다
+- [[AC-037]] — 실패한 업로드 자산은 더 짧은 보존기간으로 삭제된다
 
 ### diagram_sequence (2)
 - [[SEQ-016]] — 포털 데이터마트 라벨 작업 — 영상 선택부터 본인 작업 라벨 저장까지
@@ -217,3 +250,23 @@
 - [[SD-025]] — SCREEN-029 포털 라벨링 화면
 - [[SD-026]] — SCREEN-033 포털 업로드 화면
 - [[SD-027]] — SCREEN-034 포털 업로드 라벨링 화면
+
+### app_shell (1, 2026-08 신설)
+- [[SHELL-002]] — 포털 채널 셸
+
+### navigation_tree (1, 2026-08 신설)
+- [[NAV-002]] — 포털 메뉴 (PORTAL)
+
+## 운영 전 확인 잔여 (2026-08-17 라운드 기준)
+
+- ① **폐기 프레임 축 결정 대기** — 이번 라운드는 다운로드·보존기간 삭제만 다뤘고, 프레임 폐기(discard)
+  축과의 상호작용(예: 폐기된 프레임이 ZIP 에 포함되는지)은 별도 확정이 필요하다.
+- ② **TOCTOU 미검증** — `PortalStoragePathGuard`(AC-037)의 실경로 판정~실제 파일 삭제 사이 심링크
+  교체 경합은 코드 리뷰로만 확인했고, 구조적으로 non-deterministic 이라 결정적 테스트로 재현하지 못했다.
+- ③ **AC-032 통합 검증 미실시** — 보존기간 만료 삭제 배치(축A)와 다운로드 API 의 410 판정이 "같은 사실을
+  가리켜야 한다"는 AC 본문 요구의 end-to-end 통합 시나리오(배치 실행 → 다운로드 요청 → 410 확인)는
+  개별 단위 테스트로만 커버했다.
+- ④ **화면(SCREEN-028) 미구현** — UC-024 main_flow step 4 가 요구하는 "화면은 만료 예정 시각을 미리
+  표시한다"의 프론트엔드는 이번 범위 밖이다. 백엔드 응답 필드(API-115/140/142 의 `myLabelExpiresAt`/
+  `expiresAt`)는 이미 노출돼 있으므로 화면 구현은 `mc-logi-screen-implement` 파이프라인이 그 값을
+  소비하기만 하면 된다.

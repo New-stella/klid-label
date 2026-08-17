@@ -717,7 +717,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 155 | implemented 77 / planned 49 / (미기재) 29 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 47 | implemented 11 / planned 24 / (미기재) 12 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 72 | implemented 22 / planned 34 / (미기재) 16 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 66 | implemented 26 / planned 30 / (미기재) 10 | CONST 상수값, AC 수용, FEAT 상위 기능 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 76 | implemented 34 / in_progress 2 / planned 28 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 50 | implemented 16 / planned 25 / (미기재) 9 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 42 | implemented 13 / planned 22 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 17 / in_progress 1 / planned 27 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
