@@ -184,4 +184,37 @@ describe('PresetListPage', () => {
       expect(screen.queryByTestId('preset-chip-toggle-1')).toBeNull();
     });
   });
+
+  // ── 사양 SCREEN-026 페이지 크기 회귀 가드 ───────────────────────────
+
+  /**
+   * ★한 페이지에 **9건**이다(사양 SCREEN-026 — 카드 그리드 절·페이지네이션 절 양쪽에 명시).
+   *
+   * 구 구현은 10건이었다. 그리드가 xl 에서 3열이라 9면 마지막 줄이 정확히 차지만 10이면 카드
+   * 하나만 남은 줄이 생긴다. 경계(10번째 카드)를 직접 본다 — 총 페이지 수만 세면 9든 10이든
+   * 같은 값이 나오는 모수가 있어 가드가 헐거워진다.
+   */
+  it('한_페이지에_9건까지만_보이고_10번째는_다음_페이지에_있다', async () => {
+    // given: 프리셋 10개 (경계 + 1)
+    const ten = Array.from({ length: 10 }, (_, i) => ({
+      ...PRESETS[0],
+      id: 100 + i,
+      name: `프리셋${String(i).padStart(2, '0')}`,
+    }));
+    mock.onGet('/manage/presets').reply(200, ok(ten));
+
+    // when
+    renderWithProviders(<PresetListPage />);
+    await screen.findByText('프리셋00');
+
+    // then ① 1페이지에는 앞 9건만 — 10번째(프리셋09)는 없다
+    expect(screen.getByText('프리셋08')).toBeInTheDocument();
+    expect(screen.queryByText('프리셋09')).toBeNull();
+    expect(screen.getAllByTestId(/^preset-event-/)).toHaveLength(9);
+
+    // then ② 나머지 1건은 2페이지에 있다
+    await userEvent.click(screen.getByRole('button', { name: '2페이지' }));
+    expect(await screen.findByText('프리셋09')).toBeInTheDocument();
+    expect(screen.queryByText('프리셋00')).toBeNull();
+  });
 });

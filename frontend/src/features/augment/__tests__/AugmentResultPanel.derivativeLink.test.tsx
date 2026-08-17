@@ -9,20 +9,24 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
- * Phase 3 — 파생 영상으로 가는 **이동 링크**.
+ * ★파생 영상으로 가는 링크는 **두지 않는다** — 폐기 확정(사양 SCREEN-023, 사용자 확정).
  *
- * 결과 화면에서 "만들어진 파생 영상 자체" 로 갈 수단이 없어 REVIEWER 가 주소를 직접 조립해야 했다.
+ * <h3>왜 성립하지 않는 기능인가</h3>
+ * 증강은 이미지 대 이미지라 파생 영상 파일은 원본(비식별) 영상을 **그대로 복사한 것**이고 바뀐
+ * 것은 **프레임 이미지뿐**이다. 그 영상을 재생하면 증강 전 원본이 나오므로 「생성된 파생 영상
+ * 보기」는 결과 확인 수단이 되지 못한다. 저작도구는 파생영상을 재생·마킹하지 않으며 그 유일한
+ * 소비자는 관제서버다. 결과 확인은 **프레임 비교 그리드와 확대 비교 창**이 전부 담당한다.
  *
- * - 목적지는 rawSn 기반 영상 상세(`/video/{rawSn}`).
- * - 매핑이 없는 항목(그랜드퍼더링 · 생성 실패)은 **오류가 아니라 원래 없는 것**이므로 링크를
- *   그리지 않는다(죽은 링크를 만들지 않는다).
- * - **실삭제된 항목도 그리지 않는다** — BE 는 `newRawSn` 을 폐기 여부와 무관하게 싣는데 실삭제는
- *   `LS_DATA_RAW` 행 자체를 지우므로 그 링크는 404 다. 같은 BE 메서드가 정확히 이 창을 위해
- *   프레임 쌍을 비우고 있고(죽은 이미지 링크 차단), 화면도 "삭제되어 복구할 수 없습니다" 바로 위에
- *   "생성된 영상 상세 보기" 를 그리면 자기모순이 된다(DEV_FIX MEDIUM-③).
- * - 검수 작업 흐름이 끊기지 않도록 새 탭으로 열되 `rel="noopener noreferrer"` 를 붙인다(CWE-1022).
+ * <h3>이 파일이 음성 가드인 이유</h3>
+ * 구 구현은 `derivativeRawSn` 이 있으면 `/video/{rawSn}` 링크를 그렸고, 이 파일은 그 링크의
+ * 목적지·새 탭 속성·죽은 링크 차단(실삭제 · 매핑 부재)을 검증하는 **양성 가드**였다. 기능이
+ * 폐기됐으므로 같은 조건에서 링크가 **그려지지 않는다**를 고정한다 — 조건을 지우고 파일을 없애면
+ * 다음 사람이 "빠뜨린 기능" 으로 보고 되살린다.
+ *
+ * ⚠ 응답 필드 `derivativeRawSn` 자체는 BE 계약이라 그대로 둔다. 지운 것은 이 화면의 링크 렌더뿐이며,
+ * 그래서 아래 케이스들은 그 필드를 **실어 보낸 채로** 링크 부재를 확인한다.
  */
-describe('AugmentResultPanel 파생 영상 이동 링크', () => {
+describe('AugmentResultPanel 파생 영상 이동 링크 (폐기 — 렌더되지 않는다)', () => {
   let mock: MockAdapter;
 
   const base: AugmentResult = {
@@ -62,76 +66,18 @@ describe('AugmentResultPanel 파생 영상 이동 링크', () => {
     useAuthStore.getState().clear();
   });
 
-  it('derivativeRawSn_이_있으면_파생영상_상세로_가는_링크가_새_탭으로_렌더된다', () => {
-    // given/when
+  it('derivativeRawSn_이_유효해도_파생영상_링크를_그리지_않는다', () => {
+    // given — 구 구현이라면 `/video/512` 링크를 그렸을 조건
     renderPanel({ ...base, derivativeRawSn: 512 });
 
-    // then
-    const link = screen.getByTestId('augment-derivative-link');
-    expect(link).toHaveAttribute('href', '/video/512');
-    expect(link).toHaveAttribute('target', '_blank');
-    // 탭 하이재킹 방어 (CWE-1022)
-    expect(link.getAttribute('rel') ?? '').toContain('noopener');
-    expect(link.getAttribute('rel') ?? '').toContain('noreferrer');
-  });
-
-  it('derivativeRawSn_이_없으면_링크가_렌더되지_않는다', () => {
-    // given — 그랜드퍼더링 항목엔 매핑 자체가 없다
-    renderPanel(base);
-
-    // then
+    // then — 링크도, 그 문구도 없다
     expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
+    expect(screen.queryByText(/생성된 영상 상세 보기/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /영상 상세/ })).not.toBeInTheDocument();
   });
 
-  it('derivativeRawSn_이_유효하지_않으면_링크가_렌더되지_않는다', () => {
-    // given — BE 가 null 로 내려주는 필드라 0/음수 같은 값도 죽은 링크로 만들지 않는다
-    renderPanel({ ...base, derivativeRawSn: 0 });
-
-    // then
-    expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
-  });
-
-  it('derivativeRawSn_이_null_이면_링크가_렌더되지_않는다', () => {
-    // given — BE 계약상 실제로 오는 값(매핑 없는 항목)
-    renderPanel({ ...base, derivativeRawSn: null });
-
-    // then
-    expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
-  });
-
-  /**
-   * ★ 실삭제분 회귀 가드 — `derivativeRawSn > 0` 만 보면 **죽은 링크**가 남는다.
-   *
-   * 실삭제는 파생 `LS_DATA_RAW` 행을 실제로 지우므로 `/video/{rawSn}` 은 404 다. 그런데 BE 는
-   * `newRawSn` 을 폐기 여부와 무관하게 실어 보낸다 — 판정은 BE 가 이미 말해준 사실
-   * (`discard.purged`)로 한다.
-   */
-  it('실삭제된_항목에는_파생영상_링크를_그리지_않는다', () => {
-    // given — 유예 경과로 실삭제 커밋됨. BE 는 newRawSn 을 계속 싣는다.
-    renderPanel({
-      ...base,
-      decision: 'REJECTED',
-      derivativeRawSn: 512,
-      resultState: 'PURGED',
-      restoreEligible: false,
-      discard: {
-        discardedAt: '2026-07-20T09:00:00',
-        purgeAt: '2026-07-27T09:00:00',
-        purged: true,
-        restorable: false,
-      },
-    });
-
-    // then — "삭제되어 복구할 수 없습니다" 안내와 링크가 공존하면 자기모순이다
-    expect(screen.getByTestId('decision-discard')).toHaveAttribute(
-      'data-purged',
-      'true',
-    );
-    expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
-  });
-
-  it('폐기_유예중인_항목에는_파생영상_링크가_그대로_보인다', () => {
-    // given — 아직 실재하므로 이동할 수 있어야 한다(purged 만 막는다 — 폐기 전체를 막지 않는다)
+  it('폐기_유예중인_항목에도_파생영상_링크가_없다', () => {
+    // given — 구 구현은 실삭제 전(purged=false)이면 링크를 그렸다
     renderPanel({
       ...base,
       decision: 'REJECTED',
@@ -146,9 +92,70 @@ describe('AugmentResultPanel 파생 영상 이동 링크', () => {
     });
 
     // then
-    expect(screen.getByTestId('augment-derivative-link')).toHaveAttribute(
-      'href',
-      '/video/512',
-    );
+    expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
+  });
+
+  it('실삭제된_항목에도_파생영상_링크가_없다', () => {
+    // given — 구 구현도 이 창은 막았다. 폐기 이후에도 그 결과는 같아야 한다.
+    renderPanel({
+      ...base,
+      decision: 'REJECTED',
+      derivativeRawSn: 512,
+      resultState: 'PURGED',
+      restoreEligible: false,
+      discard: {
+        discardedAt: '2026-07-20T09:00:00',
+        purgeAt: '2026-07-27T09:00:00',
+        purged: true,
+        restorable: false,
+      },
+    });
+
+    // then — 폐기 안내는 그대로 뜨고 링크만 없다
+    expect(screen.getByTestId('decision-discard')).toHaveAttribute('data-purged', 'true');
+    expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
+  });
+
+  /**
+   * 링크 제거가 **다른 표시를 함께 지우지 않았는지** 확인한다 — 제거 범위를 링크 블록으로
+   * 한정했다는 사실을 코드가 아니라 화면으로 고정한다.
+   */
+  it('링크가_사라져도_진행_패널_생성조건_프레임비교_결정카드는_그대로다', async () => {
+    // given — 프레임 쌍 1건 + 생성 조건 + 결정 카드가 모두 있는 항목
+    mock.onGet(/\/augments\/\d+\/progress$/).reply(200, {
+      success: true,
+      data: { total: 1, done: 1, failed: 0, state: 'READY' },
+      message: null,
+      errorCode: null,
+    });
+    renderPanel({
+      ...base,
+      derivativeRawSn: 512,
+      prompt: '{"time":"낮","season":"겨울","weather":"눈","terrain":"도심","severity":"강"}',
+      framePairs: [
+        {
+          srcSn: 9001,
+          frameNo: 1,
+          originalUrl: '/frames/9001/image',
+          augmentedUrl: '/frames/9001/aug',
+        },
+      ],
+      totalFramePairs: 1,
+    });
+
+    // then — 패널 골격이 그대로 남아 있다
+    expect(screen.getByTestId('augment-result-item-77')).toBeInTheDocument();
+    // 진행 패널 · 생성 조건 요약
+    expect(await screen.findByTestId('augment-progress-77')).toBeInTheDocument();
+    expect(screen.getByTestId('augment-prompt-77')).toBeInTheDocument();
+    // 프레임 비교 영역(그리드)이 살아 있다 — 결과 확인의 유일한 수단이라 특히 중요하다
+    expect(screen.getByTestId('frame-grid-12')).toBeInTheDocument();
+    expect(screen.getByTestId('frame-pair-9001')).toBeInTheDocument();
+    expect(screen.queryByTestId('augment-result-no-pairs-77')).not.toBeInTheDocument();
+    // 결정 카드(채택/반려)도 그대로
+    expect(screen.getByTestId('decision-card')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '채택' })).toBeInTheDocument();
+    // 그리고 그 사이 어디에도 파생영상 링크는 없다
+    expect(screen.queryByTestId('augment-derivative-link')).not.toBeInTheDocument();
   });
 });

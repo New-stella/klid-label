@@ -10,6 +10,8 @@ import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Upload } from 'lucide-react';
 
+import { ErrorState } from '@/components/common/ErrorState';
+import { Pagination } from '@/components/common/Pagination';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { cn } from '@/lib/cn';
@@ -33,6 +35,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const PORTAL_TUS_ENDPOINT = '/portal/uploads/tus';
+/** 목록 한 페이지 건수. */
+const PAGE_SIZE = 20;
 /** 포털 영상 허용 확장자(BE 와 동일: mp4/mov/avi). accept 1차 가드 — 최종 검증은 서버. */
 const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi';
 
@@ -53,7 +57,9 @@ function deleteErrorMessage(error: unknown): string {
 }
 
 export function PortalUploadPage() {
-  const uploadsQuery = usePortalUploads({ page: 0, size: 20 });
+  // 목록 페이지는 화면 안에서만 쓰인다(이 화면은 주소로 상태를 나르지 않는다 — 검색·필터가 없다).
+  const [page, setPage] = useState(0);
+  const uploadsQuery = usePortalUploads({ page, size: PAGE_SIZE });
   const uploadImages = useUploadImages();
   const deleteUpload = useDeleteUpload();
 
@@ -61,6 +67,7 @@ export function PortalUploadPage() {
     () => uploadsQuery.data?.content ?? [],
     [uploadsQuery.data],
   );
+  const totalPages = uploadsQuery.data?.totalPages ?? 0;
 
   // ── 이미지 선택/검증 상태 ──
   const [selected, setSelected] = useState<File[]>([]);
@@ -239,6 +246,17 @@ export function PortalUploadPage() {
         )}
         {uploadsQuery.isLoading ? (
           <p className="text-sub text-gray-500">목록을 불러오는 중…</p>
+        ) : uploadsQuery.isError ? (
+          /*
+           * 조회 실패는 빈 상태와 반드시 구분한다. React Query 는 실패 시 data 를 undefined 로
+           * 두므로 목록이 [] 가 되는데, 그것을 "0건" 으로 그리면 사용자는 **서버 오류를 자기
+           * 자산이 사라진 것으로 오해**한다. 문구가 그 오해를 직접 부정한다.
+           */
+          <ErrorState
+            title="목록을 불러올 수 없습니다"
+            message="잠시 후 다시 시도해 주세요. 올린 자산이 사라진 것은 아닙니다."
+            onRetry={() => void uploadsQuery.refetch()}
+          />
         ) : uploads.length === 0 ? (
           <p className="text-sub text-gray-500">업로드한 자산이 없습니다.</p>
         ) : (
@@ -252,6 +270,10 @@ export function PortalUploadPage() {
               />
             ))}
           </ul>
+        )}
+        {/* 전체가 한 페이지에 들어오면 페이저를 그리지 않는다. */}
+        {totalPages > 1 && (
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         )}
       </section>
     </div>

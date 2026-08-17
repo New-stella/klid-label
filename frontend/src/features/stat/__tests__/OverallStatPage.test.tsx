@@ -301,11 +301,35 @@ describe('OverallStatPage', () => {
     expect(screen.getByTestId('download-report-btn')).toBeInTheDocument();
   });
 
+  it('헤더에_breadcrumb_설명문_다운로드캡션이_모두_렌더된다', () => {
+    // 구 구현은 제목 + 버튼 텍스트뿐이라 아래 셋이 통째로 빠져 있었다(SCREEN-021 ①).
+    setRole('REVIEWER');
+    renderWithProviders(<OverallStatPage />);
+
+    // ① breadcrumb — 현재 위치. '통계' 는 LNB 그룹명이라 이동 주소가 없다.
+    const crumb = screen.getByRole('navigation', { name: '현재 위치' });
+    expect(within(crumb).getByText('통계')).toBeInTheDocument();
+    expect(within(crumb).getByText('전체 구축 현황')).toBeInTheDocument();
+
+    // ② 화면 설명문
+    expect(
+      screen.getByText(
+        '구축한 학습데이터의 누적량과 처리 현황, 이벤트 유형 분포, 작업자별 현황을 한자리에서 확인합니다.',
+      ),
+    ).toBeInTheDocument();
+
+    // ③ 다운로드 캡션 — 무엇을 받는지(집계 범위·형식)를 누르기 전에 알린다.
+    expect(screen.getByTestId('download-report-note')).toHaveTextContent(
+      '최근 1개월 집계를 CSV 파일로 내려받습니다.',
+    );
+  });
+
   it('OverallStatPage_REVIEWER만_접근', () => {
     // REVIEWER 라우터 가드 검증 — 라우트 정의 자체가 internalReviewerOnly로 잠겨 있는지 확인.
     // 라우트 가드는 별도 가드 테스트(routerGuards)에서 검증되므로 여기선 페이지 렌더 가능 여부만 점검.
     setRole('REVIEWER');
     renderWithProviders(<OverallStatPage />);
-    expect(screen.getByText('전체 구축 현황')).toBeInTheDocument();
+    // breadcrumb 현재 위치에도 같은 문구가 있으므로 제목(heading)으로 특정한다.
+    expect(screen.getByRole('heading', { name: '전체 구축 현황' })).toBeInTheDocument();
   });
 });

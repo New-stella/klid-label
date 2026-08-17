@@ -60,6 +60,13 @@ import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardModal';
+import { DiscardSaveConfirmModal } from '@/features/label/components/DiscardSaveConfirmModal';
+import { DiscardSaveNotice } from '@/features/label/components/DiscardSaveNotice';
+import {
+  NO_DISCARD_CHANGE,
+  hasDiscardChange,
+  summarizeDiscardSave,
+} from '@/features/label/discardSaveSummary';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
@@ -88,6 +95,7 @@ import { useSaveVideoLabels } from '@/features/version/hooks/useSaveVideoLabels'
 import { useVideoVersions } from '@/features/version/hooks/useVideoVersions';
 import {
   captureFrameIntoDraft,
+  discardChangesOf,
   frameOf,
   toLoadedDraft,
   toVideoSavePayload,
@@ -784,19 +792,51 @@ export function LabelingPage() {
     return 'saved';
   };
 
-  const handleSave = async () => {
-    if (!currentFrame) return;
+  /**
+   * R4·R5 — 이번 저장이 <b>실어 보내는</b> 폐기 전환. 「폐기 프레임 저장 확인」 모달의 입력이다.
+   *
+   * <p>저장 축이 둘이라 세는 축도 둘이다(둘 다 <b>보내는 값</b>만 센다 — 서버가 알아서 정하는
+   * 프레임을 추정해 세면 안내가 사실이 아니게 된다):
+   * <ul>
+   *   <li>프레임 단위 저장 — 보내는 값은 {@code discardDraft} 하나이고 기준선은 서버값이다.</li>
+   *   <li>회차 확정 저장 — {@code edits} 에 실린 프레임들이며 기준선은 회차 스냅샷 값이다
+   *       (같은 축으로 세지 않으면 안내와 실제 저장이 갈린다).</li>
+   * </ul>
+   *
+   * <p>포털 저장은 폐기 축을 싣지 않는다(폐기·복원은 내부 파이프라인 산출물 축이라 포털에 없다).
+   */
+  const discardSaveSummary = useMemo(() => {
+    if (portalMode) return NO_DISCARD_CHANGE;
+    if (loadedDraft) {
+      const payload = toVideoSavePayload(loadedDraft, currentFrame?.srcSn, labels, discardDraft);
+      return summarizeDiscardSave(discardChangesOf(loadedDraft, payload));
+    }
+    return summarizeDiscardSave([{ baseline: serverDscdYn, next: discardDraft }]);
+  }, [portalMode, loadedDraft, currentFrame?.srcSn, labels, discardDraft, serverDscdYn]);
+  const [discardSaveConfirmOpen, setDiscardSaveConfirmOpen] = useState(false);
+
+  /**
+   * 저장 공통 차단 조건 — 통과하면 true. 확인 모달을 거치는 경로에서도 <b>같은 판정</b>을 다시 태운다
+   * (모달이 떠 있는 동안 잠금·진행 상태가 바뀔 수 있다).
+   */
+  const canSaveNow = (): boolean => {
+    if (!currentFrame) return false;
     // 중복 제출 차단(FE 방어) — 저장 in-flight 중 Ctrl+S 연타/버튼 재클릭 시 라벨 PUT 이
     // 중복 발화하지 않도록 saving(isPending) 을 선두에서 가드한다.
-    if (saving) return;
-    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) return;
+    if (saving) return false;
+    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) return false;
     if (isLocked) {
       pushToast({
         variant: 'error',
         message: '비식별 재처리 중인 영상은 저장할 수 없습니다.',
       });
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const runSave = async () => {
+    if (!canSaveNow()) return;
     try {
       // 저장 축은 persistPendingWork 한 곳이다(프레임 단위 / 영상 단위 확정 분기 포함).
       const outcome = await persistPendingWork();
@@ -822,6 +862,31 @@ export function LabelingPage() {
         message: extractBeMessage(e, '저장 실패'),
       });
     }
+  };
+
+  /**
+   * 저장 버튼·단축키의 진입점.
+   *
+   * <p>저장에 <b>폐기 상태 변경</b>이 실려 있으면 몇 개가 산출물에서 빠지고 몇 개가 되돌아오는지
+   * 먼저 드러내고 확인을 받는다(SCREEN-005). 폐기는 되돌릴 수 있지만 산출물에서 빠지는 결정이고,
+   * 한번이라도 검수가 완료된 영상에서는 서버가 새 폐기·복원을 막아 되돌릴 회차가 없으면 그 프레임이
+   * 산출물에서 영구 누락된다 — 조용히 저장되면 그 사실이 어디에도 드러나지 않는다.
+   *
+   * <p>⚠ 폐기 변경이 <b>없으면</b> 끼어들지 않는다. 모든 저장에 확인을 끼우면 작업 흐름이 망가진다.
+   */
+  const handleSave = async () => {
+    if (!canSaveNow()) return;
+    if (hasDiscardChange(discardSaveSummary)) {
+      setDiscardSaveConfirmOpen(true);
+      return;
+    }
+    await runSave();
+  };
+
+  /** 확인 모달의 '확인하고 저장' — 기존 저장 축(runSave)을 그대로 탄다(복제·우회 금지). */
+  const handleConfirmDiscardSave = async () => {
+    setDiscardSaveConfirmOpen(false);
+    await runSave();
   };
 
   /**
@@ -1543,7 +1608,9 @@ export function LabelingPage() {
 
       {/* dirty 가드 — X 닫기 시 미저장 변경 확인.
           3-옵션 다이얼로그(저장 후 닫기 / 저장 없이 닫기 / 머무름) 이므로 ConfirmDialog 대신
-          Modal 직접 사용. ESC/백드롭/X = 머무름 (handleStayOnPage). */}
+          Modal 직접 사용. ESC/백드롭/X = 머무름 (handleStayOnPage).
+          R4·R5 — '저장 후 닫기' 도 persistPendingWork(저장 축)를 그대로 타므로, 그 저장이 실어
+          보낼 폐기 전환을 본문에 함께 알린다(변경이 없으면 렌더 없음 — 기존 다이얼로그 그대로). */}
       <Modal
         open={closeConfirmOpen}
         onClose={handleStayOnPage}
@@ -1578,13 +1645,20 @@ export function LabelingPage() {
             </Button>
           </>
         }
-      />
+      >
+        {hasDiscardChange(discardSaveSummary) ? (
+          <DiscardSaveNotice summary={discardSaveSummary} testId="label-close-discard-notice" />
+        ) : null}
+      </Modal>
 
-      {/* R5 — 프레임 이동 미저장 가드(저장 후 이동 / 저장 안 함 / 취소). */}
+      {/* R5 — 프레임 이동 미저장 가드(저장 후 이동 / 저장 안 함 / 취소).
+          R4·R5 — '저장 후 이동' 은 persistPendingWork(저장 축)를 그대로 타므로, 그 저장이 실어
+          보낼 폐기 전환을 본문에 함께 알린다(변경이 없으면 렌더 없음 — 기존 다이얼로그 그대로). */}
       <FrameNavGuardModal
         open={navGuardTarget !== null}
         dirtyCount={dirtyCount}
         saving={navGuardSaving}
+        discardSummary={discardSaveSummary}
         onSaveAndMove={handleNavSaveAndMove}
         onDiscardAndMove={handleNavDiscardAndMove}
         onCancel={handleNavCancel}
@@ -1953,6 +2027,14 @@ export function LabelingPage() {
           }}
         />
       )}
+
+      {/* R4·R5 — 폐기 프레임 저장 확인. 취소해도 편집 상태는 그대로 남는다(동의 없이 버리지 않는다). */}
+      <DiscardSaveConfirmModal
+        open={discardSaveConfirmOpen}
+        summary={discardSaveSummary}
+        onConfirm={handleConfirmDiscardSave}
+        onCancel={() => setDiscardSaveConfirmOpen(false)}
+      />
 
       {/* C-ISSUE-21 — 저장 충돌(409) 안내. 작업 내용을 임의로 버리지 않고 사용자가 선택한다. */}
       <ConfirmDialog

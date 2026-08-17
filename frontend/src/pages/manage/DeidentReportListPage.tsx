@@ -4,6 +4,7 @@ import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
+import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
 import { DeidentResolveDialog } from '@/features/deident/components/DeidentResolveDialog';
 import {
@@ -19,9 +20,16 @@ import {
 import { resolveDisplayName } from '@/lib/displayName';
 import { useUiStore } from '@/stores/useUiStore';
 
+/**
+ * 상태 필터 탭 — 표시 문구는 사양 SCREEN-032 문자열(미처리 / 처리완료)을 따른다.
+ *
+ * ★서버 코드값(OPEN / RESOLVED)을 화면 문구에 노출하지 않는다. 값은 `value` 와 조회
+ * 파라미터에만 있다. 같은 화면의 상태 배지({@link StatusCell})가 이미 이 규칙을 지키고 있어,
+ * 탭만 코드값을 병기하면 한 화면 안에서 같은 상태를 두 이름으로 부르게 된다.
+ */
 const STATUS_TABS: { value: Status; label: string }[] = [
-  { value: DeidentReportStatus.OPEN, label: '미해소(OPEN)' },
-  { value: DeidentReportStatus.RESOLVED, label: '해소됨(RESOLVED)' },
+  { value: DeidentReportStatus.OPEN, label: '미처리' },
+  { value: DeidentReportStatus.RESOLVED, label: '처리완료' },
 ];
 
 const PAGE_SIZE = 20;
@@ -273,29 +281,16 @@ export function DeidentReportListPage() {
               ))}
             </tbody>
           </table>
+          {/*
+            페이저는 공용 컴포넌트(UI-008)를 쓴다 — 사양의 "양끝 + 현재 앞뒤 1칸 + 말줄임"
+            규칙이 그 컴포넌트 한 곳에 있고, 화면마다 다시 만들면 규칙이 갈린다.
+            구 동작은 번호 없는 이전/다음뿐이라 임의 페이지로 건너뛸 수 없었다.
+            총 건수 요약은 공용 페이저가 갖지 않으므로 이 화면이 계속 소유한다
+            (상단 상태 필터 우측의 '{totalElements}건' 배지).
+          */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-gray-50 px-3 py-2 text-caption text-gray-600">
-              <span>
-                전체 {totalElements}건 ({currentPage + 1}/{totalPages} 페이지)
-              </span>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => setPage(Math.max(0, currentPage - 1))}
-                  disabled={currentPage === 0}
-                  className="rounded px-2 py-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  이전
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage(currentPage + 1)}
-                  disabled={currentPage >= totalPages - 1}
-                  className="rounded px-2 py-1 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  다음
-                </button>
-              </div>
+            <div className="border-t border-gray-200 bg-gray-50 px-3 py-2">
+              <Pagination page={currentPage} totalPages={totalPages} onChange={setPage} />
             </div>
           )}
         </div>

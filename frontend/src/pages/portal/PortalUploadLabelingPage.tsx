@@ -5,9 +5,10 @@
 // 이미지 자산=단일 프레임, 영상 자산=프레임 네비게이션. 저장은 현재 프레임 전체교체 PUT 1회.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -239,6 +240,23 @@ export function PortalUploadLabelingPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/*
+        뒤로가기 — 이 화면에는 이탈 경로가 전혀 없어 브라우저 뒤로가기에만 의존하고 있었다(SCREEN-034).
+        ⚠ 목적지는 시안 골격에 없다(설계 노트: "뒤로가기의 목적지 미확인"). 이 화면에 도달하는
+        유일한 진입점이 업로드 목록이므로 그곳으로 보내는 보수적 선택이며, 사양이 확정되면 바꾼다.
+        `navigate(-1)` 을 쓰지 않는 이유 — 새 탭·직접 URL 진입에는 돌아갈 history 가 없다.
+      */}
+      <Link
+        to="/portal/uploads"
+        className={cn(
+          'inline-flex w-fit items-center gap-1.5 rounded text-body-md text-gray-600 transition-colors hover:text-gray-800',
+          KRDS_FOCUS,
+        )}
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        뒤로가기
+      </Link>
+
       {/* 헤더 — 파일명/프레임 카운트. 파일명은 텍스트 노드로만 렌더(XSS 무해). */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">

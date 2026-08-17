@@ -103,6 +103,19 @@ describe('PortalUploadLabelingPage', () => {
     vi.restoreAllMocks();
   });
 
+  it('헤더에_업로드_목록으로_돌아가는_뒤로가기가_있다', async () => {
+    // 구 구현은 이탈 경로가 전혀 없어 브라우저 뒤로가기에만 의존했다(SCREEN-034 헤더 좌상단).
+    // ⚠ 목적지는 시안 골격에 없어(설계 노트: 뒤로가기 목적지 미확인) 유일한 진입점인
+    //    업로드 목록으로 보내는 보수적 선택이다.
+    mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
+    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
+
+    renderPage();
+
+    const back = await screen.findByRole('link', { name: '뒤로가기' });
+    expect(back).toHaveAttribute('href', '/portal/uploads');
+  });
+
   it('이미지_자산은_단일_프레임으로_렌더되고_bbox_저장_호출', async () => {
     mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
     mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));

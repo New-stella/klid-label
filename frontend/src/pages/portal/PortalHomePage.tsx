@@ -7,20 +7,48 @@
 // - 라벨링 카드 "시작하기" → 첫 영상 진입 (영상 0건이면 aria-disabled)
 
 import { ChevronRight, Play, Upload } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { KpiCard } from '@/components/common/KpiCard';
+import { Pagination } from '@/components/common/Pagination';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import type { DatamartVideo } from '@/features/portal/api';
 import { useDatamartVideos } from '@/features/portal/hooks/useDatamartVideos';
 
+const PAGE_SIZE = 20;
+
+/**
+ * 주소의 page 값(0부터)을 읽는다. 사용자가 주소를 직접 고칠 수 있으므로 음수·소수·비수치는
+ * 첫 페이지로 가둔다 — 그대로 서버에 실어보내면 조회가 400 으로 떨어져 목록이 통째로 빈다.
+ */
+function parsePageParam(raw: string | null): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.floor(n);
+}
+
 export function PortalHomePage() {
   const navigate = useNavigate();
-  const { data, isLoading } = useDatamartVideos({ page: 0, size: 20 });
+  /*
+   * 페이지는 주소에 둔다 — 뒤로가기·북마크가 동작해야 하고, 내부 목록 화면(공지 등)이
+   * 이미 같은 방식이다. 기본값(첫 페이지)일 때는 키를 넣지 않는다(공지 목록과 같은 관례).
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = parsePageParam(searchParams.get('page'));
+
+  const { data, isLoading } = useDatamartVideos({ page, size: PAGE_SIZE });
 
   const videos: DatamartVideo[] = data?.content ?? [];
   const totalVideos = data?.totalElements ?? 0;
   const hasVideos = videos.length > 0;
+  const totalPages = data?.totalPages ?? 0;
+
+  const handlePageChange = (next: number) => {
+    const sp = new URLSearchParams(searchParams);
+    if (next > 0) sp.set('page', String(next));
+    else sp.delete('page');
+    setSearchParams(sp, { replace: false });
+  };
 
   // BE 가 프레임 0건 영상을 제외하므로 firstSrcSn 은 항상 존재. 첫 영상으로 진입.
   const firstEntry = videos[0]?.firstSrcSn;
@@ -121,6 +149,10 @@ export function PortalHomePage() {
                 </li>
               ))}
             </ul>
+          )}
+          {/* 전체가 한 페이지에 들어오면 페이저를 그리지 않는다(사양 SCREEN-028). */}
+          {totalPages > 1 && (
+            <Pagination page={page} totalPages={totalPages} onChange={handlePageChange} />
           )}
         </section>
 

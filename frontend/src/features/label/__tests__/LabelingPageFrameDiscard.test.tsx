@@ -93,8 +93,10 @@ describe('LabelingPage — 프레임 폐기·복원', () => {
     expect(sentSave).toBeNull();
     expect(screen.getByTestId('frame-discard-pending')).toBeInTheDocument();
 
-    // and: 저장해야 확정된다
+    // and: 저장해야 확정된다 — 폐기 변경이 실렸으므로 확인을 한 번 거친다
+    //   (「폐기 프레임 저장 확인」 — LabelingPageDiscardSaveConfirm.test.tsx 가 그 계약을 고정한다).
     await user.click(screen.getByTestId('label-toolbar-save'));
+    await user.click(await screen.findByTestId('discard-save-confirm-submit'));
 
     // then
     await waitFor(() => expect(sentSave).not.toBeNull());

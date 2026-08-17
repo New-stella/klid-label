@@ -289,10 +289,17 @@ class PortalUploadControllerTest {
                 .isEqualTo(regDt.plusDays(7));
 
         // 상세도 같은 값 — 목록과 판정기를 공유한다.
-        mockMvc.perform(get("/v1/portal/uploads/" + uldSn)
+        // 표기(toString()) 대신 값으로 비교한다 — LocalDateTime.toString()과 Jackson ISO
+        // 직렬화는 초 이하 자리 trailing zero 처리가 갈려(예: ...327450 vs ...32745),
+        // 마이크로초 끝자리가 0일 때만 실패하는 플레이키 테스트가 됐었다(약 10% 확률).
+        MvcResult detailResult = mockMvc.perform(get("/v1/portal/uploads/" + uldSn)
                         .header("Authorization", "Bearer " + aliceToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.expiresAt").value(regDt.plusDays(7).toString()));
+                .andReturn();
+        JsonNode detail = new ObjectMapper().readTree(detailResult.getResponse().getContentAsString())
+                .path("data");
+        assertThat(java.time.LocalDateTime.parse(detail.path("expiresAt").asText()))
+                .isEqualTo(regDt.plusDays(7));
     }
 
     @Test

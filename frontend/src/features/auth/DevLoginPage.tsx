@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Alert } from '@/components/common/Alert';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { apiClient } from '@/lib/api/client';
@@ -86,6 +87,22 @@ interface DevTokenResponse {
 
 const DEFAULT_EXP_SECONDS = 3600;
 
+/**
+ * 오류 안내 — 분류(제목) + 상세(본문). 시안 SCREEN-004 ③ 의 `.alert-title` / `.alert-text` 짝이다.
+ *
+ * 제목은 이 화면이 판단할 수 있는 <b>분류</b>이고, 본문은 서버·브라우저가 돌려준 <b>실제 원인</b>이다.
+ * 원인을 고정 문구로 덮으면 개발자가 무엇 때문에 실패했는지 볼 수 없게 된다(이 화면의 존재 이유가 그 진단이다).
+ */
+interface DevLoginErrorNotice {
+  readonly title: string;
+  readonly description: string;
+}
+
+/** 시안 SCREEN-004 ③ 제목 원문. */
+const ERROR_TITLE_ISSUE = '토큰을 발급하지 못했습니다';
+/** 발급은 됐으나 브라우저 저장에서 막힌 경우 — 발급 실패로 뭉뚱그리면 원인 추적이 어긋난다. */
+const ERROR_TITLE_PERSIST = '토큰을 저장하지 못했습니다';
+
 function presetFor(role: DevRole): RolePreset {
   const found = ROLE_PRESETS.find((p) => p.role === role);
   // ROLE_PRESETS 는 모든 DevRole 을 포함 — 타입상 unreachable
@@ -125,13 +142,13 @@ export function DevLoginPage() {
   // userNo 와 동일한 선택 입력 계약이 깨진다.
   const [expSeconds, setExpSeconds] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [error, setError] = useState<DevLoginErrorNotice | null>(null);
 
   const preset = presetFor(role);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    setErrorMessage(null);
+    setError(null);
     setSubmitting(true);
 
     const trimmedUserNo = userNo.trim();
@@ -149,7 +166,7 @@ export function DevLoginPage() {
       const res = await apiClient.post<DevTokenResponse>('/dev/tokens', body);
       const data = res.data;
       if (!data || typeof data.token !== 'string' || data.token.length === 0) {
-        setErrorMessage('토큰 응답이 비어 있습니다.');
+        setError({ title: ERROR_TITLE_ISSUE, description: '토큰 응답이 비어 있습니다.' });
         return;
       }
 
@@ -157,7 +174,10 @@ export function DevLoginPage() {
       try {
         localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, data.token);
       } catch {
-        setErrorMessage('localStorage 에 토큰을 저장할 수 없습니다.');
+        setError({
+          title: ERROR_TITLE_PERSIST,
+          description: 'localStorage 에 토큰을 저장할 수 없습니다.',
+        });
         return;
       }
       persistControlServerStub(data.claims);
@@ -165,12 +185,16 @@ export function DevLoginPage() {
       // SessionIngressPage 가 localStorage 인계 흐름으로 토큰 검증·라우팅 수행
       navigate('/ingress', { replace: true });
     } catch (err) {
+      // 서버·브라우저가 준 원인 문자열은 그대로 본문에 싣는다(제목만 분류를 말한다).
       if (err instanceof ApiError) {
-        setErrorMessage(err.message ?? '토큰 발급 실패');
+        setError({ title: ERROR_TITLE_ISSUE, description: err.message ?? '토큰 발급 실패' });
       } else if (err instanceof Error) {
-        setErrorMessage(`BE 서버를 확인하세요 (${err.message})`);
+        setError({
+          title: ERROR_TITLE_ISSUE,
+          description: `BE 서버를 확인하세요 (${err.message})`,
+        });
       } else {
-        setErrorMessage('알 수 없는 오류가 발생했습니다.');
+        setError({ title: ERROR_TITLE_ISSUE, description: '알 수 없는 오류가 발생했습니다.' });
       }
     } finally {
       setSubmitting(false);
@@ -257,14 +281,10 @@ export function DevLoginPage() {
           </p>
         </div>
 
-        {errorMessage !== null && (
-          <div
-            role="alert"
-            aria-live="assertive"
-            className="mb-4 rounded border border-danger/30 bg-danger/10 px-3 py-2 text-body-md text-danger-700"
-          >
-            {errorMessage}
-          </div>
+        {error !== null && (
+          <Alert variant="error" aria-live="assertive" title={error.title} className="mb-4">
+            {error.description}
+          </Alert>
         )}
 
         {/* loading prop 대신 disabled 를 쓴다 — 진행 문구('발급 중…')를 그대로 유지하기 위함. */}

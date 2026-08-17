@@ -388,6 +388,38 @@ describe('DeidentReportListPage', () => {
     });
   });
 
+  /**
+   * ★사양 SCREEN-032 — 상태 필터 탭 문구도 배지와 같은 말(미처리 / 처리완료)을 쓴다.
+   *
+   * 구 구현은 탭만 '미해소(OPEN)' · '해소됨(RESOLVED)' 이라 서버 코드값을 사용자에게 노출했고,
+   * 같은 화면의 상태 배지는 이미 사양 문자열을 쓰고 있어 **한 화면이 같은 상태를 두 이름으로**
+   * 부르고 있었다. 표시와 필터 동작 **두 축을 함께** 고정한다 — 문구만 고치고 탭 값이 어긋나면
+   * 필터가 조용히 죽는다.
+   */
+  it('상태_탭_문구에_서버_코드값이_없고_필터_동작은_그대로다', async () => {
+    // given
+    mock.onGet('/deident-reports').reply(200, pageBody([OPEN_ROW]));
+    const user = userEvent.setup();
+
+    // when
+    renderWithProviders(<DeidentReportListPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId('deident-report-row-7')).toBeInTheDocument();
+    });
+
+    // then ① 표시 축 — 탭 문구는 한글뿐이다.
+    const tablist = screen.getByRole('tablist', { name: '신고 상태 필터' });
+    expect(tablist.textContent ?? '').not.toMatch(/OPEN|RESOLVED/);
+    expect(screen.getByTestId('deident-status-tab-OPEN')).toHaveTextContent('미처리');
+    expect(screen.getByTestId('deident-status-tab-RESOLVED')).toHaveTextContent('처리완료');
+
+    // then ② 동작 축 — 탭을 바꾸면 그 상태로 조회한다(값은 서버 코드값 그대로).
+    await user.click(screen.getByTestId('deident-status-tab-RESOLVED'));
+    await waitFor(() => {
+      expect(mock.history.get.at(-1)?.params?.status).toBe('RESOLVED');
+    });
+  });
+
   // ── 사양 SCREEN-032 컬럼 순서 회귀 가드 ─────────────────────────────
 
   it('컬럼_순서가_사양과_같다', async () => {

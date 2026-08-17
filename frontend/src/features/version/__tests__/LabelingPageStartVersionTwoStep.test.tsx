@@ -203,6 +203,8 @@ describe('LabelingPage — 시작 버전 불러오기/확정 저장 2단계', ()
     await user.click(screen.getByTestId('start-version-keep-working'));
     await user.click(await screen.findByTestId('frame-discard-toggle'));
     await user.click(await screen.findByTestId('label-toolbar-save'));
+    // 폐기 상태 변경이 실린 저장은 확인을 한 번 거친다(「폐기 프레임 저장 확인」).
+    await user.click(await screen.findByTestId('discard-save-confirm-submit'));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     const body = JSON.parse(writes[0].slice(writes[0].indexOf('{')));

@@ -165,6 +165,25 @@ export function toVideoSavePayload(
   };
 }
 
+/**
+ * 확정 저장(API-196)이 <b>실어 보내는</b> 프레임별 폐기 전환을 뽑는다 — 「폐기 프레임 저장 확인」의 입력.
+ *
+ * <p>기준선은 <b>회차 스냅샷의 폐기여부</b>다. 확정 저장은 영상 전체를 그 회차로 맞추는 것이고
+ * `edits` 도 그 값과의 차이로 판정해 실리므로(위 {@link captureFrameIntoDraft}), 같은 축으로 세야
+ * 안내와 실제 저장이 갈리지 않는다.
+ *
+ * <p>세트에 없는 프레임은 기준선을 모르므로 `null`(모름)로 둔다 — 임의로 '폐기 아님'이라 단정하지 않는다.
+ */
+export function discardChangesOf(
+  draft: LoadedVersionDraft,
+  payload: VideoLabelSavePayload,
+): { baseline: 'Y' | 'N' | null; next: 'Y' | 'N' | null }[] {
+  return payload.edits.map((edit) => ({
+    baseline: frameOf(draft, edit.srcSn)?.dscdYn ?? null,
+    next: edit.dscdYn ?? null,
+  }));
+}
+
 /** 해석하지 못한(그 회차 이하 스냅샷이 없어 현재 작업본이 실려 온) 프레임 수. */
 export function unresolvedFrameCount(draft: LoadedVersionDraft | null): number {
   return (draft?.frames ?? []).filter((f) => !f.resolved).length;
