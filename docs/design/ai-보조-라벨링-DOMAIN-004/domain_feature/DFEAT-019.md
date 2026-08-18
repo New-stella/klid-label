@@ -1,13 +1,13 @@
 ---
 logicraft_item: DFEAT-019
 type: domain_feature
-version: 8
+version: 9
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.073Z
-status: NEW
-prev_version: null
-content_hash: c90f264e44d2a510e3da2ab258f8f39e2def27c6d7306063c1b2043b0b538123
+synced_at: 2026-08-17T15:39:18.674Z
+status: CHANGED
+prev_version: 8
+content_hash: bf3b197ece26b1efa67c5091965ad4d4cfeb8161604663b1edec318c24511699
 stale: false
 raw: ./_raw/DFEAT-019.json
 links:
@@ -16,6 +16,7 @@ links:
   migrated_from: ["[[LEGACY-067]]"]
   specializes: ["[[FEAT-001]]"]
   depicts_backward: ["[[CDIAG-005]]"]
+  realizes_backward: ["[[UC-034]]"]
   references_backward: ["[[CDIAG-005]]"]
 ---
 
@@ -85,7 +86,7 @@ AI가 프레임 객체를 자동 탐지해 라벨 초기값을 제안하기를
 
 ## description
 
-YOLOX(onnxruntime, Apache-2.0) 백엔드로 프레임 내 객체를 자동 탐지해 클래스·좌표를 제안한다(RT-DETRv2 제거·YOLOX 단일화 — ultralytics AGPL-3.0 회피 라이선스 정책, ADR-041). 온라인(캔버스 AI탐지)·배치·온디맨드 트랙(POST /v1/frames/{srcSn}/yolo-track = API-123) 3경로가 좌표 clamp 정규화 로직을 공통 유틸로 통일한다. confThreshold/simplifyTolerance는 요청마다 1회성(비영속) 조절 가능. 탐지 후보는 라벨 마스터(LS_LABEL) 기준으로 노출하되 DTCT_TYPE_CD(COCO 클래스 매핑)가 지정된 라벨만 실제 검출 가능(미매핑은 표시만, 선택 불가) — BE 가 FE 요청을 신뢰하지 않고 마스터 화이트리스트와의 교집합만 ai-server로 전달한다. (1차 baseline 화면 SKKLID-UI-02-02-06 계승, 2차 재구성)
+YOLOX(onnxruntime, Apache-2.0) 백엔드로 프레임 내 객체를 자동 탐지해 클래스·좌표를 제안한다(RT-DETRv2 제거·YOLOX 단일화 — ultralytics AGPL-3.0 회피 라이선스 정책, ADR-041). 온라인(캔버스 AI탐지)·배치·온디맨드 트랙(POST /v1/frames/{srcSn}/yolo-track = API-123) 3경로가 좌표 clamp 정규화 로직을 공통 유틸로 통일한다. confThreshold/simplifyTolerance는 요청마다 1회성(비영속) 조절 가능. 탐지 후보는 라벨 마스터(LS_LABEL) 기준으로 노출하되 DTCT_TYPE_CD(COCO 클래스 매핑)가 지정된 라벨만 실제 검출 가능(미매핑은 표시만, 선택 불가) — BE 가 FE 요청을 신뢰하지 않고 마스터 화이트리스트와의 교집합만 ai-server로 전달한다. 검출 결과를 응답으로 내보내는 모든 경로에서 라벨 마스터 식별자를 해석하는 주체는 서버다 — 온라인·배치·온디맨드 트랙 어느 경로든 검출 클래스 축으로 해석한 마스터 식별자를 응답에 실어 내려주며, 화면이 검출 클래스명으로 마스터를 다시 찾아내지 않는다(같은 판정이 두 곳에 있으면 한쪽이 낡는다). 대응하는 마스터가 없거나 그 클래스에 매핑이 지정되지 않은 검출은 식별자를 비워 내보내고 값을 지어내지 않는다. (1차 baseline 화면 SKKLID-UI-02-02-06 계승, 2차 재구성)
 
 ## invokes_apis
 

@@ -46,9 +46,33 @@
                       "type": "string",
                       "nullable": true
                     },
+                    "anonymitySource": {
+                      "enum": [
+                        "MANUAL",
+                        "DERIVED"
+                      ],
+                      "type": "string",
+                      "description": "익명여부(anonymity) 값의 출처 — MANUAL은 사용자가 직접 저장한 값, DERIVED는 저장값이 없어 시스템 기본값으로 프리필된 값이다."
+                    },
                     "privacyIncluded": {
                       "type": "string",
                       "nullable": true
+                    },
+                    "pseudonymitySource": {
+                      "enum": [
+                        "MANUAL",
+                        "DERIVED"
+                      ],
+                      "type": "string",
+                      "description": "가명여부(pseudonymity) 값의 출처 — MANUAL 또는 DERIVED."
+                    },
+                    "privacyIncludedSource": {
+                      "enum": [
+                        "MANUAL",
+                        "DERIVED"
+                      ],
+                      "type": "string",
+                      "description": "개인정보 포함여부(privacyIncluded) 값의 출처 — MANUAL 또는 DERIVED."
                     }
                   }
                 },
@@ -303,12 +327,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "산출·통지의 트리거를 재검수 승인으로 정정한다. 디바운스는 그 트리거가 성립한 뒤 같은 영상 다건을 묶는 이야기다.",
+    "change_summary": "200 응답 배열 원소에 실제로 내려가는 3개 필드(anonymitySource·pseudonymitySource·privacyIncludedSource)가 선언에서 빠져 있어 추가한다. 각 값이 사용자가 직접 저장한 것인지 시스템 기본값으로 프리필된 것인지 구분하는 출처 필드다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T04:13:38.296Z",
+    "last_updated_at": "2026-08-16T23:39:46.711Z",
     "created_at": "2026-07-30T07:12:20.449Z"
   }
 }

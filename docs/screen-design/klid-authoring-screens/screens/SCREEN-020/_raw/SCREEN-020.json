@@ -97,7 +97,7 @@
               "binds_to": "workerStat.rejected"
             },
             {
-              "note": "주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다.",
+              "note": "주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨 중 폐기되지 않은 프레임의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다 — 그 값은 폐기 여부로 걸러내지 않는다.",
               "type": "Stat",
               "label": "총 라벨 수",
               "columns": [],
@@ -105,7 +105,7 @@
               "binds_to": "workerStat.approvedLabelCount"
             }
           ],
-          "description": "완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답.\n\n완료 카드와 총 라벨 수 카드는 검수완료를 주 수치로 두고 전체를 함께 보여준다 — 학습데이터로 확정된 것은 검수를 통과한 분량뿐이기 때문이다. 완료 카드는 completed 를 크게 두고 그 아래 '검수완료 기준 · 전체 N건 (완료율 M%)' 을 덧붙이고(assignedTotal·completionRate), 총 라벨 수 카드는 approvedLabelCount 를 주 수치로 두고 그 아래 '검수완료 기준 · 전체 N개' 를 덧붙인다 — 완료율은 붙이지 않는다. completionRate 는 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않으므로, 화면에서 지어내지 않는다. 진행중·반려 카드는 그 자체가 미완료 상태를 세는 값이라 병기 대상이 아니다.\n\n완료율은 0~1 비율로 오므로 표시할 때만 백분율로 바꾼다. 전체가 0이면 0%로 표시하며, 비율을 화면에서 다시 나눠 구하지 않는다 — 서버가 내려준 값을 그대로 쓴다.",
+          "description": "완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답.\n\n완료 카드와 총 라벨 수 카드는 검수완료를 주 수치로 두고 전체를 함께 보여준다 — 학습데이터로 확정된 것은 검수를 통과한 분량뿐이기 때문이다. 완료 카드는 completed 를 크게 두고 그 아래 '검수완료 기준 · 전체 N건 (완료율 M%)' 을 덧붙이고(assignedTotal·completionRate), 총 라벨 수 카드는 approvedLabelCount 를 주 수치로 두고 그 아래 '검수완료 기준 · 전체 N개' 를 덧붙인다 — 완료율은 붙이지 않는다. 총 라벨 수 카드의 주 수치는 검수완료 영상의 라벨 중 폐기되지 않은 프레임의 라벨만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 라벨 수는 배정된 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. completionRate 는 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않으므로, 화면에서 지어내지 않는다. 진행중·반려 카드는 그 자체가 미완료 상태를 세는 값이라 병기 대상이 아니다.\n\n완료율은 0~1 비율로 오므로 표시할 때만 백분율로 바꾼다. 전체가 0이면 0%로 표시하며, 비율을 화면에서 다시 나눠 구하지 않는다 — 서버가 내려준 값을 그대로 쓴다.",
           "references_apis": [
             "API-056"
           ],
@@ -192,10 +192,16 @@
       ],
       "implementation": {
         "status": "implemented",
-        "modules": [],
-        "records": [],
+        "modules": [
+          "MOD-021",
+          "MOD-012"
+        ],
+        "records": [
+          "IMPREC-022"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-17T22:48:30.382Z"
       },
       "required_roles": [
         "ROLE-001",
@@ -211,8 +217,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "d5b165f28e18de3b36f5580037b398b1de2aff6d4f522d0518962480d8bbf849",
-          "generated_at": "2026-08-16T12:43:59.925Z",
+          "source_hash": "ff7968f18e83b01ac2b1bbf94a4c4b33d0eec1e8e0177f6f10a1385be4c5bc14",
+          "generated_at": "2026-08-17T12:44:49.310Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -224,12 +230,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 28,
+    "current_version": 30,
     "stale": true,
-    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.7KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:43:59.925Z",
+    "stale_reason": "API-056의 data.implementation 변경 — consumes",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.9KB)",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T22:48:30.382Z",
     "created_at": "2026-05-30T07:55:14.624Z"
   }
 }

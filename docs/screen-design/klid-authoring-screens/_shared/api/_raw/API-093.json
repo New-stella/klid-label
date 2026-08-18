@@ -32,10 +32,6 @@
               "data": {
                 "type": "object",
                 "properties": {
-                  "mock": {
-                    "type": "boolean",
-                    "description": "ai-server mock 응답(모델 미로드/AI_MOCK_MODE) 여부. true면 FE에서 경고 + 자동 적용 차단"
-                  },
                   "score": {
                     "type": "number",
                     "format": "double",
@@ -73,7 +69,6 @@
           },
           "example": {
             "data": {
-              "mock": false,
               "score": 0.91,
               "polygon": [
                 [
@@ -98,7 +93,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "분할 성공 — 폴리곤+신뢰도. ApiResponse 래퍼의 data 에 Sam2SegmentResponse 가 담긴다.",
+          "description": "분할 성공 — 폴리곤+신뢰도. ApiResponse 래퍼의 data 에 Sam2SegmentResponse 가 담긴다. AI 모델 미로드(mock) 시 data.polygon 은 빈 배열이며, 이 사실은 data 의 별도 필드가 아니라 응답 최상위 message 필드(\"AI 모델 미로드 — 결과 신뢰 불가\")로 전달된다.",
           "content_type": "application/json"
         },
         "400": {
@@ -372,12 +367,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "API-093(sam2-segment) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). 이 API 를 구현체로 갖는 DFEAT-018 이 FEAT-001(AI 보조 라벨링)을 specialize 하므로 동일하게 연결한다.",
+    "change_summary": "200 응답 data 에서 mock 필드를 제거했다. 실제 응답은 data 에 mock 을 싣지 않고, AI 모델 미로드(mock) 시 응답 최상위 message 필드(\"AI 모델 미로드 — 결과 신뢰 불가\")로 안내하며 data.polygon 은 빈 배열이 된다. description 에 이 사실을 명시했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:33:14.888Z",
+    "last_updated_at": "2026-08-16T23:43:31.690Z",
     "created_at": "2026-06-04T06:40:50.264Z"
   }
 }

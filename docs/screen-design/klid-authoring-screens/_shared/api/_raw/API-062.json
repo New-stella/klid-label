@@ -35,6 +35,11 @@
                     "format": "int64",
                     "description": "원본 영상/프레임 PK"
                   },
+                  "prompt": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이 증강을 생성할 때 사용한 생성 조건 원문. 값이 없을 수 있다."
+                  },
                   "augTypeCd": {
                     "enum": [
                       "WINTER",
@@ -283,12 +288,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "D007-POL-012: 해상도 파생은 검수 대상이 아니라 채택 시도가 400 으로 거부되는데 응답 목록에 400 자체가 없었다. 형제 취소 엔드포인트와 같은 형식으로 추가한다. 기존 응답(200/401/403/404)은 변경 없음.",
+    "change_summary": "200 응답에 실제로 내려가는 1개 필드(prompt)가 선언에서 빠져 있어 추가한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:37:20.646Z",
+    "last_updated_at": "2026-08-16T23:40:21.771Z",
     "created_at": "2026-05-30T07:25:41.827Z"
   }
 }

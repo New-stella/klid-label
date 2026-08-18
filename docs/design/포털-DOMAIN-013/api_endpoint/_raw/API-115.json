@@ -221,10 +221,16 @@
       "calls_external": [],
       "implementation": {
         "status": "implemented",
-        "modules": [],
-        "records": [],
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/DatamartVideoResponse.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalLabelService.java"
+        ],
+        "records": [
+          "IMPREC-016"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:34:17.711Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -236,8 +242,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "사용자 확정 — 보존기간 만료 예정 시각(myLabelExpiresAt) 응답 필드 신설(하위호환 추가만)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:17:37.670Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T04:34:17.711Z",
     "created_at": "2026-07-07T07:32:02.939Z"
   }
 }

@@ -31,6 +31,11 @@
               "data": {
                 "type": "object",
                 "properties": {
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "등록일시(자동등록 시각)"
+                  },
                   "clctYn": {
                     "enum": [
                       "Y",
@@ -43,14 +48,44 @@
                     "type": "string",
                     "description": "수정 후 해석된 표시명"
                   },
+                  "evntNm": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "관제 수신 유형명(읽기 전용). 현재 인입에 실리지 않아 비어 있을 수 있다"
+                  },
+                  "evntClsfCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이벤트 대분류 코드(읽기 전용) — 관제 수신값이라 이 API 로 수정하지 않는다"
+                  },
                   "evntTypeCd": {
                     "type": "string",
                     "description": "이벤트유형 코드"
+                  },
+                  "evntCtgryCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이벤트 카테고리 코드(읽기 전용) — 관제 수신값이라 이 API 로 수정하지 않는다"
+                  },
+                  "evntCtgryNm": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "카테고리명(읽기 전용). 유형에 고유 이름이 없을 때 표시명의 출처다"
                   },
                   "optrIndctNm": {
                     "type": "string",
                     "nullable": true,
                     "description": "수정 후 운영자 지정 표시명"
+                  },
+                  "dsplNmSource": {
+                    "enum": [
+                      "operator",
+                      "control",
+                      "category",
+                      "code"
+                    ],
+                    "type": "string",
+                    "description": "수정 후 표시명이 어느 단계에서 온 값인지. 서버가 운영자 지정명 → 관제 수신 유형명 → 카테고리명 → 유형코드 순으로 비어 있지 않은 첫 값을 표시명으로 채택하고, 그 채택 단계를 이 값으로 내려준다. operator=운영자 지정명 / control=관제 수신 유형명 / category=카테고리명 / code=유형코드. 저장되는 컬럼이 아니라 응답 시점에 해석 결과로 파생되는 표시용 값이다"
                   }
                 },
                 "description": "수정 후 이벤트유형"
@@ -73,10 +108,16 @@
           },
           "example": {
             "data": {
+              "regDt": "2026-07-01T09:12:00",
               "clctYn": "Y",
               "dsplNm": "침수(범람) — 하천",
+              "evntNm": null,
+              "evntClsfCd": "EV01",
               "evntTypeCd": "EV01000101",
-              "optrIndctNm": "침수(범람) — 하천"
+              "evntCtgryCd": "EV0100",
+              "evntCtgryNm": "침수(범람)",
+              "optrIndctNm": "침수(범람) — 하천",
+              "dsplNmSource": "operator"
             },
             "message": null,
             "success": true,
@@ -234,7 +275,7 @@
           "description": "수정 대상 이벤트유형 코드"
         }
       ],
-      "description": "자동등록된 이벤트유형의 표시명과 수집여부를 정정한다. null 로 보낸 필드는 미변경이다.\n\n[생성·삭제 API 를 두지 않는다] 등록의 유일한 출처가 관제 인입이기 때문이다. 화면에 없는 유형은 관제가 보낸 적이 없는 유형이며, 지우면 그 유형의 영상이 라벨을 잃는다.\n\n[표시명 변경은 필터 그룹을 가른다] 필터 옵션은 표시명이 같은 유형코드들을 한 건으로 접어 보여준다. 따라서 여기서 표시명을 지정하면 그동안 한 건으로 보이던 그룹이 자동으로 쪼개진다 — 이 접기는 영구 병합이 아니다. 그래서 표시명을 바꾸면 관련 캐시를 무효화해야 한다.\n\n[입력 제한] 경로변수는 코드 컬럼 규격에 맞춰 1~20자·영문·숫자·밑줄·하이픈만 허용한다. 요청 본문은 전용 형식으로 강제되며 PK·분류코드·등록일시는 요청으로 받지 않는다. 수정은 이 한 가지이며 쿼리 파라미터로 행위를 분기하지 않는다.",
+      "description": "자동등록된 이벤트유형의 표시명과 수집여부를 정정한다. null 로 보낸 필드는 미변경이다.\n\n[생성·삭제 API 를 두지 않는다] 등록의 유일한 출처가 관제 인입이기 때문이다. 화면에 없는 유형은 관제가 보낸 적이 없는 유형이며, 지우면 그 유형의 영상이 라벨을 잃는다.\n\n[표시명 변경은 필터 그룹을 가른다] 필터 옵션은 표시명이 같은 유형코드들을 한 건으로 접어 보여준다. 따라서 여기서 표시명을 지정하면 그동안 한 건으로 보이던 그룹이 자동으로 쪼개진다 — 이 접기는 영구 병합이 아니다. 그래서 표시명을 바꾸면 관련 캐시를 무효화해야 한다.\n\n[입력 제한] 경로변수는 코드 컬럼 규격에 맞춰 1~20자·영문·숫자·밑줄·하이픈만 허용한다. 요청 본문은 전용 형식으로 강제되며 PK·분류코드·등록일시는 요청으로 받지 않는다. 수정은 이 한 가지이며 쿼리 파라미터로 행위를 분기하지 않는다.\n\n[표시명의 출처를 함께 내려준다] 표시명은 운영자 지정명 → 관제 수신 유형명 → 카테고리명 → 유형코드 순으로 비어 있지 않은 첫 값을 채택한 결과다. 응답은 그 결과 문자열과 함께 어느 단계에서 왔는지를 dsplNmSource 로 내려준다 — 화면이 원본 필드로 같은 폴백을 다시 판정하면 같은 규칙이 두 곳에 존재해 한쪽만 낡는다. 이 경로는 운영자 지정명을 바꾸는 곳이라, 지정명을 넣으면 출처가 operator 로, 지우면 그 아래 단계로 내려간 결과가 응답에 그대로 드러난다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -266,11 +307,12 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T15:33:52.368Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -278,12 +320,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "등록 직후 본문의 표기 손상을 정정한다. 컴럼 → 컬럼. 의미·정책 변경 없이 표기만 고쳤고 나머지 문장은 원문 그대로다.",
+    "change_summary": "표시명 출처 응답 필드가 구현되고 회귀 시험으로 고정됐다. 구현 상태 메타만 갱신하며 사양 본문은 바꾸지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:14:46.648Z",
+    "last_updated_at": "2026-08-17T15:33:52.369Z",
     "created_at": "2026-08-07T03:03:50.144Z"
   }
 }

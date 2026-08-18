@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-024
 type: screen_spec
-version: 22
-last_updated_at: 2026-08-16T10:10:51.603Z
-domain: null
+version: 23
+last_updated_at: 2026-08-17T06:53:05.270Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:27:41.240Z
-sync_session: 15
-stale: false
+synced_at: 2026-08-18T01:49:51.211Z
+sync_session: 17
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-024.json
@@ -187,6 +187,7 @@ _(empty)_
 - 역할
 - 상태
 - 등록일
+- 최신 로그인
 - 관리
 
 **options**:

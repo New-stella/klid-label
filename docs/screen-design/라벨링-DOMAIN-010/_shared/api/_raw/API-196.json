@@ -70,7 +70,7 @@
                   },
                   "discardedFrameCount": {
                     "type": "integer",
-                    "description": "저장 뒤 폐기 상태로 남은 프레임 수. 저작도구 화면의 프레임 총수에서는 빼지 않으며, 학습데이터 산출물과 데이터마트 노출에서만 빠진다."
+                    "description": "저장 뒤 폐기 상태로 남은 프레임 수. 전체 기준 프레임 총수에서는 빼지 않으며, 학습데이터 산출물과 데이터마트 노출에서만 빠진다. 학습데이터로 확정된 분량을 뜻하는 검수완료 기준 집계도 이 프레임을 세지 않는다."
                   }
                 },
                 "description": "저장 결과 요약"
@@ -584,12 +584,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
-    "stale": true,
-    "stale_reason": "REQ-009의 data.constraints 변경이 implements로 2-hop 전파",
-    "change_summary": "D010 P1(D010-SCH-007): 계약↔구현(VideoLabelSaveRequest.FrameEdit.items=LabelItemDto) 타입 불일치 3건 정정 — ①id: string→integer/int64(구현 Long) ②trackId: integer/int64→string(≤30자, 영숫자+._:- 패턴, 구현 String+패턴 일치, Sam2TrackRequest.trackId 와 동일 축) ③lblTypeCd enum: [BBOX,POLYGON] 2값→[BBOX,POLYGON,SEGMENT,TRACK,SKELETON] 5값(LabelItemDto 패턴과 정합, points.description 의 SKELETON 언급과의 자기모순도 해소). (label 필드 자체의 부재는 SCH-005/P0 라운드에서 이미 \"사용자 판단 필요\"로 분리돼 있어 이번 라운드에서 건드리지 않음 — labelId 단일진실원 확정정책과 코드의 @NotBlank label 요구가 충돌하는 별개 정책 사안)",
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "폐기 프레임 수(discardedFrameCount) 설명에서 «빼지 않는» 축을 전체 기준으로 좁히고, 학습데이터로 확정된 분량을 뜻하는 검수완료 기준 집계는 이 프레임을 세지 않는다는 문장을 더했다. 기존 서술은 «저작도구 화면의 프레임 총수에서는 빼지 않는다» 라고 무조건으로 읽혀, 산출물·데이터마트와 같은 집합이어야 하는 검수완료 기준 수치와 어긋났다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:26:42.072Z",
+    "last_updated_at": "2026-08-17T12:39:38.513Z",
     "created_at": "2026-08-10T14:22:47.710Z"
   }
 }

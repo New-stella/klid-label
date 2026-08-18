@@ -92,7 +92,7 @@
                 "UPLOADED": "업로드완료",
                 "PROCESSING": "후처리중"
               },
-              "description": "업로드 처리 상태.",
+              "description": "업로드 처리 상태. 업로드 완료·후처리 중 상태로 방치 판정 시간을 넘겨 갱신이 멈춘 자산은 처리 실패로 전이한다.",
               "primary_key": false,
               "logical_column_name": "업로드상태코드"
             },
@@ -128,7 +128,7 @@
               "type": "text",
               "unique": false,
               "nullable": true,
-              "description": "처리 실패 사유. 상태가 처리 실패일 때 기록한다.",
+              "description": "처리 실패 사유. 상태가 처리 실패일 때 기록한다. 방치 판정으로 전이된 경우에도 그 사유를 남긴다.",
               "primary_key": false,
               "logical_column_name": "실패사유내용"
             },
@@ -148,7 +148,7 @@
               "unique": false,
               "default": "CURRENT_TIMESTAMP",
               "nullable": false,
-              "description": "마지막 상태·메타 변경 일시. 고착 자산 스캔의 기준축이다.",
+              "description": "마지막 상태·메타 변경 일시. 방치 자산 판정과 처리 실패 축 보존기간이 공유하는 기준축이다 — 후처리가 진행되는 동안 갱신되므로 오래 걸리는 정상 처리는 방치로 판정되지 않는다.",
               "primary_key": false,
               "logical_column_name": "수정일시"
             }
@@ -560,12 +560,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "포털 사용자 본인 자산 업로드 축의 물리 ERD 를 신설한다. 업로드 원장·파생 프레임·수동 라벨·재개 업로드 세션 네 테이블이 어느 ERD 에도 정의돼 있지 않아, 설계·기능·유스케이스는 이 테이블들을 전제하는데 구현 키트는 스키마를 받지 못하는 상태였다. 포털 ERD(ERD-018)의 확장이 아니라 별도 ERD 로 둔다 — 그쪽은 데이터마트 영상 위 라벨 축이고 이 축은 사용자가 직접 올린 자산이라 수명주기와 소유 관계가 다르다. 중복 정의는 없다: ERD-018 이 담은 테이블은 데이터마트 영상 라벨 하나뿐이다. 컬럼명·타입·길이·널 여부·기본값·기본키·인덱스·외래키는 베이스라인 마이그레이션의 실제 정의에서 읽었고, 컬럼 설명은 스키마 주석과 엔티티 문서에 있는 것만 옮겼다. 스키마에 없는 컬럼은 목록에 넣지 않았다.",
+    "change_summary": "업로드 원장의 상태·최종 변경 일시·실패 사유 컬럼 설명을 방치 전이 규칙에 맞춰 보강했다 — 최종 변경 일시가 방치 판정과 실패 축 보존기간이 공유하는 기준축이고, 후처리 진행 중에는 갱신되므로 오래 걸리는 정상 처리가 방치로 판정되지 않는다는 점을 명시했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T04:20:31.136Z",
+    "last_updated_at": "2026-08-17T22:19:41.887Z",
     "created_at": "2026-08-16T04:20:31.136Z"
   }
 }

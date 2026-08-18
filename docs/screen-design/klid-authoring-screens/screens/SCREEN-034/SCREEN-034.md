@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-034
 type: screen_spec
-version: 15
-last_updated_at: 2026-08-16T09:35:10.935Z
-domain: null
+version: 17
+last_updated_at: 2026-08-17T22:21:55.663Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:27:41.262Z
-sync_session: 15
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-18T01:49:51.230Z
+sync_session: 17
+stale: true
+status: CHANGED
+prev_version: 15
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v15 → v17**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.5KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 라벨링 화면
 
@@ -77,6 +81,7 @@ _(empty)_
 
 #### [3]
 
+- **note**: 라벨 JSON 만 받는다. 작아서 곧바로 끝나므로 취소를 두지 않는다.
 - **type**: Button
 - **label**: 내보내기(JSON)
 
@@ -92,6 +97,7 @@ _(empty)_
 
 #### [4]
 
+- **note**: 자산 원본을 그대로 받는다. 영상이면 매우 커질 수 있어 일반 조회보다 긴 제한시간이 필요하고, 받는 중에는 취소할 수 있어야 한다.
 - **type**: Button
 - **label**: 원본 다운로드
 
@@ -105,11 +111,32 @@ _(empty)_
 
 - **variant**: outline
 
-- **description**: 자산 원본 파일명(텍스트 노드) + 프레임 카운트('프레임 N / 총 M' 또는 '이미지 1장'). 우측 '내보내기(JSON)'(라벨 JSON attachment 다운로드, 엔드포인트 GET /portal/uploads/{uldSn}/export) + '원본 다운로드'(GET /portal/uploads/{uldSn}/file) 버튼, 다운로드 중 상호 비활성.
+#### [5]
+
+- **note**: 원본 파일을 받는 중일 때만 '원본 다운로드' 자리에 나타난다. 누르면 전송을 멈추고 다시 받을 수 있는 상태로 되돌린다. 사용자가 스스로 멈춘 것이므로 실패 안내를 띄우지 않는다.
+- **type**: Button
+- **label**: 다운로드 취소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: outline
+
+**description**:
+
+자산 원본 파일명(텍스트 노드) + 프레임 카운트('프레임 N / 총 M' 또는 '이미지 1장'). 우측 '내보내기(JSON)'(라벨 JSON attachment 다운로드, 엔드포인트 GET /portal/uploads/{uldSn}/export) + '원본 다운로드'(GET /portal/uploads/{uldSn}/file) 버튼, 다운로드 중 상호 비활성.
+
+'원본 다운로드'는 자산 파일을 그대로 받는 경로라 영상이면 매우 커질 수 있다. 요청 제한시간은 그 크기를 끝까지 받아낼 수 있는 값이어야 한다 — 일반 조회와 같은 짧은 제한시간을 쓰면 큰 자산은 받을 방법이 없다. 받는 중에는 같은 자리에서 전송을 멈출 수 있게 하고, 취소하면 전송을 중단해 다시 받을 수 있는 상태로 되돌린다. 받다 만 파일은 남기지 않는다. 사용자가 누른 취소는 오류가 아니라 정상 종료이므로 실패 안내를 띄우지 않는다 — 전송이 끊겨 실패한 경우와 한 갈래로 묶으면 스스로 멈춘 사용자에게 연결을 확인하라고 권하게 된다. '내보내기(JSON)'에는 취소를 두지 않는다. 라벨 JSON 은 작아서 취소할 수단이 나타나기 전에 끝나므로 둘 자리가 없다.
 
 **references_apis**:
 
-_(empty)_
+- API-157
+- API-159
 
 **references_features**:
 
@@ -413,8 +440,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 97addd9a7cc825c2e07caca17450573b083200addbe30b327559d6b01970995a
-- **generated_at**: 2026-08-16T09:35:10.934Z
+- **source_hash**: 2423b1041e0627dacbaef042e3fbe278fdd4f9cef701d42c59f10e1ee5acac24
+- **generated_at**: 2026-08-17T22:21:55.663Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

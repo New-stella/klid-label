@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-16T14:27:50.329Z (session 9) |
-| Mode | SYNC — NEW 1 / CHANGED 1 / UNCHANGED 215 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/라벨링-DOMAIN-010 |
+| Last sync | 2026-08-17T15:40:46.374Z (session 10) |
+| Mode | SYNC — NEW 0 / CHANGED 16 / UNCHANGED 201 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
 
@@ -18,19 +18,19 @@
 | [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | UNCHANGED |
 | [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 5 | false | UNCHANGED |
 | [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 11 | false | UNCHANGED |
-| [[AC-017]] | acceptance | 실영상 라벨링·메타 가공 | 5 | false | UNCHANGED |
+| [[AC-017]] | acceptance | 실영상 라벨링·메타 가공 | 6 | false | CHANGED |
 | [[AC-020]] | acceptance | 다양한 환경·산불 유형 학습데이터 제작 | 4 | false | UNCHANGED |
 | [[AC-021]] | acceptance | 생성된 영상 라벨링으로 학습데이터셋 편입 | 5 | false | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
-| [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 5 | false | UNCHANGED |
+| [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 6 | false | CHANGED |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 4 | false | UNCHANGED |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
-| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 7 | true | UNCHANGED |
-| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 7 | false | UNCHANGED |
+| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 8 | false | CHANGED |
+| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | CHANGED |
 | [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
 | [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
-| [[API-024]] | api_endpoint | GET /v1/manage/labels | 5 | false | UNCHANGED |
+| [[API-024]] | api_endpoint | GET /v1/manage/labels | 6 | false | CHANGED |
 | [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 8 | false | UNCHANGED |
 | [[API-037]] | api_endpoint | GET /v1/manage/presets | 5 | false | UNCHANGED |
 | [[API-038]] | api_endpoint | POST /v1/manage/presets | 7 | false | UNCHANGED |
@@ -39,46 +39,46 @@
 | [[API-041]] | api_endpoint | POST /v1/manage/presets/{id}/clone | 4 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | UNCHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 5 | false | UNCHANGED |
-| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 9 | false | UNCHANGED |
+| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 10 | false | CHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | UNCHANGED |
-| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 9 | false | UNCHANGED |
+| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 10 | false | CHANGED |
 | [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | UNCHANGED |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
 | [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | UNCHANGED |
-| [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 6 | false | UNCHANGED |
+| [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 7 | false | CHANGED |
 | [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 6 | false | UNCHANGED |
 | [[API-125]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/merge | 2 | false | UNCHANGED |
 | [[API-126]] | api_endpoint | DELETE /v1/videos/{rawSn}/tracks/{trackId} | 2 | false | UNCHANGED |
 | [[API-127]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/{trackId}/split | 2 | false | UNCHANGED |
 | [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | UNCHANGED |
 | [[API-129]] | api_endpoint | PUT /v1/frames/{srcSn}/description | 5 | false | UNCHANGED |
-| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 2 | false | UNCHANGED |
-| [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 3 | false | UNCHANGED |
+| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 4 | false | CHANGED |
+| [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 4 | false | CHANGED |
 | [[API-134]] | api_endpoint | PUT /v1/videos/{rawSn}/event-annotation | 4 | false | UNCHANGED |
-| [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 3 | false | UNCHANGED |
+| [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 4 | false | CHANGED |
 | [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | UNCHANGED |
 | [[API-170]] | api_endpoint | PUT /v1/videos/{rawSn}/environment-meta | 3 | false | UNCHANGED |
-| [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 3 | false | UNCHANGED |
-| [[API-173]] | api_endpoint | PUT /v1/frames/{srcSn}/privacy-meta | 5 | false | UNCHANGED |
+| [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 4 | false | CHANGED |
+| [[API-173]] | api_endpoint | PUT /v1/frames/{srcSn}/privacy-meta | 6 | false | CHANGED |
 | [[API-177]] | api_endpoint | GET /v1/manage/labels/detect-candidates | 4 | false | UNCHANGED |
 | [[API-178]] | api_endpoint | POST /v1/reviews/{videoId}/cancel-submit | 8 | false | UNCHANGED |
 | [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 3 | false | UNCHANGED |
 | [[API-183]] | api_endpoint | GET /v1/videos/{rawSn}/privacy-meta | 1 | false | UNCHANGED |
 | [[API-184]] | api_endpoint | PUT /v1/videos/{rawSn}/privacy-meta | 2 | false | UNCHANGED |
-| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 3 | false | NEW |
+| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 3 | false | UNCHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 6 | false | UNCHANGED |
-| [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 8 | true | UNCHANGED |
+| [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | CHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 76 | false | CHANGED |
+| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 84 | false | CHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 26 | true | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 11 | false | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | false | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
-| [[UC-004]] | use_case | 객체 자동 추적 | 13 | false | UNCHANGED |
+| [[UC-004]] | use_case | 객체 자동 추적 | 15 | false | CHANGED |
 | [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 10 | false | UNCHANGED |
 | [[UC-006]] | use_case | 라벨링 정밀도 조절 | 9 | false | UNCHANGED |
 | [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 12 | false | UNCHANGED |

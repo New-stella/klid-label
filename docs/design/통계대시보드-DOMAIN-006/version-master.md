@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-08-16T14:41:56.745Z |
-| Mode | INITIAL — NEW 41 / CHANGED 0 / UNCHANGED 0 |
+| Last sync | 2026-08-17T15:39:37.345Z |
+| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 31 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-006 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 11건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -18,14 +19,15 @@
 **🚨 = 프로젝트엔 있는데 이번 키트엔 0건** — 구현이 그 설계를 못 본다.
 
 ```
-  ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 40건
-  ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 174건
-  🚨 erd: 이번 키트 0건 / 프로젝트 전역 19건 — 전량 누락
+  ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 41건
+  ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 175건
+  🚨 erd: 이번 키트 0건 / 프로젝트 전역 20건 — 전량 누락
   🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 25건 (그중 domain_id 없음 14건) — 전량 누락
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 29건
-  🚨 use_case: 이번 키트 0건 / 프로젝트 전역 25건 (그중 domain_id 없음 2건) — 전량 누락
+  🚨 use_case: 이번 키트 0건 / 프로젝트 전역 27건 (그중 domain_id 없음 2건) — 전량 누락
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 25건 (그중 domain_id 없음 24건) — 전량 누락
+  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 37건 (그중 domain_id 없음 27건) — 전량 누락
+  🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 4건 / 스코프 밖 37건 (그중 domain_id 없음 5건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 9건 (그중 domain_id 없음 9건) — 전량 누락
 ```
@@ -39,90 +41,55 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-001]]
-- NEW [[ADR-003]]
-- NEW [[ADR-019]]
-- NEW [[ADR-038]]
-- NEW [[API-001]]
-- NEW [[API-042]]
-- NEW [[API-055]]
-- NEW [[API-056]]
-- NEW [[API-057]]
-- NEW [[API-058]]
-- NEW [[API-072]]
-- NEW [[CDIAG-009]]
-- NEW [[CONST-001]]
-- NEW [[CONST-002]]
-- NEW [[DOMAIN-006]]
-- NEW [[DFEAT-026]]
-- NEW [[DFEAT-027]]
-- NEW [[DFEAT-028]]
-- NEW [[NFR-008]]
-- NEW [[NFR-009]]
-- NEW [[NFR-010]]
-- NEW [[NFR-011]]
-- NEW [[NFR-012]]
-- NEW [[NFR-013]]
-- NEW [[NFR-014]]
-- NEW [[NFR-015]]
-- NEW [[NFR-016]]
-- NEW [[NFR-017]]
-- NEW [[NFR-018]]
-- NEW [[NFR-019]]
-- NEW [[NFR-020]]
-- NEW [[NFR-021]]
-- NEW [[ROLE-001]]
-- NEW [[ROLE-002]]
-- NEW [[ROLE-003]]
-- NEW [[SD-014]]
-- NEW [[SD-030]]
-- NEW [[SD-031]]
-- NEW [[SCREEN-011]]
-- NEW [[SCREEN-020]]
-- NEW [[SCREEN-021]]
+- CHANGED [[API-001]] (prev v3)
+- CHANGED [[API-055]] (prev v4)
+- CHANGED [[API-056]] (prev v5)
+- CHANGED [[API-057]] (prev v5)
+- CHANGED [[ROLE-003]] (prev v6)
+- CHANGED [[SCREEN-011]] (prev v18)
+- CHANGED [[SCREEN-020]] (prev v28)
+- CHANGED [[SCREEN-021]] (prev v25)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[ADR-001]] | adr | 2 | NEW |
-| [[ADR-003]] | adr | 2 | NEW |
-| [[ADR-019]] | adr | 7 | NEW |
-| [[ADR-038]] | adr | 4 | NEW |
-| [[API-001]] | api_endpoint | 3 | NEW |
-| [[API-042]] | api_endpoint | 5 | NEW |
-| [[API-055]] | api_endpoint | 4 | NEW |
-| [[API-056]] | api_endpoint | 5 | NEW |
-| [[API-057]] | api_endpoint | 5 | NEW |
-| [[API-058]] | api_endpoint | 3 | NEW |
-| [[API-072]] | api_endpoint | 10 | NEW |
-| [[CDIAG-009]] | class_diagram | 4 | NEW |
-| [[CONST-001]] | constant | 4 | NEW |
-| [[CONST-002]] | constant | 3 | NEW |
-| [[DFEAT-026]] | domain_feature | 3 | NEW |
-| [[DFEAT-027]] | domain_feature | 4 | NEW |
-| [[DFEAT-028]] | domain_feature | 4 | NEW |
-| [[DOMAIN-006]] | domain | 8 | NEW |
-| [[NFR-008]] | nfr | 6 | NEW |
-| [[NFR-009]] | nfr | 4 | NEW |
-| [[NFR-010]] | nfr | 3 | NEW |
-| [[NFR-011]] | nfr | 4 | NEW |
-| [[NFR-012]] | nfr | 4 | NEW |
-| [[NFR-013]] | nfr | 4 | NEW |
-| [[NFR-014]] | nfr | 2 | NEW |
-| [[NFR-015]] | nfr | 5 | NEW |
-| [[NFR-016]] | nfr | 4 | NEW |
-| [[NFR-017]] | nfr | 8 | NEW |
-| [[NFR-018]] | nfr | 3 | NEW |
-| [[NFR-019]] | nfr | 2 | NEW |
-| [[NFR-020]] | nfr | 4 | NEW |
-| [[NFR-021]] | nfr | 1 | NEW |
-| [[ROLE-001]] | permission_role | 10 | NEW |
-| [[ROLE-002]] | permission_role | 6 | NEW |
-| [[ROLE-003]] | permission_role | 6 | NEW |
-| [[SCREEN-011]] | screen_spec | 18 | NEW |
-| [[SCREEN-020]] | screen_spec | 28 | NEW |
-| [[SCREEN-021]] | screen_spec | 25 | NEW |
-| [[SD-014]] | screen_design | 3 | NEW |
-| [[SD-030]] | screen_design | 5 | NEW |
-| [[SD-031]] | screen_design | 2 | NEW |
+| [[ADR-001]] | adr | 2 | UNCHANGED |
+| [[ADR-003]] | adr | 2 | UNCHANGED |
+| [[ADR-019]] | adr | 7 | UNCHANGED |
+| [[ADR-038]] | adr | 4 | UNCHANGED |
+| [[API-001]] | api_endpoint | 5 | CHANGED |
+| [[API-042]] | api_endpoint | 5 | UNCHANGED |
+| [[API-055]] | api_endpoint | 6 | CHANGED |
+| [[API-056]] | api_endpoint | 7 | CHANGED |
+| [[API-057]] | api_endpoint | 6 | CHANGED |
+| [[API-058]] | api_endpoint | 3 | UNCHANGED |
+| [[API-072]] | api_endpoint | 10 | UNCHANGED |
+| [[CDIAG-009]] | class_diagram | 4 | UNCHANGED |
+| [[DFEAT-026]] | domain_feature | 3 | UNCHANGED |
+| [[DFEAT-027]] | domain_feature | 4 | UNCHANGED |
+| [[DFEAT-028]] | domain_feature | 4 | UNCHANGED |
+| [[DOMAIN-006]] | domain | 8 | UNCHANGED |
+| [[NFR-008]] | nfr | 6 | UNCHANGED |
+| [[NFR-009]] | nfr | 4 | UNCHANGED |
+| [[NFR-010]] | nfr | 3 | UNCHANGED |
+| [[NFR-011]] | nfr | 4 | UNCHANGED |
+| [[NFR-012]] | nfr | 4 | UNCHANGED |
+| [[NFR-013]] | nfr | 4 | UNCHANGED |
+| [[NFR-014]] | nfr | 2 | UNCHANGED |
+| [[NFR-015]] | nfr | 5 | UNCHANGED |
+| [[NFR-016]] | nfr | 4 | UNCHANGED |
+| [[NFR-017]] | nfr | 8 | UNCHANGED |
+| [[NFR-018]] | nfr | 3 | UNCHANGED |
+| [[NFR-019]] | nfr | 2 | UNCHANGED |
+| [[NFR-020]] | nfr | 4 | UNCHANGED |
+| [[NFR-021]] | nfr | 1 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 10 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 6 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 7 | CHANGED |
+| [[SCREEN-011]] | screen_spec | 21 | CHANGED |
+| [[SCREEN-020]] | screen_spec | 30 | CHANGED |
+| [[SCREEN-021]] | screen_spec | 28 | CHANGED |
+| [[SD-014]] | screen_design | 3 | UNCHANGED |
+| [[SD-030]] | screen_design | 5 | UNCHANGED |
+| [[SD-031]] | screen_design | 2 | UNCHANGED |

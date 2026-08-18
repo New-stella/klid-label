@@ -36,7 +36,8 @@
         "DOMAIN-010",
         "DOMAIN-005",
         "DOMAIN-011",
-        "DOMAIN-006"
+        "DOMAIN-006",
+        "DOMAIN-013"
       ],
       "measurement_method": "대용량 질의·대량 라벨 조회·배치 트리거 등 지연 작업 시나리오로 진행 안내·취소 동작을 확인한다.",
       "applies_to_features": [],
@@ -45,12 +46,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "DOMAIN-005의 data.brownfield 변경 — applies_to",
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 비기능 요구에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "지연 사전 안내·취소 제공 대상에 포털을 더한다. 포털의 작업 데이터 묶음 다운로드와 원본 파일 다운로드는 이 요구가 말하는 장시간 작업인데 적용 대상에서 빠져 있었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:38:40.883Z",
+    "last_updated_at": "2026-08-17T22:21:32.045Z",
     "created_at": "2026-07-06T03:49:08.381Z"
   }
 }

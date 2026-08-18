@@ -106,6 +106,22 @@
     "UC-016",
     "UC-018"
   ],
-  "pending": [],
-  "last_sync_at": "2026-08-16T14:48:51.455Z"
+  "pending": [
+    "SHELL-001",
+    "MOD-003",
+    "MOD-041",
+    "MOD-042",
+    "MOD-045",
+    "MOD-046",
+    "MOD-048",
+    "LEGACY-003",
+    "LEGACY-005",
+    "LEGACY-021",
+    "LEGACY-043",
+    "LEGACY-044",
+    "LEGACY-046",
+    "LEGACY-119",
+    "NAV-001"
+  ],
+  "last_sync_at": "2026-08-17T15:39:51.300Z"
 }

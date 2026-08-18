@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 17
+version: 20
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T01:34:32.964Z
+synced_at: 2026-08-18T01:47:06.560Z
 status: CHANGED
-prev_version: 15
-content_hash: a1a0a661615b56c73c8d65cc3fe2bac06a5a0b9a52808243e4ee19c9fef43e3c
-stale: false
+prev_version: 17
+content_hash: 3e022070cb76654502aad1058728288d5c74c56e48f1762b585f2b2459b4ed4e
+stale: true
 raw: ./_raw/SCREEN-028.json
 links:
   belongs_to_domain: ["[[DOMAIN-013]]"]
@@ -19,7 +19,7 @@ links:
   designs_backward: ["[[SD-024]]"]
   granted_on_backward: ["[[ROLE-003]]"]
   navigates_to_backward: ["[[NAV-002]]"]
-  realizes_backward: ["[[MOD-017]]"]
+  realizes_backward: ["[[MOD-017]]", "[[MOD-021]]"]
   references_backward: ["[[SEQ-016]]", "[[UC-024]]"]
 ---
 
@@ -308,11 +308,29 @@ _(empty)_
 - **custom_name**: DatamartVideoDownloadAction
 - **triggers_api**: API-203
 
+#### [6]
+
+- **note**: 내려받는 중일 때만 다운로드 버튼 자리에 나타난다. 누르면 전송을 멈추고 다시 받을 수 있는 상태로 되돌린다. 사용자가 스스로 멈춘 것이므로 실패 안내를 띄우지 않는다.
+- **type**: Button
+- **label**: 다운로드 취소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: outline
+
 **description**:
 
 GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수 + (본인 저장 라벨이 있는 경우) 만료 예정일 + 다운로드 버튼, 카드 본체 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.'
 
 목록 아래에 페이지네이션을 둔다. 서버가 페이징으로 내려주는데 화면에 페이지를 옮길 수단이 없으면 첫 페이지 영상만 도달할 수 있고 나머지는 존재해도 고를 수 없다. 페이지를 옮기면 주소의 page 값을 갱신해 뒤로가기와 북마크가 동작하게 하며, 이는 내부 목록 화면이 쓰는 방식과 같다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.
+
+내려받는 중에는 같은 자리에서 전송을 멈출 수 있게 한다. 산출물에 영상이 포함되면 크기가 커서 한 번 시작하면 끝날 때까지 기다리는 수밖에 없고, 받는 동안에는 다른 영상의 다운로드도 함께 잠기므로 잘못 눌렀거나 지금 받을 상황이 아닐 때 빠져나올 길이 필요하다. 한 번에 하나만 받는다. 취소하면 전송을 중단하고 다시 받을 수 있는 상태로 되돌아가며 받다 만 파일은 남기지 않는다. 사용자가 누른 취소는 오류가 아니라 정상 종료다 — 실패 안내를 띄우지 않으며, 알린다면 취소되었다는 사실만 중립적으로 알린다. 전송이 끊겨 실패한 경우와 한 갈래로 묶지 않는다. 묶으면 스스로 멈춘 사용자에게 연결을 확인하고 다시 시도하라고 권하게 된다.
 
 **references_apis**:
 
@@ -350,23 +368,28 @@ web
 
 ### status
 
-planned
+implemented
 
 ### modules
 
-_(empty)_
+- MOD-017
+- MOD-021
 
 ### records
 
-_(empty)_
+- IMPREC-023
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-17T22:48:30.526Z
 
 ## required_roles
 
@@ -386,8 +409,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 2cc2760f0bdda63411bebd1ad8395111a7f8a5a1fd6a7028386ea8311367f1e0
-- **generated_at**: 2026-08-16T09:35:10.731Z
+- **source_hash**: 3344129b50d0222b3a3b53e04305001bcd9c79022adf89efadf6ca790ead4174
+- **generated_at**: 2026-08-17T22:21:55.546Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

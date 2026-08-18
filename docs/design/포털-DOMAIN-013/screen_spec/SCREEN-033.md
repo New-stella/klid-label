@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-033
 type: screen_spec
-version: 13
+version: 17
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:56.581Z
-status: NEW
-prev_version: null
-content_hash: 4e60ccb733a9d0dd5458502600fd0d2a09e41e89cb8fe39f77451d4e34cfacb8
+synced_at: 2026-08-18T01:47:06.627Z
+status: CHANGED
+prev_version: 16
+content_hash: 22af9e1aa9eefbd524867651fe17ae1f59323459c9916c6f2e6ef56175107d7f
 stale: false
 raw: ./_raw/SCREEN-033.json
 links:
@@ -18,7 +18,7 @@ links:
   designs_backward: ["[[SD-026]]"]
   granted_on_backward: ["[[ROLE-003]]"]
   navigates_to_backward: ["[[NAV-002]]"]
-  realizes_backward: ["[[MOD-017]]"]
+  realizes_backward: ["[[MOD-017]]", "[[MOD-021]]"]
   references_backward: ["[[SEQ-019]]", "[[UC-027]]"]
 ---
 
@@ -42,7 +42,7 @@ draft
 
 ## purpose
 
-PORTAL_USER가 본인 소유 이미지·영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 이미지는 다중 선택 후 클라이언트 사전검증(jpg/jpeg/png, 20MB/장, 50장/요청)을 거쳐 multipart 업로드하고, 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + READY 자산의 라벨링 진입(/portal/uploads/{uldSn}/label) + 삭제(PROCESSING 중이면 BE가 409로 거부)를 제공한다. 오토라벨링·SAM2·VLM·검수·버전관리는 이 경로에도 제공되지 않는다. 접근: PORTAL_USER.
+PORTAL_USER가 본인 소유 이미지·영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 이미지는 다중 선택 후 클라이언트 사전검증(jpg/jpeg/png, 20MB/장, 50장/요청)을 거쳐 multipart 업로드하고, 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + 만료 예정일 + READY 자산의 라벨링 진입(/portal/uploads/{uldSn}/label) + 삭제(PROCESSING 중이면 BE가 409로 거부)를 제공한다. 이 경로의 자산은 비식별 처리를 거치지 않아 가공되지 않은 개인정보가 그대로 보관되므로 보존기간을 짧게 두고, 기간이 지나면 저장 행과 파일을 함께 삭제한다. 사용자가 삭제 시점을 예측할 수 있도록 목록의 각 자산에 만료 예정일을 날짜까지 표기한다. 오토라벨링·SAM2·VLM·검수·버전관리는 이 경로에도 제공되지 않는다. 접근: PORTAL_USER.
 
 ## sections
 
@@ -263,7 +263,23 @@ _(empty)_
 
 - **variant**: outline
 
-- **description**: 본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청.
+#### [5]
+
+- **note**: 상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.
+- **type**: Text
+- **label**: 만료 예정일 (만료: YYYY-MM-DD)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: uploads[].expiresAt
+
+- **description**: 본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수 + 만료 예정일. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청. 만료 예정일은 응답의 expiresAt 을 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). expiresAt 이 없는 자산은 만료 예정일 자리를 비운다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라 값이 내려오지 않는다. 만료 예정일이 내려오는 것은 준비 완료·실패 자산이다. 이 값은 조회 시점의 보존기간 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 매 조회마다 갱신한다. 만료가 가까운 자산을 색·아이콘으로 강조하는 표기는 두지 않는다.
 
 **references_apis**:
 
@@ -306,23 +322,28 @@ web
 
 ### status
 
-planned
+implemented
 
 ### modules
 
-_(empty)_
+- MOD-017
+- MOD-021
 
 ### records
 
-_(empty)_
+- IMPREC-024
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-17T22:48:30.685Z
 
 ## required_roles
 
@@ -342,8 +363,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: cf74cd687e9c21a518f9548230348e16256d0dff8ce23ef981697848df64b705
-- **generated_at**: 2026-08-16T09:35:10.864Z
+- **source_hash**: 7a3481869f9bad41132aa985b0963e49eadc6e66087869a406d17297524e490e
+- **generated_at**: 2026-08-17T11:15:22.437Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

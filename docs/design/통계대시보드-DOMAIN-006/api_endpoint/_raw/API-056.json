@@ -130,7 +130,7 @@
                   "approvedLabelCount": {
                     "type": "integer",
                     "format": "int64",
-                    "description": "검수완료(APPROVED) 영상에 달린 라벨 수 — 학습데이터로 확정된 분량이다. 전체 배정분을 세는 labelCount 와 짝을 이루며 화면은 이 값을 주 수치로 보여준다."
+                    "description": "검수완료(APPROVED) 영상에 달린 라벨 중 폐기되지 않은 프레임의 라벨만 센다 — 학습데이터로 확정된 분량이다. 폐기된 프레임의 라벨은 산출물에 들어가지 않으므로 이 수치에도 들어가지 않는다. 전체 배정분을 세는 labelCount 와는 축이 다르다 — 그 값은 그 작업자에게 배정된 전체 분량이라 폐기 여부로 걸러내지 않는다. 화면은 이 값을 주 수치로 보여준다."
                   }
                 },
                 "description": "작업자 통계 요약"
@@ -272,21 +272,21 @@
       "description": "작업자별 작업 통계를 조회한다. REVIEWER/WORKER.",
       "calls_external": [],
       "implementation": {
-        "status": "in_progress",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 77,
+        "progress": 100,
         "subtasks": [
           {
-            "done": false,
+            "done": true,
             "description": "assignedTotal 필드 구현 (WorkerStatSummaryResponse)"
           },
           {
-            "done": false,
+            "done": true,
             "description": "completionRate 필드 구현 (WorkerStatSummaryResponse)"
           },
           {
-            "done": false,
+            "done": true,
             "description": "approvedLabelCount 필드 구현 (WorkerStatSummaryResponse)"
           }
         ]
@@ -297,12 +297,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "P1 반영: 실재하는 workerId 쿼리 파라미터 선언 추가(400 응답이 이미 전제하던 값), rejectRate/completionRate 설명에서 \"통일하지 않는다\" 지시문 중복 제거(단위 차이 사실만 남김), 400 설명에서 @Pattern 어노테이션 노출 제거, implementation 을 실제 코드 상태(신설 3필드 assignedTotal/completionRate/approvedLabelCount 미구현)에 맞춰 in_progress/77%+subtasks 로 정정(구 implemented/100% 는 설계 선행 사실과 메타가 불일치했다).",
+    "change_summary": "작업자 통계 응답의 배정 전체 수·완료율·검수완료 라벨 수 세 필드가 실제로 구현되어, 그에 대응하는 하위 작업 셋을 완료로 표시하고 구현 상태를 구현됨으로, 진행률을 100 으로 올린다. 나머지 구현 메타(연결 모듈·기록)와 사양 본문(응답 스키마·필드 설명·파라미터)은 손대지 않는다 — 이번 변경은 실제 구현 상태에 메타를 맞추는 정정이며 계약 변경이 아니다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:00:53.870Z",
+    "last_updated_at": "2026-08-17T15:27:47.411Z",
     "created_at": "2026-05-30T07:25:11.901Z"
   }
 }

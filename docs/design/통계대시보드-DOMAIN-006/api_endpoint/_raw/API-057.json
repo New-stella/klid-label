@@ -147,7 +147,7 @@
                   "approvedImageCount": {
                     "type": "integer",
                     "format": "int64",
-                    "description": "검수 승인(APPROVED) 영상에 속한 프레임 누적 건수 — 이미지 학습데이터 카드의 주 수치. 항상 approvedImageCount <= cumulativeImageCount."
+                    "description": "검수 승인(APPROVED) 영상에 속한 프레임 중 폐기되지 않은 것만 센 누적 건수 — 이미지 학습데이터 카드의 주 수치이자 학습데이터로 확정된 분량이다. 폐기된 프레임은 학습데이터 산출물과 데이터마트 노출에 들어가지 않으므로 이 수치에도 들어가지 않는다. 전체를 세는 cumulativeImageCount 와는 축이 다르다 — 그 값은 수집한 전체 분량이라 폐기 여부로 걸러내지 않는다. 항상 approvedImageCount <= cumulativeImageCount."
                   },
                   "approvedVideoCount": {
                     "type": "integer",
@@ -343,12 +343,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "P1 반영: processing 설명 \"5카드\"(SCREEN-021 이 이미 폐기한 개별 카드 레이아웃)를 데이터 의미 서술로 교체 — API 는 표현 방식을 규정하지 않는다. 이벤트 분포 예시 eventTypeCd 를 EV02000201 로 정정 — 2곳.",
+    "change_summary": "검수완료 기준 이미지 건수(approvedImageCount)의 계산 범위에 «폐기되지 않은 프레임만 센다» 를 명시. 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로, 같은 분량을 뜻한다고 서술된 이 수치도 같은 집합이어야 한다(어긋나면 화면 숫자가 실제 산출 분량보다 커진다). 함께 두는 cumulativeImageCount 는 «수집한 전체 분량» 이라는 다른 축이므로 폐기 여부로 걸러내지 않는다. 영상 단위 수치와 영상 단위 이벤트 분포는 폐기가 프레임 축이라 영향이 없어 그대로 둔다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:00:53.960Z",
+    "last_updated_at": "2026-08-17T12:39:29.361Z",
     "created_at": "2026-05-30T07:25:15.653Z"
   }
 }

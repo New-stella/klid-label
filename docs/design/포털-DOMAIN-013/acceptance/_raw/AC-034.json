@@ -40,11 +40,17 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "implemented",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java"
+        ],
+        "records": [
+          "IMPREC-011"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:33:45.697Z"
       },
       "derived_domain_ids": [
         "DOMAIN-013"
@@ -61,8 +67,8 @@
     "stale": true,
     "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
     "change_summary": "사용자 확정 — 비식별 영상 미존재 시 원본 폴백 없이 라벨·이미지만 담는 동작을 인수기준으로 등록",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:10:20.896Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T04:33:45.697Z",
     "created_at": "2026-08-17T01:10:20.896Z"
   }
 }

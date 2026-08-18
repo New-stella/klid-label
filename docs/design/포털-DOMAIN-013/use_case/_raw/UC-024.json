@@ -56,11 +56,18 @@
         "선택 대상 영상이 검수 승인(APPROVED) 상태로 저작도구 DB 에 존재하고 프레임이 1건 이상 추출돼 있다"
       ],
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "implemented",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java"
+        ],
+        "records": [
+          "IMPREC-020"
+        ],
+        "progress": 90,
+        "subtasks": [],
+        "last_updated": "2026-08-17T15:37:38.258Z"
       },
       "postconditions": [
         "수정 라벨이 LS_PORTAL_USER_LABEL에 사용자별로 저장되어 있다",
@@ -101,12 +108,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 14,
+    "current_version": 15,
     "stale": true,
     "stale_reason": "SCREEN-028의 2개 필드 변경 — references",
-    "change_summary": "사용자 확정 — step4 다운로드 서술을 보존기간(7일, 설정 가능) 자동 삭제 정책에 맞게 개정, 관련 postcondition 추가, 신설 AC 6건 covered_by_acceptances 연결",
+    "change_summary": "화면 배선 완료를 반영해 구현 상태를 구현됨으로 올린다(검증됨은 보류 — 연결 수용기준의 실행 결과 없음)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:14:55.986Z",
+    "last_updated_at": "2026-08-17T15:37:38.259Z",
     "created_at": "2026-06-05T09:47:37.215Z"
   }
 }

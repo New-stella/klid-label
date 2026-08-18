@@ -31,21 +31,8 @@
             "properties": {
               "data": {
                 "type": "object",
-                "properties": {
-                  "rawSn": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "대상 영상 RAW_SN"
-                  },
-                  "reviewStatus": {
-                    "enum": [
-                      "APPROVED"
-                    ],
-                    "type": "string",
-                    "description": "전이된 검토 상태(APPROVED)"
-                  }
-                },
-                "description": "승인 결과"
+                "nullable": true,
+                "description": "항상 null — 이 엔드포인트는 상태 전이만 수행하며(반환형 Void) 응답 본문에 결과 데이터를 싣지 않는다."
               },
               "message": {
                 "type": "string",
@@ -64,15 +51,12 @@
             }
           },
           "example": {
-            "data": {
-              "rawSn": 1,
-              "reviewStatus": "APPROVED"
-            },
+            "data": null,
             "message": null,
             "success": true,
             "errorCode": null
           },
-          "description": "승인 성공. data 에 전이된 검토 상태.",
+          "description": "승인 성공. data 는 항상 null — 승인은 상태 전이만 수행하며 응답 본문에 결과를 싣지 않는다(반환형 Void).",
           "content_type": "application/json"
         },
         "401": {
@@ -167,12 +151,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "D010 P1(D010-LINK-004): implements_features 공란 → FEAT-009(VLM 시계열 메타 검토·수정). 근거: DFEAT-050(specializes_feature=FEAT-009)이 이 API 를 구현체로 지목(implemented_by_endpoints).",
+    "change_summary": "200 응답 data 스키마를 {rawSn, reviewStatus} 객체에서 항상 null(nullable, 반환형 Void)로 교체했다. 컨트롤러는 상태 전이만 수행하고 결과 데이터를 응답 본문에 싣지 않는다 — 옛 rawSn/reviewStatus 필드는 실제로 존재한 적이 없다. description·example 도 동일하게 갱신.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:22:06.995Z",
+    "last_updated_at": "2026-08-16T23:44:46.305Z",
     "created_at": "2026-07-24T01:29:57.529Z"
   }
 }

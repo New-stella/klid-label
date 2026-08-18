@@ -79,6 +79,16 @@
                       "type": "string",
                       "nullable": true,
                       "description": "운영자가 지정한 표시명"
+                    },
+                    "dsplNmSource": {
+                      "enum": [
+                        "operator",
+                        "control",
+                        "category",
+                        "code"
+                      ],
+                      "type": "string",
+                      "description": "dsplNm 이 채택된 단계 — operator=운영자 지정명, control=관제 수신 유형명, category=카테고리명, code=유형코드. 저장값이 아니라 표시명 해석 결과로 파생된다"
                     }
                   }
                 },
@@ -111,7 +121,8 @@
                 "evntTypeCd": "EV01000101",
                 "evntCtgryCd": "EV0100",
                 "evntCtgryNm": "침수(범람)",
-                "optrIndctNm": null
+                "optrIndctNm": null,
+                "dsplNmSource": "category"
               }
             ],
             "message": null,
@@ -192,14 +203,15 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "등록된 이벤트유형을 전부 반환한다 — 비수집이거나 제외 대분류에 속한 것까지 포함한다. 필터 드롭다운용 조회와는 목적이 달라 경로가 분리돼 있고, 이쪽은 검수자 전용이다.\n\n[왜 관리 경로가 따로 있나] 이벤트유형의 등록 유일한 출처는 관제 인입이며 자동등록은 기존 행을 절대 갱신하지 않는다. 따라서 이 조회와 짝을 이루는 수정 경로가 없으면 최초 등록값이 영구 고착한다.\n\n[표시명은 해석된 값이다] dsplNm 은 운영자 지정명·관제 수신명·카테고리명·코드 순서로 해석된 최종 표시명이고, optrIndctNm·evntNm·evntCtgryNm 은 그 해석의 재료다. 표시명이 같은 유형들은 필터 옵션에서 한 건으로 접히므로, 여기서 표시명을 지정하면 그 그룹이 갈라진다.",
+      "description": "등록된 이벤트유형을 전부 반환한다 — 비수집이거나 제외 대분류에 속한 것까지 포함한다. 필터 드롭다운용 조회와는 목적이 달라 경로가 분리돼 있고, 이쪽은 검수자 전용이다.\n\n[왜 관리 경로가 따로 있나] 이벤트유형의 등록 유일한 출처는 관제 인입이며 자동등록은 기존 행을 절대 갱신하지 않는다. 따라서 이 조회와 짝을 이루는 수정 경로가 없으면 최초 등록값이 영구 고착한다.\n\n[표시명은 해석된 값이다] dsplNm 은 운영자 지정명·관제 수신명·카테고리명·코드 순서로 해석된 최종 표시명이고, optrIndctNm·evntNm·evntCtgryNm 은 그 해석의 재료다. 표시명이 같은 유형들은 필터 옵션에서 한 건으로 접히므로, 여기서 표시명을 지정하면 그 그룹이 갈라진다.\n\n[표시명 출처도 함께 내려준다] dsplNmSource 는 dsplNm 이 어느 단계에서 채택됐는지를 나타낸다. 화면이 재료 필드로 폴백 순서를 다시 판정하면 같은 판정이 두 곳에 존재해 규칙이 바뀔 때 한쪽이 낡으므로, 채택 단계는 서버가 정해 내려준다. 값 이름은 표시명 출처를 표기하는 화면 요소의 계약과 같게 두어 화면이 값을 변환하지 않고 그대로 쓴다. 저장되는 컬럼이 아니라 응답 시점에 해석 결과로 파생되는 표시용 값이다.",
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T15:33:48.541Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -207,12 +219,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이벤트유형 관리 조회를 계약으로 신설한다. 표시명을 정정하는 유일한 통로의 조회 짝인데 정의서에 없어, 관리 화면이 무엇을 읽는지 알 수 없었다.",
+    "change_summary": "표시명 출처 응답 필드가 구현되고 회귀 시험으로 고정됐다. 구현 상태 메타만 갱신하며 사양 본문은 바꾸지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:02:49.132Z",
+    "last_updated_at": "2026-08-17T15:33:48.541Z",
     "created_at": "2026-08-07T03:02:49.132Z"
   }
 }

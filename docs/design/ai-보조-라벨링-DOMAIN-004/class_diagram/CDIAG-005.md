@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-005
 type: class_diagram
-version: 4
+version: 5
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.070Z
-status: NEW
-prev_version: null
-content_hash: 65f9d645fd2cb768cff02a6a22f1bdca2060ce5850eb86d414c1a4b64151ca24
-stale: true
+synced_at: 2026-08-17T15:39:18.674Z
+status: CHANGED
+prev_version: 4
+content_hash: 6e1ea7f26723af4a177e72e5b0b0a1c09dbc0e4c9c417ab75155530c5b259109
+stale: false
 raw: ./_raw/CDIAG-005.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
@@ -157,6 +157,36 @@ _(empty)_
 - **type**: String
 - **is_static**: false
 - **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### labelId
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: 라벨 마스터(LS_LABEL) 식별자. AI 검출 클래스 축으로 서버가 해석해 채우며, 대응 마스터가 없거나 검출 클래스 매핑이 지정되지 않으면 비어 있다.
 - **is_readonly**: false
 
 **implementation**:
@@ -384,7 +414,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 라벨 좌표와 그 라벨이 어떻게 만들어졌는지를 함께 보유하는 Aggregate Root. 라벨 1건은 AI 출처 정보를 최대 1벌 가지므로 별도 객체로 분리하지 않고 같은 라벨에 둔다. TRCK_ID 로 트래커가 부여한 객체 식별자를 보유한다. 라벨 자체의 소유는 라벨링 도메인이며 본 모델은 오토라벨 관점에서 같은 라벨을 본다.
+- **description**: 라벨 좌표와 그 라벨이 어떻게 만들어졌는지를 함께 보유하는 Aggregate Root. 라벨 1건은 AI 출처 정보를 최대 1벌 가지므로 별도 객체로 분리하지 않고 같은 라벨에 둔다. TRCK_ID 로 트래커가 부여한 객체 식별자를 보유한다. 라벨 자체의 소유는 라벨링 도메인이며 본 모델은 오토라벨 관점에서 같은 라벨을 본다. 라벨 마스터 식별자(LBL_ID)도 함께 보유하며, 그 값을 AI 검출 클래스 축으로 해석해 채우는 주체는 서버다 — 검출 결과를 내보내는 경로가 그 식별자를 함께 싣고 화면은 검출 클래스명으로 마스터를 다시 찾지 않는다. 대응 마스터가 없거나 검출 클래스 매핑이 지정되지 않은 검출은 이 값을 비운 채 내보내며 값을 지어내지 않는다.
 
 **enum_values**:
 

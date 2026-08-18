@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 23
-last_updated_at: 2026-08-16T12:44:01.936Z
-domain: null
+version: 24
+last_updated_at: 2026-08-17T06:50:48.584Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:27:41.257Z
-sync_session: 15
-stale: true
+synced_at: 2026-08-18T01:49:51.222Z
+sync_session: 17
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-030.json
@@ -207,7 +207,7 @@ _(empty)_
 
 - **custom_name**: Pagination
 
-- **description**: 제목(중요 배지 — Pin 아이콘, amber, 텍스트 '중요' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
+- **description**: 제목(고정 배지 — Pin 아이콘, amber, 텍스트 '고정' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
 
 **references_apis**:
 

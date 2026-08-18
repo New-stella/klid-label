@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-16T14:27:50.323Z (session 9) |
+| last sync | 2026-08-17T15:40:46.368Z (session 10) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/라벨링-DOMAIN-010 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -54,8 +54,22 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-193]] | api_endpoint | NEW |
-| [[SCREEN-005]] | screen_spec | CHANGED (v75→v76) |
+| [[AC-017]] | acceptance | CHANGED (v5→v6) |
+| [[AC-024]] | acceptance | CHANGED (v5→v6) |
+| [[API-020]] | api_endpoint | CHANGED (v7→v8) |
+| [[API-021]] | api_endpoint | CHANGED (v7→v8) |
+| [[API-024]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-093]] | api_endpoint | CHANGED (v9→v10) |
+| [[API-103]] | api_endpoint | CHANGED (v9→v10) |
+| [[API-123]] | api_endpoint | CHANGED (v6→v7) |
+| [[API-132]] | api_endpoint | CHANGED (v2→v4) |
+| [[API-133]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-135]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-172]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-173]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-196]] | api_endpoint | CHANGED (v8→v9) |
+| [[SCREEN-005]] | screen_spec | CHANGED (v76→v84) |
+| [[UC-004]] | use_case | CHANGED (v13→v15) |
 
 ## Obsidian 볼트로 보기
 

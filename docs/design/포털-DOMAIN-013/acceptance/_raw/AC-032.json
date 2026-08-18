@@ -45,11 +45,19 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "in_progress",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUserLabelRepository.java"
+        ],
+        "records": [
+          "IMPREC-015"
+        ],
+        "progress": 70,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:34:09.537Z"
       },
       "derived_domain_ids": [
         "DOMAIN-013"
@@ -66,8 +74,8 @@
     "stale": true,
     "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
     "change_summary": "사용자 확정 — 데이터마트 축 보존기간 만료 경계 동작을 인수기준으로 등록",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:09:27.634Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T04:34:09.537Z",
     "created_at": "2026-08-17T01:09:27.634Z"
   }
 }

@@ -3,12 +3,15 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
   "decided_by": "llm",
-  "decided_at": "2026-08-16T00:00:00Z",
+  "decided_at": "2026-08-18T01:46:46Z",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외",
   "items": [
     "AC-004",
     "AC-005",
     "AC-006",
+    "AC-038",
+    "AC-039",
+    "AC-040",
     "ADR-001",
     "ADR-003",
     "ADR-019",
@@ -19,6 +22,7 @@
     "ADR-040",
     "ADR-041",
     "ADR-046",
+    "ADR-047",
     "API-020",
     "API-043",
     "API-065",
@@ -51,6 +55,10 @@
     "FEAT-007",
     "FEAT-009",
     "INFRA-001",
+    "LEGACY-005",
+    "LEGACY-066",
+    "LEGACY-067",
+    "LEGACY-096",
     "NFR-008",
     "NFR-009",
     "NFR-010",
@@ -78,8 +86,9 @@
     "SEQ-023",
     "UC-004",
     "UC-005",
-    "UC-006"
+    "UC-006",
+    "UC-034"
   ],
   "pending": [],
-  "last_sync_at": "2026-08-16T14:48:52.171Z"
+  "last_sync_at": "2026-08-18T01:47:05.911Z"
 }

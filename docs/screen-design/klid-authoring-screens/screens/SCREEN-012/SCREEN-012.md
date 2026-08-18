@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 39
-last_updated_at: 2026-08-16T09:56:01.951Z
-domain: null
+version: 40
+last_updated_at: 2026-08-17T06:53:15.707Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:27:41.228Z
-sync_session: 15
+synced_at: 2026-08-18T01:49:51.196Z
+sync_session: 17
 stale: true
 status: UNCHANGED
 prev_version: null
@@ -367,12 +367,13 @@ _(empty)_
 
 - **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(WINTER/NIGHT/RAIN 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다).
 - **type**: Table
-- **label**: 선택/영상명/이벤트/촬영일시/상태/작업자/검수자/액션
+- **label**: 선택/영상명/영상 ID/이벤트/촬영일시/상태/작업자/검수자/액션
 
 **columns**:
 
 - 선택
 - 영상명
+- 영상 ID
 - 이벤트
 - 촬영일시
 - 상태

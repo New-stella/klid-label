@@ -3,12 +3,12 @@
     "id": "AC-036",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "acceptance",
-    "title": "처리 중인 업로드 자산은 보존기간 만료 삭제 대상이 아니다",
-    "slug": "처리-중인-업로드-자산은-보존기간-만료-삭제-대상이-아니다",
+    "title": "처리를 시작하지 않았거나 처리 중인 업로드 자산은 보존기간 만료 삭제 대상이 아니다",
+    "slug": "처리를-시작하지-않았거나-처리-중인-업로드-자산은-보존기간-만료-삭제-대상이-아니다",
     "sub_id": null,
     "status": "draft",
     "data": {
-      "notes": "처리 중인 자산을 지우면 프레임 추출 러너와 경쟁해 파일-DB 불일치가 난다 — 삭제 후보 조건에 uld_stts_cd IN ('READY','FAILED') 를 리터럴로 명시해야 한다(DFEAT-055).",
+      "notes": "처리를 시작하지 않았거나 처리 중인 자산을 지우면 프레임 추출과 경쟁해 파일-DB 불일치가 난다 — 두 상태는 삭제 판정이 같다. 삭제 후보 조건에는 ULD_STTS_CD 가 READY 또는 FAILED 라는 것을 조건으로 박아 그 밖의 상태가 구조적으로 후보가 되지 못하게 한다(DFEAT-055). 영구 잔류는 삭제 판정을 넓혀서가 아니라 상태를 앞에서 정리해 막는다 — 방치된 자산을 먼저 처리 실패로 전이시키고 이미 있는 실패 축 보존기간이 지우게 한다. 비가역 삭제의 판정 지점을 한 곳으로 유지하기 위한 선택이다. 방치 판정 축은 총 처리 시간이 아니라 최종 변경 일시(MDFCN_DT)의 무갱신 경과이며, 처리가 진행되는 동안에는 그 시각이 갱신되므로 오래 걸리는 대용량 영상이 방치로 오인되지 않는다.",
       "priority": "critical",
       "scenario": {
         "then": [
@@ -18,7 +18,7 @@
           "보존기간 만료 자동 삭제 배치가 실행된다"
         ],
         "given": [
-          "업로드 자산이 PROCESSING 상태다",
+          "업로드 자산이 UPLOADED(처리 시작 전) 또는 PROCESSING(처리 중) 상태다",
           "자산 등록일(REG_DT)로부터 portal.upload.retention-days 가 이미 지났다"
         ],
         "and_examples": [
@@ -27,14 +27,18 @@
             "result": "그 시점부터 마지막 작업일 기준 portal.upload.retention-days 가 적용된다"
           },
           {
-            "case": "그 자산이 30분 고착(갱신 없음)으로 기존 스위프(failStuckUploads)가 FAILED 로 전이시키는 경우",
-            "result": "그 이후부터 FAILED 축 보존기간(portal.upload.failed-retention-days)이 적용된다"
+            "case": "그 자산이 방치 판정 시간(기본 30분) 동안 갱신되지 않아 처리 실패로 전이되는 경우",
+            "result": "그 전이 시각을 기준점으로 FAILED 축 보존기간(portal.upload.failed-retention-days)이 적용되며, 그 시점부터 만료 예정 시각이 조회 응답에 실려 고지된다"
+          },
+          {
+            "case": "방치 판정 시간 설정값이 비어 있거나 0 이하·해석 불가인 경우",
+            "result": "그 회차의 방치 전이를 수행하지 않는다 — 임의 기본값으로 대체하거나 0 을 그대로 적용해 즉시 실패 전이로 전락시키지 않는다"
           }
         ]
       },
-      "statement": "프레임 추출이 진행 중인(PROCESSING) 업로드 자산은 등록일로부터 보존기간이 지나도 자동 삭제되지 않는다",
+      "statement": "아직 처리가 시작되지 않은(UPLOADED) 자산과 프레임 추출이 진행 중인(PROCESSING) 업로드 자산은 등록일로부터 보존기간이 지나도 자동 삭제되지 않는다 — 삭제 후보가 되는 상태는 READY 와 FAILED 다. 다만 이 두 상태로 영구히 남지는 않는다 — 방치 판정 시간(portal.upload.stuck-timeout-minutes, 기본 30분) 동안 최종 변경 일시가 갱신되지 않으면 처리 실패(FAILED)로 전이되어 그때부터 실패 축 보존기간 규칙을 탄다",
       "brownfield": {
-        "notes": "2026-08 사용자 확정 — 업로드 축 보존기간 배치 안전장치(DFEAT-055).",
+        "notes": "2026-08 사용자 확정 — 업로드 축 보존기간 배치 안전장치(DFEAT-055). 처리 시작 전·처리 중으로 방치된 자산은 새 삭제 경로 없이 처리 실패 전이로 회수한다.",
         "status": "new",
         "decided_by": "ADR-013",
         "change_kind": [
@@ -43,11 +47,18 @@
       },
       "is_negative": true,
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "implemented",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java"
+        ],
+        "records": [
+          "IMPREC-013"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:33:54.470Z"
       },
       "derived_domain_ids": [
         "DOMAIN-013"
@@ -60,12 +71,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
-    "change_summary": "사용자 확정 — PROCESSING 상태 업로드 자산의 보존기간 삭제 제외를 인수기준으로 등록",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "처리 시작 전·처리 중 자산이 삭제 후보가 아니라는 기존 규정은 유지하면서, 그 두 상태로 영구히 남지는 않는다는 후속 규칙을 진술과 예시에 반영했다 — 방치 판정 시간(설정값, 기본 30분) 무갱신 시 처리 실패로 전이해 실패 축 보존기간을 탄다. 설정값이 비어 있거나 0 이하·해석 불가일 때 전이를 건너뛴다는 예시를 추가하고, 판정 축이 최종 변경 일시의 무갱신 경과임을 근거와 함께 적었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:11:14.796Z",
+    "last_updated_at": "2026-08-17T22:19:41.584Z",
     "created_at": "2026-08-17T01:11:14.796Z"
   }
 }

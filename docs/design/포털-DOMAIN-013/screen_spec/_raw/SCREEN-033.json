@@ -12,7 +12,7 @@
       "title": "포털 업로드 화면",
       "device": "responsive",
       "status": "draft",
-      "purpose": "PORTAL_USER가 본인 소유 이미지·영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 이미지는 다중 선택 후 클라이언트 사전검증(jpg/jpeg/png, 20MB/장, 50장/요청)을 거쳐 multipart 업로드하고, 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + READY 자산의 라벨링 진입(/portal/uploads/{uldSn}/label) + 삭제(PROCESSING 중이면 BE가 409로 거부)를 제공한다. 오토라벨링·SAM2·VLM·검수·버전관리는 이 경로에도 제공되지 않는다. 접근: PORTAL_USER.",
+      "purpose": "PORTAL_USER가 본인 소유 이미지·영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 이미지는 다중 선택 후 클라이언트 사전검증(jpg/jpeg/png, 20MB/장, 50장/요청)을 거쳐 multipart 업로드하고, 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + 만료 예정일 + READY 자산의 라벨링 진입(/portal/uploads/{uldSn}/label) + 삭제(PROCESSING 중이면 BE가 409로 거부)를 제공한다. 이 경로의 자산은 비식별 처리를 거치지 않아 가공되지 않은 개인정보가 그대로 보관되므로 보존기간을 짧게 두고, 기간이 지나면 저장 행과 파일을 함께 삭제한다. 사용자가 삭제 시점을 예측할 수 있도록 목록의 각 자산에 만료 예정일을 날짜까지 표기한다. 오토라벨링·SAM2·VLM·검수·버전관리는 이 경로에도 제공되지 않는다. 접근: PORTAL_USER.",
       "sections": [
         {
           "name": "이미지 업로드",
@@ -127,9 +127,17 @@
               "columns": [],
               "options": [],
               "variant": "outline"
+            },
+            {
+              "note": "상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.",
+              "type": "Text",
+              "label": "만료 예정일 (만료: YYYY-MM-DD)",
+              "columns": [],
+              "options": [],
+              "binds_to": "uploads[].expiresAt"
             }
           ],
-          "description": "본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청.",
+          "description": "본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수 + 만료 예정일. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청. 만료 예정일은 응답의 expiresAt 을 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). expiresAt 이 없는 자산은 만료 예정일 자리를 비운다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라 값이 내려오지 않는다. 만료 예정일이 내려오는 것은 준비 완료·실패 자산이다. 이 값은 조회 시점의 보존기간 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 매 조회마다 갱신한다. 만료가 가까운 자산을 색·아이콘으로 강조하는 표기는 두지 않는다.",
           "references_apis": [],
           "references_features": []
         }
@@ -151,11 +159,17 @@
         "API-161"
       ],
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "implemented",
+        "modules": [
+          "MOD-017",
+          "MOD-021"
+        ],
+        "records": [
+          "IMPREC-024"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T22:48:30.685Z"
       },
       "required_roles": [
         "ROLE-003"
@@ -169,8 +183,8 @@
           "surface": "page",
           "platform": "web",
           "sections": [],
-          "source_hash": "cf74cd687e9c21a518f9548230348e16256d0dff8ce23ef981697848df64b705",
-          "generated_at": "2026-08-16T09:35:10.864Z",
+          "source_hash": "7a3481869f9bad41132aa985b0963e49eadc6e66087869a406d17297524e490e",
+          "generated_at": "2026-08-17T11:15:22.437Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -184,12 +198,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 17,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (6.5KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:35:10.864Z",
+    "change_summary": "구현 상태 추적 정합 — 프론트엔드 배선이 실제로 구현·회귀시험 고정된 상태를 반영해 계획됨에서 구현됨으로 올린다. 사양 본문은 변경하지 않았다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T22:48:30.685Z",
     "created_at": "2026-07-30T07:10:23.712Z"
   }
 }

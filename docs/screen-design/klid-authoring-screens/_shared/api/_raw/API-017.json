@@ -236,6 +236,23 @@
         }
       ],
       "description": "VLM 시계열 메타 검수 항목을 반려한다. REVIEWER 전용.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "maxLength": 1000,
+              "description": "메타 검토 반려 사유"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -252,12 +269,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "change_summary": "요청 계약(request_body)이 선언에서 빠져 있어 채운다. 메타 검토 반려는 사유가 필수다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:22:54.953Z",
+    "last_updated_at": "2026-08-16T23:45:08.987Z",
     "created_at": "2026-05-30T06:58:48.780Z"
   }
 }

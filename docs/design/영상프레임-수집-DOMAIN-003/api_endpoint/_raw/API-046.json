@@ -181,6 +181,16 @@
           },
           "required": true,
           "description": "프레임 번호"
+        },
+        {
+          "in": "query",
+          "name": "raw",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          },
+          "required": false,
+          "description": "REVIEWER 전용 — true 면 원본(비식별 전) 프레임 요청. WORKER 는 무시되고 DEID 강제."
         }
       ],
       "description": "영상의 특정 프레임 번호 이미지를 반환한다. 인증된 사용자.",
@@ -198,12 +208,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "200 응답 설명의 Cache-Control 값이 실제 구현(FrameImageService.serveFrame)과 달랐다 — private, max-age=3600 → no-store 로 정정한다. 같은 ITEM 의 412 응답은 이미 no-store 라고 적어 200 과 자기모순이었다. path/method/응답 필드명/타입은 무변경.",
+    "change_summary": "쿼리 파라미터 raw 가 선언에서 빠져 있어 추가한다. 이 엔드포인트는 형제 경로(srcSn 기준 프레임 이미지 조회)와 같은 판정을 공유한다 — 기본은 비식별 프레임이며 REVIEWER 가 raw=true 를 명시할 때만 원본을 서빙하고, WORKER 의 raw=true 는 무시된다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T00:07:39.517Z",
+    "last_updated_at": "2026-08-16T23:43:53.278Z",
     "created_at": "2026-05-30T07:23:19.928Z"
   }
 }

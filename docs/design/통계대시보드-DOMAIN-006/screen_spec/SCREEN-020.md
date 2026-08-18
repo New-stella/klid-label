@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-020
 type: screen_spec
-version: 28
+version: 30
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:56.708Z
-status: NEW
-prev_version: null
-content_hash: 4935b689cf3e9d56e60e13acc14edf970b904dffbb71733680e30081725b341c
+synced_at: 2026-08-17T15:39:37.308Z
+status: CHANGED
+prev_version: 28
+content_hash: 7414cd3c59a028ba63e92d4d346cf884661cf1b113a5cf35184503d595e01c60
 stale: true
 raw: ./_raw/SCREEN-020.json
 links:
@@ -20,6 +20,7 @@ links:
   granted_on_backward: ["[[ROLE-001]]", "[[ROLE-002]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-012]]"]
+  references_backward: ["[[TEST-006]]"]
 ---
 
 # 작업자 통계 화면
@@ -198,7 +199,7 @@ _(empty)_
 
 #### [4]
 
-- **note**: 주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다.
+- **note**: 주 수치 workerStat.approvedLabelCount(검수완료 영상의 라벨 중 폐기되지 않은 프레임의 라벨). 보조로 전체 workerStat.labelCount 만 병기하고 비율은 붙이지 않는다 — 그 값은 폐기 여부로 걸러내지 않는다.
 - **type**: Stat
 - **label**: 총 라벨 수
 
@@ -216,7 +217,7 @@ _(empty)_
 
 완료/진행중/반려/총 라벨 수 4개 KpiCard. 로딩 중 Skeleton ×4. data null 시 0 fallback. 데이터 출처는 /stats/worker 응답.
 
-완료 카드와 총 라벨 수 카드는 검수완료를 주 수치로 두고 전체를 함께 보여준다 — 학습데이터로 확정된 것은 검수를 통과한 분량뿐이기 때문이다. 완료 카드는 completed 를 크게 두고 그 아래 '검수완료 기준 · 전체 N건 (완료율 M%)' 을 덧붙이고(assignedTotal·completionRate), 총 라벨 수 카드는 approvedLabelCount 를 주 수치로 두고 그 아래 '검수완료 기준 · 전체 N개' 를 덧붙인다 — 완료율은 붙이지 않는다. completionRate 는 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않으므로, 화면에서 지어내지 않는다. 진행중·반려 카드는 그 자체가 미완료 상태를 세는 값이라 병기 대상이 아니다.
+완료 카드와 총 라벨 수 카드는 검수완료를 주 수치로 두고 전체를 함께 보여준다 — 학습데이터로 확정된 것은 검수를 통과한 분량뿐이기 때문이다. 완료 카드는 completed 를 크게 두고 그 아래 '검수완료 기준 · 전체 N건 (완료율 M%)' 을 덧붙이고(assignedTotal·completionRate), 총 라벨 수 카드는 approvedLabelCount 를 주 수치로 두고 그 아래 '검수완료 기준 · 전체 N개' 를 덧붙인다 — 완료율은 붙이지 않는다. 총 라벨 수 카드의 주 수치는 검수완료 영상의 라벨 중 폐기되지 않은 프레임의 라벨만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 라벨 수는 배정된 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. completionRate 는 영상 건수의 비율이라 라벨 분량에 그대로 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않으므로, 화면에서 지어내지 않는다. 진행중·반려 카드는 그 자체가 미완료 상태를 세는 값이라 병기 대상이 아니다.
 
 완료율은 0~1 비율로 오므로 표시할 때만 백분율로 바꾼다. 전체가 0이면 0%로 표시하며, 비율을 화면에서 다시 나눠 구하지 않는다 — 서버가 내려준 값을 그대로 쓴다.
 
@@ -403,8 +404,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: d5b165f28e18de3b36f5580037b398b1de2aff6d4f522d0518962480d8bbf849
-- **generated_at**: 2026-08-16T12:43:59.925Z
+- **source_hash**: ff7968f18e83b01ac2b1bbf94a4c4b33d0eec1e8e0177f6f10a1385be4c5bc14
+- **generated_at**: 2026-08-17T12:44:49.310Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

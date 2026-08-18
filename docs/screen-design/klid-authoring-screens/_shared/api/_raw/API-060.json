@@ -47,6 +47,10 @@
                     "type": "string",
                     "format": "date-time",
                     "description": "요청 시각"
+                  },
+                  "createdCount": {
+                    "type": "integer",
+                    "description": "실제로 적재된 증강 요청 행 수. 요청한 개수를 그대로 반영하는 값이 아니라 실제 생성 결과이며, 이 값이 0인 성공 응답은 존재하지 않는다."
                   }
                 },
                 "description": "증강 요청 결과"
@@ -374,12 +378,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "change_summary": "200 응답에 실제로 내려가는 1개 필드(createdCount)가 선언에서 빠져 있어 추가한다. 요청한 개수를 그대로 반영하는 값이 아니라 실제로 적재된 행 수다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:22:58.005Z",
+    "last_updated_at": "2026-08-16T23:40:16.354Z",
     "created_at": "2026-05-30T07:25:31.922Z"
   }
 }

@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-021
 type: screen_spec
-version: 25
+version: 28
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:56.727Z
-status: NEW
-prev_version: null
-content_hash: f7b51cad6b295357be0239c52a2176c6b1de2c9d19387f5cdbf83765c701d5ba
-stale: true
+synced_at: 2026-08-17T15:39:37.326Z
+status: CHANGED
+prev_version: 25
+content_hash: 56ab94b87f22fbed00e3607f610cbab400cd0ed528da29273b3d19365b77a689
+stale: false
 raw: ./_raw/SCREEN-021.json
 links:
   belongs_to_domain: ["[[DOMAIN-006]]"]
@@ -20,6 +20,7 @@ links:
   granted_on_backward: ["[[ROLE-001]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-012]]"]
+  references_backward: ["[[TEST-006]]", "[[UC-033]]"]
 ---
 
 # 전체 구축 현황 화면
@@ -102,7 +103,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장(완료율 N%)'.
+- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장(완료율 N%)'. 주 수치는 폐기되지 않은 프레임만 센다 — 보조의 전체 수치는 걸러내지 않는다.
 - **type**: Stat
 - **label**: 누적 이미지
 
@@ -132,7 +133,7 @@ _(empty)_
 
 - **binds_to**: overall.approvedVideoCount
 
-- **description**: 누적 이미지/누적 영상 2개 카드 — 주 수치는 검수완료(approvedImageCount/approvedVideoCount), 보조로 전체(cumulativeImageCount/cumulativeVideoCount)와 완료율 텍스트를 병기한다(예: '검수완료 기준 · 전체 1,000장 (완료율 42%)'). 시각적 진행바 요소(role=progressbar, <progress>)는 렌더하지 않는다 — 완료율은 텍스트로만 표기.
+- **description**: 누적 이미지/누적 영상 2개 카드 — 주 수치는 검수완료(approvedImageCount/approvedVideoCount), 보조로 전체(cumulativeImageCount/cumulativeVideoCount)와 완료율 텍스트를 병기한다(예: '검수완료 기준 · 전체 1,000장 (완료율 42%)'). 시각적 진행바 요소(role=progressbar, <progress>)는 렌더하지 않는다 — 완료율은 텍스트로만 표기. 누적 이미지의 주 수치는 검수완료 영상의 프레임 중 폐기되지 않은 것만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 기준 수치는 수집한 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. 누적 영상은 영상 단위 집계라 폐기와 무관하다.
 
 **references_apis**:
 
@@ -449,14 +450,15 @@ _(empty)_
 - **label**: 전체 구축 현황 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: 6cb8412e19d1ecb58d60d05f11aacd0ce638cbdf9ea19a4795e3930a3a38e555
-- **generated_at**: 2026-08-16T12:44:00.316Z
+- **source_hash**: 3aecd1b8b8873c6b2a965995e670ab3a02909f949424261eb303711c7dac2c3f
+- **generated_at**: 2026-08-17T12:44:49.404Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

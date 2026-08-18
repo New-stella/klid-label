@@ -3,16 +3,17 @@
     "id": "API-152",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "api_endpoint",
-    "title": "POST /v1/dev/autolabel-test",
-    "slug": "post-v1devautolabel-test",
+    "title": "POST /v1/dev/upload",
+    "slug": "post-v1devupload",
     "sub_id": null,
     "status": "draft",
     "data": {
-      "path": "/v1/dev/autolabel-test",
+      "path": "/v1/dev/upload",
       "tags": [
         "dev",
         "autolabel"
       ],
+      "title": "POST /v1/dev/upload",
       "method": "POST",
       "summary": "영상 업로드 + 오토라벨 파이프라인 즉시 트리거 (개발/검수 전용)",
       "security": [
@@ -71,7 +72,7 @@
             "data": {
               "rawSn": 12345,
               "startedAt": 1715520000000,
-              "savedFilePath": "autolabel-test/abc-123.mp4",
+              "savedFilePath": "dev-upload/abc-123.mp4",
               "pipelineStatus": "PROCESSING"
             },
             "message": null,
@@ -312,12 +313,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "change_summary": "제목과 식별 슬러그에 남아 있던 옛 엔드포인트 주소 표기를 새 주소로 맞춘다. 앞선 리비전이 경로 값만 바꾸고 제목·슬러그를 함께 고치지 않아, 목록에서는 옛 주소로 보이고 실제 계약은 새 주소인 상태가 되어 있었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:14.674Z",
+    "last_updated_at": "2026-08-17T08:13:06.890Z",
     "created_at": "2026-07-30T07:05:56.454Z"
   }
 }

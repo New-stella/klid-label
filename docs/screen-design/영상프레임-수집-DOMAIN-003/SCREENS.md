@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-16T12:51:14.255Z (session 5) |
+| last sync | 2026-08-18T01:50:54.689Z (session 6) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -52,18 +52,10 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-011]] | acceptance | CHANGED (v7→v9) |
-| [[AC-016]] | acceptance | CHANGED (v7→v10) |
-| [[AC-019]] | acceptance | CHANGED (v5→v6) |
-| [[API-021]] | api_endpoint | CHANGED (v4→v7) |
-| [[API-043]] | api_endpoint | CHANGED (v11→v12) |
-| [[API-112]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-198]] | api_endpoint | NEW |
-| [[API-200]] | api_endpoint | NEW |
-| [[API-201]] | api_endpoint | NEW |
-| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
-| [[UC-011]] | use_case | CHANGED (v11→v12) |
-| [[UC-016]] | use_case | CHANGED (v19→v20) |
+| [[AC-016]] | acceptance | CHANGED (v10→v11) |
+| [[AC-019]] | acceptance | CHANGED (v6→v7) |
+| [[API-021]] | api_endpoint | CHANGED (v7→v8) |
+| [[API-043]] | api_endpoint | CHANGED (v12→v14) |
 
 ## Obsidian 볼트로 보기
 

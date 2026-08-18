@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-019
 type: screen_spec
-version: 29
+version: 30
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:54.401Z
-status: NEW
-prev_version: null
-content_hash: a63d5a7b34b7441f374949d233bccbd0f716840d3c4692e275d1be08f38a65e3
-stale: true
+synced_at: 2026-08-17T15:39:30.474Z
+status: CHANGED
+prev_version: 29
+content_hash: 54ddaf4a663f3aa2c1caa789221fe6ce72f6ebd8caf839858719439c9bc216d5
+stale: false
 raw: ./_raw/SCREEN-019.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]
@@ -21,7 +21,7 @@ links:
   granted_on_backward: ["[[ROLE-001]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-009]]"]
-  references_backward: ["[[TEST-004]]", "[[UC-009]]", "[[UC-023]]"]
+  references_backward: ["[[TEST-004]]", "[[TEST-006]]", "[[UC-009]]", "[[UC-023]]"]
 ---
 
 # 검수 상세 화면
@@ -456,7 +456,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토한다. 서술 전문은 검수자가 확인·수정할 수 있고, 일치도는 참고용으로 읽기 전용 표시된다.
+- **note**: 외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토한다. 이 화면에서는 값을 고치지 않고 읽기 전용으로 확인한다 — 서술 전문의 수정은 라벨링 화면의 메타 패널이 담당하며, 검수 승인 시점에 그 값이 동결된다. 편집 지점을 두 화면에 두면 확정 경로가 갈라진다.
 - **type**: Custom
 - **label**: 시계열 메타 검토
 
@@ -500,7 +500,7 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 우측 패널 '메타' 탭. 이벤트 어노테이션 검토와 외부 시계열 메타 검토(서술 전문 확인·수정 가능, 일치도는 읽기 전용) 두 영역으로 구성된다. 검토 대상에 포함되지 않는 영상 기술 정보(해상도·코덱 등)도 참고용으로 함께 표시되며, 표시할 정보가 전혀 없으면 빈 상태 안내를 노출한다.
+- **description**: 우측 패널 '메타' 탭. 이벤트 어노테이션 검토와 외부 시계열 메타 검토(서술 전문과 일치도를 모두 읽기 전용으로 표시) 두 영역으로 구성된다. 검토 대상에 포함되지 않는 영상 기술 정보(해상도·코덱 등)도 참고용으로 함께 표시되며, 표시할 정보가 전혀 없으면 빈 상태 안내를 노출한다.
 
 **references_apis**:
 

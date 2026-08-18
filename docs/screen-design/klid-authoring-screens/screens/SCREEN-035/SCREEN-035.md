@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-035
 type: screen_spec
-version: 16
-last_updated_at: 2026-08-16T07:22:17.328Z
-domain: null
+version: 17
+last_updated_at: 2026-08-17T06:53:34.242Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:27:41.263Z
-sync_session: 15
-stale: true
+synced_at: 2026-08-18T01:49:51.231Z
+sync_session: 17
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-035.json
@@ -123,6 +123,7 @@ _(empty)_
 
 #### [2]
 
+- **note**: 라벨명 셀에 AI 탐지 클래스 매핑 상태를 칩으로 함께 표시한다 — 매핑된 검출 클래스명 또는 미매핑 표시. 매핑이 없는 라벨은 AI 탐지 후보로 선택할 수 없으므로, 목록에서 그 상태가 보이지 않으면 운영자가 선택 불가 사유를 알 수 없다.
 - **type**: Table
 - **label**: 라벨 마스터 목록
 

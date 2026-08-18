@@ -148,7 +148,7 @@
           "description": "영상 식별자 RAW_SN"
         }
       ],
-      "description": "영상 파일을 HTTP Range 지원으로 스트리밍한다(마킹 화면 배속 재생용). 인증된 사용자.",
+      "description": "영상 파일을 HTTP Range 지원으로 스트리밍한다(마킹 화면 배속 재생용). 인증된 사용자. 호출 방식은 둘 중 하나다 — ①Authorization 헤더의 JWT(REVIEWER/WORKER)로 직접 호출, ②역할 게이트된 GET /v1/videos/{rawSn}/stream-url 에서 발급받은 단기 서명 쿼리(만료시각·서명 파라미터, Authorization 헤더 없음)로 호출. 서명은 발급 시점에 REVIEWER/WORKER 검증을 거치므로 최종 접근 가능 역할 집합은 동일하다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -163,12 +163,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "change_summary": "보안 스킴은 그대로 두고 본문에 실제 호출 방식 2가지(Authorization 헤더 JWT 직접 사용 / 역할 게이트된 발급 경로에서 받은 단기 서명 쿼리 사용)를 명시했다 — 두 경로 모두 최종 접근 가능 역할 집합은 동일하다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:03.435Z",
+    "last_updated_at": "2026-08-16T23:40:31.532Z",
     "created_at": "2026-05-30T07:58:33.360Z"
   }
 }

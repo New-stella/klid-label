@@ -42,11 +42,17 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "implemented",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalLabelService.java"
+        ],
+        "records": [
+          "IMPREC-012"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:33:50.092Z"
       },
       "derived_domain_ids": [
         "DOMAIN-013"
@@ -63,8 +69,8 @@
     "stale": true,
     "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
     "change_summary": "사용자 확정 — 다운로드 산출물의 사용자별 격리(IDOR 방어)를 인수기준으로 등록",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:10:43.946Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T04:33:50.092Z",
     "created_at": "2026-08-17T01:10:43.946Z"
   }
 }

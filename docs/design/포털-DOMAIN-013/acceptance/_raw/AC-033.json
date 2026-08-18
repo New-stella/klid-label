@@ -39,11 +39,21 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "planned",
-        "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "status": "implemented",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionPolicy.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalLabelService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalUploadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/DatamartVideoResponse.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalUploadResponse.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalUploadDetailResponse.java"
+        ],
+        "records": [
+          "IMPREC-010"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:33:41.915Z"
       },
       "derived_domain_ids": [
         "DOMAIN-013"
@@ -60,8 +70,8 @@
     "stale": true,
     "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
     "change_summary": "한글 오타 재정정 — 직전 patch 에서 다시 잘못된 이스케이프(컴럼)를 넣은 것을 기계 검증된 이스케이프(컬럼)로 정정",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T01:13:05.584Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-17T04:33:41.915Z",
     "created_at": "2026-08-17T01:10:00.652Z"
   }
 }
