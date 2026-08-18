@@ -28,12 +28,22 @@ public class AiDefaultsService {
 
     private final SystemConfigService systemConfigService;
 
+    /**
+     * 대기 예산 공급원 — 값을 여기서 계산하지 않는다.
+     *
+     * <p>예산은 <b>서버의 재시도 예산에서 도출</b>되고 운영자 설정이 상한을 조정한다. 그 판정을
+     * 이 서비스가 복제하면 두 번째 진실원이 되므로 조립만 한다.
+     */
+    private final AiWaitBudgetProvider aiWaitBudgetProvider;
+
     public AiDefaultsResponse get() {
         return new AiDefaultsResponse(
                 omitOnFailure(ConfigKeys.YOLO_CONF_THRESHOLD,
                         () -> systemConfigService.getInt(ConfigKeys.YOLO_CONF_THRESHOLD)),
                 omitOnFailure(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE,
-                        () -> systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE))
+                        () -> systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE)),
+                // 생략 대상이 아니다 — 없으면 화면이 자기 상수로 되돌아가 이 라운드가 고친 결함이 재발한다.
+                aiWaitBudgetProvider.budgets()
         );
     }
 

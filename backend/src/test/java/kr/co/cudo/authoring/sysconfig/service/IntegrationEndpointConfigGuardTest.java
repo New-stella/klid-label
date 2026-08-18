@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -67,7 +68,8 @@ class IntegrationEndpointConfigGuardTest {
         tokenService = new AdminSessionTokenService(RESOLVER, 10);
         service = new SystemConfigService(repository, new ObjectMapper(),
                 tokenService, new IntegrationEndpointUrlValidator(),
-                new DeidentifyEndpointTrustGuard(new MockEnvironment()));
+                new DeidentifyEndpointTrustGuard(new MockEnvironment()),
+                TestAiWaitBudgetPolicies.production());
         reviewer = new TokenClaims("1001", Role.REVIEWER, Channel.INTERNAL,
                 Instant.now().plusSeconds(3600));
         when(repository.save(any(LsSystemConfig.class))).thenAnswer(inv -> inv.getArgument(0));

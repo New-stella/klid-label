@@ -64,6 +64,9 @@ export function Sam2TrackTool({
   const [failure, setFailure] = useState<string | null>(null);
   // mock(모델 미로드) 로 결과가 제외됐을 때의 안내 — 실패(danger)와 구분해 경고로 표시한다.
   const [mockNotice, setMockNotice] = useState<string | null>(null);
+  // 요청 예산이 다해 **끝까지 가지 못한** 구간 안내. 실패도 mock 도 아니라 따로 둔다 —
+  // 조용히 끝내면 사용자는 «왜 뒤쪽 프레임엔 라벨이 없지» 를 알 방법이 없다.
+  const [incomplete, setIncomplete] = useState<number | null>(null);
 
   const mutation = useSam2Track(srcSn, {
     onProgress: (done, total) => setProgress({ done, total }),
@@ -73,6 +76,8 @@ export function Sam2TrackTool({
     },
     // C-ISSUE-81 — BE 가 mock 프레임을 제외했음을 사용자에게 알린다(자동 적용은 이미 차단됨).
     onMockWarning: (message) => setMockNotice(message),
+    // 부분 결과 — 남은 프레임은 자동으로 이어 보내지만, 그래도 못 끝냈으면 그 사실을 알린다.
+    onIncomplete: (remaining) => setIncomplete(remaining),
     onError: (err) => {
       // 부분 실패: 성공분 병합은 상위(onCompleted, partial=true)가 수행. 여기선 실패 지점만 안내.
       if (err instanceof Sam2TrackChunkError && err.partial.length > 0) {
@@ -109,6 +114,7 @@ export function Sam2TrackTool({
     setProgress({ done: 0, total: nextSrcSns.length });
     setFailure(null);
     setMockNotice(null);
+    setIncomplete(null);
     // (R12) shape 배선 — 팝업에서 고른 형태(BBOX/POLYGON)를 요청에 포함. 미지정이면 BE 기본.
     mutation.mutate({
       trackId,
@@ -186,6 +192,12 @@ export function Sam2TrackTool({
       {mockNotice !== null && !isPending && (
         <span className="text-caption text-warning" role="status">
           {mockNotice}
+        </span>
+      )}
+      {/* 부분 결과 안내 — 서버는 200 을 줬고 실패도 아니다. 말해 주지 않으면 어디에도 남지 않는다. */}
+      {incomplete !== null && incomplete > 0 && !isPending && (
+        <span className="text-caption text-warning" role="status">
+          남은 프레임 {incomplete}개는 시간 안에 처리하지 못했습니다. 다시 실행해 주세요.
         </span>
       )}
     </div>

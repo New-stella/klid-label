@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.common.config.CacheConfig;
+import kr.co.cudo.authoring.common.client.AiWaitBudgetPolicy;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.auth.service.AdminSessionTokenService;
@@ -87,6 +88,14 @@ public class SystemConfigService {
      * 저장 시점에도 <b>같은 판정 함수</b>를 태워 그 구멍을 닫는다(판정 복제 금지).
      */
     private final DeidentifyEndpointTrustGuard deidentifyEndpointTrustGuard;
+
+    /**
+     * AI 대기 예산 <b>하한</b> 도출기 — {@link ConfigKeys#AI_WAIT_BUDGET_CEILING_SEC} 저장 검증에 쓴다.
+     *
+     * <p>순수 도출기(설정을 읽지 않는다)라 여기 주입해도 순환이 생기지 않는다. 설정을 반영한
+     * 실효값은 {@code AiWaitBudgetProvider} 가 담당한다.
+     */
+    private final AiWaitBudgetPolicy aiWaitBudgetPolicy;
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<ConfigResponse> listAll() {
@@ -292,7 +301,12 @@ public class SystemConfigService {
 
     private void validateByType(String key, String type, String value) {
         switch (type) {
-            case "NUMBER" -> validateNumberRange(key, value);
+            case "NUMBER" -> {
+                validateNumberRange(key, value);
+                if (ConfigKeys.AI_WAIT_BUDGET_CEILING_SEC.equals(key)) {
+                    validateAiWaitBudgetCeiling(value);
+                }
+            }
             case "DECIMAL" -> validateDecimalRange(key, value);
             case "BOOLEAN" -> {
                 if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
@@ -340,6 +354,29 @@ public class SystemConfigService {
         if (range != null && (v < range[0] || v > range[1])) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "값이 허용 범위를 벗어났습니다.");
+        }
+    }
+
+    /**
+     * AI 대기 예산 절대 상한의 <b>파생 하한</b> 검증 — 숫자를 여기 적지 않는다.
+     *
+     * <p>하한은 {@link AiWaitBudgetPolicy#minimumCeilingSeconds()} 가 <b>재시도 예산에서 도출</b>한다.
+     * 리터럴로 박으면 yml 의 재시도 설정을 늘렸을 때 하한이 따라 움직이지 않아, 어느 종류는 프레임
+     * 한 건도 완주할 수 없는 상한이 그대로 저장된다 — 그것이 곧 이 라운드가 고친 결함의 재도입이다.
+     *
+     * <p>{@link ConfigKeys#NUMBER_RANGE} 는 정적 맵이라 파생값을 담을 수 없어 형식·상한만 거른다.
+     * 실효 하한은 여기가 소유한다.
+     *
+     * <p>거부 응답은 다른 범위 위반과 <b>같은 통로·같은 형태</b>({@code INVALID_INPUT})다 —
+     * 화면이 이 키만 다르게 분기하지 않아도 되게 한다. 메시지에 입력 원문은 싣지 않는다(CWE-117).
+     */
+    private void validateAiWaitBudgetCeiling(String value) {
+        int seconds = Integer.parseInt(value); // 형식은 validateNumberRange 가 이미 통과시켰다.
+        int floor = aiWaitBudgetPolicy.minimumCeilingSeconds();
+        if (seconds < floor) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "AI 대기 예산 상한은 " + floor + "초 이상이어야 합니다."
+                            + " 그보다 짧으면 정상 추론이 실패로 처리됩니다.");
         }
     }
 

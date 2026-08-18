@@ -9,6 +9,7 @@
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
+import { aiWaitChunkSize, aiWaitTimeoutMs } from './aiBudget';
 import { normalizeDscdYn } from './types';
 import type {
   DscdYn,
@@ -667,17 +668,114 @@ export function trackedItemToLabel(
   return normalizeLabel(raw);
 }
 
+/**
+ * 이어 보내기 값 — **다음 요청 본문에 그대로 옮겨 담는다**(필드명이 요청과 같다).
+ *
+ * ★ 화면이 만들지 않는다. 이어붙일 시드는 «전파 중인 폴리곤» 이라 결과 목록에서 역산할 수 없다 —
+ *   처리했지만 결과에서 빠지는 프레임이 있고(mock·퇴화), 박스 형태로 요청하면 결과 좌표가 2점
+ *   외접박스라 다음 요청의 `prevPolygon`(최소 3점) 조건도 만족하지 못한다. 서버가 주는 값은
+ *   항상 그 조건을 만족하는 실제 전파 폴리곤이다.
+ */
+export interface Sam2TrackResume {
+  /** 다음 요청의 시작 프레임 — 마지막으로 처리한 프레임. */
+  srcSn: number;
+  /** 다음 요청의 시작 폴리곤 — 그 프레임까지 전파된 폴리곤(3점 이상). */
+  prevPolygon: number[][];
+  /** 아직 처리하지 않은 프레임(요청 순서 유지). */
+  nextSrcSns: number[];
+}
+
 /** BE Sam2TrackResponseDto. */
 export interface Sam2TrackResponse {
   /** 자동 적용 가능한 추적 결과. mock(모델 미로드) 프레임은 BE 가 제외하므로 여기 담기지 않는다. */
   tracked: Sam2TrackedItem[];
   /**
+   * 요청 단위 시간 예산이 다해 **처리하지 못한 프레임이 남았는가**(200 · 취소가 아니다).
+   *
+   * ★ 이 값을 읽지 않으면 남은 프레임의 라벨이 **조용히 사라진다**. `tracked.length` 로는 어디까지
+   *   했는지 알 수 없다 — 처리했지만 결과에서 빠지는 프레임이 있기 때문이다.
+   */
+  truncated?: boolean;
+  /** 이어 보낼 요청 값. `truncated` 가 아니면 null 이다. */
+  resume?: Sam2TrackResume | null;
+  /**
    * BE ApiResponse.message — mock(모델 미로드) 프레임이 제외됐을 때 "AI 모델 미로드 …"(전량) 또는
    * "일부 결과의 신뢰도를 보장할 수 없습니다."(부분) 안내가 실린다. SAM2 분할/오토라벨과 동일 규약이며
    * FE 는 이 message 로 경고를 표시한다(별도 mock 플래그 없음).
+   *
+   * ⚠ **이 자리에는 mock 안내만 온다** — 절단(예산 소진)을 문구로도 알리던 동작은 폐기됐고, 절단은
+   *   {@link truncated}/{@link resume} 로만 말한다. 따라서 {@link sam2TrackAllChunks} 는 이 값을
+   *   **절단 여부로 거르지 않고 그대로 모은다**. 거르면 절단이면서 동시에 mock 이기도 한 응답에서
+   *   mock 안내가 사라지는데, mock 프레임은 결과에 아예 없어 그 안내가 **유일한 신호**다.
    */
   message?: string | null;
 }
+
+/**
+ * 진행 중인 추론을 서버에서 끊기 위한 **취소 식별자 헤더**. BE
+ * `AiCallCancellationInterceptor.REQUEST_ID_HEADER` 와 같은 이름이어야 한다.
+ *
+ * ★ 왜 헤더가 필요한가 — "클라이언트가 연결을 끊으면 서버도 끊는다" 는 **이 스택에서 성립하지
+ *   않는다**(서버 담당이 실험으로 확인: 비동기 처리 중 유휴 구간의 클라이언트 종료는 통지되지
+ *   않고, 동기 처리 중에는 관측 수단 자체가 없다). 그래서 요청에 식별자를 실어 서버가 그 추론을
+ *   취소 대상으로 등록하게 하고, 취소할 때 같은 식별자로 {@link cancelAiRequest} 를 부른다.
+ */
+export const AI_REQUEST_ID_HEADER = 'X-AI-Request-Id';
+
+/**
+ * 추론 1회의 취소 식별자를 만든다.
+ *
+ * ⚠ 서버가 받는 문자 집합(영문·숫자·밑줄·붙임표, 1~64자)을 벗어나면 서버가 «없음» 과 같게
+ *   처리해 **취소가 조용히 무시**된다. 그래서 16진 문자열만 쓴다.
+ * ⚠ 실행마다 유일해야 한다 — 겹치면 취소 요청이 **남의 추론**을 끊는다.
+ */
+export function newAiRequestId(): string {
+  const cryptoObj = globalThis.crypto;
+  if (cryptoObj?.randomUUID) {
+    // UUID 는 붙임표만 포함해 서버 형식(영문·숫자·밑줄·붙임표)을 그대로 만족한다.
+    return cryptoObj.randomUUID();
+  }
+  // 구형 환경 폴백 — 보안 목적이 아니라 **유일성**만 필요하다(추측 불가성은 서버의 소유자
+  // 검증이 담당한다: 남의 식별자는 «없음» 과 같게 처리된다).
+  return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+}
+
+/**
+ * 진행 중인 추론을 **서버에서** 취소한다 — `POST /v1/ai-requests/{requestId}/cancel`.
+ *
+ * ★ 실패를 삼킨다. 취소는 «더 안 기다린다» 는 화면의 결정이고 그 결정은 서버 응답과 무관하게 이미
+ *   유효하다. 여기서 예외를 올리면 **취소했는데 오류 안내가 뜨는** 화면이 된다(취소를 오류에서
+ *   갈라내는 이 라운드의 규칙과 정면으로 어긋난다).
+ * ★ 서버 응답의 `cancelled` 값도 읽지 않는다 — 못 끊는 사유(이미 끝남·이미 취소함·다른 노드)는
+ *   화면에서 «더 기다릴 필요 없음» 으로 모두 같고, 구분해 보여줄 것이 없다.
+ */
+export async function cancelAiRequest(requestId: string | undefined): Promise<void> {
+  if (!requestId) return;
+  try {
+    // 경로 조립은 언제나 인코딩한다(CWE-22) — 지금은 우리가 만든 값만 들어오지만, 경로 조립
+    // 규칙은 입력 출처에 따라 흔들려서는 안 된다.
+    await apiClient.post(`/ai-requests/${encodeURIComponent(requestId)}/cancel`);
+  } catch {
+    // 의도적 무시(위 주석) — 진단은 서버 로그가 갖는다.
+  }
+}
+
+/** 취소 식별자가 있을 때만 헤더를 붙인다 — 빈 값을 보내면 서버가 형식 위반으로 버린다. */
+function aiRequestIdHeaders(requestId?: string): Record<string, string> | undefined {
+  return requestId ? { [AI_REQUEST_ID_HEADER]: requestId } : undefined;
+}
+
+/**
+ * AI 추론 요청의 제한시간은 **서버가 준 대기 예산**에서 나온다 — `aiBudget.ts` 가 단일 판정기다.
+ *
+ * ★ 화면이 숫자를 상수로 들고 있지 않는다. 추론이 실제로 얼마나 걸리는지는 서버 설정(호출 상한·
+ *   재시도 횟수·백오프)이 정하고 운영 중에 바뀌는데, 화면이 그것을 베껴 두면 서버 예산이 바뀔 때
+ *   화면만 조용히 어긋난다. 어긋나는 방향이 «화면이 더 짧다» 이면 **정상 동작이 «AI 실패» 로 보이고**
+ *   서버는 계속 돌아 자원을 물고 있으며 사용자는 같은 일을 다시 시킨다.
+ *
+ * ⚠ 여기서 예산 숫자를 다시 계산하거나 폴백을 따로 두지 말 것 — 판정이 두 곳에 생기면 한쪽만
+ *   갱신되어 조용히 갈라진다(이 저장소가 반복해 겪은 결함 계열).
+ */
 
 /**
  * SAM2 자동 추적 요청.
@@ -688,27 +786,47 @@ export interface Sam2TrackResponse {
  * 제거됐으므로 채널 분기를 두지 않는다.
  *
  * 보안: srcSn/prevPolygon/nextSrcSns 입력 검증 + IDOR 방어는 BE 책임.
+ *
+ * @param signal 취소 신호. 화면이 작업을 취소하면 **서버로 가는 요청 자체를 끊는다** — 화면 안에서만
+ *               폐기하면 서버는 계속 돌아 추론 자원을 물고 있는다.
  */
 export function requestSam2Track(
   srcSn: number,
   payload: Sam2TrackRequest,
+  signal?: AbortSignal,
+  requestId?: string,
 ): Promise<Sam2TrackResponse> {
   return apiClient
-    .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, { srcSn, ...payload })
+    .post<Sam2TrackResponse>(`/frames/${srcSn}/sam2-track`, { srcSn, ...payload }, {
+      headers: aiRequestIdHeaders(requestId),
+      // 공용 기본값(30초)을 덮어쓴다 — 예산 판정은 aiBudget 한 곳. 빼면 프레임 몇 개만 넘어도
+      // 정상 추적이 실패로 보이고, 서버는 계속 돌아 GPU 를 물고 있는다.
+      timeout: aiWaitTimeoutMs('sam2Track', payload.nextSrcSns?.length ?? 0),
+      signal,
+    })
     // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고로 분기하기 위함(오토라벨과 동일).
     .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
 
 /**
- * SAM2 Track 청크 크기 — BE Sam2TrackRequest `@Size(max = 50)` 안전상한(CWE-770 방어)과 정합.
- * 한 번의 요청에 실을 수 있는 nextSrcSns 최대 개수. 이 값을 넘기면 BE 가 400 을 반환하므로
- * FE 는 반드시 이 크기 이하로 분할해 순차 호출한다.
+ * 한 요청에 실을 수 있는 후속 프레임 수의 **서버 상한** — BE `Sam2TrackRequest @Size(max = 50)`
+ * (CWE-770 방어). 이 값을 넘기면 400 이므로 어떤 분할 단위도 이보다 커질 수 없다.
+ *
+ * ⚠ 이것은 **상한이지 분할 단위가 아니다.** 실제로 한 요청에 몇 건을 실을지는 서버가 준 대기 예산이
+ *   정한다({@link aiWaitChunkSize}) — 예산 상한 안에 들어가는 만큼만 보내야 중간에 끊길 때
+ *   **그 요청 안에서 이미 끝낸 프레임까지 통째로 버려지는 것**을 막을 수 있다.
+ *   (구 이름 `SAM2_TRACK_CHUNK_SIZE` 는 이 값을 곧 분할 단위로 읽게 해 그 구분을 흐렸다.)
  */
-export const SAM2_TRACK_CHUNK_SIZE = 50;
+export const SAM2_TRACK_MAX_FRAMES_PER_REQUEST = 50;
 
 /**
- * 청크 체이닝 시드 보정 — BBOX 추적은 tracked.points 가 2점 외접박스([[minX,minY],[maxX,maxY]])로
- * 반환된다(BE 계약). 이 2점을 그대로 다음 청크의 prevPolygon 으로 이어붙이면 BE
+ * **화면쪽 조각 경계**의 시드 보정 — BBOX 추적은 tracked.points 가 2점 외접박스([[minX,minY],
+ * [maxX,maxY]])로 반환된다(BE 계약).
+ *
+ * ⚠ **서버가 잘라 보낸 경우(`resume`)에는 쓰지 않는다.** 그쪽은 서버가 실제 전파 폴리곤을 주므로
+ *   역산할 필요가 없고, 역산하면 틀린다(처리했지만 결과에서 빠지는 프레임이 있다). 이 함수가
+ *   남아 있는 이유는 요청당 프레임 상한(50) 때문에 **화면이 스스로 나눈 경계**가 여전히 있고,
+ *   그 경계에서는 서버가 요청을 끝냈으므로 이어보내기 값을 주지 않기 때문이다. 이 2점을 그대로 다음 청크의 prevPolygon 으로 이어붙이면 BE
  * `Sam2TrackRequest.prevPolygon @Size(min=3)` 검증에 걸려 50프레임 초과 추적의 2번째 청크가 400 이 된다.
  * 2점 박스를 외접박스 4모서리 폐곡선으로 확장해 반환한다. 3점 이상(폴리곤)은 그대로 통과(무영향).
  */
@@ -758,86 +876,194 @@ export class Sam2TrackChunkError extends Error {
     this.totalChunks = totalChunks;
   }
 }
+/**
+ * 추적 실행 하나의 결과 — 응답 계약(Sam2TrackResponse) + **끝내지 못한 몫**.
+ *
+ * ★ `resume` 만으로는 남은 수를 셀 수 없는 경우가 있다(이어붙일 시드를 만들 수 없어 멈춘 경우엔
+ *   서버가 준 이어보내기 값이 없다). 화면 안내는 «몇 개가 빠졌나» 하나로 충분하므로 그 수를
+ *   여기서 확정해 넘긴다 — 호출측이 다시 세면 경우마다 다른 계산이 생겨 한쪽이 틀린다.
+ */
+export interface Sam2TrackRunResult extends Sam2TrackResponse {
+  /** 처리하지 못한 프레임 수(0 = 전량 처리). */
+  unprocessed: number;
+}
 
 /**
- * nextSrcSns 를 {@link SAM2_TRACK_CHUNK_SIZE} 이하 청크로 분할해 순차 추적한다(폴리곤 전파 체인).
+ * 전체 후속 프레임을 끝까지 추적한다 — **화면쪽 분할 + 서버쪽 부분 결과 이어 보내기**.
  *
- * - 청크 1: startSrcSn = 초기 시작 프레임, prevPolygon = 초기 폴리곤.
- * - 청크 N(>1): startSrcSn = 직전 청크 마지막 프레임의 srcSn, prevPolygon = 직전 청크 마지막
- *   추적 폴리곤(points). 이렇게 마지막 추적 결과를 다음 청크의 시작 프롬프트로 이어붙인다.
- * - 모든 청크의 tracked 를 누적해 하나의 응답으로 합산 반환한다.
+ * <h3>두 가지 «이어붙이기» 가 있고 서로 다르다</h3>
+ * 1. **화면쪽 분할** — 한 요청에 실을 수 있는 프레임 수에 서버 상한이 있어
+ *    ({@link SAM2_TRACK_MAX_FRAMES_PER_REQUEST}) 그보다 많으면 나눠 보낸다. 이 경계에서는 서버가
+ *    요청을 다 끝냈으므로 이어붙일 시드를 **화면이** 만든다(마지막 추적 결과 → {@link toSeedPolygon}).
+ * 2. **서버쪽 부분 결과** — 요청 하나에 시간 예산이 있어, 다하면 서버가 그때까지의 결과를 돌려주며
+ *    `truncated=true` + `resume` 으로 **이어 보낼 지점**을 알려준다. 이때는 시드를 화면이 만들지
+ *    않고 **서버가 준 값을 그대로 다시 싣는다** — 전파 폴리곤은 결과 목록에서 역산할 수 없다
+ *    (처리했지만 결과에서 빠지는 프레임이 있고, 박스 형태면 결과가 2점이라 요청 규격 위반).
  *
- * 부분 실패 시 이미 성공한 청크 결과를 담은 {@link Sam2TrackChunkError} 를 throw 한다(롤백하지 않음).
- * 각 청크는 50개 이하이므로 BE `@Size(max=50)` 상한을 항상 만족한다(안전상한 유지).
+ * ★ `truncated`/`resume` 를 읽지 않으면 **남은 프레임의 라벨이 조용히 사라진다** — 그것이 이
+ *   계약의 존재 이유다. 판단은 이 두 필드로만 한다(안내 문구 파싱 금지).
+ *
+ * ⚠ **진행이 0 인 응답이 올 수 있다**(예산이 한 프레임도 담지 못하는 설정). 그때 `resume` 은 방금
+ *   보낸 요청과 같아서, 그대로 되보내면 **무한 재요청**이 된다. 그래서 «남은 프레임이 줄었는가» 를
+ *   확인하고 줄지 않으면 멈춘 뒤, 못 끝냈다는 사실을 결과에 그대로 담아 돌려준다(감추지 않는다).
+ *
+ * 부분 실패 시 이미 성공한 조각 결과를 담은 {@link Sam2TrackChunkError} 를 throw 한다(롤백하지 않음).
+ *
+ * <h3>안내 문구(message)는 «mock 안내» 뿐이므로 전부 모은다</h3>
+ * 이 통로에 오는 것은 **mock 안내**(추론 모델 미로드로 결과에서 빠진 프레임이 있다는 신호)뿐이다 —
+ * 서버가 예산 절단을 문구로 알리던 동작은 폐기됐고, 절단은 응답의 구조화된 값(`truncated`/`resume`)
+ * 으로만 말한다. 그래서 남은 몫은 {@link Sam2TrackRunResult.unprocessed} 라는 **정확한 수 하나로만**
+ * 말하고, 문구는 **응답이 절단을 보고했든 아니든 그대로 모은다**(같은 문구는 한 번만 · 첫 것만
+ * 남기지 않는다 — 그러면 뒤 조각의 mock 안내가 통째로 사라진다).
+ *
+ * ⚠ 절단 여부로 문구를 거르지 말 것 — 절단이면서 동시에 mock 이기도 한 응답에서 그 필터가 곧
+ * 손실이 된다. mock 프레임은 결과에 아예 없어 그 안내가 **유일한 신호**다.
  *
  * @param startSrcSn 최초 시작 프레임 SRC_SN
  * @param payload    trackId/label/prevPolygon + 전체 nextSrcSns
- * @param onProgress (누적 추적 프레임 수, 전체 대상 수) 진행률 콜백 — 청크 완료마다 호출
+ * @param onProgress (**처리한** 프레임 수, 전체 대상 수) — 응답 하나마다 호출된다(이어 보내는
+ *                   중에도 갱신된다). ⚠ 결과 개수가 아니라 처리 수다 — 결과에서 빠지는 프레임이
+ *                   있어 결과 개수로 세면 진행이 멈춘 것처럼 보인다.
+ * @param signal     취소 신호. **모든 조각**에 실어 보내고, 취소된 뒤에는 다음 조각을 보내지 않는다.
  */
 export async function sam2TrackAllChunks(
   startSrcSn: number,
   payload: Sam2TrackRequest,
   onProgress?: (done: number, total: number) => void,
-): Promise<Sam2TrackResponse> {
+  signal?: AbortSignal,
+  requestId?: string,
+): Promise<Sam2TrackRunResult> {
   const { trackId, label, nextSrcSns, shape } = payload;
   const total = nextSrcSns.length;
   const accumulated: Sam2TrackedItem[] = [];
 
   if (total === 0) {
-    return { tracked: [], message: null };
+    return { tracked: [], message: null, truncated: false, resume: null, unprocessed: 0 };
   }
 
-  // 50개 이하 청크로 분할. slice(step) 는 음수/과대 인덱스가 발생하지 않아 안전(CWE-20).
+  // 예산 상한 안에 들어가는 단위로 분할(서버 프레임 상한 이하 보장).
+  // slice(step) 는 음수/과대 인덱스가 발생하지 않아 안전(CWE-20).
+  const chunkSize = aiWaitChunkSize('sam2Track', SAM2_TRACK_MAX_FRAMES_PER_REQUEST);
   const chunks: number[][] = [];
-  for (let i = 0; i < total; i += SAM2_TRACK_CHUNK_SIZE) {
-    chunks.push(nextSrcSns.slice(i, i + SAM2_TRACK_CHUNK_SIZE));
+  for (let i = 0; i < total; i += chunkSize) {
+    chunks.push(nextSrcSns.slice(i, i + chunkSize));
   }
 
   let curStartSrcSn = startSrcSn;
   let curPrevPolygon = payload.prevPolygon;
-  // mock(모델 미로드) 안내 — 청크 중 하나라도 mock 제외가 있었으면 첫 안내를 보존해 최종 반환한다.
-  let mockMessage: string | null = null;
+  // 안내 문구 — **응답 하나가 아니라 실행 전체**의 것을 모은다(첫 것만 남기면 뒤 조각의 안내가
+  // 통째로 사라진다). 같은 문구는 한 번만 담는다.
+  const notices: string[] = [];
+  // 문구를 하나라도 봤는가 — 아래 «mock 으로 시드가 끊겼다» 판정에만 쓴다(절단 여부와 무관).
+  let sawNotice = false;
+  // 처리한 프레임 수(결과 개수가 아니다) — 진행 표시의 근거.
+  let processed = 0;
 
   for (let c = 0; c < chunks.length; c += 1) {
     const chunk = chunks[c];
+    // 이 조각에서 아직 처리하지 않은 프레임. 서버가 잘라 보내면 남은 만큼 다시 채워진다.
+    let pending = chunk;
     let res: Sam2TrackResponse;
-    try {
-      res = await requestSam2Track(
-        curStartSrcSn,
-        {
-          trackId,
-          prevPolygon: curPrevPolygon,
-          label,
-          nextSrcSns: chunk,
-          // (R12) 추적 결과 형태(BBOX/POLYGON)를 모든 청크에 전파 — 누락 시 BE 기본(POLYGON) 고정.
-          ...(shape ? { shape } : {}),
-        },
-      );
-    } catch (err) {
-      // 부분 실패: 지금까지 성공한 청크 결과를 보존해 에러로 표면화(전부 롤백하지 않음).
-      throw new Sam2TrackChunkError(err, accumulated, c, chunks.length);
-    }
 
-    // mock 제외 안내는 첫 발생분을 보존(전량/부분 문구 모두 BE 가 결정).
-    if (res.message && mockMessage === null) mockMessage = res.message;
-    // 불변성 유지 — 새 배열로 누적하지 않고 push 는 로컬 누적기에만 적용(외부 인자 미변경).
-    accumulated.push(...res.tracked);
-    onProgress?.(accumulated.length, total);
+    for (;;) {
+      // 취소 뒤에는 **다음 요청을 만들지 않는다** — 사용자가 멈춘 뒤 서버가 또 도는 것을 막는다.
+      if (signal?.aborted) {
+        throw new Sam2TrackChunkError(
+          new Error('사용자가 추적을 취소했습니다'),
+          accumulated,
+          c,
+          chunks.length,
+        );
+      }
+      try {
+        res = await requestSam2Track(
+          curStartSrcSn,
+          {
+            trackId,
+            prevPolygon: curPrevPolygon,
+            label,
+            nextSrcSns: pending,
+            // (R12) 추적 결과 형태(BBOX/POLYGON)를 모든 조각에 전파 — 누락 시 BE 기본(POLYGON) 고정.
+            ...(shape ? { shape } : {}),
+          },
+          signal,
+          // 취소 식별자도 **모든 조각**에 전파한다 — 서버는 조각마다 별개 요청으로 보므로, 한
+          // 조각에만 실으면 취소 버튼이 그 조각 하나만 끊는다.
+          requestId,
+        );
+      } catch (err) {
+        // 부분 실패: 지금까지 성공한 조각 결과를 보존해 에러로 표면화(전부 롤백하지 않음).
+        throw new Sam2TrackChunkError(err, accumulated, c, chunks.length);
+      }
+
+      // ★ **이 통로에는 mock 안내만 오므로 그대로 모은다.** 서버가 예산 절단을 안내 «문구» 로
+      //   알리던 동작은 폐기됐다 — 절단은 응답의 구조화된 값(`truncated`/`resume`)으로만 말하고,
+      //   남은 몫은 실행 전체 기준의 정확한 수(`unprocessed`) 하나로만 말한다.
+      //   ⚠ **절단 여부로 문구를 거르지 않는다.** 절단이면서 동시에 mock 이기도 한 응답이 있고,
+      //     mock 프레임은 결과에서 아예 빠지므로 그 안내가 사용자가 알 수 있는 **유일한 신호**다.
+      //     거르면 그 신호가 사라져 «왜 이 구간엔 라벨이 없지» 를 알 방법이 없어진다.
+      //   ⚠ 문구를 파싱해 종류를 가르지도 않는다 — 판단은 언제나 구조화된 값으로만 한다.
+      if (res.message) {
+        sawNotice = true;
+        if (!notices.includes(res.message)) notices.push(res.message);
+      }
+      // 불변성 유지 — 새 배열로 누적하지 않고 push 는 로컬 누적기에만 적용(외부 인자 미변경).
+      accumulated.push(...(res.tracked ?? []));
+
+      const resume = res.truncated ? resumeOf(res) : null;
+      if (resume === null) {
+        // 이 조각은 서버가 끝까지 처리했다.
+        processed += pending.length;
+        onProgress?.(processed, total);
+        break;
+      }
+
+      // 서버가 예산 안에서 할 수 있는 만큼만 했다 — 남은 만큼 그대로 이어 보낸다.
+      const left = resume.nextSrcSns;
+      if (left.length >= pending.length) {
+        // 진행이 없다 — 그대로 되보내면 같은 응답이 무한히 돌아온다. 여기서 멈추고 못 끝냈다는
+        // 사실을 결과에 담아 돌려준다(감추면 «되던 것처럼» 보이고 라벨만 사라진다).
+        onProgress?.(processed, total);
+        const rest = [...left, ...chunks.slice(c + 1).flat()];
+        return {
+          tracked: accumulated,
+          message: joinNotices(notices),
+          truncated: true,
+          // 남은 구간 = 이 조각의 잔여 + 아직 손대지 않은 뒤 조각들.
+          resume: { ...resume, nextSrcSns: rest },
+          unprocessed: rest.length,
+        };
+      }
+      processed += pending.length - left.length;
+      onProgress?.(processed, total);
+      curStartSrcSn = resume.srcSn;
+      curPrevPolygon = resume.prevPolygon;
+      pending = left;
+    }
 
     const isLastChunk = c === chunks.length - 1;
     if (!isLastChunk) {
-      const last = res.tracked[res.tracked.length - 1];
-      if (!last && mockMessage !== null) {
-        // mock(모델 미로드) 로 이 청크 결과가 통째로 제외돼 이어붙일 시드가 없다. 일반 실패로
+      // 화면쪽 분할 경계 — 서버는 이 요청을 끝냈으므로 `resume` 이 없다. 시드를 화면이 만든다.
+      const tracked = res.tracked ?? [];
+      const last = tracked[tracked.length - 1];
+      if (!last && sawNotice) {
+        // mock(모델 미로드) 로 이 조각 결과가 통째로 제외돼 이어붙일 시드가 없다. 일반 실패로
         // 오인시키지 않고 지금까지의 성공분 + mock 안내를 반환한다(자동 적용 차단은 유지).
-        return { tracked: accumulated, message: mockMessage };
+        return {
+          tracked: accumulated,
+          message: joinNotices(notices),
+          truncated: true,
+          // 이어붙일 시드가 없어 멈췄다 — 서버가 준 이어보내기 값이 아니라 «못 한 몫» 만 알린다.
+          resume: null,
+          unprocessed: chunks.slice(c + 1).flat().length,
+        };
       }
       if (!last) {
-        // 다음 청크로 이어갈 폴리곤이 없음 — 이어붙이기 불가로 부분 실패 처리.
+        // 다음 조각으로 이어갈 폴리곤이 없음 — 이어붙이기 불가로 부분 실패 처리.
         // BE 계약상 성공 응답의 tracked 는 요청 nextSrcSns 개수만큼 채워지므로 도달 불가하나,
         // 향후 계약 변경(빈 tracked 허용) 대비 방어. completedChunks 는 실패 catch 분기와
-        // 동일하게 '결과를 낸 완료 청크 수(c)' 로 통일 — 빈 결과 청크는 완료로 세지 않아
-        // 실패구간 안내가 실제 완료/실패 청크와 일치한다.
+        // 동일하게 '결과를 낸 완료 조각 수(c)' 로 통일 — 빈 결과 조각은 완료로 세지 않아
+        // 실패구간 안내가 실제 완료/실패 조각과 일치한다.
         throw new Sam2TrackChunkError(
           new Error('빈 추적 응답으로 다음 청크를 이어갈 수 없습니다'),
           accumulated,
@@ -846,13 +1072,45 @@ export async function sam2TrackAllChunks(
         );
       }
       curStartSrcSn = last.srcSn;
-      // BBOX 추적은 last.points 가 2점 외접박스라 다음 청크 prevPolygon(@Size(min=3))을 위반한다.
+      // BBOX 추적은 last.points 가 2점 외접박스라 다음 조각 prevPolygon(@Size(min=3))을 위반한다.
       // 4점 폐곡선으로 확장해 이어붙인다(폴리곤은 무영향).
       curPrevPolygon = toSeedPolygon(last.points);
     }
   }
 
-  return { tracked: accumulated, message: mockMessage };
+  return {
+    tracked: accumulated,
+    message: joinNotices(notices),
+    truncated: false,
+    resume: null,
+    unprocessed: 0,
+  };
+}
+
+/**
+ * 실행 전체에서 모은 안내를 하나로 잇는다 — 없으면 null(정상).
+ *
+ * ⚠ 안내가 없다는 것과 «안내를 못 봤다» 는 같은 뜻이다(빈 문자열을 만들지 않는다) — 호출측이
+ *   `if (data.message)` 하나로 판정하기 때문이다.
+ */
+function joinNotices(notices: readonly string[]): string | null {
+  return notices.length === 0 ? null : notices.join(' ');
+}
+
+/**
+ * 응답의 이어 보내기 값을 **쓸 수 있을 때만** 돌려준다(못 쓰면 null → 여기서 멈춘다).
+ *
+ * ⚠ 값을 지어내지 않는다. 시작 프레임이 없거나 폴리곤이 요청 규격(3점 이상)을 못 채우면 그대로
+ *   보내 봐야 400 이고, 화면이 임의로 채우면 «다른 자리에서 이어붙인» 추적이 된다.
+ */
+function resumeOf(res: Sam2TrackResponse): Sam2TrackResume | null {
+  const resume = res.resume;
+  if (!resume) return null;
+  const { srcSn, prevPolygon, nextSrcSns } = resume;
+  if (typeof srcSn !== 'number' || !Number.isFinite(srcSn)) return null;
+  if (!Array.isArray(prevPolygon) || prevPolygon.length < 3) return null;
+  if (!Array.isArray(nextSrcSns) || nextSrcSns.length === 0) return null;
+  return { srcSn, prevPolygon, nextSrcSns };
 }
 
 /**
@@ -892,10 +1150,14 @@ export interface Sam2SegmentResponse {
  * 전용 경로 `/portal/frames/{id}/sam2-segment` 는 서버에서 제거됐다. 채널 분기를 두지 않는다.
  *
  * 보안: srcSn/points/box 입력 검증·IDOR·좌표 상한은 BE 책임.
+ *
+ * @param signal 취소 신호. 화면이 취소하면 서버로 가는 요청 자체를 끊는다.
  */
 export function requestSam2Segment(
   srcSn: number,
   payload: Omit<Sam2SegmentRequest, 'srcSn'>,
+  signal?: AbortSignal,
+  requestId?: string,
 ): Promise<Sam2SegmentResponse> {
   // body 를 명시 조립 — simplifyTolerance 는 숫자일 때만 포함(undefined 는 생략 → BE 기본값, 무회귀).
   const body: Record<string, unknown> = { srcSn };
@@ -903,7 +1165,13 @@ export function requestSam2Segment(
   if (payload.box !== undefined) body.box = payload.box;
   if (typeof payload.simplifyTolerance === 'number') body.simplifyTolerance = payload.simplifyTolerance;
   return apiClient
-    .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, body)
+    .post<Sam2SegmentResponse>(`/frames/${srcSn}/sam2-segment`, body, {
+      headers: aiRequestIdHeaders(requestId),
+      // 공용 기본값(30초)을 덮어쓴다 — 예산 판정은 aiBudget 한 곳. 빼면 30~60초짜리 정상 분할이
+      // 실패로 보인다. 단일 프레임 경로라 프레임 수를 넘기지 않는다(예산의 고정분만 쓴다).
+      timeout: aiWaitTimeoutMs('segment'),
+      signal,
+    })
     // message 보존: 인터셉터가 unwrap 한 ApiResponse.message 를 data 에 병합해 FE 가 mock 안내를 읽을 수 있게 한다.
     .then((r) => ({ ...r.data, message: r.message ?? null }));
 }
@@ -962,6 +1230,8 @@ export function requestAutolabel(
   classIds?: string[],
   shape?: DetectShapeType,
   opts?: { confThreshold?: number; simplifyTolerance?: number },
+  signal?: AbortSignal,
+  requestId?: string,
 ): Promise<AutolabelResponse> {
   const body: {
     classes?: string[];
@@ -975,11 +1245,21 @@ export function requestAutolabel(
   // 정밀도 옵션 — 숫자일 때만 포함(미조절/NaN 은 생략 → BE 기본값).
   if (typeof opts?.confThreshold === 'number') body.confThreshold = opts.confThreshold;
   if (typeof opts?.simplifyTolerance === 'number') body.simplifyTolerance = opts.simplifyTolerance;
-  // body 가 비면 인자 없이 호출 — 기존 호출 형태 유지(무회귀, api.test 정합).
+  // 공용 기본값(30초)을 덮어쓴다 — 예산 판정은 aiBudget 한 곳. 빼면 30~60초짜리 정상 검출이
+  // 실패로 보이고, 서버는 계속 돌아 GPU 를 물고 있는데 사용자는 다시 눌러 중복 추론을 시킨다.
+  // 단일 프레임 경로라 프레임 수를 넘기지 않는다(예산의 고정분만 쓴다).
+  const config = {
+    timeout: aiWaitTimeoutMs('autolabel'),
+    signal,
+    headers: aiRequestIdHeaders(requestId),
+  };
+  // body 가 비면 데이터 없이 호출 — 기존 요청 형태 유지(무회귀, api.test 정합).
+  //   ⚠ 두 번째 인자를 생략하는 대신 `undefined` 를 넘긴다. 제한시간은 세 번째 인자로만 실을 수 있고,
+  //     axios 는 두 경우 모두 `config.data` 를 undefined 로 두므로 전송 형태는 달라지지 않는다.
   const post =
     Object.keys(body).length > 0
-      ? apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, body)
-      : apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`);
+      ? apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, body, config)
+      : apiClient.post<AutolabelResponse>(`/frames/${srcSn}/autolabel`, undefined, config);
   // message 보존: mock(모델 미로드) 안내를 FE 가 읽어 경고 토스트로 분기하기 위함.
   return post.then((r) => ({ ...r.data, message: r.message ?? null }));
 }

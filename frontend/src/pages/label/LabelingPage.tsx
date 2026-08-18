@@ -81,7 +81,7 @@ import {
 } from '@/features/label/hooks/useAutolabel';
 import { BUSY_KIND_NAME } from '@/features/label/busyPolicy';
 import { busyRejectedMessage, useBusyTask } from '@/features/label/hooks/useBusyTask';
-import { useAiDefaults } from '@/features/sysconfig/hooks/useAiDefaults';
+import { useAiWaitBudgetSync } from '@/features/label/hooks/useAiWaitBudgetSync';
 import { useVideoDetail } from '@/features/video/hooks/useVideoDetail';
 import { useLabels } from '@/features/label/hooks/useLabels';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
@@ -329,6 +329,11 @@ export function LabelingPage() {
   );
   const busyStartedAt = useLabelStore((s) =>
     isEditBlockedState(s, currentFrame?.srcSn) ? (s.busy?.startedAt ?? undefined) : undefined,
+  );
+  // 이 실행에 실제로 적용된 대기 상한 — 오버레이가 «최대 N초» 로 보여준다. 화면이 다시 계산하지
+  // 않고 잠금을 건 주체가 기록한 값을 그대로 읽는다(두 값이 갈리면 안내가 거짓이 된다).
+  const busyLimitMs = useLabelStore((s) =>
+    isEditBlockedState(s, currentFrame?.srcSn) ? s.busy?.maxDurationMs : undefined,
   );
   const cancelBusy = useLabelStore((s) => s.cancelBusy);
 
@@ -1019,7 +1024,11 @@ export function LabelingPage() {
   // ★ 역할과 무관하게 조회한다 — 전용 읽기 경로 `/v1/ai-defaults`(검수자·작업자 공통, 값 두 개만)를
   // 쓴다. 구 방식(`/v1/manage/configs` + `enabled: isReviewer`)은 검수자 전용이라 작업자 진입마다
   // 403 이 쌓였고, 막고 나니 작업자는 저장된 기본값을 아예 받지 못했다.
-  const { data: aiDefaults } = useAiDefaults();
+  //   ★ 같은 응답이 **AI 대기 예산**(작업 종류별 제한시간·분할 단위·잠금 상한)도 싣는다. 그래서
+  //   조회를 두 번 하지 않고 예산 발행까지 겸하는 훅을 쓴다 — 예산이 화면 상수로 남아 있으면
+  //   서버가 재시도 예산을 바꿀 때 화면만 조용히 어긋나고, «화면이 더 짧은» 방향이면 정상 동작이
+  //   «AI 실패» 로 보인다.
+  const { data: aiDefaults } = useAiWaitBudgetSync();
   const defaultConfThreshold =
     aiDefaults?.confThreshold != null ? aiDefaults.confThreshold / 100 : undefined;
   const defaultSimplifyTolerance = aiDefaults?.simplifyTolerance;
@@ -1827,7 +1836,12 @@ export function LabelingPage() {
               사실만 겹쳐 알린다. 이게 없으면 이미지 404/412 가 "그냥 백지"로 보인다. */}
           {/* 진행 오버레이 — 무엇이 진행 중인지 캔버스 위에 보이고 거기서 바로 취소한다(AC4/AC5).
               300ms 지연 표시라 즉시 그리기처럼 짧은 작업에는 깜빡이지 않는다(AC7). */}
-          <BusyOverlay kind={busyKind} startedAt={busyStartedAt} onCancel={cancelBusy} />
+          <BusyOverlay
+            kind={busyKind}
+            startedAt={busyStartedAt}
+            limitMs={busyLimitMs}
+            onCancel={cancelBusy}
+          />
           {imageError && !imageLoading && (
             <div
               role="alert"

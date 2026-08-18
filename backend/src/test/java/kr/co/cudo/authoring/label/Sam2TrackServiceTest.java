@@ -67,6 +67,8 @@ class Sam2TrackServiceTest {
     @Autowired private LsTaskAssignmentRepository authrtRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 
+    @Autowired private kr.co.cudo.authoring.common.client.AiCallCancellationRegistry cancellationRegistry;
+
     @MockBean private AiServerClient aiServerClient;
     @MockBean private LabelMasterService labelMasterService;
 
@@ -158,6 +160,34 @@ class Sam2TrackServiceTest {
 
         assertThat(res.tracked()).hasSize(1);
         assertThat(labelRepository.findBySrcSn(src1)).isEmpty();
+    }
+
+    // ── 취소 ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("취소하면_남은_프레임을_추론하지_않고_취소로_끝난다")
+    void cancelStopsRemainingFrames() {
+        // given: 첫 프레임 추론 도중 사용자가 취소를 누른 상황.
+        //   이 테스트 스레드가 «요청 스레드» 역할을 한다(인터셉터가 하는 일을 손으로 재현).
+        var scope = cancellationRegistry.open("cancel-track", "1");
+        try {
+            when(aiServerClient.track(any())).thenAnswer(inv -> {
+                cancellationRegistry.cancel("cancel-track", "1");
+                return Mono.just(new Sam2TrackResponse("track-C", square(11, 12, 31, 32), 0.9));
+            });
+            Sam2TrackRequest req = new Sam2TrackRequest(src0, "track-C",
+                    square(10, 10, 30, 30), "person", List.of(src1, src2));
+
+            // when / then: «외부 연동 실패(502)» 로 둔갑하면 서킷 브레이커가 열려 남의 추론까지 막힌다.
+            assertThatThrownBy(() -> sam2TrackService.track(req, reviewer))
+                    .isInstanceOf(kr.co.cudo.authoring.common.client.AiCallCancelledException.class);
+
+            // 취소 이후 프레임은 추론 서버로 나가지 않는다 — 이게 «실제로 취소된다» 의 실질이다.
+            verify(aiServerClient, org.mockito.Mockito.times(1)).track(any());
+        } finally {
+            scope.close();
+            cancellationRegistry.unbind();
+        }
     }
 
     // ── IDOR ─────────────────────────────────────────────────────────────────────

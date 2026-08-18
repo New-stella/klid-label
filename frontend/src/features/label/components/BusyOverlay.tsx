@@ -29,11 +29,19 @@ export interface BusyOverlayProps {
   kind: BusyKind | null;
   /** 작업 시작 시각(ms epoch). 지연 표시·경과 시간의 기준. */
   startedAt?: number;
-  /** 취소 — 도착 결과를 폐기하고 즉시 편집으로 복귀시킨다(서버 중단 아님). */
+  /**
+   * 이 실행의 **대기 상한**(ms). 경과 시간 옆에 «/ 최대 N초» 로 함께 보여준다.
+   *
+   * ★ 왜 필요한가 — 대기가 분 단위로 늘어나면 «몇 초 경과» 만으로는 **끝을 가늠할 수 없다**.
+   *   사용자는 언제까지 기다려야 하는지 모른 채 취소할지 말지를 정해야 한다.
+   * ⚠ 모르면 **생략한다**. 임의의 값을 지어내면 화면이 거짓 끝을 약속하게 된다.
+   */
+  limitMs?: number;
+  /** 취소 — 진행 중인 요청을 중단하고 도착 결과를 폐기한 뒤 즉시 편집으로 복귀시킨다. */
   onCancel: () => void;
 }
 
-export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
+export function BusyOverlay({ kind, startedAt, limitMs, onCancel }: BusyOverlayProps) {
   const [visible, setVisible] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
@@ -105,6 +113,13 @@ export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
 
   if (kind === null || !visible) return null;
 
+  // 상한을 모르면 «끝» 을 말하지 않는다 — 지어낸 값은 거짓 약속이 된다.
+  // 0·음수·비유한 값도 상한으로 치지 않는다(«최대 0초» 는 안내가 아니라 오류다).
+  const limitSec =
+    typeof limitMs === 'number' && Number.isFinite(limitMs) && limitMs > 0
+      ? Math.round(limitMs / 1000)
+      : null;
+
   // 스크림은 UI 크롬이 아니라 모달 배경이라 라이트에서도 어둡게 둔다.
   // 색은 공통 Modal·Drawer 의 backdrop 관례(bg-black/50)를 그대로 따른다.
   return (
@@ -129,7 +144,7 @@ export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
             스크린리더로 낭독된다(WCAG). 시각 정보로만 남기고 라이브 리전에서는 제외한다.
             작업명은 위 문단에 그대로 있어 "무엇이 진행 중인지"는 계속 낭독된다. */}
         <p aria-hidden="true" data-testid="busy-overlay-elapsed" className="text-caption text-gray-500">
-          {elapsedSec}초 경과
+          {limitSec === null ? `${elapsedSec}초 경과` : `${elapsedSec}초 / 최대 ${limitSec}초`}
         </p>
         <button
           ref={cancelRef}
@@ -141,7 +156,7 @@ export function BusyOverlay({ kind, startedAt, onCancel }: BusyOverlayProps) {
           작업 취소
         </button>
         <p className="text-caption text-gray-500">
-          취소하면 결과를 반영하지 않고 편집을 계속합니다. 서버 처리가 즉시 중단되지는 않습니다.
+          취소하면 요청을 중단하고 결과를 반영하지 않은 채 편집을 계속합니다.
         </p>
       </div>
     </div>

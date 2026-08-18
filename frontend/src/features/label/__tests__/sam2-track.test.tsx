@@ -9,11 +9,12 @@ import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
+import { publishAiWaitBudgets, resetAiWaitBudgets } from '../aiBudget';
 import {
   requestSam2Track,
   sam2TrackAllChunks,
   Sam2TrackChunkError,
-  SAM2_TRACK_CHUNK_SIZE,
+  SAM2_TRACK_MAX_FRAMES_PER_REQUEST,
   type Sam2TrackedItem,
 } from '../api';
 import { Sam2TrackTool } from '../canvas/tools/Sam2TrackTool';
@@ -57,10 +58,16 @@ describe('SAM2 Track', () => {
 
   beforeEach(() => {
     mock = new MockAdapter(apiClient);
+    // ★ 이 파일이 검증하는 것은 **서버 프레임 상한(50)에서의 분할·폴리곤 체이닝**이다.
+    //   분할 단위는 이제 서버가 준 대기 예산이 정하므로(`aiBudget`), 예산을 넉넉히 발행해
+    //   **상한이 binding constraint 가 되게** 고정한다. 그러지 않으면 예산 기본값이 바뀔 때마다
+    //   체이닝 검증이 «분할 단위가 몇이냐» 로 흔들린다(예산 자체는 aiWaitBudget.test 가 본다).
+    publishAiWaitBudgets({ sam2Track: { baseSec: 0, perFrameSec: 0, ceilingSec: 100_000 } });
   });
 
   afterEach(() => {
     mock.restore();
+    resetAiWaitBudgets();
   });
 
   describe('requestSam2Track_API', () => {
@@ -94,7 +101,7 @@ describe('SAM2 Track', () => {
 
   describe('sam2TrackAllChunks_청크분할_순차호출', () => {
     it('상수는_BE_Size_상한과_정합한다', () => {
-      expect(SAM2_TRACK_CHUNK_SIZE).toBe(50);
+      expect(SAM2_TRACK_MAX_FRAMES_PER_REQUEST).toBe(50);
     });
 
     it('120개_후속프레임은_50_50_20_3청크로_분할되고_폴리곤이_체인된다', async () => {

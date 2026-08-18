@@ -49,7 +49,11 @@ afterEach(() => {
 
 describe('useSam2Track — 미저장 병합/stale 가드', () => {
   it('성공시_invalidate_없이_onTracked로_성공분_전달', async () => {
-    vi.spyOn(api, 'sam2TrackAllChunks').mockResolvedValue({ tracked: trackedFor([201, 202]) });
+    // 전량 처리 응답 — 끝내지 못한 몫이 없다.
+    vi.spyOn(api, 'sam2TrackAllChunks').mockResolvedValue({
+      tracked: trackedFor([201, 202]),
+      unprocessed: 0,
+    });
     const { wrapper, invalidate } = makeWrapper();
     const onTracked = vi.fn();
 
@@ -99,7 +103,7 @@ describe('useSam2Track — 미저장 병합/stale 가드', () => {
 
   it('추적_응답이_프레임전환후_도착하면_폐기된다', async () => {
     // 느린 응답을 수동 제어 — resolve 전에 srcSn 을 바꿔(rerender) stale 로 만든다.
-    let resolveFn: (v: api.Sam2TrackResponse) => void = () => {};
+    let resolveFn: (v: api.Sam2TrackRunResult) => void = () => {};
     vi.spyOn(api, 'sam2TrackAllChunks').mockReturnValue(
       new Promise((r) => {
         resolveFn = r;
@@ -117,7 +121,7 @@ describe('useSam2Track — 미저장 병합/stale 가드', () => {
     // 프레임 전환 — 현재 srcSn 이 2000 으로 바뀜.
     rerender({ id: 2000 });
     // 이제 이전 요청(1000) 응답 도착.
-    resolveFn({ tracked: trackedFor([201]) });
+    resolveFn({ tracked: trackedFor([201]), unprocessed: 0 });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     // 요청 시점 srcSn(1000) !== 현재(2000) → 폐기.

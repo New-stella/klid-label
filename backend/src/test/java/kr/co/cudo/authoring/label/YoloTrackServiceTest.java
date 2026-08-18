@@ -60,6 +60,7 @@ import static org.mockito.Mockito.when;
 class YoloTrackServiceTest {
 
     @Autowired private YoloTrackService yoloTrackService;
+    @Autowired private kr.co.cudo.authoring.common.client.AiCallCancellationRegistry cancellationRegistry;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataLblRepository labelRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
@@ -140,6 +141,29 @@ class YoloTrackServiceTest {
     private YoloResponse detectionResponse() {
         return new YoloResponse(List.of(
                 new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 7)));
+    }
+
+    @Test
+    @DisplayName("취소하면_남은_프레임을_추론하지_않고_취소로_끝난다")
+    void cancelStopsRemainingFrames() {
+        // 인터셉터가 요청 스레드에 하는 일을 손으로 재현한다.
+        var scope = cancellationRegistry.open("cancel-yolo", "1");
+        try {
+            when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> {
+                cancellationRegistry.cancel("cancel-yolo", "1");
+                return Mono.just(detectionResponse());
+            });
+
+            YoloTrackRequest req = new YoloTrackRequest(src0, List.of(src1, src2));
+
+            // 취소를 502 로 바꾸면 사용자가 누른 취소가 서킷 브레이커를 열어 남의 추론까지 막는다.
+            assertThatThrownBy(() -> yoloTrackService.track(req, reviewer))
+                    .isInstanceOf(kr.co.cudo.authoring.common.client.AiCallCancelledException.class);
+            verify(aiServerClient, org.mockito.Mockito.times(1)).predictYoloTrack(any());
+        } finally {
+            scope.close();
+            cancellationRegistry.unbind();
+        }
     }
 
     @Test

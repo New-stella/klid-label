@@ -54,17 +54,54 @@ export const BUSY_KIND_PROGRESS_LABEL: Record<BusyKind, string> = Object.fromEnt
 /**
  * 취소 안내 문구. 조사(을/를)가 이름마다 달라 종류별로 확정한다.
  *
- * ⚠ **서버 처리를 멈춘 것처럼 오도하지 않는다** — 취소는 도착 결과를 반영하지 않는 클라이언트
- * 폐기다(오버레이 안내와 같은 시맨틱).
+ * ★ 취소는 **요청 중단 + 결과 미반영** 둘 다다. 확정 사양에 따라 AI 요청은 취소 시 서버로 가는
+ * 요청 자체를 끊는다(`useBusyTask` 가 중단 신호를 실어 보낸다) — 화면 안에서만 버리면 서버는
+ * 계속 돌아 추론 자원을 물고 있는다.
+ * ⚠ 그렇다고 «서버가 즉시 멈춘다» 고 단정하지도 않는다 — 중단 신호를 받은 서버가 어느 지점에서
+ * 실제로 손을 떼는지는 서버 몫이다. 문구는 화면이 확실히 아는 것(요청을 끊었다·결과를 쓰지
+ * 않는다)까지만 말한다.
  */
 export const BUSY_KIND_CANCELLED_MESSAGE: Record<BusyKind, string> = {
-  AI_DETECT: `${BUSY_KIND_NAME.AI_DETECT}를 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
-  AI_SEGMENT: `${BUSY_KIND_NAME.AI_SEGMENT}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
-  AI_TRACK: `${BUSY_KIND_NAME.AI_TRACK}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
-  AI_AUTO_TRACK: `${BUSY_KIND_NAME.AI_AUTO_TRACK}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
-  SAVE: `${BUSY_KIND_NAME.SAVE}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
-  LOAD: `${BUSY_KIND_NAME.LOAD}를 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
+  AI_DETECT: `${BUSY_KIND_NAME.AI_DETECT}를 취소했습니다. 요청을 중단하고 결과는 반영하지 않습니다.`,
+  AI_SEGMENT: `${BUSY_KIND_NAME.AI_SEGMENT}을 취소했습니다. 요청을 중단하고 결과는 반영하지 않습니다.`,
+  AI_TRACK: `${BUSY_KIND_NAME.AI_TRACK}을 취소했습니다. 요청을 중단하고 결과는 반영하지 않습니다.`,
+  AI_AUTO_TRACK: `${BUSY_KIND_NAME.AI_AUTO_TRACK}을 취소했습니다. 요청을 중단하고 결과는 반영하지 않습니다.`,
+  SAVE: `${BUSY_KIND_NAME.SAVE}을 취소했습니다. 요청을 중단하고 결과는 반영하지 않습니다.`,
+  LOAD: `${BUSY_KIND_NAME.LOAD}를 취소했습니다. 요청을 중단하고 결과는 반영하지 않습니다.`,
 };
+
+/**
+ * **대기 상한 초과** 안내 문구 — 취소와는 다른 사건이다.
+ *
+ * ★ 종전에는 이 자리가 **무음**이었다. 상한(공용 5분)이 터지면 진행 표시만 풀리고 결과는 조용히
+ * 폐기돼, 사용자는 **성공도 실패도 못 본 채** 화면이 원래대로 돌아오는 것만 봤다. 그러면 같은
+ * 일을 다시 시키거나(중복 추론) 결과가 반영된 줄 알고 넘어간다.
+ *
+ * ⚠ 취소 문구와 합치지 말 것 — «내가 멈춘 것» 과 «시스템이 못 기다린 것» 은 사용자가 취할 다음
+ * 행동이 다르다(전자는 아무 것도, 후자는 재시도 또는 구간 축소).
+ */
+export const BUSY_KIND_TIMEOUT_MESSAGE: Record<BusyKind, string> = {
+  AI_DETECT: `${BUSY_KIND_NAME.AI_DETECT}가 대기 시간을 넘겨 중단됐습니다. 잠시 후 다시 시도해 주세요.`,
+  AI_SEGMENT: `${BUSY_KIND_NAME.AI_SEGMENT}이 대기 시간을 넘겨 중단됐습니다. 잠시 후 다시 시도해 주세요.`,
+  AI_TRACK: `${BUSY_KIND_NAME.AI_TRACK}이 대기 시간을 넘겨 중단됐습니다. 추적 구간을 줄여 다시 시도해 주세요.`,
+  AI_AUTO_TRACK: `${BUSY_KIND_NAME.AI_AUTO_TRACK}이 대기 시간을 넘겨 중단됐습니다. 추적 구간을 줄여 다시 시도해 주세요.`,
+  SAVE: `${BUSY_KIND_NAME.SAVE}이 대기 시간을 넘겨 중단됐습니다. 잠시 후 다시 시도해 주세요.`,
+  LOAD: `${BUSY_KIND_NAME.LOAD}가 대기 시간을 넘겨 중단됐습니다. 잠시 후 다시 시도해 주세요.`,
+};
+
+/**
+ * 대기 상한 초과를 사용자에게 알린다 — **무음 폐기 금지**.
+ *
+ * 안내를 여기 한 곳에 두는 이유는 이 파일의 머리말과 같다: 문구·판정이 호출부마다 흩어지면
+ * 한쪽만 갱신되며 조용히 갈라진다.
+ */
+export function notifyBusyTimeout(kind: BusyKind): void {
+  useUiStore.getState().pushToast({
+    // 사용자가 시킨 일이 끝나지 못했다 — 정보(info)가 아니라 경고다.
+    variant: 'warning',
+    message: BUSY_KIND_TIMEOUT_MESSAGE[kind],
+  });
+}
 
 /**
  * 진행 오버레이 지연 표시 창(ms). 이 시간을 넘긴 작업만 오버레이를 띄운다.

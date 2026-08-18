@@ -28,7 +28,9 @@ describe('useAutolabel', () => {
       out.value = await result.current.autolabel();
     });
 
-    expect(spy).toHaveBeenCalledWith(5001);
+    // 취소 신호는 **어느 호출 분기로 가든** 실린다 — 한 분기만 빠뜨리면 그 형태에서만 취소가
+    // 화면 안에서 끝나고 서버는 계속 돈다.
+    expect(spy).toHaveBeenCalledWith(5001, undefined, undefined, undefined, expect.any(AbortSignal), expect.any(String));
     expect(out.value?.savedCount).toBe(2);
   });
 
@@ -40,7 +42,14 @@ describe('useAutolabel', () => {
       await result.current.autolabel(['person', 'car']);
     });
 
-    expect(spy).toHaveBeenCalledWith(5001, ['person', 'car']);
+    expect(spy).toHaveBeenCalledWith(
+      5001,
+      ['person', 'car'],
+      undefined,
+      undefined,
+      expect.any(AbortSignal),
+      expect.any(String),
+    );
   });
 
   it('classIds_미지정(전체)시_인자없이_호출_무회귀', async () => {
@@ -51,8 +60,8 @@ describe('useAutolabel', () => {
       await result.current.autolabel();
     });
 
-    // 인자 없이 호출 — 기존 시그니처(srcSn 단독) 유지.
-    expect(spy).toHaveBeenCalledWith(5001);
+    // 검출 옵션은 여전히 싣지 않는다(전체 검출) — 취소 신호만 더해진다.
+    expect(spy).toHaveBeenCalledWith(5001, undefined, undefined, undefined, expect.any(AbortSignal), expect.any(String));
   });
 
   it('srcSn_미지정시_요청안하고_null반환', async () => {

@@ -69,16 +69,18 @@ export function useAutolabel(
       opts?: { confThreshold?: number; simplifyTolerance?: number },
     ): Promise<AutolabelResponse | null> => {
       if (srcSn === undefined) return null;
-      return runExclusiveOrNotify('AI_DETECT', { srcSn }, async (isAlive) => {
+      return runExclusiveOrNotify('AI_DETECT', { srcSn }, async (isAlive, signal, requestId) => {
         // shape/opts 미지정 + classIds 미지정 시 인자 없이 호출 — 기존 호출 형태 유지(무회귀).
         // shape 또는 opts 지정 시에만 확장 인자를 전달해 기존 시그니처 호출을 오염시키지 않는다.
+        // 취소 신호·취소 식별자는 **어느 분기로 호출하든** 실어 보낸다 — 한 분기만 빠뜨리면 그
+        // 호출 형태에서만 취소가 화면 안에서 끝나고 서버는 계속 돈다(조용히 갈라지는 자리).
         let res: AutolabelResponse;
         if (shape !== undefined || opts !== undefined) {
-          res = await requestAutolabel(srcSn, classIds ?? [], shape, opts);
+          res = await requestAutolabel(srcSn, classIds ?? [], shape, opts, signal, requestId);
         } else if (classIds === undefined) {
-          res = await requestAutolabel(srcSn);
+          res = await requestAutolabel(srcSn, undefined, undefined, undefined, signal, requestId);
         } else {
-          res = await requestAutolabel(srcSn, classIds);
+          res = await requestAutolabel(srcSn, classIds, undefined, undefined, signal, requestId);
         }
         // 병합·안내는 보호 구간 안에서. 취소/프레임 전환 뒤면 반영하지 않는다.
         if (isAlive()) onApplyRef.current?.(res, { shape });

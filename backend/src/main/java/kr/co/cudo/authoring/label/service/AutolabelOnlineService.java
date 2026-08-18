@@ -6,6 +6,9 @@ import io.github.resilience4j.reactor.bulkhead.operator.BulkheadOperator;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiCallCancelledException;
+import kr.co.cudo.authoring.common.client.AiWaitBudgetPolicy;
+import kr.co.cudo.authoring.common.client.CancellableAiCall;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
@@ -107,7 +110,7 @@ public class AutolabelOnlineService {
      * <p>개별 {@code .block(60s)} 를 N 회 무한 반복하지 않도록 전체 처리에 단일 데드라인을 둔다.
      * 남은 예산 안에서만 SAM 을 호출하고 초과 시 잘라 안내한다(부분 반환 허용 — 폴리곤 경로 한정).
      */
-    private static final Duration DEFAULT_POLYGON_TOTAL_BUDGET = Duration.ofSeconds(60);
+    private static final Duration DEFAULT_POLYGON_TOTAL_BUDGET = AiWaitBudgetPolicy.POLYGON_BATCH_BUDGET;
 
     /**
      * 폴리곤 배치 wall-clock 예산 — 예산 소진(truncation) 분기를 단위 테스트에서 발화시킬 수 있도록
@@ -337,6 +340,10 @@ public class AutolabelOnlineService {
                 items.add(new AutolabelResponse.Item(
                         null, labelId, d.label(), null, clampScore(d.score()), d.trackId(),
                         AutolabelShape.POLYGON.name(), polygon));
+            } catch (AiCallCancelledException e) {
+                // 취소는 부분 스킵으로 흡수하지 않는다 — 흡수하면 남은 박스를 계속 추론해
+                // "취소했는데 서버는 계속 돈다" 가 그대로 남는다.
+                throw e;
             } catch (CustomException e) {
                 // MED-1(자원 보호 우선) — bulkhead 초과 429 는 삼키지 말고 즉시 전파(fail-fast). 부분 스킵으로
                 // 흡수하면 Tomcat 스레드 고갈 방어가 무력화된다. 그 외(좌표검증 INVALID_INPUT 등)만 스킵.
@@ -494,10 +501,16 @@ public class AutolabelOnlineService {
         String clipId = rawSn + ":" + UUID.randomUUID();
         try {
             // BulkheadOperator 를 최외곽에 두어 permit 을 블로킹 호출(재시도 포함) 전 구간에 걸쳐 점유.
-            return aiServerClient.predictYoloTrack(
-                            new YoloTrackRequest(imageB64, clipId, 0, conf, imgsz, iou, classes))
-                    .transformDeferred(BulkheadOperator.of(aiOnlineBulkhead))
-                    .block(Duration.ofSeconds(70));
+            // 사용자가 취소하면 이 대기가 즉시 풀리고 ai-server 연결도 끊긴다(CancellableAiCall).
+            return CancellableAiCall.block(
+                    aiServerClient.predictYoloTrack(
+                                    new YoloTrackRequest(imageB64, clipId, 0, conf, imgsz, iou, classes))
+                            .transformDeferred(BulkheadOperator.of(aiOnlineBulkhead)),
+                    AiWaitBudgetPolicy.ONLINE_BLOCK_TIMEOUT);
+        } catch (AiCallCancelledException e) {
+            // 사용자 취소는 «외부 연동 실패» 가 아니다 — 502 로 바꾸면 서킷 브레이커가 열려
+            // 다른 사람의 추론까지 막힌다.
+            throw e;
         } catch (BulkheadFullException e) {
             // F-2: 온라인 AI 경로 동시 호출 상한 초과 → 429 fail-fast (Tomcat 스레드 고갈 방어).
             log.warn("[Autolabel] bulkhead full — reject srcSn={}", src.getSrcSn());
@@ -523,11 +536,16 @@ public class AutolabelOnlineService {
      */
     private Sam2Response callSam(Long srcSn, String imageB64, List<Double> box, long remainingNanos) {
         // 개별 호출 상한 60s 와 잔여 예산 중 작은 값 — 배치 전체 데드라인을 넘기지 않도록.
-        Duration perCall = Duration.ofNanos(Math.min(remainingNanos, Duration.ofSeconds(60).toNanos()));
+        Duration perCall = Duration.ofNanos(
+                Math.min(remainingNanos, AiWaitBudgetPolicy.PER_CALL_TIMEOUT.toNanos()));
         try {
-            return aiServerClient.segment(new Sam2Request(imageB64, null, box))
-                    .transformDeferred(BulkheadOperator.of(aiOnlineBulkhead))
-                    .block(perCall);
+            return CancellableAiCall.block(
+                    aiServerClient.segment(new Sam2Request(imageB64, null, box))
+                            .transformDeferred(BulkheadOperator.of(aiOnlineBulkhead)),
+                    perCall);
+        } catch (AiCallCancelledException e) {
+            // 박스별 실패는 스킵으로 흡수하지만 취소는 «남은 박스도 하지 말라» 는 뜻이라 올린다.
+            throw e;
         } catch (BulkheadFullException e) {
             // 자원 보호 우선 — 동시 호출 상한 초과는 즉시 429(스킵 아님).
             log.warn("[Autolabel] polygon SAM bulkhead full — reject srcSn={}", srcSn);

@@ -142,8 +142,11 @@ public class LabelController {
         }
         // 내부 mock(모델 미로드) 프레임은 서비스가 결과에서 제외한다 → 안내 message 세팅(자동적용 차단 신호).
         // SAM2 세그(sam2Segment)·YOLO 오토라벨과 동일 규약. (C-ISSUE-81, CWE-345)
+        // ★ 이 통로에는 mock 안내만 실린다 — 예산 절단은 응답의 truncated/resume 로만 말한다(구 동작
+        //   폐기). 절단 문구를 함께 실으면 화면이 «절단을 보고한 응답의 문구는 버린다» 는 필터로 이
+        //   mock 안내까지 버리는데, mock 프레임은 결과에서 빠지므로 이 안내가 유일한 신호다.
         kr.co.cudo.authoring.label.dto.Sam2TrackOutcome outcome = sam2TrackService.track(req, actor);
-        return outcome.mock()
+        return outcome.message() != null
                 ? ApiResponse.ok(outcome.response(), outcome.message())
                 : ApiResponse.ok(outcome.response());
     }
@@ -206,6 +209,10 @@ public class LabelController {
                     kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "path 의 srcSn 과 body 의 srcSn 이 다릅니다.");
         }
+        // ★ 예산 절단을 안내 «문구» 로 알리지 않는다(구 동작 폐기) — 그 사실은 응답의 truncated/resume
+        //   가 이미 말하고, 화면은 그 구조화된 값으로 실행 전체 기준의 남은 수를 계산한다. 문구는 요청
+        //   하나 기준이라 실행 전체와 어긋나 화면이 쓰지 않는데, 그 문구를 싣는 바람에 화면이 «절단을
+        //   보고한 응답의 문구는 버린다» 는 필터를 갖게 되어 같은 통로의 mock 안내까지 함께 버려졌다.
         return ApiResponse.ok(yoloTrackService.track(req, actor));
     }
 }

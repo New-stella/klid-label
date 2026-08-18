@@ -98,15 +98,41 @@ class AiDefaultsControllerTest {
     }
 
     @Test
-    @DisplayName("응답_data_의_키는_정확히_두_개다_설정키가_늘어도_새지_않는다")
-    void exposesExactlyTwoKeys() throws Exception {
+    @DisplayName("응답_data_의_키_집합이_정확히_고정된다_설정키가_늘어도_새지_않는다")
+    void exposesExactlyTheDeclaredKeys() throws Exception {
         // given / when
         JsonNode data = dataOf(workerToken);
 
-        // then: 키 집합 정확 단언 — 이 가드가 이 작업의 핵심이다.
+        // then: 키 집합 정확 단언 — 이 가드가 이 경로의 핵심이다.
+        //   waitBudgets 는 «의도해서» 늘린 세 번째 키다(대기 예산 소유를 서버로 옮긴 계약).
+        //   운영 메타(수정자·수정일시)가 새는 것은 아래 별도 테스트가 계속 막는다.
         List<String> keys = new ArrayList<>();
         data.fieldNames().forEachRemaining(keys::add);
-        assertThat(keys).containsExactlyInAnyOrder("confThreshold", "simplifyTolerance");
+        assertThat(keys).containsExactlyInAnyOrder("confThreshold", "simplifyTolerance", "waitBudgets");
+    }
+
+    @Test
+    @DisplayName("대기_예산은_네_종류_모두_세_값을_갖고_저장값이_없어도_생략되지_않는다")
+    void exposesWaitBudgetsForEveryKind() throws Exception {
+        // given / when
+        JsonNode budgets = dataOf(workerToken).get("waitBudgets");
+
+        // then: 화면이 종류마다 상수를 들고 있지 않으려면 네 종류가 «전부» 있어야 한다.
+        assertThat(budgets).isNotNull();
+        List<String> kinds = new ArrayList<>();
+        budgets.fieldNames().forEachRemaining(kinds::add);
+        assertThat(kinds).containsExactlyInAnyOrder("autolabel", "segment", "sam2Track", "autoTrack");
+
+        for (String kind : kinds) {
+            JsonNode budget = budgets.get(kind);
+            assertThat(budget.get("baseSec").asInt())
+                    .as("%s 고정분이 0 이면 화면이 즉시 끊는다", kind).isPositive();
+            assertThat(budget.get("perFrameSec").isInt())
+                    .as("%s 가산분 필드가 없으면 화면 계산식이 성립하지 않는다", kind).isTrue();
+            assertThat(budget.get("ceilingSec").asInt())
+                    .as("%s 절대 상한은 «고정분 + 가산분 1건» 이상이어야 한 프레임이라도 완주한다", kind)
+                    .isGreaterThanOrEqualTo(budget.get("baseSec").asInt() + budget.get("perFrameSec").asInt());
+        }
     }
 
     @Test

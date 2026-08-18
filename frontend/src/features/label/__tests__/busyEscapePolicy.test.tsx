@@ -65,8 +65,11 @@ describe('busy ESC 취소 정책', () => {
     expect(toasts).toHaveLength(1);
     expect(toasts[0].message).toContain('AI 탐지');
     expect(toasts[0].message).toContain('취소');
-    // 서버 처리를 멈춘 것처럼 오도하지 않는다.
-    expect(toasts[0].message).not.toContain('중단');
+    // 취소가 **요청을 끊는다**는 사실을 알린다 — 이제 화면이 실제로 중단 신호를 보내므로,
+    // «결과만 안 쓴다» 로만 적으면 사용자는 서버가 계속 도는 줄 알고 취소를 주저한다.
+    expect(toasts[0].message).toContain('요청을 중단');
+    // 그렇다고 «서버가 즉시 멈춘다» 고 단정하지도 않는다 — 어느 지점에서 손을 떼는지는 서버 몫이다.
+    expect(toasts[0].message).not.toContain('즉시 중단');
     // 모델명 미노출(R6) · 내부 식별자 미노출.
     expect(toasts[0].message).not.toMatch(/YOLO|SAM/i);
     expect(toasts[0].message).not.toMatch(/srcSn|\/v1\//i);

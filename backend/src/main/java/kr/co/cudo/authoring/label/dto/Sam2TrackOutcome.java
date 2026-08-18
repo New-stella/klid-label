@@ -35,7 +35,18 @@ public record Sam2TrackOutcome(Sam2TrackResponseDto response, boolean mock, Stri
         return new Sam2TrackOutcome(response, true, none ? MOCK_UNAVAILABLE_MESSAGE : PARTIAL_MOCK_MESSAGE);
     }
 
-    /** mock 관측 여부에 따라 적절한 outcome 을 만든다. */
+    /**
+     * 결과 + mock 신호로 outcome 을 만든다 — <b>문구 통로는 mock 안내 전용</b>이다.
+     *
+     * <p>★ 예산 절단 안내를 여기에 싣지 않는다(구 동작 폐기). 절단은 이미 응답의 구조화된 값
+     * ({@code truncated}/{@code resume})으로 표현되고 화면은 그것으로 <b>실행 전체 기준</b>의 남은 수를
+     * 계산한다. 반면 이 문구는 «요청 하나» 기준이라 실행 전체와 어긋나므로 화면이 쓰지 않는데, 그
+     * 때문에 화면이 «절단을 보고한 응답의 문구는 버린다» 는 필터를 갖게 됐고 <b>같이 실린 mock 안내가
+     * 함께 버려졌다</b>. mock 프레임은 결과 목록에서 빠지므로 그 안내가 <b>유일한 신호</b>다 — 못 보면
+     * 사용자는 왜 그 구간에 라벨이 없는지 알 수 없다.
+     *
+     * @param anyMock mock 응답이 1건이라도 관측됐는가
+     */
     public static Sam2TrackOutcome of(Sam2TrackResponseDto response, boolean anyMock) {
         return anyMock ? withMock(response) : ok(response);
     }

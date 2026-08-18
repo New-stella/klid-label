@@ -42,7 +42,9 @@ export function useSam2Segment(srcSn: number | undefined): UseSam2SegmentResult 
   const segment = useCallback(
     async (payload: Omit<Sam2SegmentRequest, 'srcSn'>): Promise<Sam2SegmentResponse | null> => {
       if (srcSn === undefined) return null;
-      return runExclusiveOrNotify('AI_SEGMENT', { srcSn }, () => requestSam2Segment(srcSn, payload));
+      return runExclusiveOrNotify('AI_SEGMENT', { srcSn }, (_isAlive, signal, requestId) =>
+        requestSam2Segment(srcSn, payload, signal, requestId),
+      );
     },
     [srcSn, runExclusiveOrNotify],
   );

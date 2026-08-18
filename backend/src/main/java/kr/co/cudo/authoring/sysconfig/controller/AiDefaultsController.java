@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>기존 {@code GET /v1/manage/configs} 의 읽기 권한만 넓히는 방식은 채택하지 않았다. 그 응답은
  * 설정 9종 전량과 함께 <b>마지막 수정자 계정 식별자</b>를 담고 있어, 작업자에게 운영 파라미터와
- * 검수자 계정 정보가 함께 나간다. 화면이 실제로 쓰는 값은 두 개뿐이므로 그 둘만 노출한다.
+ * 검수자 계정 정보가 함께 나간다. 그래서 화면이 실제로 쓰는 값만 골라 노출한다.
  *
  * <p><b>쓰기 대응물을 두지 않는다.</b> 설정 변경은 검수자 전용
  * {@code PUT /v1/manage/configs/{key}} 가 담당한다.
@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  * REVIEWER|WORKER|STREAM_SIGNED)이고, 여기 {@code @PreAuthorize} 가 2차로 서명 스트림 컨텍스트를
  * 배제해 사람 역할만 남긴다.
  */
-@Tag(name = "AI Defaults", description = "AI 정밀도 기본값 조회 — 내부 채널 검수자·작업자 읽기 전용")
+@Tag(name = "AI Defaults", description = "AI 정밀도 기본값·대기 예산 조회 — 내부 채널 검수자·작업자 읽기 전용")
 @RestController
 @RequestMapping("/v1/ai-defaults")
 @RequiredArgsConstructor
@@ -40,9 +40,11 @@ public class AiDefaultsController {
     private final AiDefaultsService service;
 
     @Operation(
-            summary = "AI 정밀도 기본값 조회 (REVIEWER/WORKER)",
-            description = "라벨링 화면 AI 도구 슬라이더의 초기값 두 개를 반환한다. "
-                    + "저장값이 없거나 숫자로 해석되지 않는 항목은 응답에서 생략되며 화면이 자체 기본값으로 대체한다."
+            summary = "AI 정밀도 기본값·대기 예산 조회 (REVIEWER/WORKER)",
+            description = "라벨링 화면 AI 도구 슬라이더의 초기값과, 온디맨드 AI 추론 4종(오토라벨·분할·SAM2 추적·"
+                    + "AI 자동 추적)의 대기 예산을 반환한다. 슬라이더 초기값은 저장값이 없거나 숫자로 해석되지 않으면 "
+                    + "응답에서 생략되며 화면이 자체 기본값으로 대체한다. 대기 예산(waitBudgets)은 서버가 재시도 예산에서 "
+                    + "도출하므로 항상 존재하며, 화면은 baseSec + perFrameSec × 프레임수 를 ceilingSec 로 잘라 쓴다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
