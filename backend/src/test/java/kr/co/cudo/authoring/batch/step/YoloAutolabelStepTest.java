@@ -654,10 +654,9 @@ class YoloAutolabelStepTest {
     }
 
     @Test
-    @DisplayName("YoloAutolabelStep_은_SystemConfigService_의_conf_imgsz_iou_를_읽어_AiServerClient_에_전달")
+    @DisplayName("YoloAutolabelStep_은_SystemConfigService_의_conf_iou_를_읽어_AiServerClient_에_전달")
     void systemConfigValuesPassedToAiServer() {
         when(systemConfigService.getInt(ConfigKeys.YOLO_CONF_THRESHOLD)).thenReturn(55);
-        when(systemConfigService.getInt(ConfigKeys.YOLO_IMGSZ)).thenReturn(960);
         when(systemConfigService.getInt(ConfigKeys.YOLO_IOU)).thenReturn(60);
         when(srcRepository.findByRawSnOrderByFrameNoAsc(20L))
                 .thenReturn(List.of(newSrc(10L)));
@@ -673,8 +672,11 @@ class YoloAutolabelStepTest {
         YoloTrackRequest sent = captor.getValue();
         // 55/100=0.55, 60/100=0.60
         assertThat(sent.confThreshold()).isEqualTo(0.55);
-        assertThat(sent.imgsz()).isEqualTo(960);
         assertThat(sent.iou()).isEqualTo(0.60);
+        // imgsz 는 설정과 무관하게 항상 상수다 — 구 키 YOLO_IMGSZ 는 폐지됐고(ai-server 로더가
+        // 640 고정이라 조정이 무효였다) 호출부는 DEFAULT_IMGSZ 를 싣는다. 요청 필드 자체는 남으므로
+        // "설정을 바꿔도 이 값은 안 흔들린다"를 여기서 고정한다.
+        assertThat(sent.imgsz()).isEqualTo(YoloAutolabelStep.DEFAULT_IMGSZ);
     }
 
     @Test

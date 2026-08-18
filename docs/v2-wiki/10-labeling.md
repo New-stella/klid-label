@@ -169,13 +169,19 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 |----|------|------|
 | `YOLO_CONF_THRESHOLD` | 25~80 | YOLO 인식 민감도 |
 | `YOLO_IOU` | 30~80 | YOLO IoU 임계값 |
-| `YOLO_IMGSZ` | 320~1920 | YOLO 입력 크기 |
 | `POLYGON_SIMPLIFY_TOLERANCE` | 0.0~50.0 | SAM2 폴리곤 단순화(Douglas-Peucker epsilon) |
+
+> ⚠ **구 키 `YOLO_IMGSZ`(320~1920) 폐지(2026-08-18)** — ai-server 의 YOLOX 로더가 입력 크기를
+> `_DEFAULT_INPUT_SIZE=(640,640)` 으로 고정해 추론하므로 **조정해도 결과가 달라지지 않는 설정**이었다.
+> 화이트리스트·시스템 설정 화면 입력칸·시드 행을 모두 걷어냈다(V13). **ai-server 요청 필드
+> `imgsz` 자체는 남는다** — 호출부가 상수 `DEFAULT_IMGSZ`(1280)를 계속 싣는다. 바뀐 것은
+> "운영자가 조정할 수 있는가" 하나뿐이다. 되살리려면 **ai-server 가 요청값을 실제로 쓰도록 먼저
+> 고쳐야 한다**. 사양 근거 SCREEN-025 · UC-031, 가드 `ConfigKeysTest.imgszKeyIsNotConfigurable`.
 
 - 미등록 키/범위 초과는 400 거부 (CWE-20)
 - 코드: `sysconfig/SystemConfigController`, `ConfigKeys`
 
-> **라벨링 화면 per-실행 수동 조절**(2026-07-22) — 시스템 설정값은 **기본값**이고, 라벨러가 라벨링 화면에서 AI 실행 직전 이번 호출에 한해 조절할 수 있다(세션 한정, DB 미저장). **AI 탐지**(AI Tool 팝업)에 **인식 민감도**(`YOLO_CONF_THRESHOLD` 축, 0.25~0.80) + **경계 세밀함**(`POLYGON_SIMPLIFY_TOLERANCE`, 0~50px, **폴리곤 형태일 때만**) 슬라이더, **AI 분할** 도구에 **경계 세밀함**만 노출(SAM2는 신뢰도 임계값 미수용 → 인식 민감도 미노출). 시스템 설정값으로 프리필되며, 조절하지 않으면 요청 body에 파라미터를 넣지 않아 시스템 설정 기본값으로 동작한다(무회귀). YOLO 온라인 폴리곤 출력에도 이때 Douglas-Peucker 단순화가 신규 적용된다. 요청 필드: `POST /v1/frames/{srcSn}/autolabel`(`confThreshold`·`simplifyTolerance`, optional), `POST /v1/frames/{srcSn}/sam2-segment`(`simplifyTolerance`, optional). YOLO `imgsz`(로더 640 고정 무시)·max detections·SAM2 신뢰도는 라벨링 화면 미노출. → [11 §11.5](11-ai-assisted.md).
+> **라벨링 화면 per-실행 수동 조절**(2026-07-22) — 시스템 설정값은 **기본값**이고, 라벨러가 라벨링 화면에서 AI 실행 직전 이번 호출에 한해 조절할 수 있다(세션 한정, DB 미저장). **AI 탐지**(AI Tool 팝업)에 **인식 민감도**(`YOLO_CONF_THRESHOLD` 축, 0.25~0.80) + **경계 세밀함**(`POLYGON_SIMPLIFY_TOLERANCE`, 0~50px, **폴리곤 형태일 때만**) 슬라이더, **AI 분할** 도구에 **경계 세밀함**만 노출(SAM2는 신뢰도 임계값 미수용 → 인식 민감도 미노출). 시스템 설정값으로 프리필되며, 조절하지 않으면 요청 body에 파라미터를 넣지 않아 시스템 설정 기본값으로 동작한다(무회귀). YOLO 온라인 폴리곤 출력에도 이때 Douglas-Peucker 단순화가 신규 적용된다. 요청 필드: `POST /v1/frames/{srcSn}/autolabel`(`confThreshold`·`simplifyTolerance`, optional), `POST /v1/frames/{srcSn}/sam2-segment`(`simplifyTolerance`, optional). max detections·SAM2 신뢰도는 라벨링 화면 미노출. YOLO `imgsz` 는 **설정 자체가 폐지**돼 라벨링 화면뿐 아니라 시스템 설정에서도 조정할 수 없다(위 폐지 안내 참조). → [11 §11.5](11-ai-assisted.md).
 
 ### 10.5.1 슬라이더 초기값 조회 — `GET /v1/ai-defaults` (2026-08-08 신설)
 

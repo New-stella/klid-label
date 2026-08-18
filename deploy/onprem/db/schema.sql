@@ -2499,7 +2499,6 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
 BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-17 02:15:28.508813
 BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-17 02:15:28.508813
-YOLO_IMGSZ	1280	NUMBER	YOLO 추론 입력 해상도 px (320~1920)	SYSTEM	2026-08-17 02:15:28.508813
 YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-17 02:15:28.508813
 YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-17 02:15:28.508813
 POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-17 02:15:28.508813
