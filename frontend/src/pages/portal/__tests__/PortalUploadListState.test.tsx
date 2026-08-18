@@ -40,6 +40,7 @@ function up(over: Partial<PortalUpload> = {}): PortalUpload {
     frmeCnt: 1,
     frmeSn: 10,
     regDt: '2026-07-17T00:00:00',
+    expiresAt: null,
     ...over,
   };
 }

@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.portal.service.PortalRetentionSweepTxService.Expired
 import kr.co.cudo.authoring.portal.service.PortalStoragePathGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -40,9 +41,15 @@ import java.nio.file.Files;
  * 의도다 — 비가역 파괴 작업이라 주기·실패 격리·감사를 독립시킨다. 다만 패턴은 그대로 따른다:
  * 잡은 <b>오케스트레이션만</b> 하고 트랜잭션 경계는 별 빈이 가지며(self-invocation 프록시 우회 방지),
  * 2노드 Active-Active 는 <b>조건부 벌크 쿼리의 영향행수</b>로 멱등화한다(분산 락을 새로 만들지 않는다).
+ *
+ * <p>빈 등록은 <b>자기 토글</b>({@code portal.retention.sweep.enabled})이 소유한다 — 스케줄링 활성화
+ * ({@link PortalRetentionSweepSchedulingConfig})와 <b>같은 키</b>다. 과거 이 잡은 자기
+ * {@code @EnableScheduling} 이 없어 관제 통지 같은 <b>무관한 기능</b>을 끄면 보존기간 삭제가 소리 없이
+ * 멈췄다 — 그 결함은 아무도 실패시키지 않으므로 회귀 가드({@code PortalSweepSchedulingIT})가 짝이다.
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "portal.retention.sweep.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 public class PortalRetentionSweepJob {
 

@@ -22,6 +22,7 @@ function video(over: Partial<DatamartVideo> = {}): DatamartVideo {
     frameCount: 5,
     firstSrcSn: 100,
     lastUpdatedAt: '2026-06-01T10:00:00',
+    myLabelExpiresAt: '2026-06-08T10:00:00',
     ...over,
   };
 }
@@ -112,13 +113,27 @@ describe('PortalHomePage', () => {
     await waitFor(() => expect(screen.getByTestId('label-route')).toBeInTheDocument());
   });
 
-  it('다운로드_UI_미제공_V1_5_포털_자체_책임', () => {
-    mockVideos([]);
-    const { container } = renderWithProviders(<PortalHomePage />);
+  /*
+   * ★ 반전된 가드 — 구 케이스 `다운로드_UI_미제공_V1_5_포털_자체_책임` 을 대체한다(지우지 않고 뒤집는다).
+   *
+   * 구 단언: 포털 홈에 «다운로드» 관련 요소가 **하나도 없어야 한다**(`[aria-label*="다운로드"]`·
+   *          `[data-testid*="download"]` 각 0건).
+   * 새 단언: 영상 카드마다 다운로드 버튼이 **있어야 한다**.
+   *
+   * 왜 뒤집혔나 — 구 V1.5 는 "포털 다운로드는 포털 시스템 자체 책임"이라 저작도구가 제공하지
+   * 않는다는 정책이었다. 그 정책이 폐기되고 저작도구가 본인 작업 데이터 다운로드를 제공하는 것으로
+   * 확정됐다(서버 경로·보존기간 만료 표기까지 함께). 구 단언을 그대로 두면 확정된 사양이 결함으로
+   * 잡힌다.
+   */
+  it('영상_카드마다_작업_데이터_다운로드_버튼이_있다_V1_5_미제공_정책_폐기', () => {
+    mockVideos([video({ rawSn: 10, title: 'CLIP-10' })]);
+    renderWithProviders(<PortalHomePage />);
 
     expect(screen.getByRole('heading', { name: '라벨링' })).toBeInTheDocument();
-    expect(container.querySelector('[aria-label*="다운로드"]')).toBeNull();
-    expect(container.querySelector('[data-testid*="download"]')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'CLIP-10 작업 데이터 다운로드' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('datamart-download-button')).toBeInTheDocument();
   });
 
   it('KPI_2_표시_영상수_라벨링수', () => {

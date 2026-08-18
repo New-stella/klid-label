@@ -157,18 +157,21 @@ class PortalFrameExtractRunnerTest {
     @Test
     @DisplayName("하트비트_실패시_러너가_중단하고_파일_정리")
     void abortsAndCleansWhenHeartbeatFailsMidExtract() throws Exception {
-        // adversarial #2 중단 경로: 50프레임 초과 추출 중 하트비트(touchProcessing)가 false 를
-        // 반환하면(자산 삭제/전이 감지) 러너가 즉시 중단 + 부분 파일 정리해야 한다.
-        // 기존 러너(setUp)는 duration 10s → 2프레임(<50)이라 i=50 하트비트 분기가 실행되지 않으므로
-        // 100프레임(duration 100s·interval 1s·fps 30 → 100프레임)이 나오는 러너를 별도로 구성한다.
+        // adversarial #2 중단 경로: 추출 중 하트비트(touchProcessing)가 false 를 반환하면
+        // (자산 삭제/전이 감지) 러너가 즉시 중단 + 부분 파일 정리해야 한다.
+        //
+        // ★ 하트비트 주기는 「프레임 개수」가 아니라 「경과 시간」이다(무갱신 경과 판정과 축을 맞춘
+        //   것 — PortalFrameExtractHeartbeatTest 참조). 그래서 두 번째 하트비트를 일으키려면
+        //   프레임 개수를 늘리는 것이 아니라 «시간을 흐르게» 해야 한다.
         when(systemConfigService.getInt(anyString())).thenReturn(1); // interval 1s → 100프레임
         PortalVideoProbe longProbe = path -> new PortalVideoProbe.Result(true, 100.0, 30.0);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
                 List.of("jpg"), 20_971_520L, 50, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        PortalFrameExtractRunner longRunner =
-                new PortalFrameExtractRunner(txService, longProbe, frameWriter, systemConfigService, props);
+        java.util.concurrent.atomic.AtomicLong fakeNanos = new java.util.concurrent.atomic.AtomicLong();
+        PortalFrameExtractRunner longRunner = new PortalFrameExtractRunner(
+                txService, longProbe, frameWriter, systemConfigService, props, fakeNanos::get);
 
         when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
         when(frameWriter.sourceExists(any())).thenReturn(true);
@@ -176,9 +179,11 @@ class PortalFrameExtractRunnerTest {
             Path out = inv.getArgument(1);
             Files.createDirectories(out.getParent());
             Files.writeString(out, "frame");
+            // 프레임 1장마다 하트비트 간격(30분 커트라인 → 60초)을 넘겨 매 프레임 하트비트가 뜨게 한다.
+            fakeNanos.addAndGet(java.util.concurrent.TimeUnit.SECONDS.toNanos(90));
             return null;
         }).when(frameWriter).writeFrameByNumber(any(), any(), anyInt());
-        // 하트비트: i=0 진입 시 true(정상 시작), i=50 지점에서 false(자산 소멸 감지) → 중단.
+        // 하트비트: 첫 프레임 진입 시 true(정상 시작), 다음 하트비트에서 false(자산 소멸 감지) → 중단.
         when(txService.touchProcessing(ULD_SN)).thenReturn(true, false);
 
         longRunner.runAsync(ULD_SN);
@@ -186,7 +191,7 @@ class PortalFrameExtractRunnerTest {
         // 하트비트 중단 경로 — READY 커밋·markFailed 모두 없음(단순 중단), 부분 파일 정리.
         verify(txService, never()).completeReady(anyLong(), any(), any(), any());
         verify(txService, never()).markFailed(anyLong(), anyString());
-        // 두 번째 하트비트에서 중단됐음을 확인(i=0, i=50 두 번 호출).
+        // 두 번째 하트비트에서 중단됐음을 확인(첫 프레임 진입 + 그다음 하트비트, 두 번 호출).
         verify(txService, times(2)).touchProcessing(ULD_SN);
         Path framesDir = storageDir.resolve("frames").resolve(String.valueOf(ULD_SN));
         assertThat(Files.exists(framesDir)).isFalse();

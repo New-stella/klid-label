@@ -3,6 +3,30 @@ spring:
     name: klid-la-authoring
   profiles:
     active: local
+  mvc:
+    async:
+      # ★ 비동기 응답(StreamingResponseBody 등)의 제한시간(ms). <b>전 프로파일 공통</b>으로 준다.
+      #
+      #   왜 필요한가 — 이 키가 없으면 컨테이너 기본값 30초가 적용된다. 그리고 그 30초는
+      #   "다음 쓰기까지의 공백"이 아니라 **비동기 처리 시작 이후의 절대 경과시간**이라
+      #   서버가 쉬지 않고 데이터를 쓰고 있어도 리셋되지 않는다(격리 재현: 2초 간격 20청크를
+      #   연속으로 쓰는 중 t=30.1s 에 강제 종료 — 클라이언트는 16개만 수신).
+      #   그래서 포털 작업 데이터 내려받기(GET /v1/portal/datamart/videos/{rawSn}/download —
+      #   현재 유일한 StreamingResponseBody 경로, 비식별 영상이 포함되면 GB 급)는 사실상
+      #   전부 30초에 잘리고 있었다.
+      #
+      #   왜 30분인가 — 실효 대역 5Mbps(내부망 기준으로 보수적으로 잡은 값)에서 약 1.1GB 를
+      #   받아낼 수 있는 시간이다. 화면 쪽 상한(frontend DATAMART_DOWNLOAD_TIMEOUT_MS)도 같은
+      #   근거로 30분이라 두 값이 정렬돼 있다. ⚠ 실제 상한은 언제나 **경로에 걸린 상한들 중 가장
+      #   작은 값**이므로, 앞단(프록시·게이트웨이)에 더 짧은 상한이 있으면 이 값과 무관하게
+      #   거기서 끊긴다 — 그 계층 정렬은 별도 과제다(여기서 다른 파일을 고치지 않는다).
+      #
+      #   ⚠ 전역이라 대가가 있다(사용자가 인지·수용한 선택) — 어딘가에서 **멈춘** 비동기 요청도
+      #     30초가 아니라 30분 동안 요청 스레드·커넥션을 붙잡는다. "왜 이렇게 길지"로 되돌리면
+      #     대용량 내려받기가 다시 전량 30초에 잘린다. 되돌리기 전에 그 경로부터 확인할 것.
+      #   ⚠ 프로파일별 yml 로 옮기지 말 것 — 한 곳이 빠진 환경만 조용히 30초로 되돌아가,
+      #     그 환경에서만 재현되는 결함이 된다(회귀 고정: AsyncRequestTimeoutConfigGuardTest).
+      request-timeout: 1800000
   data:
     web:
       pageable:
@@ -469,6 +493,20 @@ authoring:
   ffmpeg:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}
+    # 프레임 1장 추출 프로세스의 대기 상한(초).
+    #   ★ 상한이 없으면 ffmpeg 이 멈췄을 때 호출 스레드가 «영원히» 붙잡힌다. 그 스레드가 포털 프레임
+    #     추출이면 「무갱신 경과」 하트비트를 한 번도 못 쳐서, 멈춘 처리와 정상 처리를 구분하지 못한
+    #     채 자산이 방치로 판정되고 실패 보존기간 뒤 비가역 삭제된다.
+    #   ★ 왜 10분인가 — 프레임 정확 추출(select=eq(n,N))은 입력 seek 없이 파일 처음부터 N번 프레임까지
+    #     디코딩하므로 1장의 비용이 프레임 위치에 대략 비례해 커진다. seek 기반 추출(통상 수 초)에는
+    #     넉넉하고, 정확 추출의 뒤쪽 프레임에도 대개 충분한 값이다.
+    #   ⚠ 올릴 때는 portal.upload.stuck-timeout-minutes 와의 예산 관계를 함께 볼 것 —
+    #     「하트비트 간격 + 이 상한 < 고착 커트라인」이 깨지면 정상 추출이 방치로 판정된다
+    #     (회귀 고정: PortalFrameExtractHeartbeatTest).
+    #   ⚠ 0·음수면 기본값으로 폴백한다(무한 대기로 두지 않는다). 이건 <보호 장치>라 값이 이상하다고
+    #     꺼 버리면 막으려던 위험이 그대로 열리기 때문이며, 「이상하면 건너뛴다」는 고착 스윕 규칙과
+    #     방향이 반대인 것은 의도다(그쪽은 폴백이 곧 데이터 손실, 이쪽은 폴백이 곧 안전).
+    frame-timeout-sec: ${FFMPEG_FRAME_TIMEOUT_SEC:600}
     # ffprobe 바이너리 경로 — 영상 기술메타/duration 추출 전 경로의 단일 진실원 키.
     #   사용처: BrampVideoProbe · PortalVideoProbeFfprobe · DurationProbeFfprobe.
     #   (dev 업로드는 자체 ffprobe 래퍼를 버리고 BrampVideoProbe 를 재사용하므로 이 키를 간접 사용한다 —
@@ -591,10 +629,28 @@ portal:
     max-chunk-bytes: ${PORTAL_MAX_CHUNK_BYTES:16777216}            # 16 MB — TUS PATCH 단일 청크 상한
     max-label-body-bytes: ${PORTAL_MAX_LABEL_BODY_BYTES:2097152}   # 2 MB — 라벨 PUT 본문 상한(파싱 전 413)
     probe-timeout-sec: ${PORTAL_PROBE_TIMEOUT_SEC:30}              # ffprobe 하드 타임아웃(초)
-    stuck-timeout-minutes: ${PORTAL_STUCK_TIMEOUT_MINUTES:30}      # 무갱신 N분 초과 업로드 → FAILED 마감
+    # 무갱신 N분 초과 업로드(UPLOADED/PROCESSING) → FAILED 마감.
+    #   ★ 판정 축은 「총 처리 시간」이 아니라 「MDFCN_DT 무갱신 경과」다 — 프레임 추출 러너가
+    #     하트비트로 그 값을 밀어내므로 대용량 영상 추출이 몇 시간 걸려도 방치로 판정되지 않는다.
+    #   ★ 단 그 전제는 <하트비트 간격에 상한이 있을 때만> 성립한다. 두 축이 그 상한을 만든다 —
+    #     ① 러너 하트비트가 «경과 시간» 기준이고 그 간격은 이 값에서 파생된다(이 값의 1/4, 5~60초)
+    #     ② 프레임 1장 추출 프로세스에 대기 상한이 있다(authoring.ffmpeg.frame-timeout-sec).
+    #     성립해야 하는 관계: 「하트비트 간격 + 프레임 대기 상한 < 이 값」.
+    #     이 값을 줄일 때는 반드시 그 관계를 다시 볼 것 — 깨지면 «정상 추출이 방치로 판정»되고
+    #     그 자산은 failed-retention-days 뒤 파일·행이 비가역 삭제된다.
+    #   ★ 0·음수면 <그 회차를 건너뛰고 경고>한다(기본값 폴백 없음). 이 전이는 삭제의 예고이고,
+    #     0 을 그대로 적용하면 정상 처리 중인 자산을 즉시 죽이기 때문이다.
+    #   ★ 숫자가 아니거나 빈 값이면 이 잡이 아니라 <설정 바인딩>이 먼저 막아 «기동이 실패»한다
+    #     (PortalUploadProperties 의 long 성분). 오타 하나가 삭제 기준을 조용히 바꾸는 것보다 낫다.
+    stuck-timeout-minutes: ${PORTAL_STUCK_TIMEOUT_MINUTES:30}
     # 정리 스윕 잡(PortalUploadSweepJob) 스케줄 — 만료 TUS 세션 삭제 + 고착 자산 FAILED 전이.
     #   @Scheduled 어노테이션 속성은 상수 표현식만 허용해 record 로 옮길 수 없으므로 placeholder 유지.
     sweep:
+      # ★ 자기 전용 스케줄링 토글. 이 잡은 자기 @EnableScheduling 없이 남의 기능(관제 통지·작업락
+      #   스윕)이 켜 둔 스케줄링에 얹혀 돌고 있었고, 그래서 무관한 기능을 끄면 정리가 <소리 없이>
+      #   멈췄다. 이제 PortalUploadSweepSchedulingConfig 가 이 키로 @EnableScheduling 을 켜고
+      #   같은 키가 잡 빈 등록도 게이팅한다(WorkLockSweepConfig 관례).
+      enabled: ${PORTAL_SWEEP_ENABLED:true}
       interval-ms: ${PORTAL_SWEEP_INTERVAL_MS:1800000}             # 30 m 주기
       initial-delay-ms: ${PORTAL_SWEEP_INITIAL_DELAY_MS:600000}    # 부팅 후 10 m 뒤 첫 실행
   # 보존기간 만료 자동 삭제 잡(PortalRetentionSweepJob) 스케줄 — 데이터마트 라벨 + 업로드 자산 2축.
@@ -605,6 +661,12 @@ portal:
   #   초기 지연을 형제 스윕보다 길게 둔다.
   retention:
     sweep:
+      # ★ 자기 전용 스케줄링 토글 — 업로드 스윕(portal.upload.sweep.enabled)과 <별개 키>다.
+      #   이 잡은 사용자 데이터를 비가역으로 지우므로 정리 성격의 형제 잡과 한 스위치에 묶지 않는다
+      #   (한쪽을 끄려다 다른 쪽까지 끄면 그 잘못이 어느 방향으로든 조용하다).
+      #   과거엔 자기 @EnableScheduling 이 없어 관제 통지 등 <무관한 기능>을 끄면 보존기간 삭제가
+      #   소리 없이 멈췄다 — 회귀 고정은 PortalSweepSchedulingIT.
+      enabled: ${PORTAL_RETENTION_SWEEP_ENABLED:true}
       interval-ms: ${PORTAL_RETENTION_SWEEP_INTERVAL_MS:3600000}          # 1 h 주기
       initial-delay-ms: ${PORTAL_RETENTION_SWEEP_INITIAL_DELAY_MS:900000} # 부팅 후 15 m 뒤 첫 실행
 

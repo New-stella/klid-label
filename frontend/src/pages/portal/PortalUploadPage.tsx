@@ -3,6 +3,7 @@
 // - 영상: 기존 TUS 엔진 재사용(포털 endpoint 주입) — 재개 가능 청크 업로드
 // - 목록: 타입/상태 배지 + 페이징, PROCESSING 자산은 폴링, READY 자산에 라벨링 진입
 // - 삭제: 확인 후 요청 (PROCESSING 이면 BE 가 409)
+// - 보존기간: 각 자산에 만료 예정일 병기(날짜까지만) — 만료가 없는 상태면 자리를 비운다. @design SCREEN-033
 //
 // 보안: 사용자 파일명은 JSX 텍스트 노드로만 렌더(자동 escape, XSS 방어). URL 은 apiClient baseURL.
 
@@ -22,6 +23,7 @@ import {
   IMAGE_POLICY_TEXT,
   validateImageFiles,
 } from '@/features/portal/uploads/validation';
+import { formatExpiryDate } from '@/features/portal/expiry';
 import { usePortalUploads } from '@/features/portal/uploads/hooks/usePortalUploads';
 import { useUploadImages } from '@/features/portal/uploads/hooks/useUploadImages';
 import { useDeleteUpload } from '@/features/portal/uploads/hooks/useDeleteUpload';
@@ -291,6 +293,7 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
   const isFailed = upload.uldSttsCd === PortalUploadStatus.FAILED;
   // 처리 중 자산은 BE 가 삭제를 409 로 거부하므로 버튼 자체를 비활성화(무반응 방지).
   const isProcessing = upload.uldSttsCd === PortalUploadStatus.PROCESSING;
+  const expiresOn = formatExpiryDate(upload.expiresAt);
 
   return (
     <li
@@ -307,6 +310,16 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
           {upload.uldTypeCd} · {formatSize(upload.fileSz)}
           {upload.frmeCnt != null ? ` · 프레임 ${upload.frmeCnt}건` : ''}
         </span>
+        {/*
+         * 보존기간 만료 예정일 — 날짜까지만 적는다(사양 SCREEN-033).
+         * 처리 중 자산은 삭제 대상이 아니라 만료가 **없다**. 그때는 자리를 비운다 — `-`·`없음` 같은
+         * 문구를 지어내면 만료가 정해졌는데 표기만 빈 것으로 읽힌다.
+         */}
+        {expiresOn !== null && (
+          <span data-testid={`portal-upload-expiry-${upload.uldSn}`} className="text-sub text-gray-500">
+            만료: {expiresOn}
+          </span>
+        )}
         {isFailed && (
           <span className="text-sub text-danger">
             {upload.failRsnCn ?? '처리에 실패했습니다. 다시 업로드해 주세요.'}

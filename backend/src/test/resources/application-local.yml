@@ -201,10 +201,22 @@ kpst:
   deid:
     enabled: false
 
-# 포털 업로드 정리 잡(@Scheduled) — 위 authoring.upload.tus.cleanup 과 동일 이유로 최초 지연을 밀어둔다.
+# 포털 스윕 잡 2종 — 테스트 기본 <비활성>(운영 기본은 application.yml 의 true).
+#   두 잡은 이제 자기 전용 토글로 @EnableScheduling 을 켜므로(PortalUploadSweepSchedulingConfig /
+#   PortalRetentionSweepSchedulingConfig), 여기서 끄지 않으면 <모든 테스트 컨텍스트>에 스케줄링이
+#   켜져 게이팅 없는 남의 @Scheduled 잡까지 함께 깨어난다(WorkLockSweepConfig 와 동일한 관례로 끈다).
+#   로직 검증은 잡 메서드를 직접 호출하고, 스케줄 등록 자체는 PortalSweepSchedulingIT 가
+#   @TestPropertySource 로 두 토글을 켜서 검증한다.
+#   ★ initial-delay 를 24시간으로 밀어 두는 것은 그 IT 처럼 토글을 켜는 컨텍스트에서 실제 발화만
+#     막기 위한 2중 안전장치다(등록은 되고 실행은 안 된다).
 portal:
   upload:
     sweep:
+      enabled: false
+      initial-delay-ms: 86400000
+  retention:
+    sweep:
+      enabled: false
       initial-delay-ms: 86400000
 
 logging:

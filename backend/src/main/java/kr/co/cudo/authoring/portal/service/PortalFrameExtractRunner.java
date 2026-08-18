@@ -17,6 +17,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 /**
@@ -35,18 +37,43 @@ import java.util.stream.Stream;
  *   <li>#5 프레임 전체 추출 후 원자 커밋(READY). 진행 중 자산 삭제 감지 시 즉시 중단 + 파일 정리.</li>
  *   <li>#7 ffmpeg 실패 시 부분 파일 정리 + markFailed.</li>
  * </ol>
+ *
+ * <h3>★ 하트비트 — 「무갱신 경과」 판정을 살리는 쪽 계약</h3>
+ * <p>고착 스윕({@code PortalUploadSweepJob#failStuckUploads})은 <b>최종 변경 일시가 갱신되지 않은 채
+ * 지난 시간</b>으로 방치를 판정하고, 그 판정은 <b>삭제의 예고</b>다(FAILED → 실패 보존기간 경과 →
+ * 파일·행 비가역 삭제). 그래서 이 러너는 추출 중 {@code touchProcessing} 으로 그 값을 밀어낸다.
+ *
+ * <p><b>그 하트비트는 「프레임 개수」가 아니라 「경과 시간」 기준이어야 한다.</b> 개수 기준이면
+ * 하트비트 사이 간격에 상한이 없다 — 프레임 1장의 추출 비용은 영상 내 위치에 비례해 커지므로
+ * (아래 「남은 창」) 뒤쪽 몇 장만으로도 커트라인을 넘겨 <b>정상 추출이 방치로 판정</b>된다.
+ *
+ * <h3>남은 창 — 프레임 1장이 커트라인을 넘는 경우</h3>
+ * <p>하트비트는 프레임 <b>사이</b>에서만 칠 수 있으므로, 한 장을 뽑는 호출이 커트라인보다 오래
+ * 걸리면 이 러너만으로는 막을 수 없다. 그 창은 <b>프레임 추출 프로세스의 대기 상한</b>
+ * ({@code authoring.ffmpeg.frame-timeout-sec} — {@code BrampFfmpegFrameWriter})이 닫는다.
+ * 두 값의 관계는 <b>하트비트 간격 + 프레임 대기 상한 &lt; 고착 커트라인</b> 이어야 하며
+ * {@code PortalFrameExtractHeartbeatTest} 가 기본값 조합으로 고정한다.
  */
 @Slf4j
 @Component
 public class PortalFrameExtractRunner {
 
     private static final String FRAMES_SUBDIR = "frames";
-    /** 진행 중 삭제/전이 감지 주기(프레임 단위). */
-    private static final int PROGRESS_CHECK_EVERY = 50;
     /** sysconfig 미설정 시 프레임 간격 폴백(초). */
     private static final int DEFAULT_INTERVAL_SEC = 5;
     /** fps 미상 시 폴백. */
     private static final double DEFAULT_FPS = 30.0;
+
+    /**
+     * 하트비트 최소 간격의 <b>상한</b>(초) — 커트라인이 아무리 길어도 이보다 드물게 치지 않는다.
+     * 하트비트 1회는 짧은 조건부 UPDATE 1건이라 1분 주기는 부하로 유의미하지 않다.
+     */
+    public static final long HEARTBEAT_MAX_INTERVAL_SEC = 60L;
+    /**
+     * 하트비트 최소 간격의 <b>하한</b>(초) — 커트라인이 아주 짧게 설정돼도 프레임마다 DB 쓰기가
+     * 폭주하지 않게 막는다.
+     */
+    public static final long HEARTBEAT_MIN_INTERVAL_SEC = 5L;
 
     private final PortalFrameExtractTxService txService;
     private final PortalVideoProbe videoProbe;
@@ -54,18 +81,49 @@ public class PortalFrameExtractRunner {
     private final SystemConfigService systemConfigService;
     private final PortalUploadProperties properties;
     private final Path storageRoot;
+    /** 단조 시각 원천(ns) — 하트비트 간격 판정용. 테스트가 가짜 시계를 주입한다. */
+    private final LongSupplier nanoTime;
+    /** 하트비트 최소 간격(ns) — 고착 커트라인에서 파생(아래 {@link #heartbeatIntervalSec}). */
+    private final long heartbeatIntervalNanos;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public PortalFrameExtractRunner(PortalFrameExtractTxService txService,
                                     PortalVideoProbe videoProbe,
                                     FfmpegFrameExtractor.FrameWriter frameWriter,
                                     SystemConfigService systemConfigService,
                                     PortalUploadProperties properties) {
+        this(txService, videoProbe, frameWriter, systemConfigService, properties, System::nanoTime);
+    }
+
+    /** 시각 원천 주입 생성자 — 하트비트 간격 검증(회귀 가드) 전용. */
+    public PortalFrameExtractRunner(PortalFrameExtractTxService txService,
+                                    PortalVideoProbe videoProbe,
+                                    FfmpegFrameExtractor.FrameWriter frameWriter,
+                                    SystemConfigService systemConfigService,
+                                    PortalUploadProperties properties,
+                                    LongSupplier nanoTime) {
         this.txService = txService;
         this.videoProbe = videoProbe;
         this.frameWriter = frameWriter;
         this.systemConfigService = systemConfigService;
         this.properties = properties;
         this.storageRoot = Paths.get(properties.storagePath()).toAbsolutePath().normalize();
+        this.nanoTime = nanoTime;
+        this.heartbeatIntervalNanos =
+                TimeUnit.SECONDS.toNanos(heartbeatIntervalSec(properties.stuckTimeoutMinutes()));
+    }
+
+    /**
+     * 하트비트 최소 간격(초) — 고착 커트라인({@code portal.upload.stuck-timeout-minutes})에서 파생한다.
+     *
+     * <p>커트라인의 <b>1/4</b>을 취하고 {@link #HEARTBEAT_MIN_INTERVAL_SEC}~{@link #HEARTBEAT_MAX_INTERVAL_SEC}
+     * 로 자른다. 상수로 박지 않고 파생하는 이유는, 운영자가 커트라인을 짧게 줄였을 때 하트비트가 그보다
+     * 뜸하면 <b>정상 추출이 그대로 방치로 판정</b>되기 때문이다 — 두 값이 따로 놀면 안 된다.
+     * (커트라인이 0·음수여도 여기서는 하한으로 잘려 무해하다. 그 경우 스윕은 아예 그 회차를 건너뛴다.)
+     */
+    public static long heartbeatIntervalSec(long stuckTimeoutMinutes) {
+        long quarterSec = Math.max(0L, stuckTimeoutMinutes) * 60L / 4L;
+        return Math.max(HEARTBEAT_MIN_INTERVAL_SEC, Math.min(HEARTBEAT_MAX_INTERVAL_SEC, quarterSec));
     }
 
     @Async("portalExtractExecutor")
@@ -109,13 +167,24 @@ public class PortalFrameExtractRunner {
 
             Files.createDirectories(outputDir);
             List<LsPortalUldFrme> frames = new ArrayList<>(frameNumbers.size());
+            long lastBeatNanos = 0L;
+            boolean beatenOnce = false;
             for (int i = 0; i < frameNumbers.size(); i++) {
-                // #4/#5 + adversarial #2: N프레임마다 하트비트(mdfcnDt touch)로 스윕 고착 오판을 막고,
-                // 동시에 삭제/전이(0행)를 감지해 즉시 중단한다.
-                if (i % PROGRESS_CHECK_EVERY == 0 && !txService.touchProcessing(uldSn)) {
-                    log.info("[PortalFrame] aborted — asset gone mid-extract uldSn={}", uldSn);
-                    cleanup(written, outputDir);
-                    return;
+                // #4/#5 + adversarial #2: 하트비트(mdfcnDt touch)로 스윕 고착 오판을 막고, 동시에
+                // 삭제/전이(0행)를 감지해 즉시 중단한다.
+                //
+                // ★ 주기는 「프레임 개수」가 아니라 「경과 시간」이다. 스윕의 판정 축이 무갱신 <b>시간</b>
+                //   인데 프레임 개수로 치면 그 사이 간격에 상한이 없다 — 한 장을 뽑는 비용은
+                //   프레임 위치에 비례해 커지므로, 뒤쪽 프레임 몇 장만으로도 커트라인을 넘겨
+                //   <b>정상 추출이 방치로 판정</b>되고 그 자산은 실패 보존기간 뒤 비가역 삭제된다.
+                if (!beatenOnce || nanoTime.getAsLong() - lastBeatNanos >= heartbeatIntervalNanos) {
+                    if (!txService.touchProcessing(uldSn)) {
+                        log.info("[PortalFrame] aborted — asset gone mid-extract uldSn={}", uldSn);
+                        cleanup(written, outputDir);
+                        return;
+                    }
+                    lastBeatNanos = nanoTime.getAsLong();
+                    beatenOnce = true;
                 }
                 Path frameFile = outputDir.resolve("frame-" + i + ".jpg");
                 frameWriter.writeFrameByNumber(source, frameFile, frameNumbers.get(i));

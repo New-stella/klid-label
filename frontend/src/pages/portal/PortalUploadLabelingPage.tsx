@@ -16,6 +16,7 @@ import {
   MousePointer2,
   Pentagon,
   Square,
+  X,
 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
@@ -177,7 +178,22 @@ export function PortalUploadLabelingPage() {
     onError: () => pushToast({ variant: 'error', message: '라벨 저장에 실패했습니다.' }),
   });
 
+  /*
+   * 내려받기 두 갈래. **취소는 원본 파일에만 둔다** — 원본은 최대 5GB 라 한 번 시작하면 오래
+   * 붙잡히지만, 라벨 내보내기(JSON)는 작아서 취소 버튼이 뜨기도 전에 끝난다(사양).
+   *
+   * ★★ **사용자 취소는 오류가 아니라 정상 종료다 — 실패 토스트를 띄우지 않는다.**
+   *   중단하면 응답이 오지 않아 **일반 실패와 같은 모양**으로 올라오므로, 갈라 놓지 않으면 스스로
+   *   멈춘 사용자에게 «원본 다운로드에 실패했습니다» 가 뜬다.
+   *   ⚠ 판정 근거로 오류 객체를 쓰지 않는다 — 공용 클라이언트가 `ApiError` 로 감싸며 취소 표식을
+   *     남기지 않아 오류만 봐서는 취소와 회선 단절이 구분되지 않는다. 반면 화면은 자기가 중단을
+   *     걸었는지 알고 있으므로 그 사실(`controller.signal.aborted`)로 판정한다. 공용 오류 타입을
+   *     넓히지 않으므로 다른 호출부에 영향이 없다.
+   *   ⚠ 취소하지 **않은** 실패는 종전대로 안내한다 — 삼키면 진짜 장애가 아무 표시 없이 사라진다.
+   */
   const [downloading, setDownloading] = useState<'export' | 'file' | null>(null);
+  // 진행 중인 원본 다운로드의 중단 컨트롤러. 취소 버튼이 이것을 통해 전송을 끊는다.
+  const fileAbortRef = useRef<AbortController | null>(null);
   const handleExport = () => {
     if (!validUldSn || downloading) return;
     setDownloading('export');
@@ -187,10 +203,23 @@ export function PortalUploadLabelingPage() {
   };
   const handleDownloadFile = () => {
     if (!validUldSn || downloading) return;
+    const controller = new AbortController();
+    fileAbortRef.current = controller;
     setDownloading('file');
-    downloadUploadFile(uldSnNum, detail?.orgnlFileNm ?? `upload-${uldSnNum}`)
-      .catch(() => pushToast({ variant: 'error', message: '원본 다운로드에 실패했습니다.' }))
-      .finally(() => setDownloading(null));
+    // ref 가 아니라 지역 변수를 닫아 쓴다 — 다음 요청이 ref 를 덮어써도 이 catch 는 자기 요청의
+    // 중단 여부를 본다.
+    downloadUploadFile(uldSnNum, detail?.orgnlFileNm ?? `upload-${uldSnNum}`, controller.signal)
+      .catch(() => {
+        if (controller.signal.aborted) return; // 사용자가 스스로 멈춘 것 — 정상 종료
+        pushToast({ variant: 'error', message: '원본 다운로드에 실패했습니다.' });
+      })
+      .finally(() => {
+        if (fileAbortRef.current === controller) fileAbortRef.current = null;
+        setDownloading(null);
+      });
+  };
+  const handleCancelDownloadFile = () => {
+    fileAbortRef.current?.abort();
   };
 
   const [containerRef, measured] = useMeasuredSize<HTMLDivElement>();
@@ -285,6 +314,9 @@ export function PortalUploadLabelingPage() {
             type="button"
             onClick={handleDownloadFile}
             disabled={downloading !== null}
+            /* 진행 사실은 보조기술에도 전달한다(형제 화면 SCREEN-028 과 같은 관례). 원본은 최대
+               5GB 라 오래 걸릴 수 있어 «눌렸는데 아무 일도 없다» 로 보이면 안 된다. */
+            aria-busy={downloading === 'file' || undefined}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-btn-label text-gray-700 hover:bg-gray-50 disabled:opacity-50',
               KRDS_FOCUS,
@@ -293,6 +325,22 @@ export function PortalUploadLabelingPage() {
             <Download className="h-4 w-4" aria-hidden="true" />
             원본 다운로드
           </button>
+          {/* 취소는 **원본을 내려받는 동안에만** 나타난다(진행 표시가 일어나는 자리 바로 옆).
+              내보내기(JSON)에는 두지 않는다 — 작아서 이 버튼이 뜨기 전에 끝난다.
+              ⚠ 진행 중 상호 비활성 대상에서 제외된다 — 취소는 눌러야 동작한다. */}
+          {downloading === 'file' && (
+            <button
+              type="button"
+              onClick={handleCancelDownloadFile}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-btn-label text-gray-700 hover:bg-gray-50',
+                KRDS_FOCUS,
+              )}
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+              원본 다운로드 취소
+            </button>
+          )}
         </div>
       </div>
 

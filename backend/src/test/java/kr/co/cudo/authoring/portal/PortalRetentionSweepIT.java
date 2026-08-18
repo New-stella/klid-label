@@ -20,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -44,6 +45,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @ActiveProfiles("local")
+// 잡 빈은 자기 토글이 소유한다(PortalRetentionSweepSchedulingConfig 와 같은 키). 테스트 기본은 꺼져
+// 있으므로 여기서만 켠다 — 발화는 테스트 yml 의 initial-delay 24h 가 막고, 이 IT 는 잡 메서드를
+// 직접 호출해 삭제 조건을 검증한다.
+@TestPropertySource(properties = "portal.retention.sweep.enabled=true")
 class PortalRetentionSweepIT {
 
     /**

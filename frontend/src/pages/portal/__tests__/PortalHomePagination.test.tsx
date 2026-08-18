@@ -25,6 +25,7 @@ function video(over: Partial<DatamartVideo> = {}): DatamartVideo {
     frameCount: 5,
     firstSrcSn: 100,
     lastUpdatedAt: '2026-06-01T10:00:00',
+    myLabelExpiresAt: null,
     ...over,
   };
 }
