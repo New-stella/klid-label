@@ -47,7 +47,22 @@ describe('RoleBadge (UI-110)', () => {
     u2();
 
     render(<RoleBadge role="PORTAL_USER" />);
-    expect(screen.getByText('포털 사용자')).toBeInTheDocument();
+    expect(screen.getByText('포털')).toBeInTheDocument();
+  });
+
+  /*
+   * 회귀 가드 — 포털 역할 표기는 화면 사양(SCREEN-024 역할 select 허용값 · SCREEN-003 역할 배지
+   * 매핑)이 일관되게 쓰는 **'포털'** 이다. 구 기대값 `'포털 사용자'` → **폐기**(2026-08-18).
+   *
+   * 같은 코드베이스의 ForbiddenPage 는 이미 '포털' 이라 이 배지만 갈려 있었다 — 같은 역할이
+   * 화면마다 다른 이름으로 읽히던 상태다. 부분 문자열이 아니라 **정확 일치**로 못박아
+   * '포털 사용자'가 되살아나도 통과하지 않게 한다.
+   */
+  it('포털_역할_라벨은_포털이다_포털사용자로_되돌리지_않는다', () => {
+    render(<RoleBadge role="PORTAL_USER" />);
+    const badge = screen.getByText('포털');
+    expect(badge.textContent).toBe('포털');
+    expect(screen.queryByText('포털 사용자')).not.toBeInTheDocument();
   });
 
   it('role_이_null_이면_미배정으로_표시한다', () => {

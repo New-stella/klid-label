@@ -100,3 +100,10 @@ generated_by: mc-logi-screen-design
 - 업로드 전 `design-main.html`에서 `<link rel="stylesheet" href="design.css" />` 1줄만 제거(인라인 `style` 속성은 원래 없었음). 본문·구조·데이터는 무변경.
 - **★쓰기 후 재다운로드 검증(logicraft-integration.md §3·§5 준수)**: `get_item`으로 title/slug/description 재조회 — 한글 손상 0건, "고충실 디자인" 접미 없음 확인. `get_design_render`로 html/css 본문을 재조회해 로컬 원본과 대조: ①CSS는 `diff` 완전일치(0 diff) ②HTML은 서버가 `<!-- ... -->` HTML 주석을 제거하는 것 외에는 완전일치(주석 제거 후 한글 런(run) 집합 diff 0건 — 주석은 렌더 비표시 영역이라 시각적 손상이 아니다). 서버가 렌더 시 가하는 그 외 관찰된 변환: `viewBox`→`viewbox`(대소문자 정규화), `stroke-width`/`stroke-linecap`/`stroke-linejoin`/`tabindex`/`maxlength`/`scope` 속성 제거(sanitizer). 이들은 아이콘 렌더 디테일에 경미한 영향(획 두께 기본값 1로 표시)을 줄 수 있으나 텍스트·색·구조·접근성 시맨틱(role/aria-*)은 무변경이다.
 - Phase 6(ui_component 보강 권고 — 중요(고정) 배지 신규 후보 등)은 이번 배치에서 등록을 수행하지 않고 위 § 표로 안내만 함. 사용자 확인 후 별도 진행.
+
+### 재등록 (2026-08-18)
+
+- **사유**: 확정 사양 대비 렌더가 낡아 있었다 — 작성 버튼이 '새 게시글 작성'(사양 v25 는 '새 공지 작성'), 고정 공지 배지가 '중요'(v24 확정은 '고정'). 배지 쪽은 v24 시점부터 렌더만 뒤처져 있던 것이다.
+- **범위**: 문구 3곳 델타 수정. 골격·DS 토큰·CSS 무변경이라 대비 검증(D5) 재실행 대상 아님.
+- `upload_design_render(item_id=SD-007, render_id="main", surface="page")` → `action: "replace"`, `new_version: 6`
+- **검증**: 서버 렌더를 다시 받아 대조 — '새 공지 작성' 1건 · '고정' 2건 · 구 문자열 0건.

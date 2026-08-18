@@ -61,7 +61,7 @@ import { ShortcutCheatSheetContent } from './ShortcutCheatSheet';
 const HELP_PANEL_GUTTER = 8;
 
 // 각 도구/액션 버튼의 단축키 툴팁은 SHORTCUT_KEYMAP 단일 출처에서 파생한다(하드코딩 오표기 근절).
-// 키맵 id ↔ 툴바 항목 매핑. YOLO 오토라벨은 키맵 미등록이라 별도 고정 표기('Y').
+// 키맵 id ↔ 툴바 항목 매핑. **키맵에 없는 항목은 단축키 표기를 갖지 않는다**(아래 'AI 탐지' 참조).
 const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
   [ToolType.SELECT]: 'tool.select',
   [ToolType.BBOX]: 'tool.bbox',
@@ -265,14 +265,21 @@ export function ToolBar({
       shortcut: toolShortcut(ToolType.KEYPOINT),
     },
     // Phase 3 — YOLO 오토라벨 수동 트리거(액션). 핸들러가 주어질 때만 노출, 포털 숨김(ADR-013).
-    // YOLO 는 키맵 미등록(파이프라인 트리거)이라 표기는 고정 'Y'.
+    // ★단축키 표기를 갖지 않는다 (2026-08-18 정합 — 구 고정 표기 `'Y'` 폐기).
+    //   SHORTCUT_KEYMAP 에 `y` 바인딩이 **없어** 사용자가 Y 를 눌러도 아무 일이 일어나지 않는데,
+    //   그 고정값이 버튼 `title` 에 `(Y)` 로 실려 **존재하지 않는 단축키를 광고**하고 있었다.
+    //   확정 시안의 `.tool-btn-action` 에도 단축키 표기가 없다.
+    //   ⚠ 반대 방향(키맵에 `y` 를 등록)으로 해소하지 말 것 — AI 탐지는 도구 전환이 아니라
+    //     파이프라인 트리거라 단축키 대상이 아니고 시안에도 없다. 표기만 걷어내는 것이 맞다.
+    //   ⚠ 버튼의 접근성 이름('AI 탐지')·동작은 그대로다 — 바뀐 것은 툴팁의 단축키 노출뿐이다.
+    //   회귀 가드: ToolBarShortcuts.test.tsx.
     ...(onAutolabel
       ? [
           {
             kind: 'action' as const,
             icon: ScanSearch,
             label: 'AI 탐지',
-            shortcut: 'Y',
+            shortcut: '',
             action: onAutolabel,
             portalHidden: true,
             busy: isAutolabeling,
@@ -476,10 +483,10 @@ export function ToolBar({
           className={cn('shrink-0', s.busy && 'animate-spin', s.isActive ? 'text-primary-600' : 'text-gray-600')}
         />
         <span className="truncate">{item.label}</span>
-        {/* 시안 `.tool-key` — **도구(kind:'tool')에만** 붙인다. 액션('AI 탐지')의 `shortcut` 은
-            키맵에 등록된 바인딩이 아니라 고정 문자열이라(SHORTCUT_KEYMAP 에 해당 항목 없음)
-            배지로 내보이면 화면이 존재하지 않는 단축키를 광고하게 된다 — 시안의
-            `.tool-btn-action` 에도 `.tool-key` 가 없다. */}
+        {/* 시안 `.tool-key` — **도구(kind:'tool')에만** 붙인다. 액션('AI 탐지')은 키맵에 등록된
+            바인딩이 없어 `shortcut` 이 비어 있고(위 drawGroup), 시안의 `.tool-btn-action` 에도
+            `.tool-key` 가 없다. ⚠ 액션에 고정 문자열을 되살려 배지·툴팁으로 내보내면 화면이
+            존재하지 않는 단축키를 광고하게 된다(실제 결함이었다 — `'Y'` 표기). */}
         {item.kind === 'tool' && item.shortcut && (
           <span
             aria-hidden="true"
