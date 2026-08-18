@@ -224,7 +224,7 @@ describe('AI 추적 — 안내 통로에는 mock 안내만 온다', () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'AI 추적 시작' }));
     });
 
     // 추적이 끝났다(완료 표시가 뜬다)

@@ -1,4 +1,4 @@
-// SAM2 자동추적 도구 테스트 — ISSUE-3 BE 계약 정합.
+// AI 추적(SAM2) 도구 테스트 — ISSUE-3 BE 계약 정합.
 // BE record Sam2TrackRequest: { srcSn, trackId, prevPolygon, label, nextSrcSns }
 // BE Sam2TrackResponseDto: { tracked: [{ srcSn, trackId, label, points, score }] }
 

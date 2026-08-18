@@ -259,7 +259,7 @@ interface LabelState {
 
   /**
    * R12 — 미래 프레임 추적 결과 보류 캐시 (srcSn → Label[]).
-   * SAM2 자동추적 결과의 tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 현재 프레임
+   * AI 추적(SAM2) 결과의 tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 현재 프레임
    * 작업본에 즉시 병합할 수 없다. 여기 srcSn 별로 stash 해 두고, 해당 프레임에 진입할 때
    * drain 하여 그 프레임 작업본에 dedup 병합한다(사일런트 데이터 유실 방지).
    * 프레임 전환(setLabels)에는 보존되고, reset(언마운트/영상 변경) 시에만 초기화된다.

@@ -1214,7 +1214,7 @@ export function LabelingPage() {
       setTrackLabel(pickedLabel);
       pushToast({
         variant: 'info',
-        message: '추적할 객체를 선택한 뒤 속성 패널에서 자동추적을 실행하세요.',
+        message: '추적할 객체를 선택한 뒤 속성 패널에서 AI 추적을 실행하세요.',
       });
       return;
     }

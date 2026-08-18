@@ -68,7 +68,7 @@ describe('AI 추적 — 끝내지 못한 구간을 알린다', () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'AI 추적 시작' }));
     });
 
     await waitFor(() => {
