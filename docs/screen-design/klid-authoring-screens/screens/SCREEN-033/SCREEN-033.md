@@ -5,11 +5,11 @@ version: 17
 last_updated_at: 2026-08-17T22:48:30.685Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.229Z
-sync_session: 17
+synced_at: 2026-08-18T07:16:50.264Z
+sync_session: 18
 stale: false
-status: CHANGED
-prev_version: 16
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-033.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v16 → v17**
-> change_summary: 구현 상태 추적 정합 — 프론트엔드 배선이 실제로 구현·회귀시험 고정된 상태를 반영해 계획됨에서 구현됨으로 올린다. 사양 본문은 변경하지 않았다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 화면
 

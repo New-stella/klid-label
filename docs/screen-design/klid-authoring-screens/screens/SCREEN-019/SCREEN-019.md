@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-019
 type: screen_spec
-version: 30
-last_updated_at: 2026-08-17T06:54:05.805Z
+version: 32
+last_updated_at: 2026-08-18T06:33:58.543Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.200Z
-sync_session: 17
+synced_at: 2026-08-18T07:16:50.246Z
+sync_session: 18
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -434,7 +434,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 이벤트 유형·시작/종료 시각 등 이벤트 어노테이션 내용을 검토한다.
+- **note**: 이벤트 어노테이션 내용을 검토한다 — 이벤트 분류(event_class), 질문(question)과 답변(answer), 캡션 후보(caption c1..cn — 캡션 문장과 사고 단계), 근거 후보(evidence c1..cn — 근거 문장과 프레임·객체 지시)를 본다. 같은 후보 키(cN)의 캡션과 근거는 짝을 이룬다. 시각(시작·종료) 필드는 없다.
 - **type**: Custom
 - **label**: 이벤트 어노테이션 검토
 

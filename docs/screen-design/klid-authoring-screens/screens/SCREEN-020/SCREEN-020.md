@@ -1,25 +1,21 @@
 ---
 logicraft_item: SCREEN-020
 type: screen_spec
-version: 30
-last_updated_at: 2026-08-17T22:48:30.382Z
+version: 32
+last_updated_at: 2026-08-18T03:34:50.526Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.201Z
-sync_session: 17
-stale: true
-status: CHANGED
-prev_version: 30
+synced_at: 2026-08-18T07:16:50.247Z
+sync_session: 18
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-020.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-001]]", "[[API-056]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v30 → v30**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.9KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업자 통계 화면
 
@@ -168,7 +164,7 @@ _(empty)_
 #### [2]
 
 - **type**: Stat
-- **label**: 진행중
+- **label**: 작업중
 
 **columns**:
 
@@ -407,8 +403,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: ff7968f18e83b01ac2b1bbf94a4c4b33d0eec1e8e0177f6f10a1385be4c5bc14
-- **generated_at**: 2026-08-17T12:44:49.310Z
+- **source_hash**: 27c3182c5f61af56a6b0870bc4100d68102b7b9de8ae39991333207f649242aa
+- **generated_at**: 2026-08-18T03:34:50.525Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

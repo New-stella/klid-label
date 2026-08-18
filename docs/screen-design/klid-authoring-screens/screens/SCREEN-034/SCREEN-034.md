@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-034
 type: screen_spec
-version: 17
-last_updated_at: 2026-08-17T22:21:55.663Z
+version: 21
+last_updated_at: 2026-08-18T03:30:50.206Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.230Z
-sync_session: 17
-stale: true
-status: CHANGED
-prev_version: 15
+synced_at: 2026-08-18T07:16:50.265Z
+sync_session: 18
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v15 → v17**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.5KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 라벨링 화면
 
@@ -42,7 +38,7 @@ draft
 
 ## purpose
 
-PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 오토라벨링·SAM2·VLM·검수·버전관리는 여전히 제공하지 않는다. 접근: PORTAL_USER.
+PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩 박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 오토라벨링·SAM2·VLM·검수·버전관리는 여전히 제공하지 않는다. 접근: PORTAL_USER.
 
 ## sections
 
@@ -230,7 +226,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: role=toolbar 4버튼(선택/이동/바운딩박스/폴리곤) — SAM 분할·SAM 추적·키포인트·오토라벨 버튼은 렌더되지 않는다. 활성 라벨 마스터(useYn=Y) select(라벨 분류, 미지정=자동/기본). 우측 '저장' 버튼(현재 프레임 라벨 전체교체 PUT, 엔드포인트 PUT /portal/uploads/frames/{uldFrmeSn}/labels — body는 최상위 raw 배열, {items:[...]} 래퍼 아님).
+- **description**: role=toolbar 4버튼(선택/이동/바운딩 박스/폴리곤) — SAM 분할·SAM 추적·키포인트·오토라벨 버튼은 렌더되지 않는다. 활성 라벨 마스터(useYn=Y) select(라벨 분류, 미지정=자동/기본). 우측 '저장' 버튼(현재 프레임 라벨 전체교체 PUT, 엔드포인트 PUT /portal/uploads/frames/{uldFrmeSn}/labels — body는 최상위 raw 배열, {items:[...]} 래퍼 아님).
 
 **references_apis**:
 
@@ -440,8 +436,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 2423b1041e0627dacbaef042e3fbe278fdd4f9cef701d42c59f10e1ee5acac24
-- **generated_at**: 2026-08-17T22:21:55.663Z
+- **source_hash**: 8bcbb4e3117b1eb48d3bc1d6686eb76158e857fd2e68b7bf02c49d3eb81c96b7
+- **generated_at**: 2026-08-18T03:30:50.206Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

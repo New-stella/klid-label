@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-035
 type: screen_spec
-version: 17
-last_updated_at: 2026-08-17T06:53:34.242Z
+version: 19
+last_updated_at: 2026-08-18T03:19:13.162Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.231Z
-sync_session: 17
+synced_at: 2026-08-18T07:16:50.266Z
+sync_session: 18
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -220,7 +220,7 @@ _(empty)_
 #### [2]
 
 - **type**: Select
-- **label**: 형태 (바운딩박스/폴리곤/포인트/스켈레톤)
+- **label**: 형태 (바운딩 박스/폴리곤/포인트/스켈레톤)
 
 **columns**:
 
@@ -228,7 +228,7 @@ _(empty)_
 
 **options**:
 
-- 바운딩박스
+- 바운딩 박스
 - 폴리곤
 - 포인트
 - 스켈레톤
@@ -638,9 +638,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: b73d7b5cffb2cd826d890ec8db3b766eca5669d2cee931d7fb0d918f367698c7
-- **generated_at**: 2026-08-13T01:02:44.578Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 0a0f5af870ae87b76355802b74cd69877e6997bb41f0189ae0be7310799629b2
+- **generated_at**: 2026-08-18T03:19:13.162Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
