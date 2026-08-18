@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-029
 type: screen_spec
-version: 31
-last_updated_at: 2026-08-13T01:02:42.816Z
-domain: null
+version: 34
+last_updated_at: 2026-08-16T09:35:10.805Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.921Z
-sync_session: 9
-stale: false
+synced_at: 2026-08-18T01:49:51.220Z
+sync_session: 17
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-029.json
@@ -15,6 +15,7 @@ wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-024]]", "[[API-082]]", "[[API-110]]", "[[API-111]]"]
   required_roles: ["[[ROLE-003]]"]
+  realizes_use_cases: ["[[UC-024]]"]
 ---
 
 # 포털 라벨링 화면
@@ -92,7 +93,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 풀스크린 상단 라이트 톤 바(LabelHeader, h-14). 좌: × 닫기(dirty 시 저장확인 모달) + 프레임 식별(#srcSn). 중앙: 저장상태(● 편집 중/✓ 저장됨). 포털 모드(channel=PORTAL)에서는 [검수제출]·[비식별 누락 신고]가 모두 미노출(검수제출 WORKER 전용, canReportDeident=!portalMode). 히스토리 진입은 채널과 무관하게 헤더에 두지 않는다 — 편집을 어느 버전에서 시작할지 고르는 일은 내부 채널의 라벨링 진입 시 띄우는 모달이 맡고, 포털에는 버전 관리 자체가 없다.
+- **description**: 풀스크린 상단 라이트 톤 바(LabelHeader). 좌: × 닫기(dirty 시 저장확인 모달) + 프레임 식별(#srcSn). 중앙: 저장상태(● 편집 중/✓ 저장됨). 포털 모드(channel=PORTAL)에서는 [검수제출]·[비식별 누락 신고]가 모두 미노출(검수제출 WORKER 전용, canReportDeident=!portalMode). 히스토리 진입은 채널과 무관하게 헤더에 두지 않는다 — 편집을 어느 버전에서 시작할지 고르는 일은 내부 채널의 라벨링 진입 시 띄우는 모달이 맡고, 포털에는 버전 관리 자체가 없다.
 
 **references_apis**:
 
@@ -316,7 +317,7 @@ _(empty)_
 
 _(empty)_
 
-- **custom_name**: useLabels(portalMode)
+- **custom_name**: FrameLabelLoader
 - **triggers_api**: API-110
 
 - **description**: 메인 라벨링 캔버스. 프레임 이미지는 포털 전용 이미지 조회(API-111)를 인증 헤더를 실어 받아 표시한다 — 주소를 이미지 태그에 바로 물리면 인증이 실리지 않아 401 이 난다. 라벨 좌표는 포털 전용 라벨 조회(API-110) 응답(데이터마트 원본 + 본인 작업분 병합)을 정규화해 표시한다. 활성 도구(바운딩박스 / 폴리곤 / 선택)로 객체를 그리며 그린 결과는 본인 작업 데이터로만 저장한다(API-082) — 데이터마트 원본은 수정하지 않는다. ★분할·추적을 비롯한 AI 보조는 포털에 두지 않는다. 데이터마트에 노출된(검수 승인) 영상만 허용한다.
@@ -356,7 +357,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 선택 객체 라벨 변경 — useLabelMasters 옵션
+- **note**: 선택 객체 라벨 변경 — 라벨 마스터 옵션
 - **type**: Select
 - **label**: 라벨
 
@@ -384,7 +385,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 우측 고정 패널(w-72) 2단. (1) 객체 목록(ObjectClassTree): 목록 상단에 현재 프레임의 객체 수를 표시한다. 라벨을 className으로 그룹화, 펼치기/접기, 형태(BBOX/POLYGON), 행 선택(selectLabel)·삭제(removeLabel). (2) 객체 속성(ObjectAttributePanel): 선택 객체의 라벨 드롭다운(useLabelMasters=API-024 화이트리스트), BBOX X/Y/W/H 좌표 편집(경계 clamp). 시계열 메타(TimeseriesSidePanel)는 포털 모드에서 미렌더(!portalMode) — 포털 미노출(과거 '코드 불일치' 노트는 해소됨).
+- **description**: 우측 고정 패널 2단. (1) 객체 목록(ObjectClassTree): 목록 상단에 현재 프레임의 객체 수를 표시한다. 라벨을 className으로 그룹화, 펼치기/접기, 형태(BBOX/POLYGON), 행 선택(selectLabel)·삭제(removeLabel). (2) 객체 속성(ObjectAttributePanel): 선택 객체의 라벨 드롭다운(API-024 화이트리스트), BBOX X/Y/W/H 좌표 편집(경계 clamp). 시계열 메타(TimeseriesSidePanel)는 포털 모드에서 미렌더(!portalMode) — 포털 미노출(과거 '코드 불일치' 노트는 해소됨).
 
 **references_apis**:
 
@@ -573,7 +574,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 풀스크린 라이트 톤 상태 화면. 라벨 로딩 중(Spinner), 라벨 조회 실패(에러 메시지+뒤로가기), 잘못된 프레임 ID(NaN 가드+뒤로가기). useLabels(GET /v1/portal/frames/{srcSn}/labels=API-110)의 isLoading/error 분기.
+- **description**: 풀스크린 라이트 톤 상태 화면. 라벨 로딩 중(Spinner), 라벨 조회 실패(에러 메시지+뒤로가기), 잘못된 프레임 ID(NaN 가드+뒤로가기). 프레임 라벨 조회(API-110)의 로딩·오류 분기.
 
 **references_apis**:
 
@@ -729,7 +730,7 @@ new
 
 ### diff_summary
 
-2차 포털 간편 라벨링·체험
+2차 포털 데이터마트 영상 수동 라벨링(BBOX/POLYGON) 화면 — AI 보조·검수·버전관리 미제공
 
 ## surface_kind
 
@@ -776,15 +777,16 @@ _(empty)_
 - **label**: 포털 라벨링 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: bd037774b190b8897075da8c5a7eea485198b6db66b74f8f2857dd606ed7cbea
-- **generated_at**: 2026-08-13T01:02:42.816Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 71e310cb36d42169a849b2a91e261dfd8238bbd62b309237c1e0c575f8d57ef7
+- **generated_at**: 2026-08-16T09:35:10.805Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -800,7 +802,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-024
 
 ## covered_by_acceptances
 

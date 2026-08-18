@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>REVIEWER 는 workerId 파라미터로 임의 작업자 통계 조회 가능, 미지정 시 본인.</li>
  *   <li>데이터 없는 사용자는 모든 카운트 0, 비율 0.0, dailyCompletion/monthly 빈 배열 (NPE/NaN 차단).</li>
  *   <li>completed=APPROVED, inProgress=APPROVED 가 아닌 배정 전부, rejected=REJECTED —
- *       LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS. inProgress 판정 축은 전체 구축 현황 화면과
+ *       LS_TASK_ALTMNT(LABELER) ⨝ LS_RAW_DATA_STATUS. inProgress 판정 축은 전체 구축 현황 화면과
  *       동일하며 축 자체의 회귀 가드는 {@code StatsInProgressAxisIT} 가 맡는다.</li>
  *   <li>labelCount = 워커에게 LABELER 로 배정된 raw 의 LsDataSrc 에 달린 LsDataLbl 총 수.</li>
  *   <li>autoLabelRate = 위 집합에서 자동 생성 라벨({@code LS_DATA_LBL_AI_INFO.AUTO_LBL_YN='Y'}) 비율(0~1).

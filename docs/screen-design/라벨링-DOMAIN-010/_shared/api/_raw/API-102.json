@@ -73,7 +73,7 @@
                         "commentSn": {
                           "type": "integer",
                           "format": "int64",
-                          "description": "댓글 PK (ISSUE_COMMENT_SN)"
+                          "description": "댓글 PK (CMNT_SN)"
                         },
                         "authorName": {
                           "type": "string",
@@ -205,7 +205,7 @@
                         "commentSn": {
                           "type": "integer",
                           "format": "int64",
-                          "description": "댓글 PK (ISSUE_COMMENT_SN)"
+                          "description": "댓글 PK (CMNT_SN)"
                         },
                         "authorName": {
                           "type": "string",
@@ -323,7 +323,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "issueRsn 누락 등 @Valid 검증 실패 / srcSn 이 해당 영상 소속 아님(verifyFrameBelongsToVideo). ErrorCode=INVALID_INPUT",
+          "description": "content 누락 등 요청 검증 실패 / srcSn 이 해당 영상 소속 아님. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -387,12 +387,12 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "WORKER 가 미배정 영상에 등록 시도(본인 배정 검증) / PORTAL_USER 접근. @PreAuthorize hasAnyRole('WORKER','REVIEWER'). ErrorCode=FORBIDDEN",
+          "description": "WORKER 가 미배정 영상에 등록 시도(본인 배정 검증) / PORTAL_USER 접근. 허용 역할은 WORKER·REVIEWER 다. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         }
       },
       "brownfield": {
-        "notes": "근거: docs/v2-wiki/21-issue-channel.md, 커밋 fb9debb. ADR 미작성",
+        "notes": "ADR 미작성",
         "status": "new",
         "change_kind": [
           "feature-add"
@@ -412,12 +412,12 @@
           "description": "영상 식별자 (LS_DATA_RAW.RAW_SN) — 이슈는 영상 단위로 관리"
         }
       ],
-      "description": "검수자↔작업자 이슈 소통 채널의 문의 등록. WORKER 는 현재 배정 영상(LS_TASK_ASSIGNMENT)에만 등록 가능, REVIEWER 는 전체 허용. 생성 시 ISSUE_TYPE_CD='INQUIRY', ISSUE_STTS_CD='OPEN'. srcSn 지정 시 타 영상 프레임 참조 차단(verifyFrameBelongsToVideo). PORTAL_USER 차단(내부 도구 전용).",
+      "description": "검수자↔작업자 이슈 소통 채널의 문의 등록. WORKER 는 현재 배정 영상(LS_TASK_ALTMNT)에만 등록 가능, REVIEWER 는 전체 허용. 생성 시 ISSUE_TYPE_CD='INQUIRY', ISSUE_STTS_CD='OPEN'. srcSn 지정 시 타 영상 프레임 참조 차단(verifyFrameBelongsToVideo). PORTAL_USER 차단(내부 도구 전용).",
       "request_body": {
         "schema": {
           "type": "object",
           "required": [
-            "issueRsn"
+            "content"
           ],
           "properties": {
             "srcSn": {
@@ -426,10 +426,10 @@
               "nullable": true,
               "description": "선택적 프레임 참조 (LS_DATA_SRC.SRC_SN) — 특정 프레임 관련 문의 시"
             },
-            "issueRsn": {
+            "content": {
               "type": "string",
               "maxLength": 1000,
-              "description": "문의 사유/내용"
+              "description": "문의 사유/내용 (LS_DATA_ISSUE.ISSUE_RSN)"
             }
           }
         },
@@ -445,17 +445,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "요약이 작업자만 등록하는 것처럼 읽히던 것을 현행에 맞춘다. 문의는 작업자와 검수자가 모두 등록할 수 있고 접근 권한과 상세 설명에는 이미 그렇게 적혀 있는데, 한 줄 요약만 옛 서술로 남아 목록에서 이 엔드포인트를 훑는 사람이 대상을 반대로 이해하게 된다. 요약 한 줄만 고쳤고 다른 필드는 그대로다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-09T02:57:21.441Z",
+    "last_updated_at": "2026-08-16T12:23:06.888Z",
     "created_at": "2026-06-05T04:58:17.859Z"
   }
 }

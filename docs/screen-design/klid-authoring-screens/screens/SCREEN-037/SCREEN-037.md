@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-037
 type: screen_spec
-version: 7
-last_updated_at: 2026-08-13T01:02:45.294Z
-domain: null
+version: 8
+last_updated_at: 2026-08-16T08:33:59.836Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.931Z
-sync_session: 9
-stale: false
+synced_at: 2026-08-18T01:49:51.235Z
+sync_session: 17
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-037.json
@@ -298,6 +298,10 @@ _(empty)_
 ### status
 
 new
+
+### decided_by
+
+ADR-014
 
 ### change_kind
 

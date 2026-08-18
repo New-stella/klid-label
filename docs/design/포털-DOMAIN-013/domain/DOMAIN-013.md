@@ -1,0 +1,103 @@
+---
+logicraft_item: DOMAIN-013
+type: domain
+version: 7
+domain: null
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-16T14:48:56.453Z
+status: NEW
+prev_version: null
+content_hash: b7dd151be1693849faf9a0f3667f92c3c70363ecfa4d1b0bf71ff8ddd80b5679
+stale: false
+raw: ./_raw/DOMAIN-013.json
+links:
+  depends_on: ["[[EXTSYS-006]]", "[[INT-009]]"]
+  applies_to_backward: ["[[NFR-012]]", "[[NFR-013]]", "[[NFR-015]]", "[[NFR-020]]"]
+  belongs_to_domain_backward: ["[[ADR-013]]", "[[API-081]]", "[[API-082]]", "[[API-083]]", "[[API-110]]", "[[API-111]]", "[[API-115]]", "[[API-139]]", "[[API-140]]", "[[API-142]]", "[[API-147]]", "[[API-149]]", "[[API-151]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[CDIAG-011]]", "[[DFEAT-043]]", "[[DFEAT-044]]", "[[DFEAT-053]]", "[[ERD-018]]", "[[ERD-026]]", "[[ERD-028]]", "[[EVT-012]]", "[[INT-009]]", "[[SCREEN-028]]", "[[SCREEN-029]]", "[[SCREEN-033]]", "[[SCREEN-034]]", "[[SEQ-016]]", "[[SEQ-019]]", "[[UC-024]]", "[[UC-027]]"]
+  implements_in_backward: ["[[MOD-017]]", "[[MOD-021]]", "[[MOD-043]]"]
+---
+
+# 포털
+
+## name
+
+포털
+
+## brownfield
+
+### status
+
+new
+
+### change_kind
+
+- capability-add
+
+### diff_summary
+
+2차 외부 채널 도메인.
+
+## description
+
+외부 채널(포털 회원) 도메인. ★서로 다른 두 경로를 갖으며 기능 경계가 다르다 — 혼동하지 말 것.
+
+[경로 A — 데이터마트 영상 라벨 작업] 관제가 구축해 포털 DB 에 적재한 데이터마트 영상을 고른다(적재는 관제서버 책임). 이때 Load 하는 기존 라벨·메타는 포털 DB 가 아니라 저작도구 DB 의 검수 승인(APPROVED) 자산(LS_DATA_RAW·LS_DATA_SRC·LS_DATA_LBL)이다 — 저작도구는 포털 DB 를 읽지 않는다. 저장해도 원본·데이터마트는 수정되지 않고 사용자별 작업 데이터(LS_PORTAL_USER_LABEL)로 별도 적재된다(단방향, 마트로 반영 안 됨). 다운로드는 본인 작업 데이터 기준이고 기여도 점수는 없다. 경로 A 가 내보내는 프레임 이미지·라벨은 내부 파이프라인 자산이라, 비식별 누락 신고가 열린 영상이면 412 로 거부되고 그 응답은 Cache-Control: no-store 로 캐시되지 않는다 — 경로 B 의 본인 업로드 자산은 이 게이트의 대상이 아니다.
+
+[경로 B — 본인 자산 업로드 (ADR-013 예외, 2026-07-17)] 포털 사용자가 본인 이미지(jpg/jpeg/png, 20MB/장, 50장/요청)·영상(mp4/mov/avi, 5GB, TUS 재개 업로드)을 직접 올려 수동 라벨링(BBOX/POLYGON 만) 후 본인 데이터를 내려받는다. 업로드 자산은 LS_PORTAL_* 전용 테이블로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View 와 완전 분리된다. 영상은 본인 데이터라 비식별을 적용하지 않으며 고정 간격 프레임 추출(기본 5초, 상한 2000장)만 한다. 상태는 UPLOADED→PROCESSING→READY|FAILED.
+
+[★제공 범위 — 라벨 편집 도구] 두 경로 모두 수동 라벨링(BBOX/POLYGON)만 제공한다. 도형 종류는 서버 allowlist 로 강제되며(두 경로가 각각 자기 allowlist 를 갖는다) 그 외 값은 400 으로 거부된다. 좌표 개수도 타입별로 강제된다(BBOX 정확히 2점, POLYGON 3~200점).
+
+[★미제공 기능 — 구 서술 2건 폐기] 오토라벨링(YOLO/SAM2)·SAM2 분할·SAM2 추적·키포인트(SKELETON)·VLM 시계열·버전관리·검수는 두 경로 모두 제공하지 않는다(ADR-013).
+· 폐기 1 — 구 본문의 '오토라벨링 체험(YOLO+SAM2)'은 오류였다.
+· 폐기 2 — 그 뒤 남아 있던 'SAM2 분할·추적과 키포인트는 경로 A 에만 부분 노출된다(ADR-013 부분 override)'도 폐기한다. 부분 override 는 존재하지 않는다.
+근거는 두 축이 서로 다르다. ①SAM2 — 구 포털 전용 SAM2 핸들러 기반 노출은 ADR-013 위반으로 폐지됐다 — 포털 경로에는 SAM2 핸들러를 두지 않는다(API-130·API-131 도 같은 근거로 폐기). ②키포인트 — 위 두 allowlist 가 BBOX|POLYGON 만 허용해 fail-closed 로 막으며, 구 '포털 키포인트(SKELETON) 허용'은 폐기됐다(레거시로 적재된 SKELETON 행은 로드 시 조용히 스킵).
+⚠ 내부(INTERNAL) 채널의 SAM2 분할·추적은 SFR-08-01(VOS) 핵심 기능이라 그대로 살아 있다 — 포털 미제공을 저작도구 전체 미제공으로 오독하지 말 것.
+
+[공통] 반응형 웹(PC/태블릿/모바일), WCAG 2.1 AA 준수. 인증은 포털 서버 발급 JWT 인계(channel 클레임으로 분기).
+
+## upstream_of
+
+_(empty)_
+
+## context_kind
+
+core
+
+## collaborators
+
+_(empty)_
+
+## integrates_with
+
+- EXTSYS-006
+
+## uses_integrations
+
+- INT-009
+
+## ubiquitous_language
+
+### [1]
+
+- **term**: PORTAL_USER
+- **meaning**: 포털 회원 역할. 오토라벨링·검수·버전관리 권한은 없다
+
+### [2]
+
+- **term**: 데이터마트 Load
+- **meaning**: 관제가 구축한 마트 영상의 기존 라벨·메타를 불러오는 것(조달원은 저작도구 DB 의 검수 승인 자산 — 포털 DB 를 읽지 않는다). 저장은 단방향이라 마트에 반영되지 않는다
+
+### [3]
+
+- **term**: 포털 자산 업로드
+- **meaning**: 포털 사용자 본인의 이미지·영상 업로드(ADR-013 예외). LS_PORTAL_* 전용이며 내부 파이프라인과 완전 분리된다
+
+### [4]
+
+- **term**: TUS
+- **meaning**: 재개 가능 업로드 프로토콜(CVAT 포팅). 포털은 전용 세션 테이블(LS_PORTAL_TUS_ULD)을 쓴다
+
+### [5]
+
+- **term**: LS_PORTAL_USER_LABEL
+- **meaning**: 경로 A 의 사용자별 작업 데이터 (원본 미수정)

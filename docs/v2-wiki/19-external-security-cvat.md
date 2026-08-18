@@ -10,7 +10,7 @@
 | 외부 시스템 | 연동 | 코드 |
 |------------|------|------|
 | **관제서버** | JWT 발급, TASK_COMPLETED/MODIFIED 통지 수신, 조회 API + View SELECT, MNG_* 소유 | `ControlNotifyClient`, `controlnotify/` → [15](15-control-notify.md) |
-| **포털 서버** | 포털 DB 공유(데이터마트 영상 Load) | `PortalDataSourceConfig`, `portal/` → [16](16-portal.md) |
+| **포털 서버** | 포털 DB 공유 — **저작도구가 메타를 내보내는 방향**(단방향 복제). 포털 라벨 화면의 조회는 저작도구 DB 를 쓴다 | `PortalDataSourceConfig`(복제 축), `portal/` → [16](16-portal.md) |
 | **비식별화 서버** | 영상 비식별 위탁 + 콜백 (발주기관 SW 직접구매) | `DeidentifyClient`, `webhook/DeidentifyResultController` → [08](08-deidentification.md) |
 | **외부 VLM 서비스** | 시계열 메타 호출 + 콜백 | `VlmClient`, `VlmTimeseriesStep`, `webhook/VlmResultController` → [09](09-vlm-timeseries.md) |
 | **외부 증강/생성 시스템** | 증강 위탁 + 콜백 | `ExternalAugmentClient`, `webhook/AugmentResultController` → [14](14-augmentation.md) |

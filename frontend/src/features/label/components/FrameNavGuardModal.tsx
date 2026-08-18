@@ -5,9 +5,17 @@
 // 정합해 공통 Modal(포커스트랩·ESC·백드롭 내장)을 재사용한다.
 //
 // ESC/백드롭/X = 취소(현재 프레임 유지).
+//
+// R4·R5 — '저장 후 이동' 은 헤더 저장과 <b>같은 저장 축</b>을 탄다. 그 저장에 폐기 상태 변경이
+// 실려 있으면 몇 개 프레임이 산출물에서 빠지는지 본문에 인라인으로 알린다(SCREEN-005 는 저장
+// 일반을 가리킨다). 확인 모달을 겹치지 않는 이유·문구의 단일 원천은 DiscardSaveNotice 참조.
 
 import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
+
+import { hasDiscardChange, type DiscardSaveSummary } from '../discardSaveSummary';
+
+import { DiscardSaveNotice } from './DiscardSaveNotice';
 
 export interface FrameNavGuardModalProps {
   open: boolean;
@@ -15,6 +23,11 @@ export interface FrameNavGuardModalProps {
   dirtyCount: number;
   /** '저장 후 이동' 진행 중(저장 요청) — 버튼 로딩/비활성 표기 */
   saving: boolean;
+  /**
+   * '저장 후 이동' 이 실어 보낼 폐기 전환. 변경이 없으면(또는 미지정) 안내를 렌더하지 않는다 —
+   * 모든 가드에 폐기 안내를 끼우면 사실이 아닌 안내가 되고 기존 동선이 흐려진다.
+   */
+  discardSummary?: DiscardSaveSummary;
   onSaveAndMove: () => void;
   onDiscardAndMove: () => void;
   onCancel: () => void;
@@ -27,6 +40,7 @@ export function FrameNavGuardModal({
   open,
   dirtyCount,
   saving,
+  discardSummary,
   onSaveAndMove,
   onDiscardAndMove,
   onCancel,
@@ -66,6 +80,10 @@ export function FrameNavGuardModal({
           </Button>
         </>
       }
-    />
+    >
+      {discardSummary && hasDiscardChange(discardSummary) ? (
+        <DiscardSaveNotice summary={discardSummary} testId="frame-nav-guard-discard-notice" />
+      ) : null}
+    </Modal>
   );
 }

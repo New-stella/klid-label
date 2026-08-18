@@ -8,28 +8,28 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-11T07:42:26.574Z (session 2) |
+| last sync | 2026-08-16T12:51:31.954Z (session 5) |
 | 화면 수 | 5개 |
-| ui_component 카탈로그 | populated 115건 |
-| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
+| ui_component 카탈로그 | populated 144건 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-001 | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
-| SCREEN-002 | 역할 클레임 화면 | UNCHANGED | ✅ | API-007 |  |
-| SCREEN-003 | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
-| SCREEN-004 | 개발용 로그인 화면 | UNCHANGED | ✅ |  |  |
-| SCREEN-024 | 사용자 관리 화면 | UNCHANGED | ✅ | API-001, API-004, API-003 | ROLE-001 |
+| [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
+| [[SCREEN-002]] | 역할 클레임 화면 | CHANGED | ✅ | [[API-007]] |  |
+| [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
+| [[SCREEN-004]] | 개발용 로그인 화면 | CHANGED | ✅ | [[API-153]] |  |
+| [[SCREEN-024]] | 사용자 관리 화면 | CHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 115 |
+| ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 8 |
 | constant | _shared/constant/ | 0 |
@@ -50,23 +50,34 @@
 
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
-| 1 | SCREEN-001 — 세션 인계 진입 화면 | screens/SCREEN-001/SCREEN-001.md | wireframe.html | uc/ | ac/ |
-| 2 | SCREEN-002 — 역할 클레임 화면 | screens/SCREEN-002/SCREEN-002.md | wireframe.html | uc/ | ac/ |
-| 3 | SCREEN-003 — 접근 거부 화면 | screens/SCREEN-003/SCREEN-003.md | wireframe.html | uc/ | ac/ |
-| 4 | SCREEN-004 — 개발용 로그인 화면 | screens/SCREEN-004/SCREEN-004.md | wireframe.html | uc/ | ac/ |
-| 5 | SCREEN-024 — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
+| 1 | [[SCREEN-001]] — 세션 인계 진입 화면 | screens/SCREEN-001/SCREEN-001.md | wireframe.html | uc/ | ac/ |
+| 2 | [[SCREEN-002]] — 역할 클레임 화면 | screens/SCREEN-002/SCREEN-002.md | wireframe.html | uc/ | ac/ |
+| 3 | [[SCREEN-003]] — 접근 거부 화면 | screens/SCREEN-003/SCREEN-003.md | wireframe.html | uc/ | ac/ |
+| 4 | [[SCREEN-004]] — 개발용 로그인 화면 | screens/SCREEN-004/SCREEN-004.md | wireframe.html | uc/ | ac/ |
+| 5 | [[SCREEN-024]] — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
 
 ## 변경 알림 (코드 재반영 필요)
 
 | ITEM | type | 상태 |
 |---|---|---|
-| UI-109 | ui_component | NEW |
-| UI-110 | ui_component | NEW |
-| UI-111 | ui_component | NEW |
-| UI-112 | ui_component | NEW |
-| UI-113 | ui_component | NEW |
-| UI-114 | ui_component | NEW |
-| UI-115 | ui_component | NEW |
+| [[API-001]] | api_endpoint | CHANGED (v2→v3) |
+| [[API-003]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-004]] | api_endpoint | CHANGED (v3→v5) |
+| [[API-005]] | api_endpoint | CHANGED (v4→v5) |
+| [[API-006]] | api_endpoint | CHANGED (v5→v8) |
+| [[API-007]] | api_endpoint | CHANGED (v4→v6) |
+| [[API-153]] | api_endpoint | CHANGED (v2→v4) |
+| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
+| [[SCREEN-002]] | screen_spec | CHANGED (v14→v17) |
+| [[SCREEN-004]] | screen_spec | CHANGED (v8→v11) |
+| [[SCREEN-024]] | screen_spec | CHANGED (v20→v22) |
+| [[UC-030]] | use_case | CHANGED (v4→v7) |
+
+## Obsidian 볼트로 보기
+
+이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
+(frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
+켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
 ## git 권장
 

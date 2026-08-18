@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  *   <li>{@code id}            = {@code videoId} (FE 라우팅 PK)</li>
  *   <li>{@code cctvName}      = video lookup 결과(미조인 시 {@code 영상 #N} 폴백 —
  *       판정 단일 원천 {@link CctvDisplayNamePolicy})</li>
- *   <li>{@code workerId}      = LS_TASK_ASSIGNMENT lookup (LABELER) — 없으면 null</li>
+ *   <li>{@code workerId}      = LS_TASK_ALTMNT lookup (LABELER) — 없으면 null</li>
  *   <li>{@code workerName}    = LS_ACNT_USER lookup — 없으면 ""</li>
  *   <li>{@code submittedAt}   = {@code updDt}</li>
  *   <li>{@code labelCount}    = LS_DATA_LBL count by srcSn for this rawSn — 없으면 0</li>

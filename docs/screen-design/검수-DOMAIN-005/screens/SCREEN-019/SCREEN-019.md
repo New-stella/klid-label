@@ -1,21 +1,26 @@
 ---
 logicraft_item: SCREEN-019
 type: screen_spec
-version: 25
-last_updated_at: 2026-08-09T00:56:49.743Z
+version: 29
+last_updated_at: 2026-08-16T07:16:43.055Z
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T06:32:45.202Z
-sync_session: 2
+synced_at: 2026-08-16T12:51:39.454Z
+sync_session: 6
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 28
 raw: ./_raw/SCREEN-019.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-009, API-010, API-011, API-013, API-014, API-015, API-021, API-132, API-066, API-102, API-103, API-104, API-105]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-009]]", "[[API-010]]", "[[API-011]]", "[[API-013]]", "[[API-014]]", "[[API-015]]", "[[API-021]]", "[[API-132]]", "[[API-066]]", "[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]"]
+  required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-023]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v28 → v29**
+> change_summary: realizes_use_cases 가 공란이었다. 이 화면(검수 상세, consumes_apis 에 API-014/API-015 approve/reject 포함)이 UC-023(검수 승인·반려)의 실제 승인·반려 액션이 일어나는 화면이다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 상세 화면
 
@@ -705,7 +710,7 @@ _(empty)_
 
 - **triggers_api**: API-014
 
-- **description**: 승인·반려는 검수 헤더가 단독으로 담당한다. 반려/승인 버튼은 검수대기·검수중 상태에서만 활성화되고, 완료·반려 상태에서는 모두 비활성화되며 이미 처리된 검수임을 안내한다. 두 액션은 동시에 진행되지 않으며 한쪽이 진행 중이면 다른 쪽도 비활성이다. 승인 클릭 시 승인 확정 확인창을 거쳐 승인 처리하고 목록으로 돌아간다. ★해당 영상에 라벨이 하나도 없으면 승인이 곧바로 처리되지 않고 '라벨 없음 확인' 창이 먼저 뜬다 — 객체가 실제로 없는 정상 영상이면 검수자가 명시적으로 확인해야 승인이 완료되며, 그 확인 사실은 작업 이력에 남는다. 반려 클릭 시 반려 사유(1~1000자) 입력창을 거쳐 반려 처리하고 목록으로 돌아간다. 반려 사유에는 검수 의견과 메모 목록 내용이 함께 담긴다. ★재검토 필요(needsRecheck=true) 영상은 예외다 — 상태가 완료(COMPLETED)이어도 승인 버튼이 활성화되어 다시 승인할 수 있다(재승인). 재승인도 승인 확정 확인창을 거치며, 승인 상태 자체는 이미 완료이므로 전이 없이 재검토 필요 표시만 해제된다. 반려 버튼의 활성화 여부는 이 예외와 무관하게 기존 규칙(완료 상태 비활성)을 따른다.
+- **description**: 승인·반려는 검수 헤더가 단독으로 담당한다. 반려/승인 버튼은 검수대기·검수중 상태에서만 활성화되고, 완료·반려 상태에서는 모두 비활성화되며 이미 처리된 검수임을 안내한다. 두 액션은 동시에 진행되지 않으며 한쪽이 진행 중이면 다른 쪽도 비활성이다. 승인 클릭 시 승인 확정 확인창을 거쳐 승인 처리하고 목록으로 돌아간다. ★해당 영상에 라벨이 하나도 없으면 승인이 곧바로 처리되지 않고 '라벨 없음 확인' 창이 먼저 뜬다 — 객체가 실제로 없는 정상 영상이면 검수자가 명시적으로 확인해야 승인이 완료되며, 그 확인 사실은 작업 이력에 남는다. 반려 클릭 시 반려 사유(1~1000자) 입력창을 거쳐 반려 처리하고 목록으로 돌아간다. 반려 사유에는 검수 의견과 메모 목록 내용이 함께 담긴다. ★재검토 필요(needsRecheck=true) 영상은 예외다 — 상태가 완료이어도 승인 버튼이 활성화되어 다시 승인할 수 있다(재승인). 재승인도 승인 확정 확인창을 거치며, 승인 상태 자체는 이미 완료이므로 전이 없이 재검토 필요 표시만 해제된다. 반려 버튼의 활성화 여부는 이 예외와 무관하게 기존 규칙(완료 상태 비활성)을 따른다.
 
 **references_apis**:
 
@@ -788,14 +793,15 @@ _(empty)_
 - **label**: 검수 상세 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: d384631f0d93c5dbcb3291dbc6844d97301f717ee0c59c062c45471861fdd464
-- **generated_at**: 2026-08-09T00:56:49.743Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: cd33b768074c7f455b05686e7c75296c212cc9d361aebd13eb8feb58ed7fc3e6
+- **generated_at**: 2026-08-14T23:44:28.831Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -811,7 +817,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-023
 
 ## covered_by_acceptances
 

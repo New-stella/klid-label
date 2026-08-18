@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-035
 type: screen_spec
-version: 15
-last_updated_at: 2026-08-13T01:02:44.578Z
-domain: null
+version: 17
+last_updated_at: 2026-08-17T06:53:34.242Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.928Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.231Z
+sync_session: 17
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -15,6 +15,7 @@ wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-024]]", "[[API-025]]", "[[API-026]]", "[[API-027]]", "[[API-028]]", "[[API-029]]", "[[API-030]]", "[[API-031]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-028]]"]
 ---
 
 # 라벨 관리 화면
@@ -122,6 +123,7 @@ _(empty)_
 
 #### [2]
 
+- **note**: 라벨명 셀에 AI 탐지 클래스 매핑 상태를 칩으로 함께 표시한다 — 매핑된 검출 클래스명 또는 미매핑 표시. 매핑이 없는 라벨은 AI 탐지 후보로 선택할 수 없으므로, 목록에서 그 상태가 보이지 않으면 운영자가 선택 불가 사유를 알 수 없다.
 - **type**: Table
 - **label**: 라벨 마스터 목록
 
@@ -654,7 +656,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-028
 
 ## covered_by_acceptances
 

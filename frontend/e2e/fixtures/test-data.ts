@@ -4,7 +4,7 @@
  * 보안: 실제 시크릿/계정 사용 금지. BE {@code /v1/dev/tokens} 가 발급하는 테스트 JWT 만 사용.
  * (운영 prd 환경에서는 endpoint 자체가 비활성화되어 본 fixture 가 동작하지 않는다 — 안전 기본값.)
  *
- * userNo 는 LS_ACNT_USER / LS_TASK_ASSIGNMENT 시드 기준이다.
+ * userNo 는 LS_ACNT_USER / LS_TASK_ALTMNT 시드 기준이다.
  * ⚠ **영상(rawSn)·프레임(srcSn) 은 하드코딩하지 않는다** — 시드가 재적재되면 PK 가 통째로 바뀌어
  * 스펙 전체가 404 로 죽는다(H-ISSUE-143 실사고: rawSn=9035 / srcSn=241 는 현 스택에 존재하지 않았고
  * describe.serial 이라 이후 3건이 연쇄 스킵됐다). 실행 시점에 API 로 해석한다
@@ -31,7 +31,7 @@ export const TEST_USERS = {
     channel: 'INTERNAL' as const,
   },
   /**
-   * LS_TASK_ASSIGNMENT 에 LABELER 로 실제 배정이 존재하는 작업자(userNo=2001).
+   * LS_TASK_ALTMNT 에 LABELER 로 실제 배정이 존재하는 작업자(userNo=2001).
    * 전체 워크플로우 E2E(labeling-review-full-flow.spec.ts)에서 WORKER 역할로 사용.
    */
   labeler: {

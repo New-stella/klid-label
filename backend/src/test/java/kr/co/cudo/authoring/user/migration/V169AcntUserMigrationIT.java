@@ -112,7 +112,7 @@ class V169AcntUserMigrationIT {
     void 신규_사용자마스터_컬럼이_표준도메인_타입과_크기를_따른다() {
         // given/when/then — 표준용어·표준도메인 근거는 V169 헤더 주석 참조.
         //   USER_NO 만 표준도메인(번호V10=문자)이 아니라 BIGINT 다: 기존 LS_USER_ROLE·
-        //   LS_TASK_ASSIGNMENT 등 저작도구 소유 컬럼이 전부 BIGINT 라 조인 정합을 우선한다.
+        //   LS_TASK_ALTMNT 등 저작도구 소유 컬럼이 전부 BIGINT 라 조인 정합을 우선한다.
         assertThat(columnMeta("ls_acnt_user", "user_no").get("data_type")).isEqualTo("bigint");
         assertThat(columnMeta("ls_acnt_user", "user_no").get("is_nullable")).isEqualTo("NO");
 

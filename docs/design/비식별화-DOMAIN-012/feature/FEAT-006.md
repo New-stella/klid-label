@@ -1,0 +1,118 @@
+---
+logicraft_item: FEAT-006
+type: feature
+version: 11
+domain: null
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-16T14:48:55.729Z
+status: NEW
+prev_version: null
+content_hash: c9fd4bdc15a76abb6a49bfd9895cbed64892236d646dc043179146a687f3ea3e
+stale: false
+raw: ./_raw/FEAT-006.json
+links:
+  implements: ["[[REQ-014]]", "[[REQ-016]]", "[[REQ-021]]"]
+  granted_on_backward: ["[[ROLE-001]]", "[[ROLE-002]]"]
+  realizes_backward: ["[[MOD-005]]", "[[UC-016]]"]
+---
+
+# 비식별 처리 상태·이력 확인 (경량)
+
+## priority
+
+must
+
+## main_flow
+
+### [1]
+
+- **step**: 1
+- **action**: 외부 비식별 SW가 처리 결과를 콜백으로 인계한다
+
+### [2]
+
+- **step**: 2
+- **action**: 결과에 따라 영상의 비식별 처리 상태(DE_IDNTF_YN)를 Y/F로 갱신하고 처리 로그(LS_DEIDENT_PROC_LOG)를 기록한다
+
+### [3]
+
+- **step**: 3
+- **actor**: 검수자
+- **action**: 영상 상세/처리 현황 화면에서 개인정보 분류와 비식별 처리 단계(DEIDENTIFY)·상태를 확인한다
+
+## brownfield
+
+### status
+
+modified
+
+### change_kind
+
+- scope-shrink
+
+### diff_summary
+
+deep 검토 UI 외부 이관, 저작도구는 상태 표시+이력 기록+콜백 수신만 보유
+
+## complexity
+
+moderate
+
+## user_story
+
+### goal
+
+영상 단위로 비식별 처리 상태와 처리 단계 진행을 확인하기를 원한다
+
+### actor
+
+검수자
+
+### benefit
+
+비식별이 처리/실패되었는지 추적하고 후속 작업을 진행할 수 있다
+
+## description
+
+저작도구가 보유한 경량 비식별 책임: ①외부 비식별 SW(KPST) 처리 결과 수신 — 콜백이 아니라 폴링이다(주기 폴링이 WAITING/POLLING 위탁 건을 retrieve_progress 로 조회해 완료를 감지 → 다운로드 → DE_IDNTF_YN='Y' + MARKING_READY 전이 — 구 콜백 수신 경로 POST /v1/deidentify/result 는 두지 않는다), ②영상 단위 비식별 처리 상태(LS_DATA_RAW.DE_IDNTF_YN: Y/F/N) 갱신 및 화면 표시, ③처리 이력(LS_DEIDENT_PROC_LOG) 기록. 영상 상세/처리 현황 화면에서 비식별 처리 단계(DEIDENTIFY)·상태가 노출된다. 원본/비식별 좌우 비교 등 deep 검토·검증 UI는 외부 비식별 솔루션 프로그램으로 이관(범위 외). 처리 이력의 상세 조회 전용 화면/API는 보유하지 않음(기록만).
+
+## implementation
+
+### status
+
+implemented
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+80
+
+### subtasks
+
+#### [1]
+
+- **done**: true
+- **description**: 비식별 결과 콜백 수신 + DE_IDNTF_YN 갱신 + 처리 로그 기록
+
+#### [2]
+
+- **done**: true
+- **description**: 영상 상세/처리 현황 화면에서 비식별 처리 단계·상태 표시
+
+#### [3]
+
+- **done**: false
+- **description**: 처리 이력 상세 조회 전용 화면/API — 외부 이관, 저작도구 미보유
+
+## implements_requirements
+
+- REQ-014
+- REQ-016
+- REQ-021

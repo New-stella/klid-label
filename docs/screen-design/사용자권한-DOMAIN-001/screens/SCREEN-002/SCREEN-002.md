@@ -1,20 +1,24 @@
 ---
 logicraft_item: SCREEN-002
 type: screen_spec
-version: 11
-last_updated_at: 2026-08-07T06:30:52.059Z
+version: 17
+last_updated_at: 2026-08-16T12:43:57.924Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:26.544Z
-sync_session: 2
+synced_at: 2026-08-16T12:51:31.903Z
+sync_session: 5
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 14
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-007]
+  consumes_apis: ["[[API-007]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v14 → v17**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.3KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 역할 클레임 화면
 
@@ -63,7 +67,7 @@ _(empty)_
 #### [2]
 
 - **type**: Custom
-- **label**: 관리자에게 받은 패스워드로 역할을 부여받으세요.
+- **label**: 검수자에게 받은 패스워드로 역할을 부여받으세요.
 
 **columns**:
 
@@ -75,7 +79,7 @@ _(empty)_
 
 - **custom_name**: SubText
 
-- **description**: 인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(관리자에게 받은 패스워드로 역할을 부여받으세요).
+- **description**: 인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(검수자에게 받은 패스워드로 역할을 부여받으세요).
 
 **references_apis**:
 
@@ -94,6 +98,7 @@ _(empty)_
 
 #### [1]
 
+- **note**: 화면에 보이는 문구는 한글 호칭뿐이다. 라디오가 서버로 보내는 값은 각각 WORKER · REVIEWER 이며 그 값은 바뀌지 않는다.
 - **type**: RadioGroup
 - **label**: 역할 선택
 
@@ -103,12 +108,12 @@ _(empty)_
 
 **options**:
 
-- 작업자 (WORKER)
-- 검수자 (REVIEWER)
+- 작업자
+- 검수자
 
 - **binds_to**: role
 
-- **description**: 부여받을 역할을 라디오로 선택. WORKER(작업자) / REVIEWER(검수자) 2택. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.
+- **description**: 부여받을 역할을 라디오로 선택. 작업자 / 검수자 2택 — 화면에는 한글 호칭만 보이고 전송값은 각각 WORKER · REVIEWER 다. role state 미선택 시 제출 버튼 비활성. mutation 진행 중에는 비활성.
 
 **references_apis**:
 
@@ -140,7 +145,7 @@ _(empty)_
 _(empty)_
 
 - **binds_to**: adminPassword
-- **placeholder**: 관리자에게 받은 패스워드를 입력하세요
+- **placeholder**: 검수자에게 받은 패스워드를 입력하세요
 
 #### [2]
 
@@ -189,7 +194,7 @@ _(empty)_
 
 ### status
 
-modified
+new
 
 ### decided_by
 
@@ -201,7 +206,7 @@ ADR-012
 
 ### diff_summary
 
-2차 role+channel 클레임 분기 화면
+2차 role+channel 클레임 분기 화면 — 1차 GPKI 인증서 기반 로그인에는 없던 2차 전용 자가부여 온보딩 화면
 
 ## surface_kind
 
@@ -245,14 +250,15 @@ _(empty)_
 - **label**: 역할 클레임 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 1d071f269263dd603cf44ee14d081d257ea74bcb018258a5393e214f0a13190e
-- **generated_at**: 2026-08-07T01:47:30.069Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: d3a0988c15ad3a19bb1688a09442a1bde8a94f5f019beb5a51f3389e537a5992
+- **generated_at**: 2026-08-16T12:43:57.924Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

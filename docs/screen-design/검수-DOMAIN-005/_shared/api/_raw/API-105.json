@@ -119,7 +119,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 외 역할(WORKER 해소 불가). @PreAuthorize hasRole('REVIEWER'). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 외 역할(WORKER 해소 불가). 허용 역할은 REVIEWER 다. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -183,12 +183,11 @@
             "success": false,
             "errorCode": "CONFLICT"
           },
-          "description": "@Version 낙관적 잠금 동시성 충돌(댓글 작성과 경합). ErrorCode=CONFLICT",
+          "description": "낙관적 잠금 동시성 충돌(댓글 작성과 경합). ErrorCode=CONFLICT",
           "content_type": "application/json"
         }
       },
       "brownfield": {
-        "notes": "커밋 fb9debb",
         "status": "new",
         "change_kind": [
           "feature-add"
@@ -208,7 +207,7 @@
           "description": "이슈 식별자 (LS_DATA_ISSUE.DATA_ISSUE_SN)"
         }
       ],
-      "description": "REVIEWER 전용 INQUIRY 해소 — ANSWERED(또는 OPEN)→RESOLVED 전이. 역행 금지, 이미 RESOLVED 면 no-op(멱등, 200). WORKER 는 403. @Version 낙관적 잠금으로 댓글 작성과의 동시 충돌 시 409. 응답 ApiResponse<Void>.",
+      "description": "REVIEWER 전용 INQUIRY 해소 — ANSWERED(또는 OPEN)→RESOLVED 전이. 역행 금지, 이미 RESOLVED 면 no-op(멱등, 200). WORKER 는 403. 낙관적 잠금으로 댓글 작성과의 동시 충돌 시 409. 응답 ApiResponse<Void>.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -217,17 +216,20 @@
         "progress": 100,
         "subtasks": []
       },
-      "implements_features": [],
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — 200 ApiResponse<Void>(data null, 멱등) schema + 401/403/404/409 에러 응답 + example (IssueController.resolve ApiResponse.ok(null) 코드 기준)",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:09:22.575Z",
+    "last_updated_at": "2026-08-16T12:27:32.479Z",
     "created_at": "2026-06-05T04:59:16.421Z"
   }
 }

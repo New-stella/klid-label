@@ -5,13 +5,18 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { useHealth } from '@/features/health/hooks/useHealth';
 import type { HealthStatus } from '@/features/health/types';
 
-const componentLabels: Record<string, string> = {
-  db: 'DB',
-  diskSpace: '디스크',
-  controlServer: '관제서버',
-  portalServer: '포털서버',
-  aiServer: 'AI 서버',
+/**
+ * 헬스 컴포넌트 키 → 화면 표시명.
+ *
+ * ⚠ 키는 **서버 응답 계약**이다 — BE ManageHealthController 가 components 맵에 넣는 키와
+ * 정확히 일치해야 한다. 렌더가 `componentLabels[key] ?? key` 폴백이라 빠진 키는 오류 없이
+ * **원문 키가 그대로 화면에 노출**된다(`database` 가 실제로 그렇게 새어 나갔다).
+ * 양방향 대조는 healthComponentLabelContract.test.ts 가 고정한다.
+ */
+export const componentLabels: Record<string, string> = {
   deidentify: '비식별 서버',
+  aiServer: 'AI 서버',
+  database: '데이터베이스',
 };
 
 function isUp(status: HealthStatus) {

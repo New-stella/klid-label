@@ -36,6 +36,11 @@
                     "format": "int64",
                     "description": "영상 PK (rawSn alias)"
                   },
+                  "fps": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "영상의 실제 프레임레이트. 재생 시간을 프레임 번호로 환산하는 화면이 이 값을 사용하며, 값이 없으면 기본값 30.0 으로 폴백한다."
+                  },
                   "rawSn": {
                     "type": "integer",
                     "format": "int64",
@@ -68,33 +73,34 @@
                             "DEIDENTIFY",
                             "MARKING",
                             "VLM",
-                            "FRAME",
+                            "FRAME_EXTRACT",
                             "YOLO",
                             "SAM2",
                             "INTERPOLATE"
                           ],
                           "type": "string",
-                          "description": "단계명(비식별/마킹/VLM/프레임추출/AI탐지/AI분할/보간). FE 노출명은 YOLO=AI탐지·SAM2=AI분할로 매핑."
+                          "description": "단계명(비식별/마킹/시계열/프레임추출/AI탐지/AI분할/보간). FE 노출명은 YOLO=AI탐지·SAM2=AI분할·VLM=시계열로 매핑."
                         },
                         "status": {
                           "enum": [
+                            "DONE",
+                            "PROGRESS",
                             "PENDING",
-                            "STARTED",
-                            "COMPLETED",
-                            "FAILED"
+                            "FAIL"
                           ],
                           "type": "string",
-                          "description": "단계 처리 상태."
+                          "description": "단계 표시 상태 — DONE 완료 · PROGRESS 진행 중 · PENDING 대기 · FAIL 실패."
                         },
                         "progress": {
                           "type": "integer",
                           "maximum": 100,
                           "minimum": 0,
-                          "description": "단계 진행률(0~100)."
+                          "nullable": true,
+                          "description": "단계 진행률(0~100). 단계 단위 진행률을 계산하지 않으므로 항상 null 이다."
                         }
                       }
                     },
-                    "description": "배치 파이프라인 7단계 진행 상태. 순서: 비식별(DEIDENTIFY) 선두 → 마킹 → VLM → 프레임추출 → AI탐지 → AI분할 → 보간. 로그 미존재 단계는 처리중 폴백."
+                    "description": "배치 파이프라인 7단계 진행 상태. 순서: 비식별(DEIDENTIFY) 선두 → 마킹 → 시계열 → 프레임추출 → AI탐지 → AI분할 → 보간. 배치 이력이 없거나 표시 대상 단계가 아니면 빈 배열이며, 이때 화면은 영상 상태 배지로 폴백한다."
                   },
                   "status": {
                     "type": "string",
@@ -152,6 +158,10 @@
                     "nullable": true,
                     "description": "데이터 상태 코드"
                   },
+                  "derivative": {
+                    "type": "boolean",
+                    "description": "이 영상이 증강 또는 해상도 변경으로 생성된 파생 영상인지 여부. 파생 영상은 비식별 누락 신고 기능을 제공하지 않는다."
+                  },
                   "evntTypeCd": {
                     "type": "string",
                     "nullable": true,
@@ -177,6 +187,15 @@
                     "nullable": true,
                     "description": "이벤트 유형 코드 (camelCase alias)"
                   },
+                  "everApproved": {
+                    "type": "boolean",
+                    "description": "이 영상이 지금까지 한 번이라도 검수 승인된 적이 있는지 여부(현재 상태가 아니라 이력 기준). true 이면 비식별 누락 신고와 프레임 폐기·복원 조작을 제공하지 않는다."
+                  },
+                  "reviewSttsCd": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "검수 진행 상태 코드. 배치 단계 상태(status)와는 별도 축이며, 검수 이력이 없으면 값이 없다."
+                  },
                   "framePreviews": {
                     "type": "array",
                     "items": {
@@ -198,6 +217,91 @@
                       }
                     },
                     "description": "프레임 미리보기 (최대 6개)"
+                  },
+                  "skippedStages": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "VLM",
+                        "AUTOLABEL"
+                      ],
+                      "type": "string"
+                    },
+                    "description": "검수자가 건너뛴 작업 묶음 목록 — VLM(시계열) · AUTOLABEL(AI 탐지 · AI 분할 · 트랙 보간). 없으면 빈 배열이다. 화면은 이 값으로 건너뜀 표시와 되돌리기 조작의 노출을 정한다 — 건너뛴 묶음은 진행 축에 흔적을 남기지 않아 단계 목록만으로는 구분할 수 없다."
+                  },
+                  "deidentHistory": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reqDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "위탁 요청 일시. 목록은 이 값의 내림차순이다."
+                        },
+                        "resDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "처리 종결 일시(성공·실패 공통). 아직 끝나지 않은 회차는 null."
+                        },
+                        "frmeCnt": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "총 프레임 수. 외부 리포트를 받지 못한 회차는 null."
+                        },
+                        "reqKndCd": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "요청 종류 — null 은 배치 비식별, REDEIDENT 는 검수 완료 후 재비식별."
+                        },
+                        "prcsEndDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "외부 처리 종료 일시. 외부 리포트를 받지 못한 회차는 null."
+                        },
+                        "procLogSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "회차 식별자"
+                        },
+                        "prcsBgngDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true,
+                          "description": "외부 처리 시작 일시. 외부 리포트를 받지 못한 회차는 null."
+                        },
+                        "procSttsCd": {
+                          "enum": [
+                            "REQUESTED",
+                            "SUCCEEDED",
+                            "FAILED"
+                          ],
+                          "type": "string",
+                          "description": "처리 상태 — REQUESTED 진행 중 · SUCCEEDED 완료 · FAILED 실패."
+                        },
+                        "faceDtctCnt": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "얼굴 검출 수. 외부 리포트를 받지 못한 회차는 null 이며 0 으로 채우지 않는다 — 실제로 0 건이 검출된 회차와 구분되지 않기 때문이다."
+                        },
+                        "noPltDtctCnt": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "번호판 검출 수. 외부 리포트를 받지 못한 회차는 null."
+                        }
+                      }
+                    },
+                    "description": "비식별 처리 이력 — 한 항목이 위탁 1회차이며 최초 비식별과 검수 완료 후 재비식별이 각각 한 항목이다. 요청 일시 내림차순(최신 먼저)으로 최신 20건까지 담으며, 이력이 없으면 빈 배열이다."
+                  },
+                  "batchFailureReason": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "배치 실패 사유 — 화면에 그대로 보여줄 사용자 문구. 실패가 아니면 null. 단계를 특정할 수 없는 실패에도 값이 담기며, 예외 클래스명·SQL·DB 제약명 같은 내부 원문은 담지 않는다."
                   }
                 },
                 "description": "영상 상세 (VideoDetailResponse)"
@@ -228,16 +332,16 @@
               "stages": [
                 {
                   "name": "DEIDENTIFY",
-                  "status": "COMPLETED",
-                  "progress": 100
+                  "status": "DONE",
+                  "progress": null
                 },
                 {
                   "name": "MARKING",
-                  "status": "STARTED",
-                  "progress": 40
+                  "status": "PROGRESS",
+                  "progress": null
                 }
               ],
-              "status": "BATCH_COMPLETED",
+              "status": "MARKING_READY",
               "lclgvCd": "11110",
               "cctvName": "종로구 CCTV-01",
               "filePath": "/storage/raw/1.mp4",
@@ -247,7 +351,7 @@
               "vmsCctvId": "CCTV-01",
               "vmsClipId": "CLIP-001",
               "capturedAt": "2026-01-15T09:30:00",
-              "dataSttsCd": "BATCH_COMPLETED",
+              "dataSttsCd": "MARKING_READY",
               "evntTypeCd": "FALL",
               "frameCount": 120,
               "prvcTypeCd": "PRVC",
@@ -259,7 +363,9 @@
                   "frameNo": 0,
                   "thumbnailUrl": "/v1/frames/1001/image"
                 }
-              ]
+              ],
+              "skippedStages": [],
+              "batchFailureReason": null
             },
             "message": null,
             "success": true,
@@ -298,6 +404,38 @@
             "errorCode": "UNAUTHORIZED"
           },
           "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "본인에게 배정되지 않은 영상입니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "WORKER 가 본인에게 배정되지 않은 영상을 조회 시도 (IDOR 방어, CWE-639). ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -353,7 +491,7 @@
           "description": "영상 식별자 RAW_SN(작업 단위)"
         }
       ],
-      "description": "영상 단건 메타를 조회한다. 인증된 사용자.",
+      "description": "영상 단건 메타를 조회한다. 인증된 사용자. 응답의 stages 는 배치 파이프라인 단계별 상태이며, 배치 이력이 없거나 표시 대상 단계를 특정할 수 없으면 빈 배열이다. 배치가 실패한 영상은 batchFailureReason 에 사용자에게 보여줄 실패 사유가 담긴다. 사유는 서버가 변환한 문구이며 예외 클래스명·SQL·DB 제약명 같은 내부 원문은 응답에 싣지 않는다. 실패한 단계는 stages 의 FAIL 항목이 나타내고, 단계를 특정할 수 없는 실패도 사유만은 전달된다. 수동으로 건너뛴 단계는 skippedStages 로 내려간다. deidentHistory 는 이 영상의 비식별 위탁 이력이며 한 항목이 위탁 1회차다 — 최초 비식별과 검수 완료 후 재비식별이 각각 한 항목이다. 요청 일시 내림차순(최신 먼저)으로 정렬해 최신 20건까지 담고, 이력이 없으면 빈 배열이다. 원본·산출물·리포트의 파일 경로는 담지 않는다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -368,12 +506,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 필드 설명에서 내부 구현 클래스명을 걷어낸다. 단계 순서와 폴백 규칙은 그대로다.",
+    "change_summary": "403 응답이 선언에서 빠져 있어 추가한다. 이 엔드포인트는 형제 경로(같은 영상의 스트리밍 조회)와 동일한 영상 단위 인가를 적용하므로, 본인에게 배정되지 않은 영상을 조회하려는 WORKER 는 403 으로 거부된다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:45:00.564Z",
+    "last_updated_at": "2026-08-16T23:44:27.052Z",
     "created_at": "2026-05-30T07:22:49.724Z"
   }
 }

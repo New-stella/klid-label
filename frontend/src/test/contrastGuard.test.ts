@@ -299,15 +299,18 @@ const DANGER_CASES: Case[] = [
     file: 'src/components/common/StageBadge.tsx',
     anchor: "return 'bg-danger/10",
   },
+  // [이관] 구 케이스 'DevLoginPage 로그인 에러'(anchor: `mb-4 rounded border border-danger/30`)
+  // 와 'SessionIngressPage 세션 에러'(anchor: `max-w-sm rounded-lg border border-danger/30`)
+  // — 두 화면이 각자 그리던 raw 오류 마크업이 공용 Alert(아이콘+제목+본문)로 합쳐져 색 토큰이
+  // 그 파일들에 더 이상 없다. **지운 것이 아니라 색의 소유자를 따라 옮긴 것**이며, 아래 한 케이스가
+  // 세 인증 화면(SCREEN-001·002·004)의 같은 조합을 함께 판정한다.
   {
-    label: 'DevLoginPage 로그인 에러',
-    file: 'src/features/auth/DevLoginPage.tsx',
-    anchor: 'mb-4 rounded border border-danger/30',
-  },
-  {
-    label: 'SessionIngressPage 세션 에러',
-    file: 'src/features/auth/SessionIngressPage.tsx',
-    anchor: 'max-w-sm rounded-lg border border-danger/30',
+    label: 'Alert(공용) 오류 톤 — 인증 3화면 공용',
+    file: 'src/components/common/Alert.tsx',
+    // 배경이 알파 틴트(`bg-danger/10`)가 아니라 solid `bg-danger-50` 인데, 흰 배경 위 /10 합성색과
+    // 사실상 같은 밝기(#FCEBE7 vs #FDEFEC)라 이 가드의 계산 전제가 그대로 성립한다
+    // (위 Badge(UI-111) 케이스와 동일한 근거).
+    anchor: "box: 'border-danger-200 bg-danger-50'",
   },
   {
     label: 'AutolabelResultCard 파이프라인 실패 안내',

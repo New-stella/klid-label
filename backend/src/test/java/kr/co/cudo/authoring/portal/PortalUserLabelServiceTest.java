@@ -65,7 +65,10 @@ class PortalUserLabelServiceTest {
         deidentGate = org.mockito.Mockito.mock(
                 kr.co.cudo.authoring.label.service.LabelAccessGuard.class);
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, null, deidentGate, new com.fasterxml.jackson.databind.ObjectMapper());
+                rawDataStatusRepository, null, deidentGate,
+                new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
+                        org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
+                new com.fasterxml.jackson.databind.ObjectMapper());
 
         when(userLabelRepository.save(any(LsPortalUserLabel.class))).thenAnswer(inv -> {
             LsPortalUserLabel e = inv.getArgument(0);

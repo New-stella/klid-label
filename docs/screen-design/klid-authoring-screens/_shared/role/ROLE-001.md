@@ -1,7 +1,7 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 7
+version: 10
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/ROLE-001.json
@@ -159,10 +159,9 @@ ADMIN
 **actions**:
 
 - view
-- create
 - update
 
-- **condition**: 사용자 관리
+- **condition**: 사용자 관리 — 목록 조회·검색·역할 수정. 사용자 생성은 두지 않는다(사용자 마스터는 역할 클레임 시 자동등록된다). 계정 활성 여부는 외부 시스템 소유라 읽기 전용이다
 - **target_id**: SCREEN-024
 - **target_kind**: screen_spec
 
@@ -315,8 +314,10 @@ ADMIN
 **actions**:
 
 - view
+- update
+- delete
 
-- **condition**: 공지 상세 조회
+- **condition**: 공지 상세 조회·발행·발행취소·삭제 — 발행 제어와 삭제는 이 역할만 할 수 있다
 - **target_id**: SCREEN-031
 - **target_kind**: screen_spec
 

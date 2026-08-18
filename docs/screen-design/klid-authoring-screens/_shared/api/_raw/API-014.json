@@ -328,6 +328,20 @@
         }
       ],
       "description": "검수자가 검수를 승인한다. 승인 = 작업 완료다. 검수자 전용.\n\n[승인 → 산출 → 통지 가 한 세트이며 순서가 계약이다] 승인하면 그 영상의 라벨 전체 스냅샷이 버전으로 동결되고 학습데이터 산출 폴더(JSON 과 이미지)가 만들어진다. 완료 통지는 그 산출이 성공한 뒤에만 나간다 — 상태 전이 시점이 아니다. 산출은 비동기라 통지가 먼저 나가면 관제가 아직 만들어지지 않았거나 구버전인 폴더를 픽업한다.\n\n[산출이 실패하면 통지는 보류된다] 유실이 아니라 지연이다. 재산출이 성공하면 그 시점에 통지가 재개된다.\n\n[승인 후 수정은 재승인이 트리거다] 완료된 영상의 라벨·메타를 고치면 그 영상은 다시 검수 대상이 되고, 검수자가 그 수정을 다시 승인한 시점에 이 세트가 다시 돌아 산출 폴더가 새 버전으로 전량 재생성된 뒤 수정 통지가 나간다. 수정만으로는 산출도 통지도 일어나지 않는다 — 학습데이터는 검수를 통과한 것만 확정이기 때문이다. 작업 식별자는 그대로이고 새 식별자를 발급하거나 버전을 올리지 않는다.\n\n[비식별 신고 구간에는 승인 자체가 거부된다] 승인이 라벨 스냅샷을 동결하는데 그 동결이 게이트를 거치기 때문이다(412).\n\n[★재승인 — 이 엔드포인트를 재검토 필요 영상에 다시 호출하는 것(2026-08-08 확정)] 이미 APPROVED 인 영상에 재검토 필요 표시(needsRecheck=true)가 서 있으면 이 엔드포인트를 다시 호출해 승인할 수 있다. 이때 ①작업 상태 전이는 일어나지 않는다 — status/dataSttsCd 는 이미 COMPLETED/APPROVED 이므로 그대로 유지된다 ②응답의 needsRecheck 가 false 로 바뀐다 ③그 사이 축적된 변경분을 실어 학습데이터 산출 폴더 재생성과 관제 수정 통지(TASK_MODIFIED)가 이 시점에 발생한다(EVT-006). 재검토 필요 표시가 서 있지 않은 채로 이미 APPROVED 인 영상을 다시 승인 요청하면 기존과 동일하게 409 CONFLICT 로 거부된다 — 이 구분이 재승인 허용과 기존 거부를 가른다. 최초 승인의 동작·응답 스키마·권한은 이 정책으로 바뀌지 않는다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "noLabelConfirmed": {
+              "type": "boolean",
+              "nullable": true,
+              "description": "라벨 0건 영상(negative sample) 승인임을 검수자가 명시적으로 확인했는가. null/false = 미확인(기본, 게이트 작동) — 라벨이 있는 영상에 true 를 보내면 400 으로 거부된다"
+            }
+          }
+        },
+        "required": false,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -337,17 +351,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-008"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검수 승인 API 에 재승인 규정을 추가한다. 재검토 필요 표시(needsRecheck=true)가 선 이미 APPROVED 영상은 이 엔드포인트를 다시 호출해 승인할 수 있으며, 이때 ①상태 전이는 일어나지 않고(이미 APPROVED) ②재검토 필요 표시가 해제되며 ③축적된 변경분을 실어 산출 재생성·TASK_MODIFIED 통지가 그 시점에 일어난다(EVT-006). 표시가 서지 않은 채 이미 APPROVED 인 영상을 다시 승인 요청하면 기존과 동일하게 409 CONFLICT 로 거부된다 — 이 구분을 200/409 응답 설명에 명시했다. 응답 스키마에 needsRecheck(boolean) 필드를 추가했다(하위호환, 추가만). 최초 승인의 동작·응답·권한은 무변경이다.",
+    "change_summary": "요청 계약(request_body)이 선언에서 빠져 있어 채운다. 승인 요청 바디는 선택이다 — 미첨부 시 기존과 동일하게 동작한다. noLabelConfirmed 는 라벨 0건 영상(negative sample) 승인 시 검수자가 명시적으로 확인했음을 나타내는 선택 필드이며, 라벨이 있는 영상에 true 를 보내면 400 으로 거부된다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T17:17:41.562Z",
+    "last_updated_at": "2026-08-16T23:45:02.826Z",
     "created_at": "2026-05-30T06:58:31.347Z"
   }
 }

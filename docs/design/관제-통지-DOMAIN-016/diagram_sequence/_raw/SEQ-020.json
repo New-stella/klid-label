@@ -1,0 +1,502 @@
+{
+  "item": {
+    "id": "SEQ-020",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "라벨 편집·임시저장 시퀀스",
+    "slug": "라벨-편집임시저장-시퀀스",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "라벨 편집·임시저장 시퀀스",
+      "source": "sequenceDiagram\n    actor W as 라벨링 작업자(WORKER)\n    participant C as LabelController\n    participant S as LabelService\n    participant G as LabelAccessGuard\n    participant DG as DeidentReportGate\n    participant LK as WorkLockService\n    participant AG as ReviewApprovalGate\n    participant FD as FrameDiscardApplier\n    participant MC as LabelMasterController\n    participant AC as LabelAttrController\n    participant AV as LabelAttrValueService\n    participant DB as 저작도구 스키마\n    participant BUS as ApplicationEventPublisher\n\n    W->>C: GET /v1/frames/{srcSn}/labels\n    C->>S: getByFrame(srcSn, actor, allowRaw=false)\n    S->>G: verifyAndGet(srcSn, actor)\n    G->>DB: LS_DATA_SRC 조회 + WORKER 면 LABELER 배정 확인\n    DB-->>G: 프레임 행(rawSn 포함)\n    G-->>S: 통과 (미배정 WORKER 403 / 미존재 404)\n    S->>G: requireNotUnderDeidentReport(rawSn)\n    G->>DG: isUnderDeidentReport(rawSn)\n    alt 비식별 누락 신고 구간(DE_IDENT_YN='F')\n        DG-->>G: 신고 열림\n        G-->>S: 412 PRECONDITION_FAILED\n        S-->>C: 412 (라벨 좌표를 전혀 내려주지 않는다)\n        C-->>W: 412 Precondition Failed\n    else 신고 없음\n        DG-->>G: 통과\n        G-->>S: 통과\n        S->>DB: LS_DATA_LBL + 형제 프레임 + 라벨 마스터 join\n        DB-->>S: 라벨·형제 프레임·마스터\n        S-->>C: 라벨 목록 + labelVersion + 프레임 이미지 유형(DEID) + 잠금 상태\n        C-->>W: 200 OK\n    end\n\n    W->>MC: GET /v1/manage/labels (수동 라벨 선택지)\n    MC-->>W: 활성 라벨 마스터 목록\n    W->>AC: GET /v1/manage/labels/{labelId}/attrs\n    AC-->>W: 활성 속성 정의 목록\n    W->>W: 캔버스에서 바운딩박스·폴리곤·세그멘테이션 생성·수정\n\n    W->>C: PUT /v1/frames/{srcSn}/labels (프레임 전체 라벨 세트 + labelVersion)\n    C->>S: bulkUpsert(srcSn, req, actor)\n    S->>G: verifyAndGet(srcSn, actor)\n    G-->>S: 통과\n    S->>G: requireNotUnderDeidentReport(rawSn) — 작업락 검사보다 먼저\n    G-->>S: 통과\n    Note over S: 신고 구간이면 412 — 작업락 유무와 무관하게 412 로 통일한다\n    S->>LK: isRawLocked(rawSn)\n    LK-->>S: 잠금 없음 (잠겨 있으면 409)\n    S->>DB: 프레임 행 잠금 + 현재 라벨셋 판번호 조회\n    DB-->>S: baseVersion\n    S->>S: 요청 판번호와 대조 — 다르면 409\n    opt 요청이 프레임 폐기 여부(dscdYn)를 실었을 때\n        S->>AG: hasEverApproved(rawSn)\n        AG-->>S: 승인 이력 없음 (있으면 400)\n        S->>FD: apply(srcSn, dscdYn)\n    end\n    S->>DB: 기존 라벨 전체 조회(전체 교체 델타 기준)\n    DB-->>S: existing\n    S->>S: 좌표·점 개수·경계 검증 + labelId 활성 마스터 검증\n    S->>DB: 미실재 항목 INSERT / 실재 항목 UPDATE\n    opt 요청에 빠진 기존 라벨이 있을 때\n        S->>DB: 속성값 삭제 후 라벨 삭제(전체 교체)\n    end\n    opt 라벨셋이 실제로 바뀌었을 때\n        S->>DB: LS_DATA_LBL_HSTRY 저장 이벤트 1건 + 판번호 +1\n    end\n    opt 검수 승인 이력이 있고 라벨 또는 폐기 상태가 바뀌었을 때\n        S->>BUS: publishEvent(TaskModifiedEvent)\n    end\n    Note over S: 작업본 갱신만 한다 — 버전 스냅샷은 검수 승인 시점에만 만들어진다\n    S-->>C: 저장 후 라벨 목록 + 새 판번호\n    C-->>W: 200 OK\n\n    W->>AC: PUT /v1/labels/{lblSn}/attrs\n    AC->>AV: upsert(lblSn, values, actor)\n    AV->>DB: 라벨 객체 조회 (없으면 404)\n    DB-->>AV: 라벨 객체\n    AV->>G: verifyAndGet(라벨이 속한 프레임)\n    G-->>AV: 통과 (미배정 403)\n    AV->>G: requireNotUnderDeidentReport(rawSn)\n    G-->>AV: 통과 (신고 구간이면 412)\n    AV->>AV: 속성 소속·활성 검증 (아니면 400)\n    AV->>DB: (LBL_SN, ATTR_ID) 기준 upsert\n    AV-->>AC: 저장 완료\n    AC-->>W: 200 OK\n",
+      "messages": [
+        {
+          "to": "controller",
+          "from": "worker",
+          "kind": "sync",
+          "label": "GET /v1/frames/{srcSn}/labels",
+          "item_ref": "API-018"
+        },
+        {
+          "to": "svc",
+          "from": "controller",
+          "kind": "sync",
+          "label": "getByFrame(srcSn, actor, allowRaw=false)"
+        },
+        {
+          "to": "guard",
+          "from": "svc",
+          "kind": "sync",
+          "label": "verifyAndGet(srcSn, actor)"
+        },
+        {
+          "to": "db",
+          "from": "guard",
+          "kind": "sync",
+          "label": "LS_DATA_SRC 조회 + WORKER 면 LS_TASK_ALTMNT 의 LABELER 배정 확인"
+        },
+        {
+          "to": "guard",
+          "from": "db",
+          "kind": "return",
+          "label": "프레임 행(rawSn 포함)"
+        },
+        {
+          "to": "svc",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과 — 미배정 WORKER 는 403, 프레임 미존재는 404"
+        },
+        {
+          "to": "guard",
+          "from": "svc",
+          "kind": "sync",
+          "label": "requireNotUnderDeidentReport(rawSn)"
+        },
+        {
+          "to": "deidGate",
+          "from": "guard",
+          "kind": "sync",
+          "label": "isUnderDeidentReport(rawSn)"
+        },
+        {
+          "to": "guard",
+          "from": "deidGate",
+          "kind": "return",
+          "label": "신고 구간 아님 — 통과"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 비식별 누락 신고 구간(DE_IDENT_YN='F')이면 여기서 412 — 역할 무관이며 라벨 좌표가 전혀 내려가지 않는다"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "LS_DATA_LBL 조회 + 형제 프레임 목록 + 라벨 마스터(LS_LABEL) 일괄 join"
+        },
+        {
+          "to": "svc",
+          "from": "db",
+          "kind": "return",
+          "label": "라벨·형제 프레임·마스터"
+        },
+        {
+          "to": "controller",
+          "from": "svc",
+          "kind": "return",
+          "label": "라벨 목록 + 라벨셋 판번호(labelVersion) + 프레임 이미지 유형(DEID) + 잠금 상태"
+        },
+        {
+          "to": "worker",
+          "from": "controller",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "masterCtl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "GET /v1/manage/labels — 수동 라벨 선택지(활성 마스터)",
+          "item_ref": "API-024"
+        },
+        {
+          "to": "worker",
+          "from": "masterCtl",
+          "kind": "return",
+          "label": "활성 라벨 마스터 목록(라벨명·형태·색상)"
+        },
+        {
+          "to": "attrCtl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "GET /v1/manage/labels/{labelId}/attrs — 선택 라벨의 속성 정의",
+          "item_ref": "API-028"
+        },
+        {
+          "to": "worker",
+          "from": "attrCtl",
+          "kind": "return",
+          "label": "활성 속성 정의 목록"
+        },
+        {
+          "to": "worker",
+          "from": "worker",
+          "kind": "self",
+          "label": "캔버스에서 바운딩박스·폴리곤·세그멘테이션을 생성·수정한다"
+        },
+        {
+          "to": "controller",
+          "from": "worker",
+          "kind": "sync",
+          "label": "PUT /v1/frames/{srcSn}/labels — items 는 그 프레임의 라벨 전체 세트 + labelVersion",
+          "item_ref": "API-019"
+        },
+        {
+          "to": "svc",
+          "from": "controller",
+          "kind": "sync",
+          "label": "bulkUpsert(srcSn, req, actor)"
+        },
+        {
+          "to": "guard",
+          "from": "svc",
+          "kind": "sync",
+          "label": "verifyAndGet(srcSn, actor)"
+        },
+        {
+          "to": "svc",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과 — 미배정 WORKER 는 403"
+        },
+        {
+          "to": "guard",
+          "from": "svc",
+          "kind": "sync",
+          "label": "requireNotUnderDeidentReport(rawSn) — 작업락 검사보다 먼저 평가한다"
+        },
+        {
+          "to": "svc",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "[대안] 신고 구간이면 412 — 작업락 유무와 무관하게 412 로 통일해 응답 코드가 잠금 상태를 알려주는 단서가 되지 않게 한다"
+        },
+        {
+          "to": "lock",
+          "from": "svc",
+          "kind": "sync",
+          "label": "isRawLocked(rawSn)"
+        },
+        {
+          "to": "svc",
+          "from": "lock",
+          "kind": "return",
+          "label": "잠금 없음 — 잠겨 있으면 409(신고와 무관한 일시적 충돌)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "프레임 행 잠금 + 현재 라벨셋 판번호 조회"
+        },
+        {
+          "to": "svc",
+          "from": "db",
+          "kind": "return",
+          "label": "baseVersion"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "요청이 실어 보낸 판번호와 대조 — 다르면 409(그사이 다른 세션이 먼저 저장했다)"
+        },
+        {
+          "to": "approvalGate",
+          "from": "svc",
+          "kind": "sync",
+          "label": "hasEverApproved(rawSn)"
+        },
+        {
+          "to": "svc",
+          "from": "approvalGate",
+          "kind": "return",
+          "label": "승인 이력 없음 — 있으면 400(한번이라도 검수 완료된 영상은 새로 폐기·복원할 수 없다)"
+        },
+        {
+          "to": "discard",
+          "from": "svc",
+          "kind": "sync",
+          "label": "apply(srcSn, dscdYn) — 프레임 폐기·복원 전이(같은 락 구간 안)"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "현재 프레임의 기존 라벨 전체 조회(전체 교체 델타 기준)"
+        },
+        {
+          "to": "svc",
+          "from": "db",
+          "kind": "return",
+          "label": "existing"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "좌표 형식·점 개수 상한·이미지 경계 검증 + labelId 를 활성 라벨 마스터로 사전 검증"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "그 프레임에 실재하지 않는 항목은 INSERT, 실재하는 항목은 UPDATE"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "요청에 빠진 기존 라벨 삭제 — 속성값(LS_DATA_LBL_ATTR_VAL) 먼저, 라벨(LS_DATA_LBL) 나중"
+        },
+        {
+          "to": "db",
+          "from": "svc",
+          "kind": "sync",
+          "label": "저장 이벤트 1건을 LS_DATA_LBL_HSTRY 에 기록 + 라벨셋 판번호 +1"
+        },
+        {
+          "to": "bus",
+          "from": "svc",
+          "kind": "async",
+          "label": "publishEvent(TaskModifiedEvent — 재검토 필요·산출 재생성 필요)",
+          "item_ref": "EVT-004"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "이 저장은 작업본 갱신만 한다 — 학습데이터 버전 스냅샷(LS_LABEL_VERSION)은 검수 승인 시점에만 만들어진다"
+        },
+        {
+          "to": "controller",
+          "from": "svc",
+          "kind": "return",
+          "label": "저장 후 라벨 목록 + 새 판번호"
+        },
+        {
+          "to": "worker",
+          "from": "controller",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "attrCtl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "PUT /v1/labels/{lblSn}/attrs — {values:[{attrId, value}]}",
+          "item_ref": "API-023"
+        },
+        {
+          "to": "attrValSvc",
+          "from": "attrCtl",
+          "kind": "sync",
+          "label": "upsert(lblSn, values, actor)"
+        },
+        {
+          "to": "db",
+          "from": "attrValSvc",
+          "kind": "sync",
+          "label": "라벨 객체 조회 — 없으면 404"
+        },
+        {
+          "to": "attrValSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "라벨 객체(소속 프레임 식별자 포함)"
+        },
+        {
+          "to": "guard",
+          "from": "attrValSvc",
+          "kind": "sync",
+          "label": "verifyAndGet(라벨 객체가 속한 프레임)"
+        },
+        {
+          "to": "attrValSvc",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과 — 미배정 WORKER 는 403"
+        },
+        {
+          "to": "guard",
+          "from": "attrValSvc",
+          "kind": "sync",
+          "label": "requireNotUnderDeidentReport(rawSn)"
+        },
+        {
+          "to": "attrValSvc",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과 — 신고 구간이면 412"
+        },
+        {
+          "to": "attrValSvc",
+          "from": "attrValSvc",
+          "kind": "self",
+          "label": "속성이 그 라벨 소속인지·활성 속성인지 검증 — 아니면 400"
+        },
+        {
+          "to": "db",
+          "from": "attrValSvc",
+          "kind": "sync",
+          "label": "(LBL_SN, ATTR_ID) 기준 속성값 upsert"
+        },
+        {
+          "to": "attrCtl",
+          "from": "attrValSvc",
+          "kind": "return",
+          "label": "저장 완료"
+        },
+        {
+          "to": "worker",
+          "from": "attrCtl",
+          "kind": "return",
+          "label": "200 OK"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "요청이 프레임 폐기 여부(dscdYn)를 실었을 때",
+          "end_index": 33,
+          "start_index": 31
+        },
+        {
+          "kind": "opt",
+          "label": "요청에 빠진 기존 라벨이 있을 때 — 전체 교체(full-replace) 삭제 델타",
+          "end_index": 38,
+          "start_index": 38
+        },
+        {
+          "kind": "opt",
+          "label": "라벨셋이 실제로 바뀌었을 때 — 무변경 재저장은 이력·판번호·통지가 모두 없다",
+          "end_index": 39,
+          "start_index": 39
+        },
+        {
+          "kind": "opt",
+          "label": "이미 검수 승인 이력이 있는 영상이고 라벨 또는 폐기 상태가 바뀌었을 때",
+          "end_index": 40,
+          "start_index": 40
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-033",
+        "change_kind": [
+          "behavior-change"
+        ],
+        "diff_summary": "1차의 프로젝트 단위 라벨링을 영상 단위로 옮기고 저장을 2계층(작업 임시저장 / 검수 승인 시점의 학습데이터 버전)으로 분리한 뒤의 저장 경로를 처음으로 시각화한다. 부분 upsert 가 아니라 프레임 전체 교체이며 요청에 빠진 라벨이 실제로 삭제되는 점, 그 계약 때문에 필요해진 라벨셋 판번호 대조가 1차 대비 달라진 지점이다."
+      },
+      "description": "라벨링 작업자(WORKER)가 배정받은 영상의 프레임을 열어 라벨과 객체 속성값을 편집하고 작업본을 임시저장하는 흐름의 시퀀스 다이어그램. 조회(GET /v1/frames/{srcSn}/labels) · 저장(PUT /v1/frames/{srcSn}/labels) · 객체 속성값 저장(PUT /v1/labels/{lblSn}/attrs) 세 호출과, 그 안에서 순서대로 평가되는 게이트를 그린다.\n\n저장 계약의 핵심은 프레임 전체 교체(full-replace)다 — items 는 그 프레임의 라벨 전체 세트여야 하고, 요청에 빠진 기존 라벨은 실제로 삭제된다(속성값을 먼저 지운 뒤 라벨을 지워 참조 무결성을 지킨다). 그래서 조회 응답이 실어 준 라벨셋 판번호(labelVersion)를 저장 요청이 그대로 되돌려 보내야 하며, 값이 다르면 409 로 거부한다. 되돌려 보내지 않으면 서버가 동시성을 검사하지 않아 그사이 다른 세션이 저장한 라벨이 조용히 삭제된다.\n\n게이트 평가 순서도 계약의 일부다: 인가(미배정 WORKER 403 · 프레임 미존재 404) → 비식별 누락 신고 구간 차단(412, 역할 무관) → 작업락(409) 순이며, 신고 게이트를 작업락보다 먼저 두는 이유는 응답 코드가 영상 잠금 상태를 알려주는 단서가 되지 않게 하기 위해서다. 프레임 폐기 여부를 함께 실은 저장은 한번이라도 검수가 완료된 영상에서 400 으로 거부된다.\n\n이 저장은 작업본 갱신까지만 하고 학습데이터 버전 스냅샷을 만들지 않는다 — 그 스냅샷은 검수 승인 시점에만 생성된다. 라벨셋이 실제로 바뀐 경우에만 저장 이벤트 이력과 판번호 증가가 일어나고, 그 영상에 이미 검수 승인 이력이 있으면 재검토 필요·산출 재생성 필요를 실은 수정 이벤트가 발행된다.",
+      "invokes_apis": [
+        "API-018",
+        "API-019",
+        "API-023",
+        "API-024",
+        "API-028"
+      ],
+      "participants": [
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "controller",
+          "kind": "service",
+          "name": "LabelController"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "LabelService"
+        },
+        {
+          "id": "guard",
+          "kind": "service",
+          "name": "LabelAccessGuard",
+          "description": "프레임·영상 단위 접근 인가와 비식별 누락 신고 게이트의 단일 호출 지점."
+        },
+        {
+          "id": "deidGate",
+          "kind": "service",
+          "name": "DeidentReportGate",
+          "description": "비식별 누락 신고 구간 판정의 단일 진실원. 호출부가 상태값 비교를 재구현하지 않는다."
+        },
+        {
+          "id": "lock",
+          "kind": "service",
+          "name": "WorkLockService"
+        },
+        {
+          "id": "approvalGate",
+          "kind": "service",
+          "name": "ReviewApprovalGate"
+        },
+        {
+          "id": "discard",
+          "kind": "service",
+          "name": "FrameDiscardApplier"
+        },
+        {
+          "id": "masterCtl",
+          "kind": "service",
+          "name": "LabelMasterController"
+        },
+        {
+          "id": "attrCtl",
+          "kind": "service",
+          "name": "LabelAttrController"
+        },
+        {
+          "id": "attrValSvc",
+          "kind": "service",
+          "name": "LabelAttrValueService"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "저작도구 스키마(LS_DATA_SRC·LS_DATA_LBL·LS_DATA_LBL_ATTR_VAL·LS_DATA_LBL_HSTRY)"
+        },
+        {
+          "id": "bus",
+          "kind": "queue",
+          "name": "ApplicationEventPublisher",
+          "description": "스프링 도메인 이벤트 버스."
+        }
+      ],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [
+        "EVT-004"
+      ],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-021"
+      ],
+      "related_acceptances": [
+        "AC-017",
+        "AC-020"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "DFEAT-015의 3개 필드 변경이 realizes로 2-hop 전파",
+    "change_summary": "DOMAIN-010(라벨링)의 UC-021(라벨 편집·임시저장)을 시각화하는 시퀀스가 없어 신설한다. 라벨 조회·저장·객체 속성값 저장 경로의 실제 구현을 읽어 그렸다 — 프레임 전체 교체 계약과 요청에 빠진 라벨의 실삭제 순서, 조회 응답이 준 라벨셋 판번호를 되돌려 보내야 하는 낙관적 동시성 대조와 409, 인가→신고 게이트(412)→작업락(409) 평가 순서, 폐기 여부가 실린 저장의 승인 이력 400, 라벨셋이 실제로 바뀐 경우에만 남는 저장 이력·판번호 증가, 승인 이력 영상에서의 수정 이벤트 발행, 그리고 이 저장이 버전 스냅샷을 만들지 않는다는 점을 담았다. 소속 도메인을 명시해 도메인 축 조회에서 빠지지 않게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T04:22:20.117Z",
+    "created_at": "2026-08-16T04:22:20.117Z"
+  }
+}

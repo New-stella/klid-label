@@ -3,24 +3,28 @@
 -- 사용자: 1=REVIEWER, 100/101=WORKER, 200=비활성 워커
 -- 영상: 1000~1003
 
-DELETE FROM LS_TASK_EVENT_LOG;
-DELETE FROM LS_TASK_ASSIGNMENT;
+DELETE FROM LS_TASK_EVNT_LOG;
+DELETE FROM LS_TASK_ALTMNT;
 DELETE FROM LS_RAW_DATA_STATUS;
 -- LS_RAW_DATA_ENROLLMENT · LS_META · LS_DEADLINE 정리는 V3(사용처 0 테이블 제거)로 대상이 사라졌다.
 -- LS_TASK_ASSIGN_HISTORY 정리는 V4(사용처 0 테이블 제거 2회차)로 대상이 사라졌다 —
---   재배정 증적은 위 LS_TASK_EVENT_LOG 한 곳에만 쌓인다.
+--   재배정 증적은 위 LS_TASK_EVNT_LOG 한 곳에만 쌓인다.
 DELETE FROM LS_USER_ROLE;
 DELETE FROM LS_ACNT_USER;
 
 -- ---------------------------------------------------------------------------
 -- 영상 1000~1003 (부모 LS_DATA_RAW) — DB-ISSUE-01 / V146 이후 필수.
---   V146 이 LS_TASK_ASSIGNMENT·LS_RAW_DATA_STATUS·LS_TASK_EVENT_LOG 등
+--   V146 이 LS_TASK_ALTMNT·LS_RAW_DATA_STATUS·LS_TASK_EVNT_LOG 등
 --   자식 테이블에 LS_DATA_RAW FK 를 세웠다. 이 스크립트는 예전부터 헤더에 "영상: 1000~1003" 을
 --   선언해 왔지만 실제로는 시드하지 않아 위 배정/상태 행이 <고아>로 만들어졌고, FK 신설 후에는
 --   정당하게 거부된다. 선언대로 부모를 실제로 시드한다(FK 우회 없음).
 --   삭제는 ON DELETE CASCADE 라 자식(배정·상태·프레임 등)까지 함께 정리되어 멱등하다.
 --   EVNT_TYPE_CD 는 NULL 로 둔다 — eventName/eventTypeCd null 폴백 검증이 이 상태를 쓴다.
 -- ---------------------------------------------------------------------------
+-- ★LS_ISSUE_COMMENT 는 FK_LS_ISSUE_COMMENT_ISSUE(V10)가 ON DELETE RESTRICT 라 부모 이슈
+--   (LS_DATA_ISSUE)의 RAW CASCADE 를 막는다. 이 스크립트가 지우는 영상 범위로 한정해 먼저 비운다.
+DELETE FROM LS_ISSUE_COMMENT WHERE DATA_ISSUE_SN IN (
+    SELECT DATA_ISSUE_SN FROM LS_DATA_ISSUE WHERE DATA_RAW_SN IN (1000, 1001, 1002, 1003));
 DELETE FROM LS_DATA_RAW WHERE RAW_SN IN (1000, 1001, 1002, 1003);
 
 INSERT INTO LS_DATA_RAW (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, EVNT_TYPE_CD, LCLGV_CD, PRVC_TYPE_CD,

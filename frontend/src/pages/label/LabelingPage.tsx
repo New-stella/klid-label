@@ -29,6 +29,10 @@ import { KeypointGuide } from '@/features/label/components/KeypointGuide';
 import { LabelPickerModal } from '@/features/label/components/LabelPickerModal';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import {
+  AutoTrackPanel,
+  type AutoTrackApplyOutcome,
+} from '@/features/label/components/AutoTrackPanel';
+import {
   autolabelItemToLabel,
   deleteTrack,
   mergeTracks,
@@ -60,6 +64,13 @@ import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
 import { DarkFrameSlider } from '@/features/label/components/DarkFrameSlider';
 import { FrameNavGuardModal } from '@/features/label/components/FrameNavGuardModal';
+import { DiscardSaveConfirmModal } from '@/features/label/components/DiscardSaveConfirmModal';
+import { DiscardSaveNotice } from '@/features/label/components/DiscardSaveNotice';
+import {
+  NO_DISCARD_CHANGE,
+  hasDiscardChange,
+  summarizeDiscardSave,
+} from '@/features/label/discardSaveSummary';
 import { ShortcutCheatSheet } from '@/features/label/components/ShortcutCheatSheet';
 import { useImageBlob } from '@/features/label/hooks/useImageBlob';
 import { useLabelingShortcuts } from '@/features/label/hooks/useLabelingShortcuts';
@@ -88,6 +99,7 @@ import { useSaveVideoLabels } from '@/features/version/hooks/useSaveVideoLabels'
 import { useVideoVersions } from '@/features/version/hooks/useVideoVersions';
 import {
   captureFrameIntoDraft,
+  discardChangesOf,
   frameOf,
   toLoadedDraft,
   toVideoSavePayload,
@@ -784,19 +796,51 @@ export function LabelingPage() {
     return 'saved';
   };
 
-  const handleSave = async () => {
-    if (!currentFrame) return;
+  /**
+   * R4·R5 — 이번 저장이 <b>실어 보내는</b> 폐기 전환. 「폐기 프레임 저장 확인」 모달의 입력이다.
+   *
+   * <p>저장 축이 둘이라 세는 축도 둘이다(둘 다 <b>보내는 값</b>만 센다 — 서버가 알아서 정하는
+   * 프레임을 추정해 세면 안내가 사실이 아니게 된다):
+   * <ul>
+   *   <li>프레임 단위 저장 — 보내는 값은 {@code discardDraft} 하나이고 기준선은 서버값이다.</li>
+   *   <li>회차 확정 저장 — {@code edits} 에 실린 프레임들이며 기준선은 회차 스냅샷 값이다
+   *       (같은 축으로 세지 않으면 안내와 실제 저장이 갈린다).</li>
+   * </ul>
+   *
+   * <p>포털 저장은 폐기 축을 싣지 않는다(폐기·복원은 내부 파이프라인 산출물 축이라 포털에 없다).
+   */
+  const discardSaveSummary = useMemo(() => {
+    if (portalMode) return NO_DISCARD_CHANGE;
+    if (loadedDraft) {
+      const payload = toVideoSavePayload(loadedDraft, currentFrame?.srcSn, labels, discardDraft);
+      return summarizeDiscardSave(discardChangesOf(loadedDraft, payload));
+    }
+    return summarizeDiscardSave([{ baseline: serverDscdYn, next: discardDraft }]);
+  }, [portalMode, loadedDraft, currentFrame?.srcSn, labels, discardDraft, serverDscdYn]);
+  const [discardSaveConfirmOpen, setDiscardSaveConfirmOpen] = useState(false);
+
+  /**
+   * 저장 공통 차단 조건 — 통과하면 true. 확인 모달을 거치는 경로에서도 <b>같은 판정</b>을 다시 태운다
+   * (모달이 떠 있는 동안 잠금·진행 상태가 바뀔 수 있다).
+   */
+  const canSaveNow = (): boolean => {
+    if (!currentFrame) return false;
     // 중복 제출 차단(FE 방어) — 저장 in-flight 중 Ctrl+S 연타/버튼 재클릭 시 라벨 PUT 이
     // 중복 발화하지 않도록 saving(isPending) 을 선두에서 가드한다.
-    if (saving) return;
-    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) return;
+    if (saving) return false;
+    if (isEditBlocked || isEditBlockedNow(currentFrame?.srcSn)) return false;
     if (isLocked) {
       pushToast({
         variant: 'error',
         message: '비식별 재처리 중인 영상은 저장할 수 없습니다.',
       });
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const runSave = async () => {
+    if (!canSaveNow()) return;
     try {
       // 저장 축은 persistPendingWork 한 곳이다(프레임 단위 / 영상 단위 확정 분기 포함).
       const outcome = await persistPendingWork();
@@ -822,6 +866,31 @@ export function LabelingPage() {
         message: extractBeMessage(e, '저장 실패'),
       });
     }
+  };
+
+  /**
+   * 저장 버튼·단축키의 진입점.
+   *
+   * <p>저장에 <b>폐기 상태 변경</b>이 실려 있으면 몇 개가 산출물에서 빠지고 몇 개가 되돌아오는지
+   * 먼저 드러내고 확인을 받는다(SCREEN-005). 폐기는 되돌릴 수 있지만 산출물에서 빠지는 결정이고,
+   * 한번이라도 검수가 완료된 영상에서는 서버가 새 폐기·복원을 막아 되돌릴 회차가 없으면 그 프레임이
+   * 산출물에서 영구 누락된다 — 조용히 저장되면 그 사실이 어디에도 드러나지 않는다.
+   *
+   * <p>⚠ 폐기 변경이 <b>없으면</b> 끼어들지 않는다. 모든 저장에 확인을 끼우면 작업 흐름이 망가진다.
+   */
+  const handleSave = async () => {
+    if (!canSaveNow()) return;
+    if (hasDiscardChange(discardSaveSummary)) {
+      setDiscardSaveConfirmOpen(true);
+      return;
+    }
+    await runSave();
+  };
+
+  /** 확인 모달의 '확인하고 저장' — 기존 저장 축(runSave)을 그대로 탄다(복제·우회 금지). */
+  const handleConfirmDiscardSave = async () => {
+    setDiscardSaveConfirmOpen(false);
+    await runSave();
   };
 
   /**
@@ -1063,6 +1132,52 @@ export function LabelingPage() {
       stashPendingTracks,
       pushToast,
     ],
+  );
+
+  // 온디맨드 자동 추적 결과 반영 — 프레임(srcSn) 별 라벨을 받아 작업본에만 올린다(저장 아님).
+  //
+  // ★ 라벨 마스터 식별자는 **서버 응답값이 이미 실려 있다** — 여기서 검출 클래스명으로 마스터를
+  //   다시 찾지 않는다(그 해석은 서버 몫이며, 화면이 재판정하면 규칙이 두 곳으로 갈린다).
+  //   그래서 위 handleTracked 와 달리 resolveLabelIdByName 을 부르지 않는다.
+  // ★ 현재 프레임 해당분은 즉시 병합하고, 미래 프레임 해당분은 기존 보류 스테이징에 stash 해
+  //   그 프레임 진입 시 drain 병합된다(사일런트 유실 방지 — SAM2 추적과 같은 배선).
+  // ★ 반영 결과를 **돌려준다** — 현재 프레임 병합은 이미 있는 라벨과 겹치는 검출을 건너뛰므로
+  //   요청 건수와 실제 반영 건수가 다르다. 패널이 그 차이를 알 수 없으면 전부 걸러진 경우에도
+  //   "올렸습니다" 라고 알리게 된다(반환값을 버리면 그 결함이 되돌아온다).
+  const handleAutoTrackApply = useCallback(
+    (labelsBySrcSn: Record<number, Label[]>): AutoTrackApplyOutcome => {
+      const curSrcSn = data?.srcSn;
+      let applied = 0;
+      let requested = 0;
+      const future: Record<number, Label[]> = {};
+      let futureCount = 0;
+      for (const [key, labels] of Object.entries(labelsBySrcSn)) {
+        const srcSn = Number(key);
+        if (labels.length === 0) continue;
+        requested += labels.length;
+        if (srcSn === curSrcSn) {
+          applied += mergeAutoLabels(labels);
+        } else {
+          future[srcSn] = labels;
+          futureCount += labels.length;
+        }
+      }
+      if (futureCount > 0) stashPendingTracks(future);
+      const total = applied + futureCount;
+      // 걸러진 것은 현재 프레임 병합분뿐이다 — 미래 프레임 몫은 그 프레임에 진입할 때 병합된다.
+      const outcome: AutoTrackApplyOutcome = {
+        appliedLabels: total,
+        skippedDuplicates: Math.max(0, requested - total),
+      };
+      if (total === 0) return outcome;
+      // 작업명은 단일 소스에서 가져온다(모델명 미노출 규칙을 그 소스가 보증한다).
+      pushToast({
+        variant: 'success',
+        message: `${BUSY_KIND_NAME.AI_AUTO_TRACK} ${total}건 적용됨`,
+      });
+      return outcome;
+    },
+    [data?.srcSn, mergeAutoLabels, stashPendingTracks, pushToast],
   );
 
   // AI Tool 확정 → 일반(단일 프레임 검출/분할) 또는 트랙(후속 프레임 추적) 실행.
@@ -1543,7 +1658,9 @@ export function LabelingPage() {
 
       {/* dirty 가드 — X 닫기 시 미저장 변경 확인.
           3-옵션 다이얼로그(저장 후 닫기 / 저장 없이 닫기 / 머무름) 이므로 ConfirmDialog 대신
-          Modal 직접 사용. ESC/백드롭/X = 머무름 (handleStayOnPage). */}
+          Modal 직접 사용. ESC/백드롭/X = 머무름 (handleStayOnPage).
+          R4·R5 — '저장 후 닫기' 도 persistPendingWork(저장 축)를 그대로 타므로, 그 저장이 실어
+          보낼 폐기 전환을 본문에 함께 알린다(변경이 없으면 렌더 없음 — 기존 다이얼로그 그대로). */}
       <Modal
         open={closeConfirmOpen}
         onClose={handleStayOnPage}
@@ -1578,13 +1695,20 @@ export function LabelingPage() {
             </Button>
           </>
         }
-      />
+      >
+        {hasDiscardChange(discardSaveSummary) ? (
+          <DiscardSaveNotice summary={discardSaveSummary} testId="label-close-discard-notice" />
+        ) : null}
+      </Modal>
 
-      {/* R5 — 프레임 이동 미저장 가드(저장 후 이동 / 저장 안 함 / 취소). */}
+      {/* R5 — 프레임 이동 미저장 가드(저장 후 이동 / 저장 안 함 / 취소).
+          R4·R5 — '저장 후 이동' 은 persistPendingWork(저장 축)를 그대로 타므로, 그 저장이 실어
+          보낼 폐기 전환을 본문에 함께 알린다(변경이 없으면 렌더 없음 — 기존 다이얼로그 그대로). */}
       <FrameNavGuardModal
         open={navGuardTarget !== null}
         dirtyCount={dirtyCount}
         saving={navGuardSaving}
+        discardSummary={discardSaveSummary}
         onSaveAndMove={handleNavSaveAndMove}
         onDiscardAndMove={handleNavDiscardAndMove}
         onCancel={handleNavCancel}
@@ -1875,6 +1999,17 @@ export function LabelingPage() {
                   currentFrameNo={currentFrame?.frameNo}
                   portalMode={portalMode}
                 />
+                {/* 온디맨드 자동 추적 — 트랙 편집(삭제·분할·병합)과 같은 자리에 둔다.
+                    포털은 오토라벨·추적 미제공(ADR-013)이라 진입 자체를 두지 않는다. */}
+                {!portalMode && (
+                  <AutoTrackPanel
+                    srcSn={data?.srcSn}
+                    frames={frames}
+                    nextSrcSns={nextSrcSns}
+                    onApply={handleAutoTrackApply}
+                    disabled={isEditBlocked || isLocked}
+                  />
+                )}
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
@@ -1953,6 +2088,14 @@ export function LabelingPage() {
           }}
         />
       )}
+
+      {/* R4·R5 — 폐기 프레임 저장 확인. 취소해도 편집 상태는 그대로 남는다(동의 없이 버리지 않는다). */}
+      <DiscardSaveConfirmModal
+        open={discardSaveConfirmOpen}
+        summary={discardSaveSummary}
+        onConfirm={handleConfirmDiscardSave}
+        onCancel={() => setDiscardSaveConfirmOpen(false)}
+      />
 
       {/* C-ISSUE-21 — 저장 충돌(409) 안내. 작업 내용을 임의로 버리지 않고 사용자가 선택한다. */}
       <ConfirmDialog

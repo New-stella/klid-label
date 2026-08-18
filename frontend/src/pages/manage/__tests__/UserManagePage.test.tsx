@@ -280,6 +280,103 @@ describe('UserManagePage', () => {
     expect(screen.queryByTestId('edit-user-unchanged-notice')).toBeNull();
   });
 
+  // ── 사양 SCREEN-024 회귀 가드: 등록일 · 최신 로그인은 **각각 별도 컬럼**이다 ──
+  // 구 구현은 컬럼이 하나뿐이었고 `lastLoginAt ?? createdAt` 로 폴백해, 로그인 기록이
+  // 존재하지 않던 동안 **등록일 값을 "최근 로그인" 헤더로 표시**했다(거짓 표기).
+  // 두 값은 용도가 다르다 — 등록일은 가입 이력, 최신 로그인은 휴면 계정 판단.
+
+  /** 두 날짜 축을 모두 가진 사용자 1건. BE 는 타임존 없는 LocalDateTime 을 내려준다. */
+  function stubUserWithBothDates() {
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 21,
+            loginId: 'both',
+            name: '두날짜',
+            role: 'WORKER',
+            active: true,
+            createdAt: '2026-05-01T09:00:00',
+            lastLoginAt: '2026-08-16T14:30:00',
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('등록일과_최신_로그인이_각각_별도_컬럼으로_표시된다', async () => {
+    // given
+    stubUserWithBothDates();
+
+    // when
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+
+    // then: 두 헤더가 동시에 존재한다(하나가 다른 하나를 대체하지 않는다)
+    expect(await screen.findByRole('columnheader', { name: '등록일' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '최신 로그인' })).toBeInTheDocument();
+
+    // 각 셀은 자기 축의 값을 그린다
+    expect(screen.getByTestId('user-created-at-21')).toHaveTextContent('2026. 5. 1.');
+    expect(screen.getByTestId('user-last-login-21')).toHaveTextContent('2026. 8. 16.');
+  });
+
+  it('최신_로그인이_없으면_등록일로_대체하지_않는다', async () => {
+    // given: 한 번도 접속하지 않은 계정 — BE 가 lastLoginAt 을 null 로 내려준다.
+    //   ★ 이 케이스가 이번 결함의 회귀 가드다. 등록일 값이 최신 로그인 셀에 나타나면 실패한다.
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: {
+        content: [
+          {
+            id: 22,
+            loginId: 'never',
+            name: '미접속',
+            role: 'WORKER',
+            active: true,
+            createdAt: '2026-05-01T09:00:00',
+            lastLoginAt: null,
+          },
+        ],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+
+    // then: 등록일은 그대로 보이고, 최신 로그인은 **명시적 미접속 표기**다
+    expect(await screen.findByTestId('user-created-at-22')).toHaveTextContent('2026. 5. 1.');
+    const lastLogin = screen.getByTestId('user-last-login-22');
+    expect(lastLogin).toHaveTextContent('-');
+    expect(lastLogin).not.toHaveTextContent('2026. 5. 1.');
+  });
+
+  it('두_날짜_컬럼의_표기_형식이_같다', async () => {
+    // given: 같은 표에서 두 날짜가 다른 형식으로 보이면 비교가 불가능하다 —
+    //   두 컬럼은 같은 포매터를 재사용해야 한다.
+    stubUserWithBothDates();
+
+    // when
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+
+    // then: 같은 ko-KR 날짜 형식(YYYY. M. D.)
+    const KO_DATE = /^\d{4}\. \d{1,2}\. \d{1,2}\.$/;
+    expect((await screen.findByTestId('user-created-at-21')).textContent?.trim()).toMatch(KO_DATE);
+    expect(screen.getByTestId('user-last-login-21').textContent?.trim()).toMatch(KO_DATE);
+  });
+
   it('헤더_부제는_동적_카운트가_아니라_고정_문구다', async () => {
     // given: 사양 — "부제는 정적 텍스트이며 전체 사용자 수 등 동적 수치는 표시하지 않는다".
     // 동적 카운트는 로딩 중 '전체 0명'이 사실처럼 읽히는 문제가 있었다.

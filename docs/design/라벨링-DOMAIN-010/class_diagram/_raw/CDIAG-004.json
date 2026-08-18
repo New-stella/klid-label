@@ -1,0 +1,925 @@
+{
+  "item": {
+    "id": "CDIAG-004",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "class_diagram",
+    "title": "라벨링 도메인 모델",
+    "slug": "라벨링-도메인-모델",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "라벨링 도메인 모델",
+      "classes": [
+        {
+          "kind": "aggregate_root",
+          "name": "DataLabel",
+          "methods": [
+            {
+              "name": "updatePoints",
+              "params": [
+                "pointCn: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "changeLabel",
+              "params": [
+                "labelId: Long",
+                "labelNm: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "assignAttributeValue",
+              "params": [
+                "attrId: Long",
+                "value: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "isAutoLabeled",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "boolean"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "lblSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "srcSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lblTypeCd",
+              "type": "LabelType",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelNm",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "pointCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "trckId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regUserNo",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "프레임 단위 라벨 좌표 Aggregate Root (LS_DATA_LBL). SRC_SN(프레임) 기준, LBL_TYPE_CD로 BBOX/POLYGON/SEGMENT/TRACK 구분, LS_LABEL 마스터를 LBL_ID로 참조하고 객체별 속성값을 보유.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "entity",
+          "name": "DataLabelAttrValue",
+          "methods": [
+            {
+              "name": "changeValue",
+              "params": [
+                "attrVl: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "attrValId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lblSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "attrId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "attrVl",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "객체별 속성값 (LS_DATA_LBL_ATTR_VAL). (LBL_SN, ATTR_ID) UNIQUE upsert 키로 LS_LABEL_ATTR 정의의 실제 값을 저장.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "aggregate_root",
+          "name": "Label",
+          "methods": [
+            {
+              "name": "rename",
+              "params": [
+                "labelNm: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "changeColor",
+              "params": [
+                "colrVl: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "addAttribute",
+              "params": [
+                "attr: LabelAttr"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "softDelete",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "labelId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelNm",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "colrVl",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelTypeCd",
+              "type": "LabelMasterType",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "sortSeq",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "useYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "전역 단일 라벨 풀 마스터 (LS_LABEL). 이름·색상·도형타입 정의, REVIEWER CRUD·WORKER 조회, soft delete(USE_YN='N')만 허용. 속성정의를 자식으로 보유.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "entity",
+          "name": "LabelAttr",
+          "methods": [
+            {
+              "name": "updateOptions",
+              "params": [
+                "valuesCn: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "softDelete",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "attrId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "attrNm",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "inputTypeCd",
+              "type": "AttrInputType",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "valuesCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "dfltVl",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mutableYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "useYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "라벨별 속성 정의 (LS_LABEL_ATTR, CVAT AttributeSpec 동등). 입력 위젯 타입·옵션·기본값·가변여부 정의. (LBL_ID, ATRB_NM) UNIQUE.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "aggregate_root",
+          "name": "LabelVersion",
+          "methods": [
+            {
+              "name": "create",
+              "params": [
+                "dataSrcSn: Long",
+                "labelPayload: String",
+                "saveReasonCd: SaveReason"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "LabelVersion"
+            },
+            {
+              "name": "computeHash",
+              "params": [
+                "labelPayload: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "String"
+            },
+            {
+              "name": "activate",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "deactivate",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "diff",
+              "params": [
+                "other: LabelVersion"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "LabelDiff"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "labelVersionSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "dataRawSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "dataSrcSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "versionHash",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelPayload",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "versionNo",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "saveReasonCd",
+              "type": "SaveReason",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "activeYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "라벨 DB 스냅샷 버전 (LS_LABEL_VERSION). ★ 검수 승인(APPROVED) 시점에 영상/프레임(DATA_SRC_SN) 단위로 라벨 전체 JSON(LABEL_PAYLOAD)을 VERSION_HASH(SHA-256)로 멱등 식별해 확정 스냅샷을 생성한다. 라벨 저장 시점에는 생성하지 않음(작업 임시저장은 LS_DATA_LBL 현재본 + FE undo). diff/rollback의 원천, 외부 VCS 미사용.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "LabelType",
+          "methods": [],
+          "attributes": [],
+          "description": "라벨 도형 유형 코드 (LS_DATA_LBL.LBL_TYPE_CD).",
+          "enum_values": [
+            "BBOX",
+            "POLYGON",
+            "SEGMENT",
+            "TRACK"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "LabelMasterType",
+          "methods": [],
+          "attributes": [],
+          "description": "라벨 마스터 도형 타입 코드 (LS_LABEL.LBL_TYPE_CD).",
+          "enum_values": [
+            "BBOX",
+            "POLYGON",
+            "POINT"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "AttrInputType",
+          "methods": [],
+          "attributes": [],
+          "description": "속성 입력 위젯 타입 (LS_LABEL_ATTR.INPUT_TYPE_CD).",
+          "enum_values": [
+            "TEXT",
+            "NUMBER",
+            "SELECT",
+            "CHECKBOX",
+            "RADIO"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "SaveReason",
+          "methods": [],
+          "attributes": [],
+          "description": "버전 스냅샷 생성 사유 (LS_LABEL_VERSION.SAVE_REASON_CD). APPROVED=검수 승인 시 확정 스냅샷(유일한 신규 생성 경로). DEIDENT_REPORT=레거시 값 — 구 정책(비식별 신고 시 라벨 전량 삭제 직전 복원 스냅샷)이 적재했던 사유로 신규 적재는 중단됐고 운영 DB 에 남은 기존 행 판독용으로만 존치한다. [폐기] ROLLBACK=폐기된 값 — 롤백은 새 버전 행을 적층하지 않고 대상 스냅샷 행을 재활성화한다 (재계산 해시가 대상 행과 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능), 판독을 위해 표기만 존치한다.",
+          "enum_values": [
+            "APPROVED",
+            "DEIDENT_REPORT",
+            "[폐기] ROLLBACK"
+          ],
+          "stereotypes": []
+        }
+      ],
+      "description": "프레임 단위 라벨(바운딩박스·폴리곤·세그멘테이션·스켈레톤·트랙) 좌표와 객체별 속성값을 관리하고, 라벨 마스터(LS_LABEL)·속성정의(LS_LABEL_ATTR)를 참조하며 라벨 전체 JSON 스냅샷(LABEL_PAYLOAD)을 VERSION_HASH(SHA-256)로 멱등 식별해 DB 기반 버전관리(diff/rollback)를 수행하는 라벨링 도메인 모델. ERD-010·ERD-019 기반.\n\n[★2계층 저장] 작업 임시저장(LS_DATA_LBL, full-replace 영속)과 학습데이터 버전(LS_LABEL_VERSION 스냅샷)은 별개 계층이다. 버전 스냅샷은 검수 승인(APPROVED) 시점에만 생성되며 라벨 저장 시에는 만들지 않는다.\n\n[★롤백 시맨틱 정정 — SaveReason='ROLLBACK' 폐기] 구 서술은 SaveReason 에 APPROVED/ROLLBACK 두 값이 있다고 적었으나 ROLLBACK 코드는 폐기됐다. 롤백은 새 버전 행을 적층하지 않고 대상 스냅샷 행을 재활성화한다 — 롤백 결과 페이로드가 대상 스냅샷 그 자체라 재계산 해시가 대상 행과 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능하기 때문이다. 롤백 행위는 LS_DATA_LBL_HSTRY 에 기록하고, 라벨 본문을 작업본으로 복원할 때 LBL_SN·AI 메타·TRCK_ID 까지 보존한다(PK 재발급 시 diff 가 '전량 교체'로 오분류). 현재 active 가 이미 대상 스냅샷이면 no-op 이다.\n\n[기타 반영] 스켈레톤은 COCO-17 키포인트이고, 트랙은 병합·분할·삭제 편집이 가능하다. 비식별 누락 신고 구간에는 라벨 조회·이력·버전 diff/롤백이 412 로 차단되지만 라벨 자체는 삭제하지 않고 보존한다.",
+      "module_name": "Labeling",
+      "relationships": [
+        {
+          "to": "DataLabelAttrValue",
+          "from": "DataLabel",
+          "kind": "composition",
+          "label": "객체별 속성값",
+          "to_multiplicity": "0..*",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "Label",
+          "from": "DataLabel",
+          "kind": "association",
+          "label": "라벨 마스터 참조(LBL_ID)",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "LabelAttr",
+          "from": "Label",
+          "kind": "composition",
+          "label": "라벨 속성 정의",
+          "to_multiplicity": "0..*",
+          "from_multiplicity": "1"
+        },
+        {
+          "to": "LabelAttr",
+          "from": "DataLabelAttrValue",
+          "kind": "association",
+          "label": "속성 정의 참조(ATTR_ID)",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "LabelType",
+          "from": "DataLabel",
+          "kind": "association",
+          "label": "라벨 유형",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "LabelMasterType",
+          "from": "Label",
+          "kind": "association",
+          "label": "도형 타입",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "AttrInputType",
+          "from": "LabelAttr",
+          "kind": "association",
+          "label": "입력 위젯 타입",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "SaveReason",
+          "from": "LabelVersion",
+          "kind": "association",
+          "label": "저장 사유",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "DataLabel",
+          "from": "LabelVersion",
+          "kind": "aggregation",
+          "label": "스냅샷 대상 프레임 라벨(DATA_SRC_SN)",
+          "to_multiplicity": "0..*",
+          "from_multiplicity": "0..*"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-012",
+        "DFEAT-015",
+        "DFEAT-016",
+        "DFEAT-017",
+        "DFEAT-014",
+        "DFEAT-052"
+      ],
+      "referenced_items": [],
+      "realizes_features": [
+        "DFEAT-012",
+        "DFEAT-017"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": true,
+    "stale_reason": "API-031의 data.uses_constants 변경이 depicts로 2-hop 전파",
+    "change_summary": "D010 P1(D010-CNT-011 한글 손상): \"바운딩박\" → \"바운딩박스\" (절단-빈도비 검사로 검출된 3곳 중 마지막 1곳).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T07:27:52.265Z",
+    "created_at": "2026-06-02T08:49:26.007Z"
+  }
+}

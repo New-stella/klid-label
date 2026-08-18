@@ -48,13 +48,90 @@
                         "metaVal": {
                           "type": "string",
                           "description": "메타 값 (META_VL)"
+                        },
+                        "reviewStatus": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "검토 상태(LS_DATA_META_REVIEW.RVW_STTS_CD). 검토행이 없으면 null"
+                        },
+                        "dataMetaReviewSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "검토행 PK. 검토행이 없으면 null"
                         }
                       }
                     },
-                    "description": "수정 반영된 시계열 메타 항목 목록 (LS_DATA_META)"
+                    "description": "수정 반영된 시계열 메타 항목 목록 (LS_DATA_META). readOnlyMeta·technicalMeta 는 이 PUT 의 수정 대상이 아니므로 조회 시점 값을 그대로 병기한다."
+                  },
+                  "readOnlyMeta": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "metaSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "메타 PK (META_SN)"
+                        },
+                        "metaKey": {
+                          "type": "string",
+                          "description": "메타 키 (META_KEY) — 예: vlm.accuracy"
+                        },
+                        "metaVal": {
+                          "type": "string",
+                          "description": "메타 값 (META_VL)"
+                        },
+                        "reviewStatus": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "검토 상태(LS_DATA_META_REVIEW.RVW_STTS_CD). 검토행이 없으면 null"
+                        },
+                        "dataMetaReviewSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "검토행 PK. 검토행이 없으면 null"
+                        }
+                      }
+                    },
+                    "description": "화면 전용 읽기전용 메타 목록(신설, 2026-08-04 R12) — vlm.accuracy(일치도, 0~1). 검수큐에 진입하지 않으며 export/데이터마트에 노출되지 않는다. 이 목록의 값을 PUT 으로 수정 요청하면 400."
+                  },
+                  "technicalMeta": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "metaSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "메타 PK (META_SN)"
+                        },
+                        "metaKey": {
+                          "type": "string",
+                          "description": "메타 키 (META_KEY) — 예: video.width, video.codec"
+                        },
+                        "metaVal": {
+                          "type": "string",
+                          "description": "메타 값 (META_VL)"
+                        },
+                        "reviewStatus": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "검토 상태(LS_DATA_META_REVIEW.RVW_STTS_CD). 검토행이 없으면 null"
+                        },
+                        "dataMetaReviewSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "nullable": true,
+                          "description": "검토행 PK. 검토행이 없으면 null"
+                        }
+                      }
+                    },
+                    "description": "읽기전용 기술 메타 목록 — video.*(ffprobe·인입 기술메타). 편집 대상 아님."
                   }
                 },
-                "description": "수정 후 프레임 시계열 메타(VLM) 조회 결과 (MetaResponse)"
+                "description": "수정 후 프레임 시계열 메타(VLM) 조회 결과 (MetaResponse) — items/readOnlyMeta/technicalMeta 3목록. 기존 items 목록의 필드명·타입·시맨틱은 불변."
               },
               "message": {
                 "type": "string",
@@ -80,7 +157,9 @@
                   "metaKey": "weather",
                   "metaVal": "SNOW"
                 }
-              ]
+              ],
+              "readOnlyMeta": [],
+              "technicalMeta": []
             },
             "message": null,
             "success": true,
@@ -219,6 +298,51 @@
         }
       ],
       "description": "프레임의 시계열 메타(VLM) 중 편집 가능한 항목(vlm.description 등 items 목록)을 수정한다. readOnlyMeta(vlm.accuracy)·technicalMeta(video.*) 목록의 키는 이 엔드포인트로 수정할 수 없다 — 요청에 포함되면 400(INVALID_INPUT), 요청 키를 메시지에 echo하지 않는다(2026-08-04 R12 정책). REVIEWER/WORKER.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "metaKey"
+                ],
+                "properties": {
+                  "metaKey": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "메타 키(예: vlm.description)"
+                  },
+                  "metaVal": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 2000,
+                    "description": "메타 값"
+                  }
+                }
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "description": "수정할 시계열 메타 항목(최대 100건). video.*·vlm.accuracy 등 읽기 전용 키가 섞이면 400"
+            }
+          }
+        },
+        "example": {
+          "items": [
+            {
+              "metaKey": "weather",
+              "metaVal": "SNOW"
+            }
+          ]
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -233,12 +357,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "2026-08-04 R12 정책 백필 — vlm.accuracy·video.* 는 화면 전용/읽기전용이라 이 PUT 으로 수정 불가함을 명시(API-066 readOnlyMeta/technicalMeta 신설과 짝). 요청 스키마·성공 응답은 무변경, 400 케이스 설명만 보강.",
+    "change_summary": "D010 P1(D010-SCH-011): 응답이 items 1목록뿐이었으나 실제 반환 타입은 MetaResponse(코드 실물)로 readOnlyMeta·technicalMeta 를 포함한 3목록 — 같은 ITEM description 이 이미 그 3목록의 존재를 전제해 자기모순이었다(같은 반환 타입인 API-066 은 3목록 다 있었음). API-066 과 동일 구조로 맞추고 dataMetaReviewSn·reviewStatus 필드도 함께 반영.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-11T06:45:59.363Z",
+    "last_updated_at": "2026-08-16T07:27:01.984Z",
     "created_at": "2026-05-30T07:26:07.991Z"
   }
 }

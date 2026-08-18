@@ -258,7 +258,7 @@
             "success": false,
             "errorCode": "PRECONDITION_FAILED"
           },
-          "description": "사전 조건 불충족. ErrorCode=PRECONDITION_FAILED. 사유는 넷이다 — ①증강·해상도로 만들어진 파생영상이라 재비식별할 수단이 없다 ②비식별을 아직 수행하지 않아 신고할 대상이 없다 ③마킹 단계 신고인데 영상이 마킹 대기 상태가 아니다 ④검수가 승인된 영상이다. 네 사유를 응답 코드로 가르지 않는다 — 가르면 응답 자체가 영상의 처리 단계를 알려주는 오라클이 된다. 화면은 조건을 미리 알아 신고 버튼을 비활성으로 두므로, 이 응답은 화면이 조건을 모를 때의 안전망이다.",
+          "description": "사전 조건 불충족. ErrorCode=PRECONDITION_FAILED. 사유는 넷이다 — ①증강·해상도로 만들어진 파생영상이라 재비식별할 수단이 없다 ②비식별을 아직 수행하지 않아 신고할 대상이 없다 ③마킹 단계 신고인데 영상이 마킹 대기 상태가 아니다 ④한번이라도 검수가 완료된 영상이다(지금 상태가 아니라 이력으로 판정한다). 네 사유를 응답 코드로 가르지 않는다 — 가르면 응답 자체가 영상의 처리 단계를 알려주는 오라클이 된다. 화면은 조건을 미리 알아 신고 버튼을 비활성으로 두므로, 이 응답은 화면이 조건을 모를 때의 안전망이다.",
           "content_type": "application/json"
         }
       },
@@ -281,7 +281,28 @@
           "description": "프레임(원천) 식별자 SRC_SN"
         }
       ],
-      "description": "프레임 라벨링 과정에서 비식별이 누락된 영역을 신고한다. WORKER/REVIEWER. 검수가 승인된 영상은 신고를 받지 않는다 — 승인된 학습데이터는 되돌리지 않는다.",
+      "description": "프레임 라벨링 과정에서 비식별이 누락된 영역을 신고한다. WORKER/REVIEWER. 한번이라도 검수가 완료된 영상은 신고를 받지 않는다 — 승인된 학습데이터는 되돌리지 않는다. 지금 상태가 아니라 이력을 본다. 검수 완료 뒤 작업자가 다시 제출해 상태가 내려간 구간에도 받지 않는다 — 그 구간에 신고를 받아 재비식별이 일어나면 이미 산출된 회차의 이미지와 영상의 마스킹이 어긋나고, 데이터마트를 그 회차로 되돌리면 걷어낸 개인정보가 되살아난다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "maxLength": 1000,
+              "minLength": 1,
+              "description": "신고 사유"
+            }
+          }
+        },
+        "example": {
+          "reason": "이 프레임에 얼굴이 그대로 노출돼 있습니다."
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -291,17 +312,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-005"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검수가 승인된 영상은 비식별 누락 신고를 받지 않도록 사전 조건을 넓혔다. 승인된 학습데이터는 되돌리지 않는다는 정책이며, 이미 접수된 신고의 해소는 그대로 열려 있다(막으면 그 영상이 잠금 상태로 영구히 남는다). 함께 두 가지를 정정했다 — ①성공 응답 설명이 라벨을 스냅샷으로 남기고 삭제한다고 적혀 있었으나 그 정책은 폐기됐고 지금은 라벨과 개인정보 판정을 보존한 채 조회·저장만 막는다 ②사전 조건 불충족 응답이 통째로 빠져 있어 파생영상·비식별 미수행·마킹 단계 세 사유가 문서에 없었다.",
+    "change_summary": "D010 P1(D010-SCH-006): request_body 통째 부재 → DeidentReportRequest(코드 실물, reason 1~1000자) 배선.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-10T03:53:16.816Z",
+    "last_updated_at": "2026-08-16T07:26:18.147Z",
     "created_at": "2026-05-30T07:20:53.325Z"
   }
 }

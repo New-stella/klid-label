@@ -40,6 +40,30 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>{@code V4} — 사용처 0 테이블 4종 DROP 2회차(신규 설치에서는 no-op)</li>
  *   <li>{@code V5} — 배치 큐·메타복제 발신함 비표준 컬럼 11종 표준용어 개명. V1 을 고치지 않으므로
  *       <b>신규 설치도 옛 이름으로 만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V6} — {@code LS_DATA_LBL_AI_INFO} 를 {@code LS_DATA_LBL} 로 흡수</li>
+ *   <li>{@code V7} — {@code LS_MON_NOTI_ACML.STTS_CD} 폭 20 → 16(표준도메인 정합). V5 와 같은 이유로
+ *       <b>신규 설치도 20 으로 만들어진 뒤 여기서 축소</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V8} — {@code LS_WEBHOOK_IDEMPOTENCY.APLY_DT} → {@code APLCN_DT} 개명(표준용어 정합).
+ *       V5·V7 과 같은 이유로 <b>신규 설치도 옛 이름으로 만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V9} — {@code LS_TASK_ASSIGNMENT} → {@code LS_TASK_ALTMNT} ·
+ *       {@code LS_TASK_EVENT_LOG} → {@code LS_TASK_EVNT_LOG} 개명(표준용어 정합). 테이블뿐 아니라
+ *       시퀀스·제약·인덱스 13종을 함께 옮긴다. V5·V7·V8 과 같은 이유로 <b>신규 설치도 옛 이름으로
+ *       만들어진 뒤 여기서 개명</b>된다(no-op 이 아니다)</li>
+ *   <li>{@code V10} — {@code LS_ISSUE_COMMENT.DATA_ISSUE_SN} 에 FK(ON DELETE RESTRICT) 부착
+ *       (설계 ERD-023 이 규정한 참조 무결성이 구현에서만 빠져 있었다). 고아 댓글을 먼저 정리한 뒤
+ *       제약을 건다. V5·V7·V8·V9 와 같은 이유로 <b>신규 설치도 FK 없이 만들어진 뒤 여기서 부착</b>된다
+ *       (no-op 이 아니다)</li>
+ *   <li>{@code V11} — 포털 보존기간 설정 3키 시드({@code portal.datamart.retention-days} ·
+ *       {@code portal.upload.retention-days} · {@code portal.upload.failed-retention-days}).
+ *       이 3키를 읽는 삭제 배치는 값이 없을 때 상수로 폴백하지 않고 그 회차를 건너뛰므로
+ *       (파괴적 기능의 fail-open 차단), <b>시드가 없으면 기능이 죽은 채 배포된다</b> — 즉
+ *       「폴백 금지」와 이 시드는 세트다. {@code ON CONFLICT DO NOTHING} 이라 재적용이 운영자가
+ *       바꿔 둔 값을 되돌리지 않는다</li>
+ *   <li>{@code V12} — {@code LS_ACNT_USER.LAST_LGN_DT}(최종로그인일시) 신설. 사용자 관리 화면이
+ *       「최신 로그인」 컬럼을 그리는데 그 데이터가 존재하지 않아 등록일을 폴백으로 표시하고 있었다
+ *       (거짓 표기). nullable 이며 <b>기존 행을 백필하지 않는다</b> — 이 컬럼 이전의 접속 기록은
+ *       어디에도 없어 무엇을 넣어도 지어낸 값이다. NULL 허용 + DEFAULT 없는 ADD COLUMN 이라
+ *       하위호환이고(구 jar 는 컬럼을 모르는 SQL 을 만든다) 롤링 재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -75,7 +99,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "9001");
     }
 
     @Test
@@ -89,12 +113,20 @@ class FlywaySquashBaselineIT {
         assertThat(live)
                 .as("배포되는 마이그레이션 파일 목록")
                 .containsExactly(
+                        // ⚠ 순서는 <파일명 사전순>이다(listSql 의 sorted). 'V10' 은 두 자리라
+                        //   'V1__' 보다 앞에 온다('0' < '_') — 버전 번호 순이 아니다.
+                        "V10__add_ls_issue_comment_issue_fk.sql",
+                        "V11__seed_portal_retention_config.sql",
+                        "V12__add_ls_acnt_user_last_lgn_dt.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",
-                        "V6__absorb_lbl_ai_info_into_ls_data_lbl.sql");
+                        "V6__absorb_lbl_ai_info_into_ls_data_lbl.sql",
+                        "V7__narrow_mon_noti_acml_stts_cd_to_std_width.sql",
+                        "V8__rename_webhook_idempotency_aply_dt_to_aplcn_dt.sql",
+                        "V9__rename_task_tables_to_std_terms.sql");
     }
 
     @Test

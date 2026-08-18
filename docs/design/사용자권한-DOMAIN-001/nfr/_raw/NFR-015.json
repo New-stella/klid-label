@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "NFR-015",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "웹표준·크로스브라우징",
+    "slug": "웹표준크로스브라우징",
+    "sub_id": "RQ-COR-04-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "웹표준·크로스브라우징",
+      "metric": "브라우저 호환·웹표준 준수 여부",
+      "status": "approved",
+      "target": {
+        "value": "3종 이상 브라우저 동등 동작·비표준 플러그인 0",
+        "operator": "="
+      },
+      "category": "compliance",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-COR-04-01~03·RQ-SIR-05-01 (담당=공통, RFP p36·73~74, 중요도 상) — 전자정부 웹사이트 품질관리 지침 대상 SW로서 저작도구 FE에 동일 적용.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 웹표준 제약을 저작도구 FE 기준으로 수용"
+      },
+      "description": "저작도구 프론트엔드(React 18 + TypeScript) 웹표준 기준:\n- 액티브X 등 비표준 기술(플러그인) 없이 HTML5 기반으로 전 기능 동작 (라벨링 캔버스는 konva.js 웹표준 Canvas)\n- 3종 이상 브라우저(Chrome·Edge·Firefox 등)에서 JavaScript·레이아웃·콘텐츠 동등 동작\n- 표준 (X)HTML·CSS 문법 준수 — W3C Markup/CSS Validation 통과\n- 포털 화면은 PC/태블릿/모바일 반응형 — 웹 접근성(WCAG 2.1 AA)과는 별개의 웹표준 관점이다",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-010",
+        "DOMAIN-013"
+      ],
+      "measurement_method": "크로스브라우징 테스트(3종 이상)와 W3C Markup/CSS Validation 결과로 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "DOMAIN-013의 2개 필드 변경 — applies_to",
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 비기능 요구에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:38:37.212Z",
+    "created_at": "2026-06-04T09:30:52.827Z"
+  }
+}

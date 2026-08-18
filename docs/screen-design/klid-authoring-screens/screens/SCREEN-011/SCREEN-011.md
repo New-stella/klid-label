@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-011
 type: screen_spec
-version: 16
-last_updated_at: 2026-08-13T00:54:55.571Z
-domain: null
+version: 21
+last_updated_at: 2026-08-17T12:44:49.243Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.904Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.194Z
+sync_session: 17
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -64,7 +64,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 클릭 시 요약/영상/작업 조회 쿼리를 invalidate 해 재조회. 버튼 좌측에 마지막 새로고침 시각(시계 아이콘 + YYYY-MM-DD HH:mm:ss)을 정적 텍스트로 병기 — 자동 갱신 없이 버튼을 눌러야 갱신된다.
+- **note**: 클릭 시 요약/영상/작업 조회를 재조회한다. 버튼 좌측에 마지막 새로고침 시각(시계 아이콘 + YYYY-MM-DD HH:mm:ss)을 정적 텍스트로 병기 — 자동 갱신 없이 버튼을 눌러야 갱신된다.
 - **type**: Button
 - **label**: 새로고침
 
@@ -192,7 +192,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준).
+- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준). 주 수치와 프레임 단위 분포는 폐기되지 않은 프레임만 센다 — 보조의 전체 수치는 걸러내지 않는다.
 - **type**: Card
 - **label**: 이미지 데이터 개수
 
@@ -236,7 +236,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답.
+- **description**: 2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답. 이미지 카드의 주 수치와 그 하단 프레임 단위 분포는 검수완료 영상의 프레임 중 폐기되지 않은 것만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 기준 수치는 수집한 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. 영상 카드와 영상 단위 분포는 폐기와 무관하다.
 
 **references_apis**:
 
@@ -255,7 +255,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: useVideos size=5, 정렬=reviewCompletedAt desc + 필수 필터 reviewStatusCd=APPROVED(둘은 짝으로만 전송 — 필터 없이 정렬만 보내면 BE가 조인 전용 정렬키를 무시해 미검수 영상까지 섞인다).
+- **note**: size=5, 정렬=reviewCompletedAt desc + 필수 필터 reviewStatusCd=APPROVED(둘은 짝으로만 전송 — 필터 없이 정렬만 보내면 BE가 조인 전용 정렬키를 무시해 미검수 영상까지 섞인다).
 - **type**: Table
 - **label**: CCTV명/이벤트/길이/완료일
 
@@ -274,7 +274,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: v.eventTypeCd ?? v.eventName
+- **note**: eventTypeCd 가 있으면 그 값을, 없으면 eventName 을 표시한다.
 - **type**: Badge
 - **label**: EventTypeBadge 이벤트 배지
 
@@ -288,7 +288,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: recentLoading 시
+- **note**: 목록 조회 중 표시
 - **type**: Skeleton
 - **label**: 로딩
 
@@ -300,7 +300,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 정렬=reviewCompletedAt desc + 필수 필터 reviewStatusCd=APPROVED 조합으로 상위 5건 영상 목록(useVideos size=5, /videos). 컬럼: CCTV명/이벤트(EventTypeBadge)/길이(formatDuration)/완료일(MM-DD HH:mm). 빈 상태 '영상이 없습니다.', 로딩 Skeleton.
+- **description**: 정렬=reviewCompletedAt desc + 필수 필터 reviewStatusCd=APPROVED 조합으로 상위 5건 영상 목록(size=5, /videos). 컬럼: CCTV명/이벤트(EventTypeBadge)/길이(formatDuration)/완료일(MM-DD HH:mm). 빈 상태 '영상이 없습니다.', 로딩 Skeleton.
 
 **references_apis**:
 
@@ -319,7 +319,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: useTasks workerId=본인 size=5, WORKER 역할에서만 렌더
+- **note**: workerId=본인 size=5 로 조회, WORKER 역할에서만 렌더
 - **type**: Table
 - **label**: 영상/상태/진행률
 
@@ -364,7 +364,7 @@ _(empty)_
 
 #### [4]
 
-- **note**: myTasksLoading 시
+- **note**: 목록 조회 중 표시
 - **type**: Skeleton
 - **label**: 로딩
 
@@ -376,7 +376,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: WORKER 역할에서만 렌더. 본인 배정 작업 상위 5건(useTasks workerId=본인 size=5, /assignments). 컬럼: 영상/상태(StatusBadge)/진행률(ProgressBar — COMPLETED 100·IN_PROGRESS 50·그 외 0). 빈 상태 '작업이 없습니다.', 로딩 Skeleton.
+- **description**: WORKER 역할에서만 렌더. 본인 배정 작업 상위 5건(size=5, /assignments). 컬럼: 영상/상태(StatusBadge)/진행률(ProgressBar — COMPLETED 100·IN_PROGRESS 50·그 외 0). 빈 상태 '작업이 없습니다.', 로딩 Skeleton.
 
 **references_apis**:
 
@@ -474,15 +474,16 @@ _(empty)_
 - **label**: 대시보드 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: aef0eacb1090b123e8fe02cc6bd54529c40c47accd10fcb662771700e6a06da3
-- **generated_at**: 2026-08-13T00:54:55.571Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: ca9da9dfc3f5d7f2655838d4bcb045cb998af598ccc60e115f40a834131a83a0
+- **generated_at**: 2026-08-17T12:44:49.242Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

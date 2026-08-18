@@ -27,9 +27,9 @@ public interface LsRawDataStatusRepository extends JpaRepository<LsRawDataStatus
      * 재배정 가드용 <b>공유 잠금(SELECT ... FOR SHARE) 조회</b> (CWE-362, DEV_FIX H4-b).
      *
      * <p>기존 재배정 가드는 작업 상태를 {@code findById} 로 <b>읽기만</b> 했고 이후 UPDATE 는
-     * {@code LS_TASK_ASSIGNMENT}(다른 row)에만 일어나, 두 row 가 잠금을 공유하지 않아
+     * {@code LS_TASK_ALTMNT}(다른 row)에만 일어나, 두 row 가 잠금을 공유하지 않아
      * "가드가 상태를 읽음 → 다른 tx 가 approve 커밋 → reassign 커밋" 순서에서 <b>검수 승인된 영상이
-     * 재배정</b>됐다. {@code LS_TASK_ASSIGNMENT} 의 {@code @Version} 은 assignment 버전만 올리므로 이 창을
+     * 재배정</b>됐다. {@code LS_TASK_ALTMNT} 의 {@code @Version} 은 assignment 버전만 올리므로 이 창을
      * 닫지 못하고, 2노드 Active-Active 라 JVM 락도 무효다.
      *
      * <p>따라서 가드가 상태 row 를 {@code PESSIMISTIC_READ}(PostgreSQL {@code FOR SHARE})로 잠근 채

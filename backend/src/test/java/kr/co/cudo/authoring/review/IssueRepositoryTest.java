@@ -30,7 +30,7 @@ class IssueRepositoryTest {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     /**
-     * 본 테스트가 쓰는 영상 ID — V146(DB-ISSUE-01) 이후 LS_TASK_ASSIGNMENT·LS_DATA_ISSUE 가
+     * 본 테스트가 쓰는 영상 ID — V146(DB-ISSUE-01) 이후 LS_TASK_ALTMNT·LS_DATA_ISSUE 가
      * LS_DATA_RAW 를 FK 로 참조하므로 부모 영상을 먼저 시드해야 한다.
      */
     private static final long[] RAW_SNS = {5001L, 5002L, 5003L, 6001L, 7777L};

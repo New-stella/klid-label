@@ -9,8 +9,10 @@
 
 | 통지 | 트리거 | 페이로드 |
 |------|--------|----------|
-| **TASK_COMPLETED** | `LS_RAW_DATA_STATUS.DATA_STTS_CD` → APPROVED 전이 | 이벤트 타입 + 작업 ID(RAW_SN) + 영상 메타(파일명·길이·채널) + 검수 완료 일시 + 프레임 개수 + 결과 요약 카운트(라벨 N·메타 M) + 요청 ID + **`evnt_cls_cd`·`evnt_ctgry_cd`·`gen_ai_yn`**. **본문 미포함** |
-| **TASK_MODIFIED** | 검수 완료 후 라벨/메타 수정 | 이벤트 타입 + 작업 ID + 마지막 수정 일시 + **변경 프레임 목록**(SRC_SN + 변경 종류 LABEL_ADDED/UPDATED/DELETED·META_UPDATED) + 변경 요약 카운트 + 요청 ID + **`ver_expln`**. **본문 미포함** |
+| **TASK_COMPLETED** | 검수 승인 → export 산출 `SUCCEEDED` (`ReviewApprovedEvent` → `DatasetExportCompletedEvent`) | required `job_id`·`event_type_cd`·`evnt_cls_cd`·`evnt_ctgry_cd`·`lclgv_cd`·`lclgv_nm`·`duration_sec`·`image_count`·`gen_ai_yn` + 선택 **`output_ver_no`**. required 는 값이 `null` 이어도 **키를 남긴다**. **본문 미포함** |
+| **TASK_MODIFIED** | 검수 완료 후 수정이 **재검수에서 승인**될 때 (`REVLT_YN='Y'` 표시 → 재승인이 해제 → 다음 flush tick) | `job_id` + **`changed_items`**`{images[]·jsons[]}`(산출 폴더의 실제 **파일명** `{FRM_NO 4자리 zero-pad}.jpg`/`.json`) + 선택 **`ver_expln`** + 선택 **`output_ver_no`**. **본문 미포함** |
+
+> ⚠ **구 서술 폐기** — TASK_COMPLETED 의 `이벤트 타입`·`영상 메타(파일명·채널)`·`검수 완료 일시`·`결과 요약 카운트`·`요청 ID`, TASK_MODIFIED 의 `이벤트 타입`·`마지막 수정 일시`·`변경 프레임 목록(SRC_SN)`·`변경 종류`·`변경 요약 카운트`·`요청 ID` 는 **어느 것도 페이로드에 없다.** 요청 식별자는 바디가 아니라 폴백 큐 `IDMP_KEY` 로만 쓰이고, 변경 종류(`ChangeType`)는 디바운스 축적 키·감사 로그 전용이다. `@JsonInclude` 는 **필드 레벨로만** 건다 — 클래스 레벨에 걸면 required 까지 생략돼 통지가 전량 `422` 로 깨진다.
 
 - **통지 단위 = 영상 1건** (라벨/이미지 1장 단위 아님)
 - 동일 작업 ID 유지, 버전 업 아님 — 수신측은 마지막 상태로 갱신
@@ -20,6 +22,11 @@
 
 **완료 통지는 required 8 + optional 1 = 9필드**이며, 여기에 **선택 필드 `output_ver_no` 를 더해 최대 10필드**다.
 구 형상은 6필드였고 그대로 발송하면 **전량 `422 VALIDATION_FAILED`** 로 거부됐다.
+
+> ⚠ **위 §15.1 표의 "required 9" 와 여기의 "required 8 + optional 1" 은 층이 다르다 — 한쪽으로 통일하지 말 것.**
+> 후자는 **관제 계약**이 규정한 필수 여부이고, 전자는 **우리 구현**이 실제로 하는 일이다 —
+> 앞 9개는 관제가 `lclgv_nm` 을 optional 로 두었더라도 **값이 `null` 이어도 키를 남긴다.**
+> 통일하면 어느 한쪽의 정확한 계약이 지워진다.
 통지 토글을 켜기 전에 반드시 이 형상이어야 한다.
 
 | 필드 | 필수 | 조달 |
@@ -74,7 +81,14 @@
 승인 후 수정 커밋 → TaskModifiedEvent(exportRegenerated=?)(AFTER_COMMIT)
   → TaskModifiedAccumulateListener (항상 활성 — control-notify 토글과 무관)
   → ControlNotifyDebouncer.accumulate (짧은 시간 내 다수 변경 → rawSn 단위 윈도우에 축적, 기본 60초)
-  → 전용 flush 스케줄러(기본 10초 tick, authoring.dataset-export.regen-flush.enabled) 만료 윈도우 flush:
+  → ReviewRecheckMarkListener(REQUIRES_NEW) → LS_RAW_DATA_STATUS.REVLT_YN='Y' (재검토 표시)
+  → 표시가 서 있는 동안 만료 flush **보류** — 창이 만료되는 것만으로는 나가지 않는다
+      (LsMonNotiAcmlRepository 의 flush 후보 SELECT 와 클레임 UPDATE **두 곳 모두**에
+       NOT EXISTS(REVLT_YN='Y') — SELECT~UPDATE 창까지 폐쇄)
+  → 검수자 재승인 → ReviewService.approve 가 clearNeedsRecheck()
+      (재승인은 ReviewApprovedEvent 를 발행하지 않는다 — 중복 방지)
+  → 그제서야 다음 flush tick 에 축적분이 풀린다.
+    전용 flush 스케줄러(기본 10초 tick, authoring.dataset-export.regen-flush.enabled) 만료 윈도우 flush:
       · exportRegenerated=true 인 윈도우 → AsyncDatasetExportRunner.runReExportThenNotify(force=true)
           → export 성공 시에만 통지 콜백(sendModified) 실행 — export 실패 시 통지 보류
           (재시도는 DatasetExportFailureRecoverer 가 FAILED 행을 회수해 재산출 성공 후 완료 이벤트로 재개)

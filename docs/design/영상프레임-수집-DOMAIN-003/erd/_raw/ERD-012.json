@@ -1,0 +1,1523 @@
+{
+  "item": {
+    "id": "ERD-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "erd",
+    "title": "영상·프레임 수집 ERD (고도화, PostgreSQL)",
+    "slug": "영상프레임-수집-erd-고도화-postgresql",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "dbms": "postgresql",
+      "level": "physical",
+      "tables": [
+        {
+          "name": "LS_DATA_RAW",
+          "columns": [
+            {
+              "name": "RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 DATA_RAW_SN → RAW_SN 으로 명칭 표준화",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DATA_RAW_SN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "PK. 작업 단위 식별자(RAW_SN). IDENTITY 자동증가",
+              "primary_key": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "원시영상일련번호"
+            },
+            {
+              "name": "VMS_CLIP_ID",
+              "type": "varchar(128)",
+              "unique": true,
+              "nullable": false,
+              "brownfield": {
+                "notes": "고도화 신규 — 관제서버 클립 연계 upsert 키",
+                "status": "new"
+              },
+              "description": "관제서버 VMS 클립 식별자. UNIQUE — 동일 클립 재수신 시 upsert 기준",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "VMS클립아이디"
+            },
+            {
+              "name": "VMS_CCTV_ID",
+              "type": "varchar(64)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "1차 varchar(30) → varchar(64) 확장. NOT NULL 이었으나 NULL 허용으로 완화",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "VMS_CCTV_ID",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "관제서버 VMS CCTV 식별자. CCTV 식별자가 없는 영상이 있어 값이 비어 있을 수 있다",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "VMS_CCTV아이디"
+            },
+            {
+              "name": "EVNT_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "감리 대응 — 표준용어 코드V20 정합: varchar(32)→varchar(20)(2026-07-16). 1차 원형(varchar(20))과 동일 길이로 재정합",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "EVNT_TYPE_CD",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "이벤트 유형 코드",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "이벤트유형코드"
+            },
+            {
+              "name": "LCLGV_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "감리 대응 — 표준용어 코드V20 정합: varchar(32)→varchar(20)(2026-07-16). 1차 원형(varchar(20))과 동일 길이로 재정합",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "LCLGV_CD",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "지방정부 기관 코드",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "지방자치단체코드"
+            },
+            {
+              "name": "PRVC_TYPE_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "고도화 신규 — 1차의 PRVC_YN(Y/N)을 유형 코드로 세분화, PRVC_YN 은 이 값에서 파생",
+                "status": "new"
+              },
+              "code_values": {
+                "PRVC": "개인정보 포함(비식별 대상)",
+                "PSDO": "가명처리 대상(비식별 대상)",
+                "ANONY": "비식별 불필요(원본 보존)"
+              },
+              "description": "개인정보 유형(ANONY/PRVC/PSDO). PRVC/PSDO 만 비식별 대상",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "개인정보유형코드"
+            },
+            {
+              "name": "PRVC_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "N",
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 nullable → NOT NULL DEFAULT N, PRVC_TYPE_CD 파생값으로 일원화",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "PRVC_YN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "개인정보 포함 여부. PRVC_TYPE_CD 에서 자동 산출(PRVC/PSDO→Y, ANONY→N)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "개인정보포함여부"
+            },
+            {
+              "name": "DE_IDENT_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "N",
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 nullable → NOT NULL DEFAULT N, F(실패) 값 명시",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DE_IDNTF_YN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "code_values": {
+                "F": "비식별 실패",
+                "N": "미수행",
+                "Y": "비식별 성공"
+              },
+              "description": "비식별 처리 결과(Y=성공/F=실패/N=미수행)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "비식별여부"
+            },
+            {
+              "name": "RAW_FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 RAW_FILE_PATH varchar(1000) → RAW_FILE_PATH_NM varchar(500) 표준화(_NM 접미사)",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "RAW_FILE_PATH",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "원본 영상 파일 경로(원본 보존 — 비식별 시에도 불변)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "원시파일경로명"
+            },
+            {
+              "name": "SHT_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "1차 datetime → timestamp(PG)",
+                "status": "preserved",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "SHT_DT",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "촬영 일시",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "촬영일시"
+            },
+            {
+              "name": "VDO_LEN_SEC",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "1차 VDO_LEN int(11) NOT NULL → V2 DURATION_SEC integer nullable(명칭 표준화 1단계) → V61 VDO_LEN_SEC 로 재개명(글로서리 표준, 영상=VDO/길이=LEN/초=SEC).",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "VDO_LEN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "영상 길이(초)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "영상길이초"
+            },
+            {
+              "name": "ORGNL_RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "V46 추가 — 고도화 증강(새 영상) 도메인 신규 컬럼. V82: 물리명 PARENT_RAW_SN→ORGNL_RAW_SN 표준단어(ORGNL=원본) 정합. V95: 데이터마트 뷰 V_COMPLETED_VIDEO 출력 컬럼도 ORGNL_RAW_SN 으로 통일 — 외부 소비자 부재로 구 외부 계약명 PARENT_RAW_SN alias 는 폐지됐다 — 뷰 V_COMPLETED_VIDEO 는 alias 없이 ORGNL_RAW_SN 을 그대로 내보낸다. 내부·외부 모두 ORGNL_RAW_SN 이다.",
+                "status": "new"
+              },
+              "description": "증강 결과 영상의 원본 RAW_SN 참조(증강=새 영상). 원본이면 NULL. 참조 무결성 제약(FK)은 두지 않는다 — 원본 영상(ORGNL_RAW_SN IS NULL)을 물리 삭제하는 경로가 없어(실삭제 대상은 파생 영상뿐) 이 컬럼이 dangling 참조를 가리키는 상황 자체가 발생하지 않는다.",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "원본원시영상일련번호"
+            },
+            {
+              "name": "DATA_STTS_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "default": "PENDING",
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차에서는 LS_DATA_SRC 에 있던 상태를 영상 단위 RAW 로 이동, DEFAULT PENDING",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DATA_STTS_CD",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "배치 단계 상태(PENDING/BATCH_QUEUED/PROCESSING/COMPLETED/FAILED 등)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "데이터상태코드"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 nullable → NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "REG_DT",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "등록 일시",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "1차 datetime → timestamp(PG)",
+                "status": "preserved",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "MDFCN_DT",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "수정 일시",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "수정일시"
+            },
+            {
+              "name": "SRC_TYPE",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 출처유형(V148 신설, V149 백필). 구 AugTypeParser 의 VMS_CLIP_ID 문자열 역파싱(_AUG_/_RESL_/레거시 _RES_)을 폐기하고 출처를 컬럼으로 단일화한 것. 판정축은 ORGNL_RAW_SN IS NOT NULL(파생 여부)이며 AUG_TYPE_CD 와 서로 다른 축이다.",
+              "primary_key": false,
+              "logical_column_name": "출처유형"
+            },
+            {
+              "name": "AUG_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "증강유형코드(V148 신설, V149 백필). 외부 증강 3종(WINTER/NIGHT/RAIN) 및 해상도 파생(RESL_1080P/720P/480P). 판정축은 마커 파싱 대체이며 SRC_TYPE 과 구분된다. 레거시 'RESOLUTION' 은 LsDataAug.CONTRACT_AUG_TYPES 화이트리스트로 노출 차단.",
+              "primary_key": false,
+              "logical_column_name": "증강유형코드"
+            },
+            {
+              "name": "ANONY_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "영상 단위 익명정보 포함여부(V163 신설, 수동입력·NULL=미입력). export JSON 의 video 블록이 이 축을 읽고 image 블록은 프레임 축(LS_DATA_SRC, V130)을 읽는다 — 두 값이 달라도 입도가 달라 모순이 아니다. 화면 GET/PUT /v1/videos/{rawSn}/privacy-meta. 근거 ADR-032.",
+              "primary_key": false,
+              "logical_column_name": "익명정보포함여부"
+            },
+            {
+              "name": "PSDO_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "영상 단위 가명정보 포함여부(V163 신설, 수동입력·NULL=미입력). 파생영상은 생성 시점에 부모의 이 3필드를 1회 계승한다(copyPrivacyMetaFrom). 비식별 누락 신고는 이 값을 리셋하지 않고 보존한다 — 구 정책 '신고 접수 시 재판정 대상으로 리셋'은 2026-08-04 확정으로 폐기됐다(사람이 입력한 판정도 라벨과 같은 작업 결과이므로 폐기하지 않는다).",
+              "primary_key": false,
+              "logical_column_name": "가명정보포함여부"
+            },
+            {
+              "name": "PRVC_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "영상 단위 개인정보 포함여부(V163 신설, 수동입력·NULL=미입력). 파생영상은 생성 시점에 부모의 이 3필드를 1회 계승한다(copyPrivacyMetaFrom) — 계승하지 않으면 개인정보가 과소 신고된다.",
+              "primary_key": false,
+              "logical_column_name": "개인정보포함여부"
+            },
+            {
+              "name": "VDO_LEN_MS",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "원본 영상 길이(밀리초, V67 신설). 1차 이관본만 값을 채우며 NULL=네이티브 수집분 또는 미상이다. 초 단위 값은 VDO_LEN_SEC 이 담당하고 이 컬럼은 밀리초 정밀도가 필요한 경우에만 쓴다.",
+              "primary_key": false,
+              "logical_column_name": "영상길이밀리초"
+            },
+            {
+              "name": "WTHR_NM",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "촬영 날씨(작업자 수동입력, V130 신설). NULL=미입력(미상). 자동 파생 원천이 없어 값이 있으면 항상 사람이 넣은 값이다. 표준도메인 명(NM)=VARCHAR(20).",
+              "primary_key": false,
+              "logical_column_name": "날씨명"
+            },
+            {
+              "name": "DAY_NGT_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "촬영 시간대 코드 — 주간/야간(작업자 수동입력, V130 신설). NULL=미입력(미상). 동결·export·데이터마트 뷰는 NULL 을 그대로 싣고 촬영일시로 추정하지 않는다. 촬영일시 파생은 화면 프리필(조회 응답 source=DERIVED)에만 쓴다. 표준도메인 코드(CD)=VARCHAR(20).",
+              "primary_key": false,
+              "logical_column_name": "주야구분코드"
+            },
+            {
+              "name": "SESN_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "촬영 계절 코드(작업자 수동입력, V130 신설). NULL=미입력(미상). 동결·export·데이터마트 뷰는 NULL 을 그대로 싣고 촬영일시로 추정하지 않는다. 촬영일시 파생은 화면 프리필(조회 응답 source=DERIVED)에만 쓴다. 표준도메인 코드(CD)=VARCHAR(20).",
+              "primary_key": false,
+              "logical_column_name": "계절코드"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "UK_LS_DATA_RAW_VMS_CLIP",
+              "unique": true,
+              "columns": [
+                "VMS_CLIP_ID"
+              ]
+            },
+            {
+              "name": "IX_LS_DATA_RAW_CCTV",
+              "unique": false,
+              "columns": [
+                "VMS_CCTV_ID"
+              ]
+            },
+            {
+              "name": "IX_LS_DATA_RAW_STTS",
+              "unique": false,
+              "columns": [
+                "DATA_STTS_CD"
+              ]
+            },
+            {
+              "name": "IDX_LDR_ORGNL",
+              "unique": false,
+              "columns": [
+                "ORGNL_RAW_SN"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "1차 ~48컬럼을 13컬럼 슬림화. 촬영자/장비/코덱/해상도/날씨/계절 등 메타는 두지 않는다, VMS_CLIP_ID/PARENT_RAW_SN 신규.",
+            "status": "modified",
+            "legacy_source": {
+              "type": "table",
+              "identifier": "LS_DATA_RAW",
+              "legacy_dbms": "MariaDB"
+            }
+          },
+          "description": "라벨링 대상 원시 영상 메타(영상 단위 작업). VMS_CLIP_ID 유니크로 동일 클립 재수신 시 upsert. PRVC_TYPE_CD 에 따라 PRVC_YN 자동 산출.",
+          "logical_table_name": "원시영상"
+        },
+        {
+          "name": "LS_DATA_SRC",
+          "columns": [
+            {
+              "name": "SRC_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 DATA_SRC_SN → SRC_SN 명칭 표준화",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DATA_SRC_SN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "PK. 프레임 식별자(SRC_SN). IDENTITY 자동증가",
+              "primary_key": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "프레임원천일련번호"
+            },
+            {
+              "name": "RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 DATA_RAW_SN → RAW_SN",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DATA_RAW_SN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "references": {
+                "table": "LS_DATA_RAW",
+                "column": "RAW_SN",
+                "on_delete": "cascade"
+              },
+              "description": "소속 원시영상 FK(→LS_DATA_RAW). 객체 참조 대신 ID 참조",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "원시영상일련번호"
+            },
+            {
+              "name": "FRM_NO",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차(레거시 MariaDB) 명칭은 FRM_NO. 본 저장소 V4 최초 도입 시 FRAME_NO 로 명명했으나 글로서리 표준단어(프레임=FRM) 미준수라 V61 에서 FRM_NO 로 재개명.",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "FRM_NO",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "프레임 인덱스(0-base). (RAW_SN,FRM_NO) 유니크",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "프레임번호"
+            },
+            {
+              "name": "SRC_FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 SRC_FILE_PATH varchar(1000) → SRC_FILE_PATH_NM varchar(500)",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "SRC_FILE_PATH",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "원본 프레임 이미지 경로",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "원천파일경로명"
+            },
+            {
+              "name": "DE_IDNTF_SRC_FILE_PATH_NM",
+              "type": "varchar(1000)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "1차 SRC_BKUP_FILE_PATH → SRC_BKUP_FILE_PATH_NM",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "SRC_BKUP_FILE_PATH",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "비식별 영상에서 추출한 동일 프레임 경로(라벨링 대상 비식별 프레임). 원본 프레임 경로(SRC_FILE_PATH_NM)와 짝을 이룬다. 표준용어 비식별원천파일경로명(용어 id 1416). 1차 레거시명 SRC_BKUP_FILE_PATH(BKUP=백업, 의미 불일치)에서 정정 완료(V4/V52/엔티티 rename, 빌드 PASS).",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "비식별원천파일경로명"
+            },
+            {
+              "name": "SHT_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "고도화 프레임 row 에 촬영일시 추가(1차 SRC 에 미존재)",
+                "status": "new"
+              },
+              "description": "프레임 촬영 일시",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "촬영일시"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 nullable → NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "REG_DT",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "등록 일시",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "UPD_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "1차 MDFCN_DT → UPD_DT 명칭 변경",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "MDFCN_DT",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "수정 일시(비식별 경로 연결 시 갱신)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "수정일시"
+            },
+            {
+              "name": "VDO_FRM_NO",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "V70 신규 컬럼(당시 INTEGER). V84 코드=진실원 정합 시 BIGINT 로 타입 확정. 코드=진실원 backfill(ERD 누락분, 2026-07-10)",
+                "status": "new"
+              },
+              "description": "실제 영상 내 디코더 0-base 프레임 위치. FRM_NO(추출순번)와 의미 구분 — 재비식별 재추출용. (V70 추가, V84 BIGINT)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "영상프레임번호"
+            },
+            {
+              "name": "FRM_EXPLN",
+              "type": "varchar(1000)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "고도화 신규 — NIA image.description(프레임 단위 자연어 설명, 작업자 수기) 조달 컬럼. Flyway V103 신규. 표준용어 조합 FRM(프레임)+EXPLN(설명, program id248/gov 기등록).",
+                "status": "new"
+              },
+              "description": "프레임 설명(작업자 수기, NIA image.description 조달원). null 허용 — 미입력/삭제 가능. 최대 1000자(FrameDescription API 상한 정합).",
+              "primary_key": false,
+              "implementation": {
+                "status": "implemented",
+                "modules": [],
+                "records": [],
+                "progress": 100,
+                "subtasks": []
+              },
+              "logical_column_name": "프레임설명"
+            },
+            {
+              "name": "ANONY_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "프레임 단위 익명정보 포함여부(V130 신설, 작업자 수동입력·NULL=미입력). export JSON 의 image 블록이 이 축을 읽고 video 블록은 영상 축(LS_DATA_RAW, V163)을 읽는다 — 두 값이 달라도 입도가 달라 모순이 아니다. 이 3컬럼에는 원천용 DB DEFAULT 를 걸지 않는다(한 벌을 두 축이 공유하므로 기본값을 걸면 비식별 축의 미입력이 사라진다).",
+              "primary_key": false,
+              "logical_column_name": "익명정보포함여부"
+            },
+            {
+              "name": "PSDO_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "프레임 단위 가명정보 포함여부(V130 신설, 작업자 수동입력·NULL=미입력). 화면 경로는 PUT /v1/frames/{srcSn}/privacy-meta 이며 비식별 신고 구간에는 412 로 차단된다.",
+              "primary_key": false,
+              "logical_column_name": "가명정보포함여부"
+            },
+            {
+              "name": "PRVC_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "프레임 단위 개인정보 포함여부(V130 신설, 작업자 수동입력·NULL=미입력). 비식별 누락 신고는 이 값을 리셋하지 않고 보존한다(2026-08-04 확정 — 구 리셋 정책 폐기).",
+              "primary_key": false,
+              "logical_column_name": "개인정보포함여부"
+            },
+            {
+              "name": "LBL_VER",
+              "type": "bigint",
+              "unique": false,
+              "default": "0",
+              "nullable": false,
+              "description": "라벨 버전(V135 신설, DEFAULT 0). 프레임 라벨셋이 바뀔 때마다 1 증가시켜 동시 저장의 lost update 를 차단한다.",
+              "primary_key": false,
+              "logical_column_name": "라벨버전"
+            },
+            {
+              "name": "DSCD_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "N",
+              "nullable": false,
+              "description": "프레임 폐기 여부. 작업자가 학습데이터에 넣지 않기로 결정한 프레임을 표시한다. 논리 폐기라 프레임 행과 이미지 파일과 라벨은 그대로 보존하고 학습데이터 산출물과 데이터마트 노출에서만 제외한다. 전체 기준 프레임 수에서는 빼지 않는다 — 총량이 줄면 진행 상황이 왜 바뀌었는지 알 수 없기 때문이다. 반면 학습데이터로 확정된 분량을 뜻하는 검수완료 기준 집계는 이 값이 Y 인 프레임을 세지 않는다. 폐기와 복원은 라벨링 접근 권한과 같은 범위에서 수행하며, 누가 언제 무슨 사유로 바꿨는지는 작업 이벤트 이력에 남는다. 허용값은 Y/N 이며 미지정 시 N 이다.",
+              "primary_key": false,
+              "logical_column_name": "폐기여부"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "UK_LS_DATA_SRC_RAW_FRAME",
+              "unique": true,
+              "columns": [
+                "RAW_SN",
+                "FRM_NO"
+              ]
+            },
+            {
+              "name": "IX_LS_DATA_SRC_RAW",
+              "unique": false,
+              "columns": [
+                "RAW_SN"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "1차 ~26컬럼을 8컬럼 슬림화. 프로젝트/단계차수/검수차수/이미지속성 등 제거, RAW_SN 직접 FK + (RAW_SN,FRM_NO) 유니크.",
+            "status": "modified",
+            "legacy_source": {
+              "type": "table",
+              "identifier": "LS_DATA_SRC",
+              "legacy_dbms": "MariaDB"
+            }
+          },
+          "description": "영상에서 추출한 키프레임(FRAME_EXTRACT 단계 산출). 원본/비식별 프레임을 같은 row 의 경로/백업경로로 관리.",
+          "logical_table_name": "프레임원천"
+        },
+        {
+          "name": "LS_DATA_SRC_HSTRY",
+          "columns": [
+            {
+              "name": "HSTRY_SEQ",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 DATA_SRC_HSTRY_SN → HSTRY_SEQ",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DATA_SRC_HSTRY_SN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "PK. 이력 시퀀스(IDENTITY)",
+              "primary_key": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "이력일련번호"
+            },
+            {
+              "name": "SRC_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 DATA_SRC_SN → SRC_SN",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "DATA_SRC_SN",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "대상 프레임 SRC_SN(→LS_DATA_SRC)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "프레임원천일련번호"
+            },
+            {
+              "name": "CHG_TYPE_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 ACTION_TYPE_CD → CHG_TYPE_CD, 의미 재정의",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "ACTION_TYPE_CD",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "code_values": {
+                "CREATED": "프레임 생성",
+                "DEID_ATTACHED": "비식별 경로 연결"
+              },
+              "description": "변경 사유(CREATED/DEID_ATTACHED)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "변경유형코드"
+            },
+            {
+              "name": "CHG_USER_NO",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "고도화 신규 — 변경 주체 기록",
+                "status": "new"
+              },
+              "description": "변경 수행 사용자 번호(시스템 변경 시 NULL)",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "변경사용자번호"
+            },
+            {
+              "name": "CHG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "brownfield": {
+                "notes": "1차 ACTION_DT datetime(3) → CHG_DT timestamp NOT NULL",
+                "status": "modified",
+                "legacy_source": {
+                  "type": "column",
+                  "identifier": "ACTION_DT",
+                  "legacy_dbms": "MariaDB"
+                }
+              },
+              "description": "변경 일시",
+              "primary_key": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              },
+              "logical_column_name": "변경일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IX_LS_DATA_SRC_HSTRY_SRC",
+              "unique": false,
+              "columns": [
+                "SRC_SN"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "1차 base 미러링 ~26컬럼 → 변경사유만 기록하는 5컬럼 슬림 재설계.",
+            "status": "modified",
+            "legacy_source": {
+              "type": "table",
+              "identifier": "LS_DATA_SRC_HSTRY",
+              "legacy_dbms": "MariaDB"
+            }
+          },
+          "description": "프레임 변경 이력. CREATED(생성)·DEID_ATTACHED(비식별경로 연결) 등 사유 기록. base 컬럼 미러링 없음.",
+          "logical_table_name": "프레임원천이력"
+        },
+        {
+          "name": "LS_DATA_INGEST",
+          "columns": [
+            {
+              "name": "RCPTN_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "수신일련번호(PK). 관제가 미지정 시 IDENTITY 발급. 작업 테이블의 RAW_SN 과는 별개 식별자다.",
+              "primary_key": true,
+              "logical_column_name": "수신일련번호"
+            },
+            {
+              "name": "RCPTN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "수신일시(DEFAULT CURRENT_TIMESTAMP). 폴링 순서(FIFO) 기준.",
+              "primary_key": false,
+              "logical_column_name": "수신일시"
+            },
+            {
+              "name": "PRCS_STTS_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "DONE": "적재 완료",
+                "FAILED": "적재 실패",
+                "PENDING": "미처리(기본값)"
+              },
+              "description": "저작도구 처리상태코드. DEFAULT 'PENDING' — 관제는 이 컬럼을 채우지 않아도 폴링 대상이 된다. V172 개명(구 PROC_STTS_CD): PROC 는 사업표준 미등록이고 공공표준에서는 프로세스라 뜻이 다르다. 처리=PRCS 로 같은 테이블 PRCS_DT 와 약어를 통일했다.",
+              "primary_key": false,
+              "logical_column_name": "처리상태코드"
+            },
+            {
+              "name": "RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "적재 결과 영상 식별자(LS_DATA_RAW.RAW_SN). 적재 전 NULL. FK 를 걸지 않는다 — 영상 행이 정리돼도 수신 기록은 남아야 한다.",
+              "primary_key": false,
+              "logical_column_name": "원시영상일련번호"
+            },
+            {
+              "name": "RTY_CNT",
+              "type": "integer",
+              "unique": false,
+              "nullable": false,
+              "description": "적재 재시도 횟수(DEFAULT 0). 파일 미도착은 실패가 아니라 미처리로 두고 다음 주기에 재시도한다.",
+              "primary_key": false,
+              "logical_column_name": "재시도횟수"
+            },
+            {
+              "name": "PRCS_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "저작도구가 이 행을 처리한 시각. 미처리 상태에서는 최초 파일 미도착 관측 시각(대기 예산 앵커)이다 — 대기 상한은 관제가 준 RCPTN_DT 가 아니라 이 값 기준으로 잰다(RCPTN_DT 는 INSERT 주체가 관제라 과거 시각이 들어오면 도착 즉시 종결된다). 재큐 시 NULL 로 비워 예산을 리셋.",
+              "primary_key": false,
+              "logical_column_name": "처리일시"
+            },
+            {
+              "name": "NXTM_RTRY_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "차기 재시도 예정 일시(backoff). 폴링 후보는 PENDING AND (이 값이 NULL 이거나 현재 시각 이하)이며, 파일 미도착 관측 시 값을 뒤로 밀어 고착 행이 FIFO 앞자리를 잠식하지 못하게 한다. 재큐 시 NULL 로 비운다. 물리명 경위: V147 NEXT_RTRY_DT → V172 NXTM_RTY_DT → V175 NXTM_RTRY_DT. NEXT 는 행안부·사업 양쪽 미등록이라 차기=NXTM 으로 바꾼 것이 V172 이고, 그때 함께 사업 전용어 RTY 로 바꾼 재시도를 행안부 공통표준 RTRY 로 되돌린 것이 V175 다(표준 우선순위 ①행안부→②사업). 같은 테이블의 RTY_CNT 는 범위 밖이라 그대로 공존하며 이는 의도된 상태다. 다른 테이블 LS_CONTROL_NOTIFY_FALLBACK.NEXT_RTRY_DT 는 별개 컬럼이므로 함께 바꾸지 말 것.",
+              "primary_key": false,
+              "logical_column_name": "다음재시도일시"
+            },
+            {
+              "name": "ERR_MSG",
+              "type": "varchar(4000)",
+              "unique": false,
+              "nullable": true,
+              "description": "적재 실패 사유(요약). 절대경로·시크릿·스택트레이스 미포함.",
+              "primary_key": false,
+              "logical_column_name": "에러메시지"
+            },
+            {
+              "name": "VMS_CLIP_ID",
+              "type": "varchar(128)",
+              "unique": true,
+              "nullable": false,
+              "description": "VMS 클립 아이디(관제 video.id). 관제 재송신·중복 INSERT 방어 UK — 영상 1건(클립)당 인입 1행. 관제가 자기 INSERT 행과 완료통지를 매핑하는 자연키다.",
+              "primary_key": false,
+              "logical_column_name": "VMS클립아이디"
+            },
+            {
+              "name": "VMS_CCTV_ID",
+              "type": "varchar(64)",
+              "unique": false,
+              "nullable": true,
+              "description": "VMS CCTV 아이디(관제 video.cctv_mng_no). CCTV 식별자가 없는 영상(수동 업로드 등)이 있어 값이 비어 있을 수 있다.",
+              "primary_key": false,
+              "logical_column_name": "VMS_CCTV아이디"
+            },
+            {
+              "name": "VDO_FILE_NM",
+              "type": "varchar(300)",
+              "unique": false,
+              "nullable": false,
+              "description": "동영상 파일명(관제 video.filename). 명V300 채택 — 실측 max 113자라 명V100 이면 절삭된다.",
+              "primary_key": false,
+              "logical_column_name": "동영상파일명"
+            },
+            {
+              "name": "RAW_FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": false,
+              "description": "원시 파일 경로명 — 관제 NAS 실경로(strg_uri).",
+              "primary_key": false,
+              "logical_column_name": "원시파일경로명"
+            },
+            {
+              "name": "SRC_TYPE",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "RELAY": "중계서버 수집 CCTV 클립",
+                "ORIGINAL": "원천 영상",
+                "USER_ULD": "사용자 업로드",
+                "GENERATED": "관제서버가 생성형으로 만든 영상"
+              },
+              "description": "출처유형. 경계축은 '관제가 만들었나 / 저작도구가 만들었나'이며 외부 위탁 여부가 아니다. AUGMENTED 는 저작도구 파생이라 인입으로 오지 않는다. DEFAULT 를 두지 않는다 — 기본값을 주면 관제 누락 시 조용히 틀린 출처로 적재되므로 NOT NULL 위반으로 즉시 드러나게 한다(fail-closed).",
+              "primary_key": false,
+              "logical_column_name": "출처유형"
+            },
+            {
+              "name": "SHT_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "촬영일시(관제 video.date_created).",
+              "primary_key": false,
+              "logical_column_name": "촬영일시"
+            },
+            {
+              "name": "FILE_FMT",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "파일형식(관제 video.type). 구 MNG_CLIP_MASTER.FILE_FMT 의 대체 원천.",
+              "primary_key": false,
+              "logical_column_name": "파일형식"
+            },
+            {
+              "name": "VDO_CDC",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상코덱(관제 video.format).",
+              "primary_key": false,
+              "logical_column_name": "영상코덱"
+            },
+            {
+              "name": "FILE_SZ",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "파일크기 — 관제 수신 바이트 수. 어노테이션 표기('4800KB')는 export 직렬화 단계에서 만든다(인입은 원본 단위 그대로).",
+              "primary_key": false,
+              "logical_column_name": "파일크기"
+            },
+            {
+              "name": "LCLGV_NM",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": true,
+              "description": "지방자치단체명(관제 video.location). 동은 포함하지 않는다. 지방자치단체코드(LCLGV_CD)와 서로 다른 값이며 둘을 대체·통합하지 않는다. V172 개명(구 RGN_NM, varchar(200)): RGN 은 사업표준 미등록이고 지방자치단체명=LCLGV_NM 이 행안부·사업 양쪽 용어로 등록돼 있으며 도메인이 명V100 이라 길이도 100 으로 맞췄다. 관제 datasets.lclgv_nm 과 물리명·길이가 일치한다.",
+              "primary_key": false,
+              "logical_column_name": "지방자치단체명"
+            },
+            {
+              "name": "VDO_LEN_SEC",
+              "type": "numeric(10)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상길이(초). 밀리초 정밀도는 LS_DATA_RAW.VDO_LEN_MS 담당.",
+              "primary_key": false,
+              "logical_column_name": "영상길이초"
+            },
+            {
+              "name": "FPS",
+              "type": "varchar(10)",
+              "unique": false,
+              "nullable": true,
+              "description": "프레임재생속도(관제 video.fps).",
+              "primary_key": false,
+              "logical_column_name": "프레임재생속도"
+            },
+            {
+              "name": "FRME_CNT",
+              "type": "numeric(10)",
+              "unique": false,
+              "nullable": true,
+              "description": "프레임수(관제 video.frames). V172 개명(구 FRM_CNT): FRM 은 표준에서 형식(Form)이라 구 물리명은 형식수로 읽혔다. 프레임=FRME(행안부 공통표준)로 정정.",
+              "primary_key": false,
+              "logical_column_name": "프레임수"
+            },
+            {
+              "name": "ASPRT_RT",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "종횡비(관제 video.aspect_ratio). 예 4:3.",
+              "primary_key": false,
+              "logical_column_name": "종횡비"
+            },
+            {
+              "name": "WDTH",
+              "type": "numeric(10)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 너비(px). 가로/세로 사업표준 짝은 WDTH/VRTC 다(VDO_WDTH/VDO_HGT 는 미등록 폐기안).",
+              "primary_key": false,
+              "logical_column_name": "너비"
+            },
+            {
+              "name": "VRTC",
+              "type": "numeric(10)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 세로(px).",
+              "primary_key": false,
+              "logical_column_name": "세로"
+            },
+            {
+              "name": "RESL",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "해상도 표기(관제 video.resolution). 어노테이션 resolution/pixel 두 등급 표기의 파생 원천.",
+              "primary_key": false,
+              "logical_column_name": "해상도"
+            },
+            {
+              "name": "BIT",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "비트값 = 색심도 표기(예 24bit). 비트레이트가 아니다. PostgreSQL 에서 컬럼명으로는 무인용 사용 가능(인용 금지 — 인용하면 대문자 식별자가 고정돼 이후 모든 참조에 인용이 강제된다).",
+              "primary_key": false,
+              "logical_column_name": "비트값"
+            },
+            {
+              "name": "PXL",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "화소 표기(관제 video.pixel). 예 4K.",
+              "primary_key": false,
+              "logical_column_name": "화소"
+            },
+            {
+              "name": "WGS84_LAT",
+              "type": "decimal(10,7)",
+              "unique": false,
+              "nullable": true,
+              "description": "WGS84 위도(관제 video.coordinates 분해). 구 MNG_RESOURCE_CCTV 좌표의 대체 원천 — V147 선존이라 스키마 협의 불요(값 송신 요청만 남음).",
+              "primary_key": false,
+              "logical_column_name": "WGS84위도"
+            },
+            {
+              "name": "WGS84_LOT",
+              "type": "decimal(10,7)",
+              "unique": false,
+              "nullable": true,
+              "description": "WGS84 경도(관제 video.coordinates 분해).",
+              "primary_key": false,
+              "logical_column_name": "WGS84경도"
+            },
+            {
+              "name": "CCTV_NM",
+              "type": "varchar(300)",
+              "unique": false,
+              "nullable": true,
+              "description": "CCTV명(관제 resource_cctvs 조인). 구 MNG_RESOURCE_CCTV 의 CCTV명 대체 원천. 촬영 시점 값 고정.",
+              "primary_key": false,
+              "logical_column_name": "CCTV명"
+            },
+            {
+              "name": "CCTV_HGT",
+              "type": "decimal(4,1)",
+              "unique": false,
+              "nullable": true,
+              "description": "CCTV 설치 높이(m). 촬영 시점 값 고정 — 카메라 교체 시 과거 영상 오염 방지.",
+              "primary_key": false,
+              "logical_column_name": "CCTV높이"
+            },
+            {
+              "name": "MAIN_SURV_PAN_ANG",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "description": "주감시방향값(도, 관제 cctv_azimuth). 촬영 시점 값 고정 — 방위각 재설정 시 과거 영상 오염 방지.",
+              "primary_key": false,
+              "logical_column_name": "주감시방향값"
+            },
+            {
+              "name": "EVNT_ID",
+              "type": "varchar(50)",
+              "unique": false,
+              "nullable": true,
+              "description": "이벤트 아이디(관제 video.event_id). 예 ABA_0001. 값이 식별자형이라 이벤트유형코드가 아니다.",
+              "primary_key": false,
+              "logical_column_name": "이벤트아이디"
+            },
+            {
+              "name": "EVNT_NM",
+              "type": "varchar(200)",
+              "unique": false,
+              "nullable": true,
+              "description": "이벤트명(관제 video.event_name). 구 MNG_EX_EVNT_TYPE 의 코드→한글라벨 대체 원천이며, 필터 옵션 목록은 LS_DATA_RAW distinct 로 도출한다.",
+              "primary_key": false,
+              "logical_column_name": "이벤트명"
+            },
+            {
+              "name": "MNTR_CN",
+              "type": "varchar(4000)",
+              "unique": false,
+              "nullable": true,
+              "description": "관제일지 내용(관제 video.event_log).",
+              "primary_key": false,
+              "logical_column_name": "관제일지"
+            },
+            {
+              "name": "LCLGV_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "지방자치단체코드. LS_DATA_RAW.LCLGV_CD 의 원천이며 관제 완료통지 페이로드 lclgv_cd(required)가 이 값에서 나온다.",
+              "primary_key": false,
+              "logical_column_name": "지방자치단체코드"
+            },
+            {
+              "name": "EVNT_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "이벤트유형코드(V166 신설). 구 MNG_CLIP_EVNT_LST 조인 해석의 대체 원천 — 적재는 이 값을 우선 사용한다. 자동마킹 400 회귀를 막기 위해 삭제(Phase 3)보다 신설(Phase 2)이 먼저 이뤄졌다. 관제 송신 협의 대상이며 송신 전까지 NULL.",
+              "primary_key": false,
+              "logical_column_name": "이벤트유형코드"
+            },
+            {
+              "name": "ANONY_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "N",
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "원천 영상(비식별 처리 전)의 익명정보 포함 여부. V166 신설, V170 이 fail-closed DB DEFAULT 'N' 부여. 관제가 우리 코드를 거치지 않고 직접 INSERT 하므로 DB DEFAULT 가 값을 채울 유일한 수단이다(애플리케이션이 INSERT 하는 LS_DATA_RAW·LS_DATA_SRC 가 팩토리에서 채우는 것과 기법이 다른 기준은 '누가 INSERT 하는가'다). 구 서술 '인입에는 fail-closed 기본값을 박지 않고 소비 시점에만 적용한다'는 V170 으로 폐기됐다. 대가로 '관제 미송신'과 '관제가 N 송신'이 값만으로는 구분되지 않으며 이는 인지·수용된 사항이다. 기존 행 백필은 하지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "익명정보포함여부"
+            },
+            {
+              "name": "PSDO_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "N",
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "원천 영상의 가명정보 포함 여부. V166 신설, V170 이 fail-closed DB DEFAULT 'N' 부여. 인입은 관제 수신 원장이라 비식별 누락 신고가 이 값을 건드리지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "가명정보포함여부"
+            },
+            {
+              "name": "PRVC_INCL_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "Y",
+              "nullable": true,
+              "code_values": {
+                "N": "미포함",
+                "Y": "포함"
+              },
+              "description": "원천 영상의 개인정보 포함 여부. V166 신설, V170 이 fail-closed DB DEFAULT 'Y' 부여(모르면 개인정보가 있다고 본다). export JSON video 블록의 원천(orgnl) 축이 이 값을 그대로 싣고, 관제 미송신 필드는 값을 지어내지 않고 NULL 로 둔다.",
+              "primary_key": false,
+              "logical_column_name": "개인정보포함여부"
+            },
+            {
+              "name": "EVNT_CLSF_CD",
+              "type": "char(2)",
+              "unique": false,
+              "nullable": true,
+              "description": "이벤트분류코드(대분류, 관제 수신). LS_EVNT_TYPE.EVNT_CLSF_CD 의 원천이며 이벤트유형 제외 필터의 판정축이다. 코드에서 유도하지 않는다 — 관제가 안 보내면 NULL 이다. V168 신설, V172 에서 표준도메인 코드C2 로 정합(값이 정확히 2자라 고정길이 패딩이 생기지 않는다). 관제 완료 통지 페이로드의 evnt_cls_cd 는 이 값에서 나오며 우리 컬럼명과 관제 스펙명이 다르다.",
+              "primary_key": false,
+              "logical_column_name": "이벤트분류코드"
+            },
+            {
+              "name": "EVNT_CTGRY_CD",
+              "type": "char(4)",
+              "unique": false,
+              "nullable": true,
+              "description": "이벤트카테고리코드(관제 수신). 이벤트 3계층(대분류→카테고리→유형)의 중간 레벨이며 LS_EVNT_TYPE.EVNT_CTGRY_CD 의 원천이다. 관제가 안 보내면 NULL 이며 유도하지 않는다. V168 신설, V172 에서 표준도메인 코드C4 로 정합. 이벤트 카테고리 키 6자는 분류 2 + 카테고리 4 의 조합이다.",
+              "primary_key": false,
+              "logical_column_name": "이벤트카테고리코드"
+            },
+            {
+              "name": "VRFC_EVNT_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "notes": "V176 신설.",
+                "status": "new"
+              },
+              "description": "검증이벤트유형코드(관제 수신). 외부 VLM 검증 API 요청의 event_type 조달처(허용값 fire/fall/violence/flooding/car_accident/kidnapping 6종). EVNT_TYPE_CD(이벤트유형코드)와는 다른 값 — 대체·통합하거나 한쪽에서 유도하지 않는다. 관제 미송신 시 null 이며 서버가 보정하지 않는다(수신 원장).",
+              "primary_key": false,
+              "logical_column_name": "검증이벤트유형코드"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "PK_LS_DATA_INGEST",
+              "unique": true,
+              "columns": [
+                "RCPTN_SN"
+              ]
+            },
+            {
+              "name": "UK_LS_DATA_INGEST_CLIP",
+              "unique": true,
+              "columns": [
+                "VMS_CLIP_ID"
+              ]
+            },
+            {
+              "name": "IX_LS_DATA_INGEST_POLL",
+              "unique": false,
+              "columns": [
+                "RCPTN_DT",
+                "RCPTN_SN"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "V147 신설(37컬럼) + V166 추가(4컬럼) + V176 VRFC_EVNT_TYPE_CD 추가(43컬럼). 저작도구 소유 테이블이라 관제 협의는 '어떤 값을 보내줄 것인가'에 국한된다. IX_LS_DATA_INGEST_POLL 은 부분 인덱스(WHERE PRCS_STTS_CD='PENDING') + INCLUDE(NXTM_RTRY_DT) 로, 술어와 INCLUDE 는 메타 미지원이라 여기에 명시한다 — now 는 immutable 이 아니라 인덱스 술어에 넣을 수 없어 NXTM_RTRY_DT 를 INCLUDE 로 실어 힙 방문 없이 거른다.",
+            "status": "new"
+          },
+          "description": "관제 인입 — 관제서버가 학습용 영상 메타를 저작도구 테이블에 직접 INSERT 하는 수신 창구(V147 신설 37컬럼 + V166 추가 4컬럼 + V168 추가 2컬럼 = 43, 이후 OG_CD 폐기로 42). 관제가 자기 쪽 조인(v2_video_assets, v2_video_metadata, resource_cctvs) 결과를 평면 1행으로 넣고, 저작도구 폴링 배치가 PENDING 행을 집어 LS_DATA_RAW 로 적재한다. CCTV 제원(CCTV_NM/CCTV_HGT/MAIN_SURV_PAN_ANG)이 영상마다 중복 저장되는 것은 의도된 설계다 — 조인 참조하면 카메라 교체·방위각 재설정 시 과거 영상의 어노테이션이 현재 제원으로 오염된다. 인입에는 관제가 보내는 값만 둔다: 수동입력(촬영환경·개인정보)·VLM 산출·워크플로 컬럼(DATA_STTS_CD/DE_IDENT_YN/PRVC_TYPE_CD)은 제외한다. 행은 감사 추적을 위해 영구 보존하며 그래서 RAW_SN 에 FK 를 걸지 않는다. 물리명은 V172(PRCS_STTS_CD·NXTM_RTY_DT·LCLGV_NM·FRME_CNT + 이벤트 2코드 표준도메인)와 V175(NXTM_RTY_DT → NXTM_RTRY_DT)로 표준 정합을 마쳤고, 원천 개인정보 3필드의 fail-closed DB DEFAULT(N/N/Y)는 V170 이 부여했다. 근거 ADR-042. 기관코드(OG_CD)는 두지 않는다 — 관제가 공급하지 않는 값이라 폐기했다.",
+          "logical_table_name": "관제인입"
+        }
+      ],
+      "brownfield": {
+        "notes": "1차 LS_DATA_RAW/SRC 의 고도화 — 컬럼 표준화. 1차 원형은 ERD-007(deprecated) 참조.",
+        "status": "modified",
+        "decided_by": "ADR-010",
+        "legacy_source": {
+          "type": "table",
+          "identifier": "LS_DATA_RAW",
+          "legacy_dbms": "MariaDB"
+        }
+      },
+      "description": "고도화(2차) 영상·프레임 수집 물리 ERD. 진실원: 마이그레이션 이력 (V2 LS_DATA_RAW, V4 LS_DATA_SRC/HSTRY, V82 ORGNL_RAW_SN — 구 V46 PARENT_RAW_SN 에서 개명, V103 FRM_EXPLN, V130 프레임 개인정보 3필드, V147 LS_DATA_INGEST 신설, V148 SRC_TYPE/AUG_TYPE_CD, V149 백필, V163 영상 개인정보 3필드, V166 인입 수신 4컬럼) + JPA 엔티티(LsDataRaw/LsDataSrc/LsDataSrcHstry/LsDataIngest @Column). 작업 단위=영상 1건(RAW_SN), VMS_CLIP_ID 유니크로 upsert. 1차 LS_DATA_RAW/SRC 대비 컬럼을 대폭 슬림화·표준화(예: FILE_PATH→RAW_FILE_PATH_NM, VDO_LEN→VDO_LEN_SEC). 이력 테이블은 전체 미러링이 아닌 변경사유(CHG_TYPE_CD)+상태전이(PREV/NEW_STTS_CD)만 기록하는 슬림 구조로 재설계. ★ 적재 경로 반전(ADR-042) — 관제가 공유 DB(MNG_*)를 설정하면 저작도구가 스캔해 적재하던 구조가 폐기되고, 관제가 LS_DATA_INGEST 에 직접 INSERT 한 평면 1행을 저작도구 폴링 배치가 집어 적재한다. 이름·포맷·좌표는 LS_DATA_RAW 에 복사하지 않고 조회 시 LEFT JOIN LS_DATA_INGEST i ON i.RAW_SN = COALESCE(r.ORGNL_RAW_SN, r.RAW_SN) 로 얻는다(파생 깊이 1 고정이라 1단계 폴백으로 충분). 단 개인정보 3필드는 파생에서 인입 조인을 제외한다(파생의 판정은 비식별 축이며 자기 행에 계승돼 있음). 구 LS_RESOLUTION_EXPORT 관계는 V126 DROP·ADR-018(증강 모델 통합)로 제거됐다. 1차 원형은 ERD-007(deprecated) 참조. 영상 변경 이력 테이블은 두지 않는다 — 상태 전이는 영상 상태 테이블이 현재값으로, 사람의 조작은 작업 이벤트 로그가 각각 담당해 이 이력을 읽는 경로가 설계에 없다.",
+      "relationships": [
+        {
+          "label": "원시영상에서 추출된 프레임(프레임 추출 단계 산출)",
+          "to_table": "LS_DATA_RAW",
+          "from_table": "LS_DATA_SRC",
+          "via_column": "RAW_SN",
+          "cardinality": "N:1"
+        },
+        {
+          "label": "파생영상(증강·해상도)의 부모 참조. V82 개명, 파생 깊이 1 고정(ADR-023)",
+          "to_table": "LS_DATA_RAW",
+          "from_table": "LS_DATA_RAW",
+          "via_column": "ORGNL_RAW_SN",
+          "cardinality": "N:1"
+        },
+        {
+          "label": "프레임 변경이력",
+          "to_table": "LS_DATA_SRC",
+          "from_table": "LS_DATA_SRC_HSTRY",
+          "via_column": "SRC_SN",
+          "cardinality": "N:1"
+        },
+        {
+          "label": "관제 인입 행이 적재한 영상(역추적). FK 없음 — 인입은 영구 보존",
+          "to_table": "LS_DATA_RAW",
+          "from_table": "LS_DATA_INGEST",
+          "via_column": "RAW_SN",
+          "cardinality": "1:1"
+        }
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 30,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "프레임 폐기여부(DSCD_YN)가 집계에 미치는 범위를 두 축으로 나눠 적었다. 기존 서술은 «저작도구 내부 화면의 프레임 수에서는 빼지 않는다» 라고 무조건으로 적혀 있었는데, 학습데이터로 확정된 분량을 뜻하는 검수완료 기준 집계는 산출물·데이터마트와 같은 집합이어야 하므로 폐기된 프레임을 세지 않는다. 빼지 않는 축은 «전체 기준» 수치로 좁혔다 — 그 값은 수집한 전체 분량이라 총량이 줄면 진행 상황을 읽을 수 없기 때문이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T12:37:57.131Z",
+    "created_at": "2026-06-01T02:42:17.260Z"
+  }
+}

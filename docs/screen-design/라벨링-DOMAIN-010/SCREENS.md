@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-11T07:42:06.345Z (session 4) |
+| last sync | 2026-08-17T15:40:46.368Z (session 10) |
 | 화면 수 | 2개 |
-| ui_component 카탈로그 | populated 115건 |
+| ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
@@ -18,17 +18,17 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-005 | 라벨링 캔버스 화면 | UNCHANGED | ✅ | API-018, API-019, API-020, API-021, API-024, API-032, API-066, API-067, API-102, API-103, API-104, API-105, API-123, API-124, API-125, API-126, API-127, API-128, API-129, API-132, API-134, API-133, API-135, API-093, API-182, API-012, API-178, API-022, API-023, API-168, API-170, API-172, API-173, API-183, API-184, API-177, API-195, API-196, API-197 | ROLE-001, ROLE-002 |
-| SCREEN-026 | 프리셋 관리 화면 | UNCHANGED | ✅ | API-037, API-038, API-039, API-040, API-041, API-117 | ROLE-001 |
+| [[SCREEN-005]] | 라벨링 캔버스 화면 | CHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-041]], [[API-117]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 115 |
+| ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 45 |
+| api_endpoint | _shared/api/ | 46 |
 | constant | _shared/constant/ | 0 |
 | permission_role | _shared/role/ | 2 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -47,21 +47,39 @@
 
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
-| 1 | SCREEN-005 — 라벨링 캔버스 화면 | screens/SCREEN-005/SCREEN-005.md | wireframe.html | uc/ | ac/ |
-| 2 | SCREEN-026 — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
+| 1 | [[SCREEN-005]] — 라벨링 캔버스 화면 | screens/SCREEN-005/SCREEN-005.md | wireframe.html | uc/ | ac/ |
+| 2 | [[SCREEN-026]] — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
 
 ## 변경 알림 (코드 재반영 필요)
 
 | ITEM | type | 상태 |
 |---|---|---|
-| API-196 | api_endpoint | CHANGED (v1→v4) |
-| UI-109 | ui_component | NEW |
-| UI-110 | ui_component | NEW |
-| UI-111 | ui_component | NEW |
-| UI-112 | ui_component | NEW |
-| UI-113 | ui_component | NEW |
-| UI-114 | ui_component | NEW |
-| UI-115 | ui_component | NEW |
+| [[AC-017]] | acceptance | CHANGED (v5→v6) |
+| [[AC-024]] | acceptance | CHANGED (v5→v6) |
+| [[API-020]] | api_endpoint | CHANGED (v7→v8) |
+| [[API-021]] | api_endpoint | CHANGED (v7→v8) |
+| [[API-024]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-093]] | api_endpoint | CHANGED (v9→v10) |
+| [[API-103]] | api_endpoint | CHANGED (v9→v10) |
+| [[API-123]] | api_endpoint | CHANGED (v6→v7) |
+| [[API-132]] | api_endpoint | CHANGED (v2→v4) |
+| [[API-133]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-135]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-172]] | api_endpoint | CHANGED (v3→v4) |
+| [[API-173]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-196]] | api_endpoint | CHANGED (v8→v9) |
+| [[SCREEN-005]] | screen_spec | CHANGED (v76→v84) |
+| [[UC-004]] | use_case | CHANGED (v13→v15) |
+
+## Obsidian 볼트로 보기
+
+이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
+(frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
+켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
+
+> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
+> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
+> - AC-024 — SCREEN-005, SCREEN-005
 
 ## git 권장
 

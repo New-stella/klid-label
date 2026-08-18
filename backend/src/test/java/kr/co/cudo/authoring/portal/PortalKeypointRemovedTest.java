@@ -73,7 +73,10 @@ class PortalKeypointRemovedTest {
         // 비식별 신고 게이트는 배선 검증용 IT(DeidentReportGateCoverageIT)가 실 경로로 확인한다.
         var deidentGate = mock(kr.co.cudo.authoring.label.service.LabelAccessGuard.class);
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, videoRepository, deidentGate, new ObjectMapper());
+                rawDataStatusRepository, videoRepository, deidentGate,
+                new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
+                        org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
+                new ObjectMapper());
 
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "/f.jpg", null);
         when(srcRepository.findById(SRC_SN)).thenReturn(Optional.of(frame));

@@ -32,11 +32,20 @@ import org.springframework.web.multipart.MultipartFile;
  *   <li>{@code AutolabelTestRequest} — {@code @Valid} 입력 검증 (영문/숫자 패턴 + 범위).</li>
  *   <li>{@link DevAutolabelTestService} — 파일 확장자/크기/MIME, 경로 순회, vmsClipId/cctvId 검증.</li>
  * </ul>
+ *
+ * <h3>경로 이름 = dev 업로드 ({@code @design API-152})</h3>
+ * <p>엔드포인트는 {@code /v1/dev/upload} 하나다. 이 화면이 올린 영상으로 확인하는 것은 오토라벨만이
+ * 아니라 적재·비식별·마킹까지의 전 구간이라, 이름을 역할(영상 업로드)에 맞췄다. <b>구 경로는 별칭·
+ * 리다이렉트 없이 폐기</b>됐고 404 가 정상이다 — dev 토글로 게이팅되는 내부 endpoint 라 관제·외부
+ * 호출자가 없고, 별칭을 두면 구 이름이 영구히 남아 개명 목적이 사라진다.
+ *
+ * <p>구 이름과 그 회귀 가드는 {@code DevUploadPathRenameGuardTest} 한 곳에만 둔다(소스 전역에서
+ * 구 이름을 0건으로 유지하려면 그 문자열이 사는 곳이 하나여야 한다).
  */
-@Tag(name = "dev-autolabel-test",
+@Tag(name = "dev-upload",
         description = "[개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거. ⚠ authoring.dev.upload.enabled=true 일 때만 노출 (기본 비활성).")
 @RestController
-@RequestMapping("/v1/dev/autolabel-test")
+@RequestMapping("/v1/dev/upload")
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "authoring.dev.upload", name = "enabled", havingValue = "true")
 public class DevAutolabelTestController {

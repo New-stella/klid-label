@@ -87,6 +87,42 @@ class StatsApprovedAggregationIT {
         return rawSn;
     }
 
+    /**
+     * 승인 영상 1건에 <b>정상 프레임 + 폐기 프레임</b>을 함께 심는다 (R4 축).
+     *
+     * <p>폐기는 엔티티의 유일한 쓰기 통로 {@link LsDataSrc#discard()} 로 세운다 — 테스트가
+     * {@code DSCD_YN} 에 값을 직접 넣으면 프로덕션이 만들지 않는 상태를 만들어낼 수 있다.
+     *
+     * @param keptFrames      폐기하지 않은 프레임 수(= 학습데이터 산출물로 나가는 분량)
+     * @param discardedFrames 폐기한 프레임 수(= 산출·데이터마트에서 빠지는 분량)
+     */
+    private void seedApprovedWithDiscardedFrames(int keptFrames, int discardedFrames) {
+        String clipId = "STATS-IT-DSCD-" + UUID.randomUUID();
+        LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
+                clipId, "CCTV-STATS-IT", eventCode, "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/" + clipId + ".mp4",
+                LocalDateTime.of(2026, 5, 1, 9, 0, 0), 30));
+        Long rawSn = raw.getRawSn();
+
+        int frameNo = 1;
+        for (int i = 0; i < keptFrames; i++, frameNo++) {
+            lsDataSrcRepository.save(LsDataSrc.create(
+                    rawSn, frameNo, "/var/frames/" + rawSn + "/" + frameNo + ".jpg",
+                    LocalDateTime.of(2026, 5, 1, 9, 0, 0)));
+        }
+        for (int i = 0; i < discardedFrames; i++, frameNo++) {
+            LsDataSrc src = lsDataSrcRepository.save(LsDataSrc.create(
+                    rawSn, frameNo, "/var/frames/" + rawSn + "/" + frameNo + ".jpg",
+                    LocalDateTime.of(2026, 5, 1, 9, 0, 0)));
+            src.discard();
+            lsDataSrcRepository.save(src);
+        }
+
+        LsRawDataStatus stts = LsRawDataStatus.initial(rawSn);
+        stts.transitionTo(APPROVED);
+        dataSttsRepository.save(stts);
+    }
+
     /** 승인 영상 건수 — 신규 쿼리를 추가하지 않고 기존 상태별 카운트에서 얻는다(서비스와 동일 원천). */
     private long approvedVideoCount() {
         return statsQueryRepository.countByDataSttsCd().stream()
@@ -172,6 +208,75 @@ class StatsApprovedAggregationIT {
         assertThat(myEventCount(statsQueryRepository.countFrameByEventTypeAndStatus(APPROVED))).isZero();
     }
 
+    // -------------------------------------------- 폐기 프레임 제외 (R4) vs 전체 기준 (두 축 대조)
+
+    /**
+     * 검수완료 축과 전체 기준 축의 <b>차이를 한 자리에서</b> 고정한다.
+     *
+     * <p>둘을 같은 테스트에 두는 이유: 다음 사람이 "일관성"을 이유로 한쪽에 맞추려 들면 반대쪽 단언이
+     * 즉시 깨져 그 통일이 <b>의도된 비대칭을 없애는 것</b>임이 드러난다. 검수완료 축은 학습데이터
+     * 산출물·데이터마트 뷰와 같은 기준이어야 하고, 전체 기준 축은 "수집한 전체 분량"이라 폐기를
+     * 포함해야 한다(빼면 수집 상황을 알 수 없어진다).
+     */
+    @Test
+    @DisplayName("폐기프레임은_검수완료_이미지수에서_빠지고_전체_누적이미지수에는_남는다")
+    void discardedFramesExcludedFromApprovedButKeptInCumulative() {
+        // given — 승인 영상 1건에 정상 5 + 폐기 3 프레임
+        seedApprovedWithDiscardedFrames(5, 3);
+
+        // when
+        long approvedFrameDelta = statsQueryRepository.countFramesByDataSttsCd(APPROVED) - baseApprovedFrames;
+        long totalFrameDelta = statsQueryRepository.countCumulativeFrames() - baseTotalFrames;
+
+        // then — 검수완료 축(산출 분량)은 폐기 3건을 뺀 5, 전체 기준 축(수집 분량)은 8 그대로.
+        assertThat(approvedFrameDelta)
+                .as("검수완료 이미지 수는 산출물·데이터마트와 같은 기준이라 폐기 프레임을 뺀다")
+                .isEqualTo(5L);
+        assertThat(totalFrameDelta)
+                .as("누적(전체 기준) 이미지 수는 수집 분량 축이라 폐기 프레임도 센다 — 그대로 둔다")
+                .isEqualTo(8L);
+    }
+
+    @Test
+    @DisplayName("폐기프레임은_검수완료_프레임분포에서_빠지고_전체_프레임분포에는_남는다")
+    void discardedFramesExcludedFromApprovedDistributionButKeptInTotalDistribution() {
+        // given — 승인 영상 1건에 정상 4 + 폐기 6 프레임 (이 테스트 전용 이벤트 코드로 완전 격리)
+        seedApprovedWithDiscardedFrames(4, 6);
+
+        // when
+        long approvedByEvent = myEventCount(statsQueryRepository.countFrameByEventTypeAndStatus(APPROVED));
+        long totalByEvent = myEventCount(statsQueryRepository.countFrameByEventType());
+
+        // then — 카드(위 테스트)와 분포가 같은 기준이어야 화면이 자기모순을 보이지 않는다.
+        assertThat(approvedByEvent)
+                .as("검수완료 프레임 분포는 짝인 카드와 같은 기준이라 폐기 프레임을 뺀다")
+                .isEqualTo(4L);
+        assertThat(totalByEvent)
+                .as("전체 기준 프레임 분포는 폐기 프레임도 센다 — 그대로 둔다")
+                .isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("프레임이_전부_폐기돼도_승인_영상_건수는_줄지_않는다")
+    void discardingAllFramesDoesNotReduceApprovedVideoCount() {
+        // given — 승인 영상 1건의 프레임을 전부 폐기(정상 0 + 폐기 4)
+        seedApprovedWithDiscardedFrames(0, 4);
+
+        // when
+        long approvedVideoDelta = approvedVideoCount() - baseApprovedVideos;
+        long approvedVideoByEvent = myEventCount(statsQueryRepository.countVideoByEventTypeAndStatus(APPROVED));
+        long approvedFrameDelta = statsQueryRepository.countFramesByDataSttsCd(APPROVED) - baseApprovedFrames;
+
+        // then — 폐기는 프레임 축이라 영상 단위 집계는 영향받지 않는다(영상 단위에 술어를 붙이면 깨진다).
+        assertThat(approvedVideoDelta)
+                .as("폐기는 프레임 축 — 프레임이 전부 폐기돼도 그 영상은 승인된 영상 1건이다")
+                .isEqualTo(1L);
+        assertThat(approvedVideoByEvent).isEqualTo(1L);
+        assertThat(approvedFrameDelta)
+                .as("반면 프레임 단위 집계는 0 이 된다")
+                .isZero();
+    }
+
     @Test
     @DisplayName("approved카운트는_항상_전체카운트_이하다")
     void approvedNeverExceedsTotal() {
@@ -220,7 +325,7 @@ class StatsApprovedAggregationIT {
     }
 
     /**
-     * SCR-STAT-002 일별 작업량 — <b>전체 기준</b>이라 배정(LS_TASK_ASSIGNMENT) 조인이 없다.
+     * SCR-STAT-002 일별 작업량 — <b>전체 기준</b>이라 배정(LS_TASK_ALTMNT) 조인이 없다.
      *
      * <p>작업자 통계용 {@code findDailyCompletionForWorker} 는 LABELER 배정을 조인하므로
      * 배정 이력 없이 승인된 영상은 세지 않는다. 전체 기준 쿼리는 그 영상도 포함해야 하며,
@@ -230,7 +335,7 @@ class StatsApprovedAggregationIT {
     @Test
     @DisplayName("일별작업량_전체쿼리는_배정이력이_없는_승인영상도_포함한다")
     void dailyCompletionAllIncludesUnassignedApprovedVideos() {
-        // given — 배정(LS_TASK_ASSIGNMENT) 없이 APPROVED 상태만 가진 영상 2건 + 미승인 1건
+        // given — 배정(LS_TASK_ALTMNT) 없이 APPROVED 상태만 가진 영상 2건 + 미승인 1건
         LocalDateTime since = java.time.LocalDate.now().minusDays(29).atStartOfDay();
         long before = statsQueryRepository.findDailyCompletionAll(since).size();
         seed(APPROVED, 0);

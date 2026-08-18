@@ -214,10 +214,10 @@ public class BatchTransitionService {
      * 검수 승인 시점의 COMPLETED 전이는 ReviewService(approve) 가 담당한다.
      *
      * <p><b>미배정 경로 주의(FIX B 결합):</b> 미배정 REVIEWER 가 직접 마킹하면
-     * {@link #tryCreateBatchQueuedRow} 가 <b>{@code LS_TASK_ASSIGNMENT} 배정 레코드 없이</b> 상태 row 를
+     * {@link #tryCreateBatchQueuedRow} 가 <b>{@code LS_TASK_ALTMNT} 배정 레코드 없이</b> 상태 row 를
      * 생성하므로, 본 메서드가 그 row 를 ASSIGNED 로 복귀시킬 수 있다. 즉 <b>실제 배정 레코드가 없는 영상이
      * ASSIGNED 상태</b>가 될 수 있다. 이는 다운스트림이 배정 여부를 {@code LS_RAW_DATA_STATUS.DATA_STTS_CD}
-     * 단독이 아니라 <b>{@code LS_TASK_ASSIGNMENT} 존재</b>로 판정하므로 무해하다(조사 근거):
+     * 단독이 아니라 <b>{@code LS_TASK_ALTMNT} 존재</b>로 판정하므로 무해하다(조사 근거):
      * {@code TaskBoardService.mapBoardStatus}(hasLabeler 게이트 → 배정 없으면 UNASSIGNED),
      * {@code VideoQueryService.lookupCurrentAssignments}(배정 없으면 배정 필드 null),
      * {@code AssignmentResponse}(배정 엔티티에서 파생), {@code StatsService} 카운트(모두

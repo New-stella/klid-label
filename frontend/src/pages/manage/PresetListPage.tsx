@@ -32,7 +32,14 @@ import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
-const PAGE_SIZE = 10;
+/**
+ * 한 페이지에 보이는 프리셋 카드 수 — 사양 SCREEN-026 이 카드 그리드·페이지네이션 두 절에서
+ * 모두 **9건/페이지**로 규정한다.
+ *
+ * 3의 배수인 것이 핵심이다 — 그리드가 xl 에서 3열이라 9면 마지막 줄이 정확히 차고, 10이면
+ * 마지막 카드 하나만 남은 줄이 생겨 리듬이 깨진다.
+ */
+const PAGE_SIZE = 9;
 
 /**
  * 카드에 그대로 노출하는 라벨 칩 최대 개수 — 초과분은 '+N' 칩으로 접는다(사양 SCREEN-026).
@@ -57,7 +64,7 @@ const GRID_CLASS = 'grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3';
 /**
  * SCR-MANAGE-PRESETS 라벨링 프리셋 관리 (SCREEN-026 고충실 디자인 정합) — REVIEWER 전용.
  *
- * - 반응형 카드 그리드(1/2/3열) + 클라이언트 페이지네이션 (10건/페이지)
+ * - 반응형 카드 그리드(1/2/3열) + 클라이언트 페이지네이션 (9건/페이지)
  * - 프리셋 추가 / 수정 / 복사 / 삭제 (REVIEWER만)
  * - 라벨 항목 1~20종 제한 (zod presetSchema.labelIds min(1).max(20))
  */

@@ -56,7 +56,7 @@ import java.util.function.Function;
  *       배치/작업 상태({@code ASSIGNED/BATCH_QUEUED/PROCESSING/COMPLETED/FAILED})가 검수 목록에
  *       새는 것을 막는 <b>보안 경계</b>다. 목록·count·집계가 모두 {@link #buildWhere} 하나를 통과하므로
  *       경로가 갈라질 구조적 여지가 없다.</li>
- *   <li><b>행 증식 원천 차단</b> — 검색어 대상인 {@code LS_DATA_INGEST}/{@code LS_TASK_ASSIGNMENT}/
+ *   <li><b>행 증식 원천 차단</b> — 검색어 대상인 {@code LS_DATA_INGEST}/{@code LS_TASK_ALTMNT}/
  *       {@code LS_ACNT_USER} 를 <b>조인하지 않고</b> 상관 {@code EXISTS} 로만 참조한다.
  *       {@code FROM LS_RAW_DATA_STATUS} 단일 테이블이라 결과가 영상 1건=1행으로 고정되고
  *       {@code totalElements} 가 실제 건수와 어긋날 수 없다.</li>

@@ -1,0 +1,86 @@
+{
+  "item": {
+    "id": "FEAT-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "feature",
+    "title": "개인정보 비식별 처리 (솔루션 연동·옵션 사용)",
+    "slug": "개인정보-비식별-처리-솔루션-연동옵션-사용",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "must",
+      "main_flow": [
+        {
+          "step": 1,
+          "action": "영상이 적재되면 대상 선별 없이 전체 영상에 대해 비식별을 선두 단계로 자동 트리거한다"
+        },
+        {
+          "step": 2,
+          "action": "외부 비식별 솔루션을 연동 호출한다"
+        },
+        {
+          "step": 3,
+          "actor": "검수자",
+          "action": "솔루션이 제공하는 옵션을 관리 화면에서 선택·적용한다"
+        },
+        {
+          "step": 4,
+          "action": "비식별 처리를 수행한다"
+        },
+        {
+          "step": 5,
+          "action": "원본과 비식별본을 분리해 저장한다"
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-006",
+        "change_kind": [
+          "component-replace"
+        ],
+        "diff_summary": "1차 라벨링 수동 블러 → 2차 외부 비식별 솔루션 연동·옵션 처리 (SFR-09-01/02/04)",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-04",
+          "legacy_artifact_id": "LEGACY-065"
+        }
+      },
+      "complexity": "complex",
+      "user_story": {
+        "goal": "외부 비식별 솔루션을 연동해 개인정보를 가리고, 솔루션이 제공하는 옵션을 화면에서 직접 설정·사용하기를 원한다",
+        "actor": "시스템·검수자",
+        "benefit": "개인정보를 안전하게 보호하면서 비식별 강도를 상황에 맞게 조절할 수 있다"
+      },
+      "description": "발주기관이 제공하는 외부 비식별 솔루션을 연동해 개인정보를 가린다. 단순 연동에 그치지 않고, 솔루션이 제공하는 옵션을 관리 화면에서 선택·설정·사용하는 기능과 화면을 함께 제공한다. 비식별은 적재 직후 자동 실행되는 선두 단계로, 대상을 좁히는 게이팅 없이 전체 영상을 처리하며 원본과 비식별본을 따로 보관한다.",
+      "business_rules": [
+        "대상을 좁히는 게이팅 없이 적재된 전체 영상을 비식별한다",
+        "원본은 어떤 경우에도 삭제하지 않는다",
+        "비식별 옵션은 관리 화면에서 설정한다"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "implements_requirements": [
+        "REQ-012",
+        "REQ-013",
+        "REQ-015",
+        "REQ-021",
+        "REQ-025"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": true,
+    "stale_reason": "REQ-015의 data.constraints 변경 — implements",
+    "change_summary": "연결 ITEM 의 소속 도메인이 바뀐 데 따른 재확인. 바뀐 것은 그 문서가 어느 도메인에 속하는지라는 분류이고 이 문서가 참조하는 결정·계약의 내용은 그대로다. 이 문서에는 도메인을 이어받아 저장해 두는 필드가 없어 재계산할 값도 없음을 확인했다. 본문은 바꾸지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T10:07:08.769Z",
+    "created_at": "2026-05-29T04:31:27.387Z"
+  }
+}

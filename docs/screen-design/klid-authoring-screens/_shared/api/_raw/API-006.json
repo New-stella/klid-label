@@ -54,7 +54,7 @@
                   },
                   "channel": {
                     "enum": [
-                      "CONTROL",
+                      "INTERNAL",
                       "PORTAL"
                     ],
                     "type": "string",
@@ -85,13 +85,13 @@
               "name": "홍길동",
               "role": "WORKER",
               "userId": "worker01",
-              "channel": "CONTROL"
+              "channel": "INTERNAL"
             },
             "message": null,
             "success": true,
             "errorCode": null
           },
-          "description": "조회 성공. JWT 클레임에서 sub/role/channel 을 추출해 MeResponse 로 반환.",
+          "description": "조회 성공. JWT 클레임에서 sub/role/channel 을 추출해 응답 데이터로 반환.",
           "content_type": "application/json"
         },
         "401": {
@@ -123,7 +123,7 @@
             "success": false,
             "errorCode": "UNAUTHORIZED"
           },
-          "description": "토큰 없음/만료/검증 실패 (TokenClaims principal 아님). ErrorCode=UNAUTHORIZED",
+          "description": "토큰 없음/만료/검증 실패 (인증 주체가 확인되지 않음). ErrorCode=UNAUTHORIZED",
           "content_type": "application/json"
         }
       },
@@ -133,7 +133,7 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "현재 JWT 세션의 사용자/역할/채널 클레임 정보를 조회한다. 저작도구는 독립 로그인 없이 관제/포털 발급 JWT를 인계받아 진입.",
+      "description": "현재 JWT 세션의 사용자/역할/채널 클레임 정보를 조회한다. 저작도구는 독립 로그인 없이 관제/포털 발급 JWT를 인계받아 진입. 인증된 JWT 이면 역할과 무관하게 접근 가능하다(역할 미배정 사용자 포함) — security 표에 나열된 역할은 접근 제한 목록이 아니라 이 API 를 호출하는 대표 사용자 예시다. 역할 미배정 사용자가 스스로 무권한임을 확인하고 역할 자가부여(POST /v1/auth/role-claim) 온보딩으로 진입하는 유일한 경로이기도 하다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -148,12 +148,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 필드 설명에서 내부 구현 클래스명을 걷어내고 값의 출처를 역할로 서술한다. 이 저장소를 모르는 사람에게는 클래스명이 아무 정보도 주지 않는다.",
+    "change_summary": "security 값은 그대로 두고(스키마상 \"인증 필수·역할 무관\"을 표현할 수단이 없음), 본문에 이 API 가 역할과 무관하게 접근 가능하며 표에 나열된 역할은 접근 제한 목록이 아니라는 점, 그리고 역할 미배정 사용자의 온보딩 경로임을 명시했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:44:57.045Z",
+    "last_updated_at": "2026-08-16T23:40:50.421Z",
     "created_at": "2026-05-30T06:56:53.578Z"
   }
 }

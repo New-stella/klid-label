@@ -1,32 +1,20 @@
 ---
 logicraft_item: SCREEN-002
 type: screen_spec
-version: 13
-last_updated_at: 2026-08-14T04:40:02.077Z
-domain: null
+version: 17
+last_updated_at: 2026-08-16T12:43:57.924Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.892Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.174Z
+sync_session: 17
 stale: false
-status: CHANGED
-prev_version: 12
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-007]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v12 → v13**
-> change_summary: 역할을 고르는 자리에서 화면에 보이는 문구를 한글 호칭만 남겼다.
-
-라디오 항목이 「작업자 (WORKER)」처럼 한글 뒤에 영문 코드를 함께 보여주고 있었다. 그 코드는 고른 값을 서버로 보낼 때 쓰는 내부 값이라 고르는 사람에게는 아무 의미가 없고, 다른 화면들은 역할을 한글 호칭으로만 부른다. 한 제품 안에서 같은 것을 두 가지로 부르고 있었다.
-
-보내는 값은 그대로다 — 화면 문구만 바뀌며 서버가 받는 값은 종전과 같다는 것을 항목 설명에 명시했다.
-
-권한 부여 폼의 오류 안내에 남아 있는 영문 코드는 그대로 두었다. 그 문장은 화면에 보이는 문구가 아니라 서버가 어떤 역할을 자가 부여로 허용하는지를 설명하는 자리라 값 자체를 가리키는 것이 맞다.
-
-개발용 로그인 화면의 영문 코드도 이번 대상이 아니다. 그 화면은 개발자만 쓰고 고르는 값이 곧 발급 요청에 실리는 값이라 코드로 보이는 편이 정확하다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 역할 클레임 화면
 
@@ -75,7 +63,7 @@ _(empty)_
 #### [2]
 
 - **type**: Custom
-- **label**: 관리자에게 받은 패스워드로 역할을 부여받으세요.
+- **label**: 검수자에게 받은 패스워드로 역할을 부여받으세요.
 
 **columns**:
 
@@ -87,7 +75,7 @@ _(empty)_
 
 - **custom_name**: SubText
 
-- **description**: 인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(관리자에게 받은 패스워드로 역할을 부여받으세요).
+- **description**: 인증은 되었으나 role 클레임이 비어 있는 사용자에게 권한 부여가 필요함을 안내. 제목 '권한 부여 필요' + 보조 설명(검수자에게 받은 패스워드로 역할을 부여받으세요).
 
 **references_apis**:
 
@@ -153,7 +141,7 @@ _(empty)_
 _(empty)_
 
 - **binds_to**: adminPassword
-- **placeholder**: 관리자에게 받은 패스워드를 입력하세요
+- **placeholder**: 검수자에게 받은 패스워드를 입력하세요
 
 #### [2]
 
@@ -202,7 +190,7 @@ _(empty)_
 
 ### status
 
-modified
+new
 
 ### decided_by
 
@@ -214,7 +202,7 @@ ADR-012
 
 ### diff_summary
 
-2차 role+channel 클레임 분기 화면
+2차 role+channel 클레임 분기 화면 — 1차 GPKI 인증서 기반 로그인에는 없던 2차 전용 자가부여 온보딩 화면
 
 ## surface_kind
 
@@ -258,14 +246,15 @@ _(empty)_
 - **label**: 역할 클레임 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 1d071f269263dd603cf44ee14d081d257ea74bcb018258a5393e214f0a13190e
-- **generated_at**: 2026-08-13T01:02:38.732Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: d3a0988c15ad3a19bb1688a09442a1bde8a94f5f019beb5a51f3389e537a5992
+- **generated_at**: 2026-08-16T12:43:57.924Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

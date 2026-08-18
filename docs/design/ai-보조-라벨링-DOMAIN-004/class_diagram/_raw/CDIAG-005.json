@@ -1,0 +1,353 @@
+{
+  "item": {
+    "id": "CDIAG-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "class_diagram",
+    "title": "AI 보조 라벨링 도메인 모델",
+    "slug": "ai-보조-라벨링-도메인-모델",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "AI 보조 라벨링 도메인 모델",
+      "classes": [
+        {
+          "kind": "aggregate_root",
+          "name": "DataLabel",
+          "methods": [
+            {
+              "name": "isInterpolated",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "boolean"
+            },
+            {
+              "name": "updateConfidence",
+              "params": [
+                "confScore: BigDecimal"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "markDetected",
+              "params": [
+                "modelNm: String",
+                "mdlVer: String",
+                "confScore: BigDecimal"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "markSegmented",
+              "params": [
+                "modelNm: String",
+                "confScore: BigDecimal"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "markInterpolated",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "lblSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "srcSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lblTypeCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "labelId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "description": "라벨 마스터(LS_LABEL) 식별자. AI 검출 클래스 축으로 서버가 해석해 채우며, 대응 마스터가 없거나 검출 클래스 매핑이 지정되지 않으면 비어 있다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "pointCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "trckId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "lblSrcCd",
+              "type": "LabelSource",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "modelNm",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdlVer",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "confScore",
+              "type": "BigDecimal",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "autoLblYn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "라벨 좌표와 그 라벨이 어떻게 만들어졌는지를 함께 보유하는 Aggregate Root. 라벨 1건은 AI 출처 정보를 최대 1벌 가지므로 별도 객체로 분리하지 않고 같은 라벨에 둔다. TRCK_ID 로 트래커가 부여한 객체 식별자를 보유한다. 라벨 자체의 소유는 라벨링 도메인이며 본 모델은 오토라벨 관점에서 같은 라벨을 본다. 라벨 마스터 식별자(LBL_ID)도 함께 보유하며, 그 값을 AI 검출 클래스 축으로 해석해 채우는 주체는 서버다 — 검출 결과를 내보내는 경로가 그 식별자를 함께 싣고 화면은 검출 클래스명으로 마스터를 다시 찾지 않는다. 대응 마스터가 없거나 검출 클래스 매핑이 지정되지 않은 검출은 이 값을 비운 채 내보내며 값을 지어내지 않는다.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "value_object",
+          "name": "ConfidenceScore",
+          "methods": [
+            {
+              "name": "of",
+              "params": [
+                "value: BigDecimal"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "ConfidenceScore"
+            },
+            {
+              "name": "isLowConfidence",
+              "params": [
+                "threshold: BigDecimal"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "boolean"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "value",
+              "type": "BigDecimal",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "추론 신뢰도 값 객체 (CONF_SCORE, 0.0~1.0). 보간으로 채운 라벨은 0.0. 생성 시 범위 검증.",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "LabelSource",
+          "methods": [],
+          "attributes": [],
+          "description": "라벨 출처 코드 (LS_DATA_LBL.LBL_SRC_CD).",
+          "enum_values": [
+            "YOLO",
+            "SAM2",
+            "INTERPOLATE",
+            "VLM"
+          ],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "AutoLabelYn",
+          "methods": [],
+          "attributes": [],
+          "description": "자동 라벨 여부 (LS_DATA_LBL.AUTO_LBL_YN). 값이 비어 있으면 자동 생성이 아니며 조회 응답에서는 'N' 으로 표현한다.",
+          "enum_values": [
+            "Y",
+            "N"
+          ],
+          "stereotypes": []
+        }
+      ],
+      "description": "YOLO 객체탐지·SAM2 클릭 세그멘테이션·트랙 모드(선형보간) 오토라벨 결과를 라벨 좌표(LS_DATA_LBL)가 출처·모델·신뢰도·자동라벨 여부를 함께 보유하는 형태로 관리하는 도메인 모델. 라벨 1건당 AI 출처는 최대 1벌이라 별도 테이블로 나누지 않고 같은 행에 둔다 — 조회가 늘 함께 읽으므로 결합이 붙지 않는다. 보간으로 채운 라벨은 신뢰도 0.0 으로 식별한다. ERD-010의 LS_DATA_LBL 중심. — 오토라벨 프리셋↔검출라벨 매칭축은 마스터 라벨명(findLabelIdByName)이 아닌 COCO 검출클래스(LS_LABEL.DTCT_TYPE_CD)로 일원화(ADR-019): findLabelIdByDtctType 가 findLabelIdByName 을 대체하고 배치(YoloAutolabelStep)·온라인(AutolabelOnlineService)·SAM2·프리셋 토글(PresetLabelLookupService) 4경로가 동일 축으로 통일. AutolabelOnlineService.resolveDetectClasses 가 FE 요청을 신뢰하지 않고 마스터 COCO 매핑 화이트리스트(CONST-002 CocoClasses 80종)와 교집합만 ai-server 로 전달.",
+      "module_name": "AiAssistedLabeling",
+      "relationships": [
+        {
+          "to": "LabelSource",
+          "from": "DataLabel",
+          "kind": "association",
+          "label": "라벨 출처",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "AutoLabelYn",
+          "from": "DataLabel",
+          "kind": "association",
+          "label": "자동 라벨 여부",
+          "to_multiplicity": "1",
+          "from_multiplicity": "0..*"
+        },
+        {
+          "to": "ConfidenceScore",
+          "from": "DataLabel",
+          "kind": "composition",
+          "label": "추론 신뢰도",
+          "to_multiplicity": "0..1",
+          "from_multiplicity": "1"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-018",
+        "DFEAT-019",
+        "DFEAT-020"
+      ],
+      "referenced_items": [
+        "ADR-019",
+        "CONST-002"
+      ],
+      "realizes_features": [
+        "DFEAT-019",
+        "DFEAT-020"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검출 결과를 표현하는 라벨 Aggregate 에 라벨 마스터 식별자를 명시했다. 검출 결과와 마스터의 대응은 AI 검출 클래스 축으로 일원화돼 있는데, 그 식별자를 담는 속성이 모델에 없어 다이어그램만 보면 마스터 연결이 어디에 얹히는지 알 수 없었다. 속성 labelId 를 lblTypeCd 뒤에 두고, 책임 서술에 그 값을 해석해 채우는 주체가 서버라는 점·검출 결과를 내보내는 경로가 그 식별자를 함께 싣고 화면은 검출 클래스명으로 마스터를 다시 찾지 않는다는 점·대응 마스터가 없거나 매핑이 지정되지 않은 검출은 값을 비워 내보내고 지어내지 않는다는 점을 적었다. 기존 속성·메서드·관계와 다른 클래스는 손대지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T10:56:07.517Z",
+    "created_at": "2026-06-02T08:49:59.702Z"
+  }
+}

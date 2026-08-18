@@ -125,7 +125,7 @@ public record VideoSummaryResponse(
     /**
      * 현재 활성 LABELER 배정 요약 (서비스 레이어에서 주입). 작업 목록(/v1/tasks/board)과 동일하게
      * TASK_TYPE_CD='LABELER' 배정 중 REG_DT 가 가장 최근인 1건 기준으로 산출한다.
-     * 배정 상태(assignStatus)는 단순 "ASSIGNED" 고정 — LS_TASK_ASSIGNMENT 존재 자체가 활성 배정을 의미한다.
+     * 배정 상태(assignStatus)는 단순 "ASSIGNED" 고정 — LS_TASK_ALTMNT 존재 자체가 활성 배정을 의미한다.
      */
     public record AssignmentInfo(Long assignmentId, Long workerId, String workerName, LocalDateTime assignedAt) {
 

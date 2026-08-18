@@ -44,7 +44,8 @@ import java.util.List;
  *   <li>REVIEWER 전용 — SecurityConfig {@code /v1/manage/**} 매처 + {@code @PreAuthorize}.</li>
  *   <li>RequestBody 는 DTO ({@link PresetRequest}) 로 강제 — Mass Assignment 방어(Entity 직접 바인딩 금지).</li>
  *   <li>입력 검증: 이름 1~64자, description 최대 500자, labelIds 1~20개(각 @NotNull @Positive),
- *       eventTypeCd 는 관제 유효 categoryKey(9종) 또는 null/빈 문자열(서비스가 동적 검증, 미유효 400).
+ *       eventTypeCd 는 관제 유효 categoryKey(EventTypeService.filterOptions() 등록 유형 기준 —
+ *       고정 개수가 아니다) 또는 null/빈 문자열(서비스가 동적 검증, 미유효 400).
  *       마스터에 없는/soft delete labelId 는 서비스가 400(INVALID_INPUT)으로 거부한다.</li>
  *   <li>JSON unknown 필드는 ignore — 클라이언트 호환성.</li>
  * </ul>

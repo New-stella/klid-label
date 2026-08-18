@@ -1,0 +1,173 @@
+{
+  "item": {
+    "id": "CDIAG-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "class_diagram",
+    "title": "시스템 설정 도메인 모델",
+    "slug": "시스템-설정-도메인-모델",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "시스템 설정 도메인 모델",
+      "classes": [
+        {
+          "kind": "aggregate_root",
+          "name": "SystemConfig",
+          "methods": [
+            {
+              "name": "updateValue",
+              "params": [
+                "configVl: String"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "void"
+            },
+            {
+              "name": "validateValue",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "boolean"
+            }
+          ],
+          "attributes": [
+            {
+              "name": "configKey",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "configVl",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "configTypeCd",
+              "type": "ConfigType",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "expln",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfrId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": []
+              }
+            }
+          ],
+          "description": "시스템 설정 키-값. 화이트리스트 키만 등록·갱신, STNG_TYPE_CD 유형에 따라 값 검증. (LS_SYSTEM_CONFIG)",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "enum",
+          "name": "ConfigType",
+          "methods": [],
+          "attributes": [],
+          "description": "설정 값 유형 코드. (STNG_TYPE_CD)",
+          "enum_values": [
+            "JSON",
+            "NUMBER",
+            "STRING",
+            "BOOLEAN",
+            "DECIMAL"
+          ],
+          "stereotypes": []
+        }
+      ],
+      "description": "저작도구 운영 파라미터를 키-값으로 관리하는 도메인 모델. 화이트리스트 키만 등록·갱신하며 STNG_TYPE_CD 유형별 값 검증과 Caffeine 로컬 캐시(TTL 60s)로 조회. ERD-016(LS_SYSTEM_CONFIG) 기반.",
+      "module_name": "SystemConfig",
+      "relationships": [
+        {
+          "to": "ConfigType",
+          "from": "SystemConfig",
+          "kind": "dependency",
+          "label": "값유형",
+          "to_multiplicity": "1",
+          "from_multiplicity": "1"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-045"
+      ],
+      "referenced_items": [],
+      "realizes_features": [
+        "DFEAT-045"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "API-193의 data.implementation 변경이 depicts로 2-hop 전파",
+    "change_summary": "클래스 다이어그램 세 곳(SystemConfig 설명·ConfigType 설명·다이어그램 설명)이 실재하지 않는 물리 컬럼명(CONFIG_TYPE_CD)을 인용하고 있었다. 이 다이어그램이 기반으로 삼는 ERD-016의 실제 컬럼명(STNG_TYPE_CD)으로 정정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:29:37.330Z",
+    "created_at": "2026-06-02T08:54:38.708Z"
+  }
+}

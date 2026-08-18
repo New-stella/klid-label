@@ -1,0 +1,112 @@
+---
+logicraft_item: DOMAIN-016
+type: domain
+version: 10
+domain: null
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-16T14:49:12.378Z
+status: NEW
+prev_version: null
+content_hash: 8cab87c66d3b2a736722b0913c65d172dabe20b47a55b03aaef61b845b697920
+stale: false
+raw: ./_raw/DOMAIN-016.json
+links:
+  depends_on: ["[[EXTSYS-005]]", "[[INT-007]]", "[[INT-010]]"]
+  belongs_to_domain_backward: ["[[ADR-007]]", "[[ADR-037]]", "[[API-074]]", "[[API-075]]", "[[API-076]]", "[[CDIAG-013]]", "[[CMP-009]]", "[[DFEAT-046]]", "[[DFEAT-047]]", "[[ERD-021]]", "[[ERD-027]]", "[[EVT-003]]", "[[EVT-004]]", "[[EVT-009]]", "[[EVT-010]]", "[[INT-007]]", "[[INT-010]]", "[[UC-009]]"]
+  derived_domain_backward: ["[[AC-009]]"]
+  implements_in_backward: ["[[MOD-015]]"]
+  references_backward: ["[[TEST-004]]"]
+---
+
+# 관제 통지
+
+## name
+
+관제 통지
+
+## brownfield
+
+### status
+
+new
+
+### decided_by
+
+ADR-007
+
+### change_kind
+
+- capability-add
+
+### diff_summary
+
+2차 신규 — 단방향 outbound 통지 + inbound 조회 API. 1차 양방향 M2M 통합은 deprecated.
+
+## description
+
+저작도구→관제서버 단방향 outbound 통지 + 관제가 상세를 별도로 조회해 가는 inbound 경로를 담당하는 도메인. 양방향 M2M 인증은 deprecated 이며 본 통지만 예외로 보유한다.
+
+[통지 2종] 검수 완료 시 TASK_COMPLETED, 완료된 영상의 라벨/메타 수정이 재검수에서 승인될 때 TASK_MODIFIED. 둘 다 영상 1건 단위이고 메타·수정요약만 싣는다(라벨·메타 본문 미포함, PII·토큰·비-비식별 이미지 금지). 동일 작업 ID(RAW_SN)를 유지하고 버전업하지 않으며 수신측은 마지막 상태로 갱신한다. 요청 ID idempotency + dead-letter + 재등록 큐 + Resilience4j 를 적용한다.
+
+[★발송 시점 = export 성공 이후 (구속)] 승인·재승인 양쪽 모두 export 가 SUCCEEDED 된 뒤에 보낸다. export 가 비동기라 통지가 앞서면 관제가 구 버전 폴더를 픽업한다. export 실패 시 통지를 보류하고 재산출 성공 후 재개한다(유실이 아니라 지연). 이벤트 체인: 검수 승인(EVT-006) → 산출 완료(EVT-009) → 완료 통지(EVT-003).
+
+[★토글 경계] authoring.control-notify.enabled 는 통지 발송만 게이팅한다. 재-export 트리거(승인 연계·수정 축적·디바운스 flush)는 토글과 무관하게 항상 동작한다(dev/stg/prd 기본 형상 포함).
+
+[관제 조회 패턴] 관제는 통지를 받은 뒤 RAW_SN 으로 데이터마트 적재용 View 를 SELECT 해 영상 1건=1row 로 UPSERT 한다. 현재 4종: V_COMPLETED_VIDEO(영상메타 + export 폴더 경로·프레임수) · V_COMPLETED_FRAME(원본/비식별 페어) · V_COMPLETED_LABEL_CHANGE(라벨 변경점) · V_COMPLETED_META(시계열 메타). ★라벨 본문 뷰는 V114(ADR-037)에서 제거됐다 — 라벨 좌표·속성은 export 폴더 JSON 에 있으므로 뷰로 중복 노출하지 않는다. 이는 관제 연동 계약 변경이라 협의 대상이다.
+
+[★파생영상 픽업 경로] ORGNL_RAW_SN 이 non-null 인 행은 메타 동결 시 원본경로가 null 로 동결되어 V_COMPLETED_VIDEO.ORGNL_VDO_PATH_NM(개명 전 ORIGINAL_VIDEO_PATH) 가 NULL 이다. 파생은 '원본영상'이 없고 비식별본만 있기 때문이며, 관제는 DE_IDNTF_FILE_PATH_NM(V138)으로 픽업한다. 또 파생의 video.* 기술메타가 부모와 같은 것은 정상이다 — 증강·해상도 모두 비디오를 재인코딩하지 않고 복사하며 변환 대상은 프레임 이미지뿐이다(RESL 은 비디오 파일 기준이지 해상도 파생의 목표값이 아니다 — 관제에 명시 필요).
+
+[★검수 완료·통지 건의 관제 접근은 무조건 보장] 승인되어 통지된 영상은 어떤 사유로도 뷰에서 감추거나 경로를 비우지 않는다. 비식별 누락 신고 구간에도 마찬가지다 — 관제가 보던 행이 예고 없이 사라지면 관제 배치가 삭제로 오인하기 때문이다. 즉 신고 게이트는 저작도구 앱 내부 통로에만 적용되고 관제 경계(뷰·통지)에는 적용되지 않는다 — 의도된 설계이므로 '잔여 누수'로 재분류해 다시 고치려 들지 말 것. ⚠ 승인 이력이 있는 영상은 신고 접수 자체가 412 로 막히므로 신고 접수 시 TASK_MODIFIED 를 발행하던 구 분기는 도달 불가가 됐다.
+
+## upstream_of
+
+_(empty)_
+
+## context_kind
+
+supporting
+
+## collaborators
+
+_(empty)_
+
+## integrates_with
+
+- EXTSYS-005
+
+## uses_integrations
+
+- INT-007
+- INT-010
+
+## ubiquitous_language
+
+### [1]
+
+- **term**: TASK_COMPLETED
+- **meaning**: 검수 완료 outbound 통지(메타만). export 가 SUCCEEDED 된 뒤에 발송된다
+
+### [2]
+
+- **term**: TASK_MODIFIED
+- **meaning**: 검수 완료 후 수정 outbound 통지(변경 요약만). 재검수 승인 시점에 영상 1건 1회
+
+### [3]
+
+- **term**: RAW_SN
+- **meaning**: 통지 단위 = 영상 1건 작업 ID. 재검수·수정에도 새로 발급하지 않는다
+
+### [4]
+
+- **term**: OUTPUT_PATH_NM
+- **meaning**: V_COMPLETED_VIDEO 가 내려주는 영상 루트 경로(개명 전 EXPORT_PATH_NM). 버전 루트가 아니라 v1·v2 를 한 경로 아래에서 골라 비교·복구할 수 있게 한다
+
+### [5]
+
+- **term**: changed_items
+- **meaning**: TASK_MODIFIED 의 변경 프레임 목록. export 재생성 경로면 전 프레임을, 아니면 빈 목록을 싣는다
+
+### [6]
+
+- **term**: 데이터마트 적재용 View
+- **meaning**: 검수 완료 영상만 노출하는 4종 View. 관제가 통지 수신 후 단순 SELECT 한다

@@ -2,6 +2,7 @@
 //
 // apiClient 응답 인터셉터가 ApiResponse<T> 래퍼를 언랩하므로 `.data` 만 추출한다.
 
+import type { DisplayNameSource } from '@/components/common/DisplayNameSourceChip';
 import { apiClient } from '@/lib/api/client';
 
 /**
@@ -15,6 +16,14 @@ export interface EventTypeAdminItem {
   evntTypeCd: string;
   /** 표시명 — BE 폴백 해석 결과 */
   dsplNm: string;
+  /**
+   * 표시명이 <b>어느 단계에서 왔는지</b> — BE `EventTypeDisplayNamePolicy.Source.wireValue()`.
+   *
+   * ★화면은 이 값을 그대로 표기한다(출처 칩). optrIndctNm/evntNm/evntCtgryNm 을 보고 폴백을
+   * 다시 판정하지 말 것 — 판정이 두 곳으로 갈리면 정책이 바뀔 때 한쪽만 낡는다.
+   * optional 로 두지 않는다 — 미수신을 특정 단계로 오인시키지 않기 위해서다.
+   */
+  dsplNmSource: DisplayNameSource;
   /** 운영자 표시명 — 수정 가능. 비우면 관제 수신명으로 복귀 */
   optrIndctNm?: string | null;
   /** 관제 수신 유형명 — 읽기 전용("관제 원본") */

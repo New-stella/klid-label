@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-022
 type: screen_spec
-version: 31
-last_updated_at: 2026-08-13T01:02:41.146Z
-domain: null
+version: 36
+last_updated_at: 2026-08-16T09:41:35.375Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.912Z
-sync_session: 9
-stale: false
+synced_at: 2026-08-18T01:49:51.205Z
+sync_session: 17
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-022.json
@@ -15,6 +15,7 @@ wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-042]]", "[[API-059]]", "[[API-060]]", "[[API-092]]", "[[API-179]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-001]]", "[[UC-003]]"]
 ---
 
 # 증강 요청 화면
@@ -93,7 +94,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: role=radiogroup 내 카드 4개. 로빙 tabindex + 화살표(↑↓←→) 탐색, 선택 시 selected aria-checked. data-testid=process-kind-list. 증강 3종을 고르면 생성 조건 5필드에 그 종류에 맞는 기본값이 채워진다 — 겨울은 계절과 날씨, 야간은 시간대, 우천은 날씨. 채워진 값은 검수자가 수정할 수 있으며, 이미 입력한 항목은 종류를 바꿔도 덮어쓰지 않는다. 종류가 생성 조건에 반영되지 않으면 세 종류가 같은 요청이 되어 종류를 나눈 의미가 사라진다.
+- **note**: role=radiogroup 내 카드 4개. 로빙 tabindex + 화살표(↑↓←→) 탐색, 선택 시 selected aria-checked. 증강 3종을 고르면 생성 조건 5필드에 그 종류에 맞는 기본값이 채워진다 — 겨울은 계절과 날씨, 야간은 시간대, 우천은 날씨. 채워진 값은 검수자가 수정할 수 있으며, 이미 입력한 항목은 종류를 바꿔도 덮어쓰지 않는다. 종류가 생성 조건에 반영되지 않으면 세 종류가 같은 요청이 되어 종류를 나눈 의미가 사라진다.
 - **type**: Custom
 - **label**: 처리 종류 카드 ×4 (겨울/야간/우천/해상도 변경) — 단일 선택
 
@@ -140,7 +141,7 @@ _(empty)_
 
 #### [4]
 
-- **note**: selectedKind==='RESOLUTION' 일 때만 노출(TargetResolutionSelect). ★체크박스 다중 선택 이며 기본값은 3종 전체다. 선택값은 RESOLUTION_PRESETS allowlist 로만 좁혀 임의 문자열 분기를 차단한다. 요청 바디의 presets[] 는 optional — 미지정이면 표준 3종 전체가 대상. 파생영상 생성 결과/에러 inline 표시. data-testid=target-resolution-block
+- **note**: selectedKind==='RESOLUTION' 일 때만 노출(TargetResolutionSelect). ★체크박스 다중 선택 이며 기본값은 3종 전체다. 선택값은 RESOLUTION_PRESETS allowlist 로만 좁혀 임의 문자열 분기를 차단한다. 요청 바디의 presets[] 는 optional — 미지정이면 표준 3종 전체가 대상. 파생영상 생성 결과/에러 inline 표시.
 - **type**: Custom
 - **label**: 타겟 해상도 선택 (RESOLUTION 종류 선택 시에만)
 
@@ -193,11 +194,26 @@ _(empty)_
 
 - **variant**: outline
 
-- **description**: 결빙·야간·우천 증강 3종과 해상도 변경을 합한 4종 처리 종류 카드를 단일 선택한다(라디오그룹 성격 — 방향키로 이동하며 선택 상태를 보조기술에 알린다). 증강 3종을 고르면 생성 조건 5필드 입력 폼이, 해상도 변경을 고르면 생성할 해상도 선택이 이어서 나타난다. 해상도는 1080P / 720P / 480P 체크박스 다중 선택이고 기본이 3종 전체이다. 실행 결과는 파생영상 목록(영상번호·목표해상도·폭·높이·상태)과 '파생영상 N건 생성됨 — 검수 대기 (M건 실패)' 요약으로 그 자리에 표시한다. 종류를 고르지 않으면 안내 문구를 노출한다.
+#### [7]
+
+- **note**: 해상도 변경 종류를 고른 동안에만 대상 영상의 파생 확정 상태를 주기 조회해 표시한다(증강 3종 경로는 이 축과 무관하다). 항목마다 목표 해상도·파생 영상 번호·확정 상태(진행 중/검수 대기/실패)를 보이고, 진행 중 건수와 실패 건수를 요약으로 함께 알린다. 바로 위의 생성 응답 블록은 '예약됨'까지만 말하므로, 확정 단계에서 난 실패는 이 블록에서만 드러난다. 실패가 있으면 해당 해상도만 다시 요청할 수 있음을 안내한다.
+- **type**: Custom
+- **label**: 해상도 파생 확정 현황
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 결빙·야간·우천 증강 3종과 해상도 변경을 합한 4종 처리 종류 카드를 단일 선택한다(라디오그룹 성격 — 방향키로 이동하며 선택 상태를 보조기술에 알린다). 증강 3종을 고르면 생성 조건 5필드 입력 폼이, 해상도 변경을 고르면 생성할 해상도 선택이 이어서 나타난다. 해상도는 1080P / 720P / 480P 체크박스 다중 선택이고 기본이 3종 전체이다. 실행 결과는 파생영상 목록(영상번호·목표해상도·폭·높이·상태)과 '파생영상 N건 생성됨 — 검수 대기 (M건 실패)' 요약으로 그 자리에 표시한다. 생성 요청 응답은 예약까지만 알려주므로, 그와 별개로 대상 영상의 해상도 파생 확정 상태를 주기 조회해 확정 현황을 함께 보여준다 — 확정 단계의 실패가 드러나는 유일한 자리다. 종류를 고르지 않으면 안내 문구를 노출한다.
 
 **references_apis**:
 
 - API-092
+- API-179
 
 **references_features**:
 
@@ -272,7 +288,7 @@ _(empty)_
 
 #### [5]
 
-- **note**: data-testid=augment-video-table. 행 1건만 선택되는 라디오(type=radio name=augment-target-video)
+- **note**: 행 1건만 선택되는 라디오(type=radio name=augment-target-video)
 - **type**: Table
 - **label**: 검수 완료 영상 테이블 (단건 라디오 선택)
 
@@ -351,7 +367,7 @@ _(empty)_
 
 - **variant**: ghost
 
-- **description**: 검수 완료(dataSttsCd=COMPLETED & reviewStatusCd=APPROVED) 영상만 BE 페이징(size 20)으로 조회. 영상명/CCTV/ID 검색 + 이벤트 select 필터(조회/초기화). 라디오(type=radio name=augment-target-video)로 1건 단일 선택(상태 selectedVideoId: number|null, 같은 행 재클릭 시 해제). 컬럼: 선택(라디오)/영상명·CCTV·#ID/이벤트/녹화일/검수 완료 일시. 클라이언트 측 현재 페이지 한정 필터. 페이지네이션(이전 · 페이지 번호 · 다음, 번호는 양끝과 현재 앞뒤 1칸 + 말줄임). 로딩 Skeleton, 빈 상태 EmptyState. 검수 완료 총건수 배지 + 선택 시 '#ID 선택' 배지 + 선택 해제. videoId 는 number 로만 처리.
+- **description**: 검수 완료(dataSttsCd=COMPLETED & reviewStatusCd=APPROVED — 여기서 dataSttsCd 는 배치 단계 축인 LS_DATA_RAW.DATA_STTS_CD 이며 작업·검수 워크플로 축인 LS_RAW_DATA_STATUS.DATA_STTS_CD 가 아니다) 영상만 BE 페이징(size 20)으로 조회. 영상명/CCTV/ID 검색 + 이벤트 select 필터(조회/초기화). 라디오(type=radio name=augment-target-video)로 1건 단일 선택(상태 selectedVideoId: number|null, 같은 행 재클릭 시 해제). 컬럼: 선택(라디오)/영상명·CCTV·#ID/이벤트/녹화일/검수 완료 일시. 클라이언트 측 현재 페이지 한정 필터. 페이지네이션(이전 · 페이지 번호 · 다음, 번호는 양끝과 현재 앞뒤 1칸 + 말줄임). 로딩 Skeleton, 빈 상태 EmptyState. 검수 완료 총건수 배지 + 선택 시 '#ID 선택' 배지 + 선택 해제. videoId 는 number 로만 처리.
 
 **references_apis**:
 
@@ -464,7 +480,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: data-testid=augment-submit. 증강 3종 → POST /v1/augments/request, RESOLUTION → POST /v1/videos/{rawSn}/resolution. canSubmit 충족 시 활성/loading isPendingAny. 성공 시 이동 대상은 응답의 jobId 가 아니라 요청 본문의 videoIds[0](원본 영상 번호)이다 — jobId 는 임시값이며 결과 조회 이동에 사용하지 않는다.
+- **note**: 증강 3종 → POST /v1/augments/request, RESOLUTION → POST /v1/videos/{rawSn}/resolution. canSubmit 충족 시 활성/loading isPendingAny. 성공 시 이동 대상은 응답의 jobId 가 아니라 요청 본문의 videoIds[0](원본 영상 번호)이다 — jobId 는 임시값이며 결과 조회 이동에 사용하지 않는다.
 - **type**: Button
 - **label**: 처리 요청
 - **state**: disabled
@@ -588,9 +604,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 0015c3fa7ccce3a4fcb89c7ac31927862f94f858f1e9e5c94715db01bc3f299a
-- **generated_at**: 2026-08-13T01:02:41.146Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 9fad529ef0a6bfb4a609af086f436b82dd4e02feef961a22a2277e29347fe37c
+- **generated_at**: 2026-08-16T09:41:35.375Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -606,7 +622,8 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-001
+- UC-003
 
 ## covered_by_acceptances
 

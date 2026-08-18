@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "DOMAIN-006",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain",
+    "title": "통계·대시보드",
+    "slug": "통계대시보드",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "name": "통계·대시보드",
+      "brownfield": {
+        "notes": "1차 도메인. 2차에서도 유지",
+        "status": "preserved"
+      },
+      "description": "작업자·검수자 대시보드와 영상/작업 통계를 제공하는 도메인. 월별·일별 작업량, 전체·권한별·상태별 집계, 일일 진행률을 다룬다.\n\n[★주수치는 검수완료 기준] 산출물 목표(이미지 10만장·영상 5,000건)는 확정된 학습데이터 기준이므로 검수완료 수치를 주수치로 쓰고 전체(진행중 포함) 수치를 병기한다. 둘을 섞어 하나로 보이면 달성률이 부풀려진다.\n\n[★집계는 BE 에서 전체 기준으로] 필터·집계를 FE 클라이언트 필터로 대체하지 않는다 — 현재 페이지 단위 집계는 오답이다. 목록 정렬은 시간축 단일 기준이고 '지금 처리할 것'은 필터·KPI 카드로 표현한다(ADR-038).\n\n[상태 축] 배정·작업중·완료·반려 기준으로 집계한다. 구 상태 '확인요청'은 관리자 역할 통합(ADR-003)으로 폐기됐다.\n\n[포함 범위] 증강·해상도 파생영상도 집계에 포함된다.",
+      "upstream_of": [],
+      "context_kind": "supporting",
+      "collaborators": [
+        "DOMAIN-005"
+      ],
+      "integrates_with": [],
+      "uses_integrations": [],
+      "ubiquitous_language": [
+        {
+          "term": "진행률",
+          "meaning": "영상/작업 단위 완료 비율"
+        },
+        {
+          "term": "상태별 통계",
+          "meaning": "배정/작업중/완료/반려 건수 집계"
+        },
+        {
+          "term": "검수완료 기준 수치",
+          "meaning": "학습데이터로 확정된 분만 센 주수치. 전체 수치와 함께 병기한다"
+        },
+        {
+          "term": "일별 작업량",
+          "meaning": "일자별 처리 건수 추이"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "DOMAIN-005의 data.brownfield 변경 — collaborates_with",
+    "change_summary": "집계·정렬 정책 문단이 근거 결정(ADR-038)을 인용하도록 보완한다. 같은 본문의 상태 축 문단은 이미 ADR-003 을 인용하고 있어, 같은 성격의 근거 표기가 한쪽에만 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T10:03:12.866Z",
+    "created_at": "2026-05-29T05:00:45.615Z"
+  }
+}

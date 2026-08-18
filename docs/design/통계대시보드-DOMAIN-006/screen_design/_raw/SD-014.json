@@ -1,0 +1,44 @@
+{
+  "item": {
+    "id": "SD-014",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_design",
+    "title": "SCREEN-011 대시보드 화면",
+    "slug": "screen-011-대시보드-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "SCREEN-011 대시보드 화면",
+      "device": "desktop",
+      "status": "draft",
+      "renders": [
+        {
+          "id": "main",
+          "url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-014/main.html",
+          "label": "대시보드 화면 — 고충실 디자인",
+          "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-014/main.css",
+          "surface": "page",
+          "platform": "web",
+          "uploaded_at": "2026-08-13T01:59:03.511Z",
+          "uploaded_by": "claude-screen-design"
+        }
+      ],
+      "designer": "claude-screen-design",
+      "description": "KRDS Public(DS-001) 토큰 기반 고충실 디자인. 헤더 + 역할별 KPI 카드 그리드 + 데이터 개수 카드(이미지·영상, 이벤트 유형 분포) + 최근 완료 영상 표와 내 작업 현황 표를 좌우로 병치한 대시보드. 와이어프레임의 세로 스택을 2열 2단으로 접었고 섹션·컴포넌트를 더하거나 뺀 곳은 없다.",
+      "design_source": {
+        "tool": "other",
+        "version": "mc-logi-screen-design 1.3.2"
+      },
+      "designs_screen": "SCREEN-011"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "디자인 화면 업로드 (main, page) +css",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-13T01:59:03.511Z",
+    "created_at": "2026-08-13T01:07:12.837Z"
+  }
+}

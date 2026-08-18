@@ -188,11 +188,11 @@ if (isDevLoginEnabled()) {
   });
 }
 
-// [개발/검수 전용] 오토라벨 테스트 페이지 — REVIEWER 만 진입.
+// [개발/검수 전용] 영상 업로드 페이지(`/dev/upload`) — REVIEWER 만 진입. [@design SCREEN-027]
 // DEV 빌드 또는 빌드타임 플래그 VITE_DEV_UPLOAD_ENABLED=true 일 때만 라우트를 노출 (isDevLoginEnabled 와 대칭).
 // 플래그 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevAutolabelTestPage 청크
 // 자체가 산출물에 포함되지 않는다. 실제 게이팅은 BE DEV_UPLOAD_ENABLED 런타임 토글이 결정(라우트만 존재,
-// BE off 면 /v1/dev/autolabel-test 호출 시 차단). UI 노출은 추가로 REVIEWER 로 제한.
+// BE off 면 /v1/dev/upload 호출 시 차단). UI 노출은 추가로 REVIEWER 로 제한.
 const devUploadRoutes: Array<{ path: string; element: ReactNode }> = [];
 if (isDevUploadEnabled()) {
   const DevAutolabelTestPage = lazyWithRetry(() =>
@@ -201,7 +201,7 @@ if (isDevUploadEnabled()) {
     })),
   );
   devUploadRoutes.push({
-    path: 'dev/autolabel-test',
+    path: 'dev/upload',
     element: (
       <InternalRoute allow={internalReviewerOnly}>
         {withSuspense(<DevAutolabelTestPage />)}

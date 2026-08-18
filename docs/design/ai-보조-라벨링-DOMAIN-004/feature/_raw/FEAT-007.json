@@ -1,0 +1,83 @@
+{
+  "item": {
+    "id": "FEAT-007",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "feature",
+    "title": "라벨링 정밀도 조절",
+    "slug": "라벨링-정밀도-조절",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "must",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "라벨링 작업자",
+          "action": "작업자가 정밀도 옵션을 연다"
+        },
+        {
+          "step": 2,
+          "action": "인식 민감도·경계의 세밀함을 조절한다"
+        },
+        {
+          "step": 3,
+          "action": "조절한 값이 라벨에 반영된다"
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "라벨링 정밀도 조절 2차 신규 (SFR-08-03, REQ-008 분리)"
+      },
+      "complexity": "moderate",
+      "user_story": {
+        "goal": "라벨의 정밀도(인식 민감도·경계의 세밀함)를 직접 조절하기를 원한다",
+        "actor": "라벨링 작업자",
+        "benefit": "상황에 맞게 라벨 정밀도를 맞춰 품질을 확보할 수 있다"
+      },
+      "description": "라벨링 시 인식 민감도와 경계의 세밀함 등 정밀도를 사용자가 직접 조절할 수 있는 기능.",
+      "business_rules": [
+        "정밀도 옵션은 시스템 설정으로 관리한다"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "PolygonSimplifier(Douglas-Peucker) + sysconfig DECIMAL 키 POLYGON_SIMPLIFY_TOLERANCE"
+          },
+          {
+            "done": true,
+            "description": "SystemConfigService.getDouble + DECIMAL 범위 검증"
+          },
+          {
+            "done": true,
+            "description": "Sam2TrackService 폴리곤 단순화 적용 + V54 시드"
+          },
+          {
+            "done": true,
+            "description": "FE PrecisionConfigCard(인식 민감도 YOLO_CONF_THRESHOLD + 경계 세밀함) UI"
+          }
+        ],
+        "last_updated": "2026-05-30T02:32:59.749Z"
+      },
+      "implements_requirements": [
+        "REQ-008"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 기능에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T06:36:52.932Z",
+    "created_at": "2026-05-29T04:37:42.168Z"
+  }
+}

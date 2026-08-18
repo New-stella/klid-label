@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -77,11 +78,53 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
                    @Param("userNm") String userNm);
 
     /**
+     * <b>최종로그인일시 기록 — throttle 이 내장된 조건부 UPDATE</b> (V12).
+     *
+     * <p>저작도구에는 독립 로그인 UI 가 없어 "로그인" 이라는 단일 이벤트가 없다. 기록 지점은 JWT
+     * 검증을 통과한 INTERNAL 요청이며 그 경로는 <b>모든 요청에서 돈다</b>. 매 요청 UPDATE 를 하면
+     * 요청 수만큼 행 잠금·WAL 이 생기므로 {@code threshold} 조건절로 최소 간격을 강제한다.
+     *
+     * <h3>★ 왜 조건절이 정확성의 근거인가 (CWE-362)</h3>
+     * <p>throttle 을 애플리케이션 로컬 캐시로만 구현하면 2노드 Active-Active 에서 노드별로 판정이
+     * 갈려 두 노드가 같은 창 안에 각각 UPDATE 한다. 조건절은 DB 한 곳에서 판정하므로 노드 수와
+     * 무관하게 창이 지켜지고, 두 노드가 동시에 들어와도 한쪽만 1행을 갱신한다(read-then-write 창이
+     * 아예 없다 — 조회 없이 단일 문장이다).
+     *
+     * <h3>건드리지 않는 것</h3>
+     * <ul>
+     *   <li>{@code MDFCN_DT} — 관제 인계 표시정보(USER_ID·USER_NM)의 변경 시각이다. 접속마다
+     *       갱신하면 "프로필이 바뀐 시각" 이라는 뜻이 오염된다.</li>
+     *   <li>존재하지 않는 사용자 — {@code WHERE USER_NO} 가 매칭되지 않아 0행이다(행을 만들지
+     *       않는다). 사용자 등록 주체는 역할 클레임 시점의 {@link #upsertUser} 하나로 유지한다.</li>
+     * </ul>
+     *
+     * <p>보안: 세 값 모두 파라미터 바인딩이다(CWE-89).
+     *
+     * <p>{@code clearAutomatically}: native 문장이 영속성 컨텍스트를 우회하므로, 같은 컨텍스트가
+     * 뒤이어 이 엔티티를 읽을 때 옛 스냅샷을 돌려주지 않도록 비운다.
+     *
+     * @param userNo    JWT subject 에서 파싱한 사용자번호
+     * @param now       기록할 시각
+     * @param threshold 이 시각보다 오래된(또는 값이 없는) 경우에만 기록한다 = {@code now - throttle}
+     * @return 기록했으면 1, throttle 창 안이거나 대상 사용자가 없으면 0
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE LS_ACNT_USER
+               SET LAST_LGN_DT = :now
+             WHERE USER_NO = :userNo
+               AND (LAST_LGN_DT IS NULL OR LAST_LGN_DT < :threshold)
+            """, nativeQuery = true)
+    int touchLastLogin(@Param("userNo") Long userNo,
+                       @Param("now") LocalDateTime now,
+                       @Param("threshold") LocalDateTime threshold);
+
+    /**
      * WORKER 역할을 가진 활성 사용자 목록과 활성 라벨러 태스크 개수를 단일 쿼리로 조회한다.
      *
      * <p>WORKER 집계는 저작도구 소유 {@code LS_USER_ROLE}(ROLE_CD='WORKER') INNER JOIN 으로 산정하고,
      * {@code USE_YN='Y'} 로 비활성 사용자를 제외한다.
-     * N+1 방지: 사용자별 LS_TASK_ASSIGNMENT 활성 카운트를 상관 서브쿼리로 산정.
+     * N+1 방지: 사용자별 LS_TASK_ALTMNT 활성 카운트를 상관 서브쿼리로 산정.
      */
     @Query("""
             SELECT new kr.co.cudo.authoring.user.repository.dto.WorkerWithTaskCount(

@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.common.security;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,8 @@ public class SecurityConfig {
     private final JwtKeyResolver keyResolver;
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
+    /** 최종로그인일시 기록기 — JWT 필터가 INTERNAL 요청마다 호출한다(@design SCREEN-024). */
+    private final LastLoginRecorder lastLoginRecorder;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -44,7 +47,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                     CorsConfigurationSource corsConfigurationSource) throws Exception {
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver);
+        JwtAuthenticationFilter jwtFilter =
+                new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver, lastLoginRecorder);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
@@ -107,7 +111,7 @@ public class SecurityConfig {
                         //   + devTokenEndpointEnabled(permitAll 매처 부재) 이중 차단으로 보호. 기본 false(fail-closed).
                         // (DEV_FIX CWE-862: /v1/dev/batch/** 는 permitAll 제거 — 아래 /v1/dev/** REVIEWER
                         //  가드가 적용되어 dev/stg/local 에서도 인증 없이 파이프라인/스캔 트리거 불가.
-                        //  Phase 3: /v1/dev/autolabel/** 은퇴, dev 업로드 /v1/dev/autolabel-test 도 동일 REVIEWER 가드.)
+                        //  Phase 3: /v1/dev/autolabel/** 은퇴, dev 업로드 /v1/dev/upload 도 동일 REVIEWER 가드.)
                         auth.requestMatchers(
                                 "/v1/dev/tokens", "/v1/dev/tokens/**").permitAll();
                     }
@@ -119,11 +123,25 @@ public class SecurityConfig {
                             // 외부 시스템(관제/학습데이터) 양방향 통합 deprecated — 모든 매처 거부.
                             .requestMatchers("/v1/integration/**").denyAll()
                             .requestMatchers("/v1/export-api/**").denyAll()
-                            // Phase 1 (CVAT-Like 라벨 풀): 라벨 마스터 조회는 WORKER/PORTAL_USER 도 허용.
-                            // Phase 3 — 라벨 속성 정의 조회(GET /v1/manage/labels/{labelId}/attrs) 도 동일 정책 적용 →
-                            // 와일드카드 /v1/manage/labels/** 로 확장. POST/PUT/DELETE 는 메서드 @PreAuthorize 로 REVIEWER 강제.
-                            // 매처 순서 — REVIEWER 매처보다 앞에 위치해야 함.
-                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/v1/manage/labels", "/v1/manage/labels/**").authenticated()
+                            // 라벨 마스터 <읽기> 계약 — REVIEWER/WORKER/PORTAL_USER 세 역할만.
+                            // [@design API-024] GET /v1/manage/labels
+                            // [@design API-028] GET /v1/manage/labels/{labelId}/attrs
+                            // [@design API-177] GET /v1/manage/labels/detect-candidates
+                            // [@design ROLE-003] PORTAL_USER — 관리 화면 미접근 원칙은 유지하되, 라벨 마스터
+                            //   조회만은 라벨링이 의존하는 <공용 읽기 계약>이라 이 역할에도 허용한다
+                            //   (포털 업로드 라벨링 화면이 이 API 로 라벨 분류·표시명·색상을 그린다 —
+                            //    빼면 그 화면이 깨진다).
+                            //
+                            // ★ .authenticated() 를 쓰면 안 된다 (CWE-862 fail-open) — JwtAuthenticationFilter 는
+                            //   role != null 일 때만 ROLE_* 를 부여하므로, LS_USER_ROLE <미배정>(role=null)
+                            //   사용자도 .authenticated() 를 통과했다. 아래 /v1/** 포괄 매처가 같은 이유로
+                            //   역할 결합 상향(A-ISSUE-02)된 것과 동일한 축이며, 이 3경로만 그 상향에서
+                            //   빠져 있었다. 세 역할을 명시해 role=null 만 차단한다.
+                            //
+                            // 쓰기(POST/PUT/DELETE)는 메서드 @PreAuthorize 로 REVIEWER 강제 — 이 매처는 GET 한정이다.
+                            // 매처 순서 — 아래 /v1/manage/** REVIEWER 매처보다 <앞>에 있어야 한다(먼저 매칭되는 쪽이 이긴다).
+                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/v1/manage/labels", "/v1/manage/labels/**")
+                                .hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name(), Role.PORTAL_USER.name())
                             .requestMatchers("/v1/manage/**").hasRole(Role.REVIEWER.name())
                             .requestMatchers("/v1/system/**").hasRole(Role.REVIEWER.name())
                             // 게시판(공지) — REVIEWER/WORKER 만. PORTAL_USER 차단.

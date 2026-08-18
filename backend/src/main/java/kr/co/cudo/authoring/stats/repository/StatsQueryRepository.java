@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.stats.repository;
 
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -127,18 +128,46 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     //
     // ★상태 문자열은 서버 상수(LsRawDataStatus.STTS_APPROVED)만 바인딩한다 — 사용자 입력을
     //   받지 않으며 @Param 바인딩이라 문자열 연결이 없다(CWE-89).
+    //
+    // ★★폐기 프레임 제외는 "프레임 단위" 집계에만 붙는다 (R4 — 2026-08-17 확정).
+    //   이 화면 수치는 "학습데이터로 확정된 분량"을 뜻하는데, 학습데이터 산출
+    //   (DatasetExportTxService → LsDataSrcRepository.findNotDiscardedByRawSnOrderByFrameNoAsc)과
+    //   데이터마트 뷰(v_completed_frame 의 COALESCE(dscd_yn,'N') <> 'Y')가 폐기 프레임을 구조적으로
+    //   빼므로, 같은 기준이 아니면 화면 숫자가 실제 산출 분량보다 크다.
+    //
+    //   판정은 집계마다 새로 쓰지 않고 밖으로 나가는 모든 조회가 공유하는 단일 조각
+    //   LsDataSrcRepository.NOT_DISCARDED 하나만 붙인다(별칭 규약 LsDataSrc = s).
+    //
+    //   ⚠ 붙이는 집계 / 붙이지 않는 집계가 명확히 갈린다 — "일관성"을 이유로 통일하지 말 것:
+    //     · 붙인다 — countFramesByDataSttsCd(프레임 카드 주 수치)
+    //                countFrameByEventTypeAndStatus(그 카드와 짝인 프레임 단위 이벤트 분포)
+    //     · 붙이지 않는다 — countVideoByEventTypeAndStatus 등 <영상 단위> 집계.
+    //       폐기는 프레임 축이라 영상 건수를 바꾸지 않는다(프레임이 폐기돼도 그 영상은 승인된 영상이다).
+    //     · 붙이지 않는다 — countCumulativeFrames()/countFrameByEventType() 등 <전체 기준> 집계.
+    //       그쪽은 "수집한 전체 분량"이라는 다른 축이고, 폐기를 빼면 수집 상황을 알 수 없어진다.
     // ------------------------------------------------------------------
 
-    /** 지정 검수 상태 영상에 속한 프레임(LS_DATA_SRC) 총 건수. 상태 행이 없는 영상은 자연 제외. */
+    /**
+     * 지정 검수 상태 영상에 속한 프레임(LS_DATA_SRC) 총 건수. 상태 행이 없는 영상은 자연 제외.
+     *
+     * <p>"이미지 학습데이터" 카드의 주 수치이므로 <b>폐기 프레임을 제외</b>한다(위 섹션 주석의 R4 규칙).
+     * 폐기를 포함한 전체 분량은 {@link #countCumulativeFrames()} 가 담당하며 두 값은 다른 축이다.
+     */
     @Query("""
             SELECT COUNT(s)
               FROM LsDataSrc s
               JOIN LsRawDataStatus st ON st.rawDataId = s.rawSn
              WHERE st.dataSttsCd = :status
-            """)
+            """ + LsDataSrcRepository.NOT_DISCARDED)
     long countFramesByDataSttsCd(@Param("status") String status);
 
-    /** 지정 검수 상태 영상의 이벤트 유형별 <b>영상</b> 건수. NULL 코드는 제외. */
+    /**
+     * 지정 검수 상태 영상의 이벤트 유형별 <b>영상</b> 건수. NULL 코드는 제외.
+     *
+     * <p><b>폐기 프레임 술어를 붙이지 않는다</b> — 폐기는 프레임 축이라 영상 건수를 바꾸지 않는다
+     * (프레임 일부가 폐기돼도 그 영상은 여전히 승인된 영상 1건이다). 이 쿼리에는 {@code LsDataSrc}
+     * 조인 자체가 없다.
+     */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
               FROM LsDataRaw r
@@ -149,7 +178,16 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
             """)
     List<CountRow> countVideoByEventTypeAndStatus(@Param("status") String status);
 
-    /** 지정 검수 상태 영상의 이벤트 유형별 <b>프레임</b> 건수. NULL 코드는 제외. */
+    /**
+     * 지정 검수 상태 영상의 이벤트 유형별 <b>프레임</b> 건수. NULL 코드는 제외.
+     *
+     * <p>{@link #countFramesByDataSttsCd(String)} 카드와 <b>짝으로 같은 화면에 나가는 분포</b>라
+     * <b>폐기 프레임을 제외</b>한다(위 섹션 주석의 R4 규칙). 한쪽만 붙이면 카드 합계와 분포 합계가
+     * 어긋나 화면이 자기모순을 보인다.
+     *
+     * <p><b>술어 위치</b>: {@code GROUP BY} <b>앞</b>에 붙인다 — 뒤에 붙이면 문법 오류다. 그래서 이
+     * 쿼리만 텍스트 블록을 둘로 나눠 사이에 조각을 끼운다.
+     */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
               FROM LsDataSrc s
@@ -157,13 +195,14 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
               JOIN LsRawDataStatus st ON st.rawDataId = r.rawSn
              WHERE st.dataSttsCd = :status
                AND r.evntTypeCd IS NOT NULL
+            """ + LsDataSrcRepository.NOT_DISCARDED + """
              GROUP BY r.evntTypeCd
             """)
     List<CountRow> countFrameByEventTypeAndStatus(@Param("status") String status);
 
     /**
      * 특정 사용자의 라벨링(작업) 상태별 카운트.
-     * LS_TASK_ASSIGNMENT(LABELER) ⨝ LS_RAW_DATA_STATUS on RAW_DATA_ID.
+     * LS_TASK_ALTMNT(LABELER) ⨝ LS_RAW_DATA_STATUS on RAW_DATA_ID.
      */
     @Query("""
             SELECT s.dataSttsCd AS code, COUNT(s) AS cnt
@@ -315,6 +354,51 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     long countAutoLabelsForWorker(@Param("userNo") Long userNo);
 
     /**
+     * SCR-STAT-001 — 작업자 배정 raw 중 <b>검수완료(APPROVED)</b> 영상에 달린 라벨 수
+     * ({@code approvedLabelCount} — 학습데이터로 확정된 분량). @design API-056
+     *
+     * <p>{@link #countLabelsForWorker(Long)} 와 <b>다른 축</b>이다 — 그쪽은 "배정된 전체 분량"이고
+     * 이쪽은 "산출물로 확정된 분량"이다. 같은 라벨 집합에서 출발해 <b>검수 상태 + 프레임 폐기여부</b>로
+     * 두 번 좁히므로 항상 {@code approvedLabelCount <= labelCount} 다. 두 값은 짝이며 어느 하나를 다른
+     * 하나에서 유도하지 않는다(비율은 서버가 내려주지 않으므로 화면도 만들지 않는다).
+     *
+     * <p><b>★INNER JOIN 필수</b>: {@code LS_RAW_DATA_STATUS} 행은 배정 시점에 lazy 생성되어
+     * {@code LS_DATA_RAW} 전건과 1:1 이 아니다. LEFT JOIN 으로 바꾸면 상태 행이 없는(=미배정) 영상의
+     * 라벨이 학습데이터로 계상된다 — 위 검수완료 한정 집계 3종과 동일한 규칙이다.
+     *
+     * <p><b>★폐기 프레임 제외 (R4)</b>: 학습데이터 산출
+     * ({@code DatasetExportTxService} → {@code LsDataSrcRepository.findNotDiscardedByRawSnOrderByFrameNoAsc})
+     * 과 데이터마트 뷰({@code v_completed_frame} 의 {@code COALESCE(dscd_yn,'N') <> 'Y'})가 폐기 프레임을
+     * <b>구조적으로 제외</b>하므로, "확정된 분량"이라 서술한 이 값도 같은 기준이어야 한다. 그러지 않으면
+     * 화면 숫자가 실제 산출 분량보다 크다(도달 경로: 라벨 저장 → 미승인 상태에서 그 프레임 폐기 → 승인).
+     * 판정은 <b>술어를 재구현하지 않고</b> 밖으로 나가는 모든 조회가 공유하는 단일 조각
+     * {@link LsDataSrcRepository#NOT_DISCARDED} 를 붙인다 — 별칭 {@code s} 가 그 조각의 규약
+     * ({@code LsDataSrc} = {@code s})과 일치한다.
+     *
+     * <p><b>최신 버전 기준이다 (2026-08-17 확정)</b>: 대상 테이블 {@code LS_DATA_LBL} 은 <b>라이브 작업본</b>
+     * 이며 라벨 1건 = 행 1건이다(버전 차원 컬럼이 없다). 승인 스냅샷은 별개 테이블
+     * {@code LS_LABEL_VERSION.LABEL_PAYLOAD}(JSON)에 있고 이 집계는 그것을 <b>조인하지 않는다</b>.
+     * 따라서 재승인으로 버전이 쌓여도 개수는 최신 상태 하나만 센다. ⚠ 여기에 버전 스냅샷을 조인·합산하면
+     * 같은 라벨이 버전 수만큼 중복 계상되므로 <b>추가하지 말 것</b>.
+     *
+     * <p>상태 문자열은 서버 상수({@code LsRawDataStatus.STTS_APPROVED})만 {@code @Param} 으로
+     * 바인딩한다(문자열 연결 없음 — CWE-89).
+     */
+    @Query("""
+            SELECT COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+              JOIN LsRawDataStatus st ON st.rawDataId = s.rawSn
+             WHERE st.dataSttsCd = :status
+               AND s.rawSn IN (
+                   SELECT a.rawDataId FROM LsTaskAssignment a
+                    WHERE a.userNo = :userNo
+                      AND a.taskTypeCd = 'LABELER'
+             )
+            """ + LsDataSrcRepository.NOT_DISCARDED)
+    long countApprovedLabelsForWorker(@Param("userNo") Long userNo, @Param("status") String status);
+
+    /**
      * SCR-STAT-001 — 최근 N 일간 작업자 일별 완료 row (APPROVED 상태 영상 기준).
      * UPD_DT 가 APPROVED 로 전이된 시점이라고 가정 (review.transitionTo() 가 updDt 갱신).
      *
@@ -339,7 +423,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * SCR-STAT-002 — 최근 N 일간 <b>전체(모든 작업자)</b> 일별 검수 완료 row.
      *
      * <p>{@link #findDailyCompletionForWorker(Long, java.time.LocalDateTime)} 와 달리
-     * <b>LS_TASK_ASSIGNMENT 조인이 없다</b> — 전체 구축 현황 차트는 작업자 귀속과 무관한
+     * <b>LS_TASK_ALTMNT 조인이 없다</b> — 전체 구축 현황 차트는 작업자 귀속과 무관한
      * "검수 완료 건수"를 세기 때문이다. 그 결과 <b>배정 이력이 없는 승인 영상도 포함</b>되며,
      * 이것이 같은 화면의 {@code approvedVideoCount}(= APPROVED 상태 행 수)와 차트 합계를
      * 같은 원천으로 묶는 조건이다. 배정 조인을 추가하면 카드와 차트가 어긋난다.

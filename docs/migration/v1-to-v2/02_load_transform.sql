@@ -5,6 +5,8 @@
 --        -v asgn_off=200000000 -v issue_off=300000000 -v aug_off=400000000 \
 --        -f 02_load_transform.sql
 -- 전제: 02 는 단일 트랜잭션. 실패 시 전체 롤백. 데이터 비종속(값 하드코딩 없음, 스테이징에서 유도).
+-- 선행조건: 대상 DB 에 **V9 가 적용돼 있어야 한다.** 이 스크립트는 표준용어 개명 이후의 물리명
+--           (ls_task_altmnt · ls_task_evnt_log)을 쓴다. V8 이하 형상에 돌리면 relation 부재로 실패한다.
 -- =====================================================================
 \set ON_ERROR_STOP on
 \timing on
@@ -15,7 +17,7 @@ BEGIN;
 -- DELETE FROM ls_issue_comment   WHERE issue_comment_sn >= :issue_off;
 -- DELETE FROM ls_data_issue      WHERE data_issue_sn    >= :issue_off;
 -- DELETE FROM ls_data_aug        WHERE data_aug_sn      >= :aug_off;
--- DELETE FROM ls_task_assignment WHERE assignment_id    >= :asgn_off;
+-- DELETE FROM ls_task_altmnt WHERE assignment_id    >= :asgn_off;
 -- DELETE FROM ls_raw_data_status WHERE raw_data_id      >= :raw_off;
 -- DELETE FROM ls_data_lbl  WHERE lbl_sn >= :lbl_off;
 -- DELETE FROM ls_data_src  WHERE src_sn >= :src_off;
@@ -293,7 +295,7 @@ WHERE l.data_raw_sn IN (SELECT data_raw_sn FROM mig_target_raw)
   AND NULLIF(l.reg_id,'') IS NOT NULL
 GROUP BY l.data_raw_sn, l.reg_id;
 
-INSERT INTO ls_task_assignment(assignment_id, user_no, raw_data_id, task_type_cd, reg_user_no, reg_dt)
+INSERT INTO ls_task_altmnt(assignment_id, user_no, raw_data_id, task_type_cd, reg_user_no, reg_dt)
 SELECT :asgn_off + row_number() OVER (ORDER BY a.data_raw_sn, mu.user_no),
        mu.user_no, a.data_raw_sn + :raw_off, 'LABELER',
        mu.user_no,                                       -- reg_user_no: 이관 시 자기 배정으로 기록
@@ -301,7 +303,7 @@ SELECT :asgn_off + row_number() OVER (ORDER BY a.data_raw_sn, mu.user_no),
 FROM map_assign a
 JOIN ls_acnt_user mu ON mu.user_id = a.reg_id
 WHERE NOT EXISTS (
-  SELECT 1 FROM ls_task_assignment t
+  SELECT 1 FROM ls_task_altmnt t
    WHERE t.raw_data_id = a.data_raw_sn + :raw_off AND t.user_no = mu.user_no AND t.task_type_cd='LABELER');
 
 -- 배정 미매칭 작성자 보고 (데이터 손실 아님 — 메타. NOTICE 로 운영자에게 노출)
@@ -382,7 +384,7 @@ DO $$
 DECLARE r record; seq text;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-      ('ls_task_assignment','assignment_id'),
+      ('ls_task_altmnt','assignment_id'),
       ('ls_data_issue','data_issue_sn'),
       ('ls_issue_comment','issue_comment_sn'),
       ('ls_data_aug','data_aug_sn')

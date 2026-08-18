@@ -1,20 +1,21 @@
 ---
 logicraft_item: SCREEN-032
 type: screen_spec
-version: 21
-last_updated_at: 2026-08-13T01:02:43.637Z
-domain: null
+version: 23
+last_updated_at: 2026-08-16T07:12:37.508Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.925Z
-sync_session: 9
-stale: false
+synced_at: 2026-08-18T01:49:51.227Z
+sync_session: 17
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-032.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-094]]", "[[API-109]]"]
+  consumes_apis: ["[[API-094]]", "[[API-109]]", "[[API-202]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-016]]"]
 ---
 
 # 비식별 신고 관리 화면
@@ -347,6 +348,7 @@ web
 
 - API-094
 - API-109
+- API-202
 
 ## implementation
 
@@ -406,7 +408,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-016
 
 ## covered_by_acceptances
 

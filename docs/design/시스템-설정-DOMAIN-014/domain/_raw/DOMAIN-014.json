@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "DOMAIN-014",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain",
+    "title": "시스템 설정",
+    "slug": "시스템-설정",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "시스템 설정",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "2차 신규 — 시스템 설정 키-값 관리. 1차에는 설정 관리가 없었다."
+      },
+      "description": "저작도구 운영 파라미터를 관리하는 도메인. 성격이 다른 두 계층을 구분한다.\n\n[계층 1 — 런타임 설정(DB 키-값)] LS_SYSTEM_CONFIG 에 저장되며 REVIEWER 가 관리 화면(/manage/settings)에서 조회·수정한다. 서버가 타입별 값 + 범위 검증을 건다. Caffeine 로컬 캐시 TTL 60s. 예: POLYGON_SIMPLIFY_TOLERANCE, YOLO_CONF_THRESHOLD, portal.upload.frame-interval-sec(기본 5초). 외부 연동 서버 주소(비식별 · AI 추론 · 외부 시계열 분석 벤더 · 관제 통지 수신처)도 이 계층이다 — 관리자 패스워드를 다시 확인해 여는 짧은 유효창(기본 10분, 상한 30분) 안에서만 저장할 수 있고, 저장하면 재기동 없이 다음 호출부터 반영된다. 값의 우선순위는 설정에 값이 있으면 설정, 없으면 배포 기본값이다.\n\n[계층 2 — 배포 설정(환경변수·프로파일)] DB 접속·토글 등은 화면에서 바꾸지 않고 배포 형상으로 관리한다.\n\n[fail-closed 기동 가드] 잘못 닫히면 사고가 되는 설정은 경고가 아니라 기동 차단으로 막는다 — WARN 은 배포 로그에 묻히기 때문이다. 예: ①Quartz 클러스터링은 stg/prd 에서 강제되며 꺼져 있으면 기동을 거부한다(프로파일 allowlist + ENV 배포 표식 두 축) ②파생 폐기 유예기간은 0·음수·파싱실패면 기동 실패시킨다(파괴적 기능이 fail-open 되면 '반려 즉시 실삭제'로 전락한다). 빈 설정값이 배포 기본값으로 조용히 대체되는 구성은 이 방어를 무력화하므로 피한다.",
+      "upstream_of": [],
+      "context_kind": "generic",
+      "collaborators": [],
+      "integrates_with": [],
+      "uses_integrations": [],
+      "ubiquitous_language": [
+        {
+          "term": "ConfigKey",
+          "meaning": "설정 키 enum (타입·범위 메타 포함)"
+        },
+        {
+          "term": "런타임 설정",
+          "meaning": "화면에서 바꿀 수 있는 DB 키-값 설정"
+        },
+        {
+          "term": "배포 설정",
+          "meaning": "환경변수·프로파일로 관리하는 설정. 화면에서 변경하지 않는다"
+        },
+        {
+          "term": "fail-closed 기동 가드",
+          "meaning": "안전에 직결된 설정이 빠지거나 잘못되면 경고가 아니라 기동을 거부하는 방어"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "1차 형상에 대한 추정 표기를 확정 서술로 바꾼다. 1차에는 설정 관리가 없었다는 사실이 확인되어 미확인 꼬리표를 유지할 이유가 사라졌다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:43:11.552Z",
+    "created_at": "2026-05-30T06:55:03.412Z"
+  }
+}

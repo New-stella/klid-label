@@ -1,0 +1,1183 @@
+---
+logicraft_item: CDIAG-015
+type: class_diagram
+version: 7
+domain: DOMAIN-010
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-16T14:48:54.242Z
+status: NEW
+prev_version: null
+content_hash: 53315b1bceace41a052d49ee1a23fb0536792141ce0178c15d2d18eaeac2a1e8
+stale: false
+raw: ./_raw/CDIAG-015.json
+links:
+  belongs_to_domain: ["[[DOMAIN-010]]"]
+  references: ["[[FEAT-002]]"]
+---
+
+# 버전관리 도메인 모델
+
+## theme
+
+neutral
+
+## title
+
+버전관리 도메인 모델
+
+## classes
+
+### VersionController
+
+- **kind**: class
+
+**methods**:
+
+#### listVersions
+
+**params**:
+
+- srcSn: Long
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: ApiResponse<List<VersionItem>>
+
+#### diff
+
+**params**:
+
+- toHash: String
+- fromHash: String
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **description**: compareWith=fromHash
+- **is_abstract**: false
+- **return_type**: ApiResponse<List<LabelDiffDto>>
+
+#### rollback
+
+**params**:
+
+- versionHash: String
+- req: RollbackRequest
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: ApiResponse<VersionResponse.Item>
+
+#### diffWithWorking
+
+**params**:
+
+- versionHash: String
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **description**: GET /v1/versions/{version}/diff-with-working — 쿼리 파라미터 행위 분기 금지 원칙에 따라 별도 하위 리소스로 둔다
+- **is_abstract**: false
+- **return_type**: ApiResponse<List<LabelDiffDto>>
+
+**attributes**:
+
+_(empty)_
+
+- **description**: DB 스냅샷 기반 버전관리 REST API. GET /v1/frames/{srcSn}/versions, GET /v1/versions/{version}/diff, GET /v1/versions/{version}/diff-with-working, POST /v1/versions/{version}/rollback. 조회 두 종은 REVIEWER/WORKER 공통, 롤백은 REVIEWER 전체·WORKER 본인 배정.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### VersionService
+
+- **kind**: service
+
+**methods**:
+
+#### commitApproved
+
+**params**:
+
+- rawSn: Long
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 승인 시점 영상 전체 프레임 스냅샷, SAVE_REASON_CD=APPROVED
+- **is_abstract**: false
+- **return_type**: CommitResult
+
+#### listVersions
+
+**params**:
+
+- srcSn: Long
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: List<VersionItem>
+
+#### diff
+
+**params**:
+
+- fromHash: String
+- toHash: String
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: DiffResponseDto
+
+#### rollback
+
+**params**:
+
+- versionHash: String
+- srcSn: Long
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 대상 스냅샷 행을 재활성하고 라벨 본문을 작업본으로 보존 복원(라벨 식별자·AI 보조 메타·트랙 식별자 유지). 새 버전 적층 아님, 멱등 시 no-op
+- **is_abstract**: false
+- **return_type**: LsLabelVersion
+
+#### isCommittable
+
+**params**:
+
+- actor: TokenClaims
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: boolean
+
+#### computeLabelDiffs
+
+**params**:
+
+- fromContent: String
+- toContent: String
+
+- **is_static**: false
+- **visibility**: private
+- **description**: 라벨 단위 추가·수정·삭제 비교. 비교축(R7) = 라벨 식별자·형태·라벨명·라벨 마스터 식별자·좌표·트랙 식별자 — 학습데이터 산출물 재생성을 정하는 라벨 내용 해시 입력과 합동(프레임 식별자만 제외). 두 버전 비교와 작업본 비교가 이 비교기를 공유한다
+- **is_abstract**: false
+- **return_type**: List<LabelDiffDto>
+
+#### diffWithWorking
+
+**params**:
+
+- versionHash: String
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 기준=버전 스냅샷, 비교 대상=현재 작업본. 작업본 페이로드를 승인 스냅샷과 동일 경로로 구성해 오탐 차단. 읽기 전용(새 버전 미적층). 스냅샷의 라벨 목록이 배열이 아니면 400
+- **is_abstract**: false
+- **return_type**: DiffResponseDto
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 라벨 버전관리(DB 스냅샷). 스냅샷은 검수 승인(APPROVED) 시점에만 생성. 비교는 두 축이다 — 두 버전 스냅샷 비교(diff)와 버전 스냅샷 대 현재 작업본 비교(diffWithWorking). IDOR(LabelAccessGuard)/Race(ACTIVE 비관적 잠금)/페이로드 1MB 한도 가드. 비식별 누락 신고 구간은 인가 검사 이후 412로 차단한다. 멱등: 동일 versionHash 재승인 시 신규 버전 미생성.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### LabelAccessGuard
+
+- **kind**: class
+
+**methods**:
+
+#### verifyAccess
+
+**params**:
+
+- srcSn: Long
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: void
+
+#### verifyAndGet
+
+**params**:
+
+- srcSn: Long
+- actor: TokenClaims
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: LsDataSrc
+
+#### parseUserNo
+
+**params**:
+
+- sub: String
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: Long
+
+**attributes**:
+
+_(empty)_
+
+- **description**: IDOR(CWE-639) 가드 — srcSn 소유/배정 검증. REVIEWER 통과 / WORKER 본인 LABELER 배정만. (label 패키지, 공유)
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### LsLabelVersion
+
+- **kind**: entity
+
+**methods**:
+
+#### create
+
+**params**:
+
+- rawSn: Long
+- srcSn: Long
+- versionHash: String
+- labelPayload: String
+- versionNo: int
+- saveReasonCd: String
+- regId: String
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: LsLabelVersion
+
+#### createInactiveRawSnapshot
+
+**params**:
+
+- rawSn: Long
+- versionHash: String
+- labelPayload: String
+- versionNo: int
+- saveReasonCd: String
+- regId: String
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: LsLabelVersion
+
+#### activate
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: void
+
+#### deactivate
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: void
+
+**attributes**:
+
+#### labelVersionSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### dataRawSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### dataSrcSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### versionHash
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### labelPayload
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### versionNo
+
+- **type**: int
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### saveReasonCd
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### activeYn
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### regId
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+- **description**: LS_LABEL_VERSION — 라벨 DB 스냅샷 버전. LABEL_PAYLOAD(전체 JSON), VERSION_HASH(SHA-256), VERSION_NO, SAVE_REASON_CD(APPROVED/BATCH, 레거시 DEIDENT_REPORT), ACTVTN_YN. (DATA_SRC_SN, VERSION_HASH) UNIQUE.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### LsDataLblHstry
+
+- **kind**: entity
+
+**methods**:
+
+#### recordDeletion
+
+**params**:
+
+- lblSn: Long
+- srcSn: Long
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: LsDataLblHstry
+
+**attributes**:
+
+#### lblHstrySn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### lblSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### srcSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+#### registeredAt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+- **description**: LS_DATA_LBL_HSTRY — 라벨 이력(LBL_SN/SRC_SN/REGISTERED_AT). 라벨 저장 이벤트와 롤백 행위(누가·언제·어느 버전으로)를 기록한다. PII 미저장. 구 서술 '비식별 신고 시 라벨 삭제 이력 기록'은 폐기 — 신고는 라벨을 삭제하지 않는다(2026-07-27).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### LsLabelVersionRepository
+
+- **kind**: repository
+
+**methods**:
+
+#### findByDataSrcSnOrderByRegDtDesc
+
+**params**:
+
+- dataSrcSn: Long
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: List<LsLabelVersion>
+
+#### findActiveForUpdate
+
+**params**:
+
+- rawSn: Long
+- srcSn: Long
+- activeYn: String
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: List<LsLabelVersion>
+
+#### findByDataSrcSnAndVersionHash
+
+**params**:
+
+- dataSrcSn: Long
+- versionHash: String
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: Optional<LsLabelVersion>
+
+#### findByVersionHash
+
+**params**:
+
+- versionHash: String
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: List<LsLabelVersion>
+
+#### countByDataRawSnAndDataSrcSn
+
+**params**:
+
+- dataRawSn: Long
+- dataSrcSn: Long
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: int
+
+#### findFirstByDataRawSnOrderByVersionNoDesc
+
+**params**:
+
+- dataRawSn: Long
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: Optional<LsLabelVersion>
+
+**attributes**:
+
+_(empty)_
+
+- **description**: LS_LABEL_VERSION JPA 리포지토리(@ControlRepo). findActiveForUpdate는 PESSIMISTIC_WRITE 잠금(Race 직렬화).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### LsDataLblHstryRepository
+
+- **kind**: repository
+
+**methods**:
+
+#### findBySrcSnOrderByRegisteredAtDesc
+
+**params**:
+
+- srcSn: Long
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: List<LsDataLblHstry>
+
+**attributes**:
+
+_(empty)_
+
+- **description**: LS_DATA_LBL_HSTRY JPA 리포지토리(@ControlRepo).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### DiffResponseDto
+
+- **kind**: class
+
+**methods**:
+
+#### of
+
+**params**:
+
+- fromHash: String
+- toHash: String
+- labels: List<LabelDiffDto>
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: DiffResponseDto
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 라벨 단위 diff 응답 — fromHash/toHash/labels[]. 작업본 비교에서는 toHash 가 현재 작업본 페이로드의 해시다. MAX_LABELS=500 응답 크기 보호.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
+### LabelDiffDto
+
+- **kind**: class
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 라벨 단위 diff — type(ADDED/MODIFIED/REMOVED)/frameId/objectId/before/after(ShapeDto). FE LabelDiff 1:1.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
+### VersionItem
+
+- **kind**: class
+
+**methods**:
+
+#### fromLabelVersion
+
+**params**:
+
+- v: LsLabelVersion
+- current: boolean
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: VersionItem
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 프레임 단위 버전 1건(FE 정합) — commitSha(=versionHash)/shortHash/authorName/message(=saveReasonCd)/committedAt/isCurrent.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
+### RollbackRequest
+
+- **kind**: class
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 롤백 대상 프레임 식별 — srcSn(커밋 해시는 path 변수).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
+### VersionResponse
+
+- **kind**: class
+
+**methods**:
+
+#### from
+
+**params**:
+
+- e: LsLabelVersion
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: VersionResponse.Item
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 프레임 버전 목록 응답 — items[]{lblHstrySn, srcSn, versionHash, registeredUserNo, registeredAt}.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+- <<DTO>>
+
+### SaveReason
+
+- **kind**: enum
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+_(empty)_
+
+- **description**: LS_LABEL_VERSION.SAVE_REASON_CD 상수(엔티티 내 String 상수). APPROVED=검수 승인 확정, BATCH=배치. DEIDENT_REPORT 는 신규 발생이 없고 이미 적재된 레거시 행 판독용으로만 존치한다(2026-07-27 신고 스냅샷 정책 폐기). ROLLBACK 은 폐기 — 롤백이 새 버전을 적층하지 않기 때문.
+
+**enum_values**:
+
+- APPROVED
+- BATCH
+- DEIDENT_REPORT
+
+**stereotypes**:
+
+_(empty)_
+
+## description
+
+UC-007(버전 저장·이력)/UC-008(비교·복구) 서비스 레이어 전용 클래스도. DB 스냅샷 기반 버전관리(외부 VCS 미사용). 엔티티 LsLabelVersion/LsDataLblHstry 는 version 패키지이며, CDIAG-004 가 애그리거트 구조를 도식하는 데 비해 본 도식은 서비스/컨트롤러/리포지토리/DTO 흐름을 보강한다.
+
+[생성] 검수 승인(APPROVED) 시점에 영상 전체 라벨 JSON 스냅샷을 LS_LABEL_VERSION 에 VERSION_HASH(SHA-256)로 멱등 저장한다(commitApproved). 라벨 저장 시점에는 만들지 않는다.
+
+[★비교는 두 축이다 (2026-08-05 사용자 확정)] ①두 버전 스냅샷 비교(diff) ②버전 스냅샷 대 현재 작업본 비교(diffWithWorking). ②를 신설한 이유는 승인 버전이 1건뿐인 프레임에서 ①은 비교 대상이 없어 변경 내역을 아예 볼 수 없었기 때문이다. 별도 하위 리소스로 둔 것은 같은 URL 에 쿼리 파라미터로 행위를 분기하지 않는다는 원칙을 따른 것이며 기존 ①의 요청 계약은 무변경이다. 작업본 페이로드는 승인 스냅샷과 동일한 구성 인자·정렬·직렬화 경로로 만들어야 오탐이 나지 않는다. 손상된 스냅샷은 ②에서만 400 으로 거부하고 ①의 장애격리(파싱 실패 시 빈 목록)는 기존 계약이라 유지한다.
+
+[★비교축(R7)] 라벨 식별자·라벨 형태·라벨명·라벨 마스터 식별자·좌표·트랙 식별자. 구 비교축(형태/라벨명/좌표 3개)에서는 트랙 병합처럼 시스템 자신이 수정 통지를 발행하고 학습데이터 산출물을 새 버전으로 재생성한 변경이 변경 없음으로 보였다. 판정 축은 라벨 내용 해시의 입력과 합동으로 맞춘다(프레임 식별자만 제외). 비교기를 ①②가 공유하므로 ①의 판정 결과도 함께 바뀐다(계약은 무변경).
+
+[★롤백 시맨틱] 새 버전 행을 적층하지 않고 대상 스냅샷 행을 재활성화한다 — 롤백 결과 페이로드가 대상 스냅샷 그 자체라 재계산 해시가 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능하기 때문이다. 따라서 SAVE_REASON_CD='ROLLBACK' 코드는 폐기됐고 롤백 행위는 LS_DATA_LBL_HSTRY 에 기록한다(누가·언제·어느 VERSION_HASH 로). 본문 복원 시 LBL_SN·AI 메타·TRCK_ID 를 보존하며, 현재 active 가 이미 대상 스냅샷이면 no-op 이다(이력·통지도 발행하지 않는다).
+
+[★snapshotDeidentReport 폐기 (2026-07-27 확정)] 비식별 신고 시 삭제 전 복원용 비활성 스냅샷(SAVE_REASON_CD=DEIDENT_REPORT)을 남기는 경로는 두지 않는다. 신고는 비식별이 잘못됐다는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 라벨을 삭제하지 않고 보존한다. 그런 스냅샷을 만들었다면 DATA_SRC_SN=NULL(영상 스코프)이라 srcSn 스코프 조회·롤백 진입점이 없는 write-only 이력이 됐을 것이다. 대신 신고 구간 동안 라벨 조회·이력·버전 비교/롤백을 412 로 차단하고, resolve 로 F에서 Y 로 복원되면 게이트가 자동 해제돼 보존된 기존 라벨을 그대로 재사용한다(별도 복원 API 없음).
+
+## module_name
+
+version
+
+## relationships
+
+### [1]
+
+- **to**: VersionService
+- **from**: VersionController
+- **kind**: dependency
+- **label**: 위임
+
+### [2]
+
+- **to**: LabelAccessGuard
+- **from**: VersionService
+- **kind**: dependency
+- **label**: IDOR 가드
+
+### [3]
+
+- **to**: LsLabelVersionRepository
+- **from**: VersionService
+- **kind**: dependency
+
+### [4]
+
+- **to**: LsLabelVersion
+- **from**: VersionService
+- **kind**: dependency
+- **label**: 스냅샷 생성
+
+### [5]
+
+- **to**: DiffResponseDto
+- **from**: VersionService
+- **kind**: dependency
+
+### [6]
+
+- **to**: VersionItem
+- **from**: VersionController
+- **kind**: dependency
+
+### [7]
+
+- **to**: LabelDiffDto
+- **from**: VersionController
+- **kind**: dependency
+
+### [8]
+
+- **to**: RollbackRequest
+- **from**: VersionController
+- **kind**: dependency
+
+### [9]
+
+- **to**: VersionResponse
+- **from**: VersionController
+- **kind**: dependency
+
+### [10]
+
+- **to**: LsLabelVersion
+- **from**: LsLabelVersionRepository
+- **kind**: dependency
+
+### [11]
+
+- **to**: LsDataLblHstry
+- **from**: LsDataLblHstryRepository
+- **kind**: dependency
+
+### [12]
+
+- **to**: LabelDiffDto
+- **from**: DiffResponseDto
+- **kind**: composition
+- **to_multiplicity**: 0..*
+- **from_multiplicity**: 1
+
+### [13]
+
+- **to**: LsLabelVersion
+- **from**: VersionItem
+- **kind**: dependency
+- **label**: from
+
+### [14]
+
+- **to**: SaveReason
+- **from**: LsLabelVersion
+- **kind**: association
+- **label**: 저장 사유
+- **to_multiplicity**: 1
+- **from_multiplicity**: 0..*
+
+## depicts_dfeats
+
+_(empty)_
+
+## referenced_items
+
+_(empty)_
+
+## realizes_features
+
+- FEAT-002

@@ -41,7 +41,7 @@ import java.time.LocalDateTime;
  * 수 없다), 화면 타임라인에는 알 수 없는 코드가 아니라 전용 문구로 표시된다({@code HistoryDrawer}).
  */
 @Entity
-@Table(name = "LS_TASK_EVENT_LOG")
+@Table(name = "LS_TASK_EVNT_LOG")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class LsTaskEventLog {

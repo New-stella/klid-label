@@ -8,27 +8,27 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-11T07:42:37.327Z (session 2) |
+| last sync | 2026-08-16T12:51:47.715Z (session 5) |
 | 화면 수 | 4개 |
-| ui_component 카탈로그 | populated 115건 |
-| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
+| ui_component 카탈로그 | populated 144건 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-030 | 공지 목록 화면 | UNCHANGED | ✅ | API-095, API-097 | ROLE-001, ROLE-002 |
-| SCREEN-031 | 공지 상세 화면 | UNCHANGED | ✅ | API-096, API-098, API-099, API-100, API-101, API-106, API-107, API-108 | ROLE-001, ROLE-002 |
-| SCREEN-036 | 공지 작성 화면 | UNCHANGED | ✅ | API-097 | ROLE-001 |
-| SCREEN-037 | 공지 수정 화면 | UNCHANGED | ✅ | API-096, API-098, API-106, API-108 | ROLE-001 |
+| [[SCREEN-030]] | 공지 목록 화면 | CHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-031]] | 공지 상세 화면 | CHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-036]] | 공지 작성 화면 | CHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
+| [[SCREEN-037]] | 공지 수정 화면 | CHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 115 |
+| ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 10 |
 | constant | _shared/constant/ | 0 |
@@ -49,22 +49,37 @@
 
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
-| 1 | SCREEN-030 — 공지 목록 화면 | screens/SCREEN-030/SCREEN-030.md | wireframe.html | uc/ | ac/ |
-| 2 | SCREEN-031 — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
-| 3 | SCREEN-036 — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
-| 4 | SCREEN-037 — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
+| 1 | [[SCREEN-030]] — 공지 목록 화면 | screens/SCREEN-030/SCREEN-030.md | wireframe.html | uc/ | ac/ |
+| 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
+| 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
+| 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
 
 ## 변경 알림 (코드 재반영 필요)
 
 | ITEM | type | 상태 |
 |---|---|---|
-| UI-109 | ui_component | NEW |
-| UI-110 | ui_component | NEW |
-| UI-111 | ui_component | NEW |
-| UI-112 | ui_component | NEW |
-| UI-113 | ui_component | NEW |
-| UI-114 | ui_component | NEW |
-| UI-115 | ui_component | NEW |
+| [[API-095]] | api_endpoint | CHANGED (v3→v6) |
+| [[API-096]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-097]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-098]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-099]] | api_endpoint | CHANGED (v3→v6) |
+| [[API-100]] | api_endpoint | CHANGED (v4→v8) |
+| [[API-101]] | api_endpoint | CHANGED (v4→v8) |
+| [[API-106]] | api_endpoint | CHANGED (v6→v9) |
+| [[API-107]] | api_endpoint | CHANGED (v3→v7) |
+| [[API-108]] | api_endpoint | CHANGED (v3→v6) |
+| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
+| [[SD-011]] | screen_design | CHANGED (v4→v6) |
+| [[SCREEN-030]] | screen_spec | CHANGED (v20→v23) |
+| [[SCREEN-031]] | screen_spec | CHANGED (v22→v29) |
+| [[SCREEN-036]] | screen_spec | CHANGED (v7→v8) |
+| [[SCREEN-037]] | screen_spec | CHANGED (v7→v8) |
+
+## Obsidian 볼트로 보기
+
+이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
+(frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
+켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
 ## git 권장
 

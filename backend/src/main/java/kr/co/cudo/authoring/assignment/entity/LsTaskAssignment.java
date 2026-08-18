@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "LS_TASK_ASSIGNMENT", uniqueConstraints = {
-        @UniqueConstraint(name = "UK_LS_TASK_ASSIGNMENT",
+@Table(name = "LS_TASK_ALTMNT", uniqueConstraints = {
+        @UniqueConstraint(name = "UK_LS_TASK_ALTMNT",
                 columnNames = {"RAW_DATA_ID", "USER_NO", "TASK_TYPE_CD"})
 })
 @Getter

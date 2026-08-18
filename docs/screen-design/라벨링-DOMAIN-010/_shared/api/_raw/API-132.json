@@ -40,77 +40,101 @@
                     "format": "int64",
                     "description": "대상 영상 RAW_SN"
                   },
-                  "updatedAt": {
+                  "regId": {
                     "type": "string",
-                    "format": "date-time",
                     "nullable": true,
-                    "description": "최종 수정 일시"
+                    "description": "최초 등록자 ID(REG_ID)"
                   },
-                  "annotation": {
+                  "mdfcnId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "최종 수정자 ID(MDFCN_ID)"
+                  },
+                  "payload": {
                     "type": "object",
                     "properties": {
-                      "cot": {
-                        "type": "object",
-                        "description": "Chain-of-Thought 추론(ADR-020: cot 배열→객체). VLM 생성"
-                      },
-                      "vqa": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "answer": {
-                              "type": "string",
-                              "description": "답변"
-                            },
-                            "question": {
-                              "type": "string",
-                              "description": "질문"
-                            }
-                          }
-                        },
-                        "description": "VQA 목록. VLM 생성"
-                      },
-                      "caption": {
+                      "answer": {
                         "type": "string",
                         "nullable": true,
-                        "description": "영상 캡션. VLM 생성 + 작업자 수동입력 편집 가능(유일한 수동입력 대상)"
+                        "description": "최종 답변(answer, 선택)"
                       },
-                      "evidence": {
-                        "type": "array",
-                        "items": {
+                      "caption": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "caption 후보 맵(키 c1..cn). 각 후보는 {caption_text, cot} — cot 은 단계 라벨 키를 유지하는 객체(예: {\"1단계\":.., \"2단계\":..})",
+                        "additionalProperties": {
                           "type": "object",
                           "properties": {
-                            "lblSn": {
-                              "type": "integer",
-                              "format": "int64",
+                            "cot": {
+                              "type": "object",
                               "nullable": true,
-                              "description": "근거 라벨 PK(LS_DATA_LBL.LBL_SN)"
+                              "description": "Chain-of-Thought 단계 객체(cot, 단계 라벨 키 유지)"
                             },
-                            "maxId": {
-                              "type": "integer",
-                              "nullable": true,
-                              "description": "현재 최대 객체 ID 힌트(다음 evidence 부여 참고용)"
-                            },
-                            "trackId": {
+                            "caption_text": {
                               "type": "string",
                               "nullable": true,
-                              "description": "근거 트랙 ID(TRCK_ID)"
+                              "description": "캡션 본문(caption_text). VLM 생성 + 작업자 수동입력 편집 가능"
                             }
                           }
-                        },
-                        "description": "근거 객체(캔버스 선택 라벨/트랙 자동연결). 각 항목은 라벨/트랙 식별자 + MAX_ID 힌트"
+                        }
+                      },
+                      "evidence": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "evidence 후보 맵(키 c1..cn, caption 의 같은 키 cN 과 연결). 각 후보는 evidence_text + frame_id/obj_id/obj_bbox/obj_label",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "obj_id": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "근거 객체 ID 목록(obj_id)"
+                            },
+                            "frame_id": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer"
+                              },
+                              "description": "근거 프레임 번호 목록(frame_id)"
+                            },
+                            "obj_bbox": {
+                              "type": "array",
+                              "items": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                }
+                              },
+                              "description": "근거 객체 박스 좌표 목록(obj_bbox)"
+                            },
+                            "obj_label": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "근거 객체 라벨 목록(obj_label)"
+                            },
+                            "evidence_text": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "근거 서술(evidence_text)"
+                            }
+                          }
+                        }
+                      },
+                      "question": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "VQA 질의(question, 선택)"
                       },
                       "event_class": {
                         "type": "string",
-                        "description": "이벤트 클래스(필수키). 관제 클립 이벤트 유형 기반"
-                      },
-                      "vd_description": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "영상 서술(vd_description, ADR-020 신규 키). VLM 생성"
+                        "description": "이벤트 분류(필수, event_class). 관제 클립 이벤트 유형 기반"
                       }
                     },
-                    "description": "어노테이션 내용(ANNO_CN JSON). export event 키와 동일 구조"
+                    "description": "어노테이션 내용(ANNO_CN JSON 을 EventAnnotationPayload 로 파싱). caption/evidence 는 후보 키(c1..cn) 객체이며 같은 키 cN 끼리 연결된다"
                   },
                   "evntAnnoSn": {
                     "type": "integer",
@@ -149,28 +173,43 @@
           "example": {
             "data": {
               "rawSn": 1,
-              "updatedAt": "2026-07-24T00:00:00",
-              "annotation": {
-                "cot": {
-                  "step1": "보행자 식별",
-                  "step2": "낙상 판정"
+              "regId": "system",
+              "mdfcnId": null,
+              "payload": {
+                "answer": "1명",
+                "caption": {
+                  "c1": {
+                    "cot": {
+                      "1단계": "보행자 식별",
+                      "2단계": "낙상 판정"
+                    },
+                    "caption_text": "야간 보도에서 1인 낙상"
+                  }
                 },
-                "vqa": [
-                  {
-                    "answer": "1명",
-                    "question": "몇 명이 등장하는가?"
+                "evidence": {
+                  "c1": {
+                    "obj_id": [
+                      "t-3"
+                    ],
+                    "frame_id": [
+                      12
+                    ],
+                    "obj_bbox": [
+                      [
+                        120,
+                        80,
+                        260,
+                        420
+                      ]
+                    ],
+                    "obj_label": [
+                      "person"
+                    ],
+                    "evidence_text": "넘어지는 보행자"
                   }
-                ],
-                "caption": "보행자가 넘어짐",
-                "evidence": [
-                  {
-                    "lblSn": 501,
-                    "maxId": 7,
-                    "trackId": "t-3"
-                  }
-                ],
-                "event_class": "FALL",
-                "vd_description": "야간 보도에서 1인 낙상"
+                },
+                "question": "몇 명이 등장하는가?",
+                "event_class": "FALL"
               },
               "evntAnnoSn": 10,
               "reviewStatus": "AUTO_GENERATED"
@@ -236,7 +275,7 @@
           "description": "대상 영상 식별자 RAW_SN(작업 단위=영상 1건)"
         }
       ],
-      "description": "영상 단위(RAW_SN) 이벤트 어노테이션(VQA/CoT/caption)을 조회한다. 어노테이션은 영상 1건당 1건(LS_EVNT_ANNO, RAW_SN UK)이며 caption 만 VLM 생성 + 작업자 수동입력이고 vqa/cot/vd_description 등 나머지는 VLM 생성이다. 검토 상태(LS_EVNT_ANNO_REVIEW.RVW_STTS_CD: PENDING/AUTO_GENERATED/APPROVED/REJECTED)를 함께 반환한다. 검수 승인 시 export 폴더 JSON 최상위 event 키로 반영(ADR-020). 인증된 사용자(REVIEWER/WORKER).",
+      "description": "영상 단위(RAW_SN) 이벤트 어노테이션(VQA/CoT/caption)을 조회한다. 어노테이션은 영상 1건당 1건(LS_EVNT_ANNO, RAW_SN UK)이며 payload 는 event_class/question/caption(후보 키 c1..cn 맵)/answer/evidence(후보 키 c1..cn 맵) 구조이며, caption 후보의 caption_text 만 VLM 생성 + 작업자 수동입력이고 나머지 필드는 VLM 생성이다. 검토 상태(LS_EVNT_ANNO_REVIEW.RVW_STTS_CD: PENDING/AUTO_GENERATED/APPROVED/REJECTED)를 함께 반환한다. 검수 승인 시 export 폴더 JSON 최상위 event 키로 반영(ADR-020). 인증된 사용자(REVIEWER/WORKER).",
       "operation_id": "getEventAnnotation",
       "calls_external": [],
       "implementation": {
@@ -247,17 +286,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-009"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "신규 — 영상 단위 이벤트 어노테이션(VQA/CoT/caption) 조회 API (event_annotation, FEAT-009 롤업/ADR-020 export event 키)",
+    "change_summary": "상위 description 이 스키마와 어긋나 있었다 — \"caption 만 VLM 생성이고 vqa/cot/vd_description 등 나머지는 VLM 생성\"이라는 서술이 이번에 payload 로 교체한 실제 구조(event_class/question/caption 후보맵/answer/evidence 후보맵)를 반영하지 못했다. 그 문장만 실제 구조에 맞게 정정했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-07-24T01:28:19.295Z",
+    "last_updated_at": "2026-08-16T23:48:44.838Z",
     "created_at": "2026-07-24T01:28:19.295Z"
   }
 }

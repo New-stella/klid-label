@@ -1,0 +1,79 @@
+{
+  "item": {
+    "id": "ADR-041",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "ai-server 탐지 백엔드 = YOLOX 단일화(RT-DETRv2 제거)",
+    "slug": "ai-server-탐지-백엔드-yolox-단일화rt-detrv2-제거",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "RT-DETRv2(transformers) 백엔드가 병행 운영되던 중 라이선스 정책(ultralytics AGPL-3.0 회피, permissive 백엔드 통일) 및 유지보수 단순화 목적으로 정리되었다.",
+      "decision": {
+        "chosen_option": "YOLOX 단일화(채택)",
+        "justification": "ai-server 탐지 백엔드를 YOLOX(onnxruntime, Apache-2.0) 단일화하고 RT-DETRv2를 제거한다."
+      },
+      "brownfield": {
+        "notes": "F1.",
+        "status": "modified",
+        "change_kind": [
+          "decision-record",
+          "tech-stack"
+        ],
+        "diff_summary": "ai-server 탐지 백엔드: YOLOX+RT-DETRv2 병행 → YOLOX 단일화"
+      },
+      "references": [
+        {
+          "url": "https://example.invalid/commit/852f1998",
+          "title": "커밋 852f1998"
+        }
+      ],
+      "consequences": {
+        "negative": [
+          "RT-DETRv2가 제공하던 대안 탐지 성능 특성 상실"
+        ],
+        "positive": [
+          "라이선스 정책(ultralytics AGPL-3.0 회피, permissive 백엔드 통일) 준수 단순화",
+          "유지보수 대상 단일화"
+        ]
+      },
+      "decision_date": "2026-07-15",
+      "decision_drivers": [
+        "기술스택 정의에 이미 YOLOX가 현재 스택으로 명시돼 있어 실질적으로는 문서-코드 정합 확인 성격에 가까움"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "라이선스 정책(permissive 백엔드 통일) 목적상 병행 유지 불필요",
+            "유지보수 대상 배가"
+          ],
+          "name": "YOLOX + RT-DETRv2 병행 운영(구, 폐기)",
+          "pros": [
+            "두 백엔드 성능 비교 가능"
+          ],
+          "description": "탐지 백엔드로 YOLOX와 RT-DETRv2(transformers)를 병행 운영"
+        },
+        {
+          "cons": [
+            "RT-DETRv2가 제공하던 대안 성능 특성 상실"
+          ],
+          "name": "YOLOX 단일화(채택)",
+          "pros": [
+            "permissive(Apache-2.0) 백엔드로 라이선스 정책 준수 단순화",
+            "유지보수 대상 단일화"
+          ],
+          "description": "ai-server 탐지 백엔드를 YOLOX(onnxruntime, Apache-2.0) 단일화, RT-DETRv2 제거"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "결정 동인 문장의 손상된 낱말을 문맥이 확정하는 낱말로 바로잡는다 — 정합 확인 성격에 «가깝다»는 뜻이었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:44:11.661Z",
+    "created_at": "2026-07-30T06:56:48.165Z"
+  }
+}

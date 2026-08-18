@@ -67,20 +67,39 @@ export function resolveHandoffUser(): HandoffUser {
   return result;
 }
 
-type IngressStrategy = 'url' | 'cookie' | 'localStorage' | 'both' | 'all';
+/**
+ * `VITE_TOKEN_INGRESS` 가 해석하는 값의 <단일 진실원>.
+ * `vite-env.d.ts` 는 이 목록을 참조만 하고 사본을 두지 않는다 — 사본을 두면 두 번째 진실원이 되어
+ * 한쪽만 갱신될 때 타입과 실동작이 조용히 어긋난다.
+ */
+export const TOKEN_INGRESS_STRATEGIES = [
+  'url',
+  'cookie',
+  'localStorage',
+  'both',
+  'all',
+] as const;
+
+export type IngressStrategy = (typeof TOKEN_INGRESS_STRATEGIES)[number];
+
+/**
+ * 기본 전략 — <URL 쿼리 채널을 켜지 않는다>.
+ *
+ * 확정 정책(ADR-012)상 관제서버/포털은 <동일 origin 의 브라우저 저장소>로 JWT 를 인계하며
+ * `?token=` 쿼리 파라미터 방식은 사용하지 않는다. URL 에 실린 JWT 는 웹서버 접근 로그·리퍼러
+ * 헤더·브라우저 히스토리에 잔존해 사후 회수가 불가능하다 (CWE-598 / CWE-200).
+ *
+ * 명시 설정(`url`/`both`/`all`)의 동작은 종전과 같다 — 바뀐 것은 <미설정 시의 기본값>뿐이다.
+ */
+export const DEFAULT_INGRESS_STRATEGY: IngressStrategy = 'localStorage';
 
 function getStrategy(): IngressStrategy {
-  const v = (import.meta.env.VITE_TOKEN_INGRESS as string | undefined) ?? 'all';
-  if (
-    v === 'url' ||
-    v === 'cookie' ||
-    v === 'localStorage' ||
-    v === 'both' ||
-    v === 'all'
-  ) {
-    return v;
+  const v = import.meta.env.VITE_TOKEN_INGRESS as string | undefined;
+  if (v && (TOKEN_INGRESS_STRATEGIES as readonly string[]).includes(v)) {
+    return v as IngressStrategy;
   }
-  return 'all';
+  // 미설정·오타·미지의 값은 모두 안전한 기본값으로 떨어진다 (fail-closed).
+  return DEFAULT_INGRESS_STRATEGY;
 }
 
 function isValidJwtFormat(token: string): boolean {
@@ -163,9 +182,12 @@ export interface ResolveTokenParams {
  * 전략별 토큰 해상도.
  * - url: urlToken만 사용
  * - cookie: 쿠키 cookieName만 사용
- * - localStorage: 관제서버 인계 키만 사용
+ * - localStorage (기본값): 관제서버 인계 키만 사용
  * - both: urlToken → cookie (레거시 호환)
- * - all (기본값): urlToken → localStorage → cookie
+ * - all: urlToken → localStorage → cookie
+ *
+ * 미설정 시 기본값은 `localStorage` 다 — URL 쿼리 채널은 <명시 설정한 경우에만> 열린다
+ * (`DEFAULT_INGRESS_STRATEGY` 주석 참조).
  *
  * 어떤 경로든 형식·alg 검증 통과한 첫 토큰만 반환. 그 외는 null.
  */

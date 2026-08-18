@@ -1,0 +1,278 @@
+{
+  "item": {
+    "id": "ERD-022",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "erd",
+    "title": "게시판 ERD (고도화, PostgreSQL — LS_NOTICE, LS_NOTICE_ATTACH)",
+    "slug": "게시판-erd-고도화-postgresql-lsnotice-lsnoticeattach",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "dbms": "postgresql",
+      "level": "physical",
+      "tables": [
+        {
+          "name": "LS_NOTICE",
+          "columns": [
+            {
+              "name": "NOTICE_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "게시글 PK (identity)",
+              "primary_key": true,
+              "logical_column_name": "게시글일련번호"
+            },
+            {
+              "name": "NOTICE_TITLE",
+              "type": "varchar(200)",
+              "unique": false,
+              "nullable": false,
+              "description": "게시글 제목",
+              "primary_key": false,
+              "logical_column_name": "게시글제목"
+            },
+            {
+              "name": "NOTICE_CN",
+              "type": "text",
+              "unique": false,
+              "nullable": false,
+              "description": "게시글 본문",
+              "primary_key": false,
+              "logical_column_name": "게시글내용"
+            },
+            {
+              "name": "UPEND_FIX_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "'N'",
+              "nullable": false,
+              "code_values": {
+                "N": "일반",
+                "Y": "고정"
+              },
+              "description": "상단 고정 여부 (Y/N) — 목록 정렬 우선순위",
+              "primary_key": false,
+              "logical_column_name": "상단고정여부"
+            },
+            {
+              "name": "PBLCN_STTS_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "default": "'DRAFT'",
+              "nullable": false,
+              "code_values": {
+                "DRAFT": "작성중",
+                "PUBLISHED": "발행됨"
+              },
+              "description": "발행 상태 — DRAFT 는 REVIEWER 만 조회 가능",
+              "primary_key": false,
+              "logical_column_name": "발행상태"
+            },
+            {
+              "name": "PBLCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "발행 일시 — 현재 발행 상태의 전이 시점. 발행 취소 시 비워지고 재발행 시 다시 기록되어 최초 발행 이력은 보존하지 않는다. 이미 발행된 글을 다시 발행하면 멱등 no-op 이라 값이 바뀌지 않는다. DRAFT 면 null.",
+              "primary_key": false,
+              "logical_column_name": "발행일시"
+            },
+            {
+              "name": "REG_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "description": "등록자 사용자 ID",
+              "primary_key": false,
+              "logical_column_name": "등록아이디"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "등록 일시",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFR_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "description": "최종 수정자 사용자 ID",
+              "primary_key": false,
+              "logical_column_name": "수정자아이디"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "최종 수정 일시",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LNT_PUB",
+              "unique": false,
+              "columns": [
+                "PBLCN_STTS_CD",
+                "UPEND_FIX_YN",
+                "REG_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "status": "new",
+            "diff_summary": "v2 신규 — v1 LS_NTC_BBS 미재사용"
+          },
+          "description": "공지·가이드라인 게시글 본문. REVIEWER 가 작성·발행하고 WORKER 는 PUBLISHED 만 열람",
+          "related_classes": [
+            {
+              "id": "MOD-044",
+              "name": "LsNotice"
+            }
+          ],
+          "logical_table_name": "공지게시글"
+        },
+        {
+          "name": "LS_NOTICE_ATTACH",
+          "columns": [
+            {
+              "name": "ATCH_FILE_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "첨부파일 PK (identity)",
+              "primary_key": true,
+              "logical_column_name": "첨부파일일련번호"
+            },
+            {
+              "name": "NOTICE_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "references": {
+                "table": "LS_NOTICE",
+                "column": "NOTICE_SN",
+                "on_delete": "cascade"
+              },
+              "description": "소속 게시글 FK — 게시글 삭제 시 cascade",
+              "primary_key": false,
+              "logical_column_name": "게시글일련번호"
+            },
+            {
+              "name": "ORGNL_FILE_NM",
+              "type": "varchar(300)",
+              "unique": false,
+              "nullable": false,
+              "description": "업로드 원본 파일명 — 다운로드 시 Content-Disposition 으로 복원",
+              "primary_key": false,
+              "logical_column_name": "원본파일명"
+            },
+            {
+              "name": "STRG_FILE_NM",
+              "type": "varchar(300)",
+              "unique": false,
+              "nullable": false,
+              "description": "UUID 기반 안전 저장 파일명",
+              "primary_key": false,
+              "logical_column_name": "저장파일명"
+            },
+            {
+              "name": "FILE_PATH",
+              "type": "varchar(1000)",
+              "unique": false,
+              "nullable": false,
+              "description": "서버 저장 절대경로 (외부 미노출)",
+              "primary_key": false,
+              "logical_column_name": "파일경로"
+            },
+            {
+              "name": "FILE_SZ",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "파일 크기 (bytes)",
+              "primary_key": false,
+              "logical_column_name": "파일크기"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "업로드 일시",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LNTA_NOTICE",
+              "unique": false,
+              "columns": [
+                "NOTICE_SN"
+              ]
+            }
+          ],
+          "brownfield": {
+            "status": "new",
+            "diff_summary": "v2 신규 — v1 LS_ATCH_FILE 미재사용"
+          },
+          "description": "게시글 첨부파일. UUID 기반 저장 파일명 + 원본 파일명 보관, 경로는 외부 DTO 미노출",
+          "related_classes": [
+            {
+              "id": "MOD-044",
+              "name": "LsNoticeAttach"
+            }
+          ],
+          "logical_table_name": "공지첨부파일"
+        }
+      ],
+      "brownfield": {
+        "notes": "v1 원형은 ERD-006 참조",
+        "status": "new",
+        "decided_by": "ADR-014",
+        "change_kind": [
+          "table-add"
+        ],
+        "diff_summary": "R1 외 추가 — 게시판 신규 테이블 2종"
+      },
+      "description": "공지·가이드라인 게시판 물리 ERD. v1 원형(LS_NTC_BBS/LS_ATCH_FILE, ERD-006)을 재사용하지 않고 v2 신규 테이블로 구성. DRAFT→PUBLISHED 발행 상태 관리, 첨부파일은 UUID 저장 파일명 + 원본 파일명 DB 보관.",
+      "relationships": [
+        {
+          "label": "게시글의 첨부파일",
+          "to_table": "LS_NOTICE_ATTACH",
+          "from_table": "LS_NOTICE",
+          "via_column": "NOTICE_SN",
+          "cardinality": "1:N"
+        }
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 17,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "실제 DDL 이 등록·수정 일시 컬럼에 걸어 둔 기본값(현재 시각)이 정의에 빠져 있어 채운다. 그리고 영속 클래스 항목의 비고에 들어 있던 자바 패키지 경로를 걷어내고, 그 클래스를 보유한 코드 모듈 참조로 바꾼다 — 비고는 매핑 특이사항을 적는 자리이고 보유 모듈은 참조 필드로 잇는 것이 이 필드의 구조다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:46:36.576Z",
+    "created_at": "2026-06-05T05:00:21.250Z"
+  }
+}

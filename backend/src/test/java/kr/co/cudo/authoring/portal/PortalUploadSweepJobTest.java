@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -38,11 +39,15 @@ class PortalUploadSweepJobTest {
     @BeforeEach
     void setUp() {
         txService = mock(PortalUploadSweepTxService.class);
-        PortalUploadProperties props = new PortalUploadProperties(
+        job = new PortalUploadSweepJob(txService, propsWithStuckTimeout(30L));
+    }
+
+    /** {@code stuck-timeout-minutes} 만 달리한 프로퍼티 — 나머지 값은 기본 형상 그대로다. */
+    private PortalUploadProperties propsWithStuckTimeout(long stuckTimeoutMinutes) {
+        return new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
                 List.of("jpg"), 20_971_520L, 50, 2000,
-                16_777_216L, 2_097_152L, 30L, 30L);
-        job = new PortalUploadSweepJob(txService, props);
+                16_777_216L, 2_097_152L, 30L, stuckTimeoutMinutes);
     }
 
     @Test
@@ -92,6 +97,48 @@ class PortalUploadSweepJobTest {
         assertThat(failed).isZero();
         // 소유 획득이 없으므로 이 노드는 파일을 건드리지 않음.
         assertThat(Files.exists(temp)).isTrue();
+    }
+
+    @Test
+    @DisplayName("무갱신경과_설정이_0이면_그_회차_전이를_건너뛴다")
+    void zeroStuckTimeoutSkipsTheRound() {
+        // given: 설정이 0 — "0분간 갱신 없으면 실패" 는 곧 <정상 처리 중인 자산 전량 즉시 실패>다.
+        job = new PortalUploadSweepJob(txService, propsWithStuckTimeout(0L));
+
+        // when
+        int failed = job.failStuckUploads();
+
+        // then: 임의 기본값으로 대체하지 않고 아무것도 전이시키지 않는다(전이는 삭제의 예고다).
+        assertThat(failed).isZero();
+        verifyNoInteractions(txService);
+    }
+
+    @Test
+    @DisplayName("무갱신경과_설정이_음수면_기본값으로_대체하지_않고_건너뛴다")
+    void negativeStuckTimeoutSkipsTheRound() {
+        // given: 음수는 커트라인이 미래가 되어 <상태가 맞는 자산 전량>이 후보가 된다.
+        job = new PortalUploadSweepJob(txService, propsWithStuckTimeout(-1L));
+
+        // when
+        int failed = job.failStuckUploads();
+
+        // then
+        assertThat(failed).isZero();
+        verifyNoInteractions(txService);
+    }
+
+    @Test
+    @DisplayName("무갱신경과_설정이_유효하면_그_값_그대로_전이_판정에_쓴다")
+    void validStuckTimeoutIsPassedThrough() {
+        // given: 설정된 값이 그대로 커트라인 계산에 쓰여야 한다(코드가 값을 다시 만들지 않는다).
+        job = new PortalUploadSweepJob(txService, propsWithStuckTimeout(45L));
+        when(txService.failStuckUploads(45L)).thenReturn(List.of());
+
+        // when
+        job.failStuckUploads();
+
+        // then
+        verify(txService).failStuckUploads(45L);
     }
 
     private static int assertNoException(java.util.function.Supplier<Integer> action) {

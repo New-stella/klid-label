@@ -251,7 +251,7 @@ export interface ReassignTaskRequest {
 }
 
 /**
- * 작업(영상) 단위 이벤트 타입 — LS_TASK_EVENT_LOG.EVENT_TYPE_CD.
+ * 작업(영상) 단위 이벤트 타입 — LS_TASK_EVNT_LOG.EVENT_TYPE_CD.
  * SCR-TASK-003 타임라인에서 배정/재배정/검수 제출/승인/반려를 동일 구조로 표현한다.
  */
 export type TaskEventType =

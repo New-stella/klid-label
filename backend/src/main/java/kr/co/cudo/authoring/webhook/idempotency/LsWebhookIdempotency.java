@@ -68,8 +68,15 @@ public class LsWebhookIdempotency {
     @Column(name = "RAW_SN")
     private Long rawSn;
 
-    @Column(name = "APLY_DT")
-    private LocalDateTime aplyDt;
+    /**
+     * <b>적용일시</b> — 콜백 처리 완료({@code PROCESSED})를 원장에 반영한 시각. 미처리 행은 null 이다.
+     *
+     * <p><b>물리명은 {@code APLCN_DT} 다</b>(V8 개명 — 구 {@code APLY_DT}). 행안부 공통표준용어에
+     * 「신청일시 = {@code APLY_DT}」와 「적용일시 = {@code APLCN_DT}」가 <b>둘 다</b> 등록돼 있는데
+     * 뜻이 다른 앞쪽을 쓰고 있었다. 논리명은 처음부터 '적용일시'였으므로 바뀐 것은 물리명뿐이다.
+     */
+    @Column(name = "APLCN_DT")
+    private LocalDateTime aplcnDt;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -105,8 +112,8 @@ public class LsWebhookIdempotency {
         if (externalJobId != null && !externalJobId.isBlank()) {
             this.otsdJobId = externalJobId;
         }
-        this.aplyDt = LocalDateTime.now();
-        this.mdfcnDt = this.aplyDt;
+        this.aplcnDt = LocalDateTime.now();
+        this.mdfcnDt = this.aplcnDt;
     }
 
     public void markFailed() {

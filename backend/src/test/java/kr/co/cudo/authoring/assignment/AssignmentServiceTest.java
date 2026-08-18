@@ -154,7 +154,7 @@ class AssignmentServiceTest {
 
     /**
      * 재배정하면 <b>이력이 남는다</b>는 불변식. 구 {@code LS_TASK_ASSIGN_HISTORY} 이중 쓰기가 V4 로
-     * 제거됐으므로 단독 적재처인 {@code LS_TASK_EVENT_LOG} 로 <b>단언을 이관</b>했다(검증 유실 없음).
+     * 제거됐으므로 단독 적재처인 {@code LS_TASK_EVNT_LOG} 로 <b>단언을 이관</b>했다(검증 유실 없음).
      * 이 테스트가 고정하는 축은 "누가·언제" 이고, "무엇이 어떻게 바뀌었나" 는
      * {@link #reassignAccumulatesEventLog()} 가 별도로 고정한다.
      */
@@ -238,7 +238,7 @@ class AssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("assign_시_LS_TASK_EVENT_LOG에_ASSIGN_이벤트_누적")
+    @DisplayName("assign_시_LS_TASK_EVNT_LOG에_ASSIGN_이벤트_누적")
     void assignAccumulatesEventLog() {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L, 1001L));
         assignmentService.assign(req, reviewer());
@@ -328,7 +328,7 @@ class AssignmentServiceTest {
     void listAssignmentsEventNameNullFallback() {
         // given — EVNT_TYPE_CD 가 비어 있는 영상(test-data.sql 시드 1003)에 배정 1건.
         //   구 시나리오는 "LS_DATA_RAW 자체가 없는 배정"(=고아 행)이었으나, V146(DB-ISSUE-01)이
-        //   LS_TASK_ASSIGNMENT → LS_DATA_RAW FK 를 세워 그 상태는 <구조적으로 불가능>해졌다
+        //   LS_TASK_ALTMNT → LS_DATA_RAW FK 를 세워 그 상태는 <구조적으로 불가능>해졌다
         //   (프로덕션에서도 도달 불가). 검증 대상인 eventName/eventTypeCd null 폴백은 이벤트 유형이
         //   비어 있는 영상으로 그대로 성립하므로 단언은 동일하게 유지한다.
         jdbcTemplate.update("UPDATE LS_DATA_RAW SET EVNT_TYPE_CD = NULL WHERE RAW_SN = ?", 1003L);
@@ -389,12 +389,12 @@ class AssignmentServiceTest {
     @Test
     @DisplayName("listAssignments_LS_RAW_DATA_STATUS_미존재_시_status는_PENDING_폴백")
     void listAssignmentsStatusFallbackToPending() {
-        // given — LS_TASK_ASSIGNMENT 만 직접 INSERT (assign 메서드를 우회해 LS_RAW_DATA_STATUS 미생성).
+        // given — LS_TASK_ALTMNT 만 직접 INSERT (assign 메서드를 우회해 LS_RAW_DATA_STATUS 미생성).
         // dataSttsByVideo lookup 이 키를 찾지 못해 mapToFeStatus(null) → 'PENDING' 폴백을 거쳐야 한다.
         // 배정 행의 부모 영상은 실재해야 한다(V146 FK) — 검증 대상은 <작업 상태 행> 부재이지 영상 부재가 아니다.
         RawVideoFixture.seedRaw(jdbcTemplate, 9999L);
         jdbcTemplate.update(
-                "INSERT INTO LS_TASK_ASSIGNMENT (USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_USER_NO, REG_DT) " +
+                "INSERT INTO LS_TASK_ALTMNT (USER_NO, RAW_DATA_ID, TASK_TYPE_CD, REG_USER_NO, REG_DT) " +
                         "VALUES (?,?,?,?, CURRENT_TIMESTAMP)",
                 100L, 9999L, "LABELER", 1L);
 

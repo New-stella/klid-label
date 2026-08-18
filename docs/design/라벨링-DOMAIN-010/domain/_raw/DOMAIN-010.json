@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "DOMAIN-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain",
+    "title": "라벨링",
+    "slug": "라벨링",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "name": "라벨링",
+      "brownfield": {
+        "notes": "1차 핵심 도메인(라벨링 도구). Pass 2에서 konva 캔버스 재구현 modified",
+        "status": "preserved",
+        "legacy_source": {
+          "type": "module",
+          "legacy_artifact_id": "LEGACY-004"
+        }
+      },
+      "description": "비식별 프레임 위에 객체를 표시해 학습데이터를 만드는 핵심 도메인. 캔버스는 konva.js 기반이다.\n\n[라벨 형태] 바운딩박스·폴리곤·세그멘테이션·스켈레톤(COCO-17 키포인트)·SAM2 분할(클릭·박스 프롬프트)·SAM2 Track(박스→N프레임 추적 전파).\n\n[도구] 캔버스 도구(이동·회전·확대·그리드·밝기·투명도), 객체·메타·이슈 탭, 단축키, 전체 복사/붙여넣기, 프레임 설명, 트랙 편집(병합·분할·삭제)과 선형보간.\n\n[★비식별은 이 도메인 밖이다] 구 본문의 '블러(비식별) 처리 — 다른 라벨링 전 반드시 먼저 수행'은 폐기됐다(ADR-006). 비식별은 외부 솔루션이 파이프라인 선두에서 자동 수행하며, 라벨러는 이미 비식별된 프레임을 본다. 라벨러의 잔존 책임은 누락 발견 시 신고뿐이다.\n\n[★2계층 저장 — 혼동 금지] ①작업 임시저장: 라벨러 저장 시 현재 작업본을 LS_DATA_LBL 에 full-replace 로 영속하고 되돌리기는 FE undo/redo(세션)로 처리한다. 학습데이터 버전이 아니다. ②학습데이터 버전: 검수 승인 시점에만 스냅샷을 LS_LABEL_VERSION 에 쌓는다 — 승인은 영상 1건을 한 트랜잭션으로 확정하지만 행은 라벨을 가진 프레임마다 1건씩이며, 같은 스냅샷인지는 프레임과 페이로드 해시의 짝으로 식별한다. 롤백은 새 버전을 적층하지 않고 대상 스냅샷 행을 재활성화하며, 라벨 본문을 작업본으로 복원하되 LBL_SN·AI 메타·TRCK_ID 까지 보존한다(PK 재발급하면 diff 가 '전량 교체'로 오분류된다).\n\n[라벨 마스터 단일 진실원] 수동 라벨 선택은 라벨 마스터(LS_LABEL) 전체를 쓰고, 프리셋은 오토라벨 전용이다. 프리셋은 라벨명·형태를 스냅샷하지 않고 LBL_ID 로 마스터를 실시간 join 한다.\n\n[★신고 구간 차단] 비식별 누락 신고(DE_IDNTF_YN='F') 중인 영상은 라벨 조회·이력·버전 diff/롤백이 412 로 차단된다(역할 무관). 라벨 좌표 자체가 PII 위치 특정 정보라 스트리밍만 막는 것으로는 부족하기 때문이다. 라벨은 삭제하지 않고 보존하며 해소 시 그대로 재사용한다.",
+      "upstream_of": [],
+      "context_kind": "core",
+      "collaborators": [
+        "DOMAIN-004",
+        "DOMAIN-005",
+        "DOMAIN-003"
+      ],
+      "integrates_with": [],
+      "uses_integrations": [],
+      "ubiquitous_language": [
+        {
+          "term": "바운딩박스",
+          "meaning": "2회 클릭으로 완성하는 객체 탐지용 사각 영역"
+        },
+        {
+          "term": "폴리곤",
+          "meaning": "다점 클릭으로 그리는 정밀 객체 영역 분할"
+        },
+        {
+          "term": "스켈레톤",
+          "meaning": "사람 관절 포즈 탐지용 키포인트 집합(COCO-17)"
+        },
+        {
+          "term": "트랙(TRCK_ID)",
+          "meaning": "연속 프레임을 가로지르는 동일 객체의 식별자. 병합·분할·삭제 편집이 가능하다"
+        },
+        {
+          "term": "작업 임시저장",
+          "meaning": "LS_DATA_LBL 에 full-replace 로 영속되는 작업본. 학습데이터 버전이 아니다"
+        },
+        {
+          "term": "학습데이터 버전",
+          "meaning": "검수 승인 시점에 만들어지는 영상 단위 전체 스냅샷(LS_LABEL_VERSION)"
+        },
+        {
+          "term": "객체 탭",
+          "meaning": "우측 패널의 라벨 변경·속성·잠금·뷰어·삭제·복사 관리"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 10,
+    "stale": true,
+    "stale_reason": "DOMAIN-005의 data.brownfield 변경 — collaborates_with",
+    "change_summary": "학습데이터 버전의 저장 입도를 바로잡는다 — 승인은 영상 1건을 한 트랜잭션으로 확정하지만 스냅샷 행은 라벨 보유 프레임마다 1건이며, 한 영상이 한 행이 아니다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:53:44.298Z",
+    "created_at": "2026-05-29T05:04:01.102Z"
+  }
+}

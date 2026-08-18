@@ -17,7 +17,7 @@
         "stage"
       ],
       "category": "display",
-      "description": "배치 파이프라인 단계 배지. stage(FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2/VLM_VERIFY또는 VLM/COMPLETED/FAILED) + status 조합으로 한글 라벨/톤을 결정한다 — 완료(COMPLETED|DONE)=초록, 실패(FAILED|FAIL)=빨강, VLM 단계=보라(특수 단계 강조용이며 상태 의미가 아님), 진행중(IN_PROGRESS|PROGRESS)=파랑, 그 외(대기 등)=노랑. 배지에 아이콘을 두지 않는다 — 단계와 상태는 한글 라벨 텍스트가 전달한다. STAGE_LABEL 매핑에 없는 stage 코드는 원문 코드를 그대로 라벨로 폴백한다. 기술 모델명 노출 금지 정책에 따라 YOLO→'AI 탐지', SAM2→'AI 분할'로 표시한다(코드 자체는 유지).",
+      "description": "배치 파이프라인 단계 배지. stage(FRAME_EXTRACT/DEIDENTIFY/YOLO/SAM2/VLM_VERIFY또는 VLM/COMPLETED/FAILED) + status 조합으로 한글 라벨/톤을 결정한다 — 완료(COMPLETED|DONE)=초록, 실패(FAILED|FAIL)=빨강, VLM 단계=보라(특수 단계 강조용이며 상태 의미가 아님), 진행중(IN_PROGRESS|PROGRESS)=파랑, 그 외(대기 등)=노랑. 배지에 아이콘을 두지 않는다 — 단계와 상태는 한글 라벨 텍스트가 전달한다. STAGE_LABEL 매핑에 없는 stage 코드는 원문 코드를 그대로 라벨로 폴백한다. 기술 모델명 노출 금지 정책에 따라 YOLO→'AI 탐지', SAM2→'AI 분할', VLM·VLM_VERIFY→'시계열'로 표시한다(코드 자체는 유지).",
       "props_schema": [
         {
           "name": "stage",
@@ -55,12 +55,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "단계 배지에서 아이콘을 걷어낸다. 단계와 상태는 한글 라벨 텍스트가 전달하므로 색상 단독 구분 금지 요건이 텍스트만으로 충족되며, 아이콘은 원래 aria-hidden 장식이라 정보를 전달한 적이 없다. status 가 톤과 아이콘을 함께 정한다던 서술도 톤만 정하는 것으로 맞춘다",
+    "change_summary": "배지 라벨 규정에 VLM·VLM_VERIFY 노출명 시계열을 명시한다",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-10T01:45:04.390Z",
+    "last_updated_at": "2026-08-13T10:53:33.852Z",
     "created_at": "2026-06-02T13:10:53.881Z"
   }
 }

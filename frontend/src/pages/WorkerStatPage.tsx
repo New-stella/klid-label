@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { BarChart2 } from 'lucide-react';
 
+import {
+  ApprovedRatioNote,
+  approvedRatioWithServerRate,
+  formatApprovedValue,
+} from '@/components/common/ApprovedRatioNote';
 import { ErrorState } from '@/components/common/ErrorState';
 import { KpiCard } from '@/components/common/KpiCard';
 import {
@@ -70,6 +75,33 @@ export function WorkerStatPage() {
   const needsWorkerSelection = isReviewer && !selectedWorkerId;
 
   const { data, isLoading, error } = useWorkerStat(targetWorkerId);
+
+  /**
+   * 완료 카드 병기 — 주 수치는 검수완료(completed), 전체·완료율은 보조 라인으로만 병기한다.
+   * 검수 승인 = 작업 완료 = 학습데이터 확정 정책이라 미완료분이 주 수치가 아니다.
+   *
+   * ★완료율은 <b>서버가 내려준 completionRate(0.0~1.0)</b>를 그대로 채택한다 —
+   * completed/assignedTotal 을 화면에서 다시 나누지 않는다(사양 SCREEN-020).
+   * @design SCREEN-020, API-056
+   */
+  const completedRatio = approvedRatioWithServerRate(
+    data?.completed,
+    data?.assignedTotal,
+    data?.completionRate,
+  );
+
+  /**
+   * 총 라벨 수 카드 병기 — 주 수치는 검수완료 영상의 라벨(폐기 프레임 제외)이고 전체는 보조다.
+   *
+   * ★비율을 <b>넘기지 않는다</b>(세 번째 인자 undefined + `omitRate`) — completionRate 는 영상
+   * 건수의 비율이라 라벨 분량에 쓸 수 없고 라벨 단위 비율은 서버가 내려주지 않는다. 화면이
+   * approvedLabelCount/labelCount 를 나눠 만들어 붙이는 것도 금지다(사양 SCREEN-020).
+   */
+  const labelRatio = approvedRatioWithServerRate(
+    data?.approvedLabelCount,
+    data?.labelCount,
+    undefined,
+  );
 
   // 제목·부제는 역할별로 분기한다(사양 SCREEN-020).
   const pageTitle = isReviewer ? '작업자 통계' : '나의 통계';
@@ -141,8 +173,10 @@ export function WorkerStatPage() {
         ) : (
           <>
             <KpiCard
+              data-testid="worker-kpi-completed"
               label="완료 작업"
               value={data?.completed ?? 0}
+              note={<ApprovedRatioNote ratio={completedRatio} unit="건" />}
             />
             <KpiCard
               label="작업중"
@@ -153,8 +187,11 @@ export function WorkerStatPage() {
               value={data?.rejected ?? 0}
             />
             <KpiCard
+              data-testid="worker-kpi-label-count"
               label="총 라벨 수"
-              value={data?.labelCount ?? 0}
+              value={formatApprovedValue(labelRatio)}
+              // 완료율을 붙이지 않는다 — 사양 SCREEN-020(라벨 단위 비율은 서버가 주지 않는다).
+              note={<ApprovedRatioNote ratio={labelRatio} unit="개" omitRate />}
             />
           </>
         )}

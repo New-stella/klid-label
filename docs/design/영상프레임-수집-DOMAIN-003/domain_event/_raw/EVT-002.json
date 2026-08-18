@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "EVT-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_event",
+    "title": "BatchQueued",
+    "slug": "batchqueued",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "category": "domain_event",
+      "consumes": [],
+      "triggers": [],
+      "aggregate": "LsRawDataStatus",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "고도화 신규 — 배치 대기 전이 이벤트"
+      },
+      "event_name": "BatchQueued",
+      "versioning": {
+        "version": "v1"
+      },
+      "description": "마킹 완료 후 영상이 배치 대기로 전이하고 배치 오케스트레이션이 잔여 배치를 실행한다. 잔여 배치 파이프라인: VLM 시계열 → 마킹위치 프레임추출 → YOLO → SAM2 → 트랙보간. 단계 순서는 선언적 파이프라인 설정 한 곳에서 재배치한다.\n\n[상태 전이] 두 테이블의 책임이 다르다.\n· LsDataRaw.dataSttsCd (배치 단계 축): PENDING → MARKING_READY → COMPLETED.\n· LsRawDataStatus.dataSttsCd (작업·검수 워크플로우 축): 배치 시작 시 PROCESSING, 배치 완료 시 ASSIGNED 복귀, 실패 시 FAILED.\n작업 상태를 배치 완료로 COMPLETED 로 올리면 검수 제출(ASSIGNED→PENDING)이 상태머신에서 차단되므로 그렇게 두지 않는다. 이 축의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — COMPLETED 를 두지 않는다.\n\n[비식별 단계 위치] 비식별은 이 배치 안이 아니라 적재 직후 VideoIngested(EVT-005)가 돌리는 pre-marking 단계다. post-marking 배치에는 두지 않는다.",
+      "side_effects": [
+        "배치 파이프라인 실행",
+        "LsRawDataStatus.dataSttsCd → PROCESSING (시작) / ASSIGNED (완료 복귀) / FAILED (실패)",
+        "LsDataRaw.dataSttsCd → COMPLETED (배치 단계 마감)"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "payload_schema": {},
+      "documented_emitters": [],
+      "documented_consumers": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문에서 구현 클래스명을 걷어낸다. 배치 오케스트레이션과 선언적 파이프라인 설정이라는 역할로 적으면 이 설계서만 읽는 사람에게도 참이고, 클래스가 개명돼도 사양이 낡지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:21:29.954Z",
+    "created_at": "2026-06-01T06:36:07.389Z"
+  }
+}

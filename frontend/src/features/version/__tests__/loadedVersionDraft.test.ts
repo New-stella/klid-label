@@ -10,6 +10,7 @@ import type { Label } from '@/features/label/types';
 
 import {
   captureFrameIntoDraft,
+  discardChangesOf,
   editedFrameCount,
   toLoadedDraft,
   toVideoSavePayload,
@@ -157,6 +158,32 @@ describe('불러온 회차 세트', () => {
     const draft = captureFrameIntoDraft(toLoadedDraft(loaded), 999, [movedLabel()]);
 
     expect(editedFrameCount(draft)).toBe(0);
+  });
+
+  it('확정_저장이_바꾸는_폐기_상태는_회차_값을_기준선으로_뽑는다', () => {
+    // given: 51번(회차 N)을 폐기로, 52번(회차 Y)을 복원으로 전환한 세트.
+    let draft = captureFrameIntoDraft(toLoadedDraft(loaded), 51, [unchangedLabel()], 'Y');
+    draft = captureFrameIntoDraft(draft, 52, [], 'N');
+
+    // when
+    const changes = discardChangesOf(draft, toVideoSavePayload(draft, undefined, []));
+
+    // then
+    expect(changes).toEqual([
+      { baseline: 'N', next: 'Y' },
+      { baseline: 'Y', next: 'N' },
+    ]);
+  });
+
+  it('라벨만_고친_프레임은_회차와_같은_폐기값이_실려_변경으로_읽히지_않는다', () => {
+    // given: 폐기를 건드리지 않고 라벨만 고쳤다 — edits 에는 실리지만 폐기 축은 그대로다.
+    const draft = captureFrameIntoDraft(toLoadedDraft(loaded), 51, [movedLabel()]);
+
+    // when
+    const changes = discardChangesOf(draft, toVideoSavePayload(draft, undefined, []));
+
+    // then
+    expect(changes).toEqual([{ baseline: 'N', next: 'N' }]);
   });
 
   it('세트는_불변으로_다뤄진다 — 원본을_제자리에서_고치지_않는다', () => {

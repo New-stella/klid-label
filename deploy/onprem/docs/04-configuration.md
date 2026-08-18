@@ -196,7 +196,7 @@ frontend 는 env 파일을 런타임에 읽지 않는다. **Vite 가 빌드 시�
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
 | `VITE_API_BASE_URL` | · | 기본 `/api/v1` (프록시가 backend 로 넘김) |
-| `VITE_TOKEN_INGRESS` | · | 기본 `all` (토큰 인입 모드) |
+| `VITE_TOKEN_INGRESS` | · | 기본 `localStorage` (토큰 인계 채널). 값: `url`\|`cookie`\|`localStorage`\|`both`\|`all`. **기본값을 바꾸지 말 것** — `url`/`both`/`all` 은 JWT 를 URL 쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598). 관제/포털은 동일 origin 브라우저 저장소로 인계한다 |
 | `VITE_CONTROL_LOGIN_URL` | ★ | **관제서버 로그인 페이지 절대 URL.** 예 `https://control.example.local/login` |
 | `VITE_PORTAL_LOGIN_URL` | ★ | **포털 로그인 페이지 절대 URL.** 예 `https://portal.example.local/login` |
 | `VITE_DEV_LOGIN_ENABLED` / `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true(FE 라우트만 포함). 실제 게이팅은 backend 토글 — H 절 참고 |
@@ -332,6 +332,6 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
    ```
 2. 브라우저에서 `/dev/login` 진입 → 임시 토큰 발급(파이프라인 검증에 필요한 역할 선택).
    **이 토큰은 브링업 검증용이며 최초 REVIEWER 를 만드는 정규 절차가 아니다** — 정규 절차는 G 절.
-3. `/dev/autolabel-test` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
+3. `/dev/upload` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
 4. **운영 정상화 후**: 위 세 토글을 backend.env 에서 미설정(삭제/주석)하고 재기동 → dev 경로 차단.
    이후 실제 사용자 권한은 G 절 경로로 부여한다.

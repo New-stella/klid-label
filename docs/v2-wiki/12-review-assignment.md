@@ -8,7 +8,7 @@
 ## 12.1 작업 배정
 
 - **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
-- `LS_TASK_ASSIGNMENT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 **`LS_TASK_EVENT_LOG` 에 `REASSIGN` 기록**(구 `LS_TASK_ASSIGN_HISTORY` 이중 쓰기는 V4 에서 폐지 — 조회 API 가 원래 이벤트 로그만 읽었다)
+- `LS_TASK_ALTMNT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 **`LS_TASK_EVNT_LOG` 에 `REASSIGN` 기록**(구 `LS_TASK_ASSIGN_HISTORY` 이중 쓰기는 V4 에서 폐지 — 조회 API 가 원래 이벤트 로그만 읽었다)
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
 - **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)
 - **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
@@ -44,7 +44,8 @@
 
 ## 12.2 검수 (단일 승인)
 
-- **검수 완료 = 작업 완료**: REVIEWER가 `APPROVED` 처리 → `LsRawDataStatus.dataSttsCd` `COMPLETED` 전이
+- **검수 완료 = 작업 완료**: REVIEWER가 승인하면 `LsRawDataStatus.dataSttsCd` 가 **`APPROVED`** 로 전이 (2026-08-15 정정 — 구 서술 `COMPLETED` 폐기. `LsRawDataStatus.STTS_COMPLETED` 는 선언만 있고 `src/main` 사용처가 0건이다)
+  - ⚠ **`COMPLETED` 를 전부 `APPROVED` 로 바꾸지 말 것** — 배치 단계(`LsDataRaw.DATA_STTS_COMPLETED`)·FE 표시 매핑(`ReviewResponse.mapToFeStatus`, `AssignmentWorkStatus.COMPLETED(Set.of("APPROVED"))`)·통지 이벤트명(`TASK_COMPLETED`)은 **전부 정상**이다. 특히 배정 목록 표시축을 고치면 대시보드 진행률이 0% 로 떨어진다
 - v1의 1차/2차 다단계 검수 없음 (REVIEWER 단일 승인으로 의도적 변경)
 - 검수 상세에서 라벨 승인/반려, 라벨 diff 비교, 버전 롤백 → [13](13-version-control.md)
 - 코드: `review/ReviewController`, `ReviewService`, `ReviewStateMachine`
@@ -98,7 +99,7 @@
 
 그래서 판정을 **지금 상태에서 이력으로** 옮긴다 — `ReviewApprovalGate.hasEverApproved(rawSn)`.
 
-- **판정 = 승인 동결 스냅샷 존재 OR 승인 감사 존재**(fail-closed OR). 둘 다 append-only라 "있었다"가 지워지지 않는다. OR로 묶는 이유는 동결 스냅샷 테이블(`LS_DATASET_VIDEO_META`)이 나중에 신설돼, 그 이전에 승인되고 백필 전에 재제출된 영상은 스냅샷 행이 0건일 수 있어서다 — 그 경우는 승인 감사 로그(`LS_TASK_EVENT_LOG` `EVENT_APPROVE`)가 뒤를 받친다.
+- **판정 = 승인 동결 스냅샷 존재 OR 승인 감사 존재**(fail-closed OR). 둘 다 append-only라 "있었다"가 지워지지 않는다. OR로 묶는 이유는 동결 스냅샷 테이블(`LS_DATASET_VIDEO_META`)이 나중에 신설돼, 그 이전에 승인되고 백필 전에 재제출된 영상은 스냅샷 행이 0건일 수 있어서다 — 그 경우는 승인 감사 로그(`LS_TASK_EVNT_LOG` `EVENT_APPROVE`)가 뒤를 받친다.
 - **소비처 2곳** — 둘 다 이 게이트 하나만 재사용하고 판정을 복제하지 않는다.
   - 비식별 누락 신고 접수(412) → [08 §8.4](08-deidentification.md)
   - 프레임 폐기·복원(400) → [10 §10.7.1](10-labeling.md)
@@ -127,6 +128,6 @@
 
 ## 12.6 관련 데이터 (DB)
 
-`LS_TASK_ASSIGNMENT`(배정), `LS_TASK_EVENT_LOG`(이벤트 로그 — 재배정 이력의 단일 적재처. 구 `LS_TASK_ASSIGN_HISTORY` 는 V4 에서 삭제), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
+`LS_TASK_ALTMNT`(배정), `LS_TASK_EVNT_LOG`(이벤트 로그 — 재배정 이력의 단일 적재처. 구 `LS_TASK_ASSIGN_HISTORY` 는 V4 에서 삭제), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
 
 > 반려 사유는 V57부터 작업자 문의와 **통합 이슈 스레드**로 양방향 소통 가능 (등록→답변→해소) — 상세는 [21 이슈 소통 채널](21-issue-channel.md).

@@ -12,6 +12,11 @@
 --   다른 패키지 테스트가 남긴 검토 행이 있으면 "update or delete on table ls_evnt_anno
 --   violates foreign key constraint ... on table ls_evnt_anno_review" 로 실패한다(교차 패키지
 --   오염). test-data-evntanno-clean.sql 과 동일하게 자식 → 부모 순서로 먼저 비운다.
+--
+-- ★LS_ISSUE_COMMENT 는 FK_LS_ISSUE_COMMENT_ISSUE(V10)가 ON DELETE RESTRICT 라 부모 이슈
+--   (LS_DATA_ISSUE)의 RAW CASCADE 를 막는다. 위 LS_EVNT_ANNO 와 같은 부류이며, 같은 이유로
+--   자식 → 부모 순서로 먼저 비운다(설계 ERD-023 이 restrict 를 규정 — 우회하지 말 것).
+DELETE FROM LS_ISSUE_COMMENT;
 DELETE FROM LS_EVNT_ANNO_REVIEW;
 DELETE FROM LS_EVNT_ANNO;
 DELETE FROM LS_CLIP_SCHEDULE_QUE;

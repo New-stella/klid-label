@@ -159,7 +159,16 @@ export const DEFAULT_IMAGE_ADJUST: ImageAdjust = {
 /**
  * 라벨링 화면의 장시간 작업 종류. 사용자 노출 문구는 화면 계층에서 매핑한다(모델명 미노출).
  */
-export type BusyKind = 'AI_DETECT' | 'AI_SEGMENT' | 'AI_TRACK' | 'SAVE' | 'LOAD';
+export type BusyKind =
+  | 'AI_DETECT'
+  | 'AI_SEGMENT'
+  | 'AI_TRACK'
+  // 온디맨드 자동 추적 — 시작 객체를 고르지 않고 프레임 구간만으로 실행하는 경로다.
+  // AI_TRACK(선택한 객체 하나를 따라가는 추적)과 **별개 종류**로 둔다: 진행·취소 안내 문구가
+  // 그 이름에서 파생되므로 같은 종류로 묶으면 화면이 두 실행을 같은 이름으로 부른다.
+  | 'AI_AUTO_TRACK'
+  | 'SAVE'
+  | 'LOAD';
 
 /**
  * 진행 중인 장시간 작업 1건. 라벨링 화면의 "진행 중" 판정은 이 값 하나가 단일 진실원이다

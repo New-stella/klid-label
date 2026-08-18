@@ -1,29 +1,21 @@
 ---
 logicraft_item: SCREEN-021
 type: screen_spec
-version: 22
-last_updated_at: 2026-08-14T04:29:08.032Z
-domain: null
+version: 28
+last_updated_at: 2026-08-17T12:44:49.404Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.911Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.203Z
+sync_session: 17
 stale: false
-status: CHANGED
-prev_version: 21
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-021.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-057]]", "[[API-058]]"]
   required_roles: ["[[ROLE-001]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v21 → v22**
-> change_summary: 화면 경로가 실제 동작과 달라 이대로 만들면 도달할 수 없는 주소가 되는 것을 바로잡았다.
-
-같은 화면의 경로가 세 곳에 서로 다르게 적혀 있었다 — 내비게이션 정의와 이 화면 정의와 실제 화면이다. 셋을 대조해 실제 화면이 쓰는 값으로 통일했다. 실제 화면이 기준인 이유는 그것이 외부 화면 팀이 보고 맞추는 기준 구현이라 사실상 스펙 역할을 하기 때문이다.
-
-이 화면의 경로를 「/stats/overall」에서 「/stat/overall」로 바꿨다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 전체 구축 현황 화면
 
@@ -71,7 +63,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: data-testid=download-report-btn, loading 상태 지원
+- **note**: 다운로드 중 로딩 상태 표시
 - **type**: Button
 - **label**: 리포트 다운로드
 
@@ -86,7 +78,7 @@ _(empty)_
 - **variant**: primary
 - **triggers_api**: API-058
 
-- **description**: '전체 구축 현황' 제목과 우측 '리포트 다운로드' 버튼. 버튼 클릭 시 downloadReport('MONTH') 호출 → CSV blob 을 받아 a[download] 로 저장(파일명은 고정 prefix+ISO 날짜, 사용자 입력 미반영). 다운 중 loading, 완료/실패 시 토스트.
+- **description**: '전체 구축 현황' 제목과 우측 '리포트 다운로드' 버튼. 버튼 클릭 시 period=MONTH 고정값으로 리포트를 요청해 CSV 파일로 저장한다(파일명은 고정 prefix+ISO 날짜, 사용자 입력 미반영). 다운로드 중 로딩 상태 표시, 완료/실패 시 토스트.
 
 **references_apis**:
 
@@ -105,7 +97,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장(완료율 N%)'.
+- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장(완료율 N%)'. 주 수치는 폐기되지 않은 프레임만 센다 — 보조의 전체 수치는 걸러내지 않는다.
 - **type**: Stat
 - **label**: 누적 이미지
 
@@ -135,7 +127,7 @@ _(empty)_
 
 - **binds_to**: overall.approvedVideoCount
 
-- **description**: 누적 이미지/누적 영상 2개 카드 — 주 수치는 검수완료(approvedImageCount/approvedVideoCount), 보조로 전체(cumulativeImageCount/cumulativeVideoCount)와 완료율 텍스트를 병기한다(예: '검수완료 기준 · 전체 1,000장 (완료율 42%)'). 시각적 진행바 요소(role=progressbar, <progress>)는 렌더하지 않는다 — 완료율은 텍스트로만 표기.
+- **description**: 누적 이미지/누적 영상 2개 카드 — 주 수치는 검수완료(approvedImageCount/approvedVideoCount), 보조로 전체(cumulativeImageCount/cumulativeVideoCount)와 완료율 텍스트를 병기한다(예: '검수완료 기준 · 전체 1,000장 (완료율 42%)'). 시각적 진행바 요소(role=progressbar, <progress>)는 렌더하지 않는다 — 완료율은 텍스트로만 표기. 누적 이미지의 주 수치는 검수완료 영상의 프레임 중 폐기되지 않은 것만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 기준 수치는 수집한 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. 누적 영상은 영상 단위 집계라 폐기와 무관하다.
 
 **references_apis**:
 
@@ -238,7 +230,7 @@ _(empty)_
 
 - **custom_name**: ProcessingStackBar
 
-- **description**: 카드 1개로 구성 — 헤더에 '처리현황' 제목과 우측 '전체 N건' 텍스트, 본문에 가로 스택형 진행바(완료/처리중/대기/실패 4구간, 폭=비율) + 하단 4항목 범례 리스트(각 항목 색상점+라벨+건수+비율%). 개별 카드 5개·grid-cols-5 레이아웃이 아니다.
+- **description**: 카드 1개로 구성 — 헤더에 '처리현황' 제목과 우측 '전체 N건' 텍스트, 본문에 가로 스택형 진행바(완료/처리중/대기/실패 4구간, 폭=비율) + 하단 4항목 범례 리스트(각 항목 색상점+라벨+건수+비율%). 개별 카드 5개로 나눠 표시하지 않는다.
 
 **references_apis**:
 
@@ -257,7 +249,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: SimpleBarChart (recharts BarChart)
+- **note**: 막대 차트
 - **type**: Chart
 - **label**: 일별 전체 작업량 (최근 30일)
 
@@ -271,7 +263,7 @@ _(empty)_
 
 - **binds_to**: overall.dailyCounts
 
-- **description**: 최근 30일 일별 작업량 막대차트(SimpleBarChart, recharts). dailyCounts[].date/count 매핑. data-testid=daily-trend-chart, xAxisInterval=5.
+- **description**: 최근 30일 일별 작업량 막대차트. dailyCounts[].date/count 매핑. X축 눈금은 5일 간격으로 표시한다.
 
 **references_apis**:
 
@@ -290,7 +282,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: SimplePieChart (recharts PieChart) + 범례. 검수완료 기준(approvedEventDistribution).
+- **note**: 파이 차트 + 범례. 검수완료 기준(approvedEventDistribution).
 - **type**: Chart
 - **label**: 이벤트 분포 파이차트
 
@@ -304,7 +296,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: data-testid=event-distribution-grid. 고정 6종이 아니라 서버가 내려주는 카테고리 전체(count 0 포함)를 categoryKey 오름차순으로 순회 렌더 — 개수 가변. 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다.
+- **note**: 고정 6종이 아니라 서버가 내려주는 카테고리 전체(count 0 포함)를 categoryKey 오름차순으로 순회 렌더 — 개수 가변. 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다.
 - **type**: List
 - **label**: 이벤트 분포 가로 리스트 (개수 가변)
 
@@ -318,7 +310,7 @@ _(empty)_
 
 - **binds_to**: overall.eventDistribution
 
-- **description**: 검수완료 기준(approvedEventDistribution) 이벤트 유형 분포. 좌측 SimplePieChart + 범례, 우측 라벨+건수 가로 리스트(개수 가변 — 서버가 수집 대상 카테고리를 count 0 포함해 전부 반환하므로 그대로 렌더). eventDistribution 을 code별 count 로 매핑.
+- **description**: 검수완료 기준(approvedEventDistribution) 이벤트 유형 분포. 좌측 파이 차트 + 범례, 우측 라벨+건수 가로 리스트(개수 가변 — 서버가 수집 대상 카테고리를 count 0 포함해 전부 반환하므로 그대로 렌더). eventDistribution 을 code별 count 로 매핑.
 
 **references_apis**:
 
@@ -337,7 +329,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: data-testid=worker-stats-table, 헤더 클릭 정렬
+- **note**: 헤더 클릭으로 정렬
 - **type**: Table
 - **label**: 작업자별 현황
 
@@ -452,15 +444,16 @@ _(empty)_
 - **label**: 전체 구축 현황 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: ea66b479f1416730474e19688b3527f8edf1c16d4a17e47bb1a496d3087ccf7e
-- **generated_at**: 2026-08-13T01:02:40.827Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 3aecd1b8b8873c6b2a965995e670ab3a02909f949424261eb303711c7dac2c3f
+- **generated_at**: 2026-08-17T12:44:49.404Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

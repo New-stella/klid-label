@@ -70,7 +70,7 @@ describe('DevAutolabelTestPage', () => {
 
   it('파일_미선택시_업로드_버튼_disabled', () => {
     renderWithProviders(<DevAutolabelTestPage />);
-    const button = screen.getByRole('button', { name: '업로드' });
+    const button = screen.getByRole('button', { name: '업로드 시작' });
     expect(button).toBeDisabled();
   });
 
@@ -93,7 +93,7 @@ describe('DevAutolabelTestPage', () => {
   it('정상_제출시_uploadAutolabelTest_호출_FormData에_file_meta_part_포함_토글필드_미전송', async () => {
     const user = userEvent.setup();
     let capturedFormData: FormData | null = null;
-    mock.onPost('/dev/autolabel-test').reply((config) => {
+    mock.onPost('/dev/upload').reply((config) => {
       capturedFormData =
         config.data instanceof FormData ? (config.data as FormData) : null;
       return [
@@ -102,7 +102,7 @@ describe('DevAutolabelTestPage', () => {
           success: true,
           data: {
             rawSn: 12345,
-            savedFilePath: 'autolabel-test/abc-123.mp4',
+            savedFilePath: 'dev-upload/abc-123.mp4',
             pipelineStatus: 'PROCESSING',
             startedAt: 1715520000000,
           },
@@ -136,11 +136,11 @@ describe('DevAutolabelTestPage', () => {
 
     const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
 
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     await waitFor(() => {
       expect(capturedFormData).not.toBeNull();
@@ -158,7 +158,7 @@ describe('DevAutolabelTestPage', () => {
     // meta blob 내용 검증 — JSON 으로 직렬화되어 있어야 함
     const metaText = await readBlobAsText(metaPart as Blob);
     const meta = JSON.parse(metaText);
-    expect(meta.vmsClipId).toMatch(/^test-/);
+    expect(meta.vmsClipId).toMatch(/^upload-/);
     expect(meta.cctvId).toBe('CCTV-001');
     // 카테고리(첫 옵션 020002) → 대표 EV-코드(memberCodes[0]) 전송 — 구 EVT_* 미전송.
     expect(meta.eventTypeCd).toBe('EV02000201');
@@ -178,11 +178,11 @@ describe('DevAutolabelTestPage', () => {
   it('업로드후_MARKING_READY_도달하면_폴링_종료_마킹대기_안내와_마킹화면_링크_표시', async () => {
     const user = userEvent.setup();
     let pollCount = 0;
-    mock.onPost('/dev/autolabel-test').reply(200, {
+    mock.onPost('/dev/upload').reply(200, {
       success: true,
       data: {
         rawSn: 44444,
-        savedFilePath: 'autolabel-test/ready.mp4',
+        savedFilePath: 'dev-upload/ready.mp4',
         pipelineStatus: 'PROCESSING',
         startedAt: 1715520000000,
       },
@@ -219,10 +219,10 @@ describe('DevAutolabelTestPage', () => {
     renderWithProviders(<DevAutolabelTestPage />);
     const file = new File(['v'], 'ready.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     // 마킹 대기 안내가 표시되고 (terminal 도달)
     await waitFor(() => {
@@ -251,11 +251,11 @@ describe('DevAutolabelTestPage', () => {
 
   it('성공시_rawSn_화면_표시', async () => {
     const user = userEvent.setup();
-    mock.onPost('/dev/autolabel-test').reply(200, {
+    mock.onPost('/dev/upload').reply(200, {
       success: true,
       data: {
         rawSn: 7777,
-        savedFilePath: 'autolabel-test/xyz.mp4',
+        savedFilePath: 'dev-upload/xyz.mp4',
         pipelineStatus: 'PROCESSING',
         startedAt: 1715520000000,
       },
@@ -286,10 +286,10 @@ describe('DevAutolabelTestPage', () => {
 
     const file = new File(['v'], 'clip.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('autolabel-raw-sn')).toHaveTextContent(
@@ -300,7 +300,7 @@ describe('DevAutolabelTestPage', () => {
 
   it('BE_400_응답시_메시지_표시', async () => {
     const user = userEvent.setup();
-    mock.onPost('/dev/autolabel-test').reply(400, {
+    mock.onPost('/dev/upload').reply(400, {
       success: false,
       data: null,
       message: '허용되지 않는 확장자입니다.',
@@ -310,10 +310,10 @@ describe('DevAutolabelTestPage', () => {
     renderWithProviders(<DevAutolabelTestPage />);
     const file = new File(['v'], 'bad.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('autolabel-error')).toHaveTextContent(
@@ -326,11 +326,11 @@ describe('DevAutolabelTestPage', () => {
 
   it('파이프라인_FAILED_상태_감지시_에러_박스_노출', async () => {
     const user = userEvent.setup();
-    mock.onPost('/dev/autolabel-test').reply(200, {
+    mock.onPost('/dev/upload').reply(200, {
       success: true,
       data: {
         rawSn: 8888,
-        savedFilePath: 'autolabel-test/fail.mp4',
+        savedFilePath: 'dev-upload/fail.mp4',
         pipelineStatus: 'PROCESSING',
         startedAt: 1715520000000,
       },
@@ -362,10 +362,10 @@ describe('DevAutolabelTestPage', () => {
 
     const file = new File(['v'], 'fail.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     await waitFor(() => {
       expect(
@@ -377,7 +377,7 @@ describe('DevAutolabelTestPage', () => {
   it('dev_업로드_이벤트_select가_관제카테고리를_렌더하고_제출시_EV코드를_보낸다', async () => {
     const user = userEvent.setup();
     let capturedMeta: Record<string, unknown> | null = null;
-    mock.onPost('/dev/autolabel-test').reply(async (config) => {
+    mock.onPost('/dev/upload').reply(async (config) => {
       const fd = config.data as FormData;
       const blob = fd.get('meta') as Blob;
       capturedMeta = JSON.parse(await readBlobAsText(blob));
@@ -387,7 +387,7 @@ describe('DevAutolabelTestPage', () => {
           success: true,
           data: {
             rawSn: 33333,
-            savedFilePath: 'autolabel-test/cat.mp4',
+            savedFilePath: 'dev-upload/cat.mp4',
             pipelineStatus: 'PROCESSING',
             startedAt: 1715520000000,
           },
@@ -419,7 +419,7 @@ describe('DevAutolabelTestPage', () => {
     renderWithProviders(<DevAutolabelTestPage />);
 
     // 메인 폼의 이벤트 select (TusUploadPanel 에도 동일 라벨 select 가 있어 id 로 한정).
-    const select = document.getElementById('autolabel-test-event') as HTMLElement;
+    const select = document.getElementById('dev-upload-event') as HTMLElement;
     // 관제 카테고리 옵션이 렌더된다 (구 EVT_* 옵션 부재).
     await user.click(select);
     const optionLabels = (await screen.findAllByRole('option')).map((o) => o.textContent);
@@ -431,10 +431,10 @@ describe('DevAutolabelTestPage', () => {
 
     const file = new File(['v'], 'cat.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     await waitFor(() => {
       expect(capturedMeta).not.toBeNull();
@@ -445,7 +445,7 @@ describe('DevAutolabelTestPage', () => {
 
   it('BE_409_vmsClipId_중복_메시지_표시', async () => {
     const user = userEvent.setup();
-    mock.onPost('/dev/autolabel-test').reply(409, {
+    mock.onPost('/dev/upload').reply(409, {
       success: false,
       data: null,
       message: 'vmsClipId 가 이미 존재합니다.',
@@ -455,10 +455,10 @@ describe('DevAutolabelTestPage', () => {
     renderWithProviders(<DevAutolabelTestPage />);
     const file = new File(['v'], 'dup.mp4', { type: 'video/mp4' });
     const fileInput = document.getElementById(
-      'autolabel-test-file',
+      'dev-upload-file',
     ) as HTMLInputElement;
     await user.upload(fileInput, file);
-    await user.click(screen.getByRole('button', { name: '업로드' }));
+    await user.click(screen.getByRole('button', { name: '업로드 시작' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('autolabel-error')).toHaveTextContent(

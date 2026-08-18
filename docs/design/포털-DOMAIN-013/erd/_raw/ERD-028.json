@@ -1,0 +1,571 @@
+{
+  "item": {
+    "id": "ERD-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "erd",
+    "title": "포털 업로드 자산 ERD (고도화, PostgreSQL — LS_PORTAL_ULD, LS_PORTAL_ULD_FRME, LS_PORTAL_ULD_LBL, LS_PORTAL_TUS_ULD)",
+    "slug": "포털-업로드-자산-erd-고도화-postgresql-lsportaluld-lsportaluldfrme-lsp",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "dbms": "postgresql",
+      "level": "physical",
+      "tables": [
+        {
+          "name": "LS_PORTAL_ULD",
+          "columns": [
+            {
+              "name": "ULD_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "포털 업로드 식별자(PK). 기본 생성 항등열로 채번한다.",
+              "primary_key": true,
+              "logical_column_name": "업로드일련번호"
+            },
+            {
+              "name": "PORTAL_USER_NO",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": false,
+              "description": "포털이 발급한 토큰의 주체 클레임. 본인 자산만 조회·수정하도록 막는 소유자 스코프 키다.",
+              "primary_key": false,
+              "logical_column_name": "포털사용자번호"
+            },
+            {
+              "name": "ULD_TYPE_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "IMAGE": "이미지",
+                "VIDEO": "영상"
+              },
+              "description": "업로드 자산 유형. 이 값에 따라 프레임 생성 방식이 갈린다 — 이미지는 프레임 한 행, 영상은 추출 프레임 여러 행이 된다.",
+              "primary_key": false,
+              "logical_column_name": "업로드유형코드"
+            },
+            {
+              "name": "ORGNL_FILE_NM",
+              "type": "varchar(255)",
+              "unique": false,
+              "nullable": true,
+              "description": "사용자가 올린 원본 파일명(표시용). 저장 파일명은 따로 강제하며 이 값을 경로로 쓰지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "원본파일명"
+            },
+            {
+              "name": "FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": true,
+              "description": "저장된 자산 파일 경로.",
+              "primary_key": false,
+              "logical_column_name": "파일경로명"
+            },
+            {
+              "name": "FILE_SZ",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "업로드 파일 크기(바이트).",
+              "primary_key": false,
+              "logical_column_name": "파일크기"
+            },
+            {
+              "name": "MIME_TYPE_NM",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": true,
+              "description": "업로드 시 확인한 매체 유형. 확장자와 함께 허용 형식 검증에 쓴다.",
+              "primary_key": false,
+              "logical_column_name": "MIME유형명"
+            },
+            {
+              "name": "ULD_STTS_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "READY": "라벨링가능",
+                "FAILED": "처리실패",
+                "UPLOADED": "업로드완료",
+                "PROCESSING": "후처리중"
+              },
+              "description": "업로드 처리 상태. 업로드 완료·후처리 중 상태로 방치 판정 시간을 넘겨 갱신이 멈춘 자산은 처리 실패로 전이한다.",
+              "primary_key": false,
+              "logical_column_name": "업로드상태코드"
+            },
+            {
+              "name": "VDO_LEN_SEC",
+              "type": "double precision",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 길이(초). 이미지 업로드는 값이 없다.",
+              "primary_key": false,
+              "logical_column_name": "영상길이초"
+            },
+            {
+              "name": "FPS",
+              "type": "double precision",
+              "unique": false,
+              "nullable": true,
+              "description": "영상의 초당 프레임 수. 이미지 업로드는 값이 없다.",
+              "primary_key": false,
+              "logical_column_name": "프레임재생속도"
+            },
+            {
+              "name": "FRME_CNT",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "description": "영상에서 뽑아낸 프레임 수. 이미지 업로드는 값이 없다.",
+              "primary_key": false,
+              "logical_column_name": "프레임수"
+            },
+            {
+              "name": "FAIL_RSN_CN",
+              "type": "text",
+              "unique": false,
+              "nullable": true,
+              "description": "처리 실패 사유. 상태가 처리 실패일 때 기록한다. 방치 판정으로 전이된 경우에도 그 사유를 남긴다.",
+              "primary_key": false,
+              "logical_column_name": "실패사유내용"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "업로드 원장 적재 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "마지막 상태·메타 변경 일시. 방치 자산 판정과 처리 실패 축 보존기간이 공유하는 기준축이다 — 후처리가 진행되는 동안 갱신되므로 오래 걸리는 정상 처리는 방치로 판정되지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LS_PORTAL_ULD_STTS_MDFCN",
+              "unique": false,
+              "columns": [
+                "ULD_STTS_CD",
+                "MDFCN_DT"
+              ]
+            },
+            {
+              "name": "IDX_LS_PORTAL_ULD_USER_REG",
+              "unique": false,
+              "columns": [
+                "PORTAL_USER_NO",
+                "REG_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신설 — 포털 사용자 본인 자산 업로드 축. 1차에 대응 테이블이 없다.",
+            "status": "new"
+          },
+          "description": "포털 사용자가 올린 자산 한 건(이미지 한 장 또는 영상 한 건)의 업로드 원장. 상태는 업로드 완료에서 후처리 중을 거쳐 라벨링 가능으로 진행하고, 실패하면 사유를 남긴다. 영상은 고정 간격으로 프레임을 뽑은 뒤, 이미지는 프레임 한 행을 만든 뒤 라벨링 가능이 된다. 내부 원본 영상 원장(LS_DATA_RAW)·데이터마트와 무관한 포털 전용 작업본이다.",
+          "logical_table_name": "포털업로드"
+        },
+        {
+          "name": "LS_PORTAL_ULD_FRME",
+          "columns": [
+            {
+              "name": "ULD_FRME_SN",
+              "type": "bigint",
+              "unique": false,
+              "default": "nextval('LS_PORTAL_ULD_FRME_SEQ')",
+              "nullable": false,
+              "description": "포털 업로드 프레임 식별자(PK). 시퀀스 채번값을 기본값으로 받는다.",
+              "primary_key": true,
+              "logical_column_name": "업로드프레임일련번호"
+            },
+            {
+              "name": "ULD_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "references": {
+                "table": "LS_PORTAL_ULD",
+                "column": "ULD_SN",
+                "on_delete": "cascade"
+              },
+              "description": "이 프레임이 속한 업로드 식별자.",
+              "primary_key": false,
+              "logical_column_name": "업로드일련번호"
+            },
+            {
+              "name": "FRME_NO",
+              "type": "integer",
+              "unique": false,
+              "nullable": false,
+              "description": "프레임 순번. 영상은 추출 순서이고 이미지는 0 으로 고정한다.",
+              "primary_key": false,
+              "logical_column_name": "프레임번호"
+            },
+            {
+              "name": "FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": false,
+              "description": "프레임 이미지 파일 경로.",
+              "primary_key": false,
+              "logical_column_name": "파일경로명"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "프레임 적재 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "UK_LS_PORTAL_ULD_FRME",
+              "unique": true,
+              "columns": [
+                "ULD_SN",
+                "FRME_NO"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신설 — 업로드 자산의 라벨링 단위 프레임. 1차에 대응 테이블이 없다.",
+            "status": "new"
+          },
+          "description": "업로드 자산에서 파생된 라벨링 단위 프레임. 이미지 업로드는 프레임 한 행이 되고 영상 업로드는 고정 간격으로 뽑은 프레임 여러 행이 된다. 업로드를 지우면 함께 삭제된다. 식별자는 증가폭을 크게 잡은 시퀀스(LS_PORTAL_ULD_FRME_SEQ)로 채번한다 — 영상 한 건의 프레임을 한꺼번에 넣을 때 묶음 적재가 살아 있도록 항등열을 쓰지 않는다.",
+          "logical_table_name": "포털업로드프레임"
+        },
+        {
+          "name": "LS_PORTAL_ULD_LBL",
+          "columns": [
+            {
+              "name": "ULD_LBL_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "포털 업로드 라벨 식별자(PK). 기본 생성 항등열로 채번한다.",
+              "primary_key": true,
+              "logical_column_name": "업로드라벨일련번호"
+            },
+            {
+              "name": "PORTAL_USER_NO",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": false,
+              "description": "소유자 스코프 키 — 본인이 남긴 라벨만 조회·수정한다.",
+              "primary_key": false,
+              "logical_column_name": "포털사용자번호"
+            },
+            {
+              "name": "ULD_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "references": {
+                "table": "LS_PORTAL_ULD",
+                "column": "ULD_SN",
+                "on_delete": "cascade"
+              },
+              "description": "이 라벨이 속한 업로드 식별자. 업로드 단위 조회·정리를 위해 함께 보유한다.",
+              "primary_key": false,
+              "logical_column_name": "업로드일련번호"
+            },
+            {
+              "name": "ULD_FRME_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "references": {
+                "table": "LS_PORTAL_ULD_FRME",
+                "column": "ULD_FRME_SN",
+                "on_delete": "cascade"
+              },
+              "description": "라벨이 붙은 프레임 식별자.",
+              "primary_key": false,
+              "logical_column_name": "업로드프레임일련번호"
+            },
+            {
+              "name": "LBL_TYPE_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "BBOX": "바운딩박스",
+                "POLYGON": "폴리곤"
+              },
+              "description": "라벨 도형 유형.",
+              "primary_key": false,
+              "logical_column_name": "라벨유형코드"
+            },
+            {
+              "name": "LBL_NM",
+              "type": "varchar(80)",
+              "unique": false,
+              "nullable": true,
+              "description": "사용자가 붙인 라벨 이름. 내부 라벨 마스터를 참조하지 않는 자유 입력값이다.",
+              "primary_key": false,
+              "logical_column_name": "라벨명"
+            },
+            {
+              "name": "POINT_CN",
+              "type": "text",
+              "unique": false,
+              "nullable": true,
+              "description": "좌표 내용을 직렬화한 문자열. 바운딩박스는 시작점과 너비·높이, 폴리곤은 꼭짓점 목록을 담는다.",
+              "primary_key": false,
+              "logical_column_name": "좌표내용"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "라벨 최초 적재 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "라벨 이름·좌표 마지막 수정 일시.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LS_PORTAL_ULD_LBL_FRME",
+              "unique": false,
+              "columns": [
+                "ULD_FRME_SN",
+                "PORTAL_USER_NO"
+              ]
+            },
+            {
+              "name": "IDX_LS_PORTAL_ULD_LBL_USER_ULD",
+              "unique": false,
+              "columns": [
+                "PORTAL_USER_NO",
+                "ULD_SN"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신설 — 포털 업로드 자산 위 수동 라벨. 1차에 대응 테이블이 없다.",
+            "status": "new"
+          },
+          "description": "업로드 프레임 위에 포털 사용자가 직접 그린 수동 라벨. 허용 도형은 바운딩박스와 폴리곤뿐이며 그 밖의 값은 서버가 막아서 거부한다 — 포털에는 오토라벨링·분할 보조·키포인트를 제공하지 않는다. 프레임을 지우면 함께 삭제되고, 업로드 식별자를 함께 보유해 업로드 축에서도 직접 연쇄 정리된다.",
+          "logical_table_name": "포털업로드라벨"
+        },
+        {
+          "name": "LS_PORTAL_TUS_ULD",
+          "columns": [
+            {
+              "name": "ULD_ID",
+              "type": "uuid",
+              "unique": false,
+              "nullable": false,
+              "description": "재개 업로드 세션 식별자(PK). 클라이언트가 이어 올릴 때 제시하는 세션 키다.",
+              "primary_key": true,
+              "logical_column_name": "업로드아이디"
+            },
+            {
+              "name": "PORTAL_USER_NO",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": false,
+              "description": "세션 소유자. 소유자만 진행 상태 조회·이어올리기·취소를 할 수 있다.",
+              "primary_key": false,
+              "logical_column_name": "포털사용자번호"
+            },
+            {
+              "name": "ULD_LEN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "업로드할 전체 길이(바이트). 세션을 열 때 선언한다.",
+              "primary_key": false,
+              "logical_column_name": "업로드길이"
+            },
+            {
+              "name": "ULD_OFFSET",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "지금까지 받은 누적 오프셋(바이트). 이 값이 전체 길이와 같아지면 완료 처리한다. 예약어 충돌을 피해 접두를 붙였다.",
+              "primary_key": false,
+              "logical_column_name": "업로드오프셋"
+            },
+            {
+              "name": "STTS_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "CANCELLED": "취소",
+                "COMPLETED": "완료",
+                "IN_PROGRESS": "진행중"
+              },
+              "description": "세션 상태.",
+              "primary_key": false,
+              "logical_column_name": "상태코드"
+            },
+            {
+              "name": "FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": false,
+              "description": "청크를 이어 붙여 기록하는 저장 파일 경로.",
+              "primary_key": false,
+              "logical_column_name": "파일경로명"
+            },
+            {
+              "name": "ORGNL_FILE_NM",
+              "type": "varchar(255)",
+              "unique": false,
+              "nullable": true,
+              "description": "사용자가 올린 원본 파일명(표시용). 저장 파일명은 따로 강제한다.",
+              "primary_key": false,
+              "logical_column_name": "원본파일명"
+            },
+            {
+              "name": "ULD_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "완료 시 합류한 업로드 원장 식별자. 진행 중에는 비어 있다. 외래키 제약은 두지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "업로드일련번호"
+            },
+            {
+              "name": "EXPRY_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": false,
+              "description": "세션 만료 일시. 세션을 연 시각으로부터 하루 뒤다.",
+              "primary_key": false,
+              "logical_column_name": "만료일시"
+            },
+            {
+              "name": "VER",
+              "type": "bigint",
+              "unique": false,
+              "default": "0",
+              "nullable": false,
+              "description": "낙관적 잠금 버전. 동시에 들어온 청크 갱신의 오프셋 충돌을 차단한다.",
+              "primary_key": false,
+              "logical_column_name": "버전"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "세션 생성 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "마지막 청크 수신·상태 변경 일시.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "IDX_LPTU_EXPRY",
+              "unique": false,
+              "columns": [
+                "EXPRY_DT"
+              ]
+            },
+            {
+              "name": "IDX_LPTU_USER_STTS",
+              "unique": false,
+              "columns": [
+                "PORTAL_USER_NO"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "고도화 신설 — 포털 채널 전용 재개 가능 업로드 세션. 내부 채널 세션 테이블과 구조만 준용하고 데이터는 분리한다.",
+            "status": "new"
+          },
+          "description": "포털 사용자가 대용량 영상을 청크로 나눠 이어 올릴 때의 세션 상태. 내부 채널의 재개 업로드 세션과 구조를 준용하되 별개 테이블로 격리한다. 청크를 받을 때마다 누적 오프셋을 갱신하고, 오프셋이 전체 길이에 도달하면 업로드 원장에 영상 한 건으로 합류시킨 뒤 그 식별자를 보관한다. 잠금 버전으로 동시 청크 갱신의 오프셋 충돌을 막고, 상태는 진행 중일 때만 완료로 바뀌어 중복 완료 요청이 무해하다. 만료 일시가 지난 세션은 정리 대상이다. 두 인덱스는 모두 진행 중인 세션만 담는 부분 인덱스다.",
+          "logical_table_name": "포털재개업로드세션"
+        }
+      ],
+      "brownfield": {
+        "notes": "고도화 신설 축 — 포털 사용자 본인 자산 업로드와 그 위의 수동 라벨링. 포털에 오토라벨링·검수·버전관리를 두지 않는다는 결정(ADR-013)의 예외로 자산 업로드만 허용됐고, 내부 파이프라인·데이터마트와 분리된 전용 테이블로 관리한다. 1차에 대응 테이블이 없다.",
+        "status": "new"
+      },
+      "description": "포털 사용자가 본인 자산(이미지·영상)을 직접 올려 수동 라벨링하는 전용 저장 구조. 내부 파이프라인(비식별→마킹→배치→검수)과 데이터마트 뷰에서 완전히 분리된 경로이며, 오토라벨링·시계열 메타·검수·버전관리는 적용하지 않는다. 본인 자산이라 비식별 처리 대상도 아니다. 모든 조회·수정은 포털 사용자 번호 소유자 스코프로 제한해 타인 자산 접근을 차단한다. 업로드를 지우면 그에 딸린 프레임과 라벨이 연쇄 삭제된다. 대용량 영상은 재개 가능 업로드 세션(LS_PORTAL_TUS_ULD)으로 청크를 누적한 뒤 업로드 원장(LS_PORTAL_ULD)에 영상 한 건으로 합류한다. 데이터마트 영상 위에 남기는 라벨(LS_PORTAL_USER_LABEL)은 이 ERD 가 정의하지 않는다 — 그 정의는 ERD-018 이 소유한다. (V109·V111 신설, V110 보강) + LsPortalUld · LsPortalUldFrme · LsPortalUldLbl · LsPortalTusUpload 엔티티.",
+      "relationships": [
+        {
+          "label": "프레임이 속한 업로드 — 업로드를 지우면 프레임도 함께 삭제된다",
+          "to_table": "LS_PORTAL_ULD",
+          "from_table": "LS_PORTAL_ULD_FRME",
+          "via_column": "ULD_SN",
+          "cardinality": "N:1"
+        },
+        {
+          "label": "라벨이 붙은 프레임 — 프레임을 지우면 라벨도 함께 삭제된다",
+          "to_table": "LS_PORTAL_ULD_FRME",
+          "from_table": "LS_PORTAL_ULD_LBL",
+          "via_column": "ULD_FRME_SN",
+          "cardinality": "N:1"
+        },
+        {
+          "label": "라벨이 속한 업로드 — 업로드를 지우면 프레임을 거치지 않고도 라벨이 함께 삭제된다",
+          "to_table": "LS_PORTAL_ULD",
+          "from_table": "LS_PORTAL_ULD_LBL",
+          "via_column": "ULD_SN",
+          "cardinality": "N:1"
+        }
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "업로드 원장의 상태·최종 변경 일시·실패 사유 컬럼 설명을 방치 전이 규칙에 맞춰 보강했다 — 최종 변경 일시가 방치 판정과 실패 축 보존기간이 공유하는 기준축이고, 후처리 진행 중에는 갱신되므로 오래 걸리는 정상 처리가 방치로 판정되지 않는다는 점을 명시했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T22:19:41.887Z",
+    "created_at": "2026-08-16T04:20:31.136Z"
+  }
+}

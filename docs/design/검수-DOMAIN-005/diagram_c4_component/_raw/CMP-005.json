@@ -1,0 +1,271 @@
+{
+  "item": {
+    "id": "CMP-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_c4_component",
+    "title": "검수 컴포넌트 (워크플로우·상태머신·승인 통지)",
+    "slug": "검수-컴포넌트-워크플로우상태머신승인-통지",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "검수 컴포넌트 (워크플로우·상태머신·승인 통지)",
+      "components": [
+        {
+          "kind": "controller",
+          "name": "ReviewController",
+          "technology": "/v1",
+          "description": "검수 목록·상세·제출·시작·승인·반려 엔드포인트",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "ReviewService",
+          "description": "검수 워크플로우 — 승인 시 버전 스냅샷·완료 이벤트 발행",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "ReviewStateMachine",
+          "description": "검수 상태 전이 검증 (PENDING/IN_REVIEW/APPROVED/REJECTED)",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "module",
+          "name": "ReviewApprovedEvent",
+          "description": "승인(=작업완료) 도메인 이벤트(EVT-006) — DatasetExportBridge 가 받아 export 를 재생성한다",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "ReviewRepository",
+          "description": "검수(검수 레코드) CRUD",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "IssueRepository",
+          "description": "검수 이슈 CRUD",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsTaskEventLogRepository",
+          "description": "작업 이벤트 로그 기록",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsDataSrcRepository",
+          "description": "프레임 조회",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsDataLblRepository",
+          "description": "라벨 조회",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        }
+      ],
+      "description": "검수 목록·상세·프레임·이슈·제출·시작·승인(=작업완료)·반려. ReviewController(/v1)가 ReviewService 를 호출하고 ReviewService 는 ReviewStateMachine 으로 상태 전이를 검증한다. 검수자 1인이 승인할 때까지 반려↔재제출을 반복하는 단일 검수이며(ADR-002), 별도 관리자 확인 요청 경로는 없다(ADR-003).\n\n[★승인 후 연쇄 — 순서 보강] 승인 시 ①VersionService 로 라벨 전체 스냅샷 생성 ②ReviewApprovedEvent(EVT-006) 발행. ⚠ 구 본문은 이 이벤트가 곧 관제 통지로 이어진다고 적었으나, 실제 수신자는 DatasetExportBridge 다 — export 폴더를 새 버전으로 전량 재생성한 뒤 DatasetExportCompletedEvent(EVT-009)가 발행되고, 그제서야 ControlNotifyEventListener 가 TASK_COMPLETED 를 보낸다. 통지가 먼저 나가면 관제가 구 버전 폴더를 픽업한다. export 실패 시 통지는 보류되고 DatasetExportFailureRecoverer 가 재산출 성공 후 재개한다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
+      "module_name": "review (검수)",
+      "relationships": [
+        {
+          "to": "ReviewController",
+          "from": "REVIEWER",
+          "description": "검수·승인·반려"
+        },
+        {
+          "to": "ReviewService",
+          "from": "ReviewController",
+          "description": "검수 위임"
+        },
+        {
+          "to": "ReviewStateMachine",
+          "from": "ReviewService",
+          "description": "상태 전이 검증"
+        },
+        {
+          "to": "ReviewRepository",
+          "from": "ReviewService",
+          "description": "검수 저장·조회"
+        },
+        {
+          "to": "IssueRepository",
+          "from": "ReviewService",
+          "description": "이슈 CRUD"
+        },
+        {
+          "to": "LsTaskEventLogRepository",
+          "from": "ReviewService",
+          "description": "이벤트 로그 기록"
+        },
+        {
+          "to": "LsTaskAssignmentRepository",
+          "from": "ReviewService",
+          "description": "배정 검증"
+        },
+        {
+          "to": "LsDataSrcRepository",
+          "from": "ReviewService",
+          "description": "프레임 조회"
+        },
+        {
+          "to": "LsDataLblRepository",
+          "from": "ReviewService",
+          "description": "라벨 조회"
+        },
+        {
+          "to": "VideoRepository",
+          "from": "ReviewService",
+          "description": "영상 메타 조회"
+        },
+        {
+          "to": "UserRepository",
+          "from": "ReviewService",
+          "description": "사용자 조회"
+        },
+        {
+          "to": "VersionService",
+          "from": "ReviewService",
+          "description": "승인 시 스냅샷 생성"
+        },
+        {
+          "to": "ReviewApprovedEvent",
+          "from": "ReviewService",
+          "description": "승인 시 이벤트 발행"
+        },
+        {
+          "to": "ControlNotifyEventListener",
+          "from": "ReviewApprovedEvent",
+          "description": "[폐기] 승인 이벤트가 곧바로 관제 통지를 부르는 간선. 지금은 그렇게 하지 않는다 — export 가 성공한 뒤에만 통지한다."
+        },
+        {
+          "to": "DatasetExportBridge",
+          "from": "ReviewApprovedEvent",
+          "description": "승인 커밋 이후 export 전량 재생성 트리거"
+        },
+        {
+          "to": "DatasetExportCompletedEvent",
+          "from": "DatasetExportBridge",
+          "description": "export 산출 성공 시 발행"
+        },
+        {
+          "to": "ControlNotifyEventListener",
+          "from": "DatasetExportCompletedEvent",
+          "description": "export 완료 수신 → TASK_COMPLETED 발송"
+        }
+      ],
+      "depicts_dfeats": [],
+      "referenced_items": [
+        "EVT-006",
+        "EVT-009"
+      ],
+      "external_dependencies": [
+        {
+          "kind": "container",
+          "name": "VersionService",
+          "description": "승인 시 라벨 스냅샷 생성 (version 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "LsTaskAssignmentRepository",
+          "description": "배정 조회 (assignment 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "VideoRepository",
+          "description": "영상 메타 조회 (video 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "UserRepository",
+          "description": "사용자 조회 (user 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "ControlNotifyEventListener",
+          "description": "export 완료 이벤트(EVT-009) 수신 → 관제 통지 (controlnotify 패키지)"
+        },
+        {
+          "kind": "person",
+          "name": "REVIEWER",
+          "description": "검수자"
+        },
+        {
+          "kind": "container",
+          "name": "DatasetExportBridge",
+          "description": "승인 이벤트를 커밋 후 받아 export 를 새 버전으로 전량 재생성 (dataset.export 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "DatasetExportCompletedEvent",
+          "description": "export 산출이 성공한 뒤 발행되는 도메인 이벤트 (EVT-009, dataset.export 패키지)"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "승인 이후 연쇄를 서술만이 아니라 구조에도 반영했다. 승인 이벤트가 곧바로 관제 통지를 부르던 간선은 폐기로 표기해 남기고, 실제 경로인 승인 이벤트 → export 재생성 → export 완료 이벤트 → 통지 수신자 3단 연쇄를 관계와 외부 의존에 추가했다. 서술이 인용하던 두 이벤트를 참조로 승격해 그래프에서도 따라갈 수 있게 했다. 함께 본문의 한글 손상 1건(보람다 → 보낸다)을 정정했다 — 같은 문단에서 앞서 한 건을 정정할 때 남았던 잔여분이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T21:35:14.177Z",
+    "created_at": "2026-06-02T13:13:40.254Z"
+  }
+}

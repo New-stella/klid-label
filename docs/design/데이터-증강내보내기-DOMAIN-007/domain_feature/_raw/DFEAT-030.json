@@ -1,0 +1,58 @@
+{
+  "item": {
+    "id": "DFEAT-030",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "증강 상태 흐름 — 생성 결과와 검수자 활용 결정",
+    "slug": "증강-상태-흐름-생성-결과와-검수자-활용-결정",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "증강 상태 흐름 — 생성 결과와 검수자 활용 결정",
+      "status": "designed",
+      "consumes": [],
+      "priority": "should",
+      "triggers": [],
+      "brownfield": {
+        "status": "modified",
+        "diff_summary": "1차 «가능→대기→진행→완료/부분성공/실패» 단일 상태축 + 실패 자동 재처리 → 2차 «생성 결과 축(콜백 소유)»과 «활용 결정 축(검수자 채택·반려)» 분리, 자동 재처리 폐기(재요청이 정상 동선), 채택분만 등재·반려분은 유예 후 삭제",
+        "legacy_source": {
+          "type": "table",
+          "identifier": "LS_DATA_AUG",
+          "legacy_artifact_id": "LEGACY-015"
+        }
+      },
+      "user_story": {
+        "as": "검수자(REVIEWER)",
+        "i_want": "생성된 증강 결과를 확인해 활용할지 폐기할지 고르기를",
+        "so_that": "학습데이터로 쓸 파생만 작업 대상으로 등재된다"
+      },
+      "description": "증강 상태를 **두 축으로 나눠** 관리한다. 한 컬럼에 합치지 않는다 — 생성이 성공했다는 것과 사람이 그것을 쓰기로 했다는 것은 다른 사실이며, 합치면 활용 결정 자체가 성립하지 않는다.\n\n**[생성 결과 축]** 외부 증강 시스템의 처리 결과만 담는다 — 대기 → 생성 성공 / 생성 실패 / 취소. 이 축은 결과 콜백이 소유하며 사람이 쓰지 않는다.\n\n**[활용 결정 축]** 생성된 파생을 학습데이터로 쓸지는 **검수자(REVIEWER)가 고른다.** 결과를 확인해 채택하거나 반려하며 결정자·결정 일시·반려 사유를 함께 남긴다. **채택된 파생만 작업 목록·배정에 등재**된다. 반려된 파생은 작업 대상에서 빠지고 유예 기간이 지나면 파생 영상과 그 산출물이 삭제된다. 반려는 되돌릴 수 있고, 되돌리면 채택·반려를 다시 고를 수 있다.\n\n해상도 파생은 외부 위탁이 없는 내부 결정론적 리스케일이라 검수 대상이 아니다 — 활용 결정 축을 거치지 않고 등재된다.\n\n[폐기] 실패·부분성공을 시스템이 자동으로 재처리하던 1차 동작은 **두지 않는다.** 같은 (영상 × 증강 종류) 재요청을 허용하므로, 결과가 원하는 것이 아니면 다시 요청하는 것이 정상 동선이다.",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:38:26.006Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "1차 baseline 상태 모델을 2차 확정 사양으로 재작성한다. 상태를 «생성 결과»와 «활용 결정» 두 축으로 나누고, 활용 여부는 검수자가 고른다는 것을 본문의 축으로 세운다. 채택분만 등재되고 반려분은 유예 후 삭제되며 반려는 되돌릴 수 있다. 해상도 파생은 검수 대상이 아니라 이 축을 거치지 않는다. 실패 자동 재처리는 두지 않는다는 것을 폐기 표기로 남긴다(재요청이 정상 동선).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T14:16:55.177Z",
+    "created_at": "2026-05-29T06:32:40.332Z"
+  }
+}

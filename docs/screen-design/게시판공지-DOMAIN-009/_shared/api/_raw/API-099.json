@@ -24,7 +24,7 @@
       "triggers": [],
       "responses": {
         "204": {
-          "description": "삭제 성공. 핸들러가 void 반환 + @ResponseStatus(NO_CONTENT) — 응답 본문 없음. 첨부파일은 FK ON DELETE CASCADE 로 함께 삭제.",
+          "description": "삭제 성공. 응답 본문 없음. 첨부파일은 FK ON DELETE CASCADE 로 함께 삭제.",
           "content_type": "application/json"
         },
         "401": {
@@ -88,7 +88,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 외 역할 접근. @PreAuthorize hasRole('REVIEWER'). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 외 역할 접근. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -125,8 +125,8 @@
         }
       },
       "brownfield": {
-        "notes": "커밋 9ca1d33",
         "status": "new",
+        "decided_by": "ADR-014",
         "change_kind": [
           "feature-add"
         ],
@@ -154,17 +154,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — 204 No Content(본문 없음, void 반환) + 401/403/404 에러 응답 + example (NoticeController.delete @ResponseStatus(NO_CONTENT) 코드 기준)",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:04:09.641Z",
+    "last_updated_at": "2026-08-16T12:23:05.610Z",
     "created_at": "2026-06-05T04:57:19.695Z"
   }
 }

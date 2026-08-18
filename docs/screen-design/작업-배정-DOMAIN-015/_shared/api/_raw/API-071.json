@@ -284,7 +284,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 권한 없음 (@PreAuthorize hasRole REVIEWER). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -362,7 +362,12 @@
         "change_kind": [
           "scope-shrink"
         ],
-        "diff_summary": "영상 단위 재배정(DFEAT-006)"
+        "diff_summary": "영상 단위 재배정(DFEAT-006)",
+        "legacy_source": {
+          "type": "screen",
+          "identifier": "SKKLID-UI-03-02-14",
+          "legacy_artifact_id": "LEGACY-112"
+        }
       },
       "deprecated": false,
       "parameters": [
@@ -376,7 +381,24 @@
           "description": "배정 식별자"
         }
       ],
-      "description": "기존 배정을 재배정한다(LS_TASK_ASSIGN_HISTORY 이력 기록). REVIEWER 전용.",
+      "description": "기존 배정을 재배정한다(작업 이벤트 로그에 재배정 이력 기록). REVIEWER 전용.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "workerId"
+          ],
+          "properties": {
+            "workerId": {
+              "type": "integer",
+              "format": "int64",
+              "description": "재배정할 새 작업자 PK(userNo). 현재 배정된 작업자와 같은 값이면 400(INVALID_INPUT, '현재 배정된 작업자와 동일합니다.'), 존재하지 않는 사용자면 400(INVALID_INPUT, '존재하지 않는 작업자입니다.')"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -385,17 +407,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "brownfield 보강 — decided_by=ADR-001 (영상 1건 단위)",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T08:40:56.946Z",
+    "last_updated_at": "2026-08-16T12:23:00.283Z",
     "created_at": "2026-05-30T07:26:32.498Z"
   }
 }

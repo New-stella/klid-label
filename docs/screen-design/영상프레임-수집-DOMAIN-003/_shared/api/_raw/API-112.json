@@ -45,11 +45,6 @@
                     "type": "string",
                     "description": "수락 상태 — 항상 ACCEPTED"
                   },
-                  "kpstPrjId": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "KPST 프로젝트 ID (위탁 식별자)"
-                  },
                   "procLogSn": {
                     "type": "integer",
                     "format": "int64",
@@ -78,7 +73,6 @@
             "data": {
               "rawSn": 279,
               "status": "ACCEPTED",
-              "kpstPrjId": 288,
               "procLogSn": 1024
             },
             "message": null,
@@ -190,7 +184,7 @@
           "description": "재비식별 대상 검수완료 영상 PK"
         }
       ],
-      "description": "REVIEWER가 검수완료(APPROVED) 영상의 비식별 재수행을 요청한다. 서비스가 전제조건(APPROVED·기비식별·락)을 검증하고 작업락을 선점한 뒤 KPST 위탁(REQ_KIND=REDEIDENT)을 시작하며, 실제 완료(프레임 attach + DE_IDNTF_YN='Y')는 폴링 잡이 비동기로 이어받는다. 따라서 본 엔드포인트는 수락 사실만 202 Accepted + status=ACCEPTED로 동기 반환하고 위탁 식별자(procLogSn/kpstPrjId)를 함께 준다. 요청 바디 없이 경로변수 + 인증 principal만 사용한다. kpst.deid.enabled=true 환경에서만 빈이 등록된다.",
+      "description": "REVIEWER가 검수완료(APPROVED) 영상의 비식별 재수행을 요청한다. 서비스가 전제조건(APPROVED 이력·미검수 아님·이미 정상 비식별(DE_IDNTF_YN='Y')이 아님·락 없음)을 검증하고 작업락을 선점한 뒤 KPST 위탁(REQ_KIND=REDEIDENT)을 시작하며, 실제 완료(프레임 attach + DE_IDNTF_YN='Y')는 폴링 잡이 비동기로 이어받는다. ⚠ 이미 DE_IDNTF_YN='Y' 로 정상 완주한 승인 영상은 이 경로에서도 409(이미 비식별됨)로 배제된다 — 그 가드의 사유는 개인정보가 아니라 프레임 번호 의미 불일치다. 정상 완주한 승인 영상에서 사후에 개인정보 노출이 발견돼도 이 엔드포인트로는 재비식별할 수단이 없다(신고 접수도 검수 승인 이력이 있으면 412 로 막혀 있다 — 발견은 승인 전이 전제). 따라서 본 엔드포인트는 수락 사실만 202 Accepted + status=ACCEPTED로 동기 반환하고 위탁 식별자(procLogSn)를 함께 준다. KPST 프로젝트 아이디는 수락 응답 시점에 존재할 수 없어 내려주지 않으며, 필요하면 처리 로그 일련번호로 원장을 조회한다. 요청 바디 없이 경로변수 + 인증 principal만 사용한다. kpst.deid.enabled=true 환경에서만 빈이 등록된다.",
       "calls_external": [
         "INT-004"
       ],
@@ -202,17 +196,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-005"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "REQ-015의 data.constraints 변경이 implements로 2-hop 전파",
+    "change_summary": "전제조건 열거가 '이미 비식별됨'을 충족해야 할 조건처럼 읽혀 실제로는 배제 조건이라는 점과 갈렸다. 409 응답 설명에는 이미 있던 사실을 최상단 설명에도 명시해, 정상 완주한 승인 영상은 이 경로로도 재비식별 수단이 없다는 확정 정책과 문면이 어긋나지 않게 맞춘다. 상위 기능 연결도 비어 있어 함께 채운다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:37:06.340Z",
+    "last_updated_at": "2026-08-16T07:08:19.518Z",
     "created_at": "2026-07-07T07:30:21.375Z"
   }
 }

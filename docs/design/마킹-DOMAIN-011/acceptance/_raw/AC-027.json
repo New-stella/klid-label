@@ -1,0 +1,88 @@
+{
+  "item": {
+    "id": "AC-027",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "자동/수동 마킹 완료·잔여 배치 트리거",
+    "slug": "자동수동-마킹-완료잔여-배치-트리거",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "notes": "근거: UC-019 main_flow(마킹 완료 → 잔여 배치 트리거 단계). 판정 지점: 마킹 완료 저장·완료 이벤트 발행·트랜잭션 커밋 후 배치 시작 지점.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "LS_MARKING 에 마킹 결과가 저장된다",
+          "마킹 완료 이벤트가 트랜잭션 커밋 후(AFTER_COMMIT) 잔여 배치를 비동기로 시작한다",
+          "LS_RAW_DATA_STATUS.DATA_STTS_CD 가 BATCH_QUEUED 로 전이되고, 배치가 시작되면 PROCESSING 으로 이어진다"
+        ],
+        "when": [
+          "WORKER 가 마킹 화면에서 자동(intervalFrames, 기본값 300) 또는 수동(Space 마킹/Del 삭제) 마킹 후 Enter 로 완료한다"
+        ],
+        "given": [
+          "대상 영상이 LS_DATA_RAW.DATA_STTS_CD='MARKING_READY' 이다(선두 비식별 성공 직후)",
+          "WORKER 로 인증되어 있고 본인 배정 영상이다"
+        ],
+        "and_examples": [
+          {
+            "case": "자동 마킹의 intervalFrames 기본값",
+            "result": "300 이며 1 이상 정수만 허용된다(상한 없음)"
+          },
+          {
+            "case": "본인 배정이 아닌 영상에 마킹 시도",
+            "result": "403 으로 거부된다(IDOR 방지)"
+          },
+          {
+            "case": "비식별이 유효하지 않은 영상의 스트리밍 요청",
+            "result": "원본 노출 차단을 위해 404 로 거부된다(항상 비식별 영상만 서빙)"
+          },
+          {
+            "case": "마킹 화면의 재생 배속 선택",
+            "result": "0.25·0.5·1·1.5·2·4배 여섯 단계로 조절된다"
+          },
+          {
+            "case": "비식별 영상 스트리밍 요청에 Range 헤더를 실은 경우",
+            "result": "요청 구간만 206 부분 응답으로 반환하고, 구간이 역전되거나 형식이 잘못되면 416 으로 거부한다(요청당 전송 상한을 둔다)"
+          },
+          {
+            "case": "비식별 영상 스트리밍 응답의 캐시 정책",
+            "result": "전체 응답(200)과 부분 응답(206) 모두 Cache-Control: no-store 로 내려간다 — 신고 게이트를 매 요청 평가해야 하므로 클라이언트가 이전 응답을 재사용하면 신고 직후에도 마스킹 실패 영상이 계속 재생된다"
+          },
+          {
+            "case": "배치가 시작되지 않은 채 마킹만 저장된 경우",
+            "result": "응답의 batchTriggered 가 거짓이고 batchSkipReason 에 사유가 담기며 그 마킹은 SKIPPED 로 종결된다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-019"
+      ],
+      "statement": "MARKING_READY 상태의 비식별 영상에서 WORKER 가 자동(프레임 간격) 또는 수동(Space/Del/Enter) 마킹을 완료하면 LS_MARKING 에 마킹이 저장되고 MarkingCompleted(EVT-001, AFTER_COMMIT)로 잔여 배치(VLM 위탁→프레임추출→오토라벨링)가 시작된다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-011"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-019"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "도메인 이벤트 표기를 카탈로그 등록명(EVT-001)에 맞춘다 — 구현 클래스 접미사가 아니라 등록된 이벤트 이름을 쓴다. 커밋 이후 발행이라는 조건은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:44:12.060Z",
+    "created_at": "2026-08-06T16:01:46.874Z"
+  }
+}

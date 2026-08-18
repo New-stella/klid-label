@@ -282,12 +282,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "버전이 만들어지는 시점을 검수 승인으로 정정한 데 따른 재확인. 본문이 이미 라벨을 저장하는 것만으로는 버전이 생기지 않고 검수 승인으로 산출이 만들어질 때만 늘어난다고 적고 있으며, 과거 회차를 불러와 확정하는 흐름이 버전 축을 바꾸지 않는다는 것과도 어긋나지 않음을 확인했다. 본문은 바꾸지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:37:07.540Z",
+    "last_updated_at": "2026-08-15T10:12:58.753Z",
     "created_at": "2026-08-05T11:13:15.458Z"
   }
 }

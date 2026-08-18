@@ -1,0 +1,63 @@
+{
+  "item": {
+    "id": "DFEAT-018",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "AI Tool (SAM 클릭 세그멘테이션)",
+    "slug": "ai-tool-sam-클릭-세그멘테이션",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "AI Tool (SAM 클릭 세그멘테이션)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-05",
+          "legacy_artifact_id": "LEGACY-066"
+        }
+      },
+      "user_story": {
+        "as": "라벨링 작업자",
+        "i_want": "클릭만으로 객체 외곽을 자동 세그멘테이션하기를",
+        "so_that": "수작업 경계 설정을 줄인다"
+      },
+      "description": "SAM 방식으로 객체를 클릭하면 외곽을 자동 세그멘테이션하여 라벨링을 보조한다. (1차 baseline, 화면 SKKLID-UI-02-02-05)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:34:36.997Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [
+        "AC-005"
+      ],
+      "specializes_feature": "FEAT-001",
+      "implemented_by_endpoints": [
+        "API-093"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "UC-005의 data.brownfield 변경이 verifies로 2-hop 전파",
+    "change_summary": "DFEAT-018(AI Tool·SAM2 분할)의 related_acceptances 가 비어 있었다(감사 지적 — 추적성 공백). 이 DFEAT 를 실현하는 UC-005 가 AC-005 로 검증되므로(covered_by_acceptances 일치) AC-005 를 연결한다. persists_in_tables/invokes_apis/triggers 는 이 DFEAT 가 상태 없는 프록시(DB 미저장)라 실제로 비어 있는 것이 맞아 그대로 둔다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:32:13.468Z",
+    "created_at": "2026-05-29T06:30:20.680Z"
+  }
+}

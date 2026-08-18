@@ -68,7 +68,7 @@ describe('RoleClaimPage', () => {
   it('역할_선택만_하고_패스워드_미입력시도_disabled', async () => {
     const user = userEvent.setup();
     renderWithProviders(<RoleClaimPage />);
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     const button = screen.getByRole('button', { name: '권한 부여 확인' });
     expect(button).toBeDisabled();
   });
@@ -103,7 +103,7 @@ describe('RoleClaimPage', () => {
 
     renderWithProviders(<RoleClaimPage />);
 
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
@@ -126,15 +126,18 @@ describe('RoleClaimPage', () => {
 
     renderWithProviders(<RoleClaimPage />);
 
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'wrong');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
+    // 안내는 「분류(제목) + 상세(본문)」 두 줄이다(시안 SCREEN-002 ③).
+    // 구 기대값 '관리자 패스워드가 일치하지 않습니다.' 한 줄은 그 구조가 없던 시절의 것.
     await waitFor(() => {
-      expect(
-        screen.getByText('관리자 패스워드가 일치하지 않습니다.'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('패스워드가 일치하지 않습니다')).toBeInTheDocument();
     });
+    expect(
+      screen.getByText('관리자에게 받은 패스워드를 다시 확인해주세요.'),
+    ).toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
@@ -149,15 +152,15 @@ describe('RoleClaimPage', () => {
 
     renderWithProviders(<RoleClaimPage />);
 
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
+    // 구 기대값은 두 문장을 한 노드에서 찾던 정규식 — 제목/본문 분리로 더 이상 이어져 있지 않다.
     await waitFor(() => {
-      expect(
-        screen.getByText(/이미 권한이 부여된 사용자입니다\. 새로고침/),
-      ).toBeInTheDocument();
+      expect(screen.getByText('이미 권한이 부여된 사용자입니다')).toBeInTheDocument();
     });
+    expect(screen.getByText('새로고침 해주세요.')).toBeInTheDocument();
   });
 
   it('429_과다_시도_안내', async () => {
@@ -171,7 +174,7 @@ describe('RoleClaimPage', () => {
 
     renderWithProviders(<RoleClaimPage />);
 
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
@@ -192,7 +195,7 @@ describe('RoleClaimPage', () => {
     });
 
     renderWithProviders(<RoleClaimPage />);
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
@@ -222,7 +225,7 @@ describe('RoleClaimPage', () => {
 
     renderWithProviders(<RoleClaimPage />);
 
-    await user.click(screen.getByLabelText('검수자 (REVIEWER)'));
+    await user.click(screen.getByLabelText('검수자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
@@ -231,6 +234,54 @@ describe('RoleClaimPage', () => {
     });
     expect(JSON.parse(mock.history.post[0].data as string).role).toBe('REVIEWER');
     expect(useAuthStore.getState().claims?.role).toBe('REVIEWER');
+  });
+
+  /**
+   * ★사양 SCREEN-002 — 화면에 보이는 문구는 **한글 호칭뿐**이고, 서버로 보내는 값은
+   * WORKER · REVIEWER 그대로다.
+   *
+   * 구 화면은 라디오 문구가 '작업자 (WORKER)' · '검수자 (REVIEWER)' 라 내부 코드값을 사용자에게
+   * 노출했다. 이 가드는 **두 축을 함께** 고정한다 — 문구만 고치고 전송값이 한글로 바뀌면 서버
+   * 계약이 깨져 권한 부여 자체가 죽는다. 그래서 한 테스트 안에서 표시와 전송을 같이 본다.
+   */
+  it('라디오_문구에는_서버_코드값이_없고_전송값은_코드값_그대로다', async () => {
+    const user = userEvent.setup();
+    const newToken = buildJwt({
+      sub: '1001',
+      role: 'WORKER',
+      channel: 'INTERNAL',
+      exp: 9999999999,
+      name: '홍길동',
+    });
+    mock.onPost('/auth/role-claim').reply(200, {
+      success: true,
+      data: { accessToken: newToken, role: 'WORKER', userNo: 1001, userName: '홍길동' },
+      message: null,
+      errorCode: null,
+    });
+
+    renderWithProviders(<RoleClaimPage />);
+
+    // then ① 표시 축 — 역할 라디오 그룹 안에 영문 코드값이 한 글자도 보이지 않는다.
+    const radiogroup = screen.getByRole('radiogroup', { name: '역할' });
+    expect(radiogroup.textContent ?? '').not.toMatch(/WORKER|REVIEWER/);
+    expect(radiogroup.textContent ?? '').toContain('작업자');
+    expect(radiogroup.textContent ?? '').toContain('검수자');
+
+    // then ② 계약 축 — 라디오의 value 와 실제 전송값은 서버 코드값 그대로다.
+    const workerRadio = screen.getByLabelText('작업자') as HTMLInputElement;
+    const reviewerRadio = screen.getByLabelText('검수자') as HTMLInputElement;
+    expect(workerRadio.value).toBe('WORKER');
+    expect(reviewerRadio.value).toBe('REVIEWER');
+
+    await user.click(workerRadio);
+    await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
+    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+
+    await waitFor(() => {
+      expect(mock.history.post).toHaveLength(1);
+    });
+    expect(JSON.parse(mock.history.post[0].data as string).role).toBe('WORKER');
   });
 
   it('관제_인계_표시정보가_클레임_요청에_동봉된다', async () => {
@@ -250,7 +301,7 @@ describe('RoleClaimPage', () => {
     });
 
     renderWithProviders(<RoleClaimPage />);
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 
@@ -278,7 +329,7 @@ describe('RoleClaimPage', () => {
     });
 
     renderWithProviders(<RoleClaimPage />);
-    await user.click(screen.getByLabelText('작업자 (WORKER)'));
+    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'admin1234');
     await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
 

@@ -2,9 +2,20 @@ package kr.co.cudo.authoring.label.event;
 
 /**
  * M1 — 비식별 누락 신고가 해소({@code OPEN→RESOLVED}, {@code DE_IDNTF_YN 'F'→'Y'})되어
- * <b>신고 구간에 보류됐던 학습데이터 산출·통지를 복구</b>해야 할 때 발행하는 도메인 이벤트.
+ * <b>신고 구간에 보류됐던 학습데이터 산출·통지를 복구</b>해야 할 때 발행하도록 정의된 도메인 이벤트.
  *
- * <h3>왜 필요한가 (통지·동기화 영구 유실)</h3>
+ * <h3>★현재 이 이벤트를 발행하는 곳은 없다 — 휴면(dormant) 확장점이다</h3>
+ * 산출·통지의 트리거가 <b>검수 승인 한 곳</b>으로 일원화되면서, 해소 시점에 하던 일은
+ * {@code TaskModifiedEvent}(META_UPDATED · exportRegenerated=true · needsRecheck=true)가 맡아
+ * <b>재검토 표시만</b> 세운다. 실제 재산출·재통지는 <b>재승인 시점</b>에 디바운스 flush 로 나간다.
+ * 발행 지점의 단일 진실원은 {@code DeidentReportService#publishResolvedForExportRecovery} 이며,
+ * 그 메서드는 이 이벤트를 발행하지 않는다.
+ *
+ * <p>정의와 수신 배선({@code DatasetExportBridge#onDeidentReportResolved})을 지우지 않는 이유는
+ * 그 자리가 다시 필요해질 수 있어서이며, 이 저장소는 같은 성격의 확장점을 이미 그렇게 유지한다.
+ * <b>아래 두 절은 그때를 위해 보존한 근거</b>이지 현행 동작 서술이 아니다.
+ *
+ * <h3>왜 필요했나 (통지·동기화 영구 유실)</h3>
  * 신고 구간에는 export 가 게이트에 차단되며, 차단은 "실패"가 아니라 정책적 보류이므로
  * {@code LS_DATASET_EXPORT} 행을 남기지 않는다(FAILED 행을 남기면 장애로 오분류되고 회수기가 반드시
  * 다시 막힐 재시도로 시도 상한만 소진한다). 그런데 검수 승인({@code ReviewService.approve})에는 신고

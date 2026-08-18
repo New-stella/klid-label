@@ -1,0 +1,66 @@
+{
+  "item": {
+    "id": "AC-006",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "라벨링 정밀도(폴리곤 단순화) 조절",
+    "slug": "라벨링-정밀도폴리곤-단순화-조절",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "설정값이 저장되고 캐시(TTL 60s)에 반영된다",
+          "이후 SAM2 track/밀착 시 설정 epsilon으로 폴리곤 점 수가 단순화된다",
+          "설정 조회 실패 시 기본값(1.0px) fail-safe로 폴백한다"
+        ],
+        "when": [
+          "PUT /v1/manage/configs/{key}로 POLYGON_SIMPLIFY_TOLERANCE를 조절한다"
+        ],
+        "given": [
+          "REVIEWER로 인증되어 있고 폴리곤 단순화 설정 키가 존재한다"
+        ],
+        "and_examples": [
+          {
+            "case": "값 범위 초과",
+            "result": "400"
+          },
+          {
+            "case": "WORKER 호출(권한 부족)",
+            "result": "403"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-008"
+      ],
+      "statement": "POLYGON_SIMPLIFY_TOLERANCE 조절 시 캐시 반영 후 폴리곤 점 수가 설정 epsilon으로 단순화된다",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-006"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "기대 결과에서 구현 어노테이션 표기를 뺀다. 같은 배열의 다음 항목은 응답 코드만 적어 표기가 갈려 있었고, 검증 수단은 계약이 아니라 구현 사정이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:45:24.860Z",
+    "created_at": "2026-06-01T07:04:34.460Z"
+  }
+}

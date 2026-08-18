@@ -1,0 +1,111 @@
+{
+  "item": {
+    "id": "ADR-015",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "검수자↔작업자 이슈 소통 채널 도입 — 반려 이력 테이블 확장 + 양방향 스레드",
+    "slug": "검수자작업자-이슈-소통-채널-도입-반려-이력-테이블-확장-양방향-스레드",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "v1에는 '관리자 확인요청/이슈 탭'이 있었으나 v2 초기 범위에서 제외됐다. v2 검수 반려는 사유 전달이 단방향(REVIEWER→WORKER)이라 작업자가 반려 사유·작업 기준을 되묻는 채널이 없어 재작업·재검수 주기가 지연된다. R1 요구사항 외 추가 결정으로 양방향 이슈 소통 채널을 도입했다(2026-06-05).",
+      "deciders": [
+        "ck.park (프로젝트 담당)"
+      ],
+      "decision": {
+        "chosen_option": "기존 반려 테이블 확장 + 댓글 테이블 신규 (채택)",
+        "justification": "반려와 문의는 모두 '영상 단위 이슈'라는 동일 개념 — 통합 스레드가 조회 단순성과 이력 연속성을 확보한다. REJECTION은 생성 시점부터 RESOLVED 고정(이력 성격, 단 후속 질문 댓글 허용), INQUIRY만 상태머신 대상. 내부 도구 전용(PORTAL_USER 차단)이며 첨부·푸시·이메일은 미포함. R1 외 추가 임을 산출물에 명시한다."
+      },
+      "references": [
+        {
+          "title": "이슈 소통 채널 DFEAT",
+          "item_id": "DFEAT-049"
+        },
+        {
+          "title": "이슈 스레드 ERD",
+          "item_id": "ERD-023"
+        },
+        {
+          "title": "IssueThreadPanel",
+          "item_id": "UI-097"
+        },
+        {
+          "title": "이슈 API 대표 (102~105)",
+          "item_id": "API-102"
+        },
+        {
+          "title": "라벨링 캔버스 화면 (이슈 탭 통합)",
+          "item_id": "SCREEN-005"
+        }
+      ],
+      "consequences": {
+        "risks": [
+          "resolve↔댓글 동시 요청 충돌 — @Version 낙관적 잠금으로 409 처리해 방어한다"
+        ],
+        "neutral": [
+          "알림(푸시·이메일) 미포함 — 미해소 카운트 배지로 대체"
+        ],
+        "negative": [
+          "R1 외 범위 증가",
+          "LS_DATA_ISSUE 스키마 변경으로 기존 반려 코드 경로 회귀 시험 필요"
+        ],
+        "positive": [
+          "재작업·재검수 주기 단축 (도구 내 소통)",
+          "반려+문의 이력 영구 보존·통합 조회",
+          "프레임 단위 참조로 문의 정확도 향상"
+        ]
+      },
+      "decision_date": "2026-06-05",
+      "decision_drivers": [
+        "반려 사유에 대한 작업자 재질문 경로 부재",
+        "작업 맥락(영상·프레임) 안에서의 소통 — 외부 메신저 단절 방지",
+        "기존 반려 이력(LS_DATA_ISSUE)과의 통합 조회 요구"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "재작업 주기 지연",
+            "소통 이력 미보존"
+          ],
+          "name": "미도입 (반려 사유 단방향 유지)",
+          "pros": [
+            "범위 최소화"
+          ],
+          "description": "현행 유지 — 반려 사유만 전달, 문의는 외부 채널"
+        },
+        {
+          "cons": [
+            "반려+문의 통합 스레드 조회 시 조인·정렬 복잡",
+            "이슈 개념 이원화"
+          ],
+          "name": "신규 독립 문의 테이블 분리",
+          "pros": [
+            "기존 테이블 무변경"
+          ],
+          "description": "반려(LS_DATA_ISSUE)와 별개의 문의 전용 테이블 신설"
+        },
+        {
+          "cons": [
+            "기존 테이블 스키마 변경(V57 마이그레이션)"
+          ],
+          "name": "기존 반려 테이블 확장 + 댓글 테이블 신규 (채택)",
+          "pros": [
+            "반려 이력 + 문의를 단일 API로 통합 조회",
+            "상태머신으로 미해소 문의 추적",
+            "낙관적 잠금으로 resolve↔댓글 동시성 보호"
+          ],
+          "description": "LS_DATA_ISSUE에 ISSUE_TYPE_CD(REJECTION|INQUIRY)·ISSUE_STTS_CD(OPEN→ANSWERED→RESOLVED)·SRC_SN·@Version 확장(V57) + LS_ISSUE_COMMENT 신규"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "위험 항목 서술을 구현 상태가 아니라 규정으로 적는다 — 낙관적 잠금으로 409 처리한다는 것이 사양이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T14:00:44.162Z",
+    "created_at": "2026-06-05T05:22:27.529Z"
+  }
+}

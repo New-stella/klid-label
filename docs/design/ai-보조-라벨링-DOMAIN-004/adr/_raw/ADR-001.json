@@ -1,0 +1,98 @@
+{
+  "item": {
+    "id": "ADR-001",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "작업 단위를 프로젝트에서 영상 1건(RAW_SN)으로 전환",
+    "slug": "작업-단위를-프로젝트에서-영상-1건rawsn으로-전환",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "1차(상용·타 개발사) 베이스라인은 '프로젝트' 단위로 작업·배정·통계·권한을 구성했다. 고도화 RFP는 영상/이미지 단위 라벨링·검수·완료 통지를 요구하며, 작업 식별자가 프로젝트가 아닌 영상 1건(LS_DATA_RAW.RAW_SN)이어야 관제서버 데이터마트 동기화(영상 1건=1 row)와 정합한다. 프로젝트 단위 잔재(LS_PJT_*, 프로젝트 생성/관리/배정)는 고도화 코드에서 영상 단위 테이블(LS_RAW_DATA_STATUS, LS_TASK_ALTMNT)로 대체되었다.",
+      "deciders": [
+        "박찬기",
+        "김현욱"
+      ],
+      "decision": {
+        "chosen_option": "영상 1건 단위 전환(채택)",
+        "justification": "고도화 RFP·관제 동기화 요구와 정합하며 완료/수정 통지를 영상 단위로 단순화할 수 있다. 프로젝트 개념은 폐기하고 RAW_SN을 단일 작업 식별자로 사용한다."
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "decision-record"
+        ],
+        "diff_summary": "1차 프로젝트 단위 → 2차 영상 1건(RAW_SN) 단위 전환 결정 기록"
+      },
+      "references": [
+        {
+          "title": "프로젝트 생성(폐기)",
+          "item_id": "DFEAT-004"
+        },
+        {
+          "title": "프로젝트 관리(폐기)",
+          "item_id": "DFEAT-005"
+        },
+        {
+          "title": "프로젝트 관리 도메인(폐기)",
+          "item_id": "DOMAIN-002"
+        }
+      ],
+      "consequences": {
+        "risks": [
+          "코드 마이그레이션 과도기 LS_PJT_* 잔존(별도 DROP 결정 필요)"
+        ],
+        "negative": [
+          "1차 LS_PJT_* 테이블·화면·DFEAT 폐기 필요"
+        ],
+        "positive": [
+          "영상 단위 완료/수정 통지(TASK_COMPLETED/MODIFIED) 가능",
+          "데이터마트 UPSERT 단위 정합",
+          "프로젝트 관리 화면/권한 모델 제거로 단순화"
+        ]
+      },
+      "decision_date": "2026-06-01",
+      "decision_drivers": [
+        "관제서버 데이터마트 동기화 단위(영상 1건)와 정합",
+        "검수 완료=작업 완료 통지를 영상 단위로 발행",
+        "프로젝트 생성/단계/라벨셋 관리의 운영 복잡도 제거"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "관제 동기화 단위(영상)와 불일치",
+            "영상 단위 완료 통지 곤란",
+            "미사용 프로젝트 관리 UI 유지비용"
+          ],
+          "name": "프로젝트 단위 유지(1차 모델)",
+          "pros": [
+            "1차 자산 재사용"
+          ],
+          "description": "LS_PJT 중심으로 프로젝트 생성→단계→배정 유지"
+        },
+        {
+          "cons": [
+            "1차 프로젝트 테이블/화면 폐기 필요",
+            "과도기 LS_PJT_* 잔재 정리 부담"
+          ],
+          "name": "영상 1건 단위 전환(채택)",
+          "pros": [
+            "관제 데이터마트 1영상=1row 정합",
+            "완료/수정 통지 영상 단위",
+            "운영 단순화"
+          ],
+          "description": "작업 식별자=RAW_SN, LS_RAW_DATA_STATUS/LS_TASK_ALTMNT 영상 단위 배정·검수"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "DB 물리 테이블명을 표준용어에 맞춰 개명한 것을 반영한다. LS_TASK_ASSIGNMENT 를 LS_TASK_ALTMNT 로(배정=ALTMNT), LS_TASK_EVENT_LOG 를 LS_TASK_EVNT_LOG 로(이벤트=EVNT) 바꾼다. 인덱스·제약 이름도 테이블 접두를 따라간다. 컬럼 ASSIGNMENT_ID 는 사업표준용어 「배정아이디」 등록분이라 그대로 둔다 — 테이블명은 용어 등록으로 보호되지 않아 단어 축 판정을 받는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T05:33:52.551Z",
+    "created_at": "2026-06-01T06:15:10.920Z"
+  }
+}

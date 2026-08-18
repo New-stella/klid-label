@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>폐기는 학습데이터 산출물에서 그 프레임을 빼는 <b>사람의 판정</b>이므로 누가·언제·어느 프레임을
  * 어느 방향으로 바꿨는지 행 단위로 남는다(OWASP A09). 영상(rawSn) 스코프 + actor 를 이미 갖춘
- * {@code LS_TASK_EVENT_LOG} 가 유일하게 맞는 축이다 — 라벨 이력 {@code LS_DATA_LBL_HSTRY} 는
+ * {@code LS_TASK_EVNT_LOG} 가 유일하게 맞는 축이다 — 라벨 이력 {@code LS_DATA_LBL_HSTRY} 는
  * {@code SRC_SN NOT NULL} 인 프레임 스코프지만 "행위자·사유" 축이 없다.
  *
  * <h3>담지 않는 것 (Critical)</h3>

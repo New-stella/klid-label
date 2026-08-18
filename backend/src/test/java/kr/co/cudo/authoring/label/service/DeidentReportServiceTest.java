@@ -139,7 +139,7 @@ class DeidentReportServiceTest {
         // D-25 (2026-07-27 정책 반전) — 신고는 라벨을 삭제하지 않으므로 라벨/스냅샷/이력 협력자
         //   (VersionService·LsDataLblRepository·ATTR_VAL·AI_INFO·LBL_HSTRY)가 의존성에서 제거됐다.
         // ★ 2026-08-04 — 개인정보 3필드 <b>리셋도 폐기</b>되면서 그 리셋의 행 단위 감사 협력자
-        //   (LS_DATA_LBL_HSTRY · LS_TASK_EVENT_LOG)와 프레임 리포지토리 의존성이 함께 제거됐다.
+        //   (LS_DATA_LBL_HSTRY · LS_TASK_EVNT_LOG)와 프레임 리포지토리 의존성이 함께 제거됐다.
         // 2026-07-29 — 신고 해소 복구 범위가 "해제된 영상 하나"로 축소되면서(파생영상은 원본 신고와
         //   무관) 자손 전개·게이트 재판정 의존성이 제거됐다.
         // 신고 목록의 신고자 표시명 해석용 — 본 단위 테스트는 목록 경로를 다루지 않아 stub 만 주입한다

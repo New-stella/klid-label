@@ -1,0 +1,99 @@
+{
+  "item": {
+    "id": "AC-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "증강 결과 수신·새 영상 등록",
+    "slug": "증강-결과-수신새-영상-등록",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "새 영상(RAW_SN)이 생성되고 ORGNL_RAW_SN(V82 개명, 구 PARENT_RAW_SN)에 원본이 연결된다",
+          "부모의 비식별 영상 파일이 파생 전용 경로({deidBase}/videos/augment/{parentRawSn}/{newRawSn}/...)로 실제 복사되고 그 경로가 파생의 RAW_FILE_PATH_NM 에 기록된다 — 복사 원본 경로는 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 읽어 정하며 문자열로 조합·추측하지 않는다(mock=deidentified.mp4 / KPST={stem}-mask{ext} 로 다르다)",
+          "부모 원본(비-비식별) 경로 폴백은 금지된다 — DE_IDNTF_YN='Y' 행에 PII 원본 경로가 실리면 CWE-359. 파생에는 '원본영상'이 없고 비식별본만 있다",
+          "원본 라벨/메타 JSON 이 좌표·속성을 보존한 채 새 영상에 복사된다(증강 3종 WINTER/NIGHT/RAIN 은 원본과 해상도가 같아 좌표를 변환하지 않는다)",
+          "촬영환경·개인정보 판정 메타를 생성 시점에 부모 값으로 1회 계승한다(이후 부모 정정은 재전파하지 않는 스냅샷 시맨틱)",
+          "파생 영상 식별자(VMS_CLIP_ID)는 시각이 아니라 증강 행 PK(DATA_AUG_SN)로 유일화한다 — 중복 요청 허용 이후 동시 콜백이 같은 밀리초에 충돌하면 UK 위반으로 결과물이 유실된다",
+          "새 영상이 미검수(PENDING)로 적재된다",
+          "회신 본문의 반영 여부 값은 증강 인계가 실제로 일어났는지만 뜻한다 — 멱등 흡수와 롤업 보류는 반영되지 않음으로 회신해, 나뉘어 위탁된 일부만 도착한 정상 진행 구간을 인계 완료로 오해하지 않게 한다"
+        ],
+        "when": [
+          "외부 서비스가 증강 결과를 콜백으로 전송한다(중복 방지 식별자 포함)"
+        ],
+        "given": [
+          "원본 영상(ORGNL_RAW_SN 으로 참조될 부모)과 라벨/메타가 존재한다",
+          "원본의 비식별본이 존재한다(부모 비식별 영상 파일 없이는 파생 비디오 복사가 물리적으로 불가)",
+          "외부 서비스가 증강 완료 후 콜백을 전송한다"
+        ],
+        "and_examples": [
+          {
+            "case": "콜백 검증 실패(부모 참조 부재/페이로드 무효)",
+            "result": "등록 거부·실패 기록"
+          },
+          {
+            "case": "부모 DE_IDNTF_YN='N'(비식별 미수행)",
+            "result": "등록하지 않는다 — 비식별 영상 파일이 없어 파생 비디오 복사가 물리적으로 불가"
+          },
+          {
+            "case": "부모 DE_IDNTF_YN='F'(비식별 누락 신고 구간)",
+            "result": "통과해 파생을 생성한다 — 신고가 막는 것은 외부 위탁(요청·전송)이지 파생 생성이 아니다(2026-07-29 확정)"
+          },
+          {
+            "case": "동일 결과 재수신",
+            "result": "중복 방지 식별자로 판별해 200 no-op(멱등) 또는 409(상태 충돌)"
+          },
+          {
+            "case": "허용 출처 목록 밖에서 들어온 콜백(목록이 비어 있는 경우 포함)",
+            "result": "403 — 목록 미설정이면 모든 출처를 막는 fail-closed 다. 이 거부도 실패 집계에 들어가 반복 시도가 곧 지연된다"
+          },
+          {
+            "case": "짧은 시간에 반복되는 콜백 또는 본문 크기 상한 초과",
+            "result": "429(반복 시도) · 413(본문 상한 초과) — 무인증 구간에서 자원을 소모시키지 못하게 한다"
+          },
+          {
+            "case": "우리가 발급하지 않은 요청 식별자로 들어온 콜백",
+            "result": "401 — 위탁 직전에 선기록한 발급 원장에 있는 식별자만 처리한다(무단 주입 차단의 최종 방어선)"
+          },
+          {
+            "case": "콜백이 끝내 오지 않아 위탁 건이 무갱신으로 남음",
+            "result": "만료 스윕이 회수해 종결시킨다 — 처리 실패 전용 표식을 남겨 실패로 판정되며 영구 대기로 고착되지 않는다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-004"
+      ],
+      "statement": "외부 증강 결과 콜백 수신 시 새 영상(RAW_SN)을 생성해 ORGNL_RAW_SN 으로 원본을 참조하고, 부모의 비식별 영상을 파생 전용 경로로 실제 복사한 뒤 원본 라벨/메타를 복사해 PENDING 으로 적재한다",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-007"
+      ],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-002"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "DFEAT-029의 data.related_acceptances 변경이 derived_from로 2-hop 전파",
+    "change_summary": "D007-ACC-007: 무서명 콜백의 접근 통제 3계층(허용 출처·반복 시도와 본문 상한·발급된 요청 식별자만 처리)과 무갱신 위탁의 만료 회수를 검증 항목으로 세운다 — 결정으로 확정된 견고성 요건인데 이 인수기준은 멱등만 다루고 있어 통제 축 부정 케이스가 하나도 없었다. 회신 본문의 반영 여부 의미도 함께 명시한다. 기존 항목은 그대로 두고 추가만 했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:38:35.160Z",
+    "created_at": "2026-06-01T07:04:13.138Z"
+  }
+}

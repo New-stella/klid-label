@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 19
-last_updated_at: 2026-08-08T13:09:51.376Z
+version: 23
+last_updated_at: 2026-08-16T12:44:01.936Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:37.296Z
-sync_session: 2
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:51:47.675Z
+sync_session: 5
+stale: true
+status: CHANGED
+prev_version: 20
 raw: ./_raw/SCREEN-030.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-095, API-097]
-  required_roles: [ROLE-001, ROLE-002]
+  consumes_apis: ["[[API-095]]"]
+  required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v20 → v23**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.5KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 목록 화면
 
@@ -77,13 +81,12 @@ _(empty)_
 _(empty)_
 
 - **variant**: primary
-- **triggers_api**: API-097
 
 - **description**: 제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 게시글 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.
 
 **references_apis**:
 
-- API-097
+_(empty)_
 
 **references_features**:
 
@@ -224,6 +227,10 @@ _(empty)_
 
 new
 
+### decided_by
+
+ADR-014
+
 ### change_kind
 
 - screen-add
@@ -239,7 +246,6 @@ web
 ## consumes_apis
 
 - API-095
-- API-097
 
 ## implementation
 
@@ -249,11 +255,12 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-034
+- MOD-026
 
 ### records
 
-_(empty)_
+- IMPREC-004
 
 ### progress
 
@@ -262,6 +269,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-11T23:08:20.493Z
 
 ## required_roles
 
@@ -282,9 +293,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: b4563401cec62bc16698c9ea774acc265727baebfb39e3a6518ee8656e75280d
-- **generated_at**: 2026-08-08T13:09:51.376Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 543cfb47c39440c7cb8a8fe9f5171ac0e0de6531b319e2f7156dcd727b2c2414
+- **generated_at**: 2026-08-16T12:44:01.935Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

@@ -30,22 +30,9 @@
             "type": "object",
             "properties": {
               "data": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "enum": [
-                      "OPEN"
-                    ],
-                    "type": "string",
-                    "description": "신고 상태 (접수 직후 OPEN)"
-                  },
-                  "reportId": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "생성된 신고 식별자 (LS_DEIDENT_REPORT.RPRT_SN)"
-                  }
-                },
-                "description": "신고 접수 결과"
+                "type": "integer",
+                "format": "int64",
+                "description": "생성된 신고 식별자(DEIDENT_REPORT_SN). 해소 요청의 경로변수로 그대로 쓴다"
               },
               "message": {
                 "type": "string",
@@ -64,15 +51,44 @@
             }
           },
           "example": {
-            "data": {
-              "status": "OPEN",
-              "reportId": 3001
-            },
+            "data": 5001,
             "message": null,
             "success": true,
             "errorCode": null
           },
-          "description": "신고 접수 — LS_DEIDENT_REPORT OPEN 생성 + 작업락 + 재비식별 큐 등록. ApiResponse 래퍼의 data 에 신고 결과.",
+          "description": "신고 접수 — LS_DEIDENT_REPORT OPEN 생성(신고 단계 MARKING) + 영상 단위 작업락(LS_AUTH_WORK_LOCK) + 영상 비식별 상태 DE_IDENT_YN='F' 전이 + REVIEWER 알림. 자동 재비식별 큐에는 등록하지 않는다 — 재비식별은 외부 솔루션으로 사람이 수행한다. ApiResponse 래퍼의 data 에 생성된 신고 식별자(정수)만 담긴다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "reason: 신고 사유는 필수입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 (reason 누락/1000자 초과). ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -170,6 +186,70 @@
           },
           "description": "대상 영상(rawSn) 없음. ErrorCode=NOT_FOUND",
           "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미 비식별 재처리 중인 영상입니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "이미 재비식별 진행 중. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        },
+        "412": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이 영상은 원본 영상의 비식별 결과를 복사해 만든 파생영상(증강·해상도 변환본)이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.",
+            "success": false,
+            "errorCode": "PRECONDITION_FAILED"
+          },
+          "description": "신고 접수 대상 아님 — 파생영상 / 비식별 미수행 / 마킹 단계 아님 / 검수 승인(APPROVED) 영상. 사유는 나누어 알리지 않는 단일 코드·단일 문구다(응답이 영상 처리 단계 오라클이 되지 않게 하기 위함). ErrorCode=PRECONDITION_FAILED",
+          "content_type": "application/json"
         }
       },
       "brownfield": {
@@ -177,7 +257,7 @@
         "change_kind": [
           "capability-add"
         ],
-        "diff_summary": "마킹 단계 비식별 누락 신고(rawSn 기준) 신규 — 라벨링 단계 신고와 2채널 구성 (설계 타겟/planned)"
+        "diff_summary": "마킹 단계 비식별 누락 신고(rawSn 기준) 신규 — 라벨링 단계 신고와 2채널 구성"
       },
       "deprecated": false,
       "parameters": [
@@ -203,12 +283,6 @@
               "type": "string",
               "maxLength": 1000,
               "description": "비식별 누락 신고 사유 (개인정보 노출 영역 설명)"
-            },
-            "frameIndex": {
-              "type": "integer",
-              "minimum": 0,
-              "nullable": true,
-              "description": "노출이 발견된 마킹/프레임 위치(영상 고유 0-base, 선택)"
             }
           }
         },
@@ -217,10 +291,10 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": []
       },
       "uses_constants": [],
@@ -231,12 +305,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "201 응답의 data 를 신고 식별자 하나만 담는 정수 값으로 정정한다 — 라벨링 단계 신고(같은 계약 축의 형제 엔드포인트)와 동일하게 접수 응답은 신고 식별자만 반환하며 별도 상태 필드는 두지 않는다. 기존에 있던 status(신고 상태) 필드는 이 응답에 존재하지 않아 제거했다 — 신고 상태는 별도 조회 경로에서 확인한다. data 설명·example·응답 description 을 이 계약에 맞춰 함께 정정했다. 그 외 필드·응답 코드·본문은 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:49:59.080Z",
+    "last_updated_at": "2026-08-16T23:42:28.763Z",
     "created_at": "2026-06-02T12:44:03.144Z"
   }
 }

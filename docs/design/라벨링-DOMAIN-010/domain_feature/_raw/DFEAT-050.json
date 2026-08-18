@@ -1,0 +1,66 @@
+{
+  "item": {
+    "id": "DFEAT-050",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "이벤트 어노테이션(VQA/CoT) 검토·수정",
+    "slug": "이벤트-어노테이션vqacot-검토수정",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "이벤트 어노테이션(VQA/CoT) 검토·수정",
+      "status": "designed",
+      "consumes": [],
+      "priority": "should",
+      "triggers": [],
+      "brownfield": {
+        "notes": "2026-07-30 독립 DFEAT로 승격 확정(ADR-036) — 원 설계 결정(ADR-020, export event 키)은 decided_by에 유지",
+        "status": "new",
+        "decided_by": "ADR-020",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "이벤트 어노테이션(VQA/CoT/caption) 검토·수정 신규 — FEAT-009 롤업, export event 키(ADR-020)"
+      },
+      "user_story": {
+        "as": "검수자(REVIEWER)·라벨링 작업자(WORKER)",
+        "i_want": "VLM 이 생성한 이벤트 어노테이션(VQA/CoT/caption)을 검토·수정하고 caption 을 수동 보정한 뒤 승인·반려하기를 원한다",
+        "so_that": "검증된 이벤트 어노테이션만 학습데이터 export(event 키)에 포함된다"
+      },
+      "description": "영상 단위(RAW_SN) 이벤트 어노테이션(VQA/CoT/caption)을 검토·수정한다. caption만 VLM 생성+작업자 수동입력이고 vqa/cot/vd_description 등 나머지는 VLM 생성이다. 라벨링 화면에서 caption 수동입력(PUT)하며 evidence(근거 객체)는 캔버스 선택 객체를 자동 연결하고 MAX_ID 힌트를 제공한다. REVIEWER가 검수 승인(APPROVED)/반려(REJECTED, 사유 필수)하며, 승인된 어노테이션만 검수 승인 export 폴더 JSON 최상위 event 키로 반영된다(ADR-020). 저장은 LS_EVNT_ANNO(영상 1건당 1건, ANNO_CN JSONB), 검수 상태는 LS_EVNT_ANNO_REVIEW(PENDING/AUTO_GENERATED/APPROVED/REJECTED)에 분리한다. ★2026-07-30 독립 기능으로 명시적 승격(ADR-036) — 라벨링 화면 메타탭 입력·export 최상위 event 키 반영·검수 승인 시점 동결까지 걸치는 별도 기능이며 FEAT-009(VLM 시계열 메타 검토·수정)의 단순 하위 롤업이 아니다. LS_DATA_META_REVIEW(시계열 메타 검수)와 자매 관계의 독립 검수 워크플로우(LS_EVNT_ANNO_REVIEW)를 갖는다. FEAT-009와의 specializes 링크는 계보(export event 키 도입 맥락) 추적용으로 유지한다.",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [
+        "LS_EVNT_ANNO",
+        "LS_EVNT_ANNO_REVIEW"
+      ],
+      "related_acceptances": [],
+      "specializes_feature": "FEAT-009",
+      "implemented_by_endpoints": [
+        "API-132",
+        "API-134",
+        "API-133",
+        "API-135"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "API-135의 data.implements_features 변경 — implements",
+    "change_summary": "같은 리소스의 반려 경로에 신고 구간 거부를 신설한 데 따른 재확인. 이 문서는 검토·수정 기능의 범위를 서술하고 응답 코드는 계약이 소유한다. 본문은 바꾸지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T10:13:00.133Z",
+    "created_at": "2026-07-24T01:33:33.642Z"
+  }
+}

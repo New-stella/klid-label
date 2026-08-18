@@ -35,6 +35,11 @@
                     "format": "int64",
                     "description": "원본 영상/프레임 PK"
                   },
+                  "prompt": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이 증강을 생성할 때 사용한 생성 조건 원문. 값이 없을 수 있다."
+                  },
                   "augTypeCd": {
                     "enum": [
                       "WINTER",
@@ -72,7 +77,7 @@
                   },
                   "augProcSttsCd": {
                     "type": "string",
-                    "description": "검수 상태 코드 (반려 후 REJECTED)"
+                    "description": "검수 결정 상태 코드 — 반려 후 REJECTED. 키 이름은 기존 계약을 보존하려고 그대로 두었으나 값이 오는 곳은 검수 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)이며, 생성 결과 축(AUG_PROC_STTS_CD)은 이 요청으로 바뀌지 않는다."
                   },
                   "decisionUserNo": {
                     "type": "string",
@@ -146,7 +151,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "반려 사유 누락 등 입력 검증 실패 (@NotBlank/@Size). ErrorCode=INVALID_INPUT",
+          "description": "반려 사유 누락·길이 초과 또는 해상도 파생 결과 대상. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -266,7 +271,29 @@
           "description": "증강 식별자"
         }
       ],
-      "description": "증강 결과를 거부한다. REVIEWER 전용.",
+      "description": "증강 결과를 반려한다. 검수 결정을 검수 축에 기록할 뿐 생성 결과 상태는 바꾸지 않는다. 검수자 전용이다.\n\n[사유가 필수다] 사유 없이 반려하면 400 이다(최대 500자). 반려는 파생 영상을 작업 대상에서 빼는 결정이라 누가 왜 뺐는지가 남아야 한다.\n\n[반려는 폐기 표식까지 세운다] 반려된 파생은 등재 게이트에서 즉시 빠지고, 유예 기간이 지나면 배치가 행과 생성 파일까지 삭제한다. 유예 안에서는 복구로 반려 자체를 되돌릴 수 있다.\n\n[해상도 파생은 대상이 아니다] 저작도구 내부 생성물이라 검수 대상이 아니며 400 으로 거부된다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "reason"
+          ],
+          "properties": {
+            "reason": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1,
+              "description": "반려 사유. 필수 — 검수 결정을 되돌아볼 근거가 남아야 한다"
+            }
+          },
+          "description": "증강 결과 반려 요청"
+        },
+        "example": {
+          "reason": "생성 품질이 기준에 미달합니다"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -283,12 +310,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 API 계약에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "200 응답에 실제로 내려가는 1개 필드(prompt)가 선언에서 빠져 있어 추가한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:37:01.544Z",
+    "last_updated_at": "2026-08-16T23:40:25.943Z",
     "created_at": "2026-05-30T07:25:46.873Z"
   }
 }

@@ -41,7 +41,9 @@ class IssueThreadRepositoryTest {
 
     @AfterEach
     void removeParentVideos() {
-        // 부모 삭제 = 이슈 행 CASCADE 삭제(LS_ISSUE_COMMENT 는 이슈 FK 가 없어 그대로 남는다 — 기존 동작).
+        // 부모 삭제 = 이슈 행 CASCADE 삭제. ★V10 이후 LS_ISSUE_COMMENT 는 RESTRICT FK 라 CASCADE 로
+        // 지워지지 않고 <부모 삭제를 막는다> — RawVideoFixture.deleteRaws 가 댓글을 먼저 지운다.
+        // (구 주석 "이슈 FK 가 없어 그대로 남는다 — 기존 동작" 은 바로 그 고아 결함의 서술이었다.)
         RawVideoFixture.deleteRaws(controlDataSource, RAW_SNS);
     }
 

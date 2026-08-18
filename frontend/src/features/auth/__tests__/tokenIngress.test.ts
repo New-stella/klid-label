@@ -134,30 +134,46 @@ describe('resolveToken (URL/cookie/localStorage 분기 + 보안 검증)', () => 
     expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(lsTok);
   });
 
-  it('VITE_TOKEN_INGRESS_미설정이면_url_localStorage_cookie_순_시도', () => {
-    // env 미설정 → 기본 전략 'all' (url > localStorage > cookie)
+  it('VITE_TOKEN_INGRESS_미설정이면_localStorage_채널만_쓴다', () => {
+    // 구 동작: 미설정 → 'all' (url > localStorage > cookie).
+    // 확정 정책(ADR-012)이 `?token=` 쿼리 방식을 쓰지 않으므로 기본값을 'localStorage' 로 좁혔다.
+    // 명시 설정('url'/'both'/'all')의 동작은 위 케이스들이 그대로 보장한다 — 바뀐 것은 기본값뿐이다.
     const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
     const cookieTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'cookie', exp: 9999999999 });
     const urlTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'url', exp: 9999999999 });
     document.cookie = `klid_jwt=${cookieTok};path=/`;
 
-    // url 있으면 url
-    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(urlTok);
+    // url·cookie 만 있으면 채택할 토큰이 없다
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBeNull();
 
-    // url 없고 localStorage 있으면 localStorage
+    // localStorage 인계 채널만 채택한다 (url 토큰이 함께 있어도)
     localStorage.setItem(LS_KEY, lsTok);
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(lsTok);
     expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(lsTok);
-
-    // url/localStorage 없으면 cookie
-    localStorage.removeItem(LS_KEY);
-    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(cookieTok);
   });
 
-  it('VITE_TOKEN_INGRESS_잘못된_값이면_all로_폴백', () => {
+  it('★VITE_TOKEN_INGRESS_미설정이면_URL_쿼리_토큰을_채택하지_않는다', () => {
+    // 회귀 가드 — URL 에 실린 JWT 는 접근 로그·리퍼러 헤더·브라우저 히스토리에 잔존해
+    // 사후 회수가 불가능하다(CWE-598/200). 기본값이 URL 채널을 열면 안 된다.
+    const urlTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'url', exp: 9999999999 });
+
+    const result = resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' });
+
+    expect(result).toBeNull();
+    expect(result).not.toBe(urlTok);
+  });
+
+  it('VITE_TOKEN_INGRESS_잘못된_값이면_기본값_localStorage_로_폴백', () => {
+    // 오타·미지의 값은 fail-closed 로 안전한 기본값에 떨어진다 (구 동작: 'all' 폴백).
     vi.stubEnv('VITE_TOKEN_INGRESS', 'invalid-strategy');
     const lsTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'ls', exp: 9999999999 });
+    const urlTok = buildJwt({ alg: 'HS256', typ: 'JWT' }, { sub: 'url', exp: 9999999999 });
     localStorage.setItem(LS_KEY, lsTok);
-    expect(resolveToken({ urlToken: null, cookieName: 'klid_jwt' })).toBe(lsTok);
+
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBe(lsTok);
+
+    localStorage.removeItem(LS_KEY);
+    expect(resolveToken({ urlToken: urlTok, cookieName: 'klid_jwt' })).toBeNull();
   });
 });
 

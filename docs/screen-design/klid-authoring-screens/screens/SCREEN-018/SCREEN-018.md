@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-018
 type: screen_spec
-version: 23
-last_updated_at: 2026-08-13T01:02:39.923Z
-domain: null
+version: 24
+last_updated_at: 2026-08-16T07:16:42.940Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.907Z
-sync_session: 9
-stale: false
+synced_at: 2026-08-18T01:49:51.197Z
+sync_session: 17
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-018.json
@@ -15,6 +15,7 @@ wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-008]]", "[[API-138]]"]
   required_roles: ["[[ROLE-001]]"]
+  realizes_use_cases: ["[[UC-023]]"]
 ---
 
 # 검수 목록 화면
@@ -462,7 +463,7 @@ _(empty)_
 
 ## realizes_use_cases
 
-_(empty)_
+- UC-023
 
 ## covered_by_acceptances
 

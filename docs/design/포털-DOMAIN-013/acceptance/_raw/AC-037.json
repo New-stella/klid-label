@@ -1,0 +1,78 @@
+{
+  "item": {
+    "id": "AC-037",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "실패한 업로드 자산은 더 짧은 보존기간으로 삭제된다",
+    "slug": "실패한-업로드-자산은-더-짧은-보존기간으로-삭제된다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "FAILED 전이 시각은 그 자산의 최종 변경 일시(MDFCN_DT)다. 방치 판정으로 UPLOADED·PROCESSING 에서 전이된 자산도 같은 기준점을 쓰므로 두 축이 자연스럽게 이어진다 — 방치 전이가 곧 FAILED 축 보존기간의 시작이며, 그것이 처리 시작 전·처리 중 자산의 영구 잔류를 막는 유일한 경로다(AC-036). 파일 삭제는 자산 삭제와 같은 실경로 판정기를 거친 뒤에만 수행하며, 판정이 실패하면 그 자산의 삭제만 건너뛴다(배치 전체 중단 아님).",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "그 자산의 LS_PORTAL_ULD 행과 연결된 LS_PORTAL_ULD_FRME/LS_PORTAL_ULD_LBL 이 삭제되고 저장소 원본/프레임 파일이 함께 삭제된다"
+        ],
+        "when": [
+          "FAILED 전이로부터 1일 경과 후 보존기간 만료 자동 삭제 배치가 실행된다"
+        ],
+        "given": [
+          "업로드 자산이 FAILED 로 전이했다(mdfcn_dt 가 그 전이 시각)",
+          "portal.upload.failed-retention-days = 1, portal.upload.retention-days = 7 로 설정되어 있다"
+        ],
+        "and_examples": [
+          {
+            "case": "같은 시각에 등록된 READY 자산(등록일로부터 1일만 경과)",
+            "result": "READY 축 보존기간(7일)이 적용되어 아직 삭제되지 않는다 — 두 축은 독립적으로 판정된다"
+          },
+          {
+            "case": "실경로 검증(realWithinBase 기반) 실패로 특정 파일 삭제가 거부된 경우",
+            "result": "그 자산의 DB 행은 이번 tick 에서 삭제되지 않고(파일이 남았는데 DB 만 지우면 어느 파일인지 알 수 없게 된다), 다음 tick 에 재후보된다"
+          }
+        ]
+      },
+      "statement": "FAILED 상태 업로드 자산은 READY 상태보다 짧은 보존기간(기본 1일) 경과 시 DB 행과 저장소 파일이 함께 삭제된다",
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — FAILED 자산 1일 단축 보존기간(DFEAT-055).",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "capability-add"
+        ]
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "implemented",
+        "modules": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalStoragePathGuard.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java"
+        ],
+        "records": [
+          "IMPREC-014"
+        ],
+        "progress": 90,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:34:03.777Z"
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-024"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "실패 축 기준점 서술을 정합했다 — 고정 수치(30분)로 적혀 있던 방치 판정 시간을 설정값 축으로 바꾸고, 방치 전이가 곧 이 축의 시작이며 그것이 처리 시작 전·처리 중 자산의 영구 잔류를 막는 경로임을 명시했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T22:19:41.684Z",
+    "created_at": "2026-08-17T01:11:43.358Z"
+  }
+}

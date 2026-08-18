@@ -1,0 +1,79 @@
+{
+  "item": {
+    "id": "AC-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "마킹에서 도출된 VLM 위탁 입력(frame_policy·event_type)",
+    "slug": "마킹에서-도출된-vlm-위탁-입력framepolicyeventtype",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "notes": "근거: UC-019(VLM 시계열 위탁 절) · DOMAIN-011 정책(논블로킹 제출·frame_policy 도출·event_type 비차단). 판정 지점: 위탁 요청 조립 시점의 frame_policy·event_type 도출 로직과 마킹 단계 신고 접수 조건 가드.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "frame_policy.mode='frame_selected' 이고 selected_frames 는 정렬·중복제거 후 벤더 상한 8건으로 절단된다",
+          "event_type 은 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)을 그대로 실어 위탁하며 화이트리스트 검증으로 사전 차단하지 않는다",
+          "framerate 는 LS_MARKING.FRME_INTV_NOCS(마킹 프레임 간격)이며 값이 없거나 0 이하면 설정 기본값(25)으로 폴백한다"
+        ],
+        "when": [
+          "마킹이 완료되어 VLM 시계열 위탁 요청이 조립된다"
+        ],
+        "given": [
+          "수동 마킹으로 10개 프레임이 선택되었다"
+        ],
+        "and_examples": [
+          {
+            "case": "자동 마킹 또는 마킹 결과 부재",
+            "result": "frame_policy.mode='frame_interval' 로 도출된다"
+          },
+          {
+            "case": "배치 단계가 MARKING_READY 가 아닌 상태에서 마킹 단계 비식별 신고(POST /v1/videos/{rawSn}/deident-report) 시도",
+            "result": "412 PRECONDITION_FAILED 로 거부되고 처리 단계(PROCESSING/COMPLETED/FAILED/PENDING)를 구분해 알리지 않는 단일 문구로 응답한다"
+          },
+          {
+            "case": "위탁 제출 직후 스텝이 반환하는 것",
+            "result": "제출 개시만 확인하고 즉시 반환한다 — 외부 응답을 기다리며 파이프라인 스레드를 점유하지 않으며, 이 시점에 수락 여부는 보장되지 않는다"
+          },
+          {
+            "case": "수락(ACK) 기록 시점",
+            "result": "상관키와 마킹 상태를 선커밋한 뒤 완료 핸들러가 전용 실행 경로에서 원장을 ISSUED 에서 ACCEPTED 로 비동기 전이시킨다"
+          },
+          {
+            "case": "제출 후 수락도 실패도 신호가 오지 않는 경우",
+            "result": "미결 스위퍼가 회수한다 — 수락 응답조차 못 본 건(ISSUED)과 수락 후 콜백이 없는 건(ACCEPTED)에 서로 다른 대기 창을 적용하며, 후보는 처리 전 조건부 갱신으로 원자 선점해 두 노드가 같은 건을 두 번 재위탁하지 않는다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-014"
+      ],
+      "statement": "마킹 완료 시 frame_policy(수동 마킹=frame_selected+selected_frames 정렬·중복제거·벤더 상한 8건 초과분 절단, 자동 마킹/마킹 부재=frame_interval)와 event_type(관제 인입값 그대로, 검증·차단 없음)이 도출되어 framerate 와 함께 VLM 시계열 위탁(POST /v1/videovlm/verify)의 논블로킹 제출 입력이 되며, 배치 단계가 MARKING_READY 가 아닌 상태에서의 마킹 단계 비식별 신고는 412 로 거부된다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-011"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-019"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "DFEAT-039의 data.brownfield 변경이 derived_from로 2-hop 전파",
+    "change_summary": "논블로킹 제출이 진술에 낱말로만 있고 관측 가능한 단언이 없어 자동 시험으로 판정할 수 없던 축을 예시로 보강 — 제출 직후 반환값·수락 기록 시점·무신호 시 회수 경로. 마킹 단계 비식별 누락 신고의 접수 조건을 규정한 상위 요구로 추적 링크 연결.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:48:22.400Z",
+    "created_at": "2026-08-06T16:02:04.140Z"
+  }
+}

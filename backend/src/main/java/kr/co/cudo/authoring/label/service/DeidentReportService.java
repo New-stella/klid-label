@@ -236,7 +236,7 @@ public class DeidentReportService {
         // 5-1) ★ 개인정보 3필드도 <b>보존</b>한다 (2026-08-04 사용자 확정 — 구 "리셋" 동작 폐기)
         //      구 동작: 신고 시 프레임 축(resetPrivacyMetaByRawSn)·영상 축(changePrivacyMeta(null,null,null))
         //        3필드를 전부 NULL 로 되돌리고 그 사실을 행 단위 감사(LS_DATA_LBL_HSTRY ·
-        //        LS_TASK_EVENT_LOG PRIVACY_META_RESET)로 남겼다.
+        //        LS_TASK_EVNT_LOG PRIVACY_META_RESET)로 남겼다.
         //      구 근거(보존해 둔다): "그 판정은 <비식별이 잘못된 영상>에서 내려진 것이라 재판정 대상이고,
         //        남겨두면 재비식별 후에도 옛 판정이 export 에 stale 로 실린다(CWE-359)".
         //      ★ 폐기 사유: 위 5) 의 <b>라벨 보존 정책</b>(2026-07-27 확정 — 신고는 "비식별이 잘못됐다"는
@@ -724,11 +724,14 @@ public class DeidentReportService {
      *
      * <p><b>단계 미상(NULL)은 발행하지 않는다</b> — 컬럼 신설 이전 레거시 신고는 어디서 접수됐는지
      * 알 수 없고, 지어내면 마킹으로 오판정 시 <b>라벨이 있는 영상을 재마킹 대기로 되감는다</b>.
-     * 발행하지 않으면 기존 2종({@link DeidentGateReopenedEvent}/{@link DeidentReportResolvedEvent})만
-     * 도는 현행 동작이 그대로 유지된다(백필하지 않는다는 V171 정책과 세트).
+     * 발행하지 않으면 단계와 무관한 나머지({@link DeidentGateReopenedEvent} 항상 + 승인 시
+     * {@code TaskModifiedEvent})만 도는 현행 동작이 그대로 유지된다(백필하지 않는다는 V171 정책과 세트).
      *
-     * <p>기존 2종은 이 이벤트와 <b>무관하게 그대로</b> 발행된다 — 각각 VLM 재개·export 재산출 구독자의
+     * <p>그 2종은 이 이벤트와 <b>무관하게 그대로</b> 발행된다 — 각각 VLM 재개·재검토 표시 구독자의
      * 계약이며 신고 단계와 상관없이 필요하다.
+     *
+     * <p>⚠ {@link DeidentReportResolvedEvent} 는 <b>발행처가 없는 휴면 확장점</b>이라 이 서술의
+     * "나머지"에 포함되지 않는다 — 위 {@link #publishResolvedForExportRecovery} javadoc 참조.
      */
     private void publishStageResume(Long rawSn, String stage) {
         if (rawSn == null || stage == null) {

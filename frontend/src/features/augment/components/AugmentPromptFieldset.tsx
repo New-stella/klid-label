@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 
+import { FieldCounter } from '@/components/common/FieldCounter';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
 import { invalidPromptFieldLabels } from '../promptValidation';
@@ -33,9 +34,16 @@ export interface AugmentPromptFieldsetProps {
  *
  * 검증은 BE 와 같은 기준(`validateAugmentPrompt`)으로 **미리** 수행해 사용자가 400 을 보지 않게 한다.
  *
+ * 표시(사양 SCREEN-022):
+ * - 5필드 전부에 **글자수 카운터**를 병기한다(공용 `FieldCounter`(UI-115) 재사용).
+ *   일부에만 붙이면 사용자가 나머지 필드는 길이 제한이 없다고 읽는다.
+ *   상한은 `AUGMENT_PROMPT_MAX_LENGTH` 하나가 정한다 — 화면에 숫자를 박지 않는다.
+ *
  * 접근성(WCAG 2.1 AA):
  * - 모든 입력에 `label htmlFor` 연결, 오류 시 `aria-invalid` + `aria-describedby` 로 사유 연결.
  * - 요약 안내만 `role="alert"` 로 알린다(필드마다 alert 를 두면 낭독이 중복된다).
+ * - 카운터는 `aria-describedby` 에 **넣지 않는다** — FieldCounter 는 `aria-hidden` 이고,
+ *   연결하면 타이핑마다 숫자가 낭독되며 오류 사유가 뒤로 밀린다.
  *
  * 개인정보: 입력값은 **외부 생성형 AI 로 그대로 전송**되므로 경고를 상시 노출한다.
  */
@@ -84,17 +92,26 @@ export function AugmentPromptFieldset({
           const inputId = `aug-prompt-${key}`;
           const describedBy = error ? `${inputId}-error` : `${inputId}-hint`;
           return (
-            <div key={key} className="flex flex-col gap-1">
-              <label
-                htmlFor={inputId}
-                className="text-label font-medium text-gray-600"
-              >
-                {meta.label}
-                <span className="ml-0.5 text-danger" aria-hidden>
-                  *
-                </span>
-                <span className="sr-only">(필수)</span>
-              </label>
+            <div
+              key={key}
+              data-testid={`aug-prompt-${key}-field`}
+              className="flex flex-col gap-1"
+            >
+              {/* [design: SCREEN-022] 라벨과 카운터를 한 줄에 양끝 정렬 —
+                  카운터는 라벨 행의 우측 슬롯이다(공지 작성 폼과 같은 배치 관례). */}
+              <div className="flex items-baseline justify-between gap-2">
+                <label
+                  htmlFor={inputId}
+                  className="text-label font-medium text-gray-600"
+                >
+                  {meta.label}
+                  <span className="ml-0.5 text-danger" aria-hidden>
+                    *
+                  </span>
+                  <span className="sr-only">(필수)</span>
+                </label>
+                <FieldCounter current={value[key].length} max={AUGMENT_PROMPT_MAX_LENGTH} />
+              </div>
               <input
                 id={inputId}
                 type="text"

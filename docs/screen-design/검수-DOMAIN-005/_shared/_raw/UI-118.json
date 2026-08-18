@@ -1,0 +1,51 @@
+{
+  "item": {
+    "id": "UI-118",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: ChannelChip",
+    "slug": "display-channelchip",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "ChannelChip",
+      "tags": [
+        "display",
+        "chip",
+        "channel"
+      ],
+      "category": "display",
+      "variants": [
+        {
+          "name": "internal",
+          "description": "secondary-05 배경 + secondary-70 글자(10.01:1). 관제서버를 통해 들어온 내부 사용자."
+        },
+        {
+          "name": "portal",
+          "description": "neutral-10 배경 + neutral-80 글자(9.85:1). 포털을 통해 들어온 외부 사용자."
+        }
+      ],
+      "description": "사용자가 들어오는 채널(내부 관제 / 외부 포털)을 표시하는 칩. 고르는 값이 아니라 역할에 연동돼 따라오는 값이라 입력이 아닌 표시 요소다. 내부 채널은 secondary, 포털은 중립색을 써서 두 축이 다름을 색으로도 드러낸다.",
+      "props_schema": [
+        {
+          "name": "channel",
+          "type": "'INTERNAL'|'PORTAL'",
+          "required": true,
+          "description": "채널 코드."
+        }
+      ],
+      "usage_example": "SCREEN-004 개발용 로그인 화면의 역할 선택지 우측.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "칩 문구 자체가 채널명이라 별도 라벨이 필요 없다. 색 없이 문구만으로도 구분된다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: display: ChannelChip",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-13T13:49:55.759Z",
+    "created_at": "2026-08-13T13:49:55.759Z"
+  }
+}

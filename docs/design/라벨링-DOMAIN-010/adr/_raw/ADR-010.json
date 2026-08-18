@@ -1,0 +1,88 @@
+{
+  "item": {
+    "id": "ADR-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "adr",
+    "title": "DBMS MariaDB에서 PostgreSQL로 전환",
+    "slug": "dbms-mariadb에서-postgresql로-전환",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "context": "1차는 MariaDB(klid_system) 기반이었으나, 관제서버가 PostgreSQL로 전환됨에 따라 저작도구도 PostgreSQL로 정합한다. 저작도구 소유 LS_* 테이블만 PostgreSQL용으로 구성하고, 공유 MNG_*/QRTZ_* 스키마는 인프라가 제공하며 ddl-auto=validate로 연동만 한다. Quartz는 PostgreSQLDelegate(BYTEA) JobStore로 운영하고, MariaDB 고유 문법(AUTO_INCREMENT, ENGINE, LONGTEXT, ON UPDATE CURRENT_TIMESTAMP, utf8mb4)은 PostgreSQL 표준으로 전환했다. 단일 인스턴스 서비스 배포(Quartz 클러스터 미적용).",
+      "deciders": [
+        "박찬기",
+        "김현욱"
+      ],
+      "decision": {
+        "chosen_option": "PostgreSQL 전환(채택)",
+        "justification": "관제 인프라 PostgreSQL 전환과 정합하고, LS_*는 자체 PostgreSQL 구성, 공유 MNG_*/QRTZ_*는 validate/연동만 한다. MariaDB 고유 문법은 표준 PostgreSQL로 전환한다."
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "decision-record"
+        ],
+        "diff_summary": "MariaDB → PostgreSQL 전환(LS_* 자체 소유, MNG_*/QRTZ_* validate)"
+      },
+      "references": [
+        {
+          "title": "영상수집 ERD(고도화 PostgreSQL)",
+          "item_id": "ERD-012"
+        }
+      ],
+      "consequences": {
+        "risks": [
+          "MNG_* 공유 스키마 변경 시 관제팀 협의 필요(validate 기동 실패 방지)"
+        ],
+        "negative": [
+          "~30개 마이그레이션·테스트 PG 전환 필요"
+        ],
+        "positive": [
+          "관제 인프라 정합",
+          "표준 PostgreSQL 문법",
+          "Testcontainers PG 검증"
+        ]
+      },
+      "decision_date": "2026-06-01",
+      "decision_drivers": [
+        "관제 인프라 PostgreSQL 전환 정합",
+        "LS_* 자체 소유 / MNG_* validate 연동",
+        "표준 SQL 문법·타입 정합"
+      ],
+      "considered_options": [
+        {
+          "cons": [
+            "관제 PostgreSQL 인프라와 불일치",
+            "공유 스키마 충돌"
+          ],
+          "name": "MariaDB 유지",
+          "pros": [
+            "1차 자산"
+          ],
+          "description": "1차 MariaDB 유지"
+        },
+        {
+          "cons": [
+            "~30개 마이그레이션 PG 전환 필요",
+            "테스트를 Testcontainers PG로 일괄 전환"
+          ],
+          "name": "PostgreSQL 전환(채택)",
+          "pros": [
+            "관제 인프라 정합",
+            "표준 SQL"
+          ],
+          "description": "드라이버/Flyway/Quartz/엔티티/쿼리 PostgreSQL 적응"
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "고도화 방향 ADR 정형화 — DBMS MariaDB→PostgreSQL (관제 인프라 정합)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-06-01T06:18:42.337Z",
+    "created_at": "2026-06-01T06:18:42.337Z"
+  }
+}

@@ -66,7 +66,7 @@
                         },
                         "pinned": {
                           "type": "boolean",
-                          "description": "상단 고정 여부 (PIN_YN='Y')"
+                          "description": "상단 고정 여부 (UPEND_FIX_YN='Y')"
                         },
                         "pubStatus": {
                           "enum": [
@@ -225,13 +225,13 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER/WORKER 외 역할(PORTAL_USER) 접근. @PreAuthorize hasAnyRole('REVIEWER','WORKER'). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER/WORKER 외 역할(PORTAL_USER) 접근. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         }
       },
       "brownfield": {
-        "notes": "근거: docs/v2-wiki(게시판), 커밋 9ca1d33. ADR 미작성으로 decided_by 비움",
         "status": "new",
+        "decided_by": "ADR-014",
         "change_kind": [
           "feature-add"
         ],
@@ -260,9 +260,33 @@
           },
           "required": false,
           "description": "페이지 크기 (최대 100)"
+        },
+        {
+          "in": "query",
+          "name": "field",
+          "schema": {
+            "enum": [
+              "TITLE",
+              "CONTENT",
+              "ALL"
+            ],
+            "type": "string"
+          },
+          "required": false,
+          "description": "검색 필드 화이트리스트. 미지정/공백이면 검색 미적용. 허용되지 않는 값은 400(INVALID_INPUT)."
+        },
+        {
+          "in": "query",
+          "name": "keyword",
+          "schema": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "required": false,
+          "description": "검색어 (최대 100자)"
         }
       ],
-      "description": "내부 채널(REVIEWER/WORKER) 게시글 목록 조회. WORKER 는 PUBLISHED 게시글만, REVIEWER 는 DRAFT 포함 전체 조회. 상단 고정(PIN_YN='Y') 우선 + 등록일 내림차순 정렬. 응답은 ApiResponse<Page<NoticeSummaryResponse>>.",
+      "description": "내부 채널(REVIEWER/WORKER) 게시글 목록 조회. WORKER 는 PUBLISHED 게시글만, REVIEWER 는 DRAFT 포함 전체 조회. 상단 고정(UPEND_FIX_YN='Y') 우선 + 등록일 내림차순 정렬. 응답은 ApiResponse<Page<NoticeSummaryResponse>>.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -271,17 +295,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<Page<NoticeSummaryResponse>> 본문 schema + 400/401/403 에러 응답 + example (NoticeController.list / NoticeSummaryResponse 코드 기준)",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:01:51.124Z",
+    "last_updated_at": "2026-08-16T12:23:03.862Z",
     "created_at": "2026-06-05T04:56:11.930Z"
   }
 }

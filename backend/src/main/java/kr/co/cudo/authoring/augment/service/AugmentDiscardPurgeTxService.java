@@ -49,9 +49,21 @@ public class AugmentDiscardPurgeTxService {
             "LS_DATA_SRC_HSTRY",      // ⑤ FK 없음 + RAW_SN 컬럼도 없어 V146 CASCADE 대상 밖(FIX-2)
             "LS_DATA_AUG_RVW",        // ⑥ FK 는 원본 RAW 를 가리켜 파생 삭제로 정리되지 않는다
             "LS_DATA_AUG",            // ⑦ 위탁 job/job file 은 FK CASCADE 로 동반 삭제
-            "LS_DATA_RAW"             // ⑧ V146 FK CASCADE 가 자식 전량 정리(FK 를 건 신규 자식도 자동
+            "LS_ISSUE_COMMENT",       // ⑧ FK(V10)가 ON DELETE RESTRICT 라 CASCADE 를 타고 내려오지
+                                      //    않는다 — 부모 이슈(LS_DATA_ISSUE)는 ⑩의 RAW CASCADE 로
+                                      //    사라지므로, 먼저 지우지 않으면 ⑩이 FK 위반으로 실패해
+                                      //    스윕 전체가 롤백된다(V10 이전엔 조용한 고아였다)
+            "LS_EVNT_ANNO_REVIEW",    // ⑨ ⑧과 같은 실패 클래스 — FK(fk_ls_evnt_anno_review_anno,
+                                      //    V1 baseline)에 ON DELETE 절이 없어 기본값 NO ACTION 이라
+                                      //    CASCADE 를 타고 내려오지 않는다. 부모 어노테이션
+                                      //    (LS_EVNT_ANNO)은 ⑩의 RAW CASCADE 로 사라지므로 먼저 지우지
+                                      //    않으면 ⑩이 FK 위반으로 실패해 스윕 전체가 롤백된다.
+                                      //    ⚠ 부모 LS_EVNT_ANNO 는 이 목록에 넣지 않는다 — 검토 행이
+                                      //    사라지면 ⑩의 CASCADE 가 정리하므로 중복이다
+            "LS_DATA_RAW"             // ⑩ V146 FK CASCADE 가 자식 전량 정리(FK 를 건 신규 자식도 자동
                                       //    편입 — 예: LS_LABEL_VERSION·LS_DATASET_EXPORT·
-                                      //    LS_OUTPUT_VER_SNPSH(V183) 는 그래서 이 목록에 없다)
+                                      //    LS_OUTPUT_VER_SNPSH(V183) 는 그래서 이 목록에 없다.
+                                      //    ⚠ RESTRICT 로 건 FK 는 편입되지 않아 ⑧처럼 명시 대상이다)
     );
 
     private final LsDataAugDscdRepository discardRepository;
@@ -218,8 +230,12 @@ public class AugmentDiscardPurgeTxService {
         int frameHistory = discardRepository.deleteDerivativeFrameHistory(rawSn);
         int reviews = discardRepository.deleteDerivativeReviews(dataAugSn);
         int augments = discardRepository.deleteDerivativeAugment(dataAugSn, rawSn);
+        // ⑧ 이슈 댓글 — RESTRICT FK(V10)라 RAW CASCADE 로 정리되지 않는다. 반드시 ⑩보다 먼저.
+        int issueComments = discardRepository.deleteDerivativeIssueComments(rawSn);
+        // ⑨ 이벤트 어노테이션 검토 행 — FK 에 ON DELETE 절이 없어(NO ACTION) 역시 CASCADE 밖이다.
+        int eventAnnoReviews = discardRepository.deleteDerivativeEventAnnotationReviews(rawSn);
         if (augments == 0 && enforceAugmentInvariant) {
-            // 불변식 위반 (FIX-6) — ⑦(DATA_AUG_SN + NEW_RAW_SN)과 ⑧(rawSn 만)의 조건이 어긋났다.
+            // 불변식 위반 (FIX-6) — ⑦(DATA_AUG_SN + NEW_RAW_SN)과 ⑩(rawSn 만)의 조건이 어긋났다.
             // 그대로 두면 RAW 는 지워지고 그 RAW 를 가리키는 증강 행만 (FK 가 없어) 조용히 남는다.
             log.error("[Augment][Discard][Purge] 삭제 중단 — 증강 행 0건 삭제(불변식 위반) "
                     + "dscdSn={} rawSn={} dataAugSn={}", dscdSn, rawSn, dataAugSn);
@@ -227,7 +243,8 @@ public class AugmentDiscardPurgeTxService {
         }
         return "attrValues=" + attrValues + " labelMaps=" + labelMaps + " labelHistory=" + labelHistory
                 + " labels=" + labels + " frameHistory=" + frameHistory
-                + " reviews=" + reviews + " augments=" + augments;
+                + " reviews=" + reviews + " augments=" + augments
+                + " issueComments=" + issueComments + " eventAnnoReviews=" + eventAnnoReviews;
     }
 
     /** 파일 정리 완료 표시 — 부분 실패면 호출하지 않아 다음 tick 이 재시도한다. */

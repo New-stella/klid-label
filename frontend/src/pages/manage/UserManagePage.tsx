@@ -59,6 +59,26 @@ const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER]
  */
 const SECTION_TITLE_CLASS = 'text-title-md text-gray-900';
 
+/** 값이 없는 날짜 셀의 표기 — 빈칸은 "값이 없다"와 "못 읽었다"가 구분되지 않는다. */
+const EMPTY_DATE_TEXT = '-';
+
+/**
+ * 표의 날짜 셀 표기 — **등록일과 최신 로그인이 공유한다**.
+ *
+ * 같은 표에서 두 날짜가 다른 형식으로 보이면 비교가 불가능하므로 포매터를 하나로 둔다.
+ * 값이 없으면(최신 로그인 미접속) 다른 날짜로 대체하지 않고 미접속 표기를 그린다.
+ */
+function formatDateCell(value?: string | null): string {
+  if (!value) {
+    return EMPTY_DATE_TEXT;
+  }
+  const parsed = new Date(value);
+  // 파싱 실패(Invalid Date)를 'Invalid Date' 문자열로 흘리지 않는다.
+  return Number.isNaN(parsed.getTime())
+    ? EMPTY_DATE_TEXT
+    : parsed.toLocaleDateString('ko-KR');
+}
+
 /**
  * 계정 상태 배지 (읽기 전용).
  *
@@ -265,17 +285,28 @@ export function UserManagePage() {
       header: '상태',
       cell: ({ row }) => <AccountStatusBadge active={row.original.active} />,
     },
+    // ── 등록일 · 최신 로그인은 **각각 별도 컬럼**이다 (사양 SCREEN-024) ──
+    // 두 값은 용도가 다른 별개 축이다 — 등록일은 가입 이력, 최신 로그인은 휴면 계정 판단.
+    // 구 구현은 컬럼이 하나뿐이었고 `lastLoginAt ?? createdAt` 으로 폴백해, 로그인 기록이
+    // 존재하지 않던 동안 **등록일 값을 "최근 로그인" 헤더 아래 표시**했다(거짓 표기).
+    // 폴백을 되살리지 말 것 — 값이 없으면 미접속으로 그린다.
+    {
+      id: 'createdAt',
+      header: '등록일',
+      cell: ({ row }) => (
+        <span data-testid={`user-created-at-${row.original.id}`} className="text-body text-gray-700">
+          {formatDateCell(row.original.createdAt)}
+        </span>
+      ),
+    },
     {
       id: 'lastLoginAt',
-      header: '최근 로그인',
-      cell: ({ row }) => {
-        const ts = row.original.lastLoginAt ?? row.original.createdAt;
-        return (
-          <span className="text-body text-gray-700">
-            {ts ? new Date(ts).toLocaleDateString('ko-KR') : '-'}
-          </span>
-        );
-      },
+      header: '최신 로그인',
+      cell: ({ row }) => (
+        <span data-testid={`user-last-login-${row.original.id}`} className="text-body text-gray-700">
+          {formatDateCell(row.original.lastLoginAt)}
+        </span>
+      ),
     },
     {
       id: 'actions',

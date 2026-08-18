@@ -26,6 +26,12 @@
         "200": {
           "schema": {
             "type": "object",
+            "example": {
+              "data": {
+                "mdfcnDt": "2026-05-31T17:22:00",
+                "writerName": "검수자01"
+              }
+            },
             "properties": {
               "data": {
                 "type": "object",
@@ -65,8 +71,8 @@
                   "mdfcnDt": {
                     "type": "string",
                     "format": "date-time",
-                    "nullable": true,
-                    "description": "최종 수정 일시"
+                    "nullable": false,
+                    "description": "최종 수정 일시 — NOT NULL. 발행취소는 상태 전이만 바꾸므로 이 필드 자체는 갱신하지 않는다(직전 값 유지)."
                   },
                   "pubStatus": {
                     "enum": [
@@ -75,6 +81,11 @@
                     ],
                     "type": "string",
                     "description": "발행 상태 (발행취소 후 DRAFT)"
+                  },
+                  "writerName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "작성자 표시명(LS_ACNT_USER.USER_NM). REG_ID 가 없거나 숫자가 아니거나 사용자 마스터에 없으면(탈퇴·계정 삭제) null — 화면은 null 이면 regId 로 폴백한다."
                   },
                   "attachments": {
                     "type": "array",
@@ -119,7 +130,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "발행취소 성공. PUBLISHED→DRAFT 전이(WORKER 노출 제외). 이미 DRAFT 면 no-op(멱등, 200). PUB_DT 는 비워진다. ApiResponse 래퍼의 data 에 NoticeResponse.",
+          "description": "발행취소 성공. PUBLISHED→DRAFT 전이(WORKER 노출 제외). 이미 DRAFT 면 no-op(멱등, 200). PBLCN_DT 는 비워진다. ApiResponse 래퍼의 data 에 NoticeResponse.",
           "content_type": "application/json"
         },
         "401": {
@@ -183,7 +194,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 외 역할 접근. @PreAuthorize hasRole('REVIEWER'). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 외 역할 접근. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -220,8 +231,8 @@
         }
       },
       "brownfield": {
-        "notes": "커밋 9ca1d33",
         "status": "new",
+        "decided_by": "ADR-014",
         "change_kind": [
           "feature-add"
         ],
@@ -240,7 +251,7 @@
           "description": "게시글 식별자 (LS_NOTICE.NOTICE_SN)"
         }
       ],
-      "description": "REVIEWER 전용. PUBLISHED 게시글을 DRAFT 로 되돌려 WORKER 노출에서 제외. 이미 DRAFT 면 no-op(멱등, 200). 발행 일시(PUB_DT)는 비워진다 — 이 필드는 최초 발행 이력을 보존하지 않고 현재 발행 상태의 전이 시점만 가리키므로, 다시 발행하면 그 시점으로 새로 기록된다. 응답 ApiResponse<NoticeResponse>.",
+      "description": "REVIEWER 전용. PUBLISHED 게시글을 DRAFT 로 되돌려 WORKER 노출에서 제외. 이미 DRAFT 면 no-op(멱등, 200). 발행 일시(PBLCN_DT)는 비워진다 — 이 필드는 최초 발행 이력을 보존하지 않고 현재 발행 상태의 전이 시점만 가리키므로, 다시 발행하면 그 시점으로 새로 기록된다. 응답 ApiResponse<NoticeResponse>.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -255,12 +266,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "발행 취소 시 발행 일시가 유지된다는 서술을 정정했다. 발행을 취소하면 이 필드는 비워진다 — 이 필드는 최초 발행 이력을 보존하지 않고 현재 발행 상태의 전이 시점만 가리키기 때문이다. 구 서술(\"PUB_DT 는 유지(최초 발행 이력 보존)\")은 폐기한다. 본문·응답 설명·필드 설명과 함께 예시의 발행 일시 값도 null 로 맞췄다 — 예시가 취소 후에도 값이 남는 것처럼 보이면 서술과 어긋난다. 발행 요청 쪽 정의와 한 세트로 정정했다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T10:39:27.514Z",
+    "last_updated_at": "2026-08-16T12:23:06.468Z",
     "created_at": "2026-06-05T04:57:41.814Z"
   }
 }

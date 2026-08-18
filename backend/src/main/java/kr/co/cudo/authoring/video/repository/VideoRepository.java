@@ -381,7 +381,7 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      * 미배정(UNASSIGNED) 영상 목록 — 지정 배치 상태(dataSttsCd)이면서 LABELER 배정이 없는 영상만.
      *
      * <p>SCR-TASK-002 배정 전용 화면에서 작업자가 아직 배정되지 않은 영상만 노출하는 용도.
-     * LS_TASK_ASSIGNMENT 에 TASK_TYPE_CD='LABELER' row 가 없는 영상을 NOT EXISTS 로 필터링한다.
+     * LS_TASK_ALTMNT 에 TASK_TYPE_CD='LABELER' row 가 없는 영상을 NOT EXISTS 로 필터링한다.
      * 파라미터 바인딩만 사용 — SQL Injection 방어 (CWE-89). 정렬은 Pageable 의 Sort 로 위임.
      */
     @Query("SELECT v FROM LsDataRaw v WHERE v.dataSttsCd = :dataSttsCd " +

@@ -22,6 +22,8 @@ describe('이벤트유형 관리 화면', () => {
     {
       evntTypeCd: 'EV01000101',
       dsplNm: '침수(범람)',
+      // 표시명이 카테고리명까지 내려온 상태 — 서버가 채택 단계를 함께 내려준다.
+      dsplNmSource: 'category',
       optrIndctNm: null,
       evntNm: null,
       evntCtgryNm: '침수(범람)',

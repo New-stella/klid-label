@@ -8,7 +8,12 @@ import { Controller, useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
 import { Checkbox } from '@/components/common/Checkbox';
-import { Field, FieldError, FieldLabel } from '@/components/common/Field';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from '@/components/common/Field';
 import { Input } from '@/components/common/Input';
 import { Textarea } from '@/components/common/Textarea';
 
@@ -66,6 +71,15 @@ export function NoticeFormSection({
           placeholder="공지 제목을 입력하세요. (최대 200자)"
           {...register('title')}
         />
+        {/* [design: SCREEN-037] 도움말 캡션 — 작성 폼(SCREEN-036)과 같은 정보를 같은 톤으로
+            말한다. `FieldDescription` 이 Field 컨텍스트를 통해 입력의 aria-describedby 에
+            자동으로 연결되므로 시각 표기로만 남지 않는다. */}
+        <FieldDescription
+          data-testid="notice-title-description"
+          className="text-gray-600"
+        >
+          필수 · 최대 200자 · 앞뒤 공백은 저장 시 자동 제거됩니다.
+        </FieldDescription>
         <FieldError>{errors.title?.message}</FieldError>
       </Field>
 
@@ -76,6 +90,12 @@ export function NoticeFormSection({
           className="min-h-[236px] resize-y"
           {...register('content')}
         />
+        <FieldDescription
+          data-testid="notice-content-description"
+          className="text-gray-600"
+        >
+          필수
+        </FieldDescription>
         <FieldError>{errors.content?.message}</FieldError>
       </Field>
 

@@ -67,17 +67,10 @@
                       "description": "프리셋 설명 (expln)"
                     },
                     "eventTypeCd": {
-                      "enum": [
-                        "EVT_FALL",
-                        "EVT_VIOLENCE",
-                        "EVT_ACCIDENT",
-                        "EVT_ABNORMAL",
-                        "EVT_FLOOD",
-                        "EVT_FIRE"
-                      ],
                       "type": "string",
                       "nullable": true,
-                      "description": "매핑된 이벤트 타입 코드 (미매핑 시 null)"
+                      "maxLength": 20,
+                      "description": "매핑된 이벤트 유형 코드 (미매핑 시 null). 관제 인입으로 수신한 이벤트 유형 코드를 그대로 담는 자유 코드이며 고정 목록이 아니다 — 관제에는 이벤트 코드 마스터가 없고 코드만 송신하기 때문이다. 유효값은 실행 시점에 표시명이 같은 유형코드들을 한 옵션으로 접어 만든 이벤트유형 옵션의 유효 필터 키 집합으로 판정하며(그 밖의 값은 400), 빈값은 이벤트 무관 프리셋으로 허용한다. 저장은 코드값 표준도메인 VARCHAR(20) 이고 프리셋당 유형 1개(UNIQUE)다. 예: EV02000201(쓰러짐 대표 유형코드)."
                     },
                     "labelCodeOptions": {
                       "type": "array",
@@ -132,7 +125,7 @@
                   "FLOOR"
                 ],
                 "description": "낙상 이벤트용",
-                "eventTypeCd": "EVT_FALL",
+                "eventTypeCd": "EV02000201",
                 "labelCodeOptions": [
                   {
                     "code": "PERSON",
@@ -215,13 +208,14 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 권한 없음 (@PreAuthorize). ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         }
       },
       "brownfield": {
-        "status": "preserved",
-        "diff_summary": "1차 라벨링 프리셋 관리"
+        "status": "modified",
+        "decided_by": "ADR-034",
+        "diff_summary": "1차 라벨링 프리셋 관리 — ADR-034(프리셋-마스터 단일화)로 저장모델·요청 계약이 반전(코드 문자열 스냅샷 → 마스터 PK(labelId) 실시간 join)돼 preserved 로 남을 수 없다."
       },
       "deprecated": false,
       "parameters": [],
@@ -234,17 +228,18 @@
         "progress": 100,
         "subtasks": []
       },
+      "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 스키마 백필 — ApiResponse<List<PresetResponse>> 본문 schema + 401/403 에러 응답 + example (실제 PresetController.list/@PreAuthorize(REVIEWER)/PresetResponse 코드 기준)",
+    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:06:30.546Z",
+    "last_updated_at": "2026-08-16T09:52:38.220Z",
     "created_at": "2026-05-30T07:22:16.678Z"
   }
 }

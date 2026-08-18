@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
 import kr.co.cudo.authoring.portal.entity.LsPortalUld;
 import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
+import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +31,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -71,6 +75,18 @@ public class PortalUploadService {
     private final LsPortalUldRepository uldRepository;
     private final LsPortalUldFrmeRepository frmeRepository;
     private final PortalUploadProperties properties;
+
+    /** 자산별 라벨 마지막 저장일(READY 축 기준점 한쪽) 집계 조회용. @design DFEAT-055 */
+    private final LsPortalUldLblRepository lblRepository;
+
+    /** 보존기간 만료 예정 시각 <b>단일 판정 지점</b> — 여기서 계산식을 재유도하지 않는다. @design AC-033 */
+    private final PortalRetentionPolicy retentionPolicy;
+
+    /**
+     * 저장소 경로 판정 <b>단일 지점</b> — 보존기간 삭제 배치와 <b>같은 판정기</b>를 쓴다. @design AC-037
+     * 여기서 판정 로직을 복제하면 한쪽만 강화되어 조용히 어긋난다.
+     */
+    private final PortalStoragePathGuard pathGuard;
 
     // ======================== 업로드 ========================
 
@@ -153,13 +169,16 @@ public class PortalUploadService {
 
     // ======================== 조회 ========================
 
-    /** 소유자 업로드 목록(페이징) + 선택적 타입 필터. 타입은 IMAGE/VIDEO 만 허용(그 외 400). */
+    /**
+     * 소유자 업로드 목록(페이징) + 선택적 타입 필터. 타입은 IMAGE/VIDEO 만 허용(그 외 400).
+     *
+     * <p>각 행에 보존기간 만료 예정 시각({@code expiresAt})을 실어 내린다. @design AC-033
+     */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<PortalUploadResponse> listUploads(String portalUserNo, String typeFilter, Pageable pageable) {
         requireOwner(portalUserNo);
         if (typeFilter == null || typeFilter.isBlank()) {
-            return uldRepository.findAllByPortalUserNo(portalUserNo, pageable)
-                    .map(PortalUploadResponse::from);
+            return withExpiry(uldRepository.findAllByPortalUserNo(portalUserNo, pageable), portalUserNo);
         }
         // #입력검증(CWE-20): 미지원 타입은 조용히 빈 결과 대신 400 으로 명확히 거부.
         String normalized = typeFilter.toUpperCase(Locale.ROOT);
@@ -167,18 +186,63 @@ public class PortalUploadService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 type 입니다. 허용: IMAGE, VIDEO");
         }
-        return uldRepository.findAllByPortalUserNoAndUldTypeCd(portalUserNo, normalized, pageable)
-                .map(PortalUploadResponse::from);
+        return withExpiry(
+                uldRepository.findAllByPortalUserNoAndUldTypeCd(portalUserNo, normalized, pageable),
+                portalUserNo);
     }
 
-    /** 소유자 자산 상세 + 프레임 요약. 소유자 아님/부재 → 403(자원 열거 차단). */
+    /**
+     * 소유자 자산 상세 + 프레임 요약. 소유자 아님/부재 → 403(자원 열거 차단).
+     *
+     * <p>보존기간 만료 예정 시각({@code expiresAt})을 함께 내린다 — 목록과 <b>같은 판정기</b>를 쓴다.
+     * @design AC-033
+     */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public PortalUploadDetailResponse getUpload(Long uldSn, String portalUserNo) {
         requireOwner(portalUserNo);
         LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(uldSn, portalUserNo)
                 .orElseThrow(this::forbidden);
         List<LsPortalUldFrme> frames = frmeRepository.findAllByUldSnOrderByFrmeNo(uld.getUldSn());
-        return PortalUploadDetailResponse.of(uld, frames);
+        LocalDateTime lastLabelSavedAt =
+                lookupLastLabelSavedAt(portalUserNo, List.of(uld.getUldSn())).get(uld.getUldSn());
+        LocalDateTime expiresAt = retentionPolicy.uploadExpiry().expiresAt(
+                uld.getUldSttsCd(), uld.getRegDt(), uld.getMdfcnDt(), lastLabelSavedAt);
+        return PortalUploadDetailResponse.of(uld, frames, expiresAt);
+    }
+
+    /**
+     * 목록 한 페이지에 보존기간 만료 예정 시각을 채운다. @design AC-033, DFEAT-055
+     *
+     * <p><b>N+1 을 만들지 않는다</b> — 라벨 마지막 저장일은 페이지 전체를 단일 집계 쿼리
+     * ({@code GROUP BY} + {@code IN}) 1회로 모으고, 보존기간 설정도 페이지당 1회만 읽는다
+     * ({@link PortalRetentionPolicy#uploadExpiry()} 스냅샷).
+     */
+    private Page<PortalUploadResponse> withExpiry(Page<LsPortalUld> page, String portalUserNo) {
+        List<Long> uldSns = page.getContent().stream().map(LsPortalUld::getUldSn).toList();
+        if (uldSns.isEmpty()) {
+            // 빈 페이지에 집계 쿼리·설정 조회를 태우지 않는다(빈 IN 절도 피한다).
+            return page.map(PortalUploadResponse::from);
+        }
+        Map<Long, LocalDateTime> lastLabelSavedAt = lookupLastLabelSavedAt(portalUserNo, uldSns);
+        PortalRetentionPolicy.UploadExpiry expiry = retentionPolicy.uploadExpiry();
+        return page.map(uld -> PortalUploadResponse.of(uld, null, expiry.expiresAt(
+                uld.getUldSttsCd(), uld.getRegDt(), uld.getMdfcnDt(),
+                lastLabelSavedAt.get(uld.getUldSn()))));
+    }
+
+    /**
+     * 자산별 라벨 마지막 저장일 집계 — 라벨이 없는 자산은 <b>키 자체가 없다</b>(null 로 읽힌다).
+     * 상세 조회도 자산 1건만 담아 이 경로를 그대로 쓴다(판정 경로 단일화).
+     */
+    private Map<Long, LocalDateTime> lookupLastLabelSavedAt(String portalUserNo, List<Long> uldSns) {
+        Map<Long, LocalDateTime> map = new HashMap<>();
+        for (Object[] row : lblRepository.findMaxRegDtGroupedByUldSn(portalUserNo, uldSns)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+            map.put(((Number) row[0]).longValue(), (LocalDateTime) row[1]);
+        }
+        return map;
     }
 
     /** 소유자 자산 프레임 목록(페이징). 소유자 스코프 조인 쿼리로 IDOR 차단. */
@@ -219,7 +283,7 @@ public class PortalUploadService {
         // CWE-59/367 — lexical 검증(resolveSafe)만으로는 base 안의 심링크가 base 밖(예: 내부 파이프라인의
         // frames/raw/**)을 가리키는 경우를 막지 못한다. FileSystemResource·Files.size 는 링크를 따라가므로
         // 그대로 외부 채널로 나간다. 실경로 봉쇄 후 그 실경로를 NOFOLLOW 로 연다(다른 서빙 경로와 동일 규약).
-        Path realFile = realWithinBase(baseDir, resolved, "uldFrmeSn=" + uldFrmeSn);
+        Path realFile = realWithinBaseOrThrow(baseDir, resolved, "uldFrmeSn=" + uldFrmeSn);
         MediaType mediaType = resolveStoredMediaType(uld.getMimeTypeNm());
         FrameImageService.OpenedFile opened;
         try {
@@ -236,24 +300,21 @@ public class PortalUploadService {
     }
 
     /**
-     * 실경로가 base 하위인지 재검증하고 <b>그 실경로</b>를 돌려준다 (CWE-59/22).
-     *
-     * <p>lexical 검증을 통과한 경로라도 심링크를 따라가면 base 밖 파일이 될 수 있다. 검증에 쓴 경로와
-     * 여는 경로를 같게 만들어 검증~open 사이 교체(TOCTOU)도 함께 좁힌다. 로그·응답에 경로 원문은 남기지
-     * 않는다(CWE-209).
+     * 서빙용 래퍼 — 판정 실패를 <b>기존 응답 계약 그대로</b> 예외로 바꾼다(부재·해석불가 404 / 이탈 403).
      */
-    private Path realWithinBase(Path baseDir, Path resolved, String logKey) {
-        try {
-            Path real = resolved.toRealPath();
-            if (!real.startsWith(baseDir.toRealPath())) {
+    private Path realWithinBaseOrThrow(Path baseDir, Path resolved, String logKey) {
+        PortalStoragePathGuard.RealPathCheck check = pathGuard.checkRealWithinBase(baseDir, resolved);
+        return switch (check.verdict()) {
+            case OK -> check.realPath();
+            case ESCAPED -> {
                 log.warn("[PortalUpload] symlink escaping base rejected {}", logKey);
                 throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 이미지 경로입니다.");
             }
-            return real;
-        } catch (IOException e) {
-            log.warn("[PortalUpload] realpath resolution failed {}", logKey);
-            throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
-        }
+            case ABSENT, UNRESOLVABLE -> {
+                log.warn("[PortalUpload] realpath resolution failed {}", logKey);
+                throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
+            }
+        };
     }
 
     // ======================== 삭제 ========================
@@ -397,9 +458,38 @@ public class PortalUploadService {
         targets.add(resolved);
     }
 
+    /**
+     * 자산 파일 1건 삭제 — <b>실경로로 판정하고 그 실경로로 지운다</b> (CWE-59/367). @design AC-037
+     *
+     * <p>lexical 경로로 검증하고 lexical 경로로 지우면 그 사이에 경로 중간 디렉터리를 심링크로
+     * 갈아끼워 <b>base 밖 파일을 지우게</b> 할 수 있다. 삭제는 열람보다 위험하다 — 잘못 열면 유출이지만
+     * 잘못 지우면 비가역이다. 그래서 판정이 {@link PortalStoragePathGuard.Verdict#OK} 가 아니면 <b>지우지 않고</b> 예외로
+     * 중단해 DB 행을 보존한다(#8 — 파일이 남았는데 DB 만 지우면 어느 파일인지 알 수 없게 된다).
+     *
+     * <p>{@link PortalStoragePathGuard.Verdict#ABSENT} 만 정상 통과다 — 이미 없는 파일의 재삭제는 <b>멱등</b>해야 한다.
+     */
     private void deleteFileOrThrow(Path p) {
+        PortalStoragePathGuard.RealPathCheck check = pathGuard.checkRealWithinBase(baseDir(), p);
+        switch (check.verdict()) {
+            case ABSENT -> {
+                // 이미 없다 = 지울 것이 없다. 예외로 만들면 재시도 삭제가 영영 실패한다.
+            }
+            case ESCAPED -> {
+                log.warn("[PortalUpload] delete rejected — target resolves outside base");
+                throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 경로입니다.");
+            }
+            case UNRESOLVABLE -> {
+                log.error("[PortalUpload] delete aborted — realpath unresolvable");
+                throw new CustomException(ErrorCode.INTERNAL_ERROR,
+                        "파일 삭제에 실패했습니다. 잠시 후 다시 시도하세요.");
+            }
+            case OK -> deleteRealPathOrThrow(check.realPath());
+        }
+    }
+
+    private void deleteRealPathOrThrow(Path realPath) {
         try {
-            Files.deleteIfExists(p);
+            Files.deleteIfExists(realPath);
         } catch (IOException e) {
             // #8: 파일 삭제 실패 → DB 삭제 중단(재시도 가능한 5xx). 원본 절대 유실 방지.
             log.error("[PortalUpload] file delete failed causeType={}", e.getClass().getSimpleName());
@@ -408,19 +498,12 @@ public class PortalUploadService {
     }
 
     private Path baseDir() {
-        return Paths.get(properties.storagePath()).toAbsolutePath().normalize();
+        return pathGuard.baseDir();
     }
 
-    /** CWE-22 Path Traversal 가드 — baseDir 외부 경로 거부. */
+    /** CWE-22 Path Traversal 가드 — baseDir 외부 경로 거부. 판정은 공용 가드 한 곳에만 둔다. */
     private Path resolveSafe(Path baseDir, Path candidate) {
-        Path resolved = candidate.isAbsolute()
-                ? candidate.normalize()
-                : baseDir.resolve(candidate).normalize();
-        if (!resolved.startsWith(baseDir)) {
-            log.warn("[PortalUpload] path traversal blocked");
-            throw new CustomException(ErrorCode.FORBIDDEN, "허용되지 않은 경로입니다.");
-        }
-        return resolved;
+        return pathGuard.resolveSafe(baseDir, candidate);
     }
 
     private static MediaType resolveStoredMediaType(String mimeTypeNm) {

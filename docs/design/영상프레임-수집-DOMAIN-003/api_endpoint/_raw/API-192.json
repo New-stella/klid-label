@@ -1,0 +1,225 @@
+{
+  "item": {
+    "id": "API-192",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/control-ingests/requeue",
+    "slug": "post-v1control-ingestsrequeue",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/control-ingests/requeue",
+      "tags": [
+        "ingest"
+      ],
+      "method": "POST",
+      "summary": "관제 인입 일괄 재큐",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "description": "적용된 상한"
+                  },
+                  "requeued": {
+                    "type": "integer",
+                    "description": "재큐된 행 수"
+                  },
+                  "remainingFailed": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "재큐 후 남은 종결 인입 행 수. 0 이면 회수 완료"
+                  }
+                },
+                "description": "일괄 재큐 결과"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "limit": 100,
+              "requeued": 100,
+              "remainingFailed": 0
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "재큐 성공",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "limit 은 500 이하여야 합니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "건수 범위 위반. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 신설 — 대량 오설정 회수용 일괄 재큐"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "종결된 인입 행을 오래된 수신일시 순으로 최대 limit 건 되살린다.\n\n[요청이 정하는 것은 건수뿐이다] 대상 상태는 서버가 종결 행으로 고정한다. 상태를 요청으로 받으면 이미 처리 완료된 행까지 되살려 중복 적재를 유발할 수 있다.\n\n[남은 건수를 응답으로 돌려준다] remainingFailed 가 0 이 될 때까지 반복 호출하는 것이 회수 동선이다. 한 번에 무제한 되살리지 않는 이유는 되살린 행이 곧바로 다음 스캔의 부하가 되기 때문이다.\n\n[화면 동선을 두지 않는다] 이 엔드포인트는 운영자가 직접 호출하는 경로다. 되살릴 대상은 아직 영상으로 적재되기 전 단계의 인입 행이라 영상 목록 화면에 나타나지 않으며, 이 호출은 개별 대상을 고르는 조작이 아니라 남은 건수가 0 이 될 때까지 반복하는 회수 작업이다.\n\n단건 재큐와 같이 대기 예산도 함께 리셋된다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "nullable": true,
+              "description": "이번 호출이 되살릴 최대 건수. 미지정 시 100"
+            }
+          },
+          "description": "일괄 재큐 요청 — 대상은 종결 행으로 고정되며 건수만 지정한다"
+        },
+        "example": {
+          "limit": 100
+        },
+        "required": false,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "직전 개정에서 한 글자가 잘못 들어간 것을 정정했다. 내용 변경은 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-07T05:25:25.674Z",
+    "created_at": "2026-08-07T03:10:24.959Z"
+  }
+}

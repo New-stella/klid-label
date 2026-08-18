@@ -55,6 +55,14 @@
                     "nullable": true,
                     "description": "가명여부 유효값 — 수동값이 산출물의 image 블록에 반영된다"
                   },
+                  "anonymitySource": {
+                    "enum": [
+                      "MANUAL",
+                      "DERIVED"
+                    ],
+                    "type": "string",
+                    "description": "익명여부(anonymity) 값의 출처 — MANUAL은 사용자가 직접 저장한 값, DERIVED는 저장값이 없어 시스템 기본값으로 프리필된 값이다."
+                  },
                   "privacyIncluded": {
                     "enum": [
                       "Y",
@@ -63,6 +71,22 @@
                     "type": "string",
                     "nullable": true,
                     "description": "개인정보 포함여부 유효값 — 수동값이 산출물의 image 블록에 반영된다"
+                  },
+                  "pseudonymitySource": {
+                    "enum": [
+                      "MANUAL",
+                      "DERIVED"
+                    ],
+                    "type": "string",
+                    "description": "가명여부(pseudonymity) 값의 출처 — MANUAL 또는 DERIVED."
+                  },
+                  "privacyIncludedSource": {
+                    "enum": [
+                      "MANUAL",
+                      "DERIVED"
+                    ],
+                    "type": "string",
+                    "description": "개인정보 포함여부(privacyIncluded) 값의 출처 — MANUAL 또는 DERIVED."
                   }
                 }
               },
@@ -216,12 +240,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 필드 설명에 남아 있던 폐기 정책을 정정한다. 본문은 이미 세 필드 모두 산출물을 결정한다고 고쳤는데 필드 설명만 익명값이 미반영이라고 남아 있어 같은 문서 안에서 서로 반대되는 말을 하고 있었다.",
+    "change_summary": "200 응답에 실제로 내려가는 3개 필드(anonymitySource·pseudonymitySource·privacyIncludedSource)가 선언에서 빠져 있어 추가한다. 각 값이 사용자가 직접 저장한 것인지 시스템 기본값으로 프리필된 것인지 구분하는 출처 필드다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T04:05:01.221Z",
+    "last_updated_at": "2026-08-16T23:38:47.040Z",
     "created_at": "2026-07-30T07:11:26.428Z"
   }
 }

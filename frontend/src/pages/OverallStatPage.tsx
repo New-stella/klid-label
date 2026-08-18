@@ -8,6 +8,7 @@ import {
 } from '@/components/common/ApprovedRatioNote';
 import { Button } from '@/components/common/Button';
 import { ErrorState } from '@/components/common/ErrorState';
+import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
 import { SimpleBarChart } from '@/components/charts/SimpleBarChart';
 import { SimplePieChart } from '@/components/charts/SimplePieChart';
@@ -184,23 +185,36 @@ export function OverallStatPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        {/* 제목 옆 장식 아이콘을 두지 않는다 — 아이콘이 제목 텍스트를 되풀이할 뿐 정보를
-            더하지 않는다. 아이콘은 조작(버튼)이나 상태 구분에만 쓴다. */}
-        <h1 className="text-title-lg font-bold text-gray-900">전체 구축 현황</h1>
-        {/* 아이콘은 이모지가 아니라 아이콘 라이브러리를 쓴다 — 이모지는 OS·폰트마다 모양이
-            달라지고 스크린리더가 문자명("인박스 트레이")을 읽는다. 라벨 텍스트는 그대로다. */}
-        <Button
-          variant="primary"
-          leftIcon={Download}
-          onClick={handleDownload}
-          loading={downloading}
-          data-testid="download-report-btn"
-        >
-          리포트 다운로드
-        </Button>
-      </div>
+      {/* 헤더 — 현재 위치(breadcrumb) + 제목 + 화면 설명 + 리포트 다운로드(SCREEN-021 ①).
+          구 구현은 제목과 버튼만 있어 breadcrumb·설명문·다운로드 캡션이 통째로 빠져 있었다.
+          다른 화면과 같은 PageHeader 를 쓴다 — 이 화면만의 헤더 구조를 따로 만들지 않는다. */}
+      <PageHeader
+        title="전체 구축 현황"
+        // '통계' 는 LNB 그룹명이라 이동할 주소가 없다 — href 없이 위치만 표시한다(관리 화면과 동일).
+        breadcrumb={[{ label: '통계' }, { label: '전체 구축 현황' }]}
+        description="구축한 학습데이터의 누적량과 처리 현황, 이벤트 유형 분포, 작업자별 현황을 한자리에서 확인합니다."
+        actions={
+          // 버튼 아래 캡션이 붙으므로 세로 배치 — 무엇을 받는지(집계 범위·형식)를 누르기 전에 알린다.
+          <div className="flex flex-col items-end gap-1">
+            {/* 제목 옆 장식 아이콘을 두지 않는다 — 아이콘이 제목 텍스트를 되풀이할 뿐 정보를
+                더하지 않는다. 아이콘은 조작(버튼)이나 상태 구분에만 쓴다.
+                아이콘은 이모지가 아니라 아이콘 라이브러리를 쓴다 — 이모지는 OS·폰트마다 모양이
+                달라지고 스크린리더가 문자명("인박스 트레이")을 읽는다. 라벨 텍스트는 그대로다. */}
+            <Button
+              variant="primary"
+              leftIcon={Download}
+              onClick={handleDownload}
+              loading={downloading}
+              data-testid="download-report-btn"
+            >
+              리포트 다운로드
+            </Button>
+            <p className="text-caption text-gray-600" data-testid="download-report-note">
+              최근 1개월 집계를 CSV 파일로 내려받습니다.
+            </p>
+          </div>
+        }
+      />
 
       {error && <ErrorState title="전체 통계를 불러올 수 없습니다" />}
 

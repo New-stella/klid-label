@@ -300,17 +300,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-009"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별 누락 신고 구간에서 이 저장 요청을 거부하는 412 응답을 신설했다. 신고 구간은 비식별 결과가 잘못됐다고 알려진 구간이라, 그 위에서 작성한 내용을 새로 저장하면 신고가 해소된 뒤 검수를 거치지 않은 채 외부로 나간다. 개인정보 메타 저장·라벨 저장이 이미 같은 근거로 412 를 규정하고 있어 그 축에 맞췄다. 기존 응답·파라미터·요청 본문 서술은 그대로 두고 412 만 추가했다.",
+    "change_summary": "D010 P1(D010-LINK-004): implements_features 공란 → FEAT-009(VLM 시계열 메타 검토·수정). 근거: DFEAT-050(specializes_feature=FEAT-009)이 이 API 를 구현체로 지목(implemented_by_endpoints).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T10:35:34.708Z",
+    "last_updated_at": "2026-08-16T07:22:07.164Z",
     "created_at": "2026-07-24T01:31:24.646Z"
   }
 }

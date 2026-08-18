@@ -1,0 +1,61 @@
+{
+  "item": {
+    "id": "EVT-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_event",
+    "title": "PortalVideoUploaded",
+    "slug": "portalvideouploaded",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "example": {
+        "uldSn": 331
+      },
+      "category": "domain_event",
+      "consumes": [],
+      "triggers": [],
+      "aggregate": "LsPortalUld",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — 포털 자산 업로드(ADR-013 예외, 2026-07-17) 신설에 따른 이벤트"
+      },
+      "event_name": "PortalVideoUploaded",
+      "versioning": {
+        "version": "v1"
+      },
+      "description": "포털 사용자가 본인 영상을 업로드해 LS_PORTAL_ULD 가 완료될 때 발행된다. 프레임 추출 트리거 전용이다.\n\n[★VideoIngested 와 완전 분리] 본 이벤트는 portal 패키지에만 존재하며 관제 비식별·마킹·오토라벨링 파이프라인에 절대 연결되지 않는다. 포털 자산은 본인 데이터라 비식별을 적용하지 않고, 데이터마트 View 와도 분리된 LS_PORTAL_* 전용 경로다(ADR-013 예외).\n\n[발행] 포털 영상 업로드 완료 트랜잭션에서 발행한다.\n[소비] 포털 전용 프레임 추출 — 고정 간격(portal.upload.frame-interval-sec 기본 5초, 상한 maxFrames 2000).\n\n[상태] UPLOADED → PROCESSING → READY | FAILED.",
+      "side_effects": [
+        "포털 전용 프레임 추출(LS_PORTAL_ULD_FRME 적재)",
+        "업로드 상태 PROCESSING → READY/FAILED 전이"
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "payload_schema": {
+        "uldSn": "Long — 완료된 포털 업로드 마스터(LS_PORTAL_ULD) 순번"
+      },
+      "documented_emitters": [
+        "DFEAT-053"
+      ],
+      "documented_consumers": [
+        "DFEAT-053"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "발행·소비를 구현 클래스명이 아니라 행위로 적는다. 포털 경로가 내부 파이프라인과 절대 연결되지 않는다는 경계 선언은 그대로 남는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:21:32.460Z",
+    "created_at": "2026-08-04T08:55:59.902Z"
+  }
+}

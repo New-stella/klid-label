@@ -1,0 +1,279 @@
+# DOMAIN-003 영상·프레임 수집 — 구현 진입점
+
+> 이 문서는 결정적 생성물이다. ITEM 본문은 각 `[[ID]]` 파일이 진실원이며 여기 옮겨 적지 않는다.
+> 스코프 정본은 `.kit-scope.json`(99건) · 버전은 `version-master.md`.
+
+## 도메인 (bounded context)
+
+관제 영상을 저작도구로 들여오고 프레임을 추출해 라벨링 원천을 만드는 도메인.
+
+[★적재 주체 반전 (ADR-042)] 저작도구가 관제 공유 테이블을 스캔하던 구조를 폐기한다. 관제서버가 학습용으로 설정한 영상을 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구 폴링 배치가 미처리 행을 원자 클레임해 LS_DATA_RAW 로 적재한다. 영상 관련 정보는 전부 이 인입 테이블에서 평면으로 받으며 관제 공유 마스터 조인은 하지 않는다. 이름값(CCTV명·지자체명·이벤트명·파일포맷)은 인입 행을 LEFT JOIN 해 얻으며, 파생영상은 자기 인입 행이 없으므로 ORGNL_RAW_SN 1단계 폴백으로 부모 행을 참조한다(파생 깊이가 1 로 고정돼 재귀가 필요 없다).
+
+[파이프라인 순서] 적재(PENDING) → ★비식별화(선두, 전체 영상 자동) → MARKING_READY → 마킹(비식별 영상 대상) → VLM 시계열 → 프레임 추출 → YOLO → SAM2 → 트랙 보간.
+
+[프레임 추출] FFmpeg 기반 배치(1건/분)이며 ★마킹 위치를 기준으로 원본·비식별 2벌을 추출한다(frames/raw|deid/{rawSn} 로 분기 저장돼 원본 덮어쓰기가 없다). 오토라벨링은 원본에만 실행하고 동일 해상도이므로 비식별본과 좌표를 공유한다.
+
+[라벨링 캔버스 서빙] 프레임 이미지는 기본이 비식별본이며 원본은 REVIEWER 가 명시적으로 요청할 때만 나간다. 비식별 프레임을 여는 4경로는 동일 판정기로 검증하고 그 실경로를 NOFOLLOW 로 열어야 한다(심링크 교체로 마스킹 전 픽셀이 새는 것을 막는다).
+
+[범위 밖] 포털 사용자 본인 자산 업로드는 LS_PORTAL_* 전용 경로로 본 도메인·데이터마트와 완전 분리된다. 구 관리화면 TUS 자체 업로드는 1차 적재 경로가 아니며 폐지 예정이다.
+
+## Ubiquitous Language
+
+| 용어 | 뜻 |
+|---|---|
+| 인입(LS_DATA_INGEST) | 관제가 직접 INSERT 하는 평면 수신 테이블. 영상 관련 정보의 단일 창구이며 행을 삭제하는 코드가 없어 영구 보존된다 |
+| 원천(원시)데이터 | LS_DATA_RAW — 프레임 추출·라벨링의 원천이 되는 영상 단위. 작업 식별자 RAW_SN 이 곳 PK 다 |
+| 프레임 | FFmpeg 으로 추출된 개별 이미지. 원본·비식별 2벌이 각기 다른 경로에 저장된다 |
+| 파생영상 | 증강·해상도 변환으로 만들어진 새 영상. ORGNL_RAW_SN 으로 부모를 참조하며 깊이는 1 로 고정된다. 파생에는 원본영상이 없고 비식별본만 있다 |
+| 폴링 적재 | 인입 테이블의 미처리 행을 주기적으로 원자 클레임해 LS_DATA_RAW 로 옮기는 배치. 2노드 동시 적재를 조건부 UPDATE 로 막는다 |
+| 자동 분류 | 이벤트 유형·위치 등 인입 메타 기반 분류. 촬영환경(날씨·시간대·계절)은 자동 파생이 아니라 수동 입력이다 |
+
+## 빌드 순서 (제약 → 데이터 → 계약 → 로직 → 화면 → 검증)
+
+| # | 단계 | 이번 키트 ITEM |
+|---|---|---|
+| 1 | ADR 결정·제약 | [[ADR-001]] · [[ADR-003]] · [[ADR-004]] · [[ADR-006]] · [[ADR-010]] · [[ADR-018]] · [[ADR-032]] · [[ADR-042]] |
+| 2 | NFR 예산 | [[NFR-008]] · [[NFR-009]] · [[NFR-010]] · [[NFR-011]] · [[NFR-012]] · [[NFR-013]] · [[NFR-014]] · [[NFR-015]] · [[NFR-016]] · [[NFR-017]] · [[NFR-018]] · [[NFR-019]] · [[NFR-020]] · [[NFR-021]] |
+| 3 | ERD 데이터 계층 | [[ERD-012]] · [[ERD-020]] · [[ERD-025]] |
+| 4 | EVT 이벤트 계약 | [[EVT-002]] · [[EVT-005]] |
+| 5 | API 경계 계약 | [[API-021]] · [[API-042]] · [[API-043]] · [[API-044]] · [[API-045]] · [[API-046]] · [[API-047]] · [[API-070]] · [[API-071]] · [[API-084]] · [[API-092]] · [[API-114]] · [[API-143]] · [[API-144]] · [[API-145]] · [[API-146]] · [[API-148]] · [[API-150]] · [[API-156]] · [[API-158]] · [[API-160]] · [[API-162]] · [[API-164]] · [[API-167]] · [[API-168]] · [[API-170]] · [[API-172]] · [[API-173]] · [[API-174]] · [[API-181]] · [[API-185]] · [[API-186]] · [[API-191]] · [[API-192]] · [[API-198]] · [[API-199]] · [[API-200]] · [[API-201]] |
+| 6 | DFEAT 비즈니스 로직 | [[DFEAT-007]] · [[DFEAT-008]] · [[DFEAT-009]] · [[DFEAT-010]] · [[DFEAT-011]] · [[DFEAT-029]] · [[DFEAT-051]] |
+| 7 | SEQ 흐름 배선 | [[SEQ-004]] |
+| 8 | ROLE 인가 | [[ROLE-001]] · [[ROLE-002]] · [[ROLE-003]] |
+| 9 | SCREEN 화면 | [[SCREEN-005]] · [[SCREEN-006]] · [[SCREEN-008]] · [[SCREEN-009]] · [[SCREEN-011]] · [[SCREEN-022]] · [[SCREEN-027]] · [[SCREEN-038]] |
+| 10 | UC 검증 | [[UC-011]] · [[UC-016]] · [[UC-018]] |
+| 11 | AC 수용 | [[AC-025]] · [[AC-026]] |
+| 12 | TEST 통합시험 | [[TEST-001]] |
+| 13 | CDIAG 클래스 구조 | [[CDIAG-001]] |
+| 14 | C4 컴포넌트 | [[CMP-001]] · [[CMP-010]] |
+| 15 | FEAT 상위 기능 | [[FEAT-004]] |
+| 16 | SD 고충실 시안 | [[SD-004]] · [[SD-013]] · [[SD-023]] |
+
+> ⚠ 이번 키트에 **0건**인 단계: CONST 상수값, INT 외부 연동 — 해당 축은 설계가 없거나 `domain_id` 미설정이다.
+
+## 구현 현황 (ITEM 의 implementation 필드 — 설계 쪽 주장)
+
+| status | 건수 |
+|---|---|
+| implemented | 48 |
+| planned | 35 |
+| (미기재) | 16 |
+
+| ITEM | type | status | progress |
+|---|---|---|---|
+| [[API-021]] | api_endpoint | implemented | 100 |
+| [[API-042]] | api_endpoint | implemented | 100 |
+| [[API-043]] | api_endpoint | implemented | 100 |
+| [[API-044]] | api_endpoint | implemented | 100 |
+| [[API-045]] | api_endpoint | implemented | 100 |
+| [[API-046]] | api_endpoint | implemented | 100 |
+| [[API-047]] | api_endpoint | implemented | 100 |
+| [[API-070]] | api_endpoint | implemented | 100 |
+| [[API-071]] | api_endpoint | implemented | 100 |
+| [[API-084]] | api_endpoint | implemented | 100 |
+| [[API-092]] | api_endpoint | implemented | 100 |
+| [[API-114]] | api_endpoint | implemented | 100 |
+| [[API-143]] | api_endpoint | implemented | 100 |
+| [[API-144]] | api_endpoint | implemented | 100 |
+| [[API-145]] | api_endpoint | implemented | 100 |
+| [[API-146]] | api_endpoint | implemented | 100 |
+| [[API-148]] | api_endpoint | implemented | 100 |
+| [[API-150]] | api_endpoint | implemented | 100 |
+| [[API-156]] | api_endpoint | implemented | 100 |
+| [[API-158]] | api_endpoint | implemented | 100 |
+| [[API-160]] | api_endpoint | implemented | 100 |
+| [[API-162]] | api_endpoint | implemented | 100 |
+| [[API-164]] | api_endpoint | implemented | 100 |
+| [[API-167]] | api_endpoint | implemented | 100 |
+| [[API-168]] | api_endpoint | implemented | 100 |
+| [[API-170]] | api_endpoint | implemented | 100 |
+| [[API-172]] | api_endpoint | implemented | 100 |
+| [[API-173]] | api_endpoint | implemented | 100 |
+| [[API-174]] | api_endpoint | implemented | 100 |
+| [[API-181]] | api_endpoint | implemented | 100 |
+| [[DFEAT-007]] | domain_feature | implemented | 100 |
+| [[DFEAT-008]] | domain_feature | implemented | 100 |
+| [[DFEAT-009]] | domain_feature | implemented | 100 |
+| [[DFEAT-010]] | domain_feature | implemented | 100 |
+| [[DFEAT-029]] | domain_feature | implemented | 100 |
+| [[DFEAT-051]] | domain_feature | implemented | 100 |
+| [[EVT-002]] | domain_event | implemented | 100 |
+| [[EVT-005]] | domain_event | implemented | 100 |
+| [[FEAT-004]] | feature | implemented | 100 |
+| [[SCREEN-005]] | screen_spec | implemented | 100 |
+| [[SCREEN-008]] | screen_spec | implemented | 100 |
+| [[SCREEN-009]] | screen_spec | implemented | 100 |
+| [[SCREEN-011]] | screen_spec | implemented | 100 |
+| [[SCREEN-022]] | screen_spec | implemented | 100 |
+| [[SCREEN-027]] | screen_spec | implemented | 100 |
+| [[SCREEN-038]] | screen_spec | implemented | 100 |
+| [[SEQ-004]] | diagram_sequence | implemented | 100 |
+| [[UC-016]] | use_case | implemented | 100 |
+| [[AC-025]] | acceptance | planned | 0 |
+| [[AC-026]] | acceptance | planned | 0 |
+| [[API-185]] | api_endpoint | planned | 0 |
+| [[API-186]] | api_endpoint | planned | 0 |
+| [[API-191]] | api_endpoint | planned | 0 |
+| [[API-192]] | api_endpoint | planned | 0 |
+| [[API-198]] | api_endpoint | planned | 0 |
+| [[API-199]] | api_endpoint | planned | 0 |
+| [[API-200]] | api_endpoint | planned | 0 |
+| [[API-201]] | api_endpoint | planned | 0 |
+| [[DFEAT-011]] | domain_feature | planned | 0 |
+| [[ERD-012]] | erd | planned | 0 |
+| [[ERD-020]] | erd | planned | 0 |
+| [[ERD-025]] | erd | planned | 0 |
+| [[NFR-008]] | nfr | planned | 0 |
+| [[NFR-009]] | nfr | planned | 0 |
+| [[NFR-010]] | nfr | planned | 0 |
+| [[NFR-011]] | nfr | planned | 0 |
+| [[NFR-012]] | nfr | planned | 0 |
+| [[NFR-013]] | nfr | planned | 0 |
+| [[NFR-014]] | nfr | planned | 0 |
+| [[NFR-015]] | nfr | planned | 0 |
+| [[NFR-016]] | nfr | planned | 0 |
+| [[NFR-017]] | nfr | planned | 0 |
+| [[NFR-018]] | nfr | planned | 0 |
+| [[NFR-019]] | nfr | planned | 0 |
+| [[NFR-020]] | nfr | planned | 0 |
+| [[NFR-021]] | nfr | planned | 0 |
+| [[ROLE-001]] | permission_role | planned | 0 |
+| [[ROLE-002]] | permission_role | planned | 0 |
+| [[ROLE-003]] | permission_role | planned | 0 |
+| [[SCREEN-006]] | screen_spec | planned | 0 |
+| [[STATE-002]] | diagram_state | planned | 0 |
+| [[UC-011]] | use_case | planned | 0 |
+| [[UC-018]] | use_case | planned | 0 |
+
+> ⚠ 이 표는 **설계가 스스로 적은 주장**이다. 코드와 대조되지 않았다 — 그 대조가 `/mc-logi-implement-review` 의 몫이다.
+
+## ITEM 인덱스
+
+### adr (8)
+- [[ADR-001]] — 작업 단위를 프로젝트에서 영상 1건(RAW_SN)으로 전환
+- [[ADR-003]] — ADMIN 역할 폐기 — 관리 권한 REVIEWER 통합
+- [[ADR-004]] — 생성형 AI 본체 외부화 — 저작도구는 증강 결과 검수만
+- [[ADR-006]] — 비식별 처리 외부 솔루션 연동 — 캔버스 수동 블러 폐기
+- [[ADR-010]] — DBMS MariaDB에서 PostgreSQL로 전환
+- [[ADR-018]] — 해상도 변경(SFR-06-03)을 증강 파생영상 모델(LS_DATA_AUG/RESL_*)로 통합
+- [[ADR-032]] — 촬영환경·개인정보 메타 수동입력 신설(+self-fill 자동파생 폐기)
+- [[ADR-042]] — 관제 데이터 참조 전면 제거 — MNG_* 9종 삭제 + LS_DATA_INGEST 평면 수신
+
+### nfr (14)
+- [[NFR-008]] — 학습데이터 단계별 품질관리 기준 (수집·제작·검수)
+- [[NFR-009]] — 학습데이터 종류·제작방법별 품질관리 기준
+- [[NFR-010]] — 학습데이터 값 검증·정합성 (공공데이터 품질진단 기준)
+- [[NFR-011]] — 화면 응답시간 기준
+- [[NFR-012]] — 시스템 자원 효율
+- [[NFR-013]] — 세션·계정 보안대책
+- [[NFR-014]] — 시큐어코딩 (SW 개발보안)
+- [[NFR-015]] — 웹표준·크로스브라우징
+- [[NFR-016]] — 데이터 표준 준수
+- [[NFR-017]] — API 호출 규약 (Base URL /api · Bearer JWT 인증 · 채널 격리)
+- [[NFR-018]] — 기능 수행 지연 사전 안내
+- [[NFR-019]] — 오류 응답 속도
+- [[NFR-020]] — 역할별 접근제어
+- [[NFR-021]] — 취약점 점검·모의해킹
+
+### erd (3)
+- [[ERD-012]] — 영상·프레임 수집 ERD (고도화, PostgreSQL)
+- [[ERD-020]] — 배치·작업 인프라 ERD (고도화, PostgreSQL)
+- [[ERD-025]] — 이벤트유형 마스터 ERD (고도화, PostgreSQL)
+
+### domain_event (2)
+- [[EVT-002]] — BatchQueued
+- [[EVT-005]] — VideoIngested
+
+### api_endpoint (38)
+- [[API-021]] — GET /v1/frames/{srcSn}/image
+- [[API-042]] — GET /v1/videos
+- [[API-043]] — GET /v1/videos/{rawSn}
+- [[API-044]] — GET /v1/videos/{rawSn}/labels/auto
+- [[API-045]] — GET /v1/videos/{rawSn}/auto-summary
+- [[API-046]] — GET /v1/videos/{rawSn}/frames/{frameNo}/image
+- [[API-047]] — POST /v1/videos/{rawSn}/markings
+- [[API-070]] — POST /v1/assignments
+- [[API-071]] — PATCH /v1/assignments/{assignmentId}
+- [[API-084]] — GET /v1/videos/{rawSn}/stream
+- [[API-092]] — POST /v1/videos/{rawSn}/resolution
+- [[API-114]] — GET /v1/videos/{rawSn}/stream-url
+- [[API-143]] — POST /v1/dev/batch/scan
+- [[API-144]] — POST /v1/dev/batch/trigger
+- [[API-145]] — POST /v1/dev/batch/trigger/next
+- [[API-146]] — GET /v1/dev/batch/pending
+- [[API-148]] — GET /v1/dev/dataset-video-meta/shooting-env-correction-targets
+- [[API-150]] — POST /v1/dev/dataset-video-meta/shooting-env-corrections
+- [[API-156]] — OPTIONS /v1/uploads
+- [[API-158]] — POST /v1/uploads
+- [[API-160]] — HEAD /v1/uploads/{uploadId}
+- [[API-162]] — PATCH /v1/uploads/{uploadId}
+- [[API-164]] — DELETE /v1/uploads/{uploadId}
+- [[API-167]] — POST /v1/videos/{rawSn}/batch/retry
+- [[API-168]] — GET /v1/videos/{rawSn}/environment-meta
+- [[API-170]] — PUT /v1/videos/{rawSn}/environment-meta
+- [[API-172]] — GET /v1/frames/{srcSn}/privacy-meta
+- [[API-173]] — PUT /v1/frames/{srcSn}/privacy-meta
+- [[API-174]] — PUT /v1/frames/privacy-meta
+- [[API-181]] — GET /v1/event-types
+- [[API-185]] — GET /v1/manage/event-types
+- [[API-186]] — PATCH /v1/manage/event-types/{evntTypeCd}
+- [[API-191]] — POST /v1/control-ingests/{rcptnSn}/requeue
+- [[API-192]] — POST /v1/control-ingests/requeue
+- [[API-198]] — POST /v1/videos/{rawSn}/batch/stages/{stage}/skip
+- [[API-199]] — POST /v1/videos/batch/retry
+- [[API-200]] — DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip
+- [[API-201]] — POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun
+
+### domain_feature (7)
+- [[DFEAT-007]] — 영상/이미지 관리
+- [[DFEAT-008]] — 클립영상 수신·적재
+- [[DFEAT-009]] — FFmpeg 프레임 자동 추출 (배치 1회/분)
+- [[DFEAT-010]] — 이미지 전처리 (리사이징·밝기/대비 보정)
+- [[DFEAT-011]] — 메타데이터 기반 자동 분류
+- [[DFEAT-029]] — 생성형 AI 외부 증강(WINTER/NIGHT/RAIN) + 해상도 변경 내부 파생(증강 저장모델 통합)
+- [[DFEAT-051]] — 촬영환경·개인정보 메타 수동입력
+
+### diagram_sequence (1)
+- [[SEQ-004]] — 해상도 변경 — 표준 3종 파생영상 생성·라벨 좌표 재계산
+
+### permission_role (3)
+- [[ROLE-001]] — 검수자 (REVIEWER)
+- [[ROLE-002]] — 라벨링 작업자 (WORKER)
+- [[ROLE-003]] — 포털 회원 (PORTAL_USER)
+
+### screen_spec (8)
+- [[SCREEN-005]] — 라벨링 캔버스 화면
+- [[SCREEN-006]] — 마킹 화면
+- [[SCREEN-008]] — 영상 처리 현황 화면
+- [[SCREEN-009]] — 영상 상세 화면
+- [[SCREEN-011]] — 대시보드 화면
+- [[SCREEN-022]] — 증강 요청 화면
+- [[SCREEN-027]] — 영상 업로드
+- [[SCREEN-038]] — 이벤트유형 관리 화면
+
+### use_case (3)
+- [[UC-011]] — 비식별 처리 요청
+- [[UC-016]] — 비식별 처리 상태·이력 확인
+- [[UC-018]] — 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재)
+
+### acceptance (2)
+- [[AC-025]] — 관제 인입 → 폴링 적재 정상 흐름 수용
+- [[AC-026]] — 인입 중복 방어·파일 미도착 백오프
+
+### test_scenario (1)
+- [[TEST-001]] — 관제 학습용 영상 적재 후 선두 비식별 처리(외부 위탁·폴링) 정상 흐름
+
+### class_diagram (1)
+- [[CDIAG-001]] — 영상·프레임 수집 도메인 모델
+
+### diagram_c4_component (2)
+- [[CMP-001]] — 배치 파이프라인 컴포넌트 (오케스트레이터·단계·러너)
+- [[CMP-010]] — 영상 적재 컴포넌트 (관제 인입 테이블 폴링 적재)
+
+### feature (1)
+- [[FEAT-004]] — 영상 증강 연동·검수 + 해상도 변경
+
+### screen_design (3)
+- [[SD-004]] — SCREEN-009 영상 상세 화면
+- [[SD-013]] — SCREEN-008 영상 처리 현황 화면
+- [[SD-023]] — SCREEN-038 이벤트유형 관리 화면

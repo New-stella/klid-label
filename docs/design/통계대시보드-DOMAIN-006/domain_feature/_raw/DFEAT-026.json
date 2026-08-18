@@ -1,0 +1,60 @@
+{
+  "item": {
+    "id": "DFEAT-026",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "작업자/검수자 대시보드 (월별·일별 통계)",
+    "slug": "작업자검수자-대시보드-월별일별-통계",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "작업자/검수자 대시보드 (월별·일별 통계)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "should",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-01-01",
+          "legacy_artifact_id": "LEGACY-061"
+        }
+      },
+      "user_story": {
+        "as": "작업자/검수자",
+        "i_want": "내 작업 통계를 월별/일별로 보기를",
+        "so_that": "내 작업량·성과를 파악한다"
+      },
+      "description": "작업자·검수자의 월별/일별 작업 건수·완료·반려 통계를 대시보드로 제공한다. (1차 baseline, 화면 SKKLID-UI-02-01-01)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:37:00.522Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [
+        "API-056"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "API-056의 2개 필드 변경 — implements",
+    "change_summary": "이 기능을 구현하는 종단점(작업자 통계 조회)을 implemented_by_endpoints 로 연결한다. 그동안 비어 있어 기능과 API 계약이 그래프에서 끊겨 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T02:36:08.923Z",
+    "created_at": "2026-05-29T06:31:47.288Z"
+  }
+}

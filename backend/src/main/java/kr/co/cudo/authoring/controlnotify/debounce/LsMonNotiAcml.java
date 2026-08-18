@@ -59,7 +59,8 @@ public class LsMonNotiAcml {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "STTS_CD", length = 20, nullable = false)
+    /** 표준도메인 「상태코드」 = VARCHAR(16) — V7 에서 20 → 16 으로 맞췄다. [@design ERD-027] */
+    @Column(name = "STTS_CD", length = 16, nullable = false)
     private String sttsCd;
 
     /** export 폴더 전량 재생성 동반 여부(윈도우 내 OR 누적). 'Y' 면 재생성 후 통지, 'N' 이면 즉시 통지. */

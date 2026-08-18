@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-036
 type: screen_spec
-version: 6
-last_updated_at: 2026-08-09T00:26:33.224Z
+version: 8
+last_updated_at: 2026-08-16T08:33:58.661Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-11T07:42:37.299Z
-sync_session: 2
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-16T12:51:47.678Z
+sync_session: 5
+stale: true
+status: CHANGED
+prev_version: 7
 raw: ./_raw/SCREEN-036.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: [API-097]
-  required_roles: [ROLE-001]
+  consumes_apis: ["[[API-097]]"]
+  required_roles: ["[[ROLE-001]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v7 → v8**
+> change_summary: decided_by=ADR-014 명시 — ADR-014 가 이 화면을 references 로 붙잡고 있는데 역방향(decided_by)이 비어 있었다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 작성 화면
 
@@ -196,6 +200,10 @@ _(empty)_
 
 new
 
+### decided_by
+
+ADR-014
+
 ### change_kind
 
 - screen-add
@@ -220,11 +228,14 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-038
+- MOD-036
+- MOD-027
+- MOD-029
 
 ### records
 
-_(empty)_
+- IMPREC-006
 
 ### progress
 
@@ -233,6 +244,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-11T23:08:20.613Z
 
 ## required_roles
 
@@ -252,7 +267,7 @@ _(empty)_
 _(empty)_
 
 - **source_hash**: 1eddcb3fe7495732d284d78a57b4a16f7949eadaf4ffb7fe3d1581f241f2e851
-- **generated_at**: 2026-08-07T02:03:46.666Z
+- **generated_at**: 2026-08-13T01:02:44.905Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

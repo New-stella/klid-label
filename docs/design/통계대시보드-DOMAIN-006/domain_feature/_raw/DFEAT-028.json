@@ -1,0 +1,60 @@
+{
+  "item": {
+    "id": "DFEAT-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "작업 통계 (전체·권한별·상태별·일일 진행률)",
+    "slug": "프로젝트-통계-전체권한별상태별일일-진행률",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "작업 통계 (전체·권한별·상태별·일일 진행률)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "should",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-03-02-16",
+          "legacy_artifact_id": "LEGACY-114"
+        }
+      },
+      "user_story": {
+        "as": "검수자(REVIEWER)",
+        "i_want": "전체 작업을 권한별·상태별·일일로 통계 보기를",
+        "so_that": "진도 관리와 병목 식별을 한다"
+      },
+      "description": "전체/권한별/상태별 통계와 일일 진행률을 조회한다. (1차 baseline, 화면 SKKLID-UI-03-02-16~20)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-05-30T02:37:44.109Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [
+        "API-057"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "액터를 검수자(REVIEWER)로 바로잡는다 — 관리자(ADMIN) 역할은 두지 않으며 관리 권한은 검수자에 통합돼 있어 관리자·담당자는 존재하지 않는 액터다. 또 작업 단위는 영상 1건이고 프로젝트 단위 개념을 두지 않으므로 설명·사용자 스토리의 프로젝트 서술을 걷어냈다. 구현 종단점(전체 구축 현황 조회)도 연결한다. 제목에는 폐기 액터·폐기 개념이 없어 그대로 둔다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T02:36:09.501Z",
+    "created_at": "2026-05-29T06:32:04.512Z"
+  }
+}

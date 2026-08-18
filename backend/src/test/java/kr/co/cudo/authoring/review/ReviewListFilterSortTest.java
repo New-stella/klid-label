@@ -401,7 +401,7 @@ class ReviewListFilterSortTest {
         LsTaskAssignment first = assignLabeler(rawSn, 100L);
         LsTaskAssignment second = assignLabeler(rawSn, 101L);
         LocalDateTime sameRegDt = LocalDateTime.of(2026, 5, 9, 8, 0, 0);
-        jdbc.update("UPDATE LS_TASK_ASSIGNMENT SET REG_DT = ? WHERE ASSIGNMENT_ID IN (?, ?)",
+        jdbc.update("UPDATE LS_TASK_ALTMNT SET REG_DT = ? WHERE ASSIGNMENT_ID IN (?, ?)",
                 Timestamp.valueOf(sameRegDt), first.getAssignmentId(), second.getAssignmentId());
 
         // 계약상 최신 = (REG_DT, ASSIGNMENT_ID) 가 더 큰 배정. REG_DT 동률이므로 ASSIGNMENT_ID 가 판정한다.

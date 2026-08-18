@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 20
-last_updated_at: 2026-08-13T01:02:43.072Z
-domain: null
+version: 24
+last_updated_at: 2026-08-17T06:50:48.584Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.922Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.222Z
+sync_session: 17
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-030.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-095]]", "[[API-097]]"]
+  consumes_apis: ["[[API-095]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
 
@@ -77,13 +77,12 @@ _(empty)_
 _(empty)_
 
 - **variant**: primary
-- **triggers_api**: API-097
 
 - **description**: 제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 게시글 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.
 
 **references_apis**:
 
-- API-097
+_(empty)_
 
 **references_features**:
 
@@ -208,7 +207,7 @@ _(empty)_
 
 - **custom_name**: Pagination
 
-- **description**: 제목(중요 배지 — Pin 아이콘, amber, 텍스트 '중요' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
+- **description**: 제목(고정 배지 — Pin 아이콘, amber, 텍스트 '고정' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
 
 **references_apis**:
 
@@ -223,6 +222,10 @@ _(empty)_
 ### status
 
 new
+
+### decided_by
+
+ADR-014
 
 ### change_kind
 
@@ -239,7 +242,6 @@ web
 ## consumes_apis
 
 - API-095
-- API-097
 
 ## implementation
 
@@ -287,9 +289,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: b4563401cec62bc16698c9ea774acc265727baebfb39e3a6518ee8656e75280d
-- **generated_at**: 2026-08-13T01:02:43.071Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 543cfb47c39440c7cb8a8fe9f5171ac0e0de6531b319e2f7156dcd727b2c2414
+- **generated_at**: 2026-08-16T12:44:01.935Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

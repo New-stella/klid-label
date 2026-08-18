@@ -1,0 +1,59 @@
+{
+  "item": {
+    "id": "AC-020",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "다양한 환경·산불 유형 학습데이터 제작",
+    "slug": "다양한-환경산불-유형-학습데이터-제작",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "라벨·메타가 저장되고 오토라벨링(YOLO/SAM2)·SAM2 추적·분할이 작업을 보조한다"
+        ],
+        "when": [
+          "작업자가 바운딩박스/폴리곤/세그멘테이션 라벨과 환경·이벤트 메타를 부여한다"
+        ],
+        "given": [
+          "다양한 환경·산불 유형 영상/이미지가 작업 대상이다"
+        ]
+      },
+      "verifies": [
+        "REQ-022"
+      ],
+      "statement": "다양한 환경·산불 유형 데이터에 객체 라벨·환경/이벤트 메타가 부여됨",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "보완요청 SFR-11-08 신규 AC"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-010"
+      ],
+      "covered_by_features": [
+        "FEAT-001"
+      ],
+      "verification_method": "manual_test",
+      "derived_from_use_cases": [
+        "UC-021"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "DFEAT-015의 3개 필드 변경이 derived_from로 2-hop 전파",
+    "change_summary": "상위 유스케이스 변경에 따른 재확인. 바뀐 것은 저장 충돌 대안 흐름에 응답 코드를 채운 한 문장이고, 이 수용기준은 라벨·메타가 부여되어 학습데이터로 확정되는가라는 성과 축이라 저장 경로의 동시성 처리를 담지 않는다. 그 축은 라벨 저장·버전 비교 쪽 수용기준과 응답 계약이 소유한다. 본문은 바꾸지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-15T10:08:50.874Z",
+    "created_at": "2026-06-09T13:02:39.570Z"
+  }
+}

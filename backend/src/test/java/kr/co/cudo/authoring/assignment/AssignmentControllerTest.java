@@ -63,7 +63,7 @@ class AssignmentControllerTest {
     }
 
     @Test
-    @DisplayName("REVIEWER가_배정_시_LS_TASK_ASSIGNMENT에_LABELER_INSERT")
+    @DisplayName("REVIEWER가_배정_시_LS_TASK_ALTMNT에_LABELER_INSERT")
     void reviewerAssignsLabeler() throws Exception {
         AssignmentCreateRequest req = new AssignmentCreateRequest(100L, List.of(1000L, 1001L));
         mockMvc.perform(post("/v1/assignments")
@@ -86,7 +86,7 @@ class AssignmentControllerTest {
 
     /**
      * 재배정 API 가 <b>이력을 남긴다</b>는 불변식. 구 {@code LS_TASK_ASSIGN_HISTORY} 이중 쓰기가 V4 로
-     * 제거돼 단독 적재처인 {@code LS_TASK_EVENT_LOG} 로 단언을 이관했다(검증 유실 없음). 여기서는
+     * 제거돼 단독 적재처인 {@code LS_TASK_EVNT_LOG} 로 단언을 이관했다(검증 유실 없음). 여기서는
      * 리포지토리를 직접 읽지 않고 <b>이력 조회 API 응답</b>으로 확인한다 — 실제 소비자가 그 경로이고,
      * 제거로 조회 결과가 달라지지 않았음을 같은 단언이 함께 증명한다.
      */

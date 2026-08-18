@@ -15,6 +15,31 @@ export interface WorkerStatSummary {
   dailyCompletion: { date: string; count: number }[];
   /** 월별 통계 — 최근 12개월 */
   monthly: { month: string; completed: number; rejected: number; labelCount: number }[];
+
+  /**
+   * 배정된 <b>전체</b> 영상 수 = completed + inProgress (BE `WorkerStatSummaryResponse`).
+   * rejected 는 이미 inProgress(=APPROVED 아님) 안에 들어 있어 따로 더하지 않는다.
+   * 합을 화면에서 재유도하지 않는다 — 어느 한쪽 정의가 바뀌면 조용히 어긋난다.
+   *
+   * optional 로 두지 않는다 — `?? 0` 폴백이 미수신을 실데이터 0 으로 오인시키기 때문.
+   */
+  assignedTotal: number;
+
+  /**
+   * 완료율 — <b>비율(0.0~1.0)</b>이며 백분율이 아니다. 분모가 0 이면 0.0.
+   *
+   * ⚠ 전체 구축 현황(OverallStatSummary)의 approvalRate·autoLabelRate 는 <b>백분율(0~100)</b>
+   * 이라 단위가 다르다 — 같은 함수로 처리하지 말 것(BE 계약의 기존 비대칭).
+   * 표시할 때만 백분율로 바꾸고, 화면에서 completed/assignedTotal 을 다시 나누지 않는다.
+   */
+  completionRate: number;
+
+  /**
+   * 검수완료(APPROVED) 영상의 라벨 수 — <b>학습데이터로 확정된 분량</b>. 카드의 "주 수치".
+   * 폐기된 프레임(R4)의 라벨은 제외한다(산출물·데이터마트와 같은 기준).
+   * 전체 배정분을 세는 {@link labelCount} 와 짝이며 항상 approvedLabelCount ≤ labelCount.
+   */
+  approvedLabelCount: number;
 }
 
 export type StatPeriod = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';

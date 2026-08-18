@@ -61,7 +61,7 @@ public class LsDeidentReport {
 
     /**
      * 신고 상세사유 — 반려사유(1000)급 상세 필요로 VARCHAR(1000) 유지.
-     * 단순 사유(500, 예: LS_TASK_EVENT_LOG.RSN)와 도메인 구분.
+     * 단순 사유(500, 예: LS_TASK_EVNT_LOG.RSN)와 도메인 구분.
      */
     @Column(name = "RSN", length = 1000)
     private String rsn;
@@ -76,9 +76,12 @@ public class LsDeidentReport {
      * 신고 단계 (DCLR_STP_CD, V171) — {@link #STAGE_MARKING} | {@link #STAGE_LABELING}.
      *
      * <p><b>nullable = 단계 미상</b>(컬럼 신설 이전 레거시 행). 백필하지 않는다 — 어디서 신고했는지
-     * 지어내지 않는다. NULL 행은 해소 시 단계별 재개 이벤트를 발행하지 않으며, 기존 2종
-     * ({@code DeidentGateReopenedEvent} / {@code DeidentReportResolvedEvent})만 발행되어 현행 동작이
-     * 그대로 유지된다.
+     * 지어내지 않는다. NULL 행은 해소 시 단계별 재개 이벤트를 발행하지 않으며, 단계와 무관한 나머지
+     * ({@code DeidentGateReopenedEvent} 항상 + 승인 시 {@code TaskModifiedEvent})만 발행되어 현행
+     * 동작이 그대로 유지된다.
+     *
+     * <p>⚠ 구 기재 {@code DeidentReportResolvedEvent} 는 <b>발행처가 없는 휴면 확장점</b>이다 —
+     * 해소 시점의 즉시 재산출·재통지는 폐기됐고 그 일은 재승인 시점이 맡는다.
      */
     @Column(name = "DCLR_STP_CD", length = 20)
     private String dclrStpCd;

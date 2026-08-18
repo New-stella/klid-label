@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-031
 type: screen_spec
-version: 22
-last_updated_at: 2026-08-13T01:02:43.351Z
-domain: null
+version: 31
+last_updated_at: 2026-08-17T06:51:57.774Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.923Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.226Z
+sync_session: 17
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-031.json
 wireframe: ./wireframe-main.html
 links:
-  consumes_apis: ["[[API-096]]", "[[API-098]]", "[[API-099]]", "[[API-100]]", "[[API-101]]", "[[API-106]]", "[[API-107]]", "[[API-108]]"]
+  consumes_apis: ["[[API-096]]", "[[API-099]]", "[[API-100]]", "[[API-101]]", "[[API-107]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
 
@@ -50,7 +50,7 @@ draft
 
 #### [1]
 
-- **note**: ArrowLeft 아이콘. navigate('/notice')
+- **note**: ArrowLeft 아이콘. 클릭 시 목록 화면으로 이동
 - **type**: Button
 - **label**: 목록으로
 
@@ -66,7 +66,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: REVIEWER 전용. DRAFT 일 때만 노출. Eye 아이콘. publish.mutate(id)
+- **note**: REVIEWER 전용. DRAFT 일 때만 노출. Eye 아이콘. 클릭 시 발행 API 호출
 - **type**: Button
 - **label**: 발행
 
@@ -83,7 +83,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: REVIEWER 전용. PUBLISHED 일 때만 노출. EyeOff 아이콘. unpublish.mutate(id)
+- **note**: REVIEWER 전용. PUBLISHED 일 때만 노출. EyeOff 아이콘. 클릭 시 발행취소 API 호출
 - **type**: Button
 - **label**: 발행취소
 
@@ -167,9 +167,9 @@ _(empty)_
 
 #### [1]
 
-- **note**: notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '중요'.
+- **note**: notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '고정'.
 - **type**: Badge
-- **label**: 중요
+- **label**: 고정
 
 **columns**:
 
@@ -211,7 +211,7 @@ _(empty)_
 
 #### [4]
 
-- **note**: 조건부 표시: 작성자(writerName, 없으면 regId 폴백)·등록=regDt·수정=mdfcnDt(있을 때). formatDateTime. — 발행일시(pubDt)는 API 응답에는 있으나 화면에 렌더되지 않는다.
+- **note**: 조건부 표시: 작성자(writerName, 없으면 regId 폴백)·등록=regDt·수정=mdfcnDt(있을 때). 날짜·시각 형식으로 표시. — 발행일시(pubDt)는 API 응답에는 있으나 화면에 렌더되지 않는다.
 - **type**: KeyValue
 - **label**: 게시 메타
 
@@ -225,7 +225,7 @@ _(empty)_
 
 #### [5]
 
-- **note**: whitespace-pre-wrap break-words
+- **note**: 줄바꿈과 긴 단어를 그대로 보존해 표시
 - **type**: Text
 - **label**: 본문
 
@@ -269,7 +269,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 상세 조회(API-096) 결과를 카드로 렌더. 헤더: 중요 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 whitespace-pre-wrap 텍스트. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.
+- **description**: 상세 조회(API-096) 결과를 카드로 렌더. 헤더: 고정 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.
 
 **references_apis**:
 
@@ -302,7 +302,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 각 항목: Download 아이콘 + 원본 파일명 + (파일크기). 클릭 → downloadAttachment(id, attachSn, fileName). 다운로드 중 disabled
+- **note**: 각 항목: Download 아이콘 + 원본 파일명 + (파일크기). 클릭 시 다운로드 API 호출. 다운로드 중에는 비활성화
 - **type**: List
 - **label**: 첨부 다운로드 목록
 
@@ -317,7 +317,7 @@ _(empty)_
 
 - **triggers_api**: API-107
 
-- **description**: 첨부가 1건 이상일 때만 노출되는 footer. 원본 파일명 + 파일크기(formatFileSize) 목록을 버튼 리스트로 렌더. 클릭 시 blob 다운로드(API-107) — Content-Disposition 원본 파일명 우선, 실패 시 fallbackName. 다운로드 중 해당 항목 disabled, 실패 시 에러 토스트.
+- **description**: 첨부가 1건 이상일 때만 노출되는 footer. 원본 파일명 + 파일크기 목록을 버튼 리스트로 렌더. 클릭 시 다운로드(API-107) — 원본 파일명 우선, 실패 시 대체 이름 사용. 다운로드 중 해당 항목 비활성화, 실패 시 에러 토스트.
 
 **references_apis**:
 
@@ -352,7 +352,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: remove.mutate(id) → 성공 시 /notice 목록으로 이동. loading=remove.isPending
+- **note**: 삭제 API 호출 → 성공 시 목록 화면으로 이동. 처리 중에는 버튼 비활성화
 - **type**: Button
 - **label**: 삭제
 
@@ -399,6 +399,10 @@ _(empty)_
 
 new
 
+### decided_by
+
+ADR-014
+
 ### change_kind
 
 - screen-add
@@ -414,13 +418,10 @@ web
 ## consumes_apis
 
 - API-096
-- API-098
 - API-099
 - API-100
 - API-101
-- API-106
 - API-107
-- API-108
 
 ## implementation
 
@@ -469,9 +470,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 7d4a6148bb2cb329a3e0f91753622f9bc78fef2e87328960ec3a3b2278e6525f
-- **generated_at**: 2026-08-13T01:02:43.351Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 2dd3a3ac10893241d64a5e6e6581d6e04e03b78494b3021486c13c22ab54b572
+- **generated_at**: 2026-08-16T12:44:02.322Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 
@@ -490,8 +491,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 삭제 확인 다이얼로그 — 확인하면 삭제(API-099)를 호출하고 그 공지의 첨부도 함께 정리된 뒤 공지 목록으로 이동한다.
-- **source_hash**: 7d4a6148bb2cb329a3e0f91753622f9bc78fef2e87328960ec3a3b2278e6525f
-- **generated_at**: 2026-08-08T12:00:32.063Z
+- **source_hash**: 2dd3a3ac10893241d64a5e6e6581d6e04e03b78494b3021486c13c22ab54b572
+- **generated_at**: 2026-08-16T12:45:52.264Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

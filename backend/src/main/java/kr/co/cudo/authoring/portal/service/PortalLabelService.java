@@ -80,6 +80,12 @@ public class PortalLabelService {
      */
     private final LabelAccessGuard accessGuard;
 
+    /**
+     * 보존기간 만료 예정 시각 <b>단일 판정 지점</b> — 계산식을 여기서 재유도하지 않는다.
+     * @design AC-033, DFEAT-055
+     */
+    private final PortalRetentionPolicy retentionPolicy;
+
     /** 라벨 좌표 JSON 파싱용. 생성자 주입 (@RequiredArgsConstructor). */
     private final ObjectMapper objectMapper;
 
@@ -154,7 +160,13 @@ public class PortalLabelService {
      * <p>프레임 0건 영상은 라벨링 진입(/portal/label/{firstSrcSn}) 대상 프레임이 없어 진입 불가하므로
      * 목록에서 제외한다(MED 방어). firstSrcSn / frameCount 는 N+1 회피 batch lookup 으로 enrich.
      *
-     * <p>N+1 회피: 페이지 rawSn 집합에 대해 firstSrcSn / frameCount / lastUpdatedAt 을 각 1회 IN 쿼리로 조회.
+     * <p>N+1 회피: 페이지 rawSn 집합에 대해 firstSrcSn / frameCount / lastUpdatedAt /
+     * 본인 저장 라벨 마지막 저장일을 각 1회 IN 쿼리로 조회한다.
+     *
+     * <p>{@code myLabelExpiresAt} 은 본인 저장 라벨의 보존기간 만료 예정 시각으로,
+     * <b>저장되지 않는 조회 시점 파생값</b>이다(AC-033). 보존기간 설정을 바꾸면 이미 저장된 라벨의
+     * 만료 예정도 다음 조회부터 즉시 달라진다 — 판정은 {@link PortalRetentionPolicy} 한 곳에서 하고
+     * 설정은 페이지당 1회만 읽는다({@code datamartExpiry()} 스냅샷). @design AC-033, DFEAT-055
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<DatamartVideoResponse> listDatamartVideos(TokenClaims actor, Pageable pageable) {
@@ -172,6 +184,8 @@ public class PortalLabelService {
         Map<Long, Long> firstSrcSnByVideo = lookupFirstSrcSnByVideo(rawSns);
         Map<Long, Long> frameCountByVideo = lookupFrameCountByVideo(rawSns);
         Map<Long, LocalDateTime> lastUpdatedAtByVideo = lookupLastUpdatedAtByVideo(rawSns);
+        Map<Long, LocalDateTime> myLastLabelSavedAt = lookupMyLastLabelSavedAt(actor.sub(), rawSns);
+        PortalRetentionPolicy.DatamartExpiry expiry = retentionPolicy.datamartExpiry();
 
         // 프레임 0건(=firstSrcSn 부재) 영상은 진입 불가하므로 제외 (MED 방어).
         List<DatamartVideoResponse> content = rows.stream()
@@ -182,7 +196,8 @@ public class PortalLabelService {
                         r.getEvntTypeCd(),
                         frameCountByVideo.getOrDefault(r.getRawSn(), 0L),
                         firstSrcSnByVideo.get(r.getRawSn()),
-                        lastUpdatedAtByVideo.get(r.getRawSn())))
+                        lastUpdatedAtByVideo.get(r.getRawSn()),
+                        expiry.expiresAt(myLastLabelSavedAt.get(r.getRawSn()))))
                 .toList();
 
         // 제외로 인해 페이지 size 보다 적어질 수 있으나 totalElements 는 원본(게이트 후) 기준 유지.
@@ -194,6 +209,21 @@ public class PortalLabelService {
         for (Object[] row : srcRepository.findFirstSrcSnGroupedByRawSn(rawSns)) {
             if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
             map.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return map;
+    }
+
+    /**
+     * 영상별 <b>본인</b> 저장 라벨의 마지막 저장일 — 만료 예정 시각의 기준점. @design DFEAT-055
+     *
+     * <p>단일 집계 쿼리 1회(N+1 회피). 저장 라벨이 없는 영상은 <b>키가 없어</b> null 로 읽히고,
+     * 그러면 {@link PortalRetentionPolicy.DatamartExpiry} 가 만료 예정 시각을 만들지 않는다.
+     */
+    private Map<Long, LocalDateTime> lookupMyLastLabelSavedAt(String portalUserNo, List<Long> rawSns) {
+        Map<Long, LocalDateTime> map = new HashMap<>();
+        for (Object[] row : userLabelRepository.findMaxRegDtGroupedBySrcRawSn(portalUserNo, rawSns)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
+            map.put(((Number) row[0]).longValue(), (LocalDateTime) row[1]);
         }
         return map;
     }
@@ -421,33 +451,52 @@ public class PortalLabelService {
         List<LsPortalUserLabel> mine =
                 userLabelRepository.findByPortalUserNoAndSrcDataSrcSnOrderByRegDtDesc(actor.sub(), srcSn);
 
-        List<PortalFrameLabelsResponse.Item> items;
-        // R17 이슈2 — points 가 비어있는(NULL/공백/빈 좌표) user-label 행은 제외 (로드 방어).
-        // 검증 우회로 생성된 stale row(point_cn NULL) 가 빈 라벨로 반환되어 FE 렌더 크래시 → navigate(-1)
-        // 튕김을 유발하던 회귀를 차단한다. 저장 경로는 @NotBlank pointsJson 으로 1차 차단.
-        // 포털은 2-튜플 좌표(BBOX/POLYGON) 전용이다 — 구 "Phase 9 SKELETON type-route" 는 폐기했다
-        // (CLAUDE.md 포털 절: 수동 라벨링은 BBOX/POLYGON 만). 삼중값 SKELETON 은 2-튜플 파서에서
-        // 형식 위반으로 걸러져 빈 좌표가 되고, 아래 필터가 항목 자체를 제외한다 — 정책 도입 이전에
-        // 적재된 레거시 SKELETON row 도 예외 없이 조용히 스킵된다(삭제 마이그레이션은 별건).
-        List<LsPortalUserLabel> mineWithPoints = mine.stream()
+        // 병합 판정은 아래 단일 지점에 위임한다 — 데이터마트 원본은 <b>본인 저장분이 없을 때만</b>
+        // 조회되도록 Supplier 로 늦춘다(기존 동작 보존: 본인 저장분이 있으면 원본 쿼리가 나가지 않는다).
+        List<PortalFrameLabelsResponse.Item> items =
+                mergeFrameItems(mine, () -> lblRepository.findBySrcSn(srcSn));
+
+        return new PortalFrameLabelsResponse(Math.toIntExact(frame.getFrameNo()), srcSn, rawSn, siblings, items);
+    }
+
+    /**
+     * 프레임 단위 라벨 <b>병합 규칙의 단일 판정 지점</b> — 본인 저장분이 (좌표가 있는 행으로) 1건이라도
+     * 있으면 <b>본인 저장분만</b>, 없으면 데이터마트 원본을 반환한다. @design AC-035
+     *
+     * <h3>왜 별도 메서드로 뽑았는가</h3>
+     * <p>{@link #loadFrameLabels} 외에 <b>데이터마트 ZIP 다운로드</b>(API-203)가 같은 규칙을 프레임
+     * 전체에 적용해야 한다. 규칙을 그쪽에 복제하면 두 경로의 "본인 저장분 우선"이 갈라질 수 있고,
+     * 그 갈라짐은 곧 <b>타 사용자 저장분 노출</b>(AC-035 위반)로 이어진다. 반대로 다운로드가
+     * {@link #loadFrameLabels} 를 프레임마다 부르면 형제 프레임 목록(siblings) 쿼리가 프레임 수만큼
+     * 반복돼 N&sup2; 행을 읽는다. 그래서 <b>판정만</b> 공유하고 조회는 각자 자기 입도로 한다.
+     *
+     * <p>R17 이슈2 — points 가 비어있는(NULL/공백/빈 좌표) user-label 행은 제외한다(로드 방어).
+     * 검증 우회로 생성된 stale row(point_cn NULL)가 빈 라벨로 반환되어 FE 렌더 크래시를 유발하던
+     * 회귀를 차단한다. 포털은 2-튜플 좌표(BBOX/POLYGON) 전용이므로 레거시 삼중값(SKELETON)은
+     * 2-튜플 파서에서 형식 위반으로 걸러져 빈 좌표가 되고 항목 자체가 제외된다.
+     *
+     * @param mine           본인 저장 라벨(그 프레임) — 최신순
+     * @param datamartLabels 데이터마트 원본 라벨 공급자 — <b>본인 저장분이 없을 때만</b> 호출된다
+     */
+    public List<PortalFrameLabelsResponse.Item> mergeFrameItems(
+            List<LsPortalUserLabel> mine,
+            java.util.function.Supplier<List<LsDataLbl>> datamartLabels) {
+        List<LsPortalUserLabel> mineWithPoints = (mine == null ? List.<LsPortalUserLabel>of() : mine).stream()
                 .filter(u -> !parsePoints(u.getPointCn()).isEmpty())
                 .toList();
         if (!mineWithPoints.isEmpty()) {
-            items = mineWithPoints.stream()
+            return mineWithPoints.stream()
                     .map(u -> new PortalFrameLabelsResponse.Item(
                             u.getUserLblSn(), u.getLblTypeCd(), u.getLabelNm(),
                             parsePoints(u.getPointCn())))
                     .toList();
-        } else {
-            items = lblRepository.findBySrcSn(srcSn).stream()
-                    .map(l -> new PortalFrameLabelsResponse.Item(
-                            l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
-                            parsePoints(l.getPointCn())))
-                    .filter(item -> !item.points().isEmpty())
-                    .toList();
         }
-
-        return new PortalFrameLabelsResponse(Math.toIntExact(frame.getFrameNo()), srcSn, rawSn, siblings, items);
+        return datamartLabels.get().stream()
+                .map(l -> new PortalFrameLabelsResponse.Item(
+                        l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
+                        parsePoints(l.getPointCn())))
+                .filter(item -> !item.points().isEmpty())
+                .toList();
     }
 
     /**

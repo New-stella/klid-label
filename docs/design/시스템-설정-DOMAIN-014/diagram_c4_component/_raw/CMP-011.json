@@ -1,0 +1,155 @@
+{
+  "item": {
+    "id": "CMP-011",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_c4_component",
+    "title": "시스템 설정 컴포넌트",
+    "slug": "시스템-설정-컴포넌트-비식별-옵션-포함",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "시스템 설정 컴포넌트",
+      "components": [
+        {
+          "kind": "controller",
+          "name": "SystemConfigController",
+          "arch_role": "driving_adapter",
+          "technology": "Spring @RestController (/v1/manage/configs, @PreAuthorize REVIEWER)",
+          "description": "설정 전체 조회(GET) + 단건 수정(PUT /{key}). REVIEWER 전용, ConfigUpdateRequest @Valid.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "SystemConfigService",
+          "arch_role": "application",
+          "technology": "Spring @Service + Caffeine 'sysconfig' (TTL 60s)",
+          "description": "listAll(화이트리스트 필터) + getInt/getDouble/getString(@Cacheable 핫패스) + update(@CacheEvict allEntries, REVIEWER 이중 검증, 타입별/범위 검증).",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsSystemConfigRepository",
+          "arch_role": "driven_adapter",
+          "technology": "Spring Data JPA (@ControlRepo)",
+          "description": "LS_SYSTEM_CONFIG CRUD — findAll + findByConfigKey.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "library",
+          "name": "ConfigKeys",
+          "arch_role": "domain",
+          "technology": "Java final 상수 클래스",
+          "description": "설정 키 화이트리스트(ALLOWED) + 키별 범위(NUMBER_RANGE/DECIMAL_RANGE) + 코드값 집합(NUMBER_ALLOWED_VALUES) + 시드 없이 저장 가능한 키의 선언 타입(DECLARED_TYPE). 예: BATCH_INTERVAL_SEC · POLYGON_SIMPLIFY_TOLERANCE(전수 목록이 아니라 예시다).",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "AdminSessionController",
+          "arch_role": "driving_adapter",
+          "technology": "Spring @RestController (/v1/manage/admin-session, @PreAuthorize REVIEWER)",
+          "description": "연동 서버 주소 4종을 바꾸기 위한 관리자 단기 유효창을 발급한다(POST). 인가 → 속도 제한 → 관리자 패스워드 대조 순으로 판정하고, 성공하면 무상태 서명 토큰과 만료 일시를 돌려준다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": []
+          }
+        }
+      ],
+      "description": "시스템 설정 컴포넌트. 비식별 옵션 값도 같은 설정 키-값 경로에 담기지만 이 컴포넌트는 저장과 제공만 담당한다. REVIEWER 가 /v1/manage/configs 에서 화이트리스트 키(ConfigKeys.ALLOWED)만 조회/수정한다. SystemConfigController(@PreAuthorize REVIEWER) → SystemConfigService(Caffeine 'sysconfig' 캐시 TTL 60s, getInt/getDouble/getString 핫패스 가속, update 시 allEntries 무효화) → LsSystemConfigRepository(@ControlRepo). 타입별 검증(NUMBER 범위/DECIMAL 범위/BOOLEAN true|false) + 키별 범위(ConfigKeys.NUMBER_RANGE/DECIMAL_RANGE) + Service 단 REVIEWER 이중 검증. CWE-117 방어로 허용 안된 키는 원본 메시지 미노출. 설정값은 비식별 처리(DeidentifyClient 호출 시) 등 소비측이 읽어간다.",
+      "module_name": "sysconfig",
+      "relationships": [
+        {
+          "to": "SystemConfigService",
+          "from": "SystemConfigController",
+          "description": "list / update(key, value, claims) 위임"
+        },
+        {
+          "to": "LsSystemConfigRepository",
+          "from": "SystemConfigService",
+          "description": "findAll / findByConfigKey / 영속"
+        },
+        {
+          "to": "ConfigKeys",
+          "from": "SystemConfigService",
+          "description": "ALLOWED 화이트리스트 + 키별 범위 검증 참조"
+        },
+        {
+          "to": "PostgreSQL LS_SYSTEM_CONFIG",
+          "from": "LsSystemConfigRepository",
+          "technology": "JPA",
+          "description": "SQL CRUD"
+        },
+        {
+          "to": "SystemConfigService",
+          "from": "비식별 처리 (DeidentifyClient 소비)",
+          "description": "비식별 옵션 설정값 조회(getInt/getString)"
+        },
+        {
+          "to": "관리자 세션 발급·검증 (auth 패키지)",
+          "from": "SystemConfigService",
+          "description": "연동 서버 주소 키 저장 시 X-Admin-Session 토큰 검증. 저장을 수행하는 지점 한 곳에서만 확인한다"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-045"
+      ],
+      "referenced_items": [],
+      "external_dependencies": [
+        {
+          "kind": "container",
+          "name": "PostgreSQL LS_SYSTEM_CONFIG",
+          "technology": "PostgreSQL (controlEntityManager)",
+          "description": "설정 키-값 영속 저장소."
+        },
+        {
+          "kind": "container",
+          "name": "비식별 처리 (DeidentifyClient 소비)",
+          "technology": "common.client (Resilience4j)",
+          "description": "비식별 옵션 설정값을 비식별 호출 시 소비(설정은 호출 시 전달). 본 컴포넌트는 설정 저장/제공만 담당."
+        },
+        {
+          "kind": "container",
+          "name": "관리자 세션 발급·검증 (auth 패키지)",
+          "technology": "AdminSessionService / AdminSessionTokenService",
+          "description": "관리자 공유 패스워드 대조와 무상태 서명 토큰의 발급·검증을 담당. AdminSessionController 가 발급을, SystemConfigService 가 연동 주소 저장 시 검증(verify)을 위임한다. 토큰은 주소 설정 변경에만 효력이 있고 역할을 승격시키지 않는다."
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "API-193의 data.implementation 변경이 depicts로 2-hop 전파",
+    "change_summary": "제목과 첫 문장이 선언하는 범위를 실제 구성에 맞춘다. 비식별 옵션을 정체성으로 내세우면서도 그 옵션을 담당하는 구성요소는 하나도 그리지 않았고, 같은 항목이 스스로 '저장과 제공만 담당'이라고 한정하고 있었다. 비식별 옵션이 같은 설정 경로를 쓴다는 사실은 남기고 소비 관계는 기존 의존 표현이 계속 담는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T09:46:00.386Z",
+    "created_at": "2026-06-11T01:09:26.430Z"
+  }
+}

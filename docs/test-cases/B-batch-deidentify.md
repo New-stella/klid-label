@@ -1,6 +1,6 @@
 # B. 배치 파이프라인 + 비식별화 — 테스트 케이스
 
-> **774 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력 표는 제외) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-06 회차 23 정정 — B-21 신설 `TC-VLM-066~078` 로 460→473 · 회차 26 에서 481→487, B-23 내부 업로드 세션 존재 오라클 차단 `TC-ULD-051~056` 신설 · 회차 27 에서 487→494, B-24 `GET /v1/dev/batch/pending` 페이징 `TC-BATCH-215~221` 신설 · **회차 29 에서 494→516** — 이 중 8건은 회차 28(`TC-ULD-057~064`)이 헤더 수치를 갱신하지 않아 누적된 **미반영분 보정**이고, 14건이 B-26 신설분 `TC-DEID-115~128` 이다 · **회차 30 에서 516→539**, B-27 신설분 `TC-DEID-129~151` · **회차 31 에서 539→542**, 자원 상한 교정 `TC-DEID-152~154` · **회차 32 에서 542→575**, B-28 신설 — 비식별 처리 결과 리포트(R14) `TC-DEID-155~187` · **회차 33 에서 575→642**, B-29 신설 — 배치 실패 복구(R1) `TC-BATCH-222~288` · **회차 34 에서 642→656**, 재기동 비동기 전환 `TC-BATCH-289~302` · **회차 35 에서 656→668**, B-29-j 되돌린 스킵의 실효 + 접수 폭 제한 `TC-BATCH-303~314` · **회차 36 에서 668→691**, B-29-k 되돌린 단계 지목 재수행 `TC-BATCH-315~337` · **회차 37 에서 691→707**, 건너뛰기·되돌리기·재수행 단위를 작업 묶음으로 반전 `TC-BATCH-338~353`. · **회차 38 에서 707→712**, `catch (Error)` 갈래 복구 계약 정합 `TC-BATCH-354~358` · **회차 39 에서 712→752**, B-29-l 「처리 중」 고착 회수 스윕 `TC-BATCH-359~398`. · **회차 41 에서 752→766**, B-29-l 적대검증·DB 리뷰 반영(에피소드 결속 · 회수 원자성 · 회전 커서 · 보류 요약) `TC-BATCH-399~412`. · **회차 42 에서 766→767**, 관제 인입 규격 변경 수용(`VMS_CCTV_ID` NULL 허용) `TC-BATCH-013a`. · **회차 44 에서 767→774**, B-30 배치 큐 컬럼 표준용어 개명(V5) `TC-BATCH-413~419`. ⚠ 회차 42 가 신설 1건(`TC-BATCH-013a`)을 머리말 수치에 반영하지 않아 766 으로 남아 있었고 회차 43 에서 실측값으로 맞췄다. ⚠ 회차 33 이 앞의 굵은 수치를 575 로 둔 채 이 괄호 안만 갱신해 두 값이 갈려 있었고 여기서 함께 맞췄다)
+> **799 케이스**(표 행 실측 — **폐기 행 포함**, 행을 지우지 않으므로. 변경 이력 표는 제외) · 계층: unit / integration / security · 우선순위 P0(Critical)~P2 · [← README](README.md) ※ 카운트 = `grep -cE '^\| ~*TC-'`(ID 취소선 폐기 행 포함, 2026-08-06 회차 23 정정 — B-21 신설 `TC-VLM-066~078` 로 460→473 · 회차 26 에서 481→487, B-23 내부 업로드 세션 존재 오라클 차단 `TC-ULD-051~056` 신설 · 회차 27 에서 487→494, B-24 `GET /v1/dev/batch/pending` 페이징 `TC-BATCH-215~221` 신설 · **회차 29 에서 494→516** — 이 중 8건은 회차 28(`TC-ULD-057~064`)이 헤더 수치를 갱신하지 않아 누적된 **미반영분 보정**이고, 14건이 B-26 신설분 `TC-DEID-115~128` 이다 · **회차 30 에서 516→539**, B-27 신설분 `TC-DEID-129~151` · **회차 31 에서 539→542**, 자원 상한 교정 `TC-DEID-152~154` · **회차 32 에서 542→575**, B-28 신설 — 비식별 처리 결과 리포트(R14) `TC-DEID-155~187` · **회차 33 에서 575→642**, B-29 신설 — 배치 실패 복구(R1) `TC-BATCH-222~288` · **회차 34 에서 642→656**, 재기동 비동기 전환 `TC-BATCH-289~302` · **회차 35 에서 656→668**, B-29-j 되돌린 스킵의 실효 + 접수 폭 제한 `TC-BATCH-303~314` · **회차 36 에서 668→691**, B-29-k 되돌린 단계 지목 재수행 `TC-BATCH-315~337` · **회차 37 에서 691→707**, 건너뛰기·되돌리기·재수행 단위를 작업 묶음으로 반전 `TC-BATCH-338~353`. · **회차 38 에서 707→712**, `catch (Error)` 갈래 복구 계약 정합 `TC-BATCH-354~358` · **회차 39 에서 712→752**, B-29-l 「처리 중」 고착 회수 스윕 `TC-BATCH-359~398`. · **회차 41 에서 752→766**, B-29-l 적대검증·DB 리뷰 반영(에피소드 결속 · 회수 원자성 · 회전 커서 · 보류 요약) `TC-BATCH-399~412`. · **회차 42 에서 766→767**, 관제 인입 규격 변경 수용(`VMS_CCTV_ID` NULL 허용) `TC-BATCH-013a`. · **회차 44 에서 767→774**, B-30 배치 큐 컬럼 표준용어 개명(V5) `TC-BATCH-413~419`. · **회차 46 에서 774→785**, B-31 웹훅 멱등 원장 적용일시 표준용어 개명(V8) `TC-VLM-085~095`. · **회차 48 에서 785→789**, B-32 dev 업로드 경로 개명 `TC-ULD-065~068`. · **회차 49 에서 789→799**, B-33 dev 업로드 즉시 실행 경로의 영상 기술메타 적재 `TC-ULD-069~078`. ⚠ 회차 42 가 신설 1건(`TC-BATCH-013a`)을 머리말 수치에 반영하지 않아 766 으로 남아 있었고 회차 43 에서 실측값으로 맞췄다. ⚠ 회차 33 이 앞의 굵은 수치를 575 로 둔 채 이 괄호 안만 갱신해 두 값이 갈려 있었고 여기서 함께 맞췄다)
 
 ## 변경 이력
 
@@ -53,6 +53,10 @@
 | 43 | 2026-08-13 | 2건(TC-DEID-181·185) | 0건 | 0건 | **R14 비식별 이력의 설계 문서 층 정합에 따른 B-28 근거·기대결과 정밀화(문서 전용 · 코드 무변경 · 총계 767건 불변).** FE 축은 [H 회차 47](H-frontend-e2e.md) 이 담당하고 여기서는 그쪽과 짝이 맞아야 하는 두 축만 손봤다. ①`TC-DEID-185` — 「상한 건수」라는 추상 표기를 **최신 20건**(`VideoQueryService.DEIDENT_HISTORY_MAX`)으로 구체화하고 근거에 판정 지점을 보강했다. 값을 적어 두는 이유는 상한이 **BE 단독 계약**이기 때문이다 — ⚠ **화면에 "일부만 표시" 안내가 없으므로**(FE `TC-FE-777`) 사용자는 절단 사실을 알 수 없고, 그 사실을 카탈로그가 대신 기록해야 "안내가 있는 줄 알고" 서술·구현하는 재발을 막는다. ②`TC-DEID-181` — **정렬을 서버가 정한다**는 계약을 기대결과에 명시했다(`REQ_DT DESC` + 동시각 `PROC_LOG_SN DESC`). 화면이 재정렬하지 않는다는 짝(`TC-FE-683`)이 이미 있는데 서버 쪽에는 그 축이 적혀 있지 않아, 한쪽만 읽으면 **정렬 규칙을 화면에도 두는(두 번째 진실원) 변경**이 정당해 보인다. 근거의 `VideoQueryService.java` 도 심볼 없는 파일 단독이라 판정 메서드를 붙였다 |
 | 44 | 2026-08-13 | 1건(TC-BATCH-205 근거 마이그레이션 보강) | 7건(B-30 `TC-BATCH-413~419`) | 0건 | **배치 큐 컬럼 7종 표준용어 개명(V5).** `LS_CLIP_SCHEDULE_QUE` 만 영문 서술형 물리명이 남아 형제 큐(`LS_BAT_RTY_WTNG`·`LS_CONTROL_NOTIFY_FALLBACK`)와 같은 개념에 다른 이름을 쓰고 있었다 — `JOB_TYPE(32)`→`JOB_TYPE_CD(20)` · `STATUS`→`STTS_CD` · `RETRY_COUNT`→`RTRY_NMTM` · `REGISTERED_AT`→`REG_DT` · `STARTED_AT`→`BGNG_DT` · `COMPLETED_AT`→`CMPTN_DT` · `LAST_ERROR`→`LAST_ERR_MSG_CN`. **폭 축소 1건(32→20)은 fail-closed** — `ALTER TYPE` 직전에 최장값을 세어 초과분이 있으면 중단한다(조용한 절단 금지). `RENAME COLUMN` 이라 행·PK·FK·인덱스·기본값이 보존되고, 두 번 돌려도 안전하다. 폴링 계약(가장 오래된 PENDING 1건 → IN_PROGRESS)은 **불변** — 컬럼명만 바뀌었다. **관제 무영향**(관제가 읽지 않고 데이터마트 뷰에도 공급하지 않는다) |
 | 45 | 2026-08-13 | 3건(TC-BATCH-133 삭제 순서 · TrackInterpolationStepTest 보간 출처 단언 2건) | 0건 | 0건 | **`LS_DATA_LBL_AI_INFO` 를 `LS_DATA_LBL` 로 흡수(V6, @req R4)** — 두 테이블이 완전 1:1 이고 라벨 응답이 `autoLblYn`·`confScore`·`lblSrcCd` 를 **항상 함께** 내려줘 라벨을 읽을 때마다 조인이 붙던 것을 제거했다(목적은 표 개수 감소가 아니라 조인 제거). 이관 5컬럼 = `LBL_SRC_CD`·`MDL_NM`·`MDL_VER`·`CONF_SCORE`·`AUTO_LBL_YN`(원 정의 그대로, **NULL 허용·DEFAULT 없음**). `DATA_RAW_SN`·`DATA_SRC_SN`(사본)과 분리 테이블 식별자·감사 컬럼은 이관하지 않는다. ★**DB 축과 응답 축을 서로 다른 층에서 각각 보존**한다 — DB 는 부재를 `NULL` 로 두고(DEFAULT 를 걸면 '사람이 그린 라벨'과 'AI 가 만든 비자동 라벨'이 영구히 구분 불가), 응답의 `'N'` 치환은 `LabelResponse.Item.from` **한 곳**이 담당해 계약이 불변이다. ★**고아 행은 중단 사유가 아니다** — dev 실측 8,093행 중 **15행**이 고아(그 테이블의 `DATA_LBL_SN` 에 FK 가 없다)라 이관에서 제외하고 `RAISE NOTICE` 로만 남긴다(`RAISE EXCEPTION` 이면 그 DB 가 영영 기동하지 못한다). 반대로 **정상 행 누락은 fail-closed**(기대 `count(DISTINCT data_lbl_sn)` 대조, 불일치 시 중단·건수만 노출 CWE-209). ★**잠복 결함 1건 동반 수정** — `LsDataLbl.SRC_INTERPOLATED`(`"INTERPOLATED"`)는 `@Transient` 라 **DB 에 한 번도 닿지 않았고** 실제 적재값·조회 술어는 `"INTERPOLATE"` 였다. 흡수로 그 필드가 적재값이 되므로 상수를 `SRC_INTERPOLATE` 하나로 통일했다(그대로 뒀으면 보간 산출물이 조회에서 통째로 사라진다). 인덱스 `IX_LS_DATA_LBL_LBL_SRC_CD` 로 구 `IDX_LS_DATA_LBL_AI_INFO_SRC_CD` 승계. 데이터마트 뷰 4종 정의 **무변경**(그 뷰들은 흡수 대상을 참조하지 않는다). 회귀 가드 `LblAiInfoAbsorptionIT`(9건 — DEFAULT 부재·타입/폭·인덱스 승계·뷰 무변경·고아 제외·다중행 결정적 채택·fail-closed·2회 적용 안전). B 클러스터 영향: 보간 재실행 멱등이 **자식(AI_INFO) 선삭제 없이** 라벨 삭제 한 번으로 끝난다(고아 가능성 자체가 소멸) · 오토라벨 멱등 판정(`findDistinctSrcSnsByRawSnAndLblSrcCd`)이 라벨 리포지토리로 이동 · `AutoLabelBatchPersister` 가 **saveAll 1회**가 되며 구 「PK 매칭 계약」(인덱스 대응이 어긋나면 엉뚱한 라벨에 메타가 붙는 조용한 오염)이 **구조적으로 불가능**해졌다 |
+| 46 | 2026-08-15 | 0건 | 11건(B-31 `TC-VLM-085~095`) | 0건 | **웹훅 멱등 원장 적용일시 표준용어 개명(V8, @req R2 · @design ERD-021).** `LS_WEBHOOK_IDEMPOTENCY.APLY_DT` 가 **뜻이 다른 표준용어**를 쓰고 있었다 — 담는 값은 `markProcessed` 시점, 즉 콜백 처리 완료(`PROCESSED`)를 원장에 반영한 시각이라 「적용」인데 `APLY` 는 「신청」의 표준 약어다 → **`APLCN_DT`**. 자바 필드도 `aplyDt`→**`aplcnDt`**. **논리명 '적용일시'는 불변**이며 바뀐 것은 물리명뿐이다. ★근거는 "표준에 없어서 빌려 썼다"가 아니다 — 행안부 공통표준*용어*에 「신청일시 = `APLY_DT`」와 「적용일시 = `APLCN_DT`」가 **둘 다** 등록돼 있고 그중 뜻이 다른 쪽을 골라 쓰고 있었다(우선순위 ①행안부에서 판정 종료). ⚠ **선례는 축에 따라 있고 없다** — **물리 컬럼**으로는 `APLCN` 0개 · `APLY` 는 이것 하나뿐이라 처음 쓰는 것이 맞고(`LS_DEIDENT_PROC_LOG.DE_IDNTF_APLCN_DT` **컬럼**이 있다는 서술은 사실이 아니다), **표준용어 사전**에는 「비식별화적용일시 = `DE_IDNTF_APLCN_DT`」가 **KLID-BM 배포분으로 이미 등록**돼 있다. 두 축을 섞어 말하지 말 것. ✅ **사업표준*용어* 사전의 `적용일시 = APLY_DT` override 행은 사용자 확정으로 삭제**했다 — 행안부에 이미 있어 중복이므로 개명이 아니라 삭제이며, `createdBy` 가 우리 소유임을 확인한 뒤 처리했다. **`RENAME COLUMN` 이라** 값·PK·FK·인덱스·**컬럼 순서**가 보존된다 — 이 원장은 **미결 위탁의 상관키 저장소**라 행이 사라지면 지각 콜백이 발급 게이트를 통과하지 못하고 미결 스위퍼도 회수 대상을 잃는다. ★**fail-closed 의 축이 B-30·D-11 과 다르다** — 개명에는 절단 위험이 없고, 대신 **두 이름이 동시에 존재하는 형상**에서 중단한다(그대로 두면 옛 컬럼 값이 아무도 읽지 않는 채로 사라진다). 사유에 `IDMP_KEY` 는 싣지 않는다(CWE-209). ★★**엔티티 매핑 가드가 이 회차의 핵심**이다 — 필드명만 바꾸고 `@Column` 을 빠뜨려도 **컴파일이 통과**하고 `ddl-auto=validate` 도 잡지 못한다(mutation 실증). **관제 계약면 무영향** — 데이터마트 뷰 4종에 공급하지 않는다(네 뷰 정의 본문 참조 0건, 실측) |
+| 47 | 2026-08-15 | 1건(TC-DEID-102 참조 문구) | 0건 | 1건(TC-DEID-058a) | **`DeidentReportResolvedEvent` 를 실동작 이벤트로 적던 오기 정정 — 코드 변경 0(문서 정합).** 회차 16(→ [D 카탈로그](D-review-version-notify.md) ⑤)이 해소 시점의 즉시 재산출·재통지를 폐기했는데, **그 결정을 중복 서술하던 다른 클러스터의 행들이 갱신되지 않아** 같은 오기가 남아 있었다. 코드 실측: `src/main` 에 `new DeidentReportResolvedEvent(` 가 **0건**(테스트가 리스너를 직접 부르는 1건뿐)이고, `DeidentReportService(publishResolvedForExportRecovery)` 가 실제로 발행하는 것은 `DeidentGateReopenedEvent`(항상) + 승인 시 `TaskModifiedEvent(META_UPDATED, exportRegenerated=true, needsRecheck=true)` 다 — 후자는 **재검토 표시만** 세우고 재산출·통지는 **재승인 시점**에 나간다. ★**같은 오기가 6개 층에 복제**돼 있었다 — 이 카탈로그 2행 · [C](C-marking-labeling.md) 1행 · [D](D-review-version-notify.md) 1행 · [E](E-augment-resolution-export-meta.md) 1행 · `docs/v2-wiki` 3곳 · 프로젝트 `CLAUDE.md` 2곳 · 코드 javadoc 4파일 · LogiCraft `EVT-008.documented_emitters`. 한 라운드로 함께 정정했다. ⚠ **클래스와 `DatasetExportBridge` 수신 배선은 삭제하지 않는다** — 그 자리가 다시 필요해질 때를 위한 휴면 확장점이며 이 저장소가 같은 성격의 확장점을 이미 그렇게 유지한다. 표 행 추가·삭제 0(폐기는 취소선 표기) → 머리말·README 합계 불변 |
+| 48 | 2026-08-17 | 0건 | 4건(B-32 `TC-ULD-065~068`) | 0건 | **dev 업로드 경로 개명 — 이름만 바꾸고 동작은 그대로다(@design API-152).** 화면 제목은 「영상 업로드」이고 코드도 이미 `isDevUploadEnabled()`·`lib/devUpload.ts` 로 "dev upload" 라 부르는데 **경로만 구 이름(`autolabel-test`)** 을 쓰고 있었다 — 이 화면이 올린 영상으로 확인하는 것은 오토라벨만이 아니라 적재 → 선두 비식별 → 마킹까지의 전 구간이다. **개명 3축 + 설정 키**: BE API → **`/v1/dev/upload`** · 화면 URL → **`/dev/upload`** · 저장 서브디렉터리 → **`dev-upload`** · 설정 키 → **`authoring.dev.upload.max-file-size`**(env `AUTHORING_DEV_UPLOAD_MAX_FILE_SIZE`, 게이팅 키 `authoring.dev.upload.enabled` 와 같은 prefix 로 합쳤다 — 갈려 있으면 한쪽만 고쳐도 조용히 기본값으로 동작한다). ①**하위호환 별칭·리다이렉트를 두지 않는다** — dev 토글로 게이팅되는 내부 도구라 관제·외부 호출자가 없고, 별칭을 두면 구 이름이 영구히 남아 개명 목적이 사라진다. **구 경로 404 가 정상이다.** ②★**저장 서브디렉터리를 바꿔도 기존 영상은 그대로 열린다** — 그 상수를 읽는 곳은 **쓰기 경로 계산 한 곳뿐**이고 `LS_DATA_RAW.FILE_PATH` 에는 **절대 경로**가 적재되므로 하류 소비자는 DB 값을 읽고 상수를 재조합하지 않는다. ⚠ **그래서 파일 이관 마이그레이션을 만들지 않았다** — DB 경로가 구 디렉터리를 가리켜 옮기면 오히려 그 영상이 열리지 않는다. ③⚠ **클래스명·파일명은 개명 대상이 아니다**(`DevAutolabelTest*` 심볼·파일 경로 무변경 — 같은 파일을 건드리는 후속 작업의 diff 가독성을 위한 의도적 범위 제한). 그래서 가드는 **케밥 표기만** 판정하며 카멜 표기 심볼은 애초에 매칭되지 않는다. ④⚠ **구 경로의 응답은 403 이 아니라 404 다** — 실컨텍스트에서는 `/v1/dev/**` REVIEWER 매처가 **매핑 부재보다 먼저** 걸려 인가 응답이 매핑 소실을 가리므로, 가드는 보안 필터 없는 standalone MockMvc 로 판정한다. 인가 계약 자체는 무변경이다([A](A-auth-common.md) TC-AUTHZ-014 대상 경로 표기만 정정). ⑤**구 이름 0건 가드**는 `backend/src` 전체(java·yml·sql)를 스캔한다 — 제외는 **가드 자신**(구 이름을 설명해야 하는 유일한 곳)과 `db-archive`(스쿼시 이전 마이그레이션 원문 아카이브)뿐이고, 스캔이 실제로 돌았음을 파일 수 하한으로 함께 단언한다(0건 스캔이 통과로 보이는 것을 막는다). ⚠ **이 가드는 착수 중에 실제로 한 건을 잡았다** — yml 주석에 구 설정 키를 남겨 뒀던 것이며, 개명 이력은 가드 한 곳에만 두도록 옮겼다. **mutation 실증**: `@RequestMapping` 을 구 경로로 되돌리니 `TC-ULD-065·066·068` 이 실패했고 원복 확인했다. FE 분은 [H](H-frontend-e2e.md) TC-FE-820~822 |
+| 49 | 2026-08-17 | 0건 | 10건(B-33 `TC-ULD-069~078`) | 0건 | **dev 업로드 「즉시 실행」 경로의 영상 기술메타(`video.*`) 적재 — 누락된 동작을 메운다(@design SCREEN-027).** 그 경로는 `VideoIngestedEvent` 를 발행하지 않아 그 이벤트에 물린 `VideoMetaExtractBridge`→`AsyncVideoMetaRunner`(= `LS_DATA_META` 의 `video.*` 를 쓰는 **유일한 통로**)가 트리거되지 않았고, 그래서 사용자 입력값은 물론 **ffprobe 자동 추출조차 일어나지 않았다**(적재 후 `video.*` 0건). ①**요청 계약(`AutolabelTestRequest`, 6필드)은 넓히지 않는다** — 사용자 «입력» 기술메타는 이 경로에서 계속 전송되지 않고, 채우는 것은 **파일에서 측정한 값**뿐이다(위치·CCTV 제원을 `LS_DATA_RAW` 로 복사하지 않는 확정 설계 + `LS_DATA_INGEST` INSERT 통로 단일 잠금 `LsDataIngestWriteGuardTest` 를 건드리지 않는다) ②★**적재는 기존 통로 `VideoMetaService` 에 위임** — 키 집합 6종과 «미상 필드는 저장하지 않는다» 판정을 그 서비스가 소유하므로 여기서 `video.*` 를 조립하면 두 번째 진실원이 된다 ③★**ffprobe 는 업로드 1건당 1회** — 길이와 기술메타를 같은 한 결과에서 뽑는다. 구 duration 전용 래퍼(`DurationProbe`·`probeWithFfprobe`, `net.bramp`)를 남긴 채 더하면 프로세스가 두 번 뜨고 두 적재값이 갈릴 수 있어, 그 래퍼를 버리고 기존 포트 `VideoProbe`(운영 `BrampVideoProbe` — 타임아웃·좀비 방지 포함)를 재사용한다. 그 결과 **길이 미상(`durationMs=null`)의 취급이 명시**된다 — 0 으로 단정하지 않고 추출 실패(400)로 다룬다(결론은 구 동작과 같다) ④★**적재 시점은 커밋 이후(afterCommit)** — `LS_DATA_META.RAW_SN` 에 FK 가 있고 `VideoMetaService` 는 `REQUIRES_NEW`(별 커넥션)라 업로드 트랜잭션 안에서 부르면 미커밋 `LS_DATA_RAW` 행이 보이지 않아 **FK 위반**이 된다(파이프라인 트리거와 같은 이유라 같은 콜백에 태운다) ⑤**fail-open** — 적재 실패는 업로드를 되돌리지 않고 WARN 만 남긴다(길이 추출 실패만 400). ⚠ afterCommit 콜백의 예외는 `commit()` 밖으로 전파되므로 거기서 반드시 잡아야 커밋된 업로드가 5xx 로 보이지 않는다 ⑥**옵션 `authoring.dev.upload.extract-technical-meta`(env `DEV_UPLOAD_EXTRACT_TECHNICAL_META`) 기본 켜짐** — 누락을 메우는 것이고 ffprobe 는 길이 추출로 이미 호출되므로 끄는 쪽이 예외다. 게이팅 키와 **같은 prefix**(회차 48 이 `max-file-size` 를 합친 것과 같은 이유 — 갈리면 한쪽만 고쳐도 조용히 기본값으로 동작한다). 끄면 **기동 로그(INFO) 1회**로 남긴다(요청 단위는 DEBUG — 도배 금지). ⚠ `authoring.ffmpeg.ffprobe-binary` 사용처가 **간접**(BrampVideoProbe 경유)으로 바뀌어 yml 주석을 정정했다. **mutation 실증 5회**(적재 seam 제거 / fail-open 제거 / 토글 게이트 제거 / 기동 로그 제거 / probe 2회 호출) 전부 원복 확인. FE 분은 [H](H-frontend-e2e.md) TC-FE-843~845 |
 
 > **판정 기준**: 현재 코드(브랜치 `tc-update`, HEAD `11c3e1b8`)가 유일한 진실원. ★ 표시된 항목은 루트 `CLAUDE.md` 의 구속 정책이며 결함으로 재분류하지 않는다.
 
@@ -402,7 +406,7 @@
 | TC-DEID-056 | rawSn·srcSn 두 경로가 동일 본체(`doReport`) (신규) | 두 진입점 | report / reportByVideo | 파생 412·비식별 미수행 412·작업락·`'F'` 전이·스트림 캐시 무효화 **부수효과가 동일**(라벨·개인정보 3필드는 양쪽 모두 보존 — 2026-08-04 리셋 폐기) | integration | P0 | DeidentReportService.java |
 | TC-DEID-057 | resolve 성공 시 `DeidentGateReopenedEvent` 항상 발행 (신규) | 미승인 영상 포함 | resolveManually | 승인 여부와 무관하게 발행 — 보류된 VLM 위탁 재개 신호가 미승인 영상에도 도달해야 하기 때문 | integration | P0 | DeidentReportService.java |
 | TC-DEID-058 | ★개인정보 3필드 보존 — 신고 후 프레임·영상 축 불변 (신규) | 3필드 값 보유 프레임 M건 + 영상 축 수동값 | 신고 201 | `LS_DATA_SRC`·`LS_DATA_RAW` 3필드 값 **불변**, `resetPrivacyMetaByRawSn` 호출 0회, 리셋 감사 이력 0행. 해제 후 기존 판정을 그대로 이어서 사용 | integration | P0 | DeidentReportService.java(5-1 주석) · DeidentReportServiceResetIT · DeidentReportServiceTest(`verify(never()).resetPrivacyMetaByRawSn`) |
-| TC-DEID-058a | resolve 성공 + APPROVED 일 때만 `DeidentReportResolvedEvent` (ID 충돌 정정 — 구 TC-DEID-058) | 검수 승인 영상 | resolveManually | export 재산출·관제 재통지용. 미승인이면 미발행(불필요한 v1 생성 방지) | integration | P0 | DeidentReportService.java |
+| ~~TC-DEID-058a~~ | ~~resolve 성공 + APPROVED 일 때만 `DeidentReportResolvedEvent`~~ **[폐기 2026-08-15]** | ~~검수 승인 영상~~ | ~~resolveManually~~ | **폐기 사유**: 회차 16(D-6a) 통지 트리거 반전으로 해소 시점의 즉시 재산출·재통지가 폐기됐고, `DeidentReportResolvedEvent` 는 **발행처 0건인 휴면 확장점**이 됐다(`src/main` 에 `new DeidentReportResolvedEvent(` 0건 — 코드 실측). 실제로 발행되는 것은 `DeidentGateReopenedEvent`(항상) + 승인 시 `TaskModifiedEvent(exportRegenerated=true, needsRecheck=true)`(**재검토 표시만**)다. 대체 케이스 = TC-DEID-144 · [D TC-NOTIFY-059~061](D-review-version-notify.md) | — | — | ~~DeidentReportService.java~~ → DeidentReportService.java(`publishResolvedForExportRecovery`) |
 | TC-DEID-059 | ★게이트 판정 범위 = 자기 rawSn 행 하나 (신규) | 부모/자손 트리 | `DeidentReportGate.isUnderDeidentReport(rawSn)` | `DE_IDNTF_YN` **단일 컬럼** projection 1회 조회. `ORGNL_RAW_SN` 을 보지 않는다 — 조상 체인 순회·자손 캐시 evict 팬아웃은 4라운드 시도 후 전면 철회됐다(재도입 금지) | security | P0 | DeidentReportGate.java |
 | TC-DEID-094 | ★마킹 단계 신고는 `MARKING_READY` 에서만 접수 (신규 · 구속) | 배치 단계가 `PROCESSING`/`COMPLETED`/`FAILED`/`PENDING` | POST /v1/videos/{rawSn}/deident-report | **412**. 신고 행 미생성 · 작업락 없음 · `DE_IDNTF_YN` 불변. 이 상태에는 프레임·라벨이 아직 없어 ①재마킹이 파괴할 작업 결과가 없고 ②APPROVED 강등 충돌이 없으며 ③단계 판정이 상태로 확정된다 | security | P0 | DeidentReportService.java(`requireMarkingStageAllowed`) · DeidentReportServiceTest.마킹단계_신고는_MARKING_READY_에서만_접수된다 |
 | TC-DEID-095 | 마킹 단계 거부가 배치 단계를 알려주지 않음 (신규 · CWE-209) | 비-`MARKING_READY` 3종 | POST 신고 | 세 상태 모두 **동일 코드(412)·동일 문구**. 상태 코드 원문(`PROCESSING` 등)이 사용자 문구에 새지 않는다 — 응답이 영상 처리 단계 오라클이 되면 안 된다 | security | P0 | DeidentReportServiceTest.마킹단계_신고_거부_문구는_영상의_배치단계를_알려주지_않는다 · DeidentReportControllerTest.videoReportAfterMarkingStage412 |
@@ -412,7 +416,7 @@
 | TC-DEID-099 | ★해소 후 재개 — 마킹 단계는 `MARKING_READY` 되감기 + 활성 마킹 종결 (신규 · 구속) | `DCLR_STP_CD='MARKING'` 신고 resolve | `DeidentStageResumeEvent(MARKING)` (AFTER_COMMIT) | 배치 단계를 `MARKING_READY` 로 되감고 활성 마킹(`PENDING`/`VLM_REQUESTED`)을 `SKIPPED` 로 종결해 재마킹 409(V142 부분 유니크)를 푼다. **상태 되감기까지만** — 실제 재실행은 사람이 다시 마킹하면 기존 `MarkingCompletedEvent → MarkingBatchBridge` 가 탄다(파이프라인 재구현 금지) | integration | P0 | DeidentStageResumeService.resumeMarking · DeidentStageResumeServiceTest.해소시_마킹단계는_MARKING_READY_로_되감긴다 |
 | TC-DEID-100 | ★해소 후 재개 — 라벨링 단계는 프레임만 재추출하고 라벨 보존 (신규 · 구속) | `DCLR_STP_CD='LABELING'` 신고 resolve | `DeidentStageResumeEvent(LABELING)` | `DeidentFrameAttacher.attachDeidentFrames(raw, deidPath, refreshExisting=true)` 로 **기존 `LS_DATA_SRC` 행을 dirty-update**(SRC_SN 보존 → 라벨 FK 유지). 마킹·배치 단계는 건드리지 않는다. ⚠ `FfmpegFrameExtractor` 를 쓰면 새 행이 INSERT 되어 기존 라벨이 고아가 된다 | integration | P0 | DeidentStageResumeService.resumeLabeling · DeidentStageResumeServiceTest.해소시_라벨링단계는_프레임만_재추출하고_라벨을_보존한다 |
 | TC-DEID-101 | 재추출 대상 비식별 영상 경로는 DB 적재값만 사용 (신규) | `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` | resumeLabeling | 적재값 그대로 사용(조합·추측 금지 — mock=`deidentified.mp4` / KPST=`{stem}-mask{ext}` 로 영상마다 다르다). 경로가 없으면 **재추출을 건너뛰고 WARN**(fail-closed) | security | P0 | DeidentStageResumeService.resolveDeidVideo · DeidentStageResumeServiceTest.라벨링단계_재개는_비식별경로가_없으면_추측하지_않고_건너뛴다 |
-| TC-DEID-102 | ★단계 NULL(레거시) 신고는 재개 이벤트를 발행하지 않음 (신규 · 구속) | V171 이전 신고(백필 안 함) | resolveManually / resolveOpenReports | `DeidentStageResumeEvent` **미발행** — 어디서 신고했는지 지어내지 않는다(마킹으로 오판정하면 라벨이 있는 영상을 재마킹 대기로 되감는다). 기존 2종(`DeidentGateReopenedEvent`/`DeidentReportResolvedEvent`)만 발행 = 현행 동작 유지 | integration | P0 | DeidentReportService.publishStageResume · DeidentReportServiceTest.단계가_NULL_인_레거시_신고는_재개_이벤트를_발행하지_않는다 |
+| TC-DEID-102 | ★단계 NULL(레거시) 신고는 재개 이벤트를 발행하지 않음 (신규 · 구속) | V171 이전 신고(백필 안 함) | resolveManually / resolveOpenReports | `DeidentStageResumeEvent` **미발행** — 어디서 신고했는지 지어내지 않는다(마킹으로 오판정하면 라벨이 있는 영상을 재마킹 대기로 되감는다). 단계와 무관한 나머지(`DeidentGateReopenedEvent` 항상 + 승인 시 `TaskModifiedEvent`)만 발행 = 현행 동작 유지. ⚠ 구 기재 *"기존 2종(`DeidentGateReopenedEvent`/`DeidentReportResolvedEvent`)"* 은 회차 16 이후 사실과 다르다 — 후자는 발행처 0건 휴면 확장점이다 | integration | P0 | DeidentReportService.publishStageResume · DeidentReportServiceTest.단계가_NULL_인_레거시_신고는_재개_이벤트를_발행하지_않는다 |
 | TC-DEID-103 | ★resolve 원자 클레임 — 동시 해소는 1회만 재개 (신규 · CWE-362) | 2노드가 같은 신고를 동시 resolve | `claimResolve(OPEN→RESOLVED)` 조건부 UPDATE | 영향행수 1 을 받은 **1건만** 락 해제·`'Y'` 복원·재개 이벤트를 수행하고, 0행은 409. 구 `findById`→상태 비교는 read-then-write 라 둘 다 통과해 무거운 프레임 재추출이 2회 기동됐다. 선례 `BatchTransitionService.tryClaimReprocessFromFailed` | security | P0 | LsDeidentReportRepository.claimResolve · DeidentReportServiceTest.동시_resolve_는_한_번만_재개한다 · DeidentReportStageMigrationIT.resolve_원자클레임은_OPEN일때만_1행을_반환한다 |
 | TC-DEID-104 | 자동(배치) 해소도 단계별 재개를 트리거 (신규) | OPEN 신고 2건(단계 有 1 + NULL 1) | resolveOpenReports | 단계가 있는 것만 재개 이벤트 발행(중복 단계는 1회). 수동 경로와 동작 일치 | integration | P1 | DeidentReportService.resolveOpenReports · DeidentReportServiceTest.자동_배치_해소도_단계별_재개를_트리거하고_단계미상은_제외한다 |
 | TC-DEID-113 | ★신고 목록: 신고자 표시명 `reporterName` (신규 2026-08-04, `main` PR #79 병합 · **ID 충돌 정정 — 구 TC-DEID-094**) | 신고자 `USER_NO` 가 `LS_ACNT_USER` 에 존재 | `GET /v1/deident-reports` | 행마다 `reporterName`=`USER_NM` 채워짐. `reporterNo` 원값도 그대로 유지(하위호환 — 필드 추가만). 이름 해석은 페이지의 `USER_NO` **단일 IN 쿼리** 1회(`findByUserNoIn`) — 행마다 조회하는 N+1 금지 | integration | P1 | DeidentReportService.java · DeidentReportListResponse.java |
@@ -1313,3 +1317,170 @@
 > - **인덱스·제약·시퀀스 이름의 `status` 토큰** — 인덱스 *정의*는 `RENAME COLUMN` 을 자동 추종하지만
 >   이름(`IX_LS_CLIP_SCHEDULE_QUE_STATUS`)은 그대로다. 컬럼 축이 아니라 **별건**이라 케이스를 두지 않았다.
 > - **테이블명 자체(`QUE`)의 표준 정합** — 이 저장소 `LS_*` 다수가 같은 성격의 잔재를 갖고 있어 별도 축이다.
+
+### B-31. 웹훅 멱등 원장 적용일시 표준용어 개명 (V8, 2026-08-15 회차 46 신설) — @req R2 · @design ERD-021
+
+> **왜 필요한가**: `LS_WEBHOOK_IDEMPOTENCY.APLY_DT` 는 **뜻이 다른 표준용어**를 쓰고 있었다. 이 컬럼이
+> 담는 값은 `markProcessed` 시점 — 콜백 처리 완료(`PROCESSED`)를 원장에 반영한 시각이라 「적용」인데,
+> `APLY` 는 「신청」의 표준 약어다 → **`APLCN_DT`**. 논리명은 처음부터 '적용일시'였으므로 **바뀐 것은
+> 물리명뿐**이고 의미·용도는 그대로다.
+>
+> **★근거는 "표준에 없어서 빌려 썼다"가 아니다.** 행안부 공통표준*용어*에 「신청일시 = `APLY_DT`」와
+> 「적용일시 = `APLCN_DT`」가 **둘 다** 등록돼 있고(단어도 신청 `APLY` / 적용 `APLCN` 별개), 그중 **뜻이
+> 다른 쪽을 골라 쓰고 있던** 상황이다. 우선순위 ①행안부에서 판정이 끝나 ②사업표준은 개입하지 않는다.
+>
+> ⚠ **이 스키마에 「적용일시」 선례는 없다** — 실측 결과 `APLCN` 컬럼 0개, `APLY` 컬럼은 이것 하나뿐이다.
+> ⚠ **물리 축에는 선례가 없고 용어 축에는 있다 — 두 축을 섞어 말하지 말 것.**
+> **물리 컬럼**으로는 `APLCN` 을 처음 쓰는 것이 맞다(`LS_DEIDENT_PROC_LOG` 가 `DE_IDNTF_APLCN_DT`
+> **컬럼**을 갖는다는 서술은 사실이 아니다 — 그 테이블의 일시 컬럼은 `REQ_DT`·`RSPNS_DT`·`PRCS_BGNG_DT`
+> 등이다). **그러나 사업표준용어 사전에는 「비식별화적용일시 = `DE_IDNTF_APLCN_DT`」가 등록돼 있다**
+> (출처 **KLID-BM 표준용어정의서 2026-05-28 배포분** — 우리 등록분이 아닌 공유 상위 배포분).
+> 즉 용어 축에는 `APLCN` 선례가 이미 있으며 이번 개명은 그것과 정합하는 방향이다.
+>
+> ✅ **사업표준*용어* 사전의 override 행은 삭제했다(사용자 확정)** — 사전에 「적용일시 = `APLY_DT`」가
+> **우리 프로젝트 출처**로 등록돼 있었으나, 행안부에 「적용일시 = `APLCN_DT`」가 이미 있어 그 override 는
+> 성립하지 않는다(없는 개념을 채운 것이 아니라 **있는 개념을 다른 약어로 덮어쓴 것**). 「사업표준은
+> 행안부에 없는 개념을 채우는 보충」이라는 우선순위 규칙에 따라 **개명이 아니라 행을 지웠다**(같은 용어를
+> 두 사전에 중복 등록하지 않기 위해). 사전은 관제·포털과 공유하는 자산이라 **사용자 확정 후** 삭제했고
+> `createdBy` 가 우리 소유임을 먼저 확인했다.
+>
+> **★`RENAME COLUMN` 이지 재생성이 아니다.** 이 원장은 **미결 위탁의 상관키 저장소**다 — 행이 사라지면
+> ①지각 콜백이 발급 게이트를 통과하지 못하고 ②미결 스위퍼가 회수 대상을 잃어 그 영상의 시계열 메타가
+> 영구 결손된다.
+>
+> **★fail-closed 의 축이 B-30·D-11 과 다르다.** 개명에는 값이 잘릴 위험이 없다. 대신 **두 이름이 동시에
+> 존재하는 형상**(수기 조작·부분 적용 흔적)에서 중단한다 — 그대로 진행하면 애플리케이션은 새 컬럼만 보고
+> 옛 컬럼에 남은 값은 아무도 읽지 않는 채로 사라진다. 사유에는 컬럼 이름과 상태만 싣고 `IDMP_KEY`(외부
+> 상관키)는 싣지 않는다(CWE-209).
+>
+> **★엔티티 매핑 가드가 이 회차의 핵심 경계다** — 필드명만 바꾸고 `@Column` 을 빠뜨리거나 그 반대여도
+> **컴파일은 통과**하고 `ddl-auto=validate` 도 잡지 못한다(mutation 실증: 매핑을 옛 이름으로 되돌려도
+> 컨텍스트는 정상 기동했고 매핑 테스트 2건만 실패했다). 형상 조회만 두면 이 결함이 통째로 샌다.
+>
+> **관제 계약면 무영향** — 이 테이블은 데이터마트 뷰 4종에 공급하지 않는다(네 뷰 정의 본문에 참조 0건, 실측).
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-VLM-085 | 적용일시 컬럼이 표준 물리명으로만 존재한다 | V8 적용된 실 스키마 | `information_schema.columns` 조회 | `APLCN_DT` 실재(1건) + `APLY_DT` **부재**. 옛 이름이 남으면 개명 미적용이고, 둘 다 있으면 어느 쪽이 정본인지 알 수 없다 | integration | **Critical** | V8__rename_webhook_idempotency_aply_dt_to_aplcn_dt.sql · V8WebhookIdempotencyAplcnDtRenameIT.java(`적용일시_컬럼이_표준_물리명으로만_존재한다`) |
+| TC-VLM-086 | 개명 후에도 타입·널허용이 유지된다 | 동일 | 동일 | `timestamp without time zone` · nullable. **NOT NULL 이 되면 발급(ISSUED) 자체가 막힌다**(미처리 행은 적용일시가 없다) | integration | **Critical** | V8WebhookIdempotencyAplcnDtRenameIT.java(`개명_후에도_타입과_널허용이_유지된다`) |
+| TC-VLM-087 | ★★엔티티 필드가 개명된 컬럼에 실제로 매핑된다 | 동일 | 엔티티로 저장 후 새 이름 컬럼 직접 조회 + 재조회 | 엔티티가 쓴 값이 `APLCN_DT` 에서 읽히고 재조회 값과 일치. **매핑이 어긋나도 컴파일·`ddl-auto=validate` 는 통과**하므로 이 케이스가 유일한 탐지 수단이다 | integration | **Critical** | LsWebhookIdempotency.java(`aplcnDt`) · V8WebhookIdempotencyAplcnDtRenameIT.java(`엔티티_필드가_개명된_컬럼에_실제로_매핑된다`) |
+| TC-VLM-088 | ★개명 후에도 발급 → 처리완료 원장 경로가 동작한다 | V8 적용된 실 스키마 | `recordIssued` → `markProcessed` | 발급 시 상태 `ISSUED` + 적용일시 **null**(미처리/처리완료가 구분돼야 한다), 처리완료 시 `PROCESSED` + 적용일시 기록 + 외부 작업 ID 반영 | integration | **Critical** | PersistentWebhookIdempotencyLedger.java(`recordIssued` · `markProcessed`) · V8WebhookIdempotencyAplcnDtRenameIT.java(`개명_후에도_발급부터_처리완료까지_원장_경로가_동작한다`) |
+| TC-VLM-089 | ★★기존 원장 행의 적용일시 값이 개명 후에도 보존된다 | 스크래치 스키마에 개명 전 형상 + 처리완료 1행(적용일시 있음)·미결 1행(null) | V8 스크립트 실행 | 행수·값 그대로. 미결의 null 은 **null 그대로**(개명이 기본값을 주입하면 안 된다) + 같은 행의 다른 컬럼도 온전. **재생성이면 여기서 상관키가 사라져 지각 콜백이 거부되고 미결 회수 대상도 사라진다** | integration | **Critical** | V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`기존_원장_행의_적용일시_값이_개명_후에도_보존된다`) |
+| TC-VLM-090 | ★타입·널허용·**컬럼 순서**가 개명 전과 동일하다 | 개명 전 형상 | V8 스크립트 실행 | 개명 전 값을 먼저 읽어 대조(하드코딩 기대값이 아니다) — 타입·nullable 동일 + `ordinal_position` 5 유지. **`RENAME` 이 아니라 `DROP+ADD` 였다면 순서가 맨 뒤로 밀린다** | integration | High | V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`타입과_널허용과_컬럼_순서가_개명_전과_동일하다`) |
+| TC-VLM-091 | ★옛 이름과 새 이름이 동시에 있으면 마이그레이션이 중단된다 (fail-closed) | 개명 전 형상 + 새 이름 컬럼을 수기로 추가 + 1행 | V8 스크립트 실행 | 예외로 중단 + **형상도 그대로**(`DO` 블록 원자성). 사유에 두 컬럼 이름과 「동시에 존재」가 실려 PG 원문(`already exists`)과 구분된다. ⚠ **`IDMP_KEY` 는 실리지 않는다**(외부 상관키 — CWE-209) | integration | **Critical** | V8__rename_webhook_idempotency_aply_dt_to_aplcn_dt.sql · V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`옛_이름과_새_이름이_동시에_있으면_마이그레이션이_중단된다`) |
+| TC-VLM-092 | V8 을 두 번 적용해도 안전하다 (멱등) | 개명 전 형상 + 1행 | V8 스크립트 2회 실행 | 새 이름만 존재 · 옛 이름 부재 · 행수 유지. 두 번째는 이미 새 이름이라 아무것도 하지 않는다 | integration | High | V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`V8을_두_번_적용해도_안전하다`) |
+| TC-VLM-093 | 테이블이 없으면 아무것도 하지 않는다 (완전 no-op) | 테이블을 지운 스키마 | V8 스크립트 실행 | 예외 없이 통과 + **테이블을 만들어 내지 않는다** | integration | Med | V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`테이블이_없으면_아무것도_하지_않는다`) |
+| TC-VLM-094 | 적용일시 컬럼이 둘 다 없으면 컬럼을 만들어 내지 않는다 | 옛 이름 컬럼을 지운 형상 | V8 스크립트 실행 | 두 이름 모두 부재 유지. **값을 지어내지 않는다**는 이 저장소 규칙의 스키마 축 적용 | integration | Med | V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`적용일시_컬럼이_둘_다_없으면_컬럼을_만들어_내지_않는다`) |
+| TC-VLM-095 | 기본키와 인덱스 2종이 개명 후에도 유지된다 | 개명 전 형상(PK + 인덱스 2종) | V8 스크립트 실행 | `ls_webhook_idempotency_pkey`·`idx_..._ch_state`·`idx_..._ext_job` 정의 유지. 개명 대상 컬럼은 어느 인덱스에도 없지만 **테이블 재생성이면 함께 사라진다**. PK 는 정의 문자열이 아니라 **실제 강제**까지 확인한다(같은 키 2회 INSERT → 위반) | integration | High | V8WebhookIdempotencyAplcnDtRenameGuardIT.java(`기본키와_인덱스_2종이_개명_후에도_유지된다`) |
+
+> **이번 회차에 등재하지 않은 항목(정보 부족 — 지어내지 않는다)**
+> - **사업표준용어 사전의 `적용일시 = APLY_DT` override 행 정리** — 사용자 확정으로 **삭제 완료**.
+>   사전은 LogiCraft 서버 자산이라 이 저장소의 테스트로 검증할 대상이 아니어서 케이스를 두지 않았다.
+> - **전진 창(구 jar 노드의 실패) 재현** — 2노드 배포 시나리오는 단일 JVM 테스트로 재현되지 않는다.
+>   성질은 마이그레이션 헤더와 배포 런북 §4-0-1 에 근거로 남겼다. ⚠ 영향 경로는 **둘**이다 — 콜백 처리
+>   (가용성 손실)와 **위탁 제출**(`recordIssued` INSERT 실패 → 예외 승격 → 파이프라인 `FAILED` 전이).
+>   후자는 상태를 실제로 바꾸므로 콜백 축만 적으면 대가를 과소평가하게 된다.
+> - **테이블명·다른 컬럼의 표준 정합** — 이 라운드의 축이 아니다(별건).
+
+### B-32. dev 업로드 경로 개명 (`/v1/dev/upload` · 저장 `dev-upload` · 설정 `authoring.dev.upload.max-file-size`, 2026-08-17 회차 48 신설) — @design API-152
+
+> **왜 필요한가**: 화면 제목은 「영상 업로드」이고 코드도 이미 `isDevUploadEnabled()`·`lib/devUpload.ts`
+> 로 "dev upload" 라는 개념으로 부르는데 **경로만 구 이름(`autolabel-test`)** 을 쓰고 있었다. 이 화면이
+> 올린 영상으로 확인하는 것은 오토라벨만이 아니라 적재 → 선두 비식별 → 마킹까지의 전 구간이라, 이름을
+> 역할에 맞췄다. **동작 변경은 없다** — 입출력·예외·응답 형태·인가 계약이 전부 그대로이고 이름만 바뀐다.
+>
+> **개명 3축 + 설정 키**: BE API `/v1/dev/autolabel-test` → **`/v1/dev/upload`** · 화면 URL
+> `/dev/autolabel-test` → **`/dev/upload`**(FE 분은 [H](H-frontend-e2e.md) TC-FE-820~822) · 저장 서브디렉터리
+> `autolabel-test` → **`dev-upload`** · 설정 키 `authoring.dev.autolabel-test.max-file-size` →
+> **`authoring.dev.upload.max-file-size`**(env `AUTHORING_DEV_UPLOAD_MAX_FILE_SIZE`).
+>
+> ⚠ **하위호환 별칭·리다이렉트를 두지 않는다 — 구 경로 404 가 정상이다.** 이 endpoint 는 dev 토글
+> (`authoring.dev.upload.enabled`, 기본 false)로 게이팅되는 내부 도구이고 관제·외부 시스템 호출자가 없다.
+> 별칭을 두면 구 이름이 영구히 남아 개명 목적 자체가 사라진다.
+>
+> ★ **저장 서브디렉터리를 바꿔도 기존 영상은 그대로 열린다.** 그 상수를 읽는 곳은 **쓰기 경로 계산
+> 한 곳뿐**이고(`resolveSafeStoragePath` → 호출처는 `upload` 하나), `LS_DATA_RAW.FILE_PATH` 에는 **절대
+> 경로**가 적재되므로 하류 소비자(프레임 추출·export·스트리밍)는 DB 적재값을 읽고 상수를 재조합하지
+> 않는다. 즉 **새로 올리는 파일만** 새 디렉터리로 가고 구 디렉터리와 공존할 뿐이다.
+> ⚠ **그래서 파일을 옮기는 마이그레이션을 만들면 안 된다** — DB 경로가 구 디렉터리를 가리키므로 옮기면
+> 오히려 그 영상이 열리지 않는다(이 카탈로그에 이관 케이스를 두지 않은 이유다).
+>
+> ⚠ **클래스명·파일명은 개명 대상이 아니다** — `DevAutolabelTestController`·`DevAutolabelTestService`·
+> `AutolabelTestResponse` 등 Java 심볼과 파일 경로는 **그대로 둔다**(같은 파일들을 건드리는 후속 작업의
+> diff 가독성을 위한 의도적 범위 제한). 그래서 회귀 가드는 **케밥 표기 `autolabel-test` 만** 판정한다 —
+> 카멜 표기 심볼은 애초에 매칭되지 않는다.
+>
+> ⚠ **구 경로의 응답은 403 이 아니라 404 다** — 실컨텍스트에서는 `SecurityConfig` 의 `/v1/dev/**`
+> REVIEWER 매처가 **매핑 부재보다 먼저** 걸려 401/403 이 매핑 소실을 가린다. 그래서 개명 가드는 보안
+> 필터 없는 standalone MockMvc 로 판정한다. 인가 계약 자체는 무변경이다([A](A-auth-common.md) TC-AUTHZ-014).
+
+| ID | 목적 | 전제 | 실행 | 기대결과 | 계층 | 우선순위 | 근거 |
+|----|------|------|------|----------|:----:|:--------:|------|
+| TC-ULD-065 | 컨트롤러가 새 경로에 매핑된다 (신설) | dev 업로드 토글 ON | `@RequestMapping` 선언 확인 + `POST /v1/dev/upload` 요청 | 선언 값이 `/v1/dev/upload` **하나**이고, 파트 누락으로 400 이 나오더라도 **404 는 아니다**(핸들러 존재) | unit | P0 | DevAutolabelTestController.java(클래스 `@RequestMapping`) · DevUploadPathRenameGuardTest.java(컨트롤러가_새_경로에_매핑되고_구_경로는_404다) |
+| TC-ULD-066 | 구 경로에 별칭·리다이렉트를 두지 않는다 (신설) | 위와 동일 | `POST /v1/dev/autolabel-test` | **404**. 3xx 리다이렉트도 아니다 — 별칭을 두면 구 이름이 영구히 남는다. 보안 필터 없는 standalone MockMvc 로 판정(실컨텍스트는 인가 매처가 401/403 으로 가린다) | unit | P0 | DevUploadPathRenameGuardTest.java(컨트롤러가_새_경로에_매핑되고_구_경로는_404다) |
+| TC-ULD-067 | 저장 서브디렉터리가 `dev-upload` 이고 쓰기 경로가 그 아래로 계산된다 (신설) | 임시 storage 루트 | mp4 업로드 | 응답 `savedFilePath` 가 `dev-upload/` 로 시작하고 **실제 파일의 부모 디렉터리**가 `{storageRoot}/dev-upload` 다(접두어 문자열만 보면 상수가 쓰기 경로에 반영됐는지 알 수 없다) | unit | P0 | DevAutolabelTestService.java(`UPLOAD_SUBDIR` · resolveSafeStoragePath) · DevAutolabelTestServiceTest.java(저장_서브디렉터리_개명_가드) |
+| TC-ULD-068 | 구 이름이 백엔드 소스 전역에 0건이며 설정 키가 게이팅 키와 같은 prefix 다 (신설) | — | `backend/src` 전체(java·yml·sql) 스캔 + yml 선언 키 대조 | 케밥 표기 `autolabel-test` **0건**(제외: 가드 자신 · `db-archive` 아카이브). `authoring.dev.upload.max-file-size` 와 `authoring.dev.upload.enabled` 가 **같은 prefix** 로 선언되고 구 키는 미선언 — 두 키가 갈리면 한쪽만 고쳐도 조용히 기본값으로 동작한다 | unit | High | DevUploadPathRenameGuardTest.java(구_경로_이름이_백엔드_소스에_남아있지_않다 · 업로드_한도_설정키가_새_이름으로_선언되고_구_키는_남아있지_않다) · application-local.yml |
+
+### B-33. dev 업로드 「즉시 실행」 경로의 영상 기술메타(`video.*`) 적재 (2026-08-17 회차 49 신설) — @design SCREEN-027
+
+> **왜 신설했나 — 그 경로는 기술메타가 아예 생성되지 않았다.** dev 업로드에는 적재 경로가 둘인데
+> (「파이프라인 즉시 실행」 = `POST /v1/dev/upload` → `LS_DATA_RAW` 1행 / 「관제 인입 재현」 = TUS →
+> `LS_DATA_INGEST` 원장), 앞의 경로는 **`VideoIngestedEvent` 를 발행하지 않아** 그 이벤트에 물린
+> `VideoMetaExtractBridge` → `AsyncVideoMetaRunner`(= `LS_DATA_META` 의 `video.*` 를 쓰는 **유일한 통로**)가
+> 트리거되지 않았다. 그래서 사용자 입력값은 물론 **ffprobe 자동 추출조차 일어나지 않았다**(적재 후
+> `video.*` 0건).
+>
+> **범위는 「파일에서 읽을 수 있는 것」뿐이다.** 요청 계약(`AutolabelTestRequest`, 6필드)을 넓히지 않으므로
+> 사용자 **입력** 기술메타는 이 경로에서 계속 전송되지 않는다 — 위치·CCTV 제원 등을 `LS_DATA_RAW` 로
+> 복사하지 않는 것이 확정 설계이고, `LS_DATA_INGEST` INSERT 통로는 **단 하나**로 잠겨 있다
+> (`LsDataIngestWriteGuardTest`). 그 잠금을 건드리는 것은 이 회차 범위 밖이다.
+>
+> ★ **적재는 기존 통로(`VideoMetaService`)에 위임한다 — 새 키·새 경로를 만들지 않는다.** 키 집합 6종과
+> "미상 필드는 저장하지 않는다"(값 0 과 미상을 구분) 판정을 그 서비스가 소유하므로, 여기서 `video.*` 를
+> 조립하면 **두 번째 진실원**이 된다(→ [05 §5.5.2](../v2-wiki/05-video-management.md)). 인입 병합
+> 오버로드가 아니라 **probe 단독 오버로드**를 쓴다(이 경로에는 인입 행이 없다).
+>
+> ★ **ffprobe 는 업로드 1건당 1회다.** 영상 길이(`LS_DATA_RAW.VDO_LEN_SEC`)와 기술메타를 **같은 한
+> 결과에서** 뽑는다. 구 구현은 이 서비스가 `net.bramp` FFprobe 를 직접 감싼 **duration 전용 래퍼**를 따로
+> 갖고 있었는데, 그것을 남긴 채 기술메타를 더하면 프로세스가 두 번 뜨고 두 적재값이 갈릴 수 있다. 그래서
+> 그 래퍼(구 `DevAutolabelTestService.DurationProbe` · `probeWithFfprobe`)를 **버리고** 기존 포트
+> `VideoProbe`(운영 구현 `BrampVideoProbe`, 타임아웃·좀비 방지 포함)를 재사용한다.
+> ⚠ 그 결과 **길이 미상의 취급이 명시된다** — `durationMs == null` 을 0 으로 단정하지 않고 **추출 실패
+> (400)** 로 다룬다(`TC-ULD-072`). 400 이라는 결론은 구 동작과 같다.
+>
+> ★ **적재 시점은 커밋 이후(afterCommit)다 — 트랜잭션 안에서 부르면 실패한다.**
+> `LS_DATA_META.RAW_SN` 에 FK(`fk_ls_data_meta_raw → ls_data_raw`)가 있고 `VideoMetaService` 는
+> `REQUIRES_NEW`(별 커넥션)로 쓰므로, `upload()` 트랜잭션 안에서 부르면 아직 커밋되지 않은
+> `LS_DATA_RAW` 행이 그 트랜잭션에서 보이지 않아 **FK 위반**이 된다. 파이프라인 트리거를 afterCommit 에
+> 태우는 것과 같은 이유(read-after-write 가시성)라 **같은 콜백**에 태운다.
+>
+> **fail-open — 실패해도 업로드를 되돌리지 않는다.** 기술메타는 부가 기능이고 길이 추출 실패만 400 이다.
+> ⚠ afterCommit 콜백의 예외는 `commit()` 밖으로 전파되므로 **거기서 반드시 잡아야** 커밋된 업로드가
+> 5xx 로 보이지 않는다. 다만 조용히 삼키지 않고 WARN 으로 남긴다(`TC-ULD-074`).
+>
+> **옵션은 `authoring.dev.upload.extract-technical-meta`(env `DEV_UPLOAD_EXTRACT_TECHNICAL_META`)이고
+> 기본 켜짐**이다 — 누락된 동작을 메우는 것이고 ffprobe 는 길이 추출로 이미 매 업로드마다 호출되므로
+> 끄는 쪽이 예외다. 게이팅 키와 **같은 prefix** 에 붙였다(B-32 가 `max-file-size` 를 합친 것과 같은 이유 —
+> 갈려 있으면 한쪽만 고쳐도 조용히 기본값으로 동작한다). 끄면 그 사실이 **기동 로그(INFO) 1회**로
+> 남는다(요청마다 도배하지 않되 "왜 기술메타가 없지"를 추적할 수 있어야 한다 — 요청 단위는 DEBUG).
+>
+> ⚠ **`authoring.ffmpeg.ffprobe-binary` 사용처 표기가 바뀐다** — dev 업로드가 자체 래퍼를 버렸으므로 이제
+> 이 키를 **간접**(BrampVideoProbe 경유) 사용한다. yml 주석을 그에 맞게 정정했다.
+>
+> **mutation 실증(5회, 전부 원복 확인)**: ①적재 seam 제거 → `TC-ULD-069·070·073·075·076` + `TC-ULD-077`
+> 실패 ②fail-open try/catch 제거 → `TC-ULD-073·074` 실패 ③토글 게이트 제거 → `TC-ULD-071` 실패
+> ④기동 로그 제거 → `TC-ULD-075` 실패 ⑤기술메타용으로 probe 를 한 번 더 호출 → `TC-ULD-076` 실패.
+> FE 분은 [H](H-frontend-e2e.md) TC-FE-843~845.
+
+| ID | 목적 | 전제 | 실행 | 기대결과 | 계층 | 우선순위 | 근거 |
+|----|------|------|------|----------|:----:|:--------:|------|
+| TC-ULD-069 | 즉시 실행 업로드가 영상 기술메타를 적재한다 (신설) | 토글 기본(ON) · probe 가 전 필드 반환 | mp4 업로드 | probe 결과(해상도·코덱·fps·비트레이트·길이·파일크기)가 **기존 통로** `VideoMetaService.upsertVideoMeta(rawSn, meta)` 로 그대로 넘어간다. 구 동작은 이 호출이 **0건**이었다(적재 후 `video.*` 0건) | unit | P0 | DevAutolabelTestService.java(storeTechnicalMeta) · DevAutolabelTestServiceTest.java(즉시_실행_업로드가_영상_기술메타를_적재한다) |
+| TC-ULD-070 | 추출할 수 없는 항목은 비워 두고 지어내지 않는다 (신설) | probe 가 코덱·비트레이트·파일크기 `null` + 해상도 0 반환(길이만 확보) | 업로드 | 미상(null/0)을 **0·빈문자열·추정치로 채우지 않고** 그대로 넘긴다. 실제 행 미생성(skip)은 `VideoMetaService` 가 담당한다(그 판정을 여기서 복제하지 않는다) | unit | P0 | DevAutolabelTestService.java(storeTechnicalMeta) · DevAutolabelTestServiceTest.java(추출할_수_없는_항목은_비워_두고_지어내지_않는다) · VideoMetaService.java(buildDesired) |
+| TC-ULD-071 | 옵션을 끄면 기술메타를 적재하지 않는다 (신설) | `extract-technical-meta=false` | 업로드 | `upsertVideoMeta` 호출 **0건**. 업로드 자체는 정상 완료된다(끄는 것은 부가 기능만 — 응답 `rawSn`·`PROCESSING` 불변) | unit | P0 | DevAutolabelTestService.java(storeTechnicalMeta 게이트) · DevAutolabelTestServiceTest.java(옵션을_끄면_기술메타를_적재하지_않는다) |
+| TC-ULD-072 | ffprobe 가 길이를 모르면 400 — 0 으로 단정하지 않는다 (신설) | probe 가 `durationMs=null` 반환 | 업로드 | **400 INVALID_INPUT** + `LS_DATA_RAW` 저장 0건. 미상을 0 으로 단정하면 "0초 이하" 라는 **다른 사유**로 거부돼 원인이 흐려진다(구 duration 전용 래퍼는 이 구분이 없었다) | unit | P0 | DevAutolabelTestService.java(resolveDurationSec) · DevAutolabelTestServiceTest.java(ffprobe가_길이를_모르면_400_INVALID_INPUT_—_지어내지_않는다) |
+| TC-ULD-073 | 기술메타 적재가 실패해도 업로드는 성공한다 (신설) | `upsertVideoMeta` 가 예외 | 업로드 | 정상 반환(`rawSn` + `PROCESSING`)이고 파이프라인 트리거도 계속 간다. ⚠ afterCommit 콜백의 예외는 `commit()` 밖으로 전파되므로 잡지 않으면 **커밋된 업로드가 5xx** 로 보인다 | unit | P0 | DevAutolabelTestService.java(storeTechnicalMeta catch) · DevAutolabelTestServiceTest.java(기술메타_적재가_실패해도_업로드는_성공한다) |
+| TC-ULD-074 | 기술메타 적재 실패는 로그로 남는다 (신설) | 위와 동일 | 업로드 후 로그 관측 | **WARN** 1건(`technical meta store failed` + rawSn + 예외 타입). fail-open 이 «조용히 삼킴» 이 되면 결손을 아무도 모른다. 경로·PII 는 남기지 않는다(CWE-209) | unit | High | DevAutolabelTestService.java(storeTechnicalMeta catch) · DevAutolabelTestServiceTest.java(기술메타_적재_실패는_로그로_남는다) |
+| TC-ULD-075 | 껐다는 사실이 기동 로그로 남는다 (신설) | `extract-technical-meta=false` | 빈 생성 시 로그 관측 | **INFO** 1건(`technical meta extraction disabled` + 설정 키). 요청마다 도배하지 않고 기동 1회만 알린다(요청 단위는 DEBUG) — 운영자가 "왜 기술메타가 없지"를 추적할 수 있어야 한다 | unit | High | DevAutolabelTestService.java(생성자 경고) · DevAutolabelTestServiceTest.java(기술메타를_껐다는_사실이_기동_로그로_남는다) |
+| TC-ULD-076 | 프로브를 두 번 호출하지 않는다 (신설) | probe 가 호출마다 **다른** 길이를 반환하는 stub | 업로드 | `VideoProbe.probe` 호출이 **정확히 1회**이고, `LS_DATA_RAW` 의 길이와 `video.*` 의 길이가 **같은 한 번의 결과**다. 두 번 부르면 프로세스가 두 번 뜨고 두 적재값이 갈릴 수 있다 | unit | P0 | DevAutolabelTestService.java(probeOnce → resolveDurationSec·storeTechnicalMeta 공유) · DevAutolabelTestServiceTest.java(프로브를_두_번_호출하지_않는다) |
+| TC-ULD-077 | 기존 `video.*` 키 집합 밖의 키를 만들지 않는다 (신설) | **실제** `VideoMetaService` 를 통과시켜 최종 `META_KEY` 관측 | 업로드 | 적재된 키가 전부 `video.` 접두이고 **6종**(`fps`·`codec`·`bit_rate`·`duration_ms`·`filesize`·`resolution`) 안이다. 새 키를 만들면 소비처(`VideoFpsResolver`·`DatasetVideoMetaSnapshotService` 등)가 **읽지 않아** 적재가 무의미해진다 | unit | P0 | VideoMetaService.java(KEY_PREFIX · KEY_FPS~KEY_RESOLUTION) · DevAutolabelTestServiceTest.java(기존_video_메타_키_집합_밖의_키를_만들지_않는다) |
+| TC-ULD-078 | 옵션 기본값은 켜짐이다 (신설) | 프로퍼티를 **지정하지 않은** 컨텍스트 | 빈 주입 후 실제 업로드 | `upsertVideoMeta` 가 호출된다 — `@Value` 기본값이 `true` 로 바인딩됨을 **동작으로** 확인한다(필드 값만 반사로 읽으면 그 플래그가 실제로 참조되는지는 알 수 없다) | unit | High | DevAutolabelTestService.java(`@Value` 기본값) · DevUploadPropertyGuardTest.java(옵션_기본값은_켜짐이다) |

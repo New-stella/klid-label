@@ -66,6 +66,12 @@ class YoloTrackServiceTest {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private AiServerClient aiServerClient;
+    /**
+     * 검출 클래스 → 라벨 마스터 PK 매핑(@design API-123). 실 마스터 행을 심는 대신 mock 으로
+     * 매핑 유무를 직접 통제한다 — 이 테스트의 관심사는 <b>응답에 실리는지</b>이고 매핑 조회 자체는
+     * {@code LabelMasterServiceTest} 가 검증한다. 기본은 미매핑({@code Optional.empty()}).
+     */
+    @MockBean private kr.co.cudo.authoring.label.service.LabelMasterService labelMasterService;
 
     private ListAppender<ILoggingEvent> logAppender;
 
@@ -107,6 +113,9 @@ class YoloTrackServiceTest {
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, exp);
         workerAssigned = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, exp);
         workerNotAssigned = new TokenClaims("101", Role.WORKER, Channel.INTERNAL, exp);
+
+        // 기본 미매핑 — 라벨 마스터에 COCO 매핑이 지정되지 않은 초기 상태가 정상이다.
+        when(labelMasterService.findLabelIdByDtctType(any())).thenReturn(java.util.Optional.empty());
 
         Logger logger = (Logger) LoggerFactory.getLogger(YoloTrackService.class);
         logAppender = new ListAppender<>();
@@ -378,5 +387,93 @@ class YoloTrackServiceTest {
         YoloTrackResponseDto res = yoloTrackService.track(req, reviewer);
         assertThat(res.frames()).hasSize(2);
         assertThat(res.frames()).allSatisfy(f -> assertThat(f.detections()).isEmpty());
+    }
+
+    // ------------------------------------------------------------------
+    // 라벨 마스터 식별자(labelId) — @design API-123, DFEAT-019.
+    //
+    // 화면이 검출 클래스명(COCO 영문)만으로 라벨을 만들면 저장 시 마스터 연결이 끊겨 표시 색뿐
+    // 아니라 라벨명·속성 정의까지 함께 끊긴다. 저장 전에는 정상으로 보이고 재조회 후에야 드러난다.
+    // ------------------------------------------------------------------
+
+    /** 검출 2건(서로 다른 클래스) — 매핑된 것과 미매핑을 한 응답에서 구분하기 위한 픽스처. */
+    private YoloResponse twoClassResponse() {
+        return new YoloResponse(List.of(
+                new YoloResponse.Detection("person", List.of(10.0, 10.0, 40.0, 60.0), 0.9, 7),
+                new YoloResponse.Detection("car", List.of(20.0, 20.0, 50.0, 70.0), 0.8, 8)));
+    }
+
+    @Test
+    @DisplayName("검출클래스에_매핑된_라벨마스터_식별자가_응답에_실린다")
+    void mappedDetectClassCarriesLabelId() {
+        // given — 'person' 만 라벨 마스터에 COCO 매핑(DTCT_TYPE_CD)이 지정돼 있다.
+        //   값 77 은 다른 식별자(trackId 7 · 8)와 겹치지 않게 골랐다 — 겹치면 두 필드를 뒤바꿔
+        //   실어도 단언이 통과한다.
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(java.util.Optional.of(77L));
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(twoClassResponse()));
+
+        // when
+        YoloTrackResponseDto res = yoloTrackService.track(new YoloTrackRequest(src0, List.of(src1)), reviewer);
+
+        // then — 매핑된 검출은 식별자를 갖고, 미매핑은 null 이다(지어내지 않는다)
+        assertThat(res.frames()).hasSize(2);
+        assertThat(res.frames().get(0).detections())
+                .extracting(YoloTrackResponseDto.Detected::label,
+                        YoloTrackResponseDto.Detected::labelId,
+                        YoloTrackResponseDto.Detected::trackId)
+                .containsExactly(
+                        org.assertj.core.api.Assertions.tuple("person", 77L, 7),
+                        org.assertj.core.api.Assertions.tuple("car", null, 8));
+        // 후속 프레임도 같은 규칙을 따른다(프레임마다 판정이 갈리지 않는다)
+        assertThat(res.frames().get(1).detections())
+                .extracting(YoloTrackResponseDto.Detected::labelId)
+                .containsExactly(77L, null);
+    }
+
+    @Test
+    @DisplayName("매핑되지_않은_검출클래스의_식별자는_null이다")
+    void unmappedDetectClassYieldsNullLabelId() {
+        // given — 기본 스텁이 미매핑이다(라벨 관리에 COCO 매핑을 지정하기 전 상태)
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(detectionResponse()));
+
+        // when
+        YoloTrackResponseDto res = yoloTrackService.track(new YoloTrackRequest(src0, List.of(src1)), reviewer);
+
+        // then — 지어낸 값이 들어가면 화면이 엉뚱한 분류로 저장한다
+        assertThat(res.frames().get(0).detections().get(0).labelId()).isNull();
+    }
+
+    @Test
+    @DisplayName("기존_필드는_labelId_추가와_무관하게_그대로다")
+    void existingFieldsUnchangedByLabelIdAddition() {
+        // given
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(java.util.Optional.of(77L));
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(detectionResponse()));
+
+        // when
+        YoloTrackResponseDto res = yoloTrackService.track(new YoloTrackRequest(src0, List.of(src1)), reviewer);
+
+        // then — 추가만 한다(이름·타입·의미 불변)
+        YoloTrackResponseDto.Detected d = res.frames().get(0).detections().get(0);
+        assertThat(d.label()).isEqualTo("person");
+        assertThat(d.points()).containsExactly(10.0, 10.0, 40.0, 60.0);
+        assertThat(d.score()).isEqualTo(0.9);
+        assertThat(d.trackId()).isEqualTo(7);
+        assertThat(d.labelId()).isEqualTo(77L);
+    }
+
+    @Test
+    @DisplayName("같은_검출클래스는_시퀀스_전체에서_한_번만_매핑조회한다")
+    void labelIdLookupIsMemoizedPerRequest() {
+        // given — 3프레임 × 검출 2건 = 6회 등장하지만 클래스는 2종뿐이다
+        when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(java.util.Optional.of(77L));
+        when(aiServerClient.predictYoloTrack(any())).thenAnswer(inv -> Mono.just(twoClassResponse()));
+
+        // when
+        yoloTrackService.track(new YoloTrackRequest(src0, List.of(src1, src2)), reviewer);
+
+        // then — N+1 금지: 검출 건수만큼 DB 를 왕복하지 않는다(요청 단위 메모)
+        verify(labelMasterService, times(1)).findLabelIdByDtctType("person");
+        verify(labelMasterService, times(1)).findLabelIdByDtctType("car");
     }
 }

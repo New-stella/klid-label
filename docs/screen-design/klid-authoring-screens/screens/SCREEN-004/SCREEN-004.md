@@ -1,17 +1,19 @@
 ---
 logicraft_item: SCREEN-004
 type: screen_spec
-version: 8
-last_updated_at: 2026-08-13T01:02:39.357Z
-domain: null
+version: 11
+last_updated_at: 2026-08-16T12:43:58.305Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-14T05:32:06.894Z
-sync_session: 9
+synced_at: 2026-08-18T01:49:51.177Z
+sync_session: 17
 stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-004.json
 wireframe: ./wireframe.html
+links:
+  consumes_apis: ["[[API-153]]"]
 ---
 
 # 개발용 로그인 화면
@@ -175,7 +177,7 @@ _(empty)_
 
 #### [5]
 
-- **note**: 제출 중 disabled + '발급 중…'. POST /api/v1/dev/tokens (API ITEM 미등록)
+- **note**: 제출 중 disabled + '발급 중…'. POST /api/v1/dev/tokens
 - **type**: Button
 - **label**: 토큰 발급 + 진입
 
@@ -193,7 +195,7 @@ _(empty)_
 
 **references_apis**:
 
-_(empty)_
+- API-153
 
 **references_features**:
 
@@ -219,7 +221,7 @@ web
 
 ## consumes_apis
 
-_(empty)_
+- API-153
 
 ## implementation
 
@@ -260,9 +262,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 6812f38c7e5fe40e22176c738560bc5a03b3fa955e81de9934ca27ee086bb92b
-- **generated_at**: 2026-08-13T01:02:39.357Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: db9086586b1a94902f629231c46e3a1d87bd153776a8f8e07ed98c796120eca2
+- **generated_at**: 2026-08-16T12:43:58.304Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

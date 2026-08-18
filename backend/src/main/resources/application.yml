@@ -3,6 +3,30 @@ spring:
     name: klid-la-authoring
   profiles:
     active: local
+  mvc:
+    async:
+      # ★ 비동기 응답(StreamingResponseBody 등)의 제한시간(ms). <b>전 프로파일 공통</b>으로 준다.
+      #
+      #   왜 필요한가 — 이 키가 없으면 컨테이너 기본값 30초가 적용된다. 그리고 그 30초는
+      #   "다음 쓰기까지의 공백"이 아니라 **비동기 처리 시작 이후의 절대 경과시간**이라
+      #   서버가 쉬지 않고 데이터를 쓰고 있어도 리셋되지 않는다(격리 재현: 2초 간격 20청크를
+      #   연속으로 쓰는 중 t=30.1s 에 강제 종료 — 클라이언트는 16개만 수신).
+      #   그래서 포털 작업 데이터 내려받기(GET /v1/portal/datamart/videos/{rawSn}/download —
+      #   현재 유일한 StreamingResponseBody 경로, 비식별 영상이 포함되면 GB 급)는 사실상
+      #   전부 30초에 잘리고 있었다.
+      #
+      #   왜 30분인가 — 실효 대역 5Mbps(내부망 기준으로 보수적으로 잡은 값)에서 약 1.1GB 를
+      #   받아낼 수 있는 시간이다. 화면 쪽 상한(frontend DATAMART_DOWNLOAD_TIMEOUT_MS)도 같은
+      #   근거로 30분이라 두 값이 정렬돼 있다. ⚠ 실제 상한은 언제나 **경로에 걸린 상한들 중 가장
+      #   작은 값**이므로, 앞단(프록시·게이트웨이)에 더 짧은 상한이 있으면 이 값과 무관하게
+      #   거기서 끊긴다 — 그 계층 정렬은 별도 과제다(여기서 다른 파일을 고치지 않는다).
+      #
+      #   ⚠ 전역이라 대가가 있다(사용자가 인지·수용한 선택) — 어딘가에서 **멈춘** 비동기 요청도
+      #     30초가 아니라 30분 동안 요청 스레드·커넥션을 붙잡는다. "왜 이렇게 길지"로 되돌리면
+      #     대용량 내려받기가 다시 전량 30초에 잘린다. 되돌리기 전에 그 경로부터 확인할 것.
+      #   ⚠ 프로파일별 yml 로 옮기지 말 것 — 한 곳이 빠진 환경만 조용히 30초로 되돌아가,
+      #     그 환경에서만 재현되는 결함이 된다(회귀 고정: AsyncRequestTimeoutConfigGuardTest).
+      request-timeout: 1800000
   data:
     web:
       pageable:
@@ -17,7 +41,7 @@ spring:
       # (content-type 이 multipart/form-data 가 아니면 파싱하지 않음) → TUS 무영향.
       #
       # ★ 한도 값의 기준은 프로파일마다 다르다 — 공통은 비운영(local/dev/stg) 기준이다.
-      #   - 공통 500MB/1200MB: dev 업로드(/v1/dev/autolabel-test) 영상 개당 500MB 를 수용해야 해서
+      #   - 공통 500MB/1200MB: dev 업로드(/v1/dev/upload) 영상 개당 500MB 를 수용해야 해서
       #     local/dev/stg 가 동일 값을 각자 복붙하고 있던 것을 공통으로 승격했다.
       #   - 운영(prd)은 dev 업로드 경로가 없으므로 application-prd.yml 에서 21MB/1100MB 로 **다시 조인다**
       #     (이미지 개당 20MB 서비스 검증 + 1MB 헤드룸, 요청당 50장 → 50×21MB=1050MB + 헤드룸).
@@ -57,7 +81,9 @@ spring:
       #
       # ★ portal 데이터소스에 같은 설정이 없는 것은 누락이 아니라 의도다 —
       #   Flyway 는 @Primary(=control) 데이터소스에서만 실행되고(ControlDataSourceConfig),
-      #   portal 은 포털 DB 를 읽기 위주로 참조할 뿐 저작도구가 DDL 을 걸지 않는다.
+      #   portal 은 포털 DB 에 메타를 단방향으로 써 넣을 뿐(DML upsert) 저작도구가 DDL 을 걸지 않는다.
+      #   ⚠ 구 주석 "읽기 위주로 참조" 는 방향이 반대라 폐기한다 — 저작도구는 포털 DB 를 읽지 않는다
+      #     (@PortalRepo 사용처는 메타 복제 축 하나뿐이고 방향은 저작도구 → 포털 DB 쓰기다).
       #   즉 portal 쪽에는 방어할 DDL 락 경합 자체가 없으므로 세션 lock_timeout 을 강제하지 않는다.
       connection-init-sql: SET lock_timeout = '30000'
       # ★ 저작도구 전용 스키마(klid_at) — 이 커넥션 풀에서 나가는 <모든> SQL 의 search_path 다.
@@ -207,6 +233,16 @@ authoring:
   #   - 로컬 기본값은 application-local.yml 에 명시.
   auth:
     admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:}
+  user:
+    last-login:
+      # 최종로그인일시(LS_ACNT_USER.LAST_LGN_DT) 기록 최소 간격(분).
+      #   저작도구엔 독립 로그인 UI 가 없어 기록 지점이 <JWT 검증을 통과한 요청>이고 그 경로는 모든
+      #   요청에서 돈다. 이 값이 없으면 요청 수만큼 DB 쓰기가 발생하므로, 기록기가 넘기는
+      #   (now - 이 값) 창을 조건부 UPDATE 의 WHERE 절이 판정한다.
+      #   ★ 2노드 Active-Active 라 애플리케이션 로컬 캐시가 아니라 <DB 조건절>이 정확성의 근거다.
+      #   0·음수·파싱 실패는 throttle 무력화와 같으므로 기동을 실패시키지 않고 기본값(5)으로 폴백한다
+      #   (부가 기록 기능이라 잘못된 설정 하나로 앱이 뜨지 않는 편이 더 해롭다).
+      throttle-minutes: ${USER_LAST_LOGIN_THROTTLE_MINUTES:5}
   jwt:
     # 서명 알고리즘은 설정값이 아니라 코드 상수다 — 발급은 Jwts.SIG.HS256, 검증은 SecretKeyResolver 의
     #   HMAC 키(Keys.hmacShaKeyFor)로 고정. alg 를 설정으로 뽑으면 alg=none/약한 알고리즘 주입 표면이 생긴다(CWE-347).
@@ -457,8 +493,24 @@ authoring:
   ffmpeg:
     threads: ${FFMPEG_THREADS:2}
     binary: ${FFMPEG_BIN:ffmpeg}
+    # 프레임 1장 추출 프로세스의 대기 상한(초).
+    #   ★ 상한이 없으면 ffmpeg 이 멈췄을 때 호출 스레드가 «영원히» 붙잡힌다. 그 스레드가 포털 프레임
+    #     추출이면 「무갱신 경과」 하트비트를 한 번도 못 쳐서, 멈춘 처리와 정상 처리를 구분하지 못한
+    #     채 자산이 방치로 판정되고 실패 보존기간 뒤 비가역 삭제된다.
+    #   ★ 왜 10분인가 — 프레임 정확 추출(select=eq(n,N))은 입력 seek 없이 파일 처음부터 N번 프레임까지
+    #     디코딩하므로 1장의 비용이 프레임 위치에 대략 비례해 커진다. seek 기반 추출(통상 수 초)에는
+    #     넉넉하고, 정확 추출의 뒤쪽 프레임에도 대개 충분한 값이다.
+    #   ⚠ 올릴 때는 portal.upload.stuck-timeout-minutes 와의 예산 관계를 함께 볼 것 —
+    #     「하트비트 간격 + 이 상한 < 고착 커트라인」이 깨지면 정상 추출이 방치로 판정된다
+    #     (회귀 고정: PortalFrameExtractHeartbeatTest).
+    #   ⚠ 0·음수면 기본값으로 폴백한다(무한 대기로 두지 않는다). 이건 <보호 장치>라 값이 이상하다고
+    #     꺼 버리면 막으려던 위험이 그대로 열리기 때문이며, 「이상하면 건너뛴다」는 고착 스윕 규칙과
+    #     방향이 반대인 것은 의도다(그쪽은 폴백이 곧 데이터 손실, 이쪽은 폴백이 곧 안전).
+    frame-timeout-sec: ${FFMPEG_FRAME_TIMEOUT_SEC:600}
     # ffprobe 바이너리 경로 — 영상 기술메타/duration 추출 전 경로의 단일 진실원 키.
-    #   사용처: BrampVideoProbe · PortalVideoProbeFfprobe · DurationProbeFfprobe · DevAutolabelTestService.
+    #   사용처: BrampVideoProbe · PortalVideoProbeFfprobe · DurationProbeFfprobe.
+    #   (dev 업로드는 자체 ffprobe 래퍼를 버리고 BrampVideoProbe 를 재사용하므로 이 키를 간접 사용한다 —
+    #    영상 길이와 기술메타를 «한 번의 호출» 결과에서 함께 뽑으려면 프로브가 하나여야 한다)
     #   (과거 BrampVideoProbe 만 미정의 키 authoring.ffprobe.binary 를 읽어 FFPROBE_BIN 주입이 누락됐다)
     ffprobe-binary: ${FFPROBE_BIN:ffprobe}
   # Phase 2 — 관제서버 outbound 완료/수정 통지.
@@ -543,7 +595,7 @@ authoring:
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
-  # [개발/검수 전용] dev 로그인(/v1/dev/tokens)·dev 업로드(/v1/dev/autolabel-test) 토글.
+  # [개발/검수 전용] dev 로그인(/v1/dev/tokens)·dev 업로드(/v1/dev/upload) 토글.
   #   - 기본 false(fail-closed) — 미설정 시 prd 든 어디든 빈 부재로 endpoint 미노출.
   #   - DevTokenController/Service·DevAutolabelTest*·DevPipelineRunner 가 @ConditionalOnProperty 로 게이팅,
   #     SecurityConfig 도 authoring.dev.login.enabled 를 읽어 permitAll 매처를 조건부 추가한다.
@@ -554,6 +606,12 @@ authoring:
       enabled: ${DEV_LOGIN_ENABLED:false}
     upload:
       enabled: ${DEV_UPLOAD_ENABLED:false}
+      # 즉시 실행 업로드가 올린 파일에서 영상 기술메타(LS_DATA_META 의 video.*)를 읽어 적재할지.
+      #   - 기본 true — 누락된 동작을 메우는 것이라 끄는 쪽이 예외다(ffprobe 는 영상 길이 추출로
+      #     이미 매 업로드마다 1회 호출되므로 추가 전제가 없다 — 그 한 결과를 함께 쓴다).
+      #   - false 로 끄면 기동 로그(INFO)에 그 사실이 남는다(운영자 추적용).
+      #   - 사용자 «입력» 기술메타는 이 토글과 무관하게 이 경로에서 전송되지 않는다(요청 계약 6필드).
+      extract-technical-meta: ${DEV_UPLOAD_EXTRACT_TECHNICAL_META:true}
 
 # Phase 11 — 포털 채널 TUS 업로드 정책
 # + 포털 전용 이미지/영상 업로드 정책 (PortalUploadProperties 바인딩)
@@ -571,12 +629,46 @@ portal:
     max-chunk-bytes: ${PORTAL_MAX_CHUNK_BYTES:16777216}            # 16 MB — TUS PATCH 단일 청크 상한
     max-label-body-bytes: ${PORTAL_MAX_LABEL_BODY_BYTES:2097152}   # 2 MB — 라벨 PUT 본문 상한(파싱 전 413)
     probe-timeout-sec: ${PORTAL_PROBE_TIMEOUT_SEC:30}              # ffprobe 하드 타임아웃(초)
-    stuck-timeout-minutes: ${PORTAL_STUCK_TIMEOUT_MINUTES:30}      # 무갱신 N분 초과 업로드 → FAILED 마감
+    # 무갱신 N분 초과 업로드(UPLOADED/PROCESSING) → FAILED 마감.
+    #   ★ 판정 축은 「총 처리 시간」이 아니라 「MDFCN_DT 무갱신 경과」다 — 프레임 추출 러너가
+    #     하트비트로 그 값을 밀어내므로 대용량 영상 추출이 몇 시간 걸려도 방치로 판정되지 않는다.
+    #   ★ 단 그 전제는 <하트비트 간격에 상한이 있을 때만> 성립한다. 두 축이 그 상한을 만든다 —
+    #     ① 러너 하트비트가 «경과 시간» 기준이고 그 간격은 이 값에서 파생된다(이 값의 1/4, 5~60초)
+    #     ② 프레임 1장 추출 프로세스에 대기 상한이 있다(authoring.ffmpeg.frame-timeout-sec).
+    #     성립해야 하는 관계: 「하트비트 간격 + 프레임 대기 상한 < 이 값」.
+    #     이 값을 줄일 때는 반드시 그 관계를 다시 볼 것 — 깨지면 «정상 추출이 방치로 판정»되고
+    #     그 자산은 failed-retention-days 뒤 파일·행이 비가역 삭제된다.
+    #   ★ 0·음수면 <그 회차를 건너뛰고 경고>한다(기본값 폴백 없음). 이 전이는 삭제의 예고이고,
+    #     0 을 그대로 적용하면 정상 처리 중인 자산을 즉시 죽이기 때문이다.
+    #   ★ 숫자가 아니거나 빈 값이면 이 잡이 아니라 <설정 바인딩>이 먼저 막아 «기동이 실패»한다
+    #     (PortalUploadProperties 의 long 성분). 오타 하나가 삭제 기준을 조용히 바꾸는 것보다 낫다.
+    stuck-timeout-minutes: ${PORTAL_STUCK_TIMEOUT_MINUTES:30}
     # 정리 스윕 잡(PortalUploadSweepJob) 스케줄 — 만료 TUS 세션 삭제 + 고착 자산 FAILED 전이.
     #   @Scheduled 어노테이션 속성은 상수 표현식만 허용해 record 로 옮길 수 없으므로 placeholder 유지.
     sweep:
+      # ★ 자기 전용 스케줄링 토글. 이 잡은 자기 @EnableScheduling 없이 남의 기능(관제 통지·작업락
+      #   스윕)이 켜 둔 스케줄링에 얹혀 돌고 있었고, 그래서 무관한 기능을 끄면 정리가 <소리 없이>
+      #   멈췄다. 이제 PortalUploadSweepSchedulingConfig 가 이 키로 @EnableScheduling 을 켜고
+      #   같은 키가 잡 빈 등록도 게이팅한다(WorkLockSweepConfig 관례).
+      enabled: ${PORTAL_SWEEP_ENABLED:true}
       interval-ms: ${PORTAL_SWEEP_INTERVAL_MS:1800000}             # 30 m 주기
       initial-delay-ms: ${PORTAL_SWEEP_INITIAL_DELAY_MS:600000}    # 부팅 후 10 m 뒤 첫 실행
+  # 보존기간 만료 자동 삭제 잡(PortalRetentionSweepJob) 스케줄 — 데이터마트 라벨 + 업로드 자산 2축.
+  #   ★ 보존일수(portal.datamart.retention-days 등)는 여기가 아니라 LS_SYSTEM_CONFIG 가 소유한다
+  #     (REVIEWER 가 화면에서 조정). 여기 있는 것은 <스윕 주기>뿐이며, 주기를 바꿔도 보존기간은
+  #     달라지지 않는다 — 삭제 시점 판정은 언제나 커트라인이 한다.
+  #   보존기간은 일 단위라 1 h 주기로 충분하다. 기동 직후 마이그레이션·캐시 준비와 겹치지 않게
+  #   초기 지연을 형제 스윕보다 길게 둔다.
+  retention:
+    sweep:
+      # ★ 자기 전용 스케줄링 토글 — 업로드 스윕(portal.upload.sweep.enabled)과 <별개 키>다.
+      #   이 잡은 사용자 데이터를 비가역으로 지우므로 정리 성격의 형제 잡과 한 스위치에 묶지 않는다
+      #   (한쪽을 끄려다 다른 쪽까지 끄면 그 잘못이 어느 방향으로든 조용하다).
+      #   과거엔 자기 @EnableScheduling 이 없어 관제 통지 등 <무관한 기능>을 끄면 보존기간 삭제가
+      #   소리 없이 멈췄다 — 회귀 고정은 PortalSweepSchedulingIT.
+      enabled: ${PORTAL_RETENTION_SWEEP_ENABLED:true}
+      interval-ms: ${PORTAL_RETENTION_SWEEP_INTERVAL_MS:3600000}          # 1 h 주기
+      initial-delay-ms: ${PORTAL_RETENTION_SWEEP_INITIAL_DELAY_MS:900000} # 부팅 후 15 m 뒤 첫 실행
 
 # UC018 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).
@@ -783,6 +875,16 @@ resilience4j:
       #    timeout-duration=0: 대기 없이 즉시 429.
       portalUserLabel:
         limit-for-period: 300
+        limit-refresh-period: 1m
+        timeout-duration: 0
+      # API-203 (CWE-770) — 포털 데이터마트 작업 데이터 ZIP 다운로드 사용자별 요청량 제한 config.
+      #  - per-user 이름(portalDatamartDownload-{userNo})으로 이 config 를 공유하는 RateLimiter 를 lazy 생성.
+      #  - 한도 근거: 산출물에 비식별 영상이 포함되면 한 요청의 입출력 부담이 크므로 연타를 막는다
+      #    (사용자 확정 — 분당 3회). timeout-duration=0: 대기 없이 즉시 429.
+      #  - ⚠ 형제 제한기와 동일하게 <노드별 in-memory> 라 2노드에서는 실질 한도가 2배다.
+      #    이는 인지·수용된 성질이며 이를 이유로 분산 제한기를 도입하지 않는다.
+      portalDatamartDownload:
+        limit-for-period: 3
         limit-refresh-period: 1m
         timeout-duration: 0
 

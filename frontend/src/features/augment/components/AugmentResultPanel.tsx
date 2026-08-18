@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import { Pagination, pageCountOf } from '@/components/common/Pagination';
 import { FrameGrid12 } from '@/features/deident/components/FrameGrid12';
 import { SideBySideCompare } from '@/features/deident/components/SideBySideCompare';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
-import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
 
 import { augTypeLabel } from '../augTypeLabel';
@@ -45,6 +42,15 @@ export interface AugmentResultPanelProps {
  * 않는다. 생성 중 · 반입 중 · 신고 보류 · 영구 실패 · 취소 · 실삭제가 전부 0장으로 관측되며 대응이
  * 전혀 다르다(기다리면 되는가 / 기다려도 소용없는가). 그 구분은 BE 의 `resultState` 축이 정본이고
  * 화면은 그 값을 문구로만 옮긴다(`emptyPairsMessage`).
+ *
+ * <h3>★파생 영상으로 가는 링크는 두지 않는다 (폐기 확정 — 되살리지 말 것)</h3>
+ * 증강은 이미지 대 이미지라 파생 영상 파일은 원본(비식별) 영상을 **그대로 복사한 것**이고 바뀐
+ * 것은 **프레임 이미지뿐**이다. 그 영상을 재생하면 증강 전 원본이 나오므로 「생성된 파생 영상
+ * 보기」는 성립하지 않는 기능이다(사용자 확정). 저작도구는 파생영상을 재생·마킹하지 않으며 그
+ * 유일한 소비자는 관제서버다. 결과를 확인하는 길은 **프레임 비교 그리드와 확대 비교 창** 하나다.
+ *
+ * ⚠ 응답 필드 `result.derivativeRawSn` 자체는 BE 계약이라 그대로 둔다 — 이 화면이 그 값으로
+ * 링크를 그리지 않을 뿐이다.
  */
 export function AugmentResultPanel({
   result,
@@ -130,45 +136,11 @@ export function AugmentResultPanel({
   // 외부 위탁 항목은 결정 이후(채택/반려/취소)에도 그 사실을 계속 보여준다.
   const reviewable = result.reviewable !== false;
   const showDecision = !isResolution && (decision !== 'PENDING' || reviewable);
-  /**
-   * 이 결과로 만들어진 **파생 영상**으로 가는 링크의 목적지.
-   *
-   * 매핑이 없는 항목(그랜드퍼더링 · 생성 실패)은 오류가 아니라 **원래 없는 것**이라 링크 자체를
-   * 그리지 않는다(죽은 링크를 만들지 않는다). BE 가 null 로 내려주는 필드이므로 값 형태도 함께
-   * 확인한다.
-   *
-   * **실삭제분도 그리지 않는다** — BE 는 `newRawSn` 을 폐기 여부와 무관하게 싣는데, 실삭제는
-   * `LS_DATA_RAW` 행 자체를 지우므로 그 링크는 404 다. 같은 화면이 바로 위에서 "유예 기간이 지나
-   * 삭제되었습니다" 를 띄우면서 "생성된 영상 상세 보기" 를 함께 그리는 자기모순이 된다. 판정은
-   * **BE 가 이미 말해준 사실**(`discard.purged` = DB 실삭제 커밋됨)을 그대로 쓴다 — 같은 이유로
-   * BE 도 이 창에서 프레임 쌍을 비운다(죽은 이미지 링크 차단).
-   */
-  const derivativeRawSn =
-    result.discard?.purged !== true &&
-    typeof result.derivativeRawSn === 'number' &&
-    Number.isInteger(result.derivativeRawSn) &&
-    result.derivativeRawSn > 0
-      ? result.derivativeRawSn
-      : null;
 
   return (
     <div className="flex flex-col gap-3" data-testid={`augment-result-item-${result.id}`}>
       <AugmentProgressPanel augmentId={result.id} enabled={!isResolution} />
       <AugmentPromptSummary augmentId={result.id} prompt={result.prompt} />
-      {derivativeRawSn !== null && (
-        // 검수 흐름이 끊기지 않도록 새 탭으로 연다. `target="_blank"` 에는 탭 하이재킹 방어를
-        // 반드시 붙인다(CWE-1022).
-        <Link
-          to={`/video/${derivativeRawSn}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="augment-derivative-link"
-          className={`inline-flex items-center gap-1 self-start text-body text-accent underline ${KRDS_FOCUS}`}
-        >
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          생성된 영상 상세 보기 (새 창)
-        </Link>
-      )}
       {gridFrames.length > 0 ? (
         <>
           <FrameGrid12

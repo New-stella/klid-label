@@ -140,7 +140,7 @@ class DeidentReportServiceResetIT {
      * <p>폐기 사유: 신고가 개인정보 3필드를 <b>리셋하지 않게</b> 됐다(사용자 확정 — 라벨 보존 정책과
      * 같은 취지). 리셋이 없으면 "리셋 감사"의 대상도 없다. 구 근거(DEV_FIX-B/M5 — PII 표기를 되돌리는
      * 행위이므로 행 단위 감사가 필요하다, OWASP A09)는 사실이었으나 <b>그 행위 자체가 사라졌다</b>.
-     * {@code LS_DATA_LBL_HSTRY}/{@code LS_TASK_EVENT_LOG} 의 {@code PRIVACY_META_RESET} 이벤트 타입과
+     * {@code LS_DATA_LBL_HSTRY}/{@code LS_TASK_EVNT_LOG} 의 {@code PRIVACY_META_RESET} 이벤트 타입과
      * 팩토리는 <b>과거 행 판독을 위해 존치</b>하되 신규 발생은 없다.
      *
      * <p>대체 검증: 신고 후에도 프레임 축 감사 이력이 <b>생성되지 않는다</b>(리셋이 없으므로).

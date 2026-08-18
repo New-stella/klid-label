@@ -1,0 +1,61 @@
+{
+  "item": {
+    "id": "AC-024",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수)",
+    "slug": "영상-학습데이터-가공라벨링메타vlm-시계열-메타-검수",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "라벨·메타·승인된 시계열 메타(RVW_STTS_CD='APPROVED')가 부여되고 검수 승인 시 학습데이터로 확정된다"
+        ],
+        "when": [
+          "작업자가 라벨·메타를 부여하고 외부 VLM 시계열 메타를 REVIEWER가 검토·수정·승인하고 검수한다"
+        ],
+        "given": [
+          "영상 1건이 적재·비식별·마킹·오토라벨링 완료됨"
+        ]
+      },
+      "verifies": [
+        "REQ-026"
+      ],
+      "statement": "영상 1건 단위로 객체 라벨·환경/이벤트 메타·검수된 VLM 시계열 메타가 부여되고 검수를 거쳐 학습데이터로 확정됨",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "보완요청 SFR-17 신규 AC"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-010"
+      ],
+      "covered_by_features": [
+        "FEAT-001",
+        "FEAT-009"
+      ],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-021",
+        "UC-022"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이 수용기준을 구성하는 라벨·메타 저장, 시계열 메타 검토, 검수 승인 각 요소는 자동 검증 대상이다. 다만 셋을 잇는 단일 통합 시나리오 검증은 별도이며 아직 갖춰지지 않았다 — 구성요소별 자동 검증을 통합 커버리지로 오해하지 말 것.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T23:37:47.320Z",
+    "created_at": "2026-06-09T13:03:18.226Z"
+  }
+}

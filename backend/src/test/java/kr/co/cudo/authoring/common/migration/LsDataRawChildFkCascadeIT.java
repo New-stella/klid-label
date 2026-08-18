@@ -56,9 +56,9 @@ class LsDataRawChildFkCascadeIT {
             // ls_raw_data_enrollment 은 V3(사용처 0 테이블 제거)로 테이블째 사라져 FK 검증 대상이 아니다.
             new String[]{"ls_raw_data_status", "raw_data_id", "CASCADE"},
             // ls_task_assign_history 는 V4(사용처 0 테이블 제거 2회차)로 테이블째 사라져 FK 검증 대상이
-            // 아니다. 재배정 증적은 아래 ls_task_event_log 가 단독으로 승계했다.
-            new String[]{"ls_task_assignment", "raw_data_id", "CASCADE"},
-            new String[]{"ls_task_event_log", "raw_data_id", "CASCADE"},
+            // 아니다. 재배정 증적은 아래 ls_task_evnt_log 가 단독으로 승계했다.
+            new String[]{"ls_task_altmnt", "raw_data_id", "CASCADE"},
+            new String[]{"ls_task_evnt_log", "raw_data_id", "CASCADE"},
             new String[]{"ls_data_aug_rvw", "data_raw_sn", "CASCADE"},
             // ls_data_raw_hstry 도 V4 로 테이블째 사라져 FK 검증 대상이 아니다.
             new String[]{"ls_dataset_export", "data_raw_sn", "CASCADE"},

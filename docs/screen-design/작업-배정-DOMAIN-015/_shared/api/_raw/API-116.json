@@ -62,7 +62,7 @@
                     },
                     "eventTypeCd": {
                       "type": "string",
-                      "description": "이벤트 종류 (ASSIGN/REASSIGN/SUBMIT/APPROVE/REJECT)"
+                      "description": "이벤트 종류 — ASSIGN(배정)/REASSIGN(재배정)/SUBMIT(검수 제출)/CANCEL_SUBMIT(제출 취소)/APPROVE(승인)/REJECT(반려)/PRIVACY_META_UPDATE(영상 개인정보 선언 변경)/PRIVACY_META_RESET(비식별 신고로 인한 선언 리셋 — 2026-08-04 리셋 정책 폐기로 신규 발생 없음, 과거 행 판독용)/FRAME_DISCARD(프레임 폐기)/FRAME_RESTORE(프레임 복원)/START_VERSION_APPLY(시작 버전 적용) 총 11종. 이 API 는 타입으로 거르는 파라미터가 없다 — 항상 해당 영상의 전 종류 이벤트를 반환한다."
                     },
                     "prevUserName": {
                       "type": "string",
@@ -76,11 +76,13 @@
                     "subjectUserNo": {
                       "type": "integer",
                       "format": "int64",
-                      "description": "대상 작업자 번호"
+                      "nullable": true,
+                      "description": "대상 작업자 번호 (APPROVE/REJECT 이벤트는 채워지지 않아 null)"
                     },
                     "subjectUserName": {
                       "type": "string",
-                      "description": "대상 작업자 이름"
+                      "nullable": true,
+                      "description": "대상 작업자 이름 (APPROVE/REJECT 이벤트는 채워지지 않아 null)"
                     }
                   }
                 },
@@ -136,6 +138,38 @@
           "description": "성공 — 이벤트 이력 배열. ApiResponse 래퍼.",
           "content_type": "application/json"
         },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "잘못된 배정 ID 입니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "assignmentId 가 null 이거나 0 이하. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
         "401": {
           "schema": {
             "type": "object",
@@ -179,6 +213,51 @@
           },
           "description": "본인 배정이 아닌 이력 조회 시도(IDOR/CWE-639 방어). ErrorCode=FORBIDDEN",
           "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "배정을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "assignmentId 에 해당하는 배정이 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-001",
+        "change_kind": [
+          "scope-shrink"
+        ],
+        "diff_summary": "영상 단위 배정 이력 통합 타임라인(DFEAT-006)",
+        "legacy_source": {
+          "type": "screen",
+          "identifier": "SKKLID-UI-03-02-14",
+          "legacy_artifact_id": "LEGACY-112"
         }
       },
       "deprecated": false,
@@ -194,7 +273,7 @@
           "description": "배정 PK"
         }
       ],
-      "description": "단일 배정의 통합 이벤트 이력(배정/재배정/검수 제출/승인/반려)을 시간 오름차순으로 반환한다. LS_TASK_EVENT_LOG 기반 통합 타임라인(SCR-TASK-003)이며, REVIEWER는 모든 배정 이력을, WORKER는 본인 배정 이력만 조회 가능하다(IDOR 방어 — @PreAuthorize isAuthenticated + 서비스 본인 검증). userNo/userName은 MNG_ACCT_USER batch lookup 값만 노출한다.",
+      "description": "단일 배정의 통합 이벤트 이력(배정/재배정/검수 제출/승인/반려)을 시간 오름차순으로 반환한다. LS_TASK_EVNT_LOG 기반 통합 타임라인(SCR-TASK-003)이며, REVIEWER는 모든 배정 이력을, WORKER는 본인 배정 이력만 조회 가능하다(IDOR 방어 — 인증 필수 + 서비스 본인 검증). userNo/userName은 LS_ACNT_USER batch lookup 값만 노출한다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -209,12 +288,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "배정 이력 성공 응답의 예시를 채웠다 — 배정과 재배정에서 이전 작업자 두 필드가 어떻게 갈리는지 값으로 보여야 소비자가 널 처리를 맞게 짤 수 있다. 배정·재배정 두 행을 예시로 넣었고 래퍼 세 필드에도 의미 설명을 붙였다.",
+    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T04:31:05.969Z",
+    "last_updated_at": "2026-08-16T12:23:10.331Z",
     "created_at": "2026-07-07T07:32:30.290Z"
   }
 }

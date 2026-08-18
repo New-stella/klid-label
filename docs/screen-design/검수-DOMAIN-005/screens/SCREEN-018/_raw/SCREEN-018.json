@@ -232,24 +232,26 @@
           "surface": "page",
           "sections": [],
           "source_hash": "3136d3ef1fb23049215121acbcba563b0d829322bc9d89eea89bc6379b1538c3",
-          "generated_at": "2026-08-10T02:13:06.618Z",
+          "generated_at": "2026-08-13T01:02:39.923Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
       ],
       "uses_constants": [],
       "external_designs": [],
-      "realizes_use_cases": [],
+      "realizes_use_cases": [
+        "UC-023"
+      ],
       "covered_by_acceptances": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 22,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (7.3KB)",
+    "current_version": 24,
+    "stale": true,
+    "stale_reason": "UC-023의 data.brownfield 변경 — realizes",
+    "change_summary": "realizes_use_cases 가 공란이었다. 이 화면(검수 목록, consumes_apis=API-008/API-138)은 UC-023(검수 승인·반려) 플로우의 진입점(REVIEWER 가 검수 대상을 찾아 상세로 진입)이라 UC-023 을 realizes 한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-10T02:13:06.619Z",
+    "last_updated_at": "2026-08-16T07:16:42.940Z",
     "created_at": "2026-05-30T07:55:04.437Z"
   }
 }

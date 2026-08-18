@@ -1,0 +1,69 @@
+{
+  "item": {
+    "id": "INT-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "integration_point",
+    "title": "VLM 시계열 위탁 요청",
+    "slug": "vlm-시계열-위탁-요청",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "status": "draft",
+      "protocol": "rest",
+      "auth_type": "bearer",
+      "direction": "outbound",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-046",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "고도화 신규 — VLM 시계열 위탁 요청"
+      },
+      "auth_detail": {
+        "notes": "`vlm.client.token` 프로퍼티가 설정된 경우에만 `Authorization: Bearer <token>` 헤더를 부착하고, 미설정이면 헤더 없이 호출한다(HTTP 클라이언트 설정에서 조건부로 부착). 즉 인증은 조건부이며 현재 전 프로파일에서 연동 자체가 비활성이라 실사용 이력 없음.",
+        "scheme": "Bearer",
+        "header_name": "X-Idempotency-Key",
+        "token_location": "header"
+      },
+      "data_format": "json",
+      "description": "저작도구가 외부 VLM 서비스에 영상 시계열 메타(설명) 생성을 위탁하는 outbound 호출. 결과 상세는 콜백(INT-003)으로 비동기 수신한다.\n\n## 실측 계약 (2026-08-15 확인)\n- `POST {vlm.client.url}/v1/videovlm/verify`\n- 요청 `VlmTimeseriesRequest`: `request_id` · `event_type` · `media{type, source_type, path, frame_policy{mode, framerate, selected_frames}}` · `callback_url`\n- 동기 응답 `VlmTimeseriesResponse`: `request_id` · `status` (정상값은 `accepted` 만 인정) → 즉시 파이프라인 다음 단계로 진행하고 결과 상세는 콜백으로 받는다\n- 호출 주체: 배치 파이프라인의 시계열 위탁 단계\n- 인증: `vlm.client.token` 설정 시에만 `Authorization: Bearer` 부착(조건부)\n- 파일 본문 미전송 — `media.path` 로 경로만 전달\n- 신고 구간(`DE_IDNTF_YN='F'`) 위탁은 스텝 내부에서 **보류(SKIPPED)** — 실패가 아니라 보류이며, 해소 시 자동으로 재위탁한다(멱등 조건: 시계열 메타 0건)\n\n## 신뢰성 정책 (실측값)\n- HTTP 클라이언트 타임아웃 `vlm.client.timeout-seconds` 기본 **10s**, 배치측 block **45s**\n- Retry `vlmClient`: 3회, 1s, ×2 backoff — **4xx 는 재시도·서킷 집계 제외**(비재시도 오류로 분류)\n- CircuitBreaker `vlmClient`: 50% / window 10 / min-calls 5 / open 30s\n\n## ★★ 활성화 상태 — 환경별 상이\n토글 `vlm.client.enabled` 공통 기본값은 `${VLM_CLIENT_ENABLED:false}` 이나 **local·dev 는 명시 오버라이드로 `true`** 다.\n\n| 환경 | 활성화 | 대상 |\n|---|---|---|\n| local | **실배선(true)** | mock-server(:9400) |\n| dev | **실배선(true)** | mock-server(:9400) |\n| stg | 미연동(기본 false 상속, override 없음) | — 배포 시 실제 env 주입 여부 불명 |\n| prd | 미연동(기본 false 상속, override 없음) | — IP allowlist 선행 설정 필요(활성화 시) |",
+      "idempotency": true,
+      "retry_policy": "Resilience4j Retry `vlmClient` — max-attempts 3, wait 1s, 지수 backoff ×2. 4xx 는 비재시도 오류로 분류해 재시도·서킷 집계에서 제외. CircuitBreaker `vlmClient` — failure-rate 50%, sliding-window 10, min-calls 5, open 30s. 타임아웃: HTTP 클라이언트 `vlm.client.timeout-seconds` 기본 10s. 배치는 응답을 기다리지 않고 제출만 개시한다(구 45초 블로킹 폐기).",
+      "triggers_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "pii_in_payload": false,
+      "related_events": [],
+      "spec_artifacts": [
+        "INTSPEC-003"
+      ],
+      "transport_meta": {
+        "path": "/v1/videovlm/verify",
+        "notes": "벤더(IntelliVIX Video VLM API v2.0.1) 제공 endpoint. base-url 은 `vlm.client.url` (주의: `vlm.client.base-url` 아님).",
+        "method": "POST"
+      },
+      "external_system": "EXTSYS-002",
+      "invoked_by_apis": [],
+      "used_by_domains": [
+        "DOMAIN-005"
+      ],
+      "endpoints_per_env": [],
+      "referenced_in_sequences": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 14,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "절 제목의 근거 표기에서 코드 지목을 걷어낸다 — 확인 일자는 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T13:59:40.328Z",
+    "created_at": "2026-06-01T06:33:45.748Z"
+  }
+}

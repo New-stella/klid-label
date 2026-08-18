@@ -59,7 +59,10 @@ class PortalFrameLabelsServiceTest {
         var deidentGate = org.mockito.Mockito.mock(
                 kr.co.cudo.authoring.label.service.LabelAccessGuard.class);
         service = new PortalLabelService(lblRepository, srcRepository, userLabelRepository,
-                rawDataStatusRepository, null, deidentGate, new ObjectMapper());
+                rawDataStatusRepository, null, deidentGate,
+                new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
+                        org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
+                new ObjectMapper());
     }
 
     private LsDataSrc src(Long srcSn, Long rawSn, int frameNo) {

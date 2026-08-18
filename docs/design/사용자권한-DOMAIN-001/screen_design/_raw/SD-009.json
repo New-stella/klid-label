@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "SD-009",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_design",
+    "title": "SCREEN-024 사용자 관리 화면",
+    "slug": "screen-024-사용자-관리-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "SCREEN-024 사용자 관리 화면",
+      "device": "desktop",
+      "status": "draft",
+      "renders": [
+        {
+          "id": "main",
+          "url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-009/main.html",
+          "label": "사용자 관리 화면 — 고충실도 디자인",
+          "width": 1440,
+          "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-009/main.css",
+          "surface": "page",
+          "platform": "web",
+          "description": "SCREEN-024 사용자 관리 화면의 고충실도 디자인(page surface). KRDS Public(DS-001) 토큰 기반, 검색/역할 필터·사용자 목록 테이블(역할·상태 배지, 아바타 이니셜)·상태 참고(로딩/빈결과/오류)·사용자 정보 수정 모달 프리뷰를 포함.",
+          "uploaded_at": "2026-08-13T08:41:16.829Z",
+          "uploaded_by": "claude-screen-design"
+        }
+      ],
+      "designer": "claude-screen-design",
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "type": "screen",
+          "legacy_artifact_id": "LEGACY-125"
+        }
+      },
+      "description": "REVIEWER가 사용자 목록을 조회·검색·필터링하고 역할을 수정하는 관리 화면의 고충실도 디자인. 디자인 시스템 DS-001(KRDS Public) 토큰만 사용했으며, 와이어프레임 골격(페이지 헤더·검색/역할 필터·사용자 목록 테이블·사용자 정보 수정 모달)을 보존한 채 상태별 비주얼(역할/상태 배지, 로딩 스켈레톤, 빈 결과, 조회 실패), 데이터 밀도(아바타 이니셜, 긴 이메일 ellipsis, loginId 대체 표시), 시각 위계와 컴포넌트 디테일(hover/focus/disabled, 인라인 검증 문구)을 추가했다.",
+      "design_source": {
+        "tool": "other",
+        "version": "mc-logi-screen-design v1.3.2 (Claude 직접 작성, 외부 디자인 도구 미사용)"
+      },
+      "designs_screen": "SCREEN-024"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "SCREEN-024의 data.consumes_apis 변경 — designs",
+    "change_summary": "디자인 화면 업로드 (main, page) +css",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-13T08:41:16.830Z",
+    "created_at": "2026-08-11T07:29:02.992Z"
+  }
+}

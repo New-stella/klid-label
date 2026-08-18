@@ -32,10 +32,6 @@
               "data": {
                 "type": "object",
                 "properties": {
-                  "mock": {
-                    "type": "boolean",
-                    "description": "ai-server mock 응답(모델 미로드/AI_MOCK_MODE) 여부. true면 FE에서 경고 + 자동 적용 차단"
-                  },
                   "score": {
                     "type": "number",
                     "format": "double",
@@ -53,30 +49,12 @@
                     "description": "외곽 폴리곤 좌표 [[x,y], ...] (Douglas-Peucker 단순화, 최소 3정점)"
                   }
                 },
-                "description": "SAM2 클릭/박스 분할 결과 (Sam2SegmentResponse)"
-              },
-              "mock": {
-                "type": "boolean",
-                "description": "ai-server mock 응답 여부. true면 FE에서 자동 적용 차단"
-              },
-              "score": {
-                "type": "number",
-                "description": "분할 신뢰도 0.0~1.0 (소수 4자리)"
+                "description": "SAM2 분할 결과 (Sam2SegmentResponse)"
               },
               "message": {
                 "type": "string",
                 "nullable": true,
                 "description": "응답 메시지 (성공 시 null)"
-              },
-              "polygon": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  }
-                },
-                "description": "외곽 폴리곤 좌표 [[x,y], ...] (Douglas-Peucker 단순화, 최소 3정점)"
               },
               "success": {
                 "type": "boolean",
@@ -91,7 +69,6 @@
           },
           "example": {
             "data": {
-              "mock": false,
               "score": 0.91,
               "polygon": [
                 [
@@ -116,7 +93,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "분할 성공 — 폴리곤+신뢰도. ApiResponse 래퍼의 data 에 Sam2SegmentResponse 가 담긴다.",
+          "description": "분할 성공 — 폴리곤+신뢰도. ApiResponse 래퍼의 data 에 Sam2SegmentResponse 가 담긴다. AI 모델 미로드(mock) 시 data.polygon 은 빈 배열이며, 이 사실은 data 의 별도 필드가 아니라 응답 최상위 message 필드(\"AI 모델 미로드 — 결과 신뢰 불가\")로 전달된다.",
           "content_type": "application/json"
         },
         "400": {
@@ -383,17 +360,19 @@
         "last_updated": "2026-06-05T05:06:15.398Z"
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-001"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "설명에서 내부 구현 클래스명과 프레임워크 표기 기법을 걷어낸다. 배타 검증·원본 실행 정책·좌표 검증·상한 등 계약은 그대로다.",
+    "change_summary": "200 응답 data 에서 mock 필드를 제거했다. 실제 응답은 data 에 mock 을 싣지 않고, AI 모델 미로드(mock) 시 응답 최상위 message 필드(\"AI 모델 미로드 — 결과 신뢰 불가\")로 안내하며 data.polygon 은 빈 배열이 된다. description 에 이 사실을 명시했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:53:47.837Z",
+    "last_updated_at": "2026-08-16T23:43:31.690Z",
     "created_at": "2026-06-04T06:40:50.264Z"
   }
 }

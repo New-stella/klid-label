@@ -44,6 +44,13 @@ export interface PortalUpload {
   frmeSn: number | null;
   failRsnCn?: string | null;
   regDt: string;
+  /**
+   * 보존기간 만료 예정 시각. 처리 중(UPLOADED·PROCESSING)이면 삭제 대상이 아니라 `null` 이다.
+   *
+   * ★ 서버가 **조회 시점에 계산하는 파생값**이다(저장되지 않는다) — 보존기간 설정이 바뀌면 다음
+   * 조회부터 값이 달라지므로 화면이 보관하거나 스스로 계산하지 않고 받은 값을 그대로 쓴다.
+   */
+  expiresAt: string | null;
 }
 
 /** 프레임 요약 1행 — BE PortalUploadFrameResponse. */
@@ -68,4 +75,6 @@ export interface PortalUploadDetail {
   regDt: string;
   mdfcnDt: string | null;
   frames: PortalUploadFrame[];
+  /** 보존기간 만료 예정 시각 — 목록과 동일 판정(처리 중이면 `null`). */
+  expiresAt: string | null;
 }

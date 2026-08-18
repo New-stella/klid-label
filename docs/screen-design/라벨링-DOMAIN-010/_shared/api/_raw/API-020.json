@@ -302,7 +302,7 @@
             "success": false,
             "errorCode": "EXTERNAL_API_ERROR"
           },
-          "description": "ai-server 연동 실패 / 잘못된 응답 (Resilience4j). ErrorCode=EXTERNAL_API_ERROR → HTTP 502 BAD_GATEWAY (구 503 표기 정정 — 실제 매핑은 502, sam2-segment와 정합)",
+          "description": "ai-server 연동 실패 / 잘못된 응답 (Resilience4j). ErrorCode=EXTERNAL_API_ERROR → HTTP 502 BAD_GATEWAY",
           "content_type": "application/json"
         }
       },
@@ -326,6 +326,70 @@
         }
       ],
       "description": "지정 객체를 SAM2로 이어지는 프레임에서 추적·외곽 밀착한다. ai-server 호출. REVIEWER/WORKER.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "srcSn",
+            "trackId",
+            "prevPolygon",
+            "label",
+            "nextSrcSns"
+          ],
+          "properties": {
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "객체 라벨명"
+            },
+            "shape": {
+              "enum": [
+                "BBOX",
+                "POLYGON"
+              ],
+              "type": "string",
+              "nullable": true,
+              "description": "결과 형태. null 이면 POLYGON 기본 — BBOX 면 추적 폴리곤의 외접 bbox 를 산출해 반환한다"
+            },
+            "srcSn": {
+              "type": "integer",
+              "format": "int64",
+              "description": "대상 프레임 PK. path 변수와 일치해야 함(CWE-345 — 불일치 시 400)"
+            },
+            "trackId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "maxLength": 64,
+              "minLength": 1,
+              "description": "트랙 식별자 — 이전 라벨에 부여된 식별자, 신규 트랙이면 클라이언트가 발급. 로그·ai-server 요청에 그대로 전달되므로 문자 집합을 제한한다"
+            },
+            "nextSrcSns": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "description": "트래킹 대상 후속 프레임의 SRC_SN 목록 (상한 50)"
+            },
+            "prevPolygon": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "maxItems": 1000,
+              "minItems": 3,
+              "description": "시작 프레임의 폴리곤 좌표 [[x,y], ...] (최소 3점)"
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -342,12 +406,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "change_summary": "요청 계약(request_body)이 선언에서 빠져 있어 채운다. SAM2 Track 시작에 필요한 최소 계약은 srcSn(경로 변수와 일치해야 함)·trackId(로그·외부 연동에 그대로 전달되므로 문자 집합을 제한)·prevPolygon(시작 프레임 폴리곤, 최소 3점)·label·nextSrcSns(추적 대상 후속 프레임 목록, 상한 50)이며 전부 필수다. shape 는 결과 형태(BBOX|POLYGON) 선택 필드로, 미지정 시 POLYGON 이 기본이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:49:47.059Z",
+    "last_updated_at": "2026-08-16T23:43:36.684Z",
     "created_at": "2026-05-30T07:19:46.480Z"
   }
 }

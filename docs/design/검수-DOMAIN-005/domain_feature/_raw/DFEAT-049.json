@@ -1,0 +1,85 @@
+{
+  "item": {
+    "id": "DFEAT-049",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "검수자↔작업자 이슈 소통 채널 (반려·문의 통합 스레드)",
+    "slug": "검수자작업자-이슈-소통-채널-반려문의-통합-스레드",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "검수자↔작업자 이슈 소통 채널 (반려·문의 통합 스레드)",
+      "status": "implemented",
+      "consumes": [],
+      "priority": "could",
+      "triggers": [],
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-015",
+        "change_kind": [
+          "feature-add"
+        ],
+        "diff_summary": "R1 외 추가 — v1 이슈 탭의 v2 재구현 (양방향 스레드로 확장)"
+      },
+      "user_story": {
+        "as": "라벨링 작업자(WORKER)",
+        "i_want": "작업 중인 영상에서 검수자에게 문의를 남기고 반려 사유와 함께 답변을 한 곳에서 확인하고 싶다",
+        "so_that": "화면 밖 채널(메신저 등) 없이 작업 맥락 안에서 소통해 재작업·재검수 주기를 단축한다"
+      },
+      "description": "v1 '관리자 확인요청/이슈 탭'의 v2 재구현 (R1 요구사항 외 추가 결정, 2026-06-05).\n\n- **통합 스레드**: 검수 반려 이력(REJECTION, 생성 시점부터 RESOLVED 고정)과 작업자 문의(INQUIRY)를 영상 단위 단일 API 로 통합 조회\n- **상태머신**: INQUIRY 는 OPEN →(REVIEWER 댓글 시 자동)→ ANSWERED →(resolve, REVIEWER 전용)→ RESOLVED. 역행 금지, resolve 멱등\n- **댓글 규칙**: RESOLVED INQUIRY 댓글 차단(409), 단 REJECTION 은 RESOLVED 여도 후속 질문 허용\n- **범위**: 영상 단위 + 선택적 프레임 참조(srcSn). 타 영상 프레임 참조 차단\n- **권한**: WORKER 는 현재 배정(LS_TASK_ALTMNT) 또는 본인 작성 이슈만, REVIEWER 전체. PORTAL_USER 차단(내부 전용)\n- **동시성**: 낙관적 잠금 — resolve↔댓글 충돌 시 409\n- **미포함**: 첨부파일·푸시·이메일 알림\n\nFE: 라벨링 화면(/label/:id) 우측 패널 '이슈' 탭 (IssueThreadPanel) + 검수 화면 통합. 미해소 문의 카운트 배지. videoId 부재 시 탭 비노출(프레임 PK 폴백 금지).",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "acceptance_rules": [
+        {
+          "then": "INQUIRY/OPEN 이슈가 생성되고 스레드에 즉시 표시된다",
+          "when": "이슈 탭에서 문의를 등록하면",
+          "given": "WORKER 가 현재 배정된 영상의 라벨링 화면에 있을 때"
+        },
+        {
+          "then": "상태가 ANSWERED 로 자동 전이된다",
+          "when": "REVIEWER 가 댓글을 작성하면",
+          "given": "OPEN 상태의 INQUIRY 에"
+        },
+        {
+          "then": "409 CONFLICT 로 거부된다 (REJECTION 은 허용)",
+          "when": "댓글을 작성하면",
+          "given": "RESOLVED 상태의 INQUIRY 에"
+        },
+        {
+          "then": "403 으로 거부된다",
+          "when": "스레드 조회/댓글/등록을 시도하면",
+          "given": "WORKER 가 배정되지 않고 본인 작성 이슈도 없는 영상에"
+        }
+      ],
+      "persists_in_tables": [
+        "LS_DATA_ISSUE",
+        "LS_ISSUE_COMMENT"
+      ],
+      "related_acceptances": [],
+      "implemented_by_endpoints": [
+        "API-102",
+        "API-103",
+        "API-104",
+        "API-105"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "brownfield.notes 에서 저장소 경로·커밋 식별자·점검 회차 표기를 걷어낸다. 설계 근거 서술은 그대로 두었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T12:31:51.889Z",
+    "created_at": "2026-06-05T05:02:30.311Z"
+  }
+}

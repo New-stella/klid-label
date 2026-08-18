@@ -1,0 +1,158 @@
+{
+  "item": {
+    "id": "CMP-010",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_c4_component",
+    "title": "영상 적재 컴포넌트 (관제 인입 테이블 폴링 적재)",
+    "slug": "영상-적재-컴포넌트-관제-학습용-설정-픽업",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "영상 적재 컴포넌트 (관제 인입 테이블 폴링 적재)",
+      "components": [
+        {
+          "kind": "module",
+          "name": "ControlTrainingVideoScanJob",
+          "arch_role": "driving_adapter",
+          "technology": "Quartz Job (@DisallowConcurrentExecution)",
+          "description": "인입 폴링 트리거(1회/분). 좀비 회수(reclaimStaleProcessing)를 스캔 앞에 수행하고 그 실패는 흡수해 정상 적재를 막지 않는다. 행별 실패는 서비스가 격리하므로 Job 은 안전망 로깅만 한다.",
+          "implementation": {
+            "status": "in_progress",
+            "modules": [],
+            "records": [],
+            "progress": 80,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "TrainingVideoIngestService",
+          "arch_role": "application",
+          "dfeat_ref": "DFEAT-008",
+          "technology": "Spring @Service",
+          "description": "미처리 인입 행 배치 조회(findPendingReadyForPolling, 상한 100)는 쓰기 밖에서 수행하고, 행별 적재는 TrainingVideoIngestTx(REQUIRES_NEW)로 위임해 부분 실패를 격리한다. reclaimStaleProcessing 으로 타임아웃 경과한 PROCESSING 고착 행을 되돌린다. 반환=신규 적재 건수.",
+          "implementation": {
+            "status": "in_progress",
+            "modules": [],
+            "records": [],
+            "progress": 80,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "TrainingVideoIngestTx",
+          "arch_role": "application",
+          "technology": "Spring @Component (REQUIRES_NEW)",
+          "description": "단일 인입 행 적재의 트랜잭션 경계 빈. 식별자·CCTV·파일경로 가드 + 이중 멱등(findByVmsClipId + UK 위반 catch) 후 LsDataRaw 저장, 정상 적재 시 VideoIngestedEvent(EVT-005) 발행.",
+          "implementation": {
+            "status": "in_progress",
+            "modules": [],
+            "records": [],
+            "progress": 80,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "LsDataIngestRepository",
+          "arch_role": "driven_adapter",
+          "technology": "Spring Data JPA",
+          "description": "★관제 공유 마스터 READ 를 대체한 인입 테이블 접근. findPendingReadyForPolling(미처리 후보 배치 조회) · 조건부 UPDATE 원자 클레임(2노드 중복 적재 방지) · reclaimStaleProcessing(타임아웃 좀비 회수).",
+          "implementation": {
+            "status": "in_progress",
+            "modules": [],
+            "records": [],
+            "progress": 80,
+            "subtasks": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "VideoRepository",
+          "arch_role": "driven_adapter",
+          "technology": "Spring Data JPA",
+          "description": "LS_DATA_RAW 적재(save) + VMS_CLIP_ID 멱등 조회(findByVmsClipId).",
+          "implementation": {
+            "status": "implemented",
+            "modules": [],
+            "records": [],
+            "progress": 100,
+            "subtasks": []
+          }
+        }
+      ],
+      "description": "UC-018 영상 적재의 컴포넌트 구조. ★ADR-042 로 적재 주체가 반전됐다 — 관제서버가 LS_DATA_INGEST 에 직접 INSERT 하고, 저작도구는 그 테이블을 폴링해 적재한다. 구 구조(관제 공유 MNG_CLIP_MASTER.JOB_DMND_YN='Y' 후보를 READ 해 픽업)는 폐기됐고 해당 Repository 2종도 삭제됐다.\n\n[흐름] Quartz Job(ControlTrainingVideoScanJob, @DisallowConcurrentExecution, 1회/분) → ①좀비(PROCESSING 고착) 회수를 스캔 앞에 수행해 회수된 행이 같은 tick 에 바로 처리되게 한다(회수 실패는 흡수해 그 tick 의 정상 적재를 막지 않는다) ②TrainingVideoIngestService.scanAndIngest 가 미처리 행을 배치 조회(상한 100) ③행별로 TrainingVideoIngestTx(REQUIRES_NEW 독립 트랜잭션)이 원자 클레임 후 LS_DATA_RAW(PENDING) 적재 ④VideoIngestedEvent(EVT-005) 발행 → 선두 비식별 파이프라인으로 이어진다.\n\n[★2노드 Active-Active 안전장치] Quartz 클러스터링은 트리거 중복 발화만 막고 잡 내부 레이스는 막지 않는다. 그래서 후보 선점을 조건부 UPDATE 로 원자 클레임하고, 클레임 후 죽은 노드 때문에 PROCESSING 으로 고착된 행은 타임아웃 기반 회수가 되살린다.\n\n[부분 실패 격리] 행별 적재를 REQUIRES_NEW 로 분리해 한 건의 실패가 나머지 tick 을 깨뜨리지 않는다. 식별자·파일경로 gap 은 skip(WARN), 멱등은 VMS_CLIP_ID 조회 + UK 위반 catch 이중 방어다.",
+      "module_name": "video.ingest",
+      "relationships": [
+        {
+          "to": "TrainingVideoIngestService",
+          "from": "ControlTrainingVideoScanJob",
+          "technology": "Quartz tick",
+          "description": "reclaimStaleProcessing() → scanAndIngest() 순서로 주기 호출"
+        },
+        {
+          "to": "LsDataIngestRepository",
+          "from": "TrainingVideoIngestService",
+          "description": "미처리 인입 행 배치 조회(상한 100) + 좀비 회수"
+        },
+        {
+          "to": "TrainingVideoIngestTx",
+          "from": "TrainingVideoIngestService",
+          "description": "행별 적재 (REQUIRES_NEW, 부분 실패 격리)"
+        },
+        {
+          "to": "LsDataIngestRepository",
+          "from": "TrainingVideoIngestTx",
+          "description": "조건부 UPDATE 원자 클레임 (중복 적재 방지)"
+        },
+        {
+          "to": "VideoRepository",
+          "from": "TrainingVideoIngestTx",
+          "description": "findByVmsClipId 멱등 조회 + LsDataRaw save (PENDING 적재)"
+        },
+        {
+          "to": "관제서버 (LS_DATA_INGEST INSERT 주체)",
+          "from": "LsDataIngestRepository",
+          "technology": "공유 DB 테이블",
+          "description": "관제가 INSERT 한 행을 저작도구가 SELECT/UPDATE (적재 상태 전이만 쓴다)"
+        },
+        {
+          "to": "비식별 선두 파이프라인 (IngestDeidentifyBridge)",
+          "from": "TrainingVideoIngestTx",
+          "technology": "Spring ApplicationEventPublisher",
+          "description": "VideoIngestedEvent(EVT-005) 발행 (정상 적재 시)"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-007",
+        "DFEAT-008"
+      ],
+      "referenced_items": [],
+      "external_dependencies": [
+        {
+          "kind": "container",
+          "name": "관제서버 (LS_DATA_INGEST INSERT 주체)",
+          "technology": "공유 PostgreSQL 테이블",
+          "description": "★관제가 학습용 영상을 이 테이블에 직접 INSERT 한다(ADR-042). 저작도구는 읽고 적재 상태만 UPDATE 하며 업무 데이터를 되돌려 쓰지 않는다. 관제 공유 MNG_* 마스터 참조는 전면 제거됐다."
+        },
+        {
+          "kind": "container",
+          "name": "비식별 선두 파이프라인 (IngestDeidentifyBridge)",
+          "technology": "Spring @TransactionalEventListener(AFTER_COMMIT) + @Async",
+          "description": "VideoIngestedEvent 후속 — 적재 커밋 후 AsyncDeidentifyRunner 로 선두 비식별 트리거. 본 컴포넌트 경계 밖."
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 진척 상태를 적은 마지막 문단을 걷어낸다. 어느 브랜치에서 무엇이 아직 커밋되지 않았는지는 설계 사실이 아니라 그때그때의 작업 상태라, 이 다이어그램을 읽는 사람에게 참이 아니다. 컴포넌트 구성·관계·흐름 서술은 그대로 둔다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T10:01:05.195Z",
+    "created_at": "2026-06-11T01:08:39.202Z"
+  }
+}

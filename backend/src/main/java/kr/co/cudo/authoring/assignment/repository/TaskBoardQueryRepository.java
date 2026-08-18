@@ -53,7 +53,7 @@ import java.util.Set;
  *
  * <p><b>설계 제약</b>:
  * <ul>
- *   <li><b>행 증식 원천 차단(HIGH-1)</b> — {@code LS_TASK_ASSIGNMENT} 는 한 영상에 여러 행(재배정
+ *   <li><b>행 증식 원천 차단(HIGH-1)</b> — {@code LS_TASK_ALTMNT} 는 한 영상에 여러 행(재배정
  *       누적)이 존재할 수 있고, {@code LS_DATA_INGEST}/{@code LS_ACNT_USER} 도 조인 대상이다.
  *       따라서 <b>어떤 조인도 사용하지 않고</b> 모든 조건을 상관 서브쿼리({@code EXISTS})로만 표현한다.
  *       {@code FROM LS_DATA_RAW} 단일 테이블이라 결과 행이 영상 1건=1행으로 고정되고

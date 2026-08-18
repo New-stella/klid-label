@@ -520,7 +520,9 @@ SELECT count(*) AS ls_tables_should_be_58
 ```
 
 > **⚠ V4 가 기동을 멈췄다면 그건 버그가 아니라 fail-closed 다.** V4 는 제거 전제(이력 테이블 0행 /
-> `LS_COM_CD` 시드 5행 외 없음 / 배정이력 전 행이 대응 `LS_TASK_EVENT_LOG` REASSIGN 행 보유)를
+> `LS_COM_CD` 시드 5행 외 없음 / 배정이력 전 행이 대응 이벤트 로그의 REASSIGN 행 보유 — V4 는 그
+> 시점의 물리명 `LS_TASK_EVENT_LOG` 로 확인한다. V9 개명 후의 이름은 `LS_TASK_EVNT_LOG` 이며,
+> V4 가 V9 보다 **먼저** 돌므로 순서상 어긋나지 않는다)를
 > 검사해, 하나라도 깨지면 DROP 하지 않고 **예외로 중단**한다. 조용히 지워 비가역 손실을 내는 대신
 > 사람이 판단하게 하는 것이다. 메시지에 어느 테이블·몇 행인지 찍히므로 그 데이터를 확인하고
 > 백업·정리 후 재기동한다. 판단 근거는 `V4__drop_unused_tables_round2.sql` 헤더에 있다.
@@ -654,6 +656,272 @@ sudo systemctl start klid-ai-server klid-backend klid-frontend
 
 > **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌릴 때는 스키마를 함께
 > 되돌려야 한다. 절차는 `07-uninstall-rollback.md` 「알려진 비호환 — V5」 참조.
+
+### 4-0-1. V8(웹훅 멱등 원장 적용일시 컬럼 개명) 배포 시 주의 — V5 와 같은 부류다
+
+**V8 도 하위호환 개명이 아니다.** `LS_WEBHOOK_IDEMPOTENCY.APLY_DT` 가 `APLCN_DT` 로 바뀌므로,
+**V8 이 적용된 스키마와 아직 구 jar 인 노드가 공존하는 창** 동안 그 노드의 아래 2경로가 실패한다
+(`ERROR: column "aply_dt" does not exist`).
+
+| 실패 경로 | 증상 |
+|---|---|
+| **웹훅 콜백 처리** | 외부 시계열 결과 콜백이 원장을 갱신하지 못해 실패 — **가용성** 손실 |
+| **위탁 제출** | 외부 호출 직전 상관키 적재가 실패하고 그 예외가 승격돼 **파이프라인이 `FAILED` 로 전이** — 상태 전이 + 재시도 예산 소모 |
+
+> ⚠ **두 번째 경로를 빠뜨리지 마라.** 엔티티에 `@DynamicInsert` 가 없어 INSERT 가 전 컬럼을 명시하므로
+> 읽기 축만 깨지는 것이 아니다. 가용성만 잃는 첫 번째와 달리 **작업 상태가 실제로 바뀐다.**
+
+> **데이터는 잃지 않고 중복 위탁도 열리지 않는다.** 실패는 전부 트랜잭션 롤백이고 원장 행은 미결로
+> 남아 미결 스위퍼가 회수·재위탁한다. 상관키 적재가 외부 호출보다 **앞**이라 실패 시 제출 자체가
+> 중단된다(fail-closed) — 원장 없는 위탁이 나갈 수 없다.
+
+#### ★ 창을 여는 것은 Flyway 가 아니다 (V5 절과 다른 점)
+
+**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
+(스키마는 `schema.sql` 로드). 반대로 Flyway 가 켜진 구성은 **단일 노드**다. 즉 이 배포 형상에서
+**2노드와 Flyway 는 상호배타**이며, 2노드에서 창을 여는 것은 **DBA 의 수동 DDL** 이다.
+
+⇒ 수동 DDL 적용 시점과 노드 재기동 순서를 맞추는 것이 절차의 핵심이다. 적용 시점에 따라
+**두 노드가 동시에 구 jar 인 구간**이 생길 수 있어 "한 노드만 구 jar" 가정보다 불리하다.
+
+> ⚠ **§4-0(V5) 의 `(a)` 절차에 적힌 *"먼저 기동한 노드가 Flyway 로 V5 를 적용한다"* 는 서술은
+> Flyway 가 켜진 단일 노드 구성에만 해당한다.** 2노드 이중화(권장 구성)에서는 성립하지 않는다 —
+> 그 경우 V5 도 수동 DDL 이다. (선존 서술이라 여기서 고치지 않고 사실만 짚는다.)
+
+#### 배포 절차
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 정지 후 배포 (권장)** | 양쪽 노드를 내리고 → DDL 적용 → 배포·기동 — 공존 창이 없다 | 짧은 **다운타임** |
+| **(b) 롤링 재기동** | 한 노드씩 교체해 무중단 유지 | 창 동안 콜백 실패 + **일부 영상이 `FAILED` 로 전이** |
+
+V5 와 달리 **사용자 대면 500 은 없으나**, 위 두 번째 경로가 작업 상태를 바꾸므로 **(a) 를 권장**한다.
+(b) 를 고르면 창 이후 `FAILED` 로 떨어진 영상의 재처리가 필요하다.
+
+```bash
+# (a) 정지 후 배포 — 2노드면 양쪽 모두
+sudo systemctl stop klid-frontend klid-backend klid-ai-server
+#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+#   … 패키지 교체(install.sh) …
+sudo systemctl start klid-ai-server klid-backend klid-frontend
+```
+
+반영 확인:
+
+```sql
+-- 개명이 끝났으면 1행, 아직이면 0행
+SELECT column_name FROM information_schema.columns
+ WHERE table_schema = current_schema()
+   AND table_name   = 'ls_webhook_idempotency'
+   AND column_name  = 'aplcn_dt';
+
+-- 옛 이름이 남아 있으면 미적용 — 0행이어야 정상
+SELECT column_name FROM information_schema.columns
+ WHERE table_schema = current_schema()
+   AND table_name   = 'ls_webhook_idempotency'
+   AND column_name  = 'aply_dt';
+```
+
+> **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 구버전 엔티티는 옛 컬럼명으로
+> 매핑하므로 개명을 되돌리지 않으면 위 2경로가 계속 깨진다. 되돌리는 DDL 과 Flyway 이력 정리 절차는
+> **V8 마이그레이션 파일 헤더의 「롤백 절차」 절**에 있다.
+
+### 4-0-2. V9(작업 배정·이벤트 로그 테이블 개명) 배포 시 주의 — 이 계열에서 영향이 가장 넓다
+
+**V9 도 하위호환 개명이 아니며, V5·V8 과 달리 테이블 자체의 이름이 바뀐다.**
+
+| 옛 물리명 | 새 물리명 |
+|---|---|
+| `LS_TASK_ASSIGNMENT` | `LS_TASK_ALTMNT` (배정 = 행안부 공통표준단어 `ALTMNT`) |
+| `LS_TASK_EVENT_LOG` | `LS_TASK_EVNT_LOG` (이벤트 = 사업표준단어 `EVNT`) |
+
+**V9 가 적용된 스키마와 아직 구 jar 인 노드가 공존하는 창** 동안 그 노드의 아래 경로가 실패한다
+(`ERROR: relation "ls_task_assignment" does not exist`).
+
+| 실패 경로 | 사용자에게 보이는 증상 |
+|---|---|
+| **작업 배정·재배정** | 배정 INSERT/UPDATE 와 이벤트 적재가 같은 트랜잭션이라 **배정 전체가 500** |
+| **검수 제출·승인·반려** | 상태 전이와 이벤트 적재가 같은 트랜잭션이라 **검수 전체가 500** — 사용자 대면 |
+| **작업 목록·검수 목록·영상 목록** | 배정 조인/EXISTS 가 깨져 **목록 조회 500** |
+| **통계** | 작업자별 집계가 배정을 조인하므로 실패 |
+| **개인정보 선언 변경** | 감사 INSERT 실패로 **해당 PUT 전체가 롤백** |
+
+> ⚠ **V5·V8 과 달리 자기치유되지 않는다.** 두 앞선 개명은 실패분이 미결 큐·발신함에 남아 신 jar
+> 노드가 이어 처리했지만, 여기서 실패하는 것은 **사람이 방금 누른 조작**이다. 데이터는 잃지 않지만
+> (전부 트랜잭션 롤백) **실패한 배정·검수는 사용자가 다시 시도해야 한다.**
+
+> **컬럼은 하나도 바뀌지 않았다.** `ASSIGNMENT_ID`·`ACTOR_USER_NO` 등은 전부 표준용어 등록분이라
+> 그대로다. 애플리케이션 API 경로·응답 필드도 불변이라 **프론트엔드 배포 순서 제약은 없다.**
+
+#### ★ 창을 여는 것은 Flyway 가 아니다 (§4-0-1 과 동일)
+
+**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
+(스키마는 `schema.sql` 로드). 반대로 Flyway 가 켜진 구성은 **단일 노드**다. 2노드에서 창을 여는 것은
+**DBA 의 수동 DDL** 이며, 적용 시점에 따라 **두 노드가 동시에 구 jar 인 구간**이 생길 수 있다.
+
+#### 배포 절차
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 정지 후 배포 (강력 권장)** | 양쪽 노드를 내리고 → DDL 적용 → 배포·기동 — 공존 창이 없다 | 짧은 **다운타임** |
+| **(b) 롤링 재기동** | 한 노드씩 교체해 무중단 유지 | 창 동안 **배정·검수가 사용자 대면 500**, 회수 큐 없음 |
+
+영향 경로가 이 계열에서 가장 넓고 자기치유도 되지 않으므로 **(a) 를 강력 권장**한다.
+
+```bash
+# (a) 정지 후 배포 — 2노드면 양쪽 모두
+sudo systemctl stop klid-frontend klid-backend klid-ai-server
+#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+#   … 패키지 교체(install.sh) …
+sudo systemctl start klid-ai-server klid-backend klid-frontend
+```
+
+반영 확인 — **테이블만 보면 안 된다.** `ALTER TABLE ... RENAME TO` 는 시퀀스·제약·인덱스 이름을
+따라오게 하지 않으므로, 개명 대상 **13개 객체를 전수로** 센다:
+
+```sql
+-- 옛 이름이 남아 있으면 미적용 또는 부분 적용 — 0행이어야 정상
+-- ⚠ 이건 육안 확인용 나열이라 아래 카운트 쿼리와 축이 다르다. PK 2 · UNIQUE 1 은
+--    pg_class(인덱스)·pg_constraint(제약) 양쪽에 다 걸려 중복 등장하므로, 미적용 상태에서는
+--    13행이 아니라 16행이 나온다. 여기서 세지 말고 **0행인지만** 보라.
+SELECT 'rel' AS kind, relname AS name FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname = 'klid_at'
+   AND relname IN ('ls_task_assignment','ls_task_event_log',
+                   'ls_task_assignment_assignment_id_seq','ls_task_event_log_event_seq_seq',
+                   'ls_task_assignment_pkey','ls_task_event_log_pkey','uk_ls_task_assignment',
+                   'ix_ls_task_assignment_raw','ix_ls_task_assignment_user',
+                   'ix_ls_task_event_log_actor','ix_ls_task_event_log_raw')
+UNION ALL
+SELECT 'con', conname FROM pg_constraint c
+  JOIN pg_namespace n ON n.oid = c.connamespace
+ WHERE n.nspname = 'klid_at'
+   AND conname IN ('fk_ls_task_assignment_raw','fk_ls_task_event_log_raw',
+                   'ls_task_assignment_pkey','ls_task_event_log_pkey','uk_ls_task_assignment');
+
+-- 개명이 끝났으면 13행 — 테이블 2 · 시퀀스 2 · 인덱스(PK 2 · UNIQUE 1 · 일반 4) 7 · FK 2
+SELECT count(*) AS renamed_objects_should_be_13 FROM (
+  SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+   WHERE n.nspname = 'klid_at'
+     AND relname IN ('ls_task_altmnt','ls_task_evnt_log',
+                     'ls_task_altmnt_assignment_id_seq','ls_task_evnt_log_evnt_id_seq',
+                     'ls_task_altmnt_pkey','ls_task_evnt_log_pkey','uk_ls_task_altmnt',
+                     'ix_ls_task_altmnt_raw','ix_ls_task_altmnt_user',
+                     'ix_ls_task_evnt_log_actor','ix_ls_task_evnt_log_raw')
+  UNION ALL
+  SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+   WHERE n.nspname = 'klid_at'
+     AND conname IN ('fk_ls_task_altmnt_raw','fk_ls_task_evnt_log_raw')
+) t;
+```
+
+> ⚠ **시퀀스 하나는 단순 접두 치환이 아니다.** 옛 이름 `ls_task_event_log_event_seq_seq` 는
+> **존재하지 않는 `event_seq` 컬럼**을 달고 있던 잔재이며(실제 컬럼은 `evnt_id`), V9 에서
+> `ls_task_evnt_log_evnt_id_seq` 로 바로잡았다. 기계적으로 치환한 이름을 기대하면 어긋난다.
+
+> **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌리는 DDL 13줄과
+> Flyway 이력 정리 절차는 **V9 마이그레이션 파일 헤더의 「롤백 절차」 절**에 있다.
+
+### 4-0-3. V10(이슈 댓글 참조 무결성 FK) 배포 시 주의 — 앞 셋과 성질이 다르다
+
+**V10 은 개명이 아니다. 컬럼·테이블 이름이 하나도 바뀌지 않으므로 V5·V8·V9 같은 "구 jar 가 SQL 을
+못 만드는" 전진 창이 없다.** 바뀌는 것은 참조 무결성 제약 하나뿐이다.
+
+| 대상 | 내용 |
+|---|---|
+| 테이블·컬럼 | `LS_ISSUE_COMMENT.DATA_ISSUE_SN` (이슈 댓글 → 소속 이슈) |
+| 추가되는 제약 | `fk_ls_issue_comment_issue` → `LS_DATA_ISSUE(DATA_ISSUE_SN)` |
+| 삭제 규칙 | **`ON DELETE RESTRICT`** (설계 `ERD-023` 이 규정) |
+
+설계에는 처음부터 있던 제약인데 DB 에만 빠져 있었다. 그동안 영상이 삭제되면 이슈는
+`fk_ls_data_issue_raw`(CASCADE)로 함께 사라지는데 **댓글은 존재하지 않는 이슈를 가리킨 채 조용히
+남았다**(FK 위반으로 시끄럽게 실패하지 않아 아무도 몰랐다).
+
+#### ★ 적용 시 데이터가 삭제된다 — 적용 로그에서 건수를 반드시 확인하라
+
+FK 를 걸기 **전에** 마이그레이션이 위 경위로 생긴 **고아 댓글을 삭제**한다. 정리하지 않으면
+`ALTER TABLE ... ADD CONSTRAINT` 가 기존 행 검증에서 실패해 **마이그레이션 전체가 멈춘다**(= 앱 기동 불가).
+
+```
+NOTICE:  고아 댓글 정리(부모 이슈 부재): 12 건 — 되살릴 부모가 없어 복원 대상이 아니다
+```
+
+- 이 줄이 **적용 로그에 남는 유일한 기록**이다. 지나치지 말고 건수를 **인수인계 기록에 남길 것.**
+- 삭제되는 것은 **부모가 이미 사라진 댓글**뿐이다. 조회는 전부 `DATA_ISSUE_SN` 으로 들어가므로
+  화면·API 어디에도 노출되지 않았고, **되살릴 부모가 없어 복원 대상이 아니다.**
+- 신규 설치(빈 DB)에서는 0건이며 NOTICE 자체가 나오지 않는다. 두 번 돌아도 안전하다(멱등).
+- ⚠ **댓글 본문은 로그에 남기지 않는다**(사람이 쓴 자유 텍스트라 개인정보가 섞일 수 있다).
+  건수만 남으므로 **적용 전에 내용을 보존해야 한다면 DDL 적용 전에 따로 백업**해야 한다:
+  ```sql
+  -- (선택) 적용 전 고아 댓글 백업 — 필요할 때만
+  CREATE TABLE klid_at.bk_orphan_issue_comment_v10 AS
+  SELECT c.* FROM klid_at.ls_issue_comment c
+   WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_issue i
+                      WHERE i.data_issue_sn = c.data_issue_sn);
+  ```
+
+#### ★ 창을 여는 것은 Flyway 가 아니다 (§4-0-1 · §4-0-2 와 동일)
+
+**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
+(스키마는 `schema.sql` 로드 — 그 파일에는 이 FK 가 이미 포함돼 있으므로 **신규 온프렘 설치는 이 절의
+대상이 아니다**). 이 절이 다루는 것은 **이미 운영 중인 DB 에 DBA 가 수동 DDL 을 적용하는 경우**이며,
+반대로 Flyway 가 켜진 구성은 **단일 노드**다.
+
+#### 구 jar 공존 구간의 유일한 증상 — 장애로 오인하지 말 것
+
+DDL 이 적용된 뒤 아직 구 jar 인 노드가 있으면 **딱 하나**가 영향을 받는다.
+
+| 경로 | 증상 | 성질 |
+|---|---|---|
+| **파생영상 폐기 스윕**(유예 경과분 실삭제 배치) | 댓글이 달린 이슈를 가진 파생영상을 지울 때 RAW 삭제가 FK 위반 | **트랜잭션 전체 롤백 → 다음 tick 재시도** |
+
+> ⚠ **데이터 손실이 아니다.** 이 배치는 원래 원자 클레임 + 롤백 구조라 부분 삭제가 남지 않는다.
+> 신 jar 배포가 끝나면(선삭제 단계가 들어 있다) **자동으로 해소**된다.
+> **운영자가 장애로 오인해 수동으로 행을 지우거나 제약을 떼어내는 것이 훨씬 위험하다** — 그러면
+> 이 FK 가 막으려던 고아가 그대로 되살아난다.
+
+사용자 대면 경로(댓글 등록·조회, 검수, 배정, 목록)는 **구/신 jar 모두 정상**이다. 프론트엔드 배포
+순서 제약도 없다.
+
+#### 배포 절차
+
+| | 절차 | 대가 |
+|---|---|---|
+| **(a) 같은 창에서 DDL + 배포 (권장)** | DDL 적용과 앱 교체를 한 작업 창에서 끝낸다 | 사실상 없음 |
+| **(b) 스키마만 먼저 적용하고 방치** | — | 그 기간 동안 위 폐기 스윕이 매 tick 실패(재시도로 회수되나 실패 로그가 쌓인다) |
+
+V9 처럼 사용자 대면 500 이 나지는 않으므로 **다운타임 없이 롤링 재기동해도 된다.** 다만 스키마만
+올려 두고 배포를 미루지는 말 것 — 그것이 (b) 다.
+
+```bash
+# 같은 창에서 DDL + 배포
+#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+#   … 패키지 교체(install.sh) → 노드별 재기동 …
+sudo systemctl restart klid-backend
+```
+
+반영 확인 — 제약 1건이 `RESTRICT`(`confdeltype = 'r'`)로 붙었는지 본다:
+
+```sql
+-- 1행 · delete_rule = 'r'(RESTRICT) 이어야 정상. 0행이면 미적용.
+SELECT conname, confdeltype AS delete_rule
+  FROM pg_constraint c
+  JOIN pg_namespace n ON n.oid = c.connamespace
+ WHERE n.nspname = 'klid_at'
+   AND conname = 'fk_ls_issue_comment_issue';
+
+-- 고아가 남아 있지 않은지(적용 후에는 구조적으로 0이어야 한다)
+SELECT count(*) AS orphan_comments_should_be_0
+  FROM klid_at.ls_issue_comment c
+ WHERE NOT EXISTS (SELECT 1 FROM klid_at.ls_data_issue i
+                    WHERE i.data_issue_sn = c.data_issue_sn);
+```
+
+> **롤백(구버전으로 되돌리기)** — 되돌리는 DDL 과 Flyway 이력 정리 절차는 **V10 마이그레이션 파일
+> 헤더의 「롤백 절차」 절**에 있다(`backend/src/main/resources/db/migration/V10__add_ls_issue_comment_issue_fk.sql`).
+> 여기에 옮겨 적지 않는 이유는 두 번째 진실원을 만들지 않기 위해서다 — **절차는 그 헤더가 정본**이다.
+> 다만 성질 하나만 미리 알아 둘 것: **위에서 삭제된 고아 댓글은 롤백해도 돌아오지 않는다**(부모가 없어
+> 되살릴 대상 자체가 없다). 제약을 떼는 것만으로 되돌아가는 것은 스키마뿐이다.
 
 ### 4-1. 관리자 세션 토큰 비상 무효화
 

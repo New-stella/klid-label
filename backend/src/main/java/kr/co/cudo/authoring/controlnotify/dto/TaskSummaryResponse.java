@@ -5,7 +5,8 @@ import java.time.Instant;
 /**
  * 영상별 요약 응답 — 프레임 수, 라벨 수, 메타 수, 상태, 검수자, 최종 수정일.
  *
- * <p>완료 통지(관제 계약 6필드 평면)에는 카운트·검수자가 없다. 관제는 통지 수신 후 이 조회 API 로
+ * <p>완료 통지 페이로드({@link kr.co.cudo.authoring.controlnotify.dto.TaskCompletedPayload})에는
+ * 카운트·검수자가 없다. 관제는 통지 수신 후 이 조회 API 로
  * 상세를 보강한다(CLAUDE.md 관제서버 조회 패턴). 값은 모두 DB 실측이며 상수 self-fill 을 하지
  * 않는다(D-ISSUE-41).
  *

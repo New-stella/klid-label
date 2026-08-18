@@ -35,7 +35,7 @@ import java.time.LocalDateTime;
  *
  * <h3>등록자를 두지 않는 이유</h3>
  * 유일한 쓰기 지점이 {@code @Async} 산출 마감이라 <b>actor 자체가 없다</b>. 지어내지 않는다 —
- * 사람의 행위(시작 버전 선택)는 {@code LS_TASK_EVENT_LOG} 가 별도로 감사한다.
+ * 사람의 행위(시작 버전 선택)는 {@code LS_TASK_EVNT_LOG} 가 별도로 감사한다.
  *
  * <p>행 생성은 <b>네이티브 INSERT … SELECT</b>({@code LsOutputVerSnpshRepository}) 로만 이뤄진다.
  * 회차당 프레임 수만큼의 엔티티를 힙에 올리지 않기 위함이며(CWE-770), 그래서 이 엔티티에는 생성

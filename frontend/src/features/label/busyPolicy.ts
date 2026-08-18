@@ -21,6 +21,8 @@ export const BUSY_KIND_NAME: Record<BusyKind, string> = {
   AI_DETECT: 'AI 탐지',
   AI_SEGMENT: 'AI 분할',
   AI_TRACK: 'AI 추적',
+  // 선택한 객체 하나를 따라가는 'AI 추적' 과 **이름이 겹치지 않게** 구분한다(확정 사양 SCREEN-005).
+  AI_AUTO_TRACK: 'AI 자동 추적',
   SAVE: '저장',
   LOAD: '불러오기',
 };
@@ -36,6 +38,7 @@ export const BUSY_KIND_PROGRESS_RULE: Record<BusyKind, (name: string) => string>
   AI_DETECT: (name) => `${name} 진행 중`,
   AI_SEGMENT: (name) => `${name} 진행 중`,
   AI_TRACK: (name) => `${name} 진행 중`,
+  AI_AUTO_TRACK: (name) => `${name} 진행 중`,
   SAVE: (name) => `${name} 중`,
   LOAD: (name) => `${name.replace(/기$/, '는')} 중`,
 };
@@ -58,6 +61,7 @@ export const BUSY_KIND_CANCELLED_MESSAGE: Record<BusyKind, string> = {
   AI_DETECT: `${BUSY_KIND_NAME.AI_DETECT}를 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
   AI_SEGMENT: `${BUSY_KIND_NAME.AI_SEGMENT}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
   AI_TRACK: `${BUSY_KIND_NAME.AI_TRACK}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
+  AI_AUTO_TRACK: `${BUSY_KIND_NAME.AI_AUTO_TRACK}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
   SAVE: `${BUSY_KIND_NAME.SAVE}을 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
   LOAD: `${BUSY_KIND_NAME.LOAD}를 취소했습니다. 도착한 결과는 반영하지 않습니다.`,
 };

@@ -60,7 +60,7 @@ public class DevToggleStartupWarner implements ApplicationListener<ApplicationRe
             sb.append("dev login ENABLED (/v1/dev/tokens 가 인증 없이 토큰 발급) ");
         }
         if (devUploadEnabled) {
-            sb.append("dev upload ENABLED (/v1/dev/autolabel-test 업로드 노출) ");
+            sb.append("dev upload ENABLED (/v1/dev/upload 업로드 노출) ");
         }
         sb.append("— bring-up 전용 토글. 운영에서는 반드시 OFF.");
         return Optional.of(sb.toString());

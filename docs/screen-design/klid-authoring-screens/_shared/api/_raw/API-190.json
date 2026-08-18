@@ -30,18 +30,54 @@
               "data": {
                 "type": "object",
                 "properties": {
-                  "id": {
+                  "srcSn": {
                     "type": "integer",
                     "format": "int64",
-                    "description": "증강 결과 식별자"
+                    "description": "이 증강 결과가 속한 원본 영상 또는 프레임 식별자."
                   },
-                  "status": {
+                  "prompt": {
                     "type": "string",
-                    "description": "복구 후 상태"
+                    "nullable": true,
+                    "description": "이 증강을 생성할 때 사용한 생성 조건 원문. 값이 없을 수 있다."
                   },
                   "augTypeCd": {
                     "type": "string",
                     "description": "증강 종류 코드"
+                  },
+                  "dataAugSn": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "LS_DATA_AUG PK"
+                  },
+                  "decisionAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "승인 또는 반려 결정 일시. 복구 직후에는 값이 없다."
+                  },
+                  "lblIntgrtPct": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "라벨 무결성 비율(퍼센트)."
+                  },
+                  "registeredAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "이 증강 결과가 등록된 일시."
+                  },
+                  "rejectReason": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "반려 사유. 복구 직후에는 검수 결정이 재오픈되므로 값이 없다."
+                  },
+                  "augProcSttsCd": {
+                    "type": "string",
+                    "description": "복구 후 검수 결정 상태 코드 — 반려가 재오픈되어 미결정(PENDING)으로 돌아간다. 키 이름은 기존 계약을 보존하려고 그대로 두었으나 값이 오는 곳은 검수 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)이며, 생성 결과 축(AUG_PROC_STTS_CD)은 이 요청으로 바뀌지 않는다."
+                  },
+                  "decisionUserNo": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "승인 또는 반려를 결정한 사용자 식별자. 복구 직후에는 값이 없다."
                   }
                 },
                 "description": "복구 후 증강 요약"
@@ -64,9 +100,9 @@
           },
           "example": {
             "data": {
-              "id": 1,
-              "status": "ACCEPTED",
-              "augTypeCd": "WINTER"
+              "augTypeCd": "WINTER",
+              "dataAugSn": 1,
+              "augProcSttsCd": "PENDING"
             },
             "message": null,
             "success": true,
@@ -238,6 +274,7 @@
       },
       "brownfield": {
         "status": "new",
+        "decided_by": "ADR-045",
         "diff_summary": "2차 신설 — 반려로 폐기된 파생영상을 유예 내에 되돌리는 경로"
       },
       "deprecated": false,
@@ -287,17 +324,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-004"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "요청 예시 문구를 자연스러운 표현으로 다듬는다. 스키마·필수 여부·의미는 그대로다.",
+    "change_summary": "200 응답 data 의 필드명을 실제 응답 계약에 맞춰 개명한다 — id → dataAugSn, status → augProcSttsCd. 실제 응답 타입의 record 컴포넌트명이 곧 JSON 키이므로 개명 전 표기로는 존재하지 않는 키를 찾게 된다. 설명도 함께 정정: augProcSttsCd 는 필드명이 가리키는 생성 결과 축(AUG_PROC_STTS_CD) 컬럼과 달리, 이 요청에서 실제로 담기는 값은 검수 결정 축(LS_DATA_AUG_RVW.RVW_STTS_CD)이며 두 축을 혼동하지 않도록 명시한다. example 도 새 키로 갱신. 신규 7필드(srcSn/lblIntgrtPct/rejectReason/decisionUserNo/decisionAt/registeredAt/prompt)와 응답 코드 목록은 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:14:52.777Z",
+    "last_updated_at": "2026-08-17T00:10:57.158Z",
     "created_at": "2026-08-07T03:08:28.655Z"
   }
 }

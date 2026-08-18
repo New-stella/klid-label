@@ -8,26 +8,26 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-11T06:30:02.903Z (session 2) |
+| last sync | 2026-08-18T01:50:54.689Z (session 6) |
 | 화면 수 | 1개 |
-| ui_component 카탈로그 | populated 108건 |
-| 출력 루트 | /Users/chanki/Documents/workspace/klid-label-worktrees/design/docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| ui_component 카탈로그 | populated 144건 |
+| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| SCREEN-009 | 영상 상세 화면 | UNCHANGED | ✅ | API-021, API-043, API-044, API-112 | ROLE-001, ROLE-002 |
+| [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 108 |
+| ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 4 |
+| api_endpoint | _shared/api/ | 7 |
 | constant | _shared/constant/ | 0 |
 | permission_role | _shared/role/ | 2 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -46,28 +46,26 @@
 
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
-| 1 | SCREEN-009 — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
+| 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
 
 ## 변경 알림 (코드 재반영 필요)
 
 | ITEM | type | 상태 |
 |---|---|---|
-| UI-101 | ui_component | NEW |
-| UI-102 | ui_component | NEW |
-| UI-103 | ui_component | NEW |
-| UI-104 | ui_component | NEW |
-| UI-105 | ui_component | NEW |
-| UI-106 | ui_component | NEW |
-| UI-107 | ui_component | NEW |
-| UI-108 | ui_component | NEW |
+| [[AC-016]] | acceptance | CHANGED (v10→v11) |
+| [[AC-019]] | acceptance | CHANGED (v6→v7) |
+| [[API-021]] | api_endpoint | CHANGED (v7→v8) |
+| [[API-043]] | api_endpoint | CHANGED (v12→v14) |
 
-## 디자인 산출물 (mc-logi-screen-design)
+## Obsidian 볼트로 보기
 
-> Phase 1~4(로컬 작성+검증)만 수행된 상태 — screen_design(SD) logicraft 역등록(Phase 5)·ui_component 보강(Phase 6)은 미실행. `mc-logi-screen-implement` 는 와이어프레임보다 이 디자인을 우선 소비할 수 있다.
+이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
+(frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
+켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-| SCREEN-ID | design/ | surface 수 | 생성 시각 | 역등록(SD) | 비고 |
-|---|---|---|---|---|---|
-| SCREEN-009 | ✅ screens/SCREEN-009/design/ | 1 (main) | 2026-08-11 | ✅ SD-004 | design-notes.md 에 토큰 미정 매핑 3건(KeyValue 급 컴포넌트·Tabs 세로 variant·라벨분포 가로 바) 기록. Phase 6(ui_component 보강)은 미실행 |
+> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
+> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
+> - AC-019 — SCREEN-009, SCREEN-009
 
 ## git 권장
 

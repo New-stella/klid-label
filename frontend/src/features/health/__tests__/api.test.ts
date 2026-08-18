@@ -22,19 +22,19 @@ describe('health api', () => {
 
   it('getHealth_정상_파싱', async () => {
     // health는 wrapper 적용 안 되는 actuator 직접 호출 → ApiResponse 래퍼 미적용
+    // components 키는 BE ManageHealthController 가 실제로 넣는 3종 그대로다
+    // (구 픽스처는 db/diskSpace/controlServer/portalServer 로 서버가 보내지 않는 응답을 흉내냈다).
     mock.onGet('/manage/health').reply(200, {
       status: 'UP',
       components: {
-        db: { status: 'UP' },
-        diskSpace: { status: 'UP' },
-        controlServer: { status: 'UP' },
-        portalServer: { status: 'UP' },
+        deidentify: { status: 'UP' },
         aiServer: { status: 'UP' },
+        database: { status: 'UP', details: { service: 'control-db' } },
       },
     });
 
     const h = await getHealth();
     expect(h.status).toBe('UP');
-    expect(h.components?.db?.status).toBe('UP');
+    expect(h.components?.database?.status).toBe('UP');
   });
 });
