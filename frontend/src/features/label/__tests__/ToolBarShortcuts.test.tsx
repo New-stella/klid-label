@@ -23,7 +23,8 @@ describe('ToolBar — 단축키 툴팁 키맵 정합(R1)', () => {
       ['바운딩 박스', 'tool.bbox'], // B
       ['폴리곤', 'tool.polygon'], // P
       ['AI 분할', 'tool.samSegment'], // G
-      ['AI 추적', 'tool.track'], // Shift+T
+      // ★'AI 추적'은 도구바 버튼이 아니므로 여기서 세지 않는다(사양 SCREEN-005 §좌측 도구바).
+      //   단축키(Shift+T) 자체는 유지되며 그 표기 정합은 labelingKeymap 테스트가 고정한다.
       ['스켈레톤', 'tool.keypoint'], // K
       // ★삭제·실행취소·저장은 캔버스 상단 옵션바로 이관됐다 — 그 툴팁 정합은
       //   CanvasOptionBar.test.tsx 가 같은 키맵 파생으로 검증한다.
@@ -46,9 +47,16 @@ describe('ToolBar — 단축키 툴팁 키맵 정합(R1)', () => {
     expect(title).not.toMatch(/(^|[^a-z])S([^a-z]|$)/);
   });
 
-  it('SAM추적_툴팁은_T가_아니라_Shift_T다', () => {
+  /*
+   * ★반전된 가드 — 구 케이스 `SAM추적_툴팁은_T가_아니라_Shift_T다` 를 대체한다(지우지 않고 뒤집는다).
+   *
+   * 구 단언: 도구바의 'AI 추적' 버튼 툴팁이 Shift+T 를 담는다.
+   * 새 단언: 도구바에 그 버튼이 **없다**(사양 SCREEN-005 §좌측 도구바 — 실행 진입점은 우측 객체 패널).
+   *
+   * 단축키 Shift+T 는 폐기되지 않았다 — 키맵 표기 정합은 labelingKeymap 테스트가 계속 검증한다.
+   */
+  it('AI추적은_도구바_버튼이_아니므로_툴팁_정합_대상이_아니다', () => {
     renderWithProviders(<ToolBar />);
-    const btn = screen.getByRole('button', { name: 'AI 추적' });
-    expect(btn.getAttribute('title') ?? '').toContain('Shift+T');
+    expect(screen.queryByRole('button', { name: 'AI 추적' })).toBeNull();
   });
 });

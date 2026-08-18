@@ -1,5 +1,10 @@
-// AppLayout — 인증 앱(manage/labeling) 전 화면에 근거법령·문의처 Footer 가 렌더되어야 한다.
-// 기존엔 "Footer는 mock에 없으므로 제거" 되어 공공 필수 정보가 인증 앱 전체에서 누락됐다.
+// AppLayout — 인증 앱(manage/labeling) 셸 렌더 계약.
+//
+// ★푸터는 렌더하지 않는다 (2026-08-18 사용자 확정 — 사양 SHELL-001 `footer.enabled=false`).
+//   노출 여부와 문안(근거법령·운영기관·문의처)이 확정되기 전까지 자리표시 문구를 화면에 내보내지
+//   않는다. 이 단언은 **부재가 의도임을 고정**하는 가드다 — 과거 "Footer 는 mock 에 없으므로 제거"
+//   되었다가 누락 결함으로 되돌려진 이력이 있어, 근거 없이 다시 마운트되는 것을 막는다.
+//   문안이 확정되면 사양(footer.enabled)을 먼저 되돌린 뒤 이 가드를 재노출 단언으로 교체한다.
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
@@ -30,16 +35,19 @@ describe('AppLayout', () => {
     cleanup();
   });
 
-  it('AppLayout_Footer_렌더', () => {
+  it('AppLayout_푸터_미노출', () => {
     const { container } = renderLayout();
 
-    // 인증 앱 하단에 footer(근거법령·문의처) 존재
-    const footer = container.querySelector('footer');
-    expect(footer).not.toBeNull();
-    expect(footer?.textContent).toMatch(/근거법령/);
-    expect(footer?.textContent).toMatch(/문의처/);
+    // 하단 푸터 자체가 없고, 자리표시 문안도 화면 어디에도 나가지 않는다.
+    expect(container.querySelector('footer')).toBeNull();
+    expect(screen.queryByText(/근거법령/)).toBeNull();
+    expect(screen.queryByText(/운영기관/)).toBeNull();
+    expect(screen.queryByText(/문의처/)).toBeNull();
+  });
 
-    // 자식 컨텐츠는 여전히 렌더
+  it('AppLayout_자식_컨텐츠_렌더', () => {
+    renderLayout();
+
     expect(screen.getByTestId('app-content')).toBeInTheDocument();
   });
 });

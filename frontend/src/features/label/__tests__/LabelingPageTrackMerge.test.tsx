@@ -97,7 +97,7 @@ describe('LabelingPage — AI 추적 병합(현재 즉시/미래 보류)', () =>
       useLabelStore.getState().setActiveTool(ToolType.TRACK);
       useLabelStore.getState().selectLabel('91');
     });
-    const btn = await screen.findByRole('button', { name: /자동추적/i });
+    const btn = await screen.findByRole('button', { name: /AI 추적/i });
     await userEvent.click(btn);
   }
 

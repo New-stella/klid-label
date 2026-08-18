@@ -139,6 +139,41 @@ describe('WorkerStatPage', () => {
     expect(screen.queryByTestId('worker-stat-empty')).toBeNull();
   });
 
+  /*
+   * ★작업자 선택 셀렉트는 폭 상한을 갖는다 (2026-08-18 사용자 신고 수정).
+   *
+   * 구 동작: 공용 `SelectTrigger` 의 기본 클래스가 `w-full` 이라 헤더 flex 행에서 남는 폭을 전부
+   *          차지했고, 그 결과 왼쪽 제목·부제가 눌려 "작업자별 통계를 확인합니" / "다." 로 줄바꿈됐다.
+   *
+   * ⚠ jsdom 은 레이아웃을 계산하지 않아 **실제 줄바꿈을 관측할 수 없다** — 이 가드는 폭 제약
+   *   클래스의 존재만 고정한다(선례: 회차 52 의 sticky 사이드바 가드와 같은 한계). 클래스가 사라지면
+   *   실패하므로 "무심코 되돌리기"는 잡히지만, 폭 값이 적절한지는 눈으로 확인해야 한다.
+   */
+  it('작업자_선택_셀렉트는_폭_상한을_가져_제목을_밀지_않는다', async () => {
+    // 셀렉트는 작업자 목록이 1건 이상일 때만 렌더된다(기본 mock 은 빈 목록).
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: {
+        content: [{ id: 11, name: '최라벨', role: 'WORKER' }],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      },
+      message: null,
+      errorCode: null,
+    });
+    setRole('REVIEWER');
+    renderWithProviders(<WorkerStatPage />);
+
+    const trigger = await screen.findByLabelText('작업자 선택');
+    // 폭 상한 + 축소 금지 — 둘 중 하나만 있으면 여전히 제목을 밀어낸다.
+    expect(trigger.className).toContain('w-56');
+    expect(trigger.className).toContain('shrink-0');
+    // 공용 기본 w-full 이 남아 있으면 상한이 무력화된다(twMerge 로 대체되어야 한다).
+    expect(trigger.className.split(/\s+/)).not.toContain('w-full');
+  });
+
   it('제목과_부제가_역할별로_분기된다', async () => {
     // given / when: WORKER 시각
     setRole('WORKER');

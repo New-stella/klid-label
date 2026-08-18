@@ -29,6 +29,20 @@ describe('PortalLayout', () => {
     expect(screen.queryByText('관리')).toBeNull();
   });
 
+  /*
+   * ★푸터 미노출 가드 (2026-08-18 사용자 확정 — 사양 SHELL-002 `footer.enabled=false`).
+   *   노출 여부와 문안(근거법령·운영기관·문의처)이 확정되기 전까지 자리표시 문구를 내보내지 않는다.
+   *   **부재는 결손이 아니라 이 결정의 결과다** — 근거 없이 다시 마운트되는 것을 막는 가드이며,
+   *   문안이 확정되면 사양을 먼저 되돌린 뒤 이 가드를 재노출 단언으로 교체한다.
+   */
+  it('포털_푸터_미노출', () => {
+    const { container } = renderLayout();
+
+    expect(container.querySelector('footer')).toBeNull();
+    expect(screen.queryByText(/근거법령/)).toBeNull();
+    expect(screen.queryByText(/문의처/)).toBeNull();
+  });
+
   it('Mobile_768px_뷰포트에서_포털_레이아웃_정상_렌더', () => {
     // jsdom: window.innerWidth 직접 설정
     Object.defineProperty(window, 'innerWidth', { value: 375, writable: true, configurable: true });

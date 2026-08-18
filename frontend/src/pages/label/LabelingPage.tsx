@@ -2020,19 +2020,28 @@ export function LabelingPage() {
                   // 실측 네이티브 dims 로 좌표 clamp — 미확정 시 undefined → 상한 미적용(하드코딩 1920/1080 제거).
                   imageWidth={frameNaturalSize?.width}
                   imageHeight={frameNaturalSize?.height}
-                  // SAM2 자동추적은 내부(INTERNAL) 채널 전용이다(ADR-013 — 포털 미제공). 포털에서는
-                  // 도구바·단축키가 모두 막혀 있고 서버의 포털 전용 경로도 제거됐으므로 채널 분기가 없다.
-                  track={{
-                    srcSn: data?.srcSn,
-                    nextSrcSns,
-                    // R12 — 출력 형태는 선택 객체 형태가 우선(ObjectAttributePanel 의
-                    // `shapeToDetectType(target.shape) ?? track.shape`). trackShape 는 예외형태
-                    // (MASK/KEYPOINT) 폴백 + 라벨 힌트로만 쓰이며 BBOX/POLYGON 출력을 바꾸지 않는다.
-                    shape: trackShape,
-                    label: trackLabel,
-                    // 미저장 병합 + 부분/전체 안내 토스트. tracked 는 후속 프레임 결과.
-                    onTracked: handleTracked,
-                  }}
+                  // AI 추적은 내부(INTERNAL) 채널 전용이다(ADR-013 — 포털 미제공).
+                  // ★채널 분기를 **여기서 명시적으로** 건다 (2026-08-18). 구 코드는 분기 없이 항상
+                  //   넘기고 패널이 `activeTool === TRACK` 으로 게이트하는 데 기대고 있었는데, 그
+                  //   도구 모드 게이트가 사양 정합으로 제거되면서(선택 객체가 있으면 상시 노출)
+                  //   포털에서도 실행 버튼이 드러난다. 도구바·단축키 차단은 진입 경로를 막을 뿐
+                  //   **패널 노출을 막지 못한다** — 게이트가 사라진 지금은 이 분기가 유일한 차단이다.
+                  //   (서버의 포털 전용 SAM2 경로는 이미 제거돼 있어 2중 방어가 된다.)
+                  track={
+                    portalMode
+                      ? undefined
+                      : {
+                          srcSn: data?.srcSn,
+                          nextSrcSns,
+                          // R12 — 출력 형태는 선택 객체 형태가 우선(ObjectAttributePanel 의
+                          // `shapeToDetectType(target.shape) ?? track.shape`). trackShape 는 예외형태
+                          // (MASK/KEYPOINT) 폴백 + 라벨 힌트로만 쓰이며 BBOX/POLYGON 출력을 바꾸지 않는다.
+                          shape: trackShape,
+                          label: trackLabel,
+                          // 미저장 병합 + 부분/전체 안내 토스트. tracked 는 후속 프레임 결과.
+                          onTracked: handleTracked,
+                        }
+                  }
                   // Phase 2 [FE] — AI 분할 도구 활성 시 경계 세밀함 조절. 프리필=시스템 설정값,
                   // 조절 시에만 segmentTolerance 로 올라가 분할 요청에 배선(미조절이면 BE 기본값).
                   // "즉시 그리기"도 같은 섹션에서 토글 — 값은 CanvasShell 의 immediateSegment 로 배선.

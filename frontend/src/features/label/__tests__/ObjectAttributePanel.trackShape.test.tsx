@@ -1,7 +1,8 @@
 // 회귀 재현: 선택 객체의 실제 형태(BBOX/POLYGON)가 AI 추적 결과 형태를 결정해야 한다.
 //
-// 버그: 툴바 "AI 추적"·단축키(Shift+T) 경로는 track.shape 를 설정하지 않아(undefined),
-// 박스 객체를 추적해도 BE 기본값(POLYGON)으로 반영되던 결함. 선택 객체 형태를 우선 반영하도록 수정.
+// 버그: 단축키(Shift+T) 경로는 track.shape 를 설정하지 않아(undefined), 박스 객체를 추적해도
+// BE 기본값(POLYGON)으로 반영되던 결함. 선택 객체 형태를 우선 반영하도록 수정.
+// (구 서술의 '툴바 "AI 추적"' 경로는 폐기됐다 — 그 버튼은 사양 SCREEN-005 §좌측 도구바에 없다.)
 
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -65,7 +66,7 @@ describe('ObjectAttributePanel — 추적 형태는 선택 객체 형태를 따�
     renderWithProviders(<ObjectAttributePanel labels={[bboxLabel]} track={trackNoShape} />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
     });
 
     await waitFor(() => expect(captured.shape).toBe('BBOX'));
@@ -83,7 +84,7 @@ describe('ObjectAttributePanel — 추적 형태는 선택 객체 형태를 따�
     renderWithProviders(<ObjectAttributePanel labels={[polygonLabel]} track={trackNoShape} />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
     });
 
     await waitFor(() => expect(captured.shape).toBe('POLYGON'));
@@ -107,9 +108,47 @@ describe('ObjectAttributePanel — 추적 형태는 선택 객체 형태를 따�
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+      fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
     });
 
     await waitFor(() => expect(captured.shape).toBe('BBOX'));
+  });
+});
+
+/*
+ * ★도구 모드 게이트 제거 가드 (2026-08-18 사양 정합).
+ *
+ * 구 동작: 실행 버튼이 `activeTool === ToolType.TRACK` 일 때만 노출 → 좌측 도구바에서 모드를 먼저
+ *          켜야 우측에 버튼이 나타나는 2단 동선.
+ * 새 동작: **선택 객체가 있으면 상시 노출**. 사양 SCREEN-005 — "AI 추적은 우측 패널 '객체' 탭에서
+ *          대상 객체를 펼쳤을 때 노출되는 버튼으로 실행한다".
+ *
+ * 이 가드가 없으면 도구바 버튼 제거와 함께 실행 진입점이 통째로 사라진 것을 아무도 못 잡는다.
+ */
+describe('ObjectAttributePanel — AI 추적 실행 버튼 노출 조건', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  it('도구가_TRACK이_아니어도_선택객체가_있으면_AI추적_버튼이_보인다', () => {
+    useLabelStore.getState().setActiveTool(ToolType.SELECT);
+    useLabelStore.getState().setLabels([bboxLabel]);
+    useLabelStore.getState().selectLabel('bbox1');
+
+    renderWithProviders(<ObjectAttributePanel labels={[bboxLabel]} track={trackNoShape} />);
+
+    expect(screen.getByRole('button', { name: /AI 추적/i })).toBeInTheDocument();
+  });
+
+  it('track_컨텍스트가_없으면_AI추적_버튼을_노출하지_않는다_포털_차단축', () => {
+    // ADR-013 — 포털 채널은 호출부(LabelingPage)가 track 을 넘기지 않는다. 도구 모드 게이트가
+    // 사라진 지금 그 분기가 유일한 차단이므로 여기서 고정한다.
+    useLabelStore.getState().setActiveTool(ToolType.SELECT);
+    useLabelStore.getState().setLabels([bboxLabel]);
+    useLabelStore.getState().selectLabel('bbox1');
+
+    renderWithProviders(<ObjectAttributePanel labels={[bboxLabel]} />);
+
+    expect(screen.queryByRole('button', { name: /AI 추적/i })).toBeNull();
   });
 });

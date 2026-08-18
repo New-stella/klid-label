@@ -1,5 +1,9 @@
 // Footer — 공공 필수: 근거법령·운영기관·문의처 노출(KRDS/공공 웹 표준).
 // 초안 문안 + placeholder 이며 실제 문안은 후속 교체(TODO).
+//
+// ★이 컴포넌트는 현재 **어느 레이아웃에도 마운트돼 있지 않다** (2026-08-18 사용자 확정 — 사양
+//   SHELL-001·SHELL-002 `footer.enabled=false`). 아래는 컴포넌트 단독 렌더 계약이며 "화면에 푸터가
+//   보인다"는 뜻이 아니다. 실제 화면의 미노출은 AppLayout·PortalLayout 테스트가 고정한다.
 
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';

@@ -112,7 +112,7 @@ export interface ObjectAttributePanelProps {
   imageWidth?: number;
   imageHeight?: number;
   /**
-   * SAM2 자동추적 컨텍스트 — TRACK 도구가 활성이고 라벨이 선택되면 Sam2TrackTool 렌더.
+   * AI 추적 컨텍스트 — 선택 객체가 있으면 Sam2TrackTool 을 렌더한다(도구 모드 게이트 없음).
    * - srcSn       : 시작 프레임 SRC_SN
    * - nextSrcSns  : 후속 프레임 SRC_SN 리스트 (현재 프레임 이후 siblings)
    * - onTracked   : 전파 성공 시 콜백 (라벨 재조회 등)
@@ -392,10 +392,17 @@ export function ObjectAttributePanel({
         />
       )}
 
-      {/* SAM2 자동추적 — TRACK 도구 활성 + 선택 라벨이 있을 때 노출. */}
-      {track && activeTool === ToolType.TRACK && (
+      {/* AI 추적 — 선택 객체를 뒤 프레임으로 전파. 선택 객체가 있으면 **상시** 노출한다.
+          ★도구 모드(TRACK)로 게이트하지 않는다 (2026-08-18 정합 — 사양 SCREEN-005: "AI 추적은 우측
+            패널 '객체' 탭에서 대상 객체를 펼쳤을 때 노출되는 버튼으로 실행한다"). 게이트를 두면
+            좌측 도구바에서 모드를 먼저 켜야 실행 버튼이 나타나는 2단 동선이 되는데, 그 도구바 버튼은
+            사양에 없다(§좌측 도구바 6버튼). ⚠ 게이트를 되돌리면 단축키·AI 탐지 다이얼로그를 거치지
+            않은 사용자에게 실행 진입점이 사라진다(회귀 가드: ObjectAttributePanel.trackShape.test.tsx).
+          ★버튼 표기가 「AI 추적」이라 별도 소제목을 두지 않는다 — 사양의 "AI 추적 실행 버튼"과 1:1.
+          ★단축키(Shift+T)·AI 탐지 다이얼로그의 '트랙으로 실행'은 그대로 유효하다 — 그 경로는 추적
+            형태·라벨(track.shape / track.label)을 기억시킬 뿐이고, 실행은 여기서 한다. */}
+      {track && (
         <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-2 text-caption text-gray-700">
-          <div className="mb-1 font-semibold text-gray-900">AI 추적</div>
           <Sam2TrackTool
             srcSn={track.srcSn}
             prevPolygon={shapeToPolygon(target.shape)}
