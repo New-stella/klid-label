@@ -26,12 +26,20 @@ describe('stat api', () => {
         rejectRate: 0.02,
         dailyCompletion: [],
         monthly: [],
+        assignedTotal: 105,
+        completionRate: 0.95,
+        approvedLabelCount: 900,
       },
       message: null,
       errorCode: null,
     });
     const data = await getWorkerDashboard();
     expect(data.completed).toBe(100);
+    // 검수완료 기준 3필드도 그대로 통과시킨다 (api 레이어는 응답 변형 없음).
+    // completionRate 는 <비율(0.0~1.0)>이며 api 레이어가 백분율로 바꾸지 않는다.
+    expect(data.assignedTotal).toBe(105);
+    expect(data.completionRate).toBe(0.95);
+    expect(data.approvedLabelCount).toBe(900);
   });
 
   it('getWorkerDashboard_workerId_지정_조회', async () => {

@@ -41,8 +41,42 @@ describe('PortalLayout', () => {
     Object.defineProperty(window, 'innerWidth', { value: 1024, writable: true, configurable: true });
   });
 
-  it('다운로드_메뉴_미존재_V1_5', () => {
-    const { container } = renderLayout();
-    expect(container.textContent).not.toMatch(/다운로드/);
+  /*
+   * ★ 반전된 가드 — 구 케이스 `다운로드_메뉴_미존재_V1_5` 를 대체한다(지우지 않고 뒤집는다).
+   *
+   * 구 단언: 포털 레이아웃 전체 텍스트에 «다운로드» 가 **한 글자도 없어야 한다**.
+   * 새 단언: 자식 화면이 그린 다운로드 UI 가 **레이아웃을 통과해 보인다**. 다만 GNB 자체에는
+   *          전역 다운로드 메뉴를 두지 않는다 — 다운로드는 「영상 1건의 작업 데이터」 단위 행위라
+   *          대상 없이 누를 수 있는 전역 메뉴가 성립하지 않기 때문이다(사양 SCREEN-028: 버튼은
+   *          영상 카드에 붙는다).
+   *
+   * 왜 뒤집혔나 — 구 V1.5 "포털 다운로드는 포털 시스템 자체 책임" 정책이 폐기되고 저작도구가
+   * 제공하는 것으로 확정됐다. 구 단언은 문서 전체를 훑으므로 **자식 화면의 정상 다운로드 버튼까지
+   * 실패로 만든다**(레이아웃 안에서 렌더되는 순간 걸린다).
+   */
+  it('자식_화면의_다운로드_UI를_가리지_않되_GNB에_전역_다운로드_메뉴는_두지_않는다_V1_5_미제공_정책_폐기', () => {
+    render(
+      <MemoryRouter initialEntries={['/portal']}>
+        <Routes>
+          <Route path="/portal" element={<PortalLayout />}>
+            <Route
+              index
+              element={
+                <button type="button" data-testid="portal-content">
+                  작업 데이터 다운로드
+                </button>
+              }
+            />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // 자식 화면이 제공하는 다운로드 UI 는 그대로 보인다(구 가드는 이것을 실패로 만들었다).
+    expect(screen.getByRole('button', { name: '작업 데이터 다운로드' })).toBeInTheDocument();
+    // 레이아웃 자신(GNB)은 전역 다운로드 메뉴를 갖지 않는다 — 대상 영상 없이 누를 수 없는 행위다.
+    const header = document.querySelector('header');
+    expect(header).not.toBeNull();
+    expect(header?.textContent ?? '').not.toMatch(/다운로드/);
   });
 });

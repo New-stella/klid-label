@@ -22,6 +22,15 @@ export interface KpiCardProps {
    * 미전달 시 렌더·시맨틱은 기존과 완전히 동일하다(`aria-pressed` 자체가 붙지 않는다).
    */
   selected?: boolean;
+  /**
+   * 값 아래 한 줄 보조 캡션 (선택).
+   *
+   * 주 수치의 <b>집계 기준</b>을 밝히는 자리다 — 작업자 통계의 "검수완료 기준 · 전체 N건"
+   * 병기가 여기 들어간다(`ApprovedRatioNote`). 미전달 시 렌더는 기존과 완전히 동일하다.
+   *
+   * ⚠ 카드 <b>안</b>에 둔다 — 카드 밖에 두면 어느 수치의 기준인지가 끊긴다(시안 SD-030 `kpi-sub`).
+   */
+  note?: ReactNode;
   /** 테스트/자동화 훅 (선택). */
   'data-testid'?: string;
 }
@@ -46,6 +55,7 @@ export function KpiCard({
   className,
   onClick,
   selected,
+  note,
   'data-testid': testId,
 }: KpiCardProps) {
   const Wrapper = onClick ? 'button' : 'div';
@@ -75,6 +85,8 @@ export function KpiCard({
           {/* 단위는 라벨이 아니라 **값의 일부**라 17px(`body-md`) 유지. */}
           {unit && <span className="ml-1 text-body-md font-normal text-gray-600">{unit}</span>}
         </p>
+        {/* 집계 기준 캡션 — 값과 같은 카드 안에 둔다(시안 `kpi-sub`). */}
+        {note && <div className="mt-1">{note}</div>}
         {trend && (
           <div
             className={cn(

@@ -302,4 +302,67 @@ class EventTypeAdminControllerIT {
                 .andExpect(jsonPath("$.data.evntNm").value("원본"))
                 .andExpect(jsonPath("$.data.evntClsfCd").value("01"));
     }
+
+    // ------------------------------------------------------------------
+    // 표시명 채택 단계(dsplNmSource) 와이어 노출 — @design API-185, API-186.
+    //
+    // 서버가 채택 단계를 함께 내려주므로 화면이 원본 필드로 폴백을 다시 판정하지 않는다.
+    // 4단계 값 매트릭스는 EventTypeAdminDisplayNameSourceTest 가 덮고, 여기서는 <두 응답의
+    // JSON 에 실제로 실리는지>와 <수정으로 단계가 전이되는지>를 고정한다.
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("목록_응답에_표시명_채택단계가_실린다")
+    void 목록_응답에_표시명_채택단계가_실린다() throws Exception {
+        // given — 관제 수신명만 있는 행 + 이름이 아예 없는 행(코드 폴백)
+        String withName = PREFIX + "S1";
+        String noName = PREFIX + "S2";
+        autoRegistrar.register(withName, "관제수신명", "01", null);
+        autoRegistrar.register(noName, null, "01", null);
+
+        // when / then — 각 행이 자기 단계를 갖는다(카테고리코드가 없어 카테고리명 폴백은 성립하지 않는다)
+        mockMvc.perform(get(BASE).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + withName + "')].dsplNm")
+                        .value("관제수신명"))
+                .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + withName + "')].dsplNmSource")
+                        .value("control"))
+                // 이름 후보가 전무하면 표시명은 유형코드이고 단계가 그 사실을 알려준다
+                .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + noName + "')].dsplNm")
+                        .value(noName))
+                .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + noName + "')].dsplNmSource")
+                        .value("code"));
+    }
+
+    @Test
+    @DisplayName("수정_응답에도_표시명_채택단계가_실리고_해제하면_되돌아간다")
+    void 수정_응답에도_표시명_채택단계가_실리고_해제하면_되돌아간다() throws Exception {
+        // given — 관제 수신명만 있는 행(현재 단계 control)
+        String code = PREFIX + "S3";
+        autoRegistrar.register(code, "관제수신명", "01", null);
+
+        // when / then — ① 운영자 표시명을 지정하면 그 자리에서 operator 로 전이한다.
+        //   ★수정 응답에 단계가 없으면, 목록을 재조회하지 않는 화면은 저장 직후 옛 출처를 그린다.
+        mockMvc.perform(patch(BASE + "/" + code)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("운영자지정명", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dsplNm").value("운영자지정명"))
+                .andExpect(jsonPath("$.data.dsplNmSource").value("operator"));
+
+        // ② 빈 문자열로 해제하면 관제 수신명으로 복귀하고 단계도 함께 되돌아간다(되돌리기 경로)
+        mockMvc.perform(patch(BASE + "/" + code)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dsplNm").value("관제수신명"))
+                .andExpect(jsonPath("$.data.dsplNmSource").value("control"));
+
+        // then — 목록 재조회도 같은 단계를 낸다(두 응답이 같은 판정을 쓴다)
+        mockMvc.perform(get(BASE).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + code + "')].dsplNmSource")
+                        .value("control"));
+    }
 }

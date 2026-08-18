@@ -42,7 +42,43 @@ public final class EventTypeDisplayNamePolicy {
             """;
 
     /**
+     * 표시명이 <b>어느 단계에서 왔는가</b> — 관리 화면이 "이 이름이 지금 어디서 오고 있는지"를
+     * 원본 필드로 다시 판정하지 않도록 서버가 채택 단계를 직접 알려준다. @design API-185, API-186
+     *
+     * <p>화면이 {@code optrIndctNm}/{@code evntNm}/{@code evntCtgryNm} 을 보고 폴백을 재현하면 그것이
+     * 곧 <b>두 번째 판정</b>이 되어 이 클래스와 갈릴 수 있다(이 저장소의 반복 결함 패턴).
+     *
+     * <p>{@link #wireValue()} 가 응답에 실리는 값이며 <b>소문자</b>다.
+     */
+    public enum Source {
+        /** 운영자 표시명({@code OPTR_INDCT_NM}) 채택. */
+        OPERATOR,
+        /** 관제 수신 유형명({@code EVNT_NM}) 채택. */
+        CONTROL,
+        /** 카테고리명({@code LS_EVNT_CTGRY.EVNT_CTGRY_NM}) 채택 — 유형 고유 이름이 아직 없다는 뜻이다. */
+        CATEGORY,
+        /** 유형코드({@code EVNT_TYPE_CD}) 최종 폴백. */
+        CODE;
+
+        /** 응답에 싣는 표기 — 소문자 고정(계약). */
+        public String wireValue() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /**
+     * 표시명 + 채택 단계.
+     *
+     * @param dsplNm 해석된 표시명(모든 후보가 비어 있으면 null)
+     * @param source 채택 단계(never null)
+     */
+    public record Resolved(String dsplNm, Source source) {
+    }
+
+    /**
      * 표시명 해석(Java 경로).
+     *
+     * <p>{@link #resolveWithSource} 에 위임한다 — 판정 로직은 한 벌만 존재한다.
      *
      * @param optrIndctNm 운영자 표시명(1순위)
      * @param evntNm      관제 수신 유형명(2순위)
@@ -51,8 +87,30 @@ public final class EventTypeDisplayNamePolicy {
      * @return 표시명. 모두 비어 있으면 유형코드(그것도 null 이면 null)
      */
     public static String resolve(String optrIndctNm, String evntNm, String ctgryNm, String evntTypeCd) {
-        String value = firstNonBlank(optrIndctNm, evntNm, ctgryNm);
-        return value != null ? value : evntTypeCd;
+        return resolveWithSource(optrIndctNm, evntNm, ctgryNm, evntTypeCd).dsplNm();
+    }
+
+    /**
+     * 표시명 해석 + <b>채택 단계</b>. 인자·순서는 {@link #resolve} 와 같다.
+     *
+     * <p>후보가 모두 비어 있으면 표시명이 null 이어도 단계는 {@link Source#CODE} 다 — 폴백 사슬의
+     * 마지막까지 내려간 것은 사실이고, 화면은 "코드까지 내려왔다"를 그대로 안내하면 된다.
+     */
+    public static Resolved resolveWithSource(String optrIndctNm, String evntNm,
+                                             String ctgryNm, String evntTypeCd) {
+        String operator = trimToNull(optrIndctNm);
+        if (operator != null) {
+            return new Resolved(operator, Source.OPERATOR);
+        }
+        String control = trimToNull(evntNm);
+        if (control != null) {
+            return new Resolved(control, Source.CONTROL);
+        }
+        String category = trimToNull(ctgryNm);
+        if (category != null) {
+            return new Resolved(category, Source.CATEGORY);
+        }
+        return new Resolved(evntTypeCd, Source.CODE);
     }
 
     /** 표시명이 <b>고유 이름</b>에서 왔는가(= 카테고리명·코드 폴백이 아닌가). 화면 안내용. */
@@ -62,15 +120,24 @@ public final class EventTypeDisplayNamePolicy {
 
     private static String firstNonBlank(String... values) {
         for (String value : values) {
-            if (value == null) {
-                continue;
-            }
-            String trimmed = value.trim();
-            if (!trimmed.isEmpty()) {
+            String trimmed = trimToNull(value);
+            if (trimmed != null) {
                 return trimmed;
             }
         }
         return null;
+    }
+
+    /**
+     * "값 있음" 판정의 단일 기준 — 공백만 채워진 값은 값이 아니다({@link #SQL_COALESCE} 의
+     * {@code NULLIF(TRIM(...), '')} 와 같은 기준).
+     */
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private EventTypeDisplayNamePolicy() {

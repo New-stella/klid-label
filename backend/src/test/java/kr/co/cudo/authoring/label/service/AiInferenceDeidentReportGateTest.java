@@ -136,9 +136,12 @@ class AiInferenceDeidentReportGateTest {
         // DEV_FIX(H-1) — 좌표 정규화가 배치·AI 탐지와 동일한 공용 규칙(DetectionBoxNormalizer)을 타면서
         //   clamp 상한 기준(FrameBoundsResolver)이 협력자로 추가됐다. 본 테스트는 신고 게이트가 전송
         //   이전에 걸리는지를 보므로 실측 해상도는 관심사가 아니다 → 측정 실패(Optional.empty) 모킹.
+        //   labelMasterService 는 검출 결과에 labelId 를 싣기 위한 협력자(API-123)이며, 이 테스트는
+        //   전송 이전 차단만 보므로 검출 매핑도 관심사가 아니다 → 기존 mock 을 그대로 넘긴다.
         yoloTrackService = new YoloTrackService(aiServerClient, srcRepository, accessGuard,
                 systemConfigService, encoder,
-                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class));
+                mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
+                labelMasterService);
 
         // 실제 이미지 파일 — 정상 경로가 인코딩·치수 측정까지 통과하도록 준비한다.
         writePng("0.jpg", 100, 100);

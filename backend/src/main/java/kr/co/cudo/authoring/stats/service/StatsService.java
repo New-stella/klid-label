@@ -231,10 +231,25 @@ public class StatsService {
         // 같은 작업자 숫자가 갈렸다.
         long inProgress = statsQueryRepository.countInProgressForWorker(targetUserNo);
 
+        // 1-1) 배정 총계 + 완료율 — @design API-056, SCREEN-020
+        //   assignedTotal 은 <신규 쿼리를 만들지 않고> 이미 계산한 두 값을 더해 구한다. 그 둘은
+        //   같은 조인(LABELER 배정 ⨝ 상태)을 세는 상보 집합이라(APPROVED / APPROVED 아님) 합이 곧
+        //   배정 총계이며, 화면이 보는 completed·inProgress 와 반드시 맞아떨어진다.
+        //   서버가 직접 내려주는 이유는 소비자가 합을 재유도하면 두 값의 정의가 바뀔 때 조용히
+        //   어긋나기 때문이다(같은 판정을 두 곳에 두지 않는다).
+        long assignedTotal = completed + inProgress;
+        // 단위는 비율(0.0~1.0). 전체 구축 현황(SCR-STAT-002)의 같은 성격 지표는 백분율(0~100)이라
+        // 단위가 다르다 — 이 화면의 autoLabelRate·rejectRate 와 같은 계약이라 통일하지 않는다.
+        double completionRate = (assignedTotal == 0) ? 0.0 : (double) completed / (double) assignedTotal;
+
         // 2) 라벨 수 + 오토라벨 비율
         long labelCount = statsQueryRepository.countLabelsForWorker(targetUserNo);
         long autoLabelCount = statsQueryRepository.countAutoLabelsForWorker(targetUserNo);
         double autoLabelRate = (labelCount == 0) ? 0.0 : (double) autoLabelCount / (double) labelCount;
+        // 검수완료(APPROVED) 영상에 달린 라벨 수 — 학습데이터로 확정된 분량. labelCount 와 짝이며
+        // 비율은 내려주지 않는다(라벨 단위 비율을 화면이 지어내지 않게 한다).
+        long approvedLabelCount = statsQueryRepository.countApprovedLabelsForWorker(
+                targetUserNo, LsRawDataStatus.STTS_APPROVED);
 
         // 3) 반려율
         long rejectDenom = completed + rejected;
@@ -307,7 +322,10 @@ public class StatsService {
                 autoLabelRate,
                 rejectRate,
                 daily,
-                monthly
+                monthly,
+                assignedTotal,
+                completionRate,
+                approvedLabelCount
         );
     }
 

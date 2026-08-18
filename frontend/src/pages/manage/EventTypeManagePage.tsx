@@ -1,6 +1,12 @@
 import { useState } from 'react';
 
+import { Alert } from '@/components/common/Alert';
 import { Button } from '@/components/common/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
+import {
+  DisplayNameSourceChip,
+  isDisplayNameSource,
+} from '@/components/common/DisplayNameSourceChip';
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Skeleton } from '@/components/common/Skeleton';
@@ -23,6 +29,11 @@ import { useUiStore } from '@/stores/useUiStore';
  * ★표시명은 BE 가 4단 폴백(운영자 표시명 → 관제 수신명 → 카테고리명 → 유형코드)으로 계산해
  *   내려준다(dsplNm). FE 에서 폴백을 재계산하지 않는다 — 판정이 갈라지면 화면과 산출물
  *   (승인 시점 동결 → 학습데이터 event_name)이 조용히 어긋난다.
+ * ★표시명 칸에는 그 값이 <어느 단계에서 온 것인지>를 출처 칩으로 병기한다(dsplNmSource) —
+ *   같은 이름이 여러 줄에 보이는 까닭이 값만으로는 드러나지 않기 때문이다. 표기 값도 서버
+ *   응답을 그대로 쓴다(재판정 금지).
+ *
+ * @design SCREEN-038, API-185, API-186, UI-126
  *
  * 보안:
  * - REVIEWER 만 진입(라우트 RoleGuard=internalReviewerOnly) + BE @PreAuthorize 이중 방어.
@@ -70,6 +81,9 @@ export function EventTypeManagePage() {
   if (error) return <ErrorState message={resolveApiMessage(error, '목록을 불러오지 못했습니다.')} />;
 
   const rows = data ?? [];
+  // 건수 요약 — 숨긴 유형이 몇 건인지 표에서 세지 않고 바로 읽게 한다(시안 `card-count`).
+  const shownCount = rows.filter((row) => row.clctYn === 'Y').length;
+  const hiddenCount = rows.length - shownCount;
 
   return (
     <div className="space-y-4">
@@ -78,73 +92,113 @@ export function EventTypeManagePage() {
         description="관제에서 인입된 이벤트유형의 표시명과 수집여부를 관리합니다. 유형은 인입 시 자동 등록되므로 직접 추가·삭제할 수 없습니다."
       />
 
-      <table className="w-full text-body-md">
-        <thead>
-          {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은 회색을
-              쓰면 열 구조가 먼저 읽히지 않는다. 글자색 gray-600 은 그 위에서 5.60:1 로 AA 를
-              만족한다(gray-500 은 4.01 로 미달).
-              `<tr>` 에는 배경·테두리만 두고 **글자 축은 `<th>`(TH_CLASS)** 가 갖는다. */}
-          <tr className="border-b bg-secondary-50">
-            <th className={TH_CLASS}>유형코드</th>
-            <th className={TH_CLASS}>표시명</th>
-            <th className={TH_CLASS}>관제 원본</th>
-            <th className={TH_CLASS}>카테고리</th>
-            <th className={TH_CLASS}>수집</th>
-            <th className={TH_CLASS}>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.evntTypeCd}
-              className="border-b transition-colors hover:bg-rowHover"
-            >
-              <td className="p-2 font-mono">{row.evntTypeCd}</td>
-              <td className="p-2">
-                {editingCode === row.evntTypeCd ? (
-                  <input
-                    aria-label={`${row.evntTypeCd} 표시명`}
-                    className="w-full rounded border border-gray-300 px-2 py-1"
-                    maxLength={200}
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                  />
-                ) : (
-                  <span>{row.dsplNm}</span>
-                )}
-              </td>
-              {/* 관제 원본·카테고리는 읽기 전용 — 표시명이 어디서 왔는지 설명하는 근거다. */}
-              <td className="p-2 text-gray-600">{row.evntNm ?? '-'}</td>
-              <td className="p-2 text-gray-600">{row.evntCtgryNm ?? '-'}</td>
-              <td className="p-2">
-                <button
-                  type="button"
-                  aria-label={`${row.evntTypeCd} 수집여부 토글`}
-                  className="rounded border px-2 py-1"
-                  onClick={() => void submit(row, { clctYn: row.clctYn === 'Y' ? 'N' : 'Y' })}
+      {/* 안내 배너 — 표시명 지정이 <필터 그룹을 가르는 조작>이라는 사실을 조작 전에 알린다.
+          role 은 status(라이브 영역)가 아니라 region 이다 — 저장과 무관하게 항상 떠 있는
+          정적 안내라, 낭독기에 변경으로 알릴 내용이 아니다. */}
+      <Alert
+        variant="info"
+        role="region"
+        aria-label="표시명 지정 안내"
+        title="표시명을 지정하면 목록 필터의 이벤트유형 옵션이 갈립니다"
+      >
+        목록 화면의 필터는 표시명이 같은 유형을 한 건으로 접어 보여줍니다. 여기서 이름을 지정하면
+        그동안 한 건으로 보이던 그룹이 자동으로 쪼개집니다. 표시명을 비워 저장하면 지정이 해제되어
+        관제 수신명으로 되돌아갑니다.
+      </Alert>
+
+      <Card data-testid="event-type-list-card">
+        <CardHeader className="grid-cols-[1fr_auto] items-baseline">
+          <CardTitle>이벤트유형 목록</CardTitle>
+          <p className="text-body-sm text-gray-600">
+            {`전체 ${rows.length}개 · 노출 ${shownCount}개 · 숨김 ${hiddenCount}개`}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <table className="w-full text-body-md">
+            <caption className="sr-only">
+              등록된 이벤트유형 전체 목록. 비수집 유형과 제외 대분류에 속한 유형까지 포함합니다.
+            </caption>
+            <thead>
+              {/* 헤더 배경은 secondary 스케일 최옅단(DS-001 do_rules) — 페이지 배경과 같은 회색을
+                  쓰면 열 구조가 먼저 읽히지 않는다. 글자색 gray-600 은 그 위에서 5.60:1 로 AA 를
+                  만족한다(gray-500 은 4.01 로 미달).
+                  `<tr>` 에는 배경·테두리만 두고 **글자 축은 `<th>`(TH_CLASS)** 가 갖는다. */}
+              <tr className="border-b bg-secondary-50">
+                <th className={TH_CLASS}>유형코드</th>
+                <th className={TH_CLASS}>표시명</th>
+                <th className={TH_CLASS}>관제 원본</th>
+                <th className={TH_CLASS}>카테고리</th>
+                <th className={TH_CLASS}>수집</th>
+                <th className={TH_CLASS}>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.evntTypeCd}
+                  data-testid={`event-type-row-${row.evntTypeCd}`}
+                  className="border-b transition-colors hover:bg-rowHover"
                 >
-                  {row.clctYn === 'Y' ? '노출' : '숨김'}
-                </button>
-              </td>
-              <td className="space-x-2 p-2">
-                {editingCode === row.evntTypeCd ? (
-                  <>
-                    {/* 빈 문자열 저장 = 표시명 해제 → 관제 수신명으로 자연 복귀(되돌리기 경로) */}
-                    <Button onClick={() => void submit(row, { optrIndctNm: draftName })}>저장</Button>
-                    <Button variant="secondary" onClick={() => setEditingCode(null)}>
-                      취소
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="secondary" onClick={() => startEdit(row)}>
-                    표시명 수정
-                  </Button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  <td className="p-2 font-mono">{row.evntTypeCd}</td>
+                  <td className="p-2" data-testid={`event-type-name-${row.evntTypeCd}`}>
+                    {editingCode === row.evntTypeCd ? (
+                      <input
+                        aria-label={`${row.evntTypeCd} 표시명`}
+                        className="w-full rounded border border-gray-300 px-2 py-1"
+                        maxLength={200}
+                        value={draftName}
+                        onChange={(e) => setDraftName(e.target.value)}
+                      />
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="min-w-0 truncate">{row.dsplNm}</span>
+                        {/* 출처 칩 — 서버가 내려준 dsplNmSource 를 그대로 표기한다.
+                            ⚠ 원본 이름 칸(관제 원본·카테고리)을 보고 폴백을 재판정하지 말 것.
+                            모르는 값이면 아무 단계로도 추측하지 않고 칩을 생략한다. */}
+                        {isDisplayNameSource(row.dsplNmSource) && (
+                          <DisplayNameSourceChip source={row.dsplNmSource} />
+                        )}
+                      </span>
+                    )}
+                  </td>
+                  {/* 관제 원본·카테고리는 읽기 전용 — 표시명이 어디서 왔는지 설명하는 근거다. */}
+                  <td className="p-2 text-gray-600">{row.evntNm ?? '-'}</td>
+                  <td className="p-2 text-gray-600">{row.evntCtgryNm ?? '-'}</td>
+                  <td className="p-2">
+                    {/* 누르면 즉시 반대값으로 저장한다(확인 단계 없음 — 되돌리기가 같은 버튼 한 번).
+                        aria-pressed 로 켜짐/꺼짐을 노출한다 — '노출/숨김' 글자와 색만으로는
+                        보조기술 사용자가 이것이 토글임을 알 수 없다. */}
+                    <button
+                      type="button"
+                      aria-label={`${row.evntTypeCd} 수집여부 토글`}
+                      aria-pressed={row.clctYn === 'Y'}
+                      className="rounded border px-2 py-1"
+                      onClick={() => void submit(row, { clctYn: row.clctYn === 'Y' ? 'N' : 'Y' })}
+                    >
+                      {row.clctYn === 'Y' ? '노출' : '숨김'}
+                    </button>
+                  </td>
+                  <td className="space-x-2 p-2">
+                    {editingCode === row.evntTypeCd ? (
+                      <>
+                        {/* 빈 문자열 저장 = 표시명 해제 → 관제 수신명으로 자연 복귀(되돌리기 경로) */}
+                        <Button onClick={() => void submit(row, { optrIndctNm: draftName })}>저장</Button>
+                        <Button variant="secondary" onClick={() => setEditingCode(null)}>
+                          취소
+                        </Button>
+                      </>
+                    ) : (
+                      <Button variant="secondary" onClick={() => startEdit(row)}>
+                        표시명 수정
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

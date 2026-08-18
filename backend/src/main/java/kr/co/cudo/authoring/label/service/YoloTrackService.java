@@ -19,7 +19,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -74,6 +76,12 @@ public class YoloTrackService {
      * Caffeine 캐시를 보유하므로 시퀀스 내 재조회 비용은 없다. 측정 실패 시 상한만 생략(fail-open).
      */
     private final FrameBoundsResolver frameBoundsResolver;
+    /**
+     * 검출 클래스(COCO 영문명) → 라벨 마스터 PK 해석 — @design API-123, DFEAT-019.
+     * 단일 프레임 추론 경로({@code AutolabelOnlineService})와 <b>같은 축</b>({@code DTCT_TYPE_CD})을
+     * 쓰는 공용 매핑이다(자체 매칭 규칙을 만들지 않는다).
+     */
+    private final LabelMasterService labelMasterService;
 
     public YoloTrackResponseDto track(YoloTrackRequest req, TokenClaims actor) {
         // IDOR 차단 (CWE-639): 시작 + 모든 후속 프레임 접근 권한을 ai 호출 이전에 검증.
@@ -99,6 +107,10 @@ public class YoloTrackService {
         sequence.addAll(req.nextSrcSns());
 
         List<YoloTrackResponseDto.FrameDetections> frames = new ArrayList<>(sequence.size());
+        // 검출 클래스 → 라벨 마스터 PK 해석 결과의 요청 단위 메모. 한 요청은 최대 51프레임을 돌고
+        // 같은 클래스명이 프레임마다 반복되므로, 메모가 없으면 검출 건수만큼 DB 를 왕복한다(N+1).
+        // 값이 없는(=미매핑) 클래스도 캐시해야 반복 조회가 생기지 않으므로 Optional 을 담는다.
+        Map<String, Optional<Long>> labelIdMemo = new HashMap<>();
         int frameIndex = 0;
         for (Long sn : sequence) {
             LsDataSrc src = (frameIndex == 0)
@@ -129,7 +141,7 @@ public class YoloTrackService {
                         "YOLO track 호출 실패: frameIndex=" + frameIndex);
             }
 
-            List<YoloTrackResponseDto.Detected> detections = mapDetections(resp, src);
+            List<YoloTrackResponseDto.Detected> detections = mapDetections(resp, src, labelIdMemo);
             frames.add(new YoloTrackResponseDto.FrameDetections(sn, frameIndex, detections));
             frameIndex++;
         }
@@ -153,9 +165,16 @@ public class YoloTrackService {
      * 스킵하고(WARN), 형식 위반(개수 ≠ 4 · null · NaN/Infinity)만 400 으로 올린다 — 외부 응답 불신 계약상
      * 형식이 깨진 응답은 부분 채택하지 않는다({@code AutolabelOnlineService} 와 동일 규약).
      *
-     * @param src 이 프레임 엔티티 — clamp 상한(실측 해상도) 해석 대상. 프레임마다 다르므로 루프 안에서 해석한다.
+     * <h3>라벨 마스터 식별자 (@design API-123, DFEAT-019)</h3>
+     * 각 검출에 {@code labelId} 를 실어 보낸다 — 해석 축은 <b>AI 검출 클래스</b>({@code DTCT_TYPE_CD})
+     * 이며 단일 프레임 추론 경로와 같은 {@link LabelMasterService#findLabelIdByDtctType(String)} 을
+     * <b>재사용</b>한다. 미매핑은 {@code null} 이고 <b>지어내지 않는다</b>.
+     *
+     * @param src          이 프레임 엔티티 — clamp 상한(실측 해상도) 해석 대상. 프레임마다 다르므로 루프 안에서 해석한다.
+     * @param labelIdMemo  요청 단위 클래스명 → 라벨 PK 메모(N+1 방지). 호출자가 소유한다.
      */
-    private List<YoloTrackResponseDto.Detected> mapDetections(YoloResponse resp, LsDataSrc src) {
+    private List<YoloTrackResponseDto.Detected> mapDetections(YoloResponse resp, LsDataSrc src,
+                                                              Map<String, Optional<Long>> labelIdMemo) {
         if (resp == null || resp.detections() == null || resp.detections().isEmpty()) {
             return List.of();
         }
@@ -176,9 +195,24 @@ public class YoloTrackService {
                 continue;
             }
             out.add(new YoloTrackResponseDto.Detected(
-                    d.label(), points.get(), clampScore(d.score()), d.trackId()));
+                    d.label(), points.get(), clampScore(d.score()), d.trackId(),
+                    resolveLabelId(d.label(), labelIdMemo)));
         }
         return out;
+    }
+
+    /**
+     * 검출 클래스명 → 라벨 마스터 PK. 미매핑·빈 클래스명은 {@code null}(값을 지어내지 않는다).
+     *
+     * <p>메모는 <b>요청 단위</b>다 — 그 사이 마스터 매핑이 바뀌면 한 응답 안에서 값이 갈리는 것이
+     * 더 나쁘므로 오히려 요청 내 일관성이 요구되는 방향이다. 장수명 캐시를 두지 않는다.
+     */
+    private Long resolveLabelId(String cocoLabel, Map<String, Optional<Long>> memo) {
+        if (cocoLabel == null || cocoLabel.isBlank()) {
+            return null;
+        }
+        return memo.computeIfAbsent(cocoLabel.trim(),
+                key -> labelMasterService.findLabelIdByDtctType(key)).orElse(null);
     }
 
     /** ai 응답 score 를 [0.0, 1.0] 로 clamp. NaN 은 null (Sam2TrackService.clampScore 와 동일 규칙). */

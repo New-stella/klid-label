@@ -29,6 +29,10 @@ import { KeypointGuide } from '@/features/label/components/KeypointGuide';
 import { LabelPickerModal } from '@/features/label/components/LabelPickerModal';
 import { ObjectClassTree } from '@/features/label/components/ObjectClassTree';
 import {
+  AutoTrackPanel,
+  type AutoTrackApplyOutcome,
+} from '@/features/label/components/AutoTrackPanel';
+import {
   autolabelItemToLabel,
   deleteTrack,
   mergeTracks,
@@ -1130,6 +1134,52 @@ export function LabelingPage() {
     ],
   );
 
+  // 온디맨드 자동 추적 결과 반영 — 프레임(srcSn) 별 라벨을 받아 작업본에만 올린다(저장 아님).
+  //
+  // ★ 라벨 마스터 식별자는 **서버 응답값이 이미 실려 있다** — 여기서 검출 클래스명으로 마스터를
+  //   다시 찾지 않는다(그 해석은 서버 몫이며, 화면이 재판정하면 규칙이 두 곳으로 갈린다).
+  //   그래서 위 handleTracked 와 달리 resolveLabelIdByName 을 부르지 않는다.
+  // ★ 현재 프레임 해당분은 즉시 병합하고, 미래 프레임 해당분은 기존 보류 스테이징에 stash 해
+  //   그 프레임 진입 시 drain 병합된다(사일런트 유실 방지 — SAM2 추적과 같은 배선).
+  // ★ 반영 결과를 **돌려준다** — 현재 프레임 병합은 이미 있는 라벨과 겹치는 검출을 건너뛰므로
+  //   요청 건수와 실제 반영 건수가 다르다. 패널이 그 차이를 알 수 없으면 전부 걸러진 경우에도
+  //   "올렸습니다" 라고 알리게 된다(반환값을 버리면 그 결함이 되돌아온다).
+  const handleAutoTrackApply = useCallback(
+    (labelsBySrcSn: Record<number, Label[]>): AutoTrackApplyOutcome => {
+      const curSrcSn = data?.srcSn;
+      let applied = 0;
+      let requested = 0;
+      const future: Record<number, Label[]> = {};
+      let futureCount = 0;
+      for (const [key, labels] of Object.entries(labelsBySrcSn)) {
+        const srcSn = Number(key);
+        if (labels.length === 0) continue;
+        requested += labels.length;
+        if (srcSn === curSrcSn) {
+          applied += mergeAutoLabels(labels);
+        } else {
+          future[srcSn] = labels;
+          futureCount += labels.length;
+        }
+      }
+      if (futureCount > 0) stashPendingTracks(future);
+      const total = applied + futureCount;
+      // 걸러진 것은 현재 프레임 병합분뿐이다 — 미래 프레임 몫은 그 프레임에 진입할 때 병합된다.
+      const outcome: AutoTrackApplyOutcome = {
+        appliedLabels: total,
+        skippedDuplicates: Math.max(0, requested - total),
+      };
+      if (total === 0) return outcome;
+      // 작업명은 단일 소스에서 가져온다(모델명 미노출 규칙을 그 소스가 보증한다).
+      pushToast({
+        variant: 'success',
+        message: `${BUSY_KIND_NAME.AI_AUTO_TRACK} ${total}건 적용됨`,
+      });
+      return outcome;
+    },
+    [data?.srcSn, mergeAutoLabels, stashPendingTracks, pushToast],
+  );
+
   // AI Tool 확정 → 일반(단일 프레임 검출/분할) 또는 트랙(후속 프레임 추적) 실행.
   const runAiTool = async (
     shape: DetectShapeType,
@@ -1949,6 +1999,17 @@ export function LabelingPage() {
                   currentFrameNo={currentFrame?.frameNo}
                   portalMode={portalMode}
                 />
+                {/* 온디맨드 자동 추적 — 트랙 편집(삭제·분할·병합)과 같은 자리에 둔다.
+                    포털은 오토라벨·추적 미제공(ADR-013)이라 진입 자체를 두지 않는다. */}
+                {!portalMode && (
+                  <AutoTrackPanel
+                    srcSn={data?.srcSn}
+                    frames={frames}
+                    nextSrcSns={nextSrcSns}
+                    onApply={handleAutoTrackApply}
+                    disabled={isEditBlocked || isLocked}
+                  />
+                )}
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">

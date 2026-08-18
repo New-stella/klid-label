@@ -521,4 +521,169 @@ class StatsServiceTest {
         assertThat(worker.dailyCompletion()).hasSize(1);
         assertThat(worker.dailyCompletion().get(0).date()).isEqualTo(LocalDate.now().toString());
     }
+
+    // ------------------------------------------------------------------
+    // SCR-STAT-001 작업자 통계 신규 3필드 — assignedTotal / completionRate / approvedLabelCount.
+    //
+    // ★픽스처는 값을 모두 다르게 둔다: 이 응답에는 long 필드가 여럿이라 서비스가 두 값을 뒤바꿔
+    //   실어도 타입이 같아 컴파일·실행 어디서도 걸리지 않는다. 값이 겹치면 그 오류가 통과한다.
+    // ------------------------------------------------------------------
+
+    /** 작업자 통계 픽스처 사용자 — 아래 스텁/단언이 공유한다. */
+    private static final long WORKER_NO = 42L;
+
+    /**
+     * 작업자 통계 스텁 — <b>서로 다른 값</b>으로 각 축을 구분 가능하게 만든다.
+     *
+     * @param approved           APPROVED 상태 배정 수 (= completed)
+     * @param rejected           REJECTED 상태 배정 수
+     * @param inProgress         진행 중(APPROVED 아님) 배정 수 — 별도 쿼리 축
+     * @param labelCount         배정분 라벨 총 수
+     * @param autoLabelCount     그중 자동 생성 라벨 수
+     * @param approvedLabelCount 검수완료 영상에 달린 라벨 수
+     */
+    private void stubWorker(long approved, long rejected, long inProgress,
+                            long labelCount, long autoLabelCount, long approvedLabelCount) {
+        List<CountRow> statusRows = List.of(
+                countRow(LsRawDataStatus.STTS_APPROVED, approved),
+                countRow(LsRawDataStatus.STTS_REJECTED, rejected));
+        when(statsQueryRepository.countWorkerTaskByStatus(WORKER_NO)).thenReturn(statusRows);
+        when(statsQueryRepository.countInProgressForWorker(WORKER_NO)).thenReturn(inProgress);
+        when(statsQueryRepository.countLabelsForWorker(WORKER_NO)).thenReturn(labelCount);
+        when(statsQueryRepository.countAutoLabelsForWorker(WORKER_NO)).thenReturn(autoLabelCount);
+        when(statsQueryRepository.countApprovedLabelsForWorker(WORKER_NO, APPROVED))
+                .thenReturn(approvedLabelCount);
+    }
+
+    private WorkerStatSummaryResponse workerSummary() {
+        TokenClaims actor = new TokenClaims(String.valueOf(WORKER_NO), Role.WORKER, Channel.INTERNAL, null);
+        return service.getWorkerSummary(actor, null);
+    }
+
+    @Test
+    @DisplayName("배정총계는_완료와_진행중의_합이며_반려를_포함한다")
+    void assignedTotalIsCompletedPlusInProgress() {
+        // given — 완료 3, 반려 2. 진행 중(APPROVED 아님)은 반려 2 를 포함한 7 건이다.
+        //   값이 전부 달라(3/2/7/50/11/29) 축이 뒤바뀌면 단언에서 드러난다.
+        stubWorker(3L, 2L, 7L, 50L, 11L, 29L);
+
+        // when
+        WorkerStatSummaryResponse worker = workerSummary();
+
+        // then — 배정 총계 = 완료 3 + 진행중 7 = 10. 반려는 진행중에 이미 들어 있어 이중 계상되지 않는다.
+        assertThat(worker.completed()).isEqualTo(3L);
+        assertThat(worker.inProgress()).isEqualTo(7L);
+        assertThat(worker.rejected()).isEqualTo(2L);
+        assertThat(worker.assignedTotal()).isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("배정총계는_신규쿼리없이_기존집계로_구한다")
+    void assignedTotalUsesNoExtraQuery() {
+        // given
+        stubWorker(3L, 2L, 7L, 50L, 11L, 29L);
+
+        // when
+        service.getWorkerSummary(
+                new TokenClaims(String.valueOf(WORKER_NO), Role.WORKER, Channel.INTERNAL, null), null);
+
+        // then — 상태별 카운트·진행중 카운트 각 1회. 배정 총계를 세는 전용 쿼리는 추가하지 않는다.
+        verify(statsQueryRepository, times(1)).countWorkerTaskByStatus(WORKER_NO);
+        verify(statsQueryRepository, times(1)).countInProgressForWorker(WORKER_NO);
+    }
+
+    @Test
+    @DisplayName("완료율은_0에서1사이_비율이며_백분율이_아니다")
+    void completionRateIsRatioNotPercent() {
+        // given — 완료 3 / 배정 총계 4(= 3 + 진행중 1) → 0.75
+        stubWorker(3L, 0L, 1L, 50L, 11L, 29L);
+
+        // when
+        WorkerStatSummaryResponse worker = workerSummary();
+
+        // then — 단위 함정 차단: 전체 구축 현황(SCR-STAT-002)의 같은 성격 지표는 0~100 백분율이다.
+        //   여기서 75.0 이 나오면 단위가 뒤바뀐 것이다.
+        assertThat(worker.assignedTotal()).isEqualTo(4L);
+        assertThat(worker.completionRate()).isEqualTo(0.75);
+        assertThat(worker.completionRate()).isBetween(0.0, 1.0);
+    }
+
+    @Test
+    @DisplayName("배정이_없으면_완료율은_NaN이_아니라_0이다")
+    void completionRateIsZeroWhenNoAssignment() {
+        // given — 배정 0건(완료 0 + 진행중 0) → 분모 0
+        stubWorker(0L, 0L, 0L, 0L, 0L, 0L);
+
+        // when
+        WorkerStatSummaryResponse worker = workerSummary();
+
+        // then — 0 으로 나눠 NaN/Infinity 가 JSON 에 실리면 화면이 "NaN%" 를 그린다.
+        assertThat(worker.assignedTotal()).isZero();
+        assertThat(worker.completionRate()).isEqualTo(0.0);
+        assertThat(Double.isNaN(worker.completionRate())).isFalse();
+        assertThat(Double.isInfinite(worker.completionRate())).isFalse();
+    }
+
+    @Test
+    @DisplayName("완료율이_1을_넘지_않는다_모두_완료된_경우")
+    void completionRateCapsAtOne() {
+        // given — 진행중 0, 완료 5 → 5/5
+        stubWorker(5L, 0L, 0L, 50L, 11L, 29L);
+
+        // when
+        WorkerStatSummaryResponse worker = workerSummary();
+
+        // then
+        assertThat(worker.completionRate()).isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("검수완료_라벨수는_전체_라벨수와_별개_필드다")
+    void approvedLabelCountIsSeparateFromLabelCount() {
+        // given — 전체 50, 검수완료 29 (서로 다른 값이라 두 필드가 뒤바뀌면 드러난다)
+        stubWorker(3L, 2L, 7L, 50L, 11L, 29L);
+
+        // when
+        WorkerStatSummaryResponse worker = workerSummary();
+
+        // then — 두 값은 짝이며 검수완료분은 항상 전체 이하다.
+        assertThat(worker.labelCount()).isEqualTo(50L);
+        assertThat(worker.approvedLabelCount()).isEqualTo(29L);
+        assertThat(worker.approvedLabelCount()).isLessThanOrEqualTo(worker.labelCount());
+        // 오토라벨 비율은 전체 라벨 기준을 그대로 유지한다(11/50) — 검수완료분으로 좁히지 않는다.
+        assertThat(worker.autoLabelRate()).isEqualTo(11L / 50.0);
+    }
+
+    @Test
+    @DisplayName("검수완료_라벨수는_APPROVED_게이트로만_조회한다")
+    void approvedLabelCountQueriedWithApprovedGateOnly() {
+        // given
+        stubWorker(3L, 2L, 7L, 50L, 11L, 29L);
+
+        // when
+        service.getWorkerSummary(
+                new TokenClaims(String.valueOf(WORKER_NO), Role.WORKER, Channel.INTERNAL, null), null);
+
+        // then — 상태 인자는 서버 상수 APPROVED 뿐이다. 다른 상태로 세면 미승인분이 학습데이터로 계상된다.
+        ArgumentCaptor<String> status = ArgumentCaptor.forClass(String.class);
+        verify(statsQueryRepository, times(1))
+                .countApprovedLabelsForWorker(org.mockito.ArgumentMatchers.eq(WORKER_NO), status.capture());
+        assertThat(status.getValue()).isEqualTo(LsRawDataStatus.STTS_APPROVED);
+    }
+
+    @Test
+    @DisplayName("승인된_배정이_없으면_검수완료_라벨수는_0이고_전체_라벨수는_남는다")
+    void approvedLabelCountIsZeroWhenNothingApproved() {
+        // given — 라벨은 40건 있지만 승인된 영상이 없어 학습데이터로 확정된 분량은 0.
+        //   (미배정·미승인 영상의 라벨이 계상되면 INNER JOIN 게이트가 무력화된 것이다)
+        stubWorker(0L, 4L, 4L, 40L, 8L, 0L);
+
+        // when
+        WorkerStatSummaryResponse worker = workerSummary();
+
+        // then
+        assertThat(worker.labelCount()).isEqualTo(40L);
+        assertThat(worker.approvedLabelCount()).isZero();
+        assertThat(worker.completionRate()).isEqualTo(0.0);
+    }
 }
