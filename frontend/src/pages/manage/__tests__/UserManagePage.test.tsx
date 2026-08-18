@@ -89,12 +89,101 @@ describe('UserManagePage', () => {
 
     await user.click(screen.getByLabelText('역할 필터'));
     await user.click(await screen.findByRole('option', { name: '작업자' }));
+    // ★ 확정 단계가 필요하다 — 사양 SCREEN-024 는 "셀렉트를 바꾸는 것만으로 즉시 재조회되지
+    //   않음"을 명시한다. 이 클릭이 없으면 role 은 조회에 실리지 않는다(아래 전용 가드가 그
+    //   성질을 따로 고정한다). 이 케이스가 지키려는 것은 "역할 필터가 **서버** 파라미터인가"
+    //   이며 그 단언은 그대로다.
+    await user.click(screen.getByRole('button', { name: '검색' }));
 
     // then: role=WORKER 가 서버 요청 파라미터로 전송된다
     await waitFor(() => {
       const last = mock.history.get[mock.history.get.length - 1];
       expect(last?.params).toMatchObject({ role: 'WORKER' });
     });
+  });
+
+  // ── 사양 SCREEN-024 회귀 가드: 필터 확정 시점 ──────────────────────
+  // "입력값은 Enter 또는 검색 실행으로 확정되어야 조회에 반영되며(셀렉트를 바꾸는 것만으로
+  //  즉시 재조회되지 않음), 확정 시 1페이지로 초기화된다."
+  //
+  // 구 구현은 역할 select 의 onValueChange 에서 곧바로 updateParams 를 불러 **고르는 즉시**
+  // 재조회했다. 검색어는 이미 확정 방식이라 같은 필터바에서 두 컨트롤의 확정 시점이 갈렸다.
+
+  function stubEmptyUsers() {
+    mock.onGet('/users').reply(200, {
+      success: true,
+      data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 20 },
+      message: null,
+      errorCode: null,
+    });
+  }
+
+  it('★역할_셀렉트만_바꾸면_재조회하지_않는다', async () => {
+    // given
+    stubEmptyUsers();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    await waitFor(() => {
+      expect(mock.history.get.length).toBeGreaterThan(0);
+    });
+    const callsBefore = mock.history.get.length;
+
+    // when: 역할만 고르고 확정하지 않는다
+    await user.click(screen.getByLabelText('역할 필터'));
+    await user.click(await screen.findByRole('option', { name: '작업자' }));
+
+    // then: 요청이 늘지 않는다 — 즉 role 이 실린 조회가 나가지 않았다.
+    // (마지막 요청의 params 만 보면 "아직 안 나갔다"와 "나갔는데 role 이 없다"가 구분되지
+    //  않으므로 호출 횟수 자체를 고정한다.)
+    expect(mock.history.get.length).toBe(callsBefore);
+    expect(
+      mock.history.get.some((r) => (r.params as { role?: string } | undefined)?.role === 'WORKER'),
+    ).toBe(false);
+  });
+
+  it('★검색어와_역할을_함께_고른_뒤_Enter로_확정하면_두_축이_같은_요청에_실린다', async () => {
+    // given: 확정 진입점은 검색 버튼과 Enter 두 곳이며 결과가 같아야 한다.
+    stubEmptyUsers();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    await waitFor(() => {
+      expect(mock.history.get.length).toBeGreaterThan(0);
+    });
+
+    // when
+    await user.click(screen.getByLabelText('역할 필터'));
+    await user.click(await screen.findByRole('option', { name: '검수자' }));
+    await user.type(screen.getByLabelText('검색'), '홍{Enter}');
+
+    // then: 검색어만 실리고 역할이 누락되는(구 동작의 어긋남) 일이 없다
+    await waitFor(() => {
+      const last = mock.history.get[mock.history.get.length - 1];
+      expect(last?.params).toMatchObject({ keyword: '홍', role: 'REVIEWER', page: 0 });
+    });
+  });
+
+  it('★필터_초기화는_상시_노출되며_활성_필터가_없으면_비활성이다', async () => {
+    // given: 사양 note 는 "하나라도 활성일 때만 눌림 가능" — **존재** 조건이 아니라 **눌림**
+    // 조건이다. 구 구현은 아예 렌더하지 않아 버튼이 나타났다 사라지며 옆 '검색' 버튼 위치가
+    // 흔들렸다.
+    stubEmptyUsers();
+    const user = userEvent.setup();
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    await waitFor(() => {
+      expect(mock.history.get.length).toBeGreaterThan(0);
+    });
+
+    // then: 필터가 비어 있어도 버튼은 화면에 있고, 비활성이다
+    const reset = screen.getByRole('button', { name: '필터 초기화' });
+    expect(reset).toBeInTheDocument();
+    expect(reset).toBeDisabled();
+
+    // when: 확정 전이라도 값을 고르면 되돌릴 수 있어야 한다(확정값만 보면 여기서 잠긴다)
+    await user.click(screen.getByLabelText('역할 필터'));
+    await user.click(await screen.findByRole('option', { name: '작업자' }));
+
+    // then
+    expect(screen.getByRole('button', { name: '필터 초기화' })).toBeEnabled();
   });
 
   it('상태(활성_비활성)_필터_컨트롤은_존재하지_않는다', async () => {

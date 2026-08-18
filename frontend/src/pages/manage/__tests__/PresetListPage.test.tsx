@@ -140,6 +140,23 @@ describe('PresetListPage', () => {
       });
     });
 
+    it('★카드_액션_3종에는_아이콘이_붙지_않는다_제목_폭_잠식_회귀_가드', async () => {
+      // given: 확정 디자인(SCREEN-026 `.psm-card__actions`)은 **텍스트 전용 ghost 버튼 3개**다.
+      //   아이콘을 붙이면 버튼마다 20px(아이콘 14 + gap 6)씩 액션 열이 넓어지고 그 폭은 전부
+      //   제목이 든 1fr 열에서 빠져나가 제목이 `교통사고 기...` 로 잘렸다(실제 발생한 회귀).
+      //   레이아웃 자체는 jsdom 이 계산하지 않으므로, **원인인 아이콘 유무**를 고정한다.
+      renderWithProviders(<PresetListPage />);
+      await screen.findByTestId('preset-event-1');
+
+      // when / then
+      for (const name of ['수정', '프리셋A 복제', '삭제']) {
+        const btn = screen.getAllByRole('button', { name })[0];
+        expect(btn.querySelector('svg'), `"${name}" 버튼에 아이콘이 붙었다`).toBeNull();
+        // 텍스트 라벨 자체는 남아 있어야 한다(아이콘 전용 버튼으로 바꾸는 것도 사양 위반).
+        expect(btn.textContent?.trim()).not.toBe('');
+      }
+    });
+
     it('라벨_칩은_앞_6개만_보이고_나머지는_펼칠_수_있다', async () => {
       // given: 라벨 8종짜리 프리셋
       const many = {
@@ -183,6 +200,32 @@ describe('PresetListPage', () => {
       // then
       expect(screen.queryByTestId('preset-chip-toggle-1')).toBeNull();
     });
+  });
+
+  // ── 사양 SCREEN-026 그리드 임계 회귀 가드 ───────────────────────────────
+  //
+  // ★위 '아이콘 제거' 가드만으로는 제목 절단이 해소되지 않았다(브라우저 실측: 1440 에서
+  //   9/9 전건 말줄임). 남은 원인은 **3열 임계를 뷰포트로 잰 것**이다 — 확정 디자인의
+  //   `@media (max-width: 1280px) { 2열 }` 은 셸이 없는 캔버스 기준이라 뷰포트=카드 영역인데,
+  //   실제 화면은 고정 LNB(240) + 좌우 패딩(48)을 뺀 나머지가 카드 영역이다. 그래서 구
+  //   `xl:`(뷰포트 1280)은 카드 영역이 992px 인데도 3열을 만들어 카드가 368px 로 눌렸다.
+  //
+  // ⚠ jsdom 은 미디어쿼리를 적용하지 않아 실제 열 수는 여기서 판정할 수 없다(브라우저 실측이
+  //   짝이다). 이 가드가 고정하는 것은 **임계값을 카드 영역 기준으로 환산했다는 사실**이다.
+  it('★3열_임계는_뷰포트가_아니라_카드_영역_기준이다_구_xl_임계_폐기', async () => {
+    renderWithProviders(<PresetListPage />);
+    await screen.findByTestId('preset-event-1');
+
+    const grid = document.querySelector('[class*="grid-cols-1"]');
+    expect(grid).not.toBeNull();
+    const cls = grid!.className;
+
+    // 1280(디자인 임계) + 240(LNB) + 48(좌우 패딩) = 1520
+    expect(cls).toContain('min-[1520px]:grid-cols-3');
+    // 구 임계로 되돌아가면 카드가 368px 로 눌려 제목이 다시 전건 잘린다.
+    expect(cls).not.toContain('xl:grid-cols-3');
+    // 2열 축은 이번 변경 범위가 아니다 — 함께 지워지지 않았는지 확인한다.
+    expect(cls).toContain('md:grid-cols-2');
   });
 
   // ── 사양 SCREEN-026 페이지 크기 회귀 가드 ───────────────────────────

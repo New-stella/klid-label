@@ -75,7 +75,7 @@ generated_by: mc-logi-screen-design
 |---|---|---|
 | main | design-main.html | 작업 목록 화면 전체(단일 page surface — wireframe.html 1개에 대응) |
 
-- 공유 스타일: design.css
+- 공유 스타일: design-main.css — 게시본(logicraft 렌더)과 바이트 동일한 로컬 미러이며 design-main.html 이 참조하는 정본이다. 구 작성본 design.css 는 이후 수정이 반영되지 않아 게시본과 어긋난 채 남아 있었으므로 삭제했다(2026-08-18).
 - 스크린샷: (없음 — file:// 로컬 프리뷰로 확인)
 
 ## § 카탈로그 미정 매핑 (Phase 6 신규 컴포넌트 후보 — 이번 배치는 등록하지 않음)
@@ -99,3 +99,11 @@ item_id: SD-003
 render_id: main
 surface: page
 ```
+
+### 재등록 (2026-08-18)
+
+- **사유**: 목록 테이블 컬럼 구성이 확정 사양과 달랐다 — '영상 ID' 가 별도 컬럼이 아니라 영상명 셀 안에 겹쳐 있었고, '이벤트' 가 '촬영일시' 앞에 있었다. 정보가 빠진 것은 아니고 구조가 달랐다.
+- **범위**: thead 재배치 + 8개 행의 영상 ID 셀 승격 + 이벤트/촬영일시 순서 교환. DS 토큰·CSS 무변경(`.video-id` 기존 스타일을 td 에 그대로 재사용)이라 대비 검증(D5) 재실행 대상 아님.
+- **확정 컬럼**: 선택 / 영상명 / 영상 ID / 촬영일시 / 이벤트 / 상태 / 작업자 / 검수자 / 액션
+- `upload_design_render(item_id=SD-003, render_id="main", surface="page")` → `action: "replace"`, `new_version: 8`
+- **검증**: 서버 렌더를 다시 받아 헤더 9컬럼 순서와 `video-id` 셀 8건 확인.

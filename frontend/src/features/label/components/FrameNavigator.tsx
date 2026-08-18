@@ -40,6 +40,15 @@ export interface FrameNavigatorProps {
    */
   showSlider?: boolean;
   /**
+   * 슬라이더가 남은 가로를 전부 채우게 한다(@design SCREEN-019 상단바 `.rv-slider-wrap { flex:1 }`).
+   *
+   * 기본은 `false` — 고정 폭(w-32)이라 좁은 옵션바에 인라인으로 놓을 수 있다. 검수 상세처럼
+   * 슬라이더가 **자기 전용 상단바**를 갖는 화면만 켠다. 켜면 루트가 `w-full` 이 되어 부모의
+   * 가로를 다 쓰므로, 가운데 정렬(justify-center) 컨테이너에 넣으면 정렬이 무의미해진다.
+   * ⚠ `showSlider=false` 면 아무 효과가 없다.
+   */
+  sliderFill?: boolean;
+  /**
    * 장시간 작업(저장·AI 처리) 진행 중 전체 비활성. 이동이 작업과 교차하면 어느 프레임에
    * 반영될지가 결정되지 않는다.
    */
@@ -60,6 +69,7 @@ export function FrameNavigator({
   frameCount,
   onRequestGoTo,
   showSlider = true,
+  sliderFill = false,
   disabled = false,
 }: FrameNavigatorProps) {
   const maxIndex = Math.max(0, frameCount - 1);
@@ -122,7 +132,11 @@ export function FrameNavigator({
   const numberValue = numberDraft ?? String(empty ? 0 : frameIndex + 1);
 
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="프레임 이동">
+    <div
+      className={cn('flex items-center gap-1', sliderFill && 'w-full')}
+      role="group"
+      aria-label="프레임 이동"
+    >
       <button
         type="button"
         className={cn(navButtonClass, KRDS_ICON_HIT_AREA)}
@@ -200,7 +214,10 @@ export function FrameNavigator({
           disabled={disabled || empty}
           aria-label="프레임 위치 슬라이더"
           data-testid="frame-position-slider"
-          className="ml-1 h-1.5 w-32 accent-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(
+            'h-1.5 accent-primary-500 disabled:cursor-not-allowed disabled:opacity-50',
+            sliderFill ? 'ml-3 min-w-0 flex-1' : 'ml-1 w-32',
+          )}
           onChange={(e) => handleSliderChange(Number(e.target.value))}
           onPointerUp={flushSlider}
           onMouseUp={flushSlider}

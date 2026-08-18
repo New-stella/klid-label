@@ -241,7 +241,13 @@ const WARNING_CASES: Case[] = [
   {
     label: 'DevLoginPage DEV 빌드 전용 뱃지',
     file: 'src/features/auth/DevLoginPage.tsx',
-    anchor: 'text-label font-medium text-warning-700',
+    // SCREEN-004 리스타일: 배경이 알파 틴트(`bg-warning/10`)에서 solid `bg-warning-50` 으로,
+    // weight 가 medium→semibold 로 바뀌고 경고 아이콘이 붙었다(구 anchor
+    // `text-label font-medium text-warning-700` 는 더 이상 소스에 없다).
+    // 글자색 토큰(text-warning-700)은 그대로라 이 가드의 검사 대상은 변하지 않는다 —
+    // solid warning-50 과 흰 배경 위 /10 합성색은 밝기가 사실상 같아 계산 전제도 성립한다
+    // (위 UserManagePage 활성 배지 케이스와 동일한 근거).
+    anchor: 'rounded bg-warning-50',
   },
   {
     label: 'AugmentPromptFieldset 개인정보 안내',
@@ -879,6 +885,17 @@ describe('연한 배경 위 본문 회색 조합 — 부모→자식 스캔(요�
       reason:
         '배경이 bg-primary-50 이 되는 selected 분기에서는 글자가 text-primary-600 이라 ' +
         'gray-500 과 primary-50 이 동시에 렌더되지 않는다(배타 분기).',
+    },
+    {
+      file: 'src/components/common/Tabs.tsx',
+      text: "'border-transparent font-normal text-gray-500 hover:text-gray-700 hover:border-gray-300'",
+      reason:
+        '이 줄은 **가로(horizontal) variant 의 비선택 탭**이고, 스캐너가 조상으로 집은 ' +
+        'bg-primary-50 은 **세로(vertical) variant 의 선택 탭**에만 붙는다 — 두 조건 ' +
+        '(`vertical && selected` vs `!vertical && !selected`)이 서로 배타라 그 조합은 ' +
+        '렌더되지 않는다. 가로 탭의 실제 배경은 흰 카드 면이며 gray-500 은 그 위에서 ' +
+        'AA 를 통과한다(4.51). ⚠ 세로 variant 쪽(같은 cn 의 바로 윗줄)은 실제로 연한 표면 ' +
+        '위라 예외가 아니라 gray-600 으로 올려 해결했다 — 이 예외를 그쪽으로 넓히지 말 것.',
     },
   ];
 

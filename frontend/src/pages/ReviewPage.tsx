@@ -1,14 +1,16 @@
-// SCR-REVIEW-002 검수 화면 — Phase 2 mock(ReviewEditor) 정합 3분할 레이아웃.
+// @design SCREEN-019 검수 상세 화면 — 확정 고충실 디자인(design-main) 정합 레이아웃.
 //
-// 레이아웃 (Phase 2 — 골격 + 헤더 + 액션 버튼):
-//   ┌─ ReviewHeader (h-16, light) — 영상 메타 + 상태 배지 + 승인/반려
-//   ├─ 상단 프레임 이동 바 — 처음/이전/번호 입력/다음/마지막 + 위치 슬라이더 (프레임 위치 표시)
-//   ├─ 프레임 썸네일 스트립 (FrameTimeline) — **캔버스 바로 위**, 접기/펼치기 가능
-//   └─ Main: [Canvas (남은 높이 전부)] [aside (360px)]
+// 레이아웃:
+//   ┌─ ReviewHeader (h-16, light) — 영상 메타 + 상태 배지 + 승인/반려          [2열 span]
+//   ├─ 상단 프레임 이동 바 — 처음/이전/번호 입력/다음/마지막 + **전폭** 위치 슬라이더 [2열 span]
+//   └─ 본문 (1fr): [캔버스 컬럼] [aside (360px)]
+//        캔버스 컬럼 = 프레임 썸네일 스트립(auto) + 캔버스(남은 높이 전부)
 //
-// ★스트립은 캔버스 위다 — 사양이 그 자리를 규정한다. 그리드 행을 `auto`(스트립) + `1fr`(캔버스)
-//   로 나눠 스트립은 자기 높이만 갖고 캔버스가 남은 공간을 전부 차지한다. 스트립 행에 `1fr` 을
-//   주면 썸네일 개수·스크롤 내용에 따라 캔버스 높이가 따라 흔들린다.
+// ★스트립은 **캔버스 컬럼 안**이다(디자인 `.rv-main` = filmstrip + canvas-area). 전폭으로 두면
+//   우측 패널이 스트립 아래에서 시작해 패널의 세로 공간을 스트립 높이만큼 잃는다 — 디자인은
+//   우측 패널이 본문 상단부터 시작한다.
+// ★스트립은 자기 높이만 갖고 캔버스가 남은 공간을 전부 차지한다(컬럼은 flex-col, 캔버스만 flex-1).
+//   스트립에 flex-1 을 주면 썸네일 개수·스크롤 내용에 따라 캔버스 높이가 따라 흔들린다.
 //
 // 내부 영역(캔버스/객체 트리/타임라인/메모)은 Phase 3·4·6 에서 채움.
 //
@@ -23,6 +25,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Lock } from 'lucide-react';
 
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -320,8 +323,8 @@ export function ReviewPage() {
       data-testid="review-page"
       style={{
         gridTemplateColumns: '1fr 360px',
-        // 헤더(64px) / 프레임 이동 바(auto) / 썸네일 스트립(auto) / 캔버스+우측 패널(1fr)
-        gridTemplateRows: '64px auto auto 1fr',
+        // 헤더(64px) / 프레임 이동 바(auto) / 본문 = 캔버스 컬럼 + 우측 패널(1fr)
+        gridTemplateRows: '64px auto 1fr',
       }}
     >
       {/* Header — col-span-2 */}
@@ -349,49 +352,69 @@ export function ReviewPage() {
           아래 썸네일 스트립과 같은 이동 경로(handleGoToFrame)로 수렴한다. */}
       <nav
         style={{ gridColumn: '1 / span 2' }}
-        className="flex h-11 shrink-0 items-center justify-center border-b border-gray-200 bg-white px-3"
+        className="flex h-11 shrink-0 items-center border-b border-gray-200 bg-white px-3"
         data-testid="review-frame-nav-bar"
         aria-label="프레임 이동 바"
       >
+        {/* ★슬라이더는 전폭이다(디자인 `.rv-slider-wrap { flex:1 }`) — 이동 컨트롤이 왼쪽에 서고
+            슬라이더가 남은 가로를 전부 채운다. 짧은 슬라이더는 128 프레임대 영상에서 한 픽셀이
+            여러 프레임을 덮어 스크럽 정밀도가 떨어진다. */}
         <FrameNavigator
           frameIndex={currentFrameIdx}
           frameCount={frameCount}
           onRequestGoTo={handleGoToFrame}
           showSlider
+          sliderFill
         />
       </nav>
 
-      {/* 프레임 썸네일 스트립 — 캔버스 바로 위(col-span-2). 접기/펼치기는 스트립이 자체 보유하며
-          기본은 펼침이다. 접혀도 진행률·카운터·토글 줄은 남고, 이동 경로는 상단 이동 바와 같은
-          handleGoToFrame 하나로 수렴한다(표면이 갈리지 않는다). */}
-      <div style={{ gridColumn: '1 / span 2' }} data-testid="review-timeline-placeholder">
-        <FrameTimeline
-          frames={frameList?.frames ?? []}
-          currentFrameIdx={currentFrameIdx}
-          onSelect={handleGoToFrame}
-          inquirySrcSns={inquirySrcSns}
-          savedSrcSns={savedSrcSns}
-        />
-      </div>
-
-      {/* Main canvas — Phase 3: Konva 기반 LabelCanvas 마운트.
-          배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 순백이면 어두운
-          CCTV 프레임과 대비가 극심해 눈부심이 생기므로 중립 회색을 유지한다(라벨링 캔버스와 동일값). */}
-      <main
-        className="relative flex items-center justify-center overflow-hidden bg-gray-200"
-        data-testid="review-canvas-readonly"
-        aria-label="검수 캔버스 (읽기 전용)"
+      {/* 캔버스 컬럼 — 썸네일 스트립(자기 높이) + 캔버스(남은 높이). 우측 패널과 **나란한 열**이라
+          패널이 본문 상단부터 시작한다(디자인 `.rv-main`). */}
+      <div
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden"
+        data-testid="review-main-column"
       >
-        <div className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-warning/90 px-2 py-1 text-label font-medium text-white">
-          읽기 전용
+        {/* 프레임 썸네일 스트립 — 캔버스 바로 위. 접기/펼치기는 스트립이 자체 보유하며 기본은
+            펼침이다. 접혀도 토글·카운터는 남고, 이동 경로는 상단 이동 바와 같은 handleGoToFrame
+            하나로 수렴한다(표면이 갈리지 않는다). */}
+        <div className="shrink-0" data-testid="review-timeline-placeholder">
+          <FrameTimeline
+            frames={frameList?.frames ?? []}
+            currentFrameIdx={currentFrameIdx}
+            onSelect={handleGoToFrame}
+            inquirySrcSns={inquirySrcSns}
+            savedSrcSns={savedSrcSns}
+          />
         </div>
-        {/* 프레임 목록 로딩 중에는 LabelCanvas 가 스피너를 노출한다(loading prop) — 로드 전
-            "프레임이 없습니다" 오표시(로딩=빈 상태 혼동)를 제거한다. */}
-        <LabelCanvas
-          frame={frameList?.frames?.[currentFrameIdx] ?? null}
-          loading={framesLoading}
-        />
-      </main>
+
+        {/* Main canvas — Konva 기반 LabelCanvas 마운트.
+            배경(bg-gray-200)은 UI 크롬이 아니라 영상 프레임을 얹는 미디어 매트다. 순백이면 어두운
+            CCTV 프레임과 대비가 극심해 눈부심이 생기므로 중립 회색을 유지한다(라벨링 캔버스와 동일값). */}
+        <main
+          className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-gray-200"
+          data-testid="review-canvas-readonly"
+          aria-label="검수 캔버스 (읽기 전용)"
+        >
+          {/* '읽기 전용' 배지 — **미디어 매트 위 오버레이**라 어두운 pill 이 정당하다.
+              디자인 시스템: "앱에 다크 표면은 없다. 유일한 예외는 영상 프레임을 얹는 미디어 매트와
+              그 위 오버레이뿐"(2026-08-06 다크 테마 폐지 확정). 라벨링 캔버스의 상태 오버레이
+              (`canvas-rotation-notice` 등)가 쓰는 bg-black/70 + text-white 관례를 그대로 따른다.
+              구 앰버(bg-warning) 배색은 디자인·관례 양쪽과 어긋나 되돌린다. */}
+          <div
+            className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-caption font-medium text-white"
+            data-testid="review-readonly-badge"
+          >
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            읽기 전용
+          </div>
+          {/* 프레임 목록 로딩 중에는 LabelCanvas 가 스피너를 노출한다(loading prop) — 로드 전
+              "프레임이 없습니다" 오표시(로딩=빈 상태 혼동)를 제거한다. */}
+          <LabelCanvas
+            frame={frameList?.frames?.[currentFrameIdx] ?? null}
+            loading={framesLoading}
+          />
+        </main>
+      </div>
 
       {/* Aside — 우측 패널. 사양대로 객체 / 메타 / 이슈 3개 탭으로 전환한다.
           ★스크롤은 탭 목록이 아니라 각 tabpanel 이 갖는다(`aside` 는 overflow-hidden) —
