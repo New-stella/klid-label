@@ -50,6 +50,19 @@ public class MvcAsyncExecutorConfig implements WebMvcConfigurer {
     public static final int QUEUE_CAPACITY = 8;
 
     /**
+     * 종료 시 진행 중 응답을 기다리는 <b>상한</b>(초).
+     *
+     * <p>커넥터 유예({@code spring.lifecycle.timeout-per-shutdown-phase})와 <b>합쳐진 값</b>이 프로세스의
+     * 종료 예산이고, systemd {@code TimeoutStopSec} 은 그보다 커야 한다 — 작으면 SIGKILL 이 먼저 와서
+     * 유예 설정이 통째로 무의미해진다. 그 관계는 {@code GracefulShutdownConfigGuardTest} 가 고정하므로
+     * 이 값은 상수로 노출한다(리터럴로 두면 배포 예산과의 관계를 기계로 볼 수 없다).
+     *
+     * <p>실제로는 이 상한이 소진되지 않는다 — 커넥터가 닫힌 뒤 남은 작업은 소켓 쓰기가 즉시 실패해
+     * 스스로 끝난다.
+     */
+    public static final long AWAIT_TERMINATION_SECONDS = 60L;
+
+    /**
      * MVC 비동기 응답 전용 풀.
      *
      * <p>작업 1건 = 대용량 ZIP 스트리밍(디스크 읽기 + 소켓 쓰기)이라 CPU 가 아니라 I/O 대기가
@@ -65,7 +78,7 @@ public class MvcAsyncExecutorConfig implements WebMvcConfigurer {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         // 스트리밍은 중간에 끊으면 파일이 잘린 채 내려간다 — 종료 시 진행 중 응답을 마치게 둔다.
         executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(60);
+        executor.setAwaitTerminationSeconds((int) AWAIT_TERMINATION_SECONDS);
         executor.initialize();
         return executor;
     }

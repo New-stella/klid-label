@@ -77,6 +77,29 @@ export function deleteAttachment(id: number, attachId: number) {
 }
 
 /**
+ * 첨부 다운로드 응답의 제한시간(ms).
+ *
+ * ★ 공용 기본값(30초)을 그대로 쓰면 **상한에 가까운 첨부가 정상인데도 끊긴다.** 첨부 상한은 20MB 이고
+ *   (BE `NoticeAttachService.MAX_FILE_SIZE`) 브라우저 XHR 의 timeout 은 **응답이 끝날 때까지의 총
+ *   경과 시간**이라 전송 시간이 그대로 잡힌다. 이 저장소가 다른 내려받기 경로에서 쓰는 보수적
+ *   실효 대역 **5Mbps**(출처: `DATAMART_DOWNLOAD_TIMEOUT_MS` · `UPLOAD_FILE_DOWNLOAD_TIMEOUT_MS` ·
+ *   backend `spring.mvc.async.request-timeout` 주석)로 계산하면
+ *   20MB = 160Mb ÷ 5Mbps = **32초** — 기본값 30초를 아슬아슬하게 넘긴다.
+ *
+ * ★ 왜 60초인가 — 위 32초에 여유를 얹은 값이다. 여유가 덮는 것은 전송 자체가 아니라 앞뒤의 서버측
+ *   작업이다(권한 검증, 첨부 원장 조회, 디스크 열기, TTFB). 형제 경로들이 5Mbps 계산값에 1.0~1.3배
+ *   여유를 둔 것과 같은 계산이며, 이 경로는 절대 시간이 짧아 여유의 절대량이 작아지므로 배수를 더 준다.
+ *
+ * ★ 왜 0(무제한)이 아닌가 — 연결이 조용히 멈췄을 때 버튼이 영구히 잠기는 것을 끝내 주는 최후 장치다.
+ *
+ * ⚠ **서버 쪽 상한과의 관계** — 이 응답은 **동기**(`ResponseEntity<Resource>`)라 비동기 스트리밍
+ *   응답의 제한(`spring.mvc.async.request-timeout`, 30분)이 **이 경로에 적용되지 않는다.** 그 키가
+ *   적용되는 것은 `StreamingResponseBody` 를 쓰는 포털 작업 데이터 내려받기뿐이다. 서버에는 이 경로를
+ *   끊는 상한이 따로 없으므로 **실효 상한은 이 값**(과 앞단 프록시 상한 중 작은 쪽)이다.
+ */
+export const NOTICE_ATTACHMENT_DOWNLOAD_TIMEOUT_MS = 60_000;
+
+/**
  * 첨부파일 다운로드 (REVIEWER/WORKER).
  *
  * blob 응답을 받아 Content-Disposition 의 원본 파일명으로 저장한다.
@@ -92,6 +115,8 @@ export function downloadAttachment(
       responseType: 'blob',
       // ApiResponse 래핑 우회 — blob 응답을 그대로 받는다.
       transformResponse: (raw) => raw,
+      // 공용 기본값(30초)을 덮어쓴다 — 위 상수 주석 참조. 빼면 20MB 첨부가 32초에 끊긴다.
+      timeout: NOTICE_ATTACHMENT_DOWNLOAD_TIMEOUT_MS,
     })
     .then((res) => {
       const data = res.data as unknown;

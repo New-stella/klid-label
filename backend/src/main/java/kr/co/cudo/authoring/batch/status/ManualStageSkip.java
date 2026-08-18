@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * (={@code findTopByDataRawSnAndProcSttsCdNotOrderByRegDtDesc}, {@code SKIPPED} 제외)를 통해서만 행을
  * 읽는다. 표식 행은 {@code SKIPPED} 라 <b>그 조회에 애초에 걸리지 않는다</b>. 컬럼은
  * {@code VARCHAR(30)} 이고 CHECK 제약이 없으며 이 테이블을 읽는 뷰도 없다. 이 성질을
- * {@code ManualSkipMarkerIsolationTest} 가 고정한다 — 깨지면 화면 단계 표시가 표식에 오염된다.
+ * {@code ManualStageSkipIT} 가 고정한다 — 깨지면 화면 단계 표시가 표식에 오염된다.
  *
  * <p><b>현재 상태 판정</b>은 "(영상 × 묶음) 의 마지막 표식 행이 {@link #ERR_CD_SKIPPED} 인가" 다.
  * 해제는 표식을 지우는 대신 {@link #ERR_CD_CLEARED} 행을 덧붙이므로 <b>누가·언제·왜가 모두 남고</b>,

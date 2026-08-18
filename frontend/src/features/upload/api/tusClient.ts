@@ -200,6 +200,51 @@ export async function fetchOffset(
   return raw ? Number(raw) : 0;
 }
 
+/**
+ * 청크 PATCH 제한시간의 **전송량과 무관한 고정분**(ms).
+ *
+ * 서버가 청크를 다 받은 뒤 하는 일(64KB 버퍼로 파일 append, 누적 offset 검증, 세션 원장 갱신)과
+ * 연결 수립·TTFB 를 덮는다. 마지막 조각이 수 KB 여도 이만큼은 준다 — 전송량만으로 계산하면
+ * 작은 조각에 사실상 0 에 가까운 상한이 붙어 서버가 멀쩡히 기록 중인데 끊긴다.
+ */
+export const TUS_CHUNK_UPLOAD_BASE_MS = 30_000;
+
+/**
+ * 청크 PATCH 제한시간의 **1MB 당 가산분**(ms) = 상향 대역 가정 1Mbps.
+ *
+ * ★ 이 저장소의 대역 기준은 **5Mbps**(출처: `DATAMART_DOWNLOAD_TIMEOUT_MS` ·
+ *   `UPLOAD_FILE_DOWNLOAD_TIMEOUT_MS` · backend `spring.mvc.async.request-timeout` 주석)인데
+ *   그것은 전부 **내려받기(하향)** 기준이다. **상향 대역은 하향보다 좁으므로** 그 값을 그대로 쓰면
+ *   업로드를 낙관적으로 잡는 것이 된다. 그래서 하향 기준의 **1/5**(1Mbps)을 상향 가정으로 삼는다.
+ *   1MB = 8Mb ÷ 1Mbps = **8초**.
+ *   ⚠ 이 1/5 배수는 저장소에 선례가 없는 **판단값**이다(하향 기준만 선례가 있다). 실측 회선이 확인되면
+ *     그 값으로 대체할 것 — 근거 없이 «너무 길다» 로 줄이면 원래 결함으로 되돌아간다.
+ *
+ * ★ 기본 청크 8MB 기준 30 + 64 = **94초**. 공용 기본값(30초)은 8MB 를 올리는 데 **2.13Mbps 이상
+ *   업링크**를 요구했고, 그에 미달하면 **매 청크가 같은 벽에 부딪혀** 재개 업로드가 이어붙기만 할 뿐
+ *   진행이 영구 정체했다. 서버 청크 상한 16MB 기준으로도 30 + 128 = 158초로 덮인다.
+ */
+export const TUS_CHUNK_UPLOAD_MS_PER_MB = 8_000;
+
+/**
+ * 청크 PATCH 1회의 제한시간(ms) — **실제로 보내는 청크 크기**로 계산한다.
+ *
+ * 고정값을 쓰지 않는 이유: 청크 크기는 호출측이 정하고(`TusUploadOptions.chunkSize`, 서버 상한 16MB)
+ * 마지막 조각은 그보다 작다. 하나로 묶으면 큰 청크엔 모자라고 작은 조각엔 과하다.
+ *
+ * ⚠ 입력을 신뢰하지 않는다 — 0·음수·비유한 값은 고정분만 준다(0 이나 NaN 제한시간은 각각
+ *   «즉시 끊김» 과 «무제한» 이라 둘 다 사고다).
+ *
+ * ⚠ **서버 쪽 상한과의 관계** — 이 요청은 **동기** `@PatchMapping` 이라 비동기 응답 제한
+ *   (`spring.mvc.async.request-timeout`, 30분)이 **적용되지 않는다.** 서버에 요청 처리를 끊는 상한이
+ *   따로 없으므로 **실효 상한은 이 값**(과 앞단 프록시 상한 중 작은 쪽)이다.
+ */
+export function tusChunkTimeoutMs(chunkBytes: number): number {
+  if (!Number.isFinite(chunkBytes) || chunkBytes <= 0) return TUS_CHUNK_UPLOAD_BASE_MS;
+  const mb = chunkBytes / (1024 * 1024);
+  return TUS_CHUNK_UPLOAD_BASE_MS + Math.ceil(TUS_CHUNK_UPLOAD_MS_PER_MB * mb);
+}
+
 /** PATCH {base}/{id} — 단일 청크 append. 새 offset(+완료 시 인입 상태) 반환. */
 async function patchChunk(
   uploadId: string,
@@ -214,6 +259,9 @@ async function patchChunk(
       'Content-Type': 'application/offset+octet-stream',
     },
     transformResponse: (d) => d,
+    // 공용 기본값(30초)을 덮어쓴다 — 위 tusChunkTimeoutMs 주석 참조. 빼면 8MB 청크가 2.13Mbps
+    // 미만 업링크에서 매번 끊겨 재개 업로드가 영구 정체한다(내부·포털 두 경로 공통).
+    timeout: tusChunkTimeoutMs(chunk.size),
   });
   const raw = (res.headers['upload-offset'] ?? res.headers['Upload-Offset']) as string | undefined;
   return {

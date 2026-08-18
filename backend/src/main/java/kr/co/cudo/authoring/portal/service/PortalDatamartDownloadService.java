@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.portal.service;
 
+import kr.co.cudo.authoring.common.config.MvcAsyncExecutorConfig;
 import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
@@ -27,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Semaphore;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -68,10 +71,44 @@ import java.util.zip.ZipOutputStream;
  * <h3>원본 폴백은 없다 (AC-034 불변 규칙)</h3>
  * <p>비식별 경로가 없거나 검증에 실패하면 그 파일은 <b>그냥 빠진다</b>. 원본(비식별 이전) 영상·프레임은
  * 어떤 경로로도 ZIP 에 들어가지 않는다.
+ *
+ * <h3>동시 스트리밍 상한 — 요청 스레드 고갈 차단 (CWE-400 / OWASP API4)</h3>
+ * <p>{@link MvcAsyncExecutorConfig} 의 포화 정책은 {@code CallerRunsPolicy} 이고 <b>그 선택은 유지한다</b>
+ * — 거부하면 응답이 이미 커밋된 뒤라 사용자에게 <b>깨진 내려받기</b>로 보인다. 그러나 되밀린 작업은
+ * <b>컨테이너 요청 스레드</b>가 직접 수행하므로, 동시 요청을 제한하지 않으면 실질 동시성 상한이 요청
+ * 스레드 수({@code server.tomcat.threads.max}, 기본 200)까지 올라간다. 200개가 최대 30분씩
+ * ({@code spring.mvc.async.request-timeout}) 붙잡히면 내려받기만 느려지는 게 아니라 <b>앱 전체가
+ * 무응답</b>이 되고, 사용자에게는 "다운로드 실패" 가 아니라 <b>모든 화면의 무한 로딩</b>으로 보인다.
+ *
+ * <p>그래서 되밀기를 거부로 바꾸는 대신 <b>들어오는 수 자체</b>를 {@link #MAX_CONCURRENT_STREAMS} 로
+ * 막는다. 자리는 <b>비동기 처리를 시작하기 전에</b> 잡으므로 거부가 응답 커밋 전에 일어나 깨끗한
+ * 429 로 나가고(FE 는 이미 429 를 "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." 로 안내한다),
+ * 상한이 풀 크기 이하라 이 경로에서 <b>CallerRuns 는 구조적으로 도달 불가</b>가 된다. 30분을 매달리게
+ * 두는 것보다 즉시 재시도를 안내하는 편이 낫다.
+ *
+ * <p>⚠ <b>"자리를 잡았다" 가 "즉시 전송이 시작된다" 는 뜻은 아니다.</b> 풀은 core 4 + 큐 8 이라
+ * {@link java.util.concurrent.ThreadPoolExecutor} 규약상 큐가 차기 전에는 스레드가 core 를 넘지
+ * 않는다 — 동시 12건이면 4건만 흐르고 8건은 큐에서 첫 바이트를 기다린다(그 대기도 비동기 제한시간
+ * 30분에 포함된다). 이는 풀 형상에서 오는 성질이며 이 상한이 만든 것이 아니다(상한이 없을 때도
+ * 같았고, 다만 그때는 24건을 넘는 분량이 요청 스레드로 되밀렸다). 풀 형상 조정은 이번 범위 밖이다.
+ *
+ * <p>⚠ 이 자리 계산은 <b>노드별 in-memory</b> 라 2노드 Active-Active 에서 전체 상한은 2배다 — 형제
+ * 제한기(portalDatamartDownload RateLimiter)와 <b>동일한 성질</b>이며, 이것이 지키려는 것은 "전역 동시
+ * 내려받기 수" 가 아니라 <b>그 노드의 요청 스레드</b>이므로 노드별로 세는 것이 맞다.
+ * <p>⚠ 반납은 응답 본문의 {@code finally} 에서 한다. 우리가 응답을 돌려준 뒤 본문이 <b>한 번도
+ * 실행되지 않는</b> 경로(비동기 미지원 등 프레임워크 예외)가 있으면 그 자리는 새며, 이는 인지·수용한
+ * 잔여 위험이다(고치려면 요청 완료 리스너 배선이 필요한데 그 비용이 이득을 넘는다).
  */
 @Slf4j
 @Service
 public class PortalDatamartDownloadService {
+
+    /**
+     * 동시 스트리밍 상한. <b>MVC 비동기 풀의 최대 스레드 수와 같게</b> 둔다 — 크게 잡으면 초과분이
+     * 큐를 지나 {@code CallerRuns} 로 넘어가 요청 스레드를 다시 붙잡고, 작게 잡으면 풀이 놀면서 429 가 난다.
+     * 회귀 고정: {@code PortalDatamartDownloadConcurrencyTest}.
+     */
+    public static final int MAX_CONCURRENT_STREAMS = MvcAsyncExecutorConfig.MAX_POOL_SIZE;
 
     /** 파일명 날짜 파트 — {@code yyyyMMdd}. */
     private static final DateTimeFormatter FILE_NAME_DATE = DateTimeFormatter.BASIC_ISO_DATE;
@@ -85,6 +122,9 @@ public class PortalDatamartDownloadService {
     private final PortalDatamartDownloadTxService txService;
     private final VideoArtifactRootResolver artifactRootResolver;
     private final String deidentifiedPath;
+
+    /** 전송 중인 응답 수를 세는 자리 — 공정성(FIFO)은 필요 없다(대기하지 않고 즉시 거부하므로). */
+    private final Semaphore streamSlots = new Semaphore(MAX_CONCURRENT_STREAMS);
 
     public PortalDatamartDownloadService(
             PortalDatamartDownloadTxService txService,
@@ -105,26 +145,53 @@ public class PortalDatamartDownloadService {
      * @throws CustomException 403 / 412 / 410 (계획 단계에서 전파)
      */
     public ResponseEntity<StreamingResponseBody> download(Long rawSn, TokenClaims actor) {
-        PortalDatamartDownloadTxService.DownloadPlan plan = txService.plan(rawSn, actor);
+        // 자리는 자원 판정보다 <앞>이다 — 뒤에 두면 상한을 넘긴 요청도 매번 영상 조회·게이트 판정을
+        // 수행하게 되어, 이 상한이 보호하려던 비용이 그대로 발생한다(형제 RateLimiter 와 같은 이유).
+        if (!streamSlots.tryAcquire()) {
+            log.warn("[PortalDownload] concurrent stream limit reached limit={}", MAX_CONCURRENT_STREAMS);
+            throw new CustomException(ErrorCode.TOO_MANY_REQUESTS,
+                    "동시 내려받기가 많아 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        boolean handedOff = false;
+        try {
+            PortalDatamartDownloadTxService.DownloadPlan plan = txService.plan(rawSn, actor);
 
-        List<ZipFile> files = new ArrayList<>();
-        files.addAll(resolveFrameImages(plan));
-        resolveDeidVideo(plan).ifPresent(files::add);
+            List<ZipFile> files = new ArrayList<>();
+            files.addAll(resolveFrameImages(plan));
+            resolveDeidVideo(plan).ifPresent(files::add);
 
-        byte[] labelsJson = plan.labelsJson();
-        String prefix = plan.rawSn() + "/";
-        StreamingResponseBody body = out -> writeZip(out, prefix, labelsJson, files, plan.rawSn());
+            byte[] labelsJson = plan.labelsJson();
+            String prefix = plan.rawSn() + "/";
+            StreamingResponseBody body = out -> {
+                try {
+                    writeZip(out, prefix, labelsJson, files, plan.rawSn());
+                } finally {
+                    // 정상 완료뿐 아니라 <클라이언트 이탈>(broken pipe)·제한시간 초과에서도 반납해야 한다.
+                    // 대용량 내려받기의 가장 흔한 종료가 이탈이라, 여기서 새면 결국 전건 429 가 된다.
+                    streamSlots.release();
+                }
+            };
 
-        // 서버 생성 고정명 — 사용자 입력이 섞이지 않아 CRLF 헤더 인젝션(CWE-113) 여지가 구조적으로 없다.
-        String fileName = "portal-video-" + plan.rawSn() + "-" + LocalDate.now().format(FILE_NAME_DATE) + ".zip";
-        return ResponseEntity.ok()
-                .contentType(new MediaType("application", "zip"))
-                // 신고 게이트가 매 요청 평가되려면 클라이언트가 응답을 재사용하면 안 된다 — 캐시된
-                // 산출물이 412 로 바뀐 뒤에도 그대로 재노출된다(CWE-359/525). 게이트가 걸린 미디어 공통 규칙.
-                .cacheControl(CacheControl.noStore())
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-                .header("X-Content-Type-Options", "nosniff")
-                .body(body);
+            // 서버 생성 고정명 — 사용자 입력이 섞이지 않아 CRLF 헤더 인젝션(CWE-113) 여지가 구조적으로 없다.
+            String fileName =
+                    "portal-video-" + plan.rawSn() + "-" + LocalDate.now().format(FILE_NAME_DATE) + ".zip";
+            ResponseEntity<StreamingResponseBody> response = ResponseEntity.ok()
+                    .contentType(new MediaType("application", "zip"))
+                    // 신고 게이트가 매 요청 평가되려면 클라이언트가 응답을 재사용하면 안 된다 — 캐시된
+                    // 산출물이 412 로 바뀐 뒤에도 그대로 재노출된다(CWE-359/525). 게이트가 걸린 미디어 공통 규칙.
+                    .cacheControl(CacheControl.noStore())
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .header("X-Content-Type-Options", "nosniff")
+                    .body(body);
+            handedOff = true;
+            return response;
+        } finally {
+            // 403/412/410 처럼 <전송이 시작되지 않은> 종료는 즉시 반납한다. 안 하면 남의 실패 때문에
+            // 정상 요청이 429 를 받는다.
+            if (!handedOff) {
+                streamSlots.release();
+            }
+        }
     }
 
     /**
