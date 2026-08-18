@@ -112,7 +112,10 @@ export function WorkerStatPage() {
   return (
     <section className="flex flex-col gap-6" data-testid="worker-stat-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* ★셀렉트에 폭 상한을 준다 — `SelectTrigger` 의 기본 클래스가 `w-full` 이라 이 flex 행에서
+          남는 폭을 전부 차지하고, 그 결과 왼쪽 제목·부제가 눌려 "작업자별 통계를 확인합니" / "다."
+          처럼 줄바꿈된다(사용자 신고, 2026-08-18). `gap-4` 로 두 덩어리가 맞닿는 것도 막는다. */}
+      <div className="flex items-center justify-between gap-4">
         {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다.
             아래 미선택 안내의 큰 아이콘은 공용 EmptyState 와 같은 삽화 역할이라 유지한다. */}
         <div>
@@ -126,7 +129,7 @@ export function WorkerStatPage() {
         {isReviewer && workers.length > 0 && (
           // 초기값 없음 — placeholder 로 "고르지 않았다"는 상태를 그대로 보여준다.
           <Select value={selectedWorkerId ?? ''} onValueChange={setSelectedWorkerId}>
-            <SelectTrigger aria-label="작업자 선택">
+            <SelectTrigger aria-label="작업자 선택" className="w-56 shrink-0">
               <SelectValue placeholder="작업자 선택" />
             </SelectTrigger>
             <SelectContent>
