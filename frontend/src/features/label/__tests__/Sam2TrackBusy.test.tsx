@@ -86,7 +86,7 @@ describe('AI 추적 — 배타 실행/폐기 계약', () => {
     });
 
     // when
-    const trackButton = screen.getByRole('button', { name: '자동추적 시작' });
+    const trackButton = screen.getByRole('button', { name: 'AI 추적 시작' });
     expect(trackButton).toBeDisabled();
     fireEvent.click(trackButton);
     await act(async () => {
@@ -108,7 +108,7 @@ describe('AI 추적 — 배타 실행/폐기 계약', () => {
         }),
     );
     const onCompleted = renderTool();
-    fireEvent.click(screen.getByRole('button', { name: '자동추적 시작' }));
+    fireEvent.click(screen.getByRole('button', { name: 'AI 추적 시작' }));
     await waitFor(() => expect(useLabelStore.getState().busy?.kind).toBe('AI_TRACK'));
 
     // when: 사용자가 취소(다른 프레임 이동/취소 버튼 등) 후 응답 도착
@@ -136,7 +136,7 @@ describe('AI 추적 — 배타 실행/폐기 계약', () => {
         }),
     );
     renderTool();
-    fireEvent.click(screen.getByRole('button', { name: '자동추적 시작' }));
+    fireEvent.click(screen.getByRole('button', { name: 'AI 추적 시작' }));
     await waitFor(() => expect(useLabelStore.getState().busy?.kind).toBe('AI_TRACK'));
 
     // when
@@ -159,7 +159,7 @@ describe('AI 추적 — 배타 실행/폐기 계약', () => {
     const onCompleted = renderTool();
 
     // when
-    fireEvent.click(screen.getByRole('button', { name: '자동추적 시작' }));
+    fireEvent.click(screen.getByRole('button', { name: 'AI 추적 시작' }));
 
     // then
     await waitFor(() => expect(onCompleted).toHaveBeenCalledTimes(1));

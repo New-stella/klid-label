@@ -80,7 +80,8 @@ describe('ToolBar — 보기 조작(회전) · 그리드 토글', () => {
       <ToolBar rotation={90} onRotate={onRotate} onToggleGrid={onToggleGrid} />,
     );
 
-    for (const name of ['바운딩 박스', '폴리곤', 'AI 분할', 'AI 추적', '스켈레톤']) {
+    // 'AI 추적'은 도구바 버튼이 아니라 우측 객체 패널의 실행 버튼이라 이 목록에 없다(사양 정합).
+    for (const name of ['바운딩 박스', '폴리곤', 'AI 분할', '스켈레톤']) {
       const btn = toolbar().getByRole('button', { name });
       expect(btn).toBeDisabled();
       expect(btn).toHaveAttribute('title', expect.stringContaining('회전 중에는 사용할 수 없습니다'));

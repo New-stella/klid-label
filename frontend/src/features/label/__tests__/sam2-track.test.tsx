@@ -299,7 +299,7 @@ describe('SAM2 Track', () => {
           nextSrcSns={[56]}
         />,
       );
-      const toggle = screen.getByRole('button', { name: /자동추적/i });
+      const toggle = screen.getByRole('button', { name: /AI 추적/i });
       expect(toggle).toBeInTheDocument();
 
       await act(async () => {
@@ -333,7 +333,7 @@ describe('SAM2 Track', () => {
       );
 
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+        fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
       });
 
       // 안내가 노출되고, 병합 대상(tracked)은 비어 있어 자동 적용될 좌표가 없다.
@@ -372,7 +372,7 @@ describe('SAM2 Track', () => {
           nextSrcSns={[]}
         />,
       );
-      const toggle = screen.getByRole('button', { name: /자동추적/i });
+      const toggle = screen.getByRole('button', { name: /AI 추적/i });
       expect(toggle).toBeDisabled();
     });
 
@@ -386,7 +386,7 @@ describe('SAM2 Track', () => {
           nextSrcSns={[]}
         />,
       );
-      const toggle = screen.getByRole('button', { name: /자동추적/i });
+      const toggle = screen.getByRole('button', { name: /AI 추적/i });
       expect(toggle).toBeDisabled();
     });
   });
@@ -448,7 +448,7 @@ describe('SAM2 Track', () => {
         />,
       );
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+        fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
       });
       await waitFor(() => expect(captured.shape).toBe('BBOX'));
     });
@@ -470,7 +470,7 @@ describe('SAM2 Track', () => {
         />,
       );
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+        fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
       });
       await waitFor(() => expect(captured.label).toBe('person'));
     });
@@ -536,7 +536,7 @@ describe('SAM2 Track', () => {
         />,
       );
       await act(async () => {
-        fireEvent.click(screen.getByRole('button', { name: /자동추적/i }));
+        fireEvent.click(screen.getByRole('button', { name: /AI 추적/i }));
       });
       await waitFor(() => expect(captured.label).toBe('person'));
       expect(captured).not.toHaveProperty('shape');
