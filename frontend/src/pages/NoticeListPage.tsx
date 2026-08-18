@@ -169,12 +169,13 @@ export function NoticeListPage() {
           <label htmlFor="notice-search-keyword" className={FILTER_LABEL_CLASS}>
             검색어
           </label>
+          {/* @design SCREEN-030 — placeholder 는 **마침표까지** 사양 문구 그대로다. */}
           <input
             id="notice-search-keyword"
             type="text"
             value={keywordInput}
             onChange={(e) => setKeywordInput(e.target.value)}
-            placeholder="검색어를 입력하세요"
+            placeholder="검색어를 입력하세요."
             maxLength={100}
             className={cn(FILTER_CONTROL_CLASS, 'px-3 placeholder:text-gray-600', KRDS_FOCUS)}
           />

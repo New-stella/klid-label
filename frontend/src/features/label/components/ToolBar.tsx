@@ -1,7 +1,16 @@
-// UI-047 ToolBar — 라벨링 캔버스 좌측 세로 도구바 (아이콘 only, w-14).
+// UI-047 ToolBar — 라벨링 캔버스 좌측 도구 패널 (w-52 = 시안 .tool-rail 208px).
 //
 // 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / AI분할(G) / 키포인트(K)
 //       / AI 탐지 / [구분선] / 좌·우 90° 회전 / 화면 맞춤 / 영역 확대 / 그리드 표시
+//
+// ★표현은 **항목명 + 단축키 배지**다 — 아이콘 전용이 아니다 (2026-08-18 정합).
+//   확정 고충실 시안(design-main.html §.tool-rail)이 그리기 도구·보기를 각각 카드로 묶고 각 행에
+//   이름과 단축키(.tool-key)를 함께 보여준다. 아이콘만 남기면 ①단축키가 화면에서 사라져 사양이
+//   "그룹별 단축키를 보여준다"고 규정한 안내가 맨 아래 도움말 하나에만 남고 ②그리기/보기 그룹
+//   구분이 시각적으로 소멸해 회전·확대 같은 보기 조작이 그리기 도구처럼 읽힌다.
+//   ⚠ 아이콘 전용(w-14)으로 되돌리지 말 것.
+// ★버튼의 접근성 이름은 **aria-label 단일 출처**를 유지한다 — 눈에 보이는 이름을 덧붙였다고
+//   aria-label 을 떼면 기존 테스트·보조기술 이름이 배지("B") 까지 함께 읽히는 형태로 흔들린다.
 //
 // ★'AI 추적'은 이 도구바에 두지 않는다 (2026-08-18 정합 — 사양 SCREEN-005 §좌측 도구바의 버튼은
 //   선택·바운딩박스·폴리곤·AI 분할·키포인트·AI 탐지 여섯이며 AI 추적은 그 목록에 없다).
@@ -20,6 +29,8 @@
 // ★ 저장·삭제·실행취소·다시실행은 **이 도구바가 아니라 캔버스 상단 옵션바**(CanvasOptionBar)가
 //   담당한다(SCREEN-005 §좌측 도구바 / §캔버스 상단 옵션바 확정). 양쪽에 두지 않는다 —
 //   진입점이 둘이면 잠금·진행중 판정이 한쪽만 갱신돼 조용히 열린 구멍이 생긴다.
+//
+// @design SCREEN-005
 
 import {
   Grid3x3,
@@ -72,14 +83,18 @@ const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
  * - `overflow-x-hidden`  : overflow-y 를 non-visible 로 두면 overflow-x 도 auto 로 강제되므로
  *   가로 스크롤바가 생기지 않도록 명시한다. 가로로 삐져나오던 유일한 요소인 툴팁은 아래처럼
  *   **portal 로 body 에 분리**해 이 상자 밖에서 그리므로 함께 잘리지 않는다.
- * - 좌우 패딩 없음(`py-2`) : 세로 스크롤바가 자리를 차지하는 환경(Windows 등)에서도 40px 버튼이
- *   56px 폭 안에 남도록 여유를 남긴다.
  *
  * ⚠ ObjectAttributePanel(PANEL_LAYOUT_CLASS)과 같은 계열의 계약이다. 되돌리면 같은 결함이 재발한다.
  * 회귀 가드: ToolBarScrollContract.test.tsx.
  */
 export const TOOLBAR_SCROLL_CLASS =
-  'flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overflow-x-hidden py-2';
+  'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden p-2';
+
+/** 시안 `.rail-card` — 그룹(그리기 도구 / 보기)을 감싸는 흰 카드. */
+const RAIL_CARD_CLASS = 'shrink-0 rounded-lg border border-gray-200 bg-white p-2 shadow-sm';
+/** 시안 `.rail-card-title` — 그룹 제목. */
+const RAIL_CARD_TITLE_CLASS =
+  'mb-2 px-1 text-label font-semibold uppercase tracking-wide text-gray-600';
 
 interface ToolBarProps {
   /**
@@ -138,6 +153,14 @@ interface ActionItem {
   kind: 'action';
   icon: React.ElementType;
   label: string;
+  /**
+   * 화면에 **보이는** 짧은 표기. 미지정 시 `label` 을 그대로 쓴다.
+   *
+   * 접근성 이름(`label`)은 아이콘만 보고도 뜻이 통하도록 풀어 쓴 문장이라(예: '왼쪽으로 90도 회전')
+   * 208px 레일에서 잘린다. 시안은 '좌 90° 회전' 처럼 줄여 적으므로 **보이는 글자만** 줄이고
+   * 접근성 이름은 건드리지 않는다(둘을 합치면 낭독이 빈약해지거나 화면이 잘린다).
+   */
+  shortLabel?: string;
   shortcut: string;
   action: () => void;
   /** ADR-013 — 포털 모드에서 숨김 대상 액션(오토라벨 등). */
@@ -202,7 +225,9 @@ export function ToolBar({
     const id = TOOL_KEYMAP_ID[tool];
     return id ? formatBindingKeys(id) : '';
   };
-  const allItems: Item[] = [
+  // ★그룹은 둘이다(시안 .rail-card ×2): ①그리기 도구 + AI 탐지 ②보기 조작 + 그리드.
+  //   한 배열에 섞어 두면 그룹 제목을 붙일 수 없어 화면에서 두 축이 한 덩어리로 읽힌다.
+  const drawGroup: Item[] = [
     // 도구 표시명은 TOOL_DISPLAY_NAME 단일 출처에서 파생 — 라벨 선택 모달 안내와 동일 문구 보장.
     {
       kind: 'tool',
@@ -254,9 +279,11 @@ export function ToolBar({
           },
         ]
       : []),
-    { kind: 'divider' },
-    // ★삭제·실행취소·다시실행·저장은 여기에 두지 않는다 — 캔버스 상단 옵션바(CanvasOptionBar) 소관.
-    //   되돌려 넣으면 진입점이 둘로 갈려 잠금·진행중 판정이 한쪽만 갱신된다.
+  ];
+
+  // ★삭제·실행취소·다시실행·저장은 여기에 두지 않는다 — 캔버스 상단 옵션바(CanvasOptionBar) 소관.
+  //   되돌려 넣으면 진입점이 둘로 갈려 잠금·진행중 판정이 한쪽만 갱신된다.
+  const viewGroup: Item[] = [
     // 보기 조작(좌/우 90° 회전 → 화면 맞춤) + 그리드 표시 — SCREEN-005 §좌측 도구바 순서.
     // 회전은 **표시 전용**이라 라벨 좌표를 바꾸지 않는다(저장에 영향 없음).
     ...(onRotate
@@ -265,6 +292,7 @@ export function ToolBar({
             kind: 'action' as const,
             icon: RotateCcw,
             label: '왼쪽으로 90도 회전',
+            shortLabel: '좌 90° 회전',
             // 현재 각도를 툴팁에 함께 노출 — 일회성 액션이라 눌림 상태(aria-pressed)로는 표현하지 않는다.
             shortcut: `현재 ${rotation}도`,
             action: () => onRotate(-90),
@@ -274,6 +302,7 @@ export function ToolBar({
             kind: 'action' as const,
             icon: RotateCw,
             label: '오른쪽으로 90도 회전',
+            shortLabel: '우 90° 회전',
             shortcut: `현재 ${rotation}도`,
             action: () => onRotate(90),
             testId: 'label-toolbar-rotate-right',
@@ -322,13 +351,16 @@ export function ToolBar({
         ]
       : []),
   ];
-  const items: Item[] = allItems.filter((item) => {
-    if (!portalMode) return true;
-    // 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS 단일 소스로만 관리. 액션(오토라벨)은 portalHidden 플래그.
-    if (item.kind === 'tool') return !PORTAL_HIDDEN_TOOLS.includes(item.tool);
-    if (item.kind === 'action') return !item.portalHidden;
-    return true;
-  });
+  const visible = (group: Item[]): Item[] =>
+    group.filter((item) => {
+      if (!portalMode) return true;
+      // 포털 숨김 도구는 PORTAL_HIDDEN_TOOLS 단일 소스로만 관리. 액션(오토라벨)은 portalHidden 플래그.
+      if (item.kind === 'tool') return !PORTAL_HIDDEN_TOOLS.includes(item.tool);
+      if (item.kind === 'action') return !item.portalHidden;
+      return true;
+    });
+  const drawItems = visible(drawGroup);
+  const viewItems = visible(viewGroup);
 
   // ── 단축키 도움말 (SCREEN-005 §좌측 도구바 맨 아래) ─────────────────────────
   // 사양 표면은 **hover** 지만 hover 전용은 키보드 사용자에게 도달 불가라 접근성 회귀다
@@ -379,9 +411,131 @@ export function ToolBar({
     });
   };
 
+  /**
+   * 버튼 상태 도출 — 그리기 행과 보기 행이 **같은 판정을 공유**한다.
+   * 두 렌더러가 각자 판정하면 회전 잠금·편집 차단이 한쪽만 갱신되는 구멍이 생긴다.
+   */
+  const itemState = (item: ToolItem | ActionItem) => {
+    const busy = item.kind === 'action' && item.busy === true;
+    // 회전 중 잠금 대상 = **그리기 도구**(사양). 선택 도구는 잠그지 않는다 — 회전을 풀었을 때
+    // 되돌아갈 안전한 기본 도구라 남겨 둔다.
+    const lockedByRotation = rotated && item.kind === 'tool' && item.tool !== ToolType.SELECT;
+    // 진행 중 표시(busy)·편집 차단(editBlocked)·개별 비활성(잠금)·회전 잠금은 서로 다른 축이지만,
+    // 버튼 비활성은 동일하게 적용한다(fail-closed — 하나라도 참이면 막는다).
+    const disabled =
+      busy || editBlocked || lockedByRotation || (item.kind === 'action' && item.disabled === true);
+    const isActive = item.kind === 'tool' && activeTool === item.tool;
+    const selectTool = onSelectTool ?? setActiveTool;
+    return {
+      busy,
+      disabled,
+      isActive,
+      Icon: busy ? Loader2 : item.icon,
+      // 도구는 활성 여부가 곧 눌림 상태, 액션은 토글일 때만 눌림 상태를 갖는다(그 외 undefined
+      // → 속성 미부착). 일회성 액션에 aria-pressed="false" 를 달면 토글로 오안내된다.
+      pressed: item.kind === 'tool' ? isActive : item.pressed,
+      title: lockedByRotation
+        ? `${item.label} (회전 중에는 사용할 수 없습니다)`
+        : item.shortcut
+          ? `${item.label} (${item.shortcut})`
+          : item.label,
+      onClick: item.kind === 'action' ? item.action : () => selectTool(item.tool),
+      testId: item.kind === 'action' ? item.testId : undefined,
+    };
+  };
+
+  /** 시안 `.tool-btn` — 아이콘 + 항목명 + 단축키 배지를 한 줄에 담는 full-width 버튼. */
+  const renderToolRow = (item: ToolItem | ActionItem, key: number) => {
+    const s = itemState(item);
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={s.onClick}
+        disabled={s.disabled}
+        // ★접근성 이름은 aria-label 이 단일 출처다 — 눈에 보이는 이름·단축키 배지가 함께 읽혀
+        //   이름이 흔들리지 않게 한다.
+        aria-label={item.label}
+        // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
+        title={s.title}
+        aria-pressed={s.pressed}
+        aria-busy={s.busy}
+        data-testid={s.testId}
+        className={cn(
+          'flex min-h-[2.5rem] w-full items-center gap-2 rounded-md border px-2 text-left text-body-md font-medium transition-colors',
+          s.isActive
+            ? 'border-primary-200 bg-primary-50 text-primary-700'
+            : 'border-transparent text-gray-900 hover:bg-gray-50',
+          item.kind === 'action' && !s.isActive && 'bg-gray-50',
+          s.disabled && 'cursor-not-allowed opacity-60',
+        )}
+      >
+        <s.Icon
+          size={18}
+          aria-hidden="true"
+          className={cn('shrink-0', s.busy && 'animate-spin', s.isActive ? 'text-primary-600' : 'text-gray-600')}
+        />
+        <span className="truncate">{item.label}</span>
+        {/* 시안 `.tool-key` — **도구(kind:'tool')에만** 붙인다. 액션('AI 탐지')의 `shortcut` 은
+            키맵에 등록된 바인딩이 아니라 고정 문자열이라(SHORTCUT_KEYMAP 에 해당 항목 없음)
+            배지로 내보이면 화면이 존재하지 않는 단축키를 광고하게 된다 — 시안의
+            `.tool-btn-action` 에도 `.tool-key` 가 없다. */}
+        {item.kind === 'tool' && item.shortcut && (
+          <span
+            aria-hidden="true"
+            className={cn(
+              'ml-auto shrink-0 rounded border px-1 font-mono text-caption',
+              s.isActive ? 'border-primary-200 text-primary-700' : 'border-gray-200 text-gray-600',
+            )}
+          >
+            {item.shortcut}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  /** 시안 `.view-row` — 좌측에 항목명, 우측에 아이콘 버튼(또는 토글). */
+  const renderViewRow = (item: ToolItem | ActionItem, key: number) => {
+    const s = itemState(item);
+    // 토글(그리드·영역 확대)은 눌림 상태를 색으로도 알린다 — 아이콘만으로는 켜짐/꺼짐이 안 읽힌다.
+    const toggledOn = s.pressed === true;
+    return (
+      <div key={key} className="flex min-h-[2.25rem] items-center justify-between gap-2 px-2">
+        <span className="truncate text-body-md text-gray-900">
+          {(item.kind === 'action' ? item.shortLabel : undefined) ?? item.label}
+        </span>
+        <button
+          type="button"
+          onClick={s.onClick}
+          disabled={s.disabled}
+          aria-label={item.label}
+          title={s.title}
+          aria-pressed={s.pressed}
+          aria-busy={s.busy}
+          data-testid={s.testId}
+          // 아이콘 전용 버튼이라 툴팁을 유지한다(그리기 행과 달리 화면에 단축키가 없다).
+          onMouseEnter={(e) => showTooltip(e.currentTarget, item)}
+          onFocus={(e) => showTooltip(e.currentTarget, item)}
+          onMouseLeave={() => setTooltip(null)}
+          onBlur={() => setTooltip(null)}
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors',
+            toggledOn
+              ? 'border-primary-200 bg-primary-50 text-primary-700'
+              : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+            s.disabled && 'cursor-not-allowed opacity-60',
+          )}
+        >
+          <s.Icon size={16} aria-hidden="true" className={cn(s.busy && 'animate-spin')} />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div
-      className="flex flex-col bg-white border-r border-gray-200 w-14 shrink-0"
+      className="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-gray-50"
       role="toolbar"
       aria-label="라벨링 도구"
     >
@@ -391,68 +545,40 @@ export function ToolBar({
         // 스크롤하면 툴팁 좌표가 낡는다 — 포인터가 그대로여도 위치가 어긋나므로 즉시 닫는다.
         onScroll={() => setTooltip(null)}
       >
-        {items.map((item, idx) => {
-          if (item.kind === 'divider') {
-            return <div key={idx} className="w-8 h-px bg-gray-200 my-1" />;
-          }
-          const busy = item.kind === 'action' && item.busy === true;
-          // 회전 중 잠금 대상 = **그리기 도구**(사양). 선택 도구는 잠그지 않는다 — 회전을 풀었을 때
-          // 되돌아갈 안전한 기본 도구라 남겨 둔다.
-          const lockedByRotation = rotated && item.kind === 'tool' && item.tool !== ToolType.SELECT;
-          // 진행 중 표시(busy)·편집 차단(editBlocked)·개별 비활성(잠금)·회전 잠금은 서로 다른 축이지만,
-          // 버튼 비활성은 동일하게 적용한다(fail-closed — 하나라도 참이면 막는다).
-          const disabled =
-            busy ||
-            editBlocked ||
-            lockedByRotation ||
-            (item.kind === 'action' && item.disabled === true);
-          const Icon = busy ? Loader2 : item.icon;
-          const isActive = item.kind === 'tool' && activeTool === item.tool;
-          // 도구는 활성 여부가 곧 눌림 상태, 액션은 토글일 때만 눌림 상태를 갖는다(그 외 undefined
-          // → 속성 미부착). 일회성 액션에 aria-pressed="false" 를 달면 토글로 오안내된다.
-          const pressed = item.kind === 'tool' ? isActive : item.pressed;
-          const title = lockedByRotation
-            ? `${item.label} (회전 중에는 사용할 수 없습니다)`
-            : item.shortcut
-              ? `${item.label} (${item.shortcut})`
-              : item.label;
-          const selectTool = onSelectTool ?? setActiveTool;
-          const handleClick = item.kind === 'action' ? item.action : () => selectTool(item.tool);
+        <section className={RAIL_CARD_CLASS}>
+          <h2 className={RAIL_CARD_TITLE_CLASS}>그리기 도구</h2>
+          <div className="flex flex-col gap-1">
+            {drawItems.map((item, idx) =>
+              item.kind === 'divider' ? (
+                <div key={idx} className="my-1 h-px bg-gray-200" />
+              ) : (
+                renderToolRow(item, idx)
+              ),
+            )}
+          </div>
+        </section>
 
-          return (
-            <div key={idx} className="relative">
-              <button
-                type="button"
-                onClick={handleClick}
-                disabled={disabled}
-                aria-label={item.label}
-                // 단축키를 title 로도 노출 — 키맵 파생(오표기 0), 마우스 호버/스크린리더 힌트.
-                title={title}
-                aria-pressed={pressed}
-                aria-busy={busy}
-                data-testid={item.kind === 'action' ? item.testId : undefined}
-                onMouseEnter={(e) => showTooltip(e.currentTarget, item)}
-                onFocus={(e) => showTooltip(e.currentTarget, item)}
-                onMouseLeave={() => setTooltip(null)}
-                onBlur={() => setTooltip(null)}
-                className={cn(
-                  'w-10 h-10 rounded-lg flex items-center justify-center transition-colors',
-                  isActive
-                    ? 'bg-primary-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
-                  disabled && 'opacity-60 cursor-not-allowed',
-                )}
-              >
-                <Icon size={18} className={cn(busy && 'animate-spin')} />
-              </button>
-            </div>
-          );
-        })}
+        <section className={RAIL_CARD_CLASS}>
+          <h2 className={RAIL_CARD_TITLE_CLASS}>보기</h2>
+          <div className="flex flex-col gap-1">
+            {viewItems.map((item, idx) =>
+              item.kind === 'divider' ? (
+                <div key={idx} className="my-1 h-px bg-gray-200" />
+              ) : (
+                renderViewRow(item, idx)
+              ),
+            )}
+          </div>
+          {/* 회전 잠금은 눌러 봐야 알 수 있는 것이 아니라 미리 알려야 하는 제약이다(시안 캡션). */}
+          <p className="px-2 pt-1 text-caption text-gray-600">
+            회전 중에는 그리기 도구가 잠깁니다.
+          </p>
+        </section>
       </div>
 
       {/* 단축키 도움말 — 도구바 **맨 아래** 고정(스크롤 상자 밖이라 목록이 넘쳐도 항상 보인다).
           표 본문은 ShortcutCheatSheetContent 단일 출처를 그대로 담는다(표기 복제 금지). */}
-      <div className="shrink-0 border-t border-gray-200 py-2 flex justify-center">
+      <div className="shrink-0 border-t border-gray-200 p-2">
         <button
           type="button"
           // ★접근성 이름은 헤더의 `?` 버튼과 **구분**한다 — 같은 화면에 같은 이름의 버튼이 둘이면
@@ -467,9 +593,12 @@ export function ToolBar({
           onFocus={(e) => openHelp(e.currentTarget)}
           onMouseLeave={(e) => closeHelpUnlessEnteringPanel(e.relatedTarget)}
           onBlur={closeHelp}
-          className="w-10 h-10 rounded-lg flex items-center justify-center text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          // 시안 `.shortcut-trigger` — 점선 테두리 + 항목명. 아이콘만 두면 이 자리가 무슨 기능인지
+          // 호버해 봐야 알 수 있다(사양은 "맨 아래 고정 위치에 단축키 안내를 둔다").
+          className="flex min-h-[2.5rem] w-full items-center gap-2 rounded-md border border-dashed border-gray-300 bg-white px-2 text-body-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
         >
-          <Keyboard size={18} />
+          <Keyboard size={16} aria-hidden="true" className="shrink-0" />
+          <span className="truncate">단축키 안내</span>
         </button>
       </div>
       {helpAnchor !== null &&

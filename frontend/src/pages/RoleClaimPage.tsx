@@ -1,11 +1,11 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
 import { Alert } from '@/components/common/Alert';
-import { Field, FieldLabel } from '@/components/common/Field';
+import { Field, FieldDescription, FieldLabel } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
 import { Card, CardContent } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
-import { Radio } from '@/components/common/Radio';
+import { RadioCard } from '@/components/common/RadioCard';
 import { useClaimRole } from '@/features/auth/hooks/useClaimRole';
 import { resolveHandoffUser } from '@/features/auth/tokenIngress';
 import { ApiError } from '@/lib/api/errors';
@@ -66,46 +66,54 @@ export function RoleClaimPage() {
         <CardContent>
           <header className="mb-6">
             <h1 className="text-title-lg font-bold text-gray-900">권한 부여 필요</h1>
-            <p className="mt-1 text-body-md text-gray-500">
-              관리자에게 받은 패스워드로 역할을 부여받으세요.
+            {/*
+              ★역할 호칭은 '검수자'다(@design SCREEN-002 본문 원문).
+              이 시스템에 ADMIN 역할은 존재하지 않으며 관리 권한은 전부 REVIEWER 에 통합돼 있다 —
+              구 문구 '관리자에게 받은…'은 화면에 없는 역할을 가리켜, 사용자가 누구에게 요청해야
+              할지 알 수 없게 만들었다.
+              ⚠ 아래 필드 라벨 '관리자 패스워드'·`aria-label`·API 필드 `adminPassword` 는 역할
+              호칭이 아니라 "공유 부트스트랩 패스워드"라는 계약·변수 축이므로 함께 바꾸지 말 것.
+            */}
+            <p className="mt-1 text-body-md text-gray-600">
+              검수자에게 받은 패스워드로 역할을 부여받으세요.
             </p>
           </header>
 
           <form className="space-y-5" onSubmit={handleSubmit} noValidate>
             <fieldset className="space-y-2">
               <legend className="text-body font-medium text-gray-700">역할 선택</legend>
-              <div
-                role="radiogroup"
-                aria-label="역할"
-                className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3"
-              >
-                {/*
-                  ★화면에 보이는 문구는 한글 호칭뿐이다(사양 SCREEN-002). 서버 코드값
-                  (WORKER / REVIEWER)은 `value` 와 전송 payload 에만 있고 사람에게 노출하지 않는다 —
-                  코드값은 내부 계약이라 화면 문구로 새면 사용자가 읽을 이유가 없는 정보가 된다.
-                  ⚠ `value` 와 `setRole` 인자는 서버 계약이므로 절대 한글로 바꾸지 말 것.
-                */}
-                <Radio
+              {/*
+                ★화면에 보이는 문구는 한글 호칭뿐이다(@design SCREEN-002). 서버 코드값
+                (WORKER / REVIEWER)은 `value` 와 전송 payload 에만 있고 사람에게 노출하지 않는다 —
+                코드값은 내부 계약이라 화면 문구로 새면 사용자가 읽을 이유가 없는 정보가 된다.
+                ⚠ `value` 와 `setRole` 인자는 서버 계약이므로 절대 한글로 바꾸지 말 것.
+
+                각 옵션은 설명을 곁들인 선택 카드다(확정 시안 `.radio-card`) — 구 구현은 테두리
+                상자 안의 라디오 2줄이라 역할별 책임 차이를 화면에서 알 수 없었고, 그 설명을
+                묶음 아래 한 문장으로만 두어 어느 역할의 이야기인지 이어지지 않았다.
+              */}
+              <div role="radiogroup" aria-label="역할" className="flex flex-col gap-2">
+                <RadioCard
+                  id="role-claim-worker"
                   name="role"
                   value="WORKER"
-                  label="작업자"
+                  title="작업자"
+                  description="영상에 라벨을 만들고 수정해 검수를 요청합니다."
                   checked={role === 'WORKER'}
                   onChange={() => setRole('WORKER')}
                   disabled={mutation.isPending}
                 />
-                <Radio
+                <RadioCard
+                  id="role-claim-reviewer"
                   name="role"
                   value="REVIEWER"
-                  label="검수자"
+                  title="검수자"
+                  description="작업 배정과 검수 승인·반려, 사용자·시스템 설정을 담당합니다."
                   checked={role === 'REVIEWER'}
                   onChange={() => setRole('REVIEWER')}
                   disabled={mutation.isPending}
                 />
               </div>
-              <p className="text-sub text-gray-500">
-                검수자는 사용자 관리·시스템 설정·검수 승인 권한을 갖습니다. 담당 업무에 맞는 역할을
-                선택하세요.
-              </p>
             </fieldset>
 
             <Field>
@@ -113,12 +121,21 @@ export function RoleClaimPage() {
               <Input
                 type="password"
                 autoComplete="new-password"
-                placeholder="관리자에게 받은 패스워드를 입력하세요"
+                placeholder="검수자에게 받은 패스워드를 입력하세요"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 disabled={mutation.isPending}
                 aria-label="관리자 패스워드"
               />
+              {/*
+                시안의 패스워드 도움말 자리. 시안 원문은 "역할별로 관리자가 따로 안내한
+                패스워드입니다"였으나 그대로 쓰지 않는다 — ①이 값은 **역할과 무관한 단일 공유
+                패스워드**이고(사양 본문 "관리자 공유 패스워드") ②'관리자'는 이 시스템에 없는
+                역할이다. 두 사실에 맞춰 옮겨 적었다.
+              */}
+              <FieldDescription>
+                검수자가 안내한 공유 패스워드입니다. 화면에는 표시되지 않습니다.
+              </FieldDescription>
             </Field>
 
             {error && (

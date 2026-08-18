@@ -46,6 +46,18 @@ describe('NoticeCreatePage (공지 작성 전용 화면)', () => {
     expect(screen.getByRole('button', { name: /뒤로 가기/ })).toBeInTheDocument();
   });
 
+  it('★뒤로가기는_라벨이_보이는_텍스트_버튼이다_수정화면과_동일_형태', () => {
+    // given: 확정 디자인은 작성(SCREEN-036 `.back-btn`)·수정(SCREEN-037 `.btn-ghost`) 모두
+    //   "투명 테두리 **텍스트** 버튼 + 화살표 아이콘"으로 규정한다. 이 화면만 아이콘 전용
+    //   정사각 버튼이라 두 화면의 뒤로가기 형태가 갈려 있었다.
+    renderCreatePage();
+
+    // when / then: 접근명이 aria-label 이 아니라 **눈에 보이는 텍스트**에서 나온다.
+    const back = screen.getByRole('button', { name: /뒤로 가기/ });
+    expect(back).not.toHaveAttribute('aria-label');
+    expect(back.textContent).toContain('뒤로 가기');
+  });
+
   it('작성_화면에는_첨부_영역이_없다_게시글_id_미발급', () => {
     // 게시글 id 가 발급되기 전이라 업로드 대상이 없다. 첨부는 저장 후 수정 화면에서 추가한다.
     renderCreatePage();

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Copy, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Layers, Plus } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
 import {
@@ -36,8 +36,10 @@ import { useUiStore } from '@/stores/useUiStore';
  * 한 페이지에 보이는 프리셋 카드 수 — 사양 SCREEN-026 이 카드 그리드·페이지네이션 두 절에서
  * 모두 **9건/페이지**로 규정한다.
  *
- * 3의 배수인 것이 핵심이다 — 그리드가 xl 에서 3열이라 9면 마지막 줄이 정확히 차고, 10이면
- * 마지막 카드 하나만 남은 줄이 생겨 리듬이 깨진다.
+ * 3의 배수인 것이 핵심이다 — 그리드가 3열일 때 9면 마지막 줄이 정확히 차고, 10이면
+ * 마지막 카드 하나만 남은 줄이 생겨 리듬이 깨진다. 2열 구간에서 마지막 줄이 한 칸 비는 것은
+ * 확정 디자인도 같다(디자인의 2열 브레이크포인트에서도 9건이므로) — 값을 열 수에 맞춰
+ * 바꾸지 않는다(사양이 9건으로 못박은 값이다).
  */
 const PAGE_SIZE = 9;
 
@@ -54,12 +56,20 @@ const VISIBLE_CHIP_COUNT = PRESET_LABEL_CHIP_LIMIT;
 const SKELETON_COUNT = 6;
 
 /**
- * 카드 그리드 열 구성 — 좁은 화면 1열 / md(768px) 2열 / xl(1280px) 3열.
+ * 카드 그리드 열 구성 — 좁은 화면 1열 / md(768px) 2열 / **1520px** 3열. [@design SCREEN-026]
+ *
+ * ★3열 임계는 뷰포트가 아니라 **카드 영역 폭**이 정한다. 확정 디자인의 `.psm-grid` 는
+ *   `@media (max-width: 1280px) { 2열 }` 인데 그 캔버스에는 **셸(LNB)이 없어** 뷰포트가 곧
+ *   카드 영역이다. 실제 화면은 고정 LNB 240px + 좌우 패딩 48px 을 뺀 나머지가 카드 영역이라,
+ *   구 `xl:`(뷰포트 1280) 로는 카드 영역이 992px 밖에 안 되는데도 3열이 된다.
+ *   1440 실측에서 카드가 368px 로 눌려 **제목 9/9 가 전부 말줄임**됐다(`교통사고 기...`).
+ *   같은 조건을 카드 영역 기준으로 옮기면 1280 + 240 + 48 = **1520px** 이다.
  *
  * ⚠ 이 저장소의 Tailwind `theme.screens` 는 기본 브레이크포인트를 **대체**해 `md`·`xl`
- *   둘만 정의한다. `sm:`/`lg:` 는 한 번도 적용되지 않는 죽은 접두사다.
+ *   둘만 정의한다(`2xl:` 도 죽은 접두사다) — 그래서 임의 미디어 변형으로 적는다.
+ *   `md`(2열) 축은 이번 변경 범위가 아니라 그대로 둔다.
  */
-const GRID_CLASS = 'grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3';
+const GRID_CLASS = 'grid grid-cols-1 gap-6 md:grid-cols-2 min-[1520px]:grid-cols-3';
 
 /**
  * SCR-MANAGE-PRESETS 라벨링 프리셋 관리 (SCREEN-026 고충실 디자인 정합) — REVIEWER 전용.
@@ -222,9 +232,11 @@ export function PresetListPage() {
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
             <Card key={i}>
               <CardHeader className="gap-2">
-                <div className="flex min-w-0 flex-col gap-2">
-                  <Skeleton width="62%" height="1.0625rem" />
-                  <Skeleton width="30%" height="1.5rem" className="rounded-full" />
+                {/* 실제 카드 헤더가 `제목 + 배지` 한 줄이므로 스켈레톤도 한 줄로 둔다 —
+                    세로로 쌓으면 로딩이 끝나는 순간 헤더 높이가 한 줄만큼 줄어 카드가 튄다. */}
+                <div className="flex min-w-0 flex-nowrap items-center gap-2">
+                  <Skeleton width="52%" height="1.0625rem" />
+                  <Skeleton width="24%" height="1.5rem" className="shrink-0 rounded-full" />
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
@@ -268,7 +280,13 @@ export function PresetListPage() {
                 className="transition duration-200 ease-standard hover:border-gray-300 hover:shadow-md"
               >
                 <CardHeader className="gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {/* @design SCREEN-026 — 카드 헤더는 `제목 + 이벤트 배지`(1fr) / `액션`(auto) 2열이고
+                      제목 행은 **한 줄**이다(`.psm-card__title-row`). ★`flex-wrap` 을 쓰지 않는다 —
+                      디자인 CSS 에는 wrap 이 있지만 그건 디자인 캔버스(사이드바 없는 1440)에서는
+                      한 번도 발동하지 않는 폴백이고, 사이드바가 있어 카드가 좁은 실제 화면에서는
+                      매번 발동해 **배지가 제목 아래로 떨어져 헤더가 2행이 된다**(정합 대조에서 잡힌 결함).
+                      제목만 말줄임하고 배지는 `shrink-0` 로 옆에 붙여 둔다. */}
+                  <div className="flex min-w-0 flex-nowrap items-center gap-2">
                     {/* 카드 제목은 CardTitle(p) 이 아니라 h3 로 둔다 — 목록에서 헤딩 탐색이 되어야 한다.
                         `truncate` 라 긴 이름은 말줄임되므로 `title` 로 전문을 남긴다 — 없으면 카드에서
                         전체 이름을 확인할 수단이 아예 없다(같은 카드의 이벤트 배지·수정일도 같은 방식). */}
@@ -297,11 +315,19 @@ export function PresetListPage() {
                   </div>
                   {isReviewer && (
                     // 밀집 배치라 ghost + sm(36px) 예외를 쓴다 — 카드 우상단에 3개가 나란히 온다.
+                    //
+                    // ★아이콘을 붙이지 않는다(@design SCREEN-026) — 확정 디자인의
+                    //   `.psm-card__actions` 는 **텍스트 전용 ghost 버튼 3개**(`padding: 0 8px`)이고
+                    //   컴포넌트 사양도 label 만 규정한다. 아이콘을 붙이면 버튼 하나마다 20px
+                    //   (아이콘 14 + gap 6)씩, 셋이면 60px 이 액션 열로 가는데 그 폭은 전부
+                    //   1fr 열(제목)에서 빠져나가 제목이 `교통사고 기...` 로 잘렸다.
+                    // ★`px-2` 도 디자인 값(8px)이다 — Button `sm` 기본은 px-3(12px)이라
+                    //   3개면 24px 을 더 먹는다.
                     <CardAction className="gap-0.5">
                       <Button
                         variant="ghost"
                         size="sm"
-                        leftIcon={Pencil}
+                        className="px-2"
                         onClick={() => openEdit(preset)}
                         aria-label="수정"
                       >
@@ -310,7 +336,7 @@ export function PresetListPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        leftIcon={Copy}
+                        className="px-2"
                         onClick={() => handleClone(preset)}
                         disabled={clone.isPending}
                         aria-label={`${preset.name} 복제`}
@@ -320,10 +346,9 @@ export function PresetListPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        leftIcon={Trash2}
                         onClick={() => setPendingDelete(preset)}
                         aria-label="삭제"
-                        className="text-danger-700 hover:bg-danger-50"
+                        className="px-2 text-danger-700 hover:bg-danger-50"
                       >
                         삭제
                       </Button>

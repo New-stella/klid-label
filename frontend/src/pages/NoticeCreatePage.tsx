@@ -38,14 +38,16 @@ export function NoticeCreatePage() {
           items={[{ label: '공지사항', href: '/notice' }, { label: '새 공지 작성' }]}
         />
         <div className="flex items-start gap-4">
+          {/* @design SCREEN-036 — 확정 디자인의 `.back-btn` 은 "투명 테두리 텍스트 버튼"이고
+              라벨이 시각적으로 보인다(아이콘 전용 정사각 버튼이 아니다). 수정 화면
+              (SCREEN-037 `.btn-ghost`)도 같은 형태라 두 화면의 뒤로가기를 통일한다. */}
           <Button
-            variant="outline"
-            size="icon"
-            aria-label="뒤로 가기"
+            variant="ghost"
+            leftIcon={ArrowLeft}
             onClick={() => navigate(-1)}
             className="mt-0.5 shrink-0"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            뒤로 가기
           </Button>
           <div className="flex min-w-0 flex-col gap-2">
             <h1 className="text-title-lg text-gray-900">새 공지 작성</h1>

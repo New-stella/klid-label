@@ -452,4 +452,110 @@ describe('BatchStageIndicator', () => {
       expect(bundleLabel('VLM')).not.toContain('VLM');
     });
   });
+
+  // ── SCREEN-009 회귀 가드: 전폭 밴드에서 칸을 균등 분산한다 ──────────────────
+  // ★ 앞선 라운드가 '처리 단계'를 전폭 밴드로 빼냈는데도 **표시기 자신이 내용 폭**이라
+  //   노드가 좌측에 뭉쳤다(브라우저 실측: 886px 밴드에 273px 만 사용). 밴드를 넓히는 것과
+  //   칸을 분산하는 것은 **다른 축**이며, 앞의 것만 고치면 원래 고치려던 판독성 저하가 남는다.
+  //
+  // ⚠ jsdom 은 레이아웃을 계산하지 않아 실제 분산 폭은 여기서 판정할 수 없다(브라우저 실측이
+  //   짝이다). 이 가드가 고정하는 것은 **분산을 만드는 구조**(칸의 flex-1 · 한 줄 캡션)와
+  //   **두 모드가 같은 계약을 유지한다는 사실**이다.
+  describe('★전폭 분산 모드(fill, @design SCREEN-009)', () => {
+    const cellsOf = (container: HTMLElement) =>
+      Array.from(container.querySelectorAll('[data-testid^="batch-stage-item-"]')).map(
+        (el) => el.parentElement as HTMLElement,
+      );
+
+    it('★fill이면_칸이_flex-1이라_컨테이너_전폭에_균등_분산된다', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} fill />);
+      const cells = cellsOf(container);
+      expect(cells).toHaveLength(5);
+      // 칸마다 같은 폭을 갖는 것이 분산의 조건이다 — 하나라도 내용 폭이면 정렬이 어긋난다.
+      cells.forEach((cell) => {
+        expect(cell.className).toContain('flex-1');
+      });
+      expect(screen.getByTestId('batch-stage-indicator').className).toContain('w-full');
+    });
+
+    it('★기본값은_구_동작이라_다른_사용처를_늘리지_않는다', () => {
+      // 마킹 화면은 이 표시기를 헤더 행에 인라인으로 놓는다 — 늘어나면 옆 요소를 밀어낸다.
+      const { container } = render(<BatchStageIndicator stages={stages} />);
+      cellsOf(container).forEach((cell) => {
+        expect(cell.className).not.toContain('flex-1');
+      });
+      expect(screen.getByTestId('batch-stage-indicator').className).not.toContain('w-full');
+    });
+
+    it('★fill이면_캡션이_한_줄이다_단계명과_상태가_같은_부모_줄에_온다', () => {
+      const { unmount } = render(<BatchStageIndicator stages={stages} fill />);
+      const name = screen.getByTestId('batch-stage-name-DEIDENTIFY');
+      const status = screen.getByTestId('batch-stage-status-DEIDENTIFY');
+      // 한 줄 = 두 조각이 같은 부모 안에 공백으로 이어진다(디자인 캡션 `비식별 완료`).
+      expect(name.parentElement).toBe(status.parentElement);
+      expect(name.parentElement?.textContent).toBe('비식별 완료');
+      unmount();
+
+      // 기본 모드는 두 줄이라 부모(= flex-col 캡션)의 직계 자식으로 나란히 온다.
+      render(<BatchStageIndicator stages={stages} />);
+      expect(screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement?.className).toContain(
+        'flex-col',
+      );
+    });
+
+    it('★fill은_표시_계약을_바꾸지_않는다_칸수_문구_라이브안내_동일', () => {
+      const { container, unmount } = render(<BatchStageIndicator stages={stages} />);
+      const baseKeys = renderedCellKeys(container);
+      const baseLive = screen.getByTestId('batch-stage-live').textContent;
+      unmount();
+
+      const filled = render(<BatchStageIndicator stages={stages} fill />);
+      expect(renderedCellKeys(filled.container)).toEqual(baseKeys);
+      expect(screen.getByTestId('batch-stage-live').textContent).toBe(baseLive);
+      // 상태 문구(색을 대신하는 유일한 구분 수단)가 fill 에서도 빠지지 않는다.
+      baseKeys.forEach((key) => {
+        expect(screen.getByTestId(`batch-stage-status-${key}`).textContent).toBeTruthy();
+      });
+    });
+
+    it('★접은_칸의_보조_표기는_fill에서도_남는다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('DEIDENTIFY', 'DONE'), item('YOLO', 'DONE'), item('INTERPOLATE', 'FAIL')]}
+          fill
+        />,
+      );
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('보간에서 실패');
+    });
+
+    // ★ 전폭 밴드가 아닌 사용처가 실수로 켜지는 것을 막는다 — 런타임 테스트는 그 화면을
+    //   렌더할 때만 돌지만, 이 가드는 사용처가 하나 늘어도 즉시 실패한다.
+    it('★fill을_켜는_사용처는_영상_상세_한_곳뿐이다', () => {
+      const srcDir = path.resolve(__dirname, '../../..');
+      const files: string[] = [];
+      const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name === '__tests__' || entry.name === 'test') continue;
+            walk(full);
+          } else if (/\.tsx?$/.test(entry.name)) {
+            files.push(full);
+          }
+        }
+      };
+      walk(srcDir);
+
+      // `<BatchStageIndicator ... fill ... />` 렌더 지점만 센다(정의 파일 제외).
+      const USAGE = /<BatchStageIndicator[^>]*\bfill\b[^>]*\/>/gs;
+      const hits = files.flatMap((f) => {
+        const rel = path.relative(srcDir, f).split(path.sep).join('/');
+        if (rel === 'components/common/BatchStageIndicator.tsx') return [];
+        const count = (fs.readFileSync(f, 'utf-8').match(USAGE) ?? []).length;
+        return count > 0 ? [`${rel} x${count}`] : [];
+      });
+
+      expect(hits).toEqual(['pages/VideoDetailPage.tsx x1']);
+    });
+  });
 });
