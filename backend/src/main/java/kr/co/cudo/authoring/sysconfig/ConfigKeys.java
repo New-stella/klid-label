@@ -145,6 +145,25 @@ public final class ConfigKeys {
     public static final String VLM_CLIENT_URL                  = "vlm.client.url";
     public static final String CONTROL_NOTIFY_URL              = "authoring.control-notify.url";
 
+    /**
+     * 온디맨드 AI 추론의 <b>대기 예산 절대 상한</b>(초) — 한 요청이 넘지 말아야 할 값.
+     *
+     * <p>NUMBER. 기본값은 시드하지 않고 {@code AiWaitBudgetPolicy.DEFAULT_CEILING_SEC}(=앞단 프록시
+     * 읽기 제한시간)를 쓴다. 운영자가 앞단 상한을 조정했을 때 배포 없이 맞출 수 있게 여는 손잡이다.
+     *
+     * <h3>★ 하한은 숫자가 아니라 <b>파생값</b>이다</h3>
+     * <p>서버가 정당하게 쓸 수 있는 최악보다 작은 상한을 저장하면, 그건 곧 "정상 동작이 AI 실패로
+     * 보이는" 결함의 재도입이다. 그래서 하한을 여기 리터럴로 적지 않고
+     * {@code AiWaitBudgetPolicy.minimumCeilingSeconds()} 에서 파생시켜
+     * {@code SystemConfigService} 가 저장 시점에 거부한다 — 재시도 예산(yml)을 바꾸면 하한이
+     * <b>함께</b> 움직인다.
+     *
+     * <p>⚠ 아래 {@link #NUMBER_RANGE} 의 하한 {@code 1} 은 <b>파생 하한을 대신하지 않는다</b>.
+     * 그 맵은 정적이라 파생값을 담을 수 없어 «상한과 형식» 만 거른다(등록을 빼면 상한이 무검증이
+     * 되므로 등록은 해 둔다). 실효 하한은 언제나 파생 검증 쪽이다.
+     */
+    public static final String AI_WAIT_BUDGET_CEILING_SEC = "ai.wait-budget.ceiling-sec";
+
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
             BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
@@ -157,7 +176,8 @@ public final class ConfigKeys {
             EVENT_EXCLUDED_CLASS_CODES,
             KPST_DEID_MASKING_TYPE, KPST_DEID_MASKING_RANGE, KPST_DEID_DB_SAVE,
             KPST_DEID_BASE_URL, INTEGRATION_AI_SERVER_BASE_URL,
-            VLM_CLIENT_URL, CONTROL_NOTIFY_URL
+            VLM_CLIENT_URL, CONTROL_NOTIFY_URL,
+            AI_WAIT_BUDGET_CEILING_SEC
     );
 
     /**
@@ -172,7 +192,9 @@ public final class ConfigKeys {
             KPST_DEID_BASE_URL,              "STRING",
             INTEGRATION_AI_SERVER_BASE_URL,  "STRING",
             VLM_CLIENT_URL,                  "STRING",
-            CONTROL_NOTIFY_URL,              "STRING"
+            CONTROL_NOTIFY_URL,              "STRING",
+            // AI 대기 예산 상한도 시드하지 않는다 — 행이 없으면 도출 기본값(앞단 제한시간)을 쓴다.
+            AI_WAIT_BUDGET_CEILING_SEC,      "NUMBER"
     );
 
     /**
@@ -194,7 +216,11 @@ public final class ConfigKeys {
             Map.entry(PORTAL_DATAMART_RETENTION_DAYS,      new int[]{1, 3650}),
             Map.entry(PORTAL_UPLOAD_RETENTION_DAYS,        new int[]{1, 3650}),
             Map.entry(PORTAL_UPLOAD_FAILED_RETENTION_DAYS, new int[]{1, 3650}),
-            Map.entry(AUTOLABEL_POLYGON_MAX_BOXES, new int[]{1, 100})
+            Map.entry(AUTOLABEL_POLYGON_MAX_BOXES, new int[]{1, 100}),
+            // ⚠ 하한 1 은 «형식·상한만 거르는» 값이다. 실효 하한은 재시도 예산에서 파생돼
+            //   SystemConfigService 가 따로 거부한다(위 상수 javadoc). 여기에 숫자를 박으면
+            //   재시도 예산이 바뀌어도 따라 움직이지 않는 두 번째 진실원이 된다.
+            Map.entry(AI_WAIT_BUDGET_CEILING_SEC, new int[]{1, 1800})
     );
 
     /**

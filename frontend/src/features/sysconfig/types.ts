@@ -82,6 +82,41 @@ export interface AiDefaults {
   confThreshold?: number;
   /** 경계 세밀함 초기값 — 실수(Douglas-Peucker epsilon px). */
   simplifyTolerance?: number;
+  /**
+   * 작업 종류별 **대기 예산** — 화면이 AI 추론을 얼마나 기다릴지의 진실원.
+   *
+   * ★ 추론이 실제로 얼마나 걸리는지는 서버 설정(호출 상한·재시도 횟수·백오프)이 정하고 운영
+   *   중에 바뀐다. 화면이 그 값을 상수로 베껴 두면 서버 예산이 바뀔 때 화면만 조용히 어긋나고,
+   *   «화면이 더 짧은» 방향이면 **정상 동작이 «AI 실패» 로 보인다**.
+   *
+   * 종류·필드 모두 **생략 가능**하다 — 못 받은 항목은 화면이 폴백을 쓴다(계약을 아직 내려주지
+   * 않는 서버 형상에서도 종전대로 동작해야 하므로). 계산·검증은 `features/label/aiBudget` 이
+   * 단독으로 판정하며 이 타입은 수신 형태만 선언한다.
+   */
+  waitBudgets?: AiWaitBudgets;
+}
+
+/**
+ * 작업 종류별 대기 예산의 수신 형태.
+ *
+ * ⚠ 종류 키는 엔드포인트 의미를 따른다 — `autolabel`(`/autolabel`) · `segment`(`/sam2-segment`) ·
+ *   `sam2Track`(`/sam2-track`) · `autoTrack`(`/yolo-track`).
+ */
+export interface AiWaitBudgets {
+  autolabel?: AiWaitBudgetItem;
+  segment?: AiWaitBudgetItem;
+  sam2Track?: AiWaitBudgetItem;
+  autoTrack?: AiWaitBudgetItem;
+}
+
+/** 한 종류의 예산. 제한시간(초) = min(baseSec + perFrameSec × 프레임수, ceilingSec). */
+export interface AiWaitBudgetItem {
+  /** 고정 비용(초) — 프레임 수와 무관한 몫. */
+  baseSec?: number;
+  /** 프레임 1건당 가산분(초) — 프레임을 훑지 않는 작업은 0. */
+  perFrameSec?: number;
+  /** 한 요청이 넘지 말아야 할 절대 상한(초). */
+  ceilingSec?: number;
 }
 
 export type ConfigMap = Record<string, number>;

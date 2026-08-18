@@ -28,7 +28,13 @@ RestartSec=10
 #    orphan 으로 남아 두 번째 노드가 무한 대기한다. 이중화 첫 기동(73개 마이그레이션
 #    + QRTZ_LOCKS 락 조율) 여유를 위해 600s 로 상향.
 TimeoutStartSec=600
-TimeoutStopSec=30
+# 종료 유예 예산 — 애플리케이션의 graceful shutdown 총합보다 커야 한다.
+#  - server.shutdown=graceful + spring.lifecycle.timeout-per-shutdown-phase=30s (진행 중 요청 대기)
+#  - MvcAsyncExecutorConfig 의 awaitTerminationSeconds=60s (진행 중 스트리밍 응답 대기 상한)
+#  합 90s + JVM 종료 여유 30s = 120s.
+#  ★ 이 값이 그 합보다 작으면 systemd 가 SIGKILL 로 먼저 끊어 유예 설정이 통째로 무의미해진다
+#    (구 형상 30s 가 정확히 그 상태였다). 앱 쪽 유예를 늘릴 때는 이 값을 함께 올릴 것.
+TimeoutStopSec=120
 # 로그 — journald + 식별 태그
 StandardOutput=journal
 StandardError=journal

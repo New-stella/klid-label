@@ -80,7 +80,7 @@ export function buildAutoTrackReview(
       const labelId = det.labelId as number;
       // 트래커 ID 가 없으면 트랙 없는 단발 라벨이다(임의 발급하지 않는다). 이때는 검출 하나가
       // 곧 하나의 묶음이라 프레임·순번으로 키를 만든다.
-      const trackId = det.trackId === null || det.trackId === undefined ? null : String(det.trackId);
+      const trackId = qualifiedTrackId(det.trackId, frame.trackSegment);
       const key = trackId === null ? `single:${srcSn}:${i}` : `track:${trackId}`;
       let group = byKey.get(key);
       if (group === undefined) {
@@ -98,10 +98,10 @@ export function buildAutoTrackReview(
       }
       const bucket = group.bySrcSn[srcSn];
       if (bucket === undefined) {
-        group.bySrcSn[srcSn] = [toLabel(det, labelId, frameNo)];
+        group.bySrcSn[srcSn] = [toLabel(det, labelId, frameNo, trackId)];
         group.frameCount += 1;
       } else {
-        bucket.push(toLabel(det, labelId, frameNo));
+        bucket.push(toLabel(det, labelId, frameNo, trackId));
       }
       group.labelCount += 1;
     }
@@ -132,10 +132,37 @@ function isLinked(det: AutoTrackDetection | null | undefined): boolean {
 }
 
 /**
+ * 이어 보낸 조각의 객체 번호를 **앞 조각과 구분되게** 만든다.
+ *
+ * ★ 요청마다 트래커가 리셋돼 번호가 1 부터 다시 매겨진다 — 조각이 다르면 번호가 같아도 같은
+ *   객체라는 근거가 없다. 그대로 두면 서로 다른 객체가 한 트랙으로 합쳐져 저장되고, 그 합침은
+ *   **사실이 아니다**(정말 같은 객체면 사용자가 트랙 병합으로 잇는다 — 화면이 단정하지 않는다).
+ *
+ * 첫 조각(0 · 표식 없음)은 **번호를 그대로 둔다** — 잘리지 않은 흔한 경우의 표기가 달라지지 않게.
+ */
+function qualifiedTrackId(
+  trackId: number | null | undefined,
+  segment: number | undefined,
+): string | null {
+  if (trackId === null || trackId === undefined) return null;
+  const seg = typeof segment === 'number' && Number.isFinite(segment) ? Math.floor(segment) : 0;
+  return seg > 0 ? `${trackId}-${seg + 1}` : String(trackId);
+}
+
+/**
  * 검출 1건 → 라벨. **변환은 AI 검출 결과의 단일 진입점**(`autolabelItemToLabel` → `normalizeLabel`)
  * 을 거친다 — 도구마다 payload 를 따로 만들면 같은 필드를 나란히 빠뜨린다.
+ *
+ * @param trackId 묶음 축과 **같은** 객체 식별자. 이어 보낸 조각이면 조각을 구분한 값이라 저장되는
+ *                라벨도 그 값을 써야 한다 — 여기만 원본 번호를 쓰면 화면의 묶음과 저장된 트랙이
+ *                갈려, 검토에서 나눠 놓은 객체가 저장 시 다시 합쳐진다.
  */
-function toLabel(det: AutoTrackDetection, labelId: number, frameNo: number): Label {
+function toLabel(
+  det: AutoTrackDetection,
+  labelId: number,
+  frameNo: number,
+  trackId: string | null,
+): Label {
   const item: AutolabelItem = {
     lblSn: null,
     labelId,
@@ -145,5 +172,7 @@ function toLabel(det: AutoTrackDetection, labelId: number, frameNo: number): Lab
     trackId: det.trackId,
     shapeType: 'BBOX',
   };
-  return autolabelItemToLabel(item, frameNo);
+  const label = autolabelItemToLabel(item, frameNo);
+  // 트랙 축만 덮는다 — 좌표·신뢰도·마스터 연결은 단일 진입점이 만든 그대로 둔다.
+  return label.trackId === trackId ? label : { ...label, trackId };
 }

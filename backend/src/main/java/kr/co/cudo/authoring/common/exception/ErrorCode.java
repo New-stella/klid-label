@@ -25,6 +25,35 @@ public enum ErrorCode {
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청 횟수가 제한을 초과했습니다."),
     GONE(HttpStatus.GONE, "리소스가 만료되었거나 더 이상 존재하지 않습니다."),
     PRECONDITION_FAILED(HttpStatus.PRECONDITION_FAILED, "요청 전제 조건을 충족하지 않습니다."),
+    /**
+     * 사용자가 취소해서 중단된 요청 — 실패가 아니라 <b>정상 동선</b>이다.
+     *
+     * <h3>왜 409 에서 옮겼나</h3>
+     * <p>취소가 409 였을 때 <b>같은 추론 엔드포인트</b>가 이미 409 를 잠금 사유로 쓰고 있었다
+     * ({@code AutolabelOnlineService} 의 «작업이 잠긴 영상입니다» · «이미 오토라벨링이 진행 중인
+     * 프레임입니다»). 한 상태코드에 «남이 잡고 있다» 와 «내가 그만뒀다» 가 겹쳐, 로그·지표·앞단
+     * 어디서도 둘을 가를 수 없었다. 더 나쁜 것은 화면 쪽이다 — 공용 헬퍼가 400/409/412 를 «서버
+     * 문구를 그대로 사용자에게 보여도 되는 코드» 로 다루므로, 스스로 멈춘 사용자에게
+     * «요청이 취소되었습니다» 가 <b>오류 문구</b>로 뜰 수 있었다.
+     *
+     * <h3>왜 422 인가</h3>
+     * <ul>
+     *   <li><b>499 아님</b> — 의미는 가장 정확하지만(nginx·gRPC {@code CANCELLED} 관례) IANA
+     *       미등록이다. 앞단이 두 형상(Caddy·nginx)인데 nginx 는 <b>자기 자신이</b> 클라이언트
+     *       이탈에 499 를 적으므로, 상류 499 와 앞단 499 가 로그에서 한 값으로 뭉개진다 — 코드를
+     *       나눈 목적이 앞단에서 도로 무너진다.</li>
+     *   <li><b>5xx 아님</b> — 취소는 서버 실패가 아니다. 5xx 면 감시·앞단이 장애로 집계한다.</li>
+     *   <li><b>408·410 아님</b> — 408 은 재시도를 유도해 방금 취소한 추론을 되살리고, 410 은 이미
+     *       «세션 만료» 로 쓰이는 데다 휴리스틱 캐시 대상이다(RFC 9110 §15.1).</li>
+     *   <li><b>422 는</b> RFC 9110 표준이라 어느 앞단도 알고, 우리 API 가 한 번도 쓰지 않은 값이며,
+     *       «요청은 이해했으나 그 지시를 끝까지 수행하지 못했다» 가 사실 그대로다.</li>
+     * </ul>
+     *
+     * <p>⚠ 세밀한 구분은 상태코드가 아니라 <b>본문의 {@code errorCode}</b> 가 진다. 상태코드는
+     * «겹치지 않고 해롭지 않은 값» 이면 충분하며, 이 값을 바꾸려면 위 근거를 먼저 뒤집어야 한다
+     * (회귀 고정: {@code AiCancelErrorCodeTest}).
+     */
+    AI_REQUEST_CANCELLED(HttpStatus.UNPROCESSABLE_ENTITY, "요청이 취소되었습니다."),
     EXTERNAL_API_ERROR(HttpStatus.BAD_GATEWAY, "외부 API 호출에 실패했습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "서비스를 일시적으로 사용할 수 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");

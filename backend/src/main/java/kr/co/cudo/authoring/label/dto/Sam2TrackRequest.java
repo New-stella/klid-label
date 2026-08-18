@@ -28,11 +28,31 @@ public record Sam2TrackRequest(
         @NotBlank @Size(max = 64)
         @Pattern(regexp = "^[A-Za-z0-9._:-]+$", message = "트랙 ID 는 영숫자와 . _ : - 만 사용할 수 있습니다.")
         String trackId,
-        @NotEmpty @Size(min = 3, max = 1000) List<List<Double>> prevPolygon,
+        @NotEmpty @Size(min = MIN_POLYGON_POINTS, max = MAX_POLYGON_POINTS) List<List<Double>> prevPolygon,
         @NotBlank @Size(max = 80) String label,
         @NotEmpty @Size(max = 50) List<Long> nextSrcSns,
         AutolabelShape shape
 ) {
+
+    /**
+     * {@code prevPolygon} 최소 정점 수 — 면적이 있는 폐곡선의 하한.
+     *
+     * <p>값이 {@code Sam2CoordinateValidator.MIN_POLYGON_POINTS}(응답 축) 와 같은 것은 우연이 아니라
+     * 같은 기하 요건이다. 다만 두 상수를 <b>합치지는 않는다</b> — 요청 축은 Bean Validation 이,
+     * 응답 축은 서비스가 쓰며 위반 시 응답 코드도 400/502 로 다르다.
+     */
+    public static final int MIN_POLYGON_POINTS = 3;
+
+    /**
+     * {@code prevPolygon} 최대 정점 수 (CWE-770 — 무제한 입력 차단).
+     *
+     * <p><b>상수로 노출하는 이유</b>: 서버가 <b>스스로 발행하는</b> 이어 보내기 시드
+     * ({@code Sam2TrackResponseDto.Resume.prevPolygon})가 이 상한을 지켜야 한다. 그 값은 추론 서버가
+     * 준 원본 폴리곤인데 추론 서버는 윤곽점 수를 제한하지 않으므로, 서비스가 발행 직전에 이 상한으로
+     * 줄인다({@code Sam2TrackService.resumeSeed}). 숫자를 서비스에도 적으면 <b>두 번째 진실원</b>이
+     * 되어 한쪽만 바뀌는 순간 «서버가 스스로 받지 못하는 값을 발행» 하는 상태로 되돌아간다.
+     */
+    public static final int MAX_POLYGON_POINTS = 1000;
 
     /** 하위호환 — shape 미지정(POLYGON 기본) 5-arg 편의 생성자. 포털 경로/기존 호출자 유지. */
     public Sam2TrackRequest(Long srcSn, String trackId, List<List<Double>> prevPolygon,

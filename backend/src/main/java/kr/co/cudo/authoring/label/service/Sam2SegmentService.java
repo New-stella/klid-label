@@ -3,7 +3,9 @@ package kr.co.cudo.authoring.label.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.common.client.AiCallCancelledException;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.CancellableAiCall;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -127,7 +129,10 @@ public class Sam2SegmentService {
 
         Sam2Response aiRes;
         try {
-            aiRes = aiServerClient.segment(aiReq).block();
+            aiRes = CancellableAiCall.block(aiServerClient.segment(aiReq));
+        } catch (AiCallCancelledException e) {
+            // 사용자 취소 — 502 로 바꾸지 않는다(서킷 브레이커 오염 방지).
+            throw e;
         } catch (Exception e) {
             // CWE-209: 예외 원문(WebClientResponseException 은 내부 호스트:포트:경로를 포함)을
             // 클라이언트에 노출하지 않는다. 진단 정보는 서버 로그로만 — Sam2TrackService 와 동일 규약.

@@ -202,7 +202,7 @@ export const TOOL_DISPLAY_NAME: Record<ToolType, string> = {
  * 포털 모드에서 제외되는 도구 목록.
  *
  * ADR-013 — 포털(외부 채널)은 **오토라벨링·SAM2·VLM·버전관리·검수 미제공**이다. 포털 사용자에게는
- * 수동 라벨링(BBOX/POLYGON)만 제공하므로 SAM2 분할(SAM_SEGMENT)·SAM2 자동추적(TRACK)·
+ * 수동 라벨링(BBOX/POLYGON)만 제공하므로 SAM2 분할(SAM_SEGMENT)·AI 추적(TRACK)·
  * 스켈레톤(KEYPOINT)을 숨긴다. 서버의 포털 전용 SAM2 엔드포인트(`/v1/portal/frames/**`)도 제거돼
  * 있으므로(BE `PortalSam2RemovedTest`) 도구가 노출되면 사용자는 404 만 만난다.
  *

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.security.Keys;
 import kr.co.cudo.authoring.auth.service.AdminSessionTokenService;
@@ -80,7 +81,8 @@ class DeidentifyEndpointSaveTrustGuardTest {
         environment.setActiveProfiles(activeProfiles);
         return new SystemConfigService(repository, new ObjectMapper(), tokenService,
                 new IntegrationEndpointUrlValidator(),
-                new DeidentifyEndpointTrustGuard(environment));
+                new DeidentifyEndpointTrustGuard(environment),
+                TestAiWaitBudgetPolicies.production());
     }
 
     private String validToken() {

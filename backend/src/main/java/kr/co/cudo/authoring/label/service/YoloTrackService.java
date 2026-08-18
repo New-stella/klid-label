@@ -1,8 +1,10 @@
 package kr.co.cudo.authoring.label.service;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiCallCancelledException;
+import kr.co.cudo.authoring.common.client.AiWaitBudgetPolicy;
+import kr.co.cudo.authoring.common.client.CancellableAiCall;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -61,13 +63,26 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class YoloTrackService {
 
+    /**
+     * 요청 하나가 프레임 시퀀스 루프에 쓰는 wall-clock 예산 — SAM2 추적·오토라벨 폴리곤 경로와
+     * <b>같은 장치</b>다.
+     *
+     * <p>운영 기본값은 {@link AiWaitBudgetPolicy#TRACK_BATCH_BUDGET} 이며, 예산 소진 분기를 단위
+     * 테스트에서 발화시킬 수 있도록 <b>package-private 필드</b>로 노출한다(프로덕션 경로 불변).
+     */
+    Duration trackTotalBudget = AiWaitBudgetPolicy.TRACK_BATCH_BUDGET;
+
     /** SystemConfig 조회 실패 시 폴백 — YoloAutolabelStep 과 동일. */
     private static final double DEFAULT_CONF_THRESHOLD = 0.4;
     private static final int DEFAULT_IMGSZ = 1280;
     private static final double DEFAULT_IOU = 0.5;
 
     private final AiServerClient aiServerClient;
-    private final LsDataSrcRepository srcRepository;
+    /**
+     * 프레임 조회는 {@link LabelAccessGuard#verifyAndGet} 이 <b>인가 검사와 함께</b> 수행한다 —
+     * 이 서비스는 프레임 저장소를 직접 주입받지 않는다. 둘을 따로 부르면 같은 행을 프레임마다 두 번
+     * 읽고, 그 중복이 요청 단위 시간 예산을 그대로 깎는다.
+     */
     private final LabelAccessGuard accessGuard;
     private final SystemConfigService systemConfigService;
     private final FrameImageEncoder frameImageEncoder;
@@ -84,14 +99,30 @@ public class YoloTrackService {
     private final LabelMasterService labelMasterService;
 
     public YoloTrackResponseDto track(YoloTrackRequest req, TokenClaims actor) {
-        // IDOR 차단 (CWE-639): 시작 + 모든 후속 프레임 접근 권한을 ai 호출 이전에 검증.
-        accessGuard.verifyAccess(req.srcSn(), actor);
-        for (Long nextSrcSn : req.nextSrcSns()) {
-            accessGuard.verifyAccess(nextSrcSn, actor);
-        }
+        // ── 요청 단위 시간 예산 ──────────────────────────────────────────────────
+        // 프레임마다 자기 상한을 그대로 허용하면 요청 하나의 대기가 프레임 수에 비례해 늘어, 절대
+        // 상한 안에 서너 프레임밖에 못 넣는다. 그러면 화면이 요청을 쪼개는데 트래커는 요청마다
+        // 리셋되므로(clipId 가 요청 단위) 객체 식별자가 조각마다 새로 매겨진다. 그래서 루프 전체에
+        // 단일 데드라인을 두고, 예산이 다하면 그때까지의 결과와 이어 보낼 지점을 돌려준다.
+        //
+        // ★ 시계를 «프레임 수에 비례하는 일» 이 시작되기 <b>전</b>에 세운다. 아래 접근 검증은
+        //   프레임마다 DB 를 한 번씩 읽으므로 시계 밖에 두면 요청 전체 소요가 프레임 수를 따라
+        //   늘고, 그러면 예산 정책이 «요청 하나가 언제 끝나는지는 프레임 수와 무관하다» 를 근거로
+        //   화면에 내려준 대기 상한을 실제 소요가 넘어선다 — 화면이 정상 요청을 끊는 방향이다.
+        //   시계 안에 두면 그 비용은 예산을 «쓰고», 다 쓰면 부분 결과 계약(truncated/resume)이
+        //   그대로 받아 준다.
+        final long deadlineNanos = System.nanoTime() + trackTotalBudget.toNanos();
 
-        LsDataSrc startSrc = srcRepository.findById(req.srcSn())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "시작 프레임을 찾을 수 없습니다."));
+        // IDOR 차단 (CWE-639): 시작 + 모든 후속 프레임 접근 권한을 ai 호출 이전에 검증한다.
+        // 검증이 조회한 행을 그대로 받아 둔다(verifyAndGet) — 루프에서 같은 행을 findById 로 다시
+        // 읽으면 프레임마다 조회가 두 번씩 나가고, 그 중복이 그대로 위 예산을 깎는다.
+        LsDataSrc startSrc = accessGuard.verifyAndGet(req.srcSn(), actor);
+        Map<Long, LsDataSrc> frameBySrcSn = new HashMap<>();
+        frameBySrcSn.put(req.srcSn(), startSrc);
+        for (Long nextSrcSn : req.nextSrcSns()) {
+            // 같은 프레임이 두 번 실려 와도 검증·조회는 한 번이면 된다(판정 결과는 같다).
+            frameBySrcSn.computeIfAbsent(nextSrcSn, sn -> accessGuard.verifyAndGet(sn, actor));
+        }
         // 요청 단위 고유 clipId — 동일 rawSn 에 대한 동시 트랙 요청이 ai-server 트래커 상태를
         // 상호 간섭(frameIndex=0 리셋이 상대 세션 초기화)하지 않도록 요청마다 격리한다.
         // 한 요청 내 모든 프레임은 이 동일 clipId 를 공유(트래킹 연속성). UUID 는 격리용(보안 토큰 아님).
@@ -111,12 +142,21 @@ public class YoloTrackService {
         // 같은 클래스명이 프레임마다 반복되므로, 메모가 없으면 검출 건수만큼 DB 를 왕복한다(N+1).
         // 값이 없는(=미매핑) 클래스도 캐시해야 반복 조회가 생기지 않으므로 Optional 을 담는다.
         Map<String, Optional<Long>> labelIdMemo = new HashMap<>();
+        boolean truncated = false;
+
         int frameIndex = 0;
         for (Long sn : sequence) {
-            LsDataSrc src = (frameIndex == 0)
-                    ? startSrc
-                    : srcRepository.findById(sn)
-                    .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임 없음: " + sn));
+            // 데드라인은 «반복 진입 직전» 에 본다 — 폴리곤·SAM2 추적 경로와 같은 모양.
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0) {
+                truncated = true;
+                log.warn("[YoloTrack] budget exhausted clipId={} processed={}/{}",
+                        clipId, frames.size(), sequence.size());
+                break;
+            }
+            // 접근 검증 단계에서 이미 조회해 둔 행 — 시퀀스의 모든 프레임이 그 단계를 통과했으므로
+            // 여기서 다시 읽지 않는다(없을 수 없다).
+            LsDataSrc src = frameBySrcSn.get(sn);
 
             // 교차 영상 혼입 방지 — 시퀀스 프레임이 시작 프레임과 다른 영상(rawSn)이면 거부.
             // 다른 영상 프레임이 같은 트래커 clipId 세션에 흘러가 조용히 틀린 trackId 를 반환하는 무결성 결함 차단.
@@ -129,11 +169,30 @@ public class YoloTrackService {
 
             YoloResponse resp;
             try {
-                resp = aiServerClient.predictYoloTrack(
+                // 프레임당 자기 상한과 잔여 예산 중 작은 값 — 자기 상한은 그대로 두고(종전 동작),
+                // 예산이 더 적게 남았을 때만 그만큼으로 좁힌다.
+                Duration perCall = Duration.ofNanos(
+                        Math.min(remainingNanos, AiWaitBudgetPolicy.ONLINE_BLOCK_TIMEOUT.toNanos()));
+                resp = CancellableAiCall.block(
+                        aiServerClient.predictYoloTrack(
                                 new kr.co.cudo.authoring.common.client.dto.YoloTrackRequest(
-                                        imageB64, clipId, frameIndex, conf, imgsz, iou))
-                        .block(Duration.ofSeconds(70));
+                                        imageB64, clipId, frameIndex, conf, imgsz, iou)),
+                        perCall);
+            } catch (AiCallCancelledException e) {
+                // 사용자 취소 — 남은 프레임을 더 보내지 않고 그대로 올린다(502 로 바꾸지 않는다).
+                // ★ 예산 소진 판정보다 <b>먼저</b> 온다. 취소를 부분 결과로 흡수하면 사용자가 누른
+                //   취소가 «시간이 모자랐다» 로 둔갑해, 취소했는지 아닌지를 화면이 구분하지 못한다.
+                throw e;
             } catch (Exception e) {
+                // 예산이 다한 순간의 실패는 «시간이 모자랐다» 로 다룬다 — 502 로 올리면 이미 끝난
+                // 앞 프레임의 검출까지 통째로 버려진다. 진행이 0 이면 부분 결과가 아니므로(이어 보내도
+                // 같은 지점을 다시 시도한다) 종전대로 실패를 올린다.
+                if (!frames.isEmpty() && System.nanoTime() >= deadlineNanos) {
+                    truncated = true;
+                    log.warn("[YoloTrack] budget exhausted while waiting clipId={} processed={}/{} err={}",
+                            clipId, frames.size(), sequence.size(), LogSanitizer.sanitize(e.getMessage()));
+                    break;
+                }
                 // CWE-209: 스택트레이스/내부 경로 미노출. 메시지 요약만.
                 log.error("[YoloTrack] ai-server 호출 실패 srcSn={} frameIndex={} err={}",
                         sn, frameIndex, LogSanitizer.sanitize(e.getMessage()));
@@ -146,9 +205,18 @@ public class YoloTrackService {
             frameIndex++;
         }
 
-        log.info("[YoloTrack] proxied clipId={} startSrc={} frames={} conf={} imgsz={} iou={}",
-                clipId, startSrc.getSrcSn(), frames.size(), conf, imgsz, iou);
-        return new YoloTrackResponseDto(frames);
+        // 예산이 다했으면 «이어 보낼 요청» 을 그대로 만들어 준다. 아직 처리하지 않은 첫 프레임이
+        // 다음 요청의 시작(트래커 리셋) 프레임이 된다 — 그래서 이어 보내면 trackId 가 새로 매겨진다.
+        YoloTrackResponseDto.Resume resume = null;
+        if (truncated) {
+            List<Long> remaining = sequence.subList(frames.size(), sequence.size());
+            resume = new YoloTrackResponseDto.Resume(remaining.get(0),
+                    List.copyOf(remaining.subList(1, remaining.size())));
+        }
+
+        log.info("[YoloTrack] proxied clipId={} startSrc={} frames={}/{} truncated={} conf={} imgsz={} iou={}",
+                clipId, startSrc.getSrcSn(), frames.size(), sequence.size(), truncated, conf, imgsz, iou);
+        return new YoloTrackResponseDto(frames, truncated, resume);
     }
 
     /**

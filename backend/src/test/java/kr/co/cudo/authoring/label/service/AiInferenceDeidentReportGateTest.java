@@ -138,7 +138,7 @@ class AiInferenceDeidentReportGateTest {
         //   이전에 걸리는지를 보므로 실측 해상도는 관심사가 아니다 → 측정 실패(Optional.empty) 모킹.
         //   labelMasterService 는 검출 결과에 labelId 를 싣기 위한 협력자(API-123)이며, 이 테스트는
         //   전송 이전 차단만 보므로 검출 매핑도 관심사가 아니다 → 기존 mock 을 그대로 넘긴다.
-        yoloTrackService = new YoloTrackService(aiServerClient, srcRepository, accessGuard,
+        yoloTrackService = new YoloTrackService(aiServerClient, accessGuard,
                 systemConfigService, encoder,
                 mock(kr.co.cudo.authoring.label.service.FrameBoundsResolver.class),
                 labelMasterService);
@@ -157,6 +157,9 @@ class AiInferenceDeidentReportGateTest {
         when(srcRepository.findById(DERIVED_NEXT_SRC_SN)).thenReturn(Optional.of(derivedNextFrame));
         when(accessGuard.verifyAndGet(eq(PARENT_SRC_SN), any())).thenReturn(parentFrame);
         when(accessGuard.verifyAndGet(eq(DERIVED_SRC_SN), any())).thenReturn(derivedFrame);
+        // AI 자동 추적은 후속 프레임도 인가 검사에서 함께 조회한다(저장소 직접 조회 없음).
+        when(accessGuard.verifyAndGet(eq(PARENT_NEXT_SRC_SN), any())).thenReturn(parentNextFrame);
+        when(accessGuard.verifyAndGet(eq(DERIVED_NEXT_SRC_SN), any())).thenReturn(derivedNextFrame);
 
         when(systemConfigService.getDouble(any())).thenReturn(1.0);
         when(systemConfigService.getInt(any())).thenReturn(null);

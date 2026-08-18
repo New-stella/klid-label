@@ -96,6 +96,13 @@ export function AutoTrackPanel({
 
   // 구간 절단(상한 초과) 안내는 결과 안내와 함께 남아 있어야 한다 — 실행 시점에 붙잡는다.
   const truncatedRef = useRef(0);
+  // 진행 표시 — 서버가 시간 예산 때문에 잘라 보내면 화면이 이어 보내는데, 그동안 아무 것도 안
+  // 바뀌면 «멈췄나» 로 보인다. 응답 하나마다 갱신된다.
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  // 끝내지 못한 구간 — 수락 버튼을 눌러 안내를 다시 조립할 때도 그 사실이 남아 있어야 한다.
+  const unfinishedRef = useRef(0);
+  // 이 실행에서 결과를 한 번이라도 받았는가 — 실패 안내 문구를 고르는 근거다(부분 실패 구분).
+  const gotPartialRef = useRef(false);
 
   const applyLabels = useCallback(
     (built: AutoTrackReview, keys: ReadonlySet<string>): AutoTrackApplyOutcome => {
@@ -107,16 +114,26 @@ export function AutoTrackPanel({
 
   const handleResult = useCallback(
     (res: AutoTrackResponse) => {
+      // 실패가 뒤따라 오더라도 «결과를 받긴 했다» 는 사실이 남아야 안내가 그것을 덮지 않는다.
+      gotPartialRef.current = true;
       const frameNoBySrcSn = new Map(frames.map((f) => [f.srcSn, f.frameNo] as const));
       const built = buildAutoTrackReview(res, frameNoBySrcSn);
       const allKeys = new Set(built.groups.map((g) => g.key));
+
+      // 서버가 요청 시간 예산 안에 끝내지 못하고 남긴 구간 — 이어 보내도 진행이 없어 멈춘 경우다.
+      // 시퀀스는 [시작 프레임] + 후속이라 남은 수도 그 기준으로 센다.
+      const unfinished = res.truncated && res.resume ? 1 + res.resume.nextSrcSns.length : 0;
+      unfinishedRef.current = unfinished;
 
       // 올릴 것이 없으면 **두 방식 모두** 반영을 시도하지 않고 사유만 알린다.
       // 자동 반영에만 이 분기가 없어서 "0건을 올렸습니다" 와 "반영할 검출이 없습니다" 가 함께 떴다.
       if (isEmptyReview(built)) {
         setReview(null);
         setAccepted(new Set());
-        setNotices([...composeNotices(built, null, truncatedRef.current), '반영할 검출이 없습니다.']);
+        setNotices([
+          ...composeNotices(built, null, truncatedRef.current, unfinished),
+          '반영할 검출이 없습니다.',
+        ]);
         return;
       }
 
@@ -125,20 +142,31 @@ export function AutoTrackPanel({
         setReview(null);
         setAccepted(new Set());
         const outcome = applyLabels(built, allKeys);
-        setNotices(composeNotices(built, outcome, truncatedRef.current));
+        setNotices(composeNotices(built, outcome, truncatedRef.current, unfinished));
         return;
       }
       // 검토 후 수락 — 사용자가 수락한 묶음만 들어간다. 기본은 전부 선택 상태다.
       setReview(built);
       setAccepted(allKeys);
-      setNotices(composeNotices(built, null, truncatedRef.current));
+      setNotices(composeNotices(built, null, truncatedRef.current, unfinished));
     },
     [applyLabels, frames],
   );
 
   const { run, isRunning, truncatedCountOf } = useAutoTrack(srcSn, {
     onResult: handleResult,
-    onError: () => setNotices(['AI 자동 추적에 실패했습니다. 잠시 후 다시 시도하세요.']),
+    // ★ 실패 안내는 **덮어쓰지 않고 덧붙인다** — 이어 보내다 실패하면 앞 조각 결과가 먼저
+    //   도착해 안내(반영 건수·검토 목록)를 세워 둔다. 덮으면 살려 둔 결과가 화면에서 사라져
+    //   버리는 것과 같아진다.
+    onError: () =>
+      setNotices((prev) => [
+        ...prev,
+        gotPartialRef.current
+          ? '이후 구간에서 오류가 나 중단했습니다. 남은 프레임은 다시 실행해 주세요.'
+          : 'AI 자동 추적에 실패했습니다. 잠시 후 다시 시도하세요.',
+      ]),
+    // 이어 보내는 동안에도 갱신된다 — 멈춘 것처럼 보이지 않게.
+    onProgress: (done, total) => setProgress({ done, total }),
   });
 
   const noNextFrames = nextSrcSns.length === 0;
@@ -152,6 +180,10 @@ export function AutoTrackPanel({
     setReview(null);
     setAccepted(new Set());
     truncatedRef.current = truncatedCountOf(nextSrcSns);
+    unfinishedRef.current = 0;
+    gotPartialRef.current = false;
+    // 시퀀스 = [시작 프레임] + 상한 안의 후속. 서버도 같은 시퀀스를 훑는다.
+    setProgress({ done: 0, total: 1 + nextSrcSns.length - truncatedRef.current });
     setNotices([]);
     void run(nextSrcSns);
   }, [canRun, mode, nextSrcSns, run, truncatedCountOf]);
@@ -168,7 +200,7 @@ export function AutoTrackPanel({
   const handleAccept = useCallback(() => {
     if (review === null) return;
     const outcome = applyLabels(review, accepted);
-    setNotices(composeNotices(review, outcome, truncatedRef.current));
+    setNotices(composeNotices(review, outcome, truncatedRef.current, unfinishedRef.current));
     setReview(null);
     setAccepted(new Set());
   }, [accepted, applyLabels, review]);
@@ -211,6 +243,18 @@ export function AutoTrackPanel({
       >
         AI 자동 추적
       </Button>
+
+      {/* 진행 표시 — 서버가 잘라 보내 이어 보내는 동안에도 올라간다(멈춘 것처럼 보이지 않게). */}
+      {isRunning && progress !== null && progress.total > 0 && (
+        <p
+          className="mt-1 text-[11px] text-gray-600"
+          data-testid="auto-track-progress"
+          role="status"
+          aria-live="polite"
+        >
+          프레임 {progress.done}/{progress.total} 처리
+        </p>
+      )}
 
       {noNextFrames && (
         <p className="mt-1 text-[11px] text-gray-600">
@@ -288,6 +332,7 @@ function composeNotices(
   review: AutoTrackReview,
   applied: AutoTrackApplyOutcome | null,
   truncated: number,
+  unfinished = 0,
 ): string[] {
   const lines: string[] = [];
   if (applied !== null) {
@@ -312,6 +357,13 @@ function composeNotices(
   }
   if (truncated > 0) {
     lines.push(`뒤쪽 ${truncated}개 프레임은 한 번에 처리할 수 있는 구간을 넘어 제외했습니다.`);
+  }
+  // ★ 절단(구간 상한)과 다른 사유다 — 이쪽은 **손대지 못하고 남은 구간**이다(서버가 시간 예산
+  //   안에 못 끝냈거나, 이어 보내다 실패했거나). 원인을 단정하지 않는다 — 실패 사유는 별도
+  //   안내가 말하고, 여기서 «시간 안에» 라고 적으면 실패한 경우에 거짓말이 된다.
+  //   조용히 끝내면 사용자는 그 프레임에 왜 검출이 없는지 알 방법이 없다.
+  if (unfinished > 0) {
+    lines.push(`남은 프레임 ${unfinished}개는 처리하지 못했습니다. 다시 실행해 주세요.`);
   }
   return lines;
 }

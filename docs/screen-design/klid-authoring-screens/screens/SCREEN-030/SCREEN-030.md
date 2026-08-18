@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 24
-last_updated_at: 2026-08-17T06:50:48.584Z
+version: 25
+last_updated_at: 2026-08-18T06:31:41.059Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T03:35:55.816Z
-sync_session: 20
+synced_at: 2026-08-18T08:46:22.195Z
+sync_session: 19
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -66,7 +66,7 @@ _(empty)_
 
 - **note**: REVIEWER만 노출. Plus 아이콘.
 - **type**: Button
-- **label**: 새 게시글 작성
+- **label**: 새 공지 작성
 
 **columns**:
 
@@ -78,7 +78,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 게시글 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.
+- **description**: 제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 공지 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.
 
 **references_apis**:
 

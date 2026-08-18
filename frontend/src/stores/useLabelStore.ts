@@ -183,6 +183,16 @@ export interface BusyState {
    */
   srcSn?: number;
   startedAt: number;
+  /**
+   * 이 실행의 **대기 상한**(ms) — 진행 오버레이가 «최대 N초» 로 보여준다.
+   *
+   * 상한은 작업 종류·전송 방식(한 번에 보내는가, 나눠 보내는가)마다 달라 실행 시점에만 확정된다.
+   * 화면이 그것을 다시 계산하면 «실제로 적용된 상한» 과 «화면이 말하는 상한» 이 갈릴 수 있으므로,
+   * 잠금을 건 주체가 그 값을 함께 기록한다.
+   *
+   * ⚠ 죽은 필드가 아니다 — 오버레이가 읽는다(BusyOverlay 의 `limitMs`).
+   */
+  maxDurationMs?: number;
   /** 이 작업의 세대 토큰. 취소/정상종료 시 죽으며, 죽은 토큰의 결과는 폐기한다. */
   token: number;
 }
@@ -249,7 +259,7 @@ interface LabelState {
 
   /**
    * R12 — 미래 프레임 추적 결과 보류 캐시 (srcSn → Label[]).
-   * SAM2 자동추적 결과의 tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 현재 프레임
+   * AI 추적(SAM2) 결과의 tracked[].srcSn 은 현재가 아닌 후속(미래) 프레임 값이라, 현재 프레임
    * 작업본에 즉시 병합할 수 없다. 여기 srcSn 별로 stash 해 두고, 해당 프레임에 진입할 때
    * drain 하여 그 프레임 작업본에 dedup 병합한다(사일런트 데이터 유실 방지).
    * 프레임 전환(setLabels)에는 보존되고, reset(언마운트/영상 변경) 시에만 초기화된다.
@@ -354,7 +364,20 @@ interface LabelState {
    * 장시간 작업 시작 선점. 이미 다른 작업이 진행 중이면 `{ ok: false }` 로 거부한다(배타 실행).
    * 성공 시 발급한 토큰은 결과 반영 여부의 최종 게이트(isTokenAlive)로 쓴다.
    */
-  beginBusy: (kind: BusyKind, ctx?: { srcSn?: number }) => BeginBusyResult;
+  beginBusy: (kind: BusyKind, ctx?: { srcSn?: number; maxDurationMs?: number }) => BeginBusyResult;
+
+  /**
+   * 진행 중 작업의 **대기 상한을 늘린다**(진행 오버레이의 «최대 N초» 표시가 함께 늘어난다).
+   *
+   * ★ 왜 필요한가 — 서버가 요청 하나의 시간 예산을 다 쓰면 그때까지의 결과를 돌려주고, 화면은
+   *   남은 프레임을 이어 보낸다. 그 이어 보내기는 처음 잡은 상한 밖에서 일어나므로, 늘리지 않으면
+   *   잠금이 먼저 풀려 **서버는 잘 돌고 있는데 결과가 버려진다**.
+   *
+   * 토큰이 현재 busy 와 다르면 무시한다(멱등) — 남의 작업 상한을 늘리지 않는다.
+   * 값이 지금 상한보다 작으면 무시한다 — 이 함수는 **연장 전용**이고, 줄이는 것은 잠금을 앞당겨
+   * 끊는 것이라 조용히 결과를 버리는 방향이다.
+   */
+  extendBusy: (token: number, maxDurationMs: number) => void;
 
   /**
    * 작업 종료. **토큰이 현재 busy 와 일치할 때만** 해제한다(멱등).
@@ -774,10 +797,20 @@ export const useLabelStore = create<LabelState>((set, get) => ({
         kind,
         srcSn: ctx?.srcSn,
         startedAt: Date.now(),
+        maxDurationMs: ctx?.maxDurationMs,
         token,
       },
     });
     return { ok: true, token };
+  },
+
+  extendBusy: (token, maxDurationMs) => {
+    const busy = get().busy;
+    if (busy === null || busy.token !== token) return; // 남의 작업(또는 이미 끝난 작업)이면 무시
+    if (!Number.isFinite(maxDurationMs) || maxDurationMs <= 0) return;
+    // 연장 전용 — 줄이면 잠금이 앞당겨 풀려 결과가 조용히 버려진다.
+    if (busy.maxDurationMs !== undefined && maxDurationMs <= busy.maxDurationMs) return;
+    set({ busy: { ...busy, maxDurationMs } });
   },
 
   endBusy: (token) => {

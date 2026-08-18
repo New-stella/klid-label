@@ -5,11 +5,11 @@ version: 26
 last_updated_at: 2026-08-18T03:34:50.014Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T03:35:55.799Z
-sync_session: 20
+synced_at: 2026-08-18T08:46:22.180Z
+sync_session: 19
 stale: false
-status: CHANGED
-prev_version: 24
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-018.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-023]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v24 → v26**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.4KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 목록 화면
 

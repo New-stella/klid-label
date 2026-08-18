@@ -3,6 +3,22 @@ spring:
     name: klid-la-authoring
   profiles:
     active: local
+  lifecycle:
+    # ★ 종료 유예 시간 — server.shutdown=graceful 이 진행 중 요청을 기다리는 상한.
+    #
+    #   왜 30초인가 (배포 지연 ↔ 진행 중 작업 보존의 균형)
+    #     - 통상 API 는 ms 단위라 30초면 사실상 전부 완주한다. 유예가 지키는 것의 대부분이 이쪽이다.
+    #     - 대용량 내려받기(상한 30분)는 **어떤 현실적 유예로도 완주시킬 수 없다**. 유예의 목적은
+    #       "완주 보장"이 아니라 "무의미한 중도 절단 최소화"다 — 30분을 주면 완주는 여전히 못 시키면서
+    #       배포만 30분 멈춘다.
+    #     - 노드당 최대 30초 → 2노드 롤링 재배포에서 이 항목이 더하는 지연은 최대 1분이다.
+    #     - 프레임워크 기본값과 같은 값이라 놀람이 없다(명시하는 이유는 이 예산이 보여야 하기 때문).
+    #   ⚠ 총 종료 시간은 이 값 + 비동기 실행기의 awaitTerminationSeconds(60s, MvcAsyncExecutorConfig)다.
+    #     systemd TimeoutStopSec 은 그 합보다 커야 한다 — 작으면 SIGKILL 이 유예를 무의미하게 만든다
+    #     (deploy/onprem/config/systemd/klid-backend.service, 회귀 고정: GracefulShutdownConfigGuardTest).
+    #   ⚠ 실행기의 60초를 여기 맞춰 줄이지 않았다: 커넥터가 닫힌 뒤 남은 작업은 소켓 쓰기가 즉시
+    #     실패해 스스로 끝나므로 그 60초는 실제로 소진되지 않는다(상한일 뿐이다).
+    timeout-per-shutdown-phase: 30s
   mvc:
     async:
       # ★ 비동기 응답(StreamingResponseBody 등)의 제한시간(ms). <b>전 프로파일 공통</b>으로 준다.
@@ -195,10 +211,24 @@ server:
   #    edge 부여는 **후속 과제**(A-ISSUE-06 연관) — 배포 설정 변경은 별도 검토가 필요하다.
   servlet:
     context-path: /api
+  # ★ 종료 유예 — 배포 때마다 진행 중 응답을 끊지 않는다.
+  #   왜 필요한가: 비동기 실행기(MvcAsyncExecutorConfig)는 이미 waitForTasksToCompleteOnShutdown 으로
+  #   진행 중 작업을 기다리게 돼 있는데, **커넥터는 즉시 닫혀** 반쪽이었다. 커넥터가 먼저 닫히면
+  #   실행기가 아무리 기다려도 쓸 소켓이 없다 — 두 반쪽이 맞물려야 유예가 성립한다.
+  #   ⚠ 이 값은 spring.lifecycle.timeout-per-shutdown-phase 가 상한을 준다(아래 참조).
+  shutdown: graceful
   tomcat:
     # TUS PATCH 본문(최대 청크) 흡수 + 폼 사이즈 제한 해제 — raw octet-stream 업로드 호환.
     max-swallow-size: -1
     max-http-form-post-size: -1
+    threads:
+      # ★ 요청 스레드 예산을 **명시**한다(프레임워크 기본값과 같은 값 — 동작 변화 없음).
+      #   왜 적어 두는가: 이 수가 곧 "동시에 붙잡힐 수 있는 요청 스레드의 최대치" 이고, 대용량
+      #   스트리밍 상한(PortalDatamartDownloadService.MAX_CONCURRENT_STREAMS)이 안전한지 판정하려면
+      #   이 예산이 보여야 한다. 기본값에 의존하면 예산이 어디에도 안 적혀 있어, 되밀기가 요청
+      #   스레드를 잠식해도 "한계가 얼마인지" 를 아무도 모른 채 앱 전체가 무응답이 된다.
+      #   ⚠ 이 값을 줄이면 스트리밍 상한과의 여유(200 - 16)가 함께 줄어든다. 함께 볼 것.
+      max: ${TOMCAT_MAX_THREADS:200}
 
 management:
   endpoints:

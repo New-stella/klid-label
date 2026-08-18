@@ -26,7 +26,7 @@ describe('useSam2Segment', () => {
     });
 
     // 내부(INTERNAL) 경로 단일 호출 — 포털 채널 분기(구 3번째 인자 portalMode)는 폐기됐다.
-    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] });
+    expect(spy).toHaveBeenCalledWith(5001, { points: [[10, 10]] }, expect.any(AbortSignal), expect.any(String));
     expect(res.value?.polygon).toHaveLength(3);
   });
 
@@ -45,7 +45,8 @@ describe('useSam2Segment', () => {
       await result.current.segment({ box: [5, 5, 40, 40] });
     });
 
-    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] });
+    // 취소 신호를 함께 싣는다 — 취소가 화면 안에서만 끝나면 서버는 계속 돌며 자원을 물고 있는다.
+    expect(spy).toHaveBeenCalledWith(5001, { box: [5, 5, 40, 40] }, expect.any(AbortSignal), expect.any(String));
   });
 
   it('진행중_재클릭_무시', async () => {

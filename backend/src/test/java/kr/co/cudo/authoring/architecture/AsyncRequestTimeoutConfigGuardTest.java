@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.architecture;
 
+import kr.co.cudo.authoring.common.config.AsyncRequestTimeoutGuard;
 import kr.co.cudo.authoring.support.MainResourceYaml;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,16 @@ class AsyncRequestTimeoutConfigGuardTest {
         assertThat(env.getProperty(ASYNC_TIMEOUT_KEY))
                 .as("공통 yml 이 해석되는 값(ms)")
                 .isEqualTo(String.valueOf(EXPECTED_TIMEOUT_MS));
+    }
+
+    @Test
+    @DisplayName("공통_yml_선언값이_런타임_가드의_하한_이상이다")
+    void declaredValueSatisfiesRuntimeFloor() {
+        // 두 가드가 서로 다른 값을 근거로 삼으면, 선언값을 낮추면서 이 파일의 기대값만 함께 낮추는
+        // 편집이 조용히 통과한 뒤 <기동 시점>에야 전 환경이 죽는다. 관계를 여기서 미리 고정한다.
+        assertThat(EXPECTED_TIMEOUT_MS)
+                .as("선언값이 AsyncRequestTimeoutGuard.MIN_TIMEOUT 미만이면 모든 환경에서 기동이 거부된다")
+                .isGreaterThanOrEqualTo(AsyncRequestTimeoutGuard.MIN_TIMEOUT.toMillis());
     }
 
     @Test

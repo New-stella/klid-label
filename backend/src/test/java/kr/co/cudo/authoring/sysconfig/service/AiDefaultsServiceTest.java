@@ -4,6 +4,9 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.dto.AiDefaultsResponse;
+import kr.co.cudo.authoring.sysconfig.dto.AiWaitBudget;
+import kr.co.cudo.authoring.sysconfig.dto.AiWaitBudgets;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,7 +28,38 @@ class AiDefaultsServiceTest {
 
     @Mock private SystemConfigService systemConfigService;
 
+    /** 대기 예산은 여기서 계산하지 않는다 — 조립만 하는지 확인하려고 목으로 둔다. */
+    @Mock private AiWaitBudgetProvider aiWaitBudgetProvider;
+
     @InjectMocks private AiDefaultsService service;
+
+    /** 조립 확인용 표식값 — 서비스가 값을 만들어내면 이 값과 달라져 테스트가 죽는다. */
+    private static final AiWaitBudgets BUDGETS = new AiWaitBudgets(
+            new AiWaitBudget(1, 0, 9), new AiWaitBudget(2, 0, 9),
+            new AiWaitBudget(3, 4, 9), new AiWaitBudget(5, 6, 9));
+
+    @BeforeEach
+    void stubBudgets() {
+        given(aiWaitBudgetProvider.budgets()).willReturn(BUDGETS);
+    }
+
+    @Test
+    @DisplayName("대기_예산은_설정_조회가_실패해도_공급자가_준_값_그대로_실린다")
+    void alwaysCarriesWaitBudgets() {
+        // given: 두 슬라이더 값은 둘 다 조회 실패(=생략 대상)
+        given(systemConfigService.getInt(ConfigKeys.YOLO_CONF_THRESHOLD))
+                .willThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 키를 찾을 수 없습니다."));
+        given(systemConfigService.getDouble(ConfigKeys.POLYGON_SIMPLIFY_TOLERANCE))
+                .willThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 키를 찾을 수 없습니다."));
+
+        // when
+        AiDefaultsResponse result = service.get();
+
+        // then: 슬라이더 값은 생략돼도 예산은 «생략되지 않는다». 없으면 화면이 자기 상수로 돌아간다.
+        assertThat(result.confThreshold()).isNull();
+        assertThat(result.simplifyTolerance()).isNull();
+        assertThat(result.waitBudgets()).isEqualTo(BUDGETS);
+    }
 
     @Test
     @DisplayName("두_설정이_모두_있으면_그대로_반환한다")

@@ -19,8 +19,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 
+/**
+ * ai-server(YOLO/SAM2/VLM) 추론 호출 클라이언트.
+ *
+ * <p>모든 추론 호출의 <b>호출당 상한</b>은 {@link AiWaitBudgetPolicy#PER_CALL_TIMEOUT} 하나를 쓴다.
+ * 여기에 숫자를 다시 적으면 화면이 받는 대기 예산과 실제 서버 상한이 갈려, "정상 동작이 AI 실패로
+ * 보이는" 결함이 되살아난다(그 예산이 바로 이 값에서 도출된다).
+ */
 @Component
 public class AiServerClient {
 
@@ -42,7 +48,7 @@ public class AiServerClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(YoloResponse.class)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
@@ -59,7 +65,7 @@ public class AiServerClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(YoloResponse.class)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
@@ -70,7 +76,7 @@ public class AiServerClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(Sam2Response.class)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
@@ -81,7 +87,7 @@ public class AiServerClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(Sam2TrackResponse.class)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
@@ -92,7 +98,7 @@ public class AiServerClient {
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(VlmVerifyResponse.class)
-                .timeout(Duration.ofSeconds(60))
+                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }

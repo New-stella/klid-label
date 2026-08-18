@@ -15,6 +15,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
+import { publishAiWaitBudgets, resetAiWaitBudgets } from '@/features/label/aiBudget';
 import { ToolType } from '@/features/label/types';
 import type { Label } from '@/features/label/types';
 
@@ -73,6 +74,10 @@ describe('LabelingPage — AI 추적 병합(현재 즉시/미래 보류)', () =>
       claims: { sub: '10', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
     });
     commonMocks(mock);
+    // ★ 이 파일은 **조각 경계에서의 부분 실패·병합 동선**을 검증한다. 조각 크기는 이제 서버가 준
+    //   대기 예산이 정하므로(`aiBudget`), 예산을 넉넉히 발행해 **서버 프레임 상한(50)이 경계가
+    //   되게** 고정한다. 그러지 않으면 예산 기본값이 바뀔 때마다 이 시나리오의 경계가 흔들린다.
+    publishAiWaitBudgets({ sam2Track: { baseSec: 0, perFrameSec: 0, ceilingSec: 100_000 } });
   });
 
   afterEach(() => {
@@ -80,6 +85,7 @@ describe('LabelingPage — AI 추적 병합(현재 즉시/미래 보류)', () =>
     useAuthStore.getState().clear();
     useLabelStore.getState().reset();
     useUiStore.setState({ toasts: [] });
+    resetAiWaitBudgets();
     vi.restoreAllMocks();
   });
 
@@ -205,6 +211,7 @@ describe('LabelingPage — 프레임 진입 시 보류 추적 drain 병합', () 
     useAuthStore.getState().clear();
     useLabelStore.getState().reset();
     useUiStore.setState({ toasts: [] });
+    resetAiWaitBudgets();
     vi.restoreAllMocks();
   });
 

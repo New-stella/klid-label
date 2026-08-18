@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.security.Keys;
 import kr.co.cudo.authoring.auth.service.AdminSessionTokenService;
@@ -77,7 +78,8 @@ class SystemConfigOverrideCacheTest {
         context.registerBean(SystemConfigService.class, () -> new SystemConfigService(
                 repository, new ObjectMapper(), tokenService,
                 new IntegrationEndpointUrlValidator(),
-                new DeidentifyEndpointTrustGuard(new MockEnvironment())));
+                new DeidentifyEndpointTrustGuard(new MockEnvironment()),
+                TestAiWaitBudgetPolicies.production()));
         context.refresh();
 
         service = context.getBean(SystemConfigService.class);

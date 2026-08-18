@@ -147,6 +147,32 @@ class AutolabelPolygonServiceTest {
         when(aiServerClient.segment(any())).thenReturn(Mono.just(resp));
     }
 
+    // ── 취소 ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("취소하면_남은_박스를_분할하지_않고_취소로_끝난다")
+    void cancelStopsRemainingBoxes() {
+        // 이 경로는 박스별 실패를 «스킵» 으로 흡수한다. 취소까지 흡수하면 사용자가 취소를 눌러도
+        // 남은 박스가 계속 추론 서버로 나가므로, 취소만은 흡수하지 않는다는 것을 고정한다.
+        var registry = new kr.co.cudo.authoring.common.client.AiCallCancellationRegistry();
+        var scope = registry.open("cancel-poly", "100");
+        try {
+            stubYolo(detections(3));
+            when(aiServerClient.segment(any())).thenAnswer(inv -> {
+                registry.cancel("cancel-poly", "100");
+                return Mono.just(samPolygon());
+            });
+
+            assertThatThrownBy(() -> service.autolabel(SRC_SN, worker, null, AutolabelShape.POLYGON))
+                    .isInstanceOf(kr.co.cudo.authoring.common.client.AiCallCancelledException.class);
+
+            verify(aiServerClient, times(1)).segment(any());
+        } finally {
+            scope.close();
+            registry.unbind();
+        }
+    }
+
     // ── POLYGON 정상 ─────────────────────────────────────────────────────────────
 
     @Test

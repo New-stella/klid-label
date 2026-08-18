@@ -27,7 +27,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <h3>왜 별도 빈인가 — 자기호출로 프록시를 우회하지 않게</h3>
  * <p>이 저장소에는 자기호출(self-invocation)로 프록시를 우회해 트랜잭션/캐시 배선이 조용히 빠진
  * 사고 이력이 있다. 무효화 로직을 호출자 클래스 안에 두면 그 함정이 반복되므로, <b>주입받아
- * 호출</b>하는 별도 빈으로 고정한다. 회귀 가드: {@code EventTypeCacheEvictorTest}.
+ * 호출</b>하는 별도 빈으로 고정한다. 회귀 가드: {@code EventTypeCacheIT}.
  *
  * <p>트랜잭션 밖에서 호출되면(동기화가 활성이 아니면) <b>즉시</b> 비운다 — 커밋을 기다릴 대상이
  * 없으므로 지연시키면 영영 실행되지 않는다.

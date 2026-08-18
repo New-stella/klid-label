@@ -50,15 +50,23 @@ describe('useLabelStore busy slice', () => {
     expect(useLabelStore.getState().busy?.kind).toBe('AI_DETECT');
   });
 
-  it('busy에_판정에_쓰이는_프레임_컨텍스트만_담긴다', () => {
+  it('busy에_실제로_읽히는_필드만_담긴다', () => {
     // when
-    useLabelStore.getState().beginBusy('AI_TRACK', { srcSn: 77 });
+    useLabelStore.getState().beginBusy('AI_TRACK', { srcSn: 77, maxDurationMs: 90_000 });
 
-    // then: 판정(busyAppliesTo)에 실제로 쓰이는 srcSn 만 보관한다.
-    //   아무도 보지 않는 컨텍스트 필드를 남기면 "영상 경계까지 판정한다"는 착각을 만든다(죽은 필드).
+    // then: 소비처가 실재하는 필드만 보관한다 — 아무도 보지 않는 필드를 남기면 «영상 경계까지
+    //   판정한다» 같은 착각을 만든다(죽은 필드 금지).
+    //   · srcSn        → 프레임 스코프 판정(busyAppliesTo)
+    //   · maxDurationMs → 진행 오버레이의 «최대 N초» 표시(BusyOverlay 의 limitMs).
+    //     ⚠ 화면이 이 값을 다시 계산하지 않는 것이 요점이다 — 상한은 작업 종류·전송 방식(한 번에
+    //     보내는가, 나눠 보내는가)마다 실행 시점에만 확정되므로, 잠금을 건 주체가 기록한 값을
+    //     그대로 읽어야 «적용된 상한» 과 «표시된 상한» 이 갈리지 않는다.
     const busy = useLabelStore.getState().busy;
     expect(busy?.srcSn).toBe(77);
-    expect(Object.keys(busy ?? {}).sort()).toEqual(['kind', 'srcSn', 'startedAt', 'token'].sort());
+    expect(busy?.maxDurationMs).toBe(90_000);
+    expect(Object.keys(busy ?? {}).sort()).toEqual(
+      ['kind', 'srcSn', 'startedAt', 'maxDurationMs', 'token'].sort(),
+    );
     expect(typeof busy?.startedAt).toBe('number');
   });
 
