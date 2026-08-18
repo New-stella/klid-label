@@ -83,7 +83,7 @@ generated_by: mc-logi-screen-design
 |---|---|---|
 | main | design-main.html | 영상 상세 화면 전체(헤더 카드 + 탭 3종 + 라이트박스) |
 
-- 공유 스타일: design.css
+- 공유 스타일: design-main.css — 게시본(logicraft 렌더)과 바이트 동일한 로컬 미러이며 design-main.html 이 참조하는 정본이다. 구 작성본 design.css 는 이후 수정이 반영되지 않아 게시본과 어긋난 채 남아 있었으므로 삭제했다(2026-08-18).
 - 스크린샷: (없음 — 로컬 file:// 프리뷰로 확인)
 - render_id 규약: `main` (SCREEN-009 static_renders 의 render_id=`main`, surface=`page` 와 동일하게 맞춰 두어 Phase 5 역등록 시 비교 뷰가 짝지어지도록 준비됨 — 이번 배치에서는 역등록 미실행)
 

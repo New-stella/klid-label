@@ -16,6 +16,14 @@ export interface TabsProps {
   ariaLabel?: string;
   children?: ReactNode;
   className?: string;
+  /**
+   * 탭 배치 방향. 기본값 `horizontal` — 기존 호출부 동작은 그대로다.
+   *
+   * [@design SCREEN-009] `vertical` 은 좌측 세로 레일 배치용 variant다. 카탈로그의 Tabs(UI-009)는
+   * 가로 배치를 전제로 서술돼 있으나, 영상 상세 화면의 확정 디자인은 좌측 레일에 세로로 둔다 —
+   * 별도 컴포넌트를 신설하지 않고 이 orientation variant로 흡수한다(design-notes 권고).
+   */
+  orientation?: 'horizontal' | 'vertical';
 }
 
 export function Tabs({
@@ -25,13 +33,19 @@ export function Tabs({
   ariaLabel = '탭',
   children,
   className,
+  orientation = 'horizontal',
 }: TabsProps) {
   const baseId = useId();
+  const vertical = orientation === 'vertical';
 
   const handleKey = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    // 방향키 축은 배치 방향을 따른다(WAI-ARIA Tabs 패턴) — 세로 레일에서 좌/우 키를 쓰면
+    // 화면상 이동 방향과 어긋난다.
+    const forwardKey = vertical ? 'ArrowDown' : 'ArrowRight';
+    const backwardKey = vertical ? 'ArrowUp' : 'ArrowLeft';
+    if (e.key !== forwardKey && e.key !== backwardKey) return;
     e.preventDefault();
-    const dir = e.key === 'ArrowRight' ? 1 : -1;
+    const dir = e.key === forwardKey ? 1 : -1;
     let next = index;
     for (let i = 0; i < items.length; i++) {
       next = (next + dir + items.length) % items.length;
@@ -43,7 +57,14 @@ export function Tabs({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div role="tablist" aria-label={ariaLabel} className="flex border-b border-gray-200">
+      <div
+        role="tablist"
+        aria-label={ariaLabel}
+        aria-orientation={vertical ? 'vertical' : undefined}
+        className={cn(
+          vertical ? 'flex flex-col gap-0.5' : 'flex border-b border-gray-200',
+        )}
+      >
         {items.map((item, idx) => {
           const selected = item.value === value;
           const id = `${baseId}-tab-${item.value}`;
@@ -62,14 +83,28 @@ export function Tabs({
               onKeyDown={(e) => handleKey(e, idx)}
               className={cn(
                 // 탭 = 내비게이션 축 → ladder `nav-link`(17px/w500). 크기는 구 `text-sm` 과 동일.
-                '-mb-px inline-flex min-h-11 items-center border-b-2 px-4 py-2.5 text-nav-link transition-colors duration-100 disabled:opacity-40',
+                'inline-flex min-h-11 items-center text-nav-link transition-colors duration-100 disabled:opacity-40',
                 KRDS_FOCUS,
+                vertical
+                  // 세로 레일: 강조 축이 아래 밑줄이 아니라 **좌측 3px 보더 + 틴트 배경**이다
+                  // (design-main.css `.tab-rail [role="tab"]`).
+                  ? 'w-full justify-start rounded-md border-l-[3px] px-4 py-2.5 text-left'
+                  : '-mb-px border-b-2 px-4 py-2.5',
                 selected
-                  ? 'border-primary-500 text-primary-600 font-medium'
+                  ? vertical
+                    ? 'border-primary-500 bg-primary-50 font-medium text-primary-600'
+                    : 'border-primary-500 text-primary-600 font-medium'
                   // ⚠ `font-normal` 은 장식이 아니라 **기존 대비 보존**이다 — 구 `text-sm` 은 weight 를
                   //   싣지 않아 비선택 탭이 400 이었다. `nav-link` 는 500 을 실으므로 명시하지 않으면
                   //   선택(500)/비선택(500) weight 가 같아져 강조 대비가 사라진다.
-                  : 'border-transparent font-normal text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                  : vertical
+                    // ★세로 레일의 비선택 탭은 **60단(gray-600)이 하한**이다 — 이 레일은 흰
+                    //   배경이 아니라 연한 표면(선택 탭의 `bg-primary-50`·페이지 `gray-50`) 위에
+                    //   놓이는데 50단은 그 위에서 4.01:1 로 AA(4.5) 미달이다(DS-001 do_rules v8).
+                    //   가로 variant 는 흰 카드 위 밑줄 탭이라 50단(4.51)이 그대로 유효하므로
+                    //   **두 값을 통일하지 말 것**.
+                    ? 'border-transparent font-normal text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                    : 'border-transparent font-normal text-gray-500 hover:text-gray-700 hover:border-gray-300',
               )}
             >
               {item.label}

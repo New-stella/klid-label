@@ -338,4 +338,51 @@ describe('RoleClaimPage', () => {
     expect(body).not.toHaveProperty('userId');
     expect(body).not.toHaveProperty('userNm');
   });
+
+  // ── 사양 SCREEN-002 회귀 가드: 역할 호칭 ───────────────────────────
+  // 이 시스템에 ADMIN 역할은 없고 관리 권한은 전부 REVIEWER 에 통합돼 있다 —
+  // UI 호칭은 '검수자'로 통일한다(확정 규칙). 구 문구는 '관리자에게 받은 패스워드로…'라
+  // 화면에 없는 역할을 가리켜, 사용자가 누구에게 요청해야 할지 알 수 없었다.
+  //
+  // ⚠ 필드 라벨 '관리자 패스워드'·aria-label·API 필드 `adminPassword` 는 역할 호칭이 아니라
+  //   "공유 부트스트랩 패스워드"라는 계약·변수 축이라 이 가드의 대상이 아니다(아래 ②).
+
+  it('★안내문과_패스워드_placeholder의_역할_호칭이_검수자다', async () => {
+    // given/when
+    renderWithProviders(<RoleClaimPage />);
+
+    // then ① 안내문 — '관리자에게'가 아니라 '검수자에게'
+    expect(screen.getByText('검수자에게 받은 패스워드로 역할을 부여받으세요.')).toBeInTheDocument();
+
+    // then ② placeholder 도 같은 호칭
+    expect(
+      screen.getByPlaceholderText('검수자에게 받은 패스워드를 입력하세요'),
+    ).toBeInTheDocument();
+
+    // then ③ 계약 축은 그대로 — 라벨/aria-label 은 '관리자 패스워드' 를 유지한다.
+    //   (호칭 통일을 이유로 여기까지 바꾸면 BE 필드 `adminPassword` 와 화면이 갈린다)
+    expect(screen.getByLabelText('관리자 패스워드')).toBeInTheDocument();
+  });
+
+  it('★역할_선택은_옵션마다_설명을_가진_카드다', async () => {
+    // given: 확정 시안(SCREEN-002)의 `.radio-card` — 구 구현은 설명 없는 라디오 2줄이라
+    // 역할별 책임 차이를 화면에서 알 수 없었다.
+    renderWithProviders(<RoleClaimPage />);
+
+    // then: 두 옵션 모두 자기 설명을 갖는다
+    expect(screen.getByText('영상에 라벨을 만들고 수정해 검수를 요청합니다.')).toBeInTheDocument();
+    expect(
+      screen.getByText('작업 배정과 검수 승인·반려, 사용자·시스템 설정을 담당합니다.'),
+    ).toBeInTheDocument();
+
+    // then: 설명이 접근가능한 **이름**을 오염시키지 않는다 — 이름은 역할 호칭 그대로이고
+    // 설명은 aria-describedby 로 따로 이어진다(둘이 합쳐지면 같은 문장을 두 번 읽는다).
+    const worker = screen.getByLabelText('작업자');
+    expect(worker).toHaveAttribute('type', 'radio');
+    const describedBy = worker.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy as string)?.textContent).toBe(
+      '영상에 라벨을 만들고 수정해 검수를 요청합니다.',
+    );
+  });
 });

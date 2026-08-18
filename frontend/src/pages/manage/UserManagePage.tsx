@@ -59,6 +59,12 @@ const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER]
  */
 const SECTION_TITLE_CLASS = 'text-title-md text-gray-900';
 
+/**
+ * 검색 입력의 도움말 id — 도움말이 `Field` 밖(그리드 2행)에 있어 컨텍스트 자동 배선이 닿지
+ * 않으므로 `aria-describedby` 를 명시로 잇는다. 화면에 하나뿐인 필터바라 고정 id 로 충분하다.
+ */
+const SEARCH_HELP_ID = 'user-search-help';
+
 /** 값이 없는 날짜 셀의 표기 — 빈칸은 "값이 없다"와 "못 읽었다"가 구분되지 않는다. */
 const EMPTY_DATE_TEXT = '-';
 
@@ -121,6 +127,20 @@ function roleOf(u: User): Role | null {
 export function UserManagePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') ?? '');
+  /**
+   * 역할 select 의 **확정 전 선택값** — 조회에 실린 값(`params.role`)과 별개 축이다.
+   *
+   * @design SCREEN-024 — "입력값은 Enter 또는 검색 실행으로 확정되어야 조회에 반영되며
+   * (셀렉트를 바꾸는 것만으로 즉시 재조회되지 않음), 확정 시 1페이지로 초기화된다."
+   *
+   * ⚠ 구 동작은 `onValueChange` 에서 곧바로 `updateParams` 를 불러 **고르는 즉시 재조회**했다.
+   * 검색어는 이미 확정 방식이었으므로 같은 필터바 안에서 두 컨트롤의 확정 시점이 갈렸고,
+   * "검색어를 고쳐 두고 역할을 바꾸면 아직 확정하지 않은 검색어 없이 역할만 적용"되는
+   * 어긋남이 있었다. 두 축 모두 `handleSearch` 한 곳에서 확정한다.
+   */
+  const [roleInput, setRoleInput] = useState<Role | ''>(
+    (searchParams.get('role') as Role | null) ?? '',
+  );
   const [editUser, setEditUser] = useState<User | null>(null);
   // 미배정 사용자는 초기 선택값이 없다('') — 임의 기본값(WORKER)을 채우면 사용자가 고르지 않은
   // 역할이 저장될 수 있다. 사양 SCREEN-024: '저장하려면 반드시 선택해야 한다'.
@@ -171,8 +191,23 @@ export function UserManagePage() {
     setSearchParams(sp, { replace: false });
   };
 
+  /**
+   * 필터 확정 — 검색어·역할 **두 축을 함께** 조회 파라미터에 싣고 1페이지로 되돌린다.
+   * 진입점은 검색 버튼과 검색 입력의 Enter 두 곳이며 둘의 결과는 같다(@design SCREEN-024).
+   */
   const handleSearch = () => {
-    updateParams({ keyword: keywordInput.trim() || undefined, page: 0 });
+    updateParams({
+      keyword: keywordInput.trim() || undefined,
+      role: roleInput || undefined,
+      page: 0,
+    });
+  };
+
+  /** 필터 초기화 — 확정 전 선택값과 이미 조회에 실린 값을 **함께** 비운다. */
+  const handleFilterReset = () => {
+    setKeywordInput('');
+    setRoleInput('');
+    updateParams({ keyword: undefined, role: undefined, page: 0 });
   };
 
   const handleEditOpen = (u: User) => {
@@ -217,7 +252,16 @@ export function UserManagePage() {
 
   const rows = data?.content ?? [];
 
-  const isFilterActive = !!params.keyword || !!params.role;
+  /**
+   * '필터 초기화' 를 누를 수 있는 조건 — @design SCREEN-024 note
+   * "검색어 또는 역할 필터 중 하나라도 활성일 때만 눌림 가능."
+   *
+   * 확정된 값(`params.*`)뿐 아니라 **확정 전 입력값도 함께** 본다. 확정값만 보면 사용자가
+   * 검색어를 타이핑하거나 역할을 골라 둔(아직 확정 전) 상태에서 버튼이 잠겨, 방금 넣은
+   * 값을 되돌릴 수단이 사라진다 — 초기화가 그 둘을 실제로 비우므로 판정 축도 같아야 한다.
+   */
+  const isFilterActive =
+    !!params.keyword || !!params.role || keywordInput.trim().length > 0 || roleInput !== '';
 
   const columns: ColumnDef<User, unknown>[] = [
     {
@@ -347,8 +391,19 @@ export function UserManagePage() {
           </h2>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-end gap-4">
-            <Field className="min-w-[240px] flex-1 md:max-w-md">
+          {/*
+            @design SCREEN-024 필터 폼 — 확정 시안의 그리드를 그대로 옮긴다.
+
+            트랙: [검색 minmax(0,420px)] [역할 180px] [액션 auto], 1행은 밑단 정렬(items-end).
+            도움말만 **2행 1열**로 내린다 — 도움말을 검색 Field 안에 두면 그 높이가 Field
+            높이에 더해져, 밑단 정렬이 검색 입력만 위로 들어올려 역할 select·버튼과 어긋난다
+            (어긋남은 도움말 줄 수에 비례해 커진다). 행을 분리하면 줄 수와 무관하게 1행 정렬이
+            유지된다. 좁은 화면(md 미만)은 1열 스택이라 DOM 순서가 곧 읽는 순서다.
+          */}
+          <div className="grid grid-cols-1 items-end gap-x-6 gap-y-2 md:grid-cols-[minmax(0,420px)_180px_auto]">
+            {/* 그리드 아이템의 자동 최소 크기(min-width:auto)는 안의 input 고유폭을 바닥으로
+                삼아 트랙을 밀어낸다 — min-w-0 으로 눌러 트랙이 정한 폭을 따르게 한다. */}
+            <Field className="min-w-0 md:col-start-1 md:row-start-1">
               <FieldLabel>검색</FieldLabel>
               <Input
                 placeholder="이름 / 이메일을 입력하세요."
@@ -357,16 +412,19 @@ export function UserManagePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSearch();
                 }}
+                // 도움말이 Field 밖(2행)에 있어 컨텍스트 자동 배선이 닿지 않는다 — 명시 id 로
+                // 잇는다(호출부 명시값이 컨텍스트보다 우선한다: fieldContext.resolveFieldControl).
+                aria-describedby={SEARCH_HELP_ID}
               />
-              <FieldDescription>
-                이름 또는 이메일 부분일치로 검색합니다. Enter 또는 검색 버튼으로 확정됩니다.
-              </FieldDescription>
             </Field>
-            <Field className="min-w-[180px]">
+            <p id={SEARCH_HELP_ID} className="text-sub text-gray-500 md:col-start-1 md:row-start-2">
+              이름 또는 이메일 부분일치로 검색합니다. Enter 또는 검색 버튼으로 확정됩니다.
+            </p>
+            <Field className="min-w-0 md:col-start-2 md:row-start-1">
               <FieldLabel>역할</FieldLabel>
               <Select
-                value={params.role ?? ''}
-                onValueChange={(v) => updateParams({ role: (v || undefined) as Role, page: 0 })}
+                value={roleInput}
+                onValueChange={(v) => setRoleInput((v || '') as Role | '')}
               >
                 <SelectTrigger id="user-role-filter" aria-label="역할 필터">
                   <SelectValue />
@@ -381,19 +439,21 @@ export function UserManagePage() {
                 </SelectContent>
               </Select>
             </Field>
-            {/* 1차 액션(검색)과 보조 액션(초기화)을 오른쪽에 묶어 입력 영역과 분리한다. */}
-            <div className="ml-auto flex items-center gap-2">
-              {isFilterActive && (
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setKeywordInput('');
-                    updateParams({ keyword: undefined, role: undefined, page: 0 });
-                  }}
-                >
-                  필터 초기화
-                </Button>
-              )}
+            {/*
+              검색·역할 필터와 그 실행 버튼은 한 덩어리로 읽혀야 한다 — 구 구현의 `ml-auto` 로
+              카드 오른쪽 끝까지 밀지 않는다(확정 시안 `justify-self:start`).
+              좁은 화면에서는 폭을 다 쓰고 그 안에서 오른쪽으로 붙는다.
+            */}
+            <div className="flex items-center justify-end gap-2 md:col-start-3 md:row-start-1 md:justify-self-start">
+              {/*
+                '필터 초기화' 는 **상시 노출**하고 누를 수 없을 때 비활성으로 둔다.
+                구 구현은 활성 필터가 없으면 아예 렌더하지 않아 버튼이 나타났다 사라졌고,
+                그때마다 옆의 '검색' 버튼 위치가 흔들렸다. 사양 note 는 "눌림 가능" 조건이지
+                "존재" 조건이 아니다(@design SCREEN-024).
+              */}
+              <Button variant="ghost" disabled={!isFilterActive} onClick={handleFilterReset}>
+                필터 초기화
+              </Button>
               <Button variant="primary" onClick={handleSearch}>
                 검색
               </Button>

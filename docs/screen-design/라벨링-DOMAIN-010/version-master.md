@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-18T03:35:57.533Z (session 12) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 216 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/라벨링-DOMAIN-010 |
+| Last sync | 2026-08-18T04:22:52.453Z (session 14) |
+| Mode | SYNC — NEW 4 / CHANGED 0 / UNCHANGED 220 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
 
@@ -23,6 +23,9 @@
 | [[AC-021]] | acceptance | 생성된 영상 라벨링으로 학습데이터셋 편입 | 5 | true | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
 | [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 6 | false | UNCHANGED |
+| [[AC-038]] | acceptance | 온디맨드 AI 자동 추적 — 진입점 구분과 시작 객체 없는 실행 | 3 | false | NEW |
+| [[AC-039]] | acceptance | 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점 | 3 | false | NEW |
+| [[AC-040]] | acceptance | 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달 | 3 | false | NEW |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 4 | false | UNCHANGED |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
@@ -32,6 +35,9 @@
 | [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
 | [[API-024]] | api_endpoint | GET /v1/manage/labels | 6 | false | UNCHANGED |
 | [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 8 | false | UNCHANGED |
+| [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 8 | true | UNCHANGED |
+| [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 10 | true | UNCHANGED |
+| [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 10 | true | UNCHANGED |
 | [[API-037]] | api_endpoint | GET /v1/manage/presets | 5 | false | UNCHANGED |
 | [[API-038]] | api_endpoint | POST /v1/manage/presets | 7 | false | UNCHANGED |
 | [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 6 | false | UNCHANGED |
@@ -75,7 +81,7 @@
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 90 | false | UNCHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 26 | true | UNCHANGED |
-| [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 14 | true | CHANGED |
+| [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 14 | true | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
 | [[UC-004]] | use_case | 객체 자동 추적 | 15 | false | UNCHANGED |
@@ -86,6 +92,7 @@
 | [[UC-021]] | use_case | 라벨 편집·임시저장 | 20 | true | UNCHANGED |
 | [[UC-022]] | use_case | VLM 시계열 메타 검토 | 17 | true | UNCHANGED |
 | [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 6 | true | UNCHANGED |
+| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 5 | true | NEW |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

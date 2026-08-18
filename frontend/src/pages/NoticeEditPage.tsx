@@ -71,11 +71,16 @@ export function NoticeEditPage() {
   };
 
   return (
-    // 목록·캔버스 화면과 달리 읽고 입력하는 단일 폼이라 본문 폭을 제한한다(SCREEN-037 디자인).
-    <div className="mx-auto flex w-full max-w-[840px] flex-col gap-6">
-      {/* 페이지 헤더 — 뒤로 가기(이전 화면) + 제목. 로딩·오류일 때도 유지된다. */}
+    // @design SCREEN-037 — 목록·캔버스 화면과 달리 읽고 입력하는 단일 폼이라 본문 폭을 제한한다.
+    // ★`mx-auto` 를 쓰지 않는다 — 확정 디자인의 `.notice-edit-page` 는 `max-width: 840px` 만 걸고
+    //   `margin: 0 auto` 가 없어 **좌측 정렬**이다. 가운데로 밀면 같은 폼 구조인 작성 화면
+    //   (SCREEN-036, 좌측 정렬)과 화면 사이에서 정렬이 갈린다.
+    <div className="flex w-full max-w-[840px] flex-col gap-6">
+      {/* 페이지 헤더 — 뒤로 가기(이전 화면) + 제목. 로딩·오류일 때도 유지된다.
+          뒤로가기는 확정 디자인이 두 화면 모두 **투명 테두리 텍스트 버튼 + 화살표 아이콘**으로
+          규정한다(037 `.btn-ghost` / 036 `.back-btn`) — 작성 화면과 형태를 통일한다. */}
       <div className="flex items-center gap-4">
-        <Button variant="outline" leftIcon={ArrowLeft} onClick={() => navigate(-1)}>
+        <Button variant="ghost" leftIcon={ArrowLeft} onClick={() => navigate(-1)}>
           뒤로 가기
         </Button>
         <h1 className="text-title-lg text-gray-950">공지 수정</h1>

@@ -71,24 +71,27 @@ describe('FrameTimeline', () => {
     );
 
     const counter = screen.getByTestId('frame-timeline-counter');
-    // "1 / 60 00:00"
+    // "1 / 60" — 확정 디자인의 `.rv-filmstrip-progress` 표기.
     expect(counter).toHaveTextContent('1 / 60');
-    expect(counter).toHaveTextContent('00:00');
+    // 구 구현이 덧붙이던 가상 타임코드("00:00")는 디자인에 없다. 실제 FPS 가 아니라 인덱스를
+    // 1fps 로 가정해 환산한 표시값이라 카운터가 이미 같은 사실을 담고 있었다.
+    expect(counter.textContent).not.toMatch(/\d{2}:\d{2}/);
   });
 
-  it('FrameTimeline_진행바_width_퍼센트', () => {
+  it('FrameTimeline_진행_상태는_막대가_아니라_카운터가_담는다', () => {
     const frames = makeFrames(10);
     render(
       <FrameTimeline frames={frames} currentFrameIdx={4} onSelect={() => {}} />,
     );
 
-    // (4 + 1) / 10 * 100 = 50%
-    const bar = screen.getByTestId('frame-timeline-progress-bar');
-    expect(bar).toHaveStyle({ width: '50%' });
+    // 디자인에 없는 진행률 막대(머리말 줄 구성물)는 두지 않는다.
+    expect(screen.queryByTestId('frame-timeline-progress-bar')).toBeNull();
 
-    const progress = screen.getByTestId('frame-timeline-progress');
-    expect(progress).toHaveAttribute('aria-valuenow', '5');
-    expect(progress).toHaveAttribute('aria-valuemax', '10');
+    // `role="progressbar"` 계약은 카운터가 그대로 이어받는다(a11y 손실 없음).
+    const counter = screen.getByTestId('frame-timeline-counter');
+    expect(counter).toHaveAttribute('role', 'progressbar');
+    expect(counter).toHaveAttribute('aria-valuenow', '5');
+    expect(counter).toHaveAttribute('aria-valuemax', '10');
   });
 
   it('FrameTimeline_빈_frames_시_안내문', () => {
@@ -179,11 +182,9 @@ describe('FrameTimeline', () => {
 
       await user.click(screen.getByTestId('frame-timeline-toggle'));
 
-      expect(screen.getByTestId('frame-timeline-counter')).toHaveTextContent('5 / 10');
-      expect(screen.getByTestId('frame-timeline-progress')).toHaveAttribute(
-        'aria-valuenow',
-        '5',
-      );
+      const counter = screen.getByTestId('frame-timeline-counter');
+      expect(counter).toHaveTextContent('5 / 10');
+      expect(counter).toHaveAttribute('aria-valuenow', '5');
       // 다시 펼칠 수단이 남아 있어야 한다.
       expect(screen.getByTestId('frame-timeline-toggle')).toBeVisible();
     });

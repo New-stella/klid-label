@@ -468,14 +468,9 @@ export interface ResolutionChangeResult {
   derivatives: ResolutionDerivativeResult[];
 }
 
-// SC-009 — 영상 재비식별 요청 (POST /v1/videos/{rawSn}/redeident, REVIEWER).
-// BE 가 비식별 재처리를 비동기 접수 → 200/202 + status='ACCEPTED'.
-export interface RedeidentResult {
-  rawSn: number;
-  procLogSn?: number;
-  kpstPrjId?: number;
-  status: string;
-}
+// [@design SCREEN-009] 재비식별 요청 응답 타입(`RedeidentResult`)은 두지 않는다 — 영상 상세
+//   화면에서 '재비식별 요청' 진입점이 제거되면서 FE 에 그 응답을 받는 코드가 없어졌다.
+//   BE 엔드포인트는 그대로이므로 진입점을 다시 두게 되면 그때 응답 계약을 다시 세운다.
 
 export interface LabelObject {
   id: string;

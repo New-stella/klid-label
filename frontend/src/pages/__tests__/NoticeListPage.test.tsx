@@ -165,7 +165,9 @@ describe('NoticeListPage', () => {
     await waitFor(() => {
       expect(screen.getByText('중요 고정 공지')).toBeInTheDocument();
     });
-    const keywordInput = screen.getByPlaceholderText('검색어를 입력하세요');
+    // placeholder 는 **마침표까지** 사양 문구 그대로다(SCREEN-030) — 정확 일치로 고정해
+    // 마침표가 다시 떨어지면 이 줄이 실패하게 둔다.
+    const keywordInput = screen.getByPlaceholderText('검색어를 입력하세요.');
     expect(keywordInput).toHaveValue('점검');
 
     // when: 초기화를 누른다

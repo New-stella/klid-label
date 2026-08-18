@@ -14,7 +14,6 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { Tabs } from '@/components/common/Tabs';
 import { BatchFailurePanel } from '@/features/video/components/BatchFailurePanel';
 import { DeidentHistoryPanel } from '@/features/video/components/DeidentHistoryPanel';
-import { RedeidentButton } from '@/features/video/components/RedeidentButton';
 import {
   BATCH_PROCESSING_POLL_WINDOW_MS,
   useVideoDetail,
@@ -39,41 +38,58 @@ function formatDuration(seconds: number | undefined): string {
 }
 
 function InfoTab({ video, isReviewer }: { video: VideoDetail; isReviewer: boolean }) {
-  const metaRows: { label: string; value: React.ReactNode }[] = [
-    { label: 'CCTV ID', value: `video-${String(video.id).padStart(4, '0')}` },
-    { label: '해상도', value: video.resolution || '-' },
-    { label: '길이', value: formatDuration(video.durationSec ?? video.duration) },
+  // [@design SCREEN-009] 메타 그리드에서 '처리 단계'를 뺀다 — 확정 디자인의 처리 단계는 그리드
+  //   셀이 아니라 **콘텐츠 전폭 밴드**(design-main.html `.stage-row`)다. 2열 그리드 셀(≈530px)에
+  //   가두면 7단계 노드와 캡션이 압축돼 판독이 안 된다.
+  // [req: R2] '개인정보 분류' 항목은 두지 않는다 — 관제서버가 개인정보 유무를 실제로 보내지 않고
+  //   privacyTypeCd 는 적재 시 고정되는 레거시 컬럼이다(BE 응답 계약은 그대로 유지).
+  const metaRows: { label: string; value: React.ReactNode; mono?: boolean }[] = [
+    { label: 'CCTV ID', value: `video-${String(video.id).padStart(4, '0')}`, mono: true },
+    { label: '해상도', value: video.resolution || '-', mono: true },
+    { label: '길이', value: formatDuration(video.durationSec ?? video.duration), mono: true },
     {
       label: '녹화 시각',
       value: video.capturedAt ? video.capturedAt.slice(0, 16).replace('T', ' ') : '-',
     },
-    {
-      label: '처리 단계',
-      value:
-        video.stages && video.stages.length > 0 ? (
-          <div className="overflow-x-auto">
-            <BatchStageIndicator stages={video.stages} />
-          </div>
-        ) : (
-          <StatusBadge status={video.status} />
-        ),
-    },
-    // [req: R2] '개인정보 분류' 항목 제거 — 관제서버가 개인정보 유무를 실제로 보내지 않고
-    // privacyTypeCd 는 적재 시 고정되는 레거시 컬럼이다(BE 응답 계약은 그대로 유지).
     { label: '생성일', value: video.createdAt ? video.createdAt.slice(0, 10) : '-' },
     { label: '수정일', value: video.updatedAt ? video.updatedAt.slice(0, 10) : '-' },
   ];
 
   return (
-    <div className="mt-4 flex flex-col gap-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="flex flex-col gap-6">
+      {/* [@design SCREEN-009] 배경 타일이 아니라 배경 없는 label/value 2열(`<dl>`).
+          확정 디자인의 `.meta-grid` 와 같은 골격 — 회색 박스는 정보 밀도를 떨어뜨린다. */}
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
         {metaRows.map((r) => (
-          <div key={r.label} className="bg-gray-50 rounded-lg px-4 py-3">
-            <p className="text-caption text-gray-600 mb-0.5">{r.label}</p>
-            <div className="text-body-md font-medium text-gray-800">{r.value}</div>
+          <div key={r.label} className="flex flex-col gap-0.5">
+            <dt className="text-label text-gray-600">{r.label}</dt>
+            <dd
+              className={[
+                'm-0 text-body-sm text-gray-900',
+                r.mono ? 'tabular-nums' : '',
+              ].join(' ')}
+            >
+              {r.value}
+            </dd>
           </div>
         ))}
+      </dl>
+
+      {/* [@design SCREEN-009] 처리 단계 — 콘텐츠 전폭 밴드. 위 그리드와 구분선으로 나눈다.
+          ★`fill` 을 켜는 자리는 여기 하나다 — 밴드를 전폭으로 빼내도 표시기 자신이 내용 폭이면
+          노드가 좌측에 뭉쳐 있어(실측 886px 밴드에 273px 만 사용) 원래 고치려던 판독성 저하가
+          그대로 남는다. 마킹 화면은 헤더 행 인라인이라 켜지 않는다. */}
+      <div className="border-t border-gray-200 pt-4">
+        <p className="mb-2 text-label text-gray-600">처리 단계</p>
+        {video.stages && video.stages.length > 0 ? (
+          <div className="overflow-x-auto">
+            <BatchStageIndicator stages={video.stages} fill />
+          </div>
+        ) : (
+          <StatusBadge status={video.status} />
+        )}
       </div>
+
       {/* [@design SCREEN-009] 배치 실패 사유 + 조치 — 처리 단계 바로 아래(같은 관심사의 연속).
           ★조작 버튼을 BatchStageIndicator 안에 두지 않는 이유: 그 표시기는 마킹 화면과 공유하므로
           버튼을 넣으면 마킹 화면에도 함께 나타난다(사양 SCREEN-009 가 명시적으로 금지).
@@ -94,13 +110,13 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
 
   if (frames.length === 0) {
     return (
-      <p className="mt-4 text-body-md text-gray-400 text-center py-8">프레임 데이터가 없습니다.</p>
+      <p className="text-body-md text-gray-400 text-center py-8">프레임 데이터가 없습니다.</p>
     );
   }
 
   return (
     <>
-      <div className="mt-4 grid grid-cols-3 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {frames.map((f) => (
           <button
             key={f.frameNo}
@@ -170,7 +186,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
 
   if (isLoading) {
     return (
-      <div className="mt-4 space-y-3">
+      <div className="space-y-3">
         <div className="h-16 bg-gray-100 animate-pulse rounded-lg" />
         <div className="h-16 bg-gray-100 animate-pulse rounded-lg" />
         <div className="h-16 bg-gray-100 animate-pulse rounded-lg" />
@@ -180,7 +196,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
 
   if (isError) {
     return (
-      <div className="mt-4 flex flex-col items-center justify-center py-12 gap-2">
+      <div className="flex flex-col items-center justify-center py-12 gap-2">
         <p className="text-danger text-body-md">오토라벨 결과를 불러올 수 없습니다.</p>
         <p className="text-gray-400 text-caption">잠시 후 다시 시도해 주세요.</p>
       </div>
@@ -189,7 +205,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
 
   if (labels.length === 0) {
     return (
-      <div className="mt-4 flex flex-col items-center justify-center py-12 gap-2">
+      <div className="flex flex-col items-center justify-center py-12 gap-2">
         <p className="text-gray-500 text-body-md">오토라벨 결과가 없습니다.</p>
         <p className="text-gray-400 text-caption">배치 처리 완료 후 결과가 표시됩니다.</p>
       </div>
@@ -218,7 +234,7 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
   const maxCount = labelCounts[0]?.[1]?.count ?? 1;
 
   return (
-    <div className="mt-4 flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       {/* 처리 정보 */}
       <div>
         <h4 className="text-title-sm font-semibold text-gray-700 mb-3">처리 정보</h4>
@@ -340,14 +356,11 @@ export function VideoDetailPage() {
     setBatchPollUntil(batchProcessing ? Date.now() + BATCH_PROCESSING_POLL_WINDOW_MS : null);
   }, [batchProcessing, validId]);
 
-  // SC-009 재비식별 버튼 노출 가드: REVIEWER + 검수완료(APPROVED) + 비식별 미완(deIdntfYn !== 'Y').
-  // 검수완료 판정은 reviewSttsCd(=LS_RAW_DATA_STATUS.DATA_STTS_CD, 진실원)로 한다.
-  //   ※ status(=배치단계 LS_DATA_RAW.DATA_STTS_CD)는 종착이 COMPLETED 라 절대 APPROVED 가 되지 않으므로
-  //     status 로 판정하면 버튼이 영구 미노출된다(과거 결함). 권한 가드는 UX 편의일 뿐 — 실제 강제는 BE(403).
+  // [@design SCREEN-009] '재비식별 요청' 버튼은 이 화면에 두지 않는다(확정 사양 — 헤더 카드
+  //   컴포넌트 목록에 없다). 헤더에는 1차 액션이 없다(조회 화면). 서버 측 재비식별 경로는 그대로다.
+  // REVIEWER 판정은 배치 실패 조치 패널(REVIEWER 전용) 노출에 계속 쓰인다.
   const role = useAuthStore((s) => s.claims?.role ?? null);
   const isReviewer = role === Role.REVIEWER;
-  const canReDeident =
-    isReviewer && data?.reviewSttsCd === 'APPROVED' && data?.deIdntfYn !== 'Y';
 
   if (validId === null) {
     return <ErrorState title="잘못된 영상 ID" message="유효한 영상 ID가 필요합니다." />;
@@ -400,33 +413,46 @@ export function VideoDetailPage() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
+                  {/* [@design SCREEN-009] 제목·배지는 한 줄(hero-title-row). 헤더 1차 액션 없음. */}
+                  <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-title-md font-bold text-gray-900">{data.cctvName}</h2>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {canReDeident && <RedeidentButton rawSn={data.id} />}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-1.5">
                     <EventTypeBadge
                       eventType={data.eventTypeCd ?? data.eventName ?? ''}
                       size="md"
                     />
                     <StatusBadge status={data.status} />
                   </div>
-                  <div className="flex flex-wrap gap-4 mt-2 text-body-md text-gray-500">
+                  {/* [@design SCREEN-009] 헤더 메타 행 — 길이·녹화 시각·**해상도**(hero-sub-row).
+                      해상도는 확정 디자인에서 이 줄에 온다. */}
+                  <div className="flex flex-wrap gap-4 mt-2 text-body-sm text-gray-500">
                     <span>길이: {formatDuration(data.durationSec ?? data.duration)}</span>
                     <span>녹화일: {data.capturedAt ? data.capturedAt.slice(0, 10) : '-'}</span>
+                    <span>해상도: {data.resolution || '-'}</span>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="px-4 pt-4">
-              <Tabs items={tabs} value={activeTab} onChange={setActiveTab} />
-            </div>
-            <div className="px-6 pb-6">
+          {/* [@design SCREEN-009] 2컬럼 골격 — 좌측 세로 탭 레일 + 우측 콘텐츠(design-main.css
+              `.detail-layout`). 상단 가로 탭 1컬럼에서 전환한 것이며, 이 전환이 콘텐츠 폭을
+              확보해 처리 단계 전폭 밴드가 성립한다. 좁은 폭에서는 세로 배치로 접는다. */}
+          <div className="flex flex-col items-stretch gap-4 md:flex-row md:items-start">
+            <nav
+              aria-label="상세 정보"
+              className="shrink-0 rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:sticky md:top-6 md:w-[200px]"
+            >
+              <p className="px-3 pb-1 pt-2 text-caption text-gray-400">상세 정보</p>
+              <Tabs
+                orientation="vertical"
+                items={tabs}
+                value={activeTab}
+                onChange={setActiveTab}
+                ariaLabel="영상 상세 탭"
+              />
+            </nav>
+
+            <div className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               {activeTab === 'info' && <InfoTab video={data} isReviewer={isReviewer} />}
               {activeTab === 'frames' && <FramePreviewTab video={data} />}
               {activeTab === 'autolabel' && <AutoLabelTab videoId={data.id} />}

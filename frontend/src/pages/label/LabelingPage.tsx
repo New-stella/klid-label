@@ -2,7 +2,7 @@
 //
 // 레이아웃:
 //   ┌─ LabelHeader (h-14, bg-white)
-//   ├─ flex-1: [ToolBar w-14] [CanvasOptionBar + Canvas flex-1] [RightPanel w-72]
+//   ├─ flex-1: [ToolBar w-52] [CanvasOptionBar + Canvas flex-1] [RightPanel w-72]
 //   └─ Bottom (h-30): [FrameFilmstrip h-15] [DarkFrameSlider h-15]
 //
 // ★삭제·실행취소·다시실행·저장 + 프레임 이동 컨트롤은 **캔버스 상단 옵션바**(CanvasOptionBar)에
@@ -13,6 +13,7 @@
 
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
@@ -1637,14 +1638,21 @@ export function LabelingPage() {
         }
       />
 
-      {/* 영상 잠금 상태 배너 — LOCKED_FOR_REDEIDENT 시 라벨 수정 불가 안내 */}
+      {/* 영상 잠금 상태 배너 — LOCKED_FOR_REDEIDENT 시 라벨 수정 불가 안내.
+          ★라이트 톤이다 — 어두운 배색(구 `bg-amber-900/60 text-amber-100`)을 쓰지 않는다.
+            이 앱에 다크 표면은 없고(2026-08-06 다크 테마 폐지) 유일한 예외는 **영상 프레임을 얹는
+            미디어 매트와 그 위 오버레이**인데, 이 배너는 헤더 아래 상시 안내라 그 예외가 아니다.
+            팔레트는 표준 배너(components/common/Alert)의 의미색 단계(50 배경 · 200 테두리 ·
+            600 아이콘 · 700 제목)를 그대로 따른다 — 그 컴포넌트 자체를 쓰지 않는 이유는 이 자리가
+            둥근 카드가 아니라 폭을 꽉 채우는 스트립이고 제목/본문 2층 구조도 아니기 때문이다. */}
       {isLocked && (
         <div
           data-testid="deident-locked-banner"
           role="status"
           aria-live="polite"
-          className="bg-amber-900/60 text-amber-100 px-4 py-2 text-body-md border-b border-amber-700 shrink-0"
+          className="flex shrink-0 items-center gap-2 border-b border-warning-200 bg-warning-50 px-4 py-2 text-body-md text-warning-700"
         >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning-600" aria-hidden="true" />
           비식별 재처리 중인 영상입니다. 처리가 완료될 때까지 라벨 수정·저장이 제한됩니다.
         </div>
       )}
@@ -1982,8 +1990,19 @@ export function LabelingPage() {
               <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />
             </div>
           ) : (
+            /* ★'객체' 탭의 세로 구성은 사양 고정이다 — 객체 목록 → (AI 자동 추적) → 속성 →
+               이미지 보정·라벨링 투명도(SCREEN-005 §객체 목록·속성 패널). 객체 목록이 **최상단**이며
+               다른 블록이 그 자리를 밀어내지 않는다.
+
+               ★스크롤 계약 (2026-08-18 — 실측 렌더 결함 해소): 구 구조는 목록 블록이
+               `flex-1 overflow-hidden` 인데 그 안에 `shrink-0` 인 AI 자동 추적 패널이 함께 들어
+               있었다. 그 패널의 자연 높이가 블록 높이를 넘으면 ①`flex-1`(basis 0)인 객체 목록이
+               **0px 로 짜부라져 통째로 사라지고** ②넘친 패널 자신이 `overflow-hidden` 에 잘려
+               실행 버튼이 아래 '속성' 헤더에 겹쳐 보였다(캡처로 확인된 결함).
+               이제 ①탭 자체가 세로 스크롤을 갖고 ②각 블록에 최소 높이를 줘 짜부라짐을 막는다 —
+               합이 넘치면 블록이 잘리는 대신 탭이 스크롤된다. 되돌리면 같은 결함이 재발한다. */
             <div
-              className="flex-1 flex flex-col overflow-hidden"
+              className="flex-1 flex flex-col overflow-y-auto"
               {...(hasTabs
                 ? {
                     role: 'tabpanel',
@@ -1992,7 +2011,7 @@ export function LabelingPage() {
                   }
                 : {})}
             >
-              <div className="flex-1 flex flex-col overflow-hidden border-b border-gray-200">
+              <div className="flex min-h-[10rem] flex-1 flex-col overflow-hidden">
                 {/* 객체 수 배지 — 헤더에서 폐지되며 이 자리로 이관됐다(SCREEN-005 §헤더 바
                     `[폐기] N개 객체`). 표시 지점은 여기 한 곳뿐이다. */}
                 <div className="flex items-center gap-2 px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
@@ -2013,19 +2032,21 @@ export function LabelingPage() {
                   currentFrameNo={currentFrame?.frameNo}
                   portalMode={portalMode}
                 />
-                {/* 온디맨드 자동 추적 — 트랙 편집(삭제·분할·병합)과 같은 자리에 둔다.
-                    포털은 오토라벨·추적 미제공(ADR-013)이라 진입 자체를 두지 않는다. */}
-                {!portalMode && (
-                  <AutoTrackPanel
-                    srcSn={data?.srcSn}
-                    frames={frames}
-                    nextSrcSns={nextSrcSns}
-                    onApply={handleAutoTrackApply}
-                    disabled={isEditBlocked || isLocked}
-                  />
-                )}
               </div>
-              <div className="flex-1 flex flex-col overflow-hidden">
+              {/* 온디맨드 자동 추적 — 트랙 편집(삭제·분할·병합)과 같은 자리(객체 목록 바로 아래)에 둔다.
+                  포털은 오토라벨·추적 미제공(ADR-013)이라 진입 자체를 두지 않는다.
+                  ★목록 블록 **밖**에 둔다 — 안에 두면 `shrink-0` 인 이 패널이 목록의 높이를 먹어
+                    객체 목록이 0px 로 사라진다(위 스크롤 계약 주석 참조). */}
+              {!portalMode && (
+                <AutoTrackPanel
+                  srcSn={data?.srcSn}
+                  frames={frames}
+                  nextSrcSns={nextSrcSns}
+                  onApply={handleAutoTrackApply}
+                  disabled={isEditBlocked || isLocked}
+                />
+              )}
+              <div className="flex min-h-[12rem] flex-1 flex-col overflow-hidden border-t border-gray-200">
                 <div className="px-3 py-2 text-label font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 shrink-0">
                   속성
                 </div>

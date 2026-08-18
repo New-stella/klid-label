@@ -9,7 +9,6 @@ import type {
   BatchStageRerunResult,
   BatchStageSkipResult,
   FrameLabels,
-  RedeidentResult,
   ResolutionChangeResult,
   ResolutionPreset,
   StageBundle,
@@ -209,20 +208,9 @@ export function listResolutionDerivatives(rawSn: number) {
     .then((r) => r.data);
 }
 
-/**
- * 영상 재비식별 요청 (SC-009) — BE: POST /api/v1/videos/{rawSn}/redeident (REVIEWER).
- *
- * <p>검수완료(APPROVED)됐으나 비식별 미완인 영상을 다시 비식별 처리한다.
- * BE 가 비동기로 접수 → 200/202 + status='ACCEPTED'. 라벨·검수상태는 보존.
- *
- * 보안: rawSn 은 숫자 path 파라미터로만 전달 — 문자열 직접 연결/사용자 입력 삽입 없음.
- * 권한(REVIEWER)·상태(APPROVED·미비식별)·작업락은 BE 가 403/404/409 로 강제한다.
- */
-export function requestRedeident(rawSn: number) {
-  return apiClient
-    .post<RedeidentResult>(`/videos/${rawSn}/redeident`)
-    .then((r) => r.data);
-}
+// [@design SCREEN-009] 영상 재비식별 요청 클라이언트(`requestRedeident`)는 두지 않는다 —
+//   영상 상세 화면에서 '재비식별 요청' 진입점이 제거되면서 호출부가 0이 됐다(확정 사양).
+//   BE 엔드포인트(POST /api/v1/videos/{rawSn}/redeident)는 그대로 살아 있다.
 
 /**
  * 배치 재실행 — BE: POST /api/v1/videos/{rawSn}/batch/retry (REVIEWER). [@design API-167]

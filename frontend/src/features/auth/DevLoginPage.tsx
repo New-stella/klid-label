@@ -1,9 +1,11 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, Info } from 'lucide-react';
 
 import { Alert } from '@/components/common/Alert';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { RadioCard } from '@/components/common/RadioCard';
 import { apiClient } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { Channel, Role } from '@/lib/api/types';
@@ -35,6 +37,8 @@ interface RolePreset {
   readonly defaultUserNo: string;
   readonly defaultName: string;
   readonly label: string;
+  /** 선택 카드의 설명 줄 — @design SCREEN-004 `.radio-desc` 원문. */
+  readonly description: string;
 }
 
 // DevTokenService 기본값과 1:1 매핑 (사양 명시값)
@@ -45,6 +49,7 @@ const ROLE_PRESETS: readonly RolePreset[] = [
     defaultUserNo: '1001',
     defaultName: '김검수',
     label: 'REVIEWER (1001, 김검수)',
+    description: '배정·검수 승인과 관리 화면을 담당하는 역할입니다.',
   },
   {
     role: Role.WORKER,
@@ -52,6 +57,7 @@ const ROLE_PRESETS: readonly RolePreset[] = [
     defaultUserNo: '2001',
     defaultName: '최라벨',
     label: 'WORKER (2001, 최라벨)',
+    description: '영상에 라벨을 만들고 수정해 검수를 요청하는 역할입니다.',
   },
   {
     role: Role.PORTAL_USER,
@@ -59,6 +65,7 @@ const ROLE_PRESETS: readonly RolePreset[] = [
     defaultUserNo: '3001',
     defaultName: '홍길동',
     label: 'PORTAL_USER (3001, 홍길동)',
+    description: '포털에서 들어오는 외부 사용자 역할입니다.',
   },
 ];
 
@@ -207,36 +214,61 @@ export function DevLoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-md rounded-lg border border-neutral-200 bg-white p-6 shadow-sm"
       >
-        <header className="mb-4">
+        <header className="mb-4 flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <h1 className="text-title-lg font-semibold text-neutral-900">Dev Login</h1>
-            <span className="rounded bg-warning/10 px-2 py-0.5 text-label font-medium text-warning-700">
+            {/* 경고 배지 — 시안 `.badge-warn`(warning-50 배경 + warning-700 글자). 구 구현의
+                `bg-warning/10` 은 반투명이라 배경에 따라 톤이 흔들렸다. */}
+            <span className="inline-flex items-center gap-1 rounded bg-warning-50 px-2 py-0.5 text-label font-semibold text-warning-700">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               DEV 빌드 전용
             </span>
           </div>
-          <p className="mt-2 text-body-md text-neutral-600">
-            로컬·개발 환경에서 관제서버 없이 토큰을 발급합니다. 운영 배포에는 포함되지 않습니다.
-          </p>
+          {/*
+            @design SCREEN-004 `.dev-note` — 노란 정보 콜아웃. 구 구현은 평범한 회색 문단이라
+            "이 화면은 운영에 없다"는 경고가 본문 안내와 같은 무게로 읽혔다.
+          */}
+          <div className="flex items-start gap-2 rounded-md border border-warning-200 bg-warning-50 p-4">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning-700" aria-hidden="true" />
+            <p className="text-body-sm text-gray-800">
+              로컬·개발 환경에서 관제서버 없이 토큰을 발급합니다. 운영 배포에는 포함되지 않습니다.
+            </p>
+          </div>
         </header>
 
         <fieldset className="mb-4">
           <legend className="mb-2 text-label font-medium text-neutral-800">역할 선택</legend>
+          {/*
+            @design SCREEN-004 `.radio-card` — 역할마다 설명 줄과 채널 칩을 갖는 선택 카드.
+            구 구현은 한 줄짜리 라디오라 ①역할별 설명이 없고 ②선택 강조가 라디오 점뿐이었으며
+            ③채널이 평문 회색 텍스트라 값인지 설명인지 구분되지 않았다.
+            RadioCard 는 SCREEN-002(역할 클레임)와 공유하는 골격이다.
+          */}
           <div className="flex flex-col gap-2">
             {ROLE_PRESETS.map((p) => (
-              <label
+              <RadioCard
                 key={p.role}
-                className="flex cursor-pointer items-center gap-2 rounded border border-neutral-200 px-3 py-2 hover:bg-neutral-50"
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value={p.role}
-                  checked={role === p.role}
-                  onChange={() => setRole(p.role)}
-                />
-                <span className="text-body-md text-neutral-900">{p.label}</span>
-                <span className="ml-auto text-caption text-neutral-500">{p.channel}</span>
-              </label>
+                id={`dev-login-role-${p.role}`}
+                name="role"
+                value={p.role}
+                title={p.label}
+                description={p.description}
+                checked={role === p.role}
+                onChange={() => setRole(p.role)}
+                trailing={
+                  // 채널 칩 — INTERNAL 은 secondary 톤, PORTAL 은 중립 톤(시안 `.channel-chip`).
+                  <span
+                    className={[
+                      'inline-flex items-center rounded px-2.5 py-0.5 text-label font-semibold',
+                      p.channel === Channel.PORTAL
+                        ? 'bg-gray-100 text-gray-800'
+                        : 'bg-secondary-50 text-secondary-700',
+                    ].join(' ')}
+                  >
+                    {p.channel}
+                  </span>
+                }
+              />
             ))}
           </div>
         </fieldset>

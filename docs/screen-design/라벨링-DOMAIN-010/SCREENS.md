@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-18T03:35:57.523Z (session 12) |
+| last sync | 2026-08-18T04:22:52.444Z (session 14) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/라벨링-DOMAIN-010 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -28,7 +28,7 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 46 |
+| api_endpoint | _shared/api/ | 49 |
 | constant | _shared/constant/ | 0 |
 | permission_role | _shared/role/ | 2 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -54,7 +54,10 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[SD-002]] | screen_design | CHANGED (v12→v14) |
+| [[AC-038]] | acceptance | NEW |
+| [[AC-039]] | acceptance | NEW |
+| [[AC-040]] | acceptance | NEW |
+| [[UC-034]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 
