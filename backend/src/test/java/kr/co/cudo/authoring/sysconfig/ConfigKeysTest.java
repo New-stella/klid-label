@@ -9,18 +9,38 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Phase 1: ConfigKeys 화이트리스트 + NUMBER_RANGE 검증.
  * <p>
  * YOLO 정확도 개선을 위해 운영 UI 로 조정 가능해야 하는
- * 3개 신규 키 (YOLO_CONF_THRESHOLD / YOLO_IMGSZ / YOLO_IOU) 가
- * 화이트리스트와 범위 매핑에 포함되는지 확인한다.
+ * 두 키 (YOLO_CONF_THRESHOLD / YOLO_IOU) 가 화이트리스트와 범위 매핑에 포함되는지 확인한다.
+ * <p>
+ * 구 키 {@code YOLO_IMGSZ} 는 폐지됐다 — ai-server 로더가 입력 크기를 640 으로 고정해
+ * 조정이 무효였다. 되살리기 방지 가드는 {@link #imgszKeyIsNotConfigurable()}.
  */
 class ConfigKeysTest {
 
     @Test
-    @DisplayName("ConfigKeys_에_YOLO_CONF_IMGSZ_IOU_세_키가_화이트리스트에_포함")
+    @DisplayName("ConfigKeys_에_YOLO_CONF_IOU_두_키가_화이트리스트에_포함")
     void allowedContainsYoloKeys() {
         assertThat(ConfigKeys.ALLOWED)
                 .contains(ConfigKeys.YOLO_CONF_THRESHOLD,
-                          ConfigKeys.YOLO_IMGSZ,
                           ConfigKeys.YOLO_IOU);
+    }
+
+    /**
+     * ★ 되살리기 방지 가드 — 추론 입력 해상도는 운영자가 조정할 수 있으면 안 된다.
+     * <p>
+     * ai-server 의 YOLOX 로더가 입력 크기를 {@code (640,640)} 으로 고정해 추론하므로 요청에 실린
+     * imgsz 는 로그에만 남는다. 조정 가능한 항목으로 노출하면 정밀도가 오르지 않을 때 운영자가
+     * 원인을 이 값에서 찾게 된다. 되살리려면 <b>ai-server 가 요청값을 실제로 쓰도록 먼저 고칠 것.</b>
+     * <p>
+     * 문자열 리터럴로 단언하는 것은 <b>의도</b>다 — 상수를 지웠으므로 상수 참조로는 이 가드를 쓸 수
+     * 없고, 누군가 같은 이름의 키를 다시 등록하면 그 순간 이 테스트가 깨져야 한다.
+     */
+    @Test
+    @DisplayName("★추론_입력_해상도_키는_설정으로_열지_않는다_구_YOLO_IMGSZ_폐지")
+    void imgszKeyIsNotConfigurable() {
+        assertThat(ConfigKeys.ALLOWED).doesNotContain("YOLO_IMGSZ");
+        assertThat(ConfigKeys.NUMBER_RANGE).doesNotContainKey("YOLO_IMGSZ");
+        assertThat(ConfigKeys.NUMBER_ALLOWED_VALUES).doesNotContainKey("YOLO_IMGSZ");
+        assertThat(ConfigKeys.DECIMAL_RANGE).doesNotContainKey("YOLO_IMGSZ");
     }
 
     @Test
@@ -29,10 +49,6 @@ class ConfigKeysTest {
         int[] conf = ConfigKeys.NUMBER_RANGE.get(ConfigKeys.YOLO_CONF_THRESHOLD);
         assertThat(conf).isNotNull();
         assertThat(conf).containsExactly(25, 80);
-
-        int[] imgsz = ConfigKeys.NUMBER_RANGE.get(ConfigKeys.YOLO_IMGSZ);
-        assertThat(imgsz).isNotNull();
-        assertThat(imgsz).containsExactly(320, 1920);
 
         int[] iou = ConfigKeys.NUMBER_RANGE.get(ConfigKeys.YOLO_IOU);
         assertThat(iou).isNotNull();

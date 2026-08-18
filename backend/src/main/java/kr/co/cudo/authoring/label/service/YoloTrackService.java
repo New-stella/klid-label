@@ -130,7 +130,7 @@ public class YoloTrackService {
 
         // YOLO 추론 파라미터 1회 조회 (fail-safe — YoloAutolabelStep 과 동일 규칙).
         double conf = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
-        int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
+        int imgsz = DEFAULT_IMGSZ;  // 설정 키 폐지 — ai-server 로더가 640 고정이라 조정이 무효였다(ConfigKeys javadoc)
         double iou = readDoublePercent(ConfigKeys.YOLO_IOU, DEFAULT_IOU);
 
         List<Long> sequence = new ArrayList<>(req.nextSrcSns().size() + 1);

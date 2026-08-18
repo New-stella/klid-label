@@ -25,8 +25,10 @@ export type BatchConfigForm = z.infer<typeof batchConfigSchema>;
 /**
  * Phase 1/5: YOLO 추론 파라미터 zod 스키마.
  * - YOLO_CONF_THRESHOLD: 25~80 (BE 가 /100 하여 0.25~0.80 confidence)
- * - YOLO_IMGSZ: 320~1920, step 32 (ultralytics 권장 — 32 의 배수)
  * - YOLO_IOU: 25~80 (BE 가 /100 하여 0.25~0.80 IoU 임계값)
+ *
+ * ⚠ 구 키 `YOLO_IMGSZ`(추론 입력 해상도, 320~1920)는 폐지됐다 — 추론 서버가 입력 크기를 640 으로
+ *   고정해 쓰므로 조정해도 결과가 달라지지 않았다. 되살리려면 추론 서버부터 고칠 것.
  */
 export const yoloConfigSchema = z.object({
   YOLO_CONF_THRESHOLD: z
@@ -34,14 +36,6 @@ export const yoloConfigSchema = z.object({
     .int('정수만 허용')
     .min(25, '25 ~ 80 범위 내에서 입력해주세요')
     .max(80, '25 ~ 80 범위 내에서 입력해주세요'),
-  // 사양(SCREEN-025): 서버는 정수 320~1920 만 검증한다(32의 배수 강제 없음). 화면은 32 스텝
-  // 입력을 유도하고 포커스 이탈 시 가까운 32의 배수로 "조용히 보정"한다 — 거부가 아니다.
-  // (구 버그: .refine 으로 32의 배수가 아니면 저장 자체를 하드 거부했다.)
-  YOLO_IMGSZ: z
-    .number({ invalid_type_error: '숫자를 입력해주세요' })
-    .int('정수만 허용')
-    .min(320, '320 ~ 1920 범위 내에서 입력해주세요')
-    .max(1920, '320 ~ 1920 범위 내에서 입력해주세요'),
   YOLO_IOU: z
     .number({ invalid_type_error: '숫자를 입력해주세요' })
     .int('정수만 허용')

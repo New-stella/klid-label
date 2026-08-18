@@ -495,7 +495,7 @@ public class AutolabelOnlineService {
         double conf = confOverride != null
                 ? confOverride
                 : readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
-        int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
+        int imgsz = DEFAULT_IMGSZ;  // 설정 키 폐지 — ai-server 로더가 640 고정이라 조정이 무효였다(ConfigKeys javadoc)
         double iou = readDoublePercent(ConfigKeys.YOLO_IOU, DEFAULT_IOU);
         // 단일 프레임 요청 — clipId 는 요청마다 격리(동시 요청 간섭 방지), frameIndex=0(트래커 리셋).
         String clipId = rawSn + ":" + UUID.randomUUID();

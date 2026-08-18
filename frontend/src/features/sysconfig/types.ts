@@ -4,8 +4,10 @@ export const ConfigKey = {
   BATCH_INTERVAL_SEC: 'BATCH_INTERVAL_SEC',
   BATCH_CONCURRENCY: 'BATCH_CONCURRENCY',
   // Phase 1: YOLO 추론 파라미터 (BE ConfigKeys 와 1:1 매핑)
+  //   ⚠ 구 키 `YOLO_IMGSZ`(추론 입력 해상도)는 폐지됐다 — 추론 서버가 입력 크기를 640 으로
+  //     고정해 쓰므로 값을 바꿔도 결과가 달라지지 않는, 조정되는 척하는 설정이었다.
+  //     되살리려면 추론 서버가 요청값을 실제로 쓰도록 먼저 고칠 것. (BE ConfigKeys javadoc)
   YOLO_CONF_THRESHOLD: 'YOLO_CONF_THRESHOLD',
-  YOLO_IMGSZ: 'YOLO_IMGSZ',
   YOLO_IOU: 'YOLO_IOU',
   // FEAT-007: 라벨링 정밀도 — 경계 세밀함 (Douglas-Peucker epsilon, DECIMAL)
   POLYGON_SIMPLIFY_TOLERANCE: 'POLYGON_SIMPLIFY_TOLERANCE',

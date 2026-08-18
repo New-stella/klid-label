@@ -22,12 +22,23 @@ public final class ConfigKeys {
      * Phase 1 (YOLO 정확도 개선) — 운영 UI 에서 조정 가능한 YOLO 추론 파라미터.
      * <ul>
      *   <li>{@code YOLO_CONF_THRESHOLD} : 정수 25~80 (사용 시 /100.0 → 0.25~0.80)</li>
-     *   <li>{@code YOLO_IMGSZ} : 추론 입력 해상도 320~1920 px</li>
      *   <li>{@code YOLO_IOU} : 정수 30~80 (사용 시 /100.0 → 0.30~0.80)</li>
      * </ul>
+     *
+     * <h3>★ 추론 입력 해상도(imgsz)는 설정 키로 두지 않는다 — 되살리지 말 것</h3>
+     * <p>구 키 {@code YOLO_IMGSZ}(정수 320~1920)를 폐지했다. ai-server 의 YOLOX 로더가 입력 크기를
+     * {@code _DEFAULT_INPUT_SIZE=(640,640)} 으로 <b>고정</b>해 추론하므로, 요청에 실린 imgsz 는 로그에만
+     * 남고 추론에 반영되지 않는다. 즉 운영 화면에서 값을 바꿔도 결과가 달라지지 않는데 조정 가능한
+     * 항목으로 노출돼 있어, 정밀도가 오르지 않을 때 원인을 이 값에서 찾게 만들었다.
+     *
+     * <p>요청 DTO({@code YoloRequest}/{@code YoloTrackRequest})의 {@code imgsz} <b>필드 자체는 남는다</b> —
+     * ai-server 요청 규격이라 호출부가 상수를 계속 싣는다({@code DEFAULT_IMGSZ}). 바뀐 것은
+     * "운영자가 조정할 수 있는가"뿐이다.
+     *
+     * <p>되살리려면 <b>ai-server 가 요청받은 입력 크기를 실제로 쓰도록 먼저 고쳐야 한다.</b> 그 전에
+     * 키만 되돌리면 같은 결함이 그대로 재발한다. 설계 근거: SCREEN-025 / UC-031 (2026-08-18).
      */
     public static final String YOLO_CONF_THRESHOLD = "YOLO_CONF_THRESHOLD";
-    public static final String YOLO_IMGSZ          = "YOLO_IMGSZ";
     public static final String YOLO_IOU            = "YOLO_IOU";
 
     /**
@@ -167,7 +178,7 @@ public final class ConfigKeys {
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
             BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
-            YOLO_CONF_THRESHOLD, YOLO_IMGSZ, YOLO_IOU,
+            YOLO_CONF_THRESHOLD, YOLO_IOU,
             POLYGON_SIMPLIFY_TOLERANCE,
             PORTAL_UPLOAD_FRAME_INTERVAL_SEC,
             PORTAL_DATAMART_RETENTION_DAYS, PORTAL_UPLOAD_RETENTION_DAYS,
@@ -209,7 +220,6 @@ public final class ConfigKeys {
             Map.entry(BATCH_INTERVAL_SEC,  new int[]{10, 3600}),
             Map.entry(BATCH_CONCURRENCY,   new int[]{1, 10}),
             Map.entry(YOLO_CONF_THRESHOLD, new int[]{25, 80}),
-            Map.entry(YOLO_IMGSZ,          new int[]{320, 1920}),
             Map.entry(YOLO_IOU,            new int[]{30, 80}),
             Map.entry(PORTAL_UPLOAD_FRAME_INTERVAL_SEC, new int[]{1, 600}),
             // 포털 보존기간 3종 — 하한 1 은 "즉시 삭제" 차단이다(0·음수 금지, 위 상수 javadoc 참조).

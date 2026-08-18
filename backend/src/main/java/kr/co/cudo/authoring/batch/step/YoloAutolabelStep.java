@@ -193,7 +193,7 @@ public class YoloAutolabelStep implements BatchStep {
 
         // Phase 1: 운영 UI 로 조정 가능한 YOLO 추론 파라미터를 1회 조회 (Caffeine 캐시 활용).
         double confThreshold = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
-        int imgsz = readInt(ConfigKeys.YOLO_IMGSZ, DEFAULT_IMGSZ);
+        int imgsz = DEFAULT_IMGSZ;  // 설정 키 폐지 — ai-server 로더가 640 고정이라 조정이 무효였다(ConfigKeys javadoc)
         double iou = readDoublePercent(ConfigKeys.YOLO_IOU, DEFAULT_IOU);
 
         // Phase 4: 영상 식별자 — ai-server 트래커가 clipId 단위로 상태 격리.
