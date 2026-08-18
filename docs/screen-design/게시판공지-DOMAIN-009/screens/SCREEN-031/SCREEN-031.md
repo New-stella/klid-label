@@ -1,25 +1,21 @@
 ---
 logicraft_item: SCREEN-031
 type: screen_spec
-version: 29
-last_updated_at: 2026-08-16T12:45:52.265Z
+version: 31
+last_updated_at: 2026-08-17T06:51:57.774Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:51:47.677Z
-sync_session: 5
-stale: true
-status: CHANGED
-prev_version: 22
+synced_at: 2026-08-18T03:36:00.718Z
+sync_session: 7
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-031.json
 wireframe: ./wireframe-main.html
 links:
   consumes_apis: ["[[API-096]]", "[[API-099]]", "[[API-100]]", "[[API-101]]", "[[API-107]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v22 → v29**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 480×auto (0.6KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 상세 화면
 
@@ -171,9 +167,9 @@ _(empty)_
 
 #### [1]
 
-- **note**: notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '중요'.
+- **note**: notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '고정'.
 - **type**: Badge
-- **label**: 중요
+- **label**: 고정
 
 **columns**:
 
@@ -273,7 +269,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 상세 조회(API-096) 결과를 카드로 렌더. 헤더: 중요 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.
+- **description**: 상세 조회(API-096) 결과를 카드로 렌더. 헤더: 고정 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.
 
 **references_apis**:
 

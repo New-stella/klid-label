@@ -5,34 +5,34 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-18T01:50:54.702Z (session 6) |
-| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 160 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| Last sync | 2026-08-18T03:36:01.952Z (session 8) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 164 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
 | [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 9 | false | UNCHANGED |
-| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 11 | false | CHANGED |
-| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | CHANGED |
+| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 11 | false | UNCHANGED |
+| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
-| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | CHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 14 | false | CHANGED |
+| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 14 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 4 | true | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 2 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 44 | false | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 46 | false | UNCHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | false | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
 | [[UC-011]] | use_case | 비식별 처리 요청 | 12 | false | UNCHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 20 | false | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 20 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -58,7 +58,7 @@
 | [[UI-023]] | ui_component | feedback: Toast | 3 | false | UNCHANGED |
 | [[UI-024]] | ui_component | input: Checkbox | 6 | false | UNCHANGED |
 | [[UI-025]] | ui_component | input: Radio | 3 | false | UNCHANGED |
-| [[UI-026]] | ui_component | input: RadioGroup | 5 | false | UNCHANGED |
+| [[UI-026]] | ui_component | input: RadioGroup | 6 | false | UNCHANGED |
 | [[UI-027]] | ui_component | input: Textarea | 4 | false | UNCHANGED |
 | [[UI-028]] | ui_component | input: DatePicker | 4 | false | UNCHANGED |
 | [[UI-029]] | ui_component | input: DateRangePicker | 5 | false | UNCHANGED |
@@ -78,15 +78,15 @@
 | [[UI-043]] | ui_component | action: MarkingToolbar | 4 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
-| [[UI-046]] | ui_component | display: CanvasShell | 6 | false | UNCHANGED |
-| [[UI-047]] | ui_component | action: ToolBar | 5 | false | UNCHANGED |
-| [[UI-048]] | ui_component | overlay: LabelPickerModal | 6 | false | UNCHANGED |
+| [[UI-046]] | ui_component | display: CanvasShell | 7 | false | UNCHANGED |
+| [[UI-047]] | ui_component | action: ToolBar | 6 | false | UNCHANGED |
+| [[UI-048]] | ui_component | overlay: LabelPickerModal | 7 | false | UNCHANGED |
 | [[UI-049]] | ui_component | data: ObjectClassTree | 7 | false | UNCHANGED |
 | [[UI-050]] | ui_component | input: ObjectAttributePanel | 6 | false | UNCHANGED |
 | [[UI-051]] | ui_component | navigation: FrameFilmstrip | 4 | false | UNCHANGED |
-| [[UI-052]] | ui_component | navigation: FrameNavigator | 6 | false | UNCHANGED |
+| [[UI-052]] | ui_component | navigation: FrameNavigator | 7 | false | UNCHANGED |
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
-| [[UI-054]] | ui_component | action: UndoRedoToolbar | 4 | false | UNCHANGED |
+| [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
 | [[UI-056]] | ui_component | display: TimeseriesSidePanel | 5 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |

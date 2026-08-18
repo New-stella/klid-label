@@ -8,20 +8,20 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-16T12:51:47.715Z (session 5) |
+| last sync | 2026-08-18T03:36:00.970Z (session 7) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-030]] | 공지 목록 화면 | CHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-031]] | 공지 상세 화면 | CHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-036]] | 공지 작성 화면 | CHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
-| [[SCREEN-037]] | 공지 수정 화면 | CHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
+| [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-036]] | 공지 작성 화면 | UNCHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
+| [[SCREEN-037]] | 공지 수정 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -53,27 +53,6 @@
 | 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-095]] | api_endpoint | CHANGED (v3→v6) |
-| [[API-096]] | api_endpoint | CHANGED (v3→v7) |
-| [[API-097]] | api_endpoint | CHANGED (v3→v7) |
-| [[API-098]] | api_endpoint | CHANGED (v3→v7) |
-| [[API-099]] | api_endpoint | CHANGED (v3→v6) |
-| [[API-100]] | api_endpoint | CHANGED (v4→v8) |
-| [[API-101]] | api_endpoint | CHANGED (v4→v8) |
-| [[API-106]] | api_endpoint | CHANGED (v6→v9) |
-| [[API-107]] | api_endpoint | CHANGED (v3→v7) |
-| [[API-108]] | api_endpoint | CHANGED (v3→v6) |
-| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
-| [[SD-011]] | screen_design | CHANGED (v4→v6) |
-| [[SCREEN-030]] | screen_spec | CHANGED (v20→v23) |
-| [[SCREEN-031]] | screen_spec | CHANGED (v22→v29) |
-| [[SCREEN-036]] | screen_spec | CHANGED (v7→v8) |
-| [[SCREEN-037]] | screen_spec | CHANGED (v7→v8) |
 
 ## Obsidian 볼트로 보기
 

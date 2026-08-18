@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-16T12:51:39.492Z (session 6) |
+| last sync | 2026-08-18T03:35:59.729Z (session 8) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -19,7 +19,7 @@
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
 | [[SCREEN-018]] | 검수 목록 화면 | CHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
-| [[SCREEN-019]] | 검수 상세 화면 | CHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]] | [[ROLE-001]] |
+| [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -54,28 +54,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-009]] | acceptance | CHANGED (v12→v15) |
-| [[AC-022]] | acceptance | CHANGED (v6→v7) |
-| [[API-008]] | api_endpoint | CHANGED (v8→v11) |
-| [[API-009]] | api_endpoint | CHANGED (v5→v8) |
-| [[API-010]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-011]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-013]] | api_endpoint | CHANGED (v4→v6) |
-| [[API-014]] | api_endpoint | CHANGED (v8→v9) |
-| [[API-015]] | api_endpoint | CHANGED (v4→v7) |
-| [[API-021]] | api_endpoint | CHANGED (v4→v7) |
-| [[API-066]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-102]] | api_endpoint | CHANGED (v8→v13) |
-| [[API-103]] | api_endpoint | CHANGED (v5→v9) |
-| [[API-104]] | api_endpoint | CHANGED (v5→v12) |
-| [[API-105]] | api_endpoint | CHANGED (v3→v7) |
-| [[API-132]] | api_endpoint | CHANGED (v1→v2) |
-| [[API-138]] | api_endpoint | CHANGED (v2→v4) |
-| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
-| [[SCREEN-018]] | screen_spec | CHANGED (v23→v24) |
-| [[SCREEN-019]] | screen_spec | CHANGED (v28→v29) |
-| [[UC-009]] | use_case | CHANGED (v16→v19) |
-| [[UC-023]] | use_case | CHANGED (v19→v22) |
+| [[SCREEN-018]] | screen_spec | CHANGED (v24→v26) |
 
 ## Obsidian 볼트로 보기
 

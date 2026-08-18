@@ -85,9 +85,9 @@
           "layout": "detail",
           "components": [
             {
-              "note": "notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '중요'.",
+              "note": "notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '고정'.",
               "type": "Badge",
-              "label": "중요",
+              "label": "고정",
               "columns": [],
               "options": []
             },
@@ -138,7 +138,7 @@
               "options": []
             }
           ],
-          "description": "상세 조회(API-096) 결과를 카드로 렌더. 헤더: 중요 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.",
+          "description": "상세 조회(API-096) 결과를 카드로 렌더. 헤더: 고정 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.",
           "references_apis": [
             "API-096"
           ],
@@ -284,12 +284,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 29,
-    "stale": true,
-    "stale_reason": "API-107의 data.brownfield 변경 — consumes",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 480×auto (0.6KB)",
+    "current_version": 31,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "직전 리비전이 배지 문구를 고치면서 같은 절의 낱말 넷을 함께 훼손했다 — 노출·메타·본문·로딩이 각각 다른 글자로 바뀌어 있었다. 원문으로 되돌린다. 설계 내용은 직전 리비전과 같고 표기만 바로잡는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:45:52.265Z",
+    "last_updated_at": "2026-08-17T06:51:57.774Z",
     "created_at": "2026-06-05T05:03:15.704Z"
   }
 }

@@ -8,17 +8,17 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-17T15:40:46.368Z (session 10) |
+| last sync | 2026-08-18T03:35:57.523Z (session 12) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-005]] | 라벨링 캔버스 화면 | CHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-005]] | 라벨링 캔버스 화면 | UNCHANGED | ✅ | [[API-018]], [[API-019]], [[API-020]], [[API-021]], [[API-024]], [[API-032]], [[API-066]], [[API-067]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-123]], [[API-124]], [[API-125]], [[API-126]], [[API-127]], [[API-128]], [[API-129]], [[API-132]], [[API-134]], [[API-133]], [[API-135]], [[API-093]], [[API-182]], [[API-012]], [[API-178]], [[API-022]], [[API-023]], [[API-168]], [[API-170]], [[API-172]], [[API-173]], [[API-183]], [[API-184]], [[API-177]], [[API-195]], [[API-196]], [[API-197]], [[API-034]], [[API-035]], [[API-036]], [[API-193]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-041]], [[API-117]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
@@ -54,22 +54,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-017]] | acceptance | CHANGED (v5→v6) |
-| [[AC-024]] | acceptance | CHANGED (v5→v6) |
-| [[API-020]] | api_endpoint | CHANGED (v7→v8) |
-| [[API-021]] | api_endpoint | CHANGED (v7→v8) |
-| [[API-024]] | api_endpoint | CHANGED (v5→v6) |
-| [[API-093]] | api_endpoint | CHANGED (v9→v10) |
-| [[API-103]] | api_endpoint | CHANGED (v9→v10) |
-| [[API-123]] | api_endpoint | CHANGED (v6→v7) |
-| [[API-132]] | api_endpoint | CHANGED (v2→v4) |
-| [[API-133]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-135]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-172]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-173]] | api_endpoint | CHANGED (v5→v6) |
-| [[API-196]] | api_endpoint | CHANGED (v8→v9) |
-| [[SCREEN-005]] | screen_spec | CHANGED (v76→v84) |
-| [[UC-004]] | use_case | CHANGED (v13→v15) |
+| [[SD-002]] | screen_design | CHANGED (v12→v14) |
 
 ## Obsidian 볼트로 보기
 
