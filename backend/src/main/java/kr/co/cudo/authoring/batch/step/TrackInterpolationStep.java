@@ -326,6 +326,14 @@ public class TrackInterpolationStep implements BatchStep {
      * 단일 트랙을 타입별로 라우팅하여 보간 row 를 산출한다.
      * <p>트랙 내 {@code LBL_TYPE_CD} 가 혼재(distinct &gt; 1)하면 안전하게 skip(WARN).
      * BBOX 는 선형 보간, POLYGON 은 polyshape 보간. (POLYLINE 은 현재 DB 코드값 미도입.)
+     *
+     * <h3>분류 축 승계</h3>
+     * 보간 row 는 키프레임의 <b>라벨명({@code LABEL_NM}) 과 라벨 마스터 FK({@code LBL_ID}) 를 함께</b>
+     * 승계한다. 두 값은 반드시 <b>같은 키프레임</b>(정렬 후 선두 = {@code anchor})에서 취한다 —
+     * 서로 다른 키프레임에서 가져오면 이름과 분류가 어긋나는 divergence 가 새로 생긴다.
+     * <p>{@code LBL_ID} 가 없는(마스터 미연결) 키프레임이면 보간 row 도 {@code null} 이 정답이다.
+     * 라벨명으로 마스터를 역추적해 채우지 않는다 — 라벨명에는 유일성 제약이 없어 동명이인·비활성
+     * 마스터로 오매칭되면 <b>다른 분류로 저장</b>된다.
      */
     private List<LsDataLbl> interpolateTrack(String trackId, List<LsDataLbl> labels,
                                              Map<Long, Integer> srcSnToFrame,
@@ -345,14 +353,17 @@ public class TrackInterpolationStep implements BatchStep {
             return List.of();
         }
         String type = types.get(0);
-        String label = sorted.get(0).getLabelNm();
+        // 분류 축은 한 키프레임(anchor)에서 라벨명·labelId 를 함께 취한다 (위 javadoc「분류 축 승계」).
+        LsDataLbl anchor = sorted.get(0);
+        String label = anchor.getLabelNm();
+        Long labelId = anchor.getLabelId();
         if (LsDataLbl.TYPE_POLYGON.equals(type)) {
-            return interpolatePolygonTrack(trackId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
+            return interpolatePolygonTrack(trackId, labelId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
         }
-        return interpolateBboxTrack(trackId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
+        return interpolateBboxTrack(trackId, labelId, label, sorted, srcSnToFrame, frameToSrcSn, totalFrames);
     }
 
-    private List<LsDataLbl> interpolateBboxTrack(String trackId, String label, List<LsDataLbl> sorted,
+    private List<LsDataLbl> interpolateBboxTrack(String trackId, Long labelId, String label, List<LsDataLbl> sorted,
                                                  Map<Long, Integer> srcSnToFrame,
                                                  Map<Integer, Long> frameToSrcSn, int totalFrames) {
         List<Keyframe> keyframes = sorted.stream()
@@ -371,12 +382,12 @@ public class TrackInterpolationStep implements BatchStep {
                 continue;  // 안전망 — 매핑 안 되는 프레임은 skip
             }
             rows.add(LsDataLbl.createAutoInterpolatedBbox(
-                    srcSn, null, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
+                    srcSn, labelId, label, serializeBbox(ie.getValue()), BigDecimal.ZERO, trackId));
         }
         return rows;
     }
 
-    private List<LsDataLbl> interpolatePolygonTrack(String trackId, String label, List<LsDataLbl> sorted,
+    private List<LsDataLbl> interpolatePolygonTrack(String trackId, Long labelId, String label, List<LsDataLbl> sorted,
                                                     Map<Long, Integer> srcSnToFrame,
                                                     Map<Integer, Long> frameToSrcSn, int totalFrames) {
         List<PolyKeyframe> keyframes = sorted.stream()
@@ -396,7 +407,7 @@ public class TrackInterpolationStep implements BatchStep {
                 continue;  // 안전망 — 매핑 안 되는 프레임은 skip
             }
             rows.add(LsDataLbl.createAutoInterpolatedPolygon(
-                    srcSn, null, label, LabelPointSerializer.toJson(ie.getValue(), objectMapper),
+                    srcSn, labelId, label, LabelPointSerializer.toJson(ie.getValue(), objectMapper),
                     BigDecimal.ZERO, trackId));
         }
         return rows;

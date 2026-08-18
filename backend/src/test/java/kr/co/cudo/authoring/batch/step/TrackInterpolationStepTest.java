@@ -88,6 +88,22 @@ class TrackInterpolationStepTest {
         return lbl;
     }
 
+    /** 헬퍼 — 라벨 마스터 FK(labelId) 를 실은 BBOX 키프레임. 보간 승계 가드용. */
+    private LsDataLbl autoBboxAtWithLabelId(long srcSn, Long labelId, String label, String trackId,
+                                            double x1, double y1, double x2, double y2) {
+        String pts = "[" + x1 + "," + y1 + "," + x2 + "," + y2 + "]";
+        return LsDataLbl.createAutoBbox(srcSn, labelId, label, pts, BigDecimal.valueOf(0.9), trackId);
+    }
+
+    /** 헬퍼 — 라벨 마스터 FK(labelId) 를 실은 POLYGON 키프레임. 보간 승계 가드용. */
+    private LsDataLbl autoPolygonAtWithLabelId(long srcSn, Long labelId, String label, String trackId,
+                                               String pointsJson) {
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(srcSn, labelId, label, pointsJson,
+                BigDecimal.valueOf(0.9), trackId);
+        setField(lbl, "lblTypeCd", "POLYGON");
+        return lbl;
+    }
+
     private static void setField(Object target, String name, Object value) {
         try {
             Field f = target.getClass().getDeclaredField(name);
@@ -504,5 +520,163 @@ class TrackInterpolationStepTest {
         int saved = step.run(908L);
 
         assertThat(saved).isEqualTo(3);  // frames 1,2,3
+    }
+
+    // ─── 라벨 마스터 FK(LBL_ID) 승계 — 보간 row 가 분류 축을 잃지 않는다 ───
+    //
+    // 배경: 보간 팩토리 호출부가 labelId 자리에 null 을 넘겨, 보간 row 만 라벨 마스터 링크를
+    //   잃고 있었다(라벨명은 승계하면서 FK 만 버림). 그 결과 화면이 마스터색 대신 trackId 해시색으로
+    //   낙하해 <b>같은 객체가 프레임 전환만으로 색이 바뀌었고</b>, 색뿐 아니라 라벨명·속성 정의까지
+    //   함께 끊긴다. 아래 가드가 그 승계를 고정한다.
+
+    @Test
+    @DisplayName("보간_BBOX_는_키프레임의_라벨마스터_FK_를_승계한다")
+    void interpolatedBboxInheritsLabelIdFromKeyframe() {
+        List<LsDataSrc> frames = framesOf(930L, 13000L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(930L)).thenReturn(frames);
+
+        LsDataLbl at0 = autoBboxAtWithLabelId(13000L, 2L, "사람", "t1", 0, 0, 100, 100);
+        LsDataLbl at4 = autoBboxAtWithLabelId(13004L, 2L, "사람", "t1", 40, 40, 140, 140);
+        when(lblRepository.findAutoBboxWithTrackId(930L)).thenReturn(List.of(at0, at4));
+
+        int saved = step.run(930L);
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        List<LsDataLbl> rows = captor.getValue();
+
+        assertThat(rows).hasSize(3).allMatch(r -> Long.valueOf(2L).equals(r.getLabelId()));
+        // 라벨명과 FK 는 같은 키프레임에서 함께 승계된다(둘이 어긋나면 새로운 divergence).
+        assertThat(rows).allMatch(r -> "사람".equals(r.getLabelNm()));
+    }
+
+    @Test
+    @DisplayName("보간_POLYGON_도_키프레임의_라벨마스터_FK_를_승계한다")
+    void interpolatedPolygonInheritsLabelIdFromKeyframe() {
+        List<LsDataSrc> frames = framesOf(931L, 13100L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(931L)).thenReturn(frames);
+
+        LsDataLbl at0 = autoPolygonAtWithLabelId(13100L, 7L, "차량", "p1", "[[0,0],[10,0],[5,10]]");
+        LsDataLbl at4 = autoPolygonAtWithLabelId(13104L, 7L, "차량", "p1", "[[12,0],[22,0],[17,10]]");
+        when(lblRepository.findAutoBboxWithTrackId(931L)).thenReturn(List.of(at0, at4));
+
+        int saved = step.run(931L);
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        List<LsDataLbl> rows = captor.getValue();
+
+        assertThat(rows).hasSize(3)
+                .allMatch(r -> "POLYGON".equals(r.getLblTypeCd()))
+                .allMatch(r -> Long.valueOf(7L).equals(r.getLabelId()))
+                .allMatch(r -> "차량".equals(r.getLabelNm()));
+    }
+
+    @Test
+    @DisplayName("키프레임이_마스터_미연결이면_보간도_null_이다_라벨명으로_지어내지_않는다")
+    void unlinkedKeyframeProducesNullLabelId() {
+        // COCO 매핑이 등록되지 않은 클래스는 키프레임 자체가 labelId=null 이다.
+        // 그때는 보간도 null 이 정답 — 라벨명으로 마스터를 역추적해 채우면 동명이인·비활성
+        // 마스터로 오매칭돼 <b>다른 분류로 저장</b>된다.
+        List<LsDataSrc> frames = framesOf(932L, 13200L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(932L)).thenReturn(frames);
+
+        LsDataLbl at0 = autoBboxAtWithLabelId(13200L, null, "kite", "t9", 0, 0, 10, 10);
+        LsDataLbl at4 = autoBboxAtWithLabelId(13204L, null, "kite", "t9", 40, 40, 50, 50);
+        when(lblRepository.findAutoBboxWithTrackId(932L)).thenReturn(List.of(at0, at4));
+
+        int saved = step.run(932L);
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+
+        assertThat(captor.getValue()).hasSize(3).allMatch(r -> r.getLabelId() == null);
+    }
+
+    @Test
+    @DisplayName("트랙마다_자기_키프레임의_라벨마스터_FK_를_승계한다_교차오염없음")
+    void eachTrackInheritsItsOwnLabelId() {
+        List<LsDataSrc> frames = framesOf(933L, 13300L, 11);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(933L)).thenReturn(frames);
+
+        // 트랙 a: labelId=2 "사람" (frame 0,2 → 1 보간) / 트랙 b: labelId=5 "차량" (frame 5,10 → 4 보간)
+        LsDataLbl a0 = autoBboxAtWithLabelId(13300L, 2L, "사람", "a", 0, 0, 10, 10);
+        LsDataLbl a2 = autoBboxAtWithLabelId(13302L, 2L, "사람", "a", 20, 20, 30, 30);
+        LsDataLbl b5 = autoBboxAtWithLabelId(13305L, 5L, "차량", "b", 100, 100, 200, 200);
+        LsDataLbl b10 = autoBboxAtWithLabelId(13310L, 5L, "차량", "b", 300, 300, 400, 400);
+        when(lblRepository.findAutoBboxWithTrackId(933L)).thenReturn(List.of(a0, a2, b5, b10));
+
+        int saved = step.run(933L);
+
+        assertThat(saved).isEqualTo(5);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+        List<LsDataLbl> rows = captor.getValue();
+
+        assertThat(rows.stream().filter(r -> "a".equals(r.getTrackId())))
+                .hasSize(1)
+                .allMatch(r -> Long.valueOf(2L).equals(r.getLabelId()) && "사람".equals(r.getLabelNm()));
+        assertThat(rows.stream().filter(r -> "b".equals(r.getTrackId())))
+                .hasSize(4)
+                .allMatch(r -> Long.valueOf(5L).equals(r.getLabelId()) && "차량".equals(r.getLabelNm()));
+    }
+
+    @Test
+    @DisplayName("FK_승계가_기존_AI메타축을_바꾸지_않는다_자동라벨Y_신뢰도0_출처INTERPOLATE_트랙상속")
+    void labelIdInheritanceLeavesOtherAxesUnchanged() {
+        // 이번 변경은 labelId 한 축이다 — 옆 축(AI 메타·trackId)이 함께 움직이지 않았음을 고정한다.
+        List<LsDataSrc> frames = framesOf(934L, 13400L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(934L)).thenReturn(frames);
+
+        LsDataLbl at0 = autoBboxAtWithLabelId(13400L, 3L, "사람", "t2", 0, 0, 100, 100);
+        LsDataLbl at4 = autoBboxAtWithLabelId(13404L, 3L, "사람", "t2", 40, 40, 140, 140);
+        when(lblRepository.findAutoBboxWithTrackId(934L)).thenReturn(List.of(at0, at4));
+
+        step.run(934L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+
+        assertThat(captor.getValue())
+                .hasSize(3)
+                .allMatch(r -> "Y".equals(r.getAutoLblYn()))
+                .allMatch(r -> BigDecimal.ZERO.compareTo(r.getConfScore()) == 0)
+                .allMatch(r -> LsDataLbl.SRC_INTERPOLATE.equals(r.getLblSrcCd()))
+                .allMatch(r -> "t2".equals(r.getTrackId()))
+                .allMatch(r -> "BBOX".equals(r.getLblTypeCd()));
+    }
+
+    @Test
+    @DisplayName("트랙병합_단일트랙_재보간_경로도_라벨마스터_FK_를_승계한다")
+    void singleTrackReinterpolationInheritsLabelId() {
+        // 병합/삭제/split 이 타는 경로. 전체 경로와 같은 interpolateTrack 을 공유하지만,
+        // 진입점이 달라 배선이 끊길 수 있으므로 별도로 고정한다.
+        List<LsDataSrc> frames = framesOf(935L, 13500L, 5);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(935L)).thenReturn(frames);
+        when(lblRepository.findInterpolatedLblSnsByRawSnAndTrackId(935L, List.of("from", "to")))
+                .thenReturn(List.of());
+
+        LsDataLbl at0 = autoBboxAtWithLabelId(13500L, 4L, "사람", "to", 0, 0, 10, 10);
+        LsDataLbl at4 = autoBboxAtWithLabelId(13504L, 4L, "사람", "to", 40, 40, 50, 50);
+        when(lblRepository.findAutoBboxByRawSnAndTrackId(935L, "to")).thenReturn(List.of(at0, at4));
+
+        int saved = step.interpolateSingleTrack(935L, "to", "from");
+
+        assertThat(saved).isEqualTo(3);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<LsDataLbl>> captor = ArgumentCaptor.forClass(List.class);
+        verify(lblRepository).saveAll(captor.capture());
+
+        assertThat(captor.getValue()).hasSize(3)
+                .allMatch(r -> Long.valueOf(4L).equals(r.getLabelId()))
+                .allMatch(r -> "사람".equals(r.getLabelNm()));
     }
 }
