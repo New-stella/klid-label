@@ -75,7 +75,7 @@ generated_by: mc-logi-screen-design
 |---|---|---|
 | main | design-main.html | 작업 목록 화면 전체(단일 page surface — wireframe.html 1개에 대응) |
 
-- 공유 스타일: design.css
+- 공유 스타일: design-main.css — 게시본(logicraft 렌더)과 바이트 동일한 로컬 미러이며 design-main.html 이 참조하는 정본이다. 구 작성본 design.css 는 이후 수정이 반영되지 않아 게시본과 어긋난 채 남아 있었으므로 삭제했다(2026-08-18).
 - 스크린샷: (없음 — file:// 로컬 프리뷰로 확인)
 
 ## § 카탈로그 미정 매핑 (Phase 6 신규 컴포넌트 후보 — 이번 배치는 등록하지 않음)
