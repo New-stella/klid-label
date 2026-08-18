@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 39
-last_updated_at: 2026-08-16T09:56:01.951Z
+version: 44
+last_updated_at: 2026-08-18T03:34:49.517Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:51:24.173Z
-sync_session: 6
-stale: true
+synced_at: 2026-08-18T03:35:58.537Z
+sync_session: 8
+stale: false
 status: CHANGED
-prev_version: 34
+prev_version: 42
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
@@ -18,7 +18,7 @@ links:
   realizes_use_cases: ["[[UC-029]]"]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v34 → v39**
+> ⚠️ **버전 변경 감지 — logicraft v42 → v44**
 > change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
@@ -143,7 +143,7 @@ _(empty)_
 
 - **note**: 검수자에게는 미배정 옵션이 추가된다. 상태 필터도 이벤트유형과 마찬가지로 역할 무관 서버 필터로 위임되며 현재 페이지 안에서 다시 거르지 않는다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
 - **type**: Select
-- **label**: 상태: 전체/미배정(REVIEWER)/대기/진행중/검수대기/완료/반려
+- **label**: 상태: 전체/미배정/배정 완료/작업중/검수요청/완료/반려
 
 **columns**:
 
@@ -152,10 +152,10 @@ _(empty)_
 **options**:
 
 - 전체
-- 미배정(REVIEWER)
+- 미배정
 - 대기
-- 진행중
-- 검수대기
+- 작업중
+- 검수요청
 - 완료
 - 반려
 
@@ -263,7 +263,7 @@ _(empty)_
 
 - **note**: 본인 배정 목록에서 상태별 건수를 클라이언트에서 집계한다. 별도 API 없음
 - **type**: Stat
-- **label**: WORKER 4카드 — 전체/진행중/검수대기/반려
+- **label**: WORKER 4카드 — 전체/작업중/검수요청/반려
 
 **columns**:
 
@@ -371,12 +371,13 @@ _(empty)_
 
 - **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(WINTER/NIGHT/RAIN 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다).
 - **type**: Table
-- **label**: 선택/영상명/이벤트/촬영일시/상태/작업자/검수자/액션
+- **label**: 선택/영상명/영상 ID/이벤트/촬영일시/상태/작업자/검수자/액션
 
 **columns**:
 
 - 선택
 - 영상명
+- 영상 ID
 - 이벤트
 - 촬영일시
 - 상태
@@ -857,9 +858,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: bfc81b8d69603af0dc03456ad6c296a3ba7953d96686033d761e04458ce5d0b4
-- **generated_at**: 2026-08-16T09:56:01.950Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: a9f41819b27545a12bdb91faddd79aafcb1d5f2011722629336112497e2357f6
+- **generated_at**: 2026-08-18T03:34:49.517Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

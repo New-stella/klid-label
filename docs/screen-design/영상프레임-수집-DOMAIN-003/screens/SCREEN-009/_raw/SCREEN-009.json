@@ -45,14 +45,14 @@
             },
             {
               "type": "Badge",
-              "label": "이벤트 유형 배지(EventTypeBadge)",
+              "label": "이벤트 유형 배지",
               "columns": [],
               "options": [],
               "binds_to": "video.eventTypeCd"
             },
             {
               "type": "Badge",
-              "label": "상태 배지(StatusBadge)",
+              "label": "상태 배지",
               "columns": [],
               "options": [],
               "binds_to": "video.status"
@@ -280,8 +280,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "e20d5f7468987faa4584951a9371fd3dcc351263872299fdd1e34531a55b3932",
-          "generated_at": "2026-08-13T02:39:33.159Z",
+          "source_hash": "fdbd61f698ca622cdeba32a2547db500fc11b223af4506b29a471bde9e99e4d8",
+          "generated_at": "2026-08-18T03:19:10.298Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -293,12 +293,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 44,
+    "current_version": 46,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.9KB)",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.8KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T02:39:33.160Z",
+    "last_updated_at": "2026-08-18T03:19:10.299Z",
     "created_at": "2026-05-30T07:54:17.546Z"
   }
 }

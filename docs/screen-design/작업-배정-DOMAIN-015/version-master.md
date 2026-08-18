@@ -5,32 +5,32 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-16T12:51:24.213Z (session 6) |
-| Mode | SYNC — NEW 0 / CHANGED 12 / UNCHANGED 150 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/작업-배정-DOMAIN-015 |
+| Last sync | 2026-08-18T03:35:58.742Z (session 8) |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 160 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[API-001]] | api_endpoint | GET /v1/users | 3 | false | CHANGED |
+| [[API-001]] | api_endpoint | GET /v1/users | 5 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
-| [[API-070]] | api_endpoint | POST /v1/assignments | 8 | false | CHANGED |
-| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | CHANGED |
-| [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | CHANGED |
-| [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | CHANGED |
-| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | CHANGED |
-| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | CHANGED |
-| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | CHANGED |
-| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 2 | false | CHANGED |
+| [[API-070]] | api_endpoint | POST /v1/assignments | 8 | false | UNCHANGED |
+| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | UNCHANGED |
+| [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | UNCHANGED |
+| [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | UNCHANGED |
+| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | UNCHANGED |
+| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | UNCHANGED |
+| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | UNCHANGED |
+| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 2 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | CHANGED |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | false | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 39 | true | CHANGED |
-| [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 5 | false | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 9 | false | CHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 44 | false | CHANGED |
+| [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 7 | true | CHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 9 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -56,7 +56,7 @@
 | [[UI-023]] | ui_component | feedback: Toast | 3 | false | UNCHANGED |
 | [[UI-024]] | ui_component | input: Checkbox | 6 | false | UNCHANGED |
 | [[UI-025]] | ui_component | input: Radio | 3 | false | UNCHANGED |
-| [[UI-026]] | ui_component | input: RadioGroup | 5 | false | UNCHANGED |
+| [[UI-026]] | ui_component | input: RadioGroup | 6 | false | UNCHANGED |
 | [[UI-027]] | ui_component | input: Textarea | 4 | false | UNCHANGED |
 | [[UI-028]] | ui_component | input: DatePicker | 4 | false | UNCHANGED |
 | [[UI-029]] | ui_component | input: DateRangePicker | 5 | false | UNCHANGED |
@@ -76,15 +76,15 @@
 | [[UI-043]] | ui_component | action: MarkingToolbar | 4 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
-| [[UI-046]] | ui_component | display: CanvasShell | 6 | false | UNCHANGED |
-| [[UI-047]] | ui_component | action: ToolBar | 5 | false | UNCHANGED |
-| [[UI-048]] | ui_component | overlay: LabelPickerModal | 6 | false | UNCHANGED |
+| [[UI-046]] | ui_component | display: CanvasShell | 7 | false | UNCHANGED |
+| [[UI-047]] | ui_component | action: ToolBar | 6 | false | UNCHANGED |
+| [[UI-048]] | ui_component | overlay: LabelPickerModal | 7 | false | UNCHANGED |
 | [[UI-049]] | ui_component | data: ObjectClassTree | 7 | false | UNCHANGED |
 | [[UI-050]] | ui_component | input: ObjectAttributePanel | 6 | false | UNCHANGED |
 | [[UI-051]] | ui_component | navigation: FrameFilmstrip | 4 | false | UNCHANGED |
-| [[UI-052]] | ui_component | navigation: FrameNavigator | 6 | false | UNCHANGED |
+| [[UI-052]] | ui_component | navigation: FrameNavigator | 7 | false | UNCHANGED |
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
-| [[UI-054]] | ui_component | action: UndoRedoToolbar | 4 | false | UNCHANGED |
+| [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
 | [[UI-056]] | ui_component | display: TimeseriesSidePanel | 5 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |

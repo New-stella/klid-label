@@ -14,10 +14,30 @@ describe('ToolBar — SAM2 도구', () => {
     useLabelStore.getState().reset();
   });
 
-  it('SAM_분할과_SAM_추적_버튼이_렌더된다', () => {
+  it('AI_분할_버튼이_렌더된다', () => {
     renderWithProviders(<ToolBar />);
     expect(screen.getByRole('button', { name: 'AI 분할' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'AI 추적' })).toBeInTheDocument();
+  });
+
+  /*
+   * ★반전된 가드 — 구 케이스 `SAM_분할과_SAM_추적_버튼이_렌더된다` 의 추적 부분과
+   *   `SAM_추적_클릭_시_activeTool이_TRACK으로_전환된다` 를 대체한다(지우지 않고 뒤집는다).
+   *
+   * 구 단언: 좌측 도구바에 'AI 추적' 버튼이 있고, 누르면 activeTool 이 TRACK 으로 바뀐다.
+   * 새 단언: 좌측 도구바에 'AI 추적' 버튼을 **두지 않는다**.
+   *
+   * 왜 뒤집혔나 — 사양 SCREEN-005 §좌측 도구바의 버튼은 선택/이동·바운딩박스·폴리곤·AI 분할·
+   * 키포인트·AI 탐지 여섯이며 AI 추적은 그 목록에 없다. AI 추적은 이미 그려진 객체 하나를 뒤
+   * 프레임으로 전파하는 행위라 대상이 정해진 뒤에야 성립하고, 실행 진입점은 우측 객체 패널의
+   * 선택 객체 속성이다(§라벨링 캔버스 — "우측 패널 '객체' 탭에서 대상 객체를 펼쳤을 때 노출되는
+   * 버튼으로 실행한다"). 도구바에 모드 버튼을 두면 "모드를 켜야 실행 버튼이 나타나는" 2단 동선이
+   * 되어 사양과 어긋난다.
+   *
+   * ⚠ 단축키(Shift+T)는 사양이 유지하므로 이 가드가 막는 것은 **도구바 버튼**뿐이다.
+   */
+  it('AI_추적_버튼은_좌측_도구바에_두지_않는다', () => {
+    renderWithProviders(<ToolBar />);
+    expect(screen.queryByRole('button', { name: 'AI 추적' })).toBeNull();
   });
 
   it('SAM_분할_클릭_시_activeTool이_SAM_SEGMENT로_전환된다', () => {
@@ -26,11 +46,6 @@ describe('ToolBar — SAM2 도구', () => {
     expect(useLabelStore.getState().activeTool).toBe(ToolType.SAM_SEGMENT);
   });
 
-  it('SAM_추적_클릭_시_activeTool이_TRACK으로_전환된다', () => {
-    renderWithProviders(<ToolBar />);
-    fireEvent.click(screen.getByRole('button', { name: 'AI 추적' }));
-    expect(useLabelStore.getState().activeTool).toBe(ToolType.TRACK);
-  });
 });
 
 describe('ToolBar — 키포인트 도구', () => {
@@ -56,6 +71,10 @@ describe('ToolBar — 키포인트 도구', () => {
   });
 
   it('포털_사용자는_AI추적_도구를_사용할_수_없다', () => {
+    // ★부재 사유가 바뀌었다 — 이제는 채널과 무관하게 도구바에 AI 추적 버튼 자체가 없다
+    //   (위 `AI_추적_버튼은_좌측_도구바에_두지_않는다` 참조). 그래도 이 가드는 남긴다:
+    //   포털 미제공(ADR-013)은 도구바 구성과 **다른 축**이라, 도구바에 되살아나더라도 포털에서는
+    //   반드시 빠져 있어야 한다는 계약을 이 케이스가 계속 고정한다.
     renderWithProviders(<ToolBar portalMode />);
     expect(screen.queryByRole('button', { name: 'AI 추적' })).not.toBeInTheDocument();
   });
@@ -75,9 +94,9 @@ describe('ToolBar — 키포인트 도구', () => {
 
   it('내부_라벨링_화면의_SAM2_도구는_기존과_동일하게_노출된다', () => {
     // SFR-08-01(VOS) 핵심 기능 — 포털 제거가 내부(INTERNAL) 채널을 함께 막았는지 회귀 고정.
+    // ★'AI 추적'은 여기서 세지 않는다 — 도구바가 아니라 우측 객체 패널이 실행 진입점이다(사양 정합).
     renderWithProviders(<ToolBar />);
     expect(screen.getByRole('button', { name: 'AI 분할' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'AI 추적' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '스켈레톤' })).toBeInTheDocument();
   });
 });

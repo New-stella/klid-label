@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-018
 type: screen_spec
-version: 24
-last_updated_at: 2026-08-16T07:16:42.940Z
+version: 26
+last_updated_at: 2026-08-18T03:34:50.014Z
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:51:39.452Z
-sync_session: 6
-stale: true
+synced_at: 2026-08-18T03:35:59.578Z
+sync_session: 8
+stale: false
 status: CHANGED
-prev_version: 23
+prev_version: 24
 raw: ./_raw/SCREEN-018.json
 wireframe: ./wireframe.html
 links:
@@ -18,8 +18,8 @@ links:
   realizes_use_cases: ["[[UC-023]]"]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v23 → v24**
-> change_summary: realizes_use_cases 가 공란이었다. 이 화면(검수 목록, consumes_apis=API-008/API-138)은 UC-023(검수 승인·반려) 플로우의 진입점(REVIEWER 가 검수 대상을 찾아 상세로 진입)이라 UC-023 을 realizes 한다.
+> ⚠️ **버전 변경 감지 — logicraft v24 → v26**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.4KB)
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 목록 화면
@@ -115,7 +115,7 @@ _(empty)_
 
 - **note**: status=REVIEW_PENDING 건수
 - **type**: Card
-- **label**: 검수 대기
+- **label**: 검수요청
 
 **columns**:
 
@@ -212,7 +212,7 @@ _(empty)_
 **options**:
 
 - 전체
-- 검수 대기
+- 검수요청
 - 검수중
 - 승인
 - 반려
@@ -449,9 +449,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 3136d3ef1fb23049215121acbcba563b0d829322bc9d89eea89bc6379b1538c3
-- **generated_at**: 2026-08-13T01:02:39.923Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 5a5574582cf3216d08f705b17b6a64ec5374f7554e1be7890304f730d3f6671f
+- **generated_at**: 2026-08-18T03:34:50.014Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

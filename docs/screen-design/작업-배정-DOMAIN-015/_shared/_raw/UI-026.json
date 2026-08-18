@@ -66,7 +66,7 @@
           "description": "개별 옵션 비활성화 — 그룹 disabled 와 OR."
         }
       ],
-      "usage_example": "증강 요청 화면의 처리 종류 단일 선택, AI 탐지 형태(바운딩박스/폴리곤) 단일 선택, 객체 속성(RADIO 타입) 단일 선택 등 소수 옵션을 한눈에 비교해야 하는 단일 선택 폼 필드에 쓴다. 옵션 라벨은 RadioGroupItem 옆에 호출부가 직접 배치한 label(htmlFor 연결) 또는 Field 계열(UI-099)로 붙인다. 그룹 제목은 네이티브 fieldset+legend 또는 aria-label 로 붙인다(전용 label prop 없음).",
+      "usage_example": "증강 요청 화면의 처리 종류 단일 선택, AI 탐지 형태(바운딩 박스/폴리곤) 단일 선택, 객체 속성(RADIO 타입) 단일 선택 등 소수 옵션을 한눈에 비교해야 하는 단일 선택 폼 필드에 쓴다. 옵션 라벨은 RadioGroupItem 옆에 호출부가 직접 배치한 label(htmlFor 연결) 또는 Field 계열(UI-099)로 붙인다. 그룹 제목은 네이티브 fieldset+legend 또는 aria-label 로 붙인다(전용 label prop 없음).",
       "design_system_id": "DS-001",
       "accessibility_notes": "role=radiogroup 은 컴포넌트가 자동 부여하지만, 그룹 제목은 호출부가 fieldset+legend 또는 aria-label 로 직접 연결해야 한다(컴포넌트 자체엔 label prop 없음). RadioGroupItem 은 각각 htmlFor 대상 id 를 받아 외부 label 과 연결. aria-invalid 전달 시 개별 항목 보더가 destructive 로 전환되며, 표시 구조 래퍼(Field, UI-099) 안에 놓이면 오류 문구가 aria-describedby 로 자동 연결되고 그 래퍼 밖에서 쓰면 호출부가 직접 연결한다. 포커스 시 2px 링 + 오프셋 2px.",
       "referenced_by_screen_ids": [
@@ -76,12 +76,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이 프리미티브가 어디에 놓여 쓰이는지를 사양에 명시한다. 라벨·설명·오류를 바깥에서 조립하는 표시 구조 래퍼(Field, UI-099) 안에 두는 것이 기본 배치이며, 그 안에서는 그룹 이름과 오류 안내가 자동으로 이어지고 래퍼 밖에서는 호출부가 aria-label 로 이름을 직접 준다. 접근성 노트에 있던 오류 문구 연결 서술도 이 관계로 바로잡았다. 구 서술은 오류 문구가 프로그램적으로 연결되는 자리가 없다고 단정했으나, 그 연결은 조립 래퍼가 맡는다. props 계약(루트·개별 옵션 2개 구성, 방향 지정 방식)은 손대지 않았다.",
+    "change_summary": "표기를 확정 용어에 맞춘다. 바운딩 박스·실행 취소·다시 실행으로 띄어 쓴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-08T10:47:13.782Z",
+    "last_updated_at": "2026-08-18T03:16:50.315Z",
     "created_at": "2026-06-02T13:11:41.666Z"
   }
 }

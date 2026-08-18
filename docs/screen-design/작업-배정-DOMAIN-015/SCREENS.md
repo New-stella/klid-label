@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-16T12:51:24.208Z (session 6) |
+| last sync | 2026-08-18T03:35:58.727Z (session 8) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/작업-배정-DOMAIN-015 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -52,18 +52,8 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-001]] | api_endpoint | CHANGED (v2→v3) |
-| [[API-070]] | api_endpoint | CHANGED (v5→v8) |
-| [[API-071]] | api_endpoint | CHANGED (v4→v7) |
-| [[API-072]] | api_endpoint | CHANGED (v4→v10) |
-| [[API-073]] | api_endpoint | CHANGED (v4→v9) |
-| [[API-116]] | api_endpoint | CHANGED (v3→v8) |
-| [[API-136]] | api_endpoint | CHANGED (v1→v4) |
-| [[API-137]] | api_endpoint | CHANGED (v3→v6) |
-| [[API-187]] | api_endpoint | CHANGED (v1→v2) |
-| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
-| [[SCREEN-012]] | screen_spec | CHANGED (v34→v39) |
-| [[UC-029]] | use_case | CHANGED (v5→v9) |
+| [[SD-003]] | screen_design | CHANGED (v6→v7) |
+| [[SCREEN-012]] | screen_spec | CHANGED (v42→v44) |
 
 ## Obsidian 볼트로 보기
 

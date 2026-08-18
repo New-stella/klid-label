@@ -1,6 +1,11 @@
-// SAM2 자동추적 도구 — 선택된 라벨(박스/폴리곤)을 시작점으로 후속 N프레임에 폴리곤 전파.
+// AI 추적 — 선택된 라벨(박스/폴리곤)을 시작점으로 후속 N프레임에 폴리곤 전파.
 //
-// UI/UX §4-6: 자동추적 토글(시작=Play / 정지=Square 아이콘) + 진행률 표시.
+// ★화면 표기는 「AI 추적」이다 (2026-08-18 정합 — 사양 SCREEN-005: 여러 객체를 한 번에 만드는
+//   「AI 자동 추적」과 **이름이 겹치지 않게 구분한다**). 구 표기 「자동추적」은 그 두 기능을 같은
+//   낱말로 부르는 것이라 폐기했다 — 두 컨트롤이 같은 우측 패널에 함께 보이므로 표기가 겹치면
+//   사용자가 무엇을 누르는지 구분할 수 없다. 되돌리지 말 것.
+//
+// UI/UX §4-6: 실행 토글(시작=Play / 정지=Square 아이콘) + 진행률 표시.
 // 보안: BE에서 IDOR/입력 검증 + 좌표 상한.
 
 import { useCallback, useState } from 'react';
@@ -42,7 +47,7 @@ export interface Sam2TrackToolProps {
 }
 
 /**
- * SAM2 자동추적 도구. 토글 버튼 + 진행률(progressbar) 표시.
+ * AI 추적. 실행 토글 버튼 + 진행률(progressbar) 표시.
  */
 export function Sam2TrackTool({
   srcSn,
@@ -134,7 +139,7 @@ export function Sam2TrackTool({
         type="button"
         onClick={handleToggle}
         disabled={disabled || editBlocked || isPending}
-        aria-label={isPending ? '자동추적 진행 중' : '자동추적 시작'}
+        aria-label={isPending ? 'AI 추적 진행 중' : 'AI 추적 시작'}
         className={cn(
           'flex items-center gap-1 rounded border border-border px-3 py-1 text-sub',
           // @req R12 — hover 표면이 bg-bgLight(중립 50단)라 500단 파랑은 4.17:1 로 AA 미달이다.
@@ -146,7 +151,7 @@ export function Sam2TrackTool({
         )}
       >
         {isPending ? <Square size={14} /> : <Play size={14} />}
-        {isPending ? '추적 중' : '자동추적'}
+        {isPending ? '추적 중' : 'AI 추적'}
       </button>
       {isPending && (
         <div className="flex items-center gap-1">

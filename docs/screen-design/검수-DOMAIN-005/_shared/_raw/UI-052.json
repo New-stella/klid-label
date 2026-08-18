@@ -48,7 +48,7 @@
           "description": "장시간 작업(저장·AI 처리) 진행 중 전체 비활성. 이동이 작업과 교차하면 어느 프레임에 반영될지가 결정되지 않는다."
         }
       ],
-      "usage_example": "라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029)의 캔버스 상단 옵션바 중앙에 저장·실행취소/다시실행 버튼과 함께 배치한다.",
+      "usage_example": "라벨링 화면(SCREEN-005)과 포털 라벨링 화면(SCREEN-029)의 캔버스 상단 옵션바 중앙에 저장·실행 취소/다시 실행 버튼과 함께 배치한다.",
       "design_system_id": "DS-001",
       "accessibility_notes": "컨테이너는 role=group aria-label='프레임 이동'. 처음/이전/다음/마지막 각 버튼에 개별 aria-label(처음 프레임/이전 프레임/다음 프레임/마지막 프레임)을 지정하고 툴팁으로 동일 문구를 보조 노출한다. 번호 입력 필드는 aria-label='프레임 번호'. 슬라이더는 방향키로 한 프레임씩 이동할 수 있어야 하며 현재 값·최솟값·최댓값을 보조기술에 알린다.",
       "referenced_by_screen_ids": [
@@ -59,12 +59,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "직전 갱신에서 유입된 한글 손상 8곳 정정 — 요청을 솎아 보낸다는 서술, 끄는 동안이라는 서술 두 곳, 끌 때마다 띄어쓰기, 한 곳이 샌다, 주르륵, 확인이 한 번만 뜨고, 조사 하나. 사양 내용은 변경 없이 표기만 바로잡는다",
+    "change_summary": "표기를 확정 용어에 맞춘다. 바운딩 박스·실행 취소·다시 실행으로 띄어 쓴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T23:21:26.720Z",
+    "last_updated_at": "2026-08-18T03:16:51.951Z",
     "created_at": "2026-06-02T13:13:58.548Z"
   }
 }
