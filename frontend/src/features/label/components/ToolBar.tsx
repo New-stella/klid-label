@@ -1,7 +1,17 @@
 // UI-047 ToolBar — 라벨링 캔버스 좌측 세로 도구바 (아이콘 only, w-14).
 //
-// 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / AI분할(G) / AI추적(Shift+T) / 키포인트(K)
+// 도구: 선택(Esc) / 바운딩박스(B) / 폴리곤(P) / AI분할(G) / 키포인트(K)
 //       / AI 탐지 / [구분선] / 좌·우 90° 회전 / 화면 맞춤 / 영역 확대 / 그리드 표시
+//
+// ★'AI 추적'은 이 도구바에 두지 않는다 (2026-08-18 정합 — 사양 SCREEN-005 §좌측 도구바의 버튼은
+//   선택·바운딩박스·폴리곤·AI 분할·키포인트·AI 탐지 여섯이며 AI 추적은 그 목록에 없다).
+//   AI 추적은 **이미 그려진 객체 하나를 뒤 프레임으로 전파**하는 행위라 '무엇을 추적할지'가 정해진
+//   뒤에야 성립한다 — 그래서 실행 진입점은 우측 객체 패널의 선택 객체 속성이고(§라벨링 캔버스 —
+//   "우측 패널 '객체' 탭에서 대상 객체를 펼쳤을 때 노출되는 버튼으로 실행한다"), 도구바에 모드
+//   버튼을 두면 "모드를 켜야 실행 버튼이 나타나는" 2단 동선이 된다.
+//   단축키(Shift+T)와 AI 탐지 다이얼로그의 '트랙으로 실행'은 사양이 유지하므로 그대로 둔다 —
+//   그 둘은 추적 형태·라벨을 기억한 상태를 켤 뿐 실행 진입점이 아니다.
+//   ⚠ 도구바에 되돌려 넣지 말 것(회귀 가드: ToolBar.test.tsx).
 // ★보기 조작(회전·화면 맞춤·영역 확대)과 그리드 표시 토글은 SCREEN-005 §좌측 도구바 소관이다.
 //   회전·영역확대·그리드 상태는 이 도구바가 갖지 않고 **화면(호출부)** 이 갖는다 — 같은 상태를 캔버스
 //   (CanvasShell)도 써야 하므로 공통 상위가 단일 보유자여야 한다.
@@ -21,7 +31,6 @@ import {
   PersonStanding,
   RotateCcw,
   RotateCw,
-  Route,
   ScanSearch,
   Sparkles,
   Square,
@@ -47,7 +56,6 @@ const TOOL_KEYMAP_ID: Partial<Record<ToolType, string>> = {
   [ToolType.BBOX]: 'tool.bbox',
   [ToolType.POLYGON]: 'tool.polygon',
   [ToolType.SAM_SEGMENT]: 'tool.samSegment',
-  [ToolType.TRACK]: 'tool.track',
   [ToolType.KEYPOINT]: 'tool.keypoint',
 };
 
@@ -223,13 +231,6 @@ export function ToolBar({
       icon: Sparkles,
       label: TOOL_DISPLAY_NAME[ToolType.SAM_SEGMENT],
       shortcut: toolShortcut(ToolType.SAM_SEGMENT),
-    },
-    {
-      kind: 'tool',
-      tool: ToolType.TRACK,
-      icon: Route,
-      label: TOOL_DISPLAY_NAME[ToolType.TRACK],
-      shortcut: toolShortcut(ToolType.TRACK),
     },
     {
       kind: 'tool',
