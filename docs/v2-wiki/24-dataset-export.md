@@ -170,7 +170,7 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `evidence.{cN}.evidence_text` | string | 외부 자동 + 수동입력 | 후보별 근거 서술 |
 | `evidence.{cN}.frame_id` | number[] | 외부 자동 + 수동입력 | 근거 프레임 ID 목록 |
 | `evidence.{cN}.obj_id` | string[] | 외부 자동 + 수동입력 | 객체 ID 목록 |
-| `evidence.{cN}.obj_bbox` | number[][] | 외부 자동 + 수동입력 | 객체 바운딩박스 `[x1,y1,x2,y2]` 목록 |
+| `evidence.{cN}.obj_bbox` | number[][] | 외부 자동 + 수동입력 | 객체 바운딩 박스 `[x1,y1,x2,y2]` 목록 |
 | `evidence.{cN}.obj_label` | string[] | 외부 자동 + 수동입력 | 객체 라벨 목록 |
 
 - **후보 키(`c1`~`cn`)는 가변**이며, caption `cN` 과 evidence `cN` 은 같은 키로 연결된다. `cot` 는 후보마다 단계 라벨 키 객체(`{"1단계":..,"2단계":..,"3단계":..}`)로 채운다.

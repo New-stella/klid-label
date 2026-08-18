@@ -30,7 +30,7 @@
         <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
-        <div class="wf-card"><h3 class="wf-card-title">검수 대기</h3></div><span class="wf-help">status=REVIEW_PENDING 건수</span>
+        <div class="wf-card"><h3 class="wf-card-title">검수요청</h3></div><span class="wf-help">status=REVIEW_PENDING 건수</span>
         <div class="wf-card"><h3 class="wf-card-title">검수중</h3></div><span class="wf-help">status=REVIEWING 건수</span>
         <div class="wf-card"><h3 class="wf-card-title">승인</h3></div><span class="wf-help">status=COMPLETED 건수</span>
         <div class="wf-card"><h3 class="wf-card-title">반려</h3></div><span class="wf-help">status=REJECTED 건수</span>
@@ -45,7 +45,7 @@
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-field"><label class="wf-label">영상명 / 작업자명</label><input class="wf-input" placeholder="검색어를 입력하세요" /></div>
-        <div class="wf-field"><label class="wf-label">상태</label><select class="wf-select"><option>전체</option><option>검수 대기</option><option>검수중</option><option>승인</option><option>반려</option></select></div>
+        <div class="wf-field"><label class="wf-label">상태</label><select class="wf-select"><option>전체</option><option>검수요청</option><option>검수중</option><option>승인</option><option>반려</option></select></div>
         <button class="wf-btn wf-btn-primary">조회</button>
         <button class="wf-btn wf-btn-ghost">초기화</button><span class="wf-help">필터 활성 시에만 enabled</span>
       </div>
@@ -88,7 +88,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 검수 현황 KPI</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>KPI 4카드(검수 대기/검수중/승인/반려)는 GET /v1/reviews/summary(API-138) 서버 집계로 필터 결과 전체 기준이며 현재 페이지 20건 안에서 세지 않는다. 카드에 장식 아이콘을 두지 않는다 — 지표명과 값 텍스트가 카드의 정보를 모두 전달한다. 로딩/에러/정상 3상태 분기, 집계 실패해도 목록 표시는 막지 않는다. 카드 클릭은 status 필터를 토글(같은 카드 재클릭 시 해제=전체).</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(검수 대기)<p class="wf-help" style="margin:2px 0 0">status=REVIEW_PENDING 건수</p></li><li>Card(검수중)<p class="wf-help" style="margin:2px 0 0">status=REVIEWING 건수</p></li><li>Card(승인)<p class="wf-help" style="margin:2px 0 0">status=COMPLETED 건수</p></li><li>Card(반려)<p class="wf-help" style="margin:2px 0 0">status=REJECTED 건수</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(검수요청)<p class="wf-help" style="margin:2px 0 0">status=REVIEW_PENDING 건수</p></li><li>Card(검수중)<p class="wf-help" style="margin:2px 0 0">status=REVIEWING 건수</p></li><li>Card(승인)<p class="wf-help" style="margin:2px 0 0">status=COMPLETED 건수</p></li><li>Card(반려)<p class="wf-help" style="margin:2px 0 0">status=REJECTED 건수</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-138</li></ul></div>
     </div>
   </div>

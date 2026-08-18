@@ -5,41 +5,41 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-16T12:51:39.498Z (session 6) |
-| Mode | SYNC — NEW 0 / CHANGED 22 / UNCHANGED 149 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/검수-DOMAIN-005 |
+| Last sync | 2026-08-18T03:35:59.736Z (session 8) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 170 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 15 | false | CHANGED |
-| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 7 | true | CHANGED |
-| [[API-008]] | api_endpoint | GET /v1/reviews | 11 | false | CHANGED |
-| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 8 | false | CHANGED |
-| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | CHANGED |
-| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | CHANGED |
-| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | CHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 9 | false | CHANGED |
-| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 7 | false | CHANGED |
-| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 7 | false | CHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | CHANGED |
-| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | CHANGED |
-| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 9 | false | CHANGED |
-| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | CHANGED |
-| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | CHANGED |
-| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 2 | false | CHANGED |
-| [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | CHANGED |
+| [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 15 | false | UNCHANGED |
+| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 8 | false | UNCHANGED |
+| [[API-008]] | api_endpoint | GET /v1/reviews | 11 | false | UNCHANGED |
+| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 8 | false | UNCHANGED |
+| [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
+| [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
+| [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | UNCHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 10 | false | UNCHANGED |
+| [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
+| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | UNCHANGED |
+| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | UNCHANGED |
+| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 10 | false | UNCHANGED |
+| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | UNCHANGED |
+| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
+| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 4 | false | UNCHANGED |
+| [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | false | UNCHANGED |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | CHANGED |
-| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 24 | true | CHANGED |
-| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 29 | true | CHANGED |
-| [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | false | UNCHANGED |
-| [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | false | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 8 | false | UNCHANGED |
-| [[UC-009]] | use_case | 검수 완료·수정 통지 | 19 | false | CHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 22 | false | CHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 26 | false | CHANGED |
+| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 30 | false | UNCHANGED |
+| [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
+| [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | true | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
+| [[UC-009]] | use_case | 검수 완료·수정 통지 | 19 | false | UNCHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 22 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -65,7 +65,7 @@
 | [[UI-023]] | ui_component | feedback: Toast | 3 | false | UNCHANGED |
 | [[UI-024]] | ui_component | input: Checkbox | 6 | false | UNCHANGED |
 | [[UI-025]] | ui_component | input: Radio | 3 | false | UNCHANGED |
-| [[UI-026]] | ui_component | input: RadioGroup | 5 | false | UNCHANGED |
+| [[UI-026]] | ui_component | input: RadioGroup | 6 | false | UNCHANGED |
 | [[UI-027]] | ui_component | input: Textarea | 4 | false | UNCHANGED |
 | [[UI-028]] | ui_component | input: DatePicker | 4 | false | UNCHANGED |
 | [[UI-029]] | ui_component | input: DateRangePicker | 5 | false | UNCHANGED |
@@ -85,15 +85,15 @@
 | [[UI-043]] | ui_component | action: MarkingToolbar | 4 | false | UNCHANGED |
 | [[UI-044]] | ui_component | display: MarkingTimeline | 4 | false | UNCHANGED |
 | [[UI-045]] | ui_component | data: MarkingPanel | 5 | false | UNCHANGED |
-| [[UI-046]] | ui_component | display: CanvasShell | 6 | false | UNCHANGED |
-| [[UI-047]] | ui_component | action: ToolBar | 5 | false | UNCHANGED |
-| [[UI-048]] | ui_component | overlay: LabelPickerModal | 6 | false | UNCHANGED |
+| [[UI-046]] | ui_component | display: CanvasShell | 7 | false | UNCHANGED |
+| [[UI-047]] | ui_component | action: ToolBar | 6 | false | UNCHANGED |
+| [[UI-048]] | ui_component | overlay: LabelPickerModal | 7 | false | UNCHANGED |
 | [[UI-049]] | ui_component | data: ObjectClassTree | 7 | false | UNCHANGED |
 | [[UI-050]] | ui_component | input: ObjectAttributePanel | 6 | false | UNCHANGED |
 | [[UI-051]] | ui_component | navigation: FrameFilmstrip | 4 | false | UNCHANGED |
-| [[UI-052]] | ui_component | navigation: FrameNavigator | 6 | false | UNCHANGED |
+| [[UI-052]] | ui_component | navigation: FrameNavigator | 7 | false | UNCHANGED |
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
-| [[UI-054]] | ui_component | action: UndoRedoToolbar | 4 | false | UNCHANGED |
+| [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
 | [[UI-056]] | ui_component | display: TimeseriesSidePanel | 5 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |

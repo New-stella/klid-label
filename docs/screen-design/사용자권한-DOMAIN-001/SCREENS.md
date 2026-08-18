@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-16T12:51:31.954Z (session 5) |
+| last sync | 2026-08-18T03:36:03.244Z (session 7) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/domain-check/docs/screen-design/사용자권한-DOMAIN-001 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -19,10 +19,10 @@
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
 | [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
-| [[SCREEN-002]] | 역할 클레임 화면 | CHANGED | ✅ | [[API-007]] |  |
+| [[SCREEN-002]] | 역할 클레임 화면 | UNCHANGED | ✅ | [[API-007]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
-| [[SCREEN-004]] | 개발용 로그인 화면 | CHANGED | ✅ | [[API-153]] |  |
-| [[SCREEN-024]] | 사용자 관리 화면 | CHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
+| [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
+| [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -55,23 +55,6 @@
 | 3 | [[SCREEN-003]] — 접근 거부 화면 | screens/SCREEN-003/SCREEN-003.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-004]] — 개발용 로그인 화면 | screens/SCREEN-004/SCREEN-004.md | wireframe.html | uc/ | ac/ |
 | 5 | [[SCREEN-024]] — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-001]] | api_endpoint | CHANGED (v2→v3) |
-| [[API-003]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-004]] | api_endpoint | CHANGED (v3→v5) |
-| [[API-005]] | api_endpoint | CHANGED (v4→v5) |
-| [[API-006]] | api_endpoint | CHANGED (v5→v8) |
-| [[API-007]] | api_endpoint | CHANGED (v4→v6) |
-| [[API-153]] | api_endpoint | CHANGED (v2→v4) |
-| [[ROLE-001]] | permission_role | CHANGED (v8→v10) |
-| [[SCREEN-002]] | screen_spec | CHANGED (v14→v17) |
-| [[SCREEN-004]] | screen_spec | CHANGED (v8→v11) |
-| [[SCREEN-024]] | screen_spec | CHANGED (v20→v22) |
-| [[UC-030]] | use_case | CHANGED (v4→v7) |
 
 ## Obsidian 볼트로 보기
 

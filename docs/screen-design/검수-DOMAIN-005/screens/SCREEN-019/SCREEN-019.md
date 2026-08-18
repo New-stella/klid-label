@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-019
 type: screen_spec
-version: 29
-last_updated_at: 2026-08-16T07:16:43.055Z
+version: 30
+last_updated_at: 2026-08-17T06:54:05.805Z
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:51:39.454Z
-sync_session: 6
-stale: true
-status: CHANGED
-prev_version: 28
+synced_at: 2026-08-18T03:35:59.584Z
+sync_session: 8
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-019.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-023]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v28 → v29**
-> change_summary: realizes_use_cases 가 공란이었다. 이 화면(검수 상세, consumes_apis 에 API-014/API-015 approve/reject 포함)이 UC-023(검수 승인·반려)의 실제 승인·반려 액션이 일어나는 화면이다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 상세 화면
 
@@ -454,7 +450,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토한다. 서술 전문은 검수자가 확인·수정할 수 있고, 일치도는 참고용으로 읽기 전용 표시된다.
+- **note**: 외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토한다. 이 화면에서는 값을 고치지 않고 읽기 전용으로 확인한다 — 서술 전문의 수정은 라벨링 화면의 메타 패널이 담당하며, 검수 승인 시점에 그 값이 동결된다. 편집 지점을 두 화면에 두면 확정 경로가 갈라진다.
 - **type**: Custom
 - **label**: 시계열 메타 검토
 
@@ -498,7 +494,7 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 우측 패널 '메타' 탭. 이벤트 어노테이션 검토와 외부 시계열 메타 검토(서술 전문 확인·수정 가능, 일치도는 읽기 전용) 두 영역으로 구성된다. 검토 대상에 포함되지 않는 영상 기술 정보(해상도·코덱 등)도 참고용으로 함께 표시되며, 표시할 정보가 전혀 없으면 빈 상태 안내를 노출한다.
+- **description**: 우측 패널 '메타' 탭. 이벤트 어노테이션 검토와 외부 시계열 메타 검토(서술 전문과 일치도를 모두 읽기 전용으로 표시) 두 영역으로 구성된다. 검토 대상에 포함되지 않는 영상 기술 정보(해상도·코덱 등)도 참고용으로 함께 표시되며, 표시할 정보가 전혀 없으면 빈 상태 안내를 노출한다.
 
 **references_apis**:
 

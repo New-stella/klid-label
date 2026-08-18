@@ -1,25 +1,21 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 23
-last_updated_at: 2026-08-16T12:44:01.936Z
+version: 24
+last_updated_at: 2026-08-17T06:50:48.584Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T12:51:47.675Z
-sync_session: 5
-stale: true
-status: CHANGED
-prev_version: 20
+synced_at: 2026-08-18T03:36:00.711Z
+sync_session: 7
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-030.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-095]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v20 → v23**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.5KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 목록 화면
 
@@ -211,7 +207,7 @@ _(empty)_
 
 - **custom_name**: Pagination
 
-- **description**: 제목(중요 배지 — Pin 아이콘, amber, 텍스트 '중요' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
+- **description**: 제목(고정 배지 — Pin 아이콘, amber, 텍스트 '고정' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
 
 **references_apis**:
 

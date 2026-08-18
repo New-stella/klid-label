@@ -267,7 +267,7 @@
           "description": "대상 프레임(원천) PK — SRC_SN"
         }
       ],
-      "description": "프레임 원본 이미지를 ai-server YOLO 로 추론해 검출 좌표만 반환한다(DB 미저장 — SAM2 분할과 동일한 stateless 프록시). 클라이언트가 결과를 캔버스 작업본에 반영한 뒤 기존 라벨 저장 API(PUT /labels)로 확정해야 실제로 저장된다. 재실행해도 서버 측에 아무것도 교체되지 않는다(호출마다 새 추론 결과만 반환). 선택적 body {classes:[...]} 로 검출 대상 클래스(COCO 영문명)를 제한할 수 있으며, 미지정 시 전체 검출(하위호환). shape=POLYGON 이면 검출 박스마다 SAM 분할 폴리곤을 함께 반환한다. ai-server 내부 mock(모델 미로드) 응답이면 detectedCount=0 + 빈 labels + 안내 message 로 반환한다. 권한 REVIEWER/WORKER, 본인 배정 프레임 IDOR 검증. 포털 채널은 역할+채널 격리로 물리 차단(ADR-013).",
+      "description": "프레임 원본 이미지를 ai-server YOLO 로 추론해 검출 좌표만 반환한다(DB 미저장 — SAM2 분할과 동일한 stateless 프록시). 클라이언트가 결과를 캔버스 작업본에 반영한 뒤 기존 라벨 저장 API(PUT /labels)로 확정해야 실제로 저장된다. 재실행해도 서버 측에 아무것도 교체되지 않는다(호출마다 새 추론 결과만 반환). 선택적 body {classes:[...]} 로 검출 대상 클래스(COCO 영문명)를 제한할 수 있으며, 미지정 시 전체 검출(하위호환). shape=POLYGON 이면 검출 박스마다 SAM 분할 폴리곤을 함께 반환한다. ai-server 내부 mock(모델 미로드) 응답이면 detectedCount=0 + 빈 labels + 안내 message 로 반환한다. 권한 REVIEWER/WORKER, 본인 배정 프레임 IDOR 검증. 포털 채널은 역할+채널 격리로 물리 차단(ADR-013).\n\n이 호출은 사용자가 화면 앞에서 기다리는 동기 호출이다. 화면은 작업 종류별 최대 대기 상한까지만 기다리며 그 상한은 이 서버가 정해 내려준다 — 화면이 자체 상수로 정하면 호출당 상한이나 재시도 예산이 바뀔 때 조용히 어긋나고, 짧아진 쪽으로 어긋나면 마지막 시도에서 성공한 추론까지 실패로 보인다. 따라서 상한의 하한은 이 경로가 정당하게 쓸 수 있는 최악 소요 이상이어야 한다.\n클라이언트가 요청을 중단하면 서버는 그 추론을 계속 이어가지 않는다. 사용자가 취소했는데 추론이 끝까지 돌면 아무도 쓰지 않을 결과를 위해 추론 자원이 계속 묶이고, 사용자는 취소가 듣지 않는다고 보아 같은 일을 다시 시킨다.",
       "operation_id": "autolabelFrame",
       "request_body": {
         "schema": {
@@ -337,12 +337,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "API-124 응답 계약이 \"DB 저장\" 서술로 낡아 있었다 — 실제 구현(AutolabelController/AutolabelOnlineService/AutolabelResponse)은 온라인 오토라벨을 저장하지 않고 검출 좌표만 반환하는 stateless 프록시로 전환됐다(SAM2 분할과 동일 패턴). 클라이언트가 PUT /labels 로 별도 확정해야 저장된다. 이에 맞춰 top-level description·200 응답 description·스키마(detectedCount 신설, savedCount는 detectedCount를 미러하는 하위호환 필드로 재정의, labels[].lblSn은 항상 null, shapeType·polygon 필드 반영)·example을 정정한다.",
+    "change_summary": "이 경로의 대기 예산과 취소 계약을 규정한다. 화면이 기다리는 최대 대기 상한은 서버가 정해 내려주며, 그 하한은 이 경로가 정당하게 쓸 수 있는 최악 소요 이상이어야 한다 — 그보다 낮으면 성공한 추론까지 실패로 보인다. 또한 클라이언트가 요청을 중단하면 서버가 추론을 계속 이어가지 않을 것을 요구로 명시한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:21:45.429Z",
+    "last_updated_at": "2026-08-18T03:01:28.798Z",
     "created_at": "2026-07-20T01:29:41.470Z"
   }
 }

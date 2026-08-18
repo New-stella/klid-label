@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-18T01:50:54.689Z (session 6) |
+| last sync | 2026-08-18T03:36:01.945Z (session 8) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -47,15 +47,6 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[AC-016]] | acceptance | CHANGED (v10→v11) |
-| [[AC-019]] | acceptance | CHANGED (v6→v7) |
-| [[API-021]] | api_endpoint | CHANGED (v7→v8) |
-| [[API-043]] | api_endpoint | CHANGED (v12→v14) |
 
 ## Obsidian 볼트로 보기
 

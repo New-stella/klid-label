@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 40
-last_updated_at: 2026-08-17T06:53:15.707Z
+version: 44
+last_updated_at: 2026-08-18T03:34:49.517Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.196Z
-sync_session: 17
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-18T03:35:55.798Z
+sync_session: 20
+stale: false
+status: CHANGED
+prev_version: 42
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-029]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v42 → v44**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
@@ -139,7 +143,7 @@ _(empty)_
 
 - **note**: 검수자에게는 미배정 옵션이 추가된다. 상태 필터도 이벤트유형과 마찬가지로 역할 무관 서버 필터로 위임되며 현재 페이지 안에서 다시 거르지 않는다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
 - **type**: Select
-- **label**: 상태: 전체/미배정(REVIEWER)/대기/진행중/검수대기/완료/반려
+- **label**: 상태: 전체/미배정/배정 완료/작업중/검수요청/완료/반려
 
 **columns**:
 
@@ -148,10 +152,10 @@ _(empty)_
 **options**:
 
 - 전체
-- 미배정(REVIEWER)
+- 미배정
 - 대기
-- 진행중
-- 검수대기
+- 작업중
+- 검수요청
 - 완료
 - 반려
 
@@ -259,7 +263,7 @@ _(empty)_
 
 - **note**: 본인 배정 목록에서 상태별 건수를 클라이언트에서 집계한다. 별도 API 없음
 - **type**: Stat
-- **label**: WORKER 4카드 — 전체/진행중/검수대기/반려
+- **label**: WORKER 4카드 — 전체/작업중/검수요청/반려
 
 **columns**:
 
@@ -854,9 +858,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: bfc81b8d69603af0dc03456ad6c296a3ba7953d96686033d761e04458ce5d0b4
-- **generated_at**: 2026-08-16T09:56:01.950Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: a9f41819b27545a12bdb91faddd79aafcb1d5f2011722629336112497e2357f6
+- **generated_at**: 2026-08-18T03:34:49.517Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

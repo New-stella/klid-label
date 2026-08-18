@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-023
 type: screen_spec
-version: 39
-last_updated_at: 2026-08-16T09:41:35.447Z
+version: 41
+last_updated_at: 2026-08-18T03:19:11.756Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.209Z
-sync_session: 17
-stale: true
+synced_at: 2026-08-18T03:35:55.806Z
+sync_session: 20
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-023.json
@@ -86,7 +86,7 @@ _(empty)_
 #### [3]
 
 - **type**: Badge
-- **label**: 잡 상태(PROCESSING/COMPLETED/FAILED)
+- **label**: 잡 상태
 
 **columns**:
 
@@ -713,8 +713,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 7c3a7fbf2ddb7c7e9a5c48e37f9e1e36942227d3f05410abf11e2e1a24d06611
-- **generated_at**: 2026-08-16T09:41:35.446Z
+- **source_hash**: d80449525978f07f8c149bfdba43c25a2008575f97401a4f98663d2c0bc79ff8
+- **generated_at**: 2026-08-18T03:19:11.756Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

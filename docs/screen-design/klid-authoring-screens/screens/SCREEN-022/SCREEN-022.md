@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-022
 type: screen_spec
-version: 36
-last_updated_at: 2026-08-16T09:41:35.375Z
+version: 38
+last_updated_at: 2026-08-18T03:19:11.260Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:49:51.205Z
-sync_session: 17
-stale: true
+synced_at: 2026-08-18T03:35:55.805Z
+sync_session: 20
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-022.json
@@ -162,7 +162,7 @@ _(empty)_
 
 - **note**: 증강 3종(WINTER/NIGHT/RAIN) 선택 시에만 노출. 5필드 time/season/weather/terrain/severity — 전부 필수·자유 문자열(선택지 아님, 셀렉트로 좁히지 않는다). 검증: ①공백만 입력 거부(오류 '필수 입력입니다.') ②50자 이내(오류 '50자 이내로 입력하세요.') ③제어문자·보이지 않는 문자 제거 후 저장. 필드별 개별 오류 표시, 입력 시 해당 필드 오류만 해제. 정규화된 값이 외부 생성형 AI 로 전송되고 LS_DATA_AUG.PROMPT_CN 에 저장된다(그 외 가공 없음). 증강 종류는 이 값에서 파생하지 않는다. 해상도 변경은 미노출
 - **type**: Custom
-- **label**: 생성 조건(prompt) 5필드 (증강 3종 선택 시에만)
+- **label**: 생성 조건 5필드 (증강 3종 선택 시에만)
 
 **columns**:
 
@@ -604,8 +604,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 9fad529ef0a6bfb4a609af086f436b82dd4e02feef961a22a2277e29347fe37c
-- **generated_at**: 2026-08-16T09:41:35.375Z
+- **source_hash**: 9a093fda22e750e1d9beefc93aaf33b265dc613905447fc68b21745fcf78e6d1
+- **generated_at**: 2026-08-18T03:19:11.259Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
