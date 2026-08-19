@@ -221,3 +221,72 @@ describe('CanvasOptionBar — 편집 차단(busy)', () => {
     expect(screen.getByRole('button', { name: '다음 프레임' })).not.toBeDisabled();
   });
 });
+
+// 라벨 표시/숨김 — 선택이 없으면 **비활성 + 사유 툴팁**이다.
+//
+// ⚠ 삭제 버튼(위 describe)은 선택이 없어도 활성으로 두고 조용히 no-op 하는데, 이 버튼만 축이
+//   다른 것은 **의도**다. 사용자가 "눌리는데 아무 반응이 없다"를 고장으로 신고했고, 확대/축소가
+//   이미 경계에서 비활성되는 관례가 있다. 단축키 T 는 종전대로 조용히 no-op 한다(LabelingPage
+//   가 소유하며 이 컴포넌트를 거치지 않는다) — 진입점이 갈리는 근거는 어포던스의 유무다.
+describe('CanvasOptionBar — 라벨 표시/숨김', () => {
+  beforeEach(() => {
+    useLabelStore.getState().reset();
+  });
+  afterEach(() => {
+    useLabelStore.getState().reset();
+  });
+
+  it('선택된_객체가_없으면_표시숨김_버튼이_비활성이다', () => {
+    setup();
+    act(() => {
+      useLabelStore.getState().addLabel(sample);
+    });
+    const btn = screen.getByTestId('label-option-visibility');
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute('aria-disabled', 'true');
+
+    fireEvent.click(btn);
+    expect(useLabelStore.getState().hiddenLabelIds.size).toBe(0);
+  });
+
+  it('선택된_객체가_없을_때_버튼_툴팁이_사유를_알린다', () => {
+    setup();
+    expect(screen.getByTestId('label-option-visibility')).toHaveAttribute(
+      'title',
+      '객체를 먼저 선택하세요',
+    );
+  });
+
+  it('객체를_선택하면_표시숨김_버튼이_활성화된다', () => {
+    setup();
+    act(() => {
+      useLabelStore.getState().addLabel(sample);
+      useLabelStore.getState().selectLabel(sample.id);
+    });
+    const btn = screen.getByTestId('label-option-visibility');
+    expect(btn).not.toBeDisabled();
+    // 선택이 있을 때의 문구·단축키 표기는 종전 그대로다.
+    expect(btn).toHaveAttribute(
+      'title',
+      `라벨 표시/숨김 (${formatBindingKeys('label.toggleVisibility')})`,
+    );
+
+    fireEvent.click(btn);
+    expect(useLabelStore.getState().hiddenLabelIds.has(sample.id)).toBe(true);
+  });
+
+  it('편집이_차단된_상태에서는_선택이_있어도_비활성이다', () => {
+    setup();
+    act(() => {
+      useLabelStore.getState().addLabel(sample);
+      useLabelStore.getState().selectLabel(sample.id);
+      useLabelStore.getState().beginBusy('SAVE', { srcSn: SRC_SN });
+    });
+    expect(screen.getByTestId('label-option-visibility')).toBeDisabled();
+
+    act(() => {
+      useLabelStore.getState().cancelBusy();
+    });
+    expect(screen.getByTestId('label-option-visibility')).not.toBeDisabled();
+  });
+});

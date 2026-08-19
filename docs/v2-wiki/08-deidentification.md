@@ -317,6 +317,27 @@ POST /v1/videos/{rawSn}/redeident   (@PreAuthorize REVIEWER)
 - 코드: `video/controller/ApprovedRedeidentController`, `video/service/ApprovedRedeidentService`, `batch/step/DeidentFrameAttacher`, `batch/service/KpstDeidentTxService`(완료 분기 `applyRedeidentCompletion`/`applyBatchCompletion`), `LS_DEIDENT_PROC_LOG.REQ_KND_CD`(V68 도입, V83 rename REQ_KIND_CD→REQ_KND_CD), `LS_AUTH_WORK_LOCK` partial unique index(V69)
 - 이관 연계: v1→v2 이관 비식별 미완 영상의 정공법 해법 → [23](23-v1-v2-db-migration.md)
 
-## 8.7 관련 데이터 (DB)
+## 8.7 레거시 비식별 프레임 복구 (dev 전용 운영 도구)
+
+프레임 추출기의 self-invocation 결함을 고치기 **이전**에 적재된 영상은 `LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM` 이 NULL 로 남아 있다. 프레임 이미지 API 는 비식별본만 서빙하므로(`PRVC`/`PSDO`) 경로가 없으면 **404** 가 되어 라벨링·검수 화면이 빈 화면이 된다. 코드는 이미 고쳐졌고 신규 영상은 정상이라, 남은 것은 **기존 NULL 행 복구** 하나다.
+
+| 항목 | 내용 |
+|------|------|
+| 노출 게이팅 | **dev 전용·REVIEWER 전용** — `@Profile("!prd")` 빈 게이팅 + `SecurityConfig` `/v1/dev/**` → `hasRole('REVIEWER')` + 핸들러 `@PreAuthorize`. 배포 표식은 `DevProfileGuard` 가 별도 축으로 차단 |
+| API | ① `GET /v1/dev/deident-frame-recovery/targets?rawSn=` = **dry-run**(대상·예상치만, 변경 없음) ② `POST /v1/dev/deident-frame-recovery/runs` (`{"rawSn":12}` 또는 본문 없음) = 실제 복구. 같은 URL 의 쿼리 파라미터 행위분기(`?dryRun=`) 금지 원칙에 따라 sub-resource 로 분리. **두 경로 모두 `rawSn` 지정 = 단건 / 생략 = 전체**(1회 `MAX_VIDEOS_PER_RUN`=50 상한, 잔여는 응답으로 알리고 재호출) |
+| **복구 순서 (Critical)** | ① `VDO_FRM_NO` 복원 → ② **커밋** → ③ 비식별 프레임 재추출. `DeidentFrameAttacher` 는 `REQUIRES_NEW` 라 자기 트랜잭션에서 프레임 행을 다시 읽는다 — 복원이 커밋되기 전이면 `VDO_FRM_NO` 를 여전히 NULL 로 보고 **순번 폴백 없이 전 프레임을 skip** 해(의도된 fail-closed) 기능이 조용히 아무것도 하지 않는다 |
+| `VDO_FRM_NO` 조달 | `LS_MARKING.MARK_CN` 의 `frameIndex` 배열을 **`FRM_NO` 오름차순 프레임에 순서대로 1:1 매핑**한다. 초기 추출이 `LsDataSrc.create(rawSn, i, mark.frameIndex(), …)` 로 두 값을 같은 순서로 적재하기 때문이며, **마킹 배열을 정렬하면 그 대응이 깨진다** |
+| **개수 불일치 = fail-closed** | 프레임 수 ≠ 마킹 수면 어느 마킹이 어느 프레임인지 특정할 수 없다. 추측 매핑은 기존 라벨 좌표를 **엉뚱한 장면 위에** 얹으므로 그 영상을 건너뛰고 사유(`MARK_COUNT_MISMATCH`)를 응답에 담는다. 이미 값이 있는 행이 매핑 결과와 **충돌**하면(`VDO_FRM_NO_CONFLICT`) 매핑 자체를 신뢰할 수 없으므로 역시 건너뛴다 |
+| **비식별 누락 신고 구간은 건너뛴다 (구속)** | 신고 구간(`DE_IDENT_YN='F'`) 영상은 **dry-run·실행 양쪽에서** 처리하지 않고 `SKIPPED`/`UNDER_DEIDENT_REPORT` 로 보고한다. 판정은 단일 원천 `DeidentReportGate.isUnderDeidentReport` 재사용이며 **마킹 파싱·파일 I/O 이전(진입부)** 에 평가한다. 근거 둘 — ①그 비식별본은 **마스킹 실패가 확인된** 영상이라, 거기서 프레임을 뽑아 `DE_IDNTF_SRC_FILE_PATH_NM` 을 채우면 그 값이 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH` 로 관제에 노출된다 — 지금은 NULL 이라 관제가 아무것도 가져갈 수 없는데 이 복구가 **없던 노출을 새로 만든다**(CWE-359) ②해소(resolve) 재비식별과 시간이 겹치면 같은 출력 파일을 제자리 교체하므로 복구가 나중에 끝나면 **재비식별 이전(마스킹 실패) 프레임이 최종본으로 굳고**, 경로가 채워져 있어 어떤 재처리 트리거도 걸리지 않는다. 예외가 아니라 **건너뜀**이라 전체 모드에서 나머지 영상 처리는 계속된다. dry-run 도 같은 판정을 타므로 운영자가 대상 목록에서 미리 걸러 볼 수 있다(미리 안 걸러주면 «대상에 있다»고 믿고 실행한다) |
+| **동시 실행 가드 (409)** | 같은 영상에 복구가 진행 중이면 `POST .../runs` 는 **409** 다(영상 단위 진행 중 클레임). 재추출은 `REQUIRES_NEW` 트랜잭션 **안에서** 프레임마다 ffmpeg 을 돌려 영상 1건 처리 내내 DB 커넥션 1개를 점유하므로, 재클릭·다중 탭이면 ffmpeg 프로세스와 커넥션 점유가 곱해져 HikariCP 고갈 → 앱 전체 5xx 로 간다(CWE-770). 파일 축도 같은 가드가 닫는다 — 두 실행이 겹치면 같은 출력 경로에 두 ffmpeg 이 동시에 write 해 **부분 기록된 JPEG** 이 확정될 수 있다(CWE-362). 대상 중 하나라도 진행 중이면 **아무것도 시작하지 않고** 거절하며(부분 실행 금지), 클레임은 예외 경로 포함 `finally` 로 해제한다. **dry-run 은 읽기 전용이라 이 가드를 타지 않는다**. ⚠ **노드-로컬 best-effort** — 2노드 Active-Active 에서는 노드 간 동시 실행을 막지 못한다(dev 전용 수동 도구이고 방어 대상이 «사람의 재클릭» 이라 DB 원장 클레임까지 두지 않았다) |
+| 원본 폴백 금지 | 비식별 영상 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM` **적재값만** 쓰고 조합·추측하지 않는다(파일명이 mock=`deidentified.mp4` / KPST=`{원본stem}-mask{ext}` 로 다르다). 경로 부재·경계 밖·파일 부재는 **건너뛴다** — 원본(마스킹 전) 영상으로 대체하지 않는다(CWE-359) |
+| 경로 판정기 | **영상 축**이므로 `VideoArtifactRootResolver.readableDeidVideoBases`(허용 base) + `resolveRealPathUnder`(실경로 판정)를 **재사용**하고, 판정이 돌려준 실경로를 그대로 넘긴다. ⚠ 프레임(이미지) 판정기 `StorageSubtreePolicy.verifyDeidentifiedFile` 를 영상에 쓰면 co-locate 기본 형상이 전부 거부돼 기능이 죽는다 |
+| **도메인 이벤트 미발행 (구속)** | 이 복구는 `LS_DATA_SRC` 의 경로·위치 컬럼만 채운다. `TaskModifiedEvent` 등 어떤 도메인 이벤트도 발행하지 않는다 — 발행하면 승인 영상의 export 가 새 버전으로 재생성되고 관제 재통지까지 나가, 「재생성·통지 트리거는 검수 승인 한 곳」 구속 정책을 위반한다. 재사용하는 `DeidentFrameAttacher` 도 이벤트 발행 배선이 없다 |
+| 멱등 | 복원은 `WHERE VDO_FRM_NO IS NULL` 조건부 UPDATE(엔티티 dirty checking 이 아니라 native — 전 컬럼 UPDATE 로 다른 경로가 바꾼 컬럼을 되돌리는 lost update 회피), 재추출은 `refreshExisting=false`. 두 번째 호출은 대상이 사라져 `ALREADY_RECOVERED` 이거나 0건 |
+| 실패 격리 | 영상 1건의 재추출 실패(해상도 불일치·원본 프레임 부재 등)는 그 영상의 트랜잭션만 롤백되고 `FAILED`/`ATTACH_FAILED` 로 보고된다. 나머지 영상 처리는 계속된다 |
+| 정보 노출 | 로그·응답에 경로·파일명·PII 를 싣지 않는다 — 식별자(rawSn)·건수·**서버가 고른 사유 코드**만(요청값 미반사, CWE-209/359/79) |
+| 코드 | `dev/controller/DeidentFrameRecoveryDevController`, `dev/service/DeidentFrameRecoveryService(processOne · claim)`, `dev/service/DeidentFrameNoBackfillTxService`, `video/service/DeidentReportGate(isUnderDeidentReport)`, `batch/repository/LsDataSrcRepository(restoreVideoFrameNo · findRawSnsMissingDeidFramePath · countRawSnsMissingDeidFramePath)` |
+
+## 8.8 관련 데이터 (DB)
 
 `LS_DEIDENT_REPORT`(누락 신고), `LS_DEIDENT_PROC_LOG`(처리 이력, `REQ_KND_CD` BATCH/REDEIDENT), `LS_DATA_RAW.DE_IDENT_YN`, `LS_AUTH_WORK_LOCK`(재진행 중 잠금, 동일영상 활성락 1건 UNIQUE). → [18](18-database.md).

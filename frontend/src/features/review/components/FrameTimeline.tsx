@@ -82,7 +82,28 @@ function FrameTimelineThumbnail({
   srcSn: number;
   displayNo: number;
 }) {
-  const { url } = useImageBlob(srcSn);
+  const { url, loading, error } = useImageBlob(srcSn);
+
+  // @design SCREEN-019 — 못 불러온 자리는 빈 칸으로 두지 않는다.
+  // 구 구현은 error 를 쓰지 않고 `src={url ?? ''}` 로 렌더해 **src="" 인 빈 <img>** 를 남겼다.
+  // ⚠ 로딩과 반드시 구분되는 표시여야 한다 — 실패와 로딩이 같은 플레이스홀더면 사용자는 기다리면
+  //   되는지 안 되는지 알 수 없다. 실패는 정지된 경고색 + 표식(!), 로딩은 움직이는 펄스다.
+  if (error) {
+    return (
+      <span
+        role="img"
+        aria-label={`프레임 ${displayNo} 이미지를 불러오지 못했습니다`}
+        title={`프레임 ${displayNo} 이미지를 불러오지 못했습니다`}
+        data-testid="frame-timeline-thumb-failed"
+        className="flex items-center justify-center rounded border border-dashed border-red-300 bg-red-50 text-caption font-bold text-red-600"
+        style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
+      >
+        {/* 글리프는 aria-label 이 이미 낭독하므로 중복 낭독을 막는다. */}
+        <span aria-hidden="true">!</span>
+      </span>
+    );
+  }
+
   return (
     <img
       src={url ?? ''}
@@ -90,7 +111,8 @@ function FrameTimelineThumbnail({
       width={THUMB_WIDTH}
       height={THUMB_HEIGHT}
       loading="lazy"
-      className="rounded object-cover"
+      data-testid="frame-timeline-thumb-image"
+      className={`rounded object-cover ${loading ? 'animate-pulse bg-gray-200' : ''}`}
       style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
     />
   );
