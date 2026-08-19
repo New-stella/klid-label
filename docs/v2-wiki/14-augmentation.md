@@ -3,7 +3,9 @@
 > 출처: R1 RQ-SFR-07-01~03·06-03, R2 KLID-AT-UC-001/002/003/010, CLAUDE.md(증강=새 영상), 코드(`augment/`, `webhook/GenAiCallbackController`)
 > 관련: [12 검수](12-review-assignment.md) · [19 외부 시스템](19-external-security-cvat.md)
 
-화면: `KLID-AT-SC-022`(증강 요청 `/augment`, REVIEWER), `SC-023`(증강 결과 `/augment/result/:jobId`, REVIEWER). 코드: `augment/`(16 파일).
+화면: `SC-022`(증강 요청 `/augment`, REVIEWER), `SC-023`(증강 결과 `/augment/result/:jobId`, REVIEWER). 코드: `augment/`(16 파일).
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-022`"* 는 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-022`(축약 `SC-022`). 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
 
 ## 14.1 외부 증강 (WINTER/NIGHT/RAIN)
 
@@ -145,7 +147,8 @@
   - 부모 게이트 3곳(`ResolutionReservationPersister` 예약 · `ResolutionSnapshotService` Phase A · `ResolutionPersistService` Phase C)은 **`DE_IDNTF_YN='N'`(비식별 미수행)·null 만 차단**하고 `'F'`(신고)는 통과시킨다. 판정 단일 원천은 `LsDataRaw.hasDeidentArtifact()`(`'Y'`|`'F'`)이며 **증강 경로(`AugmentResultService.evaluateParentGate`)도 같은 헬퍼를 쓴다**.
   - `'F'` 는 의미가 둘이다 — ①**비식별 누락 신고**(비식별본은 디스크에 존재, 마스킹만 실패) ②**비식별 API 실패**(산출물 자체가 없음). 플래그만으로 구분되지 않으므로 **산출물 실재 검증이 fail-closed 로 뒤를 받친다**: Phase A 는 최신 SUCCESS 비식별 procLog 경로 부재 → `NOT_FOUND`, 프레임 비식별 경로 부재 → `CONFLICT`(`deidFrameSourceStrict`), Phase B 는 비식별 영상 파일 부재 → `NOT_FOUND`. **원본(비-비식별) 경로 폴백은 어디에도 두지 않는다**(PII 복제 차단).
   - **stale 창 게이트(Phase C)는 존치하되 판정축이 신고가 아니라 복사 원자성**이다 — 구 조건 ①`capturedAt` 이후 신고 이력은 **제거**하고, ②최신 SUCCESS 비식별 procLog 경로 불일치 ③(파일 존재 시) mtime > `capturedAt` 두 조건만 남긴다. 스냅샷 이후 부모 비식별본이 교체되면 프레임별로 다른 버전이 섞인 산출물이 나오므로 abort 한다(러너가 cleanup + FAILED 전이).
-- 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionDerivativeFinalizer}`, 적재 대상 `LS_DATA_AUG`(AUG_TYPE_CD=RESL_*)+`LS_DATA_AUG_LBL_MAP`, 인덱스 `UK_LS_DATA_AUG_RESL`(V124), 구 테이블 DROP(V125). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`
+- 코드: BE `video/service/{VideoResolutionService,ResolutionDerivativeService,ResolutionReservationPersister,ResolutionSnapshotService,ResolutionFileMaterializer,ResolutionPersistService}`(락-I/O 분리 3단계 Phase A/B/C — 스냅샷/파일 I/O/영속), 적재 대상 `LS_DATA_AUG`(AUG_TYPE_CD=RESL_*)+`LS_DATA_AUG_LBL_MAP`, 인덱스 `UK_LS_DATA_AUG_RESL`(V124), 구 테이블 DROP(V125). FE `pages/AugmentRequestPage`(submit 분기) + `features/video/hooks/useResolutionDerivative`
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`ResolutionDerivativeFinalizer`"* 는 실재하지 않는 클래스다. 실제 확정 파이프라인은 Phase A `ResolutionSnapshotService`(검증·스냅샷) → Phase B `ResolutionFileMaterializer`(파일 I/O, `@Transactional` 금지) → Phase C `ResolutionPersistService`(재검증·영속) 3단계로 나뉜다. 근거: `ResolutionSnapshotService(class javadoc)` · `ResolutionFileMaterializer(class javadoc)` · `ResolutionPersistService(class javadoc)`.
 
 ## 14.4 활용 여부 검수 (RQ-SFR-07-03, UC-010)
 

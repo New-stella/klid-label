@@ -80,12 +80,26 @@ PUBLISHED --unpublish()--> DRAFT (PUB_DT=null)
 
 | 화면 ID | 화면 | 라우트 | 비고 |
 |---------|------|--------|------|
-| KLID-AT-SC-030 | 게시판 목록 | `/notice` | 검색(field+keyword)·페이징·고정 배지·발행상태 배지(REVIEWER만). 검색/페이지 상태는 URL searchParams. **페이저는 이전·번호 목록·다음 셋뿐이며 총 건수 표기는 없다**(2026-08-08 — 공용 페이저가 총 건수 요약을 갖지 않게 되었고 이 화면에는 건수를 소유한 다른 요소가 없다 → [04 §4.2](04-screens-ia.md)) |
-| KLID-AT-SC-031 | 게시판 상세 | `/notice/:id` | 본문 + 첨부 다운로드 + REVIEWER 수정/발행/삭제 버튼 |
-| KLID-AT-SC-032 | 작성/수정 모달 | (031 내) | zod 검증(제목 200자·필수), 첨부 업로드는 수정 모드에서만 (id 선행 필요) |
+| SC-030(`KLID-AT-SC-030`) | 게시판 목록 | `/notice` | 검색(field+keyword)·페이징·고정 배지·발행상태 배지(REVIEWER만). 검색/페이지 상태는 URL searchParams. **페이저는 이전·번호 목록·다음 셋뿐이며 총 건수 표기는 없다**(2026-08-08 — 공용 페이저가 총 건수 요약을 갖지 않게 되었고 이 화면에는 건수를 소유한 다른 요소가 없다 → [04 §4.2](04-screens-ia.md)) |
+| SC-031(`KLID-AT-SC-031`) | 게시판 상세 | `/notice/:id` | 본문 + 첨부 다운로드 + REVIEWER 수정/발행/삭제 버튼 |
+| SC-036 | 게시판 작성 | `/notice/new` | `NoticeCreatePage.tsx`. zod 검증(제목 200자·필수) |
+| SC-037 | 게시판 수정 | `/notice/:id/edit` | `NoticeEditPage.tsx`. 첨부 업로드는 수정 화면에서만(id 선행 필요) |
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 이 표는 원래 작성/수정을 **"KLID-AT-SC-032 | 작성/수정 모달
+> | (031 내)"** 한 행으로, 즉 상세 화면(031) 안에서 뜨는 모달로 서술했다. 사실과 다르다 — 작성·수정은
+> `/notice`·`/notice/:id`와 **완전히 분리된 독립 라우트**(`/notice/new`·`/notice/:id/edit`)이며 모달이
+> 아니라 각각 별도 페이지 컴포넌트(`NoticeCreatePage.tsx`·`NoticeEditPage.tsx`)다.
+> 또한 이 화면들의 LogiCraft 식별자는 **`SCREEN-036`(작성)·`SCREEN-037`(수정)**이며, 옛 서술이 쓴
+> `SC-032`는 코드에서 **전혀 다른 화면**(`/manage/deident-reports` 비식별 신고 관리,
+> `DeidentReportListPage.tsx`)의 ID다. 게시판 화면과 무관하므로 삭제하고 실제 ID로 교체했다.
+> `KLID-AT-SC-NNN` 헤더 주석은 `NoticeListPage.tsx`(`KLID-AT-SC-030`)·`NoticeDetailPage.tsx`
+> (`KLID-AT-SC-031`) 두 파일에만 남아 있고, 작성·수정 페이지에는 없다(코드의 1차 식별자인
+> `SCREEN-NNN`만 사용). 근거: `reports/wiki-align-20260819/facts/F3-frontend-screens.md` §1-5·§1-6·§3.
 
 - FE 구조: `features/notice/{api,types,schemas,hooks,components}` + `NOTICE_KEYS` Query Key Factory
-- 라우트는 InternalRoute(내부 채널 전체 역할) — LNB '게시판' 메뉴 전체 내부 역할 노출
+- 라우트는 InternalRoute — 목록(`/notice`)·상세(`/notice/:id`)는 `[REVIEWER,WORKER]`, 작성(`/notice/new`)·수정
+  (`/notice/:id/edit`)은 **`[REVIEWER]` 전용**(WORKER는 라우트 가드에서 차단) — LNB '게시판' 메뉴는
+  목록(`/notice`)만 노출한다(근거: `frontend/src/router/index.tsx`, `reports/wiki-align-20260819/facts/F3-frontend-screens.md` §2-1)
 - REVIEWER 전용 액션은 FE 역할 분기로 UI 차단 + BE `@PreAuthorize` 이중 방어
 
 ## 20.8 v1 대비

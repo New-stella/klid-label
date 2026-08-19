@@ -170,7 +170,8 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   - **★선결 결함 수정(같은 라운드) — 재추출이 엉뚱한 장면을 뽑던 문제**: `DeidentFrameAttacher` 가 `FRM_NO`(**추출 순번** 0,1,2…)를 프레임 번호로 넘겨 비식별 영상의 **맨 앞 0·1·2 번**을 뽑아 붙이고 있었다. 실제 영상 내 위치는 **`VDO_FRM_NO`** 다(초기 추출 `FfmpegFrameExtractor` 는 `seekMillis = frameIndex × 1000 / fps` 로 실제 위치를 뽑고 `LsDataSrc.create(rawSn, i, frameIndex, …)` 로 두 값을 각각 적재한다). 이 상태로는 "라벨 좌표 보존"이 성립하지 않는다. **이 결함은 기존 KPST 재비식별 경로(`KpstDeidentTxService.applyRedeidentCompletion`)에도 있었고 함께 고쳐진다.**
     - **NULL(레거시 행)은 순번 폴백 없이 그 프레임만 skip + WARN** — 폴백하면 지금 고치는 결함을 그대로 유지하는 것이다(fail-closed). 값이 있지만 비정상(음수)이면 추출기가 던지는 예외로 **전체 롤백**(조용한 skip 보다 시끄러운 실패).
     - **출력 파일명·디렉터리는 불변**: `{deidBase}/frames/deid/{rawSn}/frame-{FRM_NO}.jpg` — 초기 추출(`FfmpegFrameExtractor`)과 **디렉터리·파일명이 동일**해 **제자리 교체**되므로 고아 파일이 생기지 않는다. 즉 "어디서 뽑는가"만 바뀌고 "어디에 쓰는가"는 그대로다.
-  - **신고 관리 화면(SC-033)에 신고 단계 노출 (2026-08-05)**: 재개 지점이 단계로 갈리는데 목록(`GET /v1/deident-reports`)에 단계가 없어 **REVIEWER 가 "이 신고를 해소하면 무엇이 일어나는지"를 알 수 없었다.** 응답에 `stage`(`MARKING`|`LABELING`|`null`)를 **optional 추가**(기존 7필드는 이름·타입·유무 불변 — 응답 필드 추가만 하위호환)하고, 화면 `/manage/deident-reports` 에 **「신고 단계」 열**을 둔다.
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 이 절 전체(§8.4)가 비식별 신고 관리 화면을 *"`SC-033`"* 이라 불렀으나 이는 낡은 식별자다. 코드 확정 식별자는 **`SCREEN-032`(축약 `SC-032`)**다(`DeidentReportListPage.tsx`). `SC-033`은 현재 **포털 업로드** 화면에 배정돼 있어 그대로 두면 다른 화면을 가리키게 된다. 아래 「신고 관리 화면」·「신고 관리 목록」·「화면」 3곳의 `SC-033`을 전부 `SC-032`로 정정했다. 근거: `04-screens-ia.md`(§4.2 「화면 ID 재정합」) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
+  - **신고 관리 화면(SC-032)에 신고 단계 노출 (2026-08-05)**: 재개 지점이 단계로 갈리는데 목록(`GET /v1/deident-reports`)에 단계가 없어 **REVIEWER 가 "이 신고를 해소하면 무엇이 일어나는지"를 알 수 없었다.** 응답에 `stage`(`MARKING`|`LABELING`|`null`)를 **optional 추가**(기존 7필드는 이름·타입·유무 불변 — 응답 필드 추가만 하위호환)하고, 화면 `/manage/deident-reports` 에 **「신고 단계」 열**을 둔다.
 
     | 값 | 화면 표기 | 툴팁(요지) |
     |---|---|---|
@@ -180,7 +181,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 
     - **코드값 원문(`MARKING`/`LABELING`)과 내부 컬럼명(`DCLR_STP_CD`)은 화면에 노출하지 않는다** — BE 는 코드를, FE 가 사용자 언어를 담당한다(상태 컬럼과 동일 관례).
     - **`null` 을 빈칸으로 두지 않는다** — 빈칸은 "값이 없다"와 "로딩 실패"가 구분되지 않는다. **'미상'** 은 "단계가 없다"가 아니라 **"기록이 없다"**는 뜻이며(그 신고도 어딘가에서 접수됐다), 이 행은 해소해도 단계별 재개가 없다는 사실을 툴팁이 알린다. **없는 단계를 지어내 표기하지 않는다**(백필 금지 정책과 같은 취지).
-- **신고 관리 목록 `GET /v1/deident-reports?status&page&size` (REVIEWER 전용, SC-033)**: `status` 는 `OPEN`(기본)/`RESOLVED`/`DISMISSED` allowlist 만 허용(그 외 400). 응답 행(`DeidentReportListResponse`)은 신고자를 **두 축**으로 내린다 — `reporterNo`(`USER_NO` 원값, 하위호환) + **`reporterName`**(`LS_ACNT_USER.USER_NM`, 2026-08-04 추가). **화면 '신고자' 컬럼은 `reporterName` 을 표시**한다(내부 번호를 사람 이름 자리에 찍지 않는다). 이름은 페이지의 `USER_NO` 를 **단일 IN 쿼리**로 한 번에 해석하고(N+1 금지), 마스터에 없는 번호(탈퇴·계정 삭제)는 **`null`** 로 남기되 목록 조회 자체는 정상 반환한다(fail-soft). 같은 응답에 **`stage`**(신고 단계, V171)도 optional 로 함께 실린다 — 위 「신고 관리 화면(SC-033)에 신고 단계 노출」 참조.
+- **신고 관리 목록 `GET /v1/deident-reports?status&page&size` (REVIEWER 전용, SC-032)**: `status` 는 `OPEN`(기본)/`RESOLVED`/`DISMISSED` allowlist 만 허용(그 외 400). 응답 행(`DeidentReportListResponse`)은 신고자를 **두 축**으로 내린다 — `reporterNo`(`USER_NO` 원값, 하위호환) + **`reporterName`**(`LS_ACNT_USER.USER_NM`, 2026-08-04 추가). **화면 '신고자' 컬럼은 `reporterName` 을 표시**한다(내부 번호를 사람 이름 자리에 찍지 않는다). 이름은 페이지의 `USER_NO` 를 **단일 IN 쿼리**로 한 번에 해석하고(N+1 금지), 마스터에 없는 번호(탈퇴·계정 삭제)는 **`null`** 로 남기되 목록 조회 자체는 정상 반환한다(fail-soft). 같은 응답에 **`stage`**(신고 단계, V171)도 optional 로 함께 실린다 — 위 「신고 관리 화면(SC-032)에 신고 단계 노출」 참조.
 - 자동 재비식별 큐는 폐기 → **수동 비식별화**가 해소 주체(외부 비식별 SW)
 - **★라벨 보존 정책 (2026-07-27 사용자 확정 — 구 "전체 라벨 삭제 + 복원 스냅샷" 폐기)**: 신고는 "비식별이 잘못됐다"는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 **해당 영상의 라벨을 삭제하지 않는다**. 구 정책이 삭제 직전에 남기던 `LS_LABEL_VERSION`(`SAVE_REASON='DEIDENT_REPORT'`, `ACTIVE_YN='N'`) **비활성 스냅샷도 더 이상 적재하지 않는다** — 그 스냅샷은 `DATA_SRC_SN=NULL`(영상 스코프)이라 프레임(srcSn) 스코프인 버전 목록·롤백 API 에서 조회·복원할 수 없는 write-only 이력이었다(D-ISSUE-25). 이미 적재된 기존 행은 보존하며, 프레임 스코프가 아닌 버전 해시로 diff 를 호출하면 400 으로 명시 거부한다(구 미처리 500 수정 — D-ISSUE-26). 삭제분 소급 복구는 하지 않는다.
 - **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정(`PUT /v1/frames/{srcSn}/labels`)도 **같은 게이트가 412 로 차단**한다 (2026-08-04, C-ISSUE-22 — 구 서술 *"작업락 409 가 차단한다"* 는 거짓이었다: 작업락은 6h 만료 후 `WorkLockSweepJob` 이 회수하는데 `'F'` 는 resolve 까지 남아 **조회 412 ↔ 저장 200** 비대칭이 열렸고, full-replace 계약상 `items:[]` 저장이 기존 라벨을 전량 삭제했다). 게이트는 **락 검사보다 먼저** 평가해 락 유무와 무관하게 412 로 통일하며, 409 는 **신고와 무관한 락**(트랙 병합 등)에만 남는다. 결과적으로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
@@ -197,15 +198,24 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   - **폐기된 안 — 조상/자손 전파 (2026-07-28~29 시도 후 철회)**: 부모 신고를 파생까지 전파하려고 ①조상(`ORGNL_RAW_SN`) 체인 순회 판정(깊이 상한 8 · 상한 초과 fail-closed) ②자손 방향 캐시 evict·복구 팬아웃 ③조상 → 자손 잠금 정준 순서를 넣었으나, **차단과 복구가 비대칭**(막는 조건과 푸는 조건이 어긋나 정상 트리가 영구 차단됨)이고 팬아웃 상한 초과 시 DoS·막다른 안내(파생 배정 WORKER 는 부모에 403)까지 연쇄 결함이 나와 **전량 철회**했다. **다시 시도하지 말 것** — 되살리려면 "파생본 재비식별 수단"부터 만들어야 한다.
 - **차단 범위와 응답 코드(구현 실측)**:
 
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 아래 표는 과거 9행이었으나 `LabelAccessGuard.requireNotUnderDeidentReport`/`DeidentReportGate` 호출처를 `grep -a` 로 전수 대조하니 **7개 경로가 누락**돼 있었다(라벨 객체 속성값·오토라벨·이벤트 어노테이션·검수 승인·영상 축 확정 저장·버전 회차 조회·포털 데이터마트 다운로드). 특히 **검수 승인(`ReviewService.approve`)이 빠져 있던 것**은 CLAUDE.md 구속 규칙("신고 구간 검수 승인 차단")과도 어긋나는 결손이었다. **이 표는 닫힌 집합이 아니다** — 판정 단일 원천은 `video/service/DeidentReportGate`(직접) 또는 `label/service/LabelAccessGuard#requireNotUnderDeidentReport`(위임)이며, 새 쓰기·조회 경로가 추가될 때마다 이 관용구를 재사용해 대상이 늘어난다. 아래는 2026-08-19 기준 확인된 대표 경로다(전수 재확인 없이 "표에 없으니 차단 안 된다"고 단정하지 말 것).
+
   | 대상 | 엔드포인트/경로 | 응답 |
   |------|----------------|:----:|
   | 라벨 조회·라벨 이력 | `GET /v1/frames/{srcSn}/labels`, `GET /v1/frames/{srcSn}/label-history` | 412 |
   | **라벨 저장(full-replace)** | `PUT /v1/frames/{srcSn}/labels` (`LabelService.bulkUpsert`) | **412** |
+  | **영상 축 라벨 확정 저장** | `PUT /v1/videos/{rawSn}/labels`(`VideoLabelController`·`label/service/VideoLabelSaveTxService`) | **412** |
+  | **라벨 객체 속성값** | `GET`·`PUT /v1/labels/{lblSn}/attrs`(`label/service/LabelAttrValueService`) | **412** |
+  | **오토라벨 실행** | `POST /v1/frames/{srcSn}/autolabel`(`label/service/AutolabelOnlineService`) | **412** |
   | 개인정보 메타 저장 | `PUT /v1/videos/{rawSn}/privacy-meta`, `PUT /v1/frames/{srcSn}/privacy-meta`, `PUT /v1/frames/privacy-meta`(벌크) | 412 |
   | 버전 diff·롤백 | `VersionService.diff` / `rollback` | 412 |
+  | **버전 회차 불러오기** | `GET /v1/videos/{rawSn}/versions/{version}/labels`(`version/service/StartVersionService.loadVersionLabels`, API-195) | **412** — 회차 목록 조회 `GET /v1/videos/{rawSn}/versions`(`listVideoVersions`)은 본문(라벨)을 내려주지 않아 게이트 대상이 **아니다** |
   | 프레임 이미지 | `GET /v1/frames/{srcSn}/image`, `GET /v1/frames/{srcSn}/deid-image`, `GET /v1/videos/{rawSn}/frames/{frameNo}/image` | 412 |
   | 포털 | `GET /v1/portal/frames/{srcSn}/labels`, `GET /v1/portal/frames/{srcSn}/image` | 412 |
+  | **포털 데이터마트 다운로드** | `GET /v1/portal/datamart/videos/{rawSn}/download`(`portal/service/PortalDatamartDownloadTxService`) | **412** |
   | 관제 조회 API(라벨 본문) | `TaskQueryController` 라벨 조회 | 412 |
+  | **이벤트 어노테이션 저장·승인·반려** | `PUT /v1/videos/{rawSn}/event-annotation`, `POST .../event-annotation/approve`, `POST .../event-annotation/reject`(`evntanno/service/EvntAnnoService`·`EvntAnnoReviewService`) | **412** — 조회(`GET`)는 열려 있다 |
+  | **검수 승인** | `POST /v1/reviews/{videoId}/approve`(`review/service/ReviewService.approve`) | **412** |
   | 데이터셋 export | `DatasetExportService`·`DatasetExportTxService`·`DatasetExportFailureRecoverer` | 산출 보류(skip, 통지도 보류) |
   | **영상 스트리밍** | `GET /v1/videos/{rawSn}/stream`, `GET /v1/videos/{rawSn}/stream-url` | **404** |
 
@@ -240,6 +250,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
   |------|------|------|
   | `GET /v1/frames/{srcSn}/image` · `/deid-image` · `/v1/videos/{rawSn}/frames/{frameNo}/image` | `FrameImageService` | 내부 |
   | `GET /v1/portal/frames/{srcSn}/image` | `PortalLabelService.serveFrameImage` | **외부(포털)** |
+  | `GET /v1/portal/datamart/videos/{rawSn}/download`(ZIP 내 프레임) | `PortalDatamartDownloadService`(2026-08-19 확인 — 구 표에서 누락) | **외부(포털)** |
   | 검수 승인 export | `FrameSource` | 파일 산출 |
 
   운영 형상이 `STORAGE_RAW_PATH == STORAGE_DEIDENTIFIED_PATH`(=`/nas-storage`, 의도된 동일 설정)라 `startsWith(deidBase)` 만 보는 lexical 검사는 `frames/raw/**`(마스킹 전 원본)까지 통과시키고(fail-open), `frames/deid/{rawSn}/f.jpg → ../../raw/{rawSn}/f.jpg` 심링크는 `Files.exists`/`Files.size`/`FileSystemResource` 가 모두 **따라가** 원본 픽셀을 "비식별본"으로 200 서빙한다. 그래서 ①서브트리 판정을 **실경로**에 적용하고 ②판정~open 사이 교체(TOCTOU)까지 NOFOLLOW 로 fail-closed 처리한다. 포털 경로는 **외부 채널**인데 이 정합에서 마지막까지 lexical 검증(`resolveSafe`)으로 남아 있던 것을 **2026-07-30 보정**했다(응답 계약은 불변 — 파일 부재 404 / base 이탈·서브트리 밖 403, 내부 경로·예외 원인 미노출). 포털 **업로드 자산**(`PortalUploadService`)은 본인 업로드분이라 이 대상이 아니다.
@@ -264,7 +275,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 | 응답 노출 | **내부 저장 경로를 응답에 담지 않는다**(파일명만) — 이 목록은 WORKER 도 조회하므로 디렉터리·마운트 구조가 새면 안 된다(CWE-209, `deidentNotVerified` 가 경로를 감추는 것과 같은 축) |
 
 - **★성공 시 원장에 새 SUCCESS 행을 INSERT 한다** — 해소 이후의 **프레임 재추출**(`DeidentFrameAttacher`)·**영상 스트리밍**(`VideoStreamService`)이 전부 `DE_IDNTF_FILE_PATH_NM` 을 읽으므로, 다른 이름의 새 산출물을 골라도 원장을 갱신하지 않으면 **하류가 옛 파일을 계속 쓴다**(선택이 반쪽이 된다). **UPDATE 가 아니라 INSERT** 인 이유는 이력 보존 + `findLatestSuccessByDataRawSn`(`REQ_DT DESC, PROC_LOG_SN DESC`)가 자연히 새 행을 집기 때문이다. 적재는 **원자 클레임(`claimResolve`) 성공 이후**에만 일어난다(경쟁에서 진 노드가 행을 남기지 않는다). 원본 경로(`ORGNL_FILE_PATH_NM`, NOT NULL)는 영상 자신의 `RAW_FILE_PATH_NM`, 없으면 직전 성공 원장 값으로 폴백하고 둘 다 없으면 적재를 건너뛰고 WARN 한다(여기서 예외를 던지면 이미 클레임된 해소가 롤백돼 신고가 고착된다).
-- **화면(SC-033 비식별 신고 관리)**: "해소 처리" 버튼은 곧바로 해소하지 않고 **후보 선택 모달**을 연다. **기본 선택 없음**이며 고르기 전에는 확인 버튼이 비활성이다(서버도 선택값이 없으면 400 — 어느 쪽도 대신 고르지 않는다). 각 후보에 **파일명 + 크기 + 수정시각**을 보여주고(어느 것이 새 산출물인지 판단할 근거), **현재 사용 중** 산출물을 표시로 구분하며, `eligible=false` 인 후보는 **선택할 수 없게** 한다(서버가 어차피 409 로 거부하므로 왕복 없이 사유를 알린다). 후보 0건이면 확인을 비활성하고 "외부 솔루션으로 비식별을 완료한 뒤 다시 시도" 안내를 띄운다. **내부 저장 경로는 화면에도 표시하지 않는다.**
+- **화면(SC-032 비식별 신고 관리)**: "해소 처리" 버튼은 곧바로 해소하지 않고 **후보 선택 모달**을 연다. **기본 선택 없음**이며 고르기 전에는 확인 버튼이 비활성이다(서버도 선택값이 없으면 400 — 어느 쪽도 대신 고르지 않는다). 각 후보에 **파일명 + 크기 + 수정시각**을 보여주고(어느 것이 새 산출물인지 판단할 근거), **현재 사용 중** 산출물을 표시로 구분하며, `eligible=false` 인 후보는 **선택할 수 없게** 한다(서버가 어차피 409 로 거부하므로 왕복 없이 사유를 알린다). 후보 0건이면 확인을 비활성하고 "외부 솔루션으로 비식별을 완료한 뒤 다시 시도" 안내를 띄운다. **내부 저장 경로는 화면에도 표시하지 않는다.**
 - **기존 계약은 무변경**: 인가(401/403) · 신고 없음 404 · 이미 처리 409 · 원자 클레임 · 작업락 해제 · `'F'→'Y'` 복원 · 스트림 메타 캐시 무효화 · 재개 이벤트(`DeidentGateReopenedEvent` · `DeidentStageResumeEvent` · 승인 영상 재검토 표시 통지) 모두 그대로다. **바뀐 것은 ①요청 바디가 생겼다 ②"파일이 실재하지 않는다"는 사유의 거부가 409 → 400 이 됐다**(실재하지 않으면 애초에 후보로 열거되지 않으므로 "존재하지 않는 대상을 가리킨 요청"이다. 409 는 "목록에는 있으나 자격 미달"에 남는다). 어느 쪽이든 fail-closed 는 동일하다 — 예외 전파 → 트랜잭션 롤백 → 신고 `OPEN`·작업락·`'F'` 유지.
 - 코드: `label/service/DeidentArtifactCandidateFinder`(열거·수락 공용 단일 지점) · `label/service/DeidentReportService`(`listDeidentCandidates` · `resolveManually` · `selectArtifact` · `recordResolvedArtifact`) · `label/controller/DeidentReportController`(`deidentCandidates` · `resolve`) · `label/dto/DeidentCandidateResponse` · `label/dto/DeidentResolveRequest` · FE `features/deident/components/DeidentResolveDialog` · `features/deident/hooks/useDeidentReports`(`useDeidentCandidates`)
 

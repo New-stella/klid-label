@@ -1,7 +1,9 @@
 # 15. 데이터베이스
 
-> 출처: 데이터베이스설계서 V1.4, 통합설계서 §14
+> 출처: 데이터베이스설계서 V1.4, 통합설계서 §14 — **둘 다 PDF 원문 미포함.** `sources/KLID-AI-데이터베이스설계서_V1_4_분석.md`(진실원 아님, 보조) 기준
 > 관련: [05 프로젝트](05-project-management.md) · [07 라벨링](07-labeling-tools.md) · [11 증강](11-augmentation-export.md)
+>
+> ⚠ **원문 미확인(2026-08-19)** — 이번에 확보한 1차 PDF 3종(화면정의서 v0.7·관리자매뉴얼 Rev.1.0·UI설계서 D2 V1.1)에는 **테이블·컬럼·DBMS 정보가 전혀 없다.** `LS_DATA_SRC`·`LS_PJT`·`MySQL`·`InnoDB`·"테이블" 등을 키워드로 3개 파일 전문을 검색했으나 0건이다(원문은 화면 스토리보드·조작 매뉴얼이라 DB 스키마를 다루지 않는다). 이 15장 전체는 데이터베이스설계서 V1.4의 원본 HWP를 직접 열람하기 전까지 **`sources/` 분석본(보조, 진실원 아님) 그대로**이며, 아래 표·컬럼·용량 수치를 1차 PDF 근거로 오인하지 말 것. 근거: `01-UIUX설계서.txt`·`02-관리자매뉴얼.txt`·`03-UI설계서V1.1.txt` 전문 검색(`grep -a`)
 
 ## 15.1 기본 정보
 
@@ -165,4 +167,6 @@ CCTV 클립 영상의 모든 메타데이터 관리.
 | LS_PJT_STG_PRC | - | 272MB |
 | LS_PJT_DATA_STATS | 10개 동시 기준 | 49MB |
 
-> **v2 참고**: v2는 **PostgreSQL** + `klid_at` 스키마. 저작도구 전용 **LS_*** 테이블은 자체 소유(자체 Flyway 관리), 관제서버 **MNG_*** 9개는 `ddl-auto=validate` 참조. 테이블명·컬럼이 v1과 다르며(예: v2는 `LS_DATA_RAW.RAW_SN`, `LS_LABEL_VERSION`, `LS_RAW_DATA_STATUS`, `LS_TASK_ALTMNT`), 데이터마트 적재용 `V_COMPLETED_*` View 4종을 제공한다. v1의 MySQL/InnoDB·프로젝트 중심 스키마와 직접 매핑되지 않으니 v2 마이그레이션(`backend/src/main/resources/db/migration/`) 기준으로 확인할 것.
+> **v2 참고**: v2는 **PostgreSQL** + `klid_at` 스키마. 저작도구 전용 **LS_*** 테이블은 자체 소유(자체 Flyway 관리, 현재 57개). 테이블명·컬럼이 v1과 다르며(예: v2는 `LS_DATA_RAW.RAW_SN`, `LS_LABEL_VERSION`, `LS_RAW_DATA_STATUS`, `LS_TASK_ALTMNT`), 데이터마트 적재용 `V_COMPLETED_*` View 4종을 제공한다. v1의 MySQL/InnoDB·프로젝트 중심 스키마와 직접 매핑되지 않으니 v2 마이그레이션(`backend/src/main/resources/db/migration/`) 기준으로 확인할 것.
+>
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"관제서버 **MNG_*** 9개는 `ddl-auto=validate` 참조"* 는 사실과 다르다. `MNG_*` 테이블은 **전량 DROP** 됐다(V167 등) — JPA 매핑·SQL 참조 각 **0건**이며 회귀 가드 `MngControlMasterTableRemovalTest`가 이 상태를 고정한다. 관제 적재는 **관제가 저작도구 소유 `LS_DATA_INGEST`에 직접 INSERT → 저작도구 주기 배치가 폴링**하는 방식으로 반전됐다(ADR-042). `QRTZ_*`(Quartz JobStore, 11개)는 이 정정과 무관하게 계속 생존한다 — 둘을 묶어 "공유 테이블이 없다"고 읽지 말 것. 근거: `MngControlMasterTableRemovalTest` · `reports/wiki-align-20260819/CROSSAXIS.md` §B.

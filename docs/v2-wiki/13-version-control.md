@@ -12,13 +12,14 @@
 
 - 라벨 저장 시 라벨 **전체 스냅샷(JSON)** 을 `LS_LABEL_VERSION.LABEL_PAYLOAD`에 저장
 - 버전 식별자 = 페이로드 해시 **`VERSION_HASH`(SHA-256)** — 동일 페이로드 재저장 시 동일 해시로 중복 식별(멱등)
-- ADR-009: 외부 Git/Gitea 미사용. (단 코드에는 Gitea fallback 큐 `LS_GITEA_FALLBACK_QUEUE`/`GITEA_CMT_HASH` 흔적 존재 — R1 v1.2에서 **DB 스냅샷으로 확정**)
+- ADR-009: 외부 Git/Gitea 미사용, DB 스냅샷으로 확정(R1 v1.2).
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"코드에는 Gitea fallback 큐 `LS_GITEA_FALLBACK_QUEUE`/`GITEA_CMT_HASH` 흔적 존재"* 는 더 이상 사실이 아니다. 현재 저장소·현재 스키마 어디에도 `gitea`(대소문자 무관) 문자열이 **0건**이다 — 테이블·컬럼·엔티티·마이그레이션 전부 소멸했다. 근거: `grep -aic gitea deploy/onprem/db/schema.sql` → 0, `grep -rlai gitea backend/src/main/java` → 0건, `grep -rlai gitea backend/src/main/resources/db/migration/` → 0건. (아카이브 이력 — `db-archive/migration/V24__create_ls_label_version.sql` 가 `GITEA_CMT_HASH` 컬럼과 함께 `LS_LABEL_VERSION`을 만들고 `V41__create_ls_gitea_fallback_queue.sql` 가 `LS_GITEA_FALLBACK_QUEUE`를 만들었으나, **2026-08-13 스쿼시보다 훨씬 전인 `V53__alter_ls_label_version_payload.sql`("Gitea → DB 스냅샷 전면 전환")이 이미 `GITEA_CMT_HASH` 컬럼과 `LS_GITEA_FALLBACK_QUEUE` 테이블을 함께 DROP했다** — 즉 "흔적 존재"는 스쿼시 이전 사실로도 낡은 서술이었다.)
 
 ## 13.2 스냅샷 생성 시점
 
 - **검수 승인(APPROVED) 시점에만** 스냅샷 생성 (`SAVE_REASON_CD='APPROVED'`)
 - 라벨 임시저장 단계는 스냅샷 미생성 (`LS_DATA_LBL` upsert만)
-- 저장 데이터: `{DATA_RAW_SN, DATA_SRC_SN, LABEL_PAYLOAD(JSON), VERSION_HASH, VER_NO(V90 rename, 구 VERSION_NO), SAVE_REASON_CD, ACTVTN_YN, REG_ID/REG_DT}`
+- 저장 데이터: `{DATA_RAW_SN, DATA_SRC_SN, LABEL_PAYLOAD(JSON), VERSION_HASH, VER_NO(구 `VERSION_NO`에서 개명 — 개명 시점 번호 `V90`은 2026-08-13 스쿼시 이전 이력, 현재는 `V1` 베이스라인에 포함), SAVE_REASON_CD, ACTVTN_YN, REG_ID/REG_DT}`
 - 변경이력은 `LS_DATA_LBL_HSTRY` 병행
 
 ## 13.3 diff (비교)
@@ -81,7 +82,9 @@
 
 ## 13.6 관련 데이터 (DB)
 
-`LS_LABEL_VERSION`(스냅샷·해시·active), `LS_DATA_LBL_HSTRY`(변경 이력), `LS_OUTPUT_VER_SNPSH`(회차 ↔ 스냅샷 매핑, §13.8.3), `LS_GITEA_FALLBACK_QUEUE`(통신 실패 재시도). → [18](18-database.md).
+`LS_LABEL_VERSION`(스냅샷·해시·active), `LS_DATA_LBL_HSTRY`(변경 이력), `LS_OUTPUT_VER_SNPSH`(회차 ↔ 스냅샷 매핑, §13.8.3). → [18](18-database.md).
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 이 목록에 있던 *"`LS_GITEA_FALLBACK_QUEUE`(통신 실패 재시도)"* 는 삭제했다. 이 테이블은 현재 저장소 어디에도 없다(§13.1 참조 — `V53__alter_ls_label_version_payload.sql`에서 이미 DROP됨). 현재 저작도구 소유 테이블은 `ls_*` 57개뿐이며(`deploy/onprem/db/schema.sql` 실측) 그중 `gitea`를 포함하는 테이블명은 0건이다.
 
 ## 13.7 작성자 표시명 사번-이름 정정 (2026-08-05, 외부 FE 팀 고지 대상)
 

@@ -3,7 +3,9 @@
 > 출처: CLAUDE.md(포털), R2 KLID-AT-ACT-003, ADR-013, 코드(`portal/`, `frontend portal/`)
 > 관련: [03 인증·권한](03-auth-roles.md) · [04 화면·IA](04-screens-ia.md)
 
-화면: 포털 홈(데이터마트 영상 선택 `/portal`), `KLID-AT-SC-029`(포털 라벨링 `/portal/label/:id`). 코드: `portal/`(7 파일).
+화면: `SC-028`(포털 홈, 데이터마트 영상 선택 `/portal`), `SC-029`(포털 라벨링 `/portal/label/:id`). 코드: `portal/`(7 파일).
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-029`"* 는 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-NNN`(축약 `SC-NNN`) 체계다. 다만 **`SC-029`는 확정이 아니라 정황적 추정**이다 — `PortalLabelingPage.tsx` 파일 자체에는 직접 태그가 없고, `FrameNavigator.tsx`의 교차참조 문구("SCREEN-005 §캔버스 상단 옵션바 / SCREEN-029 동일 배치")와 `04-screens-ia.md`(§4.3) 매핑표만으로 추정한 값이다. `SC-028`(포털 홈)은 `PortalHomePage.tsx`가 `@design SCREEN-028`을 직접 태그해 확정. 근거: `04-screens-ia.md`(§4.3) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md` §해석-6·표 L190.
 
 ## 16.1 데이터 소스
 
@@ -23,6 +25,45 @@
 > 이해하면 포털 화면의 조회 경로를 엉뚱한 데이터소스에서 찾게 된다.
 
 - 관제서버가 제공한 데이터마트를 포털에 등록 → 포털 사용자가 영상 선택 → 기존 저장 라벨/메타 Load → 라벨링 화면 표시
+
+## 16.1a 메타 복제 배치 (control → 포털 outbox, 2026-08-19 코드 실측 보강)
+
+위 16.1의 "저작도구 → 포털 DB 쓰기(단방향 at-least-once 복제)"를 실제로 수행하는 배치 잡이다.
+포털 DB 는 control(저작도구) DB 의 **읽기 전용 사본**을 갖고, 그 사본을 채우는 유일한 경로가 이 잡이다.
+
+**트리거 — outbox 패턴**: 검수 승인 시 `DatasetVideoMetaSnapshotService.materialize` 가 `LS_DATASET_VIDEO_META`
+스냅샷을 만들면서 같은 트랜잭션에서 `LS_META_REPL_OUTBOX`(`LsMetaReplOutbox`) 에 PENDING 행을 적재한다.
+이 outbox 행이 **self-contained PAYLOAD**(비식별 메타 JSON) 를 담아, 복제 시점에 control 원본 테이블을
+되읽지 않는다(표준 outbox 패턴 — `MetaReplicationWorker` 클래스 javadoc).
+
+**주기 발화**: `MetaReplicationQuartzJob`(JOB_GROUP=`dataset`)이 `MetaReplicationJobConfig` 로 등록되며
+**60초 간격**(`authoring.meta-replication.interval-sec`, 기본 60)·부트 30초 뒤 최초 발화. 게이트는
+`authoring.meta-replication.enabled`(`matchIfMissing=true` — 운영 dev/stg/prd 는 기본 활성, 끄면 잡 자체가
+등록 안 됨, test/local 격리용). `@DisallowConcurrentExecution` + Quartz 클러스터링(`QRTZ_LOCKS`, 2노드
+Active-Active 중 1노드만 발화)이 겹치므로 outbox 행 단위 원자 클레임은 두지 않는다.
+
+**실행**: `MetaReplicationWorker.replicatePending()` 이 PENDING outbox 를 `regDt` 오름차순으로 배치 폴링
+(`authoring.meta-replication.batch-size`, 기본 100)하고, 건별로 트랜잭션 경계를 셋으로 나눈다 —
+① control readOnly 로 outbox 조회 → ② `PortalMetaReplicaWriter.replicate`(`portalTransactionManager`)로
+포털에 upsert → ③ `MetaReplicationOutboxService.markDone`(`controlTransactionManager`)로 완료 표기.
+control 과 포털은 물리 분리된 DB 라 XA 를 쓰지 않는다 — 이 셋을 하나로 묶지 않는 이유다.
+
+**at-least-once + 멱등**: 포털 upsert 성공 후 DONE 표기가(크래시 등으로) 실패해도 outbox 는 PENDING 에
+남아 **다음 tick 이 재복제**한다. 재복제는 무해하다 — `PortalMetaReplicaWriter.replicate` 가
+`deactivatePrevious` → `upsertSnapshot`(`ON CONFLICT DO NOTHING`) → (0건이면) `activateByHash` 순으로
+"활성 1건" 불변식을 유지하는 last-writer-wins 멱등 upsert 이기 때문. 순서 역전(옛 스냅샷이 최신 뒤에
+재전달되는 것)은 워커가 아니라 **발행 측**이 막는다 — `materialize` 가 같은 rawSn 의 기존 PENDING outbox 를
+advisory lock 구간에서 `SUPERSEDED` 로 먼저 정리한 뒤 신규 outbox 를 넣으므로, 워커는 항상 최신 건만 본다.
+
+**graceful skip(미프로비저닝 대응)**: `PortalMetaReplicaWriter.isReplicaAvailable()` 이 포털
+`LS_DATASET_VIDEO_META` 테이블 존재 여부를 포털 DataSource 에 직결한 별도 probe(트랜잭션 미경유)로 확인한다
+— 테이블 부재(PostgreSQL `42P01`)는 WARN + 메트릭만 남기고 조용히 skip(재시도/dead-letter 폭주 방지),
+그 외 실장애(연결 불가·권한 등)는 ERROR 로 승격한다. 복제 실패는 검수 승인 자체(이미 커밋됨)에 영향을
+주지 않는다(관심 분리).
+
+근거: `MetaReplicationQuartzJob` · `MetaReplicationJobConfig` · `MetaReplicationWorker`(class javadoc,
+`replicatePending`) · `PortalMetaReplicaWriter`(class javadoc, `replicate`, `isReplicaAvailable`) ·
+`DatasetVideoMetaSnapshotService`(`materialize`) · `LsMetaReplOutboxRepository`(`supersedePending`).
 
 ## 16.2 저장 정책 (단방향)
 

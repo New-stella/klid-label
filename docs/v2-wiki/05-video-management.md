@@ -3,7 +3,9 @@
 > 출처: CLAUDE.md(배치 파이프라인·파일 업로드), 코드(`video/`, db migration), D9
 > 관련: [06 마킹](06-marking.md) · [07 배치 파이프라인](07-batch-pipeline.md) · [18 DB](18-database.md)
 
-화면: `KLID-AT-SC-007`(영상 목록 `/video/completed`), `SC-009`(영상 상세 `/video/:id`). 코드: `video/`. (구 `SC-008` 처리 현황 `/video/status`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거 → [04 화면·IA](04-screens-ia.md))
+화면: **영상 목록 `/video/status`(SCREEN-008)**, **영상 상세 `/video/:id`(SCREEN-009)**. 코드: `video/`. → [04 화면·IA](04-screens-ia.md)
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"화면: `KLID-AT-SC-007`(영상 목록 `/video/completed`), `SC-009`(영상 상세 `/video/:id`). (구 `SC-008` 처리 현황 `/video/status`는 진입점 없는 orphan으로 2026-06-17 deprecated·코드 제거)"* 는 사실과 다르다. 라우터에 `/video/completed` 경로는 **존재하지 않는다**(`grep -na "video/completed" frontend/src/router/index.tsx` → 0건). 영상 목록 화면은 **`/video/status`이고 SCREEN-008**로 실재하며 `VideoListPage.tsx`가 `[@design SCREEN-008]`를 직접 태그한다 — "SC-008 orphan·deprecated" 서술은 정반대다. 이 문서 전체에서 반복되는 "SC-007 `/video/completed`" 표기는 아래 각 항목에서 **SCREEN-008(`/video/status`)**로 정정한다. `SCREEN-007`은 코드 전량 스캔(`grep -rhoa "SCREEN-[0-9]\{3\}" frontend/src`)에서 참조 0건이라 현재 화면 실체가 코드에서 확인되지 않는다(폐기인지 단순 미참조인지 미확인). 근거: `frontend/src/router/index.tsx`(`/video/status`→`VideoListPage`) · `VideoListPage.tsx`(`[@design SCREEN-008]` 태그) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
 
 ## 5.1 작업 단위 = 영상 1건
 
@@ -75,7 +77,8 @@
       - ⚠ **알려진 한계**: FE 가 미입력 숫자 필드를 `null` 이 아니라 `0` 으로 보내면 `COALESCE` 가 "입력됨"으로 보아 그 컬럼은 영구히 채워지지 않는다(`0` 이 유효값인 경우와 구분할 수단이 없어 서버가 강제하지 않는다). 되살리기는 `COALESCE` 없이 덮어쓰므로 back-fill 로 채운 8컬럼이 새 폼 입력으로 재초기화되지만, 재업로드 완료 시 back-fill 이 다시 돌아 채워진다
     - **② `LS_DATA_META` 축 (기존, 무변경)** — 적재 **후** `VideoMetaService` 가 `video.*` 6키를 "관제 인입값 우선, 없는 키만 ffprobe — 폴백은 키 단위" 규칙으로 채운다(§5.5.2). **이번 변경으로 인입이 먼저 채워지므로 그 값이 자연히 우선 채택**되며, **같은 ffprobe 원천이라 두 축의 값이 갈리지 않는다**
   - `prvcTypeCd`·`eventTypeCd` **입력은 폐지**됐다 — `LS_DATA_INGEST` 에 대응 컬럼이 없기 때문이다(개인정보 유형은 적재 시 `PRVC` fail-closed 기본값). 이벤트는 인입 컬럼과 같은 축인 `EVNT_ID`(식별자형, 예 `ABA_0001`)·`EVNT_NM` 입력으로 대체됐다
-    - ⚠ **`EVNT_ID` 를 비우면 그 영상은 마킹할 수 없다** (2026-08-04) — 적재 시 `EVNT_ID` 로 `MNG_CLIP_EVNT_LST` 를 조회해 `LS_DATA_RAW.EVNT_TYPE_CD` 를 채우는데, 그 값이 비면 마킹 프리컨디션이 400 으로 막는다. dev 업로드로 마킹까지 돌려 보려면 **이벤트리스트에 실재하는 `EVNT_ID`** 를 넣어야 한다(로컬 시드값은 `DEV-EVT-9101~9103`) → [06](06-marking.md#61-마킹이란)
+    - ⚠ **`EVNT_ID`·`EVNT_NM` 은 이제 `EVNT_TYPE_CD` 도출에 관여하지 않는다** — `EVNT_TYPE_CD` 를 비우면 그 영상은 마킹할 수 없다는 결론은 그대로지만, 채우는 값의 조달원이 위 「`evntTypeCd`(이벤트유형코드) 선택 입력 — 2026-08-09 신설」 항목으로 **옮겨갔다**. `EVNT_ID`·`EVNT_NM` 은 요청 DTO(`InternalUploadCreateRequest`)에 필드로는 남아 있으나 이벤트 유형 해석에는 쓰이지 않는다(로컬 시드값 `DEV-EVT-9101~9103` 을 넣는 절차도 더는 필요 없다). dev 업로드로 마킹까지 돌려 보려면 **`evntTypeCd` 입력란에 값을 직접 채운다** → [06](06-marking.md#61-마킹이란)
+      > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"적재 시 `EVNT_ID` 로 `MNG_CLIP_EVNT_LST` 를 조회해 `LS_DATA_RAW.EVNT_TYPE_CD` 를 채운다(2026-08-04)"* 는 **사실과 다르다**. 그 조인 폴백은 `MNG_CLIP_EVNT_LST` 테이블 자체가 제거되며(V167) 함께 폐지됐다 — 현재 `TrainingVideoIngestTx#resolveEvntTypeCd` 는 `trimToNull(ingest.getEvntTypeCd())` 한 줄로 관제 인입 평면값(V166)을 그대로 옮겨 적을 뿐이다. 근거: `TrainingVideoIngestTx(resolveEvntTypeCd)` 클래스 javadoc "구 서술 폐기 ③". 위 `eventTypeCd`·`prvcTypeCd` "입력 폐지"(`EVNT_ID`·`EVNT_NM` 으로 대체) 서술 자체는 그 시점 이력으로 유효하나, 그 뒤 2026-08-09 에 `evntTypeCd` 직접 입력이 별도로 신설됐다는 사실이 이 하위 항목에 반영돼 있지 않았다.
   - ★ 업로드 저장 경로가 적재 allowlist(`STORAGE_RAW_MOUNT_ROOTS`) 밖이면 인입이 매 건 `REJECTED` 로 영구 종결되므로, `InternalUploadWiringGuard` 가 배포 형상(local 외)에서 **업로드 기능만 비활성**한다 — 앱은 정상 기동하고 기동 로그에 **ERROR** 1회, TUS 엔드포인트는 **503**(조용한 성공·원본 경로 폴백 없음, fail-closed). **실패 범위를 앱 전체가 아니라 기능 단위로 한정**한 이유는 onprem 설치 안내가 마운트 루트를 좁히라고 권장하므로, 기동을 막으면 업로드 1개 기능의 오설정으로 라벨링·검수·배치까지 정지하기 때문이다. onprem 에서 마운트 루트를 좁힐 때는 `STORAGE_RAW_PATH` 를 반드시 포함할 것 → [04-configuration](../../deploy/onprem/docs/04-configuration.md)
   - ★ **인입 폴링(`TRAINING_SCAN_ENABLED`)이 꺼져 있으면 업로드분은 영원히 `PENDING`** 이다(적재 통로가 이 잡 하나뿐). 기동 시 ERROR 로그 + 응답 헤더 `X-Ingest-Status: PENDING` \| `PENDING_SCAN_DISABLED`(POST·완료 PATCH 양쪽) 로 드러내고, **화면이 그 값을 완료 문구에 반영**한다("인입 대기 중" / 스캔 꺼짐 경고). local 프로파일도 이제 이 잡을 **켠다**(끄면 자체 업로드가 무의미 — 테스트 격리는 `src/test/resources/application-local.yml` 이 담당)
   - **실패 모델 — 옮긴 파일을 회수하지 않는다**. 인입 행이 **먼저** 커밋돼 그 파일을 가리키므로, 지우는 쪽이 오히려 결함이다(폴링이 영원히 미도착 대기 → 24h 뒤 `FAILED`). 구 모델(완료 시 INSERT)에서 필요했던 "행 없는 고아 파일" 보상 삭제는 구조적으로 사라졌다. 대신 **세션 생성 시 INSERT 실패**면 방금 만든 임시 파일을 회수하고(0바이트 누수 방지), **완료 시 검증 실패**(매직바이트·재생 불가)는 파일이 영영 오지 않을 것이 확정되므로 세션과 인입 행을 **둘 다 별도 트랜잭션으로 종결**한다(같은 트랜잭션이면 직후 예외와 함께 롤백돼 무효)
@@ -108,7 +111,8 @@
 - 확장자 allowlist + 파일 크기 제한 + MIME 검증 필수
 - 경로 순회(`..`) 차단(`Path.normalize` + 기준 경로 검증, CWE-22)
 - **`vmsClipId`·`cctvId` allowlist** — 둘 다 `^[A-Za-z0-9_-]{1,64}$`(인입 `VMS_CLIP_ID`/`VMS_CCTV_ID` 와 정합). `vmsClipId` 는 **저장 파일명이 되므로** 경로 문자·상위참조를 원천 차단하고(CWE-22), 두 값 모두 **세션 생성 단(400)** 에서 fail-fast 한다(완료 시점 INSERT 에서 길이 초과로 터지면 500 + 0바이트 임시파일 잔존)
-- **★ CCTV 존재 검증은 400 → 경고로 완화**(Phase 1) — `MNG_RESOURCE_CCTV` 를 채우는 주체는 관제뿐이고 저작도구에는 local 시드 외 공급 경로가 없어, 400 을 유지하면 dev/운영 형상의 **모든 업로드가 "등록되지 않은 CCTV"로 죽는다**. 관제 인입 경로(`TrainingVideoIngestTx`)도 이 검증을 하지 않으므로 "관제 인입과 동일 재현" 원칙에도 맞는다. 미등록 CCTV 는 WARN 로그만 남기고 업로드는 계속한다(값 자체는 NOT NULL 이라 필수)
+- **★ CCTV 존재 검증은 이제 없다 — 검증할 마스터 자체가 사라졌다**(2026-08-19 코드 실측 정정) — 남는 것은 형식 allowlist(`CCTV_ID_PATTERN`, 컬럼 폭 `VARCHAR(64)` 정합)뿐이고 값의 실재 여부는 더 이상 판정하지 않는다. 값 자체는 NOT NULL 이라 여전히 필수다. 근거: `TusUploadService`("★CCTV 존재 검증은 없다 — 검증할 마스터가 없다")
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"CCTV 존재 검증은 400 → 경고로 완화(Phase 1) — `MNG_RESOURCE_CCTV` 를 채우는 주체는 관제뿐... 미등록 CCTV 는 WARN 로그만 남기고 업로드는 계속한다"* 는 **사실과 다르다**. "400 → WARN 완화" 는 중간 단계였을 뿐 최종 상태가 아니다 — `MNG_RESOURCE_CCTV` 테이블 자체가 관제 2차 적재 주체 반전(V167)으로 **DROP** 되어 그 이후로는 WARN 조차 남기지 않는다(비교할 마스터가 없다). 관제 인입 경로(`TrainingVideoIngestTx`)도 이 검증을 안 하는 것은 여전히 같으므로 "관제 인입과 동일 재현" 결론은 바뀌지 않는다.
 - TUS: 동시 PATCH 오프셋 충돌 `@Version` 409 / `Upload-Length` > 500MB 413 / 완료 멱등(STATUS 원자 전이) / 매직바이트(mp4·webm·avi) 불일치 409 / 세션 소유자(USER_NO) 403 / 동시 IN_PROGRESS 3 상한 429 / 메타 1KB 상한
 
 ## 5.3 영상 스트리밍
@@ -117,6 +121,10 @@
 - **비식별 누락 신고 게이트(S7)** — `/stream`·`/stream-url` 은 **대상 영상 자신의** `DE_IDENT_YN='F'`(신고 구간)이면 **404** 로 거부한다. 판정은 **자기 `rawSn` 행 하나만** 보며 `ORGNL_RAW_SN` 을 따라 올라가지 않으므로, **부모가 신고 중이어도 파생영상(해상도·증강) 재생은 막히지 않는다**(2026-07-29 확정 — 파생은 독립 취급, 함의는 [08 §8.4](08-deidentification.md) 참조). 판정은 `stream-meta` 캐시 **앞**(매 요청)에서 수행되어 캐시 히트가 게이트를 건너뛰지 않는다 → [08 §8.4](08-deidentification.md)
 - **경로 가드는 lexical + 실경로 2단이다 (B-ISSUE-81, 2026-08-02 · CWE-59/367/359)** — 비식별 경로(`DE_IDNTF_FILE_PATH_NM`)는 `normalize()+startsWith` 로 허용 base 하위인지 본 뒤, **같은 정적 판정기 `VideoArtifactRootResolver.resolveRealPathUnder` 로 실경로를 재검증**하고 **판정이 돌려준 실경로를 그대로 연다**(판정 대상 == 사용 대상 → TOCTOU 차단). 허용 base 에는 외부 비식별 벤더(KPST)가 공유 마운트로 직접 쓰는 co-locate 디렉터리가 포함되므로, 그 안의 산출물 파일을 **원본(비식별 이전) 영상 심링크**로 바꾸면 lexical 검사만으로는 통과해 마스킹 전 영상이 "비식별 영상"으로 200 서빙됐다(실측 exploit). 모든 base 후보가 실패하면 기존대로 **NOT_FOUND**(경로 원문 미노출). 회귀 가드: `VideoStreamServiceTest` 심링크 3케이스. 프레임 이미지 4경로의 단일 규약(`StorageSubtreePolicy.verifyDeidentifiedFile`)과 같은 원칙이다
 - **응답 캐시 정책** — `/stream` 200·206 응답은 `Cache-Control: no-store`. 클라이언트가 받은 청크를 재사용하면 신고 이후에도 마스킹 실패 영상이 서버를 거치지 않고 재생되므로(CWE-359/525) 장기 캐시를 두지 않는다(프레임 이미지 서빙과 동일 정책). 시크마다 Range 재요청이 발생하지만 경로·크기·MIME 해석은 서버측 `stream-meta` 캐시가 흡수하고, 청크 상한(기본 8MB)이 재요청 빈도를 억제한다
+- **★단기 서명 URL 발급 — `GET /v1/videos/{rawSn}/stream-url`** (인가: `hasAnyRole('REVIEWER','WORKER')`) — HTML `<video>` 엘리먼트는 `Authorization` 헤더를 붙일 수 없으므로, BE 가 발급한 짧은 TTL 서명 쿼리(`?exp=...&u=...&sig=...`)를 `/stream` 에 붙여 재생한다. 발급 시 요청자(`userNo`)를 서명에 바인딩하고(CWE-284, `u` 변조 거부) 서버 비밀 + 발급자로 봉인한 클라이언트 바인딩 nonce 를 `HttpOnly` 쿠키로 함께 내려 서명 입력에 섞는다(URL 만 유출돼서는 재생 불가). 발급 자체가 `LabelAccessGuard.verifyRawAccess`(REVIEWER 전체 / WORKER 본인 배정) 를 거치므로 서명이 나가는 시점에 이미 영상 단위 인가가 걸린다
+  - `/stream` 요청은 **JWT 인증이 우선**(`JwtAuthenticationFilter` 가 먼저 컨텍스트를 채우면 서명 필터는 개입하지 않는다) — 서명 경로는 JWT 를 못 붙이는 `<video>` 태그 재생 전용 **대체 경로**다. 서명 검증 통과 시 부여되는 것은 합성 authority `STREAM_SIGNED` 뿐이며 `ROLE_*` 는 부여하지 않는다(서명 컨텍스트가 다른 API 로 확대되는 권한 상승 차단) — `/stream` 컨트롤러의 인가 조건이 `hasAnyRole('REVIEWER','WORKER') or hasAuthority('STREAM_SIGNED')` 인 이유다
+  - 서명 principal 은 발급 시점의 실제 요청자(`u` 값)와 그 사용자의 역할로 채워져, 서명 경로에도 `labelAccessGuard.verifyRawAccess` 영상 단위 인가가 **동일하게** 걸린다(과거에는 principal 이 고정 상수·role=null 이라 이 인가를 못 태웠던 결함 — B-ISSUE-63)
+  - 코드: `common/security/StreamSignatureFilter`, `video/service/StreamUrlSigner`
 - 마킹 화면에서 배속(0.25x~4x) 재생 → [06](06-marking.md)
 
 ## 5.4 개인정보 분류 (PRVC_TYPE_CD)
@@ -134,7 +142,7 @@
 - **비식별 처리는 분류와 무관하게 전체 영상 무조건 실행**(ANONY 포함, 게이팅 폐지) — 적재 직후 선두 자동 → [08](08-deidentification.md)
 - 원본 영상과 비식별 영상은 **별도 경로 동시 저장** (`STORAGE_RAW_PATH` / `STORAGE_DEIDENTIFIED_PATH`)
 - 비식별 상태: `LS_DATA_RAW.DE_IDENT_YN` (Y/N/F) → [08](08-deidentification.md)
-- **★ 영상 목록(SC-007)·상세(SC-009)의 "개인정보 분류" 표시는 폐지했다(2026-08-05, 화면 노출만 — 컬럼·응답 필드는 존치)**: 관제서버가 이 값을 실제로 보내지 않는다(dev DB 실측 — 인입 원장 `LS_DATA_INGEST.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN` 40행 전부 NULL). 화면이 그동안 보여준 값은 관제값이 아니라 위 적재 시 고정되는 레거시 컬럼 `PRVC_TYPE_CD` 였다. `VideoSummaryResponse.privacyTypeCd`/`VideoDetail.privacyTypeCd` 응답 필드는 그대로 내려가며(하위호환), `PRVC_TYPE_CD` 는 계속 `needsDeidentify()`(비식별 대상 판정)에 쓰인다 — 바뀐 것은 **화면 노출뿐**이다. FE `components/common/PrivacyBadge.tsx` 컴포넌트 삭제, `VideoListPage.tsx`(컬럼 8종으로 축소)·`VideoDetailPage.tsx`(기본정보 항목 제거)에서 참조 제거. ⚠ 라벨링 화면의 **개인정보 메타 패널**(`VideoPrivacyMetaPanel`/`FramePrivacyMetaPanel` — 사람이 직접 판정을 입력하는 축, [04 §SC-005](04-screens-ia.md))은 이 폐지와 **무관**하며 그대로 유지된다.
+- **★ 영상 목록(SCREEN-008)·상세(SC-009)의 "개인정보 분류" 표시는 폐지했다(2026-08-05, 화면 노출만 — 컬럼·응답 필드는 존치)**: 관제서버가 이 값을 실제로 보내지 않는다(dev DB 실측 — 인입 원장 `LS_DATA_INGEST.ANONY_INCL_YN`/`PSDO_INCL_YN`/`PRVC_INCL_YN` 40행 전부 NULL). 화면이 그동안 보여준 값은 관제값이 아니라 위 적재 시 고정되는 레거시 컬럼 `PRVC_TYPE_CD` 였다. `VideoSummaryResponse.privacyTypeCd`/`VideoDetail.privacyTypeCd` 응답 필드는 그대로 내려가며(하위호환), `PRVC_TYPE_CD` 는 계속 `needsDeidentify()`(비식별 대상 판정)에 쓰인다 — 바뀐 것은 **화면 노출뿐**이다. FE `components/common/PrivacyBadge.tsx` 컴포넌트 삭제, `VideoListPage.tsx`(컬럼 8종으로 축소)·`VideoDetailPage.tsx`(기본정보 항목 제거)에서 참조 제거. ⚠ 라벨링 화면의 **개인정보 메타 패널**(`VideoPrivacyMetaPanel`/`FramePrivacyMetaPanel` — 사람이 직접 판정을 입력하는 축, [04 §SC-005](04-screens-ia.md))은 이 폐지와 **무관**하며 그대로 유지된다.
 
 ## 5.5 영상 상태 (LS_RAW_DATA_STATUS)
 
@@ -147,7 +155,7 @@
 
 ## 5.5.1 영상 목록에서 마킹 진입 · 작업자 배정 (REVIEWER 동선)
 
-- **영상 목록(SC-007 `/video/completed`)에서 곧바로 마킹 진입** — 구 정책('배정은 작업 배정 화면 `/task/assign`에서만' → 이후 '행 인라인 배정')에서 재개편. 미배정 영상의 행 액션을 **"마킹" 버튼으로 통합**해, 자동(프레임 간격)/수동(작업자 배치)을 한 팝업에서 선택한다. 마킹 전 배정 정책은 유지(마킹 주체·시점 변경 없음) → [06](06-marking.md) · [12](12-review-assignment.md)
+- **영상 목록(SCREEN-008 `/video/status`)에서 곧바로 마킹 진입** — 구 정책('배정은 작업 배정 화면 `/task/assign`에서만' → 이후 '행 인라인 배정')에서 재개편. 미배정 영상의 행 액션을 **"마킹" 버튼으로 통합**해, 자동(프레임 간격)/수동(작업자 배치)을 한 팝업에서 선택한다. 마킹 전 배정 정책은 유지(마킹 주체·시점 변경 없음) → [06](06-marking.md) · [12](12-review-assignment.md)
 - **"마킹" 버튼 노출 조건** — REVIEWER + **마킹 가능(`canMark`) 영상**에만 노출: `dataSttsCd==='MARKING_READY'` 이고 비식별이 미완료가 아닐 것(`isMarkingBlocked` 재사용 — deidentStatus IN_PROGRESS/FAILED·deIdntfYn 'N'/'F' 이면 차단). `PROCESSING/COMPLETED/FAILED/PENDING` 및 비식별 미완 영상은 미노출. `WORKER`에겐 행/일괄 액션·액션 바 모두 미노출(FE `isReviewer` 게이팅, 실제 인가는 BE `@PreAuthorize` 1차 — CWE-285 심층방어). 상태 판정은 순수 헬퍼(`features/marking/markingEligibility.ts` `canMark`/`isMarkingDone`)로 단일화
 - **"마킹" 클릭 → 자동/수동 선택 팝업**(`MarkingModal`):
   - **자동** — 프레임 간격(`intervalFrames`, 정수 ≥1 FE 1차 검증) 입력 → 즉시 자동마킹 트리거(`POST /v1/videos/{rawSn}/markings`, `mode=AUTO`, **작업자 배치 없이**). 성공 시 영상 목록 무효화, 실패 시 BE 메시지 토스트. 이벤트명은 요청에 미포함(서버가 `EVNT_TYPE_CD` 자동 소싱 — API-047)
@@ -170,13 +178,15 @@
 
 ## 5.5.3 영상 처리 현황 목록 검색·필터 (`GET /v1/videos`)
 
-영상 처리 현황(SC-007 `/video/completed`)의 검색·필터는 **전부 BE 조건**으로 적용된다(페이징 후 FE 필터 금지 — `totalElements`도 필터 적용 후 전체 건수). 모든 파라미터는 **선택**이며 하나도 보내지 않으면 기존과 동일한 목록·정렬(`regDt DESC`)이다.
+영상 처리 현황(SCREEN-008 `/video/status`)의 검색·필터는 **전부 BE 조건**으로 적용된다(페이징 후 FE 필터 금지 — `totalElements`도 필터 적용 후 전체 건수). 모든 파라미터는 **선택**이며 하나도 보내지 않으면 기존과 동일한 목록·정렬(`regDt DESC`)이다.
 
 | 파라미터 | 기준 컬럼 | 의미 |
 |---------|----------|------|
 | `dataSttsCd` | `LS_DATA_RAW.DATA_STTS_CD` | 배치 단계 — `PENDING`/`MARKING_READY`/`PROCESSING`/`COMPLETED`/`FAILED` (FE 드롭다운 5종과 1:1) |
 | `reviewStatusCd` | `LS_RAW_DATA_STATUS.DATA_STTS_CD` | 검수 워크플로 상태(조인 필터 — 상태행 없는 영상 제외) |
-| `cctvNameKeyword` | `MNG_RESOURCE_CCTV.CCTV_NM`(LEFT JOIN) **또는** `LS_DATA_RAW.RAW_SN` | 최대 100자. CCTV 명 부분일치(대소문자 무시) OR **숫자 입력 시 영상 ID 일치**. LIKE 메타문자(`%`·`_`)는 이스케이프되어 리터럴 취급 |
+| `cctvNameKeyword` | `LS_DATA_INGEST.CCTV_NM`(EXISTS 서브쿼리) **또는** `LS_DATA_RAW.RAW_SN` | 최대 100자. CCTV 명 부분일치(대소문자 무시) OR **숫자 입력 시 영상 ID 일치**. LIKE 메타문자(`%`·`_`)는 이스케이프되어 리터럴 취급. CCTV 명이 없거나 공백이면 `VMS_CCTV_ID` 로 폴백(표시 규칙과 동일) |
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`MNG_RESOURCE_CCTV.CCTV_NM`(LEFT JOIN)"* 은 사실과 다르다. 그 관제 공유 마스터는 V167 로 제거됐다. 현재는 관제가 인입 행에 직접 실어 보내는 평면값 `LS_DATA_INGEST.CCTV_NM` 을 **EXISTS 서브쿼리**로 판정한다(JOIN 이 아닌 이유: 인입의 `RAW_SN` 에 UNIQUE 가 없어 조인 시 목록 행이 증식할 수 있다). 근거: `VideoRepository(searchOriginals)` javadoc.
 | `eventTypeCd` | `LS_DATA_RAW.EVNT_TYPE_CD` | 값은 **이벤트유형코드**(V168 — 축은 유형, 구 카테고리 키 방식 폐기). 다만 드롭다운 옵션은 **표시명 그룹**으로 접혀 있으므로(2026-08-05, [18 §18.4.1](18-database.md)) 필터는 단일 코드 동등비교가 아니라 `EventTypeService.codesForFilterKey`로 **그룹 전체 EV-코드 집합**을 펼쳐 `IN` 비교한다 — 대표코드·비대표코드(그룹 도입 이전 북마크) 어느 쪽으로 와도 같은 그룹이 매칭된다. **미등록 키·관제 미등록 EV-코드는 오류가 아니라 0건**(fail-safe) |
 | `from` / `to` | `LS_DATA_RAW.SHT_DT` | `yyyy-MM-dd`. **경계 포함**(from 당일 00:00:00 ~ to 당일 23:59:59.999999999). 촬영일시가 없는 영상은 잡히지 않는다 |
 
@@ -189,7 +199,7 @@
 
 ## 5.5.4 배치 실패 복구 — 영상 상세 사유·조치 + 목록 일괄 재시작 (R1, 2026-08-12)
 
-**전용 「배치 실패 관리」 화면은 신설하지 않는다.** 영상 목록(SC-007)에 이미 배치 단계 `실패` 필터(§5.5.3 `dataSttsCd`)가 있어 같은 일을 하는 **두 번째 목록**을 만들지 않는다. 조치는 실패를 이미 보고 있는 자리에 붙였다 — 파이프라인 쪽 규칙·근거는 [07 §7.5-1](07-batch-pipeline.md).
+**전용 「배치 실패 관리」 화면은 신설하지 않는다.** 영상 목록(SCREEN-008)에 이미 배치 단계 `실패` 필터(§5.5.3 `dataSttsCd`)가 있어 같은 일을 하는 **두 번째 목록**을 만들지 않는다. 조치는 실패를 이미 보고 있는 자리에 붙였다 — 파이프라인 쪽 규칙·근거는 [07 §7.5-1](07-batch-pipeline.md).
 
 ### 영상 상세(SC-009) — 「배치 실패 사유 + 조치」
 
@@ -212,7 +222,7 @@
 - ★**시계열 묶음의 이름도 「시계열」로 통일됐다**(2026-08-13 확정, 구속) — 화면에 노출되는 기술 모델명 `VLM` 을 「시계열」로 통일하는 확정에 따라 단계 노출명과 묶음 표시명이 함께 「시계열」이 됐다. ⚠ **구 서술 「이름은 여전히 `VLM` 이다 — 확정이 오토라벨 한 건이라 바꾸지 않았다(별건 처리)」는 폐기**: 그 별건이 이 확정으로 해소됐다.
   - ⚠ **바뀐 것은 화면 표시명 한 축뿐이고 묶음 코드값은 여전히 `VLM` 이다** — 재수행·건너뛰기 요청의 경로 파라미터, 응답 `skippedStages` 의 값, 배치 단계 코드(`PROC_STEP_CD`)는 **그대로**다. 표시명이 바뀌었다고 코드값·계약까지 바꾸지 말 것(오토라벨 묶음이 「오토라벨링」으로 불리면서도 코드값이 `AUTOLABEL` 인 것과 같은 축).
 
-### 영상 목록(SC-007) — 일괄 작업 바
+### 영상 목록(SCREEN-008) — 일괄 작업 바
 
 - 다중 선택 시 뜨던 「일괄 배정 바」가 **「일괄 작업 바」**가 되어 `일괄 재시작` 버튼이 함께 놓인다(`POST /v1/videos/batch/retry`). 배치가 한 번 멈추면 여러 건이 함께 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다.
 - **상한 100건** — 초과하면 보내기 전에 알리고 버튼을 막는다(서버도 400).
@@ -242,4 +252,6 @@
 
 ## 5.6 관련 데이터 (DB)
 
-`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`(작업·검수 진행 상태). 구 `LS_DATA_RAW_HSTRY`(상태 이력)·`LS_RAW_DATA_ENROLLMENT`(등록)은 읽는 경로가 없어 V3·V4 에서 삭제됐다 — 상태 변화의 감사 축은 `LS_TASK_EVNT_LOG` 다. 관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조. → [18](18-database.md).
+`LS_DATA_RAW`(영상 메타·VMS_CLIP_ID·EVNT_TYPE_CD·DE_IDENT_YN·ORGNL_RAW_SN), `LS_DATA_SRC`(추출 프레임·원본/비식별 경로), `LS_RAW_DATA_STATUS`(작업·검수 진행 상태), `LS_DATA_INGEST`(관제 인입 원장 — CCTV명·이벤트유형코드·개인정보 3필드 등 관제 수신값의 단일 진실원). 구 `LS_DATA_RAW_HSTRY`(상태 이력)·`LS_RAW_DATA_ENROLLMENT`(등록)은 읽는 경로가 없어 V3·V4 에서 삭제됐다 — 상태 변화의 감사 축은 `LS_TASK_EVNT_LOG` 다. → [18](18-database.md).
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"관제 소유 `MNG_CLIP_MASTER`/`MNG_RESOURCE_CCTV` 참조"* 는 사실과 다르다. 두 테이블 모두 관제 2차 적재 주체 반전(ADR-042)에 따라 **V167 에서 DROP** 됐고, CCTV명·이벤트유형·좌표 등은 이제 관제가 `LS_DATA_INGEST` 인입 행에 직접 실어 보내는 평면값으로 조달한다(§5.5.3 `cctvNameKeyword` 필터, §5.2 `evntTypeCd` 항목과 동일 축). 근거: `IngestSourceLink`·`VideoRepository`·`DatasetMetaSourceRepository`·`TaskBoardQueryRepository`·`AssignmentQueryRepository`·`ReviewQueryRepository` 클래스 javadoc이 모두 "구 조달처 `MNG_RESOURCE_CCTV` 는 V167 로 제거됐다"를 동일하게 명시한다.

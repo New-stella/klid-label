@@ -114,18 +114,19 @@
 
 ## 11.4 트랙 보간 (CVAT 포팅)
 
-- `TrackInterpolationStep` + `batch/interpolation/TrackInterpolator` — 키프레임 기반 선형 보간(BBox)
+- `TrackInterpolationStep` + `batch/interpolation/TrackInterpolator` — 키프레임 기반 선형 보간(BBox), **배치 오토라벨 파이프라인에 실제 배선됨**. ⚠ **동명 중복 클래스 주의**: `common/util/TrackInterpolator.java`(+`common/util/Keyframe.java`)라는 이름이 같은 클래스가 별도로 존재하지만 이쪽은 **`grep -rn` 전수 조사 결과 main/test 어디서도 참조되지 않는 고아(dead code)**다. 실제 배선은 위 `batch/interpolation/TrackInterpolator`뿐이며, 이 문서·다른 코드 주석이 "트랙 보간은 `common.util.TrackInterpolator`" 라고 적고 있다면 오류다. 근거: `grep -rn "authoring.common.util.TrackInterpolator" backend/src` → 결과 없음(0건).
 - 빈 프레임을 `Map<frameNo, Bbox>`로 채움
-- CVAT 알고리즘 Java 포팅 (`docs/analysis/portable-modules/01-track-interpolation.md`)
-- MASK↔RLE↔Polygon 변환은 `common/util/MaskRleConverter` → [19](19-external-security-cvat.md#cvat-포팅)
+- CVAT 알고리즘 Java 포팅 — 원 근거 문서는 `docs/analysis/portable-modules/01-track-interpolation.md`였다.
+  > ⚠ **링크 파손(2026-08-19 확인)** — `docs/analysis/portable-modules/` 디렉토리 자체가 저장소에서 소멸했다(현재 `docs/analysis/`에는 `1cha-json-format-and-mapping.md`·`nia-v3.5-quality-to-review-mapping.md` 2개 파일뿐). CVAT 포팅 09종의 원 분석 문서는 더 이상 참조할 수 없고, 코드 javadoc만 옛 "portable-modules/NN" 번호를 인용하고 있다. 위 `TrackInterpolationStep`/`batch/interpolation/TrackInterpolator` 자체는 실재·배선돼 있으므로 기능 서술은 유효하다 — 깨진 것은 이 문서 링크뿐이다.
+- MASK↔RLE↔Polygon 변환은 `common/util/MaskRleConverter` 클래스로 **구현은 존재**하지만, ⚠ **2026-08-19 실측 — 이 클래스는 어떤 프로덕션 경로에서도 호출되지 않는다**(자기 자신과 `MaskRleConverterTest` 뿐, `grep` 전수 조사로 확인). 오토라벨·export 파이프라인은 별도 직렬화 경로(`dataset/export/json/NiaJsonBuilder` 계열로 추정, 이번 조사에서 직접 대조는 안 함)를 쓰는 것으로 보인다. **"MASK↔RLE 변환이 오토라벨/export 파이프라인에서 쓰인다"고 서술하면 오류다** — 현재는 격리된 유틸(단위 테스트만 존재)이다. 같은 성질의 클래스로 좌표 변환/회전 유틸(`common/util/CoordinateTransformer`)·YOLO/COCO 변환(`common/util/YoloCocoConverter`)도 있다(둘 다 자기 테스트 외 호출부 0건). → [19](19-external-security-cvat.md#193-cvat-포팅)
 
 ## 11.5 정밀도 조절
 
-YOLO conf/iou, SAM2 폴리곤 epsilon은 시스템 설정 화이트리스트로 조절 (구 `imgsz` 는 로더 640 고정이라 조정이 무효여서 2026-08-18 폐지) → [10 §10.5](10-labeling.md#정밀도-설정-rq-sfr-08-03).
+YOLO conf/iou, SAM2 폴리곤 epsilon은 시스템 설정 화이트리스트로 조절 (구 `imgsz` 는 로더 640 고정이라 조정이 무효여서 2026-08-18 폐지) → [10 §10.5](10-labeling.md#105-정밀도-설정-rq-sfr-08-03).
 
 > **슬라이더 초기값 조회**(2026-08-08 신설 · 2026-08-18 응답 확장) — 라벨링 화면은 저장된 슬라이더 기본값(`confThreshold`·`simplifyTolerance`)을 관리 영역 밖의 읽기 전용 경로 **`GET /v1/ai-defaults`**(검수자·작업자 공통)로 받는다. 값이 없거나 숫자로 해석되지 않는 항목은 응답에서 생략되고 화면이 자체 상수로 폴백한다. 쓰기 대응물은 없다(설정 변경은 검수자 전용 관리 경로). **같은 응답에 작업 종류별 대기 예산(`waitBudgets`)도 실린다** — 이 항목은 슬라이더 프리필과 달리 값이 없어도 생략되지 않고 항상 도출돼 실린다(§11.6 「대기 예산은 더 이상 고정 5분이 아니다」). 상세 → [10 §10.5.1](10-labeling.md#1051-슬라이더-초기값-조회--get-v1ai-defaults-2026-08-08-신설).
 
-> **per-실행 수동 조절**(2026-07-22) — 시스템 설정값을 **기본값**으로, 라벨러가 라벨링 화면에서 실행 직전 조절 가능(세션 한정). **AI 탐지**=인식 민감도(conf)+경계 세밀함(폴리곤 형태 한정), **AI 분할**=경계 세밀함만(SAM2 신뢰도 미수용). 미조절 시 요청 body에서 파라미터를 생략해 시스템 설정 기본값으로 동작(무회귀). 상세 → [10 §10.5](10-labeling.md#정밀도-설정-rq-sfr-08-03).
+> **per-실행 수동 조절**(2026-07-22) — 시스템 설정값을 **기본값**으로, 라벨러가 라벨링 화면에서 실행 직전 조절 가능(세션 한정). **AI 탐지**=인식 민감도(conf)+경계 세밀함(폴리곤 형태 한정), **AI 분할**=경계 세밀함만(SAM2 신뢰도 미수용). 미조절 시 요청 body에서 파라미터를 생략해 시스템 설정 기본값으로 동작(무회귀). 상세 → [10 §10.5](10-labeling.md#105-정밀도-설정-rq-sfr-08-03).
 
 ## 11.6 AI 작업 진행 중 화면 동작 — 편집 차단 · 진행 표시 · 취소 (2026-07-31, FE)
 

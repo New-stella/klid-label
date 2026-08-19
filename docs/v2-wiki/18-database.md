@@ -1,7 +1,9 @@
 # 18. 데이터베이스
 
-> 출처: D8 엔티티관계모형설계서, D9 데이터베이스설계서, CLAUDE.md(DB 정책·View), 코드(`db/migration/` V0~V56)
+> 출처: D8 엔티티관계모형설계서, D9 데이터베이스설계서, CLAUDE.md(DB 정책·View), 코드(`backend/src/main/resources/db/migration/` V1~V13, 2026-08-19 실측)
 > 관련: 각 기능 페이지 · [19 외부 시스템](19-external-security-cvat.md)
+>
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 헤더의 *"코드(`db/migration/` V0~V56)"* 는 사실과 다르다. 2026-08-13 스쿼시로 그 V0~V185 범위는 전부 아카이브로 옮겨졌고 현재 실행 대상은 `V1__baseline.sql` + `V2`~`V13`(13개 파일)뿐이다. 근거: `V1__baseline.sql`(`backend/src/main/resources/db/migration/`).
 
 ## 18.1 기본 정보
 
@@ -9,11 +11,26 @@
 |------|------|
 | DBMS | **PostgreSQL** |
 | 스키마 | `klid_at` |
-| 마이그레이션 | **Flyway** — 2026-08-13 스쿼시로 누적 180개를 `V1__baseline.sql` 로 접었다. 현재 `V1`~`V9`이며 **신규는 `V10`부터**. 형상: 저작도구 소유 `LS_*` **57개** + 데이터마트 뷰 4 + Quartz `QRTZ_*` 11 |
+| 마이그레이션 | **Flyway** — 2026-08-13 스쿼시로 누적 180개(V0~V185, 결번 존재)를 `V1__baseline.sql` 로 접었다. **현재 `V1`~`V13`이며 신규는 `V14`부터**(2026-08-19 실측 — 구 "V1~V9·신규는 V10부터" 서술은 V10~V13 추가로 낡았다). 형상: 저작도구 소유 `LS_*` **57개** + 데이터마트 뷰 4 + Quartz `QRTZ_*` 11 |
 | 소유 정책 | 저작도구 **LS_*** 자체 소유(자체 Flyway), 관제 **MNG_*** **0개**(2026-08-04 전량 제거 — 18.4), Quartz `QRTZ_*` |
 | DDL | PostgreSQL 표준 문법 (MariaDB 문법 금지), `ddl-auto=validate` 고정 |
 
 > **MNG_* 공유 테이블 변경 시 관제서버팀 선승인 필수.** 엔티티 수정 시 Flyway 마이그레이션 동반.
+
+> ⚠ **한글 서술 안의 버전번호 두 갈래 — 혼동 주의.** 이 문서 곳곳의 테이블·컬럼 설명에 붙은 `(V2)`·`(V13)`·`(V56)`·`(V90·V91)` 같은 표기는 **2026-08-13 스쿼시 이전(구 V0~V185 체계)의 이력 표기**이며, 그 파일들은 지금 `V1__baseline.sql` 안에 전부 접혀 들어가 있다(원문은 `backend/src/test/resources/db-archive/migration/` 에 180개 보존, Flyway 가 읽지 않는 경로라 미실행). 반면 §18.3.3~18.3.6 및 아래 「신규 마이그레이션(V10~V13)」 절처럼 **날짜(2026-08-1x)를 동반한 `V5`~`V13` 서술은 스쿼시 이후 실제로 실행되는 새 파일**을 가리킨다. 같은 숫자(예 `V11`·`V12`·`V13`)가 옛 체계와 새 체계에 각각 다른 의미로 등장하므로, **날짜가 붙어 있으면 신규, 없으면 스쿼시 이전 이력**으로 읽는다.
+
+### 신규 마이그레이션 (V10~V13, 스쿼시 이후 · 2026-08-19 실측)
+
+§18.3.3~18.3.6 이 이미 다룬 V5·V7·V8·V9 에 이어, 다음 4개가 뒤따라 추가됐다(각 대상 테이블 행에도 교차 표기):
+
+| 버전 | 파일명 | 요지 |
+|---|---|---|
+| V10 | `V10__add_ls_issue_comment_issue_fk.sql` | `LS_ISSUE_COMMENT.DATA_ISSUE_SN` → `LS_DATA_ISSUE.DATA_ISSUE_SN` FK 신설(`ON DELETE RESTRICT`). 설계(ERD-023)엔 있었으나 구현에 빠져 있던 참조 무결성 — 부모 이슈가 CASCADE 로 사라져도 댓글이 고아로 남던 것을 막는다. 적용 전 기존 고아 댓글을 먼저 삭제(NOTICE 로 건수만 기록, 본문은 미기록) |
+| V11 | `V11__seed_portal_retention_config.sql` | 포털 보존기간 설정 3키 시드(`LS_SYSTEM_CONFIG`, `ON CONFLICT DO NOTHING`) — `portal.datamart.retention-days`(7일)·`portal.upload.retention-days`(7일)·`portal.upload.failed-retention-days`(1일). 이 값을 읽는 삭제 배치는 폴백하지 않으므로(파괴적 기능 fail-open 금지) 시드가 없으면 배치가 죽은 채 배포된다 → [16 포털](16-portal.md) |
+| V12 | `V12__add_ls_acnt_user_last_lgn_dt.sql` | `LS_ACNT_USER.LAST_LGN_DT` 신설 — §18.4 하단 「최종로그인일시 신설」에 상세 |
+| V13 | `V13__drop_yolo_imgsz_config.sql` | `LS_SYSTEM_CONFIG` 의 `YOLO_IMGSZ`(추론 입력 해상도) 설정 키 폐기 — 조정해도 ai-server 추론에 반영되지 않던 죽은 설정면. 화이트리스트에서 먼저 뺐고 이 마이그레이션은 남은 시드 행을 지운다 → [10 라벨링](10-labeling.md) §관제 이벤트 타입 인접 「AI 탐지 추론 파라미터」 |
+
+> `LS_ISSUE_COMMENT` 는 §18.2 표에 별도 행이 없던 기존 갭(V10 이전부터, 이 정합 라운드에서 §18.2 「작업·상태·운영」에 행을 신설해 메웠다)이었다. 존재는 §18.3.1 FK 표(line "일반 자식")와 gov-first rename 문단(`ISSUE_COMMENT_SN→CMNT_SN`)에서도 확인된다.
 
 ## 18.2 LS_* 핵심 테이블 (저작도구 소유)
 
@@ -96,13 +113,15 @@
 | `LS_NOTICE` / `LS_NOTICE_ATTACH` (V56) | 게시판 공지(DRAFT/PUBLISHED, UPEND_FIX_YN) / 첨부(UUID 저장명, FK cascade) — R1 외 추가 | [20](20-notice-board.md) |
 | `LS_TUS_UPLOAD` (V59, 표준용어 rename V88·V90) | TUS 1.0 재개 가능 업로드 세션 — `ULD_ID`(UUID PK)/`USER_NO`(소유자)/`ULD_LEN`/`ULD_OFFSET`(예약어 OFFSET 회피)/`STTS_CD`(IN_PROGRESS·COMPLETED·EXPIRED)/`FILE_PATH`(UUID 저장명 강제)/메타(`VMS_CLIP_ID`·`CCTV_ID`·…)/`EXPRY_DT`(+24h TTL, 공공 만료일시)/`VER`(낙관적 잠금). 완료 시 `LS_DATA_RAW` 합류. 인덱스 `IDX_LTU_USER_STATUS`(동시 세션 상한)·`IDX_LTU_EXPIRES`(만료 정리 잡) | [05](05-video-management.md) |
 | `LS_DATA_ISSUE` (V5) | 품질 이슈 | — |
+| `LS_ISSUE_COMMENT`(엔티티 `LsIssueComment`, 이 문서 §18.2 목록에 신규 반영·2026-08-19) | 품질 이슈 댓글. `DATA_ISSUE_SN`→`LS_DATA_ISSUE.DATA_ISSUE_SN` FK(`ON DELETE RESTRICT`, **V10 신설** — 위 「신규 마이그레이션(V10~V13)」 참조). 컬럼은 gov-first rename(`ISSUE_COMMENT_SN→CMNT_SN`)에서 이미 다뤄졌으나 테이블 자체가 §18.2 목록에서 빠져 있었다 | — |
 | ~~`LS_DEADLINE`~~ · ~~`LS_META`~~ · ~~`LS_RAW_DATA_ENROLLMENT`~~ (V36) | **폐기(V3 DROP, 2026-08-13)** — 아래 참조 | — |
 | ~~`LS_COM_CD`~~ · ~~`LS_DATA_META_HSTRY`~~ · ~~`LS_DATA_RAW_HSTRY`~~ · ~~`LS_TASK_ASSIGN_HISTORY`~~ | **폐기(V4 DROP, 2026-08-13)** — 아래 참조 | — |
 | ~~`LS_DATA_LBL_AI_INFO`~~ | **폐기(V6, 2026-08-13)** — 삭제가 아니라 `LS_DATA_LBL` 로 **흡수**됐다(`LBL_SRC_CD`·`MDL_NM`·`MDL_VER`·`CONF_SCORE`·`AUTO_LBL_YN` 5컬럼 이관). 아래 참조 | [10](10-labeling.md)·[11](11-ai-assisted.md) |
 
 > 구 `LS_DATA_SET` (V8, 학습데이터셋 Export용)은 **범위 외 orphan 테이블로 판정되어 삭제**됨(V86) — 엔티티·활성쿼리·View·FK 참조 0건 검증. ⚠ **삭제 결론은 유효하나 근거 서술은 폐기(2026-08-15)** — *"학습데이터셋 Export는 범위 외(관제/데이터마트 책임)"* 는 **뒤집힌 전제**다. **export(NIA JSON) 산출은 저작도구 범위 안**이며(`ADR-005` → **`ADR-020`** 이 대체), 범위 밖인 것은 **데이터마트 구축·검색·다운로드**다. 이 테이블이 삭제된 실제 사유는 **1차 데이터셋 테이블 기반 내보내기가 폐기**되고 산출이 **검수 승인 경로의 폴더 export** 로 바뀌었기 때문이다.
 
-> 구 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` (V36, 1차 스키마 `LS_PJT_DDLN`·`LS_PJT_META`·`LS_PJT_DATA_MPNG` 의 개명 복제본)는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V3__drop_unused_tables.sql` DROP). 검증: 리포지토리 0건 · `backend/src`(main+test) 전체에서 엔티티명이 **자기 클래스 선언 1줄뿐** · 네이티브/JPQL·화면·배포 스크립트 0건 · **이들을 참조하는 FK 0건**(`LS_RAW_DATA_ENROLLMENT`→`LS_DATA_RAW` 자식 방향 FK 하나뿐이었다) · dev 실측 행수 0/0/0. 엔티티 클래스 3종과 `kr.co.cudo.authoring.project` 패키지도 함께 제거. **V3 는 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다**(fail-closed — 전제가 깨졌다는 신호). 원문은 `backend/src/test/resources/db-archive/migration/` 의 V36(생성)·V37(이관)·V60·V85 에 보존. 감리 산출물 정합은 **현 정본인 `docs/design/`(D8·D9·R3)에 반영 완료**(2026-08-13). ⚠ `docs/archive/design-full/` 은 2026-08-06 전량 재생성으로 대체된 **구판**이라 대상이 아니다 — 이미 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`(7월 삭제분)을 들고 있고 `LS_DATA_INGEST`·`LS_EVNT_ANNO`·`LS_PORTAL_*` 를 모르며 hwpx 변환 대상도 아니다. ⚠ `docs/design/` 은 LogiCraft 그래프에서 생성되는 산출물이므로 **대응 ITEM 을 갱신하지 않으면 다음 재생성 때 되살아난다**.
+> 구 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` (V36, 1차 스키마 `LS_PJT_DDLN`·`LS_PJT_META`·`LS_PJT_DATA_MPNG` 의 개명 복제본)는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V3__drop_unused_tables.sql` DROP). 검증: 리포지토리 0건 · `backend/src`(main+test) 전체에서 엔티티명이 **자기 클래스 선언 1줄뿐** · 네이티브/JPQL·화면·배포 스크립트 0건 · **이들을 참조하는 FK 0건**(`LS_RAW_DATA_ENROLLMENT`→`LS_DATA_RAW` 자식 방향 FK 하나뿐이었다) · dev 실측 행수 0/0/0. 엔티티 클래스 3종과 `kr.co.cudo.authoring.project` 패키지도 함께 제거. **V3 는 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다**(fail-closed — 전제가 깨졌다는 신호). 원문은 `backend/src/test/resources/db-archive/migration/` 의 V36(생성)·V37(이관)·V60·V85 에 보존. 감리 산출물 정합은 2026-08-13 시점 **당시 정본이던 `docs/design/`(D8·D9·R3)에 반영 완료**됐다. ⚠ `docs/archive/design-full/` 은 2026-08-06 전량 재생성으로 대체된 **구판**이라 대상이 아니다 — 이미 `LS_RESOLUTION_EXPORT`·`LS_RESOLUTION_LBL_MAP`(7월 삭제분)을 들고 있고 `LS_DATA_INGEST`·`LS_EVNT_ANNO`·`LS_PORTAL_*` 를 모르며 hwpx 변환 대상도 아니다. ⚠ `docs/design/` 은 LogiCraft 그래프에서 생성되는 산출물이므로 대응 ITEM 을 갱신하지 않으면 다음 재생성 때 되살아난다(당시 기준 서술).
+> ⚠ **구 서술 폐기(2026-08-19 재확인)** — *"현 정본인 `docs/design/`"* 이라는 **현재형** 표현은 더 이상 사실이 아니다. 이틀 뒤인 **2026-08-15에 `docs/design/`이 동결**되어 그 감리 산출물(D8·D9·R3 포함)은 `docs/archive/frozen-20260815/design/`로 이관됐고, 판정 근거로도 쓰지 않는다. 지금 `docs/design/`에는 LogiCraft 구현 키트 디렉터리 14개만 있다. 위 문장은 "2026-08-13 시점에는 참이었다"는 이력 서술로 남기고, 동결 사실은 이 각주로 보충한다. 근거: `docs/archive/frozen-20260815/README.md`.
 
 > 구 `LS_COM_CD`(공통코드 마스터, V2 에서 `CM_CODE` 를 개명)·`LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY` 는 **사용처 0 으로 판정되어 삭제**됨(2026-08-13, `V1__baseline.sql` 정의 제거 + `V4__drop_unused_tables_round2.sql` DROP). `LS_COM_CD` 는 런타임 조회 없이 시드 5행만 있던 코드 마스터이고, 이력 3종은 **쓰기만 있고 읽는 경로가 없었다** — 특히 재배정은 `LS_TASK_ASSIGN_HISTORY` 와 `LS_TASK_EVNT_LOG` 에 같은 사실을 이중 기록했는데 조회 API(`GET /v1/assignments/{id}/history`)는 **이벤트 로그만** 읽었다. 따라서 적재처가 한 곳으로 좁혀졌을 뿐 **불변식·조회 경로·응답 스키마는 그대로**다. V4 도 V3 과 같이 행이 1건이라도 있으면 DROP 하지 않고 기동을 멈춘다(fail-closed).
 
@@ -319,4 +338,4 @@
 
 `QRTZ_*` (JobStore, PostgreSQLDelegate, BYTEA) — 배치 스케줄 상태. → [07](07-batch-pipeline.md).
 
-> 상세 컬럼·ERD는 D8/D9 참고 → [19 설계 문서 카탈로그](19-external-security-cvat.md#설계-문서-카탈로그).
+> 상세 컬럼·ERD는 D8/D9 참고 → [19 설계 문서 카탈로그](19-external-security-cvat.md#194-설계-문서-카탈로그).
