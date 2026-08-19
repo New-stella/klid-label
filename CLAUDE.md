@@ -708,11 +708,12 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
 > 활성 14 도메인 전량 · last sync **2026-08-16 (s1, INITIAL)** · 전건 무열화 검증 통과.
+> ⚠ **DOMAIN-003 만 2026-08-19 (s2, SYNC) 로 앞서 있다** — 시계열 위탁 토글 폐지·일괄 스킵 설계 4건 신규 + 계약 1건 변경 반영(`IMPLEMENTATION.md` 최상단 변경 알림 참조). **코드 미반영.**
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 53 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 99 | implemented 48 / planned 35 / (미기재) 16 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 110 | implemented 50 / planned 36 / (미기재) 24 | CONST 상수값 |
 | DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 73 | implemented 35 / planned 23 / (미기재) 15 | ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
 | DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 92 | implemented 45 / planned 28 / (미기재) 19 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 39 | implemented 12 / in_progress 1 / planned 17 / (미기재) 9 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |

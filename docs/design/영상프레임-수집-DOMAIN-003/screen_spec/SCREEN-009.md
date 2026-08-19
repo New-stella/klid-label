@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 44
+version: 46
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:51.322Z
-status: NEW
-prev_version: null
-content_hash: 19829ab52d3c4b86e4c78978f1057fc2e03139a13ad2d103d7b1cc5536564a7b
+synced_at: 2026-08-19T13:52:30.200Z
+status: CHANGED
+prev_version: 44
+content_hash: ef3bf73bbb9d846eb775b952512d7889dbdc7653b134c9e7f60680a68bcb612e
 stale: true
 raw: ./_raw/SCREEN-009.json
 links:
@@ -106,7 +106,7 @@ _(empty)_
 #### [4]
 
 - **type**: Badge
-- **label**: 이벤트 유형 배지(EventTypeBadge)
+- **label**: 이벤트 유형 배지
 
 **columns**:
 
@@ -121,7 +121,7 @@ _(empty)_
 #### [5]
 
 - **type**: Badge
-- **label**: 상태 배지(StatusBadge)
+- **label**: 상태 배지
 
 **columns**:
 
@@ -532,8 +532,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: e20d5f7468987faa4584951a9371fd3dcc351263872299fdd1e34531a55b3932
-- **generated_at**: 2026-08-13T02:39:33.159Z
+- **source_hash**: fdbd61f698ca622cdeba32a2547db500fc11b223af4506b29a471bde9e99e4d8
+- **generated_at**: 2026-08-18T03:19:10.298Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

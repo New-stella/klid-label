@@ -28,6 +28,34 @@
 | 폴링 적재 | 인입 테이블의 미처리 행을 주기적으로 원자 클레임해 LS_DATA_RAW 로 옮기는 배치. 2노드 동시 적재를 조건부 UPDATE 로 막는다 |
 | 자동 분류 | 이벤트 유형·위치 등 인입 메타 기반 분류. 촬영환경(날씨·시간대·계절)은 자동 파생이 아니라 수동 입력이다 |
 
+## ⚠ 이번 동기화 변경 알림 (2026-08-19) — 코드 재반영 필요
+
+**신규 설계 4건 — 아직 코드가 없다.**
+
+| ITEM | 내용 |
+|---|---|
+| [[ADR-049]] | 외부 시계열 위탁의 비활성 토글을 폐지하고 사람이 결정하는 단계 스킵으로 대체한다 |
+| [[API-212]] | 일괄 스킵 — `POST /v1/videos/batch/stages/{stage}/skip` |
+| [[API-213]] | 일괄 해제 — `DELETE /v1/videos/batch/stages/{stage}/skip` |
+| [[API-214]] | 일괄 재수행 — `POST /v1/videos/batch/stages/{stage}/rerun` |
+
+일괄 3형제의 `stage` 는 **시계열 묶음만** 받는다(오토라벨은 단건 경로에만 남는다).
+계약은 기존 일괄 재처리와 같다 — 상한 100 · 중복 1건 취급 · 순서 보존 · 건별 사유 부분 성공.
+
+**계약이 바뀐 것 1건**
+
+| ITEM | 무엇이 바뀌었나 |
+|---|---|
+| [[API-201]] | 승인 이력 영상의 재수행 거부를 **오토라벨 묶음 한정**으로 좁히고, **시계열 묶음은 승인 이력이 있어도 받는다**는 예외를 명시. 들어온 서술은 승인 완료 영상의 서술 갱신 시 재검수를 강제하는 규칙이 받는다 |
+
+⚠ **구현 시 주의 — 「먼저 스킵」이 운영 지침이다.** 토글이 폐지되어 미연동이면 위탁이 실패하는데,
+마킹 상태 전이는 위탁 대기 상태에서만 일어나므로 실패로 종결되면 이후 재수행해도 마킹 표시가
+실패로 남는다(시계열 적재·검수 진입·산출물 재생성은 정상 동작한다). 벤더 미연동 구간에는
+반드시 먼저 스킵해야 한다.
+
+그 밖 변경: [[ADR-042]] [[EVT-005]] [[ERD-012]] [[NFR-018]] [[SCREEN-005]] [[SCREEN-006]]
+[[SCREEN-009]] [[SCREEN-022]] [[SCREEN-038]] [[UC-018]] — 이번 작업 축과는 별개다.
+
 ## 빌드 순서 (제약 → 데이터 → 계약 → 로직 → 화면 → 검증)
 
 | # | 단계 | 이번 키트 ITEM |
@@ -55,9 +83,9 @@
 
 | status | 건수 |
 |---|---|
-| implemented | 48 |
-| planned | 35 |
-| (미기재) | 16 |
+| implemented | 50 |
+| planned | 36 |
+| (미기재) | 24 |
 
 | ITEM | type | status | progress |
 |---|---|---|---|
@@ -149,7 +177,7 @@
 
 ## ITEM 인덱스
 
-### adr (8)
+### adr (9)
 - [[ADR-001]] — 작업 단위를 프로젝트에서 영상 1건(RAW_SN)으로 전환
 - [[ADR-003]] — ADMIN 역할 폐기 — 관리 권한 REVIEWER 통합
 - [[ADR-004]] — 생성형 AI 본체 외부화 — 저작도구는 증강 결과 검수만
@@ -158,6 +186,7 @@
 - [[ADR-018]] — 해상도 변경(SFR-06-03)을 증강 파생영상 모델(LS_DATA_AUG/RESL_*)로 통합
 - [[ADR-032]] — 촬영환경·개인정보 메타 수동입력 신설(+self-fill 자동파생 폐기)
 - [[ADR-042]] — 관제 데이터 참조 전면 제거 — MNG_* 9종 삭제 + LS_DATA_INGEST 평면 수신
+- [[ADR-049]] — 외부 시계열 위탁의 비활성 토글을 폐지하고 사람이 결정하는 단계 스킵으로 대체한다
 
 ### nfr (14)
 - [[NFR-008]] — 학습데이터 단계별 품질관리 기준 (수집·제작·검수)
@@ -184,7 +213,7 @@
 - [[EVT-002]] — BatchQueued
 - [[EVT-005]] — VideoIngested
 
-### api_endpoint (38)
+### api_endpoint (41)
 - [[API-021]] — GET /v1/frames/{srcSn}/image
 - [[API-042]] — GET /v1/videos
 - [[API-043]] — GET /v1/videos/{rawSn}
@@ -223,6 +252,9 @@
 - [[API-199]] — POST /v1/videos/batch/retry
 - [[API-200]] — DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip
 - [[API-201]] — POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun
+- [[API-212]] — POST /v1/videos/batch/stages/{stage}/skip
+- [[API-213]] — DELETE /v1/videos/batch/stages/{stage}/skip
+- [[API-214]] — POST /v1/videos/batch/stages/{stage}/rerun
 
 ### domain_feature (7)
 - [[DFEAT-007]] — 영상/이미지 관리
@@ -277,3 +309,18 @@
 - [[SD-004]] — SCREEN-009 영상 상세 화면
 - [[SD-013]] — SCREEN-008 영상 처리 현황 화면
 - [[SD-023]] — SCREEN-038 이벤트유형 관리 화면
+
+### legacy_artifact (7)
+- [[LEGACY-003]] — [module] 저작도구 BATCH (PF-003)
+- [[LEGACY-005]] — [module] 영상분할 (PF-005)
+- [[LEGACY-021]] — [table] LS_DATA_RAW
+- [[LEGACY-043]] — [api] 비디오 추출 요청 (VIDEO-PROC)
+- [[LEGACY-044]] — [api] 비디오 추출 상태 응답 (VIDEO-PROC)
+- [[LEGACY-046]] — [api] 오토라벨링 - 탐지 객체들 (AUTO-LABEL)
+- [[LEGACY-119]] — [screen] SKKLID-UI-03-03-01 영상/이미지 관리 - 리스트
+
+### diagram_state (1)
+- [[STATE-002]] — 영상 배치 단계 상태 전이 (LS_DATA_RAW.DATA_STTS_CD)
+
+### domain (1)
+- [[DOMAIN-003]] — 영상·프레임 수집
