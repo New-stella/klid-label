@@ -1,0 +1,7 @@
+# [임시/E2E] 키포인트 브라우저 검증용 override — 커밋 대상 아님
+#   seed-image-gen: 시드 프레임 placeholder 이미지 생성(라벨 가능 프레임 확보)
+#   (키포인트 라벨링 E2E는 시드 프레임을 직접 라벨링, 비식별 불요).
+services:
+  klid-backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: "local,seed-image-gen"

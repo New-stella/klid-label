@@ -42,7 +42,7 @@ PYTHON_BIN=python3.11 ./scripts/package.sh
 | 1 | `package/10-build-backend.sh` | `./gradlew bootJar` → `artifacts/backend/klid-backend.jar` |
 | 2 | `package/20-build-frontend.sh` | `npm ci && npm run build` → `artifacts/frontend/dist` (VITE_* 빌드 주입) |
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
-| 4 | `package/40-collect-runtimes.sh` | Temurin JRE17 / CPython 3.11 standalone / Caddy (tar.gz) |
+| 4 | `package/40-collect-runtimes.sh` | Temurin JRE17 / CPython 3.11 standalone (tar.gz). 웹 서버는 `50-collect-syspkgs.sh` 가 httpd RPM 으로 수집 |
 | 5 | `package/50-collect-syspkgs.sh` | **ffmpeg 정적 tarball**(`syspkgs/ffmpeg/`) + **Rocky 9 RPM**(`mesa-libGL`/`libglvnd-glx`/`glib2` → `syspkgs/rpm/`) |
 | 5.5 | `package/55-collect-postgresql.sh` | **(옵션·기본 ON)** PGDG **PostgreSQL 16 RPM**(postgresql16-server 등 +전이 의존 → `syspkgs/postgresql/`). `SKIP_POSTGRES=1` 로 생략. dnf 없으면 graceful SKIP |
 | 6 | `package/60-collect-buildtools.sh` | **오프라인 빌드 키트**: JDK17 full + Node20 + Gradle 8.8 + **populated gradle-home** + **frontend node_modules** + `src/` 소스 (소스 재빌드용) |
@@ -145,19 +145,19 @@ docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -
 |--------|------|:--------:|-------------|
 | backend jar | `artifacts/backend/` | 무관 | mac/Linux 어디서나(JDK17) |
 | frontend dist | `artifacts/frontend/dist/` | 무관 | mac/Linux 어디서나(Node20) |
-| 런타임 JRE/Python/Caddy | `runtimes/` | 무관(linux tarball) | mac/Linux 어디서나(curl) |
+| 런타임 JRE/Python | `runtimes/` | 무관(linux tarball) | mac/Linux 어디서나(curl) |
 | **ffmpeg 정적** | `syspkgs/ffmpeg/` | **무관(정적)** | mac/Linux 어디서나(curl) |
 | sam2 소스 / yolox 가중치 | `vendor/sam2/`, `models/weights/` | 무관 | mac/Linux 어디서나(git/curl) |
 | **pip wheel(torch CPU 등)** | `vendor/wheels/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신** |
 | **시스템 RPM(mesa-libGL 등)** | `syspkgs/rpm/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신**(`dnf download`) |
 | **PostgreSQL 16 RPM(옵션)** | `syspkgs/postgresql/` | **Rocky 9 정합** | **rockylinux:9 컨테이너/머신**(PGDG repo + `dnf download`). 타깃에 PG 있으면 `SKIP_POSTGRES=1` |
 
-> **런타임/ffmpeg 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh`(JRE/Python/Caddy)와
+> **런타임/ffmpeg 공식 체크섬 검증(fail-closed)**: `40-collect-runtimes.sh`(JRE/Python)와
 > `50-collect-syspkgs.sh`(ffmpeg 정적)는 tarball 을 받은 직후 `scripts/lib/versions.sh` 의 공식
 > 체크섬과 대조한다(불일치 시 즉시 중단). 설치 단계 `11-install-runtimes.sh` 도 압축 해제 직전
 > 동일 검증을 한 번 더 수행한다. 이는 디렉토리 단위 `SHA256SUMS`(전송 무결성)와 별개의
 > **출처(공급망) 무결성** 검증이다.
-> Caddy 는 공식 SHA256 을 발행하지 않으므로(SHA-512 만 제공) tar.gz 는 `CADDY_SHA512` 로 검증한다.
+> 웹 서버(httpd)는 배포판 RPM 이라 이 검증 대상이 아니다(2026-08-19 Caddy 폐기).
 > ffmpeg 정적은 BtbN 의 dated autobuild 태그(불변 자산)의 `checksums.sha256` 값으로 검증한다.
 
 ## ★ 복사 대상 파일/라이브러리 명세표
@@ -197,7 +197,7 @@ docker run --rm -v "$PWD/../..:/work" -w /work/deploy/onprem rockylinux:9 bash -
 |------|-------------|-----------|:---------:|
 | Temurin JRE 17 (17.0.19+10) | adoptium (versions.sh URL) | `runtimes/jdk/*.tar.gz` | ~45MB |
 | CPython 3.11 standalone (3.11.15) | python-build-standalone (태그 20260623) | `runtimes/python/*.tar.gz` | ~30MB |
-| Caddy (2.11.4) | caddyserver releases | `runtimes/caddy/*.tar.gz` | ~30MB |
+| httpd | 배포판 저장소(RPM) | `syspkgs/rpm/httpd*.rpm` | ~2MB(+의존성) |
 | **ffmpeg 정적 (n7.1.5)** | BtbN FFmpeg-Builds (versions.sh URL) | `syspkgs/ffmpeg/*.tar.xz` | ~40MB |
 | **RPM: mesa-libGL/libglvnd-glx/glib2** | `dnf download`(Rocky 9) | `syspkgs/rpm/*.rpm` | 수~수십 MB |
 | **(옵션) PostgreSQL 16 RPM** | PGDG repo + `dnf download`(Rocky 9) | `syspkgs/postgresql/*.rpm` | 수십 MB |

@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 판정한다(운영은 서버가 1100MB 에서 자기 형식의 413 을 낸다).
  *
  * <h3>두 형상을 <b>함께</b> 고정한다</h3>
- * <p>온프렘 웹 계층은 기본(Caddy)과 대안(기존 nginx 보유 서버) <b>두 형상</b>으로 배포된다. 한쪽만
+ * <p>온프렘 웹 계층은 기본(httpd)과 대안(기존 nginx 보유 서버) <b>두 형상</b>으로 배포된다. 한쪽만
  * 고치면 다른 배포에서 같은 결함이 그대로 남으므로 두 파일을 모두 검사한다.
  */
 class EdgeRequestSizeAlignmentGuardTest {
@@ -50,15 +50,15 @@ class EdgeRequestSizeAlignmentGuardTest {
 
     private static final Path NGINX_TEMPLATE =
             Paths.get("../deploy/onprem/config/frontend/nginx.conf.template");
-    private static final Path CADDY_TEMPLATE =
-            Paths.get("../deploy/onprem/config/frontend/Caddyfile.template");
+    private static final Path HTTPD_TEMPLATE =
+            Paths.get("../deploy/onprem/config/frontend/httpd-klid.conf.template");
 
     /** {@code client_max_body_size 1200m;} */
     private static final Pattern NGINX_LIMIT =
             Pattern.compile("(?m)^\\s*client_max_body_size\\s+([0-9]+[kKmMgG]?)\\s*;");
-    /** Caddy {@code request_body { max_size 1200MB }} */
-    private static final Pattern CADDY_LIMIT =
-            Pattern.compile("(?m)^\\s*max_size\\s+([0-9]+[kKmMgG]?[bB]?)\\s*$");
+    /** httpd {@code LimitRequestBody 1258291200} — 바이트 단위(접미사 없음). */
+    private static final Pattern HTTPD_LIMIT =
+            Pattern.compile("(?m)^\\s*LimitRequestBody\\s+([0-9]+[kKmMgG]?[bB]?)\\s*$");
 
     @Test
     @DisplayName("nginx_대안_형상의_본문_상한이_서버_상한_이상이다")
@@ -67,9 +67,9 @@ class EdgeRequestSizeAlignmentGuardTest {
     }
 
     @Test
-    @DisplayName("Caddy_기본_형상의_본문_상한이_서버_상한_이상이다")
-    void caddyEdgeIsNotTighterThanServer() {
-        assertEdgeCoversServer("Caddyfile.template", edgeLimit(CADDY_TEMPLATE, CADDY_LIMIT));
+    @DisplayName("httpd_기본_형상의_본문_상한이_서버_상한_이상이다")
+    void httpdEdgeIsNotTighterThanServer() {
+        assertEdgeCoversServer("httpd-klid.conf.template", edgeLimit(HTTPD_TEMPLATE, HTTPD_LIMIT));
     }
 
     @Test
@@ -78,7 +78,7 @@ class EdgeRequestSizeAlignmentGuardTest {
         // 한쪽만 고치면 "어느 서버에 배포됐느냐"에 따라 같은 업로드가 되기도 하고 안 되기도 한다.
         assertThat(edgeLimit(NGINX_TEMPLATE, NGINX_LIMIT))
                 .as("두 배포 형상의 상한이 갈리면 재현되지 않는 업로드 실패가 된다")
-                .isEqualTo(edgeLimit(CADDY_TEMPLATE, CADDY_LIMIT));
+                .isEqualTo(edgeLimit(HTTPD_TEMPLATE, HTTPD_LIMIT));
     }
 
     @Test
@@ -126,7 +126,7 @@ class EdgeRequestSizeAlignmentGuardTest {
         return raw == null ? null : DataSize.parse(String.valueOf(raw).trim().toUpperCase(Locale.ROOT));
     }
 
-    /** 프록시 표기(`1200m` / `1200MB`)를 바이트로 읽는다 — 두 문법의 단위 표기가 다르다. */
+    /** 프록시 표기(`1200m` / `1258291200`)를 바이트로 읽는다 — 두 문법의 단위 표기가 다르다. */
     private static DataSize edgeLimit(Path template, Pattern pattern) {
         String content = read(template);
         Matcher matcher = pattern.matcher(content);
@@ -134,7 +134,7 @@ class EdgeRequestSizeAlignmentGuardTest {
                 .as("%s 에서 본문 크기 상한을 찾지 못했다 — 설정이 사라졌거나 문법이 바뀌었다", template)
                 .isTrue();
         String token = matcher.group(1).toUpperCase(Locale.ROOT);
-        // nginx 는 `512m`, Caddy 는 `512MB` — DataSize 는 `B` 로 끝나는 표기만 읽으므로 nginx 쪽에 붙여 준다.
+        // nginx 는 `512m`, httpd 는 바이트 정수 — DataSize 는 `B` 로 끝나는 표기만 읽으므로 붙여 준다.
         if (!token.endsWith("B")) {
             token = token + "B";
         }

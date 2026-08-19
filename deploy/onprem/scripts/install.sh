@@ -12,10 +12,10 @@ set -euo pipefail
 #     sudo SKIP_DB_INIT=1 ./scripts/install.sh    # DB 생성 단계 생략(이미 준비됨)
 #
 #   설치 레이아웃(고정):
-#     /opt/klid/runtime/{jre,python,caddy}   런타임
+#     /opt/klid/runtime/{jre,python}         런타임(웹 서버는 배포판 httpd)
 #     /opt/klid/app                          backend jar
 #     /opt/klid/ai                           ai-server venv + app + 모델
-#     /opt/klid/web                          frontend dist + Caddyfile
+#     /opt/klid/web/dist                     frontend 정적 자산(httpd 문서 루트)
 #     /etc/klid/*.env                        환경설정(chmod 600)
 #     /nas-storage/...                       영상·프레임 저장(NAS 마운트, STORAGE_RAW_PATH)
 #     /var/lib/klid                          런타임 데이터(저장소 외)
@@ -100,7 +100,7 @@ done
 
 # ---- 패키지 무결성 검증(선택, SHA256SUMS 존재 시) ----
 for d in artifacts/backend artifacts/frontend/dist vendor/wheels models/weights \
-         runtimes/jdk runtimes/python runtimes/caddy syspkgs/rpm syspkgs/ffmpeg \
+         runtimes/jdk runtimes/python syspkgs/rpm syspkgs/ffmpeg \
          syspkgs/postgresql; do
   # SHA256SUMS 가 없으면 검증 생략, 있으면 sha256_verify 가 불일치 시 die —
   # 손상 파일이 조용히 설치되지 않도록 || true 는 두지 않는다.

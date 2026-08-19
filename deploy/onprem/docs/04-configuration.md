@@ -270,8 +270,9 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 
 ## F. 프록시 설정
 
-- 기본: `config/frontend/Caddyfile.template` → 설치 시 `/opt/klid/web/Caddyfile`. `:80` SPA + `/api/*`→127.0.0.1:8080.
-  폐쇄망이라 Caddy 자동 HTTPS 는 끔(`auto_https off`). 외부 노출 시 사내 TLS 종단을 앞단에.
+- 기본: `config/frontend/httpd-klid.conf.template` → 설치 시 `/etc/httpd/conf.d/klid-frontend.conf`. `:80` SPA + `/api/*`→127.0.0.1:8080(`BACKEND_ORIGIN` 으로 변경).
+  폐쇄망이라 TLS 는 걸지 않는다. 외부 노출 시 사내 TLS 종단을 앞단에.
+  ★ 프록시 응답 버퍼링을 끈다(`flushpackets=on`) — 기본값이면 스트리밍 응답이 클라이언트에 아무것도 가지 않다가 끊긴다.
 - 대안: `USE_NGINX=1` 설치 시 `config/frontend/nginx.conf.template`(proxy_pass 127.0.0.1:8080) 배치.
 
 ---

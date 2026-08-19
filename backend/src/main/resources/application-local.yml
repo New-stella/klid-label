@@ -78,11 +78,9 @@ authoring:
   meta-replication:
     enabled: false
   # local 비식별 — 기본 mock 모드. KPST 미호출, 원본을 비식별 경로로 복사하는 mock 비식별로 자족 동작한다.
-  #   실 KPST 연동이 필요하면 DEIDENTIFY_MOCK_MODE=false 로 전환(KPST API 연동 테스트 서버에 실제 위탁).
-  #   mock-mode=true 는 prd(운영) 만 차단(DeidentifyStep 게이팅) — local/dev/stg 는 허용, prd 에서 true 면 부트 거부.
+  #   ★자체 채움(mock) 비식별 경로는 폐지됐다(2026-08-19) — 로컬도 목 서버(mock-server)로 실제 위탁한다.
   integration:
     deidentify:
-      mock-mode: ${DEIDENTIFY_MOCK_MODE:true}
   # D-48 — 로컬은 관제 통지를 **켜고 목 서버(:9400)로 실제 HTTP 왕복**한다.
   #   내부 목모드로 외부 호출을 우회하지 않는다(구속 규칙) — mock-server 의
   #   POST /api/data-set/v2/jobs/{job_id}/notify-completed|notify-updated 가 관제 계약을 흉내내며
@@ -123,8 +121,6 @@ authoring:
 #   - 도커 로컬(`-f docker-compose.yml -f docker-compose.local.yml`): compose 가 klid-mock-server 를 주입.
 #   - 네이티브(bootRun): mock-server 를 호스트에서 직접 띄우고 KPST_DEID_BASE_URL=http://localhost:9400 주입.
 #   계정은 application.yml 기본값(creator-id/req-user-id=authoring) 사용. http 평문이라 ca-cert 불요.
-#   ※ 위 mock-mode 기본값(true)은 네이티브 오프라인 자족용이며, 도커 로컬은 compose 가 false 로
-#     내려 mock-server 실 HTTP 경로를 쓴다(내부 self-fill 미사용).
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}

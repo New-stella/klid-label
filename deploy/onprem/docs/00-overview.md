@@ -6,7 +6,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 
 ```
             ┌──────────────────── 단일 리눅스 서버 (x86_64, CPU) ────────────────────┐
-   사용자 ──┤  Caddy :80  ──/api/*──►  Spring Boot :8080  ──HTTP──►  FastAPI :9300    │
+   사용자 ──┤  httpd :80  ──/api/*──►  Spring Boot :8080  ──HTTP──►  FastAPI :9300    │
   (브라우저)│  (정적 dist)            (backend, Java17)            (ai-server, Py3.11)│
             │       │                       │                                        │
             │       └─ SPA(dist)            ├─► PostgreSQL :5432 (control + portal)   │
@@ -19,7 +19,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
                               └──────────────────────────────────────────────────────────┘
 ```
 
-- **frontend (Caddy)**: React+Vite 정적 빌드(`dist`)를 80포트로 서빙하고, `/api/*` 를 backend 로 리버스프록시.
+- **frontend (httpd)**: React+Vite 정적 빌드(`dist`)를 80포트로 서빙하고, `/api/*` 를 backend 로 리버스프록시. 관제지원시스템 웹 서버와 동일 사양(Apache httpd)이다.
 - **backend (Spring Boot)**: 인증/DB/오케스트레이션/라벨 CRUD/배치. context-path `/api`, 포트 8080.
   control DB(klid_system) + portal DB 2개 DataSource. Flyway 로 LS_*·MNG_*·QRTZ_* 스키마 자동
   부트스트랩(`CREATE TABLE IF NOT EXISTS`) — 빈 DB 면 관제 스키마 사전 적재 불필요.
@@ -40,7 +40,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 
 | 서비스 | 포트 | 헬스 |
 |--------|:----:|------|
-| frontend(Caddy) | 80 | `GET /` |
+| frontend(httpd) | 80 | `GET /` |
 | backend | 8080 | `GET /api/actuator/health/liveness` |
 | ai-server | 9300 | `GET /health` |
 | PostgreSQL | 5432 | — |
@@ -55,7 +55,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 단�
 | `artifacts/ai-server` | package.sh | `app/` 소스 + `requirements.txt` |
 | `vendor/wheels` | package.sh | 모든 pip 의존성 wheel(torch CPU 포함) |
 | `vendor/sam2/sam2-src` | package.sh | sam2 git 소스(VCS 의존성 오프라인화) |
-| `runtimes/{jdk,python,caddy}` | package.sh | 대상 서버 런타임 바이너리(tar.gz) |
+| `runtimes/{jdk,python}` | package.sh | 대상 서버 런타임 바이너리(tar.gz). 웹 서버는 `syspkgs/rpm` 의 httpd |
 | `models/weights` | package.sh | `yolox_s.onnx` |
 | `models/hf-cache` | package.sh(옵션) | HF 모델 캐시(SAM2 사용 시) |
 | `syspkgs/ffmpeg` | package.sh | ffmpeg/ffprobe 정적 바이너리 tarball(`.tar.xz`) |

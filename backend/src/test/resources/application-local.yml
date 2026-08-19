@@ -116,11 +116,6 @@ authoring:
       #   ⚠ 이 값은 WorkLockSweepBeanConditionTest 와 무관하다 — 그 테스트는 ApplicationContextRunner
       #     기반이라 이 파일을 아예 로드하지 않는다(현재 sweep.enabled=true 를 켜는 유일한 테스트).
       initial-delay-ms: 86400000
-  # UC018 — 테스트 기본은 mock-mode 비식별(외부 KPST 서버 부재 환경 자족). KPST 토글 ON 검증이
-  #   필요한 테스트는 @TestPropertySource(kpst.deid.enabled=true) 로 개별 활성화한다.
-  integration:
-    deidentify:
-      mock-mode: true
   # 외부 증강 위탁 WebClient — mode 기본값(http)이라 테스트 컨텍스트에서도 빈이 생성되며 base-url 이
   #   AugmentUrlPolicy 검증을 통과해야 한다. 본 파일은 main 의 application-local.yml 을 통째로 대체하므로
   #   여기에도 명시한다. 목업 주소(평문 http + loopback)는 완화 플래그가 켜진 local/dev 에서만 통과한다.

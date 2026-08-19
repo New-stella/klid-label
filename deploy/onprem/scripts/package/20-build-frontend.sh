@@ -5,7 +5,7 @@ set -euo pipefail
 #
 #   ★ Vite 는 VITE_* 변수를 "빌드 시점"에 정적 치환한다. 따라서 API base 와
 #     토큰 인입 모드는 여기서 주입해야 한다(대상 서버에서 변경 불가).
-#       VITE_API_BASE_URL : 프론트가 호출할 API base. nginx/Caddy 가 /api 를
+#       VITE_API_BASE_URL : 프론트가 호출할 API base. 웹 서버(httpd)가 /api 를
 #                           backend(127.0.0.1:8080)로 프록시하므로 '/api/v1'.
 #       VITE_TOKEN_INGRESS: 토큰 인계 채널(기본 localStorage).
 #                           'url'/'both'/'all' 은 JWT 를 URL 쿼리에 싣는 채널을 열어

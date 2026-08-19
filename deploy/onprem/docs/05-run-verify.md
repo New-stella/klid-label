@@ -83,7 +83,7 @@ curl -fsS http://127.0.0.1:9300/health
 # backend liveness
 curl -fsS http://127.0.0.1:8080/api/actuator/health/liveness
 
-# frontend (Caddy SPA)
+# frontend (httpd SPA)
 curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1/
 
 # 프록시 경로(프론트 → backend) 점검

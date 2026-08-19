@@ -26,7 +26,7 @@ sudo PURGE=1 ./scripts/uninstall.sh
 
 이 패키지는 단순 파일 배치 방식이라 버전 롤백은 "이전 패키지로 재설치"로 한다.
 
-1. 현재 서비스 중지: `sudo systemctl stop klid-frontend klid-backend klid-ai-server`
+1. 현재 서비스 중지: `sudo systemctl stop httpd klid-backend klid-ai-server`
 2. 이전 버전 `deploy/onprem/` 패키지로 `sudo ./scripts/install.sh` 재실행
    (env 는 보존되므로 그대로 사용, 필요 시 수정).
 3. 기동·검증: 05-run-verify.md.

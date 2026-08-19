@@ -42,10 +42,20 @@ if [[ -f "${ONPREM}/models/weights/yolox_s.onnx" ]]; then
 else
   warn "[ai-server] yolox 가중치 미동봉 — yolox 백엔드는 mock 응답으로 동작(weights_missing)"
 fi
-# HF 캐시(있으면) 복사
+# SAM2 모델 캐시 복사
+#   ★ 없을 때 조용히 넘어가지 않는다. 바로 위 yolox 가중치는 없으면 경고하는데 이쪽만
+#     아무 말이 없어, 모델이 빠진 번들이 <아무 신호 없이> 설치를 통과하고 있었다.
+#     대상 서버는 HF_HUB_OFFLINE=1 이라 내려받지도 못하므로, 여기서 알리지 않으면
+#     SAM2 가 mock 으로 도는 사실을 운영 중에 알 방법이 없다(서버는 정상 기동하고
+#     API 도 200 을 돌려준다).
 if [[ -d "${ONPREM}/models/hf-cache" ]] && [[ -n "$(ls -A "${ONPREM}/models/hf-cache" 2>/dev/null)" ]]; then
   cp -R "${ONPREM}/models/hf-cache/." "${AI_DIR}/.hf-cache/"
-  ok "[ai-server] HF 캐시 배치: ${AI_DIR}/.hf-cache"
+  ok "[ai-server] SAM2 모델 캐시 배치: ${AI_DIR}/.hf-cache"
+else
+  warn "[ai-server] ★SAM2 모델 캐시 미동봉 — SAM2 분할·Track 이 mock 응답으로 동작합니다."
+  warn "  이 서버는 오프라인이라 모델을 내려받지 못합니다. 기동·헬스체크·API 응답은"
+  warn "  모두 정상이라 운영 중에는 드러나지 않습니다."
+  warn "  조치: 빌드머신에서 패키징을 다시 수행해 models/hf-cache 를 채운 뒤 재설치하세요."
 fi
 
 # ---- venv + 오프라인 설치 ----

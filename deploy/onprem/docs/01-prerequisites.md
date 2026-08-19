@@ -5,7 +5,7 @@
 이 패키지는 **Rocky Linux 9**(RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm)를 대상으로 한다.
 시스템 의존성은 **RPM 기반**으로 수집·설치한다.
 
-- 런타임(JRE17/Python standalone/Caddy)·pip wheel(torch manylinux_2_28)은 glibc 2.34 호환이라 그대로 쓴다.
+- 런타임(JRE17/Python standalone)·pip wheel(torch manylinux_2_28)은 glibc 2.34 호환이라 그대로 쓴다.
 - **ffmpeg 는 정적 바이너리**로 번들한다 — Rocky 9 base/AppStream 에 ffmpeg 가 없고
   RPM Fusion/EPEL 미러가 필요해 폐쇄망에서 의존성 지옥에 빠지기 때문(02·03 문서 참고).
 - **libGL(opencv)·glib2** 는 Rocky 9 AppStream 의 `mesa-libGL`/`libglvnd-glx`/`glib2` RPM 으로 제공된다.
@@ -16,7 +16,7 @@
 
 - **pip wheel**: manylinux(glibc 버전 태그) + CPython ABI(cp311) 정합
 - **시스템 RPM**(mesa-libGL 등): Rocky 9(RHEL 9) 정합 → **rockylinux:9 컨테이너/머신에서 수집**
-- **런타임 바이너리**(JRE/Python standalone/Caddy): linux x86_64 빌드(OS 무관 tarball)
+- **런타임 바이너리**(JRE/Python standalone): linux x86_64 빌드(OS 무관 tarball)
 - **ffmpeg 정적 바이너리**: OS 무관(정적 링크) — curl 만 있으면 mac 에서도 수집 가능
 
 따라서 **wheel·RPM 수집 단계는 Rocky Linux 9 (x86_64, glibc 2.34) 환경 + 인터넷**에서 수행해야 한다.
@@ -24,6 +24,14 @@
 (jar/FE dist/런타임/ffmpeg 등 OS 무관 산출물은 mac 등 다른 빌드머신에서 만들어도 된다 — 02 문서 구분표 참고.)
 
 ## 빌드머신 요구사항 (인터넷 필요)
+
+> ★ **SAM2 모델을 반드시 함께 수집해야 한다** — 빌드머신에 `huggingface_hub` 가 설치돼 있어야 하며,
+> 없으면 패키징이 중단된다(2026-08-19 기본값 반전). 예전에는 이 수집이 기본 생략이라 모델이 빠진
+> 번들이 만들어졌고, 대상 서버는 오프라인이라 내려받지도 못해 **SAM2 분할·Track 이 mock 응답으로
+> 동작**했다. 서버 기동·헬스체크·API 응답이 모두 정상이라 운영 중에는 드러나지 않는다.
+> SAM2 를 쓰지 않는 납품이라면 `PREFETCH_HF=0` 으로 **명시적으로** 꺼야 한다.
+
+
 
 | 항목 | 요구 | 확인 |
 |------|------|------|
@@ -37,7 +45,7 @@
 | 디스크 | 약 10~15GB 여유 | torch CPU wheel·런타임이 큼 |
 
 > JDK17/Node20/Python3.11 자체는 빌드머신에 미리 설치되어 있어야 한다(번들 대상 아님).
-> 대상 서버 런타임(JRE/Python/Caddy/ffmpeg)은 package.sh 가 별도로 받아 번들한다.
+> 대상 서버 런타임(JRE/Python/ffmpeg)은 package.sh 가 별도로 받아 번들한다. 웹 서버는 httpd RPM 으로 수집한다.
 > RPM 수집(`mesa-libGL` 등)은 **rockylinux:9 컨테이너/머신**에서 해야 한다(`dnf download`).
 > ffmpeg 정적 바이너리·jar·FE dist·런타임 tarball 은 OS 무관이라 다른 빌드머신에서 만들어도 된다.
 
@@ -51,7 +59,7 @@
 | CPU/GPU | **CPU only** (GPU/CUDA 불필요 — torch/onnxruntime CPU) |
 | 메모리 | backend(JVM, MaxRAMPercentage 75%) + ai-server(torch CPU) 고려해 충분히(권장 ≥ 8GB) |
 | 디스크 | 앱·런타임·모델 + 영상 저장소. 영상 규모에 비례(저장소 별도 산정) |
-| PostgreSQL | **16**. ① 번들 PG16 오프라인 설치(`USE_BUNDLED_POSTGRES=1`, 기본) **또는** ② 외부 기존 PG 사용(`=0`)+접속 정보(host/port/db/user/pw). 어느 쪽이든 **빈 DB 2개**(control=klid_system, portal)+사용자만 준비하면 됨 — 스키마는 backend Flyway 가 자동 생성 |
+| PostgreSQL | **16**. ① 번들 PG16 오프라인 설치(`USE_BUNDLED_POSTGRES=1`, 기본) **또는** ② 외부 기존 PG 사용(`=0`)+접속 정보(host/port/db/user/pw). 어느 쪽이든 **빈 DB 2개**(control=klid_system, portal)+사용자만 준비하면 됨. ⚠ **스키마는 설치 단계가 `db/schema.sql` 을 1회 로드해 만든다**(`16-load-schema.sh`) — 앱은 `spring.flyway.enabled=false` 로 마이그레이션을 돌리지 않고 매핑 검증만 한다. 구 서술 "스키마는 backend Flyway 가 자동 생성" 은 **폐기**(2026-08-19) — 설정 템플릿은 이전부터 `false` 였고, WAR 반입 형상에서는 DBA 가 선적용하므로 앱에 스키마 변경 권한이 없다 |
 | **KPST 비식별 서버** | **폐쇄망에 별도 설치·접근 가능**해야 함(본 패키지 비포함, 외부 시스템). backend 가 폴링 연동(http 또는 https+사설CA). 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가 — 04-configuration.md B 절 참고 |
 | 네트워크 | 같은 호스트 내 80/8080/9300/5432 + KPST 비식별 포트(예 9201) 도달. 외부 인바운드는 80만 노출 권장 |
 

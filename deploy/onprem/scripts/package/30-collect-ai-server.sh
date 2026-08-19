@@ -134,13 +134,25 @@ else
   warn "[ai-server] yolox 가중치 없음: ${AI_SRC}/weights/yolox_s.onnx — 탐지(YOLOX 단일) 실행에 필요"
 fi
 
-# ---- 5) (옵션) HF 모델 prefetch ----
-# SAM2(클릭/박스 분할·Track)를 쓰면 HF 모델이 필요하다.
-# 탐지(YOLOX)는 HF 불필요 — SAM2 미사용이면 생략 가능(기본 생략).
-if [[ "${PREFETCH_HF:-0}" == "1" ]]; then
+# ---- 5) SAM2 모델 prefetch (기본 수행) ----
+# ★ 기본값을 뒤집었다(구: 기본 생략 → 신: 기본 수행). 2026-08-19
+#
+#   SAM2(클릭/박스 분할·Track)는 <제품이 제공하는 기능>이다. 그런데 기본 생략이라
+#   폐쇄망 번들에 모델이 들어가지 않았고, 그 결과 다음이 <조용히> 성립했다:
+#     ① 번들에 HF 캐시 없음
+#     ② 대상 서버는 HF_HUB_OFFLINE=1 이라 다운로드를 시도조차 하지 않음
+#     ③ 로더가 예외를 삼키고 mock 으로 폴백(load_failed)
+#     ④ 서버는 정상 기동하고 API 도 200 을 돌려준다
+#   즉 SAM2 분할·Track 이 전부 가짜 응답인데 <어디서도 실패로 드러나지 않는다>.
+#
+#   그래서 기본 수행으로 바꾸고, 실패하면 <빌드를 멈춘다>. 빌드머신에서 시끄럽게
+#   실패하는 편이 폐쇄망에서 조용히 기능이 죽는 것보다 낫다.
+#
+#   SAM2 를 정말 쓰지 않는 납품이면 PREFETCH_HF=0 으로 명시적으로 끈다.
+if [[ "${PREFETCH_HF:-1}" != "0" ]]; then
   info "[ai-server] HF 모델 prefetch (HF_HOME=${HF_OUT})..."
   if "${PYBIN}" -c 'import huggingface_hub' 2>/dev/null; then
-    HF_HOME="${HF_OUT}" "${PYBIN}" - <<PY || warn "HF prefetch 일부 실패 — 사용 백엔드에 따라 무시 가능"
+    HF_HOME="${HF_OUT}" "${PYBIN}" - <<PY || die "[ai-server] SAM2 모델 prefetch 실패 — 이대로 반입하면 폐쇄망에서 SAM2 가 mock 으로 동작합니다. 네트워크를 확인하고 다시 실행하거나, SAM2 를 쓰지 않는 납품이면 PREFETCH_HF=0 으로 명시하세요."
 import os
 from huggingface_hub import snapshot_download
 for mid in ["${HF_SAM2_MODEL_ID}"]:
@@ -149,10 +161,13 @@ for mid in ["${HF_SAM2_MODEL_ID}"]:
 PY
     ok "[ai-server] HF 모델 캐시: ${HF_OUT}"
   else
-    warn "huggingface_hub 미설치 — HF prefetch 생략. 먼저 'pip install huggingface_hub' 후 PREFETCH_HF=1 재실행."
+    die "[ai-server] huggingface_hub 미설치 — SAM2 모델을 받을 수 없습니다. 'pip install huggingface_hub' 후 다시 실행하세요. (SAM2 를 쓰지 않는 납품이면 PREFETCH_HF=0)"
   fi
 else
-  info "[ai-server] HF 모델 prefetch 생략(PREFETCH_HF=1 로 활성화). SAM2 미사용이면 불필요(탐지=YOLOX 단일)."
+  warn "[ai-server] ★SAM2 모델 prefetch 를 명시적으로 껐습니다(PREFETCH_HF=0)."
+  warn "  대상 서버는 HF_HUB_OFFLINE=1 이라 모델을 내려받지 못하고, SAM2 분할·Track 은"
+  warn "  <mock 응답>으로 동작합니다. 서버는 정상 기동하고 API 도 200 을 돌려주므로"
+  warn "  운영 중에는 이 사실이 드러나지 않습니다. 의도한 것이 맞는지 확인하세요."
 fi
 
 # ---- 무결성 체크섬 ----

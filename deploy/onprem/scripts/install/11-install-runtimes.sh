@@ -2,7 +2,8 @@
 set -euo pipefail
 # ============================================================================
 # 11-install-runtimes.sh — [대상 서버 / Rocky Linux 9] 번들 런타임 설치
-#   JRE/Python/Caddy + ffmpeg 정적 바이너리 + 시스템 RPM(opencv 런타임 의존)
+#   JRE/Python + ffmpeg 정적 바이너리 + 시스템 RPM(opencv 런타임 의존)
+#   ★ 웹 서버(httpd)는 여기서 다루지 않는다 — 14-install-frontend.sh 가 RPM 으로 설치한다.
 #
 #   타깃 OS = Rocky Linux 9 (RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm).
 #     - ffmpeg/ffprobe : syspkgs/ffmpeg/ 의 정적 tarball 을 /opt/klid/runtime/ffmpeg 로 설치.
@@ -24,7 +25,7 @@ require_root
 verify_first_tarball() {
   local dir="$1" algo="$2" expected="$3" label="$4"
   shopt -s nullglob; local t=("${dir}"/*.tar.gz); shopt -u nullglob
-  [[ "${#t[@]}" -ge 1 ]] || return 0   # tar.gz 없으면(예: caddy 단일 바이너리) 건너뜀
+  [[ "${#t[@]}" -ge 1 ]] || return 0   # tar.gz 가 없으면 건너뜀
   if [[ "${algo}" == "sha512" ]]; then
     verify_file_sha512 "${t[0]}" "${expected}" "${label}"
   else
@@ -35,7 +36,7 @@ verify_first_tarball() {
 : "${KLID_PREFIX:?install.sh 에서 호출되어야 합니다}"
 ONPREM="$(onprem_root)"
 RT="${KLID_PREFIX}/runtime"
-ensure_dir "${RT}/jre" "${RT}/python" "${RT}/caddy" "${RT}/ffmpeg/bin"
+ensure_dir "${RT}/jre" "${RT}/python" "${RT}/ffmpeg/bin"
 
 # extract_single <src_dir> <dest_dir> — src_dir 의 단일 tar.gz 를 dest 로 풀고
 #                                       최상위 1단계 디렉토리를 평탄화
@@ -77,31 +78,6 @@ done
 [[ -n "${PYBIN}" ]] || die "Python 설치 실패: ${RT}/python/bin/python3* 없음"
 ok "[runtime] python: $("${PYBIN}" --version 2>&1)"
 
-# ---- Caddy ----
-info "[runtime] Caddy 설치 → ${RT}/caddy"
-shopt -s nullglob
-caddy_tars=("${ONPREM}/runtimes/caddy"/*.tar.gz)
-shopt -u nullglob
-if [[ "${#caddy_tars[@]}" -ge 1 ]]; then
-  # Caddy 공식 SHA256 미발행 → tar.gz 는 SHA512(공식)로 검증.
-  verify_file_sha512 "${caddy_tars[0]}" "${CADDY_SHA512:-}" "Caddy ${CADDY_VERSION}"
-  tmp="$(mktemp -d)"
-  # tar/install 실패로 조기 종료해도 임시 디렉토리가 잔류하지 않도록 EXIT 트랩 등록.
-  trap 'rm -rf "${tmp:-}"' EXIT
-  tar -xzf "${caddy_tars[0]}" -C "${tmp}"
-  install -m 0755 "${tmp}/caddy" "${RT}/caddy/caddy"
-  rm -rf "${tmp}"
-  trap - EXIT
-elif [[ -f "${ONPREM}/runtimes/caddy/caddy" ]]; then
-  # 사전 배치된 단일 caddy 바이너리 경로는 공식 SHA512(tar.gz 기준)로 무결성 검증이 불가하다.
-  # 수집(40-collect-runtimes.sh)은 항상 tar.gz 를 받으므로 이 경로는 정상 흐름에서 도달하지 않는다.
-  # 검증 불가한 바이너리를 그대로 설치하지 않도록 fail-closed 로 거부한다.
-  die "검증 불가한 단일 caddy 바이너리는 지원하지 않습니다(공식 SHA512 는 tar.gz 기준).
-     → 공식 tar.gz(caddy_${CADDY_VERSION}_linux_amd64.tar.gz)를 runtimes/caddy/ 에 두고 다시 실행하세요."
-else
-  die "Caddy 바이너리를 찾을 수 없습니다: ${ONPREM}/runtimes/caddy/"
-fi
-ok "[runtime] caddy: $("${RT}/caddy/caddy" version 2>&1 | head -n1)"
 
 # ---- ffmpeg/ffprobe (정적 바이너리) ----
 # Rocky 9 base/AppStream 에 ffmpeg 가 없으므로 정적 바이너리를 번들·배치한다.
@@ -165,7 +141,6 @@ fi
 {
   echo "KLID_JAVA=${RT}/jre/bin/java"
   echo "KLID_PYTHON=${PYBIN}"
-  echo "KLID_CADDY=${RT}/caddy/caddy"
   echo "KLID_FFMPEG=${RT}/ffmpeg/bin/ffmpeg"
   echo "KLID_FFPROBE=${RT}/ffmpeg/bin/ffprobe"
 } > "${KLID_PREFIX}/runtime/runtime.env"
