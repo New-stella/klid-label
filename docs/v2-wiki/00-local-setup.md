@@ -110,6 +110,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
   - 과거에는 "시드 범위 DELETE 후 INSERT" 였고, `DELETE FROM LS_DATA_RAW WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'` 가 자식 FK(`ON DELETE CASCADE`)를 타고 **프레임까지 지웠다**. 뒤이은 INSERT 가 실패하면 삭제만 커밋돼 **재기동 = 작업 데이터 소실**이었다(실제 사고: 프레임 23건 전량 소실).
 - **실패해도 반쯤 적용되지 않는다** — 어느 구문이 실패하면 전량 롤백되고, 로그에 `[DevSeed] seed apply FAILED — 전량 롤백되어 시드가 적용되지 않았습니다` 가 남는다. 부팅은 계속된다(로컬 편의 기능).
 - **파이프라인을 처음부터 다시 돌리려면** 재기동이 아니라 재큐 API 를 쓴다 — `POST /api/v1/control-ingests/{rcptnSn}/requeue`(단건) / `POST /api/v1/control-ingests/requeue`(일괄, `{"limit":100}`). 완전 초기화가 필요하면 로컬 DB 볼륨을 지우고 다시 띄운다(명시적 파괴 행위여야 한다).
+- **라벨 마스터 표시명은 한글이다** — 사람·자동차·자전거·오토바이·버스·트럭·화재·연기·침수 9종. AI 검출 매칭의 단일 진실원은 `DTCT_TYPE_CD`(COCO 영문 클래스명)라 표시명을 바꿔도 오토라벨링 매칭은 흔들리지 않는다. ⚠ 다만 학습데이터 export JSON 의 `categories[].name` 은 이 라벨명 그대로 나간다(`CategoryMapper`).
 - **라벨 마스터를 화면에서 수정해도 시드가 깨지지 않는다** — 라벨명을 바꾸거나 COCO 매핑(`DTCT_TYPE_CD`)을 다른 라벨에 옮겨도, 시드는 충돌 시 조용히 물러난다(활성 라벨 1개 = COCO 클래스 1개 제약은 유지).
 
 ---
@@ -124,10 +125,11 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | 검수 승인/반려 + 버전 스냅샷 / diff·롤백 | 검수 화면 (REVIEWER) | 0 |
 | 포털 (데이터마트 Load·사용자 라벨) | 포털 (PORTAL_USER) | 0 |
 | 마킹 (비식별 영상 스트리밍) | 마킹 화면 — 비식별 mock 으로 `DE_IDNTF_YN='Y'` 선행 필요 | 0 (mock) |
-| 관제 자동 적재 픽업 | `POST /api/v1/dev/batch/scan` (REVIEWER) → 시드 클립 LS_DATA_RAW 적재 | 0 |
+| 관제 자동 적재 픽업 | `POST /api/v1/dev/upload` 로 인입 행을 만든 뒤 `POST /api/v1/dev/batch/scan` (REVIEWER) → LS_DATA_RAW 적재 | 0 |
 | 배치/오토라벨 (YOLOX·SAM2) | 업로드 `POST /api/v1/dev/upload` 또는 `POST /api/v1/dev/batch/trigger?rawSn=` | ai-server(내부, 실추론) |
 
-> 시드 클립(`DEV-CLIP-*`)의 `FILE_PATH` 는 실파일이 없을 수 있어 픽업·적재·이벤트 발행까지 검증된다. 마킹/프레임 추출까지 끝까지 돌리려면 `POST /api/v1/dev/upload` 로 실제 영상을 업로드한다.
+> ★**시드는 인입 행(`LS_DATA_INGEST`)을 넣지 않는다** (2026-08-19 폐지). 구 시드는 `DEV-CLIP-9101~9103` 3건을 `PENDING` 으로 심어 스캔 대상을 만들었는데, 그 테이블은 **관제가 직접 INSERT 하는 인입 원장**이라 저작도구 DB 가 관제 DB 와 같은 서버에 놓이면서 가짜 행이 관제 실인입과 섞이게 됐다. 게다가 그 3건은 마스터에 없는 비규격 이벤트유형코드·관제 원장에 없는 CCTV id·상대경로였다.
+> ⇒ 인입 행은 `POST /api/v1/dev/upload` 로 **실파일과 함께** 만든다. 업로드 없이 `dev/batch/scan` 만 누르면 픽업 대상이 없어 **적재 0건**이다(오류가 아니다).
 
 ---
 

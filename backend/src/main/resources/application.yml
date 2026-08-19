@@ -456,10 +456,6 @@ authoring:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}
       # 타임아웃은 여기 설정값이 아니라 KpstDeidentifyClient 상수가 단일 출처다
       #   (업로드/다운로드 10m, 그 외 45s — WebClient `.timeout(...)` 으로 Reactor 네이티브 처리).
-      # Phase 1 — mock-mode 토글(KPST 미준비 동안 dev/stg 파이프라인 가동용). 기본 false(운영 안전).
-      #   DeidentifyStep 게이트가 prd(운영) 프로파일/ENV 만 fail-closed 로 차단하고 local/dev/stg 는 허용한다(HIGH-1).
-      #   dev/stg 에서 true 로 켜려면 DEIDENTIFY_MOCK_MODE=true. prd 에서 true 면 부트 거부.
-      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
     ai-server:
       base-url: ${AI_SERVER_URL:http://localhost:9300}
       # 타임아웃은 resilience4j.timelimiter.instances.ai(60s) 가 단일 출처다.
@@ -702,7 +698,7 @@ portal:
 
 # UC018 — ㈜KPST 비식별 솔루션 폴링 연동 클라이언트 (docs/v2-wiki/22-deid-solution-api.md).
 #  - enabled=true 기본 (비식별 단일 경로 = KPST 폴링. 레거시 동기 SPI/콜백 경로는 제거됨).
-#    킬스위치로 필드는 유지 — local 자족 환경은 authoring.integration.deidentify.mock-mode=true 사용.
+#    킬스위치로 필드는 유지. ★자체 채움(mock) 비식별 경로는 폐지됐다(2026-08-19) — local 도 목 서버로 실 위탁한다.
 #    KPST_DEID_ENABLED=false 로 내리면 위탁이 비활성화되며, mock 도 아니면 DeidentifyStep 이 설정 오류로 거부한다.
 #  - base-url: KPST 테스트/운영 서버 주소(http/https 자동 분기 — 내부망은 http, 외부는 https+사설CA). 평문 커밋 금지 → 환경변수 사용.
 #  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. enabled=true 시 필수(미설정 → 기동 실패 fail-closed, CWE-295).

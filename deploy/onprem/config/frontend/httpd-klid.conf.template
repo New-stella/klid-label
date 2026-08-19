@@ -1,0 +1,68 @@
+# klid-label frontend — Apache httpd 정적 서빙 + /api 리버스프록시
+#
+# 관제지원시스템 웹 서버와 동일 사양(Apache httpd)으로 맞춘다. 두 시스템이 같은 인프라에
+# 놓이고 운영 절차를 공유하므로 웹 서버를 하나로 통일한다.
+#
+# ★ 관제의 설정을 그대로 복사하지는 않는다 — 관제 웹 서버는 리버스프록시도 SPA 폴백도 없는
+#   순수 정적 서버다. 우리 프론트엔드는 VITE_API_BASE_URL=/api/v1 로 <동일 origin 상대경로>를
+#   호출하므로, 프록시를 빼면 화면이 백엔드를 아예 찾지 못한다. 아래 항목들은 관제의 선택이
+#   아니라 이 애플리케이션의 요구사항이라 유지한다.
+#
+# 치환 자리표시자: @WEB_ROOT@ (정적 번들 경로) · @BACKEND_ORIGIN@ (백엔드 주소)
+
+ServerName klid-frontend
+
+# 응답 헤더에 httpd 버전·OS 를 노출하지 않는다.
+ServerTokens Prod
+ServerSignature Off
+
+<VirtualHost *:80>
+    DocumentRoot "@WEB_ROOT@"
+
+    # ---- 보안 헤더 (Caddy 형상과 동일 항목) ----
+    <IfModule mod_headers.c>
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set X-Frame-Options "DENY"
+    </IfModule>
+
+    # ---- 업로드 본문 한도 ----
+    #   대용량 영상 업로드(TUS PATCH 청크)가 통과해야 한다. 프록시 앞단에서 잘리면
+    #   백엔드·WAS 설정을 아무리 키워도 소용이 없다. 1200MB.
+    LimitRequestBody 1258291200
+
+    # ---- API 리버스프록시 ----
+    #   ★ ProxyPass 가 DocumentRoot 보다 먼저 평가되므로 /api 요청은 아래 SPA 폴백으로
+    #     내려가지 않는다. 순서를 바꾸지 말 것.
+    <IfModule mod_proxy.c>
+        ProxyPreserveHost On
+        # ★ flushpackets=on — 응답을 모아두지 않고 즉시 흘려보낸다.
+        #   스트리밍 응답(영상 전송·진행 상황 통지)이 버퍼링되면 클라이언트가 아무것도 받지
+        #   못한 채 대기하다 끊긴다. Caddy 의 flush_interval -1 에 대응한다.
+        ProxyPass        /api @BACKEND_ORIGIN@/api flushpackets=on timeout=300
+        ProxyPassReverse /api @BACKEND_ORIGIN@/api
+        # 프록시 응답은 압축하지 않는다 — 압축 필터가 스트리밍을 다시 버퍼링한다.
+        <Location "/api">
+            SetEnv no-gzip 1
+        </Location>
+    </IfModule>
+
+    # ---- 정적 번들 ----
+    <Directory "@WEB_ROOT@">
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+        Require all granted
+
+        # SPA 폴백 — 실제 파일이 없으면 index.html 을 돌려준다.
+        #   없으면 새로고침·딥링크가 전부 404 가 된다(클라이언트 라우팅이라 서버에 그 경로가 없다).
+        FallbackResource /index.html
+    </Directory>
+
+    # ---- 압축 (정적 자원만) ----
+    <IfModule mod_deflate.c>
+        AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript \
+                                      application/javascript application/json image/svg+xml
+    </IfModule>
+
+    ErrorLog  "logs/klid-frontend-error_log"
+    CustomLog "logs/klid-frontend-access_log" common
+</VirtualHost>

@@ -9,7 +9,7 @@
 #         바로잡는다. 로컬 자족 기동은 docker-compose.local.yml override 가 local 로 되돌린다.
 #       · 되돌리기(롤백): 서버 .env 에 SPRING_PROFILES_ACTIVE=local 을 넣으면 즉시 원복된다.
 #   - 외부 벤더(비식별 KPST / VLM)는 mock-server 컨테이너로 **실제 HTTP 연동** — 저작도구가 스스로
-#     결과를 채우는 내부 self-fill 경로(DEIDENTIFY_MOCK_MODE=true)는 쓰지 않는다.
+#     결과를 채우는 내부 self-fill 경로는 폐지됐다(2026-08-19) — 비식별은 항상 외부 위탁이다.
 # ============================================================================
 
 services:
@@ -86,8 +86,6 @@ services:
       STORAGE_RAW_PATH: /app/storage/raw
       STORAGE_DEIDENTIFIED_PATH: /app/storage/deidentified
       # ---- 외부 벤더 연동(목업 서버 실 HTTP) ----
-      #   내부 self-fill 금지: mock-mode 는 외부 무접촉으로 원본을 복사해 성공을 만들어내므로 끈다.
-      DEIDENTIFY_MOCK_MODE: ${DEIDENTIFY_MOCK_MODE:-false}
       KPST_DEID_ENABLED: ${KPST_DEID_ENABLED:-true}
       KPST_DEID_BASE_URL: ${KPST_DEID_BASE_URL:-http://klid-mock-server:9400}
       VLM_CLIENT_ENABLED: ${VLM_CLIENT_ENABLED:-true}

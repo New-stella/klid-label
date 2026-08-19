@@ -12,7 +12,7 @@
 | `postgresql-16` | 데이터베이스(번들 PG16) | 5432 | `systemctl is-active postgresql-16` | `journalctl -u postgresql-16` |
 | `klid-ai-server` | 내부 추론 서버(YOLO/SAM2) | 9300 | `curl http://127.0.0.1:9300/health` | `journalctl -u klid-ai-server` |
 | `klid-backend` | 애플리케이션(WAS)·배치 스케줄러 | 8080(`/api`) | `curl http://127.0.0.1:8080/api/actuator/health/liveness` | `journalctl -u klid-backend` |
-| `klid-frontend` | 웹서버(Caddy·정적 서빙) | 80 | `curl -o /dev/null -w '%{http_code}' http://127.0.0.1/` | `journalctl -u klid-frontend` |
+| `httpd` | 웹서버(Apache httpd·정적 서빙 + `/api` 프록시) | 80 | `curl -o /dev/null -w '%{http_code}' http://127.0.0.1/` | `journalctl -u httpd` |
 
 - 기동 의존 순서: **PostgreSQL → ai-server → backend → frontend** (유닛에 의존성 반영).
 - 설치 경로: `/opt/klid/{app,ai,web,runtime}` · 환경설정 `/etc/klid/*.env` · 데이터 `/var/lib/klid` · 로그 `/var/log/klid`.
@@ -24,7 +24,7 @@
 ### 1-1. 서비스 상태 한눈에
 
 ```bash
-systemctl status postgresql-16 klid-ai-server klid-backend klid-frontend --no-pager
+systemctl status postgresql-16 klid-ai-server klid-backend httpd --no-pager
 # 각 유닛이 active (running) 인지 확인. 실패 시 Active: failed / activating 로 표시된다.
 ```
 
@@ -133,7 +133,7 @@ nvidia-smi                                                          # GPU 사용
 # 1) 최근 로그로 원인 확인
 journalctl -u klid-backend -n 200 --no-pager
 # 2) 재기동
-sudo systemctl restart klid-backend        # 또는 klid-ai-server / klid-frontend / postgresql-16
+sudo systemctl restart klid-backend        # 또는 klid-ai-server / httpd / postgresql-16
 # 3) 반복 실패 시 환경설정·의존 서비스 확인
 systemctl is-active postgresql-16 klid-ai-server   # backend 는 이 둘에 의존
 cat /etc/klid/backend.env                          # DB 접속·JWT 시크릿·연동 주소 확인(비밀번호 노출 주의)

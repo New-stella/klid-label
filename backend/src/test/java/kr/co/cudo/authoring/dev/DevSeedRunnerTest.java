@@ -50,21 +50,25 @@ class DevSeedRunnerTest {
     }
 
     @Test
-    @DisplayName("시드가_관제_인입_미처리행을_적재해_파이프라인_시작점이_살아있다")
-    void seedInsertsPendingIngestRows() {
-        // given — 적재 소스가 관제 공유 클립 마스터 스캔 → LS_DATA_INGEST 폴링으로 바뀌었다.
-        //   구 시드(MNG_CLIP_* 만)로는 dev/local 수동 드라이브가 <적재 0건>으로 조용히 죽는다.
-        //   ★ DevSeedRunner 는 fail-soft(예외를 WARN 으로 삼킴)라, 시드 SQL 이 깨져도 부팅·다른
-        //     단언은 통과한다. 그래서 인입 행 자체를 직접 단언해야 이 갭이 다시 열리지 않는다.
+    @DisplayName("시드는_관제_인입_원장을_건드리지_않는다")
+    void seedDoesNotTouchControlIngestLedger() {
+        // given — ★구 동작 폐지(2026-08-19 사용자 확정): 시드는 DEV-CLIP-9101~9103 3건을 PENDING 으로
+        //   심어 dev 파이프라인 시작점을 만들었고, 이 테스트는 그 3건을 단언했다.
+        //   LS_DATA_INGEST 는 <관제가 직접 INSERT 하는 인입 원장>이고 저작도구 DB 가 관제 DB 와
+        //   같은 서버에 놓이면서, 시드의 가짜 행이 관제 실인입과 같은 테이블에 섞이게 됐다.
+        //   그래서 단언을 지우지 않고 <반대 방향의 가드>로 뒤집는다 — 누가 편의를 이유로 시드에
+        //   인입 행을 되살리면 여기서 걸린다.
+        //   ★ DevSeedRunner 는 fail-soft(예외를 ERROR 로 남기고 삼킴)라, 시드 SQL 이 깨져도 부팅과
+        //     다른 단언은 통과한다. 그래서 인입 행 자체를 직접 세야 이 갭이 다시 열리지 않는다.
         JdbcTemplate jdbc = new JdbcTemplate(controlDataSource);
 
         // when — 부팅 시 Runner 가 이미 1회 실행됨
-        Long pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_DATA_INGEST WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'"
-                        + " AND PRCS_STTS_CD = 'PENDING'", Long.class);
+        Long seeded = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_INGEST WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'", Long.class);
 
-        // then — 폴링 술어(PENDING)에 걸리는 후보 3건
-        assertThat(pending).isEqualTo(3L);
+        // then — 시드 네임스페이스의 인입 행이 하나도 생기지 않는다.
+        //   dev 파이프라인 시작점은 시드가 아니라 dev 업로드(POST /v1/dev/upload)로 만든다.
+        assertThat(seeded).isZero();
     }
 
     @Test

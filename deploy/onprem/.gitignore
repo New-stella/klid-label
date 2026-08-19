@@ -5,6 +5,7 @@
 
 # 빌드 아티팩트
 artifacts/backend/*.jar
+artifacts/backend/*.war
 artifacts/frontend/dist/
 artifacts/ai-server/app/
 artifacts/ai-server/tests/

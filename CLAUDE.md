@@ -406,7 +406,7 @@ slowBuild: true
   - ⚠ **위 세 파일 교정으로 Flyway 체크섬이 바뀐다** — 이미 적용된 DB 는 기동이 **거부**된다(조용한 손상이 아니라 즉시 실패). 스키마 이관 런북에 체크섬 재정렬 1회를 포함할 것(정확한 값은 그 변경 커밋 메시지에 있다).
     - **★2026-08-13 스쿼시 이후 이 체크섬 재정렬은 무의미해졌다** — 기존 DB 는 이력 180행을 **통째로 베이스라인 1행으로 교체**하므로(런북 §2-5-2) 개별 행의 체크섬을 맞출 대상이 없다. 런북 §2-5-1 ③ 은 스쿼시 이전 배포본으로 이관하는 경우에만 해당한다.
     - 이 사고가 남긴 **규칙 자체는 그대로 유효**하며, 앞으로 조건부 마이그레이션을 쓸 때 참조하도록 `V1__baseline.sql` 헤더 「규칙 1·2」로 옮겨 적었다(스코프 없는 카탈로그 조회 금지 — `conrelid = to_regclass(...)` / `schemaname = current_schema()`). 원문 세 파일은 아카이브에 있다.
-  - ⚠ **관제 계약면이 움직인다** — 데이터마트 뷰 4종(`V_COMPLETED_*`)이 `public` → `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제팀 협의 대상**이다.
+  - ⚠ **관제 계약면이 움직인다** — 데이터마트 뷰 4종(`V_COMPLETED_*`)이 `public` → `klid_at` 으로 옮겨간다. 그중 **규격상 관제가 SELECT 하는 것은 `V_COMPLETED_VIDEO` 하나**이며(아래 「데이터마트 적재용 View」 절), 그 하나가 스키마를 옮기는 것만으로도 **관제팀 협의 대상**이다.
 - 관제서버 MNG_* 테이블 재사용 (READ 위주, JPA `ddl-auto=validate`)
 - ⚠ **★`DE_IDENT_YN` 과 `DE_IDNTF_YN` 은 둘 다 맞다 — 전역 치환 금지 (2026-08-15 실측 확정)**: **테이블 컬럼은 `LS_DATA_RAW.DE_IDENT_YN`**(`@Column(name = "DE_IDENT_YN")`)이고, **관제 계약면인 뷰 출력명은 `DE_IDNTF_YN`** 이다 — `V_COMPLETED_VIDEO` 가 `m.de_ident_yn AS de_idntf_yn` 으로 **별칭을 단다**. 한쪽으로 통일하면 **엔티티 매핑이 깨지거나 관제 계약면이 바뀐다.** 같은 파일의 `DE_IDNTF_SRC_FILE_PATH_NM`·`DE_IDNTF_FILE_PATH_NM`·`DE_IDNTF_PJT_ID`·`DE_IDNTF_DATST_ID` 는 **애초에 별개 컬럼**이라 무관하다. (동명이표 주의 사례는 `NEXT_RTRY_DT` 와 같은 계열 — 위 「표준용어·표준도메인 준수」 절 참조)
 - **관제 공유 클립 테이블 진실원·산출물 비대상**: UC-018 관제 학습용 적재가 READ하는 `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST` 실제 스키마(복합 PK, `FILE_PATH` 등 — DB 직접 조회 확정)는 LogiCraft **ERD-024**(관제 공유 클립 ERD)에 진실원으로 기록한다. 단 `MNG_*`는 공유(READ) 스키마라 **D8/D9 산출물 비대상**(cc-doc-gen `MNG_*` prefix 규칙으로 자동 제외 — "공유(READ)" 비고만). 적재 어댑터 매핑(`CLIP_ID→VMS_CLIP_ID`, `FILE_PATH→RAW_FILE_PATH_NM`, `VDO_LEN_SEC` ms→초, `EVNT_LST.EVNT_TYPE_CD/SHT_DT` 조인)은 ERD-024 description에 명세.
@@ -439,7 +439,9 @@ slowBuild: true
     3. **QA 검사 명시**: DB 변경 Phase 의 `database-reviewer`/`design-verifier` 호출 프롬프트에 **"새 컬럼·테이블 물리명(표준단어 조합) + 타입·크기(표준도메인) 준수 여부"** 검사를 명시 항목으로 넣는다. 비표준 발견 = HIGH → DEV_FIX(표준어·표준크기로 정정).
 
 ### 데이터마트 적재용 View
-- `klid_at` 스키마에 4종 View 제공 — 검수 완료(`LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'`) 영상만 노출
+- `klid_at` 스키마에 **View 4종이 실재**한다 — 검수 완료(`LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'`) 영상만 노출
+  - **★관제 연동 규격이 규정하는 조회 채널은 `V_COMPLETED_VIDEO` 하나다 (2026-08-19 정합)**: 정본 `docs/관제-저작도구-데이터연동-규격서-20260805.md` §1 이 전달 수단을 **「①인입 ②통지 ③조회」 3개 채널로 전수 열거**하고 그 ③이 이 뷰 하나이며, §2 흐름도·§5 뷰 명세도 동일하다. **나머지 3종은 규격서에 언급 0건**이다.
+  - ⚠ **그렇다고 3종을 지우거나 「미사용」으로 단정하지 말 것 — 미합의 상태이지 폐기가 아니다.** 코드·위키 여러 곳이 이 뷰들을 관제 노출면으로 **전제**하고 그 위에 판단을 세워 뒀다: 비식별 신고 절이 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH` **노출**을 근거로 프레임 복구를 막고 · R12 가 `vlm.accuracy` 의 `V_COMPLETED_META` **미도달**을 의도된 설계로 못박고 · 라벨 이력 추가가 `V_COMPLETED_LABEL_CHANGE` 에 미치는 영향 때문에 별건으로 미뤄져 있다. 뷰를 없애면 이 논거들이 함께 무너진다. **좁히려면 관제 계약 협의가 선행**돼야 한다(관제 pull API `TaskQueryService.getMeta` 를 임의로 좁히지 않는 것과 같은 축).
   - `V_COMPLETED_VIDEO` : **V174 재작성 — 30컬럼**(정본 `docs/관제-저작도구-데이터연동-규격서-20260805.md` §5-1). 관제가 `datasets`·`dataset_versions` 를 SELECT 1회로 채우고 산출물을 픽업하는 계약면이다. 영상 메타 + 원본 영상 경로(`ORGNL_VDO_PATH_NM`) + 검수 완료 일시(`RVW_CMPTN_DT`) + **산출 폴더 경로(`OUTPUT_PATH_NM`)·프레임수(`FRME_CNT`)·산출 용량(`DATA_ETBL_CPCT`)** — 최신 SUCCEEDED/PARTIAL export(`LS_DATASET_EXPORT`) 조인. LATERAL 4개(산출 원장·비식별 이력·인입·라벨 집계)가 모두 최대 1행이라 **영상 1건=1row** 불변.
     - ⚠ **미export 영상의 두 값은 대칭이 아니다** — `FRME_CNT` 는 **0**(규격서가 NOT NULL 로 공표, 관제 `datasets.img_nocs` 공급)이고 `OUTPUT_PATH_NM`·`DATA_ETBL_CPCT` 는 **NULL** 이다. 구 서술 "미export 영상은 두 값 null" 은 **폐기**(V174).
     - ⚠ **출력명 6건이 V174 에서 표준 물리명으로 바뀌었다** — `DURATION_SEC`→`VDO_LEN_SEC` · `FRAME_CNT`→`FRME_CNT` · `REVIEW_COMPLETED_AT`→`RVW_CMPTN_DT` · `ORIGINAL_VIDEO_PATH`→`ORGNL_VDO_PATH_NM` · `EXPORT_PATH_NM`→`OUTPUT_PATH_NM` · `EXPORT_STTS_CD`→`OUTPUT_STTS_CD`. **V173 의 원장 rename 은 뷰 출력명을 바꾸지 않았다**(PostgreSQL 은 `RENAME COLUMN` 시 뷰 *본문*만 추종하고 출력명은 자동 별칭으로 보존한다) — 관제 계약면을 실제로 바꾼 것은 **V174** 다.
@@ -448,8 +450,10 @@ slowBuild: true
   - `V_COMPLETED_FRAME` : 프레임 페어 (`ORIGINAL_PATH`=원본 `SRC_FILE_PATH_NM`, `DEIDENTIFIED_PATH`=비식별 `DE_IDNTF_SRC_FILE_PATH_NM`) — 신규 추출은 `{base}/frames/raw|deid/{rawSn}` 로 분기 저장돼 두 경로가 항상 상이(원본 덮어쓰기 0)
   - `V_COMPLETED_LABEL_CHANGE`(V114 신설) : 라벨 변경점 (`LS_DATA_LBL_HSTRY` 기반, `CHG_KIND_CD`=ADDED/UPDATED/DELETED, APPROVED 게이트) — 라벨 좌표·속성 본문은 검수 승인 export 폴더 JSON에 존재하므로 뷰로 중복 노출하지 않음(구 `V_COMPLETED_LABEL`·`V_COMPLETED_LABEL_ATTR` 제거)
   - `V_COMPLETED_META` : 시계열 메타 (`RVW_STTS_CD='APPROVED'` 만)
-- **라벨 내용 뷰 제거(V114) = 관제 연동 계약 변경(관제팀 협의 대상)**: 관제서버는 이제 ①산출 폴더 경로(`V_COMPLETED_VIDEO.OUTPUT_PATH_NM` — V174 개명, 구 `EXPORT_PATH_NM`) 픽업 + ②변경점(`V_COMPLETED_LABEL_CHANGE`)·메타(`V_COMPLETED_META`)만 DB 뷰로 쿼리한다. 라벨 본문 뷰를 SELECT 하던 관제 쿼리는 파손되므로 협의 필요(M2M deprecated·뷰 SELECT 방식)
-- 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 통지 수신 후 RAW_SN 으로 4 View 단순 SELECT → 영상 1건=1 row UPSERT
+- **라벨 내용 뷰 제거(V114) = 관제 연동 계약 변경(관제팀 협의 대상)**: 관제가 산출 폴더 경로(`V_COMPLETED_VIDEO.OUTPUT_PATH_NM` — V174 개명, 구 `EXPORT_PATH_NM`)를 픽업하는 축은 유효하다. 라벨 본문 뷰를 SELECT 하던 관제 쿼리는 파손되므로 협의 필요(M2M deprecated·뷰 SELECT 방식)
+  - ⚠ **구 서술 일부 폐기(2026-08-19)** — *"②변경점(`V_COMPLETED_LABEL_CHANGE`)·메타(`V_COMPLETED_META`)만 DB 뷰로 쿼리한다"* 는 규격서(2026-08-05)와 어긋난다. 규격서의 조회 채널에 그 두 뷰는 **없다**. 이 서술을 근거로 "관제가 그 뷰를 쿼리한다"고 전제하지 말 것
+- 관제서버는 `TASK_COMPLETED`/`TASK_MODIFIED` 통지 수신 후 `RAW_SN` 으로 **`V_COMPLETED_VIDEO` 를 SELECT** → 영상 1건=1 row UPSERT (규격서 §2 흐름도·§5)
+  - ⚠ **구 서술 「4 View 단순 SELECT」 폐기(2026-08-19)** — 이 파일 안에서 같은 사실이 **4뷰·3뷰·1뷰 세 갈래**로 갈려 있었다. 정본은 규격서이며 조회 채널은 1뷰다
 - **★ 검수 완료·통지 건에 대한 관제 접근은 무조건 보장한다 (2026-07-28 사용자 확정 — 구속)**: 검수 승인(`APPROVED`)되어 관제에 통지된 영상은 **어떤 사유로도 뷰에서 감추거나 경로를 비우지 않는다.** 특히 **비식별 누락 신고(`DE_IDENT_YN='F'`) 구간에도 관제 접근을 차단하지 않는다** — `V_COMPLETED_VIDEO`·`V_COMPLETED_FRAME` 에 신고 필터를 넣는 안, 신고 중 `OUTPUT_PATH_NM`(V174 개명, 구 `EXPORT_PATH_NM`)/`DEIDENTIFIED_PATH` 를 NULL 로 비우는 안은 **모두 폐기**한다(관제가 보던 행이 예고 없이 사라져 관제 측 배치가 삭제·오류로 오인).
   - **함의(의도된 설계, 결함 아님)**: 비식별 신고 게이트(`DeidentReportGate`)는 **저작도구 앱 내부 통로에만** 적용되고 **관제 경계(뷰·통지)에는 적용되지 않는다.** 따라서 신고 구간에도 관제는 마스킹 실패 픽셀이 남은 export 폴더·비식별 프레임 경로에 접근한다. 이를 "잔여 누수"로 재분류해 다시 고치려 들지 말 것.
   - **닫혀 있는 흐름** ⚠ **2026-08-10 이후 승인 영상에서는 이 흐름이 시작되지 않는다** — 승인 영상은 신고 접수 자체가 412 로 막히므로(위 「비식별 누락 신고」 절) *"신고 접수 시 `TASK_MODIFIED`(META_UPDATED) 발행 → 관제가 재픽업"* 은 **미승인 영상에만** 성립한다. 이어지는 *"신고 해제(RESOLVED) 시 APPROVED 영상 export 재산출 + 재통지 → 관제가 정상 산출물로 갱신"* 은 **그 변경 이전에 접수돼 아직 열려 있는 신고**에만 해당한다. 신규로는 이 경로가 생기지 않는다. 다만 `V_COMPLETED_VIDEO` 가 `DE_IDNTF_YN` 을 컬럼으로 내보내므로 관제가 원하면 자체 판단은 여전히 가능하다(우리가 강제하지 않을 뿐).

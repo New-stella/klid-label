@@ -1,6 +1,8 @@
 package kr.co.cudo.authoring.batch.step;
 
 import kr.co.cudo.authoring.batch.service.KpstDeidentService;
+import kr.co.cudo.authoring.common.exception.CustomException;
+import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.ArtifactRootTestSupport;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -12,25 +14,28 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * UC018 — KPST 토글 OFF 회귀 통합 테스트.
  *
- * <p>{@code kpst.deid.enabled=false} 면 KPST 폴링 빈({@link KpstDeidentService})이 등록되지 않으며,
- * local 자족 환경은 {@code authoring.integration.deidentify.mock-mode=true} 의 mock 비식별 경로로
- * 동작함을 검증한다. 레거시 동기 SPI 경로는 제거되었으므로 mock/KPST 두 경로만 유효하다(회귀 방지).
+ * <p>{@code kpst.deid.enabled=false} 면 KPST 폴링 빈({@link KpstDeidentService})이 등록되지 않는다.
+ * 그때 비식별은 <b>수행되지 않고 설정 오류로 거부</b>된다 — 폴백 경로가 없다.
+ *
+ * <p><b>이 테스트는 뒤집힌 것이다.</b> 과거에는 같은 조건에서 자체 채움(mock) 경로로 넘어가
+ * "비식별 완료"가 됐다. 그 경로는 외부 호출 없이 <b>원본을 비식별 경로로 복사</b>하고
+ * {@code DE_IDNTF_YN='Y'} 로 마킹했으므로, 마스킹되지 않은 원본이 비식별본으로 통과했다.
+ * 자체 채움을 폐지하면서 이 테스트도 "폴백한다" 에서 <b>"폴백하지 않는다"</b> 로 바뀌었다.
+ *
+ * <p>이 단언이 있어야 폴백이 편의를 이유로 되살아나는 것을 막는다 — 되살아나면 아무도 모르게
+ * 원본이 산출물로 나간다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
-        // Phase 5A — co-locate 산출 base 허용 마운트 루트(원본 영상이 이 하위에 있어야 한다)
         "authoring.storage.raw-mount-roots=" + ArtifactRootTestSupport.IT_MOUNT_ROOT,
-        "kpst.deid.enabled=false",
-        "authoring.integration.deidentify.mock-mode=true"
+        "kpst.deid.enabled=false"
 })
 class DeidentifyStepKpstDisabledIntegrationTest {
 
@@ -42,25 +47,28 @@ class DeidentifyStepKpstDisabledIntegrationTest {
     private ApplicationContext applicationContext;
 
     @Test
-    @DisplayName("통합_enabled_false면_KPST폴링빈_미등록_mock_비식별_경로유지")
-    void kpstDisabledKeepsMockDeidentify() throws Exception {
-        // given — KPST 폴링 빈이 컨텍스트에 없어야 한다(토글 OFF).
+    @DisplayName("KPST_토글_OFF면_폴백_없이_설정오류로_거부한다 — 자체_채움_경로가_되살아나지_않는다")
+    void kpstDisabledRefusesWithoutFallback() throws Exception {
+        // given — KPST 폴링 빈이 컨텍스트에 없다(토글 OFF).
         assertThat(applicationContext.getBeanNamesForType(KpstDeidentService.class)).isEmpty();
 
-        // 실제 원본 파일 존재(허용 마운트 루트 하위) — mock 경로가 co-locate 비식별 경로로 복사한다.
-        Path rawFile = ArtifactRootTestSupport.seedOriginalVideo("mock-raw");
+        // 원본 파일이 <실제로 존재>해도 마찬가지다. 과거에는 바로 이 조건에서 원본을 복사해
+        // "비식별 완료" 를 만들어냈다.
+        java.nio.file.Path rawFile = ArtifactRootTestSupport.seedOriginalVideo("no-fallback-raw");
         LsDataRaw raw = videoRepository.save(LsDataRaw.createFromIngest(
-                "clip-mock-" + System.nanoTime(), "cctv-1", "EVT", "GOV",
+                "clip-no-fallback", "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_PRVC, rawFile.toString(), null, 60));
 
-        // when — mock 비식별 경로 실행
-        DeidentResult returned = deidentifyStep.run(raw);
+        // when / then — 임의 동작 대신 명확히 거부한다.
+        assertThatThrownBy(() -> deidentifyStep.run(raw))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INTERNAL_ERROR);
 
-        // then — 비식별 결과가 co-locate 위치(dirname(원본)/{rawSn}/deid/)에 복사되고 즉시 Y 전이.
-        Path expected = ArtifactRootTestSupport.expectedMockDeidPath(rawFile, raw.getRawSn());
-        assertThat(returned.completed()).isTrue();
-        assertThat(returned.deidFilePath()).isEqualTo(expected.toString());
-        assertThat(Files.readString(expected)).isEqualTo("raw-bytes");
-        assertThat(videoRepository.findById(raw.getRawSn()).orElseThrow().getDeIdntfYn()).isEqualTo("Y");
+        // 그리고 <아무것도 비식별되지 않았다> — 원본이 비식별본으로 둔갑하지 않는다.
+        LsDataRaw reloaded = videoRepository.findById(raw.getRawSn()).orElseThrow();
+        assertThat(reloaded.getDeIdntfYn())
+                .as("비식별이 수행되지 않았는데 'Y' 이면 자체 채움이 되살아난 것이다")
+                .isNotEqualTo("Y");
     }
 }

@@ -90,22 +90,25 @@ class DevProfileWiringGuardTest {
     );
 
     @Test
-    @DisplayName("dev_프로파일에서_비식별_mock모드가_기본_비활성이다")
-    void devProfileDisablesDeidentifySelfFill() {
-        // given
-        Environment env = MainResourceYaml.environment(COMMON_YML, DEV_YML);
-
-        // when
-        String mockMode = env.getProperty(MOCK_MODE_KEY);
-        String rawMockMode = String.valueOf(MainResourceYaml.rawValue(DEV_YML, MOCK_MODE_KEY));
-
-        // then: mock-mode 는 외부를 호출하지 않고 원본을 복사해 성공을 만들어내는 self-fill 경로다
-        assertThat(mockMode)
-                .as("dev 비식별은 내부 self-fill(DeidentifyStep.runMock)이 아니라 실 HTTP 위탁이어야 한다")
-                .isEqualTo("false");
-        assertThat(rawMockMode)
-                .as("되돌릴 수단은 남긴다 — DEIDENTIFY_MOCK_MODE 로 override 가능해야 한다")
-                .contains("${DEIDENTIFY_MOCK_MODE");
+    @DisplayName("비식별_자체채움_설정키가_어느_프로파일에도_존재하지_않는다")
+    void selfFillPropertyIsGone() {
+        // ★ 이 단언은 뒤집힌 것이다. 과거에는 "dev 기본값이 false 인가" 를 물었고 되돌릴 수단
+        //   (DEIDENTIFY_MOCK_MODE override)이 남아 있기를 요구했다. 그 되돌릴 수단이 곧 위험이었다 —
+        //   켜는 순간 외부 호출 없이 <원본을 비식별 경로로 복사>하고 'Y' 로 마킹해, 마스킹되지 않은
+        //   원본이 비식별본으로 통과했다. 게다가 허용 범위가 local/dev/stg 라 납품과 같은 계열인
+        //   stg 에서도 성립했다.
+        //
+        //   이제 그 경로는 코드째 폐지됐으므로, 설정 키가 <어디에도 없어야> 한다. 키가 되살아나면
+        //   구현이 없어 조용히 무시되는 죽은 설정이 되거나, 구현과 함께 되살아난 것이다. 둘 다 막는다.
+        for (String yml : List.of(COMMON_YML, DEV_YML, "application-local.yml",
+                "application-stg.yml", "application-prd.yml")) {
+            assertThat(MainResourceYaml.rawValue(yml, MOCK_MODE_KEY))
+                    .as("%s 에 자체 채움 설정키(%s)가 되살아났다 — 이 경로는 폐지됐다", yml, MOCK_MODE_KEY)
+                    .isNull();
+        }
+        assertThat(MainResourceYaml.environment(COMMON_YML, DEV_YML).getProperty(MOCK_MODE_KEY))
+                .as("어떤 프로파일 조합으로도 해석되지 않아야 한다")
+                .isNull();
     }
 
     @Test

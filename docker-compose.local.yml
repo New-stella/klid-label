@@ -51,7 +51,7 @@ services:
       #   (local yml 의 시크릿 기본값·dev 시드(DevSeedRunner @Profile("local"))·mock 게이팅이 여기에 달려 있다)
       SPRING_PROFILES_ACTIVE: local
       # 외부 벤더 연동(mock-server 실 HTTP)은 base compose 가 이미 주입한다
-      #   (DEIDENTIFY_MOCK_MODE=false / KPST_DEID_* / VLM_* / WEBHOOK_CALLBACK_BASE_URL).
+      #   (KPST_DEID_* / VLM_* / WEBHOOK_CALLBACK_BASE_URL).
       #   여기서 다시 선언하면 값이 두 파일로 갈라지므로 중복 정의하지 않는다.
       # D-48 실동작 설정 — 관제 완료/수정 통지를 목 서버로 실제 전송한다(내부 목모드 우회 금지).
       #   mock-server 의 /api/data-set/v2/jobs/{job_id}/notify-completed|notify-updated 가

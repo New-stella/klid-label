@@ -63,3 +63,109 @@ def verify_deployment_settings(settings: Settings) -> None:
         " mock 모드는 실제 객체와 무관한 합성 라벨(person, score=0.9)을 정상 응답처럼 반환하므로"
         " 학습데이터가 오염됩니다. AI_MOCK_MODE=false 로 두고 가중치를 배포하세요."
     )
+
+
+def refuse_mock_in_deployed_env(feature: str, reason: str) -> None:
+    """배포 환경(stg/prd)에서는 mock 응답을 **내보내지 않고 실패**시킨다.
+
+    왜 기동 가드만으로 부족한가
+    ---------------------------
+    :func:`verify_deployment_settings` 는 ``AI_MOCK_MODE`` 라는 *설정*만 본다. 그런데 mock 은
+    설정 없이도 발생한다 — 모델 파일이 반입되지 않았거나 로드가 실패하면 로더가 예외를 삼키고
+    ``None`` 을 돌려주고, 라우터는 그것을 mock 응답으로 처리한다(``weights_missing`` /
+    ``load_failed``).
+
+    폐쇄망에서는 이 경로가 특히 조용하다. 모델을 내려받을 수 없으므로 <반입 누락 = 영구 mock>
+    인데, 서버는 정상 기동하고 헬스체크도 API 도 200 을 돌려준다. 즉 **아무 신호가 없다.**
+
+    왜 응답을 실패시키는가
+    ----------------------
+    이 서버의 응답은 **학습데이터의 라벨이 된다.** 가짜 좌표가 정상 응답으로 흘러가면 그대로
+    데이터셋에 적재된다. 자동 적용을 막는 화면 쪽 방어가 있으나 그것은 <우리 화면>의 동작이고,
+    이 API 의 소비자가 그것뿐이라는 보장이 없다. 틀린 라벨이 조용히 쌓이는 것보다 **호출이
+    실패하는 편이 낫다** — 실패는 관측되고 고칠 수 있지만, 오염된 데이터셋은 되돌리기 어렵다.
+
+    개발 환경(local/dev·미설정)에서는 그대로 mock 을 쓴다. 모델 없이 화면을 붙여 보는 것이
+    개발 편의이기 때문이며, 그 환경의 산출물은 학습데이터가 아니다.
+
+    :param feature: 실패를 알릴 기능명(로그·응답 문구용). 사용자 입력을 넣지 않는다.
+    :param reason: 로더가 판정한 mock 사유(``env_mock`` | ``weights_missing`` | ``load_failed``)
+    :raises HTTPException: 배포 표식(stg/prd)일 때 503
+    """
+    from fastapi import HTTPException  # 지연 import — 이 모듈은 기동 가드에서도 쓰인다
+
+    from app.config import get_settings
+
+    marker = deployed_env_marker(get_settings().env)
+    if marker is None:
+        return
+    logger.error(
+        "[AI] %s 를 mock 으로 응답할 뻔했습니다 — 배포 환경(%s)이라 거부합니다. reason=%s",
+        feature,
+        marker,
+        reason,
+    )
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            f"{feature} 모델을 사용할 수 없습니다(reason={reason}). 배포 환경에서는 "
+            "가짜 응답을 반환하지 않습니다. 모델 파일이 반입·설치됐는지 확인하세요."
+        ),
+    )
+
+
+def _hf_cache_dir_for(model_id: str) -> str:
+    """HF 캐시에서 이 모델이 놓이는 디렉터리명. ``a/b`` → ``models--a--b``."""
+    return "models--" + model_id.strip().replace("/", "--")
+
+
+def verify_models_available(settings: Settings) -> None:
+    """배포 환경(stg/prd)에서 **모델 파일이 없으면 기동을 거부**한다.
+
+    왜 요청 시점 거부만으로 부족한가
+    --------------------------------
+    :func:`refuse_mock_in_deployed_env` 는 호출이 들어와야 동작한다. 그때는 이미 배포가 끝나고
+    사람이 화면을 쓰고 있는 시점이라, 반입 누락이 <운영 중에> 드러난다. 모델이 없다는 것은
+    설치 시점에 이미 확정된 사실이므로 그때 막는 편이 맞다.
+
+    이 프로젝트는 로컬·개발조차 외부 시스템을 <별도 목 서버>로 세워 실제 HTTP 로 호출한다 —
+    애플리케이션이 스스로 결과를 지어내는 경로를 두지 않기 위해서다. 그 원칙이 배포본에서만
+    무너지지 않도록, 배포 환경에서는 가짜 응답을 만들 수 있는 형상 자체를 기동 단계에서 없앤다.
+
+    파일 존재만 확인하고 **모델을 적재하지는 않는다**. 무거운 의존(torch·onnxruntime)은 첫
+    요청까지 미루는 것이 의도된 설계이므로 그 성질을 깨지 않는다.
+
+    :raises RuntimeError: 배포 표식(stg/prd)인데 모델 파일이 없을 때
+    """
+    import os
+    from pathlib import Path
+
+    marker = deployed_env_marker(settings.env)
+    if marker is None:
+        return
+
+    missing: list[str] = []
+
+    if not Path(settings.yolox_weights_path).is_file():
+        missing.append(f"탐지 가중치 파일이 없습니다: {settings.yolox_weights_path}")
+
+    hf_home = os.environ.get("HF_HOME", "").strip()
+    if not hf_home:
+        missing.append("HF_HOME 이 설정되지 않아 분할·추적 모델 캐시 위치를 알 수 없습니다.")
+    elif not (Path(hf_home) / "hub" / _hf_cache_dir_for(settings.sam2_model_id)).is_dir():
+        missing.append(
+            "분할·추적 모델 캐시가 없습니다: "
+            f"{Path(hf_home) / 'hub' / _hf_cache_dir_for(settings.sam2_model_id)}"
+        )
+
+    if not missing:
+        return
+
+    raise RuntimeError(
+        "[AI] 배포 환경(" + marker + ")인데 모델 파일이 없어 기동을 거부합니다.\n  - "
+        + "\n  - ".join(missing)
+        + "\n\n이대로 기동하면 해당 기능이 <가짜 응답>으로 동작하고, 서버는 정상 기동하고"
+        " API 도 200 을 돌려주므로 운영 중에 드러나지 않습니다. 이 서버의 응답은 학습데이터의"
+        " 라벨이 되므로 오염된 채 쌓이는 것보다 기동을 막는 편이 낫습니다.\n"
+        "조치: 폐쇄망이라면 빌드머신에서 패키징을 다시 수행해 모델을 번들에 담고 재설치하세요."
+    )

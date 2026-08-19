@@ -8,9 +8,12 @@
 -- 남기는 것 (플로우 시작점):
 --   - LS_ACNT_USER          사용자 5명 (REVIEWER 2 / WORKER 2 / PORTAL 1)
 --   - LS_USER_ROLE          사용자-역할 매핑 (저작도구 소유 — 인가 판정의 단일 진실원)
---   - LS_LABEL              라벨 마스터 13건 (CVAT-Like 라벨 풀)
---   - LS_DATA_INGEST        관제 인입 미처리(PENDING) 3건 — ★파이프라인 시작점(§5-1)
---                           ※ RAW_FILE_PATH_NM 의 실파일을 먼저 만들어야 적재된다(§5-1 주석 참조)
+--   - LS_LABEL              라벨 마스터 9건 (CVAT-Like 라벨 풀, 표시명 한글)
+--   - LS_EVNT_TYPE          이벤트유형 마스터 16종 / LS_EVNT_CTGRY 카테고리 11종
+--
+-- 넣지 않는 것:
+--   - LS_DATA_INGEST        관제가 직접 INSERT 하는 인입 원장이라 시드하지 않는다(§5-1 폐지 사유).
+--                           파이프라인 시작점은 dev 업로드(POST /v1/dev/upload)로 만든다.
 --
 -- 지우는 것: ★없다. 이 시드는 <추가만> 한다 (아래 §0 참조).
 --
@@ -80,78 +83,40 @@ INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES
     (3001, 'PORTAL_USER', '2026-03-01 09:00:00')
 ON CONFLICT (USER_NO) DO UPDATE SET ROLE_CD = EXCLUDED.ROLE_CD;
 
--- 5-1) ★관제 인입 픽업 후보 (LS_DATA_INGEST) — Phase 3 적재 소스 교체 반영.
---   적재 소스가 관제 공유 클립 마스터 스캔 → 관제가 직접 INSERT 하는 인입 테이블로
---   바뀌었다(관제 2차 적재 주체 반전). dev/local 수동 파이프라인 드라이브가 조용히 죽지 않도록
---   인입 행을 시드한다.
---   - VMS_CLIP_ID 'DEV-CLIP-' 접두 고정(멱등키 = LS_DATA_RAW.VMS_CLIP_ID).
---   - PRCS_STTS_CD='PENDING' 이어야 폴링 후보다(부분 인덱스 IX_LS_DATA_INGEST_POLL 술어와 동일).
---   - ★멱등은 ON CONFLICT (VMS_CLIP_ID) DO NOTHING 으로만 한다(§0). 이미 적재된 인입 행을
---     PENDING 으로 <되돌리지> 않는다 — 되돌리면 그 위의 영상·프레임·라벨을 지워야 재적재가
---     되고, 그게 바로 이번 소실 사고였다. 다시 픽업시키려면 재큐 API 를 쓸 것(§0).
---   - VDO_LEN_SEC 는 <이미 초>다(구 관제 클립 마스터의 ms 와 다르다 — ÷1000 변환 없음).
+-- 5-1) (폐지) 관제 인입 픽업 후보 (LS_DATA_INGEST) — 시드하지 않는다.
+--   구 동작: DEV-CLIP-9101~9103 3건을 PENDING 으로 심어 dev 파이프라인 시작점을 만들었다.
 --
---   ⚠ ★실파일이 있어야 적재된다 (구 시드와 결정적으로 다른 점)
---     적재는 "파일 존재 + 허용 루트 하위" 검증을 통과해야 수행되고, 미도착이면 실패가 아니라
---     PENDING 복귀(다음 주기 재시도)라 <적재 0건>이 된다. 즉 아래 경로에 실제 파일이 없으면
---     scan 을 아무리 눌러도 아무 일도 일어나지 않는다. 시드 SQL 은 파일을 만들 수 없으므로
---     반드시 아래 수동 절차를 먼저 수행할 것.
+--   ★폐지 사유 (2026-08-19 사용자 확정): LS_DATA_INGEST 는 <관제가 직접 INSERT 하는 인입 원장>이다
+--     (적재 주체 반전). 저작도구 DB 가 관제 DB 와 같은 서버·같은 스키마 축에 놓이면서, 시드가 넣는
+--     가짜 3건이 관제 실인입과 같은 테이블에 섞이게 됐다. 게다가 그 3건은
+--       · EVNT_TYPE_CD='INTRUSION' — LS_EVNT_TYPE 마스터(EV0*)에 없는 비규격 코드
+--       · VMS_CCTV_ID='CCTV-001~003' — 관제 CCTV 원장의 실제 cctv_id 가 아님
+--       · RAW_FILE_PATH_NM 이 <상대경로> — 형상에 따라 허용 루트 밖이면 즉시 FAILED 종결
+--     라, 남겨두면 관제 쪽 데이터를 오염시키기만 하고 dev 드라이브에도 매번 손질이 필요했다.
 --
---     [네이티브 bootRun(local, STORAGE_RAW_PATH 기본값 ./storage/raw)] — backend/ 에서:
---       mkdir -p ./storage/raw/seed
---       for i in 9101 9102 9103; do cp <아무_영상.mp4> ./storage/raw/seed/clip-$i.mp4; done
---     [로컬 도커(docker-compose.local.yml)] — 컨테이너 WORKDIR 이 /app 이고 STORAGE_RAW_PATH 가
---       /app/storage/raw 라, 아래 <상대경로>가 /app/storage/raw/seed/... 로 해석돼 그대로 통한다:
---       docker exec <be> sh -c 'mkdir -p /app/storage/raw/seed && cp <원본> /app/storage/raw/seed/clip-9101.mp4'
---
---   ⚠⚠ ★★ 경로가 허용 루트 <밖>이면 이제 조용한 0건이 아니라 FAILED 종결이다 (Phase 3 변경점)
---     아래 경로는 <상대경로>라 "프로세스 작업 디렉터리 기준"으로 해석된다. 그래서 기본 형상
---     두 가지(네이티브 bootRun: CWD=backend/ + raw-path ./storage/raw · 로컬 도커: WORKDIR=/app +
---     raw-path /app/storage/raw)에서는 항상 허용 루트 하위가 된다.
---     그러나 STORAGE_RAW_PATH / STORAGE_RAW_MOUNT_ROOTS 를 <다른 절대경로>(예: /nas-storage)로
---     바꿔 띄운 형상에서는 이 상대경로가 허용 루트 밖이 되어, 스캔이 이 3건을 즉시
---     FAILED(사유: 허용 저장 루트 밖)로 종결시킨다. 예전처럼 "미도착이라 조용히 0건" 이 아니다.
---       · 대처 1(권장): 아래 RAW_FILE_PATH_NM 을 그 형상의 허용 루트 하위 절대경로로 바꿔 재시드.
---       · 대처 2: 이미 FAILED 가 된 행은 REVIEWER 재큐 API 로 되살린다 —
---            POST /v1/control-ingests/{rcptnSn}/requeue        (단건)
---            POST /v1/control-ingests/requeue  {"limit":100}   (일괄)
---         (인입 행은 삭제 금지 + UK(VMS_CLIP_ID) 때문에 재INSERT 도 불가하므로 재큐가 유일한 통로다.)
---     ※ 내용은 아무 바이트여도 픽업·적재·이벤트 발행까지는 진행된다(이후 비식별/ffprobe 단계에서
---       실제 영상이 아니면 실패 처리 — 그건 정상 흐름이다).
---   ★CCTV_NM / LCLGV_NM / EVNT_TYPE_CD 를 여기서 채운다 (V167 — 관제 공유 마스터 4종 제거).
---     구 시드는 CCTV 명을 MNG_RESOURCE_CCTV 에, 이벤트유형코드를 MNG_CLIP_EVNT_LST 에 두고
---     적재/조회가 그 테이블을 조인했다. 이제 조달처가 인입 평면값 하나뿐이라, 여기에 없으면
---     dev 목록의 영상명이 전부 VMS_CCTV_ID 로 표시되고 EVNT_TYPE_CD 결손으로 자동마킹이 400 이 된다.
-INSERT INTO LS_DATA_INGEST
-    (VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, RAW_FILE_PATH_NM, SRC_TYPE,
-     RCPTN_DT, PRCS_STTS_CD, VDO_LEN_SEC, LCLGV_CD, SHT_DT, FILE_FMT, EVNT_ID, EVNT_NM,
-     CCTV_NM, LCLGV_NM, EVNT_TYPE_CD) VALUES
-    ('DEV-CLIP-9101', 'CCTV-001', 'clip-9101.mp4', './storage/raw/seed/clip-9101.mp4', 'ORIGINAL',
-     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9101', '배회',
-     'CCTV-강남구-001', '서울특별시 강남구', 'INTRUSION'),
-    ('DEV-CLIP-9102', 'CCTV-002', 'clip-9102.mp4', './storage/raw/seed/clip-9102.mp4', 'ORIGINAL',
-     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9102', '배회',
-     'CCTV-강남구-002', '서울특별시 강남구', 'INTRUSION'),
-    ('DEV-CLIP-9103', 'CCTV-003', 'clip-9103.mp4', './storage/raw/seed/clip-9103.mp4', 'ORIGINAL',
-     now(), 'PENDING', 30, '11110', now(), 'mp4', 'DEV-EVT-9103', '배회',
-     'CCTV-강남구-003', '서울특별시 강남구', 'INTRUSION')
-ON CONFLICT (VMS_CLIP_ID) DO NOTHING;
+--   dev 파이프라인을 돌리려면 시드가 아니라 아래를 쓴다:
+--     · dev 업로드 화면 / POST /v1/dev/upload   — 실파일과 함께 인입 행을 만든다(권장)
+--     · POST /v1/control-ingests/{rcptnSn}/requeue      (단건 재큐)
+--     · POST /v1/control-ingests/requeue  {"limit":100} (일괄 재큐)
+--   ⚠ 인입 행은 삭제 금지 + UK(VMS_CLIP_ID) 라 재INSERT 도 불가하므로 재큐가 유일한 회수 통로다.
 
 -- 6) 라벨 마스터 (LS_LABEL) — CVAT-Like 라벨 풀 포팅 Phase 1
 --   DTCT_TYPE_CD: AI(COCO) 검출 클래스 매핑(V129). COCO 80종에 대응하는 이동체 라벨만 채운다.
---   유지 라벨(9종): 매핑 6종(person/car/bicycle/motorbike→motorcycle/bus/truck) + 미매핑 이벤트 3종(fire/smoke/water).
---   ⚠ motorbike 의 COCO 정규명은 'motorcycle'(라벨명과 다름) — 매핑값은 motorcycle.
+--   유지 라벨(9종): 매핑 6종(사람/자동차/자전거/오토바이/버스/트럭) + 미매핑 이벤트 3종(화재/연기/침수).
+--   ★표시명은 한글이고 AI 검출 매칭은 DTCT_TYPE_CD(COCO 영문 클래스명)가 단일 진실원이다 —
+--     둘은 1:1 대응하지 않으므로 라벨명을 바꿔도 오토라벨링 매칭은 흔들리지 않는다.
+--     ⚠ 다만 학습데이터 export JSON 의 categories[].name 은 이 라벨명 그대로 나간다(CategoryMapper).
 --   정리(soft-delete) 라벨: animal/fallen-person/vehicle-accident/object 는 COCO 미대응·불용 → 아래 6-2 에서 비활성(신규 설치엔 애초 미삽입).
 INSERT INTO LS_LABEL (LBL_NM, COLR_VL, LBL_TYPE_CD, SORT_SEQ, USE_YN, REG_ID, REG_DT, DTCT_TYPE_CD) VALUES
-    ('person',           '#E74C3C', 'BBOX',    1,  'Y', 'seed', '2026-05-15 00:00:00', 'person'),
-    ('car',              '#3498DB', 'BBOX',    2,  'Y', 'seed', '2026-05-15 00:00:00', 'car'),
-    ('bicycle',          '#9B59B6', 'BBOX',    3,  'Y', 'seed', '2026-05-15 00:00:00', 'bicycle'),
-    ('motorbike',        '#1ABC9C', 'BBOX',    4,  'Y', 'seed', '2026-05-15 00:00:00', 'motorcycle'),
-    ('bus',              '#F39C12', 'BBOX',    5,  'Y', 'seed', '2026-05-15 00:00:00', 'bus'),
-    ('truck',            '#34495E', 'BBOX',    6,  'Y', 'seed', '2026-05-15 00:00:00', 'truck'),
-    ('fire',             '#FF5733', 'POLYGON', 8,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
-    ('smoke',            '#7F8C8D', 'POLYGON', 9,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
-    ('water',            '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00', NULL)
+    ('사람',             '#E74C3C', 'BBOX',    1,  'Y', 'seed', '2026-05-15 00:00:00', 'person'),
+    ('자동차',           '#3498DB', 'BBOX',    2,  'Y', 'seed', '2026-05-15 00:00:00', 'car'),
+    ('자전거',           '#9B59B6', 'BBOX',    3,  'Y', 'seed', '2026-05-15 00:00:00', 'bicycle'),
+    ('오토바이',         '#1ABC9C', 'BBOX',    4,  'Y', 'seed', '2026-05-15 00:00:00', 'motorcycle'),
+    ('버스',             '#F39C12', 'BBOX',    5,  'Y', 'seed', '2026-05-15 00:00:00', 'bus'),
+    ('트럭',             '#34495E', 'BBOX',    6,  'Y', 'seed', '2026-05-15 00:00:00', 'truck'),
+    ('화재',             '#FF5733', 'POLYGON', 8,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
+    ('연기',             '#7F8C8D', 'POLYGON', 9,  'Y', 'seed', '2026-05-15 00:00:00', NULL),
+    ('침수',             '#2980B9', 'POLYGON', 10, 'Y', 'seed', '2026-05-15 00:00:00', NULL)
 -- ★멱등: 충돌 대상을 <지정하지 않는다> = 모든 유니크 인덱스가 대상이다.
 --   구 코드는 이름 인덱스만 추론 대상으로 지정했다(ON CONFLICT ((LOWER(TRIM(LBL_NM)))) WHERE USE_YN='Y').
 --   그래서 사용자가 라벨 관리 화면에서 라벨명을 바꿔 <COCO 매핑만 겹치는> 상태(예: 'person' →
@@ -167,8 +132,13 @@ ON CONFLICT DO NOTHING;
 --   ★그 COCO 클래스를 이미 다른 활성 라벨이 점유했으면 건너뛴다(NOT EXISTS) — 위 INSERT 와 같은
 --   이유다. 사용자가 라벨을 재구성해 'person' 이름 라벨과 'person' 매핑 라벨이 <서로 다른 행>이
 --   되면, 이 UPDATE 가 UK_LS_LABEL_DTCT_TYPE 를 위반해 시드 전체를 중단시킨다.
+--   ★매칭 이름은 한글(현행)과 영문(구 시드 DB) 을 <함께> 둔다. 라벨명을 한글로 바꾸면서 영문만
+--   남기면 이 백필이 기존 dev/local DB 에서 통째로 무력화되고, 한글만 남기면 아직 영문명인 DB 가
+--   영영 미매핑으로 남는다. 어느 쪽이 매칭되든 결과 coco 값은 같다.
 UPDATE LS_LABEL t SET DTCT_TYPE_CD = m.coco
 FROM (VALUES
+    ('사람', 'person'),   ('자동차', 'car'),  ('자전거', 'bicycle'),
+    ('오토바이', 'motorcycle'), ('버스', 'bus'), ('트럭', 'truck'),
     ('person', 'person'), ('car', 'car'), ('bicycle', 'bicycle'),
     ('motorbike', 'motorcycle'), ('bus', 'bus'), ('truck', 'truck')
 ) AS m(nm, coco)
@@ -237,10 +207,8 @@ ON CONFLICT (EVNT_CLSF_CD, EVNT_CTGRY_CD) DO NOTHING;
 SELECT '=== SEED COMPLETE ===' AS marker;
 SELECT 'LS_ACNT_USER'           AS t, COUNT(*) AS n FROM LS_ACNT_USER          WHERE USER_NO BETWEEN 1000 AND 9999
 UNION ALL SELECT 'LS_USER_ROLE',          COUNT(*) FROM LS_USER_ROLE          WHERE USER_NO BETWEEN 1000 AND 9999
-UNION ALL SELECT 'LS_DATA_INGEST(dev)',   COUNT(*) FROM LS_DATA_INGEST        WHERE VMS_CLIP_ID LIKE 'DEV-CLIP-%'
 UNION ALL SELECT 'LS_EVNT_TYPE(Y)',      COUNT(*) FROM LS_EVNT_TYPE          WHERE CLCT_YN = 'Y'
 UNION ALL SELECT 'LS_EVNT_CTGRY',        COUNT(*) FROM LS_EVNT_CTGRY
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상: LS_ACNT_USER=5, LS_USER_ROLE=5, LS_DATA_INGEST(dev)=3, LS_LABEL=13, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11
--- ⚠ LS_DATA_INGEST(dev)=3 이어도 RAW_FILE_PATH_NM 의 실파일이 없으면 적재는 0건이다(위 5-1 수동 절차 참조).
+-- 예상(신규 설치): LS_ACNT_USER=5, LS_USER_ROLE=5, LS_LABEL=9, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11

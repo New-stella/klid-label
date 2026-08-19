@@ -22,7 +22,7 @@ from app.models import yolox_loader
 from app.models.sam2_loader import get_sam2_model
 from app.models.vlm_loader import get_vlm_model
 from app.routers import sam2, vlm, yolo
-from app.startup_guard import verify_deployment_settings
+from app.startup_guard import verify_deployment_settings, verify_models_available
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,8 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     # 위험한 설정 조합(배포 환경 + mock 모드)은 워밍업 이전에 기동을 거부한다(fail-closed).
     verify_deployment_settings(settings)
+    # 배포 환경에서 모델이 없으면 가짜 응답 형상이 되므로 기동을 거부한다.
+    verify_models_available(settings)
     logger.info(
         "[AI] startup mock_mode=%s device=%s max_image_mb=%d",
         settings.ai_mock_mode,
