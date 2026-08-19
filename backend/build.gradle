@@ -1,5 +1,8 @@
 plugins {
     id 'java'
+    // 외부 WAS 반입용 WAR 산출(@design DEPLOY-001). 실행 가능 JAR 는 그대로 유지한다 —
+    //   개발 형상이 컨테이너에서 그 산출물로 기동하고 있어 갈아치우면 개발이 멈춘다.
+    id 'war'
     id 'org.springframework.boot' version '3.3.0'
     id 'io.spring.dependency-management' version '1.1.5'
     id 'org.flywaydb.flyway' version '10.13.0'
@@ -46,6 +49,14 @@ dependencyManagement {
 }
 
 dependencies {
+    // ★ 외부 WAS 반입 시 톰캣을 산출물에 넣지 않는다(@design DEPLOY-001).
+    //   war 플러그인이 만드는 providedRuntime 에 선언하면 bootWar 가 이를 WEB-INF/lib-provided 로
+    //   보내 WEB-INF/lib 에서 빼준다 — 컨테이너가 이미 제공하는 서블릿 구현이 중복 적재되면
+    //   ClassCastException·리스너 이중 등록으로 기동이 깨진다.
+    //   ⚠ bootJar 는 providedRuntime 을 runtimeClasspath 로 함께 담으므로 실행 가능 JAR 는
+    //     내장 톰캣을 그대로 갖는다(개발 형상 무영향).
+    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+
     // Spring Boot core
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -144,6 +155,22 @@ tasks.named('test') {
 
     // Ryuk(reaper) 컨테이너도 동일 API 버전 이슈로 막히지 않도록 비활성화.
     environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+}
+
+// ★ WAR 산출물 이름 = 웹 컨텍스트 (@design DEPLOY-001)
+//   WAR 배포에서는 server.servlet.context-path 가 <적용되지 않는다> — 컨텍스트는 컨테이너가
+//   WAR 파일명(또는 컨텍스트 설정)으로 정한다. 지금 API 주소가 전부 /api 하위이므로 파일명을
+//   api.war 로 고정해 주소 체계를 그대로 유지한다.
+//   ⚠ ROOT.war 로 바꾸면 컨텍스트가 '/' 가 되어 프론트엔드·관제의 모든 호출이 404 가 된다.
+//     이름을 바꾸려면 그 두 소비자의 주소를 함께 바꿔야 한다.
+tasks.named('bootWar') {
+    archiveFileName = 'api.war'
+}
+
+// 일반 war 태스크는 쓰지 않는다 — bootWar 가 의존성까지 담은 배포 가능 산출물을 만든다.
+//   둘 다 활성이면 build 가 내용이 다른 war 두 개를 만들어 어느 것을 반입할지 모호해진다.
+tasks.named('war') {
+    enabled = false
 }
 
 // QueryDSL Q-class 생성 경로
