@@ -19,7 +19,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 49cmhuUHEPoEZ2fQTBG7J2kguH2wL7TXPkInFmrEVadfWAXvqh9f16BpAXBnFPk
+\restrict cSRzDiGIoHeLov1VLRCXwXE12rcJhn8LIJ2pJ1xw5TeAUbygrN8xzYE5AcT9Neb
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -60,13 +60,6 @@ CREATE TABLE klid_at.ls_acnt_user (
     mdfcn_dt timestamp without time zone,
     last_lgn_dt timestamp without time zone
 );
-
-
---
--- Name: COLUMN ls_acnt_user.last_lgn_dt; Type: COMMENT; Schema: klid_at; Owner: -
---
-
-COMMENT ON COLUMN klid_at.ls_acnt_user.last_lgn_dt IS '최종로그인일시 — 맨 나중에 접속한 시각. 한 번도 접속하지 않았으면 NULL(기본값을 넣지 않는다).';
 
 
 --
@@ -2104,7 +2097,7 @@ CREATE VIEW klid_at.v_completed_video AS
 -- Data for Name: ls_acnt_user; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_acnt_user (user_no, user_id, user_nm, user_eml_addr, use_yn, reg_dt, mdfcn_dt) FROM stdin;
+COPY klid_at.ls_acnt_user (user_no, user_id, user_nm, user_eml_addr, use_yn, reg_dt, mdfcn_dt, last_lgn_dt) FROM stdin;
 \.
 
 
@@ -2497,20 +2490,20 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 --
 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
-BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-17 02:15:28.508813
-BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-17 02:15:28.508813
-YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-17 02:15:28.508813
-YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-17 02:15:28.508813
-POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-17 02:15:28.508813
-portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-17 02:15:28.508813
-autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-17 02:15:28.508813
-eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-17 02:15:28.508813
-kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-17 02:15:28.508813
-kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-17 02:15:28.508813
-kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-17 02:15:28.508813
-portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-17 02:15:29.297639
-portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-17 02:15:29.297639
-portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-17 02:15:29.297639
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-19 10:34:55.710962
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-19 10:34:55.710962
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-19 10:34:55.710962
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-19 10:34:55.710962
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-19 10:34:55.710962
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-19 10:34:55.710962
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-19 10:34:55.710962
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-19 10:34:55.710962
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-19 10:34:55.710962
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-19 10:34:55.710962
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-19 10:34:55.710962
+portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-19 10:34:56.759742
+portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-19 10:34:56.759742
+portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-19 10:34:56.759742
 \.
 
 
@@ -4813,5 +4806,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 49cmhuUHEPoEZ2fQTBG7J2kguH2wL7TXPkInFmrEVadfWAXvqh9f16BpAXBnFPk
+\unrestrict cSRzDiGIoHeLov1VLRCXwXE12rcJhn8LIJ2pJ1xw5TeAUbygrN8xzYE5AcT9Neb
 
