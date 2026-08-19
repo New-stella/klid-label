@@ -64,7 +64,9 @@ sha256_write "${FFMPEG_OUT}"
 #   - mesa-libGL    : libGL.so.1 제공(opencv import)
 #   - libglvnd-glx  : GLX 디스패치(mesa-libGL 의존 보강)
 #   - glib2         : libglib-2.0.so.0 (opencv/그래픽 스택 의존)
-RPM_PKGS=(mesa-libGL libglvnd-glx glib2)
+# httpd — 프론트엔드 정적 서빙 + API 리버스프록시(관제지원시스템과 동일 사양).
+#   mod_proxy·mod_headers·mod_deflate 는 httpd 본체 패키지에 포함된다.
+RPM_PKGS=(mesa-libGL libglvnd-glx glib2 httpd)
 
 collect_rpm() {
   local dl_tool=""

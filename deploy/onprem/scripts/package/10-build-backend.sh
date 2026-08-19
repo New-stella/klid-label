@@ -20,12 +20,15 @@ OUT="${ONPREM}/artifacts/backend"
 [[ -d "${BE_SRC}" ]] || die "backend 디렉토리를 찾을 수 없습니다: ${BE_SRC}"
 ensure_dir "${OUT}"
 
-info "[backend] Gradle bootJar 빌드 (Java 17 필요)..."
+# ★ WAR 도 함께 만든다(@design DEPLOY-001). 외부 WAS 반입 형상의 산출물이다.
+#   실행 가능 JAR 를 없애지 않는 이유: 개발·단독 기동 형상이 아직 그 산출물을 쓴다.
+#   두 산출물은 같은 소스에서 나오므로 내용이 갈릴 일이 없다.
+info "[backend] Gradle bootJar + bootWar 빌드 (Java 17 필요)..."
 if [[ -x "${BE_SRC}/gradlew" ]]; then
-  ( cd "${BE_SRC}" && ./gradlew --no-daemon clean bootJar )
+  ( cd "${BE_SRC}" && ./gradlew --no-daemon clean bootJar bootWar )
 else
   require_cmd gradle
-  ( cd "${BE_SRC}" && gradle --no-daemon clean bootJar )
+  ( cd "${BE_SRC}" && gradle --no-daemon clean bootJar bootWar )
 fi
 
 # bootJar 결과만 선택(-plain.jar 는 라이브러리 jar 이므로 제외)
@@ -47,3 +50,15 @@ cp "${jars[0]}" "${OUT}/klid-backend.jar"
 ok "[backend] 수집: ${OUT}/klid-backend.jar  ($(du -h "${OUT}/klid-backend.jar" | cut -f1))"
 
 sha256_write "${OUT}"
+
+# ---- WAR 수집 (외부 WAS 반입용) ----
+#   ★ 파일 이름이 곧 웹 컨텍스트다. 이름을 바꾸면 프론트엔드와 관제의 호출 주소가
+#     전부 어긋나므로 빌드가 정한 이름을 그대로 옮긴다(rename 금지).
+war_src="${BE_SRC}/build/libs/api.war"
+if [[ -f "${war_src}" ]]; then
+  rm -f "${OUT}"/*.war
+  install -m 0644 "${war_src}" "${OUT}/api.war"
+  ok "[backend] WAR 수집: ${OUT}/api.war  ($(du -h "${OUT}/api.war" | cut -f1))"
+else
+  die "[backend] WAR 산출물을 찾을 수 없습니다: ${war_src} — build.gradle 의 bootWar 설정을 확인하세요."
+fi
