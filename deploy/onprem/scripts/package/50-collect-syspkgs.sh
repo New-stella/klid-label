@@ -66,7 +66,13 @@ sha256_write "${FFMPEG_OUT}"
 #   - glib2         : libglib-2.0.so.0 (opencv/그래픽 스택 의존)
 # httpd — 프론트엔드 정적 서빙 + API 리버스프록시(관제지원시스템과 동일 사양).
 #   mod_proxy·mod_headers·mod_deflate 는 httpd 본체 패키지에 포함된다.
-RPM_PKGS=(mesa-libGL libglvnd-glx glib2 httpd)
+#
+# policycoreutils-python-utils — semanage 제공. SELinux Enforcing 장비에서 문서 루트에
+#   httpd 읽기 문맥을 <영구> 부여하는 데 필요하다. restorecon 만 쓰면 정책에 규칙이 남지
+#   않아 재라벨링·재부팅 후 초기화되고, 그때 화면이 403 으로 돌아간다.
+#   ★ 폐쇄망에서는 없으면 설치할 방법이 없다 — 여기서 함께 받아 두지 않으면 설치 스크립트가
+#     "semanage 없음" 을 경고해도 운영자가 할 수 있는 일이 없다.
+RPM_PKGS=(mesa-libGL libglvnd-glx glib2 httpd policycoreutils-python-utils)
 
 collect_rpm() {
   local dl_tool=""
