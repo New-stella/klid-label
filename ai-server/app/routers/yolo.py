@@ -23,6 +23,7 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
+from app.startup_guard import refuse_mock_in_deployed_env
 from app.models import yolox_loader
 from app.models.detector_backend import DetectionResult, InferenceParams
 from app.schemas import (
@@ -136,6 +137,8 @@ def _predict_yolox(req: YoloRequest) -> YoloResponse:
     if backend is None:
         width, height = decode_image_b64(req.image_b64)
         reason = yolox_loader.get_yolox_mock_reason() or _fallback_reason()
+        # 배포 환경에서는 가짜 라벨을 내보내지 않는다 — 실패가 오염보다 낫다.
+        refuse_mock_in_deployed_env("YOLOX 탐지", reason)
         _warn_mock_once(reason, backend="yolox")
         logger.info(
             "[YOLOX][MOCK] predict reason=%s conf_threshold=%.2f imgsz=%d iou=%.2f image_size=%dx%d",
@@ -177,6 +180,7 @@ def _track_yolox(req: YoloTrackRequest) -> YoloTrackResponse:
         backend = yolox_loader.get_yolox_tracker(req.clip_id, reset=(req.frame_index == 0))
         if backend is None:
             reason = yolox_loader.get_yolox_mock_reason() or _fallback_reason()
+            refuse_mock_in_deployed_env("YOLOX 추적", reason)
             _warn_track_mock_once(reason, backend="yolox")
             logger.info(
                 "[YOLOX][MOCK] track reason=%s clip_id=%s frame_index=%d "

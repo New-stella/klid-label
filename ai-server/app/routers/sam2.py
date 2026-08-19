@@ -17,6 +17,7 @@ from fastapi import APIRouter
 from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
 from app.models.sam2_loader import get_sam2_model
+from app.startup_guard import refuse_mock_in_deployed_env
 from app.schemas import (
     MAX_TRACK_ID_LENGTH,
     Sam2SegmentRequest,
@@ -131,6 +132,8 @@ async def segment(req: Sam2SegmentRequest) -> Sam2SegmentResponse:
 
     if _should_mock():
         reason = _mock_reason()
+        # 배포 환경에서는 가짜 라벨을 내보내지 않는다 — 실패가 오염보다 낫다.
+        refuse_mock_in_deployed_env("SAM2 분할", reason)
         _warn_mock_once("segment", reason)
         return _mock_segment(width, height, req, reason)
     return _real_segment(get_sam2_model(), req)
@@ -141,6 +144,7 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
     """이전 프레임 폴리곤을 다음 프레임으로 전파. 동일 track_id 유지."""
     if _should_mock():
         reason = _mock_reason()
+        refuse_mock_in_deployed_env("SAM2 추적", reason)
         _warn_mock_once("track", reason)
         logger.info(
             "[SAM2][MOCK] track reason=%s track_id=%s points=%d",
