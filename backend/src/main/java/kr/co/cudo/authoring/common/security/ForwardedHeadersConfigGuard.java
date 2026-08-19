@@ -70,6 +70,31 @@ public class ForwardedHeadersConfigGuard {
     @PostConstruct
     void verify() {
         verify(configuredForbiddenKeys(environment));
+        warnIfExternalWasHidesValve();
+    }
+
+    /**
+     * [사각 고지] 외부 WAS 배포에서는 이 가드가 <b>절반만 본다</b>. [@design DEPLOY-001]
+     *
+     * <p>이 가드는 스프링 {@link Environment} 만 검사한다. 실행 가능 JAR 로 띄우면 내장 톰캣의
+     * 설정이 곧 스프링 프로퍼티라 그것으로 충분했다. 그러나 WAR 를 외부 WAS 에 올리면
+     * 같은 역할을 하는 {@code RemoteIpValve} 가 <b>WAS 자체 설정 파일</b>에 놓이고, 그것은
+     * 스프링 프로퍼티가 아니라 이 가드의 시야 밖이다.
+     *
+     * <p>즉 이 형상에서는 <b>가드가 통과해도 안전이 보장되지 않는다.</b> 막아 둔 위험(요청 헤더로
+     * {@code getRemoteAddr()} 이 치환되어 신뢰 프록시 대조가 무력화되는 것)이 WAS 쪽에서 그대로
+     * 열릴 수 있다. 기동을 막지 않는 이유는 <b>확인할 방법이 없어서</b>다 — 없는 근거로 기동을
+     * 거부하면 정상 배포를 막는다. 대신 사실을 로그로 남겨 배포 점검 항목으로 삼는다.
+     */
+    private void warnIfExternalWasHidesValve() {
+        if (!kr.co.cudo.authoring.ServletInitializer.isDeployedAsWar()) {
+            return;
+        }
+        log.warn("[ForwardedHeadersGuard] 외부 WAS 배포 감지 — 이 가드는 WAS 자체 설정을 볼 수 없습니다."
+                + " RemoteIpValve(및 동등한 프록시 IP 치환 밸브)가 WAS 설정에 <설정되어 있지 않은지>"
+                + " 배포 점검에서 직접 확인하세요. 설정돼 있으면 신뢰 프록시 대조가 무력화되어"
+                + " 웹훅 rate limit 이 헤더 조작으로 우회됩니다(CWE-348/CWE-307)."
+                + " 클라이언트 IP 해석은 webhook.trusted-proxy-cidrs 기반 ClientIpResolver 가 담당합니다.");
     }
 
     /**

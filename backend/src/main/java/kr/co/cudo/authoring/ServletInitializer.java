@@ -23,8 +23,26 @@ import org.springframework.boot.web.servlet.support.SpringBootServletInitializer
  */
 public class ServletInitializer extends SpringBootServletInitializer {
 
+    /**
+     * 외부 WAS 로 기동됐다는 표식. [@design DEPLOY-001]
+     *
+     * <p>이 경로에서만 참이다 — 실행 가능 JAR 로 띄우면 이 클래스가 호출되지 않는다.
+     * 보안 가드가 "WAS 자체 설정은 내가 볼 수 없다"는 사실을 알려야 할 때 쓴다
+     * ({@code ForwardedHeadersConfigGuard}).
+     *
+     * <p>정적 필드인 이유: 이 클래스는 스프링 빈이 아니라 서블릿 컨테이너가 직접 만드는
+     * 진입점이라 컨텍스트에 값을 넘길 통로가 없다. 프로세스당 한 번만 쓰이고 되돌리지 않는다.
+     */
+    private static volatile boolean deployedAsWar = false;
+
+    /** 외부 WAS 배포 여부. */
+    public static boolean isDeployedAsWar() {
+        return deployedAsWar;
+    }
+
     @Override
     protected SpringApplicationBuilder configure(SpringApplicationBuilder application) {
+        deployedAsWar = true;
         return application.sources(AuthoringApplication.class);
     }
 }
