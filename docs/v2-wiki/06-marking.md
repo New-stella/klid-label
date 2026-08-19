@@ -3,7 +3,9 @@
 > 출처: CLAUDE.md(마킹 단계·마킹 화면), R2 KLID-AT-SS-002, 코드(`marking/`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [09 VLM 시계열](09-vlm-timeseries.md)
 
-화면: `KLID-AT-SC-006`(마킹 `/marking/:rawSn`). 코드: `marking/`(9 파일) — v2 신설 기능(v1 없음).
+화면: `SC-006`(마킹 `/marking/:rawSn`). 코드: `marking/`(9 파일) — v2 신설 기능(v1 없음).
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-006`"* 은 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-006`(축약 `SC-006`). 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
 
 ## 6.1 마킹이란
 
@@ -14,9 +16,8 @@
   - ⚠ **"콜백"은 방향이 반대다** — 마킹 → VLM 은 **위탁/제출**이고, VLM → 저작도구 방향만 콜백(`POST /v1/vlm/callback`)이다
 - **이벤트명은 수동 입력하지 않는다** — 영상의 이벤트 유형(`LS_DATA_RAW.EVNT_TYPE_CD`)을 서버가 자동 소싱해 `LS_MARKING.EVNT_NM` 에 채운다(API-047 계약 변경). 이벤트 유형이 미지정(null/blank)인 영상은 마킹할 수 없다(`INVALID_INPUT` 400).
   - ⚠ **구 서술 폐기** — *"VLM 전달 페이로드 형식은 무변경(자동 소싱된 값을 `EVNT_NM` 으로 그대로 전달)"* 은 사실과 다르다. 자동 소싱된 값은 `LS_MARKING.EVNT_NM` 에 **저장될 뿐** verify 요청 바디에 실리지 않는다. VLM 위탁의 `event_type` 은 **다른 컬럼**(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`)에서 조달하며 둘을 대체·유도하지 않는다
-- **이벤트 유형은 적재 시점에 해석해 채운다** (2026-08-04 수정) — 관제 인입(`LS_DATA_INGEST`)은 이벤트 **식별자**(`EVNT_ID`, 예 `ABA_0001`)만 주므로, 적재 시 `EVNT_ID` 로 관제 공유 이벤트리스트(`MNG_CLIP_EVNT_LST`)를 조회해 `EVNT_TYPE_CD` 를 도출한다(`TrainingVideoIngestTx#resolveEvntTypeCd`). 기존 적재분은 `V164` 백필이 같은 규칙으로 채운다
-  - **해석 실패는 적재 실패가 아니다** — 매칭이 없거나 **한 이벤트에 유형이 둘 이상**(`MNG_CLIP_EVNT_LST` 는 `(EVNT_ID, EVNT_TYPE_CD)` 복합 PK)이면 `null` 로 적재하고 **적재는 성공**시킨다. 임의 선택은 하지 않는다 — 관제 완료통지 계약 필드·목록 필터·통계 버킷·export 메타가 **틀린 값으로 확정**되어 null 보다 나쁘다. 결손은 프로세스 1회 WARN 으로 관측되고, 그 영상은 위의 마킹 가드가 400 으로 막는다
-  - ⚠ **구 서술 폐기** — "적재 시 `EVNT_TYPE_CD` 는 **항상 null**(인입에 컬럼 없음)"(`TrainingVideoIngestTx` 구 javadoc·`docs/test-cases/B` TC-BATCH-020)은 폐기됐다. 그 구현은 이 절의 마킹 가드와 충돌해 **관제 인입 적재분의 자동마킹을 100% 400 으로 실패**시켰다. 인입에 유형코드 컬럼이 없는 것은 사실이지만, 금지 대상은 `EVNT_ID` 를 유형코드 자리에 **직접 대입**하는 것이지 조인 해석이 아니다
+- **이벤트 유형은 관제 인입 평면값을 그대로 옮겨 적는다** (2026-08-09 이후 실측 정정) — 단일 원천은 `LS_DATA_INGEST.EVNT_TYPE_CD`(V166 신설 컬럼)이고, 적재(`TrainingVideoIngestTx#resolveEvntTypeCd`)는 `trimToNull(ingest.getEvntTypeCd())` 한 줄로 그 값을 `LS_DATA_RAW.EVNT_TYPE_CD` 에 복사할 뿐 어떤 테이블도 조인하지 않는다. 관제가 이 컬럼을 비워 보내면(=미송신) `null` 로 적재되고, 그 결손은 프로세스 1회 WARN(`TrainingVideoIngestTx#warnControlContractGaps`)으로만 관측되며 그 영상은 아래 마킹 가드가 400 으로 막는다. 결손 시 함께 막히는 것: 마킹 진입 · 관제 완료통지 계약 필드 · 작업/검수목록 이벤트유형 필터 · 통계 버킷 · export 메타
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"관제 인입(`LS_DATA_INGEST`)은 이벤트 **식별자**(`EVNT_ID`, 예 `ABA_0001`)만 주므로, 적재 시 `EVNT_ID` 로 관제 공유 이벤트리스트(`MNG_CLIP_EVNT_LST`)를 조회해 `EVNT_TYPE_CD` 를 도출한다(2026-08-04 수정) — 해석 실패는 매칭 없음 또는 한 이벤트에 유형이 둘 이상(`MNG_CLIP_EVNT_LST` 복합 PK)일 때다"* 는 **사실과 다르다**. `MNG_CLIP_EVNT_LST` 조인은 **V167 에서 그 테이블 자체가 제거되며 함께 폐지**된 과도기 폴백이다(`TrainingVideoIngestTx` 클래스 javadoc이 이 사실을 "구 서술 폐기 ③"으로 직접 명시한다). 인입 유형코드 컬럼이 없어 항상 null 이던 시절(V164 이전)과 그 이후 `EVNT_ID` 조인으로 해석하던 시절(V166~V167 이전) **양쪽 다 이미 지났다** — 지금은 관제가 유형코드 자체를 평면값으로 직접 보낸다. 근거: `TrainingVideoIngestTx(resolveEvntTypeCd, warnControlContractGaps)`. 이벤트 **식별자**(`EVNT_ID`)·이벤트명(`EVNT_NM`) 필드 자체는 요청 DTO(`InternalUploadCreateRequest.evntId/evntNm`)에 여전히 남아 있으나 `EVNT_TYPE_CD` 도출에는 관여하지 않는다 → [05 §5.2](05-video-management.md#52-영상-적재)의 `evntTypeCd` 입력 항목 참조.
 - 마킹 대상: **비식별 영상** (구현됨, NFR-001 v1.5). 적재 직후 선두 비식별이 완료(`LsDataRaw.dataSttsCd=MARKING_READY`, `deIdntfYn='Y'`)된 영상만 마킹 진입 → [08](08-deidentification.md)
 
 ## 6.2 자동 / 수동 모드

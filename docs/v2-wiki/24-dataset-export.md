@@ -2,6 +2,8 @@
 
 > 출처: CLAUDE.md(라벨링·버전관리·데이터마트 View), 코드(`dataset/export/`), NIA COCO 확장 포맷(xlsx v1.3).
 > 관련: [12 검수](12-review-assignment.md) · [13 버전관리](13-version-control.md) · [15 관제서버 통지](15-control-notify.md) · [18 데이터베이스](18-database.md)
+>
+> ⚠ 이 문서가 인용하는 `V105`·`V130`·`V163`·`V166`·`V173`·`V174`·`V136` 같은 마이그레이션 번호는 **2026-08-13 스쿼시 이전(구 V0~V185 체계)의 이력 표기**이며, 지금은 전부 `V1__baseline.sql` 에 접혀 있다(원문은 `backend/src/test/resources/db-archive/migration/` 보존, 실행 대상 아님). 현재 실행 대상은 `V1__baseline.sql` + `V2`~`V13` 뿐이다 — 상세는 [18 데이터베이스](18-database.md) 헤더 참조.
 
 검수 승인(`APPROVED`) 시, 영상 1건의 확정 라벨을 **디스크에 물리 파일(프레임 이미지 + NIA COCO 확장 JSON)** 로 산출하는 기능이다. [13 버전관리](13-version-control.md)의 `LS_LABEL_VERSION`(DB 스냅샷)과는 **별개 레이어** — 버전관리는 DB 안의 라벨 페이로드 스냅샷이고, 본 기능은 데이터마트/외부 소비를 위한 **파일 산출물**이다.
 
@@ -315,10 +317,19 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `DATA_ETBL_CPCT` | **데이터구축용량**(V173) — 이 버전의 산출 폴더(`{영상루트}/v{n}`) **총 바이트**. 관제 `dataset_versions.data_etbl_cpct` 에 공급한다. **영상 누적이 아니라 버전 단위**이며, 심링크는 따라가지도 합산하지도 않는다. 산출 실패 시 `NULL`(=미산출)이고 **그때도 export 는 성공으로 종결**한다 — 용량은 부수 정보라 본체를 좌우하지 않는다. **★`FRME_CNT` 와 산정 축이 다르다** — 용량은 폴더 총 바이트라 2벌 포함이 정상이고, 프레임 수는 벌 최댓값(=N)이라 2벌을 포함하지 않는다. 두 값을 같은 축("2벌 합산 여부")으로 묶어 해석하지 말 것 |
 | `CONTENT_HASH` | 산출 시점 콘텐츠 해시(SHA-256, 멱등 판정 키) |
 | `REG_DT` | 생성 일시 |
+| `RTY_NMTM` / `RTY_DT` | **재시도 시도 횟수 / 최근 재시도 일시**(V136) — 이 문서에 신규 반영(2026-08-19). 아래 「실패 export 회수」가 클레임 시점에 증가시킨다 |
 
 **상태 의미**: `PENDING`=채번 후 파일 쓰기 전(예약), `SUCCEEDED`=전 프레임 산출, `PARTIAL`=일부 프레임 skip(원천 이미지 부재 등), `FAILED`=한 장도 못 씀 또는 파일 쓰기 예외.
 
 **stale PENDING 정리 (크래시 복구)**: `insertNextVersion` 이 PENDING 레코드를 커밋한 뒤 파일 쓰기/상태 마감 전에 프로세스가 크래시하면 그 레코드가 `PENDING` 으로 영구 고착된다. 주기 Quartz 잡 `DatasetExportPendingSweepJob`(기본 10분 간격, `@DisallowConcurrentExecution` + PostgreSQL JobStore 클러스터 락으로 2노드 중 1노드만 tick)이 `REG_DT` 가 `stale-minutes`(기본 30분) 이전인 PENDING 을 `FAILED` 로 마감한다. **파일은 삭제하지 않고 상태만 회수**한다(잔재는 `{RAW_SN}/v{n}/` 안에만 남고 **원본 영상과 형제 디렉터리라 원본에 영향이 없으며**, 다음 산출은 `v{n+1}` 로 진행). 정상 산출은 수 초 내 완료되므로 30분 임계를 넘는 PENDING 은 크래시 잔재뿐이다. 초장기 산출이 sweep 으로 FAILED 마킹돼도 이후 완료가 `SUCCEEDED` 로 최종 수렴한다(last-writer-wins, 무해). `stale-minutes` 오설정(0/음수)은 안전 기본값 30 으로 폴백한다.
+
+**실패 export 회수 (`DatasetExportFailureRecoverer`, D-ISSUE-04(b)) — 이 문서에 신규 반영(2026-08-19)**: 승인 후 export 는 승인 트랜잭션 **밖**(`DatasetExportBridge` AFTER_COMMIT → `AsyncDatasetExportRunner`)에서 돌기 때문에 실패해도 승인은 롤백되지 않는데, 재시도 큐가 없으면 `LS_DATASET_EXPORT` 에 `FAILED` 행만 남고 데이터마트 `V_COMPLETED_VIDEO` 는 `OUTPUT_PATH_NM`·`FRME_CNT` 가 `NULL` 인 행을 영구히 노출한다. 이 컴포넌트가 그 회수를 담당한다.
+- **새 큐 테이블을 만들지 않는다** — `LS_DATASET_EXPORT` 자신이 큐이며, 대상 판정은 "그 영상의 최신 export 행이 `FAILED`"다. 시도 횟수는 행 수가 아니라 **클레임 시점에 증가하는 `RTY_NMTM`(V136) 합**으로 센다(행 수 카운트는 NO_INPUT 조기 반환·버전 채번 소진 등에서 늘지 않아 예전엔 `max-attempts` 가 사실상 무효했다).
+- **실행은 기존 `AsyncDatasetExportRunner` 재사용**(승인 경로와 동일 산출 로직) — 재산출이 성공하면 최신 export 가 `SUCCEEDED`/`PARTIAL` 로 갱신되어 자연히 대상에서 빠진다.
+- **동시성은 Quartz 클러스터링에 의존하지 않는다** — `isClustered` 가 기본 false 라 "매 tick 은 한 노드만 실행"이 보장되지 않으므로, 재산출 트리거 전 **DB 레벨 조건부 UPDATE 클레임**(`LsDatasetExportRepository#claimForRetry`)을 통과한 건만 실행한다.
+- 신고 구간(`DeidentReportGate`)의 영상은 재시도 대상에서 제외한다(`AugmentDiscardPurgeTxService` 계열과 같은 원칙 — 신고 해소는 별도 재트리거가 담당).
+- 설정: `authoring.dataset-export.failure-recovery.retry-delay-minutes`(기본 10) · `.max-attempts`(기본 3, 미만이면 기본값 폴백) · `.batch-size`(기본 20). 스케줄러: `batch/scheduler/DatasetExportFailureRecoveryJob` + `DatasetExportFailureRecoveryTriggerConfig`(기존 `DatasetExportPendingSweeper` 와 동일한 Quartz 잡 골격).
+- 근거: `dataset/export/DatasetExportFailureRecoverer` 클래스 javadoc.
 
 ## 24.8 설정
 
@@ -333,6 +344,10 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 | `authoring.dataset-export.pending-sweep.enabled` | `true`(matchIfMissing) | stale PENDING 정리 Quartz 잡 등록 토글 |
 | `authoring.dataset-export.pending-sweep.interval-sec` | `600` | sweep 실행 간격(초) |
 | `authoring.dataset-export.pending-sweep.stale-minutes` | `30` | 이 분(minute)보다 오래된 PENDING 을 FAILED 로 회수(0/음수 오설정 시 30 폴백) |
+| `authoring.dataset-export.regen-flush.enabled` | `true`(기본 활성) | 승인 후 수정 → `v{n+1}` 전량 재생성을 발화시키는 디바운스 flush 스케줄러 토글(§24.6 R6). `ControlNotifyDebouncer` 자체 전용 스레드로 tick — 다른 스케줄러 on/off 와 독립적. 이 문서에 신규 반영(2026-08-19) |
+| `authoring.dataset-export.failure-recovery.retry-delay-minutes` | `10` | 실패 export 재시도 대기 시간(분) — 이 문서에 신규 반영(2026-08-19) |
+| `authoring.dataset-export.failure-recovery.max-attempts` | `3` | 직전 성공/부분 산출 이후 누적 실패 허용 횟수(초과 시 자동 회수 중단, 운영 개입 필요) — 이 문서에 신규 반영(2026-08-19) |
+| `authoring.dataset-export.failure-recovery.batch-size` | `20` | 1회 tick 당 재시도 대상 상한 — 이 문서에 신규 반영(2026-08-19) |
 
 ## 24.9 관찰성 메트릭 (Micrometer)
 
@@ -350,5 +365,5 @@ export 는 `orgnl`/`deid` **두 벌**로 나가고 각 문서에 `video`(영상 
 
 ## 24.10 코드 · 테스트
 
-- 코드: `dataset/export/` — `DatasetExportService`(오케스트레이터) · `DatasetExportTxService`(REQUIRES_NEW DB 게이트웨이 + `sweepStalePending`) · `DatasetExportWriter`(파일 쓰기) · `DatasetExportPathResolver`(CWE-22) · `FrameSource`(원천 이미지·CWE-59) · `json/`(NIA 문서 빌더·매퍼) · `listener/DatasetExportBridge` · `AsyncDatasetExportRunner` · `DatasetExportPendingSweeper`. 스케줄러: `batch/scheduler/DatasetExportPendingSweepJob` · `DatasetExportPendingSweepTriggerConfig`. 메트릭: `observability/metrics/DatasetExportMetrics`.
-- 테스트: `DatasetExportServiceTest`(판정 3분기·멱등·재채번·메트릭 outcome) · `DatasetExportPendingSweeperTest`/`DatasetExportPendingSweepJobTest`(sweep cutoff·하한폴백·예외삼킴) · `DatasetExportTxServiceTest`(멱등 baseline IN·sweep) · `DatasetExportServiceIT`(채번·상태·멱등, 파일 부재 환경) · `DatasetExportE2EIT`(실 이미지 fixture 기반 디스크 파일 산출 end-to-end — orgnl/deid 이미지+JSON 페어, 8키·description·좌표·anonymity, v1/v2 누적).
+- 코드: `dataset/export/` — `DatasetExportService`(오케스트레이터) · `DatasetExportTxService`(REQUIRES_NEW DB 게이트웨이 + `sweepStalePending`) · `DatasetExportWriter`(파일 쓰기) · `DatasetExportPathResolver`(CWE-22) · `FrameSource`(원천 이미지·CWE-59) · `json/`(NIA 문서 빌더·매퍼) · `listener/DatasetExportBridge` · `AsyncDatasetExportRunner` · `DatasetExportPendingSweeper` · **`DatasetExportFailureRecoverer`**(실패 export 회수, 이 문서에 신규 반영). 스케줄러: `batch/scheduler/DatasetExportPendingSweepJob` · `DatasetExportPendingSweepTriggerConfig` · **`DatasetExportFailureRecoveryJob`** · **`DatasetExportFailureRecoveryTriggerConfig`**(신규 반영). 메트릭: `observability/metrics/DatasetExportMetrics`.
+- 테스트: `DatasetExportServiceTest`(판정 3분기·멱등·재채번·메트릭 outcome) · `DatasetExportPendingSweeperTest`/`DatasetExportPendingSweepJobTest`(sweep cutoff·하한폴백·예외삼킴) · `DatasetExportTxServiceTest`(멱등 baseline IN·sweep) · `DatasetExportServiceIT`(채번·상태·멱등, 파일 부재 환경) · `DatasetExportE2EIT`(실 이미지 fixture 기반 디스크 파일 산출 end-to-end — orgnl/deid 이미지+JSON 페어, 8키·description·좌표·anonymity, v1/v2 누적) · **`DatasetExportFailureRecoveryIT`**(실패 회수 클레임·재시도 상한, 신규 반영).

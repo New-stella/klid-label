@@ -3,7 +3,11 @@
 > 출처: R1 RQ-SFR-08-02/03, R2 KLID-AT-SS-006, CLAUDE.md(라벨링·버전관리), 코드(`label/`, `preset/`, `sysconfig/`, `frontend label/canvas`)
 > 관련: [11 AI 보조](11-ai-assisted.md) · [12 검수](12-review-assignment.md) · [13 버전관리](13-version-control.md)
 
-화면: `KLID-AT-SC-005`(라벨링 캔버스 `/label/:id`). 코드: `label/`(35 파일) + `frontend/src/features/label/`.
+화면: `KLID-AT-SC-005`(라벨링 캔버스 `/label/:id`). 코드: `label/`(81 파일 — dto 35·service 21·controller 11·entity 4·domain 2·event 3·repository 4·listener 1) + `frontend/src/features/label/`(297 파일).
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-005`"* 는 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-005`(축약 `SC-005`). 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"코드: `label/`(35 파일)"* 은 사실과 다르다. 35는 `label/` 하위 `dto/` 서브패키지 파일 수일 뿐이고 `label/` 도메인 전체는 81개 `.java` 파일이다. 근거: `find backend/src/main/java/kr/co/cudo/authoring/label -name "*.java" | wc -l` → 81.
 
 ## 10.1 캔버스 (konva.js)
 
@@ -148,20 +152,27 @@ FE 는 이미지 로드 실패 시 캔버스 영역에 안내를 표시한다(�
 | `LS_DATA_LBL` | 라벨(좌표·트랙ID·LABEL_NM) — 작업 중 임시저장 |
 | `LS_DATA_LBL_ATTR_VAL` (V33) | 라벨 속성값 |
 
+> ⚠ **표의 `(V31)`·`(V33)` 표기 주의(2026-08-19 정정)** — 이 번호는 2026-08-13 Flyway 스쿼시 **이전**에 각 테이블을 만들었던 마이그레이션 번호이며, 지금은 `backend/src/test/resources/db-archive/migration/`(아카이브, 미실행)에만 남아 있다. **현재 실행되는 마이그레이션은 `V1__baseline.sql`(스쿼시본, 이 테이블들 포함) + `V2`~`V13`뿐**이고 현재 `V1`~`V13`의 의미는 스쿼시 이전 같은 번호와 무관하다 — 예를 들어 지금의 `V31`·`V33`은 존재하지 않는다(마이그레이션 파일이 13개뿐이므로). 근거: `ls backend/src/main/resources/db/migration/`(13개) vs `ls backend/src/test/resources/db-archive/migration/ | grep -E "^V31__|^V33__"` → `V31__create_ls_label.sql`·`V33__create_ls_label_attr.sql`(아카이브 소재).
+
 > 라벨 저장은 작업 중 `LS_DATA_LBL` upsert만, **버전 스냅샷은 검수 승인 시점**에만 생성 → [13](13-version-control.md).
 
 ## 10.4 라벨 프리셋
 
-화면: `KLID-AT-SC-026`(프리셋 관리 `/manage/presets`, REVIEWER)
+화면: `SC-026`(프리셋 관리 `/manage/presets`, REVIEWER)
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-026`"* 은 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-026`(축약 `SC-026`) — 근거는 위 §10.1 각주와 동일.
 
 - 이벤트 유형별 라벨 자동 필터 (`PresetLabelLookupService`)
-- `LS_LABEL_PRESET`(V13) + `LS_LABEL_PRESET_CODE` — 프리셋 마스터/내 라벨 코드
+- `LS_LABEL_PRESET` + `LS_LABEL_PRESET_CODE` — 프리셋 마스터/내 라벨 코드. ⚠ **구 `(V13)` 표기 폐기(2026-08-19 정정)** — 이 `V13`은 2026-08-13 스쿼시 **이전** 번호(`db-archive/migration/V13__create_ls_label_preset.sql`)이며 **지금 실행되는 마이그레이션의 `V13`(`V13__drop_yolo_imgsz_config.sql`, YOLO 추론 입력 해상도 설정 폐지)과는 전혀 다른 변경이다** — 같은 숫자를 보고 현재 `V13` 파일을 열면 엉뚱한 내용을 보게 된다. 이 테이블은 현재는 `V1__baseline.sql`에 포함돼 있다.
 - 코드: `preset/PresetController`
-- **라벨 마스터 단일 진실원 연동 (V117~V119, 2026-07-21)**: 프리셋 코드는 라벨명·형태를 스냅샷하지 않고 `LBL_ID`(FK→`LS_LABEL.LBL_ID`, nullable)로 라벨 마스터(`LS_LABEL`)를 실시간 참조한다. 조회·표시·오토라벨 사용 시점에 마스터에서 join하므로 **마스터에서 라벨명/형태를 바꾸면 신규·기존 프리셋 모두에 즉시 반영**된다. **형태는 마스터 `LBL_TYPE_CD`가 소유**(BBOX→bbox·POLYGON→polygon·POINT/SKELETON→도형 오토라벨 미적용) — 프리셋에서 형태 개별 토글은 불가(구 `BBOX_ENABLED`/`POLYGON_ENABLED` 컬럼 제거). 마스터에 매칭 안 되는 기존 코드는 오류 없이 **'미연결'**로 표시(자동 생성/삭제 없음). FE 프리셋 편집은 라벨을 **라벨 마스터 목록에서 선택**(하드코딩 라벨 제거)하고 요청은 labelId 기반, 형태는 마스터 기준 읽기전용 표시 + 미연결 배지. 오토라벨(AI 탐지/AI 분할) 경로도 프리셋↔검출 라벨 매칭을 마스터 라벨명 축으로 일원화 → [11](11-ai-assisted.md). 스키마 상세 → [18](18-database.md).
+- **라벨 마스터 단일 진실원 연동 (구 V117~V119, 2026-07-21 — 스쿼시 이전 번호, 현재는 `V1` 베이스라인에 흡수)**: 프리셋 코드는 라벨명·형태를 스냅샷하지 않고 `LBL_ID`(FK→`LS_LABEL.LBL_ID`, nullable)로 라벨 마스터(`LS_LABEL`)를 실시간 참조한다. 조회·표시·오토라벨 사용 시점에 마스터에서 join하므로 **마스터에서 라벨명/형태를 바꾸면 신규·기존 프리셋 모두에 즉시 반영**된다. **형태는 마스터 `LBL_TYPE_CD`가 소유**(BBOX→bbox·POLYGON→polygon·POINT/SKELETON→도형 오토라벨 미적용) — 프리셋에서 형태 개별 토글은 불가(구 `BBOX_ENABLED`/`POLYGON_ENABLED` 컬럼 제거). 마스터에 매칭 안 되는 기존 코드는 오류 없이 **'미연결'**로 표시(자동 생성/삭제 없음). FE 프리셋 편집은 라벨을 **라벨 마스터 목록에서 선택**(하드코딩 라벨 제거)하고 요청은 labelId 기반, 형태는 마스터 기준 읽기전용 표시 + 미연결 배지.
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"오토라벨(AI 탐지/AI 분할) 경로도 프리셋↔검출 라벨 매칭을 마스터 라벨명 축으로 일원화"* 는 사실과 다르다. 2026-07-23에 이 축은 **AI 검출 클래스 축(`LS_LABEL.DTCT_TYPE_CD`, COCO 80클래스명)으로 재차 통합(supersede)됐고 "마스터 라벨명 축"은 폐기됐다** — 한글 마스터 라벨명↔COCO 영문명이 1:1 대응하지 않기 때문이다. `LabelMasterService.findLabelIdByDtctType`가 구 `findLabelIdByName`을 대체했고, `AutolabelOnlineService`·`YoloTrackService`·`Sam2SegmentStep`·`PresetLabelLookupService` 4경로가 동일 축으로 통일돼 있다. 근거: `LabelMasterService.java(findLabelIdByDtctType)`, `AutolabelOnlineService.java`, `YoloTrackService.java`. 스키마 상세 → [18](18-database.md), 오토라벨 매칭 상세 → [11](11-ai-assisted.md).
 
 ## 10.5 정밀도 설정 (RQ-SFR-08-03)
 
-화면: `KLID-AT-SC-025`(시스템 설정 `/manage/settings`, REVIEWER)
+화면: `SC-025`(시스템 설정 `/manage/settings`, REVIEWER)
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-025`"* 는 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-025`(축약 `SC-025`) — 근거는 위 §10.1 각주와 동일.
 
 시스템 설정 화이트리스트 키(`LS_SYSTEM_CONFIG`, Caffeine TTL 60s):
 

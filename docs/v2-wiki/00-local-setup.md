@@ -7,7 +7,7 @@
 
 | 구성 | 로컬 동작 | 비고 |
 |------|----------|------|
-| PostgreSQL (control + portal) | **필수** (번들/로컬) | MNG_*·QRTZ_* 는 Flyway 가 로컬에 stub 생성 — 관제 실DB 불요 |
+| PostgreSQL (control + portal) | **필수** (번들/로컬) | `QRTZ_*`(11개)는 Flyway `V1__baseline.sql` 이 `klid_at` 스키마에 직접 만든다 — 관제 실DB 불요. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"MNG_*·QRTZ_* 는 Flyway 가 로컬에 stub 생성"* 은 사실과 다르다. `MNG_*` 는 stub 이 아니라 **테이블 자체가 전량 DROP** 됐고(관제 2차 적재 주체 반전, [18](18-database.md) 참고) 현재 마이그레이션(`V1__baseline.sql`~`V13`)에 `CREATE TABLE mng_*` 가 0건이며 이를 가리키는 JPA `@Table` 매핑도 0건이다. 근거: `db/migration/*.sql`, `grep -rl '@Table(name = "mng_' backend/src/main/java` → 0건 |
 | 인증 (관제/포털 토큰) | **자체 발급** | `POST /api/v1/dev/tokens` (HS256 동일 시크릿 서명) — 외부 발급 서버 불요 |
 | 시드 데이터 | **자동 적재** | `DevSeedRunner`(local)가 `db/seed/dev-seed.sql` 멱등 적재 — **추가만 하고 아무것도 지우지 않는다**(아래 주의) |
 | 비식별 (KPST) | **목 서버로 실 HTTP 연동** | compose 의 `mock-server` 컨테이너(`klid-mock-server:9400`)에 실제 위탁한다(`mock-mode=false`, `kpst.deid.enabled=true`, `base-url=http://klid-mock-server:9400`, 계정 `authoring`). 벤더 실서버·내부망 불요. 목이 공유 볼륨에 비식별 결과 파일을 생성해 BE 무결성 검증까지 통과한다 |
@@ -15,11 +15,18 @@
 | VLM 시계열 | **목 서버로 실 HTTP 연동** | `VLM_CLIENT_ENABLED=true` + `klid-mock-server:9400` + `VLM_ALLOW_INSECURE_URL=true`(평문·내부 호스트 완화, local/dev 전용). `verify` 위탁 → 목이 `/v1/vlm/callback` 으로 결과 콜백(`results` 는 **단일 객체** `{accuracy, description}`). `false` 면 단계가 통째로 SKIPPED 되어 결과가 빈다(`LS_BATCH_PROC_LOG` 에 `VLM/SKIPPED` 기록). 완화 플래그 없이 `enabled=true` 만 켜면 `VlmUrlPolicy` 가 빈 생성을 막아 **기동이 실패**한다 |
 | 관제 통지 | **목 서버로 실 HTTP 전송** | `CONTROL_NOTIFY_ENABLED=true` + `CONTROL_NOTIFY_URL=http://klid-mock-server:9400`(local override). 목이 409/404 를 관제 계약대로 돌려주므로 자기치유가 실동작 검증된다 |
 | 증강 (생성형 AI) | **목 서버로 실 HTTP 위탁** | `AUGMENT_EXTERNAL_MODE=http` + `AUGMENT_API_BASE_URL=http://klid-mock-server:9400`. 목의 `POST /api/genai/jobs` 가 `job_id` 를 발급하고 결과를 `/v1/genai/callback` 으로 push 한다. 구 자족 시뮬레이터(`mode=dev`)는 제거됐다 |
-| 관제 자동 적재 픽업 | **수동 트리거** | `POST /api/v1/dev/batch/scan` (REVIEWER 토큰) — 시드 클립 픽업 검증 |
+| 관제 자동 적재 픽업 | **자동(60초 폴링) + 수동 트리거 병행** | `authoring.control.training-scan.enabled`(env `TRAINING_SCAN_ENABLED`)는 로컬도 **`true`**(`application-local.yml` 이 명시 override) — `ControlTrainingVideoScanJob` 이 60초 간격으로 `LS_DATA_INGEST` 를 자동 폴링한다. 즉시 확인하려면 `POST /api/v1/dev/batch/scan`(REVIEWER 토큰)으로 수동 트리거도 가능. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"수동 트리거"* 만으로는 부정확하다 — 이 잡은 `authoring.batch.enabled=false`(로컬, Quartz 배치 단계 자동 트리거 off)와 **무관한 별도 설정 축**이며, 꺼두면 `InternalUploadWiringGuard` 가 기동 시 ERROR 로 경고한다("적재 주체 반전 이후 이 잡이 dev 업로드 적재의 유일한 통로"). 근거: `ControlTrainingVideoScanTriggerConfig`, `application-local.yml`(`control: training-scan: enabled: true`), `InternalUploadWiringGuard(KEY_TRAINING_SCAN_ENABLED)` |
 
 > **외부 0개 정의**: 관제/포털/**벤더 실서버**(비식별·VLM)가 없다는 뜻. ai-server 와 mock-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). 탐지용 YOLOX 는 동봉 ONNX 가중치를 사용하므로 다운로드가 없다.
 >
-> ★ **구속 원칙 — 내부 self-fill 금지**: 저작도구가 스스로 결과를 채우는 경로(`DEIDENTIFY_MOCK_MODE=true` = 외부 무접촉 원본 복사)는 쓰지 않는다. 그 경로로는 "연동이 실제로 되는지"를 검증할 수 없기 때문이다. 로컬·dev 모두 **목 서버(:9400)에 실제 HTTP 요청**을 보낸다. 네이티브(방법 B)로 파이프라인까지 돌리려면 mock-server 를 호스트에서 함께 띄우고 `KPST_DEID_BASE_URL`/`VLM_SERVICE_URL=http://localhost:9400` 을 주입한다(미기동 시 비식별은 실패 처리 — 원본은 보존).
+> ★ **구속 원칙 — 내부 self-fill 금지**: 저작도구가 스스로 결과를 채우는 경로(`DEIDENTIFY_MOCK_MODE=true` = 외부 무접촉 원본 복사)는 쓰지 않는다. 그 경로로는 "연동이 실제로 되는지"를 검증할 수 없기 때문이다. **방법 A(Docker Compose)** 는 `docker-compose.yml` 의 `DEIDENTIFY_MOCK_MODE: ${DEIDENTIFY_MOCK_MODE:-false}` 로 이 기본값이 강제돼 있어 별도 조치 없이도 로컬·dev 모두 **목 서버(:9400)에 실제 HTTP 요청**을 보낸다.
+>
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측) — 방법 B(Native)는 기본값이 반대다**: *"네이티브(방법 B)로 파이프라인까지 돌리려면 mock-server 를 호스트에서 함께 띄우고 주소만 주입하면 되고, 미기동 시 비식별은 실패 처리된다"* 는 부정확하다. `application-local.yml` 은 `mock-mode: ${DEIDENTIFY_MOCK_MODE:true}` — **env 를 아무것도 안 주면 기본값이 `true`(self-fill)** 다. 위 방법 B 절차(0~4단계)는 `DEIDENTIFY_MOCK_MODE` 를 export 하지 않고 mock-server 도 띄우지 않으므로, 그대로 따라 하면 **비식별이 mock-server 없이 내부 원본 복사로 조용히 "성공"**하고 KPST/VLM/증강/관제통지 연동은 아예 시도되지 않는다(실패 처리가 아니라 self-fill 성공). 근거: `application-local.yml`(`integration.deidentify.mock-mode` 기본값), `docker-compose.yml`(`DEIDENTIFY_MOCK_MODE:-false`).
+>
+> **방법 B로 실제 외부 연동(목 서버 HTTP)까지 검증하려면** 아래를 추가로 한다:
+> 1. mock-server 를 호스트에서 별도 기동한다(`cd mock-server && python -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 9400` — 상세는 [`mock-server/README.md`](../../mock-server/README.md)).
+> 2. backend(2단계) 기동 전에 `export DEIDENTIFY_MOCK_MODE=false KPST_DEID_BASE_URL=http://localhost:9400 VLM_SERVICE_URL=http://localhost:9400 VLM_ALLOW_INSECURE_URL=true CONTROL_NOTIFY_URL=http://localhost:9400 AUGMENT_API_BASE_URL=http://localhost:9400 WEBHOOK_CALLBACK_BASE_URL=http://localhost:8080/api` 를 설정한다(mock-server 가 host 루프백에서 콜백을 backend 로 되돌려 보내야 하므로 `WEBHOOK_CALLBACK_BASE_URL` 도 `localhost` 로 맞춘다).
+> 3. 이 상태에서 mock-server 미기동이면 KPST/VLM 위탁이 연결 실패로 종결돼 비식별은 `DE_IDENT_YN='F'`(실패, 원본은 보존)로 남는다 — self-fill 과 달리 조용히 성공하지 않는다.
 
 ---
 
@@ -148,14 +155,15 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | 토글 | 로컬 값 | 의미 |
 |------|--------|------|
 | `SPRING_PROFILES_ACTIVE` | local (override 가 고정) | 자립 기동 + 시드/로컬 기본값 게이팅 |
-| `DEIDENTIFY_MOCK_MODE` | **false** (compose 주입) | 내부 self-fill 금지 — 목 서버로 실 위탁. `true` 면 외부 무접촉 원본 복사로 되돌아간다 |
+| `DEIDENTIFY_MOCK_MODE` | **false**(방법 A, compose 주입) / **true**(방법 B 네이티브 기본값 — `application-local.yml` 자체 기본은 true) | 내부 self-fill 금지 — 목 서버로 실 위탁. `true` 면 외부 무접촉 원본 복사로 되돌아간다. 방법 B 로 실 위탁까지 검증하려면 명시적으로 `false` 를 export 해야 한다(위 방법 B 절 참고) |
 | `KPST_DEID_ENABLED` / `KPST_DEID_BASE_URL` | true / `http://klid-mock-server:9400` | KPST 폴링 경로 + 목 서버 주소(http, ca-cert 불요) |
 | `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요). 탐지는 YOLOX 단일 |
 | `VLM_CLIENT_ENABLED` / `VLM_SERVICE_URL` / `VLM_ALLOW_INSECURE_URL` | true / `http://klid-mock-server:9400` / true | VLM `verify` 위탁 + 콜백 수신. 완화 플래그는 local/dev 프로파일에서만 인정 — 그 밖(또는 `ENV=stg\|prd` 표식)에서 true 면 기동 실패 |
 | `AUGMENT_EXTERNAL_MODE` / `AUGMENT_API_BASE_URL` | http / `http://klid-mock-server:9400` | 증강 위탁을 목 서버로 실제 POST. `noop` 은 외부 미연동(dev/stg/prd 기본) |
 | `WEBHOOK_CALLBACK_BASE_URL` | `http://klid-backend:8080/api` | 목 서버가 결과를 되돌려줄 주소. localhost 면 콜백이 전부 유실된다 |
 | `CONTROL_NOTIFY_ENABLED` / `CONTROL_NOTIFY_URL` | true / `http://klid-mock-server:9400` | 관제 통지를 목 서버로 실제 전송(local override) |
-| `BATCH_ENABLED` / `TRAINING_SCAN_ENABLED` | false | Quartz 자동 트리거 off (scan 은 수동) |
+| `BATCH_ENABLED` | false | 오토라벨 등 배치 파이프라인 단계의 Quartz 자동 트리거 off (`POST /v1/dev/batch/trigger` 로 수동 기동) |
+| `TRAINING_SCAN_ENABLED` | **true**(`application-local.yml` 명시 override — 상위 `application.yml` 기본값도 이미 true) | `ControlTrainingVideoScanJob` 60초 자동 폴링. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"false — scan 은 수동"* 은 사실과 다르다. 이 값이 false 면 dev/포털 업로드분이 200 을 받고도 `LS_DATA_INGEST` 에 `PENDING` 으로 영구 고착되어 `LS_DATA_RAW` 가 생기지 않는다(`InternalUploadWiringGuard` ERROR). 근거: `application-local.yml`, `InternalUploadWiringGuard` |
 | `AUTHORING_DEV_SEED_ENABLED` | true | dev-seed 자동 적재 |
 | `ENV` | (미설정) | dev/stg/prd 면 부트 차단 |
 

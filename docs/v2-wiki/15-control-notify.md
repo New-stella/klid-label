@@ -99,6 +99,8 @@
       · 실패      → STTS_CD=PENDING + SEND_RSLT_CD=FAILED → dead-letter/재등록 큐 (Quartz Job 재시도)
 ```
 
+> ⚠ **재시도 잡 자체가 `authoring.control-notify.enabled=true` 로 명시 설정돼야만 등록된다(2026-08-19 코드 실측 보강)** — `ControlNotifyFallbackRetryJob`(5분 간격, 최초지연 60초)은 `@ConditionalOnProperty(name="authoring.control-notify.enabled", havingValue="true")` 이며 **`matchIfMissing` 이 없다**. 기본값은 `${CONTROL_NOTIFY_ENABLED:false}`(전 환경 공통 기본 false)이므로, 통지 토글이 꺼진 기본 형상에서는 **이 Quartz Job 자체가 스케줄러에 등록되지 않는다**. 단 이 토글이 꺼져 있으면 §15.2 흐름상 `sendCompleted`/`sendModified` 자체가 호출되지 않아 `LS_CONTROL_NOTIFY_FALLBACK` 에 애초에 쌓일 실패 행이 없으므로 실무 영향은 없다 — 토글을 **켠 뒤에만** "폴백 큐가 항상 재시도된다"고 서술할 것. 근거: `ControlNotifyFallbackRetryJob`, `application.yml`(`authoring.control-notify.enabled`).
+
 > **재export 트리거는 통지 토글과 독립적으로 동작한다**: `DatasetExportBridge`·`TaskModifiedAccumulateListener`·`ControlNotifyDebouncer` 는 모두 `authoring.control-notify.enabled` 와 무관하게 항상 활성이다(토글 off 인 dev/stg/prd 기본 형상 포함). `authoring.control-notify.enabled` 는 **통지 발송(`sendCompleted`/`sendModified`)만** 게이팅한다 — 토글이 꺼져 있어도 export 재생성(데이터마트 동기화)은 그대로 일어난다.
 
 > **발송 상태 관찰(V77)**: `STTS_CD`(큐 처리 상태)와 `SEND_RSLT_CD`(발송 결과 SUCCESS/FAILED)를 분리해, 즉시 성공 발송도 DB로 관찰 가능. `SELECT SEND_RSLT_CD FROM LS_CONTROL_NOTIFY_FALLBACK WHERE RAW_SN=? AND IDMP_KEY=?` → `'SUCCESS'`. 성공 관찰 행은 `SUCCEEDED` 터미널이라 재시도 잡·depth 게이지(`STTS_CD IN PENDING,RETRYING`)에서 제외.

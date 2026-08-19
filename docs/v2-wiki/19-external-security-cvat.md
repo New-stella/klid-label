@@ -1,6 +1,6 @@
 # 19. 외부 시스템 · 보안 · CVAT 포팅 · 설계 문서
 
-> 출처: CLAUDE.md, R1 NFR, `.claude/rules/security.md`, 코드(`common/client`, `webhook`, `common/util`), docs/design
+> 출처: CLAUDE.md, R1 NFR, `.claude/rules/security.md`, 코드(`common/client`, `webhook`, `common/util`), `docs/archive/frozen-20260815/design/`(⚠ 2026-08-15 동결·이관됨 — 원래 경로 `docs/design/*.md` 는 더 이상 CBD 산출물을 담지 않는다. 현재 `docs/design/` 에는 LogiCraft 구현 키트 디렉터리만 있다. 상세 → [§19.4](#194-설계-문서-카탈로그))
 > 관련: 전체 페이지
 
 ## 19.1 외부 시스템
@@ -9,11 +9,16 @@
 
 | 외부 시스템 | 연동 | 코드 |
 |------------|------|------|
-| **관제서버** | JWT 발급, TASK_COMPLETED/MODIFIED 통지 수신, 조회 API + View SELECT, MNG_* 소유 | `ControlNotifyClient`, `controlnotify/` → [15](15-control-notify.md) |
+| **관제서버** | JWT 발급, TASK_COMPLETED/MODIFIED 통지 수신, 조회 API + View SELECT [폐기 표기 — 아래 참조] | `ControlNotifyClient`, `controlnotify/` → [15](15-control-notify.md) |
 | **포털 서버** | 포털 DB 공유 — **저작도구가 메타를 내보내는 방향**(단방향 복제). 포털 라벨 화면의 조회는 저작도구 DB 를 쓴다 | `PortalDataSourceConfig`(복제 축), `portal/` → [16](16-portal.md) |
-| **비식별화 서버** | 영상 비식별 위탁 + 콜백 (발주기관 SW 직접구매) | `DeidentifyClient`, `webhook/DeidentifyResultController` → [08](08-deidentification.md) |
+| **비식별화 서버** | 영상 비식별 위탁 + **완료 감지 폴링**(콜백 아님) [폐기 표기 — 아래 참조] | `KpstDeidentifyClient`, `batch/scheduler/KpstDeidentPollJob` → [08](08-deidentification.md) |
 | **외부 VLM 서비스** | 시계열 메타 호출 + 콜백 | `VlmClient`, `VlmTimeseriesStep`, `webhook/VlmResultController` → [09](09-vlm-timeseries.md) |
-| **외부 증강/생성 시스템** | 증강 위탁 + 콜백 | `ExternalAugmentClient`, `webhook/AugmentResultController` → [14](14-augmentation.md) |
+| **외부 증강/생성 시스템** | 증강 위탁 + 콜백 [폐기 표기 — 아래 참조] | `augment/integration/ExternalAugmentClient`, `webhook/GenAiCallbackController`(+`webhook/service/AugmentResultService`) → [14](14-augmentation.md) |
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 위 표 3개 행을 정정한다.
+> 1. **관제서버 "MNG_* 소유"** — 관제 공유 테이블 `MNG_*` 는 현재 코드에 **하나도 남아 있지 않다**(적재 주체 반전 ADR-042, `V167` 이 `MNG_CLIP_MASTER`/`MNG_CLIP_EVNT_LST`/`MNG_RESOURCE_CCTV`/`MNG_EX_LOCAL_GOV` 4종을 DROP). 근거: `architecture/MngControlMasterTableRemovalTest.java` → [02 §2.5](02-architecture.md#25-듀얼-데이터소스).
+> 2. **비식별화 서버 "콜백"** — KPST 비식별 완료는 **웹훅 콜백을 받지 않는다.** `batch/scheduler/KpstDeidentPollJob`(Quartz, `@DisallowConcurrentExecution`)이 `WAITING`/`POLLING` 상태 위탁 건을 주기적으로 `retrieve_progress` 폴링해 완료(state=2)를 감지·다운로드한다. `webhook/DeidentifyResultController` 라는 클래스는 **존재하지 않으며**, `webhook/` 패키지의 실제 파일 목록에도 비식별 콜백 컨트롤러는 없다(VLM `webhook/VlmResultController` · 증강 `webhook/GenAiCallbackController` 둘뿐). 웹훅 인증 절(아래 §19.1 「웹훅 인증」)이 보호하는 경로도 `WebhookProtectedPaths` allowlist상 `/v1/vlm/**`·`/v1/genai/**` 뿐이고 비식별 경로는 없다 — 이 자체가 비식별이 콜백 모델이 아님을 뒷받침한다. 근거: `KpstDeidentPollJob.java`(클래스 javadoc), `find backend/src/main/java/kr/co/cudo/authoring/webhook -name "*.java"`.
+> 3. **외부 증강/생성 시스템 코드 표기** — `ExternalAugmentClient` 는 `common.client` 가 아니라 **`augment/integration/`** 패키지에 있다. 콜백을 실제로 받는 컨트롤러는 `webhook/AugmentResultController`(존재하지 않음)가 아니라 **`webhook/GenAiCallbackController`**(`@RequestMapping("/v1/genai")`)이며, 결과 반영 로직은 `webhook/service/AugmentResultService` 가 담당한다. 근거: `find backend/src/main/java -iname "ExternalAugmentClient.java"`, `webhook/GenAiCallbackController.java`(클래스 선언부).
 
 > **ai-server(YOLO/SAM2/VLM 추론)는 외부 아님** — 모노레포 내부 별도 프로세스(`AiServerClient`). → [11](11-ai-assisted.md)
 
@@ -22,9 +27,13 @@
 데이터마트 · 생성형 AI 본체 · VLM 모델 본체 · 영상 합성 모델 본체 · 학습데이터 Export → 외부 책임. 저작도구는 연동/검수만. → [01 §1.2](01-system-overview.md#12-책임-범위)
 
 ### 공통 연동 인프라
-- **Resilience4j** — 모든 외부 호출 타임아웃/재시도/서킷 (VLM 45s, ai-server 60s, 비식별 ~70s)
+- **Resilience4j** — 모든 외부 호출 타임아웃/재시도/서킷 [폐기 표기 — 아래 참조]
 - **웹훅 멱등성** — `webhook/` + `LS_WEBHOOK_IDEMPOTENCY` (In-Memory/Persistent Ledger), HMAC + idempotencyKey
-- **Fallback 큐** — `LS_CONTROL_NOTIFY_FALLBACK`, `LS_GITEA_FALLBACK_QUEUE`
+- **Fallback 큐** — `LS_CONTROL_NOTIFY_FALLBACK` [폐기 표기 — 아래 참조]
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 두 항목을 정정한다.
+> 1. **"VLM 45s, ai-server 60s, 비식별 ~70s"** — ai-server 는 60s(`AiWaitBudgetPolicy.PER_CALL_TIMEOUT`)로 맞다. 그러나 **VLM 45s 는 폐지된 구 모델의 수치**다 — VLM·KPST 위탁은 더 이상 단순 동기 호출 타임아웃이 아니라 **논블로킹 제출**(선커밋 → `subscribe()` 후 즉시 반환)이며, 실제 설정값은 `vlm.client.timeout-seconds: 10`(제출 자체의 HTTP 호출 타임아웃)이고, 그 뒤의 수락(ACK)·결과 대기는 별도의 두 창으로 관리된다 — **ACK 창** `authoring.batch.vlm.submit-reclaim.stale-timeout-minutes`(기본 **30분**) / **콜백 창** `authoring.batch.vlm.submit-reclaim.callback-timeout-minutes`(기본 **360분**), 미수신 시 `batch/vlm/VlmSubmitPendingSweeper` 가 회수한다. 비식별(KPST)의 "~70s"도 근거를 찾지 못했다 — 실측된 값은 WebClient 응답 안전망 `common/config/KpstWebClientConfig.java(RESPONSE_TIMEOUT)` **60초** + 위탁 전체 진행 타임아웃 `kpst.deid.poll-timeout-minutes`(기본 **180분**, `KPST_DEID_POLL_TIMEOUT_MINUTES`)이며, 완료 감지는 위 표에서 정정한 대로 **폴링**(콜백 아님)이다. 근거: `application.yml`(`vlm.client.timeout-seconds`·`kpst.deid.poll-timeout-minutes`), `VlmSubmitPendingSweeper.java`(`@Value` 기본값), `KpstWebClientConfig.java(RESPONSE_TIMEOUT)`.
+> 2. **`LS_GITEA_FALLBACK_QUEUE`** — 이 테이블은 **코드 어디에도 없다**(`grep -a -rn "LS_GITEA_FALLBACK_QUEUE\|GITEA" backend/src/main/resources/db/migration backend/src/main/java` → 0건). 이 프로젝트는 Gitea 연동을 갖지 않는다(무관한 프로젝트의 잔재로 추정). 실재하는 fallback 큐는 `LS_CONTROL_NOTIFY_FALLBACK`(`controlnotify/fallback/LsControlNotifyFallback.java`) **하나뿐**이다.
 
 ### 연동 서버 주소 설정 (R11, 2026-08-10)
 
@@ -100,7 +109,9 @@
 
 | 축 | 정책 |
 |----|------|
-| 권한 자가부여(`POST /v1/auth/role-claim`) | 자가부여 가능 역할은 **WORKER 단일**(`RoleClaimService.allowedClaimRoles()` 화이트리스트를 `claim()` 이 실제 참조). REVIEWER(사실상 관리자)는 공유 정적 패스워드로 부여 불가 — 기존 REVIEWER 의 `/manage` 경로가 담당(CWE-269/1392). 검증 순서는 **① 역할 화이트리스트 → ② 채널·기보유역할 → ③ rate limit → ④ 패스워드 → ⑤ upsert** (잘못된 role 시도가 정상 사용자 쿼터를 소모하지 않도록) |
+| 권한 자가부여(`POST /v1/auth/role-claim`) | [폐기 표기 — 아래 참조] 자가부여 가능 역할은 **WORKER·REVIEWER 둘 다**(`RoleClaimService.allowedClaimRoles()` → `List.of(Role.WORKER, Role.REVIEWER)`). 검증 순서는 **① 역할 화이트리스트 → ② 채널·기보유역할 → ③ rate limit → ④ 패스워드 → ⑤ upsert** (잘못된 role 시도가 정상 사용자 쿼터를 소모하지 않도록) |
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"자가부여 가능 역할은 WORKER 단일, REVIEWER는 공유 정적 패스워드로 부여 불가"*는 낡은 정책이다. 2026-08-04 사용자 확정(V169)으로 **REVIEWER 자가부여가 개방**됐다 — 온프렘 신규 설치에서는 기존 REVIEWER가 아예 없어 "기존 REVIEWER 의 `/manage` 경로로만 REVIEWER 를 부여"하는 구 정책이 최초 부트스트랩 경로를 만들지 못했기 때문이다(운영 문서가 대신 dev 편의 경로 `/dev/login` 을 안내하던 결함). 잔여 위험(관리자 공유 패스워드를 아는 사람은 누구나 REVIEWER 획득 가능)은 **사용자가 인지·수용**했으며 "보안 강화" 명목으로 되돌리지 않는다. 상세·최신 정본은 → [03 §3.2](03-auth-roles.md#32-역할). 근거: `RoleClaimService.java(allowedClaimRoles)` — `return List.of(Role.WORKER, Role.REVIEWER);`.
 | 자가부여 rate limit | **계정 축 + 엔드포인트 전역 축**(`authoring.auth.role-claim.account-attempts-per-minute` 5 / `global-attempts-per-minute` 50)을 `LS_AUTHRT_GRANT_ATMPT` 공유 집계로 강제 → 무권한 계정 A/B/C 를 번갈아 쓰는 증폭·2노드 임계 2배를 함께 차단(CWE-307). 로컬 카운터는 Caffeine **TTL 10분 + maximumSize 1만** 으로 회수(구 `ConcurrentHashMap` 영구 잔존 = CWE-770). **저장소 장애 시에도 로컬 카운터가 임계를 강제**(완전 fail-open 금지). IP 축은 두지 않는다 — 신뢰 프록시 파싱 없이 IP 를 키에 넣으면 프록시 뒤 전 사용자가 한 IP 로 수렴해 한 명의 실패가 전원을 잠근다 |
 | 영상 스트림 인가 | `/v1/videos/{rawSn}/stream`·`/stream-url` 진입부에서 `LabelAccessGuard.verifyRawAccess`(REVIEWER 전체 / WORKER 본인 배정) — 구 동작은 역할만 검사해 미배정 WORKER 가 타인 영상을 206 재생(CWE-639). `@Cacheable` 내부가 아니라 **진입부** 판정이라 캐시 히트가 인가를 건너뛰지 않는다 |
 | 서명 스트림 URL | `sig = HMAC(secret, "{rawSn}.{exp}.{userNo}.{nonce}")`. `nonce` 는 발급 응답의 **HttpOnly·SameSite=Lax 쿠키**로만 전달되고 URL 에 없다 → **URL 만 유출된 제3자는 재생 불가**(CWE-294). 쿠키는 TTL 동안 재사용 가능(브라우저가 같은 URL 로 다수 Range 요청을 보내므로 1회용 소비는 재생을 깨뜨림). 발급 시 기존 쿠키가 있으면 값을 유지(다중 영상 동시 재생 보호). `StreamSignatureFilter` 는 principal 에 **실제 발급자 sub + 재조회 역할**을 채우되 `ROLE_*` authority 는 부여하지 않는다(서명 컨텍스트 확대 금지) |
@@ -110,32 +121,42 @@
 
 ## 19.3 CVAT 포팅
 
-CVAT(Django+TS) → 본 프로젝트(Spring Boot+TS). 전체 fork 아닌 **9개 독립 모듈 Phase별 포팅** (`docs/analysis/portable-modules/`).
+CVAT(Django+TS) → 본 프로젝트(Spring Boot+TS). 전체 fork 아닌 **9개 독립 모듈 Phase별 포팅**.
 
-| 모듈 | 구현 | 위치 |
-|------|------|------|
-| 트랙 보간 알고리즘 | `TrackInterpolator` (선형 보간) | `batch/interpolation/` → [11](11-ai-assisted.md) |
-| MASK ↔ RLE ↔ Polygon 변환 | `MaskRleConverter` (CWE-770 방어) | `common/util/` |
-| Polygon 단순화 | `PolygonSimplifier` (Ramer-Douglas-Peucker) | `common/util/` |
-| YOLO/COCO 변환 | `YoloCocoConverter`, `CocoJson` 등 | `common/util/` |
-| manifest.jsonl / TUS 업로드 | 프레임 매니페스트 / 재개 업로드 | → [05](05-video-management.md) |
-| 캔버스 드로잉 패턴 | konva.js | `frontend label/canvas` → [10](10-labeling.md) |
-| RQ Worker → Quartz Job 매핑 | 배치 스케줄 | → [07](07-batch-pipeline.md) |
+> ⚠ **구 서술 폐기(2026-08-19 실측)** — 분석 원본 `docs/analysis/portable-modules/01~09` 는 **저장소에 더 이상 존재하지 않는다**(`ls docs/analysis/` → `1cha-json-format-and-mapping.md`, `nia-v3.5-quality-to-review-mapping.md` 2개 파일만 남음). 아래 표의 "portable-modules/NN" 표기는 **코드 javadoc 이 여전히 인용하는 옛 문서 번호**를 참고용으로 남긴 것일 뿐, 해당 경로로 링크를 걸어도 파손된다. 또한 아래 표는 CLAUDE.md가 규정하는 9개 모듈 중 **3개가 통째로 빠져 있었다**(좌표 변환/회전 유틸·AI 함수 핸들러 템플릿·품질 충돌 감지) — 9개 전량으로 재구성한다. 근거: `reports/wiki-align-20260819/facts/F5-aiserver-common.md` §2.
 
-> `cvat/`는 `.gitignore` 참조용. 소스 직접 import 금지 — 분석 문서 기반 Java 재구현.
+| # | 모듈 | 구현 | 위치 | 배선 상태 |
+|---|------|------|------|-----------|
+| 01 | 트랙 보간 알고리즘 | `TrackInterpolator` (선형 보간) | `batch/interpolation/` → [11](11-ai-assisted.md) | **구현+배선됨** — `batch/step/TrackInterpolationStep` 실사용 |
+| 02 | MASK ↔ RLE ↔ Polygon 변환 | `MaskRleConverter` (CWE-770 방어) | `common/util/` | 단위 구현만 — 자기 테스트 외 **프로덕션 호출부 0건**(export/오토라벨 경로에서 미사용) |
+| 03 | TUS 재개 가능 업로드 | `TusUploadController`·`TusUploadService`·`TusChunkStore` | `upload/` → [05](05-video-management.md) | 구현됨. **단 1차 적재 경로 아님**(CLAUDE.md 확정 — 관제 학습용 설정 기반 적재로 대체, 폐지 예정) |
+| 04 | manifest.jsonl 포맷 | `ManifestJsonlWriter` | `common/util/` | **구현+배선됨** — `batch/step/FfmpegFrameExtractor` 실사용 |
+| 05 | AI 함수 핸들러 템플릿 | ai-server 라우터 구조(`app/routers/{yolo,sam2,vlm}.py`) | ai-server → [11](11-ai-assisted.md) | **구현됨**(ai-server 라우터 패턴으로 대체) |
+| 06 | 좌표 변환/회전 유틸 | `CoordinateTransformer` | `common/util/` | 단위 구현만 — 자기 테스트 외 **프로덕션 호출부 0건** |
+| 07 | YOLO/COCO 변환 | `YoloCocoConverter`, `CocoJson` 등 | `common/util/` | 단위 구현만 — 자기 테스트 외 **프로덕션 호출부 0건** |
+| 08 | RQ Worker → Quartz Job 매핑 | Quartz `@DisallowConcurrentExecution` 잡 13개(`ControlTrainingVideoScanJob`·`KpstDeidentPollJob`·`WorkLockSweepJob` 등) | → [07](07-batch-pipeline.md) | **구현+배선됨**(application.yml Quartz JDBC JobStore 등록) |
+| 09 | 품질 충돌 감지(GT Job) | `QualityConflictDetector` | `common/util/` | **구현+배선됨** — `quality/service/QualityCheckService` 실사용 |
+
+- 캔버스 드로잉 패턴(konva.js, CVAT `analysis/canvas-drawing.md` 기반, 9모듈 외 별도 포팅 항목): `frontend/src/features/label/canvas/*` → [10](10-labeling.md). `package.json` 에 konva/react-konva 실사용 확인.
+- ⚠ **`common/util/TrackInterpolator.java` + `common/util/Keyframe.java` 는 위 01번과 동명의 별개 클래스이며 고아(dead code)다** — `grep -rn "authoring.common.util.TrackInterpolator" backend/src/main/java backend/src/test/java` 결과 0건, main/test 어디서도 참조되지 않는다. 실제 배선은 `batch/interpolation/TrackInterpolator` 쪽이다. 위키·코드 리뷰에서 이 이름으로 검색할 때 두 클래스를 혼동하지 말 것.
+- `cvat/`는 `.gitignore` 참조용. 소스 직접 import 금지 — 분석 문서 기반 Java 재구현(단, 그 분석 문서 자체가 위와 같이 저장소에서 소실됐다).
 
 ## 19.4 설계 문서 카탈로그
 
-| 문서 | 내용 | ID 체계 |
-|------|------|---------|
-| [R1 사용자요구사항정의서](../design/R1-사용자요구사항정의서.md) (v1.17) | SFR 14건(06-03·07·08·09) + NFR 7건 | `RQ-SFR-NN-NN` |
-| [R2 유스케이스명세서](../design/R2-유스케이스명세서.md) | 10 서브시스템·9 액터·13 유스케이스 | `KLID-AT-SS/UC/ACT-*` |
-| [R3 요구사항추적표](../design/R3-요구사항추적표.md) | SFR→UC→SC→CO 매핑 | - |
-| [D1 클래스설계서](../design/D1-클래스설계서.md) | 클래스 | `KLID-AT-CL-*` |
-| [D2 사용자인터페이스설계서](../design/D2-사용자인터페이스설계서.md) | 화면 23개 | `KLID-AT-SC-*` |
-| [D3 컴포넌트설계서](../design/D3-컴포넌트설계서.md) | 4 UCD별 컴포넌트 | `KLID-AT-CO-*` |
-| [D8 엔티티관계모형설계서](../design/D8-엔티티관계모형설계서.md) | ERD | - |
-| [D9 데이터베이스설계서](../design/D9-데이터베이스설계서.md) | 테이블 명세 | - |
+> ⚠⚠ **구 서술 폐기(2026-08-19 실측) — 링크 경로 전량 파손 + 문서 동결 상태 반영 필요.** 아래 표의 `../design/R1-사용자요구사항정의서.md` 등 8개 링크는 **모두 깨져 있다.** `docs/design/` 은 2026-08-15 사용자 확정으로 **동결**됐고, R1~D9 이름의 CBD 산출물 11종(+백업)은 `docs/archive/frozen-20260815/design/`(파일명도 `KLID_AT_*.md` 로 개명)로 이관됐다. `docs/design/` 은 현재 **LogiCraft 구현 키트**(`docs/design/{도메인슬러그}-{DOMAIN-ID}/` — 예: `docs/design/사용자권한-DOMAIN-001/`)만 담고 있어, 위 옛 파일명으로는 그 디렉터리에서 아무것도 찾을 수 없다.
+>
+> **★이 카탈로그를 판정 근거로 쓰지 말 것** — 동결 사유가 "낡아서 판정에 끼어들면 안 되기 때문"(예: 이 산출물의 요구사항추적표 주1이 "비식별 옵션은 저작도구 전용 화면 없이 외부 솔루션에서 설정"이라 적고 있으나 실제로는 `frontend/src/features/sysconfig/components/DeidentConfigCard.tsx` 전용 화면이 존재)이며, 감사 결함 수정이 전부 끝나기 전까지는 개별 정정도 하지 않기로 확정됐다. **현재 설계 진실원은 LogiCraft ITEM + 로컬 구현 키트**다(프로젝트 CLAUDE.md 「Logicraft 구현 키트」 절 참조). 아래 표는 **과거 ID 체계를 참고하는 용도로만** 남기고, 링크만 실제 소재지로 갱신한다.
+
+| 문서 | 내용 | ID 체계 | 현재 위치(동결) |
+|------|------|---------|---------|
+| R1 사용자요구사항정의서 (v1.17) | SFR 14건(06-03·07·08·09) + NFR 7건 | `RQ-SFR-NN-NN` | [`archive/frozen-20260815/design/KLID_AT_사용자요구사항정의서.md`](../archive/frozen-20260815/design/KLID_AT_사용자요구사항정의서.md) |
+| R2 유스케이스명세서 | 10 서브시스템·9 액터·13 유스케이스 | `KLID-AT-SS/UC/ACT-*` | [`archive/frozen-20260815/design/KLID_AT_유스케이스명세서.md`](../archive/frozen-20260815/design/KLID_AT_유스케이스명세서.md) |
+| R3 요구사항추적표 | SFR→UC→SC→CO 매핑 | - | [`archive/frozen-20260815/design/KLID_AT_요구사항추적표.md`](../archive/frozen-20260815/design/KLID_AT_요구사항추적표.md) |
+| D1 클래스설계서 | 클래스 | `KLID-AT-CL-*` | [`archive/frozen-20260815/design/KLID_AT_클래스설계서.md`](../archive/frozen-20260815/design/KLID_AT_클래스설계서.md) |
+| D2 사용자인터페이스설계서 | 화면 23개 | `KLID-AT-SC-*` | [`archive/frozen-20260815/design/KLID_AT_사용자인터페이스설계서.md`](../archive/frozen-20260815/design/KLID_AT_사용자인터페이스설계서.md) |
+| D3 컴포넌트설계서 | 4 UCD별 컴포넌트 | `KLID-AT-CO-*` | [`archive/frozen-20260815/design/KLID_AT_컴포넌트설계서.md`](../archive/frozen-20260815/design/KLID_AT_컴포넌트설계서.md) |
+| D8 엔티티관계모형설계서 | ERD | - | [`archive/frozen-20260815/design/KLID_AT_엔티티관계모형설계서.md`](../archive/frozen-20260815/design/KLID_AT_엔티티관계모형설계서.md) |
+| D9 데이터베이스설계서 | 테이블 명세 | - | [`archive/frozen-20260815/design/KLID_AT_데이터베이스설계서.md`](../archive/frozen-20260815/design/KLID_AT_데이터베이스설계서.md) |
 
 ### 서브시스템 (KLID-AT-SS, R2)
 SS-001 사용자/권한 · SS-002 마킹 · SS-003 배치 파이프라인 · SS-004 비식별화 · SS-005 시계열 메타 · SS-006 라벨링 · SS-007 검수 · SS-008 버전관리 · SS-009 데이터 증강 · SS-010 포털.
@@ -152,4 +173,4 @@ SS-001 사용자/권한 · SS-002 마킹 · SS-003 배치 파이프라인 · SS-
 | NFR-007 | 메트릭·추적성 | 메트릭 수집 100%, traceId 전파 |
 
 ### SFR (요구사항)
-SFR-06-03(해상도 변경) · SFR-07-01~03(증강) · SFR-08-01~05(라벨링·정밀도·버전) · SFR-09-01~05(비식별). 상세 → [R1](../design/R1-사용자요구사항정의서.md).
+SFR-06-03(해상도 변경) · SFR-07-01~03(증강) · SFR-08-01~05(라벨링·정밀도·버전) · SFR-09-01~05(비식별). 상세 → [R1(동결, §19.4 경로 참조)](../archive/frozen-20260815/design/KLID_AT_사용자요구사항정의서.md).

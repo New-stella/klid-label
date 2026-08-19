@@ -5,6 +5,8 @@
 
 화면: `KLID-AT-SC-011`(대시보드 `/dashboard`), `SC-020`(작업자 통계 `/stat`), `SC-021`(전체 통계 `/stat/overall`, REVIEWER). 코드: `stats/`(9 파일).
 
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-011`"* 은 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-011`(축약 `SC-011`). 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
+
 ## 17.0 집계 기준 — 검수완료 / 전체 분리 (2026-08-03 확정, 구속)
 
 누적 카드와 이벤트 유형 분포는 **두 기준을 한 카드 안에 병기**한다. 주 수치는 **검수완료**, 보조는 **전체 + 완료율**이다.
@@ -78,7 +80,9 @@
   - 완료 시각 기준은 `LS_RAW_DATA_STATUS.UPD_DT`(APPROVED 전이 시점) — 대시보드 "최근 완료 영상" 정렬과 동일 축
   - 집계 원천은 `approvedVideoCount`(= APPROVED 상태 행 수)와 동일해 카드와 차트가 어긋나지 않는다. **작업자 배정(`LS_TASK_ALTMNT`) 조인이 없어** 배정 이력 없이 승인된 영상도 포함되며, 이것이 전체 기준에서 요구되는 동작이다(작업자별 합계와는 미세하게 다를 수 있음)
   - ⚠ 작업자 통계(17.2)의 `dailyCompletion` 은 **sparse 유지**(데이터 있는 날만) — 0-fill 은 전체 경로 전용이다. 두 경로를 "일관성" 명목으로 통일하면 SCR-STAT-001 FE 계약이 바뀐다
-- **CSV 리포트 다운로드** (`KLID-AT-SC-021-RPT`)
+- **CSV 리포트 다운로드** (`SC-021` 화면 내 기능 — `GET /v1/stats/report?period=WEEK|MONTH|QUARTER|YEAR`(REVIEWER 전용))
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-021-RPT`"* 라는 파생 서브 ID는 코드에서 확인되지 않는다. CSV 다운로드는 별도 화면이 아니라 `SC-021`(전체 통계) 화면 안의 기능이다. 근거: `reports/wiki-align-20260819/Q4-contradictions.md` §2-A #11.
+  - ⚠ **placeholder — 실데이터 없음 (2026-08-19 코드 실측)** — `StatsController.report()` 는 `period` 값과 무관하게 **항상 헤더 행 한 줄**(`month,labeled,reviewed,approvalRate`, BOM 포함)만 반환하는 고정 문자열이다. 실제 통계 집계(`StatsService`/`StatsQueryRepository`)를 전혀 호출하지 않는다 — 컨트롤러 자신의 Swagger 설명에도 *"현재는 헤더 행만 포함된 placeholder"* 라고 명시돼 있다. `period` 파라미터는 `@Pattern` allowlist 로 검증만 되고(CWE-117 방어, 파일명에 반영) 실제 기간별 필터링에는 쓰이지 않는다. 근거: `StatsController(report)`.
 - 코드: `OverallStatPage`
 
 ## 17.4 차트

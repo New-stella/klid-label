@@ -68,6 +68,7 @@
 |----------|------|
 | `BatchQuartzJob` | 메인 배치 스케줄 |
 | `BatchRetryQueue` + `BatchRetryQuartzJob` | 실패 영상 재시도 대기 — **DB 영속(`LS_BAT_RTY_WTNG`, V116)**. 구 in-memory 큐는 실패 등록 노드 ≠ 재시도 발화 노드일 때(2노드 Active-Active) 재시도 유실 결함이 있어 DB 로 전환. 폴링은 조건부 원자 UPDATE(PENDING→RETRYING)로 동시 폴링 직렬화, 최초 등록 UK 경쟁은 `ON CONFLICT DO NOTHING`+FOR UPDATE 로 흡수 |
+| `BatchRetryStaleReclaimSweeper`(B-ISSUE-83) | **재시도 큐 `RETRYING` 고착 회수** — Quartz 가 아니라 **전용 데몬 1스레드 스케줄러**(15분 간격, 초기지연 5분, 자기 토글 `authoring.batch.retry.stale-reclaim.enabled` 기본 true)이며 `BatchRetryQuartzJob` 이 처리 도중 죽어(kill -9·OOM·순단) 영구 `RETRYING` 으로 남은 항목을 회수한다. 판정축은 마지막 갱신(`MDFCN_DT`) 경과 — 기본 임계 180분, 하한 clamp 30분(정상 처리 중인 항목을 뺏지 않기 위함). 회수는 실패 시도 1회로 계상하고 재시도 상한 도달분은 `PENDING` 복귀 대신 `EXHAUSTED` 로 종결(무한 부활 금지). tick 당 상한 50건 |
 | `BatchReprocessController` + `BatchReprocessService` | 배치 재처리 API `POST /v1/videos/{rawSn}/batch/retry` (REVIEWER) — **FAILED 고착 영상 전용** 수동 재기동. 그 외 상태 409, WORKER 403 → §7.5-1 ②-0 |
 | `ProcessingStaleReclaimSweeper` + `ProcessingStaleReclaimTxService` | **「처리 중」 고착 회수 스윕**(전용 데몬 스케줄러, API 없음) — 선점 후 진행이 멈춘 영상을 **선점 직전 상태로** 되돌린다. 자동 재시도하지 않는다 → §7.5-2 |
 | `BatchStageRerunController` + `BatchStageRerunService` | **되돌린 작업 묶음 지목 재수행** API `POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun` (REVIEWER) — 요청 본문 없음(묶음이 곧 범위), 되돌린 묶음만 수락(400), 완주 축 선점(409), 승인 이력 400, 실패 시 원상 복구 → §7.5-1 ②-2 |
@@ -79,14 +80,14 @@
 | `AsyncDeidentifyRunner` | 적재 직후 선두 비식별 @Async 실행(성공 시 `MARKING_READY` 전이) |
 | `IngestDeidentifyBridge` | `VideoIngestedEvent`(AFTER_COMMIT) → 선두 비식별 트리거 |
 | `DevPipelineRunner` | dev 경로 선두 비식별(무조건) → `MARKING_READY` 정지 (잔여 배치는 마킹 완료로만 트리거) |
-| `ControlTrainingVideoScanJob` + `TrainingVideoIngestService` | 관제 학습용 지정(`MNG_CLIP_MASTER.JOB_DMND_YN='Y'`) 클립 픽업 적재 — 아래 스캔 비용 규칙 적용 |
+| `ControlTrainingVideoScanJob` + `TrainingVideoIngestService` | **관제가 `LS_DATA_INGEST` 에 직접 INSERT** 한 미처리(`PRCS_STTS_CD='PENDING'`) 행을 픽업해 `LS_DATA_RAW` 로 적재(ADR-042 적재 주체 반전) — 아래 스캔 비용 규칙 적용 |
 | `VlmSubmitPendingSweeper` (+ `VlmSubmitReclaimTxService`) | **VLM 논블로킹 제출 미결 회수** — 노드 사망 등으로 ACK·콜백이 모두 유실된 위탁을 회수·재개. Quartz 가 아니라 **데몬 1스레드 전용 스케줄러**이며 자기 토글(`authoring.batch.vlm.submit-reclaim.enabled`)만 본다. ACK 창/콜백 창 2패스 + 조건부 원자 클레임 → [09 §9.2-3](09-vlm-timeseries.md) |
 
-- **학습용 클립 스캔 비용 규칙 (B-ISSUE-04)** — 이 잡은 60초마다 **관제와 공유하는 DB(MNG_*)** 를 친다. 구 구현은 미적재 필터도 상한도 없어 매 tick 전량 SELECT 후 전량 skip 을 반복했다(실측 `scanned=3 ingested=0` 무한 반복).
-  - 후보 조회에 `NOT EXISTS (LS_DATA_RAW WHERE VMS_CLIP_ID = CLIP_ID)` 를 걸어 **미적재 클립만** 가져온다(`LsDataRaw` 도 `@ControlRepo` 라 같은 EntityManager — 단일 SQL 상관 서브쿼리).
-  - tick 당 처리 상한 **100건**(`TrainingVideoIngestService.INGEST_SCAN_LIMIT`, `Pageable`). 잔여분은 **다음 tick 이 이어서 처리**한다(의도된 이월 — `scan finished ... carriedOver=true` 로그로 관측). 정렬은 복합 PK 오름차순 고정이라 특정 클립이 굶지 않는다.
-  - 이벤트리스트(`MNG_CLIP_EVNT_LST`)는 클립당 개별 조회 대신 후보 EVNT_ID **IN 조회 1회**로 배치화(구 구현은 후보 N 건에 매 tick 2N 쿼리).
-  - **멱등 가드는 유지**한다 — 위 필터는 1차 필터일 뿐이고, 2노드 Active-Active 에서 조회~적재 사이 경합이 있으므로 `TrainingVideoIngestTx` 의 이중 멱등(사전 조회 skip + UK 위반 catch-skip)을 대체하지 않는다.
+- **★학습용 클립 스캔 = 인입 원장(`LS_DATA_INGEST`) 폴링이다 — 관제 공유 DB(MNG_*) READ 스캔이 아니다(2026-08-19 코드 실측 정정)** — 이 잡은 60초마다 **저작도구 자신이 소유한** `LS_DATA_INGEST` 를 `PRCS_STTS_CD='PENDING'` 조건으로 폴링한다(`LsDataIngestRepository.findPendingReadyForPolling` → `findPollCandidates`). 관제가 이 테이블에 행을 **직접 INSERT** 하므로 "아직 적재되지 않은 후보를 가려내는 필터"가 별도로 필요하지 않다 — `PENDING` 자체가 곧 미적재 신호이고, 적재가 끝나면 그 행이 `markDone` 으로 종결돼 다음 폴링 술어에서 자연히 빠진다.
+  - tick 당 처리 상한 **100건**(`TrainingVideoIngestService.INGEST_SCAN_LIMIT`, `Pageable`). 잔여분은 **다음 tick 이 이어서 처리**한다(의도된 이월 — `scan finished ... carriedOver=true` 로그로 관측). 정렬은 수신일시(FIFO) 오름차순이라 특정 클립이 굶지 않는다.
+  - **재시도 예정 시각도 후보 술어에 함께 걸린다**(`NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= now`) — 파일 미도착으로 되돌아온 행은 다음 시도가 뒤로 밀려 그 사이 후보에서 빠지므로, 미도착 행이 tick 상한만큼 쌓여도 뒤의 정상 인입이 굶지 않는다.
+  - **멱등 가드는 유지**한다 — `PENDING` 상태 필터는 1차 방어일 뿐이고, 2노드 Active-Active 에서 조회~적재 사이 경합이 있으므로 착수는 적재 쪽(`TrainingVideoIngestTx#ingestOne` 진입부의 조건부 UPDATE 원자 클레임)이 최종 판정한다. UK(`VMS_CLIP_ID`) 충돌 시 PostgreSQL 이 트랜잭션 전체를 abort 시켜 클레임까지 함께 롤백되고, 행은 `PENDING` 으로 되돌아가 다음 tick 이 1차 멱등(`findByVmsClipId`)으로 종결한다.
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"이 잡은 60초마다 관제와 공유하는 DB(MNG_*)를 친다. 구 구현은 미적재 필터도 상한도 없어 매 tick 전량 SELECT 후 전량 skip 을 반복했다(B-ISSUE-04) — 후보 조회에 `NOT EXISTS (LS_DATA_RAW WHERE VMS_CLIP_ID = CLIP_ID)` 를 걸어 미적재 클립만 가져오고, 이벤트리스트(`MNG_CLIP_EVNT_LST`)는 클립당 개별 조회 대신 후보 EVNT_ID IN 조회 1회로 배치화한다"* 는 **사실과 다르다**. 그 서술이 가리키는 "관제 공유 DB(MNG_*) READ 스캔" 아키텍처 자체가 **관제 2차의 적재 주체 반전(ADR-042)으로 전량 폐지**됐다 — `MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST` 모두 V167 로 DROP 됐고, `TrainingVideoIngestService` 클래스 javadoc이 "구 구현은 관제 공유 클립 마스터·이벤트리스트 테이블(2026-08-04 제거 조인)을 스캔했다. 관제 2차에서 적재 주체가 반전되어 읽는 대상만 인입 테이블로 교체했다"를 직접 명시한다. `ControlTrainingVideoScanJob` 클래스 javadoc도 "구 소스 관제 공유 클립 마스터 스캔은 관제 2차 적재 주체 반전으로 폐지"라고 못박는다. 근거: `TrainingVideoIngestService(scanAndIngest)`·`ControlTrainingVideoScanJob`.
 
 - **`PROCESSING` 좀비 회수 (2026-08-03, DEV_FIX 2차)** — `ControlTrainingVideoScanJob` 은 스캔 **앞**에서 `TrainingVideoIngestService.reclaimStaleProcessing()` 을 돌려, 경과 임계값(`AUTHORING_CONTROL_TRAINING_SCAN_PROCESSING_STALE_TIMEOUT_MINUTES`, 기본 **120분**, 하한 10분 clamp)을 넘긴 `PRCS_STTS_CD='PROCESSING'` 인입 행을 `PENDING` 으로 되돌린다.
   - **왜** — 클레임한 노드가 종결을 찍기 전에 죽으면(2노드 롤링 재기동·OOM) 그 행은 어떤 통로로도 다시 처리되지 않는다: 폴링 술어는 `PENDING`, 재큐(`requeueFailedForRetry`)는 `FAILED` 전용, 인입 행 삭제는 금지. **끝이 없는 보류**는 "보류엔 끝, 차단엔 되돌리는 길" 원칙 위반이다.

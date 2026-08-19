@@ -3,6 +3,8 @@
 > **범위(확정·2026-06-25 확장)**: **① 영상 목록 ② 라벨링 결과**(핵심, §1~5) + **③ 검수/완료 상태 ④ 작업자 배정 ⑤ 이슈 ⑥ 증강(레거시)**(확장 스코프, §6). 모두 v1 **프로젝트 단위 → v2 영상(RAW_SN) 단위로 collapse** 한다. 제외: 프로젝트 메타 자체·사용자 계정(공용 MNG)·통계·게시판·라벨 이력(168만)·시계열 메타(v1 0건).
 > **데이터 출처(실DB 검증)**: v1 = `nt sql klid` → MySQL `192.168.102.102:13307/klid_system`, v2 = `nt sql klid_system_246` → PostgreSQL `192.168.102.246:15432/klid_system`(스키마 `public`). 본 문서의 컬럼·건수·JSON 포맷은 **2026-06-25 실DB 조회로 확정**.
 > 구조 정본은 `backend/.../db/migration/V*.sql`(v2) — 충돌 시 코드 우선.
+>
+> ⚠ **정합 메모(2026-08-19)** — 본 문서는 **v1(외부 MariaDB) 실측치는 재검증 불가**(2026-06-25 조회 당시 상태를 그대로 신뢰)이므로 그 수치·건수·JSON 포맷은 손대지 않았다. 반면 **v2(우리 PostgreSQL) 쪽 테이블·컬럼명은 현재 코드로 재검증 가능**하여, 2026-06-25 이후 개명·제약 변경된 항목만 아래에서 정정했다(§1-A·§1-C·§1-D·§6-A). 또한 이 문서가 인용하는 `V1`·`V34`·`V35`·`V52`·`V67`·`V169` 같은 마이그레이션 번호는 **2026-08-13 스쿼시 이전(구 V0~V185 체계)의 이력 표기**다 — 그 파일들은 지금 `V1__baseline.sql` 에 전부 접혀 있고 원문은 `backend/src/test/resources/db-archive/migration/` 에 보존돼 있다(Flyway 미실행 경로). 상세는 [18 데이터베이스](18-database.md) 헤더 「한글 서술 안의 버전번호 두 갈래」 참조 — 이 문서를 스쿼시 이후 새 `V1`~`V13` 체계와 혼동하지 말 것.
 
 ---
 
@@ -34,7 +36,7 @@ v2 `ls_data_raw`는 **15컬럼으로 매우 슬림**, v1은 48컬럼. 대부분 
 |---------|---------|------|
 | `DATA_RAW_SN` (PK) | `raw_sn` (PK, IDENTITY) | ID 재발번 권장 + 대응표 보관 |
 | (없음) | `vms_clip_id` **NOT NULL UK(128)** | ⚠ **GAP①** — v1에 클립ID 없음 |
-| `VMS_CCTV_ID`(30) | `vms_cctv_id` **NOT NULL(64)** | 1,215/2,008만 채워짐 → 나머지 기본값 필요 |
+| `VMS_CCTV_ID`(30) | `vms_cctv_id`(64) | 1,215/2,008만 채워짐. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"NOT NULL(64)"* 는 더 이상 사실이 아니다. 관제 회신("CCTV 식별자가 없는 영상이 존재")에 따라 **V185 에서 NOT NULL 제약이 해제**돼 현재는 nullable 이다(근거: `deploy/onprem/db/schema.sql` `ls_data_raw.vms_cctv_id`). 기본값 부여가 더 이상 필수는 아니며, 미채움은 NULL 로 그대로 이관 가능 |
 | `EVNT_TYPE_CD` | `evnt_type_cd` | 직접 |
 | `LCLGV_CD` | `lclgv_cd` | 직접 |
 | `PRVC_YN` | `prvc_yn` **NOT NULL** | NULL→기본값('N' 등) |
@@ -43,9 +45,9 @@ v2 `ls_data_raw`는 **15컬럼으로 매우 슬림**, v1은 48컬럼. 대부분 
 | `RAW_FILE_PATH`(1000) | `raw_file_path_nm`(500) | ⚠ 길이 축소 — 경로 500자 초과분 확인 |
 | `SHT_DT` | `sht_dt` | datetime→timestamp |
 | `VDO_LEN`(int, **ms**) | `vdo_len_sec`(초) **+** `vdo_len_ms`(신설) | ⚠ **단위변환 + 원본보존** — VDO_LEN 은 밀리초(실측: `VDO_LEN/(FRM_CNT/FPS)=1000`, 1993/2006건). `vdo_len_sec`=÷1000(초, V2 계약), 원본 ms 는 신설 `vdo_len_ms`(**Flyway V67**, nullable, 이관본만)에 보존. 직접 복사 시 1000배 오적재. 원본은 시간단위 CCTV 영상이라 초값 수천이 정상 |
-| (상태 추정) | `data_stts_cd` **NOT NULL(32)** | 이관본은 `COMPLETED`/`APPROVED` 등 고정 부여 |
+| (상태 추정) | `data_stts_cd` **NOT NULL(20)** | 이관본은 `COMPLETED`/`APPROVED` 등 고정 부여. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 폭 *"(32)"* 는 사실과 다르다. 현재 `character varying(20)` 이다(근거: `deploy/onprem/db/schema.sql` `ls_data_raw.data_stts_cd` — CLAUDE.md 의 "코드값 도메인은 VARCHAR(20)이 표준" 과도 일치) |
 | `REG_DT`/`MDFCN_DT` | `reg_dt`/`mdfcn_dt` | 직접 |
-| `AI_CRT_YN`(증강여부) | (없음) | `parent_raw_sn`로 증강추적하나 v1 부모링크 없음 → 버림 |
+| `AI_CRT_YN`(증강여부) | (없음) | 증강추적은 `orgnl_raw_sn` 컬럼이 담당하나 v1 부모링크 없음 → 버림. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 컬럼명 `parent_raw_sn` 은 더 이상 존재하지 않는다. **`ORGNL_RAW_SN`(V82 물리 rename)** 이 정식 명칭이며 데이터마트 뷰 출력도 이 이름으로 통일돼 있다(근거: `deploy/onprem/db/schema.sql` `ls_data_raw.orgnl_raw_sn` · [18 데이터베이스](18-database.md) §18.2 `LS_DATA_RAW` 행) |
 | **버려지는 v1 메타** | — | `FILE_FMT,FPS,FRM_CNT,WDTH,HGT,RSLTN,BIT_RATE,VDO_CDC,ASPRT_RT,FILE_SZ,SESN_CD,WTHR_CD,HR_TYPE_CD,STDG_CD,WGS84_LAT/LOT,CCTV_NM,MNTR_CN,CLCT_*,SHT_*,LCNS` → **GAP③** |
 
 ### 1-B. 프레임: `LS_DATA_SRC` → `ls_data_src`
@@ -58,14 +60,15 @@ v2 `ls_data_raw`는 **15컬럼으로 매우 슬림**, v1은 48컬럼. 대부분 
 | `SRC_FILE_PATH`(1000) | `src_file_path_nm`(500) | ⚠ 길이 축소 확인 |
 | `SRC_BKUP_FILE_PATH` | `de_idntf_src_file_path_nm` | 백업경로=비식별 프레임 경로로 매핑 |
 | `REG_DT`/`MDFCN_DT` | `reg_dt`/`upd_dt` | 직접 |
-| `PJT_SN`,`DATA_STTS_CD`,`STP_CYCL`,`IGI_CYCL`,`IMG_EXPLN` 등 | (없음) | 버림 |
+| `PJT_SN`,`DATA_STTS_CD`,`STP_CYCL`,`IGI_CYCL` 등 | (없음) | 버림 |
+| `IMG_EXPLN` | `frm_expln` | ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"IMG_EXPLN 은 v2 에 대응 없이 버림"* 은 더 이상 사실이 아니다. 이 문서 작성(2026-06-25) **이후**에 신설된 `LS_DATA_SRC.FRM_EXPLN`(프레임설명, NIA `image.description` 작업자 수기, V103)이 같은 의미의 자리를 갖게 됐다 — 이관 시 버리지 않고 이 컬럼으로 옮길 수 있다(근거: `deploy/onprem/db/schema.sql` `ls_data_src.frm_expln` · [18 데이터베이스](18-database.md) §18.2 `LS_DATA_SRC` 행) |
 
 ### 1-C. 라벨 클래스: `LS_PJT_LBL` → `ls_label`
 
 | v1 컬럼 | v2 컬럼 | 변환 |
 |---------|---------|------|
 | `LBL_SN` (PK, PJT별) | `lbl_id` (PK) | **8개 PJT의 24행을 의미 중복 제거 후 재발번**(GAP②) |
-| `LBL_NM`(물/사람…) | `lbl_nm`(64) UK | 의미 매핑 |
+| `LBL_NM`(물/사람…) | `lbl_nm`(80) | 의미 매핑. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 폭 *"(64)"* 는 현재 `character varying(80)` 이다(근거: `deploy/onprem/db/schema.sql` `ls_label.lbl_nm`). **"UK" 표기도 부정확** — all-rows exact UNIQUE 는 없고, 유니크성은 **활성(`USE_YN='Y'`) 한정 대소문자무시 부분 유니크**(`UK_LS_LABEL_NM_CI`)가 강제한다 — [18 데이터베이스](18-database.md) §18.2 `LS_LABEL` 행 참조 |
 | `LBL_COLR`(#hex) | `colr_vl`(7) | 직접 |
 | `PRC_TYPE_CD`(BBOX/POLYGON) | `lbl_type_cd`(16) | 코드 동일 — 직접 |
 | `SORT_SEQ` | `sort_seq` | 직접 |
@@ -79,12 +82,12 @@ v2 `ls_data_raw`는 **15컬럼으로 매우 슬림**, v1은 48컬럼. 대부분 
 | `DATA_SRC_SN` | `src_sn` | 1-B 프레임 대응표로 재연결 |
 | `LBL_SN` | `lbl_id` | 1-C 라벨클래스 대응표로 재연결 |
 | (클래스 PRC_TYPE_CD) | `lbl_type_cd` **NOT NULL** | 클래스에서 **비정규화 복사** |
-| (클래스 LBL_NM) | `lbl_nm` **NOT NULL(255)** | 클래스에서 **비정규화 복사** |
+| (클래스 LBL_NM) | `lbl_nm` **NOT NULL(80)** | 클래스에서 **비정규화 복사**. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 폭 *"(255)"* 는 현재 `character varying(80)` 이다(근거: `deploy/onprem/db/schema.sql` `ls_data_lbl.lbl_nm`) |
 | `POINT`(text) | `point_cn`(text) | ⚠ **포맷 변환 필수**(§2) |
-| `TRCK_ID` | `trck_id`(64) | 직접 |
+| `TRCK_ID` | `trck_id`(30) | 직접. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 폭 *"(64)"* 는 현재 `character varying(30)` 이다(근거: `deploy/onprem/db/schema.sql` `ls_data_lbl.trck_id`) — v1 값이 30자를 넘으면 이관 전 확인 필요 |
 | `REG_DT`/`MDFCN_DT` | `reg_dt`/`mdfcn_dt` | 직접 |
 | `PJT_SN`,`DATA_RAW_SN`,`TRCK_USE_YN`,`TRCK_FRM_YN`,`ATRB`,`SORT_SEQ` | (없음) | 버림(영상 연결은 src_sn→frame→raw로 도출) |
-| (없음) | `reg_user_no` | v1 `REG_ID`(varchar)→관제 USER_NO 매핑 또는 NULL |
+| (없음) | `reg_user_no` | v1 `REG_ID`(varchar)→`user_no`(bigint) 매핑 또는 NULL. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"관제 USER_NO 매핑"* 은 낡았다. 2026-08-04(V169)부터 사용자 마스터는 **관제 `MNG_ACCT_USER` 가 아니라 저작도구 소유 `LS_ACNT_USER`** 다(관제 `MNG_*` 9종 전량 제거 — 아래 §6-B 「★2026-08-04(V169) 조인 대상 변경」과 같은 축) |
 
 ---
 
@@ -147,7 +150,9 @@ v1과 v2의 좌표 JSON 표현이 **서로 다르다**(실측 확인). 단순 �
 
 - GPS·해상도·CCTV 화소·주소 → `MNG_RESOURCE_CCTV`(공용, `WGS84_LAT/LOT`,`CAM_RSLTN`,`CCTV_PXL`,`SHT_ADDR`)
 - 영상 길이·파일경로·코덱·이벤트 → `MNG_CLIP_MASTER`(공용)
-- v1은 `LS_DATA_RAW`(저작도구)에 이를 **중복 저장**했을 뿐. v2는 "관제 소유, 저작도구 READ" 원칙이라 `ls_data_raw` 가 슬림하다. 이 메타가 필요하면 관제 `MNG_*` 가 진실원이며, 그건 관제 책임이라 저작도구 이관 범위 밖. (현재 v2 PG `mng_*` 는 stub — 실적재는 관제)
+- v1은 `LS_DATA_RAW`(저작도구)에 이를 **중복 저장**했을 뿐. v2는 이 메타를 저작도구가 이관하지 않고 관제 책임으로 남겨 `ls_data_raw` 가 슬림하다.
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"v2는 '관제 소유, 저작도구 READ' 원칙이라 … 이 메타가 필요하면 관제 `MNG_*` 가 진실원 … (현재 v2 PG `mng_*` 는 stub — 실적재는 관제)"* 는 사실과 다르다. `mng_*` 는 **stub 이 아니라 테이블 자체가 없다** — `MNG_RESOURCE_CCTV`·`MNG_CLIP_MASTER`·`MNG_EX_LOCAL_GOV` 모두 **V167 에서 제거**됐고 JPA 매핑·SQL 참조 각 0건이다(회귀 가드 `MngControlMasterTableRemovalTest`). CCTV명·좌표·파일형식 등은 이제 관제가 인입 원장 `LS_DATA_INGEST`(저작도구 소유)에 **직접 INSERT** 하는 평면값에서 조달한다(ADR-042 적재 주체 반전) — 조인 대상이 아니라 저작도구 자체 테이블의 컬럼이다. 근거: `IngestSourceLink.java`, `VideoRepository.java`(`구 MNG_RESOURCE_CCTV 조인은 V167 로 제거`), `DatasetMetaSourceRepository.java`, `MngControlMasterTableRemovalTest`.
 
 ---
 
@@ -208,10 +213,11 @@ v1 은 **프로젝트(`LS_PJT`, 8개)** 를 작업 관리 단위로 썼다. 영�
 | v1 (pjt,raw) | v2 (raw) | 변환 |
 |------|------|------|
 | `DATA_RAW_SN` | `raw_data_id`(=raw_sn) | 영상 대응표 |
-| `PJT_DATA_STTS_CD` | `data_stts_cd`(32) | **상태 매핑(아래)** |
+| `PJT_DATA_STTS_CD` | `data_stts_cd`(20) | **상태 매핑(아래)**. ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 폭 *"(32)"* 는 현재 `character varying(20)` 이다(근거: `deploy/onprem/db/schema.sql` `ls_raw_data_status.data_stts_cd`) |
 | `STP_CYCL`/`IGI_CYCL` | `stp_cycl`/`igi_cycl` | 직접(NULL→0) |
 | `MDFCN_DT`/`REG_DT` | `upd_dt` | COALESCE |
 | (없음) | `ver` | 1 |
+| (없음) | `revlt_yn` | 이 문서 작성(2026-06-25) 이후 신설된 컬럼(재검토여부, V177) — `NOT NULL DEFAULT 'N'` 이라 이관본은 별도 값 없이 기본값으로 채워진다 |
 | `PJT_SN` | (없음) | **버림(collapse)** |
 
 **상태코드 매핑 + cross-PJT 우선순위**(가장 진행된 상태 채택):
@@ -255,11 +261,13 @@ v1 은 **프로젝트(`LS_PJT`, 8개)** 를 작업 관리 단위로 썼다. 영�
 |------|------|------|
 | `DATA_SRC_SN` | `src_sn` | 프레임 대응표(매칭분만) |
 | `PJT_AUG_OPT_CD` | `aug_type_cd`(20) | **타입코드 보존**(BRIGHT/DARK/LR…) — v2 앱 미인식 가능 |
-| `AUG_PROC_STTS_CD` | `aug_proc_stts_cd` | 직접(SUCCESS/PENDING/FAIL) |
+| `AUG_PROC_STTS_CD` | `aug_proc_stts_cd` | 값 매핑 필요(값 세트가 다르다 — 아래) |
 | `AUG_FILE_PATH` | **(컬럼 부재)** | ⚠ **손실** — 증강 발생 사실만 보존 |
 | `PJT_SN`,`DATA_RAW_SN` | (없음) | 버림(src→frame→raw 도출) |
 
 > **결정(사용자 확정)**: 레거시로 적재(이력 보존). 215행. v2 외부 증강 모델과 의미가 다르고 파일경로가 손실되므로 **참고용 이력**으로 본다.
+>
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`AUG_PROC_STTS_CD`→`aug_proc_stts_cd` 직접(SUCCESS/PENDING/FAIL)"* 은 사실과 다르다. `aug_proc_stts_cd` 에 DB CHECK 제약은 없지만, 저작도구 앱이 실제로 쓰는 값 세트는 **`PENDING`/`ACCEPTED`/`REJECTED`/`CANCELED`**(CLAUDE.md 「증강 파이프라인」)이며 v1 의 `SUCCESS`/`FAIL` 과 다르다 — "직접" 복사하면 앱이 인식하지 못하는 값이 저장된다. 레거시 이력이라는 이 절의 결론(참고용 보존)은 유지되므로, 이관 시 v1 값을 그대로 두어도 무방하나(v2 앱이 조회 안 함) **v2 화면에 노출할 계획이 있다면 SUCCESS→ACCEPTED/FAIL→REJECTED 매핑이 필요**하다.
 
 ### 6-D. 이슈 — `LS_DATA_ISSUE` → `ls_data_issue` + `ls_issue_comment`
 
@@ -270,7 +278,7 @@ v1 이슈는 (pjt,raw,src) + 스레드(`UP_DATA_ISSUE_SN`). v2 는 **루트 이�
 | `DATA_ISSUE_SN`(루트, UP IS NULL) | `ls_data_issue.data_issue_sn` | 오프셋 |
 | `DATA_ISSUE_SN`(답글, UP NOT NULL) | `ls_issue_comment` | `data_issue_sn`=부모(`UP_*`)+offset |
 | `DATA_RAW_SN`/`DATA_SRC_SN` | `data_raw_sn`/`src_sn`(nullable) | 대응표(프레임 미매칭 시 NULL) |
-| `ISSUE_TYPE_CD`(REJECT/ISSUE) | `issue_type_cd` | 직접 |
+| `ISSUE_TYPE_CD`(REJECT/ISSUE) | `issue_type_cd` | ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"직접"*(값 그대로 복사)은 사실과 다르다. v2 `ls_data_issue` 는 `issue_type_cd` 에 CHECK 제약(`ck_ls_data_issue_type`)이 있어 **`REJECTION`/`INQUIRY` 두 값만 허용**한다(근거: `deploy/onprem/db/schema.sql`) — v1 값 `REJECT`→`REJECTION`, `ISSUE`→`INQUIRY` 매핑이 필요하며, 그대로 복사하면 제약 위반으로 적재가 실패한다 |
 | `USE_YN` | `issue_stts_cd` | 유도: Y→`OPEN`, N→`RESOLVED` |
 | `ISSUE_CN`(+`RJCT_DTL_CD`+`ISSUE_DTL_CD`) | `issue_rsn`(1000) | 상세코드는 본문에 접미(v2 상세컬럼 부재) |
 | `REG_ID` | `reported_user_no`/`author_no`(varchar50) | 직접 |

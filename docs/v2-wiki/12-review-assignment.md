@@ -3,14 +3,17 @@
 > 출처: CLAUDE.md(작업 배정·작업 단위·완료 통지), R2 KLID-AT-SS-007, 코드(`review/`, `assignment/`)
 > 관련: [13 버전관리](13-version-control.md) · [15 관제서버 통지](15-control-notify.md)
 
-화면: `KLID-AT-SC-012`(작업 목록 `/task` — 배정 동선 포함), `SC-018`(검수 목록 `/review`), `SC-019`(검수 상세 `/review/:id`). (구 `SC-013` 작업 배정 전용 페이지 `/task/assign`는 진입점 없는 중복으로 2026-06-17 deprecated·코드 제거 — 배정은 작업 목록/영상 목록에 통합 → [04 화면·IA](04-screens-ia.md))
+화면: `SC-012`(작업 목록 `/task` — 배정 동선 포함), `SC-018`(검수 목록 `/review`), `SC-019`(검수 상세 `/review/:id`). (구 `SC-013` 작업 배정 전용 페이지 `/task/assign`는 진입점 없는 중복으로 2026-06-17 deprecated·코드 제거 — 배정은 작업 목록/영상 목록에 통합 → [04 화면·IA](04-screens-ia.md))
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-012`"* 는 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-012`(축약 `SC-012`). 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
 
 ## 12.1 작업 배정
 
 - **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
 - `LS_TASK_ALTMNT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 **`LS_TASK_EVNT_LOG` 에 `REASSIGN` 기록**(구 `LS_TASK_ASSIGN_HISTORY` 이중 쓰기는 V4 에서 폐지 — 조회 API 가 원래 이벤트 로그만 읽었다)
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
-- **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(SC-007 `/video/completed`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)
+- **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(`/video/status`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)
+  > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"영상 목록(SC-007 `/video/completed`)"* 은 사실과 다르다. 코드에서 `SCREEN-007`은 참조 0건(결번)이고, `/video/completed` 라우트도 라우터에 없다(`grep -na "video/completed" frontend/src/router/index.tsx` → 0건). 영상 목록 페이지의 실제 화면ID·경로는 **`SCREEN-008`·`/video/status`**다(`VideoListPage.tsx`). ⚠ **05-video-management.md 도 같은 "SC-007 `/video/completed`" 표기를 반복 사용하고 있어(§도입부·§5.5.3·§배정 등 다수) 이 담당 밖 문서에도 같은 드리프트가 있다 — 해당 문서 담당에게 전달 필요.** 근거: `frontend/src/router/index.tsx`(`/video/status` → `VideoListPage`), `frontend/src/pages/VideoListPage.tsx`(SCREEN-008 주석).
 - **두 화면 배정 시나리오 정합**: 배정자 표시·배정/재배정 토글·재배정 시 현재 배정자 사전선택·완료 영상 재배정 차단·성공 후 즉시 갱신을 작업 목록과 동일하게 적용. 영상 목록은 배정정보를 `GET /v1/videos`(VideoSummaryResponse) 응답으로 받으며, 산출 기준(현재 활성 LABELER 배정 1건)은 `TaskBoardService`와 동일
 - 코드: `assignment/AssignmentController`, `TaskBoardController`, FE `pages/VideoListPage.tsx`·`features/task/components/AssignModal.tsx`
 
@@ -27,7 +30,7 @@
 | `page`/`size`/`sort` | 선택 | 기본 `regDt,desc` | 정렬 allowlist: `regDt`/`assignedAt`/`rawDataId`/`videoId`/`assignmentId`/`id` — **미등록 키 400(strict)** |
 
 - **필터는 현재 페이지가 아니라 전체 데이터셋 기준**이며 `totalElements` 도 필터 결과 기준이다. 신규 파라미터는 전부 optional·기본값 없음이라 **하나도 보내지 않으면 변경 전과 동일한 응답**이다(하위호환 회귀 가드: `ListApiBackwardCompatibilityIT`).
-- **`IN_PROGRESS`(작업중) 판정 = 그 영상에 라벨 저장 이력(`LS_DATA_LBL_HSTRY`, 종류별 건수 합 > 0)이 존재**. 필터 WHERE 와 응답 `status` 가 **같은 표현식**에서 나오므로 "작업중으로 걸렀는데 목록엔 대기로 표시" 가 생기지 않는다. 판별식은 데이터마트 뷰 `V_COMPLETED_LABEL_CHANGE`(V139)와 동일하며 `SaveHistoryChangeViewParityIT` 가 결박한다.
+- **`IN_PROGRESS`(작업중) 판정 = 그 영상에 라벨 저장 이력(`LS_DATA_LBL_HSTRY`, 종류별 건수 합 > 0)이 존재**. 필터 WHERE 와 응답 `status` 가 **같은 표현식**에서 나오므로 "작업중으로 걸렀는데 목록엔 대기로 표시" 가 생기지 않는다. 판별식은 데이터마트 뷰 `V_COMPLETED_LABEL_CHANGE`와 동일하며 `SaveHistoryChangeViewParityIT` 가 결박한다. ⚠ **구 표기 `(V139)` 폐기(2026-08-19 정정)** — 2026-08-13 스쿼시 이전 번호(`db-archive/migration/V139__filter_zero_change_rows_from_change_view.sql`)이며, 뷰 정의는 현재 `V1__baseline.sql` 하나에만 있다(현재 `V2`~`V13`은 어느 것도 뷰를 건드리지 않는다).
   - ⚠ **알려진 한계(수용됨)**: 트랙 분할·트랙 병합·객체 속성 저장은 이력을 남기지 않아 그 작업만 한 영상은 '대기'로 표시된다. 이력 도입 이전 레거시 작업분도 동일(백필 없음).
 - **인가 축과 필터 축을 분리**한다 — WORKER 면 토큰 subject 로 조회 범위를 고정하고 요청의 `workerId` 는 **읽지 않는다**(CWE-639 IDOR).
 
@@ -44,7 +47,8 @@
 
 ## 12.2 검수 (단일 승인)
 
-- **검수 완료 = 작업 완료**: REVIEWER가 승인하면 `LsRawDataStatus.dataSttsCd` 가 **`APPROVED`** 로 전이 (2026-08-15 정정 — 구 서술 `COMPLETED` 폐기. `LsRawDataStatus.STTS_COMPLETED` 는 선언만 있고 `src/main` 사용처가 0건이다)
+- **검수 완료 = 작업 완료**: REVIEWER가 승인하면 `LsRawDataStatus.dataSttsCd` 가 **`APPROVED`** 로 전이 (2026-08-15 정정 — 구 서술 `COMPLETED` 폐기. `LsRawDataStatus.STTS_COMPLETED` 로 **전이**하는 코드는 `src/main`에 0건이다)
+  - ⚠ **구 표기 "선언만 있고 `src/main` 사용처가 0건이다" 는 폐기(2026-08-19 재확인 — CLAUDE.md 2026-08-15 재실측 정정과 정합)** — `marking/listener/MarkingBatchBridge`의 `SKIP_STATUSES`가 이 상수를 **읽는다**(재트리거 차단 집합의 멤버십 검사, 방어적 용도). "전이 대상으로 쓰이지 않는다"와 "아무도 안 읽는다"는 다른 주장이다 — 후자는 사실이 아니다. 근거: `MarkingBatchBridge.java(SKIP_STATUSES)`.
   - ⚠ **`COMPLETED` 를 전부 `APPROVED` 로 바꾸지 말 것** — 배치 단계(`LsDataRaw.DATA_STTS_COMPLETED`)·FE 표시 매핑(`ReviewResponse.mapToFeStatus`, `AssignmentWorkStatus.COMPLETED(Set.of("APPROVED"))`)·통지 이벤트명(`TASK_COMPLETED`)은 **전부 정상**이다. 특히 배정 목록 표시축을 고치면 대시보드 진행률이 0% 로 떨어진다
 - v1의 1차/2차 다단계 검수 없음 (REVIEWER 단일 승인으로 의도적 변경)
 - 검수 상세에서 라벨 승인/반려, 라벨 diff 비교, 버전 롤백 → [13](13-version-control.md)
@@ -85,10 +89,13 @@
 |------|----|--------|------|
 | ASSIGNED | PENDING | WORKER submit | 최초 검수 제출 |
 | PENDING | IN_REVIEW | REVIEWER start | 검수 시작 |
+| PENDING | ASSIGNED | WORKER cancel-submit | 제출 취소 — **검수 시작 전에만 가능**(`POST /v1/reviews/{videoId}/cancel-submit`) |
 | IN_REVIEW | APPROVED | REVIEWER approve | 승인 → 버전 스냅샷 적층 |
 | IN_REVIEW | REJECTED | REVIEWER reject | 반려 (사유 LS_DATA_ISSUE) |
 | REJECTED | PENDING | WORKER submit | 수정 후 재제출 |
 | **APPROVED** | **PENDING** | **WORKER submit** | **재검수 재제출 — 검수완료 후 수정→재검수→재승인 허용. 동일 작업 ID(RAW_SN) 유지·버전업 아님. 재승인 시 변경분에 새 APPROVED 스냅샷 적층(diff/롤백 활성화)** |
+
+> ⚠ **`PENDING → ASSIGNED` 행 신설(2026-08-19 코드 실측)** — 구 표에 이 전이가 **빠져 있었다**. `ReviewStateMachine`(javadoc `ALLOWED` 맵)이 `PENDING → {IN_REVIEW, ASSIGNED}` 둘 다 허용하며, 후자는 `ReviewController.cancelSubmit`/`ReviewService.cancelSubmit`가 담당한다(`POST /v1/reviews/{videoId}/cancel-submit`, `hasRole('WORKER')` — F1 REST 표에서도 확인됨). 근거: `ReviewStateMachine.java`.
 
 - 불허: PENDING → APPROVED 직행(409 INVALID_INPUT), APPROVED → IN_REVIEW/REJECTED 직행(409 CONFLICT — 재검수는 PENDING 재제출부터).
 - `COMPLETED`(STTS_COMPLETED)는 배치 파이프라인 상태이며 검수 종결값으로 쓰이지 않는다. 검수 종결 시 영속 상태는 `APPROVED`이고, DTO 표시 계층에서만 APPROVED→"COMPLETED" 라벨로 매핑한다.
@@ -128,6 +135,6 @@
 
 ## 12.6 관련 데이터 (DB)
 
-`LS_TASK_ALTMNT`(배정), `LS_TASK_EVNT_LOG`(이벤트 로그 — 재배정 이력의 단일 적재처. 구 `LS_TASK_ASSIGN_HISTORY` 는 V4 에서 삭제), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — V57부터 문의(INQUIRY) 타입·상태 확장), `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
+`LS_TASK_ALTMNT`(배정, 구 물리명 `LS_TASK_ASSIGNMENT` — 현재 `V9__rename_task_tables_to_std_terms.sql` 에서 개명), `LS_TASK_EVNT_LOG`(이벤트 로그 — 재배정 이력의 단일 적재처, 구 물리명 `LS_TASK_EVENT_LOG` — 역시 현재 `V9`. 구 `LS_TASK_ASSIGN_HISTORY` 이중 기록 테이블은 현재 `V4__drop_unused_tables_round2.sql` 에서 DROP됨), `LS_RAW_DATA_STATUS`(작업 상태), `LS_DATA_ISSUE`(품질 이슈 — 문의(INQUIRY) 타입·상태 확장). ⚠ **구 표기 `V57부터` 폐기(2026-08-19 정정)** — 스쿼시 이전 번호(`db-archive/migration/V57__issue_thread.sql`)이며 현재는 `V1` 베이스라인에 포함돼 있다(현재 마이그레이션에 `V57`은 존재하지 않는다 — 최신은 `V13`까지). `LS_ISSUE_COMMENT`(댓글 스레드). → [18](18-database.md).
 
-> 반려 사유는 V57부터 작업자 문의와 **통합 이슈 스레드**로 양방향 소통 가능 (등록→답변→해소) — 상세는 [21 이슈 소통 채널](21-issue-channel.md).
+> 반려 사유는 (구 `V57부터`, 스쿼시 이전 번호 — 현재는 `V1` 베이스라인에 포함) 작업자 문의와 **통합 이슈 스레드**로 양방향 소통 가능 (등록→답변→해소) — 상세는 [21 이슈 소통 채널](21-issue-channel.md).

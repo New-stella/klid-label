@@ -12,7 +12,9 @@
   - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트.
 
-화면: `KLID-AT-SC-001`(세션 인계 진입 `/ingress`) → channel 클레임으로 `/portal` 또는 `/dashboard` 라우팅. `KLID-AT-SC-002`(역할 클레임 `/role-claim`) — role 미부여 시 진입.
+화면: `SC-001`(세션 인계 진입 `/ingress`) → channel 클레임으로 `/portal` 또는 `/dashboard` 라우팅. `SC-002`(역할 클레임 `/role-claim`) — role 미부여 시 진입.
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 위 두 화면을 *"`KLID-AT-SC-001`"*·*"`KLID-AT-SC-002`"* 로 부르던 것은 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-NNN`(LogiCraft ID)이고, `KLID-AT-SC-NNN` 헤더는 `NoticeListPage.tsx`·`NoticeDetailPage.tsx` **2개 파일에만** 남은 옛 D2 설계서 체계의 잔재다. 이 위키는 `SCREEN-NNN` 을 `SC-NNN` 으로 축약 표기한다. 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
 
 ## 3.2 역할
 
@@ -36,6 +38,7 @@
 
 - **IDOR 차단**: WORKER는 본인 배정 외 프레임 편집 시 403 (`LabelAccessGuard`)
 - **관리 화면**: `/manage/*` (사용자·시스템 설정·프리셋) REVIEWER 전용
+  - ⚠ **예외 1건(2026-08-19 코드 실측)** — `GET /v1/manage/labels`·`/v1/manage/labels/**`(라벨 마스터 **조회**)는 REVIEWER 전용이 아니라 **REVIEWER·WORKER·PORTAL_USER 모두 허용**된다. 포털 업로드 라벨링 화면도 이 API로 라벨 분류·표시명·색상을 읽기 때문이다. 이 예외는 `SecurityConfig`의 순서 있는 매처에서 `/v1/manage/labels`(GET) 매처가 `/v1/manage/**`(REVIEWER 전용) 매처보다 **먼저** 선언돼 있어 성립한다 — 인가 판정의 1차 원천은 메서드 `@PreAuthorize`가 아니라 이 매처 순서다(판정 단일 지점은 `SecurityConfig.securityFilterChain` — [19 §연동 서버 주소 설정](19-external-security-cvat.md#연동-서버-주소-설정-r11-2026-08-10)의 「판정 단일 지점」 원칙과 같은 취지). 근거: `reports/wiki-align-20260819/facts/F1-backend-api.md` §3(매처 10·11번).
 - **포털 격리**: 저장 시 원본 미수정, `LS_PORTAL_USER_LABEL` 별도 적재 (ADR-013)
 
 ### 관리자 단기 유효창 (R11, 2026-08-10)
@@ -57,7 +60,9 @@
 
 ## 3.4 사용자 관리 (REVIEWER)
 
-화면: `KLID-AT-SC-024`(사용자 관리 `/manage/users`) — 사용자 목록·역할 설정. 코드: `user/UserController`.
+화면: `SC-024`(사용자 관리 `/manage/users`) — 사용자 목록·역할 설정. 코드: `user/UserController`.
+
+> ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — *"`KLID-AT-SC-024`"* 는 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-024`(축약 `SC-024`) — 근거는 위 §3.1 각주와 동일.
 
 - **역할 변경 저장 버튼의 활성 조건**(2026-08-08 정정) — **역할을 선택하지 않았거나 선택한 역할이 원래 값과 같으면**(변경 없음) 비활성이다. 구 동작은 미선택만 막았다. 두 사유는 동시에 성립하지 않으며 **화면이 잠긴 사유를 알린다**("변경된 내용이 없습니다. 다른 역할을 선택하면 저장할 수 있습니다") — 이유 없이 잠긴 버튼은 고장으로 읽힌다. 다른 역할로 바꿨다가 되돌리면 다시 잠긴다. 저장 진행 중 비활성은 종전과 같다.
 - **목록 하단 페이저에서 총 건수 표기가 사라졌다**(2026-08-08) — 공용 페이저가 총 건수 요약을 갖지 않게 되었고 이 화면에는 건수를 소유한 다른 요소가 없다 → [04 §4.2](04-screens-ia.md).
