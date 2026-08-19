@@ -131,17 +131,20 @@ v1과 v2의 좌표 JSON 표현이 **서로 다르다**(실측 확인). 단순 �
 
 | v1 클래스(타입) | v2 처리 | 조치 |
 |-----------------|---------|------|
-| water(POLY) | `water`(10) | 매핑 |
-| person(BBOX) | `person`(1) | 매핑 |
-| car(BBOX) | `car`(2) | 매핑 |
+| water(POLY) | `침수`(10) | 매핑 |
+| person(BBOX) | `사람`(1) | 매핑 |
+| car(BBOX) | `자동차`(2) | 매핑 |
 | fallen_person(BBOX) | `fallen-person`(11) | 매핑(표기 `_`↔`-`) |
-| fire(BBOX) | **신규 `fire`(BBOX)** | v2 기존 fire(8)는 POLYGON → **BBOX형 별도 추가** |
+| fire(BBOX) | **신규 `화재`(BBOX)** | v2 기존 `화재`(8)는 POLYGON → **BBOX형 별도 추가** |
 | smoke(BBOX) | **신규 `smoke`(BBOX)** | 동일 |
-| two_wheeler(BBOX) | `motorbike`(4) | 매핑(이륜차→motorbike) |
+| two_wheeler(BBOX) | `오토바이`(4) | 매핑(이륜차→오토바이) |
 | asphalt(도로, POLY) | **신규 추가** | ls_label INSERT |
 | other(제외, POLY) | **신규 추가** | ls_label INSERT |
 | fighting_person(BBOX) | **신규 추가** | ls_label INSERT |
 
+> ★v2 라벨 **표시명은 한글**이다(2026-08-19). 대응은 표시명이 아니라 `lbl_id` 로 하며, AI 검출 매칭축은 `DTCT_TYPE_CD`(COCO 영문 클래스명)로 별개다.
+> `fallen-person`(11) 은 신규 설치에 없다 — 구 시드가 만든 행을 비활성(`USE_YN='N'`)으로 정리한 것이라, 레거시 DB 에만 존재한다.
+>
 > v1 `LBL_SN` → v2 `lbl_id` 대응표를 만들고, 라벨 행에 `lbl_type_cd`·`lbl_nm` 을 클래스에서 비정규화 복사.
 
 ### GAP③ — 영상 메타: 저작도구 이관 안 함 (공용 MNG 위임)
