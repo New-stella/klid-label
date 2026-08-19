@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -493,4 +494,44 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     @Query("select s.srcSn from LsDataSrc s where s.rawSn = :rawSn "
             + "and coalesce(s.dscdYn, 'N') = 'Y' order by s.srcSn asc")
     List<Long> findDiscardedSrcSnsByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
+     * [dev 복구] 비식별 프레임 경로가 <b>하나라도 비어 있는</b> 영상의 rawSn 목록(오름차순, 페이징).
+     *
+     * <p>2026-07-22 이전 적재분은 프레임 추출기의 self-invocation 결함으로
+     * {@code DE_IDNTF_SRC_FILE_PATH_NM} 이 NULL 로 남아, 비식별본만 서빙하는 프레임 이미지 API 가
+     * 404 를 돌려준다(라벨링·검수 화면 백지). 그 대상 집합을 찾는 조회다.
+     *
+     * <p>무제한 조회 금지 규칙에 따라 {@link Pageable} 로 상한을 강제한다. 식별자만 반환하므로
+     * 경로·PII 를 싣지 않는다(CWE-359).
+     */
+    @Query("select distinct s.rawSn from LsDataSrc s "
+            + "where s.deIdntfSrcFilePathNm is null or s.deIdntfSrcFilePathNm = '' "
+            + "order by s.rawSn asc")
+    List<Long> findRawSnsMissingDeidFramePath(Pageable pageable);
+
+    /** [dev 복구] 비식별 프레임 경로가 비어 있는 영상 <b>전체</b> 건수 — 상한 이후 잔여 안내용. */
+    @Query("select count(distinct s.rawSn) from LsDataSrc s "
+            + "where s.deIdntfSrcFilePathNm is null or s.deIdntfSrcFilePathNm = ''")
+    long countRawSnsMissingDeidFramePath();
+
+    /**
+     * [dev 복구] {@code VDO_FRM_NO}(영상 내 실제 프레임 위치)를 <b>조건부 원자 UPDATE</b> 로 복원한다.
+     * 이미 값이 있으면 0행(멱등 no-op) — 기존 값을 덮지 않는다.
+     *
+     * <h3>왜 엔티티 dirty checking 이 아닌가</h3>
+     * <p>{@link LsDataSrc} 에는 {@code @DynamicUpdate} 가 없어 dirty-update 가 <b>전 컬럼 UPDATE</b> 를
+     * 만든다. 그러면 같은 순간 다른 경로가 조건부 native UPDATE 로 바꾼 컬럼({@code DSCD_YN} 등)이
+     * 이 트랜잭션의 낡은 스냅샷 값으로 <b>조용히 되돌아간다</b>(실측된 lost update 결함군).
+     * 여기서는 복원 대상 컬럼 하나만 건드리는 native UPDATE 로 그 표면을 없앤다.
+     *
+     * <p>{@code WHERE VDO_FRM_NO IS NULL} 덕에 반환 행수가 곧 "실제로 채웠는가"가 되어 재실행이
+     * 안전하다(read-then-write 경합 없음 — CWE-362).
+     *
+     * @return 실제로 값이 채워진 행 수 (0 또는 1)
+     */
+    @Modifying
+    @Query(value = "UPDATE LS_DATA_SRC SET VDO_FRM_NO = :videoFrameNo, UPD_DT = CURRENT_TIMESTAMP "
+            + "WHERE SRC_SN = :srcSn AND VDO_FRM_NO IS NULL", nativeQuery = true)
+    int restoreVideoFrameNo(@Param("srcSn") Long srcSn, @Param("videoFrameNo") Long videoFrameNo);
 }

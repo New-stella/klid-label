@@ -21,6 +21,7 @@ import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
 import type { LabelMaster } from '@/features/label/api/labelMaster';
 import { COCO_SKELETON } from '@/features/label/types';
 import { visibilityStyle } from '@/features/label/canvas/utils/keypointHelpers';
+import { resolveFrameImageErrorHint } from '@/features/label/utils/frameImageError';
 
 import type { FrameDetail, LabelItem } from '../types';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
@@ -320,7 +321,18 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
   // 공유하므로(staleTime 5분) 추가 요청은 사실상 발생하지 않는다.
   const { data: labelMasters } = useLabelMasters();
 
-  const { url: imageBlobUrl, loading: imageLoading } = useImageBlob(frame?.srcSn);
+  // @design SCREEN-019 — 이미지 로드 실패(error)를 반드시 받아 화면에 표시한다. 구현상 실패하면
+  // imageBlobUrl 이 null 로 남아 캔버스가 **아무 안내 없이 빈 회색**이 됐다(404 실측). 로딩
+  // 스피너는 실패 시 loading=false 로 전이해 사라지기까지 해서, 사용자는 우측 객체 목록만 보이는
+  // 백지 앞에서 원인을 알 수 없었다.
+  const {
+    url: imageBlobUrl,
+    loading: imageLoading,
+    error: imageError,
+  } = useImageBlob(frame?.srcSn);
+  // 사유 힌트는 라벨링 화면과 **같은 판정 지점**을 쓴다 — 화면마다 조건을 복제하면 한쪽만
+  // 갱신돼 같은 실패가 다른 문구로 보인다. 상태코드로만 만들어 서버 메시지·경로를 싣지 않는다(CWE-209).
+  const frameImageErrorHint = resolveFrameImageErrorHint(imageError);
   const img = useImageElement(imageBlobUrl ?? undefined);
   const imgW = img?.naturalWidth ?? 0;
   const imgH = img?.naturalHeight ?? 0;
@@ -389,6 +401,24 @@ export function LabelCanvas({ frame, loading = false }: LabelCanvasProps) {
           className="absolute inset-0 z-10 flex items-center justify-center bg-black/20"
         >
           <Spinner size="lg" label="이미지 로딩 중" />
+        </div>
+      )}
+
+      {/* @design SCREEN-019 — 프레임 이미지 로드 실패 안내.
+          로딩과 배타 조건(!imageLoading)이라 스피너와 동시에 뜨거나 깜빡이지 않는다.
+          ⚠ 라벨 오버레이는 그대로 그리지 않는다(현행 정책) — 배경 없이 좌표만 떠 있으면 검수
+            판단의 근거가 되지 못하고, imgW/imgH=0 이면 getFitScale 이 scale≈0 을 돌려줘
+            strokeWidth(=base/scale)가 폭주한다. */}
+      {frame && imageError && !imageLoading && (
+        <div
+          role="alert"
+          data-testid="review-frame-image-error"
+          className="absolute left-1/2 top-4 z-10 max-w-[90%] -translate-x-1/2 rounded border border-red-300 bg-red-50 px-4 py-2 text-center text-body-md text-red-800 shadow-lg"
+        >
+          프레임 이미지를 불러오지 못했습니다.
+          {frameImageErrorHint && (
+            <span className="ml-2 text-caption text-red-700">{frameImageErrorHint}</span>
+          )}
         </div>
       )}
 

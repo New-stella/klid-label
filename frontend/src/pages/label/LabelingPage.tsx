@@ -88,6 +88,7 @@ import { useLabels } from '@/features/label/hooks/useLabels';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
 import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
 import { resolveFrameDiscardUnsupportedReason } from '@/features/label/utils/frameDiscardEligibility';
+import { resolveFrameImageErrorHint } from '@/features/label/utils/frameImageError';
 import { resolveLabelIdByName } from '@/features/label/utils/labelMasterLookup';
 import { useUpdateLabels } from '@/features/label/hooks/useUpdateLabels';
 import { useSavePortalLabels } from '@/features/portal/hooks/useSavePortalLabels';
@@ -207,13 +208,9 @@ export function LabelingPage() {
     error: imageError,
   } = useImageBlob(data?.srcSn, { portalMode });
   // 사유 힌트는 상태코드로만 만든다 — 서버 메시지(내부 경로 등)를 그대로 화면에 싣지 않는다(CWE-209).
-  const frameImageErrorHint = (() => {
-    const status = (imageError as { status?: number } | null)?.status;
-    if (status === 412) return '비식별 재처리 대기 중인 영상입니다.';
-    if (status === 403) return '이 프레임에 접근할 권한이 없습니다.';
-    if (status === 404) return '이미지 파일을 찾을 수 없습니다.';
-    return undefined;
-  })();
+  // 판정은 검수 캔버스와 **공유**한다(`resolveFrameImageErrorHint`) — 화면마다 조건을 복제하면
+  // 상태코드가 늘거나 문구가 바뀔 때 한쪽만 갱신돼 같은 실패가 다르게 보인다.
+  const frameImageErrorHint = resolveFrameImageErrorHint(imageError);
 
   const { mutate: submitForReview, isPending: submitting } = useSubmitReview({
     onSuccess: () => {

@@ -88,6 +88,9 @@ const actionButtonClass =
  */
 const ZOOM_STEP = 1.2;
 
+/** 선택 객체가 없어 라벨 표시/숨김을 쓸 수 없을 때의 안내(비활성 버튼 툴팁). */
+const VISIBILITY_NO_SELECTION_HINT = '객체를 먼저 선택하세요';
+
 export function CanvasOptionBar({
   frameIndex,
   frameCount,
@@ -118,6 +121,8 @@ export function CanvasOptionBar({
   const selectedHidden = useLabelStore(
     (s) => s.selectedLabelId !== null && s.hiddenLabelIds.has(s.selectedLabelId),
   );
+  // 표시/숨김은 선택 객체가 있어야 성립한다 — 없으면 버튼을 비활성으로 두고 사유를 알린다.
+  const hasSelection = useLabelStore((s) => s.selectedLabelId !== null);
 
   // ⚠ 선택이 없을 때도 **비활성화하지 않는다**(구 좌측 도구바 삭제 버튼과 동일 동작 보존).
   //   비활성 축을 늘리면 편집 차단 해제 검증(editBlocking)의 "모든 조작이 즉시 복구된다"가
@@ -128,10 +133,14 @@ export function CanvasOptionBar({
     if (id) removeLabel(id);
   };
 
-  // ⚠ 선택이 없으면 조용히 no-op 한다(삭제 버튼과 동일 계약) — 단축키 T 도 같은 동작이라
-  //   버튼만 비활성 축을 늘리면 두 진입점이 갈린다.
+  // ⚠ 선택이 없으면 **비활성 + 사유 툴팁**이다 — 위 삭제 버튼(조용히 no-op)과 축이 갈리는 것은
+  //   의도다. 버튼은 눌리는 시각적 어포던스가 있어 무반응이 고장으로 읽히지만(사용자 신고),
+  //   단축키 T 에는 그 어포던스가 없다. 그래서 **단축키 T 는 종전대로 조용히 no-op** 한다
+  //   (그 경로는 `pages/label/LabelingPage.tsx(onToggleVisibility)` 가 소유하며 이 컴포넌트를
+  //   거치지 않는다). 확대/축소가 이미 경계에서 버튼만 비활성되는 것과 같은 관례다.
+  //   ⇒ "일관성"을 이유로 이 비활성을 되돌리거나 삭제 버튼까지 함께 바꾸지 말 것.
   const handleToggleVisibility = () => {
-    if (editBlocked) return;
+    if (editBlocked || !hasSelection) return;
     const id = useLabelStore.getState().selectedLabelId;
     if (id) toggleLabelVisibility(id);
   };
@@ -220,11 +229,16 @@ export function CanvasOptionBar({
       <button
         type="button"
         onClick={handleToggleVisibility}
-        disabled={editBlocked}
+        disabled={editBlocked || !hasSelection}
         aria-label="라벨 표시/숨김"
+        aria-disabled={editBlocked || !hasSelection}
         aria-pressed={selectedHidden}
         title={
-          visibilityKeys ? `라벨 표시/숨김 (${visibilityKeys})` : '라벨 표시/숨김'
+          hasSelection
+            ? visibilityKeys
+              ? `라벨 표시/숨김 (${visibilityKeys})`
+              : '라벨 표시/숨김'
+            : VISIBILITY_NO_SELECTION_HINT
         }
         data-testid="label-option-visibility"
         className={cn(actionButtonClass)}
