@@ -82,16 +82,10 @@ FFMPEG_STATIC_VERSION="n7.1.5"
 FFMPEG_STATIC_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-23-13-52/ffmpeg-n7.1.5-linux64-lgpl-7.1.tar.xz"
 FFMPEG_STATIC_SHA256="86821c89fcde7adf381005329dc696a02fa99ba2bc5b6f0a4fac3dafc247e1b2"
 
-# Caddy 정적 바이너리 (linux amd64) — 프론트 정적 서빙 + /api 리버스프록시
-# 검증: 2026-06-24, 출처 https://github.com/caddyserver/caddy/releases/tag/v2.11.4
-# ※ Caddy 공식 체크섬 파일(caddy_2.11.4_checksums.txt)은 SHA-512 만 제공한다(SHA256 미발행).
-#   따라서 tar.gz 무결성은 CADDY_SHA512(아래, 공식값)로 검증한다. CADDY_SHA256 은 의도적으로 비움.
-CADDY_VERSION="2.11.4"
-CADDY_URL="https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz"
-CADDY_SHA256=""   # Caddy 는 공식 SHA256 미발행 — SHA512 로 검증(아래)
-# 출처: caddy_2.11.4_checksums.txt (caddy_2.11.4_linux_amd64.tar.gz 행, SHA-512)
-# 공식 caddy_2.11.4_checksums.txt 와 대조 일치 확인: 2026-06-24
-CADDY_SHA512="8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9"
+# 웹 서버는 여기서 버전을 고정하지 않는다 — httpd 를 배포판 RPM(syspkgs)으로 설치한다.
+#   ★ 구 형상(Caddy 정적 바이너리 다운로드)은 폐기했다(2026-08-19). 배포 대상의 웹 서버를
+#     관제지원시스템과 하나로 통일하기 위함이며, RPM 은 모듈 적재와 SELinux 문맥이
+#     이미 갖춰져 있어 우리가 관리할 표면이 줄어든다.
 
 # ---- PostgreSQL 16 (PGDG, Rocky 9 오프라인 번들) ----
 #   ★ 번들 PG 는 "옵션"이다(USE_BUNDLED_POSTGRES=1 기본). 타깃에 이미 PG 가 있으면 끈다(=0).

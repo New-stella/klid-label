@@ -5,7 +5,7 @@
 이 패키지는 **Rocky Linux 9**(RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm)를 대상으로 한다.
 시스템 의존성은 **RPM 기반**으로 수집·설치한다.
 
-- 런타임(JRE17/Python standalone/Caddy)·pip wheel(torch manylinux_2_28)은 glibc 2.34 호환이라 그대로 쓴다.
+- 런타임(JRE17/Python standalone)·pip wheel(torch manylinux_2_28)은 glibc 2.34 호환이라 그대로 쓴다.
 - **ffmpeg 는 정적 바이너리**로 번들한다 — Rocky 9 base/AppStream 에 ffmpeg 가 없고
   RPM Fusion/EPEL 미러가 필요해 폐쇄망에서 의존성 지옥에 빠지기 때문(02·03 문서 참고).
 - **libGL(opencv)·glib2** 는 Rocky 9 AppStream 의 `mesa-libGL`/`libglvnd-glx`/`glib2` RPM 으로 제공된다.
@@ -16,7 +16,7 @@
 
 - **pip wheel**: manylinux(glibc 버전 태그) + CPython ABI(cp311) 정합
 - **시스템 RPM**(mesa-libGL 등): Rocky 9(RHEL 9) 정합 → **rockylinux:9 컨테이너/머신에서 수집**
-- **런타임 바이너리**(JRE/Python standalone/Caddy): linux x86_64 빌드(OS 무관 tarball)
+- **런타임 바이너리**(JRE/Python standalone): linux x86_64 빌드(OS 무관 tarball)
 - **ffmpeg 정적 바이너리**: OS 무관(정적 링크) — curl 만 있으면 mac 에서도 수집 가능
 
 따라서 **wheel·RPM 수집 단계는 Rocky Linux 9 (x86_64, glibc 2.34) 환경 + 인터넷**에서 수행해야 한다.
@@ -45,7 +45,7 @@
 | 디스크 | 약 10~15GB 여유 | torch CPU wheel·런타임이 큼 |
 
 > JDK17/Node20/Python3.11 자체는 빌드머신에 미리 설치되어 있어야 한다(번들 대상 아님).
-> 대상 서버 런타임(JRE/Python/Caddy/ffmpeg)은 package.sh 가 별도로 받아 번들한다.
+> 대상 서버 런타임(JRE/Python/ffmpeg)은 package.sh 가 별도로 받아 번들한다. 웹 서버는 httpd RPM 으로 수집한다.
 > RPM 수집(`mesa-libGL` 등)은 **rockylinux:9 컨테이너/머신**에서 해야 한다(`dnf download`).
 > ffmpeg 정적 바이너리·jar·FE dist·런타임 tarball 은 OS 무관이라 다른 빌드머신에서 만들어도 된다.
 

@@ -25,14 +25,14 @@
   4) sudo $EDITOR /etc/klid/backend.env      # DB 비밀번호·JWT 시크릿 등 필수 입력
      sudo $EDITOR /etc/klid/ai-server.env
 
-  5) sudo systemctl enable --now klid-ai-server klid-backend klid-frontend
+  5) sudo systemctl enable --now klid-ai-server klid-backend httpd
 ```
 
 설치 검증:
 ```bash
 curl -fsS http://127.0.0.1:8080/api/actuator/health/liveness   # backend
 curl -fsS http://127.0.0.1:9300/health                          # ai-server
-curl -fsS http://127.0.0.1/                                      # frontend(Caddy)
+curl -fsS http://127.0.0.1/                                      # frontend(httpd)
 ```
 
 ---
@@ -54,7 +54,7 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 
 | 서비스 | 포트 | 경로/헬스 | 비고 |
 |--------|:----:|-----------|------|
-| frontend (Caddy) | 80 | `/` (SPA), `/api/*` → backend | 정적 dist 서빙 + 리버스프록시 |
+| frontend (httpd) | 80 | `/` (SPA), `/api/*` → backend | 정적 dist 서빙 + 리버스프록시 |
 | backend (Spring) | 8080 | `/api`, liveness `/api/actuator/health/liveness` | context-path `/api` |
 | ai-server (FastAPI) | 9300 | `/health` | CPU 추론(onnxruntime/torch CPU) |
 | PostgreSQL | 5432 | control(klid_system) + portal | 외부/별도 준비 |
@@ -64,10 +64,10 @@ curl -fsS http://127.0.0.1/                                      # frontend(Cadd
 ## 설치 후 디렉토리 레이아웃
 
 ```
-/opt/klid/runtime/{jre,python,caddy,ffmpeg}   번들 런타임(ffmpeg 정적 포함)
+/opt/klid/runtime/{jre,python,ffmpeg}        번들 런타임(웹 서버는 배포판 httpd)
 /opt/klid/app/klid-backend.jar         backend 실행 jar
 /opt/klid/ai/{venv,app,weights,.hf-cache}  ai-server
-/opt/klid/web/{dist,Caddyfile}         frontend
+/opt/klid/web/dist                     frontend 정적 자산(httpd 문서 루트)
 /etc/klid/{backend.env,ai-server.env}  환경설정 (chmod 640, root:klid)
 /nas-storage/...                       영상·프레임 저장 (NAS 마운트, STORAGE_RAW_PATH)
 /var/lib/klid                          런타임 데이터(저장소 외)
@@ -110,10 +110,10 @@ deploy/onprem/
 ├── config/
 │   ├── backend/env.template
 │   ├── ai-server/env.template
-│   ├── frontend/{Caddyfile.template, nginx.conf.template}
-│   └── systemd/{klid-backend,klid-ai-server,klid-frontend}.service
+│   ├── frontend/{httpd-klid.conf.template, nginx.conf.template}
+│   └── systemd/{klid-backend,klid-ai-server}.service   # 웹서버는 배포판 httpd.service
 ├── artifacts/{backend,frontend,ai-server}/   # package.sh 가 채움(사전 빌드)
-├── runtimes/{jdk,python,caddy}/
+├── runtimes/{jdk,python}/
 ├── buildtools/{jdk,node,gradle,gradle-home}/ # 오프라인 빌드 키트(소스 재빌드용)
 ├── src/{backend,frontend,ai-server}/         # 빌드용 소스(60단계가 채움)
 ├── vendor/{wheels,sam2}/

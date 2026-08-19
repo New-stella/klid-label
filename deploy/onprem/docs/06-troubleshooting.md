@@ -122,7 +122,7 @@
 
 증상: `Address already in use` (80/8080/9300).
 해결: `sudo ss -ltnp | grep -E ':(80|8080|9300)'` 로 점유 프로세스 확인 후 정리, 또는 유닛/설정에서 포트 변경.
-80 은 Caddy(비루트)라 `setcap`/`AmbientCapabilities` 가 필요 — 14 스크립트가 처리하나 실패 시 경고 참고.
+80 은 배포판 httpd 가 직접 연다(root 로 바인딩 후 권한 강등) — 별도 `setcap` 이 필요 없다. 대신 **SELinux** 를 본다: 문서 루트 문맥(`httpd_sys_content_t`)이 없으면 403, `httpd_can_network_connect` 가 꺼져 있으면 `/api` 프록시가 503 이다. 14 스크립트가 둘 다 처리하나 실패 시 경고를 참고한다.
 
 ## 권한 오류
 

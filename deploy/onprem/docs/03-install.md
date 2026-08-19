@@ -18,7 +18,7 @@ sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh
 # DB 자동 생성 단계 생략(DBA 가 이미 준비한 경우)
 sudo SKIP_DB_INIT=1 ./scripts/install.sh
 
-# 기존 nginx 사용(Caddy 대신 nginx.conf 템플릿만 배치)
+# 기존 nginx 사용(httpd 대신 nginx.conf 템플릿만 배치)
 sudo USE_NGINX=1 ./scripts/install.sh
 
 # 설치 경로/사용자 변경(기본 /opt/klid, klid)
@@ -31,10 +31,10 @@ sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
 |------|----------|------|
 | 0 | `install.sh` | `klid` 사용자/그룹 + 디렉토리 생성, SHA256 무결성 검증 |
 | 1 | `install/10-install-postgresql.sh` | **(옵션·기본 ON)** 번들 PG16 RPM 오프라인 설치 + initdb + `postgresql.conf`/`pg_hba.conf` + `postgresql-16` 기동. `USE_BUNDLED_POSTGRES=0` 이면 전체 스킵(외부 PG) |
-| 2 | `install/11-install-runtimes.sh` | JRE/Python/Caddy + **ffmpeg 정적** 설치 + **RPM**(mesa-libGL/glib2) 오프라인 설치 |
+| 2 | `install/11-install-runtimes.sh` | JRE/Python + **ffmpeg 정적** 설치 + **RPM**(mesa-libGL/glib2) 오프라인 설치 |
 | 3 | `install/12-install-backend.sh` | jar 배치 + `backend.env` + systemd 유닛 |
 | 4 | `install/13-install-ai-server.sh` | venv + `pip --no-index` 설치 + 모델 배치 + 유닛 |
-| 5 | `install/14-install-frontend.sh` | dist 배치 + Caddyfile + 유닛 (+ 80포트 setcap) |
+| 5 | `install/14-install-frontend.sh` | dist 배치 + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
 | 6 | `install/15-init-db.sh` | (옵션) control/portal **DB·유저** 생성 안내 또는 수행 (테이블 생성 아님) |
 
 > **PG vs DB/유저 vs 테이블 — 역할 분담**: 단계 1(`10`)은 **PG 엔진 설치+기동**, 단계 6(`15`)은
