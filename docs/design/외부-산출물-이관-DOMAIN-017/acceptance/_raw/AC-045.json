@@ -1,0 +1,55 @@
+{
+  "item": {
+    "id": "AC-045",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "적재된 영상은 배정 없이 바로 검수할 수 있다",
+    "slug": "적재된-영상은-배정-없이-바로-검수할-수-있다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "그 영상이 검수 목록에 나타난다. 작업자 칸은 비어 있다.",
+          "검수 시작이 받아들여진다.",
+          "그대로 승인하면 저작도구가 원래 갖고 있던 승인 이후 경로가 그대로 진행된다.",
+          "고칠 것이 있으면 그 시점에 작업자를 배정할 수 있다."
+        ],
+        "when": [
+          "검수자가 검수 목록을 조회하고 그 영상의 검수를 시작한다."
+        ],
+        "given": [
+          "산출물을 가져와 영상이 적재된 상태다.",
+          "그 영상에 작업자가 배정되지 않았고 검수 제출 기록도 없다."
+        ]
+      },
+      "statement": "가져온 영상은 작업자 배정이나 검수 제출 없이도 검수 목록에 나타나고 검수를 시작할 수 있다.",
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-048"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-035"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-035의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "결정 근거 배선 — 이 항목이 따르는 결정을 근거로 지목한다. 본문 변경 없이 추적만 잇는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-19T09:12:25.532Z",
+    "created_at": "2026-08-19T08:02:02.923Z"
+  }
+}

@@ -1,0 +1,175 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="wireframe.css"></head><body><body class="wf-app">
+<main class="wf-content">
+
+  <div class="wf-page-header">
+    <div class="wf-breadcrumb"><span>관리</span><span class="sep">/</span><span>외부 산출물 이관</span></div>
+    <h1>외부 산출물 이관</h1>
+    <p class="wf-muted">외부에서 이미 라벨링이 끝난 산출물을 가져와 검수 대기로 올린다.</p>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-cluster">
+      <h2 class="wf-card-title">① 가져오기 입력</h2>
+      <span class="wf-badge">role: main</span>
+      <span class="wf-badge">layout: form</span>
+      <span class="wf-badge wf-badge-primary">API-205</span>
+      <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+    </div>
+    <div class="wf-field">
+      <label class="wf-label">산출물 폴더 경로</label>
+      <input type="text" class="wf-input" placeholder="예: /nas-storage/handover/00000073" />
+      <p class="wf-help">허용된 저장소 범위 밖이면 거부된다.</p>
+    </div>
+    <div class="wf-field">
+      <label class="wf-label">원본 영상 경로 (선택)</label>
+      <input type="text" class="wf-input" placeholder="비우면 프레임과 라벨만 가져온다" />
+    </div>
+    <div class="wf-field">
+      <label class="wf-label">이 산출물은</label>
+      <label class="wf-radio"><input type="radio" name="deid" checked /> 원본이다</label>
+      <label class="wf-radio"><input type="radio" name="deid" /> 비식별이 끝난 것이다</label>
+    </div>
+    <div class="wf-alert wf-alert-warning">비식별이 끝난 것으로 고르면 그대로 학습데이터로 나간다. 잘못 고르면 승인 뒤에 되돌릴 수단이 사실상 없다.</div>
+    <div class="wf-btn-row wf-mt"><button class="wf-btn wf-btn-primary">검사</button></div>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-cluster">
+      <h2 class="wf-card-title">② 미리보기</h2>
+      <span class="wf-badge">role: main</span>
+      <span class="wf-badge">layout: detail</span>
+      <span class="wf-badge wf-badge-primary">API-205</span>
+      <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+    </div>
+    <p class="wf-card-desc">이 단계에서는 아무것도 저장되지 않는다.</p>
+    <div class="wf-grid-3">
+      <div class="wf-stat"><div class="wf-stat-label">프레임 수 (실제 / 선언)</div><div class="wf-stat-value">5 / 140</div></div>
+      <div class="wf-stat"><div class="wf-stat-label">라벨 수</div><div class="wf-stat-value">5</div></div>
+      <div class="wf-stat"><div class="wf-stat-label">영상</div><div class="wf-stat-value">1</div></div>
+    </div>
+    <table class="wf-table wf-mt">
+      <thead><tr><th>항목</th><th>값</th></tr></thead>
+      <tbody>
+        <tr><td>영상 파일명</td><td class="wf-mono">은평구51.mp4</td></tr>
+        <tr><td>해상도 · 길이</td><td>1280x720 · 70분</td></tr>
+        <tr><td>이벤트 유형</td><td>침수(범람) · 도로침수</td></tr>
+        <tr><td>촬영환경</td><td>주간 · 여름</td></tr>
+      </tbody>
+    </table>
+    <div class="wf-alert wf-alert-danger wf-mt">적재를 막는 문제 — 대응이 정해지지 않은 분류가 3건 남아 있다.</div>
+    <div class="wf-alert wf-alert-warning">알리기만 하는 문제 — 짝 문서가 없는 이미지 1건. 선언 140건과 실제 5건이 다르며 실제 파일을 기준으로 가져온다.</div>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-cluster">
+      <h2 class="wf-card-title">③ 분류 대응 확정</h2>
+      <span class="wf-badge">role: main</span>
+      <span class="wf-badge">layout: list</span>
+      <span class="wf-badge wf-badge-primary">API-209</span>
+      <span class="wf-badge wf-badge-primary">API-210</span>
+      <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+    </div>
+    <p class="wf-card-desc">한 번 확정하면 다음 산출물부터는 다시 묻지 않는다.</p>
+    <table class="wf-table">
+      <thead><tr><th>종류</th><th>외부 분류 코드</th><th>외부 표시 이름</th><th>연결할 대상</th><th>확인</th></tr></thead>
+      <tbody>
+        <tr><td><span class="wf-badge">라벨</span></td><td class="wf-mono">asphalt</td><td>도로</td><td><select class="wf-select"><option>도로 (추천)</option></select></td><td><label class="wf-checkbox"><input type="checkbox" /></label></td></tr>
+        <tr><td><span class="wf-badge">라벨</span></td><td class="wf-mono">water</td><td>물</td><td><select class="wf-select"><option>물 (추천)</option></select></td><td><label class="wf-checkbox"><input type="checkbox" /></label></td></tr>
+        <tr><td><span class="wf-badge wf-badge-warning">이벤트</span></td><td class="wf-mono">침수(범람)</td><td>침수(범람)</td><td><select class="wf-select"><option>선택하세요</option></select></td><td><label class="wf-checkbox"><input type="checkbox" /></label></td></tr>
+      </tbody>
+    </table>
+    <div class="wf-btn-row wf-mt"><button class="wf-btn wf-btn-secondary">대응 확정</button></div>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-cluster">
+      <h2 class="wf-card-title">④ 적재 실행</h2>
+      <span class="wf-badge">role: main</span>
+      <span class="wf-badge">layout: stack</span>
+      <span class="wf-badge wf-badge-primary">API-206</span>
+      <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+    </div>
+    <label class="wf-checkbox"><input type="checkbox" /> 알리기만 하는 경고를 확인했다</label>
+    <div class="wf-btn-row wf-mt"><button class="wf-btn wf-btn-primary" disabled>가져오기</button></div>
+    <p class="wf-help">대응이 남았거나 이미 가져온 산출물이면 비활성이다.</p>
+  </div>
+
+  <div class="wf-card">
+    <div class="wf-cluster">
+      <h2 class="wf-card-title">⑤ 이관 이력</h2>
+      <span class="wf-badge">role: main</span>
+      <span class="wf-badge">layout: list</span>
+      <span class="wf-badge wf-badge-primary">API-207</span>
+      <span class="wf-badge wf-badge-primary">API-208</span>
+      <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+    </div>
+    <div class="wf-cluster">
+      <select class="wf-select"><option>전체</option><option>진행중</option><option>성공</option><option>실패</option></select>
+    </div>
+    <table class="wf-table wf-mt">
+      <thead><tr><th>가져온 시각</th><th>폴더명</th><th>영상 번호</th><th>상태</th><th>프레임</th><th>라벨</th><th>실행자</th></tr></thead>
+      <tbody>
+        <tr><td>2026-08-19 14:02</td><td class="wf-mono">00000073</td><td>1024</td><td><span class="wf-badge wf-badge-success">성공</span></td><td>5</td><td>5</td><td>검수자A</td></tr>
+        <tr><td>2026-08-19 11:20</td><td class="wf-mono">00000072</td><td class="wf-faint">—</td><td><span class="wf-badge wf-badge-danger">실패</span></td><td class="wf-faint">—</td><td class="wf-faint">—</td><td>검수자A</td></tr>
+      </tbody>
+    </table>
+    <div class="wf-pagination"><span class="wf-page-btn active">1</span><span class="wf-page-btn">2</span></div>
+  </div>
+
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 가져오기 입력</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>산출물 폴더 경로와 원본 영상 경로를 받고, 이 산출물의 비식별 여부를 고르는 자리다. 영상 경로는 선택이며 비우면 프레임과 라벨만 가져온다. 비식별 여부는 기본이 원본이다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input — 산출물 폴더 경로</li><li>Input — 원본 영상 경로 (선택)</li><li>RadioGroup — 원본 / 비식별 완료</li><li>Alert — 비식별 완료 선택 시 주의</li><li>Button — 검사</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-205</li></ul></div>
+    </div>
+  </div>
+
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 미리보기</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>검사 결과를 보여준다. 경고는 적재를 막는 것과 알리기만 하는 것이 구분된다. 선언된 프레임 수와 실제 파일 수가 다르면 둘 다 보여주고 실제 파일을 기준으로 가져온다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>KeyValue — 영상 정보</li><li>Stat — 프레임 수 / 라벨 수</li><li>Alert — 적재를 막는 문제</li><li>Alert — 알리기만 하는 문제</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-205</li></ul></div>
+    </div>
+  </div>
+
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 분류 대응 확정</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>처음 보는 분류만 모아 저작도구 라벨과 이벤트 유형에 연결하게 한다. 이름이 비슷한 후보를 미리 골라 두지만 사람이 확인해야 확정된다. 한 번 확정한 대응은 다음 산출물부터 자동으로 적용되어 이 표에 다시 나오지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table — 미등록 분류 목록</li><li>Select — 연결할 대상</li><li>Button — 대응 확정</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-209</li><li>API-210</li><li>API-211</li></ul></div>
+    </div>
+  </div>
+
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 적재 실행</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>미리보기와 대응을 확인한 뒤 실제로 가져오는 자리다. 적재를 막는 문제가 남아 있으면 버튼이 비활성이다. 끝나면 결과 요약과 함께 검수 목록으로 가는 길을 제공한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Checkbox — 경고 확인</li><li>Button — 가져오기</li><li>Alert — 적재 결과</li><li>Link — 검수 목록으로 이동</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-206</li></ul></div>
+    </div>
+  </div>
+
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 이관 이력</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>지금까지 가져온 내역을 최근순으로 보여준다. 실패한 건은 사유를 펼쳐볼 수 있다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Select — 상태 필터</li><li>Table — 이관 이력</li><li>Pagination</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-207</li><li>API-208</li></ul></div>
+    </div>
+  </div>
+
+</main>
+</body></body></html>

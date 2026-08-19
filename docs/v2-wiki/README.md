@@ -40,6 +40,7 @@
 | 21 | [이슈 소통 채널](21-issue-channel.md) | 검수자↔작업자 문의 스레드, 상태 머신, 반려 통합 — R1 외 추가 |
 | 22 | [비식별화 솔루션 API 연동 명세](22-deid-solution-api.md) | KPST 외부 API 13종 명세 전사(v1.0), 폴링 모델, 코드·상태 정의 |
 | 23 | [v1→v2 DB 이관 분석 (영상·라벨)](23-v1-v2-db-migration.md) | MariaDB(klid)→PostgreSQL(klid_system_246) **영상 목록+라벨 결과** 실DB 검증 매핑, POINT 좌표 포맷 변환, ID 재연결, 결정 필요 GAP 3종 |
+| 25 | [외부 산출물 이관](25-external-import.md) | 외부에서 라벨링이 끝난 산출물을 가져와 검수로 편입 — 인입 원장 우회·비식별 축 3갈래·승인 보류(비식별화완료여부)·분류 대응·신규 2테이블 |
 | 24 | [검수 승인 시 학습데이터 파일 산출](24-dataset-export.md) | 승인 AFTER_COMMIT 트리거(API 없음), `{RAW_SN}/v{n}/orgnl\|deid/` 폴더, NIA COCO 확장 JSON(8키·video 매핑·미보유 null·SKELETON 1-indexed·event_annotation c1..cn), 콘텐츠 해시 멱등·버전 누적, LS_DATASET_EXPORT |
 
 ---
@@ -69,6 +70,7 @@
 | 이슈 소통 (문의/답변/해소, 반려 스레드) | [21](21-issue-channel.md) |
 | v1(MariaDB)→v2(PostgreSQL) DB 이관 분석 | [23](23-v1-v2-db-migration.md) |
 | 검수 승인 시 학습데이터 파일 산출(orgnl/deid, NIA COCO JSON) | [24](24-dataset-export.md) |
+| 외부 산출물 이관(1차 어노테이션 등) | [25](25-external-import.md) |
 
 ### 화면 ID(`SCREEN-NNN`, 축약 `SC-NNN`) → 페이지
 

@@ -1,0 +1,267 @@
+{
+  "item": {
+    "id": "API-208",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "이관 이력 상세 조회",
+    "slug": "이관-이력-상세-조회",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/imports/{trnsfSn}",
+      "tags": [
+        "외부 산출물 이관"
+      ],
+      "method": "GET",
+      "summary": "이관 한 건의 자세한 내용을 돌려준다",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "rawSn": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "만들어진 영상의 식별번호."
+                  },
+                  "regDt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "이관을 시작한 시점."
+                  },
+                  "regId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "이관을 실행한 사람."
+                  },
+                  "status": {
+                    "enum": [
+                      "PROCESSING",
+                      "SUCCESS",
+                      "FAILED"
+                    ],
+                    "type": "string",
+                    "description": "이관 상태."
+                  },
+                  "trnsfSn": {
+                    "type": "integer",
+                    "description": "이관의 식별번호."
+                  },
+                  "failReason": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "실패한 경우 그 사유."
+                  },
+                  "folderName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "가져온 폴더의 이름."
+                  },
+                  "folderPath": {
+                    "type": "string",
+                    "description": "가져온 폴더의 위치."
+                  },
+                  "frameCount": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "들어온 프레임 수."
+                  },
+                  "labelCount": {
+                    "type": "integer",
+                    "nullable": true,
+                    "description": "들어온 라벨 수."
+                  },
+                  "externalDatasetId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "산출물 문서가 가지고 있던 데이터셋 식별 값."
+                  }
+                },
+                "description": "이관 상세."
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "rawSn": 1024,
+              "regDt": "2026-08-19T09:12:33Z",
+              "regId": "reviewer01",
+              "status": "SUCCESS",
+              "trnsfSn": 1,
+              "failReason": null,
+              "folderName": "dataset-a",
+              "folderPath": "/import/dataset-a",
+              "frameCount": 120,
+              "labelCount": 340,
+              "externalDatasetId": "DS-2026-001"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "이관 상세.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "검수자 권한이 필요합니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한이 없다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이관 이력을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "그 이관 이력이 없다. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "trnsfSn",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "required": true,
+          "description": "조회할 이관의 식별번호."
+        }
+      ],
+      "description": "이관 한 건의 경로·건수·상태와 실패한 경우 그 사유를 돌려준다.\n\n검수자만 호출할 수 있다.",
+      "operation_id": "getExternalImport",
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답을 프로젝트 표준 응답 래퍼(data·message·success·errorCode)로 감싸고, 기존 이관 상세 필드 11개를 data 하위로 그대로 옮겼다. security 에 검수자 역할 요구를 명시하고, 401 응답을 신설했다. 403·404 에는 오류 스키마와 예시, ErrorCode 이름을 채웠다. 기존 필드·설명은 하나도 지우지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-19T10:16:03.661Z",
+    "created_at": "2026-08-19T07:53:21.866Z"
+  }
+}

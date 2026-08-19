@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "NFR-018",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "기능 수행 지연 사전 안내",
+    "slug": "기능-수행-지연-사전-안내",
+    "sub_id": "RQ-PER-03-01",
+    "status": "approved",
+    "data": {
+      "title": "기능 수행 지연 사전 안내",
+      "metric": "10초 이상 지연 예상 작업의 진행 안내·취소 제공률",
+      "status": "draft",
+      "target": {
+        "unit": "%",
+        "value": 100,
+        "operator": ">="
+      },
+      "category": "performance",
+      "priority": "should",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-PER-03-01 (담당=공통, RFP p32~33, 중요도 중). D5 §3 발주처 1:1 정합 — 기존 NFR-011(화면 응답시간)에서 분리.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 공통 성능 요구(지연 사전 안내)를 저작도구 기준으로 분리 수용 — D5 §3 발주처 1:1 정합 분할(NFR-011에서)"
+      },
+      "description": "10초 이상 소요가 예상되는 대용량 질의·장시간 작업은 팝업·프로그레스바 등으로 작업의 시작·끝을 예측할 수 있도록 사전 안내하고 취소 기능을 제공한다.",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "applies_to_apis": [
+        "API-124",
+        "API-093",
+        "API-020",
+        "API-123",
+        "API-204"
+      ],
+      "applies_to_domains": [
+        "DOMAIN-010",
+        "DOMAIN-005",
+        "DOMAIN-011",
+        "DOMAIN-006",
+        "DOMAIN-013",
+        "DOMAIN-004"
+      ],
+      "measurement_method": "대용량 질의·대량 라벨 조회·배치 트리거 등 지연 작업 시나리오로 진행 안내·취소 동작을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "API-020의 data.responses 변경 — applies_to",
+    "change_summary": "지연 작업의 취소 제공을 실제로 담는 경로를 적용 대상에 넣는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-18T04:29:50.101Z",
+    "created_at": "2026-07-06T03:49:08.381Z"
+  }
+}

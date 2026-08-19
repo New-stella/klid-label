@@ -703,7 +703,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 14 도메인 전량 · last sync **2026-08-16 (s1, INITIAL)** · 전건 무열화 검증 통과.
+> 활성 15 도메인 전량 · last sync **2026-08-16 (s1, INITIAL)** · DOMAIN-017 만 **2026-08-19 (s1, INITIAL)** · 전건 무열화 검증 통과.
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
@@ -721,6 +721,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 50 | implemented 16 / planned 25 / (미기재) 9 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 42 | implemented 13 / planned 22 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 17 / in_progress 1 / planned 27 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 49 | implemented 1 / planned 45 / (미기재) 3 | CONST 상수값, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -736,6 +737,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - **`CONST` 가 대부분 도메인에서 0건인 것은 정상** — 프로젝트 전역 CONST 가 2건뿐이고 둘 다 COCO 라벨링 축이라 D004·D010 에만 들어간다.
 - **DOMAIN-006**: 활성 `erd`·`domain_event`·`diagram_sequence`·`use_case`·`acceptance`·`test_scenario` 가 **전부 0건**이다(유일 ERD-003 은 폐기). 데이터 모델·검증 근거가 설계에 없어 `schema`·`acceptance` 축 점검이 성립하지 않는다.
 - **DOMAIN-009 · DOMAIN-001 · DOMAIN-015**: 0건 단계가 6~10개로 많다 — 검증 축(UC/AC/TEST)이 통째로 비어 있다.
+- **DOMAIN-017**: 신규 도메인이라 설계가 아직 얇다 — 자기 소속 ITEM 23건뿐이고 타도메인으로 나가는 링크가 0건이다. 그래서 pin 에는 ①`DFEAT-057.persists_in_tables` 와 `ERD-031` FK 가 가리키는 타도메인 ERD 5건(ERD-010·012·017·019·025) ②`ADR-048` 을 상호 인용해 이 경로의 예외를 명시한 타도메인 ITEM 3건(ADR-042·EVT-005·UC-018)을 근거를 대어 넣었다. 이 8건이 없으면 적재 대상 테이블의 컬럼 정의와 예외 관계를 구현자가 볼 수 없다.
 <!-- mc-logi-kit:end -->
 
 <!-- mc-logi-screen-kit:start (자동 관리 — 직접 수정 금지, mc-logi-screen-kit 재실행 시 갱신) -->

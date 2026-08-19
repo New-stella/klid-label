@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "AC-047",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "짝이 없거나 개수가 다른 산출물은 경고만 하고 실제 파일 기준으로 적재한다",
+    "slug": "짝이-없거나-개수가-다른-산출물은-경고만-하고-실제-파일-기준으로-적재한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "검사 응답에 두 경고가 모두 담긴다.",
+          "적재는 거부되지 않는다.",
+          "짝 문서가 없는 이미지도 라벨이 없는 프레임으로 적재된다.",
+          "적재된 프레임 수는 문서가 선언한 수가 아니라 실제 파일 수와 같다."
+        ],
+        "when": [
+          "그 폴더를 검사하고 적재한다."
+        ],
+        "given": [
+          "산출물 폴더에 짝 문서가 없는 이미지가 섞여 있다.",
+          "문서가 선언한 프레임 수가 실제 파일 수보다 많다."
+        ]
+      },
+      "statement": "짝 문서가 없는 이미지가 있거나 문서가 선언한 건수와 실제 파일 수가 달라도 적재를 막지 않고, 실제 파일을 기준으로 적재하며 그 사실을 경고로 알린다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-035"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-035의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "신규 — 불완전한 산출물을 통째로 거부하지 않고 받아들이는지 검증한다. 정상 파일 하나 때문에 수백 프레임이 모두 막히면 안 되고, 선언값을 믿으면 실제로 없는 프레임을 있다고 적재하게 된다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-19T08:02:56.799Z",
+    "created_at": "2026-08-19T08:02:56.799Z"
+  }
+}

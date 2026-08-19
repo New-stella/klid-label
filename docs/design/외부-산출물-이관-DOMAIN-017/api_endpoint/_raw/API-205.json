@@ -1,0 +1,344 @@
+{
+  "item": {
+    "id": "API-205",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "외부 산출물 폴더 검사",
+    "slug": "외부-산출물-폴더-검사",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/imports/scan",
+      "tags": [
+        "외부 산출물 이관"
+      ],
+      "method": "POST",
+      "summary": "산출물 폴더를 검사해 미리보기를 돌려준다",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "warnings": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "경고 종류."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "사람이 읽는 설명."
+                        }
+                      }
+                    },
+                    "description": "적재를 막지는 않지만 알려야 하는 사항."
+                  },
+                  "duplicate": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "rawSn": {
+                        "type": "integer",
+                        "description": "기존에 적재된 영상의 식별번호."
+                      }
+                    },
+                    "description": "이미 가져온 산출물이면 그 영상을 알려준다."
+                  },
+                  "frameCount": {
+                    "type": "integer",
+                    "description": "실제로 발견된 프레임 수. 문서가 선언한 수가 아니라 파일 기준이다."
+                  },
+                  "importable": {
+                    "type": "boolean",
+                    "description": "지금 상태로 적재할 수 있는지 여부."
+                  },
+                  "labelCount": {
+                    "type": "integer",
+                    "description": "적재될 라벨 수."
+                  },
+                  "videoFileName": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "산출물 문서가 알려주는 영상 파일 이름."
+                  },
+                  "declaredFrameCount": {
+                    "type": "integer",
+                    "description": "산출물 문서가 선언한 프레임 수. 실제 수와 다르면 경고로 알린다."
+                  },
+                  "unmappedCategories": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "LABEL",
+                            "EVNT_TYPE"
+                          ],
+                          "type": "string",
+                          "description": "라벨인지 이벤트 유형인지."
+                        },
+                        "suggestions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "targetId": {
+                                "type": "string",
+                                "description": "추천 대상의 식별값."
+                              },
+                              "targetName": {
+                                "type": "string",
+                                "description": "추천 대상의 이름."
+                              }
+                            }
+                          },
+                          "description": "이름이 비슷해 추천하는 저작도구 라벨 또는 이벤트 유형. 자동으로 확정하지 않고 사람이 고른다."
+                        },
+                        "externalCode": {
+                          "type": "string",
+                          "description": "산출물이 준 분류 식별 문자열."
+                        },
+                        "externalName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "산출물이 준 표시 이름."
+                        }
+                      }
+                    },
+                    "description": "아직 대응이 정해지지 않은 분류 목록과 추천 후보. 하나라도 남아 있으면 적재할 수 없다."
+                  }
+                },
+                "description": "검사 결과 본문"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "warnings": [],
+              "duplicate": null,
+              "frameCount": 120,
+              "importable": true,
+              "labelCount": 480,
+              "videoFileName": "00000073.mp4",
+              "declaredFrameCount": 120,
+              "unmappedCategories": []
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "검사 결과. 적재 가능 여부와 경고를 포함한다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "산출물 문서를 읽을 수 없습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "경로가 비었거나 허용 범위 밖이거나 산출물 문서를 읽을 수 없다. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한이 없다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "지정한 경로를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "지정한 경로가 없다. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "지정한 폴더를 훑어 가져올 수 있는 내용과 경고를 돌려준다. 이 요청은 아무것도 저장하지 않는다.\n\n검사하는 것은 네 가지다. 첫째 폴더가 허용된 위치 안에 있는가, 둘째 산출물 문서를 읽을 수 있는가, 셋째 이미 가져온 산출물인가, 넷째 아직 대응이 정해지지 않은 분류가 남아 있는가이다.\n\n경고에는 적재를 막지 않는 사항만 담는다. 짝이 없는 이미지가 있거나 문서가 선언한 건수와 실제 파일 수가 다른 것이 여기에 해당하며, 알리되 진행할 수 있다. 적재를 막는 사유는 경고가 아니라 별도로 돌려준다. 대응이 정해지지 않은 분류 목록과 이미 가져온 산출물 정보를 각각 따로 담고, 지금 상태로 적재할 수 있는지는 별도의 적재 가능 여부로 알린다.\n\n경로를 주소줄이 아니라 본문으로 받는다. 경로에 구분자와 공백이 섞여 주소줄에 넣으면 기록과 중간 경유지에 그대로 남기 때문이다. 저장하는 일이 없으므로 여러 번 보내도 결과가 같다.\n\n검수자만 호출할 수 있다.",
+      "operation_id": "scanExternalImport",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "folderPath"
+          ],
+          "properties": {
+            "videoPath": {
+              "type": "string",
+              "nullable": true,
+              "maxLength": 1000,
+              "description": "원본 영상 파일의 위치. 산출물에 영상이 없으면 비워 둔다."
+            },
+            "folderPath": {
+              "type": "string",
+              "example": "/nas-storage/handover/00000073",
+              "maxLength": 1000,
+              "description": "검사할 산출물 폴더의 위치. 허용된 저장소 범위 밖이면 거부한다."
+            }
+          }
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답을 프로젝트 표준 응답 래퍼로 감싼다 — 기존 검사 결과 필드 전부를 data 하위로 그대로 옮기고 message·success·errorCode 를 함께 돌려준다. 이 계약이 곧 구현 기준이라 어긋난 채로 두면 호출 측이 읽는 위치와 서버가 담는 위치가 갈린다. 인가를 산문으로만 두지 않고 security 로 명시한다(검수자 단독). 인증 실패 401 을 신설하고 400·403·404 에 오류 응답 스키마와 예시, ErrorCode 이름을 채운다. 경고 관련 서술이 응답 구조와 어긋나 있던 것을 정정한다 — 경고에는 적재를 막지 않는 사항만 담고, 적재를 막는 사유는 경고가 아니라 미대응 분류 목록·중복 산출물 정보·적재 가능 여부로 따로 돌려준다. 요청 본문·메서드·경로·기존 응답 필드와 그 설명은 무변경.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-19T10:16:38.156Z",
+    "created_at": "2026-08-19T07:51:27.654Z"
+  }
+}
