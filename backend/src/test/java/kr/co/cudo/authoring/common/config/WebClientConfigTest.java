@@ -29,9 +29,13 @@ import static org.mockito.Mockito.when;
 /**
  * WebClientConfig 의 VLM URL 검증(SSRF / HTTPS / placeholder fail-closed) 단위 테스트.
  *
- * <p>대상: {@link WebClientConfig#vlmWebClient(String, String, boolean, VlmUrlPolicy)}
- *  - enabled=true 일 때 baseUrl 검증 적용 (정책 판정은 {@link VlmUrlPolicy} 단일 원천)
- *  - enabled=false 일 때 검증 생략 (개발 환경 영향 0)
+ * <p>대상: {@code WebClientConfig#vlmWebClient}
+ *  - baseUrl 이 주입돼 있을 때 검증 적용 (정책 판정은 {@link VlmUrlPolicy} 단일 원천)
+ *  - baseUrl 이 비어 있을 때 검증 생략 (미연동 환경 기동 보장 — ADR-049)
+ *
+ * <p>구 기준(설정 토글 {@code enabled} 의 참/거짓)은 그 토글이 폐지되면서 사라졌다. 판정 축이
+ * <b>토글 → 주소 주입 여부</b>로 옮겨간 것이며, 아래 기대값들은 그 축으로 다시 쓰였다.
+ * 미연동 기동 보장 자체의 전용 가드는 {@link VlmBlankUrlBootTest} 다.
  *
  * <p>프로파일별 완화/엄격 분리 자체의 검증은 {@link VlmUrlPolicyTest} 가 담당한다. 여기서는
  * <b>빈 생성 경로가 그 정책을 실제로 경유하는지</b>를 고정한다.
@@ -54,26 +58,33 @@ class WebClientConfigTest {
         return new VlmUrlPolicy(env, true);
     }
 
+    /**
+     * ★ 뒤집힌 단언이다 — 구 기대값은 "설정 토글이 꺼져 있으면 어떤 URL 이든 통과" 였다.
+     *
+     * <p>그 토글은 폐지됐고(ADR-049), 검증을 생략하는 조건은 이제 <b>주소가 비어 있는 것</b> 하나다.
+     * 따라서 {@code http://localhost:9400} 같은 <b>채워진</b> 주소는 더 이상 면제 대상이 아니다 —
+     * 아래 {@code localhostRejected} 가 그 주소를 거부 대상으로 고정한다.
+     */
     @Test
-    @DisplayName("WebClientConfig_vlm_enabled_false_시_검증_생략_localhost_허용")
-    void enabledFalseSkipsValidation() {
-        // given / when / then — enabled=false 면 어떤 URL 이든 빈 생성 성공
-        assertThat(cfg.vlmWebClient("http://localhost:9400", "", false, strictPolicy(), null)).isNotNull();
-        assertThat(cfg.vlmWebClient("", "", false, strictPolicy(), null)).isNotNull();
+    @DisplayName("WebClientConfig_vlm_url_이_비어있으면_검증_생략_미연동_기동_보장")
+    void blankUrlSkipsValidation() {
+        // given / when / then — 주소 미주입이면 어떤 정책에서도 빈 생성 성공(기동 차단 금지)
+        assertThat(cfg.vlmWebClient("", "", strictPolicy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("  ", "", strictPolicy(), null)).isNotNull();
     }
 
     @Test
     @DisplayName("WebClientConfig_vlm_url_http_시_빈_생성_실패_HTTPS_강제")
     void httpSchemaRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("http://vlm.vendor.io", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("http://vlm.vendor.io", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("HTTPS");
     }
 
     @Test
-    @DisplayName("WebClientConfig_vlm_url_localhost_시_enabled_true_빈_생성_실패_SSRF_차단")
+    @DisplayName("WebClientConfig_vlm_url_localhost_면_빈_생성_실패_SSRF_차단")
     void localhostRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://localhost:9400", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://localhost:9400", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("내부");
     }
@@ -81,27 +92,30 @@ class WebClientConfigTest {
     @Test
     @DisplayName("WebClientConfig_vlm_url_private_IP_시_빈_생성_실패_SSRF_차단")
     void privateIpRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://10.0.0.5", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://10.0.0.5", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("내부");
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://192.168.1.10", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://192.168.1.10", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://172.16.0.1", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://172.16.0.1", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://169.254.169.254", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://169.254.169.254", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://127.0.0.1", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://127.0.0.1", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    /**
+     * ★ 빈 문자열 케이스가 <b>여기서 빠졌다</b> — 폐기가 아니라 {@link #blankUrlSkipsValidation} 으로
+     * <b>기대값이 뒤집혀 이동</b>했다. 빈 값은 이제 "설정 안 함(미연동)" 이지 placeholder 가 아니다.
+     * 여기 남은 것은 <b>사람이 예시 값을 그대로 배포한</b> 형태(fail-closed 대상)뿐이다.
+     */
     @Test
     @DisplayName("WebClientConfig_vlm_url_placeholder_시_빈_생성_실패_fail_closed")
     void placeholderRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://example.com", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://example.com", "", true, strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://your-vlm-service", "", true, strictPolicy(), null))
+        assertThatThrownBy(() -> cfg.vlmWebClient("https://your-vlm-service", "", strictPolicy(), null))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -109,14 +123,14 @@ class WebClientConfigTest {
     @DisplayName("WebClientConfig_vlm_url_정상_HTTPS_공인_IP_시_빈_생성_성공")
     void validHttpsPublicIpAccepted() {
         // 공인 IP(8.8.8.8 — Google DNS) 직접 사용해 DNS 의존성 없이 검증 성공 케이스만 확인.
-        assertThat(cfg.vlmWebClient("https://8.8.8.8/", "", true, strictPolicy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("https://8.8.8.8/", "", strictPolicy(), null)).isNotNull();
     }
 
     @Test
     @DisplayName("WebClientConfig_vlm_local_완화정책_시_평문_HTTP_사설IP_목업_URL_빈_생성_성공")
     void relaxedPolicyAcceptsPlaintextMockUrl() {
-        assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "", true, relaxedPolicy(), null)).isNotNull();
-        assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", true, relaxedPolicy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "", relaxedPolicy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", relaxedPolicy(), null)).isNotNull();
     }
 
     @Test
@@ -130,7 +144,7 @@ class WebClientConfigTest {
         logger.addAppender(appender);
         try {
             // when
-            assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "secret-token-value", true,
+            assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "secret-token-value",
                     relaxedPolicy(), null)).isNotNull();
 
             // then: 경고가 남되 토큰 값은 절대 출력되지 않는다(길이만 — CWE-532)
@@ -144,7 +158,7 @@ class WebClientConfigTest {
 
             // and: HTTPS 구간에서는 경고하지 않는다
             appender.list.clear();
-            assertThat(cfg.vlmWebClient("https://8.8.8.8/", "secret-token-value", true, strictPolicy(), null))
+            assertThat(cfg.vlmWebClient("https://8.8.8.8/", "secret-token-value", strictPolicy(), null))
                     .isNotNull();
             assertThat(appender.list.stream()
                     .map(ILoggingEvent::getFormattedMessage)
@@ -215,7 +229,7 @@ class WebClientConfigTest {
                     .as("기동 시점 정책은 평문 http·loopback 을 막는다 — 아래 전송이 그 정책 밖임을 보이는 대조군")
                     .isInstanceOf(IllegalStateException.class);
 
-            WebClient client = cfg.vlmWebClient(bootDefault, "", true, policy, resolverReturning(override));
+            WebClient client = cfg.vlmWebClient(bootDefault, "", policy, resolverReturning(override));
             overrideTarget.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
             // when — 빈은 그대로 두고 호출한다.

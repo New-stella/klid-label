@@ -22,13 +22,19 @@ import { describe, expect, it } from 'vitest';
 const CONTAINER_NGINX = resolve(__dirname, '../../nginx.conf');
 /** 온프렘 대안 형상(기존 nginx 보유 서버). */
 const ONPREM_NGINX = resolve(__dirname, '../../../deploy/onprem/config/frontend/nginx.conf.template');
-/** 온프렘 기본 형상(Caddy). */
-const ONPREM_CADDY = resolve(__dirname, '../../../deploy/onprem/config/frontend/Caddyfile.template');
+/**
+ * 온프렘 기본 형상(httpd).
+ *
+ * ⚠ 구 경로 `Caddyfile.template` 은 **더 이상 없다** — 온프렘 웹서버가 Caddy → httpd 로 교체되면서
+ *   그 파일이 사라졌고, 이 테스트만 옛 경로를 읽어 `ENOENT` 로 죽고 있었다. 지키려던 불변식
+ *   (**컨테이너 형상과 온프렘 형상의 요청 크기 상한이 같다**)은 그대로이며 대상 파일만 옮긴다.
+ */
+const ONPREM_HTTPD = resolve(__dirname, '../../../deploy/onprem/config/frontend/httpd-klid.conf.template');
 
 /** `client_max_body_size 1200m;` */
 const NGINX_LIMIT = /^\s*client_max_body_size\s+(\d+)([kKmMgG]?)\s*;/m;
-/** Caddy `request_body { max_size 1200MB }` */
-const CADDY_LIMIT = /^\s*max_size\s+(\d+)([kKmMgG]?)[bB]?\s*$/m;
+/** httpd `LimitRequestBody 1258291200` — 바이트 단위(접미사 없음). */
+const HTTPD_LIMIT = /^\s*LimitRequestBody\s+(\d+)([kKmMgG]?)[bB]?\s*$/m;
 
 const UNIT_BYTES: Record<string, number> = {
   '': 1,
@@ -51,8 +57,8 @@ describe('앞단 요청 크기 상한 — 배포 형상 정합', () => {
     expect(limitBytes(CONTAINER_NGINX, NGINX_LIMIT)).toBe(limitBytes(ONPREM_NGINX, NGINX_LIMIT));
   });
 
-  it('컨테이너_형상과_온프렘_Caddy_형상의_상한이_같다', () => {
-    expect(limitBytes(CONTAINER_NGINX, NGINX_LIMIT)).toBe(limitBytes(ONPREM_CADDY, CADDY_LIMIT));
+  it('컨테이너_형상과_온프렘_httpd_형상의_상한이_같다', () => {
+    expect(limitBytes(CONTAINER_NGINX, NGINX_LIMIT)).toBe(limitBytes(ONPREM_HTTPD, HTTPD_LIMIT));
   });
 
   it('컨테이너_형상의_상한이_포털_이미지_다중_업로드_최대_요청을_덮는다', () => {

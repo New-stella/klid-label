@@ -151,7 +151,6 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         seedDeidentSuccess(rawSn);
         Long markingSn = seedMarkingPending(rawSn).getMarkingSn();
 
-        when(vlmClient.isEnabled()).thenReturn(true);
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
             VlmTimeseriesRequest r = inv.getArgument(0);
             return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
@@ -250,7 +249,6 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         assertThat(markingRepository.findById(markingSn).orElseThrow().getSttsCd())
                 .isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
 
-        when(vlmClient.isEnabled()).thenReturn(true);
         when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
             VlmTimeseriesRequest r = inv.getArgument(0);
             return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));

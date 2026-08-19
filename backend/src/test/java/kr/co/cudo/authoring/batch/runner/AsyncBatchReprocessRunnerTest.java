@@ -16,6 +16,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -95,10 +96,10 @@ class AsyncBatchReprocessRunnerTest {
                 34L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
 
         // 묶음 재수행 진입도 같은 계약이다.
-        when(orchestrator.processBundleRerun(eq(35L), any(), eq(LsDataRaw.DATA_STTS_COMPLETED)))
+        when(orchestrator.processBundleRerun(eq(35L), any(), eq(LsDataRaw.DATA_STTS_COMPLETED), anyBoolean()))
                 .thenReturn(BatchStage.COMPLETED);
         runner.runBundleRerunAsync(35L, LsDataRaw.DATA_STTS_COMPLETED,
-                Map.of(BatchStage.YOLO.name(), true));
+                Map.of(BatchStage.YOLO.name(), true), false);
         verify(batchStatusService).recordReprocessClaimClosed(
                 35L, AsyncBatchReprocessRunner.CLAIM_CLOSED_RUN_FINISHED);
     }
@@ -173,11 +174,11 @@ class AsyncBatchReprocessRunnerTest {
     void bundleRerunFatalErrorCompensatesToOriginStatus() {
         // 보상 목표값이 FAILED 로 굳어 있으면 아무것도 실패하지 않은 완주 영상이 화면에서 실패로 보인다.
         //   (오케스트레이터가 이미 되돌렸으면 이 보상은 조건부 UPDATE 0행 → no-op 이다.)
-        when(orchestrator.processBundleRerun(eq(19L), any(), eq(LsDataRaw.DATA_STTS_COMPLETED)))
+        when(orchestrator.processBundleRerun(eq(19L), any(), eq(LsDataRaw.DATA_STTS_COMPLETED), anyBoolean()))
                 .thenThrow(new SimulatedFatalError("fatal in bundle rerun"));
 
         assertThatThrownBy(() -> runner.runBundleRerunAsync(
-                19L, LsDataRaw.DATA_STTS_COMPLETED, Map.of(BatchStage.YOLO.name(), true)))
+                19L, LsDataRaw.DATA_STTS_COMPLETED, Map.of(BatchStage.YOLO.name(), true), false))
                 .isInstanceOf(SimulatedFatalError.class);
 
         verify(transitionService).releaseReprocessClaim(19L, LsDataRaw.DATA_STTS_COMPLETED);

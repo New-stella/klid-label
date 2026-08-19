@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -79,6 +80,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * <b>증강 유형({@code AUG_TYPE_CD})은 prompt 에서 파생하지 않는다</b> — 자유 문자열이 유형으로 흘러가면
  * 산출물 경로 순회(CWE-22)와 {@code RESL_} 네임스페이스 침범이 열린다({@code AugmentPrompts} 주석).
  *
+ * <h3>외부 미연동이면 접수하지 않는다 (R8 · {@code @design API-060})</h3>
+ * <p>{@code authoring.augment.external.mode=noop}(dev/stg/prd 기본)이면 위탁이 나가지 않고 콜백도
+ * 오지 않는데 접수만 성공해, 화면에는 만료 스윕이 돌 때까지 「진행 중」으로 보였다. 이제
+ * {@link AugmentExternalModePolicy} 판정으로 <b>요청 접수 자체를 503 으로 거부</b>한다. 게이트는
+ * <b>요청 접수 한 곳에만</b> 둔다 — 콜백 수신·조회·검수·취소로 확산시키면 이미 접수된 건이 회수되지
+ * 못하고 고착된다.
+ *
  * <p><b>고아 위탁 방지 (DEV_FIX HIGH #1)</b>: 외부 위탁({@code AugmentJobSubmitService.submit})은
  * 요청 트랜잭션 안에서 하지 않고, {@code AugmentRequestBridge} 가
  * {@code @TransactionalEventListener(AFTER_COMMIT)} 로 수신해 <b>커밋 확정 후</b>에만 수행한다.
@@ -119,6 +127,11 @@ public class AugmentRequestService {
     private final AugmentCallbackUrlResolver callbackUrlResolver;
     /** prompt 보관용 JSON 직렬화 — 외부로 나가는 dict 를 그대로 문자열화한다(전송본↔저장본 동일 출처). */
     private final ObjectMapper objectMapper;
+    /**
+     * 외부 연동 모드 판정 — 단일 원천(자체 재구현·빈 타입 검사 금지, {@code @design API-060}).
+     * 미연동이면 접수 자체를 거부한다({@link #request} 1-3 단계).
+     */
+    private final AugmentExternalModePolicy externalModePolicy;
 
     /**
      * placeholder jobId 시퀀스 — 외부 SFR-07 연동 전까지 응답 jobId 발급에 사용.
@@ -132,7 +145,8 @@ public class AugmentRequestService {
      * @param request 영상 1건 + 종류 1개 (DTO 단계 형식 검증 통과)
      * @param actor   호출자 토큰 (REVIEWER 만 허용)
      * @return jobId / 요청 시각 / 요청 수 / <b>실제 생성 수</b>
-     * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약·프롬프트 형식 위반),
+     * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약·프롬프트 형식 위반·파생 영상),
+     *                         SERVICE_UNAVAILABLE(외부 미연동 — {@code mode=noop}),
      *                         NOT_REVIEWED(미검수), PRECONDITION_FAILED(신고 구간·프레임 미추출),
      *                         CONFLICT(제약 위반 — 멱등 키 충돌·정합 충돌),
      *                         INTERNAL_ERROR(적재 실패 — 생성 0건)
@@ -162,6 +176,20 @@ public class AugmentRequestService {
         //      단 인가 검사(requireReviewer) <뒤>여야 한다 — 앞서면 응답 코드가 "그 영상이 존재하는가/
         //      파생인가" 를 알려주는 오라클이 된다(CWE-209).
         requireNotDerivative(rawSn);
+
+        // 1-3) 외부 미연동(mode=noop) 차단 — 되지도 않을 요청을 접수하지 않는다 (R8 · @design API-060).
+        //      noop 이면 위탁이 나가지 않고 콜백도 영영 오지 않는데 접수는 성공해, 화면에는 만료 스윕이
+        //      돌 때까지 "진행 중" 으로 보인다. 데이터가 오염되지는 않으므로(가짜 산출물 없음) 고치는
+        //      것은 접수 하나이고, 이미 접수된 건의 회수 경로(조회·콜백·만료 스윕)는 건드리지 않는다.
+        //
+        //      <평가 순서가 계약이다>
+        //      · 인가(requireReviewer)·형식 검증(단건·프롬프트) <뒤> — 미인증/비권한 호출자에게 연동
+        //        상태를 알려주면 그 자체가 정보 노출이다(CWE-209).
+        //      · 파생 영상 차단(requireNotDerivative) <뒤> — 파생 요청은 연동 여부와 무관한 <영구> 조건
+        //        (400)이라 그 사유가 먼저 뜨는 것이 요청자에게 정확하다(503 은 일시 조건이다).
+        //      · DB 조회(검수상태·신고구간·프레임) <앞> — 어차피 거부할 요청에 DB 왕복 3회를 태우지
+        //        않는다(프롬프트 검증을 앞당긴 것과 같은 이유 — CWE-770).
+        requireExternalLinked(rawSn, actor);
 
         // 2) 검수 완료(APPROVED) 검증 — 미검수면 거부
         List<Long> blocked = findBlockedVideoIds(videoIds);
@@ -342,6 +370,28 @@ public class AugmentRequestService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "파생 영상은 증강 요청 대상이 아닙니다.", skippedDetails(rawSn));
         }
+    }
+
+    /**
+     * 외부 증강 시스템 미연동({@code authoring.augment.external.mode=noop}) 시 접수를 거부한다 —
+     * {@link ErrorCode#SERVICE_UNAVAILABLE}(503), {@code @design API-060}.
+     *
+     * <p>503 인 이유는 <b>일시 조건</b>이기 때문이다 — 연동이 열리면 같은 요청이 그대로 성립한다.
+     * 파생 영상 차단(400)이 <b>영구 조건</b>인 것과 대비되며, 그래서 두 게이트의 순서가 뒤바뀌면
+     * 파생 영상 요청자가 "일시 장애" 로 오인하고 재시도를 반복한다.
+     *
+     * <p>응답에는 <b>모드 값·프로퍼티 키·클라이언트 구현명</b>을 싣지 않는다. 요청자가 알아야 할 것은
+     * "지금은 접수되지 않는다" 하나이고, 배선 상세는 운영 정보다(CWE-209). 감사용 사유는 서버 로그에만
+     * 남긴다. 어떤 영상이 막혔는지는 다른 게이트와 동일하게 {@code skippedVideoIds} 로 알린다.
+     */
+    private void requireExternalLinked(Long rawSn, TokenClaims actor) {
+        if (!externalModePolicy.isNotLinked()) {
+            return;
+        }
+        log.warn("[Augment] request blocked — external augment not linked actor={} rawSn={}",
+                sanitize(actor.sub()), rawSn);
+        throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE,
+                "외부 증강 시스템과 연동되지 않아 요청을 접수할 수 없습니다.", skippedDetails(rawSn));
     }
 
     /** 생성되지 못한 영상 식별자 — 호출자(관리 화면)가 어떤 영상이 막혔는지 알 수 있게 한다. */

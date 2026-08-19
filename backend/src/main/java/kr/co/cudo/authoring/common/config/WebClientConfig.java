@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.codec.ClientCodecConfigurer;
+import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -76,45 +77,61 @@ public class WebClientConfig {
     /**
      * 외부 VLM 시계열 분석 위탁 클라이언트용 WebClient — Phase 1 신설.
      *
-     * <p>enabled=true 일 때 baseUrl 을 {@link VlmUrlPolicy} 로 검증한다(위반 시 IllegalStateException
+     * <p>baseUrl 이 <b>주입돼 있을 때만</b> {@link VlmUrlPolicy} 로 검증한다(위반 시 IllegalStateException
      * → 빈 생성 실패 → 기동 차단). 정책은 운영 엄격(HTTPS 전용 + 사설망 차단) / 개발 완화(평문 http +
      * 사설 IP 허용)로 갈리며, <b>완화는 전용 프로퍼티 + 프로파일 allowlist + 기동 assert 로 격리</b>되어
      * 설정만으로 운영에 새지 않는다. 상세 근거는 {@link VlmUrlPolicy} 참조.
      *
-     * <p>enabled=false (기본값) 면 검증 생략 — 미연동 환경 영향 0.
+     * <p><b>주소가 비어 있으면 검증을 생략하고 빈을 만든다 — 미연동 환경의 기동을 보장한다.</b>
+     * 구 동작은 별도 설정 토글이 꺼져 있을 때 검증을 생략하는 것이었으나,
+     * 그 토글은 폐지됐다: 기본값이 비활성이라 <b>납품본이 시계열이 꺼진 채로 나가고 그 사실이 산출물에도
+     * 이력에도 드러나지 않았다</b>. 이제 미연동 판정은 <b>연동 주소 주입 여부</b>가 하고, 미연동 구간의
+     * 운영은 사람이 사유를 남기는 단계 스킵이 담당한다(그 사실이 처리 이력에 남는다).
+     *
+     * <p>⚠ <b>주소가 비어 있다고 기동을 거부하지 않는다</b> — 「미연동 시 기동 거부」는 검토 후 기각된
+     * 안이다(벤더 연동 확정 전 배포 불가 + 시계열 외 전 기능 동반 차단). 회귀 가드는
+     * {@code VlmBlankUrlBootTest} 다.
      *
      * <p><b>local/dev 완화의 배경</b>: 이 두 프로파일의 VLM 위탁 대상은 목업 벤더 서버(mock-server)다 —
      * TLS 미지원 평문 http 이고 호스트도 컨테이너 내부 이름({@code klid-mock-server})이라, 운영용 강제를
      * 그대로 적용하면 <b>빈 생성 실패로 애플리케이션이 기동조차 못 한다</b>(2026-07-25 로컬 배선 시도 시
      * 실측·원복). 설정 누락(빈 값)·placeholder 호스트·링크로컬/메타데이터 대역 차단은 완화 대상이 아니다.
      * stg/prd·<b>프로파일 미지정</b>·<b>{@code ENV=stg|prd} 표식</b>은 기존 강제를 유지한다(fail-closed).
+     *
+     * @design ADR-049
      */
     @Bean(name = "vlmWebClient")
     public WebClient vlmWebClient(
-            @Value("${vlm.client.url:http://localhost:9400}") String baseUrl,
+            @Value("${vlm.client.url:}") String baseUrl,
             @Value("${vlm.client.token:}") String token,
-            @Value("${vlm.client.enabled:false}") boolean enabled,
             VlmUrlPolicy urlPolicy,
             IntegrationEndpointResolver endpointResolver) {
-        if (enabled) {
+        if (StringUtils.hasText(baseUrl)) {
             urlPolicy.validate(baseUrl);
         }
-        // 토글·토큰 배선은 그대로 두고 주소만 호출 시점 해석으로 바꾼다 — URL 재작성 필터는 URL 만 건드린다.
+        // 토큰 배선은 그대로 두고 주소만 호출 시점 해석으로 바꾼다 — URL 재작성 필터는 URL 만 건드린다.
         // ★그래서 자격증명·스킴 가드를 그 뒤에 이어 붙인다(재작성된 최종 URL 을 봐야 한다).
+        // 미주입은 빈 문자열로 정규화한다 — null 을 그대로 넘기면 실패가 NPE 로 나와 원인 판독이 어렵다.
+        String base = StringUtils.hasText(baseUrl) ? baseUrl : "";
         WebClient.Builder b = WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(base)
                 .filter(IntegrationEndpointExchangeFilter.of(
-                        IntegrationEndpoint.VLM, baseUrl, endpointResolver))
+                        IntegrationEndpoint.VLM, base, endpointResolver))
+                // ★ 미연동(주소 미주입)이면 <전송 자체>를 막는다 — 재작성 필터 뒤라 최종 URL 을 본다.
+                //   주소가 비면 상대 URI 가 되어 loopback:80 으로 실제 TCP 연결이 나가고, 그 요청 바디에는
+                //   비식별 영상 절대경로와 콜백 주소가 실린다(온프렘은 같은 호스트에 웹서버가 있어 접근
+                //   로그에 경로가 남는다). 이 연동만 배포 기본값이 빈 값이라 여기에만 건다.
+                .filter(IntegrationEndpointTransportGuards.requireResolvedHost(IntegrationEndpoint.VLM))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
-                        IntegrationEndpoint.VLM, baseUrl));
+                        IntegrationEndpoint.VLM, base));
         if (token != null && !token.isBlank()) {
             // 평문 http 에 Bearer 토큰이 실리면 네트워크에 그대로 노출된다 (CWE-319) — 경고만, 값 미출력.
-            urlPolicy.warnIfTokenOnCleartext(baseUrl, token);
+            urlPolicy.warnIfTokenOnCleartext(base, token);
             b.defaultHeader(AUTHORIZATION_HEADER, "Bearer " + token);
             // defaultHeader 는 빈 생성 시점 고정이라, 주소를 바꾸면 이 토큰이 새 호스트로 따라간다.
             // 호스트가 달라지면 떼어낸다(CWE-522) — 원 수신처에 발급된 값이라 어차피 무효다.
             b.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
-                    IntegrationEndpoint.VLM, baseUrl, AUTHORIZATION_HEADER));
+                    IntegrationEndpoint.VLM, base, AUTHORIZATION_HEADER));
         }
         return b.build();
     }

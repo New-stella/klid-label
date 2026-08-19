@@ -22,6 +22,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,7 +91,8 @@ class BatchStageRerunServiceTest {
         assertThat(res.stage()).isEqualTo("AUTOLABEL");
         assertThat(res.accepted()).isTrue();
         // 보상 롤백이 완주 상태로 되돌아가도록 출발 상태를 함께 넘기고, 묶음 토글도 함께 넘긴다.
-        verify(reprocessRunner).runBundleRerunAsync(rawSn, LsDataRaw.DATA_STTS_COMPLETED, toggles);
+        verify(reprocessRunner).runBundleRerunAsync(
+                rawSn, LsDataRaw.DATA_STTS_COMPLETED, toggles, false);
     }
 
     /**
@@ -112,7 +114,7 @@ class BatchStageRerunServiceTest {
         inOrder.verify(batchStatusService)
                 .recordReprocessClaimOpened(rawSn, LsDataRaw.DATA_STTS_COMPLETED);
         inOrder.verify(reprocessRunner).runBundleRerunAsync(
-                eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any());
+                eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any(), anyBoolean());
         // 실패 축 출발 상태로 표식이 남으면 회수가 완주 영상을 FAILED 로 강등한다.
         verify(batchStatusService, never())
                 .recordReprocessClaimOpened(anyLong(), eq(LsDataRaw.DATA_STTS_FAILED));
@@ -124,7 +126,7 @@ class BatchStageRerunServiceTest {
         long rawSn = 52L;
         givenAcceptable(rawSn, BatchStageBundle.VLM);
         org.mockito.Mockito.doThrow(new org.springframework.core.task.TaskRejectedException("full"))
-                .when(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any());
+                .when(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any(), anyBoolean());
 
         assertThatThrownBy(() -> service.rerun(rawSn, "VLM")).isInstanceOf(CustomException.class);
 
@@ -145,7 +147,7 @@ class BatchStageRerunServiceTest {
         long rawSn = 53L;
         givenAcceptable(rawSn, BatchStageBundle.VLM);
         doThrow(new TaskRejectedException("full"))
-                .when(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any());
+                .when(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any(), anyBoolean());
         doThrow(new IllegalStateException("marker write failed"))
                 .when(batchStatusService).recordReprocessClaimClosed(anyLong(), anyString());
 
@@ -166,7 +168,7 @@ class BatchStageRerunServiceTest {
 
         service.rerun(rawSn, "VLM");
 
-        verify(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any());
+        verify(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any(), anyBoolean());
         verify(reprocessRunner, never()).runAsync(anyLong(), anyString());
     }
 
@@ -186,7 +188,7 @@ class BatchStageRerunServiceTest {
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
         verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
-        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any());
+        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any(), anyBoolean());
     }
 
     @Test
@@ -234,23 +236,176 @@ class BatchStageRerunServiceTest {
     }
 
     @Test
-    @DisplayName("★한번이라도_검수가_완료된_영상은_400으로_거부되고_상태를_선점하지_않는다")
+    @DisplayName("★한번이라도_검수가_완료된_영상은_오토라벨_묶음이_400으로_거부되고_상태를_선점하지_않는다")
     void rejectsEverApprovedVideoBeforeClaiming() {
-        // 확정된 학습데이터는 되돌리지 않는다. 판정은 신고 차단·프레임 폐기 차단과 같은 단일 원천을
-        //   주입해 쓰며(규칙 복제 금지), 재시도 여지가 없는 영구 조건이라 412 가 아니라 400 이다.
+        // 오토라벨은 라벨을 <다시 만들어> 승인 시점 스냅샷과 어긋난다. 판정은 신고 차단·프레임 폐기
+        //   차단과 같은 단일 원천을 주입해 쓰며(규칙 복제 금지), 재시도 여지가 없는 영구 조건이라
+        //   412 가 아니라 400 이다.
         long rawSn = 6L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(true);
         when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.rerun(rawSn, "VLM"))
+        assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
                 .isInstanceOf(CustomException.class)
                 .hasMessage(BatchStageRerunService.EVER_APPROVED_REASON)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
         verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
-        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any());
+        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any(), anyBoolean());
+    }
+
+    /**
+     * ★★승인 이력 거부는 <b>오토라벨 한정</b>이다 — 시계열은 승인 이력이 있어도 접수된다. [@design API-201]
+     *
+     * <p>시계열 재수행은 확정된 라벨을 되돌리지 않고 <b>메타만 더한다</b>. 승인 완료 영상에 서술이
+     * 들어오는 경우는 하류({@code VlmResultService})가 검토행을 대기로 되돌리고 산출물 재생성·관제
+     * 재통지를 걸도록 <b>이미 상정</b>돼 있으며, 값이 같으면 아무 일도 일어나지 않는다(멱등).
+     * 벤더 연동이 늦어져 건너뛴 영상이 그대로 승인되더라도 시계열을 나중에 받을 수 있어야 한다.
+     */
+    @Test
+    @DisplayName("★★승인_이력이_있어도_시계열_묶음은_재수행을_수락한다")
+    void acceptsVlmBundleEvenWhenEverApproved() {
+        long rawSn = 61L;
+        givenAcceptable(rawSn, BatchStageBundle.VLM);
+        when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
+        // ★★승인 이력이 있는 영상은 <반드시> 검수 소유 작업 상태(APPROVED)다. 이 스텁을 빼면 Mockito
+        //   기본값 false 가 다음 게이트를 그냥 통과시켜, 프로덕션에서 성립할 수 없는 조합을 검증하게
+        //   된다(구 테스트가 실제로 그랬고 그래서 게이트 2겹째가 커버리지 밖이었다).
+        when(transitionService.isReviewOwnedWorkStatus(rawSn)).thenReturn(true);
+        Map<String, Boolean> toggles = Map.of(
+                BatchStage.VLM.name(), true,
+                BatchStage.YOLO.name(), false);
+        when(togglePolicy.togglesFor(BatchStageBundle.VLM)).thenReturn(toggles);
+
+        BatchStageRerunResponse res = service.rerun(rawSn, "VLM");
+
+        assertThat(res.accepted()).isTrue();
+        assertThat(res.stage()).isEqualTo("VLM");
+        // 접수는 선점·디스패치까지 실제로 진행돼야 한다 — 200 만 주고 아무것도 돌지 않으면 사용자는
+        //   접수됐다고 믿는데 시계열이 영영 오지 않는다.
+        verify(transitionService).tryClaimReprocessFromCompleted(rawSn);
+        // ★면제 사실이 실행 경로까지 전달돼야 한다 — false 로 나가면 오케스트레이터 진입 가드(세 번째
+        //   겹)가 step 을 한 건도 돌리지 않고 SKIPPED 로 끝낸다(접수만 되고 아무 일도 일어나지 않는다).
+        verify(reprocessRunner).runBundleRerunAsync(
+                rawSn, LsDataRaw.DATA_STTS_COMPLETED, toggles, true);
+    }
+
+    /**
+     * ★★<b>게이트 2겹째</b>의 회귀 가드 — 승인 이력 게이트만 풀면 동작이 바뀌지 않는다. [@design API-201]
+     *
+     * <p>구 구현은 승인 이력(400)만 시계열에 면제해 뒀는데, <b>바로 다음 줄</b>의 검수 소유 작업 상태
+     * 검사가 {@code APPROVED} 를 409 로 다시 막았다. 즉 「벤더 연동이 늦어져 건너뛴 영상이 그대로
+     * 승인되더라도 시계열을 나중에 받을 수 있어야 한다」가 <b>실제로는 성립하지 않았다</b>.
+     *
+     * <p>위 테스트와 별도로 두는 이유: 이쪽은 <b>409 축</b>이 다시 닫히는 회귀만 겨눈다. 한쪽이 죽어도
+     * 다른 쪽이 살아 있으면 어느 겹이 되돌아갔는지 즉시 드러난다.
+     */
+    @Test
+    @DisplayName("★★검수소유_상태여도_시계열_묶음은_409로_막히지_않는다_게이트2겹_회귀차단")
+    void vlmBundleIsNotBlockedByReviewOwnedWorkStatus() {
+        long rawSn = 63L;
+        givenAcceptable(rawSn, BatchStageBundle.VLM);
+        when(transitionService.isReviewOwnedWorkStatus(rawSn)).thenReturn(true);
+        when(togglePolicy.togglesFor(BatchStageBundle.VLM))
+                .thenReturn(Map.of(BatchStage.VLM.name(), true));
+
+        BatchStageRerunResponse res = service.rerun(rawSn, "VLM");
+
+        assertThat(res.accepted()).isTrue();
+        verify(reprocessRunner).runBundleRerunAsync(
+                eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any(), eq(true));
+    }
+
+    /**
+     * ★회귀 차단 — 면제가 오토라벨로 새면 승인 완료 영상의 라벨이 재생성된다.
+     *
+     * <p>위 시계열 테스트와 <b>같은 조합</b>(승인 이력 + 검수 소유 상태)에서 오토라벨은 여전히 400
+     * 이어야 한다. allowlist 를 비우거나 denylist 로 되돌리면 둘 중 하나가 즉시 죽는다.
+     */
+    @Test
+    @DisplayName("★승인_이력과_검수소유_상태가_함께여도_오토라벨_묶음은_400이다")
+    void autolabelStaysBlockedInTheSameCombination() {
+        long rawSn = 64L;
+        givenAcceptable(rawSn, BatchStageBundle.AUTOLABEL);
+        when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
+        when(transitionService.isReviewOwnedWorkStatus(rawSn)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(BatchStageRerunService.EVER_APPROVED_REASON)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
+        verify(reprocessRunner, never())
+                .runBundleRerunAsync(anyLong(), anyString(), any(), anyBoolean());
+    }
+
+    /**
+     * ★면제되지 <b>않는</b> 묶음은 면제 플래그도 꺼진 채로 디스패치돼야 한다.
+     *
+     * <p>플래그가 켜져 나가면 오케스트레이터가 승인 영상에서도 파이프라인을 돌리게 되고, 그 실행 범위가
+     * 오토라벨이면 <b>확정된 학습데이터의 라벨이 재생성</b>된다(런타임 fail-closed 가 한 겹 더 막지만
+     * 여기서 새는 것 자체가 회귀다).
+     */
+    @Test
+    @DisplayName("★오토라벨_묶음은_면제_플래그가_꺼진_채로_디스패치된다")
+    void autolabelDispatchesWithoutExemptionFlag() {
+        long rawSn = 65L;
+        givenAcceptable(rawSn, BatchStageBundle.AUTOLABEL);
+        when(togglePolicy.togglesFor(BatchStageBundle.AUTOLABEL))
+                .thenReturn(Map.of(BatchStage.YOLO.name(), true));
+
+        service.rerun(rawSn, "AUTOLABEL");
+
+        verify(reprocessRunner).runBundleRerunAsync(
+                eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any(), eq(false));
+    }
+
+    /**
+     * ★회귀 차단 — 예외를 오토라벨로 넓히면 승인 시점 스냅샷과 어긋난 라벨이 재생성된다.
+     *
+     * <p>위 시계열 예외와 <b>짝</b>으로 둔다. 하나만 있으면 "승인 이력 게이트를 통째로 없애는" 회귀가
+     * 시계열 테스트만 통과시킨 채 지나간다.
+     */
+    @Test
+    @DisplayName("★오토라벨_묶음은_승인_이력_예외를_받지_않는다")
+    void autolabelBundleIsNotExemptFromEverApprovedGate() {
+        long rawSn = 62L;
+        givenAcceptable(rawSn, BatchStageBundle.AUTOLABEL);
+        when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(BatchStageRerunService.EVER_APPROVED_REASON)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
+        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any(), anyBoolean());
+    }
+
+    /**
+     * ★평가 순서 회귀 가드 — 되돌린 묶음 판정(4번)이 승인 이력 판정(5번)보다 <b>먼저</b>다.
+     *
+     * <p>순서가 뒤집히면 되돌리지도 않은 묶음에 대해 응답이 「이 영상은 승인된 적이 있다」를 먼저
+     * 알려주게 되고, 묶음 판정이 감추려던 정보 축과 섞인다(CWE-209).
+     */
+    @Test
+    @DisplayName("★승인_이력이_있어도_되돌린_묶음이_아니면_묶음_사유로_먼저_400이_난다")
+    void clearedBundleGateIsEvaluatedBeforeApprovalGate() {
+        long rawSn = 63L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(false);
+        when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(BatchStageRerunService.NOT_CLEARED_BUNDLE_REASON);
+
+        verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
     }
 
     @Test
@@ -286,7 +441,7 @@ class BatchStageRerunServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
 
-        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any());
+        verify(reprocessRunner, never()).runBundleRerunAsync(anyLong(), anyString(), any(), anyBoolean());
         // 실패 축 클레임은 이 경로에 존재하지 않는다.
         verify(transitionService, never()).tryClaimReprocessFromFailed(anyLong());
     }
@@ -328,7 +483,7 @@ class BatchStageRerunServiceTest {
         when(togglePolicy.togglesFor(BatchStageBundle.AUTOLABEL)).thenReturn(Map.of());
         doThrow(new TaskRejectedException("queue full"))
                 .when(reprocessRunner)
-                .runBundleRerunAsync(eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any());
+                .runBundleRerunAsync(eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any(), anyBoolean());
 
         assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
                 .isInstanceOf(CustomException.class)
@@ -352,6 +507,6 @@ class BatchStageRerunServiceTest {
         service.rerun(rawSn, "autolabel"); // 대소문자 무시
 
         verify(transitionService, never()).releaseReprocessClaim(anyLong(), anyString());
-        verify(reprocessRunner).runBundleRerunAsync(eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any());
+        verify(reprocessRunner).runBundleRerunAsync(eq(rawSn), eq(LsDataRaw.DATA_STTS_COMPLETED), any(), anyBoolean());
     }
 }

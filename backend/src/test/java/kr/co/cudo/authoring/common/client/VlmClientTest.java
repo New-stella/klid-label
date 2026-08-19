@@ -94,7 +94,7 @@ class VlmClientTest {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"req-abc\",\"status\":\"accepted\"}"));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         // when
         VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-abc"))
@@ -129,7 +129,7 @@ class VlmClientTest {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"req-echo\",\"status\":\"accepted\"}"));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-echo"))
                 .block(Duration.ofSeconds(2));
@@ -146,7 +146,7 @@ class VlmClientTest {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"OTHER\",\"status\":\"accepted\"}"));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-abc"))
                 .block(Duration.ofSeconds(2)))
@@ -161,7 +161,7 @@ class VlmClientTest {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"req-abc\",\"status\":\"rejected\"}"));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-abc"))
                 .block(Duration.ofSeconds(2)))
@@ -169,36 +169,67 @@ class VlmClientTest {
                 .hasMessageContaining("accepted");
     }
 
+    /**
+     * ★ 뒤집힌 단언이다 — 구 기대값은 "설정 토글이 꺼져 있으면 외부 호출 0건 + 즉시 SKIPPED(NO-OP)" 였다.
+     *
+     * <p>그 토글은 폐지됐다(ADR-049). 기본값이 비활성이라 <b>시계열이 꺼진 채 납품돼도 그 사실이
+     * 산출물에도 이력에도 남지 않았기</b> 때문이다. 이제 이 클라이언트에는 외부 호출을 건너뛰는 분기가
+     * <b>하나도 없다</b> — 건너뛰려면 사람이 단계 스킵을 눌러야 하고(그 판정은 위탁 단계가 갖는다),
+     * 미연동이면 호출이 그대로 실패해 기존 실패 경로로 흐른다.
+     *
+     * <p><b>mutation 확인</b>: {@code submitTimeseries} 에 조기반환 분기를 되살리면 요청 수가 0 이 되어
+     * 이 테스트가 실패한다.
+     */
     @Test
-    @DisplayName("enabled_false_시_외부_호출_없이_SKIPPED_반환_NO_OP")
-    void enabledFalseReturnsSkippedWithoutCall() {
+    @DisplayName("조용히_건너뛰는_분기가_없다_어떤_요청이든_외부로_나간다")
+    void neverSkipsSilently() throws InterruptedException {
+        // given — 벤더가 수락한다.
         retryRegistry = singleAttempt();
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, false, 5L);
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"request_id\":\"req-x\",\"status\":\"accepted\"}"));
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
+        // when
         VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-x"))
                 .block(Duration.ofSeconds(2));
 
+        // then — SKIPPED 로 삼키지 않고 실제로 외부에 나갔다.
         assertThat(resp).isNotNull();
-        assertThat(resp.status()).isEqualTo("skipped");
-        assertThat(resp.requestId()).isEqualTo("req-x");
-        assertThat(server.getRequestCount()).isZero();
+        assertThat(resp.status())
+                .as("조용한 SKIPPED 응답을 만들어내는 경로가 남아 있으면 시계열 결손이 드러나지 않는다")
+                .isEqualTo("accepted");
+        assertThat(server.getRequestCount())
+                .as("외부 호출이 0건이면 어딘가에 건너뛰기 분기가 되살아난 것이다")
+                .isEqualTo(1);
+        RecordedRequest sent = server.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(sent).isNotNull();
+        assertThat(sent.getPath()).isEqualTo("/v1/videovlm/verify");
     }
 
     @Test
     @DisplayName("호출자가_request_id_null_제공_시_UUID_자동발급_방어")
     void requestIdAutoIssuedWhenNull() throws InterruptedException {
         retryRegistry = singleAttempt();
-        // 응답은 서버가 echo 를 모르므로, 클라이언트가 발급한 request_id 를 알 수 없다.
-        // enabled=false 경로로 자동발급만 검증한다(외부 호출 없이 UUID 발급).
-        VlmClient disabled = new VlmClient(webClient(), cbRegistry, retryRegistry, false, 5L);
+        // 서버는 클라이언트가 발급한 UUID 를 모르므로 echo 를 맞출 수 없다 — 응답 검증은 실패한다.
+        //   구 테스트는 비활성 경로(외부 호출 0건)로 자동발급만 봤으나 그 경로가 폐지됐으므로,
+        //   <실제로 전송된 요청 바디>로 판정한다(전송을 관측하므로 오히려 더 강한 단언이다).
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"request_id\":\"other\",\"status\":\"accepted\"}"));
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        VlmTimeseriesResponse resp = disabled.submitTimeseries(
+        assertThatThrownBy(() -> client.submitTimeseries(
                 VlmTimeseriesRequest.ofFrameInterval(null, "fire", "/data/deid.mp4", 25, "http://cb"))
-                .block(Duration.ofSeconds(2));
+                .block(Duration.ofSeconds(2)))
+                .as("echo 불일치는 종전대로 거부된다 — 여기서 보려는 것은 전송된 바디다")
+                .isInstanceOf(CustomException.class);
 
-        assertThat(resp).isNotNull();
-        assertThat(resp.requestId()).isNotBlank();
-        assertThat(resp.requestId()).matches("^[0-9a-fA-F-]{36}$");
+        RecordedRequest sent = server.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(sent).isNotNull();
+        assertThat(sent.getBody().readUtf8())
+                .as("request_id 가 null 이면 클라이언트가 UUID 를 발급해 실어 보내야 한다")
+                .containsPattern("\"request_id\"\\s*:\\s*\"[0-9a-fA-F-]{36}\"");
     }
 
     @Test
@@ -208,7 +239,7 @@ class VlmClientTest {
         for (int i = 0; i < 3; i++) {
             server.enqueue(new MockResponse().setResponseCode(500));
         }
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-fail"))
                 .block(Duration.ofSeconds(5)))
@@ -225,7 +256,7 @@ class VlmClientTest {
         // given — 벤더 규격상 400(형식오류)은 비-일시적. 3회 재시도 설정이라도 재시도되지 않아야 한다.
         retryRegistry = tripleAttemptIgnoringNonRetryable();
         server.enqueue(new MockResponse().setResponseCode(400));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         // when / then
         assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-400"))
@@ -240,7 +271,7 @@ class VlmClientTest {
         // given — 422(파라미터 값 오류)도 비-일시적.
         retryRegistry = tripleAttemptIgnoringNonRetryable();
         server.enqueue(new MockResponse().setResponseCode(422));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-422"))
                 .block(Duration.ofSeconds(2)))
@@ -255,7 +286,7 @@ class VlmClientTest {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"request_id\":\"req-u\",\"status\":\"accepted\",\"extraEvil\":\"<script>\"}"));
-        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-u"))
                 .block(Duration.ofSeconds(2));
@@ -263,14 +294,19 @@ class VlmClientTest {
         assertThat(resp.requestId()).isEqualTo("req-u");
     }
 
+    /**
+     * ★ 뒤집힌 단언이다 — 구 테스트는 {@code isEnabled()} 가 토글 상태를 노출하는지 확인했다.
+     *
+     * <p>그 접근자는 위탁 단계가 "조용히 건너뛸지" 를 묻는 유일한 수단이었고, 토글 폐지(ADR-049)와
+     * 함께 제거됐다. 접근자만 되살아나도 그 분기가 함께 되살아나므로 <b>부재 자체를 고정</b>한다.
+     * (설정 키 축의 부재는 {@code VlmEnabledToggleRemovalTest} 가 별도로 고정한다.)
+     */
     @Test
-    @DisplayName("isEnabled_토글_상태_노출")
-    void isEnabledExposesToggle() {
-        retryRegistry = singleAttempt();
-        VlmClient disabled = new VlmClient(webClient(), cbRegistry, retryRegistry, false, 5L);
-        VlmClient enabled = new VlmClient(webClient(), cbRegistry, retryRegistry, true, 5L);
-        assertThat(disabled.isEnabled()).isFalse();
-        assertThat(enabled.isEnabled()).isTrue();
+    @DisplayName("토글_상태를_노출하는_접근자가_없다_건너뛰기_분기_재유입_차단")
+    void noToggleAccessorIsExposed() {
+        assertThat(VlmClient.class.getDeclaredMethods())
+                .as("건너뛰기 판정을 되묻는 접근자가 되살아나면 조용한 NO-OP 경로도 함께 돌아온다")
+                .noneSatisfy(m -> assertThat(m.getName()).isEqualTo("isEnabled"));
     }
 
     @Test

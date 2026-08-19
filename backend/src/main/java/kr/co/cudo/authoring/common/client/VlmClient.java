@@ -40,14 +40,18 @@ import java.util.regex.Pattern;
  *   <li><b>상관관계</b>: 상관키는 {@code request_id}(요청 바디). verify 응답에 externalJobId 는 없다.
  *       호출자(Step)가 request_id 를 발급/주입하며, 응답의 request_id echo 일치를 본 클라이언트가 검증한다.
  *       (Step 이 request_id 를 ledger(request_id→rawSn)에 먼저 등록해 콜백 역조회를 성립시킨다.)</li>
- *   <li><b>토글</b>: {@code vlm.client.enabled=false}(기본) 일 때 외부 호출 없이 즉시
- *       {@link VlmTimeseriesResponse#skipped(String)} 반환 — local/dev 영향 0건.</li>
+ *   <li><b>미연동 = 실패</b>: 연동 주소가 주입되지 않았으면 위탁은 <b>조용히 건너뛰지 않고 실패</b>한다.
+ *       구 동작(설정 토글이 꺼져 있으면 외부 호출 없이 즉시 SKIPPED 반환)은 폐지됐다 — 기본값이
+ *       비활성이라 시계열이 꺼진 채 납품돼도 그 사실이 아무 데도 남지 않았다. 벤더 미연동 구간은
+ *       사람이 사유를 남기는 단계 스킵으로 운영한다(그 사실이 처리 이력에 남는다).</li>
  *   <li><b>회복성</b>: Resilience4j Retry(exp backoff) + CircuitBreaker. 타임아웃은 WebClient
  *       {@code .timeout(...)} 으로 Reactor 네이티브 처리(단일 출처).</li>
  *   <li><b>보안</b>: URL/토큰 하드코딩 금지(환경변수). URL SSRF/HTTPS 검증은 {@code WebClientConfig}.
  *       응답 request_id echo + status 화이트리스트 검증. 로그 출력 전 {@link #safeForLog(String)}
  *       로 CRLF/탭 sanitize(CWE-117).</li>
  * </ul>
+ *
+ * @design ADR-049
  */
 @Slf4j
 @Component
@@ -65,26 +69,25 @@ public class VlmClient {
     private final WebClient webClient;
     private final CircuitBreaker circuitBreaker;
     private final Retry retry;
-    private final boolean enabled;
     private final Duration timeout;
 
     public VlmClient(@Qualifier("vlmWebClient") WebClient webClient,
                      CircuitBreakerRegistry circuitBreakerRegistry,
                      RetryRegistry retryRegistry,
-                     @Value("${vlm.client.enabled:false}") boolean enabled,
                      @Value("${vlm.client.timeout-seconds:10}") long timeoutSeconds) {
         this.webClient = webClient;
         this.circuitBreaker = circuitBreakerRegistry.circuitBreaker("vlmClient");
         this.retry = retryRegistry.retry("vlmClient");
-        this.enabled = enabled;
         this.timeout = Duration.ofSeconds(Math.max(1, timeoutSeconds));
     }
 
     /**
      * 시계열 메타 분석을 외부 VLM verify 로 비동기 위탁한다 (@req R1).
      *
-     * <p>enabled=false 면 외부 호출 없이 즉시 SKIPPED 응답을 반환한다(NO-OP).
-     * enabled=true 면 Retry + CircuitBreaker + 응답 무결성 검증이 적용된 외부 호출을 수행한다.
+     * <p>Retry + CircuitBreaker + 응답 무결성 검증이 적용된 외부 호출을 수행한다.
+     * <b>미연동(연동 주소 미주입) 이어도 별도 분기를 두지 않는다</b> — 호출이 그대로 실패해 기존 실패
+     * 경로(완료 핸들러의 확정 실패 기록)로 흐른다. 조용한 SKIPPED 로 삼키면 시계열 결손이 드러나지
+     * 않는다(그 구 동작이 폐지된 이유다).
      *
      * <p>{@code event_type} 허용목록 판정은 <b>호출자(위탁 단계)</b>가 소유한다 — 본 클라이언트는
      * 전달받은 값을 그대로 실어 보낸다(판정 지점을 두 곳으로 늘리지 않는다).
@@ -97,11 +100,6 @@ public class VlmClient {
         String requestId = resolveRequestId(request.requestId());
         VlmTimeseriesRequest enriched = new VlmTimeseriesRequest(
                 requestId, request.eventType(), request.media(), request.callbackUrl());
-
-        if (!enabled) {
-            log.info("[Vlm] verify skipped (disabled) request_id={}", safeForLog(requestId));
-            return Mono.just(VlmTimeseriesResponse.skipped(requestId));
-        }
 
         log.info("[Vlm] verify submit request_id={}", safeForLog(requestId));
         return webClient.post()
@@ -185,8 +183,4 @@ public class VlmClient {
         return LOG_UNSAFE_CHARS.matcher(s).replaceAll("_");
     }
 
-    /** 토글 상태 노출 — Step 측에서 enabled 분기 시 사용. */
-    public boolean isEnabled() {
-        return enabled;
-    }
 }

@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.service;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.batch.dto.BatchStageRerunResponse;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
+import kr.co.cudo.authoring.batch.orchestrator.MetadataOnlyRerunPolicy;
 import kr.co.cudo.authoring.batch.pipeline.BatchBundleTogglePolicy;
 import kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -44,15 +45,36 @@ import java.util.Map;
  * <ol>
  *   <li>영상 미존재 → {@link ErrorCode#NOT_FOUND}(404).</li>
  *   <li>묶음 미지원 / 되돌린 묶음 아님 → {@link ErrorCode#INVALID_INPUT}(400).</li>
- *   <li><b>한번이라도 검수가 완료된 영상</b> → {@link ErrorCode#INVALID_INPUT}(400). 확정된 학습데이터는
- *       되돌리지 않는다. 판정은 신고 차단·프레임 폐기 차단과 <b>같은 단일 원천</b>
- *       ({@link ReviewApprovalGate#hasEverApproved})을 <b>주입해</b> 쓰며 규칙을 복제하지 않는다.
- *       거부 코드가 400 인 것은 승인 이력이 <b>영구 조건</b>이라 재시도 여지가 없기 때문이다.</li>
+ *   <li><b>한번이라도 검수가 완료된 영상 + 오토라벨 묶음</b> → {@link ErrorCode#INVALID_INPUT}(400).
+ *       확정된 학습데이터의 라벨은 되돌리지 않는다. 판정은 신고 차단·프레임 폐기 차단과 <b>같은 단일
+ *       원천</b>({@link ReviewApprovalGate#hasEverApproved})을 <b>주입해</b> 쓰며 규칙을 복제하지 않는다.
+ *       거부 코드가 400 인 것은 승인 이력이 <b>영구 조건</b>이라 재시도 여지가 없기 때문이다.
+ *       <b>시계열 묶음은 이 게이트를 받지 않는다</b>(아래 절).</li>
  *   <li>검수 소유 작업 상태 / 완주 상태가 아님 / 이미 다른 주체가 선점 → {@link ErrorCode#CONFLICT}(409).</li>
  *   <li>접수 용량 초과(디스패치 거부) → {@link ErrorCode#SERVICE_UNAVAILABLE}(503).</li>
  * </ol>
  * <p>승인 이력 게이트는 <b>클레임보다 먼저</b> 평가한다 — 뒤에 두면 거부되는 영상의 상태를 선점했다가
  * 되돌려야 한다.
+ *
+ * <h3>★승인 이력 거부는 오토라벨 한정이다 — 시계열은 승인 이력이 있어도 받는다 [@design API-201]</h3>
+ * <p>두 묶음이 승인 완료 영상에 미치는 영향이 다르다.
+ * <ul>
+ *   <li><b>오토라벨</b>은 라벨을 <b>다시 만든다</b> — 승인 시점 스냅샷과 어긋나므로 예외가 아니다.
+ *       이 축을 함께 열지 말 것.</li>
+ *   <li><b>시계열</b>은 확정된 라벨을 되돌리지 않고 <b>메타만 더한다</b>. 실행 범위는
+ *       {@link BatchBundleTogglePolicy} 가 되돌린 묶음의 구성원만 켜므로 프레임·라벨을 다시 만들지
+ *       않는다.</li>
+ * </ul>
+ * <p>★<b>면제는 게이트 <u>셋</u>에 함께 걸린다</b> — 승인 이력(400)만 풀면 바로 다음 줄의 검수 소유
+ * 작업 상태 검사가 {@code APPROVED} 를 <b>409 로 다시 막고</b>, 그마저 풀어도
+ * {@code BatchOrchestrator} 의 진입 가드가 <b>step 을 한 건도 돌리지 않고 SKIPPED</b> 로 끝낸다. 즉
+ * 한 겹만 열면 접수 코드만 바뀌고 동작은 그대로다. 면제 대상 판정은 {@link MetadataOnlyRerunPolicy}
+ * <b>allowlist</b> 단일 지점이며, 구 {@code bundle == AUTOLABEL} denylist 로 되돌리지 말 것 — 새 묶음이
+ * 추가되면 아무도 손대지 않았는데 자동으로 면제된다(fail-open).
+ * <p>승인 완료 영상에 시계열 서술이 들어오는 경우는 <b>하류가 이미 정확히 상정</b>하고 있다 —
+ * {@code VlmResultService} 가 승인 영상의 서술 갱신 시 검토행을 대기로 되돌리고(재검수 강제) 산출물
+ * 재생성·관제 재통지를 건다. <b>값이 같으면 아무 일도 일어나지 않는다</b>(멱등). 벤더 연동이 늦어져
+ * 건너뛴 영상이 그대로 승인되더라도 시계열을 나중에 받을 수 있어야 한다.
  *
  * <h3>왜 완주(COMPLETED) 상태에서만 선점하나 — 실패 영상은 받지 않는다</h3>
  * <p>실패 영상을 여기서 받으면 <b>완료로 잘못 마감</b>된다. 오케스트레이터는 루프를 마치면 무조건
@@ -82,8 +104,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BatchStageRerunService {
 
-    /** 승인 이력 거부 문구 — 영구 조건이므로 "다시 시도"를 권하지 않는다. */
-    static final String EVER_APPROVED_REASON = "검수가 완료된 적이 있는 영상은 작업 묶음을 다시 수행할 수 없습니다.";
+    /**
+     * 승인 이력 거부 문구 — 영구 조건이므로 "다시 시도"를 권하지 않는다.
+     *
+     * <p>거부 대상이 <b>오토라벨 묶음뿐</b>임을 드러낸다. 요청자는 자기가 어느 묶음을 지목했는지 이미
+     * 알고 있어(경로 변수) 이 문구가 영상 상태를 새로 알려주지는 않는다 — 드러나는 사실(승인 이력)은
+     * 구 문구도 이미 같았다. {@link #NOT_CLEARED_BUNDLE_REASON} 이 두 사유에 <b>같은 문구</b>를 쓰는
+     * 관례(CWE-209)와 축이 다르다: 그쪽은 「어느 묶음을 건너뛰었는지」를 감추는 장치다.
+     */
+    static final String EVER_APPROVED_REASON = "검수가 완료된 적이 있는 영상은 오토라벨 묶음을 다시 수행할 수 없습니다.";
 
     /**
      * 대상 묶음 거부 문구 — <b>미지원 묶음</b>과 <b>되돌리지 않은 묶음</b>에 같은 문구를 쓴다.
@@ -139,16 +168,25 @@ public class BatchStageRerunService {
             throw new CustomException(ErrorCode.INVALID_INPUT, NOT_CLEARED_BUNDLE_REASON);
         }
 
-        // ★ 한번이라도 검수가 완료된 영상은 받지 않는다 — 확정된 학습데이터는 되돌리지 않는다.
-        //   지금 상태가 아니라 이력으로 판정한다(APPROVED→PENDING 재제출 구간에 뚫리지 않게).
-        //   ⚠ 클레임보다 먼저 평가한다.
-        if (reviewApprovalGate.hasEverApproved(rawSn)) {
+        // ★ 한번이라도 검수가 완료된 영상은 <오토라벨을> 받지 않는다 — 라벨을 다시 만들어 승인 시점
+        //   스냅샷과 어긋나기 때문이다. 지금 상태가 아니라 이력으로 판정한다(APPROVED→PENDING 재제출
+        //   구간에 뚫리지 않게).
+        //   ★시계열은 예외다 — 확정된 라벨을 되돌리지 않고 메타만 더하며, 승인 영상의 서술 갱신은
+        //   하류(VlmResultService)가 재검수·재산출·재통지로 받는다(값이 같으면 멱등 no-op).
+        //   ⚠ 이 예외를 오토라벨로 넓히지 말 것. ⚠ 평가 위치는 클레임보다 <먼저>다 — 뒤로 옮기면
+        //   거부될 영상의 상태를 선점했다가 되돌려야 한다. [design: API-201]
+        //   ★면제 대상 판정은 allowlist(MetadataOnlyRerunPolicy) 단일 지점이다 — 구 denylist
+        //   (bundle == AUTOLABEL)는 새 묶음이 추가되면 자동으로 면제되는 fail-open 이었다.
+        boolean metadataOnly = MetadataOnlyRerunPolicy.isMetadataOnly(bundle);
+        if (!metadataOnly && reviewApprovalGate.hasEverApproved(rawSn)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, EVER_APPROVED_REASON);
         }
 
         // 검수 소유 작업 상태 사전 차단 — 실행이 비동기라 진입 가드의 SKIPPED 를 요청이 볼 수 없다.
         //   클레임 전에 걸러야 "못 돌리는 영상"이 200(접수됨)으로 가려지지 않고, 되돌릴 클레임도 안 생긴다.
-        if (transitionService.isReviewOwnedWorkStatus(rawSn)) {
+        //   ★★같은 면제가 <여기에도> 걸린다 — 승인 이력 게이트만 풀면 바로 다음 줄에서 APPROVED 가
+        //   다시 409 로 막혀 「승인 후에도 시계열을 나중에 받는다」가 성립하지 않았다(게이트 2겹).
+        if (!metadataOnly && transitionService.isReviewOwnedWorkStatus(rawSn)) {
             throw new CustomException(ErrorCode.CONFLICT, REVIEW_OWNED_REASON);
         }
 
@@ -170,7 +208,9 @@ public class BatchStageRerunService {
         // ★ 디스패치 거부는 접수 실패다 — 조용히 삼키면 사용자는 접수됐다고 믿는데 아무것도 돌지 않고,
         //   선점한 PROCESSING 이 되돌려지지 않아 그 영상은 이후 영구 409 가 된다.
         try {
-            reprocessRunner.runBundleRerunAsync(rawSn, LsDataRaw.DATA_STTS_COMPLETED, toggles);
+            // ★ 면제 여부를 실행 경로까지 나른다 — 오케스트레이터의 진입 가드가 <세 번째 겹>이라
+            //   여기까지만 열면 파이프라인이 step 을 한 건도 돌리지 않고 SKIPPED 로 끝난다.
+            reprocessRunner.runBundleRerunAsync(rawSn, LsDataRaw.DATA_STTS_COMPLETED, toggles, metadataOnly);
         } catch (TaskRejectedException e) {
             // 보상은 <b>선점 직전 상태(COMPLETED)</b> 로 되돌린다 — FAILED 로 떨어뜨리면 아무것도 실패하지
             //   않았는데 화면이 "실패"로 보이고 완주 사실이 지워진다. 여기서는 아직 파이프라인이 시작되지

@@ -190,14 +190,14 @@ kpst:
 ```yaml
 vlm:
   client:
-    enabled: true                          # env: VLM_CLIENT_ENABLED
     url: http://localhost:9400             # env: VLM_SERVICE_URL (키 이름은 base-url 아닌 url)
     token: ""                              # env: VLM_SERVICE_TOKEN (목 서버는 무인증이라 빈 값 가능)
 ```
 
 > **주의:** VLM은 KPST와 달리 설정 키가 `base-url`이 아니라 **`vlm.client.url`**이다(실제 확인값).
-> 기본값이 이미 `http://localhost:9400` / `enabled=false`이므로, `VLM_CLIENT_ENABLED=true`만 켜면
-> 목 서버로 호출이 나간다.
+> 활성/비활성 토글(`vlm.client.enabled`)은 **폐지**됐다 — 미연동 판정은 주소 주입 여부가 한다.
+> 공통 기본값은 **빈 값**이라 아무것도 주입하지 않으면 위탁이 실패하므로,
+> `VLM_SERVICE_URL=http://localhost:9400`을 주입해야 목 서버로 호출이 나간다.
 
 ### (참고) ai-server
 

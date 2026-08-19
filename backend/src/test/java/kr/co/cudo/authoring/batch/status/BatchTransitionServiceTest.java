@@ -48,6 +48,112 @@ class BatchTransitionServiceTest {
         return stts;
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ★ 「메타만 더하는 묶음」 재수행 — 검수 소유 작업 상태를 차단 사유로 보지 않는 진입. [@design API-201]
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★★게이트 3겹째 — 입구 두 겹을 열어도 여기서 막히면 파이프라인이 step 을 한 건도 돌리지 않는다.
+     */
+    @Test
+    @DisplayName("★★보존_진입은_검수소유_상태를_차단_사유로_보지_않는다")
+    void preservingEntryDoesNotBlockOnReviewOwnedStatus() {
+        // given — APPROVED 라 조건부 UPDATE 가 0행(=검수 소유 차단 신호)
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(70L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(70L)).thenReturn(Optional.of(approved));
+        when(videoRepository.findDataSttsCdByRawSn(70L))
+                .thenReturn(Optional.of(LsDataRaw.DATA_STTS_PROCESSING)); // 호출자가 클레임 보유
+
+        // when
+        boolean blocked = service.markRawDataProcessingWithHeldClaimPreservingReviewStatus(70L);
+
+        // then — 진행한다(차단 아님)
+        assertThat(blocked).isFalse();
+    }
+
+    /**
+     * ★면제는 「차단하지 않는다」이지 「전이한다」가 아니다 — APPROVED 가 보존돼야 데이터마트 뷰에서
+     * 영상이 이탈하지 않는다(「검수 완료·통지 건에 대한 관제 접근은 무조건 보장」).
+     */
+    @Test
+    @DisplayName("★보존_진입도_작업_상태를_전이시키지_않는다_APPROVED_보존")
+    void preservingEntryNeverWritesWorkStatus() {
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(71L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(71L)).thenReturn(Optional.of(approved));
+        when(videoRepository.findDataSttsCdByRawSn(71L))
+                .thenReturn(Optional.of(LsDataRaw.DATA_STTS_PROCESSING));
+
+        service.markRawDataProcessingWithHeldClaimPreservingReviewStatus(71L);
+
+        // 전이는 <조건부 UPDATE 를 통해서만> 시도되고 검수 소유라 0행이다 — 우회 저장이 없어야 한다.
+        assertThat(approved.getDataSttsCd()).isEqualTo(LsRawDataStatus.STTS_APPROVED);
+        verify(rawDataStatusRepository, never()).save(any());
+    }
+
+    /**
+     * ★★<b>기본 진입점은 그대로 막아야 한다</b> — 면제를 기본값으로 만들면 마킹 브리지·자동 재시도 잡·
+     * dev 트리거 등 모든 진입에서 승인 영상에 오토라벨이 적재된다.
+     */
+    @Test
+    @DisplayName("★★기본_진입점은_여전히_검수소유_상태를_차단한다_회귀차단")
+    void defaultEntryStillBlocksReviewOwnedStatus() {
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(72L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(72L)).thenReturn(Optional.of(approved));
+
+        assertThat(service.markRawDataProcessingBlocked(72L)).isTrue();
+        assertThat(service.markRawDataProcessingBlockedWithHeldClaim(72L)).isTrue();
+    }
+
+    /**
+     * ★★진입만 열고 마감을 그대로 두면 결과가 <b>거부(409)보다 나쁘다</b>.
+     *
+     * <p>일반 마감({@code markRawDataCompleted})은 작업 상태 전이가 차단되면 {@code LS_DATA_RAW} 도
+     * 건드리지 않고 반환하므로, 완주해도 배치 단계가 {@code PROCESSING} 에 남아 이후 모든 배치 진입이
+     * 클레임에 막힌다(영구 409). 회수 스윕도 진행 행이 종결로 갱신돼 회수를 포기한다.
+     */
+    @Test
+    @DisplayName("★★보존_마감은_작업상태를_보존하면서도_배치단계를_COMPLETED로_반드시_마감한다")
+    void preservingCompletionStillClosesStageClaim() {
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(73L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(73L)).thenReturn(Optional.of(approved));
+        LsDataRaw raw = LsDataRaw.createFromIngest("clip-73", "cctv-1", "EVT", "GOV",
+                LsDataRaw.PRVC_TYPE_PRVC, "raw/path.mp4", null, 60);
+        when(videoRepository.findById(73L)).thenReturn(Optional.of(raw));
+
+        service.markRawDataCompletedPreservingReviewStatus(73L);
+
+        assertThat(raw.getDataSttsCd())
+                .as("배치 단계를 마감하지 않으면 그 영상은 이후 모든 배치 진입에서 영구 409 가 된다")
+                .isEqualTo(LsDataRaw.DATA_STTS_COMPLETED);
+        assertThat(approved.getDataSttsCd())
+                .as("작업 상태는 보존돼야 한다 — 데이터마트 뷰에서 이탈하면 안 된다")
+                .isEqualTo(LsRawDataStatus.STTS_APPROVED);
+    }
+
+    /**
+     * 대조군 — 일반 마감은 종전 동작(두 테이블을 함께 멈춘다)을 그대로 유지해야 한다.
+     */
+    @Test
+    @DisplayName("일반_마감은_종전대로_검수소유_상태에서_배치단계도_건드리지_않는다")
+    void normalCompletionKeepsLegacyBehaviour() {
+        when(rawDataStatusRepository.transitionByBatchIfNotBlocked(any(), any(), any())).thenReturn(0);
+        LsRawDataStatus approved = LsRawDataStatus.initial(74L);
+        approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
+        when(rawDataStatusRepository.findById(74L)).thenReturn(Optional.of(approved));
+
+        service.markRawDataCompleted(74L);
+
+        verify(videoRepository, never()).findById(74L);
+    }
+
     @Test
     @DisplayName("markRawDataProcessingBlocked_검수소유상태_제외_조건부UPDATE로_PROCESSING_전이")
     void markRawDataProcessing_PROCESSING_영속() {

@@ -139,8 +139,13 @@ public class BatchStageSkipService {
      * <p>⚠ 정제기의 상한 인자를 그대로 쓰지 않는다 — 상한에 <b>도달</b>하면 {@code "...(truncated)"} 를
      * 덧붙이므로, 정확히 상한 길이인 정상 입력에도 그 꼬리가 붙는다. 제어문자 제거만 넉넉한 예산으로
      * 맡기고 길이는 여기서 자른다.
+     *
+     * <p><b>package-private 인 이유</b>: 일괄 스킵({@link BatchStageBulkService})이 <b>루프에 들어가기
+     * 전에</b> 같은 판정을 1회 수행한다. 사유는 요청당 하나라 건별로 갈릴 수 없는데, 건별 실패로
+     * 삼켜지면 <b>단건은 400 인 입력이 일괄에서는 200 + 전건 실패</b>가 되기 때문이다. 정제 규칙을
+     * 복제하면 두 축이 조용히 갈리므로 이 메서드를 <b>재사용</b>한다.
      */
-    private static String sanitizeReason(String reason) {
+    static String sanitizeReason(String reason) {
         String sanitized = LogSanitizer
                 .sanitize(reason, ManualStageSkip.REASON_MAX_LENGTH * 2)
                 .trim();

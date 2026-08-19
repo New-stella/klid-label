@@ -25,6 +25,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 class BatchSkipRecordIT {
 
+    /** 감사 행에 실릴 사유 — 호출자가 정하는 값이라 여기서는 판정용 고정 문자열을 쓴다. */
+    private static final String SKIP_REASON = "단계 미수행 사유";
+
     @Autowired private BatchStatusService statusService;
     @Autowired private LsBatchProcLogRepository repository;
     @Autowired private JdbcTemplate jdbcTemplate;
@@ -54,7 +57,8 @@ class BatchSkipRecordIT {
 
         // given — VLM 단계 진입(진행 행 생성) 후 비활성으로 skip 기록
         statusService.markStage(rawSn, BatchStage.VLM);
-        statusService.recordVlmSkipped(rawSn, "VLM 비활성(vlm.client.enabled=false)");
+        // 사유는 호출자가 정하는 값이다 — 폐지된 설정 키를 박지 않는다(오해 방지).
+        statusService.recordVlmSkipped(rawSn, SKIP_REASON);
 
         // when — 파이프라인이 다음 단계로 전진
         statusService.markStage(rawSn, BatchStage.FRAME_EXTRACT);
@@ -66,7 +70,7 @@ class BatchSkipRecordIT {
                 .anySatisfy(l -> {
                     assertThat(l.getStageCd()).isEqualTo(BatchStage.VLM.name());
                     assertThat(l.getProcSttsCd()).isEqualTo("SKIPPED");
-                    assertThat(l.getErrMsg()).contains("vlm.client.enabled");
+                    assertThat(l.getErrMsg()).isEqualTo(SKIP_REASON);
                 });
         assertThat(statusService.currentStage(rawSn))
                 .as("진행 상태 조회는 감사행을 건너뛰고 최신 진행 단계를 봐야 한다")
