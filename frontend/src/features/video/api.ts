@@ -133,7 +133,7 @@ export function getVideo(id: number) {
         batchFailureReason: d.batchFailureReason?.trim() ? d.batchFailureReason : null,
         // [@design API-043] 건너뛴 작업 묶음 — 화이트리스트 교집합만 남긴다.
         //   미지의 코드(신 BE 가 대상을 넓힌 경우)를 그대로 두면 ① 화면에 기술 코드가 그대로
-        //   새고 ② 되돌리기 요청이 그 값을 경로 세그먼트로 쓰게 된다(CWE-22).
+        //   새고 ② 건너뛰기 해제 요청이 그 값을 경로 세그먼트로 쓰게 된다(CWE-22).
         //   ⚠ 구 값 `YOLO`·`SAM2` 도 여기서 걸러진다 — 값 공간이 묶음(`AUTOLABEL`)으로 바뀌었고,
         //     개별 단계를 그대로 통과시키면 그 코드가 다시 경로 세그먼트가 된다(서버가 400 으로 막는다).
         skippedStages: (d.skippedStages ?? []).filter(isStageBundle),
@@ -266,24 +266,24 @@ export function unskipBatchStage(rawSn: number, bundle: StageBundle): Promise<vo
 }
 
 /**
- * 되돌린 작업 묶음 재수행 — BE: POST /api/v1/videos/{rawSn}/batch/stages/{stage}/rerun (REVIEWER).
+ * 건너뛰기를 해제한 작업 묶음 재수행 — BE: POST /api/v1/videos/{rawSn}/batch/stages/{stage}/rerun (REVIEWER).
  * [@design API-201]
  *
  * <p>「문제가 생긴 곳부터 재시도한다」 — 전체 재기동(API-167)과 <b>분리된 요청</b>이다. 완주 영상에
  * 전체 재기동을 쓰면 파이프라인이 통째로 돌아 트랙 보간이 함께 수행되고, 사람이 손댄 보간 라벨이
- * 전량 지워진다(복구 지점 없음). 그래서 되돌린 그 묶음만 지목한다.
+ * 전량 지워진다(복구 지점 없음). 그래서 해제한 그 묶음만 지목한다.
  *
  * <p>★<b>범위를 고르지 않는다 — 묶음이 곧 범위다.</b> 구 요청 본문 `scope`(ONLY/FROM)는 **폐지**됐다.
  * 되살리면 보간을 뺀 부분 수행이 다시 가능해져 산출물끼리 어긋난다(그 갈래가 폐지된 이유다).
  * 대신 오토라벨 묶음은 보간까지 다시 만들므로, <b>고르는 시점에</b> 호출부가 그 사실을 알린다.
  *
- * <p>★ 대상을 요청이 자유롭게 지정하지 못한다 — 서버는 <b>그 영상에서 실제로 되돌린 묶음만</b>
+ * <p>★ 대상을 요청이 자유롭게 지정하지 못한다 — 서버는 <b>그 영상에서 실제로 건너뛰기를 해제한 묶음만</b>
  * 수락하고 그 외에는 400 이다(임의 지정을 허용하면 앞 작업을 건너뛴 산출물이 전제 없이 만들어진다).
  *
  * <p>200 은 <b>접수</b>다 — 상태 선점까지만 요청 안에서 처리하고 파이프라인은 뒤에서 이어 돈다.
  *
  * 보안: 화이트리스트 검증은 {@link skipBatchStage} 와 **같은 판정기**({@link assertStageBundle})를
- * 쓴다(CWE-22 — 복제하면 한쪽만 갱신되어 갈린다). 권한(REVIEWER)·되돌린 묶음 여부·선점 충돌은
+ * 쓴다(CWE-22 — 복제하면 한쪽만 갱신되어 갈린다). 권한(REVIEWER)·건너뛰기를 해제한 묶음 여부·선점 충돌은
  * BE 가 403/400/409 로 강제한다.
  */
 export function rerunBatchStage(rawSn: number, bundle: StageBundle) {

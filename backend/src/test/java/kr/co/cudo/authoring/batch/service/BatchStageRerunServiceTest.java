@@ -33,11 +33,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 되돌린 작업 묶음의 지목 재수행 <b>접수</b> 서비스 단위 테스트. [@design API-201]
+ * 건너뛰기를 해제한 작업 묶음의 지목 재수행 <b>접수</b> 서비스 단위 테스트. [@design API-201]
  *
  * <p>핵심 수용 기준 셋:
  * <ol>
- *   <li><b>되돌린 묶음만 수락한다</b> — 요청이 임의 묶음을 지정할 수 있으면 앞 작업을 건너뛰도록
+ *   <li><b>건너뛰기를 해제한 묶음만 수락한다</b> — 요청이 임의 묶음을 지정할 수 있으면 앞 작업을 건너뛰도록
  *       강제해 전제 없는 산출물이 만들어진다.</li>
  *   <li><b>범위를 고르지 않는다</b> — 묶음이 곧 범위다(구 {@code scope} 요청 폐기).</li>
  *   <li><b>완주 축에서만 선점한다</b> — 실패 영상을 여기서 받으면 오케스트레이터가 루프 종료 후 무조건
@@ -66,7 +66,7 @@ class BatchStageRerunServiceTest {
                 reviewApprovalGate, togglePolicy, reprocessRunner);
     }
 
-    /** 정상 접수가 되는 최소 조건 — 영상 존재 + 그 묶음을 되돌림 + 완주 축 선점 성공. */
+    /** 정상 접수가 되는 최소 조건 — 영상 존재 + 그 묶음의 건너뛰기 해제 + 완주 축 선점 성공. */
     private void givenAcceptable(long rawSn, BatchStageBundle bundle) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         when(batchStatusService.hasClearedManualSkip(rawSn, bundle)).thenReturn(true);
@@ -74,7 +74,7 @@ class BatchStageRerunServiceTest {
     }
 
     @Test
-    @DisplayName("★되돌린_묶음을_재수행하면_그_묶음만_켜진_토글로_접수된다")
+    @DisplayName("★해제된_묶음을_재수행하면_그_묶음만_켜진_토글로_접수된다")
     void acceptsClearedBundle() {
         long rawSn = 1L;
         givenAcceptable(rawSn, BatchStageBundle.AUTOLABEL);
@@ -173,7 +173,7 @@ class BatchStageRerunServiceTest {
     }
 
     @Test
-    @DisplayName("★되돌린_묶음이_아니면_400이고_상태를_선점하지_않는다")
+    @DisplayName("★해제된_묶음이_아니면_400이고_상태를_선점하지_않는다")
     void rejectsBundleThatWasNotCleared() {
         // 요청이 대상 묶음을 자유롭게 고르지 못하게 하는 장치다 — 느슨해지면 앞 작업을 건너뛴 채
         //   뒤 작업만 돌아 전제 없는 산출물이 만들어진다.
@@ -212,7 +212,7 @@ class BatchStageRerunServiceTest {
     }
 
     @Test
-    @DisplayName("거부_메시지는_미지원_묶음과_되돌리지_않은_묶음을_구분해_알려주지_않는다")
+    @DisplayName("거부_메시지는_미지원_묶음과_해제하지_않은_묶음을_구분해_알려주지_않는다")
     void rejectionMessageIsNotAnOracle() {
         long rawSn = 5L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
@@ -388,13 +388,13 @@ class BatchStageRerunServiceTest {
     }
 
     /**
-     * ★평가 순서 회귀 가드 — 되돌린 묶음 판정(4번)이 승인 이력 판정(5번)보다 <b>먼저</b>다.
+     * ★평가 순서 회귀 가드 — 건너뛰기를 해제한 묶음 판정(4번)이 승인 이력 판정(5번)보다 <b>먼저</b>다.
      *
-     * <p>순서가 뒤집히면 되돌리지도 않은 묶음에 대해 응답이 「이 영상은 승인된 적이 있다」를 먼저
+     * <p>순서가 뒤집히면 해제하지도 않은 묶음에 대해 응답이 「이 영상은 승인된 적이 있다」를 먼저
      * 알려주게 되고, 묶음 판정이 감추려던 정보 축과 섞인다(CWE-209).
      */
     @Test
-    @DisplayName("★승인_이력이_있어도_되돌린_묶음이_아니면_묶음_사유로_먼저_400이_난다")
+    @DisplayName("★승인_이력이_있어도_해제된_묶음이_아니면_묶음_사유로_먼저_400이_난다")
     void clearedBundleGateIsEvaluatedBeforeApprovalGate() {
         long rawSn = 63L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);

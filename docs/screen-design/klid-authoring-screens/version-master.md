@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-19T18:50:22.773Z (session 20) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 468 |
+| Last sync | 2026-08-19T23:55:47.780Z (session 22) |
+| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 465 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
@@ -19,7 +19,7 @@
 | [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 7 | true | UNCHANGED |
 | [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 7 | true | UNCHANGED |
 | [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | UNCHANGED |
-| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 5 | false | UNCHANGED |
+| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 6 | true | UNCHANGED |
 | [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 11 | false | UNCHANGED |
 | [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 15 | false | UNCHANGED |
 | [[AC-010]] | acceptance | 증강 영상 활용 여부 검수 | 7 | false | UNCHANGED |
@@ -57,7 +57,7 @@
 | [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | UNCHANGED |
 | [[API-006]] | api_endpoint | GET /v1/me | 9 | false | UNCHANGED |
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 7 | false | UNCHANGED |
-| [[API-008]] | api_endpoint | GET /v1/reviews | 11 | false | UNCHANGED |
+| [[API-008]] | api_endpoint | GET /v1/reviews | 12 | false | UNCHANGED |
 | [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 8 | false | UNCHANGED |
 | [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
 | [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
@@ -229,13 +229,13 @@
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 5 | false | UNCHANGED |
 | [[API-199]] | api_endpoint | POST /v1/videos/batch/retry | 2 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 3 | false | UNCHANGED |
-| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 5 | false | UNCHANGED |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 6 | false | UNCHANGED |
 | [[API-202]] | api_endpoint | GET /v1/deident-reports/{rprtSn}/deident-candidates | 2 | false | UNCHANGED |
 | [[API-203]] | api_endpoint | 포털 사용자 작업 데이터 ZIP 다운로드 | 3 | false | UNCHANGED |
 | [[API-204]] | api_endpoint | POST /v1/ai-requests/{requestId}/cancel | 1 | false | UNCHANGED |
-| [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 2 | false | UNCHANGED |
-| [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 2 | false | UNCHANGED |
-| [[API-214]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/rerun | 1 | false | UNCHANGED |
+| [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 3 | false | UNCHANGED |
+| [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
+| [[API-214]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/rerun | 2 | false | UNCHANGED |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
@@ -250,12 +250,12 @@
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 96 | false | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 마킹 화면 | 43 | false | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 36 | false | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 48 | false | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 38 | false | CHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 50 | false | CHANGED |
 | [[SCREEN-010]] | screen_spec | 로드 버전 선택 | 37 | true | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 대시보드 화면 | 21 | false | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 46 | false | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 26 | true | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 28 | true | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 36 | true | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 작업자 통계 화면 | 32 | false | UNCHANGED |
 | [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 28 | false | UNCHANGED |
@@ -279,7 +279,7 @@
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 14 | true | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
-| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | true | UNCHANGED |
+| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 15 | true | CHANGED |
 | [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | true | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | true | UNCHANGED |
 | [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 6 | true | UNCHANGED |
@@ -288,7 +288,7 @@
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 10 | true | UNCHANGED |
 | [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | UNCHANGED |
 | [[SD-012]] | screen_design | SCREEN-006 마킹 화면 | 8 | false | UNCHANGED |
-| [[SD-013]] | screen_design | SCREEN-008 영상 처리 현황 화면 | 3 | true | UNCHANGED |
+| [[SD-013]] | screen_design | SCREEN-008 영상 처리 현황 화면 | 5 | true | CHANGED |
 | [[SD-014]] | screen_design | SCREEN-011 대시보드 화면 | 5 | false | UNCHANGED |
 | [[SD-015]] | screen_design | SCREEN-025 시스템 설정 화면 | 4 | true | UNCHANGED |
 | [[SD-016]] | screen_design | 공통 — 전역 레이아웃(헤더·좌측 주 메뉴) | 4 | false | UNCHANGED |
@@ -309,7 +309,7 @@
 | [[SD-031]] | screen_design | SCREEN-021 전체 구축 현황 화면 | 2 | false | UNCHANGED |
 | [[SD-032]] | screen_design | SCREEN-010 로드 버전 선택 | 2 | true | UNCHANGED |
 | [[SD-033]] | screen_design | SCREEN-027 영상 업로드 | 9 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | CHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[SHELL-002]] | app_shell | 포털 채널 셸 | 5 | false | UNCHANGED |
 | [[UC-001]] | use_case | 증강 영상 생성 요청 | 12 | true | UNCHANGED |
 | [[UC-002]] | use_case | 증강 결과 수신·등록 | 13 | true | UNCHANGED |
@@ -317,7 +317,7 @@
 | [[UC-004]] | use_case | 객체 자동 추적 | 15 | true | UNCHANGED |
 | [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 10 | true | UNCHANGED |
 | [[UC-006]] | use_case | 라벨링 정밀도 조절 | 9 | true | UNCHANGED |
-| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 12 | true | UNCHANGED |
+| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 13 | false | UNCHANGED |
 | [[UC-008]] | use_case | 버전 비교·복구 | 13 | true | UNCHANGED |
 | [[UC-009]] | use_case | 검수 완료·수정 통지 | 19 | true | UNCHANGED |
 | [[UC-010]] | use_case | 증강 영상 활용 여부 검수 | 13 | false | UNCHANGED |

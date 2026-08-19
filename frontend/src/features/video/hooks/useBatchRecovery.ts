@@ -1,4 +1,4 @@
-// 배치 실패 관리 뮤테이션 훅 — 재실행 / 단계 스킵 / 스킵 해제 / 되돌린 단계 재수행 / 일괄 재시작.
+// 배치 실패 관리 뮤테이션 훅 — 재실행 / 단계 스킵 / 스킵 해제 / 건너뛰기를 해제한 단계 재수행 / 일괄 재시작.
 // [@design API-167] [@design API-198] [@design API-199] [@design API-200] [@design API-201]
 //
 // ★ 재기동(단건·일괄) 응답은 **접수 결과**다 — 파이프라인이 끝났다는 뜻이 아니다.
@@ -78,7 +78,7 @@ export function useSkipBatchStage(
 }
 
 /**
- * 되돌린 작업 묶음 **재수행 접수** (POST /videos/{rawSn}/batch/stages/{stage}/rerun).
+ * 건너뛰기를 해제한 작업 묶음 **재수행 접수** (POST /videos/{rawSn}/batch/stages/{stage}/rerun).
  * [@design API-201]
  *
  * 전체 재기동(`useRetryBatch`)과 **다른 요청**이다 — 그쪽은 파이프라인을 통째로 순회해 보간까지
@@ -110,7 +110,7 @@ export function useRerunBatchStage(
  * 작업 묶음 스킵 해제 (DELETE …/skip) — 204 라 반환값이 없다.
  *
  * ★ `onSuccess` 가 **어느 묶음이었는지**를 받는다(응답 본문이 없어 그것 말고는 알 길이 없다).
- * 되돌린 묶음은 재수행 버튼(API-201)의 노출 근거인데, 서버 응답에 「되돌린 묶음」 목록이 없어
+ * 건너뛰기를 해제한 묶음은 재수행 버튼(API-201)의 노출 근거인데, 서버 응답에 「건너뛰기를 해제한 묶음」 목록이 없어
  * 호출부가 이 신호로 직접 기억해야 하기 때문이다.
  */
 export function useUnskipBatchStage(

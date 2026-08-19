@@ -13,16 +13,16 @@
 //
 // 표시 규칙(사양):
 //   - 노출 조건은 **실패했거나 건너뛴 묶음이 하나라도 있으면**이다. 실패했을 때만 노출하면 건너뛴 뒤
-//     재기동이 성공한 영상에서 이 영역이 통째로 사라져 되돌릴 창구가 없어지고, 그 묶음은 이후 모든
+//     재기동이 성공한 영상에서 이 영역이 통째로 사라져 해제할 창구가 없어지고, 그 묶음은 이후 모든
 //     재기동에서 조용히 건너뛰어진 채 화면에는 완료로 보인다(막는 조작에는 되돌리는 길을 함께 둔다).
 //   - 사유는 서버가 사용자 문구로 변환해 내려준 값을 **그대로** 보여준다. 화면이 재해석하지 않는다.
 //   - 단계를 특정할 수 없는 실패(= stages 가 빈 배열)도 사유만은 보여주고, 단계 자리에는 확인
 //     불가임을 알린다. dev 실측에서 실패 영상 3건 중 1건이 이 경우였다 — 이 분기가 빠지면 그
 //     영상에서는 화면이 아무것도 보여주지 못한다.
-//   - 건너뛰기/되돌리기는 두 묶음에서만 노출한다(비식별·마킹·프레임추출은 어느 묶음에도 없다).
+//   - 건너뛰기/건너뛰기 해제는 두 묶음에서만 노출한다(비식별·마킹·프레임추출은 어느 묶음에도 없다).
 //   - **건너뛰기 버튼은 그 묶음의 단계가 실패했을 때만** 노출한다(사양이 "실패 시 건너뛴다"이므로
-//     넓히지 않는다). 반대로 **되돌리기는 실패 여부와 무관**하게 건너뛴 묶음 전부에 노출한다.
-//   - **되돌린 묶음에는 재수행 버튼을 하나** 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다).
+//     넓히지 않는다). 반대로 **건너뛰기 해제는 실패 여부와 무관**하게 건너뛴 묶음 전부에 노출한다.
+//   - **건너뛰기를 해제한 묶음에는 재수행 버튼을 하나** 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다).
 //     전체 재기동을 완주 영상에 쓰면 파이프라인이 통째로 돌아 사람이 손댄 보간 라벨이 전량 지워진다
 //     — 그래서 **문제가 생긴 곳부터** 재시도한다.
 //   - 파생영상에는 조작을 노출하지 않는다 — 파생은 배치 파이프라인을 타지 않아 재실행으로
@@ -84,7 +84,7 @@ export function hasBatchFailure(video: Pick<VideoDetail, 'batchFailureReason' | 
  *
  * ★ 실패 여부만 보면 안 된다. 스킵 표식은 영구라 ①단계를 건너뛰고 ②재기동이 성공하면 ③실패가
  * 사라져 패널이 통째로 없어지고 ④그 단계는 이후 모든 재기동에서 조용히 건너뛰어지는데 화면에는
- * 완료로 보인다. 되돌릴 진입점이 어디에도 남지 않는다.
+ * 완료로 보인다. 해제할 진입점이 어디에도 남지 않는다.
  */
 export function needsBatchAttention(video: BatchAttentionFields): boolean {
   return hasBatchFailure(video) || (video.skippedStages ?? []).length > 0;
@@ -118,7 +118,7 @@ type BatchPanelFields = BatchAttentionFields & Pick<VideoDetail, 'status'>;
  *
  * ⚠ 처리 중이 실패를 <b>가리는 것</b>과 <b>지우는 것</b>은 다르다 — `hasBatchFailure` 는 그대로
  * 유지되며 실패 기록은 「직전 실패」로 계속 보인다(`lastFailure` 도 같은 어휘를 쓴다). 마찬가지로
- * 스킵 목록·되돌리기는 모드와 무관하게 항상 렌더된다(스킵 축이 다른 축에 먹히면 되돌릴 창구가
+ * 스킵 목록·건너뛰기 해제는 모드와 무관하게 항상 렌더된다(스킵 축이 다른 축에 먹히면 해제할 창구가
  * 또 사라진다 — 이미 한 번 난 결함).
  */
 export function batchPanelMode(video: BatchPanelFields): BatchPanelMode {
@@ -168,16 +168,16 @@ const rerunWarningId = (bundle: StageBundle) => `batch-rerun-warning-${bundle}`;
 const rerunBusyHintId = (bundle: StageBundle) => `batch-rerun-busy-hint-${bundle}`;
 
 /**
- * 이 화면 세션에서 **되돌린** 작업 묶음 — 재수행 버튼 노출의 근거. [@design API-201]
+ * 이 화면 세션에서 **건너뛰기를 해제한** 작업 묶음 — 재수행 버튼 노출의 근거. [@design API-201]
  *
  * ★ 서버 응답에는 이 목록이 없다. `skippedStages`(API-043)는 <b>지금 건너뛴 상태</b>인 묶음만
- * 담으므로, 되돌리는 순간 그 묶음은 목록에서 빠지고 "되돌렸다"는 사실은 어디에도 남지 않는다.
- * 서버에 되돌림 이력 자체는 있으나(스킵 해제 시 표식 행을 남긴다) 응답 계약에 노출되지 않으며,
- * 없는 필드를 추정해 만들지 않는다 — 그래서 <b>되돌리기가 성공한 직후의 로컬 상태</b>를 근거로 쓴다.
+ * 담으므로, 해제하는 순간 그 묶음은 목록에서 빠지고 "해제했다"는 사실은 어디에도 남지 않는다.
+ * 서버에 해제 이력 자체는 있으나(스킵 해제 시 표식 행을 남긴다) 응답 계약에 노출되지 않으며,
+ * 없는 필드를 추정해 만들지 않는다 — 그래서 <b>건너뛰기 해제가 성공한 직후의 로컬 상태</b>를 근거로 쓴다.
  *
  * ⚠ 이 근거의 한계(의도적으로 감수): 새로고침·다른 화면 경유 후 재진입하면 이 상태가 사라져
- * 재수행 버튼이 보이지 않는다. 그때는 다시 건너뛰었다가 되돌리는 우회밖에 없다. 화면을 떠나도
- * 남게 하려면 응답이 되돌린 묶음을 내려줘야 하며 그것은 서버 계약 변경이다.
+ * 재수행 버튼이 보이지 않는다. 그때는 다시 건너뛰었다가 해제하는 우회밖에 없다. 화면을 떠나도
+ * 남게 하려면 응답이 건너뛰기를 해제한 묶음을 내려줘야 하며 그것은 서버 계약 변경이다.
  *
  * `rawSn` 을 함께 들고 다니는 이유는 <b>다른 영상으로 이동해도 컴포넌트가 재마운트되지 않을 수</b>
  * 있기 때문이다 — 영상이 바뀌면 이 상태는 통째로 무효다.
@@ -235,8 +235,8 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
         message: `${bundleLabel(data.stage)} 작업을 건너뛰도록 기록했습니다.`,
       });
       setSkipTarget(null);
-      // 다시 건너뛴 묶음은 더 이상 "되돌린 묶음"이 아니다 — 재수행 버튼을 남기면 서버가 400 으로
-      // 막는 버튼이 화면에 남는다(대상은 실제로 되돌린 묶음뿐이다).
+      // 다시 건너뛴 묶음은 더 이상 "건너뛰기를 해제한 묶음"이 아니다 — 재수행 버튼을 남기면 서버가 400 으로
+      // 막는 버튼이 화면에 남는다(대상은 실제로 건너뛰기를 해제한 묶음뿐이다).
       setReverted((prev) => ({
         rawSn: video.id,
         bundles: prev.rawSn === video.id ? prev.bundles.filter((b) => b !== data.stage) : [],
@@ -255,10 +255,10 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
     onSuccess: (bundle) => {
       pushToast({
         variant: 'success',
-        message: '건너뛰기를 되돌렸습니다. 이 작업을 다시 수행하려면 아래 재수행을 사용하세요.',
+        message: '건너뛰기를 해제했습니다. 이 작업을 다시 수행하려면 아래 재수행을 사용하세요.',
       });
-      // ★ 여기가 「되돌린 묶음」을 아는 유일한 지점이다(위 RevertedBundles 주석) — 서버 응답에는
-      //   되돌림 목록이 없고, `skippedStages` 는 이 성공과 동시에 그 묶음을 빼 버린다.
+      // ★ 여기가 「건너뛰기를 해제한 묶음」을 아는 유일한 지점이다(위 RevertedBundles 주석) — 서버 응답에는
+      //   해제 목록이 없고, `skippedStages` 는 이 성공과 동시에 그 묶음을 빼 버린다.
       setReverted((prev) => ({
         rawSn: video.id,
         bundles:
@@ -272,7 +272,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
     onError: (err) =>
       pushToast({
         variant: 'error',
-        message: errorMessageOf(err, '건너뛰기를 되돌리지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+        message: errorMessageOf(err, '건너뛰기를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
       }),
   });
 
@@ -295,12 +295,12 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   });
 
   const skipped = video.skippedStages ?? [];
-  // 되돌린 묶음 — 다른 영상의 잔재는 버리고, 그 사이 다시 건너뛴 묶음도 제외한다(서버가 진실원인
+  // 건너뛰기를 해제한 묶음 — 다른 영상의 잔재는 버리고, 그 사이 다시 건너뛴 묶음도 제외한다(서버가 진실원인
   // 축을 로컬 기억이 이기지 않게 한다).
   const revertedBundles =
     reverted.rawSn === video.id ? reverted.bundles.filter((b) => !skipped.includes(b)) : [];
 
-  // ★ 되돌린 직후에는 실패도 스킵도 없을 수 있다(건너뛴 채 완주한 영상을 되돌린 경우). 그때 패널이
+  // ★ 해제한 직후에는 실패도 스킵도 없을 수 있다(건너뛴 채 완주한 영상을 해제한 경우). 그때 패널이
   //   사라지면 방금 만든 재수행 창구가 같이 사라진다.
   if (!needsBatchAttention(video) && revertedBundles.length === 0) return null;
 
@@ -318,7 +318,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   //   ⚠ 처리 중은 그 실패 상태를 **방금 선점한 같은 흐름**이라 버튼을 지우지 않고 남긴다(비활성 +
   //     사유 문구). 여기서 지우면 접수 직후 버튼이 사라졌다가 다시 나타나 사용자가 무엇이 일어났는지
   //     알 수 없다. 반대로 완주(COMPLETED)한 영상에는 두지 않는다 — 서버가 반드시 막는다.
-  //   ⚠ 실패 기록 자체가 없으면(되돌리기만 한 영상 등) 예전처럼 두지 않는다 — 조건을 넓히지 않는다.
+  //   ⚠ 실패 기록 자체가 없으면(건너뛰기 해제만 한 영상 등) 예전처럼 두지 않는다 — 조건을 넓히지 않는다.
   const canShowRetry = failed && (currentlyFailed || processing);
   const failedStage = stages.find((s) => s.status === 'FAIL') ?? null;
   // 실패한 **단계**가 속한 **묶음** — 진행 축(단계)과 조작 축(묶음)을 잇는 유일한 해석 지점이다.
@@ -327,7 +327,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   const isDerivative = video.derivative === true;
   const busy = retry.isPending || skip.isPending || unskip.isPending || rerun.isPending;
 
-  // 조작 행을 그릴 묶음 — 건너뛸 수 있거나(그 묶음의 단계가 실패) 이미 건너뛴 묶음 또는 되돌린 묶음.
+  // 조작 행을 그릴 묶음 — 건너뛸 수 있거나(그 묶음의 단계가 실패) 이미 건너뛴 묶음 또는 건너뛰기를 해제한 묶음.
   const actionableBundles = STAGE_BUNDLES.filter(
     (bundle) =>
       skipped.includes(bundle) || revertedBundles.includes(bundle) || failedBundle === bundle,
@@ -387,7 +387,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       {/* 건너뛴 묶음이 남아 있다는 사실은 여기서만 드러난다 — 표시기는 그 단계들을 완료로 그린다. */}
       {skipped.length > 0 && (
         <p className="mt-2 text-body-md text-gray-700" data-testid="batch-skipped-note">
-          아래 작업은 건너뛰도록 기록되어 있어 배치를 다시 실행해도 수행하지 않습니다. 되돌리면 이후
+          아래 작업은 건너뛰도록 기록되어 있어 배치를 다시 실행해도 수행하지 않습니다. 해제하면 이후
           실행에서 다시 수행합니다.
         </p>
       )}
@@ -462,20 +462,20 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                             size="sm"
                             disabled={busy}
                             onClick={() => unskip.mutate(bundle)}
-                            aria-label={`${label} 작업 건너뛰기 되돌리기`}
+                            aria-label={`${label} 작업 건너뛰기 해제`}
                           >
-                            되돌리기
+                            건너뛰기 해제
                           </Button>
                         </>
                       )}
 
-                      {/* 되돌린 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다. */}
+                      {/* 건너뛰기를 해제한 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다. */}
                       {isReverted && (
                         <span
                           className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
                           data-testid={`batch-stage-reverted-${bundle}`}
                         >
-                          되돌림
+                          해제됨
                         </span>
                       )}
 

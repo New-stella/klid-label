@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
  * <ol>
  *   <li><b>부분 성공</b> — 한 건의 거부·예외가 다른 건을 막지 않고, 한 건도 성공 못 해도 예외를 던지지
  *       않으며(200), 실패 사유에 내부 정보가 실리지 않는다.</li>
- *   <li><b>판정 위임</b> — 스킵 가능 여부·되돌린 묶음 여부·승인 이력 등 모든 판정은 단건 서비스가 한다.
+ *   <li><b>판정 위임</b> — 스킵 가능 여부·건너뛰기를 해제한 묶음 여부·승인 이력 등 모든 판정은 단건 서비스가 한다.
  *       여기서 복제하면 두 경로가 갈린다.</li>
  *   <li><b>대상 묶음은 VLM 하나</b> — 오토라벨 일괄은 400.</li>
  * </ol>
@@ -113,7 +113,7 @@ class BatchStageBulkServiceTest {
     void allFailStillReturns() {
         when(rerunService.rerun(anyLong(), anyString()))
                 .thenThrow(new CustomException(ErrorCode.INVALID_INPUT,
-                        "되돌린 작업 묶음이 아니거나 지원하지 않는 값입니다."));
+                        "건너뛰기를 해제한 작업 묶음이 아니거나 지원하지 않는 값입니다."));
 
         BatchStageBulkResponse response = service.rerunAll(VLM, req(1L, 2L));
 
@@ -203,7 +203,7 @@ class BatchStageBulkServiceTest {
     }
 
     @Test
-    @DisplayName("★재수행은_단건_서비스에_위임한다_되돌린묶음_승인이력_판정을_복제하지_않는다")
+    @DisplayName("★재수행은_단건_서비스에_위임한다_해제된묶음_승인이력_판정을_복제하지_않는다")
     void rerunDelegatesToSingleService() {
         service.rerunAll(VLM, req(9L));
 

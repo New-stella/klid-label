@@ -161,7 +161,7 @@ export function isBatchFailed(video: Pick<Video, 'status'>): boolean {
 }
 
 /**
- * 건너뛰기·되돌리기·재수행의 **단위** — 개별 단계가 아니라 **작업 묶음**이다.
+ * 건너뛰기·해제·재수행의 **단위** — 개별 단계가 아니라 **작업 묶음**이다.
  * [@design API-198] [@design API-200] [@design API-201] [@design API-043]
  *
  * ★ 왜 묶음인가 — 뒤 단계가 앞 결과를 입력으로 받고 <b>보간이 그 산출물을 재계산</b>하므로 일부만
@@ -236,7 +236,7 @@ export interface BatchRetryResult {
 }
 
 /**
- * 되돌린 작업 묶음 재수행 **접수** 결과 — BE `POST …/batch/stages/{stage}/rerun` 응답.
+ * 건너뛰기를 해제한 작업 묶음 재수행 **접수** 결과 — BE `POST …/batch/stages/{stage}/rerun` 응답.
  * [@design API-201]
  *
  * ★ `accepted` 는 <b>접수 여부</b>이지 파이프라인이 끝났다는 뜻이 아니다(재실행·일괄과 같은 시맨틱).
@@ -373,7 +373,7 @@ export interface VideoDetail extends Video {
    * 검수자가 수동으로 건너뛴 **작업 묶음** — BE `VideoDetailResponse.skippedStages`. [@design API-043]
    *
    * ⚠ 건너뛴 묶음은 **진행 축(`stages`)에 흔적을 남기지 않고 DONE 으로 렌더**되므로 `stages` 만으로는
-   * 구분할 수 없다. 건너뜀 표시와 되돌리기 조작의 노출은 이 값이 유일한 근거다.
+   * 구분할 수 없다. 건너뜀 표시와 해제 조작의 노출은 이 값이 유일한 근거다.
    * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
    */
   skippedStages?: StageBundle[];

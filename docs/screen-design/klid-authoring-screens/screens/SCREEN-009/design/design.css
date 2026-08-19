@@ -493,7 +493,7 @@ a.btn, a.btn:hover { text-decoration: none; }
   flex-direction: column;
   gap: var(--sp-md);
 }
-/* 실패가 아니라 '건너뜀만' 있는 상태 — 되돌릴 수 있는 경고라 warn 축 */
+/* 실패가 아니라 '건너뜀만' 있는 상태 — 해제할 수 있는 경고라 warn 축 */
 .failure-panel[data-tone="warn"] { border-color: var(--w-2); border-left-color: var(--w-5); }
 /* 조작이 노출되지 않는 상태(파생영상 등) — 알림 전용이라 중립 축 */
 .failure-panel[data-tone="neutral"] { border-color: var(--border); border-left-color: var(--n-4); }

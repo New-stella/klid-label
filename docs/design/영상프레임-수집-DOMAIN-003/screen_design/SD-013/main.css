@@ -575,3 +575,19 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
   .reference-grid { grid-template-columns: 1fr; }
   .col-event, .col-len { width: auto; }
 }
+
+.textarea {
+  font-family: var(--font-body);
+  font-size: 17px; line-height: 1.6; font-weight: 400;
+  color: var(--n-9);
+  min-height: 88px;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  resize: vertical;
+}
+.textarea::placeholder { color: var(--n-5); }
+.textarea:hover { border-color: var(--n-5); }
+.field-foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
+.char-count { color: var(--n-6); font-variant-numeric: tabular-nums; flex: 0 0 auto; white-space: nowrap; }

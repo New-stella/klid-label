@@ -532,13 +532,13 @@ public class BatchTransitionService {
      * [@design API-167]
      *
      * <h3>왜 완주 영상도 받는가</h3>
-     * <p>건너뛴 단계를 되돌린 영상은 <b>이미 완주했더라도</b> 재기동을 받아야 한다 — 그러지 않으면
-     * "건너뛰고 진행시킨 뒤 나중에 다시 수행한다"는 되돌리기의 목적 자체가 성립하지 않는다(스킵으로
+     * <p>건너뛰기를 해제한 영상은 <b>이미 완주했더라도</b> 재기동을 받아야 한다 — 그러지 않으면
+     * "건너뛰고 진행시킨 뒤 나중에 다시 수행한다"는 해제의 목적 자체가 성립하지 않는다(스킵으로
      * 완주한 영상은 {@code COMPLETED} 라 {@link #tryClaimReprocessFromFailed} 가 잡지 못하고, 다른
-     * 재실행 트리거도 없어 되돌리기가 화면에서만 되고 실제로는 아무 일도 일어나지 않았다).
+     * 재실행 트리거도 없어 해제가 화면에서만 되고 실제로는 아무 일도 일어나지 않았다).
      *
      * <h3>허용 조건은 여기서 판정하지 않는다</h3>
-     * <p>"되돌린 단계가 실제로 있는가"({@code BatchStatusService.hasClearedManualSkip})와 "한번이라도
+     * <p>"건너뛰기를 해제한 단계가 실제로 있는가"({@code BatchStatusService.hasClearedManualSkip})와 "한번이라도
      * 검수가 완료됐는가"({@code ReviewApprovalGate.hasEverApproved})는 <b>호출 서비스</b>가 클레임
      * <b>전에</b> 판정한다. 이 메서드는 상태 전이의 원자성만 책임진다.
      *

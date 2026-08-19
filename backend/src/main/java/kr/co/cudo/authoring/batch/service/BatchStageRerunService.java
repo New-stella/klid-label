@@ -20,23 +20,23 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 /**
- * 되돌린 <b>작업 묶음</b>의 지목 재수행 서비스 — REVIEWER 전용. [@design API-201]
+ * 건너뛰기를 해제한 <b>작업 묶음</b>의 지목 재수행 서비스 — REVIEWER 전용. [@design API-201]
  *
  * <h3>왜 전체 재기동과 분리했나 (데이터 파괴 차단)</h3>
  * <p>완주 영상을 전체 재기동에 태우면 파이프라인이 통째로 순회하는데, 트랙 보간
  * ({@code TrackInterpolationStep})은 {@code lblSrcCd='INTERPOLATE'} 라벨을 사람이 고쳤는지 보지 않고
  * 전량 삭제한 뒤 재생성한다. 완주 영상은 곧 작업자가 라벨링 중이거나 끝낸 영상이라, 삭제 이력도 승인
  * 스냅샷도 없는 <b>복구 지점 0</b> 의 파괴가 된다. 그래서 「문제가 생긴 곳부터 재시도한다」는 원칙에
- * 맞춰 <b>되돌린 그 묶음을 지목</b>하는 요청으로 분리했다.
+ * 맞춰 <b>해제한 그 묶음을 지목</b>하는 요청으로 분리했다.
  *
  * <h3>★범위를 고르지 않는다 — 묶음이 곧 범위다 (구 {@code scope} 요청 필드 폐기)</h3>
  * <p>단위가 개별 단계였을 때는 요청이 「그 단계만 / 그 단계부터 끝까지」를 골라야 했다. 단위를 묶음으로
- * 바꾸면 그 선택이 사라진다 — 되돌린 묶음만 수행하고 다른 묶음은 건드리지 않는다. 오토라벨 재수행이
+ * 바꾸면 그 선택이 사라진다 — 건너뛰기를 해제한 묶음만 수행하고 다른 묶음은 건드리지 않는다. 오토라벨 재수행이
  * 보간을 다시 만드는 것은 「오토라벨을 통째로 다시 만든다」의 <b>예상되는 결과</b>이며, 화면이 고르는
  * 시점에 알린다.
  *
  * <h3>★대상 묶음을 요청이 자유롭게 고르지 못한다 (Critical)</h3>
- * <p>수락 조건은 "그 영상에서 <b>실제로 되돌린</b> 묶음인가" 하나이며 판정은
+ * <p>수락 조건은 "그 영상에서 <b>실제로 건너뛰기를 해제한</b> 묶음인가" 하나이며 판정은
  * {@link BatchStatusService#hasClearedManualSkip(Long, BatchStageBundle)}(수동 스킵 판정과 같은 축)
  * 단일 지점이다. 임의 묶음을 받으면 요청이 앞 작업을 건너뛰도록 <b>강제</b>할 수 있어 전제 없는
  * 산출물이 만들어진다 — 이 제한이 그 통로를 닫는 장치이므로 느슨하게 만들지 않는다.
@@ -44,7 +44,7 @@ import java.util.Map;
  * <h3>허용 조건 (fail-secure, 평가 순서가 계약이다)</h3>
  * <ol>
  *   <li>영상 미존재 → {@link ErrorCode#NOT_FOUND}(404).</li>
- *   <li>묶음 미지원 / 되돌린 묶음 아님 → {@link ErrorCode#INVALID_INPUT}(400).</li>
+ *   <li>묶음 미지원 / 건너뛰기를 해제한 묶음 아님 → {@link ErrorCode#INVALID_INPUT}(400).</li>
  *   <li><b>한번이라도 검수가 완료된 영상 + 오토라벨 묶음</b> → {@link ErrorCode#INVALID_INPUT}(400).
  *       확정된 학습데이터의 라벨은 되돌리지 않는다. 판정은 신고 차단·프레임 폐기 차단과 <b>같은 단일
  *       원천</b>({@link ReviewApprovalGate#hasEverApproved})을 <b>주입해</b> 쓰며 규칙을 복제하지 않는다.
@@ -62,7 +62,7 @@ import java.util.Map;
  *   <li><b>오토라벨</b>은 라벨을 <b>다시 만든다</b> — 승인 시점 스냅샷과 어긋나므로 예외가 아니다.
  *       이 축을 함께 열지 말 것.</li>
  *   <li><b>시계열</b>은 확정된 라벨을 되돌리지 않고 <b>메타만 더한다</b>. 실행 범위는
- *       {@link BatchBundleTogglePolicy} 가 되돌린 묶음의 구성원만 켜므로 프레임·라벨을 다시 만들지
+ *       {@link BatchBundleTogglePolicy} 가 건너뛰기를 해제한 묶음의 구성원만 켜므로 프레임·라벨을 다시 만들지
  *       않는다.</li>
  * </ul>
  * <p>★<b>면제는 게이트 <u>셋</u>에 함께 걸린다</b> — 승인 이력(400)만 풀면 바로 다음 줄의 검수 소유
@@ -87,7 +87,7 @@ import java.util.Map;
  * <h3>★재수행이 실패해도 영상 상태를 훼손하지 않는다</h3>
  * <p>실행 중 실패는 오케스트레이터의 <b>전용 진입</b>({@code processStageRerun})이 처리한다 — 선점 직전
  * 상태로 되돌리고 자동 재시도 큐에 넣지 않는다. 접수 단계(디스패치 거부)의 보상도 같은 원칙이다.
- * 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 <b>되돌려 재수행하면 실패가 기대값</b>이며, 그
+ * 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 <b>해제해 재수행하면 실패가 기대값</b>이며, 그
  * 실패가 완주 영상을 FAILED 로 강등시키면 자동 재시도가 범위를 모른 채 전 단계를 돌려 사람이 손댄 보간
  * 라벨을 지운다.
  *
@@ -115,10 +115,10 @@ public class BatchStageRerunService {
     static final String EVER_APPROVED_REASON = "검수가 완료된 적이 있는 영상은 오토라벨 묶음을 다시 수행할 수 없습니다.";
 
     /**
-     * 대상 묶음 거부 문구 — <b>미지원 묶음</b>과 <b>되돌리지 않은 묶음</b>에 같은 문구를 쓴다.
+     * 대상 묶음 거부 문구 — <b>미지원 묶음</b>과 <b>건너뛰기를 해제하지 않은 묶음</b>에 같은 문구를 쓴다.
      * 갈라 놓으면 응답이 "그 영상이 어느 묶음을 건너뛰었는지" 알려주는 오라클이 된다(CWE-209).
      */
-    static final String NOT_CLEARED_BUNDLE_REASON = "되돌린 작업 묶음이 아니거나 지원하지 않는 값입니다.";
+    static final String NOT_CLEARED_BUNDLE_REASON = "건너뛰기를 해제한 작업 묶음이 아니거나 지원하지 않는 값입니다.";
 
     /** 클레임 실패(409) 문구 — 상태를 되비추지 않는다(CWE-209). */
     static final String NOT_CLAIMABLE_REASON =
@@ -141,7 +141,7 @@ public class BatchStageRerunService {
     private final AsyncBatchReprocessRunner reprocessRunner;
 
     /**
-     * 되돌린 작업 묶음의 재수행을 <b>접수</b>한다 — 상태 선점까지만 요청 안에서 수행한다.
+     * 건너뛰기를 해제한 작업 묶음의 재수행을 <b>접수</b>한다 — 상태 선점까지만 요청 안에서 수행한다.
      *
      * @param rawSn      대상 영상 식별자
      * @param bundleName 경로 변수의 묶음 문자열(VLM/AUTOLABEL 외에는 400)
@@ -162,7 +162,7 @@ public class BatchStageRerunService {
             throw new CustomException(ErrorCode.INVALID_INPUT, NOT_CLEARED_BUNDLE_REASON);
         }
 
-        // ★ 요청이 대상 묶음을 자유롭게 고르지 못한다 — 그 영상에서 실제로 되돌린 묶음만 수락한다.
+        // ★ 요청이 대상 묶음을 자유롭게 고르지 못한다 — 그 영상에서 실제로 건너뛰기를 해제한 묶음만 수락한다.
         //   느슨하게 하면 앞 작업을 건너뛰도록 요청이 강제할 수 있어 전제 없는 산출물이 만들어진다.
         if (!batchStatusService.hasClearedManualSkip(rawSn, bundle)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, NOT_CLEARED_BUNDLE_REASON);

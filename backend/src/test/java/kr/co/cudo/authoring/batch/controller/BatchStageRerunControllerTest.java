@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun E2E (MockMvc 통합). [@design API-201]
  *
- * <p>인가(REVIEWER 전용) · 되돌린 <b>작업 묶음</b>만 수락 · 완주 축 선점을 검증한다. 요청 본문이 없다 —
+ * <p>인가(REVIEWER 전용) · 건너뛰기를 해제한 <b>작업 묶음</b>만 수락 · 완주 축 선점을 검증한다. 요청 본문이 없다 —
  * 묶음이 곧 범위라 고를 것이 없다(구 {@code scope} 본문 폐기).
  * 파이프라인({@link BatchOrchestrator})은 mock 으로 대체해 접수 응답만 확정한다(실행은 비동기다).
  */
@@ -68,7 +68,7 @@ class BatchStageRerunControllerTest {
         return videoRepository.save(raw).getRawSn();
     }
 
-    /** 그 묶음을 실제로 되돌린 상태로 만든다(스킵 → 해제). */
+    /** 그 묶음을 실제로 건너뛰기를 해제한 상태로 만든다(스킵 → 해제). */
     private void clearSkipOf(Long rawSn, BatchStageBundle bundle) {
         batchStatusService.recordManualStageSkip(rawSn, bundle,
                 ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
@@ -116,10 +116,10 @@ class BatchStageRerunControllerTest {
     }
 
     @Test
-    @DisplayName("★묶음재수행API_되돌린_묶음이_아니면_400")
+    @DisplayName("★묶음재수행API_해제된_묶음이_아니면_400")
     void notClearedBundleRejected() throws Exception {
         Long rawSn = saveCompletedVideo();
-        // 시계열만 되돌렸는데 오토라벨을 요청한다 — 임의 묶음 지정 통로를 닫는 장치.
+        // 시계열만 해제했는데 오토라벨을 요청한다 — 임의 묶음 지정 통로를 닫는 장치.
         clearSkipOf(rawSn, BatchStageBundle.VLM);
 
         mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/AUTOLABEL/rerun")
@@ -141,7 +141,7 @@ class BatchStageRerunControllerTest {
     }
 
     @Test
-    @DisplayName("★묶음재수행API_되돌린_묶음은_접수된다_200")
+    @DisplayName("★묶음재수행API_해제된_묶음은_접수된다_200")
     void reviewerAccepted() throws Exception {
         Long rawSn = saveCompletedVideo();
         clearSkipOf(rawSn, BatchStageBundle.AUTOLABEL);

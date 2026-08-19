@@ -340,7 +340,7 @@ class BatchOrchestratorBundleRerunTest {
     @Test
     @DisplayName("★★재수행_중_실패해도_완주상태로_원상복구되고_FAILED로_강등되지_않는다")
     void rerunFailureRestoresInsteadOfDemoting() {
-        // 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 되돌려 재수행하면 실패가 기대값이다.
+        // 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 해제해 재수행하면 실패가 기대값이다.
         //   그 실패로 완주 영상이 FAILED 가 되면 화면에 없던 실패가 생기고 작업 상태까지 FAILED 로
         //   내려가 작업자가 검수 제출을 못 한다.
         newRaw(310L);

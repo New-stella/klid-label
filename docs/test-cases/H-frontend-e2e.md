@@ -1599,7 +1599,7 @@
 
 > **전용 「배치 실패 관리」 화면은 신설하지 않는다** — 영상 목록(SC-007)에 이미 배치 단계 `실패` 필터가 있어 같은
 > 일을 하는 두 번째 목록을 만들지 않고, 조치를 **실패가 이미 보이는 자리**에 붙였다. 영상 상세(SC-009)에는 실패
-> 단계·사유와 재실행·건너뛰기·되돌리기를, 영상 목록에는 일괄 재시작을 둔다. 사유는 서버가 사용자 문구로 변환해
+> 단계·사유와 재실행·건너뛰기·해제를, 영상 목록에는 일괄 재시작을 둔다. 사유는 서버가 사용자 문구로 변환해
 > 내려준 값을 **그대로** 보여주고 화면이 재해석하지 않으며, 단계 이름은 `BatchStageIndicator` 가 내보내는
 > **단일 매핑 함수**를 재사용한다(표를 복제하면 같은 단계가 화면마다 다른 이름으로 불린다).
 > BE 계약은 [B-29](B-batch-deidentify.md) 소관. 위키: [05 §5.5.4](../v2-wiki/05-video-management.md) · [04 화면·IA](../v2-wiki/04-screens-ia.md).
@@ -1619,7 +1619,7 @@
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-FE-702 | 재실행은 영상별 재실행 경로로 POST 한다 (신설) | 실패 영상 | `배치 재실행` | `POST /v1/videos/{rawSn}/batch/retry` — **신규 API 가 아니라 기존 경로** | component | High | features/video/api.ts · features/video/hooks/useBatchRecovery.ts(`useRetryBatch`) · batchRecoveryApi.test.ts(`재실행은_영상별_retry_경로로_POST_한다`) |
 | TC-FE-703 | 스킵은 사유를 본문에 담아 묶음별 경로로 POST 한다 (회차 44 정정) | 사유 입력 완료 | `건너뛰기` 확정 | `POST .../batch/stages/{bundle}/skip` + 본문에 사유 | component | High | features/video/api.ts(`skipBatchStage`) · useBatchRecovery.ts(`useSkipBatchStage`) · batchRecoveryApi.test.ts(`스킵은_사유를_본문에_담아_묶음별_경로로_POST_한다`) |
-| TC-FE-704 | 스킵 해제는 같은 하위리소스로 DELETE 하고 204 본문 없음을 받는다 (회차 44 정정 — 전제가 묶음) | 건너뛴 묶음 있음 | `되돌리기` | 같은 경로 `DELETE`, 본문 없는 204 를 정상 처리(파싱 오류 없음) | component | High | features/video/api.ts(`unskipBatchStage`) · useBatchRecovery.ts(`useUnskipBatchStage`) · batchRecoveryApi.test.ts(`스킵_해제는_같은_하위리소스로_DELETE_하고_204_본문없음을_받는다`) |
+| TC-FE-704 | 스킵 해제는 같은 하위리소스로 DELETE 하고 204 본문 없음을 받는다 (회차 44 정정 — 전제가 묶음) | 건너뛴 묶음 있음 | `건너뛰기 해제` | 같은 경로 `DELETE`, 본문 없는 204 를 정상 처리(파싱 오류 없음) | component | High | features/video/api.ts(`unskipBatchStage`) · useBatchRecovery.ts(`useUnskipBatchStage`) · batchRecoveryApi.test.ts(`스킵_해제는_같은_하위리소스로_DELETE_하고_204_본문없음을_받는다`) |
 | TC-FE-705 | 조작 대상이 아닌 묶음은 요청을 보내지 않는다 (회차 44 정정) | 대상 밖 값(`DEIDENTIFY`) + **구 개별단계 코드(`YOLO`)** | 스킵·해제·재수행 호출 | 네트워크 요청 0회 — 서버가 400 을 줄 요청을 애초에 만들지 않는다(서버 판정이 최종 신뢰 경계라는 점은 불변) | component | Med | features/video/api.ts(`assertStageBundle`) · batchRecoveryApi.test.ts(`조작대상이_아닌_묶음은_요청을_보내지_않는다`) |
 
 ### H-59c. 일괄 재시작 API 클라이언트 (부분 성공)
@@ -1638,11 +1638,11 @@
 | TC-FE-710 | ★단계를 특정할 수 없는 실패도 사유는 보여주고 단계는 "확인 불가"로 알린다 (신설) | 사유는 있고 `stages: []` | 렌더 | 사유 노출 + 단계 자리 "확인 불가". **이 분기가 빠지면 그 영상에서 화면이 아무것도 못 보여준다**(dev 실측 원본 실패 3건 중 1건) | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`단계를_특정할_수_없는_실패도_사유는_보여주고_단계는_확인_불가로_알린다`) |
 | TC-FE-711 | 실패도 건너뛴 단계도 없으면 패널 자체를 렌더하지 않는다 (회차 41 정정 — 구 "실패가 없으면") | 사유 없음 + FAIL 단계 없음 + 스킵 없음 | 렌더 | 패널 미노출. ⚠ **실패만으로 판정하지 않는다** — 판정은 `needsBatchAttention`(실패 ∪ 스킵) | component | High | BatchFailurePanel.tsx(`needsBatchAttention`) · BatchFailurePanel.test.tsx(`실패도_건너뛴_단계도_없으면_패널_자체를_렌더하지_않는다`) |
 | TC-FE-712 | ★사유가 없어도 FAIL 단계가 있으면 패널을 보여준다 (신설) | 사유 `null` + FAIL 단계 존재(구 응답) | 렌더 | 패널 노출 — 두 신호를 **모두** 보지 않으면 각각의 경우에 패널이 통째로 사라진다 | component | **Critical** | BatchFailurePanel.tsx(`hasBatchFailure`) · BatchFailurePanel.test.tsx(`사유가_없어도_FAIL_단계가_있으면_패널을_보여준다`) |
-| TC-FE-713 | 재실행 버튼은 영상별 재실행 API 를 호출한다 (회차 43 정정 — **실패한 영상 전용**임을 명시) | 실패 영상(**처리 중 아님**) | `배치 재실행` 클릭 | 단건 재기동 요청 발사 + 안내 문구("요청을 접수하면 실패한 단계부터 이어서 진행합니다. 이미 성공한 단계는 다시 수행하지 않습니다. 진행 상황은 처리 단계에서 확인하세요."). ⚠ 처리 중이면 같은 버튼이 **비활성 + 다른 문구**다(TC-FE-737·738). ⚠⚠ **완주 영상에는 이 버튼을 두지 않는다**(TC-FE-755) — 전체 재기동은 파이프라인을 통째로 돌려 보간 라벨을 지운다. 되돌린 단계는 그 단계를 지목하는 재수행(H-59i)이 담당한다 | component | High | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`재실행_버튼은_영상별_재실행_API_를_호출한다` · `처리가_끝나_실패로_돌아오면_다시_실패로_말하고_버튼이_열린다`) |
+| TC-FE-713 | 재실행 버튼은 영상별 재실행 API 를 호출한다 (회차 43 정정 — **실패한 영상 전용**임을 명시) | 실패 영상(**처리 중 아님**) | `배치 재실행` 클릭 | 단건 재기동 요청 발사 + 안내 문구("요청을 접수하면 실패한 단계부터 이어서 진행합니다. 이미 성공한 단계는 다시 수행하지 않습니다. 진행 상황은 처리 단계에서 확인하세요."). ⚠ 처리 중이면 같은 버튼이 **비활성 + 다른 문구**다(TC-FE-737·738). ⚠⚠ **완주 영상에는 이 버튼을 두지 않는다**(TC-FE-755) — 전체 재기동은 파이프라인을 통째로 돌려 보간 라벨을 지운다. 건너뛰기를 해제한 단계는 그 단계를 지목하는 재수행(H-59i)이 담당한다 | component | High | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`재실행_버튼은_영상별_재실행_API_를_호출한다` · `처리가_끝나_실패로_돌아오면_다시_실패로_말하고_버튼이_열린다`) |
 | TC-FE-714 | 건너뛰기는 실패한 단계가 **속한 묶음**에만 노출된다 (회차 44 정정 — 단계 직접비교 → 묶음 해석) | VLM 이 FAIL | 렌더 | 그 묶음에만 `건너뛰기`. ⚠ 단계 코드로 직접 비교하면(구 동작) 오토라벨 **안의** 단계가 실패해도 버튼이 뜨지 않는다 | component | High | BatchFailurePanel.tsx(`actionableBundles` · `failedBundle`) · types.ts(`bundleOfStage`) · BatchFailurePanel.test.tsx(`건너뛰기는_실패한_단계가_속한_묶음에만_노출된다`) |
 | TC-FE-715 | 어느 묶음에도 없는 단계가 실패하면 건너뛰기 버튼이 없다 (회차 44 정정 — 문구만) | 프레임 추출 FAIL | 렌더 | 버튼 없음 — 그 산출물은 뒤 단계·데이터마트 산출의 전제라 건너뛸 수 없다(서버도 400). 비식별·마킹도 같다 | component | **Critical** | BatchFailurePanel.tsx(`failedBundle`) · types.ts(`STAGE_BUNDLE_MEMBERS`) · BatchFailurePanel.test.tsx(`어느_묶음에도_없는_단계가_실패하면_건너뛰기_버튼이_없다`) |
 | TC-FE-716 | 사유를 입력해야 건너뛰기를 제출할 수 있다 (신설) | 건너뛰기 모달 | 사유 미입력 상태로 확정 시도 | 제출 불가 — 사유는 학습데이터의 부가 정보를 영구히 비우는 결정의 근거다(서버도 400) | component | High | features/video/components/BatchStageSkipModal.tsx · BatchFailurePanel.test.tsx(`사유를_입력해야_건너뛰기를_제출할_수_있다`) |
-| TC-FE-717 | ★이미 건너뛴 단계는 「건너뜀」 표시와 되돌리기를 보여준다 (신설) | `skippedStages` 에 포함 | 렌더 | 「건너뜀」 배지 + `되돌리기`. **단계 표시기는 건너뛴 단계를 완료처럼 그리므로 이 패널이 유일한 노출 경로**다 | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`이미_건너뛴_단계는_건너뜀_표시와_되돌리기를_보여준다`) |
+| TC-FE-717 | ★이미 건너뛴 단계는 「건너뜀」 표시와 건너뛰기 해제를 보여준다 (신설) | `skippedStages` 에 포함 | 렌더 | 「건너뜀」 배지 + `건너뛰기 해제`. **단계 표시기는 건너뛴 단계를 완료처럼 그리므로 이 패널이 유일한 노출 경로**다 | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`이미_건너뛴_단계는_건너뜀_표시와_건너뛰기_해제를_보여준다`) |
 | TC-FE-718 | 파생영상은 사유만 보여주고 조작은 노출하지 않는다 (신설) | `derivative: true` | 렌더 | 사유 + 안내 문구만, 재실행·건너뛰기 버튼 없음 — 파생은 배치 파이프라인을 타지 않아 재실행으로 복구되지 않는다 | component | High | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`파생영상은_사유만_보여주고_조작은_노출하지_않는다`) |
 | TC-FE-719 | ★조작 패널이 마킹 화면으로 새지 않는다 (신설) | 마킹 화면 렌더 | 화면 검사 | 조작 버튼 미노출. 패널을 `BatchStageIndicator` **바깥**에 둔 이유가 이것이다 — 그 표시기를 마킹 화면과 공유하므로 안에 넣으면 함께 나타난다 | component | **Critical** | pages/VideoDetailPage.tsx(`InfoTab`) · BatchFailurePanel.test.tsx(`조작_패널이_마킹_화면으로_새지_않는다`) |
 | TC-FE-720 | 실패를 색이 아니라 문구로도 알린다 (회차 42 정정 — 표면색이 3종으로 늘었다) | 실패 영상 | 렌더 | 아이콘 + "배치 처리 실패" 문구가 같은 사실을 말한다(색만으로 정보 전달 금지). ⚠ 표면색은 실패(danger)·처리 중(info)·스킵(gray) 3종이지만 **판정은 제목 문구**다 — 경고 아이콘은 실패·스킵에만 붙는다(처리 중에 경고 글리프를 붙이면 문구와 아이콘이 다른 말을 한다) | a11y | High | BatchFailurePanel.tsx(`MODE_HEADING` · `MODE_SURFACE`) · BatchFailurePanel.test.tsx(`실패를_색이_아니라_문구로도_알린다` · `실패가_아니라_처리_중이라고_말한다`) |
@@ -1657,17 +1657,17 @@
 | TC-FE-724 | 상한 100건을 넘게 고르면 보내기 전에 알리고 버튼을 막는다 (신설 · CWE-770) | 101건 이상 선택 | 렌더 | 버튼 비활성 + 안내. 서버도 400 이지만 사용자를 왕복시키지 않는다 | component | High | pages/VideoListPage.tsx(`overBulkRetryLimit`) · features/video/types.ts(`BULK_RETRY_MAX`) · VideoListBulkRetry.test.tsx(`상한_100건을_넘게_고르면_보내기_전에_알리고_버튼을_막는다`) |
 | TC-FE-725 | WORKER 에게는 일괄 재시작 버튼이 노출되지 않는다 (신설) | WORKER | 다중 선택 | 액션 바 자체 미노출(기존 규칙 유지). 화면 게이팅은 UX 편의일 뿐 강제는 BE 403 | security | High | pages/VideoListPage.tsx(`isReviewer`) · VideoListBulkRetry.test.tsx(`WORKER_에게는_일괄_재시작_버튼이_노출되지_않는다`) |
 
-### H-59f. 건너뛴 뒤 재기동이 성공한 영상 — 되돌릴 창구가 사라지지 않는다 (2026-08-12 회차 41 신설)
+### H-59f. 건너뛴 뒤 재기동이 성공한 영상 — 해제할 창구가 사라지지 않는다 (2026-08-12 회차 41 신설)
 
 > **스킵 표식은 영구다.** ①단계를 건너뛰고 ②재기동이 성공하면 ③실패가 사라지는데, 패널을 **실패했을 때만**
-> 노출하면 그 순간 되돌릴 창구가 통째로 없어진다. 그 단계는 이후 모든 재기동에서 조용히 건너뛰어지는데
+> 노출하면 그 순간 해제할 창구가 통째로 없어진다. 그 단계는 이후 모든 재기동에서 조용히 건너뛰어지는데
 > 화면에는 완료(DONE)로 보인다 — 단계 표시기가 스킵을 완료처럼 그리기 때문이다.
 > **막는 조작에는 되돌리는 길을 함께 둔다**(이 저장소의 구속 원칙).
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
 |----|---------|------|----------|---------|------|:--:|------|
 | TC-FE-726 | ★실패가 없고 건너뛴 단계만 남아도 패널을 보여준다 (신설) | 사유 `null` + FAIL 없음 + `skippedStages: ['VLM']` | 렌더 | 패널 노출 + 「건너뜀」 표시. 실패만으로 판정하면 이 영상에서 되돌릴 진입점이 어디에도 없다 | component | **Critical** | BatchFailurePanel.tsx(`needsBatchAttention`) · BatchFailurePanel.test.tsx(`패널을_계속_보여주고_건너뛴_사실을_알린다`) |
-| TC-FE-727 | ★그 상태에서도 되돌리기 창구가 남는다 (신설) | 위와 동일 | `되돌리기` | 스킵 해제 요청 발사 | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`되돌리기_창구가_남아_있다`) |
+| TC-FE-727 | ★그 상태에서도 건너뛰기 해제 창구가 남는다 (신설) | 위와 동일 | `건너뛰기 해제` | 스킵 해제 요청 발사 | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`건너뛰기_해제_창구가_남아_있다`) |
 | TC-FE-728 | 보여줄 사유가 없으므로 실패 사유 영역을 만들지 않는다 (신설) | 위와 동일 | 렌더 | 「실패 단계」·「실패 사유」 행 자체가 없다 — 없는 사유를 "없음"으로 채워 빈 자리를 만들지 않는다. 제목도 「건너뛴 단계 있음」으로 갈린다(색이 아니라 문구가 상태를 말한다) | component | High | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`보여줄_사유가_없으므로_실패_사유_영역을_만들지_않는다`) |
 | TC-FE-729 | 실패가 없으면 재실행 버튼을 두지 않는다 (신설) | 위와 동일 | 렌더 | `배치 재실행` 없음 — 서버는 **실패 상태만 선점**하므로 눌러도 막히는 버튼이 된다 | component | High | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`재실행_버튼은_두지_않는다_되돌릴_실패가_없다`) |
 | TC-FE-730 | 건너뛰기 버튼 조건은 넓히지 않는다 — 그 단계가 실패했을 때만 (신설 · 회귀 가드) | 위와 동일(FAIL 없음) | 렌더 | `건너뛰기` 없음. 사양이 "실패 시 건너뛴다"이므로 패널 노출 조건을 넓혀도 **버튼 조건은 그대로**다 | component | High | BatchFailurePanel.tsx(`actionableBundles` · `failedBundle`) · BatchFailurePanel.test.tsx(`건너뛰기_버튼은_넓히지_않는다_실패한_단계에만_노출된다`) |
@@ -1717,7 +1717,7 @@
 | TC-FE-737 | ★재실행 버튼은 비활성 — **누르면 반드시 막히는 버튼**을 두지 않는다 (신설) | 위와 동일 | 렌더 | `배치 재실행` 비활성. 서버는 이미 PROCESSING 이라 클레임이 실패해 **409 가 확정**인 요청이다 | component | **Critical** | BatchFailurePanel.tsx(`disabled={busy \|\| processing}`) · BatchFailurePanel.test.tsx(`★재실행_버튼은_비활성이다_누르면_반드시_막히는_버튼을_두지_않는다`) · VideoDetailPage.batchRetry.test.tsx(`★처리_중이면_실패가_아니라_처리_중이라고_말하고_재실행을_막는다`) |
 | TC-FE-738 | 왜 비활성인지를 읽을 수 있다 (신설 · a11y) | 위와 동일 | 렌더 | 버튼이 `aria-describedby` 로 사유 문단을 가리키고, 그 문단이 "이미 처리 중이라 …"를 말한다. 비활성 버튼은 포커스를 받지 못하므로 **사유가 인접 텍스트로 남아 있어야** 보조기술 사용자가 읽는다 | a11y | High | BatchFailurePanel.tsx(`RETRY_HINT_ID`) · BatchFailurePanel.test.tsx(`왜_비활성인지를_읽을_수_있다_보조기술_포함`) |
 | TC-FE-739 | 직전 실패 기록은 지우지 않고 「직전」임을 밝혀 보여준다 (신설 · **회차 45 정정 — 판정축 확대**) | 위와 동일 | 렌더 | 사유는 서버 문구 그대로 유지 + 항목명이 「직전 실패 단계」·「직전 실패 사유」. **지우면** 방금 무엇 때문에 재실행했는지가 사라지고, **그대로 두면** 현재 실패로 읽힌다. ⚠ **회차 45**: 「직전」을 붙이는 판정이 `processing`(처리 중일 때만)에서 **`currentlyFailed` 의 부정**(지금 실패 상태가 아닌 모든 경우)으로 넓어졌다 — 완주로 원상 복구된 영상도 같은 어휘를 쓴다(TC-FE-765). 처리 중의 기대결과는 **불변**이다 | component | High | BatchFailurePanel.tsx(`currentlyFailed`) · BatchFailurePanel.test.tsx(`직전_실패_기록은_지우지_않고_직전임을_밝혀_보여준다`) |
-| TC-FE-740 | ★건너뛴 단계·되돌리기는 처리 중에도 사라지지 않는다 (신설 · 회귀 가드) | `status='PROCESSING'` + `skippedStages:['VLM']` | 렌더 | 「건너뜀」 표시 + `되돌리기` 노출. 스킵 축이 처리 중 축에 먹히면 되돌릴 창구가 **또** 없어진다(H-59f 와 같은 형태의 결함) | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`건너뛴_단계와_되돌리기는_처리_중에도_사라지지_않는다`) |
+| TC-FE-740 | ★건너뛴 단계·해제는 처리 중에도 사라지지 않는다 (신설 · 회귀 가드) | `status='PROCESSING'` + `skippedStages:['VLM']` | 렌더 | 「건너뜀」 표시 + `건너뛰기 해제` 노출. 스킵 축이 처리 중 축에 먹히면 해제할 창구가 **또** 없어진다(H-59f 와 같은 형태의 결함) | component | **Critical** | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`건너뛴_단계와_건너뛰기_해제는_처리_중에도_사라지지_않는다`) |
 | TC-FE-741 | ★축들이 서로를 지우지 않는다 — 모드 판정 단일 함수 (신설 · **회차 45 정정 — 세 축 → 네 축**) | 4조합(처리중×실패 / 실패만 / 스킵만 / 처리중×스킵) | 판정 | 순서대로 `processing`·`failure`·`skipped`·`processing`. **처리 중이 실패를 가리는 것과 지우는 것은 다르다** — `hasBatchFailure` 는 그대로 true 다. ⚠ **회차 45**: `failure` 가 「지금 실패 상태」로 좁아지고 `lastFailure` 가 갈라져 나왔다(TC-FE-767) — 다만 이 4조합의 기대값은 **전부 불변**이다(「실패만」 조합의 전제가 `status=FAILED` 이므로) | component | **Critical** | BatchFailurePanel.tsx(`batchPanelMode`) · BatchFailurePanel.test.tsx(`batchPanelMode — 축들이 서로를 지우지 않는다`) |
 | TC-FE-742 | ★처리 중이면 진행 로그가 실패 그대로여도 따라간다 — **버튼을 누르지 않고 들어와도** (신설 · 구 TC-FE-732 교체) | `status='PROCESSING'`, 응답 고정(로그 불변) | 진입 후 시간 경과 | 폴링 지속. ⚠ 구 배선(접수 콜백으로만 창을 열던 것)에서는 **일괄 재시작 후 상세로 들어온 사람**에게 창이 아예 열리지 않았다 | component | **Critical** | pages/VideoDetailPage.tsx(`batchProcessing` effect) · features/video/types.ts(`isBatchProcessing`) · VideoDetailPage.batchRetry.test.tsx(`★처리_중이면_진행_로그가_실패_그대로여도_따라간다`) |
 | TC-FE-743 | ★판정은 시간이 아니라 상태다 — 처리 중이 아니면 창이 열려 있어도 폴링하지 않는다 (신설 · 회귀 가드) | `status='FAILED'`·`'MARKING_READY'` + 창 열림 | 판정 | `false`. 이 단언이 없으면 창만으로 폴링이 열려 **실패로 끝난 영상까지** 창 동안 따라간다(구 동작) | component | High | features/video/hooks/useVideoDetail.ts(`batchPollInterval`) · batchPollInterval.test.ts(`처리 중이 아니면(FAILED) 창이 열려 있어도 폴링하지 않는다` · `처리 중이 아니면(MARKING_READY) …`) |
@@ -1732,7 +1732,7 @@
 > - **처리 중 「건너뛰기」 버튼의 가부** — 이번에 건드리지 않았다(실패했던 단계에 대해 계속 노출된다).
 >   스킵 기록은 다음 실행에 적용되는 표식이라 처리 중 기록이 부당하다고 볼 근거를 확인하지 못했다.
 
-### H-59i. 건너뛰기·되돌리기·재수행의 단위는 **작업 묶음**이다 — 보간을 묶음 안으로 넣는다 (2026-08-12 회차 43 신설 · **회차 44 에서 단위 반전**)
+### H-59i. 건너뛰기·해제·재수행의 단위는 **작업 묶음**이다 — 보간을 묶음 안으로 넣는다 (2026-08-12 회차 43 신설 · **회차 44 에서 단위 반전**)
 
 > **★회차 44 반전(사용자 확정)**: 조작 단위가 개별 단계(`VLM`·`YOLO`·`SAM2`)에서 **작업 묶음
 > (`VLM`·`AUTOLABEL`)** 으로 바뀌었다. 오토라벨 = **AI 탐지 + AI 분할 + 트랙 보간**이며 쪼개서 부분
@@ -1773,8 +1773,8 @@
 > **묶음 코드값은 여전히 `VLM`** 이며 바뀐 것은 표시명 한 축뿐이다.
 > ⚠ 이름이 지던 「보간 포함」 고지는 재수행 경고 문단·확인 창이 전담한다(TC-FE-750·793).
 >
-> ⚠⚠ **「되돌린 묶음」은 서버 응답에 없다 — 근거는 화면의 로컬 기억이다.** `skippedStages`(API-043)는
-> **지금 건너뛴 상태**인 묶음만 담으므로 되돌리는 순간 그 묶음이 목록에서 빠지고, 되돌렸다는 사실은
+> ⚠⚠ **「건너뛰기를 해제한 묶음」은 서버 응답에 없다 — 근거는 화면의 로컬 기억이다.** `skippedStages`(API-043)는
+> **지금 건너뛴 상태**인 묶음만 담으므로 해제하는 순간 그 묶음이 목록에서 빠지고, 해제했다는 사실은
 > 응답 어디에도 남지 않는다(서버는 해제 표식 행을 남기지만 응답 계약에 노출하지 않는다). 없는 필드를
 > 추정해 만들지 않았으므로 화면은 **되돌리기가 성공한 직후의 상태**를 근거로 쓴다 — 아래 미등재 항목의
 > 한계(새로고침 시 버튼 소실)가 그 대가다.
@@ -1786,17 +1786,17 @@
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-FE-745 | ★되돌리면 실패도 스킵도 없어도 패널이 남고 재수행 버튼이 **하나** 생긴다 (회차 44 정정 — 구 기대값 "둘" 폐기) | 건너뛴 채 완주한 영상에서 `되돌리기` 성공 → 갱신 응답에 실패·스킵 모두 없음 | 렌더 | 패널 유지 + 「재수행」 **1개** 노출(범위 선택 없음). 패널이 사라지면 **방금 만든 재수행 창구가 같이 사라진다**(H-59f 가 고친 결함과 같은 형태) | component | **Critical** | BatchFailurePanel.tsx(`revertedBundles` · `RevertedBundles`) · BatchFailurePanel.test.tsx(`되돌리면_실패도_스킵도_없어도_패널이_남고_재수행_버튼이_하나_생긴다`) |
+| TC-FE-745 | ★해제하면 실패도 스킵도 없어도 패널이 남고 재수행 버튼이 **하나** 생긴다 (회차 44 정정 — 구 기대값 "둘" 폐기) | 건너뛴 채 완주한 영상에서 `건너뛰기 해제` 성공 → 갱신 응답에 실패·스킵 모두 없음 | 렌더 | 패널 유지 + 「재수행」 **1개** 노출(범위 선택 없음). 패널이 사라지면 **방금 만든 재수행 창구가 같이 사라진다**(H-59f 가 고친 결함과 같은 형태) | component | **Critical** | BatchFailurePanel.tsx(`revertedBundles` · `RevertedBundles`) · BatchFailurePanel.test.tsx(`해제하면_실패도_스킵도_없어도_패널이_남고_재수행_버튼이_하나_생긴다`) |
 | ~~TC-FE-746~~ | ~~「이 단계만 실행」은 ONLY 범위로 재수행을 요청한다~~ → **회차 44 에서 폐기** | — | — | **폐기 사유**: 조작 단위가 작업 묶음으로 바뀌어 **범위를 고르지 않는다(묶음이 곧 범위다)**. 요청 본문 `scope`(ONLY/FROM)와 두 갈래 버튼이 함께 폐지됐다 — 되살리면 보간을 뺀 부분 수행이 다시 가능해진다. 「재수행 버튼이 하나뿐임」의 회귀 가드는 TC-FE-760 이 잇는다 | component | High | (폐기) 후속: TC-FE-760 |
-| TC-FE-747 | ★**오토라벨** 재수행은 확인 없이 실행되지 않는다 (회차 44 정정 — 대상이 FROM 갈래 → 오토라벨 묶음) | 되돌린 오토라벨 묶음 있음 | 「재수행」 클릭 → 취소 | 클릭 시 확인 창만 뜨고 **요청 0건**, 취소해도 **0건**. 보간까지 다시 만드는 조작이라 한 번의 오클릭으로 확정되면 안 된다 | component | **Critical** | BatchFailurePanel.tsx(`rerunConfirmTarget` · `destructive` · `ConfirmDialog`) · BatchFailurePanel.test.tsx(`★오토라벨_재수행은_확인_없이_실행되지_않는다`) |
+| TC-FE-747 | ★**오토라벨** 재수행은 확인 없이 실행되지 않는다 (회차 44 정정 — 대상이 FROM 갈래 → 오토라벨 묶음) | 건너뛰기를 해제한 오토라벨 묶음 있음 | 「재수행」 클릭 → 취소 | 클릭 시 확인 창만 뜨고 **요청 0건**, 취소해도 **0건**. 보간까지 다시 만드는 조작이라 한 번의 오클릭으로 확정되면 안 된다 | component | **Critical** | BatchFailurePanel.tsx(`rerunConfirmTarget` · `destructive` · `ConfirmDialog`) · BatchFailurePanel.test.tsx(`★오토라벨_재수행은_확인_없이_실행되지_않는다`) |
 | TC-FE-748 | 확인해야 오토라벨 재수행을 요청한다 — **본문을 보내지 않는다** (회차 44 정정) | 위와 동일 | 확인 창에서 「재수행」 | 요청 1회 + **요청 본문 없음**(구 `{scope:'FROM'}` 폐지 — 묶음이 곧 범위다) | component | High | BatchFailurePanel.tsx · features/video/api.ts(`rerunBatchStage`) · BatchFailurePanel.test.tsx(`확인해야_오토라벨_재수행을_요청한다_본문은_보내지_않는다`) |
-| TC-FE-749 | ★보간 라벨이 바뀐다는 사실을 **누르기 전에** 알린다 (회차 44 정정 — 대상 묶음·testid 변경) | 되돌린 **오토라벨** 묶음 있음 | 렌더(클릭 없음) | 경고 문단이 이미 화면에 있고("보간" + "지워지고"), 재수행 버튼이 `aria-describedby` 로 그것을 가리킨다. **확인 창은 취소 수단이지 고지 수단이 아니다** — 문단이 없으면 사용자는 누른 뒤에야 알게 된다 | a11y | **Critical** | BatchFailurePanel.tsx(`rerunWarningId`) · BatchFailurePanel.test.tsx(`★보간_라벨이_바뀐다는_사실을_누르기_전에_알린다_보조기술_포함`) |
-| TC-FE-750 | ★**시계열** 재수행에는 그 경고를 붙이지 않는다 (회차 44 정정 — 구 대상 「이 단계만 실행」 폐기) | 되돌린 **시계열** 묶음 있음 | 경고 문단 존재 여부 + `aria-describedby` 해석 | 경고 문단 자체가 **렌더되지 않고** 버튼이 가리키는 텍스트에도 "보간" 없음. 시계열 묶음은 보간을 품지 않으므로, 붙이면 **경고가 의미를 잃고** 보조기술 사용자에게는 없는 위험을 알리는 오정보가 된다. 판정은 손으로 적지 않고 묶음 구성에서 파생한다 | a11y | High | types.ts(`bundleRerunsInterpolation`) · BatchFailurePanel.tsx(`destructive`) · BatchFailurePanel.test.tsx(`★시계열_재수행에는_보간_경고를_붙이지_않는다`) |
-| TC-FE-751 | 재수행 응답은 접수를 뜻하고 완료로 읽히는 문구를 쓰지 않는다 (신설) | 되돌린 단계 있음 | ONLY 실행 성공 | 안내에 "접수" + "처리 단계" 포함, "시작했/완료" 미포함. 재실행·일괄과 **같은 시맨틱**(파이프라인은 뒤에서 이어 돈다) | component | High | BatchFailurePanel.tsx(`rerun` onSuccess) · BatchFailurePanel.test.tsx(`재수행_응답은_접수를_뜻하고_완료로_읽히는_문구를_쓰지_않는다`) |
-| TC-FE-752 | 처리 중에는 재수행 버튼이 비활성이고 왜인지를 읽을 수 있다 (회차 44 정정 — 버튼 둘 → 하나) | 되돌린 묶음 + `status='PROCESSING'` | 렌더 | 버튼 비활성 + 사유 문단("이미 처리 중이라 …")을 `aria-describedby` 로 가리킴. 서버가 **반드시 409** 로 막는 요청이다(TC-FE-737 과 같은 원칙) | a11y | High | BatchFailurePanel.tsx(`rerunBusyHintId`) · BatchFailurePanel.test.tsx(`처리_중에는_재수행_버튼이_비활성이고_왜인지를_읽을_수_있다`) |
-| TC-FE-753 | 되돌린 묶음을 다시 건너뛰면 재수행 버튼이 사라진다 (회차 44 정정 — 단계 → 묶음) | 되돌린 뒤 그 묶음을 다시 건너뜀(응답에 다시 등장) | 렌더 | 버튼 미노출. 서버는 **실제로 되돌린 묶음만** 수락하므로(400) 남겨 두면 누르면 막히는 버튼이 된다 | component | High | BatchFailurePanel.tsx(`revertedBundles` 의 `skipped` 제외 필터) · BatchFailurePanel.test.tsx(`되돌린_묶음을_다시_건너뛰면_재수행_버튼이_사라진다`) |
-| TC-FE-754 | 되돌리지 않은 영상에는 재수행 버튼이 없다 (대조군 · 회차 44 정정) | 건너뛴 묶음만 있고 되돌린 적 없음 | 렌더 | 버튼 미노출 | component | Medium | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`되돌리지_않은_영상에는_재수행_버튼이_없다`) |
-| TC-FE-755 | ★되돌린 뒤에도 전체 재기동 버튼은 생기지 않는다 — 실패한 영상 전용이다 (신설 · 회귀 가드) | 되돌린 단계 + 실패 없음 | 렌더 | 「배치 재실행」 미노출. **이 버튼이 바로 보간 라벨을 지우는 파괴 경로**이며, 직전 라운드가 완주 영상에 열었던 것을 닫는다 | component | **Critical** | BatchFailurePanel.tsx(`canShowRetry`) · BatchFailurePanel.test.tsx(`★되돌린_뒤에도_전체_재기동_버튼은_생기지_않는다_실패한_영상_전용이다`) |
+| TC-FE-749 | ★보간 라벨이 바뀐다는 사실을 **누르기 전에** 알린다 (회차 44 정정 — 대상 묶음·testid 변경) | 건너뛰기를 해제한 **오토라벨** 묶음 있음 | 렌더(클릭 없음) | 경고 문단이 이미 화면에 있고("보간" + "지워지고"), 재수행 버튼이 `aria-describedby` 로 그것을 가리킨다. **확인 창은 취소 수단이지 고지 수단이 아니다** — 문단이 없으면 사용자는 누른 뒤에야 알게 된다 | a11y | **Critical** | BatchFailurePanel.tsx(`rerunWarningId`) · BatchFailurePanel.test.tsx(`★보간_라벨이_바뀐다는_사실을_누르기_전에_알린다_보조기술_포함`) |
+| TC-FE-750 | ★**시계열** 재수행에는 그 경고를 붙이지 않는다 (회차 44 정정 — 구 대상 「이 단계만 실행」 폐기) | 건너뛰기를 해제한 **시계열** 묶음 있음 | 경고 문단 존재 여부 + `aria-describedby` 해석 | 경고 문단 자체가 **렌더되지 않고** 버튼이 가리키는 텍스트에도 "보간" 없음. 시계열 묶음은 보간을 품지 않으므로, 붙이면 **경고가 의미를 잃고** 보조기술 사용자에게는 없는 위험을 알리는 오정보가 된다. 판정은 손으로 적지 않고 묶음 구성에서 파생한다 | a11y | High | types.ts(`bundleRerunsInterpolation`) · BatchFailurePanel.tsx(`destructive`) · BatchFailurePanel.test.tsx(`★시계열_재수행에는_보간_경고를_붙이지_않는다`) |
+| TC-FE-751 | 재수행 응답은 접수를 뜻하고 완료로 읽히는 문구를 쓰지 않는다 (신설) | 건너뛰기를 해제한 단계 있음 | ONLY 실행 성공 | 안내에 "접수" + "처리 단계" 포함, "시작했/완료" 미포함. 재실행·일괄과 **같은 시맨틱**(파이프라인은 뒤에서 이어 돈다) | component | High | BatchFailurePanel.tsx(`rerun` onSuccess) · BatchFailurePanel.test.tsx(`재수행_응답은_접수를_뜻하고_완료로_읽히는_문구를_쓰지_않는다`) |
+| TC-FE-752 | 처리 중에는 재수행 버튼이 비활성이고 왜인지를 읽을 수 있다 (회차 44 정정 — 버튼 둘 → 하나) | 건너뛰기를 해제한 묶음 + `status='PROCESSING'` | 렌더 | 버튼 비활성 + 사유 문단("이미 처리 중이라 …")을 `aria-describedby` 로 가리킴. 서버가 **반드시 409** 로 막는 요청이다(TC-FE-737 과 같은 원칙) | a11y | High | BatchFailurePanel.tsx(`rerunBusyHintId`) · BatchFailurePanel.test.tsx(`처리_중에는_재수행_버튼이_비활성이고_왜인지를_읽을_수_있다`) |
+| TC-FE-753 | 건너뛰기를 해제한 묶음을 다시 건너뛰면 재수행 버튼이 사라진다 (회차 44 정정 — 단계 → 묶음) | 해제한 뒤 그 묶음을 다시 건너뜀(응답에 다시 등장) | 렌더 | 버튼 미노출. 서버는 **실제로 건너뛰기를 해제한 묶음만** 수락하므로(400) 남겨 두면 누르면 막히는 버튼이 된다 | component | High | BatchFailurePanel.tsx(`revertedBundles` 의 `skipped` 제외 필터) · BatchFailurePanel.test.tsx(`건너뛰기를_해제한_묶음을_다시_건너뛰면_재수행_버튼이_사라진다`) |
+| TC-FE-754 | 해제하지 않은 영상에는 재수행 버튼이 없다 (대조군 · 회차 44 정정) | 건너뛴 묶음만 있고 해제한 적 없음 | 렌더 | 버튼 미노출 | component | Medium | BatchFailurePanel.tsx · BatchFailurePanel.test.tsx(`해제하지_않은_영상에는_재수행_버튼이_없다`) |
+| TC-FE-755 | ★해제한 뒤에도 전체 재기동 버튼은 생기지 않는다 — 실패한 영상 전용이다 (신설 · 회귀 가드) | 건너뛰기를 해제한 단계 + 실패 없음 | 렌더 | 「배치 재실행」 미노출. **이 버튼이 바로 보간 라벨을 지우는 파괴 경로**이며, 직전 라운드가 완주 영상에 열었던 것을 닫는다 | component | **Critical** | BatchFailurePanel.tsx(`canShowRetry`) · BatchFailurePanel.test.tsx(`★해제한_뒤에도_전체_재기동_버튼은_생기지_않는다_실패한_영상_전용이다`) |
 | TC-FE-756 | 재수행 API 계약 — 묶음별 경로 + **본문 없음** + 묶음 화이트리스트 (회차 44 정정 · security) | — | `rerunBatchStage` 호출 | `POST /videos/{rawSn}/batch/stages/{bundle}/rerun` + **본문 미전송**. 묶음 밖 값(`DEIDENTIFY`·`../../etc`)과 **구 개별단계 코드(`YOLO`)** 는 요청을 보내지 않고 throw(CWE-22 — 스킵/해제와 **같은 판정기**를 쓴다, 복제 금지). 전체 재기동 경로로 섞이지 않는다 | security | **Critical** | features/video/api.ts(`rerunBatchStage` · `assertStageBundle`) · types.ts(`isStageBundle`) · batchRecoveryApi.test.ts(`묶음별_rerun_경로로_POST_하고_본문을_보내지_않는다` · `전체_재기동_경로와_섞이지_않는다` · `조작대상이_아닌_묶음은_요청을_보내지_않는다`) |
 
 #### 회차 44 신설 — 단위가 「작업 묶음」임을 고정하는 케이스
@@ -1806,16 +1806,16 @@
 | TC-FE-757 | ★오토라벨 묶음의 단계가 실패하면 **그 묶음** 건너뛰기가 노출된다 (신설 · 회차 49 표시명 정정) | `SAM2` 가 FAIL | 렌더 | 「오토라벨링 작업 건너뛰기」 노출. 진행 축은 단계 단위인데 조작은 묶음 단위라, **역해석이 없으면 버튼이 아예 안 뜬다** ⚠ 구 기대값 「AI 탐지 · AI 분할 · 보간 작업 건너뛰기」 → **폐기**(회차 49 — 표시명 통일, 판정 축인 역해석은 무변경) | component | **Critical** | types.ts(`bundleOfStage`) · BatchFailurePanel.tsx(`failedBundle`) · BatchFailurePanel.test.tsx(`★오토라벨_묶음의_단계가_실패하면_그_묶음_건너뛰기가_노출된다`) |
 | TC-FE-758 | ★**보간**이 실패해도 오토라벨 묶음으로 해석된다 (신설 · 이번 반전의 핵심) | `INTERPOLATE` 가 FAIL | 렌더 | 같은 묶음 버튼 노출. 보간이 묶음 **안**에 있다는 사실이 조작에도 드러나야 한다 — 밖에 두면 어떤 재수행에서도 무조건 돌아 사람이 손댄 보간 라벨을 지운다 | component | **Critical** | types.ts(`STAGE_BUNDLE_MEMBERS`) · BatchFailurePanel.test.tsx(`★보간이_실패해도_오토라벨_묶음으로_해석된다`) |
 | TC-FE-759 | ★묶음 이름은 **사양(SCREEN-009)의 어휘 하나**다 (신설 · 회차 49 **기대 반전**) | `YOLO` 가 FAIL | 버튼 접근명 확인 | 이름이 「오토라벨링」이며 멤버를 나열하지 않는다(`·` 부재). ⚠⚠ **구 기대값 "AI 탐지 · AI 분할 · 보간"(멤버 `stageLabel` 조합) → 폐기**(회차 49 · 사용자 확정). 그 조합은 **스테퍼 캡션(오토라벨링)과 갈려 같은 묶음이 한 화면에서 두 이름**으로 불리게 했고, 사양 본문이 이 묶음을 부르는 어휘가 「오토라벨」이다 — 사양 되돌리기가 아니라 구현을 사양으로 되돌린 것. ⚠ 구 이름이 지던 **「보간이 이 묶음 안에 있다」 고지**는 이름에서 사라졌고 TC-FE-750(경고 문단)·TC-FE-793(확인 창)이 대신 진다 | component | High | components/common/BatchStageIndicator.tsx(`bundleLabel` · `BUNDLE_LABEL`) · types.ts(`STAGE_BUNDLE_MEMBERS`) · BatchFailurePanel.test.tsx(`★오토라벨_묶음_이름은_사양_어휘_하나다_구_멤버나열_폐기`) |
-| TC-FE-760 | ★범위를 고르는 **두 갈래 버튼이 없다** — 묶음이 곧 범위다 (신설 · 회귀 가드, TC-FE-746 후속) | 되돌린 묶음 있음 | 렌더 | 「이 단계만 실행」·「여기부터 이어서 실행」 **부재** + 재수행 버튼이 **정확히 1개**. 되살리면 보간을 뺀 부분 수행이 다시 가능해진다 | component | **Critical** | BatchFailurePanel.tsx(재수행 버튼 단일 분기) · BatchFailurePanel.test.tsx(`★범위를_고르는_두_갈래_버튼은_없다_묶음이_곧_범위다`) |
-| TC-FE-761 | ★**시계열** 재수행은 확인 없이 곧바로 접수된다 (신설 · TC-FE-747 의 대조군) | 되돌린 시계열 묶음 있음 | 「재수행」 클릭 | 확인 창 없이 요청 1회. 없는 위험에 확인을 받으면 확인이 **형식이 되어 무시**되고, 정작 파괴적인 쪽(TC-FE-747)의 확인도 함께 가벼워진다 | component | High | types.ts(`bundleRerunsInterpolation`) · BatchFailurePanel.tsx(`destructive`) · BatchFailurePanel.test.tsx(`★시계열_재수행은_확인_없이_곧바로_접수된다`) |
+| TC-FE-760 | ★범위를 고르는 **두 갈래 버튼이 없다** — 묶음이 곧 범위다 (신설 · 회귀 가드, TC-FE-746 후속) | 건너뛰기를 해제한 묶음 있음 | 렌더 | 「이 단계만 실행」·「여기부터 이어서 실행」 **부재** + 재수행 버튼이 **정확히 1개**. 되살리면 보간을 뺀 부분 수행이 다시 가능해진다 | component | **Critical** | BatchFailurePanel.tsx(재수행 버튼 단일 분기) · BatchFailurePanel.test.tsx(`★범위를_고르는_두_갈래_버튼은_없다_묶음이_곧_범위다`) |
+| TC-FE-761 | ★**시계열** 재수행은 확인 없이 곧바로 접수된다 (신설 · TC-FE-747 의 대조군) | 건너뛰기를 해제한 시계열 묶음 있음 | 「재수행」 클릭 | 확인 창 없이 요청 1회. 없는 위험에 확인을 받으면 확인이 **형식이 되어 무시**되고, 정작 파괴적인 쪽(TC-FE-747)의 확인도 함께 가벼워진다 | component | High | types.ts(`bundleRerunsInterpolation`) · BatchFailurePanel.tsx(`destructive`) · BatchFailurePanel.test.tsx(`★시계열_재수행은_확인_없이_곧바로_접수된다`) |
 | TC-FE-762 | ★구 개별단계 코드(`YOLO`·`SAM2`)는 더 이상 통과하지 않는다 (신설 · security) | 서버가 구 값을 보낸 응답 | 상세 정규화 | 두 값 모두 제거되고 `AUTOLABEL` 만 남는다. 통과시키면 그 코드가 다시 **경로 세그먼트**가 되고(CWE-22, 서버는 400) 화면에도 개별 단계 조작이 되살아난다 | security | High | features/video/api.ts(`getVideo` 의 `isStageBundle` 필터) · batchRecoveryApi.test.ts(`★구_개별단계_코드_YOLO_SAM2_는_더_이상_통과하지_않는다`) |
 
 > **이번 회차에 등재하지 않은 항목(범위 밖 · 지어내지 않는다)**
-> - **되돌린 묶음 기억의 휘발** — 재수행 버튼의 근거가 화면 로컬 상태라, 새로고침하거나 다른 화면을
->   거쳐 재진입하면 버튼이 사라진다(다시 건너뛰었다가 되돌리는 우회만 남는다). 영구화하려면 영상 상세
->   응답이 「되돌린 묶음」을 내려줘야 하며 **그것은 서버 계약 변경**이라 이번에도 범위 밖이다.
+> - **건너뛰기를 해제한 묶음 기억의 휘발** — 재수행 버튼의 근거가 화면 로컬 상태라, 새로고침하거나 다른 화면을
+>   거쳐 재진입하면 버튼이 사라진다(다시 건너뛰었다가 해제하는 우회만 남는다). 영구화하려면 영상 상세
+>   응답이 「건너뛰기를 해제한 묶음」을 내려줘야 하며 **그것은 서버 계약 변경**이라 이번에도 범위 밖이다.
 >   ⚠ 응답에 없는 필드를 추정해 만들지 않았다.
-> - **BE 구현(API-198/200/201)** — 이번 작업은 FE 분이다. 서버는 되돌린 묶음만 수락(400)·선점 충돌(409)·
+> - **BE 구현(API-198/200/201)** — 이번 작업은 FE 분이다. 서버는 건너뛰기를 해제한 묶음만 수락(400)·선점 충돌(409)·
 >   승인 이력 영상 거부와 **묶음 단위 실행**을 담당하며 그 케이스는 [B](B-batch-deidentify.md) 축에서 다룬다.
 > - **단계 표시기의 직전 FAIL 표시**·**목록 배지 지연** — 회차 42 와 같은 사유로 범위 밖이다.
 > - **API-198 응답 스키마의 `stage` enum 잔재** — 정본 ITEM 의 200 응답 스키마에 구 값
@@ -1846,7 +1846,7 @@
 > 사유」, 제목 「직전 배치 처리 실패」). 새 표현을 만들지 않는다 — 같은 사실을 가리키는 말이 둘이 되면
 > 사용자가 같은 뜻인지 알 수 없다.
 >
-> ⚠ **되돌린 묶음의 재수행 버튼은 그대로 살아 있다** — 재수행이 실패했으니 다시 시도하는 것이 정상
+> ⚠ **건너뛰기를 해제한 묶음의 재수행 버튼은 그대로 살아 있다** — 재수행이 실패했으니 다시 시도하는 것이 정상
 > 동선이다. 그것까지 사라지면 사용자가 할 수 있는 일이 하나도 없다.
 >
 > ⚠ **기존 축은 흐리지 않았다.** 가른 것은 위 둘뿐이고 `batchPanelMode` 의 **처리 중·스킵만 분기는
@@ -1860,9 +1860,9 @@
 | TC-FE-763 | ★완주로 원상 복구된 영상에는 「배치 재실행」을 두지 않는다 — **항상 막히는 버튼** (신설) | `status='COMPLETED'` + 전 단계 DONE + 실패 사유 남음 | 렌더 | 「배치 재실행」 **미노출**. 서버는 `FAILED→PROCESSING` 원자 클레임에 성공한 건만 받으므로 이 영상의 요청은 **409 가 확정**이다 | component | **Critical** | features/video/types.ts(`isBatchFailed`) · BatchFailurePanel.tsx(`canShowRetry`) · BatchFailurePanel.test.tsx(`★전체_재기동_버튼을_두지_않는다_서버가_실패_상태만_받는다`) |
 | TC-FE-764 | ★전 단계가 완료인데 「지금 실패」라고 말하지 않는다 (신설) | 위와 동일 | 렌더 | 제목이 「직전 배치 처리 실패」, 「배치 처리 실패」 제목 **없음**, `data-mode='lastFailure'`. 색이 아니라 **문구**가 지금 상태인지 아닌지를 가른다(grayscale·색각 이상에서도 구분된다) | component | **Critical** | BatchFailurePanel.tsx(`batchPanelMode` · `MODE_HEADING`) · BatchFailurePanel.test.tsx(`★전_단계가_완료인데_지금_실패라고_말하지_않는다`) |
 | TC-FE-765 | ★실패 사유는 계속 보여주되 「직전」임을 밝힌다 (신설) | 위와 동일 | 렌더 | 사유는 서버 문구 그대로 유지 + 항목명이 「직전 실패 단계」·「직전 실패 사유」이고 **「실패 단계」·「실패 사유」는 없다**. 지우면 운영자가 무엇이 실패했는지 알 길이 없고, 그대로 두면 현재 실패로 읽힌다 | component | **Critical** | BatchFailurePanel.tsx(`currentlyFailed`) · BatchFailurePanel.test.tsx(`★실패_사유는_계속_보여주되_직전임을_밝힌다`) |
-| TC-FE-766 | ★되돌린 묶음의 재수행 버튼은 그대로 살아 있다 (신설 · 회귀 가드) | 되돌리기 성공 → 재수행 요청 → **그 재수행이 실패**해 영상이 완주로 원상 복구 | 렌더 | 「재수행」 활성 유지 + 「배치 재실행」 미노출. 재수행이 실패했으니 **다시 시도하는 것이 정상 동선**이며, 이것까지 사라지면 사용자가 할 수 있는 일이 없다 | component | **Critical** | BatchFailurePanel.tsx(`revertedBundles` · `canShowRetry`) · BatchFailurePanel.test.tsx(`★되돌린_묶음의_재수행_버튼은_그대로_살아_있다`) |
+| TC-FE-766 | ★건너뛰기를 해제한 묶음의 재수행 버튼은 그대로 살아 있다 (신설 · 회귀 가드) | 건너뛰기 해제 성공 → 재수행 요청 → **그 재수행이 실패**해 영상이 완주로 원상 복구 | 렌더 | 「재수행」 활성 유지 + 「배치 재실행」 미노출. 재수행이 실패했으니 **다시 시도하는 것이 정상 동선**이며, 이것까지 사라지면 사용자가 할 수 있는 일이 없다 | component | **Critical** | BatchFailurePanel.tsx(`revertedBundles` · `canShowRetry`) · BatchFailurePanel.test.tsx(`★건너뛰기를_해제한_묶음의_재수행_버튼은_그대로_살아_있다`) |
 | TC-FE-767 | ★실패 기록은 있는데 지금 실패 상태가 아니면 `lastFailure` (신설 · 판정 단일 함수) | `status='COMPLETED'` + 사유 있음 | 판정 | `lastFailure`. **「기록이 있는가」와 「지금 그런 상태인가」는 다른 축**이며, 합치면 이 회차가 고친 모순이 그대로 재발한다 | component | **Critical** | BatchFailurePanel.tsx(`batchPanelMode`) · BatchFailurePanel.test.tsx(`★실패_기록은_있는데_지금_실패_상태가_아니면_직전_실패다`) |
-| TC-FE-768 | ★실패 기록이 없으면 상태가 `FAILED` 여도 `skipped` — **기존 축 불변** (신설 · 회귀 가드) | `status='FAILED'` + 사유·FAIL 단계 없음 + `skippedStages:['VLM']` | 판정 | `skipped`. 이번에 가른 것은 위 두 축뿐이고 **스킵만 분기는 조건이 그대로**임을 고정한다 — 상태 축을 앞세우면 되돌릴 창구를 말하던 화면이 갑자기 실패를 말한다 | component | High | BatchFailurePanel.tsx(`batchPanelMode`) · BatchFailurePanel.test.tsx(`★실패_기록이_없으면_상태가_실패여도_스킵만이다_기존_축_불변`) |
+| TC-FE-768 | ★실패 기록이 없으면 상태가 `FAILED` 여도 `skipped` — **기존 축 불변** (신설 · 회귀 가드) | `status='FAILED'` + 사유·FAIL 단계 없음 + `skippedStages:['VLM']` | 판정 | `skipped`. 이번에 가른 것은 위 두 축뿐이고 **스킵만 분기는 조건이 그대로**임을 고정한다 — 상태 축을 앞세우면 해제할 창구를 말하던 화면이 갑자기 실패를 말한다 | component | High | BatchFailurePanel.tsx(`batchPanelMode`) · BatchFailurePanel.test.tsx(`★실패_기록이_없으면_상태가_실패여도_스킵만이다_기존_축_불변`) |
 
 > **이번 회차에 등재하지 않은 항목(범위 밖 · 지어내지 않는다)**
 > - **처리 중(`PROCESSING`)에서 「배치 재실행」이 계속 노출되는 것** — 그대로 뒀다. 접수 직후는 그
@@ -1906,7 +1906,7 @@
 
 ## H-61. 배치 단계 스테퍼 — 오토라벨 세 단계를 **한 칸으로 접어 5칸**(UI-018 v7) — 2026-08-13 신설
 
-> **왜 접는가**: 건너뛰기·되돌리기·재수행이 **오토라벨 묶음 단위로만** 동작하는데 스테퍼가 그 묶음을
+> **왜 접는가**: 건너뛰기·해제·재수행이 **오토라벨 묶음 단위로만** 동작하는데 스테퍼가 그 묶음을
 > 세 칸(AI 탐지 / AI 분할 / 보간)으로 그리면 **각 칸을 따로 조작할 수 있다고 읽힌다.** 표시 단위를
 > 조작 단위에 맞추는 것이 이 절의 전부다.
 >
@@ -1969,7 +1969,7 @@
 | ID | 시나리오 | 전제 | 실행 | 기대결과 | 유형 | 우선순위 | 근거 |
 |---|---|---|---|---|---|:--:|---|
 | TC-FE-792 | **★스테퍼 캡션과 조작 UI 표시명이 같은 문자열이다 (신설 · 핵심)** | canonical 7단계 | 스테퍼 캡션 · `bundleLabel` 대조 | 둘이 **동일 문자열**(「오토라벨링」)이다. 갈리면 같은 묶음이 한 화면에서 두 이름으로 불린다 — 이번에 고친 그 상태 | component | **Critical** | components/common/BatchStageIndicator.tsx(`BUNDLE_LABEL` · `bundleLabel` · `COLLAPSED_BUNDLE_LABEL`) · \_\_tests\_\_/BatchStageIndicator.test.tsx(`★스테퍼_캡션과_조작_UI_표시명이_같은_문자열이다`) |
-| TC-FE-793 | ★재수행 **확인 창**이 보간 재계산을 명시한다 (신설 · 이름이 잃은 고지의 수신처) | 되돌린 오토라벨 묶음 | 「재수행」 클릭 후 확인 창 본문 | 본문에 **보간**·**지워지고** 가 있고 제목이 「오토라벨링 작업 재수행」. 이름이 짧아지며 사라진 「보간 포함」 고지를 이 문구가 대신하므로, 문구가 비면 파괴적 조작에 근거 없는 확인이 된다 | component | **Critical** | BatchFailurePanel.tsx(`ConfirmDialog` description) · BatchFailurePanel.test.tsx(`★재수행_확인창이_보간_재계산을_명시한다`) |
+| TC-FE-793 | ★재수행 **확인 창**이 보간 재계산을 명시한다 (신설 · 이름이 잃은 고지의 수신처) | 건너뛰기를 해제한 오토라벨 묶음 | 「재수행」 클릭 후 확인 창 본문 | 본문에 **보간**·**지워지고** 가 있고 제목이 「오토라벨링 작업 재수행」. 이름이 짧아지며 사라진 「보간 포함」 고지를 이 문구가 대신하므로, 문구가 비면 파괴적 조작에 근거 없는 확인이 된다 | component | **Critical** | BatchFailurePanel.tsx(`ConfirmDialog` description) · BatchFailurePanel.test.tsx(`★재수행_확인창이_보간_재계산을_명시한다`) |
 | TC-FE-794 | ★표시명 문자열은 **소스에 한 번만** 적힌다 (신설 · 재발 방지) | FE 소스 전체(테스트 제외) | 따옴표로 감싼 정확한 리터럴 스캔 | 「오토라벨링」 리터럴이 `BatchStageIndicator.tsx` **1건뿐**이다. ⚠ 런타임 동치(TC-FE-792)만으로는 못 잡는다 — 두 곳에 **같은 값**을 적어도 통과하기 때문이며, 그렇게 갈라진 것이 이번 결함이다 | component | High | components/common/BatchStageIndicator.tsx(`BUNDLE_LABEL`) · \_\_tests\_\_/BatchStageIndicator.test.tsx(`★표시명_문자열은_소스에_한_번만_적힌다`) |
 | TC-FE-795 | ★**시계열** 묶음 표시명은 사양 어휘 「시계열」이다 (신설 · 회차 50 **기대 반전**) | — | `bundleLabel('VLM')` | **「시계열」**이며 `stageLabel('VLM')` 과 같다(손으로 적은 두 번째 이름이 아니라 단계 표에서 파생 — 파생 구조는 무변경). ⚠⚠ **구 기대값 `VLM` → 폐기**(회차 50 · 사용자 확정, 구속): 화면 노출 기술 모델명 `VLM` 을 「시계열」로 통일하기로 확정돼, 회차 49 가 "별건"으로 남겼던 사양·구현 불일치가 여기서 해소됐다. ⚠ **묶음 코드값 `VLM` 은 무변경** — 이 케이스가 고정하는 것은 표시명이지 키가 아니다 | component | High | components/common/BatchStageIndicator.tsx(`BUNDLE_LABEL.VLM` · `stageLabel`) · \_\_tests\_\_/BatchStageIndicator.test.tsx(`★시계열_묶음_표시명은_시계열이다_구_VLM_노출_폐기` — 기대값 반전에 맞춰 구 테스트명 `★시계열_묶음_표시명은_이번_변경으로_바뀌지_않았다` 에서 개명) |
 

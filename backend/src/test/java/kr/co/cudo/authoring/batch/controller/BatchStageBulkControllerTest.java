@@ -245,7 +245,7 @@ class BatchStageBulkControllerTest {
     @DisplayName("★일괄재수행API_한건도_성공하지_못해도_200이다")
     void allFailedStill200() throws Exception {
         when(rerunService.rerun(anyLong(), anyString())).thenThrow(new CustomException(
-                ErrorCode.INVALID_INPUT, "되돌린 작업 묶음이 아니거나 지원하지 않는 값입니다."));
+                ErrorCode.INVALID_INPUT, "건너뛰기를 해제한 작업 묶음이 아니거나 지원하지 않는 값입니다."));
 
         mockMvc.perform(post(RERUN_URL).header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON).content(body(12, 43)))

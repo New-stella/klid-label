@@ -20,7 +20,7 @@ import java.util.function.Consumer;
  *
  * <h3>무엇을 하는가 (그리고 하지 않는가)</h3>
  * <p>대상 목록을 풀어 <b>단건 서비스를 그대로 호출</b>하고 건별 결과를 모은다. 이 클래스에는
- * 스킵 가능 여부 · 되돌린 묶음 여부 · 승인 이력 · 파생영상 · 영상 존재 같은 <b>판정이 하나도 없다</b> —
+ * 스킵 가능 여부 · 건너뛰기를 해제한 묶음 여부 · 승인 이력 · 파생영상 · 영상 존재 같은 <b>판정이 하나도 없다</b> —
  * 전부 {@link BatchStageSkipService} · {@link BatchStageRerunService} 가 소유한다. 판정을 복제하면 같은
  * 조건이 단건과 일괄에서 다르게 해석되고, 그 갈림은 이 저장소가 반복해서 겪은 결함이다.
  *
@@ -113,7 +113,7 @@ public class BatchStageBulkService {
                 rawSn -> skipService.skip(rawSn, bundle.name(), reason));
     }
 
-    /** 여러 영상의 작업 묶음 스킵을 한 번에 해제한다 — 표식만 되돌리고 작업을 실행하지 않는다. [@design API-213] */
+    /** 여러 영상의 작업 묶음 스킵을 한 번에 해제한다 — 표식만 지우고 작업을 실행하지 않는다. [@design API-213] */
     public BatchStageBulkResponse clearAll(String bundleName, BatchStageBulkRequest request) {
         requireBody(request);
         BatchStageBundle bundle = requireBulkBundle(bundleName);
@@ -122,9 +122,9 @@ public class BatchStageBulkService {
     }
 
     /**
-     * 되돌린 작업 묶음을 여러 영상에 대해 한 번에 다시 수행한다 — <b>접수</b>까지다. [@design API-214]
+     * 건너뛰기를 해제한 작업 묶음을 여러 영상에 대해 한 번에 다시 수행한다 — <b>접수</b>까지다. [@design API-214]
      *
-     * <p>수락 조건(되돌린 묶음인가 · 승인 이력 · 완주 상태 · 클레임)은 전부 단건 서비스가 판정한다.
+     * <p>수락 조건(건너뛰기를 해제한 묶음인가 · 승인 이력 · 완주 상태 · 클레임)은 전부 단건 서비스가 판정한다.
      */
     public BatchStageBulkResponse rerunAll(String bundleName, BatchStageBulkRequest request) {
         requireBody(request);

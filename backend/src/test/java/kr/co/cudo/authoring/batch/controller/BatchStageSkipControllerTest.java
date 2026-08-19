@@ -256,12 +256,12 @@ class BatchStageSkipControllerTest {
                 .andExpect(jsonPath("$.data.skippedStages[0]").value("VLM"))
                 .andExpect(jsonPath("$.data.skippedStages[1]").value("AUTOLABEL"));
 
-        // when — 되돌리기(해제)
+        // when — 건너뛰기 해제
         mockMvc.perform(delete("/v1/videos/" + rawSn + "/batch/stages/VLM/skip")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isNoContent());
 
-        // then — 해제한 묶음은 목록에서 빠진다(화면의 되돌리기 조작이 즉시 반영된다).
+        // then — 해제한 묶음은 목록에서 빠진다(화면의 해제 조작이 즉시 반영된다).
         mockMvc.perform(get("/v1/videos/" + rawSn)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())

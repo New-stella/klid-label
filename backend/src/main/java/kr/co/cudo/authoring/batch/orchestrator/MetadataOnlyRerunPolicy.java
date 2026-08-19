@@ -19,7 +19,7 @@ import java.util.Set;
  * <h3>왜 면제해도 되나 — 근거는 그 가드 자신의 서술이다</h3>
  * <p>진입 가드가 밝힌 차단 사유는 <b>"APPROVED 영상에 AUTO 라벨이 새로 적재되면서도 상태가
  * APPROVED 로 남아 탐지 불가능한 데이터 오염이 된다"</b> 하나다. 시계열 재수행은 라벨을 만들지
- * 않는다 — {@code BatchBundleTogglePolicy} 가 되돌린 묶음의 구성원만 켜고 나머지를 전부 끄며,
+ * 않는다 — {@code BatchBundleTogglePolicy} 가 건너뛰기를 해제한 묶음의 구성원만 켜고 나머지를 전부 끄며,
  * 시계열 묶음의 구성원은 {@link BatchStage#VLM} 하나뿐이다. 즉 그 사유가 이 묶음에는 성립하지 않는다.
  *
  * <h3>★allowlist 다 — denylist 로 되돌리지 말 것 (fail-closed)</h3>
