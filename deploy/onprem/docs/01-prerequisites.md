@@ -51,7 +51,7 @@
 | CPU/GPU | **CPU only** (GPU/CUDA 불필요 — torch/onnxruntime CPU) |
 | 메모리 | backend(JVM, MaxRAMPercentage 75%) + ai-server(torch CPU) 고려해 충분히(권장 ≥ 8GB) |
 | 디스크 | 앱·런타임·모델 + 영상 저장소. 영상 규모에 비례(저장소 별도 산정) |
-| PostgreSQL | **16**. ① 번들 PG16 오프라인 설치(`USE_BUNDLED_POSTGRES=1`, 기본) **또는** ② 외부 기존 PG 사용(`=0`)+접속 정보(host/port/db/user/pw). 어느 쪽이든 **빈 DB 2개**(control=klid_system, portal)+사용자만 준비하면 됨 — 스키마는 backend Flyway 가 자동 생성 |
+| PostgreSQL | **16**. ① 번들 PG16 오프라인 설치(`USE_BUNDLED_POSTGRES=1`, 기본) **또는** ② 외부 기존 PG 사용(`=0`)+접속 정보(host/port/db/user/pw). 어느 쪽이든 **빈 DB 2개**(control=klid_system, portal)+사용자만 준비하면 됨. ⚠ **스키마는 설치 단계가 `db/schema.sql` 을 1회 로드해 만든다**(`16-load-schema.sh`) — 앱은 `spring.flyway.enabled=false` 로 마이그레이션을 돌리지 않고 매핑 검증만 한다. 구 서술 "스키마는 backend Flyway 가 자동 생성" 은 **폐기**(2026-08-19) — 설정 템플릿은 이전부터 `false` 였고, WAR 반입 형상에서는 DBA 가 선적용하므로 앱에 스키마 변경 권한이 없다 |
 | **KPST 비식별 서버** | **폐쇄망에 별도 설치·접근 가능**해야 함(본 패키지 비포함, 외부 시스템). backend 가 폴링 연동(http 또는 https+사설CA). 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가 — 04-configuration.md B 절 참고 |
 | 네트워크 | 같은 호스트 내 80/8080/9300/5432 + KPST 비식별 포트(예 9201) 도달. 외부 인바운드는 80만 노출 권장 |
 
