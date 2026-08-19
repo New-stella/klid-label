@@ -468,6 +468,43 @@
         </section>
       </div>
 
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑤ 검수가 완료된 영상 — 묶음별로 갈린다</p>
+        <section class="failure-panel" data-tone="warn" role="region" aria-label="검수 완료 영상의 되돌린 작업 묶음">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">건너뛴 작업 묶음</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>검수 완료</span>
+          </div>
+          <ul class="group-list">
+            <li class="group-row" data-state="released">
+              <div class="group-main">
+                <span class="t-title-sm group-name">시계열</span>
+                <span class="t-caption group-sub">영상 서술 생성</span>
+              </div>
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>되돌림</span>
+              <div class="group-actions">
+                <a class="btn btn-primary btn-sm" href="#dialog-rerun-vlm">재수행</a>
+              </div>
+            </li>
+            <li class="group-row" data-state="released">
+              <div class="group-main">
+                <span class="t-title-sm group-name">오토라벨링</span>
+                <span class="t-caption group-sub">AI 탐지 · AI 분할 · 트랙 보간</span>
+              </div>
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>되돌림</span>
+              <div class="group-actions">
+                <button type="button" class="btn btn-secondary btn-sm" disabled aria-describedby="why-auto-locked" title="검수가 완료된 영상은 오토라벨을 다시 만들 수 없습니다 — 승인 시점 라벨과 어긋납니다.">재수행</button>
+              </div>
+            </li>
+          </ul>
+          <div class="fp-foot">
+            <p class="t-caption fp-note" id="why-auto-locked">검수가 완료된 적 있는 영상에서는 시계열만 다시 수행할 수 있습니다 — 시계열은 확정된 라벨을 건드리지 않고 서술만 더하지만, 오토라벨은 라벨을 다시 만들어 승인 시점과 어긋납니다. 되돌릴 수 없는 조건이라 눌러 보기 전에 알립니다.</p>
+          </div>
+        </section>
+      </div>
+
     </div>
   </div>
 
