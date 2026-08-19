@@ -167,7 +167,7 @@
     "schema_version": 1,
     "current_version": 6,
     "stale": true,
-    "stale_reason": "SCREEN-012의 data.sections 변경 — granted_on",
+    "stale_reason": "SCREEN-009의 data.sections 변경 — granted_on",
     "change_summary": "연결 화면 변경에 따른 재확인. 이 문서의 축과 화면 변경 내용이 겹치지 않고, 폐기된 화면이나 인터페이스를 가리키는 참조도 없음을 확인했다. 본문은 바꾸지 않는다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-15T10:13:03.070Z",
