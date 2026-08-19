@@ -59,12 +59,11 @@ authoring:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:noop}
   # stg 비식별 — 공통 기본값(false)과 동일하나 의도를 명시한다: mock 이 아니라 실제 KPST 위탁 경로로 동작한다.
-  #   (mock 자족이 필요하면 DEIDENTIFY_MOCK_MODE=true 로만 전환 — prd 는 true 면 부트 거부)
+  #   (자체 채움 우회 경로는 없다 — 비식별 서버가 없으면 파이프라인이 진행되지 않는다)
   integration:
     deidentify:
-      mock-mode: ${DEIDENTIFY_MOCK_MODE:false}
 
-# UC018 — ㈜KPST 비식별 솔루션 연동. stg 는 실제 위탁 경로(위 mock-mode=false)이므로 주소 배선이 필수다.
+# UC018 — ㈜KPST 비식별 솔루션 연동. 자체 채움 경로가 없으므로 주소 배선이 <필수>다 — 없으면 비식별이 거부된다.
 #   base-url 은 기본값 없이 환경변수로만 주입한다(미주입 시 기동 단계에서 즉시 실패 — 조용한 오연동 방지).
 #   공통 기본값(https://localhost:9201)을 상속하면 https 인데 ca-cert 가 비어 KpstWebClientConfig 가
 #   fail-closed(CWE-295)로 빈 생성에 실패하므로, stg 에 명시 배선이 없으면 부팅이 차단된다.

@@ -26,22 +26,22 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>반대로 앞단만 늘리고 이 상수를 그대로 두면, 넓힌 여유를 아무도 쓰지 못한다. 두 값은 <b>함께</b>
  * 움직여야 하므로 기계로 묶는다.
  *
- * <p>온프렘 웹 계층은 기본(Caddy)과 대안(기존 nginx 보유 서버) <b>두 형상</b>으로 배포되므로 둘 다
+ * <p>온프렘 웹 계층은 기본(httpd)과 대안(기존 nginx 보유 서버) <b>두 형상</b>으로 배포되므로 둘 다
  * 검사한다 — 한쪽만 맞으면 "어느 서버에 배포됐느냐"에 따라 재현되지 않는 실패가 된다.
  */
 class AiWaitBudgetEdgeAlignmentGuardTest {
 
     private static final Path NGINX_TEMPLATE =
             Paths.get("../deploy/onprem/config/frontend/nginx.conf.template");
-    private static final Path CADDY_TEMPLATE =
-            Paths.get("../deploy/onprem/config/frontend/Caddyfile.template");
+    private static final Path HTTPD_TEMPLATE =
+            Paths.get("../deploy/onprem/config/frontend/httpd-klid.conf.template");
 
     /** nginx {@code proxy_read_timeout 300s;} */
     private static final Pattern NGINX_READ_TIMEOUT =
             Pattern.compile("(?m)^\\s*proxy_read_timeout\\s+([0-9]+)s\\s*;");
-    /** Caddy {@code read_timeout 300s} */
-    private static final Pattern CADDY_READ_TIMEOUT =
-            Pattern.compile("(?m)^\\s*read_timeout\\s+([0-9]+)s\\s*$");
+    /** httpd {@code ProxyPass ... timeout=300} */
+    private static final Pattern HTTPD_READ_TIMEOUT =
+            Pattern.compile("\\btimeout=([0-9]+)\\b");
 
     @Test
     @DisplayName("기본_절대_상한이_nginx_형상의_읽기_제한시간과_같다")
@@ -53,10 +53,10 @@ class AiWaitBudgetEdgeAlignmentGuardTest {
     }
 
     @Test
-    @DisplayName("기본_절대_상한이_Caddy_형상의_읽기_제한시간과_같다")
-    void ceilingMatchesCaddyReadTimeout() {
+    @DisplayName("기본_절대_상한이_httpd_형상의_읽기_제한시간과_같다")
+    void ceilingMatcheshttpdReadTimeout() {
         assertThat(AiWaitBudgetPolicy.DEFAULT_CEILING_SEC)
-                .isEqualTo(readTimeoutSec(CADDY_TEMPLATE, CADDY_READ_TIMEOUT));
+                .isEqualTo(readTimeoutSec(HTTPD_TEMPLATE, HTTPD_READ_TIMEOUT));
     }
 
     @Test
