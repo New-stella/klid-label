@@ -251,17 +251,19 @@
         "subtasks": []
       },
       "uses_constants": [],
-      "implements_features": [],
+      "implements_features": [
+        "FEAT-010"
+      ],
       "verifies_acceptance": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답을 프로젝트 표준 응답 래퍼(data·message·success·errorCode)로 감싸고, 기존 이관 상세 필드 11개를 data 하위로 그대로 옮겼다. security 에 검수자 역할 요구를 명시하고, 401 응답을 신설했다. 403·404 에는 오류 스키마와 예시, ErrorCode 이름을 채웠다. 기존 필드·설명은 하나도 지우지 않았다.",
+    "change_summary": "상위 기능 연결을 채운다. 이 도메인에 상위 기능이 없어 이 계약이 그래프에서 고립돼 있었고, 그 필드는 상위 기능을 받으므로 도메인 기능으로는 채울 수 없었다. 상위 기능이 신설되면서 연결이 가능해졌다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T10:16:03.661Z",
+    "last_updated_at": "2026-08-19T18:33:14.076Z",
     "created_at": "2026-08-19T07:53:21.866Z"
   }
 }

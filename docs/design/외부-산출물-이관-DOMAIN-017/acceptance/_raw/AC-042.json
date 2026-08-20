@@ -14,7 +14,8 @@
           "적재가 거부된다.",
           "응답에 대응이 없는 분류가 무엇인지 담긴다.",
           "영상·프레임·라벨 어느 것도 만들어지지 않는다.",
-          "이름이 비슷하다는 이유로 서버가 대신 확정하지 않는다."
+          "이름이 비슷하다는 이유로 서버가 대신 확정하지 않는다.",
+          "대응이 정해지지 않은 분류는 적재를 막는 사유로 같은 알림 목록에 담기고, 함께 돌아오는 적재 가능 여부 값이 막힘으로 표시된다."
         ],
         "when": [
           "그 산출물의 적재를 요청한다."
@@ -35,7 +36,9 @@
         "progress": 0,
         "subtasks": []
       },
-      "derived_domain_ids": [],
+      "derived_domain_ids": [
+        "DOMAIN-017"
+      ],
       "verification_method": "automated_test",
       "derived_from_use_cases": [
         "UC-035"
@@ -43,12 +46,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": true,
-    "stale_reason": "UC-035의 data.alternate_flows 변경 — derived_from",
-    "change_summary": "신규 — 짐작으로 연결하지 않고 거부하는지 검증한다. 이름이 비슷하다고 자동 확정하면 다른 분류로 저장되고, 저장된 뒤에는 어느 것이 짐작이었는지 구분할 수 없다.",
+    "stale_reason": "DFEAT-058의 data.acceptance_rules 변경이 derived_from로 2-hop 전파",
+    "change_summary": "대응이 정해지지 않은 분류가 적재를 막는 사유로 같은 알림 목록에 담기고 함께 돌아오는 적재 가능 여부 값이 막힘으로 표시된다는 형태를 결과에 추가한다. 거부 자체는 이미 검증하고 있었으나 그 사유가 어느 자리에 어떤 모양으로 담기는지가 검증 축에 없었다. 기존 결과 줄은 그대로 두고 추가만 했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T08:01:00.553Z",
+    "last_updated_at": "2026-08-20T03:14:26.276Z",
     "created_at": "2026-08-19T08:01:00.553Z"
   }
 }

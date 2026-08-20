@@ -14,8 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -61,9 +63,15 @@ import java.util.stream.Stream;
  * 로그 위조(CWE-117), 컬럼 폭 초과를 입구에서 없앤다. 이미지 경로는 <b>주어진 폴더의 바로 아래</b>
  * 여야만 인정한다.
  *
+ * <h3>폴더 안의 바로가기(링크)도 믿지 않는다 (AC-048)</h3>
+ * <p>폴더 위치가 읽어도 되는 자리인지는 호출부가 <b>한 겹</b>만 판정한다. 그 판정을 통과한 폴더 안에
+ * 밖을 가리키는 바로가기를 두면 허용 범위 밖 파일이 읽힌다. 그래서 폴더를 훑을 때도 문서를 열 때도
+ * 링크를 따라가지 않는다(CWE-22/59/367). 건너뛴 항목은 경고로 알린다.
+ *
  * @design DOMAIN-017
  * @design ERD-031
  * @design AC-047
+ * @design AC-048
  * @design UC-035
  */
 @Component
@@ -122,7 +130,7 @@ public class FirstAnnotationParser {
         List<Warning> warnings = new ArrayList<>();
         List<Path> documents = new ArrayList<>();
         List<Path> images = new ArrayList<>();
-        collectEntries(normalized, documents, images);
+        collectEntries(normalized, documents, images, warnings);
 
         DatasetInfo info = null;
         VideoBlock video = null;
@@ -134,8 +142,8 @@ public class FirstAnnotationParser {
 
         for (Path document : documents) {
             JsonNode root;
-            try {
-                root = objectMapper.readTree(Files.readString(document));
+            try (InputStream in = Files.newInputStream(document, LinkOption.NOFOLLOW_LINKS)) {
+                root = objectMapper.readTree(in);
             } catch (IOException | RuntimeException e) {
                 // 문서 하나가 깨졌다고 폴더 전체를 버리지 않는다(AC-047). 그 문서만 건너뛴다.
                 warnings.add(warn(ImportWarningCode.UNREADABLE_DOCUMENT,
@@ -191,16 +199,46 @@ public class FirstAnnotationParser {
 
     // ------------------------------------------------------------------ 폴더 훑기
 
-    private void collectEntries(Path folder, List<Path> documents, List<Path> images) {
+    /**
+     * 폴더 바로 아래에서 읽을 항목을 고른다.
+     *
+     * <h3>바로가기(심링크)는 따라가지 않는다 (CWE-22/59/367)</h3>
+     * <p>폴더 위치는 허용 범위 안인지 <b>한 겹</b>만 판정한다. 그 안에 밖을 가리키는 바로가기를 두고
+     * 산출물 문서처럼 이름 붙이면, 판정을 통과한 폴더를 통해 <b>허용 범위 밖 파일의 내용</b>이 읽혀
+     * 검사 응답으로 나간다(읽히지 않더라도 "읽을 수 없다"는 경고 자체가 그 파일의 존재를 알려 준다).
+     * 그래서 링크는 대상이 안에 있든 밖에 있든 가리지 않고 <b>모두</b> 건너뛴다 — 대상이 어디인지
+     * 확인한 뒤 여는 방식은 확인과 열기 사이에 링크를 바꿔치기할 창이 남는다.
+     *
+     * <h3>건너뛴 것은 반드시 알린다</h3>
+     * <p>조용히 빼면 산출물에 있던 항목이 이유 없이 사라진 것이 되어, 사람이 "덜 들어온 것"을
+     * "원래 그만큼인 것"으로 읽는다. 그래서 산출물 항목으로 보이는 이름의 링크만 골라 경고를 남긴다
+     * (관계없는 이름의 링크까지 알리면 경고가 잡음이 된다).
+     */
+    private void collectEntries(Path folder, List<Path> documents, List<Path> images,
+                                List<Warning> warnings) {
         try (Stream<Path> entries = Files.list(folder)) {
-            entries.filter(Files::isRegularFile)
+            entries
                     // 이름 순 — 같은 폴더를 두 번 읽어도 프레임 순서가 흔들리지 않게 한다.
                     .sorted(Comparator.comparing(p -> p.getFileName().toString()))
                     .forEach(p -> {
-                        String ext = extension(p.getFileName().toString());
-                        if (DOCUMENT_EXTENSION.equals(ext)) {
+                        String name = p.getFileName().toString();
+                        String ext = extension(name);
+                        boolean document = DOCUMENT_EXTENSION.equals(ext);
+                        boolean image = IMAGE_EXTENSIONS.contains(ext);
+                        if (!document && !image) {
+                            return;
+                        }
+                        if (Files.isSymbolicLink(p)) {
+                            warnings.add(warn(ImportWarningCode.SYMBOLIC_LINK_SKIPPED,
+                                    "바로가기(링크) 항목은 따라가지 않고 건너뛴다: " + display(name)));
+                            return;
+                        }
+                        if (!Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) {
+                            return;
+                        }
+                        if (document) {
                             documents.add(p);
-                        } else if (IMAGE_EXTENSIONS.contains(ext)) {
+                        } else {
                             images.add(p);
                         }
                     });

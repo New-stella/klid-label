@@ -3,7 +3,7 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
   "decided_by": "llm",
-  "decided_at": "2026-08-19T00:00:00Z",
+  "decided_at": "2026-08-20T03:20:02.501891+00:00",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 + DFEAT.persists_in_tables·ERD FK references 로 근거된 타도메인 ERD + ADR-048 을 상호 인용해 이 경로의 예외를 명시한 타도메인 ITEM(ADR-042·EVT-005·UC-018) · 폐기(deprecated/superseded) 제외",
   "items": [
     "AC-041",
@@ -54,8 +54,15 @@
     "SCREEN-039",
     "SEQ-026",
     "UC-018",
-    "UC-035"
+    "UC-035",
+    "FEAT-010",
+    "AC-048",
+    "API-215"
   ],
   "pending": [],
-  "last_sync_at": "2026-08-19T12:39:54.495Z"
+  "last_sync_at": "2026-08-20T03:20:03.549Z",
+  "notes": [
+    "2026-08-20 승격 3건 — FEAT-010(이 도메인의 상위 기능) · AC-048(경로 거부 수용기준) · API-215(비식별 완료 기록 통로). 셋 다 belongs_to_domain 이 DOMAIN-017 이며 pin 작성 이후 서버에 생겨 미판정으로 남아 있었다.",
+    "constant 는 의도적으로 넣지 않는다 — 프로젝트 전역 상수는 AI 검출 클래스 축이라 이 도메인 구현이 참조하지 않는다. feature 는 FEAT-010 하나만 필요하다."
+  ]
 }

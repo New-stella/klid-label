@@ -35,6 +35,8 @@ class GlobalExceptionHandlerDataIntegrityTest {
     private static final String PRESET_LABELID_INDEX = "uk_ls_label_preset_code_lblid";
     /** V120 라벨명 대소문자/공백 무시 부분 유니크 인덱스 (동일 exact/근사 이름 동시 생성 패자의 INSERT 거부). */
     private static final String LABEL_NAME_CI_INDEX = "uk_ls_label_nm_ci";
+    /** V14 외부 분류 대응 종류+외부분류 유니크 인덱스 (동일 대응 동시 확정 패자의 INSERT 거부). */
+    private static final String IMPORT_CATEGORY_MAPPING_INDEX = "uk_ls_otsd_ctgry_mpng";
 
     static DataIntegrityViolationException workLockUniqueViolation() {
         SQLException sql = new SQLException(
@@ -60,6 +62,15 @@ class GlobalExceptionHandlerDataIntegrityTest {
                         + "  Detail: Key (lower(btrim(lbl_nm)))=(person) already exists.", "23505");
         ConstraintViolationException hib = new ConstraintViolationException(
                 "could not execute statement [ERROR: duplicate key ...]", sql, LABEL_NAME_CI_INDEX);
+        return new DataIntegrityViolationException("could not execute statement", hib);
+    }
+
+    static DataIntegrityViolationException importCategoryMappingUniqueViolation() {
+        SQLException sql = new SQLException(
+                "ERROR: duplicate key value violates unique constraint \"" + IMPORT_CATEGORY_MAPPING_INDEX + "\"\n"
+                        + "  Detail: Key (mpng_knd_cd, otsd_ctgry_cd)=(LABEL, asphalt) already exists.", "23505");
+        ConstraintViolationException hib = new ConstraintViolationException(
+                "could not execute statement [ERROR: duplicate key ...]", sql, IMPORT_CATEGORY_MAPPING_INDEX);
         return new DataIntegrityViolationException("could not execute statement", hib);
     }
 
@@ -90,6 +101,9 @@ class GlobalExceptionHandlerDataIntegrityTest {
                         HttpStatus.CONFLICT, "CONFLICT"),
                 Arguments.of("label_name_ci_unique_위반은_409", labelNameCiUniqueViolation(),
                         HttpStatus.CONFLICT, "CONFLICT"),
+                // 단독 요청에서 같은 상황은 서비스가 이미 409 로 답한다 — 동시 요청만 500 이면 같은 사유에 두 코드가 난다.
+                Arguments.of("외부분류대응_unique_위반은_409", importCategoryMappingUniqueViolation(),
+                        HttpStatus.CONFLICT, "CONFLICT"),
                 Arguments.of("FK위반은_409아닌_500", fkViolation(),
                         HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
                 Arguments.of("제약명_null이면_500", nullConstraintName(),
@@ -114,7 +128,8 @@ class GlobalExceptionHandlerDataIntegrityTest {
     void responseHasNoConstraintNameOrSql() {
         List<DataIntegrityViolationException> all =
                 List.of(workLockUniqueViolation(), presetLabelIdUniqueViolation(),
-                        labelNameCiUniqueViolation(), fkViolation(), nullConstraintName());
+                        labelNameCiUniqueViolation(), importCategoryMappingUniqueViolation(),
+                        fkViolation(), nullConstraintName());
         for (DataIntegrityViolationException ex : all) {
             ResponseEntity<ApiResponse<Void>> res = handler.handleDataIntegrityViolation(ex);
             String msg = res.getBody().message();
@@ -124,6 +139,7 @@ class GlobalExceptionHandlerDataIntegrityTest {
                     .doesNotContain(WORK_LOCK_INDEX)
                     .doesNotContain(PRESET_LABELID_INDEX)
                     .doesNotContain(LABEL_NAME_CI_INDEX)
+                    .doesNotContain(IMPORT_CATEGORY_MAPPING_INDEX)
                     .doesNotContain(FK_CONSTRAINT)
                     .doesNotContainIgnoringCase("constraint")
                     .doesNotContainIgnoringCase("sql")

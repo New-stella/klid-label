@@ -59,6 +59,32 @@ public final class ImportWarningCode {
     /** 영상 파일명을 쓸 수 없다 — 그 값이 없으면 저장 위치를 정할 수 없다(호출부가 fail-closed). */
     public static final String UNUSABLE_VIDEO_FILE_NAME = "UNUSABLE_VIDEO_FILE_NAME";
 
+    /**
+     * 폴더 안의 파일 수가 훑기 상한을 넘어 <b>읽지 않았다</b> — 이 경고가 있으면 프레임·라벨 수는
+     * 0 이고 적재할 수 없다. 상한에 걸린 것을 조용히 잘라 담으면 "덜 들어온 것"과 "원래 그만큼인 것"이
+     * 구분되지 않는다.
+     */
+    public static final String SCAN_LIMIT_EXCEEDED = "SCAN_LIMIT_EXCEEDED";
+
+    /** 폴더 이름과 데이터셋 식별자가 모두 비어 이관 식별자를 만들 수 없다 — 중복 여부도 가릴 수 없다. */
+    public static final String UNIDENTIFIABLE_DATASET = "UNIDENTIFIABLE_DATASET";
+
+    /**
+     * 분류 식별 문자열이 대응 표의 컬럼 폭을 넘어 <b>대응을 만들 수 없다</b> — 그 분류는 확정할 방법이
+     * 없으므로 미확정으로 남고 적재도 막힌다.
+     */
+    public static final String UNMAPPABLE_CATEGORY_CODE = "UNMAPPABLE_CATEGORY_CODE";
+
+    /** 프레임이 하나도 없다 — 적재할 것이 없다. */
+    public static final String NO_FRAME_FOUND = "NO_FRAME_FOUND";
+
+    /**
+     * 폴더 안의 바로가기(링크) 항목을 <b>따라가지 않고 건너뛰었다</b>. 폴더 위치는 허용 범위 안인지
+     * 한 겹만 판정하므로, 링크를 따라가면 그 판정을 통과한 폴더를 통해 허용 범위 밖 파일이 읽힌다
+     * (CWE-22/59/367). 건너뛴 사실을 알리지 않으면 산출물 항목이 이유 없이 사라진 것이 된다.
+     */
+    public static final String SYMBOLIC_LINK_SKIPPED = "SYMBOLIC_LINK_SKIPPED";
+
     private ImportWarningCode() {
     }
 }

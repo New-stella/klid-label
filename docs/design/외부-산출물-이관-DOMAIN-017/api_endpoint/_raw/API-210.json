@@ -241,8 +241,8 @@
                   },
                   "externalCode": {
                     "type": "string",
-                    "maxLength": 100,
-                    "description": "외부 산출물이 준 분류 식별 문자열."
+                    "maxLength": 20,
+                    "description": "외부 산출물이 준 분류 식별 문자열. 두 축은 성질이 다르다. 라벨 축은 산출물이 영문 코드와 표시 이름을 따로 주고 도형 어노테이션이 그 영문 코드를 참조하므로 그 코드가 그대로 들어온다. 이벤트 축은 산출물이 코드를 주지 않고 이름만 주므로, 가장 구체적인 최말단 이름 하나가 코드 자리에 들어오고 상위 계층 이름은 참고로만 보관한다. 길이는 표준 코드 도메인 폭을 따르며, 그 폭을 넘으면 입구에서 거부한다. 관측된 이름이 모두 이 폭 안에 들어와 초과가 실증되지 않았으므로 표준 도메인 폭을 벗어나면서까지 미리 넓히지 않는다. 초과가 실제로 오면 그 분류는 확정할 수 없고, 그 산출물은 적재할 수 없다."
                   },
                   "externalName": {
                     "type": "string",
@@ -266,24 +266,29 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-20T02:08:04.883Z"
       },
       "uses_constants": [],
-      "implements_features": [],
-      "verifies_acceptance": []
+      "implements_features": [
+        "FEAT-010"
+      ],
+      "verifies_acceptance": [
+        "AC-043"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "응답을 표준 응답 래퍼로 감싼다 — 성공 본문을 data 하위로 옮기고 message·success·errorCode 를 함께 둔다. 인증 실패 응답을 신설하고, 기존 오류 응답에 본문 구조와 예시, 오류 코드 이름을 채운다. 기존 응답 필드와 설명은 그대로 둔다.",
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "AC-043의 2개 필드 변경 — verifies",
+    "change_summary": "외부 분류 식별 문자열 필드의 설명에 두 축의 성질 차이와 폭을 유지하는 근거를 더한다. 라벨 축은 산출물이 영문 코드와 표시 이름을 따로 주고 도형 어노테이션이 그 영문 코드를 참조하지만, 이벤트 축은 코드가 아예 없어 가장 구체적인 최말단 이름 하나가 코드 자리에 들어오고 상위 계층 이름은 참고로만 보관한다. 관측된 이름이 모두 표준 코드 도메인 폭 안에 들어와 초과가 실증되지 않았으므로 그 폭을 벗어나면서까지 미리 넓히지 않으며, 초과가 실제로 오면 그 분류를 확정할 수 없어 그 산출물은 적재할 수 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T10:19:42.162Z",
+    "last_updated_at": "2026-08-20T03:06:31.216Z",
     "created_at": "2026-08-19T07:54:44.682Z"
   }
 }

@@ -1,18 +1,19 @@
 ---
 logicraft_item: DFEAT-058
 type: domain_feature
-version: 1
+version: 3
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-19T12:39:54.447Z
-status: NEW
-prev_version: null
-content_hash: 996afab6fa1d72227dfb853ebfb658ddc8f5336d8dffea31e213a14b515aad82
-stale: true
+synced_at: 2026-08-20T03:19:22.461Z
+status: CHANGED
+prev_version: 1
+content_hash: 449f7d2230eea2b5735af6e1ac1ba9d400582be252461b958eab710faeecc3d3
+stale: false
 raw: ./_raw/DFEAT-058.json
 links:
   belongs_to_domain: ["[[DOMAIN-017]]"]
   implements: ["[[API-209]]", "[[API-210]]", "[[API-211]]"]
+  specializes: ["[[FEAT-010]]"]
   verifies: ["[[AC-042]]", "[[AC-043]]"]
   realizes_backward: ["[[UC-035]]"]
 ---
@@ -73,6 +74,8 @@ ADR-048
 
 쓰지 않게 된 대응은 지우지 않고 쓰지 않음으로 표시한다. 그 대응으로 이미 적재된 라벨이 무엇을 근거로 그 분류에 놓였는지를 나중에도 되짚을 수 있어야 하기 때문이다.
 
+대응의 열쇠는 축마다 다르다. 라벨 축은 산출물이 영문 코드와 표시 이름을 따로 주므로 그 코드가 그대로 대응 열쇠가 된다. 이벤트 축은 산출물이 코드를 주지 않고 이름만 주므로, 가장 구체적인 최말단 이름 하나가 대응 열쇠가 된다. 상위 계층 이름은 대응 목록에 나오지 않고 참고로만 보관한다. 상위 계층까지 대응 대상으로 열면 같은 항목이 여러 자리에 걸려 어느 대응이 실제로 적용됐는지 알 수 없다.
+
 ## invokes_apis
 
 _(empty)_
@@ -129,6 +132,12 @@ _(empty)_
 - **when**: 검수자가 그 대응을 해제한다
 - **given**: 더는 쓰지 않을 대응이 있다
 
+### [5]
+
+- **then**: 가장 구체적인 최말단 이름 하나만 대응 열쇠가 되고 상위 계층 이름은 대응 목록에 나오지 않는다
+- **when**: 검수자가 그 분류의 대응을 확정한다
+- **given**: 이벤트 축의 외부 분류가 상위 계층 이름과 최말단 이름을 함께 담고 있다
+
 ## persists_in_tables
 
 - LS_OTSD_CTGRY_MPNG
@@ -137,6 +146,10 @@ _(empty)_
 
 - AC-042
 - AC-043
+
+## specializes_feature
+
+FEAT-010
 
 ## implemented_by_endpoints
 
