@@ -85,6 +85,55 @@ package kr.co.cudo.authoring.dataset.export;
  */
 public final class ExportPrivacyPolicy {
 
+    // ---------------------------------------------------------------- 이관 경로 원천 축 (DOMAIN-017)
+
+    /**
+     * 외부 산출물 이관({@code SRC_TYPE='IMPORTED'})의 <b>원천 축 익명정보 포함여부</b>가 보관되는
+     * 메타 열쇠.
+     *
+     * <h3>왜 메타에 두는가</h3>
+     * <p>원천 축 3필드의 착지 컬럼은 <b>관제 수신 원장</b>({@code LS_DATA_INGEST.*_INCL_YN}) 하나뿐인데,
+     * 이관 경로는 그 원장을 <b>거치지 않는다</b>(ADR-048 — 저작도구가 자기 판단으로 수신 원장에 행을
+     * 넣으면 그 원장이 더 이상 "관제가 보낸 것"을 뜻하지 않게 된다). 그래서 산출물이 준 원문을
+     * {@code LS_DATA_META} 에 보관하고 산출 시점에 이 축이 그것을 읽는다. 새 컬럼을 만들지 않는 이유도
+     * 같다 — 인입 축과 이관 축이 서로 다른 컬럼을 가지면 원천 판정 자리가 둘이 된다.
+     *
+     * <p>열쇠 문자열을 <b>읽는 쪽인 여기</b>에 두는 것은 의도다. 쓰는 쪽(이관)과 읽는 쪽(산출)에 각각
+     * 선언하면 같은 문자열이 두 벌이 되어, 한쪽만 바뀌면 값이 조용히 사라진다.
+     */
+    public static final String IMPORT_SOURCE_ANONYMITY_KEY = "import.video.anonymity";
+    /** @see #IMPORT_SOURCE_ANONYMITY_KEY */
+    public static final String IMPORT_SOURCE_PSEUDONYMITY_KEY = "import.video.pseudonymity";
+    /** @see #IMPORT_SOURCE_ANONYMITY_KEY */
+    public static final String IMPORT_SOURCE_PRIVACY_INCLUDED_KEY = "import.video.privacy_included";
+
+    /**
+     * 이관 경로의 <b>원천 축 조달</b> — 관제 인입값 대신 메타에 보관된 산출물 원문을 싣는다.
+     *
+     * <p>돌려주는 값은 {@code sourceExists=true} 다. 이관 영상은 파생영상이 아니라 <b>원천 영상 자체</b>가
+     * 있는 경우이므로, {@code image} 블록의 원천 상수({@link #ORGNL_DEFAULT_ANONYMITY} 등)도 종전대로
+     * 실려야 한다. 여기서 {@link SourcePrivacyMeta#NONE} 을 돌려주면 {@code image} 블록이 통째로
+     * {@code null} 이 되어 <b>파생영상과 구분되지 않는다</b>.
+     *
+     * <p>세 값이 모두 {@code null} 이어도 {@code true} 다 — "산출물이 그 값을 안 줬다"와 "원천이 아예
+     * 없다"는 다른 사실이고, 앞의 경우에도 값을 지어내지 않는다.
+     *
+     * <p>⚠ 산출물은 <b>프레임 축</b> 3필드도 함께 준다. 그 값은 이 판정에 쓰지 않는다 — 확인한 표본에서
+     * 프레임 축 값이 비식별 축 기본값과 같은 모양이라, 원천 축에 실으면 "원천 영상인데 익명처리를 거쳤다"는
+     * 성립할 수 없는 산출이 나온다. 프레임 축 원문은 이관이 별도 열쇠로 보관만 한다.
+     *
+     * @param anonyInclYn     보관된 {@code video.anonymity} 원문(없으면 {@code null})
+     * @param psdoInclYn      보관된 {@code video.pseudonymity} 원문
+     * @param prvcInclYn      보관된 {@code video.privacy_included} 원문
+     * @design DOMAIN-017
+     * @design DFEAT-057
+     * @design ADR-048
+     */
+    public static SourcePrivacyMeta importedSource(String anonyInclYn, String psdoInclYn,
+                                                   String prvcInclYn) {
+        return SourcePrivacyMeta.ofImport(anonyInclYn, psdoInclYn, prvcInclYn);
+    }
+
     /** 비식별 산출물 기본값 — 익명정보 포함여부. 수동 판정이 없을 때만 적용. */
     public static final String DEID_DEFAULT_ANONYMITY = "Y";
     /** 비식별 산출물 기본값 — 가명정보 포함여부. */

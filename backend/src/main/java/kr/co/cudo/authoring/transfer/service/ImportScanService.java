@@ -26,7 +26,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -172,8 +171,8 @@ public class ImportScanService {
     private List<ImportScanResponse.UnmappedCategory> resolveUnmapped(
             ImportedDataset dataset, List<ImportScanResponse.Warning> warnings) {
 
-        Map<String, String> labelCategories = collectLabelCategories(dataset);
-        Map<String, String> eventCategories = collectEventCategories(dataset);
+        Map<String, String> labelCategories = ImportCategoryCollector.labelCategories(dataset);
+        Map<String, String> eventCategories = ImportCategoryCollector.eventCategories(dataset);
         if (labelCategories.isEmpty() && eventCategories.isEmpty()) {
             return List.of();
         }
@@ -231,39 +230,6 @@ public class ImportScanService {
                 .stream()
                 .map(LsOtsdCtgryMpng::getOtsdCtgryCd)
                 .collect(Collectors.toSet());
-    }
-
-    /** 도형 라벨이 쓴 분류(식별 문자열 → 표시 이름). 등장 순서를 지킨다. */
-    private static Map<String, String> collectLabelCategories(ImportedDataset dataset) {
-        Map<String, String> categories = new LinkedHashMap<>();
-        for (ImportedDataset.Frame frame : dataset.frames()) {
-            for (ImportedDataset.Shape shape : frame.shapes()) {
-                String code = ExternalNameSanitizer.text(shape.categoryId(),
-                        LsOtsdCtgryMpng.OTSD_CTGRY_NM_MAX);
-                if (code == null) {
-                    continue;
-                }
-                categories.putIfAbsent(code, ExternalNameSanitizer.text(shape.categoryName(),
-                        LsOtsdCtgryMpng.OTSD_CTGRY_NM_MAX));
-            }
-        }
-        return categories;
-    }
-
-    /**
-     * 영상이 가리키는 이벤트 분류. 산출물은 이벤트를 <b>이름으로만</b> 주고 코드를 주지 않으므로
-     * 그 이름이 곧 대응의 열쇠다.
-     */
-    private static Map<String, String> collectEventCategories(ImportedDataset dataset) {
-        if (dataset.video() == null) {
-            return Map.of();
-        }
-        String eventName = ExternalNameSanitizer.text(dataset.video().eventName(),
-                LsOtsdCtgryMpng.OTSD_CTGRY_NM_MAX);
-        if (eventName == null) {
-            return Map.of();
-        }
-        return Map.of(eventName, eventName);
     }
 
     // ------------------------------------------------------------------ 중복
