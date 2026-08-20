@@ -13,6 +13,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.util.LabelPointSerializer;
 import kr.co.cudo.authoring.common.util.Point;
+import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
+import kr.co.cudo.authoring.transfer.parser.ExternalNameSanitizer;
 import kr.co.cudo.authoring.transfer.parser.ImportedDataset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.event.VideoIngestedEvent;
@@ -127,12 +129,20 @@ public class ImportPersistTxService {
         }
         statusRepository.save(status);
 
+        // 산출물이 프레임마다 준 개인정보 3필드가 우리 비식별 축 컬럼에 착지하는가 — 판정은 산출
+        //   정책이 단독으로 소유한다(ERD-031 프레임 행 절). 여기서 다시 판정하면 같은 분기가 두 벌이 된다.
+        boolean privacyLandsOnFrames =
+                ExportPrivacyPolicy.importedFrameValuesLandOnDeidentAxis(plan.deidentified());
+
         List<LsDataSrc> frames = new ArrayList<>();
         for (ImportPlan.FramePlan framePlan : plan.framePlans()) {
             ImportedDataset.Frame frame = framePlan.frame();
             LsDataSrc src = LsDataSrc.createFromImport(rawSn, framePlan.frameNo(),
                     frame.videoFrameNo(), framePlan.srcFilePath(), framePlan.deidFilePath(),
-                    frame.dateCaptured());
+                    frame.dateCaptured(),
+                    landedYn(privacyLandsOnFrames, frame.anonymity()),
+                    landedYn(privacyLandsOnFrames, frame.pseudonymity()),
+                    landedYn(privacyLandsOnFrames, frame.privacyIncluded()));
             String description = frameDescription(frame);
             if (description != null) {
                 src.updateDescription(description);
@@ -210,6 +220,17 @@ public class ImportPersistTxService {
         String pointsJson = LabelPointSerializer.toJson(rings.get(0), objectMapper);
         return LsDataLbl.createRestored(srcSn, LsDataLbl.TYPE_POLYGON, labelId,
                 truncate(labelNm, LABEL_NAME_MAX), pointsJson, null, null, shape.trackId(), null);
+    }
+
+    /**
+     * 착지하는 축이면 산출물이 준 값을 우리 저장 형식으로 옮겨 돌려주고, 아니면 {@code null}.
+     *
+     * <p>{@code null} 은 "값이 없다"가 아니라 <b>"이 컬럼에 담지 않는다"</b>는 뜻이며, 엔티티 팩토리가
+     * 적재 기본값으로 채운다. 옮길 수 없는 표기도 같은 자리로 떨어진다 — 짐작해 한쪽으로 접으면 그
+     * 짐작이 곧 개인정보 판정 사실이 되어 산출물에 실리고, 저장된 뒤에는 구분할 수 없다.
+     */
+    private static String landedYn(boolean lands, String rawValue) {
+        return lands ? ExternalNameSanitizer.yn(rawValue) : null;
     }
 
     /** 프레임 설명 — 문서의 {@code image.description} 우선, 없으면 텍스트 항목의 상황묘사. */

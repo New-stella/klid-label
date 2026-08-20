@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.transfer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.dataset.export.DatasetExportOutcome;
+import kr.co.cudo.authoring.dataset.export.DatasetExportService;
 import kr.co.cudo.authoring.eventtype.service.EventTypeCacheEvictor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +33,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,7 +47,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <ul>
  *   <li>산출물이 <b>실재하지 않으면</b> 아무것도 기록하지 않고 거부한다 — 이력 행도 남지 않고 보류도
  *       그대로다.</li>
- *   <li>확인을 통과하면 이력에 산출물 위치가 적재되고 보류가 풀려 <b>같은 영상의 승인이 진행된다</b>.</li>
+ *   <li>실재하더라도 프레임과 <b>이름이 맞는 파일이 한 건도 없으면</b> 그 폴더는 이 영상의 산출물이
+ *       아니므로 거부한다 — 보류도 풀리지 않는다.</li>
+ *   <li>확인을 통과하면 이력에 산출물 위치가 적재되고 <b>프레임마다 비식별 이미지 위치가 채워져</b>
+ *       보류가 풀리고, 같은 영상의 승인이 진행되며 학습데이터 산출이 <b>성공으로 마감</b>된다.</li>
+ *   <li>이름이 맞지 않는 프레임은 <b>비워진 채로 남고 그 수가 응답에 나온다</b> — 순서로 메우지 않는다.</li>
  * </ul>
  *
  * @design DOMAIN-017
@@ -67,8 +74,12 @@ class ImportDeidentCompleteControllerIT {
     private static final String MAPPING_LABEL_NAME = "이관비식별라벨";
     private static final String EVENT_TYPE_CD = "IMPTEST02";
     private static final Path STORAGE_ROOT = Paths.get("build", "tmp", "import-it");
-    /** 확인을 통과해야 하는 폴더 — 허용 범위 안에 있고 일반 파일이 하나 있다. */
+    /** 확인을 통과해야 하는 폴더 — 표본의 프레임 이미지 이름과 <b>전부 같은 이름</b>을 가진다. */
     private static final Path ARTIFACT_DIR = STORAGE_ROOT.resolve("raw").resolve("outside-deid");
+    /** 일부만 이름이 맞는 폴더 — 나머지 프레임은 비워진 채로 남아야 한다. */
+    private static final Path PARTIAL_DIR = STORAGE_ROOT.resolve("raw").resolve("outside-deid-partial");
+    /** 파일은 실재하지만 <b>이름이 하나도 맞지 않는</b> 폴더 — 이 영상의 산출물이 아니다. */
+    private static final Path MISMATCH_DIR = STORAGE_ROOT.resolve("raw").resolve("outside-deid-other");
     /** 확인을 통과하면 안 되는 폴더 — 허용 범위 안이지만 <b>산출물이 없다</b>. */
     private static final Path EMPTY_DIR = STORAGE_ROOT.resolve("raw").resolve("outside-deid-empty");
     /** 확인을 통과하면 안 되는 폴더 — 파일은 있으나 <b>내용이 비어 있다</b>. */
@@ -77,6 +88,7 @@ class ImportDeidentCompleteControllerIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private EventTypeCacheEvictor eventTypeCacheEvictor;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private DatasetExportService datasetExportService;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -99,11 +111,22 @@ class ImportDeidentCompleteControllerIT {
         labelId = insertLabel();
         insertEventType();
         confirmMappings();
+        // 대응은 파일 이름으로만 한다 — 표본 프레임과 같은 이름을 놓아야 이어진다.
         Files.createDirectories(ARTIFACT_DIR);
-        Files.write(ARTIFACT_DIR.resolve("00000001-mask.jpg"), new byte[]{1, 2, 3});
+        for (int i = 1; i <= ImportSampleFolder.FRAME_COUNT; i++) {
+            Files.write(ARTIFACT_DIR.resolve(frameFileName(i)), new byte[]{1, 2, 3});
+        }
+        // 첫 프레임과 <b>중간 프레임</b>만 놓는다 — 순서로 이으면 두 번째 파일이 두 번째 프레임에 붙어
+        //   대응이 어긋나는데, 개수만 세면 그 어긋남이 드러나지 않는다.
+        Files.createDirectories(PARTIAL_DIR);
+        Files.write(PARTIAL_DIR.resolve(frameFileName(1)), new byte[]{1, 2, 3});
+        Files.write(PARTIAL_DIR.resolve(frameFileName(5)), new byte[]{1, 2, 3});
+        // 이름이 다르면 실재해도 이 영상의 산출물이 아니다 — 순서로 메우면 다른 프레임에 붙는다.
+        Files.createDirectories(MISMATCH_DIR);
+        Files.write(MISMATCH_DIR.resolve("00000001-mask.jpg"), new byte[]{1, 2, 3});
         Files.createDirectories(EMPTY_DIR);
         Files.createDirectories(HOLLOW_DIR);
-        Files.write(HOLLOW_DIR.resolve("00000001-mask.jpg"), new byte[0]);
+        Files.write(HOLLOW_DIR.resolve(frameFileName(1)), new byte[0]);
     }
 
     @AfterEach
@@ -153,8 +176,8 @@ class ImportDeidentCompleteControllerIT {
     }
 
     @Test
-    @DisplayName("산출물을_확인하면_이력에_위치가_적재되고_보류가_풀려_승인이_진행된다")
-    void 산출물을_확인하면_이력에_위치가_적재되고_보류가_풀려_승인이_진행된다() throws Exception {
+    @DisplayName("산출물을_확인하면_프레임까지_이어지고_보류가_풀려_산출이_성공으로_마감된다")
+    void 산출물을_확인하면_프레임까지_이어지고_보류가_풀려_산출이_성공으로_마감된다() throws Exception {
         long rawSn = importOriginal();
 
         mockMvc.perform(post("/v1/reviews/" + rawSn + "/start")
@@ -172,7 +195,10 @@ class ImportDeidentCompleteControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.rawSn").value(rawSn))
                 .andExpect(jsonPath("$.data.approvalHoldReleased").value(true))
-                .andExpect(jsonPath("$.data.procLogSn").isNumber());
+                .andExpect(jsonPath("$.data.procLogSn").isNumber())
+                .andExpect(jsonPath("$.data.deidentFrameMatchedCount")
+                        .value(ImportSampleFolder.FRAME_COUNT))
+                .andExpect(jsonPath("$.data.deidentFrameUnmatchedCount").value(0));
 
         // 비식별 산출물의 위치는 적재값을 읽어 쓴다 — 이름을 조합하거나 추측하지 않는다.
         Map<String, Object> procLog = jdbc.queryForMap(
@@ -183,6 +209,16 @@ class ImportDeidentCompleteControllerIT {
                 .isEqualTo(ARTIFACT_DIR.toAbsolutePath().toRealPath().toString());
         assertThat(deidentCompleted(rawSn)).isEqualTo("Y");
 
+        // 폴더 위치만 남기지 않는다 — 프레임마다 비식별 이미지 위치가 채워져야 한다. 비워 두면 아래
+        //   산출이 언제나 부분 성공으로 마감돼 관제가 비식별 이미지 없는 산출물을 받는다.
+        assertThat(deidFramePaths(rawSn)).hasSize(ImportSampleFolder.FRAME_COUNT);
+
+        // 프레임의 비식별 이미지는 규약이 정한 자리에 실제로 놓여야 열린다 — 규약 밖이면 산출도
+        //   프레임 서빙도 통째로 거부된다.
+        mockMvc.perform(get("/v1/frames/" + firstSrcSn(rawSn) + "/deid-image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+
         // 보류가 풀리면 승인이 정상으로 진행된다.
         mockMvc.perform(post("/v1/reviews/" + rawSn + "/approve")
                         .header("Authorization", "Bearer " + reviewerToken))
@@ -190,6 +226,64 @@ class ImportDeidentCompleteControllerIT {
         assertThat(jdbc.queryForObject(
                 "SELECT data_stts_cd FROM ls_raw_data_status WHERE raw_data_id = ?",
                 String.class, rawSn)).isEqualTo("APPROVED");
+
+        // ★★ 이 단언이 이 시험의 중심이다. 경로 문자열만 단언하면 프레임이 이어지지 않은 상태도
+        //    그대로 통과한다 — 결과로 잇는다. 비식별 벌이 한 장도 없으면 여기가 PARTIAL 이 된다.
+        assertThat(datasetExportService.export(rawSn, true))
+                .isEqualTo(DatasetExportOutcome.COMPLETED);
+        // ⚠ 승인이 띄운 산출이 비동기로 함께 돌아 가장 최근 행이 아직 진행 중일 수 있다. 최신 1건만
+        //   보면 그 타이밍에 흔들리므로, 이번 실행이 남긴 <b>성공 마감 행의 존재</b>로 고정한다.
+        assertThat(jdbc.queryForList(
+                "SELECT output_stts_cd FROM ls_dataset_export WHERE data_raw_sn = ?",
+                String.class, rawSn))
+                .contains("SUCCEEDED")
+                .doesNotContain("PARTIAL");
+    }
+
+    @Test
+    @DisplayName("이름이_맞지_않는_프레임은_비워진_채로_남고_그_수가_응답에_나온다")
+    void 이름이_맞지_않는_프레임은_비워진_채로_남고_그_수가_응답에_나온다() throws Exception {
+        long rawSn = importOriginal();
+        int unmatched = ImportSampleFolder.FRAME_COUNT - 2;
+
+        mockMvc.perform(post(url(rawSn))
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(PARTIAL_DIR.toAbsolutePath().toString())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.deidentFrameMatchedCount").value(2))
+                .andExpect(jsonPath("$.data.deidentFrameUnmatchedCount").value(unmatched));
+
+        // 한 건이라도 이었으면 기록은 성립한다 — 보류는 풀린다.
+        assertThat(deidentCompleted(rawSn)).isEqualTo("Y");
+        // 나머지는 비워진 채로 남는다(짐작으로 메우지 않는다).
+        assertThat(deidFramePaths(rawSn)).hasSize(2);
+
+        // ★★ 개수만 세면 순서로 이어도 통과한다. <b>어느 프레임에 붙었는가</b>를 고정한다 — 순서로
+        //    이으면 두 번째 파일이 두 번째 프레임에 붙어 다른 장면의 비식별 이미지가 실리고, 붙고 나면
+        //    어느 것이 짐작이었는지 구분할 수 없다.
+        assertThat(pairedFileNames(rawSn)).containsExactlyInAnyOrderEntriesOf(Map.of(
+                frameFileName(1), frameFileName(1),
+                frameFileName(5), frameFileName(5)));
+    }
+
+    @Test
+    @DisplayName("이름이_맞는_파일이_한_건도_없으면_기록하지_않고_보류가_유지된다")
+    void 이름이_맞는_파일이_한_건도_없으면_기록하지_않고_보류가_유지된다() throws Exception {
+        long rawSn = importOriginal();
+
+        // 산출물 실재 확인은 통과한다(내용이 있는 일반 파일이 있다). 그래도 이 영상의 프레임과 이름이
+        //   하나도 맞지 않으면 그 폴더는 이 영상의 산출물이 아니다.
+        mockMvc.perform(post(url(rawSn))
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(MISMATCH_DIR.toAbsolutePath().toString())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+
+        assertThat(procLogCount(rawSn)).isZero();
+        assertThat(deidentCompleted(rawSn)).isEqualTo("N");
+        assertThat(deidFramePaths(rawSn)).isEmpty();
     }
 
     @Test
@@ -301,6 +395,38 @@ class ImportDeidentCompleteControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated());
+    }
+
+    /** 비식별 이미지가 채워진 프레임의 <b>원본 파일 이름 → 비식별 파일 이름</b> 대응. */
+    private Map<String, String> pairedFileNames(long rawSn) {
+        Map<String, String> paired = new HashMap<>();
+        jdbc.query("SELECT src_file_path_nm, de_idntf_src_file_path_nm FROM ls_data_src "
+                        + "WHERE raw_sn = ? AND de_idntf_src_file_path_nm IS NOT NULL",
+                rs -> { paired.put(baseName(rs.getString(1)), baseName(rs.getString(2))); }, rawSn);
+        return paired;
+    }
+
+    private static String baseName(String path) {
+        return path == null ? null : Paths.get(path).getFileName().toString();
+    }
+
+    /** 비식별 이미지 위치가 실제로 채워진 프레임의 경로 목록. */
+    private List<String> deidFramePaths(long rawSn) {
+        return jdbc.queryForList(
+                "SELECT de_idntf_src_file_path_nm FROM ls_data_src WHERE raw_sn = ? "
+                        + "AND de_idntf_src_file_path_nm IS NOT NULL ORDER BY frm_no",
+                String.class, rawSn);
+    }
+
+    private long firstSrcSn(long rawSn) {
+        return jdbc.queryForObject(
+                "SELECT src_sn FROM ls_data_src WHERE raw_sn = ? ORDER BY frm_no LIMIT 1",
+                Long.class, rawSn);
+    }
+
+    /** 표본 프레임 이미지의 파일 이름 — 대응은 이 이름으로만 이뤄진다. */
+    private static String frameFileName(int index) {
+        return String.format("%08d.jpg", index);
     }
 
     private String deidentCompleted(long rawSn) {

@@ -46,7 +46,24 @@ public final class ImportPathPolicy {
     /** 식별자 조각 하나의 상한 — 둘을 합쳐도 식별자 컬럼 폭 안에 들어오게 잡는다. */
     private static final int IDENTIFIER_PART_MAX = 50;
 
+    /** 산출물이 준 파일명을 저장 이름으로 옮길 때의 길이 상한. */
+    public static final int FILE_NAME_MAX = IDENTIFIER_PART_MAX * 2;
+
     private ImportPathPolicy() {
+    }
+
+    /**
+     * 산출물이 준 파일명을 <b>저작도구 저장소에 쓰는 이름</b>으로 옮긴다 — 이 변환의 단일 지점.
+     *
+     * <h3>왜 한 곳에 모으는가</h3>
+     * <p>비식별 산출물을 나중에 프레임에 이을 때는 <b>파일 이름</b>으로만 대응한다. 그때 이 변환을 다시
+     * 짜면 상한이나 정제 규칙이 한쪽만 바뀌었을 때 <b>같은 이름인데 대응이 안 되는</b> 프레임이 생기고,
+     * 그 프레임은 비식별 이미지 없이 남는다. 저장할 때와 이을 때가 반드시 같은 함수를 부른다.
+     *
+     * @return 저장 이름. 쓸 수 없는 이름이면 {@code null}
+     */
+    public static String storedFileName(String rawName) {
+        return ExternalNameSanitizer.fileName(rawName, FILE_NAME_MAX);
     }
 
     /**
@@ -97,7 +114,7 @@ public final class ImportPathPolicy {
         if (vmsClipId == null || vmsClipId.isBlank()) {
             throw new IllegalArgumentException("이관 영상 식별자가 비어 있습니다.");
         }
-        String fileName = ExternalNameSanitizer.fileName(videoFileName, IDENTIFIER_PART_MAX * 2);
+        String fileName = storedFileName(videoFileName);
         if (fileName == null) {
             // 학습데이터 산출물의 영상 파일명이 여기서 나오므로 자리표시자를 만들지 않는다.
             throw new IllegalArgumentException("산출물이 준 영상 파일명을 쓸 수 없습니다.");
@@ -136,7 +153,7 @@ public final class ImportPathPolicy {
      */
     public static String frameFilePath(String base, boolean deidentified,
                                        String vmsClipId, String imageFileName) {
-        String fileName = ExternalNameSanitizer.fileName(imageFileName, IDENTIFIER_PART_MAX * 2);
+        String fileName = storedFileName(imageFileName);
         if (fileName == null) {
             throw new IllegalArgumentException("산출물이 준 프레임 파일명을 쓸 수 없습니다.");
         }

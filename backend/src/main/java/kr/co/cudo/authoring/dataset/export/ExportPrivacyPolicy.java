@@ -118,9 +118,10 @@ public final class ExportPrivacyPolicy {
      * <p>세 값이 모두 {@code null} 이어도 {@code true} 다 — "산출물이 그 값을 안 줬다"와 "원천이 아예
      * 없다"는 다른 사실이고, 앞의 경우에도 값을 지어내지 않는다.
      *
-     * <p>⚠ 산출물은 <b>프레임 축</b> 3필드도 함께 준다. 그 값은 이 판정에 쓰지 않는다 — 확인한 표본에서
-     * 프레임 축 값이 비식별 축 기본값과 같은 모양이라, 원천 축에 실으면 "원천 영상인데 익명처리를 거쳤다"는
-     * 성립할 수 없는 산출이 나온다. 프레임 축 원문은 이관이 별도 열쇠로 보관만 한다.
+     * <p>⚠ 산출물은 <b>프레임 축</b> 3필드도 함께 준다. 그 값은 이 <b>원천 축</b> 판정에 쓰지 않는다 —
+     * 확인한 표본에서 프레임 축 값이 비식별 축 기본값과 같은 모양이라, 원천 축에 실으면 "원천 영상인데
+     * 익명처리를 거쳤다"는 성립할 수 없는 산출이 나온다. 프레임 축 값이 어디에 착지하는지는
+     * {@link #importedFrameValuesLandOnDeidentAxis(boolean)} 이 단독으로 정한다.
      *
      * @param anonyInclYn     보관된 {@code video.anonymity} 원문(없으면 {@code null})
      * @param psdoInclYn      보관된 {@code video.pseudonymity} 원문
@@ -132,6 +133,38 @@ public final class ExportPrivacyPolicy {
     public static SourcePrivacyMeta importedSource(String anonyInclYn, String psdoInclYn,
                                                    String prvcInclYn) {
         return SourcePrivacyMeta.ofImport(anonyInclYn, psdoInclYn, prvcInclYn);
+    }
+
+    /**
+     * 이관 산출물이 <b>프레임마다 준</b> 익명·가명·개인정보 포함여부가 우리 <b>비식별 축 컬럼</b>
+     * ({@code LS_DATA_SRC.ANONY_INCL_YN}·{@code PSDO_INCL_YN}·{@code PRVC_INCL_YN})에 착지하는가 —
+     * <b>이 분기의 단독 소유 지점</b>이다(ERD-031 프레임 행 절).
+     *
+     * <h3>왜 축이 갈리는가</h3>
+     * <ul>
+     *   <li><b>비식별이 끝난 것으로 지정해 가져온 경우</b> — 그 판정은 이미 비식별을 마친 화면에 대한
+     *       것이라 우리 비식별 축과 뜻이 같다. 그래서 컬럼에 그대로 적재하고, 산출 시점에는
+     *       {@link #resolveImageAnonymity} 등의 비식별 분기가 <b>수동값 자리</b>로 그것을 읽는다.</li>
+     *   <li><b>원본이라고 지정해 가져온 경우</b> — 그 판정은 <b>원천 축</b>의 사실인데, 프레임 축 원천에는
+     *       착지 컬럼이 없다(이 클래스의 §"프레임 축에 DB 컬럼을 만들지 않는 이유" 참조 — 컬럼이 한 벌인데
+     *       두 축이 공유해, 원천값을 그 자리에 넣으면 비식별의 "미입력"이 사라져 비식별 산출값이 뒤집힌다).
+     *       그래서 컬럼에 넣지 않고 메타에 원문으로 보관한다.</li>
+     * </ul>
+     *
+     * <h3>판정을 여기 한 곳에만 두는 이유</h3>
+     * <p>이 저장소는 개인정보 3필드의 판정·상수를 복제했다가 <b>화면이 보는 값과 산출물에 실리는 값이
+     * 갈린</b> 사고를 이미 겪었다(2026-08-03). 착지 자리 분기도 같은 축의 판정이므로 이관 쪽에 다시
+     * 적지 않고 이 메서드를 부른다 — 한쪽만 바뀌면 값이 조용히 어긋난다.
+     *
+     * <p>⚠ 이 판정은 <b>어느 자리에 담는가</b>만 정한다. 값 자체는 산출물이 준 것을 그대로 쓰며, 없거나
+     * 우리 저장 형식으로 옮길 수 없는 값은 지어내지 않고 <b>적재 기본값</b>을 따른다(ERD-031).
+     *
+     * @param importedAsDeidentified 가져올 때 사람이 지정한 값 — 참이면 비식별 완료본
+     * @design DOMAIN-017
+     * @design ERD-031
+     */
+    public static boolean importedFrameValuesLandOnDeidentAxis(boolean importedAsDeidentified) {
+        return importedAsDeidentified;
     }
 
     /** 비식별 산출물 기본값 — 익명정보 포함여부. 수동 판정이 없을 때만 적용. */

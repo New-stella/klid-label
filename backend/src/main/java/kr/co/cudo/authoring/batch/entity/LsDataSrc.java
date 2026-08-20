@@ -286,21 +286,31 @@ public class LsDataSrc {
      * <p>원본으로 받은 산출물의 프레임은 비식별본이 아직 없다. 그 자리에 원본 경로를 넣으면 그 값이
      * 곧 "비식별본"이 되어 마스킹 전 화면이 비식별본으로 서빙된다. 없으면 {@code null} 로 둔다.
      *
-     * <h3>개인정보 3필드는 적재 기본값으로 시작한다</h3>
-     * <p>산출물 문서에도 프레임 단위 개인정보 표기가 있으나, 그 값을 우리 <b>비식별 축</b> 3필드에
-     * 그대로 옮겨도 되는지는 설계에서 확정되지 않았다(두 축의 입도와 뜻이 같은지 확인된 바 없다).
-     * 확인되기 전까지는 다른 적재 경로와 같은 기본값으로 시작하고, 산출물이 준 값은 파싱 결과에
-     * 그대로 남아 있으므로 잃지 않는다.
+     * <h3>개인정보 3필드는 산출물이 준 값을 그대로 쓰되, 착지 여부는 밖에서 정한다</h3>
+     * <p>산출물은 프레임마다 익명·가명·개인정보 포함여부를 준다. 그 값이 우리 <b>비식별 축</b> 3필드에
+     * 착지하는지는 <b>가져올 때 지정한 비식별 상태</b>에 따라 갈리며, 그 분기의 단일 소유 지점은
+     * {@code ExportPrivacyPolicy.importedFrameValuesLandOnDeidentAxis} 다(ERD-031 프레임 행 절). 이
+     * 팩토리는 그 판정을 다시 하지 않고 <b>넘어온 값을 담기만</b> 한다 — 판정을 여기서 또 하면 같은
+     * 분기가 두 벌이 되어 한쪽만 바뀌었을 때 값이 조용히 어긋난다.
+     *
+     * <p>넘어온 값이 없으면(원본으로 가져와 착지하지 않는 경우, 또는 산출물이 그 값을 주지 않은 경우)
+     * 다른 적재 경로와 <b>같은 적재 기본값</b>으로 시작한다 — 값을 지어내지 않는다. 착지하지 않은 원문은
+     * 메타에 그대로 보관되므로 잃지 않는다.
      *
      * @param srcFilePathNm        가져온 프레임 이미지의 저장 경로
      * @param deIdntfSrcFilePathNm 비식별 완료본을 받았을 때의 비식별 프레임 경로. 아니면 {@code null}
+     * @param anonyInclYn          산출물이 준 익명정보 포함여부({@code Y}/{@code N}). 착지하지 않거나
+     *                             값이 없으면 {@code null} — 적재 기본값이 쓰인다
+     * @param psdoInclYn           산출물이 준 가명정보 포함여부. 규칙은 위와 같다
+     * @param prvcInclYn           산출물이 준 개인정보 포함여부. 규칙은 위와 같다
      * @design DOMAIN-017
      * @design ERD-031
      * @design ADR-048
      */
     public static LsDataSrc createFromImport(Long rawSn, long frameNo, Long videoFrameNo,
                                              String srcFilePathNm, String deIdntfSrcFilePathNm,
-                                             LocalDateTime shtDt) {
+                                             LocalDateTime shtDt, String anonyInclYn,
+                                             String psdoInclYn, String prvcInclYn) {
         return LsDataSrc.builder()
                 .rawSn(rawSn)
                 .frameNo(frameNo)
@@ -308,9 +318,9 @@ public class LsDataSrc {
                 .srcFilePathNm(srcFilePathNm)
                 .deIdntfSrcFilePathNm(deIdntfSrcFilePathNm)
                 .shtDt(shtDt)
-                .anonyInclYn(DEID_ANONYMITY_ON_INSERT)
-                .psdoInclYn(DEID_PSEUDONYMITY_ON_INSERT)
-                .prvcInclYn(DEID_PRIVACY_INCLUDED_ON_INSERT)
+                .anonyInclYn(orInsertDefault(anonyInclYn, DEID_ANONYMITY_ON_INSERT))
+                .psdoInclYn(orInsertDefault(psdoInclYn, DEID_PSEUDONYMITY_ON_INSERT))
+                .prvcInclYn(orInsertDefault(prvcInclYn, DEID_PRIVACY_INCLUDED_ON_INSERT))
                 .build();
     }
 

@@ -383,7 +383,8 @@ class FrameImageSrcSnPolicyTest {
         LsDataRaw raw = seedImportedRaw();
         String rawRel = writeRawFile(raw.getRawSn(), 20);
         LsDataSrc src = srcRepository.save(
-                LsDataSrc.createFromImport(raw.getRawSn(), 20L, 6000L, rawRel, null, LocalDateTime.now()));
+                LsDataSrc.createFromImport(raw.getRawSn(), 20L, 6000L, rawRel, null,
+                        LocalDateTime.now(), null, null, null));
         assign(raw.getRawSn());
 
         // then — 역할로 가르지 않는다(확정 정책). 둘 다 가져온 이미지를 그대로 본다.
@@ -400,7 +401,8 @@ class FrameImageSrcSnPolicyTest {
         LsDataRaw imported = seedImportedRaw();
         String importedRel = writeRawFile(imported.getRawSn(), 21);
         LsDataSrc importedSrc = srcRepository.save(
-                LsDataSrc.createFromImport(imported.getRawSn(), 21L, 6300L, importedRel, null, LocalDateTime.now()));
+                LsDataSrc.createFromImport(imported.getRawSn(), 21L, 6300L, importedRel, null,
+                        LocalDateTime.now(), null, null, null));
 
         LsDataRaw ingested = seedRaw(LsDataRaw.PRVC_TYPE_PRVC);
         String ingestedRel = writeRawFile(ingested.getRawSn(), 21);
@@ -423,7 +425,8 @@ class FrameImageSrcSnPolicyTest {
         rawRepository.save(raw);
         String rawRel = writeRawFile(raw.getRawSn(), 22);
         LsDataSrc src = srcRepository.save(
-                LsDataSrc.createFromImport(raw.getRawSn(), 22L, 6600L, rawRel, null, LocalDateTime.now()));
+                LsDataSrc.createFromImport(raw.getRawSn(), 22L, 6600L, rawRel, null,
+                        LocalDateTime.now(), null, null, null));
 
         mockMvc.perform(get("/v1/frames/" + src.getSrcSn() + "/image")
                         .header("Authorization", "Bearer " + reviewerToken))

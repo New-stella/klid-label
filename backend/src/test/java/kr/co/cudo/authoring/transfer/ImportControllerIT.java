@@ -282,9 +282,12 @@ class ImportControllerIT {
         assertThat(meta.get("import.video.anonymity")).isEqualTo("N");
         assertThat(meta.get("import.video.pseudonymity")).isEqualTo("N");
         assertThat(meta.get("import.video.privacy_included")).isEqualTo("Y");
-        // 프레임 축 값도 버리지 않는다 — 다만 판정에 쓰지 않고 보관만 한다.
-        assertThat(meta.get("import.image.anonymity")).isEqualTo("Y");
-        assertThat(meta.get("import.image.privacy_included")).isEqualTo("N");
+        // 프레임 축 값은 비식별이 끝난 것으로 지정해 가져왔으므로 <b>컬럼에 착지</b>한다 — 같은 사실이
+        //   메타에도 있으면 어느 것이 진실인지 갈리므로 여기 보관하지 않는다.
+        assertThat(meta).doesNotContainKeys("import.image.anonymity", "import.image.pseudonymity",
+                "import.image.privacy_included");
+        assertThat(framePrivacy(rawSn)).containsExactly(Map.of(
+                "anony_incl_yn", "Y", "psdo_incl_yn", "N", "prvc_incl_yn", "N"));
         // 좌표·위치·이벤트 기록 — 버리면 되돌릴 수 없다.
         assertThat(meta.get("import.video.coordinates")).isEqualTo("37.6159028, 126.9327926");
         assertThat(meta.get("import.video.location")).isEqualTo("서울특별시 은평구");
@@ -295,6 +298,29 @@ class ImportControllerIT {
         //   "값이 없다"와 "빈 문자열을 받았다"가 구분되지 않으므로 보관하지 않는다(값을 지어내지 않는다).
         assertThat(meta).doesNotContainKeys("import.video.cctv_height", "import.video.cctv_azimuth",
                 "import.video.cctv_mng_no", "import.video.data_source");
+    }
+
+    @Test
+    @DisplayName("원본이라고_지정하면_프레임_개인정보는_컬럼이_아니라_메타에_원문으로_보관된다")
+    void 원본이라고_지정하면_프레임_개인정보는_컬럼이_아니라_메타에_원문으로_보관된다() throws Exception {
+        confirmMappings();
+        long rawSn = importFolder(false, null);
+
+        Map<String, String> meta = new HashMap<>();
+        jdbc.query("SELECT meta_key, meta_vl FROM ls_data_meta WHERE raw_sn = ?",
+                rs -> { meta.put(rs.getString(1), rs.getString(2)); }, rawSn);
+
+        // 원본이라고 지정한 경우 프레임 축 값은 <b>원천 축</b>의 사실이라 착지할 컬럼이 없다. 버리면
+        //   되돌릴 수 없으므로 원문을 보관한다 — 이 보관 여부가 두 축을 가르는 관측 가능한 차이다.
+        assertThat(meta.get("import.image.anonymity")).isEqualTo("Y");
+        assertThat(meta.get("import.image.pseudonymity")).isEqualTo("N");
+        assertThat(meta.get("import.image.privacy_included")).isEqualTo("N");
+
+        // ⚠ 표본의 프레임 축 값이 적재 기본값과 같은 모양이라 <b>컬럼 값만으로는 두 축이 구분되지
+        //   않는다</b>. 그래서 축의 구분은 위 메타 보관 여부로 고정하고, 여기서는 착지하지 않은 축이
+        //   기본값으로 시작한다는 것만 확인한다(값을 지어내지 않는다).
+        assertThat(framePrivacy(rawSn)).containsExactly(Map.of(
+                "anony_incl_yn", "Y", "psdo_incl_yn", "N", "prvc_incl_yn", "N"));
     }
 
     @Test
@@ -436,6 +462,19 @@ class ImportControllerIT {
     }
 
     // ------------------------------------------------------------------ 보조
+
+    /** 프레임 개인정보 3필드 — 프레임마다 같은 값이면 1건으로 접어 돌려준다. */
+    private java.util.Set<Map<String, String>> framePrivacy(long rawSn) {
+        java.util.Set<Map<String, String>> values = new java.util.LinkedHashSet<>();
+        jdbc.query("SELECT anony_incl_yn, psdo_incl_yn, prvc_incl_yn FROM ls_data_src "
+                        + "WHERE raw_sn = ? ORDER BY frm_no",
+                rs -> {
+                    values.add(Map.of("anony_incl_yn", String.valueOf(rs.getString(1)).trim(),
+                            "psdo_incl_yn", String.valueOf(rs.getString(2)).trim(),
+                            "prvc_incl_yn", String.valueOf(rs.getString(3)).trim()));
+                }, rawSn);
+        return values;
+    }
 
     private long importFolder(boolean deidentified, String videoPath) throws Exception {
         MvcResult result = mockMvc.perform(post(IMPORTS)

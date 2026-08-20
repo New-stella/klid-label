@@ -85,6 +85,31 @@ public final class ExternalNameSanitizer {
     }
 
     /**
+     * 여부 값 정제 — 산출물이 준 표기를 우리 저장 형식({@code CHAR(1)} 의 {@code Y}/{@code N})으로 옮긴다.
+     *
+     * <h3>표기만 바꾸고 뜻은 바꾸지 않는다</h3>
+     * <p>이관의 기본은 <b>준 값을 그대로 쓰는 것</b>이고, 변환은 우리 저장 형식과 달라 그대로 담을 수 없을
+     * 때만 하는 예외다(ERD-031). 확인한 산출물은 이미 {@code Y}/{@code N} 으로 주므로 여기서 하는 일은
+     * 앞뒤 공백을 걷고 대문자로 맞추는 것뿐이다.
+     *
+     * <h3>옮길 수 없는 값은 지어내지 않고 비운다 (fail-closed)</h3>
+     * <p>{@code Y}/{@code N} 이 아닌 값을 <b>짐작해 한쪽으로 접으면</b> 그 짐작이 곧 개인정보 판정 사실이
+     * 되어 학습데이터 산출물에 실리고, 저장된 뒤에는 어느 것이 짐작이었는지 구분할 수 없다. 게다가 원문을
+     * 그대로 담으면 {@code CHAR(1)} 컬럼 폭을 넘겨 <b>이관 트랜잭션이 통째로 깨진다</b>. 그래서
+     * {@code null} 을 돌려 호출부가 적재 기본값으로 떨어지게 하고, 원문은 메타 보관분에 남는다.
+     *
+     * @return {@code "Y"} 또는 {@code "N"}. 그 밖의 값(빈 값 포함)이면 {@code null}
+     */
+    public static String yn(String raw) {
+        String normalized = ControlCharNormalizer.normalizeOrNull(raw);
+        if (normalized == null) {
+            return null;
+        }
+        String upper = normalized.trim().toUpperCase(java.util.Locale.ROOT);
+        return ("Y".equals(upper) || "N".equals(upper)) ? upper : null;
+    }
+
+    /**
      * 표시용 텍스트 정제 — 제어문자를 걷어내고 길이를 제한한다. 값 자체는 바꾸지 않는다
      * (분류명·설명처럼 사람이 읽는 값).
      *

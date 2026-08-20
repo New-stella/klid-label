@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.transfer.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.dataset.export.ExportPrivacyPolicy;
 import kr.co.cudo.authoring.transfer.ImportMetaKeys;
 import kr.co.cudo.authoring.transfer.ImportPathPolicy;
 import kr.co.cudo.authoring.transfer.ImportSourcePolicy;
@@ -250,7 +251,8 @@ public class ImportService {
         }
 
         return new ImportPlan(dataset, vmsClipId, rawFilePathNm, deidentified, videoFile,
-                List.copyOf(framePlans), mappings, List.copyOf(stagedFiles), preservedMeta(dataset));
+                List.copyOf(framePlans), mappings, List.copyOf(stagedFiles),
+                preservedMeta(dataset, deidentified));
     }
 
     /**
@@ -259,11 +261,17 @@ public class ImportService {
      * <p>버리면 되돌릴 수 없다. 특히 <b>원천 축 개인정보 3필드</b>는 착지 컬럼이 관제 수신 원장에만
      * 있는데 이 경로는 그 원장을 거치지 않으므로, 여기 보관한 값이 학습데이터 산출의 유일한 조달처다.
      *
-     * <p>프레임 축 3필드는 프레임마다 다를 수 있으나 메타 표가 영상 단위라 행을 나눌 수 없다. 그래서
-     * <b>관측된 서로 다른 값</b>만 이어 담는다 — 값이 하나면 그 값 그대로이고, 갈리면 갈렸다는 사실이
-     * 남는다. 어느 쪽이든 관측되지 않은 값을 지어내지 않는다.
+     * <p><b>프레임 축</b> 3필드는 착지 자리가 축에 따라 갈린다 — 비식별이 끝난 것으로 지정해 가져오면
+     * {@code LS_DATA_SRC} 컬럼에 프레임마다 적재되므로 여기 보관하지 않고(같은 사실이 두 자리에 있으면
+     * 어느 것이 진실인지 갈린다), 원본이라고 지정한 경우에만 원문을 보관한다. 그 분기는
+     * {@link ExportPrivacyPolicy#importedFrameValuesLandOnDeidentAxis(boolean)} 이 단독으로 정하며 여기서
+     * 다시 판정하지 않는다.
+     *
+     * <p>보관할 때는 프레임 축 값이 프레임마다 다를 수 있으나 메타 표가 영상 단위라 행을 나눌 수 없다.
+     * 그래서 <b>관측된 서로 다른 값</b>만 이어 담는다 — 값이 하나면 그 값 그대로이고, 갈리면 갈렸다는
+     * 사실이 남는다. 어느 쪽이든 관측되지 않은 값을 지어내지 않는다.
      */
-    private static Map<String, String> preservedMeta(ImportedDataset dataset) {
+    private static Map<String, String> preservedMeta(ImportedDataset dataset, boolean deidentified) {
         Map<String, String> meta = new LinkedHashMap<>();
         ImportedDataset.VideoBlock video = dataset.video();
         if (video != null) {
@@ -282,12 +290,15 @@ public class ImportService {
             put(meta, ImportMetaKeys.VIDEO_PSEUDONYMITY, video.pseudonymity());
             put(meta, ImportMetaKeys.VIDEO_PRIVACY_INCLUDED, video.privacyIncluded());
         }
-        put(meta, ImportMetaKeys.IMAGE_ANONYMITY,
-                distinctFrameValues(dataset, ImportedDataset.Frame::anonymity));
-        put(meta, ImportMetaKeys.IMAGE_PSEUDONYMITY,
-                distinctFrameValues(dataset, ImportedDataset.Frame::pseudonymity));
-        put(meta, ImportMetaKeys.IMAGE_PRIVACY_INCLUDED,
-                distinctFrameValues(dataset, ImportedDataset.Frame::privacyIncluded));
+        if (!ExportPrivacyPolicy.importedFrameValuesLandOnDeidentAxis(deidentified)) {
+            // 착지 컬럼이 없는 축이라 여기 보관하는 것이 유일한 조달처다.
+            put(meta, ImportMetaKeys.IMAGE_ANONYMITY,
+                    distinctFrameValues(dataset, ImportedDataset.Frame::anonymity));
+            put(meta, ImportMetaKeys.IMAGE_PSEUDONYMITY,
+                    distinctFrameValues(dataset, ImportedDataset.Frame::pseudonymity));
+            put(meta, ImportMetaKeys.IMAGE_PRIVACY_INCLUDED,
+                    distinctFrameValues(dataset, ImportedDataset.Frame::privacyIncluded));
+        }
         return Map.copyOf(meta);
     }
 
