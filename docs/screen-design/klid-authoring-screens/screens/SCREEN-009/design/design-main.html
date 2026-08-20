@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html><head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head><body><main class="screen-root">
+<html><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head><body><main class="screen-root">
 
   
   <div class="page-head">
@@ -707,11 +707,13 @@
         </div>
         <p class="t-body-md dlg-desc">건너뛰면 이 영상의 서술은 사람이 직접 쓴 전문으로 대신합니다. 나중에 해제할 수 있습니다.</p>
         <div class="field">
-          <label class="t-label field-label" for="skip-reason-vlm">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+          <div class="field-head">
+            <label class="t-label field-label" for="skip-reason-vlm">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+            <span class="t-caption char-count">32 / 500</span>
+          </div>
           <textarea class="textarea" id="skip-reason-vlm" aria-describedby="skip-help-vlm" placeholder="예) 외부 시계열 분석 벤더 장애가 길어져 시계열 없이 진행">외부 시계열 분석 벤더 장애가 길어져 시계열 없이 진행</textarea>
           <div class="field-foot">
             <span class="t-caption field-help" id="skip-help-vlm">배치 이력에 그대로 남습니다. 나중에 시계열이 왜 비어 있는지 되짚는 근거가 됩니다.</span>
-            <span class="t-caption char-count">32 / 500</span>
           </div>
         </div>
       </div>
@@ -740,11 +742,13 @@
         </div>
         <p class="t-body-md dlg-desc">건너뛰어도 프레임은 그대로 남고, 작업자가 처음부터 라벨링합니다. 나중에 해제할 수 있습니다.</p>
         <div class="field">
-          <label class="t-label field-label" for="skip-reason-auto">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+          <div class="field-head">
+            <label class="t-label field-label" for="skip-reason-auto">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+            <span class="t-caption char-count">0 / 500</span>
+          </div>
           <textarea class="textarea" id="skip-reason-auto" aria-describedby="skip-help-auto" placeholder="예) 추론 서버 점검이 길어져 수동 라벨링으로 진행"></textarea>
           <div class="field-foot">
             <span class="t-caption field-help" id="skip-help-auto">배치 이력에 그대로 남습니다. 공백만으로는 저장되지 않습니다.</span>
-            <span class="t-caption char-count">0 / 500</span>
           </div>
         </div>
       </div>

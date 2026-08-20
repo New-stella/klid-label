@@ -589,5 +589,9 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 }
 .textarea::placeholder { color: var(--n-5); }
 .textarea:hover { border-color: var(--n-5); }
+
+/* 사유 입력 — 글자수는 라벨 줄 오른쪽에 둔다. 도움말이 두 줄로 접혀도 숫자가
+   문단 중간에 뜨지 않는다. 라벨 밖 형제라 필드 이름에 섞여 읽히지 않는다. */
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .field-foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .char-count { color: var(--n-6); font-variant-numeric: tabular-nums; flex: 0 0 auto; white-space: nowrap; }
