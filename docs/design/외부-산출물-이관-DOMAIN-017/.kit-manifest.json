@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-08-20T12:49:26.918Z",
+  "synced_at": "2026-08-20T15:14:02.986Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -39,7 +39,7 @@
     "AC-045": {
       "type": "acceptance",
       "domain_id": "DOMAIN-017",
-      "version": 4,
+      "version": 5,
       "content_hash": "39ac20b62ec40ad15bbeaecfd43de324f1bcbc9f535cf28dd7906b45403f18cb"
     },
     "AC-046": {
@@ -81,20 +81,20 @@
     "API-206": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-017",
-      "version": 9,
-      "content_hash": "af4ef3204e4aaf04cba1e6a2c5ea8693f571b02bbc0ee3976170f94bc7796fe1"
+      "version": 10,
+      "content_hash": "1116a75b49376d025a9beab59cead5660d13eda7ff28a412c22d59531afe8225"
     },
     "API-207": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-017",
-      "version": 6,
-      "content_hash": "93f2886d8e3dabb795cde794f87f205e4106dbd66b42595bf97b8cc735e556dd"
+      "version": 7,
+      "content_hash": "fd62423258ec298c59d05bd526604b83ab9bf29109e1f5f10601695cce67a0d8"
     },
     "API-208": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-017",
-      "version": 4,
-      "content_hash": "e8e263eae2da8fb33719db4293b367c55309a8e17f8501dd24e2e34a63817d0a"
+      "version": 5,
+      "content_hash": "06773bacb3e32779b5c63179631beb78ab34149f85ec40b559a3dba2932daed0"
     },
     "API-209": {
       "type": "api_endpoint",
@@ -123,8 +123,8 @@
     "SEQ-026": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-017",
-      "version": 9,
-      "content_hash": "d6da1564be8096a701e79e08ce2c99b1b8255c1322e13fb8b0f272d292c1d73f"
+      "version": 10,
+      "content_hash": "448808f04601870a36139c3a968c08ccda6c486d8606ff24444ad10c5ae86f56"
     },
     "DOMAIN-017": {
       "type": "domain",
@@ -147,8 +147,8 @@
     "DFEAT-057": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-017",
-      "version": 10,
-      "content_hash": "4c09697b68a13016a6d94ce5236980893694ccda7ecb5bb7bdfb8daff187a755"
+      "version": 11,
+      "content_hash": "c2d249567e67dd0d4511c3820279cbb1caa65df9a4439a85852ba59cccb1015a"
     },
     "DFEAT-058": {
       "type": "domain_feature",
