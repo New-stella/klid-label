@@ -63,6 +63,21 @@ public class LsDataRaw {
      */
     public static final String SRC_TYPE_GENERATED = "GENERATED";
 
+    /**
+     * 출처유형 — <b>외부에서 이미 라벨링이 끝난 상태로 가져온 영상</b>(외부 산출물 이관, ADR-048).
+     * 관제가 보낸 것도 저작도구가 만든 것도 아니라 기존 경계축 어느 쪽에도 넣을 수 없어 신설했다.
+     *
+     * <p>⚠ 이 값은 {@link LsDataIngest#ALLOWED_SRC_TYPES}(적재면)·{@code UPLOAD_SRC_TYPES}(입력면)
+     * <b>어느 쪽에도 넣지 않는다</b>. 적재면은 "인입 원장에 실려 온 값을 복사해도 되는가"를 판정하는데
+     * 이관 경로는 <b>인입 원장을 거치지 않으므로</b> 그 목록에 넣으면 "관제가 이 값을 보낼 수 있다"는
+     * 없는 사실이 생긴다. 입력면은 내부 업로드 폼이 고를 수 있는 값이라 역시 다른 축이다.
+     * 이 값을 채우는 곳은 이관 적재 팩토리 하나뿐이다.
+     *
+     * <p>{@code gen_ai_yn} 은 이 값과 무관하게 {@code N} 이다 — 그 판정은 {@code GENERATED}·
+     * {@code AUGMENTED} 두 값만 보므로 관제 계약·데이터마트 뷰가 깨지지 않는다.
+     */
+    public static final String SRC_TYPE_IMPORTED = "IMPORTED";
+
     public static final String STATUS_PENDING = "PENDING";
 
     /**
@@ -103,8 +118,13 @@ public class LsDataRaw {
     @Column(name = "VMS_CLIP_ID", nullable = false, length = 128)
     private String vmsClipId;
 
-    /** {@code VMS_CLIP_ID} 컬럼 길이 — 파생 식별자 조립 시 이 상한을 넘기지 않는다(V2 스키마와 동일 값). */
-    private static final int VMS_CLIP_ID_MAX = 128;
+    /**
+     * {@code VMS_CLIP_ID} 컬럼 길이 — 파생 식별자 조립 시 이 상한을 넘기지 않는다(V2 스키마와 동일 값).
+     *
+     * <p>외부 산출물 이관도 이 컬럼에 자기 식별자를 조립해 넣으므로 같은 상한을 <b>참조</b>한다
+     * ({@code ImportPathPolicy}). 상한을 두 곳에 적으면 한쪽만 갱신돼 한쪽 경로만 적재가 깨진다.
+     */
+    public static final int VMS_CLIP_ID_MAX = 128;
 
     /**
      * VMS CCTV 아이디 — 인입({@code LS_DATA_INGEST.VMS_CCTV_ID}) 복사값. <b>NULL 가능</b>
@@ -395,6 +415,70 @@ public class LsDataRaw {
         raw.copyPrivacyMetaFrom(parent);
         raw.dataSttsCd = STATUS_PENDING;
         raw.regDt = LocalDateTime.now();
+        return raw;
+    }
+
+    /**
+     * <b>외부 산출물 이관</b> 적재 — 외부에서 이미 라벨링이 끝난 상태로 가져온 영상(ADR-048).
+     *
+     * <h3>왜 {@link #createFromIngest} 를 쓸 수 없는가</h3>
+     * <p>그 팩토리는 {@code DE_IDENT_YN} 을 {@code 'N'}(미수행)으로 <b>내부에서 고정</b>한다. 이관은
+     * 가져올 때 사람이 지정한 값에 따라 <b>이미 비식별이 끝난 영상</b>일 수 있고, 그 경우 미수행으로
+     * 적재하면 이미 비식별된 영상에 비식별을 다시 태우거나 스트리밍이 막힌다. 그래서 이 경로만
+     * 그 값을 인자로 받는다.
+     *
+     * <h3>비식별 여부는 "무엇을 받았는가"가 정한다</h3>
+     * <ul>
+     *   <li>비식별이 끝난 것으로 지정해 받았으면 <b>그 영상이 곧 비식별 영상</b>이다 —
+     *       {@code 'Y'}(성공)로 적재하고 저작도구는 비식별 단계를 태우지 않는다. 이때
+     *       <b>원본은 우리에게 없으므로</b> {@code rawFilePathNm} 에는 자기 비식별 사본 경로를 넣고
+     *       원본 경로 폴백을 두지 않는다(파생영상과 같은 형태).</li>
+     *   <li>원본으로 받았으면 {@code 'N'}(미수행)으로 적재한다. 영상 파일을 함께 받았으면 저작도구가
+     *       비식별 단계를 태우고, 파일이 없어 프레임만 받았으면 외부 비식별 산출물을 받아 기록하는
+     *       별도 행위가 뒤를 잇는다.</li>
+     * </ul>
+     * <p>어느 쪽이든 <b>검수 승인을 붙잡아 두는 값은 이 컬럼이 아니다</b> —
+     * {@code LS_RAW_DATA_STATUS.DE_IDNTF_CMPTN_YN} 이 그 일을 한다. 이 컬럼의
+     * {@code 'F'}(비식별 누락 신고)는 라벨 조회·프레임 이미지·영상 스트리밍·학습데이터 산출물 생성을
+     * 함께 닫으므로, 승인만 막으려는 의도를 여기 실으면 의도보다 넓게 닫힌다(ADR-048).
+     *
+     * <h3>{@code rawFilePathNm} 은 비울 수 없다</h3>
+     * <p>비식별 산출물과 학습데이터 산출물의 저장 위치가 이 값의 디렉터리 부분에서 파생되고,
+     * 학습데이터 산출물의 영상 파일명이 이 경로의 마지막 이름에서 나온다. 조립은
+     * {@code ImportPathPolicy} 한 곳에서 한다.
+     *
+     * <h3>출처유형</h3>
+     * <p>{@link #SRC_TYPE_IMPORTED} 를 넣는다. 생성형AI여부는 이 값과 무관하게 {@code N} 이므로
+     * ({@link #genAiYnOf}) 관제 계약과 데이터마트 뷰가 달라지지 않는다.
+     *
+     * @param lclgvCd      산출물이 준 법정동코드({@code video.stdg_cd})
+     * @param deidentified 가져올 때 사람이 지정한 값 — {@code true} 면 준 영상이 곧 비식별 영상이다
+     * @design DOMAIN-017
+     * @design ERD-031
+     * @design ADR-048
+     */
+    public static LsDataRaw createFromImport(String vmsClipId, String evntTypeCd, String lclgvCd,
+                                             String prvcTypeCd, String rawFilePathNm,
+                                             LocalDateTime shtDt, Integer durationSec,
+                                             boolean deidentified) {
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            // 비우면 비식별·산출물 저장 위치 도출이 입력 오류로 끝나고, 산출물 생성이 예외 없이
+            // 실패로만 마감돼 밖에서 원인을 알 수 없다. 입구에서 막는다.
+            throw new IllegalArgumentException("이관 영상 파일 경로는 비울 수 없습니다.");
+        }
+        LsDataRaw raw = LsDataRaw.builder()
+                .vmsClipId(vmsClipId)
+                .evntTypeCd(evntTypeCd)
+                .lclgvCd(lclgvCd)
+                .prvcTypeCd(prvcTypeCd)
+                .rawFilePathNm(rawFilePathNm)
+                .shtDt(shtDt)
+                .durationSec(durationSec)
+                .srcType(SRC_TYPE_IMPORTED)
+                .build();
+        if (deidentified) {
+            raw.deIdntfYn = "Y";
+        }
         return raw;
     }
 

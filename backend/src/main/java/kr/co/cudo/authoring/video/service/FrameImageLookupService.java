@@ -57,9 +57,12 @@ public class FrameImageLookupService {
      * @param srcFilePath      원본 프레임 경로({@code SRC_FILE_PATH_NM}) — 파생 프레임은 null
      * @param deidFilePath     비식별 프레임 경로({@code DE_IDNTF_SRC_FILE_PATH_NM})
      * @param needsDeidentify  PRVC/PSDO 여부 — true 면 비식별 경로 부재 시 원본 폴백 금지
+     * @param imported         외부 산출물 이관({@code SRC_TYPE='IMPORTED'})으로 들어온 영상인가 —
+     *                         true 면 위 폴백 금지의 예외다({@code FrameImageService} 참조).
+     *                         판정축을 {@code PRVC_TYPE_CD} 가 아니라 출처유형으로 둔 이유도 거기 있다
      */
     public record FrameSpec(Long rawSn, Long frameNo, String srcFilePath, String deidFilePath,
-                            boolean needsDeidentify) {
+                            boolean needsDeidentify, boolean imported) {
     }
 
     /**
@@ -103,6 +106,7 @@ public class FrameImageLookupService {
 
     private static FrameSpec toSpec(LsDataRaw raw, LsDataSrc src) {
         return new FrameSpec(raw.getRawSn(), src.getFrameNo(), src.getSrcFilePathNm(),
-                src.getDeidFilePath(), raw.needsDeidentify());
+                src.getDeidFilePath(), raw.needsDeidentify(),
+                LsDataRaw.SRC_TYPE_IMPORTED.equals(raw.getSrcType()));
     }
 }

@@ -68,6 +68,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       ai-server 의 YOLOX 로더가 입력 크기를 640 고정으로 추론해 <b>조정해도 결과가 바뀌지 않는</b>
  *       설정이었다. 화이트리스트에서 이미 뺐으므로 조회·수정 경로는 닫혔고, 이 파일은 조회에
  *       잡히지 않는 죽은 행을 남기지 않기 위한 정리다. DELETE 라 대상이 없어도 성공(멱등)</li>
+ *   <li>{@code V14} — 외부 산출물 이관 도메인의 저장소 신설. 신규 테이블 둘
+ *       ({@code LS_OTSD_CTGRY_MPNG} 외부 분류 대응 · {@code LS_OTSD_DATST_TRNSF_HSTRY} 이관 이력)과
+ *       {@code LS_RAW_DATA_STATUS.DE_IDNTF_CMPTN_YN}(비식별화완료여부) 컬럼을 더한다. 그 컬럼은
+ *       기본값이 {@code 'Y'} 라 <b>기존 전 행이 영향을 받지 않고 백필도 필요 없다</b> — 이관 경로로
+ *       원본이라고 지정해 들어온 영상만 {@code 'N'} 으로 시작해 비식별이 끝날 때까지 검수 승인만
+ *       막힌다(ADR-048). 신규 테이블 생성과 상수 DEFAULT ADD COLUMN 이라 하위호환이고 롤링
+ *       재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -103,7 +110,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "9001");
     }
 
     @Test
@@ -123,6 +130,7 @@ class FlywaySquashBaselineIT {
                         "V11__seed_portal_retention_config.sql",
                         "V12__add_ls_acnt_user_last_lgn_dt.sql",
                         "V13__drop_yolo_imgsz_config.sql",
+                        "V14__add_external_import_tables_and_deident_cmptn_yn.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",

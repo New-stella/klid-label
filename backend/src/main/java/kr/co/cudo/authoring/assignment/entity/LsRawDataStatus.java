@@ -35,6 +35,12 @@ public class LsRawDataStatus {
     /** {@code REVLT_YN} 허용값(기본) — 재검토 불요. */
     public static final String REVLT_NO = "N";
 
+    /** 비식별화완료여부 — 완료. 기본값이며 승인을 막지 않는다. */
+    public static final String DE_IDNTF_CMPTN_YES = "Y";
+
+    /** 비식별화완료여부 — 미완료. 이 동안 검수 승인이 거부된다. */
+    public static final String DE_IDNTF_CMPTN_NO = "N";
+
     @Id
     @Column(name = "RAW_DATA_ID")
     private Long rawDataId;
@@ -72,6 +78,23 @@ public class LsRawDataStatus {
      */
     @Column(name = "REVLT_YN", nullable = false, length = 1)
     private String revltYn = REVLT_NO;
+
+    /**
+     * 비식별화완료여부 (V14) — 값이 {@code N} 인 동안 <b>검수 승인만</b> 거부된다.
+     *
+     * <p>기본값이 {@code Y} 인 이유는 외부 산출물 이관 경로와 무관한 <b>기존 전 행</b>이 이 값 때문에
+     * 승인이 막히면 안 되기 때문이다. {@code revltYn} 과 같은 이유로 빌더 파라미터가 아니라 필드
+     * 선언에서 바로 초기화한다 — 그래야 빌더·{@code initial} 등 <b>모든 생성 경로</b>가 예외 없이
+     * {@code Y} 로 시작하고, 기존 호출부(테스트 다수)를 손대지 않고도 NOT NULL 을 만족한다.
+     * 이관 경로로 <b>원본이라고 지정해</b> 들어온 영상만 {@link #markDeidentNotCompleted()} 로 N 이 된다.
+     *
+     * <p>★ <b>왜 비식별 여부 값에 싣지 않는가</b> — 그 축 가운데 <b>누락 신고 상태</b>는 라벨 조회·
+     * 프레임 이미지·영상 스트리밍·산출물 생성을 함께 닫는다. 승인만 막으려는 의도를 그 축에 실으면
+     * 의도보다 넓게 닫히고, 이관 경로에는 라벨과 프레임이 <b>이미 들어와 있어</b> 그것을 못 보면
+     * 검수 자체가 성립하지 않는다(ADR-048).
+     */
+    @Column(name = "DE_IDNTF_CMPTN_YN", nullable = false, length = 1)
+    private String deIdntfCmptnYn = DE_IDNTF_CMPTN_YES;
 
     @Builder
     private LsRawDataStatus(Long rawDataId, String dataSttsCd, int stpCycl, int igiCycl, LocalDateTime updDt) {
@@ -147,5 +170,37 @@ public class LsRawDataStatus {
     /** 검수 승인 이후 수정되어 재검토가 필요한 상태인가. */
     public boolean needsRecheck() {
         return REVLT_YES.equals(this.revltYn);
+    }
+
+    /**
+     * 비식별화 미완료로 표시 — 외부 산출물을 <b>원본이라고 지정해</b> 이관한 영상의 적재 시점에만
+     * 부른다. 이 동안 검수 승인이 거부된다. <b>멱등</b>.
+     */
+    public void markDeidentNotCompleted() {
+        this.deIdntfCmptnYn = DE_IDNTF_CMPTN_NO;
+    }
+
+    /**
+     * 비식별화 완료로 표시 — 승인 보류를 푼다. <b>멱등</b>.
+     *
+     * <p>부르는 곳은 두 갈래다. 가져올 때 영상 파일을 함께 준 원본이면 저작도구의 비식별 단계가
+     * <b>성공으로 기록된 뒤</b>에 부르고, 영상 파일이 없어 프레임만 가져온 경우에는 외부에서 비식별한
+     * 산출물을 받아 기록하는 별도 행위가 <b>산출물 실재를 확인한 뒤</b>에 부른다.
+     *
+     * <p>⚠ <b>확인 없이 이 메서드를 부르면 안 된다</b> — 그러면 처리되지 않은 산출물이 검수 승인을
+     * 통과한다(ADR-048 이 명시한 위험).
+     */
+    public void markDeidentCompleted() {
+        this.deIdntfCmptnYn = DE_IDNTF_CMPTN_YES;
+    }
+
+    /**
+     * 비식별화가 완료돼 검수 승인이 가능한 상태인가.
+     *
+     * <p>★ 이 값은 <b>검수 승인 하나만</b> 가른다. 라벨 조회·프레임 이미지·영상 스트리밍·학습데이터
+     * 산출물 생성을 닫지 않는다 — 그 통로들을 함께 닫는 것은 비식별 누락 신고이며 <b>별개 축</b>이다.
+     */
+    public boolean isDeidentCompleted() {
+        return DE_IDNTF_CMPTN_YES.equals(this.deIdntfCmptnYn);
     }
 }

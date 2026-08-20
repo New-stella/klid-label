@@ -109,6 +109,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -132,6 +135,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -150,6 +156,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -172,6 +181,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -193,6 +205,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -211,6 +226,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -232,6 +250,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 100L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));
@@ -269,6 +290,9 @@ class ReviewServiceEventPublishTest {
         Long videoId = 200L;
         TokenClaims actor = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(reviewRepository.findByRawDataId(videoId)).thenReturn(Optional.of(stts));

@@ -268,6 +268,53 @@ public class LsDataSrc {
     }
 
     /**
+     * <b>외부 산출물 이관</b> 프레임 생성 — 외부에서 이미 라벨링이 끝난 프레임을 그대로 가져온다(ADR-048).
+     *
+     * <h3>왜 전용 팩토리인가 — 두 프레임 번호를 바꿔 담는 사고를 구조로 막는다</h3>
+     * <p>이 경로에는 <b>서로 다른 두 프레임 번호</b>가 동시에 들어온다.
+     * <ul>
+     *   <li>{@code frameNo}({@code FRM_NO}) — <b>추출 순번</b>. 산출물 폴더 안에서 몇 번째로 담긴
+     *       프레임인가이며 우리가 매긴다.</li>
+     *   <li>{@code videoFrameNo}({@code VDO_FRM_NO}) — <b>영상 내 실제 위치</b>. 산출물 문서의
+     *       프레임 번호를 그대로 옮긴 값이다.</li>
+     * </ul>
+     * 둘을 바꿔 담으면 재비식별 프레임 재추출이 <b>영상 맨 앞</b>을 뽑아 붙인다(이 저장소에서 실제로
+     * 일어난 사고다). 일반 {@code create(...)} 오버로드는 인자 이름만 다를 뿐 서명이 같아 바꿔 넣어도
+     * 컴파일이 되므로, 이관 경로는 뜻이 이름에 드러나는 전용 진입점을 쓴다.
+     *
+     * <h3>비식별 프레임 경로는 "비식별 완료본을 받았을 때만" 채운다</h3>
+     * <p>원본으로 받은 산출물의 프레임은 비식별본이 아직 없다. 그 자리에 원본 경로를 넣으면 그 값이
+     * 곧 "비식별본"이 되어 마스킹 전 화면이 비식별본으로 서빙된다. 없으면 {@code null} 로 둔다.
+     *
+     * <h3>개인정보 3필드는 적재 기본값으로 시작한다</h3>
+     * <p>산출물 문서에도 프레임 단위 개인정보 표기가 있으나, 그 값을 우리 <b>비식별 축</b> 3필드에
+     * 그대로 옮겨도 되는지는 설계에서 확정되지 않았다(두 축의 입도와 뜻이 같은지 확인된 바 없다).
+     * 확인되기 전까지는 다른 적재 경로와 같은 기본값으로 시작하고, 산출물이 준 값은 파싱 결과에
+     * 그대로 남아 있으므로 잃지 않는다.
+     *
+     * @param srcFilePathNm        가져온 프레임 이미지의 저장 경로
+     * @param deIdntfSrcFilePathNm 비식별 완료본을 받았을 때의 비식별 프레임 경로. 아니면 {@code null}
+     * @design DOMAIN-017
+     * @design ERD-031
+     * @design ADR-048
+     */
+    public static LsDataSrc createFromImport(Long rawSn, long frameNo, Long videoFrameNo,
+                                             String srcFilePathNm, String deIdntfSrcFilePathNm,
+                                             LocalDateTime shtDt) {
+        return LsDataSrc.builder()
+                .rawSn(rawSn)
+                .frameNo(frameNo)
+                .videoFrameNo(videoFrameNo)
+                .srcFilePathNm(srcFilePathNm)
+                .deIdntfSrcFilePathNm(deIdntfSrcFilePathNm)
+                .shtDt(shtDt)
+                .anonyInclYn(DEID_ANONYMITY_ON_INSERT)
+                .psdoInclYn(DEID_PSEUDONYMITY_ON_INSERT)
+                .prvcInclYn(DEID_PRIVACY_INCLUDED_ON_INSERT)
+                .build();
+    }
+
+    /**
      * 동일 row 의 DE_IDNTF_SRC_FILE_PATH_NM 컬럼에 비식별 프레임 경로를 연결한다.
      */
     public void attachDeidPath(String deidFilePath) {

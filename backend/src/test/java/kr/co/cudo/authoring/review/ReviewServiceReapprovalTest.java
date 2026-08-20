@@ -113,6 +113,9 @@ class ReviewServiceReapprovalTest {
         // given — 이미 APPROVED, 재검토 표시(REVLT_YN) 없음(기본 false).
         Long videoId = 100L;
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
         when(stts.needsRecheck()).thenReturn(false);
@@ -135,6 +138,9 @@ class ReviewServiceReapprovalTest {
         //   (setUp 기본값 hasOpenWindow=true — 표시·윈도우 짝이 맞는 정상 경로).
         Long videoId = 200L;
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
         when(stts.needsRecheck()).thenReturn(true);
@@ -165,6 +171,9 @@ class ReviewServiceReapprovalTest {
         //   클레임 경합 등으로 표시·윈도우 짝이 깨진 상황 — 구멍2).
         Long videoId = 210L;
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
         when(stts.needsRecheck()).thenReturn(true);
@@ -188,6 +197,9 @@ class ReviewServiceReapprovalTest {
         // given — 표시·윈도우 짝이 맞는 정상 경로(명시적으로도 true 로 스텁).
         Long videoId = 220L;
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_APPROVED);
         when(stts.needsRecheck()).thenReturn(true);
@@ -209,6 +221,9 @@ class ReviewServiceReapprovalTest {
         //   도달했다. 재검토 표시는 submit() 이 지우지 않아 이전 값(Y)이 그대로 남아 있을 수 있다.
         Long videoId = 300L;
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(stts.needsRecheck()).thenReturn(true);
@@ -231,6 +246,9 @@ class ReviewServiceReapprovalTest {
         // given
         Long videoId = 400L;
         LsRawDataStatus stts = mock(LsRawDataStatus.class);
+        // V14 — 검수 승인은 비식별화완료여부가 Y 일 때만 통과한다. 실엔티티는 기본이 Y 라
+        //   이 스텁이 곧 프로덕션 기본 상태이며, 그 축은 이 테스트의 관심사가 아니다.
+        when(stts.isDeidentCompleted()).thenReturn(true);
         when(stts.getRawDataId()).thenReturn(videoId);
         when(stts.getDataSttsCd()).thenReturn(LsRawDataStatus.STTS_IN_REVIEW);
         when(stts.needsRecheck()).thenReturn(false);
