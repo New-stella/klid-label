@@ -27,6 +27,8 @@
 //     — 그래서 **문제가 생긴 곳부터** 재시도한다.
 //   - 파생영상에는 조작을 노출하지 않는다 — 파생은 배치 파이프라인을 타지 않아 재실행으로
 //     복구되지 않는다(사유는 그대로 보여준다).
+//   - **검수가 완료된 적 있는 영상은 재수행이 묶음별로 갈린다** — 시계열은 그대로 누르고 오토라벨만
+//     비활성 + 사유다. 서버가 이미 그렇게 막지만, 되돌릴 수 없는 조건이라 누르기 전에 알린다.
 //   - **「배치 재실행」(전체 재기동)은 영상이 실제로 실패 상태일 때만 둔다** — 서버가 받는 조건이
 //     그것 하나이기 때문이다. 묶음 재수행이 실패하면 서버는 영상을 완주로 원상 복구하되 로그에는
 //     실패를 남기므로, 사유 문자열만 보고 버튼을 열면 그 버튼은 **항상** 막힌다. 사유는 계속
@@ -166,6 +168,28 @@ const rerunWarningId = (bundle: StageBundle) => `batch-rerun-warning-${bundle}`;
 
 /** 재수행 버튼이 **왜 비활성인지**(처리 중) 설명하는 문단 id. */
 const rerunBusyHintId = (bundle: StageBundle) => `batch-rerun-busy-hint-${bundle}`;
+
+/**
+ * 재수행 버튼이 **왜 비활성인지**(검수 완료 이력) 설명하는 문단 id. [@design API-201]
+ *
+ * 처리 중과 <b>다른 축</b>이라 문단을 따로 둔다 — 처리 중은 기다리면 풀리지만 승인 이력은
+ * 되돌릴 수 없는 영구 조건이고, 둘을 한 문단으로 합치면 "잠시 뒤 다시"라는 잘못된 기대를 준다.
+ */
+const rerunApprovedLockId = (bundle: StageBundle) => `batch-rerun-approved-lock-${bundle}`;
+
+/**
+ * 승인 이력 때문에 이 묶음의 재수행이 잠기는가 — <b>이 판정의 단일 지점</b>. [@design API-201]
+ *
+ * <p>시계열은 확정된 라벨을 건드리지 않고 서술만 더하므로 승인 이력이 있어도 그대로 수행한다.
+ * 오토라벨은 라벨을 다시 만들어 승인 시점 스냅샷과 어긋나므로 막는다.
+ *
+ * ⚠ 판정 축을 {@link bundleRerunsInterpolation}(보간 재계산 여부)에 얹지 않는다 — 지금은 두 값이
+ * 우연히 같지만 <b>뜻이 다르다</b>(그쪽은 "사람이 손댄 보간 라벨이 지워지는가", 이쪽은 "승인
+ * 스냅샷과 어긋나는가"). 묶음 구성이 바뀌면 둘은 갈라지고, 그때 조용히 틀린 쪽이 따라온다.
+ */
+function rerunLockedByApproval(bundle: StageBundle, everApproved: boolean): boolean {
+  return everApproved && bundle === 'AUTOLABEL';
+}
 
 /**
  * 이 화면 세션에서 **건너뛰기를 해제한** 작업 묶음 — 재수행 버튼 노출의 근거. [@design API-201]
@@ -325,6 +349,9 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   // 어느 묶음에도 없는 단계(비식별·마킹·프레임추출)가 실패하면 null 이라 건너뛰기 버튼이 생기지 않는다.
   const failedBundle = failedStage ? bundleOfStage(failedStage.name) : null;
   const isDerivative = video.derivative === true;
+  // ★ 승인 이력 축 — **서버가 내려준 값**을 그대로 쓴다(`VideoDetailResponse.everApproved`).
+  //   화면이 상태·검수 이력에서 재유도하면 서버 판정과 갈리고, 그때 열리는 쪽이 서버가 막는 버튼이다.
+  const everApproved = video.everApproved === true;
   const busy = retry.isPending || skip.isPending || unskip.isPending || rerun.isPending;
 
   // 조작 행을 그릴 묶음 — 건너뛸 수 있거나(그 묶음의 단계가 실패) 이미 건너뛴 묶음 또는 건너뛰기를 해제한 묶음.
@@ -439,10 +466,17 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                 // ★ 이 묶음을 재수행하면 보간이 다시 만들어지는가 — 경고·확인의 단일 판정이다.
                 //   묶음 구성에서 파생하므로 구성이 바뀌면 경고가 자동으로 따라온다.
                 const destructive = bundleRerunsInterpolation(bundle);
+                // ★ 검수가 완료된 적 있는 영상에서 이 묶음의 재수행이 잠기는가(오토라벨만).
+                const approvedLocked = rerunLockedByApproval(bundle, everApproved);
                 const warningId = rerunWarningId(bundle);
                 const busyHintId = rerunBusyHintId(bundle);
+                const approvedLockHintId = rerunApprovedLockId(bundle);
                 const rerunDescribedBy =
-                  [destructive ? warningId : null, processing ? busyHintId : null]
+                  [
+                    destructive ? warningId : null,
+                    approvedLocked ? approvedLockHintId : null,
+                    processing ? busyHintId : null,
+                  ]
                     .filter(Boolean)
                     .join(' ') || undefined;
                 return (
@@ -498,8 +532,15 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                         <Button
                           variant="secondary"
                           size="sm"
-                          disabled={busy || processing}
+                          // ★ 기존 조건(진행 중·처리 중)을 **대체하지 않고 더한다** — 승인 이력이
+                          //   없어도 처리 중이면 여전히 비활성이어야 한다.
+                          disabled={busy || processing || approvedLocked}
                           aria-describedby={rerunDescribedBy}
+                          title={
+                            approvedLocked
+                              ? '검수가 완료된 영상은 오토라벨을 다시 만들 수 없습니다 — 승인 시점 라벨과 어긋납니다.'
+                              : undefined
+                          }
                           onClick={() =>
                             destructive ? setRerunConfirmTarget(bundle) : rerun.mutate(bundle)
                           }
@@ -521,6 +562,20 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                       >
                         이 작업을 재수행하면 트랙 보간까지 다시 만들어집니다. 사람이 손댄 보간 라벨은
                         지워지고 새로 계산된 값으로 바뀝니다.
+                      </p>
+                    )}
+                    {/* ★ 되돌릴 수 없는 조건이라 **누르기 전에** 알린다 — 파생영상 차단과 같은
+                          관례다. 비활성 버튼의 `title` 은 키보드·보조기술에 닿지 않으므로 문단을
+                          함께 두고 버튼이 `aria-describedby` 로 가리킨다. */}
+                    {isReverted && !isSkipped && approvedLocked && (
+                      <p
+                        id={approvedLockHintId}
+                        className="text-caption text-gray-700"
+                        data-testid={`batch-rerun-approved-lock-${bundle}`}
+                      >
+                        검수가 완료된 적 있는 영상에서는 시계열만 다시 수행할 수 있습니다 — 시계열은
+                        확정된 라벨을 건드리지 않고 서술만 더하지만, 오토라벨은 라벨을 다시 만들어
+                        승인 시점과 어긋납니다. 되돌릴 수 없는 조건이라 눌러 보기 전에 알립니다.
                       </p>
                     )}
                     {isReverted && !isSkipped && processing && (

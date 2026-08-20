@@ -199,6 +199,29 @@ export function isStageBundle(name: string): name is StageBundle {
 }
 
 /**
+ * 일괄 축이 받는 **유일한** 작업 묶음 — 시계열. [@design API-212] [@design API-213] [@design API-214]
+ *
+ * ★ 오토라벨은 산출물이 <b>라벨</b>이라, 대량으로 건너뛸 수 있게 열면 산출물 품질 축이 조용히 느슨해진다.
+ * 그래서 <b>일괄 축에서만</b> 좁혔고 <b>단건 경로는 종전대로 두 묶음을 모두 받는다</b>. 서버도 같은 판정을
+ * 갖고 있으며 그 외 값은 400 이다(BE `BatchStageBulkService.BULK_BUNDLE`).
+ *
+ * ⚠ 이 값은 일괄 3 API 의 경로 세그먼트가 되는 <b>상수</b>다 — 사용자 입력이 URL 로 흘러갈 자리를 애초에
+ * 만들지 않는다(CWE-22). 넓히기 전에 「산출물 품질 축을 사람이 대량으로 우회할 수 있는가」를 먼저 답할 것.
+ */
+export const BULK_STAGE_BUNDLE = 'VLM' satisfies StageBundle;
+export type BulkStageBundle = typeof BULK_STAGE_BUNDLE;
+
+/**
+ * 일괄 축이 조작할 수 있는 묶음인가 — **화면이 미리 가르는 판정**이자 경로 세그먼트 검증의 2단이다.
+ *
+ * {@link isStageBundle} 은 "조작 대상 묶음인가"(단건 축 포함)를 보고, 이 함수는 그중 <b>일괄로 열어 둔
+ * 것</b>만 통과시킨다. 두 판정을 하나로 합치면 단건 축이 함께 좁아진다 — 합치지 말 것.
+ */
+export function isBulkStageBundle(name: string): name is BulkStageBundle {
+  return name === BULK_STAGE_BUNDLE;
+}
+
+/**
  * 이 단계가 속한 묶음 — 없으면 null(비식별·마킹·프레임추출은 조작 대상이 아니다).
  *
  * 실패한 단계는 진행 축 코드로 오는데(예: `YOLO`) 조작은 묶음 단위라, 그 사이를 잇는 유일한 해석
@@ -290,6 +313,15 @@ export interface BatchBulkRetryResult {
  * 화면은 이 값으로 **미리** 안내한다(400 을 받고서야 알게 되는 동선을 피한다).
  */
 export const BULK_RETRY_MAX = 100;
+
+/**
+ * 건너뛰기 사유 글자 수 상한 — BE `ManualStageSkip.REASON_MAX_LENGTH` 와 **같은 값이어야 한다**.
+ * [@design API-198] [@design API-212]
+ *
+ * 화면은 이 값으로 <b>미리</b> 막고 잔여 글자 수를 안내한다(400 을 받고서야 알게 되는 동선을 피한다).
+ * ⚠ 서버는 초과분을 잘라 저장하지 않고 <b>거부</b>한다 — 두 값이 갈리면 사용자가 다 쓴 사유를 잃는다.
+ */
+export const SKIP_REASON_MAX = 500;
 
 /**
  * 비식별 이력 1건 — BE `VideoDetailResponse.DeidentHistoryDto` 와 1:1. [req: R14]

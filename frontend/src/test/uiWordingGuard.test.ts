@@ -11,6 +11,12 @@
 //   주석은 벗겨내고 본다. 코드 식별자·API 필드·상태코드(`reject`/`REJECTED`/`rejectReason`)는
 //   BE 계약이라 검사하지 않으며, 문서·주석의 '거부'(서버가 요청을 물리치는 뜻 등)도 대상이 아니다.
 //
+// ★ '거부'에는 예외 축이 하나 있다 — **요청 처리 축은 허용 · 검수/활용 결정 축은 절대 불가**
+//   서버가 요청(또는 그 안의 개별 건)을 계약 위반으로 물리치는 뜻의 '거부'는 화면에 쓸 수 있다.
+//   사람이 내리는 판정이 아니라 요청이 처리되지 않았다는 사실이라, 확정 용어 '반려'와 뜻이 다르다.
+//   허용은 파일 단위가 아니라 **구절 단위**(REJECT_WORD_ALLOWLIST)다 — 예외를 준 파일에 훗날
+//   진짜 검수·활용 결정의 '거부'가 들어와도 그대로 FAIL 해야 하기 때문이다.
+//
 // ⚠ 이 가드가 못 보는 것
 //   - 주석 안의 문구(의도적 제외) · 테스트 파일 · BE 응답 문자열을 그대로 노출하는 경로
 //     (예: 서버 메시지 토스트)는 소스에 문자열이 없어 잡히지 않는다.
@@ -53,20 +59,48 @@ function relative(file: string): string {
   return path.relative(SRC_DIR, file).split(path.sep).join('/');
 }
 
+/**
+ * '거부' 예외 — **요청 처리 축**의 문구만 구절 단위로 좁게 허용한다.
+ *
+ * 파일 단위 예외를 만들지 않는 이유: 그 파일에 훗날 검수·활용 결정의 '거부'가 들어와도 통과해
+ * 가드가 그 파일에서만 조용히 죽는다. 구절 단위면 예외 문구가 어디에 있든 허용되고,
+ * 그 밖의 '거부'는 **같은 파일에서도** 여전히 FAIL 한다.
+ *
+ * ⚠ 항목을 추가하려면 "검수·활용 결정 축이 아닌 이유"를 why 에 적을 것. 문장 전체가 아니라
+ *   뜻이 결정되는 **핵심 구절**만 넣는다(전문을 넣으면 한 글자만 다듬어도 예외가 풀린다).
+ */
+const REJECT_WORD_ALLOWLIST: ReadonlyArray<{ phrase: string; why: string }> = [
+  {
+    phrase: '거부된 건은 사유와 함께',
+    // 시계열 일괄 조작 안내 — 서버가 전건을 받아 건별로 물리친다는 처리 결과이지 검수 판정이 아니다.
+    why: '요청 처리 축 — 일괄 요청 중 서버가 물리친 건',
+  },
+  {
+    phrase: '요청 전체가 거부됩니다',
+    // 일괄 스킵 사유 입력 안내 — 사유가 비면 400 으로 요청 자체가 접수되지 않는다는 계약 설명이다.
+    why: '요청 처리 축 — 계약 위반으로 접수되지 않는 요청',
+  },
+];
+
+/** 허용 구절만 지우고 남긴다 — 같은 줄에 다른 '거부'가 있으면 그것은 그대로 잡힌다. */
+function withoutAllowedRejectPhrases(line: string): string {
+  return REJECT_WORD_ALLOWLIST.reduce((acc, { phrase }) => acc.split(phrase).join(''), line);
+}
+
 describe('화면 문구 — 확정 용어 재유입 가드', () => {
   /**
    * 검수·활용 결정의 확정 용어는 '반려'다(사양 SCREEN-019 검수, SCREEN-023 증강 결과).
    *
-   * 주석을 벗기면 사용자 노출 문구만 남으므로 **0건**이 기대값이다. 서버가 요청을 물리치는
-   * 뜻의 '거부'(권한 거부·입력 거부)를 화면에 써야 한다면 그때 이 가드에 예외 목록을 만들되,
-   * 검수/활용 결정 축에는 절대 쓰지 않는다.
+   * 주석을 벗기고 REJECT_WORD_ALLOWLIST 의 허용 구절을 지우면 **0건**이 기대값이다.
+   * 서버가 요청을 물리치는 뜻의 '거부'(권한 거부·입력 거부)는 그 allowlist 에 구절 단위로 올려
+   * 쓰되, 검수/활용 결정 축에는 절대 쓰지 않는다.
    */
   it('사용자_노출_문구에_거부가_없다_확정_용어는_반려다', () => {
     const offenders = sourceFiles().flatMap((file) => {
       const lines = stripComments(fs.readFileSync(file, 'utf-8')).split('\n');
       return lines
         .map((line, i) => ({ line: line.trim(), no: i + 1 }))
-        .filter(({ line }) => line.includes('거부'))
+        .filter(({ line }) => withoutAllowedRejectPhrases(line).includes('거부'))
         .map(({ line, no }) => `${relative(file)}:${no} — ${line}`);
     });
 

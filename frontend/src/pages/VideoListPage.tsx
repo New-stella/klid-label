@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronRight, RefreshCw, Sparkles, Users } from 'lucide-react';
+import { ChevronRight, RefreshCw, RotateCw, SkipForward, Sparkles, Undo2, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/common/Button';
@@ -17,8 +17,15 @@ import type { Task } from '@/features/task/types';
 import { MarkingModal } from '@/features/marking/components/MarkingModal';
 import { canMark } from '@/features/marking/markingEligibility';
 import { BulkRetryResultModal } from '@/features/video/components/BulkRetryResultModal';
+import { BulkSkipReasonModal } from '@/features/video/components/BulkSkipReasonModal';
 import { VideoFilters } from '@/features/video/components/VideoFilters';
-import { useBulkRetryBatch } from '@/features/video/hooks/useBatchRecovery';
+import { exceedsBulkRetryLimit } from '@/features/video/api';
+import {
+  useBulkClearBatchStageSkip,
+  useBulkRerunBatchStage,
+  useBulkRetryBatch,
+  useBulkSkipBatchStage,
+} from '@/features/video/hooks/useBatchRecovery';
 import { useVideos } from '@/features/video/hooks/useVideos';
 import {
   parseVideoListParams,
@@ -26,6 +33,7 @@ import {
 } from '@/features/video/parseVideoListParams';
 import {
   BULK_RETRY_MAX,
+  isBatchFailed,
   type BatchBulkRetryResult,
   type Video,
   type VideoListParams,
@@ -103,8 +111,18 @@ export function VideoListPage() {
     name: string;
   } | null>(null);
 
-  // 일괄 재시작 결과(부분 성공) — 건별 성패·사유를 모달로 보여준다.
-  const [bulkRetryResult, setBulkRetryResult] = useState<BatchBulkRetryResult | null>(null);
+  /**
+   * 일괄 조작 결과(부분 성공) — 건별 성패·사유를 모달로 보여준다.
+   *
+   * 네 조작(재시작 / 시계열 건너뛰기·해제·재수행)의 응답 스키마가 하나이므로 결과 모달도 하나이며,
+   * 무엇의 결과인지는 제목으로만 가른다(조작마다 모달을 새로 만들면 같은 본문이 네 벌이 된다).
+   */
+  const [bulkResult, setBulkResult] = useState<{
+    title: string;
+    data: BatchBulkRetryResult;
+  } | null>(null);
+  // 시계열 일괄 건너뛰기 — 사유를 받아야 하므로 이 조작만 모달을 거친다(해제·재수행은 즉시 실행).
+  const [skipReasonOpen, setSkipReasonOpen] = useState(false);
   const pushToast = useUiStore((s) => s.pushToast);
 
   const updateParams = (next: VideoListParams) => {
@@ -173,28 +191,97 @@ export function VideoListPage() {
    * 여러 건이 함께 실패하는데, 그중 일부가 "이미 진행 중"으로 밀렸을 때 사용자가 목록에서
    * 그 영상들을 처음부터 다시 고르게 만들지 않기 위해서다.
    */
+  /**
+   * 결과 수용 — **접수하지 못한 분만 선택으로 남긴다**(네 조작 공통).
+   *
+   * 성공했다고 선택을 통째로 비우면, 거부된 건을 목록에서 처음부터 다시 골라야 한다.
+   */
+  const acceptBulkResult = (title: string) => (data: BatchBulkRetryResult) => {
+    setBulkResult({ title, data });
+    setSelected(new Set(data.results.filter((r) => !r.success).map((r) => r.rawSn)));
+  };
+
+  /** 요청 자체가 실패한 경우(부분 성공이 아니다) — 서버 문구가 있으면 그대로 쓴다. */
+  const notifyBulkError = (fallback: string) => (err: unknown) => {
+    pushToast({
+      variant: 'error',
+      message: err instanceof ApiError && err.userMessage ? err.userMessage : fallback,
+    });
+  };
+
   const bulkRetry = useBulkRetryBatch({
-    onSuccess: (data) => {
-      setBulkRetryResult(data);
-      setSelected(new Set(data.results.filter((r) => !r.success).map((r) => r.rawSn)));
-    },
-    onError: (err) => {
-      pushToast({
-        variant: 'error',
-        message:
-          err instanceof ApiError && err.userMessage
-            ? err.userMessage
-            : '일괄 재시작에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-      });
-    },
+    onSuccess: acceptBulkResult('일괄 재시작 접수 결과'),
+    onError: notifyBulkError('일괄 재시작에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
   });
 
-  const overBulkRetryLimit = selected.size > BULK_RETRY_MAX;
+  /**
+   * [@design SCREEN-008] [@design API-212] 시계열 묶음 일괄 건너뛰기 — 사유는 요청당 하나이며
+   * 대상 전건에 같은 값으로 남는다.
+   */
+  const bulkSkip = useBulkSkipBatchStage({
+    onSuccess: (data) => {
+      setSkipReasonOpen(false);
+      acceptBulkResult('시계열 일괄 건너뛰기 결과')(data);
+    },
+    onError: notifyBulkError('시계열 일괄 건너뛰기에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+  });
+
+  /**
+   * [@design API-213] 건너뛰기 **해제** — 표식만 떼는 조작이라 확인 창을 두지 않는다.
+   * 해제만으로는 시계열이 채워지지 않으며 실제 실행은 재수행이 담당한다(두 조작을 합치지 않는다).
+   */
+  const bulkClearSkip = useBulkClearBatchStageSkip({
+    onSuccess: acceptBulkResult('시계열 일괄 건너뛰기 해제 결과'),
+    onError: notifyBulkError(
+      '시계열 일괄 건너뛰기 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+    ),
+  });
+
+  /**
+   * [@design API-214] 건너뛰기를 해제한 묶음 **재수행** — 확정된 라벨을 되돌리지 않으므로
+   * 파괴적이지 않다(확인 창 없음). 수락 대상이 아닌 건은 건별 사유로 돌아온다.
+   */
+  const bulkRerun = useBulkRerunBatchStage({
+    onSuccess: acceptBulkResult('시계열 일괄 재수행 결과'),
+    onError: notifyBulkError('시계열 일괄 재수행에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+  });
+
+  // 상한 판정은 API 모듈의 단일 원천을 그대로 쓴다(화면이 같은 비교식을 다시 갖지 않는다).
+  const overBulkRetryLimit = exceedsBulkRetryLimit(selected.size);
+  const bulkBusy =
+    bulkRetry.isPending || bulkSkip.isPending || bulkClearSkip.isPending || bulkRerun.isPending;
+
+  /**
+   * 선택분 중 **지금 실패 상태**인 건수 — 일괄 재시작이 실제로 접수될 수 있는 대상 수다.
+   *
+   * ⚠ 이 값으로 요청을 거르지 않는다. 재시작은 지금도 선택 전건을 보내고 **서버가 건별로 거부**하며,
+   * 화면이 미리 거르면 그 계약이 바뀐다. 여기서는 안내 문구에만 쓴다.
+   */
+  // `rows` 는 매 렌더 새 배열이라 useMemo 로 감싸도 재계산을 막지 못한다(현재 페이지 한 벌 필터라
+  // 비용도 무시할 수준이다). 불필요한 의존성 경고만 남으므로 그대로 계산한다.
+  const selectedFailedCount = rows.filter((r) => selected.has(r.id) && isBatchFailed(r)).length;
+
+  /** 일괄 조작 공통 가드 — 권한·빈 선택·상한·진행 중. */
+  const canRunBulk = isReviewer && selected.size > 0 && !overBulkRetryLimit && !bulkBusy;
 
   const handleBulkRetry = () => {
-    if (!isReviewer) return;
-    if (selected.size === 0 || overBulkRetryLimit) return;
+    if (!canRunBulk) return;
     bulkRetry.mutate(Array.from(selected));
+  };
+
+  const handleBulkSkip = (reason: string) => {
+    if (!canRunBulk) return;
+    bulkSkip.mutate({ rawSns: Array.from(selected), reason });
+  };
+
+  const handleBulkClearSkip = () => {
+    if (!canRunBulk) return;
+    bulkClearSkip.mutate(Array.from(selected));
+  };
+
+  const handleBulkRerun = () => {
+    if (!canRunBulk) return;
+    bulkRerun.mutate(Array.from(selected));
   };
 
   // 배정/재배정 성공 후 선택 해제. 영상 목록 캐시는 useAssignTask/useReassignTask 가
@@ -250,20 +337,68 @@ export function VideoListPage() {
         <div className="flex flex-col gap-1.5 bg-primary-50 border border-primary-200 rounded-lg px-4 py-2.5 text-body-md">
           <div className="flex items-center justify-between gap-3">
             <span className="font-medium text-primary-700">선택 {selected.size}건</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {/* [@design SCREEN-008] [@design API-199] 일괄 재시작 — 배치가 한 번 멈추면 여러 건이
                   함께 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다. */}
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleBulkRetry}
-                disabled={overBulkRetryLimit || bulkRetry.isPending}
+                disabled={overBulkRetryLimit || bulkBusy}
                 loading={bulkRetry.isPending}
                 aria-label={`${selected.size}개 영상 배치 일괄 재시작`}
               >
                 <RefreshCw size={14} aria-hidden />
-                {selected.size}개 일괄 재시작
+                {selected.size}건 일괄 재시작
               </Button>
+
+              {/* 구분 — 대상 범위가 다른 축(재시작=실패분 / 시계열=선택 전건)이라 시각적으로 가른다. */}
+              <span className="h-4 w-px bg-primary-200" aria-hidden />
+
+              {/*
+                [@design SCREEN-008] [@design API-212] [@design API-213] [@design API-214]
+                시계열 묶음 일괄 조작 3종. ★ 이 바의 대상은 **시계열 하나**다 — 오토라벨 묶음은
+                산출물이 라벨이라 대량으로 건너뛸 수 있게 열지 않았다(서버도 400).
+                ★ 위계를 위해 셋 다 secondary 로 둔다(primary 는 일괄 배정 하나만 유지).
+              */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSkipReasonOpen(true)}
+                disabled={overBulkRetryLimit || bulkBusy}
+                loading={bulkSkip.isPending}
+                aria-label={`${selected.size}개 영상 시계열 일괄 건너뛰기`}
+              >
+                <SkipForward size={14} aria-hidden />
+                {selected.size}건 시계열 건너뛰기
+              </Button>
+              {/* 해제·재수행은 파괴적이지 않으므로 확인 창을 두지 않는다(표식만 떼고, 재수행은
+                  확정된 라벨을 건드리지 않는다). */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkClearSkip}
+                disabled={overBulkRetryLimit || bulkBusy}
+                loading={bulkClearSkip.isPending}
+                aria-label={`${selected.size}개 영상 시계열 일괄 건너뛰기 해제`}
+              >
+                <Undo2 size={14} aria-hidden />
+                {selected.size}건 시계열 건너뛰기 해제
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleBulkRerun}
+                disabled={overBulkRetryLimit || bulkBusy}
+                loading={bulkRerun.isPending}
+                aria-label={`${selected.size}개 영상 시계열 일괄 재수행`}
+              >
+                <RotateCw size={14} aria-hidden />
+                {selected.size}건 시계열 재수행
+              </Button>
+
+              <span className="h-4 w-px bg-primary-200" aria-hidden />
+
               <Button
                 variant="primary"
                 size="sm"
@@ -271,14 +406,24 @@ export function VideoListPage() {
                 aria-label={`${selected.size}개 영상 작업자 일괄 배정`}
               >
                 <Users size={14} aria-hidden />
-                {selected.size}개 일괄 배정
+                {selected.size}건 일괄 배정
               </Button>
             </div>
           </div>
+          {/*
+            두 조작의 **대상 범위가 다르다**는 사실을 미리 알린다 — 재시작은 실패 건만 접수되고
+            시계열 일괄 조작은 선택 전건에 적용되며 거부는 건별 사유로 돌아온다. 이 차이를 결과
+            모달에서야 알게 되면 사용자는 "왜 일부만 됐나"를 되짚어야 한다.
+          */}
+          <p className="text-caption text-gray-600" data-testid="bulk-scope-hint">
+            선택한 영상 중 실패 {selectedFailedCount}건만 재시작 대상입니다. 시계열 일괄 조작은
+            선택한 {selected.size}건 전부에 적용되며, 되는 것만 처리하고 거부된 건은 사유와 함께
+            돌려줍니다.
+          </p>
           {/* 상한은 **미리** 알린다 — 보내고 400 을 받은 뒤에야 알게 되는 동선을 피한다. */}
           {overBulkRetryLimit && (
             <p className="text-caption text-danger" data-testid="bulk-retry-limit-notice">
-              일괄 재시작은 한 번에 최대 {BULK_RETRY_MAX}건까지 가능합니다. 선택을 줄여 주세요.
+              일괄 조작은 한 번에 최대 {BULK_RETRY_MAX}건까지 가능합니다. 선택을 줄여 주세요.
             </p>
           )}
         </div>
@@ -499,12 +644,25 @@ export function VideoListPage() {
         />
       )}
 
-      {/* 일괄 재시작 결과 (REVIEWER 전용) — 성공·실패 건수 + 실패분 사유. */}
+      {/* 시계열 일괄 건너뛰기 사유 (REVIEWER 전용) — 사유는 요청당 하나로 전건에 같은 값이 남는다. */}
+      {isReviewer && (
+        <BulkSkipReasonModal
+          open={skipReasonOpen}
+          rawSns={Array.from(selected)}
+          videoNameById={videoNameById}
+          loading={bulkSkip.isPending}
+          onClose={() => setSkipReasonOpen(false)}
+          onConfirm={handleBulkSkip}
+        />
+      )}
+
+      {/* 일괄 조작 결과 (REVIEWER 전용) — 접수 건수 + 접수하지 못한 분의 사유. */}
       <BulkRetryResultModal
-        open={bulkRetryResult !== null}
-        result={bulkRetryResult}
+        open={bulkResult !== null}
+        result={bulkResult?.data ?? null}
+        title={bulkResult?.title}
         videoNameById={videoNameById}
-        onClose={() => setBulkRetryResult(null)}
+        onClose={() => setBulkResult(null)}
       />
 
       {/* 마킹 진입 팝업 (REVIEWER 전용 — 미배정 + 마킹 가능 영상) */}
