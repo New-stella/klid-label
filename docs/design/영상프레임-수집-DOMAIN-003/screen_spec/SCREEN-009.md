@@ -1,18 +1,19 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 50
+version: 51
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-19T23:55:46.575Z
+synced_at: 2026-08-20T08:27:33.231Z
 status: CHANGED
-prev_version: 49
-content_hash: 0680a1fbdd42efe8b8bc77fc8dcec6984b3624af48a8c8cd950b5c735a6baf44
-stale: false
+prev_version: 50
+content_hash: f17d091864ff027d1c806d55d3fb73b13dc0239c449924e8347b4eb00e9ce1e3
+stale: true
 raw: ./_raw/SCREEN-009.json
 links:
   belongs_to_domain: ["[[DOMAIN-003]]"]
   consumes: ["[[API-021]]", "[[API-043]]", "[[API-044]]"]
+  covered_by: ["[[AC-051]]"]
   migrated_from: ["[[LEGACY-003]]"]
   references: ["[[API-021]]", "[[API-043]]", "[[API-044]]", "[[API-167]]", "[[API-198]]", "[[API-200]]", "[[API-201]]"]
   requires: ["[[ROLE-001]]", "[[ROLE-002]]"]
@@ -502,7 +503,8 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-038
+- IMPREC-040
 
 ### progress
 
@@ -511,6 +513,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-20T03:15:53.501Z
 
 ## required_roles
 
@@ -554,4 +560,4 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-051

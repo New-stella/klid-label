@@ -593,6 +593,10 @@ a.btn, a.btn:hover { text-decoration: none; }
 }
 .textarea::placeholder { color: var(--n-5); }
 .textarea:hover { border-color: var(--n-5); }
+
+/* 사유 입력 — 글자수는 라벨 줄 오른쪽에 둔다. 도움말이 두 줄로 접혀도 숫자가
+   문단 중간에 뜨지 않는다. 라벨 밖 형제라 필드 이름에 섞여 읽히지 않는다. */
+.field-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .field-foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .field-help { color: var(--n-6); flex: 1 1 auto; min-width: 0; }
 /* 글자 수는 줄바꿈되지 않게 고정폭으로 둔다 — 도움말과 겹쳐 읽히던 것을 실렌더에서 발견 */

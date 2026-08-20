@@ -262,9 +262,13 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-038",
+          "IMPREC-040"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-20T03:15:53.501Z"
       },
       "required_roles": [
         "ROLE-001",
@@ -289,16 +293,18 @@
       "uses_constants": [],
       "external_designs": [],
       "realizes_use_cases": [],
-      "covered_by_acceptances": []
+      "covered_by_acceptances": [
+        "AC-051"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 50,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.9KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T23:52:45.244Z",
+    "current_version": 51,
+    "stale": true,
+    "stale_reason": "API-201의 data.verifies_acceptance 변경 — references",
+    "change_summary": "신설한 시계열 일괄 축·승인 분기 수용 기준을 연결한다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-20T03:15:53.501Z",
     "created_at": "2026-05-30T07:54:17.546Z"
   }
 }

@@ -106,6 +106,41 @@ describe('화면 문구 — 확정 용어 재유입 가드', () => {
 
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * 예외 목록의 각 항목이 **실제로 쓰이는지** 확인한다 — 죽은 항목은 지우게 만든다.
+   *
+   * 예외는 조용히 죽는다. 화면 문구가 나중에 다듬어져 그 구절이 소스에서 사라져도 항목은 남고,
+   * 아무도 그것이 왜 있는지 모른 채 그 옆에 새 항목을 더한다. 그렇게 부푼 목록은 '거부' 가드의
+   * 실효 범위를 넓히기만 하고 근거는 잃는다. 그래서 쓰이지 않는 항목을 결함으로 본다.
+   *
+   * ⚠ 검사 대상은 첫 번째 테스트와 **정확히 같아야 한다** — sourceFiles()(테스트 파일 제외) +
+   *   stripComments(주석 제외). 이 범위를 넓혀 src 전체를 훑으면 REJECT_WORD_ALLOWLIST 가 적힌
+   *   이 파일 자신이 매칭되어 **항상 통과**한다(자기 자신을 근거로 삼는 함정). 마찬가지로 주석에만
+   *   남은 구절도 사용자 노출 문구가 아니므로 '쓰인다'로 쳐서는 안 된다.
+   *
+   * 줄 단위로 보는 것도 의도다 — 예외는 withoutAllowedRejectPhrases 가 **한 줄 안에서** 지워야
+   * 효력이 있으므로, 줄바꿈에 걸려 어느 줄과도 맞지 않는 구절은 있어도 아무것도 허용하지 못한다.
+   */
+  it('예외_목록의_각_구절이_실제_화면_문구에_존재한다', () => {
+    const lines = sourceFiles().flatMap((file) =>
+      stripComments(fs.readFileSync(file, 'utf-8'))
+        .split('\n')
+        .map((line) => line.trim()),
+    );
+
+    const dead = REJECT_WORD_ALLOWLIST.filter(
+      ({ phrase }) => !lines.some((line) => line.includes(phrase)),
+    ).map(
+      ({ phrase, why }) =>
+        `'${phrase}' — 이 구절이 화면 소스에 없다(사유로 적힌 예외: ${why}). ` +
+        '문구가 다듬어진 것이면 REJECT_WORD_ALLOWLIST 의 phrase 를 현재 문구로 고치고, ' +
+        '문구가 사라진 것이면 그 항목을 목록에서 삭제할 것. 쓰이지 않는 예외는 근거 없이 ' +
+        "'거부' 가드의 범위만 넓힌다.",
+    );
+
+    expect(dead).toEqual([]);
+  });
 });
 
 /**

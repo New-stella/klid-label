@@ -288,11 +288,14 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-031"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-19T23:58:25.679Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -304,8 +307,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "이미 건너뛴 묶음의 충돌 거부를 두지 않기로 한다 — 다시 건너뛰어도 새 표식을 덧붙여 성공으로 처리한다(사유 변경 이력이 감사 대상). 응답 블록은 지우지 않고 폐기로 표기했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:22:34.397Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-19T23:58:25.679Z",
     "created_at": "2026-08-12T07:22:12.033Z"
   }
 }
