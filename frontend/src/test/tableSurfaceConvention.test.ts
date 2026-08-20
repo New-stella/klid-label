@@ -93,6 +93,18 @@ const TABLES: TableCase[] = [
     label: 'DeidentReportListPage(비식별 누락 신고 목록)',
     file: 'src/pages/manage/DeidentReportListPage.tsx',
   },
+  {
+    label: 'UnmappedCategorySection(외부 산출물 이관 — 처음 보는 분류)',
+    file: 'src/features/import/components/UnmappedCategorySection.tsx',
+  },
+  {
+    label: 'ConfirmedMappingSection(외부 산출물 이관 — 확정된 분류 대응)',
+    file: 'src/features/import/components/ConfirmedMappingSection.tsx',
+  },
+  {
+    label: 'ImportHistorySection(외부 산출물 이관 — 가져온 내역)',
+    file: 'src/features/import/components/ImportHistorySection.tsx',
+  },
 ];
 
 /**

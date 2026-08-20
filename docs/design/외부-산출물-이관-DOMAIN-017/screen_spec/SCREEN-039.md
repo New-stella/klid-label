@@ -1,21 +1,21 @@
 ---
 logicraft_item: SCREEN-039
 type: screen_spec
-version: 10
+version: 13
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-20T03:19:22.465Z
+synced_at: 2026-08-20T12:49:26.882Z
 status: CHANGED
-prev_version: 5
-content_hash: 4f2ba92bbbce2801072cb6eb855aa5bd56042a5cf0101769af048ba625bb829d
+prev_version: 10
+content_hash: 043e763a885d236b95530d7221013acb3c58cb0aaf598d0a38080060d5e8b303
 stale: true
 raw: ./_raw/SCREEN-039.json
 links:
   belongs_to_domain: ["[[DOMAIN-017]]"]
-  consumes: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[API-211]]"]
+  consumes: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[API-211]]", "[[API-215]]"]
   covered_by: ["[[AC-041]]", "[[AC-042]]", "[[AC-043]]", "[[AC-044]]", "[[AC-045]]", "[[AC-046]]", "[[AC-047]]"]
   realizes: ["[[UC-035]]"]
-  references: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[API-211]]"]
+  references: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[API-211]]", "[[API-215]]"]
   requires: ["[[ROLE-001]]"]
   applies_to_backward: ["[[SHELL-001]]"]
   navigates_to_backward: ["[[NAV-001]]"]
@@ -357,6 +357,137 @@ _(empty)_
 
 _(empty)_
 
+### 확정된 대응
+
+- **role**: main
+- **layout**: list
+
+**components**:
+
+#### [1]
+
+- **type**: Heading
+- **label**: 확정된 분류 대응
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **type**: Select
+- **label**: 대응 종류
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: I
+
+**options**:
+
+- 전체
+- 라벨
+- 이벤트 유형
+
+#### [3]
+
+- **note**: 기본은 쓰는 대응만 보여주고, 켜면 쓰지 않게 표시한 것까지 함께 나온다
+- **type**: Checkbox
+- **label**: 쓰지 않게 표시한 대응까지 보기
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: I
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 외부 분류 코드와 외부 표시 이름은 두 열로 유지한다. 이벤트 축은 코드가 없어 두 값이 같게 보이지만 라벨 축은 영문 코드와 표시 이름이 서로 다르다
+- **type**: Table
+- **label**: 분류 대응 목록
+
+**columns**:
+
+- 종류
+- 외부 분류 코드
+- 외부 표시 이름
+- 연결된 대상
+- 사용 여부
+
+- **io_attr**: O
+
+**options**:
+
+_(empty)_
+
+#### [5]
+
+- **note**: 쪽 단위로 돌려받는다. 가져온 내역과 같은 형식을 쓴다
+- **type**: Pagination
+- **label**: 페이지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 누르면 곧바로 해제되지 않고 확인 단계가 뜬다
+- **type**: Button
+- **label**: 해제
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+
+#### [7]
+
+- **note**: 해제 버튼을 누른 행에 대해서만 뜬다
+- **type**: Dialog
+- **label**: 이 대응을 해제하면 그 분류는 다시 처음 보는 분류가 된다. 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막힌다. 해제하겠는가?
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-211
+
+- **description**: 확정된 분류 대응을 조회하고 잘못 걸린 것을 해제하는 자리다. 바로 위에서 처음 보는 분류를 확정하고 여기서 기존 대응을 확인·수정한다. 대응 종류와 쓰지 않게 표시한 대응의 포함 여부로 걸러내며 목록은 쪽 단위로 돌려받는다. 표는 외부 분류 코드와 외부 표시 이름을 각각 두 열로 유지한다. 이벤트 축은 코드가 없어 두 열이 같은 값을 보이지만 그것은 그 축의 사실이고, 라벨 축은 영문 코드와 표시 이름이 실제로 달라 두 열이 서로 다른 값을 담는다. 열을 하나로 합치면 라벨 축이 손해를 본다. 해제는 확인 단계를 거쳐야 성립한다. 되돌리면 그 분류가 다시 처음 보는 분류가 되어 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막히기 때문이다. 확인 문구는 무엇이 되돌려지는지와 그 결과를 함께 말한다. 해제해도 행을 지우지 않고 쓰지 않음으로 표시하며, 이미 그 대응으로 적재된 라벨은 그대로 둔다.
+
+**references_apis**:
+
+- API-209
+- API-211
+
+**references_features**:
+
+_(empty)_
+
 ### 적재 실행
 
 - **role**: main
@@ -526,6 +657,7 @@ _(empty)_
 - 폴더명
 - 영상 번호
 - 상태
+- 승인 보류
 - 프레임 수
 - 라벨 수
 - 실행자
@@ -549,12 +681,103 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 지금까지 가져온 내역을 최근순으로 보여준다. 실패한 건은 사유를 펼쳐볼 수 있다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다.
+#### [5]
+
+- **note**: 승인 보류가 선 행에서만 열린다
+- **type**: Button
+- **label**: 비식별 완료 기록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [6]
+
+- **note**: 허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다
+- **type**: Input
+- **label**: 비식별 산출물 폴더 경로
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: I
+
+**options**:
+
+_(empty)_
+
+- **placeholder**: 예: /nas-storage/handover/00000073-deid
+
+#### [7]
+
+- **note**: 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다
+- **type**: Button
+- **label**: 기록
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-215
+
+#### [8]
+
+- **type**: Alert
+- **label**: 기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: O
+
+**options**:
+
+_(empty)_
+
+#### [9]
+
+- **note**: 비워 둔 프레임이 하나라도 있을 때만 노출
+- **type**: Alert
+- **label**: 비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: O
+
+**options**:
+
+_(empty)_
+
+**description**:
+
+지금까지 가져온 내역을 최근순으로 보여준다. 실패한 건은 사유를 펼쳐볼 수 있다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다.
+
+승인 보류가 선 영상은 이 목록에서 드러나며, 그 행에서 비식별 완료를 기록하는 자리를 연다. 검수 화면이 아니라 이 자리에 두는 까닭은 이 목록이 이미 영상별 상태를 보여주고 있고 검수 화면은 다른 갈래의 소관이라 경계를 넘기 때문이다. 기록은 외부에서 비식별한 산출물이 놓인 폴더 위치를 사람이 입력해 이뤄진다. 결과에는 비식별 이미지를 채운 프레임 수와 함께 이름이 맞는 파일이 없어 비워 둔 프레임 수를 보여준다. 비워 둔 프레임이 하나라도 있으면 그 영상의 학습데이터 산출물에 비식별 이미지가 빠진 채로 나가므로 사람이 그 사실을 알아야 한다. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.
 
 **references_apis**:
 
 - API-207
 - API-208
+- API-215
 
 **references_features**:
 
@@ -583,12 +806,13 @@ web
 - API-209
 - API-210
 - API-211
+- API-215
 
 ## implementation
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -600,11 +824,53 @@ _(empty)_
 
 ### progress
 
-0
+100
 
 ### subtasks
 
-_(empty)_
+#### [1]
+
+- **done**: true
+- **description**: 가져오기 입력 — 폴더 경로·영상 경로·비식별 여부(기본 원본) + 비식별 완료 선택 시 주의 문구
+
+#### [2]
+
+- **done**: true
+- **description**: 미리보기 — 알림을 막는 것과 알리기만 하는 것으로 나눠 표시. 적재 가능 여부는 응답 값 하나로만 판정
+
+#### [3]
+
+- **done**: true
+- **description**: 분류 대응 확정 — 추천 후보 미리 선택 + 사람 확인 필수, 후보가 비어도 오류로 그리지 않음
+
+#### [4]
+
+- **done**: true
+- **description**: 확정된 대응 — 종류·미사용 포함 걸러내기, 쪽 이동, 해제에 확인 단계
+
+#### [5]
+
+- **done**: true
+- **description**: 적재 실행 — 결과 요약·승인 보류 안내·보류를 푸는 길·검수 목록 이동
+
+#### [6]
+
+- **done**: true
+- **description**: 이관 이력 — 상태 걸러내기·쪽 이동·실패 사유 펼침 + 비식별 완료 기록 진입점
+
+#### [7]
+
+- **done**: true
+- **description**: 비식별 완료 기록 — 폴더 경로 입력, 결과에 비워 둔 프레임 수 경고
+
+#### [8]
+
+- **done**: true
+- **description**: 라우팅 및 관리 메뉴 등재(검수자 전용)
+
+### last_updated
+
+2026-08-20T12:44:34.750Z
 
 ## required_roles
 
@@ -616,6 +882,7 @@ _(empty)_
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-039/main.html
 - **label**: 메인 페이지
+- **width**: 1440
 - **surface**: page
 - **platform**: web
 
@@ -922,6 +1189,137 @@ _(empty)_
 
 _(empty)_
 
+#### 확정된 대응
+
+- **role**: main
+- **layout**: list
+
+**components**:
+
+##### [1]
+
+- **type**: Heading
+- **label**: 확정된 분류 대응
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+##### [2]
+
+- **type**: Select
+- **label**: 대응 종류
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: I
+
+**options**:
+
+- 전체
+- 라벨
+- 이벤트 유형
+
+##### [3]
+
+- **note**: 기본은 쓰는 대응만 보여주고, 켜면 쓰지 않게 표시한 것까지 함께 나온다
+- **type**: Checkbox
+- **label**: 쓰지 않게 표시한 대응까지 보기
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: I
+
+**options**:
+
+_(empty)_
+
+##### [4]
+
+- **note**: 외부 분류 코드와 외부 표시 이름은 두 열로 유지한다. 이벤트 축은 코드가 없어 두 값이 같게 보이지만 라벨 축은 영문 코드와 표시 이름이 서로 다르다
+- **type**: Table
+- **label**: 분류 대응 목록
+
+**columns**:
+
+- 종류
+- 외부 분류 코드
+- 외부 표시 이름
+- 연결된 대상
+- 사용 여부
+
+- **io_attr**: O
+
+**options**:
+
+_(empty)_
+
+##### [5]
+
+- **note**: 쪽 단위로 돌려받는다. 가져온 내역과 같은 형식을 쓴다
+- **type**: Pagination
+- **label**: 페이지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+##### [6]
+
+- **note**: 누르면 곧바로 해제되지 않고 확인 단계가 뜬다
+- **type**: Button
+- **label**: 해제
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+
+##### [7]
+
+- **note**: 해제 버튼을 누른 행에 대해서만 뜬다
+- **type**: Dialog
+- **label**: 이 대응을 해제하면 그 분류는 다시 처음 보는 분류가 된다. 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막힌다. 해제하겠는가?
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-211
+
+- **description**: 확정된 분류 대응을 조회하고 잘못 걸린 것을 해제하는 자리다. 바로 위에서 처음 보는 분류를 확정하고 여기서 기존 대응을 확인·수정한다. 대응 종류와 쓰지 않게 표시한 대응의 포함 여부로 걸러내며 목록은 쪽 단위로 돌려받는다. 표는 외부 분류 코드와 외부 표시 이름을 각각 두 열로 유지한다. 이벤트 축은 코드가 없어 두 열이 같은 값을 보이지만 그것은 그 축의 사실이고, 라벨 축은 영문 코드와 표시 이름이 실제로 달라 두 열이 서로 다른 값을 담는다. 열을 하나로 합치면 라벨 축이 손해를 본다. 해제는 확인 단계를 거쳐야 성립한다. 되돌리면 그 분류가 다시 처음 보는 분류가 되어 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막히기 때문이다. 확인 문구는 무엇이 되돌려지는지와 그 결과를 함께 말한다. 해제해도 행을 지우지 않고 쓰지 않음으로 표시하며, 이미 그 대응으로 적재된 라벨은 그대로 둔다.
+
+**references_apis**:
+
+- API-209
+- API-211
+
+**references_features**:
+
+_(empty)_
+
 #### 적재 실행
 
 - **role**: main
@@ -1091,6 +1489,7 @@ _(empty)_
 - 폴더명
 - 영상 번호
 - 상태
+- 승인 보류
 - 프레임 수
 - 라벨 수
 - 실행자
@@ -1114,20 +1513,111 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 지금까지 가져온 내역을 최근순으로 보여준다. 실패한 건은 사유를 펼쳐볼 수 있다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다.
+##### [5]
+
+- **note**: 승인 보류가 선 행에서만 열린다
+- **type**: Button
+- **label**: 비식별 완료 기록
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+##### [6]
+
+- **note**: 허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다
+- **type**: Input
+- **label**: 비식별 산출물 폴더 경로
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: I
+
+**options**:
+
+_(empty)_
+
+- **placeholder**: 예: /nas-storage/handover/00000073-deid
+
+##### [7]
+
+- **note**: 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다
+- **type**: Button
+- **label**: 기록
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+- **triggers_api**: API-215
+
+##### [8]
+
+- **type**: Alert
+- **label**: 기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: O
+
+**options**:
+
+_(empty)_
+
+##### [9]
+
+- **note**: 비워 둔 프레임이 하나라도 있을 때만 노출
+- **type**: Alert
+- **label**: 비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+- **io_attr**: O
+
+**options**:
+
+_(empty)_
+
+**description**:
+
+지금까지 가져온 내역을 최근순으로 보여준다. 실패한 건은 사유를 펼쳐볼 수 있다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다.
+
+승인 보류가 선 영상은 이 목록에서 드러나며, 그 행에서 비식별 완료를 기록하는 자리를 연다. 검수 화면이 아니라 이 자리에 두는 까닭은 이 목록이 이미 영상별 상태를 보여주고 있고 검수 화면은 다른 갈래의 소관이라 경계를 넘기 때문이다. 기록은 외부에서 비식별한 산출물이 놓인 폴더 위치를 사람이 입력해 이뤄진다. 결과에는 비식별 이미지를 채운 프레임 수와 함께 이름이 맞는 파일이 없어 비워 둔 프레임 수를 보여준다. 비워 둔 프레임이 하나라도 있으면 그 영상의 학습데이터 산출물에 비식별 이미지가 빠진 채로 나가므로 사람이 그 사실을 알아야 한다. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.
 
 **references_apis**:
 
 - API-207
 - API-208
+- API-215
 
 **references_features**:
 
 _(empty)_
 
-- **description**: 경로 입력 → 미리보기 → 분류 대응 확정 → 적재 실행 → 이관 이력의 5단 본문 와이어프레임
-- **source_hash**: 7703882088ff28e8bdf63777047052412f0207d66d7a798c04fa18c2e03402aa
-- **generated_at**: 2026-08-20T03:09:06.699Z
+- **description**: 경로 입력 → 미리보기 → 분류 대응 확정 → 확정된 대응 → 적재 실행 → 이관 이력의 6단 본문 와이어프레임
+- **source_hash**: 310f62a003e33e5f980a03bc123d3043e37c2698ec136ba054934cf3629467a2
+- **generated_at**: 2026-08-20T12:03:25.432Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
