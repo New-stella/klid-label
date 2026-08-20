@@ -1,0 +1,27 @@
+{
+  "item": {
+    "id": "LEGACY-003",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "legacy_artifact",
+    "title": "[module] 저작도구 BATCH (PF-003)",
+    "slug": "module-저작도구-batch-pf-003",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "repo": "KLID-AI-PF-003",
+      "category": "module",
+      "identifier": "KLID-AI-PF-003",
+      "description": "저작도구 BATCH — 프레임 추출, 대량 처리, 통계 집계 (1차 SweetK)",
+      "deprecation_status": "active"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_legacy_artifact: [module] 저작도구 BATCH (PF-003) (module, active)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-05-29T05:24:07.908Z",
+    "created_at": "2026-05-29T05:24:07.908Z"
+  }
+}

@@ -111,7 +111,7 @@ describe('BatchFailurePanel', () => {
   });
 
   // ★ HIGH — 건너뛴 뒤 재기동이 성공하면 실패가 사라진다. 그때 패널까지 사라지면 그 단계는 이후
-  //   모든 재기동에서 조용히 건너뛰어진 채 화면에는 완료로 보이고, 되돌릴 진입점이 없어진다.
+  //   모든 재기동에서 조용히 건너뛰어진 채 화면에는 완료로 보이고, 해제할 진입점이 없어진다.
   describe('실패가_없고_건너뛴_단계만_남은_영상', () => {
     const skippedOnly = () =>
       videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: ['VLM'] });
@@ -129,12 +129,12 @@ describe('BatchFailurePanel', () => {
       );
     });
 
-    it('되돌리기_창구가_남아_있다', async () => {
+    it('건너뛰기_해제_창구가_남아_있다', async () => {
       mock.onDelete('/videos/7/batch/stages/VLM/skip').reply(204);
       const user = userEvent.setup();
 
       renderWithProviders(<BatchFailurePanel video={skippedOnly()} />);
-      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }));
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 해제` }));
 
       await waitFor(() => {
         expect(mock.history.delete.map((h) => h.url)).toContain('/videos/7/batch/stages/VLM/skip');
@@ -264,15 +264,15 @@ describe('BatchFailurePanel', () => {
       expect(screen.getByText('직전 실패 단계')).toBeInTheDocument();
     });
 
-    it('건너뛴_단계와_되돌리기는_처리_중에도_사라지지_않는다', () => {
-      // 스킵 축이 처리 중 축에 먹히면 되돌릴 창구가 또 없어진다(이미 한 번 난 결함).
+    it('건너뛴_단계와_건너뛰기_해제는_처리_중에도_사라지지_않는다', () => {
+      // 스킵 축이 처리 중 축에 먹히면 해제할 창구가 또 없어진다(이미 한 번 난 결함).
       renderWithProviders(
         <BatchFailurePanel video={videoOf({ status: 'PROCESSING', skippedStages: ['VLM'] })} />,
       );
 
       expect(screen.getByTestId('batch-stage-skipped-VLM')).toHaveTextContent('건너뜀');
       expect(
-        screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }),
+        screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 해제` }),
       ).toBeInTheDocument();
     });
 
@@ -328,7 +328,7 @@ describe('BatchFailurePanel', () => {
       expect(screen.queryByText('실패 단계')).not.toBeInTheDocument();
     });
 
-    it('★되돌린_묶음의_재수행_버튼은_그대로_살아_있다', async () => {
+    it('★건너뛰기를_해제한_묶음의_재수행_버튼은_그대로_살아_있다', async () => {
       // 재수행이 실패했으니 다시 시도하는 것이 정상 동선이다 — 이것마저 사라지면 할 수 있는 게 없다.
       const user = userEvent.setup();
       mock.onDelete('/videos/7/batch/stages/VLM/skip').reply(204);
@@ -339,9 +339,9 @@ describe('BatchFailurePanel', () => {
           video={videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: ['VLM'] })}
         />,
       );
-      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }));
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 해제` }));
       await waitFor(() =>
-        expect(useUiStore.getState().toasts.at(-1)?.message).toContain('되돌렸습니다'),
+        expect(useUiStore.getState().toasts.at(-1)?.message).toContain('해제했습니다'),
       );
       // 재수행을 요청했고 그것이 실패해 영상이 완주로 되돌아온 뒤의 상세.
       view.rerender(<BatchFailurePanel video={restoredAfterFailedRerun()} />);
@@ -508,7 +508,7 @@ describe('BatchFailurePanel', () => {
     });
   });
 
-  it('이미_건너뛴_단계는_건너뜀_표시와_되돌리기를_보여준다', async () => {
+  it('이미_건너뛴_단계는_건너뜀_표시와_건너뛰기_해제를_보여준다', async () => {
     // 표시기는 스킵된 단계를 완료로 그리므로, 건너뛰었다는 사실은 이 패널에서만 드러난다.
     mock.onDelete('/videos/7/batch/stages/VLM/skip').reply(204);
     const user = userEvent.setup();
@@ -516,47 +516,56 @@ describe('BatchFailurePanel', () => {
     renderWithProviders(<BatchFailurePanel video={videoOf({ skippedStages: ['VLM'] })} />);
 
     expect(screen.getByTestId('batch-stage-skipped-VLM')).toHaveTextContent('건너뜀');
-    await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` }));
+    await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 해제` }));
 
     await waitFor(() => {
       expect(mock.history.delete.map((h) => h.url)).toContain('/videos/7/batch/stages/VLM/skip');
     });
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 되돌리기` })).toBeEnabled(),
+      expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기 해제` })).toBeEnabled(),
     );
   });
 
-  // ★ 되돌린 **작업 묶음**의 재수행 — 「문제가 생긴 곳부터 재시도한다」. [@design API-201]
+  // ★ 건너뛰기를 해제한 **작업 묶음**의 재수행 — 「문제가 생긴 곳부터 재시도한다」. [@design API-201]
   //   전체 재기동을 완주 영상에 쓰면 파이프라인이 통째로 돌아 보간이 함께 수행되고 사람이 손댄
-  //   보간 라벨이 전량 지워진다(복구 지점 없음). 그래서 되돌린 그 묶음만 지목한다.
+  //   보간 라벨이 전량 지워진다(복구 지점 없음). 그래서 해제한 그 묶음만 지목한다.
   //
   //   ★ 버튼은 **하나**다 — 범위를 고르지 않는다(묶음이 곧 범위다). 구 두 갈래(「이 단계만 실행」·
   //     「여기부터 이어서 실행」)는 폐기됐다. 되살리면 보간을 뺀 부분 수행이 다시 가능해진다.
   //
-  //   ⚠ 이 테스트들이 **되돌리기 → 재조회(prop 교체)** 를 실제로 거치는 이유: 「되돌린 묶음」은
-  //     서버 응답에 없다. `skippedStages` 는 되돌리는 순간 그 묶음을 빼 버리므로, 화면은
-  //     되돌리기가 성공한 사실을 스스로 기억할 수밖에 없다. prop 만 바꿔서는 재현되지 않는다.
-  describe('되돌린 작업 묶음 재수행', () => {
-    const skippedOnly = (bundle: StageBundle) =>
-      videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: [bundle] });
-    /** 되돌리기가 반영된 뒤의 서버 상태 — 실패도 스킵도 없다(그래도 패널은 남아야 한다). */
-    const afterRevert = () =>
-      videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: [] });
+  //   ⚠ 이 테스트들이 **건너뛰기 해제 → 재조회(prop 교체)** 를 실제로 거치는 이유: 「건너뛰기를 해제한 묶음」은
+  //     서버 응답에 없다. `skippedStages` 는 해제하는 순간 그 묶음을 빼 버리므로, 화면은
+  //     건너뛰기 해제가 성공한 사실을 스스로 기억할 수밖에 없다. prop 만 바꿔서는 재현되지 않는다.
+  describe('건너뛰기를 해제한 작업 묶음 재수행', () => {
+    const skippedOnly = (bundle: StageBundle, extra: Partial<VideoDetail> = {}) =>
+      videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: [bundle], ...extra });
+    /** 건너뛰기 해제가 반영된 뒤의 서버 상태 — 실패도 스킵도 없다(그래도 패널은 남아야 한다). */
+    const afterRevert = (extra: Partial<VideoDetail> = {}) =>
+      videoOf({ stages: stages({}), batchFailureReason: null, skippedStages: [], ...extra });
 
-    /** 되돌리기 → 무효화로 갱신된 응답(prop 교체)까지를 재현한다. */
-    async function revert(user: ReturnType<typeof userEvent.setup>, bundle: StageBundle) {
+    /**
+     * 건너뛰기 해제 → 무효화로 갱신된 응답(prop 교체)까지를 재현한다.
+     *
+     * `extra` 는 **해제 전후 두 응답에 모두** 실린다 — 승인 이력처럼 영상 자체의 성질은 건너뛰기
+     * 해제로 달라지지 않으므로, 한쪽에만 실으면 서버가 내려줄 리 없는 조합을 재현하게 된다.
+     */
+    async function revert(
+      user: ReturnType<typeof userEvent.setup>,
+      bundle: StageBundle,
+      extra: Partial<VideoDetail> = {},
+    ) {
       const label = bundle === 'VLM' ? VLM_LABEL : AUTOLABEL_LABEL;
       mock.onDelete(`/videos/7/batch/stages/${bundle}/skip`).reply(204);
       useUiStore.setState({ toasts: [] });
-      const view = renderWithProviders(<BatchFailurePanel video={skippedOnly(bundle)} />);
+      const view = renderWithProviders(<BatchFailurePanel video={skippedOnly(bundle, extra)} />);
 
-      await user.click(screen.getByRole('button', { name: `${label} 작업 건너뛰기 되돌리기` }));
-      // 되돌림을 기억하는 상태 갱신까지 기다린 뒤에 갱신된 응답으로 교체한다(순서가 뒤집히면
-      // 이 테스트가 재현하려는 "되돌리기 → 재조회" 순서가 아니게 된다).
+      await user.click(screen.getByRole('button', { name: `${label} 작업 건너뛰기 해제` }));
+      // 해제를 기억하는 상태 갱신까지 기다린 뒤에 갱신된 응답으로 교체한다(순서가 뒤집히면
+      // 이 테스트가 재현하려는 "건너뛰기 해제 → 재조회" 순서가 아니게 된다).
       await waitFor(() =>
-        expect(useUiStore.getState().toasts.at(-1)?.message).toContain('되돌렸습니다'),
+        expect(useUiStore.getState().toasts.at(-1)?.message).toContain('해제했습니다'),
       );
-      view.rerender(<BatchFailurePanel video={afterRevert()} />);
+      view.rerender(<BatchFailurePanel video={afterRevert(extra)} />);
       await screen.findByTestId(`batch-stage-reverted-${bundle}`);
       return view;
     }
@@ -576,8 +585,8 @@ describe('BatchFailurePanel', () => {
       }
     });
 
-    it('되돌리면_실패도_스킵도_없어도_패널이_남고_재수행_버튼이_하나_생긴다', async () => {
-      // 패널이 사라지면 방금 만든 재수행 창구가 같이 사라진다(되돌릴 진입점 소실의 재발).
+    it('해제하면_실패도_스킵도_없어도_패널이_남고_재수행_버튼이_하나_생긴다', async () => {
+      // 패널이 사라지면 방금 만든 재수행 창구가 같이 사라진다(해제할 진입점 소실의 재발).
       await revert(userEvent.setup(), 'VLM');
 
       expect(screen.getByTestId('batch-failure-panel')).toBeInTheDocument();
@@ -719,8 +728,8 @@ describe('BatchFailurePanel', () => {
       );
     });
 
-    it('되돌린_묶음을_다시_건너뛰면_재수행_버튼이_사라진다', async () => {
-      // 서버는 실제로 되돌린 묶음만 수락하므로(400), 다시 건너뛴 묶음에 버튼을 남기면 안 된다.
+    it('건너뛰기를_해제한_묶음을_다시_건너뛰면_재수행_버튼이_사라진다', async () => {
+      // 서버는 실제로 건너뛰기를 해제한 묶음만 수락하므로(400), 다시 건너뛴 묶음에 버튼을 남기면 안 된다.
       const user = userEvent.setup();
       const view = await revert(user, 'VLM');
       view.rerender(<BatchFailurePanel video={skippedOnly('VLM')} />);
@@ -728,18 +737,66 @@ describe('BatchFailurePanel', () => {
       expect(screen.queryByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).not.toBeInTheDocument();
     });
 
-    it('되돌리지_않은_영상에는_재수행_버튼이_없다', () => {
-      // 되돌린 묶음이 아니면 서버가 400 으로 막는다 — 누르면 반드시 막히는 버튼을 두지 않는다.
+    it('해제하지_않은_영상에는_재수행_버튼이_없다', () => {
+      // 건너뛰기를 해제한 묶음이 아니면 서버가 400 으로 막는다 — 누르면 반드시 막히는 버튼을 두지 않는다.
       renderWithProviders(<BatchFailurePanel video={videoOf({ skippedStages: ['VLM'] })} />);
 
       expect(screen.queryByRole('button', { name: /작업 재수행$/ })).not.toBeInTheDocument();
     });
 
     // ★ 전체 재기동은 완주 영상에 노출하면 안 된다 — 그 경로가 바로 보간 라벨을 지우는 파괴 경로다.
-    it('★되돌린_뒤에도_전체_재기동_버튼은_생기지_않는다_실패한_영상_전용이다', async () => {
+    it('★해제한_뒤에도_전체_재기동_버튼은_생기지_않는다_실패한_영상_전용이다', async () => {
       await revert(userEvent.setup(), 'VLM');
 
       expect(screen.queryByRole('button', { name: /배치 재실행/ })).not.toBeInTheDocument();
+    });
+
+    // ★ 검수가 완료된 적 있는 영상은 **묶음별로 갈린다**. [@design API-201]
+    //   시계열은 확정된 라벨을 건드리지 않고 서술만 더하므로 그대로 누르고, 오토라벨은 라벨을
+    //   다시 만들어 승인 시점 스냅샷과 어긋나므로 막는다. 서버가 이미 이 규칙을 강제하지만,
+    //   되돌릴 수 없는 조건이라 **누르기 전에** 알린다(파생영상 차단과 같은 관례).
+    describe('검수가 완료된 적 있는 영상', () => {
+      const approved: Partial<VideoDetail> = { everApproved: true };
+
+      it('★시계열_재수행은_그대로_누를_수_있다', async () => {
+        await revert(userEvent.setup(), 'VLM', approved);
+
+        expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).toBeEnabled();
+      });
+
+      it('★오토라벨_재수행은_비활성이고_왜인지를_읽을_수_있다', async () => {
+        await revert(userEvent.setup(), 'AUTOLABEL', approved);
+
+        const rerunButton = screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` });
+        expect(rerunButton).toBeDisabled();
+        // 회색 버튼만으로는 왜 못 누르는지 알 수 없다 — 사유가 보조기술에도 전달돼야 한다.
+        expect(rerunButton.getAttribute('aria-describedby')?.split(/\s+/)).toContain(
+          'batch-rerun-approved-lock-AUTOLABEL',
+        );
+        expect(screen.getByTestId('batch-rerun-approved-lock-AUTOLABEL')).toHaveTextContent(
+          '검수가 완료된 적 있는 영상에서는 시계열만 다시 수행할 수 있습니다',
+        );
+      });
+
+      // ★ 대조군 — 조건을 넓히지 않았음을 고정한다. 승인 이력이 없으면 오토라벨도 그대로 눌린다.
+      it('승인_이력이_없으면_오토라벨_재수행은_그대로_활성이다', async () => {
+        await revert(userEvent.setup(), 'AUTOLABEL');
+
+        expect(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` })).toBeEnabled();
+        expect(screen.queryByTestId('batch-rerun-approved-lock-AUTOLABEL')).not.toBeInTheDocument();
+      });
+
+      // ★ 승인 축은 기존 조건을 **대체하지 않고 더한 것**이다 — 처리 중이면 승인 이력과 무관하게
+      //   둘 다 비활성이다. 여기서 시계열이 살아나면 서버가 반드시 막는 버튼이 열린다.
+      it('처리_중이면_승인_이력과_무관하게_시계열도_비활성이다', async () => {
+        const user = userEvent.setup();
+        const view = await revert(user, 'VLM', approved);
+        view.rerender(
+          <BatchFailurePanel video={afterRevert({ ...approved, status: 'PROCESSING' })} />,
+        );
+
+        expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).toBeDisabled();
+      });
     });
   });
 

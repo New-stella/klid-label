@@ -84,7 +84,7 @@ public class AsyncBatchReprocessRunner {
     /**
      * <b>작업 묶음 지목 재수행</b> 전용 진입. [@design API-201]
      *
-     * <p>되돌린 묶음의 구성 단계가 stage 토글로 환산돼 넘어온다. 클레임 인계·SKIPPED 보상 롤백·예외
+     * <p>건너뛰기를 해제한 묶음의 구성 단계가 stage 토글로 환산돼 넘어온다. 클레임 인계·SKIPPED 보상 롤백·예외
      * 처리 계약은 위 진입과 <b>같다</b>.
      *
      * <p>⚠ <b>별도 메서드이지 오버로드 위임이 아니다</b> — 이 경로는 오케스트레이터의 <b>다른 진입</b>
@@ -92,14 +92,27 @@ public class AsyncBatchReprocessRunner {
      * FAILED 로 강등하지 않고 선점 직전 상태로 되돌리며 자동 재시도 큐에 넣지 않는다. 두 경로를 한
      * 메서드로 합치면 그 차이가 인자 하나의 null 여부에 숨어 조용히 뒤바뀐다.
      *
-     * @param stageToggles {@code null}/빈 맵이면 전 단계 실행(정상 경로에서는 항상 묶음 토글이 온다)
+     * <p><b>검수 소유 작업 상태 보존</b>({@code preserveReviewOwnedStatus}) — 「메타만 더하는 묶음」
+     * (라벨을 다시 만들지 않는 묶음)의 재수행은 승인 완료 영상에도 열려야 한다. 이 값이 {@code true} 면
+     * 오케스트레이터의 진입 가드가 검수 소유 상태를 차단 사유로 보지 않고, 마감도 작업 상태를 보존하는
+     * 경로로 간다(작업 상태는 전이되지 않아 {@code APPROVED} 가 그대로 남는다). 판정 단일 지점은
+     * {@code MetadataOnlyRerunPolicy} 이며 여기서 재유도하지 않는다.
+     *
+     * <p>SKIPPED 보상 계약은 그대로다 — 오케스트레이터가 실행 범위 검사에서 거부해도
+     * {@link #runInner} 가 선점 클레임을 선점 직전 상태로 되돌린다.
+     *
+     * @param stageToggles              {@code null}/빈 맵이면 전 단계 실행(정상 경로에서는 항상 묶음 토글이 온다)
+     * @param preserveReviewOwnedStatus 검수 소유 작업 상태를 차단 사유로 보지 않고 보존할지 여부
      */
     @Async("batchReprocessExecutor")
-    public void runBundleRerunAsync(Long rawSn, String claimOriginStatus, Map<String, Boolean> stageToggles) {
-        log.info("[AsyncBatchReprocess] starting bundle rerun rawSn={} origin={} scoped={}",
-                rawSn, claimOriginStatus, stageToggles != null && !stageToggles.isEmpty());
+    public void runBundleRerunAsync(Long rawSn, String claimOriginStatus, Map<String, Boolean> stageToggles,
+                                    boolean preserveReviewOwnedStatus) {
+        log.info("[AsyncBatchReprocess] starting bundle rerun rawSn={} origin={} scoped={} preserveReview={}",
+                rawSn, claimOriginStatus, stageToggles != null && !stageToggles.isEmpty(),
+                preserveReviewOwnedStatus);
         run(rawSn, claimOriginStatus,
-                () -> orchestrator.processBundleRerun(rawSn, stageToggles, claimOriginStatus));
+                () -> orchestrator.processBundleRerun(
+                        rawSn, stageToggles, claimOriginStatus, preserveReviewOwnedStatus));
     }
 
     /**

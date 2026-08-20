@@ -280,18 +280,18 @@ class ManualStageSkipIT {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // ★ 되돌린 스킵 판정 — 묶음 지목 재수행의 수락 전제 [@design API-201]
+    // ★ 건너뛰기 해제 판정 — 묶음 지목 재수행의 수락 전제 [@design API-201]
     // ────────────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("★스킵_이력이_없으면_되돌린_묶음도_없다")
+    @DisplayName("★스킵_이력이_없으면_해제된_묶음도_없다")
     void noSkipHistoryMeansNothingRestored() {
         Long rawSn = newRaw();
         assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).isFalse();
     }
 
     @Test
-    @DisplayName("★스킵만_서_있는_동안은_되돌린_묶음이_아니다")
+    @DisplayName("★스킵만_서_있는_동안은_해제된_묶음이_아니다")
     void skippedButNotClearedIsNotRestored() {
         // 지금 스킵 중인 묶음은 재수행해도 오케스트레이터가 다시 건너뛴다 — "다시 수행할 묶음"이 아니다.
         Long rawSn = newRaw();
@@ -302,7 +302,7 @@ class ManualStageSkipIT {
     }
 
     @Test
-    @DisplayName("★스킵을_해제하면_그_묶음이_되돌린_묶음으로_판정된다_재수행_수락의_전제")
+    @DisplayName("★스킵을_해제하면_그_묶음이_해제된_묶음으로_판정된다_재수행_수락의_전제")
     void clearedSkipIsDetected() {
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,
@@ -316,7 +316,7 @@ class ManualStageSkipIT {
     }
 
     @Test
-    @DisplayName("★재스킵하면_되돌린_묶음이_아니게_된다_마지막_표식이_판정을_결정한다")
+    @DisplayName("★재스킵하면_해제된_묶음이_아니게_된다_마지막_표식이_판정을_결정한다")
     void reSkippingRevokesRestoredState() {
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.AUTOLABEL,
@@ -332,9 +332,9 @@ class ManualStageSkipIT {
     }
 
     @Test
-    @DisplayName("★판정은_묶음별로_독립이다_한_묶음을_되돌려도_다른_묶음은_되돌린_묶음이_아니다")
+    @DisplayName("★판정은_묶음별로_독립이다_한_묶음을_해제해도_다른_묶음은_해제된_묶음이_아니다")
     void restoredJudgementIsPerBundle() {
-        // 요청이 대상 묶음을 자유롭게 고르지 못하게 하는 장치다 — "아무 묶음이나 하나 되돌리면
+        // 요청이 대상 묶음을 자유롭게 고르지 못하게 하는 장치다 — "아무 묶음이나 하나 해제하면
         //   다른 묶음도 재수행할 수 있다"가 되면 앞 작업을 건너뛰도록 요청이 강제할 수 있다.
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,

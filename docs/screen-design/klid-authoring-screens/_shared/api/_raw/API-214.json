@@ -1,0 +1,242 @@
+{
+  "item": {
+    "id": "API-214",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/videos/batch/stages/{stage}/rerun",
+    "slug": "post-v1videosbatchstagesstagererun",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/videos/batch/stages/{stage}/rerun",
+      "tags": [
+        "batch"
+      ],
+      "method": "POST",
+      "summary": "건너뛰기를 해제한 배치 작업 묶음 일괄 재수행 (REVIEWER)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string",
+                "nullable": true
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "results": [
+                {
+                  "rawSn": 12,
+                  "reason": null,
+                  "success": true
+                },
+                {
+                  "rawSn": 43,
+                  "reason": "건너뛰기를 해제한 작업 묶음이 아니거나 지원하지 않는 값입니다.",
+                  "success": false
+                },
+                {
+                  "rawSn": 45,
+                  "reason": "지금은 이 영상의 작업 묶음을 다시 수행할 수 없습니다.",
+                  "success": false
+                }
+              ],
+              "failureCount": 2,
+              "successCount": 1
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "건별 접수 결과 반환. 접수는 상태 선점까지이며 실제 수행은 비동기다. 한 건도 접수되지 못해도 200 이다",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "대상 영상 목록이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "목록이 비었거나 상한을 넘었거나 원소가 1 미만이다. 지원하지 않는 작업 묶음도 같은 코드로 거부한다. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true
+              },
+              "message": {
+                "type": "string"
+              },
+              "success": {
+                "type": "boolean"
+              },
+              "errorCode": {
+                "type": "string"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 역할이 아니다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "api-new",
+          "batch-pipeline"
+        ],
+        "diff_summary": "건너뛰기를 해제한 시계열 묶음의 일괄 재수행 신설. 아울러 이 경로는 검수 승인 이력이 있는 영상도 시계열 묶음에 한해 대상으로 받는다."
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "stage",
+          "schema": {
+            "enum": [
+              "VLM"
+            ],
+            "type": "string"
+          },
+          "example": "VLM",
+          "required": true,
+          "description": "대상 작업 묶음. 일괄 축은 시계열 묶음만 받는다 — 오토라벨 묶음은 그 산출물이 라벨이라 사람이 대량으로 건너뛸 수 있게 열지 않았다. 그 외 값은 400 으로 거부한다."
+        }
+      ],
+      "description": "건너뛰기를 해제한 시계열 묶음을 여러 영상에 대해 한 번에 다시 수행한다. 수락 조건은 그 영상에서 실제로 건너뛰기를 해제한 묶음인가 하나이며 단건 재수행과 같은 판정을 쓴다 — 임의 묶음을 받으면 요청이 앞 작업을 건너뛰도록 강제할 수 있어 전제 없는 산출물이 만들어진다. 재수행은 건너뛰기를 해제한 묶음의 구성원만 켜고 나머지 단계는 끄므로 프레임과 라벨을 다시 만들지 않는다. ★검수 승인 이력이 있는 영상도 이 경로에서는 대상이 된다. 시계열 재수행은 확정된 라벨을 되돌리지 않고 메타만 더하며, 들어온 서술은 승인 완료 영상의 서술이 갱신되면 재검수를 강제하는 규칙이 받아 검토 대기로 되돌리고 산출물 재생성과 관제 재통지를 건다. 같은 값이면 아무 일도 일어나지 않는다. 오토라벨 묶음에는 이 예외가 없다 — 라벨을 다시 만들어 승인 시점 스냅샷과 어긋나기 때문이다. ★재수행이 실패해도 영상 상태를 훼손하지 않는다. 스킵의 존재 이유가 기다려도 성공하지 않는 작업이라 해제해 재수행하면 실패가 기대값이며, 그 실패가 완주한 영상을 실패 상태로 강등시키면 자동 재시도가 범위를 모른 채 앞 단계를 돌려 사람이 손댄 보간 라벨을 지운다. ★대상은 시계열 묶음만 받는다. 한 번에 받는 상한과 중복 식별자를 한 건으로 취급하는 규칙, 요청 순서 보존, 되는 것만 처리하고 거부분은 건별 사유로 돌려주는 부분 성공은 배치 일괄 재처리와 같은 계약을 따른다. 한 건도 처리되지 못해도 200 이며 판정은 결과 목록으로 한다 — 건별 거부 사유를 상태 코드로 올리면 요청이 응답 코드로 영상의 상태를 알려주는 통로가 된다.",
+      "operation_id": "rerunBatchStageBulk",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "rawSns"
+          ],
+          "properties": {
+            "rawSns": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "description": "대상 영상 단위 식별자 목록. 중복은 한 건으로 취급하고 요청 순서를 보존한다. 상한 100건."
+            }
+          }
+        },
+        "example": {
+          "rawSns": [
+            12,
+            43,
+            45
+          ]
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-028"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-19T17:28:13.191Z"
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "일괄·단건 버튼 이름을 「되돌리기」에서 「건너뛰기 해제」로 바꾼다. 옛 이름은 시계열 결과를 되돌린다는 뜻으로 읽혀 실제로 오해를 불렀다 — 이 조작이 손대는 것은 건너뜀 표식뿐이고 이미 들어온 서술·일치도는 건드리지 않는다. 본문의 「되돌린 묶음」도 「건너뛰기를 해제한 묶음」으로 함께 맞춘다. 상태 롤백·보상을 뜻하는 「되돌린다」는 그대로 둔다 — 다른 개념이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-19T23:26:06.894Z",
+    "created_at": "2026-08-19T13:34:23.925Z"
+  }
+}

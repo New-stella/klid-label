@@ -47,7 +47,7 @@
             <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <div class="wf-card"><h3 class="wf-card-title">이미지 데이터 개수</h3></div><span class="wf-help">주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준).</span>
+            <div class="wf-card"><h3 class="wf-card-title">이미지 데이터 개수</h3></div><span class="wf-help">주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준). 주 수치와 프레임 단위 분포는 폐기되…</span>
             <div class="wf-card"><h3 class="wf-card-title">영상 데이터 개수</h3></div><span class="wf-help">주 수치=approvedVideoCount(검수완료 기준, 건). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeVideoCount}건 (완료율 N%)'. 하단 이벤트 분포는 approvedEventDistribution(검수완료 기준).</span>
             <div class="wf-stack"><span class="wf-bold">이벤트 유형 분포 (개수 가변)</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div><span class="wf-help">고정 6개 슬롯이 아니라 서버가 내려주는 카테고리를 그대로 순회 렌더(개수 무관). 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다. 관측 예시 팔레트(최대 10항목): 침수(범람)·산사태·화재·쓰러짐·파손·교통사고·싸움·흉기소지·납치(유괴)·그 외.</span>
           </div>
@@ -120,8 +120,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 데이터 개수 카드 (이미지·영상, 이벤트 분포)</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(이미지 데이터 개수) · → API-055<p class="wf-help" style="margin:2px 0 0">주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준).</p></li><li>Card(영상 데이터 개수) · → API-055<p class="wf-help" style="margin:2px 0 0">주 수치=approvedVideoCount(검수완료 기준, 건). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeVideoCount}건 (완료율 N%)'. 하단 이벤트 분포는 approvedEventDistribution(검수완료 기준).</p></li><li>List(이벤트 유형 분포 (개수 가변))<p class="wf-help" style="margin:2px 0 0">고정 6개 슬롯이 아니라 서버가 내려주는 카테고리를 그대로 순회 렌더(개수 무관). 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다. 관측 예시 팔레트(최대 10항목): 침수(범람)·산사태·화재·쓰러짐·파손·교통사고·싸움·흉기소지·납치(유괴)·그 외.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답. 이미지 카드의 주 수치와 그 하단 프레임 단위 분포는 검수완료 영상의 프레임 중 폐기되지 않은 것만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 기준 수치는 수집한 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. 영상 카드와 영상 단위 분포는 폐기와 무관하다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(이미지 데이터 개수) · → API-055<p class="wf-help" style="margin:2px 0 0">주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준). 주 수치와 프레임 단위 분포는 폐기되지 않은 프레임만 센다 — 보조의 전체 수치는 걸러내지 않는다.</p></li><li>Card(영상 데이터 개수) · → API-055<p class="wf-help" style="margin:2px 0 0">주 수치=approvedVideoCount(검수완료 기준, 건). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeVideoCount}건 (완료율 N%)'. 하단 이벤트 분포는 approvedEventDistribution(검수완료 기준).</p></li><li>List(이벤트 유형 분포 (개수 가변))<p class="wf-help" style="margin:2px 0 0">고정 6개 슬롯이 아니라 서버가 내려주는 카테고리를 그대로 순회 렌더(개수 무관). 그룹핑은 이벤트유형 표시명 그룹 정책을 따른다. 관측 예시 팔레트(최대 10항목): 침수(범람)·산사태·화재·쓰러짐·파손·교통사고·싸움·흉기소지·납치(유괴)·그 외.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-055</li></ul></div>
     </div>
   </div>

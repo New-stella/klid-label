@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 건너뛰기·되돌리기·재수행의 <b>단위</b> — 작업 묶음. [@design API-198] [@design API-200] [@design API-201]
+ * 건너뛰기·해제·재수행의 <b>단위</b> — 작업 묶음. [@design API-198] [@design API-200] [@design API-201]
  *
  * <h3>왜 개별 단계가 아니라 묶음인가 (Critical)</h3>
  * <p>오토라벨은 <b>AI 탐지 → AI 분할 → 트랙 보간</b>이 한 벌이다. 뒤 작업이 앞 결과를 입력으로 받고

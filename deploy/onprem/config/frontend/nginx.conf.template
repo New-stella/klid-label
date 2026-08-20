@@ -31,7 +31,7 @@ server {
     #     나온 값이다(50×21MB + 헤드룸). 재개 업로드(TUS)는 청크가 16MB 라 이 축과 무관하다.
     #     따라서 좁힐 쪽은 서버가 아니라 넓힐 쪽이 앞단이며, 값은 **서버 한도 중 최댓값**(공통 1200MB)에
     #     맞춘다 — 운영에서는 서버가 1100MB 에서 자기 형식의 413 을 낸다.
-    #   ⚠ Caddyfile.template 과 **같은 값**을 유지할 것(두 배포 형상). 회귀 고정:
+    #   ⚠ httpd-klid.conf.template 과 **같은 값**을 유지할 것(두 배포 형상). 회귀 고정:
     #     backend EdgeRequestSizeAlignmentGuardTest.
     client_max_body_size 1200m;
 

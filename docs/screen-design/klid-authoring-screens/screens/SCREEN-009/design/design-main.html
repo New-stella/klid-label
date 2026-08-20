@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html><head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head><body><main class="screen-root">
+<html><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head><body><main class="screen-root">
 
   
   <div class="page-head">
@@ -397,7 +397,7 @@
               </div>
               <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>건너뜀</span>
               <div class="group-actions">
-                <button type="button" class="btn btn-secondary btn-sm">되돌리기</button>
+                <button type="button" class="btn btn-secondary btn-sm">건너뛰기 해제</button>
               </div>
             </li>
             <li class="group-row">
@@ -419,8 +419,8 @@
 
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">③ 건너뛰기를 되돌린 직후 — 재수행 버튼 하나</p>
-        <section class="failure-panel" data-tone="warn" role="region" aria-label="되돌린 작업 묶음 재수행">
+        <p class="t-label ref-variant-title">③ 건너뛰기를 해제한 직후 — 재수행 버튼 하나</p>
+        <section class="failure-panel" data-tone="warn" role="region" aria-label="건너뛰기를 해제한 작업 묶음 재수행">
           <div class="fp-head">
             <h3 class="t-title-sm fp-title">건너뛴 작업 묶음</h3>
             <span class="fp-spacer" aria-hidden="true"></span>
@@ -432,14 +432,14 @@
                 <span class="t-title-sm group-name">오토라벨링</span>
                 <span class="t-caption group-sub">AI 탐지 · AI 분할 · 트랙 보간</span>
               </div>
-              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>되돌림</span>
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>해제됨</span>
               <div class="group-actions">
                 <a class="btn btn-primary btn-sm" href="#dialog-rerun-auto">재수행</a>
               </div>
             </li>
           </ul>
           <div class="fp-foot">
-            <p class="t-caption fp-note">되돌린 묶음만 다시 수행합니다 — 범위를 따로 고르지 않습니다. 묶음이 곧 범위입니다.</p>
+            <p class="t-caption fp-note">건너뛰기를 해제한 묶음만 다시 수행합니다 — 범위를 따로 고르지 않습니다. 묶음이 곧 범위입니다.</p>
           </div>
         </section>
       </div>
@@ -465,6 +465,43 @@
           </div>
           <div class="fp-foot">
             <p class="t-caption fp-note">파생영상은 이 영역의 조작 대상이 아닙니다 — 재기동·건너뛰기·재수행 버튼을 표시하지 않습니다.</p>
+          </div>
+        </section>
+      </div>
+
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑤ 검수가 완료된 영상 — 묶음별로 갈린다</p>
+        <section class="failure-panel" data-tone="warn" role="region" aria-label="검수 완료 영상의 건너뛰기를 해제한 작업 묶음">
+          <div class="fp-head">
+            <h3 class="t-title-sm fp-title">건너뛴 작업 묶음</h3>
+            <span class="fp-spacer" aria-hidden="true"></span>
+            <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>검수 완료</span>
+          </div>
+          <ul class="group-list">
+            <li class="group-row" data-state="released">
+              <div class="group-main">
+                <span class="t-title-sm group-name">시계열</span>
+                <span class="t-caption group-sub">영상 서술 생성</span>
+              </div>
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>해제됨</span>
+              <div class="group-actions">
+                <a class="btn btn-primary btn-sm" href="#dialog-rerun-vlm">재수행</a>
+              </div>
+            </li>
+            <li class="group-row" data-state="released">
+              <div class="group-main">
+                <span class="t-title-sm group-name">오토라벨링</span>
+                <span class="t-caption group-sub">AI 탐지 · AI 분할 · 트랙 보간</span>
+              </div>
+              <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>해제됨</span>
+              <div class="group-actions">
+                <button type="button" class="btn btn-secondary btn-sm" disabled aria-describedby="why-auto-locked" title="검수가 완료된 영상은 오토라벨을 다시 만들 수 없습니다 — 승인 시점 라벨과 어긋납니다.">재수행</button>
+              </div>
+            </li>
+          </ul>
+          <div class="fp-foot">
+            <p class="t-caption fp-note" id="why-auto-locked">검수가 완료된 적 있는 영상에서는 시계열만 다시 수행할 수 있습니다 — 시계열은 확정된 라벨을 건드리지 않고 서술만 더하지만, 오토라벨은 라벨을 다시 만들어 승인 시점과 어긋납니다. 되돌릴 수 없는 조건이라 눌러 보기 전에 알립니다.</p>
           </div>
         </section>
       </div>
@@ -668,13 +705,15 @@
           <span class="t-label" style="color:var(--n-6)">대상 묶음</span>
           <span class="fp-stage-chip" style="background:var(--n-1);color:var(--n-8)"><span class="dot" aria-hidden="true" style="background:var(--n-5)"></span>시계열</span>
         </div>
-        <p class="t-body-md dlg-desc">건너뛰면 이 영상의 서술은 사람이 직접 쓴 전문으로 대신합니다. 나중에 되돌릴 수 있습니다.</p>
+        <p class="t-body-md dlg-desc">건너뛰면 이 영상의 서술은 사람이 직접 쓴 전문으로 대신합니다. 나중에 해제할 수 있습니다.</p>
         <div class="field">
-          <label class="t-label field-label" for="skip-reason-vlm">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+          <div class="field-head">
+            <label class="t-label field-label" for="skip-reason-vlm">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+            <span class="t-caption char-count">32 / 500</span>
+          </div>
           <textarea class="textarea" id="skip-reason-vlm" aria-describedby="skip-help-vlm" placeholder="예) 외부 시계열 분석 벤더 장애가 길어져 시계열 없이 진행">외부 시계열 분석 벤더 장애가 길어져 시계열 없이 진행</textarea>
           <div class="field-foot">
             <span class="t-caption field-help" id="skip-help-vlm">배치 이력에 그대로 남습니다. 나중에 시계열이 왜 비어 있는지 되짚는 근거가 됩니다.</span>
-            <span class="t-caption char-count">32 / 500</span>
           </div>
         </div>
       </div>
@@ -701,13 +740,15 @@
           <span class="fp-stage-chip" style="background:var(--n-1);color:var(--n-8)"><span class="dot" aria-hidden="true" style="background:var(--n-5)"></span>오토라벨링</span>
           <span class="t-caption text-muted">AI 탐지 · AI 분할 · 트랙 보간</span>
         </div>
-        <p class="t-body-md dlg-desc">건너뛰어도 프레임은 그대로 남고, 작업자가 처음부터 라벨링합니다. 나중에 되돌릴 수 있습니다.</p>
+        <p class="t-body-md dlg-desc">건너뛰어도 프레임은 그대로 남고, 작업자가 처음부터 라벨링합니다. 나중에 해제할 수 있습니다.</p>
         <div class="field">
-          <label class="t-label field-label" for="skip-reason-auto">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+          <div class="field-head">
+            <label class="t-label field-label" for="skip-reason-auto">건너뛰는 사유 <span class="req" aria-hidden="true">*</span></label>
+            <span class="t-caption char-count">0 / 500</span>
+          </div>
           <textarea class="textarea" id="skip-reason-auto" aria-describedby="skip-help-auto" placeholder="예) 추론 서버 점검이 길어져 수동 라벨링으로 진행"></textarea>
           <div class="field-foot">
             <span class="t-caption field-help" id="skip-help-auto">배치 이력에 그대로 남습니다. 공백만으로는 저장되지 않습니다.</span>
-            <span class="t-caption char-count">0 / 500</span>
           </div>
         </div>
       </div>
@@ -738,7 +779,7 @@
           <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
           <p class="t-body-md">트랙 보간까지 함께 다시 만들어집니다. 이 묶음에서 사람이 손댄 보간 라벨은 새로 계산된 값으로 바뀝니다.</p>
         </div>
-        <p class="t-body-sm dlg-desc">되돌린 이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.</p>
+        <p class="t-body-sm dlg-desc">해제한 이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.</p>
       </div>
       <div class="lightbox-footer">
         <a href="#panel-info" class="btn btn-secondary">취소</a>

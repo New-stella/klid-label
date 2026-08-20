@@ -77,7 +77,7 @@
       "derived_domain_ids": [
         "DOMAIN-012"
       ],
-      "verification_method": "manual_test",
+      "verification_method": "automated_test",
       "verification_status": "unverified",
       "derived_from_use_cases": [
         "UC-016"
@@ -85,12 +85,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "직전 patch 로 도입된 조사·받침 오타(잌→잡)를 바로잡는다.",
+    "change_summary": "이 수용기준의 시나리오 전 분기(신고 접수 조건별 거부, 해소 원자 클레임, 신고 단계별 재개 지점, 상태·이력 갱신)가 자동 검증 대상임을 반영한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:26:10.008Z",
+    "last_updated_at": "2026-08-16T23:37:38.458Z",
     "created_at": "2026-06-02T14:02:15.806Z"
   }
 }

@@ -136,6 +136,116 @@ class BatchOrchestratorBundleRerunTest {
     // ★ 묶음이 곧 범위다
     // ────────────────────────────────────────────────────────────────────────
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ★ 검수 소유 작업 상태 보존 모드 — 승인 완료 영상의 시계열 재수행. [@design API-201]
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★★보존 모드는 <b>전용 진입 전이</b>를 타야 한다 — 일반 진입을 타면 검수 소유 상태에서 차단돼
+     * step 을 한 건도 돌리지 않고 SKIPPED 로 끝난다(게이트 3겹째).
+     */
+    @Test
+    @DisplayName("★★보존_모드는_검수소유_상태를_차단하지_않는_전용_진입을_탄다")
+    void preservingModeUsesDedicatedEntry() {
+        newRaw(340L);
+        Map<String, Boolean> toggles = togglePolicy.togglesFor(BatchStageBundle.VLM);
+        when(transitionService.markRawDataProcessingWithHeldClaimPreservingReviewStatus(340L))
+                .thenReturn(false);
+
+        BatchStage result = orchestrator.processBundleRerun(
+                340L, toggles, LsDataRaw.DATA_STTS_COMPLETED, true);
+
+        assertThat(result).isEqualTo(BatchStage.COMPLETED);
+        verify(transitionService).markRawDataProcessingWithHeldClaimPreservingReviewStatus(340L);
+        verify(transitionService, never()).markRawDataProcessingBlockedWithHeldClaim(anyLong());
+        // 시계열만 돌아야 한다 — 승인 영상에 라벨을 다시 만들면 안 된다.
+        verify(vlmTimeseriesStep).runWithMarking(eq(340L), any());
+        verify(yoloStep, never()).run(anyLong());
+        verify(sam2Step, never()).run(anyLong(), any());
+        verify(trackInterpolationStep, never()).run(anyLong());
+    }
+
+    /**
+     * ★★마감도 전용 경로를 타야 한다 — 일반 마감은 검수 소유 상태에서 {@code LS_DATA_RAW} 를 건드리지
+     * 않고 반환하므로, 완주해도 배치 단계가 {@code PROCESSING} 으로 <b>영구 고착</b>된다(이후 전 배치
+     * 진입이 409). 즉 진입만 열면 결과가 거부보다 나쁘다.
+     */
+    @Test
+    @DisplayName("★★보존_모드의_마감은_작업상태를_보존하는_전용_마감을_탄다_영구고착_차단")
+    void preservingModeUsesDedicatedCompletion() {
+        newRaw(341L);
+        Map<String, Boolean> toggles = togglePolicy.togglesFor(BatchStageBundle.VLM);
+        when(transitionService.markRawDataProcessingWithHeldClaimPreservingReviewStatus(341L))
+                .thenReturn(false);
+
+        orchestrator.processBundleRerun(341L, toggles, LsDataRaw.DATA_STTS_COMPLETED, true);
+
+        verify(transitionService).markRawDataCompletedPreservingReviewStatus(341L);
+        verify(transitionService, never()).markRawDataCompleted(anyLong());
+    }
+
+    /**
+     * ★★<b>런타임 fail-closed</b> — 보존 모드인데 실행 범위가 오토라벨을 포함하면 <b>돌리지 않는다</b>.
+     *
+     * <p>이 검사가 없으면 배선 실수 하나로 승인 완료 영상의 라벨이 재검수 없이 재생성된다. 검사는 진입
+     * 전이 <b>전에</b> 이뤄져야 하며(클레임을 걸고 나서 거부하면 고착), SKIPPED 로 빠지면 호출자가 선점
+     * 클레임을 보상 롤백한다.
+     */
+    @Test
+    @DisplayName("★★보존_모드인데_오토라벨_범위면_아무_단계도_돌리지_않고_SKIPPED다")
+    void preservingModeRefusesAutolabelScope() {
+        newRaw(342L);
+        Map<String, Boolean> autolabelToggles = togglePolicy.togglesFor(BatchStageBundle.AUTOLABEL);
+
+        BatchStage result = orchestrator.processBundleRerun(
+                342L, autolabelToggles, LsDataRaw.DATA_STTS_COMPLETED, true);
+
+        assertThat(result).isEqualTo(BatchStage.SKIPPED);
+        // 진입 전이조차 하지 않는다 — 클레임을 걸고 나서 거부하면 배치 단계가 고착된다.
+        verify(transitionService, never())
+                .markRawDataProcessingWithHeldClaimPreservingReviewStatus(anyLong());
+        verify(transitionService, never()).markRawDataProcessingBlockedWithHeldClaim(anyLong());
+        verify(yoloStep, never()).run(anyLong());
+        verify(sam2Step, never()).run(anyLong(), any());
+        verify(trackInterpolationStep, never()).run(anyLong());
+        verify(vlmTimeseriesStep, never()).runWithMarking(anyLong(), any());
+    }
+
+    /**
+     * ★ 토글이 비어 있으면(=전 단계 실행) 보존 모드는 거부한다 — "아무 제한 없이 도는 실행" 에 승인
+     * 게이트를 열어 주는 것이 가장 위험한 조합이다.
+     */
+    @Test
+    @DisplayName("★보존_모드인데_토글이_비면_전단계_실행이므로_거부한다")
+    void preservingModeRefusesEmptyToggles() {
+        newRaw(343L);
+        newRaw(344L);
+
+        assertThat(orchestrator.processBundleRerun(343L, Map.of(), LsDataRaw.DATA_STTS_COMPLETED, true))
+                .isEqualTo(BatchStage.SKIPPED);
+        assertThat(orchestrator.processBundleRerun(344L, null, LsDataRaw.DATA_STTS_COMPLETED, true))
+                .isEqualTo(BatchStage.SKIPPED);
+    }
+
+    /**
+     * 대조군 — 보존 모드가 <b>아니면</b> 종전 진입·마감을 그대로 탄다(기본 동작 무변경).
+     */
+    @Test
+    @DisplayName("보존_모드가_아니면_종전_진입과_마감을_그대로_탄다")
+    void nonPreservingModeKeepsLegacyPath() {
+        newRaw(345L);
+        Map<String, Boolean> toggles = togglePolicy.togglesFor(BatchStageBundle.VLM);
+        when(transitionService.markRawDataProcessingBlockedWithHeldClaim(345L)).thenReturn(false);
+
+        orchestrator.processBundleRerun(345L, toggles, LsDataRaw.DATA_STTS_COMPLETED, false);
+
+        verify(transitionService).markRawDataProcessingBlockedWithHeldClaim(345L);
+        verify(transitionService).markRawDataCompleted(345L);
+        verify(transitionService, never())
+                .markRawDataProcessingWithHeldClaimPreservingReviewStatus(anyLong());
+        verify(transitionService, never()).markRawDataCompletedPreservingReviewStatus(anyLong());
+    }
+
     @Test
     @DisplayName("★★시계열_묶음을_재수행하면_트랙_보간이_돌지_않는다_사람이_고친_보간라벨_보존")
     void vlmBundleNeverRunsInterpolation() {
@@ -230,7 +340,7 @@ class BatchOrchestratorBundleRerunTest {
     @Test
     @DisplayName("★★재수행_중_실패해도_완주상태로_원상복구되고_FAILED로_강등되지_않는다")
     void rerunFailureRestoresInsteadOfDemoting() {
-        // 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 되돌려 재수행하면 실패가 기대값이다.
+        // 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 해제해 재수행하면 실패가 기대값이다.
         //   그 실패로 완주 영상이 FAILED 가 되면 화면에 없던 실패가 생기고 작업 상태까지 FAILED 로
         //   내려가 작업자가 검수 제출을 못 한다.
         newRaw(310L);

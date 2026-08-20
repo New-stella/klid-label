@@ -49,6 +49,11 @@
     "STATE-001",
     "UC-029"
   ],
-  "pending": [],
-  "last_sync_at": "2026-08-16T14:48:57.909Z"
+  "pending": [
+    "SHELL-001",
+    "MOD-014",
+    "LEGACY-112",
+    "NAV-001"
+  ],
+  "last_sync_at": "2026-08-20T08:27:32.238Z"
 }

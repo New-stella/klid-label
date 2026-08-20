@@ -77,7 +77,6 @@ class VlmTimeseriesStepVerifyRequestTest {
 
     /** 위탁 가능한 영상 시드 — 활성 토글 + 영상 존재 + 비식별 경로 + 관제 검증이벤트유형. */
     private void seed(Long rawSn, String vrfcEvntTypeCd) {
-        when(vlmClient.isEnabled()).thenReturn(true);
         when(videoRepository.existsById(rawSn)).thenReturn(true);
         LsDeidentProcLog plog = mock(LsDeidentProcLog.class);
         lenient().when(plog.getDeIdntfFilePathNm()).thenReturn("/data/deid/" + rawSn + ".mp4");

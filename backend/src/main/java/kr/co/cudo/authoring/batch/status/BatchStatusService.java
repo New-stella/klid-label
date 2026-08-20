@@ -62,11 +62,11 @@ public class BatchStatusService {
     /**
      * VLM 단계를 <b>수행하지 않고 건너뛴 사실</b>을 사유와 함께 영속한다 (B-ISSUE-24).
      *
-     * <p>과거 skip 경로는 애플리케이션 로그만 남기고 DB 에 아무 흔적도 남기지 않아, VLM 비활성/장애
+     * <p>과거 skip 경로는 애플리케이션 로그만 남기고 DB 에 아무 흔적도 남기지 않아, VLM 미수행/장애
      * 구간에 처리된 영상이 "메타 없음 + 무기록" 으로 남았다. 그 결과 재처리 대상 식별이 로그 보존기간에
      * 종속됐다. 이제 {@code PROC_STEP_CD='VLM' / PROC_STTS_CD='SKIPPED'} 감사 행 1건을 적재한다.
      *
-     * @param reason 건너뛴 사유(예: {@code vlm.client.enabled=false})
+     * @param reason 건너뛴 사유(예: 비식별 누락 신고 구간 보류)
      */
     @Transactional("controlTransactionManager")
     public void recordVlmSkipped(Long rawSn, String reason) {
@@ -81,9 +81,10 @@ public class BatchStatusService {
      * 핸들러는 파이프라인 스레드 밖(ambient tx 없음)에서 실행되고, 그 기록은 <b>호출자의 성패와
      * 무관하게 남아야</b> 재개 대상 식별이 가능하다({@code ledger.recordIssued} 와 동일 규약).
      *
-     * <p>{@link #recordVlmSkipped} 를 그대로 REQUIRES_NEW 로 바꾸지 않은 이유: 그 메서드는
-     * {@code vlm.client.enabled=false} 기본 형상에서 <b>모든</b> 배치가 지나는 길이라, 스텝 트랜잭션
-     * 안에서 중첩 커넥션을 요구하게 만들면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
+     * <p>{@link #recordVlmSkipped} 를 그대로 REQUIRES_NEW 로 바꾸지 않은 이유: 그 메서드는 <b>스텝
+     * 트랜잭션 안에서</b> 호출되므로, 중첩 커넥션을 요구하게 만들면 커넥션 기아 교착(과거 실사고 2건)의
+     * 노출면만 넓어진다. (구 서술 "설정 토글이 꺼진 기본 형상에서 <b>모든</b> 배치가 지나는 길" 은
+     * 그 토글이 폐지되면서 사실이 아니게 됐다 — 지금 이 경로를 타는 것은 보류 기록뿐이다.)
      *
      * <p>두 메서드는 프록시 경유가 필요한 자기호출을 피하려 공통 로직을 <b>비트랜잭션 private
      * 헬퍼</b>로 공유한다(자기호출로 경계가 유실되는 패턴을 만들지 않는다).
@@ -226,7 +227,7 @@ public class BatchStatusService {
      *
      * <p>건너뛴 묶음은 {@code markStage} 를 타지 않고 표식 행도 진행 조회에서 제외되므로,
      * <b>진행 축({@link #stagesFor})만으로는 어느 묶음이 스킵됐는지 알 수 없다.</b> 화면이 스킵 표시와
-     * 되돌리기 조작을 띄우려면 이 목록이 필요하다.
+     * 해제 조작을 띄우려면 이 목록이 필요하다.
      *
      * <p><b>판정 규칙은 {@link #isBundleManuallySkipped} 와 동일</b>하다 — "마지막 표식 행이
      * {@link ManualStageSkip#ERR_CD_SKIPPED} 인가". 여기서 규칙을 재유도하지 않고 같은 축을 한 번에
@@ -255,13 +256,13 @@ public class BatchStatusService {
     }
 
     /**
-     * <b>이 묶음의 건너뛰기를 되돌렸는가</b>(마지막 표식 행이 해제인가) — 지목 재수행의 수락 판정.
+     * <b>이 묶음의 건너뛰기를 해제했는가</b>(마지막 표식 행이 해제인가) — 지목 재수행의 수락 판정.
      * [@design API-201]
      *
      * <h3>왜 이 판정이 재수행의 입구인가</h3>
      * <p>재수행은 <b>요청이 대상 묶음을 자유롭게 고르지 못한다</b>. 임의 묶음을 받으면 앞 작업을
      * 건너뛰도록 요청이 강제할 수 있어 전제 없는 산출물이 만들어진다. 그래서 서버는 <b>그 영상에서
-     * 실제로 되돌린 묶음</b>만 수락하며, 그 판정이 여기다.
+     * 실제로 건너뛰기를 해제한 묶음</b>만 수락하며, 그 판정이 여기다.
      *
      * <h3>판정 규칙은 새로 만들지 않는다</h3>
      * <p>{@link #isBundleManuallySkipped} 와 <b>완전히 같은 축</b>("(영상 × 묶음) 의 마지막 표식 행")을
@@ -271,7 +272,7 @@ public class BatchStatusService {
      *
      * <p>지금 다시 스킵된 묶음(마지막 행이 SKIPPED)은 해당하지 않는다 — 재수행해도 오케스트레이터의
      * 스킵 게이트가 다시 건너뛰므로 "다시 수행할 묶음"이 아니다. 표식이 아예 없는 묶음도 해당하지
-     * 않는다(되돌린 적이 없다).
+     * 않는다(건너뛰기를 해제한 적이 없다).
      *
      * @return 그 묶음의 마지막 표식이 <b>해제</b>면 {@code true}
      */
@@ -469,9 +470,8 @@ public class BatchStatusService {
      * {@code WebhookIdempotencyLedger.recordIssued} 가 이미 {@code REQUIRES_NEW} 로 중첩 커넥션을
      * 요구하므로 이 경로의 동시 점유 최대치(2)는 변하지 않는다.
      * <p>같은 클래스의 {@code recordVlmSkipped} 는 <b>일부러 바꾸지 않았다</b> — 호출 직후 곧바로
-     * 반환해 스텝 tx 가 커밋되므로 롤백에 휩쓸릴 후속 작업이 없고(위험 부재), 그 경로는
-     * {@code vlm.client.enabled=false} 기본 형상에서 <b>모든</b> 배치가 지나는 길이라 여기에 중첩
-     * 커넥션을 요구하면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
+     * 반환해 스텝 tx 가 커밋되므로 롤백에 휩쓸릴 후속 작업이 없고(위험 부재), 스텝 트랜잭션 안에서
+     * 중첩 커넥션을 요구하면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordVlmTimeseriesResult(Long rawSn, String resPayloadJson) {

@@ -1,10 +1,13 @@
 package kr.co.cudo.authoring.sysconfig.endpoint;
 
+import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.util.SafeUrl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
+import reactor.core.publisher.Mono;
 
+import java.net.URI;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -91,6 +94,43 @@ public final class IntegrationEndpointTransportGuards {
                         endpoint.displayName(), requestScheme, bootScheme);
             }
             return next.exchange(request);
+        };
+    }
+
+    /**
+     * ★ <b>최종 URL 에 호스트가 없으면 전송하지 않는다</b> — "미연동 = 아무 데도 안 보낸다" 를 실제로 성립시킨다.
+     *
+     * <h3>무엇이 어긋나 있었나 (실측)</h3>
+     * <p>연동 주소가 비어 있으면 {@code WebClient.baseUrl("")} + 상대 URI 가 되는데, 그러면 요청이
+     * <b>보내지지 않는 것이 아니라 loopback 의 80 포트로 나간다</b>({@code Connection refused:
+     * /[0:0:0:0:0:0:0:1]:80} 로 관측). 온프렘은 같은 호스트에 프론트 웹서버를 두므로 80 이 열려 있으면
+     * <b>연결이 실제로 수신되고 접근 로그에 요청 경로가 남는다</b>. 위탁 바디에는 비식별 영상의 절대
+     * 경로와 콜백 주소가 실리므로, "미연동이면 아무 데도 안 보낸다" 는 전제가 거짓이었다.
+     *
+     * <h3>왜 빈 생성 시점이 아니라 호출 시점인가</h3>
+     * <p>주소는 {@link IntegrationEndpointExchangeFilter} 가 <b>호출 시점에</b> 다시 읽어 재작성한다.
+     * 즉 설정이 비어 있어도 운영 화면 override 가 있으면 정상 대상이 된다. 판정은 반드시
+     * <b>재작성된 최종 URL</b> 을 봐야 하므로 이 필터는 재작성 필터 <b>뒤에</b> 등록한다.
+     *
+     * <h3>실패의 성질</h3>
+     * <p>{@link NonRetryableExternalException} 이다 — 주소가 없다는 것은 재전송해도 결과가 같은
+     * <b>결정적</b> 실패라 재시도·서킷 집계에서 제외돼야 한다(그 두 축의 {@code ignore-exceptions} 에
+     * 이미 등록돼 있다). 새 실패 경로를 만들지 않으므로 기존 확정 실패 기록으로 그대로 흐른다.
+     *
+     * <p>메시지·로그에 <b>주소도 경로도 토큰도 싣지 않는다</b>(CWE-209/532) — 대상 이름만 남긴다.
+     */
+    public static ExchangeFilterFunction requireResolvedHost(IntegrationEndpoint endpoint) {
+        return (request, next) -> {
+            URI url = request.url();
+            String host = url == null ? null : url.getHost();
+            if (host != null && !host.isBlank()) {
+                return next.exchange(request);
+            }
+            log.error("[IntegrationEndpoint] {} 연동 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
+                            + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다.",
+                    endpoint.displayName());
+            return Mono.error(new NonRetryableExternalException(
+                    endpoint.displayName() + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다."));
         };
     }
 

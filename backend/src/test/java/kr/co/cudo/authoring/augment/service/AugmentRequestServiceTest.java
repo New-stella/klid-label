@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitResult;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
@@ -90,6 +91,12 @@ class AugmentRequestServiceTest {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private ExternalAugmentClient externalClient;
+    /**
+     * 외부 연동 모드 판정 — 실제 주입 여부(배선)를 관측하기 위해 mock 으로 대체한다.
+     * 기본 반환은 {@code false}(=연동됨, local 프로파일의 {@code mode=http} 와 동일)라
+     * <b>다른 모든 케이스의 동작은 종전 그대로</b>다 (R8 · {@code @design API-060}).
+     */
+    @MockBean private AugmentExternalModePolicy externalModePolicy;
 
     private TransactionTemplate tx;
     private TokenClaims reviewer;
@@ -617,6 +624,68 @@ class AugmentRequestServiceTest {
                 });
 
         verify(externalClient, never()).requestAugment(any());
+    }
+
+    // ============================================================
+    // R8 · @design API-060 — 외부 미연동이면 접수 자체를 거부한다
+    // ============================================================
+
+    /**
+     * 미연동({@code authoring.augment.external.mode=noop})이면 위탁도 콜백도 없는데 접수만 성공해,
+     * 화면에는 만료 스윕이 돌 때까지 「진행 중」으로 보였다. 이제 접수 단계에서 503 으로 끊는다.
+     *
+     * <p>이 케이스는 <b>배선</b>을 본다 — 실제 스프링 컨텍스트에서 서비스가 판정 컴포넌트를 주입받아
+     * 호출하는지. 순수 판정 로직·평가 순서는 {@code AugmentRequestContractTest} 가 본다.
+     */
+    @Test
+    @DisplayName("외부_연동이_미연동이면_요청_접수를_503으로_거부한다")
+    void 미연동이면_503으로_거부된다() {
+        given(externalModePolicy.isNotLinked()).willReturn(true);
+        Long r1 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(r1, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+
+        assertThatThrownBy(() -> service.request(req, reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    CustomException ce = (CustomException) e;
+                    assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+                    // 배선 상세(모드 값·프로퍼티 키)는 응답으로 새지 않는다(CWE-209).
+                    assertThat(ce.getMessage()).doesNotContain("noop");
+                    assertThat(ce.getMessage())
+                            .doesNotContain(AugmentExternalModePolicy.KEY_MODE);
+                });
+
+        // 고착될 PENDING 행을 만들지 않고, 외부로도 나가지 않는다.
+        assertThat(augsOf(frame)).isEmpty();
+        verify(externalClient, never()).requestAugment(any());
+    }
+
+    /**
+     * 신규 게이트가 <b>기존 판정을 가리지 않는다</b> — 연동(http)이면 종전 접수 경로가 그대로 성립한다.
+     * local 프로파일 기본값이 {@code mode=http} 이므로 이것이 정상 형상이다.
+     */
+    @Test
+    @DisplayName("외부_연동이_http면_기존_접수_경로가_그대로_동작한다")
+    void 연동이면_기존_접수경로가_유지된다() {
+        given(externalModePolicy.isNotLinked()).willReturn(false);
+        Long r1 = nextRawSn();
+        seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
+        Long frame = seedFrame(r1, 0);
+
+        AugmentRequestRequest req = new AugmentRequestRequest(
+                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+
+        AugmentRequestResponse resp = service.request(req, reviewer);
+
+        assertThat(resp.createdCount()).isEqualTo(1);
+        List<LsDataAug> augs = augsOf(frame);
+        assertThat(augs).hasSize(1);
+        assertThat(augs.get(0).getAugProcSttsCd()).isEqualTo(LsDataAug.STTS_PENDING);
+        awaitJobsOf(augs.get(0).getDataAugSn());
     }
 
     @Test

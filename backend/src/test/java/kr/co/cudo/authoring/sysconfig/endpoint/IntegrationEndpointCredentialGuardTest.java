@@ -108,7 +108,7 @@ class IntegrationEndpointCredentialGuardTest {
     void vlmTokenIsStrippedWhenHostChanges() throws Exception {
         // given — 배포 기본값(토큰이 발급된 원 수신처)으로 만들어진 빈
         String bootDefault = bootServer.url("/").toString();
-        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, false, relaxedPolicy(), resolver());
+        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, relaxedPolicy(), resolver());
         override(differentHostUrlOf(otherServer));
 
         // when
@@ -125,7 +125,7 @@ class IntegrationEndpointCredentialGuardTest {
     @DisplayName("VLM — 같은_호스트의_다른_포트면_토큰은_그대로_붙는다 — 포트·경로_차이로_떼지_않는다")
     void vlmTokenSurvivesPortOnlyChange() throws Exception {
         String bootDefault = bootServer.url("/").toString();
-        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, false, relaxedPolicy(), resolver());
+        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, relaxedPolicy(), resolver());
         override(otherServer.url("/").toString()); // 같은 localhost, 다른 포트
 
         RecordedRequest received = exchange(client, otherServer);
@@ -138,7 +138,7 @@ class IntegrationEndpointCredentialGuardTest {
     @DisplayName("VLM — override_가_없으면_토큰은_그대로다 — 기존_형상_영향_0")
     void vlmTokenIntactWithoutOverride() throws Exception {
         String bootDefault = bootServer.url("/").toString();
-        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, false, relaxedPolicy(), resolver());
+        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, relaxedPolicy(), resolver());
         when(systemConfigService.findString(anyString())).thenReturn(Optional.empty());
 
         RecordedRequest received = exchange(client, bootServer);

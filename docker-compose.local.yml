@@ -78,7 +78,6 @@ services:
       #   ★ 목은 TLS 미지원 평문 http + docker 브리지 사설 IP 라 완화 플래그가 함께 필요하다.
       #     이 완화는 local/dev 프로파일에서만 인정되며, 그 밖의 프로파일에서 켜면 기동이 실패한다
       #     (VlmUrlPolicy fail-closed — 운영으로 새지 않는다).
-      VLM_CLIENT_ENABLED: "true"
       VLM_SERVICE_URL: "http://klid-mock-server:9400"
       VLM_ALLOW_INSECURE_URL: "true"
       # 목이 발사하는 웹훅이 컨테이너 네트워크에서 BE 에 실제로 닿으려면 콜백 base 가 서비스명이어야 한다

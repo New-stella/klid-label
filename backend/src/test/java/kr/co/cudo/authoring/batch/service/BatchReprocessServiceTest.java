@@ -258,10 +258,10 @@ class BatchReprocessServiceTest {
     // ────────────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("★완주영상은_되돌린_스킵이_있어도_이_경로로는_재기동되지_않는다_보간_전량삭제_차단")
+    @DisplayName("★완주영상은_해제된_스킵이_있어도_이_경로로는_재기동되지_않는다_보간_전량삭제_차단")
     void rejectsCompletedVideoEvenWhenManualSkipWasRestored() {
         // 완주 영상을 받으면 파이프라인 전체가 순회하는데 트랙 보간은 건너뛰는 조건이 없어 항상 돌고,
-        //   사람이 고친 보간 라벨을 복구 지점 없이 전량 삭제·재생성한다. 되돌린 단계의 재수행은
+        //   사람이 고친 보간 라벨을 복구 지점 없이 전량 삭제·재생성한다. 건너뛰기를 해제한 단계의 재수행은
         //   단계 지목 재수행 API 가 담당한다(문제가 생긴 곳부터 재시도).
         long rawSn = 21L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);

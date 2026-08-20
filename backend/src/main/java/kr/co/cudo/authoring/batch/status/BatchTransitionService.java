@@ -158,11 +158,45 @@ public class BatchTransitionService {
         return markProcessing(rawSn, true);
     }
 
+    /**
+     * 진입 전이 — <b>검수 소유 작업 상태를 차단 사유로 보지 않는</b> 인계 진입. [@design API-201]
+     *
+     * <h3>왜 필요한가</h3>
+     * <p>「메타만 더하는 묶음」({@code MetadataOnlyRerunPolicy})의 재수행은 승인 완료 영상에도 열려야
+     * 하는데, {@link #markRawDataProcessingBlockedWithHeldClaim} 이 {@link #REVIEW_OWNED_STATUSES} 를
+     * 무조건 차단해 <b>입구에서 400 을 풀어도 여기서 다시 막혔다</b>(파이프라인이 step 을 한 건도 돌리지
+     * 않고 SKIPPED 로 끝난다). 즉 게이트가 2겹이라 한쪽만 열면 동작이 바뀌지 않는다.
+     *
+     * <h3>무엇을 하지 <b>않는가</b> — 작업 상태를 전이하지 않는다</h3>
+     * <p>면제는 「차단하지 않는다」이지 「전이한다」가 아니다. 작업 상태 전이는 종전과 똑같이
+     * {@link #transitionRawDataStatus} 의 조건부 UPDATE 를 타므로 검수 소유 상태에서는 <b>영향 행수 0
+     * = no-op</b> 이다. 결과적으로 {@code APPROVED} 는 {@code APPROVED} 로 남고 {@code V_COMPLETED_*}
+     * 뷰에서 영상이 이탈하지 않는다(「검수 완료·통지 건에 대한 관제 접근은 무조건 보장」 준수).
+     *
+     * <h3>배치 단계 클레임은 그대로다</h3>
+     * <p>상호배제(B-ISSUE-01)는 바뀌지 않는다 — 클레임 보유 확인·원자 클레임 폴백이 일반 경로와 동일하다.
+     *
+     * <p>⚠ <b>기본 진입점의 동작은 건드리지 않는다</b>(fail-closed). 호출자가 이 진입을 <b>명시적으로</b>
+     * 고를 때만 면제되며, 그 판정은 {@code MetadataOnlyRerunPolicy} 단일 지점이 소유한다.
+     *
+     * @return {@code true} = 폴백 클레임마저 실패(다른 주체가 처리 중), {@code false} = 진행
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean markRawDataProcessingWithHeldClaimPreservingReviewStatus(Long rawSn) {
+        return markProcessing(rawSn, true, true);
+    }
+
     private boolean markProcessing(Long rawSn, boolean stageClaimHeld) {
+        return markProcessing(rawSn, stageClaimHeld, false);
+    }
+
+    private boolean markProcessing(Long rawSn, boolean stageClaimHeld, boolean preserveReviewOwned) {
         if (rawSn == null) {
             return false;
         }
-        if (transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_PROCESSING)) {
+        // 전이 시도는 어느 모드에서나 같다 — 검수 소유면 조건부 UPDATE 가 0행(no-op)이라 상태가 보존된다.
+        //   갈리는 것은 그 사실을 <차단>으로 볼지 여부뿐이다.
+        if (transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_PROCESSING) && !preserveReviewOwned) {
             return true;
         }
         if (stageClaimHeld && holdsStageClaim(rawSn)) {
@@ -235,6 +269,41 @@ public class BatchTransitionService {
         videoRepository.findById(rawSn).ifPresentOrElse(
                 LsDataRaw::markCompleted,
                 () -> log.warn("[BatchTransition] raw video not found rawSn={} (completed)", rawSn));
+    }
+
+    /**
+     * 배치 완료 — <b>검수 소유 작업 상태를 보존</b>하면서 배치 단계만 마감한다. [@design API-201]
+     *
+     * <h3>왜 {@link #markRawDataCompleted} 로는 안 되는가 (Critical)</h3>
+     * <p>그 메서드는 작업 상태 전이가 차단되면 <b>{@code LS_DATA_RAW} 도 건드리지 않고 반환</b>한다
+     * (두 테이블을 함께 멈춰 불일치쌍을 만들지 않기 위함). 그런데 「메타만 더하는 묶음」의 재수행은
+     * 검수 소유 상태(APPROVED)에서 <b>정상적으로 진입</b>하므로, 그 경로로 마감하면 완주해도 배치
+     * 단계가 {@code PROCESSING} 에 남는다 → 이후 모든 배치 진입이 클레임에 막혀 <b>영구 409</b> 다.
+     *
+     * <p>게다가 회수 스윕도 구하지 못한다 — {@code BatchStatusService.markCompleted} 가 진행 행을
+     * 종결 상태로 갱신하므로 {@code progressTerminatedAfter} 가 참이 되어 스윕이 회수를 <b>포기</b>한다.
+     * 즉 진입만 열고 이 종료 경로를 두면 결과가 「거부(409)」보다 나쁘다.
+     *
+     * <h3>무엇이 같고 무엇이 다른가</h3>
+     * <ul>
+     *   <li>같다 — 작업 상태는 {@link #transitionRawDataStatus} 의 조건부 UPDATE 를 그대로 탄다.
+     *       검수 소유면 no-op 이라 {@code APPROVED} 가 보존되고, 아니면 종전처럼 {@code ASSIGNED} 로
+     *       복귀한다(면제 모드로 들어왔지만 그사이 검수가 끝나지 않은 영상도 정상 처리된다).</li>
+     *   <li>다르다 — 그 결과와 <b>무관하게</b> 배치 단계를 {@code COMPLETED} 로 마감한다. 그 컬럼은
+     *       이 실행이 스스로 선점한 것이므로 스스로 놓아야 한다.</li>
+     * </ul>
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void markRawDataCompletedPreservingReviewStatus(Long rawSn) {
+        if (rawSn == null) {
+            return;
+        }
+        // 반환값(차단 여부)을 보지 않는다 — 차단은 "APPROVED 를 지켰다" 는 뜻이고, 그것이 이 경로의 의도다.
+        transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_ASSIGNED);
+        videoRepository.findById(rawSn).ifPresentOrElse(
+                LsDataRaw::markCompleted,
+                () -> log.warn("[BatchTransition] raw video not found rawSn={} (completed, review-preserving)",
+                        rawSn));
     }
 
     /**
@@ -463,13 +532,13 @@ public class BatchTransitionService {
      * [@design API-167]
      *
      * <h3>왜 완주 영상도 받는가</h3>
-     * <p>건너뛴 단계를 되돌린 영상은 <b>이미 완주했더라도</b> 재기동을 받아야 한다 — 그러지 않으면
-     * "건너뛰고 진행시킨 뒤 나중에 다시 수행한다"는 되돌리기의 목적 자체가 성립하지 않는다(스킵으로
+     * <p>건너뛰기를 해제한 영상은 <b>이미 완주했더라도</b> 재기동을 받아야 한다 — 그러지 않으면
+     * "건너뛰고 진행시킨 뒤 나중에 다시 수행한다"는 해제의 목적 자체가 성립하지 않는다(스킵으로
      * 완주한 영상은 {@code COMPLETED} 라 {@link #tryClaimReprocessFromFailed} 가 잡지 못하고, 다른
-     * 재실행 트리거도 없어 되돌리기가 화면에서만 되고 실제로는 아무 일도 일어나지 않았다).
+     * 재실행 트리거도 없어 해제가 화면에서만 되고 실제로는 아무 일도 일어나지 않았다).
      *
      * <h3>허용 조건은 여기서 판정하지 않는다</h3>
-     * <p>"되돌린 단계가 실제로 있는가"({@code BatchStatusService.hasClearedManualSkip})와 "한번이라도
+     * <p>"건너뛰기를 해제한 단계가 실제로 있는가"({@code BatchStatusService.hasClearedManualSkip})와 "한번이라도
      * 검수가 완료됐는가"({@code ReviewApprovalGate.hasEverApproved})는 <b>호출 서비스</b>가 클레임
      * <b>전에</b> 판정한다. 이 메서드는 상태 전이의 원자성만 책임진다.
      *

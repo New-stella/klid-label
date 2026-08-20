@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 46
-last_updated_at: 2026-08-18T03:19:10.299Z
+version: 50
+last_updated_at: 2026-08-19T23:52:45.244Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T08:46:22.174Z
-sync_session: 19
+synced_at: 2026-08-19T23:55:47.583Z
+sync_session: 22
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 49
 raw: ./_raw/SCREEN-009.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-021]]", "[[API-043]]", "[[API-044]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v49 → v50**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.9KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 상세 화면
 
@@ -211,7 +215,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: 배치가 실패했거나 건너뛴 묶음이 있으면 노출한다. 사유는 서버가 준 문구를 그대로 보여주고 화면이 해석하지 않으며, 단계를 특정할 수 없는 실패도 사유만은 표시한다. 건너뛰기·되돌리기·재수행은 시계열과 오토라벨 두 묶음 단위이며 건너뛰기는 사유를 받는다. 되돌린 묶음에는 재수행 버튼을 하나 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다). 오토라벨 재수행은 트랙 보간까지 다시 만들어 사람이 손댄 보간 라벨이 새로 계산된 값으로 바뀌므로 고르는 시점에 알린다. 전체 재기동은 실패한 영상에만 노출한다. 파생영상에는 이 영역의 조작을 노출하지 않는다.
+- **note**: 배치가 실패했거나 건너뛴 묶음이 있으면 노출한다. 사유는 서버가 준 문구를 그대로 보여주고 화면이 해석하지 않으며, 단계를 특정할 수 없는 실패도 사유만은 표시한다. 건너뛰기·해제·재수행은 시계열과 오토라벨 두 묶음 단위이며 건너뛰기는 사유를 받는다. 건너뛰기를 해제한 묶음에는 재수행 버튼을 하나 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다). 오토라벨 재수행은 트랙 보간까지 다시 만들어 사람이 손댄 보간 라벨이 새로 계산된 값으로 바뀌므로 고르는 시점에 알린다. ★검수가 완료된 적 있는 영상은 두 묶음이 갈린다 — 시계열 재수행은 그대로 누르고 오토라벨 재수행은 비활성 + 사유 툴팁이다(라벨을 다시 만들어 승인 시점 스냅샷과 어긋난다). 되돌릴 수 없는 조건이라 파생영상처럼 미리 알린다. 전체 재기동은 실패한 영상에만 노출한다. 파생영상에는 이 영역의 조작을 노출하지 않는다.
 - **type**: Custom
 - **label**: 배치 실패 사유 + 조치 (REVIEWER 전용)
 
@@ -525,9 +529,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: fdbd61f698ca622cdeba32a2547db500fc11b223af4506b29a471bde9e99e4d8
-- **generated_at**: 2026-08-18T03:19:10.298Z
-- **generated_by**: generate-wireframes.py
+- **source_hash**: 0883fcf00b5f96c2645552770ad42817e5f60dd95ed6d8fcd9ecc30dbf46884e
+- **generated_at**: 2026-08-19T23:52:45.244Z
+- **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
 

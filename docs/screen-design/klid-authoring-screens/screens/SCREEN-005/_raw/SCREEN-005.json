@@ -986,7 +986,7 @@
               "custom_name": "ZoomControl"
             },
             {
-              "note": "선택한 객체를 캔버스에서 보이거나 안 보이게 전환한다(단축키 T). 저장 대상에는 영향을 주지 않는 화면 표시 전용 토글이다.",
+              "note": "선택한 객체를 캔버스에서 보이거나 안 보이게 전환한다(단축키 T). 저장 대상에는 영향을 주지 않는 화면 표시 전용 토글이다. 선택된 객체가 없으면 이 버튼은 비활성으로 두고 사유(객체를 먼저 선택해야 한다)를 알린다 — 눌리는 모양인데 아무 반응도 없으면 고장으로 읽히기 때문이다. 단축키는 선택이 없을 때 아무 일도 하지 않는다.",
               "type": "Button",
               "label": "라벨 표시/숨김",
               "columns": [],
@@ -1094,8 +1094,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "29105a8585f220bcaffa42dabf6cef7f84222c3e06e4125b5446a5bc0ee1db46",
-          "generated_at": "2026-08-18T07:01:07.309Z",
+          "source_hash": "351db5b3efc2f927a05acf82b40a8f4b5d771cc81e645486b4287d96148f1160",
+          "generated_at": "2026-08-19T01:56:32.231Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -1116,12 +1116,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 94,
+    "current_version": 96,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (58.6KB)",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (58.8KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-18T07:01:07.310Z",
+    "last_updated_at": "2026-08-19T01:56:32.231Z",
     "created_at": "2026-05-30T07:53:51.152Z"
   }
 }

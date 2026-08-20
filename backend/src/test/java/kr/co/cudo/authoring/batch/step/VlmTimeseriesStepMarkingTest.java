@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.batch.step;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
@@ -25,6 +26,7 @@ import reactor.core.scheduler.Schedulers;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -100,7 +102,6 @@ class VlmTimeseriesStepMarkingTest {
     void runWithMarking_sendsDeidPath() {
         seed(400L);
         LsMarking marking = newMarking(400L);
-        when(vlmClient.isEnabled()).thenReturn(true);
         stubAccepted();
 
         VlmTimeseriesResponse resp = step.runWithMarking(400L, marking);
@@ -118,7 +119,6 @@ class VlmTimeseriesStepMarkingTest {
         seed(401L);
         LsMarking marking = newMarking(401L);
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
-        when(vlmClient.isEnabled()).thenReturn(true);
         stubAccepted();
 
         step.runWithMarking(401L, marking);
@@ -126,17 +126,33 @@ class VlmTimeseriesStepMarkingTest {
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
     }
 
+    /**
+     * ★ 뒤집힌 단언이다 — 구 기대값은 "설정 토글이 꺼져 있으면 SKIPPED 이고 마킹 전이도 없다" 였다.
+     *
+     * <p>그 토글은 폐지됐다(ADR-049). 사전 조건이 안 맞으면 위탁은 <b>조용히 건너뛰지 않고 실패</b>한다.
+     * 다만 <b>마킹 상태를 올리지 않는 것</b>은 변하지 않는다 — 위탁이 나가지도 않았는데 선커밋으로
+     * {@code VLM_REQUESTED} 만 남으면 사유 없는 고착이 되고 미결 스위퍼가 그것을 "ACK 미수신" 으로
+     * 오인해 회수를 반복한다. 그 불변식이 이 테스트의 본체다.
+     *
+     * <p>⚠ 운영 지침: 벤더 미연동 구간에는 <b>먼저 스킵</b>한다. 스킵 없이 돌려 실패시키면 마킹이
+     * {@code VLM_FAILED}(종결)로 가고, 이후 재수행해도 그 표시는 되돌아오지 않는다.
+     */
     @Test
-    @DisplayName("runWithMarking_VLM_disabled시_SKIP_전이없음")
-    void runWithMarking_disabled_skips() {
-        when(vlmClient.isEnabled()).thenReturn(false);
+    @DisplayName("사전조건_미충족이면_실패하되_마킹_전이는_하지_않는다_사유없는_고착_방지")
+    void runWithMarking_precondition_failure_doesNotTransition() {
+        // given — 영상이 존재하지 않는다(기존 게이트). 구 코드라면 토글 분기가 먼저 삼켰을 자리다.
+        when(videoRepository.existsById(402L)).thenReturn(false);
         LsMarking marking = newMarking(402L);
 
-        VlmTimeseriesResponse resp = step.runWithMarking(402L, marking);
+        // when / then
+        assertThatThrownBy(() -> step.runWithMarking(402L, marking))
+                .as("조용한 건너뛰기 분기가 되살아나면 예외 대신 SKIPPED 가 반환된다")
+                .isInstanceOf(CustomException.class);
 
-        assertThat(resp.status()).isEqualTo("skipped");
         verify(vlmClient, never()).submitTimeseries(any());
-        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_PENDING);
+        assertThat(marking.getSttsCd())
+                .as("위탁이 나가지 않았는데 상태를 올리면 사유 없는 고착이 된다")
+                .isEqualTo(LsMarking.STATUS_PENDING);
         verifyNoInteractions(markingRepository);
     }
 
@@ -149,7 +165,6 @@ class VlmTimeseriesStepMarkingTest {
         marking.markVlmRequested();
         marking.markVlmCompleted();
         assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
-        when(vlmClient.isEnabled()).thenReturn(true);
         stubAccepted();
 
         // when — retry(BatchRetryQuartzJob → orchestrator.process) 로 파이프라인 재실행
@@ -164,7 +179,6 @@ class VlmTimeseriesStepMarkingTest {
     @DisplayName("runWithMarking_null_마킹시_기존_run_호출과_동일")
     void runWithMarking_nullMarking_fallsBackToRun() {
         seed(403L);
-        when(vlmClient.isEnabled()).thenReturn(true);
         stubAccepted();
 
         VlmTimeseriesResponse resp = step.runWithMarking(403L, null);

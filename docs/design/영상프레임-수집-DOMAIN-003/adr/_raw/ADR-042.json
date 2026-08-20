@@ -14,7 +14,7 @@
       ],
       "decision": {
         "chosen_option": "MNG_* 9종 전부 삭제 + LS_DATA_INGEST 평면 수신(채택)",
-        "justification": "저작도구는 관제서버 데이터를 참조하지 않는다. 영상 관련 정보는 전부 LS_DATA_INGEST(관제가 직접 INSERT, V147 37컬럼 + V166 4컬럼)로 평면 수신하고, MNG_* 9종은 개명이 아니라 전부 삭제한다. 대체 매핑 — MNG_CLIP_MASTER.FILE_FMT→인입 FILE_FMT(기존), MNG_CLIP_EVNT_LST 의 EVNT_TYPE_CD 해석→인입 EVNT_TYPE_CD(V166 신설), MNG_RESOURCE_CCTV 의 CCTV명·좌표→인입 CCTV_NM(기존)·WGS84_LAT/LOT(V147 선존), MNG_EX_LOCAL_GOV 의 SIDO_NM+SGG_NM→인입 RGN_NM(기존), MNG_EX_EVNT_TYPE/_MAP 의 코드→라벨·필터 목록→인입 EVNT_NM + LS_DATA_RAW distinct 도출, MNG_ACCT_USER→저작도구 소유 사용자 테이블(별도 ADR). 조회 패턴은 LEFT JOIN LS_DATA_INGEST i ON i.RAW_SN = COALESCE(r.ORGNL_RAW_SN, r.RAW_SN) 하나로 통일한다 — 파생영상은 자기 인입 행이 없지만 파생 깊이가 1 로 고정이라 1단계 폴백으로 충분하고, dev 업로드도 InternalUploadIngestWriter 가 인입 행을 INSERT 하므로 원본은 항상 인입 행을 갖는다. LS_DATA_RAW 에는 관제 수신값을 복사하지 않는다(신설 0개) — 수정될 일이 없는 읽기 전용 사실을 가변 작업 마스터에 이중 저장하지 않는다. 다만 개인정보 3필드만은 파생에서 인입 조인을 제외한다(CASE WHEN r.ORGNL_RAW_SN IS NULL): 파생의 개인정보 판정은 비식별 축이며 copyPrivacyMetaFrom 이 생성 시점에 이미 계승했으므로 결손이 아니다. 신설 컬럼은 폴백 없이 전환한다 — 폴백 마스터를 남기면 삭제 목적이 무산된다."
+        "justification": "저작도구는 관제서버 데이터를 참조하지 않는다. 영상 관련 정보는 전부 LS_DATA_INGEST(관제가 직접 INSERT, V147 37컬럼 + V166 4컬럼)로 평면 수신하고, MNG_* 9종은 개명이 아니라 전부 삭제한다. 대체 매핑 — MNG_CLIP_MASTER.FILE_FMT→인입 FILE_FMT(기존), MNG_CLIP_EVNT_LST 의 EVNT_TYPE_CD 해석→인입 EVNT_TYPE_CD(V166 신설), MNG_RESOURCE_CCTV 의 CCTV명·좌표→인입 CCTV_NM(기존)·WGS84_LAT/LOT(V147 선존), MNG_EX_LOCAL_GOV 의 SIDO_NM+SGG_NM→인입 RGN_NM(기존), MNG_EX_EVNT_TYPE/_MAP 의 코드→라벨·필터 목록→인입 EVNT_NM + LS_DATA_RAW distinct 도출, MNG_ACCT_USER→저작도구 소유 사용자 테이블(별도 ADR). 조회 패턴은 LEFT JOIN LS_DATA_INGEST i ON i.RAW_SN = COALESCE(r.ORGNL_RAW_SN, r.RAW_SN) 하나로 통일한다 — 파생영상은 자기 인입 행이 없지만 파생 깊이가 1 로 고정이라 1단계 폴백으로 충분하고, 관제 인입 경로와 개발 환경 업로드 경로로 적재된 원본은 인입 행을 갖는다. 다만 원본 축에도 인입 행이 없는 예외가 있다 — 외부 산출물 이관(ADR-048) 경로로 적재된 영상은 인입 원장을 거치지 않으므로 파생이 아닌 원본인데도 인입 행이 없고, COALESCE 폴백이 자기 식별자로 떨어져도 그 식별자를 가진 인입 행이 존재하지 않아 조인이 공집합이 된다. 조인 패턴 자체는 그대로 두고 이 예외를 전제로 읽는다. LS_DATA_RAW 에는 관제 수신값을 복사하지 않는다(신설 0개) — 수정될 일이 없는 읽기 전용 사실을 가변 작업 마스터에 이중 저장하지 않는다. 다만 개인정보 3필드만은 파생에서 인입 조인을 제외한다(CASE WHEN r.ORGNL_RAW_SN IS NULL): 파생의 개인정보 판정은 비식별 축이며 copyPrivacyMetaFrom 이 생성 시점에 이미 계승했으므로 결손이 아니다. 신설 컬럼은 폴백 없이 전환한다 — 폴백 마스터를 남기면 삭제 목적이 무산된다."
       },
       "brownfield": {
         "notes": "V165 죽은 계정 테이블 2종 DROP · V166 인입 수신 컬럼 4개 신설 + 이벤트유형 인입 우선 해석 · V167 클립/CCTV/지자체 4종 삭제 · V168 이벤트유형 distinct 전환 · V169 사용자 이관 순으로 적용한다.",
@@ -38,7 +38,8 @@
         "negative": [
           "관제가 EVNT_TYPE_CD 를 송신하기 전까지 해당 값 null — 관제 협의 항목으로 남음",
           "이벤트유형 필터에 아직 적재되지 않은 유형은 노출되지 않음(사용자 수용)",
-          "구버전 jar 롤백 시 DROP 된 테이블이 없어 2노드 기동이 실패할 수 있음 — 각 DROP 마이그레이션에 재생성 SQL 전문을 주석으로 동반(V162 규약)"
+          "구버전 jar 롤백 시 DROP 된 테이블이 없어 2노드 기동이 실패할 수 있음 — 각 DROP 마이그레이션에 재생성 SQL 전문을 주석으로 동반(V162 규약)",
+          "외부 산출물 이관 경로로 적재된 원본은 인입 조인이 공집합이라, 인입에서 조달하던 이벤트 분류·이벤트 범주·지자체 정보와 관제가 보낸 개인정보 판정값이 그 영상에서는 비어 있다. 그 값을 무엇으로 채울지는 이 결정의 범위가 아니며 아직 정해지지 않았다."
         ],
         "positive": [
           "관제 스키마 변경이 저작도구 기동·조회를 깨뜨리는 결합이 소멸",
@@ -97,12 +98,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문에서 저장소 내부 표기를 걷어내고 설계 서술만 남긴다. 제거 축: 작업 진행 서술.",
+    "change_summary": "원본은 항상 인입 행을 갖는다는 전칭 서술을 적용 범위가 드러나게 좁힌다. 관제 인입 경로와 개발 환경 업로드 경로로 적재된 원본만 인입 행을 가지며, 외부 산출물 이관(ADR-048) 경로로 적재된 영상은 인입 원장을 거치지 않아 원본 축인데도 인입 행이 없고 조인이 공집합이 된다는 예외를 명시했다. 결정(단일 조인 패턴으로 통일)과 조인 식 자체는 그대로 둔다. 그 예외로 인입에서 조달하던 이벤트 분류·이벤트 범주·지자체 정보와 관제 개인정보 판정값이 비게 된다는 사실, 그리고 그 값의 조달 방안은 이 결정의 범위가 아니며 미정이라는 사실을 결과(부정)에 추가했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:22:25.458Z",
+    "last_updated_at": "2026-08-19T09:08:22.175Z",
     "created_at": "2026-08-04T08:15:33.397Z"
   }
 }

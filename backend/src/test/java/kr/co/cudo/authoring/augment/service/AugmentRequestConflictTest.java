@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -64,6 +65,8 @@ class AugmentRequestConflictTest {
         DeidentReportGate deidentReportGate = mock(DeidentReportGate.class);
         AugmentCallbackUrlResolver callbackUrlResolver = mock(AugmentCallbackUrlResolver.class);
         VideoRepository videoRepository = mock(VideoRepository.class);
+        // 외부 연동 모드 — 기본 mock(false)은 "연동됨(http)" 이므로 종전 동작 그대로다.
+        AugmentExternalModePolicy externalModePolicy = mock(AugmentExternalModePolicy.class);
 
         LsRawDataStatus approved = LsRawDataStatus.initial(RAW_SN);
         approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
@@ -80,7 +83,7 @@ class AugmentRequestConflictTest {
 
         service = new AugmentRequestService(statusRepository, srcRepository, augRepository,
                 videoRepository, eventPublisher, deidentReportGate, callbackUrlResolver,
-                new ObjectMapper());
+                new ObjectMapper(), externalModePolicy);
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
     }
 

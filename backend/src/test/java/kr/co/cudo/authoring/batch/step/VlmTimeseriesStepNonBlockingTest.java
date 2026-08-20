@@ -106,7 +106,6 @@ class VlmTimeseriesStepNonBlockingTest {
         IngestSourceRow source = mock(IngestSourceRow.class);
         lenient().when(source.getVrfcEvntTypeCd()).thenReturn("fire");
         lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(source);
-        when(vlmClient.isEnabled()).thenReturn(true);
     }
 
     @Test
