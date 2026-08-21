@@ -106,6 +106,12 @@ const DeidentReportListPage = lazyWithRetry(() =>
     default: m.DeidentReportListPage,
   })),
 );
+// 외부 산출물 이관 (REVIEWER 전용) lazy 로드 — 검사·적재·분류 대응·이관 이력을 한 화면에서 밟는다.
+const ImportPage = lazyWithRetry(() =>
+  import('@/pages/manage/ImportPage').then((m) => ({
+    default: m.ImportPage,
+  })),
+);
 
 // V2.0 Phase 7 — 마킹 화면 lazy 로드
 const MarkingPage = lazyWithRetry(() =>
@@ -433,6 +439,14 @@ export const router = createBrowserRouter([
             element: (
               <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<DeidentReportListPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'imports',
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<ImportPage />)}
               </InternalRoute>
             ),
           },

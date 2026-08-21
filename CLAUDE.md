@@ -54,6 +54,7 @@ slowBuild: true
 - 전체 회귀는 **backend 7,230 테스트(Testcontainers 포함, 결과 XML 800) 약 8분 35초 + frontend 3,623 테스트(456 파일) 약 53초 = 합계 9~10분급**이다(2026-08-21 실측). 기본값 300초로는 완주하지 못하므로 위 `buildTimeout` 선언이 필요하다.
   - ⚠ **구 수치 갱신(2026-08-21)** — *"backend 6,742 테스트(XML 745) 약 5분 25초 · frontend 3,213(409 파일) · 합계 6~7분급"*(2026-08-16 실측)에서 **backend 가 +488 테스트·+3분 10초, frontend 가 +410 테스트** 늘었다. 다섯 달이 아니라 닷새 만의 증가폭이라 **다음 실측까지 또 벌어진다고 보는 편이 안전하다.**
   - ★**이 수치는 문구가 아니라 라우팅을 바꾼다** — 아래 「단일 셸 명령 상한」 판단의 입력값이다. backend 단독 8분 35초(515초)는 상한 10분(600초)까지 **여유가 85초뿐**이며, 구 수치(325초)의 275초 여유에서 **1/3 로 줄었다.** 느린 머신·콜드 캐시에서는 넘길 수 있으므로 한 호출 완주가 실패하면 곧바로 백그라운드 경로로 전환하라.
+  - ★★**소요는 한 번의 실측으로 고정되지 않는다** — 같은 머신에서 backend 가 **5분 25초(08-16)** · **8분 35초** · **9분 56초**(둘 다 08-21, 서로 다른 실행)로 나왔다. 마지막 값은 **상한 10분에 4초** 남았다. 원인은 미확인이며 콜드 캐시·부하로 **추정할 뿐 단정하지 않는다.** ⇒ 위 「여유 85초」도 낙관적일 수 있으니, **한 호출 완주를 1순위로 두되 상한에 걸리면 곧바로 백그라운드+폴링으로 전환**한다.
   - ⚠ **구 서술 폐기(2026-08-16 실측)** — *"backend 4,000+ / frontend 1,600+ · 15~20분급"* 은 **테스트 수를 과소, 시간을 과대**로 적고 있었다. 이 오차는 문구 문제가 아니라 **라우팅을 바꾼다**: 하네스의 「장시간 FULL 병행 규칙」은 **600초 초과**일 때만 이득인데 실측이 그 아래라, 그 서술을 믿고 폴링·세그먼트 경로로 보내면 왕복 비용만 늘어난다. **한 호출에서 완주시키는 것이 맞다.**
   - `buildTimeout: 1800` 은 그대로 둔다 — 합계 실측(약 570초) 대비 **약 3배 여유**다(구 기재 「4배」는 구 수치 기준이라 함께 갱신). 줄일 이유가 없고 느린 머신·콜드 캐시에서 여유가 필요하다.
 - 단일 셸 명령 상한(10분) 안에 들어오므로 **한 호출에서 기동+대기로 완주시킬 수 있다.** 다만 실측은 특정 머신·웜 캐시 기준이므로, 상한에 걸리면 **백그라운드 실행 + 로그 파일 리다이렉트 + 폴링**으로 전환한다(세그먼트 분할은 마지막 수단 — 교차 오염을 못 잡는다).
@@ -654,6 +655,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 > `/cc` PM이 이 표를 0-2 업무 유형 결정보다 **우선** 적용한다 (규약 → cc-forge `commands/cc.md` §0-2.5).
 > 이 선언이 없으면 `/cc`는 LogiCraft 계약을 모른 채 표준 `developer-*` 파이프라인으로 흘러 키트·`@design` 추적 태그·IMPREC 반영이 끊긴다.
 > 이 프로젝트의 설계 진실원은 **LogiCraft ITEM**과 로컬 키트(`docs/design/{도메인슬러그}-{DOMAIN-ID}/`)다.
+>
+> ★ **이 저장소는 `klid-*` 구현 오케스트레이션 세트가 온보딩돼 있다**(`.claude/skills/klid-{dispatch,design-backfill}` · `.claude/agents/klid-d0NN-implementer` 15종 + `klid-web-implementer` + `klid-qa-verifier`).
+> **이미 구현된 코드를 고치는 요청은 표준 `developer-*` 파이프라인이 아니라 `klid-dispatch` 로 간다** —
+> 그쪽이 CO 장부·설계 선반영·도메인별 진실원·독립 QA 를 갖고 있다. 아래 표에서 **위쪽 행이 더 구체적인 조건**이며 먼저 매칭한다.
 
 ### ★변경 순서 — LogiCraft 먼저, 코드는 그 다음 (2026-08-07 사용자 확정, 구속)
 
@@ -690,6 +695,9 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 **적용 범위 (Critical — 위임은 예외이지 기본값이 아니다)**: 이 선언은 **LogiCraft ITEM/도메인으로 추적되는 작업에만** 적용한다. 이 저장소의 모든 작업이 LogiCraft 대상은 아니다 — 일반 기능 추가·버그 수정·인프라/빌드·CVAT 포팅·위키/테스트케이스 갱신 등은 **기본값인 표준 `/cc` 파이프라인**으로 간다. 요청이 아래 `조건`에 명확히 매칭될 때만 위임하고, 애매하면 표준 경로를 택하거나 사용자에게 확인한다.
 
+- 조건: **이미 구현된 코드의 수정·버그**(테스트하다 발견한 수정사항 포함) → 위임: `klid-dispatch` | 근거: 변경지시서(CO) 장부 + 영향 도메인 게이트 + **설계 선반영(Phase 3.6)** 후 도메인 implementer 병렬 fan-out + 독립 QA(`klid-qa-verifier`). 실행=메인
+- 조건: **밀린 설계 반영·IMPREC 백필** → 위임: `klid-design-backfill` | 근거: 부채 회수 3모드(CO 예외건 / 온보딩 이전 누적 / IMPREC 갭). 실행=메인
+- 조건: **신규 도메인 최초 구현** → 위임: `mc-logi-implement` | 근거: `klid-dispatch` 는 "이미 구현된 코드 수정" 전용이라 최초 구현은 대상이 아니다. 실행=메인
 - 조건: 도메인 백엔드 구현 (API·ERD/DB·domain_event·service·NFR) → 위임: `mc-logi-implement` | 근거: 키트가 단일 진실원이며 `@design <ITEM-ID>` 추적 태그 규약을 포함
 - 조건: 화면(screen_spec) 프론트엔드 구현 → 위임: `mc-logi-screen-implement` | 근거: 화면은 implement 가 아닌 screen-implement 담당 (중복 구현 방지)
 - 조건: 화면 비주얼 디자인·고충실도 목업 → 위임: `mc-logi-screen-design`
@@ -710,25 +718,25 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 14 도메인 전량 · last sync **2026-08-16 (s1, INITIAL)** · 전건 무열화 검증 통과.
-> ⚠ **DOMAIN-003 만 2026-08-19 (s2, SYNC) 로 앞서 있다** — 시계열 위탁 토글 폐지·일괄 스킵 설계 4건 신규 + 계약 1건 변경 반영(`IMPLEMENTATION.md` 최상단 변경 알림 참조). ✅ **코드 반영 완료(2026-08-20 · 커밋 `23e52e57` · `IMPREC-026`~`030`).** ✅ **구현 중 확정된 것도 설계에 반영 완료** — 승인 영상 재수행의 작업 상태 미전이·면제의 허용목록 선언·일괄 사유의 요청 단위 400, 그리고 `API-198`/`API-200` 의 낡은 응답 블록과 `API-212`/`API-213` 의 예시까지 정정했다(전파: `SCREEN-022`·`SEQ-002`). ✅ **화면 축도 확정됐다** — 일괄 3 API 는 `SCREEN-008`(영상 처리 현황)의 기존 일괄 액션바에 붙였고(오토라벨은 제외), 승인 영상의 재수행은 `SCREEN-009` 에서 **시계열 활성 / 오토라벨 비활성+툴팁**으로 가른다. **설계는 이제 코드와 화면 양쪽이 다 채워졌다 — 남은 것은 화면 구현뿐이다.**
+> 활성 15 도메인 전량 · last sync **2026-08-21 (SYNC · main 병합 후 재정규화)** · 전건 무열화 검증 통과 · 서버 대비 뒤처짐 **0건**(측정 시점 기준 — 동시 세션이 있으면 곧 다시 벌어진다).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 53 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 110 | implemented 50 / planned 36 / (미기재) 24 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 73 | implemented 35 / planned 23 / (미기재) 15 | ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 92 | implemented 45 / planned 28 / (미기재) 19 | CONST 상수값 |
-| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 39 | implemented 12 / in_progress 1 / planned 17 / (미기재) 9 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 70 | implemented 26 / planned 28 / (미기재) 16 | CONST 상수값 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 119 | implemented 59 / planned 35 / (미기재) 25 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 84 | implemented 36 / planned 27 / (미기재) 21 | ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 94 | implemented 46 / planned 28 / (미기재) 20 | CONST 상수값 |
+| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 13 / planned 21 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 72 | implemented 26 / planned 28 / (미기재) 18 | CONST 상수값 |
 | DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 41 | implemented 17 / planned 17 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, AC 수용, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 155 | implemented 77 / planned 49 / (미기재) 29 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 47 | implemented 11 / planned 24 / (미기재) 12 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 72 | implemented 22 / planned 34 / (미기재) 16 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 76 | implemented 34 / in_progress 2 / planned 28 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 50 | implemented 16 / planned 25 / (미기재) 9 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 42 | implemented 13 / planned 22 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 17 / in_progress 1 / planned 27 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 76 | implemented 37 / in_progress 1 / planned 26 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 55 | implemented 19 / planned 25 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 42 | implemented 15 / planned 20 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 18 / in_progress 1 / planned 26 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 56 | implemented 19 / in_progress 1 / planned 33 / (미기재) 3 | CONST 상수값, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -739,11 +747,14 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 ## 도메인별 주의 (상세는 각 IMPLEMENTATION.md)
 - **공통**: 위 「구현 현황」은 **ITEM 이 스스로 적은 주장**이며 코드와 대조된 값이 아니다. 대조는 `/mc-logi-implement-review` 의 몫이다.
-- **공통**: 스코프는 `.kit-scope.json` pin 이 정본이다 — 서버 `--domain` 필터는 `domain_id` 컬럼만 봐서 재현율 59% 다(이 프로젝트는 980 ITEM 중 **517건이 `domain_id` 미설정**). pin 은 `kit-export` 전수 그래프(1-hop 도메인 확장)로 판정했고 **키트와 함께 커밋**해야 다른 PC 가 같은 키트를 얻는다.
+- **공통**: 스코프는 `.kit-scope.json` pin 이 정본이다 — 서버 `--domain` 필터는 `domain_id` 컬럼만 봐서 재현율 59% 다(이 프로젝트는 1,080 ITEM 중 절반 가까이가 `domain_id` 미설정). pin 은 `kit-export` 전수 그래프(1-hop 도메인 확장)로 판정했고 **키트와 함께 커밋**해야 다른 PC 가 같은 키트를 얻는다.
+- **공통 — 미판정(`pending`) 처리 규칙 (2026-08-21 확정)**: 다운로더는 매 SYNC 마다 「그래프상 닿는데 pin 에 없는 ITEM」을 `pending` 에 채운다. 판정 기준은 `core-item-set.md` 이며 **`code_module`(MOD)·`legacy_artifact`(LEGACY)·`app_shell`(SHELL)·`navigation_tree`(NAV)·`requirement`(REQ)·`rfp_item`(RFP)은 제외 타입이라 기각**한다. 이 여섯은 기각해도 다음 SYNC 에 다시 `pending` 으로 올라오며 **그것이 정상**이다(제외 판정을 기록할 필드가 스키마에 없다). ⚠ 그럼에도 **D013·D014 키트에는 SHELL-001·NAV-001 이 이미 pin 에 들어 있다** — 과거 판정의 잔재이며 빼면 유실 위험이 있어 그대로 뒀다(축이 갈려 있음을 알고 쓸 것).
 - **공통**: 폐기(`deprecated`/`superseded`) ITEM 은 키트에 담지 않는다. 「설계 0건 단계」는 **다운로드 누락이 아니라 설계 결손**이다.
 - **`CONST` 가 대부분 도메인에서 0건인 것은 정상** — 프로젝트 전역 CONST 가 2건뿐이고 둘 다 COCO 라벨링 축이라 D004·D010 에만 들어간다.
-- **DOMAIN-006**: 활성 `erd`·`domain_event`·`diagram_sequence`·`use_case`·`acceptance`·`test_scenario` 가 **전부 0건**이다(유일 ERD-003 은 폐기). 데이터 모델·검증 근거가 설계에 없어 `schema`·`acceptance` 축 점검이 성립하지 않는다.
+- **DOMAIN-003**: 2026-08-21 SYNC 에서 시계열 건너뛰기 축 8건(`ADR-049`·`ADR-050`·`API-212`~`API-214`·`AC-049`~`AC-051`)이 pin 에 승격돼 처음 내려왔다. 그 전까지는 미판정이라 키트에 **한 건도 없었다** — 이 축을 로컬 키트로만 판정했다면 「설계에 없다」고 오판했을 구간이다.
+- **DOMAIN-006**: ⚠ **구 서술 폐기(2026-08-21)** — *"활성 `use_case`·`acceptance`·`test_scenario` 가 전부 0건"* 은 더 이상 사실이 아니다. `UC-033`·`AC-029`~`AC-031`·`TEST-006` 이 미판정 상태로 서버에만 있다가 이번 SYNC 에서 pin 승격돼 들어왔다. **여전히 0건인 것은 `erd`·`domain_event`·`diagram_sequence`** 이며(유일 ERD-003 은 폐기) 데이터 모델 축은 그대로 결손이다.
 - **DOMAIN-009 · DOMAIN-001 · DOMAIN-015**: 0건 단계가 6~10개로 많다 — 검증 축(UC/AC/TEST)이 통째로 비어 있다.
+- **DOMAIN-017**: ⚠ **구 서술 폐기(2026-08-21)** — *"implemented 1 / 자기 소속 ITEM 23건뿐"* 은 낡았다. pin 56건이고 구현 주장이 19건이며, `UC-036`·`AC-052`~`AC-054`(이관 이력 조회 축) 신설로 검증 축이 생겼다. 타도메인에서 끌어온 근거 8건(①`DFEAT-057.persists_in_tables` 와 `ERD-031` FK 가 가리키는 ERD 5건 — ERD-010·012·017·019·025 ②`ADR-048` 을 상호 인용한 ADR-042·EVT-005·UC-018)은 그대로 유지된다.
 <!-- mc-logi-kit:end -->
 
 <!-- mc-logi-screen-kit:start (자동 관리 — 직접 수정 금지, mc-logi-screen-kit 재실행 시 갱신) -->
@@ -751,14 +762,19 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
-| 도메인 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync |
+> ★ **통합 키트가 정본이다** — 도메인별 소형 키트는 화면 1~5개만 담으므로, 화면을 동기화하거나
+> 사양을 판정할 때는 **먼저 `klid-authoring-screens/`(32화면 통합)를 본다.** 소형 키트만 보면
+> 그 스코프 밖 화면의 변경이 절대 반영되지 않는다.
+
+| 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync |
 |---|---|---|---|---|
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | populated 115건 | 2026-08-11 (s4) |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | populated 100건 | 2026-08-11 (s1) |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | populated 100건 | 2026-08-11 (s1) |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | populated 100건 | 2026-08-11 (s1) |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | populated 115건 | 2026-08-11 (s2) |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | populated 115건 | 2026-08-11 (s2) |
+| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | 2026-08-21 (s20) |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-21 (s15) |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-21 (s9) |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-21 (s9) |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-21 (s9) |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-21 (s8) |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-21 (s8) |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -767,12 +783,17 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 4. **구현 완료 시** logicraft 에 IMPREC 추적 기록 (mc-logi-screen-implement Phase 5 가 수행).
 5. 작업 전 키트가 오래됐으면(`version-master.md` last sync 확인) SYNC 먼저.
 
+## 공통 주의
+- ★ **`design-main.html`/`.css` 는 서버 게시본의 미러**라 SYNC 가 서버 판으로 되돌린다. 로컬에서 미러를 고치면 SYNC 한 번에 사라지므로, 순서는 **`design.html`(로컬 원본) 수정 → `upload_design_render` 로 게시 → 미러가 따라옴** 이다. (2026-08-21 SYNC 실측: `design.*` 원본 변경 0건 · 삭제 0건.)
+- ⚠ **`SCREEN-039`(외부 산출물 이관 이력)는 어느 화면 키트에도 없다.** 통합 키트 스코프가 SCREEN-038 까지라 이번 SYNC 에서도 들어오지 않았다. 그 화면의 설계는 **`docs/design/외부-산출물-이관-DOMAIN-017/screen_spec/`** 에 있다. 통합 키트에 넣으려면 화면 폐포(소비 API·UC·AC·렌더)를 함께 승격하는 별도 SYNC 가 필요하다.
+- ⚠ `.staging/` 은 gitignore 대상이라 워크트리를 바꾸면 델타 기준선이 사라지고 **첫 SYNC 가 전건 `NEW` 로 찍힌다.** 재동기화 1회로 `UNCHANGED` 로 정착하며, 진짜 델타는 git 의 이전 `version-master.md` 와 대조해 얻는다.
+
 ## 도메인별 주의 (상세는 각 SCREENS.md §주의)
-- **DOMAIN-010**: session 3 SYNC — SCREEN-026(프리셋 관리 화면) 신규 추가. SCREEN-005 는 v59→v61 CHANGED. SCREEN-026 은 UC-032 만 연결되고 AC(수용기준) 링크·screen_design(SD) 모두 없음(logicraft 쪽 보강 여지). DOMAIN-010 소속으로 확인되는 SCREEN-010(로드 버전 선택)·SCREEN-035(라벨 관리 화면)는 이번 요청 범위 밖이라 키트에 포함하지 않음 — 필요 시 별도 SYNC. session 4 SYNC — SD-006(SCREEN-026 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영. RETIRED 없음.
-- **DOMAIN-005**: INITIAL 생성(session 1). SCREEN-019(검수 상세 화면)는 요청 시점 서버에서 stale 플래그가 있었으나 이번 다운로드가 최신값을 받아왔다. 변경 알림·RETIRED 없음.
-- **DOMAIN-015**: INITIAL 생성(session 1). SCREEN-012 은 AC(수용기준) 링크가 아직 없음(UC-029 에 covered_by 미등록) — 화면 키트 정상, logicraft 쪽 보강 여지.
-- **DOMAIN-003**: INITIAL 생성(session 1). 변경 알림·RETIRED 없음.
-- **DOMAIN-009**: INITIAL 생성(session 1). UC/AC 링크 없음(화면 4개 모두 use_case·acceptance 미연결), screen_design(SD) 없음(고충실 디자인 미작성). SCREEN-031(공지 상세 화면)은 와이어프레임 render 2건(main + delete-confirm). session 2 SYNC — SD-007/SD-010/SD-008/SD-011(SCREEN-030/031/036/037 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영 — 특히 UI-111 Badge(pinned/success/neutral)·UI-112 AttachmentList 는 이 도메인 화면에서 처음 식별된 후보. RETIRED 없음.
-- **DOMAIN-001**: INITIAL 생성(session 1). SCREEN-001·SCREEN-003·SCREEN-004(세션 인계·접근 거부·개발용 로그인)는 인증 전/셸 없는 화면이라 SHELL-001·NAV-001 미적용, consumes_apis·required_roles·UC/AC 링크 모두 없음. SCREEN-002(역할 클레임)는 API-007만 연결. SCREEN-024(사용자 관리)만 SHELL-001+NAV-001 적용 대상이며 UC-030(사용자 계정·역할 관리)이 역참조(references)로 연결(AC 없음). screen_design(SD) 없음(고충실 디자인 미작성). session 2 SYNC — SD-009(SCREEN-024 고충실 디자인) 작업 중 발견된 신규 ui_component 7종(UI-109 Avatar ~ UI-115 FieldCounter, 사용자 동의 후 등록) 반영 — 특히 UI-109 Avatar·UI-110 RoleBadge 는 이 도메인 화면에서 처음 식별된 후보. 변경 알림·RETIRED 없음.
+- **DOMAIN-010**: SCREEN-026(프리셋 관리)은 UC-032 만 연결되고 AC(수용기준) 링크·screen_design(SD) 이 없다(logicraft 쪽 보강 여지). DOMAIN-010 소속인 SCREEN-010(로드 버전 선택)·SCREEN-035(라벨 관리)는 이 소형 키트 스코프 밖이며 **통합 키트에는 있다**.
+- **DOMAIN-005**: SCREEN-018·SCREEN-019 2화면. 변경 알림·RETIRED 없음.
+- **DOMAIN-015**: SCREEN-012 는 AC(수용기준) 링크가 아직 없다(UC-029 에 covered_by 미등록) — 화면 키트는 정상이고 logicraft 쪽 보강 여지다.
+- **DOMAIN-003**: SCREEN-009 1화면. 변경 알림·RETIRED 없음.
+- **DOMAIN-009**: 화면 4개 모두 use_case·acceptance 미연결. SCREEN-031(공지 상세)은 와이어프레임 렌더 2건(main + delete-confirm)을 갖는다.
+- **DOMAIN-001**: SCREEN-001·SCREEN-003·SCREEN-004(세션 인계·접근 거부·개발용 로그인)는 인증 전이거나 셸이 없는 화면이라 SHELL-001·NAV-001 미적용이고 consumes_apis·required_roles·UC/AC 링크가 모두 없다. SCREEN-002(역할 클레임)는 API-007 만 연결된다. SCREEN-024(사용자 관리)만 SHELL-001+NAV-001 적용 대상이며 UC-030(사용자 계정·역할 관리)이 역참조로 연결된다(AC 없음).
 <!-- mc-logi-screen-kit:end -->
 

@@ -35,11 +35,13 @@
         "progress": 0,
         "subtasks": []
       },
-      "derived_domain_ids": [],
+      "derived_domain_ids": [
+        "DOMAIN-007"
+      ],
       "covered_by_features": [
         "FEAT-004"
       ],
-      "verification_method": "manual_test",
+      "verification_method": "automated_test",
       "derived_from_use_cases": [
         "UC-001",
         "UC-002"
@@ -47,12 +49,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "DFEAT-029의 data.related_acceptances 변경이 derived_from로 2-hop 전파",
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 인수기준에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이 수용기준의 시나리오 전 분기(증강 유형 화이트리스트 판정, 파생영상 등록, 원본 라벨 매핑)가 자동 검증 대상임을 반영한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:39:34.562Z",
+    "last_updated_at": "2026-08-16T23:37:42.074Z",
     "created_at": "2026-06-09T13:02:17.989Z"
   }
 }

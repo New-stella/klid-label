@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-014
 type: class_diagram
-version: 7
+version: 8
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:14.278Z
-status: NEW
-prev_version: null
-content_hash: 20bda4e8f63472d0b22ebbcb27344305a054cd30bc4a27806ff42ae16fc9dc0a
+synced_at: 2026-08-21T00:02:42.635Z
+status: CHANGED
+prev_version: 7
+content_hash: d8bf8ede21006fbdde313b32a410468a5a6c928139a69df59b8b22f7bc215bc5
 stale: false
 raw: ./_raw/CDIAG-014.json
 links:
@@ -350,7 +350,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: VLM 시계열 메타 외부 위탁 배치 단계(BatchStep, stage=VLM). vlm.client.enabled=false면 즉시 SKIPPED(NO-OP). 마킹 유무로 runWithMarking/run 분기.
+- **description**: VLM 시계열 메타 외부 위탁 배치 단계(BatchStep, stage=VLM). 검수자가 수동 스킵한 묶음이면 실행하지 않고 통과한다(연동 비활성 토글은 폐지). 마킹 유무로 runWithMarking/run 분기.
 
 **enum_values**:
 
@@ -425,7 +425,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 외부 VLM 시계열 분석 위탁 클라이언트(Outbound). 논블로킹 제출(제출만 개시하고 수락 여부는 완료 핸들러가 비동기로 기록), idempotencyKey 단일 발급, vlm.client.enabled 토글, Resilience4j Retry+CircuitBreaker, 응답 무결성 검증.
+- **description**: 외부 VLM 시계열 분석 위탁 클라이언트(Outbound). 논블로킹 제출(제출만 개시하고 수락 여부는 완료 핸들러가 비동기로 기록), idempotencyKey 단일 발급, 연동 주소 미주입 시 실패(활성화 토글 폐지), Resilience4j Retry+CircuitBreaker, 응답 무결성 검증.
 
 **enum_values**:
 

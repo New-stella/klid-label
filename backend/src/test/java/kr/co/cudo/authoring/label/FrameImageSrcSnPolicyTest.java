@@ -361,4 +361,75 @@ class FrameImageSrcSnPolicyTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isForbidden());
     }
+
+    // ---------- R4 — 외부 산출물 이관(SRC_TYPE='IMPORTED') 프레임 서빙 ----------
+
+    /**
+     * 이관 산출물 영상을 만든다. {@code createFromIngest} 와 <b>같은 조건</b>(PRVC · 비식별본 없음)이며
+     * 다른 것은 출처유형 하나뿐이라, 아래 대조 시험이 그 한 축만 분리해 본다.
+     */
+    private LsDataRaw seedImportedRaw() {
+        return rawRepository.save(LsDataRaw.createFromImport(
+                "IMPORT-" + unique + "-" + System.nanoTime(), "EVT_FALL", "1138000000",
+                LsDataRaw.PRVC_TYPE_PRVC, "/var/raw/imports/" + unique + ".mp4",
+                LocalDateTime.now(), 30, false));
+    }
+
+    @Test
+    @DisplayName("이관_프레임은_비식별본이_없어도_작업자와_검수자_모두_200이다")
+    void importedFrameServedToBothRoles() throws Exception {
+        // given — 산출물이 개인정보 포함(PRVC)으로 표기돼 왔고 우리가 만든 비식별 짝은 아직 없다.
+        //   이 조합이 정확히 기존 fail-closed 분기에 걸리는 자리이며, 막히면 검수 화면이 백지가 된다.
+        LsDataRaw raw = seedImportedRaw();
+        String rawRel = writeRawFile(raw.getRawSn(), 20);
+        LsDataSrc src = srcRepository.save(
+                LsDataSrc.createFromImport(raw.getRawSn(), 20L, 6000L, rawRel, null,
+                        LocalDateTime.now(), null, null, null));
+        assign(raw.getRawSn());
+
+        // then — 역할로 가르지 않는다(확정 정책). 둘 다 가져온 이미지를 그대로 본다.
+        assertThat(fetch(src.getSrcSn(), reviewerToken)).isEqualTo(RAW_BYTES);
+        assertThat(fetch(src.getSrcSn(), workerToken)).isEqualTo(RAW_BYTES);
+    }
+
+    @Test
+    @DisplayName("★완화는_이관_밖으로_새지_않는다_출처유형만_다른_같은_영상은_여전히_404다")
+    void relaxationDoesNotLeakOutsideImport() throws Exception {
+        // 이 시험이 이 클러스터의 <b>변이 가드</b>다 — 두 영상은 개인정보유형·비식별본 부재·파일 배치가
+        //   전부 같고 <b>출처유형 하나만</b> 다르다. 서빙 분기를 상수 true 로 바꾸거나 판정축을
+        //   PRVC_TYPE_CD 로 옮기면 아래 404 단언이 깨진다.
+        LsDataRaw imported = seedImportedRaw();
+        String importedRel = writeRawFile(imported.getRawSn(), 21);
+        LsDataSrc importedSrc = srcRepository.save(
+                LsDataSrc.createFromImport(imported.getRawSn(), 21L, 6300L, importedRel, null,
+                        LocalDateTime.now(), null, null, null));
+
+        LsDataRaw ingested = seedRaw(LsDataRaw.PRVC_TYPE_PRVC);
+        String ingestedRel = writeRawFile(ingested.getRawSn(), 21);
+        LsDataSrc ingestedSrc = srcRepository.save(
+                LsDataSrc.create(ingested.getRawSn(), 21, ingestedRel, LocalDateTime.now()));
+
+        assertThat(fetch(importedSrc.getSrcSn(), reviewerToken)).isEqualTo(RAW_BYTES);
+
+        mockMvc.perform(get("/v1/frames/" + ingestedSrc.getSrcSn() + "/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("이관_프레임도_비식별_누락_신고_구간에서는_서빙_이전에_막힌다")
+    void importedFrameStillBlockedUnderDeidentReport() throws Exception {
+        // 이 완화는 신고 게이트를 뚫지 않는다 — 게이트는 조회 전담 빈에서 <b>이 분기보다 앞</b>에 있다.
+        LsDataRaw raw = seedImportedRaw();
+        raw.markDeidentified("F");
+        rawRepository.save(raw);
+        String rawRel = writeRawFile(raw.getRawSn(), 22);
+        LsDataSrc src = srcRepository.save(
+                LsDataSrc.createFromImport(raw.getRawSn(), 22L, 6600L, rawRel, null,
+                        LocalDateTime.now(), null, null, null));
+
+        mockMvc.perform(get("/v1/frames/" + src.getSrcSn() + "/image")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isPreconditionFailed());
+    }
 }

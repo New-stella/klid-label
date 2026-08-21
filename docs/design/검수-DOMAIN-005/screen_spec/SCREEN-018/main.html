@@ -30,7 +30,7 @@
         <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
-        <div class="wf-card"><h3 class="wf-card-title">검수 대기</h3></div><span class="wf-help">status=REVIEW_PENDING 건수</span>
+        <div class="wf-card"><h3 class="wf-card-title">검수요청</h3></div><span class="wf-help">status=REVIEW_PENDING 건수</span>
         <div class="wf-card"><h3 class="wf-card-title">검수중</h3></div><span class="wf-help">status=REVIEWING 건수</span>
         <div class="wf-card"><h3 class="wf-card-title">승인</h3></div><span class="wf-help">status=COMPLETED 건수</span>
         <div class="wf-card"><h3 class="wf-card-title">반려</h3></div><span class="wf-help">status=REJECTED 건수</span>
@@ -45,7 +45,7 @@
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <div class="wf-field"><label class="wf-label">영상명 / 작업자명</label><input class="wf-input" placeholder="검색어를 입력하세요" /></div>
-        <div class="wf-field"><label class="wf-label">상태</label><select class="wf-select"><option>전체</option><option>검수 대기</option><option>검수중</option><option>승인</option><option>반려</option></select></div>
+        <div class="wf-field"><label class="wf-label">상태</label><select class="wf-select"><option>전체</option><option>검수요청</option><option>검수중</option><option>승인</option><option>반려</option></select></div>
         <button class="wf-btn wf-btn-primary">조회</button>
         <button class="wf-btn wf-btn-ghost">초기화</button><span class="wf-help">필터 활성 시에만 enabled</span>
       </div>
@@ -68,6 +68,7 @@
             <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div><span class="wf-help">onPageChange → URL page 갱신</span>
             <span class="wf-muted">RefreshingNotice</span>
             <span class="wf-badge">재검토 필요</span><span class="wf-help">needsRecheck=true 인 영상의 상태 셀에 StatusBadge와 나란히 표시한다. 색상만으로 구분하지 않고 '재검토 필요' 텍스트를 함께 표시한다. 필터·정렬 축은 추가하지 않는다(표시 전용).</span>
+            <span class="wf-badge">승인 불가 (비식별 완료 전)</span><span class="wf-help">비식별이 아직 완료되지 않아 승인이 거부되는 영상의 상태 셀에 검수 상태 배지와 나란히 표시한다. 색상만으로 구분하지 않고 승인이 막혔다는 사실과 그 사유를 텍스트로 함께 표시한다. 막히는 것은 승인 하나뿐이므로 행 액션 버튼은 비활성으로 두지 않는다. 재검토 필요 배지와는 다른 축이라…</span>
           </div>
         </div>
       </div>
@@ -88,7 +89,7 @@
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 검수 현황 KPI</h3>
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>KPI 4카드(검수 대기/검수중/승인/반려)는 GET /v1/reviews/summary(API-138) 서버 집계로 필터 결과 전체 기준이며 현재 페이지 20건 안에서 세지 않는다. 카드에 장식 아이콘을 두지 않는다 — 지표명과 값 텍스트가 카드의 정보를 모두 전달한다. 로딩/에러/정상 3상태 분기, 집계 실패해도 목록 표시는 막지 않는다. 카드 클릭은 status 필터를 토글(같은 카드 재클릭 시 해제=전체).</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(검수 대기)<p class="wf-help" style="margin:2px 0 0">status=REVIEW_PENDING 건수</p></li><li>Card(검수중)<p class="wf-help" style="margin:2px 0 0">status=REVIEWING 건수</p></li><li>Card(승인)<p class="wf-help" style="margin:2px 0 0">status=COMPLETED 건수</p></li><li>Card(반려)<p class="wf-help" style="margin:2px 0 0">status=REJECTED 건수</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(검수요청)<p class="wf-help" style="margin:2px 0 0">status=REVIEW_PENDING 건수</p></li><li>Card(검수중)<p class="wf-help" style="margin:2px 0 0">status=REVIEWING 건수</p></li><li>Card(승인)<p class="wf-help" style="margin:2px 0 0">status=COMPLETED 건수</p></li><li>Card(반려)<p class="wf-help" style="margin:2px 0 0">status=REJECTED 건수</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-138</li></ul></div>
     </div>
   </div>
@@ -106,8 +107,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">④ 검수 목록 테이블</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>DataTable로 검수 대상 영상을 페이징 표시. 컬럼: 영상명(+video-NNNN id)/이벤트(EventTypeBadge)/작업자/제출일(정렬 가능, BE allowlist 유일 sortable 컬럼)/라벨 수(좌정렬)/상태(StatusBadge, sortable 미노출 — 진입 기본화면은 상태가 한 종류로 수렴해 1차 정렬이 무효화되고 FIFO 의미가 깨질 수 있어 의도적으로 제외)/액션. 행 액션 버튼은 상태별로 라벨·스타일 분기(REVIEW_PENDING=검수 시작 primary / REVIEWING=이어서 검수 / 그 외=결과 보기), 클릭 시 /review/{id} 이동. 서버 페이징(page/size/sort은 URL searchParams)+정렬 변경 시 page=0 리셋. 에러 시 ErrorState, 빈 목록 시 안내. 필터·정렬·페이지 전환 중에는 새 결과가 도착하기 전까지 이전 조건의 행을 그대로 유지하며 '갱신 중' 안내를 함께 표시해 과도기 상태임을 알려준다. 총 페이지 수가 줄어 현재 페이지가 범위를 벗어나면 자동으로 마지막 페이지로 되돌린다. 상태 셀에는 재검토 필요(needsRecheck=true) 영상을 별도로 식별할 수 있는 배지를 StatusBadge와 나란히 표시한다 — 색상만으로 구분하지 않고 '재검토 필요' 텍스트를 함께 표시한다. 이 배지는 표시 전용이며 별도의 필터·정렬 축을 추가하지 않는다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(검수 목록)</li><li>Badge(이벤트 유형)<p class="wf-help" style="margin:2px 0 0">EventTypeBadge — eventName 없으면 -</p></li><li>Badge(상태)<p class="wf-help" style="margin:2px 0 0">StatusBadge — REVIEW_PENDING/REVIEWING/COMPLETED/REJECTED</p></li><li>Button(검수 시작 / 이어서 검수 / 결과 보기)<p class="wf-help" style="margin:2px 0 0">상태별 라벨·variant 분기, /review/{id} 이동</p></li><li>Pagination(페이지네이션)<p class="wf-help" style="margin:2px 0 0">onPageChange → URL page 갱신</p></li><li>Custom(갱신 중 안내(이전 결과 표시))</li><li>Badge(재검토 필요)<p class="wf-help" style="margin:2px 0 0">needsRecheck=true 인 영상의 상태 셀에 StatusBadge와 나란히 표시한다. 색상만으로 구분하지 않고 '재검토 필요' 텍스트를 함께 표시한다. 필터·정렬 축은 추가하지 않는다(표시 전용).</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>DataTable로 검수 대상 영상을 페이징 표시. 컬럼: 영상명(+video-NNNN id)/이벤트(EventTypeBadge)/작업자/제출일(정렬 가능, BE allowlist 유일 sortable 컬럼)/라벨 수(좌정렬)/상태(StatusBadge, sortable 미노출 — 진입 기본화면은 상태가 한 종류로 수렴해 1차 정렬이 무효화되고 FIFO 의미가 깨질 수 있어 의도적으로 제외)/액션. 행 액션 버튼은 상태별로 라벨·스타일 분기(REVIEW_PENDING=검수 시작 primary / REVIEWING=이어서 검수 / 그 외=결과 보기), 클릭 시 /review/{id} 이동. 서버 페이징(page/size/sort은 URL searchParams)+정렬 변경 시 page=0 리셋. 에러 시 ErrorState, 빈 목록 시 안내. 필터·정렬·페이지 전환 중에는 새 결과가 도착하기 전까지 이전 조건의 행을 그대로 유지하며 '갱신 중' 안내를 함께 표시해 과도기 상태임을 알려준다. 총 페이지 수가 줄어 현재 페이지가 범위를 벗어나면 자동으로 마지막 페이지로 되돌린다. 상태 셀에는 재검토 필요(needsRecheck=true) 영상을 별도로 식별할 수 있는 배지를 StatusBadge와 나란히 표시한다 — 색상만으로 구분하지 않고 '재검토 필요' 텍스트를 함께 표시한다. 이 배지는 표시 전용이며 별도의 필터·정렬 축을 추가하지 않는다. 비식별이 아직 완료되지 않아 승인이 거부되는 영상은 상태 셀에 그 사실을 알리는 배지를 함께 표시해 목록에서 미리 구분한다 — 열어 본 뒤에야 승인이 막힌 것을 알게 되는 동선을 만들지 않는다. 막히는 것은 승인 하나뿐이므로 행 액션 버튼은 그대로 두어 검수 착수·라벨 확인·프레임 열람이 가능함을 함께 드러낸다. 재검토 필요 배지와는 다른 축이라 하나로 합치지 않으며, 이 배지도 표시 전용이라 필터·정렬 축을 추가하지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(검수 목록)</li><li>Badge(이벤트 유형)<p class="wf-help" style="margin:2px 0 0">EventTypeBadge — eventName 없으면 -</p></li><li>Badge(상태)<p class="wf-help" style="margin:2px 0 0">StatusBadge — REVIEW_PENDING/REVIEWING/COMPLETED/REJECTED</p></li><li>Button(검수 시작 / 이어서 검수 / 결과 보기)<p class="wf-help" style="margin:2px 0 0">상태별 라벨·variant 분기, /review/{id} 이동</p></li><li>Pagination(페이지네이션)<p class="wf-help" style="margin:2px 0 0">onPageChange → URL page 갱신</p></li><li>Custom(갱신 중 안내(이전 결과 표시))</li><li>Badge(재검토 필요)<p class="wf-help" style="margin:2px 0 0">needsRecheck=true 인 영상의 상태 셀에 StatusBadge와 나란히 표시한다. 색상만으로 구분하지 않고 '재검토 필요' 텍스트를 함께 표시한다. 필터·정렬 축은 추가하지 않는다(표시 전용).</p></li><li>Badge(승인 불가 (비식별 완료 전))<p class="wf-help" style="margin:2px 0 0">비식별이 아직 완료되지 않아 승인이 거부되는 영상의 상태 셀에 검수 상태 배지와 나란히 표시한다. 색상만으로 구분하지 않고 승인이 막혔다는 사실과 그 사유를 텍스트로 함께 표시한다. 막히는 것은 승인 하나뿐이므로 행 액션 버튼은 비활성으로 두지 않는다. 재검토 필요 배지와는 다른 축이라 하나로 합치지 않는다. 필터·정렬 축은 추가하지 않는다(표시 전용).</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-008</li></ul></div>
     </div>
   </div>

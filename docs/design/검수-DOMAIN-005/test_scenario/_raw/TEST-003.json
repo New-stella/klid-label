@@ -84,12 +84,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 14,
+    "current_version": 15,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "change_summary": "전파 확인 — 이 시나리오는 증강 결과의 채택·등재 축을 검증하며 요청 접수 거부 순서를 검증하지 않는다. 미연동 거부·게이트 순서 서술이 본문에 없다. 바꿀 내용 없음.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:23.099Z",
+    "last_updated_at": "2026-08-19T18:29:01.449Z",
     "created_at": "2026-07-06T03:56:02.972Z"
   }
 }

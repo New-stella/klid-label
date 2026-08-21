@@ -1,13 +1,13 @@
 ---
 logicraft_item: DOMAIN-016
 type: domain
-version: 10
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.378Z
-status: NEW
-prev_version: null
-content_hash: 8cab87c66d3b2a736722b0913c65d172dabe20b47a55b03aaef61b845b697920
+synced_at: 2026-08-21T00:02:56.123Z
+status: CHANGED
+prev_version: 10
+content_hash: 855a730f53306d74a7e46182270258c72d89d451f23e6803962f323e12128151
 stale: false
 raw: ./_raw/DOMAIN-016.json
 links:
@@ -55,6 +55,8 @@ ADR-007
 [관제 조회 패턴] 관제는 통지를 받은 뒤 RAW_SN 으로 데이터마트 적재용 View 를 SELECT 해 영상 1건=1row 로 UPSERT 한다. 현재 4종: V_COMPLETED_VIDEO(영상메타 + export 폴더 경로·프레임수) · V_COMPLETED_FRAME(원본/비식별 페어) · V_COMPLETED_LABEL_CHANGE(라벨 변경점) · V_COMPLETED_META(시계열 메타). ★라벨 본문 뷰는 V114(ADR-037)에서 제거됐다 — 라벨 좌표·속성은 export 폴더 JSON 에 있으므로 뷰로 중복 노출하지 않는다. 이는 관제 연동 계약 변경이라 협의 대상이다.
 
 [★파생영상 픽업 경로] ORGNL_RAW_SN 이 non-null 인 행은 메타 동결 시 원본경로가 null 로 동결되어 V_COMPLETED_VIDEO.ORGNL_VDO_PATH_NM(개명 전 ORIGINAL_VIDEO_PATH) 가 NULL 이다. 파생은 '원본영상'이 없고 비식별본만 있기 때문이며, 관제는 DE_IDNTF_FILE_PATH_NM(V138)으로 픽업한다. 또 파생의 video.* 기술메타가 부모와 같은 것은 정상이다 — 증강·해상도 모두 비디오를 재인코딩하지 않고 복사하며 변환 대상은 프레임 이미지뿐이다(RESL 은 비디오 파일 기준이지 해상도 파생의 목표값이 아니다 — 관제에 명시 필요).
+
+[★프레임만 이관한 원본 픽업 경로] 프레임만 이관한 원본은 V_COMPLETED_VIDEO.DE_IDNTF_YN 이 미수행으로 나가고 DE_IDNTF_FILE_PATH_NM 도 빈 값일 수 있다 — 비식별할 영상 자체가 없으므로 그것이 사실이며, 비식별의 실체는 프레임 축에 있다. 승인된 영상이므로 뷰에서 감추거나 비우지 않는다. 관제는 이 조합을 결함으로 보지 않아야 하며, 해석을 바꾸려면 협의가 선행된다(관제 협의 대상). 이 예외의 근거 결정은 ADR-023 이 소유한다.
 
 [★검수 완료·통지 건의 관제 접근은 무조건 보장] 승인되어 통지된 영상은 어떤 사유로도 뷰에서 감추거나 경로를 비우지 않는다. 비식별 누락 신고 구간에도 마찬가지다 — 관제가 보던 행이 예고 없이 사라지면 관제 배치가 삭제로 오인하기 때문이다. 즉 신고 게이트는 저작도구 앱 내부 통로에만 적용되고 관제 경계(뷰·통지)에는 적용되지 않는다 — 의도된 설계이므로 '잔여 누수'로 재분류해 다시 고치려 들지 말 것. ⚠ 승인 이력이 있는 영상은 신고 접수 자체가 412 로 막히므로 신고 접수 시 TASK_MODIFIED 를 발행하던 구 분기는 도달 불가가 됐다.
 

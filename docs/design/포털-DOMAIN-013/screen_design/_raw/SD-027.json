@@ -18,7 +18,7 @@
           "label": "포털 업로드 라벨링 화면 — 고충실 디자인",
           "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-027/main.css",
           "surface": "page",
-          "uploaded_at": "2026-08-13T23:34:51.679Z",
+          "uploaded_at": "2026-08-18T03:25:26.283Z",
           "uploaded_by": "claude-screen-design"
         }
       ],
@@ -32,12 +32,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": false,
-    "stale_reason": null,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "SCREEN-034의 data.sections 변경 — designs",
     "change_summary": "디자인 화면 업로드 (main, page) +css",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T23:34:51.679Z",
+    "last_updated_at": "2026-08-18T03:25:26.283Z",
     "created_at": "2026-08-13T23:34:51.596Z"
   }
 }

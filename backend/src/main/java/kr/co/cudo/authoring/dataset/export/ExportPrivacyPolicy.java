@@ -85,6 +85,88 @@ package kr.co.cudo.authoring.dataset.export;
  */
 public final class ExportPrivacyPolicy {
 
+    // ---------------------------------------------------------------- 이관 경로 원천 축 (DOMAIN-017)
+
+    /**
+     * 외부 산출물 이관({@code SRC_TYPE='IMPORTED'})의 <b>원천 축 익명정보 포함여부</b>가 보관되는
+     * 메타 열쇠.
+     *
+     * <h3>왜 메타에 두는가</h3>
+     * <p>원천 축 3필드의 착지 컬럼은 <b>관제 수신 원장</b>({@code LS_DATA_INGEST.*_INCL_YN}) 하나뿐인데,
+     * 이관 경로는 그 원장을 <b>거치지 않는다</b>(ADR-048 — 저작도구가 자기 판단으로 수신 원장에 행을
+     * 넣으면 그 원장이 더 이상 "관제가 보낸 것"을 뜻하지 않게 된다). 그래서 산출물이 준 원문을
+     * {@code LS_DATA_META} 에 보관하고 산출 시점에 이 축이 그것을 읽는다. 새 컬럼을 만들지 않는 이유도
+     * 같다 — 인입 축과 이관 축이 서로 다른 컬럼을 가지면 원천 판정 자리가 둘이 된다.
+     *
+     * <p>열쇠 문자열을 <b>읽는 쪽인 여기</b>에 두는 것은 의도다. 쓰는 쪽(이관)과 읽는 쪽(산출)에 각각
+     * 선언하면 같은 문자열이 두 벌이 되어, 한쪽만 바뀌면 값이 조용히 사라진다.
+     */
+    public static final String IMPORT_SOURCE_ANONYMITY_KEY = "import.video.anonymity";
+    /** @see #IMPORT_SOURCE_ANONYMITY_KEY */
+    public static final String IMPORT_SOURCE_PSEUDONYMITY_KEY = "import.video.pseudonymity";
+    /** @see #IMPORT_SOURCE_ANONYMITY_KEY */
+    public static final String IMPORT_SOURCE_PRIVACY_INCLUDED_KEY = "import.video.privacy_included";
+
+    /**
+     * 이관 경로의 <b>원천 축 조달</b> — 관제 인입값 대신 메타에 보관된 산출물 원문을 싣는다.
+     *
+     * <p>돌려주는 값은 {@code sourceExists=true} 다. 이관 영상은 파생영상이 아니라 <b>원천 영상 자체</b>가
+     * 있는 경우이므로, {@code image} 블록의 원천 상수({@link #ORGNL_DEFAULT_ANONYMITY} 등)도 종전대로
+     * 실려야 한다. 여기서 {@link SourcePrivacyMeta#NONE} 을 돌려주면 {@code image} 블록이 통째로
+     * {@code null} 이 되어 <b>파생영상과 구분되지 않는다</b>.
+     *
+     * <p>세 값이 모두 {@code null} 이어도 {@code true} 다 — "산출물이 그 값을 안 줬다"와 "원천이 아예
+     * 없다"는 다른 사실이고, 앞의 경우에도 값을 지어내지 않는다.
+     *
+     * <p>⚠ 산출물은 <b>프레임 축</b> 3필드도 함께 준다. 그 값은 이 <b>원천 축</b> 판정에 쓰지 않는다 —
+     * 확인한 표본에서 프레임 축 값이 비식별 축 기본값과 같은 모양이라, 원천 축에 실으면 "원천 영상인데
+     * 익명처리를 거쳤다"는 성립할 수 없는 산출이 나온다. 프레임 축 값이 어디에 착지하는지는
+     * {@link #importedFrameValuesLandOnDeidentAxis(boolean)} 이 단독으로 정한다.
+     *
+     * @param anonyInclYn     보관된 {@code video.anonymity} 원문(없으면 {@code null})
+     * @param psdoInclYn      보관된 {@code video.pseudonymity} 원문
+     * @param prvcInclYn      보관된 {@code video.privacy_included} 원문
+     * @design DOMAIN-017
+     * @design DFEAT-057
+     * @design ADR-048
+     */
+    public static SourcePrivacyMeta importedSource(String anonyInclYn, String psdoInclYn,
+                                                   String prvcInclYn) {
+        return SourcePrivacyMeta.ofImport(anonyInclYn, psdoInclYn, prvcInclYn);
+    }
+
+    /**
+     * 이관 산출물이 <b>프레임마다 준</b> 익명·가명·개인정보 포함여부가 우리 <b>비식별 축 컬럼</b>
+     * ({@code LS_DATA_SRC.ANONY_INCL_YN}·{@code PSDO_INCL_YN}·{@code PRVC_INCL_YN})에 착지하는가 —
+     * <b>이 분기의 단독 소유 지점</b>이다(ERD-031 프레임 행 절).
+     *
+     * <h3>왜 축이 갈리는가</h3>
+     * <ul>
+     *   <li><b>비식별이 끝난 것으로 지정해 가져온 경우</b> — 그 판정은 이미 비식별을 마친 화면에 대한
+     *       것이라 우리 비식별 축과 뜻이 같다. 그래서 컬럼에 그대로 적재하고, 산출 시점에는
+     *       {@link #resolveImageAnonymity} 등의 비식별 분기가 <b>수동값 자리</b>로 그것을 읽는다.</li>
+     *   <li><b>원본이라고 지정해 가져온 경우</b> — 그 판정은 <b>원천 축</b>의 사실인데, 프레임 축 원천에는
+     *       착지 컬럼이 없다(이 클래스의 §"프레임 축에 DB 컬럼을 만들지 않는 이유" 참조 — 컬럼이 한 벌인데
+     *       두 축이 공유해, 원천값을 그 자리에 넣으면 비식별의 "미입력"이 사라져 비식별 산출값이 뒤집힌다).
+     *       그래서 컬럼에 넣지 않고 메타에 원문으로 보관한다.</li>
+     * </ul>
+     *
+     * <h3>판정을 여기 한 곳에만 두는 이유</h3>
+     * <p>이 저장소는 개인정보 3필드의 판정·상수를 복제했다가 <b>화면이 보는 값과 산출물에 실리는 값이
+     * 갈린</b> 사고를 이미 겪었다(2026-08-03). 착지 자리 분기도 같은 축의 판정이므로 이관 쪽에 다시
+     * 적지 않고 이 메서드를 부른다 — 한쪽만 바뀌면 값이 조용히 어긋난다.
+     *
+     * <p>⚠ 이 판정은 <b>어느 자리에 담는가</b>만 정한다. 값 자체는 산출물이 준 것을 그대로 쓰며, 없거나
+     * 우리 저장 형식으로 옮길 수 없는 값은 지어내지 않고 <b>적재 기본값</b>을 따른다(ERD-031).
+     *
+     * @param importedAsDeidentified 가져올 때 사람이 지정한 값 — 참이면 비식별 완료본
+     * @design DOMAIN-017
+     * @design ERD-031
+     */
+    public static boolean importedFrameValuesLandOnDeidentAxis(boolean importedAsDeidentified) {
+        return importedAsDeidentified;
+    }
+
     /** 비식별 산출물 기본값 — 익명정보 포함여부. 수동 판정이 없을 때만 적용. */
     public static final String DEID_DEFAULT_ANONYMITY = "Y";
     /** 비식별 산출물 기본값 — 가명정보 포함여부. */

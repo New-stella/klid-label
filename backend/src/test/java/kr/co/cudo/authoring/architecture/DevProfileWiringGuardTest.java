@@ -301,13 +301,18 @@ class DevProfileWiringGuardTest {
         //   selfFillPropertyIsGone 만 뒤집고 이 줄을 놓쳐 실제로 깨져 있었다).
         //   그래서 판정을 뒤집는다 — <없거나(기본값 false 상속), 있다면 결코 true 일 수 없어야 한다>.
         //   단언을 지우면 누가 DEIDENTIFY_MOCK_MODE=true 를 넣어도 아무도 막지 못한다.
-        Object selfFillEnv = yamlValue(BASE_COMPOSE, backendEnv + "DEIDENTIFY_MOCK_MODE");
-        if (selfFillEnv != null) {
-            assertThat(String.valueOf(selfFillEnv))
-                    .as("compose 가 내부 self-fill 을 켜면 안 된다 — 폐지된 경로라 되살아나면 "
-                            + "조용히 무시되는 죽은 설정이거나, 구현과 함께 부활한 것이다")
-                    .doesNotContain("true")
-                    .contains("false");
+        //   ★ 검사 범위는 base + local override 두 파일이다 — base 만 보면 docker-compose.local.yml
+        //     에서만 되살리는 우회가 그대로 통과한다(local 은 base 를 덮어쓰므로 실제로 켜진다).
+        for (Path compose : List.of(BASE_COMPOSE, LOCAL_COMPOSE)) {
+            Object selfFillEnv = yamlValue(compose, backendEnv + "DEIDENTIFY_MOCK_MODE");
+            if (selfFillEnv != null) {
+                assertThat(String.valueOf(selfFillEnv))
+                        .as("%s 가 내부 self-fill 을 켜면 안 된다 — 폐지된 경로라 되살아나면 "
+                                + "조용히 무시되는 죽은 설정이거나, 구현과 함께 부활한 것이다",
+                                compose.getFileName())
+                        .doesNotContain("true")
+                        .contains("false");
+            }
         }
         assertThat(String.valueOf(yamlValue(BASE_COMPOSE, backendEnv + "KPST_DEID_BASE_URL")))
                 .contains("klid-mock-server:9400");

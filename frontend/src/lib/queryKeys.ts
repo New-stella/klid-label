@@ -196,3 +196,20 @@ export const EVENT_TYPE_KEYS = {
   options: () => [...EVENT_TYPE_KEYS.all, 'options'] as const,
   labels: () => [...EVENT_TYPE_KEYS.all, 'labels'] as const,
 };
+
+/**
+ * 외부 산출물 이관(DOMAIN-017) — BE `/v1/imports`, `/v1/import-mappings`.
+ *
+ * 이력·대응 두 축을 한 뿌리(`all`) 아래 둔다 — 적재가 성공하면 이력이 늘고, 대응을 확정하면
+ * 다음 검사 결과가 달라지므로 두 축이 서로의 갱신 대상이 된다.
+ */
+export const IMPORT_KEYS = {
+  all: ['imports'] as const,
+  historyLists: () => [...IMPORT_KEYS.all, 'history'] as const,
+  historyList: (params: Record<string, unknown>) =>
+    [...IMPORT_KEYS.historyLists(), params] as const,
+  historyDetail: (trnsfSn: number) => [...IMPORT_KEYS.all, 'history', 'detail', trnsfSn] as const,
+  mappingLists: () => [...IMPORT_KEYS.all, 'mappings'] as const,
+  mappingList: (params: Record<string, unknown>) =>
+    [...IMPORT_KEYS.mappingLists(), params] as const,
+};

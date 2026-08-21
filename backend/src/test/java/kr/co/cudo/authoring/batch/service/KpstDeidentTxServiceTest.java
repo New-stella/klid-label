@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.batch.service;
 
+import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
+import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.auth.service.WorkLockService;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
@@ -63,6 +65,8 @@ class KpstDeidentTxServiceTest {
     private WorkLockService workLockService;
     private DeidentFrameAttacher deidentFrameAttacher;
     private StreamMetaCacheEvictor streamMetaCacheEvictor;
+    private LsRawDataStatusRepository rawDataStatusRepository;
+    private DeidentApprovalHoldReleaser deidentApprovalHoldReleaser;
     private KpstDeidentTxService tx;
 
     @BeforeEach
@@ -74,9 +78,13 @@ class KpstDeidentTxServiceTest {
         workLockService = mock(WorkLockService.class);
         deidentFrameAttacher = mock(DeidentFrameAttacher.class);
         streamMetaCacheEvictor = mock(StreamMetaCacheEvictor.class);
+        rawDataStatusRepository = mock(LsRawDataStatusRepository.class);
+        // 해제기는 mock 이 아니라 실물이다 — 기존 완료 경로 테스트가 "보류 해제가 기존 영상에 아무
+        //   부작용을 만들지 않는다"를 그대로 통과해야 회귀 가드가 성립한다.
+        deidentApprovalHoldReleaser = new DeidentApprovalHoldReleaser(rawDataStatusRepository);
         tx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                streamMetaCacheEvictor);
+                streamMetaCacheEvictor, deidentApprovalHoldReleaser);
         // B-ISSUE-82 — 완료 처리는 조건부 UPDATE 클레임(1행)을 얻은 호출만 진행한다. 단위 테스트의
         // 기본은 "이 호출이 선점에 성공" 이며, 중복 완료(0행) 시나리오는 개별 테스트가 재정의한다.
         when(procLogRepository.claimDownloadCompletion(anyLong(), anyString(), any(LocalDateTime.class)))
@@ -193,7 +201,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager));
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
 
         LsDeidentProcLog p = submitted();
         LsDataRaw raw = newRaw();
@@ -227,7 +235,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager));
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
         LsDeidentProcLog p = redeidentSubmitted();
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -258,7 +266,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager));
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
         LsDeidentProcLog p = redeidentSubmitted();
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -293,7 +301,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager));
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
         LsDeidentProcLog p = submitted(); // REQ_KIND null = 배치 경로
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -611,6 +619,60 @@ class KpstDeidentTxServiceTest {
         // 이미 'Y'로 캐시된 rawSn 이 새 경로로 바뀌면 TTL 동안 옛 경로가 서빙된다(해상도 백필과 동일 결함).
         // 캐시 미스일 때 evict 는 no-op 이므로 최초 완료 경로에 부작용이 없다.
         verify(streamMetaCacheEvictor, times(1)).evictAfterCommit(9001L);
+    }
+
+    // ------------------------------------------------------------ 승인 보류 해제 (ADR-048)
+
+    @Test
+    @DisplayName("배치_비식별완료_트랜잭션이_이관원본의_검수승인_보류를_함께_푼다")
+    void batchCompletionReleasesApprovalHold() {
+        // given — 이관 원본이라 승인 보류가 서 있는 작업 상태 행.
+        LsDataRaw raw = newRaw();
+        LsRawDataStatus held = LsRawDataStatus.initial(9001L);
+        held.markDeidentNotCompleted();
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        when(rawDataStatusRepository.findById(9001L)).thenReturn(Optional.of(held));
+
+        // when — 저작도구가 태운 비식별이 성공으로 기록된다.
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+        // then — 성공의 정의(Y + MARKING_READY)와 보류 해제가 같은 지점에서 함께 일어난다.
+        assertThat(raw.getDeIdntfYn()).isEqualTo("Y");
+        assertThat(raw.getDataSttsCd()).isEqualTo(LsDataRaw.DATA_STTS_MARKING_READY);
+        assertThat(held.isDeidentCompleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("산출물이_유효하지_않으면_보류를_풀지_않는다_거짓완료_차단")
+    void invalidArtifactKeepsApprovalHold() {
+        LsDataRaw raw = newRaw();
+        LsRawDataStatus held = LsRawDataStatus.initial(9001L);
+        held.markDeidentNotCompleted();
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        when(rawDataStatusRepository.findById(9001L)).thenReturn(Optional.of(held));
+
+        assertThatThrownBy(() -> tx.finishDownloadAndComplete(
+                9001L, 1L, 202L, tmp.resolve("no-such-artifact.mp4").toString()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        assertThat(held.isDeidentCompleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("재비식별_완료경로는_승인보류_축을_건드리지_않는다_검수완료_영상_전용")
+    void redeidentCompletionDoesNotTouchApprovalHold() {
+        // 재비식별은 검수완료(APPROVED) 영상 전용이라 승인 보류가 서 있을 수 없다(보류 중이면 승인
+        //   자체가 412 로 막힌다). 그 경로가 이 축을 조회조차 하지 않는 것이 의도다.
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+        verify(rawDataStatusRepository, never()).findById(anyLong());
     }
 
     /** 운영과 동일한 캐시 스펙(CacheConfig)으로 실제 Caffeine 캐시매니저를 만든다(초기화 포함). */

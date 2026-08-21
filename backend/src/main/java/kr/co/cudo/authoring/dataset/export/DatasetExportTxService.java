@@ -151,7 +151,6 @@ public class DatasetExportTxService {
         // ★ 파생영상에서도 조회한다 — event_id 는 부모 인입값이 그대로 유효하다(IngestSourceLink 의
         //   "두 갈래" 규칙: 개인정보 3필드만 원본 한정이고 나머지 인입값은 파생에도 유효).
         IngestSourceRow ingest = ingestSourceRepository.findSourceMeta(rawSn);
-        SourcePrivacyMeta srcPrivacy = resolveSourcePrivacy(raw, ingest);
         String ingestEvntId = (ingest == null) ? null : ingest.getEvntId();
 
         // video.vd_description(@req R10) — 조달 규칙의 단일 소유자는 VlmDescriptionPolicy 다(복제 금지).
@@ -165,6 +164,10 @@ public class DatasetExportTxService {
         //   조회는 rawSn 단위 1회(N+1 없음). 전량 로드지만 벤더 계약상 콜백당 ≤500 세그먼트 ·
         //   META_VL ≤2000자로 상한이 있고, 이 경로는 @Async 산출 전용이라 응답 지연 축이 아니다.
         List<LsDataMeta> dataMetas = metaRepository.findByRawSn(rawSn);
+        // ★ 원천 축 조달은 <b>메타 로드 뒤</b>다 — 외부 산출물 이관 영상은 관제 인입 행이 없어 그 값이
+        //   메타에 원문 보관돼 있기 때문이다(ADR-048). 순서를 되돌리면 이관 영상의 원천 3필드가
+        //   전부 null 로 산출된다.
+        SourcePrivacyMeta srcPrivacy = resolveSourcePrivacy(raw, ingest, dataMetas);
         String vdDescription = VlmDescriptionPolicy.resolve(dataMetas);
         // 콘텐츠 해시는 라벨뿐 아니라 산출 JSON 에 직렬화되는 프레임(frmExpln 등)·영상 메타
         // (prvcTypeCd/prvcYn·해상도 등)·원천 축 개인정보·VLM 서술까지 반영한다 — frmExpln/개인정보/
@@ -371,12 +374,40 @@ public class DatasetExportTxService {
      * "원천 영상은 있지만 관제가 판정을 안 보냈다"는 뜻이라 {@code ofIngest(null,null,null)} 이
      * 정확하다({@code NONE} 과 달리 {@code image} 블록 상수는 그대로 실린다).
      */
-    private static SourcePrivacyMeta resolveSourcePrivacy(LsDataRaw raw, IngestSourceRow ingest) {
-        if (raw == null || raw.getOrgnlRawSn() != null || ingest == null) {
+    private static SourcePrivacyMeta resolveSourcePrivacy(LsDataRaw raw, IngestSourceRow ingest,
+                                                          List<LsDataMeta> dataMetas) {
+        if (raw == null || raw.getOrgnlRawSn() != null) {
+            return SourcePrivacyMeta.NONE;
+        }
+        if (LsDataRaw.SRC_TYPE_IMPORTED.equals(raw.getSrcType())) {
+            // 외부 산출물 이관(ADR-048) — 관제 수신 원장을 거치지 않으므로 인입 행이 <b>구조적으로
+            //   존재하지 않는다</b>. 그 결손을 "원천 없음"으로 읽으면 image 블록의 원천 상수까지 함께
+            //   빠져 파생영상과 구분되지 않으므로, 산출물이 준 원문을 보관한 메타에서 조달한다.
+            //   판정 규칙의 소유자는 ExportPrivacyPolicy 한 곳이다(여기서 재유도하지 않는다).
+            return ExportPrivacyPolicy.importedSource(
+                    metaValue(dataMetas, ExportPrivacyPolicy.IMPORT_SOURCE_ANONYMITY_KEY),
+                    metaValue(dataMetas, ExportPrivacyPolicy.IMPORT_SOURCE_PSEUDONYMITY_KEY),
+                    metaValue(dataMetas, ExportPrivacyPolicy.IMPORT_SOURCE_PRIVACY_INCLUDED_KEY));
+        }
+        if (ingest == null) {
             return SourcePrivacyMeta.NONE;
         }
         return SourcePrivacyMeta.ofIngest(
                 ingest.getSrcAnonyInclYn(), ingest.getSrcPsdoInclYn(), ingest.getSrcPrvcInclYn());
+    }
+
+    /** 메타 열쇠 하나의 값 — {@code (RAW_SN, META_KEY)} 가 유일이라 최대 1건이다. blank 는 미보관. */
+    private static String metaValue(List<LsDataMeta> dataMetas, String metaKey) {
+        if (dataMetas == null) {
+            return null;
+        }
+        for (LsDataMeta meta : dataMetas) {
+            if (meta != null && metaKey.equals(meta.getMetaKey())) {
+                String value = meta.getMetaVl();
+                return (value == null || value.isBlank()) ? null : value.trim();
+            }
+        }
+        return null;
     }
 
     /**

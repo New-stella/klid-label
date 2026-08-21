@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-011",
-  "synced_at": "2026-08-20T08:27:29.260Z",
+  "synced_at": "2026-08-21T09:18:49.526Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -63,8 +63,8 @@
     "API-043": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-003",
-      "version": 14,
-      "content_hash": "0349656575082773697df6022353f83e6363ea46a40a5097bb6300f50de0eeb9"
+      "version": 16,
+      "content_hash": "c2c2c85f81a434bfea3dfef227b5d4b0c91b0798ba617fd966ab44ae05746bc1"
     },
     "API-047": {
       "type": "api_endpoint",
@@ -105,8 +105,8 @@
     "SEQ-001": {
       "type": "diagram_sequence",
       "domain_id": null,
-      "version": 14,
-      "content_hash": "42724ea0401d544cb317091b2ee6b85087012d4a7ad786165b9092785cc1d3c4"
+      "version": 16,
+      "content_hash": "638db8a80befeb88afe7a32decd5ad3c1e26b665815247c76d527682ffa116cc"
     },
     "SEQ-014": {
       "type": "diagram_sequence",
@@ -273,8 +273,8 @@
     "SCREEN-008": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-003",
-      "version": 39,
-      "content_hash": "615737886d33bd128115d2b20968708f8a8898b750389c645ba92d52ed489d55"
+      "version": 42,
+      "content_hash": "92464b5e0bfab153450a801ffffb007fd40868c71e0313b310d35f325866a02b"
     },
     "TEST-001": {
       "type": "test_scenario",

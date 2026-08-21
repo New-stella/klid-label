@@ -4,10 +4,10 @@ type: domain_feature
 version: 13
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T03:07:09.138Z
+synced_at: 2026-08-21T09:18:52.202Z
 status: CHANGED
-prev_version: 11
-content_hash: 2c401ecc6494941952272e2df486d6a53fd2d077fd9903adaccdafaaf0a0ea1e
+prev_version: 13
+content_hash: 2640c749310de3652f3b94959a7bceaa3d28168b4092c3f8e96aa2b3b6baf1c2
 stale: false
 raw: ./_raw/DFEAT-045.json
 links:
@@ -75,7 +75,7 @@ _(empty)_
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -83,15 +83,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-051
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-21T04:27:30.626Z
 
 ## uses_constants
 

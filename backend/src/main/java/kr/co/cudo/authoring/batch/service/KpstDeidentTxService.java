@@ -45,6 +45,11 @@ public class KpstDeidentTxService {
     private final WorkLockService workLockService;
     private final DeidentFrameAttacher deidentFrameAttacher;
     private final StreamMetaCacheEvictor streamMetaCacheEvictor;
+    /**
+     * 비식별 성공 기록에 붙여 검수 승인 보류를 푸는 단일 지점(ADR-048). 자체 트랜잭션을 열지 않아
+     * 본 서비스의 {@code REQUIRES_NEW} 에 참여한다 — 성공 기록이 롤백되면 보류 해제도 함께 롤백된다.
+     */
+    private final DeidentApprovalHoldReleaser deidentApprovalHoldReleaser;
 
     /**
      * 폴링 대상 <b>원자 클레임</b> — 이 호출이 {@code true} 를 받은 노드만 해당 위탁 건을 폴링한다
@@ -367,7 +372,15 @@ public class KpstDeidentTxService {
     }
 
     /**
-     * 기존 배치 비식별 완료 경로 — Y/MARKING_READY/락해제/신고해소/알림 적용(현행 무변경, 회귀 금지).
+     * 기존 배치 비식별 완료 경로 — Y/MARKING_READY/<b>승인보류 해제</b>/락해제/신고해소/알림 적용.
+     *
+     * <p>승인보류 해제 외에는 현행 무변경(회귀 금지). 해제는 이 저장소에서 <b>비식별 성공</b>을 뜻하는
+     * 그 지점({@code DE_IDENT_YN='Y'} + 배치 단계 {@code MARKING_READY})에 붙어 있어 두 값이 갈리지
+     * 않는다. 이 경로와 무관한 영상에서는 보류가 애초에 서 있지 않아 no-op 이다
+     * ({@link DeidentApprovalHoldReleaser}).
+     *
+     * @design ADR-048
+     * @design AC-046
      */
     private void applyBatchCompletion(Long rawSn) {
         LsDataRaw managed = videoRepository.findById(rawSn).orElse(null);
@@ -377,6 +390,14 @@ public class KpstDeidentTxService {
         }
         managed.markDeidentified("Y");
         managed.markMarkingReady();
+        // ADR-048 — 저작도구가 태운 비식별이 <b>성공으로 기록된</b> 바로 이 지점에서 검수 승인 보류를
+        //   푼다. 외부 산출물을 원본이라고 지정해 이관하면서 영상 파일을 함께 준 영상만 보류가 서 있고
+        //   (LS_RAW_DATA_STATUS.DE_IDNTF_CMPTN_YN='N'), 나머지 전 영상은 기본값이 완료라 no-op 이다.
+        //   ★ 반드시 위 두 줄(DE_IDENT_YN='Y' + MARKING_READY) <b>뒤</b>이며 같은 트랜잭션이어야 한다.
+        //     이 메서드 진입 자체가 verifyDeidFile(산출물 무결성)을 통과한 뒤이고, 해제기는 raw 가
+        //     'Y' 인지 한 번 더 확인한다 — 산출물 없이 완료로 응답하는 거짓 성공에서는 그 앞 게이트가
+        //     예외를 던져 여기까지 오지 않는다.
+        deidentApprovalHoldReleaser.releaseOnDeidentSuccess(managed);
         if (workLockService.isRawLocked(rawSn)) {
             workLockService.releaseRaw(rawSn, "batch", "DEIDENT_SUCCEEDED");
         }

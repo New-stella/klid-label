@@ -1,0 +1,344 @@
+{
+  "item": {
+    "id": "API-207",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "이관 이력 목록 조회",
+    "slug": "이관-이력-목록-조회",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/imports",
+      "tags": [
+        "외부 산출물 이관"
+      ],
+      "method": "GET",
+      "summary": "이관 이력을 목록으로 돌려준다",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "size": {
+                    "type": "integer",
+                    "description": "한 쪽의 크기."
+                  },
+                  "number": {
+                    "type": "integer",
+                    "description": "현재 쪽 번호."
+                  },
+                  "content": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "rawSn": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "만들어진 영상의 식별번호. 실패했으면 비어 있다."
+                        },
+                        "regDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "이관을 시작한 시점."
+                        },
+                        "regId": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "이관을 실행한 사람."
+                        },
+                        "status": {
+                          "enum": [
+                            "PROCESSING",
+                            "SUCCESS",
+                            "FAILED"
+                          ],
+                          "type": "string",
+                          "description": "이관 상태."
+                        },
+                        "trnsfSn": {
+                          "type": "integer",
+                          "description": "이관의 식별번호."
+                        },
+                        "folderName": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "가져온 폴더의 이름."
+                        },
+                        "frameCount": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "들어온 프레임 수."
+                        },
+                        "labelCount": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "들어온 라벨 수."
+                        },
+                        "approvalHeld": {
+                          "type": "boolean",
+                          "nullable": true,
+                          "description": "이 이관으로 만들어진 영상에 검수 승인 보류가 서 있는지 여부. 이관 상태와는 다른 축이며 이관 상태로 대신 판단할 수 없다. 보류가 선 영상만 비식별 완료 기록의 대상이 된다. 보류가 서는 조건은 이 계약이 정하지 않는다. 영상이 아직 만들어지지 않았거나 실패했으면 비어 있다."
+                        }
+                      }
+                    },
+                    "description": "이력 항목."
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "description": "전체 쪽 수."
+                  },
+                  "totalElements": {
+                    "type": "integer",
+                    "description": "전체 건수."
+                  }
+                },
+                "description": "이관 이력 페이지."
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "size": 20,
+              "number": 0,
+              "content": [
+                {
+                  "rawSn": 51,
+                  "regDt": "2026-08-19T09:12:33",
+                  "regId": "reviewer01",
+                  "status": "SUCCESS",
+                  "trnsfSn": 1,
+                  "folderName": "import-2026-08-19",
+                  "frameCount": 120,
+                  "labelCount": 340,
+                  "approvalHeld": true
+                }
+              ],
+              "totalPages": 1,
+              "totalElements": 1
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "이관 이력 목록.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "입력값이 유효하지 않습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "요청이 계약을 벗어났다. 계약이 정한 상태 값 밖의 걸러내기, 한 쪽의 크기가 정한 범위를 벗어난 요청, 음수 쪽 번호가 그런 예이며 이 열거는 예시일 뿐 전수 목록이 아니다. 잘못된 요청에 빈 목록을 돌려주면 그런 이력이 없다는 뜻과 구분되지 않으므로 거부한다. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "검수자 권한이 필요합니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한이 없다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "query",
+          "name": "page",
+          "schema": {
+            "type": "integer",
+            "default": 0,
+            "minimum": 0
+          },
+          "required": false,
+          "description": "몇 번째 쪽인지. 0부터 시작한다."
+        },
+        {
+          "in": "query",
+          "name": "size",
+          "schema": {
+            "type": "integer",
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1
+          },
+          "required": false,
+          "description": "한 쪽에 담을 건수."
+        },
+        {
+          "in": "query",
+          "name": "status",
+          "schema": {
+            "enum": [
+              "PROCESSING",
+              "SUCCESS",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "required": false,
+          "description": "이관 상태로 걸러낸다. 비우면 전체를 돌려준다."
+        }
+      ],
+      "description": "지금까지 가져온 산출물을 최근순으로 돌려준다. 언제 누가 어떤 폴더를 가져왔고 몇 건이 들어왔는지, 실패했다면 무엇 때문이었는지를 볼 수 있다.\n\n목록은 항상 페이징된다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다. 지금 볼 것을 골라내는 일은 걸러내기가 맡는다.\n\n각 항목은 그 이관으로 만들어진 영상에 검수 승인 보류가 서 있는지를 함께 싣는다. 이 값은 이관 상태와 다른 축이다. 이관이 성공한 영상 가운데 일부에만 보류가 서므로 이관 상태로 대신할 수 없다. 보류가 선 영상만 비식별 완료 기록의 대상이 되며, 보류가 서는 조건은 이 계약이 정하지 않는다.\n\n요청이 계약을 벗어나면 빈 목록이 아니라 거부한다. 계약이 정한 상태 값 밖의 걸러내기, 한 쪽의 크기가 정한 범위를 벗어난 요청, 음수 쪽 번호가 그런 예이며 이 열거는 예시일 뿐 전수 목록이 아니다. 조용히 0건을 돌려주면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않는다.\n\n응답의 시각은 시간대 오프셋 없이 표기한다.\n\n검수자만 호출할 수 있다.",
+      "operation_id": "listExternalImports",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "이관 이력을 최근순 한 쪽씩 돌려준다. 정렬 기준은 서버가 고정하며 요청이 고르지 못한다."
+          },
+          {
+            "done": true,
+            "description": "이관 상태로 걸러낸다. 계약에 없는 값은 0건이 아니라 거부한다."
+          },
+          {
+            "done": true,
+            "description": "항목마다 검수 승인 보류 여부를 싣는다. 이관 상태와 다른 축이며 그 판정은 검수 워크플로 상태가 소유한다."
+          },
+          {
+            "done": true,
+            "description": "보류 여부는 한 쪽의 영상을 모아 한 번에 읽는다. 조회 수가 목록 크기에 비례하지 않는다."
+          },
+          {
+            "done": true,
+            "description": "영상이 없는 이력은 보류 값이 비어 있고 예외가 나지 않는다."
+          },
+          {
+            "done": true,
+            "description": "검수자만 호출할 수 있다. 인가는 이력 존재 판정보다 먼저 평가된다."
+          }
+        ],
+        "last_updated": "2026-08-20T12:23:34.492Z"
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-010"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "응답 목록에 400 을 선언한다. 계약을 벗어난 요청에 빈 목록을 돌려주면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않으므로 거부가 맞다는 판단이며, 거부 사유는 성질로 적고 열거가 예시임을 밝혀 사유가 늘 때마다 개수가 어긋나는 일을 막는다. 아울러 응답 예시의 시각 표기에서 협정 세계시 표식을 걷어낸다 — 이 계약의 시각은 시간대 오프셋 없이 표기하므로, 있지도 않은 시간대를 예시가 지어내면 소비자가 잘못된 파싱을 세운다. 필드의 이름·타입·의미는 바꾸지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-20T14:57:32.329Z",
+    "created_at": "2026-08-19T07:53:05.464Z"
+  }
+}

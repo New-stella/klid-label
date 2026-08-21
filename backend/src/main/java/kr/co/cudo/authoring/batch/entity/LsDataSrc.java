@@ -268,6 +268,63 @@ public class LsDataSrc {
     }
 
     /**
+     * <b>외부 산출물 이관</b> 프레임 생성 — 외부에서 이미 라벨링이 끝난 프레임을 그대로 가져온다(ADR-048).
+     *
+     * <h3>왜 전용 팩토리인가 — 두 프레임 번호를 바꿔 담는 사고를 구조로 막는다</h3>
+     * <p>이 경로에는 <b>서로 다른 두 프레임 번호</b>가 동시에 들어온다.
+     * <ul>
+     *   <li>{@code frameNo}({@code FRM_NO}) — <b>추출 순번</b>. 산출물 폴더 안에서 몇 번째로 담긴
+     *       프레임인가이며 우리가 매긴다.</li>
+     *   <li>{@code videoFrameNo}({@code VDO_FRM_NO}) — <b>영상 내 실제 위치</b>. 산출물 문서의
+     *       프레임 번호를 그대로 옮긴 값이다.</li>
+     * </ul>
+     * 둘을 바꿔 담으면 재비식별 프레임 재추출이 <b>영상 맨 앞</b>을 뽑아 붙인다(이 저장소에서 실제로
+     * 일어난 사고다). 일반 {@code create(...)} 오버로드는 인자 이름만 다를 뿐 서명이 같아 바꿔 넣어도
+     * 컴파일이 되므로, 이관 경로는 뜻이 이름에 드러나는 전용 진입점을 쓴다.
+     *
+     * <h3>비식별 프레임 경로는 "비식별 완료본을 받았을 때만" 채운다</h3>
+     * <p>원본으로 받은 산출물의 프레임은 비식별본이 아직 없다. 그 자리에 원본 경로를 넣으면 그 값이
+     * 곧 "비식별본"이 되어 마스킹 전 화면이 비식별본으로 서빙된다. 없으면 {@code null} 로 둔다.
+     *
+     * <h3>개인정보 3필드는 산출물이 준 값을 그대로 쓰되, 착지 여부는 밖에서 정한다</h3>
+     * <p>산출물은 프레임마다 익명·가명·개인정보 포함여부를 준다. 그 값이 우리 <b>비식별 축</b> 3필드에
+     * 착지하는지는 <b>가져올 때 지정한 비식별 상태</b>에 따라 갈리며, 그 분기의 단일 소유 지점은
+     * {@code ExportPrivacyPolicy.importedFrameValuesLandOnDeidentAxis} 다(ERD-031 프레임 행 절). 이
+     * 팩토리는 그 판정을 다시 하지 않고 <b>넘어온 값을 담기만</b> 한다 — 판정을 여기서 또 하면 같은
+     * 분기가 두 벌이 되어 한쪽만 바뀌었을 때 값이 조용히 어긋난다.
+     *
+     * <p>넘어온 값이 없으면(원본으로 가져와 착지하지 않는 경우, 또는 산출물이 그 값을 주지 않은 경우)
+     * 다른 적재 경로와 <b>같은 적재 기본값</b>으로 시작한다 — 값을 지어내지 않는다. 착지하지 않은 원문은
+     * 메타에 그대로 보관되므로 잃지 않는다.
+     *
+     * @param srcFilePathNm        가져온 프레임 이미지의 저장 경로
+     * @param deIdntfSrcFilePathNm 비식별 완료본을 받았을 때의 비식별 프레임 경로. 아니면 {@code null}
+     * @param anonyInclYn          산출물이 준 익명정보 포함여부({@code Y}/{@code N}). 착지하지 않거나
+     *                             값이 없으면 {@code null} — 적재 기본값이 쓰인다
+     * @param psdoInclYn           산출물이 준 가명정보 포함여부. 규칙은 위와 같다
+     * @param prvcInclYn           산출물이 준 개인정보 포함여부. 규칙은 위와 같다
+     * @design DOMAIN-017
+     * @design ERD-031
+     * @design ADR-048
+     */
+    public static LsDataSrc createFromImport(Long rawSn, long frameNo, Long videoFrameNo,
+                                             String srcFilePathNm, String deIdntfSrcFilePathNm,
+                                             LocalDateTime shtDt, String anonyInclYn,
+                                             String psdoInclYn, String prvcInclYn) {
+        return LsDataSrc.builder()
+                .rawSn(rawSn)
+                .frameNo(frameNo)
+                .videoFrameNo(videoFrameNo)
+                .srcFilePathNm(srcFilePathNm)
+                .deIdntfSrcFilePathNm(deIdntfSrcFilePathNm)
+                .shtDt(shtDt)
+                .anonyInclYn(orInsertDefault(anonyInclYn, DEID_ANONYMITY_ON_INSERT))
+                .psdoInclYn(orInsertDefault(psdoInclYn, DEID_PSEUDONYMITY_ON_INSERT))
+                .prvcInclYn(orInsertDefault(prvcInclYn, DEID_PRIVACY_INCLUDED_ON_INSERT))
+                .build();
+    }
+
+    /**
      * 동일 row 의 DE_IDNTF_SRC_FILE_PATH_NM 컬럼에 비식별 프레임 경로를 연결한다.
      */
     public void attachDeidPath(String deidFilePath) {

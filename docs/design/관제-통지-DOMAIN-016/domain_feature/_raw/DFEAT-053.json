@@ -25,7 +25,7 @@
         ],
         "diff_summary": "2차 외부 채널(포털) 신규 — 본인 자산 업로드·수동 라벨링(ADR-013 예외, 2026-07-17)"
       },
-      "description": "포털 회원(PORTAL_USER)이 본인 이미지(jpg/jpeg/png, 개당 최대 20MB, 요청당 최대 50장, multipart)·영상(mp4/mov/avi, 최대 5GB, TUS 1.0 프로토콜 재개 가능 청크 업로드)을 직접 업로드해 BBOX/POLYGON 수동 라벨링을 수행하고 본인 데이터(JSON export 및 원본 파일)를 다운로드하는 기능. ADR-013(2026-07-17) 예외로 신설됐다. 업로드된 영상은 고정 간격(portal.upload.frame-interval-sec, 기본 5초)으로 프레임을 추출하며 영상 1건당 최대 추출 프레임 수는 portal.upload.maxFrames(기본 2000)로 제한된다(초과 시 균등 샘플링). 자산 처리 상태는 UPLOADED → PROCESSING → READY|FAILED 순으로 전이하며 READY 상태에서만 라벨링·다운로드가 가능하다(이미지는 업로드 즉시 READY). ★ 오토라벨링(YOLO/SAM2)·VLM 시계열 연동·검수(REVIEWER 배정·승인/반려 워크플로)·버전관리(LS_LABEL_VERSION 스냅샷/롤백)는 전혀 제공하지 않으며 BBOX/POLYGON 수동 라벨링만 가능하다(SAM 분할·키포인트·오토라벨 도구는 화면에서 노출되지 않음). 내부 배치 파이프라인(비식별화→마킹→VLM→프레임추출→오토라벨링→SAM2→트랙보간)·데이터마트 적재용 View(V_COMPLETED_*)와는 완전히 분리된 독립 경로로 운영되며, 기존 데이터마트 영상 선택 후 라벨 저장 경로(LS_PORTAL_USER_LABEL)와도 별개의 신규 스키마(LS_PORTAL_ULD/LS_PORTAL_ULD_FRME/LS_PORTAL_ULD_LBL/LS_PORTAL_TUS_ULD)를 사용한다. 저장된 라벨은 내부 파이프라인·데이터마트에 정합·반영되지 않는다(완전 단방향 독립).",
+      "description": "포털 회원(PORTAL_USER)이 본인 이미지(jpg/jpeg/png, 개당 최대 20MB, 요청당 최대 50장, multipart)·영상(mp4/mov/avi, 최대 5GB, TUS 1.0 프로토콜 재개 가능 청크 업로드)을 직접 업로드해 BBOX/POLYGON 수동 라벨링을 수행하고 본인 데이터(JSON export 및 원본 파일)를 다운로드하는 기능. ADR-013(2026-07-17) 예외로 신설됐다. 업로드된 영상은 고정 간격(portal.upload.frame-interval-sec, 기본 5초)으로 프레임을 추출하며 영상 1건당 최대 추출 프레임 수는 portal.upload.maxFrames(기본 2000)로 제한된다(초과 시 균등 샘플링). 자산 처리 상태는 UPLOADED → PROCESSING → READY|FAILED 순으로 전이하며 READY 상태에서만 라벨링·다운로드가 가능하다(이미지는 업로드 즉시 READY). UPLOADED·PROCESSING 상태로 방치 판정 시간(portal.upload.stuck-timeout-minutes, 기본 30분) 동안 최종 변경 일시가 갱신되지 않으면 FAILED 로 전이하며 그 사유를 남긴다 — 영구 로딩으로 남지 않게 하기 위함이고, 그 전이가 보존기간 만료 자동 삭제(DFEAT-055)의 진입점이 된다. ★ 오토라벨링(YOLO/SAM2)·VLM 시계열 연동·검수(REVIEWER 배정·승인/반려 워크플로)·버전관리(LS_LABEL_VERSION 스냅샷/롤백)는 전혀 제공하지 않으며 BBOX/POLYGON 수동 라벨링만 가능하다(SAM 분할·키포인트·오토라벨 도구는 화면에서 노출되지 않음). 내부 배치 파이프라인(비식별화→마킹→VLM→프레임추출→오토라벨링→SAM2→트랙보간)·데이터마트 적재용 View(V_COMPLETED_*)와는 완전히 분리된 독립 경로로 운영되며, 기존 데이터마트 영상 선택 후 라벨 저장 경로(LS_PORTAL_USER_LABEL)와도 별개의 신규 스키마(LS_PORTAL_ULD/LS_PORTAL_ULD_FRME/LS_PORTAL_ULD_LBL/LS_PORTAL_TUS_ULD)를 사용한다. 저장된 라벨은 내부 파이프라인·데이터마트에 정합·반영되지 않는다(완전 단방향 독립).",
       "invokes_apis": [],
       "implementation": {
         "status": "implemented",
@@ -67,12 +67,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "LNK-006: EVT-012(PortalVideoUploaded) 의 documented_emitters/documented_consumers 가 둘 다 DFEAT-053 을 문자열로만 지목하고 있었는데, 실제 그래프 링크 필드(triggers/consumes)는 비어 있어 EVT-012 가 고립돼 있었다 — 이 기능이 업로드 커밋 시 이 이벤트를 발행하고(triggers) 같은 기능 내 프레임 추출 브릿지가 그것을 소비하므로(consumes) 양쪽에 연결한다.",
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "API-159의 data.description 변경 — implements",
+    "change_summary": "자산 처리 상태 전이 서술에 방치 전이를 추가했다 — 업로드 완료·후처리 중 상태로 방치 판정 시간(설정값, 기본 30분) 동안 갱신이 없으면 처리 실패로 전이하며 사유를 남기고, 그 전이가 보존기간 만료 자동 삭제의 진입점이 된다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:54:05.343Z",
+    "last_updated_at": "2026-08-17T22:19:41.770Z",
     "created_at": "2026-07-30T07:22:51.479Z"
   }
 }

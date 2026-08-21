@@ -63,6 +63,7 @@ const MENU: MenuGroup[] = [
       { label: '라벨 관리', path: '/manage/labels', allow: ['REVIEWER'] },
       { label: '프리셋 관리', path: '/manage/presets', allow: ['REVIEWER'] },
       { label: '비식별 신고', path: '/manage/deident-reports', allow: ['REVIEWER'] },
+      { label: '외부 산출물 이관', path: '/manage/imports', allow: ['REVIEWER'] },
     ],
   },
 ];

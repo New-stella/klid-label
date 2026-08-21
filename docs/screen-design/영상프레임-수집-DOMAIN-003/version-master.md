@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-21T03:08:13.032Z (session 3) |
-| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 161 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| Last sync | 2026-08-21T09:19:02.287Z (session 9) |
+| Mode | SYNC — NEW 1 / CHANGED 4 / UNCHANGED 160 |
+| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
@@ -17,14 +17,14 @@
 | [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 11 | false | UNCHANGED |
 | [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
-| [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 3 | false | CHANGED |
+| [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 3 | false | NEW |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 16 | false | CHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 4 | true | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | CHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
-| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | false | UNCHANGED |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | CHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |

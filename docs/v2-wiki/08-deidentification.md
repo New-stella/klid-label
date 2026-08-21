@@ -279,6 +279,23 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - **기존 계약은 무변경**: 인가(401/403) · 신고 없음 404 · 이미 처리 409 · 원자 클레임 · 작업락 해제 · `'F'→'Y'` 복원 · 스트림 메타 캐시 무효화 · 재개 이벤트(`DeidentGateReopenedEvent` · `DeidentStageResumeEvent` · 승인 영상 재검토 표시 통지) 모두 그대로다. **바뀐 것은 ①요청 바디가 생겼다 ②"파일이 실재하지 않는다"는 사유의 거부가 409 → 400 이 됐다**(실재하지 않으면 애초에 후보로 열거되지 않으므로 "존재하지 않는 대상을 가리킨 요청"이다. 409 는 "목록에는 있으나 자격 미달"에 남는다). 어느 쪽이든 fail-closed 는 동일하다 — 예외 전파 → 트랜잭션 롤백 → 신고 `OPEN`·작업락·`'F'` 유지.
 - 코드: `label/service/DeidentArtifactCandidateFinder`(열거·수락 공용 단일 지점) · `label/service/DeidentReportService`(`listDeidentCandidates` · `resolveManually` · `selectArtifact` · `recordResolvedArtifact`) · `label/controller/DeidentReportController`(`deidentCandidates` · `resolve`) · `label/dto/DeidentCandidateResponse` · `label/dto/DeidentResolveRequest` · FE `features/deident/components/DeidentResolveDialog` · `features/deident/hooks/useDeidentReports`(`useDeidentCandidates`)
 
+## 8.4-a 외부 산출물 이관 경로의 비식별 축 (설계 확정, 코드 미착수)
+
+외부에서 라벨링이 끝난 산출물을 가져오는 경로는 **적재가 비식별을 자동으로 시작시키지 않는다**(ADR-048).
+가져올 때 지정한 값과 **영상 파일을 함께 주었는지**의 조합으로 갈린다 → 상세는 [25 §25.4](25-external-import.md).
+
+| 지정 | 영상 파일 | 비식별 |
+|---|---|---|
+| 비식별 완료 | 있음 | 그 영상이 곧 비식별 영상 — 단계를 다시 밟지 않는다 |
+| 원본 | 있음 | **저작도구가 비식별 단계를 태운다** |
+| 원본 | 없음(프레임만) | 대상 영상이 없어 스스로 처리 못 한다 — **외부 비식별 산출물을 받아 기록하는 별도 행위**(`POST /v1/videos/{rawSn}/deident-complete`)로 해소 |
+
+> 그 기록 행위는 **비식별 산출물이 실제로 존재하는지 확인한 뒤에만** 성립한다. 확인 없이 기록만 바꾸는 수단이 되면
+> 처리되지 않은 산출물이 승인을 통과한다. 이 계약이 **비식별을 수행하지는 않는다.**
+
+⚠ **누락 신고 동선은 이 경로에 쓸 수 없다** — 신고는 비식별을 한 번이라도 수행한 영상만 접수하고, 그 해소는
+비식별 완료를 단정해 기록하므로 실제로 처리되지 않은 영상에 쓰면 사실과 달라진다.
+
 ## 8.5 옵션 설정 (RQ-SFR-09-04)
 
 REVIEWER 가 **시스템 설정 화면(`/manage/settings` → "비식별 옵션" 카드)** 에서 마스킹 옵션을 조정하면 **후속 위탁부터** 적용된다. 구 상태(코드 상수 고정, 운영자 조정 불가)는 폐기.

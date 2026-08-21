@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-18T03:36:00.970Z (session 7) |
+| last sync | 2026-08-21T09:19:03.978Z (session 8) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록

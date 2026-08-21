@@ -121,6 +121,14 @@ public class GlobalExceptionHandler {
      */
     private static final String LABEL_DTCT_TYPE_UNIQUE_INDEX = "uk_ls_label_dtct_type";
 
+    /**
+     * V14 외부 분류 대응(LS_OTSD_CTGRY_MPNG) 종류+외부분류 유일 인덱스명. PostgreSQL 은 unquoted identifier 를
+     * 소문자로 저장하므로 실제 인덱스명은 소문자(`uk_ls_otsd_ctgry_mpng`)로 관측된다. 대응 확정은 선조회 후
+     * INSERT(check-then-act)라 2노드 동시 요청에서 패자의 INSERT 가 원자적으로 거부되는 정상적 동시성 충돌이며,
+     * 단독 요청에서 같은 상황은 이미 서비스가 409 로 답한다 — 여기서 500 으로 떨어지면 같은 사유에 두 코드가 난다.
+     */
+    private static final String IMPORT_CATEGORY_MAPPING_UNIQUE_INDEX = "uk_ls_otsd_ctgry_mpng";
+
     private static final java.util.regex.Pattern CONSTRAINT_IN_MESSAGE =
             java.util.regex.Pattern.compile("constraint\\s+\"([^\"]+)\"");
 
@@ -158,6 +166,11 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(ErrorCode.CONFLICT.status())
                     .body(ApiResponse.error(ErrorCode.CONFLICT, "이미 사용 중인 검출 클래스 매핑입니다."));
         }
+        if (isImportCategoryMappingUnique(constraintName)) {
+            log.warn("[Exception] import category mapping unique violation constraint={}", constraintName);
+            return ResponseEntity.status(ErrorCode.CONFLICT.status())
+                    .body(ApiResponse.error(ErrorCode.CONFLICT, "같은 종류·같은 이름의 대응이 이미 있습니다."));
+        }
         // fail-closed: 판별 실패/기타 제약 위반은 500 으로 노출 (조용한 409 흡수 금지).
         log.warn("[Exception] unclassified data integrity violation constraint={} cause={}",
                 constraintName, e.getMostSpecificCause().getClass().getSimpleName());
@@ -183,6 +196,11 @@ public class GlobalExceptionHandler {
     private boolean isLabelDtctTypeUnique(String constraintName) {
         return constraintName != null
                 && LABEL_DTCT_TYPE_UNIQUE_INDEX.equalsIgnoreCase(constraintName);
+    }
+
+    private boolean isImportCategoryMappingUnique(String constraintName) {
+        return constraintName != null
+                && IMPORT_CATEGORY_MAPPING_UNIQUE_INDEX.equalsIgnoreCase(constraintName);
     }
 
     /**

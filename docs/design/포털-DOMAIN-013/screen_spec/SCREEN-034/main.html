@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-034</span><span class="sep">/</span><span>포털 업로드 라벨링 화면</span></div>
       <h1 style="white-space:nowrap">포털 업로드 라벨링 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 오토… · route /portal/uploads/:uldSn/label</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩 박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 오… · route /portal/uploads/:uldSn/label</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 헤더 (파일명·프레임 카운트·내보내기/다운로드)</h2>
@@ -103,7 +103,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 도구바 + 라벨 분류 + 저장</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>role=toolbar 4버튼(선택/이동/바운딩박스/폴리곤) — SAM 분할·SAM 추적·키포인트·오토라벨 버튼은 렌더되지 않는다. 활성 라벨 마스터(useYn=Y) select(라벨 분류, 미지정=자동/기본). 우측 '저장' 버튼(현재 프레임 라벨 전체교체 PUT, 엔드포인트 PUT /portal/uploads/frames/{uldFrmeSn}/labels — body는 최상위 raw 배열, {items:[...]} 래퍼 아님).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>role=toolbar 4버튼(선택/이동/바운딩 박스/폴리곤) — SAM 분할·SAM 추적·키포인트·오토라벨 버튼은 렌더되지 않는다. 활성 라벨 마스터(useYn=Y) select(라벨 분류, 미지정=자동/기본). 우측 '저장' 버튼(현재 프레임 라벨 전체교체 PUT, 엔드포인트 PUT /portal/uploads/frames/{uldFrmeSn}/labels — body는 최상위 raw 배열, {items:[...]} 래퍼 아님).</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>IconButton(선택)</li><li>IconButton(이동)</li><li>IconButton(바운딩 박스)</li><li>IconButton(폴리곤)</li><li>Select(라벨 분류)<p class="wf-help" style="margin:2px 0 0">활성 라벨 마스터 목록(자유 텍스트 아님)</p></li><li>Button(저장)</li></ul></div>
     </div>
   </div>

@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-18T08:22:47.582Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 84 |
+| Last sync | 2026-08-21T09:18:44.404Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 82 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-004 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 6건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -18,17 +19,17 @@
 **🚨 = 프로젝트엔 있는데 이번 키트엔 0건** — 구현이 그 설계를 못 본다.
 
 ```
-  ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 41건
-  ℹ️  api_endpoint: 이번 키트 22건 / 스코프 밖 161건
-  🚨 erd: 이번 키트 0건 / 프로젝트 전역 20건 — 전량 누락
-  ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 21건 (그중 domain_id 없음 11건)
-  ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 29건
-  ℹ️  use_case: 이번 키트 4건 / 스코프 밖 23건 (그중 domain_id 없음 2건)
+  ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 45건
+  ℹ️  api_endpoint: 이번 키트 22건 / 스코프 밖 172건
+  🚨 erd: 이번 키트 0건 / 프로젝트 전역 21건 — 전량 누락
+  ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 22건 (그중 domain_id 없음 11건)
+  ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
+  ℹ️  use_case: 이번 키트 4건 / 스코프 밖 25건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 31건 (그중 domain_id 없음 21건)
+  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 46건 (그중 domain_id 없음 24건)
   ℹ️  constant: 이번 키트 1건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
-  ℹ️  adr: 이번 키트 11건 / 스코프 밖 31건 (그중 domain_id 없음 4건)
-  ℹ️  feature: 이번 키트 3건 / 스코프 밖 6건 (그중 domain_id 없음 6건)
+  ℹ️  adr: 이번 키트 11건 / 스코프 밖 34건 (그중 domain_id 없음 4건)
+  ℹ️  feature: 이번 키트 3건 / 스코프 밖 7건 (그중 domain_id 없음 6건)
 ```
 
 해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
@@ -40,7 +41,8 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[API-043]] (prev v16)
+- CHANGED [[SCREEN-025]] (prev v38)
 
 ## ITEM 표
 
@@ -64,7 +66,7 @@
 | [[ADR-046]] | adr | 1 | UNCHANGED |
 | [[ADR-047]] | adr | 1 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
-| [[API-043]] | api_endpoint | 14 | UNCHANGED |
+| [[API-043]] | api_endpoint | 16 | CHANGED |
 | [[API-065]] | api_endpoint | 15 | UNCHANGED |
 | [[API-093]] | api_endpoint | 14 | UNCHANGED |
 | [[API-113]] | api_endpoint | 3 | UNCHANGED |
@@ -117,15 +119,15 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 94 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 34 | UNCHANGED |
+| [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 38 | CHANGED |
 | [[SCREEN-027]] | screen_spec | 28 | UNCHANGED |
 | [[SD-033]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 2 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 9 | UNCHANGED |
+| [[SHELL-001]] | app_shell | 10 | UNCHANGED |
 | [[UC-004]] | use_case | 15 | UNCHANGED |
 | [[UC-005]] | use_case | 10 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |

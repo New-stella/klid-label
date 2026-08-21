@@ -1,12 +1,12 @@
 ---
 logicraft_item: DFEAT-029
 type: domain_feature
-version: 11
+version: 12
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.733Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-21T00:02:44.960Z
+status: CHANGED
+prev_version: 11
 content_hash: b8eefb8a6ae42ddca28610b2b0ddeb3ffc2b9945026a5b2b256ea8910445102e
 stale: false
 raw: ./_raw/DFEAT-029.json

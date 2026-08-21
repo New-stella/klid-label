@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-21T03:07:09.183Z |
-| Mode | SYNC — NEW 2 / CHANGED 2 / UNCHANGED 51 |
+| Last sync | 2026-08-21T09:18:52.251Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 52 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 3건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,17 +41,16 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-055]]
-- NEW [[SCREEN-008]]
-- CHANGED [[DFEAT-045]] (prev v11)
-- CHANGED [[SCREEN-025]] (prev v37)
+- CHANGED [[DFEAT-045]] (prev v13)
+- CHANGED [[SCREEN-008]] (prev v42)
+- CHANGED [[SCREEN-025]] (prev v38)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
 | [[AC-006]] | acceptance | 9 | UNCHANGED |
-| [[AC-055]] | acceptance | 1 | NEW |
+| [[AC-055]] | acceptance | 1 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
@@ -93,7 +93,7 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 42 | NEW |
+| [[SCREEN-008]] | screen_spec | 42 | CHANGED |
 | [[SCREEN-025]] | screen_spec | 38 | CHANGED |
 | [[SD-015]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |

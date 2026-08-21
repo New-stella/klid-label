@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 23
+version: 25
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:53.513Z
-status: NEW
-prev_version: null
-content_hash: 36f48750716341a5206b36cdebc7ed459e117887b50c182fcf3d589f88d909ab
-stale: true
+synced_at: 2026-08-21T00:02:46.130Z
+status: CHANGED
+prev_version: 23
+content_hash: beefaeffabe4a9db6a0059a81b29d3c29fe414c4472835e1c9c5c69639798200
+stale: false
 raw: ./_raw/SCREEN-030.json
 links:
   belongs_to_domain: ["[[DOMAIN-009]]"]
@@ -71,7 +71,7 @@ _(empty)_
 
 - **note**: REVIEWER만 노출. Plus 아이콘.
 - **type**: Button
-- **label**: 새 게시글 작성
+- **label**: 새 공지 작성
 
 **columns**:
 
@@ -83,7 +83,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 게시글 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.
+- **description**: 제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 공지 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.
 
 **references_apis**:
 
@@ -212,7 +212,7 @@ _(empty)_
 
 - **custom_name**: Pagination
 
-- **description**: 제목(중요 배지 — Pin 아이콘, amber, 텍스트 '중요' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
+- **description**: 제목(고정 배지 — Pin 아이콘, amber, 텍스트 '고정' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).
 
 **references_apis**:
 

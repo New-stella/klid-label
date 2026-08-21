@@ -1,0 +1,598 @@
+{
+  "item": {
+    "id": "ERD-030",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "erd",
+    "title": "학습데이터 산출 원장 ERD (고도화, PostgreSQL)",
+    "slug": "학습데이터-산출-원장-erd-고도화-postgresql",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "dbms": "postgresql",
+      "level": "physical",
+      "tables": [
+        {
+          "name": "LS_DATASET_EXPORT",
+          "columns": [
+            {
+              "name": "OUTPUT_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "산출 레코드 식별자.",
+              "primary_key": true,
+              "logical_column_name": "산출물일련번호"
+            },
+            {
+              "name": "DATA_RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "references": {
+                "table": "LS_DATA_RAW",
+                "column": "RAW_SN",
+                "on_delete": "cascade"
+              },
+              "description": "산출 대상 영상.",
+              "primary_key": false,
+              "logical_column_name": "데이터원시일련번호"
+            },
+            {
+              "name": "OUTPUT_VER_NO",
+              "type": "integer",
+              "unique": false,
+              "nullable": false,
+              "description": "영상별 산출 회차 번호(1부터 시작, 그 영상의 기존 산출 건수+1로 채번). 관제가 픽업하는 산출 폴더의 v1·v2 번호와 같다.",
+              "primary_key": false,
+              "logical_column_name": "산출물버전번호"
+            },
+            {
+              "name": "OUTPUT_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": true,
+              "description": "산출물 경로 — 영상 루트를 가리키며 회차(버전) 루트가 아니다. 관제가 한 경로 아래에서 여러 회차를 함께 보고 비교·복구할 수 있어야 하기 때문이다.",
+              "primary_key": false,
+              "logical_column_name": "산출물경로명"
+            },
+            {
+              "name": "OUTPUT_STTS_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": false,
+              "code_values": {
+                "FAILED": "산출 실패",
+                "PARTIAL": "일부 산출(원본·비식별 중 일부만 성공)",
+                "PENDING": "산출 대기",
+                "SUCCEEDED": "산출 완료"
+              },
+              "description": "산출 처리 상태.",
+              "primary_key": false,
+              "logical_column_name": "산출물상태코드"
+            },
+            {
+              "name": "FRME_CNT",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "description": "실제로 산출된 프레임 수. 원본벌과 비식별벌을 합산한 값이 아니라 프레임 자체의 개수다.",
+              "primary_key": false,
+              "logical_column_name": "프레임수"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "산출 레코드 생성 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "CONTENT_HASH",
+              "type": "varchar(64)",
+              "unique": false,
+              "nullable": true,
+              "description": "산출 시점 라벨 상태의 해시(SHA-256). 내용이 바뀌지 않은 재승인에서 재산출을 건너뛰는 멱등 판정 키다. 값이 비어 있는 기존 행이 있을 수 있다.",
+              "primary_key": false,
+              "logical_column_name": "콘텐츠해시"
+            },
+            {
+              "name": "RTY_NMTM",
+              "type": "integer",
+              "unique": false,
+              "default": "0",
+              "nullable": false,
+              "description": "이 산출 행을 기준으로 재산출이 시도된 누적 횟수. 산출 성공 여부와 무관하게 시도될 때마다 증가한다.",
+              "primary_key": false,
+              "logical_column_name": "재시도횟수"
+            },
+            {
+              "name": "RTY_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "가장 최근에 재산출이 시도(클레임)된 일시. 동시 처리에서 중복 시도를 막는 데 쓰인다.",
+              "primary_key": false,
+              "logical_column_name": "재시도일시"
+            },
+            {
+              "name": "DATA_ETBL_CPCT",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "이 산출 회차 폴더의 총 용량(바이트). 계산되지 않은 경우 비어 있으며, 그 경우에도 산출 자체는 성공으로 처리된다.",
+              "primary_key": false,
+              "logical_column_name": "데이터구축용량"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "LS_DATASET_EXPORT_PKEY",
+              "unique": true,
+              "columns": [
+                "OUTPUT_SN"
+              ]
+            },
+            {
+              "name": "UK_LS_DATASET_EXPORT",
+              "unique": true,
+              "columns": [
+                "DATA_RAW_SN",
+                "OUTPUT_VER_NO"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "검수 승인 학습데이터 산출 기능과 함께 도입된 신규 테이블. 이전 단계의 대응 테이블이 없다.",
+            "status": "new"
+          },
+          "description": "검수 승인 시점에 영상의 라벨·메타를 학습데이터 파일로 산출하는 처리를 영상 단위로 추적하는 원장. 영상마다 산출 회차가 누적되며 회차 번호는 그 영상의 기존 산출 건수에서 1을 더해 정한다.",
+          "logical_table_name": "학습데이터산출"
+        },
+        {
+          "name": "LS_DATASET_VIDEO_META",
+          "columns": [
+            {
+              "name": "META_SNPSHT_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "description": "메타 스냅샷 행 식별자.",
+              "primary_key": true,
+              "logical_column_name": "메타스냅샷일련번호"
+            },
+            {
+              "name": "RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "references": {
+                "table": "LS_DATA_RAW",
+                "column": "RAW_SN",
+                "on_delete": "cascade"
+              },
+              "description": "스냅샷 대상 영상.",
+              "primary_key": false,
+              "logical_column_name": "원시영상일련번호"
+            },
+            {
+              "name": "SNPSHT_HASH",
+              "type": "varchar(64)",
+              "unique": false,
+              "nullable": false,
+              "description": "이 스냅샷 페이로드의 해시. 영상 식별자와 함께 멱등 판정 키를 이뤄, 동일 페이로드로 재승인해도 행이 중복 적재되지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "스냅샷해시"
+            },
+            {
+              "name": "ACTIVE_YN",
+              "type": "char(1)",
+              "unique": false,
+              "default": "Y",
+              "nullable": false,
+              "code_values": {
+                "N": "재승인으로 대체된 과거 스냅샷",
+                "Y": "현재 유효한 스냅샷"
+              },
+              "description": "이 스냅샷이 현재 유효한지 여부. 영상마다 활성 스냅샷은 최대 1건이며, 재검수 후 재승인 시 새 행이 추가되고 이전 행은 비활성으로 바뀐다(이력은 삭제하지 않고 쌓는다).",
+              "primary_key": false,
+              "logical_column_name": "활성여부"
+            },
+            {
+              "name": "ORGNL_RAW_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "이 영상이 파생 영상(증강·해상도 변경 등)일 때 그 원본 영상의 식별자.",
+              "primary_key": false,
+              "logical_column_name": "원본원시영상일련번호"
+            },
+            {
+              "name": "VMS_CLIP_ID",
+              "type": "varchar(128)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "VMS클립아이디"
+            },
+            {
+              "name": "VMS_CCTV_ID",
+              "type": "varchar(64)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "VMS_CCTV아이디"
+            },
+            {
+              "name": "RAW_FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": true,
+              "description": "원본(비식별 이전) 영상 파일 경로. 파생 영상은 이 값이 비어 있을 수 있다.",
+              "primary_key": false,
+              "logical_column_name": "원시파일경로명"
+            },
+            {
+              "name": "SHT_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "촬영일시"
+            },
+            {
+              "name": "VDO_LEN_SEC",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "영상길이초"
+            },
+            {
+              "name": "LCLGV_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "지방자치단체코드"
+            },
+            {
+              "name": "PRVC_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "개인정보포함여부"
+            },
+            {
+              "name": "PRVC_TYPE_CD",
+              "type": "varchar(16)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "개인정보유형코드"
+            },
+            {
+              "name": "DE_IDENT_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "description": "비식별 처리 여부. 데이터마트 뷰가 이 값을 별도 출력 컬럼명으로 다시 내보낼 수 있다 — 물리 컬럼명과 그 출력명이 다른 것은 정상이다.",
+              "primary_key": false,
+              "logical_column_name": "비식별여부"
+            },
+            {
+              "name": "AI_CRT_YN",
+              "type": "char(1)",
+              "unique": false,
+              "nullable": true,
+              "description": "스냅샷 시점에 영상의 출처 유형에서 파생해 동결한 값. 이후 원본 영상의 출처 유형이 바뀌어도 이 값은 갱신되지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "AI생성여부"
+            },
+            {
+              "name": "EVNT_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "이벤트유형코드"
+            },
+            {
+              "name": "CCTV_NM",
+              "type": "varchar(255)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "CCTV명"
+            },
+            {
+              "name": "WGS84_LAT",
+              "type": "numeric(10,7)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "WGS84위도"
+            },
+            {
+              "name": "WGS84_LOT",
+              "type": "numeric(10,7)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "WGS84경도"
+            },
+            {
+              "name": "SIDO_NM",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "시도명"
+            },
+            {
+              "name": "SGG_NM",
+              "type": "varchar(100)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "시군구명"
+            },
+            {
+              "name": "FILE_FMT",
+              "type": "varchar(32)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "파일형식"
+            },
+            {
+              "name": "EVNT_NM",
+              "type": "varchar(255)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "이벤트명"
+            },
+            {
+              "name": "VDO_CDC",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "영상코덱"
+            },
+            {
+              "name": "FPS",
+              "type": "numeric",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "프레임재생속도"
+            },
+            {
+              "name": "BIT_RT",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "비트전송률"
+            },
+            {
+              "name": "ASPRT_RT",
+              "type": "numeric",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "종횡비"
+            },
+            {
+              "name": "RESL",
+              "type": "varchar(32)",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "해상도"
+            },
+            {
+              "name": "VDO_WDTH",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "영상가로"
+            },
+            {
+              "name": "VDO_HGT",
+              "type": "integer",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "영상높이"
+            },
+            {
+              "name": "FILE_SZ",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "description": "영상 파일에서 직접 추출한 기술 메타 값이다.",
+              "primary_key": false,
+              "logical_column_name": "파일크기"
+            },
+            {
+              "name": "DAY_NGT_CD",
+              "type": "varchar(8)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "주야구분코드"
+            },
+            {
+              "name": "SESN_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "계절코드"
+            },
+            {
+              "name": "WTHR_NM",
+              "type": "varchar(32)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "날씨명"
+            },
+            {
+              "name": "EVNT_ANNO_CN",
+              "type": "jsonb",
+              "unique": false,
+              "nullable": true,
+              "description": "동결된 이벤트 어노테이션 원문. 검수 승인 시점에 존재하던 이벤트 어노테이션의 스냅샷이며, 승인되지 않았거나 이벤트 어노테이션이 없으면 비어 있다.",
+              "primary_key": false,
+              "logical_column_name": "이벤트어노테이션내용"
+            },
+            {
+              "name": "RVW_CMPL_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "검수완료일시"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "description": "스냅샷 행 생성 일시.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "REG_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "description": "",
+              "primary_key": false,
+              "logical_column_name": "등록아이디"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "LS_DATASET_VIDEO_META_PKEY",
+              "unique": true,
+              "columns": [
+                "META_SNPSHT_SN"
+              ]
+            },
+            {
+              "name": "UK_LS_DATASET_VIDEO_META",
+              "unique": true,
+              "columns": [
+                "RAW_SN",
+                "SNPSHT_HASH"
+              ]
+            },
+            {
+              "name": "UK_LS_DATASET_VIDEO_META_RAW_ACTIVE",
+              "unique": true,
+              "columns": [
+                "RAW_SN"
+              ]
+            },
+            {
+              "name": "IDX_LS_DATASET_VIDEO_META_RAW_ACTIVE",
+              "unique": false,
+              "columns": [
+                "RAW_SN",
+                "ACTIVE_YN"
+              ]
+            },
+            {
+              "name": "IDX_LS_DATASET_VIDEO_META_RVW_CMPL",
+              "unique": false,
+              "columns": [
+                "RVW_CMPL_DT"
+              ]
+            }
+          ],
+          "brownfield": {
+            "notes": "검수 승인 학습데이터 산출 기능과 함께 도입된 신규 테이블. 이전 단계의 대응 테이블이 없다.",
+            "status": "new"
+          },
+          "description": "검수 승인 시점에 영상 메타를 1영상=1행 컬럼형으로 동결한 스냅샷. 원시 영상 정보·비식별/개인정보 판정·기술 메타·촬영환경·동결된 이벤트 어노테이션을 한 행에 담는다. 재검수 후 재승인되면 새 행이 추가되고 이전 행은 비활성으로 바뀌는 append-only 이력이다.",
+          "logical_table_name": "데이터셋영상메타"
+        }
+      ],
+      "brownfield": {
+        "notes": "검수 승인 시점에 학습데이터 파일을 자동 산출하는 기능과 함께 신설됐다. 이전 단계에 대응하는 테이블이 없다.",
+        "status": "new"
+      },
+      "description": "검수 승인(APPROVED) 시점에 학습데이터 산출·영상 메타 동결이 함께 시작되는 원장 2종. LS_DATASET_EXPORT는 산출 파일 쓰기 처리(회차·경로·상태·재시도)를 추적하고, LS_DATASET_VIDEO_META는 그 시점의 영상 메타를 1영상=1행으로 동결해 관제·포털이 읽어가는 원천으로 삼는다. 두 테이블 사이에 직접 참조는 없고 각자 영상 테이블을 참조하며, 데이터마트 조회 시점에 영상 식별자로 함께 조인된다.",
+      "relationships": [
+        {
+          "label": "산출 대상 영상",
+          "to_table": "LS_DATA_RAW",
+          "from_table": "LS_DATASET_EXPORT",
+          "via_column": "DATA_RAW_SN",
+          "cardinality": "N:1"
+        },
+        {
+          "label": "메타 스냅샷 대상 영상",
+          "to_table": "LS_DATA_RAW",
+          "from_table": "LS_DATASET_VIDEO_META",
+          "via_column": "RAW_SN",
+          "cardinality": "N:1"
+        }
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": []
+      },
+      "uses_constants": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검수 승인 시 학습데이터 파일을 산출하는 기능(도메인 소속 기능이 LS_DATASET_EXPORT·LS_DATASET_VIDEO_META 두 테이블을 함께 소유한다고 명시)이 정의돼 있는데도 그 테이블들을 정의하는 ERD 가 어디에도 없어 신규 등록한다. 다른 ERD 들은 이 두 테이블을 설명문에서 언급만 할 뿐 정의하지 않는다. 소유 도메인은 검수(DOMAIN-005) — 해당 기능의 소속 링크로 확인했고, 데이터 증강 도메인은 자기 서술에서 이 산출 책임을 검수 승인 경로 소관이라고 명시적으로 부인한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-17T00:25:45.194Z",
+    "created_at": "2026-08-17T00:25:45.194Z"
+  }
+}

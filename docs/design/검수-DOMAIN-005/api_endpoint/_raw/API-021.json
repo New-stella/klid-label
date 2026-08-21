@@ -19,8 +19,7 @@
         {
           "jwt": [
             "REVIEWER",
-            "WORKER",
-            "PORTAL_USER"
+            "WORKER"
           ]
         }
       ],
@@ -177,7 +176,7 @@
           "description": "REVIEWER 전용 — true 면 원본(비식별 전) 프레임 요청. WORKER 는 무시되고 DEID 강제."
         }
       ],
-      "description": "라벨링 캔버스에 표시할 프레임 이미지를 반환한다. 기본은 비식별(DEID) 프레임이며 REVIEWER 가 raw=true 를 명시할 때만 원본을 서빙한다(WORKER 의 raw=true 는 무시). 비식별 경로가 없으면 PRVC/PSDO 는 404, ANONY 는 원본 폴백. 인증 필수, WORKER 는 본인 배정 프레임만 (CWE-639). REVIEWER/WORKER/PORTAL_USER.",
+      "description": "라벨링 캔버스에 표시할 프레임 이미지를 반환한다. 기본은 비식별(DEID) 프레임이며 REVIEWER 가 raw=true 를 명시할 때만 원본을 서빙한다(WORKER 의 raw=true 는 무시). 비식별 경로가 없으면 PRVC/PSDO 는 404, ANONY 는 원본 폴백. 인증 필수, WORKER 는 본인 배정 프레임만 (CWE-639). REVIEWER/WORKER 전용 — PORTAL_USER 는 이 API 에 도달할 수 없다(내부 채널 전용). 포털 사용자는 별도 경로 GET /v1/portal/frames/{srcSn}/image 를 사용한다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -192,12 +191,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "change_summary": "security.jwt 에서 PORTAL_USER 를 제거했다 — 이 API 는 내부 채널 전용 인가 조건이 걸려 있어 PORTAL_USER 역할로는 도달이 불가능하다(포털 채널 사용자는 언제나 이 조건을 만족하지 못한다). 본문 말미에 이 사실과 포털 사용자가 실제로 쓰는 별도 경로(GET /v1/portal/frames/{srcSn}/image)를 명시했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:22:55.396Z",
+    "last_updated_at": "2026-08-16T23:39:50.348Z",
     "created_at": "2026-05-30T07:19:53.541Z"
   }
 }

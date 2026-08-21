@@ -144,6 +144,8 @@ public class FrameImageService {
      *   <li>REVIEWER 가 명시적으로 {@code allowRaw=true} 요청 시에만 원본(filePath) 서빙.</li>
      *   <li>WORKER 의 {@code allowRaw=true} 는 무시 (강제 DEID).</li>
      *   <li>DEID 경로가 없을 때: PRVC/PSDO 는 NOT_FOUND, ANONY 는 원본 폴백.</li>
+     *   <li><b>외부 산출물 이관</b>({@code SRC_TYPE='IMPORTED'})은 위 NOT_FOUND 의 예외 —
+     *       가져온 프레임을 역할 구분 없이 그대로 서빙한다(아래 분기 주석 참조).</li>
      * </ul>
      *
      * <p><b>트랜잭션 밖</b>에서 실행된다(W3) — 인자는 조회 전담 빈이 트랜잭션 안에서 뽑아 준 값
@@ -168,6 +170,24 @@ public class FrameImageService {
             if (deid != null && !deid.isBlank()) {
                 relPath = deid;
                 fromDeidColumn = true;
+            } else if (spec.imported()) {
+                // 외부 산출물 이관(SRC_TYPE='IMPORTED') — 가져온 프레임을 그대로 보여 준다.
+                //
+                // 왜 예외인가: 이 경로의 프레임은 <b>외부에서 이미 라벨링이 끝난 산출물</b>이고, 우리가
+                // 비식별 단계를 태워 만든 짝이 아직 없을 수 있다. 그런데 산출물이 개인정보 포함으로
+                // 표기돼 오면 아래 needsDeidentify() 분기에 걸려 프레임이 전부 404 가 되고, 그러면
+                // <b>검수 화면이 백지</b>가 되어 검수 자체가 성립하지 않는다. 이 경로는 적재 직후
+                // 곧바로 검수 대기이므로 프레임을 못 보는 것은 기능의 부재와 같다.
+                //
+                // 판정축을 PRVC_TYPE_CD 가 아니라 <b>출처유형</b>으로 둔 것도 같은 이유다 — 그 컬럼을
+                // ANONY 로 눕혀 우회하면 비식별 대상 판정(needsDeidentify)까지 함께 바뀌어 의도보다
+                // 넓게 영향이 간다. 여기서 바뀌는 것은 <b>이 경로의 서빙 하나</b>뿐이다.
+                //
+                // 역할로 가르지 않는다(확정 정책) — 작업자와 검수자 모두에게 같은 프레임을 보여 준다.
+                // 승인을 붙잡아 두는 일은 LS_RAW_DATA_STATUS.DE_IDNTF_CMPTN_YN 이 따로 한다.
+                // 비식별 누락 신고 게이트는 이 분기보다 <b>앞</b>(조회 전담 빈)에서 이미 평가되므로
+                // 그 구간에는 여기까지 오지 않는다.
+                relPath = spec.srcFilePath();
             } else if (spec.needsDeidentify()) {
                 // PRVC/PSDO — DEID 미준비 시 원본 노출 금지 (기존 회귀)
                 log.warn("[FrameImage] deid path missing for sensitive video rawSn={} frameNo={}", rawSn, frameNo);

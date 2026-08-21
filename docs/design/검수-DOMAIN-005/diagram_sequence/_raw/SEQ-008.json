@@ -10,10 +10,10 @@
     "data": {
       "theme": "neutral",
       "title": "라벨 버전 저장·이력 추적 — 검수 승인 시점 스냅샷 생성",
-      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant RC as ReviewController\n    participant RS as ReviewService\n    participant VS as VersionService\n    participant DB as PostgreSQL (LS_RAW_DATA_STATUS / LS_LABEL_VERSION)\n    participant EP as ApplicationEventPublisher\n\n    RV->>RC: POST /v1/reviews/{videoId}/approve\n    RC->>RS: approve(videoId, actor)\n    RS->>DB: loadByVideoId + 상태머신 verify(→APPROVED)\n    RS->>DB: transitionTo(APPROVED) + TaskEventLog.approve save\n    RS->>DB: flush()\n    alt OptimisticLock 충돌\n        RS-->>RC: 409 CONFLICT\n        RC-->>RV: 409\n    else 승인 확정\n        RS->>VS: commitApproved(rawSn, actor)\n        loop 영상 프레임별\n            VS->>DB: findBySrcSn (라벨)\n            opt 라벨 있음\n                VS->>VS: LabelResponse JSON 직렬화 + SHA-256(VERSION_HASH)\n                VS->>DB: findActiveForUpdate (비관적 잠금)\n                alt 동일 해시(멱등)\n                    VS->>VS: 스킵\n                else 변경됨\n                    VS->>DB: 새 active 버전 save (SAVE_REASON_CD=APPROVED)\n                end\n            end\n        end\n        RS->>EP: publish ReviewApprovedEvent(rawSn)\n        RS-->>RC: ReviewResponse(APPROVED)\n        RC-->>RV: 200 OK\n    end",
+      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant RC as ReviewController\n    participant RS as ReviewService\n    participant VS as VersionService\n    participant DB as PostgreSQL (LS_RAW_DATA_STATUS / LS_LABEL_VERSION)\n    participant EP as ApplicationEventPublisher\n\n    RV->>RC: POST /v1/reviews/{videoId}/approve\n    RC->>RS: approve(videoId, actor)\n    RS->>DB: loadByVideoId\n    RS->>RS: 승인 게이트 — 검수 워크플로 상태의 비식별화 완료 여부 판정 (상태 전이보다 먼저)\n    alt 비식별화 미완료 — 외부 산출물을 원본으로 지정해 들여온 영상\n        RS-->>RC: 412 PRECONDITION_FAILED (행위 중립 메시지)\n        RC-->>RV: 412 — 승인 거부. 상태 전이·아래 스냅샷 생성·학습데이터 산출물 재생성·관제 통지가 하나도 일어나지 않음\n    else 비식별화 완료 (기본값)\n        Note over RS: 이 게이트는 승인만 막는다 — 라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성까지 함께 닫는 비식별 누락 신고와는 다른 축이다\n    end\n    RS->>RS: 상태머신 verify(→APPROVED) — 승인 게이트를 통과한 뒤에 평가한다. 게이트에서 막히면 이 검증에 닿지 않아 400 이 아니라 412 로 응답한다\n    RS->>DB: transitionTo(APPROVED) + TaskEventLog.approve save\n    RS->>DB: flush()\n    alt OptimisticLock 충돌\n        RS-->>RC: 409 CONFLICT\n        RC-->>RV: 409\n    else 승인 확정\n        RS->>VS: commitApproved(rawSn, actor)\n        loop 영상 프레임별\n            VS->>DB: findBySrcSn (라벨)\n            opt 라벨 있음\n                VS->>VS: LabelResponse JSON 직렬화 + SHA-256(VERSION_HASH)\n                VS->>DB: findActiveForUpdate (비관적 잠금)\n                alt 동일 해시(멱등)\n                    VS->>VS: 스킵\n                else 변경됨\n                    VS->>DB: 새 active 버전 save (SAVE_REASON_CD=APPROVED)\n                end\n            end\n        end\n        RS->>EP: publish ReviewApprovedEvent(rawSn)\n        RS-->>RC: ReviewResponse(APPROVED)\n        RC-->>RV: 200 OK\n    end",
       "messages": [],
       "fragments": [],
-      "description": "ReviewController.approve(POST /v1/reviews/{videoId}/approve, REVIEWER) → ReviewService.approve: IN_REVIEW→APPROVED 전이 + 낙관적 잠금 flush(충돌 시 409) → 같은 트랜잭션에서 VersionService.commitApproved: 영상 프레임 순회, 프레임별 현재 라벨을 LabelResponse JSON 으로 직렬화 → SHA-256 VERSION_HASH → ACTIVE 행 비관적 잠금 후 동일 해시면 멱등 스킵, 아니면 SAVE_REASON_CD=APPROVED 새 active 저장. 끝으로 ReviewApprovedEvent 발행.",
+      "description": "ReviewController.approve(POST /v1/reviews/{videoId}/approve, REVIEWER) → ReviewService.approve: IN_REVIEW→APPROVED 전이 + 낙관적 잠금 flush(충돌 시 409) → 같은 트랜잭션에서 VersionService.commitApproved: 영상 프레임 순회, 프레임별 현재 라벨을 LabelResponse JSON 으로 직렬화 → SHA-256 VERSION_HASH → ACTIVE 행 비관적 잠금 후 동일 해시면 멱등 스킵, 아니면 SAVE_REASON_CD=APPROVED 새 active 저장. 끝으로 ReviewApprovedEvent 발행. 전제조건 — 승인 요청이 들어오면 상태 전이보다 먼저 승인 게이트가 검수 워크플로 상태의 비식별화 완료 여부를 판정한다. 외부 산출물을 원본으로 지정해 들여온 영상은 비식별이 끝나기 전까지 미완료이고 그 밖에는 완료가 기본값이며, 미완료면 412 로 승인이 거부되어 이 흐름 자체가 시작하지 않는다. 상태 전이 유효성 검증도 이 게이트 뒤에 오므로, 게이트에서 막힌 요청은 전이가 잘못됐는지와 무관하게 412 로 응답한다 — 상태 전이·버전 스냅샷·학습데이터 산출물 재생성·관제 통지가 하나도 생기지 않는다. 이 게이트는 승인만 막는다는 점에서, 라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성까지 함께 닫는 비식별 누락 신고 축과 구분된다.",
       "invokes_apis": [
         "API-014"
       ],
@@ -37,12 +37,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "설명 말미의 근거 표기(코드 지목)를 걷어낸다 — 흐름 서술 자체는 그대로다.",
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "API-014의 data.responses 변경 — consumes",
+    "change_summary": "승인 흐름 앞단에서 조회와 상태 전이 유효성 검증을 한 단계로 묶어 두었던 것을 나누고, 상태 전이 유효성 검증을 승인 게이트 뒤로 옮긴다. 조회는 있던 자리에 그대로 두고 묶여 있던 검증 조각만 자기 단계를 갖게 했다 — 지우거나 합친 단계는 없다. 바뀐 것은 평가 순서뿐이고 응답 코드는 그대로다. 게이트는 412, 상태 전이 유효성 검증은 400 이다. 이 순서가 실제로 정하는 것은 두 조건이 함께 어긋난 요청의 응답이다 — 검수 대기가 아닌 상태이면서 비식별화도 미완료인 영상은 게이트에서 먼저 막혀 412 로 응답하고 상태 전이 유효성 검증에는 닿지 않는다. 앞단 서술도 같은 문장으로 맞춰, 게이트에서 막힌 요청은 전이가 잘못됐는지와 무관하게 412 라고 적었다. 함께 확인했으나 이번에 담지 않은 축이 둘 있다. 하나는 재승인 경로에서 상태 전이 유효성 검증을 건너뛴다는 사실이고, 다른 하나는 비식별 누락 신고 축의 승인 차단이다. 후자는 이 흐름도에서 게이트 단계가 아니라 두 축의 차이를 적은 노트로만 나타나 있다. 둘 다 순서 정정과는 다른 축이라 그대로 두고 별도 판단 대상으로 남긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T13:59:40.746Z",
+    "last_updated_at": "2026-08-21T03:55:19.233Z",
     "created_at": "2026-06-02T13:12:56.461Z"
   }
 }

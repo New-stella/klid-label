@@ -44,4 +44,22 @@ public record SourcePrivacyMeta(boolean sourceExists,
     public static SourcePrivacyMeta ofIngest(String anonyInclYn, String psdoInclYn, String prvcInclYn) {
         return new SourcePrivacyMeta(true, anonyInclYn, psdoInclYn, prvcInclYn);
     }
+
+    /**
+     * <b>외부 산출물 이관</b> 영상의 원천 판정 — 값의 출처가 관제 인입 행이 아니라 <b>산출물 문서를
+     * 원문 보관한 메타</b>다(ADR-048 — 이 경로는 관제 수신 원장을 거치지 않는다).
+     *
+     * <p>{@link #ofIngest} 와 값 모양이 같은데도 진입점을 따로 두는 이유는 <b>출처가 다르다는 사실을
+     * 호출부에 드러내기 위해서</b>다. 같은 팩토리를 쓰면 나중에 인입 축 규칙을 손볼 때 이관 축이 함께
+     * 딸려 가고, 반대로 이관 축 조달을 바꾸려 할 때 어디를 봐야 하는지 알 수 없다. 조달 규칙은
+     * {@code ExportPrivacyPolicy.importedSource} 한 곳이 소유한다.
+     *
+     * <p>{@code sourceExists=true} 다 — 이관 영상은 파생영상이 아니라 원천 영상 자체가 있는 경우라
+     * {@code image} 블록의 원천 상수가 종전대로 실려야 한다.
+     *
+     * @design DOMAIN-017
+     */
+    public static SourcePrivacyMeta ofImport(String anonyInclYn, String psdoInclYn, String prvcInclYn) {
+        return new SourcePrivacyMeta(true, anonyInclYn, psdoInclYn, prvcInclYn);
+    }
 }

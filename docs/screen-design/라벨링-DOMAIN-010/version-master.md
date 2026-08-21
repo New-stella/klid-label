@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-18T04:22:52.453Z (session 14) |
-| Mode | SYNC — NEW 4 / CHANGED 0 / UNCHANGED 220 |
+| Last sync | 2026-08-21T09:19:04.453Z (session 15) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 224 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
@@ -16,20 +16,20 @@
 | [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 7 | true | UNCHANGED |
 | [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 7 | true | UNCHANGED |
 | [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | UNCHANGED |
-| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 5 | false | UNCHANGED |
+| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 7 | false | UNCHANGED |
 | [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 11 | false | UNCHANGED |
 | [[AC-017]] | acceptance | 실영상 라벨링·메타 가공 | 6 | false | UNCHANGED |
 | [[AC-020]] | acceptance | 다양한 환경·산불 유형 학습데이터 제작 | 4 | true | UNCHANGED |
 | [[AC-021]] | acceptance | 생성된 영상 라벨링으로 학습데이터셋 편입 | 5 | true | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
 | [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 6 | false | UNCHANGED |
-| [[AC-038]] | acceptance | 온디맨드 AI 자동 추적 — 진입점 구분과 시작 객체 없는 실행 | 3 | false | NEW |
-| [[AC-039]] | acceptance | 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점 | 3 | false | NEW |
-| [[AC-040]] | acceptance | 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달 | 3 | false | NEW |
+| [[AC-038]] | acceptance | 온디맨드 AI 자동 추적 — 진입점 구분과 시작 객체 없는 실행 | 3 | false | UNCHANGED |
+| [[AC-039]] | acceptance | 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점 | 3 | false | UNCHANGED |
+| [[AC-040]] | acceptance | 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달 | 3 | false | UNCHANGED |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 4 | false | UNCHANGED |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
-| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 9 | false | UNCHANGED |
+| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 14 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
 | [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
 | [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
@@ -45,14 +45,14 @@
 | [[API-041]] | api_endpoint | POST /v1/manage/presets/{id}/clone | 4 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | UNCHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 5 | false | UNCHANGED |
-| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 11 | false | UNCHANGED |
+| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | UNCHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | UNCHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 10 | false | UNCHANGED |
 | [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | UNCHANGED |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
 | [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | UNCHANGED |
-| [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 8 | false | UNCHANGED |
-| [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 7 | false | UNCHANGED |
+| [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 13 | false | UNCHANGED |
+| [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 10 | false | UNCHANGED |
 | [[API-125]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/merge | 2 | false | UNCHANGED |
 | [[API-126]] | api_endpoint | DELETE /v1/videos/{rawSn}/tracks/{trackId} | 2 | false | UNCHANGED |
 | [[API-127]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/{trackId}/split | 2 | false | UNCHANGED |
@@ -71,28 +71,28 @@
 | [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 3 | true | UNCHANGED |
 | [[API-183]] | api_endpoint | GET /v1/videos/{rawSn}/privacy-meta | 1 | false | UNCHANGED |
 | [[API-184]] | api_endpoint | PUT /v1/videos/{rawSn}/privacy-meta | 2 | false | UNCHANGED |
-| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 4 | false | UNCHANGED |
+| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 5 | false | UNCHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 6 | true | UNCHANGED |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | UNCHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 4 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 90 | false | UNCHANGED |
+| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 96 | true | UNCHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 26 | true | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 14 | true | UNCHANGED |
 | [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
-| [[UC-004]] | use_case | 객체 자동 추적 | 15 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
+| [[UC-004]] | use_case | 객체 자동 추적 | 15 | true | UNCHANGED |
 | [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 10 | true | UNCHANGED |
 | [[UC-006]] | use_case | 라벨링 정밀도 조절 | 9 | true | UNCHANGED |
-| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 12 | true | UNCHANGED |
+| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 13 | false | UNCHANGED |
 | [[UC-008]] | use_case | 버전 비교·복구 | 13 | true | UNCHANGED |
 | [[UC-021]] | use_case | 라벨 편집·임시저장 | 20 | true | UNCHANGED |
 | [[UC-022]] | use_case | VLM 시계열 메타 검토 | 17 | true | UNCHANGED |
 | [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 6 | true | UNCHANGED |
-| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 5 | true | NEW |
+| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 5 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -179,7 +179,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 4 | false | UNCHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

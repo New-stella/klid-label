@@ -482,6 +482,24 @@ public class ReviewService {
         //   판정은 DeidentReportGate 단일 원천에 위임한다("F" 비교를 여기서 재구현하지 않는다).
         accessGuard.requireNotUnderDeidentReport(stts.getRawDataId());
 
+        // V14 — 비식별화완료여부(DE_IDNTF_CMPTN_YN)가 미완료면 승인 차단(412). 외부 산출물을
+        //   <b>원본이라고 지정해</b> 이관한 영상만 미완료로 시작하며(기본값 'Y'), 그 영상은 비식별이
+        //   끝나기 전까지 승인이 막힌다(ADR-048).
+        //   ★ 이 값은 <검수 승인 하나만> 막는다 — 라벨 조회·프레임 이미지·영상 스트리밍·산출물
+        //     생성을 닫지 않는다. 그 통로들을 함께 닫는 것은 바로 위 비식별 누락 신고이며 <별개 축>이다.
+        //     두 축을 합치면 이관 경로에는 라벨과 프레임이 이미 들어와 있어 그것을 못 보게 되고
+        //     검수 자체가 성립하지 않는다.
+        //   ★ 위 신고 게이트와 같은 자리(상태 전이·라벨 게이트 <이전>)에 둔다 — 거부 시 상태 전이·
+        //     버전 스냅샷·export·통지가 하나도 생기지 않아야 하기 때문이다.
+        //   ⚠ 두 조건은 <동시에 성립하지 않는다>. 신고는 비식별을 한 번이라도 수행한 영상만 접수하는데
+        //     이 값이 미완료인 영상은 아직 비식별을 수행하지 않았다. 그래서 문구가 갈려도 응답이 다른
+        //     조건의 성립 여부를 알려주는 오라클이 되지 않는다(CWE-209).
+        if (!stts.isDeidentCompleted()) {
+            log.warn("[Review] approve blocked — deident not completed rawSn={}", stts.getRawDataId());
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED,
+                    "비식별이 완료되지 않은 영상입니다. 비식별 완료 후 다시 시도해 주세요.");
+        }
+
         // Phase 7a-2 — 재검토 표시(REVLT_YN='Y', V177)가 선 APPROVED 영상은 상태 전이 없이(멱등) 재승인을
         //   허용한다. "표시가 섰던 사실"은 상태 전이/이벤트 발행 분기 둘 다에 쓰이므로 어떤 경로로 여기 왔든
         //   (아래 short-circuit 경로든, 기존 legacy APPROVED→PENDING→IN_REVIEW→APPROVED 전체 재검수

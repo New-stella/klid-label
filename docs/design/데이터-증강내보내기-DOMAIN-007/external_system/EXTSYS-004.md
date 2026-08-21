@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-004
 type: external_system
-version: 7
+version: 8
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.734Z
-status: NEW
-prev_version: null
-content_hash: 9bd6da84dd0e6e01a3c73bc977c8a871a161b79cda1725f0d8b10ae4dc5229be
+synced_at: 2026-08-21T00:02:44.960Z
+status: CHANGED
+prev_version: 7
+content_hash: 44cc660e229f925468c2eea939d77e8f2e709bb9596c5f1e8275c88ccb2be2f0
 stale: false
 raw: ./_raw/EXTSYS-004.json
 links:
@@ -71,6 +71,8 @@ medium
 | dev | `noop`(명시 오버라이드) | 미연동 |
 | stg | `noop`(명시 오버라이드) | 미연동 |
 | prd | `noop`(명시 오버라이드, 주석에 "실연동 시 http+base-url 전환" 명시) | 미연동 |
+
+⚠ **미연동 모드에서는 요청을 접수하지 않는다 (ADR-049)** — 연동이 설정되지 않았으면 요청 시점에 거부한다. 구 동작은 접수만 하고 외부로 보내지 않아 요청이 진행 중으로 보이다가 한참 뒤 만료 회수로 실패 종결됐고, 그 환경에서 증강을 쓸 수 없다는 사실을 요청자가 즉시 알 수 없었다. 미전송 동작 자체는 그대로이며 접수 단계 거부만 더한 것이다.
 
 ## 벤더 계약
 관제지원시스템이 확정한 **「생성형 AI API 연동명세서 v1.1」**(관제 LogiCraft `EXTSYS-002`, 근거 `ADR-101`, 2026-07-24)을 그대로 준용한다(§4.1·§4.2 정합). 다만 **저작도구 자체 명의의 규격서를 벤더/관제로부터 별도 수령한 이력은 없다** — 관제 확정 문서를 준용해 구현한 상태이며, 공식 규격서 확정 여부는 재확인 대상.

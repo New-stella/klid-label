@@ -84,7 +84,7 @@
             },
             {
               "type": "Stat",
-              "label": "진행중",
+              "label": "작업중",
               "columns": [],
               "options": [],
               "binds_to": "workerStat.inProgress"
@@ -192,10 +192,16 @@
       ],
       "implementation": {
         "status": "implemented",
-        "modules": [],
-        "records": [],
+        "modules": [
+          "MOD-021",
+          "MOD-012"
+        ],
+        "records": [
+          "IMPREC-022"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-17T22:48:30.382Z"
       },
       "required_roles": [
         "ROLE-001",
@@ -211,8 +217,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "ff7968f18e83b01ac2b1bbf94a4c4b33d0eec1e8e0177f6f10a1385be4c5bc14",
-          "generated_at": "2026-08-17T12:44:49.310Z",
+          "source_hash": "27c3182c5f61af56a6b0870bc4100d68102b7b9de8ae39991333207f649242aa",
+          "generated_at": "2026-08-18T03:34:50.525Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -224,12 +230,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 30,
-    "stale": true,
-    "stale_reason": "API-056의 data.implementation 변경 — consumes",
+    "current_version": 32,
+    "stale": false,
+    "stale_reason": null,
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (11.9KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T12:44:49.310Z",
+    "last_updated_at": "2026-08-18T03:34:50.526Z",
     "created_at": "2026-05-30T07:55:14.624Z"
   }
 }

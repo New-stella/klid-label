@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-020
 type: screen_spec
-version: 30
+version: 32
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T15:39:37.308Z
+synced_at: 2026-08-21T00:02:43.852Z
 status: CHANGED
-prev_version: 28
-content_hash: 7414cd3c59a028ba63e92d4d346cf884661cf1b113a5cf35184503d595e01c60
-stale: true
+prev_version: 30
+content_hash: 135866338cc903ea84309b3a012a13c5e1923fc3ca2d4b5d880e7855e164d314
+stale: false
 raw: ./_raw/SCREEN-020.json
 links:
   belongs_to_domain: ["[[DOMAIN-006]]"]
@@ -19,7 +19,7 @@ links:
   designs_backward: ["[[SD-030]]"]
   granted_on_backward: ["[[ROLE-001]]", "[[ROLE-002]]"]
   navigates_to_backward: ["[[NAV-001]]"]
-  realizes_backward: ["[[MOD-012]]"]
+  realizes_backward: ["[[MOD-012]]", "[[MOD-021]]"]
   references_backward: ["[[TEST-006]]"]
 ---
 
@@ -170,7 +170,7 @@ _(empty)_
 #### [2]
 
 - **type**: Stat
-- **label**: 진행중
+- **label**: 작업중
 
 **columns**:
 
@@ -370,11 +370,12 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-021
+- MOD-012
 
 ### records
 
-_(empty)_
+- IMPREC-022
 
 ### progress
 
@@ -383,6 +384,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-17T22:48:30.382Z
 
 ## required_roles
 
@@ -404,8 +409,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: ff7968f18e83b01ac2b1bbf94a4c4b33d0eec1e8e0177f6f10a1385be4c5bc14
-- **generated_at**: 2026-08-17T12:44:49.310Z
+- **source_hash**: 27c3182c5f61af56a6b0870bc4100d68102b7b9de8ae39991333207f649242aa
+- **generated_at**: 2026-08-18T03:34:50.525Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

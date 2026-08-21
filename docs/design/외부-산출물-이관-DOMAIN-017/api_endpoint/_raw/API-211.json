@@ -1,0 +1,170 @@
+{
+  "item": {
+    "id": "API-211",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "분류 대응 해제",
+    "slug": "분류-대응-해제",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/import-mappings/{mpngSn}",
+      "tags": [
+        "외부 산출물 이관"
+      ],
+      "method": "DELETE",
+      "summary": "분류 대응을 더 이상 쓰지 않게 한다",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "204": {
+          "description": "해제됐다. 응답 본문은 없다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "검수자만 분류 대응을 해제할 수 있습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한이 없다. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "해당 분류 대응을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "그 대응이 없다. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "mpngSn",
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "required": true,
+          "description": "해제할 대응의 식별번호."
+        }
+      ],
+      "description": "잘못 연결된 대응을 해제한다. 해제하면 그 분류는 다시 처음 보는 분류가 되어, 다음에 가져올 때 사람이 다시 확정해야 한다.\n\n행을 지우지 않고 쓰지 않음으로 표시한다. 과거에 어떤 대응이 걸려 있었는지를 되짚을 수 있어야 하기 때문이다.\n\n이미 이 대응으로 적재된 라벨은 그대로 둔다. 해제는 앞으로 가져올 것에만 적용되며, 이미 검수를 거친 결과를 소급해서 바꾸지 않는다.\n\n검수자만 호출할 수 있다.",
+      "operation_id": "deleteImportMapping",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-20T02:08:05.003Z"
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-010"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "대응 해제를 구현했다. 행을 지우지 않고 사용여부만 바꾸며 본문 없이 응답한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-20T02:08:05.003Z",
+    "created_at": "2026-08-19T07:55:04.768Z"
+  }
+}

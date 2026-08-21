@@ -51,6 +51,7 @@
 | SC-032 | 비식별 신고 관리 | `/manage/deident-reports` | REVIEWER | [08 §8.4](08-deidentification.md) |
 | SC-035 | 라벨 관리 | `/manage/labels` | REVIEWER | [10](10-labeling.md) |
 | SC-038 | 이벤트유형 관리 | `/manage/event-types` | REVIEWER | [18](18-database.md) |
+| SC-039 | 외부 산출물 이관 | `/manage/imports` | REVIEWER | [25](25-external-import.md) |
 | SC-030 | 게시판 목록 | `/notice` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-031 | 게시판 상세 | `/notice/:id` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-036 | 게시판 작성 | `/notice/new` | REVIEWER | [20](20-notice-board.md) |

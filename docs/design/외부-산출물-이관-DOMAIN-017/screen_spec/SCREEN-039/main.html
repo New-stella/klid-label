@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-039</span><span class="sep">/</span><span>외부 산출물 이관</span></div>
+      <h1 style="white-space:nowrap">외부 산출물 이관</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">검수자가 외부에서 받은 산출물 폴더를 저작도구로 가져오는 관리 화면이다.
+
+경로 입력 → 미리보기 확인 → 적재의 3단 흐름을 한 화면에서 순서대로 밟는다. 상단 폼에 산출물 폴더 경로를 넣고, 원본 영상이 따로 있으면 그 경로도 함께 넣으며, 이 산출물이 비식별이 끝난 것인지 원본인지를 고른다. 기본값은 원본 쪽이고, 비식별이 끝난 것으로 고를 때 경고를 보여준다 — 잘못 고르면 비식별되지 않은 화면이 학습데이터로 나가고 승인 이후에는 되돌릴 수단이 사실상 없기 때문이다.
+
+검사를 요청하면 API-205 가 폴더를 훑어 영상 정보·프레임 수·라벨 수와 경고를 돌려주며 이 단계에서는 아무것도 저장되지 않는다. 경고는 한 목록으로 돌아오고 그 안에 적재를 막는 사유와 막지 않는 사유가 함께 담긴다. 막지 않는… · route /manage/imports</p>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">① 가져오기 입력</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: form</span>
+            <span class="wf-badge wf-badge-primary">API-205</span>
+            <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">외부 산출물 가져오기</span>
+            <div class="wf-field"><label class="wf-label">산출물 폴더 경로</label><input class="wf-input" placeholder="예: /nas-storage/handover/00000073" /></div><span class="wf-help">허용된 저장소 범위 밖이면 거부된다</span>
+            <div class="wf-field"><label class="wf-label">원본 영상 경로 (선택)</label><input class="wf-input" placeholder="비우면 프레임과 라벨만 가져온다" /></div>
+            <div class="wf-field"><label class="wf-label">이 산출물은</label><div class="wf-cluster"><label class="wf-radio"><input type="radio" name="이 산출물은" /> 원본이다</label><label class="wf-radio"><input type="radio" name="이 산출물은" /> 비식별이 끝난 것이다</label></div></div><span class="wf-help">기본값은 원본. 비식별 완료를 고르면 주의 문구 표시</span>
+            <div class="wf-alert wf-alert-info">비식별이 끝난 것으로 고르면 그대로 학습데이터로 나간다. 잘못 고르면 승인 뒤에 되돌릴 수단이 사실상 없다.</div><span class="wf-badge">hidden</span><span class="wf-help">비식별 완료 선택 시에만 노출</span>
+            <button class="wf-btn wf-btn-primary">검사</button><span class="wf-badge wf-badge-primary">API-205</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 미리보기</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-205</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">가져올 내용</span>
+            <div class="wf-stack"><div class="wf-row"><span class="wf-muted">영상 파일명·해상도·길이·이벤트 유형·촬영환경</span><span>···</span></div></div>
+            <div class="wf-stat"><div class="wf-stat-label">프레임 수 (실제 / 선언)</div><div class="wf-stat-value">···</div></div>
+            <div class="wf-stat"><div class="wf-stat-label">라벨 수</div><div class="wf-stat-value">···</div></div>
+            <div class="wf-alert wf-alert-info">적재를 막는 경고 — 이미 가져온 산출물, 대응이 정해지지 않은 분류, 훑기 상한 초과, 식별자 생성 불가, 프레임 0건 (예시이며 전수 목록이 아니다)</div><span class="wf-badge">hidden</span>
+            <div class="wf-alert wf-alert-info">알리기만 하는 경고 — 짝이 없는 이미지, 선언과 실제 건수 불일치, 폴더 안의 바로가기를 건너뜀 (예시이며 전수 목록이 아니다)</div><span class="wf-badge">hidden</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 분류 대응 확정</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-209</span>
+            <span class="wf-badge wf-badge-primary">API-210</span>
+            <span class="wf-badge wf-badge-primary">API-211</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">처음 보는 분류</span>
+            <span class="wf-muted">연결하지 않은 분류가 남아 있으면 적재할 수 없다. 이름만 보고 자동으로 정하지 않는 것은, 짐작으로 연결하면 다른 분류로 저장되고 나중에 구분할 수 없기 때문이다.</span>
+            <div class="wf-stack"><span class="wf-bold">미등록 분류 목록</span><table class="wf-table"><thead><tr><th>종류</th><th>외부 분류 코드</th><th>외부 표시 이름</th><th>연결할 대상</th><th>확인</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div><span class="wf-help">연결할 대상은 선택 컨트롤이며 추천 후보가 미리 골라져 있다</span>
+            <button class="wf-btn wf-btn-secondary">대응 확정</button><span class="wf-badge wf-badge-primary">API-210</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 확정된 대응</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-209</span>
+            <span class="wf-badge wf-badge-primary">API-211</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">확정된 분류 대응</span>
+            <div class="wf-field"><label class="wf-label">대응 종류</label><select class="wf-select"><option>전체</option><option>라벨</option><option>이벤트 유형</option></select></div>
+            <label class="wf-checkbox"><input type="checkbox" /> 쓰지 않게 표시한 대응까지 보기</label><span class="wf-help">기본은 쓰는 대응만 보여주고, 켜면 쓰지 않게 표시한 것까지 함께 나온다</span>
+            <div class="wf-stack"><span class="wf-bold">분류 대응 목록</span><table class="wf-table"><thead><tr><th>종류</th><th>외부 분류 코드</th><th>외부 표시 이름</th><th>연결된 대상</th><th>사용 여부</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div><span class="wf-help">외부 분류 코드와 외부 표시 이름은 두 열로 유지한다. 이벤트 축은 코드가 없어 두 값이 같게 보이지만 라벨 축은 영문 코드와 표시 이름이 서로 다르다</span>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div><span class="wf-help">쪽 단위로 돌려받는다. 가져온 내역과 같은 형식을 쓴다</span>
+            <button class="wf-btn wf-btn-destructive">해제</button><span class="wf-help">누르면 곧바로 해제되지 않고 확인 단계가 뜬다</span>
+            <div class="wf-dialog"><div class="wf-dialog-title">이 대응을 해제하면 그 분류는 다시 처음 보는 분류가 된다. 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막힌다. 해제하겠는가?</div></div><span class="wf-badge">hidden</span><span class="wf-help">해제 버튼을 누른 행에 대해서만 뜬다</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 적재 실행</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-206</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <label class="wf-checkbox"><input type="checkbox" /> 검사에서 돌아온 경고를 확인했다</label>
+            <button class="wf-btn wf-btn-primary">가져오기</button><span class="wf-badge">disabled</span><span class="wf-badge wf-badge-primary">API-206</span><span class="wf-help">활성 여부는 검사 응답의 적재 가능 여부 값 하나가 정한다</span>
+            <div class="wf-alert wf-alert-info">적재 결과 — 영상 식별번호·프레임 수·라벨 수</div><span class="wf-badge">hidden</span>
+            <div class="wf-alert wf-alert-info">승인 보류 — 비식별이 끝나야 검수 승인이 가능하다. 검수 착수와 라벨 조회, 프레임 이미지 열람은 그대로 열려 있다.</div><span class="wf-badge">hidden</span><span class="wf-help">원본이라고 지정해 가져온 경우에만 노출</span>
+            <span class="wf-muted">보류를 푸는 길 — 원본 영상을 함께 가져왔으면 저작도구가 비식별 단계를 태우고 그 비식별이 성공으로 기록되면 풀린다. 프레임만 가져왔으면 외부에서 비식별한 산출물을 받아 기록하는 별도 행위가 푼다.</span><span class="wf-badge">hidden</span><span class="wf-help">보류가 섰을 때만 노출</span>
+            <a href="#_" class="wf-btn wf-btn-ghost">검수 목록으로 이동</a><span class="wf-badge">hidden</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑥ 이관 이력</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-207</span>
+            <span class="wf-badge wf-badge-primary">API-208</span>
+            <span class="wf-badge wf-badge-primary">API-215</span>
+            <a href="#wf-sec-6" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">가져온 내역</span>
+            <div class="wf-field"><label class="wf-label">상태</label><select class="wf-select"><option>전체</option><option>진행중</option><option>성공</option><option>실패</option></select></div>
+            <div class="wf-stack"><span class="wf-bold">이관 이력</span><table class="wf-table"><thead><tr><th>가져온 시각</th><th>폴더명</th><th>영상 번호</th><th>상태</th><th>승인 보류</th><th>프레임 수</th><th>라벨 수</th><th>실행자</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div>
+            <button class="wf-btn wf-btn-secondary">비식별 완료 기록</button><span class="wf-help">승인 보류가 선 행에서만 열린다</span>
+            <div class="wf-field"><label class="wf-label">비식별 산출물 폴더 경로</label><input class="wf-input" placeholder="예: /nas-storage/handover/00000073-deid" /></div><span class="wf-badge">hidden</span><span class="wf-help">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다</span>
+            <button class="wf-btn wf-btn-primary">기록</button><span class="wf-badge">hidden</span><span class="wf-badge wf-badge-primary">API-215</span><span class="wf-help">이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다</span>
+            <div class="wf-alert wf-alert-info">기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수</div><span class="wf-badge">hidden</span>
+            <div class="wf-alert wf-alert-info">비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.</div><span class="wf-badge">hidden</span><span class="wf-help">비워 둔 프레임이 하나라도 있을 때만 노출</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 가져오기 입력</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>산출물 폴더 경로와 원본 영상 경로를 받고, 이 산출물의 비식별 여부를 고르는 자리다. 영상 경로는 선택이며 비우면 프레임과 라벨만 가져온다. 비식별 여부는 기본이 원본이고, 비식별이 끝난 것으로 고르면 주의 문구가 나타난다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(외부 산출물 가져오기)</li><li>Input(산출물 폴더 경로)<p class="wf-help" style="margin:2px 0 0">허용된 저장소 범위 밖이면 거부된다</p></li><li>Input(원본 영상 경로 (선택))</li><li>RadioGroup(이 산출물은)<p class="wf-help" style="margin:2px 0 0">기본값은 원본. 비식별 완료를 고르면 주의 문구 표시</p></li><li>Alert(비식별이 끝난 것으로 고르면 그대로 학습데이터로 나간다. 잘못 고르면 승인 뒤에 되돌릴 수단이 사실상 없다.) · hidden<p class="wf-help" style="margin:2px 0 0">비식별 완료 선택 시에만 노출</p></li><li>Button(검사) · → API-205</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-205</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 미리보기</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>검사 결과를 보여준다. 영상 정보와 프레임·라벨 건수, 그리고 경고가 나온다. 경고는 한 목록으로 돌아오며 그 안에서 적재를 막는 것과 알리기만 하는 것이 구분되어 표시된다. 막는 예로는 훑기 상한을 넘은 경우, 식별자를 만들 수 없는 경우, 프레임이 한 건도 없는 경우가 있고, 막지 않는 예로는 짝이 없는 이미지, 선언 건수와 실제 파일 수의 차이, 폴더 안의 바로가기를 건너뛴 사실이 있다. 이 열거는 예시이며 전수 목록이 아니다. 폴더 안에 다른 자리를 가리키는 바로가기가 있으면 따라가지 않고 건너뛰며 그 사실을 이 자리에 드러낸다. 이 알림은 적재를 막지 않는다. 지금 상태로 적재할 수 있는지는 응답의 적재 가능 여부 값 하나가 정한다. 선언된 프레임 수와 실제 파일 수가 다르면 둘 다 보여주고 실제 파일을 기준으로 적재한다는 것을 명시한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(가져올 내용)</li><li>KeyValue(영상 파일명·해상도·길이·이벤트 유형·촬영환경)</li><li>Stat(프레임 수 (실제 / 선언))</li><li>Stat(라벨 수)</li><li>Alert(적재를 막는 경고 — 이미 가져온 산출물, 대응이 정해지지 않은 분류, 훑기 상한 초과, 식별자 생성 불가, 프레임 0건 (예시이며 전수 목록이 아니다)) · hidden</li><li>Alert(알리기만 하는 경고 — 짝이 없는 이미지, 선언과 실제 건수 불일치, 폴더 안의 바로가기를 건너뜀 (예시이며 전수 목록이 아니다)) · hidden</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-205</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 분류 대응 확정</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>처음 보는 분류만 모아 보여주고 저작도구 라벨·이벤트 유형에 연결하게 한다. 이름이 비슷한 후보를 미리 골라 놓지만 사람이 확인해야 확정된다. 한 번 확정한 대응은 다음 산출물부터 자동으로 적용되므로 이 표에 다시 나오지 않는다. 두 축은 한 행이 가리키는 것이 다르다. 라벨 축은 산출물이 영문 코드와 표시 이름을 따로 주므로 두 값을 각각 보여주고 코드를 열쇠로 삼는다. 이벤트 축은 코드가 없어 이름이 곧 코드 자리에 들어가며, 한 행은 가장 구체적인 최말단 이름 하나다. 산출물이 상위 계층 이름을 함께 주더라도 그것은 참고 정보라 이 목록에 나오지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(처음 보는 분류)</li><li>Text(연결하지 않은 분류가 남아 있으면 적재할 수 없다. 이름만 보고 자동으로 정하지 않는 것은, 짐작으로 연결하면 다른 분류로 저장되고 나중에 구분할 수 없기 때문이다.)</li><li>Table(미등록 분류 목록)<p class="wf-help" style="margin:2px 0 0">연결할 대상은 선택 컨트롤이며 추천 후보가 미리 골라져 있다</p></li><li>Button(대응 확정) · → API-210</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-209</li><li>API-210</li><li>API-211</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 확정된 대응</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>확정된 분류 대응을 조회하고 잘못 걸린 것을 해제하는 자리다. 바로 위에서 처음 보는 분류를 확정하고 여기서 기존 대응을 확인·수정한다. 대응 종류와 쓰지 않게 표시한 대응의 포함 여부로 걸러내며 목록은 쪽 단위로 돌려받는다. 표는 외부 분류 코드와 외부 표시 이름을 각각 두 열로 유지한다. 이벤트 축은 코드가 없어 두 열이 같은 값을 보이지만 그것은 그 축의 사실이고, 라벨 축은 영문 코드와 표시 이름이 실제로 달라 두 열이 서로 다른 값을 담는다. 열을 하나로 합치면 라벨 축이 손해를 본다. 해제는 확인 단계를 거쳐야 성립한다. 되돌리면 그 분류가 다시 처음 보는 분류가 되어 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막히기 때문이다. 확인 문구는 무엇이 되돌려지는지와 그 결과를 함께 말한다. 해제해도 행을 지우지 않고 쓰지 않음으로 표시하며, 이미 그 대응으로 적재된 라벨은 그대로 둔다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(확정된 분류 대응)</li><li>Select(대응 종류)</li><li>Checkbox(쓰지 않게 표시한 대응까지 보기)<p class="wf-help" style="margin:2px 0 0">기본은 쓰는 대응만 보여주고, 켜면 쓰지 않게 표시한 것까지 함께 나온다</p></li><li>Table(분류 대응 목록)<p class="wf-help" style="margin:2px 0 0">외부 분류 코드와 외부 표시 이름은 두 열로 유지한다. 이벤트 축은 코드가 없어 두 값이 같게 보이지만 라벨 축은 영문 코드와 표시 이름이 서로 다르다</p></li><li>Pagination(페이지)<p class="wf-help" style="margin:2px 0 0">쪽 단위로 돌려받는다. 가져온 내역과 같은 형식을 쓴다</p></li><li>Button(해제)<p class="wf-help" style="margin:2px 0 0">누르면 곧바로 해제되지 않고 확인 단계가 뜬다</p></li><li>Dialog(이 대응을 해제하면 그 분류는 다시 처음 보는 분류가 된다. 다음 산출물을 가져올 때 사람이 다시 확정하기 전까지 적재가 막힌다. 해제하겠는가?) · → API-211 · hidden<p class="wf-help" style="margin:2px 0 0">해제 버튼을 누른 행에 대해서만 뜬다</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-209</li><li>API-211</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 적재 실행</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>미리보기와 대응을 확인한 뒤 실제로 가져오는 자리다. 버튼의 활성 여부는 검사 응답의 적재 가능 여부 값 하나가 정한다. 막는 경고가 남아 있거나 확정되지 않은 분류가 있으면 그 값이 서지 않아 버튼이 비활성화된다. 끝나면 결과 요약과 함께 검수 목록으로 가는 길을 제공한다.
+
+적재 결과에는 이 영상에 승인 보류가 섰는지와 그 보류를 푸는 길이 어느 갈래인지가 함께 나온다. 비식별이 끝난 것으로 지정해 가져왔으면 보류가 서지 않아 곧바로 검수하고 승인할 수 있다. 원본이라고 지정해 가져왔고 원본 영상 파일을 함께 준 경우에는 보류가 서고, 저작도구가 비식별 단계를 태워 그 비식별이 성공으로 기록되면 보류가 풀린다. 원본이라고 지정했으나 영상 파일 없이 프레임만 가져온 경우에도 보류가 서며, 이때는 비식별할 대상 영상이 없어 외부에서 비식별한 산출물을 받아 기록하는 별도 행위가 그 보류를 푼다.
+
+이 보류는 검수 승인 하나만 막는다. 검수 착수와 라벨 조회, 프레임 이미지 열람은 막지 않는다. 검수자가 화면 전체가 잠긴 것으로 오해하지 않도록 막히는 범위를 함께 알린다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Checkbox(검사에서 돌아온 경고를 확인했다)</li><li>Button(가져오기) · → API-206 · disabled<p class="wf-help" style="margin:2px 0 0">활성 여부는 검사 응답의 적재 가능 여부 값 하나가 정한다</p></li><li>Alert(적재 결과 — 영상 식별번호·프레임 수·라벨 수) · hidden</li><li>Alert(승인 보류 — 비식별이 끝나야 검수 승인이 가능하다. 검수 착수와 라벨 조회, 프레임 이미지 열람은 그대로 열려 있다.) · hidden<p class="wf-help" style="margin:2px 0 0">원본이라고 지정해 가져온 경우에만 노출</p></li><li>Text(보류를 푸는 길 — 원본 영상을 함께 가져왔으면 저작도구가 비식별 단계를 태우고 그 비식별이 성공으로 기록되면 풀린다. 프레임만 가져왔으면 외부에서 비식별한 산출물을 받아 기록하는 별도 행위가 푼다.) · hidden<p class="wf-help" style="margin:2px 0 0">보류가 섰을 때만 노출</p></li><li>Link(검수 목록으로 이동) · hidden</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-206</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-6" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑥ 이관 이력</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>지금까지 가져온 내역을 최근순으로 보여준다. 실패한 건은 사유를 펼쳐볼 수 있다. 정렬은 시간순 하나로만 하며 상태를 우선순위로 섞지 않는다.
+
+승인 보류가 선 영상은 이 목록에서 드러나며, 그 행에서 비식별 완료를 기록하는 자리를 연다. 검수 화면이 아니라 이 자리에 두는 까닭은 이 목록이 이미 영상별 상태를 보여주고 있고 검수 화면은 다른 갈래의 소관이라 경계를 넘기 때문이다. 기록은 외부에서 비식별한 산출물이 놓인 폴더 위치를 사람이 입력해 이뤄진다. 결과에는 비식별 이미지를 채운 프레임 수와 함께 이름이 맞는 파일이 없어 비워 둔 프레임 수를 보여준다. 비워 둔 프레임이 하나라도 있으면 그 영상의 학습데이터 산출물에 비식별 이미지가 빠진 채로 나가므로 사람이 그 사실을 알아야 한다. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다.
+
+조회가 실패했을 때와 조회는 됐으나 이력이 한 건도 없을 때를 다른 자리로 가른다. 앞은 이관 이력을 불러올 수 없다는 안내이고 뒤는 가져온 내역이 없다는 빈 상태 안내다. 한 문구로 묶으면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않기 때문이다. 다만 계약을 벗어난 요청이라 거부된 것과 그 밖의 조회 실패는 같은 안내로 묶는다. 상태를 고르는 자리는 정해진 선택지 안에서만 고르므로 화면 조작만으로는 계약을 벗어난 값이 나가지 않으며, 그런 값은 주소를 직접 고쳐야 닿는다. 실패 사유를 펼치는 자리도 같은 갈래를 지켜, 사유를 불러오지 못한 것과 기록된 사유가 없는 것을 다른 문구로 알린다.
+
+승인 보류는 이 목록에만 있고 이관 상세에는 없다. 상세는 이관 그 자체를, 보류는 그 이관으로 만들어진 영상의 검수 상태를 말해 축이 다르기 때문이다. 진행 상태로 대신 판단하지도 않는다. 값은 보류·없음·미상 세 갈래이며, 비어 있는 것을 보류 아님으로 단정하지 않고 기록하는 자리를 연다. 단정하면 그 자리가 감춰져 그 영상은 승인될 길을 잃는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(가져온 내역)</li><li>Select(상태)</li><li>Table(이관 이력)</li><li>Pagination(페이지)</li><li>Button(비식별 완료 기록)<p class="wf-help" style="margin:2px 0 0">승인 보류가 선 행에서만 열린다</p></li><li>Input(비식별 산출물 폴더 경로) · hidden<p class="wf-help" style="margin:2px 0 0">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부된다</p></li><li>Button(기록) · → API-215 · hidden<p class="wf-help" style="margin:2px 0 0">이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남는다</p></li><li>Alert(기록 결과 — 승인 보류 해제 여부, 비식별 이미지를 채운 프레임 수, 이름이 맞는 파일이 없어 비워 둔 프레임 수) · hidden</li><li>Alert(비워 둔 프레임이 남았다 — 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나간다.) · hidden<p class="wf-help" style="margin:2px 0 0">비워 둔 프레임이 하나라도 있을 때만 노출</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-207</li><li>API-208</li><li>API-215</li></ul></div>
+    </div>
+  </div>
+</body>
+</html>
