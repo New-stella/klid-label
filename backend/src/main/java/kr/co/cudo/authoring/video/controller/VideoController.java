@@ -110,9 +110,21 @@ public class VideoController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @Parameter(description = "촬영일(SHT_DT) 종료 — yyyy-MM-dd. 해당일 23:59:59 까지 포함.")
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @Parameter(description = "건너뛴 작업 묶음 필터 — VLM(시계열) / AUTOLABEL. "
+                    + "지금 그 묶음이 건너뛴 상태인 영상만 남기며 건너뛰기가 해제된 영상은 제외된다. "
+                    + "벤더 연동이 끝난 뒤 건너뛴 영상을 모아 되살리는 자리에서 쓴다. 지원하지 않는 값은 400.")
+            @RequestParam(required = false) String skippedStage,
+            @Parameter(description = "실패한 작업 묶음 필터 — VLM(시계열) / AUTOLABEL. "
+                    + "지금 그 묶음이 실패한 상태인 영상만 남긴다. 시계열 위탁은 논블로킹이라 실패해도 "
+                    + "배치 단계 상태는 완료로 남으므로 dataSttsCd=FAILED 로는 그 영상을 모을 수 없다. "
+                    + "skippedStage 와 함께 지정할 수 있다(축이 다르다). 지원하지 않는 값은 400.")
+            @RequestParam(required = false) String failedStage) {
+        // ★ 신규 파라미터는 전부 optional 이며 BE 기본값을 바꾸지 않는다 — 보내지 않던 기존 호출의
+        //   결과가 조금도 달라지면 안 된다(하위호환 계약). [design: API-042]
         VideoListFilter filter = new VideoListFilter(
-                dataSttsCd, reviewStatusCd, cctvNameKeyword, eventTypeCd, from, to);
+                dataSttsCd, reviewStatusCd, cctvNameKeyword, eventTypeCd, from, to,
+                skippedStage, failedStage);
         return ApiResponse.ok(videoQueryService.list(safeSort(pageable, reviewStatusCd), filter));
     }
 

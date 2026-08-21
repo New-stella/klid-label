@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.common.client.VlmClient;
@@ -260,6 +261,11 @@ public class VlmTimeseriesStep implements BatchStep {
     private final ObjectMapper objectMapper;
     /** 완료 신호 전용 스케줄러 — 완료 핸들러의 JPA 쓰기가 이벤트 루프에서 돌지 않게 고정한다. */
     private final Scheduler vlmSubmitScheduler;
+    /**
+     * <b>전체 설정</b> 건너뛰기의 자동 표식 — 위탁 직전 게이트가 읽을 표식을 여기서 세운다
+     * [@design ADR-050]. 판정·사람 표식 보호·멱등은 전부 그 컴포넌트가 소유하며 여기서 재유도하지 않는다.
+     */
+    private final VlmDefaultSkipMarker vlmDefaultSkipMarker;
 
     /** 콜백 base URL — 외부 시스템이 verify 결과를 push 할 엔드포인트 prefix(고정, 사용자 입력 미반영). */
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
@@ -284,7 +290,8 @@ public class VlmTimeseriesStep implements BatchStep {
                              VlmSubmitOutcomeRecorder outcomeRecorder,
                              VlmTimeseriesMetaPresence timeseriesMetaPresence,
                              ObjectMapper objectMapper,
-                             @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler) {
+                             @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler,
+                             VlmDefaultSkipMarker vlmDefaultSkipMarker) {
         this.vlmClient = vlmClient;
         this.videoRepository = videoRepository;
         this.ingestSourceRepository = ingestSourceRepository;
@@ -297,6 +304,7 @@ public class VlmTimeseriesStep implements BatchStep {
         this.timeseriesMetaPresence = timeseriesMetaPresence;
         this.objectMapper = objectMapper;
         this.vlmSubmitScheduler = vlmSubmitScheduler;
+        this.vlmDefaultSkipMarker = vlmDefaultSkipMarker;
     }
 
     @Override
@@ -366,6 +374,25 @@ public class VlmTimeseriesStep implements BatchStep {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
+
+        // ── [@design ADR-050] 전체 설정 건너뛰기의 <b>자동 표식</b> — 아래 게이트가 읽을 표식을 여기서 세운다.
+        //
+        //  왜 오케스트레이터만으로 부족한가: 위탁으로 나가는 진입점은 오케스트레이터 하나가 아니다.
+        //  VlmWithheldResumeRunner 가 run/runWithMarking 을 <b>직접</b> 부르고, 그 러너는 비식별 신고 해소
+        //  이벤트(VlmResumeBridge)와 <b>주기 미결 스위퍼</b>(VlmSubmitPendingSweeper — 사람 개입 0)에서
+        //  도달한다. 표식을 오케스트레이터에만 세우면 그 경로에는 표식을 세우는 자가 없어 아래 게이트가
+        //  <b>항상 통과</b>하고, 스위치가 켜져 있는데도 외부 벤더가 호출된다(ADR-050 이 약속한 「외부 호출
+        //  0건 · 헛된 실패 기록 없음 · 마킹 고착 없음」이 셋 다 무너진다).
+        //
+        //  전송 코드와 같은 메서드에 두므로 <b>어떤 호출자도 우회할 수 없다</b>(신고 게이트·수동 스킵
+        //  게이트를 이 메서드에 둔 것과 같은 논리). 판정 규칙·사람 표식 보호·멱등은 VlmDefaultSkipMarker
+        //  단일 지점이 소유하며 여기서 재유도하지 않는다.
+        //
+        //  ⚠ 표식 적재는 REQUIRES_NEW 다 — run() 의 readOnly 트랜잭션에 참여하면 그 INSERT 가 read-only
+        //  커넥션에서 거부돼 표식이 서지 못하고 바로 아래 게이트가 그 행을 찾지 못한다(기전·실측은
+        //  BatchStatusService.recordManualStageSkipInNewTx javadoc — 구 서술 「flush 유실」 폐기).
+        //  설정이 꺼져 있으면 DB 를 건드리지 않는다.
+        vlmDefaultSkipMarker.applyBeforeStage(rawSn, stage());
 
         // ── [@design API-198] REVIEWER 수동 스킵 게이트 — <b>오케스트레이터 루프와 별개로</b> 여기에도 둔다.
         //

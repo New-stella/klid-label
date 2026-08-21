@@ -15,7 +15,7 @@ import { useConfigStrings } from '@/features/sysconfig/hooks/useConfigStrings';
  * SCR-MANAGE-SETTINGS 시스템 설정 (V1.x mock 시각 정합).
  *
  * UI/UX §4-16 — 3섹션 명확 분리:
- *   ① 편집 가능 — DB 영속화 (Batch + YOLO + 라벨링 정밀도 + 비식별 옵션 + 연동 서버 주소 — 독립 저장 카드 5종)
+ *   ① 편집 가능 — DB 영속화 (Batch[주기·동시 처리 수·시계열 위탁 전체 건너뛰기] + YOLO + 라벨링 정밀도 + 비식별 옵션 + 연동 서버 주소 — 독립 저장 카드 5종)
  *   ② 실시간 모니터링 — Health (read-only, 5초 폴링)
  *   ③ 위험 구역 (placeholder)
  *
@@ -71,7 +71,9 @@ export function SystemSettingsPage() {
                 </div>
               ) : (
                 <>
-                  <BatchConfigCard configs={configs} />
+                  {/* 시계열 전체 건너뛰기(BOOLEAN·STRING)는 숫자 맵에서 걸러지므로 문자열 맵도
+                      함께 넘긴다 — 같은 응답을 서로 다른 select 로 본 것이라 요청은 한 번뿐이다. */}
+                  <BatchConfigCard configs={configs} configStrings={stringConfigs ?? {}} />
                   <YoloConfigCard configs={configs} />
                   <PrecisionConfigCard configs={configs} />
                   <DeidentConfigCard configs={configs} />

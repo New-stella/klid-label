@@ -72,7 +72,8 @@ class VlmTimeseriesStepVerifyRequestTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder,
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
-                new ObjectMapper(), Schedulers.immediate());
+                new ObjectMapper(), Schedulers.immediate(),
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
     }
 
     /** 위탁 가능한 영상 시드 — 활성 토글 + 영상 존재 + 비식별 경로 + 관제 검증이벤트유형. */

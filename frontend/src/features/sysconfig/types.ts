@@ -23,6 +23,12 @@ export const ConfigKey = {
   //   ⚠ 값이 문자열이라 `useConfigs`(숫자 변환)로는 읽히지 않는다 → `useConfigStrings` 를 쓴다.
   //   ⚠ 비식별 키가 `kpst.deid.base-url` 인 것은 **의도**다. 구 키
   //     `authoring.integration.deidentify.base-url` 은 주입 대상 0건인 빈을 구동해 실효가 없었다.
+  // ADR-050: 시계열 위탁 전체 건너뛰기 (BOOLEAN 'true'/'false' + STRING 사유).
+  //   ⚠ 위 비식별 키와 같은 이유로 dotted 다 — 폼 필드 이름으로 그대로 쓰지 말고 점 없는
+  //     별칭을 쓴 뒤 전송 시점에만 이 키로 매핑한다.
+  //   ⚠ 값이 문자열이라 `useConfigs`(숫자 변환)로는 읽히지 않는다 → `useConfigStrings` 를 쓴다.
+  BATCH_VLM_SKIP_BY_DEFAULT: 'batch.vlm.skip-by-default',
+  BATCH_VLM_SKIP_BY_DEFAULT_REASON: 'batch.vlm.skip-by-default-reason',
   KPST_DEID_BASE_URL: 'kpst.deid.base-url',
   INTEGRATION_AI_SERVER_BASE_URL: 'authoring.integration.ai-server.base-url',
   VLM_CLIENT_URL: 'vlm.client.url',
@@ -130,3 +136,16 @@ export type ConfigMap = Record<string, number>;
  * 주소는 문자열이라 그 경로로는 화면에 도달하지 못하므로 원문 맵을 따로 둔다.
  */
 export type ConfigStringMap = Record<string, string>;
+
+/**
+ * BOOLEAN 설정값(문자열 원문) → 참/거짓 — **이 판정의 단일 지점**.
+ *
+ * ★ 저장 형식은 `'true'`/`'false'` 문자열이다. 화면마다 `=== 'true'` 를 다시 적으면 대소문자·공백
+ * 처리가 갈리고, 한쪽만 고쳐지는 순간 같은 설정이 화면마다 다르게 보인다.
+ *
+ * ⚠ **행이 없으면 거짓**이다 — 응답에는 DB 에 행이 있는 키만 담기므로, 한 번도 저장한 적 없는
+ * 키는 여기에 없는 것이 정상이고 그 상태가 곧 꺼짐이다.
+ */
+export function isConfigOn(value: string | undefined | null): boolean {
+  return value?.trim().toLowerCase() === 'true';
+}

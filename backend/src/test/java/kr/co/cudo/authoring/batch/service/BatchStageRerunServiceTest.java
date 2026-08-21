@@ -69,7 +69,7 @@ class BatchStageRerunServiceTest {
     /** 정상 접수가 되는 최소 조건 — 영상 존재 + 그 묶음의 건너뛰기 해제 + 완주 축 선점 성공. */
     private void givenAcceptable(long rawSn, BatchStageBundle bundle) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, bundle)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, bundle)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromCompleted(rawSn)).thenReturn(true);
     }
 
@@ -157,6 +157,117 @@ class BatchStageRerunServiceTest {
                 .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ★★ 건너뛴 상태도 직접 수락한다 — 해제→재수행 2단계 폐지 [@design ADR-050] [@design API-201]
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★★<b>순서가 계약이다.</b> 해제 표식이 디스패치보다 <b>뒤에</b> 커밋되면(또는 아예 없으면)
+     * 오케스트레이터의 스킵 게이트가 그 묶음을 다시 건너뛰어 <b>재수행이 조용히 무효</b>가 된다 —
+     * 사용자는 200 을 받았는데 아무것도 돌지 않는다.
+     */
+    @Test
+    @DisplayName("★★건너뛴_상태로_재수행하면_해제_표식이_디스패치보다_먼저_커밋된다")
+    void clearsSkipMarkerBeforeDispatch() {
+        long rawSn = 70L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(batchStatusService.isBundleManuallySkipped(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromCompleted(rawSn)).thenReturn(true);
+
+        BatchStageRerunResponse res = service.rerun(rawSn, "VLM");
+
+        assertThat(res.accepted()).isTrue();
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(batchStatusService, reprocessRunner);
+        inOrder.verify(batchStatusService).recordManualStageSkipCleared(
+                eq(rawSn), eq(BatchStageBundle.VLM),
+                eq(kr.co.cudo.authoring.batch.status.ManualStageSkip.RERUN_AUTO_CLEARED_REASON),
+                eq(BatchStageRerunService.RERUN_ACTOR));
+        inOrder.verify(reprocessRunner).runBundleRerunAsync(
+                eq(rawSn), anyString(), any(), anyBoolean());
+    }
+
+    /**
+     * 자동 해제는 <b>사람이 직접 누른 해제와 사유 본문으로 구분</b>된다 — 코드값은 같다(상태 판정의
+     * 키라 새로 만들면 이미 적재된 과거 행의 배선이 끊긴다).
+     */
+    @Test
+    @DisplayName("★자동_해제_사유는_사람이_누른_해제와_구분되는_전용_문구다")
+    void autoClearUsesDedicatedReason() {
+        long rawSn = 71L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(batchStatusService.isBundleManuallySkipped(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromCompleted(rawSn)).thenReturn(true);
+
+        service.rerun(rawSn, "VLM");
+
+        org.mockito.ArgumentCaptor<String> reason = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(batchStatusService).recordManualStageSkipCleared(
+                eq(rawSn), eq(BatchStageBundle.VLM), reason.capture(), anyString());
+        assertThat(reason.getValue())
+                .isEqualTo(kr.co.cudo.authoring.batch.status.ManualStageSkip.RERUN_AUTO_CLEARED_REASON)
+                .isNotEqualTo(kr.co.cudo.authoring.batch.status.ManualStageSkip.MANUAL_CLEARED_REASON);
+    }
+
+    @Test
+    @DisplayName("★이미_해제된_묶음은_해제_표식을_또_남기지_않는다_감사_잡음_방지")
+    void alreadyClearedBundleDoesNotAppendAnotherMarker() {
+        long rawSn = 72L;
+        givenAcceptable(rawSn, BatchStageBundle.VLM);
+        when(batchStatusService.isBundleManuallySkipped(rawSn, BatchStageBundle.VLM)).thenReturn(false);
+
+        service.rerun(rawSn, "VLM");
+
+        verify(batchStatusService, never()).recordManualStageSkipCleared(
+                anyLong(), any(), anyString(), anyString());
+        verify(reprocessRunner).runBundleRerunAsync(eq(rawSn), anyString(), any(), anyBoolean());
+    }
+
+    /**
+     * ★해제 표식은 <b>클레임 뒤</b>에 남긴다 — 앞에 두면 클레임 실패(409)로 끝난 요청이 표식만 풀어
+     * 그 영상이 「건너뛰지도 수행하지도 않은」 상태로 남는다.
+     */
+    @Test
+    @DisplayName("★클레임에_실패하면_해제_표식을_남기지_않는다_409")
+    void doesNotClearWhenClaimFails() {
+        long rawSn = 73L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(batchStatusService.isBundleManuallySkipped(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(transitionService.tryClaimReprocessFromCompleted(rawSn)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "VLM"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.CONFLICT);
+
+        verify(batchStatusService, never()).recordManualStageSkipCleared(
+                anyLong(), any(), anyString(), anyString());
+    }
+
+    /**
+     * ★★넓어진 것은 「해제됨」 → 「건너뛴 적이 있음」 <b>하나뿐</b>이다. 표식이 아예 없는 묶음까지
+     * 받으면 요청이 앞 작업을 건너뛰도록 강제해 전제 없는 산출물이 만들어진다.
+     */
+    @Test
+    @DisplayName("★★표식이_아예_없는_묶음은_여전히_400이고_상태를_선점하지_않는다")
+    void bundleWithoutAnyMarkerIsStillRejected() {
+        long rawSn = 74L;
+        when(videoRepository.existsById(rawSn)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.rerun(rawSn, "VLM"))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(BatchStageRerunService.NOT_CLEARED_BUNDLE_REASON)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
+        verify(batchStatusService, never()).recordManualStageSkipCleared(
+                anyLong(), any(), anyString(), anyString());
+    }
+
     @Test
     @DisplayName("★★재수행은_전용_비동기_진입을_탄다_전체재기동_진입을_쓰면_실패시_영상이_강등된다")
     void usesDedicatedRerunEntryPoint() {
@@ -179,7 +290,7 @@ class BatchStageRerunServiceTest {
         //   뒤 작업만 돌아 전제 없는 산출물이 만들어진다.
         long rawSn = 2L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(false);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(false);
 
         assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
                 .isInstanceOf(CustomException.class)
@@ -207,7 +318,7 @@ class BatchStageRerunServiceTest {
                     .isEqualTo(ErrorCode.INVALID_INPUT);
         }
 
-        verify(batchStatusService, never()).hasClearedManualSkip(anyLong(), any());
+        verify(batchStatusService, never()).hasManualSkipHistory(anyLong(), any());
         verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
     }
 
@@ -216,7 +327,7 @@ class BatchStageRerunServiceTest {
     void rejectionMessageIsNotAnOracle() {
         long rawSn = 5L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).thenReturn(false);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).thenReturn(false);
 
         assertThatThrownBy(() -> service.rerun(rawSn, "VLM"))
                 .hasMessage(BatchStageRerunService.NOT_CLEARED_BUNDLE_REASON);
@@ -243,7 +354,7 @@ class BatchStageRerunServiceTest {
         //   412 가 아니라 400 이다.
         long rawSn = 6L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(true);
         when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
 
         assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
@@ -398,7 +509,7 @@ class BatchStageRerunServiceTest {
     void clearedBundleGateIsEvaluatedBeforeApprovalGate() {
         long rawSn = 63L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(false);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(false);
         when(reviewApprovalGate.hasEverApproved(rawSn)).thenReturn(true);
 
         assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
@@ -413,7 +524,7 @@ class BatchStageRerunServiceTest {
     void rejectsReviewOwnedBeforeClaiming() {
         long rawSn = 7L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.AUTOLABEL)).thenReturn(true);
         when(transitionService.isReviewOwnedWorkStatus(rawSn)).thenReturn(true);
 
         assertThatThrownBy(() -> service.rerun(rawSn, "AUTOLABEL"))
@@ -432,7 +543,7 @@ class BatchStageRerunServiceTest {
         //   산출 축으로 흘러간다. 실패 복구는 파이프라인을 처음부터 도는 전체 재기동이 담당한다.
         long rawSn = 8L;
         when(videoRepository.existsById(rawSn)).thenReturn(true);
-        when(batchStatusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).thenReturn(true);
+        when(batchStatusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).thenReturn(true);
         when(transitionService.tryClaimReprocessFromCompleted(rawSn)).thenReturn(false);
 
         assertThatThrownBy(() -> service.rerun(rawSn, "VLM"))
@@ -471,7 +582,7 @@ class BatchStageRerunServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.NOT_FOUND);
 
-        verify(batchStatusService, never()).hasClearedManualSkip(anyLong(), any());
+        verify(batchStatusService, never()).hasManualSkipHistory(anyLong(), any());
         verify(transitionService, never()).tryClaimReprocessFromCompleted(anyLong());
     }
 

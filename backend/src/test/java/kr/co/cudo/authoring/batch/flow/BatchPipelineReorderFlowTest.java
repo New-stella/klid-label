@@ -51,6 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * Phase 5 — 신 시나리오 전체 흐름 + 상태전이 통합(협력 빈) 테스트.
@@ -119,7 +120,8 @@ class BatchPipelineReorderFlowTest {
         BatchPipeline postMarkingPipeline = postPipeline();
         BatchRetryQueue retryQueue = new kr.co.cudo.authoring.batch.retry.InMemoryBatchRetryQueueDouble(3, 60);
         orchestrator = new BatchOrchestrator(
-                postMarkingPipeline, batchStatusService, transitionService, retryQueue, videoRepository);
+                postMarkingPipeline, batchStatusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         ingestBridge = new IngestDeidentifyBridge(deidentifyRunner);
         markingBridge = new MarkingBatchBridge(

@@ -72,7 +72,8 @@ class VlmTimeseriesStepMarkingTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 new VlmMarkingTxService(markingRepository), outcomeRecorder,
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
-                new ObjectMapper(), Schedulers.immediate());
+                new ObjectMapper(), Schedulers.immediate(),
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
     }
 
     private void seed(Long rawSn) {

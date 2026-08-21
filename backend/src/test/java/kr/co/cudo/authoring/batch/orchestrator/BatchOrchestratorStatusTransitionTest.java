@@ -29,6 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * BatchOrchestrator LS_RAW_DATA_STATUS 상태 전이 영속 테스트 (이슈 A 회귀).
@@ -70,7 +71,8 @@ class BatchOrchestratorStatusTransitionTest {
                 yoloStep, sam2Step, trackInterpolationStep);
 
         orchestrator = new BatchOrchestrator(
-                pipeline, statusService, transitionService, retryQueue, videoRepository);
+                pipeline, statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         // V2.0: 마킹 필수 -- 기본 마킹 데이터 제공
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(any()))

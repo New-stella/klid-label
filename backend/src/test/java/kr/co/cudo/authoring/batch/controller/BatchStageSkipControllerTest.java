@@ -2,7 +2,9 @@ package kr.co.cudo.authoring.batch.controller;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +62,29 @@ class BatchStageSkipControllerTest {
 
     private static String body(String reason) {
         return "{\"reason\":\"" + reason + "\"}";
+    }
+
+    /**
+     * ★건너뛰기는 <b>그 묶음이 실패한 영상</b>에만 허용된다(ADR-050) — 스킵을 쓰는 시나리오는 먼저 그
+     * 실패를 실제로 만들어야 한다.
+     *
+     * <p>두 묶음의 실패가 남는 자리가 <b>다르다</b>: 오토라벨은 스텝이 예외를 던져 진행 행이
+     * {@code FAILED} 가 되고, 시계열은 논블로킹 제출이라 예외가 위로 올라가지 않아 진행 행이 절대
+     * {@code FAILED} 가 되지 않고 <b>위탁 확정 실패 감사 행</b>만 남는다.
+     */
+    private void givenBundleFailed(Long rawSn, BatchStageBundle bundle) {
+        if (bundle == BatchStageBundle.VLM) {
+            batchStatusService.recordVlmSkipped(rawSn, VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED);
+            return;
+        }
+        batchStatusService.markStage(rawSn, BatchStage.YOLO);
+        batchStatusService.markFailed(rawSn, new IllegalStateException("AI 서버 응답 없음"));
+    }
+
+    private Long failedVideo(BatchStageBundle bundle) {
+        Long rawSn = saveVideo();
+        givenBundleFailed(rawSn, bundle);
+        return rawSn;
     }
 
     @Test
@@ -144,7 +169,7 @@ class BatchStageSkipControllerTest {
     @Test
     @DisplayName("묶음스킵API_REVIEWER_성공_200이고_표식이_실제로_선다")
     void reviewerSkipSuccess() throws Exception {
-        Long rawSn = saveVideo();
+        Long rawSn = failedVideo(BatchStageBundle.VLM);
 
         mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/skip")
                         .header("Authorization", "Bearer " + reviewerToken)
@@ -164,7 +189,7 @@ class BatchStageSkipControllerTest {
     void autolabelSkipCoversAllThreeStages() throws Exception {
         // 보간이 묶음 밖이면 어떤 재수행에서도 무조건 돌아 사람이 손댄 보간 라벨을 지운다 —
         //   이 단정이 그 사고를 구조적으로 막는 계약이다.
-        Long rawSn = saveVideo();
+        Long rawSn = failedVideo(BatchStageBundle.AUTOLABEL);
 
         mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/AUTOLABEL/skip")
                         .header("Authorization", "Bearer " + reviewerToken)
@@ -184,7 +209,7 @@ class BatchStageSkipControllerTest {
     @Test
     @DisplayName("묶음스킵해제API_REVIEWER_204이고_표식이_사라진다")
     void reviewerClearSuccess() throws Exception {
-        Long rawSn = saveVideo();
+        Long rawSn = failedVideo(BatchStageBundle.AUTOLABEL);
         mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/AUTOLABEL/skip")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -228,6 +253,9 @@ class BatchStageSkipControllerTest {
     @DisplayName("★영상상세API_건너뛴_작업묶음이_skippedStages로_내려온다")
     void videoDetailExposesSkippedBundles() throws Exception {
         Long rawSn = saveVideo();
+        // 두 묶음 모두 실패 상태로 만든다 — 건너뛰기는 실패한 묶음에만 허용된다(ADR-050).
+        givenBundleFailed(rawSn, BatchStageBundle.VLM);
+        givenBundleFailed(rawSn, BatchStageBundle.AUTOLABEL);
 
         // given — 스킵 전에는 빈 배열이다(null 아님).
         mockMvc.perform(get("/v1/videos/" + rawSn)
@@ -261,11 +289,94 @@ class BatchStageSkipControllerTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isNoContent());
 
-        // then — 해제한 묶음은 목록에서 빠진다(화면의 해제 조작이 즉시 반영된다).
+        // then — 해제한 묶음은 스킵 목록에서 빠지고 해제 목록으로 옮겨간다.
         mockMvc.perform(get("/v1/videos/" + rawSn)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.skippedStages.length()").value(1))
-                .andExpect(jsonPath("$.data.skippedStages[0]").value("AUTOLABEL"));
+                .andExpect(jsonPath("$.data.skippedStages[0]").value("AUTOLABEL"))
+                .andExpect(jsonPath("$.data.clearedStages.length()").value(1))
+                .andExpect(jsonPath("$.data.clearedStages[0]").value("VLM"));
+    }
+
+    // ── ★ADR-050 — 실패 게이트 · clearedStages ────────────────────────
+
+    /**
+     * ★★정상 진행 중인 영상을 미리 골라 건너뛰는 길을 <b>두지 않는다</b>. 거부는 <b>412</b> 이며
+     * 파생영상·미지원 묶음의 400 과 갈린다 — 나중에 그 묶음이 실패하면 같은 요청이 수락된다.
+     */
+    @Test
+    @DisplayName("★★묶음스킵API_실패한_묶음이_아니면_412이고_표식이_서지_않는다")
+    void skipRejectedWhenBundleHasNotFailed() throws Exception {
+        Long rawSn = saveVideo();
+
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/skip")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("미리 건너뛰기")))
+                .andExpect(status().isPreconditionFailed())
+                .andExpect(jsonPath("$.errorCode").value("PRECONDITION_FAILED"));
+
+        assertThat(batchStatusService.isStageManuallySkipped(rawSn, BatchStage.VLM)).isFalse();
+    }
+
+    /**
+     * ★인가가 실패 게이트보다 <b>먼저</b> 평가된다 — 순서가 뒤집히면 권한 없는 사용자가 응답 코드로
+     * "그 영상의 묶음이 실패했는지"를 알아낼 수 있다(CWE-209).
+     */
+    @Test
+    @DisplayName("★★WORKER는_실패상태와_무관하게_403이다_응답이_상태_오라클이_되지_않는다")
+    void authorizationIsEvaluatedBeforeFailureGate() throws Exception {
+        Long failed = failedVideo(BatchStageBundle.VLM);
+        Long notFailed = saveVideo();
+
+        for (Long rawSn : new Long[]{failed, notFailed}) {
+            mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/skip")
+                            .header("Authorization", "Bearer " + workerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body("벤더 장애")))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    @DisplayName("★시계열은_위탁_확정실패_기록만으로_건너뛸_수_있다_진행축은_FAILED가_되지_않는다")
+    void vlmSkipAllowedBySubmitFailureRecordAlone() throws Exception {
+        // 논블로킹 제출이라 실패해도 예외가 위로 올라가지 않아 파이프라인이 그대로 완주한다 —
+        //   진행 축만 보면 시계열 건너뛰기 버튼이 영영 뜨지 않는다.
+        Long rawSn = saveVideo();
+        batchStatusService.recordVlmSkipped(rawSn, VlmTimeseriesStep.SKIP_REASON_SUBMIT_FAILED);
+
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/skip")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("벤더 장애가 길어져 시계열 없이 진행")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("★보류_사유만_있는_영상은_실패가_아니다_412")
+    void withheldReasonIsNotFailure() throws Exception {
+        // 비식별 신고 보류는 해소되면 스스로 재개된다 — 실패로 읽으면 정상 영상을 건너뛰는 길이 열린다.
+        Long rawSn = saveVideo();
+        batchStatusService.recordVlmSkipped(rawSn, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
+
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/skip")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("미리 건너뛰기")))
+                .andExpect(status().isPreconditionFailed());
+    }
+
+    @Test
+    @DisplayName("★영상상세API_표식이_없으면_clearedStages는_빈_배열이다")
+    void clearedStagesIsEmptyArrayWithoutMarker() throws Exception {
+        Long rawSn = saveVideo();
+
+        mockMvc.perform(get("/v1/videos/" + rawSn)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clearedStages").isArray())
+                .andExpect(jsonPath("$.data.clearedStages.length()").value(0));
     }
 }

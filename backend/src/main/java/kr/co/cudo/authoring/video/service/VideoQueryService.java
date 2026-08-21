@@ -5,7 +5,11 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
+import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
+import kr.co.cudo.authoring.batch.status.BatchBundleFailureGate;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.ManualStageSkip;
 import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.AutoLabelInfoProjection;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
@@ -118,6 +122,14 @@ public class VideoQueryService {
      * 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다(컴파일이 잡아주지 못하는 조합도 있다).
      */
     private final kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
+    /**
+     * 「그 작업 묶음이 실패한 상태인가」의 단일 판정 지점 — 상세의 {@code failedStages} 와 목록의
+     * {@code failedStage} 필터가 같은 축을 쓰게 한다. [@design ADR-050]
+     *
+     * <p>필드를 <b>맨 뒤</b>에 둔다({@code approvalGate} 와 같은 이유) — {@code @RequiredArgsConstructor}
+     * 가 선언 순서로 생성자를 만들므로 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다.
+     */
+    private final BatchBundleFailureGate bundleFailureGate;
 
     /** 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용. */
     public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
@@ -145,6 +157,15 @@ public class VideoQueryService {
         int eventFilterOn = eventCodes == null ? 0 : 1;
         LocalDateTime from = rangeStart(cond.from(), cond.to());
         LocalDateTime to = rangeEnd(cond.to());
+        String skippedBundle = normalizeSkippedStage(cond.skippedStage());
+        // [@design API-042] [@design ADR-050] 실패 묶음 필터 — 미지정이면 두 값 모두 null(필터 미적용).
+        //   실패의 두 축(진행 축 · 시계열 위탁 실패 감사 행)은 판정 소유자와 <b>같은 합성</b>이며,
+        //   사유 문자열의 단일 원천도 그 소유자다(여기서 복제하지 않는다).
+        BatchStageBundle failedBundle = normalizeFilterBundle(cond.failedStage());
+        Collection<String> failedBundleStages = failedBundle == null ? null
+                : failedBundle.stages().stream().map(BatchStage::name).toList();
+        Collection<String> vlmFailureReasons = failedBundle == BatchStageBundle.VLM
+                ? BatchBundleFailureGate.vlmFailureSkipReasons() : null;
 
         // R1 — 영상 처리 현황은 원본 RAW 만 노출한다(파생 RAW=ORGNL_RAW_SN NOT NULL 제외).
         // 파생물은 증강 이력 화면에서만 보이며, 작업 목록(TaskBoardService)에는 여전히 포함된다(R2, 분리 유지).
@@ -156,7 +177,7 @@ public class VideoQueryService {
                 normalizedDataStts, normalizedReviewStts,
                 keywordPattern, keywordRawSn,
                 eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
-                from, to, pageable);
+                from, to, skippedBundle, failedBundleStages, vlmFailureReasons, pageable);
         Map<Long, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
@@ -173,6 +194,46 @@ public class VideoQueryService {
                 assignmentMap.get(e.getRawSn()),
                 deidentMap.get(e.getRawSn())
         ));
+    }
+
+    /**
+     * 건너뜀 필터 값 해석 — 허용 묶음이 아니면 <b>400</b>. [@design API-042] [@design ADR-050]
+     *
+     * <p>미지정({@code null}·공백)은 <b>필터 미적용</b>이다 — 신규 파라미터를 보내지 않던 기존 호출의
+     * 결과가 달라지면 안 된다(하위호환 계약).
+     *
+     * <p>해석은 {@link BatchStageBundle#parse} <b>단일 지점</b>을 재사용한다(허용 목록을 복제하지 않는다).
+     * 미지 값은 0건이 아니라 <b>400</b> 이다 — 이벤트 유형 키(등록되지 않으면 0건)와 축이 다르다.
+     * 그쪽은 운영자가 바꾸는 <b>데이터</b>라 없는 값이 정상 입력일 수 있지만, 묶음은 <b>코드로 고정된
+     * 집합</b>이라 목록 밖의 값은 요청 오류이며 조용히 0건을 주면 화면이 "건너뛴 영상이 없다"로 오독한다.
+     *
+     * <p>거부 문구에 요청 값을 되비추지 않는다(CWE-79/117). 허용 값은 상수라 문구에 담아도 안전하다.
+     */
+    private static String normalizeSkippedStage(String raw) {
+        BatchStageBundle bundle = normalizeFilterBundle(raw);
+        return bundle == null ? null : bundle.name();
+    }
+
+    /**
+     * 묶음 필터 값 해석 공용 파서 — {@code skippedStage}·{@code failedStage} 가 <b>같은 규칙</b>을 쓴다.
+     * [@design API-042] [@design ADR-050]
+     *
+     * <p>두 파라미터는 축이 다르지만(「사람이 건너뛴 상태」 vs 「실패한 상태」) <b>값 집합과 거부 규칙은
+     * 같다</b>. 규칙을 복제하면 한쪽만 갱신돼 같은 값이 파라미터마다 다르게 해석된다.
+     *
+     * @return 해석된 묶음, 미지정({@code null}·공백)이면 {@code null}(필터 미적용)
+     */
+    private static BatchStageBundle normalizeFilterBundle(String raw) {
+        String trimmed = trimToNull(raw);
+        if (trimmed == null) {
+            return null;
+        }
+        BatchStageBundle bundle = BatchStageBundle.parse(trimmed);
+        if (bundle == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "작업 묶음 필터 값이 올바르지 않습니다. 허용 값: " + ManualStageSkip.skippableBundleNames());
+        }
+        return bundle;
     }
 
     /**
@@ -508,9 +569,22 @@ public class VideoQueryService {
         //   ★ stages 로 대체 불가: 스킵된 묶음은 markStage 를 타지 않고 표식 행도 진행 조회에서 제외돼
         //     진행 축에 흔적이 없다. 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
         List<String> skippedStages = batchStatusService.manuallySkippedBundles(entity.getRawSn());
+        // [@design API-043] [@design ADR-050] 건너뛰기가 <b>해제된</b> 묶음 목록 — 위 목록의 뒷면이다.
+        //   ★ 이 필드가 없으면 한 번 재수행한 영상을 화면에서 다시 재수행할 수 없다: 재수행이 건너뜀
+        //     표식을 스스로 풀면서 해제 표식을 남겨 그 묶음이 skippedStages 에서 빠지기 때문이다.
+        //     화면은 두 목록의 <b>합집합</b>으로 재수행 버튼 노출을 정한다.
+        List<String> clearedStages = batchStatusService.clearedBundles(entity.getRawSn());
+        // [@design API-043] [@design ADR-050] <b>지금 실패한 상태인</b> 묶음 목록 — 건너뛰기·재수행 입구.
+        //   ★ status·stages 로는 대체 불가: 시계열 위탁은 논블로킹이라 실패해도 예외가 위로 올라가지
+        //     않아 배치 상태가 완료로 남고 단계 실패 표시도 서지 않는다. 이 필드가 없으면 위탁이 확정
+        //     실패한 영상에서 화면이 조작 버튼을 띄울 근거가 전혀 없다.
+        //   ★ 판정은 건너뛰기 허용을 정하는 서버 판정과 <b>같은 지점</b>(BatchBundleFailureGate)이다 —
+        //     여기서 규칙을 재유도하면 화면에 뜬 버튼이 눌렀을 때 412 로 튕긴다.
+        List<String> failedStages = bundleFailureGate.failedBundles(entity.getRawSn());
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
                 stages, fps, deidentHistory(entity.getRawSn()),
-                approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason, skippedStages);
+                approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
+                skippedStages, clearedStages, failedStages);
     }
 
     /**

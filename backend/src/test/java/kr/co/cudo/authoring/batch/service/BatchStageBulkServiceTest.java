@@ -355,4 +355,80 @@ class BatchStageBulkServiceTest {
         verify(skipService, times(2)).skip(anyLong(), eq(VLM), eq(REASON));
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // ★ 실패 게이트 · 재수행 수락 확대 — 단건과 일괄이 갈리지 않는다 [@design ADR-050]
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★실패 상태가 아닌 영상이 섞여 들어와도 <b>그 건만</b> 실패다. 요청 전체를 거부하면 벤더 장애로
+     * 여러 건이 한꺼번에 실패한 자리에서 정상 영상 하나 때문에 선택을 처음부터 다시 하게 된다.
+     */
+    @Test
+    @DisplayName("★★일괄_건너뛰기에서_실패상태가_아닌_영상은_그_건만_실패하고_나머지는_처리된다")
+    void notFailedVideoFailsOnlyThatItem() {
+        doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED,
+                BatchStageSkipService.NOT_FAILED_BUNDLE_REASON))
+                .when(skipService).skip(eq(2L), anyString(), anyString());
+
+        BatchStageBulkResponse res = service.skipAll(VLM, skipReq(1L, 2L, 3L));
+
+        assertThat(res.successCount()).isEqualTo(2);
+        assertThat(res.failureCount()).isEqualTo(1);
+        assertThat(res.results()).extracting(BatchStageBulkResponse.Item::rawSn)
+                .containsExactly(1L, 2L, 3L);
+        assertThat(res.results().get(1).success()).isFalse();
+        assertThat(res.results().get(1).reason())
+                .isEqualTo(BatchStageSkipService.NOT_FAILED_BUNDLE_REASON);
+        // 나머지 두 건은 그대로 처리된다(all-or-nothing 아님).
+        verify(skipService).skip(eq(1L), anyString(), anyString());
+        verify(skipService).skip(eq(3L), anyString(), anyString());
+    }
+
+    /**
+     * ★<b>사유 검증(요청 단위 400)과 축이 다르다</b> — 사유는 요청당 하나라 건별로 갈릴 수 없지만
+     * 실패 여부는 영상마다 다르다. 실패 판정을 루프 앞으로 끌어올리면 안 된다.
+     */
+    @Test
+    @DisplayName("★실패_판정은_루프_앞으로_끌어올리지_않는다_영상마다_다르기_때문")
+    void failureJudgementStaysPerItem() {
+        doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED,
+                BatchStageSkipService.NOT_FAILED_BUNDLE_REASON))
+                .when(skipService).skip(anyLong(), anyString(), anyString());
+
+        BatchStageBulkResponse res = service.skipAll(VLM, skipReq(1L, 2L));
+
+        // 전건 실패여도 200 이며 예외를 던지지 않는다 — 판정은 결과 목록으로 한다.
+        assertThat(res.successCount()).isZero();
+        assertThat(res.failureCount()).isEqualTo(2);
+        verify(skipService, times(2)).skip(anyLong(), anyString(), anyString());
+    }
+
+    /**
+     * ★★단건과 <b>같은 판정</b>을 쓴다 — 일괄이 자체 판정을 갖지 않으므로 같은 입력에 같은 답이 나온다.
+     * 「건너뛴 적이 있는 묶음」으로 넓어진 수락 규칙도 그대로 상속된다.
+     */
+    @Test
+    @DisplayName("★★일괄_재수행은_자체_판정_없이_단건을_그대로_호출한다_수락_규칙이_갈리지_않는다")
+    void bulkRerunDelegatesAcceptanceToSingle() {
+        BatchStageBulkResponse res = service.rerunAll(VLM, req(11L, 12L));
+
+        assertThat(res.successCount()).isEqualTo(2);
+        verify(rerunService).rerun(11L, VLM);
+        verify(rerunService).rerun(12L, VLM);
+    }
+
+    @Test
+    @DisplayName("★일괄_재수행의_거부_사유는_단건이_돌려준_문구를_그대로_전달한다")
+    void bulkRerunPropagatesSingleRejectionReason() {
+        doThrow(new CustomException(ErrorCode.INVALID_INPUT,
+                BatchStageRerunService.NOT_CLEARED_BUNDLE_REASON))
+                .when(rerunService).rerun(eq(21L), anyString());
+
+        BatchStageBulkResponse res = service.rerunAll(VLM, req(21L, 22L));
+
+        assertThat(res.results().get(0).success()).isFalse();
+        assertThat(res.results().get(0).reason())
+                .isEqualTo(BatchStageRerunService.NOT_CLEARED_BUNDLE_REASON);
+        assertThat(res.results().get(1).success()).isTrue();
+    }
 }

@@ -21,9 +21,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -73,7 +75,13 @@ class BatchStageRerunControllerTest {
         batchStatusService.recordManualStageSkip(rawSn, bundle,
                 ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
         batchStatusService.recordManualStageSkipCleared(rawSn, bundle,
-                ManualStageSkip.CLEARED_REASON_PREFIX + "운영자 해제", "1");
+                ManualStageSkip.MANUAL_CLEARED_REASON, "1");
+    }
+
+    /** 그 묶음을 <b>건너뛴 채로</b> 둔다 — 재수행이 이 상태를 직접 수락한다(ADR-050). */
+    private void skipOf(Long rawSn, BatchStageBundle bundle) {
+        batchStatusService.recordManualStageSkip(rawSn, bundle,
+                ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
     }
 
     @Test
@@ -168,5 +176,68 @@ class BatchStageRerunControllerTest {
         mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/rerun")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isConflict());
+    }
+
+    // ── ★ADR-050 — 건너뛴 상태도 직접 수락한다(해제 2단계 폐지) ────────
+
+    /**
+     * ★★해제를 먼저 누르지 않아도 재수행이 수락된다. 나누어 두면 해제만 하고 재수행을 잊었을 때
+     * 그 영상이 <b>건너뛰지도 수행하지도 않은</b> 상태로 남는다.
+     */
+    @Test
+    @DisplayName("★★묶음재수행API_건너뛴_상태_그대로_재수행하면_200이고_해제_표식이_남는다")
+    void acceptsSkippedBundleDirectly() throws Exception {
+        Long rawSn = saveCompletedVideo();
+        skipOf(rawSn, BatchStageBundle.VLM);
+
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/rerun")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accepted").value(true));
+
+        // ★ 표식이 건너뜀인 채로 실행이 시작되면 오케스트레이터가 다시 건너뛴다 —
+        //   해제 표식이 실제로 서 있어야 재수행이 무효가 되지 않는다.
+        assertThat(batchStatusService.isBundleManuallySkipped(rawSn, BatchStageBundle.VLM)).isFalse();
+        assertThat(batchStatusService.clearedBundles(rawSn)).containsExactly("VLM");
+        assertThat(batchStatusService.latestManualSkipMarker(rawSn, BatchStageBundle.VLM))
+                .hasValueSatisfying(l -> assertThat(l.getErrorMsg())
+                        .isEqualTo(ManualStageSkip.RERUN_AUTO_CLEARED_REASON));
+    }
+
+    /**
+     * ★재수행한 영상은 {@code skippedStages} 에서 빠지고 {@code clearedStages} 로 옮겨간다 —
+     * 화면은 두 목록의 <b>합집합</b>으로 버튼을 띄우므로 <b>같은 영상을 다시 재수행할 수 있다</b>.
+     */
+    @Test
+    @DisplayName("★★재수행하면_상세응답에서_skippedStages에서_빠지고_clearedStages로_옮겨간다")
+    void rerunMovesBundleToClearedStages() throws Exception {
+        Long rawSn = saveCompletedVideo();
+        skipOf(rawSn, BatchStageBundle.VLM);
+
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/VLM/rerun")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/v1/videos/" + rawSn)
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.skippedStages.length()").value(0))
+                .andExpect(jsonPath("$.data.clearedStages.length()").value(1))
+                .andExpect(jsonPath("$.data.clearedStages[0]").value("VLM"));
+    }
+
+    /**
+     * ★★넓어진 것은 「해제됨」 → 「건너뛴 적이 있음」 하나뿐이다 — 표식이 <b>아예 없는</b> 묶음은
+     * 종전대로 400 이다. 느슨해지면 요청이 앞 작업을 건너뛰도록 강제할 수 있다.
+     */
+    @Test
+    @DisplayName("★★묶음재수행API_표식이_아예_없는_묶음은_여전히_400")
+    void bundleWithoutMarkerStillRejected() throws Exception {
+        Long rawSn = saveCompletedVideo();
+
+        mockMvc.perform(post("/v1/videos/" + rawSn + "/batch/stages/AUTOLABEL/rerun")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 }

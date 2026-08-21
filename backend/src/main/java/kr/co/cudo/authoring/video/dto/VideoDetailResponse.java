@@ -126,7 +126,42 @@ public record VideoDetailResponse(
          * 기존 from(...) 오버로드로 만든 응답은 빈 배열이므로 이 필드가 추가돼도 기존 소비자는
          * 영향받지 않는다(추가만 — 하위호환).
          */
-        List<String> skippedStages
+        List<String> skippedStages,
+        /*
+         * 건너뛰기가 <b>해제된</b> 작업 묶음 목록 — VLM(시계열) / AUTOLABEL. [@design API-043] [@design ADR-050]
+         *
+         * ★ skippedStages 의 <b>뒷면</b>이다. 사람이 직접 푼 해제와 <b>재수행이 자동으로 푼 해제</b>가
+         * 모두 담기며, 둘은 사유 본문으로만 갈리고 상태 축에서는 같은 「해제됨」이다.
+         *
+         * ★ 이 필드가 없으면 <b>한 번 재수행한 영상을 화면에서 다시 재수행할 수 없다</b>: 재수행이 건너뜀
+         * 표식을 스스로 풀면서 해제 표식을 남기므로 그 묶음은 skippedStages 에서 빠진다. 화면은 두 목록의
+         * <b>합집합</b>으로 재수행 버튼 노출을 정한다.
+         *
+         * 두 목록 모두 화면 세션과 무관한 <b>영구 상태</b>이며, 해당 묶음이 없으면 빈 배열이다(null 아님).
+         * 순서는 묶음 선언 순서(VLM → AUTOLABEL) 고정.
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 빈 배열이므로 이 필드가 추가돼도 기존 소비자는
+         * 영향받지 않는다(추가만 — 하위호환). skippedStages 의 시맨틱은 <b>바뀌지 않는다</b>(지금 건너뛴 상태).
+         */
+        List<String> clearedStages,
+        /*
+         * <b>지금 실패한 상태인</b> 작업 묶음 목록 — VLM(시계열) / AUTOLABEL. [@design API-043] [@design ADR-050]
+         *
+         * ★ 왜 필요한가: 시계열 위탁은 논블로킹이라 <b>실패해도 예외가 위로 올라가지 않는다</b> — 배치
+         * 상태(status)는 완료로 남고 stages 에도 실패 표시가 서지 않는다. 그래서 위탁이 확정 실패한
+         * 영상에서 화면은 실패를 알 방법이 없었고, 건너뛰기·재수행 버튼이 <b>어디에도 뜨지 않았다</b>
+         * (서버는 허용하는데 사람이 누를 자리가 없는 상태).
+         *
+         * ★ 판정은 건너뛰기 허용 여부를 정하는 서버 판정과 <b>같은 것</b>이다 — 그래야 화면에 뜬 버튼이
+         * 눌렀을 때 412 로 튕기지 않는다.
+         *
+         * 값 집합은 skippedStages·clearedStages 와 같고(VLM/AUTOLABEL), 실패가 없으면 <b>빈 배열</b>
+         * (null 아님)이다. 순서는 묶음 선언 순서(VLM → AUTOLABEL) 고정.
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 빈 배열이므로 이 필드가 추가돼도 기존 소비자는
+         * 영향받지 않는다(추가만 — 하위호환).
+         */
+        List<String> failedStages
 ) {
     /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
@@ -281,7 +316,7 @@ public record VideoDetailResponse(
     }
 
     /**
-     * 수동 스킵 묶음 목록까지 포함한 전체 빌드 — 위 오버로드들은 전부 여기로 위임한다(하위호환). [@design API-043]
+     * 수동 스킵 묶음 목록까지 포함한 빌드 — 해제 목록은 빈 배열로 위임한다(하위호환). [@design API-043]
      *
      * @param skippedStages 검수자가 건너뛴 작업 묶음 코드(VLM/AUTOLABEL). 없으면 빈 리스트.
      *                      {@code null} 을 넘겨도 빈 배열로 정규화된다 — 응답 계약이 "빈 배열"이라
@@ -300,6 +335,60 @@ public record VideoDetailResponse(
             boolean everApproved,
             String batchFailureReason,
             List<String> skippedStages
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, batchFailureReason, skippedStages, Collections.emptyList());
+    }
+
+    /**
+     * 해제된 묶음 목록까지 포함한 빌드 — 실패 묶음 목록은 빈 배열로 위임한다(하위호환).
+     * [@design API-043] [@design ADR-050]
+     *
+     * @param clearedStages 건너뛰기가 해제된 작업 묶음 코드(VLM/AUTOLABEL). 없으면 빈 리스트.
+     *                      {@code null} 을 넘겨도 빈 배열로 정규화된다.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason,
+            List<String> skippedStages,
+            List<String> clearedStages
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, batchFailureReason, skippedStages, clearedStages,
+                Collections.emptyList());
+    }
+
+    /**
+     * 실패 묶음 목록까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로 위임한다(하위호환).
+     * [@design API-043] [@design ADR-050]
+     *
+     * @param failedStages 지금 실패한 상태인 작업 묶음 코드(VLM/AUTOLABEL). 없으면 빈 리스트.
+     *                     {@code null} 을 넘겨도 빈 배열로 정규화된다.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason,
+            List<String> skippedStages,
+            List<String> clearedStages,
+            List<String> failedStages
     ) {
         // 표시명 폴백(CCTV명 → CCTV ID → 영상 #{rawSn})은 목록 응답과 <같은 판정기>를 쓴다.
         String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, e.getVmsCctvId(), e.getRawSn());
@@ -339,7 +428,9 @@ public record VideoDetailResponse(
                 resolvedHistory,
                 everApproved,
                 batchFailureReason,
-                (skippedStages != null) ? skippedStages : Collections.emptyList()
+                (skippedStages != null) ? skippedStages : Collections.emptyList(),
+                (clearedStages != null) ? clearedStages : Collections.emptyList(),
+                (failedStages != null) ? failedStages : Collections.emptyList()
         );
     }
 }

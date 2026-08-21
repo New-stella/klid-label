@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -62,6 +63,14 @@ public class BatchOrchestrator {
     private final VideoRepository videoRepository;
 
     /**
+     * 전체 설정 건너뛰기 표식기 — 시계열 단계 <b>진입 직전</b> 한 번 태운다. [@design ADR-050]
+     *
+     * <p>여기는 «표식을 세우는» 자리일 뿐이고 건너뛸지 말지는 아래 기존 게이트가 정한다. 게이트를
+     * 두 벌로 만들면 "설정으로 껐는데 어떤 경로에서는 도는" 상태가 생긴다.
+     */
+    private final VlmDefaultSkipMarker vlmDefaultSkipMarker;
+
+    /**
      * post-marking 파이프라인을 명시 선택해 주입한다. 빈이 2개({@code preMarkingPipeline},
      * {@code postMarkingPipeline}) 이므로 {@code @Qualifier} 로 모호성을 해소한다 (Phase 2).
      */
@@ -70,12 +79,14 @@ public class BatchOrchestrator {
             BatchStatusService statusService,
             BatchTransitionService transitionService,
             BatchRetryQueue retryQueue,
-            VideoRepository videoRepository) {
+            VideoRepository videoRepository,
+            VlmDefaultSkipMarker vlmDefaultSkipMarker) {
         this.pipeline = pipeline;
         this.statusService = statusService;
         this.transitionService = transitionService;
         this.retryQueue = retryQueue;
         this.videoRepository = videoRepository;
+        this.vlmDefaultSkipMarker = vlmDefaultSkipMarker;
     }
 
     /**
@@ -235,6 +246,12 @@ public class BatchOrchestrator {
                             rawSn, step.stage());
                     continue;
                 }
+                // [design: ADR-050] [design: SEQ-001] 전체 설정 건너뛰기 — 시계열 위탁 단계에
+                //   <b>진입하기 직전</b> 자동으로 건너뜀 표식을 세운다. 여기서 세운 표식은 바로 아래
+                //   기존 게이트가 읽어 그 묶음을 건너뛰므로 외부 벤더 호출이 한 번도 일어나지 않는다
+                //   (위탁했다가 실패시키는 것이 아니다). 대상 묶음 판정·사람 표식 보호·멱등은 모두
+                //   VlmDefaultSkipMarker 단일 지점이 소유하며 여기서 재유도하지 않는다.
+                vlmDefaultSkipMarker.applyBeforeStage(rawSn, step.stage());
                 // [@design API-198] REVIEWER 수동 스킵 — 그 단계가 속한 <b>작업 묶음</b>에 표식이 서 있으면
                 //   실행하지 않고 통과한다. 판정은 BatchStatusService.isStageManuallySkipped 단일 지점이며
                 //   (단계 → 묶음 해석은 BatchStageBundle.containing), 여기서 규칙을 재유도하지 않는다.

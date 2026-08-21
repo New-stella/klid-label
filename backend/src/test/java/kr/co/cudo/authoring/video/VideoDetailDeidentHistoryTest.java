@@ -57,6 +57,7 @@ class VideoDetailDeidentHistoryTest {
     @Mock private VideoFpsResolver fpsResolver;
     /** P2b — 영상 상세가 승인 이력을 함께 내린다(화면이 신고·폐기 버튼을 미리 비활성화하는 근거). */
     @Mock private kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
+    @Mock private kr.co.cudo.authoring.batch.status.BatchBundleFailureGate bundleFailureGate;
 
     @InjectMocks private VideoQueryService videoQueryService;
 
