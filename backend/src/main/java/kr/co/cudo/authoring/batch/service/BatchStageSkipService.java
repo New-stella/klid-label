@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.service;
 
 import kr.co.cudo.authoring.batch.dto.BatchStageSkipResponse;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
+import kr.co.cudo.authoring.batch.status.BatchBundleFailureGate;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.LsBatchProcLog;
 import kr.co.cudo.authoring.batch.status.ManualStageSkip;
@@ -39,6 +40,17 @@ import java.util.Optional;
  * 않는다</b>. 실제 실행은 재기동(단건/일괄)이 담당하며, 그래야 "해제 버튼이 무거운 외부 호출을 몰래
  * 일으키는" 동작이 생기지 않는다.
  *
+ * <h3>★대상은 그 묶음이 <u>실패한</u> 영상뿐이다 (412) [@design ADR-050]</h3>
+ * <p>정상 진행 중이거나 이미 끝난 묶음은 이 경로로 건너뛸 수 없다. 정상 영상을 미리 골라 건너뛸 수
+ * 있으면 ①이미 들어와 있는 영상만 덮어 뒤에 들어오는 영상은 매번 다시 골라야 하고 ②근거 없이 정상
+ * 영상이 시계열·오토라벨 없이 확정된다. 미연동 구간을 통째로 덮는 몫은 <b>전체 설정</b>이 맡아 배치가
+ * 위탁 단계에 진입하기 직전 자동으로 표식을 남긴다 — 입구는 그 둘뿐이다.
+ * <p>거부는 <b>412</b> 다(파생영상·미지원 묶음의 400 과 갈린다). 나중에 그 묶음이 실패하면 <b>같은
+ * 요청이 수락</b>되므로 재시도 여지가 없는 영구 조건이 아니기 때문이다 — 이 저장소는 영구 조건에 400,
+ * 일시 조건에 412 를 쓴다. 판정은 {@link BatchBundleFailureGate} <b>단일 지점</b>이며 여기서 규칙을
+ * 재유도하지 않는다. 인가는 컨트롤러 {@code @PreAuthorize} 가 <b>이 게이트보다 먼저</b> 평가한다
+ * (그렇지 않으면 응답 코드가 영상 상태를 알려주는 오라클이 된다 — CWE-209).
+ *
  * <h3>파생영상 차단</h3>
  * <p>파생영상({@code ORGNL_RAW_SN} 보유)은 배치 파이프라인을 타지 않으므로 스킵/해제가 아무 의미가
  * 없다. 거부는 <b>400</b> 이다 — 이 저장소 관례상 400 은 "영구 조건"(재시도 여지 없음)이고 412 는
@@ -54,8 +66,15 @@ public class BatchStageSkipService {
     /** 행위자 식별자 저장 상한 — {@code LS_BATCH_PROC_LOG.REG_ID} 컬럼 폭(30). */
     private static final int ACTOR_MAX_LENGTH = 30;
 
+    /**
+     * 실패 상태가 아닌 묶음의 거부 문구 — 고정 상수이며 어느 축에서 걸렸는지 드러내지 않는다(CWE-209).
+     */
+    static final String NOT_FAILED_BUNDLE_REASON = "실패한 작업 묶음만 건너뛸 수 있습니다.";
+
     private final VideoRepository videoRepository;
     private final BatchStatusService batchStatusService;
+    /** 「그 묶음이 실패한 상태인가」의 단일 판정 지점 — 규칙을 이 클래스로 복제하지 않는다. */
+    private final BatchBundleFailureGate failureGate;
 
     /**
      * 작업 묶음을 수동 스킵한다.
@@ -74,6 +93,11 @@ public class BatchStageSkipService {
     public BatchStageSkipResponse skip(Long rawSn, String bundleName, String reason) {
         BatchStageBundle bundle = requireSkippableBundle(bundleName);
         requireSkippableVideo(rawSn);
+        // ★ 실패한 묶음만 건너뛸 수 있다 — 정상 영상을 미리 골라 건너뛰는 길을 두지 않는다(ADR-050).
+        //   인가(@PreAuthorize)와 존재/파생 검사 <뒤에> 평가한다.
+        if (!failureGate.hasFailed(rawSn, bundle)) {
+            throw new CustomException(ErrorCode.PRECONDITION_FAILED, NOT_FAILED_BUNDLE_REASON);
+        }
 
         String sanitized = sanitizeReason(reason);
         String stored = ManualStageSkip.REASON_PREFIX + sanitized;
@@ -106,7 +130,7 @@ public class BatchStageSkipService {
         }
         String actor = currentActor();
         batchStatusService.recordManualStageSkipCleared(
-                rawSn, bundle, ManualStageSkip.CLEARED_REASON_PREFIX + "운영자 해제", actor);
+                rawSn, bundle, ManualStageSkip.MANUAL_CLEARED_REASON, actor);
         log.info("[BatchStageSkip] bundle skip cleared rawSn={} bundle={} actor={}", rawSn, bundle, actor);
     }
 
@@ -139,8 +163,13 @@ public class BatchStageSkipService {
      * <p>⚠ 정제기의 상한 인자를 그대로 쓰지 않는다 — 상한에 <b>도달</b>하면 {@code "...(truncated)"} 를
      * 덧붙이므로, 정확히 상한 길이인 정상 입력에도 그 꼬리가 붙는다. 제어문자 제거만 넉넉한 예산으로
      * 맡기고 길이는 여기서 자른다.
+     *
+     * <p><b>package-private 인 이유</b>: 일괄 스킵({@link BatchStageBulkService})이 <b>루프에 들어가기
+     * 전에</b> 같은 판정을 1회 수행한다. 사유는 요청당 하나라 건별로 갈릴 수 없는데, 건별 실패로
+     * 삼켜지면 <b>단건은 400 인 입력이 일괄에서는 200 + 전건 실패</b>가 되기 때문이다. 정제 규칙을
+     * 복제하면 두 축이 조용히 갈리므로 이 메서드를 <b>재사용</b>한다.
      */
-    private static String sanitizeReason(String reason) {
+    static String sanitizeReason(String reason) {
         String sanitized = LogSanitizer
                 .sanitize(reason, ManualStageSkip.REASON_MAX_LENGTH * 2)
                 .trim();

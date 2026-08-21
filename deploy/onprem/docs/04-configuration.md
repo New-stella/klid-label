@@ -120,7 +120,7 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 |-------------|-----------|------|
 | **KPST 비식별(폴링)** | `KPST_DEID_ENABLED` | **항상 true(확정)** + base-url(+https면 CA). 끄거나 mock 우회 미지원 |
 | 관제 outbound 통지 | `CONTROL_NOTIFY_ENABLED` | 외부 있으면 `true` + `CONTROL_NOTIFY_URL`, 없으면 `false`(기본) |
-| 외부 VLM 시계열 | `VLM_CLIENT_ENABLED` | 외부 있으면 `true` + `VLM_SERVICE_URL`/`TOKEN`, 없으면 `false`(기본) |
+| 외부 VLM 시계열 | `VLM_SERVICE_URL` | 외부 있으면 실제 주소 + `VLM_SERVICE_TOKEN`, 없으면 **빈 값**(기본). 활성/비활성 토글은 폐지됐다 — 비우면 기동은 정상이고 위탁만 실패하므로, 연동 전 구간에는 시계열 묶음을 화면에서 스킵한다 |
 | 외부 증강 | (콜백 수신, HMAC 시크릿만) | 콜백 안 받아도 HMAC 시크릿만 채워 부팅 통과 |
 
 ### ★ 비식별(KPST) — 동거 설치·연동 (확정)

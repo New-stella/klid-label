@@ -66,7 +66,8 @@ class VideoQueryServiceAutoLabelTest {
                 rawDataStatusRepository, taskAssignmentRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository), deidentProcLogRepository,
                 batchStatusService, fpsResolver, eventTypeService,
-                mock(kr.co.cudo.authoring.assignment.service.ReviewApprovalGate.class));
+                mock(kr.co.cudo.authoring.assignment.service.ReviewApprovalGate.class),
+                mock(kr.co.cudo.authoring.batch.status.BatchBundleFailureGate.class));
     }
 
     private LsDataRaw raw(Long rawSn) {

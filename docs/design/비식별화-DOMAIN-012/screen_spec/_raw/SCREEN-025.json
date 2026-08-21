@@ -359,9 +359,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-054"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-21T04:27:30.854Z"
       },
       "required_roles": [
         "ROLE-001"
@@ -399,8 +402,8 @@
     "stale": true,
     "stale_reason": "DFEAT-045의 data.related_acceptances 변경이 realizes로 2-hop 전파",
     "change_summary": "전체 건너뛰기 스위치의 수용 기준을 이 화면에 연결한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T00:39:03.507Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-21T04:27:30.854Z",
     "created_at": "2026-05-30T07:55:42.105Z"
   }
 }

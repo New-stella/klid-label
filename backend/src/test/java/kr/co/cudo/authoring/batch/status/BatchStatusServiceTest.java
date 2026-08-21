@@ -158,7 +158,11 @@ class BatchStatusServiceTest {
     @Test
     @DisplayName("recordVlmSkipped_는_VLM_SKIPPED_행을_사유와_함께_신규_적재한다")
     void recordVlmSkipped_appendsSkippedRow() {
-        svc.recordVlmSkipped(7L, "vlm.client.enabled=false");
+        // 사유 문자열은 <호출자가 정하는 값>이라 이 테스트의 판정 대상이 아니다. 폐지된 설정 키를
+        //   리터럴로 박아 두면 "그 키가 아직 살아 있다"는 오해를 부르므로 중립 값을 쓴다
+        //   (실제 사유 상수는 VlmTimeseriesStep 이 소유하고 그쪽 테스트가 고정한다).
+        String reason = "단계 미수행 사유";
+        svc.recordVlmSkipped(7L, reason);
 
         // 진행 행을 갱신하는 것이 아니라 별도 감사 행을 적재해야 한다 — 갱신이면 다음 단계 전이가 덮어쓴다.
         verify(repository, never()).findTopByDataRawSnAndProcSttsCdNotOrderByRegDtDesc(any(), any());
@@ -166,8 +170,7 @@ class BatchStatusServiceTest {
                 log.getRawSn().equals(7L)
                         && log.getStageCd().equals(BatchStage.VLM.name())
                         && "SKIPPED".equals(log.getProcSttsCd())
-                        && log.getErrMsg() != null
-                        && log.getErrMsg().contains("vlm.client.enabled")
+                        && reason.equals(log.getErrMsg())
         ));
     }
 

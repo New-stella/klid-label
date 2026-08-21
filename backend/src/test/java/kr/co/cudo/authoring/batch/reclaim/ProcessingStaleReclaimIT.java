@@ -122,7 +122,8 @@ class ProcessingStaleReclaimIT {
         assertThat(statusService.isBundleManuallySkipped(rawSn, BatchStageBundle.VLM)).isFalse();
         assertThat(statusService.isBundleManuallySkipped(rawSn, BatchStageBundle.AUTOLABEL)).isFalse();
         assertThat(statusService.manuallySkippedBundles(rawSn)).isEmpty();
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).isFalse();
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).isFalse();
+        assertThat(statusService.clearedBundles(rawSn)).isEmpty();
     }
 
     @Test

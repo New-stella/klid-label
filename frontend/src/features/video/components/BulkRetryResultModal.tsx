@@ -21,6 +21,14 @@ export interface BulkRetryResultModalProps {
   result: BatchBulkRetryResult | null;
   /** 목록 행에서 만든 rawSn → CCTV명. 없는 영상은 식별자로 대신 표기한다. */
   videoNameById: Record<number, string>;
+  /**
+   * 모달 제목 — 일괄 조작이 여러 갈래(재시작 / 시계열 건너뛰기·해제·재수행)라 무엇의 결과인지
+   * 호출부가 정한다. 기본값은 이 모달이 처음 담당하던 일괄 재시작이라 기존 호출부는 무변경이다.
+   *
+   * ⚠ 본문(접수/접수하지 못함 + 건별 사유)은 조작과 무관하게 같다 — 응답 스키마가 하나이므로
+   * 조작마다 결과 모달을 새로 만들지 않는다.
+   */
+  title?: string;
   onClose(): void;
 }
 
@@ -28,6 +36,7 @@ export function BulkRetryResultModal({
   open,
   result,
   videoNameById,
+  title = '일괄 재시작 접수 결과',
   onClose,
 }: BulkRetryResultModalProps) {
   if (!result) return null;
@@ -38,7 +47,7 @@ export function BulkRetryResultModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="일괄 재시작 접수 결과"
+      title={title}
       size="md"
       footer={
         <Button variant="primary" onClick={onClose}>

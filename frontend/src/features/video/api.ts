@@ -16,7 +16,7 @@ import type {
   VideoDetail,
   VideoListParams,
 } from './types';
-import { BULK_RETRY_MAX, isStageBundle } from './types';
+import { BULK_RETRY_MAX, BULK_STAGE_BUNDLE, isBulkStageBundle, isStageBundle } from './types';
 
 /**
  * 보안: axios가 자동 URL 인코딩 (XSS/Injection 방지).
@@ -133,10 +133,19 @@ export function getVideo(id: number) {
         batchFailureReason: d.batchFailureReason?.trim() ? d.batchFailureReason : null,
         // [@design API-043] 건너뛴 작업 묶음 — 화이트리스트 교집합만 남긴다.
         //   미지의 코드(신 BE 가 대상을 넓힌 경우)를 그대로 두면 ① 화면에 기술 코드가 그대로
-        //   새고 ② 되돌리기 요청이 그 값을 경로 세그먼트로 쓰게 된다(CWE-22).
+        //   새고 ② 건너뛰기 해제 요청이 그 값을 경로 세그먼트로 쓰게 된다(CWE-22).
         //   ⚠ 구 값 `YOLO`·`SAM2` 도 여기서 걸러진다 — 값 공간이 묶음(`AUTOLABEL`)으로 바뀌었고,
         //     개별 단계를 그대로 통과시키면 그 코드가 다시 경로 세그먼트가 된다(서버가 400 으로 막는다).
         skippedStages: (d.skippedStages ?? []).filter(isStageBundle),
+        // [@design API-043] [@design ADR-050] 건너뛰기가 해제된 작업 묶음 — **영구** 상태다.
+        //   재수행 버튼의 노출 근거이며, 이 값이 없던 시절 화면이 세션 로컬로 기억하던 것을 대체한다.
+        //   화이트리스트 교집합만 남기는 이유는 `skippedStages` 와 같다(경로 세그먼트가 된다 — CWE-22).
+        clearedStages: (d.clearedStages ?? []).filter(isStageBundle),
+        // [@design ADR-050] 지금 실패한 상태인 작업 묶음 — 「건너뛰기를 허용할지」의 서버 판정 결과다.
+        //   ★ 화면이 `stages`·사유 문자열에서 실패를 재유도하지 않게 하는 유일한 근거이며, 시계열
+        //     위탁 실패처럼 **파이프라인을 멈추지 않는 실패**는 이 값으로만 드러난다.
+        //   화이트리스트 교집합만 남기는 이유는 위 두 목록과 같다(경로 세그먼트가 된다 — CWE-22).
+        failedStages: (d.failedStages ?? []).filter(isStageBundle),
       } as VideoDetail;
     });
 }
@@ -256,6 +265,10 @@ export function skipBatchStage(rawSn: number, bundle: StageBundle, reason: strin
  * <p>스킵 표식만 해제하고 실행하지는 않는다 — 실제 실행은 재수행({@link rerunBatchStage})이 담당한다.
  * **204 No Content** 라 응답 본문이 없다(반환값 없음).
  *
+ * <p>⚠ **어떤 화면도 이 함수를 부르지 않는다**(ADR-050). 재수행이 건너뛴 상태를 직접 수락하고 해제
+ * 표식까지 함께 남기므로 화면의 해제 동선은 폐지됐다. 서버 계약은 그대로라 클라이언트도 남겨 두지만,
+ * 이것을 근거로 화면에 해제 버튼을 다시 만들지 말 것.
+ *
  * 보안: 화이트리스트 검증은 {@link skipBatchStage} 와 동일하다.
  */
 export function unskipBatchStage(rawSn: number, bundle: StageBundle): Promise<void> {
@@ -266,24 +279,28 @@ export function unskipBatchStage(rawSn: number, bundle: StageBundle): Promise<vo
 }
 
 /**
- * 되돌린 작업 묶음 재수행 — BE: POST /api/v1/videos/{rawSn}/batch/stages/{stage}/rerun (REVIEWER).
+ * 건너뛰기를 해제한 작업 묶음 재수행 — BE: POST /api/v1/videos/{rawSn}/batch/stages/{stage}/rerun (REVIEWER).
  * [@design API-201]
  *
  * <p>「문제가 생긴 곳부터 재시도한다」 — 전체 재기동(API-167)과 <b>분리된 요청</b>이다. 완주 영상에
  * 전체 재기동을 쓰면 파이프라인이 통째로 돌아 트랙 보간이 함께 수행되고, 사람이 손댄 보간 라벨이
- * 전량 지워진다(복구 지점 없음). 그래서 되돌린 그 묶음만 지목한다.
+ * 전량 지워진다(복구 지점 없음). 그래서 해제한 그 묶음만 지목한다.
  *
  * <p>★<b>범위를 고르지 않는다 — 묶음이 곧 범위다.</b> 구 요청 본문 `scope`(ONLY/FROM)는 **폐지**됐다.
  * 되살리면 보간을 뺀 부분 수행이 다시 가능해져 산출물끼리 어긋난다(그 갈래가 폐지된 이유다).
  * 대신 오토라벨 묶음은 보간까지 다시 만들므로, <b>고르는 시점에</b> 호출부가 그 사실을 알린다.
  *
- * <p>★ 대상을 요청이 자유롭게 지정하지 못한다 — 서버는 <b>그 영상에서 실제로 되돌린 묶음만</b>
- * 수락하고 그 외에는 400 이다(임의 지정을 허용하면 앞 작업을 건너뛴 산출물이 전제 없이 만들어진다).
+ * <p>★ 대상을 요청이 자유롭게 지정하지 못한다 — 서버는 <b>그 영상에서 건너뛴 적이 있는 묶음</b>
+ * (지금 건너뛴 상태이거나 이미 해제된 묶음)만 수락하고 그 외에는 400 이다(임의 지정을 허용하면 앞
+ * 작업을 건너뛴 산출물이 전제 없이 만들어진다).
+ *
+ * <p>★ <b>건너뛴 상태를 직접 수락한다</b>(ADR-050) — 해제를 먼저 부를 필요가 없으며, 재수행이 해제
+ * 표식까지 함께 남긴다. 그래서 화면의 해제 동선은 폐지됐다.
  *
  * <p>200 은 <b>접수</b>다 — 상태 선점까지만 요청 안에서 처리하고 파이프라인은 뒤에서 이어 돈다.
  *
  * 보안: 화이트리스트 검증은 {@link skipBatchStage} 와 **같은 판정기**({@link assertStageBundle})를
- * 쓴다(CWE-22 — 복제하면 한쪽만 갱신되어 갈린다). 권한(REVIEWER)·되돌린 묶음 여부·선점 충돌은
+ * 쓴다(CWE-22 — 복제하면 한쪽만 갱신되어 갈린다). 권한(REVIEWER)·건너뛴 적이 있는 묶음인지·선점 충돌은
  * BE 가 403/400/409 로 강제한다.
  */
 export function rerunBatchStage(rawSn: number, bundle: StageBundle) {
@@ -308,6 +325,127 @@ export function retryBatchBulk(rawSns: number[]) {
   return apiClient
     .post<BatchBulkRetryResult>('/videos/batch/retry', { rawSns: unique })
     .then((r) => r.data);
+}
+
+/**
+ * 작업 묶음 일괄 건너뛰기 — BE: POST /api/v1/videos/batch/stages/{stage}/skip (REVIEWER).
+ * [@design API-212]
+ *
+ * <p>단건 건너뛰기({@link skipBatchStage})와 판정·기록 규칙이 같고 대상만 목록으로 받는다.
+ * 대상 묶음은 <b>시계열({@link BULK_STAGE_BUNDLE}) 하나</b>다 — 오토라벨은 산출물이 라벨이라 대량으로
+ * 건너뛸 수 있게 열지 않았다(서버도 400).
+ *
+ * <p><b>사유는 요청당 하나</b>이며 대상 전건에 같은 값으로 기록된다. 영상마다 다른 사유를 받으면
+ * 일괄로 처리할 이유가 사라지기 때문이다. 사유 자체는 서버가 정제·검증하므로 여기서는 그대로 전달한다
+ * (상한은 {@code SKIP_REASON_MAX} — 화면이 미리 안내한다).
+ *
+ * <p>★<b>부분 성공</b>이다. 한 건도 처리되지 못해도 200 이므로 호출부는 상태코드가 아니라
+ * `results`(건별 성패 + 사유)로 판정해야 한다 — "요청 성공"만 보고 전부 건너뛴 것처럼 알리면
+ * 사용자는 무엇이 안 됐는지 영영 모른다.
+ *
+ * 보안:
+ * - 경로 조작(CWE-22): 경로 세그먼트는 상수 하나뿐이며 호출 직전에 다시 판정한다({@link assertBulkStageBundle}).
+ * - 자원 소모(CWE-770): 1회 상한(BULK_RETRY_MAX)은 서버가 400 으로 강제하고 화면이 같은 값을 미리 안내한다.
+ * - 중복 제거는 서버와 <b>같은 규칙</b>이다 — 두 곳이 갈리면 건수 표시가 어긋난다.
+ */
+export function skipBatchStageBulk(rawSns: number[], reason: string) {
+  return apiClient
+    .post<BatchBulkRetryResult>(bulkStagePath('skip'), {
+      rawSns: distinctRawSns(rawSns),
+      reason,
+    })
+    .then((r) => r.data);
+}
+
+/**
+ * 작업 묶음 일괄 <b>건너뛰기 해제</b> — BE: DELETE /api/v1/videos/batch/stages/{stage}/skip (REVIEWER).
+ * [@design API-213]
+ *
+ * <p>건너뜀 표식이라는 하위 리소스를 지우는 요청이라 DELETE 다(같은 URL 에 쿼리 파라미터로 행위를
+ * 분기하지 않는다는 이 저장소 규약). ★<b>대상 목록을 본문으로 받는 DELETE</b> 이므로 axios 는
+ * {@code delete(url, { data })} 형태로 보낸다 — 중간 경로가 본문을 버리는 구성에서는 목록이 전달되지
+ * 않으며, 그 경우 서버는 "전건 해제"로 흐르지 않고 400 이다(본문 필수).
+ *
+ * <p>해제는 표식을 지우는 것이 아니라 <b>해제 표식을 덧붙이는 것</b>이라 누가 언제 풀었는지가 함께
+ * 남는다(단건과 같다). <b>작업을 실행하지는 않는다</b> — 실제 실행은 {@link rerunBatchStageBulk} 가 담당한다.
+ *
+ * <p>★ 단건 해제({@link unskipBatchStage})와 달리 <b>본문이 있는 200</b> 이다(단건은 204 무본문).
+ * 부분 성공을 건별로 돌려줘야 하기 때문이며, 판정은 상태코드가 아니라 `results` 로 한다.
+ *
+ * <p>⚠ **어떤 화면도 이 함수를 부르지 않는다**(ADR-050) — 목록 화면의 「일괄 건너뛰기 해제」 버튼은
+ * 폐기됐다. 회수는 {@link rerunBatchStageBulk} 하나로 끝난다(재수행이 건너뛴 상태를 직접 수락한다).
+ * 서버 계약은 그대로라 클라이언트도 남겨 두지만, 이것을 근거로 버튼을 다시 만들지 말 것.
+ *
+ * 보안: 경로·중복·상한 규칙은 {@link skipBatchStageBulk} 와 동일하다.
+ */
+export function clearBatchStageSkipBulk(rawSns: number[]) {
+  return apiClient
+    .delete<BatchBulkRetryResult>(bulkStagePath('skip'), {
+      data: { rawSns: distinctRawSns(rawSns) },
+    })
+    .then((r) => r.data);
+}
+
+/**
+ * 건너뛴 적이 있는 작업 묶음 일괄 재수행 — BE: POST /api/v1/videos/batch/stages/{stage}/rerun (REVIEWER).
+ * [@design API-214] [@design ADR-050]
+ *
+ * <p>수락 조건은 단건({@link rerunBatchStage})과 같다 — <b>그 영상에서 건너뛴 적이 있는 묶음인가</b>
+ * (건너뜀·해제 모두) 하나이며, 그 외는 건별 실패다(임의 지정을 허용하면 앞 작업을 건너뛴 산출물이
+ * 전제 없이 만들어진다). 해제를 먼저 부를 필요는 없다 — 이 요청이 해제 표식까지 함께 남긴다.
+ *
+ * <p>★ <b>검수 승인 이력이 있는 영상도 이 경로에서는 대상이 된다.</b> 시계열 재수행은 확정된 라벨을
+ * 되돌리지 않고 메타만 더하며, 들어온 서술이 실제로 달라졌을 때만 재검수·산출물 재생성·관제 재통지가
+ * 걸린다(같은 값이면 no-op). ⚠ 오토라벨은 이 예외 대상이 <b>아니다</b> — 라벨을 다시 만들어 승인
+ * 스냅샷과 어긋나기 때문이며, 그래서 일괄 축이 시계열 하나로 좁혀져 있다.
+ *
+ * <p>★ 건별 `success` 는 <b>접수</b>이지 파이프라인 완료가 아니다(실행은 비동기). 진행은 목록·상세의
+ * 처리 단계 표시로 확인한다.
+ *
+ * <p>★ <b>범위를 고르지 않는다 — 묶음이 곧 범위다</b>(단건과 같다). 구 `scope` 본문을 되살리지 말 것.
+ *
+ * 보안: 경로·중복·상한 규칙은 {@link skipBatchStageBulk} 와 동일하다.
+ */
+export function rerunBatchStageBulk(rawSns: number[]) {
+  return apiClient
+    .post<BatchBulkRetryResult>(bulkStagePath('rerun'), {
+      rawSns: distinctRawSns(rawSns),
+    })
+    .then((r) => r.data);
+}
+
+/**
+ * 일괄 축 경로 조립 — 세그먼트 검증의 <b>단일 지점</b>. [@design API-212] [@design API-213] [@design API-214]
+ *
+ * <p>세 함수가 각자 문자열을 잇지 않게 한 곳으로 모은다(복제하면 한쪽만 갱신되어 갈린다).
+ * 단건 축은 {@code /videos/{rawSn}/batch/stages/…}(7 세그먼트), 일괄 축은 {@code /videos/batch/stages/…}
+ * (6 세그먼트)라 <b>세그먼트 수가 달라</b> 서로 매칭되지 않는다.
+ */
+function bulkStagePath(action: 'skip' | 'rerun'): string {
+  assertBulkStageBundle(BULK_STAGE_BUNDLE);
+  return `/videos/batch/stages/${BULK_STAGE_BUNDLE}/${action}`;
+}
+
+/**
+ * 요청 전 중복 제거 — 서버와 <b>같은 규칙</b>(중복은 1건 취급, 요청 순서 보존).
+ *
+ * 두 곳이 갈리면 건수 표시가 어긋나고, "자기 자신이 만든 진행 상태에 막혀 실패로 보고되는" 잡음이 난다.
+ */
+function distinctRawSns(rawSns: number[]): number[] {
+  return Array.from(new Set(rawSns));
+}
+
+/**
+ * 일괄 축 경로 세그먼트 검증(CWE-22) — 화이트리스트 <b>2단</b>.
+ *
+ * 1단({@link assertStageBundle})은 조작 대상 묶음인지, 2단은 그중 <b>일괄로 열어 둔 것</b>인지 본다.
+ * 두 판정을 합치면 단건 축이 함께 좁아지므로 합치지 않는다.
+ */
+function assertBulkStageBundle(bundle: string): void {
+  assertStageBundle(bundle);
+  if (!isBulkStageBundle(bundle)) {
+    throw new Error('일괄 처리는 시계열 작업 묶음만 지원합니다.');
+  }
 }
 
 /** 경로 세그먼트로 쓰기 전 작업 묶음 코드 화이트리스트 검증(CWE-22). */

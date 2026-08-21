@@ -58,8 +58,35 @@ public final class ManualStageSkip {
      */
     public static final String REASON_PREFIX = "[수동 스킵] ";
 
+    /**
+     * <b>전체 설정</b>에서 비롯한 자동 건너뜀 표식의 사유 접두. [@design ADR-050]
+     *
+     * <p>{@link #ERR_CD_SKIPPED} 는 <b>그대로 쓴다</b> — 그 코드값은 재개 판정의 키라 새로 만들면
+     * 이미 적재된 과거 행의 배선이 끊긴다. 갈리는 것은 <b>사유 본문</b>뿐이며, 접두가 "사람이 눌렀나 /
+     * 전체 설정이 세웠나"를 감사에서 구분해 준다.
+     *
+     * <p>{@link #REASON_PREFIX} 와 마찬가지로 {@code VlmTimeseriesStep.RESUMABLE_SKIP_REASONS} 의
+     * 어떤 사유와도 정확 일치할 수 없다(재개 판정이 정확 일치이므로 접두만으로 충돌이 구조적으로
+     * 불가능해진다).
+     */
+    public static final String DEFAULT_SKIP_REASON_PREFIX = "[전체 설정 건너뛰기] ";
+
     /** 해제 행의 사유 접두 — 해제도 사유 컬럼에 흔적을 남긴다(감사). */
     public static final String CLEARED_REASON_PREFIX = "[수동 스킵 해제] ";
+
+    /** 사람이 해제 요청을 직접 눌렀을 때의 사유 본문. */
+    public static final String MANUAL_CLEARED_REASON = CLEARED_REASON_PREFIX + "운영자 해제";
+
+    /**
+     * <b>재수행이 건너뜀 표식을 스스로 푼 경우</b>의 해제 사유. [@design ADR-050] [@design API-201]
+     *
+     * <p>재수행은 건너뛴 상태를 <b>직접 수락</b>한다(해제→재수행 2단계 폐지). 그때 남기는 해제 표식은
+     * {@link #ERR_CD_CLEARED} 로 사람이 누른 해제와 <b>같은 코드값</b>을 쓴다 — 그 코드값은 상태 판정의
+     * 키라 새로 만들면 이미 적재된 과거 행의 배선이 끊긴다. 갈리는 것은 <b>사유 본문</b>뿐이며, 이
+     * 문구가 "사람이 눌렀나 / 재수행이 자동으로 풀었나"를 감사에서 구분해 준다
+     * ({@link #DEFAULT_SKIP_REASON_PREFIX} 와 같은 관례).
+     */
+    public static final String RERUN_AUTO_CLEARED_REASON = CLEARED_REASON_PREFIX + "재수행에 따른 자동 해제";
 
     /** 사용자 입력 사유의 최대 길이(문자). {@code ERR_MSG_CN} 폭(4000)보다 훨씬 작게 잡는다. */
     public static final int REASON_MAX_LENGTH = 500;

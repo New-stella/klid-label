@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-21T04:17:54.072Z (session 8) |
+| Last sync | 2026-08-21T09:19:03.186Z (session 8) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 167 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 

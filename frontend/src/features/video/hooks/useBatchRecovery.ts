@@ -1,5 +1,13 @@
-// 배치 실패 관리 뮤테이션 훅 — 재실행 / 단계 스킵 / 스킵 해제 / 되돌린 단계 재수행 / 일괄 재시작.
-// [@design API-167] [@design API-198] [@design API-199] [@design API-200] [@design API-201]
+// 배치 실패 관리 뮤테이션 훅 — 재실행 / 단계 스킵 / 건너뛴 적이 있는 단계 재수행 / 일괄 재시작
+// / 시계열 묶음 일괄 건너뛰기·재수행.
+// [@design API-167] [@design API-198] [@design API-199] [@design API-201]
+// [@design API-212] [@design API-214] [@design ADR-050]
+//
+// ★ **건너뛰기 해제 훅(구 `useUnskipBatchStage`·`useBulkClearBatchStageSkip`)은 폐기됐다** —
+//   되살리지 말 것. 재수행이 건너뛴 상태를 직접 수락하고 해제 표식까지 함께 남기므로, 화면이
+//   해제를 따로 부를 이유가 없다(해제만 하고 재수행을 안 한 영상이 생기던 중간 상태도 사라진다).
+//   서버의 해제 엔드포인트와 그 API 클라이언트(`api.unskipBatchStage`·`clearBatchStageSkipBulk`)는
+//   계약으로 남아 있으나 **어떤 화면도 호출하지 않는다**.
 //
 // ★ 재기동(단건·일괄) 응답은 **접수 결과**다 — 파이프라인이 끝났다는 뜻이 아니다.
 //   서버는 실패 상태를 선점하는 것까지만 요청 안에서 처리하고 실제 실행은 비동기로 넘긴다.
@@ -16,10 +24,11 @@ import { VIDEO_KEYS } from '@/lib/queryKeys';
 
 import {
   rerunBatchStage,
+  rerunBatchStageBulk,
   retryBatch,
   retryBatchBulk,
   skipBatchStage,
-  unskipBatchStage,
+  skipBatchStageBulk,
 } from '../api';
 import type {
   BatchBulkRetryResult,
@@ -78,8 +87,10 @@ export function useSkipBatchStage(
 }
 
 /**
- * 되돌린 작업 묶음 **재수행 접수** (POST /videos/{rawSn}/batch/stages/{stage}/rerun).
- * [@design API-201]
+ * 건너뛴 적이 있는 작업 묶음 **재수행 접수** (POST /videos/{rawSn}/batch/stages/{stage}/rerun).
+ * [@design API-201] [@design ADR-050]
+ *
+ * ★ **건너뛴 상태도 직접 수락한다** — 해제를 먼저 부를 필요가 없다.
  *
  * 전체 재기동(`useRetryBatch`)과 **다른 요청**이다 — 그쪽은 파이프라인을 통째로 순회해 보간까지
  * 다시 돌리므로 완주 영상에 쓰면 사람이 손댄 보간 라벨이 전량 지워진다. 이쪽은 문제가 생긴 그
@@ -107,28 +118,6 @@ export function useRerunBatchStage(
 }
 
 /**
- * 작업 묶음 스킵 해제 (DELETE …/skip) — 204 라 반환값이 없다.
- *
- * ★ `onSuccess` 가 **어느 묶음이었는지**를 받는다(응답 본문이 없어 그것 말고는 알 길이 없다).
- * 되돌린 묶음은 재수행 버튼(API-201)의 노출 근거인데, 서버 응답에 「되돌린 묶음」 목록이 없어
- * 호출부가 이 신호로 직접 기억해야 하기 때문이다.
- */
-export function useUnskipBatchStage(
-  rawSn: number,
-  options: { onSuccess?: (bundle: StageBundle) => void; onError?: (err: unknown) => void } = {},
-) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (bundle: StageBundle) => unskipBatchStage(rawSn, bundle),
-    onSuccess: (_data, bundle) => {
-      qc.invalidateQueries({ queryKey: VIDEO_KEYS.detail(rawSn) });
-      options.onSuccess?.(bundle);
-    },
-    onError: options.onError,
-  });
-}
-
-/**
  * 배치 일괄 재시작 **접수** (POST /videos/batch/retry).
  *
  * ★ `onSuccess` 가 불렸다고 전부 접수된 것이 아니다 — 한 건도 접수되지 못해도 200 이다.
@@ -142,6 +131,61 @@ export function useBulkRetryBatch(options: MutationOptions<BatchBulkRetryResult>
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (rawSns: number[]) => retryBatchBulk(rawSns),
+    onSuccess: (data) => {
+      if (data.successCount > 0) {
+        qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
+      }
+      options.onSuccess?.(data);
+    },
+    onError: options.onError,
+  });
+}
+
+/**
+ * 시계열 묶음 **일괄 건너뛰기** (POST /videos/batch/stages/VLM/skip). [@design API-212]
+ *
+ * ★ `onSuccess` 가 불렸다고 전부 처리된 것이 아니다 — 한 건도 처리되지 못해도 200 이다.
+ * 호출부는 반드시 `results` 로 판정해 건별 성패와 사유를 사용자에게 보여야 한다.
+ *
+ * ★ **사유는 요청당 하나**다(대상 전건에 같은 값으로 기록된다). 영상마다 다른 사유를 받게 만들면
+ * 일괄로 처리할 이유가 사라진다.
+ *
+ * 캐시: 일괄 축은 **목록 화면에서** 여러 영상을 골라 실행하므로 `VIDEO_KEYS.all` 을 무효화한다
+ * (그 prefix 가 목록·상세를 함께 덮는다 — 상세만 갱신하면 목록이 옛 상태로 남는다).
+ * 한 건도 처리되지 못했으면 서버 상태가 그대로이므로 재조회하지 않는다(의미 없는 왕복 + 깜빡임 방지).
+ */
+export function useBulkSkipBatchStage(options: MutationOptions<BatchBulkRetryResult> = {}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { rawSns: number[]; reason: string }) =>
+      skipBatchStageBulk(vars.rawSns, vars.reason),
+    onSuccess: (data) => {
+      if (data.successCount > 0) {
+        qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });
+      }
+      options.onSuccess?.(data);
+    },
+    onError: options.onError,
+  });
+}
+
+/**
+ * 건너뛴 적이 있는 시계열 묶음 **일괄 재수행 접수** (POST /videos/batch/stages/VLM/rerun).
+ * [@design API-214] [@design ADR-050]
+ *
+ * ★ 건별 `success` 는 **접수 여부**이지 파이프라인 완료가 아니다(실행은 비동기). 호출부는 완료를
+ * 알리는 문구를 쓰면 안 되고, 진행은 목록·상세의 처리 단계 표시로 확인시킨다.
+ *
+ * ★ 수락 대상은 **그 영상에서 건너뛴 적이 있는 묶음**(건너뜀·해제 모두)이다 — 그 외는 건별 실패로
+ * 돌아온다. 해제를 먼저 부를 필요는 없다(재수행이 건너뛴 상태를 직접 수락하고 표식도 함께 푼다).
+ *
+ * 캐시 정책은 {@link useBulkSkipBatchStage} 와 같다 — 재수행은 영상 상태를 처리 중으로 선점하므로
+ * 목록의 처리 단계 배지도 함께 바뀐다.
+ */
+export function useBulkRerunBatchStage(options: MutationOptions<BatchBulkRetryResult> = {}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rawSns: number[]) => rerunBatchStageBulk(rawSns),
     onSuccess: (data) => {
       if (data.successCount > 0) {
         qc.invalidateQueries({ queryKey: VIDEO_KEYS.all });

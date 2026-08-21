@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-08-21T00:02:46.193Z |
-| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 35 |
+| Last sync | 2026-08-21T09:18:47.827Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 41 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 29건
   🚨 use_case: 이번 키트 0건 / 프로젝트 전역 29건 (그중 domain_id 없음 2건) — 전량 누락
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 51건 (그중 domain_id 없음 30건) — 전량 누락
+  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 52건 (그중 domain_id 없음 30건) — 전량 누락
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 2건 / 스코프 밖 43건 (그중 domain_id 없음 6건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,12 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[NFR-018]] (prev v3)
-- CHANGED [[ROLE-003]] (prev v6)
-- CHANGED [[SD-007]] (prev v5)
-- CHANGED [[SD-010]] (prev v7)
-- CHANGED [[SCREEN-030]] (prev v23)
-- CHANGED [[SCREEN-031]] (prev v29)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -78,18 +73,18 @@
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 8 | UNCHANGED |
-| [[NFR-018]] | nfr | 6 | CHANGED |
+| [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 4 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | CHANGED |
-| [[SCREEN-030]] | screen_spec | 25 | CHANGED |
-| [[SCREEN-031]] | screen_spec | 31 | CHANGED |
+| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[SCREEN-030]] | screen_spec | 25 | UNCHANGED |
+| [[SCREEN-031]] | screen_spec | 31 | UNCHANGED |
 | [[SCREEN-036]] | screen_spec | 8 | UNCHANGED |
 | [[SCREEN-037]] | screen_spec | 8 | UNCHANGED |
-| [[SD-007]] | screen_design | 6 | CHANGED |
+| [[SD-007]] | screen_design | 6 | UNCHANGED |
 | [[SD-008]] | screen_design | 4 | UNCHANGED |
-| [[SD-010]] | screen_design | 10 | CHANGED |
+| [[SD-010]] | screen_design | 10 | UNCHANGED |
 | [[SD-011]] | screen_design | 6 | UNCHANGED |

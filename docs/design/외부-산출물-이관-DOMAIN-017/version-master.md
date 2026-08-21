@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-21T00:40:23.628Z |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 55 |
+| Last sync | 2026-08-21T09:18:54.756Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 56 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-046]] (prev v8)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -52,7 +52,7 @@
 | [[AC-043]] | acceptance | 3 | UNCHANGED |
 | [[AC-044]] | acceptance | 4 | UNCHANGED |
 | [[AC-045]] | acceptance | 5 | UNCHANGED |
-| [[AC-046]] | acceptance | 9 | CHANGED |
+| [[AC-046]] | acceptance | 9 | UNCHANGED |
 | [[AC-047]] | acceptance | 5 | UNCHANGED |
 | [[AC-048]] | acceptance | 5 | UNCHANGED |
 | [[AC-052]] | acceptance | 1 | UNCHANGED |

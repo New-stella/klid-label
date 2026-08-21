@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-21T04:17:59.356Z (session 20) |
+| last sync | 2026-08-21T09:19:05.476Z (session 20) |
 | 화면 수 | 32개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
@@ -36,7 +36,7 @@
 | [[SCREEN-022]] | 증강 요청 화면 | UNCHANGED | ✅ | [[API-042]], [[API-059]], [[API-060]], [[API-092]], [[API-179]] | [[ROLE-001]] |
 | [[SCREEN-023]] | 증강 결과 화면 | UNCHANGED | ✅ | [[API-061]], [[API-062]], [[API-063]], [[API-188]], [[API-189]], [[API-190]], [[API-175]] | [[ROLE-001]] |
 | [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
-| [[SCREEN-025]] | 시스템 설정 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]], [[API-194]] | [[ROLE-001]] |
+| [[SCREEN-025]] | 시스템 설정 화면 | CHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]], [[API-194]] | [[ROLE-001]] |
 | [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-041]], [[API-117]] | [[ROLE-001]] |
 | [[SCREEN-027]] | 영상 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]] | [[ROLE-001]] |
 | [[SCREEN-028]] | 포털 홈 화면 | UNCHANGED | ✅ | [[API-115]], [[API-203]] | [[ROLE-003]] |
@@ -58,7 +58,7 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 183 |
+| api_endpoint | _shared/api/ | 186 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 3 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -114,12 +114,16 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-014]] | api_endpoint | CHANGED (v11→v12) |
-| [[API-042]] | api_endpoint | CHANGED (v6→v7) |
-| [[API-043]] | api_endpoint | CHANGED (v15→v16) |
-| [[API-198]] | api_endpoint | CHANGED (v6→v7) |
-| [[SCREEN-008]] | screen_spec | CHANGED (v40→v42) |
-| [[SCREEN-009]] | screen_spec | CHANGED (v52→v53) |
+| [[API-042]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-043]] | api_endpoint | CHANGED (v16→v16) |
+| [[API-198]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-201]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-212]] | api_endpoint | NEW |
+| [[API-213]] | api_endpoint | NEW |
+| [[API-214]] | api_endpoint | NEW |
+| [[SCREEN-008]] | screen_spec | CHANGED (v42→v42) |
+| [[SCREEN-009]] | screen_spec | CHANGED (v53→v53) |
+| [[SCREEN-025]] | screen_spec | CHANGED (v38→v38) |
 
 ## Obsidian 볼트로 보기
 

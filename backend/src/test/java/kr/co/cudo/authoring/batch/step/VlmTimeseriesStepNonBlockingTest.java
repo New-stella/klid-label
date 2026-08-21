@@ -106,7 +106,6 @@ class VlmTimeseriesStepNonBlockingTest {
         IngestSourceRow source = mock(IngestSourceRow.class);
         lenient().when(source.getVrfcEvntTypeCd()).thenReturn("fire");
         lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(source);
-        when(vlmClient.isEnabled()).thenReturn(true);
     }
 
     @Test
@@ -280,6 +279,7 @@ class VlmTimeseriesStepNonBlockingTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder,
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
-                new ObjectMapper(), scheduler);
+                new ObjectMapper(), scheduler,
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
     }
 }

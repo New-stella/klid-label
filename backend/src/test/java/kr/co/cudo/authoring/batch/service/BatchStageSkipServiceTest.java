@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.service;
 
 import kr.co.cudo.authoring.batch.dto.BatchStageSkipResponse;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
+import kr.co.cudo.authoring.batch.status.BatchBundleFailureGate;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.ManualStageSkip;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -37,13 +38,17 @@ class BatchStageSkipServiceTest {
 
     private VideoRepository videoRepository;
     private BatchStatusService batchStatusService;
+    private BatchBundleFailureGate failureGate;
     private BatchStageSkipService service;
 
     @BeforeEach
     void setUp() {
         videoRepository = mock(VideoRepository.class);
         batchStatusService = mock(BatchStatusService.class);
-        service = new BatchStageSkipService(videoRepository, batchStatusService);
+        failureGate = mock(BatchBundleFailureGate.class);
+        service = new BatchStageSkipService(videoRepository, batchStatusService, failureGate);
+        // 기본은 「그 묶음이 실패한 상태」다 — 실패 게이트 자체의 검증은 전용 테스트가 따로 한다.
+        when(failureGate.hasFailed(anyLong(), any())).thenReturn(true);
     }
 
     private LsDataRaw originVideo() {
@@ -61,6 +66,70 @@ class BatchStageSkipServiceTest {
 
     private void givenOriginVideo() {
         when(videoRepository.findById(RAW_SN)).thenReturn(Optional.of(originVideo()));
+    }
+
+    // ── ★실패 게이트 — 대상은 그 묶음이 실패한 영상뿐이다 [@design ADR-050] ──
+
+    /**
+     * ★정상 진행 중인 영상을 미리 골라 건너뛰는 길을 <b>두지 않는다</b>. 거부는 <b>412</b> 이며
+     * 400(파생영상·미지원 묶음)과 갈린다 — 나중에 그 묶음이 실패하면 같은 요청이 수락되므로 재시도
+     * 여지가 없는 영구 조건이 아니기 때문이다.
+     */
+    @Test
+    @DisplayName("★★실패한_묶음이_아니면_412이고_표식을_남기지_않는다")
+    void rejectsBundleThatHasNotFailed() {
+        givenOriginVideo();
+        when(failureGate.hasFailed(RAW_SN, BatchStageBundle.VLM)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.skip(RAW_SN, "VLM", "미리 건너뛰기"))
+                .isInstanceOf(CustomException.class)
+                .hasMessage(BatchStageSkipService.NOT_FAILED_BUNDLE_REASON)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.PRECONDITION_FAILED);
+
+        verify(batchStatusService, never()).recordManualStageSkip(
+                anyLong(), any(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("★실패한_묶음이면_그대로_건너뛴다")
+    void acceptsFailedBundle() {
+        givenOriginVideo();
+        when(failureGate.hasFailed(RAW_SN, BatchStageBundle.AUTOLABEL)).thenReturn(true);
+
+        service.skip(RAW_SN, "AUTOLABEL", "AI 서버 장애");
+
+        verify(batchStatusService).recordManualStageSkip(
+                anyLong(), any(), anyString(), anyString());
+    }
+
+    /**
+     * ★게이트 평가 순서가 계약이다 — 미지원 묶음·영상 없음·파생영상이 <b>먼저</b> 걸린다.
+     * 실패 여부를 먼저 보면 존재하지 않는 영상에까지 실패 판정 조회가 돌고, 응답 코드가 갈려
+     * 영상 상태를 알려주는 오라클이 된다(CWE-209).
+     */
+    @Test
+    @DisplayName("★미지원_묶음은_실패_판정보다_먼저_400으로_걸린다")
+    void unsupportedBundleIsRejectedBeforeFailureCheck() {
+        assertThatThrownBy(() -> service.skip(RAW_SN, "FRAME_EXTRACT", "생략"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(failureGate, never()).hasFailed(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("★해제는_실패_게이트를_받지_않는다_차단에는_되돌리는_길이_있어야_한다")
+    void clearIsNotGatedByFailure() {
+        givenOriginVideo();
+        when(failureGate.hasFailed(anyLong(), any())).thenReturn(false);
+        when(batchStatusService.isBundleManuallySkipped(RAW_SN, BatchStageBundle.VLM)).thenReturn(true);
+
+        service.clearSkip(RAW_SN, "VLM");
+
+        verify(batchStatusService).recordManualStageSkipCleared(
+                anyLong(), any(), anyString(), anyString());
     }
 
     // ── 스킵 ─────────────────────────────────────────────────────────

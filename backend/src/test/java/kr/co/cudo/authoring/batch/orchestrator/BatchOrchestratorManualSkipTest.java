@@ -30,6 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * 수동 스킵 표식이 선 단계는 <b>재기동에서 실행되지 않고 통과</b>한다. [@design API-198]
@@ -67,7 +68,8 @@ class BatchOrchestratorManualSkipTest {
                 markingRepository, vlmTimeseriesStep, frameExtractor,
                 yoloStep, sam2Step, trackInterpolationStep);
         orchestrator = new BatchOrchestrator(
-                pipeline, statusService, transitionService, retryQueue, videoRepository);
+                pipeline, statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(any()))
                 .thenReturn(List.of(newMarking()));

@@ -4,11 +4,11 @@ type: screen_spec
 version: 21
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:54.788Z
+synced_at: 2026-08-20T08:27:32.201Z
 status: CHANGED
 prev_version: 18
 content_hash: 6ddf09d2656d182a6bafd7a986800bd9c0c4854c8ee372e7233390eb4c880934
-stale: true
+stale: false
 raw: ./_raw/SCREEN-011.json
 links:
   belongs_to_domain: ["[[DOMAIN-006]]"]

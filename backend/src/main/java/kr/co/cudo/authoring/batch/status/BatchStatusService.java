@@ -43,6 +43,12 @@ public class BatchStatusService {
      */
     static final Set<String> TERMINAL_PROGRESS_STATUSES = Set.of("COMPLETED", "FAILED");
 
+    /**
+     * 진행 행의 <b>실패</b> 처리상태 — {@code markFailed} 가 남기는 값이며 실패 판정의 유일한 근거다.
+     * ({@code PROC_STEP_CD} 는 실패 <b>단계</b>를 보존하므로 단계값으로 실패를 판정하지 않는다.)
+     */
+    static final String STTS_FAILED = "FAILED";
+
     private final LsBatchProcLogRepository repository;
 
     /** 파이프라인 진행 행(=SKIPPED 감사 행 제외 최신 행) 조회 — 모든 상태 갱신/조회의 단일 진입점. */
@@ -62,11 +68,11 @@ public class BatchStatusService {
     /**
      * VLM 단계를 <b>수행하지 않고 건너뛴 사실</b>을 사유와 함께 영속한다 (B-ISSUE-24).
      *
-     * <p>과거 skip 경로는 애플리케이션 로그만 남기고 DB 에 아무 흔적도 남기지 않아, VLM 비활성/장애
+     * <p>과거 skip 경로는 애플리케이션 로그만 남기고 DB 에 아무 흔적도 남기지 않아, VLM 미수행/장애
      * 구간에 처리된 영상이 "메타 없음 + 무기록" 으로 남았다. 그 결과 재처리 대상 식별이 로그 보존기간에
      * 종속됐다. 이제 {@code PROC_STEP_CD='VLM' / PROC_STTS_CD='SKIPPED'} 감사 행 1건을 적재한다.
      *
-     * @param reason 건너뛴 사유(예: {@code vlm.client.enabled=false})
+     * @param reason 건너뛴 사유(예: 비식별 누락 신고 구간 보류)
      */
     @Transactional("controlTransactionManager")
     public void recordVlmSkipped(Long rawSn, String reason) {
@@ -81,9 +87,10 @@ public class BatchStatusService {
      * 핸들러는 파이프라인 스레드 밖(ambient tx 없음)에서 실행되고, 그 기록은 <b>호출자의 성패와
      * 무관하게 남아야</b> 재개 대상 식별이 가능하다({@code ledger.recordIssued} 와 동일 규약).
      *
-     * <p>{@link #recordVlmSkipped} 를 그대로 REQUIRES_NEW 로 바꾸지 않은 이유: 그 메서드는
-     * {@code vlm.client.enabled=false} 기본 형상에서 <b>모든</b> 배치가 지나는 길이라, 스텝 트랜잭션
-     * 안에서 중첩 커넥션을 요구하게 만들면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
+     * <p>{@link #recordVlmSkipped} 를 그대로 REQUIRES_NEW 로 바꾸지 않은 이유: 그 메서드는 <b>스텝
+     * 트랜잭션 안에서</b> 호출되므로, 중첩 커넥션을 요구하게 만들면 커넥션 기아 교착(과거 실사고 2건)의
+     * 노출면만 넓어진다. (구 서술 "설정 토글이 꺼진 기본 형상에서 <b>모든</b> 배치가 지나는 길" 은
+     * 그 토글이 폐지되면서 사실이 아니게 됐다 — 지금 이 경로를 타는 것은 보류 기록뿐이다.)
      *
      * <p>두 메서드는 프록시 경유가 필요한 자기호출을 피하려 공통 로직을 <b>비트랜잭션 private
      * 헬퍼</b>로 공유한다(자기호출로 경계가 유실되는 패턴을 만들지 않는다).
@@ -172,6 +179,56 @@ public class BatchStatusService {
     @Transactional("controlTransactionManager")
     public void recordManualStageSkip(Long rawSn, BatchStageBundle bundle, String reason, String actorId) {
         if (rawSn == null || bundle == null) return;
+        saveManualSkipRow(rawSn, bundle, reason, actorId);
+    }
+
+    /**
+     * 같은 표식을 <b>독립 트랜잭션</b>으로 적재한다 — 전체 설정 자동 표식 전용. [@design ADR-050]
+     *
+     * <p>{@link #recordManualStageSkip} 과 적재 내용은 같고 트랜잭션 전파만 다르다
+     * ({@link #recordVlmSkippedInNewTx} 와 동일한 twin 관례).
+     *
+     * <h3>왜 REQUIRES_NEW 여야 하는가 (readOnly 경계 안의 INSERT)</h3>
+     * <p>이 메서드의 유일한 호출자({@code VlmDefaultSkipMarker})는 위탁 직전 게이트에서도 불린다. 그
+     * 자리는 {@code VlmTimeseriesStep.run} 의 <b>{@code readOnly=true} 트랜잭션 안</b>이라, REQUIRED 로
+     * 참여하면 <b>표식이 서지 못한다</b>. 그 직후 게이트 조회가 행을 찾지 못하므로 <b>외부 벤더 호출이
+     * 그대로 나간다</b> — 스위치가 켜져 있는데도.
+     *
+     * <p><b>기전(실측) — 구 서술 「{@code FlushMode.MANUAL} 이어서 flush 되지 않고 조용히 사라진다」는
+     * 폐기</b>. 전파를 REQUIRED 로 되돌려 실 DB 로 확인하면 조용히 사라지는 것이 아니라 <b>예외로
+     * 터진다</b>: {@code JpaSystemException: could not execute statement [ERROR: cannot execute INSERT in
+     * a read-only transaction]}. 두 가지가 겹친 결과다.
+     * <ol>
+     *   <li>{@link LsBatchProcLog} 의 PK 가 {@code GenerationType.IDENTITY} 라 Hibernate 는 키를 받아야
+     *       하므로 {@code persist} 시점에 <b>즉시</b> INSERT 를 실행한다 — flush 모드와 무관하다.</li>
+     *   <li>{@code JpaTransactionManager} 가 쓰는 {@code HibernateJpaDialect.prepareConnection} 기본값이
+     *       {@code true} 라 {@code readOnly=true} 가 <b>JDBC 커넥션까지</b> read-only 로 만들고,
+     *       PostgreSQL 이 그 INSERT 를 거부한다.</li>
+     * </ol>
+     * <p><b>기전이 바뀌어도 결론은 그대로다 — 이 메서드는 REQUIRES_NEW 여야 한다.</b> 「IDENTITY 라 flush
+     * 모드는 상관없으니 REQUIRED 로 되돌려도 된다」는 정반대 추론을 하지 말 것(그 형상은 표식이 서지
+     * 않는 것을 넘어 배치 스텝 자체를 예외로 떨어뜨린다).
+     *
+     * <p>표식은 「그 영상은 시계열 없이 확정한다」는 <b>결정</b>이라 위탁 시도의 성패와 운명을 같이할
+     * 이유도 없다(호출자 tx 가 롤백돼도 결정은 남아야 한다).
+     *
+     * <p>중첩 커넥션 비용은 <b>실제로 쓸 때만</b> 든다 — 판정(설정 조회·표식 조회)은 호출자 tx 에
+     * 참여하고, 이 메서드는 (영상 × 묶음)당 최대 한 번만 도달한다(표식이 서면 이후는 조기 반환).
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordManualStageSkipInNewTx(
+            Long rawSn, BatchStageBundle bundle, String reason, String actorId) {
+        if (rawSn == null || bundle == null) return;
+        saveManualSkipRow(rawSn, bundle, reason, actorId);
+    }
+
+    /**
+     * 수동 스킵 표식 적재 공통 로직 — 트랜잭션 경계는 호출한 public 메서드가 소유한다.
+     *
+     * <p>{@code saveVlmSkipRow} 와 같은 이유로 <b>비트랜잭션 private 헬퍼</b>다(자기호출로 경계가
+     * 유실되는 패턴을 만들지 않는다).
+     */
+    private void saveManualSkipRow(Long rawSn, BatchStageBundle bundle, String reason, String actorId) {
         repository.save(LsBatchProcLog.createManualSkipMarker(
                 rawSn, bundle, ManualStageSkip.ERR_CD_SKIPPED, reason, actorId));
         log.info("[Batch] manual bundle skip recorded rawSn={} bundle={}", rawSn, bundle);
@@ -226,7 +283,7 @@ public class BatchStatusService {
      *
      * <p>건너뛴 묶음은 {@code markStage} 를 타지 않고 표식 행도 진행 조회에서 제외되므로,
      * <b>진행 축({@link #stagesFor})만으로는 어느 묶음이 스킵됐는지 알 수 없다.</b> 화면이 스킵 표시와
-     * 되돌리기 조작을 띄우려면 이 목록이 필요하다.
+     * 해제 조작을 띄우려면 이 목록이 필요하다.
      *
      * <p><b>판정 규칙은 {@link #isBundleManuallySkipped} 와 동일</b>하다 — "마지막 표식 행이
      * {@link ManualStageSkip#ERR_CD_SKIPPED} 인가". 여기서 규칙을 재유도하지 않고 같은 축을 한 번에
@@ -239,49 +296,104 @@ public class BatchStatusService {
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<String> manuallySkippedBundles(Long rawSn) {
+        return bundlesWithLatestMarker(rawSn, ManualStageSkip.ERR_CD_SKIPPED);
+    }
+
+    /**
+     * <b>건너뛰기가 해제된</b> 작업 묶음 목록 — 영상 상세용. [@design API-043] [@design ADR-050]
+     *
+     * <p>{@link #manuallySkippedBundles} 의 <b>뒷면</b>이다 — 같은 축("(영상 × 묶음) 의 마지막 표식 행")을
+     * 같은 쿼리로 읽고 고르는 {@code ERR_CD} 만 다르다. 사람이 직접 누른 해제와 <b>재수행이 자동으로
+     * 푼 해제</b>가 모두 담긴다(둘은 사유 본문으로만 갈리며 상태 축에서는 같은 「해제됨」이다).
+     *
+     * <p><b>왜 이 목록이 필요한가</b>: 재수행이 건너뛴 상태를 직접 수락하면서 해제 표식을 함께 남기므로,
+     * 한 번 재수행한 영상은 {@link #manuallySkippedBundles} 에서 <b>빠진다</b>. 화면이 그 목록만 보고
+     * 재수행 버튼을 띄우면 <b>같은 영상을 다시 재수행할 수 없다</b>. 화면은 두 목록의 <b>합집합</b>으로
+     * 버튼 노출을 정한다.
+     *
+     * <p>순서 규칙·빈 리스트 계약은 {@link #manuallySkippedBundles} 와 같다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<String> clearedBundles(Long rawSn) {
+        return bundlesWithLatestMarker(rawSn, ManualStageSkip.ERR_CD_CLEARED);
+    }
+
+    /**
+     * (영상 × 묶음) 의 <b>마지막</b> 표식 행이 주어진 {@code ERR_CD} 인 묶음 이름 목록.
+     *
+     * <p>스킵 목록·해제 목록이 이 한 곳을 공유한다 — 규칙을 두 벌로 두면 한쪽만 갱신돼 조용히 갈린다.
+     * 순서는 {@link BatchStageBundle} 선언 순서(VLM → AUTOLABEL) <b>고정</b>이다(DB 반환 순서를 그대로
+     * 쓰면 실행마다 흔들려 화면이 깜빡인다).
+     */
+    private List<String> bundlesWithLatestMarker(Long rawSn, String errorCd) {
         if (rawSn == null) {
             return List.of();
         }
-        Set<String> skipped = repository
+        Set<String> matched = repository
                 .findLatestManualSkipMarkers(rawSn, STTS_SKIPPED, ManualStageSkip.MARKER_ERR_CDS)
                 .stream()
-                .filter(l -> ManualStageSkip.ERR_CD_SKIPPED.equals(l.getErrorCd()))
+                .filter(l -> errorCd.equals(l.getErrorCd()))
                 .map(LsBatchProcLog::getStageCd)
                 .collect(Collectors.toSet());
         return java.util.Arrays.stream(BatchStageBundle.values())
                 .map(BatchStageBundle::name)
-                .filter(skipped::contains)
+                .filter(matched::contains)
                 .toList();
     }
 
     /**
-     * <b>이 묶음의 건너뛰기를 되돌렸는가</b>(마지막 표식 행이 해제인가) — 지목 재수행의 수락 판정.
-     * [@design API-201]
+     * <b>이 영상에서 그 묶음을 건너뛴 적이 있는가</b>(표식이 하나라도 있는가) — 지목 재수행의 수락 판정.
+     * [@design API-201] [@design API-214] [@design ADR-050]
      *
-     * <h3>왜 이 판정이 재수행의 입구인가</h3>
-     * <p>재수행은 <b>요청이 대상 묶음을 자유롭게 고르지 못한다</b>. 임의 묶음을 받으면 앞 작업을
-     * 건너뛰도록 요청이 강제할 수 있어 전제 없는 산출물이 만들어진다. 그래서 서버는 <b>그 영상에서
-     * 실제로 되돌린 묶음</b>만 수락하며, 그 판정이 여기다.
+     * <h3>왜 「해제됨」이 아니라 「건너뛴 적이 있음」인가 (구 판정 폐기)</h3>
+     * <p>구 판정은 <b>마지막 표식이 해제</b>인 묶음만 수락했고, 그래서 되살리려는 사람은
+     * <b>해제 → 재수행</b> 두 번을 눌러야 했다. 그 둘은 되살리려는 사람에게 <b>한 가지 일</b>이고,
+     * 나누어 두면 해제만 하고 재수행을 잊었을 때 그 영상이 <b>건너뛰지도 수행하지도 않은</b> 상태로
+     * 남는다. 그래서 재수행이 건너뛴 상태를 직접 수락하고 해제 표식을 <b>함께</b> 남긴다.
      *
-     * <h3>판정 규칙은 새로 만들지 않는다</h3>
-     * <p>{@link #isBundleManuallySkipped} 와 <b>완전히 같은 축</b>("(영상 × 묶음) 의 마지막 표식 행")을
-     * 같은 쿼리({@link #latestManualSkipMarker})로 읽고, 그 값이 {@link ManualStageSkip#ERR_CD_SKIPPED}
-     * 가 아니라 {@link ManualStageSkip#ERR_CD_CLEARED} 인지만 본다 — 두 판정은 같은 질문의 앞뒷면이라
-     * 규칙이 갈릴 수 없다.
+     * <h3>임의 묶음 지목은 여전히 막힌다</h3>
+     * <p>넓어진 것은 「해제됨」 → 「건너뜀 또는 해제됨」 <b>하나뿐</b>이다. 표식이 <b>아예 없는</b> 묶음은
+     * 종전대로 거부된다 — 임의 묶음을 받으면 요청이 앞 작업을 건너뛰도록 <b>강제</b>할 수 있어 전제 없는
+     * 산출물이 만들어진다.
      *
-     * <p>지금 다시 스킵된 묶음(마지막 행이 SKIPPED)은 해당하지 않는다 — 재수행해도 오케스트레이터의
-     * 스킵 게이트가 다시 건너뛰므로 "다시 수행할 묶음"이 아니다. 표식이 아예 없는 묶음도 해당하지
-     * 않는다(되돌린 적이 없다).
+     * <p>판정 규칙은 새로 만들지 않는다 — {@link #isBundleManuallySkipped} 와 <b>완전히 같은 축</b>
+     * ("(영상 × 묶음) 의 마지막 표식 행")을 같은 쿼리({@link #latestManualSkipMarker})로 읽고, 그 행의
+     * <b>존재 여부</b>만 본다.
      *
-     * @return 그 묶음의 마지막 표식이 <b>해제</b>면 {@code true}
+     * @return 그 묶음에 건너뜀·해제 어느 표식이든 남아 있으면 {@code true}
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public boolean hasClearedManualSkip(Long rawSn, BatchStageBundle bundle) {
+    public boolean hasManualSkipHistory(Long rawSn, BatchStageBundle bundle) {
         if (rawSn == null || bundle == null) {
             return false;
         }
-        return latestManualSkipMarker(rawSn, bundle)
-                .map(l -> ManualStageSkip.ERR_CD_CLEARED.equals(l.getErrorCd()))
+        return latestManualSkipMarker(rawSn, bundle).isPresent();
+    }
+
+    /**
+     * <b>진행 축</b>에서 이 묶음이 실패로 남아 있는가 — 건너뛰기 허용 게이트의 입력 하나.
+     * [@design ADR-050] [@design API-198]
+     *
+     * <p>판정은 "마지막 <b>진행</b> 행({@link #latestProgressLog} — 표식·감사 행 제외)의 단계가 이 묶음의
+     * 구성원이고 {@code PROC_STTS_CD='FAILED'} 인가" 다. 진행 행은 파이프라인 1회차에 <b>한 행</b>이고
+     * 단계가 넘어갈 때마다 그 자리에서 갱신되므로, 재수행이 그 단계를 넘어가면 이 판정은 <b>스스로
+     * 거짓이 된다</b>(현재 상태 판정이며 이력 판정이 아니다).
+     *
+     * <p>{@code PROC_STTS_CD} 리터럴을 호출부로 흘리지 않도록 판정은 여기(로그 축의 소유자)에서 한다 —
+     * {@link #isStageSkippedWithReason} 과 같은 관례다.
+     *
+     * <p>⚠ 이 축만으로는 <b>시계열 묶음의 실패가 잡히지 않는다</b>. 외부 위탁 제출은 실패해도 예외를 위로
+     * 던지지 않아 진행 행이 {@code FAILED} 가 되지 않고 파이프라인이 그대로 완주한다 — 그쪽은 별도 축
+     * (위탁 실패 감사 행)이 담당하며, 두 축의 합성은 {@code BatchBundleFailureGate} 한 곳이 소유한다.
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean isBundleProgressFailed(Long rawSn, BatchStageBundle bundle) {
+        if (rawSn == null || bundle == null) {
+            return false;
+        }
+        return latestProgressLog(rawSn)
+                .map(l -> STTS_FAILED.equals(l.getProcSttsCd())
+                        && bundle.stages().stream().anyMatch(st -> st.name().equals(l.getStageCd())))
                 .orElse(false);
     }
 
@@ -469,9 +581,8 @@ public class BatchStatusService {
      * {@code WebhookIdempotencyLedger.recordIssued} 가 이미 {@code REQUIRES_NEW} 로 중첩 커넥션을
      * 요구하므로 이 경로의 동시 점유 최대치(2)는 변하지 않는다.
      * <p>같은 클래스의 {@code recordVlmSkipped} 는 <b>일부러 바꾸지 않았다</b> — 호출 직후 곧바로
-     * 반환해 스텝 tx 가 커밋되므로 롤백에 휩쓸릴 후속 작업이 없고(위험 부재), 그 경로는
-     * {@code vlm.client.enabled=false} 기본 형상에서 <b>모든</b> 배치가 지나는 길이라 여기에 중첩
-     * 커넥션을 요구하면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
+     * 반환해 스텝 tx 가 커밋되므로 롤백에 휩쓸릴 후속 작업이 없고(위험 부재), 스텝 트랜잭션 안에서
+     * 중첩 커넥션을 요구하면 커넥션 기아 교착(과거 실사고 2건)의 노출면만 넓어진다.
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordVlmTimeseriesResult(Long rawSn, String resPayloadJson) {

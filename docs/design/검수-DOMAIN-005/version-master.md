@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-08-21T04:17:32.532Z |
-| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 90 |
+| Last sync | 2026-08-21T09:18:45.261Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 94 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,10 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-014]] (prev v11)
-- CHANGED [[CDIAG-006]] (prev v10)
-- CHANGED [[SEQ-008]] (prev v7)
-- CHANGED [[SEQ-015]] (prev v3)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -69,7 +66,7 @@
 | [[API-011]] | api_endpoint | 4 | UNCHANGED |
 | [[API-012]] | api_endpoint | 6 | UNCHANGED |
 | [[API-013]] | api_endpoint | 6 | UNCHANGED |
-| [[API-014]] | api_endpoint | 12 | CHANGED |
+| [[API-014]] | api_endpoint | 12 | UNCHANGED |
 | [[API-015]] | api_endpoint | 8 | UNCHANGED |
 | [[API-016]] | api_endpoint | 3 | UNCHANGED |
 | [[API-017]] | api_endpoint | 5 | UNCHANGED |
@@ -84,7 +81,7 @@
 | [[API-132]] | api_endpoint | 4 | UNCHANGED |
 | [[API-138]] | api_endpoint | 4 | UNCHANGED |
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
-| [[CDIAG-006]] | class_diagram | 11 | CHANGED |
+| [[CDIAG-006]] | class_diagram | 11 | UNCHANGED |
 | [[CDIAG-014]] | class_diagram | 8 | UNCHANGED |
 | [[CMP-005]] | diagram_c4_component | 5 | UNCHANGED |
 | [[DFEAT-021]] | domain_feature | 8 | UNCHANGED |
@@ -130,10 +127,10 @@
 | [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
 | [[SD-001]] | screen_design | 5 | UNCHANGED |
 | [[SD-005]] | screen_design | 5 | UNCHANGED |
-| [[SEQ-008]] | diagram_sequence | 8 | CHANGED |
+| [[SEQ-008]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-011]] | diagram_sequence | 7 | UNCHANGED |
-| [[SEQ-015]] | diagram_sequence | 4 | CHANGED |
+| [[SEQ-015]] | diagram_sequence | 4 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 2 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 12 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 15 | UNCHANGED |

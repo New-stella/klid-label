@@ -33,6 +33,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * Phase 3: BatchOrchestrator MARKING 단계 삽입 테스트.
@@ -71,7 +72,8 @@ class BatchOrchestratorMarkingTest {
                 yoloStep, sam2Step, trackInterpolationStep);
 
         orchestrator = new BatchOrchestrator(
-                pipeline, statusService, transitionService, retryQueue, videoRepository);
+                pipeline, statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         // given: 기본 mock 설정
         when(frameExtractor.extractByMarks(any(LsDataRaw.class), any()))

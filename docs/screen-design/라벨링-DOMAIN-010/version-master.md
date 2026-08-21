@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-21T04:17:56.713Z (session 15) |
+| Last sync | 2026-08-21T09:19:04.453Z (session 15) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 224 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 

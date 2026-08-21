@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-21T04:17:59.363Z (session 20) |
-| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 460 |
+| Last sync | 2026-08-21T09:19:05.482Z (session 20) |
+| Mode | SYNC — NEW 3 / CHANGED 7 / UNCHANGED 459 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
@@ -63,7 +63,7 @@
 | [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
 | [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | UNCHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | CHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | UNCHANGED |
 | [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
 | [[API-016]] | api_endpoint | POST /v1/meta/{metaReviewSn}/approve | 3 | false | UNCHANGED |
 | [[API-017]] | api_endpoint | POST /v1/meta/{metaReviewSn}/reject | 5 | false | UNCHANGED |
@@ -229,10 +229,13 @@
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | CHANGED |
 | [[API-199]] | api_endpoint | POST /v1/videos/batch/retry | 2 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
-| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | false | UNCHANGED |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | CHANGED |
 | [[API-202]] | api_endpoint | GET /v1/deident-reports/{rprtSn}/deident-candidates | 2 | false | UNCHANGED |
 | [[API-203]] | api_endpoint | 포털 사용자 작업 데이터 ZIP 다운로드 | 3 | false | UNCHANGED |
 | [[API-204]] | api_endpoint | POST /v1/ai-requests/{requestId}/cancel | 1 | false | UNCHANGED |
+| [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 5 | true | NEW |
+| [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 6 | true | NEW |
+| [[API-214]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/rerun | 4 | true | NEW |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
@@ -259,7 +262,7 @@
 | [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 40 | true | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 41 | false | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 23 | true | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 38 | true | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 38 | true | CHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 영상 업로드 | 28 | true | UNCHANGED |
 | [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 20 | true | UNCHANGED |

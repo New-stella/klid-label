@@ -7,18 +7,49 @@ import { z } from 'zod';
  * BE는 서버 측 재검증 (이중 방어).
  */
 
-export const batchConfigSchema = z.object({
-  BATCH_INTERVAL_SEC: z
-    .number({ invalid_type_error: '숫자를 입력해주세요' })
-    .int('정수만 허용')
-    .min(10, '10 ~ 3600 범위 내에서 입력해주세요')
-    .max(3600, '10 ~ 3600 범위 내에서 입력해주세요'),
-  BATCH_CONCURRENCY: z
-    .number({ invalid_type_error: '숫자를 입력해주세요' })
-    .int('정수만 허용')
-    .min(1, '1 ~ 10 범위 내에서 입력해주세요')
-    .max(10, '1 ~ 10 범위 내에서 입력해주세요'),
-});
+/** 건너뛰기 사유 길이 상한 — 단건·일괄 건너뛰기 사유(`SKIP_REASON_MAX`)와 같은 축이라 값을 맞춘다. */
+export const VLM_SKIP_REASON_MAX = 500;
+
+/**
+ * ADR-050 — 시계열 위탁 **전체 건너뛰기**.
+ *
+ * ⚠ 필드 이름에 점(.)을 쓰지 않는다 — BE 키는 `batch.vlm.skip-by-default` 처럼 dotted 인데
+ * react-hook-form 은 점을 **중첩 객체 경로**로 해석한다(비식별·연동 주소 카드와 같은 이유).
+ * 전송 시점에만 실제 dotted 키로 매핑한다.
+ *
+ * ★ **사유는 스위치를 켤 때 필수**다. 이 문구가 건너뜀 표식의 사유로 그대로 기록되어, 나중에 그
+ * 영상의 시계열이 왜 비어 있는지 되짚는 유일한 근거가 된다. 서버도 400 으로 막지만 화면에서 먼저
+ * 막아, 다 적고 저장한 뒤에야 거부를 알게 되는 동선을 없앤다.
+ *
+ * ★ 반대로 **끄는 것은 사유와 무관하게 언제나 가능**해야 한다 — 사유 검증이 끄는 길까지 막으면
+ * 켜진 채로 고착되고, 그동안 들어오는 영상은 전건이 시계열 없이 확정된다.
+ */
+export const batchConfigSchema = z
+  .object({
+    BATCH_INTERVAL_SEC: z
+      .number({ invalid_type_error: '숫자를 입력해주세요' })
+      .int('정수만 허용')
+      .min(10, '10 ~ 3600 범위 내에서 입력해주세요')
+      .max(3600, '10 ~ 3600 범위 내에서 입력해주세요'),
+    BATCH_CONCURRENCY: z
+      .number({ invalid_type_error: '숫자를 입력해주세요' })
+      .int('정수만 허용')
+      .min(1, '1 ~ 10 범위 내에서 입력해주세요')
+      .max(10, '1 ~ 10 범위 내에서 입력해주세요'),
+    vlmSkipByDefault: z.boolean(),
+    vlmSkipReason: z
+      .string()
+      .max(VLM_SKIP_REASON_MAX, `사유는 ${VLM_SKIP_REASON_MAX}자를 초과할 수 없습니다`),
+  })
+  .superRefine((values, ctx) => {
+    if (values.vlmSkipByDefault && values.vlmSkipReason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['vlmSkipReason'],
+        message: '건너뛰기 사유를 입력해주세요',
+      });
+    }
+  });
 
 export type BatchConfigForm = z.infer<typeof batchConfigSchema>;
 

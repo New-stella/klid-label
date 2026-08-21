@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 게시판·공지 |
 | 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
-| Last sync | 2026-08-21T04:17:55.781Z (session 8) |
+| Last sync | 2026-08-21T09:19:03.985Z (session 8) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 167 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 

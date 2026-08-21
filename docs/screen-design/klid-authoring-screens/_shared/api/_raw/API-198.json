@@ -319,11 +319,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-031"
+          "IMPREC-031",
+          "IMPREC-047"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-19T23:58:25.679Z"
+        "last_updated": "2026-08-21T04:27:30.351Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -335,8 +336,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "「그 묶음이 실패한 상태인가」의 판정 축을 명시한다. 그동안 이 조건을 「실패한 영상뿐」이라고만 적어 두어 판정 방법이 규정되지 않았고, 그 공백을 구현이 메우고 있었다. 오토라벨은 진행 기록이 실패로 남지만 시계열 위탁은 논블로킹 제출이라 실패해도 진행 기록이 실패가 되지 않으므로 두 축이 갈리는 것이 정상이며, 통일하면 시계열 건너뛰기가 영영 열리지 않는다. 아울러 외부 벤더가 실패를 결과로 회신한 영상이 이 판정에 잡히지 않는다는 한계를 함께 적는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T01:39:26.711Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-21T04:27:30.351Z",
     "created_at": "2026-08-12T07:22:12.033Z"
   }
 }

@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-21T04:17:53.356Z (session 9) |
+| last sync | 2026-08-21T09:19:02.681Z (session 9) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |

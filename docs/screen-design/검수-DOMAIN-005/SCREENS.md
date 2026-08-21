@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-21T04:17:55.091Z (session 9) |
+| last sync | 2026-08-21T09:19:03.612Z (session 9) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
@@ -49,12 +49,6 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-018]] — 검수 목록 화면 | screens/SCREEN-018/SCREEN-018.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-019]] — 검수 상세 화면 | screens/SCREEN-019/SCREEN-019.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-014]] | api_endpoint | CHANGED (v11→v12) |
 
 ## Obsidian 볼트로 보기
 

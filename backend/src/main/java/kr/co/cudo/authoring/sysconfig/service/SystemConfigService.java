@@ -267,7 +267,9 @@ public class SystemConfigService {
                     endpoint.name(), LogSanitizer.sanitize(actor.sub()),
                     LogSanitizer.sanitize(SafeUrl.maskUserInfo(value)));
         } else {
-            log.info("[SystemConfig] updated key={} actor={}", key, actor.sub());
+            // CWE-117 — 행위자 식별자는 외부 토큰 유래라 정제해서 싣는다(연동 주소 분기와 같은 축).
+            //   key 는 화이트리스트 통과값이라 안전하지만, 두 분기가 다르게 처리되면 그 자체가 드리프트다.
+            log.info("[SystemConfig] updated key={} actor={}", key, LogSanitizer.sanitize(actor.sub()));
         }
         return ConfigResponse.from(cfg);
     }
@@ -313,6 +315,9 @@ public class SystemConfigService {
                     throw new CustomException(ErrorCode.INVALID_INPUT,
                             "BOOLEAN 값은 true/false 만 허용됩니다.");
                 }
+                if (ConfigKeys.BATCH_VLM_SKIP_BY_DEFAULT.equals(key)) {
+                    validateVlmSkipByDefault(value);
+                }
             }
             case "JSON" -> {
                 if (ConfigKeys.EVENT_EXCLUDED_CLASS_CODES.equals(key)) {
@@ -320,9 +325,77 @@ public class SystemConfigService {
                 }
                 // 그 외 JSON 키는 구조 검증 없이 길이 제한(DTO @Size)만 적용 — 기존 동작 유지.
             }
-            case "STRING" -> { /* 길이 검증은 DTO @Size */ }
+            case "STRING" -> {
+                // 길이 검증은 DTO @Size. 짝이 되는 판정이 필요한 키만 여기서 추가로 본다.
+                if (ConfigKeys.BATCH_VLM_SKIP_BY_DEFAULT_REASON.equals(key)) {
+                    validateVlmSkipByDefaultReason(value);
+                }
+            }
             default -> throw new CustomException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 CONFIG_TYPE 입니다.");
+        }
+    }
+
+    /**
+     * 시계열 위탁 <b>전체 건너뛰기</b>는 사유 없이 켤 수 없다 — 위반은 400. [@design ADR-050]
+     *
+     * <h3>왜 사유가 필수인가</h3>
+     * <p>사람이 누르는 단건 건너뛰기가 사유를 필수로 두는 것과 <b>같은 축</b>이다. 건너뛴 이유가 남지
+     * 않으면 그 영상의 시계열이 왜 비어 있는지 나중에 되짚을 수 없다.
+     *
+     * <h3>왜 «저장된» 값을 읽는가</h3>
+     * <p>이 API 에는 일괄 저장이 없어 두 키가 <b>각각</b> 저장된다. 요청 한 건에는 스위치 값만 실려
+     * 있으므로, 짝이 되는 사유는 그 시점에 <b>이미 저장돼 있어야</b> 한다. 캐시 조회({@code findString})
+     * 대신 리포지토리를 직접 읽는 것은 이 판정이 <b>같은 트랜잭션 안의 최신 상태</b>를 봐야 하기
+     * 때문이다.
+     *
+     * <p>끄는 저장({@code false})은 사유를 요구하지 않는다 — 되돌리는 길을 막지 않는다.
+     */
+    private void validateVlmSkipByDefault(String value) {
+        if (!Boolean.parseBoolean(value)) {
+            return;
+        }
+        boolean reasonPresent = repository
+                .findByConfigKey(ConfigKeys.BATCH_VLM_SKIP_BY_DEFAULT_REASON)
+                .map(LsSystemConfig::getConfigVl)
+                .filter(reason -> !reason.isBlank())
+                .isPresent();
+        if (!reasonPresent) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "시계열 전체 건너뛰기를 켜려면 사유를 먼저 저장해야 합니다.");
+        }
+    }
+
+    /**
+     * 스위치가 <b>켜져 있는 동안</b>에는 사유를 비울 수 없다 — 위반은 400. [@design ADR-050]
+     *
+     * <h3>왜 필요한가 (한쪽만 막으면 절반만 달성된다)</h3>
+     * <p>{@link #validateVlmSkipByDefault} 는 <b>켜는 쓰기</b>만 본다. 그래서 켠 뒤에 사유를 빈 값으로
+     * 저장하는 요청은 아무 판정도 만나지 않았고, 그러면 이후 자동 표식이 전부 「사유 미입력」로 남아
+     * <b>건너뛴 이유를 나중에 되짚을 수 없다</b> — 이 설계가 사유를 필수로 둔 이유가 그대로 사라진다.
+     * 화면이 막더라도 API 를 직접 부르면 열리므로 판정은 서버가 갖는다.
+     *
+     * <p><b>축은 켤 때 검사와 같다</b> — "스위치가 켜짐이면 사유가 비어 있지 않다"는 <b>하나의 불변식</b>을
+     * 두 쓰기 방향에서 각각 지키는 것이며, 규칙을 새로 만들지 않는다. 저장된 값을 리포지토리에서 직접
+     * 읽는 것도 같은 이유다(일괄 저장이 없어 두 키가 각각 저장되므로 짝은 이미 저장돼 있어야 한다).
+     *
+     * <p><b>되돌리는 길은 막지 않는다</b> — 스위치를 끄고 나면 사유는 언제든 비울 수 있다. 그래서 화면은
+     * <b>끌 때는 스위치를 먼저, 켤 때는 사유를 먼저</b> 저장해야 두 검사 사이에 갇히지 않는다. 순서가
+     * 어긋난 요청은 안전한 방향(거부)으로 떨어진다.
+     */
+    private void validateVlmSkipByDefaultReason(String value) {
+        if (value != null && !value.isBlank()) {
+            return;
+        }
+        boolean switchOn = repository
+                .findByConfigKey(ConfigKeys.BATCH_VLM_SKIP_BY_DEFAULT)
+                .map(LsSystemConfig::getConfigVl)
+                .map(String::trim)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+        if (switchOn) {
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "시계열 전체 건너뛰기가 켜져 있는 동안에는 사유를 비울 수 없습니다.");
         }
     }
 

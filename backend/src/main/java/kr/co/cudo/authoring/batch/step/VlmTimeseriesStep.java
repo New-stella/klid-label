@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.common.client.VlmClient;
@@ -75,13 +76,16 @@ import java.util.UUID;
  * 무관하게 매핑이 durable 하게 남아 콜백이 항상 역조회에 성공한다. 등록 실패 시에는 외부 호출을
  * 하지 않고 실패 전파(fail-closed) — 매핑 없는 위탁으로 인한 콜백 유실을 원천 차단한다.
  *
- * <p><b>모든 게이트(토글·영상 존재·신고 보류·event_type)는 선커밋보다 앞에 둔다.</b> 뒤에 두면
+ * <p><b>모든 게이트(수동 스킵·영상 존재·신고 보류·event_type)는 선커밋보다 앞에 둔다.</b> 뒤에 두면
  * 위탁이 나가지도 않았는데 상관키 {@code ISSUED} + 마킹 {@code VLM_REQUESTED} 만 durable 커밋되어
  * <b>사유 없는 고착</b>이 되고, 미결 스위퍼가 그것을 "ACK 미수신" 으로 오인해 회수를 반복한다.
  *
  * <h3>실행 정책</h3>
  * <ul>
- *   <li>{@code vlm.client.enabled=false}(기본) 일 때 외부 호출 0건 + 즉시 SKIPPED(NO-OP) — 등록도 하지 않음.</li>
+ *   <li><b>REVIEWER 수동 스킵</b>이 걸린 영상은 외부 호출 0건 + 즉시 SKIPPED — 등록도 하지 않음.
+ *       설정 토글로 단계를 통째로 비우던 구 경로는 <b>폐지</b>됐다(ADR-049).
+ *       미연동이면 위탁은 조용히 건너뛰지 않고 <b>실패</b>하며, 벤더 미연동 구간은 사람이 사유를 남기고
+ *       누르는 스킵으로 운영한다(그 사실이 처리 이력에 남는다).</li>
  *   <li>media.path 는 <b>비식별 영상 경로</b>({@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM})만 사용.
  *       비식별 경로가 없으면 원본을 외부로 전송하지 않고 fail-closed(개인정보 보호).</li>
  *   <li><b>비식별 누락 신고 구간이면 외부 호출 0건 + SKIPPED(보류)</b> — 그 비식별본이 바로 마스킹
@@ -122,6 +126,8 @@ import java.util.UUID;
  * <p>동기 실패 전파가 남아 있는 것은 <b>제출 이전</b>의 사전 조건뿐이다(rawSn null · 영상 미존재 ·
  * 비식별 경로 부재 · 상관키 등록 실패) — 이들은 여전히 {@link CustomException} 으로 던져
  * {@code BatchOrchestrator} FAILED + {@code BatchRetryQueue} 경로를 탄다.
+ *
+ * @design ADR-049
  */
 @Slf4j
 @Component
@@ -142,7 +148,17 @@ public class VlmTimeseriesStep implements BatchStep {
     /** 완료 신호 디스패치 로그 태그(고정 문자열 — 사용자 입력 미반영). */
     private static final String LOG_TAG = "Batch][VlmTimeseries";
 
-    /** VLM 단계 미수행 사유 — 운영 재처리 대상 식별용으로 DB 에 그대로 적재된다(B-ISSUE-24). */
+    /**
+     * VLM 단계 미수행 사유 — 운영 재처리 대상 식별용으로 DB 에 그대로 적재된다(B-ISSUE-24).
+     *
+     * <p>⚠ <b>신규 발생이 없다</b> — 이 사유를 만들던 설정 토글이 폐지됐다(ADR-049). 그럼에도
+     * <b>이미 적재된 {@code LS_BATCH_PROC_LOG} 행의 판독 키</b>라 상수를 존치한다. <b>삭제하지 말고
+     * 문구도 바꾸지 말 것</b> — 값이 곧 과거 행과의 대조 키이며, 바꾸면 그 행들이 무엇이었는지 알 수
+     * 없게 된다({@link #SKIP_REASON_EVENT_TYPE_MISSING} 과 같은 취지).
+     *
+     * <p>재개 대상 판정 축({@link #RESUMABLE_SKIP_REASONS})에는 <b>원래부터 들어 있지 않다</b> —
+     * 넣지 말 것. 넣으면 과거 비활성 구간의 영상이 재위탁 후보로 잡힌다.
+     */
     static final String SKIP_REASON_DISABLED = "VLM 위탁 비활성 (vlm.client.enabled=false)";
 
     /**
@@ -245,6 +261,11 @@ public class VlmTimeseriesStep implements BatchStep {
     private final ObjectMapper objectMapper;
     /** 완료 신호 전용 스케줄러 — 완료 핸들러의 JPA 쓰기가 이벤트 루프에서 돌지 않게 고정한다. */
     private final Scheduler vlmSubmitScheduler;
+    /**
+     * <b>전체 설정</b> 건너뛰기의 자동 표식 — 위탁 직전 게이트가 읽을 표식을 여기서 세운다
+     * [@design ADR-050]. 판정·사람 표식 보호·멱등은 전부 그 컴포넌트가 소유하며 여기서 재유도하지 않는다.
+     */
+    private final VlmDefaultSkipMarker vlmDefaultSkipMarker;
 
     /** 콜백 base URL — 외부 시스템이 verify 결과를 push 할 엔드포인트 prefix(고정, 사용자 입력 미반영). */
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
@@ -269,7 +290,8 @@ public class VlmTimeseriesStep implements BatchStep {
                              VlmSubmitOutcomeRecorder outcomeRecorder,
                              VlmTimeseriesMetaPresence timeseriesMetaPresence,
                              ObjectMapper objectMapper,
-                             @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler) {
+                             @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler,
+                             VlmDefaultSkipMarker vlmDefaultSkipMarker) {
         this.vlmClient = vlmClient;
         this.videoRepository = videoRepository;
         this.ingestSourceRepository = ingestSourceRepository;
@@ -282,6 +304,7 @@ public class VlmTimeseriesStep implements BatchStep {
         this.timeseriesMetaPresence = timeseriesMetaPresence;
         this.objectMapper = objectMapper;
         this.vlmSubmitScheduler = vlmSubmitScheduler;
+        this.vlmDefaultSkipMarker = vlmDefaultSkipMarker;
     }
 
     @Override
@@ -352,6 +375,25 @@ public class VlmTimeseriesStep implements BatchStep {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
 
+        // ── [@design ADR-050] 전체 설정 건너뛰기의 <b>자동 표식</b> — 아래 게이트가 읽을 표식을 여기서 세운다.
+        //
+        //  왜 오케스트레이터만으로 부족한가: 위탁으로 나가는 진입점은 오케스트레이터 하나가 아니다.
+        //  VlmWithheldResumeRunner 가 run/runWithMarking 을 <b>직접</b> 부르고, 그 러너는 비식별 신고 해소
+        //  이벤트(VlmResumeBridge)와 <b>주기 미결 스위퍼</b>(VlmSubmitPendingSweeper — 사람 개입 0)에서
+        //  도달한다. 표식을 오케스트레이터에만 세우면 그 경로에는 표식을 세우는 자가 없어 아래 게이트가
+        //  <b>항상 통과</b>하고, 스위치가 켜져 있는데도 외부 벤더가 호출된다(ADR-050 이 약속한 「외부 호출
+        //  0건 · 헛된 실패 기록 없음 · 마킹 고착 없음」이 셋 다 무너진다).
+        //
+        //  전송 코드와 같은 메서드에 두므로 <b>어떤 호출자도 우회할 수 없다</b>(신고 게이트·수동 스킵
+        //  게이트를 이 메서드에 둔 것과 같은 논리). 판정 규칙·사람 표식 보호·멱등은 VlmDefaultSkipMarker
+        //  단일 지점이 소유하며 여기서 재유도하지 않는다.
+        //
+        //  ⚠ 표식 적재는 REQUIRES_NEW 다 — run() 의 readOnly 트랜잭션에 참여하면 그 INSERT 가 read-only
+        //  커넥션에서 거부돼 표식이 서지 못하고 바로 아래 게이트가 그 행을 찾지 못한다(기전·실측은
+        //  BatchStatusService.recordManualStageSkipInNewTx javadoc — 구 서술 「flush 유실」 폐기).
+        //  설정이 꺼져 있으면 DB 를 건드리지 않는다.
+        vlmDefaultSkipMarker.applyBeforeStage(rawSn, stage());
+
         // ── [@design API-198] REVIEWER 수동 스킵 게이트 — <b>오케스트레이터 루프와 별개로</b> 여기에도 둔다.
         //
         //  왜 두 곳인가: run/runWithMarking 은 VlmWithheldResumeRunner 가 <b>직접</b> 부르는 public
@@ -369,15 +411,18 @@ public class VlmTimeseriesStep implements BatchStep {
             return VlmTimeseriesResponse.skipped(null);
         }
 
-        // enabled=false 인 경우 외부 호출/등록/전이 없이 즉시 SKIPPED 반환(NO-OP).
-        //  단, B-ISSUE-24 — "건너뛴 사실" 은 DB(LS_BATCH_PROC_LOG)에 사유와 함께 남긴다. 로그만 남기면
-        //  VLM 비활성/장애 구간에 처리된 영상이 "메타 없음 + 무기록" 이 되어, 재처리 대상 식별이
-        //  애플리케이션 로그 보존기간에 종속된다(운영에서 복구 불가).
-        if (!vlmClient.isEnabled()) {
-            log.info("[Batch][VlmTimeseries] skipped (disabled) rawSn={}", rawSn);
-            batchStatusService.recordVlmSkipped(rawSn, SKIP_REASON_DISABLED);
-            return VlmTimeseriesResponse.skipped(null);
-        }
+        // ── [design: ADR-049] 구 설정 토글 분기가 있던 자리다 — 폐지됐으므로 아무것도 두지 않는다.
+        //
+        //  구 동작: 설정 토글이 꺼져 있으면 외부 호출/등록/전이 없이 즉시 SKIPPED 반환(NO-OP).
+        //          (그 토글의 키 이름은 SKIP_REASON_DISABLED 상수 값에만 남아 있다 — 과거 행 판독용.)
+        //  폐지 이유: 그 토글의 기본값이 비활성이고 배포 템플릿도 비활성이며 stg/prd 프로파일에는
+        //  활성화 설정 자체가 없어, <납품본이 시계열이 꺼진 채로 나가고 그 사실이 산출물에도 이력에도
+        //  드러나지 않았다>. 이제 미연동이면 위탁은 그대로 <실패>하고, 건너뛰려면 사람이 눌러야 한다
+        //  (바로 위 수동 스킵 게이트 — 누가 언제 왜 건너뛰었는지가 남는다).
+        //
+        //  ⚠ 여기에 "주소가 비었으면 조용히 SKIPPED" 같은 분기를 다시 넣지 말 것 — 이름만 바뀐 같은
+        //  결함이다. 미연동 판정은 빈 생성 시점(WebClientConfig)이 갖고, 그 상태의 위탁 실패는
+        //  완료 핸들러가 SKIP_REASON_SUBMIT_FAILED 로 기록해 재개 대상으로 남긴다.
 
         // 영상 존재 확인(NOT_FOUND). path 는 원본이 아닌 비식별 경로에서 도출한다.
         if (!videoRepository.existsById(rawSn)) {

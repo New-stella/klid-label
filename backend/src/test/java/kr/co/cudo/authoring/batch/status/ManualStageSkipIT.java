@@ -280,73 +280,120 @@ class ManualStageSkipIT {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // ★ 되돌린 스킵 판정 — 묶음 지목 재수행의 수락 전제 [@design API-201]
+    // ★ 건너뛴 이력 · 해제 목록 판정 — 묶음 지목 재수행의 수락 전제
+    //   [@design API-201] [@design API-043] [@design ADR-050]
     // ────────────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("★스킵_이력이_없으면_되돌린_묶음도_없다")
+    @DisplayName("★스킵_이력이_없으면_재수행을_수락하지_않고_해제_목록도_비어_있다")
     void noSkipHistoryMeansNothingRestored() {
         Long rawSn = newRaw();
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).isFalse();
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).isFalse();
+        assertThat(statusService.clearedBundles(rawSn)).isEmpty();
     }
 
     @Test
-    @DisplayName("★스킵만_서_있는_동안은_되돌린_묶음이_아니다")
-    void skippedButNotClearedIsNotRestored() {
-        // 지금 스킵 중인 묶음은 재수행해도 오케스트레이터가 다시 건너뛴다 — "다시 수행할 묶음"이 아니다.
+    @DisplayName("★★스킵만_서_있어도_재수행을_수락한다_해제_2단계_폐지")
+    void skippedButNotClearedIsStillAccepted() {
+        // 구 판정은 <마지막 표식이 해제>인 묶음만 수락해 「해제 → 재수행」 두 번을 누르게 했다.
+        //   되살리려는 사람에게 그 둘은 한 가지 일이고, 나누어 두면 해제만 하고 재수행을 잊었을 때
+        //   그 영상이 「건너뛰지도 수행하지도 않은」 상태로 남는다. (구 동작 폐기 — ADR-050)
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,
                 ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
 
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).isFalse();
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).isTrue();
+        // 다만 「지금 건너뛴 상태」와 「해제됨」은 여전히 갈린다 — 두 목록은 서로의 뒷면이다.
+        assertThat(statusService.manuallySkippedBundles(rawSn)).containsExactly("VLM");
+        assertThat(statusService.clearedBundles(rawSn)).isEmpty();
     }
 
     @Test
-    @DisplayName("★스킵을_해제하면_그_묶음이_되돌린_묶음으로_판정된다_재수행_수락의_전제")
-    void clearedSkipIsDetected() {
+    @DisplayName("★스킵을_해제하면_해제_목록으로_옮겨간다_스킵_목록에서는_빠진다")
+    void clearedSkipMovesToClearedList() {
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,
                 ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
         statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.VLM,
-                ManualStageSkip.CLEARED_REASON_PREFIX + "운영자 해제", "1");
+                ManualStageSkip.MANUAL_CLEARED_REASON, "1");
 
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).isTrue();
-        // 같은 축의 앞뒷면 — 해제된 묶음은 스킵 목록에서 빠진다.
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).isTrue();
+        // 같은 축의 앞뒷면 — 해제된 묶음은 스킵 목록에서 빠지고 해제 목록에 들어간다.
         assertThat(statusService.manuallySkippedBundles(rawSn)).isEmpty();
+        assertThat(statusService.clearedBundles(rawSn)).containsExactly("VLM");
     }
 
     @Test
-    @DisplayName("★재스킵하면_되돌린_묶음이_아니게_된다_마지막_표식이_판정을_결정한다")
+    @DisplayName("★재수행이_자동으로_푼_해제도_같은_해제_목록에_담긴다_사유_본문으로만_갈린다")
+    void rerunAutoClearIsAlsoCleared() {
+        Long rawSn = newRaw();
+        statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,
+                ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
+        statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.VLM,
+                ManualStageSkip.RERUN_AUTO_CLEARED_REASON, "SYSTEM_RERUN");
+
+        assertThat(statusService.clearedBundles(rawSn)).containsExactly("VLM");
+        // 코드값은 사람이 누른 해제와 같다(상태 판정의 키라 새로 만들지 않는다) — 갈리는 것은 사유뿐.
+        assertThat(statusService.latestManualSkipMarker(rawSn, BatchStageBundle.VLM))
+                .hasValueSatisfying(l -> {
+                    assertThat(l.getErrorCd()).isEqualTo(ManualStageSkip.ERR_CD_CLEARED);
+                    assertThat(l.getErrorMsg()).isEqualTo(ManualStageSkip.RERUN_AUTO_CLEARED_REASON);
+                });
+    }
+
+    @Test
+    @DisplayName("★재스킵하면_해제_목록에서_빠진다_마지막_표식이_판정을_결정한다")
     void reSkippingRevokesRestoredState() {
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.AUTOLABEL,
                 ManualStageSkip.REASON_PREFIX + "1차", "1");
         statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.AUTOLABEL,
-                ManualStageSkip.CLEARED_REASON_PREFIX + "운영자 해제", "1");
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).isTrue();
+                ManualStageSkip.MANUAL_CLEARED_REASON, "1");
+        assertThat(statusService.clearedBundles(rawSn)).containsExactly("AUTOLABEL");
 
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.AUTOLABEL,
                 ManualStageSkip.REASON_PREFIX + "2차", "1");
 
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).isFalse();
+        assertThat(statusService.clearedBundles(rawSn)).isEmpty();
+        assertThat(statusService.manuallySkippedBundles(rawSn)).containsExactly("AUTOLABEL");
+        // 재수행 수락은 그대로다 — 넓어진 판정은 「건너뛴 적이 있는가」이므로 재스킵에도 흔들리지 않는다.
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.AUTOLABEL)).isTrue();
     }
 
     @Test
-    @DisplayName("★판정은_묶음별로_독립이다_한_묶음을_되돌려도_다른_묶음은_되돌린_묶음이_아니다")
+    @DisplayName("★판정은_묶음별로_독립이다_한_묶음의_표식이_다른_묶음의_재수행을_열어주지_않는다")
     void restoredJudgementIsPerBundle() {
-        // 요청이 대상 묶음을 자유롭게 고르지 못하게 하는 장치다 — "아무 묶음이나 하나 되돌리면
+        // 요청이 대상 묶음을 자유롭게 고르지 못하게 하는 장치다 — "아무 묶음이나 하나 건드리면
         //   다른 묶음도 재수행할 수 있다"가 되면 앞 작업을 건너뛰도록 요청이 강제할 수 있다.
         Long rawSn = newRaw();
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,
                 ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
+        statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.VLM,
+                ManualStageSkip.MANUAL_CLEARED_REASON, "1");
+
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.VLM)).isTrue();
+        assertThat(statusService.hasManualSkipHistory(rawSn, BatchStageBundle.AUTOLABEL)).isFalse();
+        assertThat(statusService.clearedBundles(rawSn)).containsExactly("VLM");
+        assertThat(statusService.manuallySkippedBundles(rawSn)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("★두_목록은_묶음_선언_순서로_내려온다_적재_순서에_끌려가지_않는다")
+    void bothListsKeepDeclarationOrder() {
+        Long rawSn = newRaw();
+        // 선언 역순으로 적재한다 — 반환 순서가 적재 순서에 끌려가면 화면이 깜빡인다.
         statusService.recordManualStageSkip(rawSn, BatchStageBundle.AUTOLABEL,
                 ManualStageSkip.REASON_PREFIX + "오토라벨 생략", "1");
-        statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.VLM,
-                ManualStageSkip.CLEARED_REASON_PREFIX + "운영자 해제", "1");
+        statusService.recordManualStageSkip(rawSn, BatchStageBundle.VLM,
+                ManualStageSkip.REASON_PREFIX + "벤더 장애", "1");
+        assertThat(statusService.manuallySkippedBundles(rawSn)).containsExactly("VLM", "AUTOLABEL");
 
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.VLM)).isTrue();
-        assertThat(statusService.hasClearedManualSkip(rawSn, BatchStageBundle.AUTOLABEL)).isFalse();
-        assertThat(statusService.manuallySkippedBundles(rawSn)).containsExactly("AUTOLABEL");
+        statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.AUTOLABEL,
+                ManualStageSkip.MANUAL_CLEARED_REASON, "1");
+        statusService.recordManualStageSkipCleared(rawSn, BatchStageBundle.VLM,
+                ManualStageSkip.RERUN_AUTO_CLEARED_REASON, "SYSTEM_RERUN");
+        assertThat(statusService.clearedBundles(rawSn)).containsExactly("VLM", "AUTOLABEL");
+        assertThat(statusService.manuallySkippedBundles(rawSn)).isEmpty();
     }
 
     @Test

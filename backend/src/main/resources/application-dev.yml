@@ -46,20 +46,20 @@ kpst:
     enabled: ${KPST_DEID_ENABLED:true}
     base-url: ${KPST_DEID_BASE_URL:http://klid-mock-server:9400}
 
-# Phase 1 — 외부 VLM 시계열. 공통 기본값은 enabled=false 이고, false 면 VlmClient 가 외부 호출 없이
-#   SKIPPED 를 반환해 **VLM 단계가 통째로 빈다**(결과 0건). dev 는 목업 벤더 서버로 실제 위탁해
-#   describe → 콜백(/v1/vlm/callback) 왕복까지 돌린다.
+# Phase 1 — 외부 VLM 시계열. 공통 기본값은 url 이 **빈 값**이고, 비면 위탁이 그대로 실패한다
+#   (활성/비활성 토글은 폐지됐다 — ADR-049. 조용한 SKIPPED 는 더 이상 없다). dev 는 목업 벤더 서버로
+#   실제 위탁해 verify → 콜백(/v1/vlm/callback) 왕복까지 돌린다.
 #   ⚠ 콜백은 mock-server → 저작도구 방향이므로 authoring.webhook.callback-base-url 이 컨테이너에서
 #     도달 가능한 주소여야 한다(도커: WEBHOOK_CALLBACK_BASE_URL=http://klid-backend:8080/api).
 #   - allow-insecure-url: 목업이 평문 http + 컨테이너 내부 호스트라, 운영 표준(HTTPS + 공인망)을 그대로
 #     적용하면 VlmUrlPolicy 가 빈 생성을 실패시켜 **기동 자체가 막힌다**. 완화는 이 전용 플래그로만 열리고
 #     local/dev 프로파일에서만 인정된다 — 추가로 배포 표식 ENV=stg|prd 가 있으면 dev 프로파일이라도
 #     인정하지 않고 기동을 거부한다(ProfileGatedUrlPolicy · DevProfileGuard 와 동일 기준).
-#     ★ enabled=true 와 이 플래그는 짝이다. 플래그 없이 enabled 만 켜면 부팅이 깨진다.
+#     ★ 목 주소와 이 플래그는 짝이다. 플래그 없이 목 주소만 넣으면 부팅이 깨진다.
 #     실벤더(HTTPS) 전환 시에는 VLM_ALLOW_INSECURE_URL=false 로 내린다.
+#   ★ 활성/비활성 토글은 폐지됐다(ADR-049) — 미연동 판정은 url 주입 여부가 한다.
 vlm:
   client:
-    enabled: ${VLM_CLIENT_ENABLED:true}
     url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}
     allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:true}
 

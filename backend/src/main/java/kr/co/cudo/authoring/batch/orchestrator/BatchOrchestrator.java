@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.retry.BatchRetryQueue;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,6 +63,14 @@ public class BatchOrchestrator {
     private final VideoRepository videoRepository;
 
     /**
+     * 전체 설정 건너뛰기 표식기 — 시계열 단계 <b>진입 직전</b> 한 번 태운다. [@design ADR-050]
+     *
+     * <p>여기는 «표식을 세우는» 자리일 뿐이고 건너뛸지 말지는 아래 기존 게이트가 정한다. 게이트를
+     * 두 벌로 만들면 "설정으로 껐는데 어떤 경로에서는 도는" 상태가 생긴다.
+     */
+    private final VlmDefaultSkipMarker vlmDefaultSkipMarker;
+
+    /**
      * post-marking 파이프라인을 명시 선택해 주입한다. 빈이 2개({@code preMarkingPipeline},
      * {@code postMarkingPipeline}) 이므로 {@code @Qualifier} 로 모호성을 해소한다 (Phase 2).
      */
@@ -69,12 +79,14 @@ public class BatchOrchestrator {
             BatchStatusService statusService,
             BatchTransitionService transitionService,
             BatchRetryQueue retryQueue,
-            VideoRepository videoRepository) {
+            VideoRepository videoRepository,
+            VlmDefaultSkipMarker vlmDefaultSkipMarker) {
         this.pipeline = pipeline;
         this.statusService = statusService;
         this.transitionService = transitionService;
         this.retryQueue = retryQueue;
         this.videoRepository = videoRepository;
+        this.vlmDefaultSkipMarker = vlmDefaultSkipMarker;
     }
 
     /**
@@ -96,17 +108,17 @@ public class BatchOrchestrator {
      * 가드가 <b>자기가 찍은 PROCESSING</b> 때문에 클레임에 실패해 수동 재처리가 전부 SKIPPED→409 가 된다.
      */
     public BatchStage processWithHeldStageClaim(Long rawSn) {
-        return process(rawSn, null, true, null);
+        return process(rawSn, null, true, null, false);
     }
 
     /**
      * 배치 단계 클레임을 보유한 호출자 전용 진입 — <b>작업 묶음 지목 재수행</b> 전용. [@design API-201]
      *
-     * <p>재수행({@code POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun})이 되돌린 묶음의 구성 단계를
+     * <p>재수행({@code POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun})이 건너뛰기를 해제한 묶음의 구성 단계를
      * stage 토글로 환산해({@code BatchBundleTogglePolicy}) 이 인자로 전달한다. 각 단계의
      * {@link BatchStep#isEnabled} 가 그것을 해석한다.
      *
-     * <p>⚠ <b>여기까지 내려온 토글은 이미 검증된 값이다</b> — "그 영상에서 실제로 되돌린 묶음인가"는
+     * <p>⚠ <b>여기까지 내려온 토글은 이미 검증된 값이다</b> — "그 영상에서 실제로 건너뛰기를 해제한 묶음인가"는
      * 입구({@code BatchStageRerunService})가 판정한다. 오케스트레이터는 임의 조합을 다시 의심하지 않는
      * 대신, 이 진입점을 그 서비스 밖에서 쓰지 않는다(쓰면 앞 작업을 건너뛴 산출물이 만들어진다).
      *
@@ -116,7 +128,7 @@ public class BatchOrchestrator {
      * 검수 제출을 못 한다) <b>자동 재시도 큐가 범위를 모른 채 전 단계를 돌려</b> 사람이 손댄 보간 라벨을
      * 지운다 — 이 기능이 막으려던 바로 그 파괴가 실패 경로로 되살아난다.
      *
-     * <p>더구나 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 <b>되돌려 재수행하면 실패가 예외가
+     * <p>더구나 스킵의 존재 이유가 "기다려도 성공하지 않는 작업"이라 <b>해제해 재수행하면 실패가 예외가
      * 아니라 기대값</b>이다. 이 경로의 실패 처리는 흔하게 탄다.
      *
      * <p>그래서 여기서는 ①선점 직전 상태로 <b>원상 복구</b>하고 ②자동 재시도 큐에 <b>넣지 않는다</b>.
@@ -138,7 +150,23 @@ public class BatchOrchestrator {
      */
     public BatchStage processBundleRerun(
             Long rawSn, Map<String, Boolean> stageToggles, String claimOriginStatus) {
-        return process(rawSn, stageToggles, true, claimOriginStatus);
+        return processBundleRerun(rawSn, stageToggles, claimOriginStatus, false);
+    }
+
+    /**
+     * 묶음 재수행 — <b>검수 소유 작업 상태 보존</b> 모드를 고를 수 있는 진입. [@design API-201]
+     *
+     * <p>{@code preserveReviewOwnedStatus=true} 면 진입 가드가 검수 소유 상태를 차단 사유로 보지 않고,
+     * 마감도 작업 상태를 보존하는 경로로 간다. 「메타만 더하는 묶음」(라벨을 다시 만들지 않는 묶음)의
+     * 재수행 전용이며, 그 판정은 {@link MetadataOnlyRerunPolicy} 단일 지점이 소유한다.
+     *
+     * <p>⚠ <b>기본값은 {@code false}</b> 다(위 오버로드). 면제는 호출자가 명시적으로 고를 때만 켜지고,
+     * 켜졌더라도 아래 실행 범위 검사가 한 번 더 확인한다(fail-closed 2겹).
+     */
+    public BatchStage processBundleRerun(
+            Long rawSn, Map<String, Boolean> stageToggles, String claimOriginStatus,
+            boolean preserveReviewOwnedStatus) {
+        return process(rawSn, stageToggles, true, claimOriginStatus, preserveReviewOwnedStatus);
     }
 
     /**
@@ -152,7 +180,7 @@ public class BatchOrchestrator {
      * @param stageToggles {@link BatchStage#name()} → enabled. null/빈 맵 = 전부 enabled.
      */
     public BatchStage process(Long rawSn, Map<String, Boolean> stageToggles) {
-        return process(rawSn, stageToggles, false, null);
+        return process(rawSn, stageToggles, false, null, false);
     }
 
     /**
@@ -165,11 +193,26 @@ public class BatchOrchestrator {
      *                          재시도 대신 이 상태로 원상 복구한다([@design API-201], 위 Javadoc).
      */
     private BatchStage process(Long rawSn, Map<String, Boolean> stageToggles,
-                               boolean stageClaimHeld, String rerunRestoreStatus) {
+                               boolean stageClaimHeld, String rerunRestoreStatus,
+                               boolean preserveReviewOwnedStatus) {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
         LsDataRaw raw = loadRaw(rawSn);
+
+        // ★ 면제 모드의 런타임 fail-closed [@design API-201] — 진입 전이<보다 먼저> 검사한다.
+        //   면제는 "라벨을 만들지 않는다" 를 전제로 승인 영상의 진입을 여는 것이라, 그 전제가 배선
+        //   실수로 깨지면 승인 영상에 오토라벨이 도는 최악이 된다. 검사는 실제 파이프라인 × 컨텍스트로
+        //   "정말 돌 단계" 를 산출해서 한다 — 토글 맵만 보면 <키가 없어 도는> 단계를 놓친다
+        //   (BatchContext.isStageEnabled 는 키 부재를 enabled 로 읽는다).
+        //   SKIPPED 로 빠지면 호출자(AsyncBatchReprocessRunner)가 선점 클레임을 보상 롤백한다.
+        if (preserveReviewOwnedStatus
+                && !MetadataOnlyRerunPolicy.runScopeIsMetadataOnly(
+                        stagesThatWillRun(stageToggles))) {
+            log.error("[BatchOrchestrator] refused — review-status-preserving rerun with a scope that is not "
+                    + "metadata-only rawSn={}", rawSn);
+            return BatchStage.SKIPPED;
+        }
 
         // 배치 시작: 작업 상태 PROCESSING 전이 (REQUIRES_NEW 별도 트랜잭션으로 명시 영속).
         // ★ 진입 가드(DEV_FIX H8) — 작업 상태가 검수 소유(PENDING/IN_REVIEW/APPROVED/REJECTED)면
@@ -180,9 +223,15 @@ public class BatchOrchestrator {
         // ★ 동시 진입 상호배제(B-ISSUE-01) — 같은 가드가 LS_DATA_RAW 배치 단계를 단일 조건부 UPDATE 로
         //   원자 클레임한다. 동시 요청이 몇 건이든 1건만 클레임에 성공하고 나머지는 여기서 SKIPPED 로
         //   빠진다(구 구현은 전부 통과해 파이프라인 N벌 병렬 실행 + 외부 VLM N중 위탁).
-        boolean blocked = stageClaimHeld
-                ? transitionService.markRawDataProcessingBlockedWithHeldClaim(rawSn)
-                : transitionService.markRawDataProcessingBlocked(rawSn);
+        boolean blocked;
+        if (preserveReviewOwnedStatus) {
+            // 검수 소유 상태를 차단 사유로 보지 않는다 — 작업 상태 자체는 전이되지 않아 APPROVED 가 보존된다.
+            blocked = transitionService.markRawDataProcessingWithHeldClaimPreservingReviewStatus(rawSn);
+        } else if (stageClaimHeld) {
+            blocked = transitionService.markRawDataProcessingBlockedWithHeldClaim(rawSn);
+        } else {
+            blocked = transitionService.markRawDataProcessingBlocked(rawSn);
+        }
         if (blocked) {
             log.warn("[BatchOrchestrator] skipped — entry guard blocked "
                     + "(review-owned work status or already processing) rawSn={}", rawSn);
@@ -197,6 +246,12 @@ public class BatchOrchestrator {
                             rawSn, step.stage());
                     continue;
                 }
+                // [design: ADR-050] [design: SEQ-001] 전체 설정 건너뛰기 — 시계열 위탁 단계에
+                //   <b>진입하기 직전</b> 자동으로 건너뜀 표식을 세운다. 여기서 세운 표식은 바로 아래
+                //   기존 게이트가 읽어 그 묶음을 건너뛰므로 외부 벤더 호출이 한 번도 일어나지 않는다
+                //   (위탁했다가 실패시키는 것이 아니다). 대상 묶음 판정·사람 표식 보호·멱등은 모두
+                //   VlmDefaultSkipMarker 단일 지점이 소유하며 여기서 재유도하지 않는다.
+                vlmDefaultSkipMarker.applyBeforeStage(rawSn, step.stage());
                 // [@design API-198] REVIEWER 수동 스킵 — 그 단계가 속한 <b>작업 묶음</b>에 표식이 서 있으면
                 //   실행하지 않고 통과한다. 판정은 BatchStatusService.isStageManuallySkipped 단일 지점이며
                 //   (단계 → 묶음 해석은 BatchStageBundle.containing), 여기서 규칙을 재유도하지 않는다.
@@ -213,7 +268,15 @@ public class BatchOrchestrator {
 
             // 작업 상태 COMPLETED 전이 + LS_DATA_RAW.DATA_STTS_CD=COMPLETED
             // (REQUIRES_NEW 별도 트랜잭션으로 명시 영속 — self-invocation/비트랜잭션 회피).
-            transitionService.markRawDataCompleted(rawSn);
+            // ★ 면제 모드는 전용 마감을 쓴다 — 일반 마감은 작업 상태 전이가 차단되면 LS_DATA_RAW 도
+            //   건드리지 않고 반환해, 완주해도 배치 단계가 PROCESSING 으로 <영구 고착>된다(이후 전
+            //   배치 진입이 409). 게다가 아래 markCompleted 가 진행 행을 종결로 갱신해 회수 스윕까지
+            //   포기하므로 스스로 놓아야 한다.
+            if (preserveReviewOwnedStatus) {
+                transitionService.markRawDataCompletedPreservingReviewStatus(rawSn);
+            } else {
+                transitionService.markRawDataCompleted(rawSn);
+            }
             statusService.markCompleted(rawSn);
             retryQueue.clear(rawSn);
             log.info("[BatchOrchestrator] completed rawSn={}", rawSn);
@@ -260,6 +323,29 @@ public class BatchOrchestrator {
             }
             throw e;
         }
+    }
+
+    /**
+     * 이번 실행에서 <b>실제로 돌 단계</b>의 보수적 상위집합 — 면제 모드 fail-closed 검사의 입력.
+     *
+     * <h3>왜 토글 맵을 그대로 넘기지 않는가 (Critical)</h3>
+     * <p>{@link BatchContext#isStageEnabled} 는 <b>토글 맵에 키가 없으면 켜진 것으로</b> 읽는다. 즉
+     * 맵에서 {@code true} 인 항목만 세면 「맵에 없어서 도는」 단계를 통째로 놓친다. 그래서 해석 규칙을
+     * 복제하지 않고 <b>{@link BatchContext} 에게 그대로 묻는다</b>(판정 규칙 단일 지점).
+     *
+     * <p>각 {@code BatchStep} 이 런타임에 스스로를 더 끄거나 수동 스킵 표식이 단계를 건너뛸 수 있으나,
+     * 그것들은 집합을 <b>줄이기만</b> 한다. 따라서 이 상위집합으로 판정하면 fail-closed 다 —
+     * 여기서 DB 를 읽지 않으므로 검사 자체가 부수효과를 만들지도 않는다.
+     */
+    private List<BatchStage> stagesThatWillRun(Map<String, Boolean> stageToggles) {
+        BatchContext probe = new BatchContext(null, null, stageToggles);
+        List<BatchStage> stages = new java.util.ArrayList<>();
+        for (BatchStep step : pipeline.steps()) {
+            if (probe.isStageEnabled(step.stage())) {
+                stages.add(step.stage());
+            }
+        }
+        return stages;
     }
 
     /** 클레임 해제(→FAILED) 시도 — 실패해도 원인 예외를 덮지 않도록 삼키고 로깅만 한다. */

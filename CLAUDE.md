@@ -51,12 +51,12 @@ klid-la-test-v0/
 buildTimeout: 1800
 slowBuild: true
 
-- 전체 회귀는 **backend 7,187 테스트(Testcontainers 포함, 결과 XML 808) + frontend 3,641 테스트(459 파일)** 이다(2026-08-21 실측). 기본값 300초로는 완주하지 못하므로 위 `buildTimeout` 선언이 필요하다.
-  - ★★**소요는 흔들린다 — 예산을 「6~7분」으로 기억하지 마라.** 같은 머신에서 backend 가 **5분 25초(2026-08-16)** 와 **9분 56초(2026-08-21)** 로 실측됐다. 뒤쪽은 **단일 셸 호출 상한(10분)에 4초 남기고** 들어왔다. 원인은 미확인이다(콜드 캐시·머신 부하 추정이며 **단정하지 않는다**).
-  - ⇒ **한 호출 완주는 이제 「대체로 되지만 보장되지 않는」 상태다.** 아래 「구 서술 폐기」의 결론(한 호출에서 완주)은 여전히 **1순위**이나, **상한에 걸리면 즉시 백그라운드 실행 + 로그 리다이렉트 + 폴링으로 전환**한다. 세그먼트 분할은 마지막 수단이다(교차 오염을 못 잡는다).
-  - ⚠ **테스트 수는 계속 는다** — 2026-08-16 대비 backend +445 · frontend +428 이다. 이 절의 수치를 인용하기 전에 **그 날짜를 함께 보라.**
+- 전체 회귀는 **backend 7,230 테스트(Testcontainers 포함, 결과 XML 800) 약 8분 35초 + frontend 3,623 테스트(456 파일) 약 53초 = 합계 9~10분급**이다(2026-08-21 실측). 기본값 300초로는 완주하지 못하므로 위 `buildTimeout` 선언이 필요하다.
+  - ⚠ **구 수치 갱신(2026-08-21)** — *"backend 6,742 테스트(XML 745) 약 5분 25초 · frontend 3,213(409 파일) · 합계 6~7분급"*(2026-08-16 실측)에서 **backend 가 +488 테스트·+3분 10초, frontend 가 +410 테스트** 늘었다. 다섯 달이 아니라 닷새 만의 증가폭이라 **다음 실측까지 또 벌어진다고 보는 편이 안전하다.**
+  - ★**이 수치는 문구가 아니라 라우팅을 바꾼다** — 아래 「단일 셸 명령 상한」 판단의 입력값이다. backend 단독 8분 35초(515초)는 상한 10분(600초)까지 **여유가 85초뿐**이며, 구 수치(325초)의 275초 여유에서 **1/3 로 줄었다.** 느린 머신·콜드 캐시에서는 넘길 수 있으므로 한 호출 완주가 실패하면 곧바로 백그라운드 경로로 전환하라.
+  - ★★**소요는 한 번의 실측으로 고정되지 않는다** — 같은 머신에서 backend 가 **5분 25초(08-16)** · **8분 35초** · **9분 56초**(둘 다 08-21, 서로 다른 실행)로 나왔다. 마지막 값은 **상한 10분에 4초** 남았다. 원인은 미확인이며 콜드 캐시·부하로 **추정할 뿐 단정하지 않는다.** ⇒ 위 「여유 85초」도 낙관적일 수 있으니, **한 호출 완주를 1순위로 두되 상한에 걸리면 곧바로 백그라운드+폴링으로 전환**한다.
   - ⚠ **구 서술 폐기(2026-08-16 실측)** — *"backend 4,000+ / frontend 1,600+ · 15~20분급"* 은 **테스트 수를 과소, 시간을 과대**로 적고 있었다. 이 오차는 문구 문제가 아니라 **라우팅을 바꾼다**: 하네스의 「장시간 FULL 병행 규칙」은 **600초 초과**일 때만 이득인데 실측이 그 아래라, 그 서술을 믿고 폴링·세그먼트 경로로 보내면 왕복 비용만 늘어난다. **한 호출에서 완주시키는 것이 맞다.**
-  - `buildTimeout: 1800` 은 실측의 4배 여유라 그대로 둔다(줄일 이유가 없고, 느린 머신·콜드 캐시에서 여유가 필요하다).
+  - `buildTimeout: 1800` 은 그대로 둔다 — 합계 실측(약 570초) 대비 **약 3배 여유**다(구 기재 「4배」는 구 수치 기준이라 함께 갱신). 줄일 이유가 없고 느린 머신·콜드 캐시에서 여유가 필요하다.
 - 단일 셸 명령 상한(10분) 안에 들어오므로 **한 호출에서 기동+대기로 완주시킬 수 있다.** 다만 실측은 특정 머신·웜 캐시 기준이므로, 상한에 걸리면 **백그라운드 실행 + 로그 파일 리다이렉트 + 폴링**으로 전환한다(세그먼트 분할은 마지막 수단 — 교차 오염을 못 잡는다).
 - Gradle `test` 는 UP-TO-DATE 로 스킵되면 **실행 안 하고 통과처럼 보인다**(과거 거짓 PASS 실사고). `cleanTest test` 또는 `--rerun-tasks` 로 강제하고, 결과 XML 개수·타임스탬프로 실행 증거를 확인할 것.
 - 빌드/테스트 에이전트는 **동시에 2개 이상 띄우지 않는다** — `build/test-results` 충돌로 위양성 실패가 난다.
@@ -207,7 +207,8 @@ slowBuild: true
   - **★R13 — 승인 영상의 서술이 갱신되면 재검수 + 통지**: `APPROVED` 영상의 `vlm.description` 이 **실제로 달라진 경우에만** 검토행을 `PENDING` 으로 되돌리고(`LsDataMetaReview.reopenForRecheck`) `TaskModifiedEvent(META_UPDATED, exportRegenerated=true)` 를 발행한다. **값이 같으면 no-op**(멱등 — 재검수·통지 폭주 방지). 근거: 뷰가 **라이브** `LS_DATA_META` 를 조인하므로 상태를 APPROVED 로 둔 채 값만 갱신하면 REVIEWER 가 한 번도 보지 않은 서술이 그대로 관제로 나간다. `REJECTED` 검토행도 되돌린다(반려 판단은 *바뀌기 전 본문*에 대한 것이라 새 본문에 적용되지 않는다). 신규 적재·미승인 영상은 대상이 아니다.
   - **export `video.vd_description` 조달 순서** — ① `vlm.description` → ② `manual-timeseries`(사람이 직접 쓴 전문) → ③ 레거시 구간 행을 **`start_sec` 숫자순**으로 이어붙임 → ④ **`null`**(빈 문자열 아님 · 지어내지 않음). 판정 단일 원천은 **`dataset/export/json/VlmDescriptionPolicy`** 이며 매퍼·서비스가 재유도하지 않는다. 조달 참여 키라도 **값이 실제로 바뀌어야** export 를 재생성한다 — 무변경 저장이 `v2·v3·v4…` 를 이미지 2벌과 함께 적층하던 결함(CWE-770)의 차단이며, 무변경 저장 자체는 **200 성공 + 통지 발행**이고 재생성 플래그만 생략된다.
   - **알려진 관찰 2건 — 결함 아님 (되돌리지 말 것)**: ①관제 pull API `TaskQueryService.getMeta` 는 `LS_DATA_META` **전 행**을 반환해 `vlm.accuracy`·`video.*` 가 포함된다. R12 가 규정한 축(검수큐 → 뷰 → export)과 **다른 채널**이고 `video.*` 도 이전부터 그랬다 — 좁히려면 **관제 계약 협의가 선행**돼야 한다. ②`LabelContentHasher` 의 `VDSC` 블록은 현재 배포 형상에서 **아무것도 게이트하지 않는다**(해시가 게이트하는 유일한 지점이 `forceRegenerate=false` 분기인데 그 값으로 진입하는 프로덕션 경로가 0건 — 유일 후보 `DatasetExportBridge.onReExport` 가 소비하는 `DatasetReExportEvent` 는 **발행처 0 인 휴면 리스너**). 기록만 되며 `force=false` 경로가 되살아날 때를 위해 **유지**한다.
-  - **적대검증 기각 근거 (다시 꺼내지 말 것)**: "R13 이 웹훅 재수신으로 폭주한다"는 지적은 **발동 경로 3개가 전부 막혀** 성립하지 않는다 — 재개 러너(`VlmWithheldResumeRunner`)는 **시계열 메타 0건**일 때만 재위탁하고, 미결 스위퍼는 **미결 원장(`ISSUED`/`ACCEPTED`)** 만 회수하며, 수동 재처리는 **`FAILED` 만** 클레임한다(`BatchTransitionService.tryClaimReprocessFromFailed`). 승인 완료 영상은 이 셋 중 어디에도 걸리지 않는다.
+  - **적대검증 기각 근거 (다시 꺼내지 말 것)**: "R13 이 웹훅 재수신으로 폭주한다"는 지적은 **자동 발동 경로가 전부 막혀** 성립하지 않는다 — 재개 러너(`VlmWithheldResumeRunner`)는 **시계열 메타 0건**일 때만 재위탁하고, 미결 스위퍼는 **미결 원장(`ISSUED`/`ACCEPTED`)** 만 회수하며, 수동 재처리는 **`FAILED` 만** 클레임한다(`BatchTransitionService.tryClaimReprocessFromFailed`). 승인 완료 영상은 이 셋 중 어디에도 걸리지 않는다.
+    - ⚠ **단 「승인 완료 영상은 어디에도 걸리지 않는다」는 2026-08-19 이후 조건부다 (`ADR-049`·`API-201`)** — 승인 이력이 있는 영상도 **시계열 묶음에 한해 재수행이 열렸다**. 즉 R13 의 발동 경로가 하나 늘었다. **폭주 근거는 아니다** — ①사람이 눌러야만 발동하고 ②되돌린(clear 한) 묶음만 수락하며 ③R13 자체가 **값이 같으면 no-op** 인 멱등이기 때문이다. 자동 트리거(재개 러너·미결 스위퍼·수동 재처리)가 막혀 있다는 위 서술은 **그대로 유효**하다. ⚠ `AUTOLABEL` 은 이 예외 대상이 **아니다**(라벨을 다시 만들어 승인 스냅샷과 어긋난다).
 - **배치 상태 전이**: 적재 시 `LsDataRaw.dataSttsCd=PENDING` → 선두 비식별 성공 시 `MARKING_READY`(마킹 진입 허용) → 배치 완료 시 `COMPLETED`. BatchOrchestrator.process() 시작 시 `LsRawDataStatus → PROCESSING`, 완료 시 작업 상태 `→ ASSIGNED 복귀`(COMPLETED 는 검수 승인 시점의 작업 종결 상태이므로 배치 완료가 점프시키지 않음 — 점프 시 검수 제출 ASSIGNED→PENDING 이 상태 머신에서 차단됨), 실패 시 `→ FAILED`. **두 테이블 책임 분리**: `LsDataRaw.dataSttsCd`(배치 단계: PENDING→MARKING_READY→COMPLETED)는 완료 시 `COMPLETED` 로 마감하고, `LsRawDataStatus.dataSttsCd`(작업/검수 워크플로우 상태)는 배정 시점 생성·ASSIGNED 로 복귀시켜 라벨링/검수 플로우가 이어지게 한다. ⚠ **구 서술 폐기(2026-08-15 코드 실측)**: *"작업 상태의 `COMPLETED` 는 `ReviewService.approve` 에서만 전이한다"* 는 **사실과 다르다** — 검수 종결값은 **`APPROVED`** 이고 `LsRawDataStatus.STTS_COMPLETED` 로 **전이하는 코드는 `src/main` 에 0건**이다(`transitionTo(...STTS_COMPLETED)` 실측 0건). ⚠ **"사용처가 0건" 은 아니다 (2026-08-15 재실측 정정)** — `marking/listener/MarkingBatchBridge(SKIP_STATUSES)` 가 이 상수를 **읽는다**(재트리거 차단 집합의 멤버십 검사, 방어적 용도). **구 서술 "선언만 있을 뿐 `src/main` 사용처가 0건(테스트 16건만 참조)" 은 폐기** — 그 문구를 근거로 상수를 지우면 그 배선이 깨진다. 도달 경로가 없다는 실질 주장의 근거는 **"전이 대상으로 쓰이지 않는다"** 이지 "아무도 안 읽는다" 가 아니다
   - **★`COMPLETED` 는 세 축에 있고 셋 다 정상이다 — 하나로 통일하지 말 것 (2026-08-15 실측, 구속)**
 
@@ -717,12 +718,12 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-21 (SYNC)** · 전건 무열화 검증 통과 · 서버 대비 뒤처짐 **0건**.
+> 활성 15 도메인 전량 · last sync **2026-08-21 (SYNC · main 병합 후 재정규화)** · 전건 무열화 검증 통과 · 서버 대비 뒤처짐 **0건**(측정 시점 기준 — 동시 세션이 있으면 곧 다시 벌어진다).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 53 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 107 | implemented 56 / planned 33 / (미기재) 18 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 119 | implemented 59 / planned 35 / (미기재) 25 | CONST 상수값, INT 외부 연동 |
 | DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 84 | implemented 36 / planned 27 / (미기재) 21 | ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
 | DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 94 | implemented 46 / planned 28 / (미기재) 20 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 13 / planned 21 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
@@ -732,7 +733,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 47 | implemented 11 / planned 24 / (미기재) 12 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 72 | implemented 22 / planned 34 / (미기재) 16 | CONST 상수값 |
 | DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 76 | implemented 37 / in_progress 1 / planned 26 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 53 | implemented 17 / planned 25 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 55 | implemented 19 / planned 25 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 42 | implemented 15 / planned 20 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, AC 수용, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 18 / in_progress 1 / planned 26 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
 | DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 56 | implemented 19 / in_progress 1 / planned 33 / (미기재) 3 | CONST 상수값, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |

@@ -49,6 +49,43 @@ export interface VideoListParams {
   dataSttsCd?: string;
   // 검수 상태 필터 (LS_RAW_DATA_STATUS) — APPROVED 만 노출하는 증강 요청 화면용
   reviewStatusCd?: string;
+  /**
+   * 지금 그 작업 묶음이 **건너뛴 상태**인 영상만 남긴다 — BE `GET /v1/videos` 의 `skippedStage`.
+   * [@design API-042] [@design SCREEN-008]
+   *
+   * ★ 벤더 연동이 확정된 뒤 건너뛴 영상을 모아 되살리려면 그 대상을 목록에서 골라낼 수 있어야
+   * 한다 — 일괄 요청이 한 번에 받는 건수에 상한이 있어(`BULK_RETRY_MAX`) 필터가 없으면 회수가
+   * 성립하지 않는다.
+   *
+   * ⚠ **미지정이면 파라미터를 아예 싣지 않는다**(빈 문자열을 올리지 않는다) — 서버가 그것을 값으로
+   * 해석할 여지를 없애고, 이 필터를 모르는 기존 북마크·저장된 URL 의 동작을 그대로 유지한다.
+   *
+   * ⚠ 값 공간은 {@link StageBundle} 과 같지만 **화면 옵션은 시계열 하나**다(일괄 축이 시계열
+   * 하나인 것과 같은 이유). 타입을 좁히지 않는 이유는 URL 왕복 계약이 서버 값 공간을 따르기
+   * 때문이며, 화이트리스트 검증은 {@link isStageBundle} 이 진다.
+   */
+  skippedStage?: StageBundle;
+  /**
+   * 지금 그 작업 묶음이 **실패한 상태**인 영상만 남긴다 — BE `GET /v1/videos` 의 `failedStage`.
+   * [@design API-042] [@design SCREEN-008] [@design ADR-050]
+   *
+   * ★ {@link VideoListParams.skippedStage} 와 **다른 축**이다. 그쪽은 「사람이 건너뛴 상태」이고
+   * 이쪽은 「실패한 상태」다 — 「실패 후 판단」 입구(ADR-050)가 노리는 대상이 바로 이쪽이며,
+   * 실패한 영상을 목록에서 모아야 일괄 건너뛰기가 회수 동선으로 성립한다.
+   *
+   * ★ 이 축은 **배치 상태(`status === 'FAILED'`)로 대신할 수 없다.** 시계열 위탁 실패는 파이프라인을
+   * 멈추지 않아 그 영상은 완주 상태로 남고 진행 축에도 실패가 서지 않는다 — 서버가 별도로 판정해
+   * 내려주는 이 축만이 그 영상을 집는다.
+   *
+   * ⚠ **미지정이면 파라미터를 아예 싣지 않는다**(빈 문자열을 올리지 않는다) — 서버가 그것을 값으로
+   * 해석할 여지를 없애고, 이 필터를 모르는 기존 북마크·저장된 URL 의 동작을 그대로 유지한다.
+   * 서버는 미지 값을 400 으로 물리치므로 화이트리스트({@link isStageBundle})를 통과한 값만 싣는다.
+   *
+   * ⚠ 화면 옵션은 **두 묶음 모두**다 — 건너뜀 필터가 시계열 하나인 것과 다르다. 그쪽은 일괄 조작의
+   * 대상 축(시계열 한정)을 따라간 것이고, 이쪽은 「어느 묶음이 실패했나」를 보는 조회 축이라
+   * 오토라벨 실패를 감출 이유가 없다.
+   */
+  failedStage?: StageBundle;
 }
 
 export interface Video {
@@ -161,7 +198,7 @@ export function isBatchFailed(video: Pick<Video, 'status'>): boolean {
 }
 
 /**
- * 건너뛰기·되돌리기·재수행의 **단위** — 개별 단계가 아니라 **작업 묶음**이다.
+ * 건너뛰기·해제·재수행의 **단위** — 개별 단계가 아니라 **작업 묶음**이다.
  * [@design API-198] [@design API-200] [@design API-201] [@design API-043]
  *
  * ★ 왜 묶음인가 — 뒤 단계가 앞 결과를 입력으로 받고 <b>보간이 그 산출물을 재계산</b>하므로 일부만
@@ -196,6 +233,29 @@ export const STAGE_BUNDLE_MEMBERS = {
  */
 export function isStageBundle(name: string): name is StageBundle {
   return (STAGE_BUNDLES as readonly string[]).includes(name);
+}
+
+/**
+ * 일괄 축이 받는 **유일한** 작업 묶음 — 시계열. [@design API-212] [@design API-213] [@design API-214]
+ *
+ * ★ 오토라벨은 산출물이 <b>라벨</b>이라, 대량으로 건너뛸 수 있게 열면 산출물 품질 축이 조용히 느슨해진다.
+ * 그래서 <b>일괄 축에서만</b> 좁혔고 <b>단건 경로는 종전대로 두 묶음을 모두 받는다</b>. 서버도 같은 판정을
+ * 갖고 있으며 그 외 값은 400 이다(BE `BatchStageBulkService.BULK_BUNDLE`).
+ *
+ * ⚠ 이 값은 일괄 3 API 의 경로 세그먼트가 되는 <b>상수</b>다 — 사용자 입력이 URL 로 흘러갈 자리를 애초에
+ * 만들지 않는다(CWE-22). 넓히기 전에 「산출물 품질 축을 사람이 대량으로 우회할 수 있는가」를 먼저 답할 것.
+ */
+export const BULK_STAGE_BUNDLE = 'VLM' satisfies StageBundle;
+export type BulkStageBundle = typeof BULK_STAGE_BUNDLE;
+
+/**
+ * 일괄 축이 조작할 수 있는 묶음인가 — **화면이 미리 가르는 판정**이자 경로 세그먼트 검증의 2단이다.
+ *
+ * {@link isStageBundle} 은 "조작 대상 묶음인가"(단건 축 포함)를 보고, 이 함수는 그중 <b>일괄로 열어 둔
+ * 것</b>만 통과시킨다. 두 판정을 하나로 합치면 단건 축이 함께 좁아진다 — 합치지 말 것.
+ */
+export function isBulkStageBundle(name: string): name is BulkStageBundle {
+  return name === BULK_STAGE_BUNDLE;
 }
 
 /**
@@ -236,7 +296,7 @@ export interface BatchRetryResult {
 }
 
 /**
- * 되돌린 작업 묶음 재수행 **접수** 결과 — BE `POST …/batch/stages/{stage}/rerun` 응답.
+ * 건너뛰기를 해제한 작업 묶음 재수행 **접수** 결과 — BE `POST …/batch/stages/{stage}/rerun` 응답.
  * [@design API-201]
  *
  * ★ `accepted` 는 <b>접수 여부</b>이지 파이프라인이 끝났다는 뜻이 아니다(재실행·일괄과 같은 시맨틱).
@@ -290,6 +350,15 @@ export interface BatchBulkRetryResult {
  * 화면은 이 값으로 **미리** 안내한다(400 을 받고서야 알게 되는 동선을 피한다).
  */
 export const BULK_RETRY_MAX = 100;
+
+/**
+ * 건너뛰기 사유 글자 수 상한 — BE `ManualStageSkip.REASON_MAX_LENGTH` 와 **같은 값이어야 한다**.
+ * [@design API-198] [@design API-212]
+ *
+ * 화면은 이 값으로 <b>미리</b> 막고 잔여 글자 수를 안내한다(400 을 받고서야 알게 되는 동선을 피한다).
+ * ⚠ 서버는 초과분을 잘라 저장하지 않고 <b>거부</b>한다 — 두 값이 갈리면 사용자가 다 쓴 사유를 잃는다.
+ */
+export const SKIP_REASON_MAX = 500;
 
 /**
  * 비식별 이력 1건 — BE `VideoDetailResponse.DeidentHistoryDto` 와 1:1. [req: R14]
@@ -373,10 +442,41 @@ export interface VideoDetail extends Video {
    * 검수자가 수동으로 건너뛴 **작업 묶음** — BE `VideoDetailResponse.skippedStages`. [@design API-043]
    *
    * ⚠ 건너뛴 묶음은 **진행 축(`stages`)에 흔적을 남기지 않고 DONE 으로 렌더**되므로 `stages` 만으로는
-   * 구분할 수 없다. 건너뜀 표시와 되돌리기 조작의 노출은 이 값이 유일한 근거다.
+   * 구분할 수 없다. 건너뜀 표시와 해제 조작의 노출은 이 값이 유일한 근거다.
    * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
    */
   skippedStages?: StageBundle[];
+  /**
+   * 건너뛰기가 **해제된** 작업 묶음 — BE `VideoDetailResponse.clearedStages`. [@design API-043]
+   * [@design ADR-050]
+   *
+   * ★ 사람이 직접 해제한 것과 재수행에 따라 자동 해제된 것을 구분하지 않고 함께 담으며,
+   * <b>화면 세션과 무관한 영구 상태</b>다(이탈 후 재진입해도 남는다).
+   *
+   * ★ 이 필드가 없던 시절에는 화면이 「이 세션에서 해제했다」를 <b>로컬 상태로 기억</b>했고, 그래서
+   * 새로고침·다른 화면 경유 후 재진입하면 재수행 창구가 통째로 사라졌다(다시 건너뛰었다가
+   * 해제하는 우회밖에 없었다). 재수행 버튼의 노출은 이제 <b>`skippedStages` ∪ 이 값</b>이
+   * 판정하며, 로컬 기억은 폐지됐다 — 되살리지 말 것.
+   *
+   * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
+   */
+  clearedStages?: StageBundle[];
+  /**
+   * 지금 **실패한 상태**인 작업 묶음 — BE `VideoDetailResponse.failedStages`. [@design ADR-050]
+   *
+   * ★ 「건너뛰기를 허용할지」를 정하는 <b>서버 판정과 같은 결과</b>다. 화면은 이 값을 그대로 쓰고
+   * `stages`·`batchFailureReason` 에서 <b>재유도하지 않는다</b> — 소비자가 생산자의 성공 조건을
+   * 다시 유도하면 서버가 조건을 바꿀 때 조용히 어긋난다.
+   *
+   * ★★ 이 값이 없으면 「실패 후 판단」 입구가 화면에서 <b>닫힌다</b>. 시계열 위탁 실패는 파이프라인을
+   * 멈추지 않아 ①영상 상태가 `FAILED` 가 되지 않고 ②진행 축(`stages`)에도 `FAIL` 이 서지 않는다.
+   * 구 구현은 그 두 신호만 봤고, 그래서 시계열이 실패한 영상에서는 건너뛰기 버튼은 물론 조치 영역
+   * 자체가 통째로 사라졌다(과대 노출이면 서버 건별 거부가 보정하지만, <b>과소 노출은 보정되지
+   * 않는다</b> — 요청을 보낼 창구가 아예 없기 때문이다).
+   *
+   * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
+   */
+  failedStages?: StageBundle[];
 }
 
 /**

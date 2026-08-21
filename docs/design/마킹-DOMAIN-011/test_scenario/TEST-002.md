@@ -4,7 +4,7 @@ type: test_scenario
 version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:48.929Z
+synced_at: 2026-08-20T08:27:29.260Z
 status: CHANGED
 prev_version: 11
 content_hash: 169ffa7ed59ff9328ceafaf28b5981f360dbfefac7625cc99ac955fb5cfe9857

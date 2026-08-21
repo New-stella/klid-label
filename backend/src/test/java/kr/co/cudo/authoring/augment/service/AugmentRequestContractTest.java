@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -67,6 +68,7 @@ class AugmentRequestContractTest {
     @Mock private DeidentReportGate deidentReportGate;
     @Mock private AugmentCallbackUrlResolver callbackUrlResolver;
     @Mock private VideoRepository videoRepository;
+    @Mock private AugmentExternalModePolicy externalModePolicy;
 
     private AugmentRequestService service;
     private TokenClaims reviewer;
@@ -82,12 +84,14 @@ class AugmentRequestContractTest {
     void setUp() {
         service = new AugmentRequestService(statusRepository, srcRepository, augRepository,
                 videoRepository, eventPublisher, deidentReportGate, callbackUrlResolver,
-                new ObjectMapper());
+                new ObjectMapper(), externalModePolicy);
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         when(callbackUrlResolver.resolve()).thenReturn("http://authoring/v1/genai/callback");
         when(deidentReportGate.isUnderDeidentReport(anyLong())).thenReturn(false);
         // 파생 영상 가드(원본만 증강 요청 가능) — 정상 시드는 ORGNL_RAW_SN 이 null 인 원본이다.
         when(videoRepository.findById(anyLong())).thenReturn(java.util.Optional.of(originalVideo()));
+        // 외부 연동 기본 스텁 — 연동됨(http). 미연동 케이스만 개별 테스트에서 뒤집는다.
+        when(externalModePolicy.isNotLinked()).thenReturn(false);
         approved(RAW_SN);
     }
 
@@ -121,6 +125,129 @@ class AugmentRequestContractTest {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> detailsOf(Throwable t) {
         return (Map<String, Object>) ((CustomException) t).getDetails();
+    }
+
+    // ─── R8 · @design API-060: 외부 미연동이면 접수하지 않는다 ─────
+
+    /** 미연동 모드로 뒤집는다 — 이 스텁만이 게이트를 발동시킨다. */
+    private void notLinked() {
+        when(externalModePolicy.isNotLinked()).thenReturn(true);
+    }
+
+    @Test
+    @DisplayName("외부_연동이_미연동이면_요청_접수를_503으로_거부한다")
+    void 미연동이면_503() {
+        // given — mode=noop (위탁도 콜백도 없다)
+        notLinked();
+        withFrame();
+
+        // when / then — 접수 자체가 거부된다
+        assertThatThrownBy(() -> service.request(single(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+
+        // 그리고 고착될 PENDING 행을 애초에 만들지 않는다.
+        verify(augRepository, never()).save(any(LsDataAug.class));
+        verify(eventPublisher, never()).publishEvent(any(AugmentRequestedItemEvent.class));
+    }
+
+    @Test
+    @DisplayName("미연동_거부_응답은_배선_상세를_노출하지_않는다")
+    void 미연동_거부는_배선상세를_숨긴다() {
+        notLinked();
+        withFrame();
+
+        assertThatThrownBy(() -> service.request(single(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> {
+                    assertThat(((CustomException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+                    String message = e.getMessage();
+                    // 모드 값·프로퍼티 키·구현 클래스명은 운영 정보다(CWE-209).
+                    assertThat(message).doesNotContain("noop");
+                    assertThat(message).doesNotContain(AugmentExternalModePolicy.KEY_MODE);
+                    assertThat(message).doesNotContain("Noop");
+                    // 어떤 영상이 막혔는지는 다른 게이트와 동일하게 알린다.
+                    List<?> skipped = (List<?>) detailsOf(e).get("skippedVideoIds");
+                    assertThat(skipped).hasSize(1);
+                    assertThat(skipped.get(0)).isEqualTo(RAW_SN);
+                });
+    }
+
+    @Test
+    @DisplayName("외부_연동이_http면_기존_접수_경로가_그대로_동작한다")
+    void 연동이면_종전대로_접수된다() {
+        // given — mode=http (기본 스텁: isNotLinked()=false)
+        withFrame();
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        AugmentRequestResponse resp = service.request(single(), reviewer);
+
+        // then — 신규 게이트가 기존 판정을 바꾸지 않는다.
+        assertThat(resp.createdCount()).isEqualTo(1);
+        verify(eventPublisher).publishEvent(any(AugmentRequestedItemEvent.class));
+    }
+
+    @Test
+    @DisplayName("미연동이어도_비권한_호출자는_인가_실패가_먼저_난다")
+    void 미연동이어도_인가가_먼저다() {
+        notLinked();
+        withFrame();
+
+        // 스텁 과정에서 남을 수 있는 호출 기록을 지우고 <실제 호출>만 관측한다.
+        org.mockito.Mockito.clearInvocations(externalModePolicy);
+
+        // WORKER — 연동 상태를 알려주면 그 자체가 정보 노출이다(CWE-209).
+        TokenClaims worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL,
+                Instant.now().plusSeconds(3600));
+        assertThatThrownBy(() -> service.request(single(), worker))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        // 미인증도 마찬가지다.
+        assertThatThrownBy(() -> service.request(single(), null))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.UNAUTHORIZED);
+
+        // 인가 전에는 연동 판정 자체를 하지 않는다.
+        verify(externalModePolicy, never()).isNotLinked();
+    }
+
+    @Test
+    @DisplayName("미연동이어도_파생영상은_400이_먼저_난다")
+    void 미연동이어도_파생차단이_먼저다() {
+        notLinked();
+        withFrame();
+        // 파생본(ORGNL_RAW_SN != null) — 연동 여부와 무관한 <영구> 조건이라 그 사유가 먼저여야 한다.
+        LsDataRaw derivative = originalVideo();
+        org.springframework.test.util.ReflectionTestUtils.setField(derivative, "orgnlRawSn", 999L);
+        when(videoRepository.findById(anyLong())).thenReturn(java.util.Optional.of(derivative));
+
+        assertThatThrownBy(() -> service.request(single(), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("미연동이면_DB_조회로_넘어가지_않는다")
+    void 미연동이면_DB를_건드리지_않는다() {
+        notLinked();
+        withFrame();
+
+        org.mockito.Mockito.clearInvocations(statusRepository, deidentReportGate, srcRepository);
+
+        assertThatThrownBy(() -> service.request(single(), reviewer))
+                .isInstanceOf(CustomException.class);
+
+        // 어차피 거부할 요청에 검수상태·신고구간·프레임 조회를 태우지 않는다(CWE-770).
+        verify(statusRepository, never()).findByRawDataIdIn(anyCollection());
+        verify(deidentReportGate, never()).isUnderDeidentReport(anyLong());
+        verify(srcRepository, never()).findFirstSrcSnGroupedByRawSn(anyCollection());
     }
 
     // ─── E-ISSUE-08: 단건 계약 고정 ───────────────────────────

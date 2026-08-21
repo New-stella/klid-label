@@ -254,7 +254,7 @@
     "schema_version": 1,
     "current_version": 15,
     "stale": true,
-    "stale_reason": "UC-036의 data.covered_by_acceptances 변경이 navigates_to로 2-hop 전파",
+    "stale_reason": "SCREEN-025의 data.sections 변경 — navigates_to",
     "change_summary": "관리 영역에 외부 산출물 이관 항목을 더한다. 그 화면으로 가는 메뉴가 없어 주소를 직접 치지 않으면 도달할 수 없었다. 이웃 항목과 같은 구성으로 두고 검수자에게만 보이는 역할 조건을 준다 — 그 화면의 사양이 검수자 단독 접근으로 확정돼 있기 때문이다. 관리 영역을 열거하던 설명도 실제 구성에 맞춰 다시 적었다. 이벤트유형 관리가 이미 들어와 있는데 설명이 옛 열거에 머물러 있어 같은 문서 안에서 앞뒤가 어긋나 있었다. 기존 항목의 주소·역할·가시성 조건과 배열은 손대지 않았고 추가만 했다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-19T18:45:36.651Z",

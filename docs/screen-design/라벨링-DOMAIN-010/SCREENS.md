@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-21T04:17:56.707Z (session 15) |
+| last sync | 2026-08-21T09:19:04.447Z (session 15) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |

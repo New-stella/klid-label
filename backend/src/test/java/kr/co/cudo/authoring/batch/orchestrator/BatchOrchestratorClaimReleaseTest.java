@@ -34,6 +34,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * {@link BatchOrchestrator} <b>클레임 해제 경로</b> 회귀 가드 (B-ISSUE-01 보강).
@@ -94,7 +95,8 @@ class BatchOrchestratorClaimReleaseTest {
                 yoloStep, sam2Step, trackInterpolationStep);
 
         orchestrator = new BatchOrchestrator(
-                pipeline, statusService, transitionService, retryQueue, videoRepository);
+                pipeline, statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(any()))
                 .thenReturn(List.of(newMarking()));

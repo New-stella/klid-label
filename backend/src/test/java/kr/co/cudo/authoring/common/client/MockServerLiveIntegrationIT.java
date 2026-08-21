@@ -238,7 +238,7 @@ class MockServerLiveIntegrationIT {
                         .minimumNumberOfCalls(5)
                         .build());
         RetryRegistry retryRegistry = RetryRegistry.of(RetryConfig.custom().maxAttempts(1).build());
-        return new VlmClient(webClient, cbRegistry, retryRegistry, true, 10L);
+        return new VlmClient(webClient, cbRegistry, retryRegistry, 10L);
     }
 
     // ── 인프라 헬퍼 ─────────────────────────────────────────────────────────

@@ -15,6 +15,11 @@ Thumbs.db
 # 환경 설정
 .env
 .env.local
+# ★ 백업본도 무시한다 — .env.bak.* 는 평문 시크릿(DB 비밀번호·JWT/스트림 서명키)을 그대로 담는데
+#   위 두 줄만으로는 잡히지 않아 `git add -A` 한 번이면 원격으로 나간다(실측: git check-ignore 미매치).
+.env.bak*
+.env.backup*
+.env.*.bak
 *.local
 # .env.example 은 커밋 (placeholder 만)
 !.env.example

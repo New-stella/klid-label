@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,7 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 없었고</b>, dev 배포가 local 설정으로 돌면서
  * <ul>
  *   <li>비식별은 {@code mock-mode=true} 로 외부 무접촉 자체 복사(self-fill)로 "성공"했고,</li>
- *   <li>VLM 은 {@code vlm.client.enabled=false} 라 단계가 통째로 {@code SKIPPED} 되어 비었다.</li>
+ *   <li>VLM 은 설정 토글이 꺼져 있어 단계가 통째로 {@code SKIPPED} 되어 비었다(그 토글은 이후
+ *       ADR-049 로 <b>폐지</b>됐고, 지금은 연동 주소 주입 여부가 미연동을 판정한다).</li>
  * </ul>
  * 둘 다 기동·파이프라인이 <b>정상처럼 보이는</b> 실패라 사람이 로그를 파헤치기 전엔 드러나지 않는다.
  *
@@ -54,11 +54,8 @@ class DevProfileWiringGuardTest {
     private static final String MOCK_SERVER_URL = "http://klid-mock-server:9400";
 
     private static final String MOCK_MODE_KEY = "authoring.integration.deidentify.mock-mode";
-    /** 폐지된 자체 채움 토글이 compose 에서 쓰던 환경변수명 — 되살아나는지만 본다. */
-    private static final String SELF_FILL_ENV = "DEIDENTIFY_MOCK_MODE";
     private static final String KPST_ENABLED_KEY = "kpst.deid.enabled";
     private static final String KPST_BASE_URL_KEY = "kpst.deid.base-url";
-    private static final String VLM_ENABLED_KEY = "vlm.client.enabled";
     private static final String VLM_URL_KEY = "vlm.client.url";
 
     /** 리포지토리 루트(테스트 작업 디렉토리 = backend 모듈 루트). */
@@ -139,26 +136,29 @@ class DevProfileWiringGuardTest {
                 .doesNotStartWith("https://");
     }
 
+    /**
+     * ★ 판정 축이 뒤집혔다 — 구 단언은 "활성 토글이 {@code true} 인가" 였다.
+     *
+     * <p>그 토글은 폐지됐다(ADR-049). 이제 <b>연동 주소가 목 서버를 가리키는지</b>가 곧 실연동 여부이며,
+     * 주소가 비면 위탁이 실패한다(조용한 SKIPPED 는 없다). 이 가드가 막으려는 것 — "설정은 있는데
+     * 외부를 한 번도 호출하지 않는 상태" — 는 그대로다. 축만 토글에서 주소로 옮겼다.
+     */
     @Test
-    @DisplayName("dev_프로파일에서_VLM_클라이언트가_활성이다")
-    void devProfileEnablesVlmClient() {
+    @DisplayName("dev_프로파일_VLM_위탁대상이_mock서버다")
+    void devProfilePointsVlmClientAtMockServer() {
         // given
         Environment env = MainResourceYaml.environment(COMMON_YML, DEV_YML);
 
         // when
-        String enabled = env.getProperty(VLM_ENABLED_KEY);
         String url = env.getProperty(VLM_URL_KEY);
 
-        // then: enabled=false 면 VlmClient 가 외부 호출 없이 SKIPPED 를 반환해 VLM 단계가 통째로 빈다
-        assertThat(enabled)
-                .as("dev VLM 은 활성이어야 한다(false 면 외부 호출 0건 + 결과 0건인데 파이프라인은 성공처럼 보인다)")
-                .isEqualTo("true");
+        // then: 주소가 비면 위탁이 전건 실패해 결과 0건이 된다
         assertThat(url)
                 .as("VLM 위탁 대상은 목업 벤더 서버여야 한다(코드가 읽는 키는 vlm.base-url 이 아니라 vlm.client.url)")
                 .isEqualTo(MOCK_SERVER_URL);
-        assertThat(String.valueOf(MainResourceYaml.rawValue(DEV_YML, VLM_ENABLED_KEY)))
-                .as("VLM 활성 여부는 VLM_CLIENT_ENABLED 로 override 가능해야 한다")
-                .contains("${VLM_CLIENT_ENABLED");
+        assertThat(String.valueOf(MainResourceYaml.rawValue(DEV_YML, VLM_URL_KEY)))
+                .as("VLM 주소는 VLM_SERVICE_URL 로 override 가능해야 한다(벤더 실서버 전환은 주입만으로)")
+                .contains("${VLM_SERVICE_URL");
     }
 
     @Test
@@ -216,27 +216,21 @@ class DevProfileWiringGuardTest {
                 .isEmpty();
     }
 
+    /** ★ 위 dev 케이스와 같은 이유로 판정 축이 토글에서 주소로 옮겨졌다(ADR-049). */
     @Test
-    @DisplayName("local_프로파일에서_VLM_클라이언트가_활성이다")
-    void localProfileEnablesVlmClient() {
+    @DisplayName("local_프로파일_VLM_위탁대상이_mock서버다")
+    void localProfilePointsVlmClientAtMockServer() {
         // given
         Environment env = MainResourceYaml.environment(COMMON_YML, LOCAL_YML);
 
         // when
-        String enabled = env.getProperty(VLM_ENABLED_KEY);
         String url = env.getProperty(VLM_URL_KEY);
 
-        // then: 공통 기본값(false)을 그대로 상속하면 VlmClient 가 외부 호출 없이 SKIPPED 를 반환해
-        //   VLM 단계가 통째로 빈다 — 로컬도 목 서버로 실제 위탁한다(구속 정책: 자체 결과채움 금지)
-        assertThat(enabled)
-                .as("local VLM 은 활성이어야 한다(false 면 외부 호출 0건인데 파이프라인은 성공처럼 보인다)")
-                .isEqualTo("true");
+        // then: 공통 기본값(빈 값)을 그대로 상속하면 위탁이 전건 실패한다 —
+        //   로컬도 목 서버로 실제 위탁한다(구속 정책: 자체 결과채움 금지)
         assertThat(url)
                 .as("local VLM 위탁 대상은 목업 벤더 서버여야 한다(코드가 읽는 키는 vlm.base-url 이 아니라 vlm.client.url)")
                 .isEqualTo(MOCK_SERVER_URL);
-        assertThat(String.valueOf(MainResourceYaml.rawValue(LOCAL_YML, VLM_ENABLED_KEY)))
-                .as("VLM 활성 여부는 VLM_CLIENT_ENABLED 로 override 가능해야 한다(네이티브 오프라인 기동 시 킬스위치)")
-                .contains("${VLM_CLIENT_ENABLED");
         assertThat(String.valueOf(MainResourceYaml.rawValue(LOCAL_YML, VLM_URL_KEY)))
                 .as("네이티브 bootRun 은 컨테이너명을 해석하지 못하므로 VLM_SERVICE_URL 로 override 가능해야 한다")
                 .contains("${VLM_SERVICE_URL");
@@ -300,23 +294,26 @@ class DevProfileWiringGuardTest {
 
         // and: backend 가 외부 벤더를 실제로 호출하도록 배선돼 있어야 한다
         String backendEnv = "services.klid-backend.environment.";
-        // ★ 이 단언은 뒤집힌 것이다(위 selfFillPropertyIsGone 과 같은 축). 과거에는 compose 가
-        //   DEIDENTIFY_MOCK_MODE 를 `${...:-false}` 로 선언해 <꺼진 채로 되돌릴 수 있기>를 요구했다.
-        //   그 되돌릴 수단이 곧 위험이었고, self-fill 경로가 코드째 폐지되면서(DeidentifyStep.runMock
-        //   삭제 + 설정 키 제거) compose 선언도 함께 사라졌다.
-        //
-        //   이제 그 키가 되살아나면 ①바인딩할 yml 키가 없어 조용히 무시되는 죽은 설정이거나
-        //   ②구현과 함께 되살아난 것이다 — 둘 다 막는다. 선언이 아예 없어야 운영자가 .env 에
-        //   값을 넣어도 컨테이너로 전달되지 않는다(선언된 키만 전달되므로 fail-closed).
-        List<String> selfFillDeclarations = Stream.of(BASE_COMPOSE, LOCAL_COMPOSE)
-                .flatMap(compose -> yamlKeys(compose).stream()
-                        .filter(key -> key.endsWith(".environment." + SELF_FILL_ENV))
-                        .map(key -> compose.getFileName() + " -> " + key))
-                .toList();
-        assertThat(selfFillDeclarations)
-                .as("compose 가 폐지된 자체 채움 토글(%s)을 다시 선언했다 — 이 경로는 폐지됐다: %s",
-                        SELF_FILL_ENV, selfFillDeclarations)
-                .isEmpty();
+        // ★ 지켜야 할 불변식은 그대로다 — <compose 가 내부 self-fill 을 켜면 안 된다>. 다만 그 경로는
+        //   코드째 폐지됐고(2026-08-19) compose 도 그 키를 더는 주입하지 않는다. 구 단언은 값이
+        //   ":-false" 이기를 요구했는데, 그건 <되돌릴 수단(override)이 남아 있기를 요구>하는 형태라
+        //   키가 사라진 지금 형상을 결함으로 잡았다(같은 커밋이 자매 단언
+        //   selfFillPropertyIsGone 만 뒤집고 이 줄을 놓쳐 실제로 깨져 있었다).
+        //   그래서 판정을 뒤집는다 — <없거나(기본값 false 상속), 있다면 결코 true 일 수 없어야 한다>.
+        //   단언을 지우면 누가 DEIDENTIFY_MOCK_MODE=true 를 넣어도 아무도 막지 못한다.
+        //   ★ 검사 범위는 base + local override 두 파일이다 — base 만 보면 docker-compose.local.yml
+        //     에서만 되살리는 우회가 그대로 통과한다(local 은 base 를 덮어쓰므로 실제로 켜진다).
+        for (Path compose : List.of(BASE_COMPOSE, LOCAL_COMPOSE)) {
+            Object selfFillEnv = yamlValue(compose, backendEnv + "DEIDENTIFY_MOCK_MODE");
+            if (selfFillEnv != null) {
+                assertThat(String.valueOf(selfFillEnv))
+                        .as("%s 가 내부 self-fill 을 켜면 안 된다 — 폐지된 경로라 되살아나면 "
+                                + "조용히 무시되는 죽은 설정이거나, 구현과 함께 부활한 것이다",
+                                compose.getFileName())
+                        .doesNotContain("true")
+                        .contains("false");
+            }
+        }
         assertThat(String.valueOf(yamlValue(BASE_COMPOSE, backendEnv + "KPST_DEID_BASE_URL")))
                 .contains("klid-mock-server:9400");
         assertThat(String.valueOf(yamlValue(BASE_COMPOSE, backendEnv + "VLM_SERVICE_URL")))

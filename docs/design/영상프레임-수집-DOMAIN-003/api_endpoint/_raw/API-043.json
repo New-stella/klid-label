@@ -520,9 +520,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-046"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-21T04:27:30.302Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -534,8 +537,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "그 묶음이 실패한 상태인지를 담는 failedStages 를 응답에 더한다. 시계열 위탁은 논블로킹 제출이라 실패해도 뒤 단계가 완주해 영상 상태가 완료로 남고 단계 실패 표시도 서지 않는다 — 화면이 그 두 신호만 보면 위탁이 실패한 영상에서 건너뛰기 창구가 열리지 않아 사람이 결정하는 입구가 통째로 닫힌다. 서버는 이미 같은 판정으로 건너뛰기를 허용하고 있었으므로 그 판정을 화면이 볼 수 있게 내보내는 것이다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T01:58:17.516Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-21T04:27:30.302Z",
     "created_at": "2026-05-30T07:22:49.724Z"
   }
 }

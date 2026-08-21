@@ -4,11 +4,11 @@ type: screen_spec
 version: 40
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:39.889Z
+synced_at: 2026-08-19T23:50:41.432Z
 status: CHANGED
-prev_version: 36
+prev_version: 39
 content_hash: 2b5ab52277869539759c0e3fbc65759181d1f3b898c859239ecd17de3d72da8e
-stale: true
+stale: false
 raw: ./_raw/SCREEN-022.json
 links:
   belongs_to_domain: ["[[DOMAIN-007]]"]

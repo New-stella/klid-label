@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-08-21T04:17:33.803Z |
+| Last sync | 2026-08-21T09:18:46.170Z |
 | Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 43 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-042]] (prev v6)
+- CHANGED [[API-042]] (prev v7)
 
 ## ITEM 표
 

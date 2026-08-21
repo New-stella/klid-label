@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-08-21T00:02:51.716Z |
-| Mode | SYNC — NEW 2 / CHANGED 5 / UNCHANGED 69 |
+| Last sync | 2026-08-21T09:18:51.227Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 76 |
 | 출력 루트 | docs/design/포털-DOMAIN-013 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 2건 / 스코프 밖 27건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 45건 (그중 domain_id 없음 30건)
+  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 46건 (그중 domain_id 없음 30건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 2건 / 스코프 밖 43건 (그중 domain_id 없음 6건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,13 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[SHELL-002]]
-- NEW [[NAV-002]]
-- CHANGED [[NFR-018]] (prev v4)
-- CHANGED [[SD-025]] (prev v3)
-- CHANGED [[SD-027]] (prev v2)
-- CHANGED [[SCREEN-029]] (prev v34)
-- CHANGED [[SCREEN-034]] (prev v17)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -97,7 +91,7 @@
 | [[EVT-012]] | domain_event | 3 | UNCHANGED |
 | [[EXTSYS-006]] | external_system | 4 | UNCHANGED |
 | [[INT-009]] | integration_point | 4 | UNCHANGED |
-| [[NAV-002]] | navigation_tree | 5 | NEW |
+| [[NAV-002]] | navigation_tree | 5 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -108,7 +102,7 @@
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 8 | UNCHANGED |
-| [[NFR-018]] | nfr | 6 | CHANGED |
+| [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 4 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
@@ -116,16 +110,16 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-028]] | screen_spec | 20 | UNCHANGED |
-| [[SCREEN-029]] | screen_spec | 38 | CHANGED |
+| [[SCREEN-029]] | screen_spec | 38 | UNCHANGED |
 | [[SCREEN-033]] | screen_spec | 17 | UNCHANGED |
-| [[SCREEN-034]] | screen_spec | 21 | CHANGED |
+| [[SCREEN-034]] | screen_spec | 21 | UNCHANGED |
 | [[SD-024]] | screen_design | 4 | UNCHANGED |
-| [[SD-025]] | screen_design | 4 | CHANGED |
+| [[SD-025]] | screen_design | 4 | UNCHANGED |
 | [[SD-026]] | screen_design | 2 | UNCHANGED |
-| [[SD-027]] | screen_design | 3 | CHANGED |
+| [[SD-027]] | screen_design | 3 | UNCHANGED |
 | [[SEQ-016]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-019]] | diagram_sequence | 1 | UNCHANGED |
-| [[SHELL-002]] | app_shell | 5 | NEW |
+| [[SHELL-002]] | app_shell | 5 | UNCHANGED |
 | [[TEST-005]] | test_scenario | 11 | UNCHANGED |
 | [[UC-024]] | use_case | 15 | UNCHANGED |
 | [[UC-027]] | use_case | 10 | UNCHANGED |

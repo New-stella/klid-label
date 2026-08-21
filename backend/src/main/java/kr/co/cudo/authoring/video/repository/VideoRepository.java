@@ -256,13 +256,150 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             Collection<String> eventCodes,
                                             java.time.LocalDateTime from,
                                             java.time.LocalDateTime to,
+                                            String skippedBundle,
                                             Pageable pageable) {
+        return searchOriginals(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
+                eventFilterOn, eventCodes, from, to, skippedBundle, null, null, pageable);
+    }
+
+    /**
+     * 실패 묶음 필터까지 받는 전체 진입점 — 위 오버로드는 여기로 위임한다(하위호환).
+     * [@design API-042] [@design ADR-050]
+     *
+     * @param failedBundleStages 실패로 볼 <b>단계</b> 코드 집합(그 묶음의 구성원). {@code null}·빈 값이면
+     *                           필터 미적용
+     * @param vlmFailureReasons  시계열 「확정 실패」 사유 문자열. 단일 원천은
+     *                           {@code BatchBundleFailureGate.vlmFailureSkipReasons()} 이며 호출 서비스가
+     *                           그대로 넘긴다({@code null}·빈 값이면 위탁 실패 축 미적용)
+     */
+    default Page<LsDataRaw> searchOriginals(String dataSttsCd,
+                                            String reviewStatusCd,
+                                            String keyword,
+                                            Long keywordRawSn,
+                                            int eventFilterOn,
+                                            Collection<String> eventCodes,
+                                            java.time.LocalDateTime from,
+                                            java.time.LocalDateTime to,
+                                            String skippedBundle,
+                                            Collection<String> failedBundleStages,
+                                            Collection<String> vlmFailureReasons,
+                                            Pageable pageable) {
+        boolean failedOn = failedBundleStages != null && !failedBundleStages.isEmpty();
+        boolean vlmReasonOn = failedOn && vlmFailureReasons != null && !vlmFailureReasons.isEmpty();
         return searchOriginalsInternal(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
                 eventFilterOn, eventCodes,
                 from != null ? 1 : 0, from != null ? from : SHT_DT_FLOOR,
                 to != null ? 1 : 0, to != null ? to : SHT_DT_CEILING,
+                skippedBundle != null ? 1 : 0,
+                skippedBundle != null ? skippedBundle : NO_BUNDLE_MATCH,
+                MANUAL_SKIP_STTS_CD, MANUAL_SKIP_ERR_CD, MANUAL_SKIP_MARKER_ERR_CDS,
+                failedOn ? 1 : 0,
+                failedOn ? failedBundleStages : NO_STAGE_MATCH,
+                vlmReasonOn ? 1 : 0,
+                vlmReasonOn ? vlmFailureReasons : NO_REASON_MATCH,
+                PROGRESS_FAILED_STTS_CD, VLM_STAGE_CD,
                 withDefaultRegDtDesc(pageable));
     }
+
+    /**
+     * 건너뜀 필터 미적용 시 바인딩할 <b>더미 묶음 코드</b> — 실제 묶음 코드와 절대 겹치지 않는 값.
+     *
+     * <p>{@code fromFilterOn} 과 같은 on/off 플래그 관례를 따른다. 플래그가 0 이면 이 값은 결과에 영향을
+     * 주지 않지만, 파라미터가 항상 비교 위치에 등장해야 타입 추론이 확정되므로 {@code null} 을 넣지 않는다.
+     */
+    String NO_BUNDLE_MATCH = "__NO_BUNDLE_MATCH__";
+
+    /**
+     * 수동 건너뜀 표식 행의 처리상태·코드값 — {@code ManualStageSkip} 이 소유하는 상수의 <b>바인딩 값</b>이다.
+     *
+     * <p>리포지토리 인터페이스가 {@code batch} 패키지 상수를 정적 초기화로 끌어오면 두 모듈이 순환
+     * 참조로 얽히므로 값만 옮겨 적고, 두 곳이 갈리지 않도록 {@code VideoListSkippedBundleFilterIT} 가
+     * 상수 동일성을 기계로 고정한다.
+     */
+    String MANUAL_SKIP_STTS_CD = "SKIPPED";
+    String MANUAL_SKIP_ERR_CD = "MANUAL_SKIP";
+    List<String> MANUAL_SKIP_MARKER_ERR_CDS = List.of("MANUAL_SKIP", "MANUAL_SKIP_CLEARED");
+
+    /**
+     * 「지금 그 묶음이 건너뛴 상태인 영상만」 술어 — 본 쿼리와 count 쿼리가 <b>같은 문자열</b>을 쓴다.
+     * [@design API-042] [@design ADR-050]
+     *
+     * <p>판정 축은 표식 소유자({@code BatchStatusService.isBundleManuallySkipped})와 같다 —
+     * "(영상 × 묶음) 의 <b>마지막</b> 표식 행이 건너뜀인가". 표식은 append-only 라 스킵→해제→재스킵이
+     * 반복될 수 있어, 존재 여부만 보면 <b>이미 되살린 영상까지</b> 걸린다.
+     *
+     * <p>정렬 키가 등록시각이 아니라 <b>PK</b> 인 것도 그 소유자와 같다 — 같은 밀리초에 스킵→해제가
+     * 연달으면 시각 정렬은 판정을 뒤집는다.
+     *
+     * <p>{@code EXISTS} 라 목록 행을 증식시키지 않는다(조인이면 표식 개수만큼 행이 늘어
+     * {@code totalElements} 까지 틀어진다). 모든 값은 파라미터 바인딩이다(CWE-89).
+     */
+    String SKIPPED_BUNDLE_PREDICATE =
+            "AND (:skippedBundleOn = 0\n"
+            + "     OR EXISTS (SELECT 1 FROM LsBatchProcLog b\n"
+            + "                 WHERE b.dataRawSn = v.rawSn\n"
+            + "                   AND b.procStepCd = :skippedBundle\n"
+            + "                   AND b.procSttsCd = :skipSttsCd\n"
+            + "                   AND b.errorCd = :skipErrCd\n"
+            + "                   AND b.batchProcLogSn = (\n"
+            + "                         SELECT MAX(x.batchProcLogSn) FROM LsBatchProcLog x\n"
+            + "                          WHERE x.dataRawSn = v.rawSn\n"
+            + "                            AND x.procStepCd = :skippedBundle\n"
+            + "                            AND x.procSttsCd = :skipSttsCd\n"
+            + "                            AND x.errorCd IN :skipMarkerErrCds)))\n";
+
+    /**
+     * 실패 필터 미적용 시 바인딩할 <b>더미 값</b> — {@code IN} 은 빈 컬렉션을 유효 SQL 로 렌더하지 못한다.
+     * 플래그가 0 이면 결과에 영향을 주지 않지만, 파라미터가 항상 비교 위치에 등장해야 타입이 확정된다.
+     */
+    List<String> NO_STAGE_MATCH = List.of("__NO_STAGE_MATCH__");
+    List<String> NO_REASON_MATCH = List.of("__NO_REASON_MATCH__");
+
+    /**
+     * 진행 축 실패 상태 코드 · 시계열 단계 코드 — {@code BatchStatusService}/{@code BatchStage} 가 소유하는
+     * 상수의 <b>바인딩 값</b>이다(위 {@code MANUAL_SKIP_*} 과 같은 이유로 값만 옮겨 적는다). 두 곳이
+     * 갈리지 않도록 {@code VideoListFailedBundleFilterIT} 가 상수 동일성을 기계로 고정한다.
+     */
+    String PROGRESS_FAILED_STTS_CD = "FAILED";
+    String VLM_STAGE_CD = "VLM";
+
+    /**
+     * 「지금 그 묶음이 <b>실패한</b> 상태인 영상만」 술어 — 본 쿼리와 count 쿼리가 <b>같은 문자열</b>을 쓴다.
+     * [@design API-042] [@design ADR-050]
+     *
+     * <h3>축이 둘인 이유 (하나로 통일할 수 없다)</h3>
+     * <p>판정 소유자({@code BatchBundleFailureGate})와 <b>같은 OR 합성</b>이다.
+     * <ul>
+     *   <li><b>진행 축</b> — 마지막 <b>진행</b> 행(표식·감사 행 제외)이 그 묶음의 단계이면서 {@code FAILED}.
+     *       오토라벨은 스텝이 예외를 던져 여기에 남는다.</li>
+     *   <li><b>위탁 실패 감사 행</b> — 시계열 제출은 논블로킹이라 실패해도 예외가 위로 올라가지 않아
+     *       진행 축이 <b>절대 {@code FAILED} 가 되지 않는다</b>. 그래서 {@code VLM/SKIPPED} + 확정 실패
+     *       사유만 남으며, 이 축이 없으면 벤더 장애로 실패한 영상이 필터에 하나도 잡히지 않는다.</li>
+     * </ul>
+     *
+     * <p>진행 행의 「마지막」을 <b>PK 최대</b>로 고르는 것은 위 건너뜀 술어와 같은 관례다 — 같은 밀리초에
+     * 행이 겹치면 시각 정렬은 판정을 뒤집는다. 진행 행은 파이프라인 1회차에 <b>한 행</b>이라
+     * ({@code markStage} 가 그 자리에서 갱신) 두 판정이 갈리지 않는다.
+     *
+     * <p>{@code EXISTS} 라 목록 행을 증식시키지 않는다(표식·감사 행이 쌓여도 {@code totalElements} 가
+     * 틀어지지 않는다). 모든 값은 파라미터 바인딩이다(CWE-89).
+     */
+    String FAILED_BUNDLE_PREDICATE =
+            "AND (:failedBundleOn = 0\n"
+            + "     OR EXISTS (SELECT 1 FROM LsBatchProcLog f\n"
+            + "                 WHERE f.dataRawSn = v.rawSn\n"
+            + "                   AND f.procSttsCd = :progressFailedSttsCd\n"
+            + "                   AND f.procStepCd IN :failedBundleStages\n"
+            + "                   AND f.batchProcLogSn = (\n"
+            + "                         SELECT MAX(y.batchProcLogSn) FROM LsBatchProcLog y\n"
+            + "                          WHERE y.dataRawSn = v.rawSn\n"
+            + "                            AND y.procSttsCd <> :skipSttsCd))\n"
+            + "     OR (:vlmFailureOn = 1\n"
+            + "         AND EXISTS (SELECT 1 FROM LsBatchProcLog g\n"
+            + "                      WHERE g.dataRawSn = v.rawSn\n"
+            + "                        AND g.procStepCd = :vlmStageCd\n"
+            + "                        AND g.procSttsCd = :skipSttsCd\n"
+            + "                        AND g.errorMsg IN :vlmFailureReasons)))\n";
 
     /**
      * 촬영기간 필터 미적용 시 바인딩할 <b>더미 경계값</b>.
@@ -304,7 +441,9 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             AND (:eventFilterOn = 0 OR v.evntTypeCd IN :eventCodes)
             AND (:fromFilterOn = 0 OR v.shtDt >= :from)
             AND (:toFilterOn = 0 OR v.shtDt <= :to)
-            """,
+            """
+            + SKIPPED_BUNDLE_PREDICATE
+            + FAILED_BUNDLE_PREDICATE,
             countQuery = """
             SELECT COUNT(v) FROM LsDataRaw v
             LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
@@ -317,7 +456,9 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             AND (:eventFilterOn = 0 OR v.evntTypeCd IN :eventCodes)
             AND (:fromFilterOn = 0 OR v.shtDt >= :from)
             AND (:toFilterOn = 0 OR v.shtDt <= :to)
-            """)
+            """
+            + SKIPPED_BUNDLE_PREDICATE
+            + FAILED_BUNDLE_PREDICATE)
     Page<LsDataRaw> searchOriginalsInternal(@Param("dataSttsCd") String dataSttsCd,
                                             @Param("reviewStatusCd") String reviewStatusCd,
                                             @Param("keyword") String keyword,
@@ -328,6 +469,17 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             @Param("from") java.time.LocalDateTime from,
                                             @Param("toFilterOn") int toFilterOn,
                                             @Param("to") java.time.LocalDateTime to,
+                                            @Param("skippedBundleOn") int skippedBundleOn,
+                                            @Param("skippedBundle") String skippedBundle,
+                                            @Param("skipSttsCd") String skipSttsCd,
+                                            @Param("skipErrCd") String skipErrCd,
+                                            @Param("skipMarkerErrCds") Collection<String> skipMarkerErrCds,
+                                            @Param("failedBundleOn") int failedBundleOn,
+                                            @Param("failedBundleStages") Collection<String> failedBundleStages,
+                                            @Param("vlmFailureOn") int vlmFailureOn,
+                                            @Param("vlmFailureReasons") Collection<String> vlmFailureReasons,
+                                            @Param("progressFailedSttsCd") String progressFailedSttsCd,
+                                            @Param("vlmStageCd") String vlmStageCd,
                                             Pageable pageable);
 
     /**

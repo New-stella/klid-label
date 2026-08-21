@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-21T04:17:55.097Z (session 9) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 170 |
+| Last sync | 2026-08-21T09:19:03.618Z (session 9) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 171 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
@@ -20,7 +20,7 @@
 | [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
 | [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
 | [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | UNCHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | CHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | UNCHANGED |
 | [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | UNCHANGED |

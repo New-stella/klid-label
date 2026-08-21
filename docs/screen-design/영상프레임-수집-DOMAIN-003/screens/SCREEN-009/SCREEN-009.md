@@ -2,14 +2,14 @@
 logicraft_item: SCREEN-009
 type: screen_spec
 version: 53
-last_updated_at: 2026-08-21T01:59:07.372Z
+last_updated_at: 2026-08-21T04:27:30.785Z
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T04:17:52.786Z
+synced_at: 2026-08-21T09:19:02.241Z
 sync_session: 9
 stale: false
 status: CHANGED
-prev_version: 52
+prev_version: 53
 raw: ./_raw/SCREEN-009.json
 wireframe: ./wireframe.html
 links:
@@ -18,7 +18,7 @@ links:
   acceptance: ["[[AC-051]]"]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v52 → v53**
+> ⚠️ **버전 변경 감지 — logicraft v53 → v53**
 > change_summary: 조치 영역과 건너뛰기 버튼의 노출 근거를 서버가 내려주는 실패한 묶음 목록으로 옮긴다. 시계열 위탁 실패는 영상의 배치 상태를 실패로 만들지 않고 단계 실패 표시도 세우지 않아, 그 두 신호만 보던 구 동작에서는 위탁이 실패한 영상에서 조치 영역이 통째로 사라지고 건너뛰기 창구가 열리지 않았다.
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
@@ -501,6 +501,7 @@ _(empty)_
 
 - IMPREC-038
 - IMPREC-040
+- IMPREC-053
 
 ### progress
 
@@ -512,7 +513,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-20T03:15:53.501Z
+2026-08-21T04:27:30.785Z
 
 ## required_roles
 

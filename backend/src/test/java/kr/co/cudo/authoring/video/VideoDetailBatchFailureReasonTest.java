@@ -58,6 +58,7 @@ class VideoDetailBatchFailureReasonTest {
     @Mock private kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
     @Mock private VideoFpsResolver fpsResolver;
     @Mock private kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
+    @Mock private kr.co.cudo.authoring.batch.status.BatchBundleFailureGate bundleFailureGate;
 
     @InjectMocks private VideoQueryService videoQueryService;
 
@@ -84,6 +85,60 @@ class VideoDetailBatchFailureReasonTest {
         given(fpsResolver.resolveFps(RAW_SN)).willReturn(30.0);
         given(deidentProcLogRepository.findAllByDataRawSnOrderByReqDtDesc(RAW_SN)).willReturn(List.of());
         given(batchStatusService.manuallySkippedBundles(RAW_SN)).willReturn(List.of());
+    }
+
+    /* ========== failedStages — 사람이 결정하는 입구 [@design API-043] [@design ADR-050] ========== */
+
+    /**
+     * ★★이 필드가 이 라운드의 핵심이다 — 시계열 위탁은 논블로킹이라 실패해도 <b>배치 상태가 완료로
+     * 남고 stages 에도 실패가 서지 않는다</b>. 그래서 화면은 위탁이 확정 실패한 영상에서 실패를 알
+     * 방법이 없었고 건너뛰기·재수행 버튼이 어디에도 뜨지 않았다(서버는 허용하는데 누를 자리가 없음).
+     */
+    @Test
+    @DisplayName("★★위탁_실패는_상태가_완료여도_failedStages로_드러난다")
+    void failedStagesSurfacesNonBlockingSubmitFailure() {
+        stubDetailBasics();
+        given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
+        given(batchStatusService.failureReasonFor(RAW_SN)).willReturn(null);
+        given(bundleFailureGate.failedBundles(RAW_SN)).willReturn(List.of("VLM"));
+
+        VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
+
+        // 진행 축은 아무 실패도 말하지 않는데(사유 null · stages 빈 배열) 실패 묶음은 드러난다.
+        assertThat(response.batchFailureReason()).isNull();
+        assertThat(response.stages()).isEmpty();
+        assertThat(response.failedStages()).containsExactly("VLM");
+    }
+
+    /**
+     * ★판정은 건너뛰기 허용을 정하는 서버 판정과 <b>같은 지점</b>이어야 한다 — 서비스가 규칙을
+     * 재유도하면 화면에 뜬 버튼이 눌렀을 때 412 로 튕긴다.
+     */
+    @Test
+    @DisplayName("★failedStages는_건너뛰기_허용_판정_지점의_결과를_그대로_내린다")
+    void failedStagesDelegatesToTheGate() {
+        stubDetailBasics();
+        given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
+        given(batchStatusService.failureReasonFor(RAW_SN)).willReturn(null);
+        given(bundleFailureGate.failedBundles(RAW_SN)).willReturn(List.of("VLM", "AUTOLABEL"));
+
+        VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
+
+        assertThat(response.failedStages()).containsExactly("VLM", "AUTOLABEL");
+        org.mockito.Mockito.verify(bundleFailureGate).failedBundles(RAW_SN);
+    }
+
+    @Test
+    @DisplayName("실패가_없으면_failedStages는_빈_배열이다_null_아님")
+    void failedStagesEmptyWhenNoFailure() {
+        stubDetailBasics();
+        given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
+        given(batchStatusService.failureReasonFor(RAW_SN)).willReturn(null);
+        given(bundleFailureGate.failedBundles(RAW_SN)).willReturn(List.of());
+
+        VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
+
+        assertThat(response.failedStages()).isNotNull().isEmpty();
     }
 
     @Test
@@ -205,5 +260,67 @@ class VideoDetailBatchFailureReasonTest {
 
         // then
         assertThat(response.skippedStages()).containsExactly("VLM", "AUTOLABEL");
+    }
+
+    // ── ★해제된 묶음 목록 (API-043 · ADR-050) ─────────────────────────
+
+    @Test
+    @DisplayName("★해제된_묶음이_없으면_clearedStages는_빈_배열이다_null이_아니다")
+    void clearedStagesEmptyByDefault() {
+        stubDetailBasics();
+        given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
+
+        VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
+
+        assertThat(response.clearedStages()).isNotNull().isEmpty();
+    }
+
+    /**
+     * ★★재수행이 건너뜀 표식을 스스로 풀면 그 묶음은 {@code skippedStages} 에서 <b>빠진다</b>.
+     * 화면이 그 목록만 보고 버튼을 띄우면 <b>한 번 재수행한 영상을 다시 재수행할 수 없다</b> —
+     * 두 목록의 합집합이 버튼의 노출 근거다.
+     */
+    @Test
+    @DisplayName("★★해제된_묶음은_스킵_목록이_비어_있어도_clearedStages로_내려간다")
+    void clearedBundlesExposedSeparately() {
+        stubDetailBasics();
+        given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
+        given(batchStatusService.manuallySkippedBundles(RAW_SN)).willReturn(List.of());
+        given(batchStatusService.clearedBundles(RAW_SN)).willReturn(List.of("VLM"));
+
+        VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
+
+        assertThat(response.skippedStages()).isEmpty();
+        assertThat(response.clearedStages()).containsExactly("VLM");
+    }
+
+    @Test
+    @DisplayName("★두_목록은_서로_독립이다_한_묶음은_건너뜀_다른_묶음은_해제됨")
+    void twoListsAreIndependent() {
+        stubDetailBasics();
+        given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
+        given(batchStatusService.manuallySkippedBundles(RAW_SN)).willReturn(List.of("AUTOLABEL"));
+        given(batchStatusService.clearedBundles(RAW_SN)).willReturn(List.of("VLM"));
+
+        VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
+
+        assertThat(response.skippedStages()).containsExactly("AUTOLABEL");
+        assertThat(response.clearedStages()).containsExactly("VLM");
+    }
+
+    /** 구 오버로드로 만든 응답은 빈 배열이다 — 필드 추가가 기존 소비자에게 영향을 주지 않는다. */
+    @Test
+    @DisplayName("★하위호환_구_오버로드로_만든_응답도_clearedStages가_빈_배열이다")
+    void legacyOverloadsYieldEmptyClearedStages() {
+        kr.co.cudo.authoring.video.entity.LsDataRaw raw =
+                kr.co.cudo.authoring.video.entity.LsDataRaw.createFromIngest(
+                        "clip-legacy", "cctv", "EVT", "GOV",
+                        kr.co.cudo.authoring.video.entity.LsDataRaw.PRVC_TYPE_PRVC,
+                        "/var/raw/a.mp4", null, 30);
+
+        assertThat(VideoDetailResponse.from(raw).clearedStages()).isEmpty();
+        assertThat(VideoDetailResponse.from(raw, null, null, 0L).clearedStages()).isEmpty();
+        assertThat(VideoDetailResponse.from(raw, null, null, 0L, List.of(), null, List.of(), null,
+                List.of(), false, null, List.of("VLM")).clearedStages()).isEmpty();
     }
 }

@@ -87,7 +87,7 @@ public class BatchStageSkipController {
     public void clearStageSkip(
             @Parameter(description = "영상 단위 식별자", required = true, example = "12")
             @PathVariable @Min(value = 1, message = "rawSn 은 1 이상이어야 합니다.") Long rawSn,
-            @Parameter(description = "되돌릴 작업 묶음 — VLM / AUTOLABEL", required = true, example = "VLM")
+            @Parameter(description = "건너뛰기를 해제할 작업 묶음 — VLM / AUTOLABEL", required = true, example = "VLM")
             @PathVariable String stage) {
         batchStageSkipService.clearSkip(rawSn, stage);
     }
