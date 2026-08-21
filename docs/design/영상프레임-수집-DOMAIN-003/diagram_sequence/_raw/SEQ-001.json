@@ -1,0 +1,313 @@
+{
+  "item": {
+    "id": "SEQ-001",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "영상수집 파이프라인 — 비식별·마킹부터 트랙 보간까지",
+    "slug": "배치-파이프라인-마킹-완료부터-트랙-보간까지",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "theme": "neutral",
+      "title": "영상수집 파이프라인 — 비식별·마킹부터 트랙 보간까지",
+      "source": "sequenceDiagram\n    autonumber\n    participant CTL as 관제서버[외부] (학습용 설정)\n    participant SCAN as ControlTrainingVideoScanJob (Quartz, 60초 간격·최대 100건 폴링)\n    participant IG as TrainingVideoIngestService\n    participant DB as PostgreSQL\n    participant DE as DeidentifyStep → 외부 비식별 솔루션\n    participant WK as 작업자 (마킹)\n    participant BO as BatchOrchestrator\n    participant VLM as 외부 VLM\n    participant FF as FFmpeg (backend)\n    participant AI as ai-server (YOLO/SAM2)\n\n    Note over CTL,IG: ① 적재 — 관제 학습용 영상 인입 테이블(LS_DATA_INGEST) 직접 등록 + 주기 배치 폴링 (inbound API·M2M 없음)\n    CTL->>DB: LS_DATA_INGEST 에 학습용 영상 메타 직접 INSERT (PRCS_STTS_CD='PENDING')\n    SCAN->>IG: 미처리 인입 행 폴링 (60초 간격)\n    IG->>DB: LS_DATA_RAW 적재 (dataSttsCd=PENDING)\n    IG->>IG: VideoIngestedEvent 발행\n\n    Note over IG,DE: ② 비식별 단계 — 파이프라인 선두, 적재 직후 자동 (게이팅 폐지 · 전체 영상)\n    IG->>DE: IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner\n    DE->>DE: 외부 위탁 (local mock 즉시 완료 / KPST 논블로킹 제출→폴링 확정)\n    DE->>DB: DE_IDNTF_YN='Y' + LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 적재\n    DE->>DB: dataSttsCd=MARKING_READY (마킹 진입 허용, 원본은 별도 경로 보존)\n\n    Note over WK,DB: ③ 마킹 단계 — 비식별 영상 대상 (원본 노출 차단)\n    WK->>DB: 비식별 영상 스트리밍 마킹 (자동 intervalFrames / 수동 단축키)\n    opt 마킹 중 비식별 누락 발견 — MARKING_READY 에서만 접수, 그 외 412\n        WK->>DB: POST /v1/videos/{rawSn}/deident-report → DE_IDNTF_YN='F' + 작업락\n        Note over WK,DE: 자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기\n    end\n    WK->>BO: 마킹 완료 (MarkingCompleted, deIdntfYn='Y' 가드 통과 시)\n\n    Note over BO,AI: ④ 잔여 배치 (비동기) — VLM부터 트랙 보간까지\n    BO->>DB: LS_RAW_DATA_STATUS → PROCESSING\n    BO->>VLM: POST /v1/videovlm/verify 위탁 — 논블로킹 제출(subscribe), 파이프라인 스레드 미점유\n    VLM--)BO: 결과 콜백 POST /v1/vlm/callback (사건 일치도+서술 객체 1건)\n    BO->>DB: LS_DATA_META 적재 + 검수큐 (LS_DATA_META_REVIEW)\n    Note over BO,VLM: 신호가 없으면 미결 스위퍼가 회수 — ACK 창(기본 30분, 원장 ISSUED) / 콜백 창(기본 360분, ACCEPTED)\n    BO->>FF: 마킹 위치 기반 프레임 추출 (원본+비식별 2벌)\n    BO->>AI: YOLO 추론 (원본만 실행)\n    AI-->>BO: 바운딩박스 (좌표는 동일 해상도라 비식별본과 공유)\n    BO->>AI: SAM2 추론\n    AI-->>BO: 세그멘테이션 마스크\n    BO->>BO: 트랙 보간\n    BO->>DB: LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    Note over BO,AI: 실패 시 FAILED + 재시도 큐 (maxAttempts 초과 시 FAILED 고정). 작업 상태의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다",
+      "messages": [
+        {
+          "to": "IG",
+          "from": "CTL",
+          "kind": "note",
+          "label": "① 적재 — 관제 학습용 영상 인입 테이블(LS_DATA_INGEST) 직접 등록 + 주기 배치 폴링 (inbound API·M2M 없음)"
+        },
+        {
+          "to": "DB",
+          "from": "CTL",
+          "kind": "sync",
+          "label": "LS_DATA_INGEST 에 학습용 영상 메타 직접 INSERT (PRCS_STTS_CD='PENDING')"
+        },
+        {
+          "to": "IG",
+          "from": "SCAN",
+          "kind": "sync",
+          "label": "미처리 인입 행 폴링 (60초 간격)"
+        },
+        {
+          "to": "DB",
+          "from": "IG",
+          "kind": "sync",
+          "label": "LS_DATA_RAW 적재 (dataSttsCd=PENDING)"
+        },
+        {
+          "to": "IG",
+          "from": "IG",
+          "kind": "self",
+          "label": "VideoIngestedEvent 발행"
+        },
+        {
+          "to": "DE",
+          "from": "IG",
+          "kind": "note",
+          "label": "② 비식별 단계 — 파이프라인 선두, 적재 직후 자동 (게이팅 폐지 · 전체 영상)"
+        },
+        {
+          "to": "DE",
+          "from": "IG",
+          "kind": "sync",
+          "label": "IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner"
+        },
+        {
+          "to": "DE",
+          "from": "DE",
+          "kind": "self",
+          "label": "외부 위탁 (local mock 즉시 완료 / KPST 논블로킹 제출→폴링 확정)"
+        },
+        {
+          "to": "DB",
+          "from": "DE",
+          "kind": "sync",
+          "label": "DE_IDNTF_YN='Y' + LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 적재"
+        },
+        {
+          "to": "DB",
+          "from": "DE",
+          "kind": "sync",
+          "label": "dataSttsCd=MARKING_READY (마킹 진입 허용, 원본은 별도 경로 보존)"
+        },
+        {
+          "to": "DB",
+          "from": "WK",
+          "kind": "note",
+          "label": "③ 마킹 단계 — 비식별 영상 대상 (원본 노출 차단)"
+        },
+        {
+          "to": "DB",
+          "from": "WK",
+          "kind": "sync",
+          "label": "비식별 영상 스트리밍 마킹 (자동 intervalFrames / 수동 단축키)"
+        },
+        {
+          "to": "DB",
+          "from": "WK",
+          "kind": "sync",
+          "label": "POST /v1/videos/{rawSn}/deident-report → DE_IDNTF_YN='F' + 작업락",
+          "item_ref": "API-091"
+        },
+        {
+          "to": "DE",
+          "from": "WK",
+          "kind": "note",
+          "label": "자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기"
+        },
+        {
+          "to": "BO",
+          "from": "WK",
+          "kind": "sync",
+          "label": "마킹 완료 (MarkingCompleted, deIdntfYn='Y' 가드 통과 시)",
+          "item_ref": "EVT-001"
+        },
+        {
+          "to": "AI",
+          "from": "BO",
+          "kind": "note",
+          "label": "④ 잔여 배치 (비동기) — VLM부터 트랙 보간까지"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "LS_RAW_DATA_STATUS → PROCESSING"
+        },
+        {
+          "to": "VLM",
+          "from": "BO",
+          "kind": "note",
+          "label": "전체 건너뛰기 스위치(batch.vlm.skip-by-default)가 켜져 있으면 위탁하지 않는다 — 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 덮지 않는다"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "건너뜀 표식 기록 (사유 = batch.vlm.skip-by-default-reason) — 외부 호출 0"
+        },
+        {
+          "to": "VLM",
+          "from": "BO",
+          "kind": "note",
+          "label": "전체 건너뛰기 스위치 판정은 위탁으로 나가는 모든 진입 경로가 통과한다 — 재개 러너·미결 회수도 예외가 아니다"
+        },
+        {
+          "to": "VLM",
+          "from": "BO",
+          "kind": "sync",
+          "label": "POST /v1/videovlm/verify 위탁 — 논블로킹 제출(subscribe), 파이프라인 스레드 미점유"
+        },
+        {
+          "to": "BO",
+          "from": "VLM",
+          "kind": "async",
+          "label": "결과 콜백 POST /v1/vlm/callback (사건 일치도+서술 객체 1건)"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "LS_DATA_META 적재 + 검수큐 (LS_DATA_META_REVIEW)"
+        },
+        {
+          "to": "VLM",
+          "from": "BO",
+          "kind": "note",
+          "label": "신호가 없으면 미결 스위퍼가 회수 — ACK 창(기본 30분, 원장 ISSUED) / 콜백 창(기본 360분, ACCEPTED)"
+        },
+        {
+          "to": "FF",
+          "from": "BO",
+          "kind": "sync",
+          "label": "마킹 위치 기반 프레임 추출 (원본+비식별 2벌)"
+        },
+        {
+          "to": "AI",
+          "from": "BO",
+          "kind": "sync",
+          "label": "YOLO 추론 (원본만 실행)"
+        },
+        {
+          "to": "BO",
+          "from": "AI",
+          "kind": "return",
+          "label": "바운딩박스 (좌표는 동일 해상도라 비식별본과 공유)"
+        },
+        {
+          "to": "AI",
+          "from": "BO",
+          "kind": "sync",
+          "label": "SAM2 추론"
+        },
+        {
+          "to": "BO",
+          "from": "AI",
+          "kind": "return",
+          "label": "세그멘테이션 마스크"
+        },
+        {
+          "to": "BO",
+          "from": "BO",
+          "kind": "self",
+          "label": "트랙 보간"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀"
+        },
+        {
+          "to": "AI",
+          "from": "BO",
+          "kind": "note",
+          "label": "실패 시 FAILED + 재시도 큐 (maxAttempts 초과 시 FAILED 고정). 작업 상태의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "opt",
+          "label": "마킹 중 비식별 누락 발견 — MARKING_READY 에서만 접수, 그 외 412",
+          "end_index": 13,
+          "start_index": 12
+        },
+        {
+          "kind": "opt",
+          "label": "전체 건너뛰기 스위치 켜짐 — 위탁 대신 자동 표식",
+          "end_index": 18,
+          "start_index": 17
+        }
+      ],
+      "description": "영상 1차 적재부터 오토라벨링까지의 파이프라인. 적재는 관제서버가 저작도구 소유 인입 테이블 LS_DATA_INGEST 에 학습용 영상 메타를 직접 INSERT(PRCS_STTS_CD='PENDING')하고, 저작도구 주기 배치(ControlTrainingVideoScanJob, 60초 간격 폴링)가 미처리 행을 픽업해 TrainingVideoIngestService 가 LS_DATA_RAW(PENDING)로 적재하는 방식이며, inbound 연동 API·M2M 인증은 쓰지 않는다(관리 화면 TUS 업로드는 1차 적재 경로가 아니다). 단계 순서는 선언적 파이프라인(BatchPipelineConfig)이 소유한다 — pre-marking=[DEIDENTIFY], post-marking=[MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE]. ①비식별이 선두 단계로 적재 직후 자동 트리거되며(VideoIngestedEvent→IngestDeidentifyBridge(AFTER_COMMIT)→AsyncDeidentifyRunner→DeidentifyStep) PRVC_TYPE_CD 게이팅 없이 전체 영상이 대상이다. 성공 시 dataSttsCd=MARKING_READY 로 전이해 마킹 진입을 허용한다. ②마킹은 비식별 영상 대상이며 마킹 완료(MarkingCompleted → MarkingBatchBridge AFTER_COMMIT)가 잔여 배치를 비동기로 기동한다. ③VLM 시계열 위탁은 파이프라인 스레드를 붙잡지 않는 논블로킹 제출(subscribe)이고 결과는 POST /v1/vlm/callback 으로 별도 수신하며, 신호가 오지 않으면 ACK 창(기본 30분)·콜백 창(기본 360분) 2단 미결 스위퍼가 회수한다. ④프레임 추출은 마킹 위치 기반 원본+비식별 2벌, YOLO/SAM2 는 원본에만 실행하고 좌표를 비식별본과 공유한다. 완료 시 LS_DATA_RAW.dataSttsCd=COMPLETED 로 마감하고 LS_RAW_DATA_STATUS 는 ASSIGNED 로 복귀시킨다(작업 상태의 검수 종결값은 APPROVED 이며 검수 승인 시점에만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출 ASSIGNED→PENDING 이 상태 머신에서 차단된다). 마킹 중 비식별 누락 신고는 배치 단계가 MARKING_READY 일 때만 접수되고 자동 재비식별 큐는 없다 — 외부 솔루션 수동 비식별 후 resolve 하면 MARKING_READY 로 되감아 재마킹한다. 시계열 위탁에는 그 앞에 전체 건너뛰기 스위치 판정이 있다 — 켜져 있으면 위탁하지 않고 건너뜀 표식만 남기며 외부 호출이 한 번도 일어나지 않는다. 사유는 설정값이 그대로 표식에 실리고, 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 자동 표식이 덮지 않는다.",
+      "invokes_apis": [
+        "API-091"
+      ],
+      "participants": [
+        {
+          "id": "CTL",
+          "kind": "external",
+          "name": "관제서버[외부] (학습용 설정)"
+        },
+        {
+          "id": "SCAN",
+          "kind": "service",
+          "name": "ControlTrainingVideoScanJob (Quartz, 60초 간격·최대 100건 폴링)"
+        },
+        {
+          "id": "IG",
+          "kind": "service",
+          "name": "TrainingVideoIngestService"
+        },
+        {
+          "id": "DB",
+          "kind": "database",
+          "name": "PostgreSQL"
+        },
+        {
+          "id": "DE",
+          "kind": "service",
+          "name": "DeidentifyStep → 외부 비식별 솔루션"
+        },
+        {
+          "id": "WK",
+          "kind": "actor",
+          "name": "작업자 (마킹)"
+        },
+        {
+          "id": "BO",
+          "kind": "service",
+          "name": "BatchOrchestrator"
+        },
+        {
+          "id": "VLM",
+          "kind": "external",
+          "name": "외부 VLM"
+        },
+        {
+          "id": "FF",
+          "kind": "service",
+          "name": "FFmpeg (backend)"
+        },
+        {
+          "id": "AI",
+          "kind": "service",
+          "name": "ai-server (YOLO/SAM2)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "publishes_events": [
+        "EVT-001"
+      ],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-018",
+        "UC-019",
+        "UC-011"
+      ],
+      "related_acceptances": [],
+      "related_requirements": [],
+      "referenced_integrations": [
+        "INT-002"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 16,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전체 건너뛰기 스위치 판정을 위탁으로 나가는 모든 진입 경로가 통과한다는 사실을 흐름에 명시한다. 판정을 주 파이프라인 한 곳에만 두면 재개 러너와 미결 회수가 그 결정을 지나쳐 외부로 나가, 스위치가 약속한 「외부 호출이 한 번도 일어나지 않는다」가 성립하지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-21T01:58:17.835Z",
+    "created_at": "2026-06-01T06:59:19.046Z"
+  }
+}

@@ -1,18 +1,19 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 34
+version: 38
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T07:12:56.580Z
+synced_at: 2026-08-21T03:07:09.168Z
 status: CHANGED
-prev_version: 30
-content_hash: 7f5d9f7eccf8d00ed00c13de3baa93899b1e4aa211ff3e6d31b3ff12cac86a2b
-stale: false
+prev_version: 37
+content_hash: f388a786aa52aad29213ffd8480eebbca2ce07c371f6e76cd7fce945b9edf636
+stale: true
 raw: ./_raw/SCREEN-025.json
 links:
   belongs_to_domain: ["[[DOMAIN-014]]"]
   consumes: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-194]]"]
+  covered_by: ["[[AC-055]]"]
   realizes: ["[[UC-006]]", "[[UC-013]]", "[[UC-031]]"]
   references: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-194]]", "[[FEAT-007]]"]
   requires: ["[[ROLE-001]]"]
@@ -136,6 +137,40 @@ _(empty)_
 
 #### [4]
 
+- **type**: Custom
+- **label**: 시계열 전체 건너뛰기
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.batch.vlm.skip-by-default
+- **validation**: 켜고 끄는 스위치. 켜면 이후 배치가 외부 시계열 위탁 단계에 진입하기 직전 건너뜀 표식을 자동으로 남기고 외부 호출을 하지 않는다. 아래 사유가 비어 있으면 켤 수 없다. 켜져 있는 동안 들어오는 영상은 전건이 시계열 없이 확정되므로 켜짐 상태를 카드가 눈에 띄게 드러내고, 끄는 것을 잊으면 벤더 연동이 끝난 뒤에도 계속 건너뛴다는 사실을 보조 문구로 알린다. 이미 사람이 남긴 표식은 덮지 않는다.
+- **custom_name**: Switch
+
+#### [5]
+
+- **type**: Input
+- **label**: 건너뛰기 사유
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **binds_to**: configs.batch.vlm.skip-by-default-reason
+- **validation**: 필수. 공백만으로는 수락하지 않으며 비어 있으면 위 스위치를 켤 수 없다. 이 문구가 건너뜀 표식의 사유로 그대로 기록되어, 나중에 그 영상의 시계열이 왜 비어 있는지 되짚는 근거가 된다.
+- **placeholder**: 예) 외부 시계열 분석 벤더 연동 전
+
+#### [6]
+
 - **type**: Card
 - **label**: AI 탐지 추론 파라미터
 
@@ -149,7 +184,7 @@ _(empty)_
 
 - **triggers_api**: API-069
 
-#### [5]
+#### [7]
 
 - **type**: Custom
 - **label**: Confidence Threshold 0.25~0.80
@@ -166,23 +201,7 @@ _(empty)_
 - **validation**: 서버·화면 모두 정수 25~80(표시는 /100하여 0.25~0.80).
 - **custom_name**: Slider
 
-#### [6]
-
-- **type**: Input
-- **label**: 이미지 크기 (320~1920px)
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: configs.YOLO_IMGSZ
-- **validation**: 서버: 정수 320~1920만 검증한다(32의 배수 강제 없음). 화면은 32 스텝 단위 입력을 유도하고 입력칸에서 포커스가 벗어나면 값을 가까운 32의 배수로 자동 보정하는데, 이는 거부가 아니라 조용한 보정이다.
-
-#### [7]
+#### [8]
 
 - **type**: Custom
 - **label**: IoU 임계값
@@ -199,7 +218,7 @@ _(empty)_
 - **validation**: 서버: 정수 30~80(표시는 0.30~0.80). 화면 슬라이더는 25~80으로 노출되어 25~29 구간을 입력할 수 있으나 이 구간은 서버가 거부한다(화면 표시 범위가 서버 허용 범위보다 넓은 불일치).
 - **custom_name**: Slider
 
-#### [8]
+#### [9]
 
 - **type**: Card
 - **label**: 라벨링 정밀도
@@ -214,7 +233,7 @@ _(empty)_
 
 - **triggers_api**: API-069
 
-#### [9]
+#### [10]
 
 - **type**: Custom
 - **label**: 인식 민감도 0.25~0.80
@@ -231,7 +250,7 @@ _(empty)_
 - **validation**: 서버·화면 모두 정수 25~80(표시는 0.25~0.80). 값이 높을수록 확신도가 높은 객체만 인식한다.
 - **custom_name**: Slider
 
-#### [10]
+#### [11]
 
 - **type**: Custom
 - **label**: 경계 세밀함 0.0~50.0px
@@ -248,7 +267,7 @@ _(empty)_
 - **validation**: 서버: 소수 0.0~50.0(0.5 단위 입력). 값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해진다(점 수 증가).
 - **custom_name**: Slider
 
-#### [11]
+#### [12]
 
 - **note**: 카드별 독립 폼이며 값이 하나라도 변경되어야 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.
 - **type**: Button
@@ -265,7 +284,7 @@ _(empty)_
 - **variant**: primary
 - **triggers_api**: API-069
 
-#### [12]
+#### [13]
 
 - **note**: 위탁 시 전송하는 비식별 처리 옵션. 전역 1벌
 - **type**: Card
@@ -281,7 +300,7 @@ _(empty)_
 
 - **custom_name**: DeidentConfigCard
 
-#### [13]
+#### [14]
 
 - **note**: 색상/모자이크/블러 셋 중 하나. 벤더 정의 밖의 값은 고를 수 없다
 - **type**: Select
@@ -299,7 +318,7 @@ _(empty)_
 
 - **binds_to**: configs.kpst.deid.masking-type
 
-#### [14]
+#### [15]
 
 - **note**: 실수. 감지 영역을 얼마나 넓게 덮을지
 - **type**: Custom
@@ -315,7 +334,7 @@ _(empty)_
 
 - **binds_to**: configs.kpst.deid.masking-range
 
-#### [15]
+#### [16]
 
 - **note**: 비식별 서버가 처리 프레임을 자기 DB 에 남길지
 - **type**: Custom
@@ -331,7 +350,7 @@ _(empty)_
 
 - **binds_to**: configs.kpst.deid.db-save
 
-#### [16]
+#### [17]
 
 - **note**: 연동 서버 주소 카드. 기본은 잠금 상태로 읽기 전용이다
 - **type**: Card
@@ -347,7 +366,7 @@ _(empty)_
 
 - **triggers_api**: API-069
 
-#### [17]
+#### [18]
 
 - **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
 - **type**: Input
@@ -364,7 +383,7 @@ _(empty)_
 - **binds_to**: configs.kpst.deid.base-url
 - **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
 
-#### [18]
+#### [19]
 
 - **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
 - **type**: Input
@@ -381,7 +400,7 @@ _(empty)_
 - **binds_to**: configs.authoring.integration.ai-server.base-url
 - **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
 
-#### [19]
+#### [20]
 
 - **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
 - **type**: Input
@@ -398,7 +417,7 @@ _(empty)_
 - **binds_to**: configs.vlm.client.url
 - **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
 
-#### [20]
+#### [21]
 
 - **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
 - **type**: Input
@@ -415,7 +434,7 @@ _(empty)_
 - **binds_to**: configs.authoring.control-notify.url
 - **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
 
-#### [21]
+#### [22]
 
 - **note**: 잠금을 푸는 버튼. 관리자 패스워드 입력을 요구한다
 - **type**: Button
@@ -431,7 +450,7 @@ _(empty)_
 
 - **variant**: secondary
 
-#### [22]
+#### [23]
 
 - **note**: 입력값은 화면에 다시 표시하지 않는다
 - **type**: Dialog
@@ -445,7 +464,7 @@ _(empty)_
 
 _(empty)_
 
-#### [23]
+#### [24]
 
 - **note**: 인증 후 남은 유효 시간. 만료되면 카드가 다시 잠긴다
 - **type**: Custom
@@ -461,7 +480,7 @@ _(empty)_
 
 - **custom_name**: AdminSessionCountdown
 
-- **description**: 설정 키-값 목록을 로드해 카드를 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수. ②AI 탐지 추론 파라미터: Confidence Threshold/이미지 크기(imgsz)/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤연동 서버 주소: 비식별 서버·AI 추론 서버·외부 시계열 분석 벤더·관제 통지 수신처 주소. 기본은 잠금 상태로 읽기 전용이며 「관리자 설정」 버튼으로 관리자 패스워드를 입력해야 열린다. 인증에 성공하면 정해진 짧은 시간 동안 재입력 없이 여러 항목을 수정할 수 있고, 남은 유효 시간을 화면에 보여준다. 만료되면 다시 입력해야 한다. 패스워드 입력값은 화면에 다시 표시하지 않는다. 저장 실패는 주소 형식·스킴 위반 / 인증 만료를 구분해 안내한다. ⑥AI 최대 대기 상한: 라벨링 화면의 AI 보조 작업이 한 실행을 얼마나 기다릴지 정한다. 작업 종류(AI 탐지·AI 분할·AI 추적·AI 자동 추적)별로 고정분과 프레임당 가산분을 두고, 계산값의 절대 상한을 함께 둔다. 각 값의 하한은 서버가 그 작업에 정당하게 쓸 수 있는 최악 소요에서 정해지며 그보다 낮은 값은 저장되지 않는다. 절대 상한의 기본값은 앞단이 응답을 기다려 주는 시간과 같아, 늘리려면 앞단도 함께 늘려야 한다.
+- **description**: 설정 키-값 목록을 로드해 카드를 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수/시계열 전체 건너뛰기. ②AI 탐지 추론 파라미터: Confidence Threshold/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤연동 서버 주소: 비식별 서버·AI 추론 서버·외부 시계열 분석 벤더·관제 통지 수신처 주소. 기본은 잠금 상태로 읽기 전용이며 「관리자 설정」 버튼으로 관리자 패스워드를 입력해야 열린다. 인증에 성공하면 정해진 짧은 시간 동안 재입력 없이 여러 항목을 수정할 수 있고, 남은 유효 시간을 화면에 보여준다. 만료되면 다시 입력해야 한다. 패스워드 입력값은 화면에 다시 표시하지 않는다. 저장 실패는 주소 형식·스킴 위반 / 인증 만료를 구분해 안내한다. ⑥AI 최대 대기 상한: 라벨링 화면의 AI 보조 작업이 한 실행을 얼마나 기다릴지 정한다. 작업 종류(AI 탐지·AI 분할·AI 추적·AI 자동 추적)별로 고정분과 프레임당 가산분을 두고, 계산값의 절대 상한을 함께 둔다. 각 값의 하한은 서버가 그 작업에 정당하게 쓸 수 있는 최악 소요에서 정해지며 그보다 낮은 값은 저장되지 않는다. 절대 상한의 기본값은 앞단이 응답을 기다려 주는 시간과 같아, 늘리려면 앞단도 함께 늘려야 한다.
 
 **references_apis**:
 
@@ -714,8 +733,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: a72cc3f08a655adac0be1d3308301e16b6cdbdad99f3022327a61b08f42036fc
-- **generated_at**: 2026-08-18T04:33:58.638Z
+- **source_hash**: 935b766c858c42be036908b46c06c4624e2b2472787a0a03690daf6c861c3064
+- **generated_at**: 2026-08-18T09:11:56.127Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -738,4 +757,4 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-055
