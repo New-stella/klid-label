@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 게시판·공지 |
 | 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
-| Last sync | 2026-08-18T03:36:00.981Z (session 7) |
+| Last sync | 2026-08-21T00:06:08.644Z (session 8) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 167 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 
 ## ITEM 버전 표
 
@@ -24,18 +24,18 @@
 | [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 7 | false | UNCHANGED |
 | [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 6 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
-| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 24 | false | UNCHANGED |
+| [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 25 | false | UNCHANGED |
 | [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 31 | false | UNCHANGED |
 | [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | UNCHANGED |
 | [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 8 | true | UNCHANGED |
-| [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 5 | true | UNCHANGED |
+| [[SD-007]] | screen_design | SCREEN-030 공지 목록 화면 | 6 | true | UNCHANGED |
 | [[SD-008]] | screen_design | SCREEN-036 공지 작성 화면 | 4 | true | UNCHANGED |
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 10 | true | UNCHANGED |
 | [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

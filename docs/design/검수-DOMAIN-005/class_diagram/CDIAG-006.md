@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-006
 type: class_diagram
-version: 9
+version: 10
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:14.277Z
-status: NEW
-prev_version: null
-content_hash: bf636e666662805b495819fe056b42a30da73ede0994de13f9a2ace97e4800b7
-stale: false
+synced_at: 2026-08-21T00:02:42.635Z
+status: CHANGED
+prev_version: 9
+content_hash: 698a7bbc95afe9e0f34afd8a8c56d0998fdac16dcef82903b4acc3941ee61477
+stale: true
 raw: ./_raw/CDIAG-006.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]
@@ -65,7 +65,7 @@ _(empty)_
 
 - **is_static**: false
 - **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService.approve 가 ReviewStateMachine.verify(IN_REVIEW, APPROVED) 검증 후 LsRawDataStatus.transitionTo(APPROVED) 를 호출한다. reviewerId 매개변수에 해당하는 승인자 식별은 이 메서드가 받지 않으며 별도 감사 경로가 기록한다.
+- **description**: [폐기] 이 클래스에서 만들지 않는다 — 실제로는 ReviewService.approve 가 승인을 수행하며 그 순서는 ①비식별화완료여부(deIdntfCmptnYn)가 완료(Y)인지 판정해 미완료(N)면 거부 ②ReviewStateMachine.verify(IN_REVIEW, APPROVED) ③transitionTo(APPROVED) 다. 가드가 상태 전이보다 앞서므로 거부될 때는 상태 전이도 라벨 버전 스냅샷도 학습데이터 산출물 재생성도 관제 통지도 하나도 만들어지지 않는다. reviewerId 매개변수에 해당하는 승인자 식별은 이 메서드가 받지 않으며 별도 감사 경로가 기록한다.
 - **is_abstract**: false
 - **return_type**: void
 
@@ -101,7 +101,7 @@ _(empty)_
 
 - **is_static**: true
 - **visibility**: public
-- **description**: 실제 정적 팩토리. DATA_STTS_CD=PENDING, STP_CYCL=0, IGI_CYCL=0, REVLT_YN=N(재검토불요) 으로 초기화한 신규 인스턴스를 생성한다.
+- **description**: 실제 정적 팩토리. DATA_STTS_CD=PENDING, STP_CYCL=0, IGI_CYCL=0, REVLT_YN=N(재검토불요), DE_IDNTF_CMPTN_YN=Y(비식별화 완료) 로 초기화한 신규 인스턴스를 생성한다. 미완료(N)로 시작하는 것은 외부 산출물 이관 경로로 원본이라고 지정해 들어온 영상뿐이다.
 - **is_abstract**: false
 - **return_type**: RawDataStatus
 
@@ -137,7 +137,7 @@ _(empty)_
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수 워크플로우 상태 전이. 이 메서드 자체는 검증하지 않는다 — 검증은 호출자 책임. ①ReviewService(submit/approve/reject 등) 가 ReviewStateMachine.verify(from,to) 로 사전 검증(허용: ASSIGNED→PENDING, PENDING→IN_REVIEW/ASSIGNED, IN_REVIEW→APPROVED/REJECTED, REJECTED→PENDING, APPROVED→PENDING 재검수뿐. 그 외 APPROVED 출발은 409). ②배치 경로는 BatchTransitionService 가 조건부 UPDATE 로 검수 소유 상태를 차단해 이 메서드를 호출 안 함. ⚠검수 종결 영속 상태는 APPROVED — STTS_COMPLETED 로 전이하는 코드는 없다(MarkingBatchBridge 의 재트리거 차단 집합 멤버십 검사에만 읽힘).
+- **description**: 검수 워크플로우 상태 전이. 이 메서드 자체는 검증하지 않는다 — 검증은 호출자 책임. ①ReviewService(submit/approve/reject 등) 가 ReviewStateMachine.verify(from,to) 로 사전 검증(허용: ASSIGNED→PENDING, PENDING→IN_REVIEW/ASSIGNED, IN_REVIEW→APPROVED/REJECTED, REJECTED→PENDING, APPROVED→PENDING 재검수뿐. 그 외 APPROVED 출발은 409). ②배치 경로는 BatchTransitionService 가 조건부 UPDATE 로 검수 소유 상태를 차단해 이 메서드를 호출 안 함. ⚠검수 종결 영속 상태는 APPROVED — STTS_COMPLETED 로 전이하는 코드는 없다(MarkingBatchBridge 의 재트리거 차단 집합 멤버십 검사에만 읽힘). ⚠승인은 이 전이 전에 비식별화완료여부 판정을 먼저 통과해야 한다.
 - **is_abstract**: false
 - **return_type**: void
 
@@ -382,7 +382,38 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 영상별 배치/검수 진행 상태 Aggregate Root (LS_RAW_DATA_STATUS). DATA_STTS_CD 상태 전이의 단일 출처. 영상 1건당 1 row, @Version 낙관적 잠금으로 동시 승인 경합(CWE-362) 방어. APPROVED 전이가 승인 연쇄(스냅샷 → export 전량 재생성 → 산출 성공 후 관제 통지)의 시작점이다. revltYn(재검토여부, 기본 N)은 승인 이후 라벨/메타가 수정되면 Y 로 세워지고, 재승인 시 다시 N 으로 해제되며 그 시점에 축적된 변경 통지가 flush 된다.
+#### deIdntfCmptnYn
+
+- **type**: String
+- **default**: Y
+- **is_static**: false
+- **visibility**: private
+- **description**: 비식별화완료여부(DE_IDNTF_CMPTN_YN, 한 자리 Y/N). 기본값은 완료(Y)이며, 외부 산출물 이관 경로로 원본이라고 지정해 들어온 영상만 미완료(N)로 시작한다. 값이 N 인 동안 그 영상의 검수 승인이 거부된다. 이 값이 막는 것은 검수 승인 하나다 — 라벨 조회·프레임 이미지·영상 스트리밍·학습데이터 산출물 생성은 이 값으로 닫지 않는다. 그 통로들을 함께 닫는 것은 비식별 누락 신고 상태이며 별개 축이다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+- **description**: 영상별 배치/검수 진행 상태 Aggregate Root (LS_RAW_DATA_STATUS). DATA_STTS_CD 상태 전이의 단일 출처. 영상 1건당 1 row, @Version 낙관적 잠금으로 동시 승인 경합(CWE-362) 방어. APPROVED 전이가 승인 연쇄(스냅샷 → export 전량 재생성 → 산출 성공 후 관제 통지)의 시작점이다. revltYn(재검토여부, 기본 N)은 승인 이후 라벨/메타가 수정되면 Y 로 세워지고, 재승인 시 다시 N 으로 해제되며 그 시점에 축적된 변경 통지가 flush 된다. deIdntfCmptnYn(비식별화완료여부, 기본 Y)은 값이 N 인 동안 검수 승인을 거부하는 전제조건이며, 그 판정이 상태 전이보다 앞서므로 거부 시 승인 연쇄가 시작되지 않는다. 막는 범위는 검수 승인 하나다.
 
 **enum_values**:
 
@@ -787,6 +818,8 @@ _(empty)_
 [★승인 이후 순서 정정] 구 본문은 'APPROVED 전이 시 관제 TASK_COMPLETED 통지를 트리거'라고 적었으나 통지는 export 가 SUCCEEDED 된 뒤에만 나간다. 실제 체인은 ReviewApproved(EVT-006) → 라벨 전체 스냅샷 + export 전량 재생성 → DatasetExportCompleted(EVT-009) → TaskCompleted(EVT-003) 이다. 통지가 먼저 나가면 관제가 구 버전 폴더를 픽업한다.
 
 [상태 소유권] LS_RAW_DATA_STATUS.DATA_STTS_CD 를 검수 종결값 APPROVED 로 전이시키는 유일한 지점이 검수 승인이다 — 배치 완료는 ASSIGNED 로 복귀시킬 뿐 이 상태로 점프하지 않는다. 이 축에서 COMPLETED 로 전이하는 경로는 없다 — 같은 이름의 COMPLETED 는 LS_DATA_RAW 의 배치 단계 완료값이거나 검수 응답 status 의 표시 매핑값이라 축이 다르다.
+
+[승인 전제조건] 검수 워크플로 상태에는 비식별화완료여부(DE_IDNTF_CMPTN_YN, 한 자리 Y/N, 기본 Y)가 함께 놓인다. 값이 N 인 동안 그 영상의 검수 승인은 거부되며, 이 판정은 상태 전이보다 먼저 이뤄지므로 거부될 때 상태 전이도 라벨 버전 스냅샷도 학습데이터 산출물 재생성도 관제 통지도 하나도 생기지 않는다. N 으로 시작하는 것은 외부에서 이미 라벨링이 끝난 산출물을 가져오는 경로로 원본이라고 지정해 들어온 영상뿐이며, 그 경로와 무관한 기존 영상은 기본값 Y 라 이 전제조건 때문에 막히지 않는다. 이 값이 막는 것은 검수 승인뿐이다 — 라벨 조회·프레임 이미지·영상 스트리밍·학습데이터 산출물 생성은 이 값으로 닫지 않으며, 그 통로들을 함께 닫는 것은 비식별 누락 신고 상태로서 이 값과는 별개 축이다.
 
 ## module_name
 

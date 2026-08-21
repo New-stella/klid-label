@@ -1,21 +1,22 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 35
-last_updated_at: 2026-08-16T07:53:11.305Z
+version: 39
+last_updated_at: 2026-08-20T03:15:53.438Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T08:46:22.173Z
-sync_session: 19
+synced_at: 2026-08-21T00:06:10.059Z
+sync_session: 20
 stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-042]]", "[[API-047]]", "[[API-070]]", "[[API-071]]", "[[API-181]]"]
+  consumes_apis: ["[[API-042]]", "[[API-047]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-212]]", "[[API-213]]", "[[API-214]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-018]]"]
+  acceptance: ["[[AC-049]]", "[[AC-050]]"]
 ---
 
 # 영상 처리 현황 화면
@@ -274,12 +275,69 @@ _(empty)_
 - **custom_name**: BulkActionBar
 - **triggers_api**: API-199
 
-- **description**: REVIEWER 전용 일괄 배정 바. 선택된 영상이 1건 이상일 때 'N건 일괄 배정' 버튼 노출 → 작업자 배정 모달 bulk 모드 오픈. 일괄 배정은 선택 videoIds 각각에 POST /v1/assignments 로 작업자 배정하며, 마킹 진입 팝업을 거치지 않는 별도 동선이다. ★같은 바에서 일괄 재시작도 제공한다. 처리 상태를 실패로 걸러 여러 건을 고른 뒤 한 번에 다시 돌리는 동선이며, 배치가 한 번 멈추면 여러 건이 동시에 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다. 일괄 재시작은 일부가 거부돼도 나머지를 진행하고 건별 결과를 돌려준다 — 재기동은 실패 상태를 먼저 선점하는 쪽이 이기는 방식이라 다른 검수자가 그중 한 건을 방금 눌렀다는 이유로 나머지를 전부 되돌리면 사용자가 선택을 반복하게 되기 때문이다. 전체 성공 또는 전체 실패로 처리하는 일괄 배정과는 의도적으로 다른 정책이다.
+#### [3]
+
+- **note**: 선택이 1건 이상일 때 노출한다. 사유 입력을 받아 대상 전건에 같은 값으로 남긴다 — 사유는 비울 수 없고 보이지 않는 문자만으로 채울 수도 없으며, 위반이면 건별 실패가 아니라 요청 전체가 거부된다.
+- **type**: Custom
+- **label**: 선택 N건 → N건 시계열 일괄 건너뛰기
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: BulkActionBar
+- **triggers_api**: API-212
+
+#### [4]
+
+- **note**: 연동이 확정된 시점에 쌓인 건너뜀을 해제하는 동선이다. 해제만으로는 시계열이 채워지지 않는다 — 실제 수행은 재수행이 담당하므로 두 버튼을 함께 둔다.
+- **type**: Custom
+- **label**: 선택 N건 → N건 시계열 일괄 건너뛰기 해제
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: BulkActionBar
+- **triggers_api**: API-213
+
+#### [5]
+
+- **note**: 건너뛰기를 해제한 묶음만 대상이 된다. 검수가 완료된 영상도 시계열은 받으므로 연동이 늦어져 건너뛴 채 승인된 영상을 나중에 회수할 수 있다. 실패해도 영상 상태를 훼손하지 않으므로 벤더 미연동 상태에서 눌러도 안전하다.
+- **type**: Custom
+- **label**: 선택 N건 → N건 시계열 일괄 재수행
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: BulkActionBar
+- **triggers_api**: API-214
+
+**description**:
+
+REVIEWER 전용 일괄 배정 바. 선택된 영상이 1건 이상일 때 'N건 일괄 배정' 버튼 노출 → 작업자 배정 모달 bulk 모드 오픈. 일괄 배정은 선택 videoIds 각각에 POST /v1/assignments 로 작업자 배정하며, 마킹 진입 팝업을 거치지 않는 별도 동선이다. ★같은 바에서 일괄 재시작도 제공한다. 처리 상태를 실패로 걸러 여러 건을 고른 뒤 한 번에 다시 돌리는 동선이며, 배치가 한 번 멈추면 여러 건이 동시에 실패하므로 상세 화면을 건건이 여는 대신 목록에서 처리한다. 일괄 재시작은 일부가 거부돼도 나머지를 진행하고 건별 결과를 돌려준다 — 재기동은 실패 상태를 먼저 선점하는 쪽이 이기는 방식이라 다른 검수자가 그중 한 건을 방금 눌렀다는 이유로 나머지를 전부 되돌리면 사용자가 선택을 반복하게 되기 때문이다. 전체 성공 또는 전체 실패로 처리하는 일괄 배정과는 의도적으로 다른 정책이다.
+★같은 바에서 시계열 묶음의 일괄 건너뛰기·해제·재수행도 제공한다. 외부 시계열 분석 벤더 연동이 확정되기 전 구간에는 사람이 건너뛰어야 하는데 학습데이터 목표 규모상 영상마다 처리하는 것은 성립하지 않고, 연동이 확정된 시점에는 쌓인 건너뜀을 해제해 다시 수행해야 하므로 들어가는 길과 해제하는 길을 함께 둔다. 건너뛰기는 사유를 받으며 그 사유는 요청당 하나로 대상 전건에 같은 값으로 남는다 — 영상마다 다른 사유를 받으면 일괄로 처리할 이유가 사라진다. 대상 묶음은 시계열 하나이며 오토라벨은 이 바에 두지 않는다. 산출물이 라벨이라 대량으로 건너뛸 수 있게 열면 품질 축이 조용히 느슨해지기 때문이며, 오토라벨은 상세 화면에서 건건이 다룬다. 결과 표시는 일괄 재시작과 같다 — 성공·실패 건수를 함께 보이고 거부된 건은 사유를 알 수 있게 하며 한 번에 보낼 수 있는 건수에 상한이 있다.
 
 **references_apis**:
 
 - API-070
 - API-199
+- API-212
+- API-213
+- API-214
 
 **references_features**:
 
@@ -609,6 +667,9 @@ web
 - API-070
 - API-071
 - API-181
+- API-212
+- API-213
+- API-214
 
 ## implementation
 
@@ -622,7 +683,8 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-037
+- IMPREC-039
 
 ### progress
 
@@ -631,6 +693,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-20T03:15:53.438Z
 
 ## required_roles
 
@@ -652,8 +718,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: d4dc4218780be419b022cd7b64120716d63831b98951faaee97202c51748ee30
-- **generated_at**: 2026-08-13T00:54:55.395Z
+- **source_hash**: a776f32e5d56bb9275c7eca074cadb3d6fc60af2acad58d2ed7162c10630746b
+- **generated_at**: 2026-08-19T23:52:45.177Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
@@ -674,4 +740,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-049
+- AC-050

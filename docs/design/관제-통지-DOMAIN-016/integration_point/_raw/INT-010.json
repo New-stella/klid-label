@@ -24,7 +24,7 @@
         "notes": "DB 계정 기반 뷰 SELECT — 별도 애플리케이션 레벨 인증 없음(DB 접근제어에 위임)."
       },
       "data_format": "other",
-      "description": "관제서버가 검수 완료(APPROVED) 영상의 학습데이터를 데이터마트로 가져가기 위해 픽업하는 경로. 저작도구는 `klid_at` 스키마에 4종 View(`V_COMPLETED_VIDEO`/`V_COMPLETED_FRAME`/`V_COMPLETED_LABEL_CHANGE`/`V_COMPLETED_META`)를 DB 계정으로 노출하고, 관제가 이를 SELECT 한다. 기존 EXTSYS-005/INT-007 등록에는 outbound 통지(INT-007)와 inbound 조회 API만 명시돼 있었고 이 View 픽업 표면 자체가 별도 ITEM 으로 없었다.\n\n## 확정된 부분\n- `V_COMPLETED_VIDEO.OUTPUT_PATH_NM`(개명 전 `EXPORT_PATH_NM`) 이 가리키는 export 산출 루트는 **`{원본영상디렉터리}/{rawSn}/`**(관제 회신, 2026-07-27) — co-locate 모델로 확정.\n- 라벨 본문은 V114(ADR-037) 뷰 슬림화 이후 뷰에 없음 — export 폴더 JSON 이 유일한 출처(`V_COMPLETED_LABEL_CHANGE`는 변경점만).\n- 비식별 영상 경로는 `V_COMPLETED_VIDEO.DE_IDNTF_FILE_PATH_NM`(V138)로 노출.\n- 검수 완료·통지된 영상은 어떤 사유(비식별 신고 등)로도 뷰에서 감추거나 경로를 비우지 않는다(2026-07-28 확정 정책).\n\n## ★ 미확정 — 관제 워커의 실제 픽업 방식 (§6 B-1, 회신 대기)\n관제 워커가 (a) export 루트 폴더를 통짜로 픽업(rsync/cp 류)하는지, (b) DB에서 파일별 경로를 읽어 개별 fetch 하는지 **미회신**이다. 이 프로토콜 상세는 회신 전까지 등록하지 않는다 — 본 ITEM 은 \"View 4종을 통해 관제가 데이터를 가져간다\"는 확정 사실만 담는다.\n\n## ★ 미확정 — 관제 정본 대응 ITEM (§6 B-2/B-3)\n관제 LogiCraft 정본의 `INT-017`(NAS 공유마운트)·`INT-018`(LS_DATA_* JDBC 직접조회)이 이 빈틈에 대응하는 것으로 추정되나 **유효성 미회신**. 우리 실제 `LS_DATA_*` 테이블은 15개(관제 ADR-067의 \"9테이블\" 서술과 불일치)이며, 비식별 영상 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM`(LS_DATA_* 밖)에 있다.\n\n## 뷰에 일치도 값이 없는 것은 의도다\n시계열 메타 중 일치도(`vlm.accuracy`)는 검수 대기열에 넣지 않으므로 검토 행을 내부 조인하는 `V_COMPLETED_META` 에 구조적으로 닿지 않고, 학습데이터 산출 JSON 에도 넣지 않는다. 뷰에 나오지 않는 것이 결함이 아니므로 이 값을 노출하려고 뷰를 고치지 않는다.",
+      "description": "관제서버가 검수 완료(APPROVED) 영상의 학습데이터를 데이터마트로 가져가기 위해 픽업하는 경로. 저작도구는 `klid_at` 스키마에 4종 View(`V_COMPLETED_VIDEO`/`V_COMPLETED_FRAME`/`V_COMPLETED_LABEL_CHANGE`/`V_COMPLETED_META`)를 DB 계정으로 노출하고, 관제가 이를 SELECT 한다. 기존 EXTSYS-005/INT-007 등록에는 outbound 통지(INT-007)와 inbound 조회 API만 명시돼 있었고 이 View 픽업 표면 자체가 별도 ITEM 으로 없었다.\n\n## 확정된 부분\n- `V_COMPLETED_VIDEO.OUTPUT_PATH_NM`(개명 전 `EXPORT_PATH_NM`) 이 가리키는 export 산출 루트는 **`{원본영상디렉터리}/{rawSn}/`**(관제 회신, 2026-07-27) — co-locate 모델로 확정.\n- 라벨 본문은 V114(ADR-037) 뷰 슬림화 이후 뷰에 없음 — export 폴더 JSON 이 유일한 출처(`V_COMPLETED_LABEL_CHANGE`는 변경점만).\n- 비식별 영상 경로는 `V_COMPLETED_VIDEO.DE_IDNTF_FILE_PATH_NM`(V138)로 노출.\n- 파생영상(증강·해상도, `ORGNL_RAW_SN` not null)은 `V_COMPLETED_VIDEO.ORGNL_VDO_PATH_NM`(개명 전 `ORIGINAL_VIDEO_PATH`) 가 NULL 로 동결된다 — 파생영상은 원본영상 자체가 없고 비식별 사본만 있기 때문이다. 관제는 파생 비디오를 `DE_IDNTF_FILE_PATH_NM`(V138)으로 픽업해야 한다(관제 협의 대상).\n\n- 프레임만 이관한 원본은 `V_COMPLETED_VIDEO.DE_IDNTF_YN` 이 미수행으로 나가고 `DE_IDNTF_FILE_PATH_NM` 도 빈 값일 수 있다 — 비식별할 영상 자체가 없으므로 그것이 사실이며, 비식별의 실체는 프레임 축에 있다. 승인된 영상이므로 뷰에서 감추거나 비우지 않는다. 관제는 이 조합을 결함으로 보지 않아야 하며, 해석을 바꾸려면 협의가 선행된다(관제 협의 대상). 이 예외의 근거 결정은 ADR-023 이 소유한다.\n- 검수 완료·통지된 영상은 어떤 사유(비식별 신고 등)로도 뷰에서 감추거나 경로를 비우지 않는다(2026-07-28 확정 정책).\n\n## ★ 미확정 — 관제 워커의 실제 픽업 방식 (§6 B-1, 회신 대기)\n관제 워커가 (a) export 루트 폴더를 통짜로 픽업(rsync/cp 류)하는지, (b) DB에서 파일별 경로를 읽어 개별 fetch 하는지 **미회신**이다. 이 프로토콜 상세는 회신 전까지 등록하지 않는다 — 본 ITEM 은 \"View 4종을 통해 관제가 데이터를 가져간다\"는 확정 사실만 담는다.\n\n## ★ 미확정 — 관제 정본 대응 ITEM (§6 B-2/B-3)\n관제 LogiCraft 정본의 `INT-017`(NAS 공유마운트)·`INT-018`(LS_DATA_* JDBC 직접조회)이 이 빈틈에 대응하는 것으로 추정되나 **유효성 미회신**. 우리 실제 `LS_DATA_*` 테이블은 15개(관제 ADR-067의 \"9테이블\" 서술과 불일치)이며, 비식별 영상 경로는 `LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM`(LS_DATA_* 밖)에 있다.\n\n## 뷰에 일치도 값이 없는 것은 의도다\n시계열 메타 중 일치도(`vlm.accuracy`)는 검수 대기열에 넣지 않으므로 검토 행을 내부 조인하는 `V_COMPLETED_META` 에 구조적으로 닿지 않고, 학습데이터 산출 JSON 에도 넣지 않는다. 뷰에 나오지 않는 것이 결함이 아니므로 이 값을 노출하려고 뷰를 고치지 않는다.",
       "idempotency": true,
       "triggers_apis": [],
       "implementation": {
@@ -52,12 +52,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "일치도 값이 뷰에 나오지 않는 것이 의도된 범위임을 본문에 못박는다. 근거가 없으면 다음 검토가 이를 누락으로 보고 뷰를 넓히려 들 여지가 있었다.",
+    "change_summary": "프레임만 이관한 원본의 비식별 축 예외에 그 근거 결정이 ADR-023 임을 인용으로 더한다. 이 항목은 사실만 적고 결정 소유자를 가리키지 않아, 이 서술을 읽는 사람이 어디서 정해진 것인지 찾을 길이 없었다. ADR-023 은 이 형태가 관제 픽업 표면에서 갖는 귀결을 소유한다. 이 항목의 문장은 같은 예외를 서술하는 다른 층들이 그대로 옮겨 간 원본이라, 문장을 고치면 그 층들과 어긋난다 — 그래서 한 글자도 고치지 않고 인용 한 문장만 끝에 덧붙였다. 확정 항목의 다른 원소와 파생영상 예외는 손대지 않았고 삭제도 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:34:08.509Z",
+    "last_updated_at": "2026-08-20T23:46:06.713Z",
     "created_at": "2026-07-30T07:07:12.617Z"
   }
 }

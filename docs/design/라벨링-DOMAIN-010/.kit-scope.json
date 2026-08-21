@@ -4,7 +4,7 @@
   "domain": "DOMAIN-010",
   "decided_by": "llm",
   "decided_at": "2026-08-16T00:00:00Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-21 pending 전건 기각(MOD·LEGACY·SHELL·NAV 제외 타입, UC-034 는 DOMAIN-004 소속 클러스터)",
   "items": [
     "AC-007",
     "AC-008",
@@ -163,6 +163,7 @@
     "UC-032"
   ],
   "pending": [
+    "API-204",
     "SHELL-001",
     "MOD-006",
     "MOD-007",
@@ -188,5 +189,5 @@
     "NAV-001",
     "UC-034"
   ],
-  "last_sync_at": "2026-08-17T15:39:30.516Z"
+  "last_sync_at": "2026-08-21T00:02:47.392Z"
 }

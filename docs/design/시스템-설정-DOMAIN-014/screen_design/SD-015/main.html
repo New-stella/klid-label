@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="main.css"></head><body><main class="screen-root">
+<!DOCTYPE html>
+<html><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head><body><main class="screen-root">
 
   
   <div class="page-head">
@@ -68,7 +69,7 @@
           <header class="card-header">
             <div class="config-heading">
               <h2 class="t-title-md" id="cfg-detect-title">AI 탐지 추론 파라미터</h2>
-              <p class="t-caption text-muted">자동 탐지의 확신도 기준과 입력 이미지 크기</p>
+              <p class="t-caption text-muted">자동 탐지의 확신도 기준과 겹침 제거 기준</p>
             </div>
             <div class="config-actions">
               <button type="button" class="btn btn-primary btn-sm" disabled>저장</button>
@@ -84,15 +85,6 @@
               <input type="range" class="slider" id="cfg-conf" value="36" role="slider" aria-valuemin="25" aria-valuemax="80" aria-valuenow="45" aria-valuetext="45" style="--fill:36%" aria-describedby="cfg-conf-help" />
               <div class="slider-scale t-caption"><span>0.25</span><span>0.80</span></div>
               <p class="t-caption field-help" id="cfg-conf-help">값이 높을수록 확신도가 높은 객체만 인식합니다.</p>
-            </div>
-
-            <div class="field">
-              <div class="field-head">
-                <label class="t-label field-label" for="cfg-imgsz">이미지 크기</label>
-                <span class="t-caption text-muted">320~1920px</span>
-              </div>
-              <input type="number" class="input input-mono input-num" id="cfg-imgsz" value="640" aria-describedby="cfg-imgsz-help" />
-              <p class="t-caption field-help" id="cfg-imgsz-help">32 단위로 입력합니다. 다른 값을 넣으면 가까운 32의 배수로 자동 보정됩니다.</p>
             </div>
 
             <div class="field">

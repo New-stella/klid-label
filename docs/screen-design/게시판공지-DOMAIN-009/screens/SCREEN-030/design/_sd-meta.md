@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| SD | SD-007 v5 |
+| SD | SD-007 v6 |
 | status | draft |
 | designer | claude-screen-design |
 | designs_screen | SCREEN-030 |

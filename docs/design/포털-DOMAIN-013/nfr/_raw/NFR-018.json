@@ -31,13 +31,20 @@
         "progress": 0,
         "subtasks": []
       },
-      "applies_to_apis": [],
+      "applies_to_apis": [
+        "API-124",
+        "API-093",
+        "API-020",
+        "API-123",
+        "API-204"
+      ],
       "applies_to_domains": [
         "DOMAIN-010",
         "DOMAIN-005",
         "DOMAIN-011",
         "DOMAIN-006",
-        "DOMAIN-013"
+        "DOMAIN-013",
+        "DOMAIN-004"
       ],
       "measurement_method": "대용량 질의·대량 라벨 조회·배치 트리거 등 지연 작업 시나리오로 진행 안내·취소 동작을 확인한다.",
       "applies_to_features": [],
@@ -46,12 +53,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "지연 사전 안내·취소 제공 대상에 포털을 더한다. 포털의 작업 데이터 묶음 다운로드와 원본 파일 다운로드는 이 요구가 말하는 장시간 작업인데 적용 대상에서 빠져 있었다.",
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "API-020의 data.responses 변경 — applies_to",
+    "change_summary": "지연 작업의 취소 제공을 실제로 담는 경로를 적용 대상에 넣는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T22:21:32.045Z",
+    "last_updated_at": "2026-08-18T04:29:50.101Z",
     "created_at": "2026-07-06T03:49:08.381Z"
   }
 }

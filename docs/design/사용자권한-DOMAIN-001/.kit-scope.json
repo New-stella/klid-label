@@ -60,6 +60,20 @@
     "SEQ-018",
     "UC-030"
   ],
-  "pending": [],
-  "last_sync_at": "2026-08-16T14:48:50.564Z"
+  "pending": [
+    "SHELL-001",
+    "MOD-001",
+    "MOD-002",
+    "MOD-024",
+    "MOD-025",
+    "MOD-030",
+    "MOD-039",
+    "MOD-040",
+    "MOD-048",
+    "LEGACY-001",
+    "LEGACY-041",
+    "LEGACY-125",
+    "NAV-001"
+  ],
+  "last_sync_at": "2026-08-21T00:02:38.475Z"
 }

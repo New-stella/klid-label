@@ -4,10 +4,10 @@ type: screen_spec
 version: 7
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T15:39:51.281Z
+synced_at: 2026-08-21T00:02:39.919Z
 status: CHANGED
-prev_version: 5
-content_hash: bc753ecb412cd80b8880c42f5b11baa261e8fd9bfaa46aa311c4bed515de02d5
+prev_version: 7
+content_hash: ef88cbc1fae4702737d9d7c0103c9e472152fe7ef57dcb95fbf99ab3737d399b
 stale: false
 raw: ./_raw/SCREEN-038.json
 links:
@@ -292,11 +292,12 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-042
+- MOD-046
 
 ### records
 
-_(empty)_
+- IMPREC-025
 
 ### progress
 
@@ -305,6 +306,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-17T22:48:30.851Z
 
 ## required_roles
 

@@ -1,14 +1,14 @@
 ---
 logicraft_item: INTSPEC-004
 type: integration_spec
-version: 5
+version: 8
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.390Z
-status: NEW
-prev_version: null
-content_hash: 992e87b1f63a57cda5b59597b2a79094de8086f5f17eaa22f4bd05de13883050
-stale: true
+synced_at: 2026-08-21T00:02:56.127Z
+status: CHANGED
+prev_version: 5
+content_hash: bc11b88ecdb999be08f717bd1c9d19afab9161d0b8364f0cf6e7a91904af63b1
+stale: false
 raw: ./_raw/INTSPEC-004.json
 links:
   references: ["[[INT-007]]"]
@@ -72,13 +72,17 @@ markdown
 - 관제/데이터마트는 export 폴더 경로를 `V_COMPLETED_VIDEO.OUTPUT_PATH_NM`(개명 전 `EXPORT_PATH_NM`) 으로 픽업.
 - 라벨 본문 뷰는 제거(V114) — export 폴더 JSON 이 라벨 본문의 단일 출처. 변경점/메타는 별도 뷰(V_COMPLETED_LABEL_CHANGE / V_COMPLETED_META).
 - **파생영상(증강·해상도, `ORGNL_RAW_SN` not null)은 `V_COMPLETED_VIDEO.ORGNL_VDO_PATH_NM`(개명 전 `ORIGINAL_VIDEO_PATH`) 가 NULL 로 동결**된다 — 파생영상은 원본영상 자체가 없고 비식별 사본만 있기 때문. 관제는 파생 비디오를 **`DE_IDNTF_FILE_PATH_NM`(V138)** 으로 픽업해야 한다(★BREAKING, 관제 협의 대상 — EXTSYS-005 참조).
+- **프레임만 이관한 원본은 `V_COMPLETED_VIDEO.DE_IDNTF_YN` 이 미수행으로 나가고 `DE_IDNTF_FILE_PATH_NM` 도 빈 값일 수 있다** — 비식별할 영상 자체가 없으므로 그것이 사실이며, 비식별의 실체는 프레임 축에 있다. 승인된 영상이므로 뷰에서 감추거나 비우지 않는다. 관제는 이 조합을 결함으로 보지 말고 프레임 축 산출물로 픽업해야 한다(관제 협의 대상 — EXTSYS-005 참조). 이 예외의 근거 결정은 ADR-023 이 소유한다.
 
 ## ★ 관제 통지 — 2경로 분리 계약
 검수 승인·export 재생성이 완료되면 저작도구는 관제로 outbound 통지한다:
-- 완료: `POST {base}/api/data-set/v2/jobs/{job_id}/notify-completed`(관제 API-251), 평면 페이로드.
-- 수정(재산출 동반): `POST {base}/api/data-set/v2/jobs/{job_id}/notify-updated`(관제 API-285), `{job_id, changed_items{images[], jsons[]}}` — 파일명은 `{FRM_NO 4자리 zero-pad}.jpg`/`.json` 이며 export 산출 규칙과 공유한다.
+- 완료: `POST {base}/api/data-set/v2/jobs/{job_id}/notify-completed`(관제 API-251), 평면 페이로드 — 필수 필드에 더해 선택 필드 `output_ver_no` 를 싣는다.
+- 수정(재산출 동반): `POST {base}/api/data-set/v2/jobs/{job_id}/notify-updated`(관제 API-285), `{job_id, changed_items{images[], jsons[]}}` + 선택 필드 `ver_expln`·`output_ver_no` — 파일명은 `{FRM_NO 4자리 zero-pad}.jpg`/`.json` 이며 export 산출 규칙과 공유한다.
 - 재생성 없는 수정은 `changed_items` 를 **빈 리스트**로 보낸다 — 디스크가 그대로이므로 파일을 실어 보내면 관제가 404 를 맞는다.
+- 키 유무 규약은 필수 필드와 선택 필드 사이가 비대칭이며, 두 경로에 공통으로 적용되는 의도된 설계다 — 필수 필드는 값이 없어도 키를 남기고(키를 빼면 수신측 검증에서 전량 거부된다), 선택 필드는 값이 없으면 키 자체를 생략한다. 일관성을 이유로 이 비대칭을 통일하지 말 것.
+- `output_ver_no` 는 그 통지가 대응하는 산출 버전 폴더(`v{n}`) 번호다. 이 키가 없으면 수신측은 "산출물 변경 없음 — 재픽업 불요"로 읽는다. `ver_expln` 은 그 버전의 설명이다.
 - 구 단일경로 `/api/v1/notify` + 2단 중첩 페이로드는 폐기됨. 상세는 INT-007.
+
 
 ## ★ 통지 발송 시점 — export 성공(SUCCEEDED) 후
 통지는 export 가 `SUCCEEDED` 인 뒤에 발송한다(승인 `TASK_COMPLETED`·재승인 `TASK_MODIFIED` 양쪽 공통). export 가 비동기라 통지가 앞서면 관제가 구 버전 폴더를 픽업하게 되기 때문이다. **export 가 실패하면 통지를 보류**하고 재산출 성공 후 재개한다(통지 유실이 아니라 성공 시점으로 지연). 재산출 트리거·수정 축적·디바운스 flush 는 `authoring.control-notify.enabled` 토글과 **무관하게 항상 동작**한다 — 이 토글은 통지 발송 자체만 게이팅한다.

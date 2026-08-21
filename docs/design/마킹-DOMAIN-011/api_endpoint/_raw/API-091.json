@@ -30,22 +30,9 @@
             "type": "object",
             "properties": {
               "data": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "enum": [
-                      "OPEN"
-                    ],
-                    "type": "string",
-                    "description": "신고 상태 (접수 직후 OPEN)"
-                  },
-                  "reportId": {
-                    "type": "integer",
-                    "format": "int64",
-                    "description": "생성된 신고 식별자 (LS_DEIDENT_REPORT.RPRT_SN)"
-                  }
-                },
-                "description": "신고 접수 결과"
+                "type": "integer",
+                "format": "int64",
+                "description": "생성된 신고 식별자(DEIDENT_REPORT_SN). 해소 요청의 경로변수로 그대로 쓴다"
               },
               "message": {
                 "type": "string",
@@ -64,15 +51,12 @@
             }
           },
           "example": {
-            "data": {
-              "status": "OPEN",
-              "reportId": 3001
-            },
+            "data": 5001,
             "message": null,
             "success": true,
             "errorCode": null
           },
-          "description": "신고 접수 — LS_DEIDENT_REPORT OPEN 생성(신고 단계 MARKING) + 영상 단위 작업락(LS_AUTH_WORK_LOCK) + 영상 비식별 상태 DE_IDENT_YN='F' 전이 + REVIEWER 알림. 자동 재비식별 큐에는 등록하지 않는다 — 재비식별은 외부 솔루션으로 사람이 수행한다. ApiResponse 래퍼의 data 에 신고 결과.",
+          "description": "신고 접수 — LS_DEIDENT_REPORT OPEN 생성(신고 단계 MARKING) + 영상 단위 작업락(LS_AUTH_WORK_LOCK) + 영상 비식별 상태 DE_IDENT_YN='F' 전이 + REVIEWER 알림. 자동 재비식별 큐에는 등록하지 않는다 — 재비식별은 외부 솔루션으로 사람이 수행한다. ApiResponse 래퍼의 data 에 생성된 신고 식별자(정수)만 담긴다.",
           "content_type": "application/json"
         },
         "400": {
@@ -321,12 +305,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "brownfield 요약에서 구현 상태 표기를 제거 — 신고 채널 구성이라는 설계 사실만 남긴다(구현 진척은 implementation 축이 담당하며 이 엔드포인트는 이미 implemented 로 기록돼 있어 서술이 서로 어긋나 있었다).",
+    "change_summary": "201 응답의 data 를 신고 식별자 하나만 담는 정수 값으로 정정한다 — 라벨링 단계 신고(같은 계약 축의 형제 엔드포인트)와 동일하게 접수 응답은 신고 식별자만 반환하며 별도 상태 필드는 두지 않는다. 기존에 있던 status(신고 상태) 필드는 이 응답에 존재하지 않아 제거했다 — 신고 상태는 별도 조회 경로에서 확인한다. data 설명·example·응답 description 을 이 계약에 맞춰 함께 정정했다. 그 외 필드·응답 코드·본문은 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:46:27.058Z",
+    "last_updated_at": "2026-08-16T23:42:28.763Z",
     "created_at": "2026-06-02T12:44:03.144Z"
   }
 }

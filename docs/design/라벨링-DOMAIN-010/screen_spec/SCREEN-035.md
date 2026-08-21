@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-035
 type: screen_spec
-version: 17
+version: 19
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T15:39:30.495Z
+synced_at: 2026-08-21T00:02:47.375Z
 status: CHANGED
-prev_version: 16
-content_hash: 2e939361d35072683dbd063c6778c9417149279e9f219cdc374cbf34c745dfaf
+prev_version: 17
+content_hash: 6d2e48a4bd5ded0089790a7b8415821feb7beb14c9d10932680b513310c4bc49
 stale: false
 raw: ./_raw/SCREEN-035.json
 links:
@@ -226,7 +226,7 @@ _(empty)_
 #### [2]
 
 - **type**: Select
-- **label**: 형태 (바운딩박스/폴리곤/포인트/스켈레톤)
+- **label**: 형태 (바운딩 박스/폴리곤/포인트/스켈레톤)
 
 **columns**:
 
@@ -234,7 +234,7 @@ _(empty)_
 
 **options**:
 
-- 바운딩박스
+- 바운딩 박스
 - 폴리곤
 - 포인트
 - 스켈레톤
@@ -644,9 +644,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: b73d7b5cffb2cd826d890ec8db3b766eca5669d2cee931d7fb0d918f367698c7
-- **generated_at**: 2026-08-13T01:02:44.578Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 0a0f5af870ae87b76355802b74cd69877e6997bb41f0189ae0be7310799629b2
+- **generated_at**: 2026-08-18T03:19:13.162Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

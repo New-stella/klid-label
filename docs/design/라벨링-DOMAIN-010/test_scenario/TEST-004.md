@@ -1,14 +1,14 @@
 ---
 logicraft_item: TEST-004
 type: test_scenario
-version: 17
+version: 19
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:54.509Z
-status: NEW
-prev_version: null
-content_hash: 5f08b1b76012fc5e1fb7adee7895950686abaabc9e3a74f80d178636c939c632
-stale: true
+synced_at: 2026-08-21T00:02:47.390Z
+status: CHANGED
+prev_version: 17
+content_hash: 9071d389bb703ec29ab5be75f50d589540292ae12c907f0e804006e9ee0e3e72
+stale: false
 raw: ./_raw/TEST-004.json
 links:
   references: ["[[API-074]]", "[[API-075]]", "[[API-076]]", "[[DOMAIN-005]]", "[[DOMAIN-010]]", "[[DOMAIN-016]]", "[[SCREEN-019]]", "[[UC-007]]", "[[UC-009]]"]
@@ -24,7 +24,7 @@ integration
 
 시험시나리오 KLID-AT-IT-TS-004. 대외 연동 경계: 관제서버 완료/수정 통지(KLID-AT-II-007 단방향 outbound). 관련 요구사항 RQ-SFR-08. 핵심 테이블 LS_RAW_DATA_STATUS · LS_LABEL_VERSION · LS_CONTROL_NOTIFY_FALLBACK. 정상 흐름(happy path)만 수록.
 
-[페이로드 규격] 완료 통지(TaskCompletedPayload)는 required 9필드(job_id · event_type_cd · evnt_cls_cd · evnt_ctgry_cd · lclgv_cd · lclgv_nm · duration_sec · image_count · gen_ai_yn)와 선택 필드 output_ver_no 로 이뤄진다. required 는 값이 null 이어도 키를 남기고(키를 빼면 관제가 422 로 거부한다) output_ver_no 는 값이 없으면 키 자체를 내보내지 않는다. 프레임 개수는 image_count 하나이며 라벨·메타 결과 요약 카운트는 두지 않는다. 수정 통지(TaskModifiedPayload)는 job_id · changed_items(images·jsons) · ver_expln(선택) · output_ver_no(선택) 4필드이고, changed_items 는 내부 식별자(SRC_SN)가 아니라 산출 폴더의 실제 파일명({FRM_NO 4자리 zero-pad}.jpg/.json) 리스트다. 변경 종류(LABEL_ADDED 등)와 마지막 수정 일시·변경 요약 카운트는 지금은 관제로 보내지 않는다 — 변경 종류는 내부 디바운스 축적 키·감사 기록으로만 쓴다.
+[페이로드 규격] 완료 통지(TaskCompletedPayload)는 required 필드(job_id · event_type_cd · evnt_cls_cd · evnt_ctgry_cd · lclgv_cd · lclgv_nm · duration_sec · image_count · gen_ai_yn)와 선택 필드 output_ver_no 로 이뤄진다. required 는 값이 null 이어도 키를 남기고(키를 빼면 관제가 422 로 거부한다) output_ver_no 는 값이 없으면 키 자체를 내보내지 않는다. 프레임 개수는 image_count 하나이며 라벨·메타 결과 요약 카운트는 두지 않는다. 수정 통지(TaskModifiedPayload)는 job_id · changed_items(images·jsons) · ver_expln(선택) · output_ver_no(선택) 필드이고, changed_items 는 내부 식별자(SRC_SN)가 아니라 산출 폴더의 실제 파일명({FRM_NO 4자리 zero-pad}.jpg/.json) 리스트다. 변경 종류(LABEL_ADDED 등)와 마지막 수정 일시·변경 요약 카운트는 지금은 관제로 보내지 않는다 — 변경 종류는 내부 디바운스 축적 키·감사 기록으로만 쓴다.
 
 [재생성·통지 트리거] 수정 통지의 트리거는 수정 시점이 아니라 재검수 승인이다. 검수 완료된 영상을 고치면 재검토 표시(LS_RAW_DATA_STATUS.REVLT_YN='Y')가 서고, 그 표시가 서 있는 동안 축적분의 만료 flush 가 보류된다. 검수자가 그 수정을 다시 승인해 표시가 해제되면 다음 flush tick 에 산출물이 새 버전 폴더로 전량 재생성되고 통지가 1회 나간다. 최초 승인만 승인 이벤트로 강제 재생성 후 완료 통지를 내며, 재승인은 그 이벤트를 발행하지 않고 디바운서가 재생성·수정 통지를 낸다. 요청 식별자(UUID)도 폴백·재등록 큐의 내부 키라 통지 본문에 싣지 않는다.
 
@@ -39,7 +39,7 @@ integration
 - **test_item**: 검수 상세 화면에서 영상 단위 검수를 승인하는지 확인
 - **input_data**: 【영상 식별자】"1001" 【검수자(숫자 userNo)】"101"
 - **screen_ref**: SCREEN-019
-- **preconditions**: 검수 진행중(IN_REVIEW) 영상이 존재한다
+- **preconditions**: 검수 진행중(IN_REVIEW) 영상이 존재한다. 그 영상의 비식별화 완료 여부는 완료여야 한다 — 미완료이면 검수 승인 자체가 거부되어 이 정상 흐름이 시작되지 않는다. 외부에서 이미 라벨링이 끝난 산출물을 가져와 원본으로 지정해 들여온 영상만 미완료로 시작하고 그 밖의 영상은 완료가 기본값이므로, 그런 이관 영상으로 시험할 때는 비식별을 마친 뒤 승인한다.
 
 ### [2]
 
@@ -55,9 +55,9 @@ integration
 ### [3]
 
 - **seq**: 3
-- **note**: TC-009 | auto_test / required 9필드 키 유지 · output_ver_no 키 생략 규약 / image_count 가 실제 프레임 수와 일치하는지 확인한다.
+- **note**: TC-009 | auto_test / required 필드 키 유지 · output_ver_no 키 생략 규약 / image_count 가 실제 프레임 수와 일치하는지 확인한다.
 - **action**: 완료 통지 발송
-- **expected**: 완료 통지가 1회 발송되고 수신측이 200 을 반환한다(실패 시 PENDING·FAILED 폴백). 페이로드는 required 9필드(job_id · event_type_cd · evnt_cls_cd · evnt_ctgry_cd · lclgv_cd · lclgv_nm · duration_sec · image_count · gen_ai_yn)의 키를 값이 null 이어도 모두 유지해야 하며(키를 빼면 관제 검증에서 전량 422 다), image_count 는 해당 영상의 실제 프레임 수와 일치해야 한다. output_ver_no 는 값이 있을 때만 키가 실리고 없으면 키 자체가 나가지 않는다. ★ 라벨·메타 결과 요약 카운트 · 검수 완료 일시 · 요청 ID · 영상 파일명 · 채널은 합격 조건이 아니다 — 지금은 페이로드에 두지 않는다. 통지는 export 산출이 성공한 뒤에만 나가야 하며, export 가 실패하면 통지가 보류되는 것이 합격이다.
+- **expected**: 완료 통지가 1회 발송되고 수신측이 200 을 반환한다(실패 시 PENDING·FAILED 폴백). 페이로드는 required 필드(job_id · event_type_cd · evnt_cls_cd · evnt_ctgry_cd · lclgv_cd · lclgv_nm · duration_sec · image_count · gen_ai_yn)의 키를 값이 null 이어도 모두 유지해야 하며(키를 빼면 관제 검증에서 전량 422 다), image_count 는 해당 영상의 실제 프레임 수와 일치해야 한다. output_ver_no 는 값이 있을 때만 키가 실리고 없으면 키 자체가 나가지 않는다. ★ 라벨·메타 결과 요약 카운트 · 검수 완료 일시 · 요청 ID · 영상 파일명 · 채널은 합격 조건이 아니다 — 지금은 페이로드에 두지 않는다. 통지는 export 산출이 성공한 뒤에만 나가야 하며, export 가 실패하면 통지가 보류되는 것이 합격이다.
 - **test_item**: 관제서버로 완료 통지가 발송되는지 확인
 - **input_data**: 【이벤트 종류】"TASK_COMPLETED" 【작업 식별자(job_id)】"1001" 【프레임 수(image_count)】"해당 영상의 실제 프레임 수" 【산출 버전 번호(output_ver_no)】"1"
 - **preconditions**: 순번2 스냅샷 완료 + 해당 영상의 export 산출이 SUCCEEDED
@@ -78,7 +78,7 @@ integration
 - **seq**: 5
 - **note**: TC-010 | auto_test / 재검수 승인 시점에 1회 통지 / changed_items 가 산출 폴더 파일명 리스트인지 확인
 - **action**: 재검수 승인 후 수정 통지 발송
-- **expected**: 수정 통지는 수정 시점이 아니라 검수자가 그 수정을 다시 승인한 시점에 발송된다 — 재검토 표시(LS_RAW_DATA_STATUS.REVLT_YN='Y')가 서 있는 동안 만료 flush 가 보류되고, 재승인으로 표시가 해제된 뒤 다음 flush tick 에 영상 1건 단위로 1회 발송되며 동일 작업 식별자를 유지한다(버전 업 아님). 수정 횟수와 무관하게 재승인 1건이 새 버전 폴더 1개와 통지 1건에 대응하므로, 재승인 전에 통지가 나가거나 재승인 1건에 통지가 2회 이상 나가면 불합격이다. 페이로드는 job_id · changed_items · ver_expln(선택) · output_ver_no(선택) 4필드이며, changed_items.images·jsons 는 산출 폴더의 실제 파일명({FRM_NO 4자리 zero-pad}.jpg/.json) 리스트여야 한다(내부 프레임 식별자를 실으면 관제 워커가 그대로 픽업하지 못한다). 목록 범위는 export 재생성을 동반했는지로 갈린다 — 동반이면 전 프레임 이미지·JSON 을 싣고(비우면 관제 보유본이 stale 로 고착된다), 재생성이 없으면 빈 리스트가 정상이며(없는 파일을 실으면 관제가 404 를 맞는다) 어느 경우든 통지 자체는 발송된다. ver_expln·output_ver_no 는 값이 없으면 키를 생략한다. ★ 변경 종류(LABEL_ADDED·LABEL_UPDATED·LABEL_DELETED·META_UPDATED)는 합격 조건이 아니다 — 지금은 관제로 보내지 않고 내부 디바운스 축적 키·감사 기록으로만 쓴다. ★ 디바운스는 같은 영상의 다중 변경을 1회로 합치는 축으로 그대로 살아 있다 — 폐기된 것은 창 만료만으로 발송된다는 부분뿐이다.
+- **expected**: 수정 통지는 수정 시점이 아니라 검수자가 그 수정을 다시 승인한 시점에 발송된다 — 재검토 표시(LS_RAW_DATA_STATUS.REVLT_YN='Y')가 서 있는 동안 만료 flush 가 보류되고, 재승인으로 표시가 해제된 뒤 다음 flush tick 에 영상 1건 단위로 1회 발송되며 동일 작업 식별자를 유지한다(버전 업 아님). 수정 횟수와 무관하게 재승인 1건이 새 버전 폴더 1개와 통지 1건에 대응하므로, 재승인 전에 통지가 나가거나 재승인 1건에 통지가 2회 이상 나가면 불합격이다. 페이로드는 job_id · changed_items · ver_expln(선택) · output_ver_no(선택) 필드이며, changed_items.images·jsons 는 산출 폴더의 실제 파일명({FRM_NO 4자리 zero-pad}.jpg/.json) 리스트여야 한다(내부 프레임 식별자를 실으면 관제 워커가 그대로 픽업하지 못한다). 목록 범위는 export 재생성을 동반했는지로 갈린다 — 동반이면 전 프레임 이미지·JSON 을 싣고(비우면 관제 보유본이 stale 로 고착된다), 재생성이 없으면 빈 리스트가 정상이며(없는 파일을 실으면 관제가 404 를 맞는다) 어느 경우든 통지 자체는 발송된다. ver_expln·output_ver_no 는 값이 없으면 키를 생략한다. ★ 변경 종류(LABEL_ADDED·LABEL_UPDATED·LABEL_DELETED·META_UPDATED)는 합격 조건이 아니다 — 지금은 관제로 보내지 않고 내부 디바운스 축적 키·감사 기록으로만 쓴다. ★ 디바운스는 같은 영상의 다중 변경을 1회로 합치는 축으로 그대로 살아 있다 — 폐기된 것은 창 만료만으로 발송된다는 부분뿐이다.
 - **test_item**: 관제서버로 수정 통지가 발송되는지 확인
 - **input_data**: 【이벤트 종류】"TASK_MODIFIED" 【작업 식별자(job_id)】"1001" 【변경 이미지 파일명(changed_items.images)】"[\"0338.jpg\"]" 【변경 JSON 파일명(changed_items.jsons)】"[\"0338.json\"]" 【버전 설명(ver_expln)】"(선택 — 없으면 키 생략)" 【산출 버전 번호(output_ver_no)】"2"
 - **preconditions**: 순번4 수정 발생 + 검수자가 그 수정을 다시 검수해 승인(재승인)하여 재검토 표시가 해제됨

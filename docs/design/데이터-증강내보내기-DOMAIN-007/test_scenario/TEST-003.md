@@ -1,12 +1,12 @@
 ---
 logicraft_item: TEST-003
 type: test_scenario
-version: 14
+version: 15
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.845Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-21T00:02:45.016Z
+status: CHANGED
+prev_version: 14
 content_hash: 1929072c684aadc2de6684fc707d99e0be527f8d7b3a38e164f129a50a8ce302
 stale: false
 raw: ./_raw/TEST-003.json

@@ -1,18 +1,19 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 44
+version: 51
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:51.322Z
-status: NEW
-prev_version: null
-content_hash: 19829ab52d3c4b86e4c78978f1057fc2e03139a13ad2d103d7b1cc5536564a7b
+synced_at: 2026-08-21T00:02:39.866Z
+status: CHANGED
+prev_version: 44
+content_hash: f17d091864ff027d1c806d55d3fb73b13dc0239c449924e8347b4eb00e9ce1e3
 stale: true
 raw: ./_raw/SCREEN-009.json
 links:
   belongs_to_domain: ["[[DOMAIN-003]]"]
   consumes: ["[[API-021]]", "[[API-043]]", "[[API-044]]"]
+  covered_by: ["[[AC-051]]"]
   migrated_from: ["[[LEGACY-003]]"]
   references: ["[[API-021]]", "[[API-043]]", "[[API-044]]", "[[API-167]]", "[[API-198]]", "[[API-200]]", "[[API-201]]"]
   requires: ["[[ROLE-001]]", "[[ROLE-002]]"]
@@ -106,7 +107,7 @@ _(empty)_
 #### [4]
 
 - **type**: Badge
-- **label**: 이벤트 유형 배지(EventTypeBadge)
+- **label**: 이벤트 유형 배지
 
 **columns**:
 
@@ -121,7 +122,7 @@ _(empty)_
 #### [5]
 
 - **type**: Badge
-- **label**: 상태 배지(StatusBadge)
+- **label**: 상태 배지
 
 **columns**:
 
@@ -218,7 +219,7 @@ _(empty)_
 
 #### [3]
 
-- **note**: 배치가 실패했거나 건너뛴 묶음이 있으면 노출한다. 사유는 서버가 준 문구를 그대로 보여주고 화면이 해석하지 않으며, 단계를 특정할 수 없는 실패도 사유만은 표시한다. 건너뛰기·되돌리기·재수행은 시계열과 오토라벨 두 묶음 단위이며 건너뛰기는 사유를 받는다. 되돌린 묶음에는 재수행 버튼을 하나 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다). 오토라벨 재수행은 트랙 보간까지 다시 만들어 사람이 손댄 보간 라벨이 새로 계산된 값으로 바뀌므로 고르는 시점에 알린다. 전체 재기동은 실패한 영상에만 노출한다. 파생영상에는 이 영역의 조작을 노출하지 않는다.
+- **note**: 배치가 실패했거나 건너뛴 묶음이 있으면 노출한다. 사유는 서버가 준 문구를 그대로 보여주고 화면이 해석하지 않으며, 단계를 특정할 수 없는 실패도 사유만은 표시한다. 건너뛰기·해제·재수행은 시계열과 오토라벨 두 묶음 단위이며 건너뛰기는 사유를 받는다. 건너뛰기를 해제한 묶음에는 재수행 버튼을 하나 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다). 오토라벨 재수행은 트랙 보간까지 다시 만들어 사람이 손댄 보간 라벨이 새로 계산된 값으로 바뀌므로 고르는 시점에 알린다. ★검수가 완료된 적 있는 영상은 두 묶음이 갈린다 — 시계열 재수행은 그대로 누르고 오토라벨 재수행은 비활성 + 사유 툴팁이다(라벨을 다시 만들어 승인 시점 스냅샷과 어긋난다). 되돌릴 수 없는 조건이라 파생영상처럼 미리 알린다. 전체 재기동은 실패한 영상에만 노출한다. 파생영상에는 이 영역의 조작을 노출하지 않는다.
 - **type**: Custom
 - **label**: 배치 실패 사유 + 조치 (REVIEWER 전용)
 
@@ -502,7 +503,8 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-038
+- IMPREC-040
 
 ### progress
 
@@ -511,6 +513,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-20T03:15:53.501Z
 
 ## required_roles
 
@@ -532,9 +538,9 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: e20d5f7468987faa4584951a9371fd3dcc351263872299fdd1e34531a55b3932
-- **generated_at**: 2026-08-13T02:39:33.159Z
-- **generated_by**: generate-wireframes.py
+- **source_hash**: 0883fcf00b5f96c2645552770ad42817e5f60dd95ed6d8fcd9ecc30dbf46884e
+- **generated_at**: 2026-08-19T23:52:45.244Z
+- **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
 
@@ -554,4 +560,4 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-051

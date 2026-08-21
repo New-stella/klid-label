@@ -108,7 +108,7 @@
               "custom_name": "BatchStageIndicator"
             },
             {
-              "note": "배치가 실패했거나 건너뛴 묶음이 있으면 노출한다. 사유는 서버가 준 문구를 그대로 보여주고 화면이 해석하지 않으며, 단계를 특정할 수 없는 실패도 사유만은 표시한다. 건너뛰기·되돌리기·재수행은 시계열과 오토라벨 두 묶음 단위이며 건너뛰기는 사유를 받는다. 되돌린 묶음에는 재수행 버튼을 하나 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다). 오토라벨 재수행은 트랙 보간까지 다시 만들어 사람이 손댄 보간 라벨이 새로 계산된 값으로 바뀌므로 고르는 시점에 알린다. 전체 재기동은 실패한 영상에만 노출한다. 파생영상에는 이 영역의 조작을 노출하지 않는다.",
+              "note": "배치가 실패했거나 건너뛴 묶음이 있으면 노출한다. 사유는 서버가 준 문구를 그대로 보여주고 화면이 해석하지 않으며, 단계를 특정할 수 없는 실패도 사유만은 표시한다. 건너뛰기·해제·재수행은 시계열과 오토라벨 두 묶음 단위이며 건너뛰기는 사유를 받는다. 건너뛰기를 해제한 묶음에는 재수행 버튼을 하나 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다). 오토라벨 재수행은 트랙 보간까지 다시 만들어 사람이 손댄 보간 라벨이 새로 계산된 값으로 바뀌므로 고르는 시점에 알린다. ★검수가 완료된 적 있는 영상은 두 묶음이 갈린다 — 시계열 재수행은 그대로 누르고 오토라벨 재수행은 비활성 + 사유 툴팁이다(라벨을 다시 만들어 승인 시점 스냅샷과 어긋난다). 되돌릴 수 없는 조건이라 파생영상처럼 미리 알린다. 전체 재기동은 실패한 영상에만 노출한다. 파생영상에는 이 영역의 조작을 노출하지 않는다.",
               "type": "Custom",
               "label": "배치 실패 사유 + 조치 (REVIEWER 전용)",
               "columns": [],
@@ -262,9 +262,13 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-038",
+          "IMPREC-040"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-20T03:15:53.501Z"
       },
       "required_roles": [
         "ROLE-001",
@@ -280,25 +284,27 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "fdbd61f698ca622cdeba32a2547db500fc11b223af4506b29a471bde9e99e4d8",
-          "generated_at": "2026-08-18T03:19:10.298Z",
-          "generated_by": "generate-wireframes.py",
+          "source_hash": "0883fcf00b5f96c2645552770ad42817e5f60dd95ed6d8fcd9ecc30dbf46884e",
+          "generated_at": "2026-08-19T23:52:45.244Z",
+          "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
       ],
       "uses_constants": [],
       "external_designs": [],
       "realizes_use_cases": [],
-      "covered_by_acceptances": []
+      "covered_by_acceptances": [
+        "AC-051"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 46,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.8KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-18T03:19:10.299Z",
+    "current_version": 51,
+    "stale": true,
+    "stale_reason": "API-201의 5개 필드 변경 — references",
+    "change_summary": "신설한 시계열 일괄 축·승인 분기 수용 기준을 연결한다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-20T03:15:53.501Z",
     "created_at": "2026-05-30T07:54:17.546Z"
   }
 }

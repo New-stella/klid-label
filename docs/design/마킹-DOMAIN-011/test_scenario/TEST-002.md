@@ -1,14 +1,14 @@
 ---
 logicraft_item: TEST-002
 type: test_scenario
-version: 11
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.203Z
-status: NEW
-prev_version: null
-content_hash: fd67e53b1fedd5d51d6a05b344bb60788f64753108985a34060718b14d01ae58
-stale: true
+synced_at: 2026-08-21T00:02:48.929Z
+status: CHANGED
+prev_version: 11
+content_hash: 169ffa7ed59ff9328ceafaf28b5981f360dbfefac7625cc99ac955fb5cfe9857
+stale: false
 raw: ./_raw/TEST-002.json
 links:
   references: ["[[DOMAIN-005]]", "[[DOMAIN-010]]", "[[DOMAIN-011]]", "[[SCREEN-005]]", "[[UC-022]]"]
@@ -31,7 +31,7 @@ integration
 - **seq**: 1
 - **note**: TC-004 | auto_test / 논블로킹 제출 — ACK 왕복 동안 파이프라인 스레드를 점유하지 않는다
 - **action**: VLM 시계열 위탁 제출(논블로킹)
-- **expected**: 제출을 개시하고 즉시 반환한다(status="submitted"). 【검증】제출 전 선커밋 2건 — DB: SELECT CHNL_CD, STTS_CD, RAW_SN FROM LS_WEBHOOK_IDEMPOTENCY WHERE IDMP_KEY=:requestId → CHNL_CD='VLM'·STTS_CD='ISSUED' 1행; SELECT STTS_CD FROM LS_MARKING WHERE MARKING_SN=:markingSn → 'VLM_REQUESTED'. 수락(ACK) 수신 시 완료 핸들러가 원장을 ISSUED→ACCEPTED 로 비동기 전이한다. 외부 연동(외부 VLM 위탁 — 기본 vlm.client.enabled=false 토글 off, 활성 시 실 위탁)
+- **expected**: 제출을 개시하고 즉시 반환한다(status="submitted"). 【검증】제출 전 선커밋 2건 — DB: SELECT CHNL_CD, STTS_CD, RAW_SN FROM LS_WEBHOOK_IDEMPOTENCY WHERE IDMP_KEY=:requestId → CHNL_CD='VLM'·STTS_CD='ISSUED' 1행; SELECT STTS_CD FROM LS_MARKING WHERE MARKING_SN=:markingSn → 'VLM_REQUESTED'. 수락(ACK) 수신 시 완료 핸들러가 원장을 ISSUED→ACCEPTED 로 비동기 전이한다. 외부 연동(외부 VLM 위탁 — 활성화 토글은 폐지됐다. 연동 주소가 주입돼 있으면 실 위탁, 없으면 실패한다. 건너뛰려면 검수자가 시계열 묶음을 수동 스킵해야 한다)
 - **test_item**: 마킹 완료 영상을 외부 VLM 에 논블로킹 제출하며 상관키를 선커밋하는지 확인
 - **input_data**: 【frame_policy.mode】"frame_selected" 【selected_frames】"[360, 1350, 1890]"(마킹 프레임 인덱스, 정렬·중복제거 후 벤더 상한 8건 이내 — 수동 마킹 경로 예시) 【event_type】"fire"(관제 인입값 그대로 위탁, 화이트리스트 사전 차단 없음) 【framerate】"10"(LS_MARKING.FRME_INTV_NOCS — 마킹 프레임 간격이며 FPS 가 아니다) 【상관키(request_id)】"(제출 시 시스템 자동발급 UUID — 원장 키)" 【콜백 경로】"서버 고정 /v1/vlm/callback(요청 본문 미포함)"
 - **preconditions**: 마킹 완료된 비식별 영상이 존재한다

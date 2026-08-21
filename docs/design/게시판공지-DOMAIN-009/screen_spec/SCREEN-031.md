@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-031
 type: screen_spec
-version: 29
+version: 31
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:53.550Z
-status: NEW
-prev_version: null
-content_hash: 2d9141e8093d77f7c72f8975d96361e036470c972c8d433ba3392c80b29f63c4
-stale: true
+synced_at: 2026-08-21T00:02:46.164Z
+status: CHANGED
+prev_version: 29
+content_hash: e7dbb6b3547002487575b86025894388e25e4411e5a101115accd3d63f25b6a3
+stale: false
 raw: ./_raw/SCREEN-031.json
 links:
   belongs_to_domain: ["[[DOMAIN-009]]"]
@@ -172,9 +172,9 @@ _(empty)_
 
 #### [1]
 
-- **note**: notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '중요'.
+- **note**: notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '고정'.
 - **type**: Badge
-- **label**: 중요
+- **label**: 고정
 
 **columns**:
 
@@ -274,7 +274,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 상세 조회(API-096) 결과를 카드로 렌더. 헤더: 중요 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.
+- **description**: 상세 조회(API-096) 결과를 카드로 렌더. 헤더: 고정 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.
 
 **references_apis**:
 

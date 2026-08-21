@@ -3,11 +3,14 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-003",
   "decided_by": "llm",
-  "decided_at": "2026-08-16T00:00:00Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외",
+  "decided_at": "2026-08-21T00:04:05Z",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-21 pending 전건 기각(MOD·LEGACY·SHELL·NAV 제외 타입) | 2026-08-21 pending 판정: ADR-049/050·API-212~214·AC-049~051 승격(시계열 건너뛰기 축)",
   "items": [
     "AC-025",
     "AC-026",
+    "AC-049",
+    "AC-050",
+    "AC-051",
     "ADR-001",
     "ADR-003",
     "ADR-004",
@@ -16,6 +19,8 @@
     "ADR-018",
     "ADR-032",
     "ADR-042",
+    "ADR-049",
+    "ADR-050",
     "API-021",
     "API-042",
     "API-043",
@@ -54,6 +59,9 @@
     "API-199",
     "API-200",
     "API-201",
+    "API-212",
+    "API-213",
+    "API-214",
     "CDIAG-001",
     "CMP-001",
     "CMP-010",
@@ -123,5 +131,5 @@
     "LEGACY-119",
     "NAV-001"
   ],
-  "last_sync_at": "2026-08-17T15:39:51.300Z"
+  "last_sync_at": "2026-08-21T00:04:18.639Z"
 }

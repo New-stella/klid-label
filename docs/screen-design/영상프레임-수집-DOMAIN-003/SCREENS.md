@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-18T03:36:01.945Z (session 8) |
+| last sync | 2026-08-21T00:06:06.533Z (session 9) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록

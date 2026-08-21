@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 41
+version: 43
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:51.265Z
-status: NEW
-prev_version: null
-content_hash: d4d90d988a564d54c6955fe6febc9848a125dd9adbc09affc1a5ce5aa1f548a3
+synced_at: 2026-08-21T00:02:39.826Z
+status: CHANGED
+prev_version: 41
+content_hash: b67d47a671e3e4a0d33970dfcd1e1fa28fab0bc8dca4d926cd091dbd06243964
 stale: true
 raw: ./_raw/SCREEN-006.json
 links:
@@ -108,7 +108,7 @@ _(empty)_
 #### [4]
 
 - **type**: Custom
-- **label**: 탐색 슬라이더(range)
+- **label**: 탐색 슬라이더
 
 **columns**:
 
@@ -456,8 +456,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 506a22da2c2f73283b3015bbed68542c5bd14239b712d30a37f45799d31a647a
-- **generated_at**: 2026-08-16T12:43:59.112Z
+- **source_hash**: 7f128ef5816570eb6682286205240a293f64940cd298cf518fd28ef1020248bf
+- **generated_at**: 2026-08-18T03:19:09.827Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-024
 type: screen_spec
-version: 22
+version: 23
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:50.544Z
-status: NEW
-prev_version: null
-content_hash: fc78c0e10ed259b8961de5a1a14697fe1ae3de319b0a0b68438e4d46b7f0abce
-stale: false
+synced_at: 2026-08-21T00:02:38.451Z
+status: CHANGED
+prev_version: 22
+content_hash: f03f4109e7b7a4877e7edbe477f0ae754eec8f056e539b957aa8a6bdd3b86169
+stale: true
 raw: ./_raw/SCREEN-024.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]
@@ -194,6 +194,7 @@ _(empty)_
 - 역할
 - 상태
 - 등록일
+- 최신 로그인
 - 관리
 
 **options**:

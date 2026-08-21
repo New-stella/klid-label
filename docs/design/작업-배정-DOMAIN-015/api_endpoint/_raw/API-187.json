@@ -222,10 +222,10 @@
       "description": "배정 목록의 이벤트유형 셀렉트 옵션을 중복 없이 오름차순으로 반환한다. 응답 형태는 작업목록의 동일 목적 조회와 같다(화면 공용 컴포넌트).\n\n[인가 축이 조회 범위를 정한다] 검수자는 전체 배정을, 작업자는 본인 배정분만 기준으로 옵션을 받는다. workerId 는 검수자가 특정 작업자를 볼 때만 유의미하며 작업자 요청에서는 무시된다 — 그렇게 하지 않으면 다른 사람의 배정 현황을 옵션 목록으로 엿볼 수 있다.\n\n[페이징이 없다 — 의도된 예외] 코드값 셀렉트 성격이라 화면이 전량을 한 번에 받아야 하고, 무제한 조회는 상한으로 방어한다. 상한을 넘으면 잘라서 반환하되 truncated 로 그 사실을 알린다 — 벌거벗은 배열로 내려주면 절단이 드러나지 않아 '그 유형의 영상이 없다'고 오인하게 된다.",
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": []
       },
       "uses_constants": [],
@@ -234,12 +234,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "신설 성격(change_kind)을 형제 옵션 조회와 같게 선언하고, 이 엔드포인트의 상한·절단 통지 규칙이 따르는 목록 정렬·필터 정책 결정을 근거로 연결한다.",
+    "change_summary": "구현 상태를 실제에 맞춘다. 미착수로 적혀 있었으나 이 엔드포인트는 서버와 화면 양쪽에 이미 배선되어 동작한다 — 배정 목록 화면의 이벤트유형 선택지를 이 경로로 받는다. 코드 모듈 연결은 아직 채우지 못했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:53:02.664Z",
+    "last_updated_at": "2026-08-18T06:35:43.241Z",
     "created_at": "2026-08-07T03:05:22.455Z"
   }
 }

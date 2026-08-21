@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-005
 type: external_system
-version: 10
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.388Z
-status: NEW
-prev_version: null
-content_hash: 7a0c6fe8f83d30d85cbe451ecb560b9315f0ab64fd79bc976f6303264a16b986
+synced_at: 2026-08-21T00:02:56.125Z
+status: CHANGED
+prev_version: 10
+content_hash: c146c6bb58b36dd006656af080bac7f818c4c5e77735478d0e979500e9fbe69b
 stale: false
 raw: ./_raw/EXTSYS-005.json
 links:
@@ -88,6 +88,10 @@ high
 1. **데이터마트 라벨내용 뷰 제거(V114/V137, ADR-037)** — V_COMPLETED_LABEL/V_COMPLETED_LABEL_ATTR DROP. 라벨 본문은 검수완료 export JSON 파일에만 존재. 이 두 뷰를 SELECT 하던 관제 쿼리는 파손됨 — **관제 협의 대상**.
 2. **파생영상 ORGNL_VDO_PATH_NM NULL** — ORGNL_RAW_SN not null 행은 원본영상 자체가 없어(비식별 사본만 존재) 메타 동결 시 원본 경로가 항상 NULL. 관제는 DE_IDNTF_FILE_PATH_NM(V138)으로 픽업해야 하며, 개명 전 이름(ORIGINAL_VIDEO_PATH)을 기대하던 소비 로직은 **파손 가능** — **관제 협의 대상**.
 3. **관제 통지 API 계약 전면 교체** — 구 단일경로(/api/v1/notify)를 신뢰하던 관제 측 통합 테스트/로직이 있었다면 파손. 상세 INT-007 — **관제 협의 대상**.
+
+## 관제 협의 대상 — 프레임만 이관한 원본의 비식별 축
+- 프레임만 이관한 원본은 `V_COMPLETED_VIDEO.DE_IDNTF_YN` 이 미수행으로 나가고 `DE_IDNTF_FILE_PATH_NM` 도 빈 값일 수 있다 — 비식별할 영상 자체가 없으므로 그것이 사실이며, 비식별의 실체는 프레임 축에 있다. 승인된 영상이므로 뷰에서 감추거나 비우지 않는다. 관제는 이 조합을 결함으로 보지 않아야 하며, 해석을 바꾸려면 협의가 선행된다(관제 협의 대상).
+기존 계약 필드를 바꾸지 않고 이미 성립하는 값 조합을 기록하는 것이라 위 BREAKING 목록과 분리한다. 상세는 INT-010·INTSPEC-004. 이 예외의 근거 결정은 ADR-023 이 소유한다.
 
 ## 인증 정책 (사용자 확정 2026-07-27)
 JWT 는 관제서버가 발급한 것을 사용하며 저작도구는 발급하지 않는다. 관제 ADR-027 의 '저작도구 발급 JWT' 표현은 관제 측 부정확 — 협의 시 정정 요청 대상.

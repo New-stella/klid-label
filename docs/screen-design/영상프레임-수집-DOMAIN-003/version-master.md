@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-18T03:36:01.952Z (session 8) |
+| Last sync | 2026-08-21T00:06:06.539Z (session 9) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 164 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
@@ -18,20 +18,20 @@
 | [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 14 | false | UNCHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 15 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 4 | true | UNCHANGED |
-| [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
-| [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 2 | false | UNCHANGED |
-| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 3 | false | UNCHANGED |
+| [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 6 | false | UNCHANGED |
+| [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 46 | false | UNCHANGED |
-| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 13 | false | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 12 | false | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 51 | true | UNCHANGED |
+| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 16 | true | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 12 | true | UNCHANGED |
 | [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 20 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |

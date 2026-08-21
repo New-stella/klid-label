@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "검수 승인·반려 시퀀스",
-      "source": "sequenceDiagram\n    actor W as 라벨링 작업자(WORKER)\n    actor R as 검수자(REVIEWER)\n    participant C as ReviewController\n    participant S as ReviewService\n    participant G as LabelAccessGuard(비식별신고게이트)\n    participant SM as ReviewStateMachine\n    participant V as VersionService\n    participant EA as EvntAnnoReviewService\n    participant M as MetaService\n    participant SNAP as DatasetVideoMetaSnapshotService\n    participant BUS as ApplicationEventPublisher\n    participant BR as DatasetExportBridge\n    participant RUN as AsyncDatasetExportRunner\n    participant EXP as DatasetExportService\n    participant N as ControlNotifyService\n    participant CTRL as 관제서버\n    participant DEB as ControlNotifyDebouncer\n\n    W->>C: POST /v1/reviews/{videoId}/submit\n    C->>S: submit(videoId, actor)\n    S->>SM: verify(ASSIGNED→PENDING)\n    SM-->>S: OK\n    S->>S: LS_TASK_EVNT_LOG SUBMIT 기록\n    S-->>C: PENDING 응답\n    C-->>W: 200 OK\n\n    R->>C: POST /v1/reviews/{videoId}/start\n    C->>S: startReview(videoId, actor)\n    S->>SM: verify(PENDING→IN_REVIEW)\n    SM-->>S: OK\n    S->>S: IN_REVIEW 전이\n    S-->>C: 응답\n    C-->>R: 200 OK\n\n    R->>C: POST /v1/reviews/{videoId}/approve\n    C->>S: approve(videoId, req, actor)\n    S->>G: requireNotUnderDeidentReport(rawSn)\n    alt 비식별 신고 구간(DE_IDENT_YN='F')이면\n        G-->>S: 412 PRECONDITION_FAILED\n        S-->>C: 412 응답(흐름 중단 — 이후 단계 전혀 실행되지 않음)\n        C-->>R: 412 Precondition Failed\n    else 신고 없음\n        G-->>S: 통과\n        S->>S: 재승인 여부 판정(currentStatus=APPROVED && REVLT_YN='Y')\n        alt 최초 승인\n            S->>SM: verify(IN_REVIEW→APPROVED)\n            SM-->>S: OK\n            S->>S: DATA_STTS_CD ← APPROVED 전이\n        else 재승인(REVLT_YN='Y')\n            S->>S: 상태 전이 생략(이미 APPROVED, 멱등) + REVLT_YN 표시 해제\n        end\n        S->>S: LS_TASK_EVNT_LOG APPROVE 기록\n        S->>S: flush() — 상태 커밋(낙관적 잠금 충돌 시 409 CONFLICT)\n        S->>V: commitApproved(rawSn, actor)\n        V-->>S: LS_LABEL_VERSION 스냅샷 생성(SAVE_REASON=APPROVED)\n        S->>EA: autoApproveOnVideoApproval(rawSn, actor)\n        EA-->>S: event_annotation 검토 APPROVED 전이\n        S->>M: autoApproveOnVideoApproval(rawSn, actor)\n        M-->>S: 시계열 메타 검토 APPROVED 전이\n        S->>SNAP: materialize(rawSn)\n        SNAP-->>S: LS_DATASET_VIDEO_META 동결(라벨·event_annotation·메타 통합 스냅샷)\n        alt 최초 승인\n            S->>BUS: publishEvent(ReviewApprovedEvent)\n        else 재승인 & 열린 디바운스 윈도우 있음\n            Note over S: 이벤트 미발행 — REVLT_YN 해제로 기존 축적 윈도우가<br/>다음 flush tick 에 자동으로 풀린다(아래 재승인 흐름 참조)\n        else 재승인인데 열린 윈도우 없음(방어적 폴백)\n            S->>BUS: publishEvent(ReviewApprovedEvent) — 폴백 강제 재생성\n        end\n        S-->>C: 승인 응답(APPROVED)\n        C-->>R: 200 OK\n    end\n\n    Note over BUS,CTRL: AFTER_COMMIT — 검수 승인 트랜잭션이 커밋된 이후에만 아래가 실행된다\n    BUS->>BR: onReviewApproved(ReviewApprovedEvent)\n    BR->>RUN: runApprovalAsync(rawSn)\n    RUN->>EXP: export(rawSn, forceRegenerate=true)\n    EXP-->>RUN: SUCCEEDED(새 버전 v{n+1} 폴더, 이미지 2벌 전량 재생성)\n    RUN->>BUS: publishEvent(DatasetExportCompletedEvent)\n    BUS->>N: onExportCompleted(DatasetExportCompletedEvent)\n    N->>N: sendCompleted(rawSn) — TASK_COMPLETED 페이로드 조립\n    N->>CTRL: TASK_COMPLETED 통지(job_id 등 9필드 + output_ver_no)\n\n    opt 재승인이었고 REVLT_YN 해제로 열린 디바운스 윈도우가 있었다면(다음 flush tick, 별도 스케줄 스레드)\n        DEB->>DEB: flushExpiredWindows() tick — 클레임 성공\n        DEB->>RUN: runReExportThenNotify(rawSn, true, notifyCallback)\n        RUN->>EXP: export(rawSn, true)\n        EXP-->>RUN: SUCCEEDED(새 버전 v{n+1} 폴더)\n        RUN->>N: notifyCallback 실행 → sendModified(rawSn, changedItems, true)\n        N->>CTRL: TASK_MODIFIED 통지\n    end\n\n    alt REVIEWER 가 반려를 선택한 경우\n        R->>C: POST /v1/reviews/{videoId}/reject\n        C->>S: reject(videoId, req, actor)\n        S->>SM: verify(IN_REVIEW→REJECTED)\n        SM-->>S: OK\n        S->>S: LS_DATA_ISSUE 반려사유 기록(계층 연결)\n        S->>S: DATA_STTS_CD ← REJECTED 전이\n        S->>S: LS_TASK_EVNT_LOG REJECT 기록\n        S->>S: flush()\n        S-->>C: 반려 응답(REJECTED)\n        C-->>R: 200 OK\n    end\n",
+      "source": "sequenceDiagram\n    actor W as 라벨링 작업자(WORKER)\n    actor R as 검수자(REVIEWER)\n    participant C as ReviewController\n    participant S as ReviewService\n    participant G as LabelAccessGuard(비식별신고게이트)\n    participant SM as ReviewStateMachine\n    participant V as VersionService\n    participant EA as EvntAnnoReviewService\n    participant M as MetaService\n    participant SNAP as DatasetVideoMetaSnapshotService\n    participant BUS as ApplicationEventPublisher\n    participant BR as DatasetExportBridge\n    participant RUN as AsyncDatasetExportRunner\n    participant EXP as DatasetExportService\n    participant N as ControlNotifyService\n    participant CTRL as 관제서버\n    participant DEB as ControlNotifyDebouncer\n\n    W->>C: POST /v1/reviews/{videoId}/submit\n    C->>S: submit(videoId, actor)\n    S->>SM: verify(ASSIGNED→PENDING)\n    SM-->>S: OK\n    S->>S: LS_TASK_EVNT_LOG SUBMIT 기록\n    S-->>C: PENDING 응답\n    C-->>W: 200 OK\n\n    R->>C: POST /v1/reviews/{videoId}/start\n    C->>S: startReview(videoId, actor)\n    S->>SM: verify(PENDING→IN_REVIEW)\n    SM-->>S: OK\n    S->>S: IN_REVIEW 전이\n    S-->>C: 응답\n    C-->>R: 200 OK\n\n    R->>C: POST /v1/reviews/{videoId}/approve\n    C->>S: approve(videoId, req, actor)\n    S->>S: 비식별화완료여부 확인(검수 워크플로 상태와 같은 자리, Y/N, 기본값 Y)\n    alt 비식별화완료여부가 N 이면\n        S-->>C: 승인 거부 — 상태 전이 이전에 판정되어 흐름이 여기서 끝난다\n        C-->>R: 승인 거부 응답(검수 상태 전이·버전 스냅샷·산출물 재생성·관제 통지 어느 것도 발생하지 않음)\n    else 비식별화완료여부가 Y 이면\n        Note over S: 이 값이 막는 것은 검수 승인뿐이다 — 라벨 조회·프레임 이미지·<br/>영상 스트리밍·산출물 생성은 닫히지 않는다.<br/>그 통로들까지 함께 닫는 아래의 비식별 누락 신고 게이트와는 별개의 축이다\n    end\n    S->>G: requireNotUnderDeidentReport(rawSn)\n    alt 비식별 신고 구간(DE_IDENT_YN='F')이면\n        G-->>S: 412 PRECONDITION_FAILED\n        S-->>C: 412 응답(흐름 중단 — 이후 단계 전혀 실행되지 않음)\n        C-->>R: 412 Precondition Failed\n    else 신고 없음\n        G-->>S: 통과\n        S->>S: 재승인 여부 판정(currentStatus=APPROVED && REVLT_YN='Y')\n        alt 최초 승인\n            S->>SM: verify(IN_REVIEW→APPROVED)\n            SM-->>S: OK\n            S->>S: DATA_STTS_CD ← APPROVED 전이\n        else 재승인(REVLT_YN='Y')\n            S->>S: 상태 전이 생략(이미 APPROVED, 멱등) + REVLT_YN 표시 해제\n        end\n        S->>S: LS_TASK_EVNT_LOG APPROVE 기록\n        S->>S: flush() — 상태 커밋(낙관적 잠금 충돌 시 409 CONFLICT)\n        S->>V: commitApproved(rawSn, actor)\n        V-->>S: LS_LABEL_VERSION 스냅샷 생성(SAVE_REASON=APPROVED)\n        S->>EA: autoApproveOnVideoApproval(rawSn, actor)\n        EA-->>S: event_annotation 검토 APPROVED 전이\n        S->>M: autoApproveOnVideoApproval(rawSn, actor)\n        M-->>S: 시계열 메타 검토 APPROVED 전이\n        S->>SNAP: materialize(rawSn)\n        SNAP-->>S: LS_DATASET_VIDEO_META 동결(라벨·event_annotation·메타 통합 스냅샷)\n        alt 최초 승인\n            S->>BUS: publishEvent(ReviewApprovedEvent)\n        else 재승인 & 열린 디바운스 윈도우 있음\n            Note over S: 이벤트 미발행 — REVLT_YN 해제로 기존 축적 윈도우가<br/>다음 flush tick 에 자동으로 풀린다(아래 재승인 흐름 참조)\n        else 재승인인데 열린 윈도우 없음(방어적 폴백)\n            S->>BUS: publishEvent(ReviewApprovedEvent) — 폴백 강제 재생성\n        end\n        S-->>C: 승인 응답(APPROVED)\n        C-->>R: 200 OK\n    end\n\n    Note over BUS,CTRL: AFTER_COMMIT — 검수 승인 트랜잭션이 커밋된 이후에만 아래가 실행된다\n    BUS->>BR: onReviewApproved(ReviewApprovedEvent)\n    BR->>RUN: runApprovalAsync(rawSn)\n    RUN->>EXP: export(rawSn, forceRegenerate=true)\n    EXP-->>RUN: SUCCEEDED(새 버전 v{n+1} 폴더, 이미지 2벌 전량 재생성)\n    RUN->>BUS: publishEvent(DatasetExportCompletedEvent)\n    BUS->>N: onExportCompleted(DatasetExportCompletedEvent)\n    N->>N: sendCompleted(rawSn) — TASK_COMPLETED 페이로드 조립\n    N->>CTRL: TASK_COMPLETED 통지(필수 필드 전부 + 선택 output_ver_no)\n\n    opt 재승인이었고 REVLT_YN 해제로 열린 디바운스 윈도우가 있었다면(다음 flush tick, 별도 스케줄 스레드)\n        DEB->>DEB: flushExpiredWindows() tick — 클레임 성공\n        DEB->>RUN: runReExportThenNotify(rawSn, true, notifyCallback)\n        RUN->>EXP: export(rawSn, true)\n        EXP-->>RUN: SUCCEEDED(새 버전 v{n+1} 폴더)\n        RUN->>N: notifyCallback 실행 → sendModified(rawSn, changedItems, true)\n        N->>CTRL: TASK_MODIFIED 통지\n    end\n\n    alt REVIEWER 가 반려를 선택한 경우\n        R->>C: POST /v1/reviews/{videoId}/reject\n        C->>S: reject(videoId, req, actor)\n        S->>SM: verify(IN_REVIEW→REJECTED)\n        SM-->>S: OK\n        S->>S: LS_DATA_ISSUE 반려사유 기록(계층 연결)\n        S->>S: DATA_STTS_CD ← REJECTED 전이\n        S->>S: LS_TASK_EVNT_LOG REJECT 기록\n        S->>S: flush()\n        S-->>C: 반려 응답(REJECTED)\n        C-->>R: 200 OK\n    end\n",
       "messages": [
         {
           "to": "controller",
@@ -110,6 +110,30 @@
           "from": "controller",
           "kind": "sync",
           "label": "approve(videoId, req, actor)"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "비식별화완료여부 확인 — 검수 워크플로 상태와 같은 자리에 보관되는 Y/N 값(기본값 Y)"
+        },
+        {
+          "to": "controller",
+          "from": "svc",
+          "kind": "return",
+          "label": "승인 거부 — 비식별화완료여부가 N (상태 전이 이전에 판정되어 흐름이 여기서 끝난다)"
+        },
+        {
+          "to": "reviewer",
+          "from": "controller",
+          "kind": "return",
+          "label": "승인 거부 응답 — 검수 상태 전이·라벨 버전 스냅샷·학습데이터 산출물 재생성·관제 통지가 하나도 발생하지 않는다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "비식별화완료여부가 막는 것은 검수 승인뿐이다 — 라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성은 이 값으로 닫히지 않는다. 그 통로들까지 함께 닫는 것은 아래의 비식별 누락 신고 게이트이며 별개의 축이다"
         },
         {
           "to": "gate",
@@ -291,7 +315,7 @@
           "to": "control",
           "from": "notify",
           "kind": "async",
-          "label": "TASK_COMPLETED 통지(job_id 등 9필드 + output_ver_no)",
+          "label": "TASK_COMPLETED 통지(필수 필드 전부 + 선택 output_ver_no)",
           "item_ref": "EVT-003"
         },
         {
@@ -395,16 +419,22 @@
       ],
       "fragments": [
         {
+          "kind": "alt",
+          "label": "비식별화완료여부 판정 — N 이면 승인 거부(흐름 종료) / Y 이면 승인 계속",
+          "end_index": 19,
+          "start_index": 17
+        },
+        {
           "kind": "opt",
           "label": "재승인이었고 REVLT_YN 해제로 열린 디바운스 윈도우가 있었다면(다음 flush tick, 별도 스케줄 스레드)",
-          "end_index": 51,
-          "start_index": 46
+          "end_index": 55,
+          "start_index": 50
         },
         {
           "kind": "alt",
           "label": "REVIEWER 가 반려를 선택한 경우",
-          "end_index": 61,
-          "start_index": 52
+          "end_index": 65,
+          "start_index": 56
         }
       ],
       "brownfield": {
@@ -414,7 +444,7 @@
         ],
         "diff_summary": "2차 신규 — 1차에는 없던 승인→버전스냅샷→export→완료통지 파이프라인과 재승인 시 재검토표시(REVLT_YN) 기반 디바운스 재생성 흐름을 처음으로 시각화한다."
       },
-      "description": "검수자(REVIEWER)가 제출된 영상을 승인/반려하는 흐름의 시퀀스 다이어그램. 제출(submit)·검수 시작(start)·승인(approve)·반려(reject) 4개 API 호출과, 승인 트랜잭션 내부에서 일어나는 비식별 신고 게이트 · 라벨 전체 스냅샷 생성 · event_annotation·시계열 메타 자동 승인 · 통합 메타 동결(materialize)을 그린다. 승인 트랜잭션 커밋 이후(AFTER_COMMIT)에 비동기로 이어지는 학습데이터 산출(export)과, 그 산출이 성공한 뒤에만 나가는 관제 완료 통지(TASK_COMPLETED)까지 포함한다. 최초 승인과 재승인(검수완료 후 수정 → 재검수 → 재승인)은 이벤트 발행 여부가 갈리며, 재승인의 경우 산출·수정 통지(TASK_MODIFIED)는 이 API 호출 안에서 나가지 않고 재검토 표시(REVLT_YN) 해제로 풀리는 디바운스 윈도우가 별도 스케줄 tick 에서 처리한다.",
+      "description": "검수자(REVIEWER)가 제출된 영상을 승인/반려하는 흐름의 시퀀스 다이어그램. 제출(submit)·검수 시작(start)·승인(approve)·반려(reject) 4개 API 호출과, 승인 트랜잭션 내부에서 일어나는 비식별 신고 게이트 · 라벨 전체 스냅샷 생성 · event_annotation·시계열 메타 자동 승인 · 통합 메타 동결(materialize)을 그린다. 승인 트랜잭션 커밋 이후(AFTER_COMMIT)에 비동기로 이어지는 학습데이터 산출(export)과, 그 산출이 성공한 뒤에만 나가는 관제 완료 통지(TASK_COMPLETED)까지 포함한다. 완료 통지 페이로드는 영상 단위 메타만 싣는 평면 snake_case 객체이며, 필수 필드는 job_id·event_type_cd·evnt_cls_cd·evnt_ctgry_cd·lclgv_cd·lclgv_nm·duration_sec·image_count·gen_ai_yn 이고 여기에 선택 필드 output_ver_no 가 더해진다. 필수 필드는 값이 null 이어도 키를 남기고(키를 빼면 수신측이 전량 거부한다) 선택 필드는 값이 없으면 키 자체를 생략한다 — 이 비대칭은 의도된 것이라 한쪽으로 통일하지 않는다. 최초 승인과 재승인(검수완료 후 수정 → 재검수 → 재승인)은 이벤트 발행 여부가 갈리며, 재승인의 경우 산출·수정 통지(TASK_MODIFIED)는 이 API 호출 안에서 나가지 않고 재검토 표시(REVLT_YN) 해제로 풀리는 디바운스 윈도우가 별도 스케줄 tick 에서 처리한다. 승인 요청 직후에는 비식별화완료여부(검수 워크플로 상태와 같은 자리에 보관되는 Y/N 값, 기본값 Y)를 먼저 판정한다. 그 값이 N 이면 승인이 거부되고 흐름이 거기서 끝나므로 검수 상태 전이·라벨 버전 스냅샷·학습데이터 산출물 재생성·관제 통지가 하나도 발생하지 않는다. 이 판정이 막는 것은 검수 승인뿐이며, 라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성까지 함께 닫는 비식별 누락 신고 게이트와는 별개의 축이다.",
       "invokes_apis": [
         "API-012",
         "API-013",
@@ -536,12 +566,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-023의 data.brownfield 변경 — realizes",
-    "change_summary": "DOMAIN-005(검수)에 시퀀스 다이어그램이 하나도 없어(retired 포함 0건) UC-023(검수 승인·반려)의 happy path 를 신설한다. ReviewService.approve/reject 및 승인 후 AFTER_COMMIT 산출·통지 체인을 코드(ReviewService, DatasetExportBridge, AsyncDatasetExportRunner, ControlNotifyDebouncer 등)를 직접 읽어 그렸다. 비식별 신고 구간 412 차단, 라벨 스냅샷·event_annotation/메타 자동승인·통합메타 동결 순서, 최초승인과 재승인의 이벤트 발행 분기, export 성공 후에만 나가는 완료 통지, 반려 경로를 담았다.",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "완료 통지 페이로드의 개수 표기를 걷어냈다. 화살표 라벨은 개수 대신 성질로 적고(필수 필드 전부 + 선택 output_ver_no) 필드명 전수 열거는 설명으로 옮겼다. 개수 표기는 항목이 하나 늘 때마다 그것을 인용한 모든 층이 동시에 틀리기 때문이다. 함께 키 유무 비대칭(필수는 null 이어도 키 유지 / 선택은 null 이면 키 생략)을 설명에 명시했다. mermaid 소스와 정형 messages 를 같이 갱신해 한 ITEM 안에 진실원이 둘 생기지 않게 했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T23:43:42.226Z",
+    "last_updated_at": "2026-08-20T16:03:38.889Z",
     "created_at": "2026-08-15T23:43:42.226Z"
   }
 }

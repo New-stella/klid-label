@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 44
-last_updated_at: 2026-08-18T03:34:49.517Z
+version: 46
+last_updated_at: 2026-08-18T06:43:54.352Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T03:35:58.537Z
-sync_session: 8
+synced_at: 2026-08-21T00:06:07.051Z
+sync_session: 9
 stale: false
-status: CHANGED
-prev_version: 42
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-029]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v42 → v44**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
@@ -141,9 +137,9 @@ _(empty)_
 
 #### [3]
 
-- **note**: 검수자에게는 미배정 옵션이 추가된다. 상태 필터도 이벤트유형과 마찬가지로 역할 무관 서버 필터로 위임되며 현재 페이지 안에서 다시 거르지 않는다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
+- **note**: 선택지는 역할에 따라 다르다. 검수자는 위 목록 그대로이며 배정 완료와 작업중이 한 값으로 묶인다. 작업자는 본인에게 배정된 것만 다루므로 미배정이 없고, 배정 완료와 작업중이 각각 별도 선택지로 나뉜다. 상태 필터도 이벤트유형과 마찬가지로 역할 무관 서버 필터로 위임되며 현재 페이지 안에서 다시 거르지 않는다. 입력만으로는 조회되지 않고 '조회' 버튼을 눌러야 반영된다.
 - **type**: Select
-- **label**: 상태: 전체/미배정/배정 완료/작업중/검수요청/완료/반려
+- **label**: 상태
 
 **columns**:
 
@@ -153,8 +149,7 @@ _(empty)_
 
 - 전체
 - 미배정
-- 대기
-- 작업중
+- 배정 완료(작업중)
 - 검수요청
 - 완료
 - 반려
@@ -371,15 +366,15 @@ _(empty)_
 
 - **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(WINTER/NIGHT/RAIN 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다).
 - **type**: Table
-- **label**: 선택/영상명/영상 ID/이벤트/촬영일시/상태/작업자/검수자/액션
+- **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/검수자/액션
 
 **columns**:
 
 - 선택
 - 영상명
 - 영상 ID
-- 이벤트
 - 촬영일시
+- 이벤트
 - 상태
 - 작업자
 - 검수자
@@ -727,7 +722,7 @@ _(empty)_
 
 - **custom_name**: EmptyState
 
-- **description**: 우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(시계 아이콘+제목+닫기) + 대상 작업(영상명) + 타임라인(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT 워크플로 이벤트 6종 + PRIVACY_META_UPDATE/PRIVACY_META_RESET 개인정보 선언 변경·초기화 감사 이벤트 2종, 총 8종, 이벤트별 dot 색상 + 일시 + 설명 + 반려 사유). 감사 이벤트 2종은 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지 기록하는 용도이며, 실제 판정값(Y/N)은 표시하지 않고 고정된 사유 문구만 보여준다. ESC/배경클릭/X 닫기, 포커스 트랩.
+- **description**: 우측 슬라이드 Drawer(REVIEWER/WORKER 본인). 헤더(제목+닫기) + 대상 작업(영상명) + 타임라인(ASSIGN/REASSIGN/SUBMIT/CANCEL_SUBMIT/APPROVE/REJECT 워크플로 이벤트 6종 + PRIVACY_META_UPDATE/PRIVACY_META_RESET 개인정보 선언 변경·초기화 감사 이벤트 2종, 총 8종, 이벤트별 dot 색상 + 일시 + 설명 + 반려 사유). 감사 이벤트 2종은 배정·검수 진행 자체가 아니라 개인정보 선언값이 언제 바뀌었는지 기록하는 용도이며, 실제 판정값(Y/N)은 표시하지 않고 고정된 사유 문구만 보여준다. ESC/배경클릭/X 닫기, 포커스 트랩.
 
 **references_apis**:
 

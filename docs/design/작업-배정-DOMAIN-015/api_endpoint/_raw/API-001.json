@@ -104,9 +104,19 @@
                           "format": "date-time",
                           "description": "등록일시 (regDt alias)"
                         },
+                        "lastLgnDt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "BE 원본 최종로그인일시. 한 번도 들어온 적 없으면 null"
+                        },
                         "userEmail": {
                           "type": "string",
                           "description": "BE 원본 이메일"
+                        },
+                        "lastLoginAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "최종 로그인 일시 (lastLgnDt alias). 한 번도 들어온 적 없으면 null"
                         }
                       }
                     },
@@ -267,7 +277,53 @@
         "diff_summary": "1차 사용자·권한(LS_ACNT_USER, ERD-001 deprecated — 1차 원형) 기반 사용자 목록 조회"
       },
       "deprecated": false,
-      "parameters": [],
+      "parameters": [
+        {
+          "in": "query",
+          "name": "keyword",
+          "schema": {
+            "type": "string"
+          },
+          "required": false,
+          "description": "검색 키워드 (USER_ID/USER_NM/USER_EMAIL 부분일치, 선택)"
+        },
+        {
+          "in": "query",
+          "name": "role",
+          "schema": {
+            "enum": [
+              "REVIEWER",
+              "WORKER",
+              "PORTAL_USER"
+            ],
+            "type": "string"
+          },
+          "required": false,
+          "description": "역할 필터 (REVIEWER/WORKER/PORTAL_USER, 선택)"
+        },
+        {
+          "in": "query",
+          "name": "page",
+          "schema": {
+            "type": "integer",
+            "default": 0
+          },
+          "example": 0,
+          "required": false,
+          "description": "페이지 번호 (0-based)"
+        },
+        {
+          "in": "query",
+          "name": "size",
+          "schema": {
+            "type": "integer",
+            "default": 20
+          },
+          "example": 20,
+          "required": false,
+          "description": "페이지 크기 (max 100, 초과 시 400)"
+        }
+      ],
       "description": "사용자 목록을 페이징 조회한다. REVIEWER 전용.",
       "calls_external": [],
       "implementation": {
@@ -283,12 +339,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "[brownfield.diff_summary 정정] 두 오류를 바로잡았다. ①ERD-001 은 status=deprecated 인데 'preserved' 로 적혀 있었다. ②물리 사용자 마스터 테이블은 LS_USER_* 접두 패턴이 아니라 LS_ACNT_USER(V1 baseline) 다 — ADR-043 으로 관제 공유 MNG_ACCT_USER 에서 저작도구 소유로 이관되며 확정된 이름.",
+    "change_summary": "목록 응답 항목에 최종 로그인 일시를 더한다(별칭과 원본명 두 벌 — 이 응답의 기존 별칭 규약과 같은 형태). 화면이 등록일과 최신 로그인을 각각 보여주려면 두 값이 따로 와야 한다. 한 번도 들어온 적 없는 계정은 null 이며 등록일로 대체하지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T01:57:11.404Z",
+    "last_updated_at": "2026-08-17T09:51:38.044Z",
     "created_at": "2026-05-30T06:56:21.419Z"
   }
 }

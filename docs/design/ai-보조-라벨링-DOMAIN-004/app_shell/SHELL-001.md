@@ -1,17 +1,17 @@
 ---
 logicraft_item: SHELL-001
 type: app_shell
-version: 9
+version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T08:16:58.280Z
-status: NEW
-prev_version: null
-content_hash: 4a9cbaf682b71d74b9d0168cbb57c2412cb684de8e6204965bc41ae435e7be58
+synced_at: 2026-08-21T00:02:41.358Z
+status: CHANGED
+prev_version: 9
+content_hash: eaa271a476992c03c6f2a5941f41873180a686594a5bceae94336d7ec76d38a6
 stale: true
 raw: ./_raw/SHELL-001.json
 links:
-  applies_to: ["[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-027]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
+  applies_to: ["[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-027]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]", "[[SCREEN-039]]"]
   references: ["[[NAV-001]]"]
 ---
 
@@ -146,6 +146,7 @@ _(empty)_
 - SCREEN-036
 - SCREEN-037
 - SCREEN-038
+- SCREEN-039
 
 ## default_navigation_id
 

@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 94
+version: 96
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T07:12:56.479Z
+synced_at: 2026-08-21T00:02:53.048Z
 status: CHANGED
-prev_version: 76
-content_hash: 3cf90ed6d4e78346f1e76d5d9a430dcfafc5c6deb1338411df74ce78b0d481ca
-stale: false
+prev_version: 94
+content_hash: 97234a8f8686ae50fe1dca181e5d672e16532fa74d828f8d876daafd5a7d8d07
+stale: true
 raw: ./_raw/SCREEN-005.json
 links:
   belongs_to_domain: ["[[DOMAIN-010]]"]
@@ -1808,7 +1808,7 @@ _(empty)_
 
 #### [7]
 
-- **note**: 선택한 객체를 캔버스에서 보이거나 안 보이게 전환한다(단축키 T). 저장 대상에는 영향을 주지 않는 화면 표시 전용 토글이다.
+- **note**: 선택한 객체를 캔버스에서 보이거나 안 보이게 전환한다(단축키 T). 저장 대상에는 영향을 주지 않는 화면 표시 전용 토글이다. 선택된 객체가 없으면 이 버튼은 비활성으로 두고 사유(객체를 먼저 선택해야 한다)를 알린다 — 눌리는 모양인데 아무 반응도 없으면 고장으로 읽히기 때문이다. 단축키는 선택이 없을 때 아무 일도 하지 않는다.
 - **type**: Button
 - **label**: 라벨 표시/숨김
 
@@ -1969,8 +1969,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 29105a8585f220bcaffa42dabf6cef7f84222c3e06e4125b5446a5bc0ee1db46
-- **generated_at**: 2026-08-18T07:01:07.309Z
+- **source_hash**: 351db5b3efc2f927a05acf82b40a8f4b5d771cc81e645486b4287d96148f1160
+- **generated_at**: 2026-08-19T01:56:32.231Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-011
 type: screen_spec
-version: 18
+version: 21
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:57.862Z
-status: NEW
-prev_version: null
-content_hash: d4a0fd3b7260d1442e2940ab9a1ffd3fcd87a3ddacd1485dfed4c3e4332daa0d
+synced_at: 2026-08-21T00:02:54.788Z
+status: CHANGED
+prev_version: 18
+content_hash: 6ddf09d2656d182a6bafd7a986800bd9c0c4854c8ee372e7233390eb4c880934
 stale: true
 raw: ./_raw/SCREEN-011.json
 links:
@@ -197,7 +197,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준).
+- **note**: 주 수치=approvedImageCount(검수완료 기준, 장). 보조 텍스트 '검수완료 기준 · 전체 {cumulativeImageCount}장 (완료율 N%)'. 하단 이벤트 분포는 approvedImageDistribution(검수완료 기준). 주 수치와 프레임 단위 분포는 폐기되지 않은 프레임만 센다 — 보조의 전체 수치는 걸러내지 않는다.
 - **type**: Card
 - **label**: 이미지 데이터 개수
 
@@ -241,7 +241,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답.
+- **description**: 2열 카드. '이미지 데이터 개수'(주 수치 approvedImageCount 장, 보조 '검수완료 기준 · 전체 N장(완료율 X%)') + '영상 데이터 개수'(주 수치 approvedVideoCount 건, 동일 보조 패턴). 각 카드 하단에 검수완료 기준 이벤트 분포(approvedImageDistribution/approvedEventDistribution)를 개수 무관하게 그대로 순회 렌더. 모두 /stats/summary 응답. 이미지 카드의 주 수치와 그 하단 프레임 단위 분포는 검수완료 영상의 프레임 중 폐기되지 않은 것만 센 값이다 — 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로 확정 분량을 뜻하는 이 수치도 같은 집합이어야 한다. 보조로 병기하는 전체 기준 수치는 수집한 전체 분량이라는 다른 축이라 폐기 여부로 걸러내지 않는다. 영상 카드와 영상 단위 분포는 폐기와 무관하다.
 
 **references_apis**:
 
@@ -479,14 +479,15 @@ _(empty)_
 - **label**: 대시보드 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
 - **description**: 
-- **source_hash**: 5c4fb998bb68c08d257cee833f5856ae959bbf1b2579581a77848f50d979cd32
-- **generated_at**: 2026-08-16T12:43:59.539Z
+- **source_hash**: ca9da9dfc3f5d7f2655838d4bcb045cb998af598ccc60e115f40a834131a83a0
+- **generated_at**: 2026-08-17T12:44:49.242Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

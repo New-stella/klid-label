@@ -42,7 +42,7 @@
         "FEAT-001",
         "FEAT-009"
       ],
-      "verification_method": "manual_test",
+      "verification_method": "automated_test",
       "derived_from_use_cases": [
         "UC-021",
         "UC-022"
@@ -50,12 +50,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "DFEAT-015의 3개 필드 변경이 derived_from로 2-hop 전파",
-    "change_summary": "상위 유스케이스 변경에 따른 재확인. 바뀐 것은 저장 충돌 대안 흐름에 응답 코드를 채운 한 문장이고, 이 수용기준은 라벨·메타가 부여되어 학습데이터로 확정되는가라는 성과 축이라 저장 경로의 동시성 처리를 담지 않는다. 그 축은 라벨 저장·버전 비교 쪽 수용기준과 응답 계약이 소유한다. 본문은 바꾸지 않는다.",
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이 수용기준을 구성하는 라벨·메타 저장, 시계열 메타 검토, 검수 승인 각 요소는 자동 검증 대상이다. 다만 셋을 잇는 단일 통합 시나리오 검증은 별도이며 아직 갖춰지지 않았다 — 구성요소별 자동 검증을 통합 커버리지로 오해하지 말 것.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T10:08:51.492Z",
+    "last_updated_at": "2026-08-16T23:37:47.320Z",
     "created_at": "2026-06-09T13:03:18.226Z"
   }
 }

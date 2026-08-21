@@ -15,7 +15,7 @@
           "seq": 1,
           "note": "TC-004 | auto_test / 논블로킹 제출 — ACK 왕복 동안 파이프라인 스레드를 점유하지 않는다",
           "action": "VLM 시계열 위탁 제출(논블로킹)",
-          "expected": "제출을 개시하고 즉시 반환한다(status=\"submitted\"). 【검증】제출 전 선커밋 2건 — DB: SELECT CHNL_CD, STTS_CD, RAW_SN FROM LS_WEBHOOK_IDEMPOTENCY WHERE IDMP_KEY=:requestId → CHNL_CD='VLM'·STTS_CD='ISSUED' 1행; SELECT STTS_CD FROM LS_MARKING WHERE MARKING_SN=:markingSn → 'VLM_REQUESTED'. 수락(ACK) 수신 시 완료 핸들러가 원장을 ISSUED→ACCEPTED 로 비동기 전이한다. 외부 연동(외부 VLM 위탁 — 기본 vlm.client.enabled=false 토글 off, 활성 시 실 위탁)",
+          "expected": "제출을 개시하고 즉시 반환한다(status=\"submitted\"). 【검증】제출 전 선커밋 2건 — DB: SELECT CHNL_CD, STTS_CD, RAW_SN FROM LS_WEBHOOK_IDEMPOTENCY WHERE IDMP_KEY=:requestId → CHNL_CD='VLM'·STTS_CD='ISSUED' 1행; SELECT STTS_CD FROM LS_MARKING WHERE MARKING_SN=:markingSn → 'VLM_REQUESTED'. 수락(ACK) 수신 시 완료 핸들러가 원장을 ISSUED→ACCEPTED 로 비동기 전이한다. 외부 연동(외부 VLM 위탁 — 활성화 토글은 폐지됐다. 연동 주소가 주입돼 있으면 실 위탁, 없으면 실패한다. 건너뛰려면 검수자가 시계열 묶음을 수동 스킵해야 한다)",
           "test_item": "마킹 완료 영상을 외부 VLM 에 논블로킹 제출하며 상관키를 선커밋하는지 확인",
           "input_data": "【frame_policy.mode】\"frame_selected\" 【selected_frames】\"[360, 1350, 1890]\"(마킹 프레임 인덱스, 정렬·중복제거 후 벤더 상한 8건 이내 — 수동 마킹 경로 예시) 【event_type】\"fire\"(관제 인입값 그대로 위탁, 화이트리스트 사전 차단 없음) 【framerate】\"10\"(LS_MARKING.FRME_INTV_NOCS — 마킹 프레임 간격이며 FPS 가 아니다) 【상관키(request_id)】\"(제출 시 시스템 자동발급 UUID — 원장 키)\" 【콜백 경로】\"서버 고정 /v1/vlm/callback(요청 본문 미포함)\"",
           "preconditions": "마킹 완료된 비식별 영상이 존재한다"
@@ -69,12 +69,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
-    "stale": true,
-    "stale_reason": "SCREEN-005의 data.consumes_apis 변경 — references",
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "current_version": 12,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "외부 연동 서술에서 활성화 토글 전제를 걷어낸다. 토글이 폐지되어 연동 주소가 주입돼 있으면 실 위탁이고 없으면 실패하며, 건너뛰려면 검수자가 시계열 묶음을 수동 스킵해야 한다. 검증 절차와 기대 결과의 나머지는 그대로다. 참고로 이 항목에 서 있던 낡음 표시는 화면 정의의 소비 API 변경이 전파된 것으로 이번 변경 축과 무관하다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:22.686Z",
+    "last_updated_at": "2026-08-19T13:37:22.267Z",
     "created_at": "2026-07-06T03:54:41.650Z"
   }
 }

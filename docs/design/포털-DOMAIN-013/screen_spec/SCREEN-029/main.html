@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-029</span><span class="sep">/</span><span>포털 라벨링 화면</span></div>
       <h1 style="white-space:nowrap">포털 라벨링 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">포털 사용자(PORTAL_USER)가 데이터마트에서 선택한 영상의 프레임을 라벨링하고 저장하는 화면. 작도 도구는 바운딩박스와 폴리곤 수동 작도만 제공한다. ★AI 보조는 포털 전 구간에서 제공하지 않는다 — 분할·추적·오토라벨·시계열 메타 어느 것도 두지 않으며, 그 도구를 여는 버튼과 전용 경로도 만들지 않는다. 검수와 버전관리도 포털에 두지 않는다. 저장할 때 데이터마트 원본을 수정하지 않고 본인 작업 데이터로만 별도 적재한다(API-082) — 단방향이라 작업 결과가 데이터마트로 되돌아가지 않는다. 본인 자산 업로드는 이 화면이 아니라 별도의 포털 업로드 화면이 담당한다. 반응형. 접근: PORTAL_USER. · route /portal/label/:id</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">포털 사용자(PORTAL_USER)가 데이터마트에서 선택한 영상의 프레임을 라벨링하고 저장하는 화면. 작도 도구는 바운딩 박스와 폴리곤 수동 작도만 제공한다. ★AI 보조는 포털 전 구간에서 제공하지 않는다 — 분할·추적·오토라벨·시계열 메타 어느 것도 두지 않으며, 그 도구를 여는 버튼과 전용 경로도 만들지 않는다. 검수와 버전관리도 포털에 두지 않는다. 저장할 때 데이터마트 원본을 수정하지 않고 본인 작업 데이터로만 별도 적재한다(API-082) — 단방향이라 작업 결과가 데이터마트로 되돌아가지 않는다. 본인 자산 업로드는 이 화면이 아니라 별도의 포털 업로드 화면이 담당한다. 반응형. 접근: PORTAL_USER. · route /portal/label/:id</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 라벨링 헤더 바</h2>
@@ -33,7 +33,7 @@
           </div>
           <div class="wf-stack wf-mt">
             <button class="wf-btn">선택 (S)</button><span class="wf-help">ToolType.SELECT</span>
-            <button class="wf-btn">바운딩박스 (B)</button><span class="wf-help">ToolType.BBOX</span>
+            <button class="wf-btn">바운딩 박스 (B)</button><span class="wf-help">ToolType.BBOX</span>
             <button class="wf-btn">폴리곤 (P)</button><span class="wf-help">ToolType.POLYGON</span>
             <button class="wf-btn">화면 맞춤</button><span class="wf-help">캔버스 확대·이동 상태를 초기화해 프레임 전체가 한 화면에 들어오도록 맞춘다. 단축키는 배정하지 않는다.</span>
             <button class="wf-btn">왼쪽으로 90도 회전</button><span class="wf-help">화면 표시만 회전하며 라벨 좌표는 바꾸지 않는다. 회전 중에는 그리기 도구를 잠근다.</span>
@@ -54,8 +54,8 @@
           <div class="wf-stack wf-mt">
             <span class="wf-muted">FrameNavigator</span><span class="wf-help">위치 표시와 이동을 단독으로 담당한다. 스크럽 슬라이더는 켜지 않는다.</span>
             <button class="wf-btn">삭제</button><span class="wf-help">선택 객체를 지운다. 선택이 없으면 아무 일도 하지 않는다.</span>
-            <button class="wf-btn">실행취소</button><span class="wf-help">되돌리기 스택이 비면 비활성</span>
-            <button class="wf-btn">다시실행</button><span class="wf-help">다시실행 스택이 비면 비활성</span>
+            <button class="wf-btn">실행 취소</button><span class="wf-help">되돌리기 스택이 비면 비활성</span>
+            <button class="wf-btn">다시 실행</button><span class="wf-help">다시 실행 스택이 비면 비활성</span>
             <button class="wf-btn">축소</button><span class="wf-help">하한에 닿으면 비활성</span>
             <button class="wf-btn">확대</button><span class="wf-help">상한에 닿으면 비활성</span>
             <button class="wf-btn">라벨 표시/숨김</button><span class="wf-help">선택 객체의 표시 여부를 토글한다.</span>
@@ -175,8 +175,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 좌측 도구바</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>좌측 세로 아이콘 도구바. 선택(S) / 바운딩박스(B) / 폴리곤(P) + 구분선 + 보기 조작(좌/우 90° 회전 — 회전 중에는 그리기 도구를 잠근다, 화면 맞춤, 영역 확대)과 그리드 표시 토글을 두고, 맨 아래 고정 위치에 단축키 도움말 미리 보기를 둔다. ★분할·추적을 비롯한 AI 보조 도구는 포털에 두지 않는다 — 이 화면의 도구는 사람이 직접 그리는 것만 제공하며 그 도구를 여는 버튼 자체를 렌더하지 않는다. 도구 선택은 캔버스 상태만 바꾸고 서버를 호출하지 않는다. 삭제·실행취소·다시실행·저장은 이 도구바가 아니라 캔버스 상단 옵션바에 둔다('캔버스 상단 옵션바' 섹션 참조).</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(선택 (S))<p class="wf-help" style="margin:2px 0 0">ToolType.SELECT</p></li><li>Button(바운딩박스 (B))<p class="wf-help" style="margin:2px 0 0">ToolType.BBOX</p></li><li>Button(폴리곤 (P))<p class="wf-help" style="margin:2px 0 0">ToolType.POLYGON</p></li><li>Button(화면 맞춤)<p class="wf-help" style="margin:2px 0 0">캔버스 확대·이동 상태를 초기화해 프레임 전체가 한 화면에 들어오도록 맞춘다. 단축키는 배정하지 않는다.</p></li><li>Button(왼쪽으로 90도 회전)<p class="wf-help" style="margin:2px 0 0">화면 표시만 회전하며 라벨 좌표는 바꾸지 않는다. 회전 중에는 그리기 도구를 잠근다.</p></li><li>Button(오른쪽으로 90도 회전)<p class="wf-help" style="margin:2px 0 0">화면 표시만 회전하며 라벨 좌표는 바꾸지 않는다. 회전 중에는 그리기 도구를 잠근다.</p></li><li>Button(영역 확대)<p class="wf-help" style="margin:2px 0 0">끌어서 지정한 사각형이 화면을 채우도록 배율과 위치를 옮긴다. 되돌리기는 화면 맞춤이다.</p></li><li>Button(그리드 표시)<p class="wf-help" style="margin:2px 0 0">캔버스에 격자를 겹쳐 표시할지 전환한다.</p></li><li>Button(단축키 도움말 미리 보기)<p class="wf-help" style="margin:2px 0 0">도구바 맨 아래 고정. 마우스를 올리면 단축키 표를 펼친다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>좌측 세로 아이콘 도구바. 선택(S) / 바운딩 박스(B) / 폴리곤(P) + 구분선 + 보기 조작(좌/우 90° 회전 — 회전 중에는 그리기 도구를 잠근다, 화면 맞춤, 영역 확대)과 그리드 표시 토글을 두고, 맨 아래 고정 위치에 단축키 도움말 미리 보기를 둔다. ★분할·추적을 비롯한 AI 보조 도구는 포털에 두지 않는다 — 이 화면의 도구는 사람이 직접 그리는 것만 제공하며 그 도구를 여는 버튼 자체를 렌더하지 않는다. 도구 선택은 캔버스 상태만 바꾸고 서버를 호출하지 않는다. 삭제·실행 취소·다시 실행·저장은 이 도구바가 아니라 캔버스 상단 옵션바에 둔다('캔버스 상단 옵션바' 섹션 참조).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(선택 (S))<p class="wf-help" style="margin:2px 0 0">ToolType.SELECT</p></li><li>Button(바운딩 박스 (B))<p class="wf-help" style="margin:2px 0 0">ToolType.BBOX</p></li><li>Button(폴리곤 (P))<p class="wf-help" style="margin:2px 0 0">ToolType.POLYGON</p></li><li>Button(화면 맞춤)<p class="wf-help" style="margin:2px 0 0">캔버스 확대·이동 상태를 초기화해 프레임 전체가 한 화면에 들어오도록 맞춘다. 단축키는 배정하지 않는다.</p></li><li>Button(왼쪽으로 90도 회전)<p class="wf-help" style="margin:2px 0 0">화면 표시만 회전하며 라벨 좌표는 바꾸지 않는다. 회전 중에는 그리기 도구를 잠근다.</p></li><li>Button(오른쪽으로 90도 회전)<p class="wf-help" style="margin:2px 0 0">화면 표시만 회전하며 라벨 좌표는 바꾸지 않는다. 회전 중에는 그리기 도구를 잠근다.</p></li><li>Button(영역 확대)<p class="wf-help" style="margin:2px 0 0">끌어서 지정한 사각형이 화면을 채우도록 배율과 위치를 옮긴다. 되돌리기는 화면 맞춤이다.</p></li><li>Button(그리드 표시)<p class="wf-help" style="margin:2px 0 0">캔버스에 격자를 겹쳐 표시할지 전환한다.</p></li><li>Button(단축키 도움말 미리 보기)<p class="wf-help" style="margin:2px 0 0">도구바 맨 아래 고정. 마우스를 올리면 단축키 표를 펼친다.</p></li></ul></div>
     </div>
   </div>
   <div id="wf-sec-3" class="wf-sec-detail-modal">
@@ -194,7 +194,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">④ 라벨링 캔버스</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>메인 라벨링 캔버스. 프레임 이미지는 포털 전용 이미지 조회(API-111)를 인증 헤더를 실어 받아 표시한다 — 주소를 이미지 태그에 바로 물리면 인증이 실리지 않아 401 이 난다. 라벨 좌표는 포털 전용 라벨 조회(API-110) 응답(데이터마트 원본 + 본인 작업분 병합)을 정규화해 표시한다. 활성 도구(바운딩박스 / 폴리곤 / 선택)로 객체를 그리며 그린 결과는 본인 작업 데이터로만 저장한다(API-082) — 데이터마트 원본은 수정하지 않는다. ★분할·추적을 비롯한 AI 보조는 포털에 두지 않는다. 데이터마트에 노출된(검수 승인) 영상만 허용한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>메인 라벨링 캔버스. 프레임 이미지는 포털 전용 이미지 조회(API-111)를 인증 헤더를 실어 받아 표시한다 — 주소를 이미지 태그에 바로 물리면 인증이 실리지 않아 401 이 난다. 라벨 좌표는 포털 전용 라벨 조회(API-110) 응답(데이터마트 원본 + 본인 작업분 병합)을 정규화해 표시한다. 활성 도구(바운딩 박스 / 폴리곤 / 선택)로 객체를 그리며 그린 결과는 본인 작업 데이터로만 저장한다(API-082) — 데이터마트 원본은 수정하지 않는다. ★분할·추적을 비롯한 AI 보조는 포털에 두지 않는다. 데이터마트에 노출된(검수 승인) 영상만 허용한다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(라벨링 캔버스) · → API-111<p class="wf-help" style="margin:2px 0 0">ImageLayer + LabelsLayer + OverlayLayer</p></li><li>Custom(프레임 라벨 로더) · → API-110<p class="wf-help" style="margin:2px 0 0">GET /v1/portal/frames/{srcSn}/labels</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-110</li><li>API-111</li></ul></div>
     </div>
@@ -244,8 +244,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑨ 캔버스 상단 옵션바</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>캔버스 위에 고정된 가로 옵션바. 화면을 벗어나지 않고 삭제·실행취소·다시실행·프레임 이동·화면 배율·라벨 표시 여부·저장을 다루는 상시 컨트롤 모음이다. 삭제·실행취소·다시실행·저장은 좌측 도구바가 아니라 이 영역에 둔다 — 같은 동작의 진입점을 둘로 두지 않는다. 삭제는 선택 객체를 지우며 선택이 없으면 아무 일도 하지 않는다. 확대·축소는 한 번에 같은 배율만큼 바꾸고 상한·하한에 닿으면 그 방향 버튼을 비활성으로 둔다. 프레임 이동은 위치 표시와 이동을 단독으로 담당하고 스크럽 슬라이더는 하단 프레임 타임라인이 맡는다. 미저장 변경이 있는 상태로 프레임을 옮기면 저장 여부를 먼저 확인한다. 저장은 현재 프레임의 라벨 전체를 본인 작업 데이터로 적재한다(API-082) — 데이터마트 원본은 수정하지 않는다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 이동 컨트롤)<p class="wf-help" style="margin:2px 0 0">위치 표시와 이동을 단독으로 담당한다. 스크럽 슬라이더는 켜지 않는다.</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">선택 객체를 지운다. 선택이 없으면 아무 일도 하지 않는다.</p></li><li>Button(실행취소)<p class="wf-help" style="margin:2px 0 0">되돌리기 스택이 비면 비활성</p></li><li>Button(다시실행)<p class="wf-help" style="margin:2px 0 0">다시실행 스택이 비면 비활성</p></li><li>Button(축소)<p class="wf-help" style="margin:2px 0 0">하한에 닿으면 비활성</p></li><li>Button(확대)<p class="wf-help" style="margin:2px 0 0">상한에 닿으면 비활성</p></li><li>Button(라벨 표시/숨김)<p class="wf-help" style="margin:2px 0 0">선택 객체의 표시 여부를 토글한다.</p></li><li>Button(저장) · → API-082<p class="wf-help" style="margin:2px 0 0">현재 프레임의 라벨 전체를 본인 작업 데이터로 적재한다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>캔버스 위에 고정된 가로 옵션바. 화면을 벗어나지 않고 삭제·실행 취소·다시 실행·프레임 이동·화면 배율·라벨 표시 여부·저장을 다루는 상시 컨트롤 모음이다. 삭제·실행 취소·다시 실행·저장은 좌측 도구바가 아니라 이 영역에 둔다 — 같은 동작의 진입점을 둘로 두지 않는다. 삭제는 선택 객체를 지우며 선택이 없으면 아무 일도 하지 않는다. 확대·축소는 한 번에 같은 배율만큼 바꾸고 상한·하한에 닿으면 그 방향 버튼을 비활성으로 둔다. 프레임 이동은 위치 표시와 이동을 단독으로 담당하고 스크럽 슬라이더는 하단 프레임 타임라인이 맡는다. 미저장 변경이 있는 상태로 프레임을 옮기면 저장 여부를 먼저 확인한다. 저장은 현재 프레임의 라벨 전체를 본인 작업 데이터로 적재한다(API-082) — 데이터마트 원본은 수정하지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(프레임 이동 컨트롤)<p class="wf-help" style="margin:2px 0 0">위치 표시와 이동을 단독으로 담당한다. 스크럽 슬라이더는 켜지 않는다.</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">선택 객체를 지운다. 선택이 없으면 아무 일도 하지 않는다.</p></li><li>Button(실행 취소)<p class="wf-help" style="margin:2px 0 0">되돌리기 스택이 비면 비활성</p></li><li>Button(다시 실행)<p class="wf-help" style="margin:2px 0 0">다시 실행 스택이 비면 비활성</p></li><li>Button(축소)<p class="wf-help" style="margin:2px 0 0">하한에 닿으면 비활성</p></li><li>Button(확대)<p class="wf-help" style="margin:2px 0 0">상한에 닿으면 비활성</p></li><li>Button(라벨 표시/숨김)<p class="wf-help" style="margin:2px 0 0">선택 객체의 표시 여부를 토글한다.</p></li><li>Button(저장) · → API-082<p class="wf-help" style="margin:2px 0 0">현재 프레임의 라벨 전체를 본인 작업 데이터로 적재한다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-082</li></ul></div>
     </div>
   </div>

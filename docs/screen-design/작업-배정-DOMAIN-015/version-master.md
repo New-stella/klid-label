@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-18T03:35:58.742Z (session 8) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 160 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/logicraft-fix/docs/screen-design/작업-배정-DOMAIN-015 |
+| Last sync | 2026-08-21T00:06:07.137Z (session 9) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 162 |
+| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
 
@@ -22,15 +22,15 @@
 | [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | UNCHANGED |
 | [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | UNCHANGED |
 | [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | UNCHANGED |
-| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 2 | false | UNCHANGED |
+| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 14 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 44 | false | CHANGED |
-| [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 7 | true | CHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 9 | false | UNCHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 9 | true | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 46 | false | UNCHANGED |
+| [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 10 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

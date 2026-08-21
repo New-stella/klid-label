@@ -1,0 +1,64 @@
+{
+  "item": {
+    "id": "NAV-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "navigation_tree",
+    "title": "포털 메뉴 (PORTAL)",
+    "slug": "포털-메뉴-portal",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "nodes": [
+        {
+          "key": "portal-home",
+          "kind": "link",
+          "label": "데이터마트 영상",
+          "route": "/portal",
+          "screen_id": "SCREEN-028",
+          "visible_when": "포털 진입 시 기본 화면. 검수 완료된 데이터마트 영상 목록을 보여준다.",
+          "required_role": "ROLE-003"
+        },
+        {
+          "key": "portal-labeling",
+          "kind": "link",
+          "label": "라벨링",
+          "route": "/portal/label/:id",
+          "screen_id": "SCREEN-029",
+          "visible_when": "포털 영상 선택 후 간편 라벨링 진입",
+          "required_role": "ROLE-003"
+        },
+        {
+          "key": "portal-uploads",
+          "kind": "link",
+          "label": "내 업로드",
+          "route": "/portal/uploads",
+          "screen_id": "SCREEN-033",
+          "visible_when": "포털 사용자가 본인 소유 이미지·영상을 직접 업로드하고 업로드 자산 목록·상태를 확인한다.",
+          "required_role": "ROLE-003"
+        },
+        {
+          "key": "portal-upload-labeling",
+          "kind": "link",
+          "label": "업로드 자산 라벨링",
+          "route": "/portal/uploads/:uldSn/label",
+          "screen_id": "SCREEN-034",
+          "visible_when": "업로드 자산이 준비 완료 상태일 때 목록에서 진입해 수동 라벨링한다.",
+          "required_role": "ROLE-003"
+        }
+      ],
+      "title": "포털 메뉴 (PORTAL)",
+      "status": "draft",
+      "audience": "mobile",
+      "description": "외부 포털 채널(PORTAL_USER)의 메뉴. 포털에는 LNB 를 두지 않는다 — 데이터마트 영상 선택 홈과 간편 라벨링, 그리고 본인 자산 업로드와 그 업로드 자산의 수동 라벨링 화면을 보유한다. 포털 사용자는 본인 소유 이미지·영상을 직접 업로드해 수동 라벨링한 뒤 본인 데이터를 내려받을 수 있으며, 이 경로는 내부 파이프라인·데이터마트와 완전히 분리된 별도 경로다. 다만 관제 학습용 적재를 비롯한 내부 파이프라인 적재는 포털에서 제공하지 않으며, 오토라벨링·검수·버전관리도 포털 전 구간에서 제공하지 않는다. 반응형(PC / 태블릿 / 모바일)을 따른다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "SCREEN-034의 data.sections 변경 — navigates_to",
+    "change_summary": "포털 메뉴 네 항목의 주소가 실제 화면과 모두 일치함을 대조로 확인했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-14T05:06:56.120Z",
+    "created_at": "2026-06-02T13:21:29.524Z"
+  }
+}
