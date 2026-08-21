@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 |
-| Last sync | 2026-08-21T00:02:54.877Z |
-| Mode | SYNC — NEW 0 / CHANGED 9 / UNCHANGED 33 |
+| Last sync | 2026-08-21T00:40:17.475Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 41 |
 | 출력 루트 | docs/design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 28건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 51건 (그중 domain_id 없음 30건) — 전량 누락
+  🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 52건 (그중 domain_id 없음 30건) — 전량 누락
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 3건 / 스코프 밖 42건 (그중 domain_id 없음 5건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,15 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-001]] (prev v3)
-- CHANGED [[API-187]] (prev v2)
-- CHANGED [[NFR-018]] (prev v3)
-- CHANGED [[ROLE-003]] (prev v6)
-- CHANGED [[SD-003]] (prev v5)
-- CHANGED [[SCREEN-008]] (prev v35)
-- CHANGED [[SCREEN-011]] (prev v18)
-- CHANGED [[SCREEN-012]] (prev v39)
-- CHANGED [[UC-029]] (prev v9)
+- CHANGED [[SCREEN-008]] (prev v39)
 
 ## ITEM 표
 
@@ -58,7 +50,7 @@
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-038]] | adr | 4 | UNCHANGED |
-| [[API-001]] | api_endpoint | 5 | CHANGED |
+| [[API-001]] | api_endpoint | 5 | UNCHANGED |
 | [[API-002]] | api_endpoint | 2 | UNCHANGED |
 | [[API-070]] | api_endpoint | 8 | UNCHANGED |
 | [[API-071]] | api_endpoint | 7 | UNCHANGED |
@@ -67,7 +59,7 @@
 | [[API-116]] | api_endpoint | 8 | UNCHANGED |
 | [[API-136]] | api_endpoint | 4 | UNCHANGED |
 | [[API-137]] | api_endpoint | 6 | UNCHANGED |
-| [[API-187]] | api_endpoint | 3 | CHANGED |
+| [[API-187]] | api_endpoint | 3 | UNCHANGED |
 | [[CDIAG-007]] | class_diagram | 7 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 11 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
@@ -83,17 +75,17 @@
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 8 | UNCHANGED |
-| [[NFR-018]] | nfr | 6 | CHANGED |
+| [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 4 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | CHANGED |
-| [[SCREEN-008]] | screen_spec | 39 | CHANGED |
-| [[SCREEN-011]] | screen_spec | 21 | CHANGED |
-| [[SCREEN-012]] | screen_spec | 46 | CHANGED |
-| [[SD-003]] | screen_design | 8 | CHANGED |
+| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 40 | CHANGED |
+| [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 46 | UNCHANGED |
+| [[SD-003]] | screen_design | 8 | UNCHANGED |
 | [[SEQ-017]] | diagram_sequence | 1 | UNCHANGED |
 | [[STATE-001]] | diagram_state | 6 | UNCHANGED |
-| [[UC-029]] | use_case | 10 | CHANGED |
+| [[UC-029]] | use_case | 10 | UNCHANGED |

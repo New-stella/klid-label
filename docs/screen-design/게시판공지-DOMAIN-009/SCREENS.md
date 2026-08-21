@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-21T00:06:08.638Z (session 8) |
+| last sync | 2026-08-21T00:40:32.577Z (session 8) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
@@ -53,6 +53,12 @@
 | 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[UI-087]] | ui_component | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

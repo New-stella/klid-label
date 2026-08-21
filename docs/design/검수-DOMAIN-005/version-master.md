@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-08-21T00:04:20.175Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 92 |
+| Last sync | 2026-08-21T00:40:06.969Z |
+| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 88 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 24건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 48건 (그중 domain_id 없음 28건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 49건 (그중 domain_id 없음 28건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 10건 / 스코프 밖 35건 (그중 domain_id 없음 3건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
@@ -41,15 +41,19 @@
 
 ## Changelog (this run)
 
-- NEW [[ERD-030]]
-- NEW [[TEST-006]]
+- CHANGED [[AC-022]] (prev v9)
+- CHANGED [[API-009]] (prev v8)
+- CHANGED [[SEQ-008]] (prev v6)
+- CHANGED [[SCREEN-018]] (prev v28)
+- CHANGED [[SCREEN-019]] (prev v36)
+- CHANGED [[UC-023]] (prev v24)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
 | [[AC-010]] | acceptance | 7 | UNCHANGED |
-| [[AC-022]] | acceptance | 9 | UNCHANGED |
+| [[AC-022]] | acceptance | 10 | CHANGED |
 | [[AC-024]] | acceptance | 6 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-002]] | adr | 2 | UNCHANGED |
@@ -62,7 +66,7 @@
 | [[ADR-020]] | adr | 10 | UNCHANGED |
 | [[ADR-031]] | adr | 2 | UNCHANGED |
 | [[API-008]] | api_endpoint | 12 | UNCHANGED |
-| [[API-009]] | api_endpoint | 8 | UNCHANGED |
+| [[API-009]] | api_endpoint | 9 | CHANGED |
 | [[API-010]] | api_endpoint | 4 | UNCHANGED |
 | [[API-011]] | api_endpoint | 4 | UNCHANGED |
 | [[API-012]] | api_endpoint | 6 | UNCHANGED |
@@ -94,7 +98,7 @@
 | [[DOMAIN-005]] | domain | 14 | UNCHANGED |
 | [[ERD-015]] | erd | 16 | UNCHANGED |
 | [[ERD-023]] | erd | 10 | UNCHANGED |
-| [[ERD-030]] | erd | 1 | NEW |
+| [[ERD-030]] | erd | 1 | UNCHANGED |
 | [[EVT-003]] | domain_event | 6 | UNCHANGED |
 | [[EVT-004]] | domain_event | 10 | UNCHANGED |
 | [[EVT-006]] | domain_event | 8 | UNCHANGED |
@@ -123,12 +127,12 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 28 | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 36 | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 29 | CHANGED |
+| [[SCREEN-019]] | screen_spec | 37 | CHANGED |
 | [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
 | [[SD-001]] | screen_design | 5 | UNCHANGED |
 | [[SD-005]] | screen_design | 5 | UNCHANGED |
-| [[SEQ-008]] | diagram_sequence | 6 | UNCHANGED |
+| [[SEQ-008]] | diagram_sequence | 7 | CHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-011]] | diagram_sequence | 7 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 3 | UNCHANGED |
@@ -136,9 +140,9 @@
 | [[TEST-002]] | test_scenario | 12 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 15 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
-| [[TEST-006]] | test_scenario | 2 | NEW |
+| [[TEST-006]] | test_scenario | 2 | UNCHANGED |
 | [[UC-007]] | use_case | 13 | UNCHANGED |
 | [[UC-009]] | use_case | 20 | UNCHANGED |
 | [[UC-010]] | use_case | 13 | UNCHANGED |
 | [[UC-022]] | use_case | 17 | UNCHANGED |
-| [[UC-023]] | use_case | 24 | UNCHANGED |
+| [[UC-023]] | use_case | 25 | CHANGED |

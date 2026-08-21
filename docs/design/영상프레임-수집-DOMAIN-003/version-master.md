@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-08-21T00:04:18.639Z |
-| Mode | SYNC — NEW 8 / CHANGED 0 / UNCHANGED 99 |
+| Last sync | 2026-08-21T00:40:02.763Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 102 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-003 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 15건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 19건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 8건 / 스코프 밖 25건
   ℹ️  use_case: 이번 키트 3건 / 스코프 밖 26건 (그중 domain_id 없음 1건)
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 46건 (그중 domain_id 없음 25건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 47건 (그중 domain_id 없음 25건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 10건 / 스코프 밖 35건 (그중 domain_id 없음 4건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
@@ -41,14 +41,11 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-049]]
-- NEW [[AC-050]]
-- NEW [[AC-051]]
-- NEW [[ADR-049]]
-- NEW [[ADR-050]]
-- NEW [[API-212]]
-- NEW [[API-213]]
-- NEW [[API-214]]
+- CHANGED [[AC-049]] (prev v2)
+- CHANGED [[AC-050]] (prev v2)
+- CHANGED [[AC-051]] (prev v2)
+- CHANGED [[SCREEN-008]] (prev v39)
+- CHANGED [[SCREEN-009]] (prev v51)
 
 ## ITEM 표
 
@@ -56,9 +53,9 @@
 |---|---|---|---|
 | [[AC-025]] | acceptance | 6 | UNCHANGED |
 | [[AC-026]] | acceptance | 5 | UNCHANGED |
-| [[AC-049]] | acceptance | 2 | NEW |
-| [[AC-050]] | acceptance | 2 | NEW |
-| [[AC-051]] | acceptance | 2 | NEW |
+| [[AC-049]] | acceptance | 3 | CHANGED |
+| [[AC-050]] | acceptance | 3 | CHANGED |
+| [[AC-051]] | acceptance | 3 | CHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
@@ -67,8 +64,8 @@
 | [[ADR-018]] | adr | 3 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
-| [[ADR-049]] | adr | 4 | NEW |
-| [[ADR-050]] | adr | 1 | NEW |
+| [[ADR-049]] | adr | 4 | UNCHANGED |
+| [[ADR-050]] | adr | 1 | UNCHANGED |
 | [[API-021]] | api_endpoint | 8 | UNCHANGED |
 | [[API-042]] | api_endpoint | 6 | UNCHANGED |
 | [[API-043]] | api_endpoint | 15 | UNCHANGED |
@@ -107,9 +104,9 @@
 | [[API-199]] | api_endpoint | 2 | UNCHANGED |
 | [[API-200]] | api_endpoint | 4 | UNCHANGED |
 | [[API-201]] | api_endpoint | 8 | UNCHANGED |
-| [[API-212]] | api_endpoint | 5 | NEW |
-| [[API-213]] | api_endpoint | 6 | NEW |
-| [[API-214]] | api_endpoint | 4 | NEW |
+| [[API-212]] | api_endpoint | 5 | UNCHANGED |
+| [[API-213]] | api_endpoint | 6 | UNCHANGED |
+| [[API-214]] | api_endpoint | 4 | UNCHANGED |
 | [[CDIAG-001]] | class_diagram | 6 | UNCHANGED |
 | [[CMP-001]] | diagram_c4_component | 6 | UNCHANGED |
 | [[CMP-010]] | diagram_c4_component | 5 | UNCHANGED |
@@ -146,8 +143,8 @@
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 43 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 39 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 51 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 40 | CHANGED |
+| [[SCREEN-009]] | screen_spec | 52 | CHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 40 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 28 | UNCHANGED |

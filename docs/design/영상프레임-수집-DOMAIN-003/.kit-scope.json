@@ -115,6 +115,8 @@
     "UC-018"
   ],
   "pending": [
+    "AC-055",
+    "API-068",
     "SHELL-001",
     "MOD-003",
     "MOD-041",
@@ -122,6 +124,7 @@
     "MOD-045",
     "MOD-046",
     "MOD-048",
+    "DFEAT-045",
     "LEGACY-003",
     "LEGACY-005",
     "LEGACY-021",
@@ -129,7 +132,8 @@
     "LEGACY-044",
     "LEGACY-046",
     "LEGACY-119",
-    "NAV-001"
+    "NAV-001",
+    "SCREEN-025"
   ],
-  "last_sync_at": "2026-08-21T00:04:18.639Z"
+  "last_sync_at": "2026-08-21T00:40:02.763Z"
 }

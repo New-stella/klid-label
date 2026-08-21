@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-21T00:06:06.539Z (session 9) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 164 |
+| Last sync | 2026-08-21T00:40:29.456Z (session 9) |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 162 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
@@ -28,7 +28,7 @@
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 51 | true | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 52 | true | CHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 16 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-011]] | use_case | 비식별 처리 요청 | 12 | true | UNCHANGED |
@@ -119,7 +119,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 4 | false | UNCHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

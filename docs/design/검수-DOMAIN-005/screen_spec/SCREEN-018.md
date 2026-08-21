@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-018
 type: screen_spec
-version: 28
+version: 29
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:42.700Z
+synced_at: 2026-08-21T00:40:06.878Z
 status: CHANGED
-prev_version: 24
+prev_version: 28
 content_hash: 722b7d176267a08241013b9075cbf62f33fc4c45c510f575dd2cfbc37da00ee9
-stale: true
+stale: false
 raw: ./_raw/SCREEN-018.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]

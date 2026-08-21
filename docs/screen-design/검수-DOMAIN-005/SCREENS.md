@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-21T00:06:08.168Z (session 9) |
+| last sync | 2026-08-21T00:40:31.737Z (session 9) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
@@ -18,8 +18,8 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
-| [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]] | [[ROLE-001]] |
+| [[SCREEN-018]] | 검수 목록 화면 | CHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
+| [[SCREEN-019]] | 검수 상세 화면 | CHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -49,6 +49,17 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-018]] — 검수 목록 화면 | screens/SCREEN-018/SCREEN-018.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-019]] — 검수 상세 화면 | screens/SCREEN-019/SCREEN-019.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[AC-022]] | acceptance | CHANGED (v9→v10) |
+| [[API-009]] | api_endpoint | CHANGED (v8→v9) |
+| [[SCREEN-018]] | screen_spec | CHANGED (v28→v29) |
+| [[SCREEN-019]] | screen_spec | CHANGED (v36→v37) |
+| [[UC-023]] | use_case | CHANGED (v24→v25) |
+| [[UI-087]] | ui_component | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-21T00:06:10.238Z (session 20) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 466 |
+| Last sync | 2026-08-21T00:40:34.514Z (session 20) |
+| Mode | SYNC — NEW 0 / CHANGED 10 / UNCHANGED 456 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
@@ -19,7 +19,7 @@
 | [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 7 | true | UNCHANGED |
 | [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 7 | true | UNCHANGED |
 | [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | UNCHANGED |
-| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 6 | true | UNCHANGED |
+| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 7 | false | CHANGED |
 | [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 11 | false | UNCHANGED |
 | [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 16 | false | UNCHANGED |
 | [[AC-010]] | acceptance | 증강 영상 활용 여부 검수 | 7 | false | UNCHANGED |
@@ -31,7 +31,7 @@
 | [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | UNCHANGED |
 | [[AC-020]] | acceptance | 다양한 환경·산불 유형 학습데이터 제작 | 4 | true | UNCHANGED |
 | [[AC-021]] | acceptance | 생성된 영상 라벨링으로 학습데이터셋 편입 | 5 | true | UNCHANGED |
-| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 9 | true | UNCHANGED |
+| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 10 | false | CHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
 | [[AC-024]] | acceptance | 영상 학습데이터 가공(라벨링·메타·VLM 시계열 메타 검수) | 6 | false | UNCHANGED |
 | [[AC-025]] | acceptance | 관제 인입 → 폴링 적재 정상 흐름 수용 | 6 | false | UNCHANGED |
@@ -58,7 +58,7 @@
 | [[API-006]] | api_endpoint | GET /v1/me | 9 | false | UNCHANGED |
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 7 | false | UNCHANGED |
 | [[API-008]] | api_endpoint | GET /v1/reviews | 12 | false | UNCHANGED |
-| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 8 | false | UNCHANGED |
+| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 9 | false | CHANGED |
 | [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
 | [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
@@ -247,19 +247,19 @@
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 96 | true | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 마킹 화면 | 43 | true | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 39 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 51 | true | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 40 | true | CHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 52 | true | CHANGED |
 | [[SCREEN-010]] | screen_spec | 로드 버전 선택 | 37 | true | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 대시보드 화면 | 21 | true | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 46 | false | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 28 | true | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 36 | true | UNCHANGED |
+| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | false | CHANGED |
+| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 37 | true | CHANGED |
 | [[SCREEN-020]] | screen_spec | 작업자 통계 화면 | 32 | false | UNCHANGED |
 | [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 28 | false | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 40 | true | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 41 | false | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 23 | true | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 36 | true | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 38 | true | CHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 영상 업로드 | 28 | true | UNCHANGED |
 | [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 20 | true | UNCHANGED |
@@ -325,7 +325,7 @@
 | [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 17 | false | UNCHANGED |
 | [[UC-021]] | use_case | 라벨 편집·임시저장 | 20 | true | UNCHANGED |
 | [[UC-022]] | use_case | VLM 시계열 메타 검토 | 17 | true | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 24 | true | UNCHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 25 | true | CHANGED |
 | [[UC-024]] | use_case | 포털 라벨 작업 (조회·수정·다운로드) | 15 | true | UNCHANGED |
 | [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 10 | true | UNCHANGED |
 | [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 5 | true | UNCHANGED |
@@ -421,7 +421,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 4 | false | UNCHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

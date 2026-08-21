@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-019
 type: screen_spec
-version: 36
+version: 37
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:47.312Z
+synced_at: 2026-08-21T00:40:08.860Z
 status: CHANGED
-prev_version: 30
+prev_version: 36
 content_hash: 224284a5dbd21979863b5343c0a1931e0cc32d01fda1cfd929310b8575ae1850
 stale: true
 raw: ./_raw/SCREEN-019.json

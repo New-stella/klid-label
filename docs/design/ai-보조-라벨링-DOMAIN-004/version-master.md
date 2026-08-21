@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-21T00:02:41.417Z |
-| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 80 |
+| Last sync | 2026-08-21T00:40:04.968Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 83 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 25건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 45건 (그중 domain_id 없음 24건)
+  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 46건 (그중 domain_id 없음 24건)
   ℹ️  constant: 이번 키트 1건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   ℹ️  adr: 이번 키트 11건 / 스코프 밖 34건 (그중 domain_id 없음 4건)
   ℹ️  feature: 이번 키트 3건 / 스코프 밖 7건 (그중 domain_id 없음 6건)
@@ -41,10 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-043]] (prev v14)
-- CHANGED [[SHELL-001]] (prev v9)
-- CHANGED [[SCREEN-005]] (prev v94)
-- CHANGED [[SCREEN-025]] (prev v34)
+- CHANGED [[SCREEN-025]] (prev v36)
 
 ## ITEM 표
 
@@ -68,7 +65,7 @@
 | [[ADR-046]] | adr | 1 | UNCHANGED |
 | [[ADR-047]] | adr | 1 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
-| [[API-043]] | api_endpoint | 15 | CHANGED |
+| [[API-043]] | api_endpoint | 15 | UNCHANGED |
 | [[API-065]] | api_endpoint | 15 | UNCHANGED |
 | [[API-093]] | api_endpoint | 14 | UNCHANGED |
 | [[API-113]] | api_endpoint | 3 | UNCHANGED |
@@ -121,15 +118,15 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 96 | CHANGED |
-| [[SCREEN-025]] | screen_spec | 36 | CHANGED |
+| [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 38 | CHANGED |
 | [[SCREEN-027]] | screen_spec | 28 | UNCHANGED |
 | [[SD-033]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 2 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 10 | CHANGED |
+| [[SHELL-001]] | app_shell | 10 | UNCHANGED |
 | [[UC-004]] | use_case | 15 | UNCHANGED |
 | [[UC-005]] | use_case | 10 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |

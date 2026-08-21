@@ -651,6 +651,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 > `/cc` PM이 이 표를 0-2 업무 유형 결정보다 **우선** 적용한다 (규약 → cc-forge `commands/cc.md` §0-2.5).
 > 이 선언이 없으면 `/cc`는 LogiCraft 계약을 모른 채 표준 `developer-*` 파이프라인으로 흘러 키트·`@design` 추적 태그·IMPREC 반영이 끊긴다.
 > 이 프로젝트의 설계 진실원은 **LogiCraft ITEM**과 로컬 키트(`docs/design/{도메인슬러그}-{DOMAIN-ID}/`)다.
+>
+> ★ **이 저장소는 `klid-*` 구현 오케스트레이션 세트가 온보딩돼 있다**(`.claude/skills/klid-{dispatch,design-backfill}` · `.claude/agents/klid-d0NN-implementer` 15종 + `klid-web-implementer` + `klid-qa-verifier`).
+> **이미 구현된 코드를 고치는 요청은 표준 `developer-*` 파이프라인이 아니라 `klid-dispatch` 로 간다** —
+> 그쪽이 CO 장부·설계 선반영·도메인별 진실원·독립 QA 를 갖고 있다. 아래 표에서 **위쪽 행이 더 구체적인 조건**이며 먼저 매칭한다.
 
 ### ★변경 순서 — LogiCraft 먼저, 코드는 그 다음 (2026-08-07 사용자 확정, 구속)
 
@@ -687,6 +691,9 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 **적용 범위 (Critical — 위임은 예외이지 기본값이 아니다)**: 이 선언은 **LogiCraft ITEM/도메인으로 추적되는 작업에만** 적용한다. 이 저장소의 모든 작업이 LogiCraft 대상은 아니다 — 일반 기능 추가·버그 수정·인프라/빌드·CVAT 포팅·위키/테스트케이스 갱신 등은 **기본값인 표준 `/cc` 파이프라인**으로 간다. 요청이 아래 `조건`에 명확히 매칭될 때만 위임하고, 애매하면 표준 경로를 택하거나 사용자에게 확인한다.
 
+- 조건: **이미 구현된 코드의 수정·버그**(테스트하다 발견한 수정사항 포함) → 위임: `klid-dispatch` | 근거: 변경지시서(CO) 장부 + 영향 도메인 게이트 + **설계 선반영(Phase 3.6)** 후 도메인 implementer 병렬 fan-out + 독립 QA(`klid-qa-verifier`). 실행=메인
+- 조건: **밀린 설계 반영·IMPREC 백필** → 위임: `klid-design-backfill` | 근거: 부채 회수 3모드(CO 예외건 / 온보딩 이전 누적 / IMPREC 갭). 실행=메인
+- 조건: **신규 도메인 최초 구현** → 위임: `mc-logi-implement` | 근거: `klid-dispatch` 는 "이미 구현된 코드 수정" 전용이라 최초 구현은 대상이 아니다. 실행=메인
 - 조건: 도메인 백엔드 구현 (API·ERD/DB·domain_event·service·NFR) → 위임: `mc-logi-implement` | 근거: 키트가 단일 진실원이며 `@design <ITEM-ID>` 추적 태그 규약을 포함
 - 조건: 화면(screen_spec) 프론트엔드 구현 → 위임: `mc-logi-screen-implement` | 근거: 화면은 implement 가 아닌 screen-implement 담당 (중복 구현 방지)
 - 조건: 화면 비주얼 디자인·고충실도 목업 → 위임: `mc-logi-screen-design`

@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-21T00:04:24.093Z |
-| Mode | SYNC — NEW 4 / CHANGED 0 / UNCHANGED 52 |
+| Last sync | 2026-08-21T00:40:23.628Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 55 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 32건
   ℹ️  use_case: 이번 키트 3건 / 스코프 밖 26건 (그중 domain_id 없음 1건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 40건 (그중 domain_id 없음 30건)
+  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 41건 (그중 domain_id 없음 30건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 2건 / 스코프 밖 43건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 9건)
@@ -41,10 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-052]]
-- NEW [[AC-053]]
-- NEW [[AC-054]]
-- NEW [[UC-036]]
+- CHANGED [[AC-046]] (prev v8)
 
 ## ITEM 표
 
@@ -55,12 +52,12 @@
 | [[AC-043]] | acceptance | 3 | UNCHANGED |
 | [[AC-044]] | acceptance | 4 | UNCHANGED |
 | [[AC-045]] | acceptance | 5 | UNCHANGED |
-| [[AC-046]] | acceptance | 8 | UNCHANGED |
+| [[AC-046]] | acceptance | 9 | CHANGED |
 | [[AC-047]] | acceptance | 5 | UNCHANGED |
 | [[AC-048]] | acceptance | 5 | UNCHANGED |
-| [[AC-052]] | acceptance | 1 | NEW |
-| [[AC-053]] | acceptance | 1 | NEW |
-| [[AC-054]] | acceptance | 1 | NEW |
+| [[AC-052]] | acceptance | 1 | UNCHANGED |
+| [[AC-053]] | acceptance | 1 | UNCHANGED |
+| [[AC-054]] | acceptance | 1 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-048]] | adr | 5 | UNCHANGED |
 | [[API-205]] | api_endpoint | 8 | UNCHANGED |
@@ -105,4 +102,4 @@
 | [[SEQ-026]] | diagram_sequence | 10 | UNCHANGED |
 | [[UC-018]] | use_case | 17 | UNCHANGED |
 | [[UC-035]] | use_case | 12 | UNCHANGED |
-| [[UC-036]] | use_case | 2 | NEW |
+| [[UC-036]] | use_case | 2 | UNCHANGED |

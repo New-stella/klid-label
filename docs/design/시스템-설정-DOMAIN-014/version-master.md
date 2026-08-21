@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-21T00:02:53.142Z |
-| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 45 |
+| Last sync | 2026-08-21T00:40:15.093Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 51 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 3건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 5건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 31건
   ℹ️  use_case: 이번 키트 3건 / 스코프 밖 26건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 1건 / 스코프 밖 50건 (그중 domain_id 없음 29건)
+  ℹ️  acceptance: 이번 키트 1건 / 스코프 밖 51건 (그중 domain_id 없음 29건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 5건 / 스코프 밖 40건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
@@ -41,14 +41,8 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SHELL-001]] (prev v9)
-- CHANGED [[INT-002]] (prev v14)
-- CHANGED [[INT-007]] (prev v10)
-- CHANGED [[NAV-001]] (prev v14)
-- CHANGED [[SD-015]] (prev v3)
-- CHANGED [[SCREEN-005]] (prev v94)
-- CHANGED [[SCREEN-025]] (prev v34)
-- CHANGED [[UC-031]] (prev v7)
+- CHANGED [[DFEAT-045]] (prev v10)
+- CHANGED [[SCREEN-025]] (prev v36)
 
 ## ITEM 표
 
@@ -69,15 +63,15 @@
 | [[API-194]] | api_endpoint | 4 | UNCHANGED |
 | [[CDIAG-012]] | class_diagram | 4 | UNCHANGED |
 | [[CMP-011]] | diagram_c4_component | 7 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 10 | UNCHANGED |
+| [[DFEAT-045]] | domain_feature | 12 | CHANGED |
 | [[DOMAIN-014]] | domain | 5 | UNCHANGED |
 | [[ERD-016]] | erd | 13 | UNCHANGED |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
-| [[INT-002]] | integration_point | 15 | CHANGED |
+| [[INT-002]] | integration_point | 15 | UNCHANGED |
 | [[INT-004]] | integration_point | 11 | UNCHANGED |
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
-| [[INT-007]] | integration_point | 11 | CHANGED |
-| [[NAV-001]] | navigation_tree | 15 | CHANGED |
+| [[INT-007]] | integration_point | 11 | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 15 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -96,14 +90,14 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 96 | CHANGED |
-| [[SCREEN-025]] | screen_spec | 36 | CHANGED |
-| [[SD-015]] | screen_design | 4 | CHANGED |
+| [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 38 | CHANGED |
+| [[SD-015]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-024]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 1 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 10 | CHANGED |
+| [[SHELL-001]] | app_shell | 10 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |
 | [[UC-013]] | use_case | 8 | UNCHANGED |
-| [[UC-031]] | use_case | 8 | CHANGED |
+| [[UC-031]] | use_case | 8 | UNCHANGED |

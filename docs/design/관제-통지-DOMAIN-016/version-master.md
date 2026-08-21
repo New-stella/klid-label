@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-08-21T00:02:56.170Z |
-| Mode | SYNC — NEW 0 / CHANGED 17 / UNCHANGED 41 |
+| Last sync | 2026-08-21T00:40:21.945Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 57 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 32건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 28건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 4건 / 스코프 밖 8건
-  ℹ️  acceptance: 이번 키트 1건 / 스코프 밖 50건 (그중 domain_id 없음 29건)
+  ℹ️  acceptance: 이번 키트 1건 / 스코프 밖 51건 (그중 domain_id 없음 29건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 8건 / 스코프 밖 37건 (그중 domain_id 없음 5건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
@@ -41,29 +41,13 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-009]] (prev v15)
-- CHANGED [[SEQ-010]] (prev v13)
-- CHANGED [[SEQ-015]] (prev v1)
-- CHANGED [[DOMAIN-016]] (prev v10)
-- CHANGED [[EVT-003]] (prev v5)
-- CHANGED [[DFEAT-044]] (prev v8)
-- CHANGED [[DFEAT-053]] (prev v5)
-- CHANGED [[DFEAT-054]] (prev v2)
-- CHANGED [[EXTSYS-005]] (prev v10)
-- CHANGED [[INT-007]] (prev v10)
-- CHANGED [[INT-010]] (prev v6)
-- CHANGED [[INTSPEC-004]] (prev v5)
-- CHANGED [[NFR-018]] (prev v3)
-- CHANGED [[ROLE-003]] (prev v6)
-- CHANGED [[SCREEN-019]] (prev v29)
-- CHANGED [[TEST-004]] (prev v17)
-- CHANGED [[UC-009]] (prev v19)
+- CHANGED [[SCREEN-019]] (prev v36)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-009]] | acceptance | 16 | CHANGED |
+| [[AC-009]] | acceptance | 16 | UNCHANGED |
 | [[ADR-002]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
@@ -79,23 +63,23 @@
 | [[CMP-009]] | diagram_c4_component | 11 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-043]] | domain_feature | 10 | UNCHANGED |
-| [[DFEAT-044]] | domain_feature | 9 | CHANGED |
+| [[DFEAT-044]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-046]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-047]] | domain_feature | 6 | UNCHANGED |
-| [[DFEAT-053]] | domain_feature | 6 | CHANGED |
-| [[DFEAT-054]] | domain_feature | 3 | CHANGED |
-| [[DOMAIN-016]] | domain | 12 | CHANGED |
+| [[DFEAT-053]] | domain_feature | 6 | UNCHANGED |
+| [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
+| [[DOMAIN-016]] | domain | 12 | UNCHANGED |
 | [[ERD-021]] | erd | 14 | UNCHANGED |
 | [[ERD-027]] | erd | 6 | UNCHANGED |
-| [[EVT-003]] | domain_event | 6 | CHANGED |
+| [[EVT-003]] | domain_event | 6 | UNCHANGED |
 | [[EVT-004]] | domain_event | 10 | UNCHANGED |
 | [[EVT-009]] | domain_event | 4 | UNCHANGED |
 | [[EVT-010]] | domain_event | 4 | UNCHANGED |
-| [[EXTSYS-005]] | external_system | 12 | CHANGED |
+| [[EXTSYS-005]] | external_system | 12 | UNCHANGED |
 | [[FEAT-003]] | feature | 10 | UNCHANGED |
-| [[INT-007]] | integration_point | 11 | CHANGED |
-| [[INT-010]] | integration_point | 9 | CHANGED |
-| [[INTSPEC-004]] | integration_spec | 8 | CHANGED |
+| [[INT-007]] | integration_point | 11 | UNCHANGED |
+| [[INT-010]] | integration_point | 9 | UNCHANGED |
+| [[INTSPEC-004]] | integration_spec | 8 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -106,18 +90,18 @@
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 8 | UNCHANGED |
-| [[NFR-018]] | nfr | 6 | CHANGED |
+| [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 4 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | CHANGED |
-| [[SCREEN-019]] | screen_spec | 36 | CHANGED |
-| [[SEQ-010]] | diagram_sequence | 14 | CHANGED |
-| [[SEQ-015]] | diagram_sequence | 3 | CHANGED |
+| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[SCREEN-019]] | screen_spec | 37 | CHANGED |
+| [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
+| [[SEQ-015]] | diagram_sequence | 3 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 1 | UNCHANGED |
-| [[TEST-004]] | test_scenario | 19 | CHANGED |
-| [[UC-009]] | use_case | 20 | CHANGED |
+| [[TEST-004]] | test_scenario | 19 | UNCHANGED |
+| [[UC-009]] | use_case | 20 | UNCHANGED |
