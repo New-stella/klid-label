@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-006
 type: class_diagram
-version: 10
+version: 11
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:42.635Z
+synced_at: 2026-08-21T04:17:32.529Z
 status: CHANGED
-prev_version: 9
-content_hash: 698a7bbc95afe9e0f34afd8a8c56d0998fdac16dcef82903b4acc3941ee61477
-stale: true
+prev_version: 10
+content_hash: dbb131092718c0bdbb49d982f6d827491c710ce1adf7dc3c00e306e00bc5f3b1
+stale: false
 raw: ./_raw/CDIAG-006.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]
@@ -137,7 +137,7 @@ _(empty)_
 
 - **is_static**: false
 - **visibility**: public
-- **description**: 검수 워크플로우 상태 전이. 이 메서드 자체는 검증하지 않는다 — 검증은 호출자 책임. ①ReviewService(submit/approve/reject 등) 가 ReviewStateMachine.verify(from,to) 로 사전 검증(허용: ASSIGNED→PENDING, PENDING→IN_REVIEW/ASSIGNED, IN_REVIEW→APPROVED/REJECTED, REJECTED→PENDING, APPROVED→PENDING 재검수뿐. 그 외 APPROVED 출발은 409). ②배치 경로는 BatchTransitionService 가 조건부 UPDATE 로 검수 소유 상태를 차단해 이 메서드를 호출 안 함. ⚠검수 종결 영속 상태는 APPROVED — STTS_COMPLETED 로 전이하는 코드는 없다(MarkingBatchBridge 의 재트리거 차단 집합 멤버십 검사에만 읽힘). ⚠승인은 이 전이 전에 비식별화완료여부 판정을 먼저 통과해야 한다.
+- **description**: 검수 워크플로우 상태 전이. 이 메서드는 검증하지 않는다 — 검증은 호출자 책임. ①ReviewService(submit/approve/reject 등) 가 ReviewStateMachine.verify(from,to) 로 사전 검증(허용: ASSIGNED→PENDING, PENDING→IN_REVIEW/ASSIGNED, IN_REVIEW→APPROVED/REJECTED, REJECTED→PENDING, APPROVED→PENDING 재검수뿐. 그 외 APPROVED 출발은 409, 그 밖의 불허 전이는 400). ②배치 경로는 BatchTransitionService 가 조건부 UPDATE 로 검수 소유 상태를 차단해 호출하지 않는다. ⚠검수 종결 영속 상태는 APPROVED — STTS_COMPLETED 로 전이하는 코드는 없다(MarkingBatchBridge 의 재트리거 차단 집합 멤버십 검사에만 읽힘). ⚠승인은 이 전이 전에 비식별화완료여부 판정을 먼저 통과해야 한다.
 - **is_abstract**: false
 - **return_type**: void
 

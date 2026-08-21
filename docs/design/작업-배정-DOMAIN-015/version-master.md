@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 |
-| Last sync | 2026-08-21T00:40:17.475Z |
+| Last sync | 2026-08-21T04:17:43.249Z |
 | Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 41 |
 | 출력 루트 | docs/design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SCREEN-008]] (prev v39)
+- CHANGED [[SCREEN-008]] (prev v40)
 
 ## ITEM 표
 
@@ -82,7 +82,7 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 40 | CHANGED |
+| [[SCREEN-008]] | screen_spec | 42 | CHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 46 | UNCHANGED |
 | [[SD-003]] | screen_design | 8 | UNCHANGED |

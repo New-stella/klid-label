@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-21T00:40:12.193Z |
-| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 68 |
+| Last sync | 2026-08-21T04:17:40.456Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 69 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,10 +41,9 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SEQ-001]] (prev v14)
-- CHANGED [[SCREEN-008]] (prev v39)
-- CHANGED [[SCREEN-009]] (prev v51)
-- CHANGED [[SCREEN-025]] (prev v36)
+- CHANGED [[SEQ-001]] (prev v15)
+- CHANGED [[SCREEN-008]] (prev v40)
+- CHANGED [[SCREEN-009]] (prev v52)
 
 ## ITEM 표
 
@@ -108,12 +107,12 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 40 | CHANGED |
-| [[SCREEN-009]] | screen_spec | 52 | CHANGED |
-| [[SCREEN-025]] | screen_spec | 38 | CHANGED |
+| [[SCREEN-008]] | screen_spec | 42 | CHANGED |
+| [[SCREEN-009]] | screen_spec | 53 | CHANGED |
+| [[SCREEN-025]] | screen_spec | 38 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |
-| [[SEQ-001]] | diagram_sequence | 15 | CHANGED |
+| [[SEQ-001]] | diagram_sequence | 16 | CHANGED |
 | [[SEQ-012]] | diagram_sequence | 11 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |

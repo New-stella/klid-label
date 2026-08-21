@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-21T00:40:04.968Z |
+| Last sync | 2026-08-21T04:17:30.979Z |
 | Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 83 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SCREEN-025]] (prev v36)
+- CHANGED [[API-043]] (prev v15)
 
 ## ITEM 표
 
@@ -65,7 +65,7 @@
 | [[ADR-046]] | adr | 1 | UNCHANGED |
 | [[ADR-047]] | adr | 1 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
-| [[API-043]] | api_endpoint | 15 | UNCHANGED |
+| [[API-043]] | api_endpoint | 16 | CHANGED |
 | [[API-065]] | api_endpoint | 15 | UNCHANGED |
 | [[API-093]] | api_endpoint | 14 | UNCHANGED |
 | [[API-113]] | api_endpoint | 3 | UNCHANGED |
@@ -119,7 +119,7 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 38 | CHANGED |
+| [[SCREEN-025]] | screen_spec | 38 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 28 | UNCHANGED |
 | [[SD-033]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 8 | UNCHANGED |

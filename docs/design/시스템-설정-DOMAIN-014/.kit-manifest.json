@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-014",
-  "synced_at": "2026-08-21T00:40:15.093Z",
+  "synced_at": "2026-08-21T04:17:41.886Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -141,8 +141,8 @@
     "DFEAT-045": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-014",
-      "version": 12,
-      "content_hash": "fa896d27f98660b5ece56b75631883f9ccd5530f53786241bcdcbe3dcffa3518"
+      "version": 13,
+      "content_hash": "2c401ecc6494941952272e2df486d6a53fd2d077fd9903adaccdafaaf0a0ea1e"
     },
     "ERD-016": {
       "type": "erd",

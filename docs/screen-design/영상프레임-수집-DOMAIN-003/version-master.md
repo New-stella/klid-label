@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-21T00:40:29.456Z (session 9) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 162 |
+| Last sync | 2026-08-21T04:17:52.831Z (session 9) |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 161 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
@@ -18,17 +18,17 @@
 | [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 15 | false | UNCHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 16 | false | CHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 4 | true | UNCHANGED |
-| [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 6 | false | UNCHANGED |
+| [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | CHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 6 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 52 | true | CHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 53 | false | CHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 16 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-011]] | use_case | 비식별 처리 요청 | 12 | true | UNCHANGED |
@@ -119,7 +119,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

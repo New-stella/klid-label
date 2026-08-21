@@ -100,7 +100,7 @@
               ],
               "is_static": false,
               "visibility": "public",
-              "description": "검수 워크플로우 상태 전이. 이 메서드 자체는 검증하지 않는다 — 검증은 호출자 책임. ①ReviewService(submit/approve/reject 등) 가 ReviewStateMachine.verify(from,to) 로 사전 검증(허용: ASSIGNED→PENDING, PENDING→IN_REVIEW/ASSIGNED, IN_REVIEW→APPROVED/REJECTED, REJECTED→PENDING, APPROVED→PENDING 재검수뿐. 그 외 APPROVED 출발은 409). ②배치 경로는 BatchTransitionService 가 조건부 UPDATE 로 검수 소유 상태를 차단해 이 메서드를 호출 안 함. ⚠검수 종결 영속 상태는 APPROVED — STTS_COMPLETED 로 전이하는 코드는 없다(MarkingBatchBridge 의 재트리거 차단 집합 멤버십 검사에만 읽힘). ⚠승인은 이 전이 전에 비식별화완료여부 판정을 먼저 통과해야 한다.",
+              "description": "검수 워크플로우 상태 전이. 이 메서드는 검증하지 않는다 — 검증은 호출자 책임. ①ReviewService(submit/approve/reject 등) 가 ReviewStateMachine.verify(from,to) 로 사전 검증(허용: ASSIGNED→PENDING, PENDING→IN_REVIEW/ASSIGNED, IN_REVIEW→APPROVED/REJECTED, REJECTED→PENDING, APPROVED→PENDING 재검수뿐. 그 외 APPROVED 출발은 409, 그 밖의 불허 전이는 400). ②배치 경로는 BatchTransitionService 가 조건부 UPDATE 로 검수 소유 상태를 차단해 호출하지 않는다. ⚠검수 종결 영속 상태는 APPROVED — STTS_COMPLETED 로 전이하는 코드는 없다(MarkingBatchBridge 의 재트리거 차단 집합 멤버십 검사에만 읽힘). ⚠승인은 이 전이 전에 비식별화완료여부 판정을 먼저 통과해야 한다.",
               "is_abstract": false,
               "return_type": "void"
             },
@@ -497,12 +497,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
-    "stale": true,
-    "stale_reason": "API-008의 data.responses 변경이 depicts로 2-hop 전파",
-    "change_summary": "검수 상태 애그리게이트에 비식별화완료여부(DE_IDNTF_CMPTN_YN, 한 자리 Y/N, 기본 완료) 속성을 더하고 승인 연산의 가드를 함께 현행화한다. 외부 산출물 이관 경로로 원본이라고 지정해 들어온 영상은 비식별이 끝나기 전까지 승인이 거부되는데, 이 모델에는 그 값도 가드도 없어 승인 연쇄의 시작 조건이 실제와 어긋나 있었다. 가드 판정이 상태 전이보다 앞선다는 순서를 승인 연산 서술에 명시해, 거부될 때 상태 전이·라벨 버전 스냅샷·학습데이터 산출물 재생성·관제 통지가 하나도 생기지 않는다는 점이 모델에서 읽히게 했다. 막는 범위가 검수 승인 하나라는 경계(라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성은 닫지 않으며, 그 통로들을 함께 닫는 것은 비식별 누락 신고라는 별개 축이다)도 함께 적어 다음 사람이 이 값으로 다른 통로까지 닫으려 하는 것을 막는다. 속성 추가와 서술 갱신뿐이며 기존 클래스·속성·관계·열거값의 삭제는 없다.",
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검수 워크플로우 상태 전이의 사전 검증 서술에서 빠져 있던 갈래를 채운다. 기존 서술은 승인 상태에서 출발하는 전이가 충돌로 거부된다는 것만 적고, 허용 전이표에 없는 나머지 전이가 잘못된 입력으로 거부된다는 갈래를 적지 않아 검증 결과가 절반만 서술돼 있었다. 두 갈래를 함께 적어 전이 검증에 걸린 호출자가 어느 응답을 받는지 모델에서 읽히게 했다. 같은 문장 안에서 표현만 다듬었고(이 메서드 자체는 → 이 메서드는, 차단해 이 메서드를 호출 안 함 → 차단해 호출하지 않는다) 사실은 그대로다. 클래스·속성·메서드·관계·열거값의 삭제는 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:45:40.058Z",
+    "last_updated_at": "2026-08-21T04:10:06.634Z",
     "created_at": "2026-06-02T08:50:42.818Z"
   }
 }

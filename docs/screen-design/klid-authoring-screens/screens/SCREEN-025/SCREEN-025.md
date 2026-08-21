@@ -5,11 +5,11 @@ version: 38
 last_updated_at: 2026-08-21T00:39:03.507Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:40:34.334Z
+synced_at: 2026-08-21T04:17:58.661Z
 sync_session: 20
 stale: true
-status: CHANGED
-prev_version: 36
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-025.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-031]]", "[[UC-006]]", "[[UC-013]]"]
   acceptance: ["[[AC-055]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v36 → v38**
-> change_summary: 전체 건너뛰기 스위치의 수용 기준을 이 화면에 연결한다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 시스템 설정 화면
 

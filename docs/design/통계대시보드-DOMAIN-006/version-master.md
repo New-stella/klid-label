@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-08-21T00:02:43.885Z |
-| Mode | SYNC — NEW 5 / CHANGED 4 / UNCHANGED 35 |
+| Last sync | 2026-08-21T04:17:33.803Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 43 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 28건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 48건 (그중 domain_id 없음 30건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 49건 (그중 domain_id 없음 30건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 4건 / 스코프 밖 41건 (그중 domain_id 없음 5건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,29 +41,21 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-029]]
-- NEW [[AC-030]]
-- NEW [[AC-031]]
-- NEW [[TEST-006]]
-- NEW [[UC-033]]
-- CHANGED [[API-042]] (prev v5)
-- CHANGED [[NFR-018]] (prev v3)
-- CHANGED [[SD-014]] (prev v3)
-- CHANGED [[SCREEN-020]] (prev v30)
+- CHANGED [[API-042]] (prev v6)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-029]] | acceptance | 2 | NEW |
-| [[AC-030]] | acceptance | 1 | NEW |
-| [[AC-031]] | acceptance | 1 | NEW |
+| [[AC-029]] | acceptance | 2 | UNCHANGED |
+| [[AC-030]] | acceptance | 1 | UNCHANGED |
+| [[AC-031]] | acceptance | 1 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-019]] | adr | 7 | UNCHANGED |
 | [[ADR-038]] | adr | 4 | UNCHANGED |
 | [[API-001]] | api_endpoint | 5 | UNCHANGED |
-| [[API-042]] | api_endpoint | 6 | CHANGED |
+| [[API-042]] | api_endpoint | 7 | CHANGED |
 | [[API-055]] | api_endpoint | 6 | UNCHANGED |
 | [[API-056]] | api_endpoint | 7 | UNCHANGED |
 | [[API-057]] | api_endpoint | 6 | UNCHANGED |
@@ -84,7 +76,7 @@
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 8 | UNCHANGED |
-| [[NFR-018]] | nfr | 6 | CHANGED |
+| [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 4 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
@@ -92,10 +84,10 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
-| [[SCREEN-020]] | screen_spec | 32 | CHANGED |
+| [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
 | [[SCREEN-021]] | screen_spec | 28 | UNCHANGED |
-| [[SD-014]] | screen_design | 5 | CHANGED |
+| [[SD-014]] | screen_design | 5 | UNCHANGED |
 | [[SD-030]] | screen_design | 5 | UNCHANGED |
 | [[SD-031]] | screen_design | 2 | UNCHANGED |
-| [[TEST-006]] | test_scenario | 2 | NEW |
-| [[UC-033]] | use_case | 3 | NEW |
+| [[TEST-006]] | test_scenario | 2 | UNCHANGED |
+| [[UC-033]] | use_case | 3 | UNCHANGED |

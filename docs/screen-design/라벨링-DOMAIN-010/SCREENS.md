@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-21T00:40:33.329Z (session 15) |
+| last sync | 2026-08-21T04:17:56.707Z (session 15) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
@@ -49,13 +49,6 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-005]] — 라벨링 캔버스 화면 | screens/SCREEN-005/SCREEN-005.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-026]] — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[AC-007]] | acceptance | CHANGED (v6→v7) |
-| [[UI-087]] | ui_component | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

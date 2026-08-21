@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-21T00:40:31.743Z (session 9) |
-| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 165 |
+| Last sync | 2026-08-21T04:17:55.097Z (session 9) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 170 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
@@ -14,13 +14,13 @@
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
 | [[AC-009]] | acceptance | 검수 완료 후 수정 통지(TASK_MODIFIED) | 16 | false | UNCHANGED |
-| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 10 | false | CHANGED |
+| [[AC-022]] | acceptance | 학습데이터셋 자동·수동 검수 | 10 | false | UNCHANGED |
 | [[API-008]] | api_endpoint | GET /v1/reviews | 12 | false | UNCHANGED |
-| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 9 | false | CHANGED |
+| [[API-009]] | api_endpoint | GET /v1/reviews/{videoId} | 9 | false | UNCHANGED |
 | [[API-010]] | api_endpoint | GET /v1/reviews/{videoId}/frames | 4 | false | UNCHANGED |
 | [[API-011]] | api_endpoint | GET /v1/reviews/{videoId}/issues | 4 | false | UNCHANGED |
 | [[API-013]] | api_endpoint | POST /v1/reviews/{videoId}/start | 6 | false | UNCHANGED |
-| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 11 | false | UNCHANGED |
+| [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | CHANGED |
 | [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
 | [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | UNCHANGED |
@@ -33,13 +33,13 @@
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | false | CHANGED |
-| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 37 | true | CHANGED |
+| [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | false | UNCHANGED |
+| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 37 | true | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
 | [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-009]] | use_case | 검수 완료·수정 통지 | 20 | false | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 25 | true | CHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 25 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -126,7 +126,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

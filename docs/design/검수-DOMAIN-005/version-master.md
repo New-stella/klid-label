@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-08-21T00:40:06.969Z |
-| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 88 |
+| Last sync | 2026-08-21T04:17:32.532Z |
+| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 90 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,19 +41,17 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-022]] (prev v9)
-- CHANGED [[API-009]] (prev v8)
-- CHANGED [[SEQ-008]] (prev v6)
-- CHANGED [[SCREEN-018]] (prev v28)
-- CHANGED [[SCREEN-019]] (prev v36)
-- CHANGED [[UC-023]] (prev v24)
+- CHANGED [[API-014]] (prev v11)
+- CHANGED [[CDIAG-006]] (prev v10)
+- CHANGED [[SEQ-008]] (prev v7)
+- CHANGED [[SEQ-015]] (prev v3)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
 | [[AC-010]] | acceptance | 7 | UNCHANGED |
-| [[AC-022]] | acceptance | 10 | CHANGED |
+| [[AC-022]] | acceptance | 10 | UNCHANGED |
 | [[AC-024]] | acceptance | 6 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-002]] | adr | 2 | UNCHANGED |
@@ -66,12 +64,12 @@
 | [[ADR-020]] | adr | 10 | UNCHANGED |
 | [[ADR-031]] | adr | 2 | UNCHANGED |
 | [[API-008]] | api_endpoint | 12 | UNCHANGED |
-| [[API-009]] | api_endpoint | 9 | CHANGED |
+| [[API-009]] | api_endpoint | 9 | UNCHANGED |
 | [[API-010]] | api_endpoint | 4 | UNCHANGED |
 | [[API-011]] | api_endpoint | 4 | UNCHANGED |
 | [[API-012]] | api_endpoint | 6 | UNCHANGED |
 | [[API-013]] | api_endpoint | 6 | UNCHANGED |
-| [[API-014]] | api_endpoint | 11 | UNCHANGED |
+| [[API-014]] | api_endpoint | 12 | CHANGED |
 | [[API-015]] | api_endpoint | 8 | UNCHANGED |
 | [[API-016]] | api_endpoint | 3 | UNCHANGED |
 | [[API-017]] | api_endpoint | 5 | UNCHANGED |
@@ -86,7 +84,7 @@
 | [[API-132]] | api_endpoint | 4 | UNCHANGED |
 | [[API-138]] | api_endpoint | 4 | UNCHANGED |
 | [[API-178]] | api_endpoint | 8 | UNCHANGED |
-| [[CDIAG-006]] | class_diagram | 10 | UNCHANGED |
+| [[CDIAG-006]] | class_diagram | 11 | CHANGED |
 | [[CDIAG-014]] | class_diagram | 8 | UNCHANGED |
 | [[CMP-005]] | diagram_c4_component | 5 | UNCHANGED |
 | [[DFEAT-021]] | domain_feature | 8 | UNCHANGED |
@@ -127,15 +125,15 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-018]] | screen_spec | 29 | CHANGED |
-| [[SCREEN-019]] | screen_spec | 37 | CHANGED |
+| [[SCREEN-018]] | screen_spec | 29 | UNCHANGED |
+| [[SCREEN-019]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
 | [[SD-001]] | screen_design | 5 | UNCHANGED |
 | [[SD-005]] | screen_design | 5 | UNCHANGED |
-| [[SEQ-008]] | diagram_sequence | 7 | CHANGED |
+| [[SEQ-008]] | diagram_sequence | 8 | CHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-011]] | diagram_sequence | 7 | UNCHANGED |
-| [[SEQ-015]] | diagram_sequence | 3 | UNCHANGED |
+| [[SEQ-015]] | diagram_sequence | 4 | CHANGED |
 | [[SEQ-023]] | diagram_sequence | 2 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 12 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 15 | UNCHANGED |
@@ -145,4 +143,4 @@
 | [[UC-009]] | use_case | 20 | UNCHANGED |
 | [[UC-010]] | use_case | 13 | UNCHANGED |
 | [[UC-022]] | use_case | 17 | UNCHANGED |
-| [[UC-023]] | use_case | 25 | CHANGED |
+| [[UC-023]] | use_case | 25 | UNCHANGED |

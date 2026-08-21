@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-21T00:40:33.335Z (session 15) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 222 |
+| Last sync | 2026-08-21T04:17:56.713Z (session 15) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 224 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
@@ -16,7 +16,7 @@
 | [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 7 | true | UNCHANGED |
 | [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 7 | true | UNCHANGED |
 | [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | UNCHANGED |
-| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 7 | false | CHANGED |
+| [[AC-007]] | acceptance | 라벨 버전 스냅샷 저장·해시 식별 | 7 | false | UNCHANGED |
 | [[AC-008]] | acceptance | 버전 diff 비교·롤백 복구 | 11 | false | UNCHANGED |
 | [[AC-017]] | acceptance | 실영상 라벨링·메타 가공 | 6 | false | UNCHANGED |
 | [[AC-020]] | acceptance | 다양한 환경·산불 유형 학습데이터 제작 | 4 | true | UNCHANGED |
@@ -179,7 +179,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

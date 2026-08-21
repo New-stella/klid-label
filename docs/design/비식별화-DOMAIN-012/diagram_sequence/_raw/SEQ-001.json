@@ -131,6 +131,12 @@
         {
           "to": "VLM",
           "from": "BO",
+          "kind": "note",
+          "label": "전체 건너뛰기 스위치 판정은 위탁으로 나가는 모든 진입 경로가 통과한다 — 재개 러너·미결 회수도 예외가 아니다"
+        },
+        {
+          "to": "VLM",
+          "from": "BO",
           "kind": "sync",
           "label": "POST /v1/videovlm/verify 위탁 — 논블로킹 제출(subscribe), 파이프라인 스레드 미점유"
         },
@@ -296,12 +302,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
+    "current_version": 16,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "시계열 위탁 앞에 전체 건너뛰기 스위치 판정을 배선한다. 켜져 있으면 위탁하지 않고 건너뜀 표식만 남겨 외부 호출이 한 번도 일어나지 않으며, 사유는 설정값이 그대로 표식에 실린다. 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 자동 표식이 덮지 않는다.",
+    "change_summary": "전체 건너뛰기 스위치 판정을 위탁으로 나가는 모든 진입 경로가 통과한다는 사실을 흐름에 명시한다. 판정을 주 파이프라인 한 곳에만 두면 재개 러너와 미결 회수가 그 결정을 지나쳐 외부로 나가, 스위치가 약속한 「외부 호출이 한 번도 일어나지 않는다」가 성립하지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T00:20:52.248Z",
+    "last_updated_at": "2026-08-21T01:58:17.835Z",
     "created_at": "2026-06-01T06:59:19.046Z"
   }
 }

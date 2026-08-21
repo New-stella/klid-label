@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-08-21T00:40:21.945Z |
+| Last sync | 2026-08-21T04:17:44.476Z |
 | Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 57 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SCREEN-019]] (prev v36)
+- CHANGED [[SEQ-015]] (prev v3)
 
 ## ITEM 표
 
@@ -97,9 +97,9 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 37 | CHANGED |
+| [[SCREEN-019]] | screen_spec | 37 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
-| [[SEQ-015]] | diagram_sequence | 3 | UNCHANGED |
+| [[SEQ-015]] | diagram_sequence | 4 | CHANGED |
 | [[SEQ-020]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 1 | UNCHANGED |

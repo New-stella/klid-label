@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-21T00:40:30.169Z (session 9) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 161 |
+| Last sync | 2026-08-21T04:17:53.363Z (session 9) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 162 |
 | 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
@@ -117,7 +117,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

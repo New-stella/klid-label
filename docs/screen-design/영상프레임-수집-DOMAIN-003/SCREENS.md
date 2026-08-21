@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-21T00:40:29.448Z (session 9) |
+| last sync | 2026-08-21T04:17:52.824Z (session 9) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
@@ -52,8 +52,9 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[SCREEN-009]] | screen_spec | CHANGED (v51→v52) |
-| [[UI-087]] | ui_component | CHANGED (v4→v5) |
+| [[API-043]] | api_endpoint | CHANGED (v15→v16) |
+| [[API-198]] | api_endpoint | CHANGED (v6→v7) |
+| [[SCREEN-009]] | screen_spec | CHANGED (v52→v53) |
 
 ## Obsidian 볼트로 보기
 

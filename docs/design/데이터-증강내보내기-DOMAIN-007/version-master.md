@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-08-21T00:04:22.322Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 70 |
+| Last sync | 2026-08-21T04:17:35.029Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 71 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -26,7 +26,7 @@
   ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 31건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 25건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 46건 (그중 domain_id 없음 25건)
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 47건 (그중 domain_id 없음 25건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 10건 / 스코프 밖 35건 (그중 domain_id 없음 3건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[INTSPEC-005]]
-- NEW [[INTSPEC-006]]
+- CHANGED [[API-042]] (prev v6)
 
 ## ITEM 표
 
@@ -63,7 +62,7 @@
 | [[ADR-031]] | adr | 2 | UNCHANGED |
 | [[ADR-044]] | adr | 3 | UNCHANGED |
 | [[ADR-045]] | adr | 5 | UNCHANGED |
-| [[API-042]] | api_endpoint | 6 | UNCHANGED |
+| [[API-042]] | api_endpoint | 7 | CHANGED |
 | [[API-059]] | api_endpoint | 6 | UNCHANGED |
 | [[API-060]] | api_endpoint | 14 | UNCHANGED |
 | [[API-061]] | api_endpoint | 10 | UNCHANGED |
@@ -88,8 +87,8 @@
 | [[FEAT-004]] | feature | 9 | UNCHANGED |
 | [[INT-006]] | integration_point | 11 | UNCHANGED |
 | [[INT-008]] | integration_point | 13 | UNCHANGED |
-| [[INTSPEC-005]] | integration_spec | 1 | NEW |
-| [[INTSPEC-006]] | integration_spec | 1 | NEW |
+| [[INTSPEC-005]] | integration_spec | 1 | UNCHANGED |
+| [[INTSPEC-006]] | integration_spec | 1 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |

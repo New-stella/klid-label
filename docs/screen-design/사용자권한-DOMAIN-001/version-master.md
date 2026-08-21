@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-21T00:40:30.728Z (session 8) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 166 |
+| Last sync | 2026-08-21T04:17:54.072Z (session 8) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 167 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 
 ## ITEM 버전 표
@@ -122,7 +122,7 @@
 | [[UI-084]] | ui_component | overlay: HistoryDrawer | 5 | false | UNCHANGED |
 | [[UI-085]] | ui_component | input: TaskFilters | 4 | false | UNCHANGED |
 | [[UI-086]] | ui_component | input: YoloConfigCard | 4 | false | UNCHANGED |
-| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | CHANGED |
+| [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | UNCHANGED |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | UNCHANGED |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | UNCHANGED |
 | [[UI-090]] | ui_component | action: DangerActions | 4 | false | UNCHANGED |

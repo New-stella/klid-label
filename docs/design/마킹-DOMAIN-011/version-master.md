@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-011 |
-| Last sync | 2026-08-21T00:40:10.728Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 45 |
+| Last sync | 2026-08-21T04:17:38.685Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 44 |
 | 출력 루트 | docs/design/마킹-DOMAIN-011 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,8 +41,9 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SEQ-001]] (prev v14)
-- CHANGED [[SCREEN-008]] (prev v39)
+- CHANGED [[API-043]] (prev v15)
+- CHANGED [[SEQ-001]] (prev v15)
+- CHANGED [[SCREEN-008]] (prev v40)
 
 ## ITEM 표
 
@@ -56,7 +57,7 @@
 | [[ADR-008]] | adr | 3 | UNCHANGED |
 | [[ADR-022]] | adr | 5 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
-| [[API-043]] | api_endpoint | 15 | UNCHANGED |
+| [[API-043]] | api_endpoint | 16 | CHANGED |
 | [[API-047]] | api_endpoint | 10 | UNCHANGED |
 | [[API-084]] | api_endpoint | 7 | UNCHANGED |
 | [[API-091]] | api_endpoint | 11 | UNCHANGED |
@@ -88,9 +89,9 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 43 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 40 | CHANGED |
+| [[SCREEN-008]] | screen_spec | 42 | CHANGED |
 | [[SD-012]] | screen_design | 8 | UNCHANGED |
-| [[SEQ-001]] | diagram_sequence | 15 | CHANGED |
+| [[SEQ-001]] | diagram_sequence | 16 | CHANGED |
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 10 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 12 | UNCHANGED |

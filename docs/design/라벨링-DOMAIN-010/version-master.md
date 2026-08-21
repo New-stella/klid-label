@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-08-21T00:40:08.885Z |
-| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 150 |
+| Last sync | 2026-08-21T04:17:36.192Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 153 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -40,17 +40,14 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-007]] (prev v6)
-- CHANGED [[SEQ-008]] (prev v6)
-- CHANGED [[SCREEN-009]] (prev v51)
-- CHANGED [[SCREEN-019]] (prev v36)
-- CHANGED [[UC-023]] (prev v24)
+- CHANGED [[SEQ-008]] (prev v7)
+- CHANGED [[SCREEN-009]] (prev v52)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-007]] | acceptance | 7 | CHANGED |
+| [[AC-007]] | acceptance | 7 | UNCHANGED |
 | [[AC-008]] | acceptance | 11 | UNCHANGED |
 | [[AC-017]] | acceptance | 6 | UNCHANGED |
 | [[AC-020]] | acceptance | 4 | UNCHANGED |
@@ -174,9 +171,9 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 52 | CHANGED |
+| [[SCREEN-009]] | screen_spec | 53 | CHANGED |
 | [[SCREEN-010]] | screen_spec | 37 | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 37 | CHANGED |
+| [[SCREEN-019]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
 | [[SCREEN-026]] | screen_spec | 26 | UNCHANGED |
 | [[SCREEN-029]] | screen_spec | 38 | UNCHANGED |
@@ -185,7 +182,7 @@
 | [[SD-006]] | screen_design | 4 | UNCHANGED |
 | [[SD-022]] | screen_design | 4 | UNCHANGED |
 | [[SD-032]] | screen_design | 2 | UNCHANGED |
-| [[SEQ-008]] | diagram_sequence | 7 | CHANGED |
+| [[SEQ-008]] | diagram_sequence | 8 | CHANGED |
 | [[SEQ-009]] | diagram_sequence | 10 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
@@ -202,6 +199,6 @@
 | [[UC-008]] | use_case | 13 | UNCHANGED |
 | [[UC-021]] | use_case | 20 | UNCHANGED |
 | [[UC-022]] | use_case | 17 | UNCHANGED |
-| [[UC-023]] | use_case | 25 | CHANGED |
+| [[UC-023]] | use_case | 25 | UNCHANGED |
 | [[UC-028]] | use_case | 5 | UNCHANGED |
 | [[UC-032]] | use_case | 6 | UNCHANGED |

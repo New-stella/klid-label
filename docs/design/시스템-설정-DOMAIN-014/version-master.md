@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-21T00:40:15.093Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 51 |
+| Last sync | 2026-08-21T04:17:41.886Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 52 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[DFEAT-045]] (prev v10)
-- CHANGED [[SCREEN-025]] (prev v36)
+- CHANGED [[DFEAT-045]] (prev v12)
 
 ## ITEM 표
 
@@ -63,7 +62,7 @@
 | [[API-194]] | api_endpoint | 4 | UNCHANGED |
 | [[CDIAG-012]] | class_diagram | 4 | UNCHANGED |
 | [[CMP-011]] | diagram_c4_component | 7 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 12 | CHANGED |
+| [[DFEAT-045]] | domain_feature | 13 | CHANGED |
 | [[DOMAIN-014]] | domain | 5 | UNCHANGED |
 | [[ERD-016]] | erd | 13 | UNCHANGED |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
@@ -91,7 +90,7 @@
 | [[ROLE-002]] | permission_role | 6 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 38 | CHANGED |
+| [[SCREEN-025]] | screen_spec | 38 | UNCHANGED |
 | [[SD-015]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
