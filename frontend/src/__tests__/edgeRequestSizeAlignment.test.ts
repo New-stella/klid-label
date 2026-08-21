@@ -7,8 +7,8 @@
 //   1,000MB(개당 20MB × 50장)이므로 512MB 를 정당하게 넘는 요청이 실재한다.
 //
 // ★ 왜 이 검사가 **프론트엔드에** 있나: backend 쪽 정합 가드(`EdgeRequestSizeAlignmentGuardTest`)는
-//   온프렘 템플릿 두 개만 본다. 이 파일은 그 가드의 시야 밖이라, 여기서 함께 고정하지 않으면
-//   컨테이너 배포에서만 같은 결함이 조용히 되살아난다.
+//   온프렘 템플릿 두 개(httpd 기본 / nginx 대안)만 본다. 이 파일은 그 가드의 시야 밖이라, 여기서
+//   함께 고정하지 않으면 컨테이너 배포에서만 같은 결함이 조용히 되살아난다.
 //
 // ⚠ 서버 상한 자체(1200MB 가 맞는가)는 여기서 판정하지 않는다 — 그건 backend 가드의 몫이고,
 //   여기서 그 숫자를 다시 적으면 두 번째 진실원이 된다. 이 파일은 **세 형상이 서로 같은가**만 본다.
@@ -22,13 +22,17 @@ import { describe, expect, it } from 'vitest';
 const CONTAINER_NGINX = resolve(__dirname, '../../nginx.conf');
 /** 온프렘 대안 형상(기존 nginx 보유 서버). */
 const ONPREM_NGINX = resolve(__dirname, '../../../deploy/onprem/config/frontend/nginx.conf.template');
-/** 온프렘 기본 형상(Caddy). */
-const ONPREM_CADDY = resolve(__dirname, '../../../deploy/onprem/config/frontend/Caddyfile.template');
+/** 온프렘 기본 형상(배포판 httpd) — 구 Caddy 형상은 커밋 7d858f58 에서 교체됐다. */
+const ONPREM_HTTPD = resolve(__dirname, '../../../deploy/onprem/config/frontend/httpd-klid.conf.template');
 
 /** `client_max_body_size 1200m;` */
 const NGINX_LIMIT = /^\s*client_max_body_size\s+(\d+)([kKmMgG]?)\s*;/m;
-/** Caddy `request_body { max_size 1200MB }` */
-const CADDY_LIMIT = /^\s*max_size\s+(\d+)([kKmMgG]?)[bB]?\s*$/m;
+/**
+ * httpd `LimitRequestBody 1258291200` — **단위 없는 바이트 정수**가 표준 표기다.
+ * backend 가드(`EdgeRequestSizeAlignmentGuardTest.HTTPD_LIMIT`)와 같은 문법을 본다 —
+ * 두 곳이 다른 정규식을 쓰면 한쪽만 통과하는 상태가 다시 생긴다.
+ */
+const HTTPD_LIMIT = /^\s*LimitRequestBody\s+(\d+)([kKmMgG]?)[bB]?\s*$/m;
 
 const UNIT_BYTES: Record<string, number> = {
   '': 1,
@@ -51,8 +55,8 @@ describe('앞단 요청 크기 상한 — 배포 형상 정합', () => {
     expect(limitBytes(CONTAINER_NGINX, NGINX_LIMIT)).toBe(limitBytes(ONPREM_NGINX, NGINX_LIMIT));
   });
 
-  it('컨테이너_형상과_온프렘_Caddy_형상의_상한이_같다', () => {
-    expect(limitBytes(CONTAINER_NGINX, NGINX_LIMIT)).toBe(limitBytes(ONPREM_CADDY, CADDY_LIMIT));
+  it('컨테이너_형상과_온프렘_httpd_형상의_상한이_같다', () => {
+    expect(limitBytes(CONTAINER_NGINX, NGINX_LIMIT)).toBe(limitBytes(ONPREM_HTTPD, HTTPD_LIMIT));
   });
 
   it('컨테이너_형상의_상한이_포털_이미지_다중_업로드_최대_요청을_덮는다', () => {

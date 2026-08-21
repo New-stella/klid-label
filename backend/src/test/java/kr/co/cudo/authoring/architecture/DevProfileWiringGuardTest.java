@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -53,6 +54,8 @@ class DevProfileWiringGuardTest {
     private static final String MOCK_SERVER_URL = "http://klid-mock-server:9400";
 
     private static final String MOCK_MODE_KEY = "authoring.integration.deidentify.mock-mode";
+    /** 폐지된 자체 채움 토글이 compose 에서 쓰던 환경변수명 — 되살아나는지만 본다. */
+    private static final String SELF_FILL_ENV = "DEIDENTIFY_MOCK_MODE";
     private static final String KPST_ENABLED_KEY = "kpst.deid.enabled";
     private static final String KPST_BASE_URL_KEY = "kpst.deid.base-url";
     private static final String VLM_ENABLED_KEY = "vlm.client.enabled";
@@ -297,9 +300,23 @@ class DevProfileWiringGuardTest {
 
         // and: backend 가 외부 벤더를 실제로 호출하도록 배선돼 있어야 한다
         String backendEnv = "services.klid-backend.environment.";
-        assertThat(String.valueOf(yamlValue(BASE_COMPOSE, backendEnv + "DEIDENTIFY_MOCK_MODE")))
-                .as("compose 가 내부 self-fill 을 켜면 안 된다")
-                .contains(":-false");
+        // ★ 이 단언은 뒤집힌 것이다(위 selfFillPropertyIsGone 과 같은 축). 과거에는 compose 가
+        //   DEIDENTIFY_MOCK_MODE 를 `${...:-false}` 로 선언해 <꺼진 채로 되돌릴 수 있기>를 요구했다.
+        //   그 되돌릴 수단이 곧 위험이었고, self-fill 경로가 코드째 폐지되면서(DeidentifyStep.runMock
+        //   삭제 + 설정 키 제거) compose 선언도 함께 사라졌다.
+        //
+        //   이제 그 키가 되살아나면 ①바인딩할 yml 키가 없어 조용히 무시되는 죽은 설정이거나
+        //   ②구현과 함께 되살아난 것이다 — 둘 다 막는다. 선언이 아예 없어야 운영자가 .env 에
+        //   값을 넣어도 컨테이너로 전달되지 않는다(선언된 키만 전달되므로 fail-closed).
+        List<String> selfFillDeclarations = Stream.of(BASE_COMPOSE, LOCAL_COMPOSE)
+                .flatMap(compose -> yamlKeys(compose).stream()
+                        .filter(key -> key.endsWith(".environment." + SELF_FILL_ENV))
+                        .map(key -> compose.getFileName() + " -> " + key))
+                .toList();
+        assertThat(selfFillDeclarations)
+                .as("compose 가 폐지된 자체 채움 토글(%s)을 다시 선언했다 — 이 경로는 폐지됐다: %s",
+                        SELF_FILL_ENV, selfFillDeclarations)
+                .isEmpty();
         assertThat(String.valueOf(yamlValue(BASE_COMPOSE, backendEnv + "KPST_DEID_BASE_URL")))
                 .contains("klid-mock-server:9400");
         assertThat(String.valueOf(yamlValue(BASE_COMPOSE, backendEnv + "VLM_SERVICE_URL")))
