@@ -8,6 +8,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchBundleTogglePolicy;
 import kr.co.cudo.authoring.batch.runner.AsyncBatchReprocessRunner;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
+import kr.co.cudo.authoring.batch.status.ManualStageSkip;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -36,10 +37,21 @@ import java.util.Map;
  * 시점에 알린다.
  *
  * <h3>★대상 묶음을 요청이 자유롭게 고르지 못한다 (Critical)</h3>
- * <p>수락 조건은 "그 영상에서 <b>실제로 건너뛰기를 해제한</b> 묶음인가" 하나이며 판정은
- * {@link BatchStatusService#hasClearedManualSkip(Long, BatchStageBundle)}(수동 스킵 판정과 같은 축)
+ * <p>수락 조건은 "그 영상에서 <b>건너뛴 적이 있는</b> 묶음인가" 하나이며 판정은
+ * {@link BatchStatusService#hasManualSkipHistory(Long, BatchStageBundle)}(수동 스킵 판정과 같은 축)
  * 단일 지점이다. 임의 묶음을 받으면 요청이 앞 작업을 건너뛰도록 <b>강제</b>할 수 있어 전제 없는
  * 산출물이 만들어진다 — 이 제한이 그 통로를 닫는 장치이므로 느슨하게 만들지 않는다.
+ *
+ * <h3>★★건너뛴 상태도 그대로 수락한다 — 해제→재수행 2단계 폐지 [@design ADR-050] [@design API-201]</h3>
+ * <p>되살리려는 사람에게 해제와 재수행은 <b>한 가지 일</b>이다. 나누어 두면 해제만 하고 재수행을 잊었을
+ * 때 그 영상이 <b>건너뛰지도 수행하지도 않은</b> 상태로 남는다. 그래서 마지막 표식이 건너뜀이든
+ * 해제든 모두 받는다. <b>넓어진 것은 그 하나뿐</b>이며 표식이 <b>아예 없는</b> 묶음은 종전대로 400 이다.
+ * <p>건너뛴 상태로 들어온 건은 재수행이 <b>해제 표식을 함께 남긴다</b>
+ * ({@link ManualStageSkip#RERUN_AUTO_CLEARED_REASON} — 사람이 직접 누른 해제와 사유 본문으로 구분).
+ * <p>★<b>순서가 계약이다</b> — 해제 표식은 <b>디스패치보다 먼저</b> 커밋돼야 한다. 표식이 건너뜀인 채로
+ * 파이프라인이 시작되면 오케스트레이터의 스킵 게이트가 그 묶음을 <b>다시 건너뛰어</b> 재수행이 조용히
+ * 무효가 된다(200 을 받았는데 아무것도 돌지 않는다). 이 서비스는 트랜잭션 경계를 갖지 않으므로 기록은
+ * 호출 즉시 커밋된다.
  *
  * <h3>허용 조건 (fail-secure, 평가 순서가 계약이다)</h3>
  * <ol>
@@ -115,10 +127,10 @@ public class BatchStageRerunService {
     static final String EVER_APPROVED_REASON = "검수가 완료된 적이 있는 영상은 오토라벨 묶음을 다시 수행할 수 없습니다.";
 
     /**
-     * 대상 묶음 거부 문구 — <b>미지원 묶음</b>과 <b>건너뛰기를 해제하지 않은 묶음</b>에 같은 문구를 쓴다.
+     * 대상 묶음 거부 문구 — <b>미지원 묶음</b>과 <b>건너뛴 적이 없는 묶음</b>에 같은 문구를 쓴다.
      * 갈라 놓으면 응답이 "그 영상이 어느 묶음을 건너뛰었는지" 알려주는 오라클이 된다(CWE-209).
      */
-    static final String NOT_CLEARED_BUNDLE_REASON = "건너뛰기를 해제한 작업 묶음이 아니거나 지원하지 않는 값입니다.";
+    static final String NOT_CLEARED_BUNDLE_REASON = "건너뛴 적이 있는 작업 묶음이 아니거나 지원하지 않는 값입니다.";
 
     /** 클레임 실패(409) 문구 — 상태를 되비추지 않는다(CWE-209). */
     static final String NOT_CLAIMABLE_REASON =
@@ -132,6 +144,12 @@ public class BatchStageRerunService {
 
     /** 접수 거부로 선점을 되돌렸을 때 표식을 닫는 사유 문구 — 고정 상수(CWE-209/532). */
     static final String CLAIM_CLOSED_DISPATCH_REJECTED = "접수 거부로 선점 해제";
+
+    /**
+     * 자동 해제 표식의 행위자 — 사람이 아니라 재수행 경로가 남긴 행임을 감사에서 드러낸다.
+     * {@code LS_BATCH_PROC_LOG.REG_ID} 폭(30) 이내 고정 상수라 절단·오염이 없다.
+     */
+    static final String RERUN_ACTOR = "SYSTEM_RERUN";
 
     private final VideoRepository videoRepository;
     private final BatchStatusService batchStatusService;
@@ -162,9 +180,10 @@ public class BatchStageRerunService {
             throw new CustomException(ErrorCode.INVALID_INPUT, NOT_CLEARED_BUNDLE_REASON);
         }
 
-        // ★ 요청이 대상 묶음을 자유롭게 고르지 못한다 — 그 영상에서 실제로 건너뛰기를 해제한 묶음만 수락한다.
+        // ★ 요청이 대상 묶음을 자유롭게 고르지 못한다 — 그 영상에서 <건너뛴 적이 있는> 묶음만 수락한다.
         //   느슨하게 하면 앞 작업을 건너뛰도록 요청이 강제할 수 있어 전제 없는 산출물이 만들어진다.
-        if (!batchStatusService.hasClearedManualSkip(rawSn, bundle)) {
+        //   ★건너뛴 상태도 그대로 받는다(ADR-050) — 해제를 먼저 눌러야 하는 2단계를 폐지했다.
+        if (!batchStatusService.hasManualSkipHistory(rawSn, bundle)) {
             throw new CustomException(ErrorCode.INVALID_INPUT, NOT_CLEARED_BUNDLE_REASON);
         }
 
@@ -201,6 +220,14 @@ public class BatchStageRerunService {
         //   디스패치 <b>전에</b> 남겨야 열림/닫힘 순서가 뒤집히지 않는다.
         batchStatusService.recordReprocessClaimOpened(rawSn, LsDataRaw.DATA_STTS_COMPLETED);
 
+        // ★★건너뜀 표식을 <디스패치 전에> 푼다 — 순서가 계약이다.
+        //   표식이 건너뜀인 채로 파이프라인이 시작되면 오케스트레이터의 스킵 게이트가 그 묶음을 다시
+        //   건너뛰어 재수행이 조용히 무효가 된다(200 인데 아무것도 돌지 않는다).
+        //   ⚠ 클레임 <뒤에> 둔다 — 앞에 두면 클레임 실패(409)로 끝난 요청이 표식만 풀어 그 영상이
+        //   「건너뛰지도 수행하지도 않은」 상태로 남는다.
+        //   해제 사유는 사람이 직접 누른 해제와 구분되는 전용 문구다(감사). [design: ADR-050]
+        clearSkipMarkerForRerun(rawSn, bundle);
+
         // 묶음 → stage 토글 환산은 단일 지점(정책 빈)이 담당한다. 여기서 구성원을 재유도하지 않는다.
         Map<String, Boolean> toggles = togglePolicy.togglesFor(bundle);
         log.info("[BatchStageRerun] claimed rawSn={} bundle={}", rawSn, bundle);
@@ -223,6 +250,28 @@ public class BatchStageRerunService {
             throw new CustomException(ErrorCode.SERVICE_UNAVAILABLE, DISPATCH_REJECTED_REASON);
         }
         return new BatchStageRerunResponse(rawSn, bundle.name(), true);
+    }
+
+    /**
+     * 건너뜀 표식이 서 있으면 <b>재수행에 따른 자동 해제</b> 표식을 덧붙인다. [@design ADR-050]
+     *
+     * <p>이미 해제된 묶음이면 <b>아무 행도 남기지 않는다</b> — 재수행을 반복할 때마다 의미 없는 해제
+     * 행이 쌓이면 감사가 잡음으로 덮인다(해제 요청의 멱등 no-op 과 같은 관례).
+     *
+     * <p>기록 코드값은 사람이 누른 해제와 <b>같다</b>({@link ManualStageSkip#ERR_CD_CLEARED}) — 그 값은
+     * 상태 판정의 키라 새로 만들면 이미 적재된 과거 행의 배선이 끊긴다. 갈리는 것은 사유 본문뿐이다.
+     *
+     * <p>접수 거부(503) 보상에서 이 해제를 <b>되돌리지 않는다</b> — 되돌리면 사람이 이미 내린 「되살린다」는
+     * 결정을 시스템이 뒤집는 셈이고, 해제 상태로 남아도 그 묶음은 여전히 재수행 대상이라 재시도가 막히지
+     * 않는다.
+     */
+    private void clearSkipMarkerForRerun(Long rawSn, BatchStageBundle bundle) {
+        if (!batchStatusService.isBundleManuallySkipped(rawSn, bundle)) {
+            return;
+        }
+        batchStatusService.recordManualStageSkipCleared(
+                rawSn, bundle, ManualStageSkip.RERUN_AUTO_CLEARED_REASON, RERUN_ACTOR);
+        log.info("[BatchStageRerun] skip marker auto-cleared rawSn={} bundle={}", rawSn, bundle);
     }
 
     /**

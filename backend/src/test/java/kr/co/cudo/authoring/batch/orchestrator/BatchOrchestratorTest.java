@@ -38,6 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * BatchOrchestrator V2.1 단위 테스트 (선언적 파이프라인 리팩토링 반영).
@@ -86,7 +87,8 @@ class BatchOrchestratorTest {
                 yoloStep, sam2Step, trackInterpolationStep);
 
         orchestrator = new BatchOrchestrator(
-                pipeline, statusService, transitionService, retryQueue, videoRepository);
+                pipeline, statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         // V2.0: 마킹 필수 — 기본 마킹 데이터 제공 (orchestrator 통과 보장)
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(any()))

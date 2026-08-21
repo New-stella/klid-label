@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * B-ISSUE-01 (1차 B-ISSUE-22 이월) 회귀 가드 — <b>배치 파이프라인 진입의 원자 클레임</b>을 실 DB
@@ -152,7 +153,7 @@ class BatchOrchestratorConcurrentEntryIT {
         when(retryQueue.enqueueIfRetryable(any())).thenReturn(false);
         return new BatchOrchestrator(
                 new BatchPipeline(List.of(step)), statusService, transitionService, retryQueue,
-                videoRepository);
+                videoRepository, mock(VlmDefaultSkipMarker.class));
     }
 
     // ------------------------------------------------------------------ tests

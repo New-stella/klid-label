@@ -19,12 +19,17 @@
 //   - 단계를 특정할 수 없는 실패(= stages 가 빈 배열)도 사유만은 보여주고, 단계 자리에는 확인
 //     불가임을 알린다. dev 실측에서 실패 영상 3건 중 1건이 이 경우였다 — 이 분기가 빠지면 그
 //     영상에서는 화면이 아무것도 보여주지 못한다.
-//   - 건너뛰기/건너뛰기 해제는 두 묶음에서만 노출한다(비식별·마킹·프레임추출은 어느 묶음에도 없다).
+//   - 건너뛰기/재수행은 두 묶음에서만 노출한다(비식별·마킹·프레임추출은 어느 묶음에도 없다).
 //   - **건너뛰기 버튼은 그 묶음의 단계가 실패했을 때만** 노출한다(사양이 "실패 시 건너뛴다"이므로
-//     넓히지 않는다). 반대로 **건너뛰기 해제는 실패 여부와 무관**하게 건너뛴 묶음 전부에 노출한다.
-//   - **건너뛰기를 해제한 묶음에는 재수행 버튼을 하나** 둔다 — 범위를 고르지 않는다(묶음이 곧 범위다).
-//     전체 재기동을 완주 영상에 쓰면 파이프라인이 통째로 돌아 사람이 손댄 보간 라벨이 전량 지워진다
-//     — 그래서 **문제가 생긴 곳부터** 재시도한다.
+//     넓히지 않는다).
+//   - **건너뛴 적이 있는 묶음(건너뜀·해제 모두)에 재수행 버튼을 하나** 둔다 — 범위를 고르지 않는다
+//     (묶음이 곧 범위다). 전체 재기동을 완주 영상에 쓰면 파이프라인이 통째로 돌아 사람이 손댄 보간
+//     라벨이 전량 지워진다 — 그래서 **문제가 생긴 곳부터** 재시도한다.
+//   - **「건너뛰기 해제」 버튼은 두지 않는다**(ADR-050). 재수행이 건너뛴 상태를 직접 수락하고 해제
+//     표식까지 함께 남기므로, 해제와 재수행을 두 번 돌게 하면 회수 동선만 길어지고 중간에 멈춘
+//     영상(해제만 하고 재수행을 안 한 상태)이 생긴다. 「막는 조작에는 되돌리는 길을 함께 둔다」는
+//     원칙은 그대로이며, 그 길을 **재수행 하나**가 진다. 서버의 해제 API 자체는 남아 있으나 이
+//     화면은 부르지 않는다 — 되살리지 말 것.
 //   - 파생영상에는 조작을 노출하지 않는다 — 파생은 배치 파이프라인을 타지 않아 재실행으로
 //     복구되지 않는다(사유는 그대로 보여준다).
 //   - **검수가 완료된 적 있는 영상은 재수행이 묶음별로 갈린다** — 시계열은 그대로 누르고 오토라벨만
@@ -47,15 +52,9 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { ApiError } from '@/lib/api/errors';
 import { useUiStore } from '@/stores/useUiStore';
 
-import {
-  useRerunBatchStage,
-  useRetryBatch,
-  useSkipBatchStage,
-  useUnskipBatchStage,
-} from '../hooks/useBatchRecovery';
+import { useRerunBatchStage, useRetryBatch, useSkipBatchStage } from '../hooks/useBatchRecovery';
 import {
   STAGE_BUNDLES,
-  bundleOfStage,
   bundleRerunsInterpolation,
   isBatchFailed,
   isBatchProcessing,
@@ -67,7 +66,10 @@ import {
 import { BatchStageSkipModal } from './BatchStageSkipModal';
 
 /** 패널 판정에 필요한 최소 필드 — 전체 상세를 요구하지 않아 호출부·테스트가 가벼워진다. */
-type BatchAttentionFields = Pick<VideoDetail, 'batchFailureReason' | 'stages' | 'skippedStages'>;
+type BatchAttentionFields = Pick<
+  VideoDetail,
+  'batchFailureReason' | 'stages' | 'skippedStages' | 'clearedStages' | 'failedStages'
+>;
 
 /**
  * 이 영상에 조치가 필요한 배치 **실패**가 있는가.
@@ -82,18 +84,48 @@ export function hasBatchFailure(video: Pick<VideoDetail, 'batchFailureReason' | 
 }
 
 /**
- * 패널을 노출해야 하는가 — **노출의 단일 판정**. [@design SCREEN-009]
+ * 서버가 판정한 **지금 실패 상태인 작업 묶음** — 화면이 실패를 재유도하지 않는 유일한 창구.
+ * [@design ADR-050]
+ *
+ * <p>「건너뛰기를 허용할지」를 정하는 서버 판정과 <b>같은 결과</b>다. `stages` 의 `FAIL` 이나
+ * `batchFailureReason` 문자열에서 다시 유도하지 않는다 — 소비자가 생산자의 성공 조건을 재유도하면
+ * 서버가 조건을 바꿀 때 조용히 어긋난다(이 결함이 정확히 그렇게 났다).
+ */
+export function failedBundlesOf(video: Pick<VideoDetail, 'failedStages'>): StageBundle[] {
+  return video.failedStages ?? [];
+}
+
+/**
+ * 패널을 노출해야 하는가 — **노출의 단일 판정**. [@design SCREEN-009] [@design ADR-050]
  *
  * ★ 실패 여부만 보면 안 된다. 스킵 표식은 영구라 ①단계를 건너뛰고 ②재기동이 성공하면 ③실패가
  * 사라져 패널이 통째로 없어지고 ④그 단계는 이후 모든 재기동에서 조용히 건너뛰어지는데 화면에는
  * 완료로 보인다. 해제할 진입점이 어디에도 남지 않는다.
+ *
+ * ★★ 그리고 <b>묶음 실패 축(`failedStages`)</b>이 없으면 「실패 후 판단」 입구가 닫힌다 — 시계열
+ * 위탁 실패는 파이프라인을 멈추지 않아 배치 상태도 진행 축도 실패로 서지 않는다. 그 영상에서
+ * 조치 영역이 통째로 사라져 <b>건너뛰기를 요청할 창구 자체가 없었다</b>. 과대 노출은 서버의 건별
+ * 거부가 보정하지만 <b>과소 노출은 보정되지 않는다</b>.
  */
 export function needsBatchAttention(video: BatchAttentionFields): boolean {
-  return hasBatchFailure(video) || (video.skippedStages ?? []).length > 0;
+  return (
+    hasBatchFailure(video) ||
+    (video.skippedStages ?? []).length > 0 ||
+    // ★ 해제된 묶음도 노출 근거다 — 그 영상은 실패도 스킵도 없지만 **재수행 창구**가 남아야 한다
+    //   (재수행이 실패해 원상 복구된 영상이 정확히 이 상태다).
+    (video.clearedStages ?? []).length > 0 ||
+    // ★ 실패한 묶음도 노출 근거다 — 위 두 축 어디에도 걸리지 않는 시계열 위탁 실패가 여기로 들어온다.
+    failedBundlesOf(video).length > 0
+  );
 }
 
 /** 패널이 말하는 상태 — 축들은 서로를 지우지 않는다(아래 {@link batchPanelMode} 주석). */
-export type BatchPanelMode = 'processing' | 'failure' | 'lastFailure' | 'skipped';
+export type BatchPanelMode =
+  | 'processing'
+  | 'failure'
+  | 'lastFailure'
+  | 'bundleFailure'
+  | 'skipped';
 
 /** 모드 판정 입력 — 주의(실패∪스킵) 축 + 처리 중 축. */
 type BatchPanelFields = BatchAttentionFields & Pick<VideoDetail, 'status'>;
@@ -120,12 +152,16 @@ type BatchPanelFields = BatchAttentionFields & Pick<VideoDetail, 'status'>;
  *
  * ⚠ 처리 중이 실패를 <b>가리는 것</b>과 <b>지우는 것</b>은 다르다 — `hasBatchFailure` 는 그대로
  * 유지되며 실패 기록은 「직전 실패」로 계속 보인다(`lastFailure` 도 같은 어휘를 쓴다). 마찬가지로
- * 스킵 목록·건너뛰기 해제는 모드와 무관하게 항상 렌더된다(스킵 축이 다른 축에 먹히면 해제할 창구가
+ * 스킵 목록·재수행 창구는 모드와 무관하게 항상 렌더된다(스킵 축이 다른 축에 먹히면 되살릴 창구가
  * 또 사라진다 — 이미 한 번 난 결함).
  */
 export function batchPanelMode(video: BatchPanelFields): BatchPanelMode {
   if (isBatchProcessing(video)) return 'processing';
   if (hasBatchFailure(video)) return isBatchFailed(video) ? 'failure' : 'lastFailure';
+  // ★ 여기까지 오면 배치 축에는 아무 실패 신호가 없다. 그래도 **묶음 하나가 실패해 있을 수 있다** —
+  //   시계열 위탁 실패가 정확히 그 경우다(파이프라인을 멈추지 않아 배치 축이 조용하다). 이 분기가
+  //   없으면 그 영상의 패널 제목이 「건너뛴 작업 있음」이 되어, 건너뛴 것이 하나도 없는데 그렇게 말한다.
+  if (failedBundlesOf(video).length > 0) return 'bundleFailure';
   return 'skipped';
 }
 
@@ -139,6 +175,9 @@ const MODE_HEADING: Record<BatchPanelMode, string> = {
   processing: '배치 처리 중',
   failure: '배치 처리 실패',
   lastFailure: '직전 배치 처리 실패',
+  // ★ 배치 전체는 완주했는데 **그 작업만** 실패한 상태다 — 「배치 처리 실패」로 말하면 전 단계가
+  //   완료인 화면과 모순되고, 「건너뛴 작업 있음」으로 말하면 건너뛴 적이 없는데 그렇게 말한다.
+  bundleFailure: '실패한 작업 있음',
   skipped: '건너뛴 작업 있음',
 };
 
@@ -148,6 +187,8 @@ const MODE_SURFACE: Record<BatchPanelMode, string> = {
   failure: 'rounded-lg border border-danger/40 bg-danger/5 px-4 py-3',
   // 지금 실패 상태가 아니므로 위험 톤을 쓰지 않는다 — 사실 관계는 제목 문구가 말한다.
   lastFailure: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
+  // 영상 자체는 완주 상태라 위험 톤을 쓰지 않는다 — 무엇이 실패했는지는 제목 문구와 묶음 표식이 말한다.
+  bundleFailure: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
   skipped: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
 };
 
@@ -192,24 +233,13 @@ function rerunLockedByApproval(bundle: StageBundle, everApproved: boolean): bool
 }
 
 /**
- * 이 화면 세션에서 **건너뛰기를 해제한** 작업 묶음 — 재수행 버튼 노출의 근거. [@design API-201]
+ * ⚠ 구 `RevertedBundles`(이 화면 세션에서 건너뛰기를 해제한 묶음의 **로컬 기억**)는 **폐기**됐다 —
+ * 되살리지 말 것. [@design ADR-050]
  *
- * ★ 서버 응답에는 이 목록이 없다. `skippedStages`(API-043)는 <b>지금 건너뛴 상태</b>인 묶음만
- * 담으므로, 해제하는 순간 그 묶음은 목록에서 빠지고 "해제했다"는 사실은 어디에도 남지 않는다.
- * 서버에 해제 이력 자체는 있으나(스킵 해제 시 표식 행을 남긴다) 응답 계약에 노출되지 않으며,
- * 없는 필드를 추정해 만들지 않는다 — 그래서 <b>건너뛰기 해제가 성공한 직후의 로컬 상태</b>를 근거로 쓴다.
- *
- * ⚠ 이 근거의 한계(의도적으로 감수): 새로고침·다른 화면 경유 후 재진입하면 이 상태가 사라져
- * 재수행 버튼이 보이지 않는다. 그때는 다시 건너뛰었다가 해제하는 우회밖에 없다. 화면을 떠나도
- * 남게 하려면 응답이 건너뛰기를 해제한 묶음을 내려줘야 하며 그것은 서버 계약 변경이다.
- *
- * `rawSn` 을 함께 들고 다니는 이유는 <b>다른 영상으로 이동해도 컴포넌트가 재마운트되지 않을 수</b>
- * 있기 때문이다 — 영상이 바뀌면 이 상태는 통째로 무효다.
+ * 그것은 서버 응답에 해제 목록이 없던 시절의 우회였고, 그래서 새로고침·다른 화면 경유 후 재진입하면
+ * 재수행 창구가 통째로 사라졌다(다시 건너뛰었다가 해제하는 우회밖에 없었다). 응답이
+ * `clearedStages` 를 내려주는 지금은 <b>서버가 그 사실을 기억</b>하므로 화면이 기억할 이유가 없다.
  */
-interface RevertedBundles {
-  rawSn: number;
-  bundles: StageBundle[];
-}
 
 /** 서버가 준 사용자 문구를 그대로 쓰고, 그것이 없을 때만 일반 문구로 폴백한다. */
 function errorMessageOf(err: unknown, fallback: string): string {
@@ -234,7 +264,6 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   const [skipTarget, setSkipTarget] = useState<StageBundle | null>(null);
   /** 재수행 확인 대상 — null 이면 확인 창이 닫혀 있다(= 아직 아무것도 보내지 않았다). */
   const [rerunConfirmTarget, setRerunConfirmTarget] = useState<StageBundle | null>(null);
-  const [reverted, setReverted] = useState<RevertedBundles>({ rawSn: video.id, bundles: [] });
 
   const retry = useRetryBatch(video.id, {
     onSuccess: () => {
@@ -259,12 +288,6 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
         message: `${bundleLabel(data.stage)} 작업을 건너뛰도록 기록했습니다.`,
       });
       setSkipTarget(null);
-      // 다시 건너뛴 묶음은 더 이상 "건너뛰기를 해제한 묶음"이 아니다 — 재수행 버튼을 남기면 서버가 400 으로
-      // 막는 버튼이 화면에 남는다(대상은 실제로 건너뛰기를 해제한 묶음뿐이다).
-      setReverted((prev) => ({
-        rawSn: video.id,
-        bundles: prev.rawSn === video.id ? prev.bundles.filter((b) => b !== data.stage) : [],
-      }));
     },
     onError: (err) => {
       pushToast({
@@ -273,31 +296,6 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       });
       setSkipTarget(null);
     },
-  });
-
-  const unskip = useUnskipBatchStage(video.id, {
-    onSuccess: (bundle) => {
-      pushToast({
-        variant: 'success',
-        message: '건너뛰기를 해제했습니다. 이 작업을 다시 수행하려면 아래 재수행을 사용하세요.',
-      });
-      // ★ 여기가 「건너뛰기를 해제한 묶음」을 아는 유일한 지점이다(위 RevertedBundles 주석) — 서버 응답에는
-      //   해제 목록이 없고, `skippedStages` 는 이 성공과 동시에 그 묶음을 빼 버린다.
-      setReverted((prev) => ({
-        rawSn: video.id,
-        bundles:
-          prev.rawSn === video.id
-            ? prev.bundles.includes(bundle)
-              ? prev.bundles
-              : [...prev.bundles, bundle]
-            : [bundle],
-      }));
-    },
-    onError: (err) =>
-      pushToast({
-        variant: 'error',
-        message: errorMessageOf(err, '건너뛰기를 해제하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
-      }),
   });
 
   const rerun = useRerunBatchStage(video.id, {
@@ -319,14 +317,12 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   });
 
   const skipped = video.skippedStages ?? [];
-  // 건너뛰기를 해제한 묶음 — 다른 영상의 잔재는 버리고, 그 사이 다시 건너뛴 묶음도 제외한다(서버가 진실원인
-  // 축을 로컬 기억이 이기지 않게 한다).
-  const revertedBundles =
-    reverted.rawSn === video.id ? reverted.bundles.filter((b) => !skipped.includes(b)) : [];
+  // ★ 건너뛰기가 **해제된** 묶음 — 서버가 내려주는 영구 상태다(구 로컬 기억 폐지, ADR-050).
+  const cleared = video.clearedStages ?? [];
 
-  // ★ 해제한 직후에는 실패도 스킵도 없을 수 있다(건너뛴 채 완주한 영상을 해제한 경우). 그때 패널이
-  //   사라지면 방금 만든 재수행 창구가 같이 사라진다.
-  if (!needsBatchAttention(video) && revertedBundles.length === 0) return null;
+  // ★ 해제된 직후에는 실패도 스킵도 없을 수 있다(건너뛴 채 완주한 영상을 되살린 경우). 그때 패널이
+  //   사라지면 재수행 창구가 같이 사라진다 — `needsBatchAttention` 이 해제 축까지 본다.
+  if (!needsBatchAttention(video)) return null;
 
   const stages = video.stages ?? [];
   const mode = batchPanelMode(video);
@@ -342,22 +338,24 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   //   ⚠ 처리 중은 그 실패 상태를 **방금 선점한 같은 흐름**이라 버튼을 지우지 않고 남긴다(비활성 +
   //     사유 문구). 여기서 지우면 접수 직후 버튼이 사라졌다가 다시 나타나 사용자가 무엇이 일어났는지
   //     알 수 없다. 반대로 완주(COMPLETED)한 영상에는 두지 않는다 — 서버가 반드시 막는다.
-  //   ⚠ 실패 기록 자체가 없으면(건너뛰기 해제만 한 영상 등) 예전처럼 두지 않는다 — 조건을 넓히지 않는다.
+  //   ⚠ 실패 기록 자체가 없으면(건너뛴 채 완주한 영상 등) 예전처럼 두지 않는다 — 조건을 넓히지 않는다.
   const canShowRetry = failed && (currentlyFailed || processing);
+  // 실패 **단계**는 사유 영역의 표시에만 쓴다 — 조작 축(묶음)은 아래 `failedBundles` 가 소유한다.
   const failedStage = stages.find((s) => s.status === 'FAIL') ?? null;
-  // 실패한 **단계**가 속한 **묶음** — 진행 축(단계)과 조작 축(묶음)을 잇는 유일한 해석 지점이다.
-  // 어느 묶음에도 없는 단계(비식별·마킹·프레임추출)가 실패하면 null 이라 건너뛰기 버튼이 생기지 않는다.
-  const failedBundle = failedStage ? bundleOfStage(failedStage.name) : null;
+  // ★ 건너뛰기를 열 **묶음**은 서버 판정(`failedStages`)이 정한다 — 화면이 `stages` 에서 재유도하지
+  //   않는다. 구 구현은 진행 축의 FAIL 을 묶음으로 역해석했는데, 시계열 위탁 실패는 그 축에 아무
+  //   흔적을 남기지 않아 **버튼이 영영 뜨지 않았다**(ADR-050 의 두 입구 중 하나가 닫혀 있었다).
+  const failedBundles = failedBundlesOf(video);
   const isDerivative = video.derivative === true;
   // ★ 승인 이력 축 — **서버가 내려준 값**을 그대로 쓴다(`VideoDetailResponse.everApproved`).
   //   화면이 상태·검수 이력에서 재유도하면 서버 판정과 갈리고, 그때 열리는 쪽이 서버가 막는 버튼이다.
   const everApproved = video.everApproved === true;
-  const busy = retry.isPending || skip.isPending || unskip.isPending || rerun.isPending;
+  const busy = retry.isPending || skip.isPending || rerun.isPending;
 
-  // 조작 행을 그릴 묶음 — 건너뛸 수 있거나(그 묶음의 단계가 실패) 이미 건너뛴 묶음 또는 건너뛰기를 해제한 묶음.
+  // 조작 행을 그릴 묶음 — 서버가 실패로 판정했거나 건너뛴 적이 있는 묶음(건너뜀·해제 모두).
   const actionableBundles = STAGE_BUNDLES.filter(
     (bundle) =>
-      skipped.includes(bundle) || revertedBundles.includes(bundle) || failedBundle === bundle,
+      skipped.includes(bundle) || cleared.includes(bundle) || failedBundles.includes(bundle),
   );
 
   return (
@@ -414,8 +412,8 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       {/* 건너뛴 묶음이 남아 있다는 사실은 여기서만 드러난다 — 표시기는 그 단계들을 완료로 그린다. */}
       {skipped.length > 0 && (
         <p className="mt-2 text-body-md text-gray-700" data-testid="batch-skipped-note">
-          아래 작업은 건너뛰도록 기록되어 있어 배치를 다시 실행해도 수행하지 않습니다. 해제하면 이후
-          실행에서 다시 수행합니다.
+          아래 작업은 건너뛰도록 기록되어 있어 배치를 다시 실행해도 수행하지 않습니다. 재수행하면 그
+          작업만 다시 수행하고 건너뛰기 기록도 함께 풀립니다.
         </p>
       )}
 
@@ -462,7 +460,12 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
               {actionableBundles.map((bundle) => {
                 const label = bundleLabel(bundle);
                 const isSkipped = skipped.includes(bundle);
-                const isReverted = revertedBundles.includes(bundle);
+                const isCleared = cleared.includes(bundle);
+                // ★ 서버가 이 묶음을 실패로 판정했는가 — 건너뛰기 노출의 **단일 근거**다.
+                const isBundleFailed = failedBundles.includes(bundle);
+                // ★ 재수행 창구는 **건너뛴 적이 있는 묶음** 전부에 둔다 — 서버가 건너뛴 상태도
+                //   직접 수락하므로 해제를 먼저 부를 필요가 없다(ADR-050).
+                const canRerun = isSkipped || isCleared;
                 // ★ 이 묶음을 재수행하면 보간이 다시 만들어지는가 — 경고·확인의 단일 판정이다.
                 //   묶음 구성에서 파생하므로 구성이 바뀌면 경고가 자동으로 따라온다.
                 const destructive = bundleRerunsInterpolation(bundle);
@@ -483,28 +486,20 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                   <li key={bundle} className="flex flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2 text-body-md">
                       <span className="text-gray-800">{label}</span>
+                      {/* ⚠ 「건너뛰기 해제」 버튼은 두지 않는다(ADR-050) — 되살릴 창구는 재수행 하나다. */}
                       {isSkipped && (
-                        <>
-                          <span
-                            className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
-                            data-testid={`batch-stage-skipped-${bundle}`}
-                          >
-                            건너뜀
-                          </span>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => unskip.mutate(bundle)}
-                            aria-label={`${label} 작업 건너뛰기 해제`}
-                          >
-                            건너뛰기 해제
-                          </Button>
-                        </>
+                        <span
+                          className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
+                          data-testid={`batch-stage-skipped-${bundle}`}
+                        >
+                          건너뜀
+                        </span>
                       )}
 
-                      {/* 건너뛰기를 해제한 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다. */}
-                      {isReverted && (
+                      {/* 건너뛰기가 해제된 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다.
+                          ⚠ 지금 건너뛴 상태이면 그쪽 표식이 앞선다(두 표식을 함께 달면 서로 반대되는
+                            말을 한다 — 서버도 두 목록에 같은 묶음을 함께 담지 않는다). */}
+                      {isCleared && !isSkipped && (
                         <span
                           className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
                           data-testid={`batch-stage-reverted-${bundle}`}
@@ -513,7 +508,18 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                         </span>
                       )}
 
-                      {!isSkipped && failedBundle === bundle && (
+                      {/* 실패 표식 — 이 행이 왜 떠 있는지를 말한다. 건너뜀·해제 표식과 같은 축이며,
+                          배치 전체가 완주한 영상에서는 이것이 유일한 실패 단서다(사유 영역이 없다). */}
+                      {isBundleFailed && !isSkipped && (
+                        <span
+                          className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
+                          data-testid={`batch-stage-failed-${bundle}`}
+                        >
+                          실패
+                        </span>
+                      )}
+
+                      {!isSkipped && isBundleFailed && (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -528,7 +534,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                       {/* ★ 재수행 버튼은 **하나**다 — 범위를 고르지 않는다(묶음이 곧 범위다).
                             보간을 다시 만드는 묶음일 때만 확인 창을 거치고, 그렇지 않으면 곧바로
                             접수한다(없는 위험에 확인을 받으면 확인이 형식이 되어 무시된다). */}
-                      {isReverted && !isSkipped && (
+                      {canRerun && (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -554,7 +560,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                     {/* ★ 고르는 시점에 알린다 — 누른 뒤에 뜨는 확인 창은 취소 수단이지 고지 수단이
                           아니다. 이 문단은 클릭 전에 이미 화면에 있고 버튼이 이를 가리킨다.
                           ⚠ 보간을 다시 만드는 묶음에만 붙인다(시계열에 붙이면 오정보다). */}
-                    {isReverted && !isSkipped && destructive && (
+                    {canRerun && destructive && (
                       <p
                         id={warningId}
                         className="text-caption text-gray-700"
@@ -567,7 +573,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                     {/* ★ 되돌릴 수 없는 조건이라 **누르기 전에** 알린다 — 파생영상 차단과 같은
                           관례다. 비활성 버튼의 `title` 은 키보드·보조기술에 닿지 않으므로 문단을
                           함께 두고 버튼이 `aria-describedby` 로 가리킨다. */}
-                    {isReverted && !isSkipped && approvedLocked && (
+                    {canRerun && approvedLocked && (
                       <p
                         id={approvedLockHintId}
                         className="text-caption text-gray-700"
@@ -578,7 +584,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                         승인 시점과 어긋납니다. 되돌릴 수 없는 조건이라 눌러 보기 전에 알립니다.
                       </p>
                     )}
-                    {isReverted && !isSkipped && processing && (
+                    {canRerun && processing && (
                       <p
                         id={busyHintId}
                         className="text-caption text-gray-600"

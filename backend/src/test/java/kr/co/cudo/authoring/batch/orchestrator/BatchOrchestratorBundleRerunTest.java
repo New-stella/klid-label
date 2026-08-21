@@ -37,6 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * 작업 묶음 지목 재수행이 오케스트레이터까지 실제로 전달되는가. [@design API-201]
@@ -98,7 +99,8 @@ class BatchOrchestratorBundleRerunTest {
                 markingRepository, vlmTimeseriesStep, frameExtractor,
                 yoloStep, sam2Step, trackInterpolationStep);
         orchestrator = new BatchOrchestrator(
-                pipeline, statusService, transitionService, retryQueue, videoRepository);
+                pipeline, statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
         // 프로덕션과 같은 정책·같은 파이프라인으로 토글을 산출한다(맵을 손으로 적지 않는다).
         togglePolicy = new BatchBundleTogglePolicy(pipeline);
 

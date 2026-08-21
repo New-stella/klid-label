@@ -50,7 +50,7 @@ class VideoRepositoryDerivedFilterTest {
      */
     private Page<LsDataRaw> search(String dataSttsCd, String reviewStatusCd, PageRequest pageable) {
         return videoRepository.searchOriginals(dataSttsCd, reviewStatusCd, null, null,
-                0, List.of("__NONE__"), null, null, pageable);
+                0, List.of("__NONE__"), null, null, null, pageable);
     }
 
     private LsDataRaw seedDerived(LsDataRaw parent, String goalResCd, String status) {

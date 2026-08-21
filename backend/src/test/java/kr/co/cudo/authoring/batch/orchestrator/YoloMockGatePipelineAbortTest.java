@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 
 /**
  * G-ISSUE-02 — YOLO 단계가 mock 응답으로 중단되면 <b>후속 단계가 강행되지 않는다</b>.
@@ -93,7 +94,8 @@ class YoloMockGatePipelineAbortTest {
 
         BatchOrchestrator orchestrator = new BatchOrchestrator(
                 new BatchPipeline(List.of(yolo, sam2, interp)),
-                statusService, transitionService, retryQueue, videoRepository);
+                statusService, transitionService, retryQueue, videoRepository,
+                mock(VlmDefaultSkipMarker.class));
 
         // when
         BatchStage result = orchestrator.process(9L);

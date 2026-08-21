@@ -175,6 +175,35 @@ public final class ConfigKeys {
      */
     public static final String AI_WAIT_BUDGET_CEILING_SEC = "ai.wait-budget.ceiling-sec";
 
+    /**
+     * 시계열(외부 VLM) 위탁 <b>전체 건너뛰기</b> 스위치와 그 사유. [@design ADR-050] [@design DFEAT-045]
+     *
+     * <ul>
+     *   <li>{@code batch.vlm.skip-by-default} : BOOLEAN. 켜져 있으면 배치가 시계열 위탁 단계에
+     *       진입하기 <b>직전</b> 자동으로 건너뜀 표식을 세운다 — 외부 호출을 한 번도 하지 않는다
+     *       (위탁했다가 실패시키는 것이 아니다).</li>
+     *   <li>{@code batch.vlm.skip-by-default-reason} : STRING. 그 결정의 사유.</li>
+     * </ul>
+     *
+     * <h3>★ 사유 없이는 스위치를 켤 수 없다</h3>
+     * <p>사람이 누르는 단건 건너뛰기가 사유를 필수로 두는 것과 <b>같은 축</b>이다. 건너뛴 이유가 남지
+     * 않으면 그 영상의 시계열이 왜 비어 있는지 나중에 되짚을 수 없다. 저장 API 에 일괄 저장이 없어
+     * 키별로 개별 저장되므로, 판정은 <b>스위치를 켜는 저장 시점에 저장된 사유 값을 읽어</b> 한다
+     * ({@code SystemConfigService.validateVlmSkipByDefault} — 위반은 400).
+     *
+     * <h3>★ 사유 키가 {@code -reason} 인 이유 — 점 표기를 쓰지 않는다</h3>
+     * <p>{@code batch.vlm.skip-by-default} 는 <b>스칼라</b>인데, 사유를 {@code .reason} 으로 달면 같은
+     * 이름이 동시에 <b>접두(트리 노드)</b>가 된다. 설정을 트리로 읽는 소비자에서 스칼라와 노드가
+     * 충돌하므로 이름을 바꾸지 말 것.
+     *
+     * <p>⚠ <b>시드하지 않는다</b> — 행이 없는 것이 정상이며 그때는 «꺼짐»이다. 그래서 두 키를
+     * {@link #DECLARED_TYPE} 에 등록해 최초 저장 시 행이 만들어지게 한다(연동 주소 4종과 같은 이유).
+     * 읽기는 부재를 값으로 돌려주는 {@code SystemConfigService.findString} 을 쓴다 — {@code getString}
+     * 은 행이 없으면 예외를 던지고 그 예외는 캐시되지 않아 배치마다 DB 왕복이 반복된다.
+     */
+    public static final String BATCH_VLM_SKIP_BY_DEFAULT        = "batch.vlm.skip-by-default";
+    public static final String BATCH_VLM_SKIP_BY_DEFAULT_REASON = "batch.vlm.skip-by-default-reason";
+
     /** 화이트리스트 — Service.update / getInt 진입 검증에 사용. */
     public static final Set<String> ALLOWED = Set.of(
             BATCH_INTERVAL_SEC, BATCH_CONCURRENCY,
@@ -188,7 +217,8 @@ public final class ConfigKeys {
             KPST_DEID_MASKING_TYPE, KPST_DEID_MASKING_RANGE, KPST_DEID_DB_SAVE,
             KPST_DEID_BASE_URL, INTEGRATION_AI_SERVER_BASE_URL,
             VLM_CLIENT_URL, CONTROL_NOTIFY_URL,
-            AI_WAIT_BUDGET_CEILING_SEC
+            AI_WAIT_BUDGET_CEILING_SEC,
+            BATCH_VLM_SKIP_BY_DEFAULT, BATCH_VLM_SKIP_BY_DEFAULT_REASON
     );
 
     /**
@@ -205,7 +235,10 @@ public final class ConfigKeys {
             VLM_CLIENT_URL,                  "STRING",
             CONTROL_NOTIFY_URL,              "STRING",
             // AI 대기 예산 상한도 시드하지 않는다 — 행이 없으면 도출 기본값(앞단 제한시간)을 쓴다.
-            AI_WAIT_BUDGET_CEILING_SEC,      "NUMBER"
+            AI_WAIT_BUDGET_CEILING_SEC,      "NUMBER",
+            // 시계열 전체 건너뛰기 2종도 시드하지 않는다 — 행이 없으면 «꺼짐»이다.
+            BATCH_VLM_SKIP_BY_DEFAULT,        "BOOLEAN",
+            BATCH_VLM_SKIP_BY_DEFAULT_REASON, "STRING"
     );
 
     /**

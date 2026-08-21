@@ -83,7 +83,8 @@ class VlmTimeseriesStepTest {
         step = new VlmTimeseriesStep(vlmClient, videoRepository, ingestSourceRepository,
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder, timeseriesMetaPresence,
-                new ObjectMapper(), Schedulers.immediate());
+                new ObjectMapper(), Schedulers.immediate(),
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
     }
 
     /**

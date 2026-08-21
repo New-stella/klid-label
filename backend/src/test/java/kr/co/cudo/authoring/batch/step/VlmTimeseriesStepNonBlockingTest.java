@@ -279,6 +279,7 @@ class VlmTimeseriesStepNonBlockingTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder,
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
-                new ObjectMapper(), scheduler);
+                new ObjectMapper(), scheduler,
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
     }
 }

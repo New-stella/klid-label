@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 
+import { bundleLabel } from '@/components/common/BatchStageIndicator';
 import { Button } from '@/components/common/Button';
 import { DateRangePicker } from '@/components/common/DateRangePicker';
 import { Input } from '@/components/common/Input';
@@ -13,7 +14,12 @@ import {
 } from '@/components/common/Select';
 import { useEventTypes } from '@/features/eventType/hooks';
 
-import type { VideoListParams } from '../types';
+import {
+  BULK_STAGE_BUNDLE,
+  STAGE_BUNDLES,
+  isStageBundle,
+  type VideoListParams,
+} from '../types';
 
 export interface VideoFiltersProps {
   initial: VideoListParams;
@@ -37,7 +43,40 @@ const STATUS_OPTIONS = [
 ] as const;
 
 /**
- * mock 정합 — 한 줄 그리드 형태(검색 + 상태 + 이벤트 + 시작/종료 + 조회/초기화).
+ * 시계열 건너뜀 필터 옵션 — **두 값뿐**이다. [@design SCREEN-008] [@design ADR-050]
+ *
+ * ★ 벤더 연동이 확정된 뒤 건너뛴 영상을 모아 되살리려면 그 대상을 목록에서 골라낼 수 있어야
+ * 한다 — 일괄 요청 건수에 상한이 있어 필터가 없으면 회수 자체가 성립하지 않는다.
+ *
+ * ⚠ **오토라벨 건너뜀은 옵션에 두지 않는다** — 일괄 축이 시계열 하나인 것과 같은 이유다(산출물이
+ * 라벨이라 대량으로 다루는 길을 열지 않았다). 그래서 값도 묶음 상수 하나만 쓴다.
+ */
+const SKIPPED_STAGE_OPTIONS = [
+  { value: '', label: '전체' },
+  { value: BULK_STAGE_BUNDLE, label: '시계열 건너뜀' },
+] as const;
+
+/**
+ * 작업 묶음 **실패** 필터 옵션 — 건너뜀 필터와 **다른 축**이다. [@design SCREEN-008] [@design ADR-050]
+ *
+ * ★ 왜 필요한가 — 「실패 후 판단」 입구(ADR-050)의 대상을 목록에서 모으는 유일한 수단이다. 시계열
+ * 위탁 실패는 파이프라인을 멈추지 않아 **배치 상태 필터(실패)로는 한 건도 잡히지 않는다** — 그 영상은
+ * 완주 상태로 남는다. 서버가 별도로 판정해 주는 이 축만이 그 영상을 집는다.
+ *
+ * ⚠ 건너뜀 필터와 달리 **두 묶음을 모두 둔다**. 그쪽이 시계열 하나인 것은 일괄 조작의 대상 축을
+ * 따라간 것이고, 이쪽은 조회 축이라 오토라벨 실패를 감출 이유가 없다(감추면 그 영상이 목록에서
+ * 도달 불가능해진다).
+ *
+ * ⚠ 표시명은 {@link bundleLabel} 에서 **파생**한다 — 묶음 이름을 여기서 따로 적으면 표가 둘이 되어
+ * 같은 묶음이 화면마다 다른 이름으로 불린다(이 저장소의 반복 결함 패턴).
+ */
+const FAILED_STAGE_OPTIONS = [
+  { value: '', label: '전체' },
+  ...STAGE_BUNDLES.map((bundle) => ({ value: bundle, label: `${bundleLabel(bundle)} 실패` })),
+] as const;
+
+/**
+ * mock 정합 — 한 줄 그리드 형태(검색 + 상태 + 이벤트 + 건너뜀 + 시작/종료 + 조회/초기화).
  * 보안: 모든 입력은 controlled state — XSS 방지를 위해 텍스트 노드만 렌더.
  */
 export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
@@ -48,6 +87,8 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
   const [eventTypeCd, setEventTypeCd] = useState(initial.eventTypeCd ?? '');
   const [from, setFrom] = useState(initial.from ?? '');
   const [to, setTo] = useState(initial.to ?? '');
+  const [skippedStage, setSkippedStage] = useState<string>(initial.skippedStage ?? '');
+  const [failedStage, setFailedStage] = useState<string>(initial.failedStage ?? '');
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -59,6 +100,11 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
       from: from || undefined,
       to: to || undefined,
       dataSttsCd: status || undefined,
+      // 화이트리스트를 한 번 더 통과시킨다 — 이 값이 그대로 조회 파라미터가 되므로 화면 상태를
+      // 그대로 믿지 않는다(초기값이 URL 에서 흘러온다).
+      skippedStage: isStageBundle(skippedStage) ? skippedStage : undefined,
+      // 같은 이유로 화이트리스트를 한 번 더 통과시킨다(초기값이 URL 에서 흘러온다).
+      failedStage: isStageBundle(failedStage) ? failedStage : undefined,
     });
   };
 
@@ -68,7 +114,15 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
     setEventTypeCd('');
     setFrom('');
     setTo('');
-    onApply({ page: 0, size: initial.size ?? 20, dataSttsCd: undefined });
+    setSkippedStage('');
+    setFailedStage('');
+    onApply({
+      page: 0,
+      size: initial.size ?? 20,
+      dataSttsCd: undefined,
+      skippedStage: undefined,
+      failedStage: undefined,
+    });
   };
 
   return (
@@ -139,6 +193,48 @@ export function VideoFilters({ initial, onApply }: VideoFiltersProps) {
             {(eventTypes ?? []).map((et) => (
               <SelectItem key={et.categoryKey} value={et.categoryKey}>
                 {et.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* 시계열 건너뜀 — 지금 그 묶음이 건너뛴 상태인 영상만 남긴다(이미 되살린 영상은 남지 않는다).
+          [@design SCREEN-008] [@design ADR-050] */}
+      <div className="flex flex-col gap-1">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-skipped-stage">
+          시계열 건너뜀
+        </label>
+        <Select value={skippedStage} onValueChange={setSkippedStage}>
+          <SelectTrigger id="video-skipped-stage">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SKIPPED_STAGE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* 작업 묶음 실패 — 지금 그 묶음이 실패한 상태인 영상만 남긴다.
+          ★ 배치 상태 필터(실패)와 **다른 축**이다: 시계열 위탁 실패는 파이프라인을 멈추지 않아
+            그 영상의 배치 상태는 완료로 남는다. 「실패 후 판단」 입구의 대상은 이 필터로만 모인다.
+          [@design SCREEN-008] [@design ADR-050] */}
+      <div className="flex flex-col gap-1">
+        <label className="text-label font-medium text-gray-500" htmlFor="video-failed-stage">
+          작업 묶음 실패
+        </label>
+        <Select value={failedStage} onValueChange={setFailedStage}>
+          <SelectTrigger id="video-failed-stage">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FAILED_STAGE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
