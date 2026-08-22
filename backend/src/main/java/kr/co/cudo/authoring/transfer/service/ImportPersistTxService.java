@@ -204,12 +204,13 @@ public class ImportPersistTxService {
      */
     private LsDataLbl toLabel(Long srcSn, ImportedDataset.Shape shape,
                               ImportMappingResolver.Resolved mappings) {
-        List<List<Point>> rings = shape.polygonRings();
-        if (rings == null || rings.isEmpty() || rings.get(0).isEmpty()) {
+        if (!shape.loadableAsLabel()) {
             // 좌표가 없는 도형은 라벨이 될 수 없다 — 경계상자·키포인트는 해석 규칙이 확정되지 않아
             //   파서가 원문만 담아 두었고, 그것을 여기서 짐작해 좌표로 바꾸지 않는다.
+            //   ★판정은 Shape.loadableAsLabel 하나다 — 미리보기 집계가 같은 것을 부른다.
             return null;
         }
+        List<List<Point>> rings = shape.polygonRings();
         Long labelId = mappings.labelIdByCategory().get(shape.categoryId());
         String labelNm = mappings.labelNameByCategory().get(shape.categoryId());
         if (labelId == null || labelNm == null) {

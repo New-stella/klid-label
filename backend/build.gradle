@@ -5,7 +5,7 @@ plugins {
     id 'war'
     id 'org.springframework.boot' version '3.3.0'
     id 'io.spring.dependency-management' version '1.1.5'
-    id 'org.flywaydb.flyway' version '10.13.0'
+    id 'org.flywaydb.flyway' version '10.22.0'
 }
 
 group = 'kr.co.cudo'
@@ -37,6 +37,20 @@ dependencyLocking {
 ext {
     queryDslVersion = '5.1.0'
     mapstructVersion = '1.5.5.Final'
+    // Flyway — Spring Boot 3.3.0 BOM 이 관리하는 10.10.0 을 덮어쓴다.
+    //   그 판은 PostgreSQL 을 16 까지만 지원한다고 선언한다(ensureSupported 의 상한).
+    //   상한이 17 로 올라가는 첫 판이 10.20.0 이고 여기서는 10.x 최신을 쓴다 — 메이저를
+    //   넘기지 않아 체크섬 알고리즘과 설정 키가 그대로다(11 이상은 별건으로 검토한다).
+    //
+    //   ★ 이 상향이 듣는 곳은 <Flyway 를 실제로 도는 형상>뿐이다 — 로컬과 dev.
+    //     dev 는 control 데이터소스가 관제 DB(PostgreSQL 17)에 붙어 기동마다 지원 범위 밖
+    //     경고가 뜨고 마이그레이션이 검증되지 않은 조합에서 돌고 있었다.
+    //   ⚠ 온프렘(stg/prd)은 대상이 아니다 — 그 형상은 SPRING_FLYWAY_ENABLED=false 로
+    //     마이그레이션을 밟지 않고 완성된 스키마 스냅샷 한 벌을 붓는다. 이 값을 근거로
+    //     온프렘 쪽 위험이 해소된다고 읽지 말 것.
+    //   ⚠ 위 flyway 플러그인 버전과 함께 올린다. 갈리면 gradle 태스크와 런타임이
+    //     서로 다른 판으로 동작한다.
+    set('flyway.version', '10.22.0')
 }
 
 // Phase 3: Spring Boot BOM 이 org.testcontainers:* 를 1.19.8(docker-java 3.3.6)로 핀하므로

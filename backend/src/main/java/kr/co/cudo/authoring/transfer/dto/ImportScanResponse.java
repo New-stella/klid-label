@@ -24,7 +24,9 @@ import java.util.List;
  *
  * @param frameCount         <b>실제로 발견된</b> 프레임 수. 문서가 선언한 수가 아니다
  * @param declaredFrameCount 산출물 문서가 선언한 프레임 수. 문서에 선언이 없으면 0
- * @param labelCount         적재될 도형 라벨 수
+ * @param labelCount         적재될 도형 라벨 수. <b>발견된 도형 수가 아니다</b> — 경계상자·키포인트만
+ *                           있는 도형은 해석 규칙이 확정되지 않아 라벨이 되지 않으므로 세지 않는다
+ *                           (그 사실은 경고로 알린다). 이 수는 적재 결과의 라벨 수와 같아야 한다
  * @param videoFileName      산출물 문서가 알려주는 영상 파일 이름(정제됨). 없으면 {@code null}
  * @param duplicate          이미 가져온 산출물이면 그 영상. 아니면 {@code null}
  * @param unmappedCategories 아직 대응이 정해지지 않은 분류와 추천 후보. 하나라도 남으면 적재할 수 없다

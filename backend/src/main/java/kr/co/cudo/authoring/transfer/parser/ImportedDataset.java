@@ -44,8 +44,18 @@ public record ImportedDataset(
     }
 
     /** 실제로 읽어 낸 도형 라벨 총 개수. */
-    public long shapeCount() {
-        return frames.stream().mapToLong(f -> f.shapes().size()).sum();
+    /**
+     * 라벨로 <b>적재될</b> 도형 수 — 미리보기가 보여 주는 수와 적재 결과가 같아야 한다.
+     *
+     * <p>발견된 도형을 전부 세면 안 된다. 경계상자·키포인트는 해석 규칙이 확정되지 않아 원문만
+     * 담아 두고 라벨로 만들지 않으므로(그 사실은 경고로 알린다), 그것까지 세면 미리보기가 실제보다
+     * 많은 수를 약속하고 적재 결과가 그보다 적게 나온다.
+     */
+    public long loadableLabelCount() {
+        return frames.stream()
+                .flatMap(f -> f.shapes().stream())
+                .filter(Shape::loadableAsLabel)
+                .count();
     }
 
     /**
@@ -185,6 +195,20 @@ public record ImportedDataset(
             List<List<Point>> polygonRings,
             List<Double> bbox,
             String keypointsRaw) {
+
+        /**
+         * 좌표가 있어 라벨로 적재될 수 있는 도형인가 — <b>이 판정의 단일 원천</b>이다.
+         *
+         * <p>미리보기 집계와 적재가 같은 답을 내야 하므로 양쪽이 이 하나를 부른다. 어느 한쪽이
+         * 조건을 따로 들고 있으면 규칙이 바뀔 때 한쪽만 갱신돼 「미리보기는 N 인데 N 건이 안
+         * 들어오는」 어긋남이 다시 생긴다.
+         *
+         * <p>경계상자·키포인트만 있는 도형은 여기서 걸러진다 — 해석 규칙이 확정되지 않아 원문만
+         * 담아 두었고 그것을 짐작해 좌표로 바꾸지 않는다.
+         */
+        public boolean loadableAsLabel() {
+            return polygonRings != null && !polygonRings.isEmpty() && !polygonRings.get(0).isEmpty();
+        }
     }
 
     /**

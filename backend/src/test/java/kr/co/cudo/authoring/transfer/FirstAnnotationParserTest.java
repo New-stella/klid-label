@@ -258,4 +258,45 @@ class FirstAnnotationParserTest {
         assertThat(ImportPathPolicy.rawFilePath("/nas-storage/raw/", clipId, "은평구51.mp4"))
                 .isEqualTo("/nas-storage/raw/imports/IMPORT-00000073-590/은평구51.mp4");
     }
+
+    @Test
+    @DisplayName("미리보기가_세는_라벨_수는_실제로_적재될_도형만이다_경계상자는_빠진다")
+    void 미리보기가_세는_라벨_수는_실제로_적재될_도형만이다_경계상자는_빠진다() throws Exception {
+        // 표본에는 경계상자가 없다(폴리곤뿐) — 그래서 이 어긋남은 실물만으로는 드러나지 않는다.
+        //   미리보기가 「적재될 라벨 수」라고 약속한 값이 실제 적재량보다 커지는 상황을 고정한다.
+        Path folder = Files.createTempDirectory("import-bbox-count");
+        Files.writeString(folder.resolve("0001.json"), """
+                {"dataset": {"identifier": "D1", "total_count": 1},
+                 "video": {"id": "V1", "file_name": "a.mp4"},
+                 "image": {"id": "IMG1", "file_name": "0001.jpg", "frame_num": 0},
+                 "categories": [{"id": "c1", "name": "가", "type": "BBOX"},
+                                {"id": "c2", "name": "나", "type": "POLYGON"}],
+                 "annotations": [
+                   {"id": "a1", "image_id": "IMG1", "category_id": "c1", "bbox": [1, 2, 3, 4]},
+                   {"id": "a2", "image_id": "IMG1", "category_id": "c2",
+                    "polygon": [[10, 10, 20, 10, 20, 20]]}
+                 ]}
+                """);
+
+        ImportedDataset dataset = parser.parseFolder(folder);
+
+        // 도형은 둘이지만 좌표가 있는 것은 하나다.
+        assertThat(dataset.frames().get(0).shapes()).hasSize(2);
+        assertThat(dataset.loadableLabelCount())
+                .as("경계상자는 해석 규칙이 확정되지 않아 라벨이 되지 않으므로 미리보기도 세지 않는다")
+                .isEqualTo(1);
+        assertThat(dataset.warnings()).extracting(ImportedDataset.Warning::code)
+                .contains(ImportWarningCode.UNRESOLVED_BBOX);
+    }
+
+    @Test
+    @DisplayName("적재_가능_판정은_Shape_한_곳이라_좌표가_없으면_거짓이다")
+    void 적재_가능_판정은_Shape_한_곳이라_좌표가_없으면_거짓이다() {
+        ImportedDataset dataset = parser.parseFolder(sampleFolder());
+
+        // 표본의 도형은 전부 폴리곤이라 모두 적재 대상이고, 그 수가 곧 적재될 라벨 수다.
+        assertThat(dataset.frames().stream().flatMap(f -> f.shapes().stream()))
+                .allMatch(ImportedDataset.Shape::loadableAsLabel);
+        assertThat(dataset.loadableLabelCount()).isEqualTo(5);
+    }
 }

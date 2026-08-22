@@ -81,14 +81,12 @@ class LabelAttrControllerTest {
         reviewerToken = JwtTestSupport.token(secret, "1001", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken   = JwtTestSupport.token(secret, "2001", "WORKER",   "INTERNAL", issuer, 60);
 
-        // [테스트 격리] DevSeedRunner(@Profile("local"), seed.enabled 기본 true)가 @SpringBootTest 부팅 시
-        // dev-seed.sql 의 LS_LABEL 마스터(person 등)를 공유 PostgreSQL Testcontainer 에 비트랜잭션 커밋한다.
-        // 잔존 행과 본 테스트의 person 재시드가 uk_ls_label_name UNIQUE 충돌을 일으키므로(테스트 순서 의존 오염),
-        // @Transactional 트랜잭션 내에서 FK 의존(LS_LABEL_ATTR → LS_LABEL) 순으로 비운 뒤 시드한다.
-        // 종료 시 롤백되어 dev-seed 행은 원복된다.
-        attrRepository.deleteAllInBatch();
-        labelRepository.deleteAllInBatch();
-
+        // [테스트 격리] 마스터를 비우지 않는다 — 이 시험의 단언은 전부 <자기가 만든 라벨 하나>에
+        //   매여 있어(속성 목록 경로가 labelId 로 한정된다) 다른 라벨이 몇 개 있든 영향이 없다.
+        //   ★비우면 오히려 깨진다: 라벨 마스터는 시드된 기본 라벨을 갖고 있고 그것을 참조하는 행이
+        //     네 갈래(라벨 객체·속성 정의·프리셋 코드·외부 분류 대응)라, 통째로 지우려 들면 다른
+        //     시험이 커밋해 둔 라벨 객체가 걸려 참조 무결성 위반으로 <셋업 자체가 실패>한다.
+        //   이름이 겹칠 걱정도 없다 — 시드 라벨은 한글명이고 여기서 만드는 것은 'person' 이다.
         LsLabel label = labelRepository.save(
                 LsLabel.create("person", "#E74C3C", "BBOX", 1, "seed"));
         labelId = label.getLabelId();

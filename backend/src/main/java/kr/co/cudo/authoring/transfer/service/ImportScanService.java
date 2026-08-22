@@ -125,7 +125,7 @@ public class ImportScanService {
         return new ImportScanResponse(
                 frameCount,
                 declared == null ? 0 : declared,
-                dataset.shapeCount(),
+                dataset.loadableLabelCount(),
                 dataset.video() == null ? null : dataset.video().fileName(),
                 duplicateRawSn.map(ImportScanResponse.Duplicate::new).orElse(null),
                 unmapped,
