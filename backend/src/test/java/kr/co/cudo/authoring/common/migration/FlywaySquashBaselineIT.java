@@ -75,6 +75,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       원본이라고 지정해 들어온 영상만 {@code 'N'} 으로 시작해 비식별이 끝날 때까지 검수 승인만
  *       막힌다(ADR-048). 신규 테이블 생성과 상수 DEFAULT ADD COLUMN 이라 하위호환이고 롤링
  *       재기동으로 배포할 수 있다</li>
+ *   <li>{@code V15} — 이벤트 유형·카테고리·라벨 마스터 시드. 같은 내용이 {@code db/seed/dev-seed.sql}
+ *       에만 있어 <b>온프렘 배포 스냅샷에 실리지 않았다</b> — 그 파일은 클린 DB 에 마이그레이션을
+ *       전량 적용한 뒤 뜬 덤프라 마이그레이션 밖의 시드는 담기지 않는다. 실측으로
+ *       {@code deploy/onprem/db/schema.sql} 의 두 표가 비어 있었고, 그대로 설치하면 라벨 마스터
+ *       0건·이벤트 유형 0건으로 기동해 라벨을 고를 수 없고 이벤트 필터가 빈 채로 뜬다.
+ *       전부 {@code ON CONFLICT DO NOTHING} 이라 이미 시드된 DB(로컬·dev)에서는 no-op 이고
+ *       운영자가 바꿔 둔 이름·색·형태를 되돌리지 않는다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -110,7 +117,7 @@ class FlywaySquashBaselineIT {
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "9001");
     }
 
     @Test
@@ -131,6 +138,7 @@ class FlywaySquashBaselineIT {
                         "V12__add_ls_acnt_user_last_lgn_dt.sql",
                         "V13__drop_yolo_imgsz_config.sql",
                         "V14__add_external_import_tables_and_deident_cmptn_yn.sql",
+                        "V15__seed_event_type_and_label_master.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",

@@ -44,19 +44,21 @@ class LabelMasterControllerTest {
 
     private String reviewerToken;
     private String workerToken;
+    /** 이 시험이 만들기 <전>의 마스터 라벨 수 — 목록 단언은 이 값 대비 증분으로 본다. */
+    private long baselineLabelCount;
 
     @BeforeEach
     void setUp() {
         reviewerToken = JwtTestSupport.token(secret, "1001", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken   = JwtTestSupport.token(secret, "2001", "WORKER",   "INTERNAL", issuer, 60);
 
-        // [테스트 격리] DevSeedRunner(@Profile("local"), seed.enabled 기본 true)가 @SpringBootTest 부팅 시
-        // dev-seed.sql 의 LS_LABEL 마스터(person/car 등 13건)를 공유 PostgreSQL Testcontainer 에 커밋한다.
-        // 이 행은 비트랜잭션 커밋이라 다른 컨텍스트 종료 후에도 잔존 → 본 테스트가 person/car 를 재시드하면
-        // uk_ls_label_name UNIQUE 충돌 + 목록 길이 단언(length()==1) 어긋남(테스트 순서 의존 오염)을 일으킨다.
-        // 본 클래스는 @Transactional("controlTransactionManager") 이므로, 트랜잭션 내에서 마스터 행을
-        // 비운 뒤 시드하면 각 테스트가 빈 LS_LABEL 을 전제로 동작하고, 종료 시 롤백되어 dev-seed 행은 원복된다.
-        labelRepository.deleteAllInBatch();
+        // [테스트 격리] 마스터를 비우지 않고 <현재 개수를 기준선으로 잡는다>.
+        //   라벨 마스터는 시드된 기본 라벨을 갖고 있고 그것을 참조하는 행이 네 갈래(라벨 객체·속성
+        //   정의·프리셋 코드·외부 분류 대응)라, 통째로 지우려 들면 다른 시험이 커밋해 둔 라벨 객체가
+        //   걸려 참조 무결성 위반으로 <셋업 자체가 실패>한다(전 시험 동반 실패).
+        //   기준선 대비 증분으로 단언하면 목록의 정확한 길이를 그대로 검증하면서도 다른 시험이 남긴
+        //   행이나 시드 개수 변화에 흔들리지 않는다. 이름은 겹치지 않는다 — 시드는 한글명이다.
+        baselineLabelCount = labelRepository.count();
     }
 
     private ObjectNode body(String name, String color, String type, Integer sortNo) {
@@ -79,8 +81,9 @@ class LabelMasterControllerTest {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].name").value("person"));
+                .andExpect(jsonPath("$.data.length()").value((int) baselineLabelCount + 1))
+                // 위치가 아니라 <존재>로 본다 — 정렬 순번이 시드 라벨과 겹쳐 첫 자리를 보장할 수 없다.
+                .andExpect(jsonPath("$.data[?(@.name == 'person')]").exists());
     }
 
     @Test
@@ -92,7 +95,8 @@ class LabelMasterControllerTest {
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0].name").value("car"));
+                .andExpect(jsonPath("$.data.length()").value((int) baselineLabelCount + 1))
+                .andExpect(jsonPath("$.data[?(@.name == 'car')]").exists());
     }
 
     @Test

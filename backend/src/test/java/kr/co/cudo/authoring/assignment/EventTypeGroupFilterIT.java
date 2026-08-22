@@ -99,11 +99,15 @@ class EventTypeGroupFilterIT {
         reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken = JwtTestSupport.token(secret, String.valueOf(WORKER), "WORKER", "INTERNAL", issuer, 60);
 
-        // 침수 3종은 <같은 관제 수신명> 이라 표시명이 같다 → 한 그룹. 화재는 이름이 달라 독립 그룹.
-        seedEventType(GROUP_REPRESENTATIVE, "침수(범람)", "91");
-        seedEventType(GROUP_MEMBER_2, "침수(범람)", "91");
-        seedEventType(GROUP_MEMBER_3, "침수(범람)", "91");
-        seedEventType(STANDALONE, "화재", "92");
+        // 3종은 <같은 관제 수신명> 이라 표시명이 같다 → 한 그룹. 나머지 하나는 이름이 달라 독립 그룹.
+        //   ★표시명은 <실제 마스터에 없는 이름>이어야 한다. 그룹 대표코드는 <그룹 내 최소 코드>라,
+        //     여기서 '침수(범람)'·'화재' 처럼 시드된 유형의 표시명을 쓰면 그 유형들과 한 그룹이 되어
+        //     대표가 EV01000101·EV02000101 로 넘어간다(이 파일의 EV91*/EV92* 가 대표를 잃는다).
+        //     코드 대역만 갈라 두는 것으로는 부족하다 — 접기 축이 코드가 아니라 <표시명>이기 때문이다.
+        seedEventType(GROUP_REPRESENTATIVE, "그룹표시명-시험용", "91");
+        seedEventType(GROUP_MEMBER_2, "그룹표시명-시험용", "91");
+        seedEventType(GROUP_MEMBER_3, "그룹표시명-시험용", "91");
+        seedEventType(STANDALONE, "독립표시명-시험용", "92");
         // 장수명 캐시(eventType)를 비워 방금 심은 마스터가 즉시 반영되게 한다.
         eventTypeCacheEvictor.evictNow();
     }
@@ -195,7 +199,7 @@ class EventTypeGroupFilterIT {
         List<String> items = options("/v1/tasks/board/event-types", reviewerToken, "status", "COMPLETED");
 
         assertThat(items)
-                .as("같은 표시명(침수)의 3종이 각각 옵션이 되면 드롭다운에 같은 이름이 3번 뜬다")
+                .as("같은 표시명의 3종이 각각 옵션이 되면 드롭다운에 같은 이름이 3번 뜬다")
                 .containsExactly(GROUP_REPRESENTATIVE, STANDALONE, UNREGISTERED);
         assertThat(items).doesNotContain(GROUP_MEMBER_2, GROUP_MEMBER_3);
     }
