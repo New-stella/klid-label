@@ -1505,20 +1505,21 @@
 > 주었는지**의 조합으로 갈린다. 도메인 전반은 [25 외부 산출물 이관](../v2-wiki/25-external-import.md).
 >
 > ✅ **근거 기재 완료(2026-08-23)** — 구현이 끝나(CO-001~004) 설계 선반영 상태가 해소됐다.
-> ⚠ 두 건(`TC-DEID-227`·`TC-DEID-232`)은 **전용 시험을 찾지 못해** 판정 코드만 근거로 남겼다 — 없는 시험을 있다고 적지 않는다.
+> ✅ 미확인이던 두 건도 해소했다 — `TC-DEID-227` 은 **시험을 신설**했고(`ImportDeidentTriggerTest`, 조건을 없애면 그 시험만 실패하는 것으로 실효 확인),
+> `TC-DEID-232` 는 **이미 덮여 있었다**(이관 원본은 비식별 미수행으로 남으므로 「비식별을 한 적 없는 영상은 신고를 받지 않는다」 게이트에 그대로 걸린다).
 >
 > 이 경로의 **검사·분류대응·적재·이력** 축은 이 파일이 아니라 [I 외부 산출물 이관](I-external-import.md) 에 있다.
 
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
 |----|---------|------|----------|---------|------|:--:|------|
-| TC-DEID-225 | **★비식별 완료 지정 + 영상 있음 (신설)** | 이관 적재, 비식별이 끝난 것으로 지정, 영상 파일 동반 | 적재 | 그 영상이 곧 비식별 영상이 되어 비식별 처리 이력 행이 남는다. **비식별 단계를 다시 밟지 않는다.** 승인 보류가 서지 않는다 | integration | **Critical** | ImportPersistTxService.java(비식별 선두 이벤트 발행 조건) · ImportControllerIT.java(원본으로_적재하면_승인_보류가_서고_비식별이_끝난_것으로_적재하면_서지_않는다) |
-| TC-DEID-226 | **★원본 지정 + 영상 있음 → 저작도구가 비식별을 태운다 (신설)** | 이관 적재, 원본으로 지정, 영상 파일 동반 | 적재 | 승인 보류가 서고 **저작도구의 비식별 단계가 실행**된다. 성공 기록 시 보류가 풀린다 | integration | **Critical** | ImportPersistTxService.java(비식별 선두 이벤트 발행 조건) · ImportControllerIT.java(원본으로_적재하면_승인_보류가_서고_비식별이_끝난_것으로_적재하면_서지_않는다) |
-| TC-DEID-227 | **★원본 지정 + 영상 없음 → 스스로 처리 못 한다 (신설)** | 이관 적재, 원본으로 지정, **프레임만**(영상 파일 없음) | 적재 | 비식별할 대상 영상이 없어 비식별 단계가 실행되지 않는다. 승인 보류가 선 채로 남는다 | integration | **Critical** | ImportPersistTxService.java(비식별 선두 이벤트 발행 조건 — 영상 부재 시 미발행) · ⚠ 전용 시험 미확인 |
+| TC-DEID-225 | **★비식별 완료 지정 + 영상 있음 (신설)** | 이관 적재, 비식별이 끝난 것으로 지정, 영상 파일 동반 | 적재 | 그 영상이 곧 비식별 영상이 되어 비식별 처리 이력 행이 남는다. **비식별 단계를 다시 밟지 않는다.** 승인 보류가 서지 않는다 | integration | **Critical** | ImportPersistTxService.java(비식별 선두 이벤트 발행 조건) · ImportControllerIT.java(원본으로_적재하면_승인_보류가_서고_비식별이_끝난_것으로_적재하면_서지_않는다) · ImportDeidentTriggerTest.java(비식별이_끝난_것으로_지정하면_영상_파일이_있어도_다시_돌리지_않는다) |
+| TC-DEID-226 | **★원본 지정 + 영상 있음 → 저작도구가 비식별을 태운다 (신설)** | 이관 적재, 원본으로 지정, 영상 파일 동반 | 적재 | 승인 보류가 서고 **저작도구의 비식별 단계가 실행**된다. 성공 기록 시 보류가 풀린다 | integration | **Critical** | ImportPersistTxService.java(비식별 선두 이벤트 발행 조건) · ImportControllerIT.java(원본으로_적재하면_승인_보류가_서고_비식별이_끝난_것으로_적재하면_서지_않는다) · ImportDeidentTriggerTest.java(원본으로_지정하고_영상_파일도_받으면_비식별을_시작시킨다) |
+| TC-DEID-227 | **★원본 지정 + 영상 없음 → 스스로 처리 못 한다 (신설)** | 이관 적재, 원본으로 지정, **프레임만**(영상 파일 없음) | 적재 | 비식별할 대상 영상이 없어 비식별 단계가 실행되지 않는다. 승인 보류가 선 채로 남는다 | integration | **Critical** | ImportPersistTxService.java(비식별 선두 이벤트 발행 조건) · ImportDeidentTriggerTest.java(원본으로_지정해도_영상_파일이_없으면_비식별을_시작시키지_않는다) |
 | TC-DEID-228 | **★비식별 완료 기록으로 보류 해제 (신설)** | TC-DEID-227 의 영상 | `POST /v1/videos/{rawSn}/deident-complete` — 외부 비식별 산출물 위치 제출 | 산출물 실재 확인 후 비식별 처리 이력 행이 남고 **승인 보류가 풀린다** | integration | **Critical** | ImportDeidentCompleteService.java · ImportDeidentCompleteControllerIT.java(산출물을_확인하면_프레임까지_이어지고_보류가_풀려_산출이_성공으로_마감된다) |
 | TC-DEID-229 | **★실재하지 않는 산출물은 기록되지 않는다 (신설, negative)** | 위와 같으나 제출한 위치에 산출물이 **없음** | 같은 호출 | **거부**되고 **아무것도 기록되지 않는다**. 승인 보류가 그대로 남는다 — 확인 없이 기록만 바꾸는 경로가 있으면 처리되지 않은 산출물이 승인을 통과한다 | integration | **Critical** | ImportDeidentCompleteService.java · ImportDeidentCompleteControllerIT.java(산출물이_실재하지_않으면_아무것도_기록하지_않고_거부한다) |
 | TC-DEID-230 | **★허용 저장소 범위 밖은 거부 (신설, negative)** | 제출 위치가 허용 범위 밖(상위 디렉터리 표기 포함) | 같은 호출 | 거부. ★**문자로만 판정하지 않고 실제로 가리키는 자리를 기준으로** 판정한다 | integration | **Critical** | ImportSourcePolicy.java · ImportSourcePolicyTest.java(영상_파일도_같은_기준으로_판정하고_실경로를_돌려준다 · 허용_범위_안의_이름이_밖을_가리키는_심링크면_거부한다) |
 | TC-DEID-231 | **★이관 경로 영상이 아니면 거부 (신설, negative)** | 관제 인입으로 들어온 일반 영상 | 같은 호출 | 거부 — 이 계약은 이관 경로 영상에만 성립한다 | integration | High | ImportDeidentCompleteService.java · ImportDeidentCompleteControllerIT.java(이_경로로_들어온_영상이_아니면_거부한다) |
-| TC-DEID-232 | **★누락 신고 동선은 이 경로에 쓸 수 없다 (신설)** | 이관 원본 영상(비식별 미수행) | 비식별 누락 신고 접수 | 이 경로에는 신고를 쓰지 않는다 — 신고는 비식별을 한 번이라도 수행한 영상만 접수하고, 그 해소는 비식별 완료를 단정해 기록하므로 실제로 처리되지 않은 영상에 쓰면 사실과 달라진다 | integration | High | DeidentReportService.java(doReport) · ⚠ 이관 경로 전용 시험 미확인 |
+| TC-DEID-232 | **★누락 신고 동선은 이 경로에 쓸 수 없다 (신설)** | 이관 원본 영상(비식별 미수행) | 비식별 누락 신고 접수 | 이 경로에는 신고를 쓰지 않는다 — 신고는 비식별을 한 번이라도 수행한 영상만 접수하고, 그 해소는 비식별 완료를 단정해 기록하므로 실제로 처리되지 않은 영상에 쓰면 사실과 달라진다 | integration | High | ImportPersistTxService.java(markDeidentNotCompleted — 원본 지정 적재는 비식별 미수행으로 남는다) · DeidentReportService.java(requireDeidentArtifact) · DeidentReportServiceTest.java(reportRejectedWhenDeidentNotAttempted) |
 | TC-DEID-233 | **★이름이 맞지 않는 프레임은 비워진 채로 남고 그 수가 응답에 나온다 (신설)** | 외부 비식별 산출물 일부만 프레임 이름과 대응 | 비식별 완료 기록 | 대응 못 한 프레임은 **비운 채로 두고** 그 개수를 응답에 알린다. 조용히 넘기면 일부만 비식별된 영상이 완료로 보인다 | integration | **Critical** | ImportDeidentCompleteService.java · ImportDeidentCompleteControllerIT.java(이름이_맞지_않는_프레임은_비워진_채로_남고_그_수가_응답에_나온다) |
 | TC-DEID-234 | **★이름이 맞는 파일이 한 건도 없으면 기록하지 않고 보류가 유지된다 (신설, negative)** | 제출 위치에 대응하는 파일 0건 | 같은 호출 | 기록하지 않고 **보류를 유지**한다. 0건을 성공으로 처리하면 아무것도 비식별되지 않은 영상의 보류가 풀린다 | integration | **Critical** | ImportDeidentCompleteService.java · ImportDeidentCompleteControllerIT.java(이름이_맞는_파일이_한_건도_없으면_기록하지_않고_보류가_유지된다) |
 | TC-DEID-235 | 이미 비식별 완료로 기록된 영상에는 다시 기록하지 않는다 (신설, negative) | 이미 기록된 영상 | 같은 호출 | 재기록하지 않는다(멱등) | integration | High | ImportDeidentCompleteService.java · ImportDeidentCompleteControllerIT.java(이미_비식별_완료로_기록된_영상에는_다시_기록하지_않는다) |
