@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "AC-091",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "라벨 이름과 검출 클래스 매핑은 사용 중인 라벨끼리 겹칠 수 없다",
+    "slug": "라벨-이름과-검출-클래스-매핑은-사용-중인-라벨끼리-겹칠-수-없다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "이름이 눈으로 같아 보이는데 다른 라벨이면 작업자가 매번 어느 것을 골라야 할지 알 수 없다. 검출 클래스가 둘 이상에 매핑되면 자동 검출 결과를 어느 라벨로 귀속시킬지 정해지지 않는다. 사용 중지된 라벨까지 막지 않는 것은 그것이 이미 후보에서 빠져 혼동을 만들지 않기 때문이다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "충돌로 거부된다",
+          "기존 라벨은 그대로 남는다",
+          "사용 중지된 라벨과는 겹쳐도 거부되지 않는다"
+        ],
+        "when": [
+          "대소문자나 앞뒤 공백만 다른 이름으로, 또는 이미 매핑된 검출 클래스로 라벨을 만들거나 고친다"
+        ],
+        "given": [
+          "사용 중인 라벨이 이미 있다"
+        ]
+      },
+      "statement": "사용 중인 라벨 안에서 이름이 겹치거나 같은 검출 클래스에 둘 이상이 매핑되면 저장이 거부되며, 이름 비교는 대소문자와 앞뒤 공백 차이를 같은 것으로 본다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-010"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-028"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-028의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "이 유스케이스를 검증하는 인수기준이 한 건도 없어 해당 흐름이 검증 기준 없이 남아 있었다. 그 공백을 메운다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T12:18:38.373Z",
+    "created_at": "2026-08-23T12:18:38.373Z"
+  }
+}
