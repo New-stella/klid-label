@@ -1,0 +1,52 @@
+{
+  "item": {
+    "id": "AC-094",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "마스터에 없거나 중지된 라벨은 프리셋에 새로 담기지 않는다",
+    "slug": "마스터에-없거나-중지된-라벨은-프리셋에-새로-담기지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "쓰기와 읽기를 다르게 다루는 것이 이 기준의 핵심이다. 새로 담는 것은 막아야 잘못된 프리셋이 늘지 않고, 이미 담긴 것은 막으면 안 된다 — 막으면 그 프리셋 전체를 열 수 없게 된다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "새로 저장하려는 요청은 잘못된 입력으로 거부된다",
+          "예전 프리셋 조회는 오류 없이 열린다",
+          "그 항목은 연결되지 않은 것으로 표시된다"
+        ],
+        "when": [
+          "그 라벨을 담아 프리셋을 새로 저장하고, 별도로 예전 프리셋을 조회한다"
+        ],
+        "given": [
+          "사용 중지된 라벨이 있고, 예전에 만들어진 프리셋에 그 라벨이 담겨 있다"
+        ]
+      },
+      "statement": "프리셋을 저장할 때 고른 라벨이 마스터에 없거나 사용 중지된 것이면 잘못된 입력으로 거부되며, 예전에 담겨 있던 그런 항목은 조회할 때 오류 없이 연결되지 않은 것으로 표시된다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-032의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "프리셋의 라벨 검증이 쓰기와 읽기에서 다르게 동작해야 함을 검증 기준으로 세운다. 한쪽으로 통일하면 잘못된 프리셋이 늘거나 기존 프리셋을 못 열게 된다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T12:18:38.563Z",
+    "created_at": "2026-08-23T12:18:38.563Z"
+  }
+}

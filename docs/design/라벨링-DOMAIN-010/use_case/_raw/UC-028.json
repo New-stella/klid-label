@@ -83,16 +83,20 @@
       "realizes_features": [],
       "includes_use_cases": [],
       "tech_considerations": [],
-      "covered_by_acceptances": []
+      "covered_by_acceptances": [
+        "AC-089",
+        "AC-090",
+        "AC-091"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "API-031의 data.uses_constants 변경이 realizes로 2-hop 전파",
-    "change_summary": "연결 ITEM 의 소속 도메인이 바뀐 데 따른 재확인. 바뀐 것은 그 문서가 어느 도메인에 속하는지라는 분류이고 이 문서가 참조하는 결정·계약의 내용은 그대로다. 이 문서에는 도메인을 이어받아 저장해 두는 필드가 없어 재계산할 값도 없음을 확인했다. 본문은 바꾸지 않는다.",
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이 유스케이스를 검증하는 인수기준을 연결한다. 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T10:07:10.230Z",
+    "last_updated_at": "2026-08-23T12:18:38.977Z",
     "created_at": "2026-07-30T07:16:48.218Z"
   }
 }

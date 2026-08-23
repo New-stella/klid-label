@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "AC-097",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "포털 라벨 저장은 전체 교체이며 빈 목록은 전부 지우라는 뜻이다",
+    "slug": "포털-라벨-저장은-전체-교체이며-빈-목록은-전부-지우라는-뜻이다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "보낸 것만 더하는 방식으로 오해하면 지우기가 성립하지 않는다. 빈 목록을 실수로 보는 것과 전부 지우려는 의도를 구분할 수단이 없으므로, 전체 교체라는 계약을 화면과 서버가 함께 지켜야 한다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "첫 저장 뒤에는 보낸 것만 남는다",
+          "빈 목록 저장 뒤에는 라벨이 남지 않는다",
+          "같은 요청을 다시 보내도 결과가 달라지지 않는다"
+        ],
+        "when": [
+          "일부만 담은 목록으로 저장하고, 이어서 빈 목록으로 저장한다"
+        ],
+        "given": [
+          "어떤 프레임에 라벨이 여러 개 저장돼 있다"
+        ]
+      },
+      "statement": "포털 업로드 자산의 라벨 저장은 보낸 목록으로 그 프레임의 라벨을 통째로 바꾸는 것이며, 빈 목록을 보내면 그 프레임의 라벨이 전부 지워지고 같은 요청을 여러 번 보내도 결과가 같다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-027"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-027의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "이 유스케이스를 검증하는 인수기준이 한 건도 없어 해당 흐름이 검증 기준 없이 남아 있었다. 그 공백을 메운다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T12:18:38.782Z",
+    "created_at": "2026-08-23T12:18:38.782Z"
+  }
+}
