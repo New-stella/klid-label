@@ -1,0 +1,55 @@
+{
+  "item": {
+    "id": "AC-072",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "주소 설정은 관리자 유효창 안에서만 저장되고 유효창은 역할을 올리지 않는다",
+    "slug": "주소-설정은-관리자-유효창-안에서만-저장되고-유효창은-역할을-올리지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "유효창이 역할을 올리지 않는다는 점이 이 기준의 절반이다. 유효창을 역할 승격으로 구현하면 주소를 바꾸려고 연 창이 그 시간 동안 다른 모든 기능까지 열어 준다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "저장이 거부된다",
+          "유효창을 연 뒤에는 다시 입력하지 않고 저장할 수 있다",
+          "유효창이 열려 있어도 주소 설정 밖의 권한은 늘어나지 않는다",
+          "유효창이 만료되면 다시 잠긴다"
+        ],
+        "when": [
+          "연동 서버 주소를 저장하려 한다"
+        ],
+        "given": [
+          "검수자로 인증한 사용자가 있고 관리자 유효창은 열지 않았다"
+        ]
+      },
+      "statement": "연동 서버 주소는 관리자 공유 패스워드로 연 단기 유효창 안에서만 저장할 수 있고, 그 유효창은 주소 설정 변경에만 효력이 있으며 사용자의 역할을 올리지 않는다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-014"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-031"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-031의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "시스템 운영 설정 흐름의 검증 기준을 신설한다. 이 유스케이스를 검증하는 인수기준이 없어 설정 저장과 조회 동작이 기준 없이 남아 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T10:08:57.043Z",
+    "created_at": "2026-08-23T10:08:57.043Z"
+  }
+}

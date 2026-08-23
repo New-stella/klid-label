@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-068",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "이벤트 유형으로 거르면 같은 표시명 그룹이 모두 걸린다",
+    "slug": "이벤트-유형으로-거르면-같은-표시명-그룹이-모두-걸린다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "선택지만 접고 조회 조건을 코드 하나로 두면 접힌 선택지를 고른 순간 그룹의 나머지 작업이 목록에서 통째로 사라진다. 선택지를 접는 것과 조회 조건을 넓히는 것은 함께 가야 한다. 이 기준은 인가 범위를 넓히지 않는다 — 작업자가 보는 범위는 여전히 자신에게 배정된 것뿐이다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "같은 그룹에 속한 다른 코드의 작업도 결과에 담긴다",
+          "집계도 같은 범위를 센다"
+        ],
+        "when": [
+          "그 그룹의 코드 하나로 목록을 거른다"
+        ],
+        "given": [
+          "표시명이 같지만 코드가 다른 이벤트 유형의 작업들이 있다"
+        ]
+      },
+      "statement": "이벤트 유형으로 목록을 거를 때 그룹의 어느 코드로 요청하든 표시명이 같은 그룹 전체의 작업이 결과에 담긴다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-015"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-029"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-029의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "작업 목록 조회와 배정 흐름의 검증 기준을 신설한다. 이 도메인에는 인수기준이 한 건도 없어 해당 동작이 검증 기준 없이 남아 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T09:54:38.720Z",
+    "created_at": "2026-08-23T09:54:38.720Z"
+  }
+}

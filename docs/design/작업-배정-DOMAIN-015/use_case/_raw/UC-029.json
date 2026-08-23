@@ -120,16 +120,26 @@
         "정렬은 시간축 단일 기준이며 상태 우선순위 ORDER BY CASE 정렬은 폐지되었다(목록 화면 정렬·필터 정책)",
         "필터는 REVIEWER·WORKER 공통으로 BE가 전체 데이터 기준으로 처리한다(WORKER는 본인 범위로 고정되며, 현재 페이지 20건 안에서 재필터링하지 않는다). KPI 집계만 REVIEWER 경로에서 BE가 전체 데이터 기준으로 별도 계산한다(WORKER는 요약 API가 없어 현재 페이지로 클라이언트 집계한다)."
       ],
-      "covered_by_acceptances": []
+      "covered_by_acceptances": [
+        "AC-062",
+        "AC-063",
+        "AC-064",
+        "AC-065",
+        "AC-066",
+        "AC-067",
+        "AC-068",
+        "AC-069",
+        "AC-070"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "구현 상태를 실제에 맞춘다. 미착수로 적혀 있었으나 이 유스케이스가 기술하는 조회·필터링·배정 흐름은 서버와 화면 양쪽에 이미 구현되어 동작한다. 함께 걸려 있던 재검토 표식은 작업 목록 화면의 상태 필터 선택지 정정에서 온 링크 전파이며, 본문은 선택지를 나열하지 않아 고칠 내용이 없음을 확인했다. 코드 모듈 연결은 아직 채우지 못했다.",
+    "change_summary": "작업 목록 조회와 배정 흐름을 검증하는 인수기준을 이 유스케이스에 연결한다. 이 도메인에는 인수기준이 한 건도 없어 흐름이 검증 기준 없이 남아 있었고, 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-18T06:36:13.558Z",
+    "last_updated_at": "2026-08-23T09:54:47.338Z",
     "created_at": "2026-08-06T16:05:13.891Z"
   }
 }
