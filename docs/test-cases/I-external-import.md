@@ -1,0 +1,136 @@
+# I. 외부 산출물 이관 (DOMAIN-017)
+
+> 범위: 폴더 검사(미리보기) · 분류 대응 · 적재 · 이관 이력 · 1차 산출물 파싱
+> 사양: [25 외부 산출물 이관](../v2-wiki/25-external-import.md)
+> ⚠ **비식별 축은 이 파일이 아니라 [B-35](B-batch-deidentify.md#b-35-외부-산출물-이관-경로의-비식별-축)** 에 있다 — 비식별은 B 클러스터의 주제이고, 이관 경로의 비식별 분기도 그쪽에 함께 두는 편이 그 도메인을 검증할 때 한 파일만 열면 되기 때문이다.
+
+## 변경 이력
+
+| 회차 | 일자 | 내용 | 정정 | 신규 | 폐기 |
+|:--:|------|------|--:|--:|--:|
+| **1** | **2026-08-23** | **클러스터 신설** — 이관 도메인은 PR #117 로 들어왔으나 검사·분류대응·적재·이력 축의 시험 카탈로그가 만들어지지 않았다. 구현(CO-001~004)과 테스트가 이미 있으므로 그것을 근거로 전수 등재한다 | 0 | **79** | 0 |
+
+---
+
+## I-1. 폴더 검사 — 아무것도 남기지 않고 미리보기만 돌려준다
+
+> 검사는 **읽기 전용**이다. 무엇이 들어올지 미리 보여줄 뿐 DB 도 폴더도 건드리지 않는다.
+> 진행해도 되는지의 판정은 경고가 담겼는지가 아니라 **함께 돌아오는 적재 가능 여부 값 하나**가 한다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-IMPORT-001 | 표본 폴더를 검사하면 실제 파일 기준 건수와 경고가 돌아온다 (신설) | 허용 범위 안의 표본 폴더 | `POST /v1/imports/scans` | 문서가 선언한 수가 아니라 **실제 파일 기준** 건수와 경고 목록이 돌아온다 | integration | **Critical** | ImportScanControllerIT.java(검수자가_표본_폴더를_검사하면_실제_파일_기준_건수와_경고가_돌아온다) |
+| TC-IMPORT-002 | 검사는 DB 와 폴더에 아무 변화도 남기지 않는다 (신설) | 같은 폴더 | 검사 실행 | 영상·프레임·이력 어느 것도 생기지 않고 폴더 내용도 그대로다. **검사가 부작용을 가지면 미리보기라는 계약이 무너진다** | integration | **Critical** | ImportScanControllerIT.java(검사는_DB와_폴더에_아무_변화도_남기지_않는다) |
+| TC-IMPORT-003 | **★미리보기가 약속하는 라벨 수는 실제로 적재될 도형만이다** (신설) | 도형과 텍스트가 섞인 산출물 | 검사 실행 | 응답의 라벨 수가 **적재될 도형만** 센다. 발견된 도형을 전부 세면 미리보기가 약속한 수보다 적게 적재돼 사용자가 유실로 읽는다 | unit | **Critical** | FirstAnnotationParserTest.java(미리보기가_세는_라벨_수는_실제로_적재될_도형만이다_경계상자는_빠진다) |
+| TC-IMPORT-004 | 적재 가능 판정은 한 곳이라 좌표가 없으면 거짓이다 (신설) | 좌표가 비어 있는 도형 | 검사·적재 | 미리보기와 적재가 **같은 판정**을 쓴다. 판정이 둘이면 두 수가 어긋난다 | unit | **Critical** | FirstAnnotationParserTest.java(적재_가능_판정은_Shape_한_곳이라_좌표가_없으면_거짓이다) |
+| TC-IMPORT-005 | 짝이 없거나 선언 건수가 달라도 거부하지 않고 경고만 남긴다 (신설) | 짝 문서 없는 이미지 · 선언 수와 실제 수 불일치 | 검사 실행 | 경고에 담기되 **적재를 막지 않는다**. 이 두 사유는 실제 파일 기준으로 적재하면 되는 것이다 | unit | High | FirstAnnotationParserTest.java(짝이_없거나_선언_건수가_달라도_거부하지_않고_경고만_남긴다) |
+| TC-IMPORT-006 | 파일 수가 상한을 넘으면 조용히 자르지 않고 알린 뒤 적재를 막는다 (신설, negative) | 상한 초과 폴더 | 검사 실행 | 잘라서 성공으로 보이지 않는다 — **조용한 절단은 유실을 성공으로 보고하는 것**이다 | unit | **Critical** | ImportScanServiceTest.java(파일_수가_상한을_넘으면_조용히_자르지_않고_알린_뒤_적재를_막는다) |
+| TC-IMPORT-007 | 프레임이 하나도 없으면 적재할 것이 없다고 알린다 (신설, negative) | 라벨 대상 프레임 0건 | 검사 실행 | 적재 불가로 알린다. 빈 영상이 검수 목록에 들어가면 검수자가 열 것이 없다 | unit | High | ImportScanServiceTest.java(프레임이_하나도_없으면_적재할_것이_없다고_알린다) |
+| TC-IMPORT-008 | 이미 가져온 산출물이면 그 영상을 알려 주고 적재를 막는다 (신설, negative) | 같은 산출물을 이미 적재 | 검사 실행 | 적재 불가 + **기존 영상 번호를 함께 알린다**. 번호를 주지 않으면 사용자가 중복인지 새것인지 판단할 수 없다 | unit | **Critical** | ImportScanServiceTest.java(이미_가져온_산출물이면_그_영상을_알려_주고_적재를_막는다) |
+| TC-IMPORT-009 | 폴더 안의 바로가기는 따라가지 않고 그 내용이 응답에 새지 않는다 (신설, negative) | 폴더 안에 범위 밖을 가리키는 바로가기 | 검사 실행 | 건너뛰고 알린다. **폴더 경로를 한 번 판정하는 것만으로는 폴더 안 항목이 범위 밖을 가리키는 것을 막지 못한다** | security | **Critical** | ImportScanServiceTest.java(폴더_안의_바로가기는_따라가지_않고_그_내용이_응답에_새지_않는다) |
+| TC-IMPORT-010 | 한 번 확정한 대응은 다음 검사에서 미확정으로 나오지 않는다 (신설) | 라벨·이벤트유형 대응 확정 후 | 같은 폴더 재검사 | 확정분이 미확정 목록에서 빠진다. 매번 다시 확정해야 하면 대응을 저장하는 의미가 없다 | integration | High | ImportScanControllerIT.java(한_번_확정한_대응은_다음_검사에서_미확정으로_나오지_않는다) |
+| TC-IMPORT-011 | 상위로 거슬러 올라가는 경로와 허용 범위 밖 경로는 거부한다 (신설, negative) | 상위 표기가 담긴 경로 · 범위 밖 절대경로 | 검사 실행 | 거부. **문자로만 판정하지 않고 실제로 가리키는 자리를 기준으로** 판정한다 | security | **Critical** | ImportSourcePolicyTest.java(상위로_거슬러_올라가는_표기는_거부한다 · 허용_범위_밖의_절대경로는_거부한다) · ImportScanControllerIT.java(상위로_거슬러_올라가는_경로와_허용_범위_밖_경로는_거부한다) |
+| TC-IMPORT-012 | 허용 범위 안의 이름이 밖을 가리키는 바로가기면 거부한다 (신설, negative) | 범위 안 이름 → 범위 밖 실체 | 검사 실행 | 거부. 이름만 보면 통과하므로 **실경로로 판정**해야 한다 | security | **Critical** | ImportSourcePolicyTest.java(허용_범위_안의_이름이_밖을_가리키는_심링크면_거부한다) |
+| TC-IMPORT-013 | 허용 범위 밖은 존재 여부와 무관하게 같은 사유로 거부한다 (신설, negative) | 범위 밖 경로(있는 것·없는 것) | 검사 실행 | **같은 응답**. 다르면 응답으로 파일 시스템의 존재 여부를 알아낼 수 있다 | security | **Critical** | ImportSourcePolicyTest.java(허용_범위_밖은_존재_여부와_무관하게_같은_사유로_거부한다) |
+| TC-IMPORT-014 | 허용 범위 안이지만 없는 폴더는 찾을 수 없음이다 (신설, negative) | 범위 안 · 미존재 | 검사 실행 | 찾을 수 없음. 범위 안은 존재 여부를 알려도 새는 정보가 없다 | unit | High | ImportSourcePolicyTest.java(허용_범위_안이지만_없는_폴더는_찾을_수_없음이다) · ImportScanControllerIT.java(허용_범위_안이지만_없는_폴더는_찾을_수_없음이다) |
+| TC-IMPORT-015 | 폴더 자리에 파일을 주면 거부한다 (신설, negative) | 경로가 파일을 가리킴 | 검사 실행 | 거부 | unit | Medium | ImportSourcePolicyTest.java(폴더_자리에_파일을_주면_거부한다) |
+| TC-IMPORT-016 | 경로가 비었거나 길이를 넘으면 거부한다 (신설, negative) | 빈 값 · 상한 초과 길이 | 검사 실행 | 거부. 길이 상한이 없으면 저장 시점에 DB 오류로 새어 500 이 된다 | unit | High | ImportSourcePolicyTest.java(빈_값과_길이를_넘는_값은_거부한다) · ImportScanControllerIT.java(경로가_비었거나_길이를_넘으면_거부한다) |
+| TC-IMPORT-017 | 검수자가 아니면 경로의 유효성과 무관하게 같은 방식으로 거부한다 (신설, negative) | 작업자 토큰 · 유효한 경로와 무효한 경로 | 검사 실행 | **같은 응답**. 권한 판정을 경로 판정보다 먼저 해야 응답이 경로 존재 여부를 알려주는 통로가 되지 않는다 | security | **Critical** | ImportScanControllerIT.java(검수자가_아니면_경로의_유효성과_무관하게_같은_방식으로_거부한다) |
+| TC-IMPORT-018 | 토큰이 없으면 인증 실패다 (신설, negative) | 토큰 없음 | 검사 실행 | 인증 실패 | integration | High | ImportScanControllerIT.java(토큰이_없으면_인증_실패다) |
+
+---
+
+## I-2. 분류 대응 — 외부 이름을 저작도구 라벨·이벤트유형에 잇는다
+
+> 대응이 정해지지 않은 분류가 남아 있으면 적재하지 않는다(I-3). 이 절은 그 대응을 만드는 축이다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-IMPORT-019 | 검수자가 라벨 대응과 이벤트유형 대응을 한 번에 확정할 수 있다 (신설) | 미확정 분류 존재 | `POST /v1/imports/mappings` | 두 종류가 한 요청으로 저장된다 | integration | **Critical** | ImportMappingControllerIT.java(검수자가_라벨_대응과_이벤트유형_대응을_한_번에_확정할_수_있다) |
+| TC-IMPORT-020 | 같은 분류에 대한 대응은 의도를 밝히지 않으면 거부한다 (신설, negative) | 이미 대응이 있는 분류 | 다른 대상으로 재확정(의도 미표시) | 거부. **말없이 덮으면 이전 대응으로 적재된 것과 앞으로 적재될 것이 갈린다** | integration | **Critical** | ImportMappingControllerIT.java(같은_분류에_대한_대응은_의도를_밝히지_않으면_거부한다) |
+| TC-IMPORT-021 | 의도를 밝히면 기존 대응을 바꿔 쓴다 (신설) | 위와 같음 | 덮어쓰기 의도 표시 | 새 대응으로 교체된다 | integration | High | ImportMappingControllerIT.java(의도를_밝히면_기존_대응을_바꿔_쓴다) |
+| TC-IMPORT-022 | 종류와 연결 대상이 맞지 않으면 거부한다 (신설, negative) | 라벨 종류에 이벤트유형을 연결 | 확정 요청 | 거부 | integration | High | ImportMappingControllerIT.java(종류와_연결_대상이_맞지_않으면_거부한다) |
+| TC-IMPORT-023 | 실재하지 않는 라벨이나 이벤트유형에는 연결하지 않는다 (신설, negative) | 없는 식별자 | 확정 요청 | 거부. 없는 대상에 이으면 적재 시점에 터진다 | integration | **Critical** | ImportMappingControllerIT.java(실재하지_않는_라벨이나_이벤트유형에는_연결하지_않는다) |
+| TC-IMPORT-024 | 한 요청에 같은 분류가 두 번 들어오면 아무것도 저장하지 않는다 (신설, negative) | 같은 분류 중복 | 확정 요청 | 전량 미저장. 뒤엣것이 이기게 하면 요청 순서가 결과를 정한다 | integration | High | ImportMappingControllerIT.java(한_요청에_같은_분류가_두_번_들어오면_아무것도_저장하지_않는다) |
+| TC-IMPORT-025 | 한 건이라도 거부되면 같은 요청의 다른 건도 저장되지 않는다 (신설, negative) | 유효 1건 + 무효 1건 | 확정 요청 | 전량 미저장. 부분 저장은 무엇이 저장됐는지 요청한 쪽이 알 수 없다 | integration | **Critical** | ImportMappingControllerIT.java(한_건이라도_거부되면_같은_요청의_다른_건도_저장되지_않는다) |
+| TC-IMPORT-026 | 해제하면 목록에서 빠지고 포함을 요청해야 보인다 (신설) | 확정된 대응 | 해제 후 목록 조회 | 기본 목록에서 빠지고, 포함을 명시하면 보인다 | integration | High | ImportMappingControllerIT.java(해제하면_목록에서_빠지고_포함을_요청해야_보인다) |
+| TC-IMPORT-027 | 해제한 대응을 다시 확정하면 되살아난다 (신설) | 해제된 대응 | 같은 분류 재확정 | 되살아난다. 새로 만들지 않으므로 이력이 이어진다 | integration | Medium | ImportMappingControllerIT.java(해제한_대응을_다시_확정하면_되살아난다) |
+| TC-IMPORT-028 | 종류로 거를 수 있고 페이지 단위로 돌려준다 (신설) | 대응 다수 | 목록 조회 | 종류 필터 + 쪽 단위 | integration | Medium | ImportMappingControllerIT.java(종류로_거를_수_있고_페이지_단위로_돌려준다) |
+| TC-IMPORT-029 | 없는 대응을 해제하면 찾을 수 없음이다 (신설, negative) | 없는 식별자 | 해제 요청 | 찾을 수 없음 | integration | Medium | ImportMappingControllerIT.java(없는_대응을_해제하면_찾을_수_없음이다) |
+| TC-IMPORT-030 | 검수자가 아니면 조회도 확정도 해제도 할 수 없다 (신설, negative) | 작업자 토큰 | 조회·확정·해제 | 전부 거부 | security | **Critical** | ImportMappingControllerIT.java(검수자가_아니면_조회도_확정도_해제도_할_수_없다) |
+| TC-IMPORT-031 | 이름이 정확히 같은 라벨이 하나면 그 하나를 추천한다 (신설) | 동명 활성 라벨 1건 | 검사 시 추천 계산 | 그 라벨을 추천한다 | unit | High | CategoryMatchSuggesterTest.java(이름이_정확히_같은_라벨이_하나면_그_하나를_추천한다) |
+| TC-IMPORT-032 | 대소문자와 공백만 다른 이름도 같은 이름으로 본다 (신설) | 표기만 다른 동명 | 추천 계산 | 같은 것으로 보고 추천 | unit | Medium | CategoryMatchSuggesterTest.java(대소문자와_공백만_다른_이름도_같은_이름으로_본다) |
+| TC-IMPORT-033 | 같은 이름 후보가 둘이면 비운다 (신설, negative) | 동명 활성 라벨 2건 | 추천 계산 | 추천하지 않는다. **추측하면 다른 분류로 적재된다** | unit | **Critical** | CategoryMatchSuggesterTest.java(같은_이름_후보가_둘이면_비운다) |
+| TC-IMPORT-034 | 이름이 비슷한 후보가 하나뿐이면 추천하고 여럿이면 비운다 (신설) | 부분 일치 후보 1건 / 2건 이상 | 추천 계산 | 하나면 추천, 여럿이면 비움 | unit | Medium | CategoryMatchSuggesterTest.java(이름이_비슷한_후보가_하나뿐이면_추천하고_여럿이면_비운다) |
+| TC-IMPORT-035 | 한 글자는 아무 이름에나 걸리므로 품기 판정을 적용하지 않는다 (신설, negative) | 한 글자 외부 이름 | 추천 계산 | 부분 일치 판정을 쓰지 않는다 — 한 글자는 거의 모든 이름에 걸려 무의미한 추천이 된다 | unit | High | CategoryMatchSuggesterTest.java(한_글자는_아무_이름에나_걸리므로_품기_판정을_적용하지_않는다) |
+| TC-IMPORT-036 | 이벤트 유형 축은 유형 코드를 후보로 돌려준다 (신설) | 이벤트유형 분류 | 추천 계산 | 유형 코드가 후보다 | unit | Medium | CategoryMatchSuggesterTest.java(이벤트_유형_축은_유형_코드를_후보로_돌려준다) |
+| TC-IMPORT-037 | 이름이 비어 있거나 이름 없는 라벨은 후보에서 빠진다 (신설, negative) | 빈 이름 · 이름 없는 마스터 | 추천 계산 | 비운다 / 후보 제외 | unit | Medium | CategoryMatchSuggesterTest.java(이름이_비어_있으면_비운다 · 이름이_없는_라벨은_후보에서_빠진다) |
+
+---
+
+## I-3. 적재 — 검수 대기 영상으로 들인다
+
+> 적재는 **전부 되거나 아무것도 안 되거나**다. 막는 사유가 하나라도 남으면 들이지 않는다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-IMPORT-038 | 비식별이 끝난 산출물을 적재하면 검수 대기 영상과 실제 파일 기준 프레임이 만들어진다 (신설) | 대응 확정 완료 | `POST /v1/imports` | 영상 1건 + **실제 파일 기준** 프레임이 생긴다 | integration | **Critical** | ImportControllerIT.java(비식별이_끝난_산출물을_적재하면_검수_대기_영상과_실제_파일_기준_프레임이_만들어진다) |
+| TC-IMPORT-039 | **★적재된 영상은 배정 없이 검수 목록에 나타나고 검수를 시작할 수 있다** (신설) | 위 적재 결과 | 검수 목록 조회 · 검수 시작 | 배정 절차 없이 검수할 수 있다 — 이관 산출물은 라벨링 작업 단계를 거치지 않기 때문이다 | integration | **Critical** | ImportControllerIT.java(적재된_영상은_배정_없이_검수_목록에_나타나고_검수를_시작할_수_있다) |
+| TC-IMPORT-040 | 같은 산출물을 다시 적재하면 거부하고 기존 영상 번호를 알려준다 (신설, negative) | 이미 적재된 산출물 | 재적재 | 거부 + 기존 영상 번호 | integration | **Critical** | ImportControllerIT.java(같은_산출물을_다시_적재하면_거부하고_기존_영상_번호를_알려준다) |
+| TC-IMPORT-041 | 원본으로 적재하면 승인 보류가 서고 비식별이 끝난 것으로 적재하면 서지 않는다 (신설) | 두 지정값 | 각각 적재 | 보류 유무가 갈린다. 잘못 고르면 **비식별되지 않은 화면이 학습데이터와 관제로 나간다** | integration | **Critical** | ImportControllerIT.java(원본으로_적재하면_승인_보류가_서고_비식별이_끝난_것으로_적재하면_서지_않는다) |
+| TC-IMPORT-042 | 착지할 자리가 없는 값과 원천 개인정보 세 필드가 원문 그대로 보관된다 (신설) | 대응 컬럼이 없는 외부 값 | 적재 | 버리지 않고 원문 보관 — **버리면 그 산출물을 다시 읽어 적재할 때 복원할 수 없다** | integration | High | ImportControllerIT.java(착지할_자리가_없는_값과_원천_개인정보_세_필드가_원문_그대로_보관된다) |
+| TC-IMPORT-043 | 원본이라고 지정하면 프레임 개인정보는 컬럼이 아니라 메타에 원문으로 보관된다 (신설) | 원본 지정 | 적재 | 비식별 축 컬럼에 착지시키지 않는다 — 그 컬럼은 비식별 결과를 담는 자리다 | integration | **Critical** | ImportControllerIT.java(원본이라고_지정하면_프레임_개인정보는_컬럼이_아니라_메타에_원문으로_보관된다) · ImportFramePrivacyAxisTest.java(비식별이_끝난_것으로_지정한_경우에만_비식별_축_컬럼에_착지한다) |
+| TC-IMPORT-044 | 여부 값은 표기만 맞추고 옮길 수 없는 값은 지어내지 않는다 (신설) | 외부 표기가 다른 여부 값 · 해석 불가 값 | 적재 | 표기만 정규화하고, 모르는 값은 비운다 | unit | High | ImportFramePrivacyAxisTest.java(여부_값은_표기만_맞추고_옮길_수_없는_값은_지어내지_않는다) |
+| TC-IMPORT-045 | 대응이 정해지지 않은 분류가 남으면 적재하지 않는다 (신설, negative) | 미대응 분류 잔존 | 적재 | 거부. 미대응인 채로 적재하면 어느 라벨인지 모르는 데이터가 검수 목록에 들어간다 | integration | **Critical** | ImportControllerIT.java(대응이_정해지지_않은_분류가_남으면_적재하지_않는다) |
+| TC-IMPORT-046 | 확인 기록을 보내도 막는 사유가 남아 있으면 적재되지 않는다 (신설, negative) | 경고를 확인했다는 표시 + 막는 사유 잔존 | 적재 | 거부. **확인 표시는 경고를 지나가는 수단이지 막는 사유를 무르는 수단이 아니다** | integration | **Critical** | ImportControllerIT.java(확인_기록을_보내도_막는_사유가_남아_있으면_적재되지_않는다) |
+| TC-IMPORT-047 | 허용 범위 밖 경로와 권한 없는 요청은 아무것도 남기지 않고 거부한다 (신설, negative) | 범위 밖 경로 · 작업자 토큰 | 적재 | 거부 + **부분 산출물 0** | security | **Critical** | ImportControllerIT.java(허용_범위_밖_경로와_권한_없는_요청은_아무것도_남기지_않고_거부한다) |
+| TC-IMPORT-048 | 가져온 프레임이 열리고 승인하면 학습데이터 산출이 성공으로 마감된다 (신설) | 적재 완료 | 프레임 조회 → 검수 승인 | 프레임이 열리고 산출이 성공 마감된다 | integration | **Critical** | ImportControllerIT.java(가져온_프레임이_열리고_승인하면_학습데이터_산출이_성공으로_마감된다) |
+| TC-IMPORT-049 | 이관 프레임은 원본 비식별 서브트리 규약 위에 놓인다 (신설) | 적재 완료 | 프레임 경로 확인 | 기존 비식별 서브트리 규약을 그대로 따른다 — 이관만 다른 규약을 쓰면 프레임 서빙 판정기가 갈린다 | integration | High | ImportControllerIT.java(이관_프레임은_원본_비식별_서브트리_규약_위에_놓인다) |
+| TC-IMPORT-050 | 보상은 이번에 만든 파일만 지우고 같은 자리의 남의 성공분은 남긴다 (신설) | 같은 자리에 이전 성공분 존재 · 이번 적재 실패 | 적재 실패 | 이번 것만 지운다. **싸잡아 지우면 남의 성공한 산출물이 사라진다** | unit | **Critical** | ImportFileStagerTest.java(보상은_이번에_만든_파일만_지우고_같은_자리의_남의_성공분은_남긴다) |
+| TC-IMPORT-051 | 비워진 디렉터리는 비어 있을 때만 함께 걷어낸다 (신설) | 보상 후 디렉터리 | 적재 실패 | 비어 있을 때만 제거 | unit | High | ImportFileStagerTest.java(비워진_디렉터리는_비어_있을_때만_함께_걷어낸다) |
+| TC-IMPORT-052 | 목적지가 바로가기여도 따라가 쓰지 않는다 (신설, negative) | 목적지가 범위 밖을 가리키는 바로가기 | 적재 | 따라가지 않는다 — 따라가면 범위 밖에 파일을 만든다 | security | **Critical** | ImportFileStagerTest.java(목적지가_바로가기여도_따라가_쓰지_않는다) |
+| TC-IMPORT-053 | 옮기고 나면 다 쓰지 못한 임시 파일이 남지 않는다 (신설) | 적재 완료 | 저장 영역 확인 | 임시 파일 잔여 0 | unit | Medium | ImportFileStagerTest.java(옮기고_나면_다_쓰지_못한_임시_파일이_남지_않는다) |
+| TC-IMPORT-054 | **★이력 마감이 실패해도 적재를 되돌리지 않고 옮긴 파일도 지우지 않는다** (신설) | 적재 성공 후 이력 기록 단계에서 실패 | 적재 | 영상·프레임·파일은 그대로 남는다. **이력은 기록이고 적재는 결과다** — 기록을 남기지 못했다고 결과를 버리면 사용자가 성공한 작업을 잃는다 | unit | **Critical** | ImportCommitBoundaryTest.java(이력_마감이_실패해도_적재를_되돌리지_않고_옮긴_파일도_지우지_않는다) |
+
+---
+
+## I-4. 이관 이력 — 무엇이 언제 어떻게 들어왔는지
+
+> **승인 보류 여부는 이관 상태와 다른 축이다.** 이관이 성공해도 보류가 설 수 있고, 그 판정은 영상마다 갈린다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-IMPORT-055 | **★승인 보류 여부는 이관 상태와 다른 축이다** (신설) | 이관 성공 이력 | `GET /v1/imports/histories` | 이관 상태와 보류 여부가 **각각** 돌아온다. 한 값으로 합치면 성공했는데 보류인 상태를 표현할 수 없다 | integration | **Critical** | ImportHistoryControllerIT.java(승인_보류_여부는_이관_상태와_다른_축이다) |
+| TC-IMPORT-056 | 같은 이관 상태여도 영상마다 보류 판정이 갈린다 (신설) | 같은 상태의 이력 여럿 | 목록 조회 | 영상별로 다른 보류 값 | unit | High | ImportHistoryQueryServiceTest.java(같은_이관_상태여도_영상마다_보류_판정이_갈린다) |
+| TC-IMPORT-057 | 영상이 없는 실패 이력은 보류 값이 비어 있다 (신설) | 적재 실패로 영상 미생성 | 목록 조회 | 보류 값 비움 — **없는 영상에 보류 여부를 단정하지 않는다** | integration | High | ImportHistoryControllerIT.java(영상이_없는_실패_이력은_보류_값이_비어_있다) · ImportHistoryQueryServiceTest.java(영상이_없는_이력은_보류_값이_비어_있다) |
+| TC-IMPORT-058 | 상태 조회는 목록 크기와 무관하게 한 번이다 (신설) | 이력 다수 | 목록 조회 | 조회 횟수가 목록 크기에 비례하지 않는다 | unit | High | ImportHistoryQueryServiceTest.java(상태_조회는_목록_크기와_무관하게_한_번이다) |
+| TC-IMPORT-059 | 이력이 늘어나도 목록이 한 번에 돌아온다 (신설) | 이력 증가 | 목록 조회 | 건수에 비례한 조회가 발생하지 않는다 | integration | High | ImportHistoryControllerIT.java(이력이_늘어나도_목록이_한_번에_돌아온다) |
+| TC-IMPORT-060 | 영상이 하나도 없는 쪽에서는 상태를 아예 읽지 않는다 (신설) | 그 쪽의 이력이 전부 영상 없음 | 목록 조회 | 상태 조회 0회 — 빈 조회로 경계를 열지 않는다 | unit | Medium | ImportHistoryQueryServiceTest.java(영상이_하나도_없는_쪽에서는_상태를_아예_읽지_않는다) |
+| TC-IMPORT-061 | 목록은 최근순으로 정렬된다 (신설) | 이력 여럿 | 목록 조회 | 최근순 고정 | integration | Medium | ImportHistoryControllerIT.java(목록은_최근순으로_정렬된다) |
+| TC-IMPORT-062 | 목록은 한 쪽씩만 돌려준다 (신설) | 이력 다수 | 목록 조회 | 쪽 단위 | integration | High | ImportHistoryControllerIT.java(목록은_한_쪽씩만_돌려준다) |
+| TC-IMPORT-063 | 쪽 크기 상한을 넘으면 거부한다 (신설, negative) | 상한 초과 요청 | 목록 조회 | 거부 — 상한이 없으면 한 요청으로 전량을 끌어갈 수 있다 | integration | High | ImportHistoryControllerIT.java(쪽_크기_상한을_넘으면_거부한다) |
+| TC-IMPORT-064 | 계약에 없는 이관 상태로 거르면 거부한다 (신설, negative) | 계약 밖 상태값 | 목록 조회 | 거부. **빈 결과로 돌려주면 잘못 물은 것과 그런 이력이 없는 것이 구분되지 않는다** | integration | High | ImportHistoryControllerIT.java(계약에_없는_이관_상태로_거르면_거부한다) |
+| TC-IMPORT-065 | 이관 상태로 거를 때는 거르는 조회를 쓴다 (신설) | 상태 필터 지정 | 목록 조회 | 전량을 읽어 화면에서 거르지 않는다 | unit | Medium | ImportHistoryQueryServiceTest.java(이관_상태로_거를_때는_거르는_조회를_쓴다) |
+| TC-IMPORT-066 | 상세는 경로와 실패 사유를 함께 돌려준다 (신설) | 실패 이력 | `GET /v1/imports/histories/{id}` | 경로 + 실패 사유 | integration | High | ImportHistoryControllerIT.java(상세는_경로와_실패_사유를_함께_돌려준다) |
+| TC-IMPORT-067 | 없는 이관 이력 상세는 찾을 수 없음이다 (신설, negative) | 없는 식별자 | 상세 조회 | 찾을 수 없음 | integration | Medium | ImportHistoryControllerIT.java(없는_이관_이력_상세는_찾을_수_없음이다) |
+| TC-IMPORT-068 | 작업자는 이관 이력을 볼 수 없고 인증 없이도 볼 수 없다 (신설, negative) | 작업자 토큰 · 토큰 없음 | 목록·상세 조회 | 각각 거부 | security | **Critical** | ImportHistoryControllerIT.java(작업자는_이관_이력을_볼_수_없다 · 인증_없이는_이관_이력을_볼_수_없다) |
+
+---
+
+## I-5. 1차 산출물 파싱 — 외부 형식을 저작도구 형식으로
+
+> 외부에서 온 값은 **그대로 믿지 않는다**. 옮길 수 없는 것은 지어내지 않고, 이름은 경로가 되지 못하게 한다.
+
+| ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
+|----|---------|------|----------|---------|------|:--:|------|
+| TC-IMPORT-069 | 표본 폴더를 읽으면 문서가 프레임이 되고 짝 없는 이미지도 라벨 없는 프레임이 된다 (신설) | 표본 폴더 | 파싱 | 문서마다 프레임 + 짝 없는 이미지도 프레임(라벨 0) | unit | **Critical** | FirstAnnotationParserTest.java(표본_폴더를_읽으면_문서_5건이_프레임으로_들어오고_짝_없는_이미지_1장도_라벨_없는_프레임이_된다) |
+| TC-IMPORT-070 | 도형 라벨과 텍스트가 같은 배열에 섞여 와도 갈라서 담긴다 (신설) | 혼재 배열 | 파싱 | 도형과 텍스트가 각자 자리로 | unit | High | FirstAnnotationParserTest.java(도형_라벨과_텍스트_3종이_같은_배열에_섞여_와도_갈라서_담긴다) |
+| TC-IMPORT-071 | 평면으로 나열된 다각형 좌표가 좌표쌍으로 바뀐다 (신설) | 평면 배열 좌표 | 파싱 | 저작도구 정규 형식 | unit | High | FirstAnnotationParserTest.java(평면으로_나열된_다각형_좌표가_저작도구_정규_형식의_좌표쌍으로_바뀐다) |
+| TC-IMPORT-072 | **★프레임 번호는 영상 내 실제 위치로 읽고 추출 순번과 섞지 않는다** (신설) | 두 값이 다른 산출물 | 파싱 | 실제 위치로 읽는다. 섞으면 라벨 좌표가 **엉뚱한 장면**에 얹힌다 | unit | **Critical** | FirstAnnotationParserTest.java(프레임_번호는_영상_내_실제_위치로_읽고_추출_순번과_섞지_않는다) |
+| TC-IMPORT-073 | 영상 블록의 선언 프레임 수는 총 프레임이 아니라 라벨링 대상 프레임 수다 (신설) | 두 수가 다른 산출물 | 파싱 | 라벨링 대상 수로 읽는다 | unit | High | FirstAnnotationParserTest.java(영상_블록의_선언_프레임_수는_총_프레임이_아니라_라벨링_대상_프레임_수다) |
+| TC-IMPORT-074 | 영상 메타는 대응 컬럼이 없는 값까지 버리지 않고 담는다 (신설) | 대응 없는 외부 메타 | 파싱 | 버리지 않는다 | unit | High | FirstAnnotationParserTest.java(영상_메타는_저작도구에_대응_컬럼이_없는_값까지_버리지_않고_담는다) |
+| TC-IMPORT-075 | 촬영환경은 정규값으로 담기고 빈 날씨는 경고 없이 비운다 (신설) | 빈 날씨 값 | 파싱 | 정규화 + 빈 값은 경고 없이 비움(빈 것은 오류가 아니다) | unit | Medium | FirstAnnotationParserTest.java(촬영환경은_정규값으로_담기고_빈_날씨는_경고_없이_비운다) |
+| TC-IMPORT-076 | 시간대와 계절 별칭은 정규값으로 옮기고 모르는 표기는 지어내지 않는다 (신설) | 별칭 · 미지 표기 | 파싱 | 아는 것만 옮기고 모르는 것은 비운다 | unit | High | FirstAnnotationParserTest.java(시간대와_계절_별칭은_정규값으로_옮기고_모르는_표기는_지어내지_않는다) |
+| TC-IMPORT-077 | **★외부 파일명은 마지막 요소만 취해 경로가 되지 못하게 한다** (신설, negative) | 경로 구분자가 담긴 파일명 | 파싱 | 마지막 요소만 취한다 — 그대로 쓰면 외부가 저장 위치를 정하게 된다 | security | **Critical** | FirstAnnotationParserTest.java(외부_파일명은_마지막_요소만_취해_경로가_되지_못하게_한다) · ExternalNameSanitizer.java |
+| TC-IMPORT-078 | 이관 식별자와 저장 경로가 확정 형식으로 조립된다 (신설) | 표본 산출물 | 파싱 | 확정 형식 | unit | Medium | FirstAnnotationParserTest.java(이관_식별자와_저장_경로가_확정_형식으로_조립된다) |
+| TC-IMPORT-079 | 확인되지 않은 경계상자와 키포인트는 없으므로 해당 경고도 뜨지 않는다 (신설) | 표본 산출물 | 파싱 | 그 경고가 뜨지 않는다 — 없는 것에 경고를 붙이면 실제 경고가 묻힌다 | unit | Medium | FirstAnnotationParserTest.java(확인되지_않은_경계상자와_키포인트는_없으므로_해당_경고도_뜨지_않는다) |
