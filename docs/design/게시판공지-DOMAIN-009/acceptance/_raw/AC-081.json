@@ -1,0 +1,48 @@
+{
+  "item": {
+    "id": "AC-081",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "첨부 다운로드는 그 공지를 볼 수 있는 사람에게만 열린다",
+    "slug": "첨부-다운로드는-그-공지를-볼-수-있는-사람에게만-열린다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "공지 본문은 가렸는데 첨부는 열려 있으면 가린 의미가 없다. 첨부 식별자만으로 조회하면 다른 공지의 첨부를 가져올 수 있으므로 소속까지 함께 확인한다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "찾을 수 없다는 응답으로 거부된다",
+          "다른 공지에 속한 첨부 식별자를 지정해도 찾을 수 없다는 응답으로 거부된다"
+        ],
+        "when": [
+          "작업자가 그 첨부를 내려받으려 한다"
+        ],
+        "given": [
+          "아직 발행하지 않은 공지에 첨부파일이 있다"
+        ]
+      },
+      "statement": "첨부파일 내려받기는 그 공지를 볼 수 있는 사람에게만 열리며, 첨부가 요청한 공지에 실제로 속하는지도 함께 확인한다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "공지 기능의 검증 기준을 신설한다. 이 도메인에는 인수기준이 한 건도 없어 공개 범위와 첨부 처리가 기준 없이 남아 있었다. 이 도메인에는 유스케이스가 없어 검증 대상을 비기능 요구 쪽에서 연결한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T10:32:30.808Z",
+    "created_at": "2026-08-23T10:32:30.808Z"
+  }
+}

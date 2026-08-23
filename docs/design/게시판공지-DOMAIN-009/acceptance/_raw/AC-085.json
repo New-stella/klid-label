@@ -1,0 +1,48 @@
+{
+  "item": {
+    "id": "AC-085",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "공지 목록은 고정한 것을 앞에 두고 최신 순으로 돌아온다",
+    "slug": "공지-목록은-고정한-것을-앞에-두고-최신-순으로-돌아온다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "정렬 기준이 고정 여부와 시각뿐이면 시각이 같은 공지들의 순서가 조회할 때마다 달라져, 쪽을 넘길 때 같은 공지가 두 번 보이거나 빠진다. 마지막에 유일한 값을 기준으로 하나 더 두어 순서를 확정한다.",
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "고정한 공지가 앞에 온다",
+          "같은 시각의 공지들도 조회할 때마다 같은 순서로 돌아온다"
+        ],
+        "when": [
+          "공지 목록을 여러 번 조회한다"
+        ],
+        "given": [
+          "고정한 공지와 고정하지 않은 공지가 섞여 있고 등록 시각이 같은 공지가 있다"
+        ]
+      },
+      "statement": "공지 목록은 고정한 공지를 앞에 두고 그 안에서 최신 순으로 정렬해 쪽 단위로 돌아오며, 등록 시각이 같아도 순서가 흔들리지 않는다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "공지 기능의 검증 기준을 신설한다. 이 도메인에는 인수기준이 한 건도 없어 공개 범위와 첨부 처리가 기준 없이 남아 있었다. 이 도메인에는 유스케이스가 없어 검증 대상을 비기능 요구 쪽에서 연결한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T10:32:31.082Z",
+    "created_at": "2026-08-23T10:32:31.082Z"
+  }
+}

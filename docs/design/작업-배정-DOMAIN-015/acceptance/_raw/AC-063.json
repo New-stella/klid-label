@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "AC-063",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "일괄 배정은 하나라도 배정할 수 없으면 어느 것도 배정하지 않는다",
+    "slug": "일괄-배정은-하나라도-배정할-수-없으면-어느-것도-배정하지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "부분 성공을 허용하면 어느 것이 배정되고 어느 것이 남았는지 요청한 사람이 알 수 없고, 남은 것을 다시 고르는 과정에서 중복 배정이 생긴다. 배정 대상이 될 수 없는 사유로 이 기준이 드는 예는 하나이지만 그것이 전수 목록은 아니며, 어떤 영상이 대상이 될 수 없는지는 배정 규칙이 정한다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "요청 전체가 거부된다",
+          "함께 고른 나머지 영상도 배정되지 않는다"
+        ],
+        "when": [
+          "고른 영상을 한 요청으로 배정한다"
+        ],
+        "given": [
+          "검수자가 여러 영상을 골라 한 번에 배정하려 한다",
+          "그중 하나는 이미 검수가 승인된 영상이다"
+        ]
+      },
+      "statement": "여러 영상을 한 번에 배정할 때 그중 하나라도 배정 대상이 될 수 없으면 요청 전체가 거부되고 어떤 영상도 배정되지 않는다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-015"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-029"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-029의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "작업 목록 조회와 배정 흐름의 검증 기준을 신설한다. 이 도메인에는 인수기준이 한 건도 없어 해당 동작이 검증 기준 없이 남아 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T09:54:38.391Z",
+    "created_at": "2026-08-23T09:54:38.391Z"
+  }
+}

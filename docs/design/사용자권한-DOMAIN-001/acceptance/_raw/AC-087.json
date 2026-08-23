@@ -1,0 +1,49 @@
+{
+  "item": {
+    "id": "AC-087",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "포털 채널과 내부 채널은 서로의 기능에 닿지 못한다",
+    "slug": "포털-채널과-내부-채널은-서로의-기능에-닿지-못한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "두 채널은 사용자층과 다룰 수 있는 데이터가 달라 한쪽 조건만으로 가르면 넘나들 수 있다. 역할만 보면 채널이 다른 같은 역할이 통과하고, 채널만 보면 그 채널의 다른 역할이 통과한다. 그래서 두 조건을 함께 건다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "포털 채널 토큰의 내부 기능 호출이 거부된다",
+          "내부 채널 토큰의 포털 기능 호출도 거부된다",
+          "포털 기능은 채널과 역할 두 조건을 함께 만족할 때에만 통과한다"
+        ],
+        "when": [
+          "포털 채널 토큰으로 내부 기능을, 내부 채널 토큰으로 포털 기능을 호출한다"
+        ],
+        "given": [
+          "포털 채널로 발급된 토큰과 내부 채널로 발급된 토큰이 각각 있다"
+        ]
+      },
+      "statement": "포털 채널로 발급된 토큰은 내부 기능에 닿을 수 없고, 포털 기능은 포털 채널과 포털 역할을 함께 만족할 때에만 통과한다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "사용자 인증·인가 축의 검증 기준을 신설한다. 이 도메인에는 인수기준이 한 건도 없어 공개 범위와 첨부 처리가 기준 없이 남아 있었다. 이 도메인에는 유스케이스가 없어 검증 대상을 비기능 요구 쪽에서 연결한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T11:18:42.024Z",
+    "created_at": "2026-08-23T11:18:42.024Z"
+  }
+}

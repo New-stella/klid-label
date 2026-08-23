@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-073",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "유효창의 길이는 서버가 정하며 상한을 넘지 못한다",
+    "slug": "유효창의-길이는-서버가-정하며-상한을-넘지-못한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "유효 시간을 요청하는 쪽이 정하게 하면 임의로 긴 창을 열 수 있다. 잘못 설정된 값에서 창이 무한정 열리거나 즉시 닫히지 않도록 판정을 서버가 갖는다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "유효 시간은 상한으로 제한된다",
+          "설정이 0 이하였다면 기본값으로 열린다"
+        ],
+        "when": [
+          "관리자 유효창을 연다"
+        ],
+        "given": [
+          "관리자 유효창의 유효 시간이 상한을 넘는 값으로 설정돼 있다"
+        ]
+      },
+      "statement": "관리자 유효창의 유효 시간은 서버 설정이 정하고, 설정이 상한을 넘는 값이면 상한으로 제한되며 0 이하이면 기본값으로 되돌아간다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-014"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-031"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-031의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "시스템 운영 설정 흐름의 검증 기준을 신설한다. 이 유스케이스를 검증하는 인수기준이 없어 설정 저장과 조회 동작이 기준 없이 남아 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T10:08:57.102Z",
+    "created_at": "2026-08-23T10:08:57.102Z"
+  }
+}

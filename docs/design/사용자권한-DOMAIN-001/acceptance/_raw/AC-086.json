@@ -1,0 +1,49 @@
+{
+  "item": {
+    "id": "AC-086",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "인가에 쓰는 역할은 저작도구가 보관한 값이다",
+    "slug": "인가에-쓰는-역할은-저작도구가-보관한-값이다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "역할 체계가 서로 다른 두 시스템이라 상대의 역할 이름을 그대로 인가에 쓰면 뜻이 어긋난다. 더 중요한 것은 토큰에 담긴 값은 발급한 쪽이 정한다는 점이다 — 그 값을 그대로 믿으면 저작도구의 권한 구성을 저작도구 밖에서 정하게 된다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "저작도구가 보관한 역할로 접근이 판정된다",
+          "토큰에 담긴 역할 값은 판정에 쓰이지 않는다",
+          "저작도구에 그 사용자의 역할 기록이 없으면 어떤 역할도 주어지지 않는다"
+        ],
+        "when": [
+          "그 토큰으로 저작도구 기능을 호출한다"
+        ],
+        "given": [
+          "외부 시스템이 발급한 내부 채널 토큰에 그 시스템의 역할 값이 담겨 있다"
+        ]
+      },
+      "statement": "기능 접근을 판정하는 역할은 저작도구가 보관한 역할 기록에서 읽으며, 인계받은 토큰에 담긴 역할 값은 판정에 쓰지 않는다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "인가 역할의 출처가 저작도구 자신이라는 것을 검증 기준으로 못박는다. 이 도메인의 핵심 규칙인데 검증 기준이 없어, 토큰의 역할 값을 다시 쓰는 변경이 들어와도 걸러지지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T11:18:41.958Z",
+    "created_at": "2026-08-23T11:18:41.958Z"
+  }
+}
