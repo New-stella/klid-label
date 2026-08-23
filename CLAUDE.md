@@ -718,8 +718,8 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-23 (SYNC · 인수기준 신규 46건 반영 — D001·D009·D010·D013·D014·D015 여섯 도메인)** · 전건 무열화 검증 통과.
-> ⚠ 이번 SYNC 는 여섯 도메인만 돌렸다 — **나머지 9개의 뒤처짐은 측정하지 않았다**(0건이라는 뜻이 아니다).
+> 활성 15 도메인 전량 · last sync **2026-08-23 (SYNC · 인수기준 46건 + 통합시험 시나리오 2건 — D001·D009·D010·D013·D014·D015·D017 일곱 도메인)** · 전건 무열화 검증 통과.
+> ⚠ 이번 SYNC 는 일곱 도메인만 돌렸다 — **나머지 8개의 뒤처짐은 측정하지 않았다**(0건이라는 뜻이 아니다).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
@@ -737,7 +737,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 63 | implemented 19 / planned 25 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 15 / planned 20 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 18 / in_progress 1 / planned 26 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 56 | implemented 19 / in_progress 1 / planned 33 / (미기재) 3 | CONST 상수값, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 58 | implemented 19 / in_progress 1 / planned 33 / (미기재) 3 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
