@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-08-21T09:18:54.756Z",
+  "synced_at": "2026-08-23T13:51:10.217Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 56,
+  "count": 58,
   "items": {
     "AC-041": {
       "type": "acceptance",
@@ -243,8 +243,8 @@
     "NFR-011": {
       "type": "nfr",
       "domain_id": null,
-      "version": 4,
-      "content_hash": "e837165a0da66f3f7daac31cc6bac3ad5233a906c4e526fd1a602d24394d378a"
+      "version": 5,
+      "content_hash": "661e62fecd84ee6545264c47943b5fdd3555ccffd37ad16bf31864a632ba4808"
     },
     "NFR-012": {
       "type": "nfr",
@@ -261,8 +261,8 @@
     "NFR-014": {
       "type": "nfr",
       "domain_id": null,
-      "version": 2,
-      "content_hash": "a07ca79041dbdaba2e2ea283cecb8882c044054f4868f25ddee5d5898991adff"
+      "version": 3,
+      "content_hash": "639499bb54b73174bfb66b573aee9c90b60f87b453516f2106e9b21dada897ef"
     },
     "NFR-015": {
       "type": "nfr",
@@ -297,8 +297,8 @@
     "NFR-020": {
       "type": "nfr",
       "domain_id": null,
-      "version": 4,
-      "content_hash": "07bc788cb8e125b8e31d4f916c2462a2672323e8331516e68c30ddc3160d1d31"
+      "version": 6,
+      "content_hash": "f252600ea9580defd883d8fecc4b8fa95c37b1c99766ada5674aef4c59c2d63b"
     },
     "NFR-021": {
       "type": "nfr",
@@ -329,6 +329,18 @@
       "domain_id": "DOMAIN-017",
       "version": 17,
       "content_hash": "8d6eb5d92ee66a4085b584695bcea6c01c47ca219ba3586f0bc4220a7b0bbdf8"
+    },
+    "TEST-007": {
+      "type": "test_scenario",
+      "domain_id": "DOMAIN-017",
+      "version": 1,
+      "content_hash": "e3651142c847a7958c24e25ff1fd3fefe713ddcb746ee2b2189b698134c80d65"
+    },
+    "TEST-008": {
+      "type": "test_scenario",
+      "domain_id": "DOMAIN-017",
+      "version": 1,
+      "content_hash": "ed9e7510de4f8457375a5d69fd1105c47e43d0c8d20405bfd271b9b4f500505c"
     },
     "UC-018": {
       "type": "use_case",
