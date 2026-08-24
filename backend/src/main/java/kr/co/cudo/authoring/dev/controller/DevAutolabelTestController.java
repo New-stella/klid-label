@@ -25,7 +25,8 @@ import org.springframework.web.multipart.MultipartFile;
  * [개발/검수 전용] 영상 파일 + 메타데이터 업로드 → 오토라벨 파이프라인 즉시 트리거 endpoint.
  *
  * <p>{@code authoring.dev.upload.enabled=true}(env {@code DEV_UPLOAD_ENABLED}) 일 때만 빈이 등록되어
- * endpoint 가 노출된다 (기본 false, fail-closed). 추가로 {@code @PreAuthorize("hasRole('REVIEWER')")} 권한 가드.
+ * endpoint 가 노출된다 (값 미지정 시 미등록 — fail-closed). <b>기본값은 프로파일이 정한다</b> —
+ * 운영(prd)은 ON, 그 밖은 OFF. 추가로 {@code @PreAuthorize("hasRole('REVIEWER')")} 권한 가드.
  *
  * <p>다음 보안 가드를 두 레이어에서 이중 적용한다:
  * <ul>
@@ -35,7 +36,7 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <h3>경로 이름 = dev 업로드 ({@code @design API-152})</h3>
  * <p>엔드포인트는 {@code /v1/dev/upload} 하나다. 이 화면이 올린 영상으로 확인하는 것은 오토라벨만이
- * 아니라 적재·비식별·마킹까지의 전 구간이라, 이름을 역할(영상 업로드)에 맞췄다. <b>구 경로는 별칭·
+ * 아니라 적재·비식별·마킹까지의 전 구간이라, 이름을 역할(수동 업로드)에 맞췄다. <b>구 경로는 별칭·
  * 리다이렉트 없이 폐기</b>됐고 404 가 정상이다 — dev 토글로 게이팅되는 내부 endpoint 라 관제·외부
  * 호출자가 없고, 별칭을 두면 구 이름이 영구히 남아 개명 목적이 사라진다.
  *
@@ -43,7 +44,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 구 이름을 0건으로 유지하려면 그 문자열이 사는 곳이 하나여야 한다).
  */
 @Tag(name = "dev-upload",
-        description = "[개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거. ⚠ authoring.dev.upload.enabled=true 일 때만 노출 (기본 비활성).")
+        description = "수동 업로드 + 오토라벨 파이프라인 트리거. 노출은 authoring.dev.upload.enabled 가 정한다 (운영 기본 ON, 그 밖은 기본 OFF).")
 @RestController
 @RequestMapping("/v1/dev/upload")
 @RequiredArgsConstructor
@@ -53,7 +54,7 @@ public class DevAutolabelTestController {
     private final DevAutolabelTestService devAutolabelTestService;
 
     @Operation(
-            summary = "영상 업로드 + 오토라벨 파이프라인 트리거 (개발/검수 전용)",
+            summary = "수동 업로드 + 오토라벨 파이프라인 트리거",
             description = """
                     multipart/form-data 로 영상 파일과 JSON 메타데이터를 함께 업로드한다.
                     응답은 즉시 200 으로 반환되며, 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다.

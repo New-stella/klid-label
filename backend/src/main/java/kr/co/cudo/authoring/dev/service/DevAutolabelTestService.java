@@ -31,9 +31,10 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * [개발/검수 전용] 영상 업로드 + 오토라벨 파이프라인 트리거 서비스.
+ * [개발/검수 전용] 수동 업로드 + 오토라벨 파이프라인 트리거 서비스.
  *
- * <p>{@code authoring.dev.upload.enabled=true} 일 때만 빈이 등록된다 (기본 false, fail-closed).
+ * <p>{@code authoring.dev.upload.enabled=true} 일 때만 빈이 등록된다 (값 미지정 시 미등록 — fail-closed).
+ * 기본값은 프로파일이 정한다 — 운영(prd)은 ON, 그 밖은 OFF.
  *
  * <p>보안:
  * <ul>
@@ -134,7 +135,7 @@ public class DevAutolabelTestService {
     }
 
     /**
-     * 영상 업로드 + LS_DATA_RAW 등록 후 오토라벨 파이프라인을 백그라운드로 시작한다.
+     * 수동 업로드 + LS_DATA_RAW 등록 후 오토라벨 파이프라인을 백그라운드로 시작한다.
      *
      * @param file 업로드된 영상 파일 (multipart)
      * @param meta 검증된 메타데이터

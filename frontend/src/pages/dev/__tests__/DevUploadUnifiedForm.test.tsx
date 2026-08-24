@@ -11,7 +11,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
- * 영상 업로드 화면(`/dev/upload`) — **입력 폼 통합** 회귀 가드. [@design SCREEN-027]
+ * 수동 업로드 화면(`/dev/upload`) — **입력 폼 통합** 회귀 가드. [@design SCREEN-027]
  *
  * 이 화면은 필드 구성이 다른 별개 카드 2개였다가 «적재 경로 라디오 + 두 경로가 완전히 같은 입력
  * 폼» 한 벌로 합쳐졌다. 라디오는 **보내는 곳과 그 뒤 흐름만** 바꾼다.
@@ -64,7 +64,7 @@ async function chooseIngestRoute(user: ReturnType<typeof userEvent.setup>): Prom
   await user.click(screen.getByRole('radio', { name: /관제 인입 재현/ }));
 }
 
-describe('영상 업로드 — 적재 경로와 단일 입력 폼', () => {
+describe('수동 업로드 — 적재 경로와 단일 입력 폼', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {

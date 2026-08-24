@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 
 import { cn } from '@/lib/cn';
+import { isDevUploadEnabled } from '@/lib/devUpload';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Role } from '@/lib/api/types';
@@ -68,28 +69,34 @@ const MENU: MenuGroup[] = [
   },
 ];
 
-const DEV_TOOLS_GROUP = '개발 도구';
+const MANAGE_GROUP = '관리';
+const MANUAL_UPLOAD_PATH = '/dev/upload';
 
 /**
- * [개발/검수 전용] DEV 빌드에서만 노출되는 도구 메뉴를 MENU 에 멱등 등록한다.
+ * 수동 업로드(`/dev/upload`)를 「관리」 그룹 끝에 멱등 등록한다. [@design SCREEN-027]
  *
- * MENU 는 모듈 스코프 가변 배열이라 Vite HMR 로 본 모듈이 재평가될 때마다 무조건 push 하면
- * '개발 도구' 그룹이 중복 누적되어 렌더 시 React "two children with the same key" 경고가 발생한다.
- * 이미 등록되어 있으면 다시 넣지 않도록 그룹 존재 여부를 가드한다(멱등).
+ * 노출 판정은 라우트(`router/index.tsx`)와 **같은 `isDevUploadEnabled()`** 를 쓴다. 두 판정이
+ * 갈리면 «메뉴는 없는데 URL 로는 들어가진다»(또는 그 반대)는 비대칭이 생긴다 — 실제로 이 메뉴가
+ * `import.meta.env.DEV` 로만 가려져 있어, 토글을 켠 운영 산출물에서 라우트는 사는데 메뉴만 통째로
+ * dead-code 제거된 적이 있다.
+ *
+ * MENU 는 모듈 스코프 가변 배열이라 Vite HMR 로 본 모듈이 재평가될 때마다 무조건 push 하면 같은
+ * 항목이 중복 누적되어 렌더 시 React "two children with the same key"(key=i.path) 경고가 발생한다.
+ * 이미 있으면 다시 넣지 않도록 경로 존재 여부를 가드한다(멱등).
+ *
+ * 「관리」 그룹이 없으면 아무것도 하지 않는다 — 엉뚱한 자리에 그룹을 새로 만드는 것보다 메뉴가
+ * 없는 편이 안전하다. 실제 MENU 에 그룹이 있는지는 Lnb 렌더 테스트가 고정한다.
  */
-export function registerDevToolsMenu(menu: MenuGroup[]): void {
-  if (menu.some((g) => g.group === DEV_TOOLS_GROUP)) return;
-  menu.push({
-    group: DEV_TOOLS_GROUP,
-    items: [
-      { label: '영상 업로드', path: '/dev/upload', allow: ['REVIEWER'] },
-    ],
-  });
+export function registerManualUploadMenu(menu: MenuGroup[]): void {
+  const manage = menu.find((g) => g.group === MANAGE_GROUP);
+  if (!manage) return;
+  if (manage.items.some((i) => i.path === MANUAL_UPLOAD_PATH)) return;
+  manage.items.push({ label: '수동 업로드', path: MANUAL_UPLOAD_PATH, allow: ['REVIEWER'] });
 }
 
-// `import.meta.env.DEV` 는 빌드 시 상수로 치환되므로 prd 산출물에서는 dead-code 로 제거된다.
-if (import.meta.env.DEV) {
-  registerDevToolsMenu(MENU);
+// 라우트와 같은 조건이고 빌드 시 상수로 접힌다 — 토글이 꺼진 산출물에서는 통째로 제거된다.
+if (isDevUploadEnabled()) {
+  registerManualUploadMenu(MENU);
 }
 
 /**

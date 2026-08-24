@@ -7,7 +7,7 @@
 //   · 설정 키: authoring.dev.autolabel-test.max-file-size → authoring.dev.upload.max-file-size
 //
 // 이 화면이 올린 영상으로 확인하는 것은 오토라벨만이 아니라 적재·비식별·마킹까지의 전 구간이라,
-// 이름을 역할(영상 업로드)에 맞췄다. 구 경로는 **별칭·리다이렉트 없이 폐기**됐고 404 가 정상이다 —
+// 이름을 역할(수동 업로드)에 맞췄다. 구 경로는 **별칭·리다이렉트 없이 폐기**됐고 404 가 정상이다 —
 // dev 토글로 게이팅되는 내부 화면이라 외부 진입점이 없고, 별칭을 두면 구 이름이 영구히 남는다.
 //
 // 클래스명·파일명은 개명 대상이 아니다: `DevAutolabelTestPage`·`useAutolabelTest`·
@@ -26,7 +26,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RouteObject } from 'react-router-dom';
 
-import { registerDevToolsMenu } from '@/components/layout/Lnb';
+import { registerManualUploadMenu } from '@/components/layout/Lnb';
 import { router } from '@/router';
 
 /** 구 이름(케밥 표기). 이 문자열은 `frontend/src` 전역에서 이 파일에만 존재해야 한다. */
@@ -97,13 +97,13 @@ describe('dev 업로드 경로 개명 (구 이름 회귀 차단)', () => {
     expect(paths.filter((p) => p.includes(OLD_NAME))).toEqual([]);
   });
 
-  it('LNB_개발도구_메뉴가_새_URL을_가리킨다', () => {
-    const menu: MenuGroupLike[] = [];
-    registerDevToolsMenu(menu as never);
+  it('LNB_관리_메뉴가_새_URL을_가리킨다', () => {
+    const menu: MenuGroupLike[] = [{ group: '관리', items: [] }];
+    registerManualUploadMenu(menu as never);
 
     const uploadItem = menu
       .flatMap((group) => group.items)
-      .find((item) => item.label === '영상 업로드');
+      .find((item) => item.label === '수동 업로드');
 
     // 메뉴가 구 URL 을 가리키면 클릭 시 빈 화면(매칭 실패)이 된다 — 라우트와 함께 못 박는다.
     expect(uploadItem?.path).toBe(NEW_SCREEN_PATH);

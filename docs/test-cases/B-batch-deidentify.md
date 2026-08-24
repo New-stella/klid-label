@@ -1409,7 +1409,9 @@
 > **`authoring.dev.upload.max-file-size`**(env `AUTHORING_DEV_UPLOAD_MAX_FILE_SIZE`).
 >
 > ⚠ **하위호환 별칭·리다이렉트를 두지 않는다 — 구 경로 404 가 정상이다.** 이 endpoint 는 dev 토글
-> (`authoring.dev.upload.enabled`, 기본 false)로 게이팅되는 내부 도구이고 관제·외부 시스템 호출자가 없다.
+> (`authoring.dev.upload.enabled`)로 게이팅되고 REVIEWER 인가 뒤에 있는 저작도구 자체 기능이라
+> 관제·외부 시스템 호출자가 없다. ⚠ 구 근거 「기본 false … 내부 도구」 폐기(2026-08-24 CO-007) —
+> 운영 기본 ON 이 됐다. 다만 **결론(구 경로 별칭 미제공 · 404 정상)은 그대로 유효**하다.
 > 별칭을 두면 구 이름이 영구히 남아 개명 목적 자체가 사라진다.
 >
 > ★ **저장 서브디렉터리를 바꿔도 기존 영상은 그대로 열린다.** 그 상수를 읽는 곳은 **쓰기 경로 계산

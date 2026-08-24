@@ -199,7 +199,8 @@ frontend 는 env 파일을 런타임에 읽지 않는다. **Vite 가 빌드 시�
 | `VITE_TOKEN_INGRESS` | · | 기본 `localStorage` (토큰 인계 채널). 값: `url`\|`cookie`\|`localStorage`\|`both`\|`all`. **기본값을 바꾸지 말 것** — `url`/`both`/`all` 은 JWT 를 URL 쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598). 관제/포털은 동일 origin 브라우저 저장소로 인계한다 |
 | `VITE_CONTROL_LOGIN_URL` | ★ | **관제서버 로그인 페이지 절대 URL.** 예 `https://control.example.local/login` |
 | `VITE_PORTAL_LOGIN_URL` | ★ | **포털 로그인 페이지 절대 URL.** 예 `https://portal.example.local/login` |
-| `VITE_DEV_LOGIN_ENABLED` / `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true(FE 라우트만 포함). 실제 게이팅은 backend 토글 — H 절 참고 |
+| `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true. **수동 업로드(`/dev/upload`)는 운영 상시 기능**이며 backend 도 기본 ON 이다(A 절 `DEV_UPLOAD_ENABLED`). 끄려면 **이 값과 backend 토글을 함께** — I 절 |
+| `VITE_DEV_LOGIN_ENABLED` | · | 온프렘 기본 true(FE 라우트만 dist 에 포함). **backend 는 기본 OFF** 라 `/v1/dev/tokens` 는 404 다. 브링업에서만 임시로 켠다 — H 절 |
 
 - **두 로그인 URL 은 `http://` 또는 `https://` 스킴을 포함한 완전한 URL**이어야 한다. 스킴이
   없으면 브라우저가 상대경로로 해석해 저작도구 자기 자신으로 되돌아온다.
@@ -321,18 +322,57 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 로그인과 테스트 영상 업로드를 켜 파이프라인을 검증한다. 관제서버가 떠 있으면 이 절은 건너뛰고
 **G 절**을 쓴다.
 
-> ⚠ **dev 로그인은 인증 없이 임의 role 토큰을 발급한다.** 운영 정상화 후 반드시 아래 세 토글을 모두
+> ⚠ **dev 로그인은 인증 없이 임의 role 토큰을 발급한다.** 운영 정상화 후 반드시 `DEV_LOGIN_ENABLED` 를
 > 미설정(OFF)으로 원복하고 backend 를 재기동한다. 온프렘 FE 번들은 dev 라우트를 dist 에 포함하되
 > 실제 게이팅은 BE 런타임 토글이 결정하므로(BE off 면 `/v1/dev/*` 404), env 원복만으로 차단된다.
 
-1. `/etc/klid/backend.env` 에 세 토글 설정 후 재기동:
+1. `/etc/klid/backend.env` 에 dev 로그인 토글만 설정 후 재기동:
    ```
    DEV_LOGIN_ENABLED=true
-   DEV_UPLOAD_ENABLED=true
-   SPRING_SERVLET_MULTIPART_ENABLED=true   # ★ 안 켜면 업로드 415/파싱불가
    ```
+   > ★ **2026-08-24 변경(CO-007)**: `DEV_UPLOAD_ENABLED` 는 이제 **운영 기본 ON** 인 상시 기능이라
+   > 여기서 켤 필요가 없다(I 절). `SPRING_SERVLET_MULTIPART_ENABLED` 도 공통 설정이 이미 `true` 라
+   > 지정이 무의미하다 — 구 기재는 사실과 달랐다.
 2. 브라우저에서 `/dev/login` 진입 → 임시 토큰 발급(파이프라인 검증에 필요한 역할 선택).
    **이 토큰은 브링업 검증용이며 최초 REVIEWER 를 만드는 정규 절차가 아니다** — 정규 절차는 G 절.
 3. `/dev/upload` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
-4. **운영 정상화 후**: 위 세 토글을 backend.env 에서 미설정(삭제/주석)하고 재기동 → dev 경로 차단.
-   이후 실제 사용자 권한은 G 절 경로로 부여한다.
+4. **운영 정상화 후**: `DEV_LOGIN_ENABLED` 를 backend.env 에서 미설정(삭제/주석)하고 재기동
+   → `/v1/dev/*` 중 **로그인 경로만** 차단된다. 이후 실제 사용자 권한은 G 절 경로로 부여한다.
+   ⚠ 수동 업로드는 이 원복 대상이 **아니다** — 상시 기능이므로 계속 열려 있다(I 절).
+
+---
+
+## I. 수동 업로드 (`/dev/upload`) — 운영 상시 노출
+
+2026-08-24(CO-007)부터 **수동 업로드는 운영에서 기본으로 켜져 있다.** 외부에서 받은 영상을
+운영자가 직접 올리는 동선이 실제로 있어 그 입구를 열어 둔 것이다. 화면 표시 명칭은 **「수동 업로드」**다.
+
+| 축 | 값 | 어디서 |
+|---|---|---|
+| backend 토글 | `DEV_UPLOAD_ENABLED` — **기본 `true`** | `application-prd.yml` 의 `authoring.dev.upload.enabled` |
+| frontend 토글 | `VITE_DEV_UPLOAD_ENABLED` — **기본 `true`** | 빌드 시점 주입(`build-from-source.sh`) |
+| 업로드 크기 | 개당 **500MB** / 요청 총량 1100MB | `application-prd.yml` 의 `spring.servlet.multipart` |
+
+- **인가는 REVIEWER 로 그대로 걸린다.** 화면·API 모두 검수자만 접근한다.
+- **dev 로그인은 별개다.** `DEV_LOGIN_ENABLED` 는 여전히 기본 OFF 이고 `/v1/dev/tokens` 는 404 다.
+  업로드를 켜는 것이 인증 우회 표면을 열지 않는다.
+- 켜져 있다는 사실은 기동 로그의 dev 토글 WARN 으로도 남는다(의도된 것 — 지우지 말 것).
+
+### 되돌리는 법 (비노출로 전환) ★ 둘을 반드시 함께
+
+```
+# 1) backend — /etc/klid/backend.env
+DEV_UPLOAD_ENABLED=false      # 재기동 필요
+
+# 2) frontend — 재빌드 필요 (빌드타임 치환이라 런타임 토글이 아니다)
+VITE_DEV_UPLOAD_ENABLED=false
+```
+
+> ⚠ **backend 만 끄면 안 된다.** 화면과 LNB 항목은 그대로 보이는데 API 만 404 가 되어
+> 운영자가 원인을 못 찾는다. 실제로 CO-007 이전 형상이 정확히 그 상태였다 —
+> frontend 는 기본 true 로 노출돼 있는데 backend 만 기본 false 였다.
+>
+> ⚠ **frontend 만 끄는 것도 반쪽이다.** 화면은 사라지지만 API 는 열려 있다.
+
+되돌린 뒤 확인: LNB 에 「수동 업로드」가 없고, `/dev/upload` 직접 진입이 막히며,
+`POST /api/v1/dev/upload` 가 404 다.
