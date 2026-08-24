@@ -133,15 +133,27 @@ class V174CompletedVideoViewContractIT {
     /** 관제 인입 1행(수신 원장). null 인자는 "관제가 그 값을 보내지 않았다"는 뜻이다. */
     private void seedIngest(long rawSn, String evntClsfCd, String evntCtgryCd, String lclgvNm,
                             String anony, String psdo, String prvc) {
+        seedIngest(rawSn, evntClsfCd, evntCtgryCd, lclgvNm, anony, psdo, prvc, null);
+    }
+
+    /**
+     * 썸네일 경로까지 지정하는 오버로드 — {@code thmbFilePathNm} 이 null 이면 "관제가 안 보냈다"는 뜻이다.
+     *
+     * <p>V16(2026-08-24)이 인입에 {@code THMB_FILE_PATH_NM} 을 신설하고 뷰로 노출했다. 관제는 완료 통지
+     * (메타만)를 받은 뒤 이 뷰를 SELECT 해 패키징하므로, <b>값이 인입에서 뷰까지 실제로 흐르는지</b>가
+     * 그 요구의 수용 기준이다(컬럼 존재만으로는 부족 — 조인 대상이 틀려도 컬럼은 있다).
+     */
+    private void seedIngest(long rawSn, String evntClsfCd, String evntCtgryCd, String lclgvNm,
+                            String anony, String psdo, String prvc, String thmbFilePathNm) {
         long nano = System.nanoTime();
         jdbc.update(
                 "INSERT INTO LS_DATA_INGEST (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, "
                         + "RAW_FILE_PATH_NM, SRC_TYPE, EVNT_CLSF_CD, EVNT_CTGRY_CD, LCLGV_NM, "
-                        + "ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, RCPTN_DT) "
+                        + "ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, THMB_FILE_PATH_NM, RCPTN_DT) "
                         + "VALUES (?, ?, 'CCTV-ING', 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
-                        + "?, ?, ?, ?, ?, ?, ?)",
+                        + "?, ?, ?, ?, ?, ?, ?, ?)",
                 rawSn, "ING-V174-" + nano, evntClsfCd, evntCtgryCd, lclgvNm,
-                anony, psdo, prvc, LocalDateTime.now());
+                anony, psdo, prvc, thmbFilePathNm, LocalDateTime.now());
     }
 
     private void seedExport(long rawSn, int verNo, String pathNm, String sttsCd,
@@ -284,6 +296,57 @@ class V174CompletedVideoViewContractIT {
         assertThat(row.get("src_anony_incl_yn")).isEqualTo("N");
         assertThat(row.get("src_psdo_incl_yn")).isEqualTo("N");
         assertThat(row.get("src_prvc_incl_yn")).isEqualTo("Y");
+    }
+
+    // ---------------------------------------------------------------- 썸네일 (V16)
+
+    @Test
+    @DisplayName("관제가_보낸_썸네일_경로가_뷰에_그대로_노출된다")
+    void 관제가_보낸_썸네일_경로가_뷰에_그대로_노출된다() {
+        // given — 관제가 인입 INSERT 로 썸네일 경로를 채워 보냈다.
+        long rawSn = seedApprovedOriginal("화재");
+        seedIngest(rawSn, "01", "0102", "서울특별시", "N", "N", "Y", "/nas/thumb/fire-0001.jpg");
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — 관제는 완료 통지를 받은 뒤 이 뷰 하나로 패키징 자원을 조달한다(가공·치환 없이 그대로).
+        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/thumb/fire-0001.jpg");
+    }
+
+    @Test
+    @DisplayName("관제가_썸네일을_안_보내면_NULL_이며_행은_그대로_나온다")
+    void 관제가_썸네일을_안_보내면_NULL_이며_행은_그대로_나온다() {
+        // given — 썸네일은 선택 값이다(nullable). 미송신이 인입·노출을 막지 않는다.
+        long rawSn = seedApprovedOriginal("화재");
+        seedIngest(rawSn, "01", "0102", "서울특별시", "N", "N", "Y", null);
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — 값만 비고 행 자체는 정상 노출된다(썸네일 부재로 영상이 사라지면 안 된다).
+        assertThat(row.get("thmb_file_path_nm")).isNull();
+        assertThat(row.get("lclgv_nm")).isEqualTo("서울특별시");
+    }
+
+    @Test
+    @DisplayName("파생영상은_부모_인입의_썸네일을_상속한다")
+    void 파생영상은_부모_인입의_썸네일을_상속한다() {
+        // given — 파생(증강·해상도)은 자기 인입 행이 없다. 뷰의 인입 LATERAL 은
+        //   COALESCE(ORGNL_RAW_SN, RAW_SN) 으로 조인하므로 부모 행을 본다.
+        long parentSn = seedApprovedOriginal("교통사고");
+        seedIngest(parentSn, "01", "0102", "서울특별시", "N", "N", "Y", "/nas/thumb/acc-0007.jpg");
+
+        long derivedSn = seedRaw("AUGMENTED", parentSn);
+        seedApproved(derivedSn);
+        seedSnapshot(derivedSn, parentSn, "교통사고", null, LocalDateTime.of(2026, 2, 1, 10, 0));
+
+        // when
+        Map<String, Object> row = viewRow(derivedSn);
+
+        // then — 썸네일은 개인정보 원천 3필드와 달리 <부모 값이 그대로 유효>한 축이다(분류·지자체명과 같은 갈래).
+        //   파생본도 같은 장면이라 부모 썸네일이 그 영상을 대표한다 — 관제가 파생영상만 썸네일 없이 받는 일이 없다.
+        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/thumb/acc-0007.jpg");
     }
 
     // ---------------------------------------------------------------- 파생영상

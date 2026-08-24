@@ -293,12 +293,17 @@ class VideoMetaServiceTest {
      * @param resl      인입 {@code RESL}
      */
     private void stubIngest(String fps, String codec, BigDecimal lenSec, Long fileSz, String resl) {
+        stubIngest(fps, codec, lenSec, fileSz, resl, null);
+    }
+
+    private void stubIngest(String fps, String codec, BigDecimal lenSec, Long fileSz, String resl, String bit) {
         LsDataIngest ingest = Mockito.mock(LsDataIngest.class);
         Mockito.lenient().doReturn(fps).when(ingest).getFps();
         Mockito.lenient().doReturn(codec).when(ingest).getVdoCdc();
         Mockito.lenient().doReturn(lenSec).when(ingest).getVdoLenSec();
         Mockito.lenient().doReturn(fileSz).when(ingest).getFileSz();
         Mockito.lenient().doReturn(resl).when(ingest).getResl();
+        Mockito.lenient().doReturn(bit).when(ingest).getBit();
         when(ingestRepository.findLatestByRawSn(RAW_SN)).thenReturn(Optional.of(ingest));
     }
 
@@ -394,16 +399,134 @@ class VideoMetaServiceTest {
     }
 
     @Test
-    @DisplayName("색심도_BIT은_video_bit_rate로_옮기지_않는다")
-    void colorDepthBitIsNeverMappedToBitRate() {
-        // given: 인입 BIT('24bit')은 색심도 표기이며 비트레이트가 아니다(V147 주석·설계 §10)
-        stubFullIngest();
+    @DisplayName("인입_BIT은_비트레이트라_숫자값이_video_bit_rate로_채워진다")
+    void numericIngestBitIsMappedToBitRate() {
+        // given: 인입 BIT 은 비트레이트(bps 정수, V16 정정 — 색심도 아님). 구 가드
+        //   'colorDepthBitIsNeverMappedToBitRate' 반전: '24bit' 색심도 전제가 폐기됐다.
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "2050627");
 
         // when
         Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
 
-        // then: bit_rate 는 인입에서 조달하지 않는다 — 소비처가 BIGINT(BIT_RT)라 '24bit' 는 값 유실이다
+        // then: 인입 bit 이 그대로 채택된다
+        assertThat(ingestValues).containsEntry("video.bit_rate", "2050627");
+    }
+
+    @Test
+    @DisplayName("인입_BIT이_없으면_ffprobe_비트레이트로_폴백한다")
+    void nullIngestBitFallsBackToProbe() {
+        // given: 인입 bit 미수신(null)
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", null);
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 인입엔 bit_rate 가 없고 probe 값(4500000)이 폴백으로 채운다
         assertThat(ingestValues).doesNotContainKey("video.bit_rate");
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
+    }
+
+    @Test
+    @DisplayName("인입_BIT이_파싱불가_레거시값이면_채택하지_않고_ffprobe로_폴백한다")
+    void unparseableLegacyBitIsRejected() {
+        // given: 레거시 색심도 표기('24bit')는 정수(bps) 파싱 불가 → skip(fail-safe)
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "24bit");
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 예외 없이 인입은 bit_rate 미채택, probe 폴백
+        assertThat(ingestValues).doesNotContainKey("video.bit_rate");
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
+    }
+
+    @Test
+    @DisplayName("인입_BIT과_ffprobe가_모두_있으면_인입값이_우선한다")
+    void ingestBitWinsOverProbe() {
+        // given: 인입 bit(2050627) + 서로 다른 probe bitRate(4500000)
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "2050627");
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 인입값 채택 — ffprobe 값으로 덮지 않는다
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "2050627");
+        verify(metaRepository, never()).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
+    }
+
+    @Test
+    @DisplayName("인입_BIT이_음수면_채택하지_않는다")
+    void negativeIngestBitIsRejected() {
+        // given: 관제 수신값은 신뢰 경계 밖이다(CWE-20)
+        stubIngest(null, null, null, null, null, "-100");
+
+        // when / then
+        assertThat(service.loadIngestMeta(RAW_SN)).doesNotContainKey("video.bit_rate");
+    }
+
+    @Test
+    @DisplayName("인입_BIT이_0이면_미상으로_보고_채택하지_않는다")
+    void zeroIngestBitIsRejected() {
+        // given: 비트레이트 0 은 "값 0"이 아니라 미상이다 — 소비처(BIT_RT)에 0 을 심으면
+        //   "측정했더니 0bps"로 읽혀 미상과 구분되지 않는다.
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "0");
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 인입 미채택 + ffprobe 폴백이 채운다
+        assertThat(ingestValues).doesNotContainKey("video.bit_rate");
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
+    }
+
+    @Test
+    @DisplayName("인입_BIT이_Long범위를_넘으면_채택하지_않는다")
+    void overflowingIngestBitIsRejected() {
+        // given: Long 범위 초과 — 파싱 예외를 던지지 않고 skip 해야 한다(fail-safe)
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "99999999999999999999");
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 인입 미채택 + ffprobe 폴백이 채운다
+        assertThat(ingestValues).doesNotContainKey("video.bit_rate");
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
+    }
+
+    @Test
+    @DisplayName("인입_BIT의_앞뒤_공백은_다듬어_채택한다")
+    void paddedIngestBitIsTrimmedAndAccepted() {
+        // given: 관제가 패딩된 값을 실어도 숫자면 유효값이다(공백 때문에 버리면 정상값 손실)
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "  2050627  ");
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 다듬은 값으로 채택 — ffprobe 값으로 덮지 않는다
+        assertThat(ingestValues).containsEntry("video.bit_rate", "2050627");
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "2050627");
+        verify(metaRepository, never()).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
+    }
+
+    @Test
+    @DisplayName("인입_BIT이_빈문자열이나_공백뿐이면_채택하지_않는다")
+    void blankIngestBitIsRejected() {
+        // given: 빈 값은 미송신과 같다(관제가 빈 문자열을 실어도 미상으로 본다)
+        stubIngest("25", "hevc", new BigDecimal("30"), 1_000L, "1280x720", "   ");
+        Map<String, String> ingestValues = service.loadIngestMeta(RAW_SN);
+
+        // when
+        service.upsertVideoMeta(RAW_SN, ingestValues, fullMeta(29.97));
+
+        // then: 인입 미채택 + ffprobe 폴백이 채운다
+        assertThat(ingestValues).doesNotContainKey("video.bit_rate");
+        verify(metaRepository).upsertMeta(RAW_SN, "video.bit_rate", "4500000");
     }
 
     @Test

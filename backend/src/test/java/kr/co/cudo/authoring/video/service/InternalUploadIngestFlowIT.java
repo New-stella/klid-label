@@ -108,9 +108,9 @@ class InternalUploadIngestFlowIT {
     private JdbcTemplate jdbc;
     private String clipId;
 
-    /** 측정 고정값 — 600초 / 1280x720 / hevc / 25fps / 15000프레임 / 4:3(신고값). */
+    /** 측정 고정값 — 600초 / 1280x720 / hevc / 25fps / 15000프레임 / 4:3(신고값) / 2,050,627bps. */
     private static final MediaMeta MEASURED =
-            new MediaMeta(1280, 720, "hevc", 25.0, 600_000L, 15_000L, "4:3");
+            new MediaMeta(1280, 720, "hevc", 25.0, 600_000L, 15_000L, "4:3", 2_050_627L);
 
     @BeforeEach
     void setUp() {
@@ -145,11 +145,23 @@ class InternalUploadIngestFlowIT {
     /** 검증이벤트유형(외부 VLM verify 의 {@code event_type})까지 지정하는 요청 (@req R5). */
     private InternalUploadCreateRequest request(BigDecimal vdoLenSec, String fps, String vdoCdc,
                                                 String resl, String asprtRt, String vrfcEvntTypeCd) {
+        return request(vdoLenSec, fps, vdoCdc, resl, asprtRt, vrfcEvntTypeCd, null);
+    }
+
+    /**
+     * 비트레이트({@code BIT})까지 지정하는 요청 — 사용자 입력 보존(R4) 검증용.
+     *
+     * <p>{@code BIT} 은 색심도가 아니라 <b>비트레이트(bps 정수)</b>다(설계 ERD-012). 화면이 값을
+     * 입력했으면 측정값이 덮지 않아야 한다.
+     */
+    private InternalUploadCreateRequest request(BigDecimal vdoLenSec, String fps, String vdoCdc,
+                                                String resl, String asprtRt, String vrfcEvntTypeCd,
+                                                String bit) {
         return new InternalUploadCreateRequest(
                 "clip.mp4", clipId, "CCTV-INTERNAL-01", null, "30200",
                 LocalDateTime.of(2026, 3, 1, 9, 30),
                 null, vdoCdc, null, null,
-                vdoLenSec, fps, null, asprtRt, null, null, resl, null, null,
+                vdoLenSec, fps, null, asprtRt, null, null, resl, bit, null,
                 null, null, null, null, null, "ABA_0001", "차량 정체", "EV01000101",
                 "관제일지 본문", vrfcEvntTypeCd);
     }
@@ -512,6 +524,7 @@ class InternalUploadIngestFlowIT {
         assertThat(((Number) row.get("vrtc")).intValue()).isEqualTo(720);
         assertThat(((Number) row.get("frme_cnt")).intValue()).isEqualTo(15_000);
         assertThat(row.get("asprt_rt")).isEqualTo("4:3");
+        assertThat(row.get("bit")).as("비트레이트는 bps 정수 문자열로 채워진다").isEqualTo("2050627");
     }
 
     @Test
@@ -583,16 +596,49 @@ class InternalUploadIngestFlowIT {
     }
 
     @Test
-    @DisplayName("PXL과_BIT는_backfill_후에도_null로_남는다")
-    void pixelAndBitDepthStayNullAfterBackfill() {
-        // ★R3 — 표기 규약이 정의돼 있지 않아 무엇을 넣든 지어낸 값이 된다. SET 절에 아예 없다.
+    @DisplayName("PXL은_backfill_후에도_null로_남는다 — BIT은_비트레이트라_채워진다")
+    void pixelStaysNullButBitRateIsFilledAfterBackfill() {
+        // ★R3 — 화소는 등급 표기(예 4K)라 표기 규약이 정의돼 있지 않아 무엇을 넣든 지어낸 값이
+        //   된다. SET 절에 아예 없다.
+        // ★BIT 는 더 이상 R3 대상이 아니다 — 색심도가 아니라 비트레이트(bps 정수)로 재정의된
+        //   컬럼이라(설계 ERD-012) ffprobe 가 직접 산출한다. 두 컬럼을 한 묶음으로 되돌리지 말 것.
         uploadOneClip();
 
         Map<String, Object> row = ingestMetaRow();
         assertThat(row.get("pxl")).as("화소 표기는 지어내지 않는다").isNull();
-        assertThat(row.get("bit")).as("색심도 표기는 지어내지 않는다").isNull();
-        // 대조군 — 같은 UPDATE 의 다른 컬럼은 실제로 채워졌다(문 자체가 안 돈 것이 아니다)
+        assertThat(row.get("bit")).as("비트레이트는 측정값으로 채운다").isEqualTo("2050627");
+        // 대조군 — 같은 UPDATE 의 다른 컬럼도 실제로 채워졌다(문 자체가 안 돈 것이 아니다)
         assertThat(row.get("vdo_cdc")).isEqualTo("hevc");
+    }
+
+    @Test
+    @DisplayName("사용자가_입력한_BIT은_측정_비트레이트로_덮이지_않는다")
+    void userProvidedBitRateIsPreserved() {
+        // given — 화면이 비트레이트 4,000,000 을 입력했다. 측정값은 2,050,627 이라 덮어쓰기가
+        //   일어났다면 값이 바뀐 것으로 즉시 드러난다(R4).
+        UUID uploadId = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, null, "4000000"));
+        tusUploadService.appendChunk(uploadId, OWNER, 0,
+                new ByteArrayInputStream(MP4_BYTES), MP4_BYTES.length);
+
+        Map<String, Object> row = ingestMetaRow();
+        assertThat(row.get("bit")).as("사용자 입력값은 측정값으로 덮이지 않는다").isEqualTo("4000000");
+        // 대조군 — 비워 보낸 컬럼은 측정값으로 채워졌다(문 자체가 안 돈 것이 아니다)
+        assertThat(row.get("vdo_cdc")).isEqualTo("hevc");
+    }
+
+    @Test
+    @DisplayName("공백만_든_BIT도_미입력으로_보고_채운다 — BTRIM_문자셋이_BIT에도_적용된다")
+    void whitespaceOnlyBitRateIsTreatedAsUnset() {
+        // 탭만 든 값이 "사용자 입력"으로 판정되면 그 컬럼은 영원히 채워지지 않는다(다른 VARCHAR
+        //   4종이 이미 겪은 결함 — BTRIM 기본값은 스페이스만 지운다).
+        UUID uploadId = tusUploadService.createSession(OWNER, MP4_BYTES.length,
+                request(null, null, null, null, null, null, "\t"));
+        tusUploadService.appendChunk(uploadId, OWNER, 0,
+                new ByteArrayInputStream(MP4_BYTES), MP4_BYTES.length);
+
+        Map<String, Object> row = ingestMetaRow();
+        assertThat(row.get("bit")).as("탭만 든 값은 입력이 아니다").isEqualTo("2050627");
     }
 
     @Test
@@ -626,7 +672,7 @@ class InternalUploadIngestFlowIT {
                 String.class, rcptnSn)).isNull();
     }
 
-    /** back-fill 대상 8컬럼 + 금지 2컬럼(PXL·BIT) 스냅샷. */
+    /** back-fill 대상 9컬럼(BIT 포함) + 금지 1컬럼(PXL) 스냅샷. */
     private Map<String, Object> ingestMetaRow() {
         return jdbc.queryForMap(
                 "SELECT vdo_len_sec, fps, vdo_cdc, wdth, vrtc, resl, frme_cnt, asprt_rt, pxl, bit"

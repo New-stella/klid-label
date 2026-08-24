@@ -21,9 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p><b>V174 로 계약이 교체됐다.</b> 구 계약(V95 기준 16컬럼 보존 + V101 신규 메타 18컬럼)은 관제가
  * 적재하지 않는 값을 싣고 정작 필요한 값이 없어, 규격서
- * {@code docs/관제-저작도구-데이터연동-규격서-20260805.md} §5-1 의 <b>30컬럼</b>으로 재작성했다.
+ * {@code docs/관제-저작도구-데이터연동-규격서-20260805.md} §5-1 의 <b>31컬럼</b>으로 재작성했다(V16 이 THMB_FILE_PATH_NM 을 끝에 추가해 30→31).
  * <ol>
- *   <li>{@code V_COMPLETED_VIDEO} 출력이 규격서 30컬럼과 <b>이름·순서까지</b> 일치(관제 SELECT 계약).</li>
+ *   <li>{@code V_COMPLETED_VIDEO} 출력이 규격서 31컬럼과 <b>이름·순서까지</b> 일치(관제 SELECT 계약).</li>
  *   <li>제거 대상 26컬럼이 <b>다시 살아나지 않는다</b>(되돌림 방지 — 없어야 할 것을 없다고 단언).</li>
  *   <li>유지 12컬럼이 정정된 표준 별칭(@req R6)으로 같은 값을 낸다.</li>
  *   <li>비활성 스냅샷(ACTIVE_YN='N')·미승인은 미노출(V95/V102 불변식).</li>
@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DatamartViewRebuildIT {
 
     /**
-     * V174 기준 {@code V_COMPLETED_VIDEO} 의 출력 계약 — 규격서 §5-1 의 30컬럼(<b>순서 포함</b>).
+     * {@code V_COMPLETED_VIDEO} 의 출력 계약 — 규격서 §5-1 의 31컬럼(<b>순서 포함</b>). V174 의 30컬럼에 V16 이 THMB_FILE_PATH_NM 을 끝에 더했다.
      *
      * <p>(a) 영상 식별·분류 13 → 관제 {@code datasets} / (b) 버전 속성 12 → {@code dataset_versions} /
      * (c) 산출물 픽업 5.
@@ -57,7 +57,10 @@ class DatamartViewRebuildIT {
             "DATA_ETBL_YR", "DATA_ETBL_CPCT", "LBL_TYPE", "LBL_FMT",
             // (c) 산출물 픽업 (5)
             "OUTPUT_PATH_NM", "OUTPUT_STTS_CD", "DE_IDNTF_FILE_PATH_NM",
-            "ORGNL_VDO_PATH_NM", "DE_IDNTF_YN");
+            "ORGNL_VDO_PATH_NM", "DE_IDNTF_YN",
+            // (d) 썸네일 (1) — V16(2026-08-24) 추가. 관제 패키징 조달용 pass-through.
+            //     ★ 맨 끝에 '추가만' 한다 — 앞 30개의 이름·순서를 바꾸면 관제 SELECT 계약이 깨진다.
+            "THMB_FILE_PATH_NM");
 
     /**
      * V174 에서 <b>제거된</b> 26컬럼 + 표준 별칭으로 정정되기 전의 구 이름 6종.
@@ -144,7 +147,7 @@ class DatamartViewRebuildIT {
     }
 
     @Test
-    @DisplayName("뷰_출력컬럼이_규격서_30개와_이름_순서까지_일치")
+    @DisplayName("뷰_출력컬럼이_규격서_31개와_이름_순서까지_일치")
     void completedVideo_matchesSpecContractColumnsInOrder() {
         // given / when — 관제가 SELECT 하는 계약면. 이름뿐 아니라 <순서>까지 규격서 §5-1 과 맞춘다
         //   (관제가 SELECT * 로 위치 기반 매핑을 하면 순서 변경이 조용히 값을 어긋나게 한다).
@@ -153,9 +156,9 @@ class DatamartViewRebuildIT {
                         + "WHERE table_name = 'v_completed_video' ORDER BY ordinal_position",
                 String.class);
 
-        // then — 30개, 이름·순서 정확 일치
+        // then — 31개, 이름·순서 정확 일치
         assertThat(actual)
-                .as("규격서 §5-1 의 30컬럼 계약(이름·순서)")
+                .as("규격서 §5-1 의 31컬럼 계약(이름·순서)")
                 .containsExactlyElementsOf(
                         CONTRACT_VIDEO_COLUMNS.stream().map(String::toLowerCase).toList());
     }

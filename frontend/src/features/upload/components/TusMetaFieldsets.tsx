@@ -381,8 +381,8 @@ export function TechnicalMetaFieldset({ form, onField, disabled }: FieldsetProps
           disabled={disabled}
         />
         <TextField
-          label="BIT (색심도)"
-          hint="예: 24bit — 비트레이트 아님"
+          label="BIT (비트레이트)"
+          hint="예: 2050627 — bps 정수. 비우면 업로드 완료 시 자동 측정"
           value={form.bit}
           onChange={onField('bit')}
           disabled={disabled}
