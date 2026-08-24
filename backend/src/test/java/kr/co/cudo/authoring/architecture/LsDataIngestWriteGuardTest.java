@@ -123,16 +123,19 @@ class LsDataIngestWriteGuardTest {
      * {@code VRFC_EVNT_TYPE_CD}(V176 — 검증이벤트유형, 외부 VLM verify 의 {@code event_type})가
      * 그 이유로 여기 있다.
      *
-     * <p>★ {@code OG_CD}(기관코드)는 <b>제거</b>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
-     * 공급 불가" 확정으로 컬럼 자체가 없어졌다. 목록에 남겨두면 <b>존재하지 않는 컬럼을 지키는</b>
-     * 죽은 항목이 된다.
+     * <p>★ {@code OG_CD}(기관코드)는 V185 에서 제거됐다가 <b>V16 에서 복원</b>됐다(2026-08-24 관제
+     * 재확인 "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 서로 다른 값이다. {@code THMB_FILE_PATH_NM}
+     * (썸네일파일경로명)도 V16 신설분이다. <b>지금 writer 는 두 컬럼을 쓰지 않지만 목록에는 넣는다</b> —
+     * 이 목록의 존재 이유가 "쓰기 시작하면 잡는" 것이라, 쓰기 시작한 뒤에 넣기로 미루면 그 통로가
+     * 열리는 바로 그 커밋에서 가드가 침묵한다(위 CWE-915 경고와 같은 취지). 관제가 채우는 값이므로
+     * 우리 쓰기 경로가 건드리면 안 되는 축이라는 점도 이미 확정돼 있다.
      */
     private static final List<String> CONTROL_OWNED_COLUMNS = List.of(
             "VMS_CLIP_ID", "VMS_CCTV_ID", "VDO_FILE_NM", "RAW_FILE_PATH_NM", "SRC_TYPE", "SHT_DT",
             "FILE_FMT", "VDO_CDC", "FILE_SZ", "LCLGV_NM", "VDO_LEN_SEC", "FPS", "FRME_CNT", "ASPRT_RT",
             "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "CCTV_NM",
             "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD",
-            "VRFC_EVNT_TYPE_CD");
+            "VRFC_EVNT_TYPE_CD", "OG_CD", "THMB_FILE_PATH_NM");
 
     /** 되살리기·back-fill UPDATE 를 호출해도 되는 <b>유일한</b> 파일 — Java 측 신뢰 경계 판정이 여기 있다. */
     private static final String ALLOWED_REVIVE_CALLER = "TusUploadService.java";

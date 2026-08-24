@@ -57,7 +57,10 @@ public class InternalUploadIngestWriter {
     /**
      * 고정 컬럼 INSERT — 관제 수신 30컬럼 + 처리상태 1컬럼(고정 {@code 'PENDING'}).
      *
-     * <p>V185 에서 {@code OG_CD}(기관코드)가 빠졌다 — 관제 "현행 미사용 값, 공급 불가" 확정.
+     * <p>{@code OG_CD}(기관코드)는 V185 에서 제거됐다가 V16 에서 복원됐다(2026-08-24 관제 재확인
+     * "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 <b>서로 다른 값</b>이다. 다만 이 INSERT 목록에는
+     * 넣지 않는다 — dev 내부 업로드는 그 값을 갖지 않아 nullable 컬럼으로 비워 둔다(V16 신설
+     * {@code THMB_FILE_PATH_NM} 도 같은 이유로 제외).
      *
      * <p>{@code BIT} 은 PostgreSQL 에서 컬럼명으로는 무인용 사용이 가능하다(V147 실증). 인용하면
      * 대문자 식별자가 고정돼 나머지 컬럼(무인용→소문자 폴딩)과 규칙이 갈리므로 그대로 둔다.

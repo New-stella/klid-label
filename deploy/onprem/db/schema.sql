@@ -19,7 +19,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict G5VC7fcbEDVNlYfHcXzemaBwafUcBqot8h4pdbSUdOitH45CkE1aee7jpf1urHk
+\restrict p1jyfU2kOgLcxpYwy9oewljO0jTRh95lTTAFhVOU61j6IPujtZk0CUU4xhsq1QL
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -506,7 +506,9 @@ CREATE TABLE klid_at.ls_data_ingest (
     prvc_incl_yn character(1) DEFAULT 'Y'::bpchar,
     evnt_clsf_cd character(2),
     evnt_ctgry_cd character(4),
-    vrfc_evnt_type_cd character varying(20)
+    vrfc_evnt_type_cd character varying(20),
+    thmb_file_path_nm character varying(500),
+    og_cd character varying(20)
 );
 
 
@@ -2126,7 +2128,8 @@ CREATE VIEW klid_at.v_completed_video AS
     e.output_stts_cd,
     d.de_idntf_file_path_nm,
     m.raw_file_path_nm AS orgnl_vdo_path_nm,
-    m.de_ident_yn AS de_idntf_yn
+    m.de_ident_yn AS de_idntf_yn,
+    i.thmb_file_path_nm
    FROM ((((((klid_at.ls_dataset_video_meta m
      JOIN klid_at.ls_data_raw r ON ((r.raw_sn = m.raw_sn)))
      JOIN klid_at.ls_raw_data_status s ON ((s.raw_data_id = m.raw_sn)))
@@ -2148,7 +2151,8 @@ CREATE VIEW klid_at.v_completed_video AS
             ig.lclgv_nm,
             ig.anony_incl_yn,
             ig.psdo_incl_yn,
-            ig.prvc_incl_yn
+            ig.prvc_incl_yn,
+            ig.thmb_file_path_nm
            FROM klid_at.ls_data_ingest ig
           WHERE (ig.raw_sn = COALESCE(r.orgnl_raw_sn, r.raw_sn))
           ORDER BY ig.rcptn_sn DESC
@@ -2268,7 +2272,7 @@ COPY klid_at.ls_data_aug_rvw (data_aug_rvw_sn, data_aug_sn, data_raw_sn, data_sr
 -- Data for Name: ls_data_ingest; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_data_ingest (rcptn_sn, rcptn_dt, prcs_stts_cd, raw_sn, rty_cnt, prcs_dt, nxtm_rtry_dt, err_msg, vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type, sht_dt, file_fmt, vdo_cdc, file_sz, lclgv_nm, vdo_len_sec, fps, frme_cnt, asprt_rt, wdth, vrtc, resl, "bit", pxl, wgs84_lat, wgs84_lot, cctv_nm, cctv_hgt, main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd, evnt_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, evnt_clsf_cd, evnt_ctgry_cd, vrfc_evnt_type_cd) FROM stdin;
+COPY klid_at.ls_data_ingest (rcptn_sn, rcptn_dt, prcs_stts_cd, raw_sn, rty_cnt, prcs_dt, nxtm_rtry_dt, err_msg, vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type, sht_dt, file_fmt, vdo_cdc, file_sz, lclgv_nm, vdo_len_sec, fps, frme_cnt, asprt_rt, wdth, vrtc, resl, "bit", pxl, wgs84_lat, wgs84_lot, cctv_nm, cctv_hgt, main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd, evnt_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, evnt_clsf_cd, evnt_ctgry_cd, vrfc_evnt_type_cd, thmb_file_path_nm, og_cd) FROM stdin;
 \.
 
 
@@ -2397,17 +2401,17 @@ COPY klid_at.ls_evnt_anno_review (rvw_sn, evnt_anno_sn, rvw_stts_cd, meta_type_c
 --
 
 COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) FROM stdin;
-01	0001	침수(범람)	2026-08-22 11:49:11.869624
-01	0002	산사태	2026-08-22 11:49:11.869624
-02	0001	화재	2026-08-22 11:49:11.869624
-02	0002	쓰러짐	2026-08-22 11:49:11.869624
-02	0005	파손	2026-08-22 11:49:11.869624
-03	0001	교통사고	2026-08-22 11:49:11.869624
-05	0001	싸움	2026-08-22 11:49:11.869624
-05	0002	흉기소지	2026-08-22 11:49:11.869624
-05	0007	납치(유괴)	2026-08-22 11:49:11.869624
-07	0002	기타 상황	2026-08-22 11:49:11.869624
-08	0001	배회	2026-08-22 11:49:11.869624
+01	0001	침수(범람)	2026-08-24 08:09:54.723766
+01	0002	산사태	2026-08-24 08:09:54.723766
+02	0001	화재	2026-08-24 08:09:54.723766
+02	0002	쓰러짐	2026-08-24 08:09:54.723766
+02	0005	파손	2026-08-24 08:09:54.723766
+03	0001	교통사고	2026-08-24 08:09:54.723766
+05	0001	싸움	2026-08-24 08:09:54.723766
+05	0002	흉기소지	2026-08-24 08:09:54.723766
+05	0007	납치(유괴)	2026-08-24 08:09:54.723766
+07	0002	기타 상황	2026-08-24 08:09:54.723766
+08	0001	배회	2026-08-24 08:09:54.723766
 \.
 
 
@@ -2416,22 +2420,22 @@ COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) 
 --
 
 COPY klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) FROM stdin;
-EV01000101	\N	\N	01	0001	Y	2026-08-22 11:49:11.869624
-EV01000102	\N	\N	01	0001	Y	2026-08-22 11:49:11.869624
-EV01000103	\N	\N	01	0001	Y	2026-08-22 11:49:11.869624
-EV01000201	\N	\N	01	0002	Y	2026-08-22 11:49:11.869624
-EV02000101	\N	\N	02	0001	Y	2026-08-22 11:49:11.869624
-EV02000102	\N	\N	02	0001	Y	2026-08-22 11:49:11.869624
-EV02000201	\N	\N	02	0002	Y	2026-08-22 11:49:11.869624
-EV02000501	\N	\N	02	0005	Y	2026-08-22 11:49:11.869624
-EV03000101	\N	\N	03	0001	Y	2026-08-22 11:49:11.869624
-EV03000102	\N	\N	03	0001	Y	2026-08-22 11:49:11.869624
-EV03000103	\N	\N	03	0001	Y	2026-08-22 11:49:11.869624
-EV05000101	\N	\N	05	0001	Y	2026-08-22 11:49:11.869624
-EV05000201	\N	\N	05	0002	Y	2026-08-22 11:49:11.869624
-EV05000701	\N	\N	05	0007	Y	2026-08-22 11:49:11.869624
-EV08000101	\N	\N	08	0001	Y	2026-08-22 11:49:11.869624
-EV07000201	\N	\N	07	0002	N	2026-08-22 11:49:11.869624
+EV01000101	\N	\N	01	0001	Y	2026-08-24 08:09:54.723766
+EV01000102	\N	\N	01	0001	Y	2026-08-24 08:09:54.723766
+EV01000103	\N	\N	01	0001	Y	2026-08-24 08:09:54.723766
+EV01000201	\N	\N	01	0002	Y	2026-08-24 08:09:54.723766
+EV02000101	\N	\N	02	0001	Y	2026-08-24 08:09:54.723766
+EV02000102	\N	\N	02	0001	Y	2026-08-24 08:09:54.723766
+EV02000201	\N	\N	02	0002	Y	2026-08-24 08:09:54.723766
+EV02000501	\N	\N	02	0005	Y	2026-08-24 08:09:54.723766
+EV03000101	\N	\N	03	0001	Y	2026-08-24 08:09:54.723766
+EV03000102	\N	\N	03	0001	Y	2026-08-24 08:09:54.723766
+EV03000103	\N	\N	03	0001	Y	2026-08-24 08:09:54.723766
+EV05000101	\N	\N	05	0001	Y	2026-08-24 08:09:54.723766
+EV05000201	\N	\N	05	0002	Y	2026-08-24 08:09:54.723766
+EV05000701	\N	\N	05	0007	Y	2026-08-24 08:09:54.723766
+EV08000101	\N	\N	08	0001	Y	2026-08-24 08:09:54.723766
+EV07000201	\N	\N	07	0002	N	2026-08-24 08:09:54.723766
 \.
 
 
@@ -2448,15 +2452,15 @@ COPY klid_at.ls_issue_comment (cmnt_sn, data_issue_sn, author_no, author_role_cd
 --
 
 COPY klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) FROM stdin;
-1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	person
-2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	car
-3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	bicycle
-4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	motorcycle
-5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	bus
-6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	truck
-7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	\N
-8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	\N
-9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-08-22 11:49:11.869624	\N	\N	\N
+1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	person
+2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	car
+3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	bicycle
+4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	motorcycle
+5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	bus
+6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	truck
+7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	\N
+8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	\N
+9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-08-24 08:09:54.723766	\N	\N	\N
 \.
 
 
@@ -2609,20 +2613,20 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 --
 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
-BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-22 11:49:11.075078
-BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-22 11:49:11.075078
-YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-22 11:49:11.075078
-YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-22 11:49:11.075078
-POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-22 11:49:11.075078
-portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-22 11:49:11.075078
-autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-22 11:49:11.075078
-eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-22 11:49:11.075078
-kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-22 11:49:11.075078
-kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-22 11:49:11.075078
-kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-22 11:49:11.075078
-portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-22 11:49:11.801966
-portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-22 11:49:11.801966
-portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-22 11:49:11.801966
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-24 08:09:53.852733
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-24 08:09:53.852733
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-24 08:09:53.852733
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-24 08:09:53.852733
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-24 08:09:53.852733
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-24 08:09:53.852733
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-24 08:09:53.852733
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-24 08:09:53.852733
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-24 08:09:53.852733
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-24 08:09:53.852733
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-24 08:09:53.852733
+portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-24 08:09:54.652015
+portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-24 08:09:54.652015
+portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-24 08:09:54.652015
 \.
 
 
@@ -5000,5 +5004,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict G5VC7fcbEDVNlYfHcXzemaBwafUcBqot8h4pdbSUdOitH45CkE1aee7jpf1urHk
+\unrestrict p1jyfU2kOgLcxpYwy9oewljO0jTRh95lTTAFhVOU61j6IPujtZk0CUU4xhsq1QL
 
