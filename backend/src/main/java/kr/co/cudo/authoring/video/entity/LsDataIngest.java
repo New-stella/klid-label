@@ -21,13 +21,13 @@ import java.time.LocalDateTime;
 /**
  * 관제 인입 (LS_DATA_INGEST, V147) — <b>관제서버가 학습용 영상 메타를 직접 INSERT 하는 수신 창구</b>.
  *
- * <p>총 <b>43컬럼</b> = <b>관제 수신 35</b> + <b>저작도구 운영 8</b>(V147 신설 37 + V166 관제 수신 4
- * + V168 관제 수신 2). 인입 행은 감사 추적을 위해
+ * <p>총 <b>45컬럼</b> = <b>관제 수신 37</b> + <b>저작도구 운영 8</b>(V147 신설 37 + V166 관제 수신 4
+ * + V168 관제 수신 2 + V16 관제 수신 2 — THMB_FILE_PATH_NM·OG_CD). 인입 행은 감사 추적을 위해
  * <b>영구 보존</b>하며(삭제 금지), 저작도구는 자기 운영 컬럼의 상태만 갱신한다.
  *
  * <h3>관제 소유값을 우리가 덮지 않는다 (CWE-915 Mass Assignment / CWE-362 lost update)</h3>
  * <ul>
- *   <li>관제 수신 29컬럼에 <b>setter 를 두지 않는다</b> — 이 계약은 {@code LsDataIngestTest} 의
+ *   <li>관제 수신 31컬럼에 <b>setter 를 두지 않는다</b> — 이 계약은 {@code LsDataIngestTest} 의
  *       리플렉션 가드가 고정한다(@Data/@Setter 재도입 차단).</li>
  *   <li>{@code @DynamicUpdate} — setter 가 없어도 Hibernate 기본 <b>정적 UPDATE 는 전체 컬럼을 SET</b>
  *       하므로, 우리가 상태 전이만 하고 flush 해도 로드 시점 스냅샷의 관제 값이 그대로 다시 쓰인다.
@@ -41,7 +41,8 @@ import java.time.LocalDateTime;
  *
  * <h3>매핑 주의</h3>
  * <ul>
- *   <li><b>{@code BIT}</b> — 색심도 표기('24bit')이며 비트레이트가 아니다. PostgreSQL 에서
+ *   <li><b>{@code BIT}</b> — 비트레이트(bps 정수)이며 색심도가 아니다(V16 정정 — 관제 실측값이
+ *       색심도 표기 '24bit' 가 아니라 2050627 같은 bps 정수임을 2026-08-24 관제가 재확인). PostgreSQL 에서
  *       컬럼명으로는 무인용 사용이 가능하고(V147 실증), 물리명은 표준용어라 변경하지 않는다.
  *       Hibernate 물리 네이밍 전략이 소문자로 접어 실제 컬럼 {@code bit} 과 일치한다
  *       (프로젝트에 {@code globally_quoted_identifiers} 설정 없음 — 켜면 이 컬럼만 대문자 인용이
@@ -268,7 +269,7 @@ public class LsDataIngest {
     private String errMsg;
 
     // ---------------------------------------------------------------------
-    // 관제 수신 (28 — V185 에서 OG_CD 제거) — 조회 전용. setter 금지.
+    // 관제 수신 (30 — V185 에서 OG_CD 제거 후 V16 에서 OG_CD 재추가·THMB_FILE_PATH_NM 추가) — 조회 전용. setter 금지.
     // ---------------------------------------------------------------------
 
     @Column(name = "VMS_CLIP_ID", nullable = false, length = 128)
@@ -339,7 +340,11 @@ public class LsDataIngest {
     @Column(name = "RESL", length = 20)
     private String resl;
 
-    /** 비트값 = 색심도 표기(예 24bit). 비트레이트가 아니다. */
+    /**
+     * 비트레이트(bps 단위 숫자, 예 2050627). 색심도가 아니다 — 관제 실측값이 색심도 표기('24bit')가
+     * 아니라 bps 정수임이 확인됐다(V16, 2026-08-24 관제 재확인). 물리명 BIT·타입 varchar(20) 유지.
+     * {@code @design ERD-012}
+     */
     @Column(name = "BIT", length = 20)
     private String bit;
 
@@ -476,7 +481,8 @@ public class LsDataIngest {
      * {@code lclgv_cd}(required)의 값 출처다.
      *
      * <p>{@link #lclgvNm}(지방자치단체명)과 <b>서로 다른 값</b>이다 — 둘을 대체·통합하지 않는다.
-     * (구 서술의 세 번째 축이던 {@code OG_CD}(기관코드)는 관제 공급 불가 확정으로 제거됐다 — V185.)
+     * <p>세 번째 축인 {@code OG_CD}(기관코드)는 V185 에서 제거됐다가 <b>V16 에서 복원</b>됐다
+     * (2026-08-24 관제 재확인 "실보유"). 셋은 <b>서로 다른 값</b>이며 대체·통합하지 않는다.
      */
     @Column(name = "LCLGV_CD", length = 20)
     private String lclgvCd;
@@ -505,6 +511,31 @@ public class LsDataIngest {
      */
     @Column(name = "VRFC_EVNT_TYPE_CD", length = 20)
     private String vrfcEvntTypeCd;
+
+    /**
+     * 썸네일 이미지 파일 경로명 (V16 신설) — 관제 인입값 pass-through.
+     *
+     * <p>썸네일 이미지 파일 경로(관제 인입값). 관제 패키징용, 저작도구는 생성·가공하지 않는다.
+     * 완료 조회 채널 {@code V_COMPLETED_VIDEO} 로 노출한다(nullable — 관제 미송신 허용).
+     *
+     * <p>길이 500 = 경로명 표준도메인(경로명V500). 같은 테이블 {@link #rawFilePathNm} 접미어와 통일.
+     * {@code @design ERD-012}
+     */
+    @Column(name = "THMB_FILE_PATH_NM", length = 500)
+    private String thmbFilePathNm;
+
+    /**
+     * 기관코드 (V16 재추가) — 관제 {@code resource_cctvs} 조인 값.
+     *
+     * <p>기관코드. {@link #lclgvCd}(지방자치단체코드)·{@link #lclgvNm}(지방자치단체명)과 서로 다른
+     * 값이며 셋을 대체·통합하지 않는다. 관제 재요청으로 재추가(구 V185 제거분). export 배선 없음
+     * (nullable — 미송신/과거 행 null).
+     *
+     * <p>길이 20 = 코드값 표준도메인(코드V20).
+     * {@code @design ERD-012}
+     */
+    @Column(name = "OG_CD", length = 20)
+    private String ogCd;
 
     // ---------------------------------------------------------------------
     // 상태 전이 — 저작도구 운영 컬럼 전용

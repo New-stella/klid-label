@@ -465,8 +465,8 @@ class TusUploadServiceTest {
         assertThat(inserted.lclgvNm()).isEqualTo("서울특별시 강남구");
         assertThat(inserted.wgs84Lat()).isEqualByComparingTo("37.4979200");
         assertThat(inserted.wgs84Lot()).isEqualByComparingTo("127.0276100");
-        // ★ 기관코드(OG_CD) 단언은 <제거>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
-        //   공급 불가" 확정으로 인입 수신 컬럼 자체가 사라졌고 입력면(폼·요청 DTO)에서도 빠졌다.
+        // ★ 기관코드(OG_CD) 단언은 V185(관제 "공급 불가") 때 제거됐다. V16 에서 인입 컬럼은
+        //   복원됐으나 입력면(폼·요청 DTO)에는 여전히 없어 단언도 되살리지 않는다.
         assertThat(inserted.cctvNm()).isEqualTo("강남대로 CCTV");
         assertThat(inserted.cctvHgt()).isEqualByComparingTo("4.5");
         assertThat(inserted.mainSurvPanAng()).isEqualTo(180);

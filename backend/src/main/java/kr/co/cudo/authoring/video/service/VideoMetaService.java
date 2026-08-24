@@ -34,11 +34,11 @@ import java.util.regex.Pattern;
  * {@code DatasetMetaSourceRepository}·{@code DatasetVideoMetaSnapshotService})와
  * {@link #isTechnicalKey} 필터도 무변경이다.
  *
- * <p><b>{@code video.bit_rate} 만 예외로 ffprobe 전용</b>이다 — 인입 {@code BIT} 은 <b>색심도 표기</b>
- * ('24bit')이지 비트레이트가 아니다(V147 주석·설계 §10 명시). 이 키의 소비처는
- * {@code LS_DATASET_VIDEO_META.BIT_RT}({@code BIGINT}) 이므로 '24bit' 를 흘리면 파싱 실패로 값이
- * <b>사라진다</b>. 어노테이션 {@code bit} 을 색심도로 바꾸려면 {@code BIT_RT} 타입 확장이 선행돼야 하며
- * 그 범위가 아니다({@link #PROBE_KEYS} 주석 참조).
+ * <p><b>{@code video.bit_rate} 도 다른 키와 같은 규칙</b>이다 — 인입 {@code BIT} 은 <b>비트레이트</b>
+ * (bps 정수, 예 2050627)이며 색심도가 아니다(V16 정정 — 관제 실측값이 '24bit' 표기가 아니라 bps
+ * 정수임을 2026-08-24 관제가 재확인). 인입값이 있으면 그것을 채택하고, 없거나 숫자로 파싱되지 않는
+ * 레거시('24bit') 잔재면 <b>그 키만</b> ffprobe 폴백이 채운다({@link #loadIngestMeta} 참조). 소비처
+ * {@code LS_DATASET_VIDEO_META.BIT_RT}({@code BIGINT}) 가 정수라 파싱 불가값은 애초에 채택하지 않는다.
  *
  * <p>probe 결과를 아래 키로 매핑해 멱등 upsert 한다. (RAW_SN, META_KEY) UK 하에서
  * PostgreSQL {@code ON CONFLICT} 원자적 upsert({@link LsDataMetaRepository#upsertMeta})로 처리하므로
@@ -103,11 +103,10 @@ public class VideoMetaService {
      * ffprobe 가 채울 수 있는 전체 키 — 이 전부가 인입값으로 이미 채워졌다면 probe 를 돌릴 이유가 없다
      * ({@link #needsProbe}).
      *
-     * <p>판정 기준을 "인입이 커버하는 키(5종)" 가 아니라 <b>"probe 가 채울 수 있는 키(6종)"</b> 로 두는
-     * 것이 핵심이다. 인입은 {@link #KEY_BIT_RATE} 를 주지 않으므로(아래 {@link #loadIngestMeta} 참조)
-     * 5종만 보고 skip 하면 {@code video.bit_rate} 가 <b>영구 결손</b>되어 어노테이션 {@code bit} 이
-     * null 로 나간다(현행은 ffprobe 비트레이트가 채운다). 그 대가로 인입 적재분에서도 probe 는 계속
-     * 돌며, {@code BIT_RT} 가 색심도를 담을 수 있게 넓어지는 날 이 판정이 자동으로 skip 으로 바뀐다.
+     * <p>판정 기준은 <b>"probe 가 채울 수 있는 키(6종)"</b>다. 인입이 {@link #KEY_BIT_RATE} 를 포함해
+     * 6종을 전부 유효값으로 채운 영상은 여기서 false 가 되어 NAS 파일 접근·ffprobe 실행을 통째로
+     * 건너뛴다(중복 측정 제거). 인입 {@code BIT} 이 없거나 파싱 불가('24bit' 레거시)면 그 키가 빠져
+     * 6종 미달이 되고, probe 가 돌아 {@code video.bit_rate} 를 폴백으로 채운다(영구 결손 방지).
      */
     private static final List<String> PROBE_KEYS = List.of(
             KEY_FPS, KEY_CODEC, KEY_BIT_RATE, KEY_DURATION_MS, KEY_FILESIZE, KEY_RESOLUTION);
@@ -232,7 +231,9 @@ public class VideoMetaService {
         putIfPresent(values, KEY_DURATION_MS, durationMillisText(ingest.getVdoLenSec(), rawSn));
         putIfPresent(values, KEY_FILESIZE, positiveLongText(ingest.getFileSz(), rawSn, KEY_FILESIZE));
         putIfPresent(values, KEY_RESOLUTION, resolutionText(ingest.getResl(), rawSn));
-        // video.bit_rate 는 담지 않는다 — 인입 BIT 은 색심도 표기다(클래스 Javadoc 참조).
+        // 인입 BIT 은 비트레이트(bps 정수, V16 정정). 인입값 우선, 파싱 불가·null·음수는 skip → ffprobe 폴백.
+        // [design: ERD-012]
+        putIfPresent(values, KEY_BIT_RATE, bitRateText(ingest.getBit(), rawSn));
         return values;
     }
 
@@ -270,6 +271,31 @@ public class VideoMetaService {
             return null;
         }
         return String.valueOf(value);
+    }
+
+    /**
+     * 비트레이트 — 인입 {@code BIT}(bps 정수 문자열, V16)을 {@code Long} 으로 파싱해 채택한다.
+     *
+     * <p>소비처 {@code LS_DATASET_VIDEO_META.BIT_RT} 가 {@code BIGINT} 이므로 정수(bps)만 유효하다.
+     * null·공백·양수가 아닌 값·파싱 불가(레거시 '24bit' 잔재 등)는 <b>예외 없이 skip</b>(null 반환)해
+     * 해당 키만 ffprobe 폴백에 넘긴다(fail-safe — 관제 수신값은 신뢰 경계 밖, CWE-20). 값 자체는
+     * 로그에 넣지 않는다(CWE-117/359 — 관제 자유텍스트).
+     */
+    private static String bitRateText(String raw, Long rawSn) {
+        String text = boundedText(raw);
+        if (text == null) {
+            return null;
+        }
+        try {
+            long value = Long.parseLong(text);
+            if (value > 0) {
+                return String.valueOf(value);
+            }
+        } catch (NumberFormatException ignored) {
+            // 아래 공통 WARN 으로 처리 — 값은 로그에 넣지 않는다.
+        }
+        log.warn("[VideoMeta] ingest value rejected rawSn={} key={} — probe fallback", rawSn, KEY_BIT_RATE);
+        return null;
     }
 
     /**
