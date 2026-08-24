@@ -175,7 +175,8 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
                 LsWebhookIdempotency.STATE_PROCESSED.equals(e.getSttsCd()) ? State.PROCESSED : State.ISSUED,
                 e.getOtsdJobId(),
                 e.getRawSn(),
-                e.getRegDt());
+                e.getRegDt(),
+                e.getChnlCd());
     }
 
     /**

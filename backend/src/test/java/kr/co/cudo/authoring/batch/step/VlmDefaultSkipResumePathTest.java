@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.common.client.VlmClient;
+import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
@@ -24,6 +25,7 @@ import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
@@ -33,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -101,7 +104,12 @@ class VlmDefaultSkipResumePathTest {
                 .thenReturn(true);
         when(timeseriesMetaPresence.count(RAW_SN)).thenReturn(0L);
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN)).thenReturn(List.of());
-    }
+            // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
+        // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
+        // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+                .thenReturn(Mono.never());
+}
 
     /** 전체 설정 스위치를 켠다(사유 포함). */
     private void switchOn(String reason) {
@@ -205,14 +213,14 @@ class VlmDefaultSkipResumePathTest {
         when(batchStatusService.latestManualSkipMarker(RAW_SN, BatchStageBundle.VLM))
                 .thenReturn(Optional.empty());
         when(batchStatusService.isStageManuallySkipped(RAW_SN, BatchStage.VLM)).thenReturn(false);
-        when(vlmClient.submitTimeseries(any()))
+        when(vlmClient.submitDescribe(any()))
                 .thenReturn(reactor.core.publisher.Mono.just(new VlmTimeseriesResponse("req-1", VlmTimeseriesResponse.STATUS_ACCEPTED)));
         // 비식별 경로가 있어야 위탁까지 간다.
         stubDeidentifiedPath();
 
         resumeRunner.resumeAsync(RAW_SN);
 
-        verify(vlmClient).submitTimeseries(any());
+        verify(vlmClient).submitDescribe(any());
         verify(batchStatusService, never()).recordManualStageSkipInNewTx(
                 any(), any(), anyString(), anyString());
     }

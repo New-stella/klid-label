@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -44,9 +45,35 @@ public interface LsWebhookIdempotencyRepository extends JpaRepository<LsWebhookI
                                                  @Param("cutoff") LocalDateTime cutoff,
                                                  Pageable pageable);
 
+    /**
+     * {@link #findStaleByStatus} 의 다채널 변형 — 한 외부 시스템이 <b>여러 창구</b>로 나뉘는 경우에 쓴다.
+     *
+     * <p>창구가 늘었는데 한 채널만 훑으면 나머지 채널의 미결 행이 회수되지 않고 영구히 남아,
+     * 그 영상은 미결 판정에 걸려 <b>재위탁 자체가 막힌다</b>.
+     */
+    @Query("select e from LsWebhookIdempotency e "
+            + "where e.chnlCd in :channels and e.sttsCd = :status and e.rawSn is not null "
+            + "and e.mdfcnDt <= :cutoff order by e.mdfcnDt asc")
+    List<LsWebhookIdempotency> findStaleByStatusIn(@Param("channels") Collection<String> channels,
+                                                   @Param("status") String status,
+                                                   @Param("cutoff") LocalDateTime cutoff,
+                                                   Pageable pageable);
+
     /** 미결(ISSUED = ACK 조차 못 받은) 회수 후보. */
     default List<LsWebhookIdempotency> findStaleIssued(String channel, LocalDateTime cutoff, Pageable pageable) {
         return findStaleByStatus(channel, LsWebhookIdempotency.STATE_ISSUED, cutoff, pageable);
+    }
+
+    /** 미결(ISSUED) 회수 후보 — 여러 창구를 한 번에. */
+    default List<LsWebhookIdempotency> findStaleIssued(Collection<String> channels, LocalDateTime cutoff,
+                                                       Pageable pageable) {
+        return findStaleByStatusIn(channels, LsWebhookIdempotency.STATE_ISSUED, cutoff, pageable);
+    }
+
+    /** ACK 는 받았으나 콜백 미수신 회수 후보 — 여러 창구를 한 번에. */
+    default List<LsWebhookIdempotency> findStaleAccepted(Collection<String> channels, LocalDateTime cutoff,
+                                                         Pageable pageable) {
+        return findStaleByStatusIn(channels, LsWebhookIdempotency.STATE_ACCEPTED, cutoff, pageable);
     }
 
     /**

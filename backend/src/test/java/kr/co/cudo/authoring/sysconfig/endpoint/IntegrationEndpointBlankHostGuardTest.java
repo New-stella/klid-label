@@ -50,7 +50,7 @@ class IntegrationEndpointBlankHostGuardTest {
         CountingExchange next = new CountingExchange();
 
         // baseUrl 이 "" 이면 요청 URL 은 호스트 없는 상대 URI 가 된다(실측 형상).
-        StepVerifier.create(guard.filter(request("/v1/videovlm/verify"), next))
+        StepVerifier.create(guard.filter(request("/v1/videovlm-klid/describe"), next))
                 .expectError(NonRetryableExternalException.class)
                 .verify();
 
@@ -65,9 +65,9 @@ class IntegrationEndpointBlankHostGuardTest {
         ExchangeFilterFunction guard =
                 IntegrationEndpointTransportGuards.requireResolvedHost(IntegrationEndpoint.VLM);
 
-        StepVerifier.create(guard.filter(request("/v1/videovlm/verify"), new CountingExchange()))
+        StepVerifier.create(guard.filter(request("/v1/videovlm-klid/describe"), new CountingExchange()))
                 .expectErrorSatisfies(e -> assertThat(e.getMessage())
-                        .doesNotContain("/v1/videovlm/verify")
+                        .doesNotContain("/v1/videovlm-klid/describe")
                         .doesNotContain("localhost")
                         .doesNotContain("127.0.0.1"))
                 .verify();
@@ -85,7 +85,7 @@ class IntegrationEndpointBlankHostGuardTest {
         ExchangeFilterFunction guard =
                 IntegrationEndpointTransportGuards.requireResolvedHost(IntegrationEndpoint.VLM);
 
-        StepVerifier.create(guard.filter(request("/v1/videovlm/verify"), new CountingExchange()))
+        StepVerifier.create(guard.filter(request("/v1/videovlm-klid/describe"), new CountingExchange()))
                 .expectErrorSatisfies(e -> assertThat(e).isInstanceOf(NonRetryableExternalException.class))
                 .verify();
     }
@@ -97,7 +97,7 @@ class IntegrationEndpointBlankHostGuardTest {
                 IntegrationEndpointTransportGuards.requireResolvedHost(IntegrationEndpoint.VLM);
         CountingExchange next = new CountingExchange();
 
-        StepVerifier.create(guard.filter(request("https://vendor.example.net/v1/videovlm/verify"), next))
+        StepVerifier.create(guard.filter(request("https://vendor.example.net/v1/videovlm-klid/describe"), next))
                 .expectNextCount(1)
                 .verifyComplete();
 

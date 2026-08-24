@@ -35,12 +35,20 @@ public interface WebhookIdempotencyLedger {
      * @param issuedAt 발급(위탁 개시) 시각. 콜백 수신부가 "이 위탁보다 <b>나중에 생긴</b> 대상"을
      *                 건드리지 않도록 판정하는 데 쓴다(L6 — 지각 콜백이 새 마킹을 완료시키는 문제).
      *                 알 수 없으면 null(= 판정 미적용, 종전 동작).
+     * @param channel  위탁이 나간 채널({@code LsWebhookIdempotency.CHANNEL_*}). 콜백 바디에 <b>창구
+     *                 구분자가 없는</b> 규격에서 어느 창구의 결과인지 되짚는 유일한 축이다. 알 수 없으면
+     *                 null(= 종전 동작).
      */
-    record Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt) {
+    record Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt, String channel) {
+
+        /** 채널을 모르는 호출부용 축약 생성자(종전 4-인자 계약 유지). */
+        public Entry(State state, String externalJobId, Long rawSn, LocalDateTime issuedAt) {
+            this(state, externalJobId, rawSn, issuedAt, null);
+        }
 
         /** 발급 시각을 모르는 호출부용 축약 생성자(종전 3-인자 계약 유지). */
         public Entry(State state, String externalJobId, Long rawSn) {
-            this(state, externalJobId, rawSn, null);
+            this(state, externalJobId, rawSn, null, null);
         }
     }
 

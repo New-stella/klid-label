@@ -17,14 +17,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * VLM <b>verify</b> 콜백 DTO 계약 검증 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합.
+ * 시계열 분석 결과 콜백 DTO 계약 검증 — 확정 계약(KLID 연동 API v1.1.0) 정합.
  *
- * <p>성공: {@code {request_id, status:"completed", results:{accuracy, description}}} — <b>단일 객체</b>.
- * <p>실패: {@code {request_id, status:"failed", error:{code,message}}} (무변경).
+ * <p>성공: {@code {request_id, status:"completed", results:{description}}} — <b>단일 객체</b>.
+ * <p>실패: {@code {request_id, status:"failed", error:"..."}} — error 는 <b>문자열</b>이다.
  *
- * <p>구 describe 규격의 {@code results:[{start_sec,end_sec,description}]} <b>배열</b>은 폐기됐다.
- * 검수큐를 거치지 않는 {@code accuracy} 는 <b>서버 검증이 유일한 방어선</b>이므로 범위(0~1 inclusive)·
- * 자릿수 상한을 여기서 강제한다(CWE-20).
+ * <p>구 규격의 구간 배열({@code results:[{start_sec,end_sec,description}]})과 판정 항목
+ * ({@code detected}/{@code accuracy})은 모두 폐기됐다 — 판정 항목은 우리가 연동하지 않는
+ * 판정 창구 전용이라 애초에 오지 않는다(§2.8).
  */
 class VlmResultRequestMetaItemTest {
 
@@ -50,8 +50,7 @@ class VlmResultRequestMetaItemTest {
     @Test
     @DisplayName("verify_completed_results_객체_정상_통과")
     void completedWithResults_passes() {
-        VlmResultRequest req = completed(new VlmResultRequest.Results(
-                new BigDecimal("0.8"), "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다."));
+        VlmResultRequest req = completed(new VlmResultRequest.Results("한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다."));
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -71,57 +70,35 @@ class VlmResultRequestMetaItemTest {
     }
 
     @Test
-    @DisplayName("accuracy가_없으면_통과한다_optional")
-    void accuracyOmitted_passes() {
-        VlmResultRequest req = completed(new VlmResultRequest.Results(null, "서술"));
+    @DisplayName("★판정항목이_섞여와도_수신을_거부하지_않는다_구_accuracy_검증_폐기")
+    void unknownResultFieldsAreIgnored() throws Exception {
+        // given — 구 계약은 accuracy 의 범위·자릿수를 여기서 강제했다(그 값이 검수큐를 거치지 않아
+        //   서버 검증이 유일한 방어선이었기 때문). 이제 그 값은 우리 연동에 오지 않으므로 규율 대상이
+        //   사라졌고, 남은 질문은 "섞여 오면 어떻게 하는가" 하나다.
+        //
+        //   답은 <b>무시</b>다. 여기서 400 을 내면 그 결과는 영영 유실된다 — 재전송은 3회로 끝나고
+        //   결과를 다시 받을 수 있는 조회 API 가 없다(§5.1). 되받을 수 없는 입구에서의 엄격함은
+        //   곧 손실이다.
+        String json = """
+                {
+                  "request_id": "00000001",
+                  "status": "completed",
+                  "results": {"detected": true, "accuracy": 0.8, "description": "서술"}
+                }
+                """;
 
-        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
+        // when
+        VlmResultRequest req = MAPPER.readValue(json, VlmResultRequest.class);
 
-        assertThat(violations).isEmpty();
-    }
-
-    @Test
-    @DisplayName("accuracy가_0이나_1이면_정상_통과한다_경계_inclusive")
-    void accuracyBoundaryValues_pass() {
-        assertThat(validator.validate(completed(
-                new VlmResultRequest.Results(BigDecimal.ZERO, "서술")))).isEmpty();
-        assertThat(validator.validate(completed(
-                new VlmResultRequest.Results(BigDecimal.ONE, "서술")))).isEmpty();
-    }
-
-    @Test
-    @DisplayName("accuracy가_범위를_벗어나면_400")
-    void accuracyOutOfRange_violates() {
-        Set<ConstraintViolation<VlmResultRequest>> negative = validator.validate(completed(
-                new VlmResultRequest.Results(new BigDecimal("-0.1"), "서술")));
-        Set<ConstraintViolation<VlmResultRequest>> over = validator.validate(completed(
-                new VlmResultRequest.Results(new BigDecimal("1.5"), "서술")));
-
-        assertThat(negative)
-                .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(p -> p.contains("accuracy"));
-        assertThat(over)
-                .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(p -> p.contains("accuracy"));
-    }
-
-    @Test
-    @DisplayName("accuracy_자릿수가_과대하면_400_META_VL_길이_방어")
-    void accuracyTooManyDigits_violates() {
-        BigDecimal absurd = new BigDecimal("0." + "1".repeat(2100));
-
-        Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(completed(
-                new VlmResultRequest.Results(absurd, "서술")));
-
-        assertThat(violations)
-                .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(p -> p.contains("accuracy"));
+        // then
+        assertThat(req.results().description()).isEqualTo("서술");
+        assertThat(validator.validate(req)).isEmpty();
     }
 
     @Test
     @DisplayName("description이_공백이면_400")
     void blankDescription_violates() {
-        VlmResultRequest req = completed(new VlmResultRequest.Results(new BigDecimal("0.8"), "   "));
+        VlmResultRequest req = completed(new VlmResultRequest.Results("   "));
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -133,7 +110,7 @@ class VlmResultRequestMetaItemTest {
     @Test
     @DisplayName("description이_2000자를_초과하면_400_자동_절단_없음")
     void descriptionOverMaxLength_violates() {
-        VlmResultRequest req = completed(new VlmResultRequest.Results(null, "가".repeat(2001)));
+        VlmResultRequest req = completed(new VlmResultRequest.Results("가".repeat(2001)));
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -147,7 +124,7 @@ class VlmResultRequestMetaItemTest {
     void failedWithError_passes() {
         VlmResultRequest req = new VlmResultRequest(
                 "REQ-F", "failed", null,
-                new VlmResultRequest.VlmError("INFERENCE_ERROR", "Video VLM inference failed"));
+                ("Video VLM inference failed"));
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -171,7 +148,7 @@ class VlmResultRequestMetaItemTest {
     void invalidStatus_violates() {
         VlmResultRequest req = new VlmResultRequest(
                 "REQ-1", "SUCCESS",
-                new VlmResultRequest.Results(new BigDecimal("0.8"), "서술"), null);
+                new VlmResultRequest.Results("서술"), null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -185,7 +162,7 @@ class VlmResultRequestMetaItemTest {
     void blankRequestId_violates() {
         VlmResultRequest req = new VlmResultRequest(
                 "  ", "completed",
-                new VlmResultRequest.Results(new BigDecimal("0.8"), "서술"), null);
+                new VlmResultRequest.Results("서술"), null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -195,13 +172,17 @@ class VlmResultRequestMetaItemTest {
     }
 
     @Test
-    @DisplayName("verify_콜백_completed_JSON_역직렬화_정상")
+    @DisplayName("★콜백_completed_역직렬화_정상이고_판정항목은_무시된다")
     void deserialize_completedSnakeCase() throws Exception {
+        // 규격 §2.8 상 판정 항목(detected/accuracy)은 판정 창구 전용이라 우리 두 창구에는 오지
+        // 않는다. 그럼에도 섞여 오면 <b>조용히 무시</b>되어야 한다 — 알 수 없는 키로 400 을 내면
+        // 벤더가 필드를 하나 더 붙이는 것만으로 결과 수신이 통째로 끊긴다.
         String json = """
                 {
                   "request_id": "00000001",
                   "status": "completed",
                   "results": {
+                    "detected": true,
                     "accuracy": 0.8,
                     "description": "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다."
                   }
@@ -212,7 +193,6 @@ class VlmResultRequestMetaItemTest {
 
         assertThat(req.requestId()).isEqualTo("00000001");
         assertThat(req.status()).isEqualTo("completed");
-        assertThat(req.results().accuracy()).isEqualByComparingTo("0.8");
         assertThat(req.results().description())
                 .isEqualTo("한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다.");
         assertThat(validator.validate(req)).isEmpty();
@@ -237,13 +217,15 @@ class VlmResultRequestMetaItemTest {
     }
 
     @Test
-    @DisplayName("verify_콜백_failed_JSON_역직렬화_정상")
+    @DisplayName("★실패_콜백의_error는_문자열이다_구_객체형태_폐기")
     void deserialize_failedSnakeCase() throws Exception {
+        // 규격 §2.7 — error 는 객체가 아니라 문자열이다. 구 규격의 {code, message} 객체를
+        // 되살리면 실패 콜백이 전량 400 이 되어 실패 사실 자체를 받지 못한다.
         String json = """
                 {
                   "request_id": "00000001",
                   "status": "failed",
-                  "error": {"code": "INFERENCE_ERROR", "message": "Video VLM inference failed"}
+                  "error": "추론 실패: Video VLM inference failed"
                 }
                 """;
 
@@ -251,8 +233,7 @@ class VlmResultRequestMetaItemTest {
 
         assertThat(req.requestId()).isEqualTo("00000001");
         assertThat(req.status()).isEqualTo("failed");
-        assertThat(req.error()).isNotNull();
-        assertThat(req.error().code()).isEqualTo("INFERENCE_ERROR");
+        assertThat(req.error()).isEqualTo("추론 실패: Video VLM inference failed");
         assertThat(validator.validate(req)).isEmpty();
     }
 }

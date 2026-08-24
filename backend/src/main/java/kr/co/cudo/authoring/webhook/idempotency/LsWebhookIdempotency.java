@@ -44,7 +44,20 @@ public class LsWebhookIdempotency {
     public static final String STATE_FAILED = "FAILED";
 
     public static final String CHANNEL_DEIDENTIFY = "DEIDENTIFY";
+    /**
+     * 시계열 분석 <b>묘사</b> 위탁 채널.
+     *
+     * <p>값이 {@code "VLM"} 인 것은 의도다 — 이 축은 구 단일 위탁이 채우던 자리를 그대로 이어받으므로,
+     * 값을 바꾸면 이미 적재된 미결 행을 미결 스위퍼·역조회가 찾지 못한다.
+     */
     public static final String CHANNEL_VLM = "VLM";
+
+    /**
+     * 시계열 분석 <b>추가 질문</b> 위탁 채널 — 결과가 이벤트 어노테이션의 질의응답 축 초안을 채운다.
+     *
+     * <p>콜백 바디에 창구 구분자가 없어, 이 채널 값이 어느 창구의 결과인지 되짚는 유일한 축이다.
+     */
+    public static final String CHANNEL_VLM_SUB = "VLM_SUB";
     // AUGMENT 채널은 제거됐다 — 증강 request_id 발급 원장은 LS_DATA_AUG_JOB.IDMP_KEY 이며
     // 본 원장의 AUGMENT 행은 어느 경로에서도 읽히지 않는 죽은 write 였다(기존 행은 이력으로만 잔존).
 

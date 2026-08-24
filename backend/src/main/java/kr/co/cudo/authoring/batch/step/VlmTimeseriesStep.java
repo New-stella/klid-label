@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
 import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
 import kr.co.cudo.authoring.common.client.VlmClient;
+import kr.co.cudo.authoring.common.client.dto.VlmServerStatus;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
@@ -43,22 +44,31 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * VLM <b>verify</b> 시계열 메타 위탁 단계 — 벤더 확정 계약(v2.0.1) verify 규격 정합.
+ * 시계열 분석 위탁 단계 — 확정 계약(KLID 연동 API v1.1.0) 정합.
  *
- * <p>{@code POST /v1/videovlm/verify} 로 <b>비식별 영상</b>의 시계열 메타 분석을 외부에 위탁하고,
- * 결과는 {@code POST /v1/vlm/callback} 콜백으로 수신한다 (@req R1).
+ * <p><b>비식별 영상</b>의 분석을 두 창구에 나눠 위탁하고, 결과는 {@code POST /v1/vlm/callback}
+ * 콜백으로 수신한다 (@req R1).
  *
- * <h3>요청 구성의 두 축 (구 describe 대비 신규)</h3>
+ * <ul>
+ *   <li>{@code POST /v1/videovlm-klid/describe} — <b>묘사</b>. 결과가 시계열 서술 전문을 채운다.</li>
+ *   <li>{@code POST /v1/videovlm-klid/describe-sub} — <b>추가 질문</b>. 결과가 이벤트 어노테이션의
+ *       질의응답 축 초안을 채운다.</li>
+ * </ul>
+ *
+ * <p><b>판정 창구는 연동하지 않는다</b> — 그 창구만 제공하는 발생 여부·일치도가 우리 확정 경로
+ * 어디에도 쓰이지 않는다. 되살리지 말 것.
+ *
+ * <h3>요청 구성의 두 축</h3>
  * <ul>
  *   <li><b>{@code event_type}</b> (@req R6) — 분석 대상 이벤트 유형. 조달처는 <b>관제 인입값</b>
- *       {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 이며, 허용목록은
- *       {@link kr.co.cudo.authoring.video.entity.LsDataIngest#VRFC_EVNT_TYPES} 6종이다. 관제 코드
- *       체계를 벤더 enum 으로 번역하는 <b>자체 매핑표를 만들지 않는다</b>(그 표가 조용히 낡으면 잘못
- *       번역된 값으로 외부 위탁이 나간다). 값이 없거나 허용목록 밖이면 <b>위탁하지 않고 보류</b>한다 —
- *       관제가 우리 코드를 거치지 않고 DB 에 직접 INSERT 하므로 <b>이 스텝이 유일한 검증 관문</b>이다.</li>
- *   <li><b>{@code frame_policy}</b> (@req R2) — 마킹에서 도출한다. 수동 마킹이면
- *       {@code frame_selected}(마킹 프레임 인덱스, 정렬·중복제거·상한 8), 그 외에는
- *       {@code frame_interval}(framerate = 마킹 프레임 간격 {@code FRME_INTV_NOCS}).</li>
+ *       {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 이며, 조달값을 <b>그대로 실어 보낸다</b>. 관제 코드
+ *       체계를 벤더 값으로 번역하는 <b>자체 매핑표를 만들지 않는다</b>(그 표가 조용히 낡으면 잘못
+ *       번역된 값으로 외부 위탁이 나간다). 우리 쪽 허용목록으로 사전 차단하지도 않는다 — 사본 목록이
+ *       두 번째 진실원이 되면 벤더가 값을 넓혔을 때 정상 값을 우리가 먼저 막는다.</li>
+ *   <li><b>{@code frame_policy}</b> (@req R2) — 마킹에서 도출한다. 모드를 가리지 않고
+ *       {@code frame_selected}(마킹 프레임 인덱스, 정렬·중복제거·상한 적용)가 기본이며, 실을 프레임을
+ *       하나도 얻지 못하면 {@code frame_interval} 로 내린다. 추출 간격은 <b>서버가 관리</b>하므로
+ *       우리가 싣지 않는다.</li>
  * </ul>
  *
  * <h3>상관관계 배선 (결함1/2 폐쇄, 핵심)</h3>
@@ -95,9 +105,10 @@ import java.util.UUID;
  *       그대로 실어 <b>항상 위탁</b>하고 수용 여부는 벤더 응답이 정한다. 값을 유추해 채우지는 않는다
  *       (없으면 {@code null} 전송 → 벤더 422 → 확정 실패로 기록). 구 동작(사전 차단 + SKIPPED)은
  *       {@link #resolveEventType} 주석 참조.</li>
- *   <li>frame_policy 는 마킹에서 도출하며, 마킹이 없으면 frame_interval + 설정값
- *       ({@code vlm.client.frame-policy.framerate}, 기본 25).</li>
- *   <li>eventName/marks 원문은 벤더 규격 밖이므로 전송하지 않는다 — 마킹은 frame_policy 로만 반영된다.</li>
+ *   <li>frame_policy 는 마킹에서 도출하며, 실을 프레임이 없으면 frame_interval 로 내린다.</li>
+ *   <li>eventName/marks 원문은 규격 밖이므로 전송하지 않는다 — 마킹은 frame_policy 로만 반영된다.</li>
+ *   <li><b>이중 위탁</b> — 묘사·추가 질문 두 창구에 각각 별개 request_id 로 제출하고, 원장에 채널을
+ *       달리 등록해 콜백이 어느 창구의 결과인지 되짚게 한다.</li>
  *   <li><b>재실행 멱등 (@req R1)</b> — ①시계열 메타가 이미 있거나 ②원장이 미결({@code ISSUED}/{@code ACCEPTED})
  *       이면 <b>외부 호출 0건</b>으로 통과한다. 자동 재시도 큐가 파이프라인을 선두부터 다시 돌리므로 이 판정이
  *       없으면 같은 비식별 영상이 매 재시도마다 중복 위탁된다. 이 통과는 <b>SKIPPED 로 기록하지 않는다</b> —
@@ -133,9 +144,6 @@ import java.util.UUID;
 @Component
 public class VlmTimeseriesStep implements BatchStep {
 
-    /** frame_policy framerate 기본값 — 설정 미주입(단위 테스트 등) 시 폴백. */
-    private static final int DEFAULT_FRAMERATE = 25;
-
     /**
      * {@code selected_frames} 상한 — 벤더 규격 §3.2 (Video VLM 1회 추론 프레임 상한).
      *
@@ -143,7 +151,7 @@ public class VlmTimeseriesStep implements BatchStep {
      * 정렬을 강제한다 — {@code MARK_CN} JSON 배열의 저장 순서가 시간순이라는 보장이 없어, 정렬 없이
      * 자르면 임의의 8개가 나간다.
      */
-    private static final int MAX_SELECTED_FRAMES = 8;
+    private static final int MAX_SELECTED_FRAMES = VlmTimeseriesRequest.MAX_SELECTED_FRAMES;
 
     /** 완료 신호 디스패치 로그 태그(고정 문자열 — 사용자 입력 미반영). */
     private static final String LOG_TAG = "Batch][VlmTimeseries";
@@ -271,10 +279,6 @@ public class VlmTimeseriesStep implements BatchStep {
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
     private String callbackBaseUrl;
 
-    /** frame_interval 정책 framerate. */
-    @Value("${vlm.client.frame-policy.framerate:25}")
-    private int framerate;
-
     /**
      * 명시 생성자 — {@code vlmSubmitScheduler} 를 {@link Qualifier} 로 못박기 위해 Lombok 대신 직접 선언한다
      * (프로젝트에 {@code lombok.config} 가 없어 필드 애노테이션이 생성자로 복사되지 않는다).
@@ -337,9 +341,9 @@ public class VlmTimeseriesStep implements BatchStep {
     }
 
     /**
-     * 단일 영상에 대해 시계열 메타 분석을 verify 로 위탁한다(마킹 없음).
+     * 단일 영상에 대해 시계열 분석을 위탁한다(마킹 없음).
      *
-     * <p>마킹이 없으므로 frame_policy 는 {@code frame_interval} + 설정 framerate 다.
+     * <p>마킹이 없어 실을 프레임 인덱스가 없으므로 frame_policy 는 {@code frame_interval} 이다.
      *
      * @param rawSn 영상 식별자
      * @return {@code status="submitted"}(제출 개시) / NO-OP·보류 모드면 {@code status="skipped"}.
@@ -484,7 +488,10 @@ public class VlmTimeseriesStep implements BatchStep {
                     rawSn, existingTimeseriesMeta);
             return VlmTimeseriesResponse.skipped(null);
         }
-        if (ledger.hasOutstandingSubmit(LsWebhookIdempotency.CHANNEL_VLM, rawSn)) {
+        // 두 창구 중 <b>어느 하나라도</b> 미결이면 재위탁하지 않는다. 한쪽만 보면 나머지 창구가
+        // 콜백을 기다리는 동안 그 창구로만 중복 위탁이 나간다.
+        if (ledger.hasOutstandingSubmit(LsWebhookIdempotency.CHANNEL_VLM, rawSn)
+                || ledger.hasOutstandingSubmit(LsWebhookIdempotency.CHANNEL_VLM_SUB, rawSn)) {
             log.info("[Batch][VlmTimeseries] idempotent skip — submit already outstanding (awaiting callback) rawSn={}",
                     rawSn);
             return VlmTimeseriesResponse.skipped(null);
@@ -508,7 +515,12 @@ public class VlmTimeseriesStep implements BatchStep {
         String mediaPath = resolveDeidentifiedPath(rawSn);
 
         // request_id 발급(UUIDv4 — 예측 불가) + 콜백 URL 구성(고정 base, 사용자 입력 미반영).
+        //
+        // ★ 두 창구는 반드시 <b>서로 다른 request_id</b> 로 나간다. 같은 값을 쓰면 원장의 역조회가
+        //   한쪽을 덮어 어느 창구의 결과인지 가릴 수 없게 되고, 규격도 동일 request_id 중복 요청을
+        //   별개 작업으로 처리하므로 중복 방지는 우리 책임이다(§5.2).
         String requestId = UUID.randomUUID().toString();
+        String subRequestId = UUID.randomUUID().toString();
         String callbackUrl = resolveCallbackUrl();
 
         // ── 요청 조립을 <b>선커밋 이전</b>에 끝낸다 (@req R2).
@@ -518,17 +530,26 @@ public class VlmTimeseriesStep implements BatchStep {
         //  조립 자체를 앞에 두어 "선커밋 후 실패" 창을 구조적으로 없앤다.
         VlmTimeseriesRequest req = buildRequest(rawSn, marking, requestId, eventType,
                 mediaPath, callbackUrl);
+        // 두 창구는 요청 형식이 같다 — 같은 프레임 정책으로 request_id 만 갈아 끼운다(규격 §3.3).
+        VlmTimeseriesRequest subReq = new VlmTimeseriesRequest(
+                subRequestId, req.eventType(), req.media(), req.callbackUrl());
+
+        // 위탁 전 서버 상태 관측 — 규격 §3.5. <b>게이트가 아니며 기다리지도 않는다</b>(조회 실패·미지의
+        // 상태로 정상 위탁을 막지 않고, 관측 하나로 파이프라인 스레드를 붙잡지도 않는다).
+        observeServerStatus(rawSn);
 
         // [결함1/2 폐쇄] 외부 호출 전에 (request_id → CHANNEL_VLM, rawSn) 매핑을 durable 등록.
         //  - 영속 ledger 는 REQUIRES_NEW 독립 커밋 → 위탁 실패/본 tx 롤백과 무관하게 콜백이 역조회 성공.
         //  - 등록 실패 시 외부 호출을 하지 않고 실패 전파(fail-closed) — 매핑 없는 위탁 원천 차단.
+        //  - 창구마다 <b>채널을 달리</b> 등록한다 — 콜백 바디에 창구 구분자가 없어 이 값이 유일한 역조회 축이다.
         try {
             ledger.recordIssued(requestId, LsWebhookIdempotency.CHANNEL_VLM, null, rawSn);
+            ledger.recordIssued(subRequestId, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn);
         } catch (RuntimeException e) {
             log.error("[Batch][VlmTimeseries] ledger recordIssued failed (abort submit) rawSn={} err={}",
                     rawSn, VlmClient.safeForLog(e.getMessage()));
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM 위탁 상관키 등록 실패 rawSn=" + rawSn, e);
+                    "시계열 분석 위탁 상관키 등록 실패 rawSn=" + rawSn, e);
         }
 
         // ── 선커밋 2/2: 마킹 PENDING → VLM_REQUESTED 를 <b>제출 전에</b> 독립 커밋한다.
@@ -546,8 +567,10 @@ public class VlmTimeseriesStep implements BatchStep {
 
         // 로그에 싣는 외부/DB 유래 문자열은 sanitize 한다(CWE-117). event_type 은 허용목록 통과값이라
         // 이미 안전하지만, 판정 지점과 로그 지점이 분리되면 드리프트가 나므로 동일하게 통과시킨다.
-        log.info("[Batch][VlmTimeseries] verify submit rawSn={} request_id={} event_type={} mode={} hasMarking={}",
-                rawSn, VlmClient.safeForLog(requestId), VlmClient.safeForLog(eventType),
+        log.info("[Batch][VlmTimeseries] dual submit rawSn={} describe_request_id={} sub_request_id={} "
+                        + "event_type={} mode={} hasMarking={}",
+                rawSn, VlmClient.safeForLog(requestId), VlmClient.safeForLog(subRequestId),
+                VlmClient.safeForLog(eventType),
                 VlmClient.safeForLog(req.media().framePolicy().mode()), marking != null);
 
         // ── 논블로킹 제출 (Phase C-1): ACK 왕복조차 스레드를 점유하지 않는다.
@@ -565,11 +588,32 @@ public class VlmTimeseriesStep implements BatchStep {
         //
         //  빈 응답(onComplete only)은 신호 없는 종료라 어느 핸들러도 타지 않으므로, 구 코드의
         //  "응답이 비어있습니다" 가드를 switchIfEmpty 로 옮겨 실패 경로로 흐르게 유지한다.
+        //  ★ 마킹의 위탁 상태 표시는 <b>묘사 축 기준</b>이다 — 그 축이 시계열 서술 전문을 채워
+        //   검수큐·산출물로 이어지는 주 축이기 때문이다. 추가 질문 축의 실패는 기록만 남기고
+        //   마킹을 실패로 내리지 않는다(markingSn 을 넘기지 않는다). 그러지 않으면 주 축이 정상인데도
+        //   마킹이 위탁 실패로 종결돼 화면이 사실과 다르게 보인다.
+        submitOne(vlmClient.submitDescribe(req), rawSn, requestId, markingSn, "describe");
+        submitOne(vlmClient.submitDescribeSub(subReq), rawSn, subRequestId, null, "describe-sub");
+
+        // 스텝이 확정적으로 말할 수 있는 사실은 "제출을 개시했다" 뿐이다. 수락(accepted) 여부는
+        // 완료 핸들러가 LS_BATCH_PROC_LOG 에 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다.
+        // 돌려주는 상관키는 주 축인 묘사 쪽이다.
+        return VlmTimeseriesResponse.submitted(requestId);
+    }
+
+    /**
+     * 창구 하나의 논블로킹 제출 — 구독·완료 신호 디스패치·동기 실패 회수를 한 곳에 모은다.
+     *
+     * @param markingSn 실패 시 마킹을 위탁 실패로 내릴 대상. 마킹 상태를 좌우하지 않는 창구는 null.
+     * @param label     로그용 창구 이름(상수라 sanitize 불필요).
+     */
+    private void submitOne(Mono<VlmTimeseriesResponse> submission, Long rawSn, String requestId,
+                           Long markingSn, String label) {
         try {
-            vlmClient.submitTimeseries(req)
+            submission
                     // 예외는 지연 생성한다(정상 경로에서 불필요한 스택트레이스 채움 방지).
                     .switchIfEmpty(Mono.error(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                            "VLM verify 응답이 비어있습니다 rawSn=" + rawSn)))
+                            "시계열 분석 위탁 응답이 비어있습니다 rawSn=" + rawSn)))
                     .subscribe(
                             resp -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
                                     () -> outcomeRecorder.onAccepted(rawSn, requestId, resp)),
@@ -580,12 +624,54 @@ public class VlmTimeseriesStep implements BatchStep {
             // 파이프라인 스레드(batch-async-/Quartz/Tomcat)라 JPA 를 직접 호출해도 이벤트 루프를 막지 않는다.
             // 위탁 상관키는 이미 durable 하므로 예외를 위로 던져 파이프라인을 FAILED 로 만들지 않고
             // 확정 실패와 동일하게 기록만 남긴다.
+            log.warn("[Batch][VlmTimeseries] {} submit failed synchronously rawSn={}", label, rawSn);
             outcomeRecorder.onSubmitFailed(rawSn, markingSn, e);
         }
+    }
 
-        // 스텝이 확정적으로 말할 수 있는 사실은 "제출을 개시했다" 뿐이다. 수락(accepted) 여부는
-        // 완료 핸들러가 LS_BATCH_PROC_LOG 에 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다.
-        return VlmTimeseriesResponse.submitted(requestId);
+    /**
+     * 위탁 전 서버 상태 관측 — 규격 §3.5. <b>게이트가 아니라 관측이다.</b>
+     *
+     * <p>조회에 실패하거나 상태를 해석하지 못했다고 위탁을 막지 않는다 — 상태 창구만 잠시 불안정해도
+     * 파이프라인이 통째로 서기 때문이다. 준비 중(loading)이면 지금 보내도 처리되지 않으므로 사실을
+     * 남겨 원인 추적에 쓰고, 수용 여부 판정은 위탁 응답에 맡긴다.
+     *
+     * <p>★ <b>결과를 기다리지 않는다.</b> 이 메서드를 호출하는 스레드는 파이프라인 스레드
+     * (배치 async · Quartz 워커 · 수동 재처리의 요청 스레드)이고, 여기서 응답을 기다리면 관측 하나가
+     * 파이프라인을 최대 타임아웃만큼 세운다 — 같은 클래스가 제출에서 걷어낸 바로 그 형태다
+     * (core 2 짜리 배치 풀이 통째로 마르고 역압이 호출 스레드까지 물었다). 그래서 제출과 마찬가지로
+     * 구독만 개시하고, 로그 기록은 완료 신호를 나른 스레드가 아니라 <b>전용 풀</b>에서 실행한다.
+     *
+     * <p>그 귀결로 <b>상태 로그가 제출 로그보다 늦게 찍힐 수 있다</b> — 관측이므로 순서를 보장할 이유가
+     * 없고, 순서를 보장하려면 기다려야 하는데 그것이 이 메서드가 피하려는 것이다.
+     */
+    private void observeServerStatus(Long rawSn) {
+        try {
+            vlmClient.fetchStatus().subscribe(
+                    status -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
+                            () -> logServerStatus(rawSn, status)),
+                    err -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
+                            () -> log.warn("[Batch][VlmTimeseries] analysis server status check failed rawSn={} cause={}",
+                                    rawSn, err.getClass().getSimpleName())));
+        } catch (RuntimeException e) {
+            // 조립/구독 자체가 동기 실패한 경우에만 도달한다. 관측이므로 삼키고 위탁은 그대로 진행한다.
+            log.warn("[Batch][VlmTimeseries] analysis server status check not started rawSn={} cause={}",
+                    rawSn, e.getClass().getSimpleName());
+        }
+    }
+
+    /** 상태 관측 결과 기록 — 전용 풀에서만 실행된다. */
+    private void logServerStatus(Long rawSn, VlmServerStatus status) {
+        if (status == null) {
+            return;
+        }
+        if (!status.isSubmittable()) {
+            log.warn("[Batch][VlmTimeseries] analysis server not ready — submitted anyway rawSn={} status={} queue={} pending={}",
+                    rawSn, VlmClient.safeForLog(status.status()), status.queue(), status.pending());
+        } else {
+            log.info("[Batch][VlmTimeseries] analysis server status rawSn={} status={} queue={} pending={}",
+                    rawSn, VlmClient.safeForLog(status.status()), status.queue(), status.pending());
+        }
     }
 
     /**
@@ -627,47 +713,42 @@ public class VlmTimeseriesStep implements BatchStep {
     }
 
     /**
-     * verify 요청 조립 — frame_policy 를 <b>마킹 엔티티에서</b> 도출한다 (@req R2).
+     * 위탁 요청 조립 — frame_policy 를 <b>마킹 엔티티에서</b> 도출한다 (@req R2).
      *
      * <h3>★ 도출 입력은 {@code ctx.getMarks()} 가 아니라 {@code marking.getMarkCn()} 이다</h3>
      * <p>{@code VlmWithheldResumeRunner#resumeAsync} 와 {@code VlmSubmitPendingSweeper} 는
      * {@code BatchContext} 없이 마킹 엔티티만 들고 {@link #runWithMarking} 을 직접 호출한다. 컨텍스트에
-     * 의존해 도출하면 <b>재개 경로에서 항상 빈 목록</b>이 되어 수동 마킹이 조용히 {@code frame_interval}
-     * 로 강등된다(무증상 품질 저하). 그래서 파이프라인·재개가 <b>같은 입력</b>을 보게 한다.
+     * 의존해 도출하면 <b>재개 경로에서 항상 빈 목록</b>이 되어 마킹이 조용히 강등된다(무증상 품질 저하).
+     * 그래서 파이프라인·재개가 <b>같은 입력</b>을 보게 한다.
      *
-     * <h3>모드별 규칙</h3>
-     * <ul>
-     *   <li>{@code MANUAL} — {@code frame_selected} + 마킹 프레임 인덱스. 유효 프레임이 하나도 없으면
-     *       {@code frame_interval} 로 폴백한다(빈 {@code selected_frames} 는 규격 위반).</li>
-     *   <li>{@code AUTO}(및 미지의 모드) — {@code frame_interval}. framerate 는 마킹 프레임 간격
-     *       {@code FRME_INTV_NOCS} 이며, 값이 없거나 {@code <= 0} 이면 설정 기본값으로 폴백한다
-     *       (0 을 그대로 보내면 벤더 422 = 비재시도 영구 실패).</li>
-     * </ul>
+     * <h3>★ 프레임은 항상 우리가 골라 목록으로 싣는다 — 모드를 가리지 않는다</h3>
+     * <p>{@code frame_selected} + {@code selected_frames} 가 기본이며, 마킹 모드는 그 인덱스를
+     * <b>누가 골랐는지</b>만 가른다 — 수동 마킹이면 작업자가 지정한 프레임, 자동 마킹이면 간격으로
+     * 자동 선택된 프레임이다. 어느 쪽이든 마킹 본문에 그 인덱스가 들어 있으므로 도출 방법은 같다.
+     *
+     * <p>추출 간격을 우리가 지정하던 방식({@code framerate})은 <b>폐기</b>됐다 — 규격 §2.5 는 mode 만
+     * 연동 시스템이 지정하고 간격·장수는 서버가 관리한다고 못 박으며 그 필드 자체가 없다.
+     *
+     * <p>마킹이 없거나 유효한 프레임을 하나도 얻지 못하면 {@code frame_interval} 로 내린다 —
+     * 빈 {@code selected_frames} 는 규격 위반이라 400 이 된다.
      */
     private VlmTimeseriesRequest buildRequest(Long rawSn, LsMarking marking, String requestId,
                                               String eventType, String mediaPath, String callbackUrl) {
-        if (marking != null && LsMarking.MODE_MANUAL.equals(marking.getMarkModeCd())) {
-            List<Integer> selected = resolveSelectedFrames(rawSn, marking.getMarkCn());
-            if (!selected.isEmpty()) {
-                return VlmTimeseriesRequest.ofFrameSelected(
-                        requestId, eventType, mediaPath, resolveFramerate(), selected, callbackUrl);
-            }
-            log.warn("[Batch][VlmTimeseries] manual marking has no usable frame — fallback to frame_interval rawSn={}",
-                    rawSn);
-            return VlmTimeseriesRequest.ofFrameInterval(
-                    requestId, eventType, mediaPath, resolveFramerate(), callbackUrl);
+        List<Integer> selected = marking == null
+                ? List.of()
+                : resolveSelectedFrames(rawSn, marking.getMarkCn());
+        if (!selected.isEmpty()) {
+            return VlmTimeseriesRequest.ofFrameSelected(
+                    requestId, eventType, mediaPath, selected, callbackUrl);
         }
-        if (marking != null && !LsMarking.MODE_AUTO.equals(marking.getMarkModeCd())) {
-            // 미지의 모드를 조용히 흡수하면 추적이 불가능하다 — 폴백하되 반드시 남긴다.
-            log.warn("[Batch][VlmTimeseries] unknown mark mode — fallback to frame_interval rawSn={} mode={}",
-                    rawSn, VlmClient.safeForLog(marking.getMarkModeCd()));
-        }
-        return VlmTimeseriesRequest.ofFrameInterval(
-                requestId, eventType, mediaPath, resolveIntervalFramerate(marking), callbackUrl);
+        // 조용히 강등하면 추적이 불가능하다 — 폴백하되 반드시 남긴다.
+        log.warn("[Batch][VlmTimeseries] no usable marked frame — fallback to frame_interval rawSn={} hasMarking={}",
+                rawSn, marking != null);
+        return VlmTimeseriesRequest.ofFrameInterval(requestId, eventType, mediaPath, callbackUrl);
     }
 
     /**
-     * 수동 마킹의 {@code selected_frames} 도출 — 정렬 · 중복제거 · 상한 8 (@req R2, CWE-20).
+     * 마킹 본문에서 {@code selected_frames} 도출 — 정렬 · 중복제거 · 음수 제거 · 상한 적용 (@req R2, CWE-20).
      *
      * <p>파싱 실패는 <b>예외를 던지지 않고</b> 빈 목록으로 끝낸다(호출자가 frame_interval 로 폴백).
      * 여기서 던지면 파이프라인은 FAILED + 전량 재실행, {@code @Async} 재개 경로는 예외가 삼켜져
@@ -709,18 +790,6 @@ public class VlmTimeseriesStep implements BatchStep {
     }
 
     /**
-     * {@code frame_interval} 의 framerate 해석 — 마킹 프레임 간격 우선, 없으면 설정 기본값.
-     *
-     * <p>벤더 §2.1 상 {@code framerate} 는 "초당 프레임수"가 아니라 <b>몇 프레임당 1장을 뽑을지</b>
-     * 이므로 {@code LS_MARKING.FRME_INTV_NOCS}(마킹 프레임 간격)가 대응값이다.
-     * {@code LsMarking.fps}(추출 시각 계산용 실 프레임레이트 pin)를 넣으면 <b>의미가 다르다</b>.
-     */
-    private int resolveIntervalFramerate(LsMarking marking) {
-        Integer interval = marking == null ? null : marking.getFrmeIntvNocs();
-        return (interval != null && interval > 0) ? interval : resolveFramerate();
-    }
-
-    /**
      * 비식별 영상 경로 도출 — {@code LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM}(최신 성공).
      *
      * <p>원본(비-비식별) 경로는 외부 VLM 으로 절대 전송하지 않는다(개인정보 보호). 비식별 경로가
@@ -733,7 +802,7 @@ public class VlmTimeseriesStep implements BatchStep {
                 .orElse(null);
         if (path == null) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "비식별 영상 경로가 없어 VLM verify 위탁을 진행할 수 없습니다 rawSn=" + rawSn);
+                    "비식별 영상 경로가 없어 시계열 분석 위탁을 진행할 수 없습니다 rawSn=" + rawSn);
         }
         return path;
     }
@@ -747,10 +816,5 @@ public class VlmTimeseriesStep implements BatchStep {
             base = base.substring(0, base.length() - 1);
         }
         return base + HmacWebhookFilter.PATH_VLM;
-    }
-
-    /** framerate 해석 — 미주입(≤0) 시 기본값. */
-    private int resolveFramerate() {
-        return framerate > 0 ? framerate : DEFAULT_FRAMERATE;
     }
 }

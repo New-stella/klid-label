@@ -65,7 +65,16 @@ class VlmDefaultSkipChokePointGuardTest {
      * <p>수신자 이름을 <b>가리지 않는다</b>(점 + 메서드명). 필드명을 바꾸거나 다른 빈에 주입해도
      * 걸리게 하기 위해서다. {@code VlmClient} 의 선언부는 앞에 점이 없어 걸리지 않는다.
      */
-    private static final String VENDOR_SUBMIT = ".submitTimeseries(";
+    /**
+     * 외부 전송 호출 심볼 — <b>창구가 늘면 여기에 반드시 더한다.</b>
+     *
+     * <p>★ 단일 문자열이던 구 형태는 `.submitDescribe(` 하나만 봤는데, 그 접두는
+     * `.submitDescribeSub(` 를 <b>부분일치로 잡지 못한다</b>(뒤가 `Sub(` 라 여는 괄호가 어긋난다).
+     * 그 결과 추가 질문 창구를 choke point 밖에서 불러도 이 가드가 초록불이었다 —
+     * 가드가 조용히 감시를 멈추는 형태다. 목록으로 바꿔 창구마다 각각 단언한다.
+     */
+    private static final List<String> VENDOR_SUBMITS =
+            List.of(".submitDescribe(", ".submitDescribeSub(");
     /** 자동 표식 적용 — choke point 의 표식이다. */
     private static final String AUTO_SKIP_MARK = "vlmDefaultSkipMarker.applyBeforeStage(";
     /** 건너뛰기 게이트 — 표식을 <b>읽는</b> 쪽. */
@@ -124,7 +133,7 @@ class VlmDefaultSkipChokePointGuardTest {
             if (java.equals(STEP)) {
                 continue;
             }
-            if (read(java).contains(VENDOR_SUBMIT)) {
+            if (VENDOR_SUBMITS.stream().anyMatch(read(java)::contains)) {
                 outside.add(rel(java));
             }
         }
@@ -133,13 +142,13 @@ class VlmDefaultSkipChokePointGuardTest {
                 .as("choke point(%s) 밖에서 외부 전송(%s)을 호출하는 소스가 있다: %s."
                         + " 그 경로는 자동 표식(%s)도 수동 스킵 게이트도 지나지 않으므로, 스위치가"
                         + " 켜져 있어도 외부 벤더로 영상이 나간다. 전송은 choke point 한 곳에서만 하라.",
-                        rel(STEP), VENDOR_SUBMIT, outside, AUTO_SKIP_MARK)
+                        rel(STEP), VENDOR_SUBMITS, outside, AUTO_SKIP_MARK)
                 .isEmpty();
 
         assertThat(read(STEP))
                 .as("choke point(%s) 가 외부 전송(%s)을 더 이상 갖고 있지 않다 — 전송이 다른 곳으로"
-                        + " 옮겨갔다면 이 가드의 허용 지점도 함께 갱신해야 한다.", rel(STEP), VENDOR_SUBMIT)
-                .contains(VENDOR_SUBMIT);
+                        + " 옮겨갔다면 이 가드의 허용 지점도 함께 갱신해야 한다.", rel(STEP), VENDOR_SUBMITS)
+                .satisfies(src -> assertThat(VENDOR_SUBMITS).allMatch(src::contains));
     }
 
     /**
@@ -157,22 +166,22 @@ class VlmDefaultSkipChokePointGuardTest {
         Set<String> owners = new TreeSet<>();
         for (Path java : mainSources()) {
             String src = read(java);
-            if (!src.contains(VENDOR_SUBMIT)) {
+            if (VENDOR_SUBMITS.stream().noneMatch(src::contains)) {
                 continue;
             }
             owners.add(rel(java));
             methodBodies(src).stream()
-                    .filter(body -> body.contains(VENDOR_SUBMIT))
+                    .filter(body -> VENDOR_SUBMITS.stream().anyMatch(body::contains))
                     .forEach(submitting::add);
         }
 
         assertThat(owners)
                 .as("외부 벤더 전송(%s)을 가진 소스는 choke point 하나여야 한다. 발견: %s",
-                        VENDOR_SUBMIT, owners)
+                        VENDOR_SUBMITS, owners)
                 .containsExactly(rel(STEP));
         assertThat(submitting)
                 .as("외부 벤더 전송(%s) 지점은 하나여야 한다. 둘 이상이면 자동 표식을 지나지 않는"
-                        + " 전송 경로가 생겨 choke point 전제가 무너진다.", VENDOR_SUBMIT)
+                        + " 전송 경로가 생겨 choke point 전제가 무너진다.", VENDOR_SUBMITS)
                 .hasSize(1);
         assertThat(submitting.get(0))
                 .as("외부 전송과 자동 표식(%s)은 같은 메서드 안에 있어야 한다 — 표식이 다른 메서드로"
@@ -198,7 +207,7 @@ class VlmDefaultSkipChokePointGuardTest {
             if (!body.contains("doSubmit(")) {
                 violations.add(entry + " → doSubmit 위임 없음");
             }
-            if (body.contains(VENDOR_SUBMIT)) {
+            if (VENDOR_SUBMITS.stream().anyMatch(body::contains)) {
                 violations.add(entry + " → 전송을 자체 구현");
             }
         }

@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import re
+
 import math
 import os
 import shutil
@@ -25,7 +27,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-DESCRIBE_URL = "/v1/videovlm/describe"
+DESCRIBE_URL = "/v1/videovlm-klid/describe"
 CALLBACK_URL = "http://klid-backend:8080/api/v1/vlm/callback"
 
 
@@ -70,6 +72,21 @@ def _describe_body(**over: object) -> dict:
     }
     body.update(over)
     return body
+
+
+def _windows_of(payload: dict) -> list[tuple[int, int]]:
+    """콜백 서술에서 구간 목록을 되읽는다.
+
+    ★ 콜백의 ``results`` 는 KLID 규격 §2.8 상 **단일 객체**이고 항목은 ``description`` 하나다.
+    구 규격의 구간 배열은 폐기됐으므로, 목이 만드는 서술("- 0~8초: ...")에서 구간을 파싱해
+    기존 커버리지 단정을 그대로 유지한다. 구간 계획 자체는 ``mock_describe_results`` 를
+    직접 부르는 단위 테스트가 따로 고정한다.
+    """
+    description = payload["results"]["description"]
+    return [
+        (int(m.group(1)), int(m.group(2)))
+        for m in re.finditer(r"^- (\d+)~(\d+)초: ", description, re.MULTILINE)
+    ]
 
 
 def _patch_capture(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict]]:
@@ -584,16 +601,16 @@ def test_describe_콜백은_영상_길이_전체를_커버하는_구간을_담�
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body())
     # then — 5구간(8초 × 5)이 0~40초를 연속 커버
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["status"] == "completed"
-    results = payload["results"]
-    assert len(results) == 5
-    _assert_contiguous([(r["start_sec"], r["end_sec"]) for r in results], 40)
+    windows = _windows_of(payload)
+    assert len(windows) == 5
+    _assert_contiguous(windows, 40)
 
 
-def test_describe_콜백_구간은_BE계약_정수_초와_비어있지_않은_설명을_가진다(
+def test_describe_콜백_서술은_BE계약_길이_안에_들고_구간이_정수_초다(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given
@@ -603,12 +620,16 @@ def test_describe_콜백_구간은_BE계약_정수_초와_비어있지_않은_�
     captured = _patch_capture(monkeypatch)
     # when
     client.post(DESCRIBE_URL, json=_describe_body())
-    # then — BE VlmResultRequest.Segment(Integer start/end, description @Size(max=2000))
+    # then — BE VlmResultRequest.Results.description @Size(max=2000) 안에 들어야 한다.
+    #   구 계약(구간 배열의 정수 start/end)은 폐기됐으나, 목이 만드는 서술 안의 구간 표기는
+    #   여전히 정수 초여야 한다(서술이 사람에게 읽히는 형태이므로).
     _, payload = captured[0]
-    for seg in payload["results"]:
-        assert isinstance(seg["start_sec"], int) and isinstance(seg["end_sec"], int)
-        assert 0 <= seg["start_sec"] < seg["end_sec"] <= 86_400
-        assert seg["description"].strip() and len(seg["description"]) <= 2000
+    description = payload["results"]["description"]
+    assert description.strip() and len(description) <= 2000
+    windows = _windows_of(payload)
+    assert windows, "서술에서 구간을 하나도 읽지 못했다"
+    for start, end in windows:
+        assert 0 <= start < end <= 86_400
 
 
 def test_describe_요청의_duration_힌트를_우선_사용한다(
@@ -628,9 +649,9 @@ def test_describe_요청의_duration_힌트를_우선_사용한다(
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body(media=media))
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     _, payload = captured[0]
-    assert len(payload["results"]) == 8
+    assert len(_windows_of(payload)) == 8
 
 
 def test_ffprobe가_실패해도_describe_콜백은_폴백_구간으로_발사된다(
@@ -644,11 +665,11 @@ def test_ffprobe가_실패해도_describe_콜백은_폴백_구간으로_발사�
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body())
     # then — 폴백 16초 → 2구간
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["status"] == "completed"
-    assert [(r["start_sec"], r["end_sec"]) for r in payload["results"]] == [(0, 8), (8, 16)]
+    assert _windows_of(payload) == [(0, 8), (8, 16)]
 
 
 def test_probe가_예외를_던져도_describe_콜백은_발사된다(
@@ -665,7 +686,7 @@ def test_probe가_예외를_던져도_describe_콜백은_발사된다(
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body())
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert len(captured) == 1
     assert captured[0][1]["status"] == "completed"
 
@@ -701,10 +722,10 @@ def test_실제_영상으로_describe_요청하면_그_길이만큼_구간이_�
     res = client.post(DESCRIBE_URL, json=_describe_body(media=media))
 
     # then — 20초 → 8+8+나머지 = 3구간. 마지막 끝값은 실제 길이의 올림(20 또는 21)이다.
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert len(captured) == 1
     _, payload = captured[0]
-    windows = [(r["start_sec"], r["end_sec"]) for r in payload["results"]]
+    windows = _windows_of(payload)
     assert windows[:2] == [(0, 8), (8, 16)]
     assert len(windows) == 3
     assert windows[2][0] == 16 and windows[2][1] >= 20
@@ -814,7 +835,7 @@ def test_describe_조회가_동시상한을_넘으면_즉시_폴백_페이로드
     # then — 조회는 생략되지만 콜백 페이로드는 정상 생성된다(폴백 16초 → 2구간)
     assert calls == []
     assert payload["status"] == "completed"
-    assert [(r["start_sec"], r["end_sec"]) for r in payload["results"]] == [(0, 8), (8, 16)]
+    assert _windows_of(payload) == [(0, 8), (8, 16)]
 
 
 def test_describe_조회_카운터는_정상경로에서_원복된다(
@@ -870,6 +891,6 @@ def test_실패트리거_요청은_duration을_조회하지_않고_failed콜백(
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body(request_id="fail-d1"))
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert captured[0][1]["status"] == "failed"
     assert calls == []

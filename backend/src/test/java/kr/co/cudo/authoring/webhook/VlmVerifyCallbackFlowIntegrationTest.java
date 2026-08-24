@@ -96,13 +96,13 @@ class VlmVerifyCallbackFlowIntegrationTest {
                 .andExpect(jsonPath("$.data.applied").value(true))
                 .andExpect(jsonPath("$.data.requestId").value(requestId));
 
-        // META 적재 확인 — verify 규격 2키(description + accuracy)
+        // ★ 적재 키는 서술 하나다. 일치도는 우리가 연동하지 않는 판정 창구 전용이라 오지 않으며,
+        //   조회 집합에는 남겨 둬 "실수로 다시 적재되면 잡히도록" 한다(과거 적재분과 구분).
         List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn,
                 Set.of(VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY));
         assertThat(metas)
                 .extracting(LsDataMeta::getMetaKey)
-                .containsExactlyInAnyOrder(
-                        VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY);
+                .containsExactly(VlmResultService.META_KEY_DESCRIPTION);
     }
 
     @Test

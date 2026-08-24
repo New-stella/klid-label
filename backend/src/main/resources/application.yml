@@ -757,9 +757,13 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
-        # V1: 4xx(400/422 등) 결정적 실패는 서킷 failure 로 집계하지 않는다(정상 4xx 가 서킷을 여는 것 방지).
+        # V1: 4xx(400/415 등) 결정적 실패는 서킷 failure 로 집계하지 않는다(정상 4xx 가 서킷을 여는 것 방지).
+        # ★ 429(동시 처리 한도 초과)도 제외한다 — 서킷이 열리면 그 구간의 정상 위탁이 확정 실패로
+        #   종결되고 마킹이 종결 상태로 굳는다. 과부하 완충은 서킷이 아니라 재시도 백오프가 맡는다.
+        #   (429 는 retry 의 ignore 목록에는 <넣지 않아> 재시도 대상으로 남는다 — 아래 retry 블록 참조.)
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+          - kr.co.cudo.authoring.common.client.RateLimitedExternalException
       # Phase 2 — 관제서버 outbound 통지
       controlNotify:
         failure-rate-threshold: 50
@@ -830,7 +834,10 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
-        # V1: 4xx(400/422 등) 비-일시적 오류는 재시도하지 않는다(불필요한 지수 백오프 지연 제거). 5xx·네트워크만 재시도.
+        # V1: 4xx(400/415 등) 비-일시적 오류는 재시도하지 않는다(불필요한 지수 백오프 지연 제거).
+        # ★ 단 429(동시 처리 한도 초과)는 <재시도한다> — 규격 §2.9 가 "잠시 후 재시도"로 규정한 일시
+        #   상태이며 전용 예외(RateLimitedExternalException)라 이 ignore 목록에 들어가지 않는다.
+        #   즉 재시도 대상 = 5xx · 네트워크 · 429.
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       controlNotify:
@@ -941,9 +948,6 @@ vlm:
     #     stg/prd 는 이 값을 절대 설정하지 않는다 — 미설정(false)이면 HTTPS 전용 + 사설망 차단이 강제된다.
     allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:false}
     timeout-seconds: 10
-    # describe frame_policy — frame_interval 정책의 framerate (벤더 확정 계약 v2.0.1).
-    frame-policy:
-      framerate: ${VLM_FRAME_POLICY_FRAMERATE:25}
 
 # 외부 시스템 결과 수신 webhook 인증 — VLM·생성형 AI(증강) 둘 다 계약상 무서명 가드다.
 #  - 보호 대상 경로는 코드의 allowlist(WebhookProtectedPaths)가 단일 진실원이며,

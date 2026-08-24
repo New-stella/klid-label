@@ -18,7 +18,13 @@ export const DESCRIPTION_META_KEY = 'vlm.description';
 export const MANUAL_TIMESERIES_META_KEY = 'manual-timeseries';
 
 /**
- * 일치도(외부 위탁 결과가 원본 서술과 얼마나 일치하는지) 키 — 읽기 전용.
+ * 일치도 키 — <b>과거 적재분 전용이며 화면에 표시하지 않는다.</b>
+ *
+ * 판정 창구를 연동하지 않게 되면서 이 값은 새로 생기지 않고, 남은 것은 과거 위탁분뿐이다.
+ * 그래서 표시 로직을 걷어냈다. 상수를 남기는 이유는 <b>편집 대상이 아님을 고정하는 대조군</b>
+ * 이기 때문이다 — BE 가 이 키의 수정 요청을 400 으로 거부하며, 그 계약은 표시 여부와 무관하게
+ * 유효하다. 되살리려면 화면 사양(SCREEN-005·SCREEN-019)부터 고쳐야 한다.
+ *
  * BE {@code VlmResultService.META_KEY_ACCURACY} 미러. 값은 0~1 문자열.
  */
 export const ACCURACY_META_KEY = 'vlm.accuracy';
@@ -88,36 +94,9 @@ export function editableMetaLabel(metaKey: string): string {
   return metaKey === DESCRIPTION_META_KEY ? '시계열 서술' : '시계열 메타';
 }
 
-/**
- * 읽기 전용 메타의 화면 라벨. 미지의 키가 늘어도 깨지지 않게 폴백을 둔다
- * (BE 가 fail-closed 로 {@code readOnlyMeta} 를 늘릴 수 있다).
- *
- * 폴백은 내부 네임스페이스 접두({@code vlm.})만 떼고 남은 이름을 그대로 보여준다 — 화면 문구에
- * 모델명을 노출하지 않기 위함이며, 값·의미를 재해석하지는 않는다.
+/*
+ * ★ 읽기 전용 메타의 화면 라벨·값 포맷터(구 readOnlyMetaLabel · formatReadOnlyMetaValue)는 폐기됐다.
+ *   유일한 대상이던 일치도를 화면에서 빼기로 확정했기 때문이다(2026-08-24 사용자 확정).
+ *   BE 응답의 readOnlyMeta 목록은 계약대로 남아 있고 어댑터도 계속 실어 나르지만, 화면은
+ *   그것을 그리지 않는다 — 되살리려면 화면 사양(SCREEN-005·SCREEN-019)부터 고쳐야 한다.
  */
-export function readOnlyMetaLabel(metaKey: string): string {
-  if (metaKey === ACCURACY_META_KEY) {
-    return '일치도';
-  }
-  const stripped = metaKey.startsWith('vlm.') ? metaKey.slice('vlm.'.length) : metaKey;
-  return stripped.trim() === '' ? metaKey : stripped;
-}
-
-/**
- * 읽기 전용 메타 값의 표시 문자열.
- *
- * 일치도는 0~1 문자열이라 그대로 보여주면 사람이 신뢰도로 읽기 어렵다 → 백분율로 환산한다
- * (소수 첫째 자리까지, {@code 0.923} → {@code 92.3%}). 숫자가 아니거나 0~1 범위를 벗어나면
- * <b>지어내지 않고</b> 원문을 그대로 보여준다.
- */
-export function formatReadOnlyMetaValue(metaKey: string, metaVal: string): string {
-  if (metaKey !== ACCURACY_META_KEY) {
-    return metaVal;
-  }
-  const raw = (metaVal ?? '').trim();
-  const n = Number(raw);
-  if (raw === '' || !Number.isFinite(n) || n < 0 || n > 1) {
-    return metaVal;
-  }
-  return `${Math.round(n * 1000) / 10}%`;
-}
