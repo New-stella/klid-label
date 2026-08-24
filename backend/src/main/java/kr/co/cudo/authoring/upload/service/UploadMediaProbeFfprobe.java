@@ -21,8 +21,8 @@ import java.util.concurrent.TimeUnit;
  * ffprobe 바이너리 기반 {@link UploadMediaProbe} 구현.
  *
  * <p>{@code ffprobe -v error -protocol_whitelist file,crypto,data -select_streams v:0 -show_entries
- * stream=width,height,codec_name,r_frame_rate,nb_frames,display_aspect_ratio,duration:format=duration
- * -of default=noprint_wrappers=0:nokey=0 -i <file>} 로 첫 비디오 스트림 + 컨테이너(format) 값을
+ * stream=width,height,codec_name,r_frame_rate,nb_frames,display_aspect_ratio,duration,bit_rate
+ * :format=duration,bit_rate -of default=noprint_wrappers=0:nokey=0 -i <file>} 로 첫 비디오 스트림 + 컨테이너(format) 값을
  * <b>1회 호출</b>로 추출한다(완료 경로의 ffprobe 호출 횟수를 늘리지 않는다는 비기능 요건).
  * 출력은 {@code [STREAM]/[FORMAT]} 구획 + {@code key=value} 라인이며 구획을 추적해 동명 key
  * ({@code duration})를 구분한다.
@@ -114,7 +114,7 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
     private static final double LONG_SATURATION_BOUND = (double) Long.MAX_VALUE;
 
     /** 측정 실패·비정상 종료 시 돌려주는 "전량 미상" 값. */
-    private static final MediaMeta UNKNOWN = new MediaMeta(0, 0, null, null, null, null, null);
+    private static final MediaMeta UNKNOWN = new MediaMeta(0, 0, null, null, null, null, null, null);
 
     private final String binary;
     private final int probeTimeoutSec;
@@ -209,7 +209,7 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
                 "-select_streams", "v:0",
                 "-show_entries",
                 "stream=width,height,codec_name,r_frame_rate,nb_frames,display_aspect_ratio,duration"
-                        + ":format=duration",
+                        + ",bit_rate:format=duration,bit_rate",
                 "-of", "default=noprint_wrappers=0:nokey=0",
                 "-i", filePath.toAbsolutePath().toString()
         );
@@ -294,9 +294,10 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
     /**
      * ffprobe {@code default=noprint_wrappers=0:nokey=0} 출력을 파싱한다.
      *
-     * <p>구획을 추적해 stream/format 동명 key({@code duration})를 구분하며, 길이는
-     * <b>컨테이너({@code format.duration}) 값을 우선</b>하고 없을 때만 스트림 값으로 폴백한다 —
-     * 스트림 duration 은 컨테이너마다 누락·불일치가 잦다.
+     * <p>구획을 추적해 stream/format 동명 key({@code duration}·{@code bit_rate})를 구분하며, 길이와
+     * 비트레이트는 <b>컨테이너({@code format.*}) 값을 우선</b>하고 없을 때만 스트림 값으로 폴백한다 —
+     * 스트림 duration 은 컨테이너마다 누락·불일치가 잦고, 비트레이트도 스트림 값이 비어 있는
+     * 컨테이너가 흔하다(같은 우선순위를 쓰는 것이 두 축의 해석을 일치시킨다).
      *
      * <p>개별 필드의 누락·파싱실패는 예외를 던지지 않고 해당 필드만 null(원시 width/height 는 0)로
      * 둔다. <b>여기서는 값의 타당성을 판정하지 않는다</b> — 채택 여부는 전적으로
@@ -316,6 +317,8 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
         String displayAspectRatio = null;
         Long streamDurationMs = null;
         Long formatDurationMs = null;
+        Long streamBitRate = null;
+        Long formatBitRate = null;
 
         String section = null; // "STREAM" | "FORMAT" | null(구획 밖)
         for (String raw : lines) {
@@ -351,18 +354,22 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
                     case "nb_frames" -> nbFrames = parseLongOrNull(value);
                     case "display_aspect_ratio" -> displayAspectRatio = normalize(value);
                     case "duration" -> streamDurationMs = parseDurationMsOrNull(value);
+                    case "bit_rate" -> streamBitRate = parsePositiveLongOrNull(value);
                     default -> { /* 관심 밖 key 무시 */ }
                 }
             } else if (SECTION_FORMAT.equals(section)) {
                 if ("duration".equals(key)) {
                     formatDurationMs = parseDurationMsOrNull(value);
+                } else if ("bit_rate".equals(key)) {
+                    formatBitRate = parsePositiveLongOrNull(value);
                 }
             }
         }
 
         Long durationMs = formatDurationMs != null ? formatDurationMs : streamDurationMs;
+        Long bitRate = formatBitRate != null ? formatBitRate : streamBitRate;
         return new MediaMeta(width, height, codecName, parseFps(rFrameRate),
-                durationMs, nbFrames, displayAspectRatio);
+                durationMs, nbFrames, displayAspectRatio, bitRate);
     }
 
     /**
@@ -460,6 +467,20 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * bps 정수 문자열 → {@code Long}. 미상/파싱불가/0 이하는 null.
+     *
+     * <p>{@code nb_frames} 용 {@link #parseLongOrNull} 과 <b>부호 처리가 다르다</b> — 그쪽은 포트 계약이
+     * "컨테이너가 신고한 값 그대로"라 0·음수도 그대로 나르고 채택 판정을 하류에 맡기지만, 비트레이트는
+     * 포트 계약 자체가 "양수만 유효"({@link MediaMeta#bitRate})라 여기서 거른다. ffprobe 는 값을 모를 때
+     * {@code N/A} 뿐 아니라 {@code 0} 을 신고하는 컨테이너가 있어, 0 을 그대로 나르면 하류가 "0 bps"라는
+     * 형식상 정상인 틀린 값을 볼 여지가 생긴다.
+     */
+    private static Long parsePositiveLongOrNull(String value) {
+        Long parsed = parseLongOrNull(value);
+        return parsed != null && parsed > 0L ? parsed : null;
     }
 
     private static Long parseLongOrNull(String value) {
