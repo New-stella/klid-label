@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" />
+<head><link rel="stylesheet" href="design-main.css"><link rel="stylesheet" href="design.css" />
+<meta charset="utf-8" />
 <title>SCREEN-019 검수 상세 화면 — 디자인</title>
 </head>
 <body>
@@ -296,20 +297,12 @@
             <svg class="chev" viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9l6 6 6-6"></path></svg>
             시계열 메타 검토
           </button>
-          <p class="meta-panel-help t-caption">외부 시계열 분석 결과(서술 전문과 일치도)를 프레임 단위로 검토합니다. 서술 전문은 수정할 수 있고, 일치도는 참고용으로 읽기 전용입니다.</p>
+          <p class="meta-panel-help t-caption">외부 시계열 분석 결과(서술 전문)을 프레임 단위로 검토합니다. 이 화면에서는 읽기 전용으로 확인하며, 서술 전문 수정은 라벨링 화면의 메타 패널이 담당합니다.</p>
 
           <div class="meta-field">
-            <label class="meta-label t-label" for="rv-vlm-desc">서술 전문</label>
-            <textarea id="rv-vlm-desc" class="meta-textarea t-body-sm">주차 구역 경계를 따라 성인 남성 1인이 보행 중이며, 인근에 정차된 차량 2대가 확인됨. 조도는 양호하고 특이 행동은 관측되지 않음.</textarea>
-            <p class="meta-help t-caption">1,024 / 2,000자</p>
-          </div>
-
-          <div class="meta-field">
-            <span class="meta-label t-label" id="rv-accuracy-label">일치도 (읽기 전용)</span>
-            <div class="meta-accuracy-row" role="group" aria-labelledby="rv-accuracy-label">
-              <div class="meta-accuracy-bar"><div class="meta-accuracy-fill" style="width:87%"></div></div>
-              <span class="meta-accuracy-num t-mono">0.87</span>
-            </div>
+            <label class="meta-label t-label" for="rv-vlm-desc">서술 전문 (읽기 전용)</label>
+            <textarea id="rv-vlm-desc" class="meta-textarea t-body-sm" readonly aria-readonly="true">주차 구역 경계를 따라 성인 남성 1인이 보행 중이며, 인근에 정차된 차량 2대가 확인됨. 조도는 양호하고 특이 행동은 관측되지 않음.</textarea>
+            <p class="meta-help t-caption">라벨링 화면에서 저장된 값입니다. 검수 승인 시점에 동결됩니다.</p>
           </div>
 
           <div class="meta-field">

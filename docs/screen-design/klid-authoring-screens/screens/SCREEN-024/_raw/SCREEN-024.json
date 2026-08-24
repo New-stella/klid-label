@@ -247,7 +247,7 @@
     "schema_version": 1,
     "current_version": 23,
     "stale": true,
-    "stale_reason": "API-001의 data.responses 변경 — consumes",
+    "stale_reason": "UC-030의 data.covered_by_acceptances 변경 — realizes",
     "change_summary": "목록에 최신 로그인 컬럼을 더한다. 등록일과 용도가 다르기 때문이다 — 등록일은 계정이 언제 만들어졌는지를, 최신 로그인은 그 계정이 지금도 쓰이고 있는지를 알려준다. 휴면 계정을 가려내려면 후자가 필요하고, 가입 이력을 보려면 전자가 필요해 둘 중 하나로 대체할 수 없다. 등록일 컬럼은 그대로 두고 그 뒤에 추가한다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-17T06:53:05.270Z",

@@ -512,6 +512,15 @@ NAV-002
 - **screen_id**: SCREEN-039
 - **required_role**: ROLE-001
 
+#### [8]
+
+- **key**: manage-manual-upload
+- **kind**: link
+- **label**: 수동 업로드
+- **route**: /dev/upload
+- **screen_id**: SCREEN-027
+- **required_role**: ROLE-001
+
 - **required_role**: ROLE-001
 
 ## title

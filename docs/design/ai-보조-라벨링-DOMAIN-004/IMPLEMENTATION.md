@@ -1,7 +1,7 @@
 # DOMAIN-004 AI 보조 라벨링 — 구현 진입점
 
 > 이 문서는 결정적 생성물이다. ITEM 본문은 각 `[[ID]]` 파일이 진실원이며 여기 옮겨 적지 않는다.
-> 스코프 정본은 `.kit-scope.json`(73건) · 버전은 `version-master.md`.
+> 스코프 정본은 `.kit-scope.json`(101건) · 버전은 `version-master.md`.
 
 ## 도메인 (bounded context)
 
@@ -36,39 +36,43 @@
 
 | # | 단계 | 이번 키트 ITEM |
 |---|---|---|
-| 1 | ADR 결정·제약 | [[ADR-001]] · [[ADR-003]] · [[ADR-019]] · [[ADR-026]] · [[ADR-031]] · [[ADR-035]] · [[ADR-039]] · [[ADR-040]] · [[ADR-041]] · [[ADR-046]] |
+| 1 | ADR 결정·제약 | [[ADR-001]] · [[ADR-003]] · [[ADR-019]] · [[ADR-026]] · [[ADR-031]] · [[ADR-035]] · [[ADR-039]] · [[ADR-040]] · [[ADR-041]] · [[ADR-046]] · [[ADR-047]] · [[ADR-052]] · [[ADR-053]] |
 | 2 | NFR 예산 | [[NFR-008]] · [[NFR-009]] · [[NFR-010]] · [[NFR-011]] · [[NFR-012]] · [[NFR-013]] · [[NFR-014]] · [[NFR-015]] · [[NFR-016]] · [[NFR-017]] · [[NFR-018]] · [[NFR-019]] · [[NFR-020]] · [[NFR-021]] |
 | 3 | CONST 상수값 | [[CONST-002]] |
-| 4 | API 경계 계약 | [[API-020]] · [[API-043]] · [[API-065]] · [[API-093]] · [[API-113]] · [[API-119]] · [[API-120]] · [[API-121]] · [[API-122]] · [[API-123]] · [[API-124]] · [[API-125]] · [[API-126]] · [[API-127]] · [[API-152]] · [[API-156]] · [[API-158]] · [[API-160]] · [[API-162]] · [[API-164]] · [[API-177]] |
-| 5 | DFEAT 비즈니스 로직 | [[DFEAT-018]] · [[DFEAT-019]] · [[DFEAT-020]] |
-| 6 | SEQ 흐름 배선 | [[SEQ-005]] · [[SEQ-006]] · [[SEQ-007]] · [[SEQ-023]] |
-| 7 | ROLE 인가 | [[ROLE-001]] · [[ROLE-002]] · [[ROLE-003]] |
-| 8 | SCREEN 화면 | [[SCREEN-005]] · [[SCREEN-025]] · [[SCREEN-027]] |
-| 9 | UC 검증 | [[UC-004]] · [[UC-005]] · [[UC-006]] |
-| 10 | AC 수용 | [[AC-004]] · [[AC-005]] · [[AC-006]] |
-| 11 | CDIAG 클래스 구조 | [[CDIAG-005]] |
-| 12 | C4 컴포넌트 | [[CMP-008]] |
-| 13 | FEAT 상위 기능 | [[FEAT-001]] · [[FEAT-007]] · [[FEAT-009]] |
-| 14 | SD 고충실 시안 | [[SD-033]] |
+| 4 | ERD 데이터 계층 | [[ERD-032]] |
+| 5 | API 경계 계약 | [[API-020]] · [[API-043]] · [[API-065]] · [[API-093]] · [[API-113]] · [[API-119]] · [[API-120]] · [[API-121]] · [[API-122]] · [[API-123]] · [[API-124]] · [[API-125]] · [[API-126]] · [[API-127]] · [[API-152]] · [[API-156]] · [[API-158]] · [[API-160]] · [[API-162]] · [[API-164]] · [[API-177]] · [[API-204]] · [[API-216]] · [[API-217]] · [[API-218]] |
+| 6 | DFEAT 비즈니스 로직 | [[DFEAT-018]] · [[DFEAT-019]] · [[DFEAT-020]] |
+| 7 | SEQ 흐름 배선 | [[SEQ-005]] · [[SEQ-006]] · [[SEQ-007]] · [[SEQ-023]] |
+| 8 | ROLE 인가 | [[ROLE-001]] · [[ROLE-002]] · [[ROLE-003]] |
+| 9 | SCREEN 화면 | [[SCREEN-005]] · [[SCREEN-025]] · [[SCREEN-027]] |
+| 10 | UC 검증 | [[UC-004]] · [[UC-005]] · [[UC-006]] · [[UC-034]] · [[UC-037]] |
+| 11 | AC 수용 | [[AC-004]] · [[AC-005]] · [[AC-006]] · [[AC-038]] · [[AC-039]] · [[AC-040]] · [[AC-099]] · [[AC-100]] · [[AC-101]] · [[AC-102]] · [[AC-103]] · [[AC-104]] · [[AC-105]] · [[AC-106]] |
+| 12 | CDIAG 클래스 구조 | [[CDIAG-005]] |
+| 13 | C4 컴포넌트 | [[CMP-008]] |
+| 14 | FEAT 상위 기능 | [[FEAT-001]] · [[FEAT-007]] · [[FEAT-009]] |
+| 15 | SD 고충실 시안 | [[SD-033]] |
 
-> ⚠ 이번 키트에 **0건**인 단계: ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 — 해당 축은 설계가 없거나 `domain_id` 미설정이다.
+> ⚠ 이번 키트에 **0건**인 단계: EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 — 해당 축은 설계가 없거나 `domain_id` 미설정이다.
 
 ## 상수 값 (매직넘버 단일 진실원 — 인라인 추정 금지)
 
 | CONST | name | value | kind | 사용처 |
 |---|---|---|---|---|
-| [[CONST-002]] | CocoClasses.LABELS | ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light","fire hydrant","stop sign | enum | [[ERD-019]] |
+| [[CONST-002]] | CocoClasses.LABELS | ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light","fire hydrant","stop sign | enum | ⚠️ 미연결 |
 
 ## 구현 현황 (ITEM 의 implementation 필드 — 설계 쪽 주장)
 
 | status | 건수 |
 |---|---|
-| implemented | 35 |
-| planned | 23 |
-| (미기재) | 15 |
+| implemented | 39 |
+| planned | 37 |
+| (미기재) | 25 |
 
 | ITEM | type | status | progress |
 |---|---|---|---|
+| [[AC-038]] | acceptance | implemented | 90 |
+| [[AC-039]] | acceptance | implemented | 90 |
+| [[AC-040]] | acceptance | implemented | 90 |
 | [[API-020]] | api_endpoint | implemented | 100 |
 | [[API-043]] | api_endpoint | implemented | 100 |
 | [[API-065]] | api_endpoint | implemented | 100 |
@@ -104,9 +108,23 @@
 | [[UC-004]] | use_case | implemented | 100 |
 | [[UC-005]] | use_case | implemented | 100 |
 | [[UC-006]] | use_case | implemented | 100 |
+| [[UC-034]] | use_case | implemented | 100 |
 | [[AC-004]] | acceptance | planned | 0 |
 | [[AC-005]] | acceptance | planned | 0 |
 | [[AC-006]] | acceptance | planned | 0 |
+| [[AC-099]] | acceptance | planned | 0 |
+| [[AC-100]] | acceptance | planned | 0 |
+| [[AC-101]] | acceptance | planned | 0 |
+| [[AC-102]] | acceptance | planned | 0 |
+| [[AC-103]] | acceptance | planned | 0 |
+| [[AC-104]] | acceptance | planned | 0 |
+| [[AC-105]] | acceptance | planned | 0 |
+| [[AC-106]] | acceptance | planned | 0 |
+| [[API-204]] | api_endpoint | planned | 0 |
+| [[API-216]] | api_endpoint | planned | 0 |
+| [[API-217]] | api_endpoint | planned | 0 |
+| [[API-218]] | api_endpoint | planned | 0 |
+| [[ERD-032]] | erd | planned | 0 |
 | [[FEAT-009]] | feature | planned | 0 |
 | [[INFRA-001]] | infra_component | planned | 0 |
 | [[NFR-008]] | nfr | planned | 0 |
@@ -127,12 +145,13 @@
 | [[ROLE-002]] | permission_role | planned | 0 |
 | [[ROLE-003]] | permission_role | planned | 0 |
 | [[SEQ-023]] | diagram_sequence | planned | 0 |
+| [[UC-037]] | use_case | planned | 0 |
 
 > ⚠ 이 표는 **설계가 스스로 적은 주장**이다. 코드와 대조되지 않았다 — 그 대조가 `/mc-logi-implement-review` 의 몫이다.
 
 ## ITEM 인덱스
 
-### adr (10)
+### adr (13)
 - [[ADR-001]] — 작업 단위를 프로젝트에서 영상 1건(RAW_SN)으로 전환
 - [[ADR-003]] — ADMIN 역할 폐기 — 관리 권한 REVIEWER 통합
 - [[ADR-019]] — 오토라벨 프리셋↔검출라벨 매칭축을 마스터 라벨명에서 COCO 검출클래스(DTCT_TYPE_CD)로 일원화
@@ -143,6 +162,9 @@
 - [[ADR-040]] — AI 추적(SAM2/YOLO Track) 출력 형태 = 선택 객체 형태 고정
 - [[ADR-041]] — ai-server 탐지 백엔드 = YOLOX 단일화(RT-DETRv2 제거)
 - [[ADR-046]] — 연동 서버 주소를 운영 화면에서 재기동 없이 교체 — 저장 축 IP 대역 차단 폐지 + 관리자 단기 유효창
+- [[ADR-047]] — 시작 객체 없는 다중 객체 자동 검출·추적을 1차 계승으로 둔다
+- [[ADR-052]] — 외부 제공 이벤트 마킹은 업로드 시 예약하고 비식별 완료 후 적용한다
+- [[ADR-053]] — 외부 마킹 산출물은 경로를 훑어 짝을 찾고 확인한 뒤 일괄로 받아들인다
 
 ### nfr (14)
 - [[NFR-008]] — 학습데이터 단계별 품질관리 기준 (수집·제작·검수)
@@ -163,7 +185,10 @@
 ### constant (1)
 - [[CONST-002]] — CocoClasses — COCO-80 검출 클래스 allowlist
 
-### api_endpoint (21)
+### erd (1)
+- [[ERD-032]] — 마킹 산출물 일괄 업로드 작업 ERD (고도화, PostgreSQL)
+
+### api_endpoint (25)
 - [[API-020]] — POST /v1/frames/{srcSn}/sam2-track
 - [[API-043]] — GET /v1/videos/{rawSn}
 - [[API-065]] — POST /v1/vlm/callback
@@ -178,13 +203,17 @@
 - [[API-125]] — POST /v1/videos/{rawSn}/tracks/merge
 - [[API-126]] — DELETE /v1/videos/{rawSn}/tracks/{trackId}
 - [[API-127]] — POST /v1/videos/{rawSn}/tracks/{trackId}/split
-- [[API-152]] — POST /v1/dev/autolabel-test
+- [[API-152]] — POST /v1/dev/upload
 - [[API-156]] — OPTIONS /v1/uploads
 - [[API-158]] — POST /v1/uploads
 - [[API-160]] — HEAD /v1/uploads/{uploadId}
 - [[API-162]] — PATCH /v1/uploads/{uploadId}
 - [[API-164]] — DELETE /v1/uploads/{uploadId}
 - [[API-177]] — GET /v1/manage/labels/detect-candidates
+- [[API-204]] — POST /v1/ai-requests/{requestId}/cancel
+- [[API-216]] — 마킹 산출물 폴더 검사
+- [[API-217]] — 마킹 산출물 일괄 적재
+- [[API-218]] — 일괄 적재 진행 조회
 
 ### domain_feature (3)
 - [[DFEAT-018]] — AI Tool (SAM 클릭 세그멘테이션)
@@ -205,17 +234,30 @@
 ### screen_spec (3)
 - [[SCREEN-005]] — 라벨링 캔버스 화면
 - [[SCREEN-025]] — 시스템 설정 화면
-- [[SCREEN-027]] — 영상 업로드
+- [[SCREEN-027]] — 수동 업로드
 
-### use_case (3)
+### use_case (5)
 - [[UC-004]] — 객체 자동 추적
 - [[UC-005]] — 객체 외곽 경계 자동 밀착
 - [[UC-006]] — 라벨링 정밀도 조절
+- [[UC-034]] — 온디맨드 AI 자동 추적
+- [[UC-037]] — 마킹이 끝난 영상 일괄 올리기
 
-### acceptance (3)
+### acceptance (14)
 - [[AC-004]] — 객체 자동 추적(SAM2) 수행
 - [[AC-005]] — 객체 외곽 경계 자동 밀착
 - [[AC-006]] — 라벨링 정밀도(폴리곤 단순화) 조절
+- [[AC-038]] — 온디맨드 AI 자동 추적 — 진입점 구분과 시작 객체 없는 실행
+- [[AC-039]] — 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점
+- [[AC-040]] — 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달
+- [[AC-099]] — 검사는 아무것도 저장하지 않고 짝 목록만 돌려준다
+- [[AC-100]] — 짝은 폴더 구조가 아니라 마킹 문서가 적어 둔 영상 이름으로 짓는다
+- [[AC-101]] — 허용 범위 밖 경로와 바로가기는 읽지 않고 상한은 조용히 자르지 않는다
+- [[AC-102]] — 일괄 적재 요청은 곧바로 반환하고 진행은 따로 조회한다
+- [[AC-103]] — 한 건이 실패해도 나머지가 진행되고 사유가 남는다
+- [[AC-104]] — 서버가 다시 떠도 처리 도중이던 항목이 방치되지 않는다
+- [[AC-105]] — 적재한 영상의 마킹은 예약으로 만들어져 비식별이 끝난 뒤 활성화된다
+- [[AC-106]] — 외부가 준 프레임 이미지는 적재하지 않고 속도가 어긋나면 멈춘다
 
 ### class_diagram (1)
 - [[CDIAG-005]] — AI 보조 라벨링 도메인 모델
@@ -230,3 +272,19 @@
 
 ### screen_design (1)
 - [[SD-033]] — SCREEN-027 영상 업로드
+
+### app_shell (1)
+- [[SHELL-001]] — 저작도구 내부 채널 셸
+
+### infra_component (1)
+- [[INFRA-001]] — ai-server (YOLO/SAM2 추론 서버, 내부)
+
+### legacy_artifact (4)
+- [[LEGACY-005]] — [module] 영상분할 (PF-005)
+- [[LEGACY-066]] — [screen] SKKLID-UI-02-02-05 데이터 작업 - AI Tool 활용
+- [[LEGACY-067]] — [screen] SKKLID-UI-02-02-06 데이터 작업 - 오토 라벨링 기능
+- [[LEGACY-096]] — [screen] SKKLID-UI-02-05-08 업로드/생성 - 트래킹 기능
+
+### model_usage (2)
+- [[MODEL-001]] — 객체 탐지 모델 — YOLOX (ONNX Runtime)
+- [[MODEL-002]] — 분할 모델 — Meta SAM2

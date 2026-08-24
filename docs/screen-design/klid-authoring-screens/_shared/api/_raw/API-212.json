@@ -251,7 +251,7 @@
     "schema_version": 1,
     "current_version": 5,
     "stale": true,
-    "stale_reason": "AC-049의 data.scenario 변경 — verifies",
+    "stale_reason": "AC-049의 3개 필드 변경 — verifies",
     "change_summary": "일괄 건너뛰기의 대상을 그 묶음이 실패한 영상으로 한정한다. 정상 진행 중인 영상을 미리 골라 건너뛰는 길은 단건과 마찬가지로 두지 않으며, 이 경로가 쓰이는 자리는 벤더 장애로 여러 영상이 한꺼번에 실패했을 때다. 실패 상태가 아닌 영상은 건별 실패로 돌려준다.",
     "last_updated_by": "sync",
     "last_updated_at": "2026-08-21T04:27:30.459Z",

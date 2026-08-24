@@ -1252,9 +1252,9 @@
               "type": "varchar(20)",
               "unique": false,
               "nullable": true,
-              "description": "비트값 = 색심도 표기(예 24bit). 비트레이트가 아니다. PostgreSQL 에서 컬럼명으로는 무인용 사용 가능(인용 금지 — 인용하면 대문자 식별자가 고정돼 이후 모든 참조에 인용이 강제된다).",
+              "description": "비트레이트(bps 단위 숫자, 관제 video.bit). 예 2050627. 색심도가 아니다 — 관제 실측값이 색심도 표기('24bit')가 아니라 bps 정수임이 확인됐다(2026-08-24 관제 재확인). PostgreSQL 에서 컬럼명으로는 무인용 사용 가능(인용 금지 — 인용하면 대문자 식별자가 고정돼 이후 모든 참조에 인용이 강제된다).",
               "primary_key": false,
-              "logical_column_name": "비트값"
+              "logical_column_name": "비트레이트"
             },
             {
               "name": "PXL",
@@ -1427,6 +1427,24 @@
               "description": "검증이벤트유형코드(관제 수신). 외부 VLM 검증 API 요청의 event_type 조달처(허용값 fire/fall/violence/flooding/car_accident/kidnapping 6종). EVNT_TYPE_CD(이벤트유형코드)와는 다른 값 — 대체·통합하거나 한쪽에서 유도하지 않는다. 관제 미송신 시 null 이며 서버가 보정하지 않는다(수신 원장).",
               "primary_key": false,
               "logical_column_name": "검증이벤트유형코드"
+            },
+            {
+              "name": "THMB_FILE_PATH_NM",
+              "type": "varchar(500)",
+              "unique": false,
+              "nullable": true,
+              "description": "썸네일 이미지 파일 경로명(관제 인입값 pass-through). 관제가 학습데이터 패키징 시 사용하며 저작도구는 생성·가공하지 않는다. 데이터마트 뷰(V_COMPLETED_VIDEO)로 노출해 관제가 한 뷰만으로 조달하게 한다. nullable — 값을 안 보내도 인입은 실패하지 않는다.",
+              "primary_key": false,
+              "logical_column_name": "썸네일파일경로명"
+            },
+            {
+              "name": "OG_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "기관코드(관제 resource_cctvs 조인). 촬영 시점 값 고정 목적의 의도된 중복 저장. 지방자치단체코드(LCLGV_CD)·지방자치단체명(LCLGV_NM)과 서로 다른 값이며 셋을 대체·통합하지 않는다. 관제 재요청으로 재추가한다 — 앞서 '현행 미사용·공급 불가'로 제거했으나 관제가 실보유를 확인해 되살린다(2026-08-24).",
+              "primary_key": false,
+              "logical_column_name": "기관코드"
             }
           ],
           "indexes": [
@@ -1503,22 +1521,40 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 100,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "LsDataIngest 엔티티: thmbFilePathNm(varchar500)·ogCd(varchar20) 필드 추가 + BIT Javadoc 비트레이트로 정정 (@design ERD-012)"
+          },
+          {
+            "done": true,
+            "description": "VideoMetaService.loadIngestMeta: 인입 BIT(bps 정수) 파싱해 video.bit_rate 조달, 인입값 우선·ffprobe 폴백·파싱실패 fail-safe skip"
+          },
+          {
+            "done": true,
+            "description": "회귀 가드 정합: 색심도 전제 테스트 반전 + 스키마 컬럼수 가드 43→45(V147 IT·repo IT) + V185 OG_CD 제거 단언을 V16 복원으로 반전"
+          },
+          {
+            "done": true,
+            "description": "QA 후속: 낡은 OG_CD '제거됨' 서술 5곳을 'V185 제거 → V16 복원'으로 정정(주석 전용) + bitRateText 경계 4건(0·Long초과·공백패딩·빈값) 테스트 보강"
+          }
+        ],
+        "last_updated": "2026-08-24T08:12:04.520Z"
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 35,
+    "current_version": 39,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "비식별여부(DE_IDENT_YN) 컬럼 설명의 「프레임만 받은 그 영상은 미수행 그대로 유지된다」 서술에 그 근거 결정이 ADR-023 임을 인용으로 덧붙인다. 사실만 적혀 있어 결정 소유자를 되짚을 길이 없었다. 이 ERD 의 컬럼 설명이 이미 쓰고 있는 「근거 ADR-NNN.」 표기를 그대로 따랐고, 컬럼 설명 길이 상한에 맞춰 서술을 늘리지 않고 인용만 더했다. 이 ERD 는 파생 깊이 축에서 이미 ADR-023 을 인용하고 있으나 그것은 관계 설명의 다른 축이라 이번 인용과 별개다. 기존 서술 수정이나 원소 삭제는 없다.",
+    "change_summary": "직전 리비전 subtask 4 의 오타 정정(난한 → 낡은). 내용 변경 없음",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T23:48:06.954Z",
+    "last_updated_at": "2026-08-24T08:12:04.520Z",
     "created_at": "2026-06-01T02:42:17.260Z"
   }
 }

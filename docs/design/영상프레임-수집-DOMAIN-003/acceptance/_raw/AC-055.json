@@ -8,6 +8,30 @@
     "sub_id": null,
     "status": "draft",
     "data": {
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "VlmDefaultSkipMarkerVisibilityIT",
+          "captured_at": "2026-08-24T03:11:00Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "VlmDefaultSkipMarkerTest",
+          "captured_at": "2026-08-24T03:11:00Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66f33cbe-116d-4768-8dc2-eb914e9d1fe0",
+          "captured_at": "2026-08-24T03:11:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-24T03:11:00Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -32,23 +56,28 @@
         "diff_summary": "전체 건너뛰기 스위치 신설에 따른 수용 기준. 요구사항 연결 없음 — 조사 결과다. 이 프로젝트 요구사항 22건은 SFR-06~11·16·17 축이며 외부 시계열 분석 위탁과 그 운영 조작을 덮는 항목이 없다. 시계열 모델 본체가 외부 시스템 책임이라 요구사항 축에서 빠졌기 때문이다. 있는 요구사항을 짐작해 지목하면 추적이 틀어지므로 비워 둔다."
       },
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 90,
+        "subtasks": [],
+        "last_updated": "2026-08-24T03:12:52.655Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/batch/status/VlmDefaultSkipMarker.java"
+        ]
       },
       "derived_domain_ids": [],
-      "verification_method": "automated_test"
+      "verification_method": "automated_test",
+      "verification_status": "passing"
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "전체 건너뛰기 스위치의 수용 기준을 새로 둔다. 사유 없이 켤 수 없다는 것, 켜져 있는 동안 외부 호출이 한 번도 없다는 것, 자동 표식이 사람 표식을 덮지 않는다는 것, 켜짐 상태가 운영 화면에 상시 드러난다는 것이 이 결정의 핵심인데 이를 검증하는 기준이 없었다.",
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T00:39:03.393Z",
+    "last_updated_at": "2026-08-24T03:12:52.655Z",
     "created_at": "2026-08-21T00:39:03.393Z"
   }
 }

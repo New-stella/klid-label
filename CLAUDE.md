@@ -718,14 +718,15 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-23 (SYNC · 인수기준 46건 + 통합시험 시나리오 2건 — D001·D009·D010·D013·D014·D015·D017 일곱 도메인)** · 전건 무열화 검증 통과.
-> ⚠ 이번 SYNC 는 일곱 도메인만 돌렸다 — **나머지 8개의 뒤처짐은 측정하지 않았다**(0건이라는 뜻이 아니다).
+> 활성 15 도메인 전량 · last sync **2026-08-24 (SYNC · 마킹 산출물 일괄 업로드 설계 반영 — D003·D004·D011 세 도메인)** · 전건 무열화 검증 통과.
+> ⚠ 이번 SYNC 는 **세 도메인만** 돌렸다. 나머지 12개는 **측정했고 실제로 뒤처져 있다**(다른 라운드 꼬리 — 고유 ITEM 약 50건).
+> D004 는 pin 이 84→**101건**으로 커졌다(신규 17건 승격: ADR-052·ADR-053·ERD-032·API-216~218·UC-037·AC-099~106·MODEL-001·002).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 119 | implemented 59 / planned 35 / (미기재) 25 | CONST 상수값, INT 외부 연동 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 84 | implemented 36 / planned 27 / (미기재) 21 | ERD 데이터 계층, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 119 | implemented 64 / planned 30 / (미기재) 25 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 101 | implemented 39 / planned 37 / (미기재) 25 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
 | DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 94 | implemented 46 / planned 28 / (미기재) 20 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 13 / planned 21 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 72 | implemented 26 / planned 28 / (미기재) 18 | CONST 상수값 |
@@ -763,13 +764,16 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ⚠ **2026-08-24 SYNC 는 통합 키트(s21)만 돌렸다** — 아래 소형 키트 6종은 그대로이며 뒤처져 있다
+> (검수 4 · 라벨링 11 · 사용자권한 2 · 영상프레임 3 · 작업배정 2 · 게시판 1건).
+>
 > ★ **통합 키트가 정본이다** — 도메인별 소형 키트는 화면 1~5개만 담으므로, 화면을 동기화하거나
 > 사양을 판정할 때는 **먼저 `klid-authoring-screens/`(32화면 통합)를 본다.** 소형 키트만 보면
 > 그 스코프 밖 화면의 변경이 절대 반영되지 않는다.
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync |
 |---|---|---|---|---|
-| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | 2026-08-21 (s20) |
+| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-24 (s22)** |
 | DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-21 (s15) |
 | DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-21 (s9) |
 | DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-21 (s9) |

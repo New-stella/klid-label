@@ -12,20 +12,21 @@
       "priority": "high",
       "scenario": {
         "then": [
-          "frame_policy.mode='frame_selected' 이고 selected_frames 는 정렬·중복제거 후 벤더 상한 8건으로 절단된다",
+          "frame_policy.mode 는 'frame_selected' 이고 selected_frames 는 정렬·중복제거 후 0 이상 최대 600건으로 제한되어 초과분이 절단된다 (음수 프레임 인덱스는 싣지 않는다)",
           "event_type 은 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)을 그대로 실어 위탁하며 화이트리스트 검증으로 사전 차단하지 않는다",
-          "framerate 는 LS_MARKING.FRME_INTV_NOCS(마킹 프레임 간격)이며 값이 없거나 0 이하면 설정 기본값(25)으로 폴백한다"
+          "frame_policy 에 framerate 를 두지 않는다 — 추출 간격·장수 세부값은 외부 분석 서버가 관리하고 연동 측은 mode 와 selected_frames 만 지정한다",
+          "위탁은 describe(POST /v1/videovlm-klid/describe)와 describe-sub(POST /v1/videovlm-klid/describe-sub) 두 건으로 제출되며 각 요청에 서로 다른 request_id 가 부여된다"
         ],
         "when": [
           "마킹이 완료되어 VLM 시계열 위탁 요청이 조립된다"
         ],
         "given": [
-          "수동 마킹으로 10개 프레임이 선택되었다"
+          "수동 마킹으로 620개 프레임이 선택되었다 (중복·비정렬 포함)"
         ],
         "and_examples": [
           {
             "case": "자동 마킹 또는 마킹 결과 부재",
-            "result": "frame_policy.mode='frame_interval' 로 도출된다"
+            "result": "frame_policy.mode 는 여전히 'frame_selected' 이며 selected_frames 에 자동 선택된 프레임 리스트를 싣는다"
           },
           {
             "case": "배치 단계가 MARKING_READY 가 아닌 상태에서 마킹 단계 비식별 신고(POST /v1/videos/{rawSn}/deident-report) 시도",
@@ -48,7 +49,7 @@
       "verifies": [
         "REQ-014"
       ],
-      "statement": "마킹 완료 시 frame_policy(수동 마킹=frame_selected+selected_frames 정렬·중복제거·벤더 상한 8건 초과분 절단, 자동 마킹/마킹 부재=frame_interval)와 event_type(관제 인입값 그대로, 검증·차단 없음)이 도출되어 framerate 와 함께 VLM 시계열 위탁(POST /v1/videovlm/verify)의 논블로킹 제출 입력이 되며, 배치 단계가 MARKING_READY 가 아닌 상태에서의 마킹 단계 비식별 신고는 412 로 거부된다.",
+      "statement": "마킹 완료 시 frame_policy(항상 frame_selected 모드 + selected_frames — 마킹이 있으면 마킹된 프레임 인덱스, 마킹이 없으면 자동 선택된 프레임 리스트를 정렬·중복제거하여 0 이상 최대 600건으로 제한)와 event_type(관제 인입값 그대로, 검증·차단 없음)이 도출되어 외부 시계열 분석 위탁의 논블로킹 제출 입력이 되며, 위탁은 describe(POST /v1/videovlm-klid/describe)와 describe-sub(POST /v1/videovlm-klid/describe-sub) 두 건으로 각각 별도 request_id 를 부여해 제출된다. 배치 단계가 MARKING_READY 가 아닌 상태에서의 마킹 단계 비식별 신고는 412 로 거부된다.",
       "is_negative": false,
       "implementation": {
         "status": "planned",
@@ -68,12 +69,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": true,
-    "stale_reason": "DFEAT-039의 data.brownfield 변경이 derived_from로 2-hop 전파",
-    "change_summary": "논블로킹 제출이 진술에 낱말로만 있고 관측 가능한 단언이 없어 자동 시험으로 판정할 수 없던 축을 예시로 보강 — 제출 직후 반환값·수락 기록 시점·무신호 시 회수 경로. 마킹 단계 비식별 누락 신고의 접수 조건을 규정한 상위 요구로 추적 링크 연결.",
+    "stale_reason": "UC-019의 data.description 변경 — derived_from",
+    "change_summary": "외부 시계열 분석 위탁 계약이 바뀌어 수용기준의 검증 기준을 KLID 연동 API v1.1.0 에 맞춘다. (1) 위탁 대상: 단일 verify(POST /v1/videovlm/verify) → describe(CoT)·describe-sub(VQA) 이중 위탁으로 교체하고 각 요청에 별도 request_id 를 부여한다는 단언을 신설했다. (2) framerate: 구 계약의 \"framerate 는 마킹 프레임 간격(FRME_INTV_NOCS)이며 없거나 0 이하면 설정 기본값 25 로 폴백\" 단언을 폐기하고, 그 자리에 \"frame_policy 에 framerate 를 두지 않는다\"는 설계 결정으로 대체했다 — 추출 간격·장수 세부값은 외부 분석 서버가 관리하고 연동 측은 mode 와 selected_frames 만 지정한다. (3) frame_policy 도출: 구 \"수동 마킹=frame_selected / 자동 마킹·마킹 부재=frame_interval\" 두 갈래를 폐기하고 항상 frame_selected 단일 모드로 바꿨다. 마킹이 있으면 마킹된 프레임 인덱스, 없으면 자동 선택된 프레임 리스트를 싣는다(정렬·중복제거는 유지). 이에 따라 \"자동 마킹 또는 마킹 결과 부재\" 예시의 기대값도 frame_interval 에서 frame_selected 로 정정했다. (4) selected_frames 상한: 8 → 600 으로 고치고 하한(0 이상, 음수 불가)을 명시했다. 절단 경계가 실제로 검증되도록 Given 의 선택 프레임 수를 10 에서 620 으로 올렸다(구 상한 8 기준에서 10 이 초과 표본이었던 것과 같은 역할). event_type 을 검증·차단 없이 관제 인입값 그대로 실어 위탁한다는 단언과, 배치 단계가 MARKING_READY 가 아닌 상태의 마킹 단계 비식별 신고 412 거부 기준은 이번 변경과 무관하여 그대로 둔다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:48:22.400Z",
+    "last_updated_at": "2026-08-24T08:02:55.495Z",
     "created_at": "2026-08-06T16:02:04.140Z"
   }
 }

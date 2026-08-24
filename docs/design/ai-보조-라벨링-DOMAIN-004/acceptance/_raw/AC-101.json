@@ -1,0 +1,70 @@
+{
+  "item": {
+    "id": "AC-101",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "허용 범위 밖 경로와 바로가기는 읽지 않고 상한은 조용히 자르지 않는다",
+    "slug": "허용-범위-밖-경로와-바로가기는-읽지-않고-상한은-조용히-자르지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "범위 밖을 가리키는 요청은 거부되고 아무것도 만들어지지 않는다.",
+          "상위로 거슬러 올라가는 표기가 섞인 입력도 실제 경로로 확인해 거부한다.",
+          "폴더 안의 바로가기는 따라가지 않고 건너뛴다.",
+          "훑는 깊이나 항목 수가 상한에 걸리면 일부만 훑었다는 사실이 응답에 담긴다.",
+          "권한이 없는 요청은 아무것도 남기지 않고 거부한다.",
+          "거부 사유에 서버 안쪽 구조가 드러나지 않는다."
+        ],
+        "when": [
+          "허용된 저장소 범위 밖을 가리키는 위치로 요청하거나, 바로가기가 섞이고 항목이 상한을 넘는 폴더를 요청한다."
+        ],
+        "given": [
+          "검수자로 로그인한 상태다."
+        ]
+      },
+      "statement": "허용된 저장소 범위 밖을 가리키는 요청은 아무것도 남기지 않고 거부하며, 폴더 안의 바로가기는 따라가지 않고, 훑는 상한에 걸리면 일부만 훑었다는 사실을 함께 알린다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [
+          {
+            "done": false,
+            "description": "실제 경로로 확인해 범위 밖을 거부함을 시험으로 고정"
+          },
+          {
+            "done": false,
+            "description": "바로가기를 따라가지 않음을 시험으로 고정"
+          },
+          {
+            "done": false,
+            "description": "상한 도달이 응답에 드러남을 시험으로 고정"
+          }
+        ],
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-037"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "마킹이 끝난 영상을 폴더에서 일괄로 올리는 흐름의 수용 기준을 신설한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-24T10:35:50.240Z",
+    "created_at": "2026-08-24T10:35:50.240Z"
+  }
+}

@@ -55,7 +55,7 @@
     "schema_version": 1,
     "current_version": 5,
     "stale": true,
-    "stale_reason": "SCREEN-034의 data.sections 변경 — navigates_to",
+    "stale_reason": "UC-027의 data.covered_by_acceptances 변경이 navigates_to로 2-hop 전파",
     "change_summary": "포털 메뉴 네 항목의 주소가 실제 화면과 모두 일치함을 대조로 확인했다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-14T05:06:56.120Z",

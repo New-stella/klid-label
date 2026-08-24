@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 96
-last_updated_at: 2026-08-19T01:56:32.231Z
+version: 98
+last_updated_at: 2026-08-24T08:10:10.478Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:05.290Z
-sync_session: 20
-stale: true
+synced_at: 2026-08-24T14:23:30.445Z
+sync_session: 22
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-005.json
@@ -538,21 +538,7 @@ _(empty)_
 
 #### [7]
 
-- **note**: 화면 전용 참고값(0~1) — 검수큐에 노출되지 않고 수정 불가하다(API-066 readOnlyMeta 목록).
-- **type**: Text
-- **label**: 시계열 메타 — 일치도(vlm.accuracy, 읽기전용)
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [8]
-
-- **note**: 메타 탭 안에 함께 나열되는 패널이다. 서술 전문(items)만 저장 대상이며, 일치도·기술정보는 저장 요청에 포함하지 않는다(포함 시 400).
+- **note**: 메타 탭 안에 함께 나열되는 패널이다. 서술 전문(items)만 저장 대상이며, 영상 기술 정보는 저장 요청에 포함하지 않는다(포함 시 400).
 - **type**: Button
 - **label**: 시계열 메타 저장
 
@@ -567,7 +553,7 @@ _(empty)_
 - **variant**: primary
 - **triggers_api**: API-067
 
-#### [9]
+#### [8]
 
 - **note**: API-066 technicalMeta 목록(video.* ffprobe 기술메타) — 편집 불가, 참고용 표시만.
 - **type**: KeyValue
@@ -1963,8 +1949,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 351db5b3efc2f927a05acf82b40a8f4b5d771cc81e645486b4287d96148f1160
-- **generated_at**: 2026-08-19T01:56:32.231Z
+- **source_hash**: bb501a098d5fd9171d71b34a7eaa74366266d0fa8372d7f07c62799ed6668742
+- **generated_at**: 2026-08-24T08:10:10.478Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

@@ -220,18 +220,19 @@
       "calls_external": [],
       "implementation": {
         "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalDatamartDownloadResponse.java"
-        ],
+        "modules": [],
         "records": [
           "IMPREC-009"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:33:35.793Z"
+        "last_updated": "2026-08-17T04:33:35.793Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalDatamartDownloadResponse.java"
+        ]
       },
       "uses_constants": [],
       "implements_features": [],
