@@ -1,6 +1,6 @@
 # 09. VLM 시계열 메타
 
-> 출처: CLAUDE.md(VLM 연동·범위 외), R2 KLID-AT-SS-005, **외부 확정 계약 `docs/video_vlm_api_ v2.0.1.docx`(IntelliVIX AI연구소, 2026-06-15)**, 코드(`VlmClient`, `batch/step/VlmTimeseriesStep`, `webhook/VlmResultController`, `meta/`)
+> 출처: CLAUDE.md(VLM 연동·범위 외), R2 KLID-AT-SS-005, **외부 확정 계약 `docs/연동규격서/video_vlm_api_ v2.0.1.docx`(IntelliVIX AI연구소, 2026-06-15)**, 코드(`VlmClient`, `batch/step/VlmTimeseriesStep`, `webhook/VlmResultController`, `meta/`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [12 검수](12-review-assignment.md) · [24 데이터셋 산출](24-dataset-export.md)
 
 > **VQA/CoT 어노테이션(event_annotation) — 확정·구현 완료**: 이벤트 단위 VQA/CoT(질문·캡션·사고과정·근거)는 학습데이터 JSON에서 COCO `annotations`(객체 배열)와 분리된 **최상위 `event_annotation` 키**(후보 `c1..cn`)로 표현한다. 외부 자동 생성값을 프리필하고 라벨링 '메타' 탭 **이벤트 어노테이션 패널**(`EventAnnotationPanel`)에서 WORKER/REVIEWER 가 전 필드를 수동 덮어쓰기, REVIEWER 가 승인/반려한다(§9.3-1). 필드 정의·조달·저장 API 는 [24 데이터셋 산출 §24.3.1](24-dataset-export.md) 참조.
@@ -302,7 +302,7 @@
 
 ## 9.5 외부 확정 계약 — IntelliVIX Video VLM API v2.0.1
 
-> 원문: `docs/video_vlm_api_ v2.0.1.docx` (IntelliVIX AI연구소, 2026-06-15 "일치도 추가 및 시작/종료 시간 제거"). 비동기 콜백 모델.
+> 원문: `docs/연동규격서/video_vlm_api_ v2.0.1.docx` (IntelliVIX AI연구소, 2026-06-15 "일치도 추가 및 시작/종료 시간 제거"). 비동기 콜백 모델.
 
 **엔드포인트 3종**
 
