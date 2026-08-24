@@ -9,7 +9,7 @@ import java.math.RoundingMode;
 import java.util.regex.Pattern;
 
 /**
- * ffprobe 측정값 → 인입 원장({@code LS_DATA_INGEST}) 기술메타 8컬럼 <b>해석·파생·검증의 판정
+ * ffprobe 측정값 → 인입 원장({@code LS_DATA_INGEST}) 기술메타 9컬럼 <b>해석·파생·검증의 판정
  * 단일 원천</b>. 이 판정을 다른 클래스에 복제하지 말 것 — 복제하면 한쪽만 갱신돼 어긋난다.
  *
  * <p>ffprobe 출력은 <b>신뢰 경계 밖</b>이다(CWE-20). 컨테이너가 신고한 값은 형식·범위는 물론
@@ -33,9 +33,13 @@ import java.util.regex.Pattern;
  *       상태에서 파생 프레임수만 적재하면 근거 없는 값이 되므로 그대로 둔다.</li>
  * </ol>
  *
- * <p>{@code PXL}(화소)·{@code BIT}(색심도)는 <b>어떤 경우에도 채우지 않는다</b>. 표기 규약이
- * 정의돼 있지 않아 무엇을 넣든 지어낸 값이 되기 때문이며(프로젝트 "값을 지어내지 않는다" 원칙),
- * 그 의지를 코드로 못 박기 위해 {@link ResolvedIngestMeta} 에 <b>필드 자체를 두지 않는다</b>.
+ * <p>{@code PXL}(화소)은 <b>어떤 경우에도 채우지 않는다</b>. 화소는 등급 표기(예 {@code 4K})라 표기
+ * 규약이 정의돼 있지 않고 무엇을 넣든 지어낸 값이 되기 때문이며(프로젝트 "값을 지어내지 않는다"
+ * 원칙), 그 의지를 코드로 못 박기 위해 {@link ResolvedIngestMeta} 에 <b>필드 자체를 두지 않는다</b>.
+ *
+ * <p>⚠ {@code BIT} 은 <b>그 대상이 아니다</b> — 색심도가 아니라 <b>비트레이트(bps 정수)</b>로 재정의된
+ * 컬럼이라(설계 ERD-012) 표기가 모호하지 않고 ffprobe 가 직접 산출한다. {@link #bitRateText} 가
+ * 채택을 판정한다. 두 컬럼을 한 묶음으로 보고 함께 되돌리지 말 것.
  *
  * <p>부동소수 오차·오버플로가 결과를 바꾸면 안 되는 계산(초 환산·프레임수 파생)은
  * {@link BigDecimal} + {@code longValueExact()} 로 수행하고 {@link ArithmeticException} 은
@@ -52,6 +56,8 @@ public final class InternalUploadMetaResolver {
     private static final int MAX_FPS_LENGTH = 10;
     /** {@code RESL VARCHAR(20)} · {@code ASPRT_RT VARCHAR(20)} */
     private static final int MAX_TEXT_LENGTH = 20;
+    /** {@code BIT VARCHAR(20)} — 비트레이트 bps 정수 표기의 DDL 폭. */
+    private static final int MAX_BIT_LENGTH = 20;
     /** {@code NUMERIC(10)} — 정수 10자리 */
     private static final BigDecimal NUMERIC_10_EXCLUSIVE_MAX = BigDecimal.TEN.pow(10);
     /** fps 표기 소수 자릿수 (29.97). */
@@ -65,13 +71,13 @@ public final class InternalUploadMetaResolver {
     private static final Pattern CODEC_PATTERN = Pattern.compile("^[A-Za-z0-9_.\\-]+$");
 
     private static final ResolvedIngestMeta NOTHING =
-            new ResolvedIngestMeta(null, null, null, null, null, null, null, null);
+            new ResolvedIngestMeta(null, null, null, null, null, null, null, null, null);
 
     private InternalUploadMetaResolver() {
     }
 
     /**
-     * 측정값을 인입 8컬럼에 실을 수 있는 값으로 해석한다.
+     * 측정값을 인입 9컬럼에 실을 수 있는 값으로 해석한다.
      *
      * @param meta ffprobe 원시 측정값. {@code null} 이면 전량 미채택으로 돌아온다.
      * @return 채택된 값만 담긴 결과. 미채택 필드는 {@code null} — 호출자(Phase 2)는 그 컬럼을
@@ -96,8 +102,9 @@ public final class InternalUploadMetaResolver {
 
         BigDecimal frmeCnt = frameCount(meta, vdoLenSec, fps);
         String asprtRt = aspectRatio(meta, hasDimensions);
+        String bit = bitRateText(meta.bitRate());
 
-        return new ResolvedIngestMeta(vdoLenSec, fps, vdoCdc, wdth, vrtc, resl, frmeCnt, asprtRt);
+        return new ResolvedIngestMeta(vdoLenSec, fps, vdoCdc, wdth, vrtc, resl, frmeCnt, asprtRt, bit);
     }
 
     // ======================== 개별 컬럼 판정 ========================
@@ -173,6 +180,31 @@ public final class InternalUploadMetaResolver {
         } catch (ArithmeticException e) {
             return reject("frmeCnt");
         }
+    }
+
+    /**
+     * 비트레이트 — bps <b>정수 문자열</b>로 표기한다(예 {@code "2050627"}).
+     *
+     * <p><b>단위 접미사를 붙이지 않고 kbps 로 환산하지도 않는다.</b> 이 컬럼은 관제가 채우는 축과
+     * 공유하므로 우리가 다른 표기를 쓰면 한 컬럼에 두 표기가 섞여 소비자가 단위를 알 수 없게 된다
+     * (설계 ERD-012 가 "bps 단위 숫자, 예 2050627" 로 고정한다).
+     *
+     * <p>양수만 채택한다 — 측정 포트가 이미 0·음수를 거르지만({@link UploadMediaProbe.MediaMeta#bitRate})
+     * 여기서 다시 보는 이유는 이 클래스가 <b>채택 판정의 단일 원천</b>이라 포트 계약이 느슨해져도
+     * 원장에 0 이 들어가지 않아야 하기 때문이다(다른 컬럼들과 동일한 방어 규약).
+     *
+     * <p><b>길이 검증은 현재 입력 도메인에서 도달 불가다</b>({@code Long} 양수의 최대 표기는 19자라
+     * {@code VARCHAR(20)} 를 넘을 수 없다). 그럼에도 {@link #bounded} 를 태우는 이유는 ①포트 타입이
+     * 넓어지거나({@code BigInteger} 등) 표기 규칙이 바뀌면 그 순간 이 경로가 되살아나고 ②DDL 길이
+     * 검증을 컬럼마다 예외 없이 통과시키는 것이 이 클래스의 규약이기 때문이다. 커버리지에 잡히지
+     * 않는다고 지우지 말 것 — 지우면 절단 아닌 <b>DB 오류(500)</b>가 back-fill 경로에서 난다.
+     */
+    // @design ERD-012 — LS_DATA_INGEST.BIT = 비트레이트(bps 단위 숫자, 예 2050627)
+    private static String bitRateText(Long bitRate) {
+        if (bitRate == null || bitRate <= 0L) {
+            return null;
+        }
+        return bounded(Long.toString(bitRate), MAX_BIT_LENGTH, "bit");
     }
 
     /**

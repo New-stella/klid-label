@@ -44,9 +44,15 @@ public interface UploadMediaProbe {
      *                            미세값도 null 이다.
      * @param nbFrames            컨테이너가 신고한 프레임 수. 미제공 컨테이너에서는 null.
      * @param displayAspectRatio  표시 종횡비 원문(예: {@code 16:9}). 미상 시 null.
+     * @param bitRate             비트레이트(bps). {@code format.bit_rate} 우선, 없으면 비디오 스트림
+     *                            값. <b>양수만</b> 유효하며 그 외(0·음수·파싱불가·미제공)는 null 이다.
+     *                            <b>bps 정수</b>이지 kbps 도 색심도도 아니다 — 인입 원장
+     *                            {@code LS_DATA_INGEST.BIT} 가 관제가 보내는 bps 정수와 같은 표기를
+     *                            요구한다(한 컬럼에 두 표기가 섞이면 소비자가 단위를 알 수 없다).
+     * @design ERD-012
      */
     record MediaMeta(int width, int height, String codecName, Double fps,
-                     Long durationMs, Long nbFrames, String displayAspectRatio) {
+                     Long durationMs, Long nbFrames, String displayAspectRatio, Long bitRate) {
     }
 
     /**

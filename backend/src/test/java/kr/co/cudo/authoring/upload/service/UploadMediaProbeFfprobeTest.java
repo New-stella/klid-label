@@ -30,7 +30,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * {@link UploadMediaProbeFfprobe#parse} ffprobe 출력 파싱 단위 테스트.
  *
  * <p>프로세스 실행(ffprobe 바이너리)과 파싱을 분리해 바이너리 비의존으로 검증한다.
- * {@code [STREAM]}/{@code [FORMAT]} 동명 key 구분, 미상값 graceful null 처리가 핵심이다.
+ * {@code [STREAM]}/{@code [FORMAT]} 동명 key({@code duration}·{@code bit_rate}) 구분, 미상값
+ * graceful null 처리가 핵심이다.
  *
  * <p>{@link ProcessExecution} 중첩 클래스는 <b>프로세스 I/O 교착 회귀 가드</b>다 — 파싱이 아니라
  * "행(hang)하지 않는가"를 가짜 ffprobe 스크립트로 실제 실행해 검증한다.
@@ -39,7 +40,7 @@ class UploadMediaProbeFfprobeTest {
 
     private static final Path VIDEO = Path.of("/nas-storage/upload/tmp/sample.mp4");
     /** 측정 실패·절단·비정상 종료 시의 "전량 미상" 기대값. */
-    private static final MediaMeta UNKNOWN_META = new MediaMeta(0, 0, null, null, null, null, null);
+    private static final MediaMeta UNKNOWN_META = new MediaMeta(0, 0, null, null, null, null, null, null);
 
     private List<String> output(List<String> streamLines, List<String> formatLines) {
         List<String> all = new ArrayList<>();
@@ -106,6 +107,55 @@ class UploadMediaProbeFfprobeTest {
     }
 
     @Test
+    @DisplayName("FORMAT_bit_rate를_우선_채택하고_STREAM_값은_폴백이다")
+    void prefersFormatBitRateOverStream() {
+        // given: stream 1,800,000bps / format 2,050,627bps — 컨테이너(format) 값이 우선
+        List<String> lines = output(
+                List.of("width=1920", "height=1080", "bit_rate=1800000"),
+                List.of("duration=12.520000", "bit_rate=2050627"));
+
+        // when
+        MediaMeta meta = UploadMediaProbeFfprobe.parse(lines, VIDEO);
+
+        // then
+        assertThat(meta.bitRate()).isEqualTo(2_050_627L);
+    }
+
+    @Test
+    @DisplayName("FORMAT_bit_rate가_없으면_STREAM_bit_rate로_폴백한다")
+    void fallsBackToStreamBitRate() {
+        // given: 컨테이너가 총 비트레이트를 신고하지 않는 형식
+        List<String> lines = output(
+                List.of("width=1920", "height=1080", "bit_rate=1800000"),
+                List.of("duration=12.520000"));
+
+        // when
+        MediaMeta meta = UploadMediaProbeFfprobe.parse(lines, VIDEO);
+
+        // then
+        assertThat(meta.bitRate()).isEqualTo(1_800_000L);
+    }
+
+    @Test
+    @DisplayName("bit_rate가_N_A거나_0이거나_파싱불가면_null이다 — 0bps는_형식상_정상인_틀린_값이다")
+    void rejectsUnusableBitRate() {
+        // given: 미상(N/A) · 0 · 음수 · 숫자 아님 — 어느 것도 유효한 비트레이트가 아니다
+        assertThat(bitRateOf("N/A")).isNull();
+        assertThat(bitRateOf("0")).isNull();
+        assertThat(bitRateOf("-1")).isNull();
+        assertThat(bitRateOf("abc")).isNull();
+        // 대조군 — 정상 값은 통과한다(게이트가 전부를 막는 것이 아니다)
+        assertThat(bitRateOf("2050627")).isEqualTo(2_050_627L);
+    }
+
+    /** {@code format.bit_rate} 한 값만 바꿔 파싱 결과를 얻는다. */
+    private Long bitRateOf(String rawValue) {
+        return UploadMediaProbeFfprobe.parse(output(
+                List.of("width=1920", "height=1080"),
+                List.of("duration=12.520000", "bit_rate=" + rawValue)), VIDEO).bitRate();
+    }
+
+    @Test
     @DisplayName("미상값_N_A는_null로_정규화된다")
     void normalizesNotAvailable() {
         // given
@@ -132,8 +182,8 @@ class UploadMediaProbeFfprobeTest {
         MediaMeta nullLines = UploadMediaProbeFfprobe.parse(null, VIDEO);
 
         // then
-        assertThat(empty).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null));
-        assertThat(nullLines).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null));
+        assertThat(empty).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null, null));
+        assertThat(nullLines).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null, null));
     }
 
     @Test
@@ -316,6 +366,14 @@ class UploadMediaProbeFfprobeTest {
 
         // then: SSRF 심층방어 pin (CWE-918)
         assertThat(command).containsSequence("-protocol_whitelist", "file,crypto,data");
+        // 비트레이트를 stream·format 양쪽에서 요청한다 — show_entries 에서 빠지면 ffprobe 가 값을
+        //   출력하지 않아 파서가 아무리 옳아도 BIT 이 영원히 null 이 된다(파싱 단위 테스트는 입력을
+        //   직접 만들어 넣으므로 이 누락을 드러내지 못한다 — 인자 리스트를 직접 단언한다).
+        assertThat(command).anySatisfy(arg -> {
+            assertThat(arg).contains("stream=");
+            assertThat(arg).contains(",bit_rate:format=");
+            assertThat(arg).endsWith(",bit_rate");
+        });
         // 경로는 위치 인자가 아니라 -i 의 옵션 값이어야 한다 (CWE-78 하드닝)
         assertThat(command).containsSequence("-i", VIDEO.toAbsolutePath().toString());
         assertThat(command.get(0)).isEqualTo("ffprobe");
@@ -446,7 +504,7 @@ class UploadMediaProbeFfprobeTest {
             MediaMeta meta = assertTimeoutPreemptively(NO_HANG_LIMIT, () -> probe.probe(VIDEO));
 
             // then
-            assertThat(meta).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null));
+            assertThat(meta).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null, null));
         }
 
         @Test
@@ -464,7 +522,7 @@ class UploadMediaProbeFfprobeTest {
             MediaMeta meta = assertTimeoutPreemptively(NO_HANG_LIMIT, () -> probe.probe(VIDEO));
 
             // then
-            assertThat(meta).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null));
+            assertThat(meta).isEqualTo(new MediaMeta(0, 0, null, null, null, null, null, null));
         }
 
         // ============ 출력 절단 = 전량 미상 (fail-closed, 이슈 A) ============
