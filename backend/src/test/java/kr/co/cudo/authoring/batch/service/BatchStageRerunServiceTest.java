@@ -43,6 +43,7 @@ import static org.mockito.Mockito.when;
  *   <li><b>완주 축에서만 선점한다</b> — 실패 영상을 여기서 받으면 오케스트레이터가 루프 종료 후 무조건
  *       완료로 마감하므로, 프레임이 한 장도 없는 영상이 COMPLETED 가 되어 산출 축으로 흘러간다.</li>
  * </ol>
+ * @design AC-051
  */
 class BatchStageRerunServiceTest {
 

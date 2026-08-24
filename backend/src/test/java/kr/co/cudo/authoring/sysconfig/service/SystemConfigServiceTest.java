@@ -34,6 +34,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>캐시/트랜잭션 AOP 없이 순수 검증 로직만 확인한다. 인가·캐시 무효화는
  * {@code SystemConfigControllerTest}(IT) 에서 검증한다.
+ * @design AC-075
  */
 class SystemConfigServiceTest {
 

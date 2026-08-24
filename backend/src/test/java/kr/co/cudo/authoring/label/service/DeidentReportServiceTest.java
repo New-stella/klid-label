@@ -75,6 +75,7 @@ import static org.mockito.Mockito.when;
  *   <li>자동 재비식별 큐 적재(retryQueue) 제거 — 외부 솔루션 수동 비식별화로 대체.</li>
  *   <li>{@link DeidentReportService#resolveManually} — OPEN→RESOLVED + 작업락 해제 + IDOR 검증.</li>
  * </ul>
+ * @design AC-016
  */
 class DeidentReportServiceTest {
 

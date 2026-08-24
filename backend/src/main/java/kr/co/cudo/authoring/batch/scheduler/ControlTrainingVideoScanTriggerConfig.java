@@ -30,7 +30,7 @@ public class ControlTrainingVideoScanTriggerConfig {
         return JobBuilder.newJob(ControlTrainingVideoScanJob.class)
                 .withIdentity(ControlTrainingVideoScanJob.JOB_NAME, ControlTrainingVideoScanJob.JOB_GROUP)
                 .storeDurably()
-                .withDescription("관제 학습용 영상(JOB_DMND_YN='Y') 픽업 적재")
+                .withDescription("관제 인입 원장(LS_DATA_INGEST) 미처리 행 픽업 적재")
                 .build();
     }
 

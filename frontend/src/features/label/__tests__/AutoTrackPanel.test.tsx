@@ -9,7 +9,7 @@
 //  - 수락·제외의 단위는 트랙이며 제외한 묶음은 작업 목록에 들어가지 않는다.
 //  - 라벨 마스터 식별자가 비어 있는 검출은 반영하지 않고 그 사실을 알린다.
 //
-// @design SCREEN-005, API-123, UC-034
+// @design SCREEN-005, API-123, UC-034, AC-038, AC-039, AC-040
 
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

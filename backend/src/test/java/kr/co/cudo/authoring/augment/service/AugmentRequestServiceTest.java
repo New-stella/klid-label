@@ -68,6 +68,7 @@ import static org.mockito.Mockito.verify;
  * 따라서 AFTER_COMMIT 발화를 검증하려면 <b>실제 커밋</b>이 필요하므로 본 테스트는
  * {@code @Transactional} 롤백을 쓰지 않고 {@link TransactionTemplate} 로 커밋한 뒤
  * 생성된 행/멱등 키를 명시적으로 정리한다.
+ * @design AC-001
  */
 @SpringBootTest
 @ActiveProfiles("local")

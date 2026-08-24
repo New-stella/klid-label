@@ -42,6 +42,8 @@ import static org.mockito.Mockito.when;
  *       여기서 복제하면 두 경로가 갈린다.</li>
  *   <li><b>대상 묶음은 VLM 하나</b> — 오토라벨 일괄은 400.</li>
  * </ol>
+ * @design AC-049
+ * @design AC-050
  */
 class BatchStageBulkServiceTest {
 

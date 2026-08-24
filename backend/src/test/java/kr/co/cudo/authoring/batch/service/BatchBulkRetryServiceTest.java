@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>핵심 수용 기준은 <b>부분 성공</b>이다 — 한 건의 거부·예외가 다른 건의 재기동을 막지 않고,
  * 한 건도 성공하지 못해도 예외를 던지지 않으며(200), 실패 사유에 내부 정보가 실리지 않는다.
+ * @design AC-050
  */
 class BatchBulkRetryServiceTest {
 

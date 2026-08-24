@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>검증 범위는 <b>스키마와 형식뿐</b>이다. <b>IP 대역 차단은 폐지</b>됐으므로(2026-08-10 사용자 확정)
  * 아래 대역 케이스들은 <b>삭제하지 않고 기대값을 뒤집어</b> "대역으로 막지 않는다"를 계약으로 고정한다 —
  * 지우면 다음 사람이 방어가 원래 없었다고 오해하고 되살린다.
+ * @design AC-071
  */
 class IntegrationEndpointUrlValidatorTest {
 

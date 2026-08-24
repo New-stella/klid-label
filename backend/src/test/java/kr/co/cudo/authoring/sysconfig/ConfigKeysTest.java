@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * 구 키 {@code YOLO_IMGSZ} 는 폐지됐다 — ai-server 로더가 입력 크기를 640 으로 고정해
  * 조정이 무효였다. 되살리기 방지 가드는 {@link #imgszKeyIsNotConfigurable()}.
+ * @design AC-075
  */
 class ConfigKeysTest {
 
