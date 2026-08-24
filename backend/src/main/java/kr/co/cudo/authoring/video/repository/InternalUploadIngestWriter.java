@@ -57,7 +57,10 @@ public class InternalUploadIngestWriter {
     /**
      * 고정 컬럼 INSERT — 관제 수신 30컬럼 + 처리상태 1컬럼(고정 {@code 'PENDING'}).
      *
-     * <p>V185 에서 {@code OG_CD}(기관코드)가 빠졌다 — 관제 "현행 미사용 값, 공급 불가" 확정.
+     * <p>{@code OG_CD}(기관코드)는 V185 에서 제거됐다가 V16 에서 복원됐다(2026-08-24 관제 재확인
+     * "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 <b>서로 다른 값</b>이다. 다만 이 INSERT 목록에는
+     * 넣지 않는다 — dev 내부 업로드는 그 값을 갖지 않아 nullable 컬럼으로 비워 둔다(V16 신설
+     * {@code THMB_FILE_PATH_NM} 도 같은 이유로 제외).
      *
      * <p>{@code BIT} 은 PostgreSQL 에서 컬럼명으로는 무인용 사용이 가능하다(V147 실증). 인용하면
      * 대문자 식별자가 고정돼 나머지 컬럼(무인용→소문자 폴딩)과 규칙이 갈리므로 그대로 둔다.
@@ -178,7 +181,7 @@ public class InternalUploadIngestWriter {
 
     /**
      * <b>측정 기술메타 back-fill</b> — 업로드 완료 시점 ffprobe 측정값으로 <b>비어 있는</b> 기술메타
-     * 8컬럼만 채운다 (Phase 2).
+     * 9컬럼만 채운다 (Phase 2).
      *
      * <h3>사용자가 입력한 값은 덮지 않는다 — 판정은 DB 가 한다 (R4)</h3>
      * <p>"비었는가"를 앱이 먼저 조회해서 판단하면 read-then-write 라, 조회와 UPDATE 사이에 다른
@@ -186,7 +189,7 @@ public class InternalUploadIngestWriter {
      * 원자적으로 판정한다 — 기존 값이 있으면 그 값이 그대로 남고, {@code null} 이면 인자가 들어간다.
      * 인자 쪽이 {@code null}(측정 미채택)이면 양쪽 다 {@code null} 이라 컬럼은 변하지 않는다.
      *
-     * <p>VARCHAR 4종({@code FPS}·{@code VDO_CDC}·{@code RESL}·{@code ASPRT_RT})은
+     * <p>VARCHAR 5종({@code FPS}·{@code VDO_CDC}·{@code RESL}·{@code ASPRT_RT}·{@code BIT})은
      * {@code NULLIF(BTRIM(...), '')} 를 씌워 <b>공백문자열도 미입력</b>으로 본다 — 폼이 빈 문자열을
      * 보내면 세션 생성 INSERT 가 그것을 그대로 실었기 때문에, 공백을 입력으로 인정하면 그 행은
      * 영원히 비어 있는 것으로 남는다.
@@ -215,11 +218,15 @@ public class InternalUploadIngestWriter {
      * 재기록된다. 즉 미입력 판정에 쓴 트림이 저장값에도 적용된다 — <b>값 자체는 보존</b>되며 측정값이
      * 덮지 않는다는 R4 는 그대로다. 무해한 정규화라 판단해 유지하며, 회귀 테스트가 이 동작을 고정한다.
      *
-     * <h3>{@code PXL}·{@code BIT} 는 SET 절에 <b>존재하지 않는다</b> (R3)</h3>
-     * <p>화소·색심도는 표기 규약이 정의돼 있지 않아 무엇을 넣든 지어낸 값이 된다. 그 의지를 SQL 에
-     * 못 박은 것이며, {@link ResolvedIngestMeta} 에도 그 필드가 없어 인자로 넘길 수단조차 없다.
-     * 구조 가드({@code LsDataIngestWriteGuardTest})가 두 컬럼의 부재와 {@code COALESCE} 래핑을
+     * <h3>{@code PXL} 은 SET 절에 <b>존재하지 않는다</b> (R3)</h3>
+     * <p>화소는 등급 표기(예 {@code 4K})라 표기 규약이 정의돼 있지 않아 무엇을 넣든 지어낸 값이 된다.
+     * 그 의지를 SQL 에 못 박은 것이며, {@link ResolvedIngestMeta} 에도 그 필드가 없어 인자로 넘길
+     * 수단조차 없다. 구조 가드({@code LsDataIngestWriteGuardTest})가 부재와 {@code COALESCE} 래핑을
      * 각각 단언한다.
+     *
+     * <p>⚠ {@code BIT} 은 <b>여기 있다</b> — 색심도가 아니라 <b>비트레이트(bps 정수)</b>로 재정의된
+     * 컬럼이라(설계 ERD-012) 표기가 모호하지 않고 ffprobe 가 직접 산출한다. R3 가 계속 막는 것은
+     * {@code PXL} 하나이며, 둘을 한 묶음으로 보고 함께 되돌리지 말 것.
      *
      * <h3>술어 — 우리 행이자 아직 적재 전인 미처리 행만</h3>
      * <ul>
@@ -256,6 +263,7 @@ public class InternalUploadIngestWriter {
      * @param meta    채택된 측정값(미채택 필드는 {@code null} — 그 컬럼은 변하지 않는다)
      * @return 갱신된 행 수 — <b>1 = 채움 시도 완료</b> / <b>0 = 술어 불일치</b>(정상 skip)
      * @req R1, R2, R4
+     * @design ERD-012
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, transactionManager = "controlTransactionManager")
     public int backfillMeasuredMeta(Long rcptnSn, ResolvedIngestMeta meta) {
@@ -264,12 +272,13 @@ public class InternalUploadIngestWriter {
     }
 
     /**
-     * back-fill UPDATE — SET 절은 기술메타 8컬럼뿐이고 모두 {@code COALESCE} 로 감싸여 있다.
+     * back-fill UPDATE — SET 절은 기술메타 9컬럼뿐이고 모두 {@code COALESCE} 로 감싸여 있다.
      *
-     * <p>{@code PXL}·{@code BIT} 는 여기에 <b>없다</b>(R3). 구조 가드가 이 부재를 단언하므로
-     * 추가하면 테스트가 죽는다.
+     * <p>{@code PXL} 은 여기에 <b>없다</b>(R3). 구조 가드가 이 부재를 단언하므로 추가하면 테스트가
+     * 죽는다. 반면 {@code BIT}(비트레이트 bps)는 <b>allowlist 안에 있다</b> — 위
+     * {@link #backfillMeasuredMeta} Javadoc 의 재정의 설명 참조.
      *
-     * <p>VARCHAR 4종의 {@code BTRIM} 은 제거 문자셋을 <b>명시</b>한다(스페이스·탭·LF·CR·NBSP) —
+     * <p>VARCHAR 5종의 {@code BTRIM} 은 제거 문자셋을 <b>명시</b>한다(스페이스·탭·LF·CR·NBSP) —
      * 기본 {@code BTRIM(col)} 은 스페이스만 지워 탭·개행·NBSP 만 든 값이 "입력"으로 잠긴다. 근거와
      * 표기 선택 이유는 {@link #backfillMeasuredMeta} Javadoc 참조. 이 인자를 지우면 회귀 테스트가 죽는다.
      */
@@ -286,6 +295,8 @@ public class InternalUploadIngestWriter {
                                      ' ' || CHR(9) || CHR(10) || CHR(13) || CHR(160)), ''), ?),
                    FRME_CNT    = COALESCE(FRME_CNT, ?),
                    ASPRT_RT    = COALESCE(NULLIF(BTRIM(ASPRT_RT,
+                                     ' ' || CHR(9) || CHR(10) || CHR(13) || CHR(160)), ''), ?),
+                   BIT         = COALESCE(NULLIF(BTRIM(BIT,
                                      ' ' || CHR(9) || CHR(10) || CHR(13) || CHR(160)), ''), ?)
              WHERE RCPTN_SN = ?
                AND PRCS_STTS_CD = 'PENDING'
@@ -304,6 +315,7 @@ public class InternalUploadIngestWriter {
         setString(ps, i++, m.resl());
         setDecimal(ps, i++, m.frmeCnt());
         setString(ps, i++, m.asprtRt());
+        setString(ps, i++, m.bit());
         ps.setLong(i, rcptnSn);
         return ps;
     }

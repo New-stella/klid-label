@@ -20,8 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <h3>무엇을 고정하는가</h3>
  * <ul>
- *   <li><b>{@code OG_CD} 제거</b> — 관제 회신(2026-08-12) "현행 미사용 값, 공급 불가". 컬럼이 <b>사라졌다</b>는
- *       단언이라 되살림(재추가)이 조용히 통과하지 않는다.</li>
+ *   <li><b>{@code OG_CD}</b> — V185 가 관제 회신(2026-08-12) "현행 미사용 값, 공급 불가"로 제거했으나,
+ *       관제가 2026-08-24 "실보유"로 재확인해 <b>V16 이 복원</b>했다. 마이그레이션 누적 적용상 최종
+ *       스키마에는 다시 존재하므로 이 IT 는 <b>복원 상태</b>를 고정한다(구 "제거됨" 단언은 V16 로 폐기).</li>
  *   <li><b>{@code VMS_CCTV_ID} NULL 허용</b> — 관제 회신 "CCTV 식별자가 없는 영상이 존재".
  *       <b>{@code LS_DATA_INGEST}·{@code LS_DATA_RAW} 두 테이블 모두</b>를 본다. 한쪽만 풀면
  *       인입 행은 받되 원시영상 적재에서 NOT NULL 위반으로 터져 관제 요구가 실질 미충족이다.</li>
@@ -47,16 +48,17 @@ class V185ControlIngestContractMigrationIT {
     }
 
     @Test
-    @DisplayName("인입테이블에서_기관코드_컬럼이_제거됐다")
-    void 인입테이블에서_기관코드_컬럼이_제거됐다() {
+    @DisplayName("V185에서_제거된_기관코드_컬럼이_V16에서_복원됐다")
+    void V185에서_제거된_기관코드_컬럼이_V16에서_복원됐다() {
         // given / when — 인입 테이블 실제 컬럼(information_schema 는 소문자로 돌려준다)
         List<String> columns = columnsOf("ls_data_ingest");
 
-        // then — 관제가 공급하지 않기로 확정한 값이라 수신 통로 자체를 없앤다.
-        //   "미송신"과 "값 없음"이 구분되지 않는 컬럼을 남겨두면 화면·업로드 폼이 그 자리를 계속 그린다.
+        // then — V185 가 "관제 공급 불가"로 제거했던 OG_CD 를 관제가 2026-08-24 "실보유"로 재확인해
+        //   V16 이 되살렸다. 마이그레이션은 누적 적용되므로(V185→V16) 최종 스키마에는 다시 존재한다.
+        //   구 단언 doesNotContain("og_cd") 는 V16 재추가로 폐기됐다(되돌리지 말 것).
         assertThat(columns)
-                .as("OG_CD — 관제 현행 미사용·공급 불가 확정(2026-08-12)")
-                .doesNotContain("og_cd");
+                .as("OG_CD — 관제 실보유 재확인으로 V16 복원(2026-08-24)")
+                .contains("og_cd");
     }
 
     @Test

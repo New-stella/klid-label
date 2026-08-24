@@ -61,7 +61,7 @@ import java.time.LocalDateTime;
  * @param wdth            영상 너비(px)
  * @param vrtc            영상 세로(px)
  * @param resl            해상도 표기(예 1920x1080)
- * @param bit             비트값 = 색심도 표기(예 24bit). 비트레이트가 아니다
+ * @param bit             비트레이트(bps 정수, 예 2050627). 색심도가 아니다 — 2026-08-24 의미 재정의(ERD-012)
  * @param pxl             화소 표기(예 4K)
  * @param wgs84Lat        WGS84 위도
  * @param wgs84Lot        WGS84 경도
@@ -148,7 +148,7 @@ public record InternalUploadCreateRequest(
         @Size(max = 20, message = "해상도는 20자를 넘을 수 없습니다.")
         String resl,
 
-        @Size(max = 20, message = "비트값은 20자를 넘을 수 없습니다.")
+        @Size(max = 20, message = "비트레이트는 20자를 넘을 수 없습니다.")
         String bit,
 
         @Size(max = 20, message = "화소는 20자를 넘을 수 없습니다.")

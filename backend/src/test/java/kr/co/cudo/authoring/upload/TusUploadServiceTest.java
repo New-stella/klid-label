@@ -465,8 +465,8 @@ class TusUploadServiceTest {
         assertThat(inserted.lclgvNm()).isEqualTo("서울특별시 강남구");
         assertThat(inserted.wgs84Lat()).isEqualByComparingTo("37.4979200");
         assertThat(inserted.wgs84Lot()).isEqualByComparingTo("127.0276100");
-        // ★ 기관코드(OG_CD) 단언은 <제거>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
-        //   공급 불가" 확정으로 인입 수신 컬럼 자체가 사라졌고 입력면(폼·요청 DTO)에서도 빠졌다.
+        // ★ 기관코드(OG_CD) 단언은 V185(관제 "공급 불가") 때 제거됐다. V16 에서 인입 컬럼은
+        //   복원됐으나 입력면(폼·요청 DTO)에는 여전히 없어 단언도 되살리지 않는다.
         assertThat(inserted.cctvNm()).isEqualTo("강남대로 CCTV");
         assertThat(inserted.cctvHgt()).isEqualByComparingTo("4.5");
         assertThat(inserted.mainSurvPanAng()).isEqualTo(180);
@@ -1666,7 +1666,7 @@ class TusUploadServiceTest {
         // given — 컨테이너가 코덱·종횡비·프레임수를 신고하지 않고 해상도도 없는 영상
         //   (사용자 입력 보존 자체는 DB COALESCE 가 판정한다 — 여기서는 <미측정 = null 인자>를 고정한다.
         //    null 인자는 COALESCE 에서 기존 값을 그대로 남기므로 어떤 컬럼도 덮이지 않는다.)
-        mediaProbe.result = new MediaMeta(0, 0, null, null, 60_000L, null, null);
+        mediaProbe.result = new MediaMeta(0, 0, null, null, 60_000L, null, null, null);
         UUID id = service.createSession(OWNER, 8, withPartialTechMeta("VMS-1"));
         long rcptnSn = rcptnSnOf("VMS-1");
 
@@ -1750,7 +1750,7 @@ class TusUploadServiceTest {
         //   길이도 없어야 한다. 그런데 길이 미상은 409 게이트에 걸리므로 도달 경로가 없다.
         //   따라서 resolver 결과가 비는 상황은 프로덕션에서 도달 불가이며, 여기서는 그 방어(isEmpty
         //   조기 반환)가 살아 있는지만 확인한다 — 완료 자체가 409 이고 back-fill 은 시도되지 않는다.
-        mediaProbe.result = new MediaMeta(0, 0, null, null, null, null, null);
+        mediaProbe.result = new MediaMeta(0, 0, null, null, null, null, null, null);
         UUID id = service.createSession(OWNER, 8, minimal("VMS-1"));
 
         assertThatThrownBy(() -> service.appendChunk(id, OWNER, 0,
@@ -1849,7 +1849,7 @@ class TusUploadServiceTest {
         //   ★초 환산은 <반올림>이다(구 DurationProbeFfprobe 의 Math.round 와 동일 — 동작 보존).
         //   그래서 7_200_499ms 는 7200 초로 접혀 통과하고, 7_200_500ms 부터 7201 초가 되어 거부된다.
         for (Long durationMs : new Long[]{null, 0L, 400L, 7_200_500L}) {
-            mediaProbe.result = new MediaMeta(1920, 1080, "h264", 30.0, durationMs, null, "16:9");
+            mediaProbe.result = new MediaMeta(1920, 1080, "h264", 30.0, durationMs, null, "16:9", null);
             String clipId = "VMS-D-" + (durationMs == null ? "NA" : durationMs);
             UUID id = service.createSession(OWNER, 8, minimal(clipId));
 
@@ -1863,7 +1863,7 @@ class TusUploadServiceTest {
         verify(ingestWriter, never()).backfillMeasuredMeta(anyLong(), any(ResolvedIngestMeta.class));
 
         // 경계 — 7200초로 접히는 값은 통과한다(부가 필드가 전부 미상이어도 게이트는 열린다)
-        mediaProbe.result = new MediaMeta(0, 0, null, null, 7_200_499L, null, null);
+        mediaProbe.result = new MediaMeta(0, 0, null, null, 7_200_499L, null, null, null);
         UUID ok = service.createSession(OWNER, 8, minimal("VMS-D-MAX"));
         assertThat(service.appendChunk(ok, OWNER, 0,
                 new ByteArrayInputStream(withMp4Head(8), 0, 8), 8).completed()).isTrue();
@@ -1896,7 +1896,7 @@ class TusUploadServiceTest {
     private static final class RecordingMediaProbe implements UploadMediaProbe {
         private final List<Path> calls = new ArrayList<>();
         private MediaMeta result =
-                new MediaMeta(1920, 1080, "h264", 30.0, 60_000L, 1800L, "16:9");
+                new MediaMeta(1920, 1080, "h264", 30.0, 60_000L, 1800L, "16:9", null);
         private RuntimeException failure;
 
         @Override

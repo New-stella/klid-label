@@ -123,16 +123,19 @@ class LsDataIngestWriteGuardTest {
      * {@code VRFC_EVNT_TYPE_CD}(V176 — 검증이벤트유형, 외부 VLM verify 의 {@code event_type})가
      * 그 이유로 여기 있다.
      *
-     * <p>★ {@code OG_CD}(기관코드)는 <b>제거</b>됐다 (V185) — 관제 회신(2026-08-12) "현행 미사용 값,
-     * 공급 불가" 확정으로 컬럼 자체가 없어졌다. 목록에 남겨두면 <b>존재하지 않는 컬럼을 지키는</b>
-     * 죽은 항목이 된다.
+     * <p>★ {@code OG_CD}(기관코드)는 V185 에서 제거됐다가 <b>V16 에서 복원</b>됐다(2026-08-24 관제
+     * 재확인 "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 서로 다른 값이다. {@code THMB_FILE_PATH_NM}
+     * (썸네일파일경로명)도 V16 신설분이다. <b>지금 writer 는 두 컬럼을 쓰지 않지만 목록에는 넣는다</b> —
+     * 이 목록의 존재 이유가 "쓰기 시작하면 잡는" 것이라, 쓰기 시작한 뒤에 넣기로 미루면 그 통로가
+     * 열리는 바로 그 커밋에서 가드가 침묵한다(위 CWE-915 경고와 같은 취지). 관제가 채우는 값이므로
+     * 우리 쓰기 경로가 건드리면 안 되는 축이라는 점도 이미 확정돼 있다.
      */
     private static final List<String> CONTROL_OWNED_COLUMNS = List.of(
             "VMS_CLIP_ID", "VMS_CCTV_ID", "VDO_FILE_NM", "RAW_FILE_PATH_NM", "SRC_TYPE", "SHT_DT",
             "FILE_FMT", "VDO_CDC", "FILE_SZ", "LCLGV_NM", "VDO_LEN_SEC", "FPS", "FRME_CNT", "ASPRT_RT",
             "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "CCTV_NM",
             "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD",
-            "VRFC_EVNT_TYPE_CD");
+            "VRFC_EVNT_TYPE_CD", "OG_CD", "THMB_FILE_PATH_NM");
 
     /** 되살리기·back-fill UPDATE 를 호출해도 되는 <b>유일한</b> 파일 — Java 측 신뢰 경계 판정이 여기 있다. */
     private static final String ALLOWED_REVIVE_CALLER = "TusUploadService.java";
@@ -149,21 +152,35 @@ class LsDataIngestWriteGuardTest {
      * <p>{@code VRFC_EVNT_TYPE_CD}(V176)도 여기 있다 — back-fill 은 <b>측정 기술메타 전용</b>이고
      * 검증이벤트유형은 ffprobe 로 측정할 수 있는 값이 아니다. SET 절에 들어가면 사람이 고른 값을
      * 측정 경로가 덮는 통로가 된다.
+     *
+     * <h3>★ {@code BIT} 은 여기서 <b>빠졌다</b> — 색심도가 아니라 비트레이트다 (되돌리지 말 것)</h3>
+     * <p>이 목록이 처음 만들어질 때 {@code BIT} 은 <b>색심도 표기</b>({@code 24bit})였고, 그래서
+     * "표기 규약이 없어 지어낸 값이 된다"는 R3 의 근거가 {@code PXL} 과 동일하게 성립했다. 이후 관제
+     * 실측값이 <b>bps 정수</b>({@code 2050627})임이 확인돼 컬럼 의미가 재정의됐고(설계 ERD-012),
+     * 그 순간 <b>BIT 에 한해 그 근거가 소멸</b>했다 — bps 정수는 표기가 모호하지 않고 ffprobe 가
+     * {@code format.bit_rate} 로 직접 산출한다.
+     *
+     * <p>따라서 {@code BIT} 은 아래 allowlist 로 <b>옮겨간</b> 것이지 가드가 느슨해진 것이 아니다.
+     * 이 항목을 "R3 위반"으로 보고 되돌리면 dev 업로드 영상의 비트레이트가 다시 영구 NULL 이 된다.
+     * R3 가 계속 막는 것은 {@code PXL} 하나다.
      */
     private static final List<String> BACKFILL_FORBIDDEN_COLUMNS =
-            List.of("PXL", "BIT", "VRFC_EVNT_TYPE_CD");
+            List.of("PXL", "VRFC_EVNT_TYPE_CD");
 
     /**
-     * back-fill 이 SET 해도 되는 <b>전부</b> — 측정으로 채우는 기술메타 8컬럼 (R2).
+     * back-fill 이 SET 해도 되는 <b>전부</b> — 측정으로 채우는 기술메타 9컬럼 (R2).
      *
-     * <p><b>denylist 가 아니라 allowlist 인 이유</b> — 금지 목록(PXL·BIT)만 두면 <b>목록에 없는</b>
+     * <p>{@code BIT}(비트레이트 bps 정수)는 컬럼 의미 재정의로 여기에 들어왔다 — 위
+     * {@link #BACKFILL_FORBIDDEN_COLUMNS} 의 근거 참조.
+     *
+     * <p><b>denylist 가 아니라 allowlist 인 이유</b> — 금지 목록(PXL)만 두면 <b>목록에 없는</b>
      * 관제 소유 컬럼({@code MNTR_CN}·{@code CCTV_NM}·심지어 신뢰 판별자 {@code RAW_FILE_PATH_NM})을
      * SET 절에 얹어도 통과한다(CWE-915). 특히 {@code RAW_FILE_PATH_NM} 은 호출 측 신뢰 경계 판정
      * ({@code TusUploadService#backfillIngestMeta} → {@code isUploadAreaPath})이 <b>읽는 바로 그
      * 컬럼</b>이라, back-fill 이 그것을 쓸 수 있으면 판별자를 스스로 오염시키는 구조가 열린다.
      */
     private static final List<String> BACKFILL_ALLOWED_COLUMNS = List.of(
-            "VDO_LEN_SEC", "FPS", "VDO_CDC", "WDTH", "VRTC", "RESL", "FRME_CNT", "ASPRT_RT");
+            "VDO_LEN_SEC", "FPS", "VDO_CDC", "WDTH", "VRTC", "RESL", "FRME_CNT", "ASPRT_RT", "BIT");
 
     /**
      * SET 절의 개별 대입 — {@code COLUMN = <RHS 의 첫 인자까지>}.
@@ -289,7 +306,8 @@ class LsDataIngestWriteGuardTest {
                 .as("이미 적재된 행의 인입 근거를 사후 변조하지 않는다")
                 .containsIgnoringCase("RAW_SN IS NULL");
 
-        // --- ③ (R3) back-fill 은 PXL·BIT 를 채우지 않는다 — 표기 규약이 없어 지어낸 값이 된다.
+        // --- ③ (R3) back-fill 은 PXL 을 채우지 않는다 — 표기 규약이 없어 지어낸 값이 된다.
+        //   ★BIT 는 이 목록에 없다(비트레이트 bps 정수로 재정의 — BACKFILL_FORBIDDEN_COLUMNS 근거 참조).
         for (String forbidden : BACKFILL_FORBIDDEN_COLUMNS) {
             assertThat(setsColumn(backfill, forbidden))
                     .as("back-fill SET 절에 %s 가 있으면 안 된다(R3)%n%s", forbidden, backfill.sql())
@@ -314,11 +332,11 @@ class LsDataIngestWriteGuardTest {
                     .isEqualTo(column);
         });
 
-        // --- ⑤ (R2/R3) SET 대상은 allowlist 8컬럼이 <전부>다.
-        //   denylist(PXL·BIT)만으로는 목록에 없는 관제 컬럼(MNTR_CN·RAW_FILE_PATH_NM 등)이 새로
+        // --- ⑤ (R2/R3) SET 대상은 allowlist 9컬럼이 <전부>다.
+        //   denylist(PXL)만으로는 목록에 없는 관제 컬럼(MNTR_CN·RAW_FILE_PATH_NM 등)이 새로
         //   얹혀도 통과한다. allowlist 는 R3 를 자동으로 포함하며, 위 ③ 은 문서적 이중 방어로 남긴다.
         assertThat(assignments.keySet())
-                .as("back-fill 이 SET 하는 컬럼은 측정 기술메타 8종뿐이어야 한다%n%s", backfill.sql())
+                .as("back-fill 이 SET 하는 컬럼은 측정 기술메타 9종뿐이어야 한다%n%s", backfill.sql())
                 .containsExactlyInAnyOrderElementsOf(BACKFILL_ALLOWED_COLUMNS);
     }
 
