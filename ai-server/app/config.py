@@ -59,7 +59,13 @@ class Settings(BaseSettings):
         default="facebook/sam2-hiera-tiny",
         description="Meta SAM2 HF 모델 ID (설정 기반 — 사용자 입력 reflection 금지)",
     )
-    vlm_model_name: str = Field(default="openai/clip-vit-base-patch32")
+    # VLM 추론 본체는 외부 서비스이며 이 서버의 vlm 라우터는 그 어댑터다.
+    # 아래 값은 아직 어떤 모델도 적재하지 않는다 — 로더가 목 응답으로 떨어지며 이 이름을 로그에만 남긴다.
+    # 그래서 이 값을 보고 "실제로 쓰는 모델"로 읽으면 안 된다.
+    vlm_model_name: str = Field(
+        default="openai/clip-vit-base-patch32",
+        description="VLM 로더가 목 응답으로 떨어질 때 로그에 남기는 이름. 실제 적재 대상이 아니다.",
+    )
 
     # CORS
     cors_allow_origins: str = Field(
