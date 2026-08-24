@@ -46,7 +46,7 @@ class WebhookRequestSizeLimitTest {
     @DisplayName("VlmResultRequest_description_2000자_초과_시_검증_실패")
     void vlmDescriptionOverMaxLength_violates() {
         VlmResultRequest req = new VlmResultRequest("REQ-1", "completed",
-                new VlmResultRequest.Results(null, "가".repeat(2001)), null);
+                new VlmResultRequest.Results("가".repeat(2001)), null);
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
@@ -56,16 +56,16 @@ class WebhookRequestSizeLimitTest {
     }
 
     @Test
-    @DisplayName("VlmResultRequest_error_message_2000자_초과_시_검증_실패")
-    void vlmErrorMessageOverMaxLength_violates() {
-        VlmResultRequest req = new VlmResultRequest("REQ-1", "failed", null,
-                new VlmResultRequest.VlmError("INFERENCE_ERROR", "e".repeat(2001)));
+    @DisplayName("★VlmResultRequest_error_2000자_초과_시_검증_실패_구_객체형태_폐기")
+    void vlmErrorOverMaxLength_violates() {
+        // 규격 §2.7 상 error 는 객체가 아니라 문자열이다. 길이 상한은 로그·기록 폭주 방어(CWE-770).
+        VlmResultRequest req = new VlmResultRequest("REQ-1", "failed", null, "e".repeat(2001));
 
         Set<ConstraintViolation<VlmResultRequest>> violations = validator.validate(req);
 
         assertThat(violations)
                 .extracting(v -> v.getPropertyPath().toString())
-                .anyMatch(path -> path.endsWith("message"));
+                .anyMatch(path -> path.equals("error"));
     }
 
     @Test

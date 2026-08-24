@@ -98,7 +98,7 @@ class IntegrationEndpointCredentialGuardTest {
 
     private RecordedRequest exchange(WebClient client, MockWebServer expected) throws InterruptedException {
         expected.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
-        client.post().uri("/v1/videovlm/verify").bodyValue("{}")
+        client.post().uri("/v1/videovlm-klid/describe").bodyValue("{}")
                 .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5));
         return expected.takeRequest(5, TimeUnit.SECONDS);
     }

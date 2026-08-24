@@ -17,6 +17,7 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +61,7 @@ class VlmResultServiceTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock TimeseriesSubResultApplier subResultApplier;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private VlmResultService service;
@@ -70,13 +72,13 @@ class VlmResultServiceTest {
     void setup() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher);
+                approvalGate, eventPublisher, subResultApplier);
         ledger.clear();
     }
 
     private static VlmResultRequest completed(String requestId, BigDecimal accuracy, String description) {
         return new VlmResultRequest(requestId, "completed",
-                new VlmResultRequest.Results(accuracy, description), null);
+                new VlmResultRequest.Results(description), null);
     }
 
     private LsDataMeta metaRow(Long rawSn, String metaKey, String metaVl) {
@@ -100,8 +102,8 @@ class VlmResultServiceTest {
     // ───────────────────────── 적재 (@req R4) ─────────────────────────
 
     @Test
-    @DisplayName("verify_완료콜백이면_description과_accuracy가_적재된다")
-    void completed_persistsDescriptionAndAccuracy() {
+    @DisplayName("★묘사_완료콜백이면_서술만_적재하고_일치도는_쓰지_않는다")
+    void completed_persistsDescriptionOnly() {
         // given
         ledger.recordIssued("REQ-1", LsWebhookIdempotency.CHANNEL_VLM, "EXT-V", 200L);
         when(videoRepository.existsById(200L)).thenReturn(true);
@@ -115,7 +117,12 @@ class VlmResultServiceTest {
         assertThat(applied).isTrue();
         verify(metaRepository).upsertMetaReturning(200L, VlmResultService.META_KEY_DESCRIPTION,
                 "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다.");
-        verify(metaRepository).upsertMeta(200L, VlmResultService.META_KEY_ACCURACY, "0.8");
+        // 판정 창구를 연동하지 않으므로 일치도는 새로 생기지 않는다. 이미 적재된 행은 지우지
+        // 않지만, 새 값을 쓰는 경로는 없어야 한다.
+        verify(metaRepository, org.mockito.Mockito.never())
+                .upsertMeta(org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.eq(VlmResultService.META_KEY_ACCURACY),
+                        org.mockito.ArgumentMatchers.anyString());
         assertThat(ledger.isProcessed("REQ-1")).isTrue();
     }
 
@@ -157,15 +164,22 @@ class VlmResultServiceTest {
     }
 
     @Test
-    @DisplayName("accuracy가_0이나_1이면_정상_적재된다")
-    void accuracyBoundary_persisted() {
-        ledger.recordIssued("REQ-B0", LsWebhookIdempotency.CHANNEL_VLM, "EXT-B0", 212L);
+    @DisplayName("★추가질문_채널_콜백은_시계열_메타가_아니라_어노테이션_초안으로_간다")
+    void subChannelCallbackRoutesToAnnotationDraft() {
+        // given — 콜백 바디에는 창구 구분자가 없다. 위탁 시 등록한 채널이 유일한 역조회 축이다.
+        ledger.recordIssued("REQ-SUB", LsWebhookIdempotency.CHANNEL_VLM_SUB, "EXT-SUB", 212L);
         when(videoRepository.existsById(212L)).thenReturn(true);
-        stubNewDescription(212L);
 
-        service.handle(completed("REQ-B0", BigDecimal.ZERO, "서술"));
+        // when
+        boolean applied = service.handle(completed("REQ-SUB", BigDecimal.ZERO, "네, 근거는 ..."));
 
-        verify(metaRepository).upsertMeta(212L, VlmResultService.META_KEY_ACCURACY, "0");
+        // then — 시계열 서술 자리를 건드리지 않는다(두 축이 같은 키를 쓰면 한쪽이 유실된다).
+        assertThat(applied).isTrue();
+        verify(subResultApplier).applySubDescription(212L, "네, 근거는 ...");
+        verify(metaRepository, org.mockito.Mockito.never())
+                .upsertMetaReturning(org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -195,7 +209,7 @@ class VlmResultServiceTest {
 
         boolean applied = service.handle(new VlmResultRequest(
                 "REQ-F", "failed", null,
-                new VlmResultRequest.VlmError("INFERENCE_ERROR", "Video VLM inference failed")));
+                ("Video VLM inference failed")));
 
         assertThat(applied).isTrue();
         verify(metaRepository, never()).upsertMeta(any(), anyString(), anyString());
@@ -235,7 +249,7 @@ class VlmResultServiceTest {
         WebhookIdempotencyLedger lockingLedger = org.mockito.Mockito.mock(WebhookIdempotencyLedger.class);
         VlmResultService svc = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, lockingLedger, markingRepository,
-                approvalGate, eventPublisher);
+                approvalGate, eventPublisher, subResultApplier);
         when(lockingLedger.lookupForProcessing("REQ-LOCK")).thenReturn(Optional.of(
                 new WebhookIdempotencyLedger.Entry(
                         WebhookIdempotencyLedger.State.ISSUED, "EXT-L", 214L, null)));
@@ -270,7 +284,7 @@ class VlmResultServiceTest {
 
         assertThatThrownBy(() -> service.handle(new VlmResultRequest(
                 "REQ-BADSTS", "processing",
-                new VlmResultRequest.Results(new BigDecimal("0.8"), "서술"), null)))
+                new VlmResultRequest.Results("서술"), null)))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);

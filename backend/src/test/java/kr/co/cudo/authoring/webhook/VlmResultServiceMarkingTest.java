@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +51,7 @@ class VlmResultServiceMarkingTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock TimeseriesSubResultApplier subResultApplier;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private VlmResultService service;
@@ -58,7 +60,7 @@ class VlmResultServiceMarkingTest {
     void setup() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher);
+                approvalGate, eventPublisher, subResultApplier);
         ledger.clear();
     }
 
@@ -85,7 +87,7 @@ class VlmResultServiceMarkingTest {
 
     private static VlmResultRequest completed(String requestId, String description) {
         return new VlmResultRequest(requestId, "completed",
-                new VlmResultRequest.Results(new BigDecimal("0.8"), description), null);
+                new VlmResultRequest.Results(description), null);
     }
 
     private LsMarking createMarkingWithStatus(Long rawSn, String status) {
@@ -183,7 +185,7 @@ class VlmResultServiceMarkingTest {
 
         VlmResultRequest req = new VlmResultRequest(
                 "K-M4", "failed", null,
-                new VlmResultRequest.VlmError("VLM_TIMEOUT", "분석 지연"));
+                ("분석 지연"));
 
         // when
         boolean applied = service.handle(req);

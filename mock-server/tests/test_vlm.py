@@ -1,4 +1,4 @@
-"""IntelliVIX Video VLM 벤더 목 — Phase 3 엔드포인트(verify/describe/status) + 비동기 콜백 테스트.
+"""IntelliVIX Video VLM 벤더 목 — KLID 연동 API v1.1.0 엔드포인트 + 비동기 콜백 테스트.
 
 콜백은 실제 네트워크 없이 검증한다:
 - 발사 여부/페이로드 형식은 ``vlm_sim.fire_callback`` 을 monkeypatch 로 가로채 단정한다.
@@ -16,9 +16,12 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-VERIFY_URL = "/v1/videovlm/verify"
-DESCRIBE_URL = "/v1/videovlm/describe"
-STATUS_URL = "/v1/videovlm/status"
+# ★ 판정(verify) 라우트는 두지 않는다 — 저작도구가 연동하지 않는 창구다. 따라서 요청 형식·콜백
+#   URL 가드 등 <b>창구 공통 규약</b>의 검증 대상은 묘사 창구로 옮겼다(그 규약은 창구와 무관하다).
+DESCRIBE_URL = "/v1/videovlm-klid/describe"
+DESCRIBE_SUB_URL = "/v1/videovlm-klid/describe-sub"
+EVENTS_URL = "/v1/videovlm-klid/events"
+STATUS_URL = "/v1/videovlm-klid/status"
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +42,7 @@ def _fast_callback() -> Iterator[None]:
     reload_settings()
 
 
-def _verify_body(**over: object) -> dict:
+def _request_body(**over: object) -> dict:
     body = {
         "request_id": "00000001",
         "event_type": "fall",
@@ -47,7 +50,8 @@ def _verify_body(**over: object) -> dict:
             "type": "video",
             "source_type": "path",
             "path": "/data/videos/sample.mp4",
-            "frame_policy": {"mode": "frame_interval", "framerate": 25},
+            # framerate 는 규격에 없다 — mode 만 지정한다(§2.5).
+            "frame_policy": {"mode": "frame_interval"},
         },
         "callback_url": "http://klid-backend:8080/api/v1/vlm/callback",
     }
@@ -83,12 +87,13 @@ def _patch_capture(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict]]:
     return captured
 
 
-# ── verify 동기 응답 ─────────────────────────────────────────────
-def test_verify_는_request_id_echo와_accepted를_200으로_반환(client: TestClient) -> None:
+# ── 접수 응답 ────────────────────────────────────────────────────
+def test_접수응답은_202이고_request_id_echo와_accepted를_담는다(client: TestClient) -> None:
+    """규격 §2.6 — 정상 접수는 HTTP **202**. 구 규격(v2.0.1)의 200 은 폐기됐다."""
     # given / when
-    res = client.post(VERIFY_URL, json=_verify_body())
+    res = client.post(DESCRIBE_URL, json=_request_body())
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     body = res.json()
     assert body["request_id"] == "00000001"
     assert body["status"] == "accepted"
@@ -99,7 +104,7 @@ def test_describe_는_request_id_echo와_accepted를_반환(client: TestClient) 
     # given / when
     res = client.post(DESCRIBE_URL, json=_describe_body())
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     body = res.json()
     assert body["request_id"] == "d0000001"
     assert body["status"] == "accepted"
@@ -113,8 +118,8 @@ def test_표준_6종_밖의_event_type도_수락한다_구_422_폐기(client: Te
     구 enum 계약을 들고 있으면 로컬·dev 에서 파이프라인을 완주시킬 수 없다.
     ⚠ 목서버 한정 완화이며 **실벤더가 관대하다는 근거가 아니다**(규격상 required + enum 6종).
     """
-    res = client.post(VERIFY_URL, json=_verify_body(event_type="earthquake"))
-    assert res.status_code == 200
+    res = client.post(DESCRIBE_URL, json=_request_body(event_type="earthquake"))
+    assert res.status_code == 202
     assert res.json()["status"] == "accepted"
 
 
@@ -123,29 +128,43 @@ def test_event_type이_없어도_수락한다_구_400_폐기(client: TestClient)
 
     구 동작은 `400 Field required` 라 관제 값이 채워지기 전 영상은 한 건도 완주하지 못했다.
     """
-    body = _verify_body()
+    body = _request_body()
     body.pop("event_type")
-    res = client.post(VERIFY_URL, json=body)
-    assert res.status_code == 200
+    res = client.post(DESCRIBE_URL, json=body)
+    assert res.status_code == 202
     assert res.json()["status"] == "accepted"
 
 
 def test_미지의_event_type은_폴백_서술로_콜백한다(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """값을 지어내 이벤트별 서술을 만들지 않는다 — 표준 6종만 전용 서술을 갖는다."""
+    """값을 지어내 이벤트별 서술을 만들지 않는다 — 표준 7종만 전용 서술을 갖는다.
+
+    ★ 검증 대상은 **추가 질문 창구**다. 묘사 창구의 서술은 영상 길이에서 나오는 구간 서술이라
+    event_type 에 따라 갈리지 않는다 — 그 창구로 이 성질을 확인하면 늘 통과하는 헛 단정이 된다.
+    """
     captured = _patch_capture(monkeypatch)
-    res = client.post(VERIFY_URL, json=_verify_body(event_type="earthquake"))
-    assert res.status_code == 200
+    res = client.post(DESCRIBE_SUB_URL, json=_request_body(event_type="earthquake"))
+    assert res.status_code == 202
     assert len(captured) == 1
-    results = captured[0][1]["results"]
-    assert results["description"] == "요청한 이벤트에 해당하는 정황이 확인됩니다."
-    # 표준 6종의 전용 서술이 잘못 붙지 않는다(폴백이지 임의 매핑이 아니다).
-    assert "화재" not in results["description"]
+    description = captured[0][1]["results"]["description"]
+    assert "근거는 확인되지 않습니다" in description
+    # 표준 7종의 전용 서술이 잘못 붙지 않는다(폴백이지 임의 매핑이 아니다).
+    assert "불꽃" not in description
 
 
-def test_selected_frames_9개면_422(client: TestClient) -> None:
-    # given — selected_frames 8 초과(9개)
+def test_표준_이벤트는_전용_서술로_콜백한다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """폴백과 대조군 — 아는 값이면 그 이벤트 전용 문장이 온다."""
+    captured = _patch_capture(monkeypatch)
+    client.post(DESCRIBE_SUB_URL, json=_request_body(event_type="fire"))
+    assert "불꽃" in captured[0][1]["results"]["description"]
+
+
+def test_selected_frames_9개는_수락한다_구_상한8_폐기(client: TestClient) -> None:
+    """구 verify 규격의 상한 8 은 폐기됐다 — KLID 규격 §2.5 의 상한은 600 이다."""
+    # given — 구 상한(8)을 넘는 9개
     media = {
         "type": "video",
         "source_type": "path",
@@ -156,50 +175,72 @@ def test_selected_frames_9개면_422(client: TestClient) -> None:
         },
     }
     # when
-    res = client.post(VERIFY_URL, json=_verify_body(media=media))
-    # then
-    assert res.status_code == 422
+    res = client.post(DESCRIBE_URL, json=_request_body(media=media))
+    # then — 수락(구 동작은 422)
+    assert res.status_code == 202
 
 
-def test_framerate가_240을_넘어도_수락한다_구_상한_폐기(client: TestClient) -> None:
-    """framerate 는 FPS 가 아니라 **추출 간격**(몇 프레임당 1장)이라 상한이 없다.
-
-    규격서 §2.1 본문이 "framerate가 25이면 25프레임당 1개 추출"로 정의한다(같은 문서의
-    파라미터 표만 "기준 FPS"라 적혀 있어 문서 내부가 모순이다). 구 스키마의 ``le=240`` 은
-    FPS 해석에서 온 상한이라, 간격 해석의 정상 입력(300프레임당 1장)을 422 로 막았다.
-    2026-08-06 로컬 드라이브에서 자동 마킹 intervalFrames=300 이 실제로 이 상한에 걸려
-    위탁이 죽었다 — 그 회귀를 고정한다.
-    """
-    # given — 구 상한(240)을 넘는 추출 간격
+def test_selected_frames_601개면_거부한다(client: TestClient) -> None:
+    """규격 §2.9 — selected_frames 개수 초과(600)는 거부된다."""
     media = {
         "type": "video",
         "source_type": "path",
         "path": "/data/v.mp4",
-        "frame_policy": {"mode": "frame_interval", "framerate": 300},
+        "frame_policy": {"mode": "frame_selected", "selected_frames": list(range(601))},
     }
-    # when
-    res = client.post(VERIFY_URL, json=_verify_body(media=media))
-    # then — 수락(구 동작은 422)
-    assert res.status_code == 200
-    assert res.json()["status"] == "accepted"
+    res = client.post(DESCRIBE_URL, json=_request_body(media=media))
+    assert res.status_code in (400, 422)
 
 
-def test_framerate_0이하는_여전히_422(client: TestClient) -> None:
-    """상한만 없앴고 하한(ge=1)은 유지한다 — 0 이면 추출 간격이 성립하지 않는다."""
+def test_framerate를_보내도_무시하고_수락한다_필드_폐기(client: TestClient) -> None:
+    """★ ``framerate`` 는 KLID 규격의 frame_policy 에 **없는 필드**다(§2.5).
+
+    mode 만 연동 시스템이 지정하고 간격·장수 세부값은 서버가 관리한다. 구 규격(v2.0.1)에서
+    넘어온 클라이언트가 이 필드를 보내도 접수는 되어야 한다(``extra="ignore"``) — 그래야
+    전환 구간에 위탁이 죽지 않는다. 다만 값은 아무 영향도 주지 않는다.
+    """
+    # given — 구 규격 필드를 그대로 실은 요청(값의 크고 작음은 무관하다)
     media = {
         "type": "video",
         "source_type": "path",
         "path": "/data/v.mp4",
         "frame_policy": {"mode": "frame_interval", "framerate": 0},
     }
-    res = client.post(VERIFY_URL, json=_verify_body(media=media))
-    assert res.status_code == 422
+    # when
+    res = client.post(DESCRIBE_URL, json=_request_body(media=media))
+    # then — 값 검증 자체가 사라졌으므로 0 이어도 수락된다(구 동작은 422)
+    assert res.status_code == 202
+    assert res.json()["status"] == "accepted"
+
+
+def test_uniform_mode를_수락한다_신규(client: TestClient) -> None:
+    """규격 §2.5 가 정의한 세 mode 중 ``uniform`` — 전 구간 균등 추출."""
+    media = {
+        "type": "video",
+        "source_type": "path",
+        "path": "/data/v.mp4",
+        "frame_policy": {"mode": "uniform"},
+    }
+    res = client.post(DESCRIBE_URL, json=_request_body(media=media))
+    assert res.status_code == 202
+
+
+def test_정의되지_않은_mode는_거부한다(client: TestClient) -> None:
+    """규격 §2.5 — 정의되지 않은 mode 는 거부된다."""
+    media = {
+        "type": "video",
+        "source_type": "path",
+        "path": "/data/v.mp4",
+        "frame_policy": {"mode": "every_other_frame"},
+    }
+    res = client.post(DESCRIBE_URL, json=_request_body(media=media))
+    assert res.status_code in (400, 422)
 
 
 def test_media_누락은_400(client: TestClient) -> None:
     # given / when — 필수 media 없음(구조 오류)
     res = client.post(
-        VERIFY_URL,
+        DESCRIBE_URL,
         json={"request_id": "x", "event_type": "fire", "callback_url": "http://c/cb"},
     )
     # then
@@ -210,7 +251,7 @@ def test_request_id_blank면_방어적으로_UUID발급하고_accepted(client: T
     # given / when — request_id 공백
     res = client.post(DESCRIBE_URL, json=_describe_body(request_id="   "))
     # then — 400 이 아니라 서버가 발급한 request_id 를 echo (echo 일관성)
-    assert res.status_code == 200
+    assert res.status_code == 202
     body = res.json()
     assert body["status"] == "accepted"
     assert isinstance(body["request_id"], str) and body["request_id"].strip() != ""
@@ -220,45 +261,94 @@ def test_frame_policy_frame_interval_정상처리(client: TestClient) -> None:
     # given / when
     res = client.post(DESCRIBE_URL, json=_describe_body())
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert res.json()["status"] == "accepted"
 
 
 # ── 비동기 콜백 발사 ─────────────────────────────────────────────
-def test_verify_접수후_completed콜백_발사(
+def test_묘사_접수후_completed콜백_발사(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # given
     captured = _patch_capture(monkeypatch)
     # when
-    res = client.post(VERIFY_URL, json=_verify_body())
-    # then — 콜백이 1회 발사되고 completed + results.accuracy/description 포함
-    assert res.status_code == 200
+    res = client.post(DESCRIBE_URL, json=_request_body())
+    # then — 콜백이 1회 발사되고 completed + results.description 포함
+    assert res.status_code == 202
     assert len(captured) == 1
     url, payload = captured[0]
     assert url == "http://klid-backend:8080/api/v1/vlm/callback"
     assert payload["request_id"] == "00000001"
     assert payload["status"] == "completed"
-    assert "accuracy" in payload["results"]
     assert "description" in payload["results"]
 
 
-def test_describe_콜백은_results가_배열이고_start_end_description보유(
+def test_콜백_results는_단일객체이고_판정항목이_없다_구_배열_폐기(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """규격 §2.8 — 우리가 쓰는 두 창구의 결과 항목은 ``description`` 하나다.
+
+    구 규격의 구간 배열(``[{start_sec,end_sec,description}]``)은 폐기됐고, 판정 항목
+    (``detected``/``accuracy``)은 판정 창구 전용이라 오지 않는다.
+    """
     # given
     captured = _patch_capture(monkeypatch)
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body())
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["status"] == "completed"
     results = payload["results"]
-    assert isinstance(results, list) and len(results) >= 1
-    for seg in results:
-        assert "start_sec" in seg and "end_sec" in seg and "description" in seg
+    assert isinstance(results, dict)
+    assert isinstance(results["description"], str) and results["description"]
+    assert "detected" not in results
+    assert "accuracy" not in results
+
+
+def test_추가질문_콜백도_서술만_돌려준다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """규격 §3.3 — 발생 여부를 묻지만 응답은 서술이며 판정 항목이 없다."""
+    # given
+    captured = _patch_capture(monkeypatch)
+    # when
+    res = client.post(DESCRIBE_SUB_URL, json=_request_body(request_id="s0000001"))
+    # then
+    assert res.status_code == 202
+    assert len(captured) == 1
+    _, payload = captured[0]
+    assert payload["request_id"] == "s0000001"
+    assert payload["status"] == "completed"
+    assert isinstance(payload["results"], dict)
+    assert isinstance(payload["results"]["description"], str)
+    assert "detected" not in payload["results"]
+    assert "accuracy" not in payload["results"]
+
+
+def test_실패콜백의_error는_객체가_아니라_문자열이다(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """규격 §2.7 — 구 규격의 ``{code, message}`` 객체는 폐기됐다.
+
+    객체로 되돌리면 우리 BE 가 실패 콜백을 전량 400 으로 거부해 실패 사실 자체를 잃는다.
+    """
+    captured = _patch_capture(monkeypatch)
+    client.post(DESCRIBE_URL, json=_request_body(request_id="fail-0002"))
+    _, payload = captured[0]
+    assert payload["status"] == "failed"
+    assert isinstance(payload["error"], str) and payload["error"]
+
+
+def test_지원이벤트_조회는_창구별_목록을_돌려준다(client: TestClient) -> None:
+    """규격 §3.4 — 창구마다 사용 가능한 event_type 이 다를 수 있어 목록을 따로 준다."""
+    res = client.get(EVENTS_URL)
+    assert res.status_code == 200
+    body = res.json()
+    assert "smoke" in body["describe_events"]
+    assert "smoke" in body["describe_sub_events"]
+    assert len(body["events"]) == 7
 
 
 # ── 결정적 실패 트리거 → failed 콜백 (규격: 접수는 accepted, 실패는 콜백으로만) ──
@@ -268,16 +358,15 @@ def test_실패트리거_요청은_동기응답_accepted이고_failed콜백_발�
     # given — request_id 가 "fail" 로 시작하는 결정적 실패 트리거
     captured = _patch_capture(monkeypatch)
     # when
-    res = client.post(VERIFY_URL, json=_verify_body(request_id="fail-0001"))
-    # then — 동기 응답은 규격상 여전히 accepted, 콜백은 failed(error{code,message})
-    assert res.status_code == 200
+    res = client.post(DESCRIBE_URL, json=_request_body(request_id="fail-0001"))
+    # then — 동기 응답은 규격상 여전히 accepted, 콜백은 failed(error 는 문자열)
+    assert res.status_code == 202
     assert res.json()["status"] == "accepted"
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["request_id"] == "fail-0001"
     assert payload["status"] == "failed"
-    assert payload["error"]["code"]
-    assert payload["error"]["message"]
+    assert isinstance(payload["error"], str) and payload["error"]
 
 
 def test_describe_실패트리거도_동기_accepted이고_failed콜백_발사(
@@ -289,23 +378,23 @@ def test_describe_실패트리거도_동기_accepted이고_failed콜백_발사(
         "type": "video",
         "source_type": "path",
         "path": "/data/videos/fail-case.mp4",
-        "frame_policy": {"mode": "frame_interval", "framerate": 25},
+        "frame_policy": {"mode": "frame_interval"},
     }
     # when
     res = client.post(DESCRIBE_URL, json=_describe_body(media=media))
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     assert res.json()["status"] == "accepted"
     assert len(captured) == 1
     _, payload = captured[0]
     assert payload["status"] == "failed"
-    assert payload["error"]["code"] and payload["error"]["message"]
+    assert isinstance(payload["error"], str) and payload["error"]
 
 
 # ── callback_url 스킴/형식 검증 (HttpUrl) ────────────────────────
 def test_스킴없는_callback_url은_422(client: TestClient) -> None:
     # given / when — 스킴 없는(무효) callback_url
-    res = client.post(VERIFY_URL, json=_verify_body(callback_url="client-server"))
+    res = client.post(DESCRIBE_URL, json=_request_body(callback_url="client-server"))
     # then — HttpUrl 형식/스킴 검증 실패 → 422
     assert res.status_code == 422
 
@@ -323,11 +412,16 @@ def test_콜백_URL_도달불가시_서버가_예외로_죽지않고_실패로�
 
 
 # ── status ───────────────────────────────────────────────────────
-def test_status_는_200을_반환(client: TestClient) -> None:
+def test_status_는_처리가능상태와_대기수를_돌려준다(client: TestClient) -> None:
+    """규격 §3.5 — ready|busy|loading + queue/pending."""
     # given / when
     res = client.get(STATUS_URL)
     # then
     assert res.status_code == 200
+    body = res.json()
+    assert body["status"] in ("ready", "busy", "loading")
+    assert isinstance(body["queue"], int)
+    assert isinstance(body["pending"], int)
 
 
 # ── multipart ────────────────────────────────────────────────────
@@ -341,12 +435,12 @@ def test_multipart_요청도_accepted를_반환(client: TestClient) -> None:
     }
     # when
     res = client.post(
-        VERIFY_URL,
+        DESCRIBE_URL,
         data={"request": json.dumps(request_json)},
         files={"image": ("x.jpg", b"\xff\xd8\xff\xd9", "image/jpeg")},
     )
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     body = res.json()
     assert body["request_id"] == "m0000001"
     assert body["status"] == "accepted"
@@ -358,7 +452,7 @@ def test_multipart_요청도_accepted를_반환(client: TestClient) -> None:
 def test_허용되지않은_callback_url_호스트는_400(client: TestClient) -> None:
     # given / when — 내부망 임의 주소(SSRF 시도)
     res = client.post(
-        VERIFY_URL, json=_verify_body(callback_url="http://10.0.0.9:9300/internal")
+        DESCRIBE_URL, json=_request_body(callback_url="http://10.0.0.9:9300/internal")
     )
     # then
     assert res.status_code == 400
@@ -380,7 +474,7 @@ def test_차단된_callback_url은_콜백을_발사하지_않는다(
     # given
     captured = _patch_capture(monkeypatch)
     # when
-    client.post(VERIFY_URL, json=_verify_body(callback_url="http://10.0.0.9/x"))
+    client.post(DESCRIBE_URL, json=_request_body(callback_url="http://10.0.0.9/x"))
     # then — 거부된 요청은 outbound 를 전혀 발사하지 않는다
     assert captured == []
 
@@ -392,8 +486,8 @@ def test_기본_허용호스트는_backend와_루프백(client: TestClient) -> N
         "http://localhost:8080/api/v1/vlm/callback",
         "http://127.0.0.1:8080/api/v1/vlm/callback",
     ):
-        res = client.post(VERIFY_URL, json=_verify_body(callback_url=url))
-        assert res.status_code == 200, url
+        res = client.post(DESCRIBE_URL, json=_request_body(callback_url=url))
+        assert res.status_code == 202, url
 
 
 def test_허용호스트는_환경변수로_확장할_수_있다(
@@ -406,8 +500,8 @@ def test_허용호스트는_환경변수로_확장할_수_있다(
     reload_settings()
     # when
     res = client.post(
-        VERIFY_URL, json=_verify_body(callback_url="http://authoring-be:8080/cb")
+        DESCRIBE_URL, json=_request_body(callback_url="http://authoring-be:8080/cb")
     )
     # then
-    assert res.status_code == 200
+    assert res.status_code == 202
     reload_settings()

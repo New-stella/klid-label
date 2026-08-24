@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
+import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,6 +70,7 @@ class VlmResultServiceLateCallbackScopeTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock TimeseriesSubResultApplier subResultApplier;
 
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
     private VlmResultService service;
@@ -77,7 +79,7 @@ class VlmResultServiceLateCallbackScopeTest {
     void setUp() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher);
+                approvalGate, eventPublisher, subResultApplier);
         ledger.clear();
     }
 
@@ -112,7 +114,7 @@ class VlmResultServiceLateCallbackScopeTest {
 
     private VlmResultRequest completed(String requestId) {
         return new VlmResultRequest(requestId, "completed",
-                new VlmResultRequest.Results(new BigDecimal("0.8"), "rainy"), null);
+                new VlmResultRequest.Results("rainy"), null);
     }
 
     // ───────────────────────── ① 위탁 이전 PENDING 은 전이된다 (레이스 해소 미회귀) ─────────────────────────
@@ -169,7 +171,7 @@ class VlmResultServiceLateCallbackScopeTest {
 
         // when
         boolean applied = service.handle(new VlmResultRequest("K-L6-3", "failed", null,
-                new VlmResultRequest.VlmError("INFERENCE_ERROR", "Video VLM inference failed")));
+                ("Video VLM inference failed")));
 
         // then — 아직 위탁도 안 된 새 작업이 실패로 보이면 안 된다.
         assertThat(applied).isTrue();
@@ -225,7 +227,7 @@ class VlmResultServiceLateCallbackScopeTest {
                 .thenReturn(List.of(requested));
 
         service.handle(new VlmResultRequest("K-L6-6", "failed", null,
-                new VlmResultRequest.VlmError("INFERENCE_ERROR", "Video VLM inference failed")));
+                ("Video VLM inference failed")));
 
         assertThat(requested.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_FAILED);
     }

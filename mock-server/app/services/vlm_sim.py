@@ -265,7 +265,11 @@ def resolve_describe_duration(
 
 
 def build_verify_callback(request_id: str, event_type: object = None) -> dict:
-    """verify 성공 콜백 페이로드(status=completed)."""
+    """판정(verify) 성공 콜백 페이로드 — **우리 연동 대상이 아니다**.
+
+    저작도구는 판정 창구를 연동하지 않으므로 이 목에도 그 라우트를 두지 않는다. 서술 생성기가
+    이 함수를 참조하는 곳이 남아 있어 형태만 보존하며, 새 라우트를 붙이지 말 것.
+    """
     return {
         "request_id": request_id,
         "status": "completed",
@@ -274,15 +278,60 @@ def build_verify_callback(request_id: str, event_type: object = None) -> dict:
 
 
 def build_describe_callback(request_id: str, duration_sec: object = None) -> dict:
-    """describe 성공 콜백 페이로드(status=completed, results 는 배열).
+    """묘사 성공 콜백 페이로드 — KLID 연동 API v1.1.0 §2.7·§2.8.
+
+    ``results`` 는 **단일 객체**이고 항목은 ``description`` 하나다. 구 규격의 구간 배열
+    (``[{start_sec,end_sec,description}]``)은 폐기됐다. 판정 항목(detected/accuracy)은 판정
+    창구 전용이라 여기 담지 않는다.
+
+    구간 서술 생성기는 그대로 재사용해 **한 편의 서술로 이어 붙인다** — 영상 길이에 비례해
+    내용이 늘어나는 성질을 유지하기 위함이다.
 
     ``duration_sec`` 은 이미 결정된 영상 길이(초). 생략/이상값이면 폴백 길이를 쓴다.
     """
     return {
         "request_id": request_id,
         "status": "completed",
-        "results": mock_describe_results(duration_sec),
+        "results": {"description": mock_describe_text(duration_sec)},
     }
+
+
+def mock_describe_text(duration_sec: object = None) -> str:
+    """구간별 서술을 한 편의 자연어 서술로 이어 붙인다(줄바꿈 구분)."""
+    return "\n".join(
+        f"- {row['start_sec']}~{row['end_sec']}초: {row['description']}"
+        for row in mock_describe_results(duration_sec)
+    )
+
+
+def build_describe_sub_callback(request_id: str, event_type: object = None) -> dict:
+    """추가 질문 성공 콜백 페이로드 — 규격 §3.3.
+
+    발생 여부와 근거를 **서술로** 답한다. 모델이 "네"/"아니오"로 답을 시작해도 그 문장은
+    description 에 그대로 담기며, 판정 항목은 제공되지 않는다.
+    """
+    return {
+        "request_id": request_id,
+        "status": "completed",
+        "results": {"description": _describe_sub_text(event_type)},
+    }
+
+
+def _describe_sub_text(event_type: object = None) -> str:
+    """이벤트별 추가 질문 답변 서술(표준 7종은 전용 문장, 그 밖은 폴백)."""
+    known = {
+        "fire": "네, 화면 우측 건물 창문에서 주황색 불꽃과 함께 검은 연기가 지속적으로 피어오릅니다.",
+        "smoke": "네, 영상 중반부터 회색 연기가 화면 상단으로 계속 번지며 시야를 가립니다.",
+        "fall": "네, 보행자 1인이 중심을 잃고 바닥에 쓰러진 뒤 이후 움직임이 거의 없습니다.",
+        "violence": "네, 두 사람이 서로를 향해 팔을 반복적으로 휘두르며 몸싸움을 이어갑니다.",
+        "flooding": "네, 도로 하단부터 물이 차오르며 차량 바퀴 절반가량이 잠긴 상태가 관측됩니다.",
+        "car_accident": "네, 교차로에서 차량 두 대가 충돌한 뒤 한 대가 도로 중앙에 정지해 있습니다.",
+        "kidnapping": "네, 성인 1인이 다른 1인의 팔을 잡아끌며 차량 쪽으로 강제로 이동시킵니다.",
+    }
+    key = str(event_type).strip().lower() if event_type is not None else ""
+    if key in known:
+        return known[key]
+    return "해당 이벤트로 판단할 만한 뚜렷한 근거는 확인되지 않습니다. 화면에는 통상적인 통행만 관측됩니다."
 
 
 #: 동시에 진행할 수 있는 describe 길이 조회(ffprobe) 태스크 수 상한(F-5, CWE-400/770).
@@ -332,12 +381,16 @@ async def build_describe_callback_async(
     return build_describe_callback(request_id, duration)
 
 
-def build_failed_callback(request_id: str, message: str = "Video VLM inference failed") -> dict:
-    """접수 이후 처리 실패 콜백 페이로드(status=failed)."""
+def build_failed_callback(request_id: str, message: str = "추론 실패: Video VLM inference failed") -> dict:
+    """접수 이후 처리 실패 콜백 페이로드(status=failed).
+
+    ★ ``error`` 는 객체가 아니라 **문자열**이다(규격 §2.7). 구 규격의 ``{code, message}`` 객체를
+    되살리면 우리 BE 가 실패 콜백을 전량 400 으로 거부해 실패 사실 자체를 받지 못한다.
+    """
     return {
         "request_id": request_id,
         "status": "failed",
-        "error": {"code": "INFERENCE_ERROR", "message": message},
+        "error": message,
     }
 
 

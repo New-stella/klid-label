@@ -74,7 +74,12 @@ class VlmTimeseriesStepMarkingTest {
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
                 new ObjectMapper(), Schedulers.immediate(),
                 mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
-    }
+            // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
+        // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
+        // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+                .thenReturn(Mono.never());
+}
 
     private void seed(Long rawSn) {
         when(videoRepository.existsById(rawSn)).thenReturn(true);
@@ -94,7 +99,7 @@ class VlmTimeseriesStepMarkingTest {
     }
 
     private void stubAccepted() {
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.just(new VlmTimeseriesResponse("echo", "accepted")));
     }
 
@@ -108,7 +113,7 @@ class VlmTimeseriesStepMarkingTest {
         VlmTimeseriesResponse resp = step.runWithMarking(400L, marking);
 
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitTimeseries(captor.capture());
+        verify(vlmClient).submitDescribe(captor.capture());
         VlmTimeseriesRequest req = captor.getValue();
         assertThat(req.media().path()).isEqualTo("/data/deid/400.mp4");
         assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
@@ -150,7 +155,7 @@ class VlmTimeseriesStepMarkingTest {
                 .as("조용한 건너뛰기 분기가 되살아나면 예외 대신 SKIPPED 가 반환된다")
                 .isInstanceOf(CustomException.class);
 
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         assertThat(marking.getSttsCd())
                 .as("위탁이 나가지 않았는데 상태를 올리면 사유 없는 고착이 된다")
                 .isEqualTo(LsMarking.STATUS_PENDING);
@@ -184,7 +189,7 @@ class VlmTimeseriesStepMarkingTest {
 
         VlmTimeseriesResponse resp = step.runWithMarking(403L, null);
 
-        verify(vlmClient).submitTimeseries(any(VlmTimeseriesRequest.class));
+        verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class));
         assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
     }
 }

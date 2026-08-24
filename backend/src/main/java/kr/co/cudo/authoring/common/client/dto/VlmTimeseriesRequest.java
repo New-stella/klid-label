@@ -6,12 +6,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
- * 외부 VLM 서비스 위탁 요청 DTO — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) <b>verify</b> 규격 정합.
+ * 외부 시계열 분석 위탁 요청 DTO — 확정 계약(KLID 연동 API v1.1.0) 정합.
  *
- * <p>{@code POST /v1/videovlm/verify} 요청 본문. 지정한 {@code event_type} 에 대한 시계열 분석을
- * 외부 VLM 서비스에 위탁한다. 결과는 {@code POST /v1/vlm/callback} 콜백으로 비동기 수신한다.
+ * <p>묘사({@code POST /v1/videovlm-klid/describe})와 추가 질문
+ * ({@code POST /v1/videovlm-klid/describe-sub}) 두 창구가 <b>같은 요청 형식</b>을 쓴다(§3.2·§3.3).
+ * 결과는 {@code POST /v1/vlm/callback} 콜백으로 비동기 수신한다.
  *
- * <h3>전송 JSON 스키마 (verify §2.1)</h3>
+ * <h3>전송 JSON 스키마 (§2.3~§2.5)</h3>
  * <pre>
  * {
  *   "request_id": "1f0d...-uuid",
@@ -20,22 +21,27 @@ import java.util.List;
  *     "type": "video",
  *     "source_type": "path",
  *     "path": "/data/videos/deid.mp4",
- *     "frame_policy": { "mode": "frame_interval", "framerate": 25 }
+ *     "frame_policy": { "mode": "frame_selected", "selected_frames": [0, 10, 13] }
  *   },
  *   "callback_url": "http://저작도구/api/v1/vlm/callback"
  * }
  * </pre>
- * <p>{@code frame_selected} 인 경우 frame_policy 는
- * {@code { "mode": "frame_selected", "framerate": 25, "selected_frames": [0, 10, 13] }} 이다.
  *
- * <p><b>상관관계</b>: 콜백 바디에는 rawSn 이 없다. 위탁 시 발급한 {@code request_id} 를
- * {@code WebhookIdempotencyLedger} 에 (request_id → rawSn) 매핑으로 등록해 두고, 콜백 수신부가
- * {@code resolveRawSn(request_id)} 로 역조회한다. rawSn/eventName/marks 는 벤더 규격 밖이므로
- * 본 요청 바디에 포함하지 않는다 — 마킹 정보는 {@code frame_policy} 로만 반영된다.
+ * <h3>★ {@code framerate} 는 싣지 않는다 (구 verify 규격에서 폐기)</h3>
+ * <p>규격 §2.5 는 <b>프레임 선택 방식(mode)만 연동 시스템이 지정하고 간격·장수 등 세부 값은
+ * 서버가 관리한다</b>고 못 박는다. {@code frame_policy} 에 {@code framerate} 필드 자체가 없다.
+ * 구 규격의 "추출 간격을 우리가 지정한다" 는 폐기됐다 — 되살리면 정의되지 않은 필드가 실린다.
+ *
+ * <p><b>상관관계</b>: 콜백 바디에는 rawSn 도 창구 구분자도 없다. 위탁 시 발급한 {@code request_id} 를
+ * {@code WebhookIdempotencyLedger} 에 (request_id → 채널, rawSn) 매핑으로 등록해 두고, 콜백 수신부가
+ * 그 채널로 어느 창구의 결과인지 역조회한다. 두 창구는 <b>각각 별개의 request_id</b> 로 나가야 한다 —
+ * 같은 값을 쓰면 역조회가 한쪽을 덮어 결과가 유실된다(규격 §5.2 도 동일 request_id 중복 요청을
+ * 별개 작업으로 처리하며 중복 방지는 연동 시스템 책임이라고 명시한다).
  *
  * @param requestId   위탁 요청 식별자(=상관키). UUIDv4 로 발급(예측 불가). 콜백이 echo 로 되돌려 준다.
- * @param eventType   검증 대상 이벤트 유형(벤더 §3.3 6종). 조달처는 관제 인입값
- *                    {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 이며, 허용목록 판정은 위탁 단계가 수행한다.
+ * @param eventType   분석 대상 이벤트 유형. 조달처는 관제 인입값
+ *                    {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 이며, 수용 여부는 벤더 응답이 정한다
+ *                    (우리 쪽 허용목록으로 사전 차단하지 않는다).
  * @param media       분석 대상 미디어 서술(type/source_type/path/frame_policy).
  * @param callbackUrl 결과 수신 webhook URL — 본 도구 고정 base URL + {@code /v1/vlm/callback}(사용자 입력 미반영, SSRF 차단).
  */
@@ -47,7 +53,7 @@ public record VlmTimeseriesRequest(
         @JsonProperty("callback_url") String callbackUrl
 ) {
 
-    /** verify 미디어 서술 — 비식별 영상 경로 기반 path 소스. */
+    /** 미디어 서술 — 비식별 영상 경로 기반 path 소스(§2.4). */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Media(
             @JsonProperty("type") String type,
@@ -57,63 +63,73 @@ public record VlmTimeseriesRequest(
     ) {}
 
     /**
-     * verify 프레임 정책 (벤더 §3.2).
+     * 프레임 선택 정책 (§2.5) — <b>mode 와 selected_frames 만</b> 싣는다.
      *
      * <ul>
-     *   <li>{@code mode} — {@code frame_interval} | {@code frame_selected} (필수)</li>
-     *   <li>{@code framerate} — <b>mode 무관 필수</b>. "초당 프레임수"가 아니라 <b>몇 프레임당 1장을
-     *       뽑을지</b>(추출 간격)를 뜻한다(§2.1 본문). 따라서 자동 마킹의 프레임 간격
-     *       ({@code LS_MARKING.FRME_INTV_NOCS})이 의미상 대응값이다.</li>
-     *   <li>{@code selected_frames} — {@code frame_selected} 일 때만 존재하며 <b>최대 8개</b>.</li>
+     *   <li>{@code mode} — {@code frame_interval} | {@code uniform} | {@code frame_selected} (필수).
+     *       정의되지 않은 mode 는 400 이다.</li>
+     *   <li>{@code selected_frames} — {@code frame_selected} 일 때만 존재한다. 정수 배열,
+     *       <b>최대 {@value #MAX_SELECTED_FRAMES}개</b>, 음수 불가. 초과하면 400 이다.</li>
      * </ul>
+     *
+     * <p>{@code framerate} 필드는 <b>규격에 존재하지 않는다</b> — 추가하지 말 것.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record FramePolicy(
             @JsonProperty("mode") String mode,
-            @JsonProperty("framerate") Integer framerate,
             @JsonProperty("selected_frames") List<Integer> selectedFrames
     ) {}
 
-    /** frame_policy mode — 프레임 간격 추출. */
+    /** frame_policy mode — 일정 프레임 간격 추출(간격값은 서버가 관리). */
     public static final String MODE_FRAME_INTERVAL = "frame_interval";
 
-    /** frame_policy mode — 지정 프레임 추출. */
+    /** frame_policy mode — 지정 프레임만 사용. */
     public static final String MODE_FRAME_SELECTED = "frame_selected";
 
     /**
-     * {@code frame_interval} 정책 verify 요청 팩토리 — 자동 마킹·마킹 부재 경로.
+     * {@code selected_frames} 개수 상한 — 규격 §2.5·§2.9. 초과하면 벤더가 400 으로 거부한다.
+     *
+     * <p>구 verify 규격의 상한 8 은 폐기됐다.
+     */
+    public static final int MAX_SELECTED_FRAMES = 600;
+
+    /**
+     * {@code frame_interval} 정책 요청 팩토리 — 실을 프레임 인덱스가 하나도 없을 때의 폴백.
+     *
+     * <p>빈 {@code selected_frames} 를 보내면 규격 위반이므로, 마킹이 없거나 마킹 본문에서
+     * 유효한 프레임을 하나도 얻지 못한 경우 이 모드로 내려 서버가 간격을 정하게 한다.
      *
      * @param requestId   상관키(UUIDv4).
-     * @param eventType   검증 대상 이벤트 유형(허용목록 판정 완료값).
+     * @param eventType   분석 대상 이벤트 유형(조달값 그대로).
      * @param path        비식별 영상 경로.
-     * @param framerate   추출 간격(몇 프레임당 1장). 반드시 {@code > 0} 이어야 한다(0 이면 벤더 422).
      * @param callbackUrl 결과 수신 콜백 URL(고정 base + /v1/vlm/callback).
      */
     public static VlmTimeseriesRequest ofFrameInterval(
-            String requestId, String eventType, String path, int framerate, String callbackUrl) {
+            String requestId, String eventType, String path, String callbackUrl) {
         return new VlmTimeseriesRequest(
                 requestId, eventType,
                 new Media("video", "path", path,
-                        new FramePolicy(MODE_FRAME_INTERVAL, framerate, null)),
+                        new FramePolicy(MODE_FRAME_INTERVAL, null)),
                 callbackUrl);
     }
 
     /**
-     * {@code frame_selected} 정책 verify 요청 팩토리 — 수동 마킹 경로.
+     * {@code frame_selected} 정책 요청 팩토리 — 기본 경로.
      *
-     * <p>{@code selectedFrames} 는 호출자가 <b>정렬·중복제거·상한 8 적용</b>을 끝낸 값이어야 한다
-     * (정책 판정을 DTO 로 분산시키지 않는다). 방어적으로 불변 복사만 수행한다.
+     * <p>{@code selectedFrames} 는 호출자가 <b>정렬·중복제거·음수 제거·상한
+     * {@value #MAX_SELECTED_FRAMES} 적용</b>을 끝낸 값이어야 한다(정책 판정을 DTO 로 분산시키지
+     * 않는다). 방어적으로 불변 복사만 수행한다.
      *
-     * @param framerate      {@code frame_selected} 에서도 <b>필수</b>다(벤더 §3.2).
-     * @param selectedFrames 분석 대상 프레임 인덱스 목록.
+     * @param selectedFrames 분석 대상 프레임 인덱스 목록. 마킹이 있으면 작업자가 마킹한 프레임,
+     *                       없으면 자동으로 고른 프레임이다.
      */
     public static VlmTimeseriesRequest ofFrameSelected(
-            String requestId, String eventType, String path, int framerate,
+            String requestId, String eventType, String path,
             List<Integer> selectedFrames, String callbackUrl) {
         return new VlmTimeseriesRequest(
                 requestId, eventType,
                 new Media("video", "path", path,
-                        new FramePolicy(MODE_FRAME_SELECTED, framerate, List.copyOf(selectedFrames))),
+                        new FramePolicy(MODE_FRAME_SELECTED, List.copyOf(selectedFrames))),
                 callbackUrl);
     }
 }

@@ -225,7 +225,7 @@ class IntegrationEndpointImmediateEffectTest {
     // ------------------------------------------------------------------------------------------
     // ★ 빈 배포 기본값 사슬 — 시계열(VLM) 연동만 배포 기본값이 빈 문자열이다.
     //
-    //   baseUrl=""  →  요청이 상대 URI(/v1/videovlm/verify)
+    //   baseUrl=""  →  요청이 상대 URI(/v1/videovlm-klid/describe)
     //               →  IntegrationEndpointExchangeFilter 가 설정값으로 재작성 → 절대 URI
     //               →  IntegrationEndpointTransportGuards.requireResolvedHost 통과 → 전송
     //
@@ -276,14 +276,14 @@ class IntegrationEndpointImmediateEffectTest {
         CapturingExchange next = new CapturingExchange();
 
         // when — 상대 URI 로 시작하는 요청(baseUrl 이 "" 일 때의 실측 형상)
-        StepVerifier.create(rewrite.filter(post("/v1/videovlm/verify"), next))
+        StepVerifier.create(rewrite.filter(post("/v1/videovlm-klid/describe"), next))
                 .expectNextCount(1)
                 .verifyComplete();
 
         // then — 호스트가 붙은 절대 URI 가 되어야 전송 가드를 통과할 수 있다.
         assertThat(next.lastUrl.toString())
                 .as("빈 기본값에서도 설정 주소로 재작성돼야 한다")
-                .isEqualTo("https://vendor.example.net/v1/videovlm/verify");
+                .isEqualTo("https://vendor.example.net/v1/videovlm-klid/describe");
     }
 
     /**
@@ -303,12 +303,12 @@ class IntegrationEndpointImmediateEffectTest {
         CapturingExchange next = new CapturingExchange();
 
         // when
-        StepVerifier.create(rewrite.filter(post("/v1/videovlm/verify"), next))
+        StepVerifier.create(rewrite.filter(post("/v1/videovlm-klid/describe"), next))
                 .expectNextCount(1)
                 .verifyComplete();
 
         // then — 경로는 그대로이고 호스트는 생기지 않는다(전송 차단은 뒤의 가드가 담당).
-        assertThat(next.lastUrl.toString()).isEqualTo("/v1/videovlm/verify");
+        assertThat(next.lastUrl.toString()).isEqualTo("/v1/videovlm-klid/describe");
         assertThat(next.lastUrl.getHost()).as("없는 호스트를 지어내면 안 된다").isNull();
     }
 
@@ -339,7 +339,7 @@ class IntegrationEndpointImmediateEffectTest {
 
         // when
         try {
-            client.post().uri("/v1/videovlm/verify").retrieve().bodyToMono(String.class)
+            client.post().uri("/v1/videovlm-klid/describe").retrieve().bodyToMono(String.class)
                     .block(Duration.ofSeconds(5));
         } catch (RuntimeException ignored) {
             // 전송 여부는 아래 소켓 관측으로만 판정한다 — 응답 처리 실패로 판정이 흐려지지 않게 한다.
@@ -350,6 +350,6 @@ class IntegrationEndpointImmediateEffectTest {
         assertThat(received)
                 .as("가드가 재작성보다 앞이면 상대 URI 단계에서 막혀 여기 도달하지 못한다")
                 .isNotNull();
-        assertThat(received.getPath()).isEqualTo("/v1/videovlm/verify");
+        assertThat(received.getPath()).isEqualTo("/v1/videovlm-klid/describe");
     }
 }

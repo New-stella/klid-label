@@ -89,7 +89,12 @@ class VlmTimeseriesStepNonBlockingTest {
         dedicatedScheduler = Schedulers.fromExecutor(dedicatedPool);
 
         step = newStep(dedicatedScheduler);
-    }
+            // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
+        // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
+        // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+                .thenReturn(Mono.never());
+}
 
     @AfterEach
     void tearDown() {
@@ -113,7 +118,7 @@ class VlmTimeseriesStepNonBlockingTest {
     void submitDoesNotBlockPipelineThread() {
         // given — 외부가 영원히 응답하지 않는다(구 구현이면 BLOCK_TIMEOUT 45s 동안 스레드 점유).
         seed(500L);
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenReturn(Mono.never());
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenReturn(Mono.never());
 
         // when
         long startedAt = System.nanoTime();
@@ -135,7 +140,7 @@ class VlmTimeseriesStepNonBlockingTest {
         seed(501L);
         LsMarking marking = LsMarking.createAuto(501L, "fire", 5, "/raw/501.mp4",
                 "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L);
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenReturn(Mono.never());
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenReturn(Mono.never());
 
         // when
         step.runWithMarking(501L, marking);
@@ -145,7 +150,7 @@ class VlmTimeseriesStepNonBlockingTest {
         InOrder order = inOrder(ledger, markingTxService, vlmClient);
         order.verify(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM), isNull(), eq(501L));
         order.verify(markingTxService).persistVlmRequested(marking);
-        order.verify(vlmClient).submitTimeseries(any(VlmTimeseriesRequest.class));
+        order.verify(vlmClient).submitDescribe(any(VlmTimeseriesRequest.class));
     }
 
     @Test
@@ -153,7 +158,7 @@ class VlmTimeseriesStepNonBlockingTest {
     void completionHandlerRunsOnDedicatedPool() throws Exception {
         // given — ACK 응답이 도착하면 완료 핸들러가 어느 스레드에서 도는지 포착한다.
         seed(502L);
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.just(new VlmTimeseriesResponse("REQ-502", "accepted")));
 
         CountDownLatch handled = new CountDownLatch(1);
@@ -181,7 +186,7 @@ class VlmTimeseriesStepNonBlockingTest {
     void submitFailureDoesNotDemoteStatus() throws Exception {
         // given
         seed(503L);
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.error(new IllegalStateException("boom")));
         CountDownLatch handled = new CountDownLatch(1);
         doAnswer(inv -> {
@@ -225,7 +230,7 @@ class VlmTimeseriesStepNonBlockingTest {
     void poolRejectionDropsAckRecordWithoutEventLoopJpa() {
         // given — 응답(ACK)은 정상 도착하지만 전용 풀이 포화라 기록을 스케줄할 수 없다.
         seed(504L);
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.just(new VlmTimeseriesResponse("REQ-504", "accepted")));
         AtomicReference<String> handlerThread = new AtomicReference<>();
         recordHandlerThread(handlerThread);
@@ -247,7 +252,7 @@ class VlmTimeseriesStepNonBlockingTest {
     void poolRejectionDropsFailureRecordWithoutEventLoopJpa() {
         // given — 외부가 에러로 종료(실패 기록 경로) + 전용 풀 포화.
         seed(505L);
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.error(new IllegalStateException("boom")));
         AtomicReference<String> handlerThread = new AtomicReference<>();
         recordHandlerThread(handlerThread);

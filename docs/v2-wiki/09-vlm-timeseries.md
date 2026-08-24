@@ -21,34 +21,40 @@
                 ※ 값을 지어내지는 않는다(미조달이면 null 전송 → 벤더 4xx → 확정 실패로 기록)
    ② 선커밋 — 상관키 등록(LS_WEBHOOK_IDEMPOTENCY = ISSUED) + 마킹 PENDING→VLM_REQUESTED
                 ※ 둘 다 REQUIRES_NEW 독립 커밋. 제출 <앞>에 수행한다
-   ③ 논블로킹 제출 — POST /v1/videovlm/verify 를 subscribe 만 하고 즉시 반환(status="submitted")
-                ※ ACK 왕복조차 기다리지 않는다. 파이프라인은 다음 단계로 계속 진행
+   ③ 논블로킹 이중 제출 — 두 창구에 각각 subscribe 만 하고 즉시 반환(status="submitted")
+                POST /v1/videovlm-klid/describe      (묘사 — 서술 전문 축)
+                POST /v1/videovlm-klid/describe-sub  (추가 질문 — 어노테이션 초안 축)
+                ※ 창구마다 별개 request_id + 원장 채널(VLM / VLM_SUB). ACK 왕복도 기다리지 않는다
    ④ 완료 핸들러 VlmSubmitOutcomeRecorder (전용 풀 vlmSubmitScheduler)
         ACK 수신  → 원장 ISSUED→ACCEPTED + LS_BATCH_PROC_LOG 기록
         제출 실패 → VLM/SKIPPED(사유) 기록 후 재개 대기  ※ 배치·작업 상태는 강등하지 않는다
         ↓ 상세 결과는 별도 콜백
-[콜백] POST /v1/vlm/callback   (results = 단일 객체 {accuracy, description})
-   → VlmResultService 가 LS_DATA_META 원자 upsert — vlm.description (+ 있으면 vlm.accuracy)
-   → 검수큐 LS_DATA_META_REVIEW 진입은 vlm.description 1건만 (§9.4-1)
-   → 마킹 ACTIVE(PENDING|VLM_REQUESTED) → VLM_COMPLETED
+[콜백] POST /v1/vlm/callback   (results = 단일 객체 {description})
+   → 원장 채널로 어느 창구의 결과인지 역조회 (콜백 바디에 창구 구분자가 없다)
+       VLM     → LS_DATA_META 원자 upsert(vlm.description) + 검수큐 진입 (§9.4-1)
+       VLM_SUB → 이벤트 어노테이션 답변 축 초안 채움 (§9.4-2)
+   → 마킹 ACTIVE(PENDING|VLM_REQUESTED) → VLM_COMPLETED  ※ 판정 축은 묘사 창구다
 ```
 
-- 마킹 정보는 **`frame_policy` 로만** 반영된다 → [06](06-marking.md). `rawSn`·`eventName`·`marks` 배열은 벤더 규격 밖이라 요청 바디에 싣지 않는다(구 서술 "이벤트명 + 영상경로 + marks 를 전달" 폐기 — verify 규격 정합)
+- 마킹 정보는 **`frame_policy` 로만** 반영된다 → [06](06-marking.md). `rawSn`·`eventName`·`marks` 배열은 규격 밖이라 요청 바디에 싣지 않는다
+- **판정 창구(`/verify`)는 연동하지 않는다** — 그 창구만 제공하는 발생 여부·일치도는 우리 확정 경로 어디에도 쓰이지 않는다. 되살리지 말 것
 - 코드: `VlmClient`, `VlmTimeseriesStep`/`VlmSubmitOutcomeRecorder`, `batch/vlm/{VlmSubmitPendingSweeper,VlmSubmitReclaimTxService}`, `webhook/VlmResultController`/`VlmResultService`
 
 ### 9.2-0 `frame_policy` 도출 규칙 (마킹 → 요청)
 
 판정 단일 원천은 `VlmTimeseriesStep.buildRequest` 다. 화면·다른 스텝이 재유도하지 않는다.
 
-| 마킹 | `mode` | `selected_frames` | `framerate` |
-|------|--------|-------------------|-------------|
-| **수동**(`MODE_MANUAL`) + 사용 가능한 프레임 ≥1 | `frame_selected` | 마킹 프레임 인덱스를 **정렬·중복제거**, 벤더 상한 **8** 초과분 절단 | 설정 `vlm.client.frame-policy.framerate`(기본 25) |
-| **자동**(`MODE_AUTO`) · 마킹 없음 · 미지 모드 · 수동인데 쓸 프레임 0건 | `frame_interval` | (없음) | `LS_MARKING.FRME_INTV_NOCS`(없거나 ≤0 이면 설정값) |
+| 마킹 | `mode` | `selected_frames` |
+|------|--------|-------------------|
+| 마킹 본문에서 얻은 프레임 ≥1 (**수동·자동 모두**) | `frame_selected` | 마킹 프레임 인덱스를 **정렬·중복제거·음수 제거**, 상한 **600** 초과분 절단 |
+| 마킹 없음 · 쓸 프레임 0건 | `frame_interval` | (없음 — 간격은 서버가 정한다) |
 
-- ★ **`framerate` 는 "초당 프레임수(FPS)"가 아니라 "몇 프레임당 1장"(추출 간격)** 이다(규격서 §2.1 본문). 그래서 자동 마킹이 싣는 값은 **마킹 프레임 간격 `FRME_INTV_NOCS`** 이고 **`LsMarking.fps` 는 쓰지 않는다** — FPS 를 보내면 벤더가 전혀 다른 간격으로 프레임을 뽑는다. ⚠ 이름만 보고 FPS 로 단정하는 오해가 실제로 한 번 발생한 지점이다.
-- `framerate` 는 **mode 무관 필수**(벤더 §3.2)이며 `0` 이면 벤더가 422 를 낸다 — 그래서 폴백이 항상 양수를 보장한다.
-- ★ **상한은 두지 않는다** — 간격 해석이므로 240 초과(예: 300프레임당 1장)가 정상 입력이다. 목서버 스키마에 FPS 해석에서 온 상한 `le=240` 이 남아 있어 자동 마킹 `intervalFrames=300` 이 **422 로 위탁을 죽인 사고**가 있었고(2026-08-06), 상한을 제거했다. ⚠ **실벤더의 상한 여부는 미확인**이라 관제·벤더 확답이 필요하며 BE 에도 `intervalFrames` 상한 검증은 없다.
-- 마킹 JSON(`MARK_CN`) 파싱 실패·프레임 0건은 **예외가 아니라 `frame_interval` 폴백**(fail-secure)이고 WARN 을 남긴다. 요청 조립은 **선커밋 이전**에 끝낸다 — 선커밋 뒤에서 터지면 파이프라인 FAILED + 전량 재실행이 되고 재개 경로(@Async)는 예외가 삼켜져 상관키만 남은 영구 대기가 된다.
+- ★ **프레임은 항상 우리가 골라 목록으로 싣는다.** 마킹 모드는 그 인덱스를 **누가 골랐는지**만 가른다 — 수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임이다. 어느 쪽이든 마킹 본문에 인덱스가 들어 있으므로 도출 방법은 같다.
+- ★ **`framerate` 는 싣지 않는다 (구 규격에서 폐기).** 규격 §2.5 는 **mode 만 연동 시스템이 지정하고 간격·장수 세부값은 서버가 관리한다**고 못 박으며 `frame_policy` 에 그 필드 자체가 없다.
+  - ⚠ **구 서술 폐기**: *"`framerate` 는 몇 프레임당 1장(추출 간격)이라 자동 마킹의 `FRME_INTV_NOCS` 를 싣는다 · mode 무관 필수 · 0 이면 422 · 상한 없음"* 은 v2.0.1 판정 창구 규격의 것이며 **더 이상 우리 계약이 아니다.** 되살리면 정의되지 않은 필드가 실린다.
+  - ⚠ **`LS_MARKING.FRME_INTV_NOCS` 자체는 그대로 쓰인다** — 자동 마킹이 프레임을 고르는 우리 쪽 설정값이다. 폐기된 것은 그 값을 **위탁 바디에 싣는 것**이지 그 컬럼이 아니다.
+- **상한 600** — 규격 §2.5·§2.9. 초과하면 벤더가 400 을 내므로 우리가 먼저 자른다(구 상한 8 폐기).
+- 마킹 JSON(`MARK_CN`) 파싱 실패·프레임 0건은 **예외가 아니라 `frame_interval` 폴백**(fail-secure)이고 WARN 을 남긴다. 빈 `selected_frames` 는 규격 위반이라 그 경우에만 내린다. 요청 조립은 **선커밋 이전**에 끝낸다 — 선커밋 뒤에서 터지면 파이프라인 FAILED + 전량 재실행이 되고 재개 경로(@Async)는 예외가 삼켜져 상관키만 남은 영구 대기가 된다.
 
 ### 9.2-1 URL 검증 정책 (운영 엄격 / 개발 완화)
 
@@ -195,7 +201,7 @@
 | 검토 상태 확정 | 영상 검수 승인(`APPROVED`) 시 BE 가 자동 동결 (`MetaService.autoApproveOnVideoApproval`, `ReviewService.approve`에서 호출) |
 | 읽기 표시 | 검수 화면(SC-006)의 읽기 전용 패널 `features/review/components/ReviewMetaPanel.tsx` 는 상태 배지를 계속 표시 |
 
-**★ 패널은 세 부류를 다르게 렌더한다 (2026-08-06, verify 전환 반영 — R8/R9)**
+**★ 패널은 세 부류를 다르게 렌더한다 (R8/R9)**
 
 | 부류 | 예 | 화면 | 저장 payload |
 |------|----|------|:------------:|
@@ -203,7 +209,7 @@
 | **레거시 구간행** | `0-8` · `8-16` … (구 describe 산출물) | **읽기 전용 병기** — 삭제·숨김하지 않는다 | 미포함 |
 | **읽기 전용 메타** | `vlm.accuracy`(일치도) 등 BE `readOnlyMeta` | 읽기 전용(라벨 "일치도", 값은 백분율 환산 `0.92`→`92%`) | 미포함 |
 
-- **편집 단위 = 저장 단위(`metaKey`)** — 여러 키를 하나의 textarea 로 합치지 않는다. 합치면 편집분을 키로 되돌릴 수 없어 **저장해도 아무것도 안 바뀌고 성공 토스트만 뜨는 조용한 무동작**이 된다(2026-08-03 실사고). verify 전환 후에도 레거시 구간이 남은 영상이 있으므로 이 원칙은 유효하다.
+- **편집 단위 = 저장 단위(`metaKey`)** — 여러 키를 하나의 textarea 로 합치지 않는다. 합치면 편집분을 키로 되돌릴 수 없어 **저장해도 아무것도 안 바뀌고 성공 토스트만 뜨는 조용한 무동작**이 된다(2026-08-03 실사고). 레거시 구간이 남은 영상이 있으므로 이 원칙은 계속 유효하다.
 - **편집 여부는 알려진 키 화이트리스트**(`EDITABLE_META_KEYS`)로 판정하고 접두 문자열을 파싱하지 않는다 — BE `MetaService` 의 fail-closed 방향과 대칭이며, 새 자동 생성 키가 늘어도 편집 슬롯·저장 payload 로 새지 않는다.
 - **레거시 구간은 BE 계약상 편집 가능**(`items`)하지만 화면이 편집 동선을 주지 않는다. 값 보존은 확정 정책이라 **표시는 반드시 유지**한다. 정렬은 `start_sec` **숫자** 오름차순 — 문자열 정렬이면 구간이 10개를 넘는 순간 `10-18` 이 `8-16` 앞으로 와 시간축이 깨진다.
 - **편집 가능한 항목이 하나도 없으면**(메타 0건 / 레거시 구간뿐) 신규 등록 슬롯(`manual-timeseries`) 1개를 제공한다 — 레거시 영상에서도 전문을 작성할 수 있고, 그 저장이 레거시 구간 값을 덮지 않는다.
@@ -231,14 +237,17 @@
 
 `LS_DATA_META` (`META_KEY`/`META_VL`/`EXTERNAL_JOB_ID`), `LS_DATA_META_REVIEW`(검수 상태). 구 `LS_DATA_META_HSTRY`(변경 이력)는 쓰기만 있고 읽는 경로가 없어 V4 에서 삭제됐다. event_annotation 은 `LS_EVNT_ANNO`(`ANNO_CN` jsonb)·`LS_EVNT_ANNO_REVIEW`(검수 상태). → [18](18-database.md).
 
-### 9.4-1 metaKey 규격 (verify 콜백 적재)
+### 9.4-1 metaKey 규격 (묘사 콜백 적재)
 
 `LS_DATA_META` 스키마는 **무변경**이다 — K/V + `(RAW_SN, META_KEY)` UK 가 아래를 그대로 수용한다.
 
+★ **두 창구가 같은 키를 쓰지 않는다.** `(RAW_SN, META_KEY)` 가 UK 라 같은 키를 쓰면 한쪽이 유실된다 —
+묘사는 아래 `vlm.description` 을, 추가 질문은 **이 표 밖의 이벤트 어노테이션**을 채운다(§9.4-2).
+
 | metaKey | 값 | 검수큐 진입 | 조회 응답 목록 | 수정(`PUT`) |
 |---------|----|:----------:|------|------|
-| `vlm.description` | verify 서술 전문(≤2000, `META_VL` 길이와 동일) | ✅ PENDING 1건 | `items` | 가능 |
-| `vlm.accuracy` | 일치도 `0~1` 문자열(경계 포함). 콜백에 없으면 **행을 만들지 않는다** | ❌ | **`readOnlyMeta`** | **400** |
+| `vlm.description` | 묘사 서술 전문(≤2000, `META_VL` 길이와 동일) | ✅ PENDING 1건 | `items` | 가능 |
+| `vlm.accuracy` | 일치도 `0~1` 문자열. ★**과거 적재분 전용 — 새로 생기지 않는다**(판정 창구 미연동) | ❌ | **`readOnlyMeta`** | **400** |
 | (레거시) `0-8`·`8-16` … | 구 describe 구간 서술 | 기존 유지 | `items` | 가능 |
 | `manual-timeseries` | 편집 가능한 항목이 하나도 없는 영상(메타 0건 **또는 레거시 구간뿐**)의 FE 수동 등록 슬롯 — **사람이 직접 쓴 상황묘사 전문** | 신규 시 PENDING | `items` | 가능 |
 | `video.*` | ffprobe/관제 인입 기술메타 (`VideoMetaService` 소유) | ❌ | `technicalMeta` | 400 |
@@ -249,6 +258,22 @@
 셋 다 항상 배열이다(0건이면 빈 배열). **기존 `items`·`technicalMeta` 및 각 항목 필드
 (`metaSn`/`metaKey`/`metaVal`/`dataMetaReviewSn`/`reviewStatus`)의 이름·타입·시맨틱은 불변**이고 `readOnlyMeta`
 가 **추가**됐을 뿐이다 — 단 `vlm.accuracy` 는 `items` 에서 빠진다(의도된 계약 변경).
+
+### 9.4-2 추가 질문 결과의 적재 (어노테이션 초안)
+
+추가 질문 창구가 돌려주는 것은 **서술 한 줄**뿐이다(판정 항목 없음). 그 서술은 "이벤트가 있었는지와
+그 근거"에 대한 답이므로 **이벤트 어노테이션의 `answer` 축 초안**으로 들어간다(§9.3-1).
+
+- **채우지 않는 것**: `question` 은 이벤트별로 **서버가 관리**하며 응답에 실려 오지 않는다(지어내지 않는다).
+  `evidence` 는 답변 본문에 자연어로 섞여 있어 쪼개려면 파싱이 필요한데, 규격 §5.3 이 서술은 형식이
+  고정돼 있지 않으니 문자열 파싱에 의존하지 말라고 못 박는다. `event_class` 는 관제 인입의 검증 이벤트
+  유형만 쓰고, 그 값이 없으면 **행을 만들지 않는다**.
+- **덮지 않는 경계**: 승인 이력이 있으면 손대지 않는다(이미 산출물로 나간 내용이다). 답변이 이미 있으면
+  손대지 않는다 — 사람이 쓴 값인지 앞선 자동 채움인지 구분할 수단이 없으므로 사람의 것으로 본다.
+  같은 결과를 여러 번 받아도 두 번째부터는 아무것도 하지 않는다(멱등).
+- **재검수를 발화시키지 않는다** — 재검수는 사람이 내용을 고쳤을 때의 축이며, 초안이 처음 채워지는 것은
+  그 축이 아니다.
+- 코드: `webhook/service/TimeseriesSubResultApplier`(협력자 계약) · `evntanno/service/EvntAnnoSubResultApplier`(구현).
 
 - **읽기 전용 판정은 `vlm.*` 네임스페이스 안의 화이트리스트**다 — `vlm.description` 만 편집 가능하고 그 밖의
   `vlm.*` 는 전부 읽기 전용(fail-closed). 판정 범위를 접두 안으로 한정하므로 **레거시 구간 키와
@@ -300,27 +325,55 @@
 - `REJECTED` 검토행도 되돌린다 — 반려 판단은 *바뀌기 전 본문*에 대한 것이라 새 본문에 적용되지 않는다(`autoApproveOnVideoApproval` 의 "반려 존중"은 본문이 그대로일 때의 규칙이다).
 - 회귀 가드: `VlmResultServiceTest`(R13 5건 · mutation 실증 완료) · `VlmVerifyCallbackFlowIntegrationTest` · `VlmMarkingTransitionPersistenceIntegrationTest`
 
-## 9.5 외부 확정 계약 — IntelliVIX Video VLM API v2.0.1
+## 9.5 외부 확정 계약 — KLID 연동 API v1.1.0
 
-> 원문: `docs/연동규격서/video_vlm_api_ v2.0.1.docx` (IntelliVIX AI연구소, 2026-06-15 "일치도 추가 및 시작/종료 시간 제거"). 비동기 콜백 모델.
+> 원문: `docs/연동규격서/video_vlm_klid_api_v1.1.0.pdf` (IntelliVIX, 2026-08-13 "이벤트 추가 질문(describe-sub) API 추가"). 비동기 콜백 모델.
+> ⚠ **구 규격 `video_vlm_api_ v2.0.1.docx` 는 이 문서로 대체됐다** — 그쪽을 근거로 계약을 되돌리지 말 것.
 
-**엔드포인트 3종**
+**엔드포인트와 우리 사용**
 
-| 기능 | Endpoint | 콜백 결과 형식 | 우리 사용 |
+| 기능 | Endpoint | 콜백 결과 항목 | 우리 사용 |
 |------|----------|---------------|:--------:|
-| 이벤트 검증 | `POST /v1/videovlm/verify` | `results:{accuracy, description}` (**단일 객체**, accuracy=일치도) | **○ 유일 사용** |
-| 상황 묘사 | `POST /v1/videovlm/describe` | `results:[{start_sec, end_sec, description}]` (구간 배열) | ✕ (미사용) |
-| 상태 체크 | `GET /v1/videovlm/status` | `{status:"ready"|"busy"}` | ✕ |
+| 이벤트 묘사 | `POST /v1/videovlm-klid/describe` | `{description}` | **○ 시계열 서술 축** |
+| 이벤트 추가 질문 | `POST /v1/videovlm-klid/describe-sub` | `{description}` | **○ 어노테이션 초안 축** |
+| 지원 이벤트 조회 | `GET /v1/videovlm-klid/events` | `{version, events[], describe_events, describe_sub_events}` | ○ 위탁 전 확인 |
+| 서버 상태 조회 | `GET /v1/videovlm-klid/status` | `{status(ready\|busy\|loading), queue, pending}` | ○ 위탁 전 관측 |
+| 이벤트 판정 | `POST /v1/videovlm-klid/verify` | `{detected, accuracy, description}` | **✕ 연동하지 않는다** |
 
-> **우리는 `verify` 하나만 쓴다.** 관제가 인입으로 보내주는 검증이벤트유형(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`)에 대해
-> "그 이벤트가 실제로 있었는가(일치도)와 무엇이 보이는가(서술)"를 받는 것이 시계열 메타의 용도이기 때문이다.
-> 따라서 **콜백의 `results` 는 배열이 아니라 객체**이며, 구 describe 배열 규격은 폐기됐다.
+> **판정 창구를 쓰지 않는 이유**: 우리가 채우려는 두 자리(시계열 서술 전문 · 이벤트 어노테이션)는 둘 다
+> 사람이 읽고 고쳐 검수 승인으로 확정하는 **자연어 서술**이다. 판정 수치는 화면 참고 표시 외에 쓰인 적이
+> 없고 학습데이터 산출물에도 데이터마트 노출면에도 들어가지 않는다 — 받아도 쓰이지 않고 유지 비용만 남는다.
+> 근거 결정은 ADR-051.
 
-**요청 규격**: `{request_id, event_type, media:{type(image|video), source_type(path|upload), path, frame_policy:{mode(frame_interval|frame_selected), framerate, selected_frames≤8}}, callback_url}`. 동기응답 `{request_id, status:"accepted"}` → 완료 후 요청의 `callback_url`로 결과 POST. 실패 콜백 `{request_id, status:"failed", error:{code, message}}`.
-- `event_type` enum 6종: `fire`·`fall`·`violence`·`flooding`·`car_accident`·`kidnapping` (우리 쪽 조달·거부는 §9.2-2 · 단일 원천 `LsDataIngest.VRFC_EVNT_TYPES`)
-- video는 `frame_policy` 필수. 추론 1회 최대 8프레임, 초과 시 sliding window(size=stride=8). **우리가 어떤 값을 싣는지는 §9.2-0**
-- `source_type=upload`은 multipart, `=path`는 파일경로
+**요청 규격 (두 창구 공통, §2.3~§2.5)**: `{request_id, event_type, media:{type, source_type(path|upload), path, frame_policy:{mode(frame_interval|uniform|frame_selected), selected_frames≤600}}, callback_url}`.
+접수 응답은 **HTTP 202** + `{request_id, status:"accepted"}` → 완료 후 `callback_url` 로 결과 POST.
+실패 콜백은 `{request_id, status:"failed", error:"..."}` — ★**`error` 는 객체가 아니라 문자열**이다.
+- ★ `frame_policy` 에 **`framerate` 필드가 없다** — mode 만 연동 시스템이 지정하고 간격·장수는 서버가 관리한다(§2.5)
+- `event_type` 7종: `fire`·`smoke`·`fall`·`violence`·`flooding`·`car_accident`·`kidnapping`. **창구마다 사용 가능한 목록이 다를 수 있어** `GET /events` 의 `describe_events`/`describe_sub_events` 로 확인한다
+- 판정 항목(`detected`·`accuracy`)은 **판정 창구 전용**이라 우리 두 창구에는 오지 않는다(§2.8)
+- `source_type=upload` 은 파일당 4GB, `=path` 는 서버가 허용한 경로 하위만 접근 가능
 - 인증 헤더는 규격서에 **미명시**
+
+**오류 코드 (§2.9)** — 요청 시점에 판별 가능한 문제는 콜백이 아니라 HTTP 응답으로 즉시 온다.
+
+| 코드 | 상황 | 우리 처리 |
+|:---:|------|------|
+| 400 | 필수 누락·형식 오류·미지원 `event_type`·미지원 mode·허용되지 않은 경로·`selected_frames` 600 초과 | **비재시도** |
+| 415 | 지원하지 않는 Content-Type | **비재시도** |
+| 429 | 서버 동시 처리 한도(32건) 초과 | ★**재시도 대상** — 잠시 뒤 다시 보내면 되는 일시 상태다 |
+| 503 | 서버 미준비 | 재시도(5xx 기본 정책) |
+
+분석 과정의 오류는 HTTP 가 아니라 **실패 콜백**으로 온다. **분석 제한 900초(15분)** 를 넘긴 경우도 여기 해당한다.
+
+**연동 유의사항 (§5)**
+
+- 콜백 수신 후 **5초 안에 2xx** 를 반환해야 한다. 늦거나 2xx 가 아니면 **최대 3회**(최초 1회 + 재시도 2회) 재전송된다
+- **3회 모두 실패하면 결과는 유실된다 — 다시 받을 수 있는 조회 API 가 없다.** 그래서 콜백 수신부는 알 수 없는 항목이
+  섞여 와도 400 을 내지 않는다(§9.4-1) — 되받을 수 없는 입구에서의 엄격함은 곧 손실이다
+- 같은 `request_id` 의 콜백을 **여러 번 받을 수 있다** → 멱등 처리(원장이 담당)
+- **요청 순서와 콜백 도착 순서는 일치하지 않는다** → `request_id` 로 대응시킨다
+- 서술은 **자연어 평문이고 형식이 고정돼 있지 않다** → 문자열 파싱에 의존하는 로직을 두지 않는다
+- 동일 `request_id` 중복 요청을 서버는 **별개 작업으로 처리**한다 → 중복 방지는 우리 책임이다
 
 ## 9.6 구현 정합 상태 — ✅ 정렬 완료 (2026-08-06)
 
@@ -332,11 +385,11 @@
 | `callback_url` 미전송 → 벤더가 콜백 보낼 대상 없음 | **해소** — 고정 base URL + `HmacWebhookFilter.PATH_VLM` 로 조립해 전송(사용자 입력 미반영, SSRF 차단) |
 | 동기응답 검증 거부(우리 `externalJobId` 필수 요구 vs 벤더 `{request_id, status:"accepted"}`) | **해소** — `VlmClient` 가 `request_id` echo 일치 + `status="accepted"` 만 검증 |
 | 콜백 HMAC 강제(`POST /v1/vlm/result`) → 벤더 미서명이라 401 위험 | **해소** — 경로 `POST /v1/vlm/callback` **무서명**, 대신 IP allowlist + rate limit/size cap + **`request_id` 발급 게이트** 3계층(§9.2, [03 인증·역할](03-auth-roles.md)) |
-| 단일 `/v1/timeseries/submit`(추정) | **해소** — `POST /v1/videovlm/verify` |
+| 단일 `/v1/timeseries/submit`(추정) | **해소** — `POST /v1/videovlm-klid/describe` + `/describe-sub` 이중 위탁 |
 | `eventName`(자유 문자열) | **해소** — `event_type` enum 6종. 조달처는 관제 인입 `LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`(우리가 매핑표를 만들지 않는다), 허용목록 밖·미수신은 외부 호출 없이 SKIPPED |
-| `frame_policy` 미전송 | **해소** — `mode`/`framerate`(+`selected_frames`≤8)를 **마킹에서 도출**해 전송(도출 규칙 표 = **§9.2-0**). `framerate` 는 "초당 프레임수"가 아니라 **추출 간격**이라 자동 마킹의 `LS_MARKING.FRME_INTV_NOCS` 가 대응값이다 |
+| `frame_policy` 미전송 | **해소** — `mode`(+`selected_frames`≤600)를 **마킹에서 도출**해 전송(도출 규칙 표 = **§9.2-0**). 추출 간격은 서버가 관리하므로 우리가 싣지 않는다 |
 | 콜백 필드 `idempotencyKey·rawSn·vlmMetaItems[]` | **해소** — `request_id`·`results{accuracy, description}`. rawSn 은 바디에 없고 `request_id` 로 역조회 |
-| describe 구간(초) ↔ `metaKey`(frameIndex) 변환 필요 | **소멸** — verify 는 구간 개념이 없다. metaKey 는 `vlm.description`/`vlm.accuracy` 고정(§9.4-1) |
+| 구간(초) ↔ `metaKey`(frameIndex) 변환 필요 | **소멸** — 결과 항목이 서술 하나라 구간 개념이 없다. metaKey 는 `vlm.description` 고정(§9.4-1) |
 
 **남은 미확정**: IntelliVIX **실서버**(목 아님) 대조. 현재 정합 근거는 규격서 원문 + `klid-mock-server` 왕복이며,
 실 벤더 서버와의 완전 일치(오류코드 카탈로그·재시도 정책 등)는 실연동 시점에 확인한다 → `docs/test-cases/UNCERTAINTIES.md` #13.

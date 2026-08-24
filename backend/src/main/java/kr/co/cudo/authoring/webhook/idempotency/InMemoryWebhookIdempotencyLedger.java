@@ -36,7 +36,7 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
     public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
         ledger.putIfAbsent(idempotencyKey,
-                new Entry(State.ISSUED, externalJobId, rawSn, LocalDateTime.now()));
+                new Entry(State.ISSUED, externalJobId, rawSn, LocalDateTime.now(), channel));
     }
 
     @Override
@@ -46,7 +46,8 @@ public class InMemoryWebhookIdempotencyLedger implements WebhookIdempotencyLedge
         Entry prev = ledger.get(idempotencyKey);
         Long rawSn = prev == null ? null : prev.rawSn();
         LocalDateTime issuedAt = prev == null ? null : prev.issuedAt();
-        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn, issuedAt));
+        String channel = prev == null ? null : prev.channel();
+        ledger.put(idempotencyKey, new Entry(State.PROCESSED, externalJobId, rawSn, issuedAt, channel));
     }
 
     /**

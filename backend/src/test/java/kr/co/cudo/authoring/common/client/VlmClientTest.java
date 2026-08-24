@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * VlmClient 단위 테스트 — 벤더 확정 계약(v2.0.1) <b>verify</b> 규격 정합.
  *
- * <p>verify 요청({@code POST /v1/videovlm/verify}) 바디/엔드포인트 + 동기 응답
+ * <p>verify 요청({@code POST /v1/videovlm-klid/describe}) 바디/엔드포인트 + 동기 응답
  * ({@code status="accepted"}, request_id echo) 수용을 검증한다. 동기 응답 형식은 구 describe 와
  * 동일하므로 검증 로직은 무변경이며, 바뀐 것은 <b>경로</b>와 <b>{@code event_type} 필드</b>다.
  */
@@ -81,9 +81,7 @@ class VlmClientTest {
     }
 
     private VlmTimeseriesRequest verifyReq(String requestId) {
-        return VlmTimeseriesRequest.ofFrameInterval(
-                requestId, "fall", "/data/videos/deid.mp4", 25,
-                "http://localhost:8080/api/v1/vlm/callback");
+        return VlmTimeseriesRequest.ofFrameInterval(requestId, "fall", "/data/videos/deid.mp4", "http://localhost:8080/api/v1/vlm/callback");
     }
 
     @Test
@@ -97,16 +95,16 @@ class VlmClientTest {
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         // when
-        VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-abc"))
+        VlmTimeseriesResponse resp = client.submitDescribe(verifyReq("req-abc"))
                 .block(Duration.ofSeconds(2));
 
-        // then — endpoint + verify 바디 필드 확인
+        // then — endpoint + 요청 바디 필드 확인
         assertThat(resp).isNotNull();
         assertThat(resp.status()).isEqualTo("accepted");
         RecordedRequest recorded = server.takeRequest(2, TimeUnit.SECONDS);
         assertThat(recorded).isNotNull();
-        assertThat(recorded.getPath()).isEqualTo(VlmClient.VERIFY_PATH);
-        assertThat(VlmClient.VERIFY_PATH).isEqualTo("/v1/videovlm/verify");
+        assertThat(recorded.getPath()).isEqualTo(VlmClient.DESCRIBE_PATH);
+        assertThat(VlmClient.DESCRIBE_PATH).isEqualTo("/v1/videovlm-klid/describe");
         String body = recorded.getBody().readUtf8();
         assertThat(body).contains("\"request_id\":\"req-abc\"");
         assertThat(body).contains("\"event_type\":\"fall\"");
@@ -115,7 +113,8 @@ class VlmClientTest {
         assertThat(body).contains("\"path\":\"/data/videos/deid.mp4\"");
         assertThat(body).contains("\"frame_policy\"");
         assertThat(body).contains("\"mode\":\"frame_interval\"");
-        assertThat(body).contains("\"framerate\":25");
+        // ★ framerate 는 규격의 frame_policy 에 없는 필드다(§2.5) — 실리면 안 된다.
+        assertThat(body).doesNotContain("framerate");
         assertThat(body).contains("\"callback_url\":\"http://localhost:8080/api/v1/vlm/callback\"");
         // 벤더 규격 밖 필드 미전송 — 마킹 원문은 frame_policy 로만 반영된다
         assertThat(body).doesNotContain("eventName");
@@ -131,7 +130,7 @@ class VlmClientTest {
                 .setBody("{\"request_id\":\"req-echo\",\"status\":\"accepted\"}"));
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-echo"))
+        VlmTimeseriesResponse resp = client.submitDescribe(verifyReq("req-echo"))
                 .block(Duration.ofSeconds(2));
 
         assertThat(resp).isNotNull();
@@ -148,7 +147,7 @@ class VlmClientTest {
                 .setBody("{\"request_id\":\"OTHER\",\"status\":\"accepted\"}"));
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-abc"))
+        assertThatThrownBy(() -> client.submitDescribe(verifyReq("req-abc"))
                 .block(Duration.ofSeconds(2)))
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining("request_id");
@@ -163,7 +162,7 @@ class VlmClientTest {
                 .setBody("{\"request_id\":\"req-abc\",\"status\":\"rejected\"}"));
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-abc"))
+        assertThatThrownBy(() -> client.submitDescribe(verifyReq("req-abc"))
                 .block(Duration.ofSeconds(2)))
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining("accepted");
@@ -191,7 +190,7 @@ class VlmClientTest {
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         // when
-        VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-x"))
+        VlmTimeseriesResponse resp = client.submitDescribe(verifyReq("req-x"))
                 .block(Duration.ofSeconds(2));
 
         // then — SKIPPED 로 삼키지 않고 실제로 외부에 나갔다.
@@ -204,7 +203,7 @@ class VlmClientTest {
                 .isEqualTo(1);
         RecordedRequest sent = server.takeRequest(2, TimeUnit.SECONDS);
         assertThat(sent).isNotNull();
-        assertThat(sent.getPath()).isEqualTo("/v1/videovlm/verify");
+        assertThat(sent.getPath()).isEqualTo("/v1/videovlm-klid/describe");
     }
 
     @Test
@@ -219,8 +218,8 @@ class VlmClientTest {
                 .setBody("{\"request_id\":\"other\",\"status\":\"accepted\"}"));
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        assertThatThrownBy(() -> client.submitTimeseries(
-                VlmTimeseriesRequest.ofFrameInterval(null, "fire", "/data/deid.mp4", 25, "http://cb"))
+        assertThatThrownBy(() -> client.submitDescribe(
+                VlmTimeseriesRequest.ofFrameInterval(null, "fire", "/data/deid.mp4", "http://cb"))
                 .block(Duration.ofSeconds(2)))
                 .as("echo 불일치는 종전대로 거부된다 — 여기서 보려는 것은 전송된 바디다")
                 .isInstanceOf(CustomException.class);
@@ -241,7 +240,7 @@ class VlmClientTest {
         }
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-fail"))
+        assertThatThrownBy(() -> client.submitDescribe(verifyReq("req-fail"))
                 .block(Duration.ofSeconds(5)))
                 .isInstanceOf(RuntimeException.class);
 
@@ -259,7 +258,7 @@ class VlmClientTest {
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
         // when / then
-        assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-400"))
+        assertThatThrownBy(() -> client.submitDescribe(verifyReq("req-400"))
                 .block(Duration.ofSeconds(2)))
                 .isInstanceOf(NonRetryableExternalException.class);
         assertThat(server.getRequestCount()).isEqualTo(1);
@@ -273,7 +272,7 @@ class VlmClientTest {
         server.enqueue(new MockResponse().setResponseCode(422));
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        assertThatThrownBy(() -> client.submitTimeseries(verifyReq("req-422"))
+        assertThatThrownBy(() -> client.submitDescribe(verifyReq("req-422"))
                 .block(Duration.ofSeconds(2)))
                 .isInstanceOf(NonRetryableExternalException.class);
         assertThat(server.getRequestCount()).isEqualTo(1);
@@ -288,7 +287,7 @@ class VlmClientTest {
                 .setBody("{\"request_id\":\"req-u\",\"status\":\"accepted\",\"extraEvil\":\"<script>\"}"));
         VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
 
-        VlmTimeseriesResponse resp = client.submitTimeseries(verifyReq("req-u"))
+        VlmTimeseriesResponse resp = client.submitDescribe(verifyReq("req-u"))
                 .block(Duration.ofSeconds(2));
         assertThat(resp).isNotNull();
         assertThat(resp.requestId()).isEqualTo("req-u");

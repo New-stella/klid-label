@@ -65,7 +65,7 @@ class VlmDefaultSkipChokePointGuardTest {
      * <p>수신자 이름을 <b>가리지 않는다</b>(점 + 메서드명). 필드명을 바꾸거나 다른 빈에 주입해도
      * 걸리게 하기 위해서다. {@code VlmClient} 의 선언부는 앞에 점이 없어 걸리지 않는다.
      */
-    private static final String VENDOR_SUBMIT = ".submitTimeseries(";
+    private static final String VENDOR_SUBMIT = ".submitDescribe(";
     /** 자동 표식 적용 — choke point 의 표식이다. */
     private static final String AUTO_SKIP_MARK = "vlmDefaultSkipMarker.applyBeforeStage(";
     /** 건너뛰기 게이트 — 표식을 <b>읽는</b> 쪽. */

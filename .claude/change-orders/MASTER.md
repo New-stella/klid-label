@@ -13,4 +13,4 @@
 | [CO-002](CO-002-외부산출물-폴더검사-분류대응.md) | 폴더 검사·미리보기 + 분류 대응 관리 | DOMAIN-017 | ✅ 완료 (QA pass_with_notes → medium 2건 보완) | 🎨 완료 | `86479a41` | 2026-08-19 |
 | [CO-003](CO-003-외부산출물-적재-검수진입-비식별분기.md) | 적재 본체 · 검수 직행 · 비식별 분기 · 완료 기록 | DOMAIN-017 · DOMAIN-012 경계 | ✅ 완료 (QA fail → critical 포함 5건 보완) | 🎨 완료 | `dc3f1144` | 2026-08-19 |
 | [CO-004](CO-004-외부산출물-이관이력-관리화면.md) | 이관 이력 조회 + 관리 화면 SCREEN-039 | DOMAIN-017 · 프론트 | ✅ 완료 | 🎨 완료 | `3d17269a` | 2026-08-19 |
-| [CO-005](CO-005-vlm-연동-verify에서-describe-describesub로-교체.md) | 외부 VLM 연동을 verify → describe(CoT)+describe-sub(VQA) 로 교체 (KLID 연동 API v1.1.0) | 공유기반 · DOMAIN-010 · DOMAIN-003 · DOMAIN-011 · DOMAIN-005 · mock-server | 📝 작성 (구현 미착수 — 다음 세션) | 🎨 24건 확정 (SD-002/005 잔여) | — | 2026-08-24 |
+| [CO-005](CO-005-vlm-연동-verify에서-describe-describesub로-교체.md) | 외부 VLM 연동을 verify → describe(CoT)+describe-sub(VQA) 로 교체 (KLID 연동 API v1.1.0) | 공유기반 · DOMAIN-010 · DOMAIN-003 · DOMAIN-011 · DOMAIN-005 · mock-server | ⚠️ 공유기반 완료 (QA 미실행) | 🎨 26건 확정 + 시안 렌더 2건 재게시 | — | 2026-08-24 |

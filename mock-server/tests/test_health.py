@@ -23,10 +23,10 @@ def test_deid_라우터가_등록되어_루트가_Connect를_반환(client: Test
 
 def test_vlm_라우터가_등록되어_status가_200(client: TestClient) -> None:
     # given / when
-    res = client.get("/v1/videovlm/status")
-    # then
+    res = client.get("/v1/videovlm-klid/status")
+    # then — 규격 §3.5 상 처리 가능 상태값이다(구 목 전용 "ok" 폐기).
     assert res.status_code == 200
-    assert res.json()["status"] == "ok"
+    assert res.json()["status"] == "ready"
 
 
 def test_genai_라우터가_등록되어_목록조회가_200(client: TestClient) -> None:

@@ -74,7 +74,12 @@ class VlmTimeseriesStepVerifyRequestTest {
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
                 new ObjectMapper(), Schedulers.immediate(),
                 mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
-    }
+            // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
+        // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
+        // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+                .thenReturn(Mono.never());
+}
 
     /** 위탁 가능한 영상 시드 — 활성 토글 + 영상 존재 + 비식별 경로 + 관제 검증이벤트유형. */
     private void seed(Long rawSn, String vrfcEvntTypeCd) {
@@ -86,7 +91,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         IngestSourceRow row = mock(IngestSourceRow.class);
         lenient().when(row.getVrfcEvntTypeCd()).thenReturn(vrfcEvntTypeCd);
         lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(row);
-        lenient().when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        lenient().when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenAnswer(inv -> {
                     VlmTimeseriesRequest r = inv.getArgument(0);
                     return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
@@ -95,7 +100,7 @@ class VlmTimeseriesStepVerifyRequestTest {
 
     private VlmTimeseriesRequest captureRequest() {
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitTimeseries(captor.capture());
+        verify(vlmClient).submitDescribe(captor.capture());
         return captor.getValue();
     }
 
@@ -132,8 +137,8 @@ class VlmTimeseriesStepVerifyRequestTest {
     }
 
     @Test
-    @DisplayName("수동마킹_프레임이_8개를_초과하면_frameIndex_오름차순_앞_8개만_보낸다")
-    void manualMarkingTruncatesToEightSorted() {
+    @DisplayName("★마킹_프레임은_오름차순_정렬되고_상한은_600이다_구_상한8_폐기")
+    void markedFramesAreSortedAndCappedAtSpecLimit() {
         // given — 저장 순서가 시간순이라는 보장이 없으므로 일부러 뒤섞어 넣는다.
         seed(601L, "fall");
         LsMarking marking = manualMarking(601L, marks(90, 10, 70, 30, 50, 20, 80, 40, 60, 100));
@@ -141,10 +146,32 @@ class VlmTimeseriesStepVerifyRequestTest {
         // when
         step.runWithMarking(601L, marking);
 
-        // then — 정렬 후 앞 8개(벤더 규격 §3.2 selected_frames 최대 8)
+        // then — 구 규격의 상한 8 은 폐기됐다. 10개는 상한(600) 안이므로 <b>절단 없이</b> 전부 실린다.
         VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
         assertThat(policy.mode()).isEqualTo("frame_selected");
-        assertThat(policy.selectedFrames()).containsExactly(10, 20, 30, 40, 50, 60, 70, 80);
+        assertThat(policy.selectedFrames())
+                .containsExactly(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
+    }
+
+    @Test
+    @DisplayName("★마킹_프레임이_600개를_초과하면_오름차순_앞_600개만_보낸다")
+    void markedFramesTruncateAtSpecLimit() {
+        // given — 규격 §2.9 상 개수 초과는 400 이므로 우리가 먼저 자른다.
+        seed(602L, "fall");
+        int[] many = new int[700];
+        for (int i = 0; i < many.length; i++) {
+            many[i] = i;
+        }
+        LsMarking marking = manualMarking(602L, marks(many));
+
+        // when
+        step.runWithMarking(602L, marking);
+
+        // then
+        VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
+        assertThat(policy.selectedFrames()).hasSize(600);
+        assertThat(policy.selectedFrames().get(0)).isZero();
+        assertThat(policy.selectedFrames().get(599)).isEqualTo(599);
     }
 
     @Test
@@ -165,9 +192,9 @@ class VlmTimeseriesStepVerifyRequestTest {
     // ───────────────────────── frame_policy — 자동 마킹 ─────────────────────────
 
     @Test
-    @DisplayName("자동마킹이면_frame_interval을_보내고_selected_frames는_없다")
-    void autoMarkingSendsFrameInterval() {
-        // given
+    @DisplayName("★자동마킹도_자동선택된_프레임을_싣는다_구_frame_interval_강등_폐기")
+    void autoMarkingSendsSelectedFramesToo() {
+        // given — 구 동작은 자동 마킹을 frame_interval 로 강등하고 프레임 목록을 버렸다.
         seed(610L, "flooding");
         LsMarking marking = LsMarking.createAuto(610L, "침수", 15, "/raw/610.mp4", marks(0, 15), 1L);
 
@@ -176,55 +203,60 @@ class VlmTimeseriesStepVerifyRequestTest {
 
         // then
         VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
-        assertThat(policy.mode()).isEqualTo("frame_interval");
-        assertThat(policy.selectedFrames()).isNull();
+        assertThat(policy.mode()).isEqualTo("frame_selected");
+        assertThat(policy.selectedFrames()).containsExactly(0, 15);
     }
 
     @Test
-    @DisplayName("자동마킹의_framerate는_마킹_프레임간격_값이다")
-    void autoMarkingFramerateComesFromMarkingInterval() {
-        // given — 벤더 §2.1: framerate 는 "몇 프레임당 1장" 이므로 마킹 프레임 간격이 대응값이다.
+    @DisplayName("★자동마킹도_frame_selected로_자동선택된_프레임을_싣는다_구_frame_interval_폐기")
+    void autoMarkingAlsoSendsSelectedFrames() {
+        // given — 프레임은 모드를 가리지 않고 우리가 골라 목록으로 싣는다. 마킹 모드는 그 인덱스를
+        //   <b>누가 골랐는지</b>만 가른다(자동이면 간격으로 자동 선택된 프레임).
         seed(611L, "kidnapping");
         LsMarking marking = LsMarking.createAuto(611L, "납치", 12, "/raw/611.mp4", marks(0, 12), 1L);
 
         // when
         step.runWithMarking(611L, marking);
 
-        // then — 설정 기본값(25)이 아니라 마킹 간격 12
-        assertThat(captureRequest().media().framePolicy().framerate()).isEqualTo(12);
+        // then — 구 동작은 frame_interval + framerate=12 였다. 이제 마킹 프레임이 그대로 실린다.
+        VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
+        assertThat(policy.mode()).isEqualTo("frame_selected");
+        assertThat(policy.selectedFrames()).containsExactly(0, 12);
     }
 
     @Test
-    @DisplayName("마킹_프레임간격이_0이거나_null이면_설정_기본값으로_폴백한다")
-    void autoMarkingFallsBackWhenIntervalNotPositive() {
-        // given — framerate=0 을 그대로 보내면 벤더 422(비재시도 영구 실패)다.
+    @DisplayName("실을_프레임이_하나도_없으면_frame_interval로_내린다")
+    void fallsBackToIntervalWhenNoUsableFrame() {
+        // given — 빈 selected_frames 는 규격 위반이라 400 이다. 그때만 간격 모드로 내린다.
         seed(612L, "fire");
-        LsMarking marking = manualMarking(612L, "[]"); // 수동 모드는 frmeIntvNocs 가 null
+        LsMarking marking = manualMarking(612L, "[]");
 
-        // when — marks 가 비어 frame_selected 가 성립하지 않아 interval 로 폴백
+        // when
         step.runWithMarking(612L, marking);
 
-        // then
+        // then — 간격값은 서버가 관리하므로 우리는 mode 만 싣는다.
         VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
         assertThat(policy.mode()).isEqualTo("frame_interval");
-        assertThat(policy.framerate()).isEqualTo(25);
+        assertThat(policy.selectedFrames()).isNull();
     }
 
     @Test
-    @DisplayName("framerate는_모드와_무관하게_항상_전송된다")
-    void framerateAlwaysPresent() {
-        // given — 벤더 §3.2: framerate 는 mode 무관 필수.
+    @DisplayName("★frame_policy에_framerate_필드가_존재하지_않는다_구_필수전송_폐기")
+    void framePolicyHasNoFramerateField() {
+        // given — 구 동작은 "framerate 를 mode 무관 필수로 함께 싣는다" 였다. 규격 §2.5 는 mode 만
+        //   연동 시스템이 지정하고 간격·장수 세부값은 서버가 관리한다고 못 박으며 그 필드가 없다.
         seed(613L, "fire");
         LsMarking manual = manualMarking(613L, marks(7, 9));
 
         // when
         step.runWithMarking(613L, manual);
 
-        // then
+        // then — DTO 자체에 그 접근자가 없어 컴파일 단계에서 재도입이 막힌다. 여기서는 직렬화
+        //   결과에 그 키가 실리지 않음을 고정한다.
         VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
         assertThat(policy.mode()).isEqualTo("frame_selected");
-        assertThat(policy.framerate()).isNotNull();
-        assertThat(policy.framerate()).isPositive();
+        assertThat(policy.selectedFrames()).containsExactly(7, 9);
+        assertThat(policy).hasNoNullFieldsOrPropertiesExcept();
     }
 
     @Test
@@ -245,23 +277,22 @@ class VlmTimeseriesStepVerifyRequestTest {
     }
 
     @Test
-    @DisplayName("미지의_마킹모드는_frame_interval로_폴백하고_경고한다")
-    void unknownMarkModeFallsBackToInterval() {
-        // given — 미지의 모드가 조용히 흡수되면 추적이 불가능하므로 폴백 + WARN 이 계약이다.
+    @DisplayName("★미지의_마킹모드도_마킹_프레임을_싣는다_모드로_가르지_않는다")
+    void unknownMarkModeStillSendsMarkedFrames() {
+        // given — 구 동작은 미지의 모드를 frame_interval 로 강등했다. 이제 프레임 도출은 모드가
+        //   아니라 마킹 본문에서 하므로, 모드를 몰라도 실을 프레임이 있으면 그대로 싣는다.
+        //   조용한 강등이 사라진 것이 이 변경의 요점이다(무증상 품질 저하 차단).
         seed(615L, "fire");
         LsMarking marking = mock(LsMarking.class);
-        when(marking.getMarkModeCd()).thenReturn("SEMI_AUTO");
-        lenient().when(marking.getMarkCn()).thenReturn(marks(1, 2, 3));
-        lenient().when(marking.getFrmeIntvNocs()).thenReturn(null);
+        when(marking.getMarkCn()).thenReturn(marks(1, 2, 3));
 
         // when
         step.runWithMarking(615L, marking);
 
         // then
         VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
-        assertThat(policy.mode()).isEqualTo("frame_interval");
-        assertThat(policy.selectedFrames()).isNull();
-        assertThat(policy.framerate()).isEqualTo(25);
+        assertThat(policy.mode()).isEqualTo("frame_selected");
+        assertThat(policy.selectedFrames()).containsExactly(1, 2, 3);
     }
 
     // ───────────────────────── event_type 조달·게이트 ─────────────────────────
@@ -324,7 +355,14 @@ class VlmTimeseriesStepVerifyRequestTest {
 
         // then — 위탁이 실제로 나가므로 상관키 등록·마킹 전이가 반드시 durable 커밋돼야 한다.
         //        (구 동작은 여기서 게이트에 걸려 두 배선을 건너뛰었다.)
-        verify(ledger).recordIssued(any(), any(), any(), org.mockito.ArgumentMatchers.eq(623L));
+        //        ★상관키는 창구마다 하나씩, 즉 <b>두 번</b> 등록된다 — 콜백이 어느 창구의 결과인지
+        //         되짚는 축이 채널이므로 한 번만 등록하면 나머지 창구의 콜백이 미발급으로 거부된다.
+        verify(ledger, org.mockito.Mockito.times(2))
+                .recordIssued(any(), any(), any(), org.mockito.ArgumentMatchers.eq(623L));
+        verify(ledger).recordIssued(any(), org.mockito.ArgumentMatchers.eq("VLM"), any(),
+                org.mockito.ArgumentMatchers.eq(623L));
+        verify(ledger).recordIssued(any(), org.mockito.ArgumentMatchers.eq("VLM_SUB"), any(),
+                org.mockito.ArgumentMatchers.eq(623L));
         verify(markingTxService).persistVlmRequested(any());
     }
 
@@ -341,7 +379,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         // then — 신고 보류는 그대로 유지된다(개인정보 축이라 이번 정책 반전과 무관).
         verify(batchStatusService).recordVlmSkipped(624L,
                 VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         verify(ingestSourceRepository, never()).findSourceMeta(anyLong());
     }
 

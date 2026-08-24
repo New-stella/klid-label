@@ -465,7 +465,7 @@ def test_구_augment_placeholder_경로는_제거되었다(client: TestClient) -
 def test_세_벤더_라우터가_모두_등록되어_있다(client: TestClient) -> None:
     # given / when — deid(루트) / vlm(status) / genai(목록)
     deid = client.get("/")
-    vlm = client.get("/v1/videovlm/status")
+    vlm = client.get("/v1/videovlm-klid/status")
     genai = client.get(MOCK_JOBS_URL)
     # then
     assert deid.status_code == 200

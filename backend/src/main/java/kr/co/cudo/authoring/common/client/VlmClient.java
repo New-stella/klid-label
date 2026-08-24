@@ -6,6 +6,7 @@ import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOper
 import io.github.resilience4j.reactor.retry.RetryOperator;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
+import kr.co.cudo.authoring.common.client.dto.VlmServerStatus;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -25,19 +26,23 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * 외부 VLM <b>verify</b> 위탁 클라이언트 — 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1) 정합.
+ * 외부 시계열 분석 위탁 클라이언트 — 확정 계약(KLID 연동 API v1.1.0) 정합.
  *
- * <p>{@code POST /v1/videovlm/verify} 로 시계열 메타 분석을 비동기 위탁하고, 동기 응답으로
- * 수락({@code status="accepted"}) 여부만 확인한다. 실제 결과는 {@code POST /v1/vlm/callback} 콜백으로 수신한다.
+ * <p>연동 대상 창구는 <b>둘</b>이다:
+ * <ul>
+ *   <li>{@link #DESCRIBE_PATH} — <b>묘사</b>. 이벤트 관점에서 영상의 장소·환경·상황을 서술한다.</li>
+ *   <li>{@link #DESCRIBE_SUB_PATH} — <b>추가 질문</b>. 이벤트 발생 여부와 그 근거를 서술한다.</li>
+ * </ul>
+ * 두 창구는 요청 형식이 같고 결과 항목만 다르며, 각각 <b>별개의 request_id</b> 로 나간다.
+ * 접수는 HTTP 202 + {@code status="accepted"} 이고 실제 결과는 {@code POST /v1/vlm/callback} 콜백으로 온다.
  *
- * <p><b>구 규격(describe)에서 전환</b> — 요청 바디에 {@code event_type}(검증 대상 이벤트 유형)이
- * 추가됐고 경로가 {@code /verify} 로 바뀌었다. 동기 응답 형식({@code request_id} echo +
- * {@code status="accepted"})은 describe 와 동일하므로 검증 로직은 그대로다.
+ * <p><b>판정 창구는 연동하지 않는다</b> — 그 창구만 제공하는 발생 여부·일치도 값은 우리 확정 경로
+ * 어디에도 쓰이지 않는다. 되살리지 말 것.
  *
  * <h3>설계 원칙</h3>
  * <ul>
  *   <li><b>비동기 위탁</b>: 동기 응답은 "수락" 만 확인. 결과는 콜백.</li>
- *   <li><b>상관관계</b>: 상관키는 {@code request_id}(요청 바디). verify 응답에 externalJobId 는 없다.
+ *   <li><b>상관관계</b>: 상관키는 {@code request_id}(요청 바디). 접수 응답에 externalJobId 는 없다.
  *       호출자(Step)가 request_id 를 발급/주입하며, 응답의 request_id echo 일치를 본 클라이언트가 검증한다.
  *       (Step 이 request_id 를 ledger(request_id→rawSn)에 먼저 등록해 콜백 역조회를 성립시킨다.)</li>
  *   <li><b>미연동 = 실패</b>: 연동 주소가 주입되지 않았으면 위탁은 <b>조용히 건너뛰지 않고 실패</b>한다.
@@ -57,10 +62,25 @@ import java.util.regex.Pattern;
 @Component
 public class VlmClient {
 
-    /** 외부 위탁 요청 경로 — 벤더 확정 계약(v2.0.1) verify 엔드포인트. */
-    static final String VERIFY_PATH = "/v1/videovlm/verify";
+    /** 묘사 위탁 경로 — 규격 §3.2. 결과가 시계열 서술 전문을 채운다. */
+    static final String DESCRIBE_PATH = "/v1/videovlm-klid/describe";
 
-    /** 수락 상태 화이트리스트 — verify 동기 응답은 "accepted" 만 정상(CWE-20). */
+    /** 추가 질문 위탁 경로 — 규격 §3.3. 결과가 이벤트 어노테이션의 질의응답 축 초안을 채운다. */
+    static final String DESCRIBE_SUB_PATH = "/v1/videovlm-klid/describe-sub";
+
+    /** 서버 상태 조회 경로 — 규격 §3.5. 위탁 전 처리 가능 여부 확인용. */
+    static final String STATUS_PATH = "/v1/videovlm-klid/status";
+
+    /**
+     * 동시 처리 한도 초과 응답 — 규격 §2.9. <b>재시도 대상</b>이다.
+     *
+     * <p>잠시 뒤 다시 보내면 되는 일시 상태이지 요청이 잘못된 것이 아니다. 이 값을 다른 4xx 와
+     * 함께 비재시도로 묶으면, 이중 위탁으로 호출이 두 배가 된 상황에서 정상 위탁이 확정 실패로
+     * 종결된다.
+     */
+    private static final int STATUS_TOO_MANY_REQUESTS = 429;
+
+    /** 수락 상태 화이트리스트 — 접수 응답은 "accepted" 만 정상(CWE-20). */
     private static final String STATUS_ACCEPTED = VlmTimeseriesResponse.STATUS_ACCEPTED;
 
     /** 로그 sanitize 패턴 — CR/LF/TAB 제거(CWE-117 Log Injection 차단). */
@@ -82,38 +102,87 @@ public class VlmClient {
     }
 
     /**
-     * 시계열 메타 분석을 외부 VLM verify 로 비동기 위탁한다 (@req R1).
+     * 묘사(describe)를 비동기 위탁한다 — 규격 §3.2. 결과가 시계열 서술 전문을 채운다.
      *
      * <p>Retry + CircuitBreaker + 응답 무결성 검증이 적용된 외부 호출을 수행한다.
      * <b>미연동(연동 주소 미주입) 이어도 별도 분기를 두지 않는다</b> — 호출이 그대로 실패해 기존 실패
      * 경로(완료 핸들러의 확정 실패 기록)로 흐른다. 조용한 SKIPPED 로 삼키면 시계열 결손이 드러나지
      * 않는다(그 구 동작이 폐지된 이유다).
      *
-     * <p>{@code event_type} 허용목록 판정은 <b>호출자(위탁 단계)</b>가 소유한다 — 본 클라이언트는
-     * 전달받은 값을 그대로 실어 보낸다(판정 지점을 두 곳으로 늘리지 않는다).
+     * <p>{@code event_type} 은 <b>조달값 그대로</b> 실어 보낸다 — 우리 쪽 허용목록으로 사전 차단하지
+     * 않으며 수용 여부는 벤더 응답이 정한다(사본 목록이 두 번째 진실원이 되는 것을 막는다).
      *
-     * @param request verify 요청 바디. {@code request_id} 가 null/blank 이면 방어적으로 UUID 자동 발급.
-     * @return 외부 시스템 수락 응답 (request_id echo + status)
+     * @param request 요청 바디. {@code request_id} 가 null/blank 이면 방어적으로 UUID 자동 발급.
+     * @return 외부 시스템 접수 응답 (request_id echo + status)
      */
-    public Mono<VlmTimeseriesResponse> submitTimeseries(VlmTimeseriesRequest request) {
+    public Mono<VlmTimeseriesResponse> submitDescribe(VlmTimeseriesRequest request) {
+        return submit(DESCRIBE_PATH, "describe", request);
+    }
+
+    /**
+     * 추가 질문(describe-sub)을 비동기 위탁한다 — 규격 §3.3.
+     *
+     * <p>지정한 이벤트가 발생했는지와 그 근거를 서술로 받는다. 질문 문장은 <b>이벤트별로 서버가
+     * 관리</b>하며 연동 시스템이 지정하지 않는다. 판정 항목은 이 창구에서 제공되지 않는다 — 모델이
+     * "네"로 답을 시작해도 그 문장은 서술에 그대로 담긴다.
+     *
+     * <p>{@link #submitDescribe} 와 <b>반드시 다른 request_id</b> 로 호출해야 한다(콜백 역조회 축).
+     */
+    public Mono<VlmTimeseriesResponse> submitDescribeSub(VlmTimeseriesRequest request) {
+        return submit(DESCRIBE_SUB_PATH, "describe-sub", request);
+    }
+
+    /**
+     * 서버 상태 조회 — 규격 §3.5. 위탁을 보내기 전에 처리 가능한 상태인지 확인한다.
+     *
+     * <p><b>조회 실패를 위탁 차단으로 삼지 않는다</b> — 이 조회는 편의이지 게이트가 아니다.
+     * 상태를 확인하지 못했다고 정상 위탁을 우리가 먼저 막으면, 상태 창구만 잠시 불안정해도
+     * 파이프라인이 통째로 선다. 호출자는 실패 시 그대로 위탁을 진행한다.
+     */
+    public Mono<VlmServerStatus> fetchStatus() {
+        return webClient.get()
+                .uri(STATUS_PATH)
+                .retrieve()
+                .bodyToMono(VlmServerStatus.class)
+                .timeout(timeout);
+    }
+
+    /**
+     * 위탁 공통 구현 — 창구 경로만 다르고 요청 형식·응답 검증·회복성 정책은 동일하다(규격 §3.2·§3.3).
+     *
+     * @param path  창구 경로.
+     * @param label 로그용 창구 이름(상수라 sanitize 불필요).
+     */
+    private Mono<VlmTimeseriesResponse> submit(String path, String label, VlmTimeseriesRequest request) {
         Objects.requireNonNull(request, "request must not be null");
         String requestId = resolveRequestId(request.requestId());
         VlmTimeseriesRequest enriched = new VlmTimeseriesRequest(
                 requestId, request.eventType(), request.media(), request.callbackUrl());
 
-        log.info("[Vlm] verify submit request_id={}", safeForLog(requestId));
+        log.info("[Vlm] {} submit request_id={}", label, safeForLog(requestId));
         return webClient.post()
-                .uri(VERIFY_PATH)
+                .uri(path)
                 .bodyValue(enriched)
                 .retrieve()
-                // V1: 4xx(특히 400 형식오류·422 파라미터 값 오류)는 벤더 규격(§4.1)상 비-일시적 오류다.
-                // 비재시도 예외로 분류해 재시도·서킷집계에서 제외한다(5xx·네트워크만 재시도). happy path/5xx 무변경.
-                .onStatus(HttpStatusCode::is4xxClientError, this::toNonRetryable4xx)
+                // 4xx 중 429 만 재시도 대상이다(규격 §2.9 — 동시 처리 한도 초과는 잠시 후 재시도).
+                // 400(형식·미지원 event_type·허용되지 않은 경로)·415(Content-Type)는 다시 보내도 같은
+                // 결과라 비재시도 예외로 분류해 재시도·서킷집계에서 제외한다. 503 은 5xx 라 기본 재시도에 걸린다.
+                .onStatus(VlmClient::isNonRetryableClientError, this::toNonRetryable4xx)
                 .bodyToMono(VlmTimeseriesResponse.class)
                 .timeout(timeout)
                 .map(resp -> validateResponse(resp, requestId))
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+    }
+
+    /**
+     * 비재시도로 분류할 클라이언트 오류인가 — <b>429 는 제외</b>한다.
+     *
+     * <p>429(동시 처리 한도 초과)는 규격이 "잠시 후 재시도한다"고 명시한 일시 상태다. 다른 4xx 와
+     * 함께 묶으면 재시도·서킷 집계에서 빠져 확정 실패로 종결된다.
+     */
+    private static boolean isNonRetryableClientError(HttpStatusCode status) {
+        return status.is4xxClientError() && status.value() != STATUS_TOO_MANY_REQUESTS;
     }
 
     /**
@@ -125,10 +194,10 @@ public class VlmClient {
      */
     private Mono<Throwable> toNonRetryable4xx(ClientResponse response) {
         int status = response.statusCode().value();
-        log.warn("[Vlm] verify non-retryable 4xx status={}", status);
+        log.warn("[Vlm] non-retryable 4xx status={}", status);
         return response.releaseBody()
                 .then(Mono.error(new NonRetryableExternalException(
-                        "VLM verify 4xx 응답(status=" + status + ")")));
+                        "시계열 분석 위탁 4xx 응답(status=" + status + ")")));
     }
 
     /**
@@ -145,7 +214,7 @@ public class VlmClient {
     }
 
     /**
-     * verify 동기 응답 무결성 검증 — 벤더 규격 정합(describe 와 동일 형식).
+     * 접수 응답 무결성 검증 — 두 창구가 같은 형식이라 검증도 공통이다(규격 §2.6).
      *
      * <p>외부 시스템은 신뢰 영역 밖이므로 응답을 검증한다:
      * <ol>
@@ -158,17 +227,17 @@ public class VlmClient {
      */
     private VlmTimeseriesResponse validateResponse(VlmTimeseriesResponse resp, String expectedRequestId) {
         if (resp == null) {
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "VLM verify 응답이 null 입니다.");
+            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR, "시계열 분석 위탁 응답이 null 입니다.");
         }
         String echoed = resp.requestId();
         if (echoed == null || !echoed.equals(expectedRequestId)) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM verify 응답 request_id echo 가 일치하지 않습니다: " + safeForLog(echoed));
+                    "시계열 분석 위탁 응답 request_id echo 가 일치하지 않습니다: " + safeForLog(echoed));
         }
         String status = resp.status();
         if (!STATUS_ACCEPTED.equals(status)) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR,
-                    "VLM verify 응답 status 가 accepted 가 아닙니다: " + safeForLog(status));
+                    "시계열 분석 위탁 응답 status 가 accepted 가 아닙니다: " + safeForLog(status));
         }
         return resp;
     }
