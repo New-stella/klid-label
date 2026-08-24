@@ -1,12 +1,16 @@
 """
-IntelliVIX Video VLM 벤더 목 라우터 — API v2.0.1 정합.
+IntelliVIX Video VLM 벤더 목 라우터 — KLID 연동 API v1.1.0 정합.
 
-엔드포인트(모두 /v1/videovlm/ prefix):
-- POST /v1/videovlm/verify   : 이벤트 검증(화재/쓰러짐 등 존재 여부)
-- POST /v1/videovlm/describe : 상황 묘사(구간별 자연어 서술)
-- GET  /v1/videovlm/status   : 서버 상태 확인
+엔드포인트(모두 ``/v1/videovlm-klid/`` prefix):
+- POST /describe     : 이벤트 묘사(장소·환경·상황 서술)
+- POST /describe-sub : 이벤트 추가 질문(발생 여부와 근거 서술)
+- GET  /events       : 지원 이벤트 목록과 창구별 가용성
+- GET  /status       : 서버 처리 가능 상태
 
-verify/describe 는 요청을 즉시 수락(``{"request_id","status":"accepted"}``)하고,
+★ 판정(verify) 라우트는 두지 않는다 — 저작도구가 연동하지 않는 창구다. 목에 남겨 두면
+누군가 그 경로로 다시 배선하게 되므로 의도적으로 뺐다. 되살리지 말 것.
+
+두 위탁 창구는 요청을 즉시 수락(HTTP 202 + ``{"request_id","status":"accepted"}``)하고,
 지연(config.callback_delay_seconds) 후 callback_url 로 결과를 비동기 POST 한다
 (FastAPI BackgroundTasks). 접수 이후 처리 오류는 callback_url 로 status=failed 로 전달한다.
 
@@ -16,7 +20,7 @@ verify/describe 는 요청을 즉시 수락(``{"request_id","status":"accepted"}
 판정 규칙은 vlm_sim.is_failure_trigger 참조.
 
 보안:
-- 입력 검증(CWE-20): pydantic 모델(event_type Enum, selected_frames maxlen 8, media 구조).
+- 입력 검증(CWE-20): pydantic 모델(selected_frames maxlen 600, media 구조).
   구조 오류→400, 값 오류→422.
 - 로그 인젝션(CWE-117): request_id/event_type/callback_url 은 sanitize_for_log 경유.
 - 정보 노출(CWE-209): 오류는 공통 핸들러가 규격 응답으로 변환(스택트레이스 미노출).
@@ -38,7 +42,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
 from app.exceptions import MockApiError
-from app.schemas.vlm import AcceptedResponse, DescribeRequest, VerifyRequest
+from app.schemas.vlm import AcceptedResponse, DescribeRequest, DescribeSubRequest
 from app.services import url_guard, vlm_sim
 from app.state import sanitize_for_log
 
@@ -176,43 +180,23 @@ def _resolve_request_id(provided: str | None) -> str:
     return provided
 
 
-# ── POST /v1/videovlm/verify ─────────────────────────────────────
-@router.post("/v1/videovlm/verify", response_model=AcceptedResponse)
-async def verify(request: Request, background_tasks: BackgroundTasks) -> AcceptedResponse:
-    """이벤트 검증 접수 — 즉시 accepted 반환 후 콜백으로 결과 발사."""
-    payload = await _parse_payload(request)
-    req = _validate(VerifyRequest, payload)
-    request_id = _resolve_request_id(req.request_id)
-    _assert_allowed_callback(str(req.callback_url), request_id)
-
-    logger.info(
-        "[MOCK][VLM] verify accepted request_id=%s event_type=%s callback_url=%s",
-        sanitize_for_log(request_id),
-        sanitize_for_log(req.event_type or "(none)"),
-        sanitize_for_log(req.callback_url),
-    )
-    # 결정적 실패 트리거(request_id "fail" prefix 또는 media.path 에 "fail" 포함)면
-    # 규격대로 동기 응답은 accepted 를 유지하고 failed 콜백만 발사한다.
-    if vlm_sim.is_failure_trigger(request_id, req.media.path):
-        callback = vlm_sim.build_failed_callback(request_id)
-    else:
-        callback = vlm_sim.build_verify_callback(request_id, req.event_type)
-    _enqueue_callback(background_tasks, str(req.callback_url), callback)
-    return AcceptedResponse(request_id=request_id, status="accepted")
-
-
-# ── POST /v1/videovlm/describe ───────────────────────────────────
-@router.post("/v1/videovlm/describe", response_model=AcceptedResponse)
+# ── POST /v1/videovlm-klid/describe ──────────────────────────────
+@router.post(
+    "/v1/videovlm-klid/describe",
+    response_model=AcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def describe(request: Request, background_tasks: BackgroundTasks) -> AcceptedResponse:
-    """상황 묘사 접수 — 즉시 accepted 반환 후 콜백으로 구간별 결과 배열 발사."""
+    """이벤트 묘사 접수 — 즉시 202 accepted 반환 후 콜백으로 서술 발사."""
     payload = await _parse_payload(request)
     req = _validate(DescribeRequest, payload)
     request_id = _resolve_request_id(req.request_id)
     _assert_allowed_callback(str(req.callback_url), request_id)
 
     logger.info(
-        "[MOCK][VLM] describe accepted request_id=%s callback_url=%s",
+        "[MOCK][VLM] describe accepted request_id=%s event_type=%s callback_url=%s",
         sanitize_for_log(request_id),
+        sanitize_for_log(req.event_type or "(none)"),
         sanitize_for_log(req.callback_url),
     )
     # 결정적 실패 트리거면 동기 응답은 accepted 유지, failed 콜백만 발사(규격 동작).
@@ -223,7 +207,7 @@ async def describe(request: Request, background_tasks: BackgroundTasks) -> Accep
             vlm_sim.build_failed_callback(request_id),
         )
     else:
-        # 성공 콜백은 대상 영상의 <b>실제 길이</b>를 조회해 그 길이 전체를 덮는 구간을 만든다.
+        # 성공 콜백은 대상 영상의 <b>실제 길이</b>를 조회해 그 길이에 걸맞은 서술을 만든다.
         # 길이 조회(ffprobe)는 블로킹이라 페이로드 생성을 백그라운드로 미룬다 — accepted 응답을
         # 지연시키지 않기 위함. 조회 실패는 폴백 길이로 degrade 한다(콜백은 항상 발사).
         background_tasks.add_task(
@@ -237,11 +221,85 @@ async def describe(request: Request, background_tasks: BackgroundTasks) -> Accep
     return AcceptedResponse(request_id=request_id, status="accepted")
 
 
-# ── GET /v1/videovlm/status ──────────────────────────────────────
-@router.get("/v1/videovlm/status")
-async def status_check() -> dict[str, str]:
-    """VLM 목 서버 상태 확인."""
-    return {"status": "ok", "service": "videovlm"}
+# ── POST /v1/videovlm-klid/describe-sub ──────────────────────────
+@router.post(
+    "/v1/videovlm-klid/describe-sub",
+    response_model=AcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def describe_sub(
+    request: Request, background_tasks: BackgroundTasks
+) -> AcceptedResponse:
+    """이벤트 추가 질문 접수 — 발생 여부와 근거를 서술로 답하는 콜백을 발사한다.
+
+    질문 문장은 이벤트별로 서버가 관리하며 연동 시스템이 지정하지 않는다(규격 §3.3).
+    영상 길이에 의존하지 않으므로 묘사와 달리 ffprobe 조회를 하지 않는다.
+    """
+    payload = await _parse_payload(request)
+    req = _validate(DescribeSubRequest, payload)
+    request_id = _resolve_request_id(req.request_id)
+    _assert_allowed_callback(str(req.callback_url), request_id)
+
+    logger.info(
+        "[MOCK][VLM] describe-sub accepted request_id=%s event_type=%s callback_url=%s",
+        sanitize_for_log(request_id),
+        sanitize_for_log(req.event_type or "(none)"),
+        sanitize_for_log(req.callback_url),
+    )
+    if vlm_sim.is_failure_trigger(request_id, req.media.path):
+        callback = vlm_sim.build_failed_callback(request_id)
+    else:
+        callback = vlm_sim.build_describe_sub_callback(request_id, req.event_type)
+    _enqueue_callback(background_tasks, str(req.callback_url), callback)
+    return AcceptedResponse(request_id=request_id, status="accepted")
+
+
+# ── GET /v1/videovlm-klid/events ─────────────────────────────────
+@router.get("/v1/videovlm-klid/events")
+async def events() -> dict:
+    """지원 이벤트 목록과 창구별 가용성 — 규격 §3.4.
+
+    실벤더는 창구마다 사용 가능한 event_type 이 다를 수 있다고 명시한다. 이 목은 7종 전부를
+    두 창구에서 사용 가능한 것으로 돌려준다 — 목의 목적이 배선 확인이라 여기서 값을 좁히면
+    로컬에서 정상 흐름을 재현할 수 없기 때문이다(스키마의 event_type 완화와 같은 취지).
+    """
+    names = {
+        "fire": ("화재", "불꽃 등 화재 상황"),
+        "smoke": ("연기", "연기 등 화재 상황"),
+        "fall": ("쓰러짐", "사람이 쓰러지거나 바닥에 누워 있는 상황"),
+        "violence": ("폭력", "폭행, 몸싸움, 물리적 충돌 상황"),
+        "flooding": ("침수", "물이 차오르거나 공간이 물에 잠긴 상황"),
+        "car_accident": ("교통사고", "차량 충돌, 전복, 사고 정황"),
+        "kidnapping": ("납치", "강제로 끌고 가거나 납치로 의심되는 상황"),
+    }
+    codes = list(names)
+    return {
+        "version": 1,
+        "events": [
+            {
+                "event_type": code,
+                "name": names[code][0],
+                "description": names[code][1],
+                "describe": True,
+                "describe_sub": True,
+            }
+            for code in codes
+        ],
+        "describe_events": codes,
+        "describe_sub_events": codes,
+    }
+
+
+# ── GET /v1/videovlm-klid/status ─────────────────────────────────
+@router.get("/v1/videovlm-klid/status")
+async def status_check() -> dict:
+    """서버 처리 가능 상태 — 규격 §3.5.
+
+    ``ready`` 즉시 접수 가능 · ``busy`` 접수는 되나 결과 지연 · ``loading`` 아직 처리 불가.
+    목은 항상 ready 를 돌려주되, 진행 중인 길이 조회 수를 대기 수로 실어 관측에 쓴다.
+    """
+    inflight = vlm_sim.describe_probe_inflight()
+    return {"status": "ready", "queue": inflight, "pending": inflight}
 
 
 def _enqueue_callback(

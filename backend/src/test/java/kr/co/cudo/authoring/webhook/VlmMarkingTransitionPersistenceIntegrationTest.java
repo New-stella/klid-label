@@ -151,7 +151,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         seedDeidentSuccess(rawSn);
         Long markingSn = seedMarkingPending(rawSn).getMarkingSn();
 
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
             VlmTimeseriesRequest r = inv.getArgument(0);
             return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
         });
@@ -171,7 +171,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // 위탁 시 발급된 request_id 확보(콜백 상관키)
         ArgumentCaptor<VlmTimeseriesRequest> reqCaptor =
                 ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitTimeseries(reqCaptor.capture());
+        verify(vlmClient).submitDescribe(reqCaptor.capture());
         String requestId = reqCaptor.getValue().requestId();
         assertThat(requestId).isNotBlank();
 
@@ -186,12 +186,13 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         LsMarking afterCallback = markingRepository.findById(markingSn).orElseThrow();
         assertThat(afterCallback.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
 
+        // ★ 적재 키는 서술 하나다. 일치도는 우리가 연동하지 않는 판정 창구 전용이라 오지 않으며,
+        //   조회 집합에는 남겨 둬 "실수로 다시 적재되면 잡히도록" 한다(과거 적재분과 구분).
         List<LsDataMeta> metas = metaRepository.findByRawSnAndMetaKeyIn(rawSn,
                 Set.of(VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY));
         assertThat(metas)
                 .extracting(LsDataMeta::getMetaKey)
-                .containsExactlyInAnyOrder(
-                        VlmResultService.META_KEY_DESCRIPTION, VlmResultService.META_KEY_ACCURACY);
+                .containsExactly(VlmResultService.META_KEY_DESCRIPTION);
     }
 
     /**
@@ -249,7 +250,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         assertThat(markingRepository.findById(markingSn).orElseThrow().getSttsCd())
                 .isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
 
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
             VlmTimeseriesRequest r = inv.getArgument(0);
             return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
         });

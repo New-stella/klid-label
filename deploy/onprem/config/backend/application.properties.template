@@ -187,7 +187,7 @@ TRAINING_SCAN_INTERVAL_SEC=60
 # ⚠ dev 로그인은 인증 없이 임의 role 토큰을 발급한다. 운영 정상화 후 반드시 미설정(OFF)로 원복.
 # DEV_LOGIN_ENABLED=true        # /v1/dev/tokens 로 테스트 토큰 발급 허용(기본 false — 운영은 OFF 가 정상)
 #
-# ── 수동 업로드 (운영 상시 기능 — 2026-08-24 CO-007) ──
+# ── 수동 업로드 (운영 상시 기능 — 2026-08-24 CO-008) ──
 # ★ DEV_UPLOAD_ENABLED 는 이제 **기본 true** 다(구 기재 "기본 false" 는 폐기).
 #   /v1/dev/upload 로 운영자가 영상을 직접 올리는 상시 동선이며 인가는 REVIEWER 로 걸린다.
 #   비노출로 되돌리려면 아래를 켜고 **frontend 도 VITE_DEV_UPLOAD_ENABLED=false 로 재빌드**해야 한다 —

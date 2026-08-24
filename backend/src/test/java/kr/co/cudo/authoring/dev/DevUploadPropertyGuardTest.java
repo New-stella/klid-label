@@ -35,7 +35,7 @@ import static org.mockito.Mockito.verify;
  *
  * <p>{@code @Profile("!prd")} → {@code @ConditionalOnProperty} 전환. 값 미지정이면 빈 부재(fail-closed) 라
  * prd·dev 무관하게 endpoint 가 뜨지 않는다. true 면 prd 에서도 등록된다.
- * <p>⚠ 구 기재 "기본값 false … 폐쇄망 bring-up" 폐기(2026-08-24 CO-007) — 공통 폴백만 false 이고
+ * <p>⚠ 구 기재 "기본값 false … 폐쇄망 bring-up" 폐기(2026-08-24 CO-008) — 공통 폴백만 false 이고
  * <b>local·dev·stg·prd 네 프로파일이 모두 true 로 override 한다</b>. 수동 업로드는 bring-up 전용이
  * 아니라 운영 상시 기능이다.
  * 아래 단언은 프로퍼티 축만 보므로 그 반전과 무관하게 그대로 유효하다.

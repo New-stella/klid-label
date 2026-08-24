@@ -1,7 +1,7 @@
 """
 IntelliVIX Video VLM 시뮬레이션 — 콜백 페이로드 생성 + 비동기 콜백 발사.
 
-verify/describe 는 요청을 즉시 수락(accepted)한 뒤, 지연(config.callback_delay_seconds)
+묘사·추가 질문 창구는 요청을 즉시 수락(accepted)한 뒤, 지연(config.callback_delay_seconds)
 후 callback_url 로 결과를 POST 한다. 실제 추론은 하지 않고 결정적(deterministic) mock
 페이로드를 만든다.
 
@@ -45,34 +45,6 @@ MAX_DURATION_SEC = 86_400
 # 구간 개수 상한 — BE VlmResultRequest.results @Size(max=500) 아래로 여유를 둔 값.
 #   상한을 넘는 길이는 **뒷부분을 잘라내지 않고** window 를 늘려 균등 재분배한다(전체 커버 유지).
 MAX_DESCRIBE_SEGMENTS = 450
-
-# verify mock 정확도(고정 mock 값).
-_VERIFY_ACCURACY = 0.8
-
-# 이벤트별 mock 검증 설명.
-_VERIFY_DESCRIPTIONS: dict[EventType, str] = {
-    EventType.FIRE: "건물 창문에서 화염과 검은 연기가 관측되어 화재 발생이 확인됩니다.",
-    EventType.FALL: "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다.",
-    EventType.VIOLENCE: "두 사람 사이 물리적 충돌과 폭력 정황이 확인됩니다.",
-    EventType.FLOODING: "도로 위로 물이 차오르며 침수가 진행되는 상황이 확인됩니다.",
-    EventType.CAR_ACCIDENT: "교차로에서 차량 두 대가 충돌한 사고 정황이 확인됩니다.",
-    EventType.KIDNAPPING: "한 사람이 다른 사람을 강제로 끌고 가는 정황이 확인됩니다.",
-}
-
-
-def mock_verify_result(event_type: object = None) -> dict:
-    """verify 콜백용 결과(accuracy + description)를 생성한다.
-
-    ``event_type`` 은 표준 6종(:class:`EventType`)일 수도, **우리가 모르는 문자열이거나
-    ``None``** 일 수도 있다(2026-08-06 완화 — 스키마 주석 참조). 표준 6종은 각자의 서술을,
-    그 밖·미지정은 **폴백 서술**을 돌려준다. ``EventType`` 은 ``str`` 상속 Enum 이라 평문
-    문자열 키로도 그대로 조회된다(``hash("fire") == hash(EventType.FIRE)``).
-    """
-    description = _VERIFY_DESCRIPTIONS.get(
-        event_type, "요청한 이벤트에 해당하는 정황이 확인됩니다."
-    )
-    return {"accuracy": _VERIFY_ACCURACY, "description": description}
-
 
 # 구간 설명 템플릿 — 축마다 개수가 달라(5/4/7/6) index 순환 주기가 어긋나므로,
 # 구간이 이어져도 같은 조합이 바로 반복되지 않는다(결정적, 랜덤 미사용).
@@ -264,25 +236,61 @@ def resolve_describe_duration(
     return FALLBACK_DURATION_SEC
 
 
-def build_verify_callback(request_id: str, event_type: object = None) -> dict:
-    """verify 성공 콜백 페이로드(status=completed)."""
-    return {
-        "request_id": request_id,
-        "status": "completed",
-        "results": mock_verify_result(event_type),
-    }
-
-
 def build_describe_callback(request_id: str, duration_sec: object = None) -> dict:
-    """describe 성공 콜백 페이로드(status=completed, results 는 배열).
+    """묘사 성공 콜백 페이로드 — KLID 연동 API v1.1.0 §2.7·§2.8.
+
+    ``results`` 는 **단일 객체**이고 항목은 ``description`` 하나다. 구 규격의 구간 배열
+    (``[{start_sec,end_sec,description}]``)은 폐기됐다. 판정 항목(detected/accuracy)은 판정
+    창구 전용이라 여기 담지 않는다.
+
+    구간 서술 생성기는 그대로 재사용해 **한 편의 서술로 이어 붙인다** — 영상 길이에 비례해
+    내용이 늘어나는 성질을 유지하기 위함이다.
 
     ``duration_sec`` 은 이미 결정된 영상 길이(초). 생략/이상값이면 폴백 길이를 쓴다.
     """
     return {
         "request_id": request_id,
         "status": "completed",
-        "results": mock_describe_results(duration_sec),
+        "results": {"description": mock_describe_text(duration_sec)},
     }
+
+
+def mock_describe_text(duration_sec: object = None) -> str:
+    """구간별 서술을 한 편의 자연어 서술로 이어 붙인다(줄바꿈 구분)."""
+    return "\n".join(
+        f"- {row['start_sec']}~{row['end_sec']}초: {row['description']}"
+        for row in mock_describe_results(duration_sec)
+    )
+
+
+def build_describe_sub_callback(request_id: str, event_type: object = None) -> dict:
+    """추가 질문 성공 콜백 페이로드 — 규격 §3.3.
+
+    발생 여부와 근거를 **서술로** 답한다. 모델이 "네"/"아니오"로 답을 시작해도 그 문장은
+    description 에 그대로 담기며, 판정 항목은 제공되지 않는다.
+    """
+    return {
+        "request_id": request_id,
+        "status": "completed",
+        "results": {"description": _describe_sub_text(event_type)},
+    }
+
+
+def _describe_sub_text(event_type: object = None) -> str:
+    """이벤트별 추가 질문 답변 서술(표준 7종은 전용 문장, 그 밖은 폴백)."""
+    known = {
+        "fire": "네, 화면 우측 건물 창문에서 주황색 불꽃과 함께 검은 연기가 지속적으로 피어오릅니다.",
+        "smoke": "네, 영상 중반부터 회색 연기가 화면 상단으로 계속 번지며 시야를 가립니다.",
+        "fall": "네, 보행자 1인이 중심을 잃고 바닥에 쓰러진 뒤 이후 움직임이 거의 없습니다.",
+        "violence": "네, 두 사람이 서로를 향해 팔을 반복적으로 휘두르며 몸싸움을 이어갑니다.",
+        "flooding": "네, 도로 하단부터 물이 차오르며 차량 바퀴 절반가량이 잠긴 상태가 관측됩니다.",
+        "car_accident": "네, 교차로에서 차량 두 대가 충돌한 뒤 한 대가 도로 중앙에 정지해 있습니다.",
+        "kidnapping": "네, 성인 1인이 다른 1인의 팔을 잡아끌며 차량 쪽으로 강제로 이동시킵니다.",
+    }
+    key = str(event_type).strip().lower() if event_type is not None else ""
+    if key in known:
+        return known[key]
+    return "해당 이벤트로 판단할 만한 뚜렷한 근거는 확인되지 않습니다. 화면에는 통상적인 통행만 관측됩니다."
 
 
 #: 동시에 진행할 수 있는 describe 길이 조회(ffprobe) 태스크 수 상한(F-5, CWE-400/770).
@@ -332,12 +340,16 @@ async def build_describe_callback_async(
     return build_describe_callback(request_id, duration)
 
 
-def build_failed_callback(request_id: str, message: str = "Video VLM inference failed") -> dict:
-    """접수 이후 처리 실패 콜백 페이로드(status=failed)."""
+def build_failed_callback(request_id: str, message: str = "추론 실패: Video VLM inference failed") -> dict:
+    """접수 이후 처리 실패 콜백 페이로드(status=failed).
+
+    ★ ``error`` 는 객체가 아니라 **문자열**이다(규격 §2.7). 구 규격의 ``{code, message}`` 객체를
+    되살리면 우리 BE 가 실패 콜백을 전량 400 으로 거부해 실패 사실 자체를 받지 못한다.
+    """
     return {
         "request_id": request_id,
         "status": "failed",
-        "error": {"code": "INFERENCE_ERROR", "message": message},
+        "error": message,
     }
 
 
@@ -346,7 +358,7 @@ def is_failure_trigger(request_id: str, media_path: str | None) -> bool:
 
     규격상 접수(동기 응답)는 항상 성공(accepted)이고, 처리 오류는 callback_url 로만
     status="failed" 로 전달된다. 이를 통합 테스트에서 결정적으로 재현하기 위해 아래
-    입력을 실패 트리거로 간주한다(verify/describe 공통):
+    입력을 실패 트리거로 간주한다(두 창구 공통):
       - request_id 가 "fail"(대소문자 무시)로 시작하는 경우, 또는
       - media.path 에 "fail" 이 포함된 경우.
     트리거가 걸리면 build_failed_callback 을, 아니면 성공 콜백을 발사한다.

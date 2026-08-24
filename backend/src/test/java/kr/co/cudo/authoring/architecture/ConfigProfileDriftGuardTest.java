@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p><b>가장 중요한 것은 prd multipart 요청 총량</b>: prd 가 명시 override 를 잃는 순간
  * 요청 총량이 공통 1200MB 로 조용히 상향된다(자원 소진, OWASP API4).
- * <p>개당 한도는 2026-08-24(CO-007) 에 21MB → 500MB 로 올렸다 — 수동 업로드를 운영에 노출하면서
+ * <p>개당 한도는 2026-08-24(CO-008) 에 21MB → 500MB 로 올렸다 — 수동 업로드를 운영에 노출하면서
  * "prd 에는 dev 업로드 경로가 없다" 는 구 전제가 무너졌기 때문이다. 값이 공통과 같아졌지만
  * <b>명시 선언은 유지</b>한다: 공통값이 다시 움직여도 운영이 따라 올라가지 않게 고정하는 것이 이 가드의 목적이다.
  */
@@ -53,11 +53,11 @@ class ConfigProfileDriftGuardTest {
         String maxRequestSize = env.getProperty(MAX_REQUEST_SIZE);
 
         // then: 운영 업로드 한도는 상향되면 안 된다(자원 소진 방어 — OWASP API4)
-        // 개당 한도(CO-007, 2026-08-24): 21MB → 500MB. 수동 업로드를 운영에 노출하기로 하면서
+        // 개당 한도(CO-008, 2026-08-24): 21MB → 500MB. 수동 업로드를 운영에 노출하기로 하면서
         // "prd 에는 dev 업로드 경로가 없다" 는 구 전제가 무너졌다. 공통값과 같은 값이지만 명시 유지 —
         // 아래 keys() 단언이 요구하는 것은 "값이 공통과 다르다" 가 아니라 "prd 가 직접 선언한다" 다.
         assertThat(maxFileSize)
-                .as("prd 는 multipart 개당 한도를 500MB 로 명시 override 해야 한다(CO-007 — CCTV 영상 실측 246MB 의 2배 여유)")
+                .as("prd 는 multipart 개당 한도를 500MB 로 명시 override 해야 한다(CO-008 — CCTV 영상 실측 246MB 의 2배 여유)")
                 .isEqualTo("500MB");
         // 요청 총량은 여전히 공통(1200MB)보다 좁게 조인다 — 이쪽이 자원 소진 방어의 주 축이다.
         assertThat(maxRequestSize)
@@ -115,7 +115,7 @@ class ConfigProfileDriftGuardTest {
     void devTogglesAreOverridableByEnvVariables() {
         // ※ stg 의 dev **로그인**은 이 규칙에서 제외된다 — A-ISSUE-05 / DEV_FIX H-3 로 정책이 뒤집혀
         //   "끌 수 있어야 한다"가 아니라 "아예 켤 수 없어야 한다"가 됐다(아래 별도 테스트에서 고정).
-        // prd 편입(CO-007): 운영도 기본 ON 이 됐다. 규칙 밖에 두면 누군가 리터럴 true 로 바꿔도
+        // prd 편입(CO-008): 운영도 기본 ON 이 됐다. 규칙 밖에 두면 누군가 리터럴 true 로 바꿔도
         //   끌 수단이 사라진 것을 아무도 못 잡는다 — R9 의 "나중에 비노출로 되돌릴 수 있어야 한다" 가 깨진다.
         for (String profileYml : List.of("application-dev.yml", "application-stg.yml", "application-prd.yml")) {
             // given

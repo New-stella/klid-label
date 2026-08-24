@@ -336,27 +336,27 @@ describe('TimeseriesSidePanel', () => {
     stateChanges: [],
   };
 
-  it('일치도는_렌더되지만_편집할_수_없다', async () => {
-    // given
+  it('★일치도는_화면에_표시하지_않는다_구_읽기전용_렌더_폐기', async () => {
+    // given — 과거 위탁분이 남아 있는 영상. 판정 창구를 연동하지 않게 되면서 이 값은
+    //   새로 생기지 않고, 남은 것을 화면에서 빼기로 확정했다(2026-08-24 사용자 확정).
     mockUseMeta.mockReturnValue({ data: META_WITH_ACCURACY, isLoading: false, error: null });
 
     // when
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
-    // then — 값이 보이고(신뢰도 참고값), 입력 요소가 아니다.
-    const row = await screen.findByTestId('timeseries-readonly-vlm.accuracy');
-    expect(row).toHaveTextContent('일치도');
-    expect(row).toHaveTextContent('92%');
-    expect(within(row).queryByRole('textbox')).not.toBeInTheDocument();
-    // 편집 슬롯으로 승격되지 않는다 — 화면의 입력은 서술 전문 1개뿐.
-    expect(screen.queryByTestId('timeseries-segment-vlm.accuracy')).not.toBeInTheDocument();
+    // then — 서술 전문은 그대로 뜨고(대조군), 일치도는 라벨·값·행 어느 것도 없다.
+    expect(await screen.findByDisplayValue('초기 서술 전문')).toBeInTheDocument();
+    expect(screen.queryByTestId('timeseries-readonly-vlm.accuracy')).not.toBeInTheDocument();
+    expect(screen.queryByText('일치도')).not.toBeInTheDocument();
+    expect(screen.queryByText('92%')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('시계열 참고 정보')).not.toBeInTheDocument();
+    // 편집 슬롯으로 승격되지도 않는다 — 화면의 입력은 서술 전문 1개뿐.
     expect(screen.getAllByRole('textbox')).toHaveLength(1);
-    // 기술 용어·모델명은 화면에 노출하지 않는다.
-    expect(row).not.toHaveTextContent('accuracy');
   });
 
-  it('읽기전용_목록의_미지_키도_깨지지_않고_렌더된다', async () => {
-    // given — BE 가 fail-closed 로 읽기 전용 키를 늘린 경우
+  it('★읽기전용_목록에_미지의_키가_늘어도_표시하지_않는다', async () => {
+    // given — BE 가 fail-closed 로 읽기 전용 키를 늘려도 화면은 그 목록을 소비하지 않는다.
+    //   되살리려면 화면 사양(SCREEN-005)부터 고쳐야 한다.
     mockUseMeta.mockReturnValue({
       data: {
         ...META_WITH_ACCURACY,
@@ -372,11 +372,10 @@ describe('TimeseriesSidePanel', () => {
     // when
     renderWithProviders(<TimeseriesSidePanel srcSn={1} />);
 
-    // then — 크래시 없이 값이 그대로 표시되고 편집 입력은 생기지 않는다.
-    const row = await screen.findByTestId('timeseries-readonly-vlm.unknown_future_key');
-    expect(row).toHaveTextContent('미래 값');
-    expect(within(row).queryByRole('textbox')).not.toBeInTheDocument();
-    expect(descriptionInput()).toBeInTheDocument();
+    // then — 크래시 없이 서술 전문만 뜨고 읽기 전용 항목은 하나도 그려지지 않는다.
+    expect(await screen.findByDisplayValue('초기 서술 전문')).toBeInTheDocument();
+    expect(screen.queryByText('미래 값')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeseries-readonly-vlm.unknown_future_key')).not.toBeInTheDocument();
   });
 
   it('읽기전용_항목은_저장_요청에_포함되지_않는다', async () => {

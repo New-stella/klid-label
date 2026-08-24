@@ -330,7 +330,7 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
    ```
    DEV_LOGIN_ENABLED=true
    ```
-   > ★ **2026-08-24 변경(CO-007)**: `DEV_UPLOAD_ENABLED` 는 이제 **운영 기본 ON** 인 상시 기능이라
+   > ★ **2026-08-24 변경(CO-008)**: `DEV_UPLOAD_ENABLED` 는 이제 **운영 기본 ON** 인 상시 기능이라
    > 여기서 켤 필요가 없다(I 절). `SPRING_SERVLET_MULTIPART_ENABLED` 도 공통 설정이 이미 `true` 라
    > 지정이 무의미하다 — 구 기재는 사실과 달랐다.
 2. 브라우저에서 `/dev/login` 진입 → 임시 토큰 발급(파이프라인 검증에 필요한 역할 선택).
@@ -344,7 +344,7 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 
 ## I. 수동 업로드 (`/dev/upload`) — 운영 상시 노출
 
-2026-08-24(CO-007)부터 **수동 업로드는 운영에서 기본으로 켜져 있다.** 외부에서 받은 영상을
+2026-08-24(CO-008)부터 **수동 업로드는 운영에서 기본으로 켜져 있다.** 외부에서 받은 영상을
 운영자가 직접 올리는 동선이 실제로 있어 그 입구를 열어 둔 것이다. 화면 표시 명칭은 **「수동 업로드」**다.
 
 | 축 | 값 | 어디서 |
@@ -369,7 +369,7 @@ VITE_DEV_UPLOAD_ENABLED=false
 ```
 
 > ⚠ **backend 만 끄면 안 된다.** 화면과 LNB 항목은 그대로 보이는데 API 만 404 가 되어
-> 운영자가 원인을 못 찾는다. 실제로 CO-007 이전 형상이 정확히 그 상태였다 —
+> 운영자가 원인을 못 찾는다. 실제로 CO-008 이전 형상이 정확히 그 상태였다 —
 > frontend 는 기본 true 로 노출돼 있는데 backend 만 기본 false 였다.
 >
 > ⚠ **frontend 만 끄는 것도 반쪽이다.** 화면은 사라지지만 API 는 열려 있다.

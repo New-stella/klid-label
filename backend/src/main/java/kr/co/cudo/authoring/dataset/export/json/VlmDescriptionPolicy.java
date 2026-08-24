@@ -51,7 +51,7 @@ import java.util.regex.Pattern;
  * 정렬해 결정성을 확보한다(입력 순서에 의존하면 같은 데이터가 다른 산출물을 만든다).
  *
  * <h3>구간형이 아닌 키는 조용히 무시한다 (CWE-20)</h3>
- * 같은 {@code LS_DATA_META} 에 기술메타({@code video.*})·화면 전용({@code vlm.accuracy})·비규격 키가
+ * 같은 {@code LS_DATA_META} 에 기술메타({@code video.*})·화면 전용(과거 적재분 {@code vlm.accuracy})·비규격 키가
  * 섞여 있다. 정규식에 걸리지 않으면 <b>구간</b> 조달 대상이 아니며 <b>예외를 던지지 않는다</b> —
  * export 는 이 값 하나 때문에 깨지면 안 된다. ({@link #MANUAL_TIMESERIES_META_KEY} 는 무시 대상이
  * 아니라 <b>우선순위 2</b> 로 별도 조달된다.)

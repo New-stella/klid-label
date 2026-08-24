@@ -129,7 +129,7 @@ class VlmBlankUrlBootTest {
                 cfg.vlmWebClient("", "", strictPolicy(), null);
 
         assertThatThrownBy(() -> client.post()
-                .uri("/v1/videovlm/verify")
+                .uri("/v1/videovlm-klid/describe")
                 .bodyValue("{}")
                 .retrieve()
                 .bodyToMono(String.class)

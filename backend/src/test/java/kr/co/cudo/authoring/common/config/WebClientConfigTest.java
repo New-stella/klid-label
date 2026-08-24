@@ -234,7 +234,7 @@ class WebClientConfigTest {
 
             // when — 빈은 그대로 두고 호출한다.
             try {
-                client.post().uri("/v1/videovlm/verify").retrieve().bodyToMono(String.class)
+                client.post().uri("/v1/videovlm-klid/describe").retrieve().bodyToMono(String.class)
                         .block(Duration.ofSeconds(5));
             } catch (RuntimeException ignored) {
                 // 전송 여부는 아래 소켓 관측으로만 판정한다 — 응답 처리 실패로 판정이 흐려지지 않게 한다.
@@ -245,7 +245,7 @@ class WebClientConfigTest {
             assertThat(received)
                     .as("override 주소가 요청을 받아야 한다 — 필터 배선이 빠지면 여기서 실패한다")
                     .isNotNull();
-            assertThat(received.getPath()).isEqualTo("/v1/videovlm/verify");
+            assertThat(received.getPath()).isEqualTo("/v1/videovlm-klid/describe");
         } finally {
             overrideTarget.shutdown();
         }

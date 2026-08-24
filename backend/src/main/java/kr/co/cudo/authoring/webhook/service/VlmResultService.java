@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
+import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -32,14 +32,19 @@ import java.util.regex.Pattern;
  * <p>{@code POST /v1/vlm/callback} 진입 후 호출된다.
  * 적재: {@link LsDataMeta} (K/V) + {@link LsDataMetaReview} 검수 큐(PENDING).
  *
- * <h3>적재 규격 (verify)</h3>
+ * <h3>★ 창구는 둘이고 결과가 가는 자리가 다르다</h3>
+ * <p>콜백 바디에는 <b>창구 구분자가 없다</b>. 위탁 시 등록한 채널로 되짚어 갈라 적재한다.
  * <table border="1">
- *   <caption>metaKey 규격</caption>
- *   <tr><th>metaKey</th><th>값</th><th>검수큐</th></tr>
- *   <tr><td>{@code vlm.description}</td><td>검증 서술 전문(≤2000)</td><td><b>진입</b></td></tr>
- *   <tr><td>{@code vlm.accuracy}</td><td>일치도 0~1 문자열</td><td>미진입 — 화면 전용(R12)</td></tr>
- *   <tr><td>(레거시) {@code 0-8}·{@code 8-16} …</td><td>구 describe 구간 서술</td><td>기존 유지 — <b>보존</b></td></tr>
+ *   <caption>창구별 적재 대상</caption>
+ *   <tr><th>채널</th><th>창구</th><th>적재</th><th>검수큐</th></tr>
+ *   <tr><td>{@code VLM}</td><td>묘사</td><td>{@code vlm.description} 시계열 서술 전문(≤2000)</td><td><b>진입</b></td></tr>
+ *   <tr><td>{@code VLM_SUB}</td><td>추가 질문</td><td>이벤트 어노테이션 질의응답 축 초안
+ *       ({@link TimeseriesSubResultApplier})</td><td>미진입 — 그 도메인이 소유</td></tr>
+ *   <tr><td>(레거시) {@code 0-8}·{@code 8-16} …</td><td>구 구간 서술</td><td>기존 행</td><td>기존 유지 — <b>보존</b></td></tr>
  * </table>
+ *
+ * <p><b>판정 항목은 오지 않는다</b> — 발생 여부·일치도는 우리가 연동하지 않는 판정 창구 전용이라
+ * 적재 대상 자체가 없다. 그 키를 되살리지 말 것.
  *
  * <p>레거시 구간 키 행은 <b>삭제·마이그레이션하지 않는다</b>. metaKey 가 달라 {@code (RAW_SN, META_KEY)} UK
  * 충돌이 없으므로 신규 키가 그대로 추가된다.
@@ -90,8 +95,17 @@ public class VlmResultService {
     /** 검증 서술 — 검수큐(LS_DATA_META_REVIEW) 진입 대상이자 데이터마트 노출 축. */
     public static final String META_KEY_DESCRIPTION = "vlm.description";
 
-    /** 일치도(0~1) — <b>화면 전용</b>. 검수큐 미진입이라 {@code V_COMPLETED_META} 에 도달하지 않는다(R12, 의도된 설계). */
+    /**
+     * 일치도 메타 키 — <b>과거 적재분 전용</b>이다. 이 서비스는 더 이상 이 키를 쓰지 않는다.
+     *
+     * <p>판정 창구를 연동하지 않게 되어 새 값이 생기지 않지만, 이미 적재된 행은 지우지 않고
+     * 그 값을 읽어 내보내던 경로도 그대로 둔다. 그 행을 <b>읽기 전용으로 분류</b>하고 산출물
+     * 조달에서 제외하는 판정이 이 키를 이름으로 가리키므로 상수를 존치한다 — 지우면 그
+     * 분류가 문자열 리터럴로 흩어지고, 기존 행이 편집 대상으로 승격될 위험이 생긴다.
+     */
     public static final String META_KEY_ACCURACY = "vlm.accuracy";
+
+    /** 일치도(0~1) — <b>화면 전용</b>. 검수큐 미진입이라 {@code V_COMPLETED_META} 에 도달하지 않는다(R12, 의도된 설계). */
 
     private static final Pattern LOG_UNSAFE = Pattern.compile("[\\r\\n\\t]");
 
@@ -103,6 +117,8 @@ public class VlmResultService {
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — 재검수·통지 게이트(R13). */
     private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
+    /** 추가 질문 결과의 반영 위임처 — 이벤트 어노테이션 시맨틱은 그 도메인이 소유한다. */
+    private final TimeseriesSubResultApplier subResultApplier;
 
     /**
      * verify 콜백 처리 — 벤더 확정 계약(v2.0.1) 정합.
@@ -142,6 +158,12 @@ public class VlmResultService {
         //    DTO @Pattern 이 1차 차단하나, 서비스 분기도 "failed 외 전부 completed" 로 두면 미지 status
         //    (오타·빈 의미값)가 completed 로 오처리되고 조기 PROCESSED 마킹으로 후속 정상 콜백이 멱등 스킵
         //    → 데이터 유실. 미지 status 는 INVALID_INPUT 으로 거부하고 멱등 마킹을 하지 않아 재전송을 허용한다.
+        // ★ 창구 판정을 status 분기보다 <b>앞</b>에 둔다 — 실패 경로도 창구를 알아야 하기 때문이다.
+        //   콜백 바디에 창구 구분자가 없으므로 위탁 시 등록한 채널이 유일한 축이며, 채널을 모르는
+        //   레거시 행(값이 비어 있는 과거 단일 위탁)은 묘사 축으로 본다 — 구 위탁이 채우던 자리가
+        //   그 축이라 그래야 과거 콜백이 종전대로 처리된다.
+        boolean subChannel = LsWebhookIdempotency.CHANNEL_VLM_SUB.equals(entry.channel());
+
         String status = req.status();
         boolean failed = "failed".equals(status);
         boolean completed = "completed".equals(status);
@@ -154,7 +176,7 @@ public class VlmResultService {
 
         // 5) failed → 적재 없이 error 기록 + 마킹 고착 해제(VLM_FAILED) + 멱등 마킹 (원자적)
         if (failed) {
-            handleFailed(req, requestId, rawSn, entry.issuedAt());
+            handleFailed(req, requestId, rawSn, entry.issuedAt(), subChannel);
             ledger.markProcessedInTx(requestId, requestId);
             return true;
         }
@@ -166,8 +188,16 @@ public class VlmResultService {
             throw new CustomException(ErrorCode.NOT_FOUND, "대상 영상을 찾을 수 없습니다.");
         }
 
-        // 7) 적재 + 검수큐 + 재검수·통지
-        boolean descriptionChanged = applyResults(rawSn, req.results());
+        // 7) 창구별 적재 — 위 4)에서 되짚은 채널로 가른다.
+        boolean descriptionChanged;
+        if (subChannel) {
+            boolean drafted = subResultApplier.applySubDescription(rawSn, req.results().description());
+            log.info("[Webhook][Vlm] sub result routed to event annotation draft rawSn={} drafted={}",
+                    rawSn, drafted);
+            descriptionChanged = false;
+        } else {
+            descriptionChanged = applyResults(rawSn, req.results());
+        }
 
         // 8) 마킹 상태 VLM_COMPLETED 전이
         //  ★ 조회 범위는 ACTIVE_STATUSES(PENDING + VLM_REQUESTED) 다 — VLM_REQUESTED 단독이 아니다.
@@ -175,7 +205,14 @@ public class VlmResultService {
         //    이면 여기서 0건 전이로 끝나고 이후 스텝이 PENDING→VLM_REQUESTED 로 올려 <b>영구 고착</b>된다
         //    (mock/저지연 벤더에서 현실적). 스텝의 선커밋과 함께 <b>양단 방어</b>를 이룬다.
         //    종결 상태는 포함하지 않으므로 이미 VLM_COMPLETED 면 0건 = no-op(멱등).
-        List<LsMarking> markings = markingsInScope(rawSn, entry.issuedAt());
+        //
+        //  ★★ <b>묘사 축 콜백에서만</b> 전이한다 — 마킹의 위탁 상태 표시는 주 축(시계열 서술 전문)을
+        //    따르기 때문이다. 추가 질문 콜백으로도 전이시키면 <b>도착 순서에 따라 사실과 다른 표시</b>가
+        //    굳는다: 규격 §5.1 이 "요청 순서와 콜백 도착 순서는 일치하지 않는다"고 명시하므로 추가 질문
+        //    결과가 먼저 올 수 있고, 그때 묘사 결과가 아직 없는데 마킹이 완료로 보인다. 제출 경로가
+        //    추가 질문 축에 markingSn 을 넘기지 않는 것과 <b>같은 규칙</b>이며, 한쪽만 지키면 규칙이
+        //    아니라 우연이 된다.
+        List<LsMarking> markings = subChannel ? List.of() : markingsInScope(rawSn, entry.issuedAt());
         for (LsMarking m : markings) {
             m.markVlmCompleted();
         }
@@ -189,7 +226,7 @@ public class VlmResultService {
     }
 
     /**
-     * verify 결과 적재 — {@code vlm.description}(+ 있으면 {@code vlm.accuracy}) 원자 upsert. [req: R4]
+     * 묘사 결과 적재 — {@code vlm.description} 원자 upsert. [req: R4]
      *
      * <p>신규 서술이면 검수큐(PENDING)에 넣고, 기존 서술이 <b>실제로 바뀐</b> 경우에만 재검수·통지를 건다
      * ({@link #recheckIfApproved}). 값이 같으면 멱등 upsert 만 하고 아무 부수효과도 만들지 않는다.
@@ -212,15 +249,8 @@ public class VlmResultService {
         LsDataMetaRepositoryCustom.MetaUpsertOutcome outcome =
                 metaRepository.upsertMetaReturning(rawSn, META_KEY_DESCRIPTION, description);
 
-        BigDecimal accuracy = results.accuracy();
-        if (accuracy != null) {
-            // optional — 없으면 행 자체를 만들지 않는다(빈 문자열·placeholder 저장 금지).
-            // 검수큐 진입 대상이 아니라 삽입/갱신 판정이 필요 없으므로 반환 없는 upsert 로 둔다.
-            metaRepository.upsertMeta(rawSn, META_KEY_ACCURACY, accuracy.toPlainString());
-        }
-
         if (outcome.inserted()) {
-            // 검수큐는 description 행만(화이트리스트) — accuracy 는 화면 전용이라 진입시키지 않는다(R12).
+            // 검수큐는 description 행만(화이트리스트) — 이 접두 아래 키가 늘어도 새지 않는 fail-closed 다.
             // metaSn 은 upsert 가 돌려준 값이다(재조회 없음 — 재조회는 다른 트랜잭션의 행을 볼 수 있다).
             reviewRepository.save(LsDataMetaReview.createAuto(
                     outcome.metaSn(), rawSn, null,
@@ -335,14 +365,28 @@ public class VlmResultService {
         return after;
     }
 
-    /** failed 콜백 — error 기록 + VLM_REQUESTED 마킹을 VLM_FAILED 로 전이(고착 해제, #5). */
+    /**
+     * failed 콜백 — error 기록 + VLM_REQUESTED 마킹을 VLM_FAILED 로 전이(고착 해제, #5).
+     *
+     * <p>★ <b>마킹 전이는 묘사 축 콜백에서만</b> 한다. 추가 질문 축의 실패는 기록만 남긴다 —
+     * 그 축이 실패해도 시계열 서술 전문은 정상 적재될 수 있는데, 마킹을 실패로 종결시키면
+     * 주 축이 멀쩡한데 화면이 위탁 실패로 굳는다. 게다가 {@code VLM_FAILED} 는 종결 상태이고
+     * 조회 범위({@code ACTIVE_STATUSES})에서 빠지므로, 뒤이어 도착한 묘사 성공 콜백이
+     * <b>0건 전이로 끝나 되돌릴 수도 없다</b>. 규격상 콜백 도착 순서는 요청 순서와 무관하므로
+     * 추가 질문 실패가 먼저 오는 것은 이례적인 상황이 아니다.
+     *
+     * @param subChannel 추가 질문 축 콜백이면 true — 마킹 상태를 건드리지 않는다.
+     */
     private void handleFailed(VlmResultRequest req, String requestId, Long rawSn,
-                              java.time.LocalDateTime issuedAt) {
-        VlmResultRequest.VlmError err = req.error();
-        log.warn("[Webhook][Vlm] verify failed request_id={} rawSn={} code={} message={}",
-                safe(requestId), rawSn,
-                safe(err == null ? null : err.code()),
-                safe(err == null ? null : err.message()));
+                              java.time.LocalDateTime issuedAt, boolean subChannel) {
+        // 규격 §2.7 상 error 는 객체가 아니라 <b>문자열</b>이다. 외부 유래 값이라 로그 전 sanitize(CWE-117).
+        log.warn("[Webhook][Vlm] analysis failed request_id={} rawSn={} sub={} error={}",
+                safe(requestId), rawSn, subChannel, safe(req.error()));
+
+        if (subChannel) {
+            // 기록만 남기고 마킹은 건드리지 않는다(위 javadoc).
+            return;
+        }
 
         // completed 경로와 동일하게 ACTIVE_STATUSES 로 조회한다(콜백 선행 레이스 대칭 — PENDING 인
         // 마킹도 실패 콜백으로 종결시켜야 고착되지 않는다). 위탁 이후 새로 생긴 마킹 제외도 동일(L6) —

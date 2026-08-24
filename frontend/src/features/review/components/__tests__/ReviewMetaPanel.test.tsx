@@ -108,8 +108,9 @@ describe('ReviewMetaPanel — 기술메타 분리 표시', () => {
 
   // ───────── 일치도 읽기 표시 (2026-08-06, R8) ─────────
 
-  it('검수화면에도_일치도가_읽기전용으로_표시된다', async () => {
-    // given — verify 결과: 서술 전문 + 일치도. 검수자는 서술의 신뢰도를 판단할 근거가 필요하다.
+  it('★검수화면도_일치도를_표시하지_않는다_구_참고정보_섹션_폐기', async () => {
+    // given — 과거 위탁분이 남아 있는 영상. 판정 창구를 연동하지 않게 되면서 이 값은 새로
+    //   생기지 않고, 남은 것을 화면에서 빼기로 확정했다(2026-08-24 사용자 확정).
     mockUseMeta.mockReturnValue({
       data: {
         items: [
@@ -125,16 +126,18 @@ describe('ReviewMetaPanel — 기술메타 분리 표시', () => {
     // when
     renderWithProviders(<ReviewMetaPanel rawSn={10} srcSn={20} />);
 
-    // then — 값이 보이되 입력 요소는 없다(이 패널은 전체가 읽기 전용).
-    const ro = await screen.findByTestId('review-meta-readonly');
-    expect(ro).toHaveTextContent('일치도');
-    expect(ro).toHaveTextContent('92%');
-    expect(ro).not.toHaveTextContent('accuracy');
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    // then — 서술 전문은 그대로 뜨고(대조군), 참고 정보 섹션은 통째로 없다.
+    expect(await screen.findByText('차량이 정지선을 넘었다')).toBeInTheDocument();
+    expect(screen.queryByTestId('review-meta-readonly')).not.toBeInTheDocument();
+    expect(screen.queryByText('참고 정보')).not.toBeInTheDocument();
+    expect(screen.queryByText('일치도')).not.toBeInTheDocument();
+    expect(screen.queryByText('92%')).not.toBeInTheDocument();
   });
 
-  it('일치도만_있어도_빈상태_문구가_뜨지_않는다', async () => {
-    // given — 표시할 것이 읽기 전용 항목뿐인 경우
+  it('★일치도만_있는_영상은_빈상태_문구가_뜬다_구_동작_반전', async () => {
+    // given — 표시할 것이 읽기 전용 항목뿐인 경우. 그 항목을 그리지 않기로 했으므로
+    //   이 영상은 <b>정말로 보여줄 메타가 없다</b> — 빈 상태 문구가 사실에 맞다.
+    //   구 동작(참고 정보 섹션이 떠서 빈 상태가 아니었다)은 폐기됐다.
     mockUseMeta.mockReturnValue({
       data: {
         items: [],
@@ -150,9 +153,9 @@ describe('ReviewMetaPanel — 기술메타 분리 표시', () => {
 
     // then
     await waitFor(() =>
-      expect(screen.getByTestId('review-meta-readonly')).toBeInTheDocument(),
+      expect(screen.getByTestId('review-meta-empty')).toBeInTheDocument(),
     );
-    expect(screen.queryByTestId('review-meta-empty')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('review-meta-readonly')).not.toBeInTheDocument();
   });
 
   it('readOnlyMeta_필드가_없는_응답에도_크래시하지_않는다', async () => {

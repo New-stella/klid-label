@@ -45,7 +45,7 @@ class DevToggleStartupWarnerTest {
     @Test
     @DisplayName("★업로드만_켜지면_상시기능_안내이며_끄라는_지시가_붙지_않는다")
     void uploadOnlyWarningHasNoTurnOffInstruction() {
-        // CO-007 — 수동 업로드는 운영 상시 기능이 됐다. 예전 꼬리 문장("운영에서는 반드시 OFF")이
+        // CO-008 — 수동 업로드는 운영 상시 기능이 됐다. 예전 꼬리 문장("운영에서는 반드시 OFF")이
         //   그대로 붙으면 운영 매 기동마다 상시 기능을 끄라는 지시가 로그에 남아,
         //   그 로그를 따르는 운영자·감리가 정상 기능을 끄게 된다.
         Optional<String> msg = DevToggleStartupWarner.warningMessage(false, true);

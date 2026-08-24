@@ -60,7 +60,7 @@ spring:
       #   - 공통 500MB/1200MB: 수동 업로드(/v1/dev/upload) 영상 개당 500MB 를 수용해야 해서
       #     local/dev/stg 가 동일 값을 각자 복붙하고 있던 것을 공통으로 승격했다.
       #   - 운영(prd)은 application-prd.yml 에서 요청 총량만 1100MB 로 **다시 조인다**(개당은 공통과 같다).
-      #     ⚠ 구 기재 폐기(2026-08-24 CO-007): 이 자리에는 "운영은 dev 업로드 경로가 없으므로 21MB 로 조인다"
+      #     ⚠ 구 기재 폐기(2026-08-24 CO-008): 이 자리에는 "운영은 dev 업로드 경로가 없으므로 21MB 로 조인다"
       #       가 적혀 있었다. 수동 업로드를 운영 상시 기능으로 켜면서 그 전제와 수치가 둘 다 무효가 됐다.
       #       CCTV 영상 실측이 246MB 라 21MB 로는 운영에서 한 건도 올릴 수 없다.
       #     ⚠ prd override 를 지우면 요청 총량이 1200MB 로 조용히 상향된다(자원 소진, OWASP API4)
@@ -635,7 +635,7 @@ authoring:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   # dev 로그인(/v1/dev/tokens)·수동 업로드(/v1/dev/upload) 토글.
-  #   ★ 두 토글의 성격이 다르다 — 한 문장으로 묶어 읽지 말 것(2026-08-24 CO-007).
+  #   ★ 두 토글의 성격이 다르다 — 한 문장으로 묶어 읽지 말 것(2026-08-24 CO-008).
   #   - 공통: 값 미지정 시 빈 부재로 endpoint 미노출(fail-closed). @ConditionalOnProperty 게이팅이며
   #     SecurityConfig 도 authoring.dev.login.enabled 를 읽어 permitAll 매처를 조건부 추가한다.
   #   - dev 로그인: **bring-up 전용**이다. 기본 false 이고 운영에서 켜면 안 된다 —
@@ -769,9 +769,13 @@ resilience4j:
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
-        # V1: 4xx(400/422 등) 결정적 실패는 서킷 failure 로 집계하지 않는다(정상 4xx 가 서킷을 여는 것 방지).
+        # V1: 4xx(400/415 등) 결정적 실패는 서킷 failure 로 집계하지 않는다(정상 4xx 가 서킷을 여는 것 방지).
+        # ★ 429(동시 처리 한도 초과)도 제외한다 — 서킷이 열리면 그 구간의 정상 위탁이 확정 실패로
+        #   종결되고 마킹이 종결 상태로 굳는다. 과부하 완충은 서킷이 아니라 재시도 백오프가 맡는다.
+        #   (429 는 retry 의 ignore 목록에는 <넣지 않아> 재시도 대상으로 남는다 — 아래 retry 블록 참조.)
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
+          - kr.co.cudo.authoring.common.client.RateLimitedExternalException
       # Phase 2 — 관제서버 outbound 통지
       controlNotify:
         failure-rate-threshold: 50
@@ -842,7 +846,10 @@ resilience4j:
         max-attempts: 3
         wait-duration: 1s
         exponential-backoff-multiplier: 2
-        # V1: 4xx(400/422 등) 비-일시적 오류는 재시도하지 않는다(불필요한 지수 백오프 지연 제거). 5xx·네트워크만 재시도.
+        # V1: 4xx(400/415 등) 비-일시적 오류는 재시도하지 않는다(불필요한 지수 백오프 지연 제거).
+        # ★ 단 429(동시 처리 한도 초과)는 <재시도한다> — 규격 §2.9 가 "잠시 후 재시도"로 규정한 일시
+        #   상태이며 전용 예외(RateLimitedExternalException)라 이 ignore 목록에 들어가지 않는다.
+        #   즉 재시도 대상 = 5xx · 네트워크 · 429.
         ignore-exceptions:
           - kr.co.cudo.authoring.common.client.NonRetryableExternalException
       controlNotify:
@@ -953,9 +960,6 @@ vlm:
     #     stg/prd 는 이 값을 절대 설정하지 않는다 — 미설정(false)이면 HTTPS 전용 + 사설망 차단이 강제된다.
     allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:false}
     timeout-seconds: 10
-    # describe frame_policy — frame_interval 정책의 framerate (벤더 확정 계약 v2.0.1).
-    frame-policy:
-      framerate: ${VLM_FRAME_POLICY_FRAMERATE:25}
 
 # 외부 시스템 결과 수신 webhook 인증 — VLM·생성형 AI(증강) 둘 다 계약상 무서명 가드다.
 #  - 보호 대상 경로는 코드의 allowlist(WebhookProtectedPaths)가 단일 진실원이며,

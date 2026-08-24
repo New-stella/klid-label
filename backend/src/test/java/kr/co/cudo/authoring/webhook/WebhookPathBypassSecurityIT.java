@@ -286,7 +286,7 @@ class WebhookPathBypassSecurityIT {
                         .with(remoteAddr("198.18.9.11"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"request_id\":\"" + requestId
-                                + "\",\"status\":\"failed\",\"error\":{\"code\":\"E\",\"message\":\"m\"}}"))
+                                + "\",\"status\":\"failed\",\"error\":\"추론 실패: m\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.applied").value(true))
                 .andExpect(jsonPath("$.data.requestId").value(requestId));
@@ -438,7 +438,7 @@ class WebhookPathBypassSecurityIT {
 
     private static String forgedVlmBody(String requestId) {
         return "{\"request_id\":\"" + requestId
-                + "\",\"status\":\"failed\",\"error\":{\"code\":\"E\",\"message\":\"m\"}}";
+                + "\",\"status\":\"failed\",\"error\":\"추론 실패: m\"}";
     }
 
     /**

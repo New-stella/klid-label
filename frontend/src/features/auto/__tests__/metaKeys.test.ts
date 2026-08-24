@@ -7,9 +7,7 @@ import {
   MANUAL_TIMESERIES_META_KEY,
   compareByStartSec,
   editableMetaLabel,
-  formatReadOnlyMetaValue,
   isEditableMetaKey,
-  readOnlyMetaLabel,
   startSecOf,
 } from '../metaKeys';
 
@@ -177,71 +175,10 @@ describe('metaKeys — 시계열 메타 키 판정 단일 원천', () => {
     });
   });
 
-  describe('readOnlyMetaLabel — 읽기 전용 메타 화면 라벨', () => {
-    it('일치도_키는_한국어_라벨로_매핑한다', () => {
-      // given/when/then
-      expect(readOnlyMetaLabel(ACCURACY_META_KEY)).toBe('일치도');
-    });
-
-    it('미지의_vlm_키는_내부_네임스페이스_접두만_떼고_보여준다', () => {
-      // given — BE 가 fail-closed 로 readOnlyMeta 를 늘려도 화면이 죽지 않아야 한다
-      // when/then
-      expect(readOnlyMetaLabel('vlm.confidence')).toBe('confidence');
-      expect(readOnlyMetaLabel('vlm.foo.bar')).toBe('foo.bar');
-    });
-
-    it('접두가_없는_미지_키는_원문_그대로_보여준다', () => {
-      // given/when/then — 값·의미를 재해석하지 않는다
-      expect(readOnlyMetaLabel('someUnknownKey')).toBe('someUnknownKey');
-      expect(readOnlyMetaLabel('video.fps')).toBe('video.fps');
-    });
-
-    it('접두를_떼면_비는_키는_원문_키로_폴백한다', () => {
-      // given — "vlm." 자체 / "vlm.   " 는 떼고 나면 라벨이 사라진다
-      // when/then — 빈 라벨 대신 원문(무엇인지 알 수 있게)
-      expect(readOnlyMetaLabel('vlm.')).toBe('vlm.');
-      expect(readOnlyMetaLabel('vlm.   ')).toBe('vlm.   ');
-    });
-  });
-
-  describe('formatReadOnlyMetaValue — 읽기 전용 메타 값 표시', () => {
-    it('일치도는_0~1을_백분율로_환산한다_소수1자리', () => {
-      // given/when/then
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '0.923')).toBe('92.3%');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '0.92')).toBe('92%');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '0.9235')).toBe('92.4%');
-    });
-
-    it('경계값_0과_1도_환산한다', () => {
-      // given — 벤더 규격상 0~1 경계 포함
-      // when/then
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '0')).toBe('0%');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '1')).toBe('100%');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, ' 1 ')).toBe('100%');
-    });
-
-    it('숫자가_아니면_지어내지_않고_원문을_그대로_보여준다', () => {
-      // given — 벤더가 예상 밖 값을 보내도 화면이 값을 창작하면 안 된다
-      // when/then
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, 'N/A')).toBe('N/A');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '')).toBe('');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '   ')).toBe('   ');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, 'NaN')).toBe('NaN');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, 'Infinity')).toBe('Infinity');
-    });
-
-    it('0~1_범위를_벗어나면_원문을_그대로_보여준다', () => {
-      // given — 백분율로 환산하면 "150%" 처럼 잘못된 사실을 단언하게 된다
-      // when/then
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '1.5')).toBe('1.5');
-      expect(formatReadOnlyMetaValue(ACCURACY_META_KEY, '-0.1')).toBe('-0.1');
-    });
-
-    it('일치도가_아닌_키는_숫자여도_변환하지_않는다', () => {
-      // given — 환산 규칙은 일치도 전용이다(다른 읽기 전용 키의 값을 왜곡하지 않는다)
-      // when/then
-      expect(formatReadOnlyMetaValue('vlm.confidence', '0.5')).toBe('0.5');
-      expect(formatReadOnlyMetaValue('video.fps', '30')).toBe('30');
-    });
-  });
+  /*
+   * ★ 폐기 — readOnlyMetaLabel · formatReadOnlyMetaValue 시험(2026-08-24).
+   *   유일한 대상이던 일치도를 화면에서 빼기로 확정하면서 두 함수가 사라졌다. 그 대신
+   *   "표시하지 않는다" 를 패널 시험(TimeseriesSidePanel · ReviewMetaPanel)이 고정한다 —
+   *   포맷터를 검증하던 자리를 비워 두면 누가 되살려도 초록불이기 때문이다.
+   */
 });

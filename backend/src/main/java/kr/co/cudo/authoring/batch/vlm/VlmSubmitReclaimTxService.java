@@ -26,6 +26,18 @@ import java.util.List;
 @RequiredArgsConstructor
 public class VlmSubmitReclaimTxService {
 
+    /**
+     * 회수 대상 창구 — 시계열 분석은 묘사·추가 질문 <b>두 창구</b>로 나간다.
+     *
+     * <p>한 창구만 훑으면 나머지 창구의 미결 행이 영구히 남아 그 영상의 재위탁이 미결 판정에 막힌다.
+     *
+     * <p>⚠ <b>알려진 한계</b>: 회수 후 재개는 파이프라인 단계를 통째로 다시 도는 방식이라 <b>창구별
+     * 선택 재위탁이 아니다</b>. 묘사가 이미 성공해 시계열 서술이 적재된 영상은 재개가 멱등 스킵으로
+     * 끝나므로, 그 영상의 추가 질문 결과만 유실된 경우 자동으로 다시 받아 오지 않는다.
+     */
+    private static final List<String> VLM_CHANNELS =
+            List.of(LsWebhookIdempotency.CHANNEL_VLM, LsWebhookIdempotency.CHANNEL_VLM_SUB);
+
     private final LsWebhookIdempotencyRepository repository;
 
     /** 회수 후보(미결 ISSUED = ACK 조차 못 받음, ACK 창 경과) 앵커 조회. */
@@ -33,7 +45,7 @@ public class VlmSubmitReclaimTxService {
             propagation = Propagation.REQUIRES_NEW)
     public List<Candidate> findCandidates(LocalDateTime cutoff, int limit) {
         return repository
-                .findStaleIssued(LsWebhookIdempotency.CHANNEL_VLM, cutoff, PageRequest.of(0, limit))
+                .findStaleIssued(VLM_CHANNELS, cutoff, PageRequest.of(0, limit))
                 .stream()
                 .map(e -> new Candidate(e.getIdmpKey(), e.getRawSn()))
                 .toList();
@@ -49,7 +61,7 @@ public class VlmSubmitReclaimTxService {
             propagation = Propagation.REQUIRES_NEW)
     public List<Candidate> findAcceptedCandidates(LocalDateTime cutoff, int limit) {
         return repository
-                .findStaleAccepted(LsWebhookIdempotency.CHANNEL_VLM, cutoff, PageRequest.of(0, limit))
+                .findStaleAccepted(VLM_CHANNELS, cutoff, PageRequest.of(0, limit))
                 .stream()
                 .map(e -> new Candidate(e.getIdmpKey(), e.getRawSn()))
                 .toList();

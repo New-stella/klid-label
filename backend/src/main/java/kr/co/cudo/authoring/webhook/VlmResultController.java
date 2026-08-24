@@ -74,8 +74,8 @@ public class VlmResultController {
     public ResponseEntity<ApiResponse<Void>> handleUnreadableCallback(HttpMessageNotReadableException e) {
         Throwable cause = e.getMostSpecificCause();
         if (isResultsShapeMismatch(cause)) {
-            log.warn("[Webhook][Vlm] callback rejected — results 가 배열입니다(신규 verify 규격은 객체 "
-                    + "{{accuracy, description}}). 벤더가 구 describe 규격을 보내고 있는지 확인 필요");
+            log.warn("[Webhook][Vlm] callback rejected — results 가 배열입니다(확정 계약은 단일 객체 "
+                    + "{{description}}). 벤더가 구 규격(구간 배열)을 보내고 있는지 확인 필요");
         } else {
             log.warn("[Webhook][Vlm] callback body not readable cause={}", cause.getClass().getSimpleName());
         }

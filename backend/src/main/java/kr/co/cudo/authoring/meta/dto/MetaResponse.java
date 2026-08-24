@@ -28,7 +28,7 @@ import java.util.Map;
  * </ul>
  *
  * <h3>2026-08-06 — 화면 전용 읽기 메타 분리 (필드 추가, @req R12)</h3>
- * <p>verify 콜백 적재는 {@code vlm.description}(검수큐 진입·편집 가능) + {@code vlm.accuracy}(일치도,
+ * <p>콜백 적재는 {@code vlm.description}(검수큐 진입·편집 가능) 하나다. {@code vlm.accuracy}(일치도,
  * 검수큐 미진입·<b>화면 전용</b>) 2키 구조다. 후자는 편집 대상이 아닌데 {@code items} 에 섞여 내려가
  * 편집·저장까지 됐다.
  *

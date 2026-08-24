@@ -85,7 +85,12 @@ class VlmTimeseriesStepTest {
                 markingTxService, outcomeRecorder, timeseriesMetaPresence,
                 new ObjectMapper(), Schedulers.immediate(),
                 mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
-    }
+            // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
+        // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
+        // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+                .thenReturn(Mono.never());
+}
 
     /**
      * 관제 인입값(검증이벤트유형) 시드 — Phase 2 이후 위탁의 <b>사전 조건</b>이다.
@@ -108,7 +113,7 @@ class VlmTimeseriesStepTest {
     }
 
     private void stubAccepted() {
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenAnswer(inv -> {
                     VlmTimeseriesRequest r = inv.getArgument(0);
                     return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
@@ -207,7 +212,7 @@ class VlmTimeseriesStepTest {
         // then
         assertThat(withheld.status()).isEqualTo("skipped");
         assertThat(submitted.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
-        verify(vlmClient, times(1)).submitTimeseries(any());
+        verify(vlmClient, times(1)).submitDescribe(any());
         verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
                 isNull(), eq(310L));
     }
@@ -221,15 +226,16 @@ class VlmTimeseriesStepTest {
         step.run(200L);
 
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient, times(1)).submitTimeseries(captor.capture());
+        verify(vlmClient, times(1)).submitDescribe(captor.capture());
         VlmTimeseriesRequest req = captor.getValue();
         assertThat(req.requestId()).isNotBlank();
         assertThat(req.media()).isNotNull();
         assertThat(req.media().type()).isEqualTo("video");
         assertThat(req.media().sourceType()).isEqualTo("path");
         assertThat(req.media().path()).isEqualTo("/data/deid/200.mp4");
+        // 마킹이 없어 실을 프레임이 없으므로 간격 모드다. 간격값은 서버가 관리하므로 싣지 않는다.
         assertThat(req.media().framePolicy().mode()).isEqualTo("frame_interval");
-        assertThat(req.media().framePolicy().framerate()).isEqualTo(25);
+        assertThat(req.media().framePolicy().selectedFrames()).isNull();
         assertThat(req.eventType()).isEqualTo("fire");
         assertThat(req.callbackUrl()).endsWith("/v1/vlm/callback");
     }
@@ -243,7 +249,7 @@ class VlmTimeseriesStepTest {
         step.run(210L);
 
         ArgumentCaptor<VlmTimeseriesRequest> reqCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitTimeseries(reqCap.capture());
+        verify(vlmClient).submitDescribe(reqCap.capture());
         String sentRequestId = reqCap.getValue().requestId();
 
         ArgumentCaptor<String> keyCap = ArgumentCaptor.forClass(String.class);
@@ -262,7 +268,7 @@ class VlmTimeseriesStepTest {
         assertThatThrownBy(() -> step.run(211L))
                 .isInstanceOf(CustomException.class);
         // 매핑 없는 위탁 방지 — 외부 호출 미수행
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
     }
 
     @Test
@@ -274,7 +280,7 @@ class VlmTimeseriesStepTest {
         step.run(220L);
 
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitTimeseries(captor.capture());
+        verify(vlmClient).submitDescribe(captor.capture());
         VlmTimeseriesRequest req = captor.getValue();
         assertThat(req.media().framePolicy().selectedFrames()).isNull();
         assertThat(req.callbackUrl()).doesNotContain("event");
@@ -285,7 +291,7 @@ class VlmTimeseriesStepTest {
     void nullRawSnRejected() {
         assertThatThrownBy(() -> step.run(null))
                 .isInstanceOf(CustomException.class);
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
     }
 
@@ -297,7 +303,7 @@ class VlmTimeseriesStepTest {
         assertThatThrownBy(() -> step.run(202L))
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining("영상");
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
     }
 
@@ -311,7 +317,7 @@ class VlmTimeseriesStepTest {
         assertThatThrownBy(() -> step.run(230L))
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining("비식별");
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
     }
 
@@ -327,7 +333,7 @@ class VlmTimeseriesStepTest {
     void clientFailureDelegatedToOutcomeRecorder() {
         seed(201L, "/data/deid/201.mp4");
         RuntimeException boom = new RuntimeException("vlm down");
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.error(boom));
 
         VlmTimeseriesResponse resp = step.run(201L);
@@ -346,7 +352,7 @@ class VlmTimeseriesStepTest {
     @DisplayName("빈_응답도_무흔적_유실되지_않고_제출실패로_기록된다")
     void emptyResponseRoutedToFailureHandler() {
         seed(203L, "/data/deid/203.mp4");
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class))).thenReturn(Mono.empty());
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenReturn(Mono.empty());
 
         VlmTimeseriesResponse resp = step.run(203L);
 
@@ -361,7 +367,7 @@ class VlmTimeseriesStepTest {
     @DisplayName("ACK_수신시_완료핸들러가_수락응답을_넘겨받는다")
     void ackDelegatedToOutcomeRecorder() {
         seed(300L, "/data/deid/300.mp4");
-        when(vlmClient.submitTimeseries(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
                 .thenReturn(Mono.just(new VlmTimeseriesResponse("REQ-300", "accepted")));
 
         step.run(300L);
@@ -418,7 +424,7 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(400L);
 
         // then — 외부 호출·상관키 발급·마킹 선커밋 전부 0건.
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
         verifyNoInteractions(markingTxService);
         assertThat(resp.status()).isEqualTo("skipped");
@@ -444,7 +450,7 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(401L);
 
         // then
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
         verify(ledger, never()).recordIssued(any(), any(), any(), any());
         verifyNoInteractions(markingTxService);
         assertThat(resp.status()).isEqualTo("skipped");
@@ -465,7 +471,7 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(402L);
 
         assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
-        verify(vlmClient, times(1)).submitTimeseries(any());
+        verify(vlmClient, times(1)).submitDescribe(any());
         verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
                 isNull(), eq(402L));
     }
@@ -485,7 +491,7 @@ class VlmTimeseriesStepTest {
         step.run(403L);
 
         verify(batchStatusService).recordVlmSkipped(403L, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
-        verify(vlmClient, never()).submitTimeseries(any());
+        verify(vlmClient, never()).submitDescribe(any());
     }
 
     @Test

@@ -27,7 +27,7 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   # 운영(prd) multipart 한도 — 요청 총량만 공통(1200MB)보다 좁게 조인다.
-  #   ★ 2026-08-24 변경: 개당 한도 21MB → 500MB (CO-007).
+  #   ★ 2026-08-24 변경: 개당 한도 21MB → 500MB (CO-008).
   #     구 근거는 "prd 에는 dev 업로드 경로 자체가 없다" 였는데, 그 전제가 무너졌다 —
   #     수동 업로드(/v1/dev/upload)를 운영에 노출하기로 확정했다(아래 authoring.dev.upload).
   #     CCTV 영상 실측이 246MB(3840x2160, 80초)이고 사업 기준이 30초 이상/건이라 2배 여유로 500MB.
@@ -59,7 +59,7 @@ spring:
 #   AugmentUrlPolicy 의 "빈값 거부"로 기동이 죽는다(조용한 오연동은 없지만 배포가 깨진다).
 #   fail-safe 로 못박는다. 실연동 시 AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 로 전환.
 authoring:
-  # [운영 노출] 수동 업로드(/v1/dev/upload) — 2026-08-24 CO-007 로 운영에서도 켠다.
+  # [운영 노출] 수동 업로드(/v1/dev/upload) — 2026-08-24 CO-008 로 운영에서도 켠다.
   #   왜 기본값을 뒤집나: 외부에서 받은 영상을 운영자가 직접 올려야 하는 동선이 실제로 있고,
   #   그 입구가 이 경로다. FE 는 이미 노출돼 있었는데(온프렘 빌드가 VITE_DEV_UPLOAD_ENABLED 기본 true)
   #   BE 만 꺼져 있어 "화면은 보이는데 API 는 404" 인 상태였다 — 그 어긋남을 여기서 맞춘다.
