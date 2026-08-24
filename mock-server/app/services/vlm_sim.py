@@ -1,7 +1,7 @@
 """
 IntelliVIX Video VLM 시뮬레이션 — 콜백 페이로드 생성 + 비동기 콜백 발사.
 
-verify/describe 는 요청을 즉시 수락(accepted)한 뒤, 지연(config.callback_delay_seconds)
+묘사·추가 질문 창구는 요청을 즉시 수락(accepted)한 뒤, 지연(config.callback_delay_seconds)
 후 callback_url 로 결과를 POST 한다. 실제 추론은 하지 않고 결정적(deterministic) mock
 페이로드를 만든다.
 
@@ -45,34 +45,6 @@ MAX_DURATION_SEC = 86_400
 # 구간 개수 상한 — BE VlmResultRequest.results @Size(max=500) 아래로 여유를 둔 값.
 #   상한을 넘는 길이는 **뒷부분을 잘라내지 않고** window 를 늘려 균등 재분배한다(전체 커버 유지).
 MAX_DESCRIBE_SEGMENTS = 450
-
-# verify mock 정확도(고정 mock 값).
-_VERIFY_ACCURACY = 0.8
-
-# 이벤트별 mock 검증 설명.
-_VERIFY_DESCRIPTIONS: dict[EventType, str] = {
-    EventType.FIRE: "건물 창문에서 화염과 검은 연기가 관측되어 화재 발생이 확인됩니다.",
-    EventType.FALL: "한 남성이 전봇대 옆에서 쓰러진 상태로 확인됩니다.",
-    EventType.VIOLENCE: "두 사람 사이 물리적 충돌과 폭력 정황이 확인됩니다.",
-    EventType.FLOODING: "도로 위로 물이 차오르며 침수가 진행되는 상황이 확인됩니다.",
-    EventType.CAR_ACCIDENT: "교차로에서 차량 두 대가 충돌한 사고 정황이 확인됩니다.",
-    EventType.KIDNAPPING: "한 사람이 다른 사람을 강제로 끌고 가는 정황이 확인됩니다.",
-}
-
-
-def mock_verify_result(event_type: object = None) -> dict:
-    """verify 콜백용 결과(accuracy + description)를 생성한다.
-
-    ``event_type`` 은 표준 6종(:class:`EventType`)일 수도, **우리가 모르는 문자열이거나
-    ``None``** 일 수도 있다(2026-08-06 완화 — 스키마 주석 참조). 표준 6종은 각자의 서술을,
-    그 밖·미지정은 **폴백 서술**을 돌려준다. ``EventType`` 은 ``str`` 상속 Enum 이라 평문
-    문자열 키로도 그대로 조회된다(``hash("fire") == hash(EventType.FIRE)``).
-    """
-    description = _VERIFY_DESCRIPTIONS.get(
-        event_type, "요청한 이벤트에 해당하는 정황이 확인됩니다."
-    )
-    return {"accuracy": _VERIFY_ACCURACY, "description": description}
-
 
 # 구간 설명 템플릿 — 축마다 개수가 달라(5/4/7/6) index 순환 주기가 어긋나므로,
 # 구간이 이어져도 같은 조합이 바로 반복되지 않는다(결정적, 랜덤 미사용).
@@ -264,19 +236,6 @@ def resolve_describe_duration(
     return FALLBACK_DURATION_SEC
 
 
-def build_verify_callback(request_id: str, event_type: object = None) -> dict:
-    """판정(verify) 성공 콜백 페이로드 — **우리 연동 대상이 아니다**.
-
-    저작도구는 판정 창구를 연동하지 않으므로 이 목에도 그 라우트를 두지 않는다. 서술 생성기가
-    이 함수를 참조하는 곳이 남아 있어 형태만 보존하며, 새 라우트를 붙이지 말 것.
-    """
-    return {
-        "request_id": request_id,
-        "status": "completed",
-        "results": mock_verify_result(event_type),
-    }
-
-
 def build_describe_callback(request_id: str, duration_sec: object = None) -> dict:
     """묘사 성공 콜백 페이로드 — KLID 연동 API v1.1.0 §2.7·§2.8.
 
@@ -399,7 +358,7 @@ def is_failure_trigger(request_id: str, media_path: str | None) -> bool:
 
     규격상 접수(동기 응답)는 항상 성공(accepted)이고, 처리 오류는 callback_url 로만
     status="failed" 로 전달된다. 이를 통합 테스트에서 결정적으로 재현하기 위해 아래
-    입력을 실패 트리거로 간주한다(verify/describe 공통):
+    입력을 실패 트리거로 간주한다(두 창구 공통):
       - request_id 가 "fail"(대소문자 무시)로 시작하는 경우, 또는
       - media.path 에 "fail" 이 포함된 경우.
     트리거가 걸리면 build_failed_callback 을, 아니면 성공 콜백을 발사한다.

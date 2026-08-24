@@ -158,6 +158,12 @@ public class VlmResultService {
         //    DTO @Pattern 이 1차 차단하나, 서비스 분기도 "failed 외 전부 completed" 로 두면 미지 status
         //    (오타·빈 의미값)가 completed 로 오처리되고 조기 PROCESSED 마킹으로 후속 정상 콜백이 멱등 스킵
         //    → 데이터 유실. 미지 status 는 INVALID_INPUT 으로 거부하고 멱등 마킹을 하지 않아 재전송을 허용한다.
+        // ★ 창구 판정을 status 분기보다 <b>앞</b>에 둔다 — 실패 경로도 창구를 알아야 하기 때문이다.
+        //   콜백 바디에 창구 구분자가 없으므로 위탁 시 등록한 채널이 유일한 축이며, 채널을 모르는
+        //   레거시 행(값이 비어 있는 과거 단일 위탁)은 묘사 축으로 본다 — 구 위탁이 채우던 자리가
+        //   그 축이라 그래야 과거 콜백이 종전대로 처리된다.
+        boolean subChannel = LsWebhookIdempotency.CHANNEL_VLM_SUB.equals(entry.channel());
+
         String status = req.status();
         boolean failed = "failed".equals(status);
         boolean completed = "completed".equals(status);
@@ -170,7 +176,7 @@ public class VlmResultService {
 
         // 5) failed → 적재 없이 error 기록 + 마킹 고착 해제(VLM_FAILED) + 멱등 마킹 (원자적)
         if (failed) {
-            handleFailed(req, requestId, rawSn, entry.issuedAt());
+            handleFailed(req, requestId, rawSn, entry.issuedAt(), subChannel);
             ledger.markProcessedInTx(requestId, requestId);
             return true;
         }
@@ -182,11 +188,9 @@ public class VlmResultService {
             throw new CustomException(ErrorCode.NOT_FOUND, "대상 영상을 찾을 수 없습니다.");
         }
 
-        // 7) 창구별 적재 — 콜백 바디에 창구 구분자가 없으므로 위탁 시 등록한 채널로 되짚는다.
-        //    채널을 모르는 레거시 행(채널 값이 비어 있는 과거 위탁)은 묘사 축으로 본다 — 구 단일
-        //    위탁이 채우던 자리가 그 축이라 그렇게 해야 과거 콜백이 종전대로 처리된다.
+        // 7) 창구별 적재 — 위 4)에서 되짚은 채널로 가른다.
         boolean descriptionChanged;
-        if (LsWebhookIdempotency.CHANNEL_VLM_SUB.equals(entry.channel())) {
+        if (subChannel) {
             boolean drafted = subResultApplier.applySubDescription(rawSn, req.results().description());
             log.info("[Webhook][Vlm] sub result routed to event annotation draft rawSn={} drafted={}",
                     rawSn, drafted);
@@ -201,7 +205,14 @@ public class VlmResultService {
         //    이면 여기서 0건 전이로 끝나고 이후 스텝이 PENDING→VLM_REQUESTED 로 올려 <b>영구 고착</b>된다
         //    (mock/저지연 벤더에서 현실적). 스텝의 선커밋과 함께 <b>양단 방어</b>를 이룬다.
         //    종결 상태는 포함하지 않으므로 이미 VLM_COMPLETED 면 0건 = no-op(멱등).
-        List<LsMarking> markings = markingsInScope(rawSn, entry.issuedAt());
+        //
+        //  ★★ <b>묘사 축 콜백에서만</b> 전이한다 — 마킹의 위탁 상태 표시는 주 축(시계열 서술 전문)을
+        //    따르기 때문이다. 추가 질문 콜백으로도 전이시키면 <b>도착 순서에 따라 사실과 다른 표시</b>가
+        //    굳는다: 규격 §5.1 이 "요청 순서와 콜백 도착 순서는 일치하지 않는다"고 명시하므로 추가 질문
+        //    결과가 먼저 올 수 있고, 그때 묘사 결과가 아직 없는데 마킹이 완료로 보인다. 제출 경로가
+        //    추가 질문 축에 markingSn 을 넘기지 않는 것과 <b>같은 규칙</b>이며, 한쪽만 지키면 규칙이
+        //    아니라 우연이 된다.
+        List<LsMarking> markings = subChannel ? List.of() : markingsInScope(rawSn, entry.issuedAt());
         for (LsMarking m : markings) {
             m.markVlmCompleted();
         }
@@ -354,12 +365,28 @@ public class VlmResultService {
         return after;
     }
 
-    /** failed 콜백 — error 기록 + VLM_REQUESTED 마킹을 VLM_FAILED 로 전이(고착 해제, #5). */
+    /**
+     * failed 콜백 — error 기록 + VLM_REQUESTED 마킹을 VLM_FAILED 로 전이(고착 해제, #5).
+     *
+     * <p>★ <b>마킹 전이는 묘사 축 콜백에서만</b> 한다. 추가 질문 축의 실패는 기록만 남긴다 —
+     * 그 축이 실패해도 시계열 서술 전문은 정상 적재될 수 있는데, 마킹을 실패로 종결시키면
+     * 주 축이 멀쩡한데 화면이 위탁 실패로 굳는다. 게다가 {@code VLM_FAILED} 는 종결 상태이고
+     * 조회 범위({@code ACTIVE_STATUSES})에서 빠지므로, 뒤이어 도착한 묘사 성공 콜백이
+     * <b>0건 전이로 끝나 되돌릴 수도 없다</b>. 규격상 콜백 도착 순서는 요청 순서와 무관하므로
+     * 추가 질문 실패가 먼저 오는 것은 이례적인 상황이 아니다.
+     *
+     * @param subChannel 추가 질문 축 콜백이면 true — 마킹 상태를 건드리지 않는다.
+     */
     private void handleFailed(VlmResultRequest req, String requestId, Long rawSn,
-                              java.time.LocalDateTime issuedAt) {
+                              java.time.LocalDateTime issuedAt, boolean subChannel) {
         // 규격 §2.7 상 error 는 객체가 아니라 <b>문자열</b>이다. 외부 유래 값이라 로그 전 sanitize(CWE-117).
-        log.warn("[Webhook][Vlm] analysis failed request_id={} rawSn={} error={}",
-                safe(requestId), rawSn, safe(req.error()));
+        log.warn("[Webhook][Vlm] analysis failed request_id={} rawSn={} sub={} error={}",
+                safe(requestId), rawSn, subChannel, safe(req.error()));
+
+        if (subChannel) {
+            // 기록만 남기고 마킹은 건드리지 않는다(위 javadoc).
+            return;
+        }
 
         // completed 경로와 동일하게 ACTIVE_STATUSES 로 조회한다(콜백 선행 레이스 대칭 — PENDING 인
         // 마킹도 실패 콜백으로 종결시켜야 고착되지 않는다). 위탁 이후 새로 생긴 마킹 제외도 동일(L6) —

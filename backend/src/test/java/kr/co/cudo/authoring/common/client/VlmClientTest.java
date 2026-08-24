@@ -46,7 +46,10 @@ class VlmClientTest {
                         .slidingWindowSize(10)
                         .minimumNumberOfCalls(5)
                         // V1: 4xx 비재시도 예외는 서킷 failure 로 집계하지 않는다(프로덕션 YAML 정합).
-                        .ignoreExceptions(NonRetryableExternalException.class)
+                        // ★ 429 전용 예외도 제외한다 — 서킷이 열리면 그 구간의 정상 위탁이 확정
+                        //   실패로 종결되고 마킹이 종결 상태로 굳는다(과부하 완충은 재시도 백오프가 맡는다).
+                        .ignoreExceptions(NonRetryableExternalException.class,
+                                RateLimitedExternalException.class)
                         .build());
     }
 
@@ -119,6 +122,46 @@ class VlmClientTest {
         // 벤더 규격 밖 필드 미전송 — 마킹 원문은 frame_policy 로만 반영된다
         assertThat(body).doesNotContain("eventName");
         assertThat(body).doesNotContain("marks");
+    }
+
+    @Test
+    @DisplayName("★429는_재시도_대상이고_비재시도_예외가_아니다")
+    void tooManyRequests_isRetryableAndNotNonRetryable() throws Exception {
+        // given — 규격 §2.9: 동시 처리 한도 초과는 "잠시 후 재시도"다. 다른 4xx 와 함께 비재시도로
+        //   묶으면, 창구가 둘로 늘어 호출이 2배가 된 상황에서 정상 위탁이 확정 실패로 종결된다.
+        //   첫 두 번은 429, 세 번째에 수락 — 재시도가 실제로 돌아야 성공한다.
+        server.enqueue(new MockResponse().setResponseCode(429));
+        server.enqueue(new MockResponse().setResponseCode(429));
+        server.enqueue(new MockResponse().setResponseCode(202)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"request_id\":\"req-429\",\"status\":\"accepted\"}"));
+        retryRegistry = tripleAttemptIgnoringNonRetryable();
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
+
+        // when
+        VlmTimeseriesResponse resp = client.submitDescribe(verifyReq("req-429"))
+                .block(Duration.ofSeconds(10));
+
+        // then — 재시도로 도달한 수락 응답
+        assertThat(resp).isNotNull();
+        assertThat(resp.status()).isEqualTo("accepted");
+        assertThat(server.getRequestCount()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("★400과_415는_비재시도라_한_번만_보낸다")
+    void deterministicClientErrors_areNotRetried() {
+        // given — 다시 보내도 결과가 같은 결정적 실패다(형식 오류·미지원 Content-Type).
+        server.enqueue(new MockResponse().setResponseCode(400));
+        retryRegistry = tripleAttemptIgnoringNonRetryable();
+        VlmClient client = new VlmClient(webClient(), cbRegistry, retryRegistry, 5L);
+
+        // when / then
+        assertThatThrownBy(() -> client.submitDescribe(verifyReq("req-400")).block(Duration.ofSeconds(5)))
+                .isInstanceOf(NonRetryableExternalException.class);
+        assertThat(server.getRequestCount())
+                .as("비재시도 예외는 지수 백오프를 태우지 않는다")
+                .isEqualTo(1);
     }
 
     @Test

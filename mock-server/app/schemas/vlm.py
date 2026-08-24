@@ -110,7 +110,7 @@ DescribeSubRequest = KlidAnalysisRequest
 
 
 class AcceptedResponse(BaseModel):
-    """verify/describe 동기 응답 — 수락(Acknowledge)만 의미.
+    """두 창구 공통 접수 응답 — 수락(Acknowledge)만 의미.
 
     우리 BE VlmClient 는 request_id echo + status="accepted" 를 검증하므로
     필드명/값을 규격대로 유지한다.

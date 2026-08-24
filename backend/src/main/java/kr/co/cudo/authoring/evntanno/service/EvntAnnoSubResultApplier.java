@@ -3,7 +3,9 @@ package kr.co.cudo.authoring.evntanno.service;
 import kr.co.cudo.authoring.assignment.service.ReviewApprovalGate;
 import kr.co.cudo.authoring.evntanno.dto.EventAnnotationPayload;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnno;
+import kr.co.cudo.authoring.evntanno.entity.LsEvntAnnoReview;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
+import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -40,6 +42,9 @@ import java.util.Optional;
  *       뒤늦게 바꾸면 내보낸 회차와 어긋난다.</li>
  *   <li><b>답변이 이미 있으면 손대지 않는다</b> — 사람이 쓴 값인지 앞선 자동 채움인지 구분할 수단이
  *       없으므로, 값이 있으면 사람의 것으로 본다(fail-secure).</li>
+ *   <li><b>어노테이션 검토가 이미 종결됐으면 손대지 않는다</b> — 검토행이 승인·반려로 결론난 뒤에
+ *       늦은 콜백이 답변을 채우면, 검수자가 한 번도 보지 않은 문장이 승인 시점의 동결본에 실린다.
+ *       영상 승인 이력만 보면 <b>어노테이션은 먼저 승인됐는데 영상은 아직인 구간</b>이 뚫린다.</li>
  *   <li>따라서 같은 결과를 여러 번 받아도 두 번째부터는 아무것도 하지 않는다(멱등). 규격 §5.1 상
  *       콜백은 중복 수신될 수 있다.</li>
  * </ul>
@@ -60,6 +65,7 @@ public class EvntAnnoSubResultApplier implements TimeseriesSubResultApplier {
     private static final String DRAFT_ACTOR = "SYSTEM";
 
     private final LsEvntAnnoRepository annoRepository;
+    private final LsEvntAnnoReviewRepository reviewRepository;
     private final IngestSourceRepository ingestSourceRepository;
     private final ReviewApprovalGate approvalGate;
 
@@ -104,6 +110,10 @@ public class EvntAnnoSubResultApplier implements TimeseriesSubResultApplier {
             log.info("[EvntAnno] sub draft skipped — answer already present rawSn={}", rawSn);
             return false;
         }
+        if (isReviewSettled(anno.getEvntAnnoSn())) {
+            log.info("[EvntAnno] sub draft skipped — annotation review already settled rawSn={}", rawSn);
+            return false;
+        }
         EventAnnotationPayload drafted = new EventAnnotationPayload(
                 payload.eventClass(), payload.question(), payload.caption(),
                 description, payload.evidence());
@@ -129,6 +139,22 @@ public class EvntAnnoSubResultApplier implements TimeseriesSubResultApplier {
         annoRepository.save(LsEvntAnno.create(rawSn, drafted.toJson(), DRAFT_ACTOR));
         log.info("[EvntAnno] sub draft created rawSn={}", rawSn);
         return true;
+    }
+
+    /**
+     * 어노테이션 검토가 이미 결론난 상태인가 — 승인·반려 중 하나면 자동 채움 대상이 아니다.
+     *
+     * <p>반려도 포함한다 — 반려는 <b>그 시점 본문</b>에 대한 판단이라, 자동 채움이 본문을 바꾸면
+     * 그 판단이 무엇에 대한 것이었는지 알 수 없게 된다.
+     */
+    private boolean isReviewSettled(Long evntAnnoSn) {
+        if (evntAnnoSn == null) {
+            return false;
+        }
+        return reviewRepository.findByEvntAnnoSn(evntAnnoSn).stream()
+                .map(LsEvntAnnoReview::getRvwSttsCd)
+                .anyMatch(st -> LsEvntAnnoReview.STTS_APPROVED.equals(st)
+                        || LsEvntAnnoReview.STTS_REJECTED.equals(st));
     }
 
     /** 검증 이벤트 유형 조달 — 정규화는 인입 엔티티의 것을 재사용한다(리터럴 복제 금지). */

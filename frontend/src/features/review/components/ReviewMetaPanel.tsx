@@ -22,8 +22,6 @@ import {
   type EvidenceCandidate,
 } from '@/features/label/api/eventAnnotation';
 import {
-  formatReadOnlyMetaValue,
-  readOnlyMetaLabel,
 } from '@/features/auto/metaKeys';
 import type { MetaItem } from '@/features/auto/types';
 
@@ -159,12 +157,11 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
   // 같은 테이블(LS_DATA_META)에 저장돼 한동안 '시계열 메타'로 섞여 표시됐다(2026-08-03 분리).
   const technicalItems = meta?.technicalMeta ?? [];
   const hasTechnical = technicalItems.length > 0;
-  // 화면 전용 읽기 메타(일치도 등) — 검수자가 서술의 신뢰도를 판단할 참고값이라 함께 보여준다.
-  // 라벨·값 표기는 라벨링 패널과 같은 판정기를 재사용한다(복제 금지). [req: R8]
-  const readOnlyItems = meta?.readOnlyMeta ?? [];
-  const hasReadOnly = readOnlyItems.length > 0;
+  // ★ BE readOnlyMeta(일치도 등)는 화면에 표시하지 않는다 — 판정 창구를 연동하지 않게 되면서
+  //   그 값은 새로 생기지 않고 남은 것은 과거 위탁분뿐이라 참고 정보 섹션째 뺐다.
+  //   빈 상태 판정에서도 빠진다: 그 값만 있는 영상은 "표시할 메타 정보가 없음"이 맞다.
 
-  const isEmpty = !hasEventAnnotation && !hasMeta && !hasTechnical && !hasReadOnly;
+  const isEmpty = !hasEventAnnotation && !hasMeta && !hasTechnical;
 
   return (
     <section
@@ -248,26 +245,6 @@ export function ReviewMetaPanel({ rawSn, srcSn }: ReviewMetaPanelProps) {
           </span>
           {metaItems.map((item) => (
             <MetaItemReadonly key={item.metaSn} item={item} />
-          ))}
-        </div>
-      )}
-
-      {/* 참고 정보(일치도 등) 읽기 표시 — 검토 대상이 아니므로 상태 배지 없이 라벨/값만. */}
-      {hasReadOnly && (
-        <div
-          className="mt-3"
-          aria-label="시계열 참고 정보"
-          data-testid="review-meta-readonly"
-        >
-          <span className="text-[11px] font-semibold uppercase text-gray-500">
-            참고 정보
-          </span>
-          {readOnlyItems.map((item) => (
-            <ReadonlyField
-              key={item.metaSn}
-              label={readOnlyMetaLabel(item.metaKey)}
-              value={formatReadOnlyMetaValue(item.metaKey, item.metaVal ?? '')}
-            />
           ))}
         </div>
       )}

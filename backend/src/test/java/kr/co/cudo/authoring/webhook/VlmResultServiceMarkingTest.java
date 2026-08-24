@@ -33,6 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,6 +103,71 @@ class VlmResultServiceMarkingTest {
             m.markVlmCompleted();
         }
         return m;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  ★ 마킹의 위탁 상태는 <b>묘사 축</b>을 따른다 (CO-005 · AC#10 회귀 가드)
+    //
+    //  콜백 도착 순서는 요청 순서와 무관하다(규격 §5.1). 추가 질문 축 콜백이 먼저 도착했을 때
+    //  그것으로 마킹을 전이시키면 사실과 다른 표시가 굳는다:
+    //    · 실패가 먼저 오면 → VLM_FAILED 는 종결 상태라 조회 범위 밖이고, 뒤이어 온 묘사 성공
+    //      콜백이 0건 전이로 끝나 <b>되돌릴 수도 없다</b>(주 축은 멀쩡한데 화면은 실패로 굳는다).
+    //    · 성공이 먼저 오면 → 묘사 결과가 아직 없는데 완료로 보인다.
+    //  제출 경로가 추가 질문 축에 markingSn 을 넘기지 않는 것과 <b>같은 규칙</b>이며, 한쪽만
+    //  지키면 규칙이 아니라 우연이다.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("★추가질문_실패콜백은_마킹을_실패로_내리지_않는다")
+    void subChannelFailure_doesNotFailMarking() {
+        // given — 추가 질문 축으로 등록된 상관키, 마킹은 위탁 대기 중
+        ledger.recordIssued("K-SUB-F", LsWebhookIdempotency.CHANNEL_VLM_SUB, "EXT-SUB-F", 700L);
+
+        // when
+        boolean applied = service.handle(new VlmResultRequest(
+                "K-SUB-F", "failed", null, "추론 실패: sub"));
+
+        // then — 마킹 조회 자체를 하지 않는다(전이 대상이 없어야 하는 게 아니라 손대지 않아야 한다)
+        assertThat(applied).isTrue();
+        verify(markingRepository, never()).findByRawSnAndSttsCdIn(anyLong(), anyList());
+    }
+
+    @Test
+    @DisplayName("★추가질문_성공콜백도_마킹을_완료로_올리지_않는다")
+    void subChannelSuccess_doesNotCompleteMarking() {
+        // given — 추가 질문 결과가 묘사보다 먼저 도착한 상황
+        ledger.recordIssued("K-SUB-C", LsWebhookIdempotency.CHANNEL_VLM_SUB, "EXT-SUB-C", 701L);
+        when(videoRepository.existsById(701L)).thenReturn(true);
+
+        // when
+        boolean applied = service.handle(completed("K-SUB-C", "네, 근거는 ..."));
+
+        // then — 어노테이션 초안으로만 가고 마킹은 건드리지 않는다
+        assertThat(applied).isTrue();
+        verify(subResultApplier).applySubDescription(701L, "네, 근거는 ...");
+        verify(markingRepository, never()).findByRawSnAndSttsCdIn(anyLong(), anyList());
+    }
+
+    @Test
+    @DisplayName("★추가질문_실패가_먼저_와도_이어진_묘사_성공이_마킹을_완료로_올린다")
+    void describeSucceedsAfterSubFailed_stillCompletesMarking() {
+        // given — 같은 영상에 두 창구가 각각 등록돼 있다
+        ledger.recordIssued("K-ORD-SUB", LsWebhookIdempotency.CHANNEL_VLM_SUB, "EXT-ORD-SUB", 702L);
+        ledger.recordIssued("K-ORD-DESC", LsWebhookIdempotency.CHANNEL_VLM, "EXT-ORD-DESC", 702L);
+        stubCompletedFlow(702L);
+        LsMarking marking = createMarkingWithStatus(702L, LsMarking.STATUS_VLM_REQUESTED);
+        when(markingRepository.findByRawSnAndSttsCdIn(702L, LsMarking.ACTIVE_STATUSES))
+                .thenReturn(List.of(marking));
+
+        // when — 추가 질문 실패가 먼저 도착하고, 그 다음 묘사 성공이 온다
+        service.handle(new VlmResultRequest("K-ORD-SUB", "failed", null, "추론 실패: sub"));
+        assertThat(marking.getSttsCd())
+                .as("추가 질문 실패는 마킹을 건드리지 않아야 한다 — 건드리면 종결 상태라 되돌릴 수 없다")
+                .isEqualTo(LsMarking.STATUS_VLM_REQUESTED);
+        service.handle(completed("K-ORD-DESC", "묘사 서술"));
+
+        // then — 주 축이 정상이므로 마킹은 완료로 올라간다
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
     }
 
     @Test

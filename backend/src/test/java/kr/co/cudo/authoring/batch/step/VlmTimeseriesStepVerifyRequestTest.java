@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -205,6 +206,36 @@ class VlmTimeseriesStepVerifyRequestTest {
         VlmTimeseriesRequest.FramePolicy policy = captureRequest().media().framePolicy();
         assertThat(policy.mode()).isEqualTo("frame_selected");
         assertThat(policy.selectedFrames()).containsExactly(0, 15);
+    }
+
+    @Test
+    @DisplayName("★두_창구는_서로_다른_request_id로_나가고_서로_다른_채널로_등록된다")
+    void twoChannelsGetDistinctRequestIdsAndChannels() {
+        // given — 콜백 바디에 창구 구분자가 없어, 원장의 채널이 어느 창구의 결과인지 되짚는
+        //   <b>유일한 축</b>이다. 같은 request_id 를 쓰면 역조회가 한쪽을 덮어 결과가 유실되고,
+        //   규격 §5.2 도 동일 request_id 중복 요청을 별개 작업으로 처리하므로 중복 방지는 우리 책임이다.
+        seed(650L, "fire");
+
+        // when
+        step.runWithMarking(650L, manualMarking(650L, marks(1, 2)));
+
+        // then — 창구마다 한 번씩, 서로 다른 상관키로
+        ArgumentCaptor<String> keyCap = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> chCap = ArgumentCaptor.forClass(String.class);
+        verify(ledger, times(2)).recordIssued(keyCap.capture(), chCap.capture(), any(),
+                org.mockito.ArgumentMatchers.eq(650L));
+        assertThat(chCap.getAllValues()).containsExactlyInAnyOrder("VLM", "VLM_SUB");
+        assertThat(keyCap.getAllValues()).doesNotHaveDuplicates();
+
+        // 그리고 실제 위탁 바디의 request_id 도 그 상관키와 같아야 한다(등록만 하고 다른 값을
+        // 보내면 콜백이 미발급으로 401 이 된다).
+        ArgumentCaptor<VlmTimeseriesRequest> descCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
+        ArgumentCaptor<VlmTimeseriesRequest> subCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
+        verify(vlmClient).submitDescribe(descCap.capture());
+        verify(vlmClient).submitDescribeSub(subCap.capture());
+        assertThat(descCap.getValue().requestId()).isNotEqualTo(subCap.getValue().requestId());
+        assertThat(keyCap.getAllValues())
+                .containsExactlyInAnyOrder(descCap.getValue().requestId(), subCap.getValue().requestId());
     }
 
     @Test

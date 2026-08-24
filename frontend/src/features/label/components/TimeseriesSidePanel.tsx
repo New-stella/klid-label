@@ -13,9 +13,7 @@ import { useUpdateMeta } from '@/features/auto/hooks/useUpdateMeta';
 import {
   compareByStartSec,
   editableMetaLabel,
-  formatReadOnlyMetaValue,
   isEditableMetaKey,
-  readOnlyMetaLabel,
   MANUAL_TIMESERIES_META_KEY,
 } from '@/features/auto/metaKeys';
 import type { MetaItem } from '@/features/auto/types';
@@ -93,8 +91,14 @@ function ReadonlyMetaRow({
  *   <li><b>레거시 구간행</b> — 구 describe 산출물({@code "{start_sec}-{end_sec}"}). BE 계약상
  *       {@code items} 에 있어 편집이 가능하지만 화면에서는 편집 동선을 주지 않고 읽기 전용으로
  *       <b>병기</b>한다. 삭제·숨김하지 않는다(보존 확정). 정렬은 {@code start_sec} 숫자순. [req: R9]</li>
- *   <li><b>읽기 전용 메타</b> — BE {@code readOnlyMeta}(일치도 등). 값만 보여주고 전송하지 않는다
- *       (요청에 섞이면 BE 400). 미지의 키가 늘어도 일반적으로 렌더한다. [req: R8]</li>
+ * </ul>
+ *
+ * <p>★ <b>BE {@code readOnlyMeta} 는 화면에 표시하지 않는다.</b> 그 목록의 유일한 항목이던 일치도는
+ * 판정 창구를 연동하지 않게 되면서 <b>새로 생기지 않고</b>, 남은 것은 과거 위탁분뿐이라 화면에서
+ * 뺐다. 어댑터는 BE 계약대로 그 목록을 계속 실어 나르지만 이 패널은 소비하지 않는다 —
+ * 되살리려면 화면 사양(SCREEN-005)부터 고쳐야 한다.
+ *
+ * <ul style="display:none">
  * </ul>
  *
  * <p>편집 가능한 항목이 하나도 없으면(메타 0건 / 레거시 구간뿐) 신규 등록 슬롯
@@ -122,7 +126,6 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
   const sourceItems = useMemo<MetaItem[]>(() => data?.items ?? [], [data?.items]);
 
   /** 화면 전용 읽기 메타(일치도 등). 구 BE 응답이면 빈 목록. */
-  const readOnlyItems = useMemo<MetaItem[]>(() => data?.readOnlyMeta ?? [], [data?.readOnlyMeta]);
 
   /**
    * 편집 대상(화이트리스트 통과분) ↔ 레거시 구간행을 <b>한 번의 분할</b>로 가른다.
@@ -218,20 +221,6 @@ export function TimeseriesSidePanel({ srcSn }: TimeseriesSidePanelProps) {
           </div>
         );
       })}
-
-      {/* 읽기 전용 메타(일치도 등) — 값만 표시하고 저장 요청에 싣지 않는다. [req: R8] */}
-      {readOnlyItems.length > 0 && (
-        <div className="space-y-2 pt-1" aria-label="시계열 참고 정보">
-          {readOnlyItems.map((item) => (
-            <ReadonlyMetaRow
-              key={item.metaSn}
-              testId={`timeseries-readonly-${item.metaKey}`}
-              label={readOnlyMetaLabel(item.metaKey)}
-              value={formatReadOnlyMetaValue(item.metaKey, item.metaVal ?? '')}
-            />
-          ))}
-        </div>
-      )}
 
       <Button
         size="sm"

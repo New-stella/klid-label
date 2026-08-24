@@ -92,6 +92,49 @@ class VlmSubmitAckWindowIT {
                 .toList();
     }
 
+    /** 추가 질문 창구 위탁 개시 — 채널만 다르고 나머지는 같다. */
+    private String issueSub(Long rawSn) {
+        String requestId = "VLMACK-SUB-" + UUID.randomUUID();
+        ledger.recordIssued(requestId, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn);
+        return requestId;
+    }
+
+    // ───────────────────────── ⓪ 두 창구 모두 회수 대상이다 (★CO-005 회귀 가드) ─────────────────────────
+
+    @Test
+    @DisplayName("★추가질문_채널의_미결도_ACK창_회수후보에_포함된다")
+    void subChannelIssuedRowIsAlsoAnAckWindowCandidate() {
+        // given — 위탁 창구가 둘로 늘었다. 스위퍼가 한 채널만 훑으면 나머지 채널의 미결 행이
+        //   영구히 남고, 그 영상은 미결 판정에 걸려 <b>재위탁 자체가 막힌다</b>.
+        //   서비스 스텁이 아니라 실제 리포지토리 질의(`chnlCd in :channels`)로 확인한다.
+        Long rawSn = seedVideo();
+        String descKey = issue(rawSn);
+        String subKey = issueSub(rawSn);
+
+        // when
+        List<String> candidates = ackWindowCandidateKeys();
+
+        // then
+        assertThat(candidates).contains(descKey, subKey);
+    }
+
+    @Test
+    @DisplayName("★추가질문_채널의_미결도_콜백창_회수후보에_포함된다")
+    void subChannelAcceptedRowIsAlsoACallbackWindowCandidate() {
+        // given — ACK 는 받았는데 결과 콜백이 오지 않는 축도 두 창구 대칭이어야 한다.
+        Long rawSn = seedVideo();
+        String descKey = issue(rawSn);
+        String subKey = issueSub(rawSn);
+        ledger.recordAckReceived(descKey);
+        ledger.recordAckReceived(subKey);
+
+        // when
+        List<String> candidates = callbackWindowCandidateKeys();
+
+        // then
+        assertThat(candidates).contains(descKey, subKey);
+    }
+
     // ───────────────────────── ① ACK 를 받은 행은 ACK 창이 건드리지 않는다 (★HIGH 회귀 가드) ─────────────────────────
 
     @Test

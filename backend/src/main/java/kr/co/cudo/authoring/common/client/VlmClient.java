@@ -167,6 +167,11 @@ public class VlmClient {
                 // 4xx 중 429 만 재시도 대상이다(규격 §2.9 — 동시 처리 한도 초과는 잠시 후 재시도).
                 // 400(형식·미지원 event_type·허용되지 않은 경로)·415(Content-Type)는 다시 보내도 같은
                 // 결과라 비재시도 예외로 분류해 재시도·서킷집계에서 제외한다. 503 은 5xx 라 기본 재시도에 걸린다.
+                //
+                // ★ 429 는 <b>전용 예외</b>로 감싼다 — 재시도는 태우되 서킷은 열지 않기 위해서다.
+                //   기본 예외를 그대로 두면 재시도는 되지만 서킷 failure 로도 집계돼, 벤더가 잠시 바쁜
+                //   구간에 서킷이 열리고 그 구간의 정상 위탁이 확정 실패로 종결된다.
+                .onStatus(VlmClient::isRateLimited, this::toRateLimited)
                 .onStatus(VlmClient::isNonRetryableClientError, this::toNonRetryable4xx)
                 .bodyToMono(VlmTimeseriesResponse.class)
                 .timeout(timeout)
@@ -175,14 +180,29 @@ public class VlmClient {
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
     }
 
+    /** 동시 처리 한도 초과인가 — 규격 §2.9. 일시 상태이므로 재시도 대상이다. */
+    private static boolean isRateLimited(HttpStatusCode status) {
+        return status.value() == STATUS_TOO_MANY_REQUESTS;
+    }
+
     /**
      * 비재시도로 분류할 클라이언트 오류인가 — <b>429 는 제외</b>한다.
      *
      * <p>429(동시 처리 한도 초과)는 규격이 "잠시 후 재시도한다"고 명시한 일시 상태다. 다른 4xx 와
-     * 함께 묶으면 재시도·서킷 집계에서 빠져 확정 실패로 종결된다.
+     * 함께 묶으면 재시도에서 빠져 확정 실패로 종결된다.
      */
     private static boolean isNonRetryableClientError(HttpStatusCode status) {
-        return status.is4xxClientError() && status.value() != STATUS_TOO_MANY_REQUESTS;
+        return status.is4xxClientError() && !isRateLimited(status);
+    }
+
+    /**
+     * 429 를 재시도 가능 예외로 변환 — 본문을 소비/해제한 뒤 상태 코드만 기록한다(CWE-209).
+     */
+    private Mono<Throwable> toRateLimited(ClientResponse response) {
+        log.warn("[Vlm] rate limited (retryable) status={}", response.statusCode().value());
+        return response.releaseBody()
+                .then(Mono.error(new RateLimitedExternalException(
+                        "시계열 분석 위탁 동시 처리 한도 초과(429) — 재시도 대상")));
     }
 
     /**

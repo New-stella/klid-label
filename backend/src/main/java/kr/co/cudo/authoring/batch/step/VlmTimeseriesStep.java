@@ -44,12 +44,21 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * VLM <b>verify</b> 시계열 메타 위탁 단계 — 벤더 확정 계약(v2.0.1) verify 규격 정합.
+ * 시계열 분석 위탁 단계 — 확정 계약(KLID 연동 API v1.1.0) 정합.
  *
- * <p>{@code POST /v1/videovlm/verify} 로 <b>비식별 영상</b>의 시계열 메타 분석을 외부에 위탁하고,
- * 결과는 {@code POST /v1/vlm/callback} 콜백으로 수신한다 (@req R1).
+ * <p><b>비식별 영상</b>의 분석을 두 창구에 나눠 위탁하고, 결과는 {@code POST /v1/vlm/callback}
+ * 콜백으로 수신한다 (@req R1).
  *
- * <h3>요청 구성의 두 축 (구 describe 대비 신규)</h3>
+ * <ul>
+ *   <li>{@code POST /v1/videovlm-klid/describe} — <b>묘사</b>. 결과가 시계열 서술 전문을 채운다.</li>
+ *   <li>{@code POST /v1/videovlm-klid/describe-sub} — <b>추가 질문</b>. 결과가 이벤트 어노테이션의
+ *       질의응답 축 초안을 채운다.</li>
+ * </ul>
+ *
+ * <p><b>판정 창구는 연동하지 않는다</b> — 그 창구만 제공하는 발생 여부·일치도가 우리 확정 경로
+ * 어디에도 쓰이지 않는다. 되살리지 말 것.
+ *
+ * <h3>요청 구성의 두 축</h3>
  * <ul>
  *   <li><b>{@code event_type}</b> (@req R6) — 분석 대상 이벤트 유형. 조달처는 <b>관제 인입값</b>
  *       {@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD} 이며, 조달값을 <b>그대로 실어 보낸다</b>. 관제 코드
@@ -525,10 +534,9 @@ public class VlmTimeseriesStep implements BatchStep {
         VlmTimeseriesRequest subReq = new VlmTimeseriesRequest(
                 subRequestId, req.eventType(), req.media(), req.callbackUrl());
 
-        // 위탁 전 서버 상태 확인 — 규격 §3.5. 이것은 <b>게이트가 아니라 관측</b>이다(조회 실패·미지의
-        // 상태로 정상 위탁을 막지 않는다). loading 이면 지금 보내도 처리되지 않으므로 남겨만 두고
-        // 위탁은 그대로 진행해 기존 실패·재시도 경로가 판정하게 한다.
-        logServerStatusBeforeSubmit(rawSn);
+        // 위탁 전 서버 상태 관측 — 규격 §3.5. <b>게이트가 아니며 기다리지도 않는다</b>(조회 실패·미지의
+        // 상태로 정상 위탁을 막지 않고, 관측 하나로 파이프라인 스레드를 붙잡지도 않는다).
+        observeServerStatus(rawSn);
 
         // [결함1/2 폐쇄] 외부 호출 전에 (request_id → CHANNEL_VLM, rawSn) 매핑을 durable 등록.
         //  - 영속 ledger 는 REQUIRES_NEW 독립 커밋 → 위탁 실패/본 tx 롤백과 무관하게 콜백이 역조회 성공.
@@ -622,28 +630,47 @@ public class VlmTimeseriesStep implements BatchStep {
     }
 
     /**
-     * 위탁 전 서버 상태 관측 — 규격 §3.5. <b>게이트가 아니다.</b>
+     * 위탁 전 서버 상태 관측 — 규격 §3.5. <b>게이트가 아니라 관측이다.</b>
      *
      * <p>조회에 실패하거나 상태를 해석하지 못했다고 위탁을 막지 않는다 — 상태 창구만 잠시 불안정해도
      * 파이프라인이 통째로 서기 때문이다. 준비 중(loading)이면 지금 보내도 처리되지 않으므로 사실을
      * 남겨 원인 추적에 쓰고, 수용 여부 판정은 위탁 응답에 맡긴다.
+     *
+     * <p>★ <b>결과를 기다리지 않는다.</b> 이 메서드를 호출하는 스레드는 파이프라인 스레드
+     * (배치 async · Quartz 워커 · 수동 재처리의 요청 스레드)이고, 여기서 응답을 기다리면 관측 하나가
+     * 파이프라인을 최대 타임아웃만큼 세운다 — 같은 클래스가 제출에서 걷어낸 바로 그 형태다
+     * (core 2 짜리 배치 풀이 통째로 마르고 역압이 호출 스레드까지 물었다). 그래서 제출과 마찬가지로
+     * 구독만 개시하고, 로그 기록은 완료 신호를 나른 스레드가 아니라 <b>전용 풀</b>에서 실행한다.
+     *
+     * <p>그 귀결로 <b>상태 로그가 제출 로그보다 늦게 찍힐 수 있다</b> — 관측이므로 순서를 보장할 이유가
+     * 없고, 순서를 보장하려면 기다려야 하는데 그것이 이 메서드가 피하려는 것이다.
      */
-    private void logServerStatusBeforeSubmit(Long rawSn) {
+    private void observeServerStatus(Long rawSn) {
         try {
-            VlmServerStatus status = vlmClient.fetchStatus().block();
-            if (status == null) {
-                return;
-            }
-            if (!status.isSubmittable()) {
-                log.warn("[Batch][VlmTimeseries] analysis server not ready — submitting anyway rawSn={} status={} queue={} pending={}",
-                        rawSn, VlmClient.safeForLog(status.status()), status.queue(), status.pending());
-            } else {
-                log.info("[Batch][VlmTimeseries] analysis server status rawSn={} status={} queue={} pending={}",
-                        rawSn, VlmClient.safeForLog(status.status()), status.queue(), status.pending());
-            }
+            vlmClient.fetchStatus().subscribe(
+                    status -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
+                            () -> logServerStatus(rawSn, status)),
+                    err -> SubmitSignalDispatch.run(vlmSubmitScheduler, LOG_TAG, rawSn,
+                            () -> log.warn("[Batch][VlmTimeseries] analysis server status check failed rawSn={} cause={}",
+                                    rawSn, err.getClass().getSimpleName())));
         } catch (RuntimeException e) {
-            log.warn("[Batch][VlmTimeseries] analysis server status check failed — submitting anyway rawSn={} cause={}",
+            // 조립/구독 자체가 동기 실패한 경우에만 도달한다. 관측이므로 삼키고 위탁은 그대로 진행한다.
+            log.warn("[Batch][VlmTimeseries] analysis server status check not started rawSn={} cause={}",
                     rawSn, e.getClass().getSimpleName());
+        }
+    }
+
+    /** 상태 관측 결과 기록 — 전용 풀에서만 실행된다. */
+    private void logServerStatus(Long rawSn, VlmServerStatus status) {
+        if (status == null) {
+            return;
+        }
+        if (!status.isSubmittable()) {
+            log.warn("[Batch][VlmTimeseries] analysis server not ready — submitted anyway rawSn={} status={} queue={} pending={}",
+                    rawSn, VlmClient.safeForLog(status.status()), status.queue(), status.pending());
+        } else {
+            log.info("[Batch][VlmTimeseries] analysis server status rawSn={} status={} queue={} pending={}",
+                    rawSn, VlmClient.safeForLog(status.status()), status.queue(), status.pending());
         }
     }
 
