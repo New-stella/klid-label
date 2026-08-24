@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>핵심은 셋이다 — <b>유효성 판정을 서버가 소유</b>하는가, <b>다른 노드에서도 통하는가</b>,
  * <b>인증 토큰으로 오인될 수 없는가</b>.
+ * @design AC-072
+ * @design AC-073
  */
 class AdminSessionTokenServiceTest {
 

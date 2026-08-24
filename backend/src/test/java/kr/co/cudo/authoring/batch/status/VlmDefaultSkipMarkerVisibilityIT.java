@@ -61,6 +61,7 @@ import static org.mockito.Mockito.when;
  * <p>클래스에 {@code @Transactional} 을 걸면 시드가 미커밋이라 {@code REQUIRES_NEW} 로 열리는
  * {@code run} 트랜잭션이 그 영상을 <b>보지 못한다</b>. {@link ManualStageSkipIT} 와 같은 관례로
  * 커밋 시드 + {@code @AfterEach} 정리를 쓴다.
+ * @design AC-055
  */
 @SpringBootTest
 @ActiveProfiles("local")

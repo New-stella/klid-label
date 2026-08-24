@@ -38,6 +38,7 @@ import static org.mockito.Mockito.when;
  *       다시 건너뛰어진다.</li>
  *   <li>대상은 시계열 묶음 하나뿐 — 오토라벨은 이 스위치의 대상이 아니다.</li>
  * </ul>
+ * @design AC-055
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)

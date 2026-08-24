@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>이 판정이 느슨해지면 <b>정상 진행 중인 영상을 근거 없이 건너뛰는 길</b>이 열려 건너뛰기 게이트의
  * 존재 이유가 사라진다. 반대로 지나치게 좁으면 실제로 실패한 영상을 건너뛸 수 없어 고착된다.
+ * @design AC-049
  */
 class BatchBundleFailureGateTest {
 
