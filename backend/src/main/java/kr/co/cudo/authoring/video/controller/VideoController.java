@@ -53,11 +53,14 @@ import java.io.IOException;
 import java.time.LocalDate;
 
 /**
- * 영상 조회 API. REVIEWER/WORKER 모두 조회 가능.
- * - WORKER 의 본인 배정 영상 한정 필터는 Phase 5+ 에서 어노테이션 화면 진입 시 적용.
- * - 본 Phase 는 페이징 검증 + 단건 조회만 제공.
+ * 영상 조회 API. REVIEWER/WORKER 모두 조회 가능하되 <b>조회 범위가 역할에 따라 갈린다</b>.
+ *
+ * <p>REVIEWER 는 전체 영상을, WORKER 는 본인에게 LABELER 로 배정된 영상만 본다 — 목록은
+ * {@code VideoQueryService} 의 스코핑으로 좁히고(결과 축소), 단건·스트림·프레임은
+ * {@code LabelAccessGuard} 가 배정을 강제한다(403). 두 축은 서로를 대체하지 않는다.
+ * [@design API-042] [@design SCREEN-008] [@design ROLE-002]
  */
-@Tag(name = "Video", description = "영상(원시 raw) 조회 — REVIEWER/WORKER. WORKER는 향후 본인 배정 영상만 노출 예정.")
+@Tag(name = "Video", description = "영상(원시 raw) 조회 — REVIEWER는 전체, WORKER는 본인 배정 영상만.")
 @RestController
 @RequestMapping("/v1/videos")
 @RequiredArgsConstructor
@@ -79,7 +82,9 @@ public class VideoController {
             summary = "영상 목록 조회 (페이징 · 검색/필터)",
             description = "원본 raw 영상 목록을 페이징 조회. 기본 size=20. 파생영상(ORGNL_RAW_SN 보유)은 노출되지 않는다. " +
                     "검색·필터 파라미터는 전부 선택이며, 하나도 보내지 않으면 기존과 동일한 목록·정렬이 반환된다. " +
-                    "필터는 모두 DB 조건으로 적용되어 totalElements 도 필터 적용 후 전체 건수다."
+                    "필터는 모두 DB 조건으로 적용되어 totalElements 도 필터 적용 후 전체 건수다. " +
+                    "REVIEWER 는 전체 영상을, WORKER 는 본인에게 LABELER 로 배정된 영상만 조회한다 — " +
+                    "범위 제한은 거부가 아니라 결과 축소이며 배정이 없으면 403 이 아니라 빈 목록이다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -119,13 +124,17 @@ public class VideoController {
                     + "지금 그 묶음이 실패한 상태인 영상만 남긴다. 시계열 위탁은 논블로킹이라 실패해도 "
                     + "배치 단계 상태는 완료로 남으므로 dataSttsCd=FAILED 로는 그 영상을 모을 수 없다. "
                     + "skippedStage 와 함께 지정할 수 있다(축이 다르다). 지원하지 않는 값은 400.")
-            @RequestParam(required = false) String failedStage) {
+            @RequestParam(required = false) String failedStage,
+            @AuthenticationPrincipal TokenClaims actor) {
         // ★ 신규 파라미터는 전부 optional 이며 BE 기본값을 바꾸지 않는다 — 보내지 않던 기존 호출의
         //   결과가 조금도 달라지면 안 된다(하위호환 계약). [design: API-042]
+        // ★ 조회 범위는 filter 가 아니라 actor 에서만 나온다 — WORKER 는 본인 배정분으로 좁혀지고
+        //   REVIEWER 는 전체다. 사용자 축을 요청 파라미터가 채울 수 있는 자리에 두면 그 자체가
+        //   IDOR 입구이므로 VideoListFilter 에 넣지 않는다(CWE-639). [design: API-042] [design: ROLE-002]
         VideoListFilter filter = new VideoListFilter(
                 dataSttsCd, reviewStatusCd, cctvNameKeyword, eventTypeCd, from, to,
                 skippedStage, failedStage);
-        return ApiResponse.ok(videoQueryService.list(safeSort(pageable, reviewStatusCd), filter));
+        return ApiResponse.ok(videoQueryService.listForActor(safeSort(pageable, reviewStatusCd), filter, actor));
     }
 
     /**
