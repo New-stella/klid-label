@@ -18,6 +18,10 @@
 | [CO-007](CO-007-vlm-연동-verify에서-describe-describesub로-교체.md) | 외부 VLM 연동을 verify → describe(CoT)+describe-sub(VQA) 로 교체 (KLID 연동 API v1.1.0) | 공유기반 · DOMAIN-010 · DOMAIN-003 · DOMAIN-011 · DOMAIN-005 · mock-server | ✅ 완료 (QA fail → 지적 9건 보완, FULL 7,407 통과) | 🎨 26건 확정 + 시안 렌더 2건 재게시 | `cfb3d899`·`7d9da13b` | 2026-08-24 |
 | [CO-008](CO-008-수동업로드-운영노출.md) | 「수동 업로드」 운영(prd) 노출 — 명칭·BE 토글·multipart·LNB 게이트 | DOMAIN-004 · 프론트 · 공유기반 | ✅ 완료 (QA fail ×2 → 문서 동기화·잔재 11건 보완) | 🎨 완료 | `83d34446` (PR #131 → `5d53bcce`) | 2026-08-24 |
 
+| [CO-009](CO-009-스트림-nonce쿠키-secure-토글화.md) | 영상 스트림 nonce 쿠키의 `Secure` 를 프로파일 기반 → 배포 설정 토글로 (기본 OFF) | DOMAIN-003 | 📝 작성 | 🎨 API-114 v2 · API-084 v8 | — | 2026-08-25 |
+
+| [CO-010](CO-010-마킹화면-파이프라인표시-제거-및-단계게이팅.md) | 마킹 화면 파이프라인 표시 제거 + 마킹 완료 사전 게이팅(배치 단계 축) | 프론트(SCREEN-006) | 📝 작성 | ⏳ 대기 | — | 2026-08-25 |
+
 ## 설계 부채 백필 이력
 
 | 회차 | 일자 | 모드 | 결과 |
