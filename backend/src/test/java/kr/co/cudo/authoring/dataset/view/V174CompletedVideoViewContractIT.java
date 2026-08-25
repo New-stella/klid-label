@@ -130,30 +130,42 @@ class V174CompletedVideoViewContractIT {
                 LocalDateTime.of(2026, 1, 15, 22, 0), evntNm, rvwCmplDt, LocalDateTime.now());
     }
 
-    /** 관제 인입 1행(수신 원장). null 인자는 "관제가 그 값을 보내지 않았다"는 뜻이다. */
-    private void seedIngest(long rawSn, String evntClsfCd, String evntCtgryCd, String lclgvNm,
-                            String anony, String psdo, String prvc) {
-        seedIngest(rawSn, evntClsfCd, evntCtgryCd, lclgvNm, anony, psdo, prvc, null);
-    }
-
     /**
-     * 썸네일 경로까지 지정하는 오버로드 — {@code thmbFilePathNm} 이 null 이면 "관제가 안 보냈다"는 뜻이다.
+     * 관제 인입 1행(수신 원장). null 인자는 "관제가 그 값을 보내지 않았다"는 뜻이다.
      *
-     * <p>V16(2026-08-24)이 인입에 {@code THMB_FILE_PATH_NM} 을 신설하고 뷰로 노출했다. 관제는 완료 통지
-     * (메타만)를 받은 뒤 이 뷰를 SELECT 해 패키징하므로, <b>값이 인입에서 뷰까지 실제로 흐르는지</b>가
-     * 그 요구의 수용 기준이다(컬럼 존재만으로는 부족 — 조인 대상이 틀려도 컬럼은 있다).
+     * <p>V16 이 신설했던 {@code THMB_FILE_PATH_NM} 인자는 <b>V17 에서 없앴다</b> — 그 컬럼이 인입
+     * 원장에서 제거됐기 때문이다. 대표 이미지는 이제 인입이 아니라 {@code LS_DATA_SRC} 의 비식별
+     * 프레임에서 조달한다({@link #seedFrame}).
      */
     private void seedIngest(long rawSn, String evntClsfCd, String evntCtgryCd, String lclgvNm,
-                            String anony, String psdo, String prvc, String thmbFilePathNm) {
+                            String anony, String psdo, String prvc) {
         long nano = System.nanoTime();
         jdbc.update(
                 "INSERT INTO LS_DATA_INGEST (RAW_SN, VMS_CLIP_ID, VMS_CCTV_ID, VDO_FILE_NM, "
                         + "RAW_FILE_PATH_NM, SRC_TYPE, EVNT_CLSF_CD, EVNT_CTGRY_CD, LCLGV_NM, "
-                        + "ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, THMB_FILE_PATH_NM, RCPTN_DT) "
+                        + "ANONY_INCL_YN, PSDO_INCL_YN, PRVC_INCL_YN, RCPTN_DT) "
                         + "VALUES (?, ?, 'CCTV-ING', 'clip.mp4', '/nas/raw/clip.mp4', 'ORIGINAL', "
-                        + "?, ?, ?, ?, ?, ?, ?, ?)",
+                        + "?, ?, ?, ?, ?, ?, ?)",
                 rawSn, "ING-V174-" + nano, evntClsfCd, evntCtgryCd, lclgvNm,
-                anony, psdo, prvc, thmbFilePathNm, LocalDateTime.now());
+                anony, psdo, prvc, LocalDateTime.now());
+    }
+
+    /**
+     * 프레임 1행 — 대표 이미지(썸네일) 조달원({@code V17}).
+     *
+     * <p>{@code deidPath} 가 null/공백이면 "비식별 프레임이 아직 없다", {@code dscdYn='Y'} 면
+     * "산출물에서 빠진 폐기 프레임"이다. 둘 다 대표 후보에서 제외돼야 한다.
+     *
+     * @param frmNo 추출 순번({@code FRM_NO}) — 대표 선택의 정렬 키다. 영상 내 실제 위치인
+     *              {@code VDO_FRM_NO} 와 혼동하지 말 것.
+     */
+    private long seedFrame(long rawSn, int frmNo, String srcPath, String deidPath, String dscdYn) {
+        return jdbc.queryForObject(
+                "INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM, "
+                        + "DE_IDNTF_SRC_FILE_PATH_NM, DSCD_YN, SHT_DT, REG_DT) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING SRC_SN",
+                Long.class, rawSn, frmNo, srcPath, deidPath, dscdYn,
+                LocalDateTime.of(2026, 1, 15, 22, 0), LocalDateTime.now());
     }
 
     private void seedExport(long rawSn, int verNo, String pathNm, String sttsCd,
@@ -298,55 +310,189 @@ class V174CompletedVideoViewContractIT {
         assertThat(row.get("src_prvc_incl_yn")).isEqualTo("Y");
     }
 
-    // ---------------------------------------------------------------- 썸네일 (V16)
+    // ------------------------------------------- 썸네일 — 비식별 첫 프레임 조달 (V17)
+    // [design: INT-010] [design: ERD-012]
+    //
+    // V16 은 관제 인입값(LS_DATA_INGEST.THMB_FILE_PATH_NM)을 그대로 흘려보냈다. V17 이 그 조달원을
+    // <저작도구 비식별 첫 프레임>(LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM)으로 바꿨다. 이유 셋:
+    //   (1) 관제 미송신이면 대표 이미지가 영구히 비고 저작도구가 채울 수단이 없었다,
+    //   (2) 그 경로가 가리키는 파일을 저작도구가 소유하지 않아 실재·수명을 보장하지 못했다,
+    //   (3) 관제 썸네일은 원천 영상 기준이라 마스킹 전 화면일 수 있었다 — 산출물 전체가 비식별
+    //       기준인데 대표 이미지만 원천 기준이면 한 문서 안에서 기준이 갈린다.
+    // 선택 규칙 넷: FRM_NO 최소 · 폐기 아님 · 비식별 경로가 비어 있지 않음 ·
+    //   비식별 경로가 원본 경로와 같지 않음(자매 뷰 V_COMPLETED_FRAME 의 V133 게이트와 동치).
+    //   만족하는 프레임이 없으면 NULL 이며 원본 프레임 경로로 폴백하지 않는다.
+    // ⚠ 뒤 두 술어는 <자매 뷰의 게이트가 둘>이라는 사실에서 온다. 폐기 술어만 맞추면
+    //   "비식별 경로에 원본 경로가 그대로 적힌" 레거시 행이 통과해, V_COMPLETED_FRAME 에는
+    //   프레임이 0건인 승인 영상인데 대표 이미지로는 원본 경로가 관제로 나간다(실 DB 실증 결함).
 
     @Test
-    @DisplayName("관제가_보낸_썸네일_경로가_뷰에_그대로_노출된다")
-    void 관제가_보낸_썸네일_경로가_뷰에_그대로_노출된다() {
-        // given — 관제가 인입 INSERT 로 썸네일 경로를 채워 보냈다.
+    @DisplayName("프레임_여러장이면_FRM_NO가_가장_작은_비식별_프레임이_대표가_된다")
+    void 프레임_여러장이면_FRM_NO가_가장_작은_비식별_프레임이_대표가_된다() {
+        // given — 삽입 순서를 일부러 뒤섞는다. 정렬 키가 FRM_NO 라야 결과가 안정적이다
+        //   (삽입순·SRC_SN 순이면 재추출·재적재로 대표가 흔들린다).
         long rawSn = seedApprovedOriginal("화재");
-        seedIngest(rawSn, "01", "0102", "서울특별시", "N", "N", "Y", "/nas/thumb/fire-0001.jpg");
+        seedFrame(rawSn, 7, "/nas/frames/raw/" + rawSn + "/7.jpg",
+                "/nas/frames/deid/" + rawSn + "/7.jpg", "N");
+        seedFrame(rawSn, 2, "/nas/frames/raw/" + rawSn + "/2.jpg",
+                "/nas/frames/deid/" + rawSn + "/2.jpg", "N");
+        seedFrame(rawSn, 5, "/nas/frames/raw/" + rawSn + "/5.jpg",
+                "/nas/frames/deid/" + rawSn + "/5.jpg", "N");
 
         // when
         Map<String, Object> row = viewRow(rawSn);
 
-        // then — 관제는 완료 통지를 받은 뒤 이 뷰 하나로 패키징 자원을 조달한다(가공·치환 없이 그대로).
-        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/thumb/fire-0001.jpg");
+        // then — FRM_NO 2 가 대표. 적재값을 그대로 읽는다(경로를 조합·추측하지 않는다).
+        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/frames/deid/" + rawSn + "/2.jpg");
     }
 
     @Test
-    @DisplayName("관제가_썸네일을_안_보내면_NULL_이며_행은_그대로_나온다")
-    void 관제가_썸네일을_안_보내면_NULL_이며_행은_그대로_나온다() {
-        // given — 썸네일은 선택 값이다(nullable). 미송신이 인입·노출을 막지 않는다.
+    @DisplayName("폐기된_프레임은_대표에서_제외되고_다음_프레임이_선택된다")
+    void 폐기된_프레임은_대표에서_제외되고_다음_프레임이_선택된다() {
+        // given — FRM_NO 최소(1)가 폐기 프레임이다.
         long rawSn = seedApprovedOriginal("화재");
-        seedIngest(rawSn, "01", "0102", "서울특별시", "N", "N", "Y", null);
+        seedFrame(rawSn, 1, "/nas/frames/raw/" + rawSn + "/1.jpg",
+                "/nas/frames/deid/" + rawSn + "/1.jpg", "Y");
+        seedFrame(rawSn, 3, "/nas/frames/raw/" + rawSn + "/3.jpg",
+                "/nas/frames/deid/" + rawSn + "/3.jpg", "N");
 
         // when
         Map<String, Object> row = viewRow(rawSn);
 
-        // then — 값만 비고 행 자체는 정상 노출된다(썸네일 부재로 영상이 사라지면 안 된다).
+        // then — 폐기 제외 술어는 V_COMPLETED_FRAME 과 같아야 한다. 어긋나면 <산출물에 없는 프레임>이
+        //   그 영상의 대표 이미지가 된다.
+        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/frames/deid/" + rawSn + "/3.jpg");
+    }
+
+    @Test
+    @DisplayName("비식별_경로가_없거나_공백인_프레임은_대표에서_제외된다")
+    void 비식별_경로가_없거나_공백인_프레임은_대표에서_제외된다() {
+        // given — FRM_NO 1 은 비식별 경로 미적재(null), 2 는 공백 문자열이다.
+        long rawSn = seedApprovedOriginal("화재");
+        seedFrame(rawSn, 1, "/nas/frames/raw/" + rawSn + "/1.jpg", null, "N");
+        seedFrame(rawSn, 2, "/nas/frames/raw/" + rawSn + "/2.jpg", "   ", "N");
+        seedFrame(rawSn, 4, "/nas/frames/raw/" + rawSn + "/4.jpg",
+                "/nas/frames/deid/" + rawSn + "/4.jpg", "N");
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — 공백을 값으로 받으면 관제가 열 수 없는 경로를 대표로 받는다(빈 문자열 = 부재).
+        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/frames/deid/" + rawSn + "/4.jpg");
+    }
+
+    @Test
+    @DisplayName("프레임이_하나도_없으면_썸네일은_NULL_이며_행은_그대로_나온다")
+    void 프레임이_하나도_없으면_썸네일은_NULL_이며_행은_그대로_나온다() {
+        // given — 프레임 미추출(또는 영상만 이관된) 승인 영상.
+        long rawSn = seedApprovedOriginal("화재");
+        seedIngest(rawSn, "01", "0102", "서울특별시", "N", "N", "Y");
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — 대표 이미지 부재로 영상 행이 사라지면 안 된다(LEFT JOIN LATERAL 유지).
+        //   승인·통지된 건에 대한 관제 접근은 무조건 보장한다는 확정 정책과 같은 축이다.
         assertThat(row.get("thmb_file_path_nm")).isNull();
         assertThat(row.get("lclgv_nm")).isEqualTo("서울특별시");
     }
 
     @Test
-    @DisplayName("파생영상은_부모_인입의_썸네일을_상속한다")
-    void 파생영상은_부모_인입의_썸네일을_상속한다() {
-        // given — 파생(증강·해상도)은 자기 인입 행이 없다. 뷰의 인입 LATERAL 은
-        //   COALESCE(ORGNL_RAW_SN, RAW_SN) 으로 조인하므로 부모 행을 본다.
+    @DisplayName("파생영상은_부모가_아니라_자기_프레임에서_썸네일을_조달한다")
+    void 파생영상은_부모가_아니라_자기_프레임에서_썸네일을_조달한다() {
+        // given — 부모·파생이 각각 자기 비식별 프레임을 갖는다. 파생은 프레임 이미지만 변환한
+        //   별도 영상이므로 자기 프레임이 자기를 대표한다(구 동작 "부모 인입 썸네일 상속"은 폐기).
         long parentSn = seedApprovedOriginal("교통사고");
-        seedIngest(parentSn, "01", "0102", "서울특별시", "N", "N", "Y", "/nas/thumb/acc-0007.jpg");
+        seedIngest(parentSn, "01", "0102", "서울특별시", "N", "N", "Y");
+        seedFrame(parentSn, 1, "/nas/frames/raw/" + parentSn + "/1.jpg",
+                "/nas/frames/deid/" + parentSn + "/1.jpg", "N");
 
         long derivedSn = seedRaw("AUGMENTED", parentSn);
         seedApproved(derivedSn);
         seedSnapshot(derivedSn, parentSn, "교통사고", null, LocalDateTime.of(2026, 2, 1, 10, 0));
+        seedFrame(derivedSn, 1, "/nas/frames/raw/" + derivedSn + "/1.jpg",
+                "/nas/frames/deid/" + derivedSn + "/1.jpg", "N");
 
         // when
         Map<String, Object> row = viewRow(derivedSn);
 
-        // then — 썸네일은 개인정보 원천 3필드와 달리 <부모 값이 그대로 유효>한 축이다(분류·지자체명과 같은 갈래).
-        //   파생본도 같은 장면이라 부모 썸네일이 그 영상을 대표한다 — 관제가 파생영상만 썸네일 없이 받는 일이 없다.
-        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/thumb/acc-0007.jpg");
+        // then — 인입 LATERAL 의 COALESCE(ORGNL_RAW_SN, RAW_SN) 폴백을 타면 안 된다. 프레임 축은
+        //   자기 RAW_SN 으로만 조인한다 — 파생은 부모와 픽셀이 다르다(증강·리스케일).
+        assertThat(row.get("thmb_file_path_nm"))
+                .isEqualTo("/nas/frames/deid/" + derivedSn + "/1.jpg");
+    }
+
+    @Test
+    @DisplayName("원본_프레임_경로만_있으면_썸네일은_NULL_이며_원본_경로가_새지_않는다")
+    void 원본_프레임_경로만_있으면_썸네일은_NULL_이며_원본_경로가_새지_않는다() {
+        // given — 프레임은 있으나 비식별본이 아직 붙지 않았다(추출 직후 등).
+        long rawSn = seedApprovedOriginal("화재");
+        seedFrame(rawSn, 1, "/nas/frames/raw/" + rawSn + "/1.jpg", null, "N");
+        seedFrame(rawSn, 2, "/nas/frames/raw/" + rawSn + "/2.jpg", null, "N");
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — 원본(마스킹 전) 프레임으로 폴백하면 그 화면이 대표 이미지로 외부에 나간다(CWE-359).
+        //   NULL 이 정답이다.
+        assertThat(row.get("thmb_file_path_nm")).isNull();
+        assertNoRawFramePathLeaks(row);
+    }
+
+    @Test
+    @DisplayName("비식별_경로가_원본_경로와_같은_프레임은_대표에서_제외된다")
+    void 비식별_경로가_원본_경로와_같은_프레임은_대표에서_제외된다() {
+        // given — 비식별 경로에 <원본 경로가 그대로> 적힌 레거시 행(FRM_NO 1). 실제로는 마스킹이
+        //   되지 않은 형태라 자매 뷰 V_COMPLETED_FRAME 의 V133 게이트가 이미 걸러 내는 행이다.
+        long rawSn = seedApprovedOriginal("화재");
+        String same = "/nas/frames/raw/" + rawSn + "/1.jpg";
+        seedFrame(rawSn, 1, same, same, "N");
+        seedFrame(rawSn, 6, "/nas/frames/raw/" + rawSn + "/6.jpg",
+                "/nas/frames/deid/" + rawSn + "/6.jpg", "N");
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — FRM_NO 최소인 1 을 건너뛰고 6 이 선택된다. 이 술어가 없으면
+        //   "프레임 페어 뷰에는 0건인데 대표 이미지로는 원본 경로가 나가는" 상태가 된다(CWE-359).
+        assertThat(row.get("thmb_file_path_nm")).isEqualTo("/nas/frames/deid/" + rawSn + "/6.jpg");
+        assertNoRawFramePathLeaks(row);
+    }
+
+    @Test
+    @DisplayName("비식별_경로가_전부_원본과_같으면_썸네일은_NULL_이며_행은_그대로_나온다")
+    void 비식별_경로가_전부_원본과_같으면_썸네일은_NULL_이며_행은_그대로_나온다() {
+        // given — 유효 프레임이 하나도 없는 경우(전 프레임이 V133 게이트에 걸린다).
+        long rawSn = seedApprovedOriginal("화재");
+        seedIngest(rawSn, "01", "0102", "서울특별시", "N", "N", "Y");
+        String p1 = "/nas/frames/raw/" + rawSn + "/1.jpg";
+        String p2 = "/nas/frames/raw/" + rawSn + "/2.jpg";
+        seedFrame(rawSn, 1, p1, p1, "N");
+        seedFrame(rawSn, 2, p2, p2, "N");
+
+        // when
+        Map<String, Object> row = viewRow(rawSn);
+
+        // then — 대체 후보가 없으면 NULL 이 정답이다(원본 폴백 금지). 행은 사라지지 않는다.
+        assertThat(row.get("thmb_file_path_nm")).isNull();
+        assertThat(row.get("lclgv_nm")).isEqualTo("서울특별시");
+        assertNoRawFramePathLeaks(row);
+    }
+
+    /**
+     * 뷰 <행 전체>에 원본(마스킹 전) 프레임 경로가 실려 나가지 않음을 단언한다.
+     *
+     * <p>★ 구 단언 {@code assertThat(String.valueOf(row.get("thmb_file_path_nm"))).doesNotContain(...)}
+     * 는 <b>무효였다</b> — 값이 null 이면 {@code String.valueOf} 가 문자열 {@code "null"} 을 돌려줘
+     * <b>항상 통과</b>했다(실질 가드는 {@code isNull()} 하나뿐인데 이름은 더 넓은 보증을 시사했다).
+     * 컬럼 단위가 아니라 {@code SELECT *} 결과 전 컬럼을 훑으므로, 뒤에 컬럼이 늘어도 유출 축을
+     * 계속 덮는다.
+     */
+    private void assertNoRawFramePathLeaks(Map<String, Object> row) {
+        assertThat(row.entrySet())
+                .as("뷰 어느 컬럼에도 원본 프레임 경로가 실리면 안 된다(CWE-359) — 실제 행: %s", row)
+                .noneMatch(entry -> entry.getValue() != null
+                        && String.valueOf(entry.getValue()).contains("/frames/raw/"));
     }
 
     // ---------------------------------------------------------------- 파생영상

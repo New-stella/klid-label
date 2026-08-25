@@ -29,10 +29,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>검증 축:
  * <ul>
  *   <li>Flyway 전체 마이그레이션이 V148 까지 성공하고 컨텍스트가 뜬다(= 기존 엔티티 매핑 무파손).</li>
- *   <li>{@code information_schema} 기준 45컬럼 전량의 물리명·타입·길이(정밀도/스케일)·NULL 허용이
+ *   <li>{@code information_schema} 기준 44컬럼 전량의 물리명·타입·길이(정밀도/스케일)·NULL 허용이
  *       설계 {@code .cc-design.md} §4-1 확정값과 1:1 일치한다.
  *       (V147 시점 37컬럼 + V166 관제 수신 4 + V168 관제 수신 2 + V176 관제 수신 1
- *        − V185 관제 수신 1 제거(OG_CD) + V16 관제 수신 2(THMB·OG_CD 복원) = 45)</li>
+ *        − V185 관제 수신 1 제거(OG_CD) + V16 관제 수신 2(THMB·OG_CD 복원)
+ *        − V17 관제 수신 1 제거(THMB) = 44)</li>
  *   <li>제약 2종(PK·UK)과 PENDING 부분 인덱스가 실재하고, UK 가 중복 INSERT 를 실제로 거부한다.</li>
  *   <li>관제가 저작도구 운영 컬럼을 생략해도 적재된다(DEFAULT 판단 검증).</li>
  *   <li>{@code BIT} 은 PostgreSQL 에서 무인용으로 읽고 쓸 수 있다(예약어 우려 실증).</li>
@@ -96,15 +97,20 @@ class V147DataIngestSchemaMigrationIT {
     }
 
     /**
-     * LS_DATA_INGEST 45컬럼 = 저작도구 운영 8 + 관제 수신 37.
+     * LS_DATA_INGEST 44컬럼 = 저작도구 운영 8 + 관제 수신 36.
      *
      * <p>숫자의 출처: V147 신설 시점 37컬럼(운영 8 + 수신 29) + V166 에서 관제 수신 4컬럼
      * (EVNT_TYPE_CD · ANONY_INCL_YN · PSDO_INCL_YN · PRVC_INCL_YN) 추가 = 41
      * + V168 에서 관제 수신 2컬럼(EVNT_CLSF_CD·EVNT_CTGRY_CD) 추가 = 43
      * + V176 에서 관제 수신 1컬럼(VRFC_EVNT_TYPE_CD) 추가 = 44
      * − V185 에서 관제 수신 1컬럼(OG_CD) 제거 = 43
-     * <b>+ V16 에서 관제 수신 2컬럼(THMB_FILE_PATH_NM 신설·OG_CD 복원) = 45</b>.
+     * + V16 에서 관제 수신 2컬럼(THMB_FILE_PATH_NM 신설·OG_CD 복원) = 45
+     * <b>− V17 에서 관제 수신 1컬럼(THMB_FILE_PATH_NM) 제거 = 44</b>.
      * 스키마를 바꾸면 이 목록도 같은 커밋에서 갱신한다.
+     *
+     * <p>V17 이 THMB 를 지운 이유: 대표 이미지 조달원이 관제 인입값 pass-through 에서
+     * 저작도구 비식별 첫 프레임({@code LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM})으로 바뀌어
+     * 이 컬럼의 소비자가 0 이 됐다. 뷰 출력명 {@code THMB_FILE_PATH_NM} 은 그대로다.
      */
     private static final List<Col> INGEST_COLUMNS = List.of(
             // ---- 저작도구 운영 (8) ----
@@ -175,9 +181,9 @@ class V147DataIngestSchemaMigrationIT {
             // 검증이벤트유형코드(코드V20) — 외부 VLM verify 요청의 event_type 조달처. 저작도구가
             // 매핑표로 만들지 않고 관제 인입으로 수신한다. 미송신이면 null(백필 없음).
             Col.varchar("vrfc_evnt_type_cd", 20, true),
-            // ---- 관제 수신 (V16 추가 2 — THMB 신설 + 구 V185 OG_CD 제거분 복원) ----
-            // 썸네일파일경로명(경로명V500) — 관제 pass-through. V_COMPLETED_VIDEO 로 노출.
-            Col.varchar("thmb_file_path_nm", 500, true),
+            // ---- 관제 수신 (V16 추가 2 − V17 제거 1 = 1) ----
+            // V16 이 신설한 THMB_FILE_PATH_NM 은 V17 에서 제거됐다 — 대표 이미지는 관제 인입값이
+            //   아니라 저작도구 비식별 첫 프레임에서 조달한다. 인입 축에는 더 이상 없다.
             // 기관코드(코드V20) — 관제 "실보유" 재확인으로 재추가(구 V185 제거분 복원). LCLGV_CD·NM 과 다른 값.
             Col.varchar("og_cd", 20, true));
 
@@ -206,16 +212,18 @@ class V147DataIngestSchemaMigrationIT {
     //   반복된다. 개수 단언은 아래 코드에 그대로 남으므로 가드는 약화되지 않는다.
     @DisplayName("LS_DATA_INGEST_컬럼_전량의_타입과_길이가_설계와_일치한다")
     void LS_DATA_INGEST_컬럼_전량의_타입과_길이가_설계와_일치한다() {
-        // given — 설계 §4-1 확정값(V147 37 + V166 4 + V168 2 + V176 1 − V185 1(OG_CD) + V16 2(THMB·OG_CD 복원) = 45건)
-        assertThat(INGEST_COLUMNS).as("설계 §4-1 총 컬럼 수").hasSize(45);
+        // given — 설계 §4-1 확정값
+        //   (V147 37 + V166 4 + V168 2 + V176 1 − V185 1(OG_CD) + V16 2(THMB·OG_CD 복원)
+        //    − V17 1(THMB) = 44건)
+        assertThat(INGEST_COLUMNS).as("설계 §4-1 총 컬럼 수").hasSize(44);
 
         // when — 실제 스키마 컬럼 수
         Integer actualCount = jdbc().queryForObject(
                 "SELECT count(*) FROM information_schema.columns WHERE table_name = 'ls_data_ingest'",
                 Integer.class);
 
-        // then — 설계 외 컬럼이 끼어들지 않았다(45 정확히 일치)
-        assertThat(actualCount).as("LS_DATA_INGEST 컬럼 수").isEqualTo(45);
+        // then — 설계 외 컬럼이 끼어들지 않았다(44 정확히 일치)
+        assertThat(actualCount).as("LS_DATA_INGEST 컬럼 수").isEqualTo(44);
 
         // then — 컬럼별 물리명/타입/길이/정밀도/스케일/NULL 허용이 1:1 일치
         for (Col col : INGEST_COLUMNS) {
