@@ -161,8 +161,51 @@ public record VideoDetailResponse(
          * 기존 from(...) 오버로드로 만든 응답은 빈 배열이므로 이 필드가 추가돼도 기존 소비자는
          * 영향받지 않는다(추가만 — 하위호환).
          */
-        List<String> failedStages
+        List<String> failedStages,
+        /*
+         * 이 영상의 <b>검증 이벤트 유형 코드</b> — 관제 인입 원장에서 수신한 값. 미수신이면 null.
+         * [@design API-043] [@design ERD-033]
+         *
+         * ★ 관제 이벤트유형 코드(evntTypeCd, 예 EV01000101)와 <b>축이 다른 값</b>이다 — 서로
+         * 대체하지 않으며 한쪽에서 다른 쪽을 유도하지 않는다(그 유도표가 곧 이 설계가 피하려던
+         * 자체 매핑표다).
+         *
+         * 표기는 조달 판정기와 <b>같은 정규화</b>({@code LsDataIngest.normalizeVrfcEvntType})를 거친
+         * 값이다 — 아래 질문 목록을 찾을 때 쓴 키와 응답에 실린 코드가 어긋나면 화면이 "이 유형의
+         * 질문"이라고 보여준 것의 근거가 사라진다.
+         */
+        String vrfcEvntTypeCd,
+        /*
+         * 위 유형에 등록된 <b>질문 목록</b> — 정렬순서 오름차순, 첫 번째가 그 유형의 기본 질문이다.
+         * [@design API-043] [@design ERD-033]
+         *
+         * ★ 왜 이 응답에 싣는가: 마킹 화면이 작업자에게 질문을 보여주고 고른 값을 마킹 등록 요청에
+         * 실어야 하는데, 질문 카탈로그를 관리하는 조회 경로는 <b>검수자 전용</b>이라 마킹 작업자에게
+         * 403 이다. 마킹 화면이 이미 이 응답을 소비하므로 경로를 새로 만들지 않고 여기에 싣는다.
+         *
+         * ★ 그 영상에 해당하는 <b>유형 하나</b>의 질문일 뿐 관리용 카탈로그 전체가 아니다.
+         *
+         * 유형이 없거나(인입 행이 없는 파생영상 등) 등록된 질문이 0건이면 <b>빈 배열</b>이다
+         * (null 아님) — <b>오류가 아니다</b>. 카탈로그는 허용목록이 아니므로 목록에 없는 유형의
+         * 영상도 정상 조회되고 질문 칸만 빈다.
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 null + 빈 배열이므로 이 필드들이 추가돼도 기존
+         * 소비자는 영향받지 않는다(추가만 — 하위호환).
+         */
+        List<VrfcEvntQuestionDto> vrfcEvntQuestions
 ) {
+    /**
+     * 검증 이벤트 유형 질문 1건 — 화면이 고를 항목. [@design API-043] [@design ERD-033]
+     *
+     * <p><b>식별자와 본문만</b> 싣는다: 화면은 본문을 보여주고 고른 식별자를 마킹 등록 요청에 실으면
+     * 되며, 정렬순서는 배열 순서가 이미 나타내므로 별도 필드로 내리면 화면이 서버 정렬을 다시
+     * 유도할 여지를 만든다(「첫 번째 질문」의 해석은 서버 판정기 한 곳에만 둔다).
+     *
+     * @param vrfcEvntQstnSn 검증이벤트질문일련번호 — 마킹 등록에 실어 고른 질문을 가리키는 값
+     * @param qstnCn         질문 문구 — 작업자에게 보여줄 본문
+     */
+    public record VrfcEvntQuestionDto(Long vrfcEvntQstnSn, String qstnCn) {}
+
     /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
     public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
 
@@ -368,7 +411,7 @@ public record VideoDetailResponse(
     }
 
     /**
-     * 실패 묶음 목록까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로 위임한다(하위호환).
+     * 실패 묶음 목록까지 포함한 빌드 — 검증 이벤트 질문 축은 비운 채 위임한다(하위호환).
      * [@design API-043] [@design ADR-050]
      *
      * @param failedStages 지금 실패한 상태인 작업 묶음 코드(VLM/AUTOLABEL). 없으면 빈 리스트.
@@ -389,6 +432,39 @@ public record VideoDetailResponse(
             List<String> skippedStages,
             List<String> clearedStages,
             List<String> failedStages
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, batchFailureReason, skippedStages, clearedStages,
+                failedStages, null, Collections.emptyList());
+    }
+
+    /**
+     * 검증 이벤트 유형·질문 목록까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로
+     * 위임한다(하위호환). [@design API-043] [@design ERD-033]
+     *
+     * @param vrfcEvntTypeCd    그 영상의 검증 이벤트 유형 코드. 미수신이면 {@code null}.
+     *                          <b>정규화된 값</b>을 넘긴다 — 질문 목록을 찾은 키와 같은 값이어야 한다.
+     * @param vrfcEvntQuestions 그 유형에 등록된 질문 목록(정렬순서 오름차순). 유형이 없거나 질문이
+     *                          0건이면 빈 리스트. {@code null} 을 넘겨도 빈 배열로 정규화된다 —
+     *                          응답 계약이 "빈 배열"이라 화면이 {@code null} 분기를 하지 않아도 되게 한다.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason,
+            List<String> skippedStages,
+            List<String> clearedStages,
+            List<String> failedStages,
+            String vrfcEvntTypeCd,
+            List<VrfcEvntQuestionDto> vrfcEvntQuestions
     ) {
         // 표시명 폴백(CCTV명 → CCTV ID → 영상 #{rawSn})은 목록 응답과 <같은 판정기>를 쓴다.
         String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, e.getVmsCctvId(), e.getRawSn());
@@ -430,7 +506,9 @@ public record VideoDetailResponse(
                 batchFailureReason,
                 (skippedStages != null) ? skippedStages : Collections.emptyList(),
                 (clearedStages != null) ? clearedStages : Collections.emptyList(),
-                (failedStages != null) ? failedStages : Collections.emptyList()
+                (failedStages != null) ? failedStages : Collections.emptyList(),
+                vrfcEvntTypeCd,
+                (vrfcEvntQuestions != null) ? vrfcEvntQuestions : Collections.emptyList()
         );
     }
 }

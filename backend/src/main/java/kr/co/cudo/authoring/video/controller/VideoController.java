@@ -164,7 +164,12 @@ public class VideoController {
 
     @Operation(
             summary = "영상 상세 조회",
-            description = "raw 영상 PK로 단건 조회. 메타·비식별 여부·길이 등 상세 정보 반환."
+            description = "raw 영상 PK로 단건 조회. 메타·비식별 여부·길이 등 상세 정보 반환. "
+                    + "vrfcEvntTypeCd 는 이 영상의 검증 이벤트 유형이고 vrfcEvntQuestions 는 그 유형에 "
+                    + "등록된 질문 목록(정렬순서 오름차순, 첫 번째가 기본 질문)이다. 마킹 화면이 작업자에게 "
+                    + "질문을 보여주고 고른 값을 마킹 등록에 실을 때 쓴다 — 질문 카탈로그 관리 조회 경로는 "
+                    + "REVIEWER 전용이라 작업자가 쓸 수 없다. 유형이 없거나 등록된 질문이 없으면 빈 배열이며 "
+                    + "오류가 아니다. 그 영상의 유형 하나에 대한 질문일 뿐 카탈로그 전체가 아니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),

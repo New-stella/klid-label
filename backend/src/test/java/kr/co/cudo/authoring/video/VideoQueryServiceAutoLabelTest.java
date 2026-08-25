@@ -67,7 +67,10 @@ class VideoQueryServiceAutoLabelTest {
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository), deidentProcLogRepository,
                 batchStatusService, fpsResolver, eventTypeService,
                 mock(kr.co.cudo.authoring.assignment.service.ReviewApprovalGate.class),
-                mock(kr.co.cudo.authoring.batch.status.BatchBundleFailureGate.class));
+                mock(kr.co.cudo.authoring.batch.status.BatchBundleFailureGate.class),
+                // 검증 이벤트 질문 목록 조달(마킹 화면용) — 본 테스트는 유형 미수신 경로만 지나가
+                //   질문 조회가 호출되지 않는다(정규화 결과가 null 이면 조회 자체를 하지 않는다).
+                mock(kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository.class));
     }
 
     private LsDataRaw raw(Long rawSn) {
