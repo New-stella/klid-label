@@ -41,6 +41,8 @@ interface PresetResponse {
   eventTypeNm?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** 프리셋 실효 여부 — 담긴 라벨 중 AI 검출 클래스에 매핑된 것이 하나라도 있으면 true. */
+  effective?: boolean;
 }
 
 /** BE 형태 코드를 알려진 카테고리로 정규화. 미지/누락은 null(미연결·형태없음). */
@@ -95,6 +97,9 @@ function normalizePreset(raw: PresetResponse): Preset {
     eventTypeCd,
     eventTypeNm: raw.eventTypeNm ?? eventTypeCd,
     codes,
+    // ★값이 없으면 true — 모르는 상태를 "적용되지 않는다"고 단정하면 멀쩡한 프리셋 전건에
+    //   경고 배지가 붙는다. 경고는 서버가 명시적으로 false 라고 했을 때만 낸다.
+    effective: raw.effective !== false,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };

@@ -20,7 +20,6 @@ import org.springframework.test.context.ActiveProfiles;
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -121,32 +120,33 @@ class PresetLabelLookupGroupMatchingIT {
     @DisplayName("그룹_비대표코드_영상도_대표코드에_저장된_프리셋에_매칭된다")
     void groupMemberMatchesPresetStoredOnRepresentative() {
         // when — 영상이 가진 값은 비대표 코드다(실제 인입 형태)
-        Optional<Map<String, AnnotationToggle>> toggles =
-                presetLabelLookupService.togglesFor(GROUP_MEMBER);
+        PresetResolution resolution = presetLabelLookupService.resolve(GROUP_MEMBER);
 
-        // then — filterKeyOf 가 대표코드로 접지 않으면 프리셋을 못 찾아 빈 Optional 이 된다
-        assertThat(toggles)
+        // then — filterKeyOf 가 대표코드로 접지 않으면 프리셋을 못 찾아 보류 사유가 된다
+        assertThat(resolution.isResolved())
                 .as("[req: R5] 대표코드 프리셋 1건이 그룹 전체에 적용돼야 한다")
-                .isPresent();
-        assertThat(toggles.get()).containsOnlyKeys(DTCT_TYPE_CD);
-        assertThat(toggles.get().get(DTCT_TYPE_CD).bbox()).isTrue();
-        assertThat(toggles.get().get(DTCT_TYPE_CD).polygon()).isFalse();
+                .isTrue();
+        Map<String, AnnotationToggle> toggles = resolution.toggles();
+        assertThat(toggles).containsOnlyKeys(DTCT_TYPE_CD);
+        assertThat(toggles.get(DTCT_TYPE_CD).bbox()).isTrue();
+        assertThat(toggles.get(DTCT_TYPE_CD).polygon()).isFalse();
     }
 
     @Test
     @DisplayName("대표코드_영상도_같은_프리셋에_매칭된다")
     void representativeItselfMatchesPreset() {
-        Optional<Map<String, AnnotationToggle>> toggles =
-                presetLabelLookupService.togglesFor(GROUP_REPRESENTATIVE);
+        PresetResolution resolution = presetLabelLookupService.resolve(GROUP_REPRESENTATIVE);
 
-        assertThat(toggles).isPresent();
-        assertThat(toggles.get()).containsOnlyKeys(DTCT_TYPE_CD);
+        assertThat(resolution.isResolved()).isTrue();
+        assertThat(resolution.toggles()).containsOnlyKeys(DTCT_TYPE_CD);
     }
 
     @Test
     @DisplayName("다른_표시명_그룹의_코드는_프리셋에_매칭되지_않는다")
     void otherGroupDoesNotMatchPreset() {
         // 표시명이 다른데도 매칭되면 그룹 경계가 무너져 프리셋이 무관한 영상까지 좁히게 된다.
-        assertThat(presetLabelLookupService.togglesFor(OTHER_GROUP)).isEmpty();
+        PresetResolution other = presetLabelLookupService.resolve(OTHER_GROUP);
+        assertThat(other.isResolved()).isFalse();
+        assertThat(other.status()).isEqualTo(PresetResolutionStatus.PRESET_ABSENT);
     }
 }

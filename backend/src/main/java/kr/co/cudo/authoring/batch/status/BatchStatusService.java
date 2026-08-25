@@ -164,6 +164,26 @@ public class BatchStatusService {
     }
 
     /**
+     * 그 단계를 <b>주어진 사유들 중 하나로 건너뛴 적이 있는 영상</b> 식별자 목록. [@design AC-115]
+     *
+     * <p>{@link #isStageSkippedWithAnyReason} 의 역방향 — 영상을 알고 사유를 묻는 대신, 사유를 알고
+     * 영상을 찾는다. 보류 재개 트리거(프리셋 등록·수정)는 어느 영상이 보류됐는지 모르기 때문에 이
+     * 진입점이 필요하다. 재개 여부의 최종 판정(전제가 이제 충족됐는가 · 이미 완료됐는가)은 호출자가 한다.
+     *
+     * <p>{@code PROC_STTS_CD} 리터럴을 호출부로 흘리지 않도록 판정은 여기(로그 축의 소유자)에서 한다.
+     *
+     * @param reasons 기록 시 사용한 사유 문자열 집합(단일 원천은 각 스텝의 상수)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<Long> stageSkippedRawSns(BatchStage stage, Collection<String> reasons) {
+        if (stage == null || reasons == null || reasons.isEmpty()) {
+            return List.of();
+        }
+        return repository.findDistinctDataRawSnsByStepAndStatusAndReasons(
+                stage.name(), STTS_SKIPPED, reasons);
+    }
+
+    /**
      * REVIEWER 가 <b>손으로 누른</b> 작업 묶음 스킵 표식을 적재한다. [@design API-198]
      *
      * <p>{@link #recordStageSkipped} 와 저장 축(SKIPPED 감사 행)은 같지만 <b>사유 축이 다르다</b> —

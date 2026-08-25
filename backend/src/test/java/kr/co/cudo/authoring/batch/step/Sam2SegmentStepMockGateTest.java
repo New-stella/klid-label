@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -94,7 +96,10 @@ class Sam2SegmentStepMockGateTest {
 
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
-        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
+        // ★CO-014 — 「프리셋 없음」은 더 이상 전 라벨 통과가 아니라 아무 라벨도 통과하지 않는다.
+        //   프리셋 필터가 주제가 아닌 테스트는 실효 프리셋을 기본값으로 둔다.
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(
+                java.util.Map.of("person", new AnnotationToggle(true, true))));
         when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
         when(lblRepository.saveAll(any())).thenAnswer(inv -> {
             List<LsDataLbl> out = new java.util.ArrayList<>();

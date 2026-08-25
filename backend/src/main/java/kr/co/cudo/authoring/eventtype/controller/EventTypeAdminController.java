@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Size;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeAdminResponse;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeUpdateRequest;
+import kr.co.cudo.authoring.eventtype.dto.PresetLinkStatusFilter;
 import kr.co.cudo.authoring.eventtype.service.EventTypeAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -53,10 +55,20 @@ public class EventTypeAdminController {
 
     private final EventTypeAdminService eventTypeAdminService;
 
+    /**
+     * 등록된 이벤트유형 전체 조회. [@design API-185]
+     *
+     * @param presetLinkStatus 프리셋 연결 상태 거르기 — <b>선택</b>. 미지정이면 전체를 반환한다
+     *                         (서버 기본값을 두지 않는다 — 기존 호출의 결과가 달라지면 안 된다).
+     *                         {@code WITHHELD} 는 <b>오토라벨이 보류되는 상태 전체</b>를 뜻하는
+     *                         거르기 전용 값이며 응답 필드로는 나오지 않는다. 허용값 밖 문자열은
+     *                         {@code GlobalExceptionHandler} 가 400 으로 정규화한다(입력 원문 미노출).
+     */
     @Operation(summary = "등록된 이벤트유형 전체 조회 — 비수집·제외 대분류 포함(관리 화면용)")
     @GetMapping
-    public ApiResponse<List<EventTypeAdminResponse>> list() {
-        return ApiResponse.ok(eventTypeAdminService.list());
+    public ApiResponse<List<EventTypeAdminResponse>> list(
+            @RequestParam(required = false) PresetLinkStatusFilter presetLinkStatus) {
+        return ApiResponse.ok(eventTypeAdminService.list(presetLinkStatus));
     }
 
     @Operation(summary = "이벤트유형 부분 수정 — 이벤트명·수집여부(null 은 미변경)")

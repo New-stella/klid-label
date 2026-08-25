@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.policy.PresetResolutionStatus;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -113,7 +115,10 @@ class Sam2SegmentStepTest {
         }
 
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
-        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
+        // ★CO-014 — 「프리셋 없음」은 더 이상 전 라벨 통과가 아니라 아무 라벨도 통과하지 않는다.
+        //   프리셋 필터가 주제가 아닌 테스트는 실효 프리셋을 기본값으로 둔다.
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(
+                java.util.Map.of("person", new AnnotationToggle(true, true), "car", new AnnotationToggle(true, true))));
 
         // NEW-H1 — 본 클래스는 <b>비배포(local)</b> 환경의 기존 동작을 고정한다. 배포 환경 fail-closed
         //   와 mock 응답 스킵은 Sam2SegmentStepMockGateTest 가 별도로 고정한다.
@@ -265,13 +270,34 @@ class Sam2SegmentStepTest {
     }
 
     @Test
+    @DisplayName("★프리셋이_실효하지_않으면_DB_BBOX가_있어도_폴리곤을_만들지_않는다_구_전량통과_폐기")
+    void ineffectivePresetPassesNoLabel() {
+        // 라벨을 하나도 담지 않은 프리셋(오토라벨 제외 선언)이면 탐지 단계가 보류하지 않고 통과하므로
+        //   이 단계가 실제로 돈다. 그때 구 fail-open 이 남아 있으면 DB 에 남은 BBOX 로 폴리곤을 만든다.
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(3L)).thenReturn(Optional.of(raw));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.of(PresetResolutionStatus.PRESET_EMPTY));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
+                .thenReturn(List.of(newSrc(30L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(30L, "Y"))
+                .thenReturn(List.of(newBbox(30L, "person", "[1.0,2.0,3.0,4.0]")));
+
+        int saved = step.run(3L, List.of());
+
+        assertThat(saved).isZero();
+        verify(aiServerClient, never()).segment(any());
+        verify(lblRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Sam2Step_polygonEnabled_false_라벨은_SAM2_호출_안_함_그리고_경고_로그")
     void polygonDisabledLabelSkipsSam2WithWarn() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(3L)).thenReturn(Optional.of(raw));
         // person 은 bbox-only (polygon=false)
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, false))));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, false))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
                 .thenReturn(List.of(newSrc(30L)));
         // YOLO 가 BBOX 를 저장해 둠 (BBOX_ONLY 라벨)
@@ -300,8 +326,8 @@ class Sam2SegmentStepTest {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(4L)).thenReturn(Optional.of(raw));
         // person 은 polygon-only (bbox=false, polygon=true)
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(4L))
                 .thenReturn(List.of(newSrc(40L)));
         // DB BBOX 없음 (YOLO 가 BBOX 저장을 skip 했기 때문)
@@ -327,8 +353,8 @@ class Sam2SegmentStepTest {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(5L)).thenReturn(Optional.of(raw));
         // person=BOTH 인 경우 DB BBOX 와 hint 가 동시에 들어옴 (오케스트레이션 일관성)
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(5L))
                 .thenReturn(List.of(newSrc(50L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(50L, "Y"))
@@ -357,8 +383,8 @@ class Sam2SegmentStepTest {
         // YoloAutolabelStepTest 의 "car 필터링"(evtFallFiltersToPersonOnly)과 대칭 분기.
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(31L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(31L))
                 .thenReturn(List.of(newSrc(30L)));
         // 프리셋 토글 맵에 없는 "car" 라벨의 DB BBOX
@@ -381,8 +407,8 @@ class Sam2SegmentStepTest {
         // POLYGON 저장이 이뤄진다. (YOLO 에는 대소문자 정규화 경계가 있으나 SAM2 엔 없던 갭.)
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(41L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(41L))
                 .thenReturn(List.of(newSrc(40L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(40L, "Y"))
@@ -405,8 +431,8 @@ class Sam2SegmentStepTest {
     void dedupKeyIncludesTrackId() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(70L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(70L))
                 .thenReturn(List.of(newSrc(70L)));
         // 같은 srcSn + 같은 라벨 "person" 이지만 trackId 가 1 인 DB BBOX 1건만 존재
@@ -432,8 +458,8 @@ class Sam2SegmentStepTest {
     void dedupFallbackWhenTrackIdNull() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(80L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(80L))
                 .thenReturn(List.of(newSrc(80L)));
         // DB BBOX 는 trackId=null (legacy/저신뢰 fallback)
@@ -458,9 +484,9 @@ class Sam2SegmentStepTest {
         LsDataRaw raw = rawWithEvent("EVT_TRESPASS");
         when(videoRepository.findById(6L)).thenReturn(Optional.of(raw));
         // person=BOTH, car=polygon-only
-        when(presetLabelLookup.togglesFor("EVT_TRESPASS"))
-                .thenReturn(Optional.of(Map.of(
-                        "person", AnnotationToggle.BOTH,
+        when(presetLabelLookup.resolve("EVT_TRESPASS"))
+                .thenReturn(PresetResolution.resolved(Map.of(
+                        "person", new AnnotationToggle(true, true),
                         "car", new AnnotationToggle(false, true)
                 )));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(6L))
@@ -534,7 +560,9 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newBbox(20L, "rare_label_unknown", "[1.0,2.0,3.0,4.0]")));
         when(aiServerClient.segment(any(Sam2Request.class)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
-        // 기본 stub (Optional.empty)
+        // 프리셋에는 담겨 있으나 라벨 마스터 검출 매핑 조회가 비는 라벨 — 저장은 되고 labelId 만 null 이다.
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(
+                java.util.Map.of("rare_label_unknown", new AnnotationToggle(true, true))));
 
         step.run(92L, List.of());
 

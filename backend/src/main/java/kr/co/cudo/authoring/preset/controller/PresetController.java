@@ -47,7 +47,7 @@ import java.util.List;
  *   <li>REVIEWER 전용 — SecurityConfig {@code /v1/manage/**} 매처 + {@code @PreAuthorize}.</li>
  *   <li>RequestBody 는 DTO ({@link PresetRequest}) 로 강제 — Mass Assignment 방어(Entity 직접 바인딩 금지).</li>
  *   <li>입력 검증: eventTypeCd 필수·20자 이하(서비스가 등록 여부를 동적 검증, 미등록 400),
- *       labelIds 1~20개(각 @NotNull @Positive). 마스터에 없는/soft delete labelId 는 서비스가
+ *       labelIds 0~20개(각 @NotNull @Positive). 마스터에 없는/soft delete labelId 는 서비스가
  *       400(INVALID_INPUT)으로 거부한다.</li>
  *   <li>JSON unknown 필드는 ignore — 클라이언트 호환성.</li>
  * </ul>
@@ -55,10 +55,18 @@ import java.util.List;
  * <p>형태(BBOX/POLYGON)는 마스터 {@code LBL_TYPE_CD} 가 소유하므로 요청에서 받지 않는다. 응답의
  * 형태 토글은 마스터에서 파생된 읽기 전용 값이다.
  *
+ * <p><b>CO-014.</b> 응답은 프리셋마다 실효 여부({@code effective})와 라벨마다 검출 클래스 매핑
+ * ({@code dtctTypeCd})을 함께 싣고, 등록·수정 성공은 그 이벤트 유형에 보류돼 있던 오토라벨의 재개를
+ * 촉발한다. 매핑된 라벨이 하나도 없어도 저장은 거부하지 않는다 — 운영자가 나중에 라벨 마스터에 매핑을
+ * 지정하면 그때 실효해지므로 그 동선을 닫지 않는다. [@design ADR-054] [@design AC-115] [@design AC-118]
+ *
  * @design API-037
  * @design API-038
  * @design API-039
  * @design UC-032
+ * @design ADR-054
+ * @design AC-115
+ * @design AC-118
  */
 @Tag(name = "Preset", description = "라벨링 프리셋 관리 — REVIEWER 전용.")
 @RestController
@@ -123,7 +131,8 @@ public class PresetController {
                 view.eventTypeCd(),
                 view.eventTypeNm(),
                 formatTimestamp(view.regDt()),
-                formatTimestamp(view.mdfcnDt())
+                formatTimestamp(view.mdfcnDt()),
+                view.effective()
         );
     }
 
@@ -135,7 +144,8 @@ public class PresetController {
                 code.labelType(),
                 code.linked(),
                 code.bboxEnabled(),
-                code.polygonEnabled()
+                code.polygonEnabled(),
+                code.dtctTypeCd()
         );
     }
 
@@ -164,8 +174,13 @@ public class PresetController {
             //   ★상한을 넓혀 맞추지 말 것 — 표준도메인이 진실원이고 컬럼이 20 이다.
             @Size(max = 20, message = "이벤트 타입 코드는 20자 이하여야 합니다")
             String eventTypeCd,
-            @NotNull(message = "라벨은 최소 1개 이상이어야 합니다")
-            @Size(min = 1, max = MAX_LABEL_CODES, message = "라벨은 1~" + MAX_LABEL_CODES + "개까지 허용합니다")
+            // ★하한을 두지 않는다(CO-014). 라벨을 담지 않은 프리셋은 그 이벤트 유형을 오토라벨 대상에서
+            //   빼겠다는 사람의 선언이다. 그 선언을 표현할 수단이 없으면 오토라벨을 원치 않는 유형도
+            //   프리셋 미보유로 남아 계속 보류된다. 목록 키 자체는 필수로 남긴다 — 이 API 는 전체 교체
+            //   계약이라 키를 빼면 「비우겠다」와 「안 건드리겠다」가 구분되지 않는다.
+            //   ⚠ 상한 20 은 유지한다(자원 소모 방어, CWE-770).
+            @NotNull(message = "라벨 목록은 필수입니다")
+            @Size(max = MAX_LABEL_CODES, message = "라벨은 " + MAX_LABEL_CODES + "개까지 허용합니다")
             List<@NotNull(message = "labelId 는 필수입니다") @Positive(message = "labelId 는 양수여야 합니다") Long> labelIds
     ) {
     }
@@ -180,6 +195,9 @@ public class PresetController {
      *   <li>{@code labelType} : 마스터 {@code LBL_TYPE_CD} (미연결이면 null).</li>
      *   <li>{@code linked}  : 활성 마스터 연결 여부.</li>
      *   <li>{@code bboxEnabled}/{@code polygonEnabled} : 마스터 형태 파생(읽기 전용).</li>
+     *   <li>{@code dtctTypeCd} : 매핑된 AI 검출 클래스 코드(COCO 영문명). 미매핑/미연결이면 null 이며
+     *       그 라벨은 검출 결과에 귀속되지 않는다. ★불리언이 아니라 코드값이다 — 라벨 마스터 조회가
+     *       같은 개념을 코드값으로 내리므로 두 응답의 표현을 맞춘다.</li>
      * </ul>
      */
     public record LabelCodeOptionResponse(
@@ -189,7 +207,8 @@ public class PresetController {
             String labelType,
             boolean linked,
             boolean bboxEnabled,
-            boolean polygonEnabled
+            boolean polygonEnabled,
+            String dtctTypeCd
     ) {
     }
 
@@ -201,6 +220,10 @@ public class PresetController {
      * 화면이 이벤트 목록으로 이름을 역해석하면 그 목록에 없는 코드가 코드 그대로 노출된다.
      *
      * <p>{@code labelCodes} 는 라벨명 목록(레거시 호환), {@code labelCodeOptions} 는 상세다.
+     *
+     * <p>{@code effective} 는 이 프리셋이 실효하는지다 — 담긴 라벨 중 AI 검출 클래스에 매핑된 것이
+     * 하나라도 있으면 true. false 면 프리셋이 존재해도 그 이벤트 유형의 오토라벨링은 보류되므로,
+     * 화면은 이 값으로 「등록해 놓고도 적용되지 않는」 상태를 경고할 수 있다.
      */
     public record PresetResponse(
             long id,
@@ -209,7 +232,8 @@ public class PresetController {
             String eventTypeCd,
             String eventTypeNm,
             String createdAt,
-            String updatedAt
+            String updatedAt,
+            boolean effective
     ) {
     }
 }

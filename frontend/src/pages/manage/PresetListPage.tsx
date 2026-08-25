@@ -56,6 +56,56 @@ const VISIBLE_CHIP_COUNT = PRESET_LABEL_CHIP_LIMIT;
 const SKELETON_COUNT = 6;
 
 /**
+ * 카드 배지 2종 — <b>서로 다른 상태</b>라 한 카드에 함께 붙지 않는다(사양 SCREEN-026).
+ *
+ * - 「오토라벨 미적용」 : 라벨은 담았는데 전부 AI 검출 클래스에 매핑돼 있지 않아 <b>적용되지
+ *   않는</b> 상태. 운영자는 기준을 걸었다고 믿는데 실제로는 걸리지 않은 <b>사고</b>다.
+ * - 「오토라벨 제외」   : 라벨을 하나도 담지 않아 그 이벤트유형을 오토라벨링 대상에서 <b>뺀</b>
+ *   상태. 사람이 그렇게 선언한 것이라 사고가 아니다.
+ *
+ * ★두 배지의 판정 축이 다르다 — 앞은 <b>서버가 내려준 실효 여부</b>, 뒤는 <b>라벨 건수</b>다.
+ *   ⚠ 실효 여부만으로 가르면 안 된다: 라벨 0건 프리셋도 서버는 실효하지 않는다고 내려주므로
+ *   두 배지가 같은 카드에 함께 붙는다. 그래서 <b>라벨 건수를 먼저</b> 보고 배타로 가른다.
+ * ★보조 안내 문구는 사양 확정값이다 — 임의로 다듬지 말 것.
+ */
+const BADGE_INEFFECTIVE = {
+  label: '오토라벨 미적용',
+  note: '이 프리셋은 오토라벨링에 적용되지 않습니다',
+  // 사고 축 — danger-700/danger-50 8.01:1(AA 이상). 글자가 곧 뜻이라 색 단독 구분이 아니다.
+  className: 'bg-danger-50 text-danger-700',
+} as const;
+
+const BADGE_EXCLUDED = {
+  label: '오토라벨 제외',
+  note: '이 이벤트유형은 오토라벨링을 하지 않도록 지정되어 있습니다',
+  // 선언 축 — 사고가 아니므로 중립 톤(gray-800/gray-100 9.85:1).
+  className: 'bg-gray-100 text-gray-800',
+} as const;
+
+/**
+ * 라벨을 비운 채 저장했을 때의 안내 — 사양 SCREEN-026 확정 문구다.
+ *
+ * 「추가/수정」으로 갈리지 않고 한 문구인 것도 사양 그대로다 — 사용자가 알아야 하는 사실은
+ * 무엇을 눌렀는지가 아니라 <b>그 유형이 오토라벨링 대상에서 빠졌다</b>는 것이다.
+ */
+const TOAST_SAVED_WITHOUT_LABELS =
+  '프리셋을 저장했습니다. 이 이벤트유형은 오토라벨링 대상에서 빠집니다.';
+
+/** 저장은 성공했지만 적용되지 않는다는 사실 — 편집 모달의 경고와 같은 사실을 저장 후에도 알린다. */
+const TOAST_INEFFECTIVE_SUFFIX =
+  ' 담긴 라벨이 모두 AI 검출 클래스에 매핑되어 있지 않아 이 프리셋은 오토라벨링에 적용되지 않습니다.';
+
+/**
+ * 저장 성공 안내 문구 — <b>서버가 돌려준 저장 결과</b>로 정한다(화면이 폼 입력으로 재유도하지 않는다).
+ *
+ * 판정 순서는 카드 배지와 같다 — 라벨 건수를 먼저 보고, 그다음 실효 여부를 본다.
+ */
+function saveSuccessMessage(saved: Preset, base: string): string {
+  if (saved.codes.length === 0) return TOAST_SAVED_WITHOUT_LABELS;
+  return saved.effective ? base : base + TOAST_INEFFECTIVE_SUFFIX;
+}
+
+/**
  * 카드 그리드 열 구성 — 좁은 화면 1열 / md(768px) 2열 / **1520px** 3열. [@design SCREEN-026]
  *
  * ★3열 임계는 뷰포트가 아니라 **카드 영역 폭**이 정한다. 확정 디자인의 `.psm-grid` 는
@@ -85,6 +135,8 @@ const GRID_CLASS = 'grid grid-cols-1 gap-6 md:grid-cols-2 min-[1520px]:grid-cols
  * @design API-037
  * @design API-040
  * @design UC-032
+ * @design AC-114
+ * @design AC-119
  */
 export function PresetListPage() {
   const { data, isLoading, error } = usePresets();
@@ -136,8 +188,11 @@ export function PresetListPage() {
       update.mutate(
         { id: editing.id, form },
         {
-          onSuccess: () => {
-            pushToast({ variant: 'success', message: '프리셋을 수정했습니다' });
+          onSuccess: (saved) => {
+            pushToast({
+              variant: 'success',
+              message: saveSuccessMessage(saved, '프리셋을 수정했습니다'),
+            });
             setModalOpen(false);
           },
           onError: (err) =>
@@ -149,8 +204,11 @@ export function PresetListPage() {
       );
     } else {
       create.mutate(form, {
-        onSuccess: () => {
-          pushToast({ variant: 'success', message: '프리셋을 추가했습니다' });
+        onSuccess: (saved) => {
+          pushToast({
+            variant: 'success',
+            message: saveSuccessMessage(saved, '프리셋을 추가했습니다'),
+          });
           setModalOpen(false);
         },
         onError: (err) =>
@@ -267,6 +325,17 @@ export function PresetListPage() {
              *   역해석하면 해당 유형(예: 배회)이 코드로만 노출된다(실제 발생한 결함).
              */
             const title = formatEventTypeDisplay(preset.eventTypeNm, preset.eventTypeCd);
+            /**
+             * 배지는 <b>배타</b>다 — 라벨 건수를 먼저 보고, 담긴 게 있을 때만 실효 여부를 본다.
+             * (라벨 0건 프리셋도 서버는 실효하지 않는다고 내려주므로 순서를 뒤집으면 둘이 함께 붙는다.)
+             * 실효 여부는 <b>서버 판정값</b>을 그대로 쓰고 화면이 라벨 매핑을 다시 보지 않는다.
+             */
+            const badge =
+              codes.length === 0
+                ? BADGE_EXCLUDED
+                : preset.effective
+                  ? null
+                  : BADGE_INEFFECTIVE;
             return (
               <Card
                 key={preset.id}
@@ -287,6 +356,25 @@ export function PresetListPage() {
                     >
                       {title}
                     </h3>
+                    {/* 제목 옆 배지 — 등록해 두고도 적용되지 않는 프리셋과 일부러 뺀 프리셋을
+                        목록에서 바로 알아보게 한다. 보조 안내는 툴팁(title)과 낭독용 문장으로
+                        함께 싣는다 — 배지 글자만으로는 "그래서 어떻게 되는가"가 드러나지 않는다.
+                        `shrink-0` 필수: 제목이 truncate 라 배지가 눌리면 글자가 잘린다. */}
+                    {badge && (
+                      <>
+                        <span
+                          data-testid={`preset-badge-${preset.id}`}
+                          title={badge.note}
+                          className={cn(
+                            'shrink-0 rounded-full px-2 py-0.5 text-label font-semibold',
+                            badge.className,
+                          )}
+                        >
+                          {badge.label}
+                        </span>
+                        <span className="sr-only">{badge.note}</span>
+                      </>
+                    )}
                   </div>
                   {isReviewer && (
                     // 밀집 배치라 ghost + sm(36px) 예외를 쓴다 — 카드 우상단에 2개가 나란히 온다.

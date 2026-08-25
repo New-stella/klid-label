@@ -141,10 +141,68 @@ class PresetControllerTest {
     }
 
     @Test
-    @DisplayName("PresetController_POST_labelIds_비어있으면_400_INVALID_INPUT")
-    void createWithEmptyLabelIdsReturns400() throws Exception {
+    @DisplayName("PresetController_POST_labelIds_비어있어도_201_오토라벨_제외_선언")
+    void createWithEmptyLabelIdsSucceedsAsAutolabelExclusion() throws Exception {
+        // ★구 판은 이 요청을 400 으로 단언해 결함을 「정상 동작」으로 고정하고 있었다(CO-014 에서 반전).
+        //   라벨을 담지 않은 프리셋은 그 이벤트 유형을 오토라벨 대상에서 빼겠다는 사람의 선언이다.
         ObjectNode body = objectMapper.createObjectNode();
         body.put("eventTypeCd", EV_FLOOD);
+        body.putArray("labelIds");
+
+        MvcResult res = mockMvc.perform(post("/v1/manage/presets")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.labelCodeOptions.length()").value(0))
+                .andExpect(jsonPath("$.data.eventTypeCd").value(EV_FLOOD))
+                .andReturn();
+
+        long id = objectMapper.readTree(res.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("data").path("id").asLong();
+        assertThat(presetRepository.findById(id).orElseThrow().getCodes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("PresetController_POST_labelIds_키가_아예_없으면_400_전체교체_계약이라_생략은_허용하지_않는다")
+    void createWithoutLabelIdsKeyReturns400() throws Exception {
+        // 하한은 없앴지만 키 자체는 필수다 — 전체 교체 계약이라 키를 빼면 「비우겠다」와
+        //   「안 건드리겠다」가 구분되지 않는다.
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("eventTypeCd", EV_FLOOD);
+
+        mockMvc.perform(post("/v1/manage/presets")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("PresetController_PUT_labelIds_를_모두_비우면_200_이고_코드가_전부_사라진다")
+    void updateClearingAllLabelIdsSucceeds() throws Exception {
+        long id = createPreset(EV_FLOOD, personLabelId, vehicleLabelId);
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("eventTypeCd", EV_FLOOD);
+        body.putArray("labelIds");
+
+        mockMvc.perform(put("/v1/manage/presets/" + id)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.labelCodeOptions.length()").value(0));
+
+        assertThat(presetRepository.findById(id).orElseThrow().getCodes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("PresetController_라벨_0건이어도_이벤트유형_검증은_그대로_400")
+    void emptyLabelIdsStillRequireRegisteredEvent() throws Exception {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("eventTypeCd", "EV99999999");
         body.putArray("labelIds");
 
         mockMvc.perform(post("/v1/manage/presets")
@@ -153,6 +211,25 @@ class PresetControllerTest {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("PresetController_응답에_실효여부와_라벨별_검출클래스_매핑이_실린다")
+    void responseCarriesEffectiveAndDetectionClassMapping() throws Exception {
+        MvcResult res = mockMvc.perform(post("/v1/manage/presets")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(presetBody(EV_FLOOD, personLabelId))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        var data = objectMapper.readTree(res.getResponse().getContentAsString(StandardCharsets.UTF_8)).path("data");
+        assertThat(data.has("effective")).as("프리셋이 실효하는지를 조회에서 알 수 있어야 한다").isTrue();
+        // 시드 라벨은 검출 클래스 매핑이 없다 → 미매핑이므로 실효하지 않고, 매핑 코드는 null 이다.
+        assertThat(data.path("effective").asBoolean()).isFalse();
+        var opt = data.path("labelCodeOptions").get(0);
+        assertThat(opt.has("dtctTypeCd")).as("불리언이 아니라 코드값 필드를 싣는다").isTrue();
+        assertThat(opt.path("dtctTypeCd").isNull()).as("미매핑 라벨은 null").isTrue();
     }
 
     @Test
@@ -430,6 +507,8 @@ class PresetControllerTest {
                 assertThat(opts.get(0).path("bboxEnabled").asBoolean()).isTrue();
                 assertThat(opts.get(1).path("labelType").asText()).isEqualTo("POLYGON");
                 assertThat(opts.get(1).path("polygonEnabled").asBoolean()).isTrue();
+                assertThat(node.has("effective")).as("목록에도 실효 여부가 실린다").isTrue();
+                assertThat(opts.get(0).has("dtctTypeCd")).as("목록에도 매핑 코드가 실린다").isTrue();
             }
         }
         assertThat(found).as("생성한 프리셋이 목록에 있어야 한다").isTrue();

@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.preset.service;
 
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.eventtype.policy.EventTypeDisplayNamePolicy;
@@ -12,8 +14,11 @@ import kr.co.cudo.authoring.preset.dto.PresetView;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
 import kr.co.cudo.authoring.preset.entity.LsLabelPresetCode;
+import kr.co.cudo.authoring.preset.event.PresetLabelsChangedEvent;
 import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,11 +50,25 @@ import java.util.Optional;
  * 프리셋에 이름이 없어져 사용자가 중복을 눈으로 알아채기 어려우므로 입구 검사가 필요하고,
  * 사전 조회만으로는 경합을 못 막으므로 둘 다 있어야 한다.
  *
+ * <p><b>CO-014 — 실효성 노출과 보류 재개.</b> 조회 응답은 프리셋마다 실효 여부({@code effective})를,
+ * 라벨마다 검출 클래스 매핑 코드({@code dtctTypeCd})를 함께 싣는다. 담긴 라벨이 전부 미매핑이면 프리셋이
+ * 존재해도 그 이벤트 유형의 오토라벨링은 보류되는데, 그 사실이 조회에 드러나지 않으면 운영자는 프리셋을
+ * 등록해 놓고도 왜 적용되지 않는지 알 수 없다. 등록·수정은 저장을 거부하지 않고 그 사실만 알린다.
+ * [@design ADR-054] [@design AC-118]
+ *
+ * <p>★실효 판정은 {@link PresetLabelLookupService#resolve(String)} <b>한 곳</b>에서만 한다 — 오토라벨
+ * 보류 판정과 같은 판정이며 프리셋 도메인이 다시 유도하지 않는다. 재유도하면 화면과 배치가 조용히 갈라져
+ * "화면은 실효한다는데 오토라벨은 안 돈다"가 된다(이 저장소의 반복 결함).
+ *
  * @design API-037
  * @design API-038
  * @design API-039
  * @design SEQ-022
+ * @design ADR-054
+ * @design AC-115
+ * @design AC-118
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PresetService {
@@ -62,6 +81,15 @@ public class PresetService {
     private final LsLabelPresetRepository presetRepository;
     private final EventTypeService eventTypeService;
     private final LabelMasterService labelMasterService;
+    /**
+     * 실효 판정의 단일 진실원 — 오토라벨 보류 판정과 <b>같은 판정</b>을 재사용한다. [@design ADR-054]
+     *
+     * <p>필드를 <b>맨 뒤</b>에 둔다: {@code @RequiredArgsConstructor} 가 선언 순서로 생성자를 만들므로
+     * 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다.
+     */
+    private final PresetLabelLookupService presetLabelLookupService;
+    /** 보류된 오토라벨의 재개 트리거 발행처. 필드 위치 이유는 위와 같다. */
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<PresetView> list() {
@@ -83,7 +111,10 @@ public class PresetService {
         Map<Long, LabelMasterResponse> masters = resolveLabels(labelIds);
         LsLabelPreset preset = LsLabelPreset.createWithOptions(toSpecs(labelIds), normalized);
         LsLabelPreset saved = saveWithEventUniqueGuard(preset);
-        return toView(saved, masters, eventNameOf(saved.getEventTypeCd()));
+        // 저장 성공 = 그 이벤트 유형에 보류돼 있던 오토라벨의 재개 트리거. 소비자가 AFTER_COMMIT 이라
+        //   커밋 뒤에 실행되고, 응답을 지연시키지도 저장을 되돌리지도 않는다.
+        publishLabelsChanged(saved.getEventTypeCd());
+        return toView(saved, masters, eventNameOf(saved.getEventTypeCd()), isEffective(saved));
     }
 
     /**
@@ -118,9 +149,17 @@ public class PresetService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(ErrorCode.CONFLICT, MSG_EVENT_CONFLICT, e);
         }
-        return toView(preset, masters, eventNameOf(preset.getEventTypeCd()));
+        // 수정은 「매핑된 라벨이 없던 무효 프리셋에 매핑된 라벨을 넣는」 동선이라 재개가 실제로 일어나는
+        //   주요 경로다. 재매핑이면 <b>새</b> 이벤트 유형으로 발행한다 — 떠난 유형은 프리셋이 사라진 셈이라
+        //   오히려 보류 조건이 성립해 깨울 것이 없다(삭제를 발행하지 않는 것과 같은 이유).
+        publishLabelsChanged(preset.getEventTypeCd());
+        return toView(preset, masters, eventNameOf(preset.getEventTypeCd()), isEffective(preset));
     }
 
+    /**
+     * 프리셋 삭제(멱등). <b>재개 트리거를 발행하지 않는다</b> — 프리셋이 사라지면 오히려 보류 조건이
+     * 성립하므로, 발행하면 재개 러너가 돌았다가 스스로 다시 보류하는 헛일이 된다. [@design ADR-054]
+     */
     @Transactional("controlTransactionManager")
     public void delete(long id) {
         if (!presetRepository.existsById(id)) {
@@ -214,6 +253,43 @@ public class PresetService {
                 .toList();
     }
 
+    /**
+     * 보류된 오토라벨의 재개 트리거 발행 — <b>등록·수정에서만</b> 부른다. [@design ADR-054] [@design AC-115]
+     *
+     * <p>소비자는 {@code AFTER_COMMIT} 리스너라 프리셋이 커밋된 뒤에 실행된다(커밋 전에 돌면 아직 보이지
+     * 않는 프리셋을 조회해 스스로 다시 보류한다). 재개 자체는 별도 스레드가 수행하므로 이 호출은 응답을
+     * 지연시키지 않는다.
+     *
+     * <p>발행 실패가 <b>프리셋 저장을 되돌려서는 안 된다</b>(이벤트 계약). 발행은 트랜잭션 동기화 등록이라
+     * 정상 경로에서 실패하지 않지만, 동기 리스너가 늘어나면 그쪽 예외가 여기로 전파되어 저장이 롤백될 수
+     * 있으므로 경계를 여기서 막는다 — 재개는 못 해도 등록은 남아야 하고, 남은 등록은 다음 수정에서 다시
+     * 촉발된다.
+     */
+    private void publishLabelsChanged(String eventTypeCd) {
+        try {
+            eventPublisher.publishEvent(new PresetLabelsChangedEvent(eventTypeCd));
+        } catch (RuntimeException e) {
+            log.warn("[Preset] autolabel resume trigger publish failed — preset save is kept. evntTypeCd={}",
+                    eventTypeCd, e);
+        }
+    }
+
+    /**
+     * 이 프리셋이 실효하는가 — 담긴 라벨 중 AI 검출 클래스에 매핑된 것이 하나라도 있는가.
+     * [@design ADR-054] [@design AC-118]
+     *
+     * <p>★판정은 {@link PresetLabelLookupService#resolve(String)} 를 <b>재사용</b>한다. 프리셋 도메인이
+     * 라벨 마스터를 다시 훑어 재유도하면 배치의 보류 판정과 갈라져 화면이 거짓말을 한다.
+     *
+     * <p>판정 축은 프리셋의 이벤트 유형 코드이며, 그 안에서 <b>그룹 대표코드</b>로 변환된 뒤 조회된다
+     * (오토라벨이 영상 EV-코드를 다루는 방식과 같은 축). 따라서 비대표 코드에 저장된 레거시 프리셋은
+     * 실효하지 않는 것으로 나오는데, 그것이 사실이다 — 배치도 그 프리셋에 닿지 않는다.
+     */
+    private boolean isEffective(LsLabelPreset preset) {
+        PresetResolution resolution = presetLabelLookupService.resolve(preset.getEventTypeCd());
+        return resolution != null && resolution.isResolved();
+    }
+
     /** insert 시점 UNIQUE 위반(이벤트 중복) 을 CONFLICT 로 변환. */
     private LsLabelPreset saveWithEventUniqueGuard(LsLabelPreset preset) {
         try {
@@ -237,10 +313,11 @@ public class PresetService {
         return eventTypeService.resolveLabel(eventTypeCd);
     }
 
-    /** 마스터 맵·이벤트 표시명이 이미 확보된 경우 재사용해 뷰를 조립한다. */
+    /** 마스터 맵·이벤트 표시명·실효 판정이 이미 확보된 경우 재사용해 뷰를 조립한다. */
     private static PresetView toView(LsLabelPreset preset,
                                      Map<Long, LabelMasterResponse> masters,
-                                     String eventTypeNm) {
+                                     String eventTypeNm,
+                                     boolean effective) {
         List<PresetCodeView> codeViews = new ArrayList<>(preset.getCodes().size());
         for (LsLabelPresetCode code : preset.getCodes()) {
             codeViews.add(toCodeView(code, masters));
@@ -251,7 +328,8 @@ public class PresetService {
                 eventTypeNm,
                 preset.getRegDt(),
                 preset.getMdfcnDt(),
-                codeViews
+                codeViews,
+                effective
         );
     }
 
@@ -276,7 +354,9 @@ public class PresetService {
         List<PresetView> views = new ArrayList<>(presets.size());
         for (LsLabelPreset preset : presets) {
             String code = preset.getEventTypeCd();
-            views.add(toView(preset, masters, code == null ? null : eventNames.getOrDefault(code, code)));
+            views.add(toView(preset, masters,
+                    code == null ? null : eventNames.getOrDefault(code, code),
+                    isEffective(preset)));
         }
         return views;
     }
@@ -287,12 +367,16 @@ public class PresetService {
         boolean linked = master != null;
         if (!linked) {
             // 미연결(labelId null 또는 마스터 미존재/soft delete) — 오류 없이 legacy 코드로 노출.
-            return new PresetCodeView(code.getLabelId(), code.getCode(), code.getCode(), null, false, false, false);
+            // 미연결이면 마스터가 없어 검출 클래스 매핑도 알 수 없다 — dtctTypeCd 는 null.
+            return new PresetCodeView(
+                    code.getLabelId(), code.getCode(), code.getCode(), null, false, false, false, null);
         }
         Optional<LabelGeometry> geometry = LabelGeometry.from(master.type());
         boolean bbox = geometry.map(LabelGeometry::bboxEnabled).orElse(false);
         boolean polygon = geometry.map(LabelGeometry::polygonEnabled).orElse(false);
+        // 검출 클래스 매핑은 마스터가 소유한다 — 프리셋은 스냅샷하지 않고 실시간 join 값을 그대로 싣는다.
         return new PresetCodeView(
-                code.getLabelId(), code.getCode(), master.name(), master.type(), true, bbox, polygon);
+                code.getLabelId(), code.getCode(), master.name(), master.type(), true, bbox, polygon,
+                master.dtctTypeCd());
     }
 }

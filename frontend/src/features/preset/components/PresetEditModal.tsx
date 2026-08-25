@@ -1,10 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, Info } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Field, FieldError, FieldLabel, FieldTitle } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { Modal } from '@/components/common/Modal';
 import {
   Select,
@@ -56,11 +57,21 @@ const EMPTY_FORM: PresetFormValues = {
  * - 라벨: `useLabelMasters` 로 활성 마스터를 불러와 체크박스 멀티셀렉트. 형태는 마스터 소유이므로
  *   읽기 전용으로 표시(사용자 토글 불가)한다. 제출 시 선택한 labelId 배열만 전송한다.
  * - 편집 대상에 미연결(linked=false) 코드가 있으면 경고 배너로 재선택을 유도한다.
+ * - ★라벨마다 <b>AI 검출 클래스 매핑 여부</b>를 표시한다. 매핑되지 않은 라벨도 <b>고를 수 있다</b> —
+ *   선택을 막지 않는다. 나중에 라벨 관리에서 검출 클래스를 지정하면 그때부터 적용되는 동선을
+ *   닫지 않기 위해서다. 매핑 여부는 <b>서버가 라벨 항목마다 내려주는 값</b>(`dtctTypeCd`)을
+ *   그대로 쓰고 화면에서 다시 판정하지 않는다.
+ * - ★<b>라벨을 하나도 고르지 않고 저장할 수 있다</b>. 그것은 그 이벤트유형을 오토라벨링 대상에서
+ *   빼겠다는 선언이므로, 실수로 못 고른 것과 구분되도록 저장 <b>전에</b> 확인을 한 번 받는다.
+ *   ⚠ 이 확인은 아래 「전부 미매핑」 경고와 <b>서로 다른 상태</b>를 맡는다 — 그 경고는 라벨을 하나
+ *   이상 고른 프리셋의 것이고, 라벨이 비면 그 경고 대신 이 확인이 뜬다(둘이 함께 나오지 않는다).
  *
  * @design SCREEN-026
  * @design API-038
  * @design API-039
  * @design API-185
+ * @design AC-114
+ * @design AC-119
  */
 export function PresetEditModal({
   open,
@@ -86,6 +97,7 @@ export function PresetEditModal({
 
   const {
     handleSubmit,
+    getValues,
     reset,
     setValue,
     watch,
@@ -95,8 +107,20 @@ export function PresetEditModal({
     defaultValues: EMPTY_FORM,
   });
 
-  const selectedIds = watch('labelIds') ?? [];
+  // ⚠ `watch(...) ?? []` 를 그대로 쓰면 매 렌더마다 새 배열이 되어, 이 값을 dep 으로 삼는
+  //   useMemo 가 전혀 memo 되지 않는다(그리고 lint 가 그 사실을 경고한다).
+  const watchedLabelIds = watch('labelIds');
+  const selectedIds = useMemo(() => watchedLabelIds ?? [], [watchedLabelIds]);
   const eventTypeCd = watch('eventTypeCd') ?? '';
+  /**
+   * 「라벨 없이 저장 확인」 열림 여부.
+   *
+   * ★확인이 뜨는 동안 편집 모달은 <b>닫히지만 이 컴포넌트는 그대로 마운트된 채</b>다 — 폼 상태가
+   * 훅 안에 살아 있어 「돌아가서 라벨 고르기」로 되돌아오면 고른 이벤트유형과 선택 상태가 그대로다.
+   * ⚠ 두 모달을 <b>동시에</b> 띄우지 않는 이유: 둘 다 document 에 ESC·포커스 트랩 리스너를 걸어
+   *   ESC 한 번에 두 개가 함께 닫히고 트랩이 서로 다툰다.
+   */
+  const [confirmEmptyOpen, setConfirmEmptyOpen] = useState(false);
 
   // 활성 마스터만 정렬 노출 (useYn='Y', sortNo 오름차순).
   const activeMasters = useMemo(
@@ -130,8 +154,25 @@ export function PresetEditModal({
     [initial],
   );
 
+  /**
+   * 고른 라벨 가운데 <b>AI 검출 클래스에 매핑된 것이 하나도 없는지</b>.
+   *
+   * ★판정 재유도가 아니다 — 서버가 라벨마다 내려준 `dtctTypeCd` 의 유무를 그대로 읽는다.
+   * ⚠ 마스터 로딩 중에는 `selectedMasters` 가 비어 `every` 가 참이 되므로(빈 배열의 every 는 true)
+   *   <b>고른 라벨을 실제로 하나 이상 찾았을 때만</b> 판정한다 — 안 그러면 편집 진입 순간
+   *   "전부 미매핑" 경고가 잘못 뜬다.
+   */
+  const selectedMasters = useMemo(
+    () => activeMasters.filter((m) => selectedIds.includes(m.labelId)),
+    [activeMasters, selectedIds],
+  );
+  const allSelectedUnmapped =
+    selectedMasters.length > 0 && selectedMasters.every((m) => m.dtctTypeCd == null);
+
   useEffect(() => {
     if (!open) return;
+    // 모달을 새로 열 때 확인 창이 남아 있지 않게 한다.
+    setConfirmEmptyOpen(false);
     if (initial) {
       const linkedIds = initial.codes
         .filter((c): c is typeof c & { labelId: number } => c.linked && c.labelId != null)
@@ -163,19 +204,40 @@ export function PresetEditModal({
     setValue('labelIds', next, { shouldValidate: true, shouldDirty: true });
   };
 
-  const submit = handleSubmit((form) => {
+  const emit = (form: PresetFormValues) => {
     onSubmit({
       eventTypeCd: form.eventTypeCd,
       labelIds: form.labelIds,
     });
+  };
+
+  const submit = handleSubmit((form) => {
+    // 라벨을 하나도 고르지 않았으면 <b>저장 전에</b> 확인을 받는다 — 실수로 못 고른 것과
+    // 「오토라벨 대상에서 뺀다」는 선언을 사람이 여기서 가른다. 막는 것이 아니라 확인만 한다.
+    if (form.labelIds.length === 0) {
+      setConfirmEmptyOpen(true);
+      return;
+    }
+    emit(form);
   });
 
-  // 이벤트유형도 필수라 저장 조건에 포함한다 — 비운 채 저장하면 서버가 400 으로 되돌린다.
-  const saveDisabled = !!submitting || selectedIds.length === 0 || eventTypeCd === '';
+  /** 확인 창의 「라벨 없이 저장」 — 편집 모달이 준비한 요청을 그대로 이어 보낸다. */
+  const submitWithoutLabels = () => {
+    setConfirmEmptyOpen(false);
+    emit({ ...getValues(), labelIds: [] });
+  };
+
+  // 이벤트유형만 필수다 — 비운 채 저장하면 서버가 400 으로 되돌린다.
+  // ★라벨 개수는 더 이상 저장 조건이 아니다(구 `selectedIds.length === 0` 차단 폐기) —
+  //   라벨을 비우는 것이 정당한 선언이 됐고, 실수와의 구분은 확인 창이 맡는다.
+  const saveDisabled = !!submitting || eventTypeCd === '';
 
   return (
+    <>
     <Modal
-      open={open}
+      // 확인 창이 떠 있는 동안에는 편집 모달을 감춘다(두 모달을 겹치지 않는다).
+      // 이 컴포넌트 자체는 마운트된 채라 폼 상태는 그대로 유지된다.
+      open={open && !confirmEmptyOpen}
       onClose={onClose}
       size="lg"
       title={isEdit ? '프리셋 편집' : '새 프리셋 만들기'}
@@ -243,12 +305,9 @@ export function PresetEditModal({
           <div className="flex items-baseline justify-between gap-2">
             {/* 특정 입력 하나가 아니라 목록 전체의 제목이라 label 이 아니라 FieldTitle(div) 이다 —
                 아래 ul 이 aria-labelledby 로 이 id 를 가리킨다. */}
+            {/* ★필수 표식을 두지 않는다 — 라벨을 비우는 것이 정당한 선언이 됐다(하한 폐지). */}
             <FieldTitle className={FIELD_LABEL_CLASS} id="preset-labels-label">
               라벨 항목
-              <span aria-hidden="true" className="ml-0.5 text-danger-700">
-                *
-              </span>
-              <span className="sr-only"> (필수)</span>
             </FieldTitle>
             {/* 상한이 있는 선택이라 고른 개수가 목록보다 먼저 읽혀야 한다 — 숫자를 굵게 강조한다. */}
             <span className={FIELD_HELP_CLASS} data-testid="preset-labels-count">
@@ -260,7 +319,8 @@ export function PresetEditModal({
           </div>
           <p className={FIELD_HELP_CLASS}>
             활성 라벨 마스터를 정렬순으로 나열했습니다. 형태는 라벨 마스터가 소유하는 읽기 전용
-            값이라 여기서는 변경할 수 없습니다. 최소 1개~최대 {LABEL_IDS_MAX_COUNT}개 선택.
+            값이라 여기서는 변경할 수 없습니다. 최대 {LABEL_IDS_MAX_COUNT}개까지 선택할 수 있고,
+            하나도 고르지 않으면 이 이벤트유형은 오토라벨링 대상에서 빠집니다.
           </p>
 
           {/* 미연결 안내 (편집 시) — 오류가 아니라 "저장 시 자동 제외"를 알리는 정보 배너다. */}
@@ -280,6 +340,25 @@ export function PresetEditModal({
                 </ul>
                 <p>저장 시 이 항목은 자동으로 제외됩니다. 필요한 라벨을 아래에서 다시 선택하세요.</p>
               </div>
+            </div>
+          )}
+
+          {/* 전부 미매핑 경고 — 저장을 <b>막지 않는다</b>. 저장 버튼은 그대로 활성이고 저장은
+              성공한다. 나중에 라벨 마스터에 검출 클래스를 지정하면 그때부터 적용되는 동선을 닫지
+              않기 위해서다. 문구는 사양 SCREEN-026 확정값이라 임의로 다듬지 말 것.
+              ⚠ 라벨을 하나도 고르지 않은 상태에서는 뜨지 않는다 — 그 상태는 「라벨 없이 저장 확인」이
+                맡는 <b>다른 상태</b>이고, 둘이 함께 나오면 사고와 선언이 뒤섞여 읽힌다. */}
+          {allSelectedUnmapped && (
+            <div
+              className="flex items-start gap-2 rounded-md border border-warning-200 bg-warning-50 px-4 py-3 text-body-sm text-warning-700"
+              role="alert"
+              data-testid="preset-unmapped-warning"
+            >
+              <AlertCircle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p className="min-w-0">
+                담긴 라벨이 모두 AI 검출 클래스에 매핑되어 있지 않아 이 프리셋은 오토라벨링에
+                적용되지 않습니다. 라벨 관리 화면에서 검출 클래스를 지정하면 그때부터 적용됩니다.
+              </p>
             </div>
           )}
 
@@ -335,6 +414,18 @@ export function PresetEditModal({
                           aria-hidden="true"
                         />
                         <span className="min-w-0 flex-1 truncate text-gray-900">{m.name}</span>
+                        {/* AI 검출 클래스 미매핑 표시 — 어느 라벨이 오토라벨 대상이 아닌지 짚어 준다.
+                            판정은 서버가 라벨마다 내려준 `dtctTypeCd` 의 유무 그대로다(재판정 금지).
+                            ★표시일 뿐 선택을 막지 않는다 — 나중에 매핑을 지정하면 적용된다.
+                            대비: warning-700/warning-50 8.43:1(AA 이상), 글자가 곧 뜻이라 색 단독 아님. */}
+                        {m.dtctTypeCd == null && (
+                          <span
+                            data-testid={`preset-label-unmapped-${m.labelId}`}
+                            className="shrink-0 rounded-sm bg-warning-50 px-1.5 text-caption font-semibold text-warning-700"
+                          >
+                            AI 미매핑
+                          </span>
+                        )}
                         <span className="shrink-0 rounded-sm border border-gray-200 bg-white px-1.5 text-caption font-semibold text-gray-600">
                           {TYPE_LABEL[m.type]}
                         </span>
@@ -355,5 +446,23 @@ export function PresetEditModal({
         </div>
       </form>
     </Modal>
+
+    {/* 「라벨 없이 저장 확인」 — 라벨을 비우는 것은 그 이벤트유형을 오토라벨링 대상에서 빼겠다는
+        선언이라, 실수로 못 고른 것과 일부러 비운 것을 사람이 여기서 구분한다. 막지 않는다.
+        ★문구(제목·본문·버튼)는 사양 SCREEN-026 확정값이다 — 임의로 다듬지 말 것. 특히 본문의
+          "보류되지 않고" 는 반드시 남긴다: 라벨을 담았는데 적용되지 않는 상태(보류)와 달리
+          이쪽은 배치가 멈추지 않는다는 것이 두 상태를 가르는 핵심이다. */}
+    <ConfirmDialog
+      open={confirmEmptyOpen}
+      title="라벨을 하나도 고르지 않았습니다"
+      description="이대로 저장하면 이 이벤트유형은 오토라벨링 대상에서 빠집니다. 해당 유형의 영상은 보류되지 않고 배치가 그대로 완료되며 오토라벨링만 건너뜁니다. 의도한 선택이 맞습니까?"
+      confirmLabel="라벨 없이 저장"
+      cancelLabel="돌아가서 라벨 고르기"
+      loading={submitting}
+      onConfirm={submitWithoutLabels}
+      // 되돌아가면 편집 모달이 다시 뜬다 — 고른 이벤트유형과 선택 상태는 그대로다.
+      onCancel={() => setConfirmEmptyOpen(false)}
+    />
+    </>
   );
 }

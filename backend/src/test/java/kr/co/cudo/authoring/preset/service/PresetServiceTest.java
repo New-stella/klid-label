@@ -1,5 +1,9 @@
 package kr.co.cudo.authoring.preset.service;
 
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.policy.PresetResolutionStatus;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.eventtype.service.EventTypeService;
@@ -9,10 +13,12 @@ import kr.co.cudo.authoring.preset.dto.PresetCodeView;
 import kr.co.cudo.authoring.preset.dto.PresetView;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset;
 import kr.co.cudo.authoring.preset.entity.LsLabelPreset.LabelCodeSpec;
+import kr.co.cudo.authoring.preset.event.PresetLabelsChangedEvent;
 import kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Collection;
@@ -27,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -65,21 +72,34 @@ class PresetServiceTest {
             EV_EXCLUDED, "배회",
             EV_NOT_COLLECTED, "기타 상황");
 
-    /** 활성 마스터 라벨 레지스트리 (id → 라벨명/형태). */
+    /** 활성 마스터 라벨 레지스트리 (id → 라벨명/형태/검출 클래스 매핑). */
     private static final Map<Long, LabelMasterResponse> KNOWN_LABELS = Map.of(
             10L, master(10L, "PERSON", "BBOX"),
             11L, master(11L, "VEHICLE", "POLYGON"),
             12L, master(12L, "HEAD", "POINT"),
-            13L, master(13L, "POSE", "SKELETON")
+            13L, master(13L, "POSE", "SKELETON"),
+            // 검출 클래스(COCO)에 매핑된 라벨 — 미매핑(위 4건)과 갈라 보기 위한 것.
+            14L, master(14L, "사람", "BBOX", "person")
     );
 
     private LsLabelPresetRepository repository;
     private EventTypeService eventTypeService;
     private LabelMasterService labelMasterService;
+    private PresetLabelLookupService presetLabelLookupService;
+    private ApplicationEventPublisher eventPublisher;
     private PresetService service;
 
     private static LabelMasterResponse master(long id, String name, String type) {
-        return new LabelMasterResponse(id, name, "#FF0000", type, 0, "Y", null);
+        return master(id, name, type, null);
+    }
+
+    private static LabelMasterResponse master(long id, String name, String type, String dtctTypeCd) {
+        return new LabelMasterResponse(id, name, "#FF0000", type, 0, "Y", dtctTypeCd);
+    }
+
+    /** 실효 판정 스텁 — 프리셋 도메인이 재유도하지 않고 이 값을 그대로 싣는지 보기 위한 것. */
+    private static PresetResolution resolved() {
+        return PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, false)));
     }
 
     @BeforeEach
@@ -106,7 +126,13 @@ class PresetServiceTest {
                     }
                     return out;
                 });
-        service = new PresetService(repository, eventTypeService, labelMasterService);
+        presetLabelLookupService = mock(PresetLabelLookupService.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        // 기본은 「실효하지 않음」 — 실효를 보는 시험만 개별로 덮어쓴다.
+        lenient().when(presetLabelLookupService.resolve(any()))
+                .thenReturn(PresetResolution.of(PresetResolutionStatus.PRESET_ABSENT));
+        service = new PresetService(repository, eventTypeService, labelMasterService,
+                presetLabelLookupService, eventPublisher);
     }
 
     private void stubSaveEcho() {
@@ -498,6 +524,205 @@ class PresetServiceTest {
         // 프리셋이 2건이어도 이벤트 표시명 맵은 단 1회 조회(프리셋별 개별 조회 금지).
         verify(eventTypeService, times(1)).codeLabelMap();
         verify(eventTypeService, never()).resolveLabel(anyString());
+    }
+
+    // ----- CO-014 (1): 라벨 하한 폐지 — 0건은 「오토라벨 제외 선언」이라 저장에 성공한다 -----
+
+    @Test
+    @DisplayName("create_라벨을_하나도_담지_않아도_저장에_성공한다_오토라벨_제외_선언")
+    void createWithNoLabelsSucceedsAsAutolabelExclusion() {
+        stubSaveEcho();
+
+        PresetView saved = service.create(List.of(), EV_FIRE);
+
+        assertThat(saved.eventTypeCd()).isEqualTo(EV_FIRE);
+        assertThat(saved.codes()).isEmpty();
+        verify(repository, times(1)).saveAndFlush(any(LsLabelPreset.class));
+    }
+
+    @Test
+    @DisplayName("create_라벨_목록이_null_이어도_저장에_성공한다")
+    void createWithNullLabelsSucceeds() {
+        stubSaveEcho();
+
+        assertThat(service.create(null, EV_FIRE).codes()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("update_라벨을_모두_비우면_기존_코드가_전부_사라지고_저장에_성공한다")
+    void updateClearingAllLabelsSucceeds() {
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                List.of(new LabelCodeSpec(10L, null), new LabelCodeSpec(11L, null)), EV_FLOOD);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        stubSaveEcho();
+
+        PresetView updated = service.update(1L, List.of(), EV_FLOOD);
+
+        assertThat(updated.codes()).isEmpty();
+        assertThat(existing.getCodes()).as("이미 만든 프리셋을 오토라벨 제외로 바꾸는 동선").isEmpty();
+    }
+
+    @Test
+    @DisplayName("라벨_0건이어도_이벤트유형_검증은_그대로다")
+    void emptyLabelsStillRequireRegisteredEvent() {
+        assertThatThrownBy(() -> service.create(List.of(), EV_UNREGISTERED))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        assertThatThrownBy(() -> service.create(List.of(), "  "))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(repository, never()).saveAndFlush(any(LsLabelPreset.class));
+    }
+
+    @Test
+    @DisplayName("검출_클래스에_매핑된_라벨이_하나도_없어도_저장은_거부되지_않는다")
+    void unmappedLabelsDoNotBlockSave() {
+        // 10L(PERSON) 은 dtctTypeCd 가 없다 — 그래도 400 이 아니다(나중에 마스터에 매핑을 넣으면 실효한다).
+        stubSaveEcho();
+
+        PresetView saved = service.create(List.of(10L), EV_FIRE);
+
+        assertThat(saved.codes()).hasSize(1);
+        assertThat(saved.codes().get(0).dtctTypeCd()).isNull();
+    }
+
+    // ----- CO-014 (2): 등록·수정은 재개 트리거를 발행하고 삭제는 발행하지 않는다 -----
+
+    @Test
+    @DisplayName("create_성공시_그_이벤트유형으로_재개_트리거가_발행된다")
+    void createPublishesResumeTrigger() {
+        stubSaveEcho();
+
+        service.create(List.of(10L), EV_FIRE);
+
+        verify(eventPublisher, times(1)).publishEvent(new PresetLabelsChangedEvent(EV_FIRE));
+    }
+
+    @Test
+    @DisplayName("update_성공시_재매핑된_새_이벤트유형으로_재개_트리거가_발행된다")
+    void updatePublishesResumeTriggerForNewEvent() {
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                List.of(new LabelCodeSpec(10L, null)), EV_FLOOD);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.existsByEventTypeCdAndPresetIdNot(EV_FIRE, 1L)).thenReturn(false);
+        stubSaveEcho();
+
+        service.update(1L, List.of(14L), EV_FIRE);
+
+        // 떠난 유형(EV_FLOOD)은 프리셋이 사라진 셈이라 보류 조건이 성립한다 — 깨울 것이 없다.
+        verify(eventPublisher, times(1)).publishEvent(new PresetLabelsChangedEvent(EV_FIRE));
+        verify(eventPublisher, never()).publishEvent(new PresetLabelsChangedEvent(EV_FLOOD));
+    }
+
+    @Test
+    @DisplayName("delete_는_재개_트리거를_발행하지_않는다")
+    void deleteDoesNotPublishResumeTrigger() {
+        when(repository.existsById(1L)).thenReturn(true);
+
+        service.delete(1L);
+
+        // 프리셋이 사라지면 오히려 보류 조건이 성립한다 — 발행하면 돌았다가 스스로 다시 보류하는 헛일이다.
+        verify(eventPublisher, never()).publishEvent(any(PresetLabelsChangedEvent.class));
+    }
+
+    @Test
+    @DisplayName("재개_트리거_발행이_실패해도_프리셋_저장은_되돌아가지_않는다")
+    void publishFailureDoesNotBreakSave() {
+        stubSaveEcho();
+        doThrow(new IllegalStateException("listener boom"))
+                .when(eventPublisher).publishEvent(any(PresetLabelsChangedEvent.class));
+
+        PresetView saved = service.create(List.of(10L), EV_FIRE);
+
+        assertThat(saved.eventTypeCd()).isEqualTo(EV_FIRE);
+        verify(repository, times(1)).saveAndFlush(any(LsLabelPreset.class));
+    }
+
+    // ----- CO-014 (3): 실효 여부·검출 클래스 매핑을 응답에 싣는다 -----
+
+    @Test
+    @DisplayName("effective_는_오토라벨_보류_판정을_그대로_싣는다_프리셋이_재유도하지_않는다")
+    void effectiveDelegatesToAutolabelResolution() {
+        stubSaveEcho();
+        // 담긴 라벨(10L)은 검출 클래스 미매핑이지만 판정기는 실효라고 답한다. 프리셋이 스스로
+        //   라벨을 훑어 재유도했다면 이 단언은 깨진다 — 판정 지점이 하나임을 고정한다.
+        when(presetLabelLookupService.resolve(EV_FIRE)).thenReturn(resolved());
+
+        assertThat(service.create(List.of(10L), EV_FIRE).effective()).isTrue();
+        verify(presetLabelLookupService, times(1)).resolve(EV_FIRE);
+    }
+
+    @Test
+    @DisplayName("effective_판정기가_보류라고_답하면_false_다")
+    void effectiveIsFalseWhenWithheld() {
+        stubSaveEcho();
+        when(presetLabelLookupService.resolve(EV_FIRE))
+                .thenReturn(PresetResolution.of(PresetResolutionStatus.PRESET_UNMAPPED));
+
+        assertThat(service.create(List.of(14L), EV_FIRE).effective()).isFalse();
+    }
+
+    @Test
+    @DisplayName("list_각_프리셋의_effective_가_판정기_결과로_채워진다")
+    void listFillsEffectivePerPreset() {
+        when(repository.findAllWithCodes())
+                .thenReturn(List.of(presetOn(EV_FLOOD, 14L), presetOn(EV_FIRE, 10L)));
+        when(presetLabelLookupService.resolve(EV_FLOOD)).thenReturn(resolved());
+        when(presetLabelLookupService.resolve(EV_FIRE))
+                .thenReturn(PresetResolution.of(PresetResolutionStatus.PRESET_UNMAPPED));
+
+        List<PresetView> views = service.list();
+
+        assertThat(views).extracting(PresetView::effective).containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("update_도_effective_를_싣는다")
+    void updateFillsEffective() {
+        LsLabelPreset existing = LsLabelPreset.createWithOptions(
+                List.of(new LabelCodeSpec(10L, null)), EV_FLOOD);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(presetLabelLookupService.resolve(EV_FLOOD)).thenReturn(resolved());
+        stubSaveEcho();
+
+        assertThat(service.update(1L, List.of(14L), EV_FLOOD).effective()).isTrue();
+    }
+
+    @Test
+    @DisplayName("검출_클래스에_매핑된_라벨은_dtctTypeCd_가_코드값으로_실린다")
+    void mappedLabelCarriesDetectionClassCode() {
+        PresetCodeView view = codeViewFor(14L);
+
+        // 불리언이 아니라 코드값이다 — 라벨 마스터 조회와 표현을 맞춘다.
+        assertThat(view.dtctTypeCd()).isEqualTo("person");
+    }
+
+    @Test
+    @DisplayName("검출_클래스에_매핑되지_않은_라벨의_dtctTypeCd_는_null_이다")
+    void unmappedLabelCarriesNullDetectionClassCode() {
+        assertThat(codeViewFor(10L).dtctTypeCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("미연결_레거시_코드의_dtctTypeCd_는_null_이다")
+    void unlinkedCodeCarriesNullDetectionClassCode() {
+        when(repository.findAllWithCodes())
+                .thenReturn(List.of(LsLabelPreset.create(List.of("OLD_CODE"), EV_FLOOD)));
+
+        assertThat(service.list().get(0).codes().get(0).dtctTypeCd()).isNull();
+    }
+
+    @Test
+    @DisplayName("마스터에_매핑을_넣으면_기존_프리셋의_dtctTypeCd_가_즉시_바뀐다_스냅샷_아님")
+    void detectionClassMappingIsReadLive() {
+        when(repository.findAllWithCodes()).thenReturn(List.of(presetOn(EV_FLOOD, 10L)));
+        // 마스터가 매핑을 갖고 돌아오도록 오버라이드 — 프리셋은 스냅샷하지 않고 그 값을 그대로 싣는다.
+        when(labelMasterService.findActiveByIds(anyCollection()))
+                .thenReturn(Map.of(10L, master(10L, "PERSON", "BBOX", "car")));
+
+        assertThat(service.list().get(0).codes().get(0).dtctTypeCd()).isEqualTo("car");
     }
 
     // ----- helper -----

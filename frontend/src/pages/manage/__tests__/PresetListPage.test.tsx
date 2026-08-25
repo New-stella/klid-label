@@ -305,3 +305,197 @@ describe('PresetListPage', () => {
     expect(screen.queryByTestId('preset-title-100')).toBeNull();
   });
 });
+
+/**
+ * CO-014 — 프리셋이 없거나 무효인 이벤트유형의 영상은 오토라벨링이 <b>보류</b>된다.
+ * 그래서 목록이 두 가지를 갈라 보여줘야 한다.
+ *
+ *  - 「오토라벨 미적용」 : 라벨은 담았는데 전부 AI 검출 클래스 미매핑이라 <b>적용되지 않는</b> 상태.
+ *    운영자는 기준을 걸었다고 믿는데 실제로는 걸리지 않은 <b>사고</b>다.
+ *  - 「오토라벨 제외」   : 라벨을 하나도 담지 않아 그 유형을 오토라벨 대상에서 <b>뺀</b> 선언.
+ *
+ * ★두 배지는 <b>한 카드에 함께 붙지 않는다</b>. 판정 축이 다르기 때문이다 — 앞은 서버가 준 실효
+ *   여부, 뒤는 라벨 건수다. 라벨 0건 프리셋도 서버는 실효하지 않는다고 내려주므로, 실효 여부만으로
+ *   가르면 둘이 같은 카드에 붙는다.
+ *
+ * @design SCREEN-026, API-037, API-038, AC-114, AC-119
+ */
+describe('PresetListPage — 오토라벨 배지·저장 안내 (CO-014)', () => {
+  let mock: MockAdapter;
+
+  const MASTERS = [
+    { labelId: 10, name: '사람', color: '#EF4444', type: 'BBOX', sortNo: 1, useYn: 'Y', dtctTypeCd: 'person' },
+    { labelId: 20, name: '차량', color: '#3B82F6', type: 'POLYGON', sortNo: 2, useYn: 'Y', dtctTypeCd: null },
+  ];
+  const ADMIN_EVENT_TYPES = [
+    { evntTypeCd: 'EV02000101', dsplNm: '화재', dsplNmSource: 'category', clctYn: 'Y' },
+  ];
+
+  const presetJson = (over: Record<string, unknown> = {}) => ({
+    id: 1,
+    labelCodes: ['사람'],
+    labelCodeOptions: [
+      {
+        labelId: 10,
+        code: null,
+        labelName: '사람',
+        labelType: 'BBOX',
+        linked: true,
+        bboxEnabled: true,
+        polygonEnabled: false,
+        dtctTypeCd: 'person',
+      },
+    ],
+    eventTypeCd: 'EV02000101',
+    eventTypeNm: '화재',
+    createdAt: '2026-06-01T00:00:00',
+    updatedAt: '2026-06-01T00:00:00',
+    effective: true,
+    ...over,
+  });
+
+  beforeEach(() => {
+    mock = new MockAdapter(apiClient);
+    mock.onGet('/manage/labels').reply(200, ok(MASTERS));
+    mock.onGet('/manage/event-types').reply(200, ok(ADMIN_EVENT_TYPES));
+    useAuthStore.setState({
+      claims: { sub: 'u', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
+    });
+    useUiStore.setState({ toasts: [] });
+  });
+
+  afterEach(() => {
+    mock.restore();
+    useAuthStore.getState().clear();
+    useUiStore.setState({ toasts: [] });
+  });
+
+  // ── 카드 배지 ───────────────────────────────────────────────────────
+
+  it('★라벨은_담았는데_실효하지_않으면_오토라벨_미적용_배지가_붙는다', async () => {
+    mock.onGet('/manage/presets').reply(200, ok([presetJson({ effective: false })]));
+
+    renderWithProviders(<PresetListPage />);
+
+    const badge = await screen.findByTestId('preset-badge-1');
+    expect(badge).toHaveTextContent('오토라벨 미적용');
+    // 보조 안내 문구는 사양 확정값이다 — 배지 글자만으로는 "그래서 어떻게 되는가"가 안 드러난다.
+    expect(badge).toHaveAttribute('title', '이 프리셋은 오토라벨링에 적용되지 않습니다');
+  });
+
+  it('★라벨이_0건이면_오토라벨_제외_배지가_붙고_미적용_배지는_붙지_않는다', async () => {
+    // 서버는 라벨 0건 프리셋도 실효하지 않는다(effective=false)고 내려준다 — 그래서 실효 여부만
+    // 보면 두 배지가 함께 붙는다. 라벨 건수를 먼저 보는 것이 그 배타를 만든다.
+    mock.onGet('/manage/presets').reply(
+      200,
+      ok([presetJson({ labelCodes: [], labelCodeOptions: [], effective: false })]),
+    );
+
+    renderWithProviders(<PresetListPage />);
+
+    const badge = await screen.findByTestId('preset-badge-1');
+    expect(badge).toHaveTextContent('오토라벨 제외');
+    expect(badge).toHaveAttribute(
+      'title',
+      '이 이벤트유형은 오토라벨링을 하지 않도록 지정되어 있습니다',
+    );
+    expect(screen.queryByText('오토라벨 미적용')).toBeNull();
+  });
+
+  it('실효하는_프리셋에는_배지가_붙지_않는다', async () => {
+    mock.onGet('/manage/presets').reply(200, ok([presetJson({ effective: true })]));
+
+    renderWithProviders(<PresetListPage />);
+    await screen.findByTestId('preset-title-1');
+
+    expect(screen.queryByTestId('preset-badge-1')).toBeNull();
+  });
+
+  it('★실효_여부가_응답에_없으면_경고를_지어내지_않는다', async () => {
+    // 구 서버·부분 응답. 모르는 상태를 "적용되지 않는다"고 단정하면 멀쩡한 프리셋 전건에 경고가 붙는다.
+    const withoutEffective: Record<string, unknown> = { ...presetJson() };
+    delete withoutEffective.effective;
+    mock.onGet('/manage/presets').reply(200, ok([withoutEffective]));
+
+    renderWithProviders(<PresetListPage />);
+    await screen.findByTestId('preset-title-1');
+
+    expect(screen.queryByTestId('preset-badge-1')).toBeNull();
+  });
+
+  // ── 저장 성공 안내 ──────────────────────────────────────────────────
+
+  it('★라벨_없이_저장하면_오토라벨에서_빠진다는_사실을_안내한다', async () => {
+    mock.onGet('/manage/presets').reply(200, ok([]));
+    let sentBody: Record<string, unknown> = {};
+    mock.onPost('/manage/presets').reply((config) => {
+      sentBody = JSON.parse(config.data as string) as Record<string, unknown>;
+      return [
+        201,
+        ok(presetJson({ labelCodes: [], labelCodeOptions: [], effective: false })),
+      ];
+    });
+
+    const user = userEvent.setup();
+    renderWithProviders(<PresetListPage />);
+    await user.click(await screen.findByRole('button', { name: '프리셋 추가' }));
+    await user.click(await screen.findByLabelText(/이벤트유형/));
+    await user.click(await screen.findByRole('option', { name: '화재 (EV02000101)' }));
+    await user.click(screen.getByText('만들기'));
+    // 라벨이 비었으므로 저장 전에 확인을 받는다.
+    await user.click(await screen.findByRole('button', { name: '라벨 없이 저장' }));
+
+    // then ①: 라벨 목록을 비워서 보낸다(키 자체는 남는다 — 전체 교체 계약)
+    await waitFor(() => expect(mock.history.post).toHaveLength(1));
+    expect(sentBody).toMatchObject({ eventTypeCd: 'EV02000101', labelIds: [] });
+
+    // then ②: 안내 문구는 사양 확정값이다
+    await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
+    const toast = useUiStore.getState().toasts[0]!;
+    expect(toast.variant).toBe('success');
+    expect(toast.message).toBe(
+      '프리셋을 저장했습니다. 이 이벤트유형은 오토라벨링 대상에서 빠집니다.',
+    );
+  });
+
+  it('★담긴_라벨이_전부_미매핑이면_저장은_성공하고_적용되지_않는다는_사실을_함께_알린다', async () => {
+    mock.onGet('/manage/presets').reply(200, ok([]));
+    mock.onPost('/manage/presets').reply(
+      201,
+      ok(
+        presetJson({
+          labelCodes: ['차량'],
+          labelCodeOptions: [
+            {
+              labelId: 20,
+              code: null,
+              labelName: '차량',
+              labelType: 'POLYGON',
+              linked: true,
+              bboxEnabled: false,
+              polygonEnabled: true,
+              dtctTypeCd: null,
+            },
+          ],
+          effective: false,
+        }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<PresetListPage />);
+    await user.click(await screen.findByRole('button', { name: '프리셋 추가' }));
+    await user.click(await screen.findByRole('checkbox', { name: /차량/ }));
+    await user.click(screen.getByLabelText(/이벤트유형/));
+    await user.click(await screen.findByRole('option', { name: '화재 (EV02000101)' }));
+    await user.click(screen.getByText('만들기'));
+
+    // 라벨을 하나 골랐으므로 확인 창은 뜨지 않고 곧바로 저장된다.
+    await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
+    const toast = useUiStore.getState().toasts[0]!;
+    expect(toast.variant).toBe('success');
+    // 저장은 <성공>이다 — 막지 않는다. 다만 적용되지 않는다는 사실을 함께 알린다.
+    expect(toast.message).toContain('프리셋을 추가했습니다');
+    expect(toast.message).toContain('오토라벨링에 적용되지 않습니다');
+  });
+});

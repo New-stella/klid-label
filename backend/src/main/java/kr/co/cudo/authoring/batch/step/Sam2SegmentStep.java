@@ -9,6 +9,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -66,7 +67,9 @@ import java.util.Set;
  * <ul>
  *   <li>라벨별 {@code polygon=false} 면 SAM2 호출 skip + WARN 로그.
  *       (Phase 1 의 (false,false) 거부로 정상 흐름에서는 발생하지 않으나 방어 코드.)</li>
- *   <li>togglesFor empty (매핑 없음) → 모든 라벨이 {@link AnnotationToggle#BOTH} 로 처리 (기존 동작).</li>
+ *   <li>프리셋이 실효하지 않으면(보류·오토라벨 제외) <b>어떤 라벨도 통과시키지 않는다</b> —
+ *       구 fail-open(전 라벨 BOTH 처리)은 폐기됐다. 정상 흐름에서는 앞선 탐지 단계가 이미
+ *       보류·제외로 끝내므로 이 방어가 발동하지 않는다. [@design ADR-054] [@design AC-119]</li>
  * </ul>
  * <p>
  * NEW-H1 — mock 응답 fail-closed(YOLO 게이트의 형제 결함):
@@ -155,11 +158,18 @@ public class Sam2SegmentStep implements BatchStep {
         }
         List<BbHint> hints = upstreamHints == null ? List.of() : upstreamHints;
 
-        // 이벤트 타입별 프리셋 토글 조회 (fail-safe: 미매핑이면 모든 라벨 BOTH 처리)
+        // 이벤트 타입별 프리셋 토글 조회. ★fail-open 폐기 — 실효하지 않으면 빈 맵이라 어떤 라벨도
+        //   통과하지 않는다(구 구현은 전 라벨 BOTH 로 열어 저장 기준 없이 폴리곤을 만들었다).
+        //   오토라벨 제외 선언(라벨 0건 프리셋)에서 이 단계가 아무것도 만들지 않아야 하는 것도 같은 축이다.
         String eventTypeCd = videoRepository.findById(rawSn)
                 .map(LsDataRaw::getEvntTypeCd)
                 .orElse(null);
-        Optional<Map<String, AnnotationToggle>> togglesOpt = presetLabelLookup.togglesFor(eventTypeCd);
+        PresetResolution preset = presetLabelLookup.resolve(eventTypeCd);
+        Map<String, AnnotationToggle> toggles = preset.toggles();
+        if (!preset.isResolved()) {
+            log.info("[Batch][Sam2] preset not effective — no label passes rawSn={} status={}",
+                    rawSn, preset.status());
+        }
 
         // srcSn → upstream hint list (프레임 단위 빠른 조회)
         Map<Long, List<BbHint>> hintsBySrc = groupHintsBySrc(hints);
@@ -197,7 +207,7 @@ public class Sam2SegmentStep implements BatchStep {
             // B-ISSUE-42 — 이 프레임의 저장 대기 폴리곤. job 마다 save() 하지 않고 프레임 끝에서 saveAll() 한다.
             List<AutoLabelBatchPersister.PendingLabel> pending = new ArrayList<>();
             for (SegmentJob job : jobs) {
-                AnnotationToggle toggle = resolveToggle(togglesOpt, job.label);
+                AnnotationToggle toggle = resolveToggle(toggles, job.label);
                 if (toggle == null) {
                     // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거 (방어)
                     continue;
@@ -355,17 +365,13 @@ public class Sam2SegmentStep implements BatchStep {
         return bySrc;
     }
 
-    private static AnnotationToggle resolveToggle(Optional<Map<String, AnnotationToggle>> togglesOpt,
-                                                  String rawLabel) {
-        if (togglesOpt.isEmpty()) {
-            return AnnotationToggle.BOTH;
-        }
+    private static AnnotationToggle resolveToggle(Map<String, AnnotationToggle> toggles, String rawLabel) {
         if (rawLabel == null) {
             return null;
         }
         // Phase 4: 토글 맵 키(마스터 검출유형 DTCT_TYPE_CD, COCO 축 정규화)와 동일 규칙으로 검출 라벨을 정규화해 축을 일치시킨다.
-        String normalized = PresetLabelLookupService.normalizeLabelKey(rawLabel);
-        return togglesOpt.get().get(normalized);
+        // ⚠ 맵에 없으면 null — 저장하지 않는다. 구 "맵이 비었으면 전량 허용" 폴백은 폐기됐다. [@design ADR-054]
+        return toggles.get(PresetLabelLookupService.normalizeLabelKey(rawLabel));
     }
 
     /**

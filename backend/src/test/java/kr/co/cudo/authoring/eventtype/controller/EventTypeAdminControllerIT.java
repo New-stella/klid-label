@@ -365,4 +365,64 @@ class EventTypeAdminControllerIT {
                 .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + code + "')].dsplNmSource")
                         .value("control"));
     }
+
+    // ------------------------------------------------------------ 프리셋 연결 상태 (API-185)
+
+    @Test
+    @DisplayName("목록은_프리셋_연결_상태를_함께_내려준다")
+    void 목록은_프리셋_연결_상태를_함께_내려준다() throws Exception {
+        // given — 프리셋을 걸어 둔 적 없는 유형(관제가 새로 보낸 유형의 기본 상태)
+        String code = PREFIX + "PL";
+        autoRegistrar.register(code, "연결상태확인유형", "01", null);
+
+        // when / then — 저장 컬럼이 아니라 프리셋 해석 결과에서 파생한 값이 실린다
+        mockMvc.perform(get(BASE).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.evntTypeCd=='" + code + "')].presetLinkStatus")
+                        .value("UNLINKED"));
+    }
+
+    @Test
+    @DisplayName("연결_상태로_거를_수_있고_미지정이면_전체다")
+    void 연결_상태로_거를_수_있고_미지정이면_전체다() throws Exception {
+        // given
+        String code = PREFIX + "FT";
+        autoRegistrar.register(code, "거르기확인유형", "01", null);
+        String selector = "$.data[?(@.evntTypeCd=='" + code + "')]";
+
+        // when / then — ① 미지정: 기존 호출 그대로 전체가 나온다(서버 기본값 없음 — 하위호환)
+        mockMvc.perform(get(BASE).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(selector).exists());
+
+        // ② 그 상태로 거르면 남는다
+        mockMvc.perform(get(BASE).param("presetLinkStatus", "UNLINKED")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(selector).exists());
+
+        // ③ 다른 상태로 거르면 빠진다
+        mockMvc.perform(get(BASE).param("presetLinkStatus", "LINKED")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(selector).doesNotExist());
+
+        // ④ ★WITHHELD — 보류를 유발하는 상태 전체. 미연결은 보류이므로 남는다.
+        //    이 값이 무엇을 포함하는지는 서버가 소유한다(화면이 상태를 조합하지 않는다).
+        mockMvc.perform(get(BASE).param("presetLinkStatus", "WITHHELD")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(selector).exists());
+    }
+
+    @Test
+    @DisplayName("허용값_밖의_연결_상태_거르기는_400이며_입력_원문을_되돌려주지_않는다")
+    void 허용값_밖의_연결_상태_거르기는_400() throws Exception {
+        mockMvc.perform(get(BASE).param("presetLinkStatus", "NOSUCHSTATE")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                // CWE-209 — 거부 사유에 사용자 입력 원문을 싣지 않는다(파라미터 이름까지만)
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("NOSUCHSTATE"))));
+    }
 }

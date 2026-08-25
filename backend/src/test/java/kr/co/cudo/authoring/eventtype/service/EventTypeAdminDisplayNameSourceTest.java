@@ -1,5 +1,8 @@
 package kr.co.cudo.authoring.eventtype.service;
 
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.policy.PresetResolutionStatus;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeAdminResponse;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeUpdateRequest;
 import kr.co.cudo.authoring.eventtype.entity.LsEvntType;
@@ -52,10 +55,16 @@ class EventTypeAdminDisplayNameSourceTest {
         repository = mock(LsEvntTypeRepository.class);
         eventTypeService = mock(EventTypeService.class);
         EventTypeCacheEvictor evictor = mock(EventTypeCacheEvictor.class);
-        service = new EventTypeAdminService(repository, evictor, eventTypeService);
+        PresetLabelLookupService presetLookup = mock(PresetLabelLookupService.class);
+        service = new EventTypeAdminService(repository, evictor, eventTypeService, presetLookup);
         // 기본은 카테고리명이 있는 환경 — 개별 테스트에서 필요 시 빈 인덱스로 재스텁한다.
         lenient().when(eventTypeService.categoryNameIndex())
                 .thenReturn(Map.of(CATEGORY_KEY, CATEGORY_NM));
+        // 이 테스트의 관심사는 표시명 출처뿐이다. 프리셋 축은 목록 경로가 반드시 지나가므로
+        //   판정 불가(미등록)로 고정해 둔다 — 값을 안 주면 NPE 로 표시명 검증이 가려진다.
+        lenient().when(eventTypeService.filterKeyOf(CODE)).thenReturn(Optional.of(CODE));
+        lenient().when(presetLookup.resolve(CODE))
+                .thenReturn(PresetResolution.of(PresetResolutionStatus.PRESET_ABSENT));
     }
 
     /**

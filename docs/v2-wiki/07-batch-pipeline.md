@@ -54,13 +54,38 @@
 | post-marking | 마킹 로드 | `MarkingLoadStep` | 마킹 결과(`LS_MARKING`)를 컨텍스트에 적재 |
 | post-marking | VLM 시계열 | `VlmTimeseriesStep` | 외부 VLM **논블로킹 제출**(선커밋 → subscribe 후 즉시 반환 — ACK 도 기다리지 않는다), ACK/실패는 완료 핸들러가 전용 풀에서 기록, 결과 상세는 콜백 → [09 §9.2-3](09-vlm-timeseries.md) |
 | post-marking | 프레임 추출 | `FfmpegFrameExtractor` | 마킹 위치 기반 **원본+비식별 2벌** 추출. 비식별 경로는 `LsDeidentProcLog` 에서 self-lookup(호출자 인자 미전달) |
-| post-marking | YOLO | `YoloAutolabelStep` | **원본만** 객체 탐지, 프리셋 필터, track_id 부여 |
+| post-marking | YOLO | `YoloAutolabelStep` | **원본만** 객체 탐지, 프리셋 필터, track_id 부여. ⚠ **프리셋을 특정하지 못하거나 실효하지 않으면 오토라벨 묶음 전체를 보류**한다 → §7.3-1 |
 | post-marking | SAM2 | `Sam2SegmentStep` | 세그멘테이션(polygon), BBOX/POLYGON_ONLY 분기 |
 | post-marking | 트랙 보간 | `TrackInterpolationStep` | CVAT 선형보간(`TrackInterpolator`) → [11](11-ai-assisted.md) |
 | 완료 | 완료 | `transitionService.markRawDataCompleted` | `LsDataRaw`(배치 단계) → COMPLETED, `LsRawDataStatus`(작업 상태) → ASSIGNED 복귀 |
 
 > **오토라벨링은 원본 이미지에만 실행**. 라벨 좌표는 동일 해상도이므로 비식별본과 공유(별도 실행 없음).
 > 비식별 단계는 **post-marking 시퀀스에서 제거**되어 적재 직후 선두(pre-marking)로 이동했다.
+
+### 7.3-1 오토라벨 프리셋 보류·재개 (2026-08-25 확정, 구속 · `ADR-054`)
+
+**프리셋은 「무엇을 검출할지」가 아니라 「검출된 것 중 무엇을·어떤 형태로 저장할지」를 정하는 노이즈 필터다.** 그것이 없으면 저장 기준 자체가 없는 것이므로 **오토라벨링을 보류**한다.
+
+- ⚠ **구 동작 폐기 — 되살리지 말 것**: 프리셋을 특정하지 못하면 `AnnotationToggle.BOTH` 로 **fail-open** 되어 검출을 전량 저장하며 완주했다. 그래서 ①프리셋 미보유가 **아무 증상 없이** 지나가고 ②운영자가 프리셋을 등록해 두고도 그것이 실효하지 않는 상태를 어디에서도 알 수 없었다. `BOTH` 상수는 제거됐고 회귀 가드가 그 부재를 고정한다.
+- **보류는 실패가 아니라 건너뜀이다** — 예외를 던지지 않고 `LS_BATCH_PROC_LOG` 에 `SKIPPED` 감사 행으로 사유를 남긴다. 시계열 위탁 보류(`VlmTimeseriesStep` → `SKIP_REASON_*` → `VlmWithheldResumeRunner`)와 **같은 골격을 재사용**하며 새 패턴을 만들지 않는다.
+- ★**보류는 오토라벨 묶음 전체에 걸린다** — 탐지를 보류하면 **분할·보간도 실행하지 않고 배치를 `COMPLETED` 로 마감하지 않는다.** 근거: 탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 **라벨만 없는 무증상 성공**이 된다. 재개할 때는 묶음 전체를 다시 돈다.
+- **사유를 구분한다** — 판정의 단일 진실원은 `PresetLabelLookupService.resolve` → `PresetResolution`(`PresetResolutionStatus`)이며 **배치·프리셋 화면·이벤트유형 화면이 이 하나를 공유**한다. 다른 곳에서 프리셋을 다시 조회해 실효성을 재유도하지 말 것.
+
+| 사유 | 뜻 | 결과 |
+|---|---|---|
+| `RESOLVED` | 검출 클래스에 매핑된 활성 라벨이 1건 이상 | 수행 |
+| `EVENT_TYPE_UNREGISTERED` | 영상에 이벤트 유형 코드가 없거나 마스터에 등록돼 있지 않다 | **보류** |
+| `PRESET_ABSENT` | 그 유형(그룹 대표코드)에 걸린 프리셋이 없다 | **보류** |
+| `PRESET_UNLINKED` | 담긴 코드가 전부 라벨 마스터에 연결돼 있지 않다 | **보류** |
+| `PRESET_UNMAPPED` | 연결·활성 라벨은 있으나 전부 검출 클래스 **미매핑** | **보류** |
+| `PRESET_EMPTY` | 프리셋은 있으나 **라벨을 하나도 담지 않았다** | **제외 — 묶음만 건너뛰고 배치는 완료** |
+
+- ★**`PRESET_EMPTY` 만 성격이 다르다 — 사고가 아니라 선언이다.** 라벨을 비운 프리셋은 「그 이벤트 유형을 오토라벨 대상에서 뺀다」는 **사람의 선언**이므로 보류하지 않고 배치를 완료로 마감하며, 되살릴 것이 없어 **재개 대상도 아니다**(`RESUMABLE_SKIP_REASONS` 에 넣지 말 것 — 넣으면 프리셋을 고칠 때마다 제외 선언이 뒤집힌다). 반면 라벨은 골랐는데 전부 매핑이 없는 `PRESET_UNMAPPED` 는 **사고**라 보류한다. **둘을 같게 다루면 실수와 의도가 구분되지 않는다.**
+- **재개** — 프리셋을 등록·수정하면 `PresetLabelsChangedEvent` → `AutolabelResumeBridge`(AFTER_COMMIT) → `AutolabelWithheldResumeRunner` 가 그 유형의 보류분을 다시 돈다. 조건은 **「보류 이력이 있고 지금은 프리셋이 실효하다」 둘 다**이며 둘째가 멱등을 담당한다. 2노드 동시 재개를 막기 위해 오케스트레이터 진입 가드의 **단일 조건부 UPDATE** 로 원자 선점한다. ⚠ **삭제는 재개를 촉발하지 않는다** — 프리셋이 사라지면 오히려 보류 조건이 성립한다.
+- ⚠ **인지·수용한 잔여 위험** — 수정만 되고 아무도 프리셋을 등록하지 않은 영상을 감지·알림하는 장치가 없다. 그 영상은 보류인 채로 남는다.
+- ⚠ **알려진 리스크(범위 밖)** — 관제가 유형별 이름(`EVNT_NM`)을 보내기 시작하면 표시명이 갈려 그룹이 쪼개지고 **그룹 대표코드가 바뀌어**, 대표코드에 걸어둔 기존 프리셋이 조용히 떨어질 수 있다.
+- ⚠ **라벨링 화면의 오토라벨 버튼 경로는 대상이 아니다** — 그 경로(`AutolabelOnlineService`)는 프리셋을 쓰지 않고 라벨 마스터의 매핑만 본다. 동작·응답 계약 불변.
+- **기존 영상은 소급하지 않는다** — 이미 전량 저장으로 처리된 영상은 재처리하지 않으며 신규 배치부터 적용된다.
 
 ## 7.4 큐 · 스케줄러 (Quartz)
 

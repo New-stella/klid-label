@@ -62,14 +62,19 @@ describe('preset schemas (이벤트 + 라벨)', () => {
     expect(presetSchema.safeParse({ ...base, eventTypeCd: 'A'.repeat(21) }).success).toBe(false);
   });
 
-  // ── 라벨(1~20) ─────────────────────────────────────────────────────
+  // ── 라벨(0~20) ─────────────────────────────────────────────────────
 
-  it('labelId_1개_이상_요구', () => {
-    const result = presetSchema.safeParse({ ...base, labelIds: [] });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues.some((iss) => /1개 이상/.test(iss.message))).toBe(true);
-    }
+  it('★라벨_0개도_통과한다_구_최소1개_요구_폐기', () => {
+    // 라벨을 하나도 담지 않은 프리셋은 그 이벤트유형을 <오토라벨 대상에서 빼겠다>는 사람의
+    // 선언이다(CO-014). 스키마가 막으면 그 선언을 표현할 수단이 없어 오토라벨을 원치 않는
+    // 유형도 프리셋 미보유로 남아 계속 보류된다.
+    // ⚠ 실수로 못 고른 것과의 구분은 스키마가 아니라 화면의 「라벨 없이 저장 확인」이 맡는다.
+    expect(presetSchema.safeParse({ ...base, labelIds: [] }).success).toBe(true);
+  });
+
+  it('라벨_목록_키_자체는_필수다', () => {
+    // 전체 교체 계약이라 「비우겠다」와 「안 건드리겠다」가 구분돼야 한다 — BE `@NotNull` 과 같은 축.
+    expect(presetSchema.safeParse({ eventTypeCd: 'EV02000101' }).success).toBe(false);
   });
 
   it('labelId_최대_20개_제한', () => {

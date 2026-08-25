@@ -20,7 +20,8 @@ vi.mock('../adminApi');
  * 고정하는 계약:
  *  - 출처 칩은 서버가 내려준 dsplNmSource 를 그대로 표시한다. FE 가 원본 이름 필드
  *    (optrIndctNm·evntNm·evntCtgryNm)로 폴백을 다시 판정하지 않는다.
- *  - 저장 성공 시 목록을 재조회하지 않고 응답값으로 그 행만 갱신한다.
+ *  - 저장 성공 시 응답값으로 그 행을 즉시 갱신하고, <b>목록도 다시 조회한다</b>
+ *    (저장 응답에는 프리셋 연결 상태가 실리지 않고, 표시명 변경은 같은 그룹의 다른 행도 바꾼다).
  *  - 수집여부 토글은 aria-pressed 로 상태를 노출한다(색·글자 단독 구분 금지).
  *  - 카드 래퍼 · 건수 요약 · 안내 배너(시안 SD-023).
  */
@@ -136,20 +137,33 @@ describe('이벤트유형 관리 — 표시명 출처 표기', () => {
     }
   });
 
-  it('표시명_저장_후_목록을_재조회하지_않고_그_행만_응답값으로_갱신한다', async () => {
-    // given: 저장 응답에 갱신된 표시명과 출처가 함께 실려 온다
+  it('★표시명_저장은_응답값으로_그_행을_갱신하고_목록도_다시_조회한다_구_재조회_금지_폐기', async () => {
+    // given: 저장 응답에 갱신된 표시명과 출처가 함께 실려 온다.
+    //   ⚠ 그러나 <b>프리셋 연결 상태는 실리지 않는다</b>(서버가 의도적으로 비운다 — 표시명을
+    //     바꾸면 표시명 그룹이 쪼개져 대표코드가 바뀌는데 그룹 캐시 무효화가 커밋 이후라 그
+    //     트랜잭션은 수정 전 그룹으로 판정한다). 게다가 표시명 변경은 그 행 하나가 아니라
+    //     같은 그룹의 다른 행들의 연결 상태까지 바꾼다 — 그래서 목록을 다시 부른다.
+    //   구 동작("재조회하지 않는다")의 근거는 "같은 사실을 두 번 받아오는 왕복"이었는데,
+    //   응답에 실리지 않는 값이 생기면서 그 전제가 깨졌다.
     vi.mocked(adminApi.updateEventTypeAdmin).mockResolvedValue({
       ...rows[0],
       dsplNm: '수위상승',
       dsplNmSource: 'operator',
       optrIndctNm: '수위상승',
+      presetLinkStatus: null,
     });
+    // 재조회가 실제로 일어났는지는 <다음 조회 결과가 화면에 반영되는가>로 본다 —
+    // 호출 횟수만 세면 캐시에서 온 값인지 서버에서 온 값인지 구분되지 않는다.
+    vi.mocked(adminApi.getEventTypeAdminList).mockResolvedValue([
+      { ...rows[0], dsplNm: '수위상승', dsplNmSource: 'operator', optrIndctNm: '수위상승',
+        presetLinkStatus: 'UNLINKED' },
+      ...rows.slice(1),
+    ]);
     renderPage();
     const user = userEvent.setup();
 
     // when
     const row = await screen.findByTestId('event-type-row-EV01000101');
-    // 목록 조회 횟수를 이 시점 기준으로 잡는다(mock 호출 이력은 파일 전체에 누적된다).
     const listCallsBefore = vi.mocked(adminApi.getEventTypeAdminList).mock.calls.length;
     await user.click(within(row).getByRole('button', { name: '표시명 수정' }));
     const input = screen.getByLabelText('EV01000101 표시명');
@@ -157,21 +171,35 @@ describe('이벤트유형 관리 — 표시명 출처 표기', () => {
     await user.type(input, '수위상승');
     await user.click(within(row).getByRole('button', { name: '저장' }));
 
-    // then: 응답값으로 행이 갱신되고 저장 이후 목록 재조회는 없다
+    // then ①: 응답값으로 행이 즉시 갱신된다(표시명 + 출처)
     await waitFor(() => expect(screen.getByText('수위상승')).toBeInTheDocument());
     const cell = screen.getByTestId('event-type-name-EV01000101');
     expect(within(cell).getByText('운영자 지정')).toBeInTheDocument();
-    expect(vi.mocked(adminApi.getEventTypeAdminList).mock.calls.length).toBe(listCallsBefore);
+
+    // then ②: 목록을 다시 조회하고, 그 결과가 프리셋 칸을 채운다
+    await waitFor(() =>
+      expect(vi.mocked(adminApi.getEventTypeAdminList).mock.calls.length).toBeGreaterThan(
+        listCallsBefore,
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('event-type-preset-EV01000101')).toHaveTextContent('미연결'),
+    );
   });
 
   it('운영자_지정명을_지우면_응답의_내려간_출처가_그대로_드러난다', async () => {
     // given: 해제 저장 → 관제 수신명으로 복귀한 응답
-    vi.mocked(adminApi.updateEventTypeAdmin).mockResolvedValue({
-      ...rows[0],
+    const released: adminApi.EventTypeAdminItem = {
+      ...rows[0]!,
       dsplNm: '침수(범람)',
       dsplNmSource: 'category',
       optrIndctNm: null,
-    });
+    };
+    vi.mocked(adminApi.updateEventTypeAdmin).mockResolvedValue(released);
+    // 저장 뒤 목록을 다시 조회하므로(위 테스트) 그 재조회도 해제된 상태를 돌려줘야 한다 —
+    // 서버가 방금 저장한 값을 돌려주는 것과 같다. 옛 값을 돌려주게 두면 화면이 되돌아가고,
+    // 그건 화면 결함이 아니라 <모의가 서버를 잘못 흉내낸 것>이다.
+    vi.mocked(adminApi.getEventTypeAdminList).mockResolvedValue([released, ...rows.slice(1)]);
     renderPage();
     const user = userEvent.setup();
 

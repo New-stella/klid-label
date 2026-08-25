@@ -41,9 +41,15 @@ export const presetSchema = z.object({
     .refine((v) => EVENT_TYPE_CD_REGEX.test(v), {
       message: '지원하지 않는 이벤트 타입입니다',
     }),
+  // ★하한을 두지 않는다 — 라벨을 하나도 담지 않은 프리셋은 그 이벤트유형을 <오토라벨 대상에서
+  //   빼겠다>는 사람의 선언이며, 그 선언을 표현할 수단이 없으면 오토라벨을 원치 않는 유형도
+  //   프리셋 미보유로 남아 계속 보류된다. BE `PresetRequest.labelIds` 도 하한을 뗐다(@NotNull 만
+  //   남아 키 자체는 필수다 — 전체 교체 계약이라 「비우겠다」와 「안 건드리겠다」를 구분해야 한다).
+  //   ⚠ 상한 20 은 유지한다(자원 소모 방어, CWE-770).
+  //   ⚠ 실수로 못 고른 것과의 구분은 스키마가 아니라 화면의 「라벨 없이 저장 확인」이 맡는다 —
+  //     여기서 막으면 정당한 선언까지 함께 막힌다.
   labelIds: z
     .array(z.number().int('labelId 는 정수여야 합니다').positive('labelId 는 양수여야 합니다'))
-    .min(1, '라벨을 1개 이상 선택하세요')
     .max(LABEL_IDS_MAX_COUNT, `최대 ${LABEL_IDS_MAX_COUNT}개`),
 });
 
