@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.eventtype.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
@@ -22,6 +23,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import javax.sql.DataSource;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -424,5 +427,106 @@ class EventTypeAdminControllerIT {
                 // CWE-209 — 거부 사유에 사용자 입력 원문을 싣지 않는다(파라미터 이름까지만)
                 .andExpect(jsonPath("$.message").value(
                         org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("NOSUCHSTATE"))));
+    }
+
+    // ------------------------------------------------------------------
+    // 수정(PATCH) 응답은 프리셋 연결 상태를 싣지 않는다 — @design API-186.
+    //
+    // ★왜 비우는가(이유를 모르면 "누락"으로 보고 채우게 된다): 표시명을 바꾸면 표시명이 같아
+    // 접혀 있던 그룹이 쪼개져 그 유형의 <그룹 대표코드>가 바뀌고, 따라서 어느 프리셋이 걸리는지도
+    // 바뀐다. 그런데 그룹 색인 캐시의 무효화는 이 수정이 커밋된 <뒤>라 같은 처리 안에서는 여전히
+    // 수정 전 그룹으로 판정된다. 그 값을 실어 보내면 프리셋이 조용히 떨어진 상태를 "연결됨"으로
+    // 정반대 안내하게 되므로, 값을 지어내는 대신 싣지 않는다.
+    //
+    // ★목록·수정이 같은 DTO(EventTypeAdminResponse)를 공유하므로, 이 계약을 와이어에서 고정하지
+    // 않으면 다음 사람이 "수정 응답에 이 필드가 비어 있네, 누락이군" 하고 채워도 아무것도 막지
+    // 못한다. 서비스 단위시험(EventTypeAdminPresetLinkStatusTest.updateResponseOmitsLinkStatus)은
+    // 자바 객체 축만 덮으며, 아래는 <실제 JSON 에 무엇이 실리는가>를 덮는다.
+    // ------------------------------------------------------------------
+
+    private static final String LINK_FIELD = "presetLinkStatus";
+
+    /**
+     * 수정 응답 JSON 에 연결 상태 <b>값</b>이 실리지 않았음을 단언한다.
+     *
+     * <p>★<b>「키가 없다」와 「키는 있고 값이 null 이다」를 구분해 본다</b> — 이 둘은 다른 계약이고
+     * {@code jsonPath().doesNotExist()} 는 <b>둘 다 통과시켜</b> 구분하지 못한다. 이 프로젝트의 웹
+     * {@code ObjectMapper} 는 null 포함 설정을 따로 두지 않아 <b>키를 남기고 값만 null</b> 로
+     * 내보낸다(아래 단언이 그 사실을 고정한다). 직렬화 정책이 바뀌면 여기서 먼저 드러난다.
+     */
+    private void assertNoPresetLinkStatusValue(JsonNode data) {
+        assertThat(data.has(LINK_FIELD))
+                .as("수정 응답에 %s 키가 남는다(값만 null). 실제 응답 data=%s", LINK_FIELD, data)
+                .isTrue();
+        assertThat(data.get(LINK_FIELD).isNull())
+                .as("수정 응답의 %s 는 값이 없어야 한다 — 옛 그룹 기준 판정을 지어내면 정반대 안내가"
+                        + " 된다. 실제 응답 data=%s", LINK_FIELD, data)
+                .isTrue();
+    }
+
+    /** 목록 응답에서 그 유형코드의 행을 집는다(대조군용 — 없으면 대조가 성립하지 않는다). */
+    private JsonNode rowOf(String listJson, String code) throws Exception {
+        for (JsonNode row : objectMapper.readTree(listJson).path("data")) {
+            if (code.equals(row.path("evntTypeCd").asText())) {
+                return row;
+            }
+        }
+        throw new AssertionError("목록에 " + code + " 행이 없어 대조군이 성립하지 않는다: " + listJson);
+    }
+
+    private String getList() throws Exception {
+        return mockMvc.perform(get(BASE).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    @Test
+    @DisplayName("표시명_수정_응답은_프리셋_연결_상태를_비운다 — 그룹_캐시가_커밋_이후에_비워져_옛_그룹으로_판정되기_때문")
+    void 표시명_수정_응답은_프리셋_연결_상태를_비운다() throws Exception {
+        // given — 프리셋을 건 적 없는 유형(목록에서는 UNLINKED 로 보이는 행)
+        String code = PREFIX + "L1";
+        autoRegistrar.register(code, "관제수신명", "01", null);
+
+        // when — 표시명을 지정한다(그룹을 쪼갤 수 있는 바로 그 조작)
+        String updated = mockMvc.perform(patch(BASE + "/" + code)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("운영자지정명", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dsplNm").value("운영자지정명"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        // then — 연결 상태는 실리지 않는다
+        assertNoPresetLinkStatusValue(objectMapper.readTree(updated).path("data"));
+
+        // then — ★대조군: 같은 행을 목록으로 조회하면 연결 상태가 실린다.
+        //   이 대조가 없으면 "그 필드가 어디에도 없다"로도 위 단언이 통과해 계약이 아니라 부재를 고정한다.
+        JsonNode listRow = rowOf(getList(), code);
+        assertThat(listRow.has(LINK_FIELD)).isTrue();
+        assertThat(listRow.get(LINK_FIELD).isNull())
+                .as("목록 응답에는 연결 상태가 실려야 한다. 실제 행=%s", listRow)
+                .isFalse();
+        assertThat(listRow.get(LINK_FIELD).asText()).isEqualTo("UNLINKED");
+    }
+
+    @Test
+    @DisplayName("수집여부_토글_응답도_프리셋_연결_상태를_비운다 — 같은_엔드포인트의_다른_쓰임도_같은_계약이다")
+    void 수집여부_토글_응답도_프리셋_연결_상태를_비운다() throws Exception {
+        // given — 같은 PATCH 를 표시명이 아니라 수집여부 토글로 쓴다
+        String code = PREFIX + "L2";
+        autoRegistrar.register(code, "토글대상유형", "01", null);
+
+        // when
+        String updated = mockMvc.perform(patch(BASE + "/" + code)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(null, "N")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clctYn").value("N"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        // then — 표시명을 안 바꿨어도 응답 계약은 하나다. 쓰임마다 다르게 채우면 화면이 "이번엔
+        //   실렸으니 믿어도 된다"는 분기를 갖게 되고, 그 분기가 곧 두 번째 진실원이 된다.
+        assertNoPresetLinkStatusValue(objectMapper.readTree(updated).path("data"));
     }
 }
