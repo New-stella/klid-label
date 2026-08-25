@@ -1035,3 +1035,17 @@ catch. ⚠ 안쪽에서 catch 하면 이미 rollback-only 라 무의미하다.
 
 **⚠ `--exclude-types` 에 `legacy_artifact` 를 넣지 말 것** — 공식 제외 목록(`core-item-set.md`)에 **없다.**
 넣었다가 pin 의 LEGACY 12건이 `_retired/` 로 밀려나 되돌린 사고가 있었다.
+
+### 8-1. 종결 (2026-08-25)
+
+- **PR**: #139 (`vlm-parsing` → `main`) · 머지 커밋 `7886043f` (origin/main `5d53bcce` 병합, 충돌 86건 해소)
+- **개번**: 병렬 워크트리가 같은 번호를 선점해 `CO-009 → CO-016`, `V17 → V18`. `FlywaySquashBaselineIT` 에
+  main 의 `V17` 과 이 브랜치의 `V18` 을 둘 다 넣었다(사전순이라 `V1__baseline.sql` 보다 앞).
+- **검증**: 백엔드 FULL **834 XML · 7,545 · 실패 0** · FE **465 파일 · 3,737** · `tsc` 클린 ·
+  런타임 E2E **17/17**(격리 DB, 메인 스택 무손상 확인 — 종료 후 메인 DB 는 V16 그대로).
+- **런타임에서 확정된 것**: `cot["1단계"]` 가 「상황」 줄만 담고 다음 라벨(`- 환경:`)로 이어붙지 않음 ·
+  `caption_text` 가 추가질문 응답을 받음(`answer` 축 아님) · `answer`·`evidence` 공란 · CoT 키가 `["1단계"]` 뿐 ·
+  마킹이 고른 질문을 영속 · 영상 상세가 질문 목록을 조달.
+- **E2E 중 발견(별건)**: `application-local.yml` 이 생성형 AI 콜백만 IP allowlist 를 열고 **VLM 은
+  fail-closed 로 남겨** 로컬에서 VLM 콜백이 구조적으로 403 이다. 또 `0.0.0.0/0` 은 IPv6 루프백을 덮지 않아
+  `localhost` 호출이 차단된다.
