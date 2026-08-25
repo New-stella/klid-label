@@ -133,7 +133,7 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - 근거: `common/migration/FlywaySquashBaselineIT` 의 적용 버전 목록이 `containsExactly(… "16", "9001")` 이고
   파일명 목록도 `V16` 에서 끊겨 있었다. **파일명 목록 정렬은 코드포인트 순이라 `V17__` 이 `V1__baseline.sql`
   보다 앞이다**(`'7' < '_'`) — 순서를 직관대로 넣으면 그 자리에서 또 깨진다.
-- 재발조건: `V18` 이후 마이그레이션을 추가할 때마다. 컴파일로는 절대 안 잡힌다.
+- 재발조건: `V19` 이후 마이그레이션을 추가할 때마다. 컴파일로는 절대 안 잡힌다.
 
 ### 컬럼을 DROP 할 때는 엔티티가 아니라 **물리 컬럼명 문자열**로 test 트리를 훑는다 (CO-010)
 테스트가 raw JDBC 로 그 테이블에 INSERT 하면 컴파일이 못 잡는다.
