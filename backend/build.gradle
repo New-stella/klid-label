@@ -148,6 +148,53 @@ tasks.named('test') {
     // 힙을 명시해 안정화한다(Testcontainers 단일 PG + 다수 컨텍스트 캐시 대비 여유분).
     maxHeapSize = '2g'
 
+    // ─── 진단: 「조용한 매달림」을 「명확한 실패」로 바꾼다 ───────────────────────────────
+    // ★ 고치는 설정이 아니다. 근본 원인은 .claude/change-orders/HANDOFF-TEST-CONTEXT-BLOAT.md 에 있다
+    //   (@SpringBootTest 309개가 한 JVM 에서 돌고, 서로 다른 컨텍스트 키 52개가 캐시 32칸을 두고
+    //    서로를 밀어낸다). 아래는 그 원인을 없애지 않고 「보이게」만 한다.
+    //   ⚠ 「빌드 타임아웃이네」 하고 지우지 마라. 지우면 아래의 침묵이 그대로 돌아온다.
+    //   ⚠ 대응으로 maxHeapSize 를 올리지 마라 — 위 2g 가 이미 그 처방이었고 그 시간이 끝났다.
+    //
+    // 관측된 실패 형태(실측): Old 세대 1.37GB 가 전부 살아 있어 회수가 안 되는데, Full GC 가
+    // Eden 만 비워 주어 할당은 계속 성공한다. 그래서 JVM 은 OOM 을 던지지 않고 GC 점유율 98% 로
+    // 무한히 돈다 — 23분 동안 Full GC 2,284회, 결과 XML 0건, BUILD 줄 없음, 출력 0줄.
+    // 사람이 「진행 중」으로 오독한 사고가 실제로 났다.
+    //
+    // ⚠ GC overhead limit(-XX:GCTimeLimit / -XX:GCHeapFreeLimit)은 이 형태를 잡지 못한다.
+    //   시도했고 실측으로 기각했다. 두 이유가 겹친다:
+    //     ① 그 탐지기는 Parallel GC 의 적응형 크기 정책에만 구현돼 있다. 기본 GC(G1)에서는
+    //        플래그가 거부되지 않고 조용히 무시된다 — JDK 17.0.15 실측(작은 객체로 힙을 서서히
+    //        채워 OOM 메시지 종류를 비교):
+    //          Parallel + 90/5 → OutOfMemoryError: GC overhead limit exceeded
+    //          G1       + 90/5 → OutOfMemoryError: Java heap space   (기본값 98/2 와 동일)
+    //     ② Parallel GC 로 바꿔도 이 형태는 안 잡힌다. 그 탐지 결과는 「할당이 실패하는 순간」에만
+    //        OOM 으로 바뀌는데, 위 형태는 할당이 계속 성공하기 때문이다(느릴 뿐이다).
+    //        실측: Parallel GC + 90/5 로 23분간 Old 99.99% · Full GC 2,284회 인데 OOM 없음.
+    //   ⇒ 이 두 플래그를 다시 넣지 마라. 위약이다(달아 두면 「탐지기가 있는데 안 울렸으니
+    //     메모리 문제가 아니다」라는 잘못된 판단을 부른다).
+    //
+    // 그래서 침묵을 실제로 끝내는 것은 타임아웃이다 — GC 종류·실패 형태와 무관하게 동작한다.
+    // 값은 이 저장소가 CLAUDE.md 에 선언한 빌드 예산(buildTimeout: 1800 = 30분)에 맞춘다.
+    // 정상 전체 회귀는 9~10분급이라 정상 실행에는 걸리지 않는다.
+    timeout = java.time.Duration.ofMinutes(30)
+
+    // 진짜 OOM(할당 실패)이 났을 때는 힙덤프를 남긴다. 「어느 컨텍스트가 힙을 먹는가」의 유일한 입력이다.
+    // ⚠ 위 매달림 형태에서는 OOM 이 안 나므로 이 경로로는 덤프가 생기지 않는다. 매달린 워커에서
+    //   받으려면 실행 중에: jcmd <워커pid> GC.heap_dump -all backend/build/test-heapdump/hung.hprof
+    // ⚠ 덤프 크기는 힙에 비례한다 = 2~3GB 급. build/ 하위라 gitignore 대상이고 clean 으로 지워진다.
+    def testHeapDumpDir = layout.buildDirectory.dir('test-heapdump').get().asFile
+    doFirst { testHeapDumpDir.mkdirs() }
+    jvmArgs '-XX:+HeapDumpOnOutOfMemoryError', "-XX:HeapDumpPath=${testHeapDumpDir}"
+
+    // 컨텍스트 캐시 통계(size/maxSize/hitCount/missCount)를 보고 싶을 때만 켠다:
+    //   ./gradlew test -PtestContextCacheDebug
+    // 기본은 꺼짐 — 항상 켜면 매 실행에 로그 잡음이 늘어난다.
+    // ⚠ 환경변수나 -D 로는 테스트 워커까지 도달하지 않는다(워커는 이미 뜬 데몬 환경을 물려받는다).
+    //   반드시 systemProperty 로 넣어야 워커 JVM 이 본다 — 이 저장소에서 확인된 함정이다.
+    if (project.hasProperty('testContextCacheDebug')) {
+        systemProperty 'logging.level.org.springframework.test.context.cache', 'DEBUG'
+    }
+
     // Phase 3 (Testcontainers PostgreSQL): Docker Desktop 서버는 min API 1.40 을 요구하는데
     // (docker version → Server APIVersion 1.54, MinAPIVersion 1.40), docker-java 클라이언트가
     // 기본 API 1.32 로 핑/info 를 보내 데몬이 "client version too old" 로 거부한다(/info → 400).
