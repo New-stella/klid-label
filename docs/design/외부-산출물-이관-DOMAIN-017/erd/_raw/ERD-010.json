@@ -26,7 +26,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨일련번호"
             },
@@ -42,7 +43,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원천일련번호"
             },
@@ -65,7 +67,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨유형코드"
             },
@@ -81,7 +84,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨아이디"
             },
@@ -97,7 +101,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨명"
             },
@@ -113,7 +118,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "좌표내용"
             },
@@ -129,7 +135,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "트랙아이디"
             },
@@ -145,7 +152,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록사용자번호"
             },
@@ -161,7 +169,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -177,7 +186,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -199,7 +209,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨출처코드"
             },
@@ -215,7 +226,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "모델명"
             },
@@ -231,7 +243,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "모델버전"
             },
@@ -247,7 +260,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "신뢰도점수"
             },
@@ -263,7 +277,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "자동라벨여부"
             }
@@ -330,7 +345,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "속성값아이디"
             },
@@ -346,7 +362,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨일련번호"
             },
@@ -362,7 +379,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "속성아이디"
             },
@@ -378,7 +396,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "속성값"
             },
@@ -394,7 +413,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -410,7 +430,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
@@ -457,7 +478,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "메타일련번호"
             },
@@ -473,7 +495,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원시일련번호"
             },
@@ -489,7 +512,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "메타키"
             },
@@ -505,7 +529,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "메타값"
             },
@@ -521,7 +546,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -537,7 +563,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -553,7 +580,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "멱등키"
             },
@@ -569,7 +597,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "외부작업아이디"
             },
@@ -585,7 +614,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "재시도횟수"
             },
@@ -601,7 +631,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "영구실패시점"
             }
@@ -669,7 +700,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터메타검수일련번호"
             },
@@ -685,7 +717,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터메타일련번호"
             },
@@ -701,7 +734,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -717,7 +751,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원천일련번호"
             },
@@ -737,7 +772,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "메타유형코드"
             },
@@ -758,7 +794,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "생성시스템코드"
             },
@@ -780,7 +817,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "검수상태코드"
             },
@@ -796,7 +834,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "검수아이디"
             },
@@ -812,7 +851,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "검수일시"
             },
@@ -828,7 +868,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "반려사유"
             },
@@ -844,7 +885,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -860,7 +902,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -876,7 +919,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -892,7 +936,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
@@ -959,7 +1004,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨이력일련번호"
             },
@@ -979,7 +1025,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원천일련번호"
             },
@@ -999,7 +1046,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -1100,7 +1148,7 @@
               "type": "jsonb",
               "unique": false,
               "nullable": false,
-              "description": "어노테이션 내용(JSONB). event_class(필수)/caption/vqa/cot/vd_description/evidence. export event 키와 동일 구조.",
+              "description": "어노테이션 내용(JSONB). 산출 JSON 의 event 블록과 같은 구조 — event_class(필수)·question·caption(후보 c1 …, 각 후보가 caption_text 와 cot 를 갖는다)·answer·evidence. 칸별 조달(2026-08-25 확정): 질문 칸은 저작도구가 보관하는 검증 이벤트 유형별 질문 문구(마킹에서 고른 값, 없으면 그 유형의 첫 번째) · 후보 c1 의 caption_text 는 추가 질문 응답 서술 · 같은 후보 cot 의 1단계는 묘사 전문의 「상황」 라벨 줄. answer·evidence·cot 2단계 이후는 자동으로 채우지 않는다(사람이 확정할 공란). 두 창구가 후보 c1 을 공유하고 도착 순서가 보장되지 않으므로 후보를 통째로 교체하지 않고 자기 칸만 채운다. 묘사 전문 자체는 이 칸이 아니라 영상 블록으로 간다.",
               "primary_key": false,
               "logical_column_name": "어노테이션내용"
             },
@@ -1152,11 +1200,11 @@
             }
           ],
           "brownfield": {
-            "notes": "고도화 신규 — 이벤트 어노테이션(VQA/CoT/caption) 영상 단위. V127. 표준용어 EVNT(이벤트)+ANNO(어노테이션, 사업표준단어)+CN(내용).",
+            "notes": "고도화 신규 — 이벤트 어노테이션(VQA/CoT/caption) 영상 단위. V127. 표준용어 EVNT(이벤트)+ANNO(어노테이션, 사업표준단어)+CN(내용). 칸별 조달 축은 이틀 만에 두 번 뒤집혔다 — 2026-08-24 확정은 추가 질문 결과를 답변 칸 초안으로 두고 묘사를 캡션·사고단계로 보내라는 지시를 폐기했는데, 2026-08-25 회신이 다시 캡션·사고단계 축으로 되돌렸다. 현행은 ANNO_CN 설명의 조달 규정이며 세 번째로 되돌리지 않는다.",
             "status": "new",
             "decided_by": "ADR-020"
           },
-          "description": "영상 단위 이벤트 어노테이션(VQA/CoT/caption). RAW_SN 당 1건(UK). ANNO_CN(JSONB)에 event_class(필수)·caption(VLM+수동입력)·vqa/cot/vd_description(VLM 생성)·evidence(근거 객체)를 보관. VLM 메타(LS_DATA_META) 형제 구조이며 검토 상태는 LS_EVNT_ANNO_REVIEW 에 분리. 검수 승인 export event 키 반영(ADR-020). 진실원: Flyway V127.",
+          "description": "영상 단위 이벤트 어노테이션(VQA/CoT/caption). RAW_SN 당 1건(UK). ANNO_CN(JSONB)에 산출 JSON 의 event 블록과 같은 구조로 event_class(필수)·question·caption·answer·evidence(근거 서술)를 보관하며 칸별 조달 출처는 ANNO_CN 설명에 규정한다. VLM 메타(LS_DATA_META) 형제 구조이며 검토 상태는 LS_EVNT_ANNO_REVIEW 에 분리. 검수 승인 export event 키 반영(ADR-020). 진실원: Flyway V127.",
           "logical_table_name": "이벤트어노테이션"
         },
         {
@@ -1359,18 +1407,19 @@
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 26,
+    "current_version": 28,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "외부 산출물 이관 경로가 가져오는 값 가운데 착지할 컬럼이 없는 것을 이 표에 원문 그대로 보관한다는 규약을 LS_DATA_META 설명에 덧붙인다. 신규 컬럼은 만들지 않는다. 개인정보 판정 세 값을 여기에 두는 근거(원천 축의 착지 자리가 인입 원장뿐인데 이관 경로는 그 원장을 거치지 않는다)와 값을 지어내지 않는다는 규칙, 키 이름공간 규약, META_KEY 64자·META_VL 2000자 한도, 그리고 (RAW_SN, META_KEY) 유일 제약 탓에 프레임 축 값은 키 문자열이 프레임을 스스로 구분해야 한다는 제약을 함께 적는다. 기존 설명 문장과 컬럼 정의는 그대로 두고 뒤에 덧붙이기만 했다.",
+    "change_summary": "어노테이션 본문의 키 나열이 실제 저장 구조와 어긋나 있었다 — question 이 빠지고 answer 대신 vqa 가, 캡션 후보 안에 있는 cot 와 영상 블록 소속인 vd_description 이 형제 키로 적혀 있었다. 산출 JSON 의 event 블록과 같은 구조(event_class·question·caption{caption_text,cot}·answer·evidence)로 바로잡고, 묘사 전문은 이 칸이 아니라 영상 블록으로 간다는 경계를 명시한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T13:55:58.307Z",
+    "last_updated_at": "2026-08-25T03:45:02.889Z",
     "created_at": "2026-06-01T02:41:49.410Z"
   }
 }

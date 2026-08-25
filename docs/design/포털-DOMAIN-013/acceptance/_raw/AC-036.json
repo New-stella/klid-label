@@ -9,6 +9,25 @@
     "status": "draft",
     "data": {
       "notes": "처리를 시작하지 않았거나 처리 중인 자산을 지우면 프레임 추출과 경쟁해 파일-DB 불일치가 난다 — 두 상태는 삭제 판정이 같다. 삭제 후보 조건에는 ULD_STTS_CD 가 READY 또는 FAILED 라는 것을 조건으로 박아 그 밖의 상태가 구조적으로 후보가 되지 못하게 한다(DFEAT-055). 영구 잔류는 삭제 판정을 넓혀서가 아니라 상태를 앞에서 정리해 막는다 — 방치된 자산을 먼저 처리 실패로 전이시키고 이미 있는 실패 축 보존기간이 지우게 한다. 비가역 삭제의 판정 지점을 한 곳으로 유지하기 위한 선택이다. 방치 판정 축은 총 처리 시간이 아니라 최종 변경 일시(MDFCN_DT)의 무갱신 경과이며, 처리가 진행되는 동안에는 그 시각이 갱신되므로 오래 걸리는 대용량 영상이 방치로 오인되지 않는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalRetentionSweepIT · 처리중_자산은_등록일로부터_보존기간이_지나도_DB행과_파일이_모두_남는다",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "8242f237-f5e8-4e55-aa0b-a7d8c0d3201a",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z",
+        "duration_ms": 4
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -47,36 +66,37 @@
       },
       "is_negative": true,
       "implementation": {
-        "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java"
-        ],
+        "status": "verified",
+        "modules": [],
         "records": [
           "IMPREC-013"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:33:54.470Z"
+        "last_updated": "2026-08-17T04:33:54.470Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-013"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-024"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "처리 시작 전·처리 중 자산이 삭제 후보가 아니라는 기존 규정은 유지하면서, 그 두 상태로 영구히 남지는 않는다는 후속 규칙을 진술과 예시에 반영했다 — 방치 판정 시간(설정값, 기본 30분) 무갱신 시 처리 실패로 전이해 실패 축 보존기간을 탄다. 설정값이 비어 있거나 0 이하·해석 불가일 때 전이를 건너뛴다는 예시를 추가하고, 판정 축이 최종 변경 일시의 무갱신 경과임을 근거와 함께 적었다.",
+    "change_summary": "구현 상태를 검증됨으로 올린다. 구현이 완료로 선언돼 있었는데 그것을 확인하는 시험 결과가 붙지 않아 검증 단계로 넘어가지 못한 상태였다. 이번에 이 기준을 검증하는 시험이 실제로 실행돼 통과한 것을 결과 파일로 확인했고 그 기록을 근거로 삼는다. 구현이 아직 진행 중으로 선언된 기준은 올리지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T22:19:41.584Z",
+    "last_updated_at": "2026-08-23T23:14:44.997Z",
     "created_at": "2026-08-17T01:11:14.796Z"
   }
 }

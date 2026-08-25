@@ -72,15 +72,25 @@ public record EventAnnotationPayload(
     /** 크기 상한(CWE-770 부분 DoS 방어) — 후보 키/텍스트/리스트 원소 수. */
     static final int MAX_EVENT_CLASS = 100;
     static final int MAX_TEXT = 4000;
-    static final int MAX_COT_STEP = 2000;
+    /**
+     * 사고 단계(cot) 한 칸의 상한 — <b>{@link #MAX_TEXT} 보다 작다(비대칭)</b>.
+     *
+     * <p>자동 채움이 이 상한을 넘는 값을 넣으면 사람이 그 본문을 그대로 되돌려 저장할 때
+     * Bean Validation 이 거부해 <b>저장이 통째로 깨진다</b>. 그래서 채움 경로가 값을 자르지 않고
+     * <b>그 칸만 건너뛰도록</b> 이 값을 읽는다(주 축 보호) — 그래서 공개한다.
+     */
+    public static final int MAX_COT_STEP = 2000;
     static final int MAX_KEY = 20;
     static final int MAX_CANDIDATES = 50;
     static final int MAX_COT_STEPS = 20;
     static final int MAX_LIST = 1000;
     static final int MAX_ID = 200;
 
-    /** 하위호환 배열 cot 관용 변환 시 순번 기반 단계 키 접미사(정본 샘플 "1단계"/"2단계"…). */
-    static final String COT_STEP_SUFFIX = "단계";
+    /**
+     * 단계 키 접미사(정본 샘플 "1단계"/"2단계"…) — 하위호환 배열 cot 관용 변환과
+     * <b>자동 채움의 1단계 키 조립</b>이 함께 쓴다. 리터럴을 복제하면 두 곳이 갈린다.
+     */
+    public static final String COT_STEP_SUFFIX = "단계";
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);

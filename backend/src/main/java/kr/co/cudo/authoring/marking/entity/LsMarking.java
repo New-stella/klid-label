@@ -116,6 +116,22 @@ public class LsMarking {
     @Column(name = "FPS")
     private Double fps;
 
+    /**
+     * 마킹 시 작업자가 고른 <b>검증 이벤트 질문</b>의 일련번호 — 이벤트 어노테이션 질문 칸의 1순위 조달값.
+     * [design: ERD-013]
+     *
+     * <p>그 영상의 검증 이벤트 유형에 등록된 질문 가운데 고른 값이다. 미선택이면 그 유형의 <b>첫 번째
+     * 질문</b>이 대신 저장되고, 검증 이벤트 유형이 미수신이면 고를 축이 없으므로 <b>비워 둔다</b>
+     * (지어내지 않는다). 질문이 없다고 마킹·위탁이 막히지는 않는다.
+     *
+     * <p>★ <b>물리 FK 가 없다</b>(V17) — 질문 목록은 관리 화면에서 <b>전체 교체</b>로 저장되어 가리키던
+     * 행이 사라지는 것이 정상 동선이기 때문이다. 참조 무결성은 DB 가 아니라 조달 판정기
+     * ({@code VerificationEventQuestionResolver})가 갖는다. 따라서 <b>읽는 쪽은 이 값을 그대로 믿지 않고</b>
+     * 조달 시점마다 그 판정기로 다시 해석한다.
+     */
+    @Column(name = "VRFC_EVNT_QSTN_SN")
+    private Long vrfcEvntQstnSn;
+
     @Column(name = "STTS_CD", nullable = false, length = 16)
     private String sttsCd;
 
@@ -154,6 +170,21 @@ public class LsMarking {
      */
     public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
                                         String videoPath, String marksJson, Long createdBy, Double fps) {
+        return createAuto(rawSn, eventName, intervalFrames, videoPath, marksJson, createdBy, fps, null);
+    }
+
+    /**
+     * 자동 모드 마킹 생성 (fps pin + 질문 선택값 포함).
+     *
+     * <p>{@code vrfcEvntQstnSn} 은 <b>이미 해석이 끝난</b> 값이어야 한다 — 요청값을 그대로 넘기지 말고
+     * {@code VerificationEventQuestionResolver} 로 해석한 결과를 넘긴다(그 유형에 속하지 않으면 첫 번째로
+     * 되돌아간 값). 해석 규칙을 여기에 두면 그것이 곧 두 번째 진실원이 된다.
+     *
+     * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable — 검증 이벤트 유형 미수신·질문 0건이면 null)
+     */
+    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
+                                        String videoPath, String marksJson, Long createdBy, Double fps,
+                                        Long vrfcEvntQstnSn) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
@@ -175,6 +206,7 @@ public class LsMarking {
         m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
         m.fps = fps;
+        m.vrfcEvntQstnSn = vrfcEvntQstnSn;
         m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();
@@ -208,6 +240,20 @@ public class LsMarking {
      */
     public static LsMarking createManual(Long rawSn, String eventName,
                                           String videoPath, String marksJson, Long createdBy, Double fps) {
+        return createManual(rawSn, eventName, videoPath, marksJson, createdBy, fps, null);
+    }
+
+    /**
+     * 수동 모드 마킹 생성 (fps pin + 질문 선택값 포함).
+     *
+     * <p>{@code vrfcEvntQstnSn} 의 계약은 {@link #createAuto(Long, String, int, String, String, Long, Double, Long)}
+     * 과 같다 — <b>해석이 끝난</b> 값만 받는다.
+     *
+     * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable)
+     */
+    public static LsMarking createManual(Long rawSn, String eventName,
+                                          String videoPath, String marksJson, Long createdBy, Double fps,
+                                          Long vrfcEvntQstnSn) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
@@ -226,6 +272,7 @@ public class LsMarking {
         m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
         m.fps = fps;
+        m.vrfcEvntQstnSn = vrfcEvntQstnSn;
         m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();

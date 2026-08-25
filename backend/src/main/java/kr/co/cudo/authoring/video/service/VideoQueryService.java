@@ -20,10 +20,12 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
+import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -132,6 +134,15 @@ public class VideoQueryService {
      * 가 선언 순서로 생성자를 만들므로 중간에 넣으면 위치 인자를 쓰는 기존 테스트가 조용히 어긋난다.
      */
     private final BatchBundleFailureGate bundleFailureGate;
+
+    /**
+     * 검증 이벤트 유형별 질문 조회 — 마킹 화면이 고를 목록의 조달처. [@design API-043] [@design ERD-033]
+     *
+     * <p><b>읽기 전용 재사용</b>이다. 정렬 규칙(정렬순서 오름차순)은 저장소 메서드 이름이 갖고 있으므로
+     * 여기서 다시 정렬하지 않는다 — 「첫 번째 질문」의 결정성이 그 정렬에 걸려 있어 사본을 만들면
+     * 그것이 곧 두 번째 진실원이 된다.
+     */
+    private final LsVrfcEvntQstnRepository vrfcEvntQstnRepository;
 
     /**
      * 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용.
@@ -656,10 +667,41 @@ public class VideoQueryService {
         //   ★ 판정은 건너뛰기 허용을 정하는 서버 판정과 <b>같은 지점</b>(BatchBundleFailureGate)이다 —
         //     여기서 규칙을 재유도하면 화면에 뜬 버튼이 눌렀을 때 412 로 튕긴다.
         List<String> failedStages = bundleFailureGate.failedBundles(entity.getRawSn());
+        // [@design API-043] [@design ERD-033] 검증 이벤트 유형 + 그 유형의 질문 목록.
+        //   ★ 마킹 화면이 고를 목록을 얻을 <b>유일한</b> 통로다 — 질문 카탈로그 관리 조회 경로는
+        //     검수자 전용이라 마킹 작업자에게 403 이다. 경로를 새로 만들지 않고 이 응답에 싣는다.
+        //   ★ 유형·질문이 없으면 예외가 아니라 「비어 있음」이다: 카탈로그는 허용목록이 아니고
+        //     (확정 정책상 목록 밖 유형도 위탁은 그대로 나간다), 인입 행이 없는 영상은 유형 자체가 없다.
+        String vrfcEvntTypeCd = LsDataIngest.normalizeVrfcEvntType(
+                sourceMeta == null ? null : sourceMeta.getVrfcEvntTypeCd());
+        List<VideoDetailResponse.VrfcEvntQuestionDto> vrfcEvntQuestions =
+                verificationEventQuestions(vrfcEvntTypeCd);
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
                 stages, fps, deidentHistory(entity.getRawSn()),
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
-                skippedStages, clearedStages, failedStages);
+                skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions);
+    }
+
+    /**
+     * 그 검증 이벤트 유형에 등록된 질문 목록 — <b>정렬순서 오름차순</b>. [@design API-043] [@design ERD-033]
+     *
+     * <p>정렬은 저장소 메서드 이름이 갖는다({@code ...OrderBySortSeqAsc}). 여기서 다시 정렬하거나
+     * 「첫 번째」를 해석하지 않는다 — 그 해석의 단일 진실원은
+     * {@code VerificationEventQuestionResolver} 이며 사본을 두면 화면이 보여준 질문과 산출물에 실린
+     * 질문이 조용히 어긋난다.
+     *
+     * <p>유형이 {@code null}(관제 미송신·인입 행 없는 파생영상)이거나 등록된 질문이 0건이면
+     * <b>빈 목록</b>이다 — 예외를 던지지 않는다.
+     *
+     * @param normalizedTypeCd {@code LsDataIngest.normalizeVrfcEvntType} 를 통과한 유형 코드
+     */
+    private List<VideoDetailResponse.VrfcEvntQuestionDto> verificationEventQuestions(String normalizedTypeCd) {
+        if (normalizedTypeCd == null) {
+            return Collections.emptyList();
+        }
+        return vrfcEvntQstnRepository.findByVrfcEvntTypeCdOrderBySortSeqAsc(normalizedTypeCd).stream()
+                .map(q -> new VideoDetailResponse.VrfcEvntQuestionDto(q.getVrfcEvntQstnSn(), q.getQstnCn()))
+                .toList();
     }
 
     /**

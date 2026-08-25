@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "AC-109",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "한 이벤트에 프리셋은 하나만 존재한다",
+    "slug": "한-이벤트에-프리셋은-하나만-존재한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "프리셋에 이름이 없어져 사용자가 중복을 눈으로 알아채기 어려우므로, 입구에서 막고 사유를 밝힌다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "저장이 충돌로 거부된다",
+          "어느 이벤트가 이미 쓰이고 있는지 안내에 드러난다",
+          "기존 프리셋은 그대로 남는다"
+        ],
+        "when": [
+          "같은 이벤트유형으로 프리셋을 또 만들려 한다"
+        ],
+        "given": [
+          "어떤 이벤트유형에 이미 프리셋이 있다"
+        ]
+      },
+      "statement": "이미 프리셋이 있는 이벤트유형으로 다시 만들면 충돌로 거부되고, 어느 이벤트가 이미 쓰이고 있는지 알려 준다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T07:49:04.379Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-032의 5개 필드 변경 — derived_from",
+    "change_summary": "이벤트 중복 409 — 입구 사전조회(어느 이벤트인지 표시명+코드 안내) + 저장시점 유일제약 위반 변환",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T07:49:04.380Z",
+    "created_at": "2026-08-25T07:23:02.738Z"
+  }
+}

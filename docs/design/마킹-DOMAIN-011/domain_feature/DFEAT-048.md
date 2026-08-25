@@ -4,7 +4,7 @@ type: domain_feature
 version: 16
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:53:10.146Z
+synced_at: 2026-08-25T10:52:10.954Z
 status: CHANGED
 prev_version: 16
 content_hash: 63ad0d6f622446bf9ea6525cfb91ce0b6763f810d6b5e6a589bf67e29b7b72b6

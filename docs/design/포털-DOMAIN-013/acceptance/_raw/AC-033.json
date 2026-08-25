@@ -9,6 +9,36 @@
     "status": "draft",
     "data": {
       "notes": "클라이언트가 이 값을 캐시해 두면 설정 변경이 화면에 즉시 반영되지 않는다 — 응답 필드 설명에 이 성질을 명시해야 한다(API-115/API-140/API-142 문서화 대상).",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalRetentionAggregateQueryIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalRetentionPolicyTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalUploadControllerTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "high",
       "scenario": {
         "then": [
@@ -39,39 +69,40 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "implemented",
-        "modules": [
+        "status": "verified",
+        "modules": [],
+        "records": [
+          "IMPREC-010"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-17T04:33:41.915Z",
+        "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionPolicy.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalLabelService.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalUploadService.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/dto/DatamartVideoResponse.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalUploadResponse.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/dto/PortalUploadDetailResponse.java"
-        ],
-        "records": [
-          "IMPREC-010"
-        ],
-        "progress": 100,
-        "subtasks": [],
-        "last_updated": "2026-08-17T04:33:41.915Z"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-013"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-024"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
-    "change_summary": "한글 오타 재정정 — 직전 patch 에서 다시 잘못된 이스케이프(컴럼)를 넣은 것을 기계 검증된 이스케이프(컬럼)로 정정",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-17T04:33:41.915Z",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 상태를 검증됨으로 올린다. 구현이 완료로 선언돼 있었는데 그것을 확인하는 시험 결과가 붙지 않아 검증 단계로 넘어가지 못한 상태였다. 이번에 이 기준을 검증하는 시험이 실제로 실행돼 통과한 것을 결과 파일로 확인했고 그 기록을 근거로 삼는다. 구현이 아직 진행 중으로 선언된 기준은 올리지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T23:14:44.265Z",
     "created_at": "2026-08-17T01:10:00.652Z"
   }
 }

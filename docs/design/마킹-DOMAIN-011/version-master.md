@@ -4,14 +4,13 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-011 |
-| Last sync | 2026-08-25T10:24:01.548Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 46 |
+| Last sync | 2026-08-25T10:53:46.514Z |
+| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 47 |
 | 출력 루트 | docs/design/마킹-DOMAIN-011 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-011 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 3건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -26,7 +25,7 @@
   ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 31건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 29건 (그중 domain_id 없음 1건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 107건 (그중 domain_id 없음 28건)
+  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 114건 (그중 domain_id 없음 35건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 7건 / 스코프 밖 42건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
@@ -41,8 +40,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SCREEN-006]] (prev v47)
-- CHANGED [[SCREEN-008]] (prev v44)
+- NEW [[ADR-052]]
 
 ## ITEM 표
 
@@ -56,7 +54,7 @@
 | [[ADR-008]] | adr | 3 | UNCHANGED |
 | [[ADR-022]] | adr | 5 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
-| [[ADR-052]] | adr | 2 | UNCHANGED |
+| [[ADR-052]] | adr | 2 | NEW |
 | [[API-043]] | api_endpoint | 17 | UNCHANGED |
 | [[API-047]] | api_endpoint | 12 | UNCHANGED |
 | [[API-084]] | api_endpoint | 8 | UNCHANGED |
@@ -88,10 +86,10 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-006]] | screen_spec | 49 | CHANGED |
-| [[SCREEN-008]] | screen_spec | 45 | CHANGED |
+| [[SCREEN-006]] | screen_spec | 49 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
 | [[SD-012]] | screen_design | 10 | UNCHANGED |
-| [[SEQ-001]] | diagram_sequence | 18 | UNCHANGED |
+| [[SEQ-001]] | diagram_sequence | 19 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 10 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 15 | UNCHANGED |

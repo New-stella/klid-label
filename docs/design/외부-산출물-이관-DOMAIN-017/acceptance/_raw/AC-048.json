@@ -9,6 +9,48 @@
     "status": "draft",
     "data": {
       "notes": "이 기준은 거부되어야 하는 경로만 검증한다. 정상 경로에서 검사가 무엇을 돌려주고 적재가 무엇을 만드는지는 다른 기준이 맡는다. 위치 판정과 이름 정제를 한 기준에 둔 것은 둘 다 외부에서 들어온 문자열을 그대로 믿지 않는다는 같은 축이고, 둘 중 하나만 막으면 다른 하나로 같은 자리에 닿을 수 있기 때문이다. 폴더 안의 바로가기를 건너뛰는 축도 같은 이유로 여기에 둔다. 폴더 경로를 한 번 판정하는 것만으로는 폴더 안의 항목이 범위 밖을 가리키는 것을 막지 못하기 때문이다. 다만 그 축은 거부가 아니라 건너뛰고 알리는 것이므로, 거부되어야 하는 경로만 검증한다는 앞의 범위는 그 축에 적용되지 않는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportCommitBoundaryTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportFileStagerTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportScanControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportSourcePolicyTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -46,9 +88,11 @@
       },
       "is_negative": true,
       "implementation": {
-        "status": "implemented",
+        "status": "verified",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-063"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -80,25 +124,25 @@
             "description": "거부된 적재 요청이 영상·프레임·라벨·이관 이력을 남기지 않음을 시험으로 고정"
           }
         ],
-        "last_updated": "2026-08-20T09:01:17.868Z"
+        "last_updated": "2026-08-25T01:21:23.233Z"
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-035"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "UC-035의 data.alternate_flows 변경 — derived_from",
-    "change_summary": "적재 요청 축의 거부 경로 검증 완료",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T09:01:17.868Z",
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 상태를 검증됨으로 올린다. 구현이 완료로 선언돼 있었는데 그것을 확인하는 시험 결과가 붙지 않아 검증 단계로 넘어가지 못한 상태였다. 이번에 이 기준을 검증하는 시험이 실제로 실행돼 통과한 것을 결과 파일로 확인했고 그 기록을 근거로 삼는다. 구현이 아직 진행 중으로 선언된 기준은 올리지 않는다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:23.233Z",
     "created_at": "2026-08-19T19:01:47.903Z"
   }
 }

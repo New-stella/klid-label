@@ -18,6 +18,8 @@ import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoDurationResolver;
+import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,6 +79,16 @@ class MarkingServiceOrchestrationTest {
 
     @Mock
     private VideoFpsResolver fpsResolver;
+
+    /**
+     * 검증 이벤트 유형 조달처 — 스텁하지 않으면 {@code null} 행을 돌려주므로 유형 미수신 경로가 되고,
+     * 그 경로에서 마킹은 <b>질문 없이 그대로 저장</b>된다(질문 부재는 거부 사유가 아니다).
+     */
+    @Mock
+    private IngestSourceRepository ingestSourceRepository;
+
+    @Mock
+    private VerificationEventQuestionResolver questionResolver;
 
     @Mock
     private MarkingPrecheckReader precheckReader;

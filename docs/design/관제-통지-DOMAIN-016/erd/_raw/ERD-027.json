@@ -148,11 +148,14 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-101"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:31.836Z"
       },
       "uses_constants": []
     },
@@ -162,8 +165,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "변경 성격과 요약을 채운다. 상태와 메모만 있고 두 값이 비어 있어 1차 대비 무엇이 늘었는지가 구조화 축에 없었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:33:14.527Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:31.836Z",
     "created_at": "2026-08-06T02:46:48.084Z"
   }
 }

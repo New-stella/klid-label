@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 30
+version: 32
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-24T10:55:06.322Z
+synced_at: 2026-08-25T10:51:52.005Z
 status: CHANGED
-prev_version: 28
-content_hash: 18d3544c766b70843ff411e6313a8e44a16140a3264394793d970502f5285a0b
-stale: false
+prev_version: 30
+content_hash: ff485a5ccc8853ff9c73f15e5fb472e41f9ef916a2e2ba3cfecdc14b5347e266
+stale: true
 raw: ./_raw/SCREEN-027.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
@@ -19,6 +19,7 @@ links:
   requires: ["[[ROLE-001]]"]
   applies_to_backward: ["[[SHELL-001]]"]
   designs_backward: ["[[SD-033]]"]
+  navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-041]]", "[[MOD-048]]"]
   references_backward: ["[[UC-037]]"]
 ---
@@ -844,11 +845,12 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-048
+- MOD-041
 
 ### records
 
-_(empty)_
+- IMPREC-109
 
 ### progress
 
@@ -857,6 +859,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-25T01:21:33.808Z
 
 ### module_paths
 

@@ -32,7 +32,7 @@ class MarkingManualValidationTest {
     private static final long RAW_SN = 28L;
 
     private final MarkingService service = new MarkingService(
-            null, null, null, new ObjectMapper(), null, null, null, null);
+            null, null, null, new ObjectMapper(), null, null, null, null, null, null);
 
     private final Validator validator =
             Validation.buildDefaultValidatorFactory().getValidator();

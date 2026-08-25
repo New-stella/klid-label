@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-078",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "저장한 비식별 옵션은 이후 비식별 요청에 적용된다",
+    "slug": "저장한-비식별-옵션은-이후-비식별-요청에-적용된다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "이미 나간 요청까지 소급되지 않는다는 점을 함께 못박는다. 소급을 기대하면 저장 시점과 요청 시점이 엇갈린 건을 결함으로 오인한다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "요청에 저장된 옵션이 실려 나간다",
+          "저장 이전에 이미 나간 요청은 바뀌지 않는다"
+        ],
+        "when": [
+          "그 이후 비식별 요청이 나간다"
+        ],
+        "given": [
+          "검수자가 비식별 옵션을 저장했다"
+        ]
+      },
+      "statement": "관리 화면에서 저장한 비식별 옵션은 저장 이후에 나가는 비식별 요청에 적용된다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-012"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-013"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": true,
+    "stale_reason": "UC-013의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "비식별 옵션 저장이 이후 요청에 반영된다는 것을 검증 기준으로 세운다. 이 유스케이스에는 검증 기준이 없었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T10:08:57.511Z",
+    "created_at": "2026-08-23T10:08:57.511Z"
+  }
+}

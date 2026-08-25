@@ -4,7 +4,7 @@ type: permission_role
 version: 7
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:53:10.148Z
+synced_at: 2026-08-25T10:52:10.956Z
 status: CHANGED
 prev_version: 7
 content_hash: 2dc75727cffe3092805b3fb4923991ea8022a2e01c972bff353f7f2dbcc9d1dd

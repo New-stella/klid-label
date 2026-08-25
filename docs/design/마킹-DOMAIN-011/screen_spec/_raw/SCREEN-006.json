@@ -243,11 +243,12 @@
         "modules": [],
         "records": [
           "IMPREC-120",
-          "IMPREC-122"
+          "IMPREC-122",
+          "IMPREC-124"
         ],
         "progress": 95,
         "subtasks": [],
-        "last_updated": "2026-08-25T10:18:39.251Z",
+        "last_updated": "2026-08-25T10:36:59.596Z",
         "module_paths": []
       },
       "required_roles": [
@@ -283,7 +284,7 @@
     "stale_reason": null,
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (15.2KB)",
     "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T10:18:39.251Z",
+    "last_updated_at": "2026-08-25T10:36:59.596Z",
     "created_at": "2026-05-30T07:53:59.324Z"
   }
 }

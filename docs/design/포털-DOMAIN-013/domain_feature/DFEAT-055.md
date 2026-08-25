@@ -4,10 +4,10 @@ type: domain_feature
 version: 5
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:47:06.555Z
+synced_at: 2026-08-25T10:52:12.903Z
 status: CHANGED
-prev_version: 4
-content_hash: 21599e142ac13d149942b33b0ceba17d16d90c7d158e6c1e6f36e7f3d703c934
+prev_version: 5
+content_hash: 0ba020ed1f152cfe4b133f74281b2e34f1fa112ff80229af51923df19941671c
 stale: true
 raw: ./_raw/DFEAT-055.json
 links:
@@ -71,15 +71,7 @@ implemented
 
 ### modules
 
-- backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionPolicy.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalStoragePathGuard.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUserLabelRepository.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldLblRepository.java
-- backend/src/main/java/kr/co/cudo/authoring/sysconfig/ConfigKeys.java
-- backend/src/main/resources/db/migration/V11__seed_portal_retention_config.sql
+_(empty)_
 
 ### records
 
@@ -96,6 +88,18 @@ _(empty)_
 ### last_updated
 
 2026-08-17T04:33:25.807Z
+
+### module_paths
+
+- backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionSweepTxService.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalRetentionPolicy.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalStoragePathGuard.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUserLabelRepository.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldLblRepository.java
+- backend/src/main/java/kr/co/cudo/authoring/sysconfig/ConfigKeys.java
+- backend/src/main/resources/db/migration/V11__seed_portal_retention_config.sql
 
 ## uses_constants
 

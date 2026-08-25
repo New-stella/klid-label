@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-23T11:21:40.134Z |
-| Mode | SYNC — NEW 8 / CHANGED 5 / UNCHANGED 47 / RETIRED 3 |
+| Last sync | 2026-08-25T10:53:48.378Z |
+| Mode | SYNC — NEW 8 / CHANGED 0 / UNCHANGED 60 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -19,16 +19,16 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 1건 / 스코프 밖 47건
-  ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 187건
-  ℹ️  erd: 이번 키트 1건 / 스코프 밖 20건
+  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 190건
+  ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 22건 (그중 domain_id 없음 12건)
-  ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
-  ℹ️  use_case: 이번 키트 3건 / 스코프 밖 26건 (그중 domain_id 없음 2건)
+  ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 29건
+  ℹ️  use_case: 이번 키트 3건 / 스코프 밖 27건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 10건 / 스코프 밖 75건 (그중 domain_id 없음 29건)
+  ℹ️  acceptance: 이번 키트 10건 / 스코프 밖 106건 (그중 domain_id 없음 36건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 5건 / 스코프 밖 40건 (그중 domain_id 없음 6건)
-  ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
+  ℹ️  adr: 이번 키트 7건 / 스코프 밖 42건 (그중 domain_id 없음 7건)
+  ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
 해소: logicraft 에서 해당 ITEM 의 `domain_id` 를 채우거나, 다운로드 시
@@ -40,42 +40,36 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-071]]
-- NEW [[AC-072]]
-- NEW [[AC-073]]
-- NEW [[AC-074]]
-- NEW [[AC-075]]
-- NEW [[AC-076]]
-- NEW [[AC-077]]
-- NEW [[AC-078]]
-- CHANGED [[NFR-011]] (prev v4)
-- CHANGED [[NFR-014]] (prev v2)
-- CHANGED [[NFR-020]] (prev v4)
-- CHANGED [[UC-013]] (prev v8)
-- CHANGED [[UC-031]] (prev v8)
-- RETIRED [[SHELL-001]] → _retired/
-- RETIRED [[NAV-001]] → _retired/
-- RETIRED [[REQ-008]] → _retired/
+- NEW [[ADR-051]]
+- NEW [[ADR-053]]
+- NEW [[API-219]]
+- NEW [[API-220]]
+- NEW [[ERD-033]]
+- NEW [[EXTSYS-002]]
+- NEW [[FEAT-009]]
+- NEW [[SCREEN-038]]
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
 | [[AC-006]] | acceptance | 9 | UNCHANGED |
-| [[AC-055]] | acceptance | 1 | UNCHANGED |
-| [[AC-071]] | acceptance | 1 | NEW |
-| [[AC-072]] | acceptance | 1 | NEW |
-| [[AC-073]] | acceptance | 1 | NEW |
-| [[AC-074]] | acceptance | 1 | NEW |
-| [[AC-075]] | acceptance | 1 | NEW |
-| [[AC-076]] | acceptance | 1 | NEW |
-| [[AC-077]] | acceptance | 1 | NEW |
-| [[AC-078]] | acceptance | 1 | NEW |
+| [[AC-055]] | acceptance | 3 | UNCHANGED |
+| [[AC-071]] | acceptance | 3 | UNCHANGED |
+| [[AC-072]] | acceptance | 3 | UNCHANGED |
+| [[AC-073]] | acceptance | 3 | UNCHANGED |
+| [[AC-074]] | acceptance | 1 | UNCHANGED |
+| [[AC-075]] | acceptance | 3 | UNCHANGED |
+| [[AC-076]] | acceptance | 1 | UNCHANGED |
+| [[AC-077]] | acceptance | 1 | UNCHANGED |
+| [[AC-078]] | acceptance | 1 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-039]] | adr | 3 | UNCHANGED |
+| [[ADR-039]] | adr | 5 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
+| [[ADR-051]] | adr | 5 | NEW |
+| [[ADR-053]] | adr | 1 | NEW |
 | [[API-068]] | api_endpoint | 4 | UNCHANGED |
 | [[API-069]] | api_endpoint | 8 | UNCHANGED |
 | [[API-090]] | api_endpoint | 4 | UNCHANGED |
@@ -83,41 +77,47 @@
 | [[API-141]] | api_endpoint | 2 | UNCHANGED |
 | [[API-193]] | api_endpoint | 5 | UNCHANGED |
 | [[API-194]] | api_endpoint | 4 | UNCHANGED |
+| [[API-219]] | api_endpoint | 3 | NEW |
+| [[API-220]] | api_endpoint | 3 | NEW |
 | [[CDIAG-012]] | class_diagram | 4 | UNCHANGED |
 | [[CMP-011]] | diagram_c4_component | 7 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 13 | UNCHANGED |
+| [[DFEAT-045]] | domain_feature | 15 | UNCHANGED |
 | [[DOMAIN-014]] | domain | 5 | UNCHANGED |
 | [[ERD-016]] | erd | 13 | UNCHANGED |
+| [[ERD-033]] | erd | 2 | NEW |
+| [[EXTSYS-002]] | external_system | 11 | NEW |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
-| [[INT-002]] | integration_point | 15 | UNCHANGED |
+| [[FEAT-009]] | feature | 3 | NEW |
+| [[INT-002]] | integration_point | 17 | UNCHANGED |
 | [[INT-004]] | integration_point | 11 | UNCHANGED |
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
-| [[NFR-011]] | nfr | 5 | CHANGED |
+| [[NFR-011]] | nfr | 5 | UNCHANGED |
 | [[NFR-012]] | nfr | 4 | UNCHANGED |
 | [[NFR-013]] | nfr | 4 | UNCHANGED |
-| [[NFR-014]] | nfr | 3 | CHANGED |
+| [[NFR-014]] | nfr | 3 | UNCHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 8 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 6 | CHANGED |
+| [[NFR-020]] | nfr | 6 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 6 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 7 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-005]] | screen_spec | 96 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 42 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 38 | UNCHANGED |
+| [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
+| [[SCREEN-038]] | screen_spec | 13 | NEW |
 | [[SD-015]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-024]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 1 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |
-| [[UC-013]] | use_case | 9 | CHANGED |
-| [[UC-031]] | use_case | 9 | CHANGED |
+| [[UC-013]] | use_case | 9 | UNCHANGED |
+| [[UC-031]] | use_case | 9 | UNCHANGED |

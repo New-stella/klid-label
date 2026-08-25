@@ -57,17 +57,18 @@
       ],
       "implementation": {
         "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java"
-        ],
+        "modules": [],
         "records": [
           "IMPREC-020"
         ],
         "progress": 90,
         "subtasks": [],
-        "last_updated": "2026-08-17T15:37:38.258Z"
+        "last_updated": "2026-08-17T15:37:38.258Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java"
+        ]
       },
       "postconditions": [
         "수정 라벨이 LS_PORTAL_USER_LABEL에 사용자별로 저장되어 있다",
@@ -110,7 +111,7 @@
     "schema_version": 1,
     "current_version": 15,
     "stale": true,
-    "stale_reason": "SCREEN-028의 2개 필드 변경 — references",
+    "stale_reason": "AC-035의 2개 필드 변경 — covered_by",
     "change_summary": "화면 배선 완료를 반영해 구현 상태를 구현됨으로 올린다(검증됨은 보류 — 연결 수용기준의 실행 결과 없음)",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-17T15:37:38.259Z",

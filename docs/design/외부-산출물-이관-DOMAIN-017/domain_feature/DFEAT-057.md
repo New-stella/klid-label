@@ -4,11 +4,11 @@ type: domain_feature
 version: 11
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-20T15:14:02.985Z
+synced_at: 2026-08-25T10:52:16.664Z
 status: CHANGED
-prev_version: 10
-content_hash: c2d249567e67dd0d4511c3820279cbb1caa65df9a4439a85852ba59cccb1015a
-stale: false
+prev_version: 11
+content_hash: 68f68d8c294d877b22d80851174bf9a6b6d4d771b513f51334420bacdb3372ed
+stale: true
 raw: ./_raw/DFEAT-057.json
 links:
   belongs_to_domain: ["[[DOMAIN-017]]"]
@@ -112,7 +112,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-096
 
 ### progress
 
@@ -162,7 +162,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-20T08:58:11.525Z
+2026-08-25T01:21:30.727Z
 
 ## uses_constants
 

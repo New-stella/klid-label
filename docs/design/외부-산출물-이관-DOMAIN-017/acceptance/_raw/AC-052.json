@@ -9,6 +9,24 @@
     "status": "draft",
     "data": {
       "notes": "계약을 벗어나는 요청으로 이 기준이 드는 예는 예시일 뿐 전수 목록이 아니며, 어떤 요청이 계약을 벗어나는지는 각 조회 계약이 정한다. 이 기준의 축은 잘못 물은 요청과 그런 이력이 없다는 사실을 응답으로 가르는 것 하나다. 권한이 없는 요청을 어떻게 다루는지, 목록이 어떤 순서와 형태로 돌아오는지는 이 기준이 아니라 다른 기준이 맡는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportHistoryControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66781f10-f621-4ace-b7d9-b1436de11fe6",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "high",
       "scenario": {
         "then": [
@@ -40,29 +58,36 @@
       },
       "is_negative": true,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-067"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:24.034Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/controller/ImportHistoryController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportHistoryQueryService.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-036"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-036의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "이관 이력 조회에서 계약을 벗어난 요청을 거부한다는 책임을 검증하는 기준을 신설한다. 이 도메인의 기존 기준은 모두 적재 축이고 조회 계약 위반의 거부를 검증하는 기준이 한 건도 없어, 두 조회 계약과 기능 서술에 확정된 이 책임이 검증 축에서 비어 있었다. 조용히 빈 결과를 돌려주면 그런 이력이 없다는 뜻과 잘못 물었다는 뜻이 구분되지 않는다는 것이 거부의 근거이므로, 거부만 검증하지 않고 정상 0건과 찾을 수 없음이 각각 제 응답으로 돌아오는 반증까지 함께 세웠다. 그 셋이 갈리는지를 보지 않으면 거부 하나만 맞고 나머지가 뭉뚱그려져도 통과한다. 계약을 벗어나는 사유는 성질로 적고 열거가 예시임을 밝혀, 사유가 늘 때마다 개수가 어긋나는 일을 막았다. 권한 축과 목록의 정렬·쪽 나눔 축은 다른 기준이 맡으므로 이 기준에 넣지 않았다. 구현 상태는 확인하지 못해 채우지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T23:34:30.196Z",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:24.034Z",
     "created_at": "2026-08-20T23:34:30.196Z"
   }
 }

@@ -4,7 +4,7 @@ type: class_diagram
 version: 6
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:53:10.144Z
+synced_at: 2026-08-25T10:52:10.952Z
 status: CHANGED
 prev_version: 5
 content_hash: be533104302344233479890ed393fbcda0d969bc48dc426c8e27eaec912b57cb

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -6,6 +6,7 @@ import { DeidentReportButton } from '@/features/label/components/DeidentReportBu
 import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
 import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
+import { VerificationQuestionSelect } from '@/features/marking/components/VerificationQuestionSelect';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
@@ -63,6 +64,28 @@ export function MarkingPage() {
   //   거부됐다. 진실원은 서버 VideoFpsResolver 하나이며 여기서는 그 값을 그대로 쓴다.
   //   서버가 값을 못 내리는 경우에만 동일 폴백값(30)을 사용한다.
   const markingFps = resolveMarkingFps(videoDetail?.fps);
+
+  // [@design SCREEN-006] [@design API-047] 검증 질문 선택 — 목록의 출처는 <b>영상 단건 조회 응답</b>이다.
+  //   관리 화면 경로(/v1/manage/verification-event-types)는 검수자 전용이라 작업자에게 403 이며,
+  //   그걸 부르면 이 화면이 작업자에게 통째로 깨진다.
+  //   BE 가 정렬순서 오름차순으로 내려주므로 여기서 다시 정렬하지 않는다.
+  const vrfcEvntQuestions = useMemo(
+    () => videoDetail?.vrfcEvntQuestions ?? [],
+    [videoDetail?.vrfcEvntQuestions],
+  );
+  const [selectedQstnSn, setSelectedQstnSn] = useState<number | null>(null);
+
+  // 기본 선택 = 정렬순서 첫 번째. 목록이 도착하거나 영상이 바뀌면 다시 맞춘다.
+  //   ★ 이미 고른 값이 새 목록에도 있으면 그대로 둔다 — 배치 진행 중에는 영상 상세가 5초마다
+  //     폴링되는데, 매번 첫 번째로 되돌리면 작업자가 고른 질문이 조용히 바뀐다.
+  //   ★ 없어진 값은 첫 번째로 되돌린다(폴백 없이 두면 서버가 어차피 교정하는 값을 화면만 붙들고 있게 된다).
+  useEffect(() => {
+    setSelectedQstnSn((prev) =>
+      prev !== null && vrfcEvntQuestions.some((q) => q.vrfcEvntQstnSn === prev)
+        ? prev
+        : (vrfcEvntQuestions[0]?.vrfcEvntQstnSn ?? null),
+    );
+  }, [vrfcEvntQuestions]);
 
   // 비식별 누락 신고 — 마킹 화면(영상 단위) 진입점.
   //   영상 자체가 신고 대상이 아닌 경우(파생영상 · 검수 승인 영상)는 라벨링 화면과 <b>같은 판정기</b>를
@@ -162,11 +185,17 @@ export function MarkingPage() {
     // 발화하지 않도록 pending 을 선두에서 가드한다. (서버 idempotency 와 별개의 클라이언트 가드)
     if (createMutation.isPending) return;
     // 이벤트명은 영상의 evntTypeCd 에서 서버가 자동 소싱하므로 요청에 포함하지 않는다.
+    // 고른 질문이 있을 때만 싣는다 — 고를 것이 없으면 필드를 만들지 않는다(값을 지어내지 않는다).
+    //   ⚠ 서버는 어긋난 값을 400 이 아니라 <b>그 유형의 첫 번째 질문으로 교정</b>하고 교정 결과를
+    //     응답으로 돌려주지 않는다. 화면은 그 교정을 전제로 하며 「교정됨」 표시를 만들지 않는다.
+    const questionPayload =
+      selectedQstnSn !== null ? { vrfcEvntQstnSn: selectedQstnSn } : {};
     if (mode === 'AUTO') {
       if (!intervalFrames || intervalFrames < 1) return;
       createMutation.mutate({
         mode: 'AUTO',
         intervalFrames,
+        ...questionPayload,
       });
     } else {
       // ★마크 0건은 **버튼을 죽여서** 막지 않는다 (확정 사양) — 버튼은 항상 누를 수 있고,
@@ -183,9 +212,10 @@ export function MarkingPage() {
       createMutation.mutate({
         mode: 'MANUAL',
         marks: localMarks,
+        ...questionPayload,
       });
     }
-  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast]);
+  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast, selectedQstnSn]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -358,6 +388,16 @@ export function MarkingPage() {
           </div>
         )}
       </div>
+
+      {/* [@design SCREEN-006] 검증 질문 선택 — 고를 질문이 하나도 없으면 컴포넌트가 스스로
+          아무것도 렌더하지 않는다(빈 드롭다운은 "고를 수 있는데 비어 있다"로 읽힌다).
+          질문이 없다고 마킹이 막히지는 않는다 — 어노테이션의 질문 칸이 비는 것뿐이다. */}
+      <VerificationQuestionSelect
+        questions={vrfcEvntQuestions}
+        value={selectedQstnSn}
+        onChange={setSelectedQstnSn}
+        disabled={createMutation.isPending}
+      />
     </div>
   );
 }

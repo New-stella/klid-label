@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-110",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "프리셋 목록은 이벤트명과 코드를 함께 보인다",
+    "slug": "프리셋-목록은-이벤트명과-코드를-함께-보인다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "표시명 해석을 화면이 이벤트 목록으로 재현하면 그 목록에 없는 유형이 코드로만 노출된다. 해석은 서버 한 곳이 맡는다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "모든 항목이 이벤트명과 유형코드를 함께 보인다",
+          "필터 옵션에서 제외된 대분류의 항목도 코드가 아니라 이름으로 읽힌다"
+        ],
+        "when": [
+          "검수자가 프리셋 목록을 연다"
+        ],
+        "given": [
+          "여러 이벤트유형에 프리셋이 등록되어 있고 그중 일부는 필터 옵션에서 제외된 대분류에 속한다"
+        ]
+      },
+      "statement": "프리셋 목록의 각 항목은 대상 이벤트의 표시명과 유형코드를 함께 보이며, 필터 옵션에서 제외된 대분류의 유형이어도 이름이 나온다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T07:49:05.864Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-032의 5개 필드 변경 — derived_from",
+    "change_summary": "목록에 이벤트 표시명 동봉 — 등록 전체 유형 표시명 맵 1회 배치 조회로 제외 대분류도 이름이 채워진다",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T07:49:05.865Z",
+    "created_at": "2026-08-25T07:23:02.802Z"
+  }
+}

@@ -22,16 +22,17 @@
       "invokes_apis": [],
       "implementation": {
         "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java"
-        ],
+        "modules": [],
         "records": [
           "IMPREC-019"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:34:31.275Z"
+        "last_updated": "2026-08-17T04:34:31.275Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java"
+        ]
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -50,8 +51,8 @@
     "data_projected_to": null,
     "schema_version": 1,
     "current_version": 9,
-    "stale": false,
-    "stale_reason": null,
+    "stale": true,
+    "stale_reason": "API-203의 data.description 변경 — implements",
     "change_summary": "사용자 확정 — 다운로드 API(API-203) 실재 서술로 교체, 보존기간 자동 삭제 정책 문장 추가",
     "last_updated_by": "sync",
     "last_updated_at": "2026-08-17T04:34:31.275Z",

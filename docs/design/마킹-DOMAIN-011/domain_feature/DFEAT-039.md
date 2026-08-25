@@ -4,7 +4,7 @@ type: domain_feature
 version: 11
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:53:10.145Z
+synced_at: 2026-08-25T10:52:10.954Z
 status: CHANGED
 prev_version: 9
 content_hash: e9af0a9c60484fa9ab95d35d723ceaef22026db844dde05d623767cda63ab11d

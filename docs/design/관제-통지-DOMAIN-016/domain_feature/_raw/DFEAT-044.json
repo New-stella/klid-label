@@ -22,16 +22,17 @@
       "invokes_apis": [],
       "implementation": {
         "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java"
-        ],
+        "modules": [],
         "records": [
           "IMPREC-019"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:34:31.275Z"
+        "last_updated": "2026-08-17T04:34:31.275Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java"
+        ]
       },
       "uses_constants": [],
       "acceptance_rules": [],

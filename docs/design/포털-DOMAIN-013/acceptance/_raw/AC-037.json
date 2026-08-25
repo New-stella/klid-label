@@ -9,6 +9,25 @@
     "status": "draft",
     "data": {
       "notes": "FAILED 전이 시각은 그 자산의 최종 변경 일시(MDFCN_DT)다. 방치 판정으로 UPLOADED·PROCESSING 에서 전이된 자산도 같은 기준점을 쓰므로 두 축이 자연스럽게 이어진다 — 방치 전이가 곧 FAILED 축 보존기간의 시작이며, 그것이 처리 시작 전·처리 중 자산의 영구 잔류를 막는 유일한 경로다(AC-036). 파일 삭제는 자산 삭제와 같은 실경로 판정기를 거친 뒤에만 수행하며, 판정이 실패하면 그 자산의 삭제만 건너뛴다(배치 전체 중단 아님).",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalRetentionSweepIT · 같은_시각_등록이어도_FAILED는_1일로_삭제되고_READY는_7일이라_남는다",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "8242f237-f5e8-4e55-aa0b-a7d8c0d3201a",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z",
+        "duration_ms": 8
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -44,35 +63,36 @@
       "is_negative": false,
       "implementation": {
         "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalStoragePathGuard.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java"
-        ],
+        "modules": [],
         "records": [
           "IMPREC-014"
         ],
         "progress": 90,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:34:03.777Z"
+        "last_updated": "2026-08-17T04:34:03.777Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/scheduler/PortalRetentionSweepJob.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalStoragePathGuard.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/repository/LsPortalUldRepository.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-013"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-024"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "실패 축 기준점 서술을 정합했다 — 고정 수치(30분)로 적혀 있던 방치 판정 시간을 설정값 축으로 바꾸고, 방치 전이가 곧 이 축의 시작이며 그것이 처리 시작 전·처리 중 자산의 영구 잔류를 막는 경로임을 명시했다.",
+    "change_summary": "이 기준을 검증하는 시험과 그 실행 결과를 근거로 단다. 검증 방법은 자동 시험이라고 적혀 있었는데 어느 시험이 그것인지가 어디에도 없어, 통과 여부를 확인할 길이 없는 상태로 남아 있었다. 시험 이름은 카탈로그가 밝힌 것을 그대로 쓰고, 통과 사실은 실행 결과 파일에서 직접 확인했다. 기존 항목은 하나도 지우지 않고 근거와 상태만 더한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T22:19:41.684Z",
+    "last_updated_at": "2026-08-23T23:04:59.736Z",
     "created_at": "2026-08-17T01:11:43.358Z"
   }
 }

@@ -42,6 +42,17 @@ class Settings(BaseSettings):
         description="VLM 콜백 전송 지연(초) — Phase 3에서 사용",
     )
 
+    describe_omit_situation: bool = Field(
+        default=False,
+        description=(
+            "묘사(describe) 콜백 서술에서 「상황」 라벨 줄을 통째로 뺄지 여부. "
+            "우리 BE 는 묘사 전문에서 그 줄만 파싱해 이벤트 어노테이션의 사고 단계 1단계를 채우고, "
+            "줄이 없으면 채우지 않는다(빈 값도 넣지 않는다). 그 미채움 분기를 로컬·dev 에서 "
+            "실동작으로 확인하려면 「상황」이 없는 응답을 낼 수 있어야 한다. "
+            "기본값 False — 평소에는 규격 형식대로 「상황」을 포함한다"
+        ),
+    )
+
     # KPST 비식별 더미 출력 파일 생성
     write_output_files: bool = Field(
         default=True,

@@ -262,7 +262,7 @@
     "schema_version": 1,
     "current_version": 17,
     "stale": true,
-    "stale_reason": "UC-016의 data.implementation 변경이 navigates_to로 2-hop 전파",
+    "stale_reason": "UC-032의 4개 필드 변경이 navigates_to로 2-hop 전파",
     "change_summary": "산문이 노드와 반대를 말하고 있었다. 관리 그룹 열거에 수동 업로드가 빠져 있었고 제외 목록에는 그 화면의 옛 이름이 들어 있었다. 노드는 이미 그것을 담고 있으므로 산문을 노드에 맞춘다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-24T21:39:29.284Z",

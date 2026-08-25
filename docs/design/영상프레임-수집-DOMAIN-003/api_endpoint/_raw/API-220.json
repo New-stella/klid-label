@@ -1,0 +1,323 @@
+{
+  "item": {
+    "id": "API-220",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "PUT /v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions",
+    "slug": "put-v1manageverification-event-typesvrfcevnttypecdquestions",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions",
+      "tags": [
+        "manage",
+        "verification-event-type"
+      ],
+      "method": "PUT",
+      "summary": "검증 이벤트 유형의 질문 목록 전체 교체",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "questions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "qstnCn": {
+                          "type": "string",
+                          "maxLength": 4000,
+                          "description": "질문 문구"
+                        },
+                        "sortSeq": {
+                          "type": "integer",
+                          "description": "유형 안에서의 순서. 요청 배열의 순서를 그대로 매긴 값이다"
+                        },
+                        "vrfcEvntQstnSn": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "검증 이벤트 질문 일련번호 — 마킹에서 고른 질문을 가리키는 값"
+                        }
+                      }
+                    },
+                    "description": "교체 후 질문 목록 — 정렬순서 오름차순. 빈 배열이면 그 유형에 질문이 없다"
+                  },
+                  "vrfcEvntTypeCd": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "description": "교체 대상 검증 이벤트 유형 코드"
+                  }
+                },
+                "description": "교체 후 상태"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "questions": [
+                {
+                  "qstnCn": "영상에서 '교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?",
+                  "sortSeq": 1,
+                  "vrfcEvntQstnSn": 11
+                },
+                {
+                  "qstnCn": "영상에서 차량 간 충돌이 있었는지와, 그렇게 판단한 근거는 무엇인가?",
+                  "sortSeq": 2,
+                  "vrfcEvntQstnSn": 12
+                }
+              ],
+              "vrfcEvntTypeCd": "car_accident"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "교체 성공 — 교체 후 질문 목록",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "질문 문구에는 개행·제어문자를 넣을 수 없습니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "경로변수 형식 위반 또는 질문 문구 검증 실패. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "검증 이벤트 유형을 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "등록되지 않은 검증 이벤트 유형. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-051",
+        "diff_summary": "2차 신설 — 검증 이벤트 유형별 질문 목록의 유일한 편집 통로(전체 교체)"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "vrfcEvntTypeCd",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$",
+            "maxLength": 20,
+            "minLength": 1
+          },
+          "example": "car_accident",
+          "required": true,
+          "description": "질문 목록을 교체할 검증 이벤트 유형 코드"
+        }
+      ],
+      "description": "한 검증 이벤트 유형의 질문 목록을 통째로 받아 교체한다. 받은 배열의 순서가 곧 정렬순서이며 첫 번째가 그 유형의 기본 질문이다. 검수자 전용이다.\n\n[부분 조작 경로를 두지 않는다] 추가·수정·삭제·순서 변경을 이 하나로 처리한다. 항목 단위 조작 경로를 따로 두면 여러 요청 사이의 중간 상태에서 「첫 번째」가 흔들리고, 그 사이에 조달되는 질문이 운영자가 의도하지 않은 문구가 된다. 쿼리 파라미터로 행위를 분기하지도 않는다.\n\n[빈 배열은 그 유형의 질문을 없앤다] 질문이 하나도 없는 유형은 어노테이션 질문 칸을 비운 채로 둔다 — 값을 지어내지 않는다.\n\n[질문 문구 검증] 질문 문구는 외부 사업자 요청 본문과 로그에 그대로 실리는 값이다. 그래서 개행·제어문자를 허용하지 않고, 저장 컬럼 폭 안에서 길이를 제한하며, 빈 문자열이거나 공백만으로 이루어진 질문은 거부한다. 이 제한이 없으면 로그 한 줄에 여러 줄이 섞여 들어가 기록을 위조할 수 있고 사업자 쪽 해석도 깨진다. 하나라도 어긋나면 요청 전체를 거부한다 — 일부만 반영되면 남은 목록의 순서가 운영자가 보낸 것과 달라진다.\n\n[교체 후 마킹 선택값] 교체 전 질문을 가리키던 마킹의 선택값은 교체 후 그 유형의 질문을 더 이상 가리키지 않을 수 있다. 그때는 확정된 폴백대로 그 유형의 첫 번째 질문을 쓴다 — 선택값이 그 유형에 속하는지 조달 시점마다 확인하고 화면 입력을 신뢰하지 않는다.\n\n[유형은 이 경로로 만들지 않는다] 등록되지 않은 검증 이벤트 유형 코드로 호출하면 거부한다. 이 경로가 다루는 것은 질문 목록뿐이며 유형 자체의 이름·설명·순서는 바꾸지 않는다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "questions"
+          ],
+          "properties": {
+            "questions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "qstnCn"
+                ],
+                "properties": {
+                  "qstnCn": {
+                    "type": "string",
+                    "pattern": "^[^\\u0000-\\u001F\\u007F]+$",
+                    "maxLength": 4000,
+                    "minLength": 1,
+                    "description": "질문 문구. 개행·제어문자를 넣을 수 없고 공백만으로 이루어질 수 없으며 4000자 이하다"
+                  }
+                }
+              },
+              "description": "교체할 질문 목록 전체. 배열 순서가 정렬순서가 되며 빈 배열이면 그 유형의 질문이 없어진다"
+            }
+          },
+          "description": "질문 목록 전체 교체 요청 — 보낸 배열이 그 유형의 질문 목록 전부가 된다"
+        },
+        "example": {
+          "questions": [
+            {
+              "qstnCn": "영상에서 '교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?"
+            },
+            {
+              "qstnCn": "영상에서 차량 간 충돌이 있었는지와, 그렇게 판단한 근거는 무엇인가?"
+            }
+          ]
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T06:59:26.868Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-009"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "질문 목록 전체 교체 구현(한 트랜잭션 · 문구 검증)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T06:59:26.868Z",
+    "created_at": "2026-08-25T03:40:41.818Z"
+  }
+}

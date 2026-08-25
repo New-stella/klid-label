@@ -608,10 +608,6 @@ button { font-family: inherit; }
 .meta-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-sm); }
 .meta-help { color: var(--n-5); margin-top: 4px; }
 .meta-readonly-value { font-size: 15px; color: var(--n-8); padding: 10px; background: var(--n-0); border-radius: var(--radius-md); } /* HTML 에 대응 노드가 없어 .t-body-sm 을 달 수 없다 */
-.meta-accuracy-row { display: flex; align-items: center; gap: var(--sp-sm); margin-top: var(--sp-sm); }
-.meta-accuracy-bar { flex: 1; height: 8px; background: var(--n-1); border-radius: var(--radius-full); overflow: hidden; }
-.meta-accuracy-fill { height: 100%; background: var(--i-5); border-radius: var(--radius-full); }
-.meta-accuracy-num { color: var(--n-7); flex-shrink: 0; }
 .meta-legacy-list { display: flex; flex-direction: column; gap: var(--sp-xs); margin-top: var(--sp-sm); }
 .meta-legacy-row { display: flex; gap: var(--sp-sm); color: var(--n-6); padding: 6px 0; border-top: 1px dashed var(--n-1); }
 .meta-legacy-range { font-family: var(--font-mono); flex-shrink: 0; color: var(--n-7); }

@@ -446,9 +446,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-079"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:26.720Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -462,8 +465,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "성공 응답의 메시지 자리에 예산 소진(절단) 안내를 싣지 않음을 응답 규격에도 적는다. 산문에만 적어 두면 규격만 보고 만드는 쪽이 옛 규정대로 문구를 실어 되돌린다. 절단 여부와 남은 몫의 판단 근거가 응답 본문의 두 값이라는 것도 같은 자리에 남겼다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-18T07:52:26.441Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:26.720Z",
     "created_at": "2026-07-14T05:40:05.673Z"
   }
 }

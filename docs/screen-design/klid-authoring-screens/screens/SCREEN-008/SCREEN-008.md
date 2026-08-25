@@ -5,11 +5,11 @@ version: 45
 last_updated_at: 2026-08-25T10:11:15.282Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:22:54.891Z
-sync_session: 24
+synced_at: 2026-08-25T11:02:36.405Z
+sync_session: 23
 stale: true
-status: CHANGED
-prev_version: 44
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-018]]"]
   acceptance: ["[[AC-049]]", "[[AC-050]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v44 → v45**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (21.7KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 처리 현황 화면
 
