@@ -53,6 +53,29 @@ public class BatchContext {
      */
     private boolean deidentCompleted = false;
 
+    /**
+     * <b>보류 표식</b> — 단계가 "실패가 아닌 조기 중단"을 선언한 지점. {@code null} 이면 보류 없음.
+     *
+     * <p>{@code CO-009} 에서 신설. 이 컨텍스트를 도는 오케스트레이터는 매 단계 실행 직후 이 값을 확인해
+     * 세워져 있으면 <b>이후 단계를 실행하지 않고</b> 파이프라인을 빠져나간다.
+     *
+     * <h3>왜 예외가 아닌가 (Critical — 되돌리지 말 것)</h3>
+     * <p>단계가 {@code RuntimeException} 을 던지면 오케스트레이터가 {@code markRawDataFailed} + 자동
+     * 재시도 큐 등록으로 마감한다. 보류는 <b>실패가 아니다</b> — 사람이 설정(프리셋 등)을 채우면 그때
+     * 재개되어야 하는 상태라, 예외로 표현하면 ①작업 상태가 {@code FAILED} 로 역행하고 ②자동 재시도가
+     * 같은 조건에서 무한히 재시도하며 ③재시도 상한을 소진한다. 반대로 아무 표식 없이 조용히 return 하면
+     * 하류 단계가 계속 돌아 <b>산출물만 비어 있는 무증상 성공</b>이 된다(그 경로의 위험은
+     * {@code YoloAutolabelStep} javadoc 이 이미 경고한다). 이 표식이 그 둘 사이의 제3의 종결이다.
+     *
+     * <p>보류 <b>사실의 영속</b>은 이 표식이 담당하지 않는다 — 단계가 {@code LS_BATCH_PROC_LOG} 에
+     * SKIPPED 감사 행을 직접 적재하며, 재개 판정도 그 행을 읽는다(인메모리인 이 표식은 프로세스를
+     * 넘지 못한다).
+     */
+    private BatchStage withheldStage;
+
+    /** 보류 사유 — {@code LS_BATCH_PROC_LOG} 에 적재한 사유와 같은 문자열. 로깅·판독용. */
+    private String withheldReason;
+
     /** 프로덕션 기본 — 토글 없음(전 stage enabled). 기존 호출부 100% 보존. */
     public BatchContext(Long rawSn, LsDataRaw raw) {
         this(rawSn, raw, null);
@@ -124,5 +147,38 @@ public class BatchContext {
     /** DEIDENTIFY 단계가 run() 결과(completed)를 기록한다. */
     public void markDeidentCompleted(boolean deidentCompleted) {
         this.deidentCompleted = deidentCompleted;
+    }
+
+    /**
+     * 단계가 <b>보류</b>를 선언한다 — 이 시점 이후 단계는 실행되지 않는다.
+     *
+     * <p>이미 보류가 세워져 있으면 <b>덮어쓰지 않는다</b>(먼저 선언한 단계가 이긴다). 오케스트레이터가
+     * 보류 직후 루프를 빠져나가므로 통상 두 번 불릴 일은 없으나, 한 단계가 내부에서 여러 판정을 하는
+     * 경우에 첫 사유가 유지되는 편이 판독에 낫다.
+     *
+     * @param stage  보류를 선언한 단계. {@code null} 이면 no-op(표식이 서지 않는다)
+     * @param reason 보류 사유 — {@code LS_BATCH_PROC_LOG} 에 적재한 값과 같은 문자열
+     */
+    public void withhold(BatchStage stage, String reason) {
+        if (stage == null || withheldStage != null) {
+            return;
+        }
+        this.withheldStage = stage;
+        this.withheldReason = reason;
+    }
+
+    /** 보류 표식이 서 있는가 — 오케스트레이터가 매 단계 실행 직후 확인한다. */
+    public boolean isWithheld() {
+        return withheldStage != null;
+    }
+
+    /** 보류를 선언한 단계. 보류가 없으면 {@code null}. */
+    public BatchStage getWithheldStage() {
+        return withheldStage;
+    }
+
+    /** 보류 사유. 보류가 없으면 {@code null}. */
+    public String getWithheldReason() {
+        return withheldReason;
     }
 }

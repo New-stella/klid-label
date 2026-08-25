@@ -684,6 +684,62 @@ public class BatchTransitionService {
     }
 
     /**
+     * <b>단계 보류</b>의 원상 복구 — 두 컬럼을 진입 직전으로 되돌린다. {@code CO-009} 에서 신설.
+     *
+     * <h3>보류란 무엇인가</h3>
+     * <p>단계가 자기 전제조건(예: 그 영상의 이벤트 유형에 실효 프리셋이 있는가)을 만족하지 못해
+     * <b>실패도 성공도 아닌 상태로</b> 파이프라인을 조기 종료하는 것이다. 사람이 그 전제를 채우면
+     * 재개되어야 하므로 {@code FAILED} 로 마감하면 안 되고, 하류 단계가 계속 돌면 산출물만 비어 있는
+     * 무증상 성공이 되므로 통과시켜도 안 된다({@code BatchContext#withhold} javadoc).
+     *
+     * <h3>왜 {@link #restoreAfterBundleRerunFailure} 를 그대로 쓰지 않는가</h3>
+     * <p>복구 <b>동작</b>은 사실상 같다 — 배치 단계를 조건부 UPDATE 로 되돌리고 작업 상태를
+     * {@code ASSIGNED} 로 복귀시킨다. 다르게 두는 이유는 <b>의미와 로그</b>다. 그쪽은 이름·로그 문구가
+     * "묶음 재수행 실패"로 못박혀 있어, 보류가 그 경로를 타면 운영 로그가 <b>일어나지 않은 실패</b>를
+     * 보고하게 된다. 보류는 정상 동작이므로 {@code WARN} 이 아니라 {@code INFO} 로 남긴다.
+     *
+     * <h3>복구 목표값</h3>
+     * <ul>
+     *   <li>배치 단계({@code LS_DATA_RAW.DATA_STTS_CD}) → <b>진입 직전 상태</b>. 마킹 완료 후 진입이면
+     *       {@code MARKING_READY} 다. 조건부 UPDATE 라 그사이 상태가 바뀌었으면 no-op 이다.</li>
+     *   <li>작업 상태({@code LS_RAW_DATA_STATUS.DATA_STTS_CD}) → {@code ASSIGNED}. 진입 가드가 이미
+     *       {@code PROCESSING} 으로 전이시킨 뒤이므로 되돌리지 않으면 <b>작업자가 검수 제출을 못 한다</b>
+     *       (상태 머신에 그 출발 전이가 없다). {@link #transitionRawDataStatus} 를 쓰므로 검수 소유
+     *       상태는 덮어쓰지 않는다.</li>
+     * </ul>
+     *
+     * <p>순서는 <b>배치 단계 먼저</b>다 — 그 컬럼이 이후 모든 진입의 클레임 대상이라 되돌리지 못하면
+     * 영상이 영구 {@code 409} 로 잠긴다(이 저장소가 이미 한 번 밟은 함정).
+     *
+     * @param rawSn         대상 영상
+     * @param restoreStatus 진입 직전의 배치 단계 상태. 비어 있으면 계약 위반이라 WARN 후
+     *                      {@link LsDataRaw#DATA_STTS_MARKING_READY} 로 복구한다 — 알 수 없다고
+     *                      되돌리지 않으면 {@code PROCESSING} 으로 영구 고착되기 때문이다
+     * @return {@code true} = 배치 단계 복구 성공, {@code false} = 그사이 상태가 바뀌어 no-op
+     */
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public boolean restoreAfterWithheld(Long rawSn, String restoreStatus) {
+        if (rawSn == null) {
+            return false;
+        }
+        String target = restoreStatus;
+        if (target == null || target.isBlank()) {
+            log.warn("[BatchTransition] withheld restore without origin status rawSn={} — using MARKING_READY", rawSn);
+            target = LsDataRaw.DATA_STTS_MARKING_READY;
+        }
+        int reverted = videoRepository.compensateReprocessClaim(
+                rawSn, LsDataRaw.DATA_STTS_PROCESSING, target);
+        if (reverted == 1) {
+            log.info("[BatchTransition] withheld — claim released (PROCESSING->{}) rawSn={}", target, rawSn);
+        } else {
+            log.info("[BatchTransition] withheld — claim release skipped (status already changed) rawSn={}", rawSn);
+        }
+        // 작업 상태는 성공 경로와 같은 값으로 되돌린다. 검수 소유 상태면 전이가 차단되며 그것이 옳다.
+        transitionRawDataStatus(rawSn, LsRawDataStatus.STTS_ASSIGNED);
+        return reverted == 1;
+    }
+
+    /**
      * <b>고착된 선점의 회수</b> — 두 컬럼을 선점 직전 상태로 되돌린다. 회수 스윕 전용.
      *
      * <h3>{@link #restoreAfterBundleRerunFailure} 와 무엇이 같고 무엇이 다른가</h3>
