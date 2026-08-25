@@ -17,6 +17,7 @@
 | [CO-006](CO-006-dev업로드-비트레이트-백필.md) | dev 업로드 back-fill 이 비트레이트를 채운다 — R3 의 BIT 부분 반전 | DOMAIN-003 | ✅ 완료 (QA pass_with_notes, issues 0) | — 해당없음 (ERD-012 이미 정합) | (커밋 대기) | 2026-08-24 |
 | [CO-007](CO-007-vlm-연동-verify에서-describe-describesub로-교체.md) | 외부 VLM 연동을 verify → describe(CoT)+describe-sub(VQA) 로 교체 (KLID 연동 API v1.1.0) | 공유기반 · DOMAIN-010 · DOMAIN-003 · DOMAIN-011 · DOMAIN-005 · mock-server | ✅ 완료 (QA fail → 지적 9건 보완, FULL 7,407 통과) | 🎨 26건 확정 + 시안 렌더 2건 재게시 | `cfb3d899`·`7d9da13b` | 2026-08-24 |
 | [CO-008](CO-008-수동업로드-운영노출.md) | 「수동 업로드」 운영(prd) 노출 — 명칭·BE 토글·multipart·LNB 게이트 | DOMAIN-004 · 프론트 · 공유기반 | ✅ 완료 (QA fail ×2 → 문서 동기화·잔재 11건 보완) | 🎨 완료 | `83d34446` (PR #131 → `5d53bcce`) | 2026-08-24 |
+| [CO-009](CO-009-영상목록-worker-배정범위-스코핑.md) | 영상 처리 현황 목록이 WORKER 에게 본인 배정분만 보여준다 (목록↔단건 인가 비대칭 해소) | DOMAIN-003 | ✅ 완료 (QA pass_with_notes · 범위 62+15 tests green · mutation 2종 실증) ⚠️ **FULL 미실행**(머신 메모리 부족 — 사용자 승인) | 🎨 완료 (API-042 v8 · SCREEN-008 v44 · ROLE-002 v7) | `1e4358e0` | 2026-08-25 |
 
 ## 설계 부채 백필 이력
 
