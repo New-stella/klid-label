@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-038
 type: screen_spec
-version: 8
-last_updated_at: 2026-08-25T03:50:32.666Z
+version: 9
+last_updated_at: 2026-08-25T10:21:57.363Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:51:54.764Z
-sync_session: 23
-stale: false
-status: NEW
-prev_version: null
+synced_at: 2026-08-25T10:22:54.990Z
+sync_session: 24
+stale: true
+status: CHANGED
+prev_version: 8
 raw: ./_raw/SCREEN-038.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-185]]", "[[API-186]]", "[[API-219]]", "[[API-220]]"]
   required_roles: ["[[ROLE-001]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v8 → v9**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 이벤트유형 관리 화면
 
@@ -590,7 +594,7 @@ _(empty)_
 ### main
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-038/main.html
-- **label**: 이벤트유형 관리 화면 — 와이어프레임
+- **label**: 메인 페이지
 - **width**: 1440
 - **surface**: page
 - **platform**: web
@@ -600,8 +604,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: d7bd540e6ec68548a7a50ed180bbbe44bd537ee23294f9e81dc3b6755c83de82
-- **generated_at**: 2026-08-17T11:15:22.369Z
+- **source_hash**: 73ee15de5258317595a0ac49a3290a52ab3f2ba7144f571803e32cfd857af1fa
+- **generated_at**: 2026-08-25T10:21:57.362Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

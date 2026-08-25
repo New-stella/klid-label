@@ -44,6 +44,11 @@
                       "nullable": true,
                       "description": "등록일시 (ISO-8601 UTC, regDt)"
                     },
+                    "effective": {
+                      "type": "boolean",
+                      "nullable": false,
+                      "description": "이 프리셋이 실효하는지 여부. 담긴 라벨 중 AI 검출 클래스에 매핑된 것이 하나라도 있으면 true 다. false 면 프리셋이 존재해도 그 이벤트 유형의 오토라벨링은 보류된다. 판정은 오토라벨 보류 판정과 같은 판정을 재사용해 얻으며 이 엔드포인트가 다시 유도하지 않는다."
+                    },
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time",
@@ -80,6 +85,11 @@
                             "type": "boolean",
                             "description": "BBOX 드로잉 활성 여부"
                           },
+                          "detectMapped": {
+                            "type": "boolean",
+                            "nullable": false,
+                            "description": "이 라벨이 AI 검출 클래스에 매핑돼 있는지 여부. false 인 라벨은 오토라벨 대상이 아니다. 매핑은 라벨 마스터가 소유하므로 마스터에서 매핑을 지정하면 이 값이 함께 바뀐다."
+                          },
                           "polygonEnabled": {
                             "type": "boolean",
                             "description": "POLYGON 드로잉 활성 여부"
@@ -113,6 +123,7 @@
               {
                 "id": 5,
                 "createdAt": "2026-03-01T09:00:00Z",
+                "effective": true,
                 "updatedAt": "2026-03-02T10:00:00Z",
                 "labelCodes": [
                   "PERSON",
@@ -124,11 +135,13 @@
                   {
                     "code": "PERSON",
                     "bboxEnabled": true,
+                    "detectMapped": true,
                     "polygonEnabled": true
                   },
                   {
                     "code": "FLOOR",
                     "bboxEnabled": true,
+                    "detectMapped": false,
                     "polygonEnabled": false
                   }
                 ]
@@ -213,7 +226,7 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "라벨링 프리셋 목록을 조회한다. REVIEWER 전용.",
+      "description": "라벨링 프리셋 목록을 조회한다. REVIEWER 전용.\n\n[프리셋이 실효하는지도 함께 내려준다] 프리셋에 담긴 라벨이 전부 AI 검출 클래스에 매핑돼 있지 않으면 그 프리셋은 존재하지만 아무것도 거르지 못하며, 그 이벤트 유형의 오토라벨링은 보류된다(ADR-054). 그 사실이 조회에 드러나지 않으면 운영자는 프리셋을 등록해 놓고도 왜 적용되지 않는지 알 수 없으므로, 프리셋마다 실효 여부를, 라벨마다 검출 클래스 매핑 여부를 함께 싣는다.\n\n[판정은 한 곳에서만 한다] 실효 여부는 오토라벨 보류 판정과 같은 판정을 재사용해 얻으며 이 엔드포인트가 다시 유도하지 않는다. 매핑을 소유하는 것은 프리셋이 아니라 라벨 마스터이므로, 마스터에서 매핑을 지정하면 그 라벨을 담은 기존 프리셋들이 함께 실효해진다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -230,12 +243,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "앞선 정합이 스키마 속성만 고치고 예시(example)를 그대로 둬 폐지된 이름·설명 필드와 이벤트 null 값이 예시에 남아 있었다. 예시를 새 계약에 맞춰 정정하고 이벤트 표시명을 예시에도 싣는다. 이벤트유형코드는 필수가 되었으므로 스키마의 nullable 표기도 함께 바로잡는다.",
+    "change_summary": "프리셋이 존재해도 담긴 라벨이 전부 AI 검출 클래스에 매핑돼 있지 않으면 그 프리셋은 아무것도 거르지 못하고 그 이벤트 유형의 오토라벨링이 보류되는데(ADR-054), 그 사실이 프리셋 조회 어디에도 드러나지 않아 운영자가 프리셋을 등록해 놓고도 왜 적용되지 않는지 알 수 없었다. 프리셋마다 실효 여부(effective)를, 라벨 항목마다 검출 클래스 매핑 여부(detectMapped)를 추가한다. 실효 판정은 오토라벨 보류 판정과 같은 판정을 재사용하며 이 엔드포인트가 다시 유도하지 않는다고 못박는다. 기존 필드의 이름·타입·시맨틱은 건드리지 않고 추가만 했으며(외부 프론트엔드가 소비한다), 스키마만 고치고 예시가 낡는 앞선 결함을 되풀이하지 않도록 예시에도 두 값을 함께 실었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T07:52:55.295Z",
+    "last_updated_at": "2026-08-25T10:19:23.426Z",
     "created_at": "2026-05-30T07:22:16.678Z"
   }
 }

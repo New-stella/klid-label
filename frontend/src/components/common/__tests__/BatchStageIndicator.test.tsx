@@ -33,6 +33,30 @@ const item = (name: string, status: BatchStageItem['status']): BatchStageItem =>
   progress: null,
 });
 
+/**
+ * `src` 아래 소스 파일 전수(테스트 제외) — 정적 가드가 「어디에도 없다」를 세는 축.
+ *
+ * 런타임 렌더 테스트는 "지금 무엇이 그려지는가"만 보므로, 지운 prop·주장이 **다른 파일에서**
+ * 되살아나는 것을 잡지 못한다. 그 사각을 이 목록이 덮는다.
+ */
+function sourceFiles(): { abs: string; rel: string }[] {
+  const srcDir = path.resolve(__dirname, '../../..');
+  const out: { abs: string; rel: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === '__tests__' || entry.name === 'test') continue;
+        walk(full);
+      } else if (/\.tsx?$/.test(entry.name)) {
+        out.push({ abs: full, rel: path.relative(srcDir, full).split(path.sep).join('/') });
+      }
+    }
+  };
+  walk(srcDir);
+  return out;
+}
+
 /** 렌더된 칸(스텝)의 key 목록 — 접기 결과를 셀 수 있는 유일한 축. */
 function renderedCellKeys(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll('[data-testid^="batch-stage-item-"]')).map((el) =>
@@ -459,16 +483,24 @@ describe('BatchStageIndicator', () => {
   //   칸을 분산하는 것은 **다른 축**이며, 앞의 것만 고치면 원래 고치려던 판독성 저하가 남는다.
   //
   // ⚠ jsdom 은 레이아웃을 계산하지 않아 실제 분산 폭은 여기서 판정할 수 없다(브라우저 실측이
-  //   짝이다). 이 가드가 고정하는 것은 **분산을 만드는 구조**(칸의 flex-1 · 한 줄 캡션)와
-  //   **두 모드가 같은 계약을 유지한다는 사실**이다.
-  describe('★전폭 분산 모드(fill, @design SCREEN-009)', () => {
+  //   짝이다). 이 가드가 고정하는 것은 **분산을 만드는 구조**(칸의 flex-1 · 한 줄 캡션)다.
+  //
+  // ⚠ **[폐기] 구 `fill` prop 과 비-fill 렌더 경로** — 칸을 내용 폭으로 두던 그 경로는 **마킹 화면
+  //   헤더에 인라인으로 놓이는 자리** 하나를 위한 것이었다. 그 자리가 사라져 prop·기본값·분기를
+  //   함께 걷어냈고, 전폭 분산이 **유일한 렌더**가 됐다. 그래서 아래 가드는 "켰을 때"가 아니라
+  //   **언제나** 그런지를 본다. 함께 폐기된 케이스 셋:
+  //     ①`★기본값은_구_동작이라_다른_사용처를_늘리지_않는다` — 관측할 기본 모드가 없다.
+  //     ②`★fill은_표시_계약을_바꾸지_않는다_칸수_문구_라이브안내_동일` — 비교할 두 번째 모드가 없다.
+  //       그 계약(칸수·상태 문구·라이브 안내)은 이 파일의 접기·라이브 리전 케이스가 계속 고정한다.
+  //     ③`★fill을_켜는_사용처는_영상_상세_한_곳뿐이다` — 아래 「prop 이 남아 있지 않다」로 대체.
+  describe('★전폭 분산(@design SCREEN-009 · @design UI-018)', () => {
     const cellsOf = (container: HTMLElement) =>
       Array.from(container.querySelectorAll('[data-testid^="batch-stage-item-"]')).map(
         (el) => el.parentElement as HTMLElement,
       );
 
-    it('★fill이면_칸이_flex-1이라_컨테이너_전폭에_균등_분산된다', () => {
-      const { container } = render(<BatchStageIndicator stages={stages} fill />);
+    it('★칸이_flex-1이라_컨테이너_전폭에_균등_분산된다', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} />);
       const cells = cellsOf(container);
       expect(cells).toHaveLength(5);
       // 칸마다 같은 폭을 갖는 것이 분산의 조건이다 — 하나라도 내용 폭이면 정렬이 어긋난다.
@@ -478,84 +510,61 @@ describe('BatchStageIndicator', () => {
       expect(screen.getByTestId('batch-stage-indicator').className).toContain('w-full');
     });
 
-    it('★기본값은_구_동작이라_다른_사용처를_늘리지_않는다', () => {
-      // 마킹 화면은 이 표시기를 헤더 행에 인라인으로 놓는다 — 늘어나면 옆 요소를 밀어낸다.
-      const { container } = render(<BatchStageIndicator stages={stages} />);
-      cellsOf(container).forEach((cell) => {
-        expect(cell.className).not.toContain('flex-1');
-      });
-      expect(screen.getByTestId('batch-stage-indicator').className).not.toContain('w-full');
-    });
-
-    it('★fill이면_캡션이_한_줄이다_단계명과_상태가_같은_부모_줄에_온다', () => {
-      const { unmount } = render(<BatchStageIndicator stages={stages} fill />);
+    it('★캡션이_한_줄이다_단계명과_상태가_같은_부모_줄에_온다', () => {
+      render(<BatchStageIndicator stages={stages} />);
       const name = screen.getByTestId('batch-stage-name-DEIDENTIFY');
       const status = screen.getByTestId('batch-stage-status-DEIDENTIFY');
       // 한 줄 = 두 조각이 같은 부모 안에 공백으로 이어진다(디자인 캡션 `비식별 완료`).
       expect(name.parentElement).toBe(status.parentElement);
       expect(name.parentElement?.textContent).toBe('비식별 완료');
-      unmount();
-
-      // 기본 모드는 두 줄이라 부모(= flex-col 캡션)의 직계 자식으로 나란히 온다.
-      render(<BatchStageIndicator stages={stages} />);
-      expect(screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement?.className).toContain(
-        'flex-col',
-      );
     });
 
-    it('★fill은_표시_계약을_바꾸지_않는다_칸수_문구_라이브안내_동일', () => {
-      const { container, unmount } = render(<BatchStageIndicator stages={stages} />);
-      const baseKeys = renderedCellKeys(container);
-      const baseLive = screen.getByTestId('batch-stage-live').textContent;
-      unmount();
-
-      const filled = render(<BatchStageIndicator stages={stages} fill />);
-      expect(renderedCellKeys(filled.container)).toEqual(baseKeys);
-      expect(screen.getByTestId('batch-stage-live').textContent).toBe(baseLive);
-      // 상태 문구(색을 대신하는 유일한 구분 수단)가 fill 에서도 빠지지 않는다.
-      baseKeys.forEach((key) => {
-        expect(screen.getByTestId(`batch-stage-status-${key}`).textContent).toBeTruthy();
-      });
-    });
-
-    it('★접은_칸의_보조_표기는_fill에서도_남는다', () => {
+    it('★접은_칸의_보조_표기는_전폭_분산에서도_남는다', () => {
       render(
         <BatchStageIndicator
           stages={[item('DEIDENTIFY', 'DONE'), item('YOLO', 'DONE'), item('INTERPOLATE', 'FAIL')]}
-          fill
         />,
       );
       expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('보간에서 실패');
     });
 
-    // ★ 전폭 밴드가 아닌 사용처가 실수로 켜지는 것을 막는다 — 런타임 테스트는 그 화면을
-    //   렌더할 때만 돌지만, 이 가드는 사용처가 하나 늘어도 즉시 실패한다.
-    it('★fill을_켜는_사용처는_영상_상세_한_곳뿐이다', () => {
-      const srcDir = path.resolve(__dirname, '../../..');
-      const files: string[] = [];
-      const walk = (dir: string) => {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            if (entry.name === '__tests__' || entry.name === 'test') continue;
-            walk(full);
-          } else if (/\.tsx?$/.test(entry.name)) {
-            files.push(full);
-          }
-        }
-      };
-      walk(srcDir);
+    // ★ 되돌림 방지 — 구 분기가 코드로 되살아나면 즉시 실패한다. 런타임 렌더 테스트는 "지금
+    //   무엇이 그려지는가"만 보므로, prop 이 다시 생겨 어느 화면이 그것을 켜는 상황을 못 잡는다.
+    it('★fill_prop과_비-fill_렌더_경로가_소스에_남아_있지_않다', () => {
+      const defPath = path.resolve(__dirname, '../BatchStageIndicator.tsx');
+      // 주석의 폐기 서술(`fill` 이라는 낱말)은 대상이 아니다 — 블록·JSX·줄 주석을 걷어낸
+      // **코드 본문**만 센다. 주석을 안 걷으면 이 파일의 폐기 표기 자체가 가드를 붉게 만든다.
+      const code = fs
+        .readFileSync(defPath, 'utf-8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
 
-      // `<BatchStageIndicator ... fill ... />` 렌더 지점만 센다(정의 파일 제외).
-      const USAGE = /<BatchStageIndicator[^>]*\bfill\b[^>]*\/>/gs;
-      const hits = files.flatMap((f) => {
-        const rel = path.relative(srcDir, f).split(path.sep).join('/');
-        if (rel === 'components/common/BatchStageIndicator.tsx') return [];
-        const count = (fs.readFileSync(f, 'utf-8').match(USAGE) ?? []).length;
-        return count > 0 ? [`${rel} x${count}`] : [];
+      expect(code.match(/\bfill\b/g) ?? []).toEqual([]);
+      // 비-fill 전용 캡션 축소도 함께 사라졌다(전폭 경로로 새면 캡션이 10px 로 줄어든다).
+      expect(code.match(/fontSize/g) ?? []).toEqual([]);
+
+      // 렌더 호출부 어디에도 이 prop 이 남지 않는다.
+      const hits = sourceFiles().flatMap((f) => {
+        const count = (fs.readFileSync(f.abs, 'utf-8').match(/<BatchStageIndicator[^>]*\bfill\b/gs) ?? [])
+          .length;
+        return count > 0 ? [`${f.rel} x${count}`] : [];
       });
+      expect(hits).toEqual([]);
+    });
 
-      expect(hits).toEqual(['pages/VideoDetailPage.tsx x1']);
+    // ★ 근거가 소멸한 주장을 사실로 남겨 두지 않는다(CO-011). 마킹 화면은 이 표시기를 더 쓰지
+    //   않으므로 "표시기를 마킹 화면과 공유한다"는 서술은 거짓이다. 폐기 표기와 함께 남긴
+    //   **이력**은 허용하고, 표기 없는 **주장**만 막는다.
+    it('★표시기를_마킹_화면과_공유한다는_주장이_남아_있지_않다', () => {
+      const CLAIM = /마킹\s*화면[^\n]{0,20}공유/;
+      const offenders = sourceFiles().flatMap((f) =>
+        fs
+          .readFileSync(f.abs, 'utf-8')
+          .split('\n')
+          .filter((line) => CLAIM.test(line) && !line.includes('폐기'))
+          .map((line) => `${f.rel}: ${line.trim()}`),
+      );
+      expect(offenders).toEqual([]);
     });
   });
 });

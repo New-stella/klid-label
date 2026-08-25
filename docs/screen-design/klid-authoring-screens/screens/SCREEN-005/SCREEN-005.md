@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 99
-last_updated_at: 2026-08-25T03:53:42.139Z
+version: 100
+last_updated_at: 2026-08-25T10:21:57.263Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:51:54.728Z
-sync_session: 23
+synced_at: 2026-08-25T10:22:54.879Z
+sync_session: 24
 stale: true
-status: NEW
-prev_version: null
+status: CHANGED
+prev_version: 99
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-004]]", "[[UC-005]]", "[[UC-006]]", "[[UC-007]]", "[[UC-008]]", "[[UC-021]]", "[[UC-022]]", "[[UC-034]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v99 → v100**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (59.2KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 
@@ -1943,7 +1947,7 @@ _(empty)_
 ### main
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-005/main.html
-- **label**: 라벨링 캔버스 화면 — 와이어프레임
+- **label**: 메인 페이지
 - **width**: 1440
 - **surface**: page
 - **platform**: web
@@ -1953,8 +1957,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: bb501a098d5fd9171d71b34a7eaa74366266d0fa8372d7f07c62799ed6668742
-- **generated_at**: 2026-08-24T08:10:10.478Z
+- **source_hash**: 38990cf13dd44e12d404019aac71b8acfae27df1c24d9093b15f476b55a42de8
+- **generated_at**: 2026-08-25T10:21:57.262Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

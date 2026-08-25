@@ -76,14 +76,17 @@ function InfoTab({ video, isReviewer }: { video: VideoDetail; isReviewer: boolea
       </dl>
 
       {/* [@design SCREEN-009] 처리 단계 — 콘텐츠 전폭 밴드. 위 그리드와 구분선으로 나눈다.
-          ★`fill` 을 켜는 자리는 여기 하나다 — 밴드를 전폭으로 빼내도 표시기 자신이 내용 폭이면
+          ★표시기는 **칸을 전폭에 균등 분산**한다 — 밴드를 전폭으로 빼내도 표시기 자신이 내용 폭이면
           노드가 좌측에 뭉쳐 있어(실측 886px 밴드에 273px 만 사용) 원래 고치려던 판독성 저하가
-          그대로 남는다. 마킹 화면은 헤더 행 인라인이라 켜지 않는다. */}
+          그대로 남는다.
+          ⚠ **[폐기]** 구 서술 「`fill` 을 켜는 자리는 여기 하나다 / 마킹 화면은 헤더 행 인라인이라
+          켜지 않는다」 — 마킹 화면이 이 표시기를 더 쓰지 않아 분기의 근거가 사라졌고, `fill` prop 과
+          비-fill 렌더 경로를 함께 걷어냈다(전폭 분산이 유일한 렌더). */}
       <div className="border-t border-gray-200 pt-4">
         <p className="mb-2 text-label text-gray-600">처리 단계</p>
         {video.stages && video.stages.length > 0 ? (
           <div className="overflow-x-auto">
-            <BatchStageIndicator stages={video.stages} fill />
+            <BatchStageIndicator stages={video.stages} />
           </div>
         ) : (
           <StatusBadge status={video.status} />
@@ -91,8 +94,11 @@ function InfoTab({ video, isReviewer }: { video: VideoDetail; isReviewer: boolea
       </div>
 
       {/* [@design SCREEN-009] 배치 실패 사유 + 조치 — 처리 단계 바로 아래(같은 관심사의 연속).
-          ★조작 버튼을 BatchStageIndicator 안에 두지 않는 이유: 그 표시기는 마킹 화면과 공유하므로
-          버튼을 넣으면 마킹 화면에도 함께 나타난다(사양 SCREEN-009 가 명시적으로 금지).
+          ★조작 버튼을 BatchStageIndicator 안에 두지 않는 이유: 그 표시기는 «어느 단계까지 왔는가»만
+          말하고 조작은 그 바깥의 관심사다(사양 SCREEN-009 가 표시기 안에 두는 것을 명시적으로 금지).
+          ⚠ **[폐기]** 구 근거 「그 표시기는 마킹 화면과 공유하므로 버튼을 넣으면 마킹 화면에도 함께
+          나타난다」 — 마킹 화면이 표시기를 더 쓰지 않아 그 서술은 사실이 아니다. 근거가 하나 사라졌을
+          뿐 **금지는 그대로**이며, 사용처가 한 곳이 됐다는 사실은 둘을 합칠 근거가 아니다.
           REVIEWER 전용 — 권한 가드는 UX 편의일 뿐 실제 강제는 BE(403)다. */}
       {isReviewer && <BatchFailurePanel video={video} />}
       {/* [req: R14] 비식별 이력 — 처리 단계(BatchStageIndicator) 바로 아래에 둔다.

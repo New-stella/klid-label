@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-006
 type: screen_spec
-version: 47
-last_updated_at: 2026-08-25T09:45:50.899Z
+version: 49
+last_updated_at: 2026-08-25T10:18:39.251Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:51:54.730Z
-sync_session: 23
-stale: true
-status: NEW
-prev_version: null
+synced_at: 2026-08-25T10:22:54.887Z
+sync_session: 24
+stale: false
+status: CHANGED
+prev_version: 47
 raw: ./_raw/SCREEN-006.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-019]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v47 → v49**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (15.2KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 마킹 화면
 
@@ -261,7 +265,7 @@ _(empty)_
 
 #### [5]
 
-- **note**: rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 사전 비활성화 — ①파생영상 ②배치 단계≠MARKING_READY. BE 거부는 둘 다 412. 신고 성공 시 작업 목록(/task)으로 이동한다.
+- **note**: rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 파생영상일 때 사전 비활성화한다(BE 거부 412). 배치 단계가 마킹 대기가 아닐 때는 버튼이 비활성화되는 것이 아니라 화면 진입 자체가 막혀 이 버튼이 렌더되지 않는다 — 그 축은 마킹 진입 차단 안내가 규정한다. 신고 성공 시 작업 목록(/task)으로 이동한다.
 - **type**: Button
 - **label**: 비식별 누락 신고
 
@@ -278,7 +282,7 @@ _(empty)_
 
 #### [6]
 
-- **note**: videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' / status≠MARKING_READY 면 '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.
+- **note**: videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.
 - **type**: Custom
 - **label**: 신고 불가 사유 툴팁
 
@@ -467,10 +471,11 @@ _(empty)_
 ### records
 
 - IMPREC-120
+- IMPREC-122
 
 ### progress
 
-90
+95
 
 ### subtasks
 
@@ -478,7 +483,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T09:27:15.536Z
+2026-08-25T10:18:39.251Z
 
 ### module_paths
 
@@ -503,8 +508,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 777a19728746ecacbbb329389fb5b7c71a54ebb33efca88dcf51706937a71ebf
-- **generated_at**: 2026-08-25T09:45:50.899Z
+- **source_hash**: c8eb94c2deb07079d3492dd32e3012ff1b897deeed3d230a085072557fb2e3f9
+- **generated_at**: 2026-08-25T10:05:08.451Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

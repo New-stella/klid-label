@@ -44,6 +44,34 @@
             <div class="wf-alert wf-alert-success">저장 결과 알림</div><span class="wf-help">성공은 '이벤트유형을 저장했습니다', 실패는 서버가 준 메시지를 그대로 보여주고 없으면 '저장에 실패했습니다'.</span>
           </div>
         </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 검증 이벤트 유형·질문 관리</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-219</span>
+            <span class="wf-badge wf-badge-primary">API-220</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-bold">검증 이벤트 유형·질문</span>
+            <span class="wf-muted">외부 시계열 분석에 쓰는 검증 이벤트 유형과 유형별 질문 문구를 관리합니다. 유형 자체는 추가·삭제할 수 없고 질문만 편집합니다.</span>
+            <div class="wf-stack"><span class="wf-bold">검증 이벤트 유형 목록</span><table class="wf-table"><thead><tr><th>정렬순서</th><th>검증 유형 코드</th><th>유형명</th><th>설명</th><th>관제 이벤트유형 코드</th><th>질문 수</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div><span class="wf-help">정렬순서 오름차순으로 그린다. 설명이 없으면 '-'. 행을 고르면 아래 질문 목록이 그 유형의 것으로 바뀐다.</span>
+            <span class="wf-muted">ControlEventTypeCodePairs</span><span class="wf-badge">readonly</span><span class="wf-help">인입 원장에 실려 온 짝을 그대로 보여준다. 여러 건이면 모두 나열하고 한 건도 없으면 짝 없음으로 표시한다. 화면이 관제 코드와 검증 유형의 대응을 스스로 만들지 않는다.</span>
+            <div class="wf-stack"><span class="wf-bold">질문 목록</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div><span class="wf-help">정렬순서 오름차순으로 그린다. 배열에 보이는 순서가 곧 저장될 정렬순서다. 질문이 없으면 비어 있음을 알리고 추가를 권한다.</span>
+            <span class="wf-badge">기본 질문</span><span class="wf-badge">readonly</span><span class="wf-help">정렬순서 첫 번째 질문에만 붙인다. 마킹에서 고르지 않았거나 고른 질문이 그 유형에 속하지 않으면 이 질문이 쓰인다는 뜻을 화면에서 알 수 있게 한다.</span>
+            <div class="wf-field"><label class="wf-label">질문 문구</label><textarea class="wf-textarea" placeholder="영상에서 '&lt;이벤트&gt;' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?"></textarea><p class="wf-help">빈 문자열·공백만·개행·제어문자 불가. 길이 상한을 넘을 수 없다. 위반은 서버가 요청 전체를 거부한다</p></div>
+            <button class="wf-btn wf-btn-secondary">질문 추가</button><span class="wf-help">목록 맨 끝에 빈 질문 한 줄을 더한다. 이 시점에는 저장되지 않는다.</span>
+            <button class="wf-btn wf-btn-destructive">질문 삭제</button><span class="wf-help">그 줄을 목록에서 뺀다. 저장을 눌러야 실제로 반영되므로 별도 확인 단계를 두지 않는다.</span>
+            <button class="wf-icon-btn" aria-label="순서 올리기">순</button><span class="wf-help">첫 줄에서는 비활성. 순서를 바꾸면 기본 질문 표기가 따라 옮겨간다.</span>
+            <button class="wf-icon-btn" aria-label="순서 내리기">순</button><span class="wf-help">마지막 줄에서는 비활성.</span>
+            <button class="wf-btn wf-btn-primary">질문 목록 저장</button><span class="wf-badge wf-badge-primary">API-220</span><span class="wf-help">화면의 질문 목록 전체를 한 번에 보낸다. 배열 순서가 정렬순서가 된다. 성공 응답에 교체 후 목록이 실려 오므로 목록을 다시 불러오지 않고 그 값으로 갱신한다.</span>
+            <button class="wf-btn wf-btn-secondary">취소</button><span class="wf-help">편집을 버리고 마지막으로 조회한 질문 목록으로 되돌린다.</span>
+            <div class="wf-alert wf-alert-info">질문 문구를 저장할 수 없습니다</div><span class="wf-badge wf-badge-danger">error</span><span class="wf-help">서버가 준 거부 사유를 그대로 보여준다. 요청 전체가 거부되므로 편집 중이던 목록을 지우지 않고 그대로 남긴다.</span>
+            <span class="wf-muted">목록 로딩</span>
+            <div class="wf-alert wf-alert-success">저장 결과 알림</div><span class="wf-help">성공은 '질문 목록을 저장했습니다', 실패는 서버가 준 메시지를 그대로 보여주고 없으면 '저장에 실패했습니다'.</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -64,6 +92,16 @@
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>등록된 이벤트유형 전체를 한 화면에 표로 보여준다. 비수집이거나 제외 대분류에 속한 유형까지 포함한다 — 필터 드롭다운용 조회와 목적이 다르며, 숨긴 유형을 다시 켜려면 목록에 보여야 하기 때문이다. 유형코드는 고정값이라 수정 대상이 아니다. 관제 원본과 카테고리는 읽기 전용이며 표시명이 어디서 왔는지 설명하는 근거로 함께 보여준다(값이 없으면 '-'). 표시명 칸은 해석된 최종 표시명을 보여주고, 수정을 누르면 그 칸만 입력으로 바뀐다. 저장 요청에는 표시명과 수집여부만 싣는다 — 유형코드·대분류코드·카테고리코드·등록일시는 보내지 않는다. 표시명을 지정·해제하면 필터 옵션의 접기 결과가 달라지므로 관련 목록 화면의 옵션이 갱신된다. 표시명 칸에는 해석된 표시명과 함께 그 값이 어느 단계에서 왔는지를 표기한다 — 표기 값은 서버 응답에 실려 온 것을 그대로 쓰고 화면이 폴백을 다시 판정하지 않는다. 표시명을 저장하면 그 응답에 갱신된 표시명과 출처가 함께 실려 오므로 목록을 다시 불러오지 않고 해당 행만 그 값으로 갱신하며, 운영자 지정명을 지우면 출처가 그 아래 단계로 내려간 결과가 응답에 그대로 드러난다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(이벤트유형 목록)</li><li>Custom(표시명 출처 표기) · binds eventType.dsplNmSource<p class="wf-help" style="margin:2px 0 0">표시명 칸에 그 값이 어느 단계에서 온 것인지 함께 표기한다. 표기 값은 운영자 지정명·관제 수신 유형명·카테고리명·유형코드 가운데 하나이며, 서버 응답에 실려 온 값을 그대로 쓴다 — 화면이 원본 이름 필드들을 보고 폴백을 다시 판정하지 않는다.</p></li><li>Input(표시명 인라인 편집) · binds eventType.optrIndctNm · 검증: 최대 200자. 빈 문자열은 지정 해제를 뜻하며 허용한다<p class="wf-help" style="margin:2px 0 0">행 전체가 아니라 표시명 칸만 입력으로 바뀐다. 다른 행을 편집하면 이전 편집은 저장되지 않고 닫힌다.</p></li><li>Button(수집여부 토글 (노출/숨김)) · → API-186<p class="wf-help" style="margin:2px 0 0">누르면 즉시 반대값으로 저장한다. 확인 단계를 두지 않는 이유는 되돌리기가 같은 버튼 한 번이기 때문이다.</p></li><li>Button(표시명 수정)</li><li>Button(저장) · → API-186<p class="wf-help" style="margin:2px 0 0">표시명을 비운 채 저장하면 지정이 해제되어 관제 수신명으로 되돌아간다 — 되돌리기 경로다. 성공 응답에 갱신된 표시명과 그 출처가 함께 실려 오므로, 목록을 다시 불러오지 않고 해당 행의 표시명과 출처를 그 값으로 갱신하고 성공 알림을 띄운다.</p></li><li>Button(취소)</li><li>Skeleton(목록 로딩)</li><li>Alert(목록을 불러오지 못했습니다) · error</li><li>Toast(저장 결과 알림)<p class="wf-help" style="margin:2px 0 0">성공은 '이벤트유형을 저장했습니다', 실패는 서버가 준 메시지를 그대로 보여주고 없으면 '저장에 실패했습니다'.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-185</li><li>API-186</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 검증 이벤트 유형·질문 관리</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>등록된 검증 이벤트 유형을 정렬순서 오름차순으로 보여주고, 유형을 고르면 그 유형의 질문 목록을 정렬순서 오름차순으로 편다. 유형 행에는 검증 유형 코드·유형명·설명과 함께 그 유형과 짝지어 수신된 관제 이벤트유형 코드를 나란히 보여준다 — 짝은 인입 원장에 실려 온 값을 읽은 것이라 화면이 매핑을 만들지 않으며, 코드가 여러 개일 수 있고 한 건도 없으면 짝 없음으로 표시한다. 두 코드 체계는 별개라 한 칸에 섞어 적지 않는다. 질문 목록에서는 문구를 추가·수정·삭제하고 순서를 올리고 내릴 수 있으며, 정렬순서 첫 번째 질문에는 기본 질문 표기를 달아 순서가 곧 의미임을 드러낸다. 저장은 그 유형의 질문 목록 전체를 한 번에 교체하는 요청 한 번이고 화면에 보이는 배열 순서가 그대로 정렬순서가 된다 — 항목 단위 저장을 두지 않는다. 질문을 하나도 남기지 않고 저장하면 그 유형에 질문이 없어지며 이는 허용되는 상태다. 질문 문구가 비어 있거나 공백뿐이거나 개행·제어문자를 담았거나 길이 상한을 넘으면 서버가 요청 전체를 거부하므로, 화면은 어느 항목이 왜 거부됐는지 서버가 준 사유를 그대로 보여주고 편집 내용을 지우지 않는다. 검증 이벤트 유형 자체를 만들거나 지우는 수단은 두지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(검증 이벤트 유형·질문)</li><li>Text(외부 시계열 분석에 쓰는 검증 이벤트 유형과 유형별 질문 문구를 관리합니다. 유형 자체는 추가·삭제할 수 없고 질문만 편집합니다.)</li><li>Table(검증 이벤트 유형 목록) · → API-219 · binds verificationEventTypes<p class="wf-help" style="margin:2px 0 0">정렬순서 오름차순으로 그린다. 설명이 없으면 '-'. 행을 고르면 아래 질문 목록이 그 유형의 것으로 바뀐다.</p></li><li>Custom(관제 이벤트유형 코드 짝) · readonly · binds verificationEventType.evntTypeCds<p class="wf-help" style="margin:2px 0 0">인입 원장에 실려 온 짝을 그대로 보여준다. 여러 건이면 모두 나열하고 한 건도 없으면 짝 없음으로 표시한다. 화면이 관제 코드와 검증 유형의 대응을 스스로 만들지 않는다.</p></li><li>List(질문 목록) · binds verificationEventType.questions<p class="wf-help" style="margin:2px 0 0">정렬순서 오름차순으로 그린다. 배열에 보이는 순서가 곧 저장될 정렬순서다. 질문이 없으면 비어 있음을 알리고 추가를 권한다.</p></li><li>Badge(기본 질문) · readonly<p class="wf-help" style="margin:2px 0 0">정렬순서 첫 번째 질문에만 붙인다. 마킹에서 고르지 않았거나 고른 질문이 그 유형에 속하지 않으면 이 질문이 쓰인다는 뜻을 화면에서 알 수 있게 한다.</p></li><li>Textarea(질문 문구) · binds question.qstnCn · 검증: 빈 문자열·공백만·개행·제어문자 불가. 길이 상한을 넘을 수 없다. 위반은 서버가 요청 전체를 거부한다</li><li>Button(질문 추가)<p class="wf-help" style="margin:2px 0 0">목록 맨 끝에 빈 질문 한 줄을 더한다. 이 시점에는 저장되지 않는다.</p></li><li>Button(질문 삭제)<p class="wf-help" style="margin:2px 0 0">그 줄을 목록에서 뺀다. 저장을 눌러야 실제로 반영되므로 별도 확인 단계를 두지 않는다.</p></li><li>IconButton(순서 올리기)<p class="wf-help" style="margin:2px 0 0">첫 줄에서는 비활성. 순서를 바꾸면 기본 질문 표기가 따라 옮겨간다.</p></li><li>IconButton(순서 내리기)<p class="wf-help" style="margin:2px 0 0">마지막 줄에서는 비활성.</p></li><li>Button(질문 목록 저장) · → API-220<p class="wf-help" style="margin:2px 0 0">화면의 질문 목록 전체를 한 번에 보낸다. 배열 순서가 정렬순서가 된다. 성공 응답에 교체 후 목록이 실려 오므로 목록을 다시 불러오지 않고 그 값으로 갱신한다.</p></li><li>Button(취소)<p class="wf-help" style="margin:2px 0 0">편집을 버리고 마지막으로 조회한 질문 목록으로 되돌린다.</p></li><li>Alert(질문 문구를 저장할 수 없습니다) · error<p class="wf-help" style="margin:2px 0 0">서버가 준 거부 사유를 그대로 보여준다. 요청 전체가 거부되므로 편집 중이던 목록을 지우지 않고 그대로 남긴다.</p></li><li>Skeleton(목록 로딩)</li><li>Toast(저장 결과 알림)<p class="wf-help" style="margin:2px 0 0">성공은 '질문 목록을 저장했습니다', 실패는 서버가 준 메시지를 그대로 보여주고 없으면 '저장에 실패했습니다'.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-219</li><li>API-220</li></ul></div>
     </div>
   </div>
 </body>

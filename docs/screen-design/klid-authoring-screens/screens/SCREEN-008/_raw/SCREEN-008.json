@@ -414,8 +414,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "a776f32e5d56bb9275c7eca074cadb3d6fc60af2acad58d2ed7162c10630746b",
-          "generated_at": "2026-08-19T23:52:45.177Z",
+          "source_hash": "79d54b00a0880f90b9ed31c40c4033b7d666275b9e2831c8f29a220fd65382d1",
+          "generated_at": "2026-08-25T10:11:15.282Z",
           "generated_by": "sections-deterministic-generator",
           "triggered_by": []
         }
@@ -432,12 +432,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 44,
+    "current_version": 45,
     "stale": true,
     "stale_reason": "ROLE-002의 data.implementation 변경 — requires",
-    "change_summary": "직전 리비전에서 「개인정보 유무 컬럼」의 한 글자가 「컴럼」으로 잘못 적힌 것을 되돌린다. 뜻이 바뀐 서술은 없고 표기만 바로잡는다.",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (21.7KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T06:48:05.846Z",
+    "last_updated_at": "2026-08-25T10:11:15.282Z",
     "created_at": "2026-05-30T07:54:12.529Z"
   }
 }

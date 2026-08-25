@@ -55,6 +55,10 @@
     "TEST-002",
     "UC-019"
   ],
-  "pending": [],
-  "last_sync_at": "2026-08-25T09:53:10.224Z"
+  "pending": [
+    "SHELL-001",
+    "IMPREC-120",
+    "NAV-001"
+  ],
+  "last_sync_at": "2026-08-25T10:24:01.552Z"
 }

@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 44
+version: 45
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T09:53:10.206Z
+synced_at: 2026-08-25T10:24:01.507Z
 status: CHANGED
-prev_version: 42
-content_hash: 478b8606cbff7065c8243bd7291947cc9751e4cd47958f6d12e31b7d510927a6
+prev_version: 44
+content_hash: 0cfabc5e205b5db723a2df552f7cb07c2122c924863fda402285dc9dd13c8dcb
 stale: true
 raw: ./_raw/SCREEN-008.json
 links:
@@ -770,8 +770,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: a776f32e5d56bb9275c7eca074cadb3d6fc60af2acad58d2ed7162c10630746b
-- **generated_at**: 2026-08-19T23:52:45.177Z
+- **source_hash**: 79d54b00a0880f90b9ed31c40c4033b7d666275b9e2831c8f29a220fd65382d1
+- **generated_at**: 2026-08-25T10:11:15.282Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
