@@ -136,7 +136,58 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+
+### 조건부 빈 등록 — 이 저장소에서는 애너테이션 두 가지가 **모두** 막혀 있다 (CO-010)
+`설정값이 주입됐을 때만 빈을 등록`하려는 모든 경우에 해당한다.
+
+- **`@ConditionalOnProperty(name = "x.y.z")` 는 빈 문자열도 매칭시킨다.** 이 저장소는
+  `application.yml` 이 `x.y.z: ${ENV_VAR:}` 로 **키를 항상 정의**하는 관례라, 미주입 형상이
+  "키 없음"이 아니라 **"키 있음 + 빈 문자열"** 이다. 이 애너테이션은 `havingValue` 미지정 시
+  `!"false".equalsIgnoreCase(value)` 로 판정하므로 빈 문자열을 통과시킨다 → 목적 미달성.
+- **`@ConditionalOnExpression("'${x.y.z:}'.length() > 0")` 은 기동을 통째로 실패시킬 수 있다.**
+  `OnExpressionCondition` 이 SpEL 파싱 **이전에** `Environment.resolvePlaceholders` 로 치환하므로,
+  **외부 주입값이 조건식의 문법에 참여한다.** 주소에 작은따옴표가 하나만 있어도
+  `SpelParseException(EL1046E)` 로 컨텍스트가 뜨지 않는다.
+- ⇒ **문자열 파싱이 없는 커스텀 `Condition`** 을 쓴다:
+  `StringUtils.hasText(ctx.getEnvironment().getProperty(KEY))`. null·""·공백만이 전부 false 다.
+
+> 근거: CO-010 실증. 조건만 `@ConditionalOnProperty` 로 바꾸자 등록 테스트 2건 FAILED,
+> `@ConditionalOnExpression` + `http://host/a'b` 로는 기동 실패를 RED 재현.
+> 회귀 가드 = `VlmHealthIndicatorRegistrationTest` · `VlmUrlPresentConditionTest`.
+> 선례 코드 = `observability/health/VlmUrlPresentCondition.java`(javadoc 이 근거의 단일 지점).
+>
+> **재발 조건**: URL·경로·정규식처럼 따옴표·괄호가 들어갈 수 있는 값으로 빈 등록을 가를 때.
+> 리뷰에서 "애너테이션으로 단순화하자"는 제안이 나오는 순간 조용히 회귀한다.
+
+### WebClient — "200인데 본문이 이상하다"는 **한 종류가 아니다** (CO-010)
+외부 연동 응답을 "도달했는가"로 판정할 때(헬스체크 등) 한쪽만 잡으면 **절반이 조용히 실패**한다.
+목서버 4형상 프로브로 실측한 표:
+
+| 응답 형상 | 던져지는 예외 |
+|---|---|
+| `200` + `application/json` + 비JSON 본문 | `org.springframework.core.codec.DecodingException` (cause `JsonParseException`) |
+| `200` + `text/html` (디코더 없음) | **`WebClientResponseException(status=200)`** (cause `UnsupportedMediaTypeException`) |
+| `200` + `application/json` + 빈 본문 | 예외 없음, 결과 `null` (null-safe 분기 필요) |
+| 타임아웃 · 커넥션 거부 | `ReactiveException`(←`TimeoutException`) · `WebClientRequestException` |
+
+- ⚠ **`WebClientResponseException` 은 이름과 달리 "오류 상태코드 예외"가 아니다** — 디코더가 없으면
+  `200` 에도 던져진다. 상태코드로 분기하지 말고 **예외 타입 + cause** 로 갈라야 한다.
+- 계층(`javap` 실측): `WebClientResponseException` 과 `WebClientRequestException` 은 **형제**
+  (공통 부모 `WebClientException`), `DecodingException` 은 `CodecException` 계열로 **완전 분리**.
+  ⇒ 세 catch 가 서로소라 **연결 실패가 응답 분기로 새지 않는다**(순서 의존성 없음).
+
+> **재발 조건**: 리버스 프록시·LB 뒤의 외부 연동. 그 구간은 `200 + HTML 오류 페이지`가 흔하다.
+
+### 외부 응답 예외 메시지를 detail·에러응답에 싣지 말 것 (CWE-209, CO-010)
+`DecodingException` 메시지에는 **응답 본문 조각이 그대로 섞인다** — Jackson 이 실패 지점 문자를 인용하기
+때문이다(실측: `JSON decoding error: Unexpected character ('<' (code 60)): expected a valid value ...`).
+`e.getMessage()` 를 노출하면 그대로 정보 유출이다.
+
+- 노출은 **예외 클래스명(`getClass().getSimpleName()`)** 또는 **사유 축**(`decoded=false` 같은 boolean)까지.
+- 테스트로 못박는다 — `details.values()` 에 본문 문자열이 없음을 **직접 단언**.
+
+> **재발 조건**: "클래스명만" 규칙은 이미 있었으나, **디코딩 실패처럼 원인이 안 보이는 케이스**에서
+> 메시지를 싣고 싶은 유혹이 커진다. 그때가 정확히 위험한 순간이다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
