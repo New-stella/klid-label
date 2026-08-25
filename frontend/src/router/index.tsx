@@ -194,7 +194,7 @@ if (isDevLoginEnabled()) {
   });
 }
 
-// [개발/검수 전용] 영상 업로드 페이지(`/dev/upload`) — REVIEWER 만 진입. [@design SCREEN-027]
+// [개발/검수 전용] 수동 업로드 페이지(`/dev/upload`) — REVIEWER 만 진입. [@design SCREEN-027]
 // DEV 빌드 또는 빌드타임 플래그 VITE_DEV_UPLOAD_ENABLED=true 일 때만 라우트를 노출 (isDevLoginEnabled 와 대칭).
 // 플래그 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevAutolabelTestPage 청크
 // 자체가 산출물에 포함되지 않는다. 실제 게이팅은 BE DEV_UPLOAD_ENABLED 런타임 토글이 결정(라우트만 존재,

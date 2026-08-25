@@ -26,16 +26,21 @@ spring:
       driver-class-name: org.postgresql.Driver
       maximum-pool-size: 20
       minimum-idle: 5
-  # 운영(prd) multipart 한도 — 공통(500MB/1200MB)보다 **좁게 조인다**.
-  #   공통값은 dev 업로드(/v1/dev/upload) 영상 500MB 를 수용하기 위한 비운영 기준이고,
-  #   prd 에는 dev 업로드 경로 자체가 없다(authoring.dev.upload.enabled 기본 false).
-  #   운영에 필요한 multipart 는 포털 이미지 업로드뿐 — 개당 20MB(서비스 검증) + 1MB 헤드룸,
-  #   요청당 최대 50장(50×21MB=1050MB) + 헤드룸으로 1100MB.
-  #   ⚠ 이 블록을 지우면 공통값을 상속해 운영 한도가 21MB → 500MB 로 조용히 상향된다
+  # 운영(prd) multipart 한도 — 요청 총량만 공통(1200MB)보다 좁게 조인다.
+  #   ★ 2026-08-24 변경: 개당 한도 21MB → 500MB (CO-008).
+  #     구 근거는 "prd 에는 dev 업로드 경로 자체가 없다" 였는데, 그 전제가 무너졌다 —
+  #     수동 업로드(/v1/dev/upload)를 운영에 노출하기로 확정했다(아래 authoring.dev.upload).
+  #     CCTV 영상 실측이 246MB(3840x2160, 80초)이고 사업 기준이 30초 이상/건이라 2배 여유로 500MB.
+  #     공통값과 같은 값이라 프로파일 간 개당 한도 드리프트가 사라진다.
+  #   ⚠ 개당 한도가 커지면서 포털 이미지도 서블릿 계층에서는 500MB 까지 통과한다 —
+  #     개당 20MB 판정은 서비스 계층 검증이 계속 담당한다(방어 한 겹이 얕아진 것은 인지·수용).
+  #   요청 총량 1100MB 는 유지한다 — 영상 단건(500MB)을 수용하면서 포털 다건 업로드의
+  #     총량 상한 역할을 그대로 한다(공통 1200MB 보다 좁다).
+  #   ⚠ 이 블록을 지우면 요청 총량이 공통값 1200MB 로 조용히 상향된다
   #     (무제한 대용량 요청 자원 소진, OWASP API4). ConfigProfileDriftGuardTest 가 회귀를 차단한다.
   servlet:
     multipart:
-      max-file-size: 21MB
+      max-file-size: 500MB
       max-request-size: 1100MB
 
 # 운영(prd) webhook 설정 — 미설정 시 부팅 차단(fail-closed).
@@ -54,6 +59,18 @@ spring:
 #   AugmentUrlPolicy 의 "빈값 거부"로 기동이 죽는다(조용한 오연동은 없지만 배포가 깨진다).
 #   fail-safe 로 못박는다. 실연동 시 AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 로 전환.
 authoring:
+  # [운영 노출] 수동 업로드(/v1/dev/upload) — 2026-08-24 CO-008 로 운영에서도 켠다.
+  #   왜 기본값을 뒤집나: 외부에서 받은 영상을 운영자가 직접 올려야 하는 동선이 실제로 있고,
+  #   그 입구가 이 경로다. FE 는 이미 노출돼 있었는데(온프렘 빌드가 VITE_DEV_UPLOAD_ENABLED 기본 true)
+  #   BE 만 꺼져 있어 "화면은 보이는데 API 는 404" 인 상태였다 — 그 어긋남을 여기서 맞춘다.
+  #   ★ 토글은 없애지 않는다 — 리터럴 true 가 아니라 placeholder 라야 DEV_UPLOAD_ENABLED=false 로 되돌릴 수 있다.
+  #   ⚠ 되돌릴 때는 BE 토글 off 와 FE 재빌드(VITE_DEV_UPLOAD_ENABLED=false)를 반드시 함께 한다.
+  #     BE 만 끄면 화면은 그대로 보이고 API 만 404 라 운영자가 원인을 못 찾는다(위 어긋남이 그 사례).
+  #   ⚠ dev 로그인(authoring.dev.login / DEV_LOGIN_ENABLED)은 여기 넣지 않는다 — 별개 키이며
+  #     공통 기본 false 를 그대로 상속해 /v1/dev/tokens 는 운영에서 계속 404 다(인증 우회 표면 차단).
+  dev:
+    upload:
+      enabled: ${DEV_UPLOAD_ENABLED:true}
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:noop}

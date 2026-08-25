@@ -1,6 +1,8 @@
 spring:
   # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
-  #   (dev 업로드 /v1/dev/upload 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
+  #   (수동 업로드 /v1/dev/upload 영상 개당 500MB 수용. 개당 한도는 운영 포함 전 프로파일이 같고,
+  #    운영만 application-prd.yml 에서 요청 총량을 1100MB 로 좁힌다.
+  #    ⚠ 구 기재 폐기(2026-08-24 CO-008): "운영만 21MB 로 조인다" 는 수동 업로드를 운영에 노출하면서 무효가 됐다)
   #
   # DB 접속 정보는 stg/prd 와 동일하게 **기본값 없이** 환경변수로만 주입한다.
   #   과거 dev 에만 내부 DB 호스트 IP·DB 명이 기본값으로 박혀 있었다 — 리포지토리에 내부망 정보가

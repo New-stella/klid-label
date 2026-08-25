@@ -5,11 +5,11 @@ version: 42
 last_updated_at: 2026-08-21T04:27:30.676Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:05.294Z
-sync_session: 20
-stale: false
-status: CHANGED
-prev_version: 42
+synced_at: 2026-08-24T14:23:30.448Z
+sync_session: 22
+stale: true
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-018]]"]
   acceptance: ["[[AC-049]]", "[[AC-050]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v42 → v42**
-> change_summary: 일괄 건너뛰기 노출을 영상의 배치 상태로 좁히던 것을 걷어내고, 대상을 모으는 몫을 새 작업 묶음 실패 필터로 옮긴다. 시계열 위탁은 논블로킹 제출이라 실패해도 배치 상태가 실패가 되지 않으므로, 배치 상태로 좁히면 정작 대상인 영상에서 창구가 통째로 닫힌다 — 과대 노출을 서버 건별 거부로 보정하던 구 서술과 방향이 반대인 결함이었다. 아울러 검색·필터에 작업 묶음 실패 조건을 더한다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 처리 현황 화면
 

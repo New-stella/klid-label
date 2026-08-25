@@ -16,3 +16,4 @@
 | [CO-005](CO-005-관제인입-비트레이트-썸네일-기관코드.md) | 관제 인입 3건 정정 — BIT 비트레이트 재정의·썸네일 경로 신설·OG_CD 재추가 | DOMAIN-003 | ✅ 완료 (QA fail → HIGH 3건 보완, FULL 7,412건 통과) | 🎨 완료 (ERD-012 v36) | `21d86d03` (PR #128 → `4b35acb8`) | 2026-08-24 |
 | [CO-006](CO-006-dev업로드-비트레이트-백필.md) | dev 업로드 back-fill 이 비트레이트를 채운다 — R3 의 BIT 부분 반전 | DOMAIN-003 | ✅ 완료 (QA pass_with_notes, issues 0) | — 해당없음 (ERD-012 이미 정합) | (커밋 대기) | 2026-08-24 |
 | [CO-007](CO-007-vlm-연동-verify에서-describe-describesub로-교체.md) | 외부 VLM 연동을 verify → describe(CoT)+describe-sub(VQA) 로 교체 (KLID 연동 API v1.1.0) | 공유기반 · DOMAIN-010 · DOMAIN-003 · DOMAIN-011 · DOMAIN-005 · mock-server | ✅ 완료 (QA fail → 지적 9건 보완, FULL 7,407 통과) | 🎨 26건 확정 + 시안 렌더 2건 재게시 | `cfb3d899`·`7d9da13b` | 2026-08-24 |
+| [CO-008](CO-008-수동업로드-운영노출.md) | 「수동 업로드」 운영(prd) 노출 — 명칭·BE 토글·multipart·LNB 게이트 | DOMAIN-004 · 프론트 · 공유기반 | ✅ 완료 (QA fail ×2 → 문서 동기화·잔재 11건 보완) | 🎨 완료 | | 2026-08-24 |

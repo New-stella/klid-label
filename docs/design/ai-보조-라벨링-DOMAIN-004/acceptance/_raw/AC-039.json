@@ -9,6 +9,24 @@
     "status": "draft",
     "data": {
       "notes": "기본값 복귀를 이 기준에 함께 둔 것은, 결과 적용 방식의 선택 상태를 어디에 두느냐가 기본값과 수락 입도와 확정 시점을 한꺼번에 결정하기 때문이다. 선택 상태가 실행을 넘어 남으면 검토를 거칠 것으로 알고 실행한 결과가 곧바로 반영된다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "AutoTrackPanel.test.tsx",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66781f10-f621-4ace-b7d9-b1436de11fe6",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -63,29 +81,33 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 90,
+        "subtasks": [],
+        "last_updated": "2026-08-24T00:45:21.924Z",
+        "module_paths": [
+          "frontend/src/features/label/components/AutoTrackPanel.tsx"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-004"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-034"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "1차 계승 분류를 신규에서 수정으로 옮기고 근거를 연결한다. 이 흐름은 1차 오토 라벨링 화면에 대응물이 있어 계승 원천이 채워져 있는데 분류는 신규로 남아 있어, 한 항목이 「1차 대응물이 있다」와 「1차에 없던 것이다」를 동시에 말하고 있었다. 계승한 것은 시작 객체를 지정하지 않고 자동으로 검출한다는 성질까지이며 검출·추적 메커니즘은 2차 신규다. 근거는 ADR-047 이다.",
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T22:37:52.506Z",
+    "last_updated_at": "2026-08-24T00:45:21.924Z",
     "created_at": "2026-08-17T11:33:36.191Z"
   }
 }

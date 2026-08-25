@@ -1,6 +1,8 @@
 spring:
   # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
-  #   (dev 업로드 /v1/dev/upload 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
+  #   (수동 업로드 /v1/dev/upload 영상 개당 500MB 수용. 개당 한도는 운영 포함 전 프로파일이 같고,
+  #    운영만 application-prd.yml 에서 요청 총량을 1100MB 로 좁힌다.
+  #    ⚠ 구 기재 폐기(2026-08-24 CO-008): "운영만 21MB 로 조인다" 는 수동 업로드를 운영에 노출하면서 무효가 됐다)
   # 이중화(HA) — Quartz 클러스터링 **필수**(B-ISSUE-81). 배포 토폴로지가 주 서버 2노드 Active-Active 라
   #   공통 기본값(false)을 상속하면 관제 학습용 스캔(60s)·KPST 폴링(30s)·export sweep(600s) 트리거가
   #   노드마다 중복 발화한다(@DisallowConcurrentExecution 은 스케줄러 인스턴스 내부에서만 유효).

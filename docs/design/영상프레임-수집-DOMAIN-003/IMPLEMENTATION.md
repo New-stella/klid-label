@@ -1,7 +1,7 @@
 # DOMAIN-003 영상·프레임 수집 — 구현 진입점
 
 > 이 문서는 결정적 생성물이다. ITEM 본문은 각 `[[ID]]` 파일이 진실원이며 여기 옮겨 적지 않는다.
-> 스코프 정본은 `.kit-scope.json`(99건) · 버전은 `version-master.md`.
+> 스코프 정본은 `.kit-scope.json`(119건) · 버전은 `version-master.md`.
 
 ## 도메인 (bounded context)
 
@@ -89,17 +89,17 @@
 
 | # | 단계 | 이번 키트 ITEM |
 |---|---|---|
-| 1 | ADR 결정·제약 | [[ADR-001]] · [[ADR-003]] · [[ADR-004]] · [[ADR-006]] · [[ADR-010]] · [[ADR-018]] · [[ADR-032]] · [[ADR-042]] |
+| 1 | ADR 결정·제약 | [[ADR-001]] · [[ADR-003]] · [[ADR-004]] · [[ADR-006]] · [[ADR-010]] · [[ADR-018]] · [[ADR-032]] · [[ADR-042]] · [[ADR-049]] · [[ADR-050]] |
 | 2 | NFR 예산 | [[NFR-008]] · [[NFR-009]] · [[NFR-010]] · [[NFR-011]] · [[NFR-012]] · [[NFR-013]] · [[NFR-014]] · [[NFR-015]] · [[NFR-016]] · [[NFR-017]] · [[NFR-018]] · [[NFR-019]] · [[NFR-020]] · [[NFR-021]] |
 | 3 | ERD 데이터 계층 | [[ERD-012]] · [[ERD-020]] · [[ERD-025]] |
 | 4 | EVT 이벤트 계약 | [[EVT-002]] · [[EVT-005]] |
-| 5 | API 경계 계약 | [[API-021]] · [[API-042]] · [[API-043]] · [[API-044]] · [[API-045]] · [[API-046]] · [[API-047]] · [[API-070]] · [[API-071]] · [[API-084]] · [[API-092]] · [[API-114]] · [[API-143]] · [[API-144]] · [[API-145]] · [[API-146]] · [[API-148]] · [[API-150]] · [[API-156]] · [[API-158]] · [[API-160]] · [[API-162]] · [[API-164]] · [[API-167]] · [[API-168]] · [[API-170]] · [[API-172]] · [[API-173]] · [[API-174]] · [[API-181]] · [[API-185]] · [[API-186]] · [[API-191]] · [[API-192]] · [[API-198]] · [[API-199]] · [[API-200]] · [[API-201]] |
-| 6 | DFEAT 비즈니스 로직 | [[DFEAT-007]] · [[DFEAT-008]] · [[DFEAT-009]] · [[DFEAT-010]] · [[DFEAT-011]] · [[DFEAT-029]] · [[DFEAT-051]] |
-| 7 | SEQ 흐름 배선 | [[SEQ-004]] |
+| 5 | API 경계 계약 | [[API-021]] · [[API-042]] · [[API-043]] · [[API-044]] · [[API-045]] · [[API-046]] · [[API-047]] · [[API-068]] · [[API-070]] · [[API-071]] · [[API-084]] · [[API-092]] · [[API-114]] · [[API-143]] · [[API-144]] · [[API-145]] · [[API-146]] · [[API-148]] · [[API-150]] · [[API-156]] · [[API-158]] · [[API-160]] · [[API-162]] · [[API-164]] · [[API-167]] · [[API-168]] · [[API-170]] · [[API-172]] · [[API-173]] · [[API-174]] · [[API-181]] · [[API-185]] · [[API-186]] · [[API-191]] · [[API-192]] · [[API-198]] · [[API-199]] · [[API-200]] · [[API-201]] · [[API-212]] · [[API-213]] · [[API-214]] |
+| 6 | DFEAT 비즈니스 로직 | [[DFEAT-007]] · [[DFEAT-008]] · [[DFEAT-009]] · [[DFEAT-010]] · [[DFEAT-011]] · [[DFEAT-029]] · [[DFEAT-045]] · [[DFEAT-051]] |
+| 7 | SEQ 흐름 배선 | [[SEQ-001]] · [[SEQ-004]] |
 | 8 | ROLE 인가 | [[ROLE-001]] · [[ROLE-002]] · [[ROLE-003]] |
-| 9 | SCREEN 화면 | [[SCREEN-005]] · [[SCREEN-006]] · [[SCREEN-008]] · [[SCREEN-009]] · [[SCREEN-011]] · [[SCREEN-022]] · [[SCREEN-027]] · [[SCREEN-038]] |
+| 9 | SCREEN 화면 | [[SCREEN-005]] · [[SCREEN-006]] · [[SCREEN-008]] · [[SCREEN-009]] · [[SCREEN-011]] · [[SCREEN-022]] · [[SCREEN-025]] · [[SCREEN-027]] · [[SCREEN-038]] |
 | 10 | UC 검증 | [[UC-011]] · [[UC-016]] · [[UC-018]] |
-| 11 | AC 수용 | [[AC-025]] · [[AC-026]] |
+| 11 | AC 수용 | [[AC-025]] · [[AC-026]] · [[AC-049]] · [[AC-050]] · [[AC-051]] · [[AC-055]] |
 | 12 | TEST 통합시험 | [[TEST-001]] |
 | 13 | CDIAG 클래스 구조 | [[CDIAG-001]] |
 | 14 | C4 컴포넌트 | [[CMP-001]] · [[CMP-010]] |
@@ -108,16 +108,24 @@
 
 > ⚠ 이번 키트에 **0건**인 단계: CONST 상수값, INT 외부 연동 — 해당 축은 설계가 없거나 `domain_id` 미설정이다.
 
+## 상수 값 (매직넘버 단일 진실원 — 인라인 추정 금지)
+
+> 이번 키트에 CONST 가 없다.
+
 ## 구현 현황 (ITEM 의 implementation 필드 — 설계 쪽 주장)
 
 | status | 건수 |
 |---|---|
-| implemented | 50 |
-| planned | 36 |
-| (미기재) | 24 |
+| implemented | 64 |
+| planned | 30 |
+| (미기재) | 25 |
 
 | ITEM | type | status | progress |
 |---|---|---|---|
+| [[AC-049]] | acceptance | implemented | 90 |
+| [[AC-050]] | acceptance | implemented | 90 |
+| [[AC-051]] | acceptance | implemented | 90 |
+| [[AC-055]] | acceptance | implemented | 90 |
 | [[API-021]] | api_endpoint | implemented | 100 |
 | [[API-042]] | api_endpoint | implemented | 100 |
 | [[API-043]] | api_endpoint | implemented | 100 |
@@ -125,6 +133,7 @@
 | [[API-045]] | api_endpoint | implemented | 100 |
 | [[API-046]] | api_endpoint | implemented | 100 |
 | [[API-047]] | api_endpoint | implemented | 100 |
+| [[API-068]] | api_endpoint | implemented | 100 |
 | [[API-070]] | api_endpoint | implemented | 100 |
 | [[API-071]] | api_endpoint | implemented | 100 |
 | [[API-084]] | api_endpoint | implemented | 100 |
@@ -148,12 +157,22 @@
 | [[API-173]] | api_endpoint | implemented | 100 |
 | [[API-174]] | api_endpoint | implemented | 100 |
 | [[API-181]] | api_endpoint | implemented | 100 |
+| [[API-185]] | api_endpoint | implemented | 100 |
+| [[API-186]] | api_endpoint | implemented | 100 |
+| [[API-198]] | api_endpoint | implemented | 100 |
+| [[API-200]] | api_endpoint | implemented | 100 |
+| [[API-201]] | api_endpoint | implemented | 100 |
+| [[API-212]] | api_endpoint | implemented | 100 |
+| [[API-213]] | api_endpoint | implemented | 100 |
+| [[API-214]] | api_endpoint | implemented | 100 |
 | [[DFEAT-007]] | domain_feature | implemented | 100 |
 | [[DFEAT-008]] | domain_feature | implemented | 100 |
 | [[DFEAT-009]] | domain_feature | implemented | 100 |
 | [[DFEAT-010]] | domain_feature | implemented | 100 |
 | [[DFEAT-029]] | domain_feature | implemented | 100 |
+| [[DFEAT-045]] | domain_feature | implemented | 100 |
 | [[DFEAT-051]] | domain_feature | implemented | 100 |
+| [[ERD-012]] | erd | implemented | 100 |
 | [[EVT-002]] | domain_event | implemented | 100 |
 | [[EVT-005]] | domain_event | implemented | 100 |
 | [[FEAT-004]] | feature | implemented | 100 |
@@ -162,22 +181,17 @@
 | [[SCREEN-009]] | screen_spec | implemented | 100 |
 | [[SCREEN-011]] | screen_spec | implemented | 100 |
 | [[SCREEN-022]] | screen_spec | implemented | 100 |
+| [[SCREEN-025]] | screen_spec | implemented | 100 |
 | [[SCREEN-027]] | screen_spec | implemented | 100 |
 | [[SCREEN-038]] | screen_spec | implemented | 100 |
 | [[SEQ-004]] | diagram_sequence | implemented | 100 |
 | [[UC-016]] | use_case | implemented | 100 |
 | [[AC-025]] | acceptance | planned | 0 |
 | [[AC-026]] | acceptance | planned | 0 |
-| [[API-185]] | api_endpoint | planned | 0 |
-| [[API-186]] | api_endpoint | planned | 0 |
 | [[API-191]] | api_endpoint | planned | 0 |
 | [[API-192]] | api_endpoint | planned | 0 |
-| [[API-198]] | api_endpoint | planned | 0 |
 | [[API-199]] | api_endpoint | planned | 0 |
-| [[API-200]] | api_endpoint | planned | 0 |
-| [[API-201]] | api_endpoint | planned | 0 |
 | [[DFEAT-011]] | domain_feature | planned | 0 |
-| [[ERD-012]] | erd | planned | 0 |
 | [[ERD-020]] | erd | planned | 0 |
 | [[ERD-025]] | erd | planned | 0 |
 | [[NFR-008]] | nfr | planned | 0 |
@@ -198,6 +212,7 @@
 | [[ROLE-002]] | permission_role | planned | 0 |
 | [[ROLE-003]] | permission_role | planned | 0 |
 | [[SCREEN-006]] | screen_spec | planned | 0 |
+| [[SEQ-001]] | diagram_sequence | planned | 0 |
 | [[STATE-002]] | diagram_state | planned | 0 |
 | [[UC-011]] | use_case | planned | 0 |
 | [[UC-018]] | use_case | planned | 0 |
@@ -206,7 +221,7 @@
 
 ## ITEM 인덱스
 
-### adr (9)
+### adr (10)
 - [[ADR-001]] — 작업 단위를 프로젝트에서 영상 1건(RAW_SN)으로 전환
 - [[ADR-003]] — ADMIN 역할 폐기 — 관리 권한 REVIEWER 통합
 - [[ADR-004]] — 생성형 AI 본체 외부화 — 저작도구는 증강 결과 검수만
@@ -216,6 +231,7 @@
 - [[ADR-032]] — 촬영환경·개인정보 메타 수동입력 신설(+self-fill 자동파생 폐기)
 - [[ADR-042]] — 관제 데이터 참조 전면 제거 — MNG_* 9종 삭제 + LS_DATA_INGEST 평면 수신
 - [[ADR-049]] — 외부 시계열 위탁의 비활성 토글을 폐지하고 사람이 결정하는 단계 스킵으로 대체한다
+- [[ADR-050]] — 시계열 위탁 건너뛰기의 입구를 전체 설정과 실패 후 판단 둘로 한정한다
 
 ### nfr (14)
 - [[NFR-008]] — 학습데이터 단계별 품질관리 기준 (수집·제작·검수)
@@ -242,7 +258,7 @@
 - [[EVT-002]] — BatchQueued
 - [[EVT-005]] — VideoIngested
 
-### api_endpoint (41)
+### api_endpoint (42)
 - [[API-021]] — GET /v1/frames/{srcSn}/image
 - [[API-042]] — GET /v1/videos
 - [[API-043]] — GET /v1/videos/{rawSn}
@@ -250,6 +266,7 @@
 - [[API-045]] — GET /v1/videos/{rawSn}/auto-summary
 - [[API-046]] — GET /v1/videos/{rawSn}/frames/{frameNo}/image
 - [[API-047]] — POST /v1/videos/{rawSn}/markings
+- [[API-068]] — GET /v1/manage/configs
 - [[API-070]] — POST /v1/assignments
 - [[API-071]] — PATCH /v1/assignments/{assignmentId}
 - [[API-084]] — GET /v1/videos/{rawSn}/stream
@@ -285,16 +302,18 @@
 - [[API-213]] — DELETE /v1/videos/batch/stages/{stage}/skip
 - [[API-214]] — POST /v1/videos/batch/stages/{stage}/rerun
 
-### domain_feature (7)
+### domain_feature (8)
 - [[DFEAT-007]] — 영상/이미지 관리
 - [[DFEAT-008]] — 클립영상 수신·적재
 - [[DFEAT-009]] — FFmpeg 프레임 자동 추출 (배치 1회/분)
 - [[DFEAT-010]] — 이미지 전처리 (리사이징·밝기/대비 보정)
 - [[DFEAT-011]] — 메타데이터 기반 자동 분류
 - [[DFEAT-029]] — 생성형 AI 외부 증강(WINTER/NIGHT/RAIN) + 해상도 변경 내부 파생(증강 저장모델 통합)
+- [[DFEAT-045]] — 시스템 설정 관리
 - [[DFEAT-051]] — 촬영환경·개인정보 메타 수동입력
 
-### diagram_sequence (1)
+### diagram_sequence (2)
+- [[SEQ-001]] — 영상수집 파이프라인 — 비식별·마킹부터 트랙 보간까지
 - [[SEQ-004]] — 해상도 변경 — 표준 3종 파생영상 생성·라벨 좌표 재계산
 
 ### permission_role (3)
@@ -302,14 +321,15 @@
 - [[ROLE-002]] — 라벨링 작업자 (WORKER)
 - [[ROLE-003]] — 포털 회원 (PORTAL_USER)
 
-### screen_spec (8)
+### screen_spec (9)
 - [[SCREEN-005]] — 라벨링 캔버스 화면
 - [[SCREEN-006]] — 마킹 화면
 - [[SCREEN-008]] — 영상 처리 현황 화면
 - [[SCREEN-009]] — 영상 상세 화면
 - [[SCREEN-011]] — 대시보드 화면
 - [[SCREEN-022]] — 증강 요청 화면
-- [[SCREEN-027]] — 영상 업로드
+- [[SCREEN-025]] — 시스템 설정 화면
+- [[SCREEN-027]] — 수동 업로드
 - [[SCREEN-038]] — 이벤트유형 관리 화면
 
 ### use_case (3)
@@ -317,9 +337,13 @@
 - [[UC-016]] — 비식별 처리 상태·이력 확인
 - [[UC-018]] — 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재)
 
-### acceptance (2)
+### acceptance (6)
 - [[AC-025]] — 관제 인입 → 폴링 적재 정상 흐름 수용
 - [[AC-026]] — 인입 중복 방어·파일 미도착 백오프
+- [[AC-049]] — 시계열 일괄 건너뛰기 — 대상은 실패한 영상이고 사유는 요청 단위로 검증된다
+- [[AC-050]] — 시계열 일괄 재수행은 부분 성공을 그대로 알린다
+- [[AC-051]] — 검수가 완료된 영상은 재수행이 묶음별로 갈린다
+- [[AC-055]] — 시계열 위탁 전체 건너뛰기 — 사유 없이 켤 수 없고 켜진 동안 외부 호출이 없다
 
 ### test_scenario (1)
 - [[TEST-001]] — 관제 학습용 영상 적재 후 선두 비식별 처리(외부 위탁·폴링) 정상 흐름
@@ -339,6 +363,9 @@
 - [[SD-013]] — SCREEN-008 영상 처리 현황 화면
 - [[SD-023]] — SCREEN-038 이벤트유형 관리 화면
 
+### diagram_state (1)
+- [[STATE-002]] — 영상 배치 단계 상태 전이 (LS_DATA_RAW.DATA_STTS_CD)
+
 ### legacy_artifact (7)
 - [[LEGACY-003]] — [module] 저작도구 BATCH (PF-003)
 - [[LEGACY-005]] — [module] 영상분할 (PF-005)
@@ -347,9 +374,3 @@
 - [[LEGACY-044]] — [api] 비디오 추출 상태 응답 (VIDEO-PROC)
 - [[LEGACY-046]] — [api] 오토라벨링 - 탐지 객체들 (AUTO-LABEL)
 - [[LEGACY-119]] — [screen] SKKLID-UI-03-03-01 영상/이미지 관리 - 리스트
-
-### diagram_state (1)
-- [[STATE-002]] — 영상 배치 단계 상태 전이 (LS_DATA_RAW.DATA_STTS_CD)
-
-### domain (1)
-- [[DOMAIN-003]] — 영상·프레임 수집

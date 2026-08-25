@@ -1,0 +1,120 @@
+[
+    {
+        "id": 1,
+        "video_path": "C:\\cctv\\20260706_관악\\sample-marking-640.mp4",
+        "video_name": "sample-marking-640.mp4",
+        "start_frame": 1799,
+        "start_time": "00:00:59.967",
+        "end_frame": 1861,
+        "end_time": "00:01:02.033",
+        "duration": 2.067,
+        "notes": "이벤트",
+        "images": [
+            {
+                "filename": "sample-marking-640_001809.jpg",
+                "frame": 1809,
+                "time": "00:01:00.300"
+            },
+            {
+                "filename": "sample-marking-640_001811.jpg",
+                "frame": 1811,
+                "time": "00:01:00.367"
+            },
+            {
+                "filename": "sample-marking-640_001814.jpg",
+                "frame": 1814,
+                "time": "00:01:00.467"
+            },
+            {
+                "filename": "sample-marking-640_001816.jpg",
+                "frame": 1816,
+                "time": "00:01:00.533"
+            },
+            {
+                "filename": "sample-marking-640_001819.jpg",
+                "frame": 1819,
+                "time": "00:01:00.633"
+            },
+            {
+                "filename": "sample-marking-640_001821.jpg",
+                "frame": 1821,
+                "time": "00:01:00.700"
+            },
+            {
+                "filename": "sample-marking-640_001824.jpg",
+                "frame": 1824,
+                "time": "00:01:00.800"
+            },
+            {
+                "filename": "sample-marking-640_001826.jpg",
+                "frame": 1826,
+                "time": "00:01:00.867"
+            },
+            {
+                "filename": "sample-marking-640_001829.jpg",
+                "frame": 1829,
+                "time": "00:01:00.967"
+            },
+            {
+                "filename": "sample-marking-640_001831.jpg",
+                "frame": 1831,
+                "time": "00:01:01.033"
+            },
+            {
+                "filename": "sample-marking-640_001834.jpg",
+                "frame": 1834,
+                "time": "00:01:01.133"
+            },
+            {
+                "filename": "sample-marking-640_001836.jpg",
+                "frame": 1836,
+                "time": "00:01:01.200"
+            },
+            {
+                "filename": "sample-marking-640_001839.jpg",
+                "frame": 1839,
+                "time": "00:01:01.300"
+            },
+            {
+                "filename": "sample-marking-640_001842.jpg",
+                "frame": 1842,
+                "time": "00:01:01.400"
+            },
+            {
+                "filename": "sample-marking-640_001844.jpg",
+                "frame": 1844,
+                "time": "00:01:01.467"
+            },
+            {
+                "filename": "sample-marking-640_001847.jpg",
+                "frame": 1847,
+                "time": "00:01:01.567"
+            },
+            {
+                "filename": "sample-marking-640_001849.jpg",
+                "frame": 1849,
+                "time": "00:01:01.633"
+            },
+            {
+                "filename": "sample-marking-640_001852.jpg",
+                "frame": 1852,
+                "time": "00:01:01.733"
+            },
+            {
+                "filename": "sample-marking-640_001854.jpg",
+                "frame": 1854,
+                "time": "00:01:01.800"
+            },
+            {
+                "filename": "sample-marking-640_001857.jpg",
+                "frame": 1857,
+                "time": "00:01:01.900"
+            },
+            {
+                "filename": "sample-marking-640_001859.jpg",
+                "frame": 1859,
+                "time": "00:01:01.967"
+            }
+        ]
+    }
+]

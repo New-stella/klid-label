@@ -240,6 +240,14 @@
               "route": "/manage/imports",
               "screen_id": "SCREEN-039",
               "required_role": "ROLE-001"
+            },
+            {
+              "key": "manage-manual-upload",
+              "kind": "link",
+              "label": "수동 업로드",
+              "route": "/dev/upload",
+              "screen_id": "SCREEN-027",
+              "required_role": "ROLE-001"
             }
           ],
           "required_role": "ROLE-001"
@@ -252,12 +260,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
-    "stale": true,
-    "stale_reason": "UC-036의 data.covered_by_acceptances 변경이 navigates_to로 2-hop 전파",
-    "change_summary": "관리 영역에 외부 산출물 이관 항목을 더한다. 그 화면으로 가는 메뉴가 없어 주소를 직접 치지 않으면 도달할 수 없었다. 이웃 항목과 같은 구성으로 두고 검수자에게만 보이는 역할 조건을 준다 — 그 화면의 사양이 검수자 단독 접근으로 확정돼 있기 때문이다. 관리 영역을 열거하던 설명도 실제 구성에 맞춰 다시 적었다. 이벤트유형 관리가 이미 들어와 있는데 설명이 옛 열거에 머물러 있어 같은 문서 안에서 앞뒤가 어긋나 있었다. 기존 항목의 주소·역할·가시성 조건과 배열은 손대지 않았고 추가만 했다.",
+    "current_version": 16,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "관리 그룹에 수동 업로드를 더한다. 외부에서 받은 영상을 운영자가 직접 올리는 상시 동선이 생겼는데 메뉴 트리에 자리가 없어 화면에 도달할 길이 주소 직접 입력뿐이었다. 성격이 같은 외부 산출물 이관과 같은 그룹에 둔다. 주소는 기존 값을 그대로 쓴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:45:36.651Z",
+    "last_updated_at": "2026-08-24T12:05:50.084Z",
     "created_at": "2026-06-02T13:21:11.580Z"
   }
 }

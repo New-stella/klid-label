@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-002
 type: class_diagram
-version: 4
+version: 5
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.115Z
-status: NEW
-prev_version: null
-content_hash: f849f8b4b5925fa8a93c00c0dc6723089ae10a5057b0a75b9728263e5221d8d4
-stale: true
+synced_at: 2026-08-24T10:56:09.937Z
+status: CHANGED
+prev_version: 4
+content_hash: f6fd551f5915c8877645bc0446a587e0ef2ddf21a3a9cf20092f8d8ac82e7f08
+stale: false
 raw: ./_raw/CDIAG-002.json
 links:
   belongs_to_domain: ["[[DOMAIN-011]]"]
@@ -77,7 +77,7 @@ _(empty)_
 
 - **is_static**: false
 - **visibility**: public
-- **description**: [폐기] 이 클래스에서 만들지 않는다 — 마킹→VLM 은 위탁(제출)이고 콜백은 VLM→저작도구 방향에만 존재한다. 위탁 요청은 frame_policy 로만 구성되며 별도 페이로드 조립 메서드를 두지 않는다.
+- **description**: [폐기] 이 클래스에서 만들지 않는다 — 마킹→VLM 은 위탁(제출)이고 콜백은 VLM→저작도구 방향에만 존재한다. 위탁 요청은 frame_policy 와 event_type 으로 구성되며 별도 페이로드 조립 메서드를 두지 않는다.
 - **is_abstract**: false
 - **return_type**: VlmCallbackPayload
 
@@ -503,7 +503,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 영상별 자동/수동 이벤트 식별 마킹. 영상 1건에 N건 생성 가능, 마킹 완료 시 MarkingCompletedEvent로 잔여 배치(VLM 시계열 위탁 등)를 트리거. fps는 마킹 시점에 고정하는 실 프레임레이트로, 프레임 추출이 재조회 없이 이 값을 읽어 인덱스 산출과 일치시킨다(레거시 행은 null 허용, 폴백 재조회). VLM 위탁 요청에는 fps 가 아니라 frmeIntvNocs(마킹 프레임 간격)를 싣는다. (LS_MARKING)
+- **description**: 영상별 자동/수동 이벤트 식별 마킹. 영상 1건에 N건 생성 가능, 마킹 완료 시 MarkingCompletedEvent로 잔여 배치(VLM 시계열 위탁 등)를 트리거. fps는 마킹 시점에 고정하는 실 프레임레이트로, 프레임 추출이 재조회 없이 이 값을 읽어 인덱스 산출과 일치시킨다(레거시 행은 null 허용, 폴백 재조회). frmeIntvNocs(마킹 프레임 간격)는 자동 모드 마킹 생성의 기준값(FRME_INTV_NOCS)이며 VLM 위탁 요청에는 싣지 않는다 — 위탁의 frame_policy 는 간격값 없이 프레임 인덱스 목록(selected_frames)으로만 구성된다. (LS_MARKING)
 
 **enum_values**:
 
@@ -626,7 +626,7 @@ _(empty)_
 
 [★대상은 비식별 영상] 비식별이 파이프라인 선두로 재배치되면서 마킹은 MARKING_READY 이후에만 열리며 작업자는 비식별본을 본다. 잔여 배치 진입은 부모의 deIdntfYn='Y' 가드를 통과해야 한다.
 
-[VLM 연계] 마킹 완료 시 VLM 시계열 위탁 요청에는 frame_policy(프레임 선택 정책)만 반영된다 — 이벤트명·영상 경로·마킹 원문 배열은 위탁 규격 밖이라 싣지 않는다. ★위탁은 논블로킹 제출이다 — 스텝이 확정적으로 말하는 것은 '제출을 개시했다' 뿐이고 수락·결과는 비동기로 도착한다. 상태 전이는 PENDING→VLM_REQUESTED→{VLM_COMPLETED|VLM_FAILED} 이며, PENDING/VLM_REQUESTED→SKIPPED(배치 skip 종결) 로도 전이한다.
+[VLM 연계] 마킹 완료 시 VLM 시계열 위탁 요청은 frame_policy(프레임 선택 정책)와 검증이벤트유형(event_type)으로 구성된다 — 이벤트명·영상 경로·마킹 원문 배열은 위탁 규격 밖이라 싣지 않는다. frame_policy 는 항상 frame_selected 모드이며 간격값(framerate)을 두지 않고 프레임 인덱스를 selected_frames 에 싣는다(마킹이 있으면 작업자가 마킹한 프레임 인덱스, 없으면 자동 선택된 프레임 리스트 — 정렬·중복제거 후 0 이상 최대 600건, 초과분 절단). 위탁은 describe(CoT)와 describe-sub(VQA) 두 건으로 제출하며 각 요청에 서로 다른 요청 식별자(request_id)를 부여한다. ★위탁은 논블로킹 제출이다 — 스텝이 확정적으로 말하는 것은 '제출을 개시했다' 뿐이고 수락·결과는 비동기로 도착한다. 상태 전이는 PENDING→VLM_REQUESTED→{VLM_COMPLETED|VLM_FAILED} 이며, PENDING/VLM_REQUESTED→SKIPPED(배치 skip 종결) 로도 전이한다.
 
 [신고] 마킹 중 개인정보 노출을 발견하면 rawSn 기준으로 비식별 누락 신고를 접수한다(라벨링 단계의 srcSn 신고와 2채널).
 

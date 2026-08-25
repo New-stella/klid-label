@@ -9,7 +9,9 @@
 # ============================================================================
 spring:
   # multipart 한도(500MB/1200MB)는 local/dev/stg 가 동일해 application.yml 공통으로 승격됐다.
-  #   (dev 업로드 /v1/dev/upload 영상 개당 500MB 수용. 운영만 application-prd.yml 에서 21MB 로 조인다)
+  #   (수동 업로드 /v1/dev/upload 영상 개당 500MB 수용. 개당 한도는 운영 포함 전 프로파일이 같고,
+  #    운영만 application-prd.yml 에서 요청 총량을 1100MB 로 좁힌다.
+  #    ⚠ 구 기재 폐기(2026-08-24 CO-008): "운영만 21MB 로 조인다" 는 수동 업로드를 운영에 노출하면서 무효가 됐다)
   datasource:
     control:
       jdbc-url: jdbc:postgresql://127.0.0.1:5432/klid_system

@@ -183,11 +183,19 @@ BATCH_INTERVAL_SEC=60
 TRAINING_SCAN_ENABLED=true
 TRAINING_SCAN_INTERVAL_SEC=60
 
-# ── 개발/브링업 토글 (관제서버 미기동 시 임시 로그인·영상수신용) ──
-# ⚠ 운영 정상화 후 반드시 모두 미설정(OFF)로 원복. dev 로그인은 인증 없이 임의 role 토큰을 발급한다.
-# DEV_LOGIN_ENABLED=true        # /v1/dev/tokens 로 테스트 토큰 발급 허용(기본 false)
-# DEV_UPLOAD_ENABLED=true       # /v1/dev/upload 영상 업로드 허용(기본 false)
-# SPRING_SERVLET_MULTIPART_ENABLED=true   # ★ dev 업로드 사용 시 필수 — 안 켜면 업로드 415/파싱불가
+# ── 개발/브링업 토글 ──
+# ⚠ dev 로그인은 인증 없이 임의 role 토큰을 발급한다. 운영 정상화 후 반드시 미설정(OFF)로 원복.
+# DEV_LOGIN_ENABLED=true        # /v1/dev/tokens 로 테스트 토큰 발급 허용(기본 false — 운영은 OFF 가 정상)
+#
+# ── 수동 업로드 (운영 상시 기능 — 2026-08-24 CO-008) ──
+# ★ DEV_UPLOAD_ENABLED 는 이제 **기본 true** 다(구 기재 "기본 false" 는 폐기).
+#   /v1/dev/upload 로 운영자가 영상을 직접 올리는 상시 동선이며 인가는 REVIEWER 로 걸린다.
+#   비노출로 되돌리려면 아래를 켜고 **frontend 도 VITE_DEV_UPLOAD_ENABLED=false 로 재빌드**해야 한다 —
+#   backend 만 끄면 화면은 보이는데 API 만 404 라 원인을 못 찾는다(04-configuration.md I 절).
+# DEV_UPLOAD_ENABLED=false      # 수동 업로드를 끈다(기본 true)
+#
+# SPRING_SERVLET_MULTIPART_ENABLED 는 지정하지 않는다 — 공통 설정이 이미 true 다
+#   (구 기재 "dev 업로드 사용 시 필수" 는 사실과 달랐다).
 # DEV_UPLOAD_EXTRACT_TECHNICAL_META=false # 즉시 실행 업로드의 영상 기술메타(video.*) 적재를 끈다(기본 true).
 #                                         #   끄면 그 사실이 기동 로그(INFO)에 남는다. 업로드·비식별은 그대로 진행된다.
 

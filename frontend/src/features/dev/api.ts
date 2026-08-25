@@ -1,4 +1,4 @@
-// [개발/검수 전용] dev 영상 업로드 API — BE: POST /api/v1/dev/upload [@design API-152]
+// [개발/검수 전용] dev 수동 업로드 API — BE: POST /api/v1/dev/upload [@design API-152]
 //
 // 보안:
 // - 파일은 `file` part 로, 메타는 `meta` part (application/json Blob) 로 분리 전송.
