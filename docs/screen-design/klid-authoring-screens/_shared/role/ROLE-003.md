@@ -2,7 +2,7 @@
 logicraft_item: ROLE-003
 type: permission_role
 version: 7
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/ROLE-003.json
 ---
@@ -109,7 +109,7 @@ _(empty)_
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -117,15 +117,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-103
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-25T01:21:32.459Z
 
 ## typical_actors
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
 import { EmptyState } from '@/components/common/EmptyState';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
@@ -20,6 +19,24 @@ import { useUiStore } from '@/stores/useUiStore';
 
 // 메타데이터 로드 전 타임라인 fallback 길이(초). 로드되면 실제값으로 대체된다.
 const FALLBACK_DURATION_SEC = 60;
+
+/**
+ * 마킹 진입 차단 안내 — 두 차단 축이 <b>같은 자리·같은 형태</b>로 사유를 보여 준다.
+ * [@design SCREEN-006]
+ *
+ * ⚠ 공유하는 것은 <b>표시</b>뿐이고 판정과 문구는 축마다 따로다(비식별 축 / 배치 단계 축).
+ *   두 축을 한 판정으로 합치면 사유가 다른데 안내는 하나가 되어 서버 거부 사유와 어긋난다.
+ */
+function MarkingBlockedNotice({ rawSn, reason }: { rawSn: number; reason: string }) {
+  return (
+    <div role="alert" className="mx-auto max-w-3xl space-y-2 p-8 text-center">
+      <h1 className="text-title-md font-semibold text-gray-800">
+        마킹 — 영상 #{rawSn}
+      </h1>
+      <p className="text-body-md text-gray-500">{reason}</p>
+    </div>
+  );
+}
 
 export function MarkingPage() {
   const { rawSn: rawSnParam } = useParams<{ rawSn: string }>();
@@ -62,10 +79,14 @@ export function MarkingPage() {
   const derivativeReason = resolveDeidentReportUnsupportedReason(
     videoDetail ? { derivative: videoDetail.derivative } : videoDetail,
   );
-  const markingStageReason =
-    videoDetail && videoDetail.status !== 'MARKING_READY'
-      ? '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.'
-      : undefined;
+  // 배치 단계 축 — 이 화면의 <b>두 곳</b>이 같은 판정을 쓴다: ①마킹 진입 차단 ②신고 버튼 사유.
+  //   판정을 각자 적으면 한쪽만 갱신돼 같은 영상에서 차단 여부와 안내가 갈린다.
+  // ⚠ videoDetail 이 아직 없으면(로딩 중) false 다 — 확정되지 않은 값으로 차단하면 로딩 구간의
+  //   깜빡임이 정상 마킹을 막는다(비식별 축이 `videoDetail &&` 로 지키는 규약과 같다).
+  const notMarkingStage = Boolean(videoDetail && videoDetail.status !== 'MARKING_READY');
+  const markingStageReason = notMarkingStage
+    ? '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.'
+    : undefined;
   const deidentReportUnsupportedReason =
     derivativeReason ?? markingStageReason ?? resolveDeidentReportUnsupportedReason(videoDetail);
 
@@ -208,18 +229,23 @@ export function MarkingPage() {
 
   // 비식별 미완료 영상은 마킹 진입 차단(백스톱) — 영상 상세가 로드되어 미완료가 확정될 때만.
   if (videoDetail && isMarkingBlocked(videoDetail)) {
+    return <MarkingBlockedNotice rawSn={rawSn} reason="비식별 완료 후 마킹이 가능합니다." />;
+  }
+
+  // 배치 단계 축 — 마킹 대기(MARKING_READY)가 아니면 진입 차단. [@design SCREEN-006]
+  //
+  // ★ 평가 순서는 BE(MarkingGuards)와 같게 <b>비식별 축이 먼저</b>다 — 순서가 갈리면 두 축에 모두
+  //   걸린 영상에서 화면 안내와 서버 거부 사유가 달라진다.
+  // ★ 선차단하는 이유: BE 는 이 축을 제출 시점에 412 로 막으므로, 화면이 열려 있으면 작업자가
+  //   마크를 다 쌓은 뒤에야 거부된다(이미 처리된 영상에서 편집기가 멀쩡히 열리던 결함).
+  // ⚠ 이 화면에서는 비식별 누락 신고 버튼도 함께 사라진다 — 그 상태의 신고 버튼은 어차피 사유와
+  //   함께 비활성이었고, 그 경로의 신고는 라벨링 화면이 담당한다(기능 손실이 아니다).
+  if (notMarkingStage) {
     return (
-      <div
-        role="alert"
-        className="mx-auto max-w-3xl space-y-2 p-8 text-center"
-      >
-        <h1 className="text-title-md font-semibold text-gray-800">
-          마킹 — 영상 #{rawSn}
-        </h1>
-        <p className="text-body-md text-gray-500">
-          비식별 완료 후 마킹이 가능합니다.
-        </p>
-      </div>
+      <MarkingBlockedNotice
+        rawSn={rawSn}
+        reason="이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다."
+      />
     );
   }
 
@@ -229,20 +255,15 @@ export function MarkingPage() {
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-title-md font-semibold">마킹 — 영상 #{rawSn}</h1>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
-          {videoDetail?.stages && videoDetail.stages.length > 0 && (
-            <div className="overflow-x-auto">
-              <BatchStageIndicator stages={videoDetail.stages} />
-            </div>
-          )}
-          {/* 마킹 중 개인정보 노출 발견 시 신고(영상 단위). 라벨링 화면과 같은 컴포넌트를 재사용한다. */}
-          <DeidentReportButton
-            rawSn={rawSn}
-            unsupportedReason={deidentReportUnsupportedReason}
-            onSuccess={() => navigate('/task')}
-          />
-        </div>
+        {/* 마킹 중 개인정보 노출 발견 시 신고(영상 단위). 라벨링 화면과 같은 컴포넌트를 재사용한다.
+            ⚠ 배치 단계 진행 표시(BatchStageIndicator)는 이 헤더에 두지 않는다 — 마킹 완료가 잔여
+            배치의 트리거라 이 화면에 머무는 동안 뒷단은 시작될 수 없고, 확인할 진행이 존재하지
+            않는다. 그 표시기는 영상 상세 화면이 계속 쓴다(컴포넌트는 존치). [@design SCREEN-006] */}
+        <DeidentReportButton
+          rawSn={rawSn}
+          unsupportedReason={deidentReportUnsupportedReason}
+          onSuccess={() => navigate('/task')}
+        />
       </div>
 
       {videoSrc ? (

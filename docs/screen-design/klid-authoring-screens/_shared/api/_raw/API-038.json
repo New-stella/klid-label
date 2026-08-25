@@ -36,10 +36,6 @@
                     "format": "int64",
                     "description": "프리셋 PK (presetId)"
                   },
-                  "name": {
-                    "type": "string",
-                    "description": "프리셋명 (presetNm)"
-                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -59,16 +55,15 @@
                     },
                     "description": "레거시 호환 — 라벨 코드 문자열 목록"
                   },
-                  "description": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "프리셋 설명 (expln)"
-                  },
                   "eventTypeCd": {
                     "type": "string",
-                    "nullable": true,
+                    "nullable": false,
                     "maxLength": 20,
-                    "description": "매핑된 이벤트유형 코드 (미매핑 시 null). 관제 인입 이벤트 코드(예 EV01000101 형태)를 그대로 쓰는 자유 코드이며 고정 목록이 아니다 — 표시명이 같은 유형코드들을 접은 그룹의 멤버 코드여야 하고, 유효성은 저장 시점에 이벤트유형 그룹 인덱스로 판정한다. 상한 20자는 코드값 표준도메인."
+                    "description": "이벤트유형코드. 프리셋의 유일한 식별 축이며 이벤트 1건에 프리셋 1건이 대응한다."
+                  },
+                  "eventTypeNm": {
+                    "type": "string",
+                    "description": "이벤트유형 표시명. 서버가 표시명 해석 규칙(운영자 표시명 → 관제 수신 유형명 → 카테고리명 → 유형코드 4단 폴백)으로 채운다. 필터 옵션에서 제외된 대분류·비수집 유형이어도 반드시 채워진다 — 화면이 이벤트 목록으로 이름을 역해석하면 그 목록에 없는 코드가 코드 그대로 노출되므로, 표시명 해석을 서버 한 곳에 둔다."
                   },
                   "labelCodeOptions": {
                     "type": "array",
@@ -113,15 +108,14 @@
           "example": {
             "data": {
               "id": 6,
-              "name": "화재 프리셋",
               "createdAt": "2026-06-15T00:00:00Z",
               "updatedAt": "2026-06-15T00:00:00Z",
               "labelCodes": [
                 "FIRE",
                 "SMOKE"
               ],
-              "description": null,
-              "eventTypeCd": null,
+              "eventTypeCd": "EV02000101",
+              "eventTypeNm": "화재",
               "labelCodeOptions": [
                 {
                   "code": "FIRE",
@@ -171,7 +165,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "입력값 검증 실패 — 이름(1~64자)·설명(500자)·라벨(1~20개) 제약 위반, eventTypeCd 20자 초과, 또는 eventTypeCd 가 유효한 이벤트유형 그룹 멤버가 아님(빈값은 미매핑으로 허용). ErrorCode=INVALID_INPUT",
+          "description": "입력값 검증 실패 — 이벤트유형코드 미지정 또는 20자 초과, 라벨 1~20개 제약 위반. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -267,7 +261,7 @@
             "success": false,
             "errorCode": "CONFLICT"
           },
-          "description": "프리셋 이름 중복 또는 이벤트 타입 중복 매핑. ErrorCode=CONFLICT",
+          "description": "이미 프리셋이 있는 이벤트유형이다. 어느 이벤트인지 응답 메시지로 알린다. ErrorCode=CONFLICT",
           "content_type": "application/json"
         }
       },
@@ -283,16 +277,10 @@
         "schema": {
           "type": "object",
           "required": [
-            "name",
+            "eventTypeCd",
             "labelIds"
           ],
           "properties": {
-            "name": {
-              "type": "string",
-              "maxLength": 64,
-              "minLength": 1,
-              "description": "프리셋 이름. 필수이며 공백만은 불가. 이미 사용 중인 이름이면 409."
-            },
             "labelIds": {
               "type": "array",
               "items": {
@@ -305,28 +293,20 @@
               "minItems": 1,
               "description": "프리셋에 담을 라벨 목록. 라벨명·형태는 스냅샷하지 않고 조회 시점에 마스터에서 파생하므로 PK 만 보낸다. 1~20개."
             },
-            "description": {
-              "type": "string",
-              "nullable": true,
-              "maxLength": 500,
-              "description": "프리셋 설명 (선택)."
-            },
             "eventTypeCd": {
               "type": "string",
-              "nullable": true,
+              "nullable": false,
               "maxLength": 20,
-              "description": "매핑할 이벤트유형 코드 (선택). 관제 인입 이벤트 코드를 그대로 보내는 자유 코드이며 고정 목록이 아니다 — 표시명이 같은 유형코드들을 접은 그룹의 멤버 코드여야 하고, 그 밖의 값은 400. 미지정·빈 문자열은 이벤트 무관 프리셋(미매핑)으로 저장한다. 같은 이벤트유형에 이미 매핑된 프리셋이 있으면 409."
+              "description": "이벤트유형코드. 필수이며 20자 이하(코드값 표준도메인)다. 이미 프리셋이 있는 이벤트면 409. 이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않으므로 두지 않는다."
             }
           }
         },
         "example": {
-          "name": "화재 프리셋",
           "labelIds": [
             12,
             15
           ],
-          "description": null,
-          "eventTypeCd": null
+          "eventTypeCd": "EV02000101"
         },
         "required": true,
         "content_type": "application/json"
@@ -337,7 +317,9 @@
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T07:48:46.724Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -345,12 +327,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
+    "change_summary": "요청 예시에서 이벤트 표시명을 뺀다 — 표시명은 서버가 응답에만 실어 주는 값이고 요청으로 받지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:52:38.298Z",
+    "last_updated_at": "2026-08-25T07:53:10.829Z",
     "created_at": "2026-05-30T07:22:21.003Z"
   }
 }

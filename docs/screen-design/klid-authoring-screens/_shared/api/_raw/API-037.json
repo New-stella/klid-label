@@ -38,10 +38,6 @@
                       "format": "int64",
                       "description": "프리셋 PK (presetId)"
                     },
-                    "name": {
-                      "type": "string",
-                      "description": "프리셋명 (presetNm)"
-                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time",
@@ -61,16 +57,15 @@
                       },
                       "description": "레거시 호환 — 라벨 코드 문자열 목록"
                     },
-                    "description": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "프리셋 설명 (expln)"
-                    },
                     "eventTypeCd": {
                       "type": "string",
-                      "nullable": true,
+                      "nullable": false,
                       "maxLength": 20,
-                      "description": "매핑된 이벤트 유형 코드 (미매핑 시 null). 관제 인입으로 수신한 이벤트 유형 코드를 그대로 담는 자유 코드이며 고정 목록이 아니다 — 관제에는 이벤트 코드 마스터가 없고 코드만 송신하기 때문이다. 유효값은 실행 시점에 표시명이 같은 유형코드들을 한 옵션으로 접어 만든 이벤트유형 옵션의 유효 필터 키 집합으로 판정하며(그 밖의 값은 400), 빈값은 이벤트 무관 프리셋으로 허용한다. 저장은 코드값 표준도메인 VARCHAR(20) 이고 프리셋당 유형 1개(UNIQUE)다. 예: EV02000201(쓰러짐 대표 유형코드)."
+                      "description": "이벤트유형코드. 프리셋의 유일한 식별 축이며 이벤트 1건에 프리셋 1건이 대응한다."
+                    },
+                    "eventTypeNm": {
+                      "type": "string",
+                      "description": "이벤트유형 표시명. 서버가 표시명 해석 규칙(운영자 표시명 → 관제 수신 유형명 → 카테고리명 → 유형코드 4단 폴백)으로 채운다. 필터 옵션에서 제외된 대분류·비수집 유형이어도 반드시 채워진다 — 화면이 이벤트 목록으로 이름을 역해석하면 그 목록에 없는 코드가 코드 그대로 노출되므로, 표시명 해석을 서버 한 곳에 둔다."
                     },
                     "labelCodeOptions": {
                       "type": "array",
@@ -117,15 +112,14 @@
             "data": [
               {
                 "id": 5,
-                "name": "낙상 프리셋",
                 "createdAt": "2026-03-01T09:00:00Z",
                 "updatedAt": "2026-03-02T10:00:00Z",
                 "labelCodes": [
                   "PERSON",
                   "FLOOR"
                 ],
-                "description": "낙상 이벤트용",
                 "eventTypeCd": "EV02000201",
+                "eventTypeNm": "교통사고",
                 "labelCodeOptions": [
                   {
                     "code": "PERSON",
@@ -226,7 +220,9 @@
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T07:48:51.529Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -234,12 +230,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
+    "change_summary": "앞선 정합이 스키마 속성만 고치고 예시(example)를 그대로 둬 폐지된 이름·설명 필드와 이벤트 null 값이 예시에 남아 있었다. 예시를 새 계약에 맞춰 정정하고 이벤트 표시명을 예시에도 싣는다. 이벤트유형코드는 필수가 되었으므로 스키마의 nullable 표기도 함께 바로잡는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:52:38.220Z",
+    "last_updated_at": "2026-08-25T07:52:55.295Z",
     "created_at": "2026-05-30T07:22:16.678Z"
   }
 }

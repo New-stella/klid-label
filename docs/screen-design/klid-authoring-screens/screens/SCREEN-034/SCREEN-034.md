@@ -2,13 +2,13 @@
 logicraft_item: SCREEN-034
 type: screen_spec
 version: 21
-last_updated_at: 2026-08-18T03:30:50.206Z
+last_updated_at: 2026-08-25T01:21:34.047Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-24T14:23:30.477Z
-sync_session: 22
+synced_at: 2026-08-25T09:51:54.760Z
+sync_session: 23
 stale: true
-status: UNCHANGED
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
@@ -400,7 +400,7 @@ web
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -408,15 +408,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-110
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-25T01:21:34.047Z
 
 ## required_roles
 

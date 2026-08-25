@@ -26,16 +26,21 @@
         },
         {
           "step": 3,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "그 영상의 검증 이벤트 유형에 등록된 질문 목록(정렬순서 오름차순)에서 이벤트 어노테이션에 쓸 질문 하나를 고른다 — 기본 선택은 정렬순서 첫 번째이며 순서가 곧 의미다"
+        },
+        {
+          "step": 4,
           "actor": "시스템",
           "action": "마킹을 LS_MARKING에 저장한다"
         },
         {
-          "step": 4,
+          "step": 5,
           "actor": "라벨링 작업자(WORKER)",
           "action": "Enter로 마킹을 완료한다"
         },
         {
-          "step": 5,
+          "step": 6,
           "actor": "시스템",
           "action": "MarkingCompleted(EVT-001, AFTER_COMMIT)로 잔여 배치(VLM→프레임추출→오토라벨링)를 시작하고 LS_RAW_DATA_STATUS 상태를 전이한다"
         }
@@ -54,7 +59,7 @@
         "i_want": "영상을 재생하며 이벤트 시점을 빠르게 마킹하기를",
         "so_that": "VLM 시계열 분석과 프레임 추출이 이벤트 위치 기반으로 수행된다"
       },
-      "description": "마킹 화면: 비식별 영상 스트리밍(GET /v1/videos/{rawSn}/stream, HTTP Range) + 배속(0.25x~4x) + 단축키(Space 마킹, Del 삭제, Enter 완료). 자동 마킹은 프레임 간격(intervalFrames, 기본값 30→300 변경) 기반. ★마킹 완료 시 이벤트 마킹 결과에서 frame_policy(항상 frame_selected 모드 + 선택 프레임 목록 selected_frames — 마킹이 있으면 사용자가 마킹한 프레임 인덱스를, 마킹이 없으면 자동 선택된 프레임 목록을 싣는다. 정렬·중복제거하며 음수는 허용하지 않고 상한 600 초과분은 절단한다)와 event_type(관제 인입값 LS_DATA_INGEST.VRFC_EVNT_TYPE_CD 를 그대로 — 검증·차단 없이 위탁하며 수용 여부는 벤더 응답이 정한다)이 도출되어, VLM 시계열 위탁(UC-022 — CoT 서술 POST /v1/videovlm-klid/describe 와 VQA POST /v1/videovlm-klid/describe-sub 로 각각 별도 request_id 를 부여하는 이중 위탁)의 논블로킹 제출 입력이 된다. 프레임 추출 간격·장수는 연동 시스템이 지정하지 않고 외부 분석 서버가 관리하므로 frame_policy 에 framerate 필드를 두지 않는다 — 구 서술 'framerate(몇 프레임당 1장)를 mode 무관 필수로 함께 싣는다'는 폐기되었다. ⚠ 구 서술 '마킹 결과(이벤트명+영상경로+marks 배열)는 VLM 콜백으로 전달'도 폐기되었다 — 위탁 요청 규격에 그 필드들이 없고, '콜백'이라는 표현도 방향이 반대다(마킹→VLM 은 위탁/제출이고, VLM→저작도구 방향만 콜백 POST /v1/vlm/callback 이다). 마킹 완료 시 마킹 완료 이벤트가 트랜잭션 커밋 후(AFTER_COMMIT) 잔여 배치를 비동기로 시작한다. 마킹 중 비식별 누락 발견 시 rawSn 기준 비식별 신고 가능(POST /v1/videos/{rawSn}/deident-report = API-091). durationSec 미상 시 ffprobe 등 3단 폴백(쓰기 트랜잭션 밖에서 실행). 영상 목록 화면(SCREEN-007, 이후 폐기됨)의 미배정 행 액션이 '배정' 버튼에서 '마킹' 버튼(자동=즉시 실행, 수동=기존 배정 팝업 재사용)으로 통합됐다. ★비식별 선두 파이프라인(전체 영상 적재 직후 자동 비식별 → 비식별 영상 대상 마킹)이 확정되었다 — 구 'divergence(마킹이 전체 배치를 트리거하던 구 순서)' 서술은 폐기되었다(ADR-022).",
+      "description": "마킹 화면: 비식별 영상 스트리밍(GET /v1/videos/{rawSn}/stream, HTTP Range) + 배속(0.25x~4x) + 단축키(Space 마킹, Del 삭제, Enter 완료). 자동 마킹은 프레임 간격(intervalFrames, 기본값 30→300 변경) 기반. ★마킹 완료 시 이벤트 마킹 결과에서 frame_policy(마킹 본문에서 프레임 인덱스를 얻으면 frame_selected 모드로 그것을 싣고, 하나도 얻지 못하면 frame_interval 모드로 내린다(빈 목록은 규격 위반이라 거부된다) — 마킹 모드는 그 인덱스를 누가 골랐는지만 가른다(수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임). 정렬·중복제거하며 음수는 허용하지 않고 상한 600 초과분은 절단한다)와 event_type(관제 인입값 LS_DATA_INGEST.VRFC_EVNT_TYPE_CD 를 그대로 — 검증·차단 없이 위탁하며 수용 여부는 벤더 응답이 정한다)이 도출되어, VLM 시계열 위탁(UC-022 — CoT 서술 POST /v1/videovlm-klid/describe 와 VQA POST /v1/videovlm-klid/describe-sub 로 각각 별도 request_id 를 부여하는 이중 위탁)의 논블로킹 제출 입력이 된다. 프레임 추출 간격·장수는 연동 시스템이 지정하지 않고 외부 분석 서버가 관리하므로 frame_policy 에 framerate 필드를 두지 않는다 — 구 서술 'framerate(몇 프레임당 1장)를 mode 무관 필수로 함께 싣는다'는 폐기되었다. ⚠ 구 서술 '마킹 결과(이벤트명+영상경로+marks 배열)는 VLM 콜백으로 전달'도 폐기되었다 — 위탁 요청 규격에 그 필드들이 없고, '콜백'이라는 표현도 방향이 반대다(마킹→VLM 은 위탁/제출이고, VLM→저작도구 방향만 콜백 POST /v1/vlm/callback 이다). 마킹 완료 시 마킹 완료 이벤트가 트랜잭션 커밋 후(AFTER_COMMIT) 잔여 배치를 비동기로 시작한다. 마킹 중 비식별 누락 발견 시 rawSn 기준 비식별 신고 가능(POST /v1/videos/{rawSn}/deident-report = API-091). durationSec 미상 시 ffprobe 등 3단 폴백(쓰기 트랜잭션 밖에서 실행). 영상 목록 화면(SCREEN-007, 이후 폐기됨)의 미배정 행 액션이 '배정' 버튼에서 '마킹' 버튼(자동=즉시 실행, 수동=기존 배정 팝업 재사용)으로 통합됐다. ★비식별 선두 파이프라인(전체 영상 적재 직후 자동 비식별 → 비식별 영상 대상 마킹)이 확정되었다 — 구 'divergence(마킹이 전체 배치를 트리거하던 구 순서)' 서술은 폐기되었다(ADR-022). ★마킹 시 작업자는 그 영상의 검증 이벤트 유형에 등록된 질문 목록(정렬순서 오름차순)에서 하나를 고르며, 그 선택값이 이벤트 어노테이션 질문 칸 조달의 1순위다. 기본 선택은 정렬순서 첫 번째이고 순서가 곧 의미다. 선택값이 없거나 그 유형에 속하지 않는 질문이면 서버가 그 유형의 첫 번째로 되돌리며(화면 입력을 신뢰하지 않는다), 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다. 검증 이벤트 유형이 미수신이면 질문을 고를 수 없으므로 선택 없이 진행하고 질문 칸은 비워 둔다 — 지어내지 않는다. 다만 질문이 없다고 위탁을 막지는 않는다 — 검증 이벤트 유형은 값이 미수신이거나 우리 목록 밖이어도 그대로 실어 위탁한다. 고른 값은 마킹에 함께 저장된다(LS_MARKING.VRFC_EVNT_QSTN_SN).",
       "stakeholders": [],
       "preconditions": [
         "대상 영상의 비식별이 완료되어 마킹 가능 상태다(LS_DATA_RAW.DATA_STTS_CD=MARKING_READY — 비식별이 파이프라인 선두 단계라 적재만으로는 진입할 수 없다)",
@@ -65,11 +70,13 @@
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "LS_MARKING에 마킹 결과가 저장된다",
-        "잔여 배치 파이프라인이 시작된다 (UC 파이프라인 처리 참조)"
+        "잔여 배치 파이프라인이 시작된다 (UC 파이프라인 처리 참조)",
+        "작업자가 고른 질문이 마킹과 함께 저장된다(LS_MARKING.VRFC_EVNT_QSTN_SN)"
       ],
       "alternate_flows": [
         {
@@ -85,7 +92,8 @@
           "name": "마킹 단계 신고의 접수 조건 불충족",
           "steps": [
             "412 PRECONDITION_FAILED — PROCESSING/COMPLETED/FAILED/PENDING 을 구분해 알리지 않는 단일 문구로 안내한다(응답이 영상 처리 단계 오라클이 되지 않게 — CWE-209)",
-            "FE 는 MARKING_READY 가 아니면 신고 버튼을 비활성화해 사유를 다 적고 제출한 뒤에야 거부되는 동선을 없앤다"
+            "화면은 MARKING_READY 가 아니면 마킹 화면 진입 자체를 막는다 — 편집기도 신고 버튼도 열리지 않으므로 사유를 다 적고 제출한 뒤에야 거부되는 동선이 없다. 그 상태의 비식별 누락 신고는 라벨링 화면이 담당한다",
+            "412 는 화면을 거치지 않는 직접 호출에 대한 안전망으로 남는다 — 화면 선차단과 서버 거부는 서로를 대체하지 않는다"
           ],
           "trigger": "배치 단계가 MARKING_READY 가 아닌 상태에서 마킹 단계 신고"
         },
@@ -95,6 +103,22 @@
             "비식별본이 없으면 영상을 제공하지 않아(404) 원본 노출을 차단한다 — 스트리밍은 항상 비식별 영상만 서빙한다"
           ],
           "trigger": "비식별이 유효하지 않은 영상의 스트리밍 요청"
+        },
+        {
+          "name": "고른 질문이 없거나 그 유형의 질문이 아님",
+          "steps": [
+            "서버가 그 유형의 정렬순서 첫 번째 질문으로 되돌린다 — 화면 입력을 신뢰하지 않는다",
+            "마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다"
+          ],
+          "trigger": "마킹 저장 요청에 질문 선택값이 없거나, 그 영상의 검증 이벤트 유형에 속하지 않는 질문이 실려 옴"
+        },
+        {
+          "name": "검증 이벤트 유형 미수신",
+          "steps": [
+            "질문을 고를 수 없으므로 선택 없이 마킹을 진행하고 이벤트 어노테이션의 질문 칸은 비워 둔다 — 값을 지어내지 않는다",
+            "질문이 없다고 외부 시계열 위탁을 막지 않는다 — 검증 이벤트 유형은 값이 미수신이거나 우리 목록 밖이어도 그대로 실어 위탁하고 수용 여부는 사업자 응답이 정한다"
+          ],
+          "trigger": "관제 인입에 검증 이벤트 유형(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)이 실려 오지 않아 질문 목록을 특정할 수 없음"
         }
       ],
       "realizes_dfeats": [
@@ -118,12 +142,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 18,
-    "stale": true,
-    "stale_reason": "DFEAT-039의 data.description 변경 — realizes",
-    "change_summary": "외부 시계열 분석 위탁 규격 전환을 반영한다 — 단일 verify 위탁을 CoT 서술(describe)과 VQA(describe-sub) 이중 위탁(각각 별도 request_id)으로 바꾸고, frame_policy 는 항상 frame_selected 모드 + selected_frames 로 도출하며 상한을 8 에서 600 으로 올린다(음수 불가, 정렬·중복제거 유지). 프레임 추출 간격·장수는 연동 시스템이 지정하지 않고 외부 분석 서버가 관리하므로 framerate 필드 서술은 폐기 표기로 남긴다. 구 서술의 'verify 요청 규격' 표현은 '위탁 요청 규격'으로 정정했다. event_type 무검증 위탁·마킹 완료 후 비동기 배치·마킹 화면 조작·비식별 신고·비식별 선두 파이프라인 서술은 그대로 유지한다.",
+    "current_version": 21,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "마킹 대기가 아닌 영상의 처리를 화면 선차단 기준으로 고쳐 적는다 — 종전 서술은 신고 버튼만 비활성화한다고 했으나, 이제 마킹 화면 진입 자체를 막아 편집기도 신고 버튼도 열리지 않는다(그 상태의 신고는 라벨링 화면이 담당한다). 서버의 412 는 화면을 거치지 않는 직접 호출용 안전망으로 남는다는 것을 함께 명시했다. 단일 문구 안내(처리 단계 오라클 차단) 조항은 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T08:05:19.635Z",
+    "last_updated_at": "2026-08-25T09:40:43.826Z",
     "created_at": "2026-06-05T09:43:09.277Z"
   }
 }

@@ -177,9 +177,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-078"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:26.476Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -193,8 +196,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "성공 예시의 설정 유형 코드를 실재하는 값으로 고친다. 예시가 쓰던 값은 이 시스템이 정의한 설정 유형 코드 집합(숫자·소수·문자열·불리언·JSON) 어디에도 없어, 그대로 읽으면 존재하지 않는 유형을 전제로 구현하게 된다. 예시의 설정 키는 배치 간격이고 값이 정수이므로 숫자 유형이 맞으며, 같은 키를 쓰는 설정 수정 계약의 성공 예시와도 이 값으로 일치한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T03:23:10.511Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:26.476Z",
     "created_at": "2026-05-30T07:26:14.543Z"
   }
 }
