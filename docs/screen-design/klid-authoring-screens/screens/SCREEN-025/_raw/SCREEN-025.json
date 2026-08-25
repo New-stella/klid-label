@@ -400,7 +400,7 @@
     "schema_version": 1,
     "current_version": 38,
     "stale": true,
-    "stale_reason": "AC-055의 3개 필드 변경 — covered_by",
+    "stale_reason": "DFEAT-045의 data.implemented_by_endpoints 변경이 realizes로 2-hop 전파",
     "change_summary": "전체 건너뛰기 스위치의 수용 기준을 이 화면에 연결한다.",
     "last_updated_by": "sync",
     "last_updated_at": "2026-08-21T04:27:30.854Z",

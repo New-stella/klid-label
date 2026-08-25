@@ -3,7 +3,7 @@
     "id": "API-041",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "api_endpoint",
-    "title": "POST /v1/manage/presets/{id}/clone",
+    "title": "[폐기] POST /v1/manage/presets/{id}/clone",
     "slug": "post-v1managepresetsidclone",
     "sub_id": null,
     "status": "draft",
@@ -13,8 +13,9 @@
         "label",
         "preset"
       ],
+      "title": "[폐기] POST /v1/manage/presets/{id}/clone",
       "method": "POST",
-      "summary": "라벨 프리셋 복제",
+      "summary": "[폐기] 라벨 프리셋 복제",
       "security": [
         {
           "jwt": [
@@ -274,7 +275,7 @@
         "status": "preserved",
         "diff_summary": "1차 라벨링 프리셋 관리"
       },
-      "deprecated": false,
+      "deprecated": true,
       "parameters": [
         {
           "in": "path",
@@ -286,14 +287,15 @@
           "description": "복제 원본 프리셋 식별자"
         }
       ],
-      "description": "기존 프리셋을 복제해 새 프리셋을 만든다. REVIEWER 전용.",
+      "description": "[폐기] 프리셋 복제는 두지 않는다. 프리셋은 이벤트유형 1건에 1건만 대응하므로 복제할 자리가 없고, 복제는 이름에 접미사를 붙이고 이벤트를 비운 프리셋을 만들어 왔는데 그것은 어느 영상에도 매칭되지 않는 행이다. 라벨 구성을 옮기려면 대상 이벤트의 프리셋에서 라벨을 직접 고른다.\n\n--- 이전 사양 ---\n기존 프리셋을 복제해 새 프리셋을 만든다. REVIEWER 전용.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -301,12 +303,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "응답 설명에서 프레임워크 어노테이션·내부 메서드명을 걷어낸다 — 거부 사유는 이미 한국어 문장이 말하고 있어 구현 어휘가 계약 설명에 남을 이유가 없다.",
+    "change_summary": "프리셋 복제 폐지 — 프리셋이 이벤트유형 1건에 1건만 대응하므로 복제 대상이 없고, 복제 결과(이벤트 미연결)는 어느 영상에도 매칭되지 않는 행이 된다. 본문에 폐기 표기와 사유를 남기고 이전 사양은 본문 아래에 보존한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:52:38.522Z",
+    "last_updated_at": "2026-08-25T07:19:38.490Z",
     "created_at": "2026-05-30T07:22:36.075Z"
   }
 }
