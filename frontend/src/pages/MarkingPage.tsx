@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
 import { EmptyState } from '@/components/common/EmptyState';
 import { DeidentReportButton } from '@/features/label/components/DeidentReportButton';
 import { resolveDeidentReportUnsupportedReason } from '@/features/label/utils/deidentReportEligibility';
 import { MarkingTimeline, markAriaLabel } from '@/features/marking/components/MarkingTimeline';
 import { MarkingToolbar } from '@/features/marking/components/MarkingToolbar';
+import { VerificationQuestionSelect } from '@/features/marking/components/VerificationQuestionSelect';
 import { VideoPlayer, type VideoPlayerHandle } from '@/features/marking/components/VideoPlayer';
 import { useCreateMarking } from '@/features/marking/hooks/useMarkings';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
@@ -20,6 +20,24 @@ import { useUiStore } from '@/stores/useUiStore';
 
 // 메타데이터 로드 전 타임라인 fallback 길이(초). 로드되면 실제값으로 대체된다.
 const FALLBACK_DURATION_SEC = 60;
+
+/**
+ * 마킹 진입 차단 안내 — 두 차단 축이 <b>같은 자리·같은 형태</b>로 사유를 보여 준다.
+ * [@design SCREEN-006]
+ *
+ * ⚠ 공유하는 것은 <b>표시</b>뿐이고 판정과 문구는 축마다 따로다(비식별 축 / 배치 단계 축).
+ *   두 축을 한 판정으로 합치면 사유가 다른데 안내는 하나가 되어 서버 거부 사유와 어긋난다.
+ */
+function MarkingBlockedNotice({ rawSn, reason }: { rawSn: number; reason: string }) {
+  return (
+    <div role="alert" className="mx-auto max-w-3xl space-y-2 p-8 text-center">
+      <h1 className="text-title-md font-semibold text-gray-800">
+        마킹 — 영상 #{rawSn}
+      </h1>
+      <p className="text-body-md text-gray-500">{reason}</p>
+    </div>
+  );
+}
 
 export function MarkingPage() {
   const { rawSn: rawSnParam } = useParams<{ rawSn: string }>();
@@ -47,27 +65,53 @@ export function MarkingPage() {
   //   서버가 값을 못 내리는 경우에만 동일 폴백값(30)을 사용한다.
   const markingFps = resolveMarkingFps(videoDetail?.fps);
 
+  // [@design SCREEN-006] [@design API-047] 검증 질문 선택 — 목록의 출처는 <b>영상 단건 조회 응답</b>이다.
+  //   관리 화면 경로(/v1/manage/verification-event-types)는 검수자 전용이라 작업자에게 403 이며,
+  //   그걸 부르면 이 화면이 작업자에게 통째로 깨진다.
+  //   BE 가 정렬순서 오름차순으로 내려주므로 여기서 다시 정렬하지 않는다.
+  const vrfcEvntQuestions = useMemo(
+    () => videoDetail?.vrfcEvntQuestions ?? [],
+    [videoDetail?.vrfcEvntQuestions],
+  );
+  const [selectedQstnSn, setSelectedQstnSn] = useState<number | null>(null);
+
+  // 기본 선택 = 정렬순서 첫 번째. 목록이 도착하거나 영상이 바뀌면 다시 맞춘다.
+  //   ★ 이미 고른 값이 새 목록에도 있으면 그대로 둔다 — 배치 진행 중에는 영상 상세가 5초마다
+  //     폴링되는데, 매번 첫 번째로 되돌리면 작업자가 고른 질문이 조용히 바뀐다.
+  //   ★ 없어진 값은 첫 번째로 되돌린다(폴백 없이 두면 서버가 어차피 교정하는 값을 화면만 붙들고 있게 된다).
+  useEffect(() => {
+    setSelectedQstnSn((prev) =>
+      prev !== null && vrfcEvntQuestions.some((q) => q.vrfcEvntQstnSn === prev)
+        ? prev
+        : (vrfcEvntQuestions[0]?.vrfcEvntQstnSn ?? null),
+    );
+  }, [vrfcEvntQuestions]);
+
   // 비식별 누락 신고 — 마킹 화면(영상 단위) 진입점.
-  //  ① 영상 자체가 신고 대상이 아닌 경우(파생영상 · 검수 승인 영상)는 라벨링 화면과 <b>같은 판정기</b>를
-  //     쓴다 — 사유 문구를 화면마다 복제하면 한쪽만 갱신돼 어긋난다(@design DFEAT-048 · @req R2).
-  //  ② 마킹 단계가 아닌 영상(이미 다음 단계로 넘어감)은 이 화면 고유의 제약이라 여기서만 덧붙인다.
-  // 어느 쪽이든 사유를 다 적고 제출한 뒤에야 거부되는 동선을 없애기 위해, 알 수 있는 시점에
-  // 버튼을 비활성화하고 사유를 툴팁으로 알린다.
+  //   영상 자체가 신고 대상이 아닌 경우(파생영상 · 검수 승인 영상)는 라벨링 화면과 <b>같은 판정기</b>를
+  //   쓴다 — 사유 문구를 화면마다 복제하면 한쪽만 갱신돼 어긋난다(@design DFEAT-048 · @req R2).
+  //   사유를 다 적고 제출한 뒤에야 거부되는 동선을 없애기 위해, 알 수 있는 시점에 버튼을
+  //   비활성화하고 사유를 툴팁으로 알린다.
+  //
+  // ⚠ <b>[폐기]</b> 구 동작 — 「배치 단계가 마킹 대기가 아님」 사유(`markingStageReason`)를 이 체인에
+  //   덧붙여 신고 버튼을 비활성화했다. 그 축은 이제 <b>화면 진입 자체를 차단</b>하고(아래
+  //   `notMarkingStage`) 차단이 먼저 return 하므로, 그 사유로 버튼이 비활성화되는 화면은
+  //   <b>존재하지 않는다</b>(도달 불가). 확정 사양(SCREEN-006)도 신고 버튼·툴팁 서술에서 그 축을
+  //   걷어냈다 — <b>되살리지 말 것</b>. 그 경로의 신고는 라벨링 화면이 담당한다.
   //
   // ★ 우선순위는 BE 평가 순서(DeidentReportService.doReport)와 같아야 한다 —
-  //   파생영상 → (비식별 미수행) → <b>마킹 단계</b> → 검수 승인.
-  //   검수 승인 영상은 배치 단계가 COMPLETED 라 BE 는 <b>마킹 단계 사유로 412</b> 를 낸다. 구현이
-  //   승인 사유를 먼저 보여주면 화면 안내와 서버 거부 사유가 갈린다(차단 결과는 같지만 안내가 다르다).
-  //   판정·문구 자체는 공용 판정기가 계속 소유하고, 여기서는 <b>어느 축을 먼저 물을지</b>만 정한다.
+  //   파생영상 → (비식별 미수행) → 검수 승인. 판정·문구 자체는 공용 판정기가 계속 소유하고,
+  //   여기서는 <b>어느 축을 먼저 물을지</b>만 정한다.
   const derivativeReason = resolveDeidentReportUnsupportedReason(
     videoDetail ? { derivative: videoDetail.derivative } : videoDetail,
   );
-  const markingStageReason =
-    videoDetail && videoDetail.status !== 'MARKING_READY'
-      ? '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.'
-      : undefined;
   const deidentReportUnsupportedReason =
-    derivativeReason ?? markingStageReason ?? resolveDeidentReportUnsupportedReason(videoDetail);
+    derivativeReason ?? resolveDeidentReportUnsupportedReason(videoDetail);
+
+  // 배치 단계 축 — 마킹 대기(MARKING_READY)가 아니면 이 화면의 <b>진입을 차단</b>한다(아래 분기).
+  // ⚠ videoDetail 이 아직 없으면(로딩 중) false 다 — 확정되지 않은 값으로 차단하면 로딩 구간의
+  //   깜빡임이 정상 마킹을 막는다(비식별 축이 `videoDetail &&` 로 지키는 규약과 같다).
+  const notMarkingStage = Boolean(videoDetail && videoDetail.status !== 'MARKING_READY');
 
   // <video> 는 Authorization 헤더를 못 붙이므로 단기 서명 URL 을 발급받아 src 로 사용한다.
   const { data: streamUrl, refetch: refetchStreamUrl } = useStreamUrl(rawSn);
@@ -141,11 +185,17 @@ export function MarkingPage() {
     // 발화하지 않도록 pending 을 선두에서 가드한다. (서버 idempotency 와 별개의 클라이언트 가드)
     if (createMutation.isPending) return;
     // 이벤트명은 영상의 evntTypeCd 에서 서버가 자동 소싱하므로 요청에 포함하지 않는다.
+    // 고른 질문이 있을 때만 싣는다 — 고를 것이 없으면 필드를 만들지 않는다(값을 지어내지 않는다).
+    //   ⚠ 서버는 어긋난 값을 400 이 아니라 <b>그 유형의 첫 번째 질문으로 교정</b>하고 교정 결과를
+    //     응답으로 돌려주지 않는다. 화면은 그 교정을 전제로 하며 「교정됨」 표시를 만들지 않는다.
+    const questionPayload =
+      selectedQstnSn !== null ? { vrfcEvntQstnSn: selectedQstnSn } : {};
     if (mode === 'AUTO') {
       if (!intervalFrames || intervalFrames < 1) return;
       createMutation.mutate({
         mode: 'AUTO',
         intervalFrames,
+        ...questionPayload,
       });
     } else {
       // ★마크 0건은 **버튼을 죽여서** 막지 않는다 (확정 사양) — 버튼은 항상 누를 수 있고,
@@ -162,9 +212,10 @@ export function MarkingPage() {
       createMutation.mutate({
         mode: 'MANUAL',
         marks: localMarks,
+        ...questionPayload,
       });
     }
-  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast]);
+  }, [mode, intervalFrames, localMarks, rawSn, createMutation, pushToast, selectedQstnSn]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -208,18 +259,23 @@ export function MarkingPage() {
 
   // 비식별 미완료 영상은 마킹 진입 차단(백스톱) — 영상 상세가 로드되어 미완료가 확정될 때만.
   if (videoDetail && isMarkingBlocked(videoDetail)) {
+    return <MarkingBlockedNotice rawSn={rawSn} reason="비식별 완료 후 마킹이 가능합니다." />;
+  }
+
+  // 배치 단계 축 — 마킹 대기(MARKING_READY)가 아니면 진입 차단. [@design SCREEN-006]
+  //
+  // ★ 평가 순서는 BE(MarkingGuards)와 같게 <b>비식별 축이 먼저</b>다 — 순서가 갈리면 두 축에 모두
+  //   걸린 영상에서 화면 안내와 서버 거부 사유가 달라진다.
+  // ★ 선차단하는 이유: BE 는 이 축을 제출 시점에 412 로 막으므로, 화면이 열려 있으면 작업자가
+  //   마크를 다 쌓은 뒤에야 거부된다(이미 처리된 영상에서 편집기가 멀쩡히 열리던 결함).
+  // ⚠ 이 화면에서는 비식별 누락 신고 버튼도 함께 사라진다 — 그 상태의 신고 버튼은 어차피 사유와
+  //   함께 비활성이었고, 그 경로의 신고는 라벨링 화면이 담당한다(기능 손실이 아니다).
+  if (notMarkingStage) {
     return (
-      <div
-        role="alert"
-        className="mx-auto max-w-3xl space-y-2 p-8 text-center"
-      >
-        <h1 className="text-title-md font-semibold text-gray-800">
-          마킹 — 영상 #{rawSn}
-        </h1>
-        <p className="text-body-md text-gray-500">
-          비식별 완료 후 마킹이 가능합니다.
-        </p>
-      </div>
+      <MarkingBlockedNotice
+        rawSn={rawSn}
+        reason="이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다."
+      />
     );
   }
 
@@ -229,20 +285,15 @@ export function MarkingPage() {
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-title-md font-semibold">마킹 — 영상 #{rawSn}</h1>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 배치 단계 진행 표시 — BE stages 있으면 노출, 없으면 미표시(하위호환). */}
-          {videoDetail?.stages && videoDetail.stages.length > 0 && (
-            <div className="overflow-x-auto">
-              <BatchStageIndicator stages={videoDetail.stages} />
-            </div>
-          )}
-          {/* 마킹 중 개인정보 노출 발견 시 신고(영상 단위). 라벨링 화면과 같은 컴포넌트를 재사용한다. */}
-          <DeidentReportButton
-            rawSn={rawSn}
-            unsupportedReason={deidentReportUnsupportedReason}
-            onSuccess={() => navigate('/task')}
-          />
-        </div>
+        {/* 마킹 중 개인정보 노출 발견 시 신고(영상 단위). 라벨링 화면과 같은 컴포넌트를 재사용한다.
+            ⚠ 배치 단계 진행 표시(BatchStageIndicator)는 이 헤더에 두지 않는다 — 마킹 완료가 잔여
+            배치의 트리거라 이 화면에 머무는 동안 뒷단은 시작될 수 없고, 확인할 진행이 존재하지
+            않는다. 그 표시기는 영상 상세 화면이 계속 쓴다(컴포넌트는 존치). [@design SCREEN-006] */}
+        <DeidentReportButton
+          rawSn={rawSn}
+          unsupportedReason={deidentReportUnsupportedReason}
+          onSuccess={() => navigate('/task')}
+        />
       </div>
 
       {videoSrc ? (
@@ -337,6 +388,16 @@ export function MarkingPage() {
           </div>
         )}
       </div>
+
+      {/* [@design SCREEN-006] 검증 질문 선택 — 고를 질문이 하나도 없으면 컴포넌트가 스스로
+          아무것도 렌더하지 않는다(빈 드롭다운은 "고를 수 있는데 비어 있다"로 읽힌다).
+          질문이 없다고 마킹이 막히지는 않는다 — 어노테이션의 질문 칸이 비는 것뿐이다. */}
+      <VerificationQuestionSelect
+        questions={vrfcEvntQuestions}
+        value={selectedQstnSn}
+        onChange={setSelectedQstnSn}
+        disabled={createMutation.isPending}
+      />
     </div>
   );
 }

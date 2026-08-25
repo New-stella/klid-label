@@ -12,7 +12,8 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
-import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
+import kr.co.cudo.authoring.webhook.service.IsolatedTimeseriesDraftApplier;
+import kr.co.cudo.authoring.webhook.service.TimeseriesResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,7 +71,8 @@ class VlmResultServiceLateCallbackScopeTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Mock TimeseriesSubResultApplier subResultApplier;
+    @Mock TimeseriesResultApplier resultApplier;
+    @Mock IsolatedTimeseriesDraftApplier isolatedDraftApplier;
 
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
     private VlmResultService service;
@@ -79,7 +81,7 @@ class VlmResultServiceLateCallbackScopeTest {
     void setUp() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher, subResultApplier);
+                approvalGate, eventPublisher, resultApplier, isolatedDraftApplier);
         ledger.clear();
     }
 

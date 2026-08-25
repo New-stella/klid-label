@@ -20,7 +20,7 @@
           "layout": "stack",
           "components": [
             {
-              "note": "GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 <video src> 에 바인딩(HTTP Range 재생). <video> 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/stream)을 직접 재생하지 못한다. 서명 만료 등 재생 오류 시 1회 한해 stream-url 재발급 후 재시도.",
+              "note": "GET /v1/videos/{rawSn}/stream-url 로 단기 서명 URL 을 먼저 발급받아 <video src> 에 바인딩(HTTP Range 재생). <video> 엘리먼트는 Authorization 헤더를 붙일 수 없어 인증 스트림(/api/v1/videos/{rawSn}/stream)을 직접 재생하지 못한다. 서명 만료 등 재생 오류 시 1회 한해 stream-url 재발급 후 재시도. 서명 URL 재생은 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)를 전제로 한다 — 브라우저가 자동으로 실어 보내고 스크립트로는 다룰 수 없어, 동일 오리진이면서 쿠키가 실리는 경로여야 한다. 쿠키가 없거나 유효하지 않으면 401 이며, 위 1회 재시도가 이 401 도 포괄한다.",
               "type": "Custom",
               "label": "영상 플레이어",
               "columns": [],
@@ -63,7 +63,7 @@
               "custom_name": "Spinner"
             }
           ],
-          "description": "VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(서명 URL 발급)을 조회하고, 응답의 서명된 URL을 <video src>에 바인딩해 HTTP Range 로 재생한다(<video> 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 서명 만료 등 재생 오류 시 1회 한해 stream-url 을 재발급받아 재시도한다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.",
+          "description": "VideoPlayer — 먼저 GET /v1/videos/{rawSn}/stream-url(서명 URL 발급)을 조회하고, 응답의 서명된 URL을 <video src>에 바인딩해 HTTP Range 로 재생한다(<video> 태그는 Authorization 헤더를 붙일 수 없어 인증이 걸린 /stream 을 직접 재생할 수 없다 — 별도 fetch 없는 직접 src 바인딩이 아니다). 서명 만료 등 재생 오류 시 1회 한해 stream-url 을 재발급받아 재시도한다. 서명 URL 재생이 성립하려면 발급 응답이 함께 내려준 nonce 쿠키(klid_stream_nonce)가 후속 스트림 요청에 함께 실려야 한다. 그 쿠키는 스크립트가 다룰 수 없고 브라우저가 자동으로 부착하므로, 재생 요청이 동일 오리진이면서 쿠키가 실리는 경로여야 한다는 제약이 따른다. 쿠키가 없거나 유효하지 않으면 서명 검증이 실패해 401 이며, 위의 1회 재시도는 서명 만료뿐 아니라 이 401 도 포괄한다 — 재발급을 받으면 쿠키도 함께 새로 내려오기 때문이다. 쿠키 속성 전문은 API-114 가 정하므로 이 화면 사양에 옮겨 적지 않는다. 재생/일시정지 토글, 배속 버튼(0.25/0.5/1/1.5/2/4x), seek range bar, 현재시각/총길이(mm:ss) 표시. 현재 재생 시각·현재 프레임(영상 실측 fps 기준 환산, 미상 시 30 폴백)·특정 지점 이동 기능을 다른 컴포넌트에 노출한다.",
           "references_apis": [
             "API-114",
             "API-084"
@@ -127,7 +127,7 @@
               "triggers_api": "API-047"
             },
             {
-              "note": "rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 사전 비활성화 — ①파생영상 ②배치 단계≠MARKING_READY. BE 거부는 둘 다 412. 신고 성공 시 작업 목록(/task)으로 이동한다.",
+              "note": "rawSn 기준 신고. 사유 textarea(1~1000자) 입력 후 제출 → 작업락 + deIdntfYn='F'. ★라벨·개인정보 3필드는 보존한다(리셋 없음). 버튼은 videoDetail 기준으로 파생영상일 때 사전 비활성화한다(BE 거부 412). 배치 단계가 마킹 대기가 아닐 때는 버튼이 비활성화되는 것이 아니라 화면 진입 자체가 막혀 이 버튼이 렌더되지 않는다 — 그 축은 마킹 진입 차단 안내가 규정한다. 신고 성공 시 작업 목록(/task)으로 이동한다.",
               "type": "Button",
               "label": "비식별 누락 신고",
               "columns": [],
@@ -136,7 +136,7 @@
               "triggers_api": "API-091"
             },
             {
-              "note": "videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' / status≠MARKING_READY 면 '이미 다음 단계로 넘어간 영상이라 이 화면에서는 신고할 수 없습니다. 라벨링 화면에서 신고해 주세요.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.",
+              "note": "videoDetail.derivative 면 '증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.' 원본으로 유도하지 않고 부모 rawSn 도 노출하지 않는다.",
               "type": "Custom",
               "label": "신고 불가 사유 툴팁",
               "columns": [],
@@ -170,27 +170,53 @@
           "references_features": []
         },
         {
-          "name": "배치단계 인디케이터",
+          "name": "검증 질문 선택",
           "role": "main",
-          "layout": "stack",
+          "layout": "form",
           "components": [
             {
-              "note": "오토라벨 3단계를 한 칸으로 접어 5칸 표시, DEIDENTIFY 선두",
-              "type": "Custom",
-              "label": "배치단계 인디케이터",
+              "note": "그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 싣고 첫 번째 질문을 기본으로 선택해 둔다. 고른 질문의 일련번호가 마킹 완료 요청에 함께 실린다. 고를 질문이 하나도 없으면 이 영역을 노출하지 않는다.",
+              "type": "Select",
+              "label": "검증 질문",
               "columns": [],
               "options": [],
-              "custom_name": "BatchStageIndicator",
-              "triggers_api": "API-043"
+              "binds_to": "vrfcEvntQstnSn"
             },
             {
-              "type": "Progress",
-              "label": "단계 진행률",
+              "note": "드롭다운에서 잘릴 수 있는 긴 문구를 확인할 수 있도록 고른 질문의 전문을 그대로 표시한다.",
+              "type": "Text",
+              "label": "선택한 질문 전문",
               "columns": [],
               "options": []
             }
           ],
-          "description": "마킹 화면에 배치 파이프라인 진행 상태를 표시하는 BatchStageIndicator. GET /v1/videos/{rawSn}(API-043) 응답 stages[](비식별/마킹/시계열/프레임추출/AI탐지/AI분할/보간, DEIDENTIFY 선두) 기반으로 현재 단계·상태·진행률을 표시. 마킹 중 잔여 배치 단계 진행을 확인. 표시는 응답의 7단계를 그대로 나열하지 않고 오토라벨 세 단계(AI 탐지 · AI 분할 · 트랙 보간)를 한 칸으로 접어 5칸으로 보여주며, 접은 칸에는 진행 중이거나 실패한 세부 단계를 보조 표기로 병기한다. 영상 상세 화면과 같은 표시기를 쓰므로 두 화면의 표시 단위가 갈리지 않는다.",
+          "description": "마킹과 함께 저장할 검증 질문을 고르는 영역. 그 영상의 검증 이벤트 유형에 등록된 질문 목록을 정렬순서 오름차순으로 받아 드롭다운에 싣고, 화면 진입 시 정렬순서 첫 번째 질문을 기본으로 선택해 둔다. 고른 질문의 일련번호(vrfcEvntQstnSn)는 마킹 완료 시 마킹과 함께 저장된다. 그 영상에 검증 이벤트 유형이 없거나 그 유형에 등록된 질문이 하나도 없으면 고를 것이 없으므로 이 영역 자체를 노출하지 않는다. 질문이 없다고 마킹이나 외부 시계열 위탁이 막히지는 않으며 어노테이션의 질문 칸이 비어 있을 뿐이다. 선택값이 비었거나 그 유형에 속하지 않는 질문이면 서버가 그 유형의 첫 번째 질문으로 되돌리므로, 화면의 선택은 최종 판정이 아니라 서버 교정을 전제로 한 입력이다. 질문 문구가 길어 드롭다운에서 잘릴 수 있으므로 고른 질문의 전문을 아래에 그대로 보여 준다. 이 화면이 이미 다루는 검증 이벤트 유형은 외부 시계열 위탁 요청에 싣는 값이며, 질문 선택은 그 위탁 입력 조달과 별개 축이다.",
+          "references_apis": [
+            "API-047"
+          ],
+          "references_features": []
+        },
+        {
+          "name": "마킹 진입 차단 안내",
+          "role": "main",
+          "layout": "stack",
+          "components": [
+            {
+              "note": "비식별이 확정적으로 미완료일 때 마킹 편집기 대신 이 안내만 노출한다. 영상 상세 정보를 아직 받는 중이면 노출하지 않는다.",
+              "type": "Alert",
+              "label": "비식별 완료 후 마킹이 가능합니다.",
+              "columns": [],
+              "options": []
+            },
+            {
+              "note": "영상이 마킹 대기 상태가 아닐 때 마킹 편집기 대신 이 안내만 노출한다. 비식별 축 판정이 먼저라 두 축이 함께 걸리면 비식별 축 안내를 보여 준다. 영상 상세 정보를 아직 받는 중이면 노출하지 않는다.",
+              "type": "Alert",
+              "label": "이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다.",
+              "columns": [],
+              "options": []
+            }
+          ],
+          "description": "마킹 편집기를 렌더할지 판정하는 영역. 영상 상세 정보로 두 축을 순서대로 확인해 하나라도 걸리면 편집기(영상 플레이어·마킹 타임라인·마킹 툴바·마킹 칩 목록·검증 질문 선택)를 렌더하지 않고 사유 안내만 보여 준다. 첫째 비식별 축 — 비식별이 확정적으로 미완료면 차단한다. 둘째 배치 단계 축 — 영상이 마킹 대기 상태가 아니면 차단한다. 서버도 마킹 대기 상태가 아닌 영상의 마킹 접수를 거부하므로, 화면이 선차단하지 않으면 작업자가 마크를 다 쌓은 뒤 제출 시점에야 거부된다. 두 축은 차단이라는 결과가 같아도 사유와 안내 문구가 달라 하나로 합치지 않는다. 판정 순서는 서버의 평가 순서와 같게 비식별 축이 먼저다 — 순서가 갈리면 같은 영상에 화면 안내와 서버 거부 사유가 달라진다. 영상 상세 정보를 아직 받는 중이면 어느 축도 차단하지 않는다. 확정되지 않은 값으로 차단하면 로딩 구간의 깜빡임이 정상 마킹을 막기 때문이다. 차단 화면에서는 비식별 누락 신고 버튼도 함께 노출하지 않는다 — 그 상태에서는 어차피 사유와 함께 비활성이던 버튼이고, 그 경로의 신고는 라벨링 화면이 담당한다.",
           "references_apis": [
             "API-043"
           ],
@@ -213,11 +239,17 @@
         "API-084"
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-120",
+          "IMPREC-122",
+          "IMPREC-124"
+        ],
+        "progress": 95,
+        "subtasks": [],
+        "last_updated": "2026-08-25T10:36:59.596Z",
+        "module_paths": []
       },
       "required_roles": [
         "ROLE-001",
@@ -232,8 +264,8 @@
           "surface": "page",
           "platform": "web",
           "sections": [],
-          "source_hash": "7f128ef5816570eb6682286205240a293f64940cd298cf518fd28ef1020248bf",
-          "generated_at": "2026-08-18T03:19:09.827Z",
+          "source_hash": "c8eb94c2deb07079d3492dd32e3012ff1b897deeed3d230a085072557fb2e3f9",
+          "generated_at": "2026-08-25T10:05:08.451Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -247,12 +279,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 43,
+    "current_version": 49,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (12.1KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-18T03:19:09.827Z",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (15.2KB)",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T10:36:59.596Z",
     "created_at": "2026-05-30T07:53:59.324Z"
   }
 }

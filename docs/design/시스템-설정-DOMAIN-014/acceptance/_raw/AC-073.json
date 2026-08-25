@@ -9,6 +9,24 @@
     "status": "draft",
     "data": {
       "notes": "유효 시간을 요청하는 쪽이 정하게 하면 임의로 긴 창을 열 수 있다. 잘못 설정된 값에서 창이 무한정 열리거나 즉시 닫히지 않도록 판정을 서버가 갖는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "AdminSessionTokenServiceTest",
+          "captured_at": "2026-08-24T03:11:00Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66f33cbe-116d-4768-8dc2-eb914e9d1fe0",
+          "captured_at": "2026-08-24T03:11:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-24T03:11:00Z"
+      },
       "priority": "high",
       "scenario": {
         "then": [
@@ -25,29 +43,35 @@
       "statement": "관리자 유효창의 유효 시간은 서버 설정이 정하고, 설정이 상한을 넘는 값이면 상한으로 제한되며 0 이하이면 기본값으로 되돌아간다.",
       "is_negative": false,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-073"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:25.375Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/auth/service/AdminSessionTokenService.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-014"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-031"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 3,
     "stale": true,
-    "stale_reason": "UC-031의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "시스템 운영 설정 흐름의 검증 기준을 신설한다. 이 유스케이스를 검증하는 인수기준이 없어 설정 저장과 조회 동작이 기준 없이 남아 있었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T10:08:57.102Z",
+    "stale_reason": "DFEAT-045의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:25.375Z",
     "created_at": "2026-08-23T10:08:57.102Z"
   }
 }

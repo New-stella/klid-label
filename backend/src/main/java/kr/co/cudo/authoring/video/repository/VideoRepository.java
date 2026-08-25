@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.video.repository;
 
 import jakarta.persistence.LockModeType;
+import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.springframework.data.domain.Page;
@@ -284,6 +285,32 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             Collection<String> failedBundleStages,
                                             Collection<String> vlmFailureReasons,
                                             Pageable pageable) {
+        return searchOriginals(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
+                eventFilterOn, eventCodes, from, to, skippedBundle,
+                failedBundleStages, vlmFailureReasons, null, pageable);
+    }
+
+    /**
+     * 배정 스코핑까지 받는 전체 진입점 — 위 오버로드들은 여기로 위임한다(하위호환). [@design API-042]
+     *
+     * @param assignedToUserNo 이 사용자에게 <b>라벨링 작업자로 배정된</b> 영상만 남긴다. {@code null} 이면
+     *                         스코핑 미적용(검수자 · 사용자 축이 없는 내부 호출). 값은 <b>인증 주체</b>에서만
+     *                         와야 한다 — 요청 파라미터가 채울 수 있는 자리에 두면 그 자체가 IDOR 입구다
+     *                         (CWE-639). 그래서 {@code VideoListFilter} 가 아니라 별도 인자다.
+     */
+    default Page<LsDataRaw> searchOriginals(String dataSttsCd,
+                                            String reviewStatusCd,
+                                            String keyword,
+                                            Long keywordRawSn,
+                                            int eventFilterOn,
+                                            Collection<String> eventCodes,
+                                            java.time.LocalDateTime from,
+                                            java.time.LocalDateTime to,
+                                            String skippedBundle,
+                                            Collection<String> failedBundleStages,
+                                            Collection<String> vlmFailureReasons,
+                                            Long assignedToUserNo,
+                                            Pageable pageable) {
         boolean failedOn = failedBundleStages != null && !failedBundleStages.isEmpty();
         boolean vlmReasonOn = failedOn && vlmFailureReasons != null && !vlmFailureReasons.isEmpty();
         return searchOriginalsInternal(dataSttsCd, reviewStatusCd, keyword, keywordRawSn,
@@ -298,6 +325,9 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                 vlmReasonOn ? 1 : 0,
                 vlmReasonOn ? vlmFailureReasons : NO_REASON_MATCH,
                 PROGRESS_FAILED_STTS_CD, VLM_STAGE_CD,
+                assignedToUserNo != null ? 1 : 0,
+                assignedToUserNo != null ? assignedToUserNo : NO_USER_MATCH,
+                LABELER_TASK_TYPE_CD,
                 withDefaultRegDtDesc(pageable));
     }
 
@@ -402,6 +432,45 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             + "                        AND g.errorMsg IN :vlmFailureReasons)))\n";
 
     /**
+     * 배정 스코핑 미적용 시 바인딩할 <b>더미 사용자 번호</b> — 실제 {@code USER_NO} 와 절대 겹치지 않는 값.
+     *
+     * <p>{@code fromFilterOn} 과 같은 on/off 플래그 관례를 따른다. 플래그가 0 이면 이 값은 결과에 영향을
+     * 주지 않지만, 파라미터가 항상 비교 위치에 등장해야 타입 추론이 확정되므로 {@code null} 을 넣지 않는다.
+     */
+    Long NO_USER_MATCH = -1L;
+
+    /**
+     * 라벨링 작업자 배정의 작업유형 코드 — {@link LsTaskAssignment#TASK_LABELER} 를 <b>그대로 참조</b>한다.
+     *
+     * <p>위 {@code MANUAL_SKIP_*} 은 {@code batch} 패키지와의 순환 참조를 피하려 값만 옮겨 적었지만,
+     * 여기서는 그럴 이유가 없다 — {@code assignment} 의 <b>엔티티</b> 상수라 빈 의존이 생기지 않고,
+     * 같은 판정을 쓰는 단건 가드({@code LabelAccessGuard.verifyRawAccess})도 이 상수를 직접 참조한다.
+     * 리터럴을 새로 적으면 목록과 단건의 배정 축이 조용히 갈라진다.
+     */
+    String LABELER_TASK_TYPE_CD = LsTaskAssignment.TASK_LABELER;
+
+    /**
+     * 「본인에게 라벨링 작업자로 배정된 영상만」 술어 — 본 쿼리와 count 쿼리가 <b>같은 문자열</b>을 쓴다.
+     * [@design API-042]
+     *
+     * <p>판정 축은 단건 가드({@code LabelAccessGuard.verifyRawAccess})와 같다 —
+     * {@code (RAW_SN, USER_NO, TASK_TYPE_CD='LABELER')} 의 배정 행이 존재하는가. 목록은 열려 있는데
+     * 클릭하면 403 이 되는 비대칭을 없애는 것이 이 술어의 목적이므로 축이 갈리면 안 된다.
+     *
+     * <p><b>범위 제한은 거부가 아니라 결과 축소</b>다 — 배정이 하나도 없으면 403 이 아니라 빈 페이지다.
+     *
+     * <p>{@code EXISTS} 라 목록 행을 증식시키지 않는다. 한 영상에 같은 사용자의 {@code LABELER}·
+     * {@code REVIEWER} 배정이 함께 있을 수 있는데(UK 가 작업유형까지 포함한다) 조인이면 그 영상이
+     * 두 행으로 나와 {@code totalElements} 까지 부푼다. 모든 값은 파라미터 바인딩이다(CWE-89).
+     */
+    String ASSIGNED_ONLY_PREDICATE =
+            "AND (:assignedOnlyOn = 0\n"
+            + "     OR EXISTS (SELECT 1 FROM LsTaskAssignment a\n"
+            + "                 WHERE a.rawDataId = v.rawSn\n"
+            + "                   AND a.userNo = :actorUserNo\n"
+            + "                   AND a.taskTypeCd = :labelerTaskTypeCd))\n";
+
+    /**
      * 촬영기간 필터 미적용 시 바인딩할 <b>더미 경계값</b>.
      *
      * <p>날짜 조건만 {@code IS NULL} 대신 on/off 플래그를 쓰는 이유: PostgreSQL 확장 프로토콜은
@@ -443,7 +512,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             AND (:toFilterOn = 0 OR v.shtDt <= :to)
             """
             + SKIPPED_BUNDLE_PREDICATE
-            + FAILED_BUNDLE_PREDICATE,
+            + FAILED_BUNDLE_PREDICATE
+            + ASSIGNED_ONLY_PREDICATE,
             countQuery = """
             SELECT COUNT(v) FROM LsDataRaw v
             LEFT JOIN LsRawDataStatus s ON s.rawDataId = v.rawSn
@@ -458,7 +528,8 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
             AND (:toFilterOn = 0 OR v.shtDt <= :to)
             """
             + SKIPPED_BUNDLE_PREDICATE
-            + FAILED_BUNDLE_PREDICATE)
+            + FAILED_BUNDLE_PREDICATE
+            + ASSIGNED_ONLY_PREDICATE)
     Page<LsDataRaw> searchOriginalsInternal(@Param("dataSttsCd") String dataSttsCd,
                                             @Param("reviewStatusCd") String reviewStatusCd,
                                             @Param("keyword") String keyword,
@@ -480,6 +551,9 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
                                             @Param("vlmFailureReasons") Collection<String> vlmFailureReasons,
                                             @Param("progressFailedSttsCd") String progressFailedSttsCd,
                                             @Param("vlmStageCd") String vlmStageCd,
+                                            @Param("assignedOnlyOn") int assignedOnlyOn,
+                                            @Param("actorUserNo") Long actorUserNo,
+                                            @Param("labelerTaskTypeCd") String labelerTaskTypeCd,
                                             Pageable pageable);
 
     /**

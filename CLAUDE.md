@@ -186,9 +186,29 @@ slowBuild: true
   - **스텝이 확정적으로 말하는 사실은 "제출을 개시했다" 뿐**이다. 수락(ACK) 여부는 완료 핸들러가 `LS_BATCH_PROC_LOG`·원장에 비동기 기록하고, 그 기록은 `publishOn` 이 아니라 **명시적 디스패치**(`SubmitSignalDispatch`)로 전용 풀에서만 실행한다 — `publishOn` 은 풀 포화 시 거부가 **시그널을 나른 reactor-netty 이벤트 루프**로 흘러 JPA 쓰기를 이벤트 루프에서 실행시킨다.
   - **아무 신호도 없으면 미결 스위퍼가 회수한다** (`VlmSubmitPendingSweeper` / KPST 대칭). in-memory subscription 은 노드가 죽으면 통째로 사라져 ACK 도 실패 신호도 오지 않고, **실패 행이 없어 재시도 큐·실패 회수기가 집지 못한다** — 스위퍼가 유일한 회수 경로다. 2노드 Active-Active 에서 같은 후보를 두 번 재위탁하지 않도록 처리 전 **조건부 UPDATE 로 원자 클레임**한다(Quartz 클러스터링은 트리거 중복만 막는다).
   - ⚠ **미결 임계는 두 개이며 하나로 덮으면 정상 위탁을 뺏는다**: **ACK 창**(`stale-timeout-minutes`, 기본 30분 — 원장 `ISSUED`, 수락 응답조차 못 본 건) / **콜백 창**(`callback-timeout-minutes`, 기본 360분 — 원장 `ACCEPTED`, 벤더 분석은 영상 길이에 따라 수십 분 걸린다). 두 창을 구분하는 근거는 완료 핸들러의 `ISSUED → ACCEPTED` 전이(`VlmSubmitOutcomeRecorder`)이며, 그 전이가 없으면 구분이 성립하지 않는다.
-  - 결과 상세는 VLM 서버가 콜백(`POST /v1/vlm/callback`)으로 별도 전송 → `VlmResultService` 가 `LS_DATA_META` 적재(`vlm.description` — 묘사 축만. 추가 질문 축은 이벤트 어노테이션 초안으로 간다) + 검수큐(`LS_DATA_META_REVIEW`) 진입은 `vlm.description` 1건만 (아래 verify 절)
+  - 결과 상세는 VLM 서버가 콜백(`POST /v1/vlm/callback`)으로 별도 전송 → `VlmResultService` 가 `LS_DATA_META` 적재(`vlm.description` — 묘사 축만. 두 축 다 이벤트 어노테이션 초안으로도 간다 — 아래 적재 축 절) + 검수큐(`LS_DATA_META_REVIEW`) 진입은 `vlm.description` 1건만 (아래 verify 절)
 - **★외부 시계열 위탁은 묘사(`describe`) + 추가 질문(`describe-sub`) 두 창구다 (2026-08-24 사용자 확정, 구속 · `ADR-051` — 구 `verify` 단일 규격 폐기)**: 확정 계약은 **KLID 연동 API v1.1.0**(`docs/연동규격서/video_vlm_klid_api_v1.1.0.pdf`)이며 우리가 호출하는 것은 **`POST /v1/videovlm-klid/describe`**(장소·환경·상황 서술)와 **`POST /v1/videovlm-klid/describe-sub`**(발생 여부와 근거 서술) 둘이다. **판정 창구 `POST /v1/videovlm-klid/verify` 는 연동하지 않는다** — 그 창구만 제공하는 `detected`·`accuracy` 가 우리 확정 경로(화면 확정·산출물·데이터마트) 어디에도 쓰이지 않기 때문이다.
-  - **적재 축은 창구마다 다르다** — 묘사 → 기존 시계열 메타 `vlm.description`(검수큐 진입·export 조달 불변) · 추가 질문 → **이벤트 어노테이션의 답변 축 초안**. `LS_DATA_META` 는 `(RAW_SN, META_KEY)` 유니크라 두 축이 같은 키를 쓰면 한쪽이 유실된다.
+  - **★적재 축은 창구마다 다르다 (2026-08-25 사업 담당 회신으로 재확정 — 구 「답변 축」 서술 폐기)**
+
+    | 어노테이션 경로 | 조달처 |
+    |---|---|
+    | 시계열 메타 `vlm.description` | 묘사 전문 — 검수큐 진입·export 조달 **불변** |
+    | `event.caption.c1.cot["1단계"]` | 묘사 전문에서 **「상황」 라벨 줄만** 파싱 |
+    | `event.caption.c1.caption_text` | 추가 질문 응답 서술 |
+    | `event.question` | **저작도구가 보관하는 검증 이벤트 유형별 질문 문구**(`LS_VRFC_EVNT_QSTN`) — 마킹에서 고른 질문이 1순위, 없거나 그 유형 소속이 아니면 **그 유형의 첫 번째** |
+
+    `answer`·`evidence`·CoT 2단계 이후는 **자동으로 채우지 않는다**(사람이 확정할 공란).
+    `LS_DATA_META` 는 `(RAW_SN, META_KEY)` 유니크라 두 축이 같은 키를 쓰면 한쪽이 유실된다.
+
+    ⚠ **구 서술 폐기** — *"추가 질문 → 이벤트 어노테이션의 **답변 축** 초안"*. 그건 2026-08-24 확정이었고
+    **하루 만에 뒤집혔다.** 같은 축이 이틀 사이 두 번 뒤집혔으므로(캡션·CoT → 답변 → 다시 캡션·CoT)
+    **세 번째로 되돌리지 말 것.**
+    ⚠ **질문 문장은 사업자 응답에 실려 오지 않는다** — 사업자 서버가 이벤트별로 관리하며 연동 시스템이
+    지정할 수도 없다. 그래서 우리가 보관한다. **위탁 요청에 그 질문을 실을 자리도 아직 없어**, 첫 번째가
+    아닌 질문을 고르면 **기록된 질문과 사업자가 실제로 쓴 질문이 달라진다** — 인지·수용한 위험이다.
+    ⚠ 마킹 선택값을 읽는 행은 **그 영상의 활성 마킹**이고, 없으면 **최신 마킹 한 건**이다. 두 창구의
+    도착 순서가 보장되지 않는데 **마킹을 전이시키는 것은 묘사 축뿐**이라, 활성만 보면 도착 순서에 따라
+    기록되는 질문이 달라진다.
   - **콜백 바디에 창구 구분자가 없다** — 창구마다 **별개 request_id** 를 발급하고 원장 채널(`VLM` / `VLM_SUB`)로 역조회한다. 같은 request_id 로 둘을 부르면 결과가 유실된다.
   - **콜백 `results` 는 `{description}` 단일**이고 **실패 콜백의 `error` 는 객체가 아니라 문자열**이다(§2.7). 구 `{code,message}` 객체로 되돌리면 실패 콜백이 전량 400 이라 실패 사실 자체를 잃는다. 판정 항목이 섞여 와도 **무시**한다 — 재전송 3회 뒤 결과가 영영 유실되고 조회 API 가 없어(§5.1), 되받을 수 없는 입구에서의 엄격함은 곧 손실이다.
   - **`frame_policy` 에 `framerate` 를 싣지 않는다** — 규격 §2.5 가 **mode 만 연동 시스템이 지정하고 간격·장수는 서버가 관리**한다고 못 박으며 그 필드 자체가 없다. 우리는 **마킹 본문에서 프레임 인덱스를 얻으면 `frame_selected` + `selected_frames`**(정렬·중복제거·**상한 600**)로 싣고, **하나도 얻지 못하면 `frame_interval` 로 내린다**(빈 목록은 규격 위반이라 거부된다). 마킹 모드는 그 인덱스를 **누가 골랐는지**만 가른다 — 수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임이다. ⚠ `LS_MARKING.FRME_INTV_NOCS` **자체는 그대로 쓰인다** — 자동 마킹이 프레임을 고르는 우리 쪽 설정값이며, 폐기된 것은 그 값을 위탁 바디에 싣는 것이지 그 컬럼이 아니다.
@@ -726,27 +746,28 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-24 (SYNC · 마킹 산출물 일괄 업로드 설계 반영 — D003·D004·D011 세 도메인)** · 전건 무열화 검증 통과.
-> ⚠ 이번 SYNC 는 **세 도메인만** 돌렸다. 나머지 12개는 **측정했고 실제로 뒤처져 있다**(다른 라운드 꼬리 — 고유 ITEM 약 50건).
-> D004 는 pin 이 84→**101건**으로 커졌다(신규 17건 승격: ADR-052·ADR-053·ERD-032·API-216~218·UC-037·AC-099~106·MODEL-001·002).
+> 활성 15 도메인 전량 · last sync **2026-08-25 (SYNC · CO-009 라운드 설계 32건 반영 — 15 도메인 전량 재동기화)** · 전건 무열화 검증 통과.
+> 이번 SYNC 는 **15 도메인을 모두** 돌렸다(직전 라운드가 D003·D004·D011 세 도메인만 돌려 나머지 12개가 뒤처져 있던 상태를 해소).
+> 미판정 pending 을 판정해 **8개 도메인에 48건(고유 35 ITEM) pin 승격**했다(전부 core 타입 — 기각 0). 신규 승격 축: `API-219`·`API-220`·`ERD-033`(시스템 설정) · `ADR-051`~`ADR-054` · `SCREEN-038` · `TEST-007`·`TEST-008` · `AC-107`~`AC-119`.
+> 추가로 `INTSPEC-002`(VLM 시계열 콜백 수신 규격)를 D005 pin 에 승격했다 — CO-009 에서 고쳤는데 **어느 키트에도 없어 구현이 볼 수 없던 ITEM** 이었다(짝인 `INT-003` 이 D005 에 있고 `references` 로 서로를 가리킨다 · `INT-007`↔`INTSPEC-004` 선례와 동일).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
-| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 119 | implemented 64 / planned 30 / (미기재) 25 | CONST 상수값, INT 외부 연동 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 101 | implemented 39 / planned 37 / (미기재) 25 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 94 | implemented 46 / planned 28 / (미기재) 20 | CONST 상수값 |
-| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 13 / planned 21 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 72 | implemented 26 / planned 28 / (미기재) 18 | CONST 상수값 |
-| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 48 | implemented 17 / planned 17 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 161 | implemented 77 / planned 49 / (미기재) 29 | INT 외부 연동 |
-| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 47 | implemented 11 / planned 24 / (미기재) 12 | CONST 상수값 |
-| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 72 | implemented 22 / planned 34 / (미기재) 16 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 80 | implemented 37 / in_progress 1 / planned 26 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 63 | implemented 19 / planned 25 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 15 / planned 20 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 18 / in_progress 1 / planned 26 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 58 | implemented 19 / in_progress 1 / planned 33 / (미기재) 3 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 125 | implemented 71 / planned 27 / (미기재) 27 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 104 | implemented 41 / in_progress 1 / planned 35 / (미기재) 27 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 97 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
+| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 72 | implemented 28 / planned 26 / (미기재) 18 | CONST 상수값 |
+| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 48 | implemented 18 / planned 23 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 181 | implemented 94 / in_progress 1 / planned 54 / (미기재) 32 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 48 | implemented 16 / planned 20 / (미기재) 12 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 77 | implemented 27 / planned 31 / (미기재) 19 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 78 | implemented 35 / in_progress 1 / planned 28 / (미기재) 10 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 68 | implemented 29 / planned 28 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 21 / in_progress 2 / planned 22 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 60 | implemented 21 / in_progress 1 / planned 25 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

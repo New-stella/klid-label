@@ -108,11 +108,12 @@ class LsDataIngestRepositoryIT {
                 .filter(f -> f.isAnnotationPresent(Column.class))
                 .toList();
 
-        // then — 총 컬럼 수(관제 수신 37 + 저작도구 운영 8)를 빠짐없이 매핑했다.
+        // then — 총 컬럼 수(관제 수신 36 + 저작도구 운영 8)를 빠짐없이 매핑했다.
         //   관제 수신 = V147 의 29 + V166 신설 4(EVNT_TYPE_CD + 원천 개인정보 3필드)
         //   + V168 신설 2(EVNT_CLSF_CD·EVNT_CTGRY_CD) + V176 신설 1(VRFC_EVNT_TYPE_CD)
-        //   − V185 제거 1(OG_CD) + V16 신설 2(THMB_FILE_PATH_NM·OG_CD 복원) = 37.
-        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(45);
+        //   − V185 제거 1(OG_CD) + V16 신설 2(THMB_FILE_PATH_NM·OG_CD 복원)
+        //   − V17 제거 1(THMB_FILE_PATH_NM — 대표 이미지 조달원이 비식별 프레임으로 바뀜) = 36.
+        assertThat(mapped).as("LS_DATA_INGEST 매핑 컬럼 수").hasSize(44);
 
         // then — 컬럼별로 실제 스키마와 이름·타입·길이·NULL 허용이 일치한다
         //   ★ 이 단언을 컨텍스트 기동(ddl-auto=validate)에 위임하지 않는 이유:

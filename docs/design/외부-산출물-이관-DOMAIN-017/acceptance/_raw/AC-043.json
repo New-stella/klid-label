@@ -8,6 +8,30 @@
     "sub_id": null,
     "status": "draft",
     "data": {
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportMappingControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportScanControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -56,24 +80,30 @@
             "description": "이미 그 대응으로 적재된 라벨이 해제에 영향받지 않는지 검증"
           }
         ],
-        "last_updated": "2026-08-20T02:08:17.384Z"
+        "last_updated": "2026-08-24T00:40:07.660Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportMappingResolver.java",
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportMappingService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/repository/LsOtsdCtgryMpngRepository.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-035"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "DFEAT-058의 data.acceptance_rules 변경이 derived_from로 2-hop 전파",
-    "change_summary": "이벤트 축의 미등록 목록에는 최말단 이름만 나오고 상위 계층 이름은 나오지 않는다는 결과를 추가한다. 기존 결과 줄이 이벤트 유형 대응도 같은 방식으로 동작한다고만 적어 상위 계층 이름도 미등록 목록에 나오는 것으로 읽혔다. 기존 결과 줄은 그대로 두고 추가만 했다.",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 모듈만 연결한다. 진행도는 사람이 정해 둔 값이라 건드리지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T03:14:33.470Z",
+    "last_updated_at": "2026-08-24T00:40:07.660Z",
     "created_at": "2026-08-19T08:01:30.846Z"
   }
 }

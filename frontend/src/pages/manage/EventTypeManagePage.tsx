@@ -18,6 +18,7 @@ import {
   useUpdateEventTypeAdmin,
 } from '@/features/eventType/adminHooks';
 import { PresetLinkStatusChip } from '@/features/eventType/components/PresetLinkStatusChip';
+import { VerificationEventTypeSection } from '@/features/eventType/components/VerificationEventTypeSection';
 import {
   isPresetLinkStatus,
   PRESET_LINK_WITHHELD,
@@ -48,7 +49,7 @@ import { useUiStore } from '@/stores/useUiStore';
  * ★프리셋 칸도 같은 원칙이다 — 서버가 판정한 presetLinkStatus 를 그대로 표기하고 화면이
  *   프리셋 유무·실효 여부를 다시 판정하지 않는다.
  *
- * @design SCREEN-038, API-185, API-186, UI-126, AC-114, AC-116, AC-119
+ * @design SCREEN-038, API-185, API-186, API-219, API-220, UI-126, AC-114, AC-116, AC-119
  *
  * 보안:
  * - REVIEWER 만 진입(라우트 RoleGuard=internalReviewerOnly) + BE @PreAuthorize 이중 방어.
@@ -281,6 +282,12 @@ export function EventTypeManagePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* [@design SCREEN-038] [@design API-219] [@design API-220]
+          검증 이벤트 유형·질문 관리 — 위 표(관제 채번 코드 `EV…`)와 <b>코드 체계가 다른 별개 축</b>이다.
+          한 목록으로 합치지 않고 나란히 둔다. 화면을 새로 만들지 않고 여기 붙이는 이유는
+          관제 이벤트유형↔검증 유형의 짝을 한 화면에서 봐야 하기 때문이다. */}
+      <VerificationEventTypeSection />
     </div>
   );
 }

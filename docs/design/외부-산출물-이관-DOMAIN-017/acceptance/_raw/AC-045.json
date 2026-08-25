@@ -9,6 +9,24 @@
     "status": "draft",
     "data": {
       "notes": "이 기준의 주제는 배정 없이 바로 검수할 수 있다는 것이다. 그 점은 원본이라고 지정해 가져온 영상에도 그대로 참이다. 승인이 그대로 진행되는지는 비식별을 어떻게 지정해 가져왔는지에 따라 갈리므로, 승인이 막히는 쪽의 검증은 별도 기준이 맡는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -35,9 +53,11 @@
         "decided_by": "ADR-048"
       },
       "implementation": {
-        "status": "implemented",
+        "status": "verified",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-060"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -57,24 +77,25 @@
             "description": "작업자 배정 기록이 없음을 시험으로 고정"
           }
         ],
-        "last_updated": "2026-08-20T08:59:23.697Z"
+        "last_updated": "2026-08-25T01:21:22.543Z"
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-035"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "DFEAT-057의 data.acceptance_rules 변경이 derived_from로 2-hop 전파",
-    "change_summary": "이번 라운드의 확정과 대조해 본문을 그대로 둔다. 이번 확정의 축은 검사 알림을 한 목록으로 두고 적재 가능 여부 한 값으로만 판정한다는 것, 폴더 안 바로가기를 건너뛰고 그 사실을 알리되 적재를 막지 않는다는 것, 비식별 완료 기록이 파일 이름 대응으로 프레임의 비식별 위치를 채우고 대응이 한 건도 없으면 성립하지 않는다는 것, 그 기록을 이관 이력에서 승인 보류가 선 영상을 골라 연다는 것, 그리고 프레임만 가져온 원본은 승인 뒤에도 영상 단위 비식별 여부가 미수행 그대로 남아 관제 조회 통로로 그렇게 나가는 것이 정상이라는 것이다. 이 기준의 축은 가져온 영상을 작업자 배정과 검수 제출 없이 검수 목록에서 바로 검수할 수 있는가 하나이며, 검사 알림도 비식별 완료 기록도 관제 조회 통로도 다루지 않아 겹치는 대목이 없다. 본문이 승인 보류를 세 번 말하지만 셋 다 전제와 위임으로만 쓰였다. 보류가 서 있다는 전제, 원본 지정 영상도 검수 시작은 똑같이 받아들여진다는 단언, 보류가 어떻게 서고 풀리는지는 별도 기준이 맡는다는 위임이며, 보류를 판정하는 자리를 검수 워크플로 상태를 담는 표의 비식별화완료여부로 적어 확정과 어긋나지 않는다. 승인 이후의 상태는 이 기준이 단언하지 않으므로 미수행 유지 확정과도 충돌하지 않는다. 폐기된 화면이나 계약을 경유하는 대목도 없다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T15:01:04.071Z",
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 상태를 검증됨으로 올린다. 구현이 완료로 선언돼 있었는데 그것을 확인하는 시험 결과가 붙지 않아 검증 단계로 넘어가지 못한 상태였다. 이번에 이 기준을 검증하는 시험이 실제로 실행돼 통과한 것을 결과 파일로 확인했고 그 기록을 근거로 삼는다. 구현이 아직 진행 중으로 선언된 기준은 올리지 않는다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:22.543Z",
     "created_at": "2026-08-19T08:02:02.923Z"
   }
 }

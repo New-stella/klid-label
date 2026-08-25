@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "영상수집 파이프라인 — 비식별·마킹부터 트랙 보간까지",
-      "source": "sequenceDiagram\n    autonumber\n    participant CTL as 관제서버[외부] (학습용 설정)\n    participant SCAN as ControlTrainingVideoScanJob (Quartz, 60초 간격·최대 100건 폴링)\n    participant IG as TrainingVideoIngestService\n    participant DB as PostgreSQL\n    participant DE as DeidentifyStep → 외부 비식별 솔루션\n    participant WK as 작업자 (마킹)\n    participant BO as BatchOrchestrator\n    participant VLM as 외부 VLM\n    participant FF as FFmpeg (backend)\n    participant AI as ai-server (YOLO/SAM2)\n\n    Note over CTL,IG: ① 적재 — 관제 학습용 영상 인입 테이블(LS_DATA_INGEST) 직접 등록 + 주기 배치 폴링 (inbound API·M2M 없음)\n    CTL->>DB: LS_DATA_INGEST 에 학습용 영상 메타 직접 INSERT (PRCS_STTS_CD='PENDING')\n    SCAN->>IG: 미처리 인입 행 폴링 (60초 간격)\n    IG->>DB: LS_DATA_RAW 적재 (dataSttsCd=PENDING)\n    IG->>IG: VideoIngestedEvent 발행\n\n    Note over IG,DE: ② 비식별 단계 — 파이프라인 선두, 적재 직후 자동 (게이팅 폐지 · 전체 영상)\n    IG->>DE: IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner\n    DE->>DE: 외부 위탁 (local mock 즉시 완료 / KPST 논블로킹 제출→폴링 확정)\n    DE->>DB: DE_IDNTF_YN='Y' + LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 적재\n    DE->>DB: dataSttsCd=MARKING_READY (마킹 진입 허용, 원본은 별도 경로 보존)\n\n    Note over WK,DB: ③ 마킹 단계 — 비식별 영상 대상 (원본 노출 차단)\n    WK->>DB: 비식별 영상 스트리밍 마킹 (자동 intervalFrames / 수동 단축키)\n    opt 마킹 중 비식별 누락 발견 — MARKING_READY 에서만 접수, 그 외 412\n        WK->>DB: POST /v1/videos/{rawSn}/deident-report → DE_IDNTF_YN='F' + 작업락\n        Note over WK,DE: 자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기\n    end\n    WK->>BO: 마킹 완료 (MarkingCompleted, deIdntfYn='Y' 가드 통과 시)\n\n    Note over BO,AI: ④ 잔여 배치 (비동기) — VLM부터 트랙 보간까지\n    BO->>DB: LS_RAW_DATA_STATUS → PROCESSING\n    BO->>VLM: POST /v1/videovlm/verify 위탁 — 논블로킹 제출(subscribe), 파이프라인 스레드 미점유\n    VLM--)BO: 결과 콜백 POST /v1/vlm/callback (사건 일치도+서술 객체 1건)\n    BO->>DB: LS_DATA_META 적재 + 검수큐 (LS_DATA_META_REVIEW)\n    Note over BO,VLM: 신호가 없으면 미결 스위퍼가 회수 — ACK 창(기본 30분, 원장 ISSUED) / 콜백 창(기본 360분, ACCEPTED)\n    BO->>FF: 마킹 위치 기반 프레임 추출 (원본+비식별 2벌)\n    BO->>AI: YOLO 추론 (원본만 실행)\n    AI-->>BO: 바운딩박스 (좌표는 동일 해상도라 비식별본과 공유)\n    BO->>AI: SAM2 추론\n    AI-->>BO: 세그멘테이션 마스크\n    BO->>BO: 트랙 보간\n    BO->>DB: LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    Note over BO,AI: 실패 시 FAILED + 재시도 큐 (maxAttempts 초과 시 FAILED 고정). 작업 상태의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다",
+      "source": "sequenceDiagram\n    autonumber\n    participant CTL as 관제서버[외부] (학습용 설정)\n    participant SCAN as ControlTrainingVideoScanJob (Quartz, 60초 간격·최대 100건 폴링)\n    participant IG as TrainingVideoIngestService\n    participant DB as PostgreSQL\n    participant DE as DeidentifyStep → 외부 비식별 솔루션\n    participant WK as 작업자 (마킹)\n    participant BO as BatchOrchestrator\n    participant VLM as 외부 VLM\n    participant FF as FFmpeg (backend)\n    participant AI as ai-server (YOLO/SAM2)\n\n    Note over CTL,IG: ① 적재 — 관제 학습용 영상 인입 테이블(LS_DATA_INGEST) 직접 등록 + 주기 배치 폴링 (inbound API·M2M 없음)\n    CTL->>DB: LS_DATA_INGEST 에 학습용 영상 메타 직접 INSERT (PRCS_STTS_CD='PENDING')\n    SCAN->>IG: 미처리 인입 행 폴링 (60초 간격)\n    IG->>DB: LS_DATA_RAW 적재 (dataSttsCd=PENDING)\n    IG->>IG: VideoIngestedEvent 발행\n\n    Note over IG,DE: ② 비식별 단계 — 파이프라인 선두, 적재 직후 자동 (게이팅 폐지 · 전체 영상)\n    IG->>DE: IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner\n    DE->>DE: 외부 위탁 (local mock 즉시 완료 / KPST 논블로킹 제출→폴링 확정)\n    DE->>DB: DE_IDNTF_YN='Y' + LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 적재\n    DE->>DB: dataSttsCd=MARKING_READY (마킹 진입 허용, 원본은 별도 경로 보존)\n\n    Note over WK,DB: ③ 마킹 단계 — 비식별 영상 대상 (원본 노출 차단)\n    WK->>DB: 비식별 영상 스트리밍 마킹 (자동 intervalFrames / 수동 단축키)\n    opt 마킹 중 비식별 누락 발견 — MARKING_READY 에서만 접수, 그 외 412\n        WK->>DB: POST /v1/videos/{rawSn}/deident-report → DE_IDNTF_YN='F' + 작업락\n        Note over WK,DE: 자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기\n    end\n    WK->>DB: 질문 선택 — 그 영상의 검증 이벤트 유형에 등록된 질문 목록에서 하나를 고른다 (기본 선택 = 정렬순서 첫 번째)\n    WK->>DB: 마킹 저장 — 고른 질문 식별자를 마킹과 함께 적재 (LS_MARKING.VRFC_EVNT_QSTN_SN)\n    Note over WK,DB: 서버가 고른 질문의 소속 유형을 검증해 그 유형의 질문이 아니거나 값이 없으면 첫 번째 질문으로 되돌린다 — 화면 입력을 신뢰하지 않는다. 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다\n    Note over WK,DB: 질문이 없다고 마킹·위탁이 막히지 않는다 — 검증 이벤트 유형이 미수신이거나 등록된 질문이 0건이면 선택 없이 진행하고 이벤트 어노테이션의 질문 칸이 빌 뿐이다\n    WK->>BO: 마킹 완료 (MarkingCompleted, deIdntfYn='Y' 가드 통과 시)\n\n    Note over BO,AI: ④ 잔여 배치 (비동기) — VLM부터 트랙 보간까지\n    BO->>DB: LS_RAW_DATA_STATUS → PROCESSING\n    opt 전체 건너뛰기 스위치 켜짐 — 위탁 대신 자동 표식\n        Note over BO,VLM: 전체 건너뛰기 스위치(batch.vlm.skip-by-default)가 켜져 있으면 위탁하지 않는다 — 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 덮지 않는다\n        BO->>DB: 건너뜀 표식 기록 (사유 = batch.vlm.skip-by-default-reason) — 외부 호출 0\n    end\n    Note over BO,VLM: 전체 건너뛰기 스위치 판정은 위탁으로 나가는 모든 진입 경로가 통과한다 — 재개 러너·미결 회수도 예외가 아니다\n    BO->>VLM: POST /v1/videovlm-klid/describe(CoT) + POST /v1/videovlm-klid/describe-sub(VQA) 이중 위탁 — 축마다 별도 요청 식별자, 논블로킹 제출(subscribe)이라 파이프라인 스레드 미점유\n    VLM--)BO: 결과 콜백 POST /v1/vlm/callback (서술 1건 — 두 축 공용 수신, 요청 식별자로 CoT/VQA 축 역조회)\n    BO->>DB: LS_DATA_META 적재 + 검수큐 (LS_DATA_META_REVIEW)\n    Note over BO,VLM: 신호가 없으면 미결 스위퍼가 회수 — ACK 창(기본 30분, 원장 ISSUED) / 콜백 창(기본 360분, ACCEPTED)\n    BO->>FF: 마킹 위치 기반 프레임 추출 (원본+비식별 2벌)\n    BO->>DB: 프리셋 판정 — 그 영상의 검증 이벤트 유형에 실효한 오토라벨 프리셋이 있는지 확인 (탐지 전 선행)\n    Note over BO,AI: 묶음째 보류하는 이유 — 탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 라벨만 없는 무증상 성공이 된다\n    opt 프리셋 판정이 실효 아님 — 오토라벨 묶음째 보류, 배치를 완료로 마감하지 않는다\n        BO->>DB: 보류 표식 기록 — 사유 구분(이벤트 유형 미등록 / 프리셋 없음 / 프리셋 라벨이 마스터에 미연결 / 연결됐으나 전부 AI 검출 클래스 미매핑)\n        BO->>DB: 선점 해제 — 실패가 아니라 건너뜀이라 작업 상태를 역행시키지 않고 재시도 상한도 소진하지 않는다\n    end\n    Note over BO,DB: 프리셋이 등록·수정되면 재개가 촉발돼 오토라벨 묶음 전체(탐지→분할→보간)를 다시 돈다\n    opt 프리셋 판정 실효 — 오토라벨 묶음 실행 후 배치 완료 마감\n        BO->>AI: YOLO 추론 (원본만 실행)\n        AI-->>BO: 바운딩박스 (좌표는 동일 해상도라 비식별본과 공유)\n        BO->>AI: SAM2 추론\n        AI-->>BO: 세그멘테이션 마스크\n        BO->>BO: 트랙 보간\n        BO->>DB: LS_DATA_RAW.dataSttsCd=COMPLETED + LS_RAW_DATA_STATUS → ASSIGNED 복귀\n    end\n    Note over BO,AI: 실패 시 FAILED + 재시도 큐 (maxAttempts 초과 시 FAILED 고정). 작업 상태의 검수 종결값은 APPROVED 이며 검수 승인에서만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출(ASSIGNED→PENDING)이 상태 머신에서 차단된다",
       "messages": [
         {
           "to": "IG",
@@ -98,6 +98,30 @@
           "label": "자동 재비식별 큐 없음 — 외부 솔루션 수동 비식별 후 resolve → MARKING_READY 되감기"
         },
         {
+          "to": "DB",
+          "from": "WK",
+          "kind": "sync",
+          "label": "질문 선택 — 그 영상의 검증 이벤트 유형에 등록된 질문 목록에서 하나를 고른다 (기본 선택 = 정렬순서 첫 번째)"
+        },
+        {
+          "to": "DB",
+          "from": "WK",
+          "kind": "sync",
+          "label": "마킹 저장 — 고른 질문 식별자를 마킹과 함께 적재 (LS_MARKING.VRFC_EVNT_QSTN_SN)"
+        },
+        {
+          "to": "DB",
+          "from": "WK",
+          "kind": "note",
+          "label": "서버가 고른 질문의 소속 유형을 검증해 그 유형의 질문이 아니거나 값이 없으면 첫 번째 질문으로 되돌린다 — 화면 입력을 신뢰하지 않는다. 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다"
+        },
+        {
+          "to": "DB",
+          "from": "WK",
+          "kind": "note",
+          "label": "질문이 없다고 마킹·위탁이 막히지 않는다 — 검증 이벤트 유형이 미수신이거나 등록된 질문이 0건이면 선택 없이 진행하고 이벤트 어노테이션의 질문 칸이 빌 뿐이다"
+        },
+        {
           "to": "BO",
           "from": "WK",
           "kind": "sync",
@@ -138,13 +162,13 @@
           "to": "VLM",
           "from": "BO",
           "kind": "sync",
-          "label": "POST /v1/videovlm/verify 위탁 — 논블로킹 제출(subscribe), 파이프라인 스레드 미점유"
+          "label": "POST /v1/videovlm-klid/describe(CoT) + POST /v1/videovlm-klid/describe-sub(VQA) 이중 위탁 — 축마다 별도 요청 식별자, 논블로킹 제출(subscribe)이라 파이프라인 스레드 미점유"
         },
         {
           "to": "BO",
           "from": "VLM",
           "kind": "async",
-          "label": "결과 콜백 POST /v1/vlm/callback (사건 일치도+서술 객체 1건)"
+          "label": "결과 콜백 POST /v1/vlm/callback (서술 1건 — 두 축 공용 수신, 요청 식별자로 CoT/VQA 축 역조회)"
         },
         {
           "to": "DB",
@@ -163,6 +187,36 @@
           "from": "BO",
           "kind": "sync",
           "label": "마킹 위치 기반 프레임 추출 (원본+비식별 2벌)"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "프리셋 판정 — 그 영상의 검증 이벤트 유형에 실효한 오토라벨 프리셋이 있는지 확인 (탐지 전 선행)"
+        },
+        {
+          "to": "AI",
+          "from": "BO",
+          "kind": "note",
+          "label": "묶음째 보류하는 이유 — 탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 라벨만 없는 무증상 성공이 된다"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "보류 표식 기록 — 사유 구분(이벤트 유형 미등록 / 프리셋 없음 / 프리셋 라벨이 마스터에 미연결 / 연결됐으나 전부 AI 검출 클래스 미매핑)"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "sync",
+          "label": "선점 해제 — 실패가 아니라 건너뜀이라 작업 상태를 역행시키지 않고 재시도 상한도 소진하지 않는다"
+        },
+        {
+          "to": "DB",
+          "from": "BO",
+          "kind": "note",
+          "label": "프리셋이 등록·수정되면 재개가 촉발돼 오토라벨 묶음 전체(탐지→분할→보간)를 다시 돈다"
         },
         {
           "to": "AI",
@@ -217,11 +271,23 @@
         {
           "kind": "opt",
           "label": "전체 건너뛰기 스위치 켜짐 — 위탁 대신 자동 표식",
-          "end_index": 18,
-          "start_index": 17
+          "end_index": 22,
+          "start_index": 21
+        },
+        {
+          "kind": "opt",
+          "label": "프리셋 판정이 실효 아님 — 오토라벨 묶음째 보류, 배치를 완료로 마감하지 않는다",
+          "end_index": 32,
+          "start_index": 31
+        },
+        {
+          "kind": "opt",
+          "label": "프리셋 판정 실효 — 오토라벨 묶음 실행 후 배치 완료 마감",
+          "end_index": 39,
+          "start_index": 34
         }
       ],
-      "description": "영상 1차 적재부터 오토라벨링까지의 파이프라인. 적재는 관제서버가 저작도구 소유 인입 테이블 LS_DATA_INGEST 에 학습용 영상 메타를 직접 INSERT(PRCS_STTS_CD='PENDING')하고, 저작도구 주기 배치(ControlTrainingVideoScanJob, 60초 간격 폴링)가 미처리 행을 픽업해 TrainingVideoIngestService 가 LS_DATA_RAW(PENDING)로 적재하는 방식이며, inbound 연동 API·M2M 인증은 쓰지 않는다(관리 화면 TUS 업로드는 1차 적재 경로가 아니다). 단계 순서는 선언적 파이프라인(BatchPipelineConfig)이 소유한다 — pre-marking=[DEIDENTIFY], post-marking=[MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE]. ①비식별이 선두 단계로 적재 직후 자동 트리거되며(VideoIngestedEvent→IngestDeidentifyBridge(AFTER_COMMIT)→AsyncDeidentifyRunner→DeidentifyStep) PRVC_TYPE_CD 게이팅 없이 전체 영상이 대상이다. 성공 시 dataSttsCd=MARKING_READY 로 전이해 마킹 진입을 허용한다. ②마킹은 비식별 영상 대상이며 마킹 완료(MarkingCompleted → MarkingBatchBridge AFTER_COMMIT)가 잔여 배치를 비동기로 기동한다. ③VLM 시계열 위탁은 파이프라인 스레드를 붙잡지 않는 논블로킹 제출(subscribe)이고 결과는 POST /v1/vlm/callback 으로 별도 수신하며, 신호가 오지 않으면 ACK 창(기본 30분)·콜백 창(기본 360분) 2단 미결 스위퍼가 회수한다. ④프레임 추출은 마킹 위치 기반 원본+비식별 2벌, YOLO/SAM2 는 원본에만 실행하고 좌표를 비식별본과 공유한다. 완료 시 LS_DATA_RAW.dataSttsCd=COMPLETED 로 마감하고 LS_RAW_DATA_STATUS 는 ASSIGNED 로 복귀시킨다(작업 상태의 검수 종결값은 APPROVED 이며 검수 승인 시점에만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출 ASSIGNED→PENDING 이 상태 머신에서 차단된다). 마킹 중 비식별 누락 신고는 배치 단계가 MARKING_READY 일 때만 접수되고 자동 재비식별 큐는 없다 — 외부 솔루션 수동 비식별 후 resolve 하면 MARKING_READY 로 되감아 재마킹한다. 시계열 위탁에는 그 앞에 전체 건너뛰기 스위치 판정이 있다 — 켜져 있으면 위탁하지 않고 건너뜀 표식만 남기며 외부 호출이 한 번도 일어나지 않는다. 사유는 설정값이 그대로 표식에 실리고, 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 자동 표식이 덮지 않는다.",
+      "description": "영상 1차 적재부터 오토라벨링까지의 파이프라인. 적재는 관제서버가 저작도구 소유 인입 테이블 LS_DATA_INGEST 에 학습용 영상 메타를 직접 INSERT(PRCS_STTS_CD='PENDING')하고, 저작도구 주기 배치(ControlTrainingVideoScanJob, 60초 간격 폴링)가 미처리 행을 픽업해 TrainingVideoIngestService 가 LS_DATA_RAW(PENDING)로 적재하는 방식이며, inbound 연동 API·M2M 인증은 쓰지 않는다(관리 화면 TUS 업로드는 1차 적재 경로가 아니다). 단계 순서는 선언적 파이프라인(BatchPipelineConfig)이 소유한다 — pre-marking=[DEIDENTIFY], post-marking=[MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE]. ①비식별이 선두 단계로 적재 직후 자동 트리거되며(VideoIngestedEvent→IngestDeidentifyBridge(AFTER_COMMIT)→AsyncDeidentifyRunner→DeidentifyStep) PRVC_TYPE_CD 게이팅 없이 전체 영상이 대상이다. 성공 시 dataSttsCd=MARKING_READY 로 전이해 마킹 진입을 허용한다. ②마킹은 비식별 영상 대상이며 마킹 완료(MarkingCompleted → MarkingBatchBridge AFTER_COMMIT)가 잔여 배치를 비동기로 기동한다. ③VLM 시계열 위탁은 CoT(describe)·VQA(describe-sub) 두 축을 각각 별도 요청 식별자로 제출하는 이중 위탁이고, 파이프라인 스레드를 붙잡지 않는 논블로킹 제출(subscribe)이며 결과는 POST /v1/vlm/callback 으로 두 축 공용 수신하고, 신호가 오지 않으면 ACK 창(기본 30분)·콜백 창(기본 360분) 2단 미결 스위퍼가 회수한다. ④프레임 추출은 마킹 위치 기반 원본+비식별 2벌, YOLO/SAM2 는 원본에만 실행하고 좌표를 비식별본과 공유한다. 완료 시 LS_DATA_RAW.dataSttsCd=COMPLETED 로 마감하고 LS_RAW_DATA_STATUS 는 ASSIGNED 로 복귀시킨다(작업 상태의 검수 종결값은 APPROVED 이며 검수 승인 시점에만 전이한다 — 배치 완료가 작업 상태를 점프시키면 검수 제출 ASSIGNED→PENDING 이 상태 머신에서 차단된다). 마킹 중 비식별 누락 신고는 배치 단계가 MARKING_READY 일 때만 접수되고 자동 재비식별 큐는 없다 — 외부 솔루션 수동 비식별 후 resolve 하면 MARKING_READY 로 되감아 재마킹한다. 시계열 위탁에는 그 앞에 전체 건너뛰기 스위치 판정이 있다 — 켜져 있으면 위탁하지 않고 건너뜀 표식만 남기며 외부 호출이 한 번도 일어나지 않는다. 사유는 설정값이 그대로 표식에 실리고, 그 영상·묶음에 사람이 남긴 표식이 이미 있으면 자동 표식이 덮지 않는다. 마킹 저장 구간에는 질문 선택이 함께 붙는다 — 작업자가 그 영상의 검증 이벤트 유형에 등록된 질문 목록에서 하나를 고르고(기본 선택은 정렬순서 첫 번째) 그 값이 마킹과 함께 LS_MARKING.VRFC_EVNT_QSTN_SN 에 저장되며, 서버는 고른 질문의 소속 유형을 검증해 그 유형의 질문이 아니거나 값이 없으면 첫 번째 질문으로 되돌린다(화면 입력을 신뢰하지 않는다). 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다. 질문이 없다고 마킹·위탁이 막히지는 않는다 — 검증 이벤트 유형이 미수신이거나 등록된 질문이 0건이면 선택 없이 진행하고 이벤트 어노테이션의 질문 칸이 빌 뿐이다. 오토라벨 묶음(탐지→분할→보간) 앞에는 프리셋 판정이 선행한다 — 그 영상의 검증 이벤트 유형에 실효한 오토라벨 프리셋이 없으면 탐지·분할·보간을 실행하지 않고 묶음째 보류한다. 묶음 전체를 보류하는 이유는 탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 라벨만 없는 무증상 성공이 되기 때문이다. 보류는 실패가 아니라 건너뜀이라 사유를 배치 처리 이력에 남기고 선점을 해제해 이후 진입을 막지 않으며, 그 영상의 배치는 완료로 마감하지 않는다. 사유는 이벤트 유형 미등록 / 프리셋 없음 / 프리셋 라벨이 라벨 마스터에 미연결 / 연결됐으나 전부 AI 검출 클래스에 미매핑으로 구분해 기록한다. 재개는 프리셋이 등록·수정될 때 촉발되며 오토라벨 묶음 전체를 다시 돈다.",
       "invokes_apis": [
         "API-091"
       ],
@@ -279,11 +345,15 @@
       ],
       "scenario_type": "happy_path",
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-112"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:34.494Z",
+        "module_paths": []
       },
       "publishes_events": [
         "EVT-001"
@@ -302,12 +372,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 16,
+    "current_version": 19,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "전체 건너뛰기 스위치 판정을 위탁으로 나가는 모든 진입 경로가 통과한다는 사실을 흐름에 명시한다. 판정을 주 파이프라인 한 곳에만 두면 재개 러너와 미결 회수가 그 결정을 지나쳐 외부로 나가, 스위치가 약속한 「외부 호출이 한 번도 일어나지 않는다」가 성립하지 않는다.",
+    "change_summary": "오토라벨 묶음(탐지→분할→보간) 앞에 프리셋 판정 단계를 세우고, 판정이 실효가 아니면 그 묶음도 배치 완료 마감도 실행하지 않는 보류 분기를 흐름에 반영한다. 보류는 실패가 아니라 건너뜀이라 사유를 구분해 배치 처리 이력에 남기고 선점을 해제하며, 프리셋이 등록·수정되면 재개가 촉발돼 묶음 전체를 다시 돈다. 묶음째 보류하는 근거(탐지 결과가 비면 분할이 예외 없이 빈 결과를 돌려주고 보간이 그대로 통과해 라벨만 없는 무증상 성공이 된다)를 흐름에서 읽히게 뒀다. 이번 변경으로 성립하지 않게 된 메시지는 없어 제거한 원소가 없고, 기존 메시지는 순서·문구 그대로 조건 블록 안으로 들어갔다. 함께 정합 — 시계열 위탁의 전체 건너뛰기 블록이 정형 메시지와 설명에는 있는데 mermaid 원문에는 빠져 있어 도해가 옛 사양을 그리고 있었다. mermaid 원문을 정형 메시지에서 기계로 다시 생성해 두 벌이 같은 사양을 갖도록 맞췄다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T01:58:17.835Z",
+    "last_updated_at": "2026-08-25T10:28:25.477Z",
     "created_at": "2026-06-01T06:59:19.046Z"
   }
 }

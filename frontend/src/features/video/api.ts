@@ -15,6 +15,7 @@ import type {
   Video,
   VideoDetail,
   VideoListParams,
+  VrfcEvntQuestion,
 } from './types';
 import { BULK_RETRY_MAX, BULK_STAGE_BUNDLE, isBulkStageBundle, isStageBundle } from './types';
 
@@ -76,6 +77,18 @@ function normalizeVideo(v: RawVideo): Video {
     assignedAt: v.assignedAt,
     assignStatus: v.assignStatus,
   };
+}
+
+/**
+ * 검증 이벤트 질문 1건이 <b>고를 수 있는 값</b>인지 판정한다. [@design API-043]
+ *
+ * 일련번호가 없으면 마킹 등록 요청에 실을 것이 없고, 문구가 비어 있으면 드롭다운에 빈 줄이
+ * 그려져 무엇을 고르는지 알 수 없다. 둘 다 화면에서 되돌릴 수 없는 상태라 경계에서 걸러낸다.
+ */
+function isVrfcEvntQuestion(q: unknown): q is VrfcEvntQuestion {
+  if (typeof q !== 'object' || q === null) return false;
+  const { vrfcEvntQstnSn, qstnCn } = q as Partial<VrfcEvntQuestion>;
+  return typeof vrfcEvntQstnSn === 'number' && typeof qstnCn === 'string' && qstnCn.trim() !== '';
 }
 
 export function listVideos(params: VideoListParams) {
@@ -146,6 +159,15 @@ export function getVideo(id: number) {
         //     위탁 실패처럼 **파이프라인을 멈추지 않는 실패**는 이 값으로만 드러난다.
         //   화이트리스트 교집합만 남기는 이유는 위 두 목록과 같다(경로 세그먼트가 된다 — CWE-22).
         failedStages: (d.failedStages ?? []).filter(isStageBundle),
+        // [@design API-043] 그 영상의 검증 이벤트 유형 코드 — 관제 이벤트유형(evntTypeCd)과 다른
+        //   코드 체계다. 미수신이면 null 이고 그러면 고를 질문도 없다.
+        vrfcEvntTypeCd: d.vrfcEvntTypeCd ?? null,
+        // [@design API-043] [@design SCREEN-006] 검증 이벤트 질문 목록 — BE 가 정렬순서 오름차순으로
+        //   내려주므로 **다시 정렬하지 않는다**(첫 번째가 곧 기본 질문이며 서버 교정도 같은 축이다).
+        //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        //   ⚠ 항목 형태 검증을 여기서 한 번만 한다 — 일련번호가 없거나 문구가 빈 항목은 고를 수도
+        //     보낼 수도 없는 값이라 그대로 두면 화면이 빈 옵션을 그리고 요청에 null 이 실린다.
+        vrfcEvntQuestions: (d.vrfcEvntQuestions ?? []).filter(isVrfcEvntQuestion),
       } as VideoDetail;
     });
 }

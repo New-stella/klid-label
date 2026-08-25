@@ -9,6 +9,25 @@
     "status": "draft",
     "data": {
       "notes": "비식별 영상 경로 조달은 VideoStreamService.resolveDeidPath 와 동일 축(LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 최신 SUCCESS)이어야 하며, 원본 폴백 금지는 이 프로젝트의 구속 정책과 동일하다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalDatamartDownloadServiceTest · 비식별_영상이_없어도_원본_영상은_어떤_경우에도_ZIP에_들어가지_않는다",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "8242f237-f5e8-4e55-aa0b-a7d8c0d3201a",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z",
+        "duration_ms": 2
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -40,35 +59,36 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "implemented",
-        "modules": [
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
-          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java"
-        ],
+        "status": "verified",
+        "modules": [],
         "records": [
           "IMPREC-011"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:33:45.697Z"
+        "last_updated": "2026-08-17T04:33:45.697Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-013"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-024"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "DFEAT-044의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
-    "change_summary": "사용자 확정 — 비식별 영상 미존재 시 원본 폴백 없이 라벨·이미지만 담는 동작을 인수기준으로 등록",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-17T04:33:45.697Z",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 상태를 검증됨으로 올린다. 구현이 완료로 선언돼 있었는데 그것을 확인하는 시험 결과가 붙지 않아 검증 단계로 넘어가지 못한 상태였다. 이번에 이 기준을 검증하는 시험이 실제로 실행돼 통과한 것을 결과 파일로 확인했고 그 기록을 근거로 삼는다. 구현이 아직 진행 중으로 선언된 기준은 올리지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T23:14:44.518Z",
     "created_at": "2026-08-17T01:10:20.896Z"
   }
 }

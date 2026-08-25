@@ -323,10 +323,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-087"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-20T02:07:19.621Z"
+        "last_updated": "2026-08-25T01:21:28.532Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -342,10 +344,10 @@
     "schema_version": 1,
     "current_version": 8,
     "stale": true,
-    "stale_reason": "AC-041의 2개 필드 변경 — verifies",
+    "stale_reason": "AC-048의 2개 필드 변경 — verifies",
     "change_summary": "경고 필드의 설명을 실제로 규정된 동작에 맞게 넓혔다. 구 서술 \"적재를 막지는 않지만 알려야 하는 사항\"은 사실과 달라 폐기한다 — 경고 가운데 훑기 상한 초과·식별자 생성 불가·프레임 0건은 적재를 막는다. 적재 가능 여부의 판정은 응답의 적재 가능 여부 필드 하나로만 하고 별도의 차단 표시를 두지 않는다(판정 지점을 둘로 두면 두 값이 어긋날 때 어느 쪽이 진실인지 알 수 없다). 또 \"폴더 안의 바로가기를 따라가지 않고 건너뛰며 그 사실을 반드시 알린다\"를 경고에 더했다. 근거는 산출물 문서를 믿을 수 없다는 전제이며, 폴더 경로를 한 번 검사하는 것만으로는 폴더 안의 항목이 허용 범위 밖을 가리키는 것을 막지 못한다. 이 경고는 적재를 막지 않는다. 기존 경고 코드값 문자열과 그 밖의 요청·응답 필드·상태코드·인가는 바꾸지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T02:49:13.312Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:28.532Z",
     "created_at": "2026-08-19T07:51:27.654Z"
   }
 }

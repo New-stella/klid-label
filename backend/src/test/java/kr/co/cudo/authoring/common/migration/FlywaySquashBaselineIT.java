@@ -112,12 +112,13 @@ class FlywaySquashBaselineIT {
                 "SELECT version FROM flyway_schema_history WHERE type = 'SQL' ORDER BY installed_rank",
                 String.class);
 
-        // then: 운영 3개 + 테스트 전용 시드 1개. 아카이브가 합류하면 여기가 180+ 로 부푼다.
+        // then: 운영 마이그레이션 + 테스트 전용 시드 1개(9001). 아카이브가 합류하면 여기가 180+ 로 부푼다.
         //   ★ 정상적인 신규 마이그레이션을 추가할 때는 이 목록에 <의도적으로> 한 줄을 더한다.
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "18", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
+                        "17", "18", "19", "9001");
     }
 
     @Test
@@ -140,7 +141,9 @@ class FlywaySquashBaselineIT {
                         "V14__add_external_import_tables_and_deident_cmptn_yn.sql",
                         "V15__seed_event_type_and_label_master.sql",
                         "V16__align_control_ingest_bit_thmb_ogcd.sql",
-                        "V18__simplify_label_preset_to_event_and_labels.sql",
+                        "V17__replace_completed_video_thumbnail_with_deident_frame.sql",
+                        "V18__add_verification_event_question_catalog.sql",
+                        "V19__simplify_label_preset_to_event_and_labels.sql",
                         "V1__baseline.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",

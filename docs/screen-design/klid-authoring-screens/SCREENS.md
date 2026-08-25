@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-24T14:23:30.640Z (session 22) |
+| last sync | 2026-08-25T11:02:36.600Z (session 23) |
 | 화면 수 | 32개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/klid-authoring-screens |
+| 출력 루트 | /Users/ck/orca/workspaces/klid-label/vlm-parsing/docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -37,8 +37,8 @@
 | [[SCREEN-023]] | 증강 결과 화면 | UNCHANGED | ✅ | [[API-061]], [[API-062]], [[API-063]], [[API-188]], [[API-189]], [[API-190]], [[API-175]] | [[ROLE-001]] |
 | [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
 | [[SCREEN-025]] | 시스템 설정 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]], [[API-194]] | [[ROLE-001]] |
-| [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-041]], [[API-117]] | [[ROLE-001]] |
-| [[SCREEN-027]] | 수동 업로드 | CHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-001]] |
+| [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
+| [[SCREEN-027]] | 수동 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-001]] |
 | [[SCREEN-028]] | 포털 홈 화면 | UNCHANGED | ✅ | [[API-115]], [[API-203]] | [[ROLE-003]] |
 | [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]] | [[ROLE-003]] |
 | [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
@@ -49,7 +49,7 @@
 | [[SCREEN-035]] | 라벨 관리 화면 | UNCHANGED | ✅ | [[API-024]], [[API-025]], [[API-026]], [[API-027]], [[API-028]], [[API-029]], [[API-030]], [[API-031]] | [[ROLE-001]] |
 | [[SCREEN-036]] | 공지 작성 화면 | UNCHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
 | [[SCREEN-037]] | 공지 수정 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
-| [[SCREEN-038]] | 이벤트유형 관리 화면 | UNCHANGED | ✅ | [[API-185]], [[API-186]] | [[ROLE-001]] |
+| [[SCREEN-038]] | 이벤트유형 관리 화면 | UNCHANGED | ✅ | [[API-185]], [[API-186]], [[API-219]], [[API-220]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -58,7 +58,7 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
-| api_endpoint | _shared/api/ | 189 |
+| api_endpoint | _shared/api/ | 191 |
 | constant | _shared/constant/ | 2 |
 | permission_role | _shared/role/ | 3 |
 | implementation_guideline | _shared/guideline/ | 0 |
@@ -114,12 +114,10 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-028]] | acceptance | CHANGED (v6→v7) |
-| [[API-065]] | api_endpoint | CHANGED (v17→v19) |
-| [[NAV-001]] | navigation_tree | CHANGED (v15→v16) |
-| [[SCREEN-027]] | screen_spec | CHANGED (v30→v32) |
-| [[UC-019]] | use_case | CHANGED (v18→v19) |
-| [[UC-022]] | use_case | CHANGED (v18→v19) |
+| [[AC-049]] | acceptance | NEW |
+| [[AC-050]] | acceptance | NEW |
+| [[AC-051]] | acceptance | NEW |
+| [[AC-055]] | acceptance | NEW |
 
 ## Obsidian 볼트로 보기
 
@@ -127,7 +125,7 @@
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 31건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 45건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
@@ -136,6 +134,7 @@
 > - UC-023 — SCREEN-018, SCREEN-019
 > - UC-024 — SCREEN-028, SCREEN-029
 > - UC-027 — SCREEN-033, SCREEN-034
+> - UC-032 — SCREEN-026, SCREEN-038
 > - AC-006 — SCREEN-005, SCREEN-025
 > - AC-008 — SCREEN-005, SCREEN-010
 > - AC-011 — SCREEN-008, SCREEN-009
@@ -160,6 +159,19 @@
 > - AC-104 — SCREEN-027, SCREEN-027
 > - AC-105 — SCREEN-027, SCREEN-027
 > - AC-106 — SCREEN-027, SCREEN-027
+> - AC-092 — SCREEN-026, SCREEN-038
+> - AC-093 — SCREEN-026, SCREEN-038
+> - AC-094 — SCREEN-026, SCREEN-038
+> - AC-095 — SCREEN-033, SCREEN-034
+> - AC-096 — SCREEN-033, SCREEN-034
+> - AC-097 — SCREEN-033, SCREEN-034
+> - AC-098 — SCREEN-033, SCREEN-034
+> - AC-107 — SCREEN-026, SCREEN-038
+> - AC-108 — SCREEN-026, SCREEN-038
+> - AC-109 — SCREEN-026, SCREEN-038
+> - AC-110 — SCREEN-026, SCREEN-038
+> - AC-111 — SCREEN-026, SCREEN-038
+> - AC-112 — SCREEN-026, SCREEN-038
 
 ## git 권장
 

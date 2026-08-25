@@ -315,7 +315,9 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-102"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -367,7 +369,7 @@
             "description": "옮길 수 없는 표기는 지어내지 않고 기존 적재 기본값을 따른다"
           }
         ],
-        "last_updated": "2026-08-20T11:00:02.048Z"
+        "last_updated": "2026-08-25T01:21:32.043Z"
       },
       "uses_constants": []
     },
@@ -377,8 +379,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "추적 항목의 낱말 손상(컴럼)을 컬럼으로 바로잡는다",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T11:00:02.048Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:32.043Z",
     "created_at": "2026-08-19T07:49:39.283Z"
   }
 }

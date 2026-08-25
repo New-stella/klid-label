@@ -81,6 +81,10 @@ const TABLES: TableCase[] = [
     file: 'src/pages/manage/EventTypeManagePage.tsx',
   },
   {
+    label: 'VerificationEventTypeSection(검증 이벤트 유형·질문)',
+    file: 'src/features/eventType/components/VerificationEventTypeSection.tsx',
+  },
+  {
     label: 'LabelMasterManagePage(라벨 마스터 관리)',
     file: 'src/pages/manage/LabelMasterManagePage.tsx',
   },

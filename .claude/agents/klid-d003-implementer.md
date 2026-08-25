@@ -114,7 +114,29 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+
+### ★「기존 판정기와 동일한 술어」 지시를 받으면 게이트를 전수로 세라 (CO-009)
+지시문에 적힌 술어 하나를 그대로 옮기지 말고 **원본을 열어 `AND` 절을 전부 세고 각각 왜 있는지** 확인한다.
+- **근거**: `V_COMPLETED_FRAME` 은 게이트가 **둘**(폐기 `COALESCE(dscd_yn,'N') <> 'Y'` + **V133 비식별 경로 불변식** `NOT(deid = src)`)인데 지시문이 폐기만 인용해 신규 썸네일 LATERAL 이 하나만 복제했다. `deid = src` 인 레거시 프레임만 가진 승인 영상이 프레임 페어 뷰에는 0건인데 `V_COMPLETED_VIDEO.THMB_FILE_PATH_NM` 으로 `/nas/frames/raw/…` 원본 경로가 관제 계약면에 나갔다(독립 QA 가 실 DB 로 실증, CWE-359).
+- **왜 안 잡혔나**: 신규 시험 6건이 그 조합(`deid == src`)을 **하나도 만들지 않아** 전부 green 이었다. 누락은 정상 경로 시험을 전부 통과한다.
+- **재발 조건**: 자매 뷰·기존 판정기와 술어를 맞추라는 모든 지시. 특히 뷰가 여럿인 데이터마트 축.
+
+### ★`String.valueOf(x).doesNotContain(...)` 는 x 가 null 이면 항상 통과한다 (CO-009)
+`assertThat(String.valueOf(map.get(k))).doesNotContain("/frames/raw/")` 는 값이 null 일 때 문자열 `"null"` 이 되어 **무조건 참**이다. 테스트 이름은 넓은 보증을 시사하는데 실질 가드는 함께 있던 `isNull()` 하나뿐이었다.
+- **근거**: `V174CompletedVideoViewContractIT(원본_프레임_경로만_있으면…)`. 뷰에 폴백을 주입한 상태에서 `isNull()` 을 떼자 그 시험이 아무것도 잡지 못했고, 행 전체 스캔 헬퍼로 바꾼 뒤에야 FAILED 했다.
+- **대안**: 값 단위가 아니라 **행/응답 전체를 스캔**하는 헬퍼(`SELECT *` 결과의 모든 value 문자열화 → 금지 패턴 0건). 컬럼이 늘어도 유출 축을 계속 덮는다.
+- **재발 조건**: null 을 기대하는 값에 "유출 문자열 미포함"을 덧붙일 때.
+
+### ★다중 술어 SQL 의 적대검증은 같은 컬럼 참조 술어를 전수로 바꿔라 (CO-009)
+한 자리만 변형하면 **남은 술어가 그 변형을 무력화**해 통과하고, 그것을 "테스트가 못 잡는다"로 오진하기 쉽다.
+- **근거**: `LATERAL t` 에 `COALESCE(deid, src)` 를 SELECT·`IS NOT NULL` 두 곳만 넣었더니 BUILD SUCCESSFUL. 남아 있던 `btrim(de_idntf_src_file_path_nm) <> ''` 가 `deid=NULL` 행에서 NULL 로 평가돼 행을 계속 걸러냈다. 세 술어를 모두 바꾸자 2건 FAILED.
+- **검증 절차**: 변형 후 **그 블록 안에 대상 컬럼 참조가 몇 건 남았는지 기계로 세라**(0 이어야 무력화 가능성이 배제된다).
+- **재발 조건**: 뷰·LATERAL·복합 `WHERE` 의 mutation testing.
+
+### 환경·도구 함정
+- **`./gradlew` 가 "Unable to locate a Java Runtime" 으로 즉사한다** — 이 머신 PATH 에 JDK 가 없고 `/usr/libexec/java_home -V` 도 실패한다. JDK 는 `/opt/homebrew/opt/openjdk@17` 에만 있으므로 **첫 호출부터 `JAVA_HOME=/opt/homebrew/opt/openjdk@17` 을 붙인다**. 빌드 실패로 오인하기 쉽다.
+- **`gen-schema-sql.sh` 는 `portal-schema.sql` 도 함께 재생성한다** — 내용 변경이 0 이어도 `pg_dump` 버전·`\restrict` nonce 가 바뀌어 무관한 파일이 diff 에 섞인다. 재생성 후 portal 쪽 diff 가 헤더 잡음뿐이면 **되돌려 변경 범위를 좁힌다**.
+- **`mark_implementation` 은 ITEM 타입에 따라 `E_NOT_TRACKABLE` 로 거부된다** — `integration_point`·`integration_spec`·`external_system` 은 IMPREC 추적 대상이 아니다(`erd`·`api_endpoint` 등은 정상). `design_refs` 에 그런 타입이 섞여 내려오면 **실패를 결함으로 보고하지 말고** 추적 가능한 타입에만 기록한다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

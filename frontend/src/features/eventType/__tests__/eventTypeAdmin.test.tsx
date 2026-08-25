@@ -6,8 +6,12 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { EventTypeManagePage } from '@/pages/manage/EventTypeManagePage';
 
 import * as adminApi from '../adminApi';
+import * as verificationApi from '../verificationApi';
 
 vi.mock('../adminApi');
+// 같은 화면에 붙은 <b>검증 이벤트 유형·질문</b> 절(SCREEN-038)이 이 모듈을 부른다.
+// 모의하지 않으면 실제 HTTP 로 나가 이 파일의 단언과 무관한 실패·경고가 섞인다.
+vi.mock('../verificationApi');
 
 /**
  * 이벤트유형 관리 화면 — 관제 인입 자동등록분의 표시명·수집여부 정정.
@@ -47,6 +51,8 @@ describe('이벤트유형 관리 화면', () => {
 
   beforeEach(() => {
     vi.mocked(adminApi.getEventTypeAdminList).mockResolvedValue(rows);
+    // 이 파일은 관제 이벤트유형 축만 검증한다 — 검증 유형 축은 빈 목록으로 고정해 격리한다.
+    vi.mocked(verificationApi.getVerificationEventTypes).mockResolvedValue([]);
     vi.mocked(adminApi.updateEventTypeAdmin).mockResolvedValue({ ...rows[0] });
   });
 

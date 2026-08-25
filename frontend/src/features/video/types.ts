@@ -387,6 +387,26 @@ export interface DeidentHistoryItem {
   prcsEndDt?: string | null;
 }
 
+/**
+ * 검증 이벤트 질문 1건 — BE `VideoDetailResponse.VrfcEvntQuestionDto` 와 1:1. [@design API-043]
+ *
+ * 외부 시계열 분석의 추가 질문 문장은 사업자 서버가 관리해 우리가 지정할 수도, 응답으로 받을 수도
+ * 없다. 그래서 저작도구가 검증 이벤트 유형별로 문구를 보관하고, 마킹 작업자가 그중 하나를 고른다.
+ *
+ * ★ **정렬순서 첫 번째가 그 유형의 기본 질문**이며 BE 가 이미 그 순서로 내려준다 — 화면이 다시
+ * 정렬하지 않는다(정렬 판정이 두 곳으로 갈리면 화면이 보여준 「기본」과 서버가 고르는 「첫 번째」가
+ * 어긋난다).
+ *
+ * ⚠ 관리 화면 응답(API-219)과 달리 `sortSeq` 가 없다 — 마킹 화면은 순서를 다시 계산할 이유가
+ * 없고, 필요한 것은 배열 순서와 「무엇을 골랐는지」를 가리키는 일련번호뿐이다.
+ */
+export interface VrfcEvntQuestion {
+  /** 검증이벤트질문일련번호 — 마킹 등록 요청에 실어 고른 질문을 가리키는 값. */
+  vrfcEvntQstnSn: number;
+  /** 질문 문구 — 이벤트 어노테이션의 질문 칸에 그대로 들어간다. */
+  qstnCn: string;
+}
+
 export interface VideoDetail extends Video {
   duration: number;
   fileSizeMb: number;
@@ -477,6 +497,25 @@ export interface VideoDetail extends Video {
    * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
    */
   failedStages?: StageBundle[];
+  /**
+   * 그 영상의 **검증 이벤트 유형 코드** — BE `VideoDetailResponse.vrfcEvntTypeCd`. [@design API-043]
+   *
+   * 관제 인입 원장에 실려 온 값이며(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`) 관제 이벤트유형 코드
+   * (`eventTypeCd`, `EV…`)와는 <b>다른 코드 체계</b>다. 두 값을 같은 축으로 다루지 말 것.
+   * 미수신이면 null 이고, 그러면 고를 질문도 없다.
+   */
+  vrfcEvntTypeCd?: string | null;
+  /**
+   * 그 유형에 등록된 **검증 이벤트 질문 목록**(정렬순서 오름차순) — BE
+   * `VideoDetailResponse.vrfcEvntQuestions`. [@design API-043] [@design SCREEN-006]
+   *
+   * ★ 마킹 화면의 질문 선택은 <b>이 목록만</b> 본다. 관리 화면 경로(`/v1/manage/…`)는 검수자
+   * 전용이라 작업자에게 403 이며, 그 경로를 부르면 마킹 화면이 작업자에게 통째로 깨진다.
+   *
+   * 유형이 없거나 등록된 질문이 0건이면 빈 배열이다 — 화면은 그때 선택 UI 를 띄우지 않는다.
+   * 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
+   */
+  vrfcEvntQuestions?: VrfcEvntQuestion[];
 }
 
 /**

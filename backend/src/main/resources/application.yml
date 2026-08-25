@@ -207,7 +207,9 @@ server:
   #  감지하면 **기동을 거부**한다 — yml(공통/프로파일별)·환경변수(SERVER_FORWARD_HEADERS_STRATEGY)·
   #  시스템 프로퍼티 전 축. 추가로
   #  WebhookPathBypassSecurityIT.rotatingForwardedForHeader_doesNotBypassRateLimit 가 런타임 동작을 고정한다.
-  #  ※ nonce 쿠키의 Secure 는 헤더가 아니라 **프로파일**로 강제하므로 이 설정과 무관하다(StreamNonceCookie).
+  #  ※ nonce 쿠키의 Secure 는 헤더가 아니라 **배포 설정 authoring.stream.cookie-secure**(기본 OFF)로
+  #    정하므로 이 설정과 무관하다(StreamNonceCookie). 구 서술 "프로파일로 강제" 는 폐기 — 프로파일
+  #    유추가 dev 로 도는 평문 HTTP 개발 서버를 예외에서 빠뜨려 스트림이 전건 401 이었다.
   #  ※ HSTS 현황(사실 기록): 현재 HSTS 는 앱·edge 어디서도 부여되지 않는다. 앱은 프록시 뒤에서 평문
   #    HTTP 로 요청을 받아 isSecure()=false 이고, edge 템플릿(deploy/onprem/config/frontend/
   #    nginx.conf.template · Caddyfile.template)의 Strict-Transport-Security 는 **주석 처리** 상태다.
@@ -452,9 +454,20 @@ authoring:
   #     설정 시 256bit(32B) 이상이어야 함(미달 시 부팅 차단). 미설정이면 서명 URL 발급/검증 모두 fail-closed.
   #     로컬 기본값은 application-local.yml 에 명시.
   #   - url-ttl-seconds: 서명 유효 시간(초). 5~600 클램프. 기본 60s.
+  #   - cookie-secure: 서명 검증 입력인 nonce 쿠키(klid_stream_nonce)에 Secure 속성을 붙일지.
+  #     ★ 기본은 OFF(false) 다. HTTPS 로 서비스되는 배포에서 켜려면 STREAM_COOKIE_SECURE=true 로 명시할 것.
+  #     기본을 OFF 로 둔 이유: 켜져 있으면 평문 HTTP 로 서비스되는 배포에서 브라우저가 쿠키를 저장하지 않아
+  #     서명 검증이 전량 실패하고 영상이 아예 재생되지 않는다. 이는 개발 서버만의 문제가 아니었다 —
+  #     온프렘 운영 설치도 프로파일은 prd 인데 프런트가 평문 HTTP(:80)이고 폐쇄망이라 TLS 를 걸지 않는 것이
+  #     설치 기본이라(deploy/onprem/docs/04-configuration.md), 프로파일로 Secure 를 강제하던 구 동작은
+  #     운영에서도 같은 결함이었다. 대가는 켜지 않은 HTTPS 배포에서 이 쿠키가 평문 http 요청에 실려 나갈
+  #     수 있다는 것이며, 인지·수용된 선택이다. 기본값 회귀는 StreamCookieSecureDefaultGuardTest 가 고정한다.
+  #     ⚠ request.isSecure()/X-Forwarded-Proto 로 자동 판정하지 말 것 — TLS 종단 LB 뒤에서 항상 false 이고
+  #     forward-headers-strategy 는 2026-07-25 REDESIGN 으로 되돌린 결정이다(기동 가드가 거부).
   stream:
     sign-secret: ${STREAM_SIGN_SECRET:}
     url-ttl-seconds: ${STREAM_URL_TTL_SECONDS:60}
+    cookie-secure: ${STREAM_COOKIE_SECURE:false}
   integration:
     deidentify:
       base-url: ${DEIDENTIFY_API_URL:http://localhost:9200}

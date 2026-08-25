@@ -201,11 +201,14 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-086"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:28.297Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -217,8 +220,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "건별 결과가 접수 여부이지 완료 여부가 아님을 명시했다. 완료를 기다리면 대상 건수만큼 시간이 누적돼 클라이언트 타임아웃에 걸리고 요청 스레드 하나가 그동안 묶인다. 부분 성공 정책 자체는 그대로이며 선점 결과가 곧 건별 결과다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-12T09:02:52.349Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:28.297Z",
     "created_at": "2026-08-12T07:22:12.249Z"
   }
 }

@@ -3,14 +3,15 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-012",
   "decided_by": "llm",
-  "decided_at": "2026-08-16T00:00:00Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외",
+  "decided_at": "2026-08-25T10:53:32.383789Z",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건)",
   "items": [
     "AC-011",
     "AC-013",
     "AC-016",
     "AC-019",
     "AC-023",
+    "AC-078",
     "ADR-001",
     "ADR-003",
     "ADR-006",
@@ -21,6 +22,8 @@
     "ADR-027",
     "ADR-032",
     "ADR-046",
+    "ADR-051",
+    "ADR-054",
     "API-032",
     "API-091",
     "API-094",
@@ -75,16 +78,12 @@
     "SEQ-014",
     "SEQ-025",
     "TEST-001",
+    "TEST-008",
     "UC-011",
     "UC-013",
-    "UC-016"
+    "UC-016",
+    "UC-019"
   ],
-  "pending": [
-    "SHELL-001",
-    "MOD-005",
-    "MOD-006",
-    "MOD-049",
-    "NAV-001"
-  ],
-  "last_sync_at": "2026-08-21T09:18:50.425Z"
+  "pending": [],
+  "last_sync_at": "2026-08-25T10:53:47.409Z"
 }

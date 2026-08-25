@@ -64,6 +64,12 @@ const MENU: MenuGroup[] = [
       { label: '라벨 관리', path: '/manage/labels', allow: ['REVIEWER'] },
       { label: '프리셋 관리', path: '/manage/presets', allow: ['REVIEWER'] },
       { label: '비식별 신고', path: '/manage/deident-reports', allow: ['REVIEWER'] },
+      // [@design NAV-001] [@design SCREEN-038] 라우트(`router/index.tsx` 의 manage/event-types)는
+      //   진작 REVIEWER 전용으로 등록돼 있었는데 이 배열에만 빠져 있어, 주소를 직접 입력하지 않으면
+      //   도달할 수 없었다(도달 경로 0). 설계에는 이미 있던 항목이라 순수 구현 드리프트다.
+      //   ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다 — 갈리면
+      //     「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
+      { label: '이벤트유형 관리', path: '/manage/event-types', allow: ['REVIEWER'] },
       { label: '외부 산출물 이관', path: '/manage/imports', allow: ['REVIEWER'] },
     ],
   },

@@ -21,14 +21,16 @@ import java.time.LocalDateTime;
 /**
  * 관제 인입 (LS_DATA_INGEST, V147) — <b>관제서버가 학습용 영상 메타를 직접 INSERT 하는 수신 창구</b>.
  *
- * <p>총 <b>45컬럼</b> = <b>관제 수신 37</b> + <b>저작도구 운영 8</b>(V147 신설 37 + V166 관제 수신 4
- * + V168 관제 수신 2 + V16 관제 수신 2 — THMB_FILE_PATH_NM·OG_CD). 인입 행은 감사 추적을 위해
- * <b>영구 보존</b>하며(삭제 금지), 저작도구는 자기 운영 컬럼의 상태만 갱신한다.
+ * <p>총 <b>44컬럼</b> = <b>관제 수신 36</b> + <b>저작도구 운영 8</b>(V147 신설 37 + V166 관제 수신 4
+ * + V168 관제 수신 2 + V16 관제 수신 2 − V17 관제 수신 1 — THMB_FILE_PATH_NM 제거). 인입 행은
+ * 감사 추적을 위해 <b>영구 보존</b>하며(삭제 금지), 저작도구는 자기 운영 컬럼의 상태만 갱신한다.
  *
  * <h3>관제 소유값을 우리가 덮지 않는다 (CWE-915 Mass Assignment / CWE-362 lost update)</h3>
  * <ul>
- *   <li>관제 수신 31컬럼에 <b>setter 를 두지 않는다</b> — 이 계약은 {@code LsDataIngestTest} 의
- *       리플렉션 가드가 고정한다(@Data/@Setter 재도입 차단).</li>
+ *   <li>관제 수신 컬럼 <b>전량</b>에 <b>setter 를 두지 않는다</b> — 이 계약은 {@code LsDataIngestTest} 의
+ *       리플렉션 가드가 고정한다(@Data/@Setter 재도입 차단). <b>개수를 여기 적지 않는다</b> — 컬럼이
+ *       늘 때마다 이 문장만 낡아 실제로 세 값(36/31/29)이 한 파일 안에서 갈렸다. 실수치는
+ *       {@code LsDataIngestRepositoryIT}(엔티티_매핑이_실제_스키마와_정합한다)가 실 DB 와 대조해 고정한다.</li>
  *   <li>{@code @DynamicUpdate} — setter 가 없어도 Hibernate 기본 <b>정적 UPDATE 는 전체 컬럼을 SET</b>
  *       하므로, 우리가 상태 전이만 하고 flush 해도 로드 시점 스냅샷의 관제 값이 그대로 다시 쓰인다.
  *       그 사이 관제가 같은 행을 갱신했다면 <b>stale 값으로 되돌린다</b>. dirty 필드만 SET 하도록 해
@@ -269,7 +271,10 @@ public class LsDataIngest {
     private String errMsg;
 
     // ---------------------------------------------------------------------
-    // 관제 수신 (30 — V185 에서 OG_CD 제거 후 V16 에서 OG_CD 재추가·THMB_FILE_PATH_NM 추가) — 조회 전용. setter 금지.
+    // 관제 수신 — 조회 전용. setter 금지.
+    //   V185 에서 OG_CD 제거 → V16 에서 OG_CD 재추가 → V17 에서 THMB_FILE_PATH_NM 제거.
+    //   ★ 이 그룹의 필드 <개수>는 적지 않는다 — 구 표기가 잘못된 기준값을 이월해 클래스 javadoc 과
+    //     서로 다른 수를 말하고 있었다. 실수치 대조는 LsDataIngestRepositoryIT 가 담당한다.
     // ---------------------------------------------------------------------
 
     @Column(name = "VMS_CLIP_ID", nullable = false, length = 128)
@@ -511,18 +516,6 @@ public class LsDataIngest {
      */
     @Column(name = "VRFC_EVNT_TYPE_CD", length = 20)
     private String vrfcEvntTypeCd;
-
-    /**
-     * 썸네일 이미지 파일 경로명 (V16 신설) — 관제 인입값 pass-through.
-     *
-     * <p>썸네일 이미지 파일 경로(관제 인입값). 관제 패키징용, 저작도구는 생성·가공하지 않는다.
-     * 완료 조회 채널 {@code V_COMPLETED_VIDEO} 로 노출한다(nullable — 관제 미송신 허용).
-     *
-     * <p>길이 500 = 경로명 표준도메인(경로명V500). 같은 테이블 {@link #rawFilePathNm} 접미어와 통일.
-     * {@code @design ERD-012}
-     */
-    @Column(name = "THMB_FILE_PATH_NM", length = 500)
-    private String thmbFilePathNm;
 
     /**
      * 기관코드 (V16 재추가) — 관제 {@code resource_cctvs} 조인 값.

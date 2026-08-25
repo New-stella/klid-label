@@ -4,8 +4,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -78,15 +76,22 @@ public class StreamNonceCookie {
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final byte[] sealKey;
-    private final boolean localProfile;
 
-    public StreamNonceCookie(Environment environment,
-                             @Value("${authoring.stream.sign-secret:}") String signSecret) {
+    /**
+     * {@code Secure} 부여 여부 — <b>배포 설정({@code authoring.stream.cookie-secure})</b> 이 단일 판정 축이며
+     * <b>기본값은 OFF</b> 다. {@code @design API-114}
+     *
+     * <p>MEDIUM-2 의 실질(요청·헤더를 판정 축으로 쓰지 않는다)은 그대로다 — {@code request.isSecure()} 는
+     * 요청에서 유래해 공격자 제어 축에 걸쳐 있고, TLS 종단 LB 뒤에서는 항상 false 라 운영 쿠키에
+     * {@code Secure} 가 영영 붙지 않는다. 바뀐 것은 "요청이냐 배포 설정이냐" 가 아니라 그 배포 설정을
+     * <b>프로파일로 유추하지 않고 명시 키로 받는다</b> 는 점이다.
+     */
+    private final boolean cookieSecure;
+
+    public StreamNonceCookie(@Value("${authoring.stream.sign-secret:}") String signSecret,
+                             @Value("${authoring.stream.cookie-secure:false}") boolean cookieSecure) {
         this.sealKey = deriveSealKey(signSecret);
-        // MEDIUM-2 — Secure 판정은 프로파일(배포 시 고정된 서버 설정)로만 한다.
-        // request.isSecure() 는 요청/헤더에서 유래하는 값이라 공격자 제어 축에 걸쳐 있고, TLS 종단 LB 뒤에서는
-        // 항상 false 여서 운영 쿠키에 Secure 가 영영 붙지 않았다.
-        this.localProfile = environment.acceptsProfiles(Profiles.of("local"));
+        this.cookieSecure = cookieSecure;
     }
 
     /**
@@ -204,18 +209,43 @@ public class StreamNonceCookie {
      * <ul>
      *   <li>{@code HttpOnly} — XSS 로 nonce 를 탈취해 URL 재사용에 붙이는 경로 차단.</li>
      *   <li>{@code SameSite=Lax} — 크로스사이트 요청에 부착되지 않게 한다(동일 오리진 재생은 정상).</li>
-     *   <li>{@code Secure} — <b>local 프로파일이 아니면 무조건 부여</b>. 운영은 TLS 종단 LB 뒤라
-     *       {@code request.isSecure()} 가 항상 false 이므로 그 값을 판정 축으로 쓰면 안 된다(DEV_FIX M-2).
-     *       local 만 예외를 두는 이유는 평문 HTTP 개발 서버에서 쿠키가 버려지지 않게 하기 위함이며,
-     *       프로파일은 배포 설정이라 요청자가 조작할 수 없다.</li>
+     *   <li>{@code Secure} — <b>설정 {@code authoring.stream.cookie-secure} 가 단일 판정 축이고 기본은 OFF</b>.
+     *       HTTPS 로 서비스되는 배포에서 켜려면 그 키를 {@code true}(환경변수 {@code STREAM_COOKIE_SECURE=true})
+     *       로 명시한다.
+     *       <p>⚠ <b>구 서술 폐기</b>: <i>"local 프로파일이 아니면 무조건 부여"</i> 는 더 이상 동작이 아니다.
+     *       그 판정은 <b>"평문 HTTP = local 프로파일"</b> 을 전제했는데 그 전제가 참이 아니다. 프로파일이
+     *       {@code local} 이 아니면서 평문 HTTP 로 서비스되는 배포에서는 브라우저가 {@code Secure} 쿠키를
+     *       저장하지 않아 nonce 가 동반되지 않고, 서명 검증이 fail-closed 라 <b>스트림 요청이 전건 401</b>
+     *       이 되어 영상이 아예 재생되지 않는다.
+     *       <p>해당하는 배포가 <b>개발 서버만이 아니다</b> — 온프렘 <b>운영</b> 설치 형상도 프로파일은
+     *       {@code prd} 인데({@code deploy/onprem/config/backend/env.template} 의
+     *       {@code SPRING_PROFILES_ACTIVE=prd}) 프런트는 평문 HTTP 로 서비스되고
+     *       ({@code nginx.conf.template} 의 {@code listen 80}) 폐쇄망이라 TLS 를 걸지 않는 것이 설치
+     *       기본이다({@code deploy/onprem/docs/04-configuration.md}). 즉 이 수정은 개발 편의가 아니라
+     *       <b>운영에도 잠복해 있던 결함</b>을 걷어낸 것이고, 그 배포 형상에 맞는 값이 기본 OFF 다.
+     *       예외의 취지 자체는 원래 "평문 HTTP 에서 쿠키가 버려지지 않게" 였으므로, 그 취지를 프로파일
+     *       유추가 아니라 배포 설정 키로 직접 표현한다.
+     *       <p>⚠ <b>기본 OFF 의 대가(인지·수용됨)</b>: 프로파일만으로 자동 부여되던 것이 사라져
+     *       <b>stg·prd 도 키를 켜지 않으면 {@code Secure} 가 빠진다</b>. 앞단에 TLS 종단을 두어 HTTPS 로
+     *       서비스하는 배포라면 그 배포에서 {@code STREAM_COOKIE_SECURE=true} 로 켜야 하며, 켜지 않으면
+     *       nonce 쿠키가 평문 http 요청에 실려 나갈 수 있다. 그럼에도 <b>공통 기본</b>을 OFF 로 둔 것은,
+     *       켜져 있어서 나는 고장이 <b>기능 전면 불능(재생 0)</b> 인 반면 꺼져 있어서 나는 노출은
+     *       HttpOnly·SameSite·Path 한정·1시간 TTL 로 좁혀진 잔여 위험이기 때문이다. 기본값 회귀는
+     *       {@code StreamCookieSecureDefaultGuardTest} 가 고정한다.
+     *       <p>{@code request.isSecure()} 로 되돌리지 말 것 — TLS 종단 LB 뒤에서 항상 false 라 운영에
+     *       {@code Secure} 가 영영 붙지 않는다(DEV_FIX M-2). {@code server.forward-headers-strategy} 로
+     *       푸는 것도 2026-07-25 REDESIGN 으로 되돌린 결정이며 기동 가드가 거부한다.</li>
      *   <li>{@code Path} — 스트림 경로로 한정해 다른 API 요청에 불필요하게 실려 나가지 않게 한다.</li>
      * </ul>
+     *
+     * @design API-114
+     * @design API-084
      */
     private String buildCookie(HttpServletRequest request, String nonce, String subject) {
         String contextPath = request.getContextPath() == null ? "" : request.getContextPath();
         return ResponseCookie.from(COOKIE_NAME, seal(nonce, subject))
                 .httpOnly(true)
-                .secure(!localProfile)
+                .secure(cookieSecure)
                 .sameSite("Lax")
                 .path(contextPath + "/v1/videos")
                 .maxAge(COOKIE_TTL)

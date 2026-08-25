@@ -4,11 +4,11 @@ type: domain_feature
 version: 9
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T15:39:44.922Z
+synced_at: 2026-08-25T10:52:12.903Z
 status: CHANGED
 prev_version: 9
-content_hash: 591e56643619ff7cf6a152b5d56684cc5eb5b424eac71123f8d89dc0a7e44888
-stale: false
+content_hash: 00a562db68bc125d237c08042e6ab9e73027657fd0de631bb63ca35d01f46851
+stale: true
 raw: ./_raw/DFEAT-044.json
 links:
   belongs_to_domain: ["[[DOMAIN-013]]"]
@@ -70,8 +70,7 @@ implemented
 
 ### modules
 
-- backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java
-- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java
+_(empty)_
 
 ### records
 
@@ -88,6 +87,11 @@ _(empty)_
 ### last_updated
 
 2026-08-17T04:34:31.275Z
+
+### module_paths
+
+- backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java
+- backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java
 
 ## uses_constants
 

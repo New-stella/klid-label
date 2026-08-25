@@ -48,10 +48,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 90,
+        "records": [
+          "IMPREC-066"
+        ],
+        "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-24T03:12:52.331Z",
+        "last_updated": "2026-08-25T01:21:23.832Z",
         "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/batch/service/BatchStageRerunService.java"
         ]
@@ -66,8 +68,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T03:12:52.331Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:23.832Z",
     "created_at": "2026-08-20T02:45:14.960Z"
   }
 }

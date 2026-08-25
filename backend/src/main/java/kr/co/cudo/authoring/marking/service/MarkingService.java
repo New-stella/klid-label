@@ -13,7 +13,12 @@ import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import kr.co.cudo.authoring.marking.listener.MarkingBatchTriggerReport;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
+import kr.co.cudo.authoring.sysconfig.dto.VerificationEventQuestionResponse;
+import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
+import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoDurationResolver;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
@@ -75,6 +80,19 @@ public class MarkingService {
      * 이후에만</b> 트리거한다(HIGH — CWE-862/400).
      */
     private final VideoDurationResolver durationResolver;
+
+    /**
+     * 그 영상의 <b>검증 이벤트 유형</b> 조달처 — 관제 인입 원장({@code LS_DATA_INGEST.VRFC_EVNT_TYPE_CD}).
+     * 질문은 유형별로 등록되므로 유형을 모르면 고를 축 자체가 없다.
+     */
+    private final IngestSourceRepository ingestSourceRepository;
+
+    /**
+     * 질문 조달 <b>단일 판정기</b> — 「고른 질문이 그 유형에 속하는가 / 아니면 첫 번째는 무엇인가」의
+     * 해석은 오직 이 빈이 갖는다. 마킹·배치·어노테이션 세 소비자가 같은 질문을 봐야 하므로 여기서
+     * 규칙을 복제하지 않는다(복제하는 순간 두 번째 진실원이 된다).
+     */
+    private final VerificationEventQuestionResolver questionResolver;
 
     /**
      * 자기 참조(트랜잭션 프록시) — 비트랜잭션 오케스트레이션 {@link #create(Long, MarkingRequest, TokenClaims)}
@@ -211,11 +229,17 @@ public class MarkingService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "mode 는 AUTO 또는 MANUAL 이어야 합니다.");
         }
 
+        // 3-2. 검증 이벤트 질문 선택값 해석 — 화면 입력을 그대로 신뢰하지 않는다. [design: AC-028]
+        //      요청값이 그 영상의 검증 이벤트 유형에 속하면 그대로, 아니면(또는 미선택이면) 그 유형의
+        //      첫 번째 질문으로 되돌아간다. 유형이 미수신이거나 질문이 0건이면 null 이며 그래도 마킹은
+        //      막지 않는다 — 질문 부재는 거부 사유가 아니다(위탁도 그대로 나간다).
+        Long questionSn = resolveVerificationQuestionSn(rawSn, req.vrfcEvntQstnSn());
+
         // 4. Entity 생성 + 저장 — 해석한 fps 를 마킹에 pin 하여 추출단계가 재조회 없이 동일 값을 사용하게 한다.
         Long actorNo = MarkingGuards.parseUserNo(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps)
-                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps);
+                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps, questionSn)
+                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps, questionSn);
         // 동시성 최종 방어(B-ISSUE-22 / CWE-362) — 부분 유니크 인덱스(V142) 위반을 <b>이 메서드 안에서</b>
         //   표면화해 409 로 변환한다. save/flush 를 함께 감싸는 이유:
         //   - MARKING_SN 이 IDENTITY 라 {@code save} 시점에 INSERT 가 즉시 실행된다(위반이 여기서 터진다).
@@ -238,6 +262,48 @@ public class MarkingService {
 
         // 5. 응답
         return MarkingResponse.from(marking, objectMapper);
+    }
+
+    /**
+     * 마킹이 보관할 <b>검증 이벤트 질문 일련번호</b>를 해석한다. [design: AC-028 · ERD-013]
+     *
+     * <h3>왜 요청값을 그대로 쓰지 않는가</h3>
+     * <p>{@code LS_MARKING.VRFC_EVNT_QSTN_SN} 에는 <b>물리 FK 가 없다</b>(V17) — 질문 목록이 관리 화면에서
+     * 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이기 때문이다. 참조 무결성을 DB 가 아니라
+     * 판정기가 가지므로, 저장 시점에도 <b>그 유형에 속하는 값인지</b> 확인해 어긋나면 첫 번째 질문으로
+     * 되돌린다. 이는 화면 입력 불신뢰(CWE-20) 이기도 하다.
+     *
+     * <h3>★ 어긋난 값은 거부가 아니라 교정이다</h3>
+     * <p>400 으로 되돌려주지 않는다. 목록이 그 사이에 교체됐을 뿐인 정상 동선이 사용자에게는 원인 불명의
+     * 실패로 보이고, 질문 하나 때문에 마킹과 잔여 배치가 막히기 때문이다.
+     *
+     * @param rawSn          영상 PK
+     * @param requestedQstnSn 요청이 실어 온 선택값 (nullable — 미선택)
+     * @return 해석된 질문 일련번호. 검증 이벤트 유형 미수신·그 유형의 질문 0건이면 {@code null}
+     */
+    private Long resolveVerificationQuestionSn(Long rawSn, Long requestedQstnSn) {
+        String vrfcEvntTypeCd = resolveVrfcEvntTypeCd(rawSn);
+        if (vrfcEvntTypeCd == null) {
+            // 유형이 없으면 고를 축이 없다 — 비워 둔다(지어내지 않는다). 마킹은 그대로 진행한다.
+            log.info("[Marking] verification event type missing — question left empty rawSn={}", rawSn);
+            return null;
+        }
+        return questionResolver.resolve(requestedQstnSn, vrfcEvntTypeCd)
+                .map(VerificationEventQuestionResponse::vrfcEvntQstnSn)
+                .orElse(null);
+    }
+
+    /**
+     * 그 영상의 검증 이벤트 유형 코드 조달 — 관제 인입 원장값을 읽는다.
+     *
+     * <p>정규화는 인입 엔티티의 {@link LsDataIngest#normalizeVrfcEvntType(String)} <b>한 함수</b>를
+     * 재사용한다(리터럴 복제 금지 — 규칙이 갈리면 인입이 실어 보낸 표기가 여기서만 조달에 실패한다).
+     * 영상 행이 없거나 인입 행이 없으면 {@code null} 이며 그것이 정상 경로다.
+     */
+    private String resolveVrfcEvntTypeCd(Long rawSn) {
+        IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
+        String raw = source == null ? null : source.getVrfcEvntTypeCd();
+        return LsDataIngest.normalizeVrfcEvntType(raw);
     }
 
     /**

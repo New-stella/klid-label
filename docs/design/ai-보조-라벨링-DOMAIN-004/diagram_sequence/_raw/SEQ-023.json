@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "VLM 시계열 메타 검토 — 결과 콜백 수신부터 검토·수정·승인 확정까지",
-      "source": "sequenceDiagram\n    actor W as 라벨링 작업자(WORKER)\n    actor R as 검수자(REVIEWER)\n    participant VLM as 외부 VLM 시계열 메타 서비스\n    participant CTL as VlmResultController\n    participant SVC as VlmResultService\n    participant LED as WebhookIdempotencyLedger(상관키 원장)\n    participant META as LS_DATA_META(시계열 메타)\n    participant RVW as LS_DATA_META_REVIEW(검수큐)\n    participant MRK as LS_MARKING(마킹)\n    participant GATE as ReviewApprovalGate\n    participant BUS as ApplicationEventPublisher\n    participant MCTL as MetaController\n    participant MSVC as MetaService\n    participant RSVC as ReviewService\n\n    Note over VLM,CTL: 앞선 위탁이 상관키를 ISSUED 로 선커밋해 두었기에 콜백이 먼저 도착해도 역조회가 성립한다\n\n    VLM->>CTL: POST /v1/vlm/callback (results = {description} 객체)\n    Note over CTL: 인증 없이 열린 경로 — 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 방어한다.<br/>구 배열 형식으로 보내면 관대 파싱 없이 400 이다\n    CTL->>SVC: handle(VlmResultRequest)\n    SVC->>LED: lookupForProcessing(requestId) — 비관적 락\n    LED-->>SVC: 발급 이력(상태 · 대상 영상 식별자 · 위탁 축)\n\n    alt 발급되지 않은 상관키\n        SVC-->>CTL: 401\n    else 이미 처리된 상관키\n        SVC-->>CTL: 멱등 스킵(applied=false)\n    else 처리 결과가 실패\n        SVC->>MRK: VLM_FAILED 로 종결(자동 복구 배치 없음)\n        SVC->>LED: 상관키를 처리 완료로 표시\n    else 처리 결과가 성공\n        SVC->>SVC: 요청 식별자로 위탁 축(서술 생성 · 질의응답) 역조회 — 콜백 본문에 축 식별자가 없다\n        SVC->>META: upsert(vlm.description) — 역조회한 축의 키로 적재\n        META-->>SVC: 삽입 여부 · 메타 식별자\n\n        alt 최초 적재(삽입)\n            SVC->>RVW: 검토행 생성(META_TYPE_CD=VLM · SRC_SYS_CD=AI_SERVER · RVW_STTS_CD=PENDING)\n            Note over SVC,RVW: 콜백이 싣는 결과는 서술 하나이며 그것이 검수큐로 들어간다.<br/>같은 서술이 이벤트 어노테이션(질의응답 · 서술 생성) 축의 초기 초안도 채운다 — 자동채움은 신규 적재에만 적용한다\n        else 갱신이고 서술이 실제로 달라진 경우\n            SVC->>GATE: isApproved(rawSn)\n            GATE-->>SVC: 승인 여부\n            opt 이미 승인된 영상\n                SVC->>RVW: reopenForRecheck() — 검토 대기로 되돌리고 확정 흔적을 지운다\n                SVC->>BUS: TaskModified(META_UPDATED, exportRegenerated=true)\n            end\n            Note over SVC,RVW: 같은 값 재수신은 멱등이라 아무 일도 일어나지 않는다.<br/>반려 검토행도 되돌린다 — 반려 판단은 바뀌기 전 본문에 대한 것이다\n        end\n\n        SVC->>MRK: VLM_REQUESTED → VLM_COMPLETED\n        Note over SVC,MRK: 이 위탁보다 나중에 만들어진 마킹은 전이 대상에서 제외한다\n        SVC->>LED: 상관키를 처리 완료로 표시\n    end\n    SVC-->>CTL: 적용 결과\n    CTL-->>VLM: 200 OK\n\n    W->>MCTL: GET /v1/frames/{srcSn}/meta\n    MCTL->>MSVC: getByFrame(srcSn, actor)\n    MSVC->>META: 영상 단위 메타 조회\n    META-->>MSVC: 메타 목록\n    MSVC-->>MCTL: 편집 가능 목록 · 읽기 전용 목록(신규 항목 없음 · 기존 적재분 병기) · 영상 기술 정보 목록\n    MCTL-->>W: 200 OK\n\n    W->>MCTL: PUT /v1/frames/{srcSn}/meta (값이 바뀐 항목만)\n    MCTL->>MSVC: update(srcSn, req, actor)\n    MSVC->>MSVC: 수정 불가 키 차단 — 읽기 전용 목록의 키와 영상 기술 정보는 400\n    Note over MSVC: 거부 메시지에 요청 키를 되비추지 않는다 — 개행이 섞인 키를 로그에 남기면 로그 위조가 된다\n    MSVC->>META: 값 upsert\n    opt 이미 승인된 영상\n        MSVC->>BUS: TaskModified(META_UPDATED)\n    end\n    MSVC-->>MCTL: 갱신된 세 목록\n    MCTL-->>W: 200 OK\n\n    R->>RSVC: 영상 검수 승인(POST /v1/reviews/{videoId}/approve)\n    RSVC->>MSVC: autoApproveOnVideoApproval(rawSn, actor)\n    MSVC->>RVW: 검토 대기·자동생성 행을 APPROVED 로 전이\n    Note over MSVC,RVW: 이미 승인된 행은 멱등 skip, 반려된 행은 반려를 존중해 건너뛴다.<br/>전이 후 즉시 flush 하여 이어지는 통합 메타 동결이 승인 상태를 관측하게 한다\n    MSVC-->>RSVC: 전이 결과\n\n    opt 메타 검토 개별 확정 — 계약으로 존치하되 화면 진입점은 두지 않는다\n        R->>MCTL: POST /v1/meta/{metaReviewSn}/approve\n        R->>MCTL: POST /v1/meta/{metaReviewSn}/reject (반려 사유 필수)\n        Note over MCTL: 이미 검토가 끝난 행이면 409 다\n    end\n",
+      "source": "sequenceDiagram\n    actor W as 라벨링 작업자(WORKER)\n    actor R as 검수자(REVIEWER)\n    participant VLM as 외부 VLM 시계열 메타 서비스\n    participant CTL as VlmResultController\n    participant SVC as VlmResultService\n    participant LED as WebhookIdempotencyLedger(상관키 원장)\n    participant META as LS_DATA_META(시계열 메타)\n    participant RVW as LS_DATA_META_REVIEW(검수큐)\n    participant MRK as LS_MARKING(마킹)\n    participant ANNO as LS_EVNT_ANNO(이벤트 어노테이션)\n    participant GATE as ReviewApprovalGate\n    participant BUS as ApplicationEventPublisher\n    participant MCTL as MetaController\n    participant MSVC as MetaService\n    participant RSVC as ReviewService\n\n    Note over VLM,CTL: 앞선 위탁이 상관키를 ISSUED 로 선커밋해 두었기에 콜백이 먼저 도착해도 역조회가 성립한다\n\n    VLM->>CTL: POST /v1/vlm/callback (results = {description} 객체)\n    Note over CTL: 인증 없이 열린 경로 — 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 방어한다.<br/>구 배열 형식으로 보내면 관대 파싱 없이 400 이다\n    CTL->>SVC: handle(VlmResultRequest)\n    SVC->>LED: lookupForProcessing(requestId) — 비관적 락\n    LED-->>SVC: 발급 이력(상태 · 대상 영상 식별자 · 위탁 축)\n\n    alt 발급되지 않은 상관키\n        SVC-->>CTL: 401\n    else 이미 처리된 상관키\n        SVC-->>CTL: 멱등 스킵(applied=false)\n    else 처리 결과가 실패\n        SVC->>MRK: VLM_FAILED 로 종결(자동 복구 배치 없음)\n        SVC->>LED: 상관키를 처리 완료로 표시\n    else 처리 결과가 성공\n        SVC->>SVC: 요청 식별자로 위탁 축(묘사 · 추가 질문) 역조회 — 콜백 본문에 축 식별자가 없다\n        SVC->>META: upsert(vlm.description) — 역조회한 축의 키로 적재\n        META-->>SVC: 삽입 여부 · 메타 식별자\n\n        alt 최초 적재(삽입)\n            SVC->>RVW: 검토행 생성(META_TYPE_CD=VLM · SRC_SYS_CD=AI_SERVER · RVW_STTS_CD=PENDING)\n            Note over SVC,RVW: 콜백이 싣는 결과는 서술 하나이며 그것이 검수큐로 들어간다 — 어노테이션 초안 자동채움은 뒤따르는 별도 구간이 맡는다\n        else 갱신이고 서술이 실제로 달라진 경우\n            SVC->>GATE: isApproved(rawSn)\n            GATE-->>SVC: 승인 여부\n            opt 이미 승인된 영상\n                SVC->>RVW: reopenForRecheck() — 검토 대기로 되돌리고 확정 흔적을 지운다\n                SVC->>BUS: TaskModified(META_UPDATED, exportRegenerated=true)\n            end\n            Note over SVC,RVW: 같은 값 재수신은 멱등이라 아무 일도 일어나지 않는다.<br/>반려 검토행도 되돌린다 — 반려 판단은 바뀌기 전 본문에 대한 것이다\n        end\n\n        opt 이벤트 어노테이션 초안 자동채움 — 실패해도 서술 전문 적재를 되돌리지 않는다\n            SVC->>ANNO: 초안 부분 채움 — 자기 축이 맡은 칸만 채우고 후보를 통째로 교체하지 않는다\n            Note over SVC,ANNO: 묘사 축은 영상 서술 칸(video.vd_description)과 캡션 후보 c1 의 근거 1단계(cot 「1단계」)를 채운다.<br/>근거 1단계는 묘사 전문에서 「상황」 라벨 줄만 그 줄의 줄바꿈까지 잘라 쓰고, 그 줄이 없으면 채우지 않는다\n            Note over SVC,ANNO: 추가 질문 축은 같은 후보의 캡션 본문(caption_text)을 채우고, 질문 칸(event.question)은 저작도구가 보관하는 유형별 질문 목록에서 조달한다.<br/>답변과 근거 2단계 이후는 어느 축도 채우지 않고 사람이 확정할 공란으로 남긴다\n            Note over SVC,ANNO: 두 축은 같은 캡션 후보 c1 을 공유하며 도착 순서가 보장되지 않는다 — 어느 쪽이 먼저 와도 후보를 만들고 나중에 온 축이 자기 칸만 채운다\n            Note over SVC,ANNO: 승인 이력이 있거나 값이 이미 있거나 어노테이션 검토가 종결됐으면 채우지 않는다.<br/>중복 콜백은 멱등이고 자동채움은 재검수를 발화시키지 않는다. 이벤트 분류 조달값이 없으면 어노테이션 행을 만들지 않는다\n            Note over SVC,ANNO: 초안 채움이 실패해도 시계열 서술 전문 적재를 되돌리지 않는다 — 초안 하나 때문에 주 축을 잃는 것이 더 나쁘다\n        end\n\n        opt 묘사 축 콜백일 때만\n            SVC->>MRK: VLM_REQUESTED → VLM_COMPLETED\n            Note over SVC,MRK: 이 위탁보다 나중에 만들어진 마킹은 전이 대상에서 제외한다.<br/>추가 질문 축 결과가 먼저 와도 마킹이 완료로 보이면 안 된다\n        end\n        SVC->>LED: 상관키를 처리 완료로 표시\n    end\n    SVC-->>CTL: 적용 결과\n    CTL-->>VLM: 200 OK\n\n    W->>MCTL: GET /v1/frames/{srcSn}/meta\n    MCTL->>MSVC: getByFrame(srcSn, actor)\n    MSVC->>META: 영상 단위 메타 조회\n    META-->>MSVC: 메타 목록\n    MSVC-->>MCTL: 편집 가능 목록 · 읽기 전용 목록(신규 항목 없음 · 기존 적재분 병기) · 영상 기술 정보 목록\n    MCTL-->>W: 200 OK\n\n    W->>MCTL: PUT /v1/frames/{srcSn}/meta (값이 바뀐 항목만)\n    MCTL->>MSVC: update(srcSn, req, actor)\n    MSVC->>MSVC: 수정 불가 키 차단 — 읽기 전용 목록의 키와 영상 기술 정보는 400\n    Note over MSVC: 거부 메시지에 요청 키를 되비추지 않는다 — 개행이 섞인 키를 로그에 남기면 로그 위조가 된다\n    MSVC->>META: 값 upsert\n    opt 이미 승인된 영상\n        MSVC->>BUS: TaskModified(META_UPDATED)\n    end\n    MSVC-->>MCTL: 갱신된 세 목록\n    MCTL-->>W: 200 OK\n\n    R->>RSVC: 영상 검수 승인(POST /v1/reviews/{videoId}/approve)\n    RSVC->>MSVC: autoApproveOnVideoApproval(rawSn, actor)\n    MSVC->>RVW: 검토 대기·자동생성 행을 APPROVED 로 전이\n    Note over MSVC,RVW: 이미 승인된 행은 멱등 skip, 반려된 행은 반려를 존중해 건너뛴다.<br/>전이 후 즉시 flush 하여 이어지는 통합 메타 동결이 승인 상태를 관측하게 한다\n    MSVC-->>RSVC: 전이 결과\n\n    opt 메타 검토 개별 확정 — 계약으로 존치하되 화면 진입점은 두지 않는다\n        R->>MCTL: POST /v1/meta/{metaReviewSn}/approve\n        R->>MCTL: POST /v1/meta/{metaReviewSn}/reject (반려 사유 필수)\n        Note over MCTL: 이미 검토가 끝난 행이면 409 다\n    end\n",
       "messages": [
         {
           "to": "ctl",
@@ -59,7 +59,7 @@
           "to": "svc",
           "from": "svc",
           "kind": "self",
-          "label": "요청 식별자로 위탁 축(서술 생성 · 질의응답) 역조회 — 콜백 본문에 어느 축의 결과인지 알려주는 항목이 없다"
+          "label": "요청 식별자로 위탁 축(묘사 · 추가 질문) 역조회 — 콜백 본문에 어느 축의 결과인지 알려주는 항목이 없다"
         },
         {
           "to": "meta",
@@ -83,7 +83,7 @@
           "to": "review",
           "from": "svc",
           "kind": "note",
-          "label": "콜백이 싣는 결과는 서술(vlm.description) 하나이며 그것이 검수큐로 들어간다. 같은 서술이 이벤트 어노테이션(질의응답 · 서술 생성) 축의 초기 초안도 채운다 — 자동채움은 신규 적재에만 적용하며 기존 수동 편집 · 승인 동결 · 재검수 시맨틱은 건드리지 않는다"
+          "label": "콜백이 싣는 결과는 서술(vlm.description) 하나이며 그것이 검수큐로 들어간다. 이벤트 어노테이션 초안 자동채움은 뒤따르는 별도 구간이 맡으며, 그 구간의 성패가 이 적재를 되돌리지 않는다"
         },
         {
           "to": "gate",
@@ -117,6 +117,42 @@
           "label": "서술이 실제로 달라졌을 때만 되돌린다 — 같은 값 재수신은 멱등이라 재검수도 통지도 일어나지 않는다. 반려 검토행도 되돌린다: 반려 판단은 바뀌기 전 본문에 대한 것이라 새 본문에 적용되지 않는다"
         },
         {
+          "to": "anno",
+          "from": "svc",
+          "kind": "sync",
+          "label": "이벤트 어노테이션 초안 부분 채움 — 자기 축이 맡은 칸만 채우고 후보를 통째로 교체하지 않는다"
+        },
+        {
+          "to": "anno",
+          "from": "svc",
+          "kind": "note",
+          "label": "묘사 축은 영상 서술 칸(video.vd_description)과 캡션 후보 c1 의 근거 1단계(cot 「1단계」)를 채운다. 근거 1단계는 묘사 전문에서 「상황」 라벨 줄만 그 줄의 줄바꿈까지 잘라 쓰고, 그 줄이 없으면 채우지 않는다"
+        },
+        {
+          "to": "anno",
+          "from": "svc",
+          "kind": "note",
+          "label": "추가 질문 축은 같은 후보의 캡션 본문(caption_text)을 채우고, 질문 칸(event.question)은 저작도구가 보관하는 유형별 질문 목록에서 조달한다. 답변과 근거 2단계 이후는 어느 축도 채우지 않고 사람이 확정할 공란으로 남긴다"
+        },
+        {
+          "to": "anno",
+          "from": "svc",
+          "kind": "note",
+          "label": "두 축은 같은 캡션 후보 c1 을 공유하며 도착 순서가 보장되지 않는다 — 어느 쪽이 먼저 와도 후보를 만들고 나중에 온 축이 자기 칸만 채운다. 후보를 통째로 교체하면 먼저 온 축의 값이 사라진다"
+        },
+        {
+          "to": "anno",
+          "from": "svc",
+          "kind": "note",
+          "label": "승인 이력이 있거나 값이 이미 있거나 어노테이션 검토가 종결됐으면 채우지 않는다. 중복 콜백은 멱등이고 자동채움은 재검수를 발화시키지 않는다. 이벤트 분류 조달값이 없으면 어노테이션 행을 만들지 않는다"
+        },
+        {
+          "to": "anno",
+          "from": "svc",
+          "kind": "note",
+          "label": "초안 채움이 실패해도 시계열 서술 전문 적재를 되돌리지 않는다 — 초안 하나 때문에 주 축을 잃는 것이 더 나쁘다"
+        },
+        {
           "to": "marking",
           "from": "svc",
           "kind": "sync",
@@ -126,7 +162,7 @@
           "to": "marking",
           "from": "svc",
           "kind": "note",
-          "label": "이 위탁보다 나중에 만들어진 마킹은 전이 대상에서 제외한다 — 지각 콜백이 다음 위탁의 마킹을 잘못 종결시키지 않게 한다"
+          "label": "이 위탁보다 나중에 만들어진 마킹은 전이 대상에서 제외한다 — 지각 콜백이 다음 위탁의 마킹을 잘못 종결시키지 않게 한다. 전이는 묘사 축 콜백에서만 하며, 추가 질문 축 결과가 먼저 와도 마킹이 완료로 보이면 안 된다"
         },
         {
           "to": "ledger",
@@ -293,9 +329,21 @@
         },
         {
           "kind": "opt",
+          "label": "이벤트 어노테이션 초안 자동채움 — 실패해도 서술 전문 적재를 되돌리지 않는다",
+          "end_index": 22,
+          "start_index": 17
+        },
+        {
+          "kind": "opt",
+          "label": "묘사 축 콜백일 때만 — 추가 질문 축 결과가 먼저 와도 마킹이 완료로 보이면 안 된다",
+          "end_index": 24,
+          "start_index": 23
+        },
+        {
+          "kind": "opt",
           "label": "메타 검토 개별 확정 — 계약으로 존치하되 화면 진입점은 두지 않는다",
-          "end_index": 43,
-          "start_index": 41
+          "end_index": 49,
+          "start_index": 47
         }
       ],
       "brownfield": {
@@ -305,7 +353,7 @@
         ],
         "diff_summary": "2차 신규 — 외부 VLM 시계열 메타의 콜백 수신·적재·검수큐 진입과 사람의 검토·수정, 승인 후 갱신 시 재검수 되돌림 흐름을 처음으로 시각화한다."
       },
-      "description": "외부 VLM 시계열 메타가 저작도구에 도착해서 사람이 검토·수정하고 승인으로 확정되기까지를 그린다. 결과는 폴링이 아니라 벤더가 보내는 콜백으로 도착하며, 그 경로는 인증 없이 열려 있고 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 대신 방어한다. 콜백 본문의 results 는 배열이 아니라 서술 한 항목을 담은 객체 한 벌이다. 연동 대상은 서술 생성(CoT)과 질의응답(VQA) 두 축이며 이벤트 검증 축은 연동하지 않는다 — 일치도와 탐지 여부는 이벤트 검증 전용 응답이라 이 콜백으로 들어오지 않는다.\n\n적재는 시계열 메타 테이블(LS_DATA_META)에 키-값으로 이뤄지고, 검수큐(LS_DATA_META_REVIEW)에 들어가는 것은 서술(vlm.description)이다. 콜백 본문에는 어느 축의 결과인지 알려주는 항목이 없어 위탁 시 발급한 요청 식별자로 축을 역조회해 그 축의 키로 적재한다. 같은 서술이 이벤트 어노테이션(질의응답·서술 생성) 축의 초기 초안도 채우며, 자동채움은 신규 적재에만 적용하고 기존 수동 편집·승인 동결·재검수 시맨틱은 건드리지 않는다.\n\n사람은 별도 전용 화면이 아니라 라벨링 캔버스 화면(SCREEN-005)의 시계열 메타 패널에서 검토·수정·승인한다. 조회 응답은 편집 가능 목록·읽기 전용 목록·영상 기술 정보 목록으로 나뉘고, 읽기 전용 목록의 키와 영상 기술 정보를 수정하려 하면 400 이다. 읽기 전용 목록은 신규로 채워지지 않지만 이미 적재된 과거 행은 작업 결과라 지우지 않고 계속 병기하며, 구 구간 키 행은 편집 가능 목록에 남아 그대로 편집된다.\n\n승인된 영상의 서술이 벤더 콜백으로 다시 갱신되면 그 검토행을 검토 대기로 되돌리고 산출 재생성을 동반하는 수정 통지를 발행한다. 되돌림은 값이 실제로 달라졌을 때만 일어나며 같은 값 재수신은 멱등 처리다. 반려된 검토행도 함께 되돌린다 — 반려 판단은 바뀌기 전 본문에 대한 것이라 새 본문에 적용되지 않기 때문이다.\n\n검토 상태의 최종 확정은 영상 검수 승인이 담당한다. 승인 트랜잭션 안에서 검토 대기 행이 승인으로 전이되며, 반려 행은 반려를 존중해 건너뛴다.",
+      "description": "외부 VLM 시계열 메타가 저작도구에 도착해서 사람이 검토·수정하고 승인으로 확정되기까지를 그린다. 결과는 폴링이 아니라 벤더가 보내는 콜백으로 도착하며, 그 경로는 인증 없이 열려 있고 호출 IP 허용목록·본문 크기 상한·상관키 발급 게이트가 대신 방어한다. 콜백 본문의 results 는 배열이 아니라 서술 한 항목을 담은 객체 한 벌이다. 연동 대상은 묘사와 추가 질문 두 축이며 이벤트 검증 축은 연동하지 않는다 — 일치도와 탐지 여부는 이벤트 검증 전용 응답이라 이 콜백으로 들어오지 않는다.\n\n적재는 시계열 메타 테이블(LS_DATA_META)에 키-값으로 이뤄지고, 검수큐(LS_DATA_META_REVIEW)에 들어가는 것은 서술(vlm.description)이다. 콜백 본문에는 어느 축의 결과인지 알려주는 항목이 없어 위탁 시 발급한 요청 식별자로 축을 역조회해 그 축의 키로 적재한다. 두 축의 결과는 이벤트 어노테이션의 초안도 채우는데 채우는 칸이 서로 다르다 — 묘사 축은 영상 서술 칸과 캡션 후보 c1 의 근거 1단계를, 추가 질문 축은 같은 후보의 캡션 본문을 채우고, 질문 칸은 저작도구가 보관하는 유형별 질문 목록에서 조달한다. 근거 1단계는 묘사 전문에서 「상황」 라벨 줄만 그 줄의 줄바꿈까지 잘라 쓰고 그 줄이 없으면 채우지 않으며, 근거는 1단계 키만 만들고 그 다음 단계와 답변은 사람이 확정할 공란으로 남긴다. 두 축은 같은 후보를 공유하고 도착 순서가 보장되지 않으므로 어느 쪽이 먼저 와도 후보를 만들고 나중에 온 축이 자기 칸만 채운다 — 후보를 통째로 교체하면 먼저 온 축의 값이 사라진다. 자동채움은 신규 적재에만 적용하고 기존 수동 편집·승인 동결·종결된 어노테이션 검토를 건드리지 않으며 재검수를 발화시키지 않는다. 이벤트 분류 조달값이 없으면 어노테이션 행 자체를 만들지 않고, 초안 채움이 실패해도 서술 전문 적재를 되돌리지 않는다.\n\n사람은 별도 전용 화면이 아니라 라벨링 캔버스 화면(SCREEN-005)의 시계열 메타 패널에서 검토·수정·승인한다. 조회 응답은 편집 가능 목록·읽기 전용 목록·영상 기술 정보 목록으로 나뉘고, 읽기 전용 목록의 키와 영상 기술 정보를 수정하려 하면 400 이다. 읽기 전용 목록은 신규로 채워지지 않지만 이미 적재된 과거 행은 작업 결과라 지우지 않고 계속 병기하며, 구 구간 키 행은 편집 가능 목록에 남아 그대로 편집된다.\n\n승인된 영상의 서술이 벤더 콜백으로 다시 갱신되면 그 검토행을 검토 대기로 되돌리고 산출 재생성을 동반하는 수정 통지를 발행한다. 되돌림은 값이 실제로 달라졌을 때만 일어나며 같은 값 재수신은 멱등 처리다. 반려된 검토행도 함께 되돌린다 — 반려 판단은 바뀌기 전 본문에 대한 것이라 새 본문에 적용되지 않기 때문이다.\n\n검토 상태의 최종 확정은 영상 검수 승인이 담당한다. 승인 트랜잭션 안에서 검토 대기 행이 승인으로 전이되며, 반려 행은 반려를 존중해 건너뛴다.",
       "invokes_apis": [
         "API-065",
         "API-066",
@@ -362,6 +410,12 @@
           "name": "LS_MARKING(마킹)"
         },
         {
+          "id": "anno",
+          "kind": "database",
+          "name": "LS_EVNT_ANNO(이벤트 어노테이션)",
+          "description": "영상 단위 이벤트 어노테이션. 질문·캡션 후보·근거 단계를 담는다. 콜백 자동채움은 초안만 만들고 확정은 사람이 한다."
+        },
+        {
           "id": "gate",
           "kind": "service",
           "name": "ReviewApprovalGate"
@@ -390,11 +444,13 @@
       ],
       "scenario_type": "happy_path",
       "implementation": {
-        "status": "planned",
+        "status": "in_progress",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 90,
+        "subtasks": [],
+        "last_updated": "2026-08-25T09:58:43.550Z",
+        "module_paths": []
       },
       "publishes_events": [
         "EVT-004"
@@ -415,12 +471,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 7,
     "stale": true,
     "stale_reason": "AC-024의 data.scenario 변경 — verifies",
-    "change_summary": "시퀀스 정정 — 외부 VLM 결과 콜백을 이벤트 검증(일치도+서술) 계약에서 서술 생성(CoT)·질의응답(VQA) 서술 단일 계약으로 재작성하고 일치도(accuracy) 축을 폐기한다. ① 콜백 본문 표기를 results={description} 단일 객체로 정정하되 '배열이 아니라 객체'라는 성질은 유지한다. ② 일치도 적재 단계와 그 조건 분기를 흐름에서 제거한다 — 폐기한 지식은 이렇다: 구 흐름은 '일치도(accuracy)가 함께 온 경우에만' 이라는 조건 묶음 안에서 서술 적재에 이어 upsert(vlm.accuracy) 를 한 번 더 수행했다. 그 값이 연동 계약에 존재하지 않게 되어 실재하지 않는 단계가 되었으므로 다이어그램에서 걷어냈다(실재하지 않는 단계를 계속 그리지 않는다). ③ '검수큐에 넣는 것은 서술 하나다 — 일치도는 화면 전용이라 검토행을 만들지 않고 데이터마트 뷰·학습데이터 산출물에도 나가지 않는다' 규정 노트를 제거한다. 규율 대상인 일치도가 소멸해 규정 자체가 성립하지 않기 때문이며, 그 자리에는 결과 활용 사실을 대신 적었다. ④ 콜백이 서술 생성·질의응답 두 축을 공용 수신하고, 콜백 본문에 축 식별자가 없어 요청 식별자로 축을 역조회해 그 축의 키로 적재한다는 단계를 추가한다(원장 반환값에 위탁 축을 함께 표기). ⑤ 수정 불가 키의 예시를 '읽기 전용 키(일치도 등)'에서 읽기 전용 목록·영상 기술 정보 축으로 좁힌다. 읽기 전용 목록 자체는 기존 적재분 병기용으로 존치하며 신규로는 채워지지 않는다. ⑥ 두 축의 결과가 이벤트 어노테이션(질의응답/서술 생성) 축의 초기 초안을 채우고 검수자가 검토·수정·승인한다는 흐름을 반영한다(자동채움은 신규 적재 한정, 기존 수동 편집·승인 동결·재검수 시맨틱 불변). 멱등 처리, 무서명 콜백 3계층 방어, 한 트랜잭션 원자성, 검수 승인 시 검토 상태 자동 전이는 그대로 둔다. mermaid 소스와 정형 메시지·프래그먼트를 함께 정합해 두 진실원이 생기지 않게 했다.",
+    "change_summary": "어노테이션 초안 자동채움 구간의 묘사 축 호출이 배선됨 — 마킹 전이 앞 순서와 실패 격리를 회귀 가드로 고정",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T08:08:12.550Z",
+    "last_updated_at": "2026-08-25T09:58:43.550Z",
     "created_at": "2026-08-16T04:23:06.291Z"
   }
 }

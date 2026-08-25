@@ -274,7 +274,9 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-077"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -289,7 +291,8 @@
             "done": true,
             "description": "approvedLabelCount 필드 구현 (WorkerStatSummaryResponse)"
           }
-        ]
+        ],
+        "last_updated": "2026-08-25T01:21:26.210Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -301,8 +304,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "작업자 통계 응답의 배정 전체 수·완료율·검수완료 라벨 수 세 필드가 실제로 구현되어, 그에 대응하는 하위 작업 셋을 완료로 표시하고 구현 상태를 구현됨으로, 진행률을 100 으로 올린다. 나머지 구현 메타(연결 모듈·기록)와 사양 본문(응답 스키마·필드 설명·파라미터)은 손대지 않는다 — 이번 변경은 실제 구현 상태에 메타를 맞추는 정정이며 계약 변경이 아니다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T15:27:47.411Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:26.210Z",
     "created_at": "2026-05-30T07:25:11.901Z"
   }
 }

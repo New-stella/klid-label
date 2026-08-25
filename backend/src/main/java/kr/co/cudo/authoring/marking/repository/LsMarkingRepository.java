@@ -21,7 +21,9 @@ public interface LsMarkingRepository extends JpaRepository<LsMarking, Long> {
      * 이와 다르면 "배치가 실제로 위탁하는 그 1건을 남긴다"는 마이그레이션 전제가 깨진다
      * (남긴 행과 위탁되는 행이 어긋나 종결 처리된 고아가 위탁될 수 있다).
      *
-     * <p>따라서 <b>정렬 기준은 이 메서드 하나로 정의</b>하고(유일 소비자: {@code MarkingLoadStep}),
+     * <p>따라서 <b>정렬 기준은 이 메서드 하나로 정의</b>하고(소비자: {@code MarkingLoadStep} ·
+     * {@code MarkingSelectedQuestionReader} — 후자는 활성 마킹이 없을 때 「최신 한 건」을 고르는 데 쓴다.
+     * 비교자를 복제하지 않고 이 조회를 그대로 쓰므로 위 규칙은 지켜진다),
      * V142 백필 정렬과 문자 그대로 일치시킨다. 순서를 바꾸려면 양쪽을 함께 바꿔야 한다.
      */
     List<LsMarking> findByRawSnOrderByRegDtDescMarkingSnDesc(Long rawSn);

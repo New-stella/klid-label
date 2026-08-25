@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-112",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "프리셋 단순화가 오토라벨 동작을 바꾸지 않는다",
+    "slug": "프리셋-단순화가-오토라벨-동작을-바꾸지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "프리셋 해석은 이름을 읽지 않고 이벤트와 라벨만 읽으므로, 이 단순화는 오토라벨 축에 영향을 주지 않아야 한다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "프리셋에 담긴 라벨을 기준으로 이전과 같은 대상이 선택된다",
+          "검출 결과의 라벨 귀속이 달라지지 않는다"
+        ],
+        "when": [
+          "그 이벤트유형의 영상이 오토라벨을 거친다"
+        ],
+        "given": [
+          "어떤 이벤트유형에 라벨이 담긴 프리셋이 있다"
+        ]
+      },
+      "statement": "프리셋에서 이름과 설명이 사라져도 오토라벨이 대상 라벨을 고르는 방식과 결과는 달라지지 않는다. 이 기준이 말하는 「바뀌지 않는다」는 프리셋에서 이름·설명·복제를 걷어낸 단순화 축에 한정된다. 프리셋을 갖지 못하거나 실효하지 않는 이벤트 유형에서 오토라벨을 보류하는 것은 별개 결정이며 그 결정이 정하는 대로 동작이 달라진다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T07:49:12.077Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이 기준의 범위가 프리셋 단순화 축에 한정됨을 본문에 명시한다. 범위가 적혀 있지 않으면 오토라벨 보류 반전 결정과 서로 모순인 것처럼 읽힌다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T10:33:57.151Z",
+    "created_at": "2026-08-25T07:23:30.958Z"
+  }
+}

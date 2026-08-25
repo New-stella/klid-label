@@ -8,6 +8,24 @@
     "sub_id": null,
     "status": "draft",
     "data": {
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "CategoryMatchSuggesterTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -30,28 +48,37 @@
       },
       "is_negative": true,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-058"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:22.110Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportMappingResolver.java",
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportCategoryCollector.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-035"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": true,
-    "stale_reason": "DFEAT-058의 data.acceptance_rules 변경이 derived_from로 2-hop 전파",
-    "change_summary": "대응이 정해지지 않은 분류가 적재를 막는 사유로 같은 알림 목록에 담기고 함께 돌아오는 적재 가능 여부 값이 막힘으로 표시된다는 형태를 결과에 추가한다. 거부 자체는 이미 검증하고 있었으나 그 사유가 어느 자리에 어떤 모양으로 담기는지가 검증 축에 없었다. 기존 결과 줄은 그대로 두고 추가만 했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T03:14:26.276Z",
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:22.110Z",
     "created_at": "2026-08-19T08:01:00.553Z"
   }
 }

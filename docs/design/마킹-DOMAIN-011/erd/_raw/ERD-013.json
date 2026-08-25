@@ -262,6 +262,18 @@
               "description": "마킹 시점의 실측 프레임레이트를 고정(pin)한 값(V96 신설). 자동마킹과 프레임추출이 각자 다른 시점에 fps 를 재조회해, 마킹은 30 폴백으로 frameIndex 를·추출은 실 fps 로 seekMillis 를 계산하면서 프레임이 어긋나던 TOCTOU 를 제거한다. NULL=V96 이전 생성 행(추출이 fps 재조회 폴백 — 하위호환).",
               "primary_key": false,
               "logical_column_name": "프레임재생속도"
+            },
+            {
+              "name": "VRFC_EVNT_QSTN_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "마킹 시 작업자가 고른 검증 이벤트 질문의 일련번호. 그 영상의 검증 이벤트 유형에 등록된 질문 중 하나를 고른 값이며, 기본 선택은 그 유형의 첫 번째 질문이다. 값이 없거나 그 유형에 속하지 않는 질문이면 그 유형의 첫 번째 질문으로 되돌린다(화면 입력을 신뢰하지 않는 fail-safe). 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다. 검증 이벤트 유형이 미수신이면 질문을 고를 수 없으므로 비워 두고 지어내지 않는다 — 위탁 자체는 유형 값이 없어도 그대로 나간다. 이 값은 이벤트 어노테이션의 질문 칸(event.question) 조달에 쓰인다.",
+              "primary_key": false,
+              "logical_column_name": "검증이벤트질문일련번호"
             }
           ],
           "indexes": [
@@ -303,23 +315,26 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-119"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-25T08:17:45.001Z",
         "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "마킹 상태에 예약(RESERVED)을 더한다. 외부에서 받은 마킹을 영상 적재 시점에 담아 두었다가 비식별이 끝나 마킹 가능 상태가 되면 대기(PENDING)로 전이시키기 위한 시작 상태이며, 활성 마킹을 세는 부분 유니크 제약이 보는 값이 아니라 그 제약을 점유하지 않는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T10:22:10.086Z",
+    "change_summary": "마킹 테이블에 작업자가 고른 검증 이벤트 질문의 일련번호 컬럼(VRFC_EVNT_QSTN_SN, BIGINT NULL)을 더한다. 마킹 시 그 영상의 검증 이벤트 유형에 등록된 질문 중 하나를 고르며 기본 선택은 그 유형의 첫 번째 질문이고, 값이 없거나 그 유형에 속하지 않는 질문이면 첫 번째 질문으로 되돌린다. 마킹을 거치지 않는 경로는 언제나 첫 번째 질문을 쓰고, 검증 이벤트 유형이 미수신이면 비워 둔다. 이 값은 이벤트 어노테이션의 질문 칸 조달에 쓰인다. 기존 컬럼 정의와 상태 전이, 프레임 정책 도출, 재마킹 가드는 그대로 둔다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T08:17:45.001Z",
     "created_at": "2026-06-01T02:45:45.194Z"
   }
 }

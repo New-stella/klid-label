@@ -4,11 +4,11 @@ type: domain_feature
 version: 16
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.726Z
-status: NEW
-prev_version: null
-content_hash: 731029250853a5f51883751fdc8855dbfb95c8f1e1674064eef98f5bad93e2c4
-stale: false
+synced_at: 2026-08-25T10:52:11.946Z
+status: CHANGED
+prev_version: 16
+content_hash: 63ad0d6f622446bf9ea6525cfb91ce0b6763f810d6b5e6a589bf67e29b7b72b6
+stale: true
 raw: ./_raw/DFEAT-048.json
 links:
   belongs_to_domain: ["[[DOMAIN-012]]"]
@@ -78,7 +78,7 @@ _(empty)_
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -86,15 +86,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-095
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-25T01:21:30.495Z
 
 ## uses_constants
 

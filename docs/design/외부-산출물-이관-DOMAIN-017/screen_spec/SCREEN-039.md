@@ -4,10 +4,10 @@ type: screen_spec
 version: 17
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:13.764Z
+synced_at: 2026-08-25T10:52:16.669Z
 status: CHANGED
-prev_version: 13
-content_hash: 8d6eb5d92ee66a4085b584695bcea6c01c47ca219ba3586f0bc4220a7b0bbdf8
+prev_version: 17
+content_hash: 5c10a8dc2b834e7bf49a3c676931a1fe1edd14b9f79ec356d999a91478c395c6
 stale: true
 raw: ./_raw/SCREEN-039.json
 links:
@@ -19,7 +19,7 @@ links:
   requires: ["[[ROLE-001]]"]
   applies_to_backward: ["[[SHELL-001]]"]
   navigates_to_backward: ["[[NAV-001]]"]
-  references_backward: ["[[UC-035]]", "[[UC-036]]"]
+  references_backward: ["[[TEST-007]]", "[[TEST-008]]", "[[UC-035]]", "[[UC-036]]"]
 ---
 
 # 외부 산출물 이관
@@ -824,7 +824,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-111
 
 ### progress
 
@@ -874,7 +874,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-20T12:44:34.750Z
+2026-08-25T01:21:34.287Z
 
 ## required_roles
 

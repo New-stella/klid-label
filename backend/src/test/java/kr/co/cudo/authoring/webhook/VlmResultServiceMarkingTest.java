@@ -12,7 +12,8 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
-import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
+import kr.co.cudo.authoring.webhook.service.IsolatedTimeseriesDraftApplier;
+import kr.co.cudo.authoring.webhook.service.TimeseriesResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +55,8 @@ class VlmResultServiceMarkingTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Mock TimeseriesSubResultApplier subResultApplier;
+    @Mock TimeseriesResultApplier resultApplier;
+    @Mock IsolatedTimeseriesDraftApplier isolatedDraftApplier;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private VlmResultService service;
@@ -63,7 +65,7 @@ class VlmResultServiceMarkingTest {
     void setup() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher, subResultApplier);
+                approvalGate, eventPublisher, resultApplier, isolatedDraftApplier);
         ledger.clear();
     }
 
@@ -144,7 +146,7 @@ class VlmResultServiceMarkingTest {
 
         // then — 어노테이션 초안으로만 가고 마킹은 건드리지 않는다
         assertThat(applied).isTrue();
-        verify(subResultApplier).applySubDescription(701L, "네, 근거는 ...");
+        verify(resultApplier).applySubDescription(701L, "네, 근거는 ...");
         verify(markingRepository, never()).findByRawSnAndSttsCdIn(anyLong(), anyList());
     }
 
