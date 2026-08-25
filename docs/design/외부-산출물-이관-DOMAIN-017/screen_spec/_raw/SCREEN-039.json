@@ -435,7 +435,9 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-111"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -471,7 +473,7 @@
             "description": "라우팅 및 관리 메뉴 등재(검수자 전용)"
           }
         ],
-        "last_updated": "2026-08-20T12:44:34.750Z"
+        "last_updated": "2026-08-25T01:21:34.287Z"
       },
       "required_roles": [
         "ROLE-001"
@@ -915,10 +917,10 @@
     "schema_version": 1,
     "current_version": 17,
     "stale": true,
-    "stale_reason": "UC-036의 data.covered_by_acceptances 변경 — realizes",
+    "stale_reason": "AC-047의 3개 필드 변경 — covered_by",
     "change_summary": "이관 이력 절이 실현하는 유스케이스 연결을 보강한다. 이 화면의 이관 이력 절은 목록과 걸러내기, 쪽 이동, 실패 사유 펼침, 승인 보류 표시를 다루는데 이는 산출물을 가져오는 행위가 아니라 이관 이력을 조회하는 행위이므로 UC-036 을 실현 목록에 추가한다. 기존 UC-035 는 상단 폼과 미리보기, 분류 대응, 적재 실행 절을 그대로 실현하므로 유지한다. 한 화면이 두 유스케이스를 실현하는 것이 이 경우의 정확한 서술이다. 본문 서술과 화면 구성은 고치지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T23:33:20.509Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:34.287Z",
     "created_at": "2026-08-19T09:31:39.948Z"
   }
 }

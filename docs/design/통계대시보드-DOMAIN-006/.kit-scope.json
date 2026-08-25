@@ -51,14 +51,6 @@
     "TEST-006",
     "UC-033"
   ],
-  "pending": [
-    "SHELL-001",
-    "MOD-012",
-    "MOD-021",
-    "LEGACY-061",
-    "LEGACY-098",
-    "LEGACY-114",
-    "NAV-001"
-  ],
-  "last_sync_at": "2026-08-21T09:18:46.171Z"
+  "pending": [],
+  "last_sync_at": "2026-08-25T10:51:54.118Z"
 }

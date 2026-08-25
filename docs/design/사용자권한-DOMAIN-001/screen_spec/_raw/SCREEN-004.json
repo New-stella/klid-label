@@ -117,9 +117,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-107"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:33.367Z"
       },
       "required_roles": [],
       "static_renders": [
@@ -147,8 +150,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.3KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:43:58.305Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:33.367Z",
     "created_at": "2026-05-30T07:53:40.390Z"
   }
 }

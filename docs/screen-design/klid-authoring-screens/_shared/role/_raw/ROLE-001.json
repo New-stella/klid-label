@@ -281,7 +281,7 @@
     "schema_version": 1,
     "current_version": 10,
     "stale": true,
-    "stale_reason": "SCREEN-008의 data.sections 변경 — granted_on",
+    "stale_reason": "SCREEN-026의 data.sections 변경 — granted_on",
     "change_summary": "사용자 관리 화면에 create 액션이 선언돼 있었으나 그 화면에는 사용자 생성이 없다 — 행 조작은 수정 하나뿐이고, 사용자 마스터는 역할 클레임 시 자동등록되므로 이 역할이 사용자를 만드는 경로는 설계상 존재하지 않는다. actions 에서 create 를 걷어내고 그 결정을 condition 에 남겨 다음에 누락으로 오해되지 않게 한다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-16T10:10:20.638Z",

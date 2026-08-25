@@ -9,6 +9,24 @@
     "status": "draft",
     "data": {
       "notes": "지금 볼 것을 고르는 일은 정렬이 아니라 걸러내기가 맡는다는 것이 이 기준의 근거다. 쪽 번호나 한 쪽의 크기가 계약이 정한 범위를 벗어났을 때 어떻게 되는지는 이 기준이 아니라 거부 축의 기준이 맡는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportHistoryControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66781f10-f621-4ace-b7d9-b1436de11fe6",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "high",
       "scenario": {
         "then": [
@@ -34,29 +52,36 @@
       },
       "is_negative": false,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-069"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:24.457Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/controller/ImportHistoryController.java",
+          "backend/src/main/java/kr/co/cudo/authoring/transfer/service/ImportHistoryQueryService.java"
+        ]
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
-      "verification_status": "unverified",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-036"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-036의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "이관 이력 목록이 서버가 고정한 시간순으로만 쪽 단위로 돌아온다는 것을 검증하는 기준을 신설한다. 정렬을 시간축 하나로 두고 상태를 우선순위로 섞지 않는다는 것은 이 프로젝트 목록 화면의 확정 규칙이고 기능 서술과 목록 조회 계약, 유스케이스에도 적혀 있는데, 이 도메인의 검증 축에는 그것을 보는 기준이 한 건도 없었다. 상태가 정렬에 끼어들지 않는다는 것을 반증 형태로 함께 세운 것은 시간순으로 정렬됐는지만 보면 상태가 같은 시각 안에서 순서를 흔드는 것을 놓치기 때문이다. 정렬 기준을 요청이 고르지 못한다는 것과 목록이 항상 쪽 단위로 돌아온다는 것을 같은 기준에 둔 것은 셋 다 목록이 돌아오는 형태를 서버가 정한다는 한 축이기 때문이다. 계약 범위를 벗어난 쪽 번호·쪽 크기의 거부는 다른 기준이 맡으므로 넣지 않았다. 구현 상태는 확인하지 못해 채우지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T23:34:30.351Z",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:24.457Z",
     "created_at": "2026-08-20T23:34:30.351Z"
   }
 }

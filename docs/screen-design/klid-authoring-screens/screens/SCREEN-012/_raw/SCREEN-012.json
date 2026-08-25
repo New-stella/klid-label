@@ -474,7 +474,7 @@
     "schema_version": 1,
     "current_version": 46,
     "stale": true,
-    "stale_reason": "UC-029의 data.covered_by_acceptances 변경 — realizes",
+    "stale_reason": "ROLE-002의 data.implementation 변경 — requires",
     "change_summary": "목록 테이블의 컬럼 순서를 촬영일시가 이벤트 앞에 오도록 맞춘다. 영상 식별(영상명·영상 ID) 다음에 시간, 그 다음에 분류·상태가 오는 배열이 읽는 순서로 자연스럽다. 아울러 배정 이력 Drawer 헤더에서 시계 아이콘 언급을 걷어낸다 — 제목이 이미 무엇을 보는 화면인지 말하므로 장식 아이콘을 두지 않는다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-18T06:43:54.352Z",

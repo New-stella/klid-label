@@ -746,27 +746,28 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-24 (SYNC · 마킹 산출물 일괄 업로드 설계 반영 — D003·D004·D011 세 도메인)** · 전건 무열화 검증 통과.
-> ⚠ 이번 SYNC 는 **세 도메인만** 돌렸다. 나머지 12개는 **측정했고 실제로 뒤처져 있다**(다른 라운드 꼬리 — 고유 ITEM 약 50건).
-> D004 는 pin 이 84→**101건**으로 커졌다(신규 17건 승격: ADR-052·ADR-053·ERD-032·API-216~218·UC-037·AC-099~106·MODEL-001·002).
+> 활성 15 도메인 전량 · last sync **2026-08-25 (SYNC · CO-009 라운드 설계 32건 반영 — 15 도메인 전량 재동기화)** · 전건 무열화 검증 통과.
+> 이번 SYNC 는 **15 도메인을 모두** 돌렸다(직전 라운드가 D003·D004·D011 세 도메인만 돌려 나머지 12개가 뒤처져 있던 상태를 해소).
+> 미판정 pending 을 판정해 **8개 도메인에 48건(고유 35 ITEM) pin 승격**했다(전부 core 타입 — 기각 0). 신규 승격 축: `API-219`·`API-220`·`ERD-033`(시스템 설정) · `ADR-051`~`ADR-054` · `SCREEN-038` · `TEST-007`·`TEST-008` · `AC-107`~`AC-119`.
+> 추가로 `INTSPEC-002`(VLM 시계열 콜백 수신 규격)를 D005 pin 에 승격했다 — CO-009 에서 고쳤는데 **어느 키트에도 없어 구현이 볼 수 없던 ITEM** 이었다(짝인 `INT-003` 이 D005 에 있고 `references` 로 서로를 가리킨다 · `INT-007`↔`INTSPEC-004` 선례와 동일).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
-| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 18 / planned 20 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 119 | implemented 64 / planned 30 / (미기재) 25 | CONST 상수값, INT 외부 연동 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 101 | implemented 39 / planned 37 / (미기재) 25 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 94 | implemented 46 / planned 28 / (미기재) 20 | CONST 상수값 |
-| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 13 / planned 21 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 72 | implemented 26 / planned 28 / (미기재) 18 | CONST 상수값 |
-| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 48 | implemented 17 / planned 17 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 161 | implemented 77 / planned 49 / (미기재) 29 | INT 외부 연동 |
-| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 47 | implemented 11 / planned 24 / (미기재) 12 | CONST 상수값 |
-| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 72 | implemented 22 / planned 34 / (미기재) 16 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 80 | implemented 37 / in_progress 1 / planned 26 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 63 | implemented 19 / planned 25 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 15 / planned 20 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 18 / in_progress 1 / planned 26 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 58 | implemented 19 / in_progress 1 / planned 33 / (미기재) 3 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 125 | implemented 71 / planned 27 / (미기재) 27 | CONST 상수값, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 104 | implemented 41 / in_progress 1 / planned 35 / (미기재) 27 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 97 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
+| DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 72 | implemented 28 / planned 26 / (미기재) 18 | CONST 상수값 |
+| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 48 | implemented 18 / planned 23 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 181 | implemented 94 / in_progress 1 / planned 54 / (미기재) 32 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 48 | implemented 16 / planned 20 / (미기재) 12 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 77 | implemented 27 / planned 31 / (미기재) 19 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 78 | implemented 35 / in_progress 1 / planned 28 / (미기재) 10 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 68 | implemented 29 / planned 28 / (미기재) 11 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 58 | implemented 21 / in_progress 2 / planned 22 / (미기재) 13 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 60 | implemented 21 / in_progress 1 / planned 25 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

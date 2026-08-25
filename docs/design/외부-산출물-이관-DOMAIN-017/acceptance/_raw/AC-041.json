@@ -8,6 +8,24 @@
     "sub_id": null,
     "status": "draft",
     "data": {
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "ImportScanControllerIT",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
       "priority": "critical",
       "scenario": {
         "then": [
@@ -31,9 +49,11 @@
         "status": "new"
       },
       "implementation": {
-        "status": "implemented",
+        "status": "verified",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-057"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -53,24 +73,25 @@
             "description": "같은 요청을 여러 번 보내도 결과가 같음을 시험으로 고정"
           }
         ],
-        "last_updated": "2026-08-20T02:08:13.431Z"
+        "last_updated": "2026-08-25T01:21:21.899Z"
       },
       "derived_domain_ids": [
         "DOMAIN-017"
       ],
       "verification_method": "automated_test",
+      "verification_status": "passing",
       "derived_from_use_cases": [
         "UC-035"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "DFEAT-058의 data.acceptance_rules 변경이 derived_from로 2-hop 전파",
-    "change_summary": "검사 응답이 돌려주는 것에 알림 한 목록과 적재 가능 여부 값이 함께 담긴다는 것을 결과에 추가한다. 그 목록에 적재를 막는 사유와 막지 않는 사유가 함께 담기고 진행 여부의 판정은 그 값 하나가 한다는 규정이 검증 축에 없었다. 기존 결과 줄은 그대로 두고 추가만 했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T03:14:18.684Z",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 상태를 검증됨으로 올린다. 구현이 완료로 선언돼 있었는데 그것을 확인하는 시험 결과가 붙지 않아 검증 단계로 넘어가지 못한 상태였다. 이번에 이 기준을 검증하는 시험이 실제로 실행돼 통과한 것을 결과 파일로 확인했고 그 기록을 근거로 삼는다. 구현이 아직 진행 중으로 선언된 기준은 올리지 않는다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:21.900Z",
     "created_at": "2026-08-19T08:00:21.858Z"
   }
 }

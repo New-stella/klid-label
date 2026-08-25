@@ -27,16 +27,17 @@
         "token_location": "header"
       },
       "data_format": "json",
-      "description": "저작도구가 외부 VLM 서비스에 영상 시계열 메타(설명) 생성을 위탁하는 outbound 호출. 결과 상세는 콜백(INT-003)으로 비동기 수신한다.\n\n## 실측 계약 (2026-08-15 확인)\n- `POST {vlm.client.url}/v1/videovlm/verify`\n- 요청 `VlmTimeseriesRequest`: `request_id` · `event_type` · `media{type, source_type, path, frame_policy{mode, framerate, selected_frames}}` · `callback_url`\n- 동기 응답 `VlmTimeseriesResponse`: `request_id` · `status` (정상값은 `accepted` 만 인정) → 즉시 파이프라인 다음 단계로 진행하고 결과 상세는 콜백으로 받는다\n- 호출 주체: 배치 파이프라인의 시계열 위탁 단계\n- 인증: `vlm.client.token` 설정 시에만 `Authorization: Bearer` 부착(조건부)\n- 파일 본문 미전송 — `media.path` 로 경로만 전달\n- 신고 구간(`DE_IDNTF_YN='F'`) 위탁은 스텝 내부에서 **보류(SKIPPED)** — 실패가 아니라 보류이며, 해소 시 자동으로 재위탁한다(멱등 조건: 시계열 메타 0건)\n\n## 신뢰성 정책 (실측값)\n- HTTP 클라이언트 타임아웃 `vlm.client.timeout-seconds` 기본 **10s**, 배치측 block **45s**\n- Retry `vlmClient`: 3회, 1s, ×2 backoff — **4xx 는 재시도·서킷 집계 제외**(비재시도 오류로 분류)\n- CircuitBreaker `vlmClient`: 50% / window 10 / min-calls 5 / open 30s\n\n## ★★ 활성화 상태 — 설정 토글은 폐지됐다 (ADR-049)\n연동 여부를 설정으로 켜고 끄던 토글은 폐지됐다. 연동 주소가 주입되어 있지 않으면 위탁은 **실패**하며 조용히 건너뛰지 않는다. 구 동작은 토글이 꺼져 있으면 외부 호출 없이 즉시 건너뛴 것으로 처리하고 아무 기록도 남기지 않았는데, 그 기본값이 비활성이라 시계열이 꺼진 채로 납품될 수 있었다.\n\n벤더 미연동 구간의 운영은 **검수자가 사유를 남기고 누르는 시계열 묶음 스킵**으로 처리한다(단건·일괄 모두 제공). 설정으로 끄는 것과 달리 누가 언제 왜 건너뛰었는지가 배치 이력에 남고, 벤더 연동 시점에 해제·재수행으로 되돌릴 수 있다.\n\n⚠ **미연동 구간에는 먼저 스킵한다** — 스킵 없이 돌려 실패시키면 마킹이 위탁 실패 상태로 종결되고, 마킹 상태 전이는 위탁 대기 상태에서만 일어나므로 이후 재수행해도 마킹 표시가 실패로 남는다(시계열 적재·검수 진입·산출물 재생성은 정상 동작한다).\n\n| 환경 | 연동 대상 |\n|---|---|\n| local | 목업 벤더 서버 |\n| dev | 목업 벤더 서버 |\n| stg | 실제 연동 주소 주입 필요 |\n| prd | 실제 연동 주소 주입 필요 — 콜백 허용 출처 설정이 선행돼야 한다 |",
+      "description": "저작도구가 외부 VLM 서비스에 영상 시계열 메타(설명) 생성을 위탁하는 outbound 호출. 결과 상세는 콜백(INT-003)으로 비동기 수신한다.\n\n## 위탁 대상 (KLID 연동 API v1.1.0)\n저작도구가 연동하는 외부 VLM 위탁 endpoint 는 둘이며, 한 영상에 대해 이중으로 위탁한다.\n- `POST {vlm.client.url}/v1/videovlm-klid/describe` — 묘사(CoT). 이벤트 관점에서 영상 상황(장소·날씨·상황)을 서술한다.\n- `POST {vlm.client.url}/v1/videovlm-klid/describe-sub` — 추가 질문(VQA). 이벤트 발생 여부와 근거를 서술한다.\n- 두 호출은 각각 별도 `request_id` 를 발급하고, 콜백은 그 `request_id` 로 역조회해 어느 위탁의 결과인지 구분한다.\n- 이벤트 판정(detected 반환) endpoint 는 연동하지 않는다.\n\n## 요청 계약\n- 요청 바디: `request_id` · `event_type` · `media{type, source_type, path, frame_policy}` · `callback_url`\n- `frame_policy` 는 `mode` 와 `selected_frames` 로 프레임을 지정한다. 우리는 항상 `frame_selected` mode + `selected_frames` 를 실어 보낸다 — 마킹 본문에서 인덱스를 얻으면 그것을 싣고(수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임), 하나도 얻지 못하면 `frame_interval` mode 로 내린다 — 빈 목록은 규격 위반이라 거부된다. `selected_frames` 상한은 **600**.\n- 프레임 추출 간격·장수 세부값은 연동 시스템이 지정하지 않고 벤더 서버가 관리한다(`frame_policy` 에 추출 간격 필드를 두지 않는다).\n- 동기 응답: `{request_id, status}` — 정상값은 `accepted` 만 인정한다. 수락되면 즉시 파이프라인 다음 단계로 진행하고 결과 상세는 콜백으로 받는다.\n- 호출 주체: 배치 파이프라인의 시계열 위탁 단계\n- 인증: `vlm.client.token` 설정 시에만 `Authorization: Bearer` 부착(조건부)\n- 파일 본문 미전송 — `media.path` 로 경로만 전달\n\n## 서버 상태·이벤트 사전 확인\n- `GET /v1/videovlm-klid/status` 로 서버 처리 가능 여부(ready/busy/loading)를 확인한다.\n- `GET /v1/videovlm-klid/events` 로 지원 이벤트(`describe_events`/`describe_sub_events`) 가용성을 확인한 뒤 위탁한다.\n\n## 보류·재개\n- 신고 구간(`DE_IDNTF_YN='F'`) 위탁은 스텝 내부에서 **보류(SKIPPED)** — 실패가 아니라 보류이며, 해소 시 자동으로 재위탁한다(멱등 조건: 시계열 메타 0건).\n- 응답 신호가 없어도 미결 스위퍼가 회수하고, 검수자가 사유를 남기고 누르는 수동 스킵 게이트로 미연동 구간의 재수행을 통제한다.\n\n## 신뢰성 정책 (실측값)\n- HTTP 클라이언트 타임아웃 `vlm.client.timeout-seconds` 기본 **10s**. 분석 제한 **900s**.\n- Retry `vlmClient`: 3회, 1s, ×2 backoff — **429(동시 처리 한도 32건 초과)는 재시도 대상**이며, 그 외 4xx 는 비재시도 오류로 분류해 재시도·서킷 집계에서 제외한다. `503`(서버 미준비)·`415`(Content-Type)도 처리한다.\n- CircuitBreaker `vlmClient`: failure-rate 50% / sliding-window 10 / min-calls 5 / open 30s\n- 배치는 응답을 기다리지 않고 제출만 개시한다(논블로킹 제출).\n\n## ★★ 활성화 상태 — 설정 토글은 폐지됐다 (ADR-049)\n연동 여부를 설정으로 켜고 끄던 토글은 폐지됐다. 연동 주소가 주입되어 있지 않으면 위탁은 **실패**하며 조용히 건너뛰지 않는다. 구 동작은 토글이 꺼져 있으면 외부 호출 없이 즉시 건너뛴 것으로 처리하고 아무 기록도 남기지 않았는데, 그 기본값이 비활성이라 시계열이 꺼진 채로 납품될 수 있었다.\n\n벤더 미연동 구간의 운영은 **검수자가 사유를 남기고 누르는 시계열 묶음 스킵**으로 처리한다(단건·일괄 모두 제공). 설정으로 끄는 것과 달리 누가 언제 왜 건너뛰었는지가 배치 이력에 남고, 벤더 연동 시점에 해제·재수행으로 되돌릴 수 있다.\n\n⚠ **미연동 구간에는 먼저 스킵한다** — 스킵 없이 돌려 실패시키면 마킹이 위탁 실패 상태로 종결되고, 마킹 상태 전이는 위탁 대기 상태에서만 일어나므로 이후 재수행해도 마킹 표시가 실패로 남는다(시계열 적재·검수 진입·산출물 재생성은 정상 동작한다).\n\n| 환경 | 연동 대상 |\n|---|---|\n| local | 목업 벤더 서버 |\n| dev | 목업 벤더 서버 |\n| stg | 실제 연동 주소 주입 필요 |\n| prd | 실제 연동 주소 주입 필요 — 콜백 허용 출처 설정이 선행돼야 한다 |",
       "idempotency": true,
-      "retry_policy": "Resilience4j Retry `vlmClient` — max-attempts 3, wait 1s, 지수 backoff ×2. 4xx 는 비재시도 오류로 분류해 재시도·서킷 집계에서 제외. CircuitBreaker `vlmClient` — failure-rate 50%, sliding-window 10, min-calls 5, open 30s. 타임아웃: HTTP 클라이언트 `vlm.client.timeout-seconds` 기본 10s. 배치는 응답을 기다리지 않고 제출만 개시한다(구 45초 블로킹 폐기).",
+      "retry_policy": "Resilience4j Retry `vlmClient` — max-attempts 3, wait 1s, 지수 backoff ×2. 429(동시 처리 한도 32건 초과)는 재시도 대상, 그 외 4xx 는 비재시도 오류로 분류해 재시도·서킷 집계에서 제외. 503(서버 미준비)·415(Content-Type)도 처리. CircuitBreaker `vlmClient` — failure-rate 50%, sliding-window 10, min-calls 5, open 30s. 타임아웃: `vlm.client.timeout-seconds` 기본 10s, 분석 제한 900s. 배치는 응답을 기다리지 않고 제출만 개시한다(논블로킹).",
       "triggers_apis": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "pii_in_payload": false,
       "related_events": [],
@@ -44,8 +45,8 @@
         "INTSPEC-003"
       ],
       "transport_meta": {
-        "path": "/v1/videovlm/verify",
-        "notes": "벤더(IntelliVIX Video VLM API v2.0.1) 제공 endpoint. base-url 은 `vlm.client.url` (주의: `vlm.client.base-url` 아님).",
+        "path": "/v1/videovlm-klid/describe",
+        "notes": "벤더(IntelliVIX Video VLM · KLID 연동 API v1.1.0) 제공 endpoint. 위탁은 묘사(CoT) `POST /v1/videovlm-klid/describe` 와 추가 질문(VQA) `POST /v1/videovlm-klid/describe-sub` 이중 호출이며 각각 별도 request_id 를 발급한다. 위탁 전 `GET /v1/videovlm-klid/status`(ready/busy/loading)·`GET /v1/videovlm-klid/events`(지원 이벤트) 로 처리 가능 여부를 확인한다. base-url 은 `vlm.client.url`.",
         "method": "POST"
       },
       "external_system": "EXTSYS-002",
@@ -58,12 +59,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "활성화 상태 절을 토글 폐지에 맞춰 다시 쓴다. 연동 여부를 설정으로 켜고 끄던 토글이 폐지되어, 연동 주소가 주입돼 있지 않으면 위탁이 실패하고 조용히 건너뛰지 않는다. 벤더 미연동 구간의 운영은 검수자가 사유를 남기고 누르는 시계열 묶음 스킵으로 처리하며 단건과 일괄을 모두 제공한다는 사실, 그리고 스킵 없이 돌려 실패시키면 마킹 표시가 실패로 남으므로 먼저 스킵해야 한다는 운영 지침을 함께 적었다. 환경별 표는 활성화 여부 축이 사라졌으므로 연동 대상만 남긴다.",
+    "current_version": 17,
+    "stale": true,
+    "stale_reason": "INTSPEC-003의 data.content_inline 변경 — references",
+    "change_summary": "프레임 선택 정책의 폴백을 사양에 반영한다. 구 서술 '항상 frame_selected 이며 마킹이 없으면 자동 선택된 프레임 리스트를 싣는다' 는 두 곳이 사실과 다르다 — 자동 선택 원천이 따로 있는 것이 아니라 마킹 본문이 유일한 조달처이고, 그 본문에서 인덱스를 하나도 얻지 못하면 빈 목록을 보낼 수 없어(규격 위반) frame_interval 로 내린다. 마킹 모드는 그 인덱스를 누가 골랐는지만 가른다. 같은 문구가 여러 층에 복제돼 있어 함께 정정한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T13:36:28.525Z",
+    "last_updated_at": "2026-08-24T11:46:50.285Z",
     "created_at": "2026-06-01T06:33:45.748Z"
   }
 }

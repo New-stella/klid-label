@@ -268,10 +268,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-092"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-20T02:08:04.883Z"
+        "last_updated": "2026-08-25T01:21:29.646Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -285,10 +287,10 @@
     "schema_version": 1,
     "current_version": 7,
     "stale": true,
-    "stale_reason": "AC-043의 2개 필드 변경 — verifies",
+    "stale_reason": "AC-043의 3개 필드 변경 — verifies",
     "change_summary": "외부 분류 식별 문자열 필드의 설명에 두 축의 성질 차이와 폭을 유지하는 근거를 더한다. 라벨 축은 산출물이 영문 코드와 표시 이름을 따로 주고 도형 어노테이션이 그 영문 코드를 참조하지만, 이벤트 축은 코드가 아예 없어 가장 구체적인 최말단 이름 하나가 코드 자리에 들어오고 상위 계층 이름은 참고로만 보관한다. 관측된 이름이 모두 표준 코드 도메인 폭 안에 들어와 초과가 실증되지 않았으므로 그 폭을 벗어나면서까지 미리 넓히지 않으며, 초과가 실제로 오면 그 분류를 확정할 수 없어 그 산출물은 적재할 수 없다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T03:06:31.216Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:29.646Z",
     "created_at": "2026-08-19T07:54:44.682Z"
   }
 }

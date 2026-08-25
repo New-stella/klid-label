@@ -1,19 +1,20 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 42
+version: 45
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:18:52.203Z
+synced_at: 2026-08-25T10:52:13.832Z
 status: CHANGED
 prev_version: 42
-content_hash: 92464b5e0bfab153450a801ffffb007fd40868c71e0313b310d35f325866a02b
-stale: false
+content_hash: 0cfabc5e205b5db723a2df552f7cb07c2122c924863fda402285dc9dd13c8dcb
+stale: true
 raw: ./_raw/SCREEN-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-003]]"]
   consumes: ["[[API-042]]", "[[API-047]]", "[[API-068]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-212]]", "[[API-214]]"]
   covered_by: ["[[AC-049]]", "[[AC-050]]"]
+  implements: ["[[IMPREC-037]]", "[[IMPREC-039]]", "[[IMPREC-052]]"]
   realizes: ["[[UC-018]]"]
   references: ["[[API-042]]", "[[API-047]]", "[[API-068]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-199]]", "[[API-212]]", "[[API-214]]"]
   requires: ["[[ROLE-001]]", "[[ROLE-002]]"]
@@ -45,7 +46,7 @@ draft
 
 ## purpose
 
-영상 목록을 조회하고 REVIEWER 가 마킹 진입/작업자 재배정/일괄 배정하는 화면. 조회는 REVIEWER/WORKER 공통, 마킹·배정 동선은 REVIEWER 전용(WORKER 는 조회만). 미배정 영상 중 배치 단계가 마킹 대기이고 비식별이 확정적으로 미완료가 아닌 행의 액션은 '마킹 설정' 버튼으로 자동/수동 방식을 선택한다 — 자동은 프레임 간격(1 이상 정수, 화면에서는 상한을 두지 않고 서버가 백스톱) 입력 후 POST /v1/videos/{rawSn}/markings(API-047)를 즉시 트리거하고, 수동은 팝업을 닫고 작업자 배정 흐름(assign 모드)으로 전환된다. 기존 배정 영상의 '재배정' 버튼은 별도로 유지된다. 영상 목록에는 개인정보 유무 컬럼을 표시하지 않는다. 시계열 위탁 전체 건너뛰기 스위치가 켜져 있으면 그 사실을 제목 아래 배너로 상시 알리고, 검색·필터에는 시계열 건너뜀 조건을 두어 벤더 연동이 확정된 뒤 회수 대상을 모을 수 있게 한다. 접근: REVIEWER/WORKER.
+영상 목록을 조회하고 REVIEWER 가 마킹 진입/작업자 재배정/일괄 배정하는 화면. REVIEWER 는 전체 영상을, WORKER 는 본인에게 배정된 영상만 조회하며, 마킹·배정 동선은 REVIEWER 전용이다(WORKER 는 조회만). 미배정 영상 중 배치 단계가 마킹 대기이고 비식별이 확정적으로 미완료가 아닌 행의 액션은 '마킹 설정' 버튼으로 자동/수동 방식을 선택한다 — 자동은 프레임 간격(1 이상 정수, 화면에서는 상한을 두지 않고 서버가 백스톱) 입력 후 POST /v1/videos/{rawSn}/markings(API-047)를 즉시 트리거하고, 수동은 팝업을 닫고 작업자 배정 흐름(assign 모드)으로 전환된다. 기존 배정 영상의 '재배정' 버튼은 별도로 유지된다. 영상 목록에는 개인정보 유무 컬럼을 표시하지 않는다. 시계열 위탁 전체 건너뛰기 스위치가 켜져 있으면 그 사실을 제목 아래 배너로 상시 알리고, 검색·필터에는 시계열 건너뜀 조건을 두어 벤더 연동이 확정된 뒤 회수 대상을 모을 수 있게 한다. 접근: REVIEWER/WORKER.
 
 ## sections
 
@@ -745,6 +746,10 @@ _(empty)_
 
 2026-08-21T04:27:30.676Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-001
@@ -765,8 +770,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: a776f32e5d56bb9275c7eca074cadb3d6fc60af2acad58d2ed7162c10630746b
-- **generated_at**: 2026-08-19T23:52:45.177Z
+- **source_hash**: 79d54b00a0880f90b9ed31c40c4033b7d666275b9e2831c8f29a220fd65382d1
+- **generated_at**: 2026-08-25T10:11:15.282Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

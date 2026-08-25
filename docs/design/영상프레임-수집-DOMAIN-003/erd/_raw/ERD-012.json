@@ -35,7 +35,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원시영상일련번호"
             },
@@ -55,7 +56,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "VMS클립아이디"
             },
@@ -80,7 +82,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "VMS_CCTV아이디"
             },
@@ -105,7 +108,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이벤트유형코드"
             },
@@ -130,7 +134,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "지방자치단체코드"
             },
@@ -155,7 +160,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "개인정보유형코드"
             },
@@ -181,7 +187,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "개인정보포함여부"
             },
@@ -213,7 +220,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "비식별여부"
             },
@@ -238,7 +246,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원시파일경로명"
             },
@@ -263,7 +272,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "촬영일시"
             },
@@ -288,7 +298,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "영상길이초"
             },
@@ -308,7 +319,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원본원시영상일련번호"
             },
@@ -334,7 +346,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터상태코드"
             },
@@ -360,7 +373,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -385,7 +399,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -549,7 +564,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "프레임원천일련번호"
             },
@@ -579,7 +595,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원시영상일련번호"
             },
@@ -604,7 +621,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "프레임번호"
             },
@@ -629,7 +647,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원천파일경로명"
             },
@@ -647,14 +666,15 @@
                   "legacy_dbms": "MariaDB"
                 }
               },
-              "description": "비식별 영상에서 추출한 동일 프레임 경로(라벨링 대상 비식별 프레임). 원본 프레임 경로(SRC_FILE_PATH_NM)와 짝을 이룬다. 표준용어 비식별원천파일경로명(용어 id 1416). 1차 레거시명 SRC_BKUP_FILE_PATH(BKUP=백업, 의미 불일치)에서 정정 완료(V4/V52/엔티티 rename, 빌드 PASS).",
+              "description": "비식별 영상에서 추출한 동일 프레임 경로(라벨링 대상 비식별 프레임). 원본 프레임 경로(SRC_FILE_PATH_NM)와 짝을 이룬다. 표준용어 비식별원천파일경로명(용어 id 1416). 1차 레거시명 SRC_BKUP_FILE_PATH(BKUP=백업, 의미 불일치)에서 정정 완료(V4/V52/엔티티 rename, 빌드 PASS). 데이터마트 완료 영상 뷰가 내보내는 대표 이미지(썸네일) 경로도 이 값에서 조달한다 — 영상마다 프레임 인덱스가 가장 작고 폐기가 아니며 이 값이 비어 있지 않고 원본 프레임 경로와 같지 않은 프레임 한 건을 고른다. 저장된 값을 그대로 쓰고 경로를 조합하거나 추측하지 않으며, 이 값이 없으면 원본 프레임 경로로 대신하지 않고 비운다.",
               "primary_key": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "비식별원천파일경로명"
             },
@@ -674,7 +694,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "촬영일시"
             },
@@ -700,7 +721,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -725,7 +747,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -745,7 +768,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "영상프레임번호"
             },
@@ -765,7 +789,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 100,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "프레임설명"
             },
@@ -882,7 +907,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이력일련번호"
             },
@@ -907,7 +933,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "프레임원천일련번호"
             },
@@ -936,7 +963,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "변경유형코드"
             },
@@ -956,7 +984,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "변경사용자번호"
             },
@@ -982,7 +1011,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "변경일시"
             }
@@ -1429,15 +1459,6 @@
               "logical_column_name": "검증이벤트유형코드"
             },
             {
-              "name": "THMB_FILE_PATH_NM",
-              "type": "varchar(500)",
-              "unique": false,
-              "nullable": true,
-              "description": "썸네일 이미지 파일 경로명(관제 인입값 pass-through). 관제가 학습데이터 패키징 시 사용하며 저작도구는 생성·가공하지 않는다. 데이터마트 뷰(V_COMPLETED_VIDEO)로 노출해 관제가 한 뷰만으로 조달하게 한다. nullable — 값을 안 보내도 인입은 실패하지 않는다.",
-              "primary_key": false,
-              "logical_column_name": "썸네일파일경로명"
-            },
-            {
               "name": "OG_CD",
               "type": "varchar(20)",
               "unique": false,
@@ -1475,7 +1496,7 @@
             "notes": "V147 신설(37컬럼) + V166 추가(4컬럼) + V176 VRFC_EVNT_TYPE_CD 추가(43컬럼). 저작도구 소유 테이블이라 관제 협의는 '어떤 값을 보내줄 것인가'에 국한된다. IX_LS_DATA_INGEST_POLL 은 부분 인덱스(WHERE PRCS_STTS_CD='PENDING') + INCLUDE(NXTM_RTRY_DT) 로, 술어와 INCLUDE 는 메타 미지원이라 여기에 명시한다 — now 는 immutable 이 아니라 인덱스 술어에 넣을 수 없어 NXTM_RTRY_DT 를 INCLUDE 로 실어 힙 방문 없이 거른다.",
             "status": "new"
           },
-          "description": "관제 인입 — 관제서버가 학습용 영상 메타를 저작도구 테이블에 직접 INSERT 하는 수신 창구(V147 신설 37컬럼 + V166 추가 4컬럼 + V168 추가 2컬럼 = 43, 이후 OG_CD 폐기로 42). 관제가 자기 쪽 조인(v2_video_assets, v2_video_metadata, resource_cctvs) 결과를 평면 1행으로 넣고, 저작도구 폴링 배치가 PENDING 행을 집어 LS_DATA_RAW 로 적재한다. CCTV 제원(CCTV_NM/CCTV_HGT/MAIN_SURV_PAN_ANG)이 영상마다 중복 저장되는 것은 의도된 설계다 — 조인 참조하면 카메라 교체·방위각 재설정 시 과거 영상의 어노테이션이 현재 제원으로 오염된다. 인입에는 관제가 보내는 값만 둔다: 수동입력(촬영환경·개인정보)·VLM 산출·워크플로 컬럼(DATA_STTS_CD/DE_IDENT_YN/PRVC_TYPE_CD)은 제외한다. 행은 감사 추적을 위해 영구 보존하며 그래서 RAW_SN 에 FK 를 걸지 않는다. 물리명은 V172(PRCS_STTS_CD·NXTM_RTY_DT·LCLGV_NM·FRME_CNT + 이벤트 2코드 표준도메인)와 V175(NXTM_RTY_DT → NXTM_RTRY_DT)로 표준 정합을 마쳤고, 원천 개인정보 3필드의 fail-closed DB DEFAULT(N/N/Y)는 V170 이 부여했다. 근거 ADR-042. 기관코드(OG_CD)는 두지 않는다 — 관제가 공급하지 않는 값이라 폐기했다.",
+          "description": "관제 인입 — 관제서버가 학습용 영상 메타를 저작도구 테이블에 직접 INSERT 하는 수신 창구. 관제가 자기 쪽 조인(v2_video_assets, v2_video_metadata, resource_cctvs) 결과를 평면 1행으로 넣고, 저작도구 폴링 배치가 PENDING 행을 집어 LS_DATA_RAW 로 적재한다. CCTV 제원(CCTV_NM/CCTV_HGT/MAIN_SURV_PAN_ANG)이 영상마다 중복 저장되는 것은 의도된 설계다 — 조인 참조하면 카메라 교체·방위각 재설정 시 과거 영상의 어노테이션이 현재 제원으로 오염된다. 인입에는 관제가 보내는 값만 둔다: 수동입력(촬영환경·개인정보)·VLM 산출·워크플로 컬럼(DATA_STTS_CD/DE_IDENT_YN/PRVC_TYPE_CD)은 제외한다. 행은 감사 추적을 위해 영구 보존하며 그래서 RAW_SN 에 FK 를 걸지 않는다. 물리명은 V172(PRCS_STTS_CD·NXTM_RTY_DT·LCLGV_NM·FRME_CNT + 이벤트 2코드 표준도메인)와 V175(NXTM_RTY_DT → NXTM_RTRY_DT)로 표준 정합을 마쳤고, 원천 개인정보 3필드의 fail-closed DB DEFAULT(N/N/Y)는 V170 이 부여했다. 근거 ADR-042. 기관코드(OG_CD)는 관제가 실보유를 확인해 다시 둔다 — 앞서 공급 불가로 판단해 뺐던 값이다. 썸네일 경로는 두지 않는다 — 완료 영상 뷰가 내보내는 대표 이미지는 저작도구가 보유한 비식별 첫 프레임에서 조달하므로 관제에게 받을 값이 아니다.",
           "logical_table_name": "관제인입"
         }
       ],
@@ -1523,38 +1544,41 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-098"
+        ],
         "progress": 100,
         "subtasks": [
           {
             "done": true,
-            "description": "LsDataIngest 엔티티: thmbFilePathNm(varchar500)·ogCd(varchar20) 필드 추가 + BIT Javadoc 비트레이트로 정정 (@design ERD-012)"
+            "description": "인입 원장에서 썸네일 경로 컬럼을 제거하고 엔티티 매핑·컬럼 수 계약을 함께 내렸다(전체 44 · 관제 수신 36)"
           },
           {
             "done": true,
-            "description": "VideoMetaService.loadIngestMeta: 인입 BIT(bps 정수) 파싱해 video.bit_rate 조달, 인입값 우선·ffprobe 폴백·파싱실패 fail-safe skip"
+            "description": "프레임 테이블의 비식별 프레임 경로가 대표 이미지 조달원임을 실 DB 계약 시험으로 고정했다"
           },
           {
             "done": true,
-            "description": "회귀 가드 정합: 색심도 전제 테스트 반전 + 스키마 컬럼수 가드 43→45(V147 IT·repo IT) + V185 OG_CD 제거 단언을 V16 복원으로 반전"
+            "description": "선택 규칙 네 가지(프레임 인덱스 최소 · 폐기 아님 · 경로 비어있지 않음 · 원본 경로와 같지 않음)를 프레임 페어 뷰의 게이트와 동치가 되게 맞췄다"
           },
           {
             "done": true,
-            "description": "QA 후속: 낡은 OG_CD '제거됨' 서술 5곳을 'V185 제거 → V16 복원'으로 정정(주석 전용) + bitRateText 경계 4건(0·Long초과·공백패딩·빈값) 테스트 보강"
+            "description": "인입 쓰기 통로 가드의 관제 소유 컬럼 목록에서 그 컬럼을 제외했다"
           }
         ],
-        "last_updated": "2026-08-24T08:12:04.520Z"
+        "last_updated": "2026-08-25T06:45:30.204Z",
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 39,
+    "current_version": 45,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "직전 리비전 subtask 4 의 오타 정정(난한 → 낡은). 내용 변경 없음",
+    "change_summary": "대표 이미지 선택 규칙에 원본 경로 동일 제외 조건을 반영한 구현 상태 갱신",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T08:12:04.520Z",
+    "last_updated_at": "2026-08-25T06:45:30.204Z",
     "created_at": "2026-06-01T02:42:17.260Z"
   }
 }

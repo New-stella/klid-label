@@ -36,16 +36,20 @@
       "measurement_method": "정적 분석 결과·시큐어코딩 점검 내역으로 검증한다.",
       "applies_to_features": [],
       "applies_to_pipelines": [],
-      "verified_by_acceptance": []
+      "verified_by_acceptance": [
+        "AC-082",
+        "AC-083",
+        "AC-084"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "D5 §3 1:1 정합 — 시큐어코딩(RQ-SER-03-01)만 유지, 취약점 점검 분리 + sub_id·제목 정정",
+    "change_summary": "공지 기능에서 이 비기능 요구를 검증하는 인수기준을 연결한다. 인수기준 쪽에는 비기능 요구를 가리키는 자리가 없어 이쪽에서 잇는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-07-06T03:47:01.879Z",
+    "last_updated_at": "2026-08-23T10:32:31.411Z",
     "created_at": "2026-06-04T09:30:17.836Z"
   }
 }

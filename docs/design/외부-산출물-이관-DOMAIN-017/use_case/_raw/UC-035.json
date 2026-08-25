@@ -80,11 +80,14 @@
         "검수자 권한으로 로그인된 상태다."
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-113"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:34.700Z"
       },
       "postconditions": [
         "영상 한 건과 그에 딸린 프레임·라벨이 적재되고 검수 대기 상태가 된다.",
@@ -163,11 +166,11 @@
     "data_projected_to": null,
     "schema_version": 1,
     "current_version": 12,
-    "stale": false,
-    "stale_reason": null,
+    "stale": true,
+    "stale_reason": "AC-048의 2개 필드 변경 — covered_by",
     "change_summary": "원본으로 가져온 경우 흐름에 결말 추가 — 프레임만 가져와 보류가 풀린 뒤에도 영상 단위 비식별 여부는 미수행으로 남고 그 값이 검수 완료 영상 뷰를 통해 관제로 나가며, 이는 정상이고 해석 변경에는 협의가 선행된다는 사실을 명시. 기존 단계 삭제 없이 추가만.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T10:45:23.229Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:34.700Z",
     "created_at": "2026-08-19T07:59:28.951Z"
   }
 }

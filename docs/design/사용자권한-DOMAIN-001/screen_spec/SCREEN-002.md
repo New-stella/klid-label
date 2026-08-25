@@ -4,10 +4,10 @@ type: screen_spec
 version: 17
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:50.473Z
-status: NEW
-prev_version: null
-content_hash: 07df07852615a7a5cddf1bee981f1bf41e270fe37f71295d3b1aca8d9efec168
+synced_at: 2026-08-25T10:51:39.000Z
+status: CHANGED
+prev_version: 17
+content_hash: f7108c4e33cf68dc4f0ddd96ebd53619f7d6144d7a73a949990a81bf5ccb7f8d
 stale: false
 raw: ./_raw/SCREEN-002.json
 links:
@@ -226,7 +226,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-105
 
 ### progress
 
@@ -235,6 +235,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-25T01:21:32.912Z
 
 ## required_roles
 

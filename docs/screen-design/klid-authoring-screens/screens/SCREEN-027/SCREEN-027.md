@@ -2,14 +2,14 @@
 logicraft_item: SCREEN-027
 type: screen_spec
 version: 32
-last_updated_at: 2026-08-24T12:15:05.806Z
+last_updated_at: 2026-08-25T01:21:33.808Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-24T14:23:30.468Z
-sync_session: 22
-stale: false
-status: CHANGED
-prev_version: 30
+synced_at: 2026-08-25T11:02:36.426Z
+sync_session: 23
+stale: true
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-027.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-037]]"]
   acceptance: ["[[AC-099]]", "[[AC-100]]", "[[AC-101]]", "[[AC-102]]", "[[AC-103]]", "[[AC-104]]", "[[AC-105]]", "[[AC-106]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v30 → v32**
-> change_summary: 메뉴를 「관리」 그룹으로 옮기고(외부 산출물 이관 다음) 노출 판정을 라우트와 같은 isDevUploadEnabled() 로 통일. 토글 켠·끈 산출물 양방향 실측 확인.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 수동 업로드
 
@@ -849,7 +845,7 @@ implemented
 
 ### records
 
-_(empty)_
+- IMPREC-109
 
 ### progress
 
@@ -861,7 +857,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-24T12:15:05.806Z
+2026-08-25T01:21:33.808Z
 
 ### module_paths
 

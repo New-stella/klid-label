@@ -3,8 +3,8 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
   "decided_by": "llm",
-  "decided_at": "2026-08-18T01:46:46Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외",
+  "decided_at": "2026-08-25T10:53:32.383789Z",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건)",
   "items": [
     "AC-004",
     "AC-005",
@@ -22,6 +22,7 @@
     "AC-106",
     "ADR-001",
     "ADR-003",
+    "ADR-008",
     "ADR-019",
     "ADR-026",
     "ADR-031",
@@ -31,8 +32,10 @@
     "ADR-041",
     "ADR-046",
     "ADR-047",
+    "ADR-048",
     "ADR-052",
     "ADR-053",
+    "ADR-054",
     "API-020",
     "API-043",
     "API-065",
@@ -65,6 +68,7 @@
     "DFEAT-019",
     "DFEAT-020",
     "DOMAIN-004",
+    "ERD-019",
     "ERD-032",
     "FEAT-001",
     "FEAT-007",
@@ -108,15 +112,6 @@
     "UC-034",
     "UC-037"
   ],
-  "pending": [
-    "ADR-008",
-    "ADR-048",
-    "MOD-006",
-    "MOD-018",
-    "MOD-020",
-    "MOD-023",
-    "MOD-041",
-    "MOD-048"
-  ],
-  "last_sync_at": "2026-08-24T10:55:56.254Z"
+  "pending": [],
+  "last_sync_at": "2026-08-25T10:53:43.797Z"
 }

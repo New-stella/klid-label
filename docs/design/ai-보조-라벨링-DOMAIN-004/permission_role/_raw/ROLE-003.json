@@ -63,11 +63,14 @@
       ],
       "inherits_from": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-103"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:32.459Z"
       },
       "typical_actors": [
         "포털 일반 사용자"
@@ -77,10 +80,10 @@
     "schema_version": 1,
     "current_version": 7,
     "stale": true,
-    "stale_reason": "SCREEN-033의 data.sections 변경 — granted_on",
+    "stale_reason": "SCREEN-034의 data.sections 변경 — granted_on",
     "change_summary": "관리 화면 미접근 원칙은 유지하되 그 제한이 화면 축임을 명시했다. 포털 라벨링 화면이 라벨 분류와 표시명·색상을 그리기 위해 읽는 라벨 마스터 조회는 라벨링이 의존하는 공용 읽기 계약이라 이 역할에도 허용되며, 등록·수정·삭제는 검수자 전용임을 함께 적었다. 권한 확대가 아니라, 관리 화면과 이 읽기 계약이 같은 경로 접두를 공유해 생긴 모호성을 없앤 정밀화다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T20:17:55.764Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:32.459Z",
     "created_at": "2026-06-01T06:30:38.299Z"
   }
 }

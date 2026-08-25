@@ -1,13 +1,13 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 6
+version: 7
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:57.157Z
-status: NEW
-prev_version: null
-content_hash: 4bf01138aa6bf64cdf255fccf15a64bde281bd29a375bad707e307426cfc9f83
+synced_at: 2026-08-25T10:52:13.798Z
+status: CHANGED
+prev_version: 6
+content_hash: 0c0c65787cdc026e6f83f2669163a7772ae0dd58a9dfa0510b923a22f09bb8ab
 stale: true
 raw: ./_raw/ROLE-002.json
 links:
@@ -197,7 +197,7 @@ WORKER
 
 - view
 
-- **condition**: 영상 처리 현황 — 조회만 가능하며 마킹 진입·배정 동선은 없다
+- **condition**: 영상 처리 현황 — 본인에게 배정된 영상만 목록에 보이며, 조회만 가능하고 마킹 진입·배정 동선은 없다
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 
@@ -244,6 +244,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

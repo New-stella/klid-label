@@ -1,16 +1,17 @@
 ---
 logicraft_item: DFEAT-050
 type: domain_feature
-version: 4
+version: 6
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:54.250Z
-status: NEW
-prev_version: null
-content_hash: 3fb5429a40b7bda1a15c58f6446930469786187c02ba7f23503af350deb610de
-stale: true
+synced_at: 2026-08-25T10:52:09.979Z
+status: CHANGED
+prev_version: 4
+content_hash: 803eaf66c5f56f8095d3c3c472edd13a4bee0e7ac258416c3af8db8b63511993
+stale: false
 raw: ./_raw/DFEAT-050.json
 links:
+  based_on: ["[[ADR-020]]"]
   belongs_to_domain: ["[[DOMAIN-010]]"]
   implements: ["[[API-132]]", "[[API-133]]", "[[API-134]]", "[[API-135]]"]
   specializes: ["[[FEAT-009]]"]
@@ -77,7 +78,7 @@ VLM 이 생성한 이벤트 어노테이션(VQA/CoT/caption)을 검토·수정�
 
 ## description
 
-영상 단위(RAW_SN) 이벤트 어노테이션(VQA/CoT/caption)을 검토·수정한다. caption만 VLM 생성+작업자 수동입력이고 vqa/cot/vd_description 등 나머지는 VLM 생성이다. 라벨링 화면에서 caption 수동입력(PUT)하며 evidence(근거 객체)는 캔버스 선택 객체를 자동 연결하고 MAX_ID 힌트를 제공한다. REVIEWER가 검수 승인(APPROVED)/반려(REJECTED, 사유 필수)하며, 승인된 어노테이션만 검수 승인 export 폴더 JSON 최상위 event 키로 반영된다(ADR-020). 저장은 LS_EVNT_ANNO(영상 1건당 1건, ANNO_CN JSONB), 검수 상태는 LS_EVNT_ANNO_REVIEW(PENDING/AUTO_GENERATED/APPROVED/REJECTED)에 분리한다. ★2026-07-30 독립 기능으로 명시적 승격(ADR-036) — 라벨링 화면 메타탭 입력·export 최상위 event 키 반영·검수 승인 시점 동결까지 걸치는 별도 기능이며 FEAT-009(VLM 시계열 메타 검토·수정)의 단순 하위 롤업이 아니다. LS_DATA_META_REVIEW(시계열 메타 검수)와 자매 관계의 독립 검수 워크플로우(LS_EVNT_ANNO_REVIEW)를 갖는다. FEAT-009와의 specializes 링크는 계보(export event 키 도입 맥락) 추적용으로 유지한다.
+영상 단위(RAW_SN) 이벤트 어노테이션(VQA/CoT/caption)을 검토·수정한다. 어노테이션 칸은 자동으로 채워지는 축과 사람이 확정하는 축으로 나뉜다. 자동으로 채워지는 칸은 셋이다 — ①질문 칸은 저작도구가 보관·관리하는 검증 이벤트 유형별 질문 문구 목록에서 조달한다(마킹에서 고른 질문이 1순위이고, 값이 없거나 그 유형에 속하지 않는 질문이면 그 유형의 첫 번째 질문으로 되돌린다. 유형이 없거나 등록된 질문이 없으면 비워 둔다). ②첫 번째 캡션 후보(c1)의 캡션 본문은 외부 시계열 분석 추가 질문 창구의 응답 서술을 싣는다. ③같은 후보의 사고 단계 1단계는 묘사 창구 전문에서 「상황」 라벨 줄만 파싱해 싣고, 그 줄이 없으면 채우지 않는다 — 빈 값도 넣지 않는다. 사고 단계는 1단계 키만 만들고 2단계 이후 키는 만들지 않는다. 답변·근거 서술·사고 단계 2단계 이후는 자동으로 채우지 않는 공란이며 사람이 확정한다. 근거 서술은 자유 서술이라 형식이 고정돼 있지 않아 파싱에 의존하지 않는다. 두 창구는 같은 캡션 후보 c1 을 공유하고 도착 순서가 보장되지 않으므로, 나중에 도착한 축이 먼저 도착한 축의 값을 지우지 않고 자기 칸만 채운다(후보를 통째로 교체하지 않는다). 묘사 전문 자체는 어노테이션이 아니라 영상 블록으로 간다. 자동 채움의 기존 보호 경계는 전부 유지한다 — 승인 이력이 있으면 자동 채움을 하지 않고, 값이 이미 있으면 덮지 않으며, 어노테이션 검토가 종결됐으면 하지 않고, 중복 콜백은 멱등이며, 자동 채움은 재검수를 발화시키지 않고, 이벤트 분류 조달값이 없으면 행을 만들지 않는다. 기적재분은 백필하지 않고 신규 수신분부터 적용한다. 라벨링 화면에서 모든 칸을 편집·저장(PUT)하며, 근거 후보 행은 캔버스에서 선택한 객체를 자동으로 연결하는 보조 버튼과 MAX_ID 힌트를 제공한다. REVIEWER가 검수 승인(APPROVED)/반려(REJECTED, 사유 필수)하며, 승인된 어노테이션만 검수 승인 export 폴더 JSON 최상위 event 키로 반영된다(ADR-020). 저장은 LS_EVNT_ANNO(영상 1건당 1건, ANNO_CN JSONB), 검수 상태는 LS_EVNT_ANNO_REVIEW(PENDING/AUTO_GENERATED/APPROVED/REJECTED)에 분리한다. ★2026-07-30 독립 기능으로 명시적 승격(ADR-036) — 라벨링 화면 메타탭 입력·export 최상위 event 키 반영·검수 승인 시점 동결까지 걸치는 별도 기능이며 FEAT-009(VLM 시계열 메타 검토·수정)의 단순 하위 롤업이 아니다. LS_DATA_META_REVIEW(시계열 메타 검수)와 자매 관계의 독립 검수 워크플로우(LS_EVNT_ANNO_REVIEW)를 갖는다. FEAT-009와의 specializes 링크는 계보(export event 키 도입 맥락) 추적용으로 유지한다. ★자동 채움 축의 반전 경위 — 2026-08-24 확정은 추가 질문 결과를 답변(answer) 축 초안으로 보내기로 하고 묘사를 캡션·사고 단계 축에 싣는 지시를 명시적으로 폐기했으나, 2026-08-25 사업 담당 회신이 그것을 다시 캡션·사고 단계 축으로 되돌렸다. 같은 축이 이틀 만에 두 번 뒤집혔으므로 세 번째 반전을 막기 위해 경위를 남긴다. ★질문 문구를 저작도구가 보관하게 된 근거 — 연동 규격은 질문 문장을 이벤트별로 사업자 서버가 관리하며 연동 시스템이 지정하지 않는다고 못 박고 콜백에도 싣지 않는다. 그러나 프롬프트 고정에 문제 소지가 있어 이후 질의를 받는 방향으로 규격이 바뀔 수 있다는 협의가 있어, 그 전환을 미리 준비해 문구를 저작도구가 보관·선택하고 어노테이션 질문 칸을 그 값으로 채운다. ⚠인지·수용한 잔여 위험 — 지금 위탁 요청 본문에는 질문을 실을 자리가 없어, 첫 번째가 아닌 질문을 고르면 기록된 질문과 사업자가 실제로 쓴 질문이 달라진다.
 
 ## invokes_apis
 
@@ -87,11 +88,11 @@ _(empty)_
 
 ### status
 
-planned
+implemented
 
 ### modules
 
-_(empty)_
+- MOD-047
 
 ### records
 
@@ -99,9 +100,17 @@ _(empty)_
 
 ### progress
 
-0
+100
 
 ### subtasks
+
+_(empty)_
+
+### last_updated
+
+2026-08-25T10:14:48.618Z
+
+### module_paths
 
 _(empty)_
 

@@ -379,8 +379,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "935b766c858c42be036908b46c06c4624e2b2472787a0a03690daf6c861c3064",
-          "generated_at": "2026-08-18T09:11:56.127Z",
+          "source_hash": "6b30b38d0ec4307710a515aa4e2521409ad302fcb6f57c608a7f6942cfeb1165",
+          "generated_at": "2026-08-25T10:24:49.569Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -398,12 +398,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 38,
+    "current_version": 39,
     "stale": true,
-    "stale_reason": "DFEAT-045의 data.related_acceptances 변경이 realizes로 2-hop 전파",
-    "change_summary": "전체 건너뛰기 스위치의 수용 기준을 이 화면에 연결한다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-21T04:27:30.854Z",
+    "stale_reason": "DFEAT-045의 data.implemented_by_endpoints 변경이 realizes로 2-hop 전파",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.8KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T10:24:49.570Z",
     "created_at": "2026-05-30T07:55:42.105Z"
   }
 }
