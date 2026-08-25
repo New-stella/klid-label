@@ -25,10 +25,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 라벨링 프리셋 Aggregate Root.
+ * 라벨링 프리셋 Aggregate Root — <b>이벤트유형 1건에 대한 오토라벨 대상 라벨 세트</b>.
  *
- * <p>SCR-LBL-PRESET-001. {@link LsLabelPresetCode} 는 본 Aggregate 내부 엔티티이며
- * 외부에서 직접 변경 금지 — Root 메서드(create/replaceCodes)를 통해서만 접근한다.
+ * <p>프리셋은 <b>이름과 설명을 갖지 않는다</b>(V17). 식별 축은 {@code EVNT_TYPE_CD} 하나이며 그
+ * 컬럼에 UNIQUE(uk_ls_label_preset_evnt)가 걸려 있어 이벤트 1건에 프리셋 1건이 대응한다. 이름을
+ * 따로 두면 그 값이 이벤트명의 중복이 되고, 설명은 읽는 화면이 없었다. 사람이 읽는 이름은 이벤트
+ * 유형 마스터의 표시명(4단 폴백)이 단일 진실원으로 제공한다.
+ *
+ * <p>{@link LsLabelPresetCode} 는 본 Aggregate 내부 엔티티이며 외부에서 직접 변경 금지 —
+ * Root 메서드(create/createWithOptions/replaceCodes)를 통해서만 접근한다.
+ *
+ * @design ERD-019
  */
 @Entity
 @Table(name = "LS_LABEL_PRESET")
@@ -41,17 +48,14 @@ public class LsLabelPreset {
     @Column(name = "PRESET_ID")
     private Long presetId;
 
-    @Column(name = "PRESET_NM", nullable = false, length = 64)
-    private String presetNm;
-
-    @Column(name = "EXPLN", length = 500)
-    private String expln;
-
     /**
-     * 매핑된 이벤트 타입 코드 (예: EVT_FALL). null = 미매핑.
-     * <p>DB UNIQUE 제약(UK_LS_LABEL_PRESET_EVNT) — 이벤트 1개 = 프리셋 1개.
+     * 매핑된 이벤트유형 코드 (예: EV01000101). <b>필수</b>이며 프리셋의 유일한 식별 축이다.
+     *
+     * <p>DB UNIQUE 제약(UK_LS_LABEL_PRESET_EVNT) — 이벤트 1개 = 프리셋 1개. V17 이 NOT NULL 로
+     * 좁혔다: 이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않아 오토라벨에 아무 기여를
+     * 하지 않는 죽은 행이다.
      */
-    @Column(name = "EVNT_TYPE_CD", length = 20)
+    @Column(name = "EVNT_TYPE_CD", length = 20, nullable = false)
     private String eventTypeCd;
 
     @Column(name = "REG_DT", nullable = false, updatable = false)
@@ -63,7 +67,7 @@ public class LsLabelPreset {
     /**
      * 프리셋 라벨 코드 목록. LAZY — N+1/불필요 로딩 방지(performance 규칙).
      * <p>목록 경로는 {@link kr.co.cudo.authoring.preset.repository.LsLabelPresetRepository#findAllWithCodes()}
-     * 의 {@code LEFT JOIN FETCH} 로 초기화하고, 단건 경로(create/update/clone/오토라벨 조회)는 모두
+     * 의 {@code LEFT JOIN FETCH} 로 초기화하고, 단건 경로(create/update/오토라벨 조회)는 모두
      * {@code @Transactional} 서비스 트랜잭션 안에서 접근하므로 지연 로딩이 안전하다.
      */
     @OneToMany(
@@ -75,35 +79,20 @@ public class LsLabelPreset {
     @OrderBy("sortOrder ASC")
     private List<LsLabelPresetCode> codes = new ArrayList<>();
 
-    private LsLabelPreset(String name, String description, String eventTypeCd) {
-        this.presetNm = name;
-        this.expln = description;
+    private LsLabelPreset(String eventTypeCd) {
         this.eventTypeCd = normalizeEventTypeCd(eventTypeCd);
     }
 
     /**
-     * 정적 팩토리. 이름/설명/코드 목록으로 프리셋을 생성한다 (이벤트 매핑 없음).
+     * 정적 팩토리 (레거시 코드 문자열 목록).
      *
-     * @param name        프리셋 이름 (1~64자)
-     * @param description 설명 (선택)
      * @param codes       라벨 코드 문자열 목록 (null 허용, 빈 목록 처리). 각 코드는 미연결(labelId=null)
-     *                    레거시 코드로 저장된다. 형태(BBOX/POLYGON)는 마스터 {@code LBL_TYPE_CD} 가 소유하므로
-     *                    프리셋에는 저장하지 않는다.
+     *                    레거시 코드로 저장된다. 형태(BBOX/POLYGON)는 마스터 {@code LBL_TYPE_CD} 가
+     *                    소유하므로 프리셋에는 저장하지 않는다.
+     * @param eventTypeCd 매핑 이벤트유형 코드 (필수 — 응용 서비스가 빈값을 400 으로 거부한다)
      */
-    public static LsLabelPreset create(String name, String description, List<String> codes) {
-        return create(name, description, codes, null);
-    }
-
-    /**
-     * 정적 팩토리. 이름/설명/코드 목록/이벤트 매핑으로 프리셋을 생성한다.
-     *
-     * @param name        프리셋 이름 (1~64자)
-     * @param description 설명 (선택)
-     * @param codes       라벨 코드 목록 (null 허용, 빈 목록 처리)
-     * @param eventTypeCd 매핑 이벤트 타입 코드 (선택, null/blank → 미매핑)
-     */
-    public static LsLabelPreset create(String name, String description, List<String> codes, String eventTypeCd) {
-        LsLabelPreset preset = new LsLabelPreset(name, description, eventTypeCd);
+    public static LsLabelPreset create(List<String> codes, String eventTypeCd) {
+        LsLabelPreset preset = new LsLabelPreset(eventTypeCd);
         List<LabelCodeSpec> specs = (codes == null)
                 ? Collections.emptyList()
                 : codes.stream()
@@ -115,30 +104,22 @@ public class LsLabelPreset {
     }
 
     /**
-     * 정적 팩토리 (코드 목록 명시).
+     * 정적 팩토리 (코드 스펙 목록 명시).
      *
-     * @param name        프리셋 이름 (1~64자)
-     * @param description 설명 (선택)
-     * @param specs       라벨 코드 목록 (null 허용, 빈 목록 처리)
-     * @param eventTypeCd 매핑 이벤트 타입 코드 (선택, null/blank → 미매핑)
+     * @param specs       라벨 코드 스펙 목록 (null 허용, 빈 목록 처리)
+     * @param eventTypeCd 매핑 이벤트유형 코드 (필수 — 응용 서비스가 빈값을 400 으로 거부한다)
      */
-    public static LsLabelPreset createWithOptions(String name, String description,
-                                                  List<LabelCodeSpec> specs, String eventTypeCd) {
-        LsLabelPreset preset = new LsLabelPreset(name, description, eventTypeCd);
+    public static LsLabelPreset createWithOptions(List<LabelCodeSpec> specs, String eventTypeCd) {
+        LsLabelPreset preset = new LsLabelPreset(eventTypeCd);
         preset.replaceCodes(specs);
         return preset;
     }
 
-    /** 기본 정보(이름/설명) 갱신. */
-    public void updateBasics(String name, String description) {
-        this.presetNm = name;
-        this.expln = description;
-    }
-
     /**
-     * 이벤트 타입 매핑을 갱신한다. null/blank 입력은 미매핑(null)으로 저장한다.
-     * <p>실제 UNIQUE 충돌(다른 프리셋과의 이벤트 중복)은 DB 레벨에서 차단되며,
-     * 응용 서비스가 DataIntegrityViolationException → CONFLICT 로 변환한다.
+     * 이벤트유형 매핑을 갱신한다. null/blank 입력은 null 로 정규화한다(컬럼이 NOT NULL 이라 그대로
+     * 저장하면 DB 가 거부한다 — 응용 서비스가 그 이전에 400 으로 막는 것이 정상 경로다).
+     * <p>실제 UNIQUE 충돌(다른 프리셋과의 이벤트 중복)은 응용 서비스의 사전 검사 + DB 제약 두 겹으로
+     * 차단되며, 서비스가 DataIntegrityViolationException → CONFLICT 로 변환한다.
      */
     public void assignToEvent(String eventTypeCd) {
         this.eventTypeCd = normalizeEventTypeCd(eventTypeCd);

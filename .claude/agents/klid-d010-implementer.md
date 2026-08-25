@@ -119,7 +119,28 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+### 「노출용 목록」과 「등록 여부」는 다른 축이다 — 이름만 보고 고르면 틀린다 (CO-010)
+`EventTypeService` 안에 두 축이 나란히 있다. `validFilterKeys()`(필터 옵션 — 제외 대분류를 감춤)와
+`registeredCodes()`(등록 여부 판정의 단일 원천 — javadoc 이 그렇게 명시). 프리셋 이벤트 검증이
+필터 축에 붙어 있으면 **제외 대분류의 프리셋을 아예 만들 수 없다.**
+- 근거: `PresetServiceTest(createStillRejectsExcludedCategory · updateRejectsRemappingToExcludedCategory)` 구 판이
+  그 차단을 400 으로 단언해 **결함을 「정상 동작」으로 고정**하고 있었다. 축 전환 후 두 시험은 정반대 단언
+  (`createAllowsExcludedClassEventBecauseItIsRegistered` · `updateAllowsRemappingToExcludedClassEvent`)으로 뒤집혔다.
+- 재발조건: 「노출용 목록」과 「등록 여부」를 같은 메서드로 판정하는 곳을 고칠 때.
+
+### Flyway 마이그레이션을 추가하면 `FlywaySquashBaselineIT` 두 곳을 손수 갱신해야 한다 (CO-010)
+안 고치면 **컴파일은 통과하고 그 IT 만 런타임에 깨진다.** `V17` 이 정확히 그 상태였다.
+- 근거: `common/migration/FlywaySquashBaselineIT` 의 적용 버전 목록이 `containsExactly(… "16", "9001")` 이고
+  파일명 목록도 `V16` 에서 끊겨 있었다. **파일명 목록 정렬은 코드포인트 순이라 `V17__` 이 `V1__baseline.sql`
+  보다 앞이다**(`'7' < '_'`) — 순서를 직관대로 넣으면 그 자리에서 또 깨진다.
+- 재발조건: `V19` 이후 마이그레이션을 추가할 때마다. 컴파일로는 절대 안 잡힌다.
+
+### 컬럼을 DROP 할 때는 엔티티가 아니라 **물리 컬럼명 문자열**로 test 트리를 훑는다 (CO-010)
+테스트가 raw JDBC 로 그 테이블에 INSERT 하면 컴파일이 못 잡는다.
+- 근거: `PresetCodeLabelLinkMigrationIT(insertPreset)` 이 `INSERT INTO LS_LABEL_PRESET (PRESET_NM) …` 를,
+  `V168EvntTypeMigrationIT(seedPreset · cleanup)` 이 `PRESET_NM`·`EXPLN` 을 raw SQL 로 쓰고 있었다.
+  **둘 다 `preset` 패키지 밖이라 엔티티 grep 으로는 안 나온다.**
+- 재발조건: 컬럼 DROP 마이그레이션을 낼 때. 대소문자 양쪽으로 전 test 트리 검색.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

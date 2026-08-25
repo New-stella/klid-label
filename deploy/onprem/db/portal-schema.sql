@@ -14,7 +14,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict SitybdHpT3npjBaslhmnAewAHFvuwbk8mz1tk6AMMhQ7EI1O36BsrXzfcvhYyUJ
+\restrict ItLEKdCPYSw6SRFIbL0EycbuIIlRAcGsPAevSvQQc8tcUJVafOVyJTREcF8eUGC
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -150,5 +150,5 @@ CREATE UNIQUE INDEX uk_ls_dataset_video_meta_raw_active ON public.ls_dataset_vid
 -- PostgreSQL database dump complete
 --
 
-\unrestrict SitybdHpT3npjBaslhmnAewAHFvuwbk8mz1tk6AMMhQ7EI1O36BsrXzfcvhYyUJ
+\unrestrict ItLEKdCPYSw6SRFIbL0EycbuIIlRAcGsPAevSvQQc8tcUJVafOVyJTREcF8eUGC
 

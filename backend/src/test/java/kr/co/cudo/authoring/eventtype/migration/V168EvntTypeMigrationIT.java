@@ -47,6 +47,9 @@ class V168EvntTypeMigrationIT {
     /** 이 테스트가 만드는 행 접두 — 시드·다른 테스트와 겹치지 않게 한다(유형코드 컬럼 길이 20). */
     private static final String CODE_PREFIX = "V168IT";
 
+    /** 시드 프리셋의 이관 전 이벤트 매핑값(구 카테고리 키) — cleanup 이 이 값으로도 회수한다. */
+    private static final String PRESET_EVENT_SEED = "950005";
+
     @Autowired
     @Qualifier("controlDataSource")
     private DataSource controlDataSource;
@@ -91,9 +94,13 @@ class V168EvntTypeMigrationIT {
     }
 
     private void cleanup() {
+        // V17 이후 프리셋의 식별 축은 EVNT_TYPE_CD 하나다(PRESET_NM 폐지). 시드 프리셋은 이관 전에는
+        //   구 카테고리 키(PRESET_EVENT_SEED)를, 이관 후에는 대표 유형코드(CODE_PREFIX+..)를 갖는다.
         jdbc.update("DELETE FROM ls_label_preset_code WHERE preset_id IN"
-                + " (SELECT preset_id FROM ls_label_preset WHERE preset_nm LIKE ?)", CODE_PREFIX + "%");
-        jdbc.update("DELETE FROM ls_label_preset WHERE preset_nm LIKE ?", CODE_PREFIX + "%");
+                + " (SELECT preset_id FROM ls_label_preset"
+                + "   WHERE evnt_type_cd LIKE ? OR evnt_type_cd = ?)", CODE_PREFIX + "%", PRESET_EVENT_SEED);
+        jdbc.update("DELETE FROM ls_label_preset WHERE evnt_type_cd LIKE ? OR evnt_type_cd = ?",
+                CODE_PREFIX + "%", PRESET_EVENT_SEED);
         jdbc.update("DELETE FROM ls_evnt_type WHERE evnt_type_cd LIKE ?", CODE_PREFIX + "%");
         jdbc.update("DELETE FROM ls_evnt_ctgry WHERE evnt_clsf_cd IN ('91','92','93','94','95')");
         jdbc.update("DELETE FROM ls_data_ingest WHERE vms_clip_id LIKE ?", CODE_PREFIX + "%");
@@ -227,7 +234,7 @@ class V168EvntTypeMigrationIT {
         seedMasterType(CODE_PREFIX + "07", "95", "0005", "Y");
         seedMasterType(CODE_PREFIX + "06", "95", "0005", "Y");
         seedCategoryName("95", "0005", "이관프리셋");
-        long presetId = seedPreset("950005");
+        long presetId = seedPreset(PRESET_EVENT_SEED);
 
         // when
         runMigrationUpToDrop();
@@ -288,11 +295,11 @@ class V168EvntTypeMigrationIT {
                 clipId, evntTypeCd, evntNm, evntClsfCd);
     }
 
+    /** 시드 프리셋 1건 — V17 이후 프리셋은 이름·설명이 없고 이벤트유형코드만 갖는다. */
     private long seedPreset(String categoryKey) {
-        jdbc.update("INSERT INTO LS_LABEL_PRESET (PRESET_NM, EXPLN, EVNT_TYPE_CD)"
-                + " VALUES (?, '이관 검증용', ?)", CODE_PREFIX + "-PRESET", categoryKey);
-        Long id = jdbc.queryForObject("SELECT PRESET_ID FROM LS_LABEL_PRESET WHERE PRESET_NM = ?",
-                Long.class, CODE_PREFIX + "-PRESET");
+        jdbc.update("INSERT INTO LS_LABEL_PRESET (EVNT_TYPE_CD) VALUES (?)", categoryKey);
+        Long id = jdbc.queryForObject("SELECT PRESET_ID FROM LS_LABEL_PRESET WHERE EVNT_TYPE_CD = ?",
+                Long.class, categoryKey);
         assertThat(id).isNotNull();
         return id;
     }

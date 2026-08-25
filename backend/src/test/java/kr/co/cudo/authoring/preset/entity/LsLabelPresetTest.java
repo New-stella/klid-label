@@ -16,8 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class LsLabelPresetTest {
 
+    /** 프리셋은 이벤트유형 1건에 대응한다(V17 이후 필수) — diff 시맨틱과 무관한 고정값. */
+    private static final String EVENT_TYPE_CD = "EV01000101";
+
     private static LsLabelPreset presetOf(LabelCodeSpec... specs) {
-        return LsLabelPreset.createWithOptions("p", "", List.of(specs), null);
+        return LsLabelPreset.createWithOptions(List.of(specs), EVENT_TYPE_CD);
     }
 
     private static LabelCodeSpec id(long labelId) {

@@ -5,6 +5,8 @@ import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -96,6 +98,7 @@ class AutolabelRetryRecoveryTest {
         lblRepository = mock(LsDataLblRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
+        BatchStatusService batchStatusService = mock(BatchStatusService.class);
         labelMasterService = mock(LabelMasterService.class);
         SystemConfigService systemConfigService = mock(SystemConfigService.class);
         FrameBoundsResolver frameBoundsResolver = mock(FrameBoundsResolver.class);
@@ -121,9 +124,9 @@ class AutolabelRetryRecoveryTest {
         });
 
         // 프리셋: person = 폴리곤 전용(BBOX 미저장) · car = BOTH. 같은 프레임에 섞여 있는 형상이다.
-        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.of(Map.of(
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(Map.of(
                 "person", new AnnotationToggle(false, true),
-                "car", AnnotationToggle.BOTH)));
+                "car", new AnnotationToggle(true, true))));
 
         Path rawDir = tempDir.resolve("raw");
         Files.createDirectories(rawDir);
@@ -131,7 +134,7 @@ class AutolabelRetryRecoveryTest {
 
         DeployedEnvironmentDetector devEnv = devEnvironment();
         yoloStep = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
-                videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
+                videoRepository, presetLabelLookup, batchStatusService, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), rawDir.toString(), devEnv);
         sam2Step = new Sam2SegmentStep(aiServerClient, srcRepository, lblRepository,
                 videoRepository, presetLabelLookup, labelMasterService, new ObjectMapper(),

@@ -45,6 +45,30 @@ public interface LsBatchProcLogRepository extends JpaRepository<LsBatchProcLog, 
             Long dataRawSn, String procStepCd, String procSttsCd, Collection<String> errorMsgs);
 
     /**
+     * 주어진 단계·사유로 <b>건너뛴 적이 있는 영상 식별자</b> 목록 — 보류 재개의 후보 산출. [@design AC-115]
+     *
+     * <p>{@code existsBy...} 의 역방향이다. 재개 트리거(프리셋 등록·수정)는 <b>영상을 지목하지 않으므로</b>
+     * 보류 기록에서 후보를 거꾸로 찾아야 한다. 실제 재개 여부는 호출자가 후보마다 다시 판정한다
+     * (프리셋이 이제 실효한가 · 이미 완료됐는가).
+     *
+     * <p>보류 기록은 append-only 라 같은 영상이 여러 행을 가질 수 있어 {@code distinct} 로 접는다.
+     * 정렬을 고정해 실행마다 순서가 흔들리지 않게 한다.
+     *
+     * <p>파라미터 바인딩만 사용한다(CWE-89).
+     */
+    @Query("""
+            select distinct l.dataRawSn from LsBatchProcLog l
+             where l.procStepCd = :procStepCd
+               and l.procSttsCd = :procSttsCd
+               and l.errorMsg in :errorMsgs
+             order by l.dataRawSn
+            """)
+    List<Long> findDistinctDataRawSnsByStepAndStatusAndReasons(
+            @Param("procStepCd") String procStepCd,
+            @Param("procSttsCd") String procSttsCd,
+            @Param("errorMsgs") Collection<String> errorMsgs);
+
+    /**
      * (영상 × 단계) 의 <b>마지막 수동 스킵 표식</b> 행 — 현재 스킵 상태 판정용. [@design API-198]
      *
      * <p>스킵/해제는 표식 행을 <b>덧붙여</b> 기록하므로(append-only 감사) "지금 스킵인가"는 마지막 행의

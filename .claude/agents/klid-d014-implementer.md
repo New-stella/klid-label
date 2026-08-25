@@ -115,7 +115,22 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+### 컬렉션 팩토리 인자 안의 스텁 헬퍼도 `UnfinishedStubbingException` 을 낸다 (CO-014)
+이 저장소가 이미 경고하는 `Optional.of(helper())` 트랩은 **`List.of(helper(), helper())` 형태에서도 똑같이 터진다** —
+컬렉션 팩토리의 인자 안에서 헬퍼가 `when` 을 부르면 같은 일이다.
+- 근거: `EventTypeAdminPresetLinkStatusTest` 1차 실행이 **14건 중 5건 실패**했고 전부 `UnfinishedStubbingException` 이었다.
+  스택 최상단이 `LsEvntType.getEvntTypeCd` → mock 헬퍼였고, 원인은 `when(repo.findAll()).thenReturn(List.of(type(a), type(b), type(c)))` 3곳.
+  **헬퍼 호출을 지역변수로 빼자 0 실패.**
+- 재발 조건: mock 엔티티 여러 건을 목록으로 스텁하는 서비스 단위시험을 새로 쓸 때. 엔티티에 공개 팩토리가 없어
+  mock 헬퍼를 쓰는 `eventtype`·`label` 계열에서 특히 잦다.
+
+### 뮤테이션을 동시에 여러 건 주입하면 실패 **개수**로는 귀속되지 않는다 (CO-014)
+"몇 건 실패했다"만 보고 「가드가 물었다」고 보고하면, 실제로는 **한 뮤테이션이 다른 뮤테이션의 시험을 대신
+실패시킨 것**일 수 있다. 결과 XML 의 **testcase 단위 pass/fail 목록**을 떠야 귀속이 성립한다.
+- 근거: 3건 동시 주입 결과가 `14 tests completed, 5 failed` 였는데 testcase 단위로 파싱하니 A→2건·B→1건·C→2건으로
+  정확히 갈렸다. 특히 한 시험의 실패 메시지가 **B·C 둘 다의 영향을 받은 형태**였다.
+- 재발 조건: 가드 여러 개를 한 번에 실증할 때. 시간 절약을 위한 동시 주입 자체는 유효하나 **귀속은 반드시
+  testcase 단위로** 확인한다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

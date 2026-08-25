@@ -199,6 +199,10 @@ public class BatchOrchestrator {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
         LsDataRaw raw = loadRaw(rawSn);
+        // [CO-009] 보류 복구용 <b>진입 직전</b> 배치 단계 상태. 아래 진입 가드가 이 컬럼을 PROCESSING 으로
+        //   원자 클레임하므로 <b>클레임 전에</b> 캡처해야 한다. 보류로 조기 종료할 때 이 값으로 되돌린다
+        //   (되돌리지 못하면 PROCESSING 영구 고착 → 이후 모든 진입이 409).
+        final String originStageStatus = raw.getDataSttsCd();
 
         // ★ 면제 모드의 런타임 fail-closed [@design API-201] — 진입 전이<보다 먼저> 검사한다.
         //   면제는 "라벨을 만들지 않는다" 를 전제로 승인 영상의 진입을 여는 것이라, 그 전제가 배선
@@ -264,6 +268,29 @@ public class BatchOrchestrator {
                 }
                 statusService.markStage(rawSn, step.stage());
                 step.execute(ctx);
+                // [CO-009] 보류 — 단계가 자기 전제조건을 만족하지 못해 "실패도 성공도 아닌" 종료를
+                //   선언했다. 하류 단계는 이 단계의 산출물에 의존하므로 <b>실행하지 않는다</b>.
+                //   그냥 통과시키면 산출물만 비어 있는 무증상 성공이 된다(BatchContext#withhold javadoc).
+                if (ctx.isWithheld()) {
+                    log.info("[BatchOrchestrator] withheld — halting pipeline rawSn={} stage={} reason={}",
+                            rawSn, ctx.getWithheldStage(), ctx.getWithheldReason());
+                    break;
+                }
+            }
+
+            // [CO-009] 보류 종결 — COMPLETED 로 마감하지 않고, 재시도 큐에도 넣지 않는다(실패가 아니다).
+            //   ★클레임 해제는 필수다. 보류 사실의 영속·재개 트리거는 단계 쪽이 LS_BATCH_PROC_LOG 에
+            //   남긴 SKIPPED 감사 행이 담당하며 여기서는 상태만 놓아준다.
+            if (ctx.isWithheld()) {
+                // 묶음 재수행이면 그 경로가 지정한 복구 상태를 우선한다([@design API-201] 원상 복구 규약).
+                String restoreTo = rerunRestoreStatus != null ? rerunRestoreStatus : originStageStatus;
+                if (preserveReviewOwnedStatus) {
+                    // 면제 모드는 작업 상태를 건드리지 않는다 — 배치 단계 클레임만 놓는다.
+                    transitionService.releaseReprocessClaim(rawSn, restoreTo);
+                } else {
+                    transitionService.restoreAfterWithheld(rawSn, restoreTo);
+                }
+                return BatchStage.SKIPPED;
             }
 
             // 작업 상태 COMPLETED 전이 + LS_DATA_RAW.DATA_STTS_CD=COMPLETED

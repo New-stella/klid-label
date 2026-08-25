@@ -396,7 +396,13 @@ const DANGER_CASES: Case[] = [
   {
     label: 'PresetListPage 삭제 버튼(hover 상태 포함)',
     file: 'src/pages/manage/PresetListPage.tsx',
-    anchor: 'aria-label="삭제"',
+    // ★앵커는 <b>표시 문구가 아니라 그 버튼이 하는 일</b>로 잡는다. 구 앵커 `aria-label="삭제"` 는
+    //   접근 이름이 고정 문자열이던 시절의 것이라, 프리셋에서 이름 축이 사라져 접근 이름이
+    //   템플릿(`${title} 프리셋 삭제`)으로 바뀌자 리터럴이 통째로 없어져 가드가 깨졌다
+    //   (색상·대비는 그대로였다 — 접근성 회귀가 아니라 앵커가 낡은 것이었다).
+    //   `setPendingDelete(preset)` 는 이 버튼을 삭제 버튼이게 하는 유일한 근거라, 문구·아이콘·
+    //   접근 이름을 어떻게 바꿔도 남는다. 사라진다면 그건 더 이상 삭제 버튼이 아니다.
+    anchor: 'setPendingDelete(preset)',
   },
   {
     label: 'LabelMasterFormModal 제출 에러',

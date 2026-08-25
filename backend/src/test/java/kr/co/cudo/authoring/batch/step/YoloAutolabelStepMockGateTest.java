@@ -8,6 +8,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
@@ -71,6 +74,7 @@ class YoloAutolabelStepMockGateTest {
     private LsDataLblRepository lblRepository;
     private VideoRepository videoRepository;
     private PresetLabelLookupService presetLabelLookup;
+    private BatchStatusService batchStatusService;
     private SystemConfigService systemConfigService;
     private LabelMasterService labelMasterService;
     private FrameBoundsResolver frameBoundsResolver;
@@ -88,6 +92,7 @@ class YoloAutolabelStepMockGateTest {
         lblRepository = mock(LsDataLblRepository.class);
         videoRepository = mock(VideoRepository.class);
         presetLabelLookup = mock(PresetLabelLookupService.class);
+        batchStatusService = mock(BatchStatusService.class);
         systemConfigService = mock(SystemConfigService.class);
         labelMasterService = mock(LabelMasterService.class);
         frameBoundsResolver = mock(FrameBoundsResolver.class);
@@ -96,7 +101,10 @@ class YoloAutolabelStepMockGateTest {
         when(systemConfigService.getInt(any())).thenReturn(null);
         when(labelMasterService.findLabelIdByDtctType(anyString())).thenReturn(Optional.empty());
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
-        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
+        // ★CO-014 — 「프리셋 없음」은 더 이상 전체 통과가 아니라 보류다. 이 시험군의 주제는 mock 응답
+        //   차단이므로 실효 프리셋을 기본값으로 두어 게이트가 그 앞에서 끝나지 않게 한다.
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(
+                java.util.Map.of("person", new AnnotationToggle(true, true))));
         when(lblRepository.saveAll(any())).thenAnswer(inv -> {
             List<LsDataLbl> out = new java.util.ArrayList<>();
             for (LsDataLbl l : (Iterable<LsDataLbl>) inv.getArgument(0)) {
@@ -134,7 +142,7 @@ class YoloAutolabelStepMockGateTest {
         MockEnvironment env = new MockEnvironment();
         env.setActiveProfiles(activeProfiles);
         return new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
-                videoRepository, presetLabelLookup, systemConfigService, labelMasterService,
+                videoRepository, presetLabelLookup, batchStatusService, systemConfigService, labelMasterService,
                 frameBoundsResolver, new ObjectMapper(), rawDir.toString(),
                 new DeployedEnvironmentDetector(env));
     }
@@ -292,7 +300,7 @@ class YoloAutolabelStepMockGateTest {
         env.setActiveProfiles("dev");
         env.setProperty("ENV", "prd");
         YoloAutolabelStep step = new YoloAutolabelStep(aiServerClient, srcRepository, lblRepository,
-                videoRepository, presetLabelLookup, systemConfigService,
+                videoRepository, presetLabelLookup, batchStatusService, systemConfigService,
                 labelMasterService, frameBoundsResolver, new ObjectMapper(), rawDir.toString(),
                 new DeployedEnvironmentDetector(env));
 

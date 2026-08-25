@@ -1,11 +1,16 @@
 package kr.co.cudo.authoring.eventtype.service;
 
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.policy.PresetResolutionStatus;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeAdminResponse;
 import kr.co.cudo.authoring.eventtype.dto.EventTypeUpdateRequest;
+import kr.co.cudo.authoring.eventtype.dto.PresetLinkStatus;
+import kr.co.cudo.authoring.eventtype.dto.PresetLinkStatusFilter;
 import kr.co.cudo.authoring.eventtype.entity.LsEvntType;
 import kr.co.cudo.authoring.eventtype.repository.LsEvntTypeRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +20,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -65,6 +72,11 @@ public class EventTypeAdminService {
     private final EventTypeCacheEvictor cacheEvictor;
     /** 카테고리명 인덱스는 조회 서비스가 소유한다 — 표시명 판정 원천을 하나로 유지한다. */
     private final EventTypeService eventTypeService;
+    /**
+     * 프리셋 연결 상태 판정의 <b>단일 진실원</b> — 배치(오토라벨 보류)와 같은 메서드를 쓴다.
+     * 여기서 프리셋을 다시 조회해 실효성을 재유도하지 말 것(한쪽만 갱신되는 드리프트).
+     */
+    private final PresetLabelLookupService presetLabelLookupService;
 
     /**
      * 등록된 <b>전체</b> 이벤트유형을 유형코드 오름차순으로 반환한다.
@@ -77,12 +89,70 @@ public class EventTypeAdminService {
      * 도입한다(현재는 무제한 조회 금지 규칙의 취지인 "대용량 전량 스캔"에 해당하지 않는다).
      */
     public List<EventTypeAdminResponse> list() {
+        return list(null);
+    }
+
+    /**
+     * 등록된 이벤트유형을 유형코드 오름차순으로 반환하되, <b>프리셋 연결 상태</b>를 함께 싣고
+     * 필요하면 그 상태로 거른다. [@design API-185] [@design AC-116]
+     *
+     * <h3>연결 상태는 파생값이다</h3>
+     * <p>저장하지 않고 응답 시점에 {@link PresetLabelLookupService#resolve(String)} 결과에서 파생한다.
+     * 그래서 프리셋을 등록하면 <b>다음 조회부터 곧바로</b> 반영된다. 캐시({@code CACHE_EVENT_TYPE})에
+     * 실으면 프리셋을 등록해도 최대 캐시 수명만큼 옛 상태가 보이므로 <b>싣지 않는다</b>.
+     *
+     * <h3>★그룹 축 — 프리셋은 대표코드에 걸린다</h3>
+     * <p>표시명이 같은 유형들은 한 그룹으로 접히고 프리셋은 그 그룹의 <b>대표코드</b>에 걸린다. 그래서
+     * 판정 키는 유형코드가 아니라 {@link EventTypeService#filterKeyOf(String)} 가 돌려주는 대표코드다 —
+     * 코드 단위로 직접 조회하면 같은 그룹의 <b>비대표 유형이 전부 미연결로</b> 잘못 표시된다.
+     *
+     * <h3>N+1 회피 — 그룹당 1회만 해석한다</h3>
+     * <p>같은 그룹의 유형들은 대표코드가 같으므로 해석 결과도 같다. 따라서 <b>대표코드로 메모이즈</b>해
+     * 그룹당 한 번만 {@code resolve} 를 호출한다(유형 수가 아니라 그룹 수만큼). 이것은 <b>판정 자체를
+     * 배치화한 것이 아니라 같은 입력의 재호출을 접은 것</b>이라 단일 진실원을 깨지 않는다.
+     * {@code resolve} 는 다건 입력을 받지 않으므로 그룹 수만큼의 조회는 남는다 — 이 테이블은 코드
+     * 체계라 행수가 수십 규모이고 조회처가 REVIEWER 관리 화면 1곳뿐이라 수용한다.
+     *
+     * @param filter 연결 상태 거르기. <b>null(미지정)이면 전체</b> — 서버 기본값을 두지 않는다
+     *               (기존 호출의 결과·정렬 계약 불변)
+     */
+    public List<EventTypeAdminResponse> list(PresetLinkStatusFilter filter) {
         Map<String, String> categoryNames = eventTypeService.categoryNameIndex();
-        return repository.findAll().stream()
-                .sorted(Comparator.comparing(LsEvntType::getEvntTypeCd,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(type -> EventTypeAdminResponse.from(type, categoryNameOf(type, categoryNames)))
-                .toList();
+        // 그룹 대표코드 → 해석 결과. 요청 단위 메모이즈라 캐시가 아니다(다음 요청은 다시 판정한다).
+        Map<String, PresetResolution> resolutionByGroupKey = new HashMap<>();
+
+        List<LsEvntType> types = new ArrayList<>(repository.findAll());
+        types.sort(Comparator.comparing(LsEvntType::getEvntTypeCd,
+                Comparator.nullsLast(Comparator.naturalOrder())));
+
+        List<EventTypeAdminResponse> rows = new ArrayList<>(types.size());
+        for (LsEvntType type : types) {
+            PresetResolution resolution = resolveForGroup(type.getEvntTypeCd(), resolutionByGroupKey);
+            if (filter != null && !filter.matches(resolution)) {
+                continue;
+            }
+            rows.add(EventTypeAdminResponse.from(type, categoryNameOf(type, categoryNames),
+                    PresetLinkStatus.from(resolution.status())));
+        }
+        return List.copyOf(rows);
+    }
+
+    /**
+     * 그 유형이 속한 <b>그룹 대표코드</b> 기준으로 프리셋을 해석한다(그룹당 1회 메모이즈).
+     *
+     * <p>{@code filterKeyOf} 가 비면 등록되지 않은 코드라는 뜻이므로 코드 자체를 키로 넘긴다 —
+     * {@code resolve} 가 같은 판정을 다시 해 {@link PresetResolutionStatus#EVENT_TYPE_UNREGISTERED}
+     * 를 돌려준다(여기서 사유를 지어내지 않는다). 이 목록은 등록된 유형만 담으므로 정상적으로는
+     * 도달하지 않고, 그룹 인덱스 캐시와 마스터 조회 사이의 좁은 경합 창에서만 나온다.
+     */
+    private PresetResolution resolveForGroup(String evntTypeCd,
+                                             Map<String, PresetResolution> memo) {
+        if (evntTypeCd == null || evntTypeCd.isBlank()) {
+            // PK 라 정상 데이터에는 없다. 메모 키로 쓸 수 없으므로 접지 않고 그대로 판정한다.
+            return presetLabelLookupService.resolve(evntTypeCd);
+        }
+        String groupKey = eventTypeService.filterKeyOf(evntTypeCd).orElse(evntTypeCd);
+        return memo.computeIfAbsent(groupKey, presetLabelLookupService::resolve);
     }
 
     /**
