@@ -303,9 +303,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-080"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:27.008Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -317,8 +320,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "제목과 식별 슬러그에 남아 있던 옛 엔드포인트 주소 표기를 새 주소로 맞춘다. 앞선 리비전이 경로 값만 바꾸고 제목·슬러그를 함께 고치지 않아, 목록에서는 옛 주소로 보이고 실제 계약은 새 주소인 상태가 되어 있었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T08:13:06.890Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:27.008Z",
     "created_at": "2026-07-30T07:05:56.454Z"
   }
 }

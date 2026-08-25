@@ -4,20 +4,16 @@ import type { BatchStageItem, BatchStageStatus, StageBundle } from '@/features/v
 
 export type { BatchStageItem, BatchStageStatus } from '@/features/video/types';
 
+/**
+ * ⚠ **[폐기] `fill?: boolean` prop** — 칸을 내용 폭으로 두는 **비-fill 렌더 경로**가 함께 있었다.
+ *
+ * 그 경로의 근거는 **마킹 화면 헤더에 인라인으로 놓이는 자리** 하나였다(늘어나면 옆 요소를
+ * 밀어낸다). 그 자리가 사라져 남은 사용처는 영상 상세 1곳이고 거기서는 **항상 전폭**이므로,
+ * 분기를 지우고 **전폭 분산 하나만** 남긴다 — 확정 사양(`UI-018`)의 `props_schema` 에도 이
+ * prop 은 애초에 없어, 제거가 곧 사양 정합이다. **되살리지 말 것.**
+ */
 interface BatchStageIndicatorProps {
   stages: BatchStageItem[];
-  /**
-   * 칸을 컨테이너 **전폭에 균등 분산**한다. [@design SCREEN-009]
-   *
-   * 확정 디자인의 `.stage-step` 은 `flex: 1 1 0` 이라 각 칸이 같은 폭을 갖고 점이 그 칸의
-   * 중앙에 온다(연결선은 점 중심에서 다음 점 중심까지). 구 구현은 칸이 **내용 폭**이라
-   * 전폭 밴드 안에서도 좌측 273px 에 뭉쳤고, 캡션을 두 줄로 접고 10px 로 줄여야 했다.
-   *
-   * ⚠ **기본값은 `false`(구 동작 유지)** — 이 표시기는 마킹 화면 헤더 행에도 인라인으로 놓이며
-   * 거기서는 늘어나면 안 된다(옆의 비식별 신고 버튼을 밀어낸다). 전폭 밴드로 쓰는 화면만
-   * 명시적으로 켠다.
-   */
-  fill?: boolean;
 }
 
 // BE canonical 단계 코드(BatchStage.name) → 사용자 한글 라벨.
@@ -281,7 +277,7 @@ export function liveStageMessage(stages: BatchStageItem[]): string {
 }
 
 /** @design UI-018 @design SCREEN-009 */
-export function BatchStageIndicator({ stages, fill = false }: BatchStageIndicatorProps) {
+export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
   // BE stages 가 비면(배치 로그 없는 기존 영상) 아무것도 렌더 안 함 → 상위 배지 폴백(하위호환).
   if (!stages || stages.length === 0) return null;
 
@@ -289,58 +285,41 @@ export function BatchStageIndicator({ stages, fill = false }: BatchStageIndicato
   const cells = collapseStages(stages);
 
   return (
-    <div
-      className={cn('flex gap-0', fill ? 'w-full items-start' : 'items-center')}
-      data-testid="batch-stage-indicator"
-    >
+    <div className="flex w-full items-start gap-0" data-testid="batch-stage-indicator">
       {/* 화면에는 보이지 않는 라이브 리전 — 진행 단계 변화를 스크린리더에 안내한다. */}
       <span className="sr-only" aria-live="polite" data-testid="batch-stage-live">
         {liveStageMessage(stages)}
       </span>
       {cells.map((cell, idx) => {
         const isLast = idx === cells.length - 1;
-        // 캡션의 두 조각 — 배치만 모드에 따라 달라지고 **testid·문구는 두 모드가 동일**하다.
-        // 조각을 모드별로 복제하면 한쪽만 갱신돼 같은 캡션이 화면마다 달라진다.
         const nameSpan = <span data-testid={`batch-stage-name-${cell.key}`}>{cell.label}</span>;
         const statusSpan = (
           <span data-testid={`batch-stage-status-${cell.key}`}>{STATUS_PHRASE[cell.status]}</span>
         );
 
         return (
-          // ⚠ `items-start` + 연결선 `mt-4` — 연결선을 점 중심(위에서 16px = 32px 점의 절반)에
-          //    고정한다. 구 구현은 `items-center` + `mb-4` 로 **캡션 높이에 의존**해 맞춰져 있어,
-          //    캡션이 두 줄이 되면 연결선이 점에서 어긋난다.
-          // fill 모드는 칸이 `flex-1` 이라 점이 칸 중앙에 오고, 연결선은 흐름에서 빼내
-          //    **점 중심 기준 절대배치**한다(칸 폭이 커져도 선이 점에서 떨어지지 않는다).
+          // ⚠ `items-start` — 연결선을 점 중심(위에서 16px = 32px 점의 절반)에 고정한다. 구 구현은
+          //    `items-center` 로 **캡션 높이에 의존**해 맞춰져 있어 캡션 줄 수가 바뀌면 어긋났다.
+          // 칸이 `flex-1` 이라 점이 칸 중앙에 오고, 연결선은 흐름에서 빼내 **점 중심 기준
+          //    절대배치**한다(칸 폭이 커져도 선이 점에서 떨어지지 않는다).
           <div
             key={cell.key}
-            className={cn('flex items-start', fill && 'relative min-w-0 flex-1 justify-center')}
+            className="relative flex min-w-0 flex-1 items-start justify-center"
           >
             <div
               className="flex flex-col items-center gap-1"
               data-testid={`batch-stage-item-${cell.key}`}
             >
               <StageDot status={cell.status} />
-              {/* 캡션 — 단계명(또는 묶음명)과 상태.
-                  · fill: 확정 디자인대로 **한 줄**(`비식별 완료`) + 앱 캡션 크기(14px).
-                    칸이 균등 분산돼 가로 여유가 있으므로 줄을 접거나 글자를 줄일 이유가 없다.
-                  · 기본: **두 줄** + 10px. 한 줄로 이으면 칸 폭이 1.8배가 되는데, 이 모드는
-                    내용 폭으로 인라인 배치되는 자리(마킹 화면 헤더)라 옆 요소를 밀어낸다.
-                    ladder `caption`(14px) → ⚠ 인라인 `fontSize: '10px'` 이 최종적으로 이긴다. */}
-              <span
-                className="text-caption text-gray-600 text-center whitespace-nowrap leading-tight flex flex-col"
-                style={fill ? undefined : { fontSize: '10px' }}
-              >
-                {fill ? (
-                  <span>
-                    {nameSpan} {statusSpan}
-                  </span>
-                ) : (
-                  <>
-                    {nameSpan}
-                    {statusSpan}
-                  </>
-                )}
+              {/* 캡션 — 단계명(또는 묶음명)과 상태. 확정 디자인대로 **한 줄**(`비식별 완료`) +
+                  앱 캡션 크기(14px). 칸이 균등 분산돼 가로 여유가 있으므로 줄을 접거나 글자를
+                  줄일 이유가 없다.
+                  ⚠ **[폐기]** 구 비-fill 경로의 두 줄 캡션 + 인라인 `fontSize: '10px'` 축소는
+                  인라인 배치처(마킹 화면 헤더)를 위한 것이었고 그 자리가 사라져 함께 걷어냈다. */}
+              <span className="text-caption text-gray-600 text-center whitespace-nowrap leading-tight flex flex-col">
+                <span>
+                  {nameSpan} {statusSpan}
+                </span>
                 {/* 보조 표기 — 접은 칸의 세부 단계(진행 중/실패일 때만). 색이 아니라 **글자**로
                     적어 색을 읽지 못해도 어느 세부 단계인지 알 수 있게 한다(UI-018 v7). */}
                 {cell.note && (
@@ -350,18 +329,15 @@ export function BatchStageIndicator({ stages, fill = false }: BatchStageIndicato
                 )}
               </span>
             </div>
-            {!isLast &&
-              (fill ? (
-                // 점 중심(+18px = 점 반지름 16 + 여백 2)에서 다음 점 중심 직전까지. 점 위를
-                // 지나가지 않으므로 점의 반투명 배경으로 선이 비쳐 보이지 않는다.
-                <span
-                  aria-hidden="true"
-                  className={cn('absolute h-0.5', connectorColor(cell.status))}
-                  style={{ top: 15, left: 'calc(50% + 18px)', right: 'calc(-50% + 18px)' }}
-                />
-              ) : (
-                <div className={cn('flex-1 h-0.5 w-6 mx-1 mt-4', connectorColor(cell.status))} />
-              ))}
+            {!isLast && (
+              // 점 중심(+18px = 점 반지름 16 + 여백 2)에서 다음 점 중심 직전까지. 점 위를
+              // 지나가지 않으므로 점의 반투명 배경으로 선이 비쳐 보이지 않는다.
+              <span
+                aria-hidden="true"
+                className={cn('absolute h-0.5', connectorColor(cell.status))}
+                style={{ top: 15, left: 'calc(50% + 18px)', right: 'calc(-50% + 18px)' }}
+              />
+            )}
           </div>
         );
       })}

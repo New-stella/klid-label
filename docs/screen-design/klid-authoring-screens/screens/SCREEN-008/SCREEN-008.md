@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 42
-last_updated_at: 2026-08-21T04:27:30.676Z
+version: 45
+last_updated_at: 2026-08-25T10:11:15.282Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-24T14:23:30.448Z
-sync_session: 22
+synced_at: 2026-08-25T10:22:54.891Z
+sync_session: 24
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 44
 raw: ./_raw/SCREEN-008.json
 wireframe: ./wireframe.html
 links:
@@ -18,6 +18,10 @@ links:
   realizes_use_cases: ["[[UC-018]]"]
   acceptance: ["[[AC-049]]", "[[AC-050]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v44 → v45**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (21.7KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 영상 처리 현황 화면
 
@@ -39,7 +43,7 @@ draft
 
 ## purpose
 
-영상 목록을 조회하고 REVIEWER 가 마킹 진입/작업자 재배정/일괄 배정하는 화면. 조회는 REVIEWER/WORKER 공통, 마킹·배정 동선은 REVIEWER 전용(WORKER 는 조회만). 미배정 영상 중 배치 단계가 마킹 대기이고 비식별이 확정적으로 미완료가 아닌 행의 액션은 '마킹 설정' 버튼으로 자동/수동 방식을 선택한다 — 자동은 프레임 간격(1 이상 정수, 화면에서는 상한을 두지 않고 서버가 백스톱) 입력 후 POST /v1/videos/{rawSn}/markings(API-047)를 즉시 트리거하고, 수동은 팝업을 닫고 작업자 배정 흐름(assign 모드)으로 전환된다. 기존 배정 영상의 '재배정' 버튼은 별도로 유지된다. 영상 목록에는 개인정보 유무 컬럼을 표시하지 않는다. 시계열 위탁 전체 건너뛰기 스위치가 켜져 있으면 그 사실을 제목 아래 배너로 상시 알리고, 검색·필터에는 시계열 건너뜀 조건을 두어 벤더 연동이 확정된 뒤 회수 대상을 모을 수 있게 한다. 접근: REVIEWER/WORKER.
+영상 목록을 조회하고 REVIEWER 가 마킹 진입/작업자 재배정/일괄 배정하는 화면. REVIEWER 는 전체 영상을, WORKER 는 본인에게 배정된 영상만 조회하며, 마킹·배정 동선은 REVIEWER 전용이다(WORKER 는 조회만). 미배정 영상 중 배치 단계가 마킹 대기이고 비식별이 확정적으로 미완료가 아닌 행의 액션은 '마킹 설정' 버튼으로 자동/수동 방식을 선택한다 — 자동은 프레임 간격(1 이상 정수, 화면에서는 상한을 두지 않고 서버가 백스톱) 입력 후 POST /v1/videos/{rawSn}/markings(API-047)를 즉시 트리거하고, 수동은 팝업을 닫고 작업자 배정 흐름(assign 모드)으로 전환된다. 기존 배정 영상의 '재배정' 버튼은 별도로 유지된다. 영상 목록에는 개인정보 유무 컬럼을 표시하지 않는다. 시계열 위탁 전체 건너뛰기 스위치가 켜져 있으면 그 사실을 제목 아래 배너로 상시 알리고, 검색·필터에는 시계열 건너뜀 조건을 두어 벤더 연동이 확정된 뒤 회수 대상을 모을 수 있게 한다. 접근: REVIEWER/WORKER.
 
 ## sections
 
@@ -739,6 +743,10 @@ _(empty)_
 
 2026-08-21T04:27:30.676Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-001
@@ -759,8 +767,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: a776f32e5d56bb9275c7eca074cadb3d6fc60af2acad58d2ed7162c10630746b
-- **generated_at**: 2026-08-19T23:52:45.177Z
+- **source_hash**: 79d54b00a0880f90b9ed31c40c4033b7d666275b9e2831c8f29a220fd65382d1
+- **generated_at**: 2026-08-25T10:11:15.282Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:
