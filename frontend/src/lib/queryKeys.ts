@@ -198,6 +198,19 @@ export const EVENT_TYPE_KEYS = {
 };
 
 /**
+ * 검증 이벤트 유형·질문(DOMAIN-014) — BE `/v1/manage/verification-event-types`.
+ * [@design API-219] [@design API-220]
+ *
+ * ★ `EVENT_TYPE_KEYS` 하위에 두지 않는다 — 관제 이벤트유형(`EV…`)과 검증 이벤트 유형(`fire`…)은
+ * <b>코드 체계가 다른 별개 축</b>이다. 한 뿌리에 두면 한쪽의 무효화가 접두 일치로 다른 쪽까지
+ * 걸어, 관계없는 재조회가 일어나거나 「응답값으로 갱신하고 재조회하지 않는다」는 계약이 무너진다.
+ */
+export const VERIFICATION_EVENT_TYPE_KEYS = {
+  all: ['verificationEventTypes'] as const,
+  list: () => [...VERIFICATION_EVENT_TYPE_KEYS.all, 'list'] as const,
+};
+
+/**
  * 외부 산출물 이관(DOMAIN-017) — BE `/v1/imports`, `/v1/import-mappings`.
  *
  * 이력·대응 두 축을 한 뿌리(`all`) 아래 둔다 — 적재가 성공하면 이력이 늘고, 대응을 확정하면

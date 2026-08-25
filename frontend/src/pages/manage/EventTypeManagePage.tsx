@@ -15,6 +15,7 @@ import {
   useEventTypeAdminList,
   useUpdateEventTypeAdmin,
 } from '@/features/eventType/adminHooks';
+import { VerificationEventTypeSection } from '@/features/eventType/components/VerificationEventTypeSection';
 import { resolveApiMessage } from '@/lib/api/resolveApiMessage';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -33,7 +34,7 @@ import { useUiStore } from '@/stores/useUiStore';
  *   같은 이름이 여러 줄에 보이는 까닭이 값만으로는 드러나지 않기 때문이다. 표기 값도 서버
  *   응답을 그대로 쓴다(재판정 금지).
  *
- * @design SCREEN-038, API-185, API-186, UI-126
+ * @design SCREEN-038, API-185, API-186, API-219, API-220, UI-126
  *
  * 보안:
  * - REVIEWER 만 진입(라우트 RoleGuard=internalReviewerOnly) + BE @PreAuthorize 이중 방어.
@@ -199,6 +200,12 @@ export function EventTypeManagePage() {
           </table>
         </CardContent>
       </Card>
+
+      {/* [@design SCREEN-038] [@design API-219] [@design API-220]
+          검증 이벤트 유형·질문 관리 — 위 표(관제 채번 코드 `EV…`)와 <b>코드 체계가 다른 별개 축</b>이다.
+          한 목록으로 합치지 않고 나란히 둔다. 화면을 새로 만들지 않고 여기 붙이는 이유는
+          관제 이벤트유형↔검증 유형의 짝을 한 화면에서 봐야 하기 때문이다. */}
+      <VerificationEventTypeSection />
     </div>
   );
 }
