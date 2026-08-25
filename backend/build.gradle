@@ -146,7 +146,25 @@ tasks.named('test') {
     // Phase 4 (UC018 통합 테스트 추가): 캐시되는 @SpringBootTest 컨텍스트 수가 늘어 기본 힙에서
     // 워커 OutOfMemoryError(→ NoClassDefFoundError: ExceptionUtils) 가 간헐 발생한다. 테스트 워커
     // 힙을 명시해 안정화한다(Testcontainers 단일 PG + 다수 컨텍스트 캐시 대비 여유분).
-    maxHeapSize = '2g'
+    //
+    // ★2026-08-25 상향 (2g → 6g): 2g 로는 전체 회귀가 완주하지 못한다. 실측에서 힙이
+    // 2,094,387K/2,097,152K(99.87%)까지 차고 young 세대가 1 region(1MB)만 남아, GC 가 CPU 689% 로
+    // 도는 채 진행이 사실상 멈췄다. 워커 하나가 전 테스트를 떠안는데(forkEvery 없음)
+    // @SpringBootTest 컨텍스트 캐시가 힙을 채우는 구조이고, 테스트가 7,439건으로 늘면서 2g 를
+    // 넘어섰다. 6g 로는 7분 32초에 완주했다(826 XML / 7,439 tests / 실패 0).
+    //   ⚠ 머신 메모리 부족이 아니다 — 시스템 여유 61%(24GB 머신)인 상태에서도 같은 지점에서 막혔다.
+    //     "메모리를 비우고 다시 돌린다"로는 해결되지 않으므로 그 진단으로 되돌리지 말 것.
+    //   ⚠ 이것은 시간을 번 미봉책이지 근본 처방이 아니다. 캐시 상한(기본 32)도 forkEvery 도 없는
+    //     구조가 그대로라 테스트가 더 늘면 같은 방식으로 재발한다 — 바로 위 Phase 4 기록이 그
+    //     반복이다(그때도 기본 힙 → 2g 였다). 근본 처방은 spring.test.context.cache.maxSize 상한
+    //     (축출된 컨텍스트를 Spring 이 닫아 메모리를 실제로 반환한다) 또는 컨텍스트 구성 다양성
+    //     축소이며, 별건이다. 힙과 캐시 상한을 같이 올리면 어느 쪽이 들었는지 판별할 수 없으므로
+    //     이번에는 힙만 건드렸다.
+    //   ⚠ 진행 판정에 결과 XML 개수를 쓰지 말 것 — Gradle 은 XML 을 test 태스크가 끝날 때 일괄
+    //     생성하므로 실행 중에는 언제나 0이다(정상 실행도 그렇다). 실시간 진행은
+    //     build/test-results/test/binary/output.bin 크기 증가로 본다. 살아 있는 고갈 증상은
+    //     힙 점유율 99%대 + young 세대가 1 region 까지 마르는 것이다.
+    maxHeapSize = '6g'
 
     // Phase 3 (Testcontainers PostgreSQL): Docker Desktop 서버는 min API 1.40 을 요구하는데
     // (docker version → Server APIVersion 1.54, MinAPIVersion 1.40), docker-java 클라이언트가
