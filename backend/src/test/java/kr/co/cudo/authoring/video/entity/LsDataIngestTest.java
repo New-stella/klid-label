@@ -134,7 +134,8 @@ class LsDataIngestTest {
     @Test
     @DisplayName("관제_수신_컬럼에는_setter가_없다")
     void 관제_수신_컬럼에는_setter가_없다() {
-        // given — 관제 소유값(V147 29 + V166 EVNT_TYPE_CD − V185 OG_CD 제거 + V16 OG_CD 재추가·THMB_FILE_PATH_NM)을 저작도구가
+        // given — 관제 소유값(V147 29 + V166 EVNT_TYPE_CD − V185 OG_CD 제거 + V16 OG_CD 재추가,
+        //   V16 이 신설했던 THMB_FILE_PATH_NM 은 V17 에서 제거)을 저작도구가
         //   덮지 않는다는 계약
         //   (CWE-915 Mass Assignment 방어)
         List<Method> declared = Arrays.stream(LsDataIngest.class.getDeclaredMethods())
