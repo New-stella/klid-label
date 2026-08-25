@@ -26,39 +26,56 @@ jstat -gcutil $W ; sleep 12 ; jstat -gcutil $W
 `backend/src/test/java` 기준. 재측정 명령을 함께 적었다. **`grep -a` 를 반드시 쓴다** — 이 저장소에는
 `file` 이 정상 UTF-8 소스를 `data` 로 오판해 **grep 이 소스 10개를 말없이 건너뛴** 실사고가 있다.
 
-| 항목 | 측정값 | 재측정 |
-|---|---:|---|
-| 시험 클래스 총수 | 843 | `find . -name '*.java' \| wc -l` |
-| **`@SpringBootTest`** | **316** | `grep -ral "@SpringBootTest" . \| wc -l` |
-| `@DataJpaTest` | 1 | `grep -ral "@DataJpaTest" . \| wc -l` |
-| `@WebMvcTest` / `@JsonTest` | 0 / 0 | 〃 |
-| 순수 Mockito(컨텍스트 없음) | 86 | `grep -ral "@ExtendWith(MockitoExtension" . \| wc -l` |
-| **웹 계층을 안 쓰는 `@SpringBootTest`** | **202** | 아래 ※1 |
-| **기본 컨텍스트와 다른 구성을 요구하는 클래스** | **76** | 아래 ※2 |
-| `@MockBean` 조합 종류 | 21 (**17종은 단 한 클래스 전용**) | 아래 ※3 |
-| `@TestPropertySource` 선언 종류 | 11 | `grep -rhao '@TestPropertySource([^)]*)' . \| sort -u \| wc -l` |
+> ★**아래 수치는 두 번 정정됐다.** 최초 작성자(`grep` 기반)가 틀렸고, 다른 세션이 렉서 기반 추출기로
+> 다시 재면서 **두 번** 바로잡았다. 그 정정 과정 자체가 이 문서에서 가장 값어치 있는 부분이니 §2-1 을 반드시 읽어라.
 
-```bash
-# ※1 웹 계층 미사용 추정 (heuristic — 간접 의존이 있을 수 있으니 표본을 열어 확인할 것)
-grep -ral "@SpringBootTest" . | while read f; do
-  grep -qa "MockMvc\|WebEnvironment\|TestRestTemplate" "$f" || echo "$f"; done | wc -l
+| 항목 | 확정값 | 최초 오보 |
+|---|---:|---:|
+| 시험 클래스 총수 | 843 | — |
+| **`@SpringBootTest`** | **309** | 316 (주석 언급 7건 혼입) |
+| **서로 다른 컨텍스트 키** | **74** | 52 (파서 결함 2종) |
+| 그중 단독(1클래스 전용) | 63 / 74 | — |
+| 컨텍스트 크기 분포 | `[149, 74, 5, 3, 3, 2×6, 1×63]` 합 309 | — |
+| 웹 계층 미사용 `@SpringBootTest` | **196** | 202 |
+| `@MockBean`/`@SpyBean` 보유 클래스 | **43** (조합 34종, **26종이 1클래스 전용**) | — |
+| `@DynamicPropertySource` 보유 | **18** | — |
+| `@TestPropertySource` 선언 종류 | 11 | — |
+| **캐시 상한** | **32** (Spring 기본) | — |
 
-# ※2 컨텍스트를 가르는 클래스(중복 제거)
-{ grep -ral "@MockBean" . ; grep -ral "@TestPropertySource" . ; grep -ral "@DynamicPropertySource" . ; } | sort -u | wc -l
+**309개 중 223개가 단 2개 컨텍스트에 있고, 나머지 86개가 72개 컨텍스트에 흩어져 있다.**
+74개가 32칸을 두고 다툰다 → **스래싱이 확정적**이다.
 
-# ※3 @MockBean 조합 다양성
-grep -ral "@MockBean" . | while read f; do
-  grep -ao "@MockBean[^;]*" "$f" | grep -oE "[A-Z][A-Za-z0-9_]+ " | tr -d ' ' | sort -u | paste -sd, -
-done | sort | uniq -c | sort -rn
-```
+### §2-1 ★순진한 `grep` 은 세 축 전부에서 틀린다 (재측정하려면 이걸 먼저 읽어라)
+
+최초 작성자와 재측정자가 **각각 다른 방식으로** 틀렸다. 셋 다 실측으로 확인됐다.
+
+1. **주석 안 언급을 센다.** `grep -ral '@SpringBootTest'` = 316 인데 실제 어노테이션은 **309**다.
+   나머지 7건은 전부 javadoc·라인주석 안의 언급이다(*"왜 @SpringBootTest 가 아니라…"* 같은).
+   `@DynamicPropertySource` 도 같다 — `grep -ral` 은 20, 실제는 **18**(주석 1 + 인프라 클래스 1).
+   → **줄 선두 어노테이션만 세라**: `grep -ralE '^\s*@SpringBootTest'`
+2. **같은 줄 선언에서 엉뚱한 타입을 집는다.** 이 저장소에는 `@MockBean private VlmClient vlmClient;`
+   처럼 **한 줄로 쓴 선언**이 실재한다. 줄 단위 정규식이 줄 끝까지 삼킨 뒤 **다음 필드의 타입**을 집는다
+   (실측 오추출: `VlmClient → Long`, `AiServerClient → ListAppender`). → 개행을 넘나드는 단일 패턴으로 뽑고,
+   **`grep -ral` 파일 수와 추출 건수를 교차검증**하라(43 = 43 이어야 한다).
+3. **`@DynamicPropertySource` 는 Y/N 이 아니다 — 클래스마다 별도 컨텍스트다.**
+   `spring-test` 의 `DynamicPropertiesContextCustomizer` 는 `equals`/`hashCode` 를 **`Set<Method>`** 로 구현한다.
+   선언 클래스가 다르면 `Method` 객체가 달라 **절대 같아지지 않는다** — 프로퍼티 값이 완전히 동일해도 갈린다.
+   ⇒ **이 저장소는 `@SpringBootTest` 309개에 공통 베이스 클래스가 없다(`extends` 0건)**. 그래서 이 18개가
+   **전부 각자 독립 컨텍스트**다. 이 축의 처방은 프로퍼티 통일이 아니라 **베이스 클래스로 끌어올리기**다
+   (같은 `Method` 객체가 되어 공유된다).
+
+⇒ **`grep` 으로 이 세 축을 세지 마라.** 문자열·주석을 걸러내는 렉서로 뽑고 교차검증하라.
 
 ### 산수
 
-`backend/build.gradle` 의 `test` 블록에 **`forkEvery`·`maxParallelForks` 선언이 0건**이라 316개가
+`backend/build.gradle` 의 `test` 블록에 **`forkEvery`·`maxParallelForks` 선언이 0건**이라 309개가
 **한 JVM** 에서 돈다. Spring 은 테스트 컨텍스트를 **캐시에 살려 두고 기본 상한이 32** 다.
 JPA·Hibernate·Flyway·Quartz·WebClient 를 물고 있는 컨텍스트 하나가 **50~150MB** 급이므로
-**32칸만 차도 2GB 힙을 넘는다.** 그런데 서로 다른 구성을 요구하는 클래스가 76개라 **32칸을 두고
-서로를 밀어낸다.**
+**32칸만 차도 2GB 힙을 넘는다.** 그런데 **서로 다른 컨텍스트가 74개**라 32칸을 두고 서로를 밀어낸다.
+
+⚠ **컨텍스트 1개의 실제 MB 는 아직 모른다.** 위 50~150MB 는 일반적 추정이고 이 저장소 실측이 아니다.
+이 값이 **목표치를 정한다** — 작으면 40~50개도 버티고 크면 32도 못 버틴다. §4-A 가 OOM 힙덤프를
+뽑아내면 거기서 얻어라. **그 전에는 「몇 개까지 줄여야 하는가」에 답할 수 없다.**
 
 ### ★이건 단조 증가한다
 
@@ -93,17 +110,53 @@ jvmArgs '-XX:GCTimeLimit=90', '-XX:GCHeapFreeLimit=5', '-XX:+HeapDumpOnOutOfMemo
 
 ### 4-B. 본체 — 컨텍스트 다양성을 줄인다
 
-우선순위대로.
+★**우선순위는 「한계 기여도」로 정한다** — 그 축을 완전히 통일했을 때 74가 몇으로 주는가.
+아래는 렉서 기반 실측이다(추정 아님).
 
-1. **웹 계층을 안 쓰는 202개**를 가벼운 축으로 내린다.
-   - 협력 객체를 mock 으로 대체하는 순수 단위시험으로 충분한 것 → `@ExtendWith(MockitoExtension.class)`
-     (이 저장소에 이미 86개 선례가 있다)
-   - 리포지토리·쿼리만 보는 것 → `@DataJpaTest`
-   - **전부 옮기려 하지 마라.** 실제로 컨텍스트가 필요한 것(트랜잭션 경계·이벤트 리스너·`AFTER_COMMIT`
-     사슬·Testcontainers 실 DB)은 그대로 둔다.
-2. **한 클래스 전용 `@MockBean` 조합 17종을 합친다.** `@MockBean` 은 조합이 다를 때마다 **새 컨텍스트**를
-   만든다. 공용 테스트 구성 하나로 모으면 그만큼 칸이 준다.
-3. **`@TestPropertySource` 11종**도 같은 축이다. 같은 값을 쓸 수 있는 것끼리 합친다.
+| 순위 | 축 | → | 감소 | 비고 |
+|:--:|---|---:|---:|---|
+| **1** | **`@MockBean`/`@SpyBean`** | 53 | **−21** | 43클래스에 34종, **26종이 1클래스 전용** |
+| **2** | **`@TestPropertySource`** | 56 | **−18** | 11종 |
+| **3** | **`@DynamicPropertySource`** | 66 | **−8** | 18개가 **전부 독립** — 처방이 다르다(아래) |
+| 4 | `@SpringBootTest(properties=)` | 70 | −4 | |
+| 4 | `@AutoConfigureMockMvc` | 70 | −4 | 웹 시험에 필요 — 없앨 수 없다 |
+| 6 | 중첩 `@TestConfiguration` | 72 | −2 | |
+| 7 | `@Import` | 73 | −1 | |
+| — | `@ActiveProfiles` · `@ContextConfiguration` | 74 | **0** | **분기 요인이 아니다** |
+
+1. **`@MockBean` 조합을 합친다 (최대 지렛대).** 조합이 다를 때마다 **새 컨텍스트**가 생긴다.
+   26종이 단 한 클래스에서만 쓰이므로, 공용 목 묶음 하나로 모을 여지가 크다.
+   4개 이상이 공유하는 조합은 `BatchOrchestrator`(4) 하나뿐이다.
+2. **`@TestPropertySource` 를 합친다.** 값이 **진짜로 충돌**하는 것(`enabled=true` vs `false`)은 못 합친다 —
+   합칠 수 있는 것만 골라라.
+3. **`@DynamicPropertySource` 는 프로퍼티를 통일해도 안 줄어든다.** §2-1 ③ 참조 — `Set<Method>` 동일성이라
+   **선언 클래스가 다르면 무조건 갈린다.** 처방은 **공통 베이스 클래스로 끌어올리기**다(같은 `Method` 객체가
+   되어 공유된다). 이 저장소는 `extends` 가 0건이라 아직 아무도 이 축을 쓰지 않았다.
+
+#### ⚠ 「웹 미사용 196개를 슬라이스로 내린다」는 **컨텍스트 수를 줄이는 일이 아니다**
+
+최초 문서가 이것을 1순위에 뒀으나 **틀렸다.** 그 196개는 대부분 **149개짜리 최대 그룹**에 속하는데,
+컨텍스트가 하나 사라지려면 그 그룹의 **마지막 클래스**를 옮겨야 한다 — 149개를 다 옮겨야 1개가 준다.
+
+**무가치하다는 뜻은 아니다.** 총 실행시간·컨텍스트 로드 횟수는 줄인다.
+**「힙에 상주하는 컨텍스트 수」와 「실행 시간」은 다른 지표이며, 이 문서가 잡으려는 것은 앞의 것이다.**
+
+#### 값싼 병합 후보 (실측으로 지목됨)
+
+- `ApprovedRedeidentControllerTest` 와 `KpstHttpBootIntegrationTest` — **프로퍼티 4개가 완전히 동일**,
+  `@AutoConfigureMockMvc` 유무로만 갈린다
+- KPST `poll-interval-sec=3600` 계열이 **4갈래**(목·`poll-max-attempts` 차이)
+- 포털 스윕(`portal.upload.sweep`/`portal.retention.sweep`)이 **3갈래**
+- `authoring.control-notify.enabled` 가 **3갈래**
+
+#### ⚠ 도달 가능한 바닥 — 32 아래로 못 갈 수도 있다
+
+프로퍼티 군집을 **전량** 통일해도 바닥이 **24~27** 수준이고, 목·동적프로퍼티까지 이상적으로 없앤 하한이
+**10 내외**로 추정된다. 그런데 그 대부분은 값이 **진짜로 충돌**하거나 **외부 경계를 목으로 막아야 하는**
+정당한 이유가 있어 실제로는 못 없앤다.
+
+⇒ **「74를 32 아래로 내린다」가 프로퍼티·목 정리만으로 가능한지는 아직 미확정이다.** 안 되면 남는 축은
+`forkEvery`(JVM 을 갈아 캐시를 비운다)나 캐시 상한 조정이며, 그건 **완화책**이다(§3-3).
 
 ### 4-C. 효과 측정 (숫자로)
 
@@ -111,7 +164,8 @@ jvmArgs '-XX:GCTimeLimit=90', '-XX:GCHeapFreeLimit=5', '-XX:+HeapDumpOnOutOfMemo
 
 | 지표 | 어떻게 |
 |---|---|
-| 캐시된 컨텍스트 수 | `-Dlogging.level.org.springframework.test.context.cache=DEBUG` 후 로그의 캐시 통계 |
+| 캐시된 컨텍스트 수 | `./gradlew test -PtestContextCacheDebug` (§4-A 가 넣은 옵트인 스위치). 로그의 `size = N, maxSize = 32, hitCount, missCount` 줄. ⚠ 환경변수·`-D` 는 워커에 안 간다 — `systemProperty` 여야 한다 |
+| **컨텍스트 1개 크기(MB)** | OOM 힙덤프에서. **이게 목표치를 정한다** |
 | 힙 최고점 | 실행 중 `jstat -gcutil` 의 Old 최댓값 |
 | 전체 회귀 벽시계 | `BUILD SUCCESSFUL in Xm Ys` |
 | 실행 테스트 수 | 결과 XML 집계 (아래) |
