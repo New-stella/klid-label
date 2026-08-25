@@ -17,6 +17,8 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
@@ -142,7 +144,13 @@ public class VideoQueryService {
      */
     private final LsVrfcEvntQstnRepository vrfcEvntQstnRepository;
 
-    /** 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용. */
+    /**
+     * 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용.
+     *
+     * <p><b>사용자 축 스코핑이 없다</b>(검수자와 같은 전체 범위). 인증 주체를 받지 않으므로 HTTP 진입점이
+     * 이 오버로드를 쓰면 안 된다 — 컨트롤러는 {@link #listForActor(Pageable, VideoListFilter, TokenClaims)} 로만
+     * 들어온다. [@design API-042]
+     */
     public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
         return list(pageable, VideoListFilter.ofStatus(dataSttsCd, reviewStatusCd));
     }
@@ -154,6 +162,72 @@ public class VideoQueryService {
      * 와 페이지 수가 필터 적용 후 전체 기준이 된다.
      */
     public Page<VideoSummaryResponse> list(Pageable pageable, VideoListFilter filter) {
+        return listScoped(pageable, filter, null);
+    }
+
+    /**
+     * 영상 처리 현황 목록 — <b>호출자 역할에 따라 조회 범위가 갈린다</b>. [@design API-042]
+     *
+     * <p>검수자는 전체 영상을, 라벨링 작업자는 <b>본인에게 배정된 영상만</b> 본다. 범위 제한은 거부가
+     * 아니라 <b>결과 축소</b>이며 배정이 하나도 없으면 403 이 아니라 빈 목록이다 — 목록을 부르는 행위
+     * 자체는 정상이기 때문이다.
+     *
+     * <p>이 창구에는 사용자 축 인가가 아예 없었는데 형제 단건 창구는 배정을 요구해서, 목록에는 남의
+     * 영상이 나오는데 그 영상을 열면 403 인 비대칭이 있었다(CWE-639 IDOR — 촬영지·이벤트·비식별 상태가
+     * 그대로 노출됐다). 단건의 403 은 그대로 둔다 — 직접 URL 입력·외부 클라이언트를 막는 별개 방어선이다.
+     */
+    public Page<VideoSummaryResponse> listForActor(Pageable pageable, VideoListFilter filter, TokenClaims actor) {
+        return listScoped(pageable, filter, scopeUserNoFor(actor));
+    }
+
+    /**
+     * 조회 범위 확정 — 스코핑 대상 사용자 번호를 인증 주체에서만 도출한다. [@design API-042] [@design ROLE-002]
+     *
+     * <p><b>판정 규칙은 {@code AssignmentService.scopeForActor} 와 같다</b>(원본) — 토큰 없음 401 ·
+     * 라벨링 작업자는 토큰 subject 로 고정 · 검수자는 미적용 · 그 외 역할은 403. 배정 존재 판정 축도
+     * 단건 가드({@code LabelAccessGuard.verifyRawAccess})와 같은 {@code TASK_LABELER} 다.
+     *
+     * <p><b>공용 헬퍼로 뽑지 못한 이유</b>: 원본은 {@code assignment} 패키지의 {@code private} 메서드이고
+     * 그 판정 결과를 그 도메인 전용 조건 객체({@code AssignmentSearchCondition.scopedToSelf})에 실어
+     * 돌려준다. 공용화하려면 {@code assignment} 또는 {@code common} 을 함께 고쳐야 해 이 변경의 경계를
+     * 넘는다. 그래서 <b>규칙만 최소 복제</b>했다.
+     *
+     * <p>⚠ <b>두 창구의 동치를 검증하는 가드는 없다.</b> 회귀 가드({@code VideoListAssignmentScopeIT})가
+     * 고정하는 것은 <b>이 창구의 동작</b>이지 원본 규칙과의 동치가 아니다 — 그 가드는 원본을 참조하지
+     * 않으므로 원본이 바뀌어도 실패하지 않는다. 따라서 {@code AssignmentService} 의 역할 스코프 판정을
+     * 고칠 때는 <b>이 메서드를 함께 확인해야 한다</b>(드리프트를 잡아 줄 장치가 없다).
+     *
+     * <p>역할 게이트({@code @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")})와 <b>이중 방어</b>다 —
+     * 그 게이트가 느슨해져도 여기서 다시 막힌다.
+     *
+     * @return 라벨링 작업자면 본인 사용자 번호, 검수자면 {@code null}(스코핑 미적용)
+     */
+    private Long scopeUserNoFor(TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        if (actor.role() == Role.WORKER) {
+            return parseUserNo(actor.sub());
+        }
+        if (actor.role() == Role.REVIEWER) {
+            return null;
+        }
+        throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
+    }
+
+    /**
+     * 토큰 subject → 사용자 번호. 비숫자 subject 는 {@code AssignmentService.parseUserNo} 와
+     * <b>같게</b> 401 로 다룬다(값을 지어내거나 스코핑을 풀지 않는다 — fail-closed).
+     */
+    private Long parseUserNo(String sub) {
+        try {
+            return Long.parseLong(sub);
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "토큰 subject 형식이 올바르지 않습니다.");
+        }
+    }
+
+    private Page<VideoSummaryResponse> listScoped(Pageable pageable, VideoListFilter filter, Long assignedToUserNo) {
         VideoListFilter cond = filter != null ? filter : VideoListFilter.ofStatus(null, null);
         String normalizedDataStts = trimToNull(cond.dataSttsCd());
         String normalizedReviewStts = normalizeReviewStatusCd(cond.reviewStatusCd());
@@ -188,7 +262,8 @@ public class VideoQueryService {
                 normalizedDataStts, normalizedReviewStts,
                 keywordPattern, keywordRawSn,
                 eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
-                from, to, skippedBundle, failedBundleStages, vlmFailureReasons, pageable);
+                from, to, skippedBundle, failedBundleStages, vlmFailureReasons,
+                assignedToUserNo, pageable);
         Map<Long, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
