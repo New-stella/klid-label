@@ -16,6 +16,17 @@ DELETE FROM LS_EVNT_ANNO;
 DELETE FROM LS_RAW_DATA_STATUS;
 DELETE FROM LS_TASK_ALTMNT;
 -- LS_DATA_LBL_HSTRY 는 신규 DB 설계 (LS_LABEL_VERSION 으로 분리) 에서 더 이상 생성되지 않음.
+--
+-- ★LS_DATA_LBL_ATTR_VAL 는 FK_LS_DATA_LBL_ATTR_LBL(lbl_sn → ls_data_lbl)에 ON DELETE 규칙이
+--   없어(기본 NO ACTION) 아래 DELETE FROM LS_DATA_LBL 을 막는다. 위 LS_EVNT_ANNO_REVIEW ·
+--   LS_ISSUE_COMMENT 와 같은 부류라 같은 규칙(자식 → 부모)으로 먼저 비운다.
+--   ⚠ 선행 클래스가 라벨 속성값을 남겼을 때만 드러나므로 <실행 순서에 따라 나타났다 사라진다>.
+--     실제로 시험 클래스 실행 순서를 바꾸자 이 스크립트를 쓰는 5건이 한꺼번에 FK 위반으로 깨졌고,
+--     그 클래스들만 격리 실행하면 통과했다. 순서가 바뀌어도 안 깨지도록 여기서 닫는다.
+--   ⚠⚠ 지우는 것은 <데이터 라벨의 속성 값>(LS_DATA_LBL_ATTR_VAL)이다. 이름이 비슷한
+--     LS_LABEL_ATTR 는 <라벨 마스터의 속성 정의>(FK 는 LABEL_ID → LS_LABEL)라 전혀 다른 것이며
+--     여기서 지우면 프로젝트 전체의 라벨 속성 정의가 사라진다. 절대 함께 넣지 말 것.
+DELETE FROM LS_DATA_LBL_ATTR_VAL;
 DELETE FROM LS_DATA_LBL;
 DELETE FROM LS_DATA_META;
 DELETE FROM LS_DATA_SRC_HSTRY;

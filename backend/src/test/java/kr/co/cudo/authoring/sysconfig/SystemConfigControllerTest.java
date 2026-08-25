@@ -146,24 +146,55 @@ class SystemConfigControllerTest {
     @Test
     @DisplayName("REVIEWER가_제외코드_설정_PUT시_200")
     void reviewerUpdatesEventExcludedClassCodes() throws Exception {
-        // given — 시드 기본값 ["08"]
-        assertThat(service.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)).containsExactly("08");
-        ConfigUpdateRequest req = new ConfigUpdateRequest("[\"08\",\"09\"]");
+        try {
+            // given — 시드 기본값 ["08"]
+            assertThat(service.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)).containsExactly("08");
+            ConfigUpdateRequest req = new ConfigUpdateRequest("[\"08\",\"09\"]");
 
-        // when / then
-        mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.configVl").value("[\"08\",\"09\"]"));
+            // when / then
+            mockMvc.perform(put("/v1/manage/configs/" + ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
+                            .header("Authorization", "Bearer " + reviewerToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.configVl").value("[\"08\",\"09\"]"));
 
-        assertThat(service.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
-                .containsExactlyInAnyOrder("08", "09");
+            assertThat(service.getStringSet(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES))
+                    .containsExactlyInAnyOrder("08", "09");
+        } finally {
+            restoreSeededExcludedClassCodes();
+        }
+    }
 
-        // 후속 테스트 영향 차단 — 원복.
+    /**
+     * 제외 대분류 설정을 시드 기본값으로 되돌린다 — <b>이 클래스 밖으로 새지 않게</b>.
+     *
+     * <p>{@code LS_SYSTEM_CONFIG} 는 컨텍스트가 아니라 <b>DB 에 공유</b>되는 상태다. 여기서 바꾼 값이
+     * 남으면 그 값을 전제하는 다른 시험이 깨진다 — 실제로 {@code EventTypeCacheIT} 두 건이
+     * "09 가 제외되지 않은 상태"를 전제하는데, 09 가 제외된 채로 넘어가 필터 옵션이 비어 실패했다.
+     *
+     * <h4>구 원복 코드는 두 가지로 고장나 있었다 (되돌리지 말 것)</h4>
+     * <ol>
+     *   <li><b>영속되지 않았다.</b> {@code findByConfigKey(...).ifPresent(c -> c.updateValue(...))} 는
+     *       트랜잭션 밖이라 엔티티가 <b>detached</b> 다 — dirty checking 이 돌지 않아 UPDATE 가 아예
+     *       나가지 않는다. 즉 "원복"이라고 적혀 있었을 뿐 아무 일도 하지 않았다.
+     *       {@code save()} 로 명시 병합해야 한다.</li>
+     *   <li><b>실패하면 실행되지 않았다.</b> 시험 본문 끝에 있어 앞선 단언이 깨지면 건너뛰어졌다.
+     *       그래서 한 번 깨지면 그 오염이 뒤따르는 시험으로 번졌다. {@code finally} 로 옮긴다.</li>
+     * </ol>
+     *
+     * <p>⚠ {@code @AfterEach} 로 만들지 않은 것은 의도다 — 이 저장소에는 정리 훅을 손대 전체 실행에서
+     * 대량 실패를 낸 이력이 있다. 값을 바꾸는 시험 하나에만 국소적으로 건다.
+     */
+    private void restoreSeededExcludedClassCodes() {
         repository.findByConfigKey(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES)
-                .ifPresent(c -> c.updateValue("[\"08\"]", "TEST"));
+                .ifPresent(config -> {
+                    config.updateValue("[\"08\"]", "TEST");
+                    repository.save(config);
+                });
+        if (cacheManager.getCache("sysconfig") != null) {
+            cacheManager.getCache("sysconfig").clear();
+        }
     }
 
     @Test
