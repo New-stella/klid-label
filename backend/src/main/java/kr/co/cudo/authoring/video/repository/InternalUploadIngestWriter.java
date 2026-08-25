@@ -59,8 +59,11 @@ public class InternalUploadIngestWriter {
      *
      * <p>{@code OG_CD}(기관코드)는 V185 에서 제거됐다가 V16 에서 복원됐다(2026-08-24 관제 재확인
      * "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 <b>서로 다른 값</b>이다. 다만 이 INSERT 목록에는
-     * 넣지 않는다 — dev 내부 업로드는 그 값을 갖지 않아 nullable 컬럼으로 비워 둔다(V16 신설
-     * {@code THMB_FILE_PATH_NM} 도 같은 이유로 제외).
+     * 넣지 않는다 — dev 내부 업로드는 그 값을 갖지 않아 nullable 컬럼으로 비워 둔다.
+     *
+     * <p>V16 이 신설했던 {@code THMB_FILE_PATH_NM}(썸네일 경로 관제 pass-through)은 V17 에서
+     * <b>컬럼째 제거</b>됐다 — 대표 이미지는 이제 인입값이 아니라 저작도구 비식별 첫 프레임
+     * ({@code LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM})에서 조달한다. 인입 축에는 더 이상 없다.
      *
      * <p>{@code BIT} 은 PostgreSQL 에서 컬럼명으로는 무인용 사용이 가능하다(V147 실증). 인용하면
      * 대문자 식별자가 고정돼 나머지 컬럼(무인용→소문자 폴딩)과 규칙이 갈리므로 그대로 둔다.
