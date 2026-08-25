@@ -34,6 +34,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("local")
 class LsLabelPresetCodeLabelIdUniqueIT {
 
+    /** 프리셋은 이벤트유형 1건에 대응한다(V17 이후 NOT NULL). 이 시험의 축은 코드 유니크라 값은 고정한다. */
+    private static final String EVENT_TYPE_CD = "EV05000701";
+
     @Autowired
     private LsLabelRepository labelRepository;
     @Autowired
@@ -72,7 +75,7 @@ class LsLabelPresetCodeLabelIdUniqueIT {
                     LsLabel.create("DUP_" + System.nanoTime(), "#FF0000", "BBOX", 0, "tester"));
             seededLabelId = label.getLabelId();
             LsLabelPreset preset = presetRepository.saveAndFlush(LsLabelPreset.createWithOptions(
-                    "dupIndex " + System.nanoTime(), "", List.of(new LabelCodeSpec(seededLabelId, null)), null));
+                    List.of(new LabelCodeSpec(seededLabelId, null)), EVENT_TYPE_CD));
             seededPresetId = preset.getPresetId();
         });
 

@@ -377,18 +377,18 @@
 | ID | 케이스명 | 전제 | 입력/조건 | 기대결과 | 계층 | 우선 | 근거(파일) |
 |---|---|---|---|---|---|:--:|---|
 | TC-PRESET-01 | 생성 정상(labelId 기반) | 유효 labelIds | — | 저장, 코드 문자열(LBL_CD) 미저장 | integration | P1 | preset/service/PresetService.java |
-| TC-PRESET-02 | 생성 이벤트타입 무효 | 미유효 | — | 400 | unit | P1 | PresetService.java |
-| TC-PRESET-03 | 생성 이벤트타입 빈값 허용 | "" | — | 통과 | unit | P2 | PresetService.java |
-| TC-PRESET-04 | 생성 이름 중복 | existsByPresetNm | — | 409 | unit | P1 | PresetService.java |
+| TC-PRESET-02 | 생성 이벤트타입 무효 (2026-08-25 판정 축 정정) | **등록되지 않은** 코드 | — | 400. ⚠ 판정 축이 필터 옵션(`validFilterKeys`)에서 **등록 여부**(`registeredCodes`)로 바뀌었다 — 제외 대분류·비수집 유형도 **등록돼 있으면 통과**한다(TC-PRESET-24) | unit | P1 | preset/service/PresetService.java(`requireRegisteredEventType`) · eventtype/service/EventTypeService.java(`registeredCodes`) |
+| ~~TC-PRESET-03~~ | ~~생성 이벤트타입 빈값 허용~~ | ~~""~~ | ~~—~~ | **[폐기 2026-08-25]** ★정책 반전(사용자 확정) — 프리셋을 「이벤트 + 라벨」로 단순화하면서 **이벤트유형이 필수**가 됐다. 빈값은 통과가 아니라 **400** 이다(이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않는 죽은 행). 대체: TC-PRESET-21 | unit|P2|PresetService.java
+| ~~TC-PRESET-04~~ | ~~생성 이름 중복~~ | ~~existsByPresetNm~~ | ~~—~~ | **[폐기 2026-08-25]** ★프리셋 이름 폐지 — `PRESET_NM` 컬럼이 제거돼(V17) 이름 중복이라는 거부 사유 자체가 존재하지 않는다. 중복 사유는 이벤트 하나만 남는다. 대체: TC-PRESET-22 | unit|P1|PresetService.java
 | TC-PRESET-05 | 생성 labelId 미존재/비활성 | 잘못된 labelId | — | 400 "존재하지 않거나 비활성 라벨입니다" | unit | P1 | PresetService.java |
 | TC-PRESET-06 | 생성 이벤트 유니크 경합 | 동시 동일 이벤트 | DataIntegrityViolation | 409 | integration | P0 | PresetService.java |
 | TC-PRESET-07 | 수정 미존재 | 없음 | — | 404 | unit | P1 | PresetService.java |
-| TC-PRESET-08 | 수정 이름 중복(자기제외) | 타 프리셋명 | — | 409 | unit | P1 | PresetService.java |
+| ~~TC-PRESET-08~~ | ~~수정 이름 중복(자기제외)~~ | ~~타 프리셋명~~ | ~~—~~ | **[폐기 2026-08-25]** ★프리셋 이름 폐지 — TC-PRESET-04 와 같은 사유. 수정 시 자기 제외 판정은 **이벤트 축**으로 옮겨갔다. 대체: TC-PRESET-23 | unit|P1|PresetService.java
 | TC-PRESET-09 | 수정 이벤트 유니크 위반 | saveAndFlush | DataIntegrityViolation | 409 | integration | P1 | PresetService.java |
 | TC-PRESET-10 | 삭제 멱등 | 미존재 id | — | no-op | unit | P2 | PresetService.java |
-| TC-PRESET-11 | 복제 이름 시퀀스 | "X" 존재 | — | "X (복사본)" / "X (복사본 2)" | unit | P2 | PresetService.java |
-| TC-PRESET-12 | 복제 이벤트 미상속 | 원본 이벤트 有 | — | 이벤트 null(충돌 회피) | unit | P1 | PresetService.java |
-| TC-PRESET-13 | 복제 이름 50회 초과 실패 | 대량 복사본 | — | 409 | unit | P2 | PresetService.java |
+| ~~TC-PRESET-11~~ | ~~복제 이름 시퀀스~~ | ~~"X" 존재~~ | ~~—~~ | **[폐기 2026-08-25]** ★복제 기능 폐지 — 이벤트유형 1건에 프리셋 1건이라 복제할 자리가 없고, 복제 결과(이벤트 미연결)는 어느 영상에도 매칭되지 않는 행이 된다. 엔드포인트·서비스 메서드 모두 제거 | unit|P2|PresetService.java
+| ~~TC-PRESET-12~~ | ~~복제 이벤트 미상속~~ | ~~원본 이벤트 有~~ | ~~—~~ | **[폐기 2026-08-25]** ★복제 기능 폐지 — TC-PRESET-11 과 같은 사유. 이벤트가 필수가 되어 "이벤트 null" 상태 자체가 성립하지 않는다 | unit|P1|PresetService.java
+| ~~TC-PRESET-13~~ | ~~복제 이름 50회 초과 실패~~ | ~~대량 복사본~~ | ~~—~~ | **[폐기 2026-08-25]** ★복제 기능 폐지 — TC-PRESET-11 과 같은 사유 | unit|P2|PresetService.java
 | TC-PRESET-14 | 코드뷰 미연결(labelId null) | labelId=null | — | linked=false, legacy 코드 노출(오류 아님) | unit | P1 | PresetService.java |
 | TC-PRESET-15 | 코드뷰 마스터 미존재/soft delete | 비활성 labelId | — | linked=false(자동 생성/삭제 없음) | unit | P1 | PresetService.java |
 | TC-PRESET-16 | 코드뷰 형태 마스터 파생 | 연결됨 | LBL_TYPE_CD | bbox/polygon 을 마스터에서 파생(프리셋 개별 토글 불가) | unit | P1 | PresetService.java |
@@ -396,6 +396,13 @@
 | TC-PRESET-18 | N+1 회피 배치 조회 | 다수 코드 | list() | labelId IN 1회 join | integration | P2 | PresetService.java |
 | TC-PRESET-19 | **★`eventTypeCd` 상한 32 → 20 (신설 · 경계값)** | 생성·수정 요청 | `eventTypeCd` 20자 / 21자 | **20자는 통과 · 21자는 400**(`@Size(max = 20)`). 구 동작(상한 32)은 **폐기** — 21~32자가 DTO 검증을 통과한 뒤 `LS_LABEL_PRESET.EVNT_TYPE_CD`(`VARCHAR(20)`) INSERT 시점에 **DB 오류(500)** 로 터졌다. ★상한을 넓혀 맞추지 말 것 — 코드값 표준도메인이 진실원이고 컬럼이 20 이다(V107 정합, 엔티티도 `length=20`) | unit | P1 | preset/controller/PresetController.java(`PresetRequest.eventTypeCd`) · preset/entity/LsLabelPreset.java(`eventTypeCd`) · PresetRequestEventTypeCdSizeTest.java |
 | TC-PRESET-20 | 상한 축소는 **유효 값 판정을 좁히지 않는다** (신설 · 하위호환) | 이벤트유형 마스터의 실제 `EVNT_TYPE_CD`(예 `EV01000101`, 10자) | 생성·수정 | 종전대로 통과 — 축소된 상한이 **실제 운영 코드값보다 넓으므로** 기존 프리셋·북마크가 400 으로 탈락하지 않는다. 값 자체의 유효성 판정은 종전대로 이벤트유형 마스터 기반 동적 검증(TC-PRESET-02/03)이 담당하며 이 상한은 **길이 축만** 본다 | unit | P2 | preset/controller/PresetController.java(`PresetRequest.eventTypeCd`) · preset/service/PresetService.java |
+| TC-PRESET-21 | **★이벤트유형은 필수다** (신설 · 구 TC-PRESET-03 반전) | 생성·수정 요청 | `eventTypeCd` 미지정/공백 | **400**. 이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않으므로 두지 않는다 | unit | **P0** | preset/controller/PresetController.java(`PresetRequest` — `@NotBlank`) · preset/service/PresetService.java(`requireRegisteredEventType`) |
+| TC-PRESET-22 | **★이벤트 중복은 입구에서 409 이고 어느 이벤트인지 알린다** (신설 · 구 TC-PRESET-04 대체) | 이미 프리셋이 있는 이벤트 | 같은 이벤트로 생성 | **409** + 메시지에 **표시명과 코드**가 담긴다(예 `배회(EV08000101)`). 이름이 없어져 사용자가 중복을 눈으로 알아채지 못하므로 사유를 밝힌다 | unit | **P0** | preset/service/PresetService.java(`create`) · preset/repository/LsLabelPresetRepository.java(`existsByEventTypeCd`) |
+| TC-PRESET-23 | 수정 시 이벤트 중복은 **자기 자신을 제외**하고 판정한다 (신설 · 구 TC-PRESET-08 대체) | 프리셋 2건 | 자기 이벤트 유지한 수정 / 남의 이벤트로 변경 | 전자 통과 · 후자 409 | unit | P1 | preset/service/PresetService.java(`update`) · preset/repository/LsLabelPresetRepository.java(`existsByEventTypeCdAndPresetIdNot`) |
+| TC-PRESET-24 | **★★검증 축이 「필터 옵션」이 아니라 「등록 여부」다** (신설 · **핵심** · 구 동작 반전) | 제외 대분류(`eventtype.excluded-class-codes`, 예 `08`=배회)에 속한 **등록된** 이벤트유형 | 그 이벤트로 프리셋 생성·수정 | **통과한다**. 구 구현은 `validFilterKeys()`(필터 옵션 축)로 검증해 **400 으로 거부**했고 그것이 시험에도 «정상»으로 고정돼 있었다. 제외는 필터 드롭다운에서 감추는 것일 뿐 그 유형의 영상은 들어오고 오토라벨도 돌아야 한다 | unit | **P0** | preset/service/PresetService.java(`requireRegisteredEventType`) · eventtype/service/EventTypeService.java(`registeredCodes`) |
+| TC-PRESET-25 | **★응답에 이벤트 표시명이 실린다 — 이름 없는 유형도 비지 않는다** (신설) | 표시명이 없어 코드로만 폴백되는 등록 유형 + 표시명이 있는 유형 | 목록·단건 조회 | 두 경우 모두 `eventTypeNm` 이 **채워진다**(이름 없으면 코드 원문). 목록 경로는 표시명 맵을 **1회만** 조회한다(N+1 금지). ⚠ 그 맵은 이름 없는 유형을 담지 않으므로 **코드 폴백이 필수**다 | unit | **P0** | preset/service/PresetService.java(`list` — `eventNames.getOrDefault(code, code)` · `resolveEventTypeNm`) · eventtype/service/EventTypeService.java(`codeLabelMap` · `resolveLabel`) |
+| TC-PRESET-26 | 요청·응답에서 **이름·설명이 사라졌다** (신설 · 계약 가드) | — | 생성 요청 / 조회 응답 | 요청 본문은 `eventTypeCd`·`labelIds` 둘뿐이고, 응답에 `name`·`description` 키가 **없다**. 되살리면 실패한다 | unit | P1 | preset/controller/PresetController.java(`PresetRequest`·`PresetResponse`) |
+| TC-PRESET-27 | **복제 동선이 존재하지 않는다** (신설 · 폐지 가드) | — | `POST /v1/manage/presets/{id}/clone` 호출 / `PresetService` 리플렉션 | 엔드포인트가 매핑돼 있지 않고 서비스에 `clone` 메서드가 **없다** | unit | P1 | preset/controller/PresetController.java · preset/service/PresetService.java |
 
 ---
 

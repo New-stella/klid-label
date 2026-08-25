@@ -15,10 +15,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class LsLabelPresetCodeTest {
 
+    /** 프리셋은 이벤트유형 1건에 대응한다(V17 이후 필수) — 코드 동작과 무관한 고정값. */
+    private static final String EVENT_TYPE_CD = "EV01000101";
+
     @Test
     @DisplayName("프리셋_생성시_코드는_LBL_CD로_저장되고_LBL_ID는_미연결_null")
     void createdCodeStartsUnlinked() {
-        LsLabelPreset preset = LsLabelPreset.create("기본", "", List.of("PERSON"), null);
+        LsLabelPreset preset = LsLabelPreset.create(List.of("PERSON"), EVENT_TYPE_CD);
 
         LsLabelPresetCode code = preset.getCodes().get(0);
 
@@ -30,7 +33,7 @@ class LsLabelPresetCodeTest {
     @Test
     @DisplayName("팩토리는_코드와_정렬순서를_그대로_저장하고_LBL_ID는_null")
     void factoryStoresCodeAndSortOrder() {
-        LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
+        LsLabelPreset preset = LsLabelPreset.create(List.of(), EVENT_TYPE_CD);
 
         LsLabelPresetCode person = LsLabelPresetCode.of(preset, "PERSON", 0);
         LsLabelPresetCode vehicle = LsLabelPresetCode.of(preset, "VEHICLE", 1);
@@ -46,7 +49,7 @@ class LsLabelPresetCodeTest {
     @Test
     @DisplayName("updateSortOrder_는_정렬순서만_갱신한다")
     void updateSortOrderChangesOnlyOrder() {
-        LsLabelPreset preset = LsLabelPreset.create("프리셋", "", List.of(), null);
+        LsLabelPreset preset = LsLabelPreset.create(List.of(), EVENT_TYPE_CD);
         LsLabelPresetCode code = LsLabelPresetCode.of(preset, "PERSON", 0);
 
         code.updateSortOrder(5);

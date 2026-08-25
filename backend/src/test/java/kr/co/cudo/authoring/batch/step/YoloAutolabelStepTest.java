@@ -1036,7 +1036,6 @@ class YoloAutolabelStepTest {
         when(eventTypeService.filterKeyOf(evCode)).thenReturn(Optional.of(categoryKey));
         // 사람=BBOX(dtctType person), 차량=POLYGON(dtctType car) 두 코드로 프리셋 구성.
         LsLabelPreset preset = LsLabelPreset.createWithOptions(
-                "침수 프리셋", "flood",
                 List.of(new LsLabelPreset.LabelCodeSpec(1L, null),
                         new LsLabelPreset.LabelCodeSpec(2L, null)),
                 categoryKey);

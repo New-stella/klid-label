@@ -102,8 +102,7 @@ class PresetLabelLookupServiceTest {
     }
 
     private LsLabelPreset presetWithCodes(LabelCodeSpec... specs) {
-        LsLabelPreset preset = LsLabelPreset.createWithOptions(
-                "침수 프리셋", "flood", List.of(specs), CATEGORY_KEY);
+        LsLabelPreset preset = LsLabelPreset.createWithOptions(List.of(specs), CATEGORY_KEY);
         when(presetRepository.findByEventTypeCd(CATEGORY_KEY)).thenReturn(Optional.of(preset));
         return preset;
     }
@@ -380,7 +379,7 @@ class PresetLabelLookupServiceTest {
     @Test
     @DisplayName("매핑된_프리셋의_코드가_비어있으면_빈_Optional")
     void emptyCodesPresetReturnsEmpty() {
-        LsLabelPreset preset = LsLabelPreset.create("빈 프리셋", null, List.of(), CATEGORY_KEY);
+        LsLabelPreset preset = LsLabelPreset.create(List.of(), CATEGORY_KEY);
         when(presetRepository.findByEventTypeCd(CATEGORY_KEY)).thenReturn(Optional.of(preset));
 
         Optional<Set<String>> result = service.togglesFor(VIDEO_EV_CODE).map(Map::keySet);

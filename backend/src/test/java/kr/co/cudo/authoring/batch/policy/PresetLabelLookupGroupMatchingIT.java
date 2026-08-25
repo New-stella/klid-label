@@ -86,7 +86,6 @@ class PresetLabelLookupGroupMatchingIT {
 
         // 프리셋은 <대표코드>에만 저장한다 — 그룹 전체 적용은 filterKeyOf 의 접기가 만들어야 한다.
         LsLabelPreset preset = presetRepository.saveAndFlush(LsLabelPreset.createWithOptions(
-                "프리셋그룹IT " + System.nanoTime(), "",
                 List.of(new LabelCodeSpec(seededLabelId, null)), GROUP_REPRESENTATIVE));
         seededPresetId = preset.getPresetId();
     }

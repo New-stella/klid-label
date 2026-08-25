@@ -15,7 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@code PresetRequest.eventTypeCd} 의 <b>표준도메인 정합 가드</b> — 상한은 컬럼과 같은 20 이다.
+ * {@code PresetRequest.eventTypeCd} 의 <b>필수 + 표준도메인 정합 가드</b> — 상한은 컬럼과 같은 20 이다.
  *
  * <p><b>배경(드리프트)</b>: 최초 정의(V15)는 {@code VARCHAR(32)} 였으나 V107 이 코드값 표준도메인으로
  * 정합해 {@code LS_LABEL_PRESET.EVNT_TYPE_CD} 를 {@code VARCHAR(20)} 으로 좁혔고 엔티티
@@ -23,9 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 입력 검증을 통과한 뒤 INSERT 시점에 DB 오류로 새는 상태였다.
  *
  * <p><b>왜 빈 검증(Validator) 단위 테스트인가</b>: 엔드투엔드(MockMvc)로는 이 드리프트를 잡을 수
- * 없다 — 21자 값은 어차피 서비스의 유효 이벤트유형 검증({@code PresetService.validateEventType})에
- * 걸려 <b>같은 400</b> 이 나므로, 상한을 32 로 되돌려도 응답이 달라지지 않아 가드가 무력해진다.
- * 검사 대상이 어노테이션 값 자체이므로 제약을 직접 평가한다.
+ * 없다 — 21자 값은 어차피 서비스의 이벤트 등록 여부 검증에 걸려 <b>같은 400</b> 이 나므로, 상한을
+ * 32 로 되돌려도 응답이 달라지지 않아 가드가 무력해진다. 검사 대상이 어노테이션 값 자체이므로
+ * 제약을 직접 평가한다.
  *
  * <p>DB 상한을 <b>하드코딩하지 않고</b> 엔티티 {@code @Column(length)} 에서 읽어 비교한다 — 컬럼이
  * 다시 넓어지거나 좁아지면 이 가드가 함께 따라가야 하고, 두 값을 각각 적으면 그때 갈라진다.
@@ -48,7 +48,7 @@ class PresetRequestEventTypeCdSizeTest {
     }
 
     private static PresetController.PresetRequest requestWithEventTypeCd(String eventTypeCd) {
-        return new PresetController.PresetRequest("프리셋", "설명", List.of(1L), eventTypeCd);
+        return new PresetController.PresetRequest(eventTypeCd, List.of(1L));
     }
 
     @Test
@@ -78,12 +78,14 @@ class PresetRequestEventTypeCdSizeTest {
     }
 
     @Test
-    @DisplayName("이벤트타입코드_미지정은_길이제약_대상이_아니다")
-    void 미지정은_길이제약_대상아님() {
-        // null/빈 문자열은 "미매핑" 의미라 @Size 가 걸리면 안 된다(기존 계약 보존).
-        assertThat(validator.validate(requestWithEventTypeCd(null)))
-                .noneMatch(v -> "eventTypeCd".equals(v.getPropertyPath().toString()));
-        assertThat(validator.validate(requestWithEventTypeCd("")))
-                .noneMatch(v -> "eventTypeCd".equals(v.getPropertyPath().toString()));
+    @DisplayName("이벤트타입코드_미지정은_입력검증에서_거부된다_이벤트는_필수다")
+    void 미지정은_입력검증에서_거부() {
+        // V17 이후 이벤트유형은 필수다 — 구 계약("null/빈 문자열 = 미매핑 허용")은 폐기됐다.
+        //   이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않는 죽은 행이기 때문이다.
+        for (String blank : new String[]{null, "", "   "}) {
+            assertThat(validator.validate(requestWithEventTypeCd(blank)))
+                    .as("blank=[%s]", blank)
+                    .anyMatch(v -> "eventTypeCd".equals(v.getPropertyPath().toString()));
+        }
     }
 }

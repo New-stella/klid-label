@@ -17,6 +17,8 @@
 | [CO-006](CO-006-dev업로드-비트레이트-백필.md) | dev 업로드 back-fill 이 비트레이트를 채운다 — R3 의 BIT 부분 반전 | DOMAIN-003 | ✅ 완료 (QA pass_with_notes, issues 0) | — 해당없음 (ERD-012 이미 정합) | (커밋 대기) | 2026-08-24 |
 | [CO-007](CO-007-vlm-연동-verify에서-describe-describesub로-교체.md) | 외부 VLM 연동을 verify → describe(CoT)+describe-sub(VQA) 로 교체 (KLID 연동 API v1.1.0) | 공유기반 · DOMAIN-010 · DOMAIN-003 · DOMAIN-011 · DOMAIN-005 · mock-server | ✅ 완료 (QA fail → 지적 9건 보완, FULL 7,407 통과) | 🎨 26건 확정 + 시안 렌더 2건 재게시 | `cfb3d899`·`7d9da13b` | 2026-08-24 |
 | [CO-008](CO-008-수동업로드-운영노출.md) | 「수동 업로드」 운영(prd) 노출 — 명칭·BE 토글·multipart·LNB 게이트 | DOMAIN-004 · 프론트 · 공유기반 | ✅ 완료 (QA fail ×2 → 문서 동기화·잔재 11건 보완) | 🎨 완료 | `83d34446` (PR #131 → `5d53bcce`) | 2026-08-24 |
+| [CO-009](CO-009-프리셋-미보유-오토라벨-보류-재개.md) | 프리셋 미보유·무효 이벤트 유형의 오토라벨링을 fail-open 에서 보류+재개로 반전 + 연결 상태 화면 노출 | 공유기반(batch) · DOMAIN-004 · DOMAIN-010 · DOMAIN-014 · 프론트 | 📝 작성 | ⏳ 대기 | — | 2026-08-25 |
+| [CO-010](CO-010-프리셋-이벤트별-단순화.md) | 프리셋을 「이벤트 + 라벨」로 단순화 — 이름·설명·복제 폐지 + 이벤트 표시명 서버 제공 | 공유기반(db) · DOMAIN-010 · 프론트 | 🔨 구현중 | 🎨 완료 (목록은 CO §6) | — | 2026-08-25 |
 
 ## 설계 부채 백필 이력
 

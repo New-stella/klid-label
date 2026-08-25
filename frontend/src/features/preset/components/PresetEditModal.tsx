@@ -5,8 +5,6 @@ import { useForm } from 'react-hook-form';
 
 import { Field, FieldError, FieldLabel, FieldTitle } from '@/components/common/Field';
 import { Button } from '@/components/common/Button';
-import { FieldCounter } from '@/components/common/FieldCounter';
-import { Input } from '@/components/common/Input';
 import { Modal } from '@/components/common/Modal';
 import {
   Select,
@@ -15,21 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/common/Select';
-import { Textarea } from '@/components/common/Textarea';
-import { useEventTypes } from '@/features/eventType/hooks';
+import { useEventTypeAdminList } from '@/features/eventType/adminHooks';
 import { TYPE_LABEL } from '@/features/label/constants/labelTypes';
 import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
-import {
-  DESCRIPTION_MAX_LENGTH,
-  LABEL_IDS_MAX_COUNT,
-  NAME_MAX_LENGTH,
-  presetSchema,
-  type PresetFormValues,
-} from '../schemas';
+import { LABEL_IDS_MAX_COUNT, presetSchema, type PresetFormValues } from '../schemas';
 import type { Preset, PresetForm } from '../types';
+import { formatEventTypeDisplay } from '../utils/eventTypeDisplay';
 
 /** 필드 라벨 — DS-001 ladder `label`(14px/600). */
 const FIELD_LABEL_CLASS = 'text-label font-semibold text-gray-900';
@@ -50,19 +42,25 @@ export interface PresetEditModalProps {
 }
 
 const EMPTY_FORM: PresetFormValues = {
-  name: '',
-  description: '',
-  labelIds: [],
   eventTypeCd: '',
+  labelIds: [],
 };
 
 /**
- * 프리셋 편집 모달 — 라벨은 마스터 목록에서 선택(단일 진실원).
+ * 프리셋 편집 모달 — 입력은 <b>이벤트유형 + 라벨</b> 둘뿐이다. [@design SCREEN-026]
  *
- * - 이름 / 설명 / 매핑 이벤트 타입(V15 — 1:1 매핑, 빈 값 = 미매핑)
+ * - 프리셋은 이름·설명을 갖지 않는다 — 이벤트 1건에 프리셋 1건이라 이름은 이벤트명의 중복이었고
+ *   설명은 읽는 화면이 없었다. 사람이 읽는 이름은 이벤트 표시명이 담당한다.
+ * - 이벤트유형은 <b>필수</b>다('선택 안 함' 옵션 없음) — 이벤트에 걸리지 않은 프리셋은 어느
+ *   영상에도 매칭되지 않는 죽은 행이다.
  * - 라벨: `useLabelMasters` 로 활성 마스터를 불러와 체크박스 멀티셀렉트. 형태는 마스터 소유이므로
  *   읽기 전용으로 표시(사용자 토글 불가)한다. 제출 시 선택한 labelId 배열만 전송한다.
  * - 편집 대상에 미연결(linked=false) 코드가 있으면 경고 배너로 재선택을 유도한다.
+ *
+ * @design SCREEN-026
+ * @design API-038
+ * @design API-039
+ * @design API-185
  */
 export function PresetEditModal({
   open,
@@ -72,13 +70,21 @@ export function PresetEditModal({
   submitting,
 }: PresetEditModalProps) {
   const isEdit = !!initial;
-  // 매핑 이벤트 옵션 — 이벤트유형 마스터 기반 (value=이벤트유형코드, 표시=이벤트명).
-  const { data: eventTypes } = useEventTypes();
+  /**
+   * 이벤트 옵션 — <b>등록된 전체 이벤트유형</b>(비수집·제외 대분류 포함)이다.
+   *
+   * ★필터 드롭다운용 옵션 목록(`useEventTypes`)을 쓰지 않는다. 그 목록은 제외 대분류(예: 배회)를
+   *   감추므로, 그 목록으로 옵션을 채우면 해당 유형의 프리셋을 화면에서 만들거나 고칠 수 없다 —
+   *   서버는 <b>등록 여부</b>로 검증하므로 받아 주는데 화면만 못 고르는 비대칭이 생긴다.
+   *   또 필터 옵션은 같은 표시명을 가진 유형들을 한 그룹으로 접는데, 여기서는 유형을 개별로 고른다.
+   *
+   * ⚠ 목록 필터·다른 화면의 이벤트 드롭다운은 여전히 필터 옵션 축이 맞다 — 두 축을 통일하지 않는다.
+   */
+  const { data: eventTypes, isLoading: eventTypesLoading } = useEventTypeAdminList();
   // 라벨 마스터 목록 — 프리셋 라벨의 단일 진실원.
   const { data: masters, isLoading: mastersLoading } = useLabelMasters();
 
   const {
-    register,
     handleSubmit,
     reset,
     setValue,
@@ -90,8 +96,7 @@ export function PresetEditModal({
   });
 
   const selectedIds = watch('labelIds') ?? [];
-  /** 글자수 카운터 표시용 — 입력값 길이만 읽고 제출 값에는 관여하지 않는다. */
-  const descriptionLength = (watch('description') ?? '').length;
+  const eventTypeCd = watch('eventTypeCd') ?? '';
 
   // 활성 마스터만 정렬 노출 (useYn='Y', sortNo 오름차순).
   const activeMasters = useMemo(
@@ -101,6 +106,22 @@ export function PresetEditModal({
         .slice()
         .sort((a, b) => a.sortNo - b.sortNo),
     [masters],
+  );
+
+  /**
+   * 이벤트 옵션 — 표시는 `이벤트명 (유형코드)`.
+   *
+   * 코드를 함께 보이는 이유는 같은 표시명을 가진 유형이 여럿일 수 있기 때문이다
+   * (예: 화재 EV02000101 / 일반화재 EV02000102) — 이름만으로는 구분되지 않는다.
+   * 표시명 자체는 서버가 해석한 `dsplNm` 을 그대로 쓴다(FE 가 폴백을 재현하지 않는다).
+   */
+  const eventOptions = useMemo(
+    () =>
+      (eventTypes ?? []).map((t) => ({
+        value: t.evntTypeCd,
+        label: formatEventTypeDisplay(t.dsplNm, t.evntTypeCd),
+      })),
+    [eventTypes],
   );
 
   // 편집 대상의 미연결 코드(재선택 필요) — legacy 라벨명 안내용.
@@ -116,17 +137,19 @@ export function PresetEditModal({
         .filter((c): c is typeof c & { labelId: number } => c.linked && c.labelId != null)
         .map((c) => c.labelId);
       reset({
-        name: initial.name,
-        description: initial.description ?? '',
-        labelIds: linkedIds,
         eventTypeCd: initial.eventTypeCd ?? '',
+        labelIds: linkedIds,
       });
     } else {
       reset(EMPTY_FORM);
     }
   }, [open, initial, reset]);
 
-  // 이벤트 옵션은 비동기 로드되므로, 옵션 준비 후 initial 의 매핑값(이벤트유형코드)을 select 에 재반영한다.
+  /**
+   * 이벤트 옵션은 비동기로 로드되므로, 옵션이 준비된 뒤 편집 대상의 이벤트를 select 에 다시
+   * 반영한다. 옵션이 아직 없는 시점에 값만 넣으면 Radix 가 매칭되는 항목을 찾지 못해
+   * <b>트리거가 placeholder 로 남는다</b>(편집 중인 이벤트가 화면에서 사라진 것처럼 보인다).
+   */
   useEffect(() => {
     if (open && initial && eventTypes) {
       setValue('eventTypeCd', initial.eventTypeCd ?? '');
@@ -142,15 +165,13 @@ export function PresetEditModal({
 
   const submit = handleSubmit((form) => {
     onSubmit({
-      name: form.name,
-      description: form.description ?? '',
+      eventTypeCd: form.eventTypeCd,
       labelIds: form.labelIds,
-      eventTypeCd: form.eventTypeCd ?? '',
     });
   });
 
-  const saveDisabled = !!submitting || selectedIds.length === 0;
-  const eventTypeCd = watch('eventTypeCd') ?? '';
+  // 이벤트유형도 필수라 저장 조건에 포함한다 — 비운 채 저장하면 서버가 400 으로 되돌린다.
+  const saveDisabled = !!submitting || selectedIds.length === 0 || eventTypeCd === '';
 
   return (
     <Modal
@@ -182,71 +203,38 @@ export function PresetEditModal({
           submit();
         }}
       >
-        {/* Name */}
+        {/* 대상 이벤트유형 — 프리셋의 유일한 식별 축이라 필수다. */}
         <Field className="gap-1.5">
-          <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="preset-name" required>
-            프리셋 이름
-          </FieldLabel>
-          <Input
-            id="preset-name"
-            type="text"
-            placeholder="예: 교통사고 표준 프리셋"
-            {...register('name')}
-          />
-          <FieldError>{errors.name?.message}</FieldError>
-          <p className={FIELD_HELP_CLASS}>필수. 1~{NAME_MAX_LENGTH}자.</p>
-        </Field>
-
-        {/* Description */}
-        <Field className="gap-1.5">
-          {/* 글자수 카운터는 라벨 줄 오른쪽에 둔다 — 입력 아래에 두면 도움말·오류와 겹쳐 읽힌다. */}
-          <div className="flex items-baseline justify-between gap-2">
-            <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="preset-desc">
-              설명
-            </FieldLabel>
-            <FieldCounter current={descriptionLength} max={DESCRIPTION_MAX_LENGTH} />
-          </div>
-          <Textarea
-            id="preset-desc"
-            placeholder="프리셋에 대한 설명을 입력하세요."
-            className="min-h-24 resize-y"
-            {...register('description')}
-          />
-          <FieldError>{errors.description?.message}</FieldError>
-          <p className={FIELD_HELP_CLASS}>선택. 0~{DESCRIPTION_MAX_LENGTH}자.</p>
-        </Field>
-
-        {/* Event type mapping (V15 — 1:1) */}
-        <Field className="gap-1.5">
-          <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="preset-event">
-            매핑 이벤트 타입
+          <FieldLabel className={FIELD_LABEL_CLASS} htmlFor="preset-event" required>
+            이벤트유형
             <span className="ml-1 font-normal text-gray-600">
               (오토라벨 시 이 이벤트의 영상에 본 프리셋 적용)
             </span>
           </FieldLabel>
           <Select
             value={eventTypeCd}
-            onValueChange={(v) => setValue('eventTypeCd', v, { shouldDirty: true })}
+            onValueChange={(v) => setValue('eventTypeCd', v, { shouldValidate: true, shouldDirty: true })}
           >
             <SelectTrigger id="preset-event">
-              <SelectValue />
+              {/* '선택 안 함(미매핑)' 옵션을 두지 않는다 — 이벤트는 필수다. 아무것도 고르지 않은
+                  상태는 옵션이 아니라 placeholder 로 표현한다. */}
+              <SelectValue placeholder="이벤트유형을 선택하세요" />
             </SelectTrigger>
             <SelectContent>
-              {/* '선택 안 함'(빈 값 = 미매핑) + 이벤트유형 마스터 카테고리. */}
-              <SelectItem value="">선택 안 함 (-)</SelectItem>
-              {(eventTypes ?? []).map((o) => (
-                <SelectItem key={o.categoryKey} value={o.categoryKey}>
+              {eventOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
                   {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <FieldError>{errors.eventTypeCd?.message}</FieldError>
-          {/* 이 안내는 오류 여부와 무관하게 항상 노출한다(교체 전 동작 유지) — FieldDescription 은
-              오류가 있으면 aria-describedby 대상에서 밀리므로 일반 문단으로 둔다. */}
+          {/* 이 안내는 오류 여부와 무관하게 항상 노출한다 — FieldDescription 은 오류가 있으면
+              aria-describedby 대상에서 밀리므로 일반 문단으로 둔다. */}
           <p className={FIELD_HELP_CLASS}>
-            선택. 동일 이벤트는 1개 프리셋에만 매핑됩니다. 이미 다른 프리셋이 매핑된 경우 저장 시
-            안내됩니다.
+            {eventTypesLoading
+              ? '이벤트유형을 불러오는 중…'
+              : '필수. 이벤트 1건에는 프리셋이 1건만 존재합니다. 이미 프리셋이 있는 이벤트를 고르면 저장 시 안내됩니다.'}
           </p>
         </Field>
 
