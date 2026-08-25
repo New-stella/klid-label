@@ -379,7 +379,7 @@
 | TC-PRESET-01 | 생성 정상(labelId 기반) | 유효 labelIds | — | 저장, 코드 문자열(LBL_CD) 미저장 | integration | P1 | preset/service/PresetService.java |
 | TC-PRESET-02 | 생성 이벤트타입 무효 (2026-08-25 판정 축 정정) | **등록되지 않은** 코드 | — | 400. ⚠ 판정 축이 필터 옵션(`validFilterKeys`)에서 **등록 여부**(`registeredCodes`)로 바뀌었다 — 제외 대분류·비수집 유형도 **등록돼 있으면 통과**한다(TC-PRESET-24) | unit | P1 | preset/service/PresetService.java(`requireRegisteredEventType`) · eventtype/service/EventTypeService.java(`registeredCodes`) |
 | ~~TC-PRESET-03~~ | ~~생성 이벤트타입 빈값 허용~~ | ~~""~~ | ~~—~~ | **[폐기 2026-08-25]** ★정책 반전(사용자 확정) — 프리셋을 「이벤트 + 라벨」로 단순화하면서 **이벤트유형이 필수**가 됐다. 빈값은 통과가 아니라 **400** 이다(이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않는 죽은 행). 대체: TC-PRESET-21 | unit|P2|PresetService.java
-| ~~TC-PRESET-04~~ | ~~생성 이름 중복~~ | ~~existsByPresetNm~~ | ~~—~~ | **[폐기 2026-08-25]** ★프리셋 이름 폐지 — `PRESET_NM` 컬럼이 제거돼(V17) 이름 중복이라는 거부 사유 자체가 존재하지 않는다. 중복 사유는 이벤트 하나만 남는다. 대체: TC-PRESET-22 | unit|P1|PresetService.java
+| ~~TC-PRESET-04~~ | ~~생성 이름 중복~~ | ~~existsByPresetNm~~ | ~~—~~ | **[폐기 2026-08-25]** ★프리셋 이름 폐지 — `PRESET_NM` 컬럼이 제거돼(V18) 이름 중복이라는 거부 사유 자체가 존재하지 않는다. 중복 사유는 이벤트 하나만 남는다. 대체: TC-PRESET-22 | unit|P1|PresetService.java
 | TC-PRESET-05 | 생성 labelId 미존재/비활성 | 잘못된 labelId | — | 400 "존재하지 않거나 비활성 라벨입니다" | unit | P1 | PresetService.java |
 | TC-PRESET-06 | 생성 이벤트 유니크 경합 | 동시 동일 이벤트 | DataIntegrityViolation | 409 | integration | P0 | PresetService.java |
 | TC-PRESET-07 | 수정 미존재 | 없음 | — | 404 | unit | P1 | PresetService.java |
