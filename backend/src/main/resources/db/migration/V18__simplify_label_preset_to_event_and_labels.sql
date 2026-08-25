@@ -1,5 +1,5 @@
 -- ============================================================================
--- V17: 라벨 프리셋을 「이벤트 + 라벨」로 단순화한다  @design DOMAIN-010
+-- V18: 라벨 프리셋을 「이벤트 + 라벨」로 단순화한다  @design DOMAIN-010
 --
 --   1) 이벤트에 걸리지 않은 프리셋 삭제 (NOT NULL 전환의 선결 조건)
 --   2) PRESET_NM  DROP  (UNIQUE uk_ls_label_preset_name 동반 소멸)
@@ -59,9 +59,9 @@ BEGIN
         DELETE FROM ls_label_preset
          WHERE evnt_type_cd IS NULL;
 
-        RAISE NOTICE 'V17: 이벤트 미연결 프리셋 %건을 삭제했습니다(매칭 대상이 없는 죽은 행).', orphan_cnt;
+        RAISE NOTICE 'V18: 이벤트 미연결 프리셋 %건을 삭제했습니다(매칭 대상이 없는 죽은 행).', orphan_cnt;
     ELSE
-        RAISE NOTICE 'V17: 이벤트 미연결 프리셋이 없습니다 — 삭제 대상 0건.';
+        RAISE NOTICE 'V18: 이벤트 미연결 프리셋이 없습니다 — 삭제 대상 0건.';
     END IF;
 END
 $migration$;
