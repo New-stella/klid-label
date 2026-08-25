@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.dataset.export.DatasetExportOutcome;
 import kr.co.cudo.authoring.dataset.export.DatasetExportService;
 import kr.co.cudo.authoring.eventtype.service.EventTypeCacheEvictor;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -26,10 +28,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,6 +84,10 @@ class ImportControllerIT {
     private static final String EVENT_TYPE_CD = "IMPTEST01";
     private static final Path STORAGE_ROOT = Paths.get("build", "tmp", "import-it");
 
+    /** 비동기 학습데이터 산출을 기다리는 상한 — 같은 저장소의 산출 대기 선례(20초)를 따른다. */
+    private static final Duration EXPORT_SETTLE_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration EXPORT_SETTLE_POLL = Duration.ofMillis(100);
+
     @Autowired private MockMvc mockMvc;
     @Autowired private EventTypeCacheEvictor eventTypeCacheEvictor;
     @Autowired private ObjectMapper objectMapper;
@@ -91,6 +99,11 @@ class ImportControllerIT {
     @Autowired
     @Qualifier("controlDataSource")
     private DataSource controlDataSource;
+
+    /** 검수 승인이 산출을 띄우는 풀 — 그 산출이 끝났는지 보려고 잡는다. {@link #drainAsyncExports()} 참조. */
+    @Autowired
+    @Qualifier("batchAsyncExecutor")
+    private Executor batchAsyncExecutor;
 
     private JdbcTemplate jdbc;
     private String reviewerToken;
@@ -420,6 +433,10 @@ class ImportControllerIT {
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk());
 
+        // 승인이 이미 띄워 둔 비동기 산출을 먼저 끝낸다 — 그것과 아래 동기 산출이 겹치면 산출 행이
+        //   둘 생기고 마감 순서가 정해지지 않는다(자세한 사정은 바로 아래 단언 주석).
+        drainAsyncExports();
+
         // ★★ 이 단언이 이 시험의 중심이다. 프레임 저장 위치가 원본·비식별 서브트리 규약 밖이면
         //    산출 단계가 전 프레임을 거부해 <b>한 장도 쓰지 못하고 실패로 마감</b>되고, 그러면 관제
         //    완료 통지가 나가지 않은 채 실패 회수기가 영원히 다시 시도한다. 경로 문자열만 단언하면
@@ -427,12 +444,27 @@ class ImportControllerIT {
         DatasetExportOutcome outcome = datasetExportService.export(rawSn, true);
         assertThat(outcome).isEqualTo(DatasetExportOutcome.COMPLETED);
 
-        Map<String, Object> export = jdbc.queryForMap(
-                "SELECT output_stts_cd, frme_cnt FROM ls_dataset_export WHERE data_raw_sn = ? "
-                        + "ORDER BY output_sn DESC LIMIT 1", rawSn);
-        assertThat(export.get("output_stts_cd")).isEqualTo("SUCCEEDED");
-        assertThat(((Number) export.get("frme_cnt")).intValue())
-                .isEqualTo(ImportSampleFolder.FRAME_COUNT);
+        // ── 왜 「전 행」을 보고 왜 「기다리는가」 ────────────────────────────────────────
+        //  검수 승인은 커밋된 뒤(AFTER_COMMIT) <b>스스로 또 하나의 산출</b>을 별도 스레드에서 띄운다.
+        //  그래서 위 동기 산출까지 합치면 같은 영상에 산출 행이 둘 생기고, 두 행이 마감되는 순서는
+        //  정해져 있지 않다. 구 단언은 최신 1행만(ORDER BY output_sn DESC LIMIT 1) 집었는데, 비동기
+        //  행이 나중에 들어오면 그 행은 아직 마감 전(PENDING)이라 <b>확률적으로</b> 실패했다.
+        //  ⇒ 최신 1행으로 되돌리지 말 것.
+        //  ⇒ "성공한 행이 하나라도 있으면 통과"로 완화하지도 말 것 — 위 동기 산출이 실제로 실패해도
+        //    다른 행이 그것을 가려 주어, 이 시험의 중심(★★)이 무력해진다.
+        //  그래서 <b>모든 행</b>이 마감되고 <b>모두 성공</b>이며 프레임 수까지 맞는지를 본다.
+        Awaitility.await().atMost(EXPORT_SETTLE_TIMEOUT).pollInterval(EXPORT_SETTLE_POLL)
+                .untilAsserted(() -> {
+                    List<Map<String, Object>> exports = jdbc.queryForList(
+                            "SELECT output_stts_cd, frme_cnt FROM ls_dataset_export "
+                                    + "WHERE data_raw_sn = ? ORDER BY output_sn", rawSn);
+                    assertThat(exports).isNotEmpty().allSatisfy(row -> {
+                        assertThat(row.get("output_stts_cd")).isEqualTo("SUCCEEDED");
+                        assertThat(row.get("frme_cnt")).isNotNull();
+                        assertThat(((Number) row.get("frme_cnt")).intValue())
+                                .isEqualTo(ImportSampleFolder.FRAME_COUNT);
+                    });
+                });
     }
 
     @Test
@@ -462,6 +494,32 @@ class ImportControllerIT {
     }
 
     // ------------------------------------------------------------------ 보조
+
+    /**
+     * 검수 승인이 띄운 비동기 학습데이터 산출이 끝날 때까지 기다린다.
+     *
+     * <p>승인 요청이 200 으로 돌아온 시점에 그 산출은 이미 산출 전용 풀의 대기열에 올라가 있다 —
+     * 승인 커밋 직후 도는 리스너가 <b>승인 요청 스레드에서</b> 제출하기 때문이다. 그래서 이 풀이 비는
+     * 것을 곧 그 산출이 끝난 것으로 볼 수 있다.
+     *
+     * <p>산출 행이 생기기를 기다리지 않는 이유: 산출은 <b>행을 남기지 않고</b> 끝나는 종결도 있어
+     * (산출할 입력이 없거나 정책적으로 보류될 때) 행을 기다리면 그때 영영 멈춘다.
+     *
+     * <p>고정 대기(sleep)를 쓰지 않는다 — 느린 장비에서는 모자라고 빠른 장비에서는 낭비다.
+     */
+    private void drainAsyncExports() {
+        if (!(batchAsyncExecutor instanceof ThreadPoolTaskExecutor executor)) {
+            // 조용히 넘어가지 않는다 — 여기서 no-op 이 되면 아래 단언이 비동기 산출을 못 기다려
+            //   이 시험이 다시 확률적으로 실패한다. 그때 원인이 "가드가 멈춘 것"임을 알 수 없다.
+            throw new IllegalStateException(
+                    "batchAsyncExecutor 가 ThreadPoolTaskExecutor 가 아니다: "
+                            + batchAsyncExecutor.getClass().getName()
+                            + " — 산출 대기 방식을 이 타입에 맞게 고쳐야 한다.");
+        }
+        var pool = executor.getThreadPoolExecutor();
+        Awaitility.await().atMost(EXPORT_SETTLE_TIMEOUT).pollInterval(EXPORT_SETTLE_POLL)
+                .until(() -> pool.getActiveCount() == 0 && pool.getQueue().isEmpty());
+    }
 
     /** 프레임 개인정보 3필드 — 프레임마다 같은 값이면 1건으로 접어 돌려준다. */
     private java.util.Set<Map<String, String>> framePrivacy(long rawSn) {
