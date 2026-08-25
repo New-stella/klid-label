@@ -137,7 +137,7 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
 
-### 조건부 빈 등록 — 이 저장소에서는 애너테이션 두 가지가 **모두** 막혀 있다 (CO-010)
+### 조건부 빈 등록 — 이 저장소에서는 애너테이션 두 가지가 **모두** 막혀 있다 (CO-017)
 `설정값이 주입됐을 때만 빈을 등록`하려는 모든 경우에 해당한다.
 
 - **`@ConditionalOnProperty(name = "x.y.z")` 는 빈 문자열도 매칭시킨다.** 이 저장소는
@@ -151,7 +151,7 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - ⇒ **문자열 파싱이 없는 커스텀 `Condition`** 을 쓴다:
   `StringUtils.hasText(ctx.getEnvironment().getProperty(KEY))`. null·""·공백만이 전부 false 다.
 
-> 근거: CO-010 실증. 조건만 `@ConditionalOnProperty` 로 바꾸자 등록 테스트 2건 FAILED,
+> 근거: CO-017 실증. 조건만 `@ConditionalOnProperty` 로 바꾸자 등록 테스트 2건 FAILED,
 > `@ConditionalOnExpression` + `http://host/a'b` 로는 기동 실패를 RED 재현.
 > 회귀 가드 = `VlmHealthIndicatorRegistrationTest` · `VlmUrlPresentConditionTest`.
 > 선례 코드 = `observability/health/VlmUrlPresentCondition.java`(javadoc 이 근거의 단일 지점).
@@ -159,7 +159,7 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 > **재발 조건**: URL·경로·정규식처럼 따옴표·괄호가 들어갈 수 있는 값으로 빈 등록을 가를 때.
 > 리뷰에서 "애너테이션으로 단순화하자"는 제안이 나오는 순간 조용히 회귀한다.
 
-### WebClient — "200인데 본문이 이상하다"는 **한 종류가 아니다** (CO-010)
+### WebClient — "200인데 본문이 이상하다"는 **한 종류가 아니다** (CO-017)
 외부 연동 응답을 "도달했는가"로 판정할 때(헬스체크 등) 한쪽만 잡으면 **절반이 조용히 실패**한다.
 목서버 4형상 프로브로 실측한 표:
 
@@ -178,7 +178,7 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 
 > **재발 조건**: 리버스 프록시·LB 뒤의 외부 연동. 그 구간은 `200 + HTML 오류 페이지`가 흔하다.
 
-### 외부 응답 예외 메시지를 detail·에러응답에 싣지 말 것 (CWE-209, CO-010)
+### 외부 응답 예외 메시지를 detail·에러응답에 싣지 말 것 (CWE-209, CO-017)
 `DecodingException` 메시지에는 **응답 본문 조각이 그대로 섞인다** — Jackson 이 실패 지점 문자를 인용하기
 때문이다(실측: `JSON decoding error: Unexpected character ('<' (code 60)): expected a valid value ...`).
 `e.getMessage()` 를 노출하면 그대로 정보 유출이다.
