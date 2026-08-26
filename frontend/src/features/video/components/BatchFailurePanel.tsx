@@ -1,6 +1,6 @@
 // BatchFailurePanel — 배치 실패 사유 + 조치 (REVIEWER 전용).
 // [@design SCREEN-009] [@design API-043] [@design API-167] [@design API-198] [@design API-200]
-// [@design API-201]
+// [@design API-201] [@design UI-111] [@design AC-051]
 //
 // ★ 이 패널은 BatchStageIndicator 안이 아니라 **바깥**에 산다.
 //   그 표시기는 «어느 단계까지 왔는가»만 말하고 조작(건너뛰기·재수행·재실행)은 그 바깥의 관심사다.
@@ -50,6 +50,7 @@
 import { useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
+import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { bundleLabel, stageLabel } from '@/components/common/BatchStageIndicator';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -129,6 +130,7 @@ export type BatchPanelMode =
   | 'failure'
   | 'lastFailure'
   | 'bundleFailure'
+  | 'cleared'
   | 'skipped';
 
 /** 모드 판정 입력 — 주의(실패∪스킵) 축 + 처리 중 축. */
@@ -147,6 +149,7 @@ type BatchPanelFields = BatchAttentionFields & Pick<VideoDetail, 'status'>;
  *   <li><b>lastFailure</b> — 실패 기록은 있는데 영상은 실패 상태가 아니다(대개 <b>완주</b>). 묶음
  *       재수행이 실패하면 서버가 영상을 원상 복구하되 로그에는 실패를 남기므로 이 조합이 실재한다.
  *       그때 "지금 실패"로 말하면 <b>전 단계 DONE 인데 실패</b>라는 모순을 화면이 내밀게 된다.</li>
+ *   <li><b>cleared</b> — 실패도 스킵도 없고 <b>건너뛰기가 해제된 묶음만</b> 남았다.</li>
  *   <li><b>skipped</b> — 실패 기록도 처리 중도 아닌데 패널이 떠 있다면 남은 이유는 스킵 표식뿐이다.</li>
  * </ul>
  *
@@ -166,6 +169,19 @@ export function batchPanelMode(video: BatchPanelFields): BatchPanelMode {
   //   시계열 위탁 실패가 정확히 그 경우다(파이프라인을 멈추지 않아 배치 축이 조용하다). 이 분기가
   //   없으면 그 영상의 패널 제목이 「건너뛴 작업 있음」이 되어, 건너뛴 것이 하나도 없는데 그렇게 말한다.
   if (failedBundlesOf(video).length > 0) return 'bundleFailure';
+  // ★ 여기까지 오면 실패 신호가 배치 축에도 묶음 축에도 없다. 그런데 **건너뛴 묶음도 없이 해제된
+  //   묶음만** 남아 있을 수 있다(건너뛰기를 걸었다가 풀었고 아직 그 묶음의 산출물이 없는 영상).
+  //   이 분기가 없으면 그 영상의 패널 제목이 「건너뛴 작업 있음」이 되어, 건너뛴 것이 하나도 없는데
+  //   그렇게 말한다 — 바로 위 `bundleFailure` 를 가른 것과 **같은 원칙의 연장**이며 새 정책이 아니다.
+  //   화면 자신이 이미 자기모순을 드러내고 있었다: 스킵 안내 문단(`batch-skipped-note`)은
+  //   `skipped.length > 0` 일 때만 렌더돼 나오지 않는데 **제목만** 스킵을 주장했다.
+  //   ⚠ 스킵과 해제가 **동시에** 있는 상태는 실재한다(시계열은 스킵, 오토라벨은 해제). 그때는
+  //     아래 `skipped` 가 이긴다 — 스킵이 남아 있는데 「해제됨」이라 말하면 **정반대 방향의 같은
+  //     거짓**이 된다. 그래서 이 분기는 `skippedStages` 가 비었을 때로 좁힌다.
+  //   ⚠ 이 분기는 **제목만** 가른다. 행·배지·버튼의 노출 조건은 모드를 보지 않는다(아래 렌더).
+  if ((video.skippedStages ?? []).length === 0 && (video.clearedStages ?? []).length > 0) {
+    return 'cleared';
+  }
   return 'skipped';
 }
 
@@ -182,6 +198,9 @@ const MODE_HEADING: Record<BatchPanelMode, string> = {
   // ★ 배치 전체는 완주했는데 **그 작업만** 실패한 상태다 — 「배치 처리 실패」로 말하면 전 단계가
   //   완료인 화면과 모순되고, 「건너뛴 작업 있음」으로 말하면 건너뛴 적이 없는데 그렇게 말한다.
   bundleFailure: '실패한 작업 있음',
+  // ★ 건너뛴 것이 하나도 없으므로 「건너뛴 작업 있음」이라 말하지 않는다 — 그 영상에 실제로 있었던
+  //   일은 「건너뛰기를 걸었다가 풀었고 아직 그 작업의 산출물이 없다」이며 이 문구가 그것을 말한다.
+  cleared: '건너뛰기 해제됨',
   skipped: '건너뛴 작업 있음',
 };
 
@@ -193,6 +212,8 @@ const MODE_SURFACE: Record<BatchPanelMode, string> = {
   lastFailure: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
   // 영상 자체는 완주 상태라 위험 톤을 쓰지 않는다 — 무엇이 실패했는지는 제목 문구와 묶음 표식이 말한다.
   bundleFailure: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
+  // 실패도 스킵도 아니므로 위험 톤을 쓰지 않는다 — 상태는 제목 문구가 말한다(스킵과 같은 톤).
+  cleared: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
   skipped: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
 };
 
@@ -371,8 +392,13 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       className={MODE_SURFACE[mode]}
     >
       {/* 상태는 색만으로 전달하지 않는다 — 제목 문구가 단독으로 상태를 말한다.
-          ⚠ 경고 아이콘은 실패·스킵에만 붙인다 — 정상 진행 중인 영상에 경고 글리프를 붙이면
-             문구와 아이콘이 서로 다른 말을 한다(아이콘은 장식이고 문구가 정보다). */}
+          ⚠ 경고 아이콘은 **처리 중이 아닌 모든 모드**에 붙인다(실패·직전 실패·묶음 실패·해제·스킵).
+             정상 진행 중인 영상에만 붙이지 않는다 — 그때 경고 글리프를 달면 문구와 아이콘이 서로
+             다른 말을 한다(아이콘은 장식이고 문구가 정보다).
+          ⚠ **[폐기]** 구 서술 「실패·스킵에만 붙인다」 — 그 열거는 `cleared` 모드가 생기기 전의
+             것이라 낡았다. 해제 모드는 실패도 스킵도 아니지만 아이콘이 붙으며 **그것이 맞다**:
+             확정 시안이 「건너뛴 작업 있음」과 「건너뛰기 해제됨」에 같은 경고 톤을 주고 이 화면도
+             두 모드에 같은 표면을 쓴다. 틀렸던 것은 열거뿐이고 조건은 손대지 않았다. */}
       <h4
         id="batch-failure-heading"
         className="flex items-center gap-1.5 text-title-sm font-semibold text-gray-800"
@@ -490,37 +516,44 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                   <li key={bundle} className="flex flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2 text-body-md">
                       <span className="text-gray-800">{label}</span>
-                      {/* ⚠ 「건너뛰기 해제」 버튼은 두지 않는다(ADR-050) — 되살릴 창구는 재수행 하나다. */}
+                      {/* ⚠ 「건너뛰기 해제」 버튼은 두지 않는다(ADR-050) — 되살릴 창구는 재수행 하나다.
+                          ★ 세 표식은 **공용 배지(UI-111)** 로 그린다. 이 자리에서 흰 배경 + 회색
+                            테두리 알약을 따로 만들면 같은 행의 보조 버튼(`Button` secondary sm)과
+                            형태가 같아져 사용자가 상태 표시를 조작 버튼으로 **오인한다**(실제 신고).
+                            공용 배지는 테두리 없는 톤 배경 + 완전 둥근 모서리라 버튼과 형태로 갈린다.
+                          ⚠ `StatusBadge`(UI-014)를 쓰지 말 것 — 그쪽은 워크플로 코드 고정 매핑 축이고
+                            건너뜀·해제됨·실패는 그 목록에 없다(매핑이 두 곳으로 갈린다).
+                          ⚠ 표시 **조건**은 바뀌지 않았다 — 바뀐 것은 생김새뿐이다. */}
                       {isSkipped && (
-                        <span
-                          className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
+                        <Badge
+                          variant="neutral"
+                          label="건너뜀"
                           data-testid={`batch-stage-skipped-${bundle}`}
-                        >
-                          건너뜀
-                        </span>
+                        />
                       )}
 
                       {/* 건너뛰기가 해제된 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다.
                           ⚠ 지금 건너뛴 상태이면 그쪽 표식이 앞선다(두 표식을 함께 달면 서로 반대되는
                             말을 한다 — 서버도 두 목록에 같은 묶음을 함께 담지 않는다). */}
                       {isCleared && !isSkipped && (
-                        <span
-                          className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
+                        <Badge
+                          variant="neutral"
+                          label="해제됨"
                           data-testid={`batch-stage-reverted-${bundle}`}
-                        >
-                          해제됨
-                        </span>
+                        />
                       )}
 
                       {/* 실패 표식 — 이 행이 왜 떠 있는지를 말한다. 건너뜀·해제 표식과 같은 축이며,
-                          배치 전체가 완주한 영상에서는 이것이 유일한 실패 단서다(사유 영역이 없다). */}
+                          배치 전체가 완주한 영상에서는 이것이 유일한 실패 단서다(사유 영역이 없다).
+                          ★ 여기만 위험 계열(`error`)이다 — 다른 두 표식과 **다른 것을 말하므로**
+                            같은 중립 톤으로 뭉뚱그리지 않는다. 다만 색만으로 전달하지 않도록
+                            「실패」 문구를 항상 함께 둔다(UI-111 의 `label` 필수 계약). */}
                       {isBundleFailed && !isSkipped && (
-                        <span
-                          className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-caption text-gray-700"
+                        <Badge
+                          variant="error"
+                          label="실패"
                           data-testid={`batch-stage-failed-${bundle}`}
-                        >
-                          실패
-                        </span>
+                        />
                       )}
 
                       {!isSkipped && isBundleFailed && (

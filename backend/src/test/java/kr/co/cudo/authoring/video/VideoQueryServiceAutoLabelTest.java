@@ -16,6 +16,7 @@ import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
+import kr.co.cudo.authoring.video.service.VideoResolutionResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,9 @@ class VideoQueryServiceAutoLabelTest {
         service = new VideoQueryService(videoRepository, ingestSourceRepository, srcRepository, lblRepository,
                 rawDataStatusRepository, taskAssignmentRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository), deidentProcLogRepository,
-                batchStatusService, fpsResolver, eventTypeService,
+                batchStatusService, fpsResolver,
+                // 해상도 표시값 조달(video.resolution) — 본 테스트는 오토라벨 축만 다뤄 미사용(기본 null).
+                mock(VideoResolutionResolver.class), eventTypeService,
                 mock(kr.co.cudo.authoring.assignment.service.ReviewApprovalGate.class),
                 mock(kr.co.cudo.authoring.batch.status.BatchBundleFailureGate.class),
                 // 검증 이벤트 질문 목록 조달(마킹 화면용) — 본 테스트는 유형 미수신 경로만 지나가
