@@ -116,7 +116,7 @@ export function LabelPickerModal({ open, toolName, onSelect, onCancel }: LabelPi
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="예: 사람"
           autoComplete="off"
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-body text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-body text-gray-900 focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500"
         />
       </label>
 

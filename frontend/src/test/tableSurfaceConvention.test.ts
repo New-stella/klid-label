@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import resolveConfig from 'tailwindcss/resolveConfig';
+import resolveConfig from 'tailwindcss-v3-compat/resolveConfig';
 import { describe, expect, it } from 'vitest';
 
 import { cn } from '@/lib/cn';

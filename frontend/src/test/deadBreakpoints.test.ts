@@ -21,7 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import resolveConfig from 'tailwindcss/resolveConfig';
+import resolveConfig from 'tailwindcss-v3-compat/resolveConfig';
 import { describe, expect, it } from 'vitest';
 
 // tailwind.config.js 는 타입 선언이 없는 plain JS(ESM default export)

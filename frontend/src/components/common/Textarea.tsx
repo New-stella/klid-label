@@ -51,7 +51,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       aria-invalid={invalid}
       aria-describedby={describedBy}
       className={cn(
-        'min-h-11 max-h-[50vh] w-full rounded-md border bg-white px-3 py-2 text-body text-gray-900 outline-none transition-colors duration-100 placeholder:text-gray-400 disabled:bg-gray-50 disabled:opacity-60 [field-sizing:content]',
+        'min-h-11 max-h-[50vh] w-full rounded-md border bg-white px-3 py-2 text-body text-gray-900 outline-hidden transition-colors duration-100 placeholder:text-gray-400 disabled:bg-gray-50 disabled:opacity-60 [field-sizing:content]',
         KRDS_FOCUS,
         hasError
           ? 'border-danger focus-visible:border-danger'

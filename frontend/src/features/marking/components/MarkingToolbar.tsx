@@ -34,7 +34,7 @@ export function MarkingToolbar({
   //   in-flight 중 재클릭으로 마킹 POST 가 중복 발화한다.
   const disabled = submitting || (mode === 'AUTO' && intervalFrames < 1);
   return (
-    <div className={cn('flex flex-wrap items-center gap-3 p-3 bg-white border rounded-lg', className)}>
+    <div className={cn('flex flex-wrap items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg', className)}>
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -69,7 +69,7 @@ export function MarkingToolbar({
             min={1}
             value={intervalFrames}
             onChange={(e) => onIntervalFramesChange(parseInt(e.target.value, 10) || 1)}
-            className="w-16 rounded border px-2 py-1.5 text-body-md"
+            className="w-16 rounded border border-gray-300 px-2 py-1.5 text-body-md"
           />
         </label>
       )}

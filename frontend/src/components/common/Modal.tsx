@@ -130,7 +130,7 @@ export function Modal({
           // 음영은 DS-001 토큰 3단(sm/md/lg) 중 오버레이용 최상단 `lg` 를 쓴다 —
           // 그 위 단계(xl)는 토큰에 없어 Tailwind 기본값(순수 검정 기반)으로 폴백해
           // KRDS 음영색(rgba(14,21,40,…))과 어긋난다.
-          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-lg outline-none',
+          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-lg outline-hidden',
           sizeClass[size],
         )}
       >

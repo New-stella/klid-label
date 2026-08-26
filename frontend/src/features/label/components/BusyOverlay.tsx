@@ -153,7 +153,7 @@ export function BusyOverlay({ kind, startedAt, limitMs, onCancel }: BusyOverlayP
           type="button"
           data-testid="busy-overlay-cancel"
           onClick={onCancel}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-1.5 text-caption text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="rounded-lg border border-gray-300 bg-white px-4 py-1.5 text-caption text-gray-700 transition-colors hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-primary-500"
         >
           작업 취소
         </button>

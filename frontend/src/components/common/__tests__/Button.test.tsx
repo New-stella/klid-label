@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import resolveConfig from 'tailwindcss/resolveConfig';
+import resolveConfig from 'tailwindcss-v3-compat/resolveConfig';
 
 import { contrastRatio, WCAG_AA_NORMAL_TEXT } from '@/test/wcagContrast';
 

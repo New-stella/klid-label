@@ -249,7 +249,7 @@ export function VerificationEventTypeSection() {
             {selected && (
               <section
                 aria-labelledby="vrfc-question-editor-heading"
-                className="space-y-3 rounded border p-3"
+                className="space-y-3 rounded border border-gray-200 p-3"
                 data-testid="vrfc-question-editor"
               >
                 <h3 id="vrfc-question-editor-heading" className="font-medium text-gray-800">

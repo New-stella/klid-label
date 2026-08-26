@@ -9,7 +9,7 @@
  * (인라인 제각각 focus 스타일 `focus-visible:ring-2 ring-offset-1` 등을 대체)
  */
 export const KRDS_FOCUS =
-  'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-primary-500';
+  'focus-visible:outline-hidden focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-primary-500';
 
 /**
  * KRDS 최소 터치 타깃 크기(44x44px).
