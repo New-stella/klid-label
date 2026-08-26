@@ -39,10 +39,16 @@ import java.util.zip.ZipOutputStream;
  *
  * <h3>ZIP 구조 (API-203 원문)</h3>
  * <pre>
- * {rawSn}/labels.json                        프레임별 라벨(본인 저장분 우선)
- * {rawSn}/frames/{FRM_NO 4자리 zero-pad}.jpg 비식별 프레임 이미지
- * {rawSn}/video.{ext}                        비식별 영상 — <b>있을 때만</b>
+ * {rawSn}/frames/{FRM_NO 4자리 zero-pad}.json 그 프레임의 어노테이션 문서(NIA COCO 확장 9키)
+ * {rawSn}/frames/{FRM_NO 4자리 zero-pad}.jpg  비식별 프레임 이미지
+ * {rawSn}/video.{ext}                         비식별 영상 — <b>있을 때만</b>
  * </pre>
+ * <p>문서와 이미지는 <b>같은 자리에 이름만 다른 짝</b>이다. 검수 승인 학습데이터 산출물과 같은 구조라
+ * 다시 읽어 적재하는 경로에 그대로 들어갈 수 있다. 영상 단위로 라벨을 한 문서에 모으던 자체 형태
+ * ({@code labels.json})는 <b>두지 않는다</b> — 두 형태가 병존하면 같은 라벨의 좌표 표현이 갈린다.
+ * <p>문서와 이미지는 <b>함께</b> 담기거나 <b>함께</b> 빠진다 — 이미지를 담을 수 없는 프레임(적재값
+ * 부재·경로 검증 실패)은 그 프레임을 통째로 건너뛴다. 검수 승인 산출 경로가 원천 이미지 부재 프레임을
+ * 같은 방식으로 건너뛰므로 구성 규칙을 통일한 것이다(구 동작 "문서만 남김"은 폐기).
  *
  * <h3>이 빈에는 {@code @Transactional} 이 없다 (의도)</h3>
  * <p>DB 단계는 {@link PortalDatamartDownloadTxService} 가 {@code readOnly} 트랜잭션에서 끝내고 값
@@ -69,8 +75,8 @@ import java.util.zip.ZipOutputStream;
  * 원본(마스킹 전) 파일 심링크로 교체하는 창이 남는다(CWE-59/367/359).
  *
  * <h3>원본 폴백은 없다 (AC-034 불변 규칙)</h3>
- * <p>비식별 경로가 없거나 검증에 실패하면 그 파일은 <b>그냥 빠진다</b>. 원본(비식별 이전) 영상·프레임은
- * 어떤 경로로도 ZIP 에 들어가지 않는다.
+ * <p>비식별 경로가 없거나 검증에 실패하면 그 대상은 <b>그냥 빠진다</b>(프레임이면 문서까지 함께,
+ * 영상이면 그 엔트리만). 원본(비식별 이전) 영상·프레임은 어떤 경로로도 ZIP 에 들어가지 않는다.
  *
  * <h3>동시 스트리밍 상한 — 요청 스레드 고갈 차단 (CWE-400 / OWASP API4)</h3>
  * <p>{@link MvcAsyncExecutorConfig} 의 포화 정책은 {@code CallerRunsPolicy} 이고 <b>그 선택은 유지한다</b>
@@ -135,8 +141,22 @@ public class PortalDatamartDownloadService {
         this.deidentifiedPath = deidentifiedPath;
     }
 
-    /** ZIP 엔트리 1건 — 검증을 통과한 <b>실경로</b>와 그 경로를 담을 엔트리명. */
-    private record ZipFile(String entryName, Path realPath) {}
+    /**
+     * ZIP 엔트리 1건.
+     *
+     * <p>{@code content} 가 있으면 그 바이트를 쓰고(어노테이션 문서), 없으면 {@code realPath} 를
+     * 열어 흘려보낸다(이미지·영상). 둘 중 하나만 채운다.
+     */
+    private record ZipItem(String entryName, byte[] content, Path realPath) {
+
+        static ZipItem ofBytes(String entryName, byte[] content) {
+            return new ZipItem(entryName, content, null);
+        }
+
+        static ZipItem ofFile(String entryName, Path realPath) {
+            return new ZipItem(entryName, null, realPath);
+        }
+    }
 
     /**
      * 다운로드 응답을 만든다. 게이트 3종(403/412/410)은 {@link PortalDatamartDownloadTxService#plan}
@@ -156,15 +176,13 @@ public class PortalDatamartDownloadService {
         try {
             PortalDatamartDownloadTxService.DownloadPlan plan = txService.plan(rawSn, actor);
 
-            List<ZipFile> files = new ArrayList<>();
-            files.addAll(resolveFrameImages(plan));
-            resolveDeidVideo(plan).ifPresent(files::add);
+            List<ZipItem> items = new ArrayList<>(resolveFrameEntries(plan));
+            resolveDeidVideo(plan).ifPresent(items::add);
 
-            byte[] labelsJson = plan.labelsJson();
             String prefix = plan.rawSn() + "/";
             StreamingResponseBody body = out -> {
                 try {
-                    writeZip(out, prefix, labelsJson, files, plan.rawSn());
+                    writeZip(out, prefix, items, plan.rawSn());
                 } finally {
                     // 정상 완료뿐 아니라 <클라이언트 이탈>(broken pipe)·제한시간 초과에서도 반납해야 한다.
                     // 대용량 내려받기의 가장 흔한 종료가 이탈이라, 여기서 새면 결국 전건 429 가 된다.
@@ -195,26 +213,44 @@ public class PortalDatamartDownloadService {
     }
 
     /**
-     * 프레임 이미지 — <b>비식별 벌만</b>. 검증 실패 프레임은 사유 코드만 남기고 조용히 빠진다
-     * (원본으로 대체하지 않는다).
+     * 프레임 엔트리 — 어노테이션 문서 + <b>비식별 벌만</b>의 이미지. 문서와 이미지를 프레임 순서대로
+     * 짝지어 담는다.
+     *
+     * <p><b>이미지를 담을 수 없는 프레임은 그 프레임을 통째로 건너뛴다</b>(문서도 만들지 않는다) —
+     * 검수 승인 산출 경로({@code DatasetExportWriter})가 원천 이미지 부재 프레임을 같은 방식으로
+     * 건너뛰므로 두 산출물의 구성 규칙을 통일한다. 원본으로 대체하지 않는 것(AC-034)은 그대로다.
+     * <p>⚠ <b>구 동작(문서만 남김)은 폐기</b> — 이미지 없는 문서만 남으면 문서·이미지가 <i>같은 자리의
+     * 이름만 다른 짝</i>이라는 이 산출물의 구조 규약이 프레임마다 깨지고, 다시 읽어 적재하는 왕복
+     * 경로에서 이미지 없는 프레임이 나온다. 되돌리지 말 것.
+     * <p>실패 사유는 코드만 남긴다(경로 원문 미노출 — CWE-209/117).
      */
-    private List<ZipFile> resolveFrameImages(PortalDatamartDownloadTxService.DownloadPlan plan) {
+    private List<ZipItem> resolveFrameEntries(PortalDatamartDownloadTxService.DownloadPlan plan) {
         Path base = Paths.get(deidentifiedPath).toAbsolutePath().normalize();
-        List<ZipFile> files = new ArrayList<>(plan.frames().size());
+        List<ZipItem> items = new ArrayList<>(plan.frames().size() * 2);
         for (PortalDatamartDownloadTxService.FrameEntry frame : plan.frames()) {
+            // 이미지 판정을 <먼저> 끝낸다 — 담을 이미지가 없으면 문서도 만들지 않기 때문이다.
+            if (frame.deidImagePath() == null) {
+                // 비식별 이미지 적재값 없음 — 원본 폴백 금지이므로 이 프레임은 산출에서 빠진다.
+                log.warn("[PortalDownload] frame skipped — no deid image rawSn={} frameNo={}",
+                        plan.rawSn(), frame.frameNo());
+                continue;
+            }
             StorageSubtreePolicy.Verification verification =
                     StorageSubtreePolicy.verifyDeidentifiedFile(base, frame.deidImagePath());
             if (!verification.ok()) {
-                // 경로 원문은 남기지 않는다(CWE-209/117) — 사유 코드만.
-                log.warn("[PortalDownload] frame skipped rawSn={} frameNo={} verdict={}",
+                log.warn("[PortalDownload] frame skipped — deid image rejected rawSn={} frameNo={} verdict={}",
                         plan.rawSn(), frame.frameNo(), verification.verdict());
                 continue;
             }
-            files.add(new ZipFile(
+            // 파일명 규칙은 검수 승인 산출물과 <b>같은 단일 지점</b>을 따른다(포털 전용 규칙 금지).
+            items.add(ZipItem.ofBytes(
+                    "frames/" + ExportFileNaming.jsonFileName(frame.frameNo()),
+                    frame.annotationJson()));
+            items.add(ZipItem.ofFile(
                     "frames/" + ExportFileNaming.imageFileName(frame.frameNo()),
                     verification.path()));
         }
-        return files;
+        return items;
     }
 
     /**
@@ -222,7 +258,7 @@ public class PortalDatamartDownloadService {
      * 허용 base 는 구 위치({@code {deid_base}/videos/{rawSn}})와 co-locate 위치를 모두 포함하며,
      * 그중 하나라도 통과하면 그 <b>실경로</b>를 쓴다.
      */
-    private java.util.Optional<ZipFile> resolveDeidVideo(PortalDatamartDownloadTxService.DownloadPlan plan) {
+    private java.util.Optional<ZipItem> resolveDeidVideo(PortalDatamartDownloadTxService.DownloadPlan plan) {
         String deidPath = plan.deidVideoPath();
         if (deidPath == null || deidPath.isBlank()) {
             // 신고 구간은 여기 오기 전에 412 로 끝난다(TxService 클래스 주석) — 여기서의 null 은
@@ -248,7 +284,7 @@ public class PortalDatamartDownloadService {
             if (!Files.isRegularFile(real, LinkOption.NOFOLLOW_LINKS)) {
                 continue;
             }
-            return java.util.Optional.of(new ZipFile("video." + safeExtension(real), real));
+            return java.util.Optional.of(ZipItem.ofFile("video." + safeExtension(real), real));
         }
         log.warn("[PortalDownload] deid video rejected rawSn={} — outside readable deid bases", plan.rawSn());
         return java.util.Optional.empty();
@@ -273,25 +309,27 @@ public class PortalDatamartDownloadService {
     }
 
     /** ZIP 본문 — 파일은 한 번에 하나씩만 연다(FD 고갈 방지). */
-    private void writeZip(java.io.OutputStream out, String prefix, byte[] labelsJson,
-                          List<ZipFile> files, long rawSn) throws IOException {
+    private void writeZip(java.io.OutputStream out, String prefix,
+                          List<ZipItem> items, long rawSn) throws IOException {
         try (ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8)) {
-            zip.putNextEntry(new ZipEntry(prefix + "labels.json"));
-            zip.write(labelsJson);
-            zip.closeEntry();
-
-            for (ZipFile file : files) {
+            for (ZipItem item : items) {
+                if (item.content() != null) {
+                    zip.putNextEntry(new ZipEntry(prefix + item.entryName()));
+                    zip.write(item.content());
+                    zip.closeEntry();
+                    continue;
+                }
                 FrameImageService.OpenedFile opened;
                 try {
                     // 판정에 쓴 실경로를 그대로, NOFOLLOW 로 연다(TOCTOU — CWE-367/59).
-                    opened = FrameImageService.openNoFollow(file.realPath());
+                    opened = FrameImageService.openNoFollow(item.realPath());
                 } catch (IOException e) {
                     // 판정~open 사이에 사라졌거나 심링크로 교체됨 — 그 파일만 빠진다(원본 대체 금지).
                     log.warn("[PortalDownload] entry open failed rawSn={} entry={} reason={}",
-                            rawSn, file.entryName(), e.getClass().getSimpleName());
+                            rawSn, item.entryName(), e.getClass().getSimpleName());
                     continue;
                 }
-                zip.putNextEntry(new ZipEntry(prefix + file.entryName()));
+                zip.putNextEntry(new ZipEntry(prefix + item.entryName()));
                 try (InputStream in = opened.stream()) {
                     in.transferTo(zip);
                 }

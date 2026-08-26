@@ -168,7 +168,7 @@
     "schema_version": 1,
     "current_version": 7,
     "stale": true,
-    "stale_reason": "SCREEN-006의 data.sections 변경 — granted_on",
+    "stale_reason": "SCREEN-009의 data.implementation 변경 — granted_on",
     "change_summary": "영상 처리 현황 화면의 조회 범위를 이 역할의 다른 화면들과 같은 기준으로 맞춘다. 이 문서는 본문에서 이미 작업 목록과 통계가 본인 배정분으로 좁혀진다고 밝히고 대시보드·작업 목록·영상 상세 항목도 그렇게 적고 있는데, 영상 처리 현황 항목만 범위를 적지 않아 그 화면에서는 남의 영상까지 보이는 것으로 읽혔다. 조회만 가능하다는 기존 서술은 그대로 두고 범위 서술을 더한다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-25T06:49:43.139Z",

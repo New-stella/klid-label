@@ -46,7 +46,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -60,7 +61,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -74,7 +76,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -88,7 +91,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -102,7 +106,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -116,7 +121,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -130,7 +136,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -144,7 +151,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -158,11 +166,44 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "labelId",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "description": "라벨 마스터를 가리키는 참조값. 데이터마트 원본에서 불러온 라벨이 갖고 있던 분류 연결을 저장 왕복에서 잃지 않기 위한 보존값이며, 내려받기 산출물에서 어노테이션 항목의 분류 식별자를 채우는 조달처다. 외래키를 두지 않는다 — 포털 전용 저장소는 내부 파이프라인과 분리 운영되고 라벨 마스터가 비활성화돼도 포털 사용자의 과거 작업이 지워지면 안 되기 때문이며, 유효성은 조회 시점 결합으로 확인한다. 활성 마스터에 실재하지 않는 참조는 그 값만 비워서 보관하고 저장 자체는 성공시킨다. 값이 없을 수 있고, 라벨명으로 유추해 채우지 않는다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "trackId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "라벨이 속한 트랙 식별자. 데이터마트 원본에서 불러온 라벨이 갖고 있던 트랙 연결을 저장 왕복에서 잃지 않기 위한 보존값이며, 내려받기 산출물에서 어노테이션 항목의 트랙 식별자를 채우는 조달처다. 데이터 라벨의 같은 이름 항목과 물리명·타입·크기를 그대로 재사용하고 길이 상한은 30자다. 외래키를 두지 않으며 유효성은 조회 시점 결합으로 확인한다. 값이 없을 수 있다 — 트랙에 묶이지 않은 라벨은 비운 채로 둔다. 포털 사용자에게 트랙 번호 변경·병합 수단을 주는 것이 아니다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
-          "description": "포털 사용자의 간편 라벨링 작업 데이터. 원본 미수정, 사용자별 적재(데이터마트 미정합). PORTAL_USER_NO로 본인 데이터만 접근. (LS_PORTAL_USER_LABEL)",
+          "description": "포털 사용자의 간편 라벨링 작업 데이터. 원본 미수정, 사용자별 적재(데이터마트 미정합). PORTAL_USER_NO로 본인 데이터만 접근. (LS_PORTAL_USER_LABEL) 라벨 마스터 참조(labelId)와 트랙 식별자(trackId)는 포털 사용자에게 새 편집 수단을 주려는 것이 아니라, 데이터마트 원본에서 불러온 라벨이 갖고 있던 연결이 저장 왕복에서 끊기지 않도록 보존하기 위한 것이다. 트랙 번호 변경·병합은 포털에 두지 않는다. 두 값 모두 비어 있을 수 있고 외래키를 두지 않으므로 라벨 마스터와 실선 연관으로 묶지 않고 식별자 보유만으로 표현하며, 참조 무결성은 조회 시점 결합으로 확인한다.",
           "enum_values": [],
           "stereotypes": []
         },
@@ -196,6 +237,14 @@
         "DFEAT-044",
         "DFEAT-053"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "realizes_features": [
         "DFEAT-043",
@@ -205,12 +254,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "전파 확인만 기록한다 — 원천의 이번 리비전은 본문 한 문장을 더한 것인데, 그 쓰기에 서버가 구현 추적 항목에 빈 키 하나를 정규화로 채우면서 전파 사유가 그 장부 필드 변경으로 기록됐다. 사양이 달라진 것이 아니라 추적 항목의 형태가 채워진 것이라 이 문서(포털 사용자 라벨 도메인 모델)가 담는 사양에는 걸리는 항목이 없고 고칠 내용이 없다. 원천 본문에 더해진 문장 자체는 이 문서의 축과 겹치지 않는다.",
+    "change_summary": "포털 사용자 라벨 클래스에 라벨 마스터 참조(labelId, Long)와 트랙 식별자(trackId, String) 속성을 더한다. 저장소가 두 값을 보유하고 저장 요청·저장 응답·조회 응답이 모두 그 값을 나르도록 확정됐는데, 이 도메인 모델은 라벨 유형 코드·라벨명·좌표만 담고 있어 그 연결이 모델 어디에도 없었다. 속성 이름과 타입은 같은 값을 담는 데이터 라벨·라벨 마스터의 기존 항목을 그대로 따른다. 두 값 모두 비어 있을 수 있고 외래키를 두지 않으므로 라벨 마스터와 실선 연관으로 묶지 않고 식별자 보유만으로 표현했다 — 포털 전용 저장소는 내부 파이프라인과 분리 운영되고 라벨 마스터가 비활성화돼도 포털 사용자의 과거 작업이 지워지면 안 되기 때문이며, 참조 무결성은 조회 시점 결합으로 확인한다. 활성 마스터에 실재하지 않는 참조는 그 값만 비워서 보관하고 저장 자체는 성공시킨다. 두 속성이 편집 수단이 아니라 보존 수단이라는 점을 클래스 서술에 함께 적었다 — 데이터마트 원본에서 불러온 라벨의 연결이 저장 왕복에서 끊기지 않게 하려는 것이고, 트랙 번호 변경·병합은 포털에 두지 않는다는 결정은 그대로다. 기존 속성·메서드·관계·열거값과 다른 클래스는 손대지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T01:00:10.142Z",
+    "last_updated_at": "2026-08-26T04:52:51.766Z",
     "created_at": "2026-06-02T08:54:21.630Z"
   }
 }
