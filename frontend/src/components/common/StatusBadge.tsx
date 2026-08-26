@@ -88,7 +88,14 @@ export function StatusBadge({ status, label, className }: StatusBadgeProps) {
     <span
       data-status={status}
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sub font-medium',
+        // 시안 `.badge` = `padding: 3px 10px; font-size: 14px; font-weight: 600;
+        // line-height: 1.4`. 앞의 셋은 ladder `label` step 이 그대로 갖고 있으므로 크기·굵기·
+        // 행간을 그 한 토큰으로 적는다 — 굵기 유틸(`font-*`)을 덧붙이면 500 이 step 의 600 을
+        // 덮어 크기만 맞고 굵기가 어긋난다(그것이 구 동작이었다).
+        // ⚠ 세로 3px 은 spacing 스케일(4px 배수)에 없어 유일하게 실측값으로 적는다. 시안의
+        //   배지 규칙은 gap 5 · dot 6 · 좌우 10 까지 전부 raw px 이라 애초에 4px 그리드 밖에서
+        //   설계된 영역이고, 4px 으로 반올림하면 배지 높이가 25.6 → 27.6px 로 벌어진다.
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-[3px] text-label',
         tone.className,
         className,
       )}
