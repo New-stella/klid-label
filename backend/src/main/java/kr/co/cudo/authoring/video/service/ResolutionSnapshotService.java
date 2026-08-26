@@ -43,7 +43,7 @@ import java.util.Optional;
  *   <li>부모 {@code findByRawSnForUpdate} 재잠금 + 비식별 산출물 존재({@code hasDeidentArtifact()}) 재검증
  *       — 신고('F')는 통과, 'N'(미수행)만 차단</li>
  *   <li>부모 프레임 수 &gt; 0 fail-fast(#9)</li>
- *   <li>치수(srcW/H, targetW/H, scaleX/scaleY) + 비식별 비디오 경로 + 프레임별 비식별 경로/목표 경로
+ *   <li>치수(srcW/H, 산출 targetW/H, 균일 배율) + 비식별 비디오 경로 + 프레임별 비식별 경로/목표 경로
  *       + 등록자 전부 스냅샷 → {@link ResolutionSnapshot} 로 반환 후 커밋(잠금·커넥션 해제)</li>
  * </ol>
  *
@@ -130,19 +130,19 @@ public class ResolutionSnapshotService {
         // Phase C 가 "스냅샷 이후 비식별본이 재비식별로 교체됐는가"를 이 시각 기준으로 결정적으로 재검증한다.
         Instant capturedAt = Instant.now();
 
-        int targetW = preset.width();
-        int targetH = preset.height();
-        // 배율은 preset(목표) / parent 첫 프레임 실측(원본)으로 산정.
+        // 배율·산출 크기는 preset(상한) / parent 첫 프레임 실측(원본)으로 산정.
         int[] srcDim = measureParentDimensions(parentRawSn);
         int srcW = srcDim[0];
         int srcH = srcDim[1];
         if (srcW <= 0 || srcH <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 해상도를 확인할 수 없습니다.");
         }
-        // G-1 — 종횡비 <b>보존</b>(레터박스). 균일 배율 + 중앙 정렬 오프셋을 픽셀·라벨이 공유한다.
-        //       구 구현은 축별 독립 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 강제 스케일해
-        //       비-16:9 원본(예: 1080×1920 세로)을 왜곡했다(E-ISSUE-26).
-        LetterboxTransform box = LetterboxTransform.of(srcW, srcH, targetW, targetH);
+        // @design ADR-018 — 프리셋은 고정 캔버스가 아니라 크기 상한이다. 짧은 변 기준 + 긴 변 상한으로
+        //       균일 배율을 구하고 산출 크기를 그 배율의 실제 결과로 확정한다(패딩 없음 → offset 항상 0).
+        //       픽셀(리사이즈)과 라벨 좌표가 같은 계산기(LetterboxTransform)를 쓴다.
+        LetterboxTransform box = LetterboxTransform.of(srcW, srcH, preset.width(), preset.height());
+        int targetW = box.drawW();
+        int targetH = box.drawH();
         double scaleX = box.scale();
         double scaleY = box.scale();
         int offsetX = box.offsetX();
@@ -172,8 +172,9 @@ public class ResolutionSnapshotService {
         LsDataAug aug = augRepository.findById(dataAugSn).orElse(null);
         String regId = aug != null ? aug.getRegUserNo() : null;
 
-        log.info("[Video][ResolutionDerivative][A] snapshot ready rawSn={} parentRawSn={} frames={} scale={} offset={},{}",
-                newRawSn, parentRawSn, frames.size(), scaleX, offsetX, offsetY);
+        log.info("[Video][ResolutionDerivative][A] snapshot ready rawSn={} parentRawSn={} frames={} "
+                        + "src={}x{} out={}x{} scale={}",
+                newRawSn, parentRawSn, frames.size(), srcW, srcH, targetW, targetH, scaleX);
         return Optional.of(new ResolutionSnapshot(
                 newRawSn, parentRawSn, dataAugSn, preset,
                 srcW, srcH, targetW, targetH, scaleX, scaleY, offsetX, offsetY,

@@ -4,7 +4,7 @@ type: domain_feature
 version: 5
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:10:20.531Z
+synced_at: 2026-08-26T04:11:28.790Z
 status: CHANGED
 prev_version: 4
 content_hash: e2e08aba5a264faedfdd69cf2e5429e73adcd094673338ea9f9252ebe1f5b473
