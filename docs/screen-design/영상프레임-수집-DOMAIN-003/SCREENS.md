@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-26T05:53:17.083Z (session 13) |
+| last sync | 2026-08-26T06:23:16.593Z (session 14) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-009]] | 영상 상세 화면 | CHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
@@ -47,6 +47,12 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[SCREEN-009]] | screen_spec | CHANGED (v58→v60) |
 
 ## Obsidian 볼트로 보기
 

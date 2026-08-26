@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-26T05:53:17.089Z (session 13) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 165 |
+| Last sync | 2026-08-26T06:23:16.598Z (session 14) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 164 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
@@ -29,7 +29,7 @@
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 7 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 58 | false | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 60 | false | CHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 18 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-011]] | use_case | 비식별 처리 요청 | 12 | true | UNCHANGED |

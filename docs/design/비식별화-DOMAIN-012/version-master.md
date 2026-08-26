@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-26T05:51:37.770Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 79 |
+| Last sync | 2026-08-26T06:23:04.973Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 78 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[SCREEN-009]] (prev v58)
 
 ## ITEM 표
 
@@ -111,7 +111,7 @@
 | [[ROLE-003]] | permission_role | 8 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 58 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 60 | CHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |

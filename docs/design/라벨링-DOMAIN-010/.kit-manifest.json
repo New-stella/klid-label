@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-010",
-  "synced_at": "2026-08-26T05:51:35.448Z",
+  "synced_at": "2026-08-26T06:22:58.465Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -969,8 +969,8 @@
     "SCREEN-009": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-003",
-      "version": 58,
-      "content_hash": "d2ce92ebd997f44099c6251deb4bb91cc56b9ea1db9031e81d177696f2ce4f3a"
+      "version": 60,
+      "content_hash": "b9aee967148b8b23df00cc286b3fd4aa7d6cca133cea78e7e1089887fb6eab5a"
     },
     "SCREEN-010": {
       "type": "screen_spec",

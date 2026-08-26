@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-08-26T05:51:35.448Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 181 |
+| Last sync | 2026-08-26T06:22:58.465Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 180 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -40,7 +40,7 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[SCREEN-009]] (prev v58)
 
 ## ITEM 표
 
@@ -193,7 +193,7 @@
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 8 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 58 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 60 | CHANGED |
 | [[SCREEN-010]] | screen_spec | 37 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 39 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
