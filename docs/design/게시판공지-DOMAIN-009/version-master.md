@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-08-25T10:52:09.039Z |
+| Last sync | 2026-08-26T01:11:05.821Z |
 | Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 46 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-009 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 14건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,8 +41,8 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ROLE-002]] (prev v6)
-- CHANGED [[ROLE-003]] (prev v7)
+- CHANGED [[SCREEN-030]] (prev v25)
+- CHANGED [[SCREEN-031]] (prev v31)
 
 ## ITEM 표
 
@@ -85,10 +86,10 @@
 | [[NFR-020]] | nfr | 6 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 7 | CHANGED |
-| [[ROLE-003]] | permission_role | 7 | CHANGED |
-| [[SCREEN-030]] | screen_spec | 25 | UNCHANGED |
-| [[SCREEN-031]] | screen_spec | 31 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[SCREEN-030]] | screen_spec | 26 | CHANGED |
+| [[SCREEN-031]] | screen_spec | 33 | CHANGED |
 | [[SCREEN-036]] | screen_spec | 8 | UNCHANGED |
 | [[SCREEN-037]] | screen_spec | 8 | UNCHANGED |
 | [[SD-007]] | screen_design | 6 | UNCHANGED |

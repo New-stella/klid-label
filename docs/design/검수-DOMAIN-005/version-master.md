@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 |
-| Last sync | 2026-08-25T10:55:12.644Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 96 |
+| Last sync | 2026-08-26T01:11:03.599Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 94 |
 | 출력 루트 | docs/design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-005 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 3건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 12건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -41,7 +41,9 @@
 
 ## Changelog (this run)
 
-- NEW [[INTSPEC-002]]
+- CHANGED [[SEQ-011]] (prev v7)
+- CHANGED [[DFEAT-049]] (prev v7)
+- CHANGED [[FEAT-003]] (prev v10)
 
 ## ITEM 표
 
@@ -88,7 +90,7 @@
 | [[DFEAT-023]] | domain_feature | 2 | UNCHANGED |
 | [[DFEAT-024]] | domain_feature | 10 | UNCHANGED |
 | [[DFEAT-025]] | domain_feature | 6 | UNCHANGED |
-| [[DFEAT-049]] | domain_feature | 7 | UNCHANGED |
+| [[DFEAT-049]] | domain_feature | 8 | CHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-005]] | domain | 14 | UNCHANGED |
 | [[ERD-015]] | erd | 16 | UNCHANGED |
@@ -99,12 +101,12 @@
 | [[EVT-006]] | domain_event | 8 | UNCHANGED |
 | [[EVT-008]] | domain_event | 8 | UNCHANGED |
 | [[EVT-009]] | domain_event | 4 | UNCHANGED |
-| [[FEAT-003]] | feature | 10 | UNCHANGED |
+| [[FEAT-003]] | feature | 11 | CHANGED |
 | [[FEAT-004]] | feature | 9 | UNCHANGED |
 | [[FEAT-008]] | feature | 4 | UNCHANGED |
 | [[FEAT-009]] | feature | 3 | UNCHANGED |
 | [[INT-003]] | integration_point | 17 | UNCHANGED |
-| [[INTSPEC-002]] | integration_spec | 12 | NEW |
+| [[INTSPEC-002]] | integration_spec | 12 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -130,7 +132,7 @@
 | [[SD-005]] | screen_design | 6 | UNCHANGED |
 | [[SEQ-008]] | diagram_sequence | 8 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
-| [[SEQ-011]] | diagram_sequence | 7 | UNCHANGED |
+| [[SEQ-011]] | diagram_sequence | 8 | CHANGED |
 | [[SEQ-015]] | diagram_sequence | 4 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 7 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 15 | UNCHANGED |

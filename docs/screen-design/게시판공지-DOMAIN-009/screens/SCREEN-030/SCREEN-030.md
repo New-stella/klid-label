@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 25
-last_updated_at: 2026-08-18T06:31:41.059Z
+version: 26
+last_updated_at: 2026-08-26T01:08:06.920Z
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:03.941Z
-sync_session: 8
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-26T01:11:15.393Z
+sync_session: 12
+stale: true
+status: CHANGED
+prev_version: 25
 raw: ./_raw/SCREEN-030.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-095]]"]
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v25 → v26**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.5KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 공지 목록 화면
 
@@ -289,8 +293,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 543cfb47c39440c7cb8a8fe9f5171ac0e0de6531b319e2f7156dcd727b2c2414
-- **generated_at**: 2026-08-16T12:44:01.935Z
+- **source_hash**: 6a58fc676e2eed9ffab46c656829422d1a560281a454654a1e200ba6eb14561c
+- **generated_at**: 2026-08-26T01:08:06.920Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

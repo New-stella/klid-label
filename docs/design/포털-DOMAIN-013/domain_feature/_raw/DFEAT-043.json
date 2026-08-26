@@ -18,14 +18,15 @@
         "status": "new",
         "decided_by": "ADR-013"
       },
-      "description": "관제서버가 제공한 데이터마트를 포털에 등록하고, 포털 사용자가 영상을 선택하면 저작도구 DB의 검수 승인(APPROVED) 자산(LS_DATA_RAW·LS_DATA_SRC·LS_DATA_LBL)에 저장된 기존 라벨/메타를 Load하여 라벨링 화면에 표시한다 — 포털 DB를 읽지 않는다. 포털에는 오토라벨링(YOLO/SAM2)·VLM·버전관리·검수가 없다(ADR-013).",
+      "description": "관제서버가 제공한 데이터마트를 포털에 등록하고, 포털 사용자가 영상을 선택하면 저작도구 DB의 검수 승인(APPROVED) 자산(LS_DATA_RAW·LS_DATA_SRC·LS_DATA_LBL)에 저장된 기존 라벨/메타를 Load하여 라벨링 화면에 표시한다 — 포털 DB를 읽지 않는다. 포털에는 오토라벨링(YOLO/SAM2)·VLM·버전관리·검수가 없다(ADR-013). 데이터마트 영상 목록에는 본인이 저장한 작업 라벨의 보존기간 만료 예정 시각이 함께 실린다 — 보존기간 정책 자체는 포털 작업 데이터 보존기간 만료 자동 삭제 기능이 소유하며 이 기능은 그 값을 목록에 노출하는 축이다.",
       "invokes_apis": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -43,12 +44,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "brownfield.notes 에서 저장소 경로·커밋 식별자·점검 회차 표기를 걷어낸다. 설계 근거 서술은 그대로 두었다.",
+    "change_summary": "목록 응답이 본인 작업 라벨의 보존기간 만료 예정 시각을 함께 싣는다는 사실을 본문에 더한다. 그 값이 실제로 내려가는데 이 기능 본문에는 만료가 한 번도 등장하지 않아, 목록을 읽는 사람이 어디서 온 값인지 되짚을 수 없었다. 보존기간 계산과 삭제 자체는 별도 기능이 소유하므로 값의 소유를 그쪽으로 명시하고 이 기능은 노출 축만 갖는다고 적었다. 일수 같은 구체값은 정책 소유 쪽에 있으므로 옮겨 적지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:31:51.711Z",
+    "last_updated_at": "2026-08-26T00:58:11.377Z",
     "created_at": "2026-06-01T07:26:24.078Z"
   }
 }

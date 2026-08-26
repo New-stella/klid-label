@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-030
 type: screen_spec
-version: 25
+version: 26
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:46.130Z
+synced_at: 2026-08-26T01:11:05.753Z
 status: CHANGED
-prev_version: 23
-content_hash: beefaeffabe4a9db6a0059a81b29d3c29fe414c4472835e1c9c5c69639798200
-stale: false
+prev_version: 25
+content_hash: 685f4f76a77024db91be1d2543f8e91425b4ad77067311f9ddb297ed5809daaa
+stale: true
 raw: ./_raw/SCREEN-030.json
 links:
   belongs_to_domain: ["[[DOMAIN-009]]"]
@@ -294,8 +294,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 543cfb47c39440c7cb8a8fe9f5171ac0e0de6531b319e2f7156dcd727b2c2414
-- **generated_at**: 2026-08-16T12:44:01.935Z
+- **source_hash**: 6a58fc676e2eed9ffab46c656829422d1a560281a454654a1e200ba6eb14561c
+- **generated_at**: 2026-08-26T01:08:06.920Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

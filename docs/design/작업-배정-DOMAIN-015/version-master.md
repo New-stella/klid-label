@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 |
-| Last sync | 2026-08-25T10:52:14.788Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 48 |
+| Last sync | 2026-08-26T01:10:59.450Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 49 |
 | 출력 루트 | docs/design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-015 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 4건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,9 +41,8 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ROLE-002]] (prev v6)
-- CHANGED [[ROLE-003]] (prev v7)
-- CHANGED [[SCREEN-008]] (prev v42)
+- CHANGED [[CMP-009]] (prev v11)
+- CHANGED [[SCREEN-012]] (prev v46)
 
 ## ITEM 표
 
@@ -71,7 +71,7 @@
 | [[API-137]] | api_endpoint | 6 | UNCHANGED |
 | [[API-187]] | api_endpoint | 3 | UNCHANGED |
 | [[CDIAG-007]] | class_diagram | 7 | UNCHANGED |
-| [[CMP-009]] | diagram_c4_component | 11 | UNCHANGED |
+| [[CMP-009]] | diagram_c4_component | 13 | CHANGED |
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
 | [[DOMAIN-015]] | domain | 6 | UNCHANGED |
 | [[ERD-014]] | erd | 12 | UNCHANGED |
@@ -90,11 +90,11 @@
 | [[NFR-020]] | nfr | 6 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 7 | CHANGED |
-| [[ROLE-003]] | permission_role | 7 | CHANGED |
-| [[SCREEN-008]] | screen_spec | 45 | CHANGED |
+| [[ROLE-002]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 46 | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 47 | CHANGED |
 | [[SD-003]] | screen_design | 8 | UNCHANGED |
 | [[SEQ-017]] | diagram_sequence | 1 | UNCHANGED |
 | [[STATE-001]] | diagram_state | 6 | UNCHANGED |

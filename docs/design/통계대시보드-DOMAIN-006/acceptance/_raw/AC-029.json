@@ -57,12 +57,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": true,
-    "stale_reason": "UC-033의 data.postconditions 변경 — derived_from",
-    "change_summary": "검수완료 기준 이미지 집계와 프레임 단위 이벤트 분포가 폐기된 프레임을 세지 않는다는 검증 항목을 더했다. 기존 항목은 배정 전(검수 상태 행 없음) 영상만 제외 사유로 열거해, 산출물·데이터마트가 구조적으로 제외하는 폐기 프레임이 확정 기준 집계에 남는지를 검증하지 못했다. 전체 누적 이미지 건수는 수집한 전체 분량이라는 다른 축이라 걸러내지 않음도 같은 항목에 못박고, 승인 영상 안에 폐기 프레임이 있는 경우를 예시로 더했다. 기존 항목·예시는 지우지 않았다.",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 UC-033 v3 의 변경은 확정 기준 이미지 건수와 프레임 분포가 폐기된 프레임을 세지 않는다는 서술을 더한 것이고, 이 수용기준은 그 문장을 이미 사후조건으로 갖고 있어 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T12:42:34.546Z",
+    "last_updated_at": "2026-08-26T00:41:13.294Z",
     "created_at": "2026-08-17T00:25:45.749Z"
   }
 }

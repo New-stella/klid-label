@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-011",
-  "synced_at": "2026-08-25T10:53:46.514Z",
+  "synced_at": "2026-08-26T01:11:08.464Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 48,
+  "count": 51,
   "items": {
     "AC-027": {
       "type": "acceptance",
@@ -53,6 +53,18 @@
       "domain_id": "DOMAIN-012",
       "version": 5,
       "content_hash": "95d436964535df9eaf214388c506a0eb04672b7662b668946634f641d3c891d3"
+    },
+    "ADR-029": {
+      "type": "adr",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "160f565c04a6c70674860a302663d337022a164bd37b446e9a3d487e14e96eff"
+    },
+    "ADR-030": {
+      "type": "adr",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "a738d059e8326cc3c4822a660ae67be04f1d73f2b958f88ca64312cc28b285e0"
     },
     "ADR-046": {
       "type": "adr",
@@ -111,8 +123,8 @@
     "SEQ-001": {
       "type": "diagram_sequence",
       "domain_id": null,
-      "version": 19,
-      "content_hash": "4ed00c34d291789a02c4932e26b17b653e67a938c99a8ae5473d4c873cc5b49a"
+      "version": 20,
+      "content_hash": "73cb5b695a47a74ce42883718227b6e2c74582568f1fc62da24de9137acaa793"
     },
     "SEQ-014": {
       "type": "diagram_sequence",
@@ -153,7 +165,7 @@
     "FEAT-005": {
       "type": "feature",
       "domain_id": null,
-      "version": 9,
+      "version": 10,
       "content_hash": "231664259e70726d239767b016cd9fbb56cd0a857d9413851f57a47db1f39aa5"
     },
     "INT-002": {
@@ -161,6 +173,12 @@
       "domain_id": null,
       "version": 17,
       "content_hash": "5ba633d9a57200e1d053738b745594bdf2e7a33a094feb3ef1a9c2e517ff896a"
+    },
+    "INTSPEC-003": {
+      "type": "integration_spec",
+      "domain_id": null,
+      "version": 12,
+      "content_hash": "78fec5d4b712ae8c8c1c7c06299bff5b38620b5e15f929c9db5ce5f18c0b44c8"
     },
     "NFR-008": {
       "type": "nfr",

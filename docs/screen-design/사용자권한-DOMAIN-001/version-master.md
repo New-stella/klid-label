@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-21T09:19:03.186Z (session 8) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 167 |
-| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
+| Last sync | 2026-08-26T01:11:14.014Z (session 12) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 166 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/사용자권한-DOMAIN-001 |
 
 ## ITEM 버전 표
 
@@ -22,20 +22,20 @@
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 7 | false | UNCHANGED |
 | [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 17 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 13 | false | UNCHANGED |
 | [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 17 | false | UNCHANGED |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 10 | false | UNCHANGED |
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 23 | true | UNCHANGED |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 24 | true | CHANGED |
 | [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 7 | true | UNCHANGED |
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 2 | false | UNCHANGED |
 | [[SD-018]] | screen_design | SCREEN-002 역할 클레임 화면 | 5 | false | UNCHANGED |
 | [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 2 | false | UNCHANGED |
 | [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 2 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 7 | true | UNCHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 8 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -53,7 +53,7 @@
 | [[UI-015]] | ui_component | [폐기] display: PrivacyBadge | 4 | false | UNCHANGED |
 | [[UI-016]] | ui_component | display: EventTypeBadge | 5 | false | UNCHANGED |
 | [[UI-017]] | ui_component | display: StageBadge | 8 | false | UNCHANGED |
-| [[UI-018]] | ui_component | display: BatchStageIndicator | 8 | false | UNCHANGED |
+| [[UI-018]] | ui_component | display: BatchStageIndicator | 9 | false | UNCHANGED |
 | [[UI-019]] | ui_component | feedback: ProgressBar | 4 | false | UNCHANGED |
 | [[UI-020]] | ui_component | feedback: EmptyState | 5 | false | UNCHANGED |
 | [[UI-021]] | ui_component | feedback: ErrorState | 4 | false | UNCHANGED |
@@ -91,7 +91,7 @@
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
 | [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
-| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 5 | false | UNCHANGED |
+| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 6 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |
 | [[UI-058]] | ui_component | display: ReviewLabelCanvas | 4 | false | UNCHANGED |
 | [[UI-059]] | ui_component | [폐기] action: ReviewActionBar | 5 | false | UNCHANGED |

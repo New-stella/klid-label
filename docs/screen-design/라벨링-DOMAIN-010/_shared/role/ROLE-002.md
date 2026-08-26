@@ -1,7 +1,7 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 6
+version: 7
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/ROLE-002.json
@@ -189,7 +189,7 @@ WORKER
 
 - view
 
-- **condition**: 영상 처리 현황 — 조회만 가능하며 마킹 진입·배정 동선은 없다
+- **condition**: 영상 처리 현황 — 본인에게 배정된 영상만 목록에 보이며, 조회만 가능하고 마킹 진입·배정 동선은 없다
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 
@@ -236,6 +236,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

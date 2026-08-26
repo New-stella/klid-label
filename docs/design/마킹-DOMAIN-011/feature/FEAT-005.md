@@ -1,14 +1,14 @@
 ---
 logicraft_item: FEAT-005
 type: feature
-version: 9
+version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.119Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-26T01:10:25.972Z
+status: CHANGED
+prev_version: 9
 content_hash: 231664259e70726d239767b016cd9fbb56cd0a857d9413851f57a47db1f39aa5
-stale: true
+stale: false
 raw: ./_raw/FEAT-005.json
 links:
   based_on: ["[[ADR-006]]"]

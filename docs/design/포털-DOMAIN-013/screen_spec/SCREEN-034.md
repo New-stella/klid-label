@@ -1,18 +1,20 @@
 ---
 logicraft_item: SCREEN-034
 type: screen_spec
-version: 21
+version: 22
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:12.905Z
+synced_at: 2026-08-26T01:11:10.916Z
 status: CHANGED
 prev_version: 21
 content_hash: 97059bc69fefe14094900c6a577faffcfa559bb02111006275a4183d88bb0cab
-stale: true
+stale: false
 raw: ./_raw/SCREEN-034.json
 links:
+  based_on: ["[[ADR-013]]"]
   belongs_to_domain: ["[[DOMAIN-013]]"]
   consumes: ["[[API-140]]", "[[API-149]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]"]
+  implements: ["[[IMPREC-110]]"]
   realizes: ["[[UC-027]]"]
   references: ["[[API-157]]", "[[API-159]]"]
   requires: ["[[ROLE-003]]"]

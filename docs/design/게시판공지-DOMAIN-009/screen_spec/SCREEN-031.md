@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-031
 type: screen_spec
-version: 31
+version: 33
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:46.164Z
+synced_at: 2026-08-26T01:11:05.791Z
 status: CHANGED
-prev_version: 29
-content_hash: e7dbb6b3547002487575b86025894388e25e4411e5a101115accd3d63f25b6a3
-stale: false
+prev_version: 31
+content_hash: 1a4aaf27a2fca69e61a4a2bb4a48f6ffc2fba97be6317f67a1809fcb15123dfb
+stale: true
 raw: ./_raw/SCREEN-031.json
 links:
   belongs_to_domain: ["[[DOMAIN-009]]"]
@@ -475,8 +475,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 2dd3a3ac10893241d64a5e6e6581d6e04e03b78494b3021486c13c22ab54b572
-- **generated_at**: 2026-08-16T12:44:02.322Z
+- **source_hash**: 46dc9b43233491011e09ebe9f1c2d5246021a001bbecd71c0b52ddccbce62184
+- **generated_at**: 2026-08-26T01:08:07.209Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -496,8 +496,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 삭제 확인 다이얼로그 — 확인하면 삭제(API-099)를 호출하고 그 공지의 첨부도 함께 정리된 뒤 공지 목록으로 이동한다.
-- **source_hash**: 2dd3a3ac10893241d64a5e6e6581d6e04e03b78494b3021486c13c22ab54b572
-- **generated_at**: 2026-08-16T12:45:52.264Z
+- **source_hash**: 46dc9b43233491011e09ebe9f1c2d5246021a001bbecd71c0b52ddccbce62184
+- **generated_at**: 2026-08-26T01:08:36.362Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

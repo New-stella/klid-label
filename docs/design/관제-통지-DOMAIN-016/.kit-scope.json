@@ -4,7 +4,7 @@
   "domain": "DOMAIN-016",
   "decided_by": "llm",
   "decided_at": "2026-08-16T00:00:00Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26 승격: INT-011, ADR-029 — INT-011 은 그래프 앵커 EXTSYS-005 가 이 키트에 있고 관제 연동면이다. ADR-029 는 outbound 통지 위탁 구간 제약이다",
   "items": [
     "AC-009",
     "ADR-002",
@@ -12,6 +12,7 @@
     "ADR-007",
     "ADR-013",
     "ADR-020",
+    "ADR-029",
     "ADR-033",
     "ADR-037",
     "ADR-046",
@@ -38,6 +39,7 @@
     "FEAT-003",
     "INT-007",
     "INT-010",
+    "INT-011",
     "INTSPEC-004",
     "NFR-008",
     "NFR-009",
@@ -65,6 +67,8 @@
     "TEST-004",
     "UC-009"
   ],
-  "pending": [],
-  "last_sync_at": "2026-08-25T10:52:15.747Z"
+  "pending": [
+    "MOD-015"
+  ],
+  "last_sync_at": "2026-08-26T01:11:01.223Z"
 }
