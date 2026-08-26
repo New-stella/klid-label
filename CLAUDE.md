@@ -159,7 +159,7 @@ slowBuild: true
 |------|------|-----------|
 | 검수자 | `REVIEWER` | **사용자 관리·시스템 설정**, 작업자 배정·재배정·배정 이력 조회, 검수 승인/반려 |
 | 라벨링 작업자 | `WORKER` | 라벨 수정·검수 제출 |
-| 포털 회원 | `PORTAL_USER` | 데이터마트 영상 선택, 기존 라벨 확인·수정·저장, 본인 데이터 기간 내 다운로드. **본인 자산(이미지/영상) 업로드 + 수동 라벨링(BBOX/POLYGON)** — ADR-013 예외(2026-07-17). 오토라벨링·검수·버전관리는 여전히 없음 |
+| 포털 회원 | `PORTAL_USER` | 데이터마트 영상 선택, 기존 라벨 확인·수정·저장, 본인 데이터 기간 내 다운로드. **본인 자산(이미지/영상) 업로드 + 수동 라벨링(BBOX/POLYGON)** — ADR-013 예외(2026-07-17). 오토라벨링·SAM2·키포인트·검수·버전관리는 여전히 없음. **메타·이벤트 어노테이션 수정·추가는 제공**(2026-08-26 확정 — 포털 전용 저장소 적재·단방향) |
 
 > 시스템 관리자(ADMIN) 역할은 없으며 모든 관리 권한은 REVIEWER에 통합되어 있다. UI 호칭은 '검수자'로 통일하고, 관리 화면 URL은 `/manage/*`다.
 
@@ -423,8 +423,11 @@ slowBuild: true
 - **저장 시 원본·데이터마트 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 별도 적재, **데이터마트에 정합/반영 안 됨(단방향)**
 - 다운로드는 사용자 작업 데이터 기준
 - 기여도 점수 없음
-- **오토라벨링(YOLO/SAM2)·VLM·버전관리·검수 미제공** (ADR-013 — 포털은 데이터마트 영상 선택 + 본인 자산 업로드 전용)
-- **포털 자산 업로드 (ADR-013 예외, 2026-07-17)**: 포털 사용자가 **본인 이미지(jpg/jpeg/png, 20MB/장, 50장/요청)·영상(mp4/mov/avi, 5GB, TUS 재개 업로드)을 직접 업로드**해 수동 라벨링(BBOX/POLYGON만) 후 본인 데이터(JSON export/원본)를 다운로드한다. 업로드 자산은 신규 `LS_PORTAL_*` 테이블(V107/V108: `LS_PORTAL_ULD`·`LS_PORTAL_ULD_FRME`·`LS_PORTAL_ULD_LBL`·`LS_PORTAL_TUS_ULD`)로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 **완전 분리**된다. 오토라벨링·SAM2·VLM·검수·버전관리는 미적용. 영상은 비식별 미적용(본인 데이터)이며 고정 간격 프레임 추출(`LS_SYSTEM_CONFIG` `portal.upload.frame-interval-sec` 기본 5초, 상한 maxFrames 2000). 상태: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED`. 신규 화면: 포털 업로드(`/portal/uploads`)·포털 업로드 라벨링(`/portal/uploads/:uldSn/label`). 신규 API: `/v1/portal/uploads/**`
+- **★「미제공」의 축은 외부 서버 연동이다 — 화면 표시·사용자 수정까지 막는 것이 아니다 (2026-08-26 사용자 확정, 구속 · `ADR-013` v10)**: 미제공인 것은 **외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)** 과 **오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·트랙 rename/merge·검수·버전관리** 다. 반면 **데이터마트 로드분의 메타(촬영환경·프레임 설명·개인정보 판정·시계열 메타)와 이벤트 어노테이션은 포털 작업 화면에 표시하고 포털 사용자가 직접 수정·추가할 수 있다** — 그 결과는 **포털 전용 저장소에만 적재**되고 데이터마트·원본 동결본을 수정하지 않는다(단방향).
+  - ⚠ **구 서술 폐기(2026-08-26)** — *"오토라벨링(YOLO/SAM2)·VLM·버전관리·검수 미제공"* 은 **VLM 축을 너무 넓게 적은 것이다.** `ADR-013` 본문 실측상 「메타」는 **0회**, 「VLM」은 **2회뿐**(결정 동인 1줄 + **폐기된 구 옵션**의 서술 1줄)이며 현행 justification 의 미제공 목록에는 **VLM 도 메타도 없었다.** 그런데 코드 주석이 *"포털은 VLM/메타 미제공(ADR-013)"* 으로 적어 **결정된 적 없는 제약이 근거처럼** 읽히고 있었다. 그 서술을 근거로 화면 기능을 막지 말 것.
+  - ⚠ **SAM2·키포인트 미제공은 그대로다** — 2026-08-03 보안 2차 전수검증 HIGH 판정으로 서버에서 완전 제거된 축이며 이 확정이 그것을 뒤집지 않는다. **사용자가 직접 호출하는 추론 엔드포인트**(SAM2·키포인트)와 **서버간 비동기 위탁**(AI 증강 연동)은 **다른 축**이다 — 후자를 여는 것이 전자의 판정을 뒤집는 것이 아니다.
+  - ⚠ **현재 화면은 아직 닫혀 있다** — 메타 탭 미노출은 **아직 만들지 않았기 때문**이지 정책이 막아서가 아니다. 포털 메타·어노테이션 API 는 **0건**이라 화면 플래그만 켜면 전량 403 이 된다.
+- **포털 자산 업로드 (ADR-013 예외, 2026-07-17)**: 포털 사용자가 **본인 이미지(jpg/jpeg/png, 20MB/장, 50장/요청)·영상(mp4/mov/avi, 5GB, TUS 재개 업로드)을 직접 업로드**해 수동 라벨링(BBOX/POLYGON만) 후 본인 데이터(JSON export/원본)를 다운로드한다. 업로드 자산은 신규 `LS_PORTAL_*` 테이블(V107/V108: `LS_PORTAL_ULD`·`LS_PORTAL_ULD_FRME`·`LS_PORTAL_ULD_LBL`·`LS_PORTAL_TUS_ULD`)로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 **완전 분리**된다. 오토라벨링·SAM2 인터랙티브·키포인트·검수·버전관리는 미적용. ★**단 업로드 영상에 한해 이벤트구간 마킹과 AI 증강 연동을 제공한다**(2026-08-26 사용자 확정 · `ADR-013` v10 — 2026-07-17 자산 업로드 예외의 연장). ⚠ 증강 요청 계약·파생물 적재 위치·마킹 모델 공유 여부는 **미확정**이다 — 내부 증강 요청은 **검수자 전용 + 검수 완료 영상만** 대상이라 검수가 없는 포털 자산에는 그대로 성립하지 않는다. 영상은 비식별 미적용(본인 데이터)이며 고정 간격 프레임 추출(`LS_SYSTEM_CONFIG` `portal.upload.frame-interval-sec` 기본 5초, 상한 maxFrames 2000). 상태: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED`. 신규 화면: 포털 업로드(`/portal/uploads`)·포털 업로드 라벨링(`/portal/uploads/:uldSn/label`). 신규 API: `/v1/portal/uploads/**`
 - 반응형 웹 (PC/태블릿/모바일), WCAG 2.1 AA 준수
 
 ### DB 정책
@@ -746,18 +749,19 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-26** · 전건 무열화 검증 통과 · 서버 현재 버전과 **불일치 0건**(키트 ITEM 1,737건 직접 대조).
+> 활성 15 도메인 전량 · last sync **2026-08-26** · 전건 무열화 검증 통과 · 서버 현재 버전과 **불일치 0건**(키트 ITEM 1,739건 직접 대조). ⚠ **2026-08-26 2차 SYNC** — `ADR-013` v10 개정 라운드 반영으로 D013·D004 를 재동기화했고 양쪽 뒤처짐 **0**이다. 그 라운드에서 pin 에 **ADR 2건이 상호 승격**됐다(`ADR-026`→D013 · `ADR-013`→D004 — 두 결정이 서로를 근거로 인용한다).
 > 이날 세 가지를 함께 했다 — ① CO-014~CO-017 라운드 반영 ② 묵은 stale 전파 39건 판정·해소 ③ **어느 키트에도 없던 핵심 ITEM 6건 승격**.
 > **승격분**: `INTSPEC-003`(시계열 위탁 요청 규격 — D011·D014 본문이 이미 그 ID 를 참조하는데 ITEM 이 없어 **참조가 끊겨 있었다**. `INTSPEC-002` 선례와 동일) · `INT-011`(관제 영상 인입 픽업 → D003·D016) · `INT-012`+`EXTSYS-007`(외부 어노테이션 폴더 반입 → D017) · `ADR-029`(외부 HTTP 위탁 트랜잭션 무보유 → D004·D007·D011·D012·D016) · `ADR-030`(배치 스텝 트랜잭션 경계 → D003·D004·D011·D012).
 > **승격하지 않은 것**: `CNT-001`(C4 컨테이너 — 도메인 링크가 없어 Tier 3 조건 미충족) · `DEPLOY-001`(WAR 반입 명세 — 배포 형상 축) · `OSS-001`~`OSS-101`(**`core-item-set.md` 의 Tier 표에도 제외 목록에도 언급이 0건인 미분류 타입** — 판정이 선행돼야 한다).
 > **pin 승격 외 미판정 132건은 전부 제외 타입**(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP)이라 기각했다. 다음 SYNC 에도 다시 올라오며 그것이 정상이다.
 > ⚠ `--exclude-types` 없이 돌리면 pin 에 있던 제외 타입이 실제 파일로 내려온다(D014 `SHELL-001`·`NAV-001`·`REQ-008` · D013 `SHELL-002`·`NAV-002` · D004 `SHELL-001`). pin 이 정본이라 유실이 아니며, 빼려면 pin 에서 먼저 제거해야 한다. 중간 SYNC 가 남긴 `_retired/` 사본이 함께 있으나 라이브 파일이 정본이고 `_retired/` 는 지우지 않는다.
+> ⚠ **2026-08-26 3차 SYNC — D013 단독 재동기화**(포털 범위 확대 라운드 반영). CHANGED 19 · RETIRED 0 · 삭제 0 이고, 미판정에 섞여 있던 `INT-013`(포털 프론트엔드 런타임 임베딩 — `belongs_to_domain=DOMAIN-013` · `provided_by=EXTSYS-006`)을 pin 에 승격해 **81 → 82** 가 됐다. 나머지 미판정 18건은 전부 제외 타입(MOD 3 · DEP 1 · IMPREC 14)이라 기각했고 다음 SYNC 에 다시 올라온다. `CONST`·`FEAT` 전량 누락 경고는 이번에도 그대로다(해소하려면 서버에서 `domain_id` 를 채워야 한다).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 127 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 107 | implemented 41 / in_progress 1 / planned 35 / (미기재) 30 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 108 | implemented 41 / in_progress 1 / planned 35 / (미기재) 31 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
 | DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 97 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 73 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
@@ -765,7 +769,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 181 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 51 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 79 | implemented 27 / planned 31 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 80 | implemented 35 / in_progress 1 / verified 4 / planned 28 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 82 | implemented 35 / in_progress 1 / verified 4 / planned 31 / (미기재) 11 | CONST 상수값, FEAT 상위 기능 |
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 72 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 60 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
@@ -806,13 +810,13 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-26 (s26)** | 526 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-26 (s12) | 224 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-26 (s12) | 171 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-26 (s12) | 162 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-26 (s12) | 165 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-26 (s12) | 167 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-26 (s12) | 167 |
+| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-26 (s27)** | 526 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-26 (s13) | 224 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-26 (s13) | 171 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-26 (s13) | 162 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-26 (s13) | 165 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-26 (s13) | 167 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-26 (s13) | 167 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

@@ -61,11 +61,14 @@ class DatasetExportVersionStampTest {
     void setUp() {
         txService = new DatasetExportTxService(
                 mock(LsDataSrcRepository.class), mock(LsDataLblRepository.class),
-                mock(LsDatasetVideoMetaRepository.class), mock(LsLabelRepository.class),
+                mock(LsDatasetVideoMetaRepository.class),
                 mock(VideoRepository.class), exportRepository,
-                mock(LsDeidentProcLogRepository.class), mock(IngestSourceRepository.class),
-                mock(LsDataMetaRepository.class), mock(NiaJsonBuilder.class),
-                mock(LabelContentHasher.class), new ObjectMapper(), deidentReportGate,
+                new NiaExportContextAssembler(
+                        mock(LsDatasetVideoMetaRepository.class), mock(VideoRepository.class),
+                        mock(IngestSourceRepository.class), mock(LsDataMetaRepository.class),
+                        mock(LsDeidentProcLogRepository.class), mock(LsLabelRepository.class),
+                        mock(NiaJsonBuilder.class), new ObjectMapper()),
+                mock(LabelContentHasher.class), deidentReportGate,
                 outputVersionStamper);
     }
 

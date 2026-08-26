@@ -11,7 +11,7 @@ import { useIsBusyKind } from '@/stores/useLabelStore';
 import { savePortalUserLabel, type PortalUserLabelRequest } from '../api';
 
 /**
- * FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열).
+ * FE Label → BE PortalUserLabelRequest 직렬화 (points 는 JSON 문자열). @design API-082
  *
  * 포털 라벨링은 **BBOX/POLYGON 만**이다(CLAUDE.md 포털 절). 구 "Phase 9 — 포털 키포인트(SKELETON)
  * 허용" 정책은 폐기됐고 BE `PortalLabelService` 가 allowlist(BBOX|POLYGON)로 그 외를 400 거부한다.
@@ -41,6 +41,17 @@ function serialize(rawSn: number, srcSn: number, lbl: Label): PortalUserLabelReq
     lblTypeCd: lbl.shape.type,
     label: lbl.className,
     points: JSON.stringify(points),
+    // ★ 두 값은 **보존**이지 편집이 아니다 — 화면이 만들어 내지 않고, 로더가 내려준 값을 그대로
+    //   되돌려 보낸다. 이 왕복이 없으면 데이터마트 원본에서 불러온 라벨을 수정해 저장하는 순간
+    //   마스터 연결(labelId)·트랙 연결(trackId)이 끊긴다(저장 <전>에는 정상으로 보이고 저장
+    //   <후>에만 드러나므로 발견이 늦다 — 내부 라벨링에서 이미 같은 사고가 있었다).
+    //   화면에 표시하지 않으며 트랙 번호 변경 수단도 아니다(포털은 트랙 편집 미제공).
+    // ⚠ 추측으로 채우지 않는다 — 값이 없으면 null 을 보낸다. 라벨명으로 마스터 PK 를 역추정하면
+    //   동명 마스터에 잘못 이어 붙어 <다른 분류로> 저장된다. 여기서 그 역해석이 필요 없는 이유는
+    //   화면의 라벨이 두 경로에서만 오고 두 경로 모두 labelId 를 이미 갖기 때문이다
+    //   (① 로더 응답 정규화 ② 캔버스 신규 생성 — 라벨 마스터에서 만들어진다).
+    labelId: lbl.labelId ?? null,
+    trackId: lbl.trackId ?? null,
   };
 }
 

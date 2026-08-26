@@ -87,8 +87,11 @@ advisory lock 구간에서 `SUPERSEDED` 로 먼저 정리한 뒤 신규 outbox �
 | **SAM2 인터랙티브 분할·자동추적** | ✗ (2026-08-02 제거 — ADR-013 정합) |
 | **키포인트(SKELETON) 도구** | ✗ (2026-08-02 제거 — ADR-013 정합) |
 | YOLO 파이프라인 오토라벨 | ✗ |
-| **트랙 rename/머지 (Phase 10)** | ✗ (포털 라벨은 트랙 데이터모델 부재 — 프레임별 단건) |
-| VLM·버전관리·검수 | ✗ |
+| **트랙 rename/머지 (Phase 10)** | ✗ (채널 인가 403 + 화면 이중 가드 — 아래 「Phase 10(축소)」 절. ⚠ 구 근거 「트랙 데이터모델 부재」는 **폐기**, 결론은 유지) |
+| 외부 시계열 분석 서버 위탁 연동(호출·콜백) | ✗ |
+| **시계열 메타·촬영환경·프레임 설명·개인정보 판정 표시·수정** | **○** (2026-08-26 확정 — 화면 미구현) |
+| **이벤트 어노테이션 표시·수정** | **○** (2026-08-26 확정 — 화면 미구현) |
+| 버전관리·검수 | ✗ |
 | 업로드 | ✗ (단, 포털 **본인 자산** 업로드는 별도 경로 — 아래 참조) |
 
 > **★ 포털 SAM2 제거 (2026-08-02 확정, 구속)**: 구 "Phase 9 (ADR-013 override)"로 포털에 열려 있던
@@ -114,13 +117,26 @@ advisory lock 구간에서 `SUPERSEDED` 로 먼저 정리한 뒤 신규 outbox �
 >   `ToolBar.test.tsx`(구 `DarkToolbar.test.tsx`)·`useLabelingShortcuts.test.tsx`·`ShortcutCheatSheet.test.tsx`·
 >   `LabelingPagePortalRestrictions.test.tsx`.
 
-> **Phase 10(축소) — 포털 트랙 rename/머지 미제공**: 포털 라벨은 **트랙 데이터모델이 없다**
-> (`LS_PORTAL_USER_LABEL`에 trackId 컬럼 부재, `/v1/portal/frames/{srcSn}/labels` 로더가 trackId 를 null
-> 로 스트리핑, SAM2 자동추적의 trackId 는 FE 세션 opaque 로 미저장 = 프레임별 단건). 따라서 트랙 단위
-> rename/머지가 데이터모델상 불가하므로 **포털에서 트랙 번호 변경(연필) UI 를 숨긴다**. 내부 전용
-> `mergeTracks`(`POST /v1/videos/{rawSn}/tracks/merge`, `@PreAuthorize(REVIEWER,WORKER)` + `/v1/**`
-> `CHANNEL_INTERNAL` 매처)는 PORTAL 채널 403 이므로 절대 호출하지 않는다(FE 이중 안전: `ObjectClassTree`
-> `portalMode` 로 버튼 숨김 + `handleRenameTrack` 조기 return). 내부(REVIEWER/WORKER) rename/머지는 무변경.
+> **Phase 10(축소) — 포털 트랙 rename/머지 미제공**: **포털에서 트랙 번호 변경(연필) UI 를 숨긴다.**
+> 이 결론을 받치는 근거는 **채널 인가 + 화면 이중 가드**다 — 내부 전용 `mergeTracks`
+> (`POST /v1/videos/{rawSn}/tracks/merge`, `@PreAuthorize(REVIEWER,WORKER)` + `/v1/**`
+> `CHANNEL_INTERNAL` 매처)는 PORTAL 채널이 **403** 이라 호출 자체가 성립하지 않고, 화면은 목록 패널의
+> 버튼을 숨긴 뒤(`ObjectClassTree.tsx(portalMode)`) 콜백에서도 조기 return 한다
+> (`LabelingPage.tsx(handleRenameTrack)` — 진입점이 늘어도 새지 않게). **이 축은 포털 저장소의 컬럼
+> 유무와 무관하다.** `ADR-013` v10 개정에서도 트랙 rename/merge 는 **미제공 유지 대상**으로 명시됐다.
+> 내부(REVIEWER/WORKER) rename/머지는 무변경.
+>
+> ⚠ **구 근거 2건 폐기(2026-08-26, CO-021) — 결론은 유지한다.** 이 절이 미제공 근거로 들던
+> *"`LS_PORTAL_USER_LABEL` 에 trackId 컬럼 부재"* 와 *"`/v1/portal/frames/{srcSn}/labels` 로더가
+> trackId 를 null 로 스트리핑"* 은 **더 이상 사실이 아니다.** 산출 구조 통일로 포털 저장소에
+> `TRCK_ID`(와 `LBL_ID`)가 생겼고(`LsPortalUserLabel.java`), 로더 응답도 두 값을 실어 보낸다
+> (`PortalFrameLabelsResponse.java`). ★**그 컬럼은 「편집」이 아니라 「보존」을 위한 것이다** —
+> 데이터마트 원본에서 불러온 라벨을 포털 사용자가 저장할 때 원본이 갖고 있던 마스터·트랙 연결이
+> **저장 왕복에서 끊기지 않게** 하고, 산출 어노테이션 문서의 `category_id`·`track_id` 를 채우기 위한
+> 축이다. 화면은 그 값을 **표시하지 않고 그대로 되돌려 보낼 뿐**이다. **저장소에 값이 있다는 것과 그
+> 값을 편집할 수 있다는 것은 다른 축이므로, 근거가 무너졌다고 결론을 뒤집지 말 것.**
+> 남은 구 근거 *"SAM2 자동추적의 trackId 는 FE 세션 opaque 로 미저장"* 은 **그대로 유효**하다 —
+> 포털에서 SAM2 자동추적 자체가 제거돼(위 절) 그 경로로 트랙이 생기지 않는다.
 
 ## 16.4 포털 라벨링 API (PORTAL_USER 전용 — PORTAL 채널 토큰만, R16)
 
@@ -153,7 +169,22 @@ advisory lock 구간에서 `SUPERSEDED` 로 먼저 정리한 뒤 신규 outbox �
 
 | Method · URL | 설명 | 응답 |
 |---|---|---|
-| `GET /v1/portal/datamart/videos/{rawSn}/download` | **작업 데이터 ZIP 다운로드**. 본인 저장 라벨 기준으로 `{rawSn}/labels.json`(프레임별 라벨, 본인 저장분 우선) + `{rawSn}/frames/{FRM_NO 4자리 zero-pad}.jpg`(비식별 프레임 이미지) + `{rawSn}/video.{ext}`(비식별 영상, **있을 때만**) 를 ZIP 하나로 스트리밍. **원본(비식별 이전) 영상·이미지는 어떤 경우에도 담기지 않는다**(원본 폴백 금지). 다른 사용자가 저장한 라벨은 포함되지 않는다(본인만). `Cache-Control: no-store` | 200(ZIP) / 401(토큰 미상) / 403(데이터마트 미노출 — 미승인·미존재 rawSn 동일 처리, 존재 여부 오라클 차단) / 410(본인 저장 라벨 0건 — 신규 미작업 또는 보존기간 만료 삭제) / 412(비식별 누락 신고 구간) / 429(요청량 초과) |
+| `GET /v1/portal/datamart/videos/{rawSn}/download` | **작업 데이터 ZIP 다운로드**. 본인 저장 라벨 기준으로 **프레임마다** `{rawSn}/frames/{FRM_NO 4자리 zero-pad}.json`(그 프레임의 어노테이션 문서 — **NIA COCO 확장 최상위 9키** `info`·`dataset`·`licences`·`video`·`event`·`image`·`annotations`·`categories`·`type`) 과 `{rawSn}/frames/{FRM_NO 4자리 zero-pad}.jpg`(비식별 프레임 이미지) 를 **같은 자리에 이름만 다른 짝**으로 담고, `{rawSn}/video.{ext}`(비식별 영상, **있을 때만**) 를 더해 ZIP 하나로 스트리밍. 좌표는 `annotations` 항목의 `bbox`·`polygon`·`keypoints` 로 표현한다. **폐기 프레임과 비식별 이미지가 없는 프레임은 담기지 않는다**(검수 승인 학습데이터 산출물과 같은 규칙). **원본(비식별 이전) 영상·이미지는 어떤 경우에도 담기지 않는다**(원본 폴백 금지). 다른 사용자가 저장한 라벨은 포함되지 않는다(본인만 — 병합 판정은 **프레임 단위**). `Cache-Control: no-store` | 200(ZIP) / 401(토큰 미상) / 403(데이터마트 미노출 — 미승인·미존재 rawSn 동일 처리, 존재 여부 오라클 차단) / 410(본인 저장 라벨 0건 — 신규 미작업 또는 보존기간 만료 삭제) / 412(비식별 누락 신고 구간) / 429(요청량 초과) |
+
+> ⚠ **구 서술 폐기(2026-08-26, CO-021)** — *"`{rawSn}/labels.json`(프레임별 라벨, 본인 저장분 우선)
+> 한 개"* 는 **더 이상 사실이 아니다.** 영상 단위로 라벨을 한 문서에 모으고 좌표를 `points[[x,y]]` 로
+> 싣던 자체 형태는 **두지 않는다** — 두 형태가 병존하면 같은 라벨의 좌표 표현이 갈리고(이 저장소가
+> 반복해 겪은 「두 번째 진실원」), export JSON 이 **다시 읽혀 적재되는 왕복 자산**이라는 확정 근거를
+> 포털 산출물만 스키마가 달라 충족하지 못했다. 이제 포털 ZIP 의 라벨 산출은 검수 승인 학습데이터와
+> **같은 구조**라 그 재적재 경로에 그대로 들어간다. 파일명 규칙도 승인 산출물과 **같은 단일 지점**을
+> 쓰며 포털 전용 규칙을 새로 만들지 않는다.
+> 근거: `PortalDatamartDownloadService.java(resolveFrameEntries)` ·
+> `PortalDatamartDownloadTxService.java(plan)` · `PortalNiaDocumentFactory.java(build)` ·
+> `NiaAnnotationDoc.java` · `ExportFileNaming.java(jsonFileName, imageFileName)`.
+>
+> **이번 통일의 대상이 아닌 것(그대로 유지 — 되돌리지 말 것)**: ZIP 최상위 `{rawSn}/` 접두 ·
+> 서버 생성 고정 파일명 · 프레임 이미지 `{rawSn}/frames/{FRM_NO}.jpg` · 비식별 영상 `{rawSn}/video.{ext}` ·
+> 아래 게이트 3종 순서 · 프레임 단위 병합 규칙 · 이미지는 비식별벌만.
 
 **판정 순서**(오라클 누출 방지 — `PortalDatamartDownloadTxService.plan` 이 고정 순서로 평가):
 ①인증(PORTAL_USER) → ②속도 제한(429, per-user 분당 3회 — `portalDatamartDownload` RateLimiter config,
@@ -184,8 +215,10 @@ advisory lock 구간에서 `SUPERSEDED` 로 먼저 정리한 뒤 신규 outbox �
   라벨 저장은 포털 user-label(`LS_PORTAL_USER_LABEL`) 단방향(내부 `/v1/frames/...` 미호출).
   **SAM2 분할/자동추적·키포인트 도구는 미노출**(2026-08-02 제거 — 도구바 버튼·단축키 G/Shift+T/K·
   단축키 도움말 모두 `PORTAL_HIDDEN_TOOLS` 단일 소스로 게이팅). YOLO 오토라벨·검수제출·히스토리·
-  VLM 메타·비식별 신고도 계속 미노출 (ADR-013). **Phase 10** — 트랙 rename/머지(연필 버튼)도
-  미노출(트랙 데이터모델 부재 — 프레임별 단건)
+  비식별 신고도 계속 미노출 (ADR-013). ⚠ **시계열 메타·촬영환경·프레임 설명·개인정보 판정·이벤트 어노테이션 패널이 미노출인 것은 근거가 다르다** — `ADR-013` v10 이 **제공으로 확정**했고 아직 만들지 않았을 뿐이다(포털 메타 API 0건). 그 미노출을 정책 근거로 인용하지 말 것. **Phase 10** — 트랙 rename/머지(연필 버튼)도
+  미노출(채널 인가 403 + 화면 이중 가드 — §16.3 「Phase 10(축소)」 절. ⚠ 구 근거 「트랙 데이터모델
+  부재」는 **폐기** — 포털 저장소에 `TRCK_ID` 가 생겼다. 그 컬럼은 편집이 아니라 **보존** 축이라
+  결론은 유지)
 - **포털 홈(PortalHomePage)**: `GET /v1/portal/datamart/videos` 로 데이터마트 노출 영상을 카드 목록(반응형 1~2열)으로
   렌더. 카드/"시작하기" 선택 시 `/portal/label/{firstSrcSn}` 으로 진입. 영상 0건이면 빈 상태 + "시작하기" `aria-disabled`
   (native disabled 미사용 — WCAG 2.1.1 키보드 포커스 순서 유지). 카드는 `<button>` 시맨틱으로 키보드 접근 가능

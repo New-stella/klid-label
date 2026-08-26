@@ -78,10 +78,14 @@ class DatasetExportTxServiceTest {
         niaJsonBuilder = mock(NiaJsonBuilder.class);
         contentHasher = mock(LabelContentHasher.class);
         dataMetaRepository = mock(kr.co.cudo.authoring.batch.repository.LsDataMetaRepository.class);
+        // ★ 컨텍스트 조달은 공유 조립기가 소유한다 — mock 이 아니라 <b>실물</b>을 같은 mock 저장소로
+        //   조립해 넣는다. mock 으로 가리면 아래 prepareContext 8-arg 스텁 매칭 가드가 무의미해진다.
+        NiaExportContextAssembler assembler = new NiaExportContextAssembler(
+                videoMetaRepository, videoRepository, mock(IngestSourceRepository.class),
+                dataMetaRepository, deidentProcLogRepository, labelMasterRepository,
+                niaJsonBuilder, new com.fasterxml.jackson.databind.ObjectMapper());
         txService = new DatasetExportTxService(srcRepository, labelRepository, videoMetaRepository,
-                labelMasterRepository, videoRepository, exportRepository, deidentProcLogRepository,
-                mock(IngestSourceRepository.class), dataMetaRepository,
-                niaJsonBuilder, contentHasher, new com.fasterxml.jackson.databind.ObjectMapper(),
+                videoRepository, exportRepository, assembler, contentHasher,
                 new kr.co.cudo.authoring.video.service.DeidentReportGate(videoRepository),
                 mock(kr.co.cudo.authoring.version.service.OutputVersionStamper.class));
 

@@ -1,0 +1,126 @@
+{
+  "info" : {
+    "year" : 2026,
+    "version" : "1.3",
+    "description" : "AI기반 CCTV 관제지원시스템 학습데이터",
+    "date_created" : "<TODAY>"
+  },
+  "dataset" : {
+    "identifier" : "77",
+    "name" : "화재 데이터셋 구축",
+    "src_path" : "/nas/deid/videos/77/077-mask.mp4",
+    "label_path" : null
+  },
+  "licences" : [ {
+    "id" : 1,
+    "name" : "Private Use",
+    "url" : ""
+  } ],
+  "video" : {
+    "id" : "77",
+    "filename" : "077-mask.mp4",
+    "date_created" : "2026-03-03",
+    "type" : null,
+    "format" : "mp4",
+    "filesize" : 123456,
+    "location" : "서울특별시 강남구",
+    "license_id" : null,
+    "length" : "30",
+    "fps" : "30.00",
+    "frames" : null,
+    "aspect_ratio" : null,
+    "width" : 1920,
+    "height" : 1080,
+    "resolution" : "1920x1080",
+    "bit" : null,
+    "pixel" : null,
+    "weather" : null,
+    "coordinates" : null,
+    "og_cd" : null,
+    "cctv_name" : null,
+    "cctv_height" : null,
+    "cctv_azimuth" : null,
+    "cctv_mng_no" : null,
+    "anonymity" : "Y",
+    "pseudonymity" : "N",
+    "privacy_included" : "N",
+    "event_id" : "ABA_0001",
+    "event_name" : "화재",
+    "time_of_day" : null,
+    "season" : null,
+    "event_log" : null,
+    "vd_description" : "야간 도로에서 보행자가 넘어지는 상황"
+  },
+  "event" : {
+    "c1" : {
+      "caption_text" : "보행자가 넘어진다",
+      "obj_id" : [ "t-1" ]
+    }
+  },
+  "image" : {
+    "id" : 9001,
+    "file_name" : "0007.jpg",
+    "width" : 1920,
+    "height" : 1080,
+    "date_captured" : "2026-03-03T10:00:07",
+    "license_id" : null,
+    "video_id" : "77",
+    "type" : null,
+    "frame_num" : 210,
+    "anonymity" : "Y",
+    "pseudonymity" : "N",
+    "privacy_included" : "N",
+    "description" : "보행자 2인"
+  },
+  "annotations" : [ {
+    "id" : 501,
+    "image_id" : 9001,
+    "category_id" : "11",
+    "track_id" : "trk-1",
+    "bbox" : [ 10.5, 20.5, 100.0, 200.0 ],
+    "polygon" : null,
+    "keypoints" : null,
+    "text" : null
+  }, {
+    "id" : 502,
+    "image_id" : 9001,
+    "category_id" : "12",
+    "track_id" : null,
+    "bbox" : null,
+    "polygon" : [ [ 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 ] ],
+    "keypoints" : null,
+    "text" : null
+  }, {
+    "id" : 503,
+    "image_id" : 9001,
+    "category_id" : "13",
+    "track_id" : "trk-2",
+    "bbox" : null,
+    "polygon" : null,
+    "keypoints" : [ [ 0.0, 0.0, 0 ], [ 1.0, 2.0, 1 ], [ 2.0, 4.0, 2 ], [ 3.0, 6.0, 0 ], [ 4.0, 8.0, 1 ], [ 5.0, 10.0, 2 ], [ 6.0, 12.0, 0 ], [ 7.0, 14.0, 1 ], [ 8.0, 16.0, 2 ], [ 9.0, 18.0, 0 ], [ 10.0, 20.0, 1 ], [ 11.0, 22.0, 2 ], [ 12.0, 24.0, 0 ], [ 13.0, 26.0, 1 ], [ 14.0, 28.0, 2 ], [ 15.0, 30.0, 0 ], [ 16.0, 32.0, 1 ] ],
+    "text" : null
+  } ],
+  "categories" : [ {
+    "id" : "11",
+    "name" : "사람",
+    "type" : "bbox",
+    "supercategory" : null,
+    "keypoints" : null,
+    "skeleton" : null
+  }, {
+    "id" : "12",
+    "name" : "차량",
+    "type" : "polygon",
+    "supercategory" : null,
+    "keypoints" : null,
+    "skeleton" : null
+  }, {
+    "id" : "13",
+    "name" : "포즈",
+    "type" : "keypoints",
+    "supercategory" : null,
+    "keypoints" : [ "nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle" ],
+    "skeleton" : [ [ 16, 14 ], [ 14, 12 ], [ 17, 15 ], [ 15, 13 ], [ 12, 13 ], [ 6, 12 ], [ 7, 13 ], [ 6, 7 ], [ 6, 8 ], [ 7, 9 ], [ 8, 10 ], [ 9, 11 ], [ 2, 3 ], [ 1, 2 ], [ 1, 3 ], [ 2, 4 ], [ 3, 5 ], [ 4, 6 ], [ 5, 7 ] ]
+  } ],
+  "type" : "instances"
+}
