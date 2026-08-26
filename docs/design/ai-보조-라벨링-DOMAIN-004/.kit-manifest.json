@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
-  "synced_at": "2026-08-26T04:03:02.061Z",
+  "synced_at": "2026-08-26T05:27:20.742Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -219,8 +219,8 @@
     "API-043": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-003",
-      "version": 18,
-      "content_hash": "166d2440bdb757ec0fb08473f6a2a69fb7f371062c04829ed844868286c188b5"
+      "version": 22,
+      "content_hash": "11a1c6ed7df0bb90417e48477d6fe376538da4c0b391ace89c509e90b83ff4d8"
     },
     "API-065": {
       "type": "api_endpoint",

@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-08-26T05:09:34.706Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 81 |
+| Last sync | 2026-08-26T05:27:21.803Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 81 |
 | 출력 루트 | docs/design/포털-DOMAIN-013 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[INT-013]]
+- CHANGED [[INT-013]] (prev v1)
 
 ## ITEM 표
 
@@ -96,7 +96,7 @@
 | [[EVT-012]] | domain_event | 3 | UNCHANGED |
 | [[EXTSYS-006]] | external_system | 5 | UNCHANGED |
 | [[INT-009]] | integration_point | 4 | UNCHANGED |
-| [[INT-013]] | integration_point | 1 | NEW |
+| [[INT-013]] | integration_point | 2 | CHANGED |
 | [[NAV-002]] | navigation_tree | 5 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |

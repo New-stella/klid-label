@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-26T04:03:02.061Z |
-| Mode | SYNC — NEW 1 / CHANGED 5 / UNCHANGED 102 |
+| Last sync | 2026-08-26T05:27:20.742Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 107 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,12 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-013]]
-- CHANGED [[ADR-026]] (prev v4)
-- CHANGED [[ADR-039]] (prev v5)
-- CHANGED [[API-043]] (prev v17)
-- CHANGED [[ROLE-003]] (prev v7)
-- CHANGED [[SCREEN-027]] (prev v32)
+- CHANGED [[API-043]] (prev v18)
 
 ## ITEM 표
 
@@ -69,14 +64,14 @@
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-008]] | adr | 3 | UNCHANGED |
-| [[ADR-013]] | adr | 10 | NEW |
+| [[ADR-013]] | adr | 10 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
-| [[ADR-026]] | adr | 5 | CHANGED |
+| [[ADR-026]] | adr | 5 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-031]] | adr | 2 | UNCHANGED |
 | [[ADR-035]] | adr | 3 | UNCHANGED |
-| [[ADR-039]] | adr | 6 | CHANGED |
+| [[ADR-039]] | adr | 6 | UNCHANGED |
 | [[ADR-040]] | adr | 2 | UNCHANGED |
 | [[ADR-041]] | adr | 4 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
@@ -86,7 +81,7 @@
 | [[ADR-053]] | adr | 1 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
-| [[API-043]] | api_endpoint | 18 | CHANGED |
+| [[API-043]] | api_endpoint | 22 | CHANGED |
 | [[API-065]] | api_endpoint | 21 | UNCHANGED |
 | [[API-093]] | api_endpoint | 14 | UNCHANGED |
 | [[API-113]] | api_endpoint | 3 | UNCHANGED |
@@ -145,10 +140,10 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 8 | CHANGED |
+| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
-| [[SCREEN-027]] | screen_spec | 34 | CHANGED |
+| [[SCREEN-027]] | screen_spec | 34 | UNCHANGED |
 | [[SD-033]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 9 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 7 | UNCHANGED |
