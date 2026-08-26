@@ -109,6 +109,19 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 > sudo systemctl daemon-reload && sudo systemctl restart klid-backend
 > ```
 > 또한 NAS 를 해당 경로로 **미리 마운트**해야 한다(설치는 부재해도 warn 후 계속되나, 서비스가 영상을 못 쓴다). DB 에 저장된 절대경로가 이 베이스로 시작해야 서빙된다(startsWith 가드).
+>
+> ⚠⚠ **저장소 루트 4종(`STORAGE_RAW_PATH`·`STORAGE_DEIDENTIFIED_PATH`·`STORAGE_RAW_MOUNT_ROOTS`·`STORAGE_EXTERNAL_READ_ROOTS`)은 심링크가 아닌 실경로로 지정한다.**
+> 예: `/nas-storage` 가 `/mnt/nas01` 을 가리키는 심링크라면 **`/mnt/nas01` 을 적는다**.
+>
+> 근거 — 경로 판정기가 **표기 기준 검사를 먼저** 하는데(정규화한 문자열이 루트로 시작하는가),
+> 외부 산출물 이관의 **위치 탐색**(`GET /v1/imports/folders`·`/files`)은 판정이 돌려준 **실경로**를
+> 응답에 싣는다. 루트 조상에 심링크가 하나라도 있으면 그 둘이 어긋나 다음 두 증상이 **동시에** 난다.
+> - 「상위로」가 **항상 비활성**된다(응답의 `parent` 가 늘 비어서 돌아온다).
+> - 탐색이 돌려준 위치를 **그대로 입력칸에 넣으면 400**(`허용된 저장소 범위 밖의 경로입니다`) —
+>   화면에서 고른 폴더가 곧바로 거부되는 형태라, 설정 문제가 아니라 기능 고장으로 보인다.
+>
+> 판정기(`ImportSourcePolicy`·`VideoArtifactRootResolver`)를 고치는 대신 **운영 규약으로 고정**한
+> 항목이다. 확인: `readlink -f $STORAGE_RAW_PATH` 결과가 설정값과 **같아야** 한다(다르면 그 출력값으로 바꾼다).
 
 ---
 

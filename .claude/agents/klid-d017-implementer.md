@@ -93,7 +93,40 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+### 새 IT 에 전용 설정을 붙이면 컨텍스트 가드가 즉시 깨진다 (CO-022)
+`@DynamicPropertySource`·`@MockBean`·고유 `properties` 를 새 `@SpringBootTest` 에 붙이면 **캐시되는 스프링 컨텍스트가 하나 늘어** `TestContextDiversityRatchetTest` 가 바로 실패한다.
+- 근거: 임시폴더를 허용 루트로 넘기려고 `@DynamicPropertySource` 를 썼다가 *"캐시되는 스프링 테스트 컨텍스트 종류가 상한(74)을 넘었다 — 현재 75"*.
+- **처방**: 신규 IT 는 기존 IT 의 `@SpringBootTest`/`@ActiveProfiles`/`@AutoConfigure*` 를 **글자 그대로 복사**해 컨텍스트를 공유시키고, 설정값이 필요한 검증은 **스프링 없는 서비스 시험으로 내린다.**
+- 재발: IT 를 새로 만들 때마다. 특히 「시험 전용 설정값(상한·토글·임시경로)이 필요하다」는 이유로 properties 를 붙이는 순간.
+
+### 임시폴더를 허용 루트로 쓰면 심링크 때문에 오탐이 난다 (CO-022)
+맥의 `/var`→`/private/var` 때문에 **표기 루트 vs 실경로 결과**가 어긋나, 실경로를 돌려주는 API 시험이 사양과 무관하게 빨갛게 뜬다.
+- 근거: `ImportBrowseServiceTest` 초판 2건 실패 — `expected "/private/var/…/handover" but was: null` · `허용된 저장소 범위 밖의 경로입니다`. 원인은 `ImportSourcePolicy.verifyUnderReadableRoots` 의 **표기 기준 `startsWith` 선검사**.
+- **처방**: 루트 자체를 `toRealPath()` 로 접어 고정한다.
+- 재발: `ImportSourcePolicy`·`VideoArtifactRootResolver`·`StorageSubtreePolicy` 등 **실경로를 돌려주는 판정기**를 임시폴더 위에서 시험할 때. ⚠ 그리고 **운영에서 저장소 루트가 심링크 뒤에 놓이면 실제 결함으로 재현된다** — 그래서 `deploy/onprem/docs/04-configuration.md` 가 실경로 지정을 규약으로 못박았다.
+
+### `ApiResponse` 는 null 필드를 직렬화하지만 `doesNotExist()` 로 검증된다 (CO-022)
+이 저장소의 `ApiResponse` 는 Jackson 기본 inclusion(ALWAYS)이라 **null 필드가 그대로 나간다.** 다만 MockMvc 의 `jsonPath(...).doesNotExist()` 는 「키 없음」과 「값이 null」을 **둘 다 통과**시키므로 nullable 필드 계약 시험에 그대로 쓸 수 있다(`nullValue()` 매처로 바꿀 필요 없음).
+- 근거: `application.yml` 에 `spring.jackson` 설정 0건(grep) + `$.data.path`/`$.data.parent` 의 `doesNotExist()` 단언이 null 응답에서 통과.
+- 재발: nullable 응답 필드를 가진 신규 API 의 계약 시험을 쓸 때.
+
+### 응답값을 다시 넣는 「왕복」 시험은 한글 경로에서 인코딩으로 깨진다 (CO-022)
+`getContentAsString()` 기본 디코딩이 한글을 깨뜨려 **다음 홉이 404/400** 으로 떨어진다. **사양 결함처럼 보이지만 시험 인코딩 문제다.**
+- 근거: `ImportBrowseControllerIT(돌려준_위를_그대로_다시_넣으면_받아들여져_한_단계씩_올라갈_수_있다)` — `Status expected:<200> but was:<404>`. 표본 폴더가 `docs/1차어노테이션`. 처방은 `getContentAsString(StandardCharsets.UTF_8)` (선례: `ListApiBackwardCompatibilityIT`).
+- 재발: 탐색·목록 API 의 왕복 가드, 파일명·경로를 응답에서 꺼내 재요청하는 모든 시험. **이 프로젝트는 표본 산출물 폴더 이름이 한글이라 이관 도메인에서 특히 자주 밟는다.**
+
+### ★nullable 의 「비움 조건」을 문면대로 좁게 구현하면 사용자가 갇힌다 (CO-022)
+그 값 하나로 **UI 어포던스를 켜고 끄는 소비자**가 있으면, 문면이 조건을 나열할 때(「A 이거나 B 이면 null」) 각 조건이 소비자에게 무엇을 뜻하는지 되짚어야 한다.
+- 근거: `API-221` v3 문면 *"부모가 허용 루트면 null"* 을 그대로 구현 → FE 의 `disabled={parent === null}` 와 맞물려 **루트 바로 아래에서 「상위로」가 영구 비활성**. 설계를 v5 로 고쳐(비우는 조건을 「범위 밖」 하나로) 해소했고 왕복 가드 2건(service·contract)으로 고정.
+- **처방**: 갇힘·막다름이 생기면 **구현 전에 설계로 올린다.** 문면대로 만들고 사후에 묻지 않는다.
+- 재발: nullable 응답 필드(`parent`·`nextCursor`·`prevVersion` 등)를 신설할 때, 그리고 **BE·FE 를 병렬 에이전트가 나눠 구현해 어느 쪽도 왕복 동선 전체를 보지 않을 때.**
+
+### 「이 저장소는 보통 X 안 한다」를 눈대중으로 단정하지 마라 — `grep -rl` 한 번이면 된다 (CO-022)
+관례를 추정으로 판단하면 **이미 확립된 패턴을 놓치고 시험을 생략**하게 된다.
+- 근거: 오케스트레이터가 *"로그 단언은 이 저장소에서 통상 하지 않는 것으로 보이니 억지로 만들지 마라"* 라고 내려보냈는데, 실측은 `grep -rl 'ListAppender' src/test/java` → **26개 파일**이었다. `TrainingVideoIngestServiceTest` 는 `attachLogAppender()`/`serviceLogger()` + `try/finally detachAppender` 라는 **정형**까지 갖추고 있었다.
+- **처방**: 관례 판단은 착수 전에 `grep -rl` 로 확인하고 시작한다. 지시가 관례를 단정하더라도 마찬가지다 — 오케스트레이터도 추정으로 적을 수 있다.
+- ⚠ 특히 **산출물이 로그·메트릭뿐인 변경**은 그것을 단언하지 않으면 **검증 대상이 0** 이 되고, 다음 사람이 「안 쓰이는 변수」로 보고 지워도 아무 시험도 빨개지지 않는다.
+- 재발: 관측 보강 작업 전반, 그리고 「이 프로젝트는 보통 안 한다」는 전제로 시험을 생략하려 할 때.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

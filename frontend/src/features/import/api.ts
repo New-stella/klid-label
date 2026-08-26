@@ -8,13 +8,14 @@
 //   공백이 섞여 접근 기록·중간 경유지에 남는 것을 피한다. 허용 저장소 범위 판정은 BE 소유다.
 // - 경로 변수(rawSn/mpngSn/trnsfSn)는 number 타입 강제 — 문자열 주입 통로가 없다.
 //
-// @design API-205 API-206 API-207 API-208 API-209 API-210 API-211 API-215
+// @design API-205 API-206 API-207 API-208 API-209 API-210 API-211 API-215 API-221 API-222
 
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
 import type {
   DeidentCompleteRequest,
+  ImportBrowseResult,
   DeidentCompleteResult,
   ImportCreateRequest,
   ImportCreateResult,
@@ -102,5 +103,36 @@ export function recordDeidentComplete(
 ): Promise<DeidentCompleteResult> {
   return apiClient
     .post<DeidentCompleteResult>(`/videos/${rawSn}/deident-complete`, body)
+    .then((r) => r.data);
+}
+
+/**
+ * 이관 대상 폴더 탐색 — BE: GET /api/v1/imports/folders?path=.
+ *
+ * `path` 를 생략하면 허용 저장소 루트 목록을 돌려받는다. 이 창구는 직접 입력을 **대신하지 않고
+ * 함께 두는 보조 수단**이므로, 응답하지 않아도 사용자는 경로를 적어 검사할 수 있어야 한다.
+ *
+ * 허용 저장소 범위 판정은 검사·적재와 같은 규칙을 서버가 소유한다 — 화면이 허용 목록을 따로
+ * 갖지 않는다(목록이 두 벌이 되면 한쪽만 넓어진다).
+ *
+ * @design API-221
+ */
+export function listImportFolders(path?: string | null): Promise<ImportBrowseResult> {
+  return apiClient
+    .get<ImportBrowseResult>('/imports/folders', { params: path ? { path } : {} })
+    .then((r) => r.data);
+}
+
+/**
+ * 이관 대상 영상 파일 탐색 — BE: GET /api/v1/imports/files?path=.
+ *
+ * `path` 는 필수다(루트 목록 조회가 없다). 폴더 탐색이 돌려준 값을 그대로 쓴다.
+ * 돌아오는 것은 영상 파일뿐이라, 고른 값이 원본 영상 위치 판정을 통과하지 못하는 일이 없다.
+ *
+ * @design API-222
+ */
+export function listImportVideoFiles(path: string): Promise<ImportBrowseResult> {
+  return apiClient
+    .get<ImportBrowseResult>('/imports/files', { params: { path } })
     .then((r) => r.data);
 }
