@@ -1,19 +1,20 @@
 ---
 logicraft_item: CDIAG-010
 type: class_diagram
-version: 9
+version: 11
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.727Z
-status: NEW
-prev_version: null
-content_hash: ab0a7a96e42b3b46886630c354f44122f8f2fda408345dbfa864a5db98c8fc83
+synced_at: 2026-08-26T04:11:45.435Z
+status: CHANGED
+prev_version: 9
+content_hash: b3cab474a46957487b0bc24ed7f6ad4a5bb29b2dbff2e49d0351e66acb043bcf
 stale: true
 raw: ./_raw/CDIAG-010.json
 links:
   belongs_to_domain: ["[[DOMAIN-007]]"]
   depicts: ["[[DFEAT-029]]", "[[DFEAT-030]]"]
-  references: ["[[DFEAT-029]]", "[[DFEAT-030]]"]
+  references: ["[[ADR-018]]", "[[DFEAT-029]]", "[[DFEAT-030]]"]
+  references_backward: ["[[ADR-018]]"]
 ---
 
 # 데이터 증강 도메인 모델
@@ -120,6 +121,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### srcSn
 
 - **type**: Long
@@ -146,6 +151,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -178,6 +187,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### augProcSttsCd
 
 - **type**: AugProcStatus
@@ -204,6 +217,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -236,6 +253,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rejectRsn
 
 - **type**: String
@@ -262,6 +283,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -294,6 +319,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dcsnDt
 
 - **type**: LocalDateTime
@@ -320,6 +349,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -352,6 +385,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regUserNo
 
 - **type**: String
@@ -378,6 +415,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -410,6 +451,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### otsdJobId
 
 - **type**: String
@@ -436,6 +481,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -468,6 +517,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### deadLetterAt
 
 - **type**: LocalDateTime
@@ -494,6 +547,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -526,6 +583,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### newRawSn
 
 - **type**: Long
@@ -552,6 +613,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -624,6 +689,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataAugSn
 
 - **type**: Long
@@ -650,6 +719,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -682,6 +755,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataSrcSn
 
 - **type**: Long
@@ -708,6 +785,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -740,6 +821,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lblIntgrtPct
 
 - **type**: BigDecimal
@@ -766,6 +851,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -798,6 +887,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rvwId
 
 - **type**: String
@@ -824,6 +917,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -856,6 +953,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regId
 
 - **type**: String
@@ -882,6 +983,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -914,6 +1019,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnId
 
 - **type**: String
@@ -943,6 +1052,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -969,6 +1082,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1002,6 +1119,7 @@ _(empty)_
 
 - **is_static**: true
 - **visibility**: public
+- **description**: 라벨 매핑 행 생성. scaleX·scaleY 는 가로·세로에 동일하게 적용되는 균일 배율이라 축별로 다른 값을 받지 않으며 항상 같은 값이 들어온다. coordRecalculated 가 거짓이면 두 배율은 비운다.
 - **is_abstract**: false
 - **return_type**: LsDataAugLblMap
 
@@ -1036,6 +1154,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataAugSn
 
 - **type**: Long
@@ -1062,6 +1184,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1094,6 +1220,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataLblSn
 
 - **type**: Long
@@ -1120,6 +1250,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1152,11 +1286,16 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### scaleX
 
 - **type**: BigDecimal
 - **is_static**: false
 - **visibility**: private
+- **description**: 좌표 배율. 가로·세로에 동일하게 적용되는 균일 배율(종횡비 보존)이라 scaleY 와 항상 같은 값이며, 오프셋 가산이 없어(항상 0) 이 값만으로 좌표 변환이 완전히 역산된다. 업스케일 시 1 초과를 허용한다. 외부 증강 3종은 해상도가 같아 비운다. (SCALE_X)
 - **is_readonly**: false
 
 **implementation**:
@@ -1178,6 +1317,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1186,6 +1329,7 @@ _(empty)_
 - **type**: BigDecimal
 - **is_static**: false
 - **visibility**: private
+- **description**: 좌표 배율. 가로·세로에 동일하게 적용되는 균일 배율(종횡비 보존)이라 scaleX 와 항상 같은 값이며, 오프셋 가산이 없어(항상 0) 이 값만으로 좌표 변환이 완전히 역산된다. 업스케일 시 1 초과를 허용한다. 외부 증강 3종은 해상도가 같아 비운다. (SCALE_Y)
 - **is_readonly**: false
 
 **implementation**:
@@ -1207,6 +1351,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1239,6 +1387,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -1268,7 +1420,11 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 증강 결과 라벨과 원본 라벨 간 매핑. UC-002 증강 결과 수신 시 라벨 복사와 함께 기록(AugmentResultService, 동일 트랜잭션 saveAll) — 외부 증강 3종은 해상도 동일로 COORD_RECALC_YN='N'·SCALE null. 해상도 파생(RESL_*) 시 SCALE_X/Y 좌표 재계산 정보를 보관하며 축소·확대(업스케일 포함, SCALE_X/Y>1 허용) 모두 대상이다. (LS_DATA_AUG_LBL_MAP)
+##### module_paths
+
+_(empty)_
+
+- **description**: 증강 결과 라벨과 원본 라벨 간 매핑. UC-002 증강 결과 수신 시 라벨 복사와 함께 기록(AugmentResultService, 동일 트랜잭션 saveAll) — 외부 증강 3종은 해상도 동일로 COORD_RECALC_YN='N'·SCALE null. 해상도 파생(RESL_*) 시 SCALE_X/Y 에 좌표 배율을 보관한다 — 가로·세로에 동일하게 적용되는 균일 배율(종횡비 보존)이라 두 값은 항상 같으며, 오프셋 가산이 없어(항상 0) 두 값만으로 좌표 변환이 완전히 역산된다. 축소·확대(업스케일 포함, 1 초과 허용) 모두 대상이다. (LS_DATA_AUG_LBL_MAP)
 
 **enum_values**:
 
@@ -1463,6 +1619,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataAugSn
 
 - **type**: Long
@@ -1489,6 +1649,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1521,6 +1685,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### orgnlRawSn
 
 - **type**: Long
@@ -1547,6 +1715,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1579,6 +1751,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### promptCn
 
 - **type**: String
@@ -1605,6 +1781,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1637,6 +1817,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dscdRsn
 
 - **type**: String
@@ -1663,6 +1847,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1695,6 +1883,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rstrRsn
 
 - **type**: String
@@ -1721,6 +1913,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1753,6 +1949,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### delDt
 
 - **type**: LocalDateTime
@@ -1779,6 +1979,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1811,6 +2015,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### fileDelRtryNmtm
 
 - **type**: Integer
@@ -1837,6 +2045,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1869,6 +2081,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### fileDelFailRsn
 
 - **type**: String
@@ -1898,6 +2114,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### vdoFilePath
 
 - **type**: String
@@ -1924,6 +2144,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -2004,6 +2228,36 @@ DataAugmentation
 
 - DFEAT-029
 - DFEAT-030
+
+## implementation
+
+### status
+
+implemented
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+100
+
+### subtasks
+
+_(empty)_
+
+### last_updated
+
+2026-08-26T02:28:56.480Z
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 
