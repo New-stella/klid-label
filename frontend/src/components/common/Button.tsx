@@ -57,8 +57,22 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 const variantClass: Record<ButtonVariant, string> = {
+  // 시안 `.btn-primary { background: var(--p-5) }` + `:hover { background: var(--p-6) }`.
+  // `--p-5`(#256EF4) = primary-500(= DEFAULT) · `--p-6`(#0B50D0) = primary-600 이다.
+  // 구 값은 기본·호버가 각각 한 단씩 어두웠다(600/700).
+  //
+  // active/disabled 는 시안에 규정이 없어 아래 근거로 정했다.
+  //  · active = 700 — danger 주석이 적어 둔 "눌림은 어두워지는 방향" 을 유지하되, 구 값
+  //    800 을 그대로 두면 호버(600)에서 두 단을 건너뛰어 눌림 피드백만 과장된다. 500→600→700
+  //    으로 **한 단씩** 내려가던 구 계단 간격을 그대로 옮긴 것이다.
+  //  · disabled = 300 유지 — 시안 근거가 없어 옮기지 않는다. 기본이 한 단 옅어져도(600→500)
+  //    300 은 여전히 그보다 옅어 "비활성은 옅다" 는 신호가 그대로 성립한다.
+  //
+  // ⚠ 흰 글자 대비가 6.83:1 → **4.55:1** 로 내려간다. AA(4.5)는 통과하나 경계이며,
+  //   primary 값이 조금이라도 밝아지면 미달이 된다. 그 경계는 이미 contrastGuard 가
+  //   `primary.DEFAULT` 를 [4.5, 4.7) 구간으로 단언해 지키고 있다.
   primary:
-    'bg-primary-600 !text-white hover:bg-primary-700 active:bg-primary-800 disabled:bg-primary-300',
+    'bg-primary-500 !text-white hover:bg-primary-600 active:bg-primary-700 disabled:bg-primary-300',
   // 테두리는 시안 `.btn-secondary` 의 `--border-strong`(= 중립 400단, #8A949E).
   // 한 단 옅은 300 은 흰 배경 위 2.01:1 이라 WCAG 1.4.11(비텍스트 3:1) 미달이었고
   // 400 은 3.08:1 로 통과한다 — 시안 정합과 접근성이 같은 방향이다.

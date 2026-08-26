@@ -49,6 +49,25 @@ describe('영상 상세 — 비식별 이력', () => {
     });
   }
 
+  /**
+   * 이력 항목 조회는 **패널 안으로 좁힌다**. [@design SCREEN-009]
+   *
+   * 이 화면에는 비식별 이력 말고도 `<li>` 를 쓰는 영역이 있어(배치 조치·프레임 목록 등) 페이지
+   * 전역에서 `getByRole('listitem')` 을 찾으면 다중 매칭으로 깨진다. 그때 개수 단언을 느슨하게
+   * 바꾸면 "몇 회차가 뜨는가" 라는 이 파일의 검증 축이 사라지므로, **찾는 범위만** 좁힌다.
+   */
+  function historyPanel(): HTMLElement {
+    return screen.getByTestId('deident-history-panel');
+  }
+
+  function historyItems(): HTMLElement[] {
+    return within(historyPanel()).getAllByRole('listitem');
+  }
+
+  function historyItem(): HTMLElement {
+    return within(historyPanel()).getByRole('listitem');
+  }
+
   function renderPage() {
     renderWithProviders(
       <Routes>
@@ -77,7 +96,7 @@ describe('영상 상세 — 비식별 이력', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('비식별 이력')).toBeInTheDocument());
-    const item = screen.getByRole('listitem');
+    const item = historyItem();
     expect(within(item).getByText('재비식별')).toBeInTheDocument();
     expect(within(item).getByText('완료')).toBeInTheDocument();
     expect(within(item).getByText('얼굴 검출')).toBeInTheDocument();
@@ -97,7 +116,7 @@ describe('영상 상세 — 비식별 이력', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('비식별 이력')).toBeInTheDocument());
-    const items = screen.getAllByRole('listitem');
+    const items = historyItems();
     expect(items).toHaveLength(2);
     expect(within(items[0]).getByText('재비식별')).toBeInTheDocument();
     expect(within(items[1]).getByText('비식별')).toBeInTheDocument();
@@ -138,7 +157,7 @@ describe('영상 상세 — 비식별 이력', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('비식별 이력')).toBeInTheDocument());
-    const badge = within(screen.getByRole('listitem')).getByText('진행 중');
+    const badge = within(historyItem()).getByText('진행 중');
     expect(badge.className).toContain('bg-info/10');
     // 글자는 DEFAULT 가 아니라 700 단이어야 한다 — bg-info/10 위 대비(AA) 때문이며
     // src/test/contrastGuard.test.ts 가 tailwind 토큰 실값으로 그 사실을 계산해 고정한다.
@@ -156,7 +175,7 @@ describe('영상 상세 — 비식별 이력', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('비식별 이력')).toBeInTheDocument());
-    const badge = within(screen.getByRole('listitem')).getByText('진행 중');
+    const badge = within(historyItem()).getByText('진행 중');
     expect(badge.className).toContain('bg-info/10');
     expect(badge.className).not.toContain('warning');
   });
@@ -174,7 +193,7 @@ describe('영상 상세 — 비식별 이력', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('비식별 이력')).toBeInTheDocument());
-    const items = screen.getAllByRole('listitem');
+    const items = historyItems();
     const badges = [
       { el: within(items[0]).getByText('완료'), color: 'success' },
       { el: within(items[1]).getByText('실패'), color: 'danger' },
@@ -201,7 +220,7 @@ describe('영상 상세 — 비식별 이력', () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText('비식별 이력')).toBeInTheDocument());
-    const items = screen.getAllByRole('listitem');
+    const items = historyItems();
     const classNames = [
       within(items[0]).getByText('완료').className,
       within(items[1]).getByText('실패').className,

@@ -14,7 +14,9 @@ import { cn } from '@/lib/cn';
  *   워크플로 상태를 이 컴포넌트로 그리지 말 것 — 매핑이 두 곳으로 갈린다.
  *
  * 색상 대비(WCAG 실측): pinned 8.43:1(AAA) · success 6.99:1(AA) · neutral 7.07:1(AAA) ·
- * **error 8.01:1(AAA)** — `text-danger-700`(#8A240F) on `bg-danger-50`(#FDEFEC).
+ * **error 8.01:1(AAA)** — `text-danger-700`(#8A240F) on `bg-danger-50`(#FDEFEC) ·
+ * **warn 8.43:1(AAA)** — `text-warning-700`(#614100) on `bg-warning-50`(#FFF3DB) ·
+ * **info 6.82:1(AA)** — `text-info-700`(#085691) on `bg-info-50`(#E7F4FE).
  * `label` 이 필수인 이유가 여기 있다 — 색상 단독으로 의미를 전달하지 않는다.
  *
  * ⚠ variant 를 새로 추가할 때도 이 계약이 그대로 적용된다 — 배경·텍스트 조합의 대비를 **실제로
@@ -22,14 +24,19 @@ import { cn } from '@/lib/cn';
  *   컴포넌트의 계약이라, 신규 variant 가 그 검증을 비켜가면 컴포넌트의 존재 근거가 약해진다.
  *   회귀 가드는 `src/test/contrastGuard.test.ts` 가 소스의 실제 클래스를 읽어 계산한다.
  */
-export type BadgeVariant = 'pinned' | 'success' | 'neutral' | 'error';
+export type BadgeVariant = 'pinned' | 'success' | 'neutral' | 'error' | 'warn' | 'info';
 
 export interface BadgeProps {
   /**
    * pinned=중요(고정) · success=발행 · neutral=작성중(DRAFT) ·
-   * error=실패 등 위험·실패 계열(배치 작업 묶음의 「실패」 표식 등).
+   * error=실패 등 위험·실패 계열(배치 작업 묶음의 「실패」 표식 등) ·
+   * warn=되돌릴 수 있는 경고 계열(배치 작업 묶음의 「건너뜀」 표식 등) ·
+   * info=알림 계열(배치 작업 묶음의 「해제됨」 표식 등).
    *
-   * ⚠ 기존 세 값은 유지·불변이며 `error` 는 **추가만** 된 것이라 기존 호출부는 영향받지 않는다.
+   * ⚠ 기존 값은 유지·불변이며 `error`·`warn`·`info` 는 **추가만** 된 것이라 기존 호출부는
+   *   영향받지 않는다.
+   * ⚠ `warn` 은 `pinned` 와 **같은 클래스 조합**이지만 개명·재사용이 아니다 — 「고정」과
+   *   「건너뜀」은 다른 뜻이라 한쪽 톤이 바뀔 때 다른 쪽이 끌려가면 안 된다. 두 키를 합치지 말 것.
    */
   variant: BadgeVariant;
   /** 배지에 표시할 텍스트. 색상 단독 구분을 피하기 위해 필수다. */
@@ -55,6 +62,11 @@ const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   //   (tailwind.config.js 주석 참조: 정본 명칭 error, 코드 키 danger). 가장 옅은 단계를 배경,
   //   진한 단계를 텍스트로 쓰고 **같은 스케일 밖으로 나가지 않는다** — 실측 8.01:1(AAA).
   error: 'bg-danger-50 text-danger-700',
+  // ★ DS-001 semantic **warn** 스케일(코드 키 warning). 시안 `.badge-warn` = 배경 --w-0 /
+  //   글자 --w-7 그대로다 — 실측 8.43:1(AAA). `pinned` 와 값이 같은 것은 의도다(위 주석).
+  warn: 'bg-warning-50 text-warning-700',
+  // ★ DS-001 semantic **info** 스케일. 시안 `.badge-info` = 배경 --i-0 / 글자 --i-7 — 실측 6.82:1(AA).
+  info: 'bg-info-50 text-info-700',
 };
 
 const DEFAULT_ICONS: Partial<

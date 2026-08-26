@@ -44,9 +44,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         // 혼자 둥글어 보였다. 가드: src/test/formControlRadius.test.ts
         'h-11 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-hidden transition-colors duration-100 placeholder:text-gray-400 disabled:bg-gray-50 disabled:opacity-60',
         KRDS_FOCUS,
+        // 경계는 시안 `--border-strong`(= `--n-4` = gray-400). 한 단 옅은 gray-300 은 흰 배경
+        // 위 2.01:1 이라 WCAG 1.4.11(비텍스트 3:1) 미달이고 gray-400 은 3.08:1 로 통과한다.
+        // Textarea·Button secondary 가 같은 근거로 이미 gray-400 이라 한 폼 안에서 값이
+        // 갈리고 있었다 — 시안 정합과 접근성과 일관성이 같은 방향이다.
         hasError
           ? 'border-danger focus-visible:border-danger'
-          : 'border-gray-300 focus-visible:border-primary-500',
+          : 'border-gray-400 focus-visible:border-primary-500',
         className,
       )}
       {...rest}

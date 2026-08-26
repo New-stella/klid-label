@@ -156,7 +156,10 @@ export function Modal({
         {title && (
           <h2 className="mb-2 shrink-0 text-section-title text-gray-900">{title}</h2>
         )}
-        {description && <p className="mb-4 shrink-0 text-sub text-gray-500">{description}</p>}
+        {/* 설명 타이포는 시안 `.dlg-desc` — `.t-body-md`(17/400) + 색 --n-7(gray-700).
+            ⚠ 구 `text-sub`(14/400) + gray-500 로 되돌리지 말 것: DS-001 Do's 가 "본문 17px 이상"을
+              규정하고, 이 자리는 다이얼로그의 본문 문단이라 보조 캡션 크기가 아니다. */}
+        {description && <p className="mb-4 shrink-0 text-body-md text-gray-700">{description}</p>}
         {/* min-h-0 이 없으면 flex 아이템의 자동 최소 크기가 콘텐츠 높이라 overflow 가 발동하지 않는다. */}
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer && <div className="mt-6 shrink-0 flex justify-end gap-2">{footer}</div>}

@@ -74,7 +74,7 @@ describe('BatchStageIndicator', () => {
     // ★ 구 기대값 'VLM' → 폐기. 기술 모델명 노출 금지(UI-018)로 「시계열」로 표시한다(코드는 유지).
     expect(screen.getByText('시계열')).toBeInTheDocument();
     expect(screen.getByText('프레임추출')).toBeInTheDocument();
-    // ★ 회차 45 정정 — 오토라벨 세 단계(AI 탐지·AI 분할·보간)는 개별 칸이 아니라 한 칸이다.
+    // ★ 회차 45 정정 — 오토라벨 세 단계(AI 탐지·AI 분할·트랙 보간)는 개별 칸이 아니라 한 칸이다.
     //   구 기대값 '보간' 칸 존재 → 폐기(UI-018 v7 이 5칸으로 접으라고 규정).
     expect(screen.getByText(COLLAPSED_BUNDLE_LABEL)).toBeInTheDocument();
   });
@@ -225,7 +225,7 @@ describe('BatchStageIndicator', () => {
           stages={[item('YOLO', 'DONE'), item('SAM2', 'DONE'), item('INTERPOLATE', 'FAIL')]}
         />,
       );
-      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('보간에서 실패');
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('트랙 보간에서 실패');
     });
 
     it('★진행중이면_지금_어느_세부_단계인지_적는다', () => {
@@ -323,7 +323,7 @@ describe('BatchStageIndicator', () => {
     );
     const live = screen.getByTestId('batch-stage-live');
     expect(live).toHaveTextContent(`${COLLAPSED_BUNDLE_LABEL} 실패`);
-    expect(live).toHaveTextContent('보간에서 실패');
+    expect(live).toHaveTextContent('트랙 보간에서 실패');
   });
 
   it('진행_중_단계가_없으면_실패나_마지막_완료_단계를_안내한다', () => {
@@ -477,6 +477,172 @@ describe('BatchStageIndicator', () => {
     });
   });
 
+  // ── SCREEN-009 확정 시안 정합: 점·연결선·캡션 ─────────────────────────────
+  // 기준: `design-main.css` 의 `.stage-dot` / `.stage-line` / `.stage-caption` / `.stage-substep`.
+  // ⚠ jsdom 은 CSS 를 적용하지 않으므로 여기서 고정하는 것은 **선언**(className·inline style)이다.
+  //   실제 픽셀은 브라우저 실측이 짝이다.
+  describe('★확정 시안 표면 정합(@design SCREEN-009 · @design UI-018)', () => {
+    const px = (v: string | number | undefined): number => parseFloat(String(v ?? ''));
+
+    // ★★ E3 ↔ E9 는 한 묶음이다 — 이 가드가 그 묶음을 지킨다.
+    //    구 구현은 「점이 32px 링」이라는 전제를 연결선 쪽에 숫자로 베껴 뒀다(`top: 15` ·
+    //    `left: calc(50% + 18px)`). 점만 시안(16px)으로 줄이면 **선이 점에서 떨어져 공중에 뜬다**.
+    //    그래서 값을 비교하지 않고 **불변식**(선의 중심 = 점의 중심)을 단언한다 — 어느 한쪽만
+    //    바꾸면 상수 값이 무엇이든 즉시 실패한다.
+    it('★연결선의_세로중심이_점의_세로중심과_일치한다_E3E9_묶음', () => {
+      render(<BatchStageIndicator stages={stages} />);
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+      const line = screen.getByTestId('batch-stage-connector-DEIDENTIFY');
+
+      const dotSize = px(dot.style.height);
+      const lineTop = px(line.style.top);
+      const lineHeight = px(line.style.height);
+
+      // 값이 비면 아래 등식이 NaN 비교로 무력해진다 — 먼저 못 박는다.
+      expect(dotSize).toBeGreaterThan(0);
+      expect(lineHeight).toBeGreaterThan(0);
+
+      expect(lineTop + lineHeight / 2).toBe(dotSize / 2);
+    });
+
+    it('★연결선은_이_칸_중심에서_다음_칸_중심까지_간다_점_아래를_지난다', () => {
+      render(<BatchStageIndicator stages={stages} />);
+      const line = screen.getByTestId('batch-stage-connector-DEIDENTIFY');
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+
+      // 칸 폭이 같으므로 «중심(50%) + 칸 하나 폭(100%)» 이 곧 다음 점의 중심이다.
+      expect(line.style.left).toBe('50%');
+      expect(line.style.width).toBe('100%');
+      // 구 좌표 보정(점 바깥에서 끊기)이 되살아나면 실패한다.
+      expect(line.getAttribute('style')).not.toContain('calc');
+      // 점이 선 위에 놓여야 선이 점을 가로지르는 것처럼 보이지 않는다.
+      expect(line.className).toContain('z-0');
+      expect(dot.className).toContain('z-10');
+    });
+
+    it('★마지막_칸에는_연결선이_없다', () => {
+      render(<BatchStageIndicator stages={stages} />);
+      expect(screen.queryByTestId('batch-stage-connector-AUTOLABEL')).not.toBeInTheDocument();
+    });
+
+    // E3 — 점은 **단일 점**이다. 구 «반투명 틴트 링 + 내부 점» 2겹 구조를 되살리지 말 것.
+    it('★점은_단일_점이다_반투명_틴트_링_2겹_구조_폐기', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} />);
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+
+      // 점 안에 또 다른 점이 없다(구 구조는 링 안에 8px 점을 품었다).
+      expect(dot.children).toHaveLength(0);
+      expect(dot.className).toContain('rounded-full');
+      expect(dot.className).toContain('border-2');
+      // 반투명 틴트(`bg-{색}/10`)가 어디에도 남지 않는다 — 남으면 연결선이 점 아래로 비친다.
+      expect(container.innerHTML).not.toMatch(/bg-(success|info|danger|primary)\/\d/);
+    });
+
+    // E5 — 대기는 **흰 채움 + 테두리만**. 회색 채움으로 되돌리면 지나간 단계와 구분이 약해진다.
+    it('★대기_점은_흰_채움에_회색_테두리다', () => {
+      render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'DONE'), item('VLM', 'PENDING')]} />);
+      const pending = screen.getByTestId('batch-stage-dot-VLM');
+      expect(pending.className).toContain('bg-white');
+      expect(pending.className).toContain('border-gray-300');
+      expect(pending.className).not.toContain('bg-gray-200');
+    });
+
+    // E9 — 완료 구간 선은 점(su-5)보다 한 단 옅다(su-4). 점과 같은 단으로 통일하지 말 것.
+    it('★완료_연결선은_점보다_한_단_옅다_그_외는_중립선이다', () => {
+      render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'DONE'), item('VLM', 'PENDING'), item('MARKING', 'PENDING')]} />);
+      expect(screen.getByTestId('batch-stage-connector-DEIDENTIFY').className).toContain(
+        'bg-success-400',
+      );
+      expect(screen.getByTestId('batch-stage-dot-DEIDENTIFY').className).toContain('bg-success-500');
+      expect(screen.getByTestId('batch-stage-connector-VLM').className).toContain('bg-gray-200');
+    });
+
+    // E6 — 캡션도 상태색을 거든다. ⚠ 색은 **보조**이고 상태 문구가 주 수단이라는 불변식은
+    //      위 「캡션이 단계명과 상태를 함께 적는다」 가드가 계속 진다(둘은 짝이다).
+    it('★캡션이_상태별_색을_갖는다_진행중은_info축_유지', () => {
+      render(
+        <BatchStageIndicator
+          stages={[
+            item('DEIDENTIFY', 'DONE'),
+            item('MARKING', 'PROGRESS'),
+            item('VLM', 'PENDING'),
+          ]}
+        />,
+      );
+      const caption = (key: string) =>
+        screen.getByTestId(`batch-stage-name-${key}`).parentElement!.className;
+
+      expect(caption('DEIDENTIFY')).toContain('text-success-600');
+      // 확정 사항 — 진행 중은 info 계열이다(시안의 primary 로 바꾸지 말 것).
+      expect(caption('MARKING')).toContain('text-info-600');
+      expect(caption('MARKING')).not.toContain('text-primary');
+      expect(caption('VLM')).toContain('text-gray-500');
+    });
+
+    it('★실패_캡션은_danger축이며_진행중과_함께_굵어진다', () => {
+      render(<BatchStageIndicator stages={[item('MARKING', 'FAIL')]} />);
+      const caption = screen.getByTestId('batch-stage-name-MARKING').parentElement!.className;
+      expect(caption).toContain('text-danger-600');
+      // `text-caption` ladder 가 싣는 400 을 덮어야 강조가 산다.
+      expect(caption).toContain('font-semibold');
+    });
+
+    // E7 — 보조 표기는 상태색을 따르지 않는 고정 중립색이다(시안 `.stage-substep { color: --n-6 }`).
+    it('★보조_표기는_상태색을_따르지_않고_중립색이다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('YOLO', 'DONE'), item('SAM2', 'DONE'), item('INTERPOLATE', 'FAIL')]}
+        />,
+      );
+      const note = screen.getByTestId('batch-stage-note-AUTOLABEL');
+      expect(note.className).toContain('text-gray-600');
+      expect(note.className).not.toContain('text-danger');
+    });
+
+    // E8 — 시안은 폭을 묶고 낱말 단위로 두 줄을 허용한다. 줄바꿈을 막으면 이웃 칸과 겹친다.
+    it('★캡션은_줄바꿈을_막지_않고_폭으로_묶는다_구_nowrap_폐기', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} />);
+      const line = screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement!;
+      const wrapper = line.parentElement!;
+
+      expect(container.innerHTML).not.toContain('whitespace-nowrap');
+      // 낱말 중간에서 끊기지 않게 한다(한국어 `word-break: keep-all`).
+      expect(wrapper.className).toContain('break-keep');
+      expect(line.className).toContain('max-w-[120px]');
+    });
+
+    it('★보조_표기도_폭으로_묶인다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('YOLO', 'DONE'), item('SAM2', 'DONE'), item('INTERPOLATE', 'FAIL')]}
+        />,
+      );
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL').className).toContain(
+        'max-w-[132px]',
+      );
+    });
+  });
+
+  // ── 단계 표시명: 「트랙 보간」 ─────────────────────────────────────────────
+  // ★ 정본 `UI-018` 이 오토라벨 묶음을 «AI 탐지 · AI 분할 · 트랙 보간» 으로 부르고, 시안도
+  //   묶음 멤버 나열(`.group-sub`)·실패 단계 칩(`.fp-stage-chip`)·재수행 안내를 전부
+  //   「트랙 보간」으로 적는다. 구현만 「보간」이라 드리프트였다.
+  //
+  // ⚠ 이 표는 단계 표시명의 **유일한 정의처**이므로 이 이름은 스테퍼 보조 표기 · 라이브 리전 ·
+  //   `StageBadge` · `BatchFailurePanel` 묶음 부제까지 **한꺼번에** 따라간다(그것이 의도다).
+  describe('★단계 표시명 — 트랙 보간(@design UI-018)', () => {
+    it('★INTERPOLATE_표시명은_트랙_보간이다_구_보간_폐기', () => {
+      expect(stageLabel('INTERPOLATE')).toBe('트랙 보간');
+    });
+
+    it('★묶음_부제도_같은_표에서_파생돼_함께_따라간다', () => {
+      // `BatchFailurePanel` 이 조립하는 부제와 같은 식이다 — 표가 갈리면 여기서 실패한다.
+      expect(['YOLO', 'SAM2', 'INTERPOLATE'].map((n) => stageLabel(n)).join(' · ')).toBe(
+        'AI 탐지 · AI 분할 · 트랙 보간',
+      );
+    });
+  });
+
   // ── SCREEN-009 회귀 가드: 전폭 밴드에서 칸을 균등 분산한다 ──────────────────
   // ★ 앞선 라운드가 '처리 단계'를 전폭 밴드로 빼냈는데도 **표시기 자신이 내용 폭**이라
   //   노드가 좌측에 뭉쳤다(브라우저 실측: 886px 밴드에 273px 만 사용). 밴드를 넓히는 것과
@@ -525,7 +691,7 @@ describe('BatchStageIndicator', () => {
           stages={[item('DEIDENTIFY', 'DONE'), item('YOLO', 'DONE'), item('INTERPOLATE', 'FAIL')]}
         />,
       );
-      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('보간에서 실패');
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('트랙 보간에서 실패');
     });
 
     // ★ 되돌림 방지 — 구 분기가 코드로 되살아나면 즉시 실패한다. 런타임 렌더 테스트는 "지금

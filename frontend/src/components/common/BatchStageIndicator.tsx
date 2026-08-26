@@ -31,7 +31,12 @@ const STAGE_LABEL: Record<string, string> = {
   FRAME_EXTRACT: '프레임추출',
   YOLO: 'AI 탐지',
   SAM2: 'AI 분할',
-  INTERPOLATE: '보간',
+  // ★ 「보간」 → 「트랙 보간」. 이 단계의 이름을 규정하는 정본은 `UI-018` 이며 거기서
+  //   오토라벨 묶음을 «AI 탐지 · AI 분할 · 트랙 보간» 으로 부른다. 시안도 묶음 멤버 나열·
+  //   실패 단계 칩·재수행 안내를 전부 「트랙 보간」으로 적는다.
+  // ⚠ 다만 시안의 **스테퍼 보조 표기**만은 「보간에서 실패」로 적혀 있어 이 이름과 어긋난다
+  //   (같은 시안 안에서 갈린 것이며, 그 판정은 이 표가 아니라 사양 쪽 정합 대상이다).
+  INTERPOLATE: '트랙 보간',
 };
 
 /**
@@ -99,29 +104,78 @@ export function bundleLabel(bundle: StageBundle): string {
 //   적으면 상태 축은 색 단독이 되고, grayscale 로 보면 완료(초록)와 실패(빨강)가 같아진다
 //   (적록색약이 겪는 쌍). 그래서 캡션이 **단계명 + 상태 문구**를 함께 적는다 — 색을 대신하는
 //   유일한 구분 수단이다(2026-08-10 브라우저 실검증에서 드러난 결함, UI-018 사양).
-const DOT_TONE: Record<BatchStageStatus, { ring: string; dot: string }> = {
-  DONE: { ring: 'bg-success/10 border-success', dot: 'bg-success' },
-  PROGRESS: { ring: 'bg-info/10 border-info', dot: 'bg-info' },
-  FAIL: { ring: 'bg-danger/10 border-danger', dot: 'bg-danger' },
-  PENDING: { ring: 'bg-gray-200 border-gray-300', dot: 'bg-gray-400' },
+
+/**
+ * 점 지름(px) — **연결선의 세로 위치가 이 값에서 파생된다.**
+ *
+ * ⚠ 구 구현은 「점이 32px 링」이라는 전제를 연결선 쪽에 **숫자로 베껴** 두었다
+ * (`top: 15` · `left: calc(50% + 18px)`). 점을 확정 시안의 16px 단일 점으로 줄이는 순간 그
+ * 상수들이 통째로 어긋나 **선이 점에서 떨어져 공중에 뜬다**. 한 상수에서 파생시켜 그 실패
+ * 모드를 구조적으로 없앤다 — 아래 연결선에 좌표 숫자를 다시 적지 말 것.
+ */
+const DOT_SIZE_PX = 16;
+
+/** 연결선 두께(px). */
+const CONNECTOR_HEIGHT_PX = 2;
+
+/**
+ * 연결선의 세로 위치(px) — 선의 **중심**을 점의 **중심**에 맞춘다.
+ * 시안 `.stage-line { top: 7px }`(16px 점 · 2px 선)과 같은 값이 계산으로 나온다.
+ */
+const CONNECTOR_TOP_PX = DOT_SIZE_PX / 2 - CONNECTOR_HEIGHT_PX / 2;
+
+/**
+ * 점 색 — 확정 시안(`.stage-dot`)은 **테두리 2px + 상태색 채움의 단일 점**이다.
+ *
+ * ⚠ **[폐기]** 구 구현의 «반투명 틴트 링(32px) + 내부 8px 점» 2겹 구조 — 되살리지 말 것.
+ * 링 배경이 반투명이라 연결선이 점 아래로 **비쳐 보였고**, 그것을 가리려고 연결선을 점 바깥에서
+ * 끊는 좌표 상수가 따라붙었다(위 `DOT_SIZE_PX` 주석의 그 상수다). 채움이 불투명해지면서
+ * 연결선은 시안처럼 점 **아래를 지나가고**(`z-0` vs 점 `z-10`) 좌표 보정이 필요 없다.
+ *
+ * ⚠ 대기(PENDING)는 **흰 채움 + 테두리만**이다(시안 `background: --bg-page`). 채움을 회색으로
+ * 되돌리면 «아직 오지 않은 단계»와 «지나간 단계»의 구분이 약해진다.
+ */
+const DOT_TONE: Record<BatchStageStatus, string> = {
+  DONE: 'bg-success-500 border-success-500',
+  // ⚠ 진행 중은 **info 계열을 유지**한다(확정) — 완료=success · 실패=danger · 대기=gray 와 같은
+  //   **상태색 축**을 지키는 선택이다. 시안은 primary 를 쓰지만 UI-018 사양은 "파랑"만 규정해
+  //   둘 다 허용한다. primary 로 바꾸지 말 것.
+  PROGRESS: 'bg-info-500 border-info-500',
+  FAIL: 'bg-danger-500 border-danger-500',
+  PENDING: 'bg-white border-gray-300',
 };
 
-function StageDot({ status }: { status: BatchStageStatus }) {
-  const tone = DOT_TONE[status];
+/**
+ * 캡션 색 — 상태를 **글자색으로도** 거든다(시안 `.stage-step[data-status] .stage-caption`).
+ *
+ * ⚠ 색은 어디까지나 **보조**다. 상태를 나르는 주 수단은 캡션의 상태 문구이며(위 주석),
+ * 색만 남기고 문구를 지우면 grayscale·색각 이상에서 완료와 실패가 같아진다.
+ *
+ * 대비(흰 카드 면 기준, WCAG AA 4.5:1): success-600 5.85 · info-600 5.64 · danger-600 5.95 ·
+ * gray-500 4.51 — 전부 통과. 시안이 쓰는 600단을 그대로 따르되 진행 중만 info 축이다.
+ */
+const CAPTION_TONE: Record<BatchStageStatus, string> = {
+  DONE: 'text-success-600',
+  PROGRESS: 'text-info-600 font-semibold',
+  FAIL: 'text-danger-600 font-semibold',
+  PENDING: 'text-gray-500',
+};
+
+function StageDot({ status, testId }: { status: BatchStageStatus; testId: string }) {
   return (
-    <div
-      className={cn(
-        'w-8 h-8 rounded-full border-2 flex items-center justify-center',
-        tone.ring,
-      )}
-    >
-      <div className={cn('w-2 h-2 rounded-full', tone.dot)} />
-    </div>
+    <span
+      aria-hidden="true"
+      data-testid={testId}
+      className={cn('relative z-10 shrink-0 rounded-full border-2', DOT_TONE[status])}
+      style={{ width: DOT_SIZE_PX, height: DOT_SIZE_PX }}
+    />
   );
 }
 
 function connectorColor(status: BatchStageStatus): string {
-  if (status === 'DONE') return 'bg-success';
+  // 시안 `.stage-line` 은 완료 구간을 점(su-5)보다 **한 단 옅은 su-4** 로 긋는다 — 선이 점보다
+  // 앞서 보이지 않게 하는 위계다. 점과 같은 단으로 통일하지 말 것.
+  if (status === 'DONE') return 'bg-success-400';
   return 'bg-gray-200';
 }
 
@@ -298,7 +352,7 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
         );
 
         return (
-          // ⚠ `items-start` — 연결선을 점 중심(위에서 16px = 32px 점의 절반)에 고정한다. 구 구현은
+          // ⚠ `items-start` — 연결선을 점 중심(칸 위에서 `DOT_SIZE_PX / 2`)에 고정한다. 구 구현은
           //    `items-center` 로 **캡션 높이에 의존**해 맞춰져 있어 캡션 줄 수가 바뀌면 어긋났다.
           // 칸이 `flex-1` 이라 점이 칸 중앙에 오고, 연결선은 흐름에서 빼내 **점 중심 기준
           //    절대배치**한다(칸 폭이 커져도 선이 점에서 떨어지지 않는다).
@@ -310,32 +364,46 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
               className="flex flex-col items-center gap-1"
               data-testid={`batch-stage-item-${cell.key}`}
             >
-              <StageDot status={cell.status} />
+              <StageDot status={cell.status} testId={`batch-stage-dot-${cell.key}`} />
               {/* 캡션 — 단계명(또는 묶음명)과 상태. 확정 디자인대로 **한 줄**(`비식별 완료`) +
-                  앱 캡션 크기(14px). 칸이 균등 분산돼 가로 여유가 있으므로 줄을 접거나 글자를
-                  줄일 이유가 없다.
+                  앱 캡션 크기(14px).
+                  ⚠ **[폐기]** 구 `whitespace-nowrap` — 시안은 폭을 `max-width` 로 묶고
+                  `word-break: keep-all`(낱말 단위 줄바꿈)로 **두 줄을 허용**한다. 줄바꿈을 막으면
+                  긴 묶음명·보조 표기가 칸 밖으로 넘쳐 이웃 칸과 겹친다.
                   ⚠ **[폐기]** 구 비-fill 경로의 두 줄 캡션 + 인라인 `fontSize: '10px'` 축소는
                   인라인 배치처(마킹 화면 헤더)를 위한 것이었고 그 자리가 사라져 함께 걷어냈다. */}
-              <span className="text-caption text-gray-600 text-center whitespace-nowrap leading-tight flex flex-col">
-                <span>
+              <span className="flex flex-col items-center break-keep text-center text-caption leading-tight">
+                <span className={cn('max-w-[120px]', CAPTION_TONE[cell.status])}>
                   {nameSpan} {statusSpan}
                 </span>
                 {/* 보조 표기 — 접은 칸의 세부 단계(진행 중/실패일 때만). 색이 아니라 **글자**로
-                    적어 색을 읽지 못해도 어느 세부 단계인지 알 수 있게 한다(UI-018 v7). */}
+                    적어 색을 읽지 못해도 어느 세부 단계인지 알 수 있게 한다(UI-018 v7).
+                    ⚠ 색은 상태색을 따르지 않고 고정 중립색이다(시안 `.stage-substep`) — 상태는
+                    윗줄이 이미 말하고, 보조 표기까지 물들이면 어느 쪽이 주인지 흐려진다. */}
                 {cell.note && (
-                  <span className="text-gray-500" data-testid={`batch-stage-note-${cell.key}`}>
+                  <span
+                    className="max-w-[132px] text-gray-600"
+                    data-testid={`batch-stage-note-${cell.key}`}
+                  >
                     {cell.note}
                   </span>
                 )}
               </span>
             </div>
             {!isLast && (
-              // 점 중심(+18px = 점 반지름 16 + 여백 2)에서 다음 점 중심 직전까지. 점 위를
-              // 지나가지 않으므로 점의 반투명 배경으로 선이 비쳐 보이지 않는다.
+              // 이 칸의 점 중심에서 다음 칸의 점 중심까지(칸 폭이 같으므로 `width: 100%`).
+              // 점 **아래**를 지나가고(`z-0` vs 점 `z-10`) 점 채움이 불투명해 가려진다.
+              // ⚠ 좌표를 숫자로 적지 않는다 — 점 크기에서 파생한다(`DOT_SIZE_PX` 주석 참조).
               <span
                 aria-hidden="true"
-                className={cn('absolute h-0.5', connectorColor(cell.status))}
-                style={{ top: 15, left: 'calc(50% + 18px)', right: 'calc(-50% + 18px)' }}
+                data-testid={`batch-stage-connector-${cell.key}`}
+                className={cn('absolute z-0', connectorColor(cell.status))}
+                style={{
+                  top: CONNECTOR_TOP_PX,
+                  height: CONNECTOR_HEIGHT_PX,
+                  left: '50%',
+                  width: '100%',
+                }}
               />
             )}
           </div>

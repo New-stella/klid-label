@@ -10,7 +10,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { Button } from '@/components/common/Button';
-import { Field, FieldError, FieldLabel } from '@/components/common/Field';
+import { FieldCounter } from '@/components/common/FieldCounter';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/common/Field';
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
 
@@ -41,6 +42,13 @@ export interface BatchStageSkipModalProps {
    * `bundleLabel`)에 남는다. 여기서 코드→이름을 다시 정하면 표가 둘이 된다.
    */
   bundleLabel: string;
+  /**
+   * 묶음에 속한 작업의 노출명을 이어 붙인 부제(예: AI 탐지 · AI 분할 · 트랙 보간).
+   *
+   * `bundleLabel` 과 **같은 원칙**이라 문자열만 받는다 — 묶음 코드→멤버 표를 여기서 다시 들면
+   * 그 표가 둘이 된다. 멤버가 하나뿐인 묶음처럼 부제가 필요 없으면 넘기지 않는다(줄 자체가 없다).
+   */
+  bundleMembers?: string;
   loading?: boolean;
   onClose(): void;
   onConfirm(reason: string): void;
@@ -49,6 +57,7 @@ export interface BatchStageSkipModalProps {
 export function BatchStageSkipModal({
   open,
   bundleLabel,
+  bundleMembers,
   loading,
   onClose,
   onConfirm,
@@ -57,6 +66,7 @@ export function BatchStageSkipModal({
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isValid },
   } = useForm<SkipForm>({
     resolver: zodResolver(skipSchema),
@@ -71,6 +81,14 @@ export function BatchStageSkipModal({
    * 같은 tick 의 클릭들이 전부 `onSubmit` 까지 도달한 뒤에야 첫 요청의 상태가 반영된다.
    */
   const submitLockRef = useRef(false);
+
+  /**
+   * 카운터가 세는 것은 **입력 원문의 길이**다(트림 후가 아니다).
+   *
+   * 상한을 강제하는 `maxLength` 가 원문 기준이라, 트림 길이를 보여주면 앞뒤 공백을 넣은 사용자에게
+   * "아직 여유가 있다"고 말하면서 입력은 막히는 어긋남이 생긴다.
+   */
+  const reasonLength = watch('reason')?.length ?? 0;
 
   // 닫아도 컴포넌트가 마운트된 채 남으므로, 다시 열릴 때 락과 입력을 초기화한다.
   useEffect(() => {
@@ -97,7 +115,7 @@ export function BatchStageSkipModal({
       open={open}
       onClose={handleClose}
       title={`${bundleLabel} 작업 건너뛰기`}
-      description={`${bundleLabel} 작업을 건너뛰고 다음 작업으로 진행합니다. 사유는 배치 이력에 남습니다.`}
+      description={`${bundleLabel} 작업을 건너뛰고 다음 작업으로 진행합니다.`}
       size="md"
     >
       <form
@@ -106,18 +124,35 @@ export function BatchStageSkipModal({
         data-testid="batch-stage-skip-modal"
         noValidate
       >
+        {/* 무엇을 건너뛰는지 제목 문자열에만 두지 않는다 — 확인 직전에 대상이 눈에 남아야 한다. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-label text-gray-600">대상 묶음</span>
+          <span className="inline-flex items-center rounded-sm bg-gray-100 px-2.5 py-0.5 text-label text-gray-800">
+            {bundleLabel}
+          </span>
+          {bundleMembers && <span className="text-caption text-gray-600">{bundleMembers}</span>}
+        </div>
         <Field>
-          <FieldLabel>건너뛰기 사유</FieldLabel>
+          {/* 글자 수는 라벨 줄 오른쪽에 둔다 — 도움말이 두 줄로 접혀도 숫자가 문단 중간에 뜨지 않는다. */}
+          {/* 필수 표식은 눈(빨간 *)과 보조기술(sr-only '(필수)') 양쪽에 필요하다. 아래
+              `aria-required` 는 컨트롤에만 붙어 라벨을 훑는 사용자에게는 보이지 않는다 — 둘 다 둔다. */}
+          <div className="flex items-baseline justify-between gap-4">
+            <FieldLabel required>건너뛰기 사유</FieldLabel>
+            <FieldCounter current={reasonLength} max={SKIP_REASON_MAX_LENGTH} />
+          </div>
           <Textarea
             className="min-h-[120px]"
             aria-required="true"
             maxLength={SKIP_REASON_MAX_LENGTH}
             {...register('reason')}
           />
+          <FieldDescription>
+            배치 이력에 그대로 남습니다. 공백만으로는 저장되지 않습니다.
+          </FieldDescription>
           <FieldError>{errors.reason?.message}</FieldError>
         </Field>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleClose} disabled={loading}>
+          <Button variant="secondary" onClick={handleClose} disabled={loading}>
             취소
           </Button>
           <Button type="submit" variant="primary" disabled={!isValid || loading} loading={loading}>

@@ -48,7 +48,7 @@
 //     접수된 사실을 모른 채 재실행을 다시 누르고, 서버는 이미 처리 중이라 그 요청을 매번 막는다.
 
 import { useState } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Info, RefreshCw } from 'lucide-react';
 
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
@@ -60,6 +60,7 @@ import { useUiStore } from '@/stores/useUiStore';
 import { useRerunBatchStage, useRetryBatch, useSkipBatchStage } from '../hooks/useBatchRecovery';
 import {
   STAGE_BUNDLES,
+  STAGE_BUNDLE_MEMBERS,
   bundleRerunsInterpolation,
   isBatchFailed,
   isBatchProcessing,
@@ -204,18 +205,118 @@ const MODE_HEADING: Record<BatchPanelMode, string> = {
   skipped: '건너뛴 작업 있음',
 };
 
-/** 표면 톤 — 문구가 이미 상태를 말하므로 색은 보조다. */
-const MODE_SURFACE: Record<BatchPanelMode, string> = {
-  processing: 'rounded-lg border border-info/40 bg-info/5 px-4 py-3',
-  failure: 'rounded-lg border border-danger/40 bg-danger/5 px-4 py-3',
-  // 지금 실패 상태가 아니므로 위험 톤을 쓰지 않는다 — 사실 관계는 제목 문구가 말한다.
-  lastFailure: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
-  // 영상 자체는 완주 상태라 위험 톤을 쓰지 않는다 — 무엇이 실패했는지는 제목 문구와 묶음 표식이 말한다.
-  bundleFailure: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
-  // 실패도 스킵도 아니므로 위험 톤을 쓰지 않는다 — 상태는 제목 문구가 말한다(스킵과 같은 톤).
-  cleared: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
-  skipped: 'rounded-lg border border-gray-300 bg-gray-50 px-4 py-3',
+/**
+ * 패널 표면 골격 — 확정 시안 `.failure-panel` 정합. [@design SCREEN-009]
+ *
+ * 시안은 <b>흰 배경 + 1px 테두리 + 좌측 4px 강조바 + 전방향 16px 패딩 + 16px gap</b> 이다.
+ *
+ * ⚠ 구 틴트 배경(`bg-danger/5`·`bg-gray-50`)을 되살리지 말 것 — 그 위에 흰 카드(작업 묶음 행)를
+ *   얹으면 위험 틴트 위에 카드가 떠 보인다. 패널 배경·강조바·행 표면은 <b>한 묶음으로</b> 움직인다.
+ * ⚠ 자식은 각자 `mt-*` 를 갖지 않는다 — 간격은 이 컨테이너의 `gap-4` 하나가 정한다(값이 두 곳으로
+ *   갈리면 한쪽만 갱신된다).
+ */
+const PANEL_SURFACE = 'flex flex-col gap-4 rounded-lg border border-l-4 bg-white p-4';
+
+/** 패널 톤 — 문구가 이미 상태를 말하므로 색은 보조다(테두리·좌측 강조바에만 쓴다). */
+export type BatchPanelTone = 'error' | 'neutral' | 'info' | 'warn';
+
+const TONE_SURFACE: Record<BatchPanelTone, string> = {
+  error: 'border-danger-200 border-l-danger-500',
+  info: 'border-info-200 border-l-info-500',
+  // 시안 `.failure-panel[data-tone="warn"]` = 테두리 --w-2 / 좌측 강조바 --w-5.
+  warn: 'border-warning-200 border-l-warning-500',
+  neutral: 'border-border border-l-gray-400',
 };
+
+/**
+ * 모드 → 표면 톤. 시안 `.failure-panel[data-tone]` 과 같은 축이다.
+ *
+ * ★ 실패가 아니라 <b>건너뜀·해제만</b> 있는 상태는 시안대로 `warn`(노랑)이다. 시안 CSS 가 "행
+ *   배경을 물들이면 같은 색 계열 배지가 배경에 묻혀 알약 형태를 잃는다"고 적어 <b>패널 warn 톤과
+ *   배지 warn/info 색이 한 묶음</b>인데, 공용 배지(UI-111)에 두 variant 가 생겨 이번에 그 묶음을
+ *   통째로 옮겼다. 한쪽만 되돌리지 말 것(노란 패널에 회색 배지가 남는다).
+ *
+ * ⚠ <b>[폐기]</b> 구 서술 「배지 variant 가 생기면 아래 넷을 함께 warn 으로 바꾼다」 — 그 「넷」은
+ *   당시 neutral 이던 키를 센 것이고 <b>시안 근거로 warn 인 것은 둘</b>(skipped·cleared)뿐이다.
+ *   `lastFailure`·`bundleFailure` 는 <b>실패</b> 계열이라 시안의 건너뜀 변형(②③⑤)에 해당하지
+ *   않으며, 시안에 대응 변형 자체가 없어 지금은 근거 없이 옮기지 않는다(neutral 유지).
+ */
+const MODE_TONE: Record<BatchPanelMode, BatchPanelTone> = {
+  processing: 'info',
+  failure: 'error',
+  lastFailure: 'neutral',
+  bundleFailure: 'neutral',
+  // 시안 ③⑤ 「건너뛰기 해제됨」 · ② 「건너뛴 작업 있음」 = data-tone="warn".
+  cleared: 'warn',
+  skipped: 'warn',
+};
+
+/**
+ * 작업 묶음 행의 상태 — 시안 `.group-row[data-state]`. 표면은 <b>왼쪽 강조선 + 배지</b>가 알린다.
+ * 행 배경을 물들이지 않는 이유는 위 {@link MODE_TONE} 주석과 같다.
+ */
+type GroupRowState = 'fail' | 'skipped' | 'released';
+
+const ROW_SURFACE: Record<GroupRowState, string> = {
+  fail: 'border-danger-200 border-l-danger-500',
+  skipped: 'border-warning-200 border-l-warning-500',
+  released: 'border-primary-200 border-l-primary-500',
+};
+
+/** 행 부제 색 — 상태를 색만으로 말하지 않으므로 보조다(문구는 항상 같은 자리에 있다). */
+const ROW_SUB_TONE: Record<GroupRowState, string> = {
+  fail: 'text-danger-700',
+  skipped: 'text-warning-700',
+  released: 'text-gray-600',
+};
+
+/**
+ * 행 골격 — 시안 `.group-row` 그리드. 데스크톱(≥1280)은 <b>이름 · 배지 · 조작</b> 3열이고 조작이
+ * <b>우측 정렬</b>이며, 그 아래에서는 2열로 접히고 조작이 다음 줄 좌측으로 내려간다.
+ * ⚠ 브레이크포인트는 설정에 실재하는 `xl` 하나다(`md` 밖의 접두어는 죽은 클래스가 된다).
+ */
+const ROW_BASE =
+  'grid grid-cols-[1fr_auto] items-center gap-4 rounded-md border border-l-4 bg-white px-4 py-2' +
+  ' xl:grid-cols-[minmax(180px,1.4fr)_auto_minmax(0,1fr)]';
+
+/**
+ * 묶음 부제 — 이름 아래 한 줄로 <b>그 묶음이 무엇을 하는지</b>를 병기한다. [@design SCREEN-009]
+ *
+ * ★ 묶음 <b>이름</b>을 멤버 나열로 되돌리는 것이 아니다 — 이름은 「오토라벨링」 그대로 두고 부제만
+ *   더한다(구 이름 'AI 탐지 · AI 분할 · 보간' 을 되살리지 말 것. `bundleLabel` 주석 참조).
+ * ★ 오토라벨 부제는 <b>멤버 표에서 파생</b>한다. 손으로 적으면 묶음 구성이 바뀔 때 부제가 따라오지
+ *   않아 화면이 없는 단계를 계속 열거한다.
+ */
+const BUNDLE_SUBTITLE: Record<StageBundle, string> = {
+  // 멤버가 자기 자신 하나뿐이라 나열하면 이름과 같아진다 — 그래서 무엇을 만드는지를 적는다.
+  VLM: '영상 서술 생성',
+  AUTOLABEL: bundleMemberNames('AUTOLABEL'),
+};
+
+/**
+ * 묶음이 품는 작업의 노출명 나열 — <b>멤버 표에서 파생</b>한다. [@design SCREEN-009]
+ *
+ * 목록 행의 부제와 건너뛰기 모달의 대상 칩이 <b>같은 문자열</b>을 쓰게 하는 단일 지점이다. 어느
+ * 한쪽을 손으로 적으면 묶음 구성이나 단계 표시명이 바뀔 때 한쪽만 낡아, 화면이 없는 단계를 계속
+ * 열거하거나 같은 묶음을 두 이름으로 부른다.
+ */
+function bundleMemberNames(bundle: StageBundle): string {
+  return (STAGE_BUNDLE_MEMBERS[bundle] as readonly string[])
+    .map((name) => stageLabel(name))
+    .join(' · ');
+}
+
+/**
+ * 멤버 나열을 <b>부제로 쓸 값</b> — 멤버가 둘 이상일 때만 있다.
+ *
+ * 멤버가 자기 자신 하나뿐인 묶음은 나열이 묶음 이름과 같아져 줄만 늘어난다(정보가 0). 그래서
+ * 값을 넘기지 않아 줄 자체가 없게 한다 — `BatchStageSkipModal.bundleMembers` 의 규약과 같다.
+ */
+function bundleMemberSubtitle(bundle: StageBundle): string | undefined {
+  return (STAGE_BUNDLE_MEMBERS[bundle] as readonly string[]).length > 1
+    ? bundleMemberNames(bundle)
+    : undefined;
+}
 
 /** 재실행 버튼 설명 — 버튼이 비활성일 때 **왜 비활성인지**를 사람이 읽을 수 있어야 한다. */
 const RETRY_HINT_ID = 'batch-retry-hint';
@@ -383,34 +484,59 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       skipped.includes(bundle) || cleared.includes(bundle) || failedBundles.includes(bundle),
   );
 
+  // ★ 파생영상은 조작이 노출되지 않는 알림 전용이라 톤도 중립이다(시안 data-tone="neutral").
+  const tone: BatchPanelTone = isDerivative ? 'neutral' : MODE_TONE[mode];
+  // 이 영역을 누가 보는가 — 시안 `.fp-head` 우측 배지.
+  //   ⚠ 시안의 「검수자 전용」은 secondary 톤이지만 공용 배지(UI-111)에 그 variant 가 없어 중립으로
+  //     둔다. 파생영상 배지와 색이 같아지지만 두 배지는 배타라 한 화면에서 겹치지 않는다.
+  const audienceLabel = isDerivative ? '파생영상' : everApproved ? '검수 완료' : '검수자 전용';
+  const audienceVariant = !isDerivative && everApproved ? 'success' : 'neutral';
+  // 파생영상에는 전체 재기동을 두지 않는다(구 구현이 파생 분기에서 조작 전체를 감췄던 것과 같다).
+  const showRetry = canShowRetry && !isDerivative;
+  // 서버 문구임을 드러내는 표식(시안 `.fp-verbatim`)은 **단계 칩이 없을 때**만 둔다 — 칩이 있으면
+  // 사유가 어디서 왔는지가 이미 분명하고, 늘 붙이면 표식이 배경 소음이 된다.
+  const showVerbatimNote = failed && (!failedStage || isDerivative);
+
   return (
     <section
       aria-labelledby="batch-failure-heading"
       data-testid="batch-failure-panel"
       // 세 모드는 표면색이 다르지만 **판정은 색이 아니라 제목 문구**가 한다(아래 h4).
       data-mode={mode}
-      className={MODE_SURFACE[mode]}
+      // 시안 `.failure-panel[data-tone]` 과 같은 축 — 표면 규칙이 되돌려지면 여기서 먼저 드러난다.
+      data-tone={tone}
+      className={`${PANEL_SURFACE} ${TONE_SURFACE[tone]}`}
     >
-      {/* 상태는 색만으로 전달하지 않는다 — 제목 문구가 단독으로 상태를 말한다.
-          ⚠ 경고 아이콘은 **처리 중이 아닌 모든 모드**에 붙인다(실패·직전 실패·묶음 실패·해제·스킵).
-             정상 진행 중인 영상에만 붙이지 않는다 — 그때 경고 글리프를 달면 문구와 아이콘이 서로
-             다른 말을 한다(아이콘은 장식이고 문구가 정보다).
-          ⚠ **[폐기]** 구 서술 「실패·스킵에만 붙인다」 — 그 열거는 `cleared` 모드가 생기기 전의
-             것이라 낡았다. 해제 모드는 실패도 스킵도 아니지만 아이콘이 붙으며 **그것이 맞다**:
-             확정 시안이 「건너뛴 작업 있음」과 「건너뛰기 해제됨」에 같은 경고 톤을 주고 이 화면도
-             두 모드에 같은 표면을 쓴다. 틀렸던 것은 열거뿐이고 조건은 손대지 않았다. */}
-      <h4
-        id="batch-failure-heading"
-        className="flex items-center gap-1.5 text-title-sm font-semibold text-gray-800"
-      >
-        {!processing && <AlertTriangle size={16} aria-hidden />}
-        {MODE_HEADING[mode]}
-      </h4>
+      {/* 헤드 — 제목 + 이 영역을 누가 보는가(시안 `.fp-head`). */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* 상태는 색만으로 전달하지 않는다 — 제목 문구가 단독으로 상태를 말한다.
+            ⚠ 경고 아이콘은 **처리 중이 아닌 모든 모드**에 붙인다(실패·직전 실패·묶음 실패·해제·스킵).
+               정상 진행 중인 영상에만 붙이지 않는다 — 그때 경고 글리프를 달면 문구와 아이콘이 서로
+               다른 말을 한다(아이콘은 장식이고 문구가 정보다).
+            ⚠ **[폐기]** 구 서술 「실패·스킵에만 붙인다」 — 그 열거는 `cleared` 모드가 생기기 전의
+               것이라 낡았다. 해제 모드는 실패도 스킵도 아니지만 아이콘이 붙으며 **그것이 맞다**:
+               확정 시안이 「건너뛴 작업 있음」과 「건너뛰기 해제됨」에 같은 경고 톤을 주고 이 화면도
+               두 모드에 같은 표면을 쓴다. 틀렸던 것은 열거뿐이고 조건은 손대지 않았다. */}
+        <h4
+          id="batch-failure-heading"
+          className="flex items-center gap-1.5 text-title-sm font-semibold text-gray-950"
+        >
+          {!processing && <AlertTriangle size={16} aria-hidden />}
+          {MODE_HEADING[mode]}
+        </h4>
+        {/* 시안 `.fp-spacer` — 배지를 헤드 우측 끝으로 민다. */}
+        <span className="flex-1" aria-hidden />
+        <Badge
+          variant={audienceVariant}
+          label={audienceLabel}
+          data-testid="batch-failure-audience"
+        />
+      </div>
 
       {/* 처리 중임을 **말로** 알린다 — 접수됐고 순서를 기다리는 중일 수 있다는 뜻이 전달돼야 한다.
           ⚠ 내부 실행기·큐·풀 같은 구현 용어는 노출하지 않는다(사용자에게 의미 없고 CWE-209). */}
       {processing && (
-        <p className="mt-2 text-body-md text-gray-700" data-testid="batch-processing-note">
+        <p className="text-body-md text-gray-700" data-testid="batch-processing-note">
           요청이 접수되어 배치 처리 중입니다. 앞선 작업이 있으면 순서를 기다린 뒤 시작합니다. 진행
           상황은 처리 단계에서 확인하세요.
         </p>
@@ -420,48 +546,299 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
           없으므로 빈 자리를 만들지 않고 통째로 생략한다(없는 사유를 '없음'으로 채워 넣지 않는다).
           ★ 지금 실패 상태가 아니면(처리 중이거나 이미 완주) 기록은 지우지 않고 「직전」으로 이름만
              바꿔 보여준다 — 무엇 때문에 실패했는지가 사라지면 안 되고, 그렇다고 현재 실패로 읽혀도
-             안 된다. 판정은 로그(`failed`)가 아니라 **영상 상태**(`currentlyFailed`)가 한다. */}
+             안 된다. 판정은 로그(`failed`)가 아니라 **영상 상태**(`currentlyFailed`)가 한다.
+          ★ 표면은 시안 `.alert.alert-error` — 경고 아이콘 + 위험 계열 박스다. 구 평문 `<dl>` 로
+             되돌리지 말 것(사유가 본문과 같은 무게로 읽혀 눈에 걸리지 않았다).
+          ⚠ 사유에는 **이름표를 붙이지 않는다**(시안에 그 라벨이 없다). 「직전」인지는 위 제목과
+             아래 단계 이름표가 말한다. */}
       {failed && (
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-md">
-          <dt className="text-gray-600">{currentlyFailed ? '실패 단계' : '직전 실패 단계'}</dt>
-          <dd className="font-medium text-gray-800" data-testid="batch-failure-stage">
-            {failedStage ? (
-              stageLabel(failedStage.name)
-            ) : (
-              <span className="text-gray-600">확인 불가 — 단계를 특정할 수 없는 실패입니다.</span>
+        <div
+          className="flex items-start gap-2 rounded-md border border-danger-200 bg-danger-50 p-4"
+          data-testid="batch-failure-alert"
+        >
+          <AlertTriangle
+            size={20}
+            className="mt-0.5 shrink-0 text-danger-700"
+            aria-hidden
+          />
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-label text-danger-700">
+                {currentlyFailed ? '실패 단계' : '직전 실패 단계'}
+              </span>
+              {failedStage ? (
+                // 시안 `.fp-stage-chip` — 단계를 본문에서 떼어 알약으로 세운다.
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-sm bg-danger-100 px-2.5 py-0.5 text-label text-danger-700"
+                  data-testid="batch-failure-stage"
+                >
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger-500"
+                    aria-hidden
+                  />
+                  {stageLabel(failedStage.name)}
+                </span>
+              ) : (
+                <span className="text-body-md text-danger-700" data-testid="batch-failure-stage">
+                  확인 불가 — 단계를 특정할 수 없는 실패입니다.
+                </span>
+              )}
+            </div>
+            {/* 서버 문구 그대로. React 자동 escape 로 렌더된다(dangerouslySetInnerHTML 미사용). */}
+            <p
+              className="whitespace-pre-wrap text-body-md text-danger-800"
+              data-testid="batch-failure-reason"
+            >
+              {video.batchFailureReason ?? '기록된 사유가 없습니다.'}
+            </p>
+            {showVerbatimNote && (
+              <p
+                className="flex items-center gap-1 text-caption text-danger-700"
+                data-testid="batch-failure-verbatim"
+              >
+                <Info size={16} className="shrink-0" aria-hidden />
+                문구는 서버가 보낸 그대로입니다.
+              </p>
             )}
-          </dd>
-          <dt className="text-gray-600">{currentlyFailed ? '실패 사유' : '직전 실패 사유'}</dt>
-          {/* 서버 문구 그대로. React 자동 escape 로 렌더된다(dangerouslySetInnerHTML 미사용). */}
-          <dd className="text-gray-800 whitespace-pre-wrap" data-testid="batch-failure-reason">
-            {video.batchFailureReason ?? '기록된 사유가 없습니다.'}
-          </dd>
-        </dl>
+          </div>
+        </div>
       )}
 
       {/* 건너뛴 묶음이 남아 있다는 사실은 여기서만 드러난다 — 표시기는 그 단계들을 완료로 그린다. */}
       {skipped.length > 0 && (
-        <p className="mt-2 text-body-md text-gray-700" data-testid="batch-skipped-note">
+        <p className="text-body-md text-gray-700" data-testid="batch-skipped-note">
           아래 작업은 건너뛰도록 기록되어 있어 배치를 다시 실행해도 수행하지 않습니다. 재수행하면 그
           작업만 다시 수행하고 건너뛰기 기록도 함께 풀립니다.
         </p>
       )}
 
-      {isDerivative ? (
-        <p className="mt-3 text-body-md text-gray-600" data-testid="batch-failure-derivative-note">
-          이 영상은 원본에서 만들어진 파생영상이라 배치 파이프라인을 타지 않습니다. 이 화면에서는
-          재실행이나 작업 건너뛰기를 할 수 없습니다.
-        </p>
-      ) : (
-        <div className="mt-3 flex flex-col gap-2">
-          {/* 재실행은 **실패 상태인 영상만** 대상이다(서버도 그 상태에서만 선점한다). 건너뛰기만
-              남은 영상이나 **완주한 영상**에 버튼을 두면 누를 때마다 막히는 동선이 된다 — 후자가
-              바로 묶음 재수행이 실패해 원상 복구된 영상이며, 그 화면의 이 버튼은 **항상** 막혔다.
-              ★ 같은 이유로 **처리 중에는 비활성**이다 — 그때 누르면 서버가 반드시 막는다(이미
-                선점됨). 비활성 사유는 아래 문단이 말하고, 버튼이 `aria-describedby` 로 그것을
-                가리킨다(왜 못 누르는지가 보조기술에도 전달돼야 한다). */}
-          {canShowRetry && (
-            <div>
+      {/* 작업 묶음 목록 — 조작의 단위다. 파생영상에는 조작이 없으므로 목록 자체를 두지 않는다
+          (그 사유는 아래 푸터가 말한다). */}
+      {!isDerivative && actionableBundles.length > 0 && (
+        <div>
+          {/* 시안 `.fp-group-head` — 사유와 푸터 사이의 이 덩어리에 이름을 준다. 없으면 패널이
+              「사유 → (이름 없는 목록) → 버튼」이 되어 가운데가 무엇인지 말하지 않는다. */}
+          <h5 className="text-label text-gray-800">작업 묶음</h5>
+          <ul className="mt-2 flex flex-col gap-2">
+            {actionableBundles.map((bundle) => {
+              const label = bundleLabel(bundle);
+              const isSkipped = skipped.includes(bundle);
+              const isCleared = cleared.includes(bundle);
+              // ★ 서버가 이 묶음을 실패로 판정했는가 — 건너뛰기 노출의 **단일 근거**다.
+              const isBundleFailed = failedBundles.includes(bundle);
+              // ★ 재수행 창구는 **건너뛴 적이 있는 묶음** 전부에 둔다 — 서버가 건너뛴 상태도
+              //   직접 수락하므로 해제를 먼저 부를 필요가 없다(ADR-050).
+              const canRerun = isSkipped || isCleared;
+              // 행 상태 — 배지 노출 순서와 **같은 우선순위**로 정한다(둘이 갈리면 왼쪽 강조선과
+              // 배지가 서로 다른 상태를 말한다). 해제와 실패는 공존할 수 있고 그때는 실패가 이긴다.
+              const rowState: GroupRowState = isSkipped
+                ? 'skipped'
+                : isBundleFailed
+                  ? 'fail'
+                  : 'released';
+              // ★ 이 묶음을 재수행하면 보간이 다시 만들어지는가 — 경고·확인의 단일 판정이다.
+              //   묶음 구성에서 파생하므로 구성이 바뀌면 경고가 자동으로 따라온다.
+              const destructive = bundleRerunsInterpolation(bundle);
+              // ★ 검수가 완료된 적 있는 영상에서 이 묶음의 재수행이 잠기는가(오토라벨만).
+              const approvedLocked = rerunLockedByApproval(bundle, everApproved);
+              const warningId = rerunWarningId(bundle);
+              const busyHintId = rerunBusyHintId(bundle);
+              const approvedLockHintId = rerunApprovedLockId(bundle);
+              const rerunDescribedBy =
+                [
+                  destructive ? warningId : null,
+                  approvedLocked ? approvedLockHintId : null,
+                  processing ? busyHintId : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined;
+              return (
+                <li
+                  key={bundle}
+                  data-state={rowState}
+                  data-testid={`batch-stage-row-${bundle}`}
+                  className={`${ROW_BASE} ${ROW_SURFACE[rowState]}`}
+                >
+                  {/* 시안 `.group-main` — 이름 + 부제. 부제는 이름이 무엇을 묶은 것인지 말한다. */}
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-title-sm text-gray-950">{label}</span>
+                    <span
+                      className={`text-caption ${ROW_SUB_TONE[rowState]}`}
+                      data-testid={`batch-stage-subtitle-${bundle}`}
+                    >
+                      {BUNDLE_SUBTITLE[bundle]}
+                    </span>
+                  </div>
+
+                  {/* 상태 표식 열 — 해제와 실패는 공존할 수 있어 한 칸에 둘이 설 수 있다. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* ⚠ 「건너뛰기 해제」 버튼은 두지 않는다(ADR-050) — 되살릴 창구는 재수행 하나다.
+                        ★ 세 표식은 **공용 배지(UI-111)** 로 그린다. 이 자리에서 흰 배경 + 회색
+                          테두리 알약을 따로 만들면 같은 행의 보조 버튼(`Button` secondary sm)과
+                          형태가 같아져 사용자가 상태 표시를 조작 버튼으로 **오인한다**(실제 신고).
+                          공용 배지는 테두리 없는 톤 배경 + 완전 둥근 모서리라 버튼과 형태로 갈린다.
+                        ⚠ `StatusBadge`(UI-014)를 쓰지 말 것 — 그쪽은 워크플로 코드 고정 매핑 축이고
+                          건너뜀·해제됨·실패는 그 목록에 없다(매핑이 두 곳으로 갈린다).
+                        ⚠ 표시 **조건**은 바뀌지 않았다 — 바뀐 것은 생김새뿐이다.
+                        ★ 시안대로 건너뜀=warn · 해제됨=info 다. 공용 배지(UI-111)에 두 variant 가
+                          생겨 패널 톤(위 {@link MODE_TONE})과 **함께** 옮겼다 — 배지만 먼저 옮기거나
+                          패널 톤만 먼저 옮기지 말라는 구 주의는 그 둘이 한 묶음이라는 뜻이었고,
+                          이번에 그 묶음을 통째로 옮긴 것이다. 중립으로 되돌리지 말 것. */}
+                    {isSkipped && (
+                      <Badge
+                        variant="warn"
+                        label="건너뜀"
+                        data-testid={`batch-stage-skipped-${bundle}`}
+                      />
+                    )}
+
+                    {/* 건너뛰기가 해제된 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다.
+                        ⚠ 지금 건너뛴 상태이면 그쪽 표식이 앞선다(두 표식을 함께 달면 서로 반대되는
+                          말을 한다 — 서버도 두 목록에 같은 묶음을 함께 담지 않는다). */}
+                    {isCleared && !isSkipped && (
+                      <Badge
+                        variant="info"
+                        label="해제됨"
+                        data-testid={`batch-stage-reverted-${bundle}`}
+                      />
+                    )}
+
+                    {/* 실패 표식 — 이 행이 왜 떠 있는지를 말한다. 건너뜀·해제 표식과 같은 축이며,
+                        배치 전체가 완주한 영상에서는 이것이 유일한 실패 단서다(사유 영역이 없다).
+                        ★ 여기만 위험 계열(`error`)이다 — 다른 두 표식과 **다른 것을 말하므로**
+                          같은 중립 톤으로 뭉뚱그리지 않는다. 다만 색만으로 전달하지 않도록
+                          「실패」 문구를 항상 함께 둔다(UI-111 의 `label` 필수 계약). */}
+                    {isBundleFailed && !isSkipped && (
+                      <Badge
+                        variant="error"
+                        label="실패"
+                        data-testid={`batch-stage-failed-${bundle}`}
+                      />
+                    )}
+                  </div>
+
+                  {/* 조작 열 — 시안은 데스크톱에서 **우측 정렬**이고 좁은 폭에서는 다음 줄 좌측이다. */}
+                  <div className="col-span-full flex flex-wrap items-center justify-start gap-2 xl:col-span-1 xl:justify-end">
+                    {!isSkipped && isBundleFailed && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => setSkipTarget(bundle)}
+                        aria-label={`${label} 작업 건너뛰기`}
+                      >
+                        건너뛰기
+                      </Button>
+                    )}
+
+                    {/* ★ 재수행 버튼은 **하나**다 — 범위를 고르지 않는다(묶음이 곧 범위다).
+                          보간을 다시 만드는 묶음일 때만 확인 창을 거치고, 그렇지 않으면 곧바로
+                          접수한다(없는 위험에 확인을 받으면 확인이 형식이 되어 무시된다).
+                        ⚠ 시안에서 이 행의 **주 행동**이라 primary 다 — 같은 행의 건너뛰기(보조)와
+                          위계가 갈려야 무엇을 먼저 누를지가 형태로 읽힌다. */}
+                    {canRerun && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        // ★ 기존 조건(진행 중·처리 중)을 **대체하지 않고 더한다** — 승인 이력이
+                        //   없어도 처리 중이면 여전히 비활성이어야 한다.
+                        disabled={busy || processing || approvedLocked}
+                        aria-describedby={rerunDescribedBy}
+                        title={
+                          approvedLocked
+                            ? '검수가 완료된 영상은 오토라벨을 다시 만들 수 없습니다 — 승인 시점 라벨과 어긋납니다.'
+                            : undefined
+                        }
+                        onClick={() =>
+                          destructive ? setRerunConfirmTarget(bundle) : rerun.mutate(bundle)
+                        }
+                        aria-label={`${label} 작업 재수행`}
+                      >
+                        재수행
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* ★ 고르는 시점에 알린다 — 누른 뒤에 뜨는 확인 창은 취소 수단이지 고지 수단이
+                        아니다. 이 문단은 클릭 전에 이미 화면에 있고 버튼이 이를 가리킨다.
+                      ⚠ 보간을 다시 만드는 묶음에만 붙인다(시계열에 붙이면 오정보다).
+                      ⚠ 행이 그리드라 안내 문단은 행 전체 폭을 차지해야 한다(`col-span-full`). */}
+                  {canRerun && destructive && (
+                    <p
+                      id={warningId}
+                      className="col-span-full text-caption text-gray-700"
+                      data-testid={`batch-rerun-warning-${bundle}`}
+                    >
+                      이 작업을 재수행하면 트랙 보간까지 다시 만들어집니다. 사람이 손댄 보간 라벨은
+                      지워지고 새로 계산된 값으로 바뀝니다.
+                    </p>
+                  )}
+                  {/* ★ 되돌릴 수 없는 조건이라 **누르기 전에** 알린다 — 파생영상 차단과 같은
+                        관례다. 비활성 버튼의 `title` 은 키보드·보조기술에 닿지 않으므로 문단을
+                        함께 두고 버튼이 `aria-describedby` 로 가리킨다. */}
+                  {canRerun && approvedLocked && (
+                    <p
+                      id={approvedLockHintId}
+                      className="col-span-full text-caption text-gray-700"
+                      data-testid={`batch-rerun-approved-lock-${bundle}`}
+                    >
+                      검수가 완료된 적 있는 영상에서는 시계열만 다시 수행할 수 있습니다 — 시계열은
+                      확정된 라벨을 건드리지 않고 서술만 더하지만, 오토라벨은 라벨을 다시 만들어
+                      승인 시점과 어긋납니다. 되돌릴 수 없는 조건이라 눌러 보기 전에 알립니다.
+                    </p>
+                  )}
+                  {canRerun && processing && (
+                    <p
+                      id={busyHintId}
+                      className="col-span-full text-caption text-gray-600"
+                      data-testid={`batch-rerun-busy-hint-${bundle}`}
+                    >
+                      이미 처리 중이라 지금은 재수행을 요청할 수 없습니다. 진행 중인 처리가 끝난 뒤
+                      다시 시도하세요.
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* 푸터 — 시안 `.fp-foot`. 구분선 위에 **좌측 안내 · 우측 조작**을 둔다.
+          ★ 전체 재기동은 묶음 목록 **위**가 아니라 여기 맨 아래다 — 묶음별 조치를 먼저 읽고 마지막
+            수단으로 전체를 다시 돌리는 순서가 되어야 한다.
+          재실행은 **실패 상태인 영상만** 대상이다(서버도 그 상태에서만 선점한다). 건너뛰기만
+          남은 영상이나 **완주한 영상**에 버튼을 두면 누를 때마다 막히는 동선이 된다 — 후자가
+          바로 묶음 재수행이 실패해 원상 복구된 영상이며, 그 화면의 이 버튼은 **항상** 막혔다.
+          ★ 같은 이유로 **처리 중에는 비활성**이다 — 그때 누르면 서버가 반드시 막는다(이미
+            선점됨). 비활성 사유는 좌측 안내가 말하고, 버튼이 `aria-describedby` 로 그것을
+            가리킨다(왜 못 누르는지가 보조기술에도 전달돼야 한다). */}
+      {(showRetry || isDerivative) && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-2"
+          data-testid="batch-failure-foot"
+        >
+          {isDerivative ? (
+            <p
+              className="max-w-[560px] text-caption text-gray-600"
+              data-testid="batch-failure-derivative-note"
+            >
+              이 영상은 원본에서 만들어진 파생영상이라 배치 파이프라인을 타지 않습니다. 이 화면에서는
+              재실행이나 작업 건너뛰기를 할 수 없습니다.
+            </p>
+          ) : (
+            <p
+              id={RETRY_HINT_ID}
+              className="max-w-[560px] text-caption text-gray-600"
+              data-testid="batch-retry-hint"
+            >
+              {processing
+                ? '이미 처리 중이라 지금은 다시 요청할 수 없습니다. 진행 중인 처리가 끝난 뒤 결과를 확인하세요.'
+                : '요청을 접수하면 실패한 단계부터 이어서 진행합니다. 이미 성공한 단계는 다시 수행하지 않습니다. 진행 상황은 처리 단계에서 확인하세요.'}
+            </p>
+          )}
+          {showRetry && (
+            <div className="flex items-center gap-2">
               <Button
                 variant="primary"
                 size="sm"
@@ -473,168 +850,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
               >
                 배치 재실행
               </Button>
-              <p
-                id={RETRY_HINT_ID}
-                className="mt-1 text-caption text-gray-600"
-                data-testid="batch-retry-hint"
-              >
-                {processing
-                  ? '이미 처리 중이라 지금은 다시 요청할 수 없습니다. 진행 중인 처리가 끝난 뒤 결과를 확인하세요.'
-                  : '요청을 접수하면 실패한 단계부터 이어서 진행합니다. 이미 성공한 단계는 다시 수행하지 않습니다. 진행 상황은 처리 단계에서 확인하세요.'}
-              </p>
             </div>
-          )}
-
-          {actionableBundles.length > 0 && (
-            <ul className="flex flex-col gap-2">
-              {actionableBundles.map((bundle) => {
-                const label = bundleLabel(bundle);
-                const isSkipped = skipped.includes(bundle);
-                const isCleared = cleared.includes(bundle);
-                // ★ 서버가 이 묶음을 실패로 판정했는가 — 건너뛰기 노출의 **단일 근거**다.
-                const isBundleFailed = failedBundles.includes(bundle);
-                // ★ 재수행 창구는 **건너뛴 적이 있는 묶음** 전부에 둔다 — 서버가 건너뛴 상태도
-                //   직접 수락하므로 해제를 먼저 부를 필요가 없다(ADR-050).
-                const canRerun = isSkipped || isCleared;
-                // ★ 이 묶음을 재수행하면 보간이 다시 만들어지는가 — 경고·확인의 단일 판정이다.
-                //   묶음 구성에서 파생하므로 구성이 바뀌면 경고가 자동으로 따라온다.
-                const destructive = bundleRerunsInterpolation(bundle);
-                // ★ 검수가 완료된 적 있는 영상에서 이 묶음의 재수행이 잠기는가(오토라벨만).
-                const approvedLocked = rerunLockedByApproval(bundle, everApproved);
-                const warningId = rerunWarningId(bundle);
-                const busyHintId = rerunBusyHintId(bundle);
-                const approvedLockHintId = rerunApprovedLockId(bundle);
-                const rerunDescribedBy =
-                  [
-                    destructive ? warningId : null,
-                    approvedLocked ? approvedLockHintId : null,
-                    processing ? busyHintId : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' ') || undefined;
-                return (
-                  <li key={bundle} className="flex flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2 text-body-md">
-                      <span className="text-gray-800">{label}</span>
-                      {/* ⚠ 「건너뛰기 해제」 버튼은 두지 않는다(ADR-050) — 되살릴 창구는 재수행 하나다.
-                          ★ 세 표식은 **공용 배지(UI-111)** 로 그린다. 이 자리에서 흰 배경 + 회색
-                            테두리 알약을 따로 만들면 같은 행의 보조 버튼(`Button` secondary sm)과
-                            형태가 같아져 사용자가 상태 표시를 조작 버튼으로 **오인한다**(실제 신고).
-                            공용 배지는 테두리 없는 톤 배경 + 완전 둥근 모서리라 버튼과 형태로 갈린다.
-                          ⚠ `StatusBadge`(UI-014)를 쓰지 말 것 — 그쪽은 워크플로 코드 고정 매핑 축이고
-                            건너뜀·해제됨·실패는 그 목록에 없다(매핑이 두 곳으로 갈린다).
-                          ⚠ 표시 **조건**은 바뀌지 않았다 — 바뀐 것은 생김새뿐이다. */}
-                      {isSkipped && (
-                        <Badge
-                          variant="neutral"
-                          label="건너뜀"
-                          data-testid={`batch-stage-skipped-${bundle}`}
-                        />
-                      )}
-
-                      {/* 건너뛰기가 해제된 묶음 — 상태는 색이 아니라 이 표식과 아래 문단이 말한다.
-                          ⚠ 지금 건너뛴 상태이면 그쪽 표식이 앞선다(두 표식을 함께 달면 서로 반대되는
-                            말을 한다 — 서버도 두 목록에 같은 묶음을 함께 담지 않는다). */}
-                      {isCleared && !isSkipped && (
-                        <Badge
-                          variant="neutral"
-                          label="해제됨"
-                          data-testid={`batch-stage-reverted-${bundle}`}
-                        />
-                      )}
-
-                      {/* 실패 표식 — 이 행이 왜 떠 있는지를 말한다. 건너뜀·해제 표식과 같은 축이며,
-                          배치 전체가 완주한 영상에서는 이것이 유일한 실패 단서다(사유 영역이 없다).
-                          ★ 여기만 위험 계열(`error`)이다 — 다른 두 표식과 **다른 것을 말하므로**
-                            같은 중립 톤으로 뭉뚱그리지 않는다. 다만 색만으로 전달하지 않도록
-                            「실패」 문구를 항상 함께 둔다(UI-111 의 `label` 필수 계약). */}
-                      {isBundleFailed && !isSkipped && (
-                        <Badge
-                          variant="error"
-                          label="실패"
-                          data-testid={`batch-stage-failed-${bundle}`}
-                        />
-                      )}
-
-                      {!isSkipped && isBundleFailed && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => setSkipTarget(bundle)}
-                          aria-label={`${label} 작업 건너뛰기`}
-                        >
-                          건너뛰기
-                        </Button>
-                      )}
-
-                      {/* ★ 재수행 버튼은 **하나**다 — 범위를 고르지 않는다(묶음이 곧 범위다).
-                            보간을 다시 만드는 묶음일 때만 확인 창을 거치고, 그렇지 않으면 곧바로
-                            접수한다(없는 위험에 확인을 받으면 확인이 형식이 되어 무시된다). */}
-                      {canRerun && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          // ★ 기존 조건(진행 중·처리 중)을 **대체하지 않고 더한다** — 승인 이력이
-                          //   없어도 처리 중이면 여전히 비활성이어야 한다.
-                          disabled={busy || processing || approvedLocked}
-                          aria-describedby={rerunDescribedBy}
-                          title={
-                            approvedLocked
-                              ? '검수가 완료된 영상은 오토라벨을 다시 만들 수 없습니다 — 승인 시점 라벨과 어긋납니다.'
-                              : undefined
-                          }
-                          onClick={() =>
-                            destructive ? setRerunConfirmTarget(bundle) : rerun.mutate(bundle)
-                          }
-                          aria-label={`${label} 작업 재수행`}
-                        >
-                          재수행
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* ★ 고르는 시점에 알린다 — 누른 뒤에 뜨는 확인 창은 취소 수단이지 고지 수단이
-                          아니다. 이 문단은 클릭 전에 이미 화면에 있고 버튼이 이를 가리킨다.
-                          ⚠ 보간을 다시 만드는 묶음에만 붙인다(시계열에 붙이면 오정보다). */}
-                    {canRerun && destructive && (
-                      <p
-                        id={warningId}
-                        className="text-caption text-gray-700"
-                        data-testid={`batch-rerun-warning-${bundle}`}
-                      >
-                        이 작업을 재수행하면 트랙 보간까지 다시 만들어집니다. 사람이 손댄 보간 라벨은
-                        지워지고 새로 계산된 값으로 바뀝니다.
-                      </p>
-                    )}
-                    {/* ★ 되돌릴 수 없는 조건이라 **누르기 전에** 알린다 — 파생영상 차단과 같은
-                          관례다. 비활성 버튼의 `title` 은 키보드·보조기술에 닿지 않으므로 문단을
-                          함께 두고 버튼이 `aria-describedby` 로 가리킨다. */}
-                    {canRerun && approvedLocked && (
-                      <p
-                        id={approvedLockHintId}
-                        className="text-caption text-gray-700"
-                        data-testid={`batch-rerun-approved-lock-${bundle}`}
-                      >
-                        검수가 완료된 적 있는 영상에서는 시계열만 다시 수행할 수 있습니다 — 시계열은
-                        확정된 라벨을 건드리지 않고 서술만 더하지만, 오토라벨은 라벨을 다시 만들어
-                        승인 시점과 어긋납니다. 되돌릴 수 없는 조건이라 눌러 보기 전에 알립니다.
-                      </p>
-                    )}
-                    {canRerun && processing && (
-                      <p
-                        id={busyHintId}
-                        className="text-caption text-gray-600"
-                        data-testid={`batch-rerun-busy-hint-${bundle}`}
-                      >
-                        이미 처리 중이라 지금은 재수행을 요청할 수 없습니다. 진행 중인 처리가 끝난 뒤
-                        다시 시도하세요.
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
           )}
         </div>
       )}
@@ -644,7 +860,10 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       <ConfirmDialog
         open={rerunConfirmTarget !== null}
         title={`${rerunConfirmTarget ? bundleLabel(rerunConfirmTarget) : ''} 작업 재수행`}
-        description="이 작업을 통째로 다시 수행합니다. 트랙 보간까지 다시 만들어져 사람이 손댄 보간 라벨은 지워지고 새로 계산된 값으로 바뀝니다. 되돌릴 수 없습니다."
+        description="이 작업을 통째로 다시 수행합니다."
+        // 되돌릴 수 없다는 사실은 설명 문단이 아니라 **경고 박스**로 알린다(시안 `.dlg-warn`).
+        // ⚠ 문구는 나누기만 했고 새로 쓰지 않았다 — 「무엇을 하는가」와 「무엇을 잃는가」를 층으로 가른다.
+        warning="트랙 보간까지 다시 만들어져 사람이 손댄 보간 라벨은 지워지고 새로 계산된 값으로 바뀝니다. 되돌릴 수 없습니다."
         confirmLabel="재수행"
         variant="danger"
         loading={rerun.isPending}
@@ -661,6 +880,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
       <BatchStageSkipModal
         open={skipTarget !== null}
         bundleLabel={skipTarget ? bundleLabel(skipTarget) : ''}
+        bundleMembers={skipTarget ? bundleMemberSubtitle(skipTarget) : undefined}
         loading={skip.isPending}
         onClose={() => setSkipTarget(null)}
         onConfirm={(reason) => {

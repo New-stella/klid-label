@@ -17,6 +17,22 @@ describe('Textarea', () => {
     expect(ta.className).toMatch(/min-h-11/);
   });
 
+  // K6 — 시안 `.textarea`: padding `--sp-sm --sp-md`(8px 16px) · border `--border-strong`(gray-400).
+  //   두 값은 시안 여러 장이 공유하므로 공용 기본값이다(반면 `min-height` 는 자리마다 달라 기본값이
+  //   아니다 — 그래서 여기서 올리지 않는다. 위 min-h-11 단언과 짝이다).
+  it('Textarea_표면은_시안_패딩과_경계_대비를_따른다', () => {
+    render(<Textarea aria-label="설명" />);
+    const cls = screen.getByLabelText('설명').className;
+
+    expect(cls, '시안 좌우 패딩 --sp-md = 16px').toMatch(/\bpx-4\b/);
+    expect(cls, '구 px-3(12px)로 되돌리지 말 것').not.toMatch(/\bpx-3\b/);
+    expect(cls, '시안 상하 패딩 --sp-sm = 8px').toMatch(/\bpy-2\b/);
+
+    // 비텍스트 대비(WCAG 1.4.11, 3:1) — 흰 배경 위 gray-300 은 2.01:1 로 미달, gray-400 은 3.08:1.
+    expect(cls, '경계는 --border-strong(gray-400)이다').toMatch(/border-gray-400/);
+    expect(cls, '대비 미달인 gray-300 으로 되돌리지 말 것').not.toMatch(/border-gray-300/);
+  });
+
   it('Textarea_rows_기본값을_두지_않는다', () => {
     // UI-027: 자동 확장이 기본 동작이므로 고정 rows 를 심지 않는다.
     // `rows` 가 붙어 있으면 field-sizing:content 미지원 브라우저에서 자동 확장 대신
