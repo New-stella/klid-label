@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-003",
-  "synced_at": "2026-08-26T04:28:00.523Z",
+  "synced_at": "2026-08-26T06:34:01.815Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -39,8 +39,8 @@
     "AC-051": {
       "type": "acceptance",
       "domain_id": null,
-      "version": 6,
-      "content_hash": "677e3e7ea681ecab3bf13cfbc12d84a1637fc287e1fd452811e3cfef1c991058"
+      "version": 10,
+      "content_hash": "41f4905ff4b6d79dfc396048e188cc5f60e48d1adb5910a14550c022d8ed96e1"
     },
     "AC-055": {
       "type": "acceptance",
@@ -141,8 +141,8 @@
     "API-043": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-003",
-      "version": 18,
-      "content_hash": "166d2440bdb757ec0fb08473f6a2a69fb7f371062c04829ed844868286c188b5"
+      "version": 23,
+      "content_hash": "dfb4fcf00c8dd8ac7d7a27bd52e67f9087855c60cefbdbe6a706727087ad1005"
     },
     "API-044": {
       "type": "api_endpoint",
@@ -705,8 +705,8 @@
     "SCREEN-009": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-003",
-      "version": 56,
-      "content_hash": "56a8b7ddc8fb16973106e2a25f3754ed5ce22187c5b8e0ee28e58652cfd6efea"
+      "version": 60,
+      "content_hash": "b9aee967148b8b23df00cc286b3fd4aa7d6cca133cea78e7e1089887fb6eab5a"
     },
     "SCREEN-011": {
       "type": "screen_spec",

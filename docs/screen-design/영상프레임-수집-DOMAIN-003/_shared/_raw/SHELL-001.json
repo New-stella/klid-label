@@ -92,7 +92,7 @@
     "schema_version": 2,
     "current_version": 10,
     "stale": true,
-    "stale_reason": "SCREEN-009의 data.covered_by_acceptances 변경 — applies_to",
+    "stale_reason": "SCREEN-009의 data.implementation 변경 — applies_to",
     "change_summary": "외부 산출물 이관 화면을 이 셸이 감싸는 화면 목록에 더한다. 관리 영역의 다른 화면은 전부 등재돼 있는데 이 화면만 빠져 있어, 메뉴에서 그 화면으로 가더라도 어떤 셸이 감싸는지가 선언되지 않은 상태였다. 다른 화면은 손대지 않았다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-19T18:49:03.224Z",

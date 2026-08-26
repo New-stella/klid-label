@@ -189,6 +189,7 @@
     "UC-034"
   ],
   "pending": [
+    "ADR-015",
     "SHELL-001",
     "MOD-006",
     "MOD-007",
@@ -203,7 +204,11 @@
     "MOD-047",
     "IMPREC-003",
     "IMPREC-021",
+    "IMPREC-075",
+    "IMPREC-076",
     "IMPREC-084",
+    "IMPREC-085",
+    "IMPREC-127",
     "LEGACY-004",
     "LEGACY-017",
     "LEGACY-054",
@@ -216,5 +221,5 @@
     "LEGACY-072",
     "NAV-001"
   ],
-  "last_sync_at": "2026-08-26T04:28:09.167Z"
+  "last_sync_at": "2026-08-26T06:34:02.941Z"
 }

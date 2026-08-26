@@ -13,13 +13,24 @@ import { cn } from '@/lib/cn';
  *   코드를 넘기면 라벨이 결정되지만, 이쪽은 라벨을 호출부가 정한다(UI-111 description).
  *   워크플로 상태를 이 컴포넌트로 그리지 말 것 — 매핑이 두 곳으로 갈린다.
  *
- * 색상 대비(WCAG 실측): pinned 8.43:1(AAA) · success 6.99:1(AA) · neutral 7.07:1(AAA).
+ * 색상 대비(WCAG 실측): pinned 8.43:1(AAA) · success 6.99:1(AA) · neutral 7.07:1(AAA) ·
+ * **error 8.01:1(AAA)** — `text-danger-700`(#8A240F) on `bg-danger-50`(#FDEFEC).
  * `label` 이 필수인 이유가 여기 있다 — 색상 단독으로 의미를 전달하지 않는다.
+ *
+ * ⚠ variant 를 새로 추가할 때도 이 계약이 그대로 적용된다 — 배경·텍스트 조합의 대비를 **실제로
+ *   측정해** 본문 기준(4.5:1) 이상임을 확인하고 그 수치를 여기에 적는다. 대비 수치가 이
+ *   컴포넌트의 계약이라, 신규 variant 가 그 검증을 비켜가면 컴포넌트의 존재 근거가 약해진다.
+ *   회귀 가드는 `src/test/contrastGuard.test.ts` 가 소스의 실제 클래스를 읽어 계산한다.
  */
-export type BadgeVariant = 'pinned' | 'success' | 'neutral';
+export type BadgeVariant = 'pinned' | 'success' | 'neutral' | 'error';
 
 export interface BadgeProps {
-  /** pinned=중요(고정) · success=발행 · neutral=작성중(DRAFT). */
+  /**
+   * pinned=중요(고정) · success=발행 · neutral=작성중(DRAFT) ·
+   * error=실패 등 위험·실패 계열(배치 작업 묶음의 「실패」 표식 등).
+   *
+   * ⚠ 기존 세 값은 유지·불변이며 `error` 는 **추가만** 된 것이라 기존 호출부는 영향받지 않는다.
+   */
   variant: BadgeVariant;
   /** 배지에 표시할 텍스트. 색상 단독 구분을 피하기 위해 필수다. */
   label: string;
@@ -29,12 +40,21 @@ export interface BadgeProps {
    */
   icon?: ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
   className?: string;
+  /**
+   * 시험 훅 — 설계 계약(UI-111 props)이 아니라 호출부가 자기 배지를 지목하기 위한 통로다.
+   * 배지의 **의미·표현에는 아무 영향이 없다**(렌더 결과의 속성 하나가 늘 뿐이다).
+   */
+  'data-testid'?: string;
 }
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   pinned: 'bg-warning-50 text-warning-700',
   success: 'bg-success-50 text-success-700',
   neutral: 'bg-gray-100 text-gray-700',
+  // ★ DS-001 semantic **error** 스케일 — 코드 키는 기존 호출부 보존을 위해 `danger` 다
+  //   (tailwind.config.js 주석 참조: 정본 명칭 error, 코드 키 danger). 가장 옅은 단계를 배경,
+  //   진한 단계를 텍스트로 쓰고 **같은 스케일 밖으로 나가지 않는다** — 실측 8.01:1(AAA).
+  error: 'bg-danger-50 text-danger-700',
 };
 
 const DEFAULT_ICONS: Partial<
@@ -43,11 +63,18 @@ const DEFAULT_ICONS: Partial<
   pinned: Pin,
 };
 
-export function Badge({ variant, label, icon, className }: BadgeProps) {
+export function Badge({
+  variant,
+  label,
+  icon,
+  className,
+  'data-testid': dataTestId,
+}: BadgeProps) {
   const Icon = icon ?? DEFAULT_ICONS[variant];
 
   return (
     <span
+      data-testid={dataTestId}
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-label font-semibold',
         VARIANT_CLASSES[variant],
