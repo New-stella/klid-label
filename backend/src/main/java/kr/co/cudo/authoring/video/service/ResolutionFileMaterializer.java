@@ -69,8 +69,18 @@ public class ResolutionFileMaterializer {
             videoFileCopier.copy(snapshot.deidVideoSrc(), snapshot.videoDst());
 
             // 2) 프레임 목표해상도 리스케일(축소/확대). 비식별 원본 프레임만 소스로 사용(PII 안전).
+            //    ★ 리사이저에는 <b>프리셋 상한</b>을 넘긴다 — 스냅샷의 targetW/targetH(이미 도출이 끝난
+            //      산출 크기)를 넘기면 리사이저가 그것을 다시 상한으로 삼아 LetterboxTransform 이 같은
+            //      원본에 두 번 적용된다. 긴 변 상한이 정확히 걸리고 반올림이 올림으로 떨어지는 구간
+            //      (2560x1080→480p · 1366x768→1080p 등)에서 산출 파일이 스냅샷보다 1px 작아져
+            //      ①라벨 최우측 좌표가 이미지 경계를 이탈하고 ②응답·DB 가 보고하는 크기와 실제 파일이
+            //      갈린다. 프리셋을 넘기면 리사이저의 계산기 입력이 Phase A 와 완전히 같아져
+            //      "픽셀과 라벨이 같은 계산기를 쓴다"는 LetterboxTransform 불변식이 성립한다.
+            //      @design ADR-018
+            int limitW = snapshot.preset().width();
+            int limitH = snapshot.preset().height();
             for (ResolutionSnapshot.FrameSpec f : snapshot.frames()) {
-                imageResizer.resize(f.deidSrc(), f.dst(), snapshot.targetW(), snapshot.targetH());
+                imageResizer.resize(f.deidSrc(), f.dst(), limitW, limitH);
             }
             log.info("[Video][ResolutionDerivative][B] materialized rawSn={} frames={} target={}x{}",
                     snapshot.newRawSn(), snapshot.frames().size(), snapshot.targetW(), snapshot.targetH());

@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
-import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -21,8 +20,10 @@ import java.util.Locale;
  * Java2D 기반 프레임 이미지 다운스케일 구현 — Phase 1 (RQ-SFR-06-03 v1.8/1.10).
  *
  * <p>BufferedImage 로 읽어 {@link Graphics2D} BILINEAR 보간으로 리스케일한 뒤 ImageIO 로
- * 저장한다. <b>종횡비를 보존</b>하며(레터박스, {@link LetterboxTransform}) 남는 영역은 검정 패딩이다. 손상 이미지({@link ImageIO#read} null/예외)는 추상 메시지로 변환하고, 출력 파일이
- * 비정상(100바이트 미만)이면 실패로 간주한다. 경로는 로그에서 hash 마스킹한다(CWE-209/PII).
+ * 저장한다. <b>종횡비를 보존</b>하며({@link LetterboxTransform}) 산출 캔버스는 실제 그려지는 크기와
+ * 같아 <b>패딩이 없다</b>(@design ADR-018). 손상 이미지({@link ImageIO#read} null/예외)는 추상 메시지로
+ * 변환하고, 출력 파일이 비정상(100바이트 미만)이면 실패로 간주한다. 경로는 로그에서 hash 마스킹한다
+ * (CWE-209/PII).
  */
 @Slf4j
 @Component
@@ -37,21 +38,22 @@ public class Java2DImageResizer implements ImageResizer {
             throw new CustomException(ErrorCode.INVALID_INPUT, "타겟 해상도는 양수여야 합니다.");
         }
         BufferedImage source = readImage(src);
-        // G-1 — 종횡비 <b>보존</b>(레터박스). 균일 배율로 축소/확대한 뒤 남는 영역을 패딩으로 채운다.
-        //       구 구현은 targetW×targetH 로 강제 스케일해 비-16:9 원본을 왜곡했다(E-ISSUE-26).
-        //       배율·오프셋은 라벨 좌표 재계산과 <b>동일한 계산기</b>(LetterboxTransform)를 쓴다.
+        // @design ADR-018 — targetW/targetH 는 고정 캔버스가 아니라 <b>크기 상한</b>이다. 짧은 변을
+        //       상한의 짧은 값에 맞추고 긴 변이 상한을 넘을 때만 배율을 낮춘 뒤, 산출 캔버스를 그
+        //       실제 크기로 만든다 → 패딩이 생기지 않는다(구 검정 레터박스 폐기).
+        //       배율은 라벨 좌표 재계산과 <b>동일한 계산기</b>(LetterboxTransform)를 쓴다.
         LetterboxTransform box = LetterboxTransform.of(source.getWidth(), source.getHeight(), targetW, targetH);
-        BufferedImage scaled = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB);
+        int outW = box.drawW();
+        int outH = box.drawH();
+        BufferedImage scaled = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = scaled.createGraphics();
         try {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                     RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             g.setRenderingHint(RenderingHints.KEY_RENDERING,
                     RenderingHints.VALUE_RENDER_QUALITY);
-            // 패딩 영역은 불투명 검정으로 채운다(TYPE_INT_RGB 기본값과 동일 — 명시).
-            g.setColor(Color.BLACK);
-            g.fillRect(0, 0, targetW, targetH);
-            g.drawImage(source, box.offsetX(), box.offsetY(), box.drawW(), box.drawH(), null);
+            // 캔버스 전체가 원본 픽셀로 덮인다 — 채움색으로 칠하는 영역이 없다.
+            g.drawImage(source, 0, 0, outW, outH, null);
         } finally {
             g.dispose();
         }
