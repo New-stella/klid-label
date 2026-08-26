@@ -52,11 +52,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-066"
+          "IMPREC-066",
+          "IMPREC-130"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:23.832Z",
+        "last_updated": "2026-08-26T04:17:05.841Z",
         "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/batch/service/BatchStageRerunService.java"
         ]
@@ -71,8 +72,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "조치 영역의 노출 판정이 산출물 보유 여부로 정밀해진 것에 맞춰 when 과 then 에 한정을 더한다. 건너뛰기가 해제된 묶음은 아직 산출물이 없을 때만 재수행 창구가 열리고, 이미 산출물을 보유하면 조치가 끝난 것으로 보아 빠진다. 건너뛴 묶음은 산출물과 무관하게 남는다 — 건너뜀은 사람이 결정한 상태이기 때문이며 이 비대칭이 의도임을 단언에 드러냈다. 재수행을 하지 않았거나 실패해 산출물이 없는 영상에서 되살릴 창구가 사라지지 않는다는 기존 단언은 그대로 유지한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T03:08:21.835Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-26T04:17:05.841Z",
     "created_at": "2026-08-20T02:45:14.960Z"
   }
 }
