@@ -23,11 +23,21 @@ const STATUS_LABEL: Record<string, string> = {
   REQUESTED: '진행 중',
 };
 
-/** 상태별 배지 색 — KRDS 의미상태 토큰. */
+/**
+ * 상태별 배지 색 — KRDS 의미상태 토큰. 세 상태가 **한 규칙**을 따른다: `/10` 틴트 배경 + 700단 글자.
+ *
+ * [@design SD-004] '진행 중'(REQUESTED)은 **info** 계열이다(시안 `--i-0` 배경 / `--i-7` 글자).
+ * 아직 아무 문제도 일어나지 않은 진행 상태에 warning(주황)을 쓰면 사용자가 조치가 필요한
+ * 상태로 읽는다 — 되돌리지 말 것. 완료=success · 실패=danger 는 계열이 그대로다.
+ *
+ * ⚠ 글자가 DEFAULT 가 아니라 700 단인 이유: 각 색의 DEFAULT 단은 **자기 `/10` 틴트 위에서**
+ * AA(4.5)에 못 미친다(success 4.03 · danger 3.95 · info 4.05). 700 단은 6.72~7.77 로 통과한다.
+ * `src/test/contrastGuard.test.ts` 가 tailwind 토큰 실값으로 이 셋을 계산해 고정한다.
+ */
 const STATUS_CLASS: Record<string, string> = {
-  SUCCEEDED: 'bg-success/10 text-success',
-  FAILED: 'bg-danger/10 text-danger',
-  REQUESTED: 'bg-warning/10 text-warning',
+  SUCCEEDED: 'bg-success/10 text-success-700',
+  FAILED: 'bg-danger/10 text-danger-700',
+  REQUESTED: 'bg-info/10 text-info-700',
 };
 
 function statusLabel(code: string): string {

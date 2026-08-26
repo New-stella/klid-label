@@ -193,8 +193,8 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
   );
 }
 
-function AutoLabelTab({ videoId }: { videoId: number | string }) {
-  const { data, isLoading, isError } = useVideoLabels(videoId);
+function AutoLabelTab({ video }: { video: VideoDetail }) {
+  const { data, isLoading, isError } = useVideoLabels(video.id);
   const labels = data?.objects ?? [];
 
   if (isLoading) {
@@ -256,7 +256,14 @@ function AutoLabelTab({ videoId }: { videoId: number | string }) {
             { label: '총 라벨 수', value: totalLabels.toLocaleString('ko-KR') },
             { label: '오토라벨 수', value: autoCount.toLocaleString('ko-KR') },
             { label: '오토라벨 비율', value: `${autoRate}%` },
-            { label: '처리 상태', value: 'COMPLETED' },
+            // [@design SCREEN-009] 처리 상태는 **영상이 실제로 가진 상태**(VideoDetail.status)다.
+            //   구 구현은 `'COMPLETED'` 리터럴이라 배치가 처리중이든 실패든 늘 완료로 보였다.
+            //   ⚠ 이 값의 조달처는 이 탭이 쓰는 오토라벨 응답(FrameLabels)이 아니다 — 거기엔
+            //     상태 필드가 없어 만들어낼 수 없으므로 부모가 가진 영상 상태를 내려받는다.
+            //   ⚠ 여기서 빈값 폴백을 다시 만들지 않는다 — 구 응답 처리는 이미 생산자
+            //     (`features/video/api.ts` normalizeVideo → `dataSttsCd`, 최종 'PENDING')가
+            //     소유한다. 화면이 그 전제를 재유도하면 두 규칙이 갈린다.
+            { label: '처리 상태', value: video.status },
           ].map((item) => (
             <div key={item.label} className="bg-gray-50 rounded-lg p-3">
               <p className="text-caption text-gray-600 mb-0.5">{item.label}</p>
@@ -468,7 +475,7 @@ export function VideoDetailPage() {
             <div className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               {activeTab === 'info' && <InfoTab video={data} isReviewer={isReviewer} />}
               {activeTab === 'frames' && <FramePreviewTab video={data} />}
-              {activeTab === 'autolabel' && <AutoLabelTab videoId={data.id} />}
+              {activeTab === 'autolabel' && <AutoLabelTab video={data} />}
             </div>
           </div>
         </>
