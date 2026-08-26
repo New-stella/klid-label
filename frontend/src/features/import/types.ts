@@ -242,12 +242,16 @@ export interface ImportBrowseEntry {
  *   비워서 돌아온다). 부모가 또 다른 허용 루트인 것은 범위 안이므로 비우지 않고 그 위치를 싣는다.
  *   ⚠ 「상위로」를 어떻게 다룰지는 여기 적지 않는다 — 그 판정의 단일 진실원은
  *     `components/ImportPathPickerModal` 이다. 두 곳에 적으면 한쪽만 갱신돼 어긋난다.
- * ★`truncated` 가 참이면 목록이 전부가 아니다. 조용히 자르지 않고 그 사실을 사람에게 알린다.
+ * ★`nextCursor` 는 **이어받을 자리**다. 다음 요청에 그대로 실어 보내면 그 자리 뒤부터 이어 받는다.
+ *   비어 있으면 그 폴더를 끝까지 본 것이다.
+ *   ⚠ **끝났는지는 담긴 개수가 아니라 이 값이 비었는지로 판정한다.** 서버가 살펴보기 상한에 먼저
+ *     걸리면 `entries` 가 비어 있으면서 `nextCursor` 가 있는 응답이 정상적으로 돌아온다 —
+ *     개수로 끝을 판정하면 그 폴더의 나머지가 통째로 사라진다.
  */
 export interface ImportBrowseResult {
   /** 허용 저장소 루트 목록을 돌려줄 때는 기준 위치가 하나로 정해지지 않아 null 이다. */
   path: string | null;
   parent: string | null;
   entries: ImportBrowseEntry[];
-  truncated: boolean;
+  nextCursor: string | null;
 }

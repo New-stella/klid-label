@@ -773,7 +773,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 72 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 60 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 62 | implemented 21 / in_progress 1 / verified 6 / planned 27 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 66 | implemented 21 / in_progress 1 / verified 6 / planned 27 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

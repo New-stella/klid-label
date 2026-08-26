@@ -226,11 +226,29 @@ export const IMPORT_KEYS = {
   mappingList: (params: Record<string, unknown>) =>
     [...IMPORT_KEYS.mappingLists(), params] as const,
   /**
-   * 위치 탐색(API-221·API-222) — 경로별로 캐시를 나눈다.
+   * 위치 탐색(API-221·API-222) — **자리(`path`)로만** 캐시를 나눈다.
    *
    * 루트 목록은 기준 위치가 없어 키에 `null` 을 그대로 쓴다(`undefined` 는 키에서 소실된다).
    * 폴더 축과 파일 축은 같은 경로여도 담는 것이 달라 키를 분리한다.
+   *
+   * ★<b>이어받을 자리(`cursor`)를 키에 넣지 않는다.</b> 이 두 축은 무한 조회
+   * (`useInfiniteQuery`)로 받으며, 그 규약상 커서는 키가 아니라 **쪽 인자**(`pageParam`)로
+   * 흐르고 받아온 쪽들이 <b>한 키 아래에 쌓인다</b>. 커서를 키에 넣으면 쪽마다 별개의 캐시
+   * 자리가 생겨 <b>이어붙이기가 성립하지 않는다</b> — 「더 보기」를 누를 때마다 앞서 받은
+   * 목록이 사라지고 그 쪽 하나만 남는다.
+   *
+   * ⚠ 이것은 앞선 「찾을 이름」 축과 반대 방향이다. 그때는 이름이 키에 <b>반드시</b> 들어가야
+   *   했다(같은 자리에서 조건만 바뀌면 다른 결과라 캐시를 갈라야 했다). 커서는 조건이 아니라
+   *   <b>같은 목록의 이어지는 부분</b>이라 갈라서는 안 된다. 두 축을 같은 규칙으로 다루지 말 것.
    */
-  browseFolders: (path: string | null) => [...IMPORT_KEYS.all, 'browse', 'folders', path] as const,
+  browseFolders: (path: string | null) =>
+    [...IMPORT_KEYS.all, 'browse', 'folders', path] as const,
   browseFiles: (path: string | null) => [...IMPORT_KEYS.all, 'browse', 'files', path] as const,
+  /**
+   * 탐색 캐시 전체. 창을 다시 열 때 **쌓인 쪽들을 버리는** 데 쓴다.
+   *
+   * 이어받기는 창을 여는 시점부터 다시 시작한다(SCREEN-039). 버리지 않으면 앞 회차에 쌓아 둔
+   * 쪽들이 그대로 남아, 창을 다시 열었는데 이미 여러 번 이어받은 상태로 열린다.
+   */
+  browses: () => [...IMPORT_KEYS.all, 'browse'] as const,
 };
