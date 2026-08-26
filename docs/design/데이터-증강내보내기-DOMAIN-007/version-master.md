@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-08-26T04:22:35.340Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 72 |
+| Last sync | 2026-08-26T04:28:01.480Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 73 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -28,7 +28,7 @@
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
   ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 112건 (그중 domain_id 없음 32건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 10건 / 스코프 밖 39건 (그중 domain_id 없음 5건)
+  ℹ️  adr: 이번 키트 11건 / 스코프 밖 38건 (그중 domain_id 없음 4건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
@@ -59,6 +59,7 @@
 | [[ADR-020]] | adr | 10 | UNCHANGED |
 | [[ADR-022]] | adr | 5 | UNCHANGED |
 | [[ADR-023]] | adr | 7 | UNCHANGED |
+| [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-031]] | adr | 2 | UNCHANGED |
 | [[ADR-044]] | adr | 3 | UNCHANGED |
 | [[ADR-045]] | adr | 5 | UNCHANGED |

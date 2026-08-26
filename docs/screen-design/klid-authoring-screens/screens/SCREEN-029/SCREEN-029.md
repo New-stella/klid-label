@@ -5,11 +5,11 @@ version: 39
 last_updated_at: 2026-08-26T01:58:59.387Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T04:22:49.715Z
-sync_session: 25
+synced_at: 2026-08-26T04:28:14.117Z
+sync_session: 27
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 39
 raw: ./_raw/SCREEN-029.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-024]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v39 → v39**
+> change_summary: 전파 확인만 기록한다 — 원천의 이번 리비전은 본문 한 문장을 더한 것인데, 그 쓰기에 서버가 구현 추적 항목에 빈 키 하나를 정규화로 채우면서 전파 사유가 그 장부 필드 변경으로 기록됐다. 사양이 달라진 것이 아니라 추적 항목의 형태가 채워진 것이라 이 문서(포털 라벨링 화면)가 담는 사양에는 걸리는 항목이 없고 고칠 내용이 없다. 원천 본문에 더해진 문장 자체는 이 문서의 축과 겹치지 않는다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 라벨링 화면
 

@@ -88,10 +88,13 @@
     "AC-098"
   ],
   "pending": [
+    "ADR-026",
     "MOD-017",
     "MOD-021",
     "MOD-043",
+    "DEP-001",
     "IMPREC-008",
+    "IMPREC-009",
     "IMPREC-010",
     "IMPREC-011",
     "IMPREC-012",
@@ -104,5 +107,5 @@
     "IMPREC-024",
     "IMPREC-110"
   ],
-  "last_sync_at": "2026-08-26T01:11:10.966Z"
+  "last_sync_at": "2026-08-26T04:28:12.076Z"
 }

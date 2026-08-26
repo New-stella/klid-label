@@ -4,7 +4,7 @@
   "domain": "DOMAIN-003",
   "decided_by": "llm",
   "decided_at": "2026-08-25T10:53:32.383789Z",
-  "rule": "Phase2 그래프 카탈로그 + core-item-set Tier + 도메인 책임 판정. 2026-08-19 갱신: 신규 ADR-049·API-212~214(도메인 소속) 승격, legacy_artifact 7건은 Tier 미분류라 fail-open 포함, code_module·navigation_tree·app_shell 8건은 core-item-set 명시 제외 타입이라 기각. 2026-08-21 갱신: 신규 ADR-050(belongs_to_domain=DOMAIN-003) 승격, AC-049·AC-050·AC-051(SCREEN-008/SCREEN-009 covered_by + API-201·212·213·214 verifies) 승격, SEQ-001(영상수집 파이프라인 — UC-011·UC-018·UC-019 realizes, domain_id 미설정이나 도메인 책임 판정으로 포함) 승격. pending 의 code_module 6건·navigation_tree 1건·app_shell 1건은 제외 타입이라 재차 기각. 2026-08-21 2차 갱신: 신규 AC-055(belongs_to_domain=DOMAIN-003) 승격. 미판정이던 API-068(GET /v1/manage/configs, DOMAIN-014 소속)은 이 도메인 화면 SCREEN-008 이 consumes 하므로 '이 도메인 화면이 쓰는 계약' 기준으로 승격. 다운로더가 새로 올린 미판정 4건 판정: DFEAT-045(시스템 설정 관리)·SCREEN-025(시스템 설정 화면)는 이 도메인 소속 AC-055 를 각각 verifies·covered_by 로 참조하므로 승격 — 전체 건너뛰기 스위치의 화면·기능 실현 지점이라 이 도메인 구현자가 봐야 한다. SHELL-001(app_shell)·NAV-001(navigation_tree)은 core-item-set 명시 제외 타입이라 기각. | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건)",
+  "rule": "Phase2 그래프 카탈로그 + core-item-set Tier + 도메인 책임 판정. 2026-08-19 갱신: 신규 ADR-049·API-212~214(도메인 소속) 승격, legacy_artifact 7건은 Tier 미분류라 fail-open 포함, code_module·navigation_tree·app_shell 8건은 core-item-set 명시 제외 타입이라 기각. 2026-08-21 갱신: 신규 ADR-050(belongs_to_domain=DOMAIN-003) 승격, AC-049·AC-050·AC-051(SCREEN-008/SCREEN-009 covered_by + API-201·212·213·214 verifies) 승격, SEQ-001(영상수집 파이프라인 — UC-011·UC-018·UC-019 realizes, domain_id 미설정이나 도메인 책임 판정으로 포함) 승격. pending 의 code_module 6건·navigation_tree 1건·app_shell 1건은 제외 타입이라 재차 기각. 2026-08-21 2차 갱신: 신규 AC-055(belongs_to_domain=DOMAIN-003) 승격. 미판정이던 API-068(GET /v1/manage/configs, DOMAIN-014 소속)은 이 도메인 화면 SCREEN-008 이 consumes 하므로 '이 도메인 화면이 쓰는 계약' 기준으로 승격. 다운로더가 새로 올린 미판정 4건 판정: DFEAT-045(시스템 설정 관리)·SCREEN-025(시스템 설정 화면)는 이 도메인 소속 AC-055 를 각각 verifies·covered_by 로 참조하므로 승격 — 전체 건너뛰기 스위치의 화면·기능 실현 지점이라 이 도메인 구현자가 봐야 한다. SHELL-001(app_shell)·NAV-001(navigation_tree)은 core-item-set 명시 제외 타입이라 기각. | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 승격: INT-011, ADR-030 — INT-011(관제 학습용 영상 인입 픽업)은 이 도메인의 인입 원장 폴링·원시 적재 그 자체이고, ADR-030(배치 스텝 트랜잭션 경계)은 이 도메인 배치 스텝이 지켜야 할 제약이다 (⚠ 병렬 워크트리 머지가 이 pin 을 승격 이전 판으로 덮어 한 번 유실됐다 — 재복구분)",
   "items": [
     "AC-025",
     "AC-026",
@@ -18,6 +18,7 @@
     "ADR-006",
     "ADR-010",
     "ADR-018",
+    "ADR-030",
     "ADR-032",
     "ADR-042",
     "ADR-049",
@@ -86,6 +87,7 @@
     "EVT-002",
     "EVT-005",
     "FEAT-004",
+    "INT-011",
     "LEGACY-003",
     "LEGACY-005",
     "LEGACY-021",
@@ -156,5 +158,5 @@
     "IMPREC-125",
     "NAV-001"
   ],
-  "last_sync_at": "2026-08-26T04:22:34.214Z"
+  "last_sync_at": "2026-08-26T04:28:00.525Z"
 }

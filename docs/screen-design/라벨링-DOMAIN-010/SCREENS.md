@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-26T01:11:16.017Z (session 12) |
+| last sync | 2026-08-26T04:28:17.311Z (session 13) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/라벨링-DOMAIN-010 |
@@ -54,12 +54,9 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-034]] | api_endpoint | CHANGED (v8→v9) |
-| [[API-035]] | api_endpoint | CHANGED (v10→v11) |
-| [[API-036]] | api_endpoint | CHANGED (v10→v11) |
-| [[API-182]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-195]] | api_endpoint | CHANGED (v6→v7) |
-| [[API-197]] | api_endpoint | CHANGED (v4→v5) |
+| [[NAV-001]] | navigation_tree | CHANGED (v17→v18) |
+| [[UI-111]] | ui_component | CHANGED (v1→v2) |
+| [[UI-133]] | ui_component | CHANGED (v1→v2) |
 
 ## Obsidian 볼트로 보기
 
