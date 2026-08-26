@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-26T01:11:09.512Z |
+| Last sync | 2026-08-26T05:51:37.770Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 79 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-012 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 5건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 8건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,13 +20,13 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 5건 / 스코프 밖 43건
-  ℹ️  api_endpoint: 이번 키트 8건 / 스코프 밖 191건
+  ℹ️  api_endpoint: 이번 키트 8건 / 스코프 밖 193건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 21건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 5건 / 스코프 밖 28건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 26건 (그중 domain_id 없음 1건)
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 110건 (그중 domain_id 없음 32건)
+  ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 111건 (그중 domain_id 없음 32건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 14건 / 스코프 밖 35건 (그중 domain_id 없음 2건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
@@ -108,10 +108,10 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 54 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 58 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |

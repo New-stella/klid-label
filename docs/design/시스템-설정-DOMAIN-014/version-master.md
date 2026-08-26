@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-26T01:10:58.152Z |
+| Last sync | 2026-08-26T05:51:27.521Z |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 72 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 4건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 12건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,13 +20,13 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 1건 / 스코프 밖 47건
-  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 190건
+  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 192건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 22건 (그중 domain_id 없음 12건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 3건 / 스코프 밖 27건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 10건 / 스코프 밖 106건 (그중 domain_id 없음 36건)
+  ℹ️  acceptance: 이번 키트 10건 / 스코프 밖 107건 (그중 domain_id 없음 36건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 7건 / 스코프 밖 42건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
@@ -60,7 +60,7 @@
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-039]] | adr | 5 | UNCHANGED |
+| [[ADR-039]] | adr | 6 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-053]] | adr | 1 | UNCHANGED |
@@ -87,7 +87,7 @@
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
 | [[INTSPEC-003]] | integration_spec | 12 | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 17 | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 18 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -105,7 +105,7 @@
 | [[REQ-008]] | requirement | 7 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |

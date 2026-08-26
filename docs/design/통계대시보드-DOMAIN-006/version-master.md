@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-08-26T01:11:04.672Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 41 |
+| Last sync | 2026-08-26T05:51:32.710Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 44 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-006 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 7건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 9건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,13 +20,13 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 45건
-  ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 192건
+  ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 194건
   🚨 erd: 이번 키트 0건 / 프로젝트 전역 23건 — 전량 누락
   🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 26건 (그중 domain_id 없음 14건) — 전량 누락
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 29건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 113건 (그중 domain_id 없음 37건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 114건 (그중 domain_id 없음 37건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 4건 / 스코프 밖 45건 (그중 domain_id 없음 7건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,17 +41,15 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-029]] (prev v2)
-- CHANGED [[AC-030]] (prev v1)
-- CHANGED [[AC-031]] (prev v1)
+- (변경 없음)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-029]] | acceptance | 3 | CHANGED |
-| [[AC-030]] | acceptance | 2 | CHANGED |
-| [[AC-031]] | acceptance | 2 | CHANGED |
+| [[AC-029]] | acceptance | 3 | UNCHANGED |
+| [[AC-030]] | acceptance | 2 | UNCHANGED |
+| [[AC-031]] | acceptance | 2 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
@@ -84,7 +82,7 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
 | [[SCREEN-021]] | screen_spec | 28 | UNCHANGED |

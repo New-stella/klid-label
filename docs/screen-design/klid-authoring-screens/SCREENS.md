@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-26T01:22:56.164Z (session 26) |
+| last sync | 2026-08-26T05:53:15.867Z (session 27) |
 | 화면 수 | 32개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/klid-authoring-screens |
+| 출력 루트 | docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -38,7 +38,7 @@
 | [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
 | [[SCREEN-025]] | 시스템 설정 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]], [[API-194]] | [[ROLE-001]] |
 | [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
-| [[SCREEN-027]] | 수동 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-001]] |
+| [[SCREEN-027]] | 파일 업로드 | UNCHANGED | ✅ | [[API-043]], [[API-152]], [[API-156]], [[API-158]], [[API-160]], [[API-162]], [[API-164]], [[API-216]], [[API-217]], [[API-218]] | [[ROLE-001]] |
 | [[SCREEN-028]] | 포털 홈 화면 | UNCHANGED | ✅ | [[API-115]], [[API-203]] | [[ROLE-003]] |
 | [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]] | [[ROLE-003]] |
 | [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
@@ -97,7 +97,7 @@
 | 18 | [[SCREEN-024]] — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
 | 19 | [[SCREEN-025]] — 시스템 설정 화면 | screens/SCREEN-025/SCREEN-025.md | wireframe.html | uc/ | ac/ |
 | 20 | [[SCREEN-026]] — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
-| 21 | [[SCREEN-027]] — 수동 업로드 | screens/SCREEN-027/SCREEN-027.md | wireframe.html | uc/ | ac/ |
+| 21 | [[SCREEN-027]] — 파일 업로드 | screens/SCREEN-027/SCREEN-027.md | wireframe.html | uc/ | ac/ |
 | 22 | [[SCREEN-028]] — 포털 홈 화면 | screens/SCREEN-028/SCREEN-028.md | wireframe.html | uc/ | ac/ |
 | 23 | [[SCREEN-029]] — 포털 라벨링 화면 | screens/SCREEN-029/SCREEN-029.md | wireframe.html | uc/ | ac/ |
 | 24 | [[SCREEN-030]] — 공지 목록 화면 | screens/SCREEN-030/SCREEN-030.md | wireframe.html | uc/ | ac/ |
@@ -114,63 +114,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-049]] | acceptance | NEW |
-| [[AC-050]] | acceptance | NEW |
-| [[AC-051]] | acceptance | NEW |
-| [[AC-055]] | acceptance | NEW |
-| [[AC-056]] | acceptance | NEW |
-| [[AC-057]] | acceptance | NEW |
-| [[AC-058]] | acceptance | NEW |
-| [[AC-059]] | acceptance | NEW |
-| [[AC-060]] | acceptance | NEW |
-| [[AC-061]] | acceptance | NEW |
-| [[AC-062]] | acceptance | NEW |
-| [[AC-063]] | acceptance | NEW |
-| [[AC-064]] | acceptance | NEW |
-| [[AC-065]] | acceptance | NEW |
-| [[AC-066]] | acceptance | NEW |
-| [[AC-067]] | acceptance | NEW |
-| [[AC-068]] | acceptance | NEW |
-| [[AC-069]] | acceptance | NEW |
-| [[AC-070]] | acceptance | NEW |
-| [[AC-071]] | acceptance | NEW |
-| [[AC-072]] | acceptance | NEW |
-| [[AC-073]] | acceptance | NEW |
-| [[AC-074]] | acceptance | NEW |
-| [[AC-075]] | acceptance | NEW |
-| [[AC-076]] | acceptance | NEW |
-| [[AC-077]] | acceptance | NEW |
-| [[AC-078]] | acceptance | NEW |
-| [[AC-089]] | acceptance | NEW |
-| [[AC-090]] | acceptance | NEW |
-| [[AC-091]] | acceptance | NEW |
-| [[AC-092]] | acceptance | NEW |
-| [[AC-093]] | acceptance | NEW |
-| [[AC-094]] | acceptance | NEW |
-| [[AC-095]] | acceptance | NEW |
-| [[AC-096]] | acceptance | NEW |
-| [[AC-097]] | acceptance | NEW |
-| [[AC-098]] | acceptance | NEW |
-| [[AC-099]] | acceptance | NEW |
-| [[AC-100]] | acceptance | NEW |
-| [[AC-101]] | acceptance | NEW |
-| [[AC-102]] | acceptance | NEW |
-| [[AC-103]] | acceptance | NEW |
-| [[AC-104]] | acceptance | NEW |
-| [[AC-105]] | acceptance | NEW |
-| [[AC-106]] | acceptance | NEW |
-| [[AC-107]] | acceptance | NEW |
-| [[AC-108]] | acceptance | NEW |
-| [[AC-109]] | acceptance | NEW |
-| [[AC-110]] | acceptance | NEW |
-| [[AC-111]] | acceptance | NEW |
-| [[AC-112]] | acceptance | NEW |
-| [[API-216]] | api_endpoint | NEW |
-| [[API-217]] | api_endpoint | NEW |
-| [[API-218]] | api_endpoint | NEW |
-| [[API-219]] | api_endpoint | NEW |
-| [[API-220]] | api_endpoint | NEW |
-| [[UC-037]] | use_case | NEW |
+| [[API-203]] | api_endpoint | CHANGED (v4→v4) |
 
 ## Obsidian 볼트로 보기
 

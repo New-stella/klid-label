@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-26T01:11:14.898Z (session 12) |
+| last sync | 2026-08-26T05:53:17.524Z (session 13) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록

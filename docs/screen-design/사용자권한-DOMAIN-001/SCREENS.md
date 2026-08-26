@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-26T01:11:14.007Z (session 12) |
+| last sync | 2026-08-26T05:53:16.568Z (session 13) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/사용자권한-DOMAIN-001 |
+| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -22,7 +22,7 @@
 | [[SCREEN-002]] | 역할 클레임 화면 | UNCHANGED | ✅ | [[API-007]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
 | [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
-| [[SCREEN-024]] | 사용자 관리 화면 | CHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
+| [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -55,12 +55,6 @@
 | 3 | [[SCREEN-003]] — 접근 거부 화면 | screens/SCREEN-003/SCREEN-003.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-004]] — 개발용 로그인 화면 | screens/SCREEN-004/SCREEN-004.md | wireframe.html | uc/ | ac/ |
 | 5 | [[SCREEN-024]] — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[SCREEN-024]] | screen_spec | CHANGED (v23→v24) |
 
 ## Obsidian 볼트로 보기
 

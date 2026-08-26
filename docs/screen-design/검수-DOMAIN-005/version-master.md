@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-26T01:11:14.903Z (session 12) |
+| Last sync | 2026-08-26T05:53:17.530Z (session 13) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 171 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
 
@@ -31,7 +31,7 @@
 | [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 5 | false | UNCHANGED |
 | [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 17 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | false | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 39 | true | UNCHANGED |
@@ -150,7 +150,7 @@
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 1 | false | UNCHANGED |
-| [[UI-111]] | ui_component | display: Badge | 1 | false | UNCHANGED |
+| [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |
 | [[UI-114]] | ui_component | input: PresetLabelPicker | 1 | false | UNCHANGED |
@@ -172,7 +172,7 @@
 | [[UI-130]] | ui_component | display: LabelOriginChip | 1 | false | UNCHANGED |
 | [[UI-131]] | ui_component | input: UploadDropzone | 1 | false | UNCHANGED |
 | [[UI-132]] | ui_component | display: AssetTypeChip | 1 | false | UNCHANGED |
-| [[UI-133]] | ui_component | input: TargetResolutionSelect | 1 | false | UNCHANGED |
+| [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | UNCHANGED |
 | [[UI-134]] | ui_component | display: SelectionSummary | 1 | false | UNCHANGED |
 | [[UI-135]] | ui_component | layout: StickyActionBar | 1 | false | UNCHANGED |
 | [[UI-136]] | ui_component | layout: StepSectionHeader | 1 | false | UNCHANGED |

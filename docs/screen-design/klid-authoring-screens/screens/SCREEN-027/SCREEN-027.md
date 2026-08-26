@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 32
-last_updated_at: 2026-08-25T01:21:33.808Z
+version: 34
+last_updated_at: 2026-08-26T02:50:12.178Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:22:55.924Z
-sync_session: 26
-stale: true
+synced_at: 2026-08-26T05:53:15.560Z
+sync_session: 27
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-027.json
@@ -19,7 +19,7 @@ links:
   acceptance: ["[[AC-099]]", "[[AC-100]]", "[[AC-101]]", "[[AC-102]]", "[[AC-103]]", "[[AC-104]]", "[[AC-105]]", "[[AC-106]]"]
 ---
 
-# 수동 업로드
+# 파일 업로드
 
 ## route
 
@@ -27,7 +27,7 @@ links:
 
 ## title
 
-수동 업로드
+파일 업로드
 
 ## device
 
@@ -872,7 +872,7 @@ _(empty)_
 ### main
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-027/main.html
-- **label**: 수동 업로드 — 와이어프레임
+- **label**: 파일 업로드 — 와이어프레임
 - **width**: 1440
 - **surface**: page
 - **platform**: web
@@ -883,7 +883,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 16177ecbf83d643d414e571fbed7b7f276924efa802769b4b45ec24ca00d24d0
-- **generated_at**: 2026-08-24T10:40:05.497Z
+- **generated_at**: 2026-08-26T02:50:12.178Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

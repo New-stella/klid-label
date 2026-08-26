@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-26T01:11:16.017Z (session 12) |
+| last sync | 2026-08-26T05:53:18.547Z (session 13) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/라벨링-DOMAIN-010 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -49,17 +49,6 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-005]] — 라벨링 캔버스 화면 | screens/SCREEN-005/SCREEN-005.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-026]] — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-034]] | api_endpoint | CHANGED (v8→v9) |
-| [[API-035]] | api_endpoint | CHANGED (v10→v11) |
-| [[API-036]] | api_endpoint | CHANGED (v10→v11) |
-| [[API-182]] | api_endpoint | CHANGED (v3→v4) |
-| [[API-195]] | api_endpoint | CHANGED (v6→v7) |
-| [[API-197]] | api_endpoint | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

@@ -80,10 +80,18 @@
     "UC-031"
   ],
   "pending": [
+    "API-152",
+    "API-153",
     "MOD-002",
     "MOD-016",
     "MOD-050",
-    "IMPREC-051"
+    "IMPREC-051",
+    "IMPREC-054",
+    "IMPREC-071",
+    "IMPREC-072",
+    "IMPREC-073",
+    "IMPREC-074",
+    "IMPREC-078"
   ],
-  "last_sync_at": "2026-08-26T01:10:58.154Z"
+  "last_sync_at": "2026-08-26T05:51:27.533Z"
 }

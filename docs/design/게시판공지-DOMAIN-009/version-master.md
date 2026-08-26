@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-08-26T01:11:05.821Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 46 |
+| Last sync | 2026-08-26T05:51:33.715Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 48 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-009 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 14건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 18건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,13 +20,13 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 46건
-  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 189건
+  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 191건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
   🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 26건 (그중 domain_id 없음 14건) — 전량 누락
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 29건
   🚨 use_case: 이번 키트 0건 / 프로젝트 전역 30건 (그중 domain_id 없음 2건) — 전량 누락
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 7건 / 스코프 밖 109건 (그중 domain_id 없음 37건)
+  ℹ️  acceptance: 이번 키트 7건 / 스코프 밖 110건 (그중 domain_id 없음 37건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 2건 / 스코프 밖 47건 (그중 domain_id 없음 8건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SCREEN-030]] (prev v25)
-- CHANGED [[SCREEN-031]] (prev v31)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -87,9 +86,9 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
-| [[SCREEN-030]] | screen_spec | 26 | CHANGED |
-| [[SCREEN-031]] | screen_spec | 33 | CHANGED |
+| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
+| [[SCREEN-030]] | screen_spec | 26 | UNCHANGED |
+| [[SCREEN-031]] | screen_spec | 33 | UNCHANGED |
 | [[SCREEN-036]] | screen_spec | 8 | UNCHANGED |
 | [[SCREEN-037]] | screen_spec | 8 | UNCHANGED |
 | [[SD-007]] | screen_design | 6 | UNCHANGED |

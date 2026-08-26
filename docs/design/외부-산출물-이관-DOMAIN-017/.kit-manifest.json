@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-08-26T01:10:54.791Z",
+  "synced_at": "2026-08-26T05:51:24.443Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -57,8 +57,8 @@
     "AC-048": {
       "type": "acceptance",
       "domain_id": "DOMAIN-017",
-      "version": 7,
-      "content_hash": "2a98a034fc580faba70c72ff9d368c845fb91b0590bab0ae77cda178a004b815"
+      "version": 8,
+      "content_hash": "116b05a89d4a3c7f9c3b4d8cdee2177bf8fb2d7a93f903e36280c5b37f221476"
     },
     "AC-052": {
       "type": "acceptance",
@@ -153,8 +153,8 @@
     "SEQ-026": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-017",
-      "version": 10,
-      "content_hash": "448808f04601870a36139c3a968c08ccda6c486d8606ff24444ad10c5ae86f56"
+      "version": 11,
+      "content_hash": "fd4df07113a1db75e22a5edf4dff9a0050f8cec34e462c1afde1883fdb887b7b"
     },
     "DOMAIN-017": {
       "type": "domain",
@@ -345,14 +345,14 @@
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 7,
-      "content_hash": "2dc75727cffe3092805b3fb4923991ea8022a2e01c972bff353f7f2dbcc9d1dd"
+      "version": 8,
+      "content_hash": "f7b96c5a16b1ed0afaf7d82133dc9e81f0f14c07782fa181c4c046be1b0f7912"
     },
     "SCREEN-039": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-017",
-      "version": 17,
-      "content_hash": "5c10a8dc2b834e7bf49a3c676931a1fe1edd14b9f79ec356d999a91478c395c6"
+      "version": 21,
+      "content_hash": "2480763f079fd3d22d7e67789061af457a2c887ce3739847723957de2d83fc0a"
     },
     "TEST-007": {
       "type": "test_scenario",
@@ -375,14 +375,14 @@
     "UC-035": {
       "type": "use_case",
       "domain_id": "DOMAIN-017",
-      "version": 12,
-      "content_hash": "827afa8444286ecb3bce3f4a26e74dbcab9e7d8b93f5eb7838cc9eca29075334"
+      "version": 13,
+      "content_hash": "23deb0fcff37ce529f522f474fc83884490cc9749758c9fd63fac9bda36f5e91"
     },
     "UC-036": {
       "type": "use_case",
       "domain_id": "DOMAIN-017",
-      "version": 2,
-      "content_hash": "66a7b484f6d5e52fc7368157bef347ec1ce125c6660908c45609cb3b682fa12a"
+      "version": 3,
+      "content_hash": "87a9fc94437a01ca0984a5c0478fd419963c9e17701a823da1e06b8f3d2be38e"
     }
   }
 }

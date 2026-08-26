@@ -8,18 +8,18 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-26T01:11:15.432Z (session 12) |
+| last sync | 2026-08-26T05:53:18.059Z (session 13) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-030]] | 공지 목록 화면 | CHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-031]] | 공지 상세 화면 | CHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-036]] | 공지 작성 화면 | UNCHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
 | [[SCREEN-037]] | 공지 수정 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
 
@@ -53,13 +53,6 @@
 | 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[SCREEN-030]] | screen_spec | CHANGED (v25→v26) |
-| [[SCREEN-031]] | screen_spec | CHANGED (v31→v33) |
 
 ## Obsidian 볼트로 보기
 
