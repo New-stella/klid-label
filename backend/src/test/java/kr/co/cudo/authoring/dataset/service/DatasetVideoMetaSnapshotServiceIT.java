@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.dataset.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
@@ -35,6 +37,9 @@ class DatasetVideoMetaSnapshotServiceIT {
 
     /** 이벤트유형 마스터의 이벤트명(LS_EVNT_TYPE.EVNT_NM) — 동결 EVNT_NM 이 이 값이어야 한다. */
     private static final String CATEGORY_LABEL = "보행자 감지";
+
+    /** 발신함 payload 대조용 — 값 비교는 바이트가 아니라 JSON 의미 동등으로 한다. */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Autowired
     private DatasetVideoMetaSnapshotService service;
@@ -119,6 +124,16 @@ class DatasetVideoMetaSnapshotServiceIT {
         return rawSn;
     }
 
+    /**
+     * 그 회차 동결이 발행한 발신함 행의 payload 원문(@design INT-009 — 복제 경로의 첫 단).
+     * 재승인으로 여러 회차가 쌓이므로 {@code (RAW_SN, SNPSHT_HASH)} 로 그 회차 행을 특정한다.
+     */
+    private String outboxPayload(long rawSn, String snpshtHash) {
+        return jdbc.queryForObject(
+                "SELECT PAYLOAD_CN FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND SNPSHT_HASH = ?",
+                String.class, rawSn, snpshtHash);
+    }
+
     private void seedMeta(Long rawSn, String key, String value) {
         jdbc.update("INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, RTRY_NMTM, REG_DT) "
                 + "VALUES (?, ?, ?, 0, ?)", rawSn, key, value, LocalDateTime.now());
@@ -176,8 +191,8 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
-    @DisplayName("검수승인시_event_annotation이_스냅샷으로_동결된다")
-    void materialize_freezesApprovedEventAnnotation() {
+    @DisplayName("검수승인시_event_annotation이_스냅샷으로_동결되고_발신함_payload에도_실린다")
+    void materialize_freezesApprovedEventAnnotation() throws Exception {
         // given — 승인(APPROVED) 상태의 event_annotation
         long rawSn = seedSource();
         seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "APPROVED");
@@ -190,6 +205,19 @@ class DatasetVideoMetaSnapshotServiceIT {
                 metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getEvntAnnoCn()).isNotNull();
         assertThat(m.getEvntAnnoCn()).contains("assault").contains("caption_text").contains("evidence");
+
+        // then — ★그 동결본이 같은 트랜잭션에서 발행된 발신함 payload 에도 실린다(@design INT-009).
+        //   실사고는 「동결까지는 정상인데 발신함 payload 직렬화 입구에서 끊겼다」였다. 워커 IT 는
+        //   하드코딩 payload 에서 출발하므로 이 <승인 → 동결 → 발신함 적재> 이음매는 여기서만 덮인다.
+        JsonNode payload = MAPPER.readTree(outboxPayload(rawSn, m.getSnpshtHash()));
+        assertThat(payload.hasNonNull("evntAnnoCn"))
+                .as("발신함 payload 가 event_annotation 을 싣지 않으면 포털 복제본에서 영구히 NULL 이 된다"
+                        + "(INT-009 — 복제 범위는 전 컬럼이다). payload=%s", payload)
+                .isTrue();
+        // 값 비교는 바이트가 아니라 JSON 의미 동등으로 한다(jsonb 표기 정규화·키 순서에 묶이지 않게).
+        assertThat(MAPPER.readTree(payload.get("evntAnnoCn").asText()))
+                .as("발신함 payload 의 event_annotation 이 동결본과 의미상 같아야 한다(INT-009)")
+                .isEqualTo(MAPPER.readTree(m.getEvntAnnoCn()));
     }
 
     @Test
@@ -230,7 +258,7 @@ class DatasetVideoMetaSnapshotServiceIT {
 
     @Test
     @DisplayName("승인안된_event_annotation은_동결되지_않는다_null")
-    void materialize_skipsUnapprovedEventAnnotation() {
+    void materialize_skipsUnapprovedEventAnnotation() throws Exception {
         // given — PENDING(미승인) event_annotation
         long rawSn = seedSource();
         seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "PENDING");
@@ -242,6 +270,12 @@ class DatasetVideoMetaSnapshotServiceIT {
         LsDatasetVideoMeta m = txTemplate.execute(s ->
                 metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getEvntAnnoCn()).isNull();
+
+        // then — 발신함 payload 에도 값이 없다(반대 방향 — 동결이 비었는데 payload 에 값이 생기면
+        //   미승인 어노테이션이 포털로 새는 것이다).
+        assertThat(MAPPER.readTree(outboxPayload(rawSn, m.getSnpshtHash())).hasNonNull("evntAnnoCn"))
+                .as("미승인 event_annotation 은 발신함 payload 에도 실리지 않아야 한다(INT-009)")
+                .isFalse();
     }
 
     @Test

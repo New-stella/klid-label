@@ -65,6 +65,57 @@ advisory lock 구간에서 `SUPERSEDED` 로 먼저 정리한 뒤 신규 outbox �
 `replicatePending`) · `PortalMetaReplicaWriter`(class javadoc, `replicate`, `isReplicaAvailable`) ·
 `DatasetVideoMetaSnapshotService`(`materialize`) · `LsMetaReplOutboxRepository`(`supersedePending`).
 
+## 16.1b 복제 정합 축과 회귀 가드 (★2026-08-26 신설 — 복제 결손 실사고 반영)
+
+**복제가 성립하려면 네 단이 같은 컬럼 집합을 실어야 하고, 그 위에 스키마 축이 하나 더 있다.**
+한 단만 빠져도 그 컬럼은 복제본에서 **영구히 빈다** — 나머지가 전부 맞아도 그렇다.
+
+| # | 단 | 지점 |
+|---|---|---|
+| ① | payload 직렬화 | `DatasetVideoMetaSnapshotService.toPayload` |
+| ② | 전송 계약 | `MetaReplicationPayload`(record 컴포넌트) |
+| ③ | 복원 빌더 | `MetaReplicationWorker.toSnapshot` |
+| ④ | 포털 INSERT | `PortalDatasetVideoMetaRepository.upsertSnapshot` |
+| ⑤ | **복제본 물리 DDL** | `db/portal/V*.sql` · `deploy/onprem/db/portal-schema.sql` |
+
+**실사고(2026-08-26)**: control 이 `V128` 로 `EVNT_ANNO_CN` 을 추가했을 때 ⑤만 뒤늦게 `db/portal/V4` 로
+따라붙고 **①~④가 전부 빠져 있었다.** 그 결과 포털 복제본의 그 컬럼이 **항상 NULL** 이었고, 복제본을
+read-only 로 소비하는 포털 채널은 그 값을 받지 못했다. ⚠ `V4` 의 추가 사유가 *"복제하려고"* 가 아니라
+*"같은 엔티티를 쓰는 JPA 파생 조회가 42703 으로 깨지지 않게"* 였다는 점이 이 결손의 실체다 —
+**DDL 을 맞췄다는 것이 복제가 된다는 뜻은 아니다.**
+
+**회귀 가드 3종** — 각 축은 서로를 덮지 못하므로 셋이 모두 필요하다.
+
+| 축 | 가드 | 무엇을 잡나 |
+|---|---|---|
+| payload(①②③) | `PortalMetaReplicaPayloadParityGuardTest` | 엔티티 컬럼 ↔ 계약 컴포넌트 ↔ 복원 커버리지 |
+| SQL(④) | `PortalMetaReplicaColumnParityGuardTest` | control ↔ 포털 INSERT 컬럼 집합 동일성 |
+| DDL(⑤) | `PortalMetaReplicaDdlParityGuardTest` | 엔티티 컬럼이 복제본 DDL 에 실재하는가 |
+
+**셋이 서로를 못 덮는다는 것은 변이로 실증됐다** — ①~④를 전부 맞추고 ⑤만 미반영하면
+payload 축·SQL 축 가드가 **전건 통과**하고 DDL 축 가드만 실패한다(운영에서는 42703).
+
+> ★ **통합시험은 ⑤의 드리프트를 원리적으로 잡지 못한다.** 시험 인프라가 control·포털 두 데이터소스를
+> **같은 물리 테이블**로 묶어 돌리므로(`PostgresContainerContextCustomizerFactory`), 포털 전용 DDL 이
+> 아예 적용되지 않은 채로도 전 IT 가 green 이다. 실제로 그 드리프트가 오래 살아남은 이유가 이것이다.
+> 이 축은 런타임 시험이 아니라 **산출물 파일 대조 가드로만** 닫힌다.
+
+> ★ **복제본 스키마의 정본은 둘이다.** `db/portal/V*.sql`(프로비저닝 DDL)과
+> `deploy/onprem/db/portal-schema.sql`(설치가 실제 로드하는 생성물, `gen-schema-sql.sh` 산출). 원천만
+> 늘리고 **덤프 재생성을 잊으면 실제로 설치되는 포털 DB 만 옛 형상으로 남는다.** 가드가 두 산출물의
+> 컬럼 집합 동일성까지 고정한다 — `db/portal` 에 새 버전을 더하면 반드시 덤프를 재생성할 것.
+
+**판정 방향은 비대칭이다** — 엔티티에 있는데 DDL 에 없으면 **실패**(런타임에 깨진다). DDL 에만 있는
+컬럼은 실패로 보지 않는다(레거시·향후 컬럼일 수 있다). 다만 그런 항목은 로그로 드러낸다.
+
+⚠ **가드가 닫지 못하는 것**: 이 가드들은 「저장소의 DDL 산출물이 엔티티와 맞는가」까지만 본다.
+**운영 포털 DB 에 그 DDL 이 실제로 적용됐는지는 저장소가 알 수 없다** — 미적용 환경은 가드 green 인 채
+런타임 42703 으로 깨진다(위 16.1a 의 graceful skip 은 *테이블 부재*만 덮고 *컬럼 부재*는 덮지 않는다).
+
+근거: `PortalMetaReplicaPayloadParityGuardTest` · `PortalMetaReplicaColumnParityGuardTest` ·
+`PortalMetaReplicaDdlParityGuardTest` · `DatasetVideoMetaSnapshotServiceIT`(검수승인시 동결·발신함 payload 단언) ·
+`MetaReplicationPayload`(class javadoc) · `db/portal/V4__add_evnt_anno_cn.sql`(추가 사유 주석).
+
 ## 16.2 저장 정책 (단방향)
 
 - **저장 시 원본·데이터마트 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 **별도 적재**

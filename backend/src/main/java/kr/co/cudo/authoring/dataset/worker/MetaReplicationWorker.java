@@ -99,7 +99,12 @@ public class MetaReplicationWorker {
         return done;
     }
 
-    /** outbox PAYLOAD_CN(JSON) → 포털 복제용 스냅샷 엔티티. 관리 컬럼은 기본값으로 채운다. */
+    /**
+     * outbox PAYLOAD_CN(JSON) → 포털 복제용 스냅샷 엔티티. 관리 컬럼은 기본값으로 채운다.
+     *
+     * <p>@design INT-009 — 복제 경로가 원본과 <b>같은 컬럼 집합</b>을 실어야 동형성이 성립한다.
+     * 원본 동결 메타에 컬럼이 추가되면 {@link MetaReplicationPayload} 와 이 빌더가 함께 따라와야 한다.
+     */
     private LsDatasetVideoMeta toSnapshot(LsMetaReplOutbox outbox) {
         MetaReplicationPayload p;
         try {
@@ -142,6 +147,8 @@ public class MetaReplicationWorker {
                 .dayNgtCd(p.dayNgtCd())
                 .sesnCd(p.sesnCd())
                 .wthrNm(p.wthrNm())         // 촬영환경 수동값(구 페이로드엔 없어 null)
+                // @design INT-009 — event_annotation 동결값. 구 페이로드엔 키가 없어 null 로 복원된다(하위호환).
+                .evntAnnoCn(p.evntAnnoCn())
                 .rvwCmplDt(p.rvwCmplDt())
                 .regDt(LocalDateTime.now())
                 .regId(null)                // 복제본 등록자 없음 — SoT 감사 추적으로 대체

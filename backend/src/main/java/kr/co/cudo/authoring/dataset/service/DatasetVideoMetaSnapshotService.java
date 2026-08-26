@@ -320,7 +320,14 @@ public class DatasetVideoMetaSnapshotService {
         return v == null ? null : String.valueOf(v);
     }
 
-    /** 직렬화 페이로드(포털 복제 전달용) — 비식별 메타만. 컬럼형 JSON. */
+    /**
+     * 직렬화 페이로드(포털 복제 전달용) — 비식별 메타만. 컬럼형 JSON.
+     *
+     * <p>@design INT-009 「복제 범위 — 원본과 동형이며 전 컬럼을 옮긴다」 — 이 메서드가 <b>무엇을 포털로
+     * 복제할지 고르는 자리</b>다. 동결 스냅샷에 컬럼이 추가되면 여기와 {@code MetaReplicationPayload},
+     * 그리고 복원 빌더({@code MetaReplicationWorker.toSnapshot})가 함께 따라와야 한다.
+     * 관리 컬럼(PK·ACTIVE_YN·REG_DT·REG_ID)은 복제 시 워커가 채우므로 의도적으로 제외한다.
+     */
     private String toPayload(LsDatasetVideoMeta m) {
         Map<String, Object> p = new LinkedHashMap<>();
         p.put("rawSn", m.getRawSn());
@@ -355,6 +362,9 @@ public class DatasetVideoMetaSnapshotService {
         p.put("dayNgtCd", m.getDayNgtCd());
         p.put("sesnCd", m.getSesnCd());
         p.put("wthrNm", m.getWthrNm()); // 촬영환경 수동값 — 포털 복제 반영(비식별 메타).
+        // @design INT-009 — event_annotation 동결값. 동결·해시에는 이미 반영돼 있었으나 이 직렬화 입구에서만
+        // 빠져 있어 포털 복제본의 EVNT_ANNO_CN 이 영구히 비어 있었다. 값은 jsonb 원문 문자열 그대로 싣는다.
+        p.put("evntAnnoCn", m.getEvntAnnoCn());
         p.put("rvwCmplDt", m.getRvwCmplDt() == null ? null : m.getRvwCmplDt().toString());
         try {
             return objectMapper.writeValueAsString(p);
