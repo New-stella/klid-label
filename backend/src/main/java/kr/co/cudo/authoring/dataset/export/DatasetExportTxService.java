@@ -1,28 +1,16 @@
 package kr.co.cudo.authoring.dataset.export;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
-import kr.co.cudo.authoring.batch.entity.LsDataMeta;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
-import kr.co.cudo.authoring.batch.repository.LsDataMetaRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
 import kr.co.cudo.authoring.dataset.export.entity.LsDatasetExport;
-import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.FrameContext;
 import kr.co.cudo.authoring.dataset.export.json.NiaJsonBuilder.VideoExportContext;
-import kr.co.cudo.authoring.dataset.export.json.VlmDescriptionPolicy;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
 import kr.co.cudo.authoring.dataset.export.repository.LsDatasetExportRepository;
-import kr.co.cudo.authoring.label.entity.LsLabel;
-import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
-import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,11 +19,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -63,17 +49,18 @@ public class DatasetExportTxService {
     private final LsDataSrcRepository srcRepository;
     private final LsDataLblRepository labelRepository;
     private final LsDatasetVideoMetaRepository videoMetaRepository;
-    private final LsLabelRepository labelMasterRepository;
     private final VideoRepository videoRepository;
     private final LsDatasetExportRepository exportRepository;
-    private final LsDeidentProcLogRepository deidentProcLogRepository;
-    /** 원천 축 개인정보 3필드 조달 — 관제 인입 평면값(LS_DATA_INGEST). 연결 규칙은 IngestSourceLink 소유. */
-    private final IngestSourceRepository ingestSourceRepository;
-    /** {@code video.vd_description} 조달용 메타(LS_DATA_META) 조회. 판정은 {@link VlmDescriptionPolicy}. */
-    private final LsDataMetaRepository metaRepository;
-    private final NiaJsonBuilder niaJsonBuilder;
+    /**
+     * NIA 어노테이션 문서 컨텍스트 조달 <b>단일 지점</b> — 포털 산출과 공유하는 빈이다.
+     *
+     * <p>구 판은 이 조달(인입 평면값 · 시계열 메타 · 원천 축 개인정보 · 라벨 마스터 · 동결 이벤트
+     * 어노테이션 · 비식별 영상 경로)을 이 클래스 안 private 블록으로 갖고 있었다. 포털이 같은 구조의
+     * 문서를 내기로 확정되면서, 그 블록을 복제하면 <b>조달 순서 의존</b>(원천 축은 메타 로드 뒤여야
+     * 이관 영상이 살아난다)과 <b>파생영상 판정</b>이 한쪽에서만 깨진다 — 그래서 부품으로 뺐다.
+     */
+    private final NiaExportContextAssembler niaExportContextAssembler;
     private final LabelContentHasher contentHasher;
-    private final ObjectMapper objectMapper;
     /** H1 — 신고 구간 판정 <b>단일 원천</b>(잠금 변형 포함). {@code "F".equals} 재구현 금지. */
     private final kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
     /**
@@ -85,29 +72,19 @@ public class DatasetExportTxService {
     public DatasetExportTxService(LsDataSrcRepository srcRepository,
                                   LsDataLblRepository labelRepository,
                                   LsDatasetVideoMetaRepository videoMetaRepository,
-                                  LsLabelRepository labelMasterRepository,
                                   VideoRepository videoRepository,
                                   LsDatasetExportRepository exportRepository,
-                                  LsDeidentProcLogRepository deidentProcLogRepository,
-                                  IngestSourceRepository ingestSourceRepository,
-                                  LsDataMetaRepository metaRepository,
-                                  NiaJsonBuilder niaJsonBuilder,
+                                  NiaExportContextAssembler niaExportContextAssembler,
                                   LabelContentHasher contentHasher,
-                                  ObjectMapper objectMapper,
                                   kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate,
                                   kr.co.cudo.authoring.version.service.OutputVersionStamper outputVersionStamper) {
         this.srcRepository = srcRepository;
         this.labelRepository = labelRepository;
         this.videoMetaRepository = videoMetaRepository;
-        this.labelMasterRepository = labelMasterRepository;
         this.videoRepository = videoRepository;
         this.exportRepository = exportRepository;
-        this.deidentProcLogRepository = deidentProcLogRepository;
-        this.ingestSourceRepository = ingestSourceRepository;
-        this.metaRepository = metaRepository;
-        this.niaJsonBuilder = niaJsonBuilder;
+        this.niaExportContextAssembler = niaExportContextAssembler;
         this.contentHasher = contentHasher;
-        this.objectMapper = objectMapper;
         this.deidentReportGate = deidentReportGate;
         this.outputVersionStamper = outputVersionStamper;
     }
@@ -141,63 +118,30 @@ public class DatasetExportTxService {
         LsDatasetVideoMeta meta = metas.get(0);
         LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
 
-        // 원천 축 개인정보 3필드 — 관제 인입 평면값(LS_DATA_INGEST, V166/V170)을 rawSn 단위 1회 조회한다.
-        //   ★ 파생영상(증강·해상도)은 "비식별 처리 전 원천"이라는 대상 자체가 없으므로 NONE 을 넣어
-        //     두 블록 모두 null 로 산출한다(결손이 아니라 정상 — SourcePrivacyMeta javadoc 참조).
-        //     리포지토리 술어(IngestSourceLink)도 파생을 제외하지만, 그 판정은 <조달 규칙>이고 여기는
-        //     <원천 영상 존재 여부>라는 별개 사실이라 영상 행으로 명시 판정한다(fail-safe 이중화).
-        //   ★ raw 가 null(영상 행 부재)이면 파생 여부를 알 수 없으므로 NONE — 값을 지어내지 않는다.
-        // 인입 평면값은 rawSn 단위 1회만 조회해 두 용도로 쓴다(원천 축 개인정보 + video.event_id).
-        // ★ 파생영상에서도 조회한다 — event_id 는 부모 인입값이 그대로 유효하다(IngestSourceLink 의
-        //   "두 갈래" 규칙: 개인정보 3필드만 원본 한정이고 나머지 인입값은 파생에도 유효).
-        IngestSourceRow ingest = ingestSourceRepository.findSourceMeta(rawSn);
-        String ingestEvntId = (ingest == null) ? null : ingest.getEvntId();
-
-        // video.vd_description(@req R10) — 조달 규칙의 단일 소유자는 VlmDescriptionPolicy 다(복제 금지).
-        //   ★ 자기 rawSn 의 메타만 본다 — 조회 시점 <b>부모 폴백을 두지 않는다</b>.
-        //     ⚠ 그렇다고 파생영상(증강·해상도)에 서술이 없는 것은 아니다 — DerivedMetaCopier
-        //     (copyMetaAndReviews)가 생성 시점에 부모 메타를 <b>키 필터 없이 물리 복사</b>하므로 파생은
-        //     자기 rawSn 행으로 부모 서술을 이미 갖는다. 그 값이 산출되는 것이 정합적이다: 파생 비디오는
-        //     부모 비식별본의 복사본이고 변환 대상은 프레임 이미지뿐이라 상황묘사가 그대로 유효하다.
-        //     여기서 폴백을 두지 않는 것은 "조회 시점 부모 재해석"을 하지 않겠다는 뜻이며(스냅샷 시맨틱 —
-        //     이후 부모 서술 정정은 파생에 재전파되지 않는다), 실제로 복사가 없던 파생만 null 이 된다.
-        //   조회는 rawSn 단위 1회(N+1 없음). 전량 로드지만 벤더 계약상 콜백당 ≤500 세그먼트 ·
-        //   META_VL ≤2000자로 상한이 있고, 이 경로는 @Async 산출 전용이라 응답 지연 축이 아니다.
-        List<LsDataMeta> dataMetas = metaRepository.findByRawSn(rawSn);
-        // ★ 원천 축 조달은 <b>메타 로드 뒤</b>다 — 외부 산출물 이관 영상은 관제 인입 행이 없어 그 값이
-        //   메타에 원문 보관돼 있기 때문이다(ADR-048). 순서를 되돌리면 이관 영상의 원천 3필드가
-        //   전부 null 로 산출된다.
-        SourcePrivacyMeta srcPrivacy = resolveSourcePrivacy(raw, ingest, dataMetas);
-        String vdDescription = VlmDescriptionPolicy.resolve(dataMetas);
         // 콘텐츠 해시는 라벨뿐 아니라 산출 JSON 에 직렬화되는 프레임(frmExpln 등)·영상 메타
         // (prvcTypeCd/prvcYn·해상도 등)·원천 축 개인정보·VLM 서술까지 반영한다 — frmExpln/개인정보/
         // 서술 정정 재승인의 stale 고착 방지.
         List<LsDataLbl> allLabels = labelRepository.findAllByRawSn(rawSn);
+
+        // ★ NIA 문서 컨텍스트 조달은 공유 부품이 소유한다(포털 산출과 같은 빈). 여기서 인입 평면값·
+        //   시계열 메타·원천 축 개인정보·라벨 마스터·동결 이벤트 어노테이션·비식별 영상 경로를
+        //   <b>다시 유도하지 말 것</b> — 특히 원천 축이 메타 로드 뒤여야 한다는 순서 의존과 파생영상
+        //   판정은 복제하는 순간 한쪽에서만 깨진다(조립기 클래스 주석 「복제하면 반드시 깨지는 지점 둘」).
+        NiaExportContext nia = niaExportContextAssembler.assemble(
+                rawSn, meta, raw, allLabels.stream().map(LsDataLbl::getLabelId).toList());
+        VideoExportContext ctx = nia.videoContext();
+
         // R4 — 폐기 프레임 목록을 해시 입력에 함께 넣는다. 위에서 frames 를 걸렀으므로 폐기하면 해시가
         //   이미 달라지지만, 그 근거가 "레코드가 사라졌다"는 <b>간접</b> 신호라 폐기 축이 코드에 드러나지
         //   않는다. 명시 입력으로 두면 나중에 이 조회가 바뀌어도 폐기가 해시에서 조용히 빠지지 않는다.
         //   식별자만 실으므로 PII 표면이 없다.
         List<Long> discardedSrcSns = srcRepository.findDiscardedSrcSnsByRawSn(rawSn);
-        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, srcPrivacy,
-                vdDescription, discardedSrcSns);
+        String contentHash = contentHasher.hash(allLabels, frames, meta, raw, nia.srcPrivacy(),
+                nia.vdDescription(), discardedSrcSns);
 
         Map<Long, List<LsDataLbl>> labelsBySrc = allLabels.stream()
                 .filter(l -> l.getSrcSn() != null)
                 .collect(Collectors.groupingBy(LsDataLbl::getSrcSn));
-
-        List<LsLabel> usedLabels = loadUsedLabels(allLabels);
-        // 동결 event_annotation(C2) — 활성 메타 스냅샷의 EVNT_ANNO_CN(승인 시점 동결본)만 사용한다.
-        // export 는 LS_EVNT_ANNO(라이브)를 조회하지 않으므로 승인 후 편집분에 오염되지 않는다(멱등).
-        JsonNode eventAnnotation = parseEventAnnotation(meta.getEvntAnnoCn(), rawSn);
-        // 비식별 영상 경로(DE_IDNTF_FILE_PATH_NM) — DEIDENTIFIED 산출 JSON 의 dataset/video 경로 필드가
-        // 원본이 아닌 비식별 경로를 참조하도록 rawSn 단위 1회 조회한다(최신 SUCCEEDED procLog, N+1 없음).
-        // 미상이면 null → 빌더가 fail-secure(원본 절대경로 미노출, CWE-359).
-        String deidVideoPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(rawSn)
-                .map(LsDeidentProcLog::getDeIdntfFilePathNm)
-                .orElse(null);
-        VideoExportContext ctx = niaJsonBuilder.prepareContext(
-                meta, raw, usedLabels, eventAnnotation, deidVideoPath, srcPrivacy, ingestEvntId,
-                vdDescription);
 
         List<FrameContext> frameContexts = new ArrayList<>(frames.size());
         for (LsDataSrc frame : frames) {
@@ -366,81 +310,4 @@ public class DatasetExportTxService {
         return reclaimed;
     }
 
-    /**
-     * 원천 축 개인정보 3필드 조달 — 원본 영상만 관제 인입값을 싣고, 파생영상·영상행 부재는
-     * {@link SourcePrivacyMeta#NONE}(두 블록 모두 {@code null}) 이다.
-     *
-     * <p>인입 행이 아직/영영 없으면 리포지토리가 전 필드 null 인 행을 돌려주는데, 그것은
-     * "원천 영상은 있지만 관제가 판정을 안 보냈다"는 뜻이라 {@code ofIngest(null,null,null)} 이
-     * 정확하다({@code NONE} 과 달리 {@code image} 블록 상수는 그대로 실린다).
-     */
-    private static SourcePrivacyMeta resolveSourcePrivacy(LsDataRaw raw, IngestSourceRow ingest,
-                                                          List<LsDataMeta> dataMetas) {
-        if (raw == null || raw.getOrgnlRawSn() != null) {
-            return SourcePrivacyMeta.NONE;
-        }
-        if (LsDataRaw.SRC_TYPE_IMPORTED.equals(raw.getSrcType())) {
-            // 외부 산출물 이관(ADR-048) — 관제 수신 원장을 거치지 않으므로 인입 행이 <b>구조적으로
-            //   존재하지 않는다</b>. 그 결손을 "원천 없음"으로 읽으면 image 블록의 원천 상수까지 함께
-            //   빠져 파생영상과 구분되지 않으므로, 산출물이 준 원문을 보관한 메타에서 조달한다.
-            //   판정 규칙의 소유자는 ExportPrivacyPolicy 한 곳이다(여기서 재유도하지 않는다).
-            return ExportPrivacyPolicy.importedSource(
-                    metaValue(dataMetas, ExportPrivacyPolicy.IMPORT_SOURCE_ANONYMITY_KEY),
-                    metaValue(dataMetas, ExportPrivacyPolicy.IMPORT_SOURCE_PSEUDONYMITY_KEY),
-                    metaValue(dataMetas, ExportPrivacyPolicy.IMPORT_SOURCE_PRIVACY_INCLUDED_KEY));
-        }
-        if (ingest == null) {
-            return SourcePrivacyMeta.NONE;
-        }
-        return SourcePrivacyMeta.ofIngest(
-                ingest.getSrcAnonyInclYn(), ingest.getSrcPsdoInclYn(), ingest.getSrcPrvcInclYn());
-    }
-
-    /** 메타 열쇠 하나의 값 — {@code (RAW_SN, META_KEY)} 가 유일이라 최대 1건이다. blank 는 미보관. */
-    private static String metaValue(List<LsDataMeta> dataMetas, String metaKey) {
-        if (dataMetas == null) {
-            return null;
-        }
-        for (LsDataMeta meta : dataMetas) {
-            if (meta != null && metaKey.equals(meta.getMetaKey())) {
-                String value = meta.getMetaVl();
-                return (value == null || value.isBlank()) ? null : value.trim();
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 동결 event_annotation payload(jsonb 원문 문자열)를 {@link JsonNode} 로 파싱한다 — 각 프레임 문서에
-     * 최상위 {@code event_annotation} 으로 pass-through(키 순서·형태 보존)하기 위함이다.
-     *
-     * <p>null/blank 면 null(동결 대상 없음). 파싱 실패는 산출을 깨지 않도록 null 로 fail-secure 처리하고
-     * rawSn 만 로깅한다(payload 원문/PII 미출력, CWE-359/117). 동결본은 저장 전 검증된 jsonb 이므로
-     * 정상 경로에서는 항상 파싱된다.
-     */
-    private JsonNode parseEventAnnotation(String evntAnnoCn, long rawSn) {
-        if (evntAnnoCn == null || evntAnnoCn.isBlank()) {
-            return null;
-        }
-        try {
-            return objectMapper.readTree(evntAnnoCn);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            log.warn("[DatasetExport] frozen event_annotation parse failed — omitted rawSn={}", rawSn);
-            return null;
-        }
-    }
-
-    /** 라벨에서 참조된 라벨 마스터(categories 원천)를 distinct labelId 로 일괄 로드. */
-    private List<LsLabel> loadUsedLabels(List<LsDataLbl> labels) {
-        Set<Long> ids = new LinkedHashSet<>();
-        for (LsDataLbl l : labels) {
-            if (l.getLabelId() != null) {
-                ids.add(l.getLabelId());
-            }
-        }
-        if (ids.isEmpty()) {
-            return List.of();
-        }
-        return labelMasterRepository.findAllById(ids);
-    }
 }
