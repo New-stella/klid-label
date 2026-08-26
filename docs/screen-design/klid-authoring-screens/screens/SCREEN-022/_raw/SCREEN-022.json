@@ -360,8 +360,8 @@
           "surface": "page",
           "sections": [],
           "description": "",
-          "source_hash": "9a093fda22e750e1d9beefc93aaf33b265dc613905447fc68b21745fcf78e6d1",
-          "generated_at": "2026-08-18T03:19:11.259Z",
+          "source_hash": "a222df81bd629d88657f5b74a99598f6d9c561407d02f7505d14fab3201e9c36",
+          "generated_at": "2026-08-26T01:08:06.218Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -376,12 +376,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 40,
+    "current_version": 41,
     "stale": true,
     "stale_reason": "API-042의 data.implementation 변경 — consumes",
-    "change_summary": "증강 요청 거부 목록에 외부 미연동 거부를 넣고 판정 순서를 바로잡는다 — 그 거부가 앞에 있어 미연동 환경에서는 뒤의 셋이 나타나지 않는다.",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (17.9KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:26:58.905Z",
+    "last_updated_at": "2026-08-26T01:08:06.219Z",
     "created_at": "2026-05-30T07:55:24.621Z"
   }
 }

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-08-25T10:53:49.278Z",
+  "synced_at": "2026-08-26T01:10:54.791Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 60,
+  "count": 62,
   "items": {
     "AC-041": {
       "type": "acceptance",
@@ -228,11 +228,23 @@
       "version": 15,
       "content_hash": "e0b6c2a3a322ac8392790b76055bf8976d577134d85faeed5612a733da10e7ac"
     },
+    "EXTSYS-007": {
+      "type": "external_system",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "bedb3e1931bd13cdbb06c7863eb5e100238468e7cb6937d5b888cf6077f053b3"
+    },
     "FEAT-010": {
       "type": "feature",
       "domain_id": "DOMAIN-017",
       "version": 4,
       "content_hash": "41e8dc5896395e87d08003ea8f49dcadf013b141ddb06270fca70dcf5c9d1113"
+    },
+    "INT-012": {
+      "type": "integration_point",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "0ea4581ae3c076c7c26af206d87dab82df6c0bc99b5d46debf846fbaf68ad1ca"
     },
     "NFR-008": {
       "type": "nfr",

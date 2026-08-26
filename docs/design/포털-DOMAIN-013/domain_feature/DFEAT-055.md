@@ -1,18 +1,19 @@
 ---
 logicraft_item: DFEAT-055
 type: domain_feature
-version: 5
+version: 6
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:12.903Z
+synced_at: 2026-08-26T01:11:10.804Z
 status: CHANGED
 prev_version: 5
 content_hash: 0ba020ed1f152cfe4b133f74281b2e34f1fa112ff80229af51923df19941671c
-stale: true
+stale: false
 raw: ./_raw/DFEAT-055.json
 links:
+  based_on: ["[[ADR-013]]"]
   belongs_to_domain: ["[[DOMAIN-013]]"]
-  implements: ["[[API-115]]", "[[API-140]]", "[[API-142]]", "[[API-203]]"]
+  implements: ["[[API-115]]", "[[API-140]]", "[[API-142]]", "[[API-203]]", "[[IMPREC-008]]"]
 ---
 
 # 포털 작업 데이터 보존기간 만료 자동 삭제 (데이터마트·업로드 공통)

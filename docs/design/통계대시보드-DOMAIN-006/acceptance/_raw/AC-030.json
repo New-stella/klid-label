@@ -48,12 +48,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-033의 data.postconditions 변경 — derived_from",
-    "change_summary": "UC-033 의 이벤트 유형 분포 축을 검증하는 AC 로 신설한다. 표시명이 같은 상세 유형코드가 대표코드 한 칸으로 합산되고, 비수집·제외 대분류 코드가 집계에서 빠지는지를 검증한다.",
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 UC-033 v3 의 변경은 확정 기준 집계에서 폐기 프레임을 빼는 축이고, 이 수용기준의 축은 표시명이 같은 상세 유형코드를 대표코드 한 칸으로 합산하는 것이라 겹치지 않아 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T00:25:51.237Z",
+    "last_updated_at": "2026-08-26T00:41:13.577Z",
     "created_at": "2026-08-17T00:25:51.237Z"
   }
 }

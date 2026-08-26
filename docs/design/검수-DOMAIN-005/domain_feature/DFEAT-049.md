@@ -1,16 +1,17 @@
 ---
 logicraft_item: DFEAT-049
 type: domain_feature
-version: 7
+version: 8
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:14.285Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-26T01:11:03.598Z
+status: CHANGED
+prev_version: 7
 content_hash: fb187a6a43f8f346a3f545c88427b2b3aaa1cbf3b4ceb170835de98cb7274cf2
 stale: false
 raw: ./_raw/DFEAT-049.json
 links:
+  based_on: ["[[ADR-015]]"]
   belongs_to_domain: ["[[DOMAIN-005]]"]
   implements: ["[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]"]
 ---

@@ -1,18 +1,19 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 20
+version: 22
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-18T01:47:06.560Z
+synced_at: 2026-08-26T01:11:10.826Z
 status: CHANGED
-prev_version: 17
+prev_version: 20
 content_hash: 3e022070cb76654502aad1058728288d5c74c56e48f1762b585f2b2459b4ed4e
-stale: true
+stale: false
 raw: ./_raw/SCREEN-028.json
 links:
   belongs_to_domain: ["[[DOMAIN-013]]"]
   consumes: ["[[API-115]]", "[[API-203]]"]
+  implements: ["[[IMPREC-023]]"]
   realizes: ["[[UC-024]]"]
   references: ["[[API-115]]", "[[API-203]]"]
   requires: ["[[ROLE-003]]"]

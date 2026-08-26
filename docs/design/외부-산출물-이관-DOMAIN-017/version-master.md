@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-25T10:53:49.278Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 58 |
+| Last sync | 2026-08-26T01:10:54.791Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 62 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-017 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 2건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,8 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-052]]
-- NEW [[ADR-053]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -60,8 +60,8 @@
 | [[AC-054]] | acceptance | 3 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-048]] | adr | 5 | UNCHANGED |
-| [[ADR-052]] | adr | 2 | NEW |
-| [[ADR-053]] | adr | 1 | NEW |
+| [[ADR-052]] | adr | 2 | UNCHANGED |
+| [[ADR-053]] | adr | 1 | UNCHANGED |
 | [[API-205]] | api_endpoint | 8 | UNCHANGED |
 | [[API-206]] | api_endpoint | 10 | UNCHANGED |
 | [[API-207]] | api_endpoint | 7 | UNCHANGED |
@@ -82,7 +82,9 @@
 | [[ERD-025]] | erd | 4 | UNCHANGED |
 | [[ERD-031]] | erd | 15 | UNCHANGED |
 | [[EVT-005]] | domain_event | 5 | UNCHANGED |
+| [[EXTSYS-007]] | external_system | 1 | UNCHANGED |
 | [[FEAT-010]] | feature | 4 | UNCHANGED |
+| [[INT-012]] | integration_point | 2 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |

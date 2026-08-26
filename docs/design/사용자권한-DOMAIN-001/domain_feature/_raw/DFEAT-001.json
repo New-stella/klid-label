@@ -54,12 +54,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "API-007의 data.request_body 변경 — implements",
-    "change_summary": "COV-007/STL-008: 형제 DFEAT-002/003 이 2026-08-04 REAL-DRIFT 로 갱신됐는데 이 건만 2026-05-30 1차 baseline 2문장에 정지돼 있었다. ADR-012(채널별 배포+동일origin 스토리지 공유)·ADR-039(dev 로그인 fail-closed 토글)·ADR-043(역할 클레임 시 사용자 자동등록) 을 반영해 재작성했다. LINK-002: API-006(GET /v1/me, 설명이 '독립 로그인 없이 JWT 인계' 그대로 DFEAT-001 주제) · API-007(POST /v1/auth/role-claim, SCREEN-002.decided_by=ADR-012 로 이 DFEAT 와 같은 축) · API-153(POST /v1/dev/tokens, 운영 JWT 인계 흐름의 dev 대체) 를 implemented_by_endpoints 로 배선. SCH-002/LINK-008: persists_in_tables 를 코드 실측(RoleClaimService/JdbcRoleClaimAttemptStore 가 LS_ACNT_USER·LS_AUTHRT_GRANT_ATMPT 를 쓴다)으로 채움 — ERD-001(1차, deprecated)이 아닌 실제 2차 테이블.",
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 API-007 v7 의 변경은 성공 조건이 역할 미보유자뿐이고 표에 나열된 역할은 전부 거절 조건이라는 반전을 본문에 명시한 것이다. 이 기능은 인증은 됐으나 역할 클레임이 비어 있을 때 역할 클레임 화면으로 진입한다고 이미 적고 있어 같은 사실을 담고 있고 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:58:00.758Z",
+    "last_updated_at": "2026-08-26T00:41:11.687Z",
     "created_at": "2026-05-29T06:26:39.200Z"
   }
 }

@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 46
-last_updated_at: 2026-08-18T06:43:54.352Z
+version: 47
+last_updated_at: 2026-08-26T01:08:05.957Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:02.644Z
-sync_session: 9
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-26T01:11:16.485Z
+sync_session: 12
+stale: true
+status: CHANGED
+prev_version: 46
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-029]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v46 → v47**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
@@ -853,8 +857,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: a9f41819b27545a12bdb91faddd79aafcb1d5f2011722629336112497e2357f6
-- **generated_at**: 2026-08-18T03:34:49.517Z
+- **source_hash**: e67d28231829cdbfaaa160e10eaebd9ef3af3c75fdf796eccbdfabd83213d832
+- **generated_at**: 2026-08-26T01:08:05.956Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

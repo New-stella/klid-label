@@ -4,7 +4,7 @@
   "domain": "DOMAIN-010",
   "decided_by": "llm",
   "decided_at": "2026-08-25T10:53:32.383789Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건)",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건",
   "items": [
     "AC-007",
     "AC-008",
@@ -189,6 +189,21 @@
     "UC-034"
   ],
   "pending": [
+    "SHELL-001",
+    "MOD-006",
+    "MOD-007",
+    "MOD-008",
+    "MOD-010",
+    "MOD-021",
+    "MOD-028",
+    "MOD-031",
+    "MOD-032",
+    "MOD-033",
+    "MOD-043",
+    "MOD-047",
+    "IMPREC-003",
+    "IMPREC-021",
+    "IMPREC-084",
     "LEGACY-004",
     "LEGACY-017",
     "LEGACY-054",
@@ -198,7 +213,8 @@
     "LEGACY-065",
     "LEGACY-068",
     "LEGACY-070",
-    "LEGACY-072"
+    "LEGACY-072",
+    "NAV-001"
   ],
-  "last_sync_at": "2026-08-25T10:53:45.615Z"
+  "last_sync_at": "2026-08-26T01:11:06.915Z"
 }

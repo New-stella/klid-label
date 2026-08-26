@@ -8,17 +8,17 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-21T09:19:02.280Z (session 9) |
+| last sync | 2026-08-26T01:11:14.450Z (session 12) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-009]] | 영상 상세 화면 | CHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
@@ -52,11 +52,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-051]] | acceptance | NEW |
-| [[API-043]] | api_endpoint | CHANGED (v16→v16) |
-| [[API-198]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-201]] | api_endpoint | CHANGED (v8→v8) |
-| [[SCREEN-009]] | screen_spec | CHANGED (v53→v53) |
+| [[API-112]] | api_endpoint | CHANGED (v4→v5) |
 
 ## Obsidian 볼트로 보기
 

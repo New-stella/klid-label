@@ -34,7 +34,7 @@
             <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <span class="wf-badge">중요</span><span class="wf-help">notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '중요'.</span>
+            <span class="wf-badge">고정</span><span class="wf-help">notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '고정'.</span>
             <span class="wf-badge">발행 / 작성중</span><span class="wf-help">REVIEWER 한정. pubStatus PUBLISHED→'발행'(green), DRAFT→'작성중'(gray)</span>
             <span class="wf-bold">공지 제목</span><span class="wf-help">h1</span>
             <div class="wf-stack"><div class="wf-row"><span class="wf-muted">게시 메타</span><span>···</span></div></div><span class="wf-help">조건부 표시: 작성자(writerName, 없으면 regId 폴백)·등록=regDt·수정=mdfcnDt(있을 때). 날짜·시각 형식으로 표시. — 발행일시(pubDt)는 API 응답에는 있으나 화면에 렌더되지 않는다.</span>
@@ -116,8 +116,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 게시글 본문</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상세 조회(API-096) 결과를 카드로 렌더. 헤더: 중요 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Badge(중요)<p class="wf-help" style="margin:2px 0 0">notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '중요'.</p></li><li>Badge(발행 / 작성중)<p class="wf-help" style="margin:2px 0 0">REVIEWER 한정. pubStatus PUBLISHED→'발행'(green), DRAFT→'작성중'(gray)</p></li><li>Heading(공지 제목) · binds notice.title<p class="wf-help" style="margin:2px 0 0">h1</p></li><li>KeyValue(게시 메타)<p class="wf-help" style="margin:2px 0 0">조건부 표시: 작성자(writerName, 없으면 regId 폴백)·등록=regDt·수정=mdfcnDt(있을 때). 날짜·시각 형식으로 표시. — 발행일시(pubDt)는 API 응답에는 있으나 화면에 렌더되지 않는다.</p></li><li>Text(본문) · binds notice.content<p class="wf-help" style="margin:2px 0 0">줄바꿈과 긴 단어를 그대로 보존해 표시</p></li><li>Skeleton(로딩 placeholder) · loading<p class="wf-help" style="margin:2px 0 0">isLoading 시 제목+본문 스켈레톤</p></li><li>Alert(공지를 불러올 수 없습니다) · error<p class="wf-help" style="margin:2px 0 0">ErrorState — error || !notice 시 표시 + 목록으로 버튼</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>상세 조회(API-096) 결과를 카드로 렌더. 헤더: 고정 배지(pinned), 발행상태 배지(REVIEWER 한정 — PUBLISHED→'발행', DRAFT→'작성중'), 제목 heading, 메타(작성자 writerName→regId 폴백/등록 regDt/수정 mdfcnDt — 조건부). 본문은 줄바꿈·긴 단어를 보존해 표시. 로딩 시 Skeleton, 오류/미존재 시 ErrorState.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Badge(고정)<p class="wf-help" style="margin:2px 0 0">notice.pinned 일 때만 노출. Pin 아이콘. amber. 텍스트 '고정'.</p></li><li>Badge(발행 / 작성중)<p class="wf-help" style="margin:2px 0 0">REVIEWER 한정. pubStatus PUBLISHED→'발행'(green), DRAFT→'작성중'(gray)</p></li><li>Heading(공지 제목) · binds notice.title<p class="wf-help" style="margin:2px 0 0">h1</p></li><li>KeyValue(게시 메타)<p class="wf-help" style="margin:2px 0 0">조건부 표시: 작성자(writerName, 없으면 regId 폴백)·등록=regDt·수정=mdfcnDt(있을 때). 날짜·시각 형식으로 표시. — 발행일시(pubDt)는 API 응답에는 있으나 화면에 렌더되지 않는다.</p></li><li>Text(본문) · binds notice.content<p class="wf-help" style="margin:2px 0 0">줄바꿈과 긴 단어를 그대로 보존해 표시</p></li><li>Skeleton(로딩 placeholder) · loading<p class="wf-help" style="margin:2px 0 0">isLoading 시 제목+본문 스켈레톤</p></li><li>Alert(공지를 불러올 수 없습니다) · error<p class="wf-help" style="margin:2px 0 0">ErrorState — error || !notice 시 표시 + 목록으로 버튼</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-096</li></ul></div>
     </div>
   </div>

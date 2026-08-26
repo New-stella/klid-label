@@ -75,12 +75,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
-    "stale": true,
-    "stale_reason": "REQ-015의 data.constraints 변경 — implements",
-    "change_summary": "연결 ITEM 의 소속 도메인이 바뀐 데 따른 재확인. 바뀐 것은 그 문서가 어느 도메인에 속하는지라는 분류이고 이 문서가 참조하는 결정·계약의 내용은 그대로다. 이 문서에는 도메인을 이어받아 저장해 두는 필드가 없어 재계산할 값도 없음을 확인했다. 본문은 바꾸지 않는다.",
+    "current_version": 10,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 REQ-015 v9 의 변경은 제약 문구에서 문서 편집 경위를 걷어낸 편집이고 원문이 지목한 위치와 실제 설정 위치가 다르다는 괴리 자체는 그대로 남는다. 이 문서의 축은 외부 솔루션 위탁으로 비식별을 수행하는 상위 기능 서술이고, 위탁 경계와 옵션 보유 범위는 그 편집과 무관해 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T10:07:08.769Z",
+    "last_updated_at": "2026-08-26T00:38:56.802Z",
     "created_at": "2026-05-29T04:31:27.387Z"
   }
 }

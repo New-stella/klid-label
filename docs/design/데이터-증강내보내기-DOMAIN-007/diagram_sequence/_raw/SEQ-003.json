@@ -39,12 +39,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다.",
+    "change_summary": "전파 확인만 기록한다 — 원천 INT-006 v11 의 변경은 콜백 계약을 새 연동 판에 맞춘 것이고, 이 흐름은 종료 한 번의 발사와 취소 도착을 이미 단계에 담고 있어 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:14:51.831Z",
+    "last_updated_at": "2026-08-26T00:41:13.119Z",
     "created_at": "2026-06-02T13:10:55.248Z"
   }
 }

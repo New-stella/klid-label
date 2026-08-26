@@ -41,12 +41,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-033의 data.postconditions 변경 — derived_from",
-    "change_summary": "UC-033 의 일별 진행률 축을 검증하는 AC 로 신설한다. 전체 구축 현황의 일별 작업량이 항상 30일치 0-채움으로 반환되는지를 검증한다.",
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 UC-033 v3 의 변경은 이미지와 프레임 분포 집계에서 폐기 프레임을 빼는 축이고, 이 수용기준의 축은 일별 작업량이 항상 삼십일치로 채워져 오름차순으로 오는가다. 두 축이 겹치지 않아 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T00:25:55.780Z",
+    "last_updated_at": "2026-08-26T00:41:13.828Z",
     "created_at": "2026-08-17T00:25:55.780Z"
   }
 }

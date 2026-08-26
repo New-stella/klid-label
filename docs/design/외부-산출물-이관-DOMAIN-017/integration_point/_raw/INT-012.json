@@ -1,0 +1,51 @@
+{
+  "item": {
+    "id": "INT-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "integration_point",
+    "title": "외부 어노테이션 산출물 폴더 반입",
+    "slug": "외부-어노테이션-산출물-폴더-반입",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "status": "active",
+      "protocol": "file_share",
+      "auth_type": "none",
+      "direction": "inbound",
+      "data_format": "other",
+      "description": "외부에서 라벨링이 끝난 산출물 폴더를 저작도구가 읽어 들여 학습데이터로 편입시키는 인입 경로다. 파일은 공유 저장소에 놓이고 저작도구가 그것을 당겨 온다 — 상대가 우리를 호출하는 구간은 없다.\n\n## 흐름\n1. 검수자가 관리 화면에 산출물 폴더 경로를 넣는다.\n2. 서버가 그 폴더를 훑어 무엇이 몇 건 들어오는지와 처리할 수 없는 항목이 무엇인지를 미리 보여준다. 이 단계에서는 아무것도 저장하지 않는다.\n3. 검수자가 확인하면 실제 적재가 일어나고, 적재된 영상은 곧바로 검수 대기 상태가 된다.\n\n## 이 경로만의 예외 셋\n첫째, 영상 적재는 관제가 인입 원장에 넣고 저작도구가 그것을 가져가는 것이 원칙인데 이 경로는 그 원장을 거치지 않는다. 인입 원장은 관제가 보낸 것을 기록하는 자리라 저작도구가 스스로 넣으면 그 기록이 사실과 달라지기 때문이다. 둘째, 비식별 처리는 모든 영상의 첫 단계로 자동 수행되는데 이 산출물은 이미 처리가 끝난 상태로 오거나 원본 그대로 오며 어느 쪽인지는 가져올 때 사람이 지정한다. 셋째, 검수는 작업자가 라벨링을 마치고 제출한 것을 대상으로 하는데 이 경로에는 그 제출 단계가 없다.\n\n## 분류 대응\n외부 산출물의 분류 이름은 저작도구의 라벨 체계와 다르므로 그 대응을 한 번 정해 두고 재사용한다. 처음 보는 분류가 나오면 이름이 비슷한 후보를 제시하고 사람이 확인해 확정하며, 확정되지 않은 분류가 남아 있으면 적재하지 않는다. 이름만 보고 짐작해 연결하면 다른 분류로 저장되고 저장된 뒤에는 어느 것이 짐작이었는지 구분할 수 없기 때문이다.\n\n## 중복 반입 차단\n언제 누가 어떤 폴더를 가져왔고 몇 건이 들어왔는지를 이력으로 남기고, 같은 산출물을 두 번 가져오려 하면 그 이력을 근거로 거부한다.",
+      "idempotency": true,
+      "retry_policy": "자동 재시도를 두지 않는다. 미리보기에서 처리할 수 없는 항목을 먼저 드러내고 사람이 확인한 뒤 적재하며, 실패하면 같은 경로로 다시 시도한다.",
+      "triggers_apis": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "pii_in_payload": true,
+      "related_events": [],
+      "spec_artifacts": [],
+      "transport_meta": {
+        "notes": "공유 저장소에 놓인 폴더를 사람이 경로로 지정하면 서버가 읽는다. 요청·응답이 오가는 통신 규약이 아니라 파일 반입이다. 한 영상 분량이 폴더 하나이며 그 안에 프레임 이미지와 짝을 이루는 문서가 들어 있다."
+      },
+      "external_system": "EXTSYS-007",
+      "invoked_by_apis": [],
+      "used_by_domains": [
+        "DOMAIN-017"
+      ],
+      "endpoints_per_env": [],
+      "referenced_in_sequences": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "link domain DOMAIN-017 (link_integration_to_domain)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T23:07:30.522Z",
+    "created_at": "2026-08-23T23:07:30.444Z"
+  }
+}

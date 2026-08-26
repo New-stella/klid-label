@@ -32,12 +32,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
-    "stale": true,
-    "stale_reason": "SCREEN-023의 data.sections 변경 — designs",
-    "change_summary": "증강 결과 화면 정의가 시안에 맞춰졌음을 확인했다. 구간 순서와 빵부스러기 표기가 어긋나 있었는데 시안 쪽이 옳아 정의를 고쳤고, 이 디자인은 그대로 유효하다.",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 SCREEN-023 v41 의 이번 변경은 정적 와이어프레임을 자동 생성한 것이라 화면 사양 자체가 달라지지 않았다. 이 문서는 그 화면의 고충실 시안이고, 시안이 표현하는 구성과 상태는 그대로라 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T05:06:55.464Z",
+    "last_updated_at": "2026-08-26T00:38:58.180Z",
     "created_at": "2026-08-14T00:18:54.196Z"
   }
 }

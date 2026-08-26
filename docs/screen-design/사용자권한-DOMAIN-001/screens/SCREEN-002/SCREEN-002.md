@@ -2,11 +2,11 @@
 logicraft_item: SCREEN-002
 type: screen_spec
 version: 17
-last_updated_at: 2026-08-16T12:43:57.924Z
+last_updated_at: 2026-08-25T01:21:32.912Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:03.060Z
-sync_session: 8
+synced_at: 2026-08-26T01:11:13.959Z
+sync_session: 12
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -224,7 +224,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-105
 
 ### progress
 
@@ -233,6 +233,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-25T01:21:32.912Z
 
 ## required_roles
 
