@@ -5,10 +5,10 @@ version: 100
 last_updated_at: 2026-08-25T10:21:57.263Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:06:14.218Z
-sync_session: 27
+synced_at: 2026-08-26T06:34:35.935Z
+sync_session: 28
 stale: true
-status: NEW
+status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html

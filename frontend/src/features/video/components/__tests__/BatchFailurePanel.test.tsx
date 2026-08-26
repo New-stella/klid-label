@@ -441,6 +441,70 @@ describe('BatchFailurePanel', () => {
       // hasBatchFailure 는 "기록이 있는가" 축이고 모드는 "무엇을 말할 것인가" 축이다.
       expect(hasBatchFailure({ stages: [], batchFailureReason: '외부 오류' })).toBe(true);
     });
+
+    // ★★ 이번 결함의 본체 — 건너뛴 것이 하나도 없는데 「건너뛴 작업 있음」이라 말하고 있었다.
+    //   `skippedStages=[]` + `clearedStages` 만 있는 조합의 분기가 없어 마지막 else 로 떨어졌다.
+    //   같은 종류의 거짓을 이 저장소가 이미 `bundleFailure` 로 한 번 갈랐고, 이건 그 연장이다.
+    it('★해제된_묶음만_남았으면_건너뛴_작업이라고_말하지_않는다', () => {
+      expect(
+        batchPanelMode({
+          ...base,
+          status: 'COMPLETED',
+          batchFailureReason: null,
+          skippedStages: [],
+          clearedStages: ['VLM'],
+        }),
+      ).toBe('cleared');
+    });
+
+    // ★ 스킵과 해제가 **동시에** 있는 상태는 실재한다(시계열은 스킵, 오토라벨은 해제).
+    //   그때 「해제됨」이라 말하면 **정반대 방향의 같은 거짓**이 되므로 스킵이 이긴다.
+    it('★스킵과_해제가_함께_있으면_스킵이_이긴다_반대_방향의_같은_거짓을_막는다', () => {
+      expect(
+        batchPanelMode({
+          ...base,
+          status: 'COMPLETED',
+          batchFailureReason: null,
+          skippedStages: ['VLM'],
+          clearedStages: ['AUTOLABEL'],
+        }),
+      ).toBe('skipped');
+    });
+
+    // ★ 앞선 세 분기의 조건·순서는 글자 그대로 그대로다 — 해제 축이 그것들을 앞지르지 않는다.
+    it('★해제가_있어도_처리_중_실패_묶음실패가_먼저다_앞_분기_불변', () => {
+      const withCleared = { ...base, clearedStages: ['VLM'] as StageBundle[] };
+      expect(
+        batchPanelMode({ ...withCleared, status: 'PROCESSING', batchFailureReason: null }),
+      ).toBe('processing');
+      expect(batchPanelMode({ ...withCleared, status: 'FAILED', batchFailureReason: '외부 오류' })).toBe(
+        'failure',
+      );
+      expect(
+        batchPanelMode({ ...withCleared, status: 'COMPLETED', batchFailureReason: '외부 오류' }),
+      ).toBe('lastFailure');
+      expect(
+        batchPanelMode({
+          ...withCleared,
+          status: 'COMPLETED',
+          batchFailureReason: null,
+          failedStages: ['AUTOLABEL'],
+        }),
+      ).toBe('bundleFailure');
+    });
+
+    // ★ 값을 못 내리는 구 응답(undefined)은 예전 동작 그대로다 — 새 분기가 삼키지 않는다.
+    it('★해제_목록을_못_내리는_구_응답은_예전처럼_스킵만이다', () => {
+      expect(
+        batchPanelMode({
+          ...base,
+          status: 'COMPLETED',
+          batchFailureReason: null,
+          skippedStages: ['VLM'],
+          clearedStages: undefined,
+        }),
+      ).toBe('skipped');
+    });
   });
 
   // ⚠ 구 이름 '건너뛰기는_실패한_단계가_속한_묶음에만_노출된다' → **폐기**(ADR-050). 판정 축이
@@ -747,6 +811,33 @@ describe('BatchFailurePanel', () => {
       expect(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` })).toBeInTheDocument();
     });
 
+    // ★★ 제목이 거짓을 말하던 결함의 렌더 가드. 이 영상은 건너뛴 것이 **하나도 없는데**
+    //   제목만 「건너뛴 작업 있음」이라 말하고 있었고, 같은 화면의 스킵 안내 문단은 나오지
+    //   않아 화면 자신이 이미 자기모순을 드러내고 있었다.
+    it('★해제만_남은_영상의_제목은_건너뛰기_해제됨이다', () => {
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      expect(screen.getByRole('heading', { name: /건너뛰기 해제됨/ })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /건너뛴 작업 있음/ })).not.toBeInTheDocument();
+      // 스킵 안내 문단은 여전히 나오지 않는다(건너뛴 묶음이 없다) — 제목이 그 사실과 맞춰졌다.
+      expect(screen.queryByTestId('batch-skipped-note')).not.toBeInTheDocument();
+      // ★ 모드는 제목만 가른다 — 행·재수행 창구는 그대로다.
+      expect(screen.getByTestId('batch-stage-reverted-VLM')).toHaveTextContent('해제됨');
+      expect(screen.getAllByRole('button', { name: /작업 재수행$/ })).toHaveLength(1);
+    });
+
+    // ★ 스킵이 남아 있으면 「건너뛴 작업 있음」이 이긴다 — 렌더 축에서도 고정한다.
+    it('★스킵이_하나라도_남으면_제목은_건너뛴_작업_있음_그대로다', () => {
+      renderWithProviders(
+        <BatchFailurePanel
+          video={cleared('AUTOLABEL', { skippedStages: ['VLM'] })}
+        />,
+      );
+
+      expect(screen.getByRole('heading', { name: /건너뛴 작업 있음/ })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /건너뛰기 해제됨/ })).not.toBeInTheDocument();
+    });
+
     // ★★ HIGH — 이번 변경의 존재 이유. 구 배선(로컬 기억)에서는 이 순간 버튼이 사라졌다.
     it('★이탈했다_다시_들어와도_재수행_버튼이_남는다_서버가_기억한다', () => {
       const view = renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
@@ -990,5 +1081,98 @@ describe('BatchFailurePanel', () => {
 
     // 색각 이상·grayscale 에서도 실패임을 알 수 있어야 한다.
     expect(screen.getByRole('heading', { name: /배치 처리 실패/ })).toBeInTheDocument();
+  });
+
+  /**
+   * ★ 상태 표시(배지)와 조작(버튼)은 **서로 다른 시각 요소**여야 한다. [@design UI-111]
+   *
+   * 사용자가 「해제됨」 표식과 「재수행」 버튼을 **버튼 두 개로 읽었다**(실제 신고). 원인은
+   * 배지가 공용 배지 체계를 타지 않고 그 자리에서 `rounded border border-gray-300 bg-white`
+   * 알약을 만들어, 같은 행의 보조 버튼(secondary sm — 흰 배경 + 회색 테두리 알약)과 **시각
+   * 언어가 같았기** 때문이다. 공용 배지는 테두리 없는 톤 배경 + 완전 둥근 모서리다.
+   *
+   * ⚠ 표시 **조건**은 이 라운드에서 바뀌지 않았다 — 바뀐 것은 생김새뿐이라 아래는 형태만 본다.
+   */
+  describe('상태 표시와 조작 버튼은 시각적으로 갈린다', () => {
+    /**
+     * 세 표식이 **한 화면에 모두** 뜨는 영상 — 오토라벨은 건너뜀, 시계열은 해제 + 실패.
+     *
+     * ★ 시계열에 해제와 실패를 함께 실은 것은 억지 조합이 아니라 **재수행이 실패해 영상이 완주로
+     *   원상 복구된 상태**다(재수행이 해제 표식을 자동으로 남기므로 해제와 실패가 공존한다).
+     *   묶음이 둘뿐이라 이렇게 겹치지 않으면 세 표식을 한 렌더에 세울 수 없다.
+     *
+     * ⚠ 구 픽스처는 `clearedStages: []` 라 **「해제됨」 배지가 한 번도 렌더되지 않았다.** 그래서
+     *   아래 형태 가드 셋이 그 배지를 통과시켰고, 그 배지만 구 인라인 알약으로 되돌려도 전건이
+     *   그린이었다(mutation 실증). **하필 사용자가 「재수행」 버튼과 함께 버튼 두 개로 오인한 것이
+     *   바로 그 배지**이며 이번 변경의 출발점이었는데, 정작 그것만 가드 밖에 있었다.
+     */
+    const allMarks = () =>
+      videoOf({
+        stages: stages({}),
+        batchFailureReason: null,
+        // 건너뜀 표식
+        skippedStages: ['AUTOLABEL'],
+        // 해제됨 표식 — 재수행이 남긴 자동 해제
+        clearedStages: ['VLM'],
+        // 실패 표식 — 그 재수행이 실패했다(해제와 공존하는 실제 상태)
+        failedStages: ['VLM'],
+      });
+
+    /** 형태 가드가 **빠짐없이** 훑어야 하는 배지 — 세 종류 전부. 하나라도 빼면 그것만 되돌아간다. */
+    const MARK_TEST_IDS = [
+      'batch-stage-skipped-AUTOLABEL',
+      'batch-stage-reverted-VLM',
+      'batch-stage-failed-VLM',
+    ] as const;
+
+    it('★표식은_버튼이_아니다_조작으로_오인되지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={allMarks()} />);
+
+      for (const testId of MARK_TEST_IDS) {
+        const mark = screen.getByTestId(testId);
+        expect(mark.tagName, `${testId} 는 버튼이 아니어야 한다`).toBe('SPAN');
+        expect(mark.closest('button'), `${testId} 가 버튼 안에 들어가면 조작으로 읽힌다`).toBeNull();
+      }
+      // 같은 행의 조작은 진짜 버튼이다 — 두 축이 서로 다른 요소로 렌더된다.
+      expect(screen.getByRole('button', { name: /작업 건너뛰기$/ }).tagName).toBe('BUTTON');
+      // ⚠ 재수행 창구는 건너뛴 적이 있는 묶음마다 하나씩이라 이 픽스처에서는 둘이다(건너뜀·해제).
+      const reruns = screen.getAllByRole('button', { name: /작업 재수행$/ });
+      expect(reruns).toHaveLength(2);
+      for (const btn of reruns) expect(btn.tagName).toBe('BUTTON');
+    });
+
+    // ★ 형태 자체를 고정한다 — 인라인으로 흰 배경 + 회색 테두리 알약을 다시 만들면 여기서 깨진다.
+    it('★표식은_공용_배지_형태다_흰배경_회색테두리_알약을_다시_만들지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={allMarks()} />);
+
+      for (const testId of MARK_TEST_IDS) {
+        const cls = screen.getByTestId(testId).className;
+        expect(cls, `${testId} 는 완전 둥근 모서리여야 한다`).toContain('rounded-full');
+        expect(cls, `${testId} 에 테두리를 두르면 보조 버튼과 형태가 같아진다`).not.toMatch(
+          /\bborder\b/,
+        );
+        expect(cls, `${testId} 는 흰 배경이 아니라 톤 배경이어야 한다`).not.toContain('bg-white');
+      }
+    });
+
+    // ★ 실패는 건너뜀·해제와 **다른 것을 말한다** — 같은 중립 톤으로 뭉뚱그리지 않는다.
+    //   다만 색만으로 전달하지 않도록 문구가 항상 함께 있다(UI-111 의 label 필수 계약).
+    it('★실패_표식만_위험_계열이고_문구가_항상_함께_있다', () => {
+      renderWithProviders(<BatchFailurePanel video={allMarks()} />);
+
+      const failed = screen.getByTestId('batch-stage-failed-VLM');
+      expect(failed).toHaveTextContent('실패');
+      expect(failed.className).toContain('bg-danger-50');
+      expect(failed.className).toContain('text-danger-700');
+
+      // 나머지 둘은 중립 톤이며 각자의 문구를 항상 함께 둔다.
+      const skipped = screen.getByTestId('batch-stage-skipped-AUTOLABEL');
+      expect(skipped).toHaveTextContent('건너뜀');
+      expect(skipped.className).not.toContain('bg-danger-50');
+
+      const reverted = screen.getByTestId('batch-stage-reverted-VLM');
+      expect(reverted).toHaveTextContent('해제됨');
+      expect(reverted.className).not.toContain('bg-danger-50');
+    });
   });
 });

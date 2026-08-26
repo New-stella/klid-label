@@ -79,6 +79,14 @@ public class VideoQueryService {
     private final VideoFpsResolver fpsResolver;
 
     /**
+     * 영상 해상도 표시값 조달 — {@code LS_DATA_META} 의 {@code video.resolution}. [@design API-043]
+     *
+     * <p>{@link VideoFpsResolver} 와 같은 계층·같은 모양이며, 미상 시 <b>폴백 없이 {@code null}</b>
+     * 이다(표시 전용 값이라 지어내면 안 된다 — 그 판정은 조달기 javadoc 참조).
+     */
+    private final VideoResolutionResolver resolutionResolver;
+
+    /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
      * 모두 20자 이하. 상한 초과 입력은 즉시 차단해 의도 외 query 부하/탐색 방지.
      * 파라미터 바인딩으로 SQL Injection 자체는 차단되지만, 입력 검증 차원의 1차 가드.
@@ -655,11 +663,16 @@ public class VideoQueryService {
         //   ★ stages 로 대체 불가: 스킵된 묶음은 markStage 를 타지 않고 표식 행도 진행 조회에서 제외돼
         //     진행 축에 흔적이 없다. 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
         List<String> skippedStages = batchStatusService.manuallySkippedBundles(entity.getRawSn());
-        // [@design API-043] [@design ADR-050] 건너뛰기가 <b>해제된</b> 묶음 목록 — 위 목록의 뒷면이다.
+        // [@design API-043] [@design SCREEN-009] [@design AC-051] [@design ADR-050]
+        //   건너뛰기가 <b>해제됐고 아직 산출물이 없는</b> 묶음 목록 — 「지금 조치가 필요한 것」.
         //   ★ 이 필드가 없으면 한 번 재수행한 영상을 화면에서 다시 재수행할 수 없다: 재수행이 건너뜀
         //     표식을 스스로 풀면서 해제 표식을 남겨 그 묶음이 skippedStages 에서 빠지기 때문이다.
         //     화면은 두 목록의 <b>합집합</b>으로 재수행 버튼 노출을 정한다.
-        List<String> clearedStages = batchStatusService.clearedBundles(entity.getRawSn());
+        //   ★ 감사 축(clearedBundles)이 아니라 화면 축을 싣는다: 표식은 append-only 라 재수행이
+        //     성공해도 해제 표식이 계속 마지막이고, 그대로 실으면 재수행에 성공한 영상마다 배너가
+        //     영구 잔존한다. 산출물이 <없는> 해제 묶음은 그대로 남아 재수행 창구가 보존된다.
+        //   ★ 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
+        List<String> clearedStages = batchStatusService.clearedBundlesNeedingAction(entity.getRawSn());
         // [@design API-043] [@design ADR-050] <b>지금 실패한 상태인</b> 묶음 목록 — 건너뛰기·재수행 입구.
         //   ★ status·stages 로는 대체 불가: 시계열 위탁은 논블로킹이라 실패해도 예외가 위로 올라가지
         //     않아 배치 상태가 완료로 남고 단계 실패 표시도 서지 않는다. 이 필드가 없으면 위탁이 확정
@@ -676,10 +689,15 @@ public class VideoQueryService {
                 sourceMeta == null ? null : sourceMeta.getVrfcEvntTypeCd());
         List<VideoDetailResponse.VrfcEvntQuestionDto> vrfcEvntQuestions =
                 verificationEventQuestions(vrfcEvntTypeCd);
+        // [@design API-043] [@design SCREEN-009] 영상 해상도 — LS_DATA_META 의 video.resolution.
+        //   ★ LS_DATA_RAW 에는 해상도 컬럼이 없어 메타 테이블이 유일한 조달원이다. 미상이면 null 이며
+        //     서버가 대체 문자를 지어내지 않는다(표시는 화면의 몫 — fps 와 달리 계산 입력이 아니다).
+        String resolution = resolutionResolver.resolveResolution(entity.getRawSn());
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
                 stages, fps, deidentHistory(entity.getRawSn()),
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
-                skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions);
+                skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions,
+                resolution);
     }
 
     /**
