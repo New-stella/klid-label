@@ -4,7 +4,7 @@
   "domain": "DOMAIN-004",
   "decided_by": "llm",
   "decided_at": "2026-08-25T10:53:32.383789Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26 승격: ADR-029, ADR-030 — ADR-029(외부 HTTP 위탁 트랜잭션 무보유)는 추론 위탁 구간에, ADR-030(배치 스텝 트랜잭션 경계)은 오토라벨 배치 스텝에 걸리는 제약이다",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26 승격: ADR-029, ADR-030 — ADR-029(외부 HTTP 위탁 트랜잭션 무보유)는 추론 위탁 구간에, ADR-030(배치 스텝 트랜잭션 경계)은 오토라벨 배치 스텝에 걸리는 제약이다 | 2026-08-26(2회차) pending 판정: ADR-013 승격(Tier 2 ADR · ADR 필터 ① 그래프 상호참조) · 나머지 기각(제외 타입 — MOD·IMPREC·NAV·DEP/diagram_deployment)",
   "items": [
     "AC-004",
     "AC-005",
@@ -23,6 +23,7 @@
     "ADR-001",
     "ADR-003",
     "ADR-008",
+    "ADR-013",
     "ADR-019",
     "ADR-026",
     "ADR-029",
@@ -121,7 +122,8 @@
     "MOD-023",
     "MOD-041",
     "MOD-048",
+    "IMPREC-109",
     "NAV-001"
   ],
-  "last_sync_at": "2026-08-26T01:11:12.171Z"
+  "last_sync_at": "2026-08-26T04:03:02.061Z"
 }

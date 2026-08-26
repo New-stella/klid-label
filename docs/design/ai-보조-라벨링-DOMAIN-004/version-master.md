@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-26T01:11:12.169Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 107 |
+| Last sync | 2026-08-26T04:03:02.061Z |
+| Mode | SYNC — NEW 1 / CHANGED 5 / UNCHANGED 102 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-004 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 7건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 8건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 45건
-  ℹ️  api_endpoint: 이번 키트 25건 / 스코프 밖 174건
+  ℹ️  api_endpoint: 이번 키트 25건 / 스코프 밖 176건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 22건 (그중 domain_id 없음 11건)
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 30건
   ℹ️  use_case: 이번 키트 5건 / 스코프 밖 25건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 14건 / 스코프 밖 102건 (그중 domain_id 없음 31건)
+  ℹ️  acceptance: 이번 키트 14건 / 스코프 밖 103건 (그중 domain_id 없음 31건)
   ℹ️  constant: 이번 키트 1건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
-  ℹ️  adr: 이번 키트 18건 / 스코프 밖 31건 (그중 domain_id 없음 3건)
+  ℹ️  adr: 이번 키트 19건 / 스코프 밖 30건 (그중 domain_id 없음 3건)
   ℹ️  feature: 이번 키트 3건 / 스코프 밖 7건 (그중 domain_id 없음 6건)
 ```
 
@@ -41,7 +41,12 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- NEW [[ADR-013]]
+- CHANGED [[ADR-026]] (prev v4)
+- CHANGED [[ADR-039]] (prev v5)
+- CHANGED [[API-043]] (prev v17)
+- CHANGED [[ROLE-003]] (prev v7)
+- CHANGED [[SCREEN-027]] (prev v32)
 
 ## ITEM 표
 
@@ -64,13 +69,14 @@
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-008]] | adr | 3 | UNCHANGED |
+| [[ADR-013]] | adr | 10 | NEW |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
-| [[ADR-026]] | adr | 4 | UNCHANGED |
+| [[ADR-026]] | adr | 5 | CHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-031]] | adr | 2 | UNCHANGED |
 | [[ADR-035]] | adr | 3 | UNCHANGED |
-| [[ADR-039]] | adr | 5 | UNCHANGED |
+| [[ADR-039]] | adr | 6 | CHANGED |
 | [[ADR-040]] | adr | 2 | UNCHANGED |
 | [[ADR-041]] | adr | 4 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
@@ -80,7 +86,7 @@
 | [[ADR-053]] | adr | 1 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[API-020]] | api_endpoint | 14 | UNCHANGED |
-| [[API-043]] | api_endpoint | 17 | UNCHANGED |
+| [[API-043]] | api_endpoint | 18 | CHANGED |
 | [[API-065]] | api_endpoint | 21 | UNCHANGED |
 | [[API-093]] | api_endpoint | 14 | UNCHANGED |
 | [[API-113]] | api_endpoint | 3 | UNCHANGED |
@@ -139,10 +145,10 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | CHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
-| [[SCREEN-027]] | screen_spec | 32 | UNCHANGED |
+| [[SCREEN-027]] | screen_spec | 34 | CHANGED |
 | [[SD-033]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 9 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 7 | UNCHANGED |

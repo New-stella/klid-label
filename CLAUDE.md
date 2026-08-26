@@ -749,7 +749,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
-> 활성 15 도메인 전량 · last sync **2026-08-26** · 전건 무열화 검증 통과 · 서버 현재 버전과 **불일치 0건**(키트 ITEM 1,737건 직접 대조).
+> 활성 15 도메인 전량 · last sync **2026-08-26** · 전건 무열화 검증 통과 · 서버 현재 버전과 **불일치 0건**(키트 ITEM 1,739건 직접 대조). ⚠ **2026-08-26 2차 SYNC** — `ADR-013` v10 개정 라운드 반영으로 D013·D004 를 재동기화했고 양쪽 뒤처짐 **0**이다. 그 라운드에서 pin 에 **ADR 2건이 상호 승격**됐다(`ADR-026`→D013 · `ADR-013`→D004 — 두 결정이 서로를 근거로 인용한다).
 > 이날 세 가지를 함께 했다 — ① CO-014~CO-017 라운드 반영 ② 묵은 stale 전파 39건 판정·해소 ③ **어느 키트에도 없던 핵심 ITEM 6건 승격**.
 > **승격분**: `INTSPEC-003`(시계열 위탁 요청 규격 — D011·D014 본문이 이미 그 ID 를 참조하는데 ITEM 이 없어 **참조가 끊겨 있었다**. `INTSPEC-002` 선례와 동일) · `INT-011`(관제 영상 인입 픽업 → D003·D016) · `INT-012`+`EXTSYS-007`(외부 어노테이션 폴더 반입 → D017) · `ADR-029`(외부 HTTP 위탁 트랜잭션 무보유 → D004·D007·D011·D012·D016) · `ADR-030`(배치 스텝 트랜잭션 경계 → D003·D004·D011·D012).
 > **승격하지 않은 것**: `CNT-001`(C4 컨테이너 — 도메인 링크가 없어 Tier 3 조건 미충족) · `DEPLOY-001`(WAR 반입 명세 — 배포 형상 축) · `OSS-001`~`OSS-101`(**`core-item-set.md` 의 Tier 표에도 제외 목록에도 언급이 0건인 미분류 타입** — 판정이 선행돼야 한다).
@@ -760,7 +760,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 62 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 127 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 107 | implemented 41 / in_progress 1 / planned 35 / (미기재) 30 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 108 | implemented 41 / in_progress 1 / planned 35 / (미기재) 31 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
 | DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 97 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 44 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 73 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
@@ -768,7 +768,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 181 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 51 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 79 | implemented 27 / planned 31 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 80 | implemented 35 / in_progress 1 / verified 4 / planned 28 / (미기재) 12 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 81 | implemented 35 / in_progress 1 / verified 4 / planned 28 / (미기재) 13 | CONST 상수값, FEAT 상위 기능 |
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 72 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 60 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
