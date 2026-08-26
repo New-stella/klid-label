@@ -107,7 +107,23 @@ export function recordDeidentComplete(
 }
 
 /**
- * 이관 대상 폴더 탐색 — BE: GET /api/v1/imports/folders?path=.
+ * 탐색 두 창구의 질의 파라미터를 만든다.
+ *
+ * 값이 없는 축은 **키 자체를 싣지 않는다** — 빈 문자열을 실으면 「주지 않았다」가 아니라
+ * 「빈 자리에서 이어받아 달라」로 읽힐 여지가 생긴다.
+ */
+function browseParams(
+  path: string | null | undefined,
+  cursor: string | null | undefined,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (path) params.path = path;
+  if (cursor) params.cursor = cursor;
+  return params;
+}
+
+/**
+ * 이관 대상 폴더 탐색 — BE: GET /api/v1/imports/folders?path=&cursor=.
  *
  * `path` 를 생략하면 허용 저장소 루트 목록을 돌려받는다. 이 창구는 직접 입력을 **대신하지 않고
  * 함께 두는 보조 수단**이므로, 응답하지 않아도 사용자는 경로를 적어 검사할 수 있어야 한다.
@@ -115,24 +131,36 @@ export function recordDeidentComplete(
  * 허용 저장소 범위 판정은 검사·적재와 같은 규칙을 서버가 소유한다 — 화면이 허용 목록을 따로
  * 갖지 않는다(목록이 두 벌이 되면 한쪽만 넓어진다).
  *
+ * `cursor` 는 **이어받을 자리**다. 앞선 응답의 `nextCursor` 를 그대로 다시 준다. 주지 않으면
+ * 그 폴더의 처음부터 본다. 서버는 그 자리 **뒤부터** 이어 살펴보므로(배타) 준 이름 자체는
+ * 다시 담겨 오지 않는다.
+ *
  * @design API-221
  */
-export function listImportFolders(path?: string | null): Promise<ImportBrowseResult> {
+export function listImportFolders(
+  path?: string | null,
+  cursor?: string | null,
+): Promise<ImportBrowseResult> {
   return apiClient
-    .get<ImportBrowseResult>('/imports/folders', { params: path ? { path } : {} })
+    .get<ImportBrowseResult>('/imports/folders', { params: browseParams(path, cursor) })
     .then((r) => r.data);
 }
 
 /**
- * 이관 대상 영상 파일 탐색 — BE: GET /api/v1/imports/files?path=.
+ * 이관 대상 영상 파일 탐색 — BE: GET /api/v1/imports/files?path=&cursor=.
  *
  * `path` 는 필수다(루트 목록 조회가 없다). 폴더 탐색이 돌려준 값을 그대로 쓴다.
  * 돌아오는 것은 영상 파일뿐이라, 고른 값이 원본 영상 위치 판정을 통과하지 못하는 일이 없다.
  *
+ * `cursor` 의 뜻과 배타 규약은 폴더 축과 같다.
+ *
  * @design API-222
  */
-export function listImportVideoFiles(path: string): Promise<ImportBrowseResult> {
+export function listImportVideoFiles(
+  path: string,
+  cursor?: string | null,
+): Promise<ImportBrowseResult> {
   return apiClient
-    .get<ImportBrowseResult>('/imports/files', { params: { path } })
+    .get<ImportBrowseResult>('/imports/files', { params: browseParams(path, cursor) })
     .then((r) => r.data);
 }

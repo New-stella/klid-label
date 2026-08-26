@@ -28,6 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>같은 자리에 종류를 가르는 조건을 달아 동작을 바꾸지 않는다는 규약을 따른다. 한 창구에
  * {@code ?type=folder|file} 같은 갈래를 두면 그 자리가 무엇을 돌려주는지 요청을 봐야만 알 수 있다.
  *
+ * <h3>목록을 잘라 버리지 않고 나눠서 이어 준다</h3>
+ * <p>한 번의 요청은 정해진 수만큼만 담고 <b>이어받을 자리</b>를 함께 돌려준다. 화면은 그 값을 그대로
+ * 다시 실어 이어 받으며, 비어서 돌아오면 그 자리를 끝까지 본 것이다. <b>담은 것이 없어도 이어받을
+ * 자리가 올 수 있다</b> — 그때 끝난 것으로 보면 그 폴더의 나머지가 통째로 사라진다.
+ *
  * <h3>보조 수단이지 대체 수단이 아니다</h3>
  * <p>이 창구가 응답하지 않아도 검수자는 경로를 손으로 적어 검사를 요청할 수 있어야 한다. 그래서
  * 검사·적재는 이 창구에 의존하지 않고, 여기서 고른 값도 그쪽에서 다시 판정받는다.
@@ -63,21 +68,29 @@ public class ImportBrowseController {
 
     @Operation(summary = "이관 대상 폴더 탐색 (REVIEWER)",
             description = "허용 저장소 범위 안의 하위 폴더를 한 단계씩 돌려준다."
-                    + " 위치를 생략하면 허용 저장소 루트 목록을 돌려준다.")
+                    + " 위치를 생략하면 허용 저장소 루트 목록을 돌려준다."
+                    + " 한 번에 다 주지 않고 이어받을 자리(nextCursor)와 함께 나눠서 이어 준다.")
     @GetMapping("/folders")
     public ApiResponse<ImportBrowseResponse> folders(
             @Parameter(description = "탐색할 폴더 위치. 생략하면 허용 저장소 루트 목록.")
-            @RequestParam(name = "path", required = false) String path) {
-        return ApiResponse.ok(importBrowseService.listFolders(path));
+            @RequestParam(name = "path", required = false) String path,
+            @Parameter(description = "이어받을 자리. 앞선 응답의 nextCursor 를 그대로 준다."
+                    + " 주지 않으면 처음부터 본다. 이 이름 자체는 응답에 담기지 않는다.")
+            @RequestParam(name = "cursor", required = false) String cursor) {
+        return ApiResponse.ok(importBrowseService.listFolders(path, cursor));
     }
 
     @Operation(summary = "이관 대상 영상 파일 탐색 (REVIEWER)",
-            description = "지정한 폴더 안의 영상 파일 목록을 돌려준다. 폴더와 영상이 아닌 파일은 담기지 않는다.")
+            description = "지정한 폴더 안의 영상 파일 목록을 돌려준다. 폴더와 영상이 아닌 파일은 담기지 않는다."
+                    + " 한 번에 다 주지 않고 이어받을 자리(nextCursor)와 함께 나눠서 이어 준다.")
     @GetMapping("/files")
     public ApiResponse<ImportBrowseResponse> files(
             @Parameter(description = "영상 파일을 찾을 폴더 위치. 루트 목록 조회가 없어 생략할 수 없다.",
                     required = true)
-            @RequestParam(name = "path") String path) {
-        return ApiResponse.ok(importBrowseService.listVideoFiles(path));
+            @RequestParam(name = "path") String path,
+            @Parameter(description = "이어받을 자리. 앞선 응답의 nextCursor 를 그대로 준다."
+                    + " 주지 않으면 처음부터 본다. 이 이름 자체는 응답에 담기지 않는다.")
+            @RequestParam(name = "cursor", required = false) String cursor) {
+        return ApiResponse.ok(importBrowseService.listVideoFiles(path, cursor));
     }
 }
