@@ -369,6 +369,15 @@ export function LabelingPage() {
     [resetView],
   );
 
+  // @design SCREEN-029 — 포털 라벨링 화면(포털 채널이 이 컴포넌트를 재사용한다).
+  // 프레임 이동 경로 — 이 화면은 내부(`/label/:id`)와 포털(`/portal/label/:id`) 두 라우트가
+  // **같은 컴포넌트를 재사용**하므로 이동 경로도 채널을 따라가야 한다. 내부 경로로 고정하면
+  // 포털 사용자는 프레임을 넘기는 순간 INTERNAL 채널 가드에 걸려 접근 거부 화면으로 튕기고,
+  // 결과적으로 포털 라벨링이 첫 프레임 한 장으로 제한된다(실제 결함).
+  // 조립은 이 한 곳에만 둔다 — 이동 지점이 늘어날 때 같은 하드코딩이 복제되지 않게 한다.
+  const frameRoute = (srcSn: number) =>
+    portalMode ? `/portal/label/${srcSn}` : `/label/${srcSn}`;
+
   // 다른 프레임으로 실제 이동 — URL 전환 (useLabels 가 재조회).
   // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
   // 이전 프레임이 아닌 진입 이전 경로(작업 목록)로 빠져나가도록 한다.
@@ -378,7 +387,7 @@ export function LabelingPage() {
     const target = frames[idx];
     if (!target || !data) return;
     if (target.srcSn !== data.srcSn) {
-      navigate(`/label/${target.srcSn}`, { replace: true });
+      navigate(frameRoute(target.srcSn), { replace: true });
     }
   };
 
