@@ -11,6 +11,16 @@ import tailwindConfig from '../../../../tailwind.config.js';
 import { Button } from '../Button';
 
 describe('Button', () => {
+  // ── 시안(SCREEN-009 `.btn`) 정합 — 모서리 축 ──────────────────────────
+  // `.btn { border-radius: var(--radius-md) }` = 6px 이다. 구 구현은 한 단 위(8px)를 써
+  // 같은 화면에서 버튼·카드·모달이 서로 다른 곡률로 보였다.
+  it('Button_모서리는_토큰_md_6px_이다', () => {
+    render(<Button>확인</Button>);
+    const cls = screen.getByRole('button').className.split(/\s+/);
+    expect(cls).toContain('rounded-md');
+    expect(cls).not.toContain('rounded-lg');
+  });
+
   it('Button_loading_상태에서_disabled_+_스피너_노출', () => {
     render(<Button loading>저장</Button>);
     const btn = screen.getByRole('button');

@@ -134,7 +134,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const isDisabled = disabled || loading;
   const rootClass = cn(
-    'inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-100 disabled:cursor-not-allowed',
+    // 모서리는 시안 `.btn` 의 `--radius-md`(6px) = borderRadius 토큰 `md`.
+    'inline-flex items-center justify-center rounded-md font-medium transition-colors duration-100 disabled:cursor-not-allowed',
     KRDS_FOCUS,
     variantClass[variant],
     sizeClass[size],

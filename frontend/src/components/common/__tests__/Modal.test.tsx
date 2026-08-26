@@ -5,6 +5,20 @@ import userEvent from '@testing-library/user-event';
 import { Modal } from '../Modal';
 
 describe('Modal', () => {
+  // ── 시안(SCREEN-009 `.lightbox-box`) 정합 — 모서리 축 ────────────────
+  // `.lightbox-box { border-radius: var(--radius-lg) }` = 8px 이다. 구 구현은 토큰에 없는
+  // 상위 단을 써 Tailwind 기본값(12px)으로 폴백하고 있었다(값이 아니라 출처가 어긋난 상태).
+  it('Modal_모서리는_토큰_lg_8px_이다', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        본문
+      </Modal>,
+    );
+    const cls = screen.getByRole('dialog').className.split(/\s+/);
+    expect(cls).toContain('rounded-lg');
+    expect(cls.filter((c) => /^rounded-(xl|2xl|3xl)$/.test(c))).toEqual([]);
+  });
+
   it('Modal_open_false_시_렌더하지_않음', () => {
     render(
       <Modal open={false} onClose={() => {}} title="제목">
