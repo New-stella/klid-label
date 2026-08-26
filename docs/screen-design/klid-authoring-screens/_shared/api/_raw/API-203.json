@@ -223,11 +223,13 @@
         "modules": [],
         "records": [
           "IMPREC-009",
-          "IMPREC-132"
+          "IMPREC-132",
+          "IMPREC-133",
+          "IMPREC-140"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-26T05:51:12.936Z",
+        "last_updated": "2026-08-26T07:44:15.550Z",
         "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
@@ -241,12 +243,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "포털 데이터마트 다운로드 산출 문서의 식별자 조달 규칙을 보충한다. 프레임 식별자는 데이터마트 프레임 식별자를 그대로 쓰므로 검수 승인 산출물과 같은 값이 되고, 어노테이션 식별자는 그 라벨을 담고 있는 행의 식별자라 본인 저장분이면 포털 작업 저장소, 폴백된 프레임이면 데이터마트 라벨에서 조달됨을 밝힌다. 병합이 프레임 단위라 한 문서 안에서는 한 저장소의 식별자 공간만 쓰인다는 근거와, 문서 사이의 유일성은 보장하지 않으므로 영상 단위 유일 키로 다루면 안 된다는 한계를 함께 적는다. 메타 블록 조달 위임 서술이 이 축을 포함하지 않아 생긴 공백을 메우는 보충이며, 기존 서술은 하나도 지우거나 줄이지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T06:19:10.075Z",
+    "change_summary": "포털 내려받기 산출을 프레임별 어노테이션 문서로 전환 — 단일 라벨 문서 폐지",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-26T07:44:15.550Z",
     "created_at": "2026-08-17T01:08:27.272Z"
   }
 }

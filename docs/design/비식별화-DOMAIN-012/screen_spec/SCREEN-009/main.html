@@ -166,7 +166,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑥ 오토라벨 결과 탭</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>useVideoLabels(API-044)로 오토라벨 결과 조회. 처리 정보 카드(총 라벨 수/오토라벨 수/오토라벨 비율/처리 상태), 신뢰도 분포 막대(0.9+ / 0.7~0.9 / &lt;0.7, 오토라벨 기준 집계), 라벨별 분포 바(상위 10종, count 내림차순). 로딩 스켈레톤·에러·빈 상태 분기.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>API-044 로 오토라벨 결과를 조회한다. 처리 정보 카드(총 라벨 수/오토라벨 수/오토라벨 비율/처리 상태), 신뢰도 분포 막대(0.9+ / 0.7~0.9 / &lt;0.7, 오토라벨 기준 집계), 라벨별 분포 바(상위 10종, count 내림차순). 라벨 표시명은 응답이 내려주는 값을 그대로 쓴다 — 화면이 다시 해석하거나 다른 말로 바꾸지 않는다. 표시명의 단일 진실원은 라벨 마스터이므로, 화면이 자기 사전으로 치환하면 마스터와 어긋나는 두 번째 진실원이 된다. 색상은 응답에 실려 오지 않을 수 있으며 그것이 정상 경로다 — 색이 없다고 항목을 비우거나 오류로 다루지 않는다. 라벨별 분포 막대는 라벨마다 다른 색으로 그린다 — 색은 라벨 마스터에 운영자가 등록한 값이며, 화면이 한 색으로 덮으면 라벨 표시 색상의 단일 진실원이 라벨 마스터라는 확정 정책을 이 화면에서만 어기게 된다. 이 색은 화면이 배정하는 범주 구분색의 대상이 아니다 — 사람이 고른 값이기 때문이다. 로딩 스켈레톤·에러·빈 상태 분기.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Stat(처리 정보(총 라벨/오토라벨/비율/상태 4종))</li><li>Chart(신뢰도 분포 막대) · binds labels.confidence</li><li>Chart(라벨별 분포 바) · binds labels.labelCode</li><li>Alert(빈/에러 상태)<p class="wf-help" style="margin:2px 0 0">오토라벨 없음 / 불러오기 실패 메시지</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-044</li></ul></div>
     </div>

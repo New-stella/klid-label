@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-08-26T06:34:01.815Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 124 |
+| Last sync | 2026-08-26T08:33:47.593Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 126 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,9 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-051]] (prev v6)
-- CHANGED [[API-043]] (prev v18)
-- CHANGED [[SCREEN-009]] (prev v56)
+- CHANGED [[SCREEN-009]] (prev v62)
 
 ## ITEM 표
 
@@ -53,7 +51,7 @@
 | [[AC-026]] | acceptance | 5 | UNCHANGED |
 | [[AC-049]] | acceptance | 5 | UNCHANGED |
 | [[AC-050]] | acceptance | 5 | UNCHANGED |
-| [[AC-051]] | acceptance | 10 | CHANGED |
+| [[AC-051]] | acceptance | 10 | UNCHANGED |
 | [[AC-055]] | acceptance | 3 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
@@ -70,8 +68,8 @@
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[API-021]] | api_endpoint | 8 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
-| [[API-043]] | api_endpoint | 23 | CHANGED |
-| [[API-044]] | api_endpoint | 5 | UNCHANGED |
+| [[API-043]] | api_endpoint | 23 | UNCHANGED |
+| [[API-044]] | api_endpoint | 8 | UNCHANGED |
 | [[API-045]] | api_endpoint | 2 | UNCHANGED |
 | [[API-046]] | api_endpoint | 6 | UNCHANGED |
 | [[API-047]] | api_endpoint | 12 | UNCHANGED |
@@ -158,7 +156,7 @@
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 60 | CHANGED |
+| [[SCREEN-009]] | screen_spec | 64 | CHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |

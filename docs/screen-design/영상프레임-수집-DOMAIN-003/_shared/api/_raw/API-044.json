@@ -43,7 +43,8 @@
                         },
                         "color": {
                           "type": "string",
-                          "description": "표시 색상 (기본값 #3B82F6)"
+                          "nullable": true,
+                          "description": "라벨 마스터에 등록된 표시 색상. 마스터에 연결되지 않았거나 마스터에 색상이 지정돼 있지 않으면 값을 내리지 않는다. 서버가 임의의 기본 색상을 만들어 채우지 않는다 — 모든 라벨이 같은 색으로 보여 분포를 색으로 구분할 수 없고, 마스터에서 색상을 바꿔도 반영되지 않기 때문이다. 값이 없는 것이 정상 경로이며 화면이 자체 대체 색상으로 표시한다."
                         },
                         "createdBy": {
                           "type": "string",
@@ -56,7 +57,7 @@
                         },
                         "labelName": {
                           "type": "string",
-                          "description": "라벨 표시명 (코드 테이블 미존재 시 labelCode fallback)"
+                          "description": "라벨 표시명. 라벨 마스터에 연결된 라벨은 마스터에 등록된 이름을 내려주고, 연결되지 않은 라벨은 저장된 이름을 원문 그대로 내려준다 — 서버가 값을 지어내거나 다른 말로 바꾸지 않는다. 어떤 경우에도 비어 있지 않다(화면이 이 값을 그대로 표시하므로 비면 빈칸이 된다)."
                         },
                         "confidence": {
                           "type": "number",
@@ -97,11 +98,18 @@
               "objects": [
                 {
                   "id": "lbl-1001",
-                  "color": "#3B82F6",
+                  "color": "#E11D48",
                   "createdBy": "auto",
                   "labelCode": "person",
-                  "labelName": "person",
+                  "labelName": "사람",
                   "confidence": 0.92
+                },
+                {
+                  "id": "lbl-1002",
+                  "createdBy": "auto",
+                  "labelCode": "bicycle",
+                  "labelName": "bicycle",
+                  "confidence": 0.78
                 }
               ],
               "videoId": 1
@@ -167,14 +175,15 @@
           "description": "영상 식별자 RAW_SN"
         }
       ],
-      "description": "파이프라인이 생성한 영상 오토라벨(YOLO/SAM2) 결과를 조회한다. 인증된 사용자.",
+      "description": "파이프라인이 생성한 영상 오토라벨(YOLO/SAM2) 결과를 조회한다. 인증된 사용자. 응답의 라벨 표시명과 표시 색상은 라벨 마스터를 단일 진실원으로 삼는다 — 마스터에 연결된 라벨은 마스터 등록값을 따르고 서버가 대체 표시명이나 기본 색상을 지어내지 않는다. 마스터 조회 비용은 응답에 담기는 라벨 종류 수에 비례해 늘지 않는다.",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -182,12 +191,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "권한을 명시한다. 내부 채널의 검수자·작업자만 호출할 수 있다.",
+    "change_summary": "200 응답 example 의 미연결 라벨 예시를 확정 계약에 맞춘다. 직전 리비전은 미연결 라벨의 표시명을 코드값과 다른 한글 이름으로 두었는데, 그러면 그 객체는 미연결이 아니라 「마스터에 연결됐지만 색상이 지정되지 않은 라벨」로 읽힌다. labelCode 는 무변경이고 미연결 라벨의 표시명은 저장된 이름 원문이 그대로 나가는 자리이므로 두 값은 같을 수밖에 없으며, 한글 표시명은 마스터에 연결됐을 때만 나온다 — 두 값을 일부러 갈라 놓은 직전 판단은 이 점에서 틀렸다. 그 결과 정작 이 정합의 계기였던 갈래(미연결 라벨이 저장된 원문 그대로 보이는 모습)가 example 에서 빠져 있었다. 이제 미연결 예시의 표시명이 코드값과 같은 값이고 color 키는 실리지 않아, 마스터에 연결된 예시와 나란히 놓으면 연결 시 등록명·등록 색상, 미연결 시 원문·색상 없음이 example 만으로 읽힌다. 필드 정의·인가·계약 의미는 무변경이며 이번 변경도 example 뿐이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:55:02.584Z",
+    "last_updated_at": "2026-08-26T08:28:32.076Z",
     "created_at": "2026-05-30T07:22:56.537Z"
   }
 }

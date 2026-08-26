@@ -117,10 +117,16 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
      * {@code null} 로 둔다 — 구 LATERAL 이 {@code AUTO_LBL_YN='Y'} 행만 매칭하고 나머지는 LEFT JOIN
      * miss 로 {@code null} 을 냈던 계약을 그대로 유지한다({@code confScore} 도 같은 조건에서만 실린다).
      * 파라미터 바인딩({@code :rawSn})만 사용 — 문자열 연결 없음(CWE-89 회귀 방지).
+     *
+     * <p>{@code labelId}({@code LBL_ID})는 라벨 마스터 조달용 키다. 여기서 <b>마스터를 조인하지
+     * 않는 이유</b>는 이 쿼리가 라벨 <b>행 단위</b>인 반면 마스터는 <b>라벨 종류 단위</b>라, 같은
+     * 마스터 행이 라벨 수만큼 중복 투영되기 때문이다. 소비자가 이 키를 모아 마스터를 한 번에
+     * 배치 조회한다(라벨 종류 수에 비례하는 조회를 만들지 않는다).
      */
     @Query(value = """
             SELECT l.LBL_SN AS lblSn,
                    l.LBL_NM AS labelNm,
+                   l.LBL_ID AS labelId,
                    CASE WHEN l.AUTO_LBL_YN = 'Y' THEN l.AUTO_LBL_YN END AS autoLblYn,
                    CASE WHEN l.AUTO_LBL_YN = 'Y' THEN l.CONF_SCORE END  AS confScore
               FROM LS_DATA_LBL l
