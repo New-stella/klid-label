@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-26T01:11:16.522Z (session 12) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 161 |
+| Last sync | 2026-08-26T04:28:17.888Z (session 13) |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 159 |
 | 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/작업-배정-DOMAIN-015 |
 
 ## ITEM 버전 표
@@ -24,10 +24,10 @@
 | [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | UNCHANGED |
 | [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 17 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | CHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 7 | true | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 47 | true | CHANGED |
+| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 47 | true | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 11 | false | UNCHANGED |
@@ -141,7 +141,7 @@
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 1 | false | UNCHANGED |
-| [[UI-111]] | ui_component | display: Badge | 1 | false | UNCHANGED |
+| [[UI-111]] | ui_component | display: Badge | 2 | false | CHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |
 | [[UI-114]] | ui_component | input: PresetLabelPicker | 1 | false | UNCHANGED |
@@ -163,7 +163,7 @@
 | [[UI-130]] | ui_component | display: LabelOriginChip | 1 | false | UNCHANGED |
 | [[UI-131]] | ui_component | input: UploadDropzone | 1 | false | UNCHANGED |
 | [[UI-132]] | ui_component | display: AssetTypeChip | 1 | false | UNCHANGED |
-| [[UI-133]] | ui_component | input: TargetResolutionSelect | 1 | false | UNCHANGED |
+| [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | CHANGED |
 | [[UI-134]] | ui_component | display: SelectionSummary | 1 | false | UNCHANGED |
 | [[UI-135]] | ui_component | layout: StickyActionBar | 1 | false | UNCHANGED |
 | [[UI-136]] | ui_component | layout: StepSectionHeader | 1 | false | UNCHANGED |

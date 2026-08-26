@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-26T01:11:14.014Z (session 12) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 166 |
+| Last sync | 2026-08-26T04:28:14.794Z (session 13) |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 164 |
 | 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/사용자권한-DOMAIN-001 |
 
 ## ITEM 버전 표
@@ -22,13 +22,13 @@
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 7 | false | UNCHANGED |
 | [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 17 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | CHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 13 | false | UNCHANGED |
 | [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 17 | false | UNCHANGED |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 10 | false | UNCHANGED |
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 24 | true | CHANGED |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 24 | true | UNCHANGED |
 | [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 7 | true | UNCHANGED |
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 2 | false | UNCHANGED |
 | [[SD-018]] | screen_design | SCREEN-002 역할 클레임 화면 | 5 | false | UNCHANGED |
@@ -146,7 +146,7 @@
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 1 | false | UNCHANGED |
-| [[UI-111]] | ui_component | display: Badge | 1 | false | UNCHANGED |
+| [[UI-111]] | ui_component | display: Badge | 2 | false | CHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |
 | [[UI-114]] | ui_component | input: PresetLabelPicker | 1 | false | UNCHANGED |
@@ -168,7 +168,7 @@
 | [[UI-130]] | ui_component | display: LabelOriginChip | 1 | false | UNCHANGED |
 | [[UI-131]] | ui_component | input: UploadDropzone | 1 | false | UNCHANGED |
 | [[UI-132]] | ui_component | display: AssetTypeChip | 1 | false | UNCHANGED |
-| [[UI-133]] | ui_component | input: TargetResolutionSelect | 1 | false | UNCHANGED |
+| [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | CHANGED |
 | [[UI-134]] | ui_component | display: SelectionSummary | 1 | false | UNCHANGED |
 | [[UI-135]] | ui_component | layout: StickyActionBar | 1 | false | UNCHANGED |
 | [[UI-136]] | ui_component | layout: StepSectionHeader | 1 | false | UNCHANGED |

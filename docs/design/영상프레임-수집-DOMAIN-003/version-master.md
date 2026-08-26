@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-08-26T04:22:34.214Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 123 |
+| Last sync | 2026-08-26T04:28:00.523Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 127 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -28,7 +28,7 @@
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
   ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 111건 (그중 domain_id 없음 32건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 12건 / 스코프 밖 37건 (그중 domain_id 없음 4건)
+  ℹ️  adr: 이번 키트 13건 / 스코프 밖 36건 (그중 domain_id 없음 3건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -41,8 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-051]] (prev v6)
-- CHANGED [[SD-004]] (prev v17)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -52,7 +51,7 @@
 | [[AC-026]] | acceptance | 5 | UNCHANGED |
 | [[AC-049]] | acceptance | 5 | UNCHANGED |
 | [[AC-050]] | acceptance | 5 | UNCHANGED |
-| [[AC-051]] | acceptance | 6 | CHANGED |
+| [[AC-051]] | acceptance | 6 | UNCHANGED |
 | [[AC-055]] | acceptance | 3 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
@@ -60,6 +59,7 @@
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-010]] | adr | 1 | UNCHANGED |
 | [[ADR-018]] | adr | 5 | UNCHANGED |
+| [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
@@ -128,6 +128,7 @@
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
 | [[EVT-005]] | domain_event | 5 | UNCHANGED |
 | [[FEAT-004]] | feature | 10 | UNCHANGED |
+| [[INT-011]] | integration_point | 2 | UNCHANGED |
 | [[LEGACY-003]] | legacy_artifact | 1 | UNCHANGED |
 | [[LEGACY-005]] | legacy_artifact | 1 | UNCHANGED |
 | [[LEGACY-021]] | legacy_artifact | 1 | UNCHANGED |
@@ -162,7 +163,7 @@
 | [[SCREEN-026]] | screen_spec | 34 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 34 | UNCHANGED |
 | [[SCREEN-038]] | screen_spec | 14 | UNCHANGED |
-| [[SD-004]] | screen_design | 18 | CHANGED |
+| [[SD-004]] | screen_design | 18 | UNCHANGED |
 | [[SD-013]] | screen_design | 6 | UNCHANGED |
 | [[SD-023]] | screen_design | 3 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |
