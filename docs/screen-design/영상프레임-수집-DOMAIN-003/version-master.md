@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-26T06:23:16.598Z (session 14) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 164 |
-| 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
+| Last sync | 2026-08-26T04:28:15.372Z (session 13) |
+| Mode | SYNC — NEW 0 / CHANGED 7 / UNCHANGED 158 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/영상프레임-수집-DOMAIN-003 |
 
 ## ITEM 버전 표
 
@@ -15,25 +15,25 @@
 |---|---|---|---|---|---|
 | [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 9 | false | UNCHANGED |
 | [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 15 | false | UNCHANGED |
-| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | true | UNCHANGED |
+| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | false | UNCHANGED |
 | [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
-| [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 10 | false | UNCHANGED |
+| [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 6 | false | CHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
-| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 23 | false | UNCHANGED |
+| [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 18 | false | CHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
 | [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 5 | false | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | CHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 7 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 60 | false | CHANGED |
-| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 18 | true | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 56 | true | CHANGED |
+| [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 18 | true | CHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-011]] | use_case | 비식별 처리 요청 | 12 | true | UNCHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 23 | true | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 23 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -144,7 +144,7 @@
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
 | [[UI-110]] | ui_component | display: RoleBadge | 1 | false | UNCHANGED |
-| [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
+| [[UI-111]] | ui_component | display: Badge | 2 | false | CHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |
 | [[UI-114]] | ui_component | input: PresetLabelPicker | 1 | false | UNCHANGED |
@@ -166,7 +166,7 @@
 | [[UI-130]] | ui_component | display: LabelOriginChip | 1 | false | UNCHANGED |
 | [[UI-131]] | ui_component | input: UploadDropzone | 1 | false | UNCHANGED |
 | [[UI-132]] | ui_component | display: AssetTypeChip | 1 | false | UNCHANGED |
-| [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | UNCHANGED |
+| [[UI-133]] | ui_component | input: TargetResolutionSelect | 2 | false | CHANGED |
 | [[UI-134]] | ui_component | display: SelectionSummary | 1 | false | UNCHANGED |
 | [[UI-135]] | ui_component | layout: StickyActionBar | 1 | false | UNCHANGED |
 | [[UI-136]] | ui_component | layout: StepSectionHeader | 1 | false | UNCHANGED |

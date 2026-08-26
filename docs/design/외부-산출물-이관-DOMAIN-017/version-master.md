@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-26T05:51:24.443Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 62 |
+| Last sync | 2026-08-26T04:27:59.593Z |
+| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 56 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-017 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 29건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 8건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -41,7 +41,12 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-048]] (prev v7)
+- CHANGED [[SEQ-026]] (prev v10)
+- CHANGED [[ROLE-003]] (prev v7)
+- CHANGED [[SCREEN-039]] (prev v17)
+- CHANGED [[UC-035]] (prev v12)
+- CHANGED [[UC-036]] (prev v2)
 
 ## ITEM 표
 
@@ -54,7 +59,7 @@
 | [[AC-045]] | acceptance | 7 | UNCHANGED |
 | [[AC-046]] | acceptance | 11 | UNCHANGED |
 | [[AC-047]] | acceptance | 7 | UNCHANGED |
-| [[AC-048]] | acceptance | 8 | UNCHANGED |
+| [[AC-048]] | acceptance | 8 | CHANGED |
 | [[AC-052]] | acceptance | 3 | UNCHANGED |
 | [[AC-053]] | acceptance | 3 | UNCHANGED |
 | [[AC-054]] | acceptance | 3 | UNCHANGED |
@@ -101,11 +106,11 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
-| [[SCREEN-039]] | screen_spec | 21 | UNCHANGED |
-| [[SEQ-026]] | diagram_sequence | 11 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | CHANGED |
+| [[SCREEN-039]] | screen_spec | 21 | CHANGED |
+| [[SEQ-026]] | diagram_sequence | 11 | CHANGED |
 | [[TEST-007]] | test_scenario | 1 | UNCHANGED |
 | [[TEST-008]] | test_scenario | 1 | UNCHANGED |
 | [[UC-018]] | use_case | 17 | UNCHANGED |
-| [[UC-035]] | use_case | 13 | UNCHANGED |
-| [[UC-036]] | use_case | 3 | UNCHANGED |
+| [[UC-035]] | use_case | 13 | CHANGED |
+| [[UC-036]] | use_case | 3 | CHANGED |

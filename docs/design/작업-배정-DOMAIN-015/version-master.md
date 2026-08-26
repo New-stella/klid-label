@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 |
-| Last sync | 2026-08-26T05:51:28.595Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 51 |
+| Last sync | 2026-08-26T04:28:03.369Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 50 |
 | 출력 루트 | docs/design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[ROLE-003]] (prev v7)
 
 ## ITEM 표
 
@@ -70,7 +70,7 @@
 | [[API-137]] | api_endpoint | 6 | UNCHANGED |
 | [[API-187]] | api_endpoint | 3 | UNCHANGED |
 | [[CDIAG-007]] | class_diagram | 7 | UNCHANGED |
-| [[CMP-009]] | diagram_c4_component | 14 | UNCHANGED |
+| [[CMP-009]] | diagram_c4_component | 13 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
 | [[DOMAIN-015]] | domain | 6 | UNCHANGED |
 | [[ERD-014]] | erd | 12 | UNCHANGED |
@@ -90,7 +90,7 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | CHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 47 | UNCHANGED |

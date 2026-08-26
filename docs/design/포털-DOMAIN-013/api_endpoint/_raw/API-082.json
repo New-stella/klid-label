@@ -99,7 +99,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "[폐기] 이 엔드포인트는 200 을 반환하지 않는다 — 성공은 201 하나뿐이다. 옛 기록으로만 남기며 아래 스키마·예시는 폐기 시점의 잔존물이라 현행 성공 응답(201)과 일치하지 않는다.",
+          "description": "[폐기] 이 엔드포인트는 200 을 반환하지 않는다 — 성공은 201 하나뿐이다. 옛 기록으로만 남기며 아래 스키마·예시는 201 과 같은 내용의 잔존물이다.",
           "content_type": "application/json"
         },
         "201": {
@@ -117,18 +117,6 @@
                   "points": {
                     "type": "string",
                     "description": "좌표 JSON 문자열 (pointCn)"
-                  },
-                  "labelId": {
-                    "type": "integer",
-                    "format": "int64",
-                    "nullable": true,
-                    "description": "라벨 마스터를 가리키는 참조값. 내려받기 산출물에서 어노테이션 항목의 분류 식별자를 채우는 조달처이며 포털 라벨 조회 계열 응답과 같은 항목이다. 요청에 실려 온 값이 아니라 실제로 적재된 값이다 — 활성 라벨 마스터에 실재하지 않는 참조는 그 값만 비워서 저장하므로 그 경우 이 값도 비어 있다. 저장된 값이 없으면 비어 있다"
-                  },
-                  "trackId": {
-                    "type": "string",
-                    "nullable": true,
-                    "maxLength": 30,
-                    "description": "라벨이 속한 트랙 식별자. 내려받기 산출물에서 어노테이션 항목의 트랙 식별자를 채우는 조달처이며 포털 라벨 조회 계열 응답과 같은 항목이다. 요청에 실려 온 값이 아니라 실제로 적재된 값이며, 저장된 값이 없으면 비어 있다"
                   },
                   "createdAt": {
                     "type": "string",
@@ -159,7 +147,7 @@
                     "description": "원본 프레임 PK (srcDataSrcSn)"
                   }
                 },
-                "description": "저장된 사용자 라벨. labelId·trackId 는 요청에 실려 온 값이 아니라 실제로 적재된 값이며, 저장된 값이 없으면 비어 있다"
+                "description": "저장된 사용자 라벨"
               },
               "message": {
                 "type": "string",
@@ -181,8 +169,6 @@
             "data": {
               "label": "person",
               "points": "[[120,80],[260,420]]",
-              "labelId": 12,
-              "trackId": "trk-0007",
               "createdAt": "2026-01-15T13:05:00",
               "lblTypeCd": "BBOX",
               "userLblSn": 80001,
@@ -193,7 +179,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "저장 성공. ApiResponse 래퍼의 data 에 PortalUserLabelResponse 가 담긴다. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. PORTAL_USER 전용. 응답 항목은 라벨 마스터 참조(labelId)와 트랙 식별자(trackId)를 함께 담아 포털 라벨 조회 계열 응답과 같은 형태를 갖는다. 두 값은 요청에 실려 온 값이 아니라 서버 판정을 거쳐 실제로 적재된 값이며, 활성 라벨 마스터에 실재하지 않는 참조는 비워서 저장하므로 그 경우 응답에도 비어 있다.",
+          "description": "저장 성공. ApiResponse 래퍼의 data 에 PortalUserLabelResponse 가 담긴다. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재. PORTAL_USER 전용.",
           "content_type": "application/json"
         },
         "400": {
@@ -225,7 +211,7 @@
             "success": false,
             "errorCode": "INVALID_INPUT"
           },
-          "description": "입력값 검증 실패 — 필수 항목(sourceRawSn·sourceSrcSn·lblTypeCd·points) 누락, points 좌표가 비어있음, trackId 가 길이 상한 30자를 넘음. ErrorCode=INVALID_INPUT. labelId 가 활성 라벨 마스터에 없는 값인 경우는 여기에 해당하지 않는다 — 그 값만 비우고 저장은 성공한다.",
+          "description": "입력값 검증 실패 (sourceRawSn/sourceSrcSn/lblTypeCd/points 필수 누락) 또는 points 좌표가 비어있음. ErrorCode=INVALID_INPUT",
           "content_type": "application/json"
         },
         "401": {
@@ -360,14 +346,13 @@
       "brownfield": {
         "status": "new",
         "change_kind": [
-          "capability-add",
-          "schema-change"
+          "capability-add"
         ],
         "diff_summary": "2차 포털 사용자 라벨 저장"
       },
       "deprecated": false,
       "parameters": [],
-      "description": "포털 사용자 작업 데이터를 LS_PORTAL_USER_LABEL에 별도 적재한다(원본 미수정). PORTAL_USER 전용. 요청은 라벨 마스터 참조(labelId)와 트랙 식별자(trackId)를 함께 받는다. 두 값은 포털 사용자에게 새 편집 수단을 주려는 것이 아니라, 데이터마트 원본에서 불러온 라벨이 갖고 있던 연결이 저장 왕복에서 끊기지 않게 하려는 것이다 — 포털 작업 데이터 내려받기 산출물을 검수 승인 학습데이터 산출물과 같은 구조로 통일하기로 확정했고, 그 구조의 어노테이션 항목이 분류 식별자와 트랙 식별자를 갖기 때문이다. 둘 다 선택이며 없으면 비운 채로 저장한다. 트랙 번호 변경·병합은 포털에 두지 않는다. 저장 성공 응답도 두 값을 함께 담아 포털 라벨 조회 계열 응답과 같은 형태를 갖는다. 응답에 담기는 값은 요청에 실려 온 값이 아니라 서버 판정을 거쳐 실제로 적재된 값이다.",
+      "description": "포털 사용자 작업 데이터를 LS_PORTAL_USER_LABEL에 별도 적재한다(원본 미수정). PORTAL_USER 전용.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -389,18 +374,6 @@
               "maxLength": 65536,
               "description": "좌표 JSON 문자열 [[x,y], ...] — 필수이며 공백 문자열 불가. 파싱 후 좌표 0개면 400. 개수 제약은 BBOX=2점, POLYGON=3~200점이고 위반 시 400. 적재 시 정규형 JSON 으로 재직렬화된다"
             },
-            "labelId": {
-              "type": "integer",
-              "format": "int64",
-              "nullable": true,
-              "description": "라벨 마스터를 가리키는 참조값(선택). 데이터마트 원본에서 불러온 라벨의 분류 연결을 저장 왕복에서 잃지 않기 위한 값이며, 내려받기 산출물에서 어노테이션 항목의 분류 식별자를 채우는 조달처다. 서버는 이 값을 그대로 신뢰하지 않고 활성 라벨 마스터에 실재하는 값인지 확인한다 — 실재하지 않으면 그 값을 저장하지 않고 비운 채로 적재하며 저장 요청 자체는 거부하지 않는다(포털 사용자가 볼 수 없는 마스터 비활성화 때문에 작업 저장이 막히면 안 된다). 값이 없으면 비운 채로 저장하고, 라벨명으로 유추해 채우지 않는다."
-            },
-            "trackId": {
-              "type": "string",
-              "nullable": true,
-              "maxLength": 30,
-              "description": "라벨이 속한 트랙 식별자(선택). 데이터마트 원본에서 불러온 라벨의 트랙 연결을 저장 왕복에서 잃지 않기 위한 값이며, 내려받기 산출물에서 어노테이션 항목의 트랙 식별자를 채우는 조달처다. 길이 상한은 저장 컬럼과 같은 30자이고 입구에서 검증해 넘으면 400 으로 돌려준다 — 그대로 받아 적재 시점까지 흘려보내면 서버 오류가 된다. 값이 없으면 비운 채로 저장한다. 포털 사용자에게 트랙 번호 변경·병합 수단을 주는 것이 아니다."
-            },
             "lblTypeCd": {
               "enum": [
                 "BBOX",
@@ -421,7 +394,7 @@
               "description": "원천 프레임 식별자(필수)"
             }
           },
-          "description": "저장할 사용자 라벨 1건. 라벨 여러 건은 1건씩 순차 요청한다(단건 계약). labelId·trackId 는 원본이 갖고 있던 연결을 보존하기 위한 선택 항목이며 없어도 저장된다."
+          "description": "저장할 사용자 라벨 1건. 라벨 여러 건은 1건씩 순차 요청한다(단건 계약)."
         },
         "required": true,
         "content_type": "application/json"
@@ -432,8 +405,7 @@
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": [],
-        "module_paths": []
+        "subtasks": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -441,12 +413,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "저장 성공 응답(201) 항목에 라벨 마스터 참조(labelId)와 트랙 식별자(trackId)를 추가한다. 직전 리비전이 요청 본문만 확대해, 적재된 행이 그 두 값을 보유하는데도 저장 응답만 그것을 담지 않아 포털 라벨 조회 계열 응답과 형태가 갈릴 참이었다. 적재된 행이 보유하는 값을 응답마다 다르게 담지 않는다는 확정을 반영한 것이다. 응답에 담기는 값은 요청에 실려 온 값이 아니라 서버 판정을 거쳐 실제로 적재된 값임을 본문에 명시했다 — 활성 라벨 마스터에 실재하지 않는 참조는 그 값만 비워서 저장하므로 그 경우 응답에도 비어 있고, 호출측이 요청값이 그대로 돌아온다고 읽으면 안 되기 때문이다. 요청 본문·서버 판정 규칙·오류 응답·인가 규칙은 무변경이다. 반환하지 않는 200 폐기 기록은 스키마를 그대로 두되, 그 본문이 주장하던 201 과의 동일성 서술만 현행 성공 응답과 일치하지 않는다는 사실로 바로잡았다.",
+    "change_summary": "응답 설명에서 프레임워크 어노테이션 표기를 걷어낸다 — 계약(201 생성·PORTAL_USER 역할)은 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T04:41:19.429Z",
+    "last_updated_at": "2026-08-16T09:32:13.324Z",
     "created_at": "2026-05-30T07:27:36.742Z"
   }
 }

@@ -70,7 +70,6 @@
     "AC-088"
   ],
   "pending": [
-    "ADR-007",
     "SHELL-001",
     "MOD-001",
     "MOD-002",
@@ -80,20 +79,10 @@
     "MOD-039",
     "MOD-040",
     "MOD-048",
-    "CTX-001",
-    "DEP-001",
-    "DFEAT-006",
-    "DFEAT-024",
-    "DFEAT-027",
-    "IMPREC-002",
-    "IMPREC-104",
-    "IMPREC-105",
-    "IMPREC-106",
-    "IMPREC-107",
     "LEGACY-001",
     "LEGACY-041",
     "LEGACY-125",
     "NAV-001"
   ],
-  "last_sync_at": "2026-08-26T05:51:30.685Z"
+  "last_sync_at": "2026-08-26T04:28:05.303Z"
 }

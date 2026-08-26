@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-26T05:51:27.521Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 72 |
+| Last sync | 2026-08-26T04:28:02.450Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 69 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 12건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 4건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -41,7 +41,9 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[ADR-039]] (prev v5)
+- CHANGED [[NAV-001]] (prev v17)
+- CHANGED [[ROLE-003]] (prev v7)
 
 ## ITEM 표
 
@@ -60,7 +62,7 @@
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-039]] | adr | 6 | UNCHANGED |
+| [[ADR-039]] | adr | 6 | CHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-053]] | adr | 1 | UNCHANGED |
@@ -87,7 +89,7 @@
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
 | [[INTSPEC-003]] | integration_spec | 12 | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 18 | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 18 | CHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -105,7 +107,7 @@
 | [[REQ-008]] | requirement | 7 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 8 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | CHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |

@@ -373,15 +373,15 @@ public class ResolutionPersistService {
     /**
      * 부모 라벨을 좌표 스케일 복사 + LS_DATA_AUG_LBL_MAP(coordRecalc='Y', scaleX/scaleY) 적재.
      *
-     * <p>G-1 — 종횡비 보존(레터박스) 리스케일이므로 좌표 변환은 <b>단순 배율이 아니라</b>
-     * {@code x' = x*scale + offsetX} 다. BBOX·POLYGON·세그멘테이션·키포인트 전 종류에 동일 적용된다.
-     * 매핑 행에는 기존 컬럼(SCALE_X/SCALE_Y = 균일 배율)만 기록한다 — 신규 컬럼을 추가하지 않는다.
+     * <p>@design ADR-018 — 종횡비 보존 가변 캔버스라 산출 프레임에 패딩이 없고 오프셋이 항상 0 이다.
+     * 따라서 좌표 변환은 균일 배율의 <b>곱셈만</b>({@code x' = x*scale})이며 오프셋 가산이 없다.
+     * BBOX·POLYGON·세그멘테이션·키포인트 전 종류에 동일 적용된다. 매핑 행에는 기존 컬럼
+     * (SCALE_X/SCALE_Y = 같은 균일 배율)만 기록한다 — 신규 컬럼을 추가하지 않는다.
      *
-     * <p><b>추적성 한계(사실 명시 — 후속)</b>: 저장된 라벨 좌표 자체는 오프셋까지 반영된 정확한 값이지만,
-     * 매핑 행만 보고 <b>오프셋을 역산할 수는 없다</b>. 오프셋은 부모 원본 치수(srcW·srcH)와 목표 치수에
-     * 함께 의존하기 때문이다 — 반례: 1080×1920 과 1440×1920 은 목표 1920×1080 에 대해 <b>같은 배율</b>
-     * (0.5625)이지만 offsetX 는 각각 (1920-607)/2 와 (1920-810)/2 로 다르다. 오프셋 컬럼 신설은
-     * 표준용어·표준도메인 확정이 선행돼야 하므로 후속 과제로 남긴다(영향 범위: 좌표 정확도 아님, 추적성).
+     * <p><b>추적성</b>: 오프셋이 없으므로 매핑 행의 SCALE_X/SCALE_Y 만으로 원본 좌표가 <b>완전히
+     * 역산</b>된다({@code x = x'/scale}). 검정 레터박스(고정 캔버스) 시절에는 오프셋이 부모 원본 치수와
+     * 목표 치수에 함께 의존해 매핑 행만으로 역산할 수 없었고 오프셋 컬럼 신설이 후속 과제로 남아 있었으나,
+     * 패딩 폐지로 그 한계와 과제가 함께 소멸했다.
      */
     private int copyScaledLabels(Map<Long, Long> parentSrcToNewSrc, Long dataAugSn,
                                  double scaleX, double scaleY, int offsetX, int offsetY, String regId) {

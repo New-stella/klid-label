@@ -1,20 +1,20 @@
 ---
 logicraft_item: DOMAIN-013
 type: domain
-version: 9
+version: 8
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:49:54.409Z
+synced_at: 2026-08-26T04:28:12.046Z
 status: CHANGED
 prev_version: 7
-content_hash: 921ca8b4a589d690c0ecf4e274596dc67f2079da23335862c80a5fb2aabd8cce
+content_hash: 838d3c9803ca924292b86587117f278255dfa9674c89135fd4e1e4c08561063a
 stale: false
 raw: ./_raw/DOMAIN-013.json
 links:
   based_on: ["[[ADR-013]]"]
-  depends_on: ["[[EXTSYS-006]]", "[[INT-009]]", "[[INT-013]]"]
+  depends_on: ["[[EXTSYS-006]]", "[[INT-009]]"]
   applies_to_backward: ["[[NFR-012]]", "[[NFR-013]]", "[[NFR-015]]", "[[NFR-018]]", "[[NFR-020]]"]
-  belongs_to_domain_backward: ["[[AC-032]]", "[[AC-033]]", "[[AC-034]]", "[[AC-035]]", "[[AC-036]]", "[[AC-037]]", "[[AC-095]]", "[[AC-096]]", "[[AC-097]]", "[[AC-098]]", "[[ADR-013]]", "[[API-081]]", "[[API-082]]", "[[API-083]]", "[[API-110]]", "[[API-111]]", "[[API-115]]", "[[API-139]]", "[[API-140]]", "[[API-142]]", "[[API-147]]", "[[API-149]]", "[[API-151]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[API-203]]", "[[CDIAG-011]]", "[[DFEAT-043]]", "[[DFEAT-044]]", "[[DFEAT-053]]", "[[DFEAT-055]]", "[[ERD-018]]", "[[ERD-026]]", "[[ERD-028]]", "[[EVT-012]]", "[[INT-009]]", "[[INT-013]]", "[[SCREEN-028]]", "[[SCREEN-029]]", "[[SCREEN-033]]", "[[SCREEN-034]]", "[[SEQ-016]]", "[[SEQ-019]]", "[[UC-024]]", "[[UC-027]]"]
+  belongs_to_domain_backward: ["[[AC-032]]", "[[AC-033]]", "[[AC-034]]", "[[AC-035]]", "[[AC-036]]", "[[AC-037]]", "[[AC-095]]", "[[AC-096]]", "[[AC-097]]", "[[AC-098]]", "[[ADR-013]]", "[[API-081]]", "[[API-082]]", "[[API-083]]", "[[API-110]]", "[[API-111]]", "[[API-115]]", "[[API-139]]", "[[API-140]]", "[[API-142]]", "[[API-147]]", "[[API-149]]", "[[API-151]]", "[[API-154]]", "[[API-155]]", "[[API-157]]", "[[API-159]]", "[[API-161]]", "[[API-163]]", "[[API-166]]", "[[API-169]]", "[[API-171]]", "[[API-203]]", "[[CDIAG-011]]", "[[DFEAT-043]]", "[[DFEAT-044]]", "[[DFEAT-053]]", "[[DFEAT-055]]", "[[ERD-018]]", "[[ERD-026]]", "[[ERD-028]]", "[[EVT-012]]", "[[INT-009]]", "[[SCREEN-028]]", "[[SCREEN-029]]", "[[SCREEN-033]]", "[[SCREEN-034]]", "[[SEQ-016]]", "[[SEQ-019]]", "[[UC-024]]", "[[UC-027]]"]
   derived_domain_backward: ["[[AC-032]]", "[[AC-033]]", "[[AC-034]]", "[[AC-035]]", "[[AC-036]]", "[[AC-037]]", "[[AC-095]]", "[[AC-096]]", "[[AC-097]]", "[[AC-098]]"]
   implements_in_backward: ["[[MOD-017]]", "[[MOD-021]]", "[[MOD-043]]"]
   references_backward: ["[[ADR-013]]", "[[ADR-026]]"]
@@ -95,7 +95,6 @@ _(empty)_
 ## uses_integrations
 
 - INT-009
-- INT-013
 
 ## ubiquitous_language
 

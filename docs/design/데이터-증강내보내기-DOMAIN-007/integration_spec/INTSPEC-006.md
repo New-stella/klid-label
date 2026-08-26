@@ -4,7 +4,7 @@ type: integration_spec
 version: 2
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:10:24.287Z
+synced_at: 2026-08-26T04:11:45.440Z
 status: CHANGED
 prev_version: 1
 content_hash: 7145f9696411ede53140dd7a5498967ae63c40828837c07f032e9ce792fd1327

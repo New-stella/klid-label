@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-016",
-  "synced_at": "2026-08-26T05:51:29.621Z",
+  "synced_at": "2026-08-26T04:28:04.286Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -99,8 +99,8 @@
     "CMP-009": {
       "type": "diagram_c4_component",
       "domain_id": "DOMAIN-016",
-      "version": 14,
-      "content_hash": "0125e87c4ac088ffa5146559f08e81a363b6d6348ec8a40c7ae58e8a13b3f48b"
+      "version": 13,
+      "content_hash": "62c060eff34e58b42a921a5472168feeb1bd8ec12511c65b4855361b6e3245f2"
     },
     "SEQ-010": {
       "type": "diagram_sequence",
@@ -177,8 +177,8 @@
     "DFEAT-044": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-013",
-      "version": 12,
-      "content_hash": "c7c21a52c4a6bb8b5cd9b285d1a6013e86a767f9b4c21e4c94174bf8fcf25fb6"
+      "version": 11,
+      "content_hash": "16034807c7b864db5257db9cdedfd41b523ff2b999df7b3fbc446270d38e9443"
     },
     "DFEAT-046": {
       "type": "domain_feature",

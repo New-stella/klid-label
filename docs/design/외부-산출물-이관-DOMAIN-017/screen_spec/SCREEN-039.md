@@ -4,7 +4,7 @@ type: screen_spec
 version: 21
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:49:01.878Z
+synced_at: 2026-08-26T04:27:59.553Z
 status: CHANGED
 prev_version: 17
 content_hash: 2480763f079fd3d22d7e67789061af457a2c887ce3739847723957de2d83fc0a

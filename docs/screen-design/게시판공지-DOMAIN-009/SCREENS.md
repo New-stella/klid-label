@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-26T05:53:18.059Z (session 13) |
+| last sync | 2026-08-26T04:28:16.337Z (session 13) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -53,6 +53,14 @@
 | 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[NAV-001]] | navigation_tree | CHANGED (v17→v18) |
+| [[UI-111]] | ui_component | CHANGED (v1→v2) |
+| [[UI-133]] | ui_component | CHANGED (v1→v2) |
 
 ## Obsidian 볼트로 보기
 

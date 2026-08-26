@@ -4,7 +4,7 @@ type: feature
 version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:49:10.428Z
+synced_at: 2026-08-26T04:11:45.439Z
 status: CHANGED
 prev_version: 9
 content_hash: 1abbab3cbf31711e01e3d9cf2ff1e97a3c632bde568cbb1c644361216b5a46af
@@ -14,7 +14,6 @@ links:
   based_on: ["[[ADR-004]]", "[[ADR-018]]"]
   implements: ["[[REQ-001]]", "[[REQ-003]]", "[[REQ-004]]", "[[REQ-005]]", "[[REQ-020]]", "[[REQ-023]]"]
   migrated_from: ["[[LEGACY-015]]"]
-  covers_backward: ["[[AC-018]]", "[[AC-021]]"]
   granted_on_backward: ["[[ROLE-001]]"]
   implements_backward: ["[[API-059]]", "[[API-060]]", "[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-092]]", "[[API-165]]", "[[API-179]]", "[[API-188]]", "[[API-189]]", "[[API-190]]"]
   realizes_backward: ["[[MOD-013]]", "[[MOD-018]]", "[[UC-001]]", "[[UC-002]]", "[[UC-003]]", "[[UC-010]]"]

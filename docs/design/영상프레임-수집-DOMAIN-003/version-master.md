@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-08-26T06:22:49.337Z |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 126 |
+| Last sync | 2026-08-26T04:28:00.523Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 127 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-003 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 52건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 22건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -41,7 +41,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SCREEN-009]] (prev v58)
+- (변경 없음)
 
 ## ITEM 표
 
@@ -51,7 +51,7 @@
 | [[AC-026]] | acceptance | 5 | UNCHANGED |
 | [[AC-049]] | acceptance | 5 | UNCHANGED |
 | [[AC-050]] | acceptance | 5 | UNCHANGED |
-| [[AC-051]] | acceptance | 10 | UNCHANGED |
+| [[AC-051]] | acceptance | 6 | UNCHANGED |
 | [[AC-055]] | acceptance | 3 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
@@ -68,7 +68,7 @@
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[API-021]] | api_endpoint | 8 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
-| [[API-043]] | api_endpoint | 23 | UNCHANGED |
+| [[API-043]] | api_endpoint | 18 | UNCHANGED |
 | [[API-044]] | api_endpoint | 5 | UNCHANGED |
 | [[API-045]] | api_endpoint | 2 | UNCHANGED |
 | [[API-046]] | api_endpoint | 6 | UNCHANGED |
@@ -156,7 +156,7 @@
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 60 | CHANGED |
+| [[SCREEN-009]] | screen_spec | 56 | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |

@@ -117,7 +117,7 @@
     "schema_version": 1,
     "current_version": 10,
     "stale": true,
-    "stale_reason": "DOMAIN-013의 data.uses_integrations 변경 — references",
+    "stale_reason": "DOMAIN-013의 2개 필드 변경 — references",
     "change_summary": "한 줄 요약 자리를 v9 본문과 일치시킨다 — 제목과 결정 선택지에 데이터마트 로드분의 메타·이벤트 어노테이션 표시·수정·추가(포털 전용 저장소 적재, 데이터마트·원본 미수정 단방향)와 포털 업로드 영상 한정 이벤트구간 마킹·AI 증강 연동을 제공 항목으로 드러낸다. 미제공 열거(오토라벨링·SAM2 인터랙티브·키포인트·트랙관리·검수·버전관리)는 그대로 유지하며 본문·slug 는 손대지 않는다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-26T02:37:44.766Z",

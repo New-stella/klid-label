@@ -2,9 +2,9 @@
 
 | 항목 | 값 |
 |---|---|
-| SD | SD-012 v11 |
+| SD | SD-012 v10 |
 | status | draft |
-| designer | claude-screen-design |
+| designer | claude-code |
 | designs_screen | SCREEN-006 |
 
 ## renders

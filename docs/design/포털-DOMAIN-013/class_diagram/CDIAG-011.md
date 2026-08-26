@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-011
 type: class_diagram
-version: 10
+version: 9
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:49:54.372Z
+synced_at: 2026-08-26T01:11:10.800Z
 status: CHANGED
-prev_version: 9
-content_hash: 78f833a2d22a08fa4c3b63a6426757764a0e1250445fc17fb276338365e08dc6
+prev_version: 7
+content_hash: 3b57ba702e5d53cabd940cbb78909ded22d16d3b472343d721587d77210c9674
 stale: false
 raw: ./_raw/CDIAG-011.json
 links:
@@ -87,10 +87,6 @@ _(empty)_
 
 _(empty)_
 
-##### module_paths
-
-_(empty)_
-
 #### portalUserNo
 
 - **type**: String
@@ -117,10 +113,6 @@ _(empty)_
 0
 
 ##### subtasks
-
-_(empty)_
-
-##### module_paths
 
 _(empty)_
 
@@ -153,10 +145,6 @@ _(empty)_
 
 _(empty)_
 
-##### module_paths
-
-_(empty)_
-
 #### srcDataSrcSn
 
 - **type**: Long
@@ -183,10 +171,6 @@ _(empty)_
 0
 
 ##### subtasks
-
-_(empty)_
-
-##### module_paths
 
 _(empty)_
 
@@ -219,10 +203,6 @@ _(empty)_
 
 _(empty)_
 
-##### module_paths
-
-_(empty)_
-
 #### labelNm
 
 - **type**: String
@@ -249,10 +229,6 @@ _(empty)_
 0
 
 ##### subtasks
-
-_(empty)_
-
-##### module_paths
 
 _(empty)_
 
@@ -285,10 +261,6 @@ _(empty)_
 
 _(empty)_
 
-##### module_paths
-
-_(empty)_
-
 #### regDt
 
 - **type**: LocalDateTime
@@ -315,10 +287,6 @@ _(empty)_
 0
 
 ##### subtasks
-
-_(empty)_
-
-##### module_paths
 
 _(empty)_
 
@@ -351,79 +319,7 @@ _(empty)_
 
 _(empty)_
 
-##### module_paths
-
-_(empty)_
-
-#### labelId
-
-- **type**: Long
-- **is_static**: false
-- **visibility**: private
-- **description**: 라벨 마스터를 가리키는 참조값. 데이터마트 원본에서 불러온 라벨이 갖고 있던 분류 연결을 저장 왕복에서 잃지 않기 위한 보존값이며, 내려받기 산출물에서 어노테이션 항목의 분류 식별자를 채우는 조달처다. 외래키를 두지 않는다 — 포털 전용 저장소는 내부 파이프라인과 분리 운영되고 라벨 마스터가 비활성화돼도 포털 사용자의 과거 작업이 지워지면 안 되기 때문이며, 유효성은 조회 시점 결합으로 확인한다. 활성 마스터에 실재하지 않는 참조는 그 값만 비워서 보관하고 저장 자체는 성공시킨다. 값이 없을 수 있고, 라벨명으로 유추해 채우지 않는다.
-- **is_readonly**: false
-
-**implementation**:
-
-##### status
-
-planned
-
-##### modules
-
-_(empty)_
-
-##### records
-
-_(empty)_
-
-##### progress
-
-0
-
-##### subtasks
-
-_(empty)_
-
-##### module_paths
-
-_(empty)_
-
-#### trackId
-
-- **type**: String
-- **is_static**: false
-- **visibility**: private
-- **description**: 라벨이 속한 트랙 식별자. 데이터마트 원본에서 불러온 라벨이 갖고 있던 트랙 연결을 저장 왕복에서 잃지 않기 위한 보존값이며, 내려받기 산출물에서 어노테이션 항목의 트랙 식별자를 채우는 조달처다. 데이터 라벨의 같은 이름 항목과 물리명·타입·크기를 그대로 재사용하고 길이 상한은 30자다. 외래키를 두지 않으며 유효성은 조회 시점 결합으로 확인한다. 값이 없을 수 있다 — 트랙에 묶이지 않은 라벨은 비운 채로 둔다. 포털 사용자에게 트랙 번호 변경·병합 수단을 주는 것이 아니다.
-- **is_readonly**: false
-
-**implementation**:
-
-##### status
-
-planned
-
-##### modules
-
-_(empty)_
-
-##### records
-
-_(empty)_
-
-##### progress
-
-0
-
-##### subtasks
-
-_(empty)_
-
-##### module_paths
-
-_(empty)_
-
-- **description**: 포털 사용자의 간편 라벨링 작업 데이터. 원본 미수정, 사용자별 적재(데이터마트 미정합). PORTAL_USER_NO로 본인 데이터만 접근. (LS_PORTAL_USER_LABEL) 라벨 마스터 참조(labelId)와 트랙 식별자(trackId)는 포털 사용자에게 새 편집 수단을 주려는 것이 아니라, 데이터마트 원본에서 불러온 라벨이 갖고 있던 연결이 저장 왕복에서 끊기지 않도록 보존하기 위한 것이다. 트랙 번호 변경·병합은 포털에 두지 않는다. 두 값 모두 비어 있을 수 있고 외래키를 두지 않으므로 라벨 마스터와 실선 연관으로 묶지 않고 식별자 보유만으로 표현하며, 참조 무결성은 조회 시점 결합으로 확인한다.
+- **description**: 포털 사용자의 간편 라벨링 작업 데이터. 원본 미수정, 사용자별 적재(데이터마트 미정합). PORTAL_USER_NO로 본인 데이터만 접근. (LS_PORTAL_USER_LABEL)
 
 **enum_values**:
 
@@ -489,32 +385,6 @@ Portal
 - DFEAT-043
 - DFEAT-044
 - DFEAT-053
-
-## implementation
-
-### status
-
-planned
-
-### modules
-
-_(empty)_
-
-### records
-
-_(empty)_
-
-### progress
-
-0
-
-### subtasks
-
-_(empty)_
-
-### module_paths
-
-_(empty)_
 
 ## referenced_items
 

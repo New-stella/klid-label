@@ -222,12 +222,11 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-009",
-          "IMPREC-132"
+          "IMPREC-009"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-26T05:51:12.936Z",
+        "last_updated": "2026-08-17T04:33:35.793Z",
         "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/portal/controller/PortalDatamartDownloadController.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
@@ -245,8 +244,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "포털 데이터마트 작업 데이터 ZIP 산출 구조를 검수 승인 학습데이터 산출물(NIA COCO 확장)과 통일한다. 라벨을 영상 단위 단일 문서(labels.json)로 담던 자체 형태를 두지 않고, 프레임마다 이미지와 짝을 이루는 어노테이션 문서(frames/{FRM_NO 4자리 zero-pad}.json)로 낸다. 어노테이션 문서의 메타 블록 조달은 검수 승인 산출물과 같은 규칙을 따르되 이 엔드포인트가 규칙을 다시 정의하지 않음을 밝히고, 이미지와 경로가 비식별 기준임을 못박는다. 접근 판정 순서가 상태 오라클 차단 장치임을 명시한다. 병합 규칙·최상위 폴더 접두·고정 파일명·요청량 제한·중단 처리 서술은 그대로 둔다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-26T05:51:12.936Z",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-26T04:26:00.108Z",
     "created_at": "2026-08-17T01:08:27.272Z"
   }
 }

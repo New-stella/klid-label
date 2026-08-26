@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-26T05:53:17.524Z (session 13) |
+| last sync | 2026-08-26T04:28:15.832Z (session 13) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -49,6 +49,14 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-018]] — 검수 목록 화면 | screens/SCREEN-018/SCREEN-018.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-019]] — 검수 상세 화면 | screens/SCREEN-019/SCREEN-019.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[NAV-001]] | navigation_tree | CHANGED (v17→v18) |
+| [[UI-111]] | ui_component | CHANGED (v1→v2) |
+| [[UI-133]] | ui_component | CHANGED (v1→v2) |
 
 ## Obsidian 볼트로 보기
 
