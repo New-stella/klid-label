@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LetterboxTransform;
 import kr.co.cudo.authoring.video.dto.ResolutionDerivativeResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionPreset;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -67,7 +68,7 @@ public class ResolutionDerivativeService {
      * @param parentRawSn 원본 RAW_SN (검수완료·비식별·ORGNL_RAW_SN=null)
      * @param preset      목표 해상도 프리셋
      * @param regId       등록자(REVIEWER) 식별자
-     * @return 파생 RAW_SN + EXPORT_SN + 원본/목표 해상도 + 배율
+     * @return 파생 RAW_SN + EXPORT_SN + 원본 해상도 + <b>실제 산출 크기</b> + 균일 배율
      */
     public ResolutionDerivativeResponse createDerivative(Long parentRawSn, ResolutionPreset preset, String regId) {
         LsDataRaw parent = loadAndValidate(parentRawSn);
@@ -82,17 +83,22 @@ public class ResolutionDerivativeService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 해상도를 확인할 수 없습니다.");
         }
 
-        int targetW = preset.width();
-        int targetH = preset.height();
-        double scaleX = (double) targetW / srcW;
-        double scaleY = (double) targetH / srcH;
+        // @design ADR-018 — 프리셋은 크기 상한이다. 산출 크기·균일 배율은 Phase A(스냅샷)와 픽셀
+        //       리스케일이 쓰는 것과 <b>같은 계산기</b>로 구해 응답이 실제 산출과 어긋나지 않게 한다.
+        //       구 구현은 축별 독립 배율(targetW/srcW, targetH/srcH)을 응답에 실어 실제 픽셀 처리와
+        //       달랐다(비-16:9 원본에서 왜곡값 노출).
+        LetterboxTransform box = LetterboxTransform.of(srcW, srcH, preset.width(), preset.height());
+        int targetW = box.drawW();
+        int targetH = box.drawH();
+        double scaleX = box.scale();
+        double scaleY = box.scale();
 
         // 부모 잠금 + PII 게이트 + UK 예약 + 새 RAW(PENDING) 커밋 (별도 빈 = 프록시 트랜잭션 실제 적용).
         ResolutionReservationPersister.Reservation reservation =
                 reservationPersister.reserveAndCreate(parent, preset, firstFrame.getSrcSn(), regId);
 
         log.info("[Video][ResolutionDerivative] derivative reserved parentRawSn={} newRawSn={} dataAugSn={} preset={} " +
-                        "src={}x{} target={}x{}",
+                        "src={}x{} out={}x{}",
                 parentRawSn, reservation.newRawSn(), reservation.dataAugSn(), preset.name(), srcW, srcH, targetW, targetH);
 
         return new ResolutionDerivativeResponse(

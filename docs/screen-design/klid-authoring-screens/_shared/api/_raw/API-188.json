@@ -246,7 +246,7 @@
     "schema_version": 1,
     "current_version": 2,
     "stale": true,
-    "stale_reason": "REQ-023의 domain_id 변경이 implements로 2-hop 전파",
+    "stale_reason": "REQ-001의 2개 필드 변경이 implements로 2-hop 전파",
     "change_summary": "D007-LINK-002: 동일(진행률 조회)",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-16T07:09:02.424Z",
