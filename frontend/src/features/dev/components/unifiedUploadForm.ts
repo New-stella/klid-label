@@ -7,7 +7,7 @@ import {
 } from '@/features/upload/components/tusUploadForm';
 
 /**
- * 수동 업로드 화면(`/dev/upload`)의 **단일 폼 상태 + 경로별 전송 변환**. [@design SCREEN-027]
+ * 파일 업로드 화면(`/dev/upload`)의 **단일 폼 상태 + 경로별 전송 변환**. [@design SCREEN-027]
  *
  * <p>화면은 입력 폼 한 벌만 갖고, 최상단 라디오로 고른 **적재 경로**가 「보내는 곳과 그 뒤 흐름」만
  * 바꾼다. 그래서 폼 상태는 두 경로의 **합집합**이고, 전송 payload 변환기만 경로별로 갈린다 —

@@ -1,8 +1,13 @@
+import { useState } from 'react';
+import { FolderSearch } from 'lucide-react';
+
 import { Alert } from '@/components/common/Alert';
 import { Button } from '@/components/common/Button';
 import { Field, FieldLabel } from '@/components/common/Field';
 import { Input } from '@/components/common/Input';
 import { RadioGroup } from '@/components/common/RadioGroup';
+
+import { ImportPathPickerModal, type ImportPathPickerMode } from './ImportPathPickerModal';
 
 /** 이 산출물의 비식별 여부 — 기본은 원본이다. */
 export const SOURCE_ORIGINAL = 'original';
@@ -32,8 +37,15 @@ export interface ImportScanFormProps {
  *
  * 경로의 허용 저장소 범위 판정은 서버가 소유한다. 화면은 비어 있는지만 보고 막는다.
  *
+ * <p>두 경로 모두 「찾아보기」로 골라 넣을 수 있다(API-221·API-222). 다만 <b>고르는 길은 적는
+ * 길을 대신하지 않는다</b> — 경로를 아는 사용자는 붙여넣기가 빠르고, 저장소 마운트가 풀려 탐색이
+ * 죽어도 입력이 막히면 안 된다. 그래서 입력칸은 언제나 그대로 열려 있고, 탐색 실패는 그 창
+ * 안에서만 알리며 이 폼을 오류 상태로 만들지 않는다.
+ *
  * @design SCREEN-039
  * @design API-205
+ * @design API-221
+ * @design API-222
  */
 export function ImportScanForm({
   folderPath,
@@ -46,6 +58,8 @@ export function ImportScanForm({
   onScan,
 }: ImportScanFormProps) {
   const deidentified = source === SOURCE_DEIDENTIFIED;
+  /** 열려 있는 탐색 창의 축. null 이면 닫혀 있다. */
+  const [picker, setPicker] = useState<ImportPathPickerMode | null>(null);
 
   return (
     <section
@@ -68,7 +82,21 @@ export function ImportScanForm({
           placeholder="예: /nas-storage/handover/00000073"
           onChange={(e) => onFolderPathChange(e.target.value)}
         />
-        <p className={FIELD_HELP_CLASS}>허용된 저장소 범위 밖이면 서버가 받지 않습니다.</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className={FIELD_HELP_CLASS}>허용된 저장소 범위 밖이면 서버가 받지 않습니다.</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={FolderSearch}
+            data-testid="import-folder-browse"
+            // 두 버튼의 시각 문구가 같아 접근 이름만으로는 구분되지 않는다. 보이는 문구를
+            // 포함한 이름을 붙여 WCAG 2.5.3(Label in Name)을 지키면서 축을 가른다.
+            aria-label="폴더 찾아보기"
+            onClick={() => setPicker('folder')}
+          >
+            찾아보기
+          </Button>
+        </div>
       </Field>
 
       <Field className="gap-1.5">
@@ -82,7 +110,19 @@ export function ImportScanForm({
           placeholder="비우면 프레임과 라벨만 가져온다"
           onChange={(e) => onVideoPathChange(e.target.value)}
         />
-        <p className={FIELD_HELP_CLASS}>비우면 프레임과 라벨만 가져옵니다.</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className={FIELD_HELP_CLASS}>비우면 프레임과 라벨만 가져옵니다.</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={FolderSearch}
+            data-testid="import-video-browse"
+            aria-label="영상 파일 찾아보기"
+            onClick={() => setPicker('file')}
+          >
+            찾아보기
+          </Button>
+        </div>
       </Field>
 
       <Field className="gap-1.5">
@@ -120,6 +160,18 @@ export function ImportScanForm({
           검사
         </Button>
       </div>
+
+      {/* 고른 값은 서버가 돌려준 실제 위치다 — 그 값을 그대로 입력칸에 넣어야 검사와 왕복이 맞다. */}
+      <ImportPathPickerModal
+        open={picker !== null}
+        mode={picker ?? 'folder'}
+        onClose={() => setPicker(null)}
+        onSelect={(path) => {
+          if (picker === 'folder') onFolderPathChange(path);
+          else onVideoPathChange(path);
+          setPicker(null);
+        }}
+      />
     </section>
   );
 }
