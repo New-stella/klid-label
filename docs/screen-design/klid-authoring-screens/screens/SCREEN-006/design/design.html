@@ -1,0 +1,400 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design.css"></head><body><main class="screen-root">
+
+  
+  <header class="page-head">
+    <nav class="breadcrumb t-caption" aria-label="현재 위치">
+      <span>영상</span>
+      <span class="crumb-sep" aria-hidden="true">›</span>
+      <span class="crumb-current" aria-current="page">마킹</span>
+    </nav>
+    <h1 class="t-title-lg">마킹</h1>
+    <div class="page-head-sub">
+      <p class="t-body-sm text-muted">비식별 영상을 재생하며 이벤트 시점을 마킹합니다.</p>
+      <span class="route-chip t-mono">/marking/1284</span>
+    </div>
+  </header>
+
+  
+  <section class="card player-card" aria-label="영상 플레이어">
+    <div class="card-header">
+      <h2 class="t-title-md">영상 플레이어</h2>
+    </div>
+    <div class="card-content">
+
+      
+      <div class="mat">
+        <div class="mat-frame" role="img" aria-label="비식별 처리된 CCTV 영상 프레임 — 마스킹 영역 2곳이 적용되어 있습니다">
+          <span class="scene-sky" aria-hidden="true"></span>
+          <span class="scene-ground" aria-hidden="true"></span>
+          <span class="scene-road" aria-hidden="true"></span>
+          <span class="scene-block scene-block-a" aria-hidden="true"></span>
+          <span class="scene-block scene-block-b" aria-hidden="true"></span>
+          <span class="scene-vehicle" aria-hidden="true"></span>
+          <span class="mask-box" style="left:24%;top:40%;width:8%;height:24%" aria-hidden="true"><span class="mask-tag">마스킹</span></span>
+          <span class="mask-box" style="left:62%;top:50%;width:11%;height:16%" aria-hidden="true"><span class="mask-tag">마스킹</span></span>
+
+          <span class="mat-overlay mat-overlay-tl t-label">
+            <span class="ov-dot" aria-hidden="true"></span>
+            <span>비식별 적용</span>
+          </span>
+          <span class="mat-overlay mat-overlay-tr t-mono num">
+            <span>F540</span>
+            <span class="ov-sep" aria-hidden="true">·</span>
+            <span>00:18</span>
+          </span>
+        </div>
+      </div>
+
+      
+      <div class="player-bar">
+        <div class="seek-wrap">
+          <label class="sr-only" for="seek">재생 위치 탐색</label>
+          <input id="seek" class="seek-range" type="range" value="51" role="slider" aria-valuemin="0" aria-valuemax="35" aria-valuenow="18" aria-valuetext="35초 중 18초" />
+          <span class="time-readout t-mono num">
+            <span class="time-now">00:18</span>
+            <span class="time-sep" aria-hidden="true">/</span>
+            <span class="time-total">00:35</span>
+          </span>
+        </div>
+
+        <div class="player-controls">
+          <button type="button" class="btn btn-secondary" aria-pressed="true">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <rect x="7" y="5" width="4" height="14" rx="1"></rect><rect x="13" y="5" width="4" height="14" rx="1"></rect>
+            </svg>
+            <span class="t-button">일시정지</span>
+          </button>
+
+          <span class="t-caption text-muted">재생 중 · 30fps · 총 1,050프레임</span>
+
+          <div class="speed-group">
+            <span class="speed-label t-label" id="speed-label">배속</span>
+            <div class="speed-buttons" role="group" aria-labelledby="speed-label">
+              <button type="button" class="speed-btn num" aria-pressed="false">0.25x</button>
+              <button type="button" class="speed-btn num" aria-pressed="false">0.5x</button>
+              <button type="button" class="speed-btn num" aria-pressed="true">1x</button>
+              <button type="button" class="speed-btn num" aria-pressed="false">1.5x</button>
+              <button type="button" class="speed-btn num" aria-pressed="false">2x</button>
+              <button type="button" class="speed-btn num" aria-pressed="false">4x</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  
+  <div class="work-grid">
+
+    
+    <aside class="work-col" aria-label="마킹 툴바">
+      <section class="card toolbar-card">
+        <div class="card-header"><h2 class="t-title-md">마킹 도구</h2></div>
+        <div class="card-content">
+
+          <div class="mode-tabs" role="tablist" aria-label="마킹 방식">
+            <button type="button" class="mode-tab t-button" role="tab" aria-selected="true">
+              <span>수동</span><span class="kbd">1</span>
+            </button>
+            <button type="button" class="mode-tab t-button" role="tab" aria-selected="false">
+              <span>자동</span><span class="kbd">2</span>
+            </button>
+          </div>
+
+          
+          <div class="hint-block">
+            <span class="hint-title t-label">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="2" y="6" width="20" height="12" rx="2"></rect><path d="M7 12h10"></path>
+              </svg>
+              <span>단축키</span>
+            </span>
+            <dl class="shortcut-list t-caption">
+              <div class="shortcut-row"><dt><span class="kbd">Space</span></dt><dd>현재 시점 마킹</dd></div>
+              <div class="shortcut-row"><dt><span class="kbd">Del</span><span class="kbd">Backspace</span></dt><dd>선택 마킹 삭제</dd></div>
+              <div class="shortcut-row"><dt><span class="kbd">Enter</span></dt><dd>마킹 완료</dd></div>
+            </dl>
+          </div>
+
+          <div class="mark-count">
+            <span class="t-label text-muted">현재 마킹</span>
+            <span><span class="count-value num">5</span><span class="count-unit">건</span></span>
+          </div>
+
+          <div class="toolbar-actions">
+            <button type="button" class="btn btn-secondary">
+              <span class="t-button">초기화</span>
+            </button>
+            <button type="button" class="btn btn-primary">
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5"></path>
+              </svg>
+              <span class="t-button">마킹 완료</span>
+            </button>
+          </div>
+
+          <div class="danger-slot">
+            <span class="tooltip-host">
+              <button type="button" class="btn btn-secondary btn-block">
+                <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+                </svg>
+                <span class="t-button">비식별 누락 신고</span>
+              </button>
+            </span>
+            <p class="t-caption text-muted" style="margin-top:var(--sp-sm)">신고하면 영상이 잠기고 재비식별 후 마킹부터 다시 시작합니다.</p>
+          </div>
+
+        </div>
+      </section>
+    </aside>
+
+    
+    <div class="work-col">
+
+      
+      <section class="card timeline-card" aria-label="마킹 타임라인">
+        <div class="card-header">
+          <h2 class="t-title-md">마킹 타임라인</h2>
+          <span class="t-caption text-muted">막대를 클릭하면 그 마킹이 선택됩니다</span>
+        </div>
+        <div class="card-content">
+
+          <div class="timeline">
+            <div class="timeline-track">
+              <button type="button" class="mark" style="left:12.6%" aria-pressed="false" aria-label="F132 · 00:04 마킹 선택">
+                <span class="mark-pin" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="mark" style="left:30.3%" aria-pressed="false" aria-label="F318 · 00:10 마킹 선택">
+                <span class="mark-pin" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="mark" style="left:51.4%" aria-pressed="true" aria-label="F540 · 00:18 마킹 선택됨">
+                <span class="mark-pin" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="mark" style="left:69.1%" aria-pressed="false" aria-label="F726 · 00:24 마킹 선택">
+                <span class="mark-pin" aria-hidden="true"></span>
+              </button>
+              <button type="button" class="mark" style="left:87.1%" aria-pressed="false" aria-label="F915 · 00:30 마킹 선택">
+                <span class="mark-pin" aria-hidden="true"></span>
+              </button>
+
+              <span class="timeline-playhead" style="left:51.4%" aria-hidden="true"></span>
+            </div>
+            <div class="timeline-ruler t-mono num" aria-hidden="true">
+              <span>00:00</span><span>00:09</span><span>00:18</span><span>00:26</span><span>00:35</span>
+            </div>
+          </div>
+
+          <div class="timeline-legend t-caption">
+            <span class="legend-item"><span class="legend-pin" aria-hidden="true"></span>마킹 5건</span>
+            <span class="legend-item"><span class="legend-pin" data-kind="selected" aria-hidden="true"></span>선택됨 F540 (00:18)</span>
+            <span class="legend-item"><span class="legend-head" aria-hidden="true"></span>현재 재생 위치</span>
+            <span class="legend-item">총 1,050프레임 · 30fps 기준</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 섹션⑤ 검증 질문 선택 (SCREEN-006 · API-047) -->
+      <section class="card question-card" aria-label="검증 질문 선택">
+        <div class="card-header">
+          <h2 class="t-title-md">검증 질문</h2>
+          <span class="t-caption text-muted">마킹과 함께 저장됩니다</span>
+        </div>
+        <div class="card-content">
+
+          <div class="field">
+            <label class="field-label t-label" for="vrfc-question">마킹과 함께 저장할 질문</label>
+            <div class="select-shell">
+              <select class="input select-control t-body-md" id="vrfc-question" aria-describedby="vrfc-question-full">
+                <option selected="selected">화재로 판단할 수 있는 연기 또는 불꽃이 관측되는가?</option>
+                <option>연기가 관측된다면 색과 확산 방향은 어떠한가?</option>
+                <option>불꽃의 위치가 건물 내부인가 외부인가?</option>
+              </select>
+              <span class="select-arrow" aria-hidden="true"></span>
+            </div>
+            <span class="field-help t-caption">고르지 않으면 첫 번째 질문이 쓰입니다.</span>
+          </div>
+
+          <div class="question-full" id="vrfc-question-full">
+            <span class="question-full-label t-label">선택한 질문 전문</span>
+            <p class="question-full-text t-body-md">화재로 판단할 수 있는 연기 또는 불꽃이 관측되는가?</p>
+          </div>
+
+        </div>
+      </section>
+
+      
+
+    </div>
+
+    
+    <aside class="work-col work-col-side" aria-label="현재 마킹 칩 목록">
+      <section class="card chips-card">
+        <div class="card-header">
+          <h2 class="t-title-md">현재 마킹</h2>
+          <span class="t-caption text-muted">제출 전 목록</span>
+        </div>
+        <div class="card-content">
+          <ul class="chip-list">
+            <li class="chip-row">
+              <button type="button" class="chip" aria-pressed="false">
+                <span class="chip-frame num">F132</span><span class="chip-time num">00:04</span>
+              </button>
+              <button type="button" class="chip-remove" aria-label="F132 마킹 삭제">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+              </button>
+            </li>
+            <li class="chip-row">
+              <button type="button" class="chip" aria-pressed="false">
+                <span class="chip-frame num">F318</span><span class="chip-time num">00:10</span>
+              </button>
+              <button type="button" class="chip-remove" aria-label="F318 마킹 삭제">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+              </button>
+            </li>
+            <li class="chip-row">
+              <button type="button" class="chip" aria-pressed="true">
+                <span class="chip-frame num">F540</span><span class="chip-time num">00:18</span>
+              </button>
+              <button type="button" class="chip-remove" aria-label="F540 마킹 삭제">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+              </button>
+            </li>
+            <li class="chip-row">
+              <button type="button" class="chip" aria-pressed="false">
+                <span class="chip-frame num">F726</span><span class="chip-time num">00:24</span>
+              </button>
+              <button type="button" class="chip-remove" aria-label="F726 마킹 삭제">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+              </button>
+            </li>
+            <li class="chip-row">
+              <button type="button" class="chip" aria-pressed="false">
+                <span class="chip-frame num">F915</span><span class="chip-time num">00:30</span>
+              </button>
+              <button type="button" class="chip-remove" aria-label="F915 마킹 삭제">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </aside>
+
+  </div>
+
+
+  
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>모드 분기</span>
+      <span class="t-body-sm text-muted">위 기본 렌더는 <strong>수동 모드</strong>입니다. 자동 모드로 바꾸면 단축키 안내 자리에 간격(프레임) 입력이 대신 들어갑니다 — 두 블록은 동시에 뜨지 않습니다.</span>
+    </div>
+    <div class="reference-grid" data-cols="2">
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">자동 모드 — 단축키 안내 자리에 간격 입력</p>
+          <div class="mode-tabs" role="tablist" aria-label="마킹 방식 (자동 선택 상태)">
+            <button type="button" class="mode-tab t-button" role="tab" aria-selected="false">
+              <span>수동</span><span class="kbd">1</span>
+            </button>
+            <button type="button" class="mode-tab t-button" role="tab" aria-selected="true">
+              <span>자동</span><span class="kbd">2</span>
+            </button>
+          </div>
+          <div class="field" style="margin-top:var(--sp-md)">
+            <label class="field-label t-label" for="interval">간격(프레임)</label>
+            <input id="interval" class="input num" type="number" value="300" placeholder="300" aria-describedby="interval-help" />
+            <span id="interval-help" class="field-help t-caption">1 이상 정수. 상한은 없습니다. 기본값 300</span>
+          </div>
+          <p class="t-caption text-muted" style="margin-top:var(--sp-md)">자동 모드는 마킹 건수를 검사하지 않습니다 — 간격 값만 유효하면 제출됩니다.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">수동 모드에서 마크 0건으로 완료를 누른 경우 — 토스트 경고(제출만 막음)</p>
+          <div class="toast" role="alert">
+            <svg class="icon toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+            </svg>
+            <span class="toast-body">
+              <span class="toast-title t-body-sm">재생하며 마킹을 1건 이상 쌓아 주세요.</span>
+              <span class="t-caption">완료 버튼은 항상 눌립니다 — 비활성화하지 않고 제출만 막습니다.</span>
+            </span>
+          </div>
+
+          <p class="ref-caption t-caption text-faint" style="margin-top:var(--sp-lg)">마킹 0건 — 칩 목록 빈 상태</p>
+          <div class="card">
+            <div class="state-box" role="status">
+              <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M5 3v18"></path><path d="M5 4h13l-2.5 4L18 12H5"></path>
+              </svg>
+              <p class="t-body-sm state-title">아직 마킹이 없습니다.</p>
+              <p class="t-caption">영상을 재생하며 Space 로 이벤트 시점을 찍어 주세요.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">재생 상태와 신고 가능 여부에 따라 해당 영역을 대신하는 표시입니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">버퍼링·탐색 중 — 매트 위 스피너 오버레이(role=status)</p>
+          <div class="mat ref-mat">
+            <div class="mat-frame">
+              <span class="scene-sky" aria-hidden="true"></span>
+              <span class="scene-ground" aria-hidden="true"></span>
+              <span class="mat-status" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                <span class="t-body-sm">영상을 불러오는 중…</span>
+              </span>
+            </div>
+          </div>
+          <p class="t-caption text-muted" style="margin-top:var(--sp-sm)">재생·탐색이 재개되면 해제됩니다.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content has-open-tooltip">
+          <p class="ref-caption t-caption text-faint">신고 불가 ① 파생영상 — 버튼 비활성 + 사유 툴팁</p>
+          <span class="tooltip-host" data-open="true">
+            <button type="button" class="btn btn-secondary btn-block" disabled aria-describedby="tip-derivative">
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path>
+              </svg>
+              <span class="t-button">비식별 누락 신고</span>
+            </button>
+            <span class="tooltip t-caption" id="tip-derivative" role="tooltip">증강·해상도 변환으로 만든 파생영상이라 이 화면에서는 비식별 재처리를 요청할 수 없습니다.</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="ref-caption t-caption text-faint">마킹 대기 단계가 아님 — 화면 전체를 대신하는 진입 차단 안내</p>
+          <div role="alert" style="text-align:center;padding:var(--sp-lg) var(--sp-md)">
+            <p class="t-title-md">마킹 — 영상 #128</p>
+            <p class="t-body-md text-muted" style="margin-top:var(--sp-sm)">이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다.</p>
+          </div>
+          <p class="t-caption text-muted" style="margin-top:var(--sp-sm)">편집기도 신고 버튼도 열리지 않습니다. 그 상태의 비식별 누락 신고는 라벨링 화면이 담당합니다.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main></body></html>
