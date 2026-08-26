@@ -12,6 +12,9 @@ import java.math.BigDecimal;
  *   <li>{@code autoLblYn} — {@code AUTO_LBL_YN='Y'} 면 'Y', 그 외({@code 'N'}·{@code null})는 null
  *       (수동 라벨로 해석).</li>
  *   <li>{@code confScore} — {@code CONF_SCORE}. 자동이 아닌 라벨은 null.</li>
+ *   <li>{@code labelId} — {@code LBL_ID}(라벨 마스터 {@code LS_LABEL} FK). <b>null 허용</b>이며
+ *       null 은 마스터 미연결을 뜻한다. 소비자가 표시명·표시색을 마스터에서 조달할 때 쓰는 키다 —
+ *       이 값이 없으면 마스터를 배치 조회할 수 없어 라벨명을 저장 원문으로만 내보내게 된다.</li>
  * </ul>
  *
  * <p><b>V6 이전에는</b> 이 두 값이 별도 테이블 {@code LS_DATA_LBL_AI_INFO} 에 있었고
@@ -24,6 +27,8 @@ public interface AutoLabelInfoProjection {
     Long getLblSn();
 
     String getLabelNm();
+
+    Long getLabelId();
 
     String getAutoLblYn();
 

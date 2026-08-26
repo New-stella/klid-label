@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,9 @@ class LsDataLblRepositoryAutoLabelInfoTest {
 
     @Autowired
     private LsDataSrcRepository srcRepository;
+
+    @Autowired
+    private LsLabelRepository labelRepository;
 
 
     @Autowired
@@ -74,6 +79,44 @@ class LsDataLblRepositoryAutoLabelInfoTest {
                 .filter(r -> r.getLblSn().equals(manualLbl.getLblSn())).findFirst().orElseThrow();
         assertThat(manualRow.getAutoLblYn()).isNull();
         assertThat(manualRow.getConfScore()).isNull();
+    }
+
+    @Test
+    @DisplayName("투영이_LBL_ID_를_실어_돌려준다_마스터_미연결은_null_이다")
+    void projectsLabelIdForMasterLookup() {
+        // [design: API-044] 오토라벨 응답의 표시명·표시색은 이 키로 라벨 마스터를 배치 조회해 조달한다.
+        //   투영에서 이 값이 빠지면 조회 자체가 불가능해 라벨명이 저장 원문(COCO 영문)으로만 나간다.
+        RawVideoFixture.seedRaw(jdbcTemplate, 995_003L);
+        LsDataSrc src = srcRepository.saveAndFlush(
+                LsDataSrc.create(995_003L, 0, "raw/frame0.jpg", null));
+
+        // 활성 라벨 마스터 1건을 만들어 그 PK 를 라벨에 연결한다(FK 위반 없이 실제 값으로 왕복).
+        LsLabel master = labelRepository.saveAndFlush(
+                LsLabel.create("검증용라벨-995003", "#E11D48", "BBOX", 0, "tester"));
+
+        LsDataLbl linked = lblRepository.saveAndFlush(LsDataLbl.createAutoBbox(
+                src.getSrcSn(), master.getLabelId(), "person", "[[1,1],[2,2]]",
+                BigDecimal.valueOf(0.9), "track-1"));
+        LsDataLbl unlinked = lblRepository.saveAndFlush(LsDataLbl.createAutoBbox(
+                src.getSrcSn(), null, "bicycle", "[[3,3],[4,4]]",
+                BigDecimal.valueOf(0.7), "track-2"));
+
+        // when
+        List<AutoLabelInfoProjection> rows = lblRepository.findAutoLabelInfoByRawSn(995_003L);
+
+        // then — 연결 라벨은 실제 마스터 PK, 미연결 라벨은 null
+        assertThat(rows).hasSize(2);
+        AutoLabelInfoProjection linkedRow = rows.stream()
+                .filter(r -> r.getLblSn().equals(linked.getLblSn())).findFirst().orElseThrow();
+        assertThat(linkedRow.getLabelId()).isEqualTo(master.getLabelId());
+
+        AutoLabelInfoProjection unlinkedRow = rows.stream()
+                .filter(r -> r.getLblSn().equals(unlinked.getLblSn())).findFirst().orElseThrow();
+        assertThat(unlinkedRow.getLabelId()).isNull();
+
+        // 기존 계약(auto 축)이 이 추가로 흔들리지 않는지 함께 고정
+        assertThat(linkedRow.getLabelNm()).isEqualTo("person");
+        assertThat(linkedRow.getAutoLblYn()).isEqualTo("Y");
     }
 
     @Test
