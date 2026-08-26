@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-08-25T10:51:39.045Z |
-| Mode | SYNC — NEW 0 / CHANGED 7 / UNCHANGED 55 |
+| Last sync | 2026-08-26T01:11:02.377Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 57 |
 | 출력 루트 | docs/design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-001 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 13건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,13 +41,11 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ADR-039]] (prev v3)
-- CHANGED [[ROLE-002]] (prev v6)
-- CHANGED [[ROLE-003]] (prev v7)
-- CHANGED [[SCREEN-001]] (prev v13)
-- CHANGED [[SCREEN-002]] (prev v17)
-- CHANGED [[SCREEN-003]] (prev v10)
-- CHANGED [[SCREEN-004]] (prev v11)
+- CHANGED [[CDIAG-008]] (prev v4)
+- CHANGED [[DFEAT-001]] (prev v3)
+- CHANGED [[DFEAT-003]] (prev v7)
+- CHANGED [[SCREEN-012]] (prev v46)
+- CHANGED [[SCREEN-024]] (prev v23)
 
 ## ITEM 표
 
@@ -66,7 +65,7 @@
 | [[ADR-004]] | adr | 4 | UNCHANGED |
 | [[ADR-012]] | adr | 5 | UNCHANGED |
 | [[ADR-021]] | adr | 4 | UNCHANGED |
-| [[ADR-039]] | adr | 5 | CHANGED |
+| [[ADR-039]] | adr | 5 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-043]] | adr | 6 | UNCHANGED |
 | [[API-001]] | api_endpoint | 5 | UNCHANGED |
@@ -77,10 +76,10 @@
 | [[API-006]] | api_endpoint | 9 | UNCHANGED |
 | [[API-007]] | api_endpoint | 7 | UNCHANGED |
 | [[API-153]] | api_endpoint | 4 | UNCHANGED |
-| [[CDIAG-008]] | class_diagram | 4 | UNCHANGED |
-| [[DFEAT-001]] | domain_feature | 3 | UNCHANGED |
+| [[CDIAG-008]] | class_diagram | 5 | CHANGED |
+| [[DFEAT-001]] | domain_feature | 4 | CHANGED |
 | [[DFEAT-002]] | domain_feature | 6 | UNCHANGED |
-| [[DFEAT-003]] | domain_feature | 7 | UNCHANGED |
+| [[DFEAT-003]] | domain_feature | 8 | CHANGED |
 | [[DOMAIN-001]] | domain | 9 | UNCHANGED |
 | [[ERD-029]] | erd | 2 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
@@ -98,15 +97,15 @@
 | [[NFR-020]] | nfr | 6 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-002]] | permission_role | 7 | CHANGED |
-| [[ROLE-003]] | permission_role | 7 | CHANGED |
-| [[SCREEN-001]] | screen_spec | 13 | CHANGED |
-| [[SCREEN-002]] | screen_spec | 17 | CHANGED |
-| [[SCREEN-003]] | screen_spec | 10 | CHANGED |
-| [[SCREEN-004]] | screen_spec | 11 | CHANGED |
-| [[SCREEN-012]] | screen_spec | 46 | UNCHANGED |
+| [[ROLE-002]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[SCREEN-001]] | screen_spec | 13 | UNCHANGED |
+| [[SCREEN-002]] | screen_spec | 17 | UNCHANGED |
+| [[SCREEN-003]] | screen_spec | 10 | UNCHANGED |
+| [[SCREEN-004]] | screen_spec | 11 | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 47 | CHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 23 | UNCHANGED |
+| [[SCREEN-024]] | screen_spec | 24 | CHANGED |
 | [[SD-009]] | screen_design | 7 | UNCHANGED |
 | [[SD-017]] | screen_design | 2 | UNCHANGED |
 | [[SD-018]] | screen_design | 5 | UNCHANGED |

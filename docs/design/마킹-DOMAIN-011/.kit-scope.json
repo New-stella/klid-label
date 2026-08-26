@@ -4,7 +4,7 @@
   "domain": "DOMAIN-011",
   "decided_by": "llm",
   "decided_at": "2026-08-25T10:53:32.383789Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건)",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26 승격: INTSPEC-003, ADR-029, ADR-030 — INTSPEC-003(시계열 위탁 요청 규격)은 이 키트 본문이 이미 그 ID 를 참조하는데 정작 ITEM 이 없어 참조가 끊겨 있었다(INTSPEC-002 선례와 동일). ADR-029·ADR-030 은 위탁 구간과 배치 스텝 경계 제약이다",
   "items": [
     "AC-027",
     "AC-028",
@@ -13,6 +13,8 @@
     "ADR-006",
     "ADR-008",
     "ADR-022",
+    "ADR-029",
+    "ADR-030",
     "ADR-046",
     "ADR-052",
     "API-043",
@@ -29,6 +31,7 @@
     "EVT-001",
     "FEAT-005",
     "INT-002",
+    "INTSPEC-003",
     "NFR-008",
     "NFR-009",
     "NFR-010",
@@ -55,6 +58,11 @@
     "TEST-002",
     "UC-019"
   ],
-  "pending": [],
-  "last_sync_at": "2026-08-25T10:53:46.515Z"
+  "pending": [
+    "SHELL-001",
+    "MOD-004",
+    "IMPREC-120",
+    "NAV-001"
+  ],
+  "last_sync_at": "2026-08-26T01:11:08.466Z"
 }

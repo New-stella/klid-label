@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-25T10:53:47.409Z |
-| Mode | SYNC — NEW 5 / CHANGED 0 / UNCHANGED 72 |
+| Last sync | 2026-08-26T01:11:09.512Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 79 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-012 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 5건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -27,7 +28,7 @@
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
   ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 110건 (그중 domain_id 없음 32건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 12건 / 스코프 밖 37건 (그중 domain_id 없음 4건)
+  ℹ️  adr: 이번 키트 14건 / 스코프 밖 35건 (그중 domain_id 없음 2건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
@@ -40,11 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-078]]
-- NEW [[ADR-051]]
-- NEW [[ADR-054]]
-- NEW [[TEST-008]]
-- NEW [[UC-019]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -55,7 +52,7 @@
 | [[AC-016]] | acceptance | 15 | UNCHANGED |
 | [[AC-019]] | acceptance | 7 | UNCHANGED |
 | [[AC-023]] | acceptance | 6 | UNCHANGED |
-| [[AC-078]] | acceptance | 1 | NEW |
+| [[AC-078]] | acceptance | 1 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
@@ -64,15 +61,17 @@
 | [[ADR-024]] | adr | 3 | UNCHANGED |
 | [[ADR-025]] | adr | 3 | UNCHANGED |
 | [[ADR-027]] | adr | 2 | UNCHANGED |
+| [[ADR-029]] | adr | 2 | UNCHANGED |
+| [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
-| [[ADR-051]] | adr | 5 | NEW |
-| [[ADR-054]] | adr | 4 | NEW |
+| [[ADR-051]] | adr | 5 | UNCHANGED |
+| [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[API-032]] | api_endpoint | 8 | UNCHANGED |
 | [[API-091]] | api_endpoint | 12 | UNCHANGED |
 | [[API-094]] | api_endpoint | 9 | UNCHANGED |
 | [[API-109]] | api_endpoint | 5 | UNCHANGED |
-| [[API-112]] | api_endpoint | 4 | UNCHANGED |
+| [[API-112]] | api_endpoint | 5 | UNCHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
 | [[API-184]] | api_endpoint | 2 | UNCHANGED |
 | [[API-202]] | api_endpoint | 2 | UNCHANGED |
@@ -81,14 +80,14 @@
 | [[DFEAT-041]] | domain_feature | 12 | UNCHANGED |
 | [[DFEAT-042]] | domain_feature | 11 | UNCHANGED |
 | [[DFEAT-048]] | domain_feature | 16 | UNCHANGED |
-| [[DFEAT-051]] | domain_feature | 4 | UNCHANGED |
+| [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-012]] | domain | 8 | UNCHANGED |
 | [[ERD-017]] | erd | 22 | UNCHANGED |
 | [[EVT-007]] | domain_event | 3 | UNCHANGED |
 | [[EVT-008]] | domain_event | 8 | UNCHANGED |
 | [[EXTSYS-003]] | external_system | 8 | UNCHANGED |
-| [[FEAT-005]] | feature | 9 | UNCHANGED |
+| [[FEAT-005]] | feature | 10 | UNCHANGED |
 | [[FEAT-006]] | feature | 11 | UNCHANGED |
 | [[INT-004]] | integration_point | 11 | UNCHANGED |
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
@@ -116,14 +115,14 @@
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |
-| [[SEQ-001]] | diagram_sequence | 19 | UNCHANGED |
+| [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |
 | [[SEQ-012]] | diagram_sequence | 11 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 1 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 10 | UNCHANGED |
-| [[TEST-008]] | test_scenario | 1 | NEW |
+| [[TEST-008]] | test_scenario | 1 | UNCHANGED |
 | [[UC-011]] | use_case | 12 | UNCHANGED |
 | [[UC-013]] | use_case | 9 | UNCHANGED |
 | [[UC-016]] | use_case | 23 | UNCHANGED |
-| [[UC-019]] | use_case | 21 | NEW |
+| [[UC-019]] | use_case | 21 | UNCHANGED |

@@ -52,12 +52,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
-    "stale": true,
-    "stale_reason": "UC-005의 data.brownfield 변경이 verifies로 2-hop 전파",
-    "change_summary": "DFEAT-018(AI Tool·SAM2 분할)의 related_acceptances 가 비어 있었다(감사 지적 — 추적성 공백). 이 DFEAT 를 실현하는 UC-005 가 AC-005 로 검증되므로(covered_by_acceptances 일치) AC-005 를 연결한다. persists_in_tables/invokes_apis/triggers 는 이 DFEAT 가 상태 없는 프록시(DB 미저장)라 실제로 비어 있는 것이 맞아 그대로 둔다.",
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 API-093 v14 의 변경은 취소로 끝난 추론의 응답 코드를 취소 전용으로 확정한 것이다. 이 기능은 클릭 시드로 외곽을 자동 분할한다는 범위만 서술하고 응답 코드 계약은 담지 않으므로 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:32:13.468Z",
+    "last_updated_at": "2026-08-26T00:41:11.933Z",
     "created_at": "2026-05-29T06:30:20.680Z"
   }
 }

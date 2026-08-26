@@ -2,12 +2,12 @@
 logicraft_item: SCREEN-038
 type: screen_spec
 version: 14
-last_updated_at: 2026-08-25T10:59:24.557Z
+last_updated_at: 2026-08-25T12:53:38.956Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T11:02:36.440Z
-sync_session: 23
-stale: false
+synced_at: 2026-08-26T01:22:55.949Z
+sync_session: 26
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-038.json
@@ -634,6 +634,7 @@ implemented
 
 - IMPREC-025
 - IMPREC-123
+- IMPREC-126
 
 ### progress
 
@@ -645,7 +646,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T10:36:41.878Z
+2026-08-25T12:53:38.956Z
 
 ### module_paths
 

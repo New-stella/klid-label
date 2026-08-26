@@ -398,12 +398,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
-    "stale": true,
-    "stale_reason": "API-007의 data.request_body 변경이 depicts로 2-hop 전파",
-    "change_summary": "[중첩 배열 정정] 최상위 description 은 이미 정확했으나 classes[] 배열 3건이 폐기된 서술을 그대로 반복하고 있었다. User·UserManagementService 의 description 을 최상위 description 의 어휘(저작도구 소유 테이블 + localStorage upsert + LS_USER_ROLE 단일 진실원)로 재정정했다. Channel.enum_values 는 실제 코드(Channel.java)의 {INTERNAL, PORTAL} 과 다른 {CONTROL, PORTAL} 이었던 것을 코드에 맞춰 정정했다(코드 전체에 \"CONTROL\" 리터럴 0건 실측). 직전 리비전 change_summary 가 '바꿀 내용 없음'으로 도장 찍었던 자기모순 지점.",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 API-001 v5 의 변경은 사용자 목록 응답에 최종 로그인 일시를 더한 것이다. 이 개념 모델의 사용자 클래스는 식별과 인가에 쓰이는 속성만 두고 있어 표시용 아이디와 이름도 이미 담지 않는다 — 본문이 그 둘을 역할 클레임 시점의 상향 반영으로 얻는다고 따로 서술하는 것도 같은 이유다. 최종 로그인 일시만 넣으면 그 최소 표현이 한 속성에서만 깨지므로 넣지 않는다. 사용자 마스터의 전 속성을 담는 모델로 넓히는 것은 이 문서가 스스로 밝힌 개념 모델이라는 전제를 바꾸는 일이라 별건으로 둔다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T01:55:25.286Z",
+    "last_updated_at": "2026-08-26T00:59:21.982Z",
     "created_at": "2026-06-02T08:52:32.936Z"
   }
 }

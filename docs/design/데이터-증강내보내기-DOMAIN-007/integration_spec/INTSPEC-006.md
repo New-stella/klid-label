@@ -1,14 +1,14 @@
 ---
 logicraft_item: INTSPEC-006
 type: integration_spec
-version: 1
+version: 2
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:04:22.321Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-26T01:10:24.287Z
+status: CHANGED
+prev_version: 1
 content_hash: 7145f9696411ede53140dd7a5498967ae63c40828837c07f032e9ce792fd1327
-stale: true
+stale: false
 raw: ./_raw/INTSPEC-006.json
 links:
   references: ["[[INT-006]]"]

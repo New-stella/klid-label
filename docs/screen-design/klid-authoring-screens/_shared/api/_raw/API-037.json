@@ -81,6 +81,27 @@
                             "type": "string",
                             "description": "라벨 코드"
                           },
+                          "linked": {
+                            "type": "boolean",
+                            "nullable": false,
+                            "description": "이 항목이 라벨 마스터에 연결돼 있는지. false 면 표시만 되고 오토라벨에 쓰이지 않는다."
+                          },
+                          "labelId": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "description": "라벨 마스터 PK. 마스터에 연결되지 않은 레거시 항목이면 null 이다."
+                          },
+                          "labelName": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "라벨명. 스냅샷이 아니라 조회 시점에 마스터에서 파생하므로 마스터에서 바꾸면 즉시 반영된다. 미연결이면 null."
+                          },
+                          "labelType": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "라벨 형태. 마스터가 소유하며 프리셋이 개별로 정하지 않는다. 미연결이면 null."
+                          },
                           "dtctTypeCd": {
                             "type": "string",
                             "nullable": true,
@@ -134,12 +155,20 @@
                 "labelCodeOptions": [
                   {
                     "code": "PERSON",
+                    "linked": true,
+                    "labelId": 1,
+                    "labelName": "사람",
+                    "labelType": "BBOX",
                     "dtctTypeCd": "person",
                     "bboxEnabled": true,
                     "polygonEnabled": true
                   },
                   {
                     "code": "FLOOR",
+                    "linked": true,
+                    "labelId": 2,
+                    "labelName": "바닥",
+                    "labelType": "POLYGON",
                     "dtctTypeCd": null,
                     "bboxEnabled": true,
                     "polygonEnabled": false
@@ -234,7 +263,7 @@
         "records": [],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T07:48:51.529Z",
+        "last_updated": "2026-08-25T12:08:57.515Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -243,12 +272,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "라벨별 검출 클래스 매핑을 불리언에서 코드값(nullable)으로 바꾼다. 라벨 마스터 조회가 같은 개념을 코드값으로 내리고 있어 두 응답의 표현이 갈리면 소비 측이 같은 사실을 두 형태로 다루게 된다. 코드값을 내리면 어느 검출 클래스에 매핑됐는지까지 드러나 화면이 미매핑 라벨을 짚어 줄 수 있다.",
+    "change_summary": "라벨 항목 스키마를 실제 응답에 맞춘다. 계약이 실물보다 좁아 소비 측이 받는 필드가 명세에 없었고, 그 상태로는 감사가 실물을 계약 위반으로 잡는다. 필드를 새로 만든 것이 아니라 이미 나가던 것을 적는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T10:28:00.414Z",
+    "last_updated_at": "2026-08-25T12:13:05.573Z",
     "created_at": "2026-05-30T07:22:16.678Z"
   }
 }

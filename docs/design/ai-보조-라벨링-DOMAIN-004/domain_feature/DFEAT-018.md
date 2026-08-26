@@ -1,14 +1,14 @@
 ---
 logicraft_item: DFEAT-018
 type: domain_feature
-version: 8
+version: 9
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.073Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-26T01:10:22.276Z
+status: CHANGED
+prev_version: 8
 content_hash: e78f363d60ef51e6c86502036c42649cac4e8b568f4b4e8cd5c43e082ae5b066
-stale: true
+stale: false
 raw: ./_raw/DFEAT-018.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]

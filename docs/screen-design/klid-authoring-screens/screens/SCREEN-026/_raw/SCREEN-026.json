@@ -326,11 +326,12 @@
           "MOD-008"
         ],
         "records": [
-          "IMPREC-003"
+          "IMPREC-003",
+          "IMPREC-127"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T08:11:33.257Z",
+        "last_updated": "2026-08-25T12:54:05.844Z",
         "module_paths": []
       },
       "required_roles": [
@@ -362,10 +363,10 @@
     "schema_version": 1,
     "current_version": 34,
     "stale": true,
-    "stale_reason": "UC-032의 4개 필드 변경 — realizes",
+    "stale_reason": "API-037의 data.responses 변경 — consumes",
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (16.9KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T10:59:24.403Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T12:54:05.844Z",
     "created_at": "2026-05-30T07:55:46.992Z"
   }
 }

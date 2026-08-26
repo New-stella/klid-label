@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-21T09:19:03.618Z (session 9) |
+| Last sync | 2026-08-26T01:11:14.903Z (session 12) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 171 |
-| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/검수-DOMAIN-005 |
 
 ## ITEM 버전 표
 
@@ -23,20 +23,20 @@
 | [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | UNCHANGED |
 | [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | UNCHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 4 | false | UNCHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 6 | false | UNCHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | UNCHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 10 | false | UNCHANGED |
 | [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | UNCHANGED |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
-| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 4 | false | UNCHANGED |
+| [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 5 | false | UNCHANGED |
 | [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 15 | true | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 17 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | false | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 37 | true | UNCHANGED |
+| [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 39 | true | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
-| [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 5 | true | UNCHANGED |
+| [[SD-005]] | screen_design | SCREEN-019 검수 상세 화면 | 6 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | UNCHANGED |
 | [[UC-009]] | use_case | 검수 완료·수정 통지 | 20 | false | UNCHANGED |
 | [[UC-023]] | use_case | 검수 승인·반려 | 25 | true | UNCHANGED |
@@ -57,7 +57,7 @@
 | [[UI-015]] | ui_component | [폐기] display: PrivacyBadge | 4 | false | UNCHANGED |
 | [[UI-016]] | ui_component | display: EventTypeBadge | 5 | false | UNCHANGED |
 | [[UI-017]] | ui_component | display: StageBadge | 8 | false | UNCHANGED |
-| [[UI-018]] | ui_component | display: BatchStageIndicator | 8 | false | UNCHANGED |
+| [[UI-018]] | ui_component | display: BatchStageIndicator | 9 | false | UNCHANGED |
 | [[UI-019]] | ui_component | feedback: ProgressBar | 4 | false | UNCHANGED |
 | [[UI-020]] | ui_component | feedback: EmptyState | 5 | false | UNCHANGED |
 | [[UI-021]] | ui_component | feedback: ErrorState | 4 | false | UNCHANGED |
@@ -95,7 +95,7 @@
 | [[UI-053]] | ui_component | action: SaveCommitButton | 8 | false | UNCHANGED |
 | [[UI-054]] | ui_component | action: UndoRedoToolbar | 5 | false | UNCHANGED |
 | [[UI-055]] | ui_component | layout: LabelHeader | 11 | false | UNCHANGED |
-| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 5 | false | UNCHANGED |
+| [[UI-056]] | ui_component | display: TimeseriesSidePanel | 6 | false | UNCHANGED |
 | [[UI-057]] | ui_component | action: DeidentReportButton | 6 | false | UNCHANGED |
 | [[UI-058]] | ui_component | display: ReviewLabelCanvas | 4 | false | UNCHANGED |
 | [[UI-059]] | ui_component | [폐기] action: ReviewActionBar | 5 | false | UNCHANGED |

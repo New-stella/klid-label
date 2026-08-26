@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-008
 type: class_diagram
-version: 4
+version: 5
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:50.326Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-26T01:11:02.326Z
+status: CHANGED
+prev_version: 4
 content_hash: f0b74e69a8ed6c5b5b74880b9befc363ebd8328063ed8a88e5ca336860ca7bed
-stale: true
+stale: false
 raw: ./_raw/CDIAG-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]

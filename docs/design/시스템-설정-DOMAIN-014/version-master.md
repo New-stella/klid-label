@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-25T10:53:48.378Z |
-| Mode | SYNC — NEW 8 / CHANGED 0 / UNCHANGED 60 |
+| Last sync | 2026-08-26T01:10:58.152Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 72 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 4건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,14 +41,7 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-051]]
-- NEW [[ADR-053]]
-- NEW [[API-219]]
-- NEW [[API-220]]
-- NEW [[ERD-033]]
-- NEW [[EXTSYS-002]]
-- NEW [[FEAT-009]]
-- NEW [[SCREEN-038]]
+- (변경 없음)
 
 ## ITEM 표
 
@@ -68,8 +62,8 @@
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-039]] | adr | 5 | UNCHANGED |
 | [[ADR-046]] | adr | 1 | UNCHANGED |
-| [[ADR-051]] | adr | 5 | NEW |
-| [[ADR-053]] | adr | 1 | NEW |
+| [[ADR-051]] | adr | 5 | UNCHANGED |
+| [[ADR-053]] | adr | 1 | UNCHANGED |
 | [[API-068]] | api_endpoint | 4 | UNCHANGED |
 | [[API-069]] | api_endpoint | 8 | UNCHANGED |
 | [[API-090]] | api_endpoint | 4 | UNCHANGED |
@@ -77,21 +71,23 @@
 | [[API-141]] | api_endpoint | 2 | UNCHANGED |
 | [[API-193]] | api_endpoint | 5 | UNCHANGED |
 | [[API-194]] | api_endpoint | 4 | UNCHANGED |
-| [[API-219]] | api_endpoint | 3 | NEW |
-| [[API-220]] | api_endpoint | 3 | NEW |
+| [[API-219]] | api_endpoint | 3 | UNCHANGED |
+| [[API-220]] | api_endpoint | 3 | UNCHANGED |
 | [[CDIAG-012]] | class_diagram | 4 | UNCHANGED |
 | [[CMP-011]] | diagram_c4_component | 7 | UNCHANGED |
 | [[DFEAT-045]] | domain_feature | 15 | UNCHANGED |
 | [[DOMAIN-014]] | domain | 5 | UNCHANGED |
 | [[ERD-016]] | erd | 13 | UNCHANGED |
-| [[ERD-033]] | erd | 2 | NEW |
-| [[EXTSYS-002]] | external_system | 11 | NEW |
+| [[ERD-033]] | erd | 2 | UNCHANGED |
+| [[EXTSYS-002]] | external_system | 11 | UNCHANGED |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
-| [[FEAT-009]] | feature | 3 | NEW |
+| [[FEAT-009]] | feature | 3 | UNCHANGED |
 | [[INT-002]] | integration_point | 17 | UNCHANGED |
 | [[INT-004]] | integration_point | 11 | UNCHANGED |
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
+| [[INTSPEC-003]] | integration_spec | 12 | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 17 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -106,18 +102,20 @@
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 6 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
+| [[REQ-008]] | requirement | 7 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 7 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
-| [[SCREEN-038]] | screen_spec | 13 | NEW |
+| [[SCREEN-038]] | screen_spec | 14 | UNCHANGED |
 | [[SD-015]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-024]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 1 | UNCHANGED |
+| [[SHELL-001]] | app_shell | 10 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |
 | [[UC-013]] | use_case | 9 | UNCHANGED |
 | [[UC-031]] | use_case | 9 | UNCHANGED |

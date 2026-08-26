@@ -1,16 +1,17 @@
 ---
 logicraft_item: DFEAT-043
 type: domain_feature
-version: 10
+version: 11
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:56.454Z
-status: NEW
-prev_version: null
-content_hash: ee67bdcc8388298af5af9c2202a621d99b66011bc13f1d891c00492bff6aed46
+synced_at: 2026-08-26T01:11:10.802Z
+status: CHANGED
+prev_version: 10
+content_hash: 4dddcf4c7f4d11b4a9771632f48df22e52114ac5a0b533c5bcba60e3d6c9ffd1
 stale: false
 raw: ./_raw/DFEAT-043.json
 links:
+  based_on: ["[[ADR-013]]"]
   belongs_to_domain: ["[[DOMAIN-013]]"]
   implements: ["[[API-081]]", "[[API-111]]", "[[API-115]]"]
   depicts_backward: ["[[CDIAG-011]]", "[[CMP-009]]"]
@@ -56,7 +57,7 @@ ADR-013
 
 ## description
 
-관제서버가 제공한 데이터마트를 포털에 등록하고, 포털 사용자가 영상을 선택하면 저작도구 DB의 검수 승인(APPROVED) 자산(LS_DATA_RAW·LS_DATA_SRC·LS_DATA_LBL)에 저장된 기존 라벨/메타를 Load하여 라벨링 화면에 표시한다 — 포털 DB를 읽지 않는다. 포털에는 오토라벨링(YOLO/SAM2)·VLM·버전관리·검수가 없다(ADR-013).
+관제서버가 제공한 데이터마트를 포털에 등록하고, 포털 사용자가 영상을 선택하면 저작도구 DB의 검수 승인(APPROVED) 자산(LS_DATA_RAW·LS_DATA_SRC·LS_DATA_LBL)에 저장된 기존 라벨/메타를 Load하여 라벨링 화면에 표시한다 — 포털 DB를 읽지 않는다. 포털에는 오토라벨링(YOLO/SAM2)·VLM·버전관리·검수가 없다(ADR-013). 데이터마트 영상 목록에는 본인이 저장한 작업 라벨의 보존기간 만료 예정 시각이 함께 실린다 — 보존기간 정책 자체는 포털 작업 데이터 보존기간 만료 자동 삭제 기능이 소유하며 이 기능은 그 값을 목록에 노출하는 축이다.
 
 ## invokes_apis
 
@@ -81,6 +82,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-25T11:02:36.600Z (session 23) |
+| last sync | 2026-08-26T01:22:56.164Z (session 26) |
 | 화면 수 | 32개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/vlm-parsing/docs/screen-design/klid-authoring-screens |
+| 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -118,6 +118,59 @@
 | [[AC-050]] | acceptance | NEW |
 | [[AC-051]] | acceptance | NEW |
 | [[AC-055]] | acceptance | NEW |
+| [[AC-056]] | acceptance | NEW |
+| [[AC-057]] | acceptance | NEW |
+| [[AC-058]] | acceptance | NEW |
+| [[AC-059]] | acceptance | NEW |
+| [[AC-060]] | acceptance | NEW |
+| [[AC-061]] | acceptance | NEW |
+| [[AC-062]] | acceptance | NEW |
+| [[AC-063]] | acceptance | NEW |
+| [[AC-064]] | acceptance | NEW |
+| [[AC-065]] | acceptance | NEW |
+| [[AC-066]] | acceptance | NEW |
+| [[AC-067]] | acceptance | NEW |
+| [[AC-068]] | acceptance | NEW |
+| [[AC-069]] | acceptance | NEW |
+| [[AC-070]] | acceptance | NEW |
+| [[AC-071]] | acceptance | NEW |
+| [[AC-072]] | acceptance | NEW |
+| [[AC-073]] | acceptance | NEW |
+| [[AC-074]] | acceptance | NEW |
+| [[AC-075]] | acceptance | NEW |
+| [[AC-076]] | acceptance | NEW |
+| [[AC-077]] | acceptance | NEW |
+| [[AC-078]] | acceptance | NEW |
+| [[AC-089]] | acceptance | NEW |
+| [[AC-090]] | acceptance | NEW |
+| [[AC-091]] | acceptance | NEW |
+| [[AC-092]] | acceptance | NEW |
+| [[AC-093]] | acceptance | NEW |
+| [[AC-094]] | acceptance | NEW |
+| [[AC-095]] | acceptance | NEW |
+| [[AC-096]] | acceptance | NEW |
+| [[AC-097]] | acceptance | NEW |
+| [[AC-098]] | acceptance | NEW |
+| [[AC-099]] | acceptance | NEW |
+| [[AC-100]] | acceptance | NEW |
+| [[AC-101]] | acceptance | NEW |
+| [[AC-102]] | acceptance | NEW |
+| [[AC-103]] | acceptance | NEW |
+| [[AC-104]] | acceptance | NEW |
+| [[AC-105]] | acceptance | NEW |
+| [[AC-106]] | acceptance | NEW |
+| [[AC-107]] | acceptance | NEW |
+| [[AC-108]] | acceptance | NEW |
+| [[AC-109]] | acceptance | NEW |
+| [[AC-110]] | acceptance | NEW |
+| [[AC-111]] | acceptance | NEW |
+| [[AC-112]] | acceptance | NEW |
+| [[API-216]] | api_endpoint | NEW |
+| [[API-217]] | api_endpoint | NEW |
+| [[API-218]] | api_endpoint | NEW |
+| [[API-219]] | api_endpoint | NEW |
+| [[API-220]] | api_endpoint | NEW |
+| [[UC-037]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 
@@ -151,6 +204,13 @@
 > - AC-035 — SCREEN-028, SCREEN-029
 > - AC-036 — SCREEN-028, SCREEN-029
 > - AC-037 — SCREEN-028, SCREEN-029
+> - AC-092 — SCREEN-026, SCREEN-038
+> - AC-093 — SCREEN-026, SCREEN-038
+> - AC-094 — SCREEN-026, SCREEN-038
+> - AC-095 — SCREEN-033, SCREEN-034
+> - AC-096 — SCREEN-033, SCREEN-034
+> - AC-097 — SCREEN-033, SCREEN-034
+> - AC-098 — SCREEN-033, SCREEN-034
 > - AC-099 — SCREEN-027, SCREEN-027
 > - AC-100 — SCREEN-027, SCREEN-027
 > - AC-101 — SCREEN-027, SCREEN-027
@@ -159,13 +219,6 @@
 > - AC-104 — SCREEN-027, SCREEN-027
 > - AC-105 — SCREEN-027, SCREEN-027
 > - AC-106 — SCREEN-027, SCREEN-027
-> - AC-092 — SCREEN-026, SCREEN-038
-> - AC-093 — SCREEN-026, SCREEN-038
-> - AC-094 — SCREEN-026, SCREEN-038
-> - AC-095 — SCREEN-033, SCREEN-034
-> - AC-096 — SCREEN-033, SCREEN-034
-> - AC-097 — SCREEN-033, SCREEN-034
-> - AC-098 — SCREEN-033, SCREEN-034
 > - AC-107 — SCREEN-026, SCREEN-038
 > - AC-108 — SCREEN-026, SCREEN-038
 > - AC-109 — SCREEN-026, SCREEN-038

@@ -343,11 +343,12 @@
         ],
         "records": [
           "IMPREC-025",
-          "IMPREC-123"
+          "IMPREC-123",
+          "IMPREC-126"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T10:36:41.878Z",
+        "last_updated": "2026-08-25T12:53:38.956Z",
         "module_paths": []
       },
       "required_roles": [
@@ -363,8 +364,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "ca2a49a2c2c6d379bb589ff1c77128fa218f33aa548619681fcf38e3172b3323",
-          "generated_at": "2026-08-25T10:37:19.250Z",
+          "source_hash": "5cd8c9dfc2edd8479baf9f8956218c83f0375154ea34db7086f50cc5e6a521d7",
+          "generated_at": "2026-08-25T10:59:24.557Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -376,12 +377,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "프리셋 연결 상태 표기에 「연결됨(제외)」를 더한다 — 프리셋은 있으나 라벨을 하나도 담지 않아 그 이벤트 유형을 오토라벨 대상에서 뺀 상태이며, 확정 한글 문구를 이 화면정의서가 정한다(기존 셋과 같은 결의 괄호 표기). 라벨을 골랐으나 전부 검출 클래스 매핑이 없어 실효하지 않는 연결됨(무효)와 반드시 갈라 보이게 그린다 — 앞은 사람이 일부러 뺀 선언이고 뒤는 의도치 않은 사고라, 화면에서 같아 보이면 운영자가 사고를 의도로 오인한다. 이 상태는 보류를 유발하지 않으므로 「오토라벨 보류만 보기」 거르기에 들어가지 않는다는 사실도 목록 조건과 상태 칸 양쪽에 적는다(API-185 v6 연결 상태 값 신설 cascade). 기존 상태 셋의 확정 문구, 거르기 조작의 문구·범위, 목록의 다른 칸·동선·권한은 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T10:51:56.538Z",
+    "current_version": 14,
+    "stale": true,
+    "stale_reason": "API-186의 data.implementation 변경 — consumes",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (16.4KB)",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T12:53:38.956Z",
     "created_at": "2026-08-07T05:16:58.131Z"
   }
 }
