@@ -359,6 +359,49 @@ function rerunLockedByApproval(bundle: StageBundle, everApproved: boolean): bool
 }
 
 /**
+ * 재수행 확인 창의 문구 — <b>묶음마다 다르다</b>. [@design SCREEN-009] [@design API-201]
+ *
+ * ★ <b>두 묶음 모두 확인을 거친다.</b> 시계열은 확정된 라벨을 건드리지 않아 파괴적이지 않지만,
+ *   재수행이 곧 <b>외부 벤더로의 재위탁</b>이라 비용·시간이 들고 동시 처리 한도를 먹는다.
+ *   여기서 확인을 받는 근거는 「되돌릴 수 없다」가 아니라 <b>「공짜가 아니다」</b>다.
+ * ⚠ 구 동작 폐기: 시계열은 <b>클릭이 곧 요청</b>이었다(보간을 다시 만드는 묶음일 때만 확인).
+ *   되살리지 말 것 — 시안은 두 묶음 모두 확인 창을 거치게 한다(`#dialog-rerun-vlm`).
+ * ⚠ 경고 박스(`warning`)와 위험 계열 확정 버튼은 <b>보간을 다시 만드는 묶음에만</b> 붙인다.
+ *   시안도 시계열 확인 창에는 `.dlg-warn` 상자를 두지 않고 확정 버튼을 `btn-primary` 로 둔다.
+ *   없는 위험을 경고 상자로 알리면 그 상자가 형태로만 남아 정작 파괴적인 쪽의 경고까지 가벼워진다.
+ * ⚠ 이 창이 <b>고지 수단을 대신하지 않는다</b> — 보간 재계산 경고 문단은 누르기 전에 이미 화면에 있다.
+ */
+interface RerunConfirmCopy {
+  title: string;
+  /** 본문 문단들 — 시안 `.dlg-desc` 가 <b>층으로 나눈 것</b>이라 한 문단으로 뭉치지 않는다. */
+  descriptions: readonly string[];
+  /** 무엇을 잃는가 — 값이 있는 묶음만 경고 상자를 얻는다(`ConfirmDialog.warning` 은 opt-in). */
+  warning?: string;
+  variant: 'primary' | 'danger';
+}
+
+const RERUN_CONFIRM: Record<StageBundle, RerunConfirmCopy> = {
+  // 문구는 시안 `#dialog-rerun-vlm` 에서 그대로 가져왔다 — 여기서 새로 쓰지 말 것.
+  VLM: {
+    title: '시계열 묶음을 다시 수행할까요?',
+    descriptions: [
+      '이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 시계열은 확정된 라벨을 건드리지 않고 영상 서술만 새로 받아 옵니다.',
+      '건너뛴 상태였다면 이 조작이 함께 해제합니다 — 따로 해제할 필요가 없습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.',
+    ],
+    variant: 'primary',
+  },
+  AUTOLABEL: {
+    title: `${bundleLabel('AUTOLABEL')} 작업 재수행`,
+    descriptions: ['이 작업을 통째로 다시 수행합니다.'],
+    // 되돌릴 수 없다는 사실은 설명 문단이 아니라 **경고 박스**로 알린다(시안 `.dlg-warn`).
+    // ⚠ 문구는 나누기만 했고 새로 쓰지 않았다 — 「무엇을 하는가」와 「무엇을 잃는가」를 층으로 가른다.
+    warning:
+      '트랙 보간까지 다시 만들어져 사람이 손댄 보간 라벨은 지워지고 새로 계산된 값으로 바뀝니다. 되돌릴 수 없습니다.',
+    variant: 'danger',
+  },
+};
+
+/**
  * ⚠ 구 `RevertedBundles`(이 화면 세션에서 건너뛰기를 해제한 묶음의 **로컬 기억**)는 **폐기**됐다 —
  * 되살리지 말 것. [@design ADR-050]
  *
@@ -477,6 +520,8 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
   //   화면이 상태·검수 이력에서 재유도하면 서버 판정과 갈리고, 그때 열리는 쪽이 서버가 막는 버튼이다.
   const everApproved = video.everApproved === true;
   const busy = retry.isPending || skip.isPending || rerun.isPending;
+  /** 확인 창에 실을 문구 — 대상이 없으면(창이 닫혀 있으면) null 이다. */
+  const rerunConfirm = rerunConfirmTarget ? RERUN_CONFIRM[rerunConfirmTarget] : null;
 
   // 조작 행을 그릴 묶음 — 서버가 실패로 판정했거나 건너뛴 적이 있는 묶음(건너뜀·해제 모두).
   const actionableBundles = STAGE_BUNDLES.filter(
@@ -732,8 +777,12 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                     )}
 
                     {/* ★ 재수행 버튼은 **하나**다 — 범위를 고르지 않는다(묶음이 곧 범위다).
-                          보간을 다시 만드는 묶음일 때만 확인 창을 거치고, 그렇지 않으면 곧바로
-                          접수한다(없는 위험에 확인을 받으면 확인이 형식이 되어 무시된다).
+                        ★ **두 묶음 모두 확인 창을 거친다**(시안). 시계열은 파괴적이지 않지만 재수행이
+                          곧 외부 벤더 재위탁이라 비용·시간이 든다 — 확인의 근거는 「되돌릴 수 없다」가
+                          아니라 「공짜가 아니다」다({@link RERUN_CONFIRM} 주석).
+                        ⚠ **[폐기]** 구 동작 «보간을 다시 만드는 묶음일 때만 확인, 그 밖에는 클릭이 곧
+                          요청» — 되살리지 말 것. 확인이 형식이 되는 것은 **경고 상자**를 없는 위험에
+                          붙일 때이지 확인 창 자체를 두는 것이 아니라, 위험의 층은 `warning` 이 가른다.
                         ⚠ 시안에서 이 행의 **주 행동**이라 primary 다 — 같은 행의 건너뛰기(보조)와
                           위계가 갈려야 무엇을 먼저 누를지가 형태로 읽힌다. */}
                     {canRerun && (
@@ -749,9 +798,7 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
                             ? '검수가 완료된 영상은 오토라벨을 다시 만들 수 없습니다 — 승인 시점 라벨과 어긋납니다.'
                             : undefined
                         }
-                        onClick={() =>
-                          destructive ? setRerunConfirmTarget(bundle) : rerun.mutate(bundle)
-                        }
+                        onClick={() => setRerunConfirmTarget(bundle)}
                         aria-label={`${label} 작업 재수행`}
                       >
                         재수행
@@ -855,27 +902,36 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
         </div>
       )}
 
-      {/* 보간을 다시 만드는 묶음의 재수행 확인 — 되돌릴 수 없는 조작이라 취소 기회를 준다.
-          [@design API-201] ⚠ 이것이 고지 수단을 대신하지 않는다(위 경고 문단은 클릭 전에 이미 떠 있다). */}
-      <ConfirmDialog
-        open={rerunConfirmTarget !== null}
-        title={`${rerunConfirmTarget ? bundleLabel(rerunConfirmTarget) : ''} 작업 재수행`}
-        description="이 작업을 통째로 다시 수행합니다."
-        // 되돌릴 수 없다는 사실은 설명 문단이 아니라 **경고 박스**로 알린다(시안 `.dlg-warn`).
-        // ⚠ 문구는 나누기만 했고 새로 쓰지 않았다 — 「무엇을 하는가」와 「무엇을 잃는가」를 층으로 가른다.
-        warning="트랙 보간까지 다시 만들어져 사람이 손댄 보간 라벨은 지워지고 새로 계산된 값으로 바뀝니다. 되돌릴 수 없습니다."
-        confirmLabel="재수행"
-        variant="danger"
-        loading={rerun.isPending}
-        onCancel={() => {
-          if (rerun.isPending) return;
-          setRerunConfirmTarget(null);
-        }}
-        onConfirm={() => {
-          if (!rerunConfirmTarget) return;
-          rerun.mutate(rerunConfirmTarget);
-        }}
-      />
+      {/* 묶음 재수행 확인 — **두 묶음 모두** 거친다. 문구·경고 상자·확정 버튼 계열은 묶음마다
+          다르며 그 판정은 {@link RERUN_CONFIRM} 한 곳이 소유한다. [@design SCREEN-009] [@design API-201]
+          ⚠ 이것이 고지 수단을 대신하지 않는다(위 경고 문단은 클릭 전에 이미 떠 있다). */}
+      {rerunConfirm && (
+        <ConfirmDialog
+          open
+          title={rerunConfirm.title}
+          description={
+            /* 시안은 본문을 두 문단으로 나눈다(`.dlg-desc` ×2). `Modal` 이 설명을 `<p>` 로 감싸므로
+               문단을 `<p>` 로 겹치지 않고 **블록 span** 으로 그린다(중첩 `<p>` 는 잘못된 마크업이다). */
+            rerunConfirm.descriptions.map((text, i) => (
+              <span key={text} className={i === 0 ? 'block' : 'mt-2 block text-body-sm'}>
+                {text}
+              </span>
+            ))
+          }
+          {...(rerunConfirm.warning !== undefined ? { warning: rerunConfirm.warning } : {})}
+          confirmLabel="재수행"
+          variant={rerunConfirm.variant}
+          loading={rerun.isPending}
+          onCancel={() => {
+            if (rerun.isPending) return;
+            setRerunConfirmTarget(null);
+          }}
+          onConfirm={() => {
+            if (!rerunConfirmTarget) return;
+            rerun.mutate(rerunConfirmTarget);
+          }}
+        />
+      )}
 
       <BatchStageSkipModal
         open={skipTarget !== null}

@@ -161,12 +161,43 @@ const CAPTION_TONE: Record<BatchStageStatus, string> = {
   PENDING: 'text-gray-500',
 };
 
+/**
+ * 진행 중 점의 **헤일로** — 시안 `.stage-step[data-status="progress"] .stage-dot` 의
+ * `box-shadow: 0 0 0 3px var(--p-1)` 에 대응한다.
+ *
+ * ★ **형태는 시안, 색은 이 화면의 상태색 축**이다. 시안은 `--p-1`(primary 100단)을 쓰지만 이
+ *   스테퍼의 진행 중은 위 {@link DOT_TONE} 주석대로 **info 축을 유지**하므로 같은 단수의
+ *   `info-100` 을 쓴다(primary 는 브랜드색이라 완료=success · 실패=danger · 대기=gray 와 축이 다르다).
+ *   두께 3px 은 시안 그대로다.
+ *
+ * ⚠ `ring` 은 **box-shadow** 라 레이아웃을 밀지 않는다 — 점 크기({@link DOT_SIZE_PX})가 그대로이므로
+ *   연결선 좌표 파생({@link CONNECTOR_TOP_PX})도 그대로 성립한다. `border` 나 바깥 래퍼로 바꾸면
+ *   점이 커져 그 파생이 어긋나고 선이 점에서 떨어진다.
+ *
+ * ⚠ 헤일로는 **장식이지 단독 정보 전달자가 아니다** — 진행 중이라는 사실은 캡션이 「진행 중」이라고
+ *   글자로 적는다. 그래서 이 색에는 1.4.11(비텍스트 대비 3:1)이 걸리지 않는다. 헤일로만 남기고
+ *   캡션 문구를 지우면 그 전제가 깨진다.
+ *
+ * ⚠ 헤일로는 점 **아래를 지나는 연결선을 가린다** — 점이 `z-10`, 선이 `z-0` 이라 그림자도 점과 함께
+ *   선 위에 놓인다. 시안도 같다(`.stage-dot { z-index: 1 }` vs `.stage-line { z-index: 0 }`).
+ */
+const DOT_HALO: Record<BatchStageStatus, string> = {
+  DONE: '',
+  PROGRESS: 'ring-[3px] ring-info-100',
+  FAIL: '',
+  PENDING: '',
+};
+
 function StageDot({ status, testId }: { status: BatchStageStatus; testId: string }) {
   return (
     <span
       aria-hidden="true"
       data-testid={testId}
-      className={cn('relative z-10 shrink-0 rounded-full border-2', DOT_TONE[status])}
+      className={cn(
+        'relative z-10 shrink-0 rounded-full border-2',
+        DOT_TONE[status],
+        DOT_HALO[status],
+      )}
       style={{ width: DOT_SIZE_PX, height: DOT_SIZE_PX }}
     />
   );

@@ -187,6 +187,8 @@ describe('BatchFailurePanel', () => {
 
       expect(screen.queryByRole('button', { name: /건너뛰기 해제/ })).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+      // 두 묶음 모두 확인 창을 거친다 — 여기서 확인해야 요청이 나간다.
+      await user.click(await screen.findByRole('button', { name: '재수행' }));
 
       await waitFor(() => {
         expect(mock.history.post.map((h) => h.url)).toContain('/videos/7/batch/stages/VLM/rerun');
@@ -943,16 +945,62 @@ describe('BatchFailurePanel', () => {
       expect(dialog).toHaveTextContent(`${AUTOLABEL_LABEL} 작업 재수행`);
     });
 
-    // ★ 시계열 묶음은 보간을 품지 않아 파괴적이지 않다 — 없는 위험에 확인을 받으면 확인이
-    //   형식이 되어 무시되고, 정작 파괴적인 쪽의 확인도 함께 가벼워진다.
-    it('★시계열_재수행은_확인_없이_곧바로_접수된다', async () => {
+    // ★ [폐기] '★시계열_재수행은_확인_없이_곧바로_접수된다' — 구 정책이었다(「시계열은 보간을 품지
+    //   않아 파괴적이지 않으므로 클릭이 곧 요청」). 시안대로 **두 묶음 모두 확인 창을 거치는** 쪽으로
+    //   확정됐다: 시계열 재수행은 라벨을 지우지는 않지만 **외부 벤더로 재위탁을 보내는 행위**라
+    //   비용·시간이 들고 동시 처리 한도(32건)를 먹는다. 확인의 근거가 「되돌릴 수 없다」에서
+    //   **「공짜가 아니다」**로 바뀐 것이다. 아래 두 가드가 그 자리를 잇는다.
+    it('★시계열_재수행도_확인_없이_실행되지_않는다', async () => {
       const user = userEvent.setup();
       renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
 
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
 
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+      expect(rerunCalls('VLM')).toHaveLength(0);
+
+      await user.click(screen.getByRole('button', { name: '취소' }));
+      expect(rerunCalls('VLM')).toHaveLength(0);
+    });
+
+    it('확인해야_시계열_재수행을_요청한다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+      await user.click(await screen.findByRole('button', { name: '재수행' }));
+
       await waitFor(() => expect(rerunCalls('VLM')).toHaveLength(1));
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(rerunCalls('VLM')[0]!.data).toBeUndefined();
+    });
+
+    // ★ 확인 창이 생겼다고 **경고 상자까지** 따라오면 안 된다 — 시안의 시계열 확인 창에는
+    //   `.dlg-warn` 상자가 없고 확정 버튼도 `btn-primary` 다. 없는 위험을 상자로 알리면 그 상자가
+    //   형태로만 남아 정작 파괴적인 오토라벨 쪽의 경고까지 가벼워진다(확인 창 자체와는 다른 축이다).
+    it('★시계열_확인창에는_경고_상자를_두지_않는다_문구는_시안_그대로다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(screen.queryByTestId('confirm-dialog-warning')).not.toBeInTheDocument();
+      // 보간 경고 문구가 시계열 확인 창으로 새어 들어오면 없는 위험을 알리는 오정보가 된다.
+      expect(dialog).not.toHaveTextContent('보간');
+      expect(dialog).toHaveTextContent('시계열 묶음을 다시 수행할까요?');
+      expect(dialog).toHaveTextContent('이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 시계열은 확정된 라벨을 건드리지 않고 영상 서술만 새로 받아 옵니다.');
+      expect(dialog).toHaveTextContent('건너뛴 상태였다면 이 조작이 함께 해제합니다 — 따로 해제할 필요가 없습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.');
+    });
+
+    // ★ 오토라벨 확인 창은 **그대로**다 — 시계열에 확인 창을 더한 것이지 경고 상자를 걷어낸 것이 아니다.
+    it('★오토라벨_확인창의_경고_상자는_그대로_남는다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('AUTOLABEL')} />);
+
+      await user.click(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` }));
+
+      await screen.findByRole('dialog');
+      expect(screen.getByTestId('confirm-dialog-warning')).toHaveTextContent('되돌릴 수 없습니다');
     });
 
     // ★ 사양: "고르는 시점에 알린다" — 누른 뒤에 뜨는 확인 창은 취소 수단이지 고지 수단이 아니다.
@@ -991,6 +1039,7 @@ describe('BatchFailurePanel', () => {
       renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
 
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+      await user.click(await screen.findByRole('button', { name: '재수행' }));
 
       await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
       const message = useUiStore.getState().toasts[0]!.message;

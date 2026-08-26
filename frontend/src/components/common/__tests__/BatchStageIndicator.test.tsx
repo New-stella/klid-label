@@ -538,6 +538,44 @@ describe('BatchStageIndicator', () => {
       expect(container.innerHTML).not.toMatch(/bg-(success|info|danger|primary)\/\d/);
     });
 
+    // E4 — 진행 중 점에는 **헤일로**가 있다(시안 `box-shadow: 0 0 0 3px var(--p-1)`).
+    //   ★ 형태(두께 3px)는 시안, 색은 이 화면의 상태색 축이라 `info` 100단이다 — 시안의 primary 로
+    //     바꾸지 말 것(완료=success · 실패=danger · 대기=gray 와 축이 갈린다).
+    //   ★ `ring` 은 box-shadow 라 **레이아웃을 밀지 않는다** — 아래 두 단언이 그 성질을 못 박는다.
+    it('★진행_중_점에만_3px_헤일로가_붙는다_색은_info_축이다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('DEIDENTIFY', 'DONE'), item('MARKING', 'PROGRESS'), item('VLM', 'PENDING')]}
+        />,
+      );
+
+      const progress = screen.getByTestId('batch-stage-dot-MARKING');
+      expect(progress.className).toContain('ring-[3px]');
+      expect(progress.className).toContain('ring-info-100');
+      // 시안이 쓰는 primary 로 갈아타면 상태색 축이 깨진다.
+      expect(progress.className).not.toMatch(/ring-primary/);
+
+      // 나머지 상태에는 붙지 않는다 — 붙으면 「지금 도는 칸」이라는 신호가 죽는다.
+      for (const key of ['DEIDENTIFY', 'VLM']) {
+        expect(screen.getByTestId(`batch-stage-dot-${key}`).className).not.toContain('ring-');
+      }
+    });
+
+    // ★★ E4 ↔ E3E9 는 한 묶음이다 — 헤일로가 **점을 키우면** 연결선 좌표 파생이 어긋난다.
+    //    `ring`(box-shadow) 대신 `border` 나 바깥 래퍼로 헤일로를 만들면 이 단언이 깨진다.
+    it('★헤일로는_점_크기를_바꾸지_않는다_연결선_파생이_그대로_성립한다', () => {
+      render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'PROGRESS'), item('VLM', 'PENDING')]} />);
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+      const line = screen.getByTestId('batch-stage-connector-DEIDENTIFY');
+
+      const dotSize = px(dot.style.height);
+      expect(dotSize).toBeGreaterThan(0);
+      // 진행 중이어도 점 크기는 다른 상태와 같다(비교 대상: 대기 점).
+      expect(px(screen.getByTestId('batch-stage-dot-VLM').style.height)).toBe(dotSize);
+      // 그래서 선 중심 = 점 중심 불변식이 진행 중 칸에서도 그대로 성립한다.
+      expect(px(line.style.top) + px(line.style.height) / 2).toBe(dotSize / 2);
+    });
+
     // E5 — 대기는 **흰 채움 + 테두리만**. 회색 채움으로 되돌리면 지나간 단계와 구분이 약해진다.
     it('★대기_점은_흰_채움에_회색_테두리다', () => {
       render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'DONE'), item('VLM', 'PENDING')]} />);
