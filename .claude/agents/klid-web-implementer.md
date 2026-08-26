@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-0NN              # 화면이 속한 도메인
 code_root: "frontend/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [SCREEN-NNN, API-NNN]                  # 확정된 ITEM — 계약 근거 + @design 태그 대상
 change_detail: | <CO 의 프론트 섹션 = 대상화면·변경·불변·소비 API 계약 — 진실원>
 screen_ids: [SCREEN-0NN, ...]     # (선택) 손댈 화면

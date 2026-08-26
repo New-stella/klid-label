@@ -13,7 +13,7 @@ description: KLID-저작도구 전용 수정 오케스트레이터. 이미 구�
    `CO 작성 → 영향범위 확인 → 설계 선반영(Phase 3.6) → 구현 fan-out` 순서다.
    이 프로젝트는 **「① ITEM 수정(사양 확정) → ② 그 ITEM 을 진실원으로 코드 반영 → ③ `@design` 태그로 잇기」** 를 구속 규칙으로 두고 있다(`CLAUDE.md` 「작업 위임 선언」 · `.claude/rules/logicraft-integration.md` §0.5). 코드를 먼저 고치고 ITEM 을 나중에 따라오게 하면 **ITEM 이 사양이 아니라 구현 상태 서술로 오염되고**, 다음 사람이 코드에서 설계를 역추정하게 된다.
    > ⚠ 이 순서는 온보딩 템플릿 원형(코드 먼저 → 나중 배치 backfill)을 **이 프로젝트 규칙에 맞춰 개조**한 것이다. 재온보딩(업그레이드 모드) 시 diff 가 뜨는 것은 정상이며, 원형으로 되돌리지 말 것.
-2. **CO 파일이 작업 장부** — 수정사항을 `.claude/change-orders/CO-NNN-*.md` 에 자세히 기술하고, `.claude/change-orders/MASTER.md` 표로 CO별·도메인별 구현/설계반영 상태를 추적한다.
+2. **CO 파일이 작업 장부** — 수정사항을 `.claude/change-orders/CO-*.md` 에 자세히 기술하고, `.claude/change-orders/MASTER.md` 표로 CO별·도메인별 구현/설계반영 상태를 추적한다.
 3. **구현 에이전트는 로컬 키트를 SYNC 하지 않는다.** 메인이 CO 의 해당 도메인 변경 상세(`change_detail`)와 Phase 3.6 에서 확정한 `design_refs`(ITEM ID)를 프롬프트로 직접 내려준다.
 4. **공유기반 주의** — 도메인들이 `common/`·`batch/`·`db/migration/`·앱 진입점을 **공유**한다. 변경이 스키마/공유기반을 건드리면 도메인 에이전트가 못 고침 → **메인이 먼저 처리**(Phase 3.5) 후 도메인 fan-out.
 5. **오케스트레이션만.** 이 스킬은 직접 코드를 짜지 않는다. 구현은 도메인 에이전트, QA 는 `klid-qa-verifier`, LogiCraft ITEM 수정은 `mc-logi-update` 에 위임한다.
@@ -63,14 +63,18 @@ conventions: ".claude/conventions.md"
 ### Phase 2 — 변경지시서(CO) 작성
 1. **영향 도메인 판정** — 코드 기반. grep(`grep -ri '@design'` — 기본형 `@design` 과 어노테이션 `@DesignRef` 를 한 번에 잡는다 · API 경로 · `SCREEN-`/`API-`) + 도메인 매핑표 + 도메인 에이전트 특화지식. 한 변경이 여러 도메인·백/프론트에 걸치면 각각 분해.
    - ★ **공유기반 영향 체크**: 변경이 `common/`·`batch/`·`db/migration/`·앱 진입점을 건드리는지 판정. 건드리면 CO §3 에 명시하고 **메인 선처리** 대상으로 표시.
-2. **CO 파일 작성** — `.claude/change-orders/_TEMPLATE.md` 골격으로 `.claude/change-orders/CO-NNN-{slug}.md`. CO 번호 = MASTER 표 최하단 +1.
+2. **CO 파일 작성** — `.claude/change-orders/_TEMPLATE.md` 골격으로 `.claude/change-orders/CO-{YYYYMMDD}-{slug}.md`. **CO 식별자 = 작성일(YYYYMMDD) + 슬러그**이며 순번을 쓰지 않는다.
+   > ⚠ 이 채번은 온보딩 템플릿 원형(순번 — 「MASTER 표 최하단 +1」)을 **이 프로젝트 규칙에 맞춰 개조**한 것이다. 재온보딩(업그레이드 모드) 시 diff 가 뜨는 것은 정상이며, **원형으로 되돌리지 말 것.**
+   > 근거: 이 레포는 워크트리를 여럿 띄워 **병렬로** 작업하는데, 순번은 두 브랜치가 같은 `main` 을 보고 같은 값을 뽑아 **구조적으로 충돌한다** — 실제로 개번이 연달아 났고(`CO-009`→`CO-016` · `CO-014`·`CO-015` 이동 · `CO-017` 개번 누락 정정), 손으로 채번하는 Flyway 번호도 같은 원인으로 두 번 밀렸다. 날짜+슬러그는 두 워크트리가 동시에 만들어도 슬러그가 다르면 부딪히지 않고, 같은 날 같은 슬러그면 그건 진짜 중복이라 드러나는 편이 맞다.
+   > ⚠ **이미 만들어진 순번 CO 는 개번하지 않는다** — 코드 주석·에이전트 지침·문서가 그 번호를 가리키고 있어 바꾸면 그 포인터가 끊긴다. **다른 워크트리에서 순번으로 진행 중인 CO 도 그대로 끝낸다** — 작업 중인 것을 새 규칙으로 갈아타게 하지 않는다. 새로 시작하는 것부터 새 규칙이며, **두 형식이 한 폴더에 공존하는 것이 정상**이다(글롭 `CO-*.md` 가 둘 다 잡는다).
+   > ⚠ 순번으로 진행 중인 작업이 남아 있는 동안에는 **그것들끼리는 여전히 충돌할 수 있다** — 이 규칙은 앞으로 생기는 충돌을 막을 뿐 이미 뽑아 둔 번호를 정리해 주지 않는다. 진행 중인 순번 CO 가 서로 부딪히면 종전대로 개번해 해소한다.
    - ★ **도구 모르는 사람도 이것만 읽고 이해**하도록 자세히. §3 "도메인별 변경 상세"는 각 도메인 에이전트가 받아 구현할 만큼 구체적으로(대상 파일/심볼·변경·불변·주의).
    - **§6 "관련 설계 ITEM" 은 이제 「나중에 반영할 예상 목록」이 아니라 「Phase 3.6 에서 먼저 고칠 대상」이다.** 근거와 함께 최대한 정확히 적는다.
 3. **MASTER 등록** — `MASTER.md` 표에 행 추가(구현 📝, 대상 도메인, 생성일, 설계반영 ⏳).
 
 ### Phase 3 — 영향범위 + 설계 반영 계획 확인  🚦게이트②
 ```
-변경지시서 작성: CO-NNN (제목)
+변경지시서 작성: CO-{ID} (제목)
 공유기반 선처리 필요: (있으면) common/·batch/·db/migration X → 메인이 먼저
 설계 선반영 대상: API-NNN(응답 스키마) · ERD-NNN(컬럼) · AC-NNN(수용기준)
 영향 백엔드: DOMAIN-00N → klid-d0NN-implementer
@@ -119,7 +123,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-0NN              # (프론트는 화면 소속 도메인)
 code_root: "<이 도메인 code_root>"   # (프론트는 frontend/)
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-{slug}.md"   # 참조용
+change_order: ".claude/change-orders/CO-{ID}-{slug}.md"   # 참조용
 design_refs: [API-NNN, ERD-NNN, AC-NNN]   # ★ Phase 3.6 에서 확정된 ITEM — 구현의 계약 근거이자 @design 태그 대상
 change_detail: |                    # ★ 구현 진실원
   <CO §3 의 이 도메인 섹션 전문 — 대상 파일·변경·불변·주의·수용기준>
@@ -137,7 +141,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-0NN
 code_root: "<이 도메인 code_root 또는 frontend/>"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"
+change_order: ".claude/change-orders/CO-*.md"
 design_refs: [API-NNN, AC-NNN]
 change_detail: | <해당 도메인 변경 상세 — 수용기준·불변>
 implemented: | <구현 에이전트가 보고한 변경 파일·요지>
