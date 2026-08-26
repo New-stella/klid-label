@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 60
-last_updated_at: 2026-08-26T06:13:02.497Z
+version: 64
+last_updated_at: 2026-08-26T08:33:21.273Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T06:34:35.940Z
-sync_session: 28
+synced_at: 2026-08-26T08:33:50.659Z
+sync_session: 30
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -435,7 +435,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: useVideoLabels(API-044)로 오토라벨 결과 조회. 처리 정보 카드(총 라벨 수/오토라벨 수/오토라벨 비율/처리 상태), 신뢰도 분포 막대(0.9+ / 0.7~0.9 / <0.7, 오토라벨 기준 집계), 라벨별 분포 바(상위 10종, count 내림차순). 로딩 스켈레톤·에러·빈 상태 분기.
+- **description**: API-044 로 오토라벨 결과를 조회한다. 처리 정보 카드(총 라벨 수/오토라벨 수/오토라벨 비율/처리 상태), 신뢰도 분포 막대(0.9+ / 0.7~0.9 / <0.7, 오토라벨 기준 집계), 라벨별 분포 바(상위 10종, count 내림차순). 라벨 표시명은 응답이 내려주는 값을 그대로 쓴다 — 화면이 다시 해석하거나 다른 말로 바꾸지 않는다. 표시명의 단일 진실원은 라벨 마스터이므로, 화면이 자기 사전으로 치환하면 마스터와 어긋나는 두 번째 진실원이 된다. 색상은 응답에 실려 오지 않을 수 있으며 그것이 정상 경로다 — 색이 없다고 항목을 비우거나 오류로 다루지 않는다. 라벨별 분포 막대는 라벨마다 다른 색으로 그린다 — 색은 라벨 마스터에 운영자가 등록한 값이며, 화면이 한 색으로 덮으면 라벨 표시 색상의 단일 진실원이 라벨 마스터라는 확정 정책을 이 화면에서만 어기게 된다. 이 색은 화면이 배정하는 범주 구분색의 대상이 아니다 — 사람이 고른 값이기 때문이다. 로딩 스켈레톤·에러·빈 상태 분기.
 
 **references_apis**:
 
@@ -536,8 +536,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: d6709033d7b9622d08fc3de100130973fe0212bb2e5b4ede5764a6099496668b
-- **generated_at**: 2026-08-26T06:13:02.497Z
+- **source_hash**: a7f095ceeaac2e30566282c1f081c779674aafdbd1916ede62bae7a0bdc26ae2
+- **generated_at**: 2026-08-26T08:33:21.273Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
