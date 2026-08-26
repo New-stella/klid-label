@@ -56,19 +56,23 @@ const SIZE_CLASSES = {
 } as const;
 
 /**
- * mock 정합 — stage 이름 + status 조합으로 톤 결정.
+ * mock 정합 — **status 만으로** 톤을 정한다.
  * - 완료(COMPLETED) → 초록
  * - 실패(FAILED) → 빨강
- * - VLM(특수 단계) → 보라
  * - 진행 중(IN_PROGRESS) → 파랑
  * - 대기 등 그 외 → 노랑(YOLO/SAM2/프레임추출 등 진행 단계 강조용)
+ *
+ * ★ 구 구현은 `VLM`/`VLM_VERIFY` 단계만 보라로 빼내 강조했다(2026-08-26 폐지). 폐지 사유:
+ *   ①이 배지는 **상태 축**인데 보라는 범주 구분색이라 축이 섞였고 ②"특수 단계를 강조한다"는
+ *   근거가 DS-001 어디에도 없으며 ③단계 이름이 배지 텍스트로 이미 나오는데 색까지 특별하면
+ *   같은 진행 상태가 단계에 따라 다른 색으로 읽힌다. 이제 시계열 단계도 다른 단계와 같은
+ *   status 규칙을 탄다(진행 중이면 파랑, 그 외 노랑).
+ *   ⚠ 되살리지 말 것 — 되살리려면 "단계별 강조"의 근거를 DS-001 에 먼저 넣어야 한다.
  */
-function toneClasses(stage: string, status?: string): string {
+function toneClasses(status?: string): string {
   // ⚠ 2026-08-08: text-{color}-700 사용 이유는 StatusBadge.tsx 상단 주석 참조(AA 대비 회복).
   if (status === 'COMPLETED' || status === 'DONE') return 'bg-success/10 text-success-700';
   if (status === 'FAILED' || status === 'FAIL') return 'bg-danger/10 text-danger-700';
-  // KRDS 예외: VLM 단계 purple 은 범주 구분색(특수 단계 강조, 상태 의미 아님) — 토큰 획일화 제외.
-  if (stage === 'VLM_VERIFY' || stage === 'VLM') return 'bg-purple-100 text-purple-700';
   if (status === 'IN_PROGRESS' || status === 'PROGRESS') return 'bg-info/10 text-info-700';
   return 'bg-warning/10 text-warning-700';
 }
@@ -86,7 +90,7 @@ export function StageBadge({ stage, status, size = 'sm', className }: StageBadge
     <span
       className={cn(
         'inline-flex items-center gap-1 font-medium rounded-full',
-        toneClasses(stage, status),
+        toneClasses(status),
         SIZE_CLASSES[size],
         className,
       )}

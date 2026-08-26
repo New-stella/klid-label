@@ -52,9 +52,14 @@ const statusConfig: Record<string, StatusConfig> = {
   IN_PROGRESS: { label: '작업중', className: 'bg-info/10 text-info-700' },
   PROCESSING: { label: '처리중', className: 'bg-info/10 text-info-700' },
   REVIEW_PENDING: { label: '검수요청', className: 'bg-warning/10 text-warning-700' },
-  // KRDS 예외: '검수중' purple 은 범주 구분색(성공/실패/경고 어디에도 속하지 않는 별도 상태) — 토큰 획일화 제외.
-  REVIEWING: { label: '검수중', className: 'bg-purple-100 text-purple-700' },
-  IN_REVIEW: { label: '검수중', className: 'bg-purple-100 text-purple-700' },
+  // '검수중'은 범주가 아니라 **상태**다 — DS-001 의 warn 이 "검토 중, 주의가 필요한 상태"를
+  // 소유하므로 warning 을 쓴다. 구 purple 은 semantic 팔레트에 마땅한 자리가 없어 범주 구분색을
+  // 빌려 쓴 것이었고, 그래서 상태 배지 하나만 범주 축 색으로 튀어 있었다.
+  // ⚠ REVIEW_PENDING('검수요청')과 같은 색이 되는 것은 의도다 — 이 배지는 항상 한글 라벨을
+  //   함께 보여주므로 색상 단독 구분 금지(KRDS) 요건을 텍스트가 단독으로 충족한다. 두 상태를
+  //   가르려고 새 색을 만들지 말 것.
+  REVIEWING: { label: '검수중', className: 'bg-warning/10 text-warning-700' },
+  IN_REVIEW: { label: '검수중', className: 'bg-warning/10 text-warning-700' },
   COMPLETED: { label: '완료', className: 'bg-success/10 text-success-700' },
   APPROVED: { label: '승인', className: 'bg-success/10 text-success-700' },
   REJECTED: { label: '반려', className: 'bg-danger/10 text-danger-700' },

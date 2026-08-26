@@ -32,9 +32,10 @@ describe('StageBadge', () => {
       // 장식 아이콘 부재
       expect(container.querySelector('svg')).toBeNull();
       // 색상 톤은 유지 (텍스트 위에 얹힌 보조 축)
-      expect(badge.className).toMatch(
-        /bg-(success|danger|info|warning)\/10|bg-purple-100/,
-      );
+      // ★ 구 기대값 purple-100 톤 → 폐기(2026-08-26). 시계열 단계만 범주 구분색(보라)으로
+      //   빼내 강조하던 분기를 없애고 다른 단계와 같은 status 규칙에 흡수했다 — 이 배지는
+      //   상태 축이라 범주 팔레트를 쓰지 않는다(DS-001). 이제 톤은 semantic 4종뿐이다.
+      expect(badge.className).toMatch(/bg-(success|danger|info|warning)\/10/);
       unmount();
     });
   });
