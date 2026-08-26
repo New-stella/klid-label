@@ -44,6 +44,7 @@ class PortalUserLabelServiceTest {
     @Mock LsDataSrcRepository srcRepository;
     @Mock LsPortalUserLabelRepository userLabelRepository;
     @Mock kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository rawDataStatusRepository;
+    @Mock kr.co.cudo.authoring.label.repository.LsLabelRepository labelMasterRepository;
 
     private PortalLabelService service;
 
@@ -68,7 +69,7 @@ class PortalUserLabelServiceTest {
                 rawDataStatusRepository, null, deidentGate,
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
-                new com.fasterxml.jackson.databind.ObjectMapper());
+                new com.fasterxml.jackson.databind.ObjectMapper(), labelMasterRepository);
 
         when(userLabelRepository.save(any(LsPortalUserLabel.class))).thenAnswer(inv -> {
             LsPortalUserLabel e = inv.getArgument(0);
@@ -250,7 +251,7 @@ class PortalUserLabelServiceTest {
     @Test
     @DisplayName("V2_사용자_작업_데이터_별도_적재_원본_미수정")
     void saveUserLabel_savesToPortalTable() {
-        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[1,2,3,4]");
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[1,2,3,4]", null, null);
 
         PortalUserLabelResponse resp = service.saveUserLabel(req, alice);
 
@@ -273,7 +274,7 @@ class PortalUserLabelServiceTest {
     @DisplayName("R17_사용자_라벨_저장_빈_좌표_JSON_시_INVALID_INPUT_빈라벨row_차단")
     void saveUserLabel_emptyPoints_rejected() {
         // given: points 가 빈 좌표 배열('[]') — 검증 우회로 빈 라벨 row 가 생기던 회귀
-        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[]");
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[]", null, null);
 
         // when/then: INVALID_INPUT 으로 거부, 저장 미수행 (fail-closed)
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
@@ -281,6 +282,92 @@ class PortalUserLabelServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode().name())
                 .isEqualTo("INVALID_INPUT");
         verify(userLabelRepository, never()).save(any());
+    }
+
+    // ─── 마스터 연결·트랙 연결 왕복 보존 (API-082 / ERD-018) ───
+
+    @Test
+    @DisplayName("활성_마스터에_실재하는_labelId와_trackId는_그대로_적재된다")
+    void saveUserLabel_persistsMasterAndTrackLink() {
+        givenActiveLabelMaster(12L);
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "BBOX", "person", "[[1,2],[3,4]]", 12L, "trk-0007");
+
+        PortalUserLabelResponse resp = service.saveUserLabel(req, alice);
+
+        ArgumentCaptor<LsPortalUserLabel> captor = ArgumentCaptor.forClass(LsPortalUserLabel.class);
+        verify(userLabelRepository).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isEqualTo(12L);
+        assertThat(captor.getValue().getTrackId()).isEqualTo("trk-0007");
+        // 응답도 <적재된 값>을 담는다 — 저장 응답과 조회 계열 응답의 형태가 갈리지 않게.
+        assertThat(resp.labelId()).isEqualTo(12L);
+        assertThat(resp.trackId()).isEqualTo("trk-0007");
+    }
+
+    @Test
+    @DisplayName("활성_마스터에_없는_labelId는_그_값만_비우고_저장은_성공한다")
+    void saveUserLabel_unknownLabelId_droppedButSaved() {
+        // given: 요청이 실어 보낸 마스터 참조가 활성 마스터에 없다(비활성화됐거나 애초에 없는 값).
+        when(labelMasterRepository.findByLabelIdInAndUseYn(List.of(999L), "Y")).thenReturn(List.of());
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "BBOX", "person", "[[1,2],[3,4]]", 999L, null);
+
+        PortalUserLabelResponse resp = service.saveUserLabel(req, alice);
+
+        // 요청 자체는 거부하지 않는다 — 마스터 비활성화 때문에 사용자의 작업 저장이 막히면 안 된다.
+        ArgumentCaptor<LsPortalUserLabel> captor = ArgumentCaptor.forClass(LsPortalUserLabel.class);
+        verify(userLabelRepository).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isNull();
+        assertThat(resp.labelId()).isNull();
+        assertThat(resp.points()).isEqualTo("[[1.0,2.0],[3.0,4.0]]");
+    }
+
+    @Test
+    @DisplayName("labelId_미지정이면_마스터를_조회하지_않고_비운_채_저장한다")
+    void saveUserLabel_noLabelId_skipsMasterLookup() {
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "BBOX", "person", "[[1,2],[3,4]]", null, null);
+
+        service.saveUserLabel(req, alice);
+
+        // 라벨명으로 유추해 채우지 않는다(동명이인·비활성 마스터 오매칭 방지).
+        verify(labelMasterRepository, never()).findByLabelIdInAndUseYn(any(), any());
+        ArgumentCaptor<LsPortalUserLabel> captor = ArgumentCaptor.forClass(LsPortalUserLabel.class);
+        verify(userLabelRepository).save(captor.capture());
+        assertThat(captor.getValue().getLabelId()).isNull();
+        assertThat(captor.getValue().getTrackId()).isNull();
+    }
+
+    @Test
+    @DisplayName("컬럼_폭을_넘는_trackId는_400이다_적재시점_DB오류로_새지_않는다")
+    void saveUserLabel_tooLongTrackId_rejected() {
+        String tooLong = "t".repeat(LsPortalUserLabel.TRACK_ID_MAX_LENGTH + 1);
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "BBOX", "person", "[[1,2],[3,4]]", null, tooLong);
+
+        assertThatThrownBy(() -> service.saveUserLabel(req, alice))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode().name())
+                .isEqualTo("INVALID_INPUT");
+        verify(userLabelRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("상한_길이의_trackId는_통과한다_경계")
+    void saveUserLabel_trackIdAtLimit_accepted() {
+        String atLimit = "t".repeat(LsPortalUserLabel.TRACK_ID_MAX_LENGTH);
+        PortalUserLabelRequest req = new PortalUserLabelRequest(
+                100L, 10L, "BBOX", "person", "[[1,2],[3,4]]", null, atLimit);
+
+        assertThat(service.saveUserLabel(req, alice).trackId()).isEqualTo(atLimit);
+    }
+
+    private void givenActiveLabelMaster(Long labelId) {
+        kr.co.cudo.authoring.label.entity.LsLabel master =
+                org.mockito.Mockito.mock(kr.co.cudo.authoring.label.entity.LsLabel.class);
+        when(master.getLabelId()).thenReturn(labelId);
+        when(labelMasterRepository.findByLabelIdInAndUseYn(List.of(labelId), "Y"))
+                .thenReturn(List.of(master));
     }
 
     // ─── 자원 상한 (CWE-770) — 좌표 개수 캡. 형제 PortalUploadLabelService 상수 재사용 ───
@@ -299,7 +386,7 @@ class PortalUserLabelServiceTest {
     @DisplayName("POLYGON_좌표가_상한을_초과하면_400을_반환한다")
     void saveUserLabel_polygonAboveMaxPoints_rejected() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "POLYGON", "person",
-                polygonJson(PortalUploadLabelService.POLYGON_MAX_POINTS + 1));
+                polygonJson(PortalUploadLabelService.POLYGON_MAX_POINTS + 1), null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -312,7 +399,7 @@ class PortalUserLabelServiceTest {
     @DisplayName("POLYGON_좌표가_상한_이내면_정상_저장된다")
     void saveUserLabel_polygonAtMaxPoints_saved() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "POLYGON", "person",
-                polygonJson(PortalUploadLabelService.POLYGON_MAX_POINTS));
+                polygonJson(PortalUploadLabelService.POLYGON_MAX_POINTS), null, null);
 
         assertThat(service.saveUserLabel(req, alice).lblTypeCd()).isEqualTo("POLYGON");
         verify(userLabelRepository).save(any());
@@ -322,7 +409,7 @@ class PortalUserLabelServiceTest {
     @DisplayName("POLYGON_좌표가_3점_미만이면_400을_반환한다")
     void saveUserLabel_polygonBelowMinPoints_rejected() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "POLYGON", "person",
-                polygonJson(PortalUploadLabelService.POLYGON_MIN_POINTS - 1));
+                polygonJson(PortalUploadLabelService.POLYGON_MIN_POINTS - 1), null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -335,7 +422,7 @@ class PortalUserLabelServiceTest {
     @DisplayName("BBOX_좌표가_2점이_아니면_400을_반환한다")
     void saveUserLabel_bboxWrongPointCount_rejected() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person",
-                polygonJson(3));
+                polygonJson(3), null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -364,7 +451,7 @@ class PortalUserLabelServiceTest {
         String padding = " ".repeat(60_000);
         String bloated = "[[1," + padding + "2],[3,4]]";
         assertThat(bloated.length()).isGreaterThan(60_000);
-        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", bloated);
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", bloated, null, null);
 
         // when
         PortalUserLabelResponse resp = service.saveUserLabel(req, alice);
@@ -386,7 +473,7 @@ class PortalUserLabelServiceTest {
         // given: 1e400 은 유효 JSON 숫자 리터럴이지만 double 로는 Infinity 다.
         //   형제 경로는 Double.isFinite 로 거부하는데 이 경로만 그대로 적재됐다.
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person",
-                "[[1e400,2],[3,4]]");
+                "[[1e400,2],[3,4]]", null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -399,7 +486,7 @@ class PortalUserLabelServiceTest {
     @DisplayName("좌표값이_음의_Infinity면_400을_반환한다")
     void saveUserLabel_negativeInfiniteCoordinate_rejected() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person",
-                "[[1,2],[3,-1e400]]");
+                "[[1,2],[3,-1e400]]", null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -414,7 +501,7 @@ class PortalUserLabelServiceTest {
         // NaN 리터럴은 표준 JSON 이 아니라 파싱 단계에서 걸러지고, 파싱을 통과하더라도
         // 유한성 검증이 뒤를 받친다 — 어느 층에서 막히든 응답은 400 이어야 한다.
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person",
-                "[[NaN,2],[3,4]]");
+                "[[NaN,2],[3,4]]", null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -428,7 +515,7 @@ class PortalUserLabelServiceTest {
     void saveUserLabel_normalPoints_roundTripPreserved() {
         // given: 소수점 좌표 — 재직렬화가 값을 왜곡하지 않아야 한다(회귀).
         PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "POLYGON", "person",
-                "[[1.5,2.25],[3,4],[10.125,20.5]]");
+                "[[1.5,2.25],[3,4],[10.125,20.5]]", null, null);
 
         PortalUserLabelResponse resp = service.saveUserLabel(req, alice);
 
@@ -457,7 +544,7 @@ class PortalUserLabelServiceTest {
                         "비식별 재처리 대기 중인 영상입니다."))
                 .when(deidentGate).requireNotUnderDeidentReport(100L);
 
-        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[1,2,3,4]");
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[1,2,3,4]", null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, alice))
                 .isInstanceOf(CustomException.class)
@@ -469,7 +556,7 @@ class PortalUserLabelServiceTest {
     @Test
     @DisplayName("V2_사용자_라벨_저장_토큰_없으면_401")
     void saveUserLabel_noToken_rejected() {
-        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[1,2,3,4]");
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[1,2,3,4]", null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, null))
                 .isInstanceOf(CustomException.class)

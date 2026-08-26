@@ -3,9 +3,17 @@ package kr.co.cudo.authoring.portal.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
 
 /**
  * V2.0 포털 사용자 라벨 저장 요청. 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재.
+ *
+ * <p>{@code labelId}·{@code trackId} 는 포털 사용자에게 <b>새 편집 수단을 주는 값이 아니다</b>.
+ * 데이터마트 원본에서 불러온 라벨이 갖고 있던 마스터 연결·트랙 연결이 저장 왕복에서 끊기지 않게
+ * 화면이 그대로 되돌려 보내는 값이며, 산출 어노테이션의 분류·트랙 식별자 조달처다. 둘 다 선택이라
+ * 없으면 비운 채로 저장된다. 트랙 번호 변경·병합은 포털에 두지 않는다.
+ *
+ * @design API-082
  */
 public record PortalUserLabelRequest(
         @NotNull(message = "sourceRawSn 은 필수입니다.") Long sourceRawSn,
@@ -18,7 +26,15 @@ public record PortalUserLabelRequest(
         @NotBlank(message = "points 는 필수입니다.")
         @Size(max = PortalUserLabelRequest.MAX_POINTS_LENGTH,
                 message = "points 는 " + PortalUserLabelRequest.MAX_POINTS_LENGTH + "자 이하여야 합니다.")
-        String points
+        String points,
+        // 라벨 마스터 참조(선택). 서버는 이 값을 그대로 신뢰하지 않는다 — 활성 라벨 마스터에
+        // 실재하는지 확인하고, 아니면 그 값만 비워서 저장한다(요청 자체는 거부하지 않는다).
+        Long labelId,
+        // 트랙 식별자(선택). 길이 상한은 적재 컬럼과 같은 30자이며 입구에서 검증한다 —
+        // 그대로 흘려보내면 INSERT 시점 DB 오류(500)가 된다.
+        @Size(max = LsPortalUserLabel.TRACK_ID_MAX_LENGTH,
+                message = "trackId 는 " + LsPortalUserLabel.TRACK_ID_MAX_LENGTH + "자 이하여야 합니다.")
+        String trackId
 ) {
 
     /**

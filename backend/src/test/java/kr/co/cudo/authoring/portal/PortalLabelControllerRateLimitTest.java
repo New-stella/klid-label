@@ -54,7 +54,7 @@ class PortalLabelControllerRateLimitTest {
     }
 
     private PortalUserLabelRequest request() {
-        return new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[[0,0],[10,10]]");
+        return new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[[0,0],[10,10]]", null, null);
     }
 
     @Test
@@ -63,7 +63,7 @@ class PortalLabelControllerRateLimitTest {
         PortalLabelController controller =
                 new PortalLabelController(portalLabelService, strictRateLimiter());
         when(portalLabelService.saveUserLabel(any(), any())).thenReturn(
-                new PortalUserLabelResponse(1L, 100L, 10L, "BBOX", "person", "[[0,0],[10,10]]", null));
+                new PortalUserLabelResponse(1L, 100L, 10L, "BBOX", "person", "[[0,0],[10,10]]", null, null, null));
 
         controller.saveUserLabel(request(), portalUser);
 
@@ -79,7 +79,7 @@ class PortalLabelControllerRateLimitTest {
         PortalLabelController controller =
                 new PortalLabelController(portalLabelService, strictRateLimiter());
         when(portalLabelService.saveUserLabel(any(), any())).thenReturn(
-                new PortalUserLabelResponse(1L, 100L, 10L, "BBOX", "person", "[[0,0],[10,10]]", null));
+                new PortalUserLabelResponse(1L, 100L, 10L, "BBOX", "person", "[[0,0],[10,10]]", null, null, null));
 
         controller.saveUserLabel(request(), portalUser);
 
