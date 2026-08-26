@@ -35,13 +35,58 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
     List<LsDatasetVideoMeta> findByRawSnAndActiveYn(Long rawSn, String activeYn);
 
     /**
-     * 동결 스냅샷 원자 upsert — PostgreSQL {@code ON CONFLICT (RAW_SN, SNPSHT_HASH) DO NOTHING}.
+     * 동결 스냅샷 멱등 upsert — <b>rawSn advisory 락으로 직렬화한 뒤</b> PostgreSQL
+     * {@code ON CONFLICT (RAW_SN, SNPSHT_HASH) DO NOTHING} 으로 삽입한다.
+     * 반환값은 실제 삽입 행수 — 신규 삽입 1, 동일 {@code (RAW_SN, SNPSHT_HASH)} 존재(멱등 스킵) 0.
      *
-     * <p>동일 페이로드 재승인 시 UK 충돌을 DB 가 원자적으로 흡수하므로, 동시 실행(CWE-362) race 가
-     * 발생해도 중복 행 없이 멱등하게 동작한다(예외 없음). 반환값은 실제 삽입 행수 —
-     * 신규 삽입 1, 충돌(멱등 스킵) 0. 모든 값은 SpEL 엔티티 프로퍼티 바인딩({@code :#{#m.xxx}}) 으로
-     * 파라미터화되어 문자열 결합이 없다(CWE-89). INSERT ... VALUES 컨텍스트라 null 파라미터도
-     * 대상 컬럼 타입으로 PG 가 추론한다.
+     * <h3>왜 락이 필요한가 — {@code ON CONFLICT} 만으로는 "예외 없음"이 성립하지 않는다</h3>
+     * 이 테이블에는 유니크 제약이 <b>둘</b>인데, {@code ON CONFLICT} 는 <b>명시한 중재 인덱스 하나만</b>
+     * 흡수하고 나머지 제약 위반은 그대로 예외로 올린다:
+     * <ul>
+     *   <li>{@code uk_ls_dataset_video_meta UNIQUE (RAW_SN, SNPSHT_HASH)} — 중재 대상</li>
+     *   <li>{@code uk_ls_dataset_video_meta_raw_active UNIQUE (RAW_SN) WHERE ACTIVE_YN='Y'}
+     *       — <b>중재되지 않는다</b></li>
+     * </ul>
+     * 같은 {@code (RAW_SN, SNPSHT_HASH)} 를 <b>활성으로</b> 동시에 넣으면 두 제약이 동시에 걸린다.
+     * 앞선 트랜잭션이 아직 커밋 전이라 중재 인덱스 사전검사를 양쪽이 모두 통과하면, 뒤진 쪽은
+     * 중재되지 않는 부분 유니크 인덱스에서 {@code duplicate key} 로 죽는다. 반대로 커밋된 행이 이미
+     * 보이면 사전검사가 흡수한다 — 즉 <b>경합 창은 "아직 커밋된 행이 없는 순간"에만 열린다.</b>
+     * 그래서 부하에 따라 흔들렸고 오래 플레이크로 오인됐다(실측: 콜드 스타트 동시 8세션 × 150회에서
+     * 락 없이 61회 실패, 락 적용 후 0회).
+     *
+     * <p>{@code pg_advisory_xact_lock(rawSn)} 로 같은 영상의 동시 실행을 직렬화하면 뒤진 트랜잭션은
+     * 앞선 쪽이 <b>커밋한 뒤에</b> 진입하므로 사전검사가 커밋된 행을 보고 흡수한다 → 0행, 예외 없음.
+     * 락은 트랜잭션 종료 시 자동 해제되고 <b>같은 트랜잭션의 재획득은 블록하지 않으므로</b>, 이미
+     * {@link #acquireRawLock(Long)} 을 잡고 들어오는 호출자
+     * ({@code DatasetVideoMetaSnapshotService.materialize} · {@code DatasetVideoMetaEnvCorrectionTx})
+     * 에게는 무해한 재진입이며 잠금 순서(advisory → 행)도 그대로다.
+     *
+     * <h3>★중재 인덱스를 바꾸지 말 것 — 두 대안은 모두 의미를 깨뜨린다(실측 확인)</h3>
+     * <ul>
+     *   <li>중재 <b>생략</b>({@code ON CONFLICT DO NOTHING})은 모든 제약을 흡수해 경합은 사라지지만,
+     *       "같은 RAW_SN 의 <b>다른</b> 해시를 기존 활성이 남은 채 삽입"이 <b>조용히 0행</b>이 되어
+     *       <b>새 동결본이 유실</b>된다. 그 조합은 지금처럼 예외로 즉시 드러나야 한다
+     *       ({@code deactivatePrevious} 누락 fail-fast — {@code partialUniqueIndex_blocksTwoActiveRows}).</li>
+     *   <li>중재를 <b>부분 유니크로 교체</b>하면 A→B→A 재승인(대상 행이 이미 {@code ACTIVE_YN='N'} 으로
+     *       존재)에서 {@code (RAW_SN, SNPSHT_HASH)} 위반이 중재되지 않아 <b>예외</b>가 난다.</li>
+     * </ul>
+     *
+     * @param m 동결 스냅샷 값(비영속)
+     * @return 실제 삽입 행수 — 신규 1, 멱등 스킵 0
+     */
+    default int upsertSnapshot(LsDatasetVideoMeta m) {
+        // 직렬화 먼저 — 아래 INSERT 의 ON CONFLICT 는 부분 유니크 인덱스를 중재하지 못한다.
+        acquireRawLock(m.getRawSn());
+        return insertSnapshotIfAbsent(m);
+    }
+
+    /**
+     * {@link #upsertSnapshot(LsDatasetVideoMeta)} 의 SQL 단계 — <b>직접 호출하지 말 것.</b>
+     * 직렬화 없이 부르면 위에 적은 경합 창이 그대로 열린다(중재되지 않는 부분 유니크 인덱스 위반).
+     *
+     * <p>모든 값은 SpEL 엔티티 프로퍼티 바인딩({@code :#{#m.xxx}}) 으로 파라미터화되어 문자열 결합이
+     * 없다(CWE-89). {@code INSERT ... VALUES} 컨텍스트라 null 파라미터도 대상 컬럼 타입으로 PG 가
+     * 추론한다 — {@code INSERT ... SELECT} 로 바꾸면 이 추론이 깨지므로 형태를 유지한다.
      *
      * <p>{@code flushAutomatically=true} 로 native 실행 전 대기 중 변경을 flush 해 DB 일관성을 맞춘다.
      * {@code clearAutomatically=false} — 이 native 쿼리는 {@code LS_DATASET_VIDEO_META} 행만 건드리고
@@ -67,7 +112,7 @@ public interface LsDatasetVideoMetaRepository extends JpaRepository<LsDatasetVid
             + ":#{#m.rvwCmplDt}, :#{#m.regDt}, :#{#m.regId}"
             + ") ON CONFLICT (RAW_SN, SNPSHT_HASH) DO NOTHING",
             nativeQuery = true)
-    int upsertSnapshot(@Param("m") LsDatasetVideoMeta m);
+    int insertSnapshotIfAbsent(@Param("m") LsDatasetVideoMeta m);
 
     /**
      * 같은 RAW_SN 의 기존 활성 스냅샷을 비활성화 — {@code keepHash} 를 제외한 ACTIVE_YN='Y' → 'N'.
