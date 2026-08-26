@@ -116,6 +116,48 @@ describe('video api', () => {
     expect(detail.cctvName).toBe('강남대로 CCTV');
   });
 
+  /**
+   * ★ 신설 두 필드의 **키가 아예 없는** 구 서버 응답 — 값이 `null` 인 경우와 결과가 같아야 한다.
+   *
+   * 정규화가 nullish 병합이라 `undefined`·`null` 을 같게 다루지만, 그건 **구현을 읽어야 아는
+   * 사실**이라 시험이 직접 고정한다. 두 필드는 「없으면 화면이 빈 표시로 둔다」가 계약이고,
+   * 여기서 빈 문자열·조립값으로 접히면 화면이 없는 값을 있는 것처럼 그린다.
+   */
+  it('getVideo_resolution과_vmsCctvId_키가_없는_구_응답은_null_로_정규화된다', async () => {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      // resolution·vmsCctvId 키를 **아예 싣지 않는다**(값 null 이 아니라 키 부재).
+      data: { id: 42, cctvName: '강남대로 CCTV', status: 'COMPLETED', framePreviews: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    const detail = await getVideo(42);
+    expect(detail.resolution).toBeNull();
+    expect(detail.vmsCctvId).toBeNull();
+  });
+
+  it('getVideo_resolution과_vmsCctvId_실값은_그대로_실린다_조립하지_않는다', async () => {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        id: 42,
+        cctvName: 'CCTV-001',
+        vmsCctvId: 'CCTV-001',
+        status: 'COMPLETED',
+        resolution: '1920x1440',
+        framePreviews: [],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const detail = await getVideo(42);
+    expect(detail.resolution).toBe('1920x1440');
+    // 일련번호로 조립한 문자열(`video-0042`)이 아니라 서버가 준 식별자 그대로다.
+    expect(detail.vmsCctvId).toBe('CCTV-001');
+  });
+
   it('getVideo_reviewSttsCd_정상_매핑_배치단계_status_와_별개', async () => {
     // given: BE 가 배치단계 status=COMPLETED + 검수상태 reviewSttsCd=APPROVED 를 내려준다.
     mock.onGet('/videos/9').reply(200, {

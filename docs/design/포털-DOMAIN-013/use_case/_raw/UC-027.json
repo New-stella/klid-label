@@ -27,21 +27,36 @@
         {
           "step": 3,
           "actor": "포털 회원(PORTAL_USER)",
-          "action": "업로드 라벨링 화면(/portal/uploads/:uldSn/label)에서 BBOX/POLYGON만 수동 라벨링한다(오토라벨링/SAM2/VLM/검수/버전관리 미제공)"
+          "action": "업로드한 영상 자산에 한해 이벤트구간 마킹을 수행한다(이미지 자산은 대상이 아니다). 업로드 자산 경로는 내부 파이프라인·데이터마트와 분리된 채로 유지된다"
         },
         {
           "step": 4,
+          "actor": "포털 회원(PORTAL_USER)",
+          "action": "업로드 라벨링 화면(/portal/uploads/:uldSn/label)에서 BBOX/POLYGON만 수동 라벨링한다(오토라벨링/SAM2 인터랙티브 분할/자동추적/키포인트/검수/버전관리 미제공 — 라벨 도형은 BBOX·POLYGON allowlist 로 fail-closed 차단한다)"
+        },
+        {
+          "step": 5,
           "actor": "시스템",
           "action": "PUT /v1/portal/uploads/frames/{uldFrmeSn}/labels로 라벨을 전체교체(멱등, 빈배열=전체삭제) 저장한다"
         },
         {
-          "step": 5,
+          "step": 6,
+          "actor": "포털 회원(PORTAL_USER)",
+          "action": "업로드한 영상 자산에 한해 AI 증강 연동을 요청한다 — 요청은 서버가 외부로 보내는 비동기 위탁이며 포털 사용자가 외부 추론 엔드포인트를 직접 호출하지 않는다"
+        },
+        {
+          "step": 7,
+          "actor": "시스템",
+          "action": "증강 결과를 수신해 요청한 포털 회원 본인에게만 제공한다 — 데이터마트와 원본은 수정하지 않는다(단방향)"
+        },
+        {
+          "step": 8,
           "actor": "포털 회원(PORTAL_USER)",
           "action": "본인 자산(JSON export/원본 파일)을 다운로드한다"
         }
       ],
       "brownfield": {
-        "notes": "이 UC를 실현하는 전용 domain_feature 가 없어 realizes_dfeats·realizes_features 는 공란이다",
+        "notes": "이 UC 는 포털 자산 업로드 도메인 기능(DFEAT-053)을 실현한다. 전역 FEAT 대응이 없어 realizes_features 는 공란이다.",
         "status": "new",
         "decided_by": "ADR-013",
         "change_kind": [
@@ -49,7 +64,7 @@
         ],
         "diff_summary": "2차 신규 — 포털 본인 자산 직접 업로드 + 수동 라벨링(ADR-013 예외, 2026-07-17). 내부 파이프라인·데이터마트와 분리"
       },
-      "description": "포털 사용자가 본인 이미지(jpg/jpeg/png, 20MB/장, 50장/요청, all-or-nothing)·영상(mp4/mov/avi, 5GB, TUS 1.0 재개 가능 업로드)을 직접 업로드해 수동 라벨링(BBOX/POLYGON만)한 뒤 본인 데이터(JSON export/원본)를 다운로드한다(ADR-013 예외, 2026-07-17). 업로드 자산은 신규 LS_PORTAL_* 테이블(LS_PORTAL_ULD·LS_PORTAL_ULD_FRME·LS_PORTAL_ULD_LBL·LS_PORTAL_TUS_ULD, V107/V108)로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 완전히 분리된다. 영상은 비식별 미적용(본인 데이터)이며 고정 간격 프레임 추출(portal.upload.frame-interval-sec 기본 5초, 상한 maxFrames 2000). 상태 전이는 두 경로가 갈린다 — 영상은 UPLOADED→PROCESSING→READY|FAILED 를 거치고, 이미지는 프레임 추출이 없어 등록 시점에 READY 로 적재된다. 오토라벨링(YOLO/SAM2)·VLM·검수·버전관리는 미적용. 화면: 포털 업로드(/portal/uploads, SCREEN-033)·포털 업로드 라벨링(/portal/uploads/:uldSn/label, SCREEN-034).",
+      "description": "포털 사용자가 본인 이미지(jpg/jpeg/png, 20MB/장, 50장/요청, all-or-nothing)·영상(mp4/mov/avi, 5GB, TUS 1.0 재개 가능 업로드)을 직접 업로드해 수동 라벨링(BBOX/POLYGON만)한 뒤 본인 데이터(JSON export/원본)를 다운로드한다(ADR-013 예외, 2026-07-17). 업로드 자산은 신규 LS_PORTAL_* 테이블(LS_PORTAL_ULD·LS_PORTAL_ULD_FRME·LS_PORTAL_ULD_LBL·LS_PORTAL_TUS_ULD, V107/V108)로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 완전히 분리된다. 영상은 비식별 미적용(본인 데이터)이며 고정 간격 프레임 추출(portal.upload.frame-interval-sec 기본 5초, 상한 maxFrames 2000). 상태 전이는 두 경로가 갈린다 — 영상은 UPLOADED→PROCESSING→READY|FAILED 를 거치고, 이미지는 프레임 추출이 없어 등록 시점에 READY 로 적재된다. 업로드 영상에 한해 이벤트구간 마킹과 AI 증강 연동을 제공한다(본인 자산 업로드 예외의 연장). 미제공은 오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)이다. 제공하는 AI 증강 연동은 서버가 외부로 보내는 비동기 위탁이라, 포털 사용자가 외부 추론 엔드포인트를 직접 호출해 공격면이 되는 SAM2 인터랙티브 분할·자동추적·키포인트와는 축이 다르다 — 후자의 미제공은 그대로 유지된다. 화면: 포털 업로드(/portal/uploads, SCREEN-033)·포털 업로드 라벨링(/portal/uploads/:uldSn/label, SCREEN-034).",
       "stakeholders": [],
       "preconditions": [
         "포털 서버 발급 JWT로 인증되어 있다(channel=PORTAL)",
@@ -60,7 +75,8 @@
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "업로드 자산이 LS_PORTAL_ULD/LS_PORTAL_ULD_FRME/LS_PORTAL_ULD_LBL에 저장되고 본인만 접근 가능하다"
@@ -96,11 +112,15 @@
         "SCREEN-034"
       ],
       "extension_points": [],
-      "secondary_actors": [],
+      "secondary_actors": [
+        "외부 증강 시스템"
+      ],
       "extends_use_cases": [],
       "realizes_features": [],
       "includes_use_cases": [],
-      "tech_considerations": [],
+      "tech_considerations": [
+        "포털 업로드 영상의 AI 증강 연동은 서버가 외부로 보내는 비동기 위탁이고, 포털 사용자가 직접 호출하는 추론 엔드포인트(SAM2 인터랙티브 분할·자동추적·키포인트)와는 축이 다르다. 증강 연동을 제공한다고 해서 그 추론 엔드포인트를 포털에 노출하지 않는다 — 외부 채널의 공격면이 되므로 계속 미제공이다."
+      ],
       "covered_by_acceptances": [
         "AC-095",
         "AC-096",
@@ -110,12 +130,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 12,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "전파 확인만 기록한다 — 원천의 이번 리비전은 본문 한 문장을 더한 것인데, 그 쓰기에 서버가 구현 추적 항목에 빈 키 하나를 정규화로 채우면서 전파 사유가 그 장부 필드 변경으로 기록됐다. 사양이 달라진 것이 아니라 추적 항목의 형태가 채워진 것이라 이 문서(포털 자산 업로드·수동 라벨링)가 담는 사양에는 걸리는 항목이 없고 고칠 내용이 없다. 원천 본문에 더해진 문장 자체는 이 문서의 축과 겹치지 않는다.",
+    "change_summary": "ADR-013 v10 정합 — 업로드 영상 한정 이벤트구간 마킹·AI 증강 연동 제공을 description 과 main_flow 양쪽에 반영하고, 시계열 축 미제공을 외부 시계열 분석 서버 위탁 연동(호출·콜백)으로 정밀화. 사용자가 직접 호출하는 추론 엔드포인트(SAM2 인터랙티브 분할·자동추적·키포인트)와 서버간 비동기 증강 위탁이 다른 축임을 서술·고려사항에 명시해 전자의 미제공 판정이 유지됨을 못박음. 오토라벨링(YOLO)·검수·버전관리 미제공과 BBOX/POLYGON allowlist fail-closed 는 유지. 부수: brownfield.notes 가 realizes_dfeats 를 공란이라고 적어 실제 값(DFEAT-053)과 모순되던 것을 정정.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T01:00:11.653Z",
+    "last_updated_at": "2026-08-26T02:58:23.118Z",
     "created_at": "2026-07-30T07:16:09.454Z"
   }
 }

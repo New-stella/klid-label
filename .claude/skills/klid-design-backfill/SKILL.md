@@ -58,9 +58,9 @@ change_orders: ".claude/change-orders/"
 ### Phase 1 — 계획  🚦게이트
 대상별로 **무엇을 어떻게 고칠지** 초안을 제시. 형식:
 ```
-CO-NNN (제목) — 설계반영 대기
+CO-{ID} (제목) — 설계반영 대기
   · API-NNN: 응답 스키마를 flat → envelope 로 정정
-    (근거: CO-NNN §6 + 커밋 abc1234 의 실제 코드. 현 설계 vN 은 코드와 drift)
+    (근거: CO §6 + 커밋 abc1234 의 실제 코드. 현 설계 vN 은 코드와 drift)
 
 [모드 C] DOMAIN-005 — IMPREC 미기록 12건
   · DFEAT-021 → review/service/ReviewService.java (근거: @design DFEAT-021 태그 + 커밋 def5678)

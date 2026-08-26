@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-012
 code_root: "backend/src/main/java/kr/co/cudo/authoring/common/client/Kpst* 계열 backend/src/main/java/kr/co/cudo/authoring/batch/ 의 Deident·Kpst 계열 backend/src/main/java/kr/co/cudo/authoring/label/ 의 DeidentReport* 계열 backend/src/main/java/kr/co/cudo/authoring/video/service/{DeidentReportGate,ApprovedRedeidentService,ParentDeidArtifactGuard} backend/src/main/java/kr/co/cudo/authoring/dataset/ 의 PrivacyMeta 계열 backend/src/main/java/kr/co/cudo/authoring/notification/ backend/src/main/java/kr/co/cudo/authoring/dev/ 복구 컨트롤러"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>

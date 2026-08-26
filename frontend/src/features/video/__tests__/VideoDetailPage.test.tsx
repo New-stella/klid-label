@@ -217,6 +217,94 @@ describe('VideoDetailPage', () => {
     expect(screen.queryByText('비식별')).not.toBeInTheDocument();
   });
 
+  /**
+   * ★ 기본정보 메타 그리드는 **서버가 준 실값**을 쓴다. [@design SCREEN-009] [@design API-043]
+   *
+   * 두 칸이 각각 다른 방식으로 거짓을 말하고 있었다:
+   *  - 해상도 — FE 타입이 **BE 에 없는 필드를 선언**한 계약 드리프트라 항상 `undefined` 였고
+   *    `|| '-'` 폴백이 그 사실을 완벽히 가려 화면은 영구히 `-` 였다.
+   *  - CCTV ID — `video-${rawSn}` 로 조립해, 같은 화면 상단 제목의 진짜 식별자와
+   *    **서로 다른 두 값**이 동시에 떴다.
+   */
+  describe('기본정보 메타 — 조립값이 아니라 서버 실값을 표시한다', () => {
+    /** 메타 그리드에서 라벨로 그 칸의 값을 읽는다(항목 구성·순서는 이 라운드에서 불변). */
+    const metaValueOf = (label: string) =>
+      screen.getByText(label).parentElement?.querySelector('dd')?.textContent;
+
+    function reply(data: Record<string, unknown>) {
+      mock.onGet('/videos/42').reply(200, {
+        success: true,
+        data: {
+          id: 42,
+          cctvName: 'CCTV-001',
+          status: 'COMPLETED',
+          duration: 30,
+          framePreviews: [],
+          ...data,
+        },
+        message: null,
+        errorCode: null,
+      });
+    }
+
+    async function renderDetail() {
+      renderWithProviders(
+        <Routes>
+          <Route path="/video/:id" element={<VideoDetailPage />} />
+        </Routes>,
+        { initialEntries: ['/video/42'] },
+      );
+      await waitFor(() => {
+        expect(screen.getByText('해상도')).toBeInTheDocument();
+      });
+    }
+
+    it('★해상도는_서버가_준_값_그대로_표시된다_영구_대시가_아니다', async () => {
+      reply({ vmsCctvId: 'CCTV-001', resolution: '1920x1440' });
+      await renderDetail();
+
+      expect(metaValueOf('해상도')).toBe('1920x1440');
+      // 헤더 메타 행에도 같은 값이 온다(두 표시 지점).
+      expect(screen.getByText('해상도: 1920x1440')).toBeInTheDocument();
+    });
+
+    it('해상도_메타가_없는_영상은_두_곳_모두_대시다_숫자를_지어내지_않는다', async () => {
+      reply({ vmsCctvId: 'CCTV-001', resolution: null });
+      await renderDetail();
+
+      expect(metaValueOf('해상도')).toBe('-');
+      expect(screen.getByText('해상도: -')).toBeInTheDocument();
+    });
+
+    it('★CCTV_ID는_실값이며_상단_제목과_같은_식별자다_조립값을_쓰지_않는다', async () => {
+      reply({ vmsCctvId: 'CCTV-001', resolution: '1920x1440' });
+      await renderDetail();
+
+      expect(metaValueOf('CCTV ID')).toBe('CCTV-001');
+      // 구 조립값(`video-0042`)은 어디에도 남지 않는다.
+      expect(screen.queryByText('video-0042')).not.toBeInTheDocument();
+    });
+
+    it('★CCTV_식별자가_없으면_조립값으로_되돌아가지_않고_비운다', async () => {
+      // 없는 식별자를 지어내면 그것이 실값처럼 보인다 — 폴백을 두지 않는 이유다.
+      reply({ cctvName: '이름만 있는 영상', vmsCctvId: null, resolution: '1920x1440' });
+      await renderDetail();
+
+      expect(metaValueOf('CCTV ID')).toBe('-');
+      expect(screen.queryByText('video-0042')).not.toBeInTheDocument();
+    });
+
+    it('메타_그리드의_항목_구성과_순서는_바뀌지_않았다_값만_바뀐다', async () => {
+      reply({ vmsCctvId: 'CCTV-001', resolution: '1920x1440' });
+      await renderDetail();
+
+      // 이 화면에는 `<dl>` 이 여럿일 수 있다(배치 사유 영역 등) — 메타 그리드를 지목한다.
+      const grid = screen.getByText('CCTV ID').closest('dl');
+      const labels = Array.from(grid?.querySelectorAll('dt') ?? []).map((el) => el.textContent);
+      expect(labels).toEqual(['CCTV ID', '해상도', '길이', '녹화 시각', '생성일', '수정일']);
+    });
+  });
+
   it('잘못된_id는_ErrorState_노출', () => {
     renderWithProviders(
       <Routes>

@@ -1,19 +1,20 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 32
+version: 34
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:51:50.985Z
+synced_at: 2026-08-26T04:11:28.885Z
 status: CHANGED
-prev_version: 30
-content_hash: ff485a5ccc8853ff9c73f15e5fb472e41f9ef916a2e2ba3cfecdc14b5347e266
-stale: true
+prev_version: 32
+content_hash: 1c56c453f07f04624343e73dce443090c2b655ec795d932568606d4ad88cf345
+stale: false
 raw: ./_raw/SCREEN-027.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
   consumes: ["[[API-043]]", "[[API-152]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-216]]", "[[API-217]]", "[[API-218]]"]
   covered_by: ["[[AC-099]]", "[[AC-100]]", "[[AC-101]]", "[[AC-102]]", "[[AC-103]]", "[[AC-104]]", "[[AC-105]]", "[[AC-106]]"]
+  implements: ["[[IMPREC-109]]"]
   realizes: ["[[UC-037]]"]
   references: ["[[API-043]]", "[[API-152]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-216]]", "[[API-217]]", "[[API-218]]"]
   requires: ["[[ROLE-001]]"]
@@ -24,7 +25,7 @@ links:
   references_backward: ["[[UC-037]]"]
 ---
 
-# 수동 업로드
+# 파일 업로드
 
 ## route
 
@@ -32,7 +33,7 @@ links:
 
 ## title
 
-수동 업로드
+파일 업로드
 
 ## device
 
@@ -877,7 +878,7 @@ _(empty)_
 ### main
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-027/main.html
-- **label**: 수동 업로드 — 와이어프레임
+- **label**: 파일 업로드 — 와이어프레임
 - **width**: 1440
 - **surface**: page
 - **platform**: web
@@ -888,7 +889,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 16177ecbf83d643d414e571fbed7b7f276924efa802769b4b45ec24ca00d24d0
-- **generated_at**: 2026-08-24T10:40:05.497Z
+- **generated_at**: 2026-08-26T02:50:12.178Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

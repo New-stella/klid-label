@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-08-26T01:11:01.221Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 60 |
+| Last sync | 2026-08-26T04:28:04.286Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 55 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,13 +20,13 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 7건 / 스코프 밖 41건
-  ℹ️  api_endpoint: 이번 키트 3건 / 스코프 밖 196건
+  ℹ️  api_endpoint: 이번 키트 3건 / 스코프 밖 198건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 21건 (그중 domain_id 없음 13건)
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 32건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 29건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 4건 / 스코프 밖 8건
-  ℹ️  acceptance: 이번 키트 1건 / 스코프 밖 115건 (그중 domain_id 없음 36건)
+  ℹ️  acceptance: 이번 키트 1건 / 스코프 밖 116건 (그중 domain_id 없음 36건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 9건 / 스코프 밖 40건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
@@ -41,7 +41,11 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[ADR-013]] (prev v8)
+- CHANGED [[DFEAT-043]] (prev v11)
+- CHANGED [[DFEAT-044]] (prev v10)
+- CHANGED [[DFEAT-053]] (prev v7)
+- CHANGED [[ROLE-003]] (prev v7)
 
 ## ITEM 표
 
@@ -51,7 +55,7 @@
 | [[ADR-002]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
-| [[ADR-013]] | adr | 8 | UNCHANGED |
+| [[ADR-013]] | adr | 10 | CHANGED |
 | [[ADR-020]] | adr | 10 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
@@ -63,11 +67,11 @@
 | [[CDIAG-013]] | class_diagram | 7 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 13 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
-| [[DFEAT-043]] | domain_feature | 11 | UNCHANGED |
-| [[DFEAT-044]] | domain_feature | 10 | UNCHANGED |
+| [[DFEAT-043]] | domain_feature | 12 | CHANGED |
+| [[DFEAT-044]] | domain_feature | 11 | CHANGED |
 | [[DFEAT-046]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-047]] | domain_feature | 6 | UNCHANGED |
-| [[DFEAT-053]] | domain_feature | 7 | UNCHANGED |
+| [[DFEAT-053]] | domain_feature | 8 | CHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-016]] | domain | 12 | UNCHANGED |
 | [[ERD-021]] | erd | 14 | UNCHANGED |
@@ -98,7 +102,7 @@
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 7 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 8 | CHANGED |
 | [[SCREEN-019]] | screen_spec | 39 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 4 | UNCHANGED |

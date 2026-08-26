@@ -15,7 +15,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-0NN
 code_root: "<code_root — 이 도메인 또는 frontend/>"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"
+change_order: ".claude/change-orders/CO-*.md"
 design_refs: [API-NNN, AC-NNN]      # dispatch Phase 3.6 에서 확정된 ITEM — 계약 판정의 근거
 change_detail: | <해당 도메인 변경 상세 — 수용기준·불변>
 implemented: | <구현 에이전트가 보고한 변경 파일·요지>

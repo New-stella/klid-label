@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-0NN              # 화면이 속한 도메인
 code_root: "frontend/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [SCREEN-NNN, API-NNN]                  # 확정된 ITEM — 계약 근거 + @design 태그 대상
 change_detail: | <CO 의 프론트 섹션 = 대상화면·변경·불변·소비 API 계약 — 진실원>
 screen_ids: [SCREEN-0NN, ...]     # (선택) 손댈 화면
@@ -152,6 +152,33 @@ cd frontend && npm run lint && npm run test && npm run build
   모달을 재작성하며 `reset()` 하나로 충분해 보여 지웠다가 되돌렸다 — `reset()` 은 폼 값만 바꾼다.
 - 재발조건: 비동기로 옵션을 채우는 Radix Select 폼을 리팩터링할 때. **편집 모드에서·옵션 로드가 느릴 때만**
   드러나 테스트가 없으면 조용히 지나간다.
+
+### 한 컴포넌트를 두 라우트가 재사용하는 화면 — 분기 축은 셋이다 (CO-019)
+
+- **함정**: 내부/포털이 같은 컴포넌트를 재사용하는 화면에서 채널 분기가 **API 경로·노출 요소에만** 배선되고
+  **이동 경로(라우팅)에는 배선되지 않은 채** 남아 있었다.
+- 근거: `LabelingPage` 는 `portalMode` 로 라벨 조회·이미지·저장·도구 노출을 모두 분기하고 회귀 가드도 3종
+  (`PortalLabelingDataPath` · `LabelingPagePortalRestrictions` · `LabelingPagePortalForbidden`)이 있었는데,
+  `performJump` 의 ``navigate(`/label/...`)`` **하나만 분기 밖**이었다. 기존 가드가 전부 「데이터·노출」 축이라
+  라우팅 축은 한 번도 검증되지 않았다.
+- 재발조건: 한 컴포넌트를 두 라우트가 재사용하는 **모든** 화면. 분기 축을 셀 때
+  **「API 경로 / 노출 요소 / 이동 경로」 세 축**을 함께 센다 — 앞의 둘만 가드하면 세 번째가 조용히 남는다.
+- ★**증상이 원인을 가린다**: 잘못된 경로로 이동하면 라우터 가드가 정상적으로 막아 **접근 거부 화면**이 뜨므로,
+  인가·권한 결함처럼 보인다. 실제로 그렇게 보이는 결함이었다. **가드를 푸는 방향은 오답**이며 그건
+  다른 채널 사용자에게 내부 화면을 여는 인가 결함이 된다 — 고칠 것은 화면이 만드는 주소다.
+
+### DOM 이 큰 화면에서 `findByRole(name)` 은 요소가 있어도 실패한다 (CO-019)
+
+- **함정**: 라벨링 화면 테스트에서 `findByRole('button', { name })` 이 기본 1초 안에 못 끝내
+  "Unable to find role" 로 실패한다 — **요소는 실제로 DOM 에 있다.**
+- 근거: 동일 렌더를 `document.body.innerHTML` 로 직접 조사하니 23,800자 DOM 안에 `aria-label="프레임 2"` 가
+  정상 존재했는데(probe 통과), 같은 조건의 `findByRole('button', { name: '프레임 2' })` 는
+  `TestingLibraryElementError` 로 실패했다. `findByLabelText` 로 바꾸자 2건 모두 185ms 에 통과.
+- 재발조건: `LabelingPage` 처럼 DOM 이 큰 풀스크린 화면(헤더·도구바·캔버스·우측패널·필름스트립·슬라이더).
+  접근성 트리 계산이 매 폴링마다 전체 DOM 을 훑어 기본 타임아웃을 넘긴다.
+- 대응 순서: **① `innerHTML` 직접 조사로 존재부터 확인** → ② 존재하면 `getByLabelText`/`getByTestId` 로 낮춘다.
+  **타임아웃 상향은 택하지 않는다** — 이 저장소는 FE 전건 동시 실행 시 5초 타임아웃 플레이크 이력이 있어
+  개별 대기를 늘리면 그 플레이크를 유발한다.
 
 ### 빌드타임 토글로 갈리는 메뉴는 **같은 파일에서 검증할 수 없다** (CO-022)
 `isDevUploadEnabled()` 가 모듈 최상단에서 1회 평가돼 **모듈 스코프 가변 배열**에 반영되므로, 한 파일에서 토글을 바꿔가며 재평가하면 다른 케이스가 보는 메뉴가 회차에 따라 달라져 **서로 오염**된다. 그렇다고 「로컬에서 만든 배열에 단언」하면 **프로덕션 코드를 한 줄도 실행하지 않는 동어반복**이라 회귀를 못 잡는다.

@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-007
 code_root: "backend/src/main/java/kr/co/cudo/authoring/augment/ backend/src/main/java/kr/co/cudo/authoring/video/ (해상도 파생 Resolution* 계열) backend/src/main/java/kr/co/cudo/authoring/webhook/ (증강 콜백 GenAi* 계열)"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>

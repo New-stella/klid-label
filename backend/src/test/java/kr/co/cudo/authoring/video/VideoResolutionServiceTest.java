@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 /**
  * 해상도 변경 오케스트레이션 단위 테스트 — Phase 3 (파생영상 전환).
  *
- * <p>검증 범위: 동일 해상도 스킵 · 업스케일 허용 · 프리셋별 파생영상 생성 위임 · 부분 실패 격리 ·
+ * <p>검증 범위: 산출 크기 동일 스킵 · 업스케일 허용 · 프리셋별 파생영상 생성 위임 · 부분 실패 격리 ·
  * 원본/검수 게이트. 실제 예약·부모 락·PII 게이트는 {@link ResolutionDerivativeService} 를 mock 으로
  * 격리한다(Phase 2 재사용, 중복 검증 금지).
  */
@@ -192,6 +192,116 @@ class VideoResolutionServiceTest {
         assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
                 .containsExactlyInAnyOrder("RESL_1080P", "RESL_480P")
                 .doesNotContain("RESL_720P");
+        verify(resolutionDerivativeService, never())
+                .createDerivative(any(), eq(ResolutionPreset.RESL_720P), anyString());
+    }
+
+    @Test
+    @DisplayName("4대3_원본은_1080p가_스킵되어_파생이_3건이_아니라_2건이다")
+    void fourByThreeSourceSkips1080pPreset() {
+        // given: 원본 1440x1080(4:3). 짧은 변이 이미 1080 이라 RESL_1080P 의 배율이 1.0 이고
+        //        산출 크기가 원본과 같아 스킵된다(@design ADR-018).
+        //        ⚠ 사용자 가시 동작 변화 — 구 고정 캔버스 규칙에서는 1920x1080 필러박스 파생이
+        //        생성되어 파생이 3건이었다. 이제 2건이다.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        srcDimensions(1440, 1080);
+
+        // when: presets 미지정 → 표준 3종 전체가 대상.
+        ResolutionChangeResponse res = call(1L);
+
+        // then: 1080p 만 빠지고 720p(960x720) · 480p(640x480) 2건이 생성된다.
+        assertThat(res.derivatives()).hasSize(2);
+        assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
+                .containsExactlyInAnyOrder("RESL_720P", "RESL_480P")
+                .doesNotContain("RESL_1080P");
+        verify(resolutionDerivativeService, never())
+                .createDerivative(any(), eq(ResolutionPreset.RESL_1080P), anyString());
+        assertThat(res.derivatives()).filteredOn(d -> d.goalResCd().equals("RESL_720P"))
+                .allMatch(d -> d.targetW() == 960 && d.targetH() == 720);
+        assertThat(res.derivatives()).filteredOn(d -> d.goalResCd().equals("RESL_480P"))
+                .allMatch(d -> d.targetW() == 640 && d.targetH() == 480);
+    }
+
+    @Test
+    @DisplayName("비16대9_원본은_응답의_targetW_targetH가_프리셋수치가_아니라_실제_산출크기다")
+    void responseCarriesActualOutputSize() {
+        // given: 원본 1440x1080(4:3). 720p 프리셋은 상한이므로 산출은 960x720 이다(@design ADR-018).
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        srcDimensions(1440, 1080);
+
+        // when
+        ResolutionChangeResponse res = service.changeResolution(
+                1L, new ResolutionChangeRequest(List.of(ResolutionPreset.RESL_720P)), "reviewer-1");
+
+        // then: 프리셋 수치(1280x720)가 아니라 산출 크기(960x720)를 싣는다.
+        CreatedDerivative d = res.derivatives().get(0);
+        assertThat(d.goalResCd()).isEqualTo("RESL_720P");
+        assertThat(d.targetW()).isEqualTo(960);
+        assertThat(d.targetH()).isEqualTo(720);
+        assertThat(d.targetW()).isNotEqualTo(ResolutionPreset.RESL_720P.width());
+    }
+
+    @Test
+    @DisplayName("세로영상은_프리셋_긴변보다_긴_세로로_산출된다")
+    void portraitSourceProducesTallerOutput() {
+        // given: 원본 1080x1920(세로). 720p 산출은 720x1280 — 박스 피팅이면 405x720 로 과소 산출된다.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        srcDimensions(1080, 1920);
+
+        ResolutionChangeResponse res = service.changeResolution(
+                1L, new ResolutionChangeRequest(List.of(ResolutionPreset.RESL_720P)), "reviewer-1");
+
+        CreatedDerivative d = res.derivatives().get(0);
+        assertThat(d.targetW()).isEqualTo(720);
+        assertThat(d.targetH()).isEqualTo(1280);
+    }
+
+    @Test
+    @DisplayName("파생실패도_프리셋수치가_아니라_산출크기로_표기된다")
+    void failedDerivativeAlsoCarriesActualOutputSize() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        srcDimensions(1440, 1080);
+        org.mockito.Mockito.doThrow(new IllegalStateException("boom"))
+                .when(resolutionDerivativeService)
+                .createDerivative(eq(1L), eq(ResolutionPreset.RESL_720P), anyString());
+
+        // 720p 는 실패, 480p(산출 640x480)는 성공 → 201 유지(부분 실패 격리).
+        // ⚠ 1080p 는 이 원본에서 배율 1.0(산출 1440x1080 = 원본)이라 스킵되므로 성공 짝으로 쓸 수 없다.
+        ResolutionChangeResponse res = service.changeResolution(
+                1L, new ResolutionChangeRequest(
+                        List.of(ResolutionPreset.RESL_720P, ResolutionPreset.RESL_480P)), "reviewer-1");
+
+        CreatedDerivative failed = res.derivatives().stream()
+                .filter(d -> d.goalResCd().equals("RESL_720P")).findFirst().orElseThrow();
+        assertThat(failed.status()).isEqualTo(DerivativeStatus.FAILED);
+        assertThat(failed.targetW()).isEqualTo(960);
+        assertThat(failed.targetH()).isEqualTo(720);
+    }
+
+    @Test
+    @DisplayName("산출크기가_원본과_같으면_프리셋수치가_달라도_스킵된다")
+    void skipsWhenOutputSizeEqualsSourceEvenIfPresetDiffers() {
+        // given: 원본 960x720. 720p 프리셋 수치(1280x720)와는 다르지만 산출 크기는 960x720 = 원본이다.
+        //        구 판정(preset.width()==srcW)은 1280!=960 이라 스킵하지 않아 <b>원본과 동일한 파생본</b>을
+        //        만들었다 — 그 회귀를 여기서 고정한다.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        approved(1L);
+        seedFrame(1L);
+        srcDimensions(960, 720);
+
+        assertThatThrownBy(() -> service.changeResolution(
+                1L, new ResolutionChangeRequest(List.of(ResolutionPreset.RESL_720P)), "reviewer-1"))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
         verify(resolutionDerivativeService, never())
                 .createDerivative(any(), eq(ResolutionPreset.RESL_720P), anyString());
     }
@@ -478,7 +588,9 @@ class VideoResolutionServiceTest {
         // when
         ResolutionChangeResponse res = service.listDerivatives(1L);
 
-        // then — 컬럼값이 프리셋으로 해석되고 목표 해상도(px)까지 채워진다.
+        // then — 컬럼값이 프리셋으로 해석되고 크기(px)까지 채워진다.
+        //        이 케이스는 프레임을 심지 않아 원본 실측이 불가하므로 프리셋 상한 폴백 값이 실린다
+        //        (실측 가능할 때 실제 산출 크기를 싣는 것은 listDerivativesReportsActualOutputSize 가 고정).
         assertThat(res.derivatives()).hasSize(2);
         assertThat(res.derivatives()).extracting(CreatedDerivative::goalResCd)
                 .containsExactly("RESL_1080P", "RESL_480P");
@@ -487,6 +599,39 @@ class VideoResolutionServiceTest {
         assertThat(first.targetW()).isEqualTo(ResolutionPreset.RESL_1080P.width());
         assertThat(first.targetH()).isEqualTo(ResolutionPreset.RESL_1080P.height());
         assertThat(first.status()).isEqualTo(DerivativeStatus.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("파생목록조회도_실측가능하면_실제_산출크기를_돌려준다")
+    void listDerivativesReportsActualOutputSize() {
+        // given: 원본 1440x1080(4:3) 실측 가능. 720p 파생의 산출 크기는 프리셋 수치 1280x720 이 아니라
+        //        960x720 이다 — 생성 API 와 같은 축을 돌려줘야 화면이 두 값을 다르게 보여주지 않는다.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        seedFrame(1L);
+        srcDimensions(1440, 1080);
+        when(videoRepository.findAllByOrgnlRawSnOrderByRawSnAsc(1L)).thenReturn(List.of(
+                derivative(521L, "RESL_720P", "clip-a")));
+
+        ResolutionChangeResponse res = service.listDerivatives(1L);
+
+        CreatedDerivative d = res.derivatives().get(0);
+        assertThat(d.targetW()).isEqualTo(960);
+        assertThat(d.targetH()).isEqualTo(720);
+    }
+
+    @Test
+    @DisplayName("파생목록조회는_원본_실측이_불가해도_프리셋상한으로_폴백하고_실패하지_않는다")
+    void listDerivativesFallsBackWhenSourceUnmeasurable() {
+        // 프레임을 심지 않아 실측이 불가한 상태 — 확정 실패를 보여주는 통로라 4xx/5xx 를 내면 안 된다.
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(raw(1L, null)));
+        when(videoRepository.findAllByOrgnlRawSnOrderByRawSnAsc(1L)).thenReturn(List.of(
+                derivative(531L, "RESL_720P", "clip-b")));
+
+        ResolutionChangeResponse res = service.listDerivatives(1L);
+
+        CreatedDerivative d = res.derivatives().get(0);
+        assertThat(d.targetW()).isEqualTo(ResolutionPreset.RESL_720P.width());
+        assertThat(d.targetH()).isEqualTo(ResolutionPreset.RESL_720P.height());
     }
 
     @Test

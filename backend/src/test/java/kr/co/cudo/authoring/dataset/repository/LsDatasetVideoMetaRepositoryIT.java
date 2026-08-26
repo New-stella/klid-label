@@ -15,12 +15,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -165,33 +165,58 @@ class LsDatasetVideoMetaRepositoryIT {
         assertThat(loadByRaw(rawSn)).hasSize(1);
     }
 
+    /**
+     * 동시 upsert 경합 — 같은 {@code (RAW_SN, SNPSHT_HASH)} 를 활성으로 동시에 넣어도
+     * 정확히 1행만 삽입되고 <b>예외가 나지 않는다</b>.
+     *
+     * <h3>왜 라운드를 반복하고 배리어를 쓰나 (이 가드가 한때 가드를 멈췄다)</h3>
+     * 이 테이블은 유니크 제약이 둘인데 {@code ON CONFLICT} 는 하나만 중재한다
+     * ({@code LsDatasetVideoMetaRepository#upsertSnapshot} 참조). 경합 창은
+     * <b>"아직 커밋된 행이 없는 순간"에만</b> 열리므로 <b>라운드마다 새 영상</b>(콜드 스타트)이 필요하다.
+     *
+     * <p>구 판은 라운드 1회 + 스레드 생성 직후 시작이라, 두 스레드의 <b>시작 스큐</b>(트랜잭션 개시·
+     * 커넥션 획득·SpEL 파라미터 바인딩) 때문에 대개 한쪽이 먼저 커밋해 창이 닫힌 뒤에 다른 쪽이
+     * 진입했다 — 그래서 <b>결함이 살아 있는데도 10회 연속 통과</b>했고(변이 실증으로 확인), 전체 회귀의
+     * 부하 아래에서만 간헐 실패해 오래 플레이크로 오인됐다. 배리어를 <b>트랜잭션 개시 이후</b>에 두어
+     * 스큐를 제거하고 라운드를 반복하면 결함이 있을 때 사실상 매번 드러난다.
+     *
+     * <p>스레드는 2 를 넘기지 않는다 — 테스트 커넥션 풀이 2 로 고정된 <b>의도된 설정</b>이라
+     * ({@code src/test/resources/application-local.yml}) 그 이상은 풀에서 직렬화되어 오히려 경합을 가린다.
+     */
     @Test
     @DisplayName("동시_2요청_같은해시_upsert시_1행만_적재")
     void concurrentUpsertSameHash_insertsExactlyOnce() throws Exception {
-        // given
-        long rawSn = newVideo();
+        final int rounds = 20;
         ExecutorService pool = Executors.newFixedThreadPool(2);
-        CountDownLatch start = new CountDownLatch(1);
-        AtomicInteger insertedCount = new AtomicInteger();
         try {
-            Future<Integer> a = pool.submit(() -> {
-                start.await();
-                return upsert(snapshot(rawSn, "hash-race"));
-            });
-            Future<Integer> b = pool.submit(() -> {
-                start.await();
-                return upsert(snapshot(rawSn, "hash-race"));
-            });
-            start.countDown();
-            insertedCount.addAndGet(a.get(30, TimeUnit.SECONDS));
-            insertedCount.addAndGet(b.get(30, TimeUnit.SECONDS));
+            for (int round = 0; round < rounds; round++) {
+                long rawSn = newVideo();
+                CyclicBarrier gate = new CyclicBarrier(2);
+                Callable<Integer> task = () -> txTemplate.execute(s -> {
+                    awaitGate(gate);
+                    return metaRepository.upsertSnapshot(snapshot(rawSn, "hash-race"));
+                });
+
+                Future<Integer> a = pool.submit(task);
+                Future<Integer> b = pool.submit(task);
+                int inserted = a.get(30, TimeUnit.SECONDS) + b.get(30, TimeUnit.SECONDS);
+
+                // 두 요청의 삽입 합계 1, 실제 1행만 존재(advisory 락 직렬화 + ON CONFLICT 흡수).
+                assertThat(inserted).as("라운드 %d 삽입 합계", round).isEqualTo(1);
+                assertThat(loadByRaw(rawSn)).as("라운드 %d 적재 행수", round).hasSize(1);
+            }
         } finally {
             pool.shutdownNow();
         }
+    }
 
-        // then — 두 요청의 삽입 합계 1, 실제 1행만 존재(DB UK + ON CONFLICT 가 race 직렬화)
-        assertThat(insertedCount.get()).isEqualTo(1);
-        assertThat(loadByRaw(rawSn)).hasSize(1);
+    /** 배리어 대기 — 상대가 오지 않으면 매달리지 말고 빠르게 실패시킨다. */
+    private static void awaitGate(CyclicBarrier gate) {
+        try {
+            gate.await(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new IllegalStateException("동시 실행 배리어 대기 실패", e);
+        }
     }
 
     @Test

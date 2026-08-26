@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.util.LetterboxTransform;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeRequest;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse;
 import kr.co.cudo.authoring.video.dto.ResolutionChangeResponse.CreatedDerivative;
@@ -36,11 +37,13 @@ import java.util.List;
  * <h3>오케스트레이션 규칙</h3>
  * <ul>
  *   <li><b>업스케일 허용</b>: 목표 해상도가 원본보다 커도 거부하지 않는다(구 업스케일 가드 제거).</li>
- *   <li><b>동일 해상도 스킵</b>: {@code preset.width()==srcW && preset.height()==srcH} 인 프리셋만
- *       scale=1 중복 회피로 건너뛴다(결과 목록에서 제외).</li>
+ *   <li><b>산출 크기 동일 스킵</b>: <b>산출 크기</b>가 원본과 같아지는 프리셋만 중복 회피로 건너뛴다
+ *       (결과 목록에서 제외). 프리셋은 고정 캔버스가 아니라 크기 상한이므로
+ *       {@code preset.width()==srcW} 로는 판정할 수 없다(@design ADR-018). 반올림 때문에 배율이 정확히
+ *       1.0 이 아니어도 산출 크기가 원본과 같아질 수 있으므로 <b>배율이 아니라 산출 크기로</b> 판정한다.</li>
  *   <li><b>프리셋별 부분 실패 격리</b>: 한 프리셋 생성 실패가 다른 프리셋·원본에 영향 없이 독립 예약/RAW 로
  *       처리되며, 실패 프리셋은 결과에 {@code FAILED} 로 표기된다.</li>
- *   <li>적용 가능한 프리셋이 0개면(모두 원본과 동일 해상도) {@link ErrorCode#INVALID_INPUT} 로 거부한다.</li>
+ *   <li>적용 가능한 프리셋이 0개면(대상 프리셋이 전부 건너뛰어지면) {@link ErrorCode#INVALID_INPUT} 로 거부한다.</li>
  * </ul>
  *
  * <p><b>RBAC</b>: 권한 검증은 Controller {@code @PreAuthorize("hasRole('REVIEWER')")} 가 1차 책임이고,
@@ -81,13 +84,15 @@ public class VideoResolutionService {
     private String storageDeidentifiedPath;
 
     /**
-     * 해상도 변경 실행 — 검증(APPROVED·비-파생) → 원본 해상도 실측 → 동일 해상도 제외 프리셋마다
-     * 파생영상 생성(부분 실패 격리).
+     * 해상도 변경 실행 — 검증(APPROVED·비-파생) → 원본 해상도 실측 → 산출 크기가 원본과 달라지는
+     * 프리셋마다 파생영상 생성(부분 실패 격리).
      *
      * @param rawSn   원시 영상 PK (검수 완료 + 비-증강본만 허용)
      * @param request 생성할 프리셋 요청(선택). 미지정 시 표준 3종 전체가 대상이 된다.
      * @param regId   등록자(REVIEWER) 식별자 (감사 추적용)
-     * @return 프리셋별 생성 결과(파생 RAW_SN + 목표 해상도 + 상태)
+     * <p>[@design API-092] [@design AC-003] [@design UC-003]
+     *
+     * @return 프리셋별 생성 결과(파생 RAW_SN + <b>실제 산출 크기</b> + 상태)
      */
     public ResolutionChangeResponse changeResolution(Long rawSn, ResolutionChangeRequest request, String regId) {
         // 1) 조회 + 검증 (APPROVED + 비-증강본).
@@ -103,7 +108,7 @@ public class VideoResolutionService {
         List<ResolutionPreset> targetPresets =
                 request == null ? STANDARD_PRESETS : request.resolvePresets(STANDARD_PRESETS);
 
-        // 3) 첫 프레임 실측으로 원본 해상도 산정 — 동일 해상도 스킵 판정에 사용. 업스케일 거부 가드는 제거.
+        // 3) 첫 프레임 실측으로 원본 해상도 산정 — 산출 크기·스킵 판정에 사용. 업스케일 거부 가드는 제거.
         int[] dim = measureFirstFrame(rawSn);
         int srcW = dim[0];
         int srcH = dim[1];
@@ -111,21 +116,25 @@ public class VideoResolutionService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "원본 프레임 해상도를 확인할 수 없습니다.");
         }
 
-        // 4) 동일 해상도 제외 프리셋마다 파생영상 생성 — 프리셋별 부분 실패 격리.
+        // 4) 산출 크기가 원본과 달라지는 프리셋마다 파생영상 생성 — 프리셋별 부분 실패 격리.
         List<CreatedDerivative> results = new ArrayList<>();
         for (ResolutionPreset preset : targetPresets) {
-            if (preset.width() == srcW && preset.height() == srcH) {
-                log.info("[Video][Resolution] preset skipped (same resolution) rawSn={} preset={} {}x{}",
+            LetterboxTransform box = LetterboxTransform.of(srcW, srcH, preset.width(), preset.height());
+            // @design ADR-018 — 프리셋 수치가 아니라 <b>산출 크기</b>로 판정한다. 프리셋이 고정 캔버스가
+            //       아니게 되면서 preset.width()==srcW 는 의미를 잃었다(그대로 두면 배율 1.0 프리셋이
+            //       스킵되지 않아 원본과 동일한 파생본이 생성된다).
+            if (box.drawW() == srcW && box.drawH() == srcH) {
+                log.info("[Video][Resolution] preset skipped (same output size) rawSn={} preset={} {}x{}",
                         rawSn, preset.name(), srcW, srcH);
                 continue;
             }
-            results.add(createOne(rawSn, preset, regId));
+            results.add(createOne(rawSn, preset, regId, box.drawW(), box.drawH()));
         }
 
-        // 5) 적용 가능한 프리셋이 0개(모두 원본과 동일)면 거부.
+        // 5) 적용 가능한 프리셋이 0개(대상 프리셋이 전부 건너뛰어짐)면 거부.
         if (results.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "원본과 동일하지 않은 적용 가능한 해상도 프리셋이 없습니다.");
+                    "산출 크기가 원본과 달라지는 적용 가능한 해상도 프리셋이 없습니다.");
         }
 
         // 6) 시도한 프리셋이 하나도 CREATED 되지 못하고 전부 FAILED 면 성공(201)이 아닌 처리 실패로 응답한다.
@@ -149,22 +158,51 @@ public class VideoResolutionService {
      *
      * <p>상태 매핑 — 비식별 확정('Y')+COMPLETED → {@code COMPLETED}, 배치 FAILED → {@code FAILED},
      * 그 외(PENDING 등) → {@code IN_PROGRESS}.
+     *
+     * <p><b>산출 크기</b>(@design ADR-018): 응답의 {@code targetW}/{@code targetH} 는 생성 API 와 같은
+     * 축이어야 하므로 프리셋 수치가 아니라 <b>실제 산출 크기</b>다. 원본 첫 프레임을 실측해 같은 계산기로
+     * 도출하며, 실측할 수 없으면(프레임 부재·경로 부재 등) 조회 자체를 실패시키지 않고 프리셋 상한으로
+     * 폴백한다 — 이 엔드포인트는 확정 실패를 보여주는 통로라 여기서 4xx/5xx 를 내면 볼 수단이 사라진다.
+     *
+     * <p>[@design API-179]
      */
     public ResolutionChangeResponse listDerivatives(Long rawSn) {
         videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
                         "영상을 찾을 수 없습니다: rawSn=" + rawSn));
 
+        int[] srcDim = measureFirstFrameQuietly(rawSn);
         List<CreatedDerivative> results = new ArrayList<>();
         for (LsDataRaw d : videoRepository.findAllByOrgnlRawSnOrderByRawSnAsc(rawSn)) {
             ResolutionPreset preset = presetOf(d);
             if (preset == null) {
                 continue; // 해상도 파생이 아닌 파생(외부 증강)은 제외.
             }
-            results.add(new CreatedDerivative(d.getRawSn(), preset.name(), preset.width(), preset.height(),
-                    statusOf(d)));
+            int outW = preset.width();
+            int outH = preset.height();
+            if (srcDim != null) {
+                LetterboxTransform box = LetterboxTransform.of(srcDim[0], srcDim[1], outW, outH);
+                outW = box.drawW();
+                outH = box.drawH();
+            }
+            results.add(new CreatedDerivative(d.getRawSn(), preset.name(), outW, outH, statusOf(d)));
         }
         return new ResolutionChangeResponse(results);
+    }
+
+    /**
+     * 원본 첫 프레임 실측 — 조회 경로 전용 best-effort. 실패하면 {@code null} 을 돌려 호출부가 프리셋
+     * 상한으로 폴백하게 한다(조회를 실패시키지 않는다). 실패 사유는 로그로만 남긴다(CWE-209).
+     */
+    private int[] measureFirstFrameQuietly(Long rawSn) {
+        try {
+            int[] dim = measureFirstFrame(rawSn);
+            return (dim != null && dim.length == 2 && dim[0] > 0 && dim[1] > 0) ? dim : null;
+        } catch (RuntimeException e) {
+            log.debug("[Video][Resolution] source dimension probe failed rawSn={} reason={}",
+                    rawSn, e.getClass().getSimpleName());
+            return null;
+        }
     }
 
     /**
@@ -201,16 +239,20 @@ public class VideoResolutionService {
 
     /**
      * 프리셋 1건 파생영상 생성 — 실패는 격리하여 {@code FAILED} 결과로 흡수한다(다른 프리셋 진행 보장).
+     *
+     * <p>응답의 {@code targetW}/{@code targetH} 는 프리셋 수치가 아니라 호출부가 이미 계산해 넘긴
+     * <b>실제 산출 크기</b>다(@design ADR-018). 실패 결과에도 같은 값을 실어 성공/실패 표기가 같은 축을
+     * 가리키게 한다.
      */
-    private CreatedDerivative createOne(Long rawSn, ResolutionPreset preset, String regId) {
+    private CreatedDerivative createOne(Long rawSn, ResolutionPreset preset, String regId, int outW, int outH) {
         try {
             ResolutionDerivativeResponse d = resolutionDerivativeService.createDerivative(rawSn, preset, regId);
-            return CreatedDerivative.created(d.newRawSn(), preset.name(), preset.width(), preset.height());
+            return CreatedDerivative.created(d.newRawSn(), preset.name(), outW, outH);
         } catch (RuntimeException e) {
             // 부분 실패 격리 — 실패 프리셋만 FAILED 로 표기, 상세(스택트레이스)는 내부 로그로만(응답에 사유 미노출 CWE-209).
             log.warn("[Video][Resolution] derivative creation failed rawSn={} preset={} reason={}",
                     rawSn, preset.name(), e.getClass().getSimpleName(), e);
-            return CreatedDerivative.failed(preset.name(), preset.width(), preset.height());
+            return CreatedDerivative.failed(preset.name(), outW, outH);
         }
     }
 

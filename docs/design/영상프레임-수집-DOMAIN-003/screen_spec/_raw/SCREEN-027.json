@@ -3,13 +3,13 @@
     "id": "SCREEN-027",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "screen_spec",
-    "title": "수동 업로드",
+    "title": "파일 업로드",
     "slug": "오토라벨-테스트-화면-개발",
     "sub_id": null,
     "status": "draft",
     "data": {
       "route": "/dev/upload",
-      "title": "수동 업로드",
+      "title": "파일 업로드",
       "device": "desktop",
       "status": "draft",
       "purpose": "영상을 저작도구에 직접 올려 처리에 태우는 화면. 한 건씩 파일을 골라 올리는 방식과, 서버가 읽을 수 있는 폴더를 훑어 여러 건을 한 번에 올리는 방식 두 가지를 제공한다. 한 건씩 올릴 때는 올린 영상을 파이프라인으로 곧바로 보낼지 관제 인입 원장에 적재해 주기 배치가 가져가게 할지 고를 수 있으며, 두 경로가 같은 입력 폼을 쓴다. 전송은 청크 단위 재개 업로드라 대용량 영상도 네트워크가 끊긴 지점부터 이어 보낼 수 있다. 폴더에서 한 번에 올릴 때는 이벤트 마킹이 끝난 영상 묶음을 대상으로 하며, 찾은 짝을 먼저 보여 주고 확인하면 뒤에서 건별로 적재한다. 운영에서도 쓰는 화면이며 노출 여부는 설정으로 조절한다. 접근: 검수자.",
@@ -466,14 +466,14 @@
         {
           "id": "main",
           "url": "/uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-027/main.html",
-          "label": "수동 업로드 — 와이어프레임",
+          "label": "파일 업로드 — 와이어프레임",
           "width": 1440,
           "surface": "page",
           "platform": "web",
           "sections": [],
           "description": "",
           "source_hash": "16177ecbf83d643d414e571fbed7b7f276924efa802769b4b45ec24ca00d24d0",
-          "generated_at": "2026-08-24T10:40:05.497Z",
+          "generated_at": "2026-08-26T02:50:12.178Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -496,12 +496,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 32,
-    "stale": true,
-    "stale_reason": "API-043의 2개 필드 변경 — consumes",
-    "change_summary": "메뉴를 「관리」 그룹으로 옮기고(외부 산출물 이관 다음) 노출 판정을 라우트와 같은 isDevUploadEnabled() 로 통일. 토글 켠·끈 산출물 양방향 실측 확인.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:33.808Z",
+    "current_version": 34,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.2KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-26T02:50:12.178Z",
     "created_at": "2026-05-30T07:55:52.978Z"
   }
 }

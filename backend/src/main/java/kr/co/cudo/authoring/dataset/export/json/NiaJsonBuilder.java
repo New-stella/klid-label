@@ -170,6 +170,29 @@ public class NiaJsonBuilder {
      * @param kind  산출 종류 (anonymity/이미지 경로 결정)
      */
     public NiaAnnotationDoc build(VideoExportContext ctx, FrameContext frame, ExportKind kind) {
+        if (frame == null) {
+            throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
+                    "빌드 입력이 null 입니다.");
+        }
+        return build(ctx, frame.frame(), toSources(frame.labels()), kind);
+    }
+
+    /**
+     * 한 프레임의 자기완결 {@link NiaAnnotationDoc} 를 조립한다(<b>저장소 중립</b> 오버로드).
+     *
+     * <p>라벨을 엔티티가 아니라 {@link AnnotationSource} 로 받으므로 내부 파이프라인 라벨과 포털 사용자
+     * 작업 라벨이 <b>같은 빌더·같은 판정</b>으로 같은 구조의 문서를 만든다. 위 {@link FrameContext}
+     * 오버로드는 이 메서드로 위임하며 동작이 동일하다.
+     *
+     * @param ctx     {@link #prepareContext} 산출 컨텍스트
+     * @param frame   대상 프레임 (LS_DATA_SRC — 포털도 데이터마트 프레임을 그대로 쓴다)
+     * @param sources 그 프레임의 라벨 최소 입력 목록 (null 허용 = 라벨 0건)
+     * @param kind    산출 종류 (anonymity/이미지 경로 결정)
+     *
+     * @design API-203
+     */
+    public NiaAnnotationDoc build(VideoExportContext ctx, LsDataSrc frame,
+                                  List<AnnotationSource> sources, ExportKind kind) {
         if (ctx == null || frame == null || kind == null) {
             throw new CustomException(kr.co.cudo.authoring.common.exception.ErrorCode.INVALID_INPUT,
                     "빌드 입력이 null 입니다.");
@@ -179,12 +202,24 @@ public class NiaJsonBuilder {
         NiaVideo video = videoMapper.toVideo(ctx.meta(), ctx.raw(), kind, ctx.deidVideoPath(),
                 ctx.srcPrivacy(), ctx.ingestEvntId(), ctx.vdDescription());
         NiaDataset dataset = buildDataset(ctx, kind);
-        NiaImage image = buildImage(ctx, frame.frame(), kind);
-        List<NiaAnnotation> annotations = buildAnnotations(frame.labels(), image.id());
+        NiaImage image = buildImage(ctx, frame, kind);
+        List<NiaAnnotation> annotations = buildAnnotations(sources, image.id());
 
         return new NiaAnnotationDoc(
                 ctx.info(), dataset, ctx.licences(),
                 video, ctx.eventAnnotation(), image, annotations, ctx.categories(), TYPE_INSTANCES);
+    }
+
+    /** 내부 파이프라인 라벨 목록 → 좁은 입력 목록(순서·null 원소 보존 — 하위 skip 규칙이 동일하게 적용). */
+    private static List<AnnotationSource> toSources(List<LsDataLbl> labels) {
+        if (labels == null) {
+            return null;
+        }
+        List<AnnotationSource> sources = new ArrayList<>(labels.size());
+        for (LsDataLbl lbl : labels) {
+            sources.add(AnnotationSource.of(lbl));
+        }
+        return sources;
     }
 
     /**
@@ -265,13 +300,13 @@ public class NiaJsonBuilder {
         );
     }
 
-    private List<NiaAnnotation> buildAnnotations(List<LsDataLbl> labels, Integer imageId) {
+    private List<NiaAnnotation> buildAnnotations(List<AnnotationSource> labels, Integer imageId) {
         List<NiaAnnotation> result = new ArrayList<>();
         if (labels == null) {
             return result;
         }
         int skipped = 0;
-        for (LsDataLbl lbl : labels) {
+        for (AnnotationSource lbl : labels) {
             if (lbl == null) {
                 continue;
             }
@@ -279,9 +314,9 @@ public class NiaJsonBuilder {
                 result.add(labelMapper.toAnnotation(lbl, imageId));
             } catch (CustomException e) {
                 // 방어(CWE-20 fail-secure): malformed 라벨 1건은 문서 전체를 깨지 않고 skip.
-                // 좌표 원문/PII 미노출 — lblSn 만 로깅.
+                // 좌표 원문/PII 미노출 — 식별자만 로깅.
                 skipped++;
-                log.warn("[NiaJsonBuilder] annotation skipped lblSn={}", lbl.getLblSn());
+                log.warn("[NiaJsonBuilder] annotation skipped lblSn={}", lbl.id());
             }
         }
         if (skipped > 0) {
