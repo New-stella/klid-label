@@ -1,5 +1,6 @@
 import { ReactNode, Suspense } from 'react';
 import { Navigate, createBrowserRouter } from 'react-router-dom';
+import type { RouteObject } from 'react-router-dom';
 
 import { AppErrorPage } from '@/components/common/AppErrorPage';
 import { ForbiddenPage } from '@/components/common/ForbiddenPage';
@@ -10,6 +11,7 @@ import { SessionIngressPage } from '@/features/auth/SessionIngressPage';
 import { Role } from '@/lib/api/types';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 import { isDevUploadEnabled } from '@/lib/devUpload';
+import { resolveRouterBasename } from '@/lib/remoteMount';
 
 import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
 import { lazyWithRetry } from './lazyWithRetry';
@@ -216,7 +218,9 @@ if (isDevUploadEnabled()) {
   });
 }
 
-export const router = createBrowserRouter([
+// 라우트 트리 — 아래 `createBrowserRouter` 의 유일한 소비처다.
+// 별도 상수로 뽑은 것은 basename 옵션을 붙이면서 **배열 본문을 한 글자도 건드리지 않기** 위해서다.
+const routes: RouteObject[] = [
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
@@ -530,4 +534,9 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+// [@design INT-013]
+// basename 은 빌드 채널이 정한다 — 포털 채널 산출물만 Host 마운트 경로 아래로 들어가고,
+// 내부(관제) 채널은 `undefined` 라 지금 동작 그대로다. 값의 단일 지점은 `lib/remoteMount`.
+export const router = createBrowserRouter(routes, { basename: resolveRouterBasename() });
