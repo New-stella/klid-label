@@ -17,6 +17,13 @@ import { useFieldContext, useFieldControl } from './fieldContext';
  * 라벨 텍스트를 자체적으로 갖지 않는 순수 컨트롤이다 — 라벨은 호출부가
  * `Field`(orientation='horizontal') + `FieldLabel` 로 옆에 배치한다.
  *
+ * **접근 가능한 이름은 `aria-labelledby` 로 잇는다.** 이 컨트롤의 실체는 `role="checkbox"` 인
+ * `button` 인데, `button` 의 이름 계산은 `aria-labelledby` → `aria-label` → **자기 서브트리** →
+ * `title` 순이고 `<label for>` 연결은 그 계산에 들어가지 않는다(HTML-AAM). 서브트리는
+ * `aria-hidden` 인 시각 사각형뿐이라, 옆에 라벨을 두어도 낭독기에는 이름 없는 체크박스로
+ * 들린다. `FieldLabel` 이 있으면 그 요소 id(`labelId`)를 가리켜 이름을 만든다.
+ * 호출부가 `aria-label`/`aria-labelledby` 를 직접 주면 그 값이 항상 우선한다.
+ *
  * **KRDS 44px 터치 타깃**은 두 경우로 갈린다(회귀 지점):
  * - `FieldLabel` 이 붙는 경우 → 라벨이 44px 행(min-h-11)을 만들고 `htmlFor` 로 토글까지 받으므로
  *   컨트롤이 폭을 따로 예약하지 않는다.
@@ -34,7 +41,15 @@ export type CheckboxProps = Omit<
 
 export const Checkbox = forwardRef<ElementRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(
   function Checkbox(
-    { id, className, 'aria-describedby': ariaDescribedBy, 'aria-invalid': ariaInvalid, ...rest },
+    {
+      id,
+      className,
+      'aria-describedby': ariaDescribedBy,
+      'aria-invalid': ariaInvalid,
+      'aria-label': ariaLabel,
+      'aria-labelledby': ariaLabelledBy,
+      ...rest
+    },
     ref,
   ) {
     const field = useFieldContext();
@@ -51,12 +66,17 @@ export const Checkbox = forwardRef<ElementRef<typeof CheckboxPrimitive.Root>, Ch
     // 옆에 붙는 FieldLabel 이 44px 행을 만들어 주면 컨트롤이 폭을 예약하지 않는다.
     const hitAreaSelfManaged = !field?.hasLabel;
 
+    const labelledBy =
+      ariaLabelledBy ?? (ariaLabel === undefined && field?.hasLabel ? field.labelId : undefined);
+
     return (
       <CheckboxPrimitive.Root
         ref={ref}
         id={fieldId}
         aria-invalid={invalid}
         aria-describedby={describedBy}
+        aria-label={ariaLabel}
+        aria-labelledby={labelledBy}
         className={cn(
           'group/checkbox inline-flex min-h-11 shrink-0 cursor-pointer select-none items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-60',
           hitAreaSelfManaged && 'min-w-11',

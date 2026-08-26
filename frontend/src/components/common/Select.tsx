@@ -187,7 +187,7 @@ export const SelectTrigger = forwardRef<ElementRef<typeof SelectPrimitive.Trigge
         aria-invalid={invalid}
         aria-describedby={describedBy}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-md border bg-white text-gray-900 outline-none transition-colors duration-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60 data-[placeholder]:text-gray-400 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+          'flex w-full items-center justify-between gap-2 rounded-md border bg-white text-gray-900 outline-none transition-colors duration-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60 data-[placeholder]:text-gray-600 [&_svg]:pointer-events-none [&_svg]:shrink-0',
           TRIGGER_SIZE_CLASS[size],
           KRDS_FOCUS,
           hasError

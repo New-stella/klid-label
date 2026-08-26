@@ -87,7 +87,7 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
 
   if (loading) {
     return (
-      <div data-testid="worker-stats-table" className="p-4 text-body-md text-gray-400">
+      <div data-testid="worker-stats-table" className="p-4 text-body-md text-gray-600">
         불러오는 중…
       </div>
     );
@@ -129,7 +129,7 @@ export function WorkerStatsTable({ rows, loading }: WorkerStatsTableProps) {
         <tbody className="divide-y divide-gray-50">
           {sortedRows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+              <td colSpan={6} className="px-4 py-6 text-center text-gray-600">
                 작업자 통계가 없습니다
               </td>
             </tr>

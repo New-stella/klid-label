@@ -124,7 +124,7 @@ export function Lnb() {
           return (
             <div key={g.group} className="mb-1">
               <div className="px-4 py-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-600">
                   {g.group}
                 </span>
               </div>

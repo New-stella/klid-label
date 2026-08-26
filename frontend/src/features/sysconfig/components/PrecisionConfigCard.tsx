@@ -106,11 +106,11 @@ export function PrecisionConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('YOLO_CONF_THRESHOLD', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>낮음 (0.25)</span>
             <span>높음 (0.80)</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             값이 높을수록 확신도가 높은 객체만 인식해 오탐이 줄지만 놓치는 객체가 늘 수 있습니다.
             (AI 탐지 추론의 Confidence Threshold 와 동일한 설정값입니다.)
           </p>
@@ -140,11 +140,11 @@ export function PrecisionConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('POLYGON_SIMPLIFY_TOLERANCE', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>세밀 (0.0)</span>
             <span>거침 (50.0)</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해지고(점 수 증가), 클수록 경계가 단순해져
             점 수가 줄어듭니다. (0~50px)
           </p>

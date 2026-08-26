@@ -128,10 +128,14 @@ export function ConfirmedMappingSection({ onDisabled }: ConfirmedMappingSectionP
           </Select>
         </div>
 
+        {/* `Checkbox` 의 실체는 role=checkbox 인 button 이라 `<label for>` 로는 이름이 붙지 않는다
+            (button 의 이름은 aria-labelledby → aria-label → 자기 서브트리 순으로 계산된다).
+            클릭 토글을 위해 htmlFor 는 그대로 두고, 이름은 aria-labelledby 로 잇는다. */}
         <div className="flex items-center gap-2">
           <Checkbox
             id="import-mapping-include-unused"
             data-testid="import-mapping-include-unused"
+            aria-labelledby="import-mapping-include-unused-label"
             checked={includeUnused}
             onCheckedChange={(v) => {
               setIncludeUnused(v === true);
@@ -139,6 +143,7 @@ export function ConfirmedMappingSection({ onDisabled }: ConfirmedMappingSectionP
             }}
           />
           <label
+            id="import-mapping-include-unused-label"
             className="text-label font-medium text-gray-700"
             htmlFor="import-mapping-include-unused"
           >

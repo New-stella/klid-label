@@ -107,7 +107,7 @@ function ProcessingStackBar({
             <span className="ml-auto tabular-nums font-medium text-gray-800">
               {s.value.toLocaleString('ko-KR')}
             </span>
-            <span className="tabular-nums text-gray-400">
+            <span className="tabular-nums text-gray-600">
               {pct(s.value).toFixed(1)}%
             </span>
           </li>
@@ -343,7 +343,7 @@ export function OverallStatPage() {
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-title-sm font-semibold text-gray-700">작업자별 현황</h2>
-          <p className="text-caption text-gray-400 mt-0.5">컬럼 헤더 클릭으로 정렬</p>
+          <p className="text-caption text-gray-600 mt-0.5">컬럼 헤더 클릭으로 정렬</p>
         </div>
         <WorkerStatsTable rows={data?.workers ?? []} loading={isLoading} />
       </div>
