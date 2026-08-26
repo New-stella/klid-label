@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-029
 type: screen_spec
-version: 38
-last_updated_at: 2026-08-18T03:30:49.711Z
+version: 39
+last_updated_at: 2026-08-26T01:58:59.387Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T11:02:36.428Z
-sync_session: 23
-stale: false
-status: UNCHANGED
+synced_at: 2026-08-26T04:14:53.473Z
+sync_session: 24
+stale: true
+status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-029.json
 wireframe: ./wireframe.html
@@ -755,7 +755,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-129
 
 ### progress
 
@@ -764,6 +764,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-26T01:58:59.387Z
 
 ## required_roles
 

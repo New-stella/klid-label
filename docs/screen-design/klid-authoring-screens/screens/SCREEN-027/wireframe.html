@@ -4,8 +4,8 @@
 <body>
   <main class="wf-content">
     <div class="wf-page-header">
-      <div class="wf-breadcrumb"><span>SCREEN-027</span><span class="sep">/</span><span>수동 업로드</span></div>
-      <h1 style="white-space:nowrap">수동 업로드</h1>
+      <div class="wf-breadcrumb"><span>SCREEN-027</span><span class="sep">/</span><span>파일 업로드</span></div>
+      <h1 style="white-space:nowrap">파일 업로드</h1>
     </div>
     <p class="wf-muted" style="margin:-8px 0 16px">영상을 저작도구에 직접 올려 처리에 태우는 화면. 한 건씩 파일을 골라 올리는 방식과, 서버가 읽을 수 있는 폴더를 훑어 여러 건을 한 번에 올리는 방식 두 가지를 제공한다. 한 건씩 올릴 때는 올린 영상을 파이프라인으로 곧바로 보낼지 관제 인입 원장에 적재해 주기 배치가 가져가게 할지 고를 수 있으며, 두 경로가 같은 입력 폼을 쓴다. 전송은 청크 단위 재개 업로드라 대용량 영상도 네트워크가 끊긴 지점부터 이어 보낼 수 있다. 폴더에서 한 번에 올릴 때는 이벤트 마킹이 끝난 영상 묶음을 대상으로 하며, 찾은 짝을 먼저 보여 주고 확인하면 뒤에서 건별로 적재한다. 운영에서도 쓰는 화면이며 노출 여부는 설정으로 조절한다. 접근: 검수자. · route /dev/upload</p>
     <div class="wf-row" style="align-items:flex-start;gap:12px;min-height:520px">
