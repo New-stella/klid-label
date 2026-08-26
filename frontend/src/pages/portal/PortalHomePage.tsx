@@ -153,7 +153,7 @@ export function PortalHomePage() {
         {/* 라벨링 카드 */}
         <section aria-label="이용 방법" className="flex flex-col gap-3">
           <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">이용 방법</h2>
-          <article className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <article className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
             <h2 className="text-section-title text-gray-800">라벨링</h2>
             <p className="text-sub text-gray-500">선택한 영상에 라벨을 추가하세요</p>
@@ -273,7 +273,7 @@ function DatamartVideoCard({
   const disabled = downloading || downloadBlocked;
 
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <li className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <button
         type="button"
         data-testid="datamart-video-item"

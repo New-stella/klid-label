@@ -129,7 +129,7 @@ export function PortalUploadPage() {
       {/* 이미지 업로드 */}
       <section
         aria-label="이미지 업로드"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+        className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
       >
         <h2 className="text-section-title text-gray-800">이미지 업로드</h2>
         <div className="flex flex-col gap-1">
@@ -188,7 +188,7 @@ export function PortalUploadPage() {
       {/* 영상 업로드 (TUS) */}
       <section
         aria-label="영상 업로드"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+        className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
       >
         <h2 className="text-section-title text-gray-800">영상 업로드</h2>
         <div className="flex flex-col gap-1">
@@ -298,7 +298,7 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
   return (
     <li
       data-testid={`portal-upload-item-${upload.uldSn}`}
-      className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between"
+      className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between"
     >
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex items-center gap-2">
