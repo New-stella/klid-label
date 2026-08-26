@@ -43,7 +43,11 @@ export function Card({ size = 'default', className, children, ...rest }: CardPro
         data-size={size}
         className={cn(
           'flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm',
-          size === 'sm' ? 'gap-3 py-3' : 'gap-4 py-4',
+          // 시안 `.card` 는 헤더 `padding: 24 24 0` · 본문 `padding: 24` 다. 좌우 24 는
+          // 하위 슬롯의 `px-6` 이 맡고, **상하 24 와 헤더↔본문 24** 를 루트가 맡는다
+          // (헤더 아래 여백이 0 이고 본문 위가 24 이므로 둘 사이가 곧 gap 24 다).
+          // ⚠ `sm` 변형은 시안에 대응 규칙이 없어 그대로 둔다 — 함께 올리지 말 것.
+          size === 'sm' ? 'gap-3 py-3' : 'gap-6 py-6',
           present.footer && 'pb-0',
           className,
         )}
