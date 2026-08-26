@@ -143,7 +143,10 @@ export function Modal({
             onClick={onClose}
             aria-label="닫기"
             className={cn(
-              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+              // 색 단계는 시안 `.lightbox-close` 를 따른다 — 평상시 중립 600(#58616A),
+              // hover 시 표면 50 + 글자 900. 구 400 은 흰 배경 위 3.08:1 이라 닫기 아이콘이
+              // 흐렸고(600 은 6.30:1), hover 도 한 단 진한 표면이라 시안과 어긋나 있었다.
+              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900',
               KRDS_FOCUS,
             )}
           >

@@ -182,4 +182,25 @@ describe('Button', () => {
     expect(cls).toMatch(/hover:brightness-95/);
     expect(cls).toMatch(/active:brightness-90/);
   });
+  // ── 시안(SCREEN-009 `.btn-secondary`) 정합 — 테두리 축 ─────────────────
+  // `.btn-secondary { border-color: var(--border-strong) }` = `--n-4`(#8a949e) = gray-400.
+  // 구 gray-300 은 흰 배경 위 2.01:1 이라 WCAG 1.4.11(비텍스트 3:1)에 미달했다 —
+  // gray-400 은 3.08:1 로 통과하므로 시안 정합과 접근성이 같은 방향이다.
+  it('Button_secondary_테두리는_gray_400_이다', () => {
+    render(<Button variant="secondary">취소</Button>);
+    const cls = screen.getByRole('button').className.split(/\s+/);
+    expect(cls).toContain('border-gray-400');
+    expect(cls).not.toContain('border-gray-300');
+  });
+
+  // ── 시안(SCREEN-009 `.btn-sm`) 정합 — 높이·글자 축 ─────────────────────
+  // `.btn-sm { min-height: 36px; font-size: 15px }`. 구 구현은 높이 하한이 아예 없어
+  // 내용에 따라 높이가 흔들렸고, 글자도 한 step 작았다(14px).
+  it('Button_sm_은_최소높이_36px_과_15px_글자를_갖는다', () => {
+    render(<Button size="sm">확인</Button>);
+    const cls = screen.getByRole('button').className.split(/\s+/);
+    expect(cls).toContain('min-h-9');
+    expect(cls).toContain('text-body-sm');
+    expect(cls).not.toContain('text-label');
+  });
 });
