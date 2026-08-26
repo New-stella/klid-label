@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef } from 'react';
+import type { ReactElement } from 'react';
 import { Circle, Line, Rect, Transformer } from 'react-konva';
 import type Konva from 'konva';
 
@@ -232,7 +233,7 @@ export function LabelsLayer({
                 onDragEnd={(e) => commitPolygonMove(label.id, e.target, imagePoints)}
               />
               {showAnchors &&
-                imagePoints.reduce<JSX.Element[]>((acc, _v, i) => {
+                imagePoints.reduce<ReactElement[]>((acc, _v, i) => {
                   if (i % 2 !== 0) return acc;
                   const vertexIndex = i / 2;
                   acc.push(

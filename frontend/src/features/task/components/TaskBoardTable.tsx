@@ -112,7 +112,7 @@ function videoCode(videoId: number): string {
  * 없으면 마지막 컬럼(액션)이 **있는지조차 알 수 없다** — 실측에서 '이력' 버튼이 뷰포트 밖
  * right=1446 에 있었다. 창 크기·데이터 변화 모두에 반응해야 하므로 ResizeObserver 로 본다.
  */
-function useHorizontalOverflow<T extends HTMLElement>(ref: RefObject<T>, deps: unknown[]) {
+function useHorizontalOverflow<T extends HTMLElement>(ref: RefObject<T | null>, deps: unknown[]) {
   const [overflowing, setOverflowing] = useState(false);
   useEffect(() => {
     const el = ref.current;
