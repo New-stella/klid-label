@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:internal": "tsc -b && VITE_BUILD_CHANNEL=internal vite build",
+    "build:portal": "tsc -b && VITE_BUILD_CHANNEL=portal vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",

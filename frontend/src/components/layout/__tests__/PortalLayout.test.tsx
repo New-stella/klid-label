@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
@@ -92,5 +92,51 @@ describe('PortalLayout', () => {
     const header = document.querySelector('header');
     expect(header).not.toBeNull();
     expect(header?.textContent ?? '').not.toMatch(/다운로드/);
+  });
+
+  /*
+   * ★포털 채널(Module Federation 임베드) 빌드에서의 머리 영역 토글 (2026-08-26 신설).
+   *
+   * 저작도구가 포털 Host 셸 안에 Remote 로 임베드될 예정이라, `VITE_BUILD_CHANNEL=portal`
+   * 로 빌드된 산출물에서는 `PortalLayout` 자체 헤더를 렌더하지 않는다(Host 가 이미 자기
+   * 헤더를 갖고 있어, 그대로 두면 한 화면에 머리 영역이 두 벌 겹친다).
+   *
+   * 기본값(환경변수 미설정 = `internal` 채널)에서는 지금처럼 헤더가 렌더된다 — 이 사실은
+   * 이 파일의 다른 테스트들(예: `포털_레이아웃_GNB_단순화_LNB_없음`)이 이미 지키고 있고,
+   * 여기서는 "채널을 명시하지 않으면 지금과 같다"는 것을 한 번 더 직접 단언한다.
+   */
+  describe('빌드 채널에 따른 머리 영역 토글', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('채널_미설정_기본값이면_지금처럼_헤더가_렌더된다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', '');
+
+      renderLayout();
+
+      expect(document.querySelector('header')).not.toBeNull();
+      expect(screen.getByText('AI 학습데이터 포털')).toBeInTheDocument();
+    });
+
+    it('internal_채널이면_헤더가_렌더된다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+
+      renderLayout();
+
+      expect(document.querySelector('header')).not.toBeNull();
+    });
+
+    it('portal_채널이면_자체_헤더를_렌더하지_않는다_Host가_자기헤더를_갖는다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+
+      renderLayout();
+
+      // 자체 헤더(제목·사용자 메뉴)는 없다.
+      expect(document.querySelector('header')).toBeNull();
+      expect(screen.queryByText('AI 학습데이터 포털')).toBeNull();
+      // 그 아래 자식 콘텐츠(Outlet)는 여전히 정상 렌더된다 — 헤더만 빠질 뿐 나머지는 불변.
+      expect(screen.getByTestId('portal-content')).toBeInTheDocument();
+    });
   });
 });
