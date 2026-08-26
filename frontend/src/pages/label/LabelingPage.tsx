@@ -637,7 +637,11 @@ export function LabelingPage() {
   //   포털은 ADR-013 상 이슈 소통 자체가 미제공이라 탭도 두지 않는다(별개 축).
   const showIssues = !portalMode;
   const issuesReady = showIssues && issueRawSn !== undefined;
-  // 메타 탭(프레임 설명 + 시계열 메타)은 내부 채널만 노출 — 포털은 VLM/메타 미제공(ADR-013).
+  // 메타 탭(프레임 설명 + 시계열 메타). ★포털에 닫혀 있는 것은 아직 만들지 않았기 때문이지
+  //   ADR-013 이 막아서가 아니다 — ADR-013 v10 은 데이터마트 로드분의 메타·이벤트 어노테이션을
+  //   포털에서 표시·수정·추가하는 것을 제공으로 확정했다. 미제공인 것은 외부 시계열 분석 서버로
+  //   나가는 위탁 연동(호출·콜백) 축이다. 포털 메타·어노테이션 API 가 아직 0건이라 이 플래그만
+  //   켜면 전량 403 이 된다 — 화면을 여는 것은 후속 작업이다.
   const showMeta = !portalMode;
   const hasTabs = showMeta || showIssues;
   const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
@@ -1990,7 +1994,9 @@ export function LabelingPage() {
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
               <FramePrivacyMetaPanel srcSn={data?.srcSn} />
-              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
+              {/* 시계열 메타 — 외부 시스템 책임인 것은 외부 분석 서버로 나가는 위탁 연동(호출·
+                  콜백)이지 그 결과물의 표시·편집이 아니다(ADR-013 v10). 포털 렌더가 없는 것은
+                  아직 만들지 않았기 때문이며 ADR 이 막은 것이 아니다. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
               {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
               <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />

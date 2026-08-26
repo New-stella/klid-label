@@ -133,7 +133,7 @@
 | TC-PORTAL-072b (신규) | FE 포털 단축키 **안내**에서도 제외 | 포털 모드 | 단축키 도움말(?) | 'AI 분할'·'AI 추적'·'스켈레톤' 행 미표시(내부 모드는 표시) | unit | Low | ShortcutCheatSheet.test.tsx |
 | TC-PORTAL-072c (신규·회귀) | FE 내부 라벨링 도구/단축키는 무변경 | 내부 모드 | 도구바·keydown | 세 도구 버튼 노출 + G/Shift+T/K 정상 전환 | unit | High | ToolBar.test.tsx(구 `DarkToolbar.test.tsx` — 2026-08-07 개명), useLabelingShortcuts.test.tsx |
 | TC-PORTAL-073 | FE 포털 라벨링: 검수제출 버튼 미렌더 | 포털 모드 | 화면 | submit-review-button 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx |
-| TC-PORTAL-074 | FE 포털 라벨링: VLM/시계열 메타 탭 미노출 | 포털 모드 | 화면 | 메타 탭·VLM 텍스트 없음 | unit | Med | LabelingPagePortalRestrictions.test.tsx |
+| TC-PORTAL-074 | FE 포털 라벨링: 메타 탭 미노출 (**근거 교체 — 사양이 아니라 미구현**) | 포털 모드 | 화면 | 메타 탭·시계열 텍스트 없음. ⚠ **2026-08-26 근거 교체**: 구 근거 「포털은 VLM/메타 미제공(ADR-013)」은 **폐기**한다 — `ADR-013` v10 이 데이터마트 로드분 메타·이벤트 어노테이션의 표시·수정·추가를 **제공으로 확정**했다. 지금 미노출인 것은 **포털 메타·어노테이션 API 가 아직 없기 때문**이며(있는 것을 켜면 전량 403), 기능이 생기면 이 케이스는 **폐기 대상**이다. 그때까지는 현재 동작을 고정하는 가드로 유효하다 | unit | Med | LabelingPagePortalRestrictions.test.tsx |
 | TC-PORTAL-075~077 (폐기) | 구 포털 SAM2 의 비식별본 전송·신고 게이트 케이스 | - | - | **대상 코드 삭제(2026-08-03 `dcdbb827`)로 폐기.**(3차 정정 — 구 표기 `2026-08-02` 는 오기. 08-02 `67dc48ca` 는 수정만 했고 파일 삭제는 08-03 이며 머리말과 일치시킴) 동일 방어의 내부 경로 검증은 계속 유효 — 신고 구간 412 + `verifyNoInteractions(aiServerClient)` | security | High | AiInferenceDeidentReportGateTest.java(내부 SAM2 분할/추적·YOLO 추적·온라인 오토라벨) |
 | TC-PORTAL-078 (신규) | 게이트 없는 `encodeToBase64(String)` 오버로드는 더 이상 존재하지 않는다(원본픽셀 유출 경로 삭제 확인) | - | 정적 확인 | 모든 외부 추론 전송이 `resolveFrameImageForInference`/`encodeFrame`/`encodeDeidentifiedFrameForInference` → private `encode(Path)` 로 수렴, public 문자열 오버로드 부재 | unit | High | FrameImageEncoder.java(주석) |
 
