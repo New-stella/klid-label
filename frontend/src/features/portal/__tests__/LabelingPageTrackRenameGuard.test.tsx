@@ -1,5 +1,5 @@
 // Phase 10(축소) — 포털 트랙 rename/머지 미제공 회귀 가드.
-// 포털은 트랙 데이터모델 부재(프레임별 단건)라 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge,
+// 포털은 트랙 번호 변경·병합을 제공하지 않으므로 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge,
 // PORTAL 채널 403)를 절대 호출하면 안 된다. 버튼 숨김 + 핸들러 no-op 가드 이중 안전을 검증한다.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';

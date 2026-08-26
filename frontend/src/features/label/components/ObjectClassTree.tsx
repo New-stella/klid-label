@@ -54,8 +54,8 @@ interface ObjectClassTreeProps {
    */
   currentFrameNo?: number;
   /**
-   * Phase 10(축소) — 포털 채널 여부. 포털 라벨은 트랙 데이터모델 부재(프레임별 단건)라
-   * rename/머지가 불가능하므로, true 면 트랙 번호 변경(연필) 진입 자체를 숨긴다.
+   * Phase 10(축소) — 포털 채널 여부. 포털은 트랙 번호 변경·병합을 제공하지 않으므로,
+   * true 면 트랙 번호 변경(연필) 진입 자체를 숨긴다.
    * 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이라 절대 호출하지 않는다.
    */
   portalMode?: boolean;
@@ -412,7 +412,7 @@ export function ObjectClassTree({
                         {isLocked ? <Lock size={12} /> : <Unlock size={12} />}
                       </button>
                     )}
-                    {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공(데이터모델 부재)이라 연필 버튼 숨김.
+                    {/* Phase 10(축소) — 포털은 트랙 rename/머지 미제공이라 연필 버튼 숨김.
                         잠금(isLocked) 객체는 트랙 ID 변경 진입 차단. */}
                     {!portalMode && renamingId !== obj.id && !isLocked && !editBlocked && (
                       <button

@@ -1247,7 +1247,7 @@ export function LabelingPage() {
   const handleRenameTrack = async (fromTrackId: string, toTrackId: string) => {
     // 목록 패널의 버튼은 차단 중 감춰지지만, 콜백 자체도 막아 둔다(진입점이 늘어나도 새지 않게).
     if (isEditBlockedNow(currentFrame?.srcSn)) return;
-    // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
+    // Phase 10(축소) — 포털은 트랙 번호 변경·병합을 제공하지 않는다.
     // 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이므로 조기 return.
     // 버튼 숨김(ObjectClassTree portalMode)과 함께 이중 안전 가드.
     if (portalMode) return;
