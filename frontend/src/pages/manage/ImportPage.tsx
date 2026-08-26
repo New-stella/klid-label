@@ -22,7 +22,7 @@ function messageOf(e: unknown, fallback: string): string {
 }
 
 /**
- * SCREEN-039 외부 산출물 이관 (REVIEWER 전용, `/manage/imports`).
+ * SCREEN-039 산출물 가져오기 (REVIEWER 전용, `/manage/imports`).
  *
  * 경로 입력 → 미리보기 확인 → 분류 대응 확정 → 적재의 흐름을 한 화면에서 순서대로 밟고, 아래에
  * 확정된 대응과 지금까지 가져온 내역을 함께 둔다.
@@ -100,7 +100,7 @@ export function ImportPage() {
   return (
     <section className="flex flex-col gap-4" data-testid="import-page">
       <PageHeader
-        title="외부 산출물 이관"
+        title="산출물 가져오기"
         description="외부에서 받은 산출물 폴더를 검사하고 저작도구로 가져옵니다. 가져온 영상은 곧바로 검수 대기가 됩니다."
       />
 

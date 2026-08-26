@@ -9,7 +9,7 @@ import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
 import { type AutolabelTestResult } from '@/features/dev/types';
 
 /**
- * [개발/검수 전용] 수동 업로드 화면 (`/dev/upload`). [@design SCREEN-027]
+ * [개발/검수 전용] 파일 업로드 화면 (`/dev/upload`). [@design SCREEN-027]
  *
  * <p>REVIEWER 전용. 입력 폼은 **한 벌**이고(`TusUploadPanel`) 최상단 «적재 경로» 라디오가 보내는
  * 곳과 그 뒤 흐름만 바꾼다:
@@ -87,7 +87,7 @@ export function DevAutolabelTestPage() {
   return (
     <main className="space-y-6">
       <PageHeader
-        title="수동 업로드"
+        title="파일 업로드"
         description="영상 파일과 메타데이터를 한 폼에서 입력해 올립니다. 적재 경로를 파이프라인 즉시 실행과 관제 인입 재현 중에서 고를 수 있으며, 입력 폼은 두 경로가 같습니다."
       />
 
