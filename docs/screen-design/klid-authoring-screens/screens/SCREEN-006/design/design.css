@@ -97,7 +97,7 @@ button { font-family: inherit; cursor: pointer; }
 input { font-family: inherit; }
 
 /* focus-visible — DS do_rule: 3px outline + 2px offset */
-a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible {
   outline: 3px solid var(--p-5);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
@@ -594,6 +594,43 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   color: var(--n-6);
 }
 .chip-remove:hover { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+
+/* ── 12-1. 섹션⑤ 검증 질문 선택 (UI 미정 — Select + 전문 병기) ────── */
+/* 드롭다운은 네이티브 select 다. 마킹 화면이 Space/Enter/Delete 를 전역 단축키로 받는데
+   그 핸들러는 포커스가 INPUT·TEXTAREA·SELECT 일 때만 비켜서므로, 커스텀 트리거(button)를
+   쓰면 드롭다운을 여닫는 키가 마킹 추가·제출로 새어 나간다. */
+.question-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+.select-shell { position: relative; display: block; }
+.select-shell .select-control {
+  appearance: none; -webkit-appearance: none;
+  padding-right: var(--sp-xl);
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+/* OS 기본 화살표 대신 토큰 색 chevron — 비텍스트 대비 3:1 이상(--n-6 on 흰 배경). */
+.select-shell .select-arrow {
+  position: absolute; right: var(--sp-md); top: 50%;
+  width: 9px; height: 9px; margin-top: -7px;
+  border-right: 2px solid var(--n-6);
+  border-bottom: 2px solid var(--n-6);
+  transform: rotate(45deg);
+  pointer-events: none;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.select-shell:hover .select-arrow { border-color: var(--n-8); }
+
+/* 전문 병기 — 드롭다운에서 잘리는 긴 문구를 그대로 확인시키는 자리.
+   좌측 강조선으로 "지금 저장될 값" 임을 카드 안에서 한 단계 올려 준다. */
+.question-full {
+  padding: var(--sp-md);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--p-5);
+  border-radius: var(--radius-md);
+  background: var(--bg-alt);
+}
+.question-full-label { display: block; color: var(--n-6); margin-bottom: var(--sp-xs); }
+.question-full-text { margin: 0; color: var(--n-9); white-space: pre-wrap; }
 
 /* ── 13. 섹션⑤ 배치단계 인디케이터 (UI-018) — SCREEN-009 규칙 승계 ─ */
 .stage-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-lg); }

@@ -168,6 +168,32 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
+### ★「없음/비활성」을 빈 결과로 재현한 stub 은 술어가 사라져도 통과한다 (CO-20260826 오토라벨 조인)
+기대 결과가 **빈 값·null** 인 시험은 **결과 단언만으로 술어가 검증되지 않는다.** 조회에서 필터를
+통째로 빼도 stub 이 어차피 빈 목록을 주므로 초록이다.
+- **근거**: `VideoQueryServiceAutoLabelTest(비활성_soft_delete_마스터는_…)` 가
+  `findByLabelIdInAndUseYn` → `findAllById` 되돌림에서 **처음엔 GREEN** 이었다.
+  `verify(...).findByLabelIdInAndUseYn(anyCollection(), eq("Y"))` 로 **호출 인자를 고정한 뒤에야**
+  6건 FAILED 가 났다. 독립 QA 가 이 되돌림을 재현해 확인했다.
+- **재발 조건**: 「없음·비활성·폐기를 빈 결과로 취급」하는 모든 조회 가드.
+  ⇒ 결과가 아니라 **호출 인자 자체를 단언**하라.
+
+### 행 단위 쿼리에 종류 단위 마스터를 JOIN 하면 같은 행이 N 번 투영된다 (CO-20260826 오토라벨 조인)
+「N+1 을 없애라」 지시를 받고 반사적으로 `JOIN` 을 추가하지 마라. 두 축의 **입도가 다르면**
+조인이 아니라 **키만 투영 → 소비자가 Set 으로 모아 배치 조회 1회**가 맞다.
+- **근거**: `findAutoLabelInfoByRawSn` 은 라벨 **행** 단위(`ORDER BY LBL_SN`)라 라벨 마스터를 직접
+  조인하면 같은 마스터 행이 라벨 수만큼 중복 투영된다. `LBL_ID` 만 싣고 `lookupLabelMasters` 가
+  중복 제거 후 1회 조회하도록 했고, 그 판단 근거를 쿼리 javadoc 에 남겼다.
+- **재발 조건**: 행 단위 결과에 분류·코드·마스터 등 **종류 단위** 정보를 붙이는 모든 조회.
+
+### N+1 가드를 `mockingDetails(mock).getInvocations().size()` 로 세면 스터빙이 섞인다 (CO-20260826 오토라벨 조인)
+호출 **횟수 자체가 계약**인 시험에서 그 헬퍼를 쓰면 `when(...)` 스터빙 호출까지 함께 세어져
+숫자가 실제 호출 수와 어긋난다.
+- **근거**: 처음 그렇게 작성했다가 `thenAnswer` + `AtomicInteger` 카운터로 교체했다.
+  교체본은 per-id 루프 되돌림(N+1 유발)에서 **정확히 1건만** FAILED 로 잡았다.
+- **재발 조건**: N+1·재시도·디바운스처럼 횟수가 계약인 시험.
+  ⇒ `verify(times(n))` 또는 Answer 카운터를 쓴다.
+
 ## 출력 (YAML 한 블록만)
 ```yaml
 implemented: {files: [...], summary: ...}

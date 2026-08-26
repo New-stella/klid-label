@@ -82,6 +82,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       0건·이벤트 유형 0건으로 기동해 라벨을 고를 수 없고 이벤트 필터가 빈 채로 뜬다.
  *       전부 {@code ON CONFLICT DO NOTHING} 이라 이미 시드된 DB(로컬·dev)에서는 no-op 이고
  *       운영자가 바꿔 둔 이름·색·형태를 되돌리지 않는다</li>
+ *   <li>{@code V20} — {@code LS_PORTAL_USER_LABEL} 에 {@code LBL_ID}(라벨 마스터 참조) ·
+ *       {@code TRCK_ID}(트랙아이디) 신설. 포털 다운로드 산출을 검수 승인 학습데이터와 같은
+ *       구조로 통일하면서, 산출 어노테이션이 싣는 분류·트랙 식별자를 담을 자리가 포털
+ *       저장소에만 없다는 공백이 드러났다. 둘 다 nullable 이고 <b>기존 행을 백필하지 않는다</b>
+ *       — 라벨명 소급 매칭은 동명이인·비활성 마스터에 다른 분류로 연결될 수 있어 빈 값보다
+ *       나쁘다(재저장하면 자연 복구). FK 를 걸지 않아 마스터 수명과 독립이며, NULL 허용 +
+ *       DEFAULT 없는 ADD COLUMN 이라 하위호환이고 롤링 재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -118,7 +125,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "9001");
+                        "17", "18", "19", "20", "9001");
     }
 
     @Test
@@ -145,6 +152,7 @@ class FlywaySquashBaselineIT {
                         "V18__add_verification_event_question_catalog.sql",
                         "V19__simplify_label_preset_to_event_and_labels.sql",
                         "V1__baseline.sql",
+                        "V20__add_portal_user_label_master_and_track.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

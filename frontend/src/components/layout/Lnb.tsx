@@ -18,8 +18,12 @@ interface MenuGroup {
 }
 
 /**
- * mock 정합 — 그룹 순서: 대시보드 / 영상 / 작업 / 데이터 / 통계 / 관리.
- * 라벨/경로는 mock routes.ts와 정렬.
+ * 그룹 순서: 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 업로드 / 관리. [@design NAV-001]
+ *
+ * 「업로드」는 데이터를 들여오는 화면만 모은 자리다 — 서버에 이미 있는 폴더를 가져오는 길
+ * (산출물 가져오기)과 내려받아 둔 파일을 올리는 길(파일 업로드)이라는 **방식 차이**로 나뉜다.
+ * 둘 다 설정을 다루는 화면이 아니라 「관리」에 있을 때 찾기 어려웠고, 서로 짝이라는 사실도
+ * 메뉴에 드러나지 않았다.
  */
 const MENU: MenuGroup[] = [
   {
@@ -57,6 +61,18 @@ const MENU: MenuGroup[] = [
     items: [{ label: '게시판', path: '/notice', allow: ['REVIEWER', 'WORKER'] }],
   },
   {
+    // [@design NAV-001] [@design SCREEN-039] [@design SCREEN-027]
+    // 「업로드」는 게시판과 관리 **사이**다. 항목이 둘 다 REVIEWER 전용이라 WORKER 에게는
+    // `visible.length === 0` 으로 그룹째 사라진다(그룹 헤더만 남는 일이 없다).
+    group: '업로드',
+    items: [
+      // ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다 — 갈리면
+      //   「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
+      { label: '산출물 가져오기', path: '/manage/imports', allow: ['REVIEWER'] },
+      // 「파일 업로드」(`/dev/upload`)는 아래 registerManualUploadMenu 가 토글 조건과 함께 넣는다.
+    ],
+  },
+  {
     group: '관리',
     items: [
       { label: '사용자 관리', path: '/manage/users', allow: ['REVIEWER'] },
@@ -70,16 +86,15 @@ const MENU: MenuGroup[] = [
       //   ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다 — 갈리면
       //     「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
       { label: '이벤트유형 관리', path: '/manage/event-types', allow: ['REVIEWER'] },
-      { label: '외부 산출물 이관', path: '/manage/imports', allow: ['REVIEWER'] },
     ],
   },
 ];
 
-const MANAGE_GROUP = '관리';
+const UPLOAD_GROUP = '업로드';
 const MANUAL_UPLOAD_PATH = '/dev/upload';
 
 /**
- * 수동 업로드(`/dev/upload`)를 「관리」 그룹 끝에 멱등 등록한다. [@design SCREEN-027]
+ * 파일 업로드(`/dev/upload`)를 「업로드」 그룹 끝에 멱등 등록한다. [@design SCREEN-027] [@design NAV-001]
  *
  * 노출 판정은 라우트(`router/index.tsx`)와 **같은 `isDevUploadEnabled()`** 를 쓴다. 두 판정이
  * 갈리면 «메뉴는 없는데 URL 로는 들어가진다»(또는 그 반대)는 비대칭이 생긴다 — 실제로 이 메뉴가
@@ -90,14 +105,17 @@ const MANUAL_UPLOAD_PATH = '/dev/upload';
  * 항목이 중복 누적되어 렌더 시 React "two children with the same key"(key=i.path) 경고가 발생한다.
  * 이미 있으면 다시 넣지 않도록 경로 존재 여부를 가드한다(멱등).
  *
- * 「관리」 그룹이 없으면 아무것도 하지 않는다 — 엉뚱한 자리에 그룹을 새로 만드는 것보다 메뉴가
+ * 「업로드」 그룹이 없으면 아무것도 하지 않는다 — 엉뚱한 자리에 그룹을 새로 만드는 것보다 메뉴가
  * 없는 편이 안전하다. 실제 MENU 에 그룹이 있는지는 Lnb 렌더 테스트가 고정한다.
+ *
+ * ⚠ 토글이 꺼진 산출물에서는 이 항목이 통째로 빠지지만 「업로드」 그룹 자체는 남는다 —
+ *   산출물 가져오기가 MENU 배열에 직접 들어 있기 때문이다(그룹이 사라지지 않는다).
  */
 export function registerManualUploadMenu(menu: MenuGroup[]): void {
-  const manage = menu.find((g) => g.group === MANAGE_GROUP);
-  if (!manage) return;
-  if (manage.items.some((i) => i.path === MANUAL_UPLOAD_PATH)) return;
-  manage.items.push({ label: '수동 업로드', path: MANUAL_UPLOAD_PATH, allow: ['REVIEWER'] });
+  const upload = menu.find((g) => g.group === UPLOAD_GROUP);
+  if (!upload) return;
+  if (upload.items.some((i) => i.path === MANUAL_UPLOAD_PATH)) return;
+  upload.items.push({ label: '파일 업로드', path: MANUAL_UPLOAD_PATH, allow: ['REVIEWER'] });
 }
 
 // 라우트와 같은 조건이고 빌드 시 상수로 접힌다 — 토글이 꺼진 산출물에서는 통째로 제거된다.

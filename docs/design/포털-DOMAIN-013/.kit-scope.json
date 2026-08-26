@@ -4,7 +4,7 @@
   "domain": "DOMAIN-013",
   "decided_by": "llm",
   "decided_at": "2026-08-23T12:19:15.277383Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-26(2회차) pending 판정: ADR-026 승격(Tier 2 ADR · ADR 필터 ① 그래프 상호참조) · 나머지 기각(제외 타입 — MOD·IMPREC·NAV·DEP/diagram_deployment) | 2026-08-26(3회차) pending 판정: INT-013 승격(integration_point · belongs_to_domain=DOMAIN-013 · provided_by=EXTSYS-006 · Tier 3 조건 충족 — 도메인에 INT-009 기존재) · 나머지 기각(제외 타입 — MOD=code_module 3건 · DEP=diagram_deployment 1건 · IMPREC=implementation_record 14건)",
   "items": [
     "AC-032",
     "AC-033",
@@ -12,8 +12,13 @@
     "AC-035",
     "AC-036",
     "AC-037",
+    "AC-095",
+    "AC-096",
+    "AC-097",
+    "AC-098",
     "ADR-003",
     "ADR-013",
+    "ADR-026",
     "API-024",
     "API-081",
     "API-082",
@@ -50,6 +55,7 @@
     "EVT-012",
     "EXTSYS-006",
     "INT-009",
+    "INT-013",
     "NAV-002",
     "NFR-008",
     "NFR-009",
@@ -81,14 +87,9 @@
     "SHELL-002",
     "TEST-005",
     "UC-024",
-    "UC-027",
-    "AC-095",
-    "AC-096",
-    "AC-097",
-    "AC-098"
+    "UC-027"
   ],
   "pending": [
-    "ADR-026",
     "MOD-017",
     "MOD-021",
     "MOD-043",
@@ -105,7 +106,8 @@
     "IMPREC-020",
     "IMPREC-023",
     "IMPREC-024",
-    "IMPREC-110"
+    "IMPREC-110",
+    "IMPREC-129"
   ],
-  "last_sync_at": "2026-08-26T04:28:12.076Z"
+  "last_sync_at": "2026-08-26T05:27:21.803Z"
 }

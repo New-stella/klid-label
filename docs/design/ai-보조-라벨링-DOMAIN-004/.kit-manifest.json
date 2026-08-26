@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
-  "synced_at": "2026-08-26T04:28:13.108Z",
+  "synced_at": "2026-08-26T05:27:20.742Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 107,
+  "count": 108,
   "items": {
     "AC-004": {
       "type": "acceptance",
@@ -114,6 +114,12 @@
       "version": 3,
       "content_hash": "7a57479cf31c5fd4ab76d32bdb5f09ab719347219b2ddf8ff328580edcac6b70"
     },
+    "ADR-013": {
+      "type": "adr",
+      "domain_id": "DOMAIN-013",
+      "version": 10,
+      "content_hash": "4ba63bb8747ad0e94e6baec50c32c81f175f35675393b6ca8bf60c6985dfd1f2"
+    },
     "ADR-019": {
       "type": "adr",
       "domain_id": "DOMAIN-004",
@@ -213,8 +219,8 @@
     "API-043": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-003",
-      "version": 18,
-      "content_hash": "166d2440bdb757ec0fb08473f6a2a69fb7f371062c04829ed844868286c188b5"
+      "version": 22,
+      "content_hash": "11a1c6ed7df0bb90417e48477d6fe376538da4c0b391ace89c509e90b83ff4d8"
     },
     "API-065": {
       "type": "api_endpoint",

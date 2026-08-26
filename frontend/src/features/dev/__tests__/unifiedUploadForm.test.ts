@@ -18,7 +18,7 @@ import {
 } from '@/features/dev/components/unifiedUploadForm';
 
 /**
- * 수동 업로드 화면(`/dev/upload`)의 **단일 폼 상태 + 경로별 payload 변환** 단위 테스트.
+ * 파일 업로드 화면(`/dev/upload`)의 **단일 폼 상태 + 경로별 payload 변환** 단위 테스트.
  * [@design SCREEN-027]
  *
  * 화면은 폼 한 벌만 갖고 적재 경로가 「보내는 곳」만 바꾼다. 이 파일은 그 변환 규칙 — 특히

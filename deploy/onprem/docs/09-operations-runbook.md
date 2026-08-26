@@ -121,6 +121,17 @@ df -h /opt/klid /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"     # 디스크
 nvidia-smi                                                          # GPU 사용률(추론 서버, 해당 시)
 ```
 
+> ⚠ **저장소 루트는 실경로여야 한다 — 점검 항목.**
+> ```bash
+> for v in STORAGE_RAW_PATH STORAGE_DEIDENTIFIED_PATH; do
+>   printf '%s: 설정=%s 실경로=%s\n' "$v" "${!v}" "$(readlink -f "${!v}")"
+> done   # 두 값이 다르면 backend.env 를 실경로로 고쳐야 한다
+> ```
+> 설정값이 심링크면 **외부 산출물 이관의 위치 탐색이 고장 난다** — 「상위로」가 항상 비활성되고,
+> 탐색이 돌려준 폴더를 그대로 입력칸에 넣어도 `허용된 저장소 범위 밖의 경로입니다`(400)로 거부된다.
+> 경로 판정기는 표기 기준으로 먼저 검사하는데 탐색 응답은 실경로를 싣기 때문이며, 판정기를 고치지
+> 않고 운영 규약으로 고정한 항목이다. 상세·대상 4종은 `04-configuration.md` §A 참조.
+
 ---
 
 ## 2. 장애 유형별 조치사항

@@ -116,12 +116,17 @@ export function downloadDatamartVideoData(rawSn: number, signal?: AbortSignal): 
 }
 
 /**
- * R16 — 포털 프레임 라벨 Load.
+ * R16 — 포털 프레임 라벨 Load. @design API-110
  * BE: GET /v1/portal/frames/{srcSn}/labels
  *  - datamart 원본 라벨 + 본인 user-label 병합 (user-label 있으면 우선)
  *  - 응답 shape 은 내부 LabelsResponse 와 동일 (videoId/siblings/labels)
  *
  * 내부 getLabels 의 normalize 를 재사용하기 위해 동일 정규화 로직을 거친다.
+ *
+ * ★ 이 응답의 `labelId`·`trackId` 를 **버리면 안 된다** — 화면이 저장 시 되돌려 보낼 값 자체가
+ *   없어져 데이터마트 원본의 마스터·트랙 연결이 저장 왕복에서 끊긴다. 재사용하는 정규화
+ *   (`normalizeLabel`)가 두 값을 이미 보존하므로 여기서 따로 옮기지 않는다 — 그 정규화를
+ *   갈아끼울 때 두 값이 함께 사라지지 않는지 확인할 것.
  */
 export function getPortalLabels(srcSn: number): Promise<LabelsResponse> {
   return apiClient
@@ -169,6 +174,10 @@ export function portalFrameImagePath(srcSn: number): string {
 /**
  * R16 — 포털 사용자 라벨 저장 요청 (BE PortalUserLabelRequest 와 1:1).
  * 원본 미수정 — LS_PORTAL_USER_LABEL 별도 적재.
+ *
+ * ★ `labelId`·`trackId` 는 화면이 **새로 만들어 내는 값이 아니다**. 데이터마트 원본에서 불러온
+ *   라벨이 갖고 있던 마스터 연결·트랙 연결을 저장 왕복에서 잃지 않도록 **받은 값을 그대로
+ *   되돌려 보내는** 값이다(@design API-082). 화면에 표시하지 않으며 트랙 번호 변경 수단도 아니다.
  */
 export interface PortalUserLabelRequest {
   sourceRawSn: number;
@@ -176,6 +185,16 @@ export interface PortalUserLabelRequest {
   lblTypeCd: string;
   label: string;
   points: string; // JSON 직렬화된 좌표 ([[x,y],...])
+  /**
+   * 라벨 마스터 참조(선택). 없으면 null.
+   *
+   * ⚠ 서버는 이 값을 그대로 믿지 않는다 — 활성 마스터에 실재하지 않으면 **그 값만 비우고 저장은
+   *   성공**시킨다(요청 전체가 400 이 되지 않는다). 즉 틀린 값을 보내도 저장 동선은 죽지 않는
+   *   대신 **그 라벨의 분류 연결이 조용히 빈다**. 그래서 추측으로 채우지 않는다.
+   */
+  labelId?: number | null;
+  /** 트랙 식별자(선택). 없으면 null. 서버 상한 30자(초과 시 400). */
+  trackId?: string | null;
 }
 
 export interface PortalUserLabelResponse {
@@ -186,6 +205,10 @@ export interface PortalUserLabelResponse {
   label: string;
   points: string;
   createdAt: string;
+  /** 실제로 적재된 값 — 요청에 실어 보낸 값이 아니다(서버가 비웠을 수 있다). */
+  labelId?: number | null;
+  /** 실제로 적재된 값. */
+  trackId?: string | null;
 }
 
 /**

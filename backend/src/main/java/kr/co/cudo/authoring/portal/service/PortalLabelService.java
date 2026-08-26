@@ -11,6 +11,8 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.label.service.LabelAccessGuard;
 import kr.co.cudo.authoring.portal.dto.DatamartLabelResponse;
 import kr.co.cudo.authoring.portal.dto.DatamartVideoResponse;
@@ -68,6 +70,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PortalLabelService {
 
+    /** 라벨 마스터 활성 플래그({@code LS_LABEL.USE_YN}) — soft delete 된 마스터는 참조 대상이 아니다. */
+    private static final String USE_YN_ACTIVE = "Y";
+
     private final LsDataLblRepository lblRepository;
     private final LsDataSrcRepository srcRepository;
     private final LsPortalUserLabelRepository userLabelRepository;
@@ -88,6 +93,14 @@ public class PortalLabelService {
 
     /** 라벨 좌표 JSON 파싱용. 생성자 주입 (@RequiredArgsConstructor). */
     private final ObjectMapper objectMapper;
+
+    /**
+     * 라벨 마스터 — 저장 요청이 실어 보낸 {@code labelId} 가 <b>활성 마스터에 실재하는지</b> 확인하는
+     * 데만 쓴다. FE 요청을 그대로 믿으면 임의 값이 산출 어노테이션의 분류 식별자로 나간다
+     * ({@code AutolabelOnlineService.resolveDetectClasses} 와 같은 원칙 — 요청을 신뢰하지 않고
+     * 마스터와 교집합만 취한다).
+     */
+    private final LsLabelRepository labelMasterRepository;
 
     @Value("${authoring.storage.raw-path:./storage/raw}")
     private String storageRawPath;
@@ -288,16 +301,72 @@ public class PortalLabelService {
         }
         validatePointCount(lblTypeCd, points.size());
         String pointCn = normalizeAndSerialize(points);
+        String trackId = validateTrackId(req.trackId());
+        Long labelId = resolveLabelMasterId(req.labelId());
 
         LsPortalUserLabel saved = userLabelRepository.save(
                 LsPortalUserLabel.create(actor.sub(), req.sourceRawSn(), req.sourceSrcSn(),
-                        lblTypeCd, req.label(), pointCn));  // req JSON 키(sourceRawSn/sourceSrcSn/label/points)는 FE 계약 유지
+                        lblTypeCd, req.label(), pointCn,
+                        labelId, trackId));  // req JSON 키(sourceRawSn/sourceSrcSn/label/points)는 FE 계약 유지
         // 토큰 sub 는 서명 검증을 통과한 값이지만 로그 라인 위조(CWE-117) 방어는 형제 경로
         // (PortalUploadLabelService)와 동일하게 LogSanitizer 로 통일한다. 좌표(points)는 PII 위치
         // 정보라 로그에 남기지 않는다(CWE-359).
         log.info("[Portal] user label saved userId={} rawSn={} srcSn={} type={}",
                 LogSanitizer.sanitize(actor.sub()), req.sourceRawSn(), req.sourceSrcSn(), lblTypeCd);
         return PortalUserLabelResponse.from(saved);
+    }
+
+    /**
+     * 활성 라벨 마스터에 <b>실재하는 참조만</b> 통과시킨다 — 없으면 그 값만 비우고 <b>저장은 성공</b>한다.
+     *
+     * <p>거부하지 않는 이유(확정): 포털 사용자는 마스터 비활성화를 볼 수 없다. 운영자가 마스터를
+     * 내리면 그 라벨을 이미 화면에 띄워 둔 사용자의 <b>작업 저장이 통째로 막힌다</b>. 분류 연결
+     * 하나를 잃는 것과 작업을 잃는 것 중 후자가 더 나쁘다.
+     *
+     * <p>반대로 <b>요청값을 그대로 믿지도 않는다</b> — 믿으면 임의 정수가 산출 어노테이션의 분류
+     * 식별자로 그대로 나가 존재하지 않는 분류를 가리키게 된다(FE 요청을 신뢰하지 않고 마스터와
+     * 교집합만 취하는 {@code AutolabelOnlineService.resolveDetectClasses} 와 같은 원칙).
+     *
+     * <p>라벨명으로 유추해 채우지 않는다 — 라벨명에 유일성 제약이 없어 다른 분류로 이어질 수 있다.
+     *
+     * @return 실재 확인된 마스터 식별자, 미실재·미지정이면 {@code null}
+     * @design API-082
+     */
+    private Long resolveLabelMasterId(Long requested) {
+        if (requested == null) {
+            return null;
+        }
+        List<LsLabel> found =
+                labelMasterRepository.findByLabelIdInAndUseYn(List.of(requested), USE_YN_ACTIVE);
+        if (found.isEmpty()) {
+            // 요청값(정수)은 PII 가 아니라 그대로 남겨 운영 추적을 가능하게 한다.
+            log.warn("[Portal] user label save — labelId dropped (not an active label master) labelId={}",
+                    requested);
+            return null;
+        }
+        return found.get(0).getLabelId();
+    }
+
+    /**
+     * {@code trackId} 길이 상한을 <b>입구에서</b> 강제한다.
+     *
+     * <p>DTO {@code @Size} 와 이중이지만 대체하지 않는다 — 이 검사가 없으면 서비스를 직접 부르는
+     * 경로에서 초과 문자열이 적재 시점까지 흘러가 <b>DB 오류(500)</b>가 된다. 컬럼 폭을 넘는 입력은
+     * 서버 오류가 아니라 잘못된 요청이다.
+     *
+     * @return 그대로 통과한 값(공백만 있으면 {@code null})
+     */
+    private static String validateTrackId(String trackId) {
+        if (trackId == null || trackId.isBlank()) {
+            return null;
+        }
+        if (trackId.length() > LsPortalUserLabel.TRACK_ID_MAX_LENGTH) {
+            // 사용자 입력 원문은 로그에 남기지 않는다(CWE-117) — 거부 사실만.
+            log.warn("[Portal] user label save denied — trackId too long");
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "trackId 는 " + LsPortalUserLabel.TRACK_ID_MAX_LENGTH + "자 이하여야 합니다.");
+        }
+        return trackId;
     }
 
     /**
@@ -481,22 +550,55 @@ public class PortalLabelService {
     public List<PortalFrameLabelsResponse.Item> mergeFrameItems(
             List<LsPortalUserLabel> mine,
             java.util.function.Supplier<List<LsDataLbl>> datamartLabels) {
+        FrameLabelSelection selection = selectFrameLabels(mine, datamartLabels);
+        if (!selection.mine().isEmpty()) {
+            return selection.mine().stream()
+                    .map(u -> new PortalFrameLabelsResponse.Item(
+                            u.getUserLblSn(), u.getLblTypeCd(), u.getLabelNm(),
+                            parsePoints(u.getPointCn()), u.getLabelId(), u.getTrackId()))
+                    .toList();
+        }
+        return selection.datamart().stream()
+                .map(l -> new PortalFrameLabelsResponse.Item(
+                        l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
+                        parsePoints(l.getPointCn()), l.getLabelId(), l.getTrackId()))
+                .toList();
+    }
+
+    /**
+     * 한 프레임에서 <b>어느 저장소가 이긴 라벨인가</b>의 판정 결과 — 둘 중 최대 하나만 비어 있지 않다.
+     *
+     * <p>좌표가 없는 행은 <b>이미 걸러진 상태</b>다(로드 방어 — 검증 우회로 생긴 stale row 나
+     * 레거시 삼중값(SKELETON)은 2-튜플 파서에서 빈 좌표가 되어 제외된다).
+     */
+    public record FrameLabelSelection(List<LsPortalUserLabel> mine, List<LsDataLbl> datamart) {}
+
+    /**
+     * 프레임 단위 병합 <b>판정 그 자체</b> — 표현(응답 항목 / 산출 어노테이션)과 분리된 단일 지점이다.
+     *
+     * <h3>왜 판정과 표현을 갈랐는가</h3>
+     * <p>같은 규칙을 두 소비자가 쓰는데 <b>원하는 결과 형태가 다르다</b>: 프레임 라벨 조회는 좌표를
+     * 파싱한 응답 항목을, ZIP 다운로드는 산출 어노테이션 입력을 만든다. 둘 중 한쪽이 판정을 복제하면
+     * "본인 저장분 우선"이 갈라질 수 있고, 그 갈라짐은 곧 <b>타 사용자 저장분 노출</b>(AC-035 위반)이다.
+     * 그래서 판정만 여기서 하고 형태 변환은 각 소비자가 한다.
+     *
+     * @param mine           본인 저장 라벨(그 프레임) — 최신순
+     * @param datamartLabels 데이터마트 원본 라벨 공급자 — <b>본인 저장분이 없을 때만</b> 호출된다
+     * @design AC-035
+     */
+    public FrameLabelSelection selectFrameLabels(
+            List<LsPortalUserLabel> mine,
+            java.util.function.Supplier<List<LsDataLbl>> datamartLabels) {
         List<LsPortalUserLabel> mineWithPoints = (mine == null ? List.<LsPortalUserLabel>of() : mine).stream()
                 .filter(u -> !parsePoints(u.getPointCn()).isEmpty())
                 .toList();
         if (!mineWithPoints.isEmpty()) {
-            return mineWithPoints.stream()
-                    .map(u -> new PortalFrameLabelsResponse.Item(
-                            u.getUserLblSn(), u.getLblTypeCd(), u.getLabelNm(),
-                            parsePoints(u.getPointCn())))
-                    .toList();
+            return new FrameLabelSelection(mineWithPoints, List.of());
         }
-        return datamartLabels.get().stream()
-                .map(l -> new PortalFrameLabelsResponse.Item(
-                        l.getLblSn(), l.getLblTypeCd(), l.getLabelNm(),
-                        parsePoints(l.getPointCn())))
-                .filter(item -> !item.points().isEmpty())
+        List<LsDataLbl> datamartWithPoints = datamartLabels.get().stream()
+                .filter(l -> !parsePoints(l.getPointCn()).isEmpty())
                 .toList();
+        return new FrameLabelSelection(List.of(), datamartWithPoints);
     }
 
     /**

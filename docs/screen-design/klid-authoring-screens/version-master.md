@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038 |
-| Last sync | 2026-08-26T06:34:36.146Z (session 28) |
+| Last sync | 2026-08-26T08:33:50.876Z (session 30) |
 | Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 526 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 
@@ -143,7 +143,7 @@
 | [[API-041]] | api_endpoint | [폐기] POST /v1/manage/presets/{id}/clone | 5 | false | UNCHANGED |
 | [[API-042]] | api_endpoint | GET /v1/videos | 8 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 23 | false | UNCHANGED |
-| [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 5 | false | UNCHANGED |
+| [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 8 | false | UNCHANGED |
 | [[API-045]] | api_endpoint | GET /v1/videos/{rawSn}/auto-summary | 2 | false | UNCHANGED |
 | [[API-046]] | api_endpoint | GET /v1/videos/{rawSn}/frames/{frameNo}/image | 6 | false | UNCHANGED |
 | [[API-047]] | api_endpoint | POST /v1/videos/{rawSn}/markings | 12 | false | UNCHANGED |
@@ -282,7 +282,7 @@
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | UNCHANGED |
 | [[API-202]] | api_endpoint | GET /v1/deident-reports/{rprtSn}/deident-candidates | 2 | false | UNCHANGED |
-| [[API-203]] | api_endpoint | 포털 사용자 작업 데이터 ZIP 다운로드 | 5 | false | UNCHANGED |
+| [[API-203]] | api_endpoint | 포털 사용자 작업 데이터 ZIP 다운로드 | 6 | false | UNCHANGED |
 | [[API-204]] | api_endpoint | POST /v1/ai-requests/{requestId}/cancel | 1 | false | UNCHANGED |
 | [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 5 | true | UNCHANGED |
 | [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 6 | true | UNCHANGED |
@@ -294,7 +294,7 @@
 | [[API-220]] | api_endpoint | PUT /v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions | 3 | false | UNCHANGED |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | true | UNCHANGED |
-| [[DS-001]] | design_system | KRDS Public | 8 | false | UNCHANGED |
+| [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | UNCHANGED |
 | [[NAV-002]] | navigation_tree | 포털 메뉴 (PORTAL) | 5 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | UNCHANGED |
@@ -307,7 +307,7 @@
 | [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 100 | true | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 마킹 화면 | 49 | true | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 45 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 60 | false | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 64 | false | UNCHANGED |
 | [[SCREEN-010]] | screen_spec | 로드 버전 선택 | 37 | true | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 대시보드 화면 | 21 | true | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 47 | true | UNCHANGED |

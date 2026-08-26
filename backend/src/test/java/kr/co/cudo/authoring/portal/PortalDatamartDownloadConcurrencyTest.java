@@ -70,7 +70,7 @@ class PortalDatamartDownloadConcurrencyTest {
         service = new PortalDatamartDownloadService(txService, artifactRootResolver, deidRoot.toString());
         // 파일이 없는 계획서 — 이 테스트의 관심은 ZIP 내용이 아니라 «자리» 회계다.
         when(txService.plan(anyLong(), any())).thenReturn(new PortalDatamartDownloadTxService.DownloadPlan(
-                RAW_SN, "{}".getBytes(), List.of(), null, null));
+                RAW_SN, List.of(), null, null));
         when(artifactRootResolver.readableDeidVideoBases(anyLong(), any())).thenReturn(List.of());
     }
 

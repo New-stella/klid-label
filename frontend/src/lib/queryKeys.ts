@@ -225,4 +225,12 @@ export const IMPORT_KEYS = {
   mappingLists: () => [...IMPORT_KEYS.all, 'mappings'] as const,
   mappingList: (params: Record<string, unknown>) =>
     [...IMPORT_KEYS.mappingLists(), params] as const,
+  /**
+   * 위치 탐색(API-221·API-222) — 경로별로 캐시를 나눈다.
+   *
+   * 루트 목록은 기준 위치가 없어 키에 `null` 을 그대로 쓴다(`undefined` 는 키에서 소실된다).
+   * 폴더 축과 파일 축은 같은 경로여도 담는 것이 달라 키를 분리한다.
+   */
+  browseFolders: (path: string | null) => [...IMPORT_KEYS.all, 'browse', 'folders', path] as const,
+  browseFiles: (path: string | null) => [...IMPORT_KEYS.all, 'browse', 'files', path] as const,
 };

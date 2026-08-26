@@ -98,15 +98,15 @@ const TABLES: TableCase[] = [
     file: 'src/pages/manage/DeidentReportListPage.tsx',
   },
   {
-    label: 'UnmappedCategorySection(외부 산출물 이관 — 처음 보는 분류)',
+    label: 'UnmappedCategorySection(산출물 가져오기 — 처음 보는 분류)',
     file: 'src/features/import/components/UnmappedCategorySection.tsx',
   },
   {
-    label: 'ConfirmedMappingSection(외부 산출물 이관 — 확정된 분류 대응)',
+    label: 'ConfirmedMappingSection(산출물 가져오기 — 확정된 분류 대응)',
     file: 'src/features/import/components/ConfirmedMappingSection.tsx',
   },
   {
-    label: 'ImportHistorySection(외부 산출물 이관 — 가져온 내역)',
+    label: 'ImportHistorySection(산출물 가져오기 — 가져온 내역)',
     file: 'src/features/import/components/ImportHistorySection.tsx',
   },
 ];

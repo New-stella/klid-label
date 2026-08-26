@@ -19,6 +19,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
@@ -52,7 +54,14 @@ import java.util.stream.Collectors;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class VideoQueryService {
 
-    private static final String DEFAULT_LABEL_COLOR = "#3B82F6";
+    /**
+     * 라벨 마스터 조회 시 활성(soft delete 되지 않은) 행만 고르는 값.
+     *
+     * <p>비활성 마스터를 살려 내보내면 삭제한 라벨의 이름·색이 화면에 되살아난다. 확정 정책이
+     * 프리셋 축에서 이미 같은 판정을 한다 — <i>"마스터에 매칭 안 되는 기존 코드(labelId null/비활성)는
+     * 오류 없이 '미연결'로 표시"</i>.
+     */
+    private static final String LABEL_MASTER_ACTIVE = "Y";
 
     /**
      * 영상 상세에 내리는 비식별 이력 최대 건수. [req: R14]
@@ -151,6 +160,15 @@ public class VideoQueryService {
      * 그것이 곧 두 번째 진실원이 된다.
      */
     private final LsVrfcEvntQstnRepository vrfcEvntQstnRepository;
+
+    /**
+     * 라벨 마스터 조회 — 오토라벨 응답의 표시명·표시색 조달처.
+     *
+     * <p><b>읽기 전용 재사용</b>이며 배치 조회(labelId 집합 → 1쿼리)만 쓴다. 표시명·색을 여기서
+     * 조달하지 않고 저장된 라벨명·상수로 대신하면, AI 가 쓴 COCO 영문 클래스명이 그대로 화면에
+     * 나가고 마스터에서 이름·색을 바꿔도 이 화면만 따라오지 않는다(마스터가 단일 진실원인 이유).
+     */
+    private final LsLabelRepository labelMasterRepository;
 
     /**
      * 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용.
@@ -765,25 +783,61 @@ public class VideoQueryService {
      * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} <b>본체 컬럼</b>이다(V6 흡수 — 구
      * {@code LS_DATA_LBL_AI_INFO} 조인 없음). {@code AUTO_LBL_YN='Y'} 인 라벨은
      * createdBy='auto' + 실제 conf_score, 그 외는 'manual' 로 매핑한다(매핑 규칙 자체는 불변).
+     *
+     * <p><b>표시명·표시색은 라벨 마스터에서 조달한다</b>([design: API-044]). 구 동작은 저장된 라벨명을
+     * {@code labelCode}·{@code labelName} 두 필드에 복사하고 색을 상수로 고정했는데, AI 가 쓴 라벨명이
+     * COCO 영문 클래스명이라 화면이 영문만 보여주고 막대가 전부 같은 색이었다. 마스터 조달 규칙은
+     * {@link AutoLabelResultResponse} javadoc 이 정본이다.
+     *
+     * <p>{@code labelCode} 는 <b>무변경</b>이다 — 화면이 이 값으로 분포를 묶으므로 의미를 바꾸면
+     * 그룹핑이 흔들린다.
      */
     public AutoLabelResultResponse getAutoLabels(Long rawSn) {
         videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "rawSn=" + rawSn));
         List<AutoLabelInfoProjection> labels = lblRepository.findAutoLabelInfoByRawSn(rawSn);
+        Map<Long, LsLabel> masters = lookupLabelMasters(labels);
         List<AutoLabelResultResponse.LabelObjectDto> objects = labels.stream()
                 .map(l -> {
                     boolean isAuto = LsDataLbl.AUTO_YES.equals(l.getAutoLblYn());
+                    LsLabel master = l.getLabelId() == null ? null : masters.get(l.getLabelId());
                     return new AutoLabelResultResponse.LabelObjectDto(
                             String.valueOf(l.getLblSn()),
                             l.getLabelNm(),
-                            l.getLabelNm(),
-                            DEFAULT_LABEL_COLOR,
+                            master == null ? l.getLabelNm() : master.getLabelNm(),
+                            master == null ? null : master.getColrVl(),
                             l.getConfScore() == null ? null : l.getConfScore().doubleValue(),
                             isAuto ? "auto" : "manual"
                     );
                 })
                 .toList();
         return new AutoLabelResultResponse(rawSn, objects);
+    }
+
+    /**
+     * 오토라벨 응답에 실을 라벨 마스터를 <b>한 번에</b> 조회한다(N+1 회피).
+     *
+     * <p>라벨 행마다 마스터를 조회하면 조회 수가 라벨 수에 비례해 늘어난다. 대신 {@code labelId} 를
+     * 중복 제거해 모은 뒤 배치 조회 한 번으로 끝낸다 — 라벨 종류가 늘어도 조회는 1회다(라벨이 전부
+     * 미연결이면 0회).
+     *
+     * <p>조회는 <b>활성 라벨만</b> 돌려준다. 따라서 반환 Map 에 없는 id 는 ①마스터 미존재 ②soft
+     * delete 중 어느 쪽이든 <b>같은 결과</b>(원문 이름 + 색 없음)로 수렴한다 — 호출부가 두 경우를
+     * 구분할 필요가 없다.
+     */
+    private Map<Long, LsLabel> lookupLabelMasters(List<AutoLabelInfoProjection> labels) {
+        Set<Long> labelIds = labels.stream()
+                .map(AutoLabelInfoProjection::getLabelId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (labelIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, LsLabel> masters = new HashMap<>();
+        for (LsLabel master : labelMasterRepository.findByLabelIdInAndUseYn(labelIds, LABEL_MASTER_ACTIVE)) {
+            masters.put(master.getLabelId(), master);
+        }
+        return masters;
     }
 
     /**

@@ -40,7 +40,7 @@ function scanBody(data: Record<string, unknown>) {
   };
 }
 
-describe('SCREEN-039 외부 산출물 이관 — 화면 흐름', () => {
+describe('SCREEN-039 산출물 가져오기 — 화면 흐름', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
