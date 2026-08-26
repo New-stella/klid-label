@@ -755,6 +755,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 > **승격하지 않은 것**: `CNT-001`(C4 컨테이너 — 도메인 링크가 없어 Tier 3 조건 미충족) · `DEPLOY-001`(WAR 반입 명세 — 배포 형상 축) · `OSS-001`~`OSS-101`(**`core-item-set.md` 의 Tier 표에도 제외 목록에도 언급이 0건인 미분류 타입** — 판정이 선행돼야 한다).
 > **pin 승격 외 미판정 132건은 전부 제외 타입**(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP)이라 기각했다. 다음 SYNC 에도 다시 올라오며 그것이 정상이다.
 > ⚠ `--exclude-types` 없이 돌리면 pin 에 있던 제외 타입이 실제 파일로 내려온다(D014 `SHELL-001`·`NAV-001`·`REQ-008` · D013 `SHELL-002`·`NAV-002` · D004 `SHELL-001`). pin 이 정본이라 유실이 아니며, 빼려면 pin 에서 먼저 제거해야 한다. 중간 SYNC 가 남긴 `_retired/` 사본이 함께 있으나 라이브 파일이 정본이고 `_retired/` 는 지우지 않는다.
+> ⚠ **2026-08-26 3차 SYNC — D013 단독 재동기화**(포털 범위 확대 라운드 반영). CHANGED 19 · RETIRED 0 · 삭제 0 이고, 미판정에 섞여 있던 `INT-013`(포털 프론트엔드 런타임 임베딩 — `belongs_to_domain=DOMAIN-013` · `provided_by=EXTSYS-006`)을 pin 에 승격해 **81 → 82** 가 됐다. 나머지 미판정 18건은 전부 제외 타입(MOD 3 · DEP 1 · IMPREC 14)이라 기각했고 다음 SYNC 에 다시 올라온다. `CONST`·`FEAT` 전량 누락 경고는 이번에도 그대로다(해소하려면 서버에서 `domain_id` 를 채워야 한다).
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
@@ -768,7 +769,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 181 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 51 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |
 | DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 79 | implemented 27 / planned 31 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 81 | implemented 35 / in_progress 1 / verified 4 / planned 28 / (미기재) 13 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 82 | implemented 35 / in_progress 1 / verified 4 / planned 31 / (미기재) 11 | CONST 상수값, FEAT 상위 기능 |
 | DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 72 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
 | DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 51 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 60 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
@@ -809,13 +810,13 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-26 (s26)** | 526 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-26 (s12) | 224 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-26 (s12) | 171 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-26 (s12) | 162 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-26 (s12) | 165 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-26 (s12) | 167 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-26 (s12) | 167 |
+| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-26 (s27)** | 526 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-26 (s13) | 224 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-26 (s13) | 171 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-26 (s13) | 162 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-26 (s13) | 165 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-26 (s13) | 167 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-26 (s13) | 167 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

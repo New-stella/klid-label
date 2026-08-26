@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 22
+version: 24
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:11:10.826Z
+synced_at: 2026-08-26T05:06:16.003Z
 status: CHANGED
-prev_version: 20
+prev_version: 22
 content_hash: 3e022070cb76654502aad1058728288d5c74c56e48f1762b585f2b2459b4ed4e
 stale: false
 raw: ./_raw/SCREEN-028.json
