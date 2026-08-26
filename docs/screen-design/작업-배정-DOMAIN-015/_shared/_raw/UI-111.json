@@ -27,15 +27,19 @@
         {
           "name": "neutral",
           "description": "\"작성중\"(DRAFT) 상태 표시 — neutral 톤(neutral-10/100 배경 + neutral-70 텍스트, 7.07:1 AAA)"
+        },
+        {
+          "name": "error",
+          "description": "\"실패\" 등 위험·실패 계열 표시 — error 톤(error 스케일의 가장 옅은 단계를 배경, 진한 단계를 텍스트로 쓰고 같은 스케일 밖으로 나가지 않는다). 대비 실측값은 아직 없다 — 구현 전 실제로 측정해 본문 기준을 넘는지 확인하고 그 수치를 이 설명에 기록한다."
         }
       ],
-      "description": "워크플로 코드 축(StatusBadge UI-014, 16종 매핑)이 아닌 자유 의미의 소형 pill 배지. 공지 목록/상세의 \"중요(고정)\" 표시와 \"발행/작성중\" 상태 표시처럼 도메인 자체 의미를 갖는 배지에 사용한다.",
+      "description": "워크플로 코드 축(StatusBadge UI-014, 16종 매핑)이 아닌 자유 의미의 소형 pill 배지. 공지 목록/상세의 \"중요(고정)\" 표시와 \"발행/작성중\" 상태 표시처럼 도메인 자체 의미를 갖는 배지에 사용한다. 두 축의 구분 기준은 라벨을 누가 정하느냐다 — 워크플로 코드 축은 상태 코드를 넘기면 라벨이 결정되는 고정 매핑이고, 이 컴포넌트는 호출부가 label 을 직접 정하는 자유 의미 축이다. 배치 작업 묶음의 상태 표시(건너뜀·해제됨·실패)는 워크플로 상태 코드가 아니므로 이 컴포넌트를 쓴다. 두 축을 하나로 합치지 않는다.",
       "props_schema": [
         {
           "name": "variant",
-          "type": "'pinned'|'success'|'neutral'",
+          "type": "'pinned'|'success'|'neutral'|'error'",
           "required": true,
-          "description": "pinned=중요(고정), success=발행, neutral=작성중(DRAFT)"
+          "description": "pinned=중요(고정), success=발행, neutral=작성중(DRAFT), error=실패 등 위험·실패 계열. 기존 값은 유지·불변이며 error 는 추가만 된 것이라 기존 호출부는 영향을 받지 않는다."
         },
         {
           "name": "label",
@@ -50,21 +54,21 @@
           "description": "pinned variant에서 Pin 아이콘 등을 병기할 때 사용"
         }
       ],
-      "usage_example": "SCREEN-030(공지 목록) 표 제목 셀의 \"중요\"(고정) 배지 및 상태 컬럼(발행/작성중). SCREEN-031(공지 상세) 상단의 \"중요\"/\"발행\" 배지(작성중/DRAFT은 이 데모 데이터에는 없어 CSS로만 정의됨).",
+      "usage_example": "SCREEN-030(공지 목록) 표 제목 셀의 \"중요\"(고정) 배지 및 상태 컬럼(발행/작성중). SCREEN-031(공지 상세) 상단의 \"중요\"/\"발행\" 배지(작성중/DRAFT은 이 데모 데이터에는 없어 CSS로만 정의됨). SCREEN-009(영상 상세) 배치 알림 배너의 상태 표시(건너뜀·해제됨·실패)에도 이 배지를 쓴다 — 흰 배경에 회색 테두리를 두른 알약을 그 자리에서 따로 만들면 같은 영역의 보조 버튼과 형태가 같아져 사용자가 상태 표시를 조작 버튼으로 오인한다. 이 배지는 테두리 없는 톤 배경 + 완전 둥근 모서리라 버튼과 형태로 구분된다.",
       "design_system_id": "DS-001",
-      "accessibility_notes": "모든 variant는 텍스트 라벨을 항상 함께 표시해 색상 단독 구분을 피한다(pinned는 Pin 아이콘도 추가 병기).",
+      "accessibility_notes": "모든 variant는 텍스트 라벨을 항상 함께 표시해 색상 단독 구분을 피한다(pinned는 Pin 아이콘도 추가 병기). variant 를 새로 추가할 때도 이 계약이 그대로 적용된다 — 배경과 텍스트 조합의 대비를 실제로 측정해 본문 기준(4.5:1) 이상임을 확인하고 그 수치를 해당 variant 설명에 기록한다. 대비 수치가 이 컴포넌트의 계약이고 label 을 필수 prop 으로 둔 이유가 색상 단독으로 의미를 전달하지 않기 위해서이므로, 신규 variant 가 그 검증을 비켜가면 컴포넌트의 존재 근거가 약해진다.",
       "implements_in_module_ids": [
         "MOD-026"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "link_ui_component_to_module → MOD-026",
+    "change_summary": "위험·실패 계열 variant(error)를 추가한다. 기존 variant(pinned/success/neutral)는 유지·불변이며 prop 유니언에 값이 하나 늘어난 추가 변경이라 기존 호출부는 영향을 받지 않는다. 배치 작업 묶음의 상태 표시에는 실패가 포함되는데 이 배지에 그 계열이 없어 그 표시를 공용 배지 체계로 담을 수 없었다. 함께 명시한 것 둘 — ① 신규 variant 도 대비 실측 검증을 받아야 한다는 계약(대비 수치가 이 컴포넌트의 계약이고 label 을 필수로 둔 이유가 색상 단독 전달 금지이므로) ② 워크플로 코드 축과의 구분 기준(라벨을 코드가 정하느냐 호출부가 정하느냐)을 남겨 두 축을 합치려는 시도를 막는다. error 톤의 정확한 대비 수치는 미측정이라 값을 적지 않고 측정 요구만 남겼다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-11T19:37:29.076Z",
+    "last_updated_at": "2026-08-26T02:44:53.944Z",
     "created_at": "2026-08-11T07:40:05.126Z"
   }
 }

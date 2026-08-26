@@ -44,7 +44,14 @@ function InfoTab({ video, isReviewer }: { video: VideoDetail; isReviewer: boolea
   // [req: R2] '개인정보 분류' 항목은 두지 않는다 — 관제서버가 개인정보 유무를 실제로 보내지 않고
   //   privacyTypeCd 는 적재 시 고정되는 레거시 컬럼이다(BE 응답 계약은 그대로 유지).
   const metaRows: { label: string; value: React.ReactNode; mono?: boolean }[] = [
-    { label: 'CCTV ID', value: `video-${String(video.id).padStart(4, '0')}`, mono: true },
+    // [@design SCREEN-009] [@design API-043] CCTV ID 는 **영상이 보유한 실제 식별자**를 그대로
+    //   쓴다. 구 구현은 `video-${rawSn}` 로 문자열을 조립해, 같은 화면에서 상단 제목의 진짜
+    //   식별자(`cctvName`)와 이 칸의 조립값이 **서로 다른 두 값**으로 떴다.
+    //   ⚠ 값이 없으면 조립값으로 되돌아가지 않고 `-` 로 둔다 — 없는 식별자를 지어내면 그것이
+    //     실값처럼 보인다(조립값은 어디에도 저장되지 않는 화면 전용 문자열이었다).
+    { label: 'CCTV ID', value: video.vmsCctvId || '-', mono: true },
+    // [@design API-043] 해상도는 서버가 기술메타에서 조달한 값을 그대로 표시한다(가로·세로 재조립
+    //   금지). 미상이면 서버가 null 을 내리므로 여기서 `-` 가 된다 — 숫자 폴백을 두지 않는다.
     { label: '해상도', value: video.resolution || '-', mono: true },
     { label: '길이', value: formatDuration(video.durationSec ?? video.duration), mono: true },
     {

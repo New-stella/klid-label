@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 |
-| Last sync | 2026-08-26T04:22:34.214Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 123 |
+| Last sync | 2026-08-26T06:34:01.815Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 124 |
 | 출력 루트 | docs/design/영상프레임-수집-DOMAIN-003 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-003 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 22건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 52건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -28,7 +28,7 @@
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
   ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 111건 (그중 domain_id 없음 32건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 12건 / 스코프 밖 37건 (그중 domain_id 없음 4건)
+  ℹ️  adr: 이번 키트 13건 / 스코프 밖 36건 (그중 domain_id 없음 3건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -42,7 +42,8 @@
 ## Changelog (this run)
 
 - CHANGED [[AC-051]] (prev v6)
-- CHANGED [[SD-004]] (prev v17)
+- CHANGED [[API-043]] (prev v18)
+- CHANGED [[SCREEN-009]] (prev v56)
 
 ## ITEM 표
 
@@ -52,7 +53,7 @@
 | [[AC-026]] | acceptance | 5 | UNCHANGED |
 | [[AC-049]] | acceptance | 5 | UNCHANGED |
 | [[AC-050]] | acceptance | 5 | UNCHANGED |
-| [[AC-051]] | acceptance | 6 | CHANGED |
+| [[AC-051]] | acceptance | 10 | CHANGED |
 | [[AC-055]] | acceptance | 3 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-003]] | adr | 2 | UNCHANGED |
@@ -60,6 +61,7 @@
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-010]] | adr | 1 | UNCHANGED |
 | [[ADR-018]] | adr | 5 | UNCHANGED |
+| [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
@@ -68,7 +70,7 @@
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[API-021]] | api_endpoint | 8 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
-| [[API-043]] | api_endpoint | 18 | UNCHANGED |
+| [[API-043]] | api_endpoint | 23 | CHANGED |
 | [[API-044]] | api_endpoint | 5 | UNCHANGED |
 | [[API-045]] | api_endpoint | 2 | UNCHANGED |
 | [[API-046]] | api_endpoint | 6 | UNCHANGED |
@@ -128,6 +130,7 @@
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
 | [[EVT-005]] | domain_event | 5 | UNCHANGED |
 | [[FEAT-004]] | feature | 10 | UNCHANGED |
+| [[INT-011]] | integration_point | 2 | UNCHANGED |
 | [[LEGACY-003]] | legacy_artifact | 1 | UNCHANGED |
 | [[LEGACY-005]] | legacy_artifact | 1 | UNCHANGED |
 | [[LEGACY-021]] | legacy_artifact | 1 | UNCHANGED |
@@ -155,14 +158,14 @@
 | [[SCREEN-005]] | screen_spec | 100 | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 45 | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 56 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 60 | CHANGED |
 | [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 39 | UNCHANGED |
 | [[SCREEN-026]] | screen_spec | 34 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 34 | UNCHANGED |
 | [[SCREEN-038]] | screen_spec | 14 | UNCHANGED |
-| [[SD-004]] | screen_design | 18 | CHANGED |
+| [[SD-004]] | screen_design | 18 | UNCHANGED |
 | [[SD-013]] | screen_design | 6 | UNCHANGED |
 | [[SD-023]] | screen_design | 3 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |

@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-26T01:11:16.517Z (session 12) |
+| last sync | 2026-08-26T04:28:17.881Z (session 13) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | /Users/ck/Documents/workspace/klid/klid-label/docs/screen-design/작업-배정-DOMAIN-015 |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-012]] | 작업 목록 화면 | CHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
@@ -52,7 +52,9 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[SCREEN-012]] | screen_spec | CHANGED (v46→v47) |
+| [[NAV-001]] | navigation_tree | CHANGED (v17→v18) |
+| [[UI-111]] | ui_component | CHANGED (v1→v2) |
+| [[UI-133]] | ui_component | CHANGED (v1→v2) |
 
 ## Obsidian 볼트로 보기
 

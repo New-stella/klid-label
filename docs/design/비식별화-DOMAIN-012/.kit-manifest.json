@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-012",
-  "synced_at": "2026-08-26T01:11:09.512Z",
+  "synced_at": "2026-08-26T06:34:04.126Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -411,8 +411,8 @@
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 7,
-      "content_hash": "2dc75727cffe3092805b3fb4923991ea8022a2e01c972bff353f7f2dbcc9d1dd"
+      "version": 8,
+      "content_hash": "f7b96c5a16b1ed0afaf7d82133dc9e81f0f14c07782fa181c4c046be1b0f7912"
     },
     "SD-021": {
       "type": "screen_design",
@@ -435,8 +435,8 @@
     "SCREEN-009": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-003",
-      "version": 54,
-      "content_hash": "7aea1ff2b50dae2899a27bfa0f6f0f9cdb13673d3d08a7230042f73a8aff04e1"
+      "version": 60,
+      "content_hash": "b9aee967148b8b23df00cc286b3fd4aa7d6cca133cea78e7e1089887fb6eab5a"
     },
     "SCREEN-025": {
       "type": "screen_spec",

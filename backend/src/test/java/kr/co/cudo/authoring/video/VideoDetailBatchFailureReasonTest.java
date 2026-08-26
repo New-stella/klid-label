@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
+import kr.co.cudo.authoring.video.service.VideoResolutionResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,8 @@ class VideoDetailBatchFailureReasonTest {
     @Mock private kr.co.cudo.authoring.batch.status.BatchStatusService batchStatusService;
     @Mock private kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
     @Mock private VideoFpsResolver fpsResolver;
+    // 해상도 표시값 조달(video.resolution) — 미상이면 null 이라 폴백 스텁이 필요 없다.
+    @Mock private VideoResolutionResolver resolutionResolver;
     @Mock private kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
     @Mock private kr.co.cudo.authoring.batch.status.BatchBundleFailureGate bundleFailureGate;
 
@@ -286,7 +289,7 @@ class VideoDetailBatchFailureReasonTest {
         stubDetailBasics();
         given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
         given(batchStatusService.manuallySkippedBundles(RAW_SN)).willReturn(List.of());
-        given(batchStatusService.clearedBundles(RAW_SN)).willReturn(List.of("VLM"));
+        given(batchStatusService.clearedBundlesNeedingAction(RAW_SN)).willReturn(List.of("VLM"));
 
         VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
 
@@ -300,7 +303,7 @@ class VideoDetailBatchFailureReasonTest {
         stubDetailBasics();
         given(batchStatusService.stagesFor(anyLong(), anyBoolean())).willReturn(List.of());
         given(batchStatusService.manuallySkippedBundles(RAW_SN)).willReturn(List.of("AUTOLABEL"));
-        given(batchStatusService.clearedBundles(RAW_SN)).willReturn(List.of("VLM"));
+        given(batchStatusService.clearedBundlesNeedingAction(RAW_SN)).willReturn(List.of("VLM"));
 
         VideoDetailResponse response = videoQueryService.getOne(RAW_SN);
 

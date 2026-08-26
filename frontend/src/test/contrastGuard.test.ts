@@ -319,6 +319,16 @@ const DANGER_CASES: Case[] = [
     anchor: "box: 'border-danger-200 bg-danger-50'",
   },
   {
+    label: 'Badge(UI-111) 실패 배지 — error 톤(배치 작업 묶음 「실패」 표식)',
+    file: 'src/components/common/Badge.tsx',
+    // 알파 틴트(`bg-danger/10`)가 아니라 solid `bg-danger-50` 이다. 흰 배경 위 /10 합성색과
+    // 사실상 같은 밝기라(#FDEFEC vs #FCEBE7) 이 가드의 계산 전제가 그대로 성립한다
+    // (위 Alert·아래 success Badge 케이스와 동일한 근거).
+    // ★ UI-111 은 "신규 variant 도 대비를 실측해 기록한다"를 계약으로 갖는다 — 이 케이스가
+    //   그 계약을 산문이 아니라 **값**으로 건다(실측 8.01:1, AAA).
+    anchor: "error: 'bg-danger-50",
+  },
+  {
     label: 'AutolabelResultCard 파이프라인 실패 안내',
     file: 'src/features/dev/components/AutolabelResultCard.tsx',
     anchor: '파이프라인 실행에 실패했습니다',

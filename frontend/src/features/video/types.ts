@@ -410,7 +410,28 @@ export interface VrfcEvntQuestion {
 export interface VideoDetail extends Video {
   duration: number;
   fileSizeMb: number;
-  resolution: string;
+  /**
+   * 영상 해상도 표시값 — BE `VideoDetailResponse.resolution`. [@design API-043]
+   *
+   * ★ 조달원은 기술메타(`video.resolution`)이며 **적재된 형식(`{가로}x{세로}`) 그대로** 온다.
+   * 화면이 가로·세로로 재조립하지 않는다. 미상이면 `null` 이고 **숫자 폴백을 두지 않는다** —
+   * fps 는 재생 시간을 프레임 번호로 환산하는 <b>계산 입력</b>이라 서버와 같은 값을 써야 하지만,
+   * 해상도는 <b>표시 전용</b>이라 없는 값을 지어내면 그것이 실값처럼 보인다.
+   *
+   * ⚠ 이 필드는 오래도록 <b>BE 에 존재하지 않는데 FE 타입만 선언</b>하고 있었다(계약 드리프트).
+   * 그래서 화면 두 곳이 영구히 `-` 를 표시했고, `|| '-'` 폴백이 그 사실을 완벽히 가렸다.
+   * 타입을 서버 계약(nullable)에 맞춘 이유가 여기 있다 — 값이 없을 수 있음을 타입이 말해야 한다.
+   */
+  resolution: string | null;
+  /**
+   * 영상이 보유한 **실제 CCTV 식별자** — BE `VideoDetailResponse.vmsCctvId`. [@design API-043]
+   *
+   * ★ 화면은 이 값을 그대로 표시하고 <b>일련번호로 문자열을 조립하지 않는다</b>. 조립하던 시절에는
+   * 같은 화면에 상단 제목의 진짜 식별자와 기본정보의 조립값이 <b>서로 다른 두 값</b>으로 떴다.
+   * 값이 없으면 조립값으로 대체하지 말고 빈 표시로 둔다 — 없는 식별자를 지어내면 그것이 실값처럼
+   * 보인다(상단 제목 `cctvName` 은 이 값을 폴백으로 쓰므로 두 자리가 같은 축을 가리킨다).
+   */
+  vmsCctvId?: string | null;
   framePreviews: FramePreview[];
   stages?: BatchStageItem[];
   createdAt?: string;

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-004",
-  "synced_at": "2026-08-26T01:11:12.169Z",
+  "synced_at": "2026-08-26T04:28:13.108Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -123,8 +123,8 @@
     "ADR-026": {
       "type": "adr",
       "domain_id": "DOMAIN-004",
-      "version": 4,
-      "content_hash": "deb4606095131743e3ac7c034eeb67b2b7daf109df40c18f1c4c027c4b201ae0"
+      "version": 5,
+      "content_hash": "327afbc17d1f3ae0d8b4ce053140e3c5a0f90d3d5b04fc7404171850183e4ca8"
     },
     "ADR-029": {
       "type": "adr",
@@ -153,8 +153,8 @@
     "ADR-039": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 5,
-      "content_hash": "fe96b0f3ae776b81d9e8ab895c2c5800e6a730d77b8eb9829ce63568791a3c58"
+      "version": 6,
+      "content_hash": "b52b2f1e5d97b55e38514e4252b511f055ddc40df0527b8e0da74f644b2c0aa7"
     },
     "ADR-040": {
       "type": "adr",
@@ -213,8 +213,8 @@
     "API-043": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-003",
-      "version": 17,
-      "content_hash": "229a0dac7eb7daf50ecc10cae037873f323a2f3f342b2d0e24c0f1272f72a8ec"
+      "version": 18,
+      "content_hash": "166d2440bdb757ec0fb08473f6a2a69fb7f371062c04829ed844868286c188b5"
     },
     "API-065": {
       "type": "api_endpoint",
@@ -597,8 +597,8 @@
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 7,
-      "content_hash": "2dc75727cffe3092805b3fb4923991ea8022a2e01c972bff353f7f2dbcc9d1dd"
+      "version": 8,
+      "content_hash": "f7b96c5a16b1ed0afaf7d82133dc9e81f0f14c07782fa181c4c046be1b0f7912"
     },
     "SD-033": {
       "type": "screen_design",
@@ -621,8 +621,8 @@
     "SCREEN-027": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-004",
-      "version": 32,
-      "content_hash": "ff485a5ccc8853ff9c73f15e5fb472e41f9ef916a2e2ba3cfecdc14b5347e266"
+      "version": 34,
+      "content_hash": "1c56c453f07f04624343e73dce443090c2b655ec795d932568606d4ad88cf345"
     },
     "UC-004": {
       "type": "use_case",

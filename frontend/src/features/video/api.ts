@@ -118,7 +118,14 @@ export function getVideo(id: number) {
         // deIdntfYn(SC-009 재비식별 노출 조건)은 normalizeVideo 가 매핑하므로 별도 스프레드 제거.
         duration: d.duration ?? d.durationSec ?? 0,
         fileSizeMb: d.fileSizeMb ?? 0,
-        resolution: d.resolution ?? '',
+        // [@design API-043] 해상도 — 기술메타에 적재된 형식 그대로다. **빈 문자열로 접지 않고
+        //   null 을 그대로 남긴다**: 서버가 "미상"을 null 로 말하므로 화면도 같은 축을 본다
+        //   (표시 두 곳의 `|| '-'` 폴백이 null·빈 문자열을 같게 다뤄 표시 결과는 동일하다).
+        resolution: d.resolution ?? null,
+        // [@design API-043] 실제 CCTV 식별자 — 기본정보의 'CCTV ID' 가 이 값을 그대로 쓴다.
+        //   구 화면은 rawSn 으로 `video-0001` 을 조립해, 같은 화면 상단 제목의 진짜 식별자와
+        //   서로 다른 두 값이 동시에 떴다. 없으면 조립값으로 되돌아가지 않고 그대로 비운다.
+        vmsCctvId: d.vmsCctvId ?? null,
         framePreviews: (d.framePreviews ?? []).map((fp) => ({
           srcSn: fp.srcSn,
           frameNo: fp.frameNo,

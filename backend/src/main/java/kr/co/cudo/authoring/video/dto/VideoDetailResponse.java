@@ -192,7 +192,25 @@ public record VideoDetailResponse(
          * 기존 from(...) 오버로드로 만든 응답은 null + 빈 배열이므로 이 필드들이 추가돼도 기존
          * 소비자는 영향받지 않는다(추가만 — 하위호환).
          */
-        List<VrfcEvntQuestionDto> vrfcEvntQuestions
+        List<VrfcEvntQuestionDto> vrfcEvntQuestions,
+        /*
+         * 영상 해상도 표시값 — "{가로}x{세로}". 미상이면 null. [@design API-043] [@design SCREEN-009]
+         *
+         * 조달원은 LS_DATA_META 의 video.resolution 이며(LS_DATA_RAW 에는 해상도 컬럼이 <없다>),
+         * 판정 지점은 VideoResolutionResolver 한 곳이다. 값은 적재된 <그대로> 싣는다 — 화면이 파싱해
+         * 재조립하면 형식의 진실원이 둘이 된다.
+         *
+         * ★ fps 와 달리 <폴백을 두지 않는다>. fps 는 마킹 frameIndex 계산의 입력이라 서버와 화면이
+         * 같은 값을 써야 해서 미상 시 상수로 폴백하지만, 해상도는 <표시 전용>이라 없는 값을 지어내면
+         * 화면이 사실이 아닌 해상도를 실값처럼 보여준다. 미상은 null 이고 화면이 「-」로 표시한다.
+         *
+         * ⚠ 파생영상(증강·해상도 변환본)의 이 값이 부모와 같은 것은 <정상>이다 — 비디오는 재인코딩
+         * 없이 복사되고 변환 대상은 프레임 이미지뿐이라, 이 값은 비디오 파일 기준이다.
+         *
+         * 기존 from(...) 오버로드로 만든 응답은 null 이므로 이 필드가 추가돼도 기존 소비자는
+         * 영향받지 않는다(추가만 — 하위호환).
+         */
+        String resolution
 ) {
     /**
      * 검증 이벤트 유형 질문 1건 — 화면이 고를 항목. [@design API-043] [@design ERD-033]
@@ -439,8 +457,8 @@ public record VideoDetailResponse(
     }
 
     /**
-     * 검증 이벤트 유형·질문 목록까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로
-     * 위임한다(하위호환). [@design API-043] [@design ERD-033]
+     * 검증 이벤트 유형·질문 목록까지 포함한 빌드 — 해상도는 {@code null} 로 위임한다(하위호환).
+     * [@design API-043] [@design ERD-033]
      *
      * @param vrfcEvntTypeCd    그 영상의 검증 이벤트 유형 코드. 미수신이면 {@code null}.
      *                          <b>정규화된 값</b>을 넘긴다 — 질문 목록을 찾은 키와 같은 값이어야 한다.
@@ -465,6 +483,39 @@ public record VideoDetailResponse(
             List<String> failedStages,
             String vrfcEvntTypeCd,
             List<VrfcEvntQuestionDto> vrfcEvntQuestions
+    ) {
+        return from(e, cctvName, localGov, frameCount, framePreviews, reviewSttsCd, stages, fps,
+                deidentHistory, everApproved, batchFailureReason, skippedStages, clearedStages,
+                failedStages, vrfcEvntTypeCd, vrfcEvntQuestions, null);
+    }
+
+    /**
+     * 해상도까지 포함한 <b>전체</b> 빌드 — 위 오버로드들은 전부 여기로 위임한다(하위호환).
+     * [@design API-043] [@design SCREEN-009]
+     *
+     * @param resolution 영상 해상도 표시값("{가로}x{세로}"). 미상이면 {@code null} —
+     *                   <b>빈 문자열이나 대체 문자를 넘기지 말 것</b>. 표기는 화면의 몫이고, 서버가
+     *                   지어낸 값은 화면에서 실값과 구분되지 않는다. 조달·판정은
+     *                   {@code VideoResolutionResolver} 단일 지점이다.
+     */
+    public static VideoDetailResponse from(
+            LsDataRaw e,
+            String cctvName,
+            String localGov,
+            Long frameCount,
+            List<FramePreviewDto> framePreviews,
+            String reviewSttsCd,
+            List<StageStatusDto> stages,
+            Double fps,
+            List<DeidentHistoryDto> deidentHistory,
+            boolean everApproved,
+            String batchFailureReason,
+            List<String> skippedStages,
+            List<String> clearedStages,
+            List<String> failedStages,
+            String vrfcEvntTypeCd,
+            List<VrfcEvntQuestionDto> vrfcEvntQuestions,
+            String resolution
     ) {
         // 표시명 폴백(CCTV명 → CCTV ID → 영상 #{rawSn})은 목록 응답과 <같은 판정기>를 쓴다.
         String resolvedCctv = CctvDisplayNamePolicy.resolve(cctvName, e.getVmsCctvId(), e.getRawSn());
@@ -508,7 +559,8 @@ public record VideoDetailResponse(
                 (clearedStages != null) ? clearedStages : Collections.emptyList(),
                 (failedStages != null) ? failedStages : Collections.emptyList(),
                 vrfcEvntTypeCd,
-                (vrfcEvntQuestions != null) ? vrfcEvntQuestions : Collections.emptyList()
+                (vrfcEvntQuestions != null) ? vrfcEvntQuestions : Collections.emptyList(),
+                resolution
         );
     }
 }
