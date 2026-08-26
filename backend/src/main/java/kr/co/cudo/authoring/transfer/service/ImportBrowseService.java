@@ -22,7 +22,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 /**
  * 이관 대상 위치를 <b>골라 넣기 위한</b> 탐색 — 한 단계씩 하위 폴더와 영상 파일을 돌려준다.
@@ -82,6 +82,15 @@ public class ImportBrowseService {
      */
     public static final int CURSOR_MAX = 255;
 
+    /**
+     * 이름만으로는 아무것도 거르지 않는다 — <b>폴더 목록</b>이 쓰는 자리다.
+     *
+     * <p>폴더인지 파일인지는 이름으로 알 수 없으므로 이 창구에는 이름으로 앞당길 조건이 없다.
+     * 짝 창구(영상 파일)와 달리 종류 확인을 줄일 여지가 없다는 사실을 <b>빈 규칙으로 드러내</b>,
+     * 나중에 이름 기반 조건이 생기면 그 자리에 붙게 한다.
+     */
+    private static final Predicate<String> ANY_NAME = name -> true;
+
     private final ImportSourcePolicy sourcePolicy;
 
     /**
@@ -123,7 +132,8 @@ public class ImportBrowseService {
         }
         Path folder = sourcePolicy.verifyFolder(path);
         return collect(folder,
-                (entry, attrs) -> attrs.isDirectory(),
+                ANY_NAME,
+                BasicFileAttributes::isDirectory,
                 ImportSourcePolicy.FOLDER_PATH_MAX,
                 after);
     }
@@ -140,7 +150,8 @@ public class ImportBrowseService {
         String after = verifyCursorWidth(cursor);
         Path folder = sourcePolicy.verifyFolder(path);
         return collect(folder,
-                (entry, attrs) -> attrs.isRegularFile() && isVideo(entry),
+                ImportBrowseService::isVideoName,
+                BasicFileAttributes::isRegularFile,
                 ImportSourcePolicy.VIDEO_PATH_MAX,
                 after);
     }
@@ -208,6 +219,26 @@ public class ImportBrowseService {
      * 삼으므로 <b>이름 오름차순 고정이 이어받기의 전제</b>다 — 순서가 실행마다 흔들리면 같은 자리를
      * 두 번 주거나 통째로 건너뛴다.
      *
+     * <h3>이름으로 판정할 수 있는 것을 먼저 본다</h3>
+     * <p>비싼 것은 <b>종류 확인</b>이다 — 인계받은 저장소가 네트워크 저장 장치에 놓이면 항목마다
+     * 되묻는 왕복이 되고, 그 왕복이 이 훑기의 지배적 비용이 된다. 반면 이름은 이미 손에 있다.
+     *
+     * <p>그래서 <b>이름만으로 판정되는 조건</b>(확장자·점으로 시작·경로 길이)을 <b>종류 확인 앞</b>에
+     * 둔다. 영상 파일 창구에서 이미지 수천 장 사이에 영상이 몇 개 놓인 자리가 이 도메인의 정상
+     * 형상이라, 뒤에 두면 그 수천 장을 전부 되물은 뒤 확장자로 버린다.
+     *
+     * <p>★그래도 <b>살펴본 수는 달라지지 않는다</b> — 이름으로 걸러진 항목도 「이어받을 자리 뒤의
+     * 항목을 하나 집어 판정한 것」이라 1건으로 센다({@link #scanLimit} 문단·계약과 같은 정의). 그래서
+     * 이어받을 자리도, 담기는 항목도, 왕복 횟수도 이 재배치로 바뀌지 않는다. <b>바뀌는 것은 되묻는
+     * 횟수뿐이다.</b>
+     *
+     * <p>⚠ <b>바로가기 제외는 앞으로 옮길 수 없다</b> — 이름으로 알 수 없어 종류를 확인해야 한다.
+     *
+     * <p>⚠ 그 대신 <b>읽을 수 없어 빠진 항목의 건수</b>가 「후보였던 것」만 세게 된다. 이름으로 이미
+     * 아닌 것이 판명된 항목은 읽어 보지 않으므로, 그것이 읽히지 않는다는 사실도 알지 못한다. 계약이
+     * 세라고 한 것은 <b>"읽을 수 없어 목록에서 빠진 항목"</b> 인데 그런 항목은 읽히든 아니든 빠졌을
+     * 것이므로, 세지 않는 편이 계약에 더 맞다.
+     *
      * <h3>이어받는 자리는 배타다</h3>
      * <p>이어받을 자리로 <b>준 그 이름 자체는 담지 않고</b> 그 뒤부터 본다. 그래서 한 번 돌려준 항목이
      * 다시 돌아오지 않고, 화면이 이어붙일 때 같은 항목이 두 번 쌓이지 않는다.
@@ -242,7 +273,8 @@ public class ImportBrowseService {
      * 프로세스가 폴더를 바꾸는 상황이라 결정적으로 재현되지 않는다).
      */
     private ImportBrowseResponse collect(Path folder,
-                                         BiPredicate<Path, BasicFileAttributes> accept,
+                                         Predicate<String> nameAccept,
+                                         Predicate<BasicFileAttributes> typeAccept,
                                          int pathMax,
                                          String after) {
         List<Path> names = readNames(folder);
@@ -279,6 +311,23 @@ public class ImportBrowseService {
                 //  나눠 주는 취지가 사라진다. examined++ 를 이 검사 <뒤>로 옮기지 말 것.
                 continue;
             }
+            if (!nameAccept.test(fileName)) {
+                // ★이름만으로 아닌 것이 판명된 항목은 <종류를 묻지 않는다>. 영상 파일 창구에서
+                //  이미지 수천 장 사이에 영상이 몇 개 놓인 자리가 이 도메인의 정상 형상인데, 이
+                //  조건을 종류 확인 뒤에 두면 그 수천 장을 전부 되물은 뒤 확장자로 버리게 된다.
+                //  이 검사를 아래로 내리지 말 것.
+                continue;
+            }
+            String entryPath = entry.toString();
+            if (entryPath.length() > pathMax) {
+                // 이것도 이름만으로 판정된다(자리 경로 + 이름). 그래서 종류 확인 <앞>에 둔다 —
+                // 자리 경로가 이미 상한에 가까우면 그 아래 항목이 전부 걸리는데, 뒤에 두면 전부
+                // 되물은 뒤에 버린다.
+                // 동작은 그대로 건너뛰되 <건수만> 센다 — 왜 세는지는 아래 로그 주석 참조.
+                tooLong++;
+                continue;
+            }
+
             BasicFileAttributes attrs;
             try {
                 // 종류 판정을 한 번의 조회로 모은다. Files.isDirectory/isRegularFile/isSymbolicLink
@@ -295,13 +344,7 @@ public class ImportBrowseService {
             if (attrs.isSymbolicLink()) {
                 continue;
             }
-            if (!accept.test(entry, attrs)) {
-                continue;
-            }
-            String entryPath = entry.toString();
-            if (entryPath.length() > pathMax) {
-                // 동작은 그대로 건너뛰되 <건수만> 센다 — 왜 세는지는 아래 로그 주석 참조.
-                tooLong++;
+            if (!typeAccept.test(attrs)) {
                 continue;
             }
             entries.add(new ImportBrowseResponse.Entry(fileName, entryPath));
@@ -312,6 +355,10 @@ public class ImportBrowseService {
             // 찾고 "없다"로 오인할 수 있는데, 세어 두지 않으면 그런 항목이 있었다는 사실이 서버에도
             // 남지 않아 문의가 와도 확인할 방법이 없다. 걸러내는 동작은 그대로 두고 관측만 남긴다.
             // ⚠ 경로 원문은 담지 않는다(CWE-117 로그 인젝션 · 경로 노출) — 건수와 상한만.
+            // ⚠ 이 건수는 <종류를 묻기 전>에 세므로 폴더 목록에서는 파일도 함께 센다. 길이 검사를
+            //   종류 확인 뒤로 내리면 그 항목들을 전부 되물은 뒤에야 버리게 되므로, 되묻는 왕복을
+            //   줄이는 쪽을 택했다. 이 경고가 뜨는 자리는 이미 <그 아래 항목이 대체로 전부 걸리는>
+            //   깊은 자리라, 세는 대상이 넓어져도 "왜 목록에 없나"라는 물음의 답은 달라지지 않는다.
             log.warn("[Import] browse skipped over-length entries — count={}, limit={}", tooLong, pathMax);
         }
         if (unreadable > 0) {
@@ -413,12 +460,13 @@ public class ImportBrowseService {
         return cursor;
     }
 
-    private static boolean isVideo(Path entry) {
-        Path name = entry.getFileName();
-        if (name == null) {
-            return false;
-        }
-        String lower = name.toString().toLowerCase(Locale.ROOT);
+    /**
+     * 영상 파일 이름인가 — <b>이름만</b> 본다(저장 장치를 건드리지 않는다).
+     *
+     * <p>순수 함수라는 것이 이 판정을 종류 확인 앞으로 옮길 수 있는 근거다.
+     */
+    private static boolean isVideoName(String fileName) {
+        String lower = fileName.toLowerCase(Locale.ROOT);
         return VIDEO_EXTENSIONS.stream().anyMatch(lower::endsWith);
     }
 }

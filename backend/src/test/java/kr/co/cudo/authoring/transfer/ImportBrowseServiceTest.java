@@ -404,6 +404,43 @@ class ImportBrowseServiceTest {
                 .containsExactly("zz-target");
     }
 
+    /**
+     * ★<b>이름으로 걸러진 항목도 「살펴본 것」으로 센다</b> — 영상 창구의 축이다.
+     *
+     * <p>영상 창구는 확장자만 보고 아닌 것을 걸러 내며 <b>그때 종류를 묻지 않는다</b>(되묻는 왕복이
+     * 이 훑기의 지배적 비용이라, 이미지 수천 장 사이에 영상이 몇 개 놓인 정상 형상에서 그 왕복을
+     * 열 배 가까이 줄인다). 그 대가로 <b>살펴본 수에서 그 항목을 빼면 상한이 걸리지 않아</b> 한
+     * 요청이 폴더 전체를 훑게 되고, 나눠 주는 취지가 통째로 사라진다.
+     *
+     * <p>폴더 창구에는 이 축이 없다 — 폴더인지 파일인지는 이름으로 알 수 없어 앞당길 조건이 없다.
+     * 그래서 이 자리를 영상 창구로 따로 붙잡는다.
+     */
+    @Test
+    @DisplayName("★영상이_아닌_이름이_이어져도_살펴보기_상한이_걸려_이어받을_자리가_돌아온다")
+    void 영상이_아닌_이름이_이어져도_살펴보기_상한이_걸려_이어받을_자리가_돌아온다() throws IOException {
+        Path mixed = textFiles("nonvideo", SCAN_LIMIT * 2);
+
+        ImportBrowseResponse first = service.listVideoFiles(mixed.toString(), null);
+
+        // 담는 것은 영상뿐이라 한 건도 담기지 않는다. 그래도 <끝난 것이 아니다>.
+        assertThat(first.entries()).isEmpty();
+        assertThat(first.nextCursor())
+                .as("이름으로 걸러진 항목을 살펴본 수에서 빼면 한 요청이 폴더 전체를 훑는다")
+                .isNotNull();
+    }
+
+    @Test
+    @DisplayName("★영상_창구도_담은_것이_0건인_쪽을_지나서_뒤에_있는_영상에_도달한다")
+    void 영상_창구도_담은_것이_0건인_쪽을_지나서_뒤에_있는_영상에_도달한다() throws IOException {
+        Path mixed = textFiles("nonvideo2", SCAN_LIMIT * 2);
+        // 이름 오름차순으로 <맨 뒤>라, 살펴보기 상한에 여러 번 걸린 뒤에야 닿는다.
+        Files.writeString(mixed.resolve("zz-target.mp4"), "v");
+
+        assertThat(drainVideos(mixed.toString()))
+                .as("담은 것이 0건인 쪽에서 멈추면 이 영상에 영영 닿지 못한다")
+                .containsExactly("zz-target.mp4");
+    }
+
     @Test
     @DisplayName("한_쪽에_다_담기면_이어받을_자리가_비어서_돌아온다")
     void 한_쪽에_다_담기면_이어받을_자리가_비어서_돌아온다() throws IOException {
@@ -590,6 +627,19 @@ class ImportBrowseServiceTest {
         do {
             assertThat(++rounds).as("이어받기가 끝나지 않는다 — 종료 조건이 깨졌다").isLessThan(50);
             ImportBrowseResponse page = service.listFolders(path, cursor);
+            page.entries().forEach(entry -> names.add(entry.name()));
+            cursor = page.nextCursor();
+        } while (cursor != null);
+        return names;
+    }
+
+    private List<String> drainVideos(String path) {
+        List<String> names = new ArrayList<>();
+        String cursor = null;
+        int rounds = 0;
+        do {
+            assertThat(++rounds).as("이어받기가 끝나지 않는다 — 종료 조건이 깨졌다").isLessThan(50);
+            ImportBrowseResponse page = service.listVideoFiles(path, cursor);
             page.entries().forEach(entry -> names.add(entry.name()));
             cursor = page.nextCursor();
         } while (cursor != null);
@@ -819,6 +869,99 @@ class ImportBrowseServiceTest {
                     .noneMatch(m -> m.contains("unreadable"));
         } finally {
             serviceLogger().detachAppender(logs);
+        }
+    }
+
+    /**
+     * ★<b>이름으로 아닌 것이 판명된 항목은 종류를 묻지 않는다</b> — 그 사실이 관측으로 드러난다.
+     *
+     * <p>읽을 수 없는 항목의 <b>이름이 영상이 아니면</b> 그 항목은 읽어 보지도 않으므로, 읽히지
+     * 않는다는 사실도 알지 못한다. 그래서 경고가 남지 않는다.
+     *
+     * <p>이것이 계약에 더 맞다 — 계약이 세라고 한 것은 <b>"읽을 수 없어 목록에서 빠진 항목"</b>인데,
+     * 이름이 영상이 아닌 항목은 읽히든 아니든 애초에 빠졌을 것이라 <b>읽을 수 없어서 빠진 것이
+     * 아니다</b>. 세면 "영상 파일이 없는 폴더"와 "읽을 수 없어 비어 보이는 폴더"를 가르려던 신호가
+     * 이미지 폴더마다 쌓여 묻힌다.
+     *
+     * <p>⚠ 이 시험은 <b>종류 확인을 이름 판정 앞으로 되돌리면 RED</b> 가 된다(그때는 건수 1 로
+     * 남는다). 되묻는 왕복을 줄인 재배치를 붙잡는 자리다.
+     */
+    @Test
+    @DisplayName("★영상_이름이_아닌_항목은_읽어_보지_않으므로_읽을_수_없음으로_세지_않는다")
+    void 영상_이름이_아닌_항목은_읽어_보지_않으므로_읽을_수_없음으로_세지_않는다() throws IOException {
+        Path locked = Files.createDirectories(root.resolve("lockedimages"));
+        Path child = Files.createDirectories(locked.resolve("frame001.jpg"));
+        Assumptions.assumeTrue(
+                Files.getFileAttributeView(locked, PosixFileAttributeView.class) != null,
+                "권한 축이 없는 파일시스템이라 이 상황을 만들 수 없다");
+
+        Set<PosixFilePermission> original = Files.getPosixFilePermissions(locked);
+        try {
+            Files.setPosixFilePermissions(locked, PosixFilePermissions.fromString("r--------"));
+            Assumptions.assumeTrue(cannotReadAttributes(child),
+                    "권한 검사가 우회되는 실행 환경(root 등)이라 재현되지 않는다");
+
+            ListAppender<ILoggingEvent> logs = attachLogAppender();
+            try {
+                ImportBrowseResponse response = service.listVideoFiles(locked.toString(), null);
+
+                assertThat(response.entries()).isEmpty();
+                assertThat(warnMessages(logs))
+                        .as("이름으로 이미 아닌 것이 판명된 항목은 후보가 아니라 읽지 않는다")
+                        .noneMatch(m -> m.contains("unreadable"));
+            } finally {
+                serviceLogger().detachAppender(logs);
+            }
+        } finally {
+            // 되돌리지 않으면 임시 폴더 정리가 실패해 다른 시험까지 흔들린다.
+            Files.setPosixFilePermissions(locked, original);
+        }
+    }
+
+    /**
+     * ★<b>길이로 걸러낼 항목도 종류를 묻기 전에 걸러낸다</b> — 경로 길이는 이름만으로 판정된다.
+     *
+     * <p>자리 경로가 이미 상한에 가까우면 그 아래 항목이 <b>전부</b> 걸리는데, 이 검사를 종류 확인
+     * 뒤에 두면 그 전부를 되물은 뒤에 버린다.
+     *
+     * <p>읽을 수 없으면서 길이도 넘치는 항목을 만들어 <b>어느 검사가 먼저 걸렸는지</b>를 드러낸다 —
+     * 길이가 먼저면 길이 초과로 세고, 종류 확인이 먼저면 읽을 수 없음으로 센다.
+     */
+    @Test
+    @DisplayName("★길이로_걸러낼_항목은_종류를_묻기_전에_걸러낸다")
+    void 길이로_걸러낼_항목은_종류를_묻기_전에_걸러낸다() throws IOException {
+        Path folder = Files.createDirectories(root.resolve("longlocked"));
+        Path deep = folder;
+        String segment = "n".repeat(60);
+        while (deep.resolve(segment).toString().length() <= ImportSourcePolicy.FOLDER_PATH_MAX) {
+            deep = Files.createDirectories(deep.resolve(segment));
+        }
+        Files.createDirectories(deep.resolve(segment));
+        Assumptions.assumeTrue(
+                Files.getFileAttributeView(deep, PosixFileAttributeView.class) != null,
+                "권한 축이 없는 파일시스템이라 이 상황을 만들 수 없다");
+
+        Set<PosixFilePermission> original = Files.getPosixFilePermissions(deep);
+        try {
+            Files.setPosixFilePermissions(deep, PosixFilePermissions.fromString("r--------"));
+            Assumptions.assumeTrue(cannotReadAttributes(deep.resolve(segment)),
+                    "권한 검사가 우회되는 실행 환경(root 등)이라 재현되지 않는다");
+
+            ListAppender<ILoggingEvent> logs = attachLogAppender();
+            try {
+                ImportBrowseResponse response = service.listFolders(deep.toString(), null);
+
+                assertThat(response.entries()).isEmpty();
+                List<String> warns = warnMessages(logs);
+                assertThat(warns)
+                        .as("길이 판정이 종류 확인보다 뒤면 되묻는 왕복이 그대로 남는다")
+                        .anyMatch(m -> m.contains("over-length") && m.contains("count=1"));
+                assertThat(warns).noneMatch(m -> m.contains("unreadable"));
+            } finally {
+                serviceLogger().detachAppender(logs);
+            }
+        } finally {
+            Files.setPosixFilePermissions(deep, original);
         }
     }
 

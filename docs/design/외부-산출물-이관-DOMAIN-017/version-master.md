@@ -4,13 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-26T19:12:44.652Z |
-| Mode | SYNC — NEW 4 / CHANGED 3 / UNCHANGED 59 |
+| Last sync | 2026-08-26T23:11:40.826Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 64 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-017 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
+| ⚠️ 미판정 | 25건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -40,13 +41,8 @@
 
 ## Changelog (this run)
 
-- NEW [[AC-120]]
-- NEW [[ADR-023]]
-- NEW [[API-221]]
-- NEW [[API-222]]
-- CHANGED [[SEQ-026]] (prev v11)
-- CHANGED [[SCREEN-039]] (prev v21)
-- CHANGED [[UC-035]] (prev v13)
+- CHANGED [[API-221]] (prev v14)
+- CHANGED [[API-222]] (prev v9)
 
 ## ITEM 표
 
@@ -63,8 +59,8 @@
 | [[AC-052]] | acceptance | 3 | UNCHANGED |
 | [[AC-053]] | acceptance | 3 | UNCHANGED |
 | [[AC-054]] | acceptance | 3 | UNCHANGED |
-| [[AC-120]] | acceptance | 13 | NEW |
-| [[ADR-023]] | adr | 7 | NEW |
+| [[AC-120]] | acceptance | 13 | UNCHANGED |
+| [[ADR-023]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-048]] | adr | 5 | UNCHANGED |
 | [[ADR-052]] | adr | 2 | UNCHANGED |
@@ -77,8 +73,8 @@
 | [[API-210]] | api_endpoint | 7 | UNCHANGED |
 | [[API-211]] | api_endpoint | 6 | UNCHANGED |
 | [[API-215]] | api_endpoint | 4 | UNCHANGED |
-| [[API-221]] | api_endpoint | 14 | NEW |
-| [[API-222]] | api_endpoint | 9 | NEW |
+| [[API-221]] | api_endpoint | 15 | CHANGED |
+| [[API-222]] | api_endpoint | 10 | CHANGED |
 | [[DFEAT-056]] | domain_feature | 3 | UNCHANGED |
 | [[DFEAT-057]] | domain_feature | 11 | UNCHANGED |
 | [[DFEAT-058]] | domain_feature | 3 | UNCHANGED |
@@ -111,10 +107,10 @@
 | [[ROLE-001]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 7 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 8 | UNCHANGED |
-| [[SCREEN-039]] | screen_spec | 32 | CHANGED |
-| [[SEQ-026]] | diagram_sequence | 13 | CHANGED |
+| [[SCREEN-039]] | screen_spec | 32 | UNCHANGED |
+| [[SEQ-026]] | diagram_sequence | 13 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 1 | UNCHANGED |
 | [[TEST-008]] | test_scenario | 1 | UNCHANGED |
 | [[UC-018]] | use_case | 17 | UNCHANGED |
-| [[UC-035]] | use_case | 15 | CHANGED |
+| [[UC-035]] | use_case | 15 | UNCHANGED |
 | [[UC-036]] | use_case | 3 | UNCHANGED |
