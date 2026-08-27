@@ -12,8 +12,15 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * {@link RequiresAdminSession} 이 붙은 창구에 관리자 단기 유효창을 강제한다. [@design ADR-046]
  *
- * <p>인터셉터는 {@code @RequestBody} 역직렬화 <b>이전</b>에 돌므로, 유효창 없는 요청이 바디 파싱
- * 비용조차 유발하지 않는다(웹훅 2단 게이트와 같은 골격).
+ * <p>인터셉터는 {@code @RequestBody} <b>역직렬화 이전</b>에 돌므로, JSON 창구에서는 유효창 없는
+ * 요청이 바디 역직렬화 비용조차 유발하지 않는다(웹훅 2단 게이트와 같은 골격).
+ *
+ * <p>⚠ 이것을 <b>모든 창구로 일반화하지 말 것</b> — {@code multipart/form-data} 창구에는 성립하지
+ * 않는다. {@code DispatcherServlet} 이 멀티파트 파싱을 핸들러 조회·인터셉터 실행보다 <b>먼저</b>
+ * 수행하고, 이 저장소는 {@code spring.servlet.multipart.resolve-lazily} 를 켜지 않아(부트 기본값
+ * = 즉시 파싱) 유효창 없는 업로드도 <b>파일이 전송·버퍼링된 뒤에</b> 거부된다. 즉 멀티파트에서
+ * 이 게이트가 절약하는 것은 핸들러 실행 비용이지 전송·버퍼링 비용이 아니다.
+ * <b>보호 효과 자체는 두 창구가 같다</b> — 어느 쪽이든 핸들러에는 닿지 않는다.
  *
  * <p>거부는 예외를 그대로 던져 {@code GlobalExceptionHandler} 로 흘린다 — 여기서 응답을 직접
  * 조립하면 같은 사유의 403 이 <b>두 가지 형태</b>로 나가고, 그 차이가 곧 프로그램적 경로와의

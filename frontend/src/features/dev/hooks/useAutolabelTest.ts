@@ -13,6 +13,13 @@ export interface UseAutolabelTestOptions {
   onError?: (error: unknown) => void;
 }
 
+/** 업로드 시작에 실을 관리자 유효창 토큰 — 없으면 서버가 403 으로 거부한다. */
+export interface AutolabelTestVariables {
+  file: File;
+  meta: AutolabelTestMeta;
+  adminSessionToken?: string;
+}
+
 /**
  * 오토라벨 테스트 업로드 mutation 훅.
  *
@@ -20,12 +27,9 @@ export interface UseAutolabelTestOptions {
  * - 실패: BE `ApiResponse.message` 를 `ApiError.message` 로 전파 (사용자 친화적 텍스트).
  */
 export function useAutolabelTest(opts?: UseAutolabelTestOptions) {
-  return useMutation<
-    AutolabelTestResult,
-    unknown,
-    { file: File; meta: AutolabelTestMeta }
-  >({
-    mutationFn: ({ file, meta }) => uploadAutolabelTest(file, meta),
+  return useMutation<AutolabelTestResult, unknown, AutolabelTestVariables>({
+    mutationFn: ({ file, meta, adminSessionToken }) =>
+      uploadAutolabelTest(file, meta, adminSessionToken),
     onSuccess: (data) => {
       opts?.onSuccess?.(data);
     },

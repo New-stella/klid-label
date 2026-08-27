@@ -8,10 +8,11 @@ import { DevAutolabelTestPage } from '@/pages/dev/DevAutolabelTestPage';
 import { MULTIPART_MAX_BYTES } from '@/features/dev/components/unifiedUploadForm';
 import { DEFAULT_CHUNK_SIZE } from '@/features/upload/api/tusClient';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { useAdminSessionStore } from '@/features/adminSession/store';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
- * 파일 업로드 화면(`/dev/upload`) — **입력 폼 통합** 회귀 가드. [@design SCREEN-027]
+ * 파일 업로드 화면(`/admin/uploads`) — **입력 폼 통합** 회귀 가드. [@design SCREEN-027]
  *
  * 이 화면은 필드 구성이 다른 별개 카드 2개였다가 «적재 경로 라디오 + 두 경로가 완전히 같은 입력
  * 폼» 한 벌로 합쳐졌다. 라디오는 **보내는 곳과 그 뒤 흐름만** 바꾼다.
@@ -64,6 +65,18 @@ async function chooseIngestRoute(user: ReturnType<typeof userEvent.setup>): Prom
   await user.click(screen.getByRole('radio', { name: /관제 인입 재현/ }));
 }
 
+/**
+ * 관리자 유효창을 열어 둔다 — 이 화면은 관리자 페이지 소속이라 **진입 게이트를 통과한 상태**에서만
+ * 열린다(`AdminSessionGuard`). 창을 안 열면 업로드가 요청 전에 확인 창으로 막혀, 이 파일이 지키려는
+ * 폼·전송 축이 아니라 유효창 축을 검증하게 된다. 유효창 자체의 회귀 가드는 별도 파일이 갖는다.
+ */
+function openAdminSessionWindow(): void {
+  useAdminSessionStore.getState().open({
+    token: 'dummy-window',
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  });
+}
+
 describe('파일 업로드 — 적재 경로와 단일 입력 폼', () => {
   let mock: MockAdapter;
 
@@ -80,6 +93,7 @@ describe('파일 업로드 — 적재 경로와 단일 입력 폼', () => {
       claims: { sub: '1001', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
       isHydrated: true,
     });
+    openAdminSessionWindow();
   });
 
   afterEach(() => {

@@ -6,6 +6,7 @@ import MockAdapter from 'axios-mock-adapter';
 import { apiClient } from '@/lib/api/client';
 import { DevAutolabelTestPage } from '@/pages/dev/DevAutolabelTestPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { useAdminSessionStore } from '@/features/adminSession/store';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /** Blob → string (jsdom 호환). Blob.text() 미지원 환경 대비 FileReader 폴백. */
@@ -38,6 +39,18 @@ const EVENT_CATEGORIES = [
   { categoryKey: '030001', label: '교통사고', memberCodes: ['EV03000101'] },
 ];
 
+/**
+ * 관리자 유효창을 열어 둔다 — 이 화면은 관리자 페이지 소속이라 **진입 게이트를 통과한 상태**에서만
+ * 열린다(`AdminSessionGuard`). 창을 안 열면 업로드가 요청 전에 확인 창으로 막혀, 이 파일이 지키려는
+ * 폼·전송 축이 아니라 유효창 축을 검증하게 된다. 유효창 자체의 회귀 가드는 별도 파일이 갖는다.
+ */
+function openAdminSessionWindow(): void {
+  useAdminSessionStore.getState().open({
+    token: 'dummy-window',
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  });
+}
+
 describe('DevAutolabelTestPage', () => {
   let mock: MockAdapter;
 
@@ -60,6 +73,7 @@ describe('DevAutolabelTestPage', () => {
       },
       isHydrated: true,
     });
+    openAdminSessionWindow();
   });
 
   afterEach(() => {

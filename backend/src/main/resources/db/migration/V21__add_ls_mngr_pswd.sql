@@ -18,6 +18,11 @@
 --
 --   수정자아이디는 이 저장소의 기존 mdfr_id 와 같은 폭(30)을 쓴다.
 --
+--   ★타입·크기도 표준도메인을 따른다 — 일련번호는 <bigint> 다 (사업표준 도메인 일련번호B20).
+--   CSV 정본의 일련번호 계열은 일련번호B20(BIGINT) · 일련번호N20/N10/N22(NUMERIC) · 일련번호C2(문자)
+--   뿐이라 smallint 는 어디에도 없고, 이 저장소 베이스라인의 _SN 컬럼 102개도 전부 bigint 다.
+--   「행이 1개뿐이니 좁혀도 된다」는 판단은 표준도메인을 임의로 바꾸는 것이라 감리 지적 대상이다.
+--
 -- ----------------------------------------------------------------------------
 -- * ★ 단일 행 강제 — PK + CHECK 두 겹이 <함께> 있어야 성립한다
 -- ----------------------------------------------------------------------------
@@ -81,7 +86,7 @@
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS ls_mngr_pswd (
-    mngr_pswd_sn smallint NOT NULL,
+    mngr_pswd_sn bigint NOT NULL,
     pswd_hash character varying(100) NOT NULL,
     mdfr_id character varying(30),
     pswd_mdfcn_dt timestamp without time zone

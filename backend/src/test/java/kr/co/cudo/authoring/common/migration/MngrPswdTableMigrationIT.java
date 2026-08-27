@@ -102,7 +102,7 @@ class MngrPswdTableMigrationIT {
     @Test
     @DisplayName("컬럼_물리명과_폭이_표준도메인과_일치한다")
     void 컬럼_형상이_표준을_따른다() {
-        assertThat(column("mngr_pswd_sn").get("data_type")).isEqualTo("smallint");
+        assertThat(column("mngr_pswd_sn").get("data_type")).isEqualTo("bigint");
         assertThat(column("mngr_pswd_sn").get("is_nullable")).isEqualTo("NO");
 
         // 비밀번호해시 = 사업표준 도메인 번호V100. 좁으면 해시가 잘려 들어가 자격이 조용히 깨진다.

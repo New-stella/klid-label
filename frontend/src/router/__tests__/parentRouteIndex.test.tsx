@@ -69,6 +69,21 @@ describe('부모 라우트 직접 진입 (빈 화면 방지)', () => {
     };
 
     expect(indexTargetOf('video')).toBe('/video/status');
-    expect(indexTargetOf('manage')).toBe('/manage/users');
+    // ⚠ 「사용자 관리」가 관리자 페이지(`/admin/users`)로 옮겨가면서 `/manage` 의 대표 하위가
+    //   「시스템 설정」으로 바뀌었다. 옛 값으로 두면 `/manage` 진입이 곧바로 관리자 진입
+    //   게이트로 튀어, 설정만 보러 온 사람에게 패스워드를 묻게 된다.
+    expect(indexTargetOf('manage')).toBe('/manage/settings');
+  });
+
+  it('관리자_페이지의_대표_하위는_진입_게이트다', () => {
+    // `/admin` 은 게이트 전용 화면이라 리다이렉트가 아니라 **그 자리에서** 게이트를 그린다.
+    // 여기에 하위 화면으로 보내는 index 를 두면 유효창이 없을 때 그 화면이 다시 `/admin` 으로
+    // 되돌려 보내 왕복이 생긴다.
+    const internal = (router.routes as RouteObject[]).find((r) => r.path === '/');
+    const admin = internal?.children?.find((c) => c.path === 'admin');
+    const index = admin?.children?.find((c) => c.index === true);
+    expect(index, '`/admin` 에 index 라우트가 없다').toBeTruthy();
+    const el = index?.element as { props?: { to?: string } } | undefined;
+    expect(el?.props?.to, '`/admin` index 가 다른 화면으로 리다이렉트한다').toBeUndefined();
   });
 });

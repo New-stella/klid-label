@@ -59,6 +59,13 @@ export interface TusUploadPanelProps {
   errorSlot?: ReactNode;
   /** 초기화 — 폼·파일 외에 호출부가 들고 있는 결과·오류도 함께 비우게 알린다. */
   onReset?: () => void;
+  /**
+   * 관리자 단기 유효창 토큰 — 업로드 **시작**에만 실린다. [@design API-158] [@design ADR-046]
+   *
+   * 이 폼은 관리자 페이지 소속 화면(`/admin/uploads`)이 쓰므로 호출부가 값을 갖고 있다. 청크·취소
+   * 에는 실리지 않아 유효창이 끝나도 진행 중이던 업로드가 끊기지 않는다.
+   */
+  adminSessionToken?: string;
 }
 
 /**
@@ -90,12 +97,13 @@ export function TusUploadPanel({
   immediatePending = false,
   errorSlot,
   onReset,
+  adminSessionToken,
 }: TusUploadPanelProps = {}) {
   const [route, setRoute] = useState<UploadRoute>(UploadRoute.IMMEDIATE);
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState<UnifiedUploadFormState>(initialUnifiedUploadForm);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const upload = useTusUpload();
+  const upload = useTusUpload({ adminSessionToken });
 
   const isUploading = upload.status === 'uploading';
   const isBusy = isUploading || immediatePending;

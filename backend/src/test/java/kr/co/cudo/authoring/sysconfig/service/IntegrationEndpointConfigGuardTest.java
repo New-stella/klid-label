@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.auth.AdminSessionTestSupport;
 import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import ch.qos.logback.classic.Level;
@@ -66,7 +67,7 @@ class IntegrationEndpointConfigGuardTest {
     @BeforeEach
     void setUp() {
         repository = mock(LsSystemConfigRepository.class);
-        tokenService = new AdminSessionTokenService(RESOLVER, 10);
+        tokenService = AdminSessionTestSupport.tokenService(RESOLVER, 10);
         service = new SystemConfigService(repository, new ObjectMapper(),
                 new AdminSessionGate(tokenService), new IntegrationEndpointUrlValidator(),
                 new DeidentifyEndpointTrustGuard(new MockEnvironment()),

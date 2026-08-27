@@ -35,10 +35,19 @@ export interface UseTusUploadState {
 export interface UseTusUploadOptions {
   /** TUS endpoint base (기본 관제 '/uploads'). 포털은 '/portal/uploads/tus'. */
   endpointBase?: string;
+  /**
+   * 관리자 단기 유효창 토큰 — **세션 생성 1회에만** 실린다. [@design API-158]
+   *
+   * 재개(`resume`)는 기존 세션을 이어받아 청크만 보내므로 이 값을 쓰지 않는다. 유효창이 끝나도
+   * 진행 중이던 업로드가 끊기지 않는 것이 이 비대칭의 목적이다.
+   *
+   * ⚠ 포털 업로드는 넘기지 않는다 — 포털 이용자 본인 자산 업로드라 대상이 아니다.
+   */
+  adminSessionToken?: string;
 }
 
 export function useTusUpload(options: UseTusUploadOptions = {}) {
-  const { endpointBase } = options;
+  const { endpointBase, adminSessionToken } = options;
   const [state, setState] = useState<UseTusUploadState>({
     status: 'idle',
     progress: 0,
@@ -72,6 +81,7 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
           resumeUploadId,
           endpointBase,
           createPayload,
+          adminSessionToken,
           onProgress: (uploaded, total) =>
             setState((s) => ({
               ...s,
@@ -98,7 +108,7 @@ export function useTusUpload(options: UseTusUploadOptions = {}) {
         throw err;
       }
     },
-    [endpointBase],
+    [endpointBase, adminSessionToken],
   );
 
   const start = useCallback(

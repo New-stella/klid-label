@@ -7,7 +7,7 @@ import { Button } from '@/components/common/Button';
 import { Modal } from '@/components/common/Modal';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
-import { adminSessionSchema, type AdminSessionForm } from '../schemas';
+import { adminSessionSchema, type AdminSessionForm } from '../schema';
 
 interface Props {
   open: boolean;
@@ -19,6 +19,13 @@ interface Props {
   error?: string;
   /** 유효창 길이 안내(분). */
   ttlMinutesHint: number;
+  /**
+   * 안내 문구에 들어갈 «무엇이 열리는가» — 화면마다 다르다.
+   *
+   * 연동 주소 화면이라면 그 주소를, 사용자 관리라면 역할 변경을 적는다. 기본값은 관리 기능
+   * 전반이다 — 유효창의 적용 축이 주소 하나가 아니라 관리 기능 공통으로 넓어졌기 때문이다.
+   */
+  unlockTargetLabel?: string;
 }
 
 /**
@@ -38,6 +45,7 @@ export function AdminSessionDialog({
   isSubmitting,
   error,
   ttlMinutesHint,
+  unlockTargetLabel = '관리 기능',
 }: Props) {
   const {
     register,
@@ -68,7 +76,7 @@ export function AdminSessionDialog({
       onClose={onClose}
       size="sm"
       title="관리자 인증"
-      description={`인증하면 ${ttlMinutesHint}분 동안 연동 서버 주소를 수정할 수 있습니다.`}
+      description={`인증하면 ${ttlMinutesHint}분 동안 ${unlockTargetLabel}을(를) 사용할 수 있습니다. 역할이 바뀌는 것은 아니며 검수자 권한은 그대로 필요합니다.`}
     >
       <form onSubmit={submit} noValidate className="space-y-4">
         <div className="space-y-2">

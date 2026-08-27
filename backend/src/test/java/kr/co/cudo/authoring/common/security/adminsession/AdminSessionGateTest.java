@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.common.security.adminsession;
 
+import kr.co.cudo.authoring.auth.AdminSessionTestSupport;
 import io.jsonwebtoken.security.Keys;
 import kr.co.cudo.authoring.auth.service.AdminSessionTokenService;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -59,7 +60,7 @@ class AdminSessionGateTest {
 
     @BeforeEach
     void setUp() {
-        tokenService = new AdminSessionTokenService(RESOLVER, 10);
+        tokenService = AdminSessionTestSupport.tokenService(RESOLVER, 10);
         gate = new AdminSessionGate(tokenService);
     }
 

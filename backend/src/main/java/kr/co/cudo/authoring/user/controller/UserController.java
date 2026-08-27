@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.user.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -9,6 +10,8 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
+import kr.co.cudo.authoring.common.security.adminsession.RequiresAdminSession;
 import kr.co.cudo.authoring.user.dto.UserProfileResponse;
 import kr.co.cudo.authoring.user.dto.UserSummaryResponse;
 import kr.co.cudo.authoring.user.dto.UserUpdateRequest;
@@ -118,20 +121,38 @@ public class UserController {
         return ApiResponse.ok(userService.getById(userNo, claims));
     }
 
+    /**
+     * 사용자 역할 변경 — <b>검수자 권한에 관리자 유효창이 가산된다.</b> [@design API-004] [@design ADR-046]
+     *
+     * <p>역할을 바꾸는 것은 운영·관리 성격의 쓰기다. 유효창은 검수자 권한을 <b>대체하지 않고 가산</b>된다
+     * — {@code @PreAuthorize} 는 그대로 필요하며 유효창이 역할을 승격시키지도 않는다.
+     *
+     * <p>⚠ <b>같은 자원의 조회에는 이 요구를 두지 않는다.</b> 목록·상세뿐 아니라 다른 업무 화면이
+     * 작업자 목록을 읽는 경로({@code GET /v1/users/workers})도 검수자 권한만으로 된다 — 조회까지 막으면
+     * 작업 배정 흐름이 끊긴다.
+     *
+     * <p>거부는 검수자 권한이 없을 때와 유효창이 없을 때가 <b>응답으로 구분되지 않는다</b>(둘 다 403,
+     * 같은 문구). 구분하면 응답 자체가 유효창 상태를 알려주는 신호가 된다(CWE-209).
+     */
     @Operation(
-            summary = "사용자 역할 변경 (REVIEWER)",
+            summary = "사용자 역할 변경 (REVIEWER + 관리자 유효창)",
             description = "REVIEWER 전용. role(REVIEWER|WORKER|PORTAL_USER)을 저작도구 소유 LS_USER_ROLE 에 변경한다. " +
-                    "화이트리스트 정규식으로 검증되며 role 미제공 시 변경되지 않는다. (활성/비활성 토글은 관제 소유라 제외)"
+                    "화이트리스트 정규식으로 검증되며 role 미제공 시 변경되지 않는다. (활성/비활성 토글은 관제 소유라 제외) " +
+                    "역할 변경은 운영·관리 성격의 쓰기라 검수자 권한에 더해 유효한 관리자 유효창(X-Admin-Session)을 함께 요구한다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "REVIEWER 권한이 없거나, 유효한 관리자 유효창이 없다(미제출·만료 포함). 두 사유를 응답으로 구분하지 않는다."),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "사용자 없음")
     })
+    @Parameter(in = ParameterIn.HEADER, name = AdminSessionGate.HEADER, required = true,
+            description = "관리자 유효창이 발급한 단기 토큰. 없거나 만료됐으면 403 이다.")
     @PatchMapping("/{userNo}")
     @PreAuthorize("hasRole('REVIEWER')")
+    @RequiresAdminSession
     public ApiResponse<UserProfileResponse> update(
             @Parameter(description = "사용자 PK", required = true, example = "1001") @PathVariable Long userNo,
             @Valid @RequestBody UserUpdateRequest request

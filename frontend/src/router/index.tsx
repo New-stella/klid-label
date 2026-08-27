@@ -13,6 +13,7 @@ import { isDevLoginEnabled } from '@/lib/devLogin';
 import { isDevUploadEnabled } from '@/lib/devUpload';
 import { resolveRouterBasename } from '@/lib/remoteMount';
 
+import { AdminSessionGuard } from './adminSessionGuard';
 import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
 import { lazyWithRetry } from './lazyWithRetry';
 
@@ -33,6 +34,22 @@ const TaskListPage = lazyWithRetry(() =>
 );
 const UserManagePage = lazyWithRetry(() =>
   import('@/pages/manage/UserManagePage').then((m) => ({ default: m.UserManagePage })),
+);
+
+// 관리자 페이지 — 진입 게이트 + 관리 기능 화면. [@design SCREEN-040~043] [@design NAV-001]
+const AdminGatePage = lazyWithRetry(() =>
+  import('@/pages/admin/AdminGatePage').then((m) => ({ default: m.AdminGatePage })),
+);
+const AdminPasswordPage = lazyWithRetry(() =>
+  import('@/pages/admin/AdminPasswordPage').then((m) => ({ default: m.AdminPasswordPage })),
+);
+const AdminEndpointsPage = lazyWithRetry(() =>
+  import('@/pages/admin/AdminEndpointsPage').then((m) => ({ default: m.AdminEndpointsPage })),
+);
+const AdminMaintenancePage = lazyWithRetry(() =>
+  import('@/pages/admin/AdminMaintenancePage').then((m) => ({
+    default: m.AdminMaintenancePage,
+  })),
 );
 const SystemSettingsPage = lazyWithRetry(() =>
   import('@/pages/manage/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })),
@@ -181,6 +198,23 @@ function PortalRoute({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * 관리자 페이지 라우트 — 역할 가드 **안쪽**에 진입 게이트를 얹는다. [@design SCREEN-040]
+ *
+ * ★순서가 계약이다. 유효창은 인가를 대체하지 않고 **가산**되므로 역할 가드가 바깥에 있어야
+ * 검수자가 아닌 사용자는 패스워드를 알더라도 여기에 닿지 못한다. 뒤집으면 「패스워드를 아는
+ * 사람이 관리자」가 되어 역할 체계를 손대지 않는다는 이 변경의 전제가 무너진다.
+ *
+ * ⚠ 진입 화면(`/admin`) 자신에게는 쓰지 않는다 — 유효창이 없을 때 자기 자신으로 무한히 되돌아간다.
+ */
+function AdminRoute({ children }: { children: ReactNode }) {
+  return (
+    <InternalRoute allow={internalReviewerOnly}>
+      <AdminSessionGuard>{children}</AdminSessionGuard>
+    </InternalRoute>
+  );
+}
+
 // DEV 빌드 또는 빌드타임 플래그 VITE_DEV_LOGIN_ENABLED=true 일 때만 `/dev/login` 라우트를 노출.
 // 관제서버 미기동 폐쇄망 bring-up 시 prod 빌드에서도 켤 수 있다 (기본 OFF, fail-closed).
 // 플래그가 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevLoginPage 청크
@@ -196,11 +230,14 @@ if (isDevLoginEnabled()) {
   });
 }
 
-// [개발/검수 전용] 파일 업로드 페이지(`/dev/upload`) — REVIEWER 만 진입. [@design SCREEN-027]
+// 파일 업로드 페이지(`/admin/uploads`) — 관리자 페이지 소속. [@design SCREEN-027] [@design NAV-001]
 // DEV 빌드 또는 빌드타임 플래그 VITE_DEV_UPLOAD_ENABLED=true 일 때만 라우트를 노출 (isDevLoginEnabled 와 대칭).
 // 플래그 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevAutolabelTestPage 청크
 // 자체가 산출물에 포함되지 않는다. 실제 게이팅은 BE DEV_UPLOAD_ENABLED 런타임 토글이 결정(라우트만 존재,
-// BE off 면 /v1/dev/upload 호출 시 차단). UI 노출은 추가로 REVIEWER 로 제한.
+// BE off 면 /v1/dev/upload 호출 시 차단). UI 노출은 REVIEWER + 관리자 유효창으로 제한한다.
+//
+// ⚠ **화면 주소만 옮겼고 BE API 경로(`/v1/dev/upload`)는 그대로다** — 이 변경의 축은 화면 배치이지
+//    창구 개명이 아니다.
 const devUploadRoutes: Array<{ path: string; element: ReactNode }> = [];
 if (isDevUploadEnabled()) {
   const DevAutolabelTestPage = lazyWithRetry(() =>
@@ -209,12 +246,8 @@ if (isDevUploadEnabled()) {
     })),
   );
   devUploadRoutes.push({
-    path: 'dev/upload',
-    element: (
-      <InternalRoute allow={internalReviewerOnly}>
-        {withSuspense(<DevAutolabelTestPage />)}
-      </InternalRoute>
-    ),
+    path: 'uploads',
+    element: <AdminRoute>{withSuspense(<DevAutolabelTestPage />)}</AdminRoute>,
   });
 }
 
@@ -404,15 +437,9 @@ const routes: RouteObject[] = [
         children: [
           // `path: '*'` 는 남은 경로가 빈 문자열일 때 매칭되지 않아 `/manage` 를 못 받는다
           // (실측: leaf 가 pathless 'manage' 로 잡혀 빈 화면). LNB 첫 항목으로 보낸다.
-          { index: true, element: <Navigate to="/manage/users" replace /> },
-          {
-            path: 'users',
-            element: (
-              <InternalRoute allow={internalReviewerOnly}>
-                {withSuspense(<UserManagePage />)}
-              </InternalRoute>
-            ),
-          },
+          // ⚠ 첫 항목이 「사용자 관리」에서 「시스템 설정」으로 바뀌었다 — 사용자 관리는 관리자
+          //   페이지(`/admin/users`)로 옮겨갔고, 여기로 보내면 곧바로 진입 게이트로 튄다.
+          { index: true, element: <Navigate to="/manage/settings" replace /> },
           {
             path: 'settings',
             element: (
@@ -510,8 +537,41 @@ const routes: RouteObject[] = [
           },
         ],
       },
-      // [개발/검수 전용] 오토라벨 테스트 — REVIEWER 만 진입 (DEV_UPLOAD_ENABLED 토글로 빌드 포함 결정).
-      ...devUploadRoutes,
+      {
+        // 관리자 페이지 — 역할 권한만으로는 들어갈 수 없고 관리자 패스워드로 연 단기 유효창을
+        // 함께 요구한다. [@design NAV-001] [@design ADR-046]
+        path: 'admin',
+        children: [
+          {
+            // 진입(게이트) 화면. ★여기에는 AdminSessionGuard 를 걸지 않는다 — 유효창이 없을 때
+            //   자기 자신으로 무한히 되돌아간다. 역할 가드는 그대로 필요하다.
+            index: true,
+            element: (
+              <InternalRoute allow={internalReviewerOnly}>
+                {withSuspense(<AdminGatePage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'users',
+            element: <AdminRoute>{withSuspense(<UserManagePage />)}</AdminRoute>,
+          },
+          {
+            path: 'endpoints',
+            element: <AdminRoute>{withSuspense(<AdminEndpointsPage />)}</AdminRoute>,
+          },
+          {
+            path: 'password',
+            element: <AdminRoute>{withSuspense(<AdminPasswordPage />)}</AdminRoute>,
+          },
+          {
+            path: 'maintenance',
+            element: <AdminRoute>{withSuspense(<AdminMaintenancePage />)}</AdminRoute>,
+          },
+          // 파일 업로드(`/admin/uploads`) — DEV_UPLOAD_ENABLED 토글로 빌드 포함 여부가 갈린다.
+          ...devUploadRoutes,
+        ],
+      },
 
       { path: '*', element: <AppErrorPage status={404} /> },
     ],
