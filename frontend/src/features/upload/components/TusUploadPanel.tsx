@@ -66,6 +66,19 @@ export interface TusUploadPanelProps {
    * 에는 실리지 않아 유효창이 끝나도 진행 중이던 업로드가 끊기지 않는다.
    */
   adminSessionToken?: string;
+  /**
+   * 지금 관리자 유효창이 잠겨 있는가 — **판정은 호출부가 소유한다.**
+   *
+   * 이 폼이 남은 시간·만료 시각을 직접 들여다보지 않는 이유는 그러면 유효창 판정이 두 곳에 생겨
+   * 한쪽만 갱신되기 때문이다. 폼은 «잠겼는가» 라는 결과만 받는다.
+   */
+  adminSessionLocked?: boolean;
+  /**
+   * 잠긴 상태에서 업로드를 시작하려 했을 때 — 호출부가 관리자 확인 창을 연다.
+   *
+   * 보내 봐야 403 이고 그 거부는 화면에서 「이유를 알 수 없는 실패」(또는 권한 문제)로 읽힌다.
+   */
+  onAdminSessionRequired?: () => void;
 }
 
 /**
@@ -98,6 +111,8 @@ export function TusUploadPanel({
   errorSlot,
   onReset,
   adminSessionToken,
+  adminSessionLocked = false,
+  onAdminSessionRequired,
 }: TusUploadPanelProps = {}) {
   const [route, setRoute] = useState<UploadRoute>(UploadRoute.IMMEDIATE);
   const [file, setFile] = useState<File | null>(null);
@@ -123,6 +138,14 @@ export function TusUploadPanel({
   const eventTypeCd = useMemo(() => resolveEventTypeCd(form, eventOptions), [form, eventOptions]);
   const sizeLimitMessage = multipartLimitMessage(file, route);
   const canStart = canStartUpload({ file, form, route, eventTypeCd });
+  /**
+   * 잠김이 시작 버튼을 «비활성» 으로 만드는 경우 — 확인 창을 열 통로가 없을 때뿐이다.
+   *
+   * 통로가 있으면(관리자 페이지가 쓰는 정상 경로) 버튼을 살려 둔다. 눌렀을 때 확인 창이 뜨는 편이
+   * 반응 없는 비활성 버튼보다 «무슨 일인지» 를 훨씬 잘 알린다(사용자 관리 화면의 저장 버튼과 같은
+   * 관례). 반대로 통로가 없으면 눌러도 아무 일도 안 일어나므로 그때는 잠가서 사유를 드러낸다.
+   */
+  const startBlockedByLock = adminSessionLocked && !onAdminSessionRequired;
 
   const setValue = (key: keyof UnifiedUploadFormState, value: string) =>
     setForm((s) => ({ ...s, [key]: value }));
@@ -149,6 +172,17 @@ export function TusUploadPanel({
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!file || !canStart) return;
+    // 업로드 «시작» 은 두 경로 모두 관리자 유효창을 요구한다. 잠겨 있으면 요청을 보내기 전에
+    // 확인 창을 먼저 연다 — 보내 봐야 403 이고, 그 거부는 화면에서 「권한이 없다」로 읽혀
+    // 사용자가 역할 문제로 오인한다. 두 경로가 여기서 갈리면 같은 화면이 다르게 동작한다.
+    //
+    // ⚠ 청크 이어보내기(재개)·취소·진행위치 조회에는 이 요구를 얹지 않는다 — 대용량 영상은
+    //   유효창(기본 10분)을 넘기기 마련이라, 거기까지 요구하면 구조적으로 올릴 수 없게 된다.
+    //   그 비대칭은 `adminSession/__tests__/adminSessionHeaderScope.test.ts` 가 지킨다.
+    if (adminSessionLocked) {
+      onAdminSessionRequired?.();
+      return;
+    }
     if (isIngest) {
       const payload = toIngestPayload(form, { fileName: file.name, eventTypeCd });
       void upload.start(file, { filename: file.name }, payload).catch(() => undefined);
@@ -311,7 +345,7 @@ export function TusUploadPanel({
                 type="submit"
                 variant="primary"
                 loading={immediatePending}
-                disabled={!canStart || isBusy}
+                disabled={!canStart || isBusy || startBlockedByLock}
               >
                 업로드 시작
               </Button>

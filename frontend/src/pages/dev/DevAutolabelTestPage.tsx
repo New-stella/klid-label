@@ -88,6 +88,10 @@ export function DevAutolabelTestPage() {
     setTerminalReached(false);
     // 유효창이 없으면 요청을 보내기 전에 확인 창을 먼저 연다 — 보내 봐야 403 이고, 그 거부는
     // 화면에서 「이유를 알 수 없는 실패」로 보인다.
+    //
+    // 폼이 이미 같은 선처리를 하므로(두 적재 경로 공통) 여기까지 잠긴 채로 오지는 않는다. 그래도
+    // 남겨 두는 것은 이 핸들러가 폼 밖에서도 불릴 수 있는 prop 이기 때문이다 — 판정은 한 곳
+    // (`session.unlocked`)이고 여기서 다시 유도하지 않는다.
     if (!session.unlocked) {
       setDialogOpen(true);
       return;
@@ -118,6 +122,8 @@ export function DevAutolabelTestPage() {
       <TusUploadPanel
         eventOptions={eventOptions}
         adminSessionToken={session.token}
+        adminSessionLocked={!session.unlocked}
+        onAdminSessionRequired={() => setDialogOpen(true)}
         onImmediateSubmit={handleImmediateSubmit}
         immediatePending={mutation.isPending}
         onReset={handleReset}
