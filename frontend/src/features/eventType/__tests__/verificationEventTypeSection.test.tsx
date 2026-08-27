@@ -65,6 +65,21 @@ function draftValues(): string[] {
     .map((el) => (el as HTMLTextAreaElement).value);
 }
 
+/**
+ * 편집 영역(`vrfc-question-editor`)이 뜬 뒤, 선택된 유형의 저장된 질문 목록이 실제로
+ * 드래프트에 반영될 때까지 기다린다.
+ *
+ * ⚠ `vrfc-question-editor` 자체는 `selectedCode` 가 정해지는 첫 effect 만으로도 나타나고,
+ * 그 안의 문구는 `drafts` 를 채우는 두 번째 effect(선택된 유형의 questions 를 보고 초기화)로
+ * 한 박자 늦게 채워진다. 단독 실행처럼 여유 있는 환경에서는 두 커밋이 같은 act() 플러시
+ * 안에서 끝나 안 드러나지만, full-suite 처럼 스레드 경합이 심한 환경에서는 `findByTestId` 가
+ * 드래프트 채움 전 커밋에서 먼저 resolve 될 수 있다 — 그 레이스를 여기서 흡수한다.
+ */
+async function waitForQuestionsLoaded(expected: string[]): Promise<void> {
+  await screen.findByTestId('vrfc-question-editor');
+  await waitFor(() => expect(draftValues()).toEqual(expected));
+}
+
 describe('검증 이벤트 유형·질문 관리', () => {
   beforeEach(() => {
     useUiStore.setState({ toasts: [] });
@@ -114,14 +129,13 @@ describe('검증 이벤트 유형·질문 관리', () => {
   it('첫_유형이_자동으로_펼쳐지고_질문이_정렬순서대로_보인다', async () => {
     renderSection();
 
-    await screen.findByTestId('vrfc-question-editor');
-    expect(draftValues()).toEqual(['첫 번째 질문', '두 번째 질문']);
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
   });
 
   it('기본_질문_표기가_첫_줄에만_붙고_순서를_바꾸면_따라_옮겨간다', async () => {
     const user = userEvent.setup();
     renderSection();
-    await screen.findByTestId('vrfc-question-editor');
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
 
     // given: 표기는 한 개뿐이고 첫 줄에 붙어 있다.
     expect(screen.getAllByText('기본 질문')).toHaveLength(1);
@@ -137,7 +151,7 @@ describe('검증 이벤트 유형·질문 관리', () => {
   it('추가_수정_삭제_정렬이_저장_한_번으로_화면_순서_그대로_전송된다', async () => {
     const user = userEvent.setup();
     renderSection();
-    await screen.findByTestId('vrfc-question-editor');
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
 
     // when: ① 첫 줄 수정 ② 줄 추가 ③ 두 번째 줄 삭제 ④ 순서 변경
     const first = within(screen.getByTestId('vrfc-question-editor')).getAllByRole('textbox')[0];
@@ -169,7 +183,7 @@ describe('검증 이벤트 유형·질문 관리', () => {
   it('질문을_전부_지우고_저장하면_빈_배열이_전송된다', async () => {
     const user = userEvent.setup();
     renderSection();
-    await screen.findByTestId('vrfc-question-editor');
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
 
     // 삭제하면 아래 줄이 1번째가 되므로 같은 버튼을 두 번 누른다.
     await user.click(screen.getByRole('button', { name: '1번째 질문 삭제' }));
@@ -190,7 +204,7 @@ describe('검증 이벤트 유형·질문 관리', () => {
     );
     const user = userEvent.setup();
     renderSection();
-    await screen.findByTestId('vrfc-question-editor');
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
 
     const first = within(screen.getByTestId('vrfc-question-editor')).getAllByRole('textbox')[0];
     await user.clear(first);
@@ -207,7 +221,7 @@ describe('검증 이벤트 유형·질문 관리', () => {
   it('취소를_누르면_마지막으로_조회한_목록으로_되돌아간다', async () => {
     const user = userEvent.setup();
     renderSection();
-    await screen.findByTestId('vrfc-question-editor');
+    await waitForQuestionsLoaded(['첫 번째 질문', '두 번째 질문']);
 
     await user.click(screen.getByRole('button', { name: '1번째 질문 삭제' }));
     expect(draftValues()).toEqual(['두 번째 질문']);

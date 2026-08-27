@@ -113,4 +113,24 @@ describe('StatusBadge', () => {
       unmount();
     });
   });
+  // ── 시안(SCREEN-009 `.badge`) 정합 — 타이포·좌우여백 축 ────────────────
+  // 시안은 `font-size: 14px; font-weight: 600; line-height: 1.4` 이고, ladder 의 `label`
+  // step 이 정확히 그 셋이다. 구 구현은 `sub`(14px/1.6/400) + 별도 굵기 유틸이라
+  // **행간과 굵기가 둘 다** 어긋나 있었다.
+  it('StatusBadge_타이포는_ladder_label_step_한_개로_적힌다', () => {
+    render(<StatusBadge status="COMPLETED" />);
+    const cls = screen.getByText('완료').className.split(/\s+/);
+
+    expect(cls).toContain('text-label');
+    expect(cls).not.toContain('text-sub');
+    // 굵기 유틸이 남아 있으면 500 이 step 의 600 을 덮는다 — 크기만 맞고 굵기는 어긋난다.
+    expect(cls.filter((c) => /^font-/.test(c))).toEqual([]);
+  });
+
+  it('StatusBadge_좌우여백은_시안_10px_이다', () => {
+    render(<StatusBadge status="COMPLETED" />);
+    const cls = screen.getByText('완료').className.split(/\s+/);
+    expect(cls).toContain('px-2.5');
+    expect(cls).not.toContain('px-2');
+  });
 });

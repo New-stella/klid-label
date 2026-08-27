@@ -159,7 +159,7 @@ export function DeidentConfigCard({ configs }: Props) {
               </option>
             ))}
           </select>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             비식별 처리 시 개인정보 영역을 가리는 방식입니다. 다음 비식별 처리부터 적용됩니다.
           </p>
           {errors.maskingType && (
@@ -191,11 +191,11 @@ export function DeidentConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('maskingRange', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>좁게 (0.5배)</span>
             <span>넓게 (2.0배)</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             값이 클수록 가리는 영역이 넓어져 개인정보가 남을 가능성은 줄지만 화면이 더 많이
             가려집니다. (0.5~2.0배)
           </p>
@@ -224,7 +224,7 @@ export function DeidentConfigCard({ configs }: Props) {
               </option>
             ))}
           </select>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             비식별 처리 과정에서 추출한 프레임을 처리 시스템에 남길지 여부입니다. 필요하지 않으면
             저장하지 않는 편이 안전합니다.
           </p>

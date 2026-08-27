@@ -151,7 +151,7 @@ describe('Card 조합형', () => {
 
     const defRoot = def.querySelector('[data-slot="card"]');
     const smRoot = sm.querySelector('[data-slot="card"]');
-    expect(defRoot?.className).toMatch(/py-4/);
+    expect(defRoot?.className).toMatch(/py-6/);
     expect(smRoot?.className).toMatch(/py-3/);
 
     const defContent = def.querySelector('[data-slot="card-content"]');
@@ -172,5 +172,37 @@ describe('Card 조합형', () => {
   it('호출부_className_은_병합되어_유지된다', () => {
     const { container } = render(<Card className="w-full max-w-md" data-testid="c" />);
     expect(container.querySelector('[data-slot="card"]')?.className).toMatch(/max-w-md/);
+  });
+  // ── 시안(SCREEN-009 `.card`) 정합 — 여백 축 ──────────────────────────
+  // 시안은 헤더 `padding: 24 24 0` · 본문 `padding: 24` 라, 카드 안쪽 여백이 상하좌우 24 로
+  // 균일하고 헤더↔본문 사이도 24 다. 구 구현은 좌우만 24 이고 상하·사이는 16 이어서
+  // 가로세로 여백이 어긋나 있었다.
+  it('Card_기본_여백은_상하_24_헤더_본문_간격_24_이다', () => {
+    const { container } = render(
+      <Card>
+        <CardHeader>
+          <CardTitle>제목</CardTitle>
+        </CardHeader>
+        <CardContent>본문</CardContent>
+      </Card>,
+    );
+    const cls = container.querySelector('[data-slot="card"]')?.className.split(/\s+/) ?? [];
+    expect(cls).toContain('py-6');
+    expect(cls).toContain('gap-6');
+    expect(cls).not.toContain('py-4');
+    expect(cls).not.toContain('gap-4');
+  });
+
+  // sm 변형은 시안에 대응 규칙이 없어 **의도적으로 그대로 둔다** — 기본 여백을 올리면서
+  // 딸려 바뀌지 않았는지 함께 고정한다(이 단언이 sm 분기의 동결 장치다).
+  it('Card_sm_변형의_여백은_이번_정합에서_바뀌지_않는다', () => {
+    const { container } = render(
+      <Card size="sm">
+        <CardContent>본문</CardContent>
+      </Card>,
+    );
+    const cls = container.querySelector('[data-slot="card"]')?.className.split(/\s+/) ?? [];
+    expect(cls).toContain('py-3');
+    expect(cls).toContain('gap-3');
   });
 });

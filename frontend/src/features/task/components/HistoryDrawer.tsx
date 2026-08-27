@@ -128,7 +128,7 @@ export function HistoryDrawer({
         aria-modal="true"
         aria-label="배정 이력"
         tabIndex={-1}
-        className="absolute inset-y-0 right-0 flex h-full w-96 max-w-full translate-x-0 flex-col bg-white shadow-lg outline-none transition-transform duration-300 ease-out"
+        className="absolute inset-y-0 right-0 flex h-full w-96 max-w-full translate-x-0 flex-col bg-white shadow-lg outline-hidden transition-transform duration-300 ease-out"
       >
         {/* 헤더 */}
         <div className="border-b border-gray-100 px-5 pt-5 pb-4">

@@ -130,7 +130,10 @@ export function Modal({
           // 음영은 DS-001 토큰 3단(sm/md/lg) 중 오버레이용 최상단 `lg` 를 쓴다 —
           // 그 위 단계(xl)는 토큰에 없어 Tailwind 기본값(순수 검정 기반)으로 폴백해
           // KRDS 음영색(rgba(14,21,40,…))과 어긋난다.
-          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-lg outline-none',
+          // 모서리는 시안 `.lightbox-box` 의 `--radius-lg`(8px) = borderRadius 토큰 `lg`.
+          // 토큰은 sm/md/lg/full 4단뿐이라 그 위 단은 Tailwind 기본값(12px)으로 폴백한다 —
+          // 음영과 같은 성질의 조용한 이탈이라 함께 토큰 안으로 되돌렸다.
+          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
           sizeClass[size],
         )}
       >
@@ -140,7 +143,10 @@ export function Modal({
             onClick={onClose}
             aria-label="닫기"
             className={cn(
-              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+              // 색 단계는 시안 `.lightbox-close` 를 따른다 — 평상시 중립 600(#58616A),
+              // hover 시 표면 50 + 글자 900. 구 400 은 흰 배경 위 3.08:1 이라 닫기 아이콘이
+              // 흐렸고(600 은 6.30:1), hover 도 한 단 진한 표면이라 시안과 어긋나 있었다.
+              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900',
               KRDS_FOCUS,
             )}
           >

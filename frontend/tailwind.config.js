@@ -1,3 +1,45 @@
+import tailwindPalette from 'tailwindcss/colors';
+
+/**
+ * 범주 구분색 8슬롯 — 진실원: LogiCraft DS-001 do_rules(범주 구분색).
+ *
+ * 정본 규칙: "범주 구분색(이벤트 유형·라벨 형태·역할처럼 우열 없이 서로 대등한 분류)은
+ * semantic 이 선점한 대역을 피해 8슬롯 팔레트에서만 고른다. 배경은 각 색 스케일의 가장 옅은
+ * 두 단계(50·100), 전경은 700 단계. 세 축이 이 한 팔레트를 공유하며 축마다 별도 색표를 만들지
+ * 않는다. 슬롯 번호는 우열이나 순서를 뜻하지 않는다. 반대로 상태·성패·경고 전달에는 쓰지 않는다."
+ *
+ * ⚠ 값을 hex 로 옮겨 적지 않는다 — Tailwind 팔레트 객체를 **그대로 참조**한다. 그래야
+ *   ①전사 오류가 원천적으로 불가능하고 ②50~950 전 스케일이 따라오며 ③구 리터럴 클래스
+ *   (`bg-blue-100` 등)와 렌더 결과가 완전히 같아 이관이 색을 바꾸지 않는다.
+ *   (테스트가 설정 원문에서 "hex 리터럴 0건 + 팔레트 참조"를 기계 판정한다.)
+ *
+ * ⚠ semantic 대역(red/rose/orange/amber/yellow/green/emerald)은 이 표에 넣지 않는다 —
+ *   범주 배지가 성패·경고로 오독된다. 그 대역은 success/warning/danger 토큰이 소유한다.
+ *
+ * 슬롯 기준값(500단, 참고용 — 이 파일에 적지 않고 테스트가 팔레트에서 계산해 대조한다):
+ *   1 blue #2B7FFF · 2 purple #AD46FF · 3 cyan #00B8DB · 4 teal #00BBA7
+ *   5 indigo #615FFF · 6 pink #F6339A · 7 slate #62748E · 8 fuchsia #E12AFB
+ *
+ * 대비: 8슬롯 전부 700 on 100 / 700 on 50 이 WCAG AA(4.5:1) 통과 — contrastGuard 가 계산으로 단언.
+ *
+ * ⚠⚠ 슬롯을 **중첩 키로 쓰지 말 것**(`category: { 1: blue, 2: purple, ... }`). Tailwind v4 의
+ *   JS-config 호환 계층은 중첩 색 키가 문자열 `'1'` 이면 그 가지를 통째로 버린다 — `2`~`8` 과
+ *   `a1` 은 정상인데 `1` 만 사라진다(실측: `bg-category-1-100` 이 아예 생성되지 않음).
+ *   클래스가 **없어도 오류가 나지 않아** 배경이 조용히 비는 방식으로 터진다(구 `secondary-700`
+ *   미정의 사고와 같은 형태). 그래서 슬롯을 **`category-N` 평면 키**로 두고 spread 로 등록한다.
+ */
+// [@design DS-001]
+const krdsCategory = {
+  'category-1': tailwindPalette.blue,
+  'category-2': tailwindPalette.purple,
+  'category-3': tailwindPalette.cyan,
+  'category-4': tailwindPalette.teal,
+  'category-5': tailwindPalette.indigo,
+  'category-6': tailwindPalette.pink,
+  'category-7': tailwindPalette.slate,
+  'category-8': tailwindPalette.fuchsia,
+};
+
 /**
  * KRDS 중립색 11단 — 진실원: LogiCraft DS-001 tokens.colors.neutral.
  * `gray` 와 `neutral` **두 이름이 이 한 표를 공유**한다(별칭). 값 표를 복제하면
@@ -171,6 +213,14 @@ export default {
         border: {
           DEFAULT: krdsNeutral[200], // 구분선, 테두리 = 중립 200단
         },
+        // ── 범주 구분색 ────────────────────────────────────────────────────
+        // 진실원: DS-001 do_rules — 값 표와 근거는 파일 상단 krdsCategory 주석 참조.
+        // 사용은 `bg-category-1-100 text-category-1-700` 형태다.
+        // ⚠ 값 표를 복제하지 말 것 — gray/neutral·bgLight/border 와 같은 이유로 반드시
+        //   krdsCategory 상수를 **참조**한다(테스트가 설정 원문에서 참조 여부를 판정한다).
+        // ⚠ 중첩(`category: {...}`)이 아니라 spread 다 — 근거는 상단 krdsCategory 주석 참조.
+        // [@design DS-001]
+        ...krdsCategory,
         // ── 표 행 hover 표면 ───────────────────────────────────────────────
         // 진실원: DS-001 do_rules — "표의 행 hover 표면은 #FFFBEB 를 쓴다. 긴 표에서
         // 커서가 짚은 행을 확실히 알린다. 회색 계열은 표면 배경과 겹쳐 구분이 약하다."

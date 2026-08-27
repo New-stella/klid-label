@@ -122,7 +122,7 @@ export function WorkerStatPage() {
           <h1 className="text-title-lg font-bold text-gray-900">{pageTitle}</h1>
           <p className="mt-0.5 text-caption text-gray-600">{pageSubtitle}</p>
           {data?.workerName && (
-            <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
+            <p className="mt-0.5 text-caption text-gray-600">{data.workerName}</p>
           )}
         </div>
 
@@ -157,7 +157,7 @@ export function WorkerStatPage() {
         >
           <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
           <p className="text-body-md text-gray-500">작업자를 선택하세요</p>
-          <p className="mt-1 text-caption text-gray-400">
+          <p className="mt-1 text-caption text-gray-600">
             상단에서 작업자를 선택하면 해당 작업자의 통계가 표시됩니다.
           </p>
         </div>

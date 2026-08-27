@@ -187,7 +187,7 @@ export const SelectTrigger = forwardRef<ElementRef<typeof SelectPrimitive.Trigge
         aria-invalid={invalid}
         aria-describedby={describedBy}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-md border bg-white text-gray-900 outline-none transition-colors duration-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60 data-[placeholder]:text-gray-400 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+          'flex w-full items-center justify-between gap-2 rounded-md border bg-white text-gray-900 outline-hidden transition-colors duration-100 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:opacity-60 data-[placeholder]:text-gray-600 [&_svg]:pointer-events-none [&_svg]:shrink-0',
           TRIGGER_SIZE_CLASS[size],
           KRDS_FOCUS,
           hasError
@@ -265,7 +265,7 @@ export const SelectItem = forwardRef<ElementRef<typeof SelectPrimitive.Item>, Se
         ref={ref}
         value={toInternalValue(value, false)}
         className={cn(
-          'relative flex w-full cursor-pointer select-none items-center gap-2 rounded py-2 pl-8 pr-2 text-body text-gray-900 outline-none data-[disabled]:pointer-events-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-primary-50 data-[highlighted]:text-primary-900',
+          'relative flex w-full cursor-pointer select-none items-center gap-2 rounded py-2 pl-8 pr-2 text-body text-gray-900 outline-hidden data-[disabled]:pointer-events-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 data-[highlighted]:bg-primary-50 data-[highlighted]:text-primary-900',
           className,
         )}
         {...rest}

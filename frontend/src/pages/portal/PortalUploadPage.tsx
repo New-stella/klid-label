@@ -123,13 +123,13 @@ export function PortalUploadPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <header>
         <h1 className="text-page-title text-gray-900">내 업로드</h1>
-        <p className="text-sub text-gray-500">이미지·영상을 업로드하고 라벨링을 진행하세요.</p>
+        <p className="text-sub text-gray-600">이미지·영상을 업로드하고 라벨링을 진행하세요.</p>
       </header>
 
       {/* 이미지 업로드 */}
       <section
         aria-label="이미지 업로드"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+        className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
       >
         <h2 className="text-section-title text-gray-800">이미지 업로드</h2>
         <div className="flex flex-col gap-1">
@@ -145,7 +145,7 @@ export function PortalUploadPage() {
             onChange={onImageSelect}
             className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100"
           />
-          <span className="text-sub text-gray-400">{IMAGE_POLICY_TEXT}</span>
+          <span className="text-sub text-gray-600">{IMAGE_POLICY_TEXT}</span>
         </div>
 
         {validationErrors.length > 0 && (
@@ -188,7 +188,7 @@ export function PortalUploadPage() {
       {/* 영상 업로드 (TUS) */}
       <section
         aria-label="영상 업로드"
-        className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+        className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
       >
         <h2 className="text-section-title text-gray-800">영상 업로드</h2>
         <div className="flex flex-col gap-1">
@@ -204,7 +204,7 @@ export function PortalUploadPage() {
             disabled={tus.status === 'uploading'}
             className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100"
           />
-          <span className="text-sub text-gray-400">mp4/mov/avi · 최대 5GB (재개 가능 업로드)</span>
+          <span className="text-sub text-gray-600">mp4/mov/avi · 최대 5GB (재개 가능 업로드)</span>
         </div>
 
         {tus.totalBytes > 0 && (
@@ -240,14 +240,14 @@ export function PortalUploadPage() {
 
       {/* 자산 목록 */}
       <section aria-label="업로드 자산 목록" className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">업로드 자산</h2>
+        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">업로드 자산</h2>
         {deleteUpload.error != null && (
           <p role="alert" className="text-sub text-danger">
             {deleteErrorMessage(deleteUpload.error)}
           </p>
         )}
         {uploadsQuery.isLoading ? (
-          <p className="text-sub text-gray-500">목록을 불러오는 중…</p>
+          <p className="text-sub text-gray-600">목록을 불러오는 중…</p>
         ) : uploadsQuery.isError ? (
           /*
            * 조회 실패는 빈 상태와 반드시 구분한다. React Query 는 실패 시 data 를 undefined 로
@@ -260,7 +260,7 @@ export function PortalUploadPage() {
             onRetry={() => void uploadsQuery.refetch()}
           />
         ) : uploads.length === 0 ? (
-          <p className="text-sub text-gray-500">업로드한 자산이 없습니다.</p>
+          <p className="text-sub text-gray-600">업로드한 자산이 없습니다.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {uploads.map((u) => (
@@ -298,7 +298,7 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
   return (
     <li
       data-testid={`portal-upload-item-${upload.uldSn}`}
-      className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between"
+      className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between"
     >
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex items-center gap-2">

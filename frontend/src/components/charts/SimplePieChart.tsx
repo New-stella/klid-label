@@ -29,7 +29,7 @@ export function SimplePieChart({ data, size = 160, showLegend = false }: SimpleP
           {data.map((entry) => (
             <div key={entry.label} className="flex items-center gap-1.5 text-xs">
               <span
-                className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
                 style={{ backgroundColor: entry.color }}
               />
               <span className="text-gray-600 truncate">{entry.label}</span>

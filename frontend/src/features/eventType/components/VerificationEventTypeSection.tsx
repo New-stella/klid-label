@@ -234,7 +234,7 @@ export function VerificationEventTypeSection() {
                           "값을 못 받았다"와 "짝이 없다"가 구분되지 않는다). */}
                       <td className="p-2 text-gray-600">
                         {t.evntTypeCds.length === 0 ? (
-                          <span className="text-gray-400">짝 없음</span>
+                          <span className="text-gray-600">짝 없음</span>
                         ) : (
                           <span className="font-mono">{t.evntTypeCds.join(', ')}</span>
                         )}
@@ -249,7 +249,7 @@ export function VerificationEventTypeSection() {
             {selected && (
               <section
                 aria-labelledby="vrfc-question-editor-heading"
-                className="space-y-3 rounded border p-3"
+                className="space-y-3 rounded border border-gray-200 p-3"
                 data-testid="vrfc-question-editor"
               >
                 <h3 id="vrfc-question-editor-heading" className="font-medium text-gray-800">

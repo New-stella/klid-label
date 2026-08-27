@@ -49,8 +49,11 @@ export function IssueCard({ issue, issueType, issueStatus, commentCount }: Issue
                 issueStatus === ISSUE_STATUS.RESOLVED
                   ? 'bg-success/10 text-success-700'
                   : issueStatus === ISSUE_STATUS.ANSWERED
-                    ? // KRDS 예외: '답변됨' purple 은 범주 구분색(성공/대기와 구별되는 별도 상태) — 토큰 획일화 제외.
-                      'bg-purple-100 text-purple-700'
+                    ? // ANSWERED('답변됨')는 범주가 아니라 상태다 — DS-001 의 info 가 "안내"를
+                      // 소유하고 이 배지는 액션이 아닌 표시라 info 를 쓴다. 구 purple 은
+                      // semantic 에 자리가 없어 범주 구분색을 빌려 쓴 것이었다.
+                      // ⚠ IssueThreadPanel 의 같은 배지와 **함께** 유지할 것(같은 상태다).
+                      'bg-info/10 text-info-700'
                     : 'bg-gray-100 text-gray-600',
               )}
             >

@@ -220,7 +220,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
                 }`}
                 {...register(field.name)}
               />
-              <p className="text-caption text-gray-400">{field.hint}</p>
+              <p className="text-caption text-gray-600">{field.hint}</p>
               {errors[field.name] && (
                 <p className="flex items-center gap-1 text-caption text-danger" role="alert">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -237,7 +237,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
             </p>
           )}
 
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             저장하면 재기동 없이 다음 호출부터 새 주소가 적용됩니다. 서버가 여러 대인 경우 다른
             서버에는 최대 1분 뒤에 반영됩니다.
           </p>

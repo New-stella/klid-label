@@ -37,7 +37,7 @@ import { useLabelAttrValues } from '../hooks/useLabelAttrValues';
 import { parseValues } from './LabelAttrFormModal';
 
 const INPUT_CLASS =
-  'rounded border border-gray-300 bg-white px-2 py-1 text-sub text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-60';
+  'rounded border border-gray-300 bg-white px-2 py-1 text-sub text-gray-900 focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-60';
 
 /**
  * 밀집한 우측 속성 패널용 `Select` 크기·여백 override — <b>색은 넣지 않는다</b>(공통 라이트 기본이 정답).

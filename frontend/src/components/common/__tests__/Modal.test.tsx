@@ -5,6 +5,20 @@ import userEvent from '@testing-library/user-event';
 import { Modal } from '../Modal';
 
 describe('Modal', () => {
+  // ── 시안(SCREEN-009 `.lightbox-box`) 정합 — 모서리 축 ────────────────
+  // `.lightbox-box { border-radius: var(--radius-lg) }` = 8px 이다. 구 구현은 토큰에 없는
+  // 상위 단을 써 Tailwind 기본값(12px)으로 폴백하고 있었다(값이 아니라 출처가 어긋난 상태).
+  it('Modal_모서리는_토큰_lg_8px_이다', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        본문
+      </Modal>,
+    );
+    const cls = screen.getByRole('dialog').className.split(/\s+/);
+    expect(cls).toContain('rounded-lg');
+    expect(cls.filter((c) => /^rounded-(xl|2xl|3xl)$/.test(c))).toEqual([]);
+  });
+
   it('Modal_open_false_시_렌더하지_않음', () => {
     render(
       <Modal open={false} onClose={() => {}} title="제목">
@@ -121,5 +135,22 @@ describe('Modal', () => {
     await user.tab();
     // 닫기 버튼이 DOM 첫 번째 focusable이므로 last → 닫기 순환
     expect(document.activeElement).toBe(closeBtn);
+  });
+  // ── 시안(SCREEN-009 `.lightbox-close`) 정합 — 닫기 버튼 색 축 ──────────
+  // `color: var(--n-6)`(#58616a=gray-600) · `:hover { background: var(--n-0)(gray-50);
+  // color: var(--n-9)(gray-900) }`. 구 구현은 평상시 gray-400(흰 배경 위 3.08:1)이라
+  // 닫기 아이콘이 흐렸다 — gray-600 은 6.30:1 이다.
+  it('Modal_닫기_버튼_색은_시안_단계를_따른다', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목">
+        본문
+      </Modal>,
+    );
+    const cls = screen.getByRole('button', { name: '닫기' }).className.split(/\s+/);
+    expect(cls).toContain('text-gray-600');
+    expect(cls).not.toContain('text-gray-400');
+    expect(cls).toContain('hover:text-gray-900');
+    // hover 표면도 시안 단계(`--n-0`)로 맞춘다 — 이 저장소의 다수 관례이기도 하다.
+    expect(cls).toContain('hover:bg-gray-50');
   });
 });

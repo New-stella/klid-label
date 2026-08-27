@@ -152,8 +152,8 @@ export function PortalHomePage() {
 
         {/* 라벨링 카드 */}
         <section aria-label="이용 방법" className="flex flex-col gap-3">
-          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">이용 방법</h2>
-          <article className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">이용 방법</h2>
+          <article className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             {/* 제목 옆 장식 아이콘은 두지 않는다 — 제목 텍스트를 되풀이할 뿐이다. */}
             <h2 className="text-section-title text-gray-800">라벨링</h2>
             <p className="text-sub text-gray-500">선택한 영상에 라벨을 추가하세요</p>
@@ -185,7 +185,7 @@ export function PortalHomePage() {
 
         {/* 영상 목록 — 데이터마트 노출(검수 완료) 영상. 카드 선택 시 라벨링 진입. */}
         <section aria-label="데이터마트 영상" className="flex flex-col gap-3">
-          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-500">
+          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
             데이터마트 영상
           </h2>
           {downloadError !== null && (
@@ -194,9 +194,9 @@ export function PortalHomePage() {
             </p>
           )}
           {isLoading ? (
-            <p className="text-sub text-gray-500">영상 목록을 불러오는 중…</p>
+            <p className="text-sub text-gray-600">영상 목록을 불러오는 중…</p>
           ) : !hasVideos ? (
-            <p className="text-sub text-gray-500">선택 가능한 영상이 없습니다.</p>
+            <p className="text-sub text-gray-600">선택 가능한 영상이 없습니다.</p>
           ) : (
             <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {videos.map((v) => (
@@ -218,7 +218,7 @@ export function PortalHomePage() {
           )}
         </section>
 
-        <p className="text-sub text-gray-500">
+        <p className="text-sub text-gray-600">
           ※ 선택한 영상은 본인만 조회/라벨링할 수 있으며, 저장한 작업 데이터는 보존기간이 지나면
           삭제됩니다.
         </p>
@@ -273,7 +273,7 @@ function DatamartVideoCard({
   const disabled = downloading || downloadBlocked;
 
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+    <li className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <button
         type="button"
         data-testid="datamart-video-item"

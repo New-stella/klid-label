@@ -3,20 +3,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
 import { Role } from '@/lib/api/types';
+import { ROLE_COLOR, ROLE_COLOR_FALLBACK, ROLE_LABEL } from '@/lib/roleDisplay';
 import { useAuthStore } from '@/stores/useAuthStore';
-
-const ROLE_LABEL: Record<string, string> = {
-  REVIEWER: '검수자',
-  WORKER: '작업자',
-  PORTAL_USER: '포털',
-};
-
-// KRDS 예외: 범주 구분색(역할 구분, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
-const ROLE_COLOR: Record<string, string> = {
-  REVIEWER: 'bg-cyan-100 text-cyan-700',
-  WORKER: 'bg-blue-100 text-blue-700',
-  PORTAL_USER: 'bg-emerald-100 text-emerald-700',
-};
 
 /**
  * 접근 거부 안내 화면 (`/forbidden`).
@@ -62,7 +50,7 @@ export function ForbiddenPage() {
             <span
               className={[
                 'text-label font-semibold px-2.5 py-1 rounded-full',
-                ROLE_COLOR[role] ?? 'bg-gray-100 text-gray-600',
+                ROLE_COLOR[role] ?? ROLE_COLOR_FALLBACK,
               ].join(' ')}
             >
               {ROLE_LABEL[role] ?? role}

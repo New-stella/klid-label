@@ -208,11 +208,11 @@ export function BatchConfigCard({ configs, configStrings = {} }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('BATCH_INTERVAL_SEC', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>10s</span>
             <span>300s</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             배치 파이프라인이 신규 영상을 픽업해 처리하는 주기입니다. 짧을수록 새 영상이 빨리
             처리되지만 서버·GPU 부하가 커집니다. (10~300초)
           </p>
@@ -233,11 +233,11 @@ export function BatchConfigCard({ configs, configStrings = {} }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('BATCH_CONCURRENCY', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>1</span>
             <span>8</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             동시에 병렬 처리할 영상 수입니다. 높일수록 처리량이 늘지만 GPU 메모리·자원 경합이
             커집니다. (1~8)
           </p>
@@ -290,7 +290,7 @@ export function BatchConfigCard({ configs, configStrings = {} }: Props) {
             aria-invalid={reasonBlocked || undefined}
             {...register('vlmSkipReason')}
           />
-          <p id={SKIP_REASON_HINT_ID} className="text-caption text-gray-400">
+          <p id={SKIP_REASON_HINT_ID} className="text-caption text-gray-600">
             {reasonBlocked
               ? '건너뛰기 사유를 입력해야 저장할 수 있습니다. 이 문구가 건너뜀 기록의 사유로 남습니다.'
               : `필수입니다. 이 문구가 건너뜀 기록의 사유로 그대로 남아, 나중에 그 영상의 시계열이 왜 비어 있는지 되짚는 근거가 됩니다. (최대 ${VLM_SKIP_REASON_MAX}자)`}

@@ -332,7 +332,7 @@ export function MarkingPage() {
           구 구현은 `localMarks.length > 0` 일 때만 렌더해 패널이 통째로 사라졌고, 그러면 사용자가
           <b>"이 화면엔 그런 기능이 없다"</b>와 <b>"아직 마킹을 안 했다"</b>를 구분할 수 없었다.
           확정 사양은 0건이면 빈 상태 안내를 노출하는 것이다. */}
-      <div className="rounded border p-3 text-body-md">
+      <div className="rounded border border-gray-200 p-3 text-body-md">
         <h3 className="mb-2 font-medium text-gray-700">현재 마킹 ({localMarks.length}건)</h3>
         {localMarks.length === 0 ? (
           // 안내 문구는 모드별로 다르다 — 자동 모드에서는 Space 단축키가 아예 발화하지 않으므로

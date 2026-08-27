@@ -74,7 +74,7 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(function
         aria-describedby={describedBy}
         title={localizedDisplay}
         className={cn(
-          'h-11 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-none disabled:bg-gray-50 disabled:opacity-60',
+          'h-11 w-full rounded-md border bg-white px-3 text-body text-gray-900 outline-hidden disabled:bg-gray-50 disabled:opacity-60',
           KRDS_FOCUS,
           hasError
             ? 'border-danger focus-visible:border-danger'

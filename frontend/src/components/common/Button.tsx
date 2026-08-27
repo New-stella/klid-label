@@ -59,8 +59,11 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 const variantClass: Record<ButtonVariant, string> = {
   primary:
     'bg-primary-600 !text-white hover:bg-primary-700 active:bg-primary-800 disabled:bg-primary-300',
+  // 테두리는 시안 `.btn-secondary` 의 `--border-strong`(= 중립 400단, #8A949E).
+  // 한 단 옅은 300 은 흰 배경 위 2.01:1 이라 WCAG 1.4.11(비텍스트 3:1) 미달이었고
+  // 400 은 3.08:1 로 통과한다 — 시안 정합과 접근성이 같은 방향이다.
   secondary:
-    'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200',
+    'bg-white text-gray-700 border border-gray-400 hover:bg-gray-50 active:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200',
   outline:
     'bg-white text-primary-600 border border-primary-600 hover:bg-primary-50 active:bg-primary-100 disabled:text-primary-300 disabled:border-primary-200',
   danger:
@@ -87,13 +90,15 @@ const sizeClass: Record<ButtonSize, string> = {
   //
   // 글자 크기는 DS-001 ladder step 으로 배정한다(원시 스케일 금지).
   //  · md/lg = `btn-label`(= ladder `button` 17px/w500) — 표준 버튼.
-  //  · sm    = `label`(14px) — 밀집 UI 전용. `button`(17px)까지 올리면 테이블 액션·툴바가 무너진다.
+  //  · sm    = `body-sm`(15px) — 시안 `.btn-sm { min-height: 36px; font-size: 15px }` 정합.
+  //            `button`(17px)까지 올리면 테이블 액션·툴바가 무너지므로 md/lg 와는 다른 step 이다.
   // ⚠ 실제 weight 는 베이스의 `font-medium`(500)이 이긴다(Tailwind 는 font-weight 를
-  //   font-size 뒤에 출력한다). 즉 sm 은 14px/500 이며, ladder `label` 의 600 이 아니다.
+  //   font-size 뒤에 출력한다). 즉 sm 은 15px/500 이며, ladder step 자신의 400 이 아니다.
   //  · xs    = `caption`(14px/400) — 밀집 패널 전용. ladder 최소 단이라 sm 보다 더 줄이는 것은
   //            글자 크기가 아니라 여백으로 한다(ladder 밖 px 금지).
   xs: 'text-caption px-2 py-1 gap-1',
-  sm: 'text-label px-3 py-1.5 gap-1.5',
+  // sm 의 `min-h-9`(36px)은 시안이 정한 하한이다 — 없으면 높이가 내용에 따라 흔들린다.
+  sm: 'min-h-9 text-body-sm px-3 py-1.5 gap-1.5',
   md: 'min-h-11 px-4 text-btn-label gap-2',
   lg: 'min-h-11 px-5 py-2.5 text-btn-label gap-2',
   // 아이콘 전용 정사각형. `icon` 이 KRDS 터치 타깃 44px 기준이며, 그보다 작은 단은
@@ -134,7 +139,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   const isDisabled = disabled || loading;
   const rootClass = cn(
-    'inline-flex items-center justify-center rounded-lg font-medium transition-colors duration-100 disabled:cursor-not-allowed',
+    // 모서리는 시안 `.btn` 의 `--radius-md`(6px) = borderRadius 토큰 `md`.
+    'inline-flex items-center justify-center rounded-md font-medium transition-colors duration-100 disabled:cursor-not-allowed',
     KRDS_FOCUS,
     variantClass[variant],
     sizeClass[size],
