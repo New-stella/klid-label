@@ -467,6 +467,8 @@ POST https://<host>/api/mcp
 ⚠ **`generated_at` 시각 비교로 대체하지 마라** — 같은 리비전 안에서 렌더만 낡은 경우를 못 잡고, 렌더 업로드
 자신이 마지막 리비전이면 ms 차이로 오탐이 난다.
 
+⚠ **경로가 두 갈래다 (2026-08-27 실측)** — 화면 와이어프레임은 `/api/uploads/screens/{pid}/{SCREEN-ID}/{render}.html`, **고충실 시안(`screen_design`)은 `/api/uploads/designs/{pid}/{SD-ID}/{render}.html`** 이다. 시안을 `screens` 경로로 찾으면 404 다. 또 업로드 응답이 돌려주는 상대 경로(`/uploads/...`)를 그대로 GET 해도 **404** — **`/api` 접두가 필요**하다. 무인증 GET 200 은 두 경로 모두 성립하므로 바이트 대조 오라클은 그대로 쓸 수 있다.
+
 **★★렌더 HTML 은 무인증으로 내려받힌다 — 미러 층에는 진짜 바이트 오라클이 있다 (2026-08-08 실측)**
 
 `/api/uploads/screens/{project_id}/{SCREEN-ID}/{render}.html` 가 **인증 없이 GET 200** 이다(읽기 전용).
@@ -611,6 +613,7 @@ kit-export?include_retired=true  → 951  (draft 664 · approved 209 · deprecat
 |---|---|
 | `patch` selector | 이름에 대괄호(`[폐기]`)가 있으면 **깨진다** → **인덱스 selector**(`sections[4].description`) 사용 |
 | `patch` 숫자 키 | **숫자로 시작하는 object 키는 세그먼트로 거부**된다(`responses.200` → `invalid segment '200'`). 그런 키의 **값 수정은 `merge`로 가능**하지만 **키 삭제는 불가능** — 남은 수단이 전체 `replace`뿐인데 그건 절단 위험(→ §2-C)이 큰 조작이다. 지우는 대신 `[폐기]` 표기(→ §2-A)로 남기는 쪽이 대개 맞다 |
+| ★**`add` 는 배열이 이미 있을 때만 된다** | 필드 자체가 없으면(`undefined`) `add` 가 `E_PATCH_OP: 'add' target '…' is not an array (got undefined). Use 'set' for non-array fields` 로 거부된다 — **배열을 새로 만들 때는 `set` 으로 전체 배열을 준다.** ⚠ 더 중요한 것은 **거부가 원자적**이라는 점이다: 같은 호출에 실린 **다른 정상 op(본문 수정 등)까지 함께 롤백**된다. 실측(2026-08-27)에서 본문 삽입 + 배열 추가를 한 번에 보냈다가 **아무것도 반영되지 않았고**, 버전이 그대로라 성공으로 오해할 뻔했다. ⇒ 쓰기 후 **버전이 올랐는지**를 반드시 확인하라(응답 문자열을 안 보고 재조회만 하면 「변경 없음」이 조용히 지나간다) |
 | `patch` 배열 **추가** | `op: add` 의 path 는 **배열 자체**로 끝나야 한다 — `sections[1].components` 또는 별칭 `sections[1].components[-]`. **인덱스를 붙이면 거부**된다(`components[11]` → `E_PATCH_OP`). 기존 원소 **교체**는 `set` + 인덱스(`components[4].note`). 즉 **추가는 인덱스 없이, 교체는 인덱스로** 라는 비대칭이다. 이 덕분에 §2-C 가 경고한 "배열 전체 `replace`"를 피할 수 있으니 원소 추가에 전체 교체를 쓰지 말 것 (2026-08-10 실측) |
 | 정적 렌더 업로드 | REST 엔드포인트는 **세션 인증만** 받아 API 키로는 401. **MCP 도구로만** 업로드 가능 |
 | ⚠ **`references[].item_id` 는 타입에 따라 링크를 만든다 — 2026-08-25 실측으로 뒤집혔다** | 구 기재(2026-08-16): *"값은 저장되는데 `get_neighbors` 에 뜨지 않는다. 20건 전부 forward 가 `belongs_to_domain` 하나뿐"*. **`adr` 타입에서는 반대다** — `references` 에 넣은 ID 마다 링크가 생겼고(`links.created` 가 넣은 수만큼 증가, `unresolved: 0`) `get_neighbors` forward 에 전부 떴다(19건 실측). ⇒ **"references 로는 못 잇는다"고 단정하지 말 것.** 이 차이가 중요한 이유: `api_endpoint`·`use_case`·`diagram_sequence` 에는 `references` 필드가 아예 없어 그 타입에서 ADR 로 잇는 수단이 `brownfield.decided_by`(**단일 값**) 뿐인데, 그걸 쓰면 기존 귀속을 덮어써야 한다. **ADR 쪽 `references` 에 대상들을 거는 것이 아무것도 덮어쓰지 않는 유일한 경로**다. ⚠ 단 그렇게 만든 것은 `forward_references` 이지 `direct_dependents` 가 아니다 — 그 대상들을 고칠 때 ADR 이 stale 로 서지는 않는다(반대 방향은 필드가 없어 성립 불가). **타입마다 확인하라** — 구 기재가 어느 타입을 본 것인지는 기록에 없다 |
