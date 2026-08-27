@@ -84,7 +84,10 @@ class VideoQueryServiceAutoLabelTest {
         service = new VideoQueryService(videoRepository, ingestSourceRepository, srcRepository, lblRepository,
                 rawDataStatusRepository, taskAssignmentRepository,
                 new kr.co.cudo.authoring.user.service.UserNameResolver(userRepository), deidentProcLogRepository,
-                batchStatusService, fpsResolver,
+                batchStatusService,
+                // 프레임 이슈 점 조달(미해소 문의 프레임 집합) — 본 테스트는 오토라벨 축만 다뤄 미사용.
+                mock(kr.co.cudo.authoring.review.repository.IssueRepository.class),
+                fpsResolver,
                 // 해상도 표시값 조달(video.resolution) — 본 테스트는 오토라벨 축만 다뤄 미사용(기본 null).
                 mock(VideoResolutionResolver.class), eventTypeService,
                 mock(kr.co.cudo.authoring.assignment.service.ReviewApprovalGate.class),

@@ -39,7 +39,7 @@ public record VideoDetailResponse(
         String dataSttsCd,
         LocalDateTime regDt,
         LocalDateTime updDt,
-        // 프레임 미리보기 (최대 6개)
+        // 프레임 미리보기 — 그 영상의 <b>전 프레임</b>이다(개수 상한 없음).
         List<FramePreviewDto> framePreviews,
         // 배치 파이프라인 단계별 진행 상태 (이슈1). canonical 순서(비식별~보간).
         // 배치 미진행/기존 영상이면 빈 배열 → FE 가 기존 배지로 폴백(하위호환). PII/경로/스택 미포함.
@@ -224,8 +224,32 @@ public record VideoDetailResponse(
      */
     public record VrfcEvntQuestionDto(Long vrfcEvntQstnSn, String qstnCn) {}
 
-    /** 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. */
-    public record FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl) {}
+    /**
+     * 프레임 미리보기 항목 — srcSn으로 라벨링 도구 진입, thumbnailUrl로 이미지 표시. [@design API-043]
+     *
+     * <p>기존 세 필드({@code srcSn}·{@code frameNo}·{@code thumbnailUrl})의 이름·타입·의미는
+     * <b>불변</b>이고, 화면이 이슈 점과 확대 보기 정보를 그리는 데 필요한 두 값만 뒤에 덧붙였다.
+     *
+     * @param srcSn        프레임 PK
+     * @param frameNo      프레임 번호(= {@code LS_DATA_SRC.FRM_NO} 추출 순번)
+     * @param thumbnailUrl 썸네일 이미지 URL
+     * @param hasIssue     그 프레임에 <b>아직 해소되지 않은 문의</b>가 있는가.
+     *                     판정 축은 <b>해소 여부</b>이지 문의의 종류가 아니다 — 반려 사유 성격의 항목은
+     *                     등록 시점부터 해소 상태라 자연히 빠진다. 프레임을 가리키지 않는
+     *                     <b>영상 단위 문의는 어느 프레임도 true 로 만들지 않는다</b>.
+     * @param timestampMs  영상 내 시각(밀리초). <b>추출 순번({@code frameNo})이 아니라 실제 영상 내
+     *                     위치({@code VDO_FRM_NO})</b>와 초당 프레임 수로 정한다 — 둘은 다른 값이라
+     *                     순번으로 계산하면 엉뚱한 시각이 나온다. 위치나 초당 프레임 수를 알 수 없는
+     *                     프레임은 값을 <b>지어내지 않고 비운다</b>({@code null}) — {@code 0} 은
+     *                     "영상 맨 앞"이라는 <i>사실</i>이라 "모른다"와 구분돼야 한다.
+     */
+    public record FramePreviewDto(
+            Long srcSn,
+            Integer frameNo,
+            String thumbnailUrl,
+            boolean hasIssue,
+            Long timestampMs
+    ) {}
 
     /** 배치 단계 상태 — name=단계코드(DEIDENTIFY 등), status=DONE/PROGRESS/PENDING/FAIL, progress=nullable. */
     public record StageStatusDto(String name, String status, Integer progress) {}

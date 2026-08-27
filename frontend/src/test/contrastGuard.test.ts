@@ -192,6 +192,14 @@ const CASES: Case[] = [
     file: 'src/pages/TaskListPage.tsx',
     anchor: '개 선택됨',
   },
+  {
+    // [@design SD-004] 비식별 이력의 '진행 중' 배지 — warning(주황)에서 info 로 옮긴 지점.
+    // 계열을 옮기면서 DEFAULT(`text-info`)를 그대로 쓰면 bg-info/10 위에서 4.05:1 로 AA 미달이라
+    // 700 단으로 잡았다(6.72:1). 이 케이스가 그 단계를 되돌리지 못하게 값으로 고정한다.
+    label: 'DeidentHistoryPanel 진행 중 배지',
+    file: 'src/features/video/components/DeidentHistoryPanel.tsx',
+    anchor: "REQUESTED: 'bg-info",
+  },
 ];
 
 describe('대비 회귀 가드 — bg-info/10 위 텍스트는 AA(4.5:1) 이상', () => {
@@ -429,6 +437,12 @@ const DANGER_CASES: Case[] = [
     file: 'src/components/common/DateRangePicker.tsx',
     anchor: 'id={errorId} role="alert"',
   },
+  {
+    // 비식별 이력의 '실패' 배지 — 위 완료 배지와 같은 이유로 함께 올렸다(DEFAULT 3.95 → 700 단 7.77).
+    label: 'DeidentHistoryPanel 실패 배지',
+    file: 'src/features/video/components/DeidentHistoryPanel.tsx',
+    anchor: "FAILED: 'bg-danger",
+  },
 ];
 
 const SUCCESS_CASES: Case[] = [
@@ -515,6 +529,13 @@ const SUCCESS_CASES: Case[] = [
     label: 'HealthStatusList 정상 상태 배지',
     file: 'src/features/sysconfig/components/HealthStatusList.tsx',
     anchor: "status === 'UP') return 'bg-success",
+  },
+  {
+    // 비식별 이력의 '완료' 배지 — 같은 파일의 '진행 중'을 info-700 으로 올리면서, 한 파일 안에
+    // 700단과 DEFAULT 가 섞이지 않도록 함께 올린 지점(DEFAULT 는 4.03 → 700 단은 6.84).
+    label: 'DeidentHistoryPanel 완료 배지',
+    file: 'src/features/video/components/DeidentHistoryPanel.tsx',
+    anchor: "SUCCEEDED: 'bg-success",
   },
 ];
 

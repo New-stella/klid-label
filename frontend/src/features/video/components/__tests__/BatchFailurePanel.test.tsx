@@ -5,9 +5,10 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { Button } from '@/components/common/Button';
 import { apiClient } from '@/lib/api/client';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useUiStore } from '@/stores/useUiStore';
@@ -30,6 +31,24 @@ import type { BatchStageItem, StageBundle, VideoDetail } from '../../types';
  * 이름이 짧아지며 사라진 「보간 포함」 고지는 아래 재수행 경고·확인 창 가드가 진다.
  */
 const AUTOLABEL_LABEL = '오토라벨링';
+
+/**
+ * `Button variant='primary'` 가 실제로 내는 배경 클래스를 기준 렌더에서 뽑는다.
+ *
+ * 화면 테스트가 팔레트 단수(`bg-primary-600` 등)를 직접 적으면, 단수가 한 단 움직이는 순간
+ * 색과 무관한 기능 가드까지 줄줄이 깨진다. 「primary 변이인가」는 여기서 보고, 「그 변이가
+ * 어느 단수인가」는 Button 자신의 테스트에서 본다 — 층을 나눈 것이지 무르게 만든 것이 아니다.
+ * (되돌림 실증: 재수행 버튼을 secondary 로 바꾸면 이 단언이 그대로 깨진다.)
+ */
+function primaryButtonBgClass(): string {
+  const { container, unmount } = render(<Button variant="primary">기준</Button>);
+  const cls = [...container.querySelector('button')!.classList].find((c) =>
+    c.startsWith('bg-primary-'),
+  );
+  unmount();
+  if (!cls) throw new Error('Button variant=primary 가 bg-primary-* 를 내지 않는다');
+  return cls;
+}
 
 /**
  * 시계열 묶음의 화면 노출명 — 위와 **같은 취지로** 문자열을 직접 적는다(`bundleLabel` 을 부르면
@@ -168,6 +187,8 @@ describe('BatchFailurePanel', () => {
 
       expect(screen.queryByRole('button', { name: /건너뛰기 해제/ })).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+      // 두 묶음 모두 확인 창을 거친다 — 여기서 확인해야 요청이 나간다.
+      await user.click(await screen.findByRole('button', { name: '재수행' }));
 
       await waitFor(() => {
         expect(mock.history.post.map((h) => h.url)).toContain('/videos/7/batch/stages/VLM/rerun');
@@ -292,11 +313,18 @@ describe('BatchFailurePanel', () => {
     it('직전_실패_기록은_지우지_않고_직전임을_밝혀_보여준다', () => {
       renderWithProviders(<BatchFailurePanel video={processing()} />);
 
+      // ⚠ 구 단언 `getByText('직전 실패 사유')` → **폐기**. 확정 시안(`.fp-reason`)에는 사유
+      //   이름표가 없고 사유 문단만 있다. 「직전」임은 ①패널 제목 ②단계 이름표 **둘**이 말하며,
+      //   아래 단언이 그 둘을 모두 고정하므로 가드가 약해지지 않는다.
+      const alertBox = screen.getByTestId('batch-failure-alert');
+      expect(alertBox).toHaveTextContent('직전 실패 단계');
+      expect(alertBox).toHaveTextContent('외부 시계열 분석 서버가 응답하지 않았습니다.');
       expect(screen.getByTestId('batch-failure-reason')).toHaveTextContent(
         '외부 시계열 분석 서버가 응답하지 않았습니다.',
       );
-      expect(screen.getByText('직전 실패 사유')).toBeInTheDocument();
       expect(screen.getByText('직전 실패 단계')).toBeInTheDocument();
+      // 현재 실패를 뜻하는 이름표는 쓰지 않는다(문자열 매칭은 완전일치라 「직전 …」과 구분된다).
+      expect(screen.queryByText('실패 단계')).not.toBeInTheDocument();
     });
 
     it('건너뛴_단계와_되살릴_창구는_처리_중에도_사라지지_않는다', () => {
@@ -357,13 +385,18 @@ describe('BatchFailurePanel', () => {
       // 무엇이 실패했는지가 사라지면 운영자가 알 길이 없다 — 지우는 것이 아니라 이름을 바꾼다.
       renderWithProviders(<BatchFailurePanel video={restoredAfterFailedRerun()} />);
 
+      // ⚠ 구 단언 `getByText('직전 실패 사유')`·`queryByText('실패 사유')` → **폐기**. 확정
+      //   시안에는 사유 이름표 자체가 없어 뒤엣것은 무엇을 렌더하든 통과하는 빈 단언이 된다.
+      //   사유가 「직전」의 것임은 제목·단계 이름표가 말하고, 사유 본문이 그 경고 박스 안에
+      //   있다는 사실을 아래에서 함께 고정한다.
+      const alertBox = screen.getByTestId('batch-failure-alert');
+      expect(alertBox).toHaveTextContent('직전 실패 단계');
+      expect(alertBox).toContainElement(screen.getByTestId('batch-failure-reason'));
       expect(screen.getByTestId('batch-failure-reason')).toHaveTextContent(
         '오토라벨 재수행이 실패했습니다.',
       );
-      expect(screen.getByText('직전 실패 사유')).toBeInTheDocument();
       expect(screen.getByText('직전 실패 단계')).toBeInTheDocument();
       // 현재 실패를 뜻하는 이름표는 쓰지 않는다(문자열 매칭은 완전일치라 「직전 …」과 구분된다).
-      expect(screen.queryByText('실패 사유')).not.toBeInTheDocument();
       expect(screen.queryByText('실패 단계')).not.toBeInTheDocument();
     });
 
@@ -606,7 +639,7 @@ describe('BatchFailurePanel', () => {
     // 사유가 비어 있으면 제출할 수 없다(서버 @NotBlank 와 같은 제약).
     expect(submit).toBeDisabled();
 
-    await user.type(screen.getByLabelText('건너뛰기 사유'), '벤더 장애 지속');
+    await user.type(screen.getByLabelText(/건너뛰기 사유/), '벤더 장애 지속');
     await waitFor(() => expect(submit).toBeEnabled());
     await user.click(submit);
 
@@ -714,7 +747,7 @@ describe('BatchFailurePanel', () => {
       renderWithProviders(<BatchFailurePanel video={vlmSubmitFailed()} />);
 
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기` }));
-      await user.type(screen.getByLabelText('건너뛰기 사유'), '벤더 미연동');
+      await user.type(screen.getByLabelText(/건너뛰기 사유/), '벤더 미연동');
       await user.click(await screen.findByRole('button', { name: '건너뛰기' }));
 
       await waitFor(() => {
@@ -912,16 +945,107 @@ describe('BatchFailurePanel', () => {
       expect(dialog).toHaveTextContent(`${AUTOLABEL_LABEL} 작업 재수행`);
     });
 
-    // ★ 시계열 묶음은 보간을 품지 않아 파괴적이지 않다 — 없는 위험에 확인을 받으면 확인이
-    //   형식이 되어 무시되고, 정작 파괴적인 쪽의 확인도 함께 가벼워진다.
-    it('★시계열_재수행은_확인_없이_곧바로_접수된다', async () => {
+    // ★ [폐기] '★시계열_재수행은_확인_없이_곧바로_접수된다' — 구 정책이었다(「시계열은 보간을 품지
+    //   않아 파괴적이지 않으므로 클릭이 곧 요청」). 시안대로 **두 묶음 모두 확인 창을 거치는** 쪽으로
+    //   확정됐다: 시계열 재수행은 라벨을 지우지는 않지만 **외부 벤더로 재위탁을 보내는 행위**라
+    //   비용·시간이 들고 동시 처리 한도(32건)를 먹는다. 확인의 근거가 「되돌릴 수 없다」에서
+    //   **「공짜가 아니다」**로 바뀐 것이다. 아래 두 가드가 그 자리를 잇는다.
+    it('★시계열_재수행도_확인_없이_실행되지_않는다', async () => {
       const user = userEvent.setup();
       renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
 
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
 
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+      expect(rerunCalls('VLM')).toHaveLength(0);
+
+      await user.click(screen.getByRole('button', { name: '취소' }));
+      expect(rerunCalls('VLM')).toHaveLength(0);
+    });
+
+    it('확인해야_시계열_재수행을_요청한다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+      await user.click(await screen.findByRole('button', { name: '재수행' }));
+
       await waitFor(() => expect(rerunCalls('VLM')).toHaveLength(1));
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(rerunCalls('VLM')[0]!.data).toBeUndefined();
+    });
+
+    // ★ 확인 창이 생겼다고 **경고 상자까지** 따라오면 안 된다 — 시안의 시계열 확인 창에는
+    //   `.dlg-warn` 상자가 없고 확정 버튼도 `btn-primary` 다. 없는 위험을 상자로 알리면 그 상자가
+    //   형태로만 남아 정작 파괴적인 오토라벨 쪽의 경고까지 가벼워진다(확인 창 자체와는 다른 축이다).
+    it('★시계열_확인창에는_경고_상자를_두지_않는다_문구는_시안_그대로다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(screen.queryByTestId('confirm-dialog-warning')).not.toBeInTheDocument();
+      // 보간 경고 문구가 시계열 확인 창으로 새어 들어오면 없는 위험을 알리는 오정보가 된다.
+      expect(dialog).not.toHaveTextContent('보간');
+      expect(dialog).toHaveTextContent('시계열 묶음을 다시 수행할까요?');
+      expect(dialog).toHaveTextContent('이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 시계열은 확정된 라벨을 건드리지 않고 영상 서술만 새로 받아 옵니다.');
+      expect(dialog).toHaveTextContent('건너뛴 상태였다면 이 조작이 함께 해제합니다 — 따로 해제할 필요가 없습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.');
+    });
+
+    // ── 대상 칩 행(시안 `.dlg-target`) — 확인 창 **첫 줄** ────────────────────────
+    //
+    // ★ 시안은 네 확인 창(`#dialog-skip-*` · `#dialog-rerun-*`) 모두 첫 줄에 «대상 묶음» 칩을 둔다.
+    //   건너뛰기 모달에만 있고 재수행 확인 창에는 없어, 같은 결정을 묻는 두 창이 갈려 있었다.
+    // ⚠ 문자열을 새로 적지 않는다 — 표시명은 `bundleLabel`, 부제는 목록 행이 쓰는 것과 **같은
+    //   원천**이다. 아래 가드는 그 사실을 «행의 부제와 글자가 같다»로 확인한다(둘이 갈리면 깨진다).
+    it('★재수행_확인창_첫_줄이_대상_묶음_칩이다_시계열', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      const rowSubtitle = screen.getByTestId('batch-stage-subtitle-VLM').textContent;
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      const row = within(dialog).getByTestId('bundle-target-row');
+      expect(within(row).getByText('대상 묶음')).toBeInTheDocument();
+      expect(within(dialog).getByTestId('bundle-target-chip')).toHaveTextContent(VLM_LABEL);
+      // 부제는 목록 행과 **같은 원천**이라 글자가 같다(「영상 서술 생성」).
+      expect(within(dialog).getByTestId('bundle-target-subtitle').textContent).toBe(rowSubtitle);
+
+      // 시안 순서: 칩 행 → 설명. 설명이 위로 올라오면 «무엇에 대한 확인인가»를 나중에 알게 된다.
+      const desc = within(dialog).getByText(
+        '이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 시계열은 확정된 라벨을 건드리지 않고 영상 서술만 새로 받아 옵니다.',
+      );
+      expect(row.compareDocumentPosition(desc) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('★재수행_확인창_첫_줄이_대상_묶음_칩이다_오토라벨', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('AUTOLABEL')} />);
+
+      const rowSubtitle = screen.getByTestId('batch-stage-subtitle-AUTOLABEL').textContent;
+      await user.click(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByTestId('bundle-target-chip')).toHaveTextContent(AUTOLABEL_LABEL);
+      // 멤버 나열은 단계 표에서 파생된다 — 손으로 적으면 묶음 구성이 바뀔 때 한쪽만 낡는다.
+      expect(within(dialog).getByTestId('bundle-target-subtitle').textContent).toBe(rowSubtitle);
+
+      // 칩 행은 경고 상자보다도 위다(대상 → 경고 → 설명 순서를 시안이 그렇게 둔다).
+      const row = within(dialog).getByTestId('bundle-target-row');
+      const warn = screen.getByTestId('confirm-dialog-warning');
+      expect(row.compareDocumentPosition(warn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // ★ 오토라벨 확인 창은 **그대로**다 — 시계열에 확인 창을 더한 것이지 경고 상자를 걷어낸 것이 아니다.
+    it('★오토라벨_확인창의_경고_상자는_그대로_남는다', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('AUTOLABEL')} />);
+
+      await user.click(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` }));
+
+      await screen.findByRole('dialog');
+      expect(screen.getByTestId('confirm-dialog-warning')).toHaveTextContent('되돌릴 수 없습니다');
     });
 
     // ★ 사양: "고르는 시점에 알린다" — 누른 뒤에 뜨는 확인 창은 취소 수단이지 고지 수단이 아니다.
@@ -960,6 +1084,7 @@ describe('BatchFailurePanel', () => {
       renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
 
       await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+      await user.click(await screen.findByRole('button', { name: '재수행' }));
 
       await waitFor(() => expect(useUiStore.getState().toasts).toHaveLength(1));
       const message = useUiStore.getState().toasts[0]!.message;
@@ -1165,14 +1290,315 @@ describe('BatchFailurePanel', () => {
       expect(failed.className).toContain('bg-danger-50');
       expect(failed.className).toContain('text-danger-700');
 
-      // 나머지 둘은 중립 톤이며 각자의 문구를 항상 함께 둔다.
+      // 나머지 둘은 시안 색(건너뜀=warn · 해제됨=info)이며 각자의 문구를 항상 함께 둔다.
+      // ⚠ **[폐기]** 구 단언 「나머지 둘은 중립 톤」 — 공용 배지에 warn·info variant 가 없던
+      //   시절의 것이라 낡았다. 회색으로 되돌리면 아래가 먼저 깨진다.
       const skipped = screen.getByTestId('batch-stage-skipped-AUTOLABEL');
       expect(skipped).toHaveTextContent('건너뜀');
       expect(skipped.className).not.toContain('bg-danger-50');
+      expect(skipped.className, '시안 `.badge-warn` = --w-0 / --w-7').toContain('bg-warning-50');
+      expect(skipped.className).toContain('text-warning-700');
+      expect(skipped.className, '중립으로 되돌리지 말 것').not.toContain('bg-gray-100');
 
       const reverted = screen.getByTestId('batch-stage-reverted-VLM');
       expect(reverted).toHaveTextContent('해제됨');
       expect(reverted.className).not.toContain('bg-danger-50');
+      expect(reverted.className, '시안 `.badge-info` = --i-0 / --i-7').toContain('bg-info-50');
+      expect(reverted.className).toContain('text-info-700');
+      expect(reverted.className, '중립으로 되돌리지 말 것').not.toContain('bg-gray-100');
+    });
+  });
+
+  /**
+   * 확정 시안(SD-004 `design-main.{html,css}` 의 `.failure-panel`·`.group-row`·`.fp-*`) 정합.
+   *
+   * ★ 여기 단언은 **표면 규칙**을 고정한다 — 이 패널의 격차 대조에서 가장 자주 되돌아간 축이
+   *   「틴트 배경 + 마진으로 쌓은 자식」이었고, 그 형태로 되돌리면 아래가 먼저 깨진다.
+   * ⚠ 값이 아니라 **토큰 클래스**를 본다(hex 를 적으면 팔레트가 바뀔 때 여기만 낡는다).
+   */
+  describe('확정 시안 표면 정합', () => {
+    /** 실패 상태 + 조작 묶음 + 전체 재기동이 한 화면에 모두 서는 기본 픽스처. */
+    const failedVideo = () => videoOf();
+
+    /** 건너뜀만 남은 완주 영상 — 행 상태 `skipped`. */
+    const skippedOnly = () =>
+      videoOf({
+        status: 'COMPLETED',
+        stages: stages({}),
+        batchFailureReason: null,
+        failedStages: [],
+        skippedStages: ['AUTOLABEL'],
+      });
+
+    /** 해제만 남은 완주 영상 — 행 상태 `released`. */
+    const clearedOnly = () =>
+      videoOf({
+        status: 'COMPLETED',
+        stages: stages({}),
+        batchFailureReason: null,
+        failedStages: [],
+        skippedStages: [],
+        clearedStages: ['VLM'],
+      });
+
+    it('★패널은_흰_배경_카드다_틴트_배경으로_되돌리지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const cls = screen.getByTestId('batch-failure-panel').className;
+      // 시안 `.failure-panel { background: var(--bg-page) }` — 흰 배경이라야 그 안의 흰 카드(행)가
+      // 뜬 것처럼 보이지 않는다(패널 배경·행 표면은 한 묶음이다).
+      expect(cls, '패널은 흰 배경이어야 한다').toContain('bg-white');
+      expect(cls, '구 위험 틴트 배경을 되살리지 말 것').not.toContain('bg-danger/5');
+      expect(cls, '구 회색 타일 배경을 되살리지 말 것').not.toContain('bg-gray-50');
+      // 시안 `padding: var(--sp-md)`(16 전방향) + `gap: var(--sp-md)`.
+      expect(cls, '패딩은 전방향 16이다').toContain('p-4');
+      expect(cls, '자식 간격은 컨테이너 gap 이 정한다').toContain('gap-4');
+      expect(cls, '구 px-4 py-3 비대칭 패딩으로 되돌리지 말 것').not.toContain('py-3');
+    });
+
+    it('★패널에_좌측_4px_강조바가_있고_톤이_상태를_따른다', () => {
+      const { unmount } = renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const panel = screen.getByTestId('batch-failure-panel');
+      expect(panel.className, '시안 `border-left: 4px`').toContain('border-l-4');
+      expect(panel).toHaveAttribute('data-tone', 'error');
+      expect(panel.className).toContain('border-l-danger-500');
+      expect(panel.className).toContain('border-danger-200');
+      unmount();
+
+      // 조작이 노출되지 않는 알림 전용(파생영상)은 중립 톤이다 — 시안 `data-tone="neutral"`.
+      renderWithProviders(<BatchFailurePanel video={videoOf({ derivative: true })} />);
+      const neutral = screen.getByTestId('batch-failure-panel');
+      expect(neutral).toHaveAttribute('data-tone', 'neutral');
+      expect(neutral.className).toContain('border-l-gray-400');
+    });
+
+    // 시안 ② 「건너뛴 작업 있음」 · ③⑤ 「건너뛰기 해제됨」 = data-tone="warn".
+    // ⚠ 패널 warn 톤과 행 배지 warn/info 는 **한 묶음**이다 — 한쪽만 되돌리면 노란 패널에
+    //   회색 배지가 남아 지금보다 어긋난다(위 배지 단언과 짝이다).
+    it('★실패없이_건너뜀_해제만_있으면_패널이_경고_톤이다', () => {
+      const { unmount } = renderWithProviders(<BatchFailurePanel video={skippedOnly()} />);
+      const skipped = screen.getByTestId('batch-failure-panel');
+      expect(skipped).toHaveAttribute('data-tone', 'warn');
+      expect(skipped.className, '시안 테두리 --w-2').toContain('border-warning-200');
+      expect(skipped.className, '시안 좌측 강조바 --w-5').toContain('border-l-warning-500');
+      expect(skipped.className, '중립으로 되돌리지 말 것').not.toContain('border-l-gray-400');
+      unmount();
+
+      renderWithProviders(<BatchFailurePanel video={clearedOnly()} />);
+      const cleared = screen.getByTestId('batch-failure-panel');
+      expect(cleared).toHaveAttribute('data-tone', 'warn');
+      expect(cleared.className).toContain('border-l-warning-500');
+    });
+
+    it('★헤드_우측에_이_영역을_누가_보는지_배지가_있다', () => {
+      const { unmount } = renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+      expect(screen.getByTestId('batch-failure-audience')).toHaveTextContent('검수자 전용');
+      unmount();
+
+      const { unmount: u2 } = renderWithProviders(
+        <BatchFailurePanel video={videoOf({ derivative: true })} />,
+      );
+      expect(screen.getByTestId('batch-failure-audience')).toHaveTextContent('파생영상');
+      u2();
+
+      renderWithProviders(<BatchFailurePanel video={videoOf({ everApproved: true })} />);
+      const approved = screen.getByTestId('batch-failure-audience');
+      expect(approved).toHaveTextContent('검수 완료');
+      expect(approved.className, '검수 완료는 성공 계열이다').toContain('bg-success-50');
+    });
+
+    it('제목은_시안_색_단(n-10)이다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const heading = screen.getByRole('heading', { name: /배치 처리 실패/ });
+      expect(heading.className).toContain('text-gray-950');
+      expect(heading.className, '구 n-8 로 되돌리지 말 것').not.toContain('text-gray-800');
+    });
+
+    it('★실패_사유는_평문이_아니라_경고_박스_안에_있다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const box = screen.getByTestId('batch-failure-alert');
+      // 시안 `.alert.alert-error { background: e-0; border: 1px e-2; radius md; padding 16 }`
+      expect(box.className).toContain('bg-danger-50');
+      expect(box.className).toContain('border-danger-200');
+      expect(box.className).toContain('rounded-md');
+      expect(box.className).toContain('p-4');
+      // 사유·단계가 그 박스 **안**에 있어야 한다(박스만 만들고 밖에 두면 의미가 없다).
+      expect(box).toContainElement(screen.getByTestId('batch-failure-reason'));
+      expect(box).toContainElement(screen.getByTestId('batch-failure-stage'));
+      // 경고 아이콘 1개 — 박스 안에 svg 가 있어야 한다(시안 `.alert-icon`).
+      expect(box.querySelector('svg')).not.toBeNull();
+    });
+
+    it('★실패_단계는_평문이_아니라_점이_달린_칩이다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const chip = screen.getByTestId('batch-failure-stage');
+      // 시안 `.fp-stage-chip { background: e-1; radius sm; 14/600 }` + `.dot { background: e-5 }`
+      expect(chip.className).toContain('bg-danger-100');
+      expect(chip.className).toContain('rounded-sm');
+      expect(chip.className).toContain('text-label');
+      const dot = chip.querySelector('span');
+      expect(dot, '칩에는 상태 점이 있다').not.toBeNull();
+      expect(dot!.className).toContain('rounded-full');
+      expect(dot!.className).toContain('bg-danger-500');
+    });
+
+    it('★단계를_특정할_수_없을_때만_서버_문구_표식을_단다', () => {
+      const { unmount } = renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+      // 칩이 사유의 출처를 이미 붙들고 있으므로 표식을 겹쳐 달지 않는다.
+      expect(screen.queryByTestId('batch-failure-verbatim')).not.toBeInTheDocument();
+      unmount();
+
+      renderWithProviders(
+        <BatchFailurePanel video={videoOf({ stages: [], batchFailureReason: '알 수 없는 오류' })} />,
+      );
+      expect(screen.getByTestId('batch-failure-verbatim')).toHaveTextContent(
+        '문구는 서버가 보낸 그대로입니다',
+      );
+    });
+
+    it('★묶음_목록에_이름이_있다_사유와_푸터_사이가_익명이_아니다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      expect(screen.getByRole('heading', { name: '작업 묶음' })).toBeInTheDocument();
+    });
+
+    it('★묶음_행은_강조바를_두른_흰_카드이며_상태별로_색이_갈린다', () => {
+      const { unmount } = renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+      const failRow = screen.getByTestId('batch-stage-row-VLM');
+      expect(failRow).toHaveAttribute('data-state', 'fail');
+      // 시안 `.group-row { border 1px; border-left 4px; radius md; padding 8/16; 흰 배경 }`
+      for (const token of ['border-l-4', 'rounded-md', 'bg-white', 'px-4', 'py-2', 'grid']) {
+        expect(failRow.className, `행에 ${token} 이 있어야 한다`).toContain(token);
+      }
+      expect(failRow.className).toContain('border-l-danger-500');
+      unmount();
+
+      const { unmount: u2 } = renderWithProviders(<BatchFailurePanel video={skippedOnly()} />);
+      const skippedRow = screen.getByTestId('batch-stage-row-AUTOLABEL');
+      expect(skippedRow).toHaveAttribute('data-state', 'skipped');
+      expect(skippedRow.className).toContain('border-l-warning-500');
+      u2();
+
+      renderWithProviders(<BatchFailurePanel video={clearedOnly()} />);
+      const releasedRow = screen.getByTestId('batch-stage-row-VLM');
+      expect(releasedRow).toHaveAttribute('data-state', 'released');
+      expect(releasedRow.className).toContain('border-l-primary-500');
+    });
+
+    it('★조작은_행_우측으로_정렬된다_좌측_흐름으로_되돌리지_않는다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const actions = screen
+        .getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기` })
+        .closest('div')!;
+      // 시안 데스크톱 3열 그리드에서 조작 열은 `justify-content: flex-end` 다.
+      expect(actions.className).toContain('xl:justify-end');
+      // 좁은 폭에서는 다음 줄 좌측으로 내려간다(시안 `@media (max-width: 1279px)`).
+      expect(actions.className).toContain('col-span-full');
+    });
+
+    it('★묶음_이름_아래에_무엇을_묶은_것인지_부제가_붙는다', () => {
+      const { unmount } = renderWithProviders(<BatchFailurePanel video={skippedOnly()} />);
+      // 이름은 「오토라벨링」 그대로이고 부제가 멤버를 말한다 — 이름을 멤버 나열로 되돌리지 않는다.
+      expect(screen.getByText(AUTOLABEL_LABEL)).toBeInTheDocument();
+      // ★ 구 기대값 'AI 탐지 · AI 분할 · 보간' → 폐기. 부제는 단계 표(`stageLabel`)에서 파생되고
+      //   그 표의 `INTERPOLATE` 가 「트랙 보간」으로 정정됐다(정본 `UI-018` · 시안 `.group-sub`).
+      expect(screen.getByTestId('batch-stage-subtitle-AUTOLABEL')).toHaveTextContent(
+        'AI 탐지 · AI 분할 · 트랙 보간',
+      );
+      unmount();
+
+      renderWithProviders(<BatchFailurePanel video={clearedOnly()} />);
+      expect(screen.getByTestId('batch-stage-subtitle-VLM')).toHaveTextContent('영상 서술 생성');
+    });
+
+    it('★건너뛰기_모달의_대상_칩도_같은_멤버_부제를_쓴다', async () => {
+      // 목록 행과 모달이 **같은 문자열**이어야 한다 — 기대값을 손으로 적지 않고 행에서 읽어 비교해,
+      // 단계 표시명이나 묶음 구성이 바뀌면 두 곳이 함께 따라오는지를 그대로 확인한다.
+      const user = userEvent.setup();
+      renderWithProviders(
+        <BatchFailurePanel
+          video={videoOf({ stages: stages({ YOLO: 'FAIL' }), failedStages: ['AUTOLABEL'] })}
+        />,
+      );
+      const subtitle = screen.getByTestId('batch-stage-subtitle-AUTOLABEL').textContent!;
+      expect(subtitle).toContain('·');
+
+      await user.click(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 건너뛰기` }));
+      expect(await screen.findByTestId('batch-stage-skip-modal')).toHaveTextContent(subtitle);
+    });
+
+    it('멤버가_하나뿐인_묶음은_모달_대상_칩에_부제를_두지_않는다', async () => {
+      // 시계열은 멤버가 자기 자신뿐이라 나열이 이름과 같아진다. 행의 부제('영상 서술 생성')는
+      // 멤버 나열이 아니므로 모달로 흘러가면 안 된다 — 흘러가면 이 케이스가 잡는다.
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={videoOf()} />);
+
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 건너뛰기` }));
+      const modal = await screen.findByTestId('batch-stage-skip-modal');
+      expect(modal).not.toHaveTextContent('영상 서술 생성');
+    });
+
+    it('묶음_이름은_제목_계열_타이포다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      // ⚠ 문서 전역에서 이름으로 찾지 않는다 — 같은 문자열이 실패 단계 칩에도 있어 둘이 잡힌다.
+      const row = screen.getByTestId('batch-stage-row-VLM');
+      const name = row.querySelector('.text-title-sm');
+      expect(name, '묶음 이름이 제목 계열 토큰으로 렌더돼야 한다').not.toBeNull();
+      expect(name).toHaveTextContent(VLM_LABEL);
+      expect(name!.className).toContain('text-gray-950');
+      expect(name!.className, '구 본문 계열(text-body-md)로 되돌리지 말 것').not.toContain(
+        'text-body-md',
+      );
+    });
+
+    it('★전체_재기동은_묶음_목록_위가_아니라_패널_맨_아래_푸터에_있다', () => {
+      renderWithProviders(<BatchFailurePanel video={failedVideo()} />);
+
+      const panel = screen.getByTestId('batch-failure-panel');
+      const list = panel.querySelector('ul');
+      const foot = screen.getByTestId('batch-failure-foot');
+      expect(list, '조작 묶음 목록이 있어야 비교가 성립한다').not.toBeNull();
+      // 시안 `.fp-foot` — 구분선 위, 목록 **다음**.
+      expect(foot.className).toContain('border-t');
+      expect(
+        list!.compareDocumentPosition(foot) & Node.DOCUMENT_POSITION_FOLLOWING,
+        '푸터는 묶음 목록보다 뒤에 온다',
+      ).toBeTruthy();
+      // 버튼은 푸터 안, 안내 문구는 그 왼쪽에 함께 있다.
+      expect(foot).toContainElement(screen.getByRole('button', { name: /배치 재실행/ }));
+      expect(foot).toContainElement(screen.getByTestId('batch-retry-hint'));
+    });
+
+    it('파생영상_안내도_푸터에_들어간다', () => {
+      renderWithProviders(<BatchFailurePanel video={videoOf({ derivative: true })} />);
+
+      const foot = screen.getByTestId('batch-failure-foot');
+      expect(foot).toContainElement(screen.getByTestId('batch-failure-derivative-note'));
+      expect(screen.queryByRole('heading', { name: '작업 묶음' })).not.toBeInTheDocument();
+    });
+
+    it('★재수행은_그_행의_주_행동이라_primary_다', () => {
+      renderWithProviders(<BatchFailurePanel video={clearedOnly()} />);
+
+      const rerun = screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` });
+      // ★ 이 가드가 지키는 것은 «재수행이 primary 변이인가»(= secondary 로 되돌아가지
+      //   않았는가)이지 **팔레트 단수가 아니다**. 그래서 `bg-primary-600` 같은 단수를 직접
+      //   적지 않고 `Button variant='primary'` 가 실제로 내는 배경 클래스를 **기준 렌더에서
+      //   뽑아** 대조한다. 단수를 여기에 박으면 팔레트가 한 단 움직일 때마다 이 무관한 기능
+      //   테스트가 함께 깨진다 — 실제로 구 단언은 시안 `.btn-primary`(= `--p-5`)를 근거로
+      //   인용하면서 그와 반대인 600 을 고정하고 있었다.
+      //   단수 자체는 Button 자신의 테스트(`Button_primary_는_시안_btn_primary_단수를_쓴다`)가
+      //   한 곳에서만 고정한다.
+      expect(rerun.className, '시안 `.btn-primary` — primary 변이').toContain(
+        primaryButtonBgClass(),
+      );
+      expect(rerun.className, '구 secondary 로 되돌리지 말 것').not.toContain('border-gray-400');
     });
   });
 });

@@ -55,6 +55,8 @@ class VideoDetailBatchFailureReasonTest {
     @Mock private LsTaskAssignmentRepository taskAssignmentRepository;
     @Mock private UserRepository userRepository;
     @Mock private LsDeidentProcLogRepository deidentProcLogRepository;
+    // 프레임 이슈 점 조달 — 이 시험들의 축은 아니지만 상세 조립이 영상당 1회 부른다(미스텁 시 빈 목록).
+    @Mock private kr.co.cudo.authoring.review.repository.IssueRepository issueRepository;
     @Mock private kr.co.cudo.authoring.batch.status.BatchStatusService batchStatusService;
     @Mock private kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
     @Mock private VideoFpsResolver fpsResolver;

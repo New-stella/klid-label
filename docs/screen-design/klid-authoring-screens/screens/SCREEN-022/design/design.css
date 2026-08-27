@@ -327,6 +327,42 @@ a.btn, a.btn:hover { text-decoration: none; }
 }
 .select-trigger { padding-right: var(--sp-xl); cursor: pointer; }
 
+/* 자유 지시문 — 생성 조건이 못 담는 세부를 적는 자리. 다섯 항목과 달리 길이가 길다. */
+.textarea {
+  width: 100%;
+  min-height: 88px;
+  border: 1px solid var(--n-5);
+  border-radius: var(--radius-md);
+  padding: var(--sp-sm) var(--sp-md);
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--n-10);
+  background: var(--bg-page);
+  resize: vertical;
+}
+.textarea::placeholder { color: var(--n-6); }
+.textarea:focus-visible { border-color: var(--p-5); }
+.textarea.is-invalid { border-color: var(--e-5); background: var(--e-0); }
+/* 넘긴 글자수는 색만으로 알리지 않는다 — 아래 오류 문구가 사유를 말한다. */
+.field-counter.is-over { color: var(--e-7); font-weight: 600; }
+.field-opt { color: var(--n-6); font-weight: 400; font-size: 14px; }
+
+/* 이벤트 유형 두 칸 — 다섯 항목 격자와 폭이 달라 따로 둔다. */
+.prompt-grid--pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* 해상도 파생 확정 현황 — 생성 응답과 다른 축이라 시각적으로 갈라 둔다. */
+.confirm-status {
+  margin-top: var(--sp-md);
+  padding-top: var(--sp-md);
+  border-top: 1px dashed var(--n-3);
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+}
+.confirm-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); flex-wrap: wrap; }
+.confirm-head h4 { color: var(--n-9); }
+.confirm-tally { color: var(--n-7); }
+.confirm-note { color: var(--n-6); word-break: keep-all; }
+
 .field-help { color: var(--n-6); }
 .field-error {
   display: flex;

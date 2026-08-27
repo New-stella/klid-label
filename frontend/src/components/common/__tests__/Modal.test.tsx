@@ -153,4 +153,20 @@ describe('Modal', () => {
     // hover 표면도 시안 단계(`--n-0`)로 맞춘다 — 이 저장소의 다수 관례이기도 하다.
     expect(cls).toContain('hover:bg-gray-50');
   });
+
+  // K2 — 시안 `.dlg-desc` = `.t-body-md`(17/400) + 색 `--n-7`(gray-700).
+  //   구 구현은 `text-sub`(14/400) + gray-500 이라 DS-001 Do's 「본문 17px 이상」에 미달했다.
+  //   이 자리는 다이얼로그의 **본문 문단**이지 보조 캡션이 아니다.
+  it('Modal_설명_타이포는_시안_본문_단계를_따른다', () => {
+    render(
+      <Modal open onClose={() => {}} title="제목" description="설명 문단">
+        본문
+      </Modal>,
+    );
+    const cls = screen.getByText('설명 문단').className.split(/\s+/);
+    expect(cls, '시안 .t-body-md = 17px/400').toContain('text-body-md');
+    expect(cls, '구 text-sub(14px)로 되돌리지 말 것').not.toContain('text-sub');
+    expect(cls, '시안 색 --n-7').toContain('text-gray-700');
+    expect(cls, '구 gray-500 로 되돌리지 말 것').not.toContain('text-gray-500');
+  });
 });

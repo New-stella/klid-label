@@ -92,7 +92,12 @@ export function Tabs({
                   : '-mb-px border-b-2 px-4 py-2.5',
                 selected
                   ? vertical
-                    ? 'border-primary-500 bg-primary-50 font-medium text-primary-600'
+                    // ★세로 레일의 선택 탭은 **600**이다(시안 `.tab-rail label[for=...]:checked`).
+                    //   `nav-link` ladder 가 싣는 500 을 명시적으로 덮는다 — 500 이면 비선택 탭이
+                    //   `font-normal`(400)이라 굵기 차가 한 단뿐이라 레일에서 선택 표식이 약하다.
+                    //   ⚠ 가로 variant 는 이 축이 아니다(아래 500 유지) — 밑줄이 선택을 말하므로
+                    //     굵기까지 올리면 강조가 이중이 된다. 두 값을 통일하지 말 것.
+                    ? 'border-primary-500 bg-primary-50 font-semibold text-primary-600'
                     : 'border-primary-500 text-primary-600 font-medium'
                   // ⚠ `font-normal` 은 장식이 아니라 **기존 대비 보존**이다 — 구 `text-sm` 은 weight 를
                   //   싣지 않아 비선택 탭이 400 이었다. `nav-link` 는 500 을 실으므로 명시하지 않으면

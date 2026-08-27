@@ -177,6 +177,14 @@ a.btn, a.btn:hover { text-decoration: none; }
 /* 경계가 유일한 식별 수단인 컨트롤은 --n-5 로 올린다 — n-4 는 회색 표면 위 2.82:1 로 WCAG 1.4.11 미달 */
 .btn-secondary { background: var(--bg-page); border-color: var(--n-5); color: var(--n-10); }
 .btn-secondary:hover:not(:disabled) { background: var(--n-0); border-color: var(--n-6); }
+/* 잠긴 보조 버튼 — 다른 영상을 내려받는 중이라 함께 잠긴 상태(한 번에 하나만 받는다).
+   주버튼 비활성과 같은 방식으로 면을 낮추고 글자 대비는 지킨다(n-1 면 위 n-7 은 7.07:1).
+   경계는 1.4.11 이 비활성 컨트롤을 제외하므로 낮춰도 되며, 그 판단은 이미 .btn-primary 비활성이
+   같은 근거로 서 있다. */
+.btn-secondary:disabled, .btn-secondary[aria-disabled="true"] {
+  background: var(--n-1); border-color: var(--n-2); color: var(--n-7);
+}
+
 .btn-ghost { background: transparent; border-color: transparent; color: var(--p-6); }
 .btn-ghost:hover:not(:disabled) { background: var(--p-0); }
 
@@ -258,17 +266,16 @@ a.btn, a.btn:hover { text-decoration: none; }
   justify-content: space-between;
   gap: var(--sp-md);
   padding: var(--sp-md) var(--sp-lg);
-  background: var(--bg-page);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   text-decoration: none;
   color: inherit;
   min-height: 44px;
   transition: border-color var(--duration-fast) var(--ease-standard),
               background var(--duration-fast) var(--ease-standard);
 }
-.video-card:hover { background: var(--p-0); border-color: var(--p-5); }
+.video-card:hover { background: var(--p-0); }
 .video-card:hover .video-title { color: var(--p-8); }
 .video-card:hover .video-go { color: var(--p-6); }
 .video-main { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
@@ -286,6 +293,36 @@ a.btn, a.btn:hover { text-decoration: none; }
   color: var(--n-6);
   word-break: keep-all;
 }
+
+/* 카드 본체(라벨링 진입)와 다운로드를 **형제**로 둔다 — 한 클릭 영역에 겹치면 ①버튼 안의 버튼이라
+   마크업이 성립하지 않고 ②클릭이 카드로 전파돼 내려받으려던 사용자가 라벨링 화면으로 끌려간다.
+   그래서 면(경계·그림자)을 바깥 항목으로 옮기고 카드는 그 안의 위쪽 영역만 차지한다. */
+.video-item {
+  flex-direction: column;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+/* 만료 표기 + 다운로드 행 (DatamartVideoDownloadAction) */
+.video-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-sm);
+  padding: 0 var(--sp-lg) var(--sp-md);
+  flex-wrap: wrap;
+}
+/* 만료는 서버가 준 값이 있을 때만 그린다. 없으면 '없음'·'-' 를 지어내지 않고 자리를 비운다 —
+   지어내면 만료가 정해졌는데 표기만 빠진 것으로 읽힌다. 비어도 버튼 자리가 흔들리지 않도록
+   왼쪽 자동 여백으로 밀어 둔다(빈 자리 자체가 "만료 없음"을 말한다). */
+.video-expiry { color: var(--n-6); margin-right: auto; white-space: nowrap; }
+/* 다운로드·취소 아이콘은 본문 15px 에 맞춰 한 단 줄인다(기본 .btn svg 는 18px). */
+.dl-btn svg, .dl-cancel svg { width: 16px; height: 16px; }
+/* 내려받는 중 — 본문만 바뀌고 자리는 그대로다. 별도 진행률 표시는 사양에 없어 두지 않는다. */
+.btn[aria-busy="true"] { cursor: progress; }
 
 /* ── 10. 배지 (UI-014 StatusBadge / UI-016 EventTypeBadge) ─────────── */
 .badge {
@@ -318,6 +355,8 @@ a.btn, a.btn:hover { text-decoration: none; }
 .alert .alert-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .alert-info { background: var(--i-0); border-color: var(--i-2); color: var(--i-8); }
 .alert-info .alert-icon { color: var(--i-6); }
+.alert-error { background: var(--e-0); border-color: var(--e-2); color: var(--e-8); }
+.alert-error .alert-icon { color: var(--e-6); }
 
 /* ── 12. 참고 패널 (기준본 관례 — bg n-0 + 4면 2px dashed n-4) ────── */
 .reference-panel {
@@ -364,6 +403,19 @@ a.btn, a.btn:hover { text-decoration: none; }
 .empty-box .icon-lg { color: var(--n-4); }
 .empty-box .empty-title { color: var(--n-8); font-weight: 600; }
 
+/* 참고 패널 — 다운로드 상태 행. 카드 전체를 축소해 넣지 않고 조작이 일어나는 행만 떼어 보인다. */
+.dl-row { display: flex; flex-direction: column; gap: var(--sp-xs); padding: var(--sp-sm) 0; border-bottom: 1px solid var(--n-1); }
+.dl-row:last-of-type { border-bottom: 0; }
+.dl-row-title { color: var(--n-8); font-weight: 600; word-break: break-all; }
+.dl-row .video-foot { padding: 0; }
+
+/* 실패 사유 목록 — 사유마다 사용자가 할 일이 달라 한 문구로 묶지 않는다.
+   사유 이름을 고정폭 열로 두어 문구의 시작점을 맞춘다. */
+.reason-list { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.reason-list > li { display: flex; gap: var(--sp-sm); align-items: baseline; }
+.reason-key { flex: 0 0 88px; color: var(--n-6); }
+.reason-list > li > span + span { flex: 1 1 auto; min-width: 0; color: var(--n-8); word-break: keep-all; }
+
 /* ── 13. 아이콘 유틸 ──────────────────────────────────────────────── */
 .icon { width: 20px; height: 20px; flex-shrink: 0; }
 .icon-sm { width: 16px; height: 16px; flex-shrink: 0; }
@@ -391,6 +443,9 @@ a.btn, a.btn:hover { text-decoration: none; }
 @media (max-width: 479px) {
   .kpi-grid { grid-template-columns: minmax(0, 1fr); }
   .video-card { align-items: flex-start; flex-direction: column; gap: var(--sp-sm); }
+  .video-foot { padding: 0 var(--sp-md) var(--sp-md); }
+  .reason-list > li { flex-direction: column; gap: 2px; }
+  .reason-key { flex: 0 0 auto; }
   .video-aside { width: 100%; justify-content: space-between; }
 }
 

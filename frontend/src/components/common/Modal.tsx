@@ -33,6 +33,17 @@ const sizeClass = {
 const FOCUSABLE_SELECTOR =
   'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * 설명 문단의 타이포 — 시안 `.dlg-desc`(`.t-body-md` 17/400 + 색 --n-7).
+ *
+ * ★ 내보내는 이유는 **설명을 이 컴포넌트가 아니라 호출부가 그려야 하는 경우**가 있기 때문이다.
+ *   아래 본문 렌더는 `description` → `children` 순서가 고정이라, 설명보다 **앞에** 놓여야 하는
+ *   조각(예: 대상 칩 행)이 있는 호출부는 설명을 `children` 안에서 직접 그릴 수밖에 없다.
+ *   그때 클래스를 손으로 베끼면 이 자리의 타이포가 **두 곳**이 되어 한쪽만 갱신된다.
+ * ⚠ 이 상수를 복제하지 말고 **참조**할 것.
+ */
+export const MODAL_DESCRIPTION_CLASS = 'mb-4 shrink-0 text-body-md text-gray-700';
+
 export function Modal({
   open,
   onClose,
@@ -156,7 +167,10 @@ export function Modal({
         {title && (
           <h2 className="mb-2 shrink-0 text-section-title text-gray-900">{title}</h2>
         )}
-        {description && <p className="mb-4 shrink-0 text-sub text-gray-500">{description}</p>}
+        {/* 설명 타이포는 시안 `.dlg-desc` — `.t-body-md`(17/400) + 색 --n-7(gray-700).
+            ⚠ 구 `text-sub`(14/400) + gray-500 로 되돌리지 말 것: DS-001 Do's 가 "본문 17px 이상"을
+              규정하고, 이 자리는 다이얼로그의 본문 문단이라 보조 캡션 크기가 아니다. */}
+        {description && <p className={MODAL_DESCRIPTION_CLASS}>{description}</p>}
         {/* min-h-0 이 없으면 flex 아이템의 자동 최소 크기가 콘텐츠 높이라 overflow 가 발동하지 않는다. */}
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer && <div className="mt-6 shrink-0 flex justify-end gap-2">{footer}</div>}

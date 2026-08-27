@@ -210,7 +210,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 
 /* ── 7. 테이블 (UI-007 DataTable) ─────────────────────────────────── */
 .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); }
-.data-table { width: 100%; min-width: 1000px; }
+.data-table { width: 100%; min-width: 1168px; }
 .data-table thead th {
   position: sticky;
   top: 0;
@@ -238,6 +238,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .col-name   { width: auto; min-width: 240px; }
 .col-origin { width: 200px; }
 .col-ctgry  { width: 180px; }
+.col-preset { width: 168px; }
 .col-collect{ width: 132px; }
 .col-manage { width: 208px; }
 .data-table th.col-manage, .data-table td.cell-manage { text-align: right; }
@@ -333,7 +334,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   color: var(--n-10);
   background: var(--bg-page);
 }
-.input::placeholder { color: var(--n-6); }
+/* placeholder 는 본문(n-10)과 확실히 갈려야 한다 — n-6 은 도움말과 같은 색이라 입력값처럼 읽힌다.
+   n-5 는 흰 배경에서 4.51:1 로 AA 를 지키면서 본문과 4배 차이가 난다. textarea·input 은 오류 줄
+   안에서도 배경이 흰색이라(틴트는 바깥 li 에만) 이 대비가 모든 상태에서 그대로 성립한다. */
+.input::placeholder { color: var(--n-5); }
 .input:hover { border-color: var(--n-6); }
 .field-foot { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-md); }
 .field-help { color: var(--n-6); flex: 1 1 auto; min-width: 0; }
@@ -443,6 +447,221 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
   .screen-root { padding: var(--sp-md) var(--sp-md) var(--sp-xl); }
   .reference-panel { padding: var(--sp-md); }
 }
+
+/* ── 14. 섹션 ④ 검증 이벤트 유형·질문 관리 ───────────────────────────
+ * 관제 이벤트유형(③)과 검증 이벤트 유형(④)은 서로 다른 코드 체계다. 한 표에 합치지 않고
+ * 별도 카드로 나란히 두며, 두 코드는 같은 칸에도 섞어 적지 않는다.
+ * 유형을 고르면 '아래' 질문 목록이 바뀐다는 사양 문구를 그대로 배치로 옮겨,
+ * 좌우 분할이 아니라 표 아래에 질문 패널을 둔다(표가 6열이라 좌우로 쪼개면 열이 잘린다).
+ */
+.section-desc { color: var(--n-6); max-width: 920px; margin-bottom: var(--sp-md); }
+.section-note { color: var(--n-6); max-width: 920px; }
+.verify-stack { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+/* 검증 이벤트 유형 목록 — 열 폭 */
+.verify-table { min-width: 940px; }
+.col-pick  { width: 56px; }
+.col-order { width: 96px; }
+.col-vcode { width: 156px; }
+.col-vname { width: 168px; }
+.col-vdesc { width: auto; min-width: 220px; }
+.col-pair  { width: 300px; }
+.col-qcnt  { width: 88px; }
+.data-table th.col-order, .data-table th.col-qcnt, .data-table td.cell-num { text-align: right; }
+.cell-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cell-num[data-zero="true"] { color: var(--n-6); }
+
+/* 검증 유형 코드 — 관제 코드와 눈으로 갈리게 칩을 씌우지 않은 맨 mono 로 둔다 */
+.cell-vcode { font-family: var(--font-mono); font-size: 14px; color: var(--n-8); white-space: nowrap; }
+
+/* 행 선택 — 라디오가 선택 축이고 유형명 라벨도 같은 라디오를 가리켜 이름을 눌러도 골라진다.
+   라벨로 44px 상자를 만들어야 클릭 가능한 면 자체가 44px 가 된다(감싸는 span 으로는 안 된다). */
+.radio-hit {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px;
+  margin: -10px calc(var(--sp-md) * -1);
+  cursor: pointer;
+}
+.row-radio { width: 20px; height: 20px; margin: 0; accent-color: var(--p-5); cursor: pointer; }
+.type-name {
+  display: inline-flex; align-items: center;
+  min-height: 44px; margin: -10px 0;
+  color: var(--n-10); font-weight: 500; cursor: pointer; word-break: keep-all;
+}
+
+/* 고른 행 — ③ 의 편집 중 행과 같은 표기(연한 primary 면 + 좌측 강조선)를 쓴다.
+   :has() 가 있으면 실제 선택을 따라가고, 없는 엔진에서는 정적 표기로 떨어진다. */
+.verify-table tbody tr:has(.row-radio:checked),
+.verify-table tbody tr:has(.row-radio:checked):hover { background: var(--p-0); }
+.verify-table tbody tr:has(.row-radio:checked) td { border-bottom-color: var(--p-2); }
+.verify-table tbody tr:has(.row-radio:checked) td:first-child { box-shadow: inset 3px 0 0 0 var(--p-5); }
+@supports not selector(:has(*)) {
+  .verify-table tbody tr[data-selected="true"],
+  .verify-table tbody tr[data-selected="true"]:hover { background: var(--p-0); }
+  .verify-table tbody tr[data-selected="true"] td { border-bottom-color: var(--p-2); }
+  .verify-table tbody tr[data-selected="true"] td:first-child { box-shadow: inset 3px 0 0 0 var(--p-5); }
+}
+
+/* 관제 이벤트유형 코드 짝 — 인입 원장에 실려 온 값을 그대로 나열한다.
+   여러 건이면 모두 보이고, 한 건도 없으면 '짝 없음' 문구를 둔다(빈 칸으로 두면
+   값이 없는 것인지 아직 안 불러온 것인지 구분되지 않는다). */
+.pair-codes { display: flex; flex-wrap: wrap; gap: var(--sp-xs); }
+.pair-code {
+  font-family: var(--font-mono); font-size: 14px; line-height: 1.5;
+  background: var(--n-0); border: 1px solid var(--n-1); color: var(--n-8);
+  padding: 1px var(--sp-sm); border-radius: var(--radius-sm); white-space: nowrap;
+}
+.pair-none { color: var(--n-6); }
+
+/* ── 질문 패널 ────────────────────────────────────────────────────── */
+.q-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  overflow: hidden;
+}
+.q-panel-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  background: var(--p-0);                 /* 고른 행과 같은 면색으로 어느 유형의 목록인지 잇는다 */
+  border-bottom: 1px solid var(--p-2);
+}
+.q-panel-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.q-panel-title .t-title-sm { color: var(--n-10); }
+.q-panel-sub { color: var(--n-6); }
+.q-code { font-family: var(--font-mono); font-size: 14px; color: var(--n-8); }
+.q-count { color: var(--n-6); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.q-panel-body { padding: var(--sp-md); display: flex; flex-direction: column; gap: var(--sp-md); }
+.q-list { display: flex; flex-direction: column; gap: var(--sp-sm); }
+
+.q-item {
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+}
+.q-item[data-first="true"] { border-color: var(--p-2); }
+/* 서버가 거부한 줄 — 목록에서 빼지 않고 그 자리에 남긴 채 사유만 붙인다 */
+.q-item[data-invalid="true"] { border-color: var(--e-5); background: var(--e-0); }
+
+.q-item-head { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.q-order {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; height: 26px; padding: 0 var(--sp-xs);
+  border-radius: var(--radius-sm);
+  background: var(--n-1); color: var(--n-8);
+  font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.q-item-tools { margin-left: auto; display: inline-flex; align-items: center; gap: var(--sp-xs); }
+.q-add { align-self: flex-start; }
+
+/* 순서 올리기·내리기 (UI-119 IconButton) — 44x44 정사각, 경계가 버튼 박스를 알리는 주 수단이라
+   회색 표면 위에서도 3:1 을 넘는 --n-5 를 쓴다(--border-strong 은 회색 면 위에서 미달). */
+.icon-btn {
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--n-5);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-7);
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn:hover:not(:disabled) { background: var(--n-0); border-color: var(--n-6); }
+.icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 삭제 — 되돌릴 수 없는 조작이라 오류색을 쓰되 면을 채우지 않는다(면 채움은 주행동 자리다).
+   저장을 눌러야 반영되므로 확인 단계를 따로 두지 않는다. */
+.btn-danger { background: var(--bg-page); border-color: var(--e-5); color: var(--e-6); }
+.btn-danger:hover:not(:disabled) { background: var(--e-0); border-color: var(--e-6); }
+
+.badge-primary { background: var(--p-0); color: var(--p-7); }
+.badge svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+.textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  border: 1px solid var(--n-5);
+  border-radius: var(--radius-md);
+  padding: var(--sp-sm) var(--sp-md);
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--n-10);
+  background: var(--bg-page);
+}
+.textarea::placeholder { color: var(--n-5); }
+.textarea:hover { border-color: var(--n-6); }
+.textarea[aria-invalid="true"] { border-color: var(--e-5); }
+
+/* 오류 사유 — 색만으로 알리지 않도록 아이콘과 문구를 함께 둔다(DS do_rule) */
+.field-error { display: inline-flex; align-items: center; gap: var(--sp-xs); color: var(--e-7); }
+.field-error svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.q-panel-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  border-top: 1px solid var(--border);
+  background: var(--bg-alt);
+  flex-wrap: wrap;
+}
+.q-panel-foot .text-muted { flex: 1 1 320px; min-width: 0; }
+.q-foot-actions { display: inline-flex; gap: var(--sp-sm); flex: 0 0 auto; }
+
+/* ── 15. 목록 조건 (② role=filter) ──────────────────────────────────
+ * 조건은 체크박스 하나다. 무엇을 보류로 볼지의 정의는 서버가 소유하므로, 화면은 미연결과
+ * 연결됨(무효)를 조합하지 않고 '보류 전체' 를 뜻하는 값 하나만 실어 다시 조회한다.
+ * 진입 기본값이 꺼짐이라 본문에는 꺼진 상태를 그리고, 켠 모습은 참고 패널에 정적 상태로 둔다.
+ */
+.filter-row { display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
+/* 체크 상자만으로는 클릭 면이 20px 라, 라벨로 44px 상자를 만들어 hit area 를 확보한다.
+   음수 margin 으로 되당겨 조건 줄의 시각적 높이는 그대로 둔다(빵부스러기 링크와 같은 수법). */
+.check-field {
+  display: inline-flex; align-items: center; gap: var(--sp-sm);
+  min-height: 44px; margin: -10px 0;
+  cursor: pointer;
+}
+.check-box { width: 20px; height: 20px; margin: 0; accent-color: var(--p-5); cursor: pointer; }
+.check-label { color: var(--n-10); font-weight: 500; white-space: nowrap; }
+.filter-help { color: var(--n-6); min-width: 0; }
+.filter-note { color: var(--n-6); max-width: 920px; margin-top: var(--sp-sm); }
+
+/* ── 16. 프리셋 연결 상태 배지 (PresetLinkStatusBadge · 읽기 전용) ────
+ * 서버가 내려준 상태값을 그대로 표기한다 — 화면이 프리셋 유무나 실효 여부를 다시 판정하지 않는다.
+ * 색은 semantic 만 쓴다(범주 구분색은 상태·성패 전달에 쓰지 않는다는 DS 규칙).
+ * 연결됨(무효)는 사고라 error, 미연결도 조치가 필요하므로 warn, 연결됨(제외)는 사람이 일부러
+ * 뺀 선언이라 neutral 로 갈라 둔다 — 무효와 제외가 같아 보이면 사고를 의도로 오인한다.
+ * 색 외에 한글 라벨과 아이콘을 항상 함께 둔다(색만으로 상태를 구분하지 않는다는 DS 규칙).
+ */
+.preset-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  min-height: 26px;
+  padding: 0 var(--sp-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 14px;                 /* 사다리 밖(14px/600/1.4) — src-chip 과 같은 단 */
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.preset-badge svg { width: 14px; height: 14px; flex-shrink: 0; }
+.preset-badge[data-preset="linked"]   { background: var(--su-0); border-color: var(--su-2); color: var(--su-7); }
+.preset-badge[data-preset="invalid"]  { background: var(--e-0);  border-color: var(--e-2);  color: var(--e-7); }
+.preset-badge[data-preset="excluded"] { background: var(--n-1);  border-color: var(--n-3);  color: var(--n-8); }  /* 숨김 행 표면(n-0)과 같은 색이면 배지가 묻히므로 한 단 올린다 */
+.preset-badge[data-preset="none"]     { background: var(--w-0);  border-color: var(--w-2);  color: var(--w-7); }
+
+/* 상태 4종 범례 — 배지를 고정폭 열로 두어 설명의 시작점을 맞춘다(reason-list 와 같은 이유). */
+.preset-legend .opt-item { justify-content: flex-start; gap: var(--sp-sm); }
+.preset-legend .preset-badge { flex: 0 0 152px; }
+.legend-foot { margin-top: var(--sp-sm); }
+.demo-stack { display: flex; flex-direction: column; gap: var(--sp-sm); }
 
 /* ── 게시 렌더 보정 — SVG 획 굵기 ────────────────────────────────────
  * ★ 게시 렌더는 HTML 의 `stroke-width` 속성을 지운다. 알려진 '표현 정규화' 와 달리

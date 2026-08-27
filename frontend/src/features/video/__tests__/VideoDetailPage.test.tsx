@@ -227,9 +227,30 @@ describe('VideoDetailPage', () => {
    *    **서로 다른 두 값**이 동시에 떴다.
    */
   describe('기본정보 메타 — 조립값이 아니라 서버 실값을 표시한다', () => {
-    /** 메타 그리드에서 라벨로 그 칸의 값을 읽는다(항목 구성·순서는 이 라운드에서 불변). */
+    /**
+     * 메타 그리드에서 라벨로 그 칸의 값을 읽는다(항목 구성·순서는 이 라운드에서 불변).
+     *
+     * ⚠ 라벨 문자열로 곧장 찾지 않고 **term(dt) 역할**로 좁힌다 — 확정 시안 정합(SCREEN-009 B9/B10)
+     *   이후 헤더 메타 행이 「해상도」를 키와 값 **두 노드**로 나눠 갖게 되어, 같은 낱말이 화면에
+     *   둘 이상 존재한다. 이 헬퍼가 보려는 것은 그중 메타 그리드 칸이다.
+     */
     const metaValueOf = (label: string) =>
-      screen.getByText(label).parentElement?.querySelector('dd')?.textContent;
+      screen
+        .getAllByRole('term')
+        .find((el) => el.textContent === label)
+        ?.parentElement?.querySelector('dd')?.textContent;
+
+    /**
+     * 헤더 메타 행(`.hero-sub-row`)에서 라벨에 딸린 값을 읽는다.
+     *
+     * ★ 확정 시안은 이 행을 「콜론 없는 키 + 값」 **두 노드 두 색**으로 그린다(`.kv .k` / `.kv .v`).
+     *   구 구현은 「해상도: 1920x1440」을 한 노드에 한 색으로 담았고, 그래서 이 검증도 그 합친
+     *   문자열을 통째로 단언했다. 검증하려는 사실(**서버 실값이 헤더에도 온다**)은 그대로이므로
+     *   읽는 방법만 새 구조에 맞춘다 — 값 자체는 여전히 정확히 대조한다.
+     */
+    const heroValueOf = (label: string) =>
+      within(screen.getByTestId('video-hero-meta')).getByText(label).nextElementSibling
+        ?.textContent;
 
     function reply(data: Record<string, unknown>) {
       mock.onGet('/videos/42').reply(200, {
@@ -255,7 +276,7 @@ describe('VideoDetailPage', () => {
         { initialEntries: ['/video/42'] },
       );
       await waitFor(() => {
-        expect(screen.getByText('해상도')).toBeInTheDocument();
+        expect(screen.getAllByRole('term').length).toBeGreaterThan(0);
       });
     }
 
@@ -265,7 +286,7 @@ describe('VideoDetailPage', () => {
 
       expect(metaValueOf('해상도')).toBe('1920x1440');
       // 헤더 메타 행에도 같은 값이 온다(두 표시 지점).
-      expect(screen.getByText('해상도: 1920x1440')).toBeInTheDocument();
+      expect(heroValueOf('해상도')).toBe('1920x1440');
     });
 
     it('해상도_메타가_없는_영상은_두_곳_모두_대시다_숫자를_지어내지_않는다', async () => {
@@ -273,7 +294,7 @@ describe('VideoDetailPage', () => {
       await renderDetail();
 
       expect(metaValueOf('해상도')).toBe('-');
-      expect(screen.getByText('해상도: -')).toBeInTheDocument();
+      expect(heroValueOf('해상도')).toBe('-');
     });
 
     it('★CCTV_ID는_실값이며_상단_제목과_같은_식별자다_조립값을_쓰지_않는다', async () => {
@@ -299,7 +320,10 @@ describe('VideoDetailPage', () => {
       await renderDetail();
 
       // 이 화면에는 `<dl>` 이 여럿일 수 있다(배치 사유 영역 등) — 메타 그리드를 지목한다.
-      const grid = screen.getByText('CCTV ID').closest('dl');
+      const grid = screen
+        .getAllByRole('term')
+        .find((el) => el.textContent === 'CCTV ID')
+        ?.closest('dl');
       const labels = Array.from(grid?.querySelectorAll('dt') ?? []).map((el) => el.textContent);
       expect(labels).toEqual(['CCTV ID', '해상도', '길이', '녹화 시각', '생성일', '수정일']);
     });
