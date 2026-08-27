@@ -164,7 +164,8 @@ claimed_verification: | <구현 에이전트가 주장한 결과 — QA 가 실�
 - **MASTER.md 갱신**: 해당 CO 의 `구현 상태` 도메인별 ✅(QA pass 후) + `커밋`. CO 파일 §7 구현 로그도 갱신. `설계반영` 은 Phase 3.6 에서 이미 🎨.
 - **실패·red 그대로 노출.** notes 의 추가 영향 도메인·정보 부족은 다음 액션.
 - **커밋은 자동 안 함** — 사용자에게 물음. 커밋금지 파일(`.env` · `.env.local` · `*.local` · `.claude/settings.local.json` · `backend/storage/` · `/storage/` · `cvat/` · `docs/design/backup/`) 제외.
-- **위키·테스트케이스 동기화 확인** — 동작·정책이 바뀌었으면 `docs/v2-wiki/` 와 `docs/test-cases/` 를 **같은 커밋에서** 갱신해야 한다(`CLAUDE.md` 「문서 동기화 규칙」). 누락 시 다음 전수 검증이 폐기된 동작을 결함으로 재발견한다.
+- **위키 동기화 확인** — 동작·정책이 바뀌었으면 `docs/v2-wiki/` 를 **같은 커밋에서** 갱신해야 한다(`CLAUDE.md` 「문서 동기화 규칙」).
+- **테스트케이스는 케이스 표가 동결됐다 (2026-08-27 확정)** — `docs/test-cases/` 에 **케이스 행을 새로 추가·정정하지 않고 총계도 재계산하지 않는다.** 정책이 뒤집혔을 때만 해당 클러스터 파일 상단 `## 변경 이력` 표에 **회차 행(서술)** 을 추가한다. 구 지시(*"같은 커밋에서 카탈로그도 갱신"*)는 폐기 — 근거는 `CLAUDE.md` 동명 절.
 - **키트 SYNC** — Phase 3.6 이 화면 축 ITEM(`screen_spec`·`use_case`·`acceptance`·`api_endpoint` 등)을 건드렸으면 라운드 끝에 `/mc-logi-implement-kit` 또는 `/mc-logi-screen-kit` SYNC 를 붙인다. 이건 한 번 하고 끝나는 일이 아니라 **라운드마다의 꼬리 작업**이다.
 
 ### [별도 배치] 밀린 설계 부채 회수 → `/klid-design-backfill`
