@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointUrlValidator;
 import kr.co.cudo.authoring.sysconfig.entity.LsSystemConfig;
 import kr.co.cudo.authoring.sysconfig.repository.LsSystemConfigRepository;
@@ -61,7 +62,7 @@ class AiWaitBudgetCeilingConfigTest {
     void setUp() {
         policy = policy(3, Duration.ofSeconds(1), 2.0);
         service = new SystemConfigService(repository, new ObjectMapper(),
-                mock(AdminSessionTokenService.class),
+                new AdminSessionGate(mock(AdminSessionTokenService.class)),
                 mock(IntegrationEndpointUrlValidator.class),
                 mock(DeidentifyEndpointTrustGuard.class),
                 policy);
@@ -106,7 +107,7 @@ class AiWaitBudgetCeilingConfigTest {
         // 파생이 아니라 상수였다면 이 테스트가 죽는다 — 하한이 예산 변화를 따라가는지가 요점이다.
         AiWaitBudgetPolicy widened = policy(4, Duration.ofSeconds(1), 2.0);
         SystemConfigService widenedService = new SystemConfigService(repository, new ObjectMapper(),
-                mock(AdminSessionTokenService.class),
+                new AdminSessionGate(mock(AdminSessionTokenService.class)),
                 mock(IntegrationEndpointUrlValidator.class),
                 mock(DeidentifyEndpointTrustGuard.class),
                 widened);

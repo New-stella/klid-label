@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.sysconfig.dto.ConfigResponse;
 import kr.co.cudo.authoring.sysconfig.dto.ConfigUpdateRequest;
@@ -55,10 +56,12 @@ public class SystemConfigController {
      * 관리자 단기 유효창 토큰 헤더 (R11).
      *
      * <p>연동 서버 주소 4종을 저장할 때만 필요하다. 다른 키는 이 헤더 없이 기존과 동일하게 동작한다.
-     * 값은 <b>바디가 아니라 헤더</b>로 받는다 — 바디에 두면 설정 값과 인증 자격이 한 구조에 섞여
-     * 로그·검증 경로마다 자격증명이 딸려 다닌다.
+     *
+     * <p>이름의 진실원은 {@link AdminSessionGate#HEADER} 다 — 헤더 이름이 여러 곳에 리터럴로 적히면
+     * 새 창구가 다른 이름을 받게 되고, 그러면 클라이언트가 창구마다 다른 헤더를 보내야 한다.
+     * 이 상수는 기존 참조자(CORS 허용 목록·로그 마스킹 설명)를 위해 남긴 별칭이다.
      */
-    public static final String ADMIN_SESSION_HEADER = "X-Admin-Session";
+    public static final String ADMIN_SESSION_HEADER = AdminSessionGate.HEADER;
 
     @Operation(
             summary = "시스템 설정 단건 수정 (REVIEWER)",

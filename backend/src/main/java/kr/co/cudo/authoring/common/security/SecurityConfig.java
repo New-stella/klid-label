@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.common.security;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -206,10 +207,11 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of(
                 "Authorization", "X-Trace-Id",
-                // R11 — 연동 주소 저장 시 관리자 단기 유효창 토큰을 싣는 헤더
-                // (SystemConfigController.ADMIN_SESSION_HEADER). 목록에 없으면 교차 출처 형상에서
-                // preflight 가 거절돼 저장이 브라우저에서 실패한다.
-                "X-Admin-Session",
+                // R11 — 연동 주소 저장 시 관리자 단기 유효창 토큰을 싣는 헤더. 목록에 없으면 교차 출처
+                // 형상에서 preflight 가 거절돼 저장이 브라우저에서 실패한다.
+                // ★ 이름의 단일 진실원은 AdminSessionGate.HEADER 다 — 여기에 리터럴을 두면 이름이 바뀔 때
+                //   허용 목록만 옛 이름으로 남아, 서버 로그에 아무것도 남기지 않고 조용히 막힌다.
+                AdminSessionGate.HEADER,
                 "X-Tus-Resumable", "Upload-Length", "Upload-Offset", "Upload-Metadata",
                 "Tus-Resumable", "Content-Type"
         ));

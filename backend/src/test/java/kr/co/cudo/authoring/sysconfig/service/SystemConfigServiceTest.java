@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.security.Keys;
@@ -52,7 +53,7 @@ class SystemConfigServiceTest {
     void setUp() {
         repository = mock(LsSystemConfigRepository.class);
         service = new SystemConfigService(repository, new ObjectMapper(),
-                new AdminSessionTokenService(() -> TEST_JWT_KEY, 10),
+                new AdminSessionGate(new AdminSessionTokenService(() -> TEST_JWT_KEY, 10)),
                 new IntegrationEndpointUrlValidator(),
                 new DeidentifyEndpointTrustGuard(new org.springframework.mock.env.MockEnvironment()),
                 TestAiWaitBudgetPolicies.production());
