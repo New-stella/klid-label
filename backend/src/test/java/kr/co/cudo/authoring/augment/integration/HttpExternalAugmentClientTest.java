@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class HttpExternalAugmentClientTest {
 
     /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
-    private static final java.util.Map<String, Object> PROMPT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
+    private static final java.util.Map<String, Object> MTDT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
 
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -79,7 +79,7 @@ class HttpExternalAugmentClientTest {
 
     private AugmentSubmitCommand command(String requestId) {
         return new AugmentSubmitCommand(
-                10L, "WINTER", PROMPT, requestId, "FIRE", "1",
+                10L, "WINTER", MTDT, null, requestId, "FLOOD", null, "1",
                 "http://localhost:8080/api/v1/genai/callback",
                 List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg"),
                         new AugmentInputFile(2, "/app/storage/deidentified/frames/2.jpg")),
@@ -96,6 +96,31 @@ class HttpExternalAugmentClientTest {
                         """.formatted(requestId, jobId)));
     }
 
+    /**
+     * 자유 지시문과 침수 세부 유형이 있으면 <b>각각 자기 자리</b>로 나간다 — 지시문은 문자열,
+     * 세부 유형은 {@code evnt_subtype} 이다. 어느 것도 {@code mtdt} 안으로 접히지 않는다.
+     */
+    @Test
+    @DisplayName("자유지시문과_침수세부유형은_각자_최상위_필드로_나간다")
+    void optionalFieldsAreSentAtTopLevel() throws Exception {
+        enqueueAccepted("AUG-3", "job-3");
+
+        client(singleAttempt()).requestAugment(new AugmentSubmitCommand(
+                10L, "WINTER", MTDT, "도로 구조를 유지해줘", "AUG-3",
+                "FLOOD", "UNDERPASS_FLOOD", "1",
+                "http://localhost:8080/api/v1/genai/callback",
+                List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg")),
+                1, 1)).block();
+
+        JsonNode body = MAPPER.readTree(server.takeRequest().getBody().readUtf8());
+        assertThat(body.get("prompt").isTextual())
+                .as("자유 지시문은 문자열이다 — 객체면 벤더가 400 INVALID_PARAMETER 로 거부한다")
+                .isTrue();
+        assertThat(body.get("prompt").asText()).isEqualTo("도로 구조를 유지해줘");
+        assertThat(body.get("evnt_subtype").asText()).isEqualTo("UNDERPASS_FLOOD");
+        assertThat(body.get("mtdt").has("prompt")).isFalse();
+    }
+
     @Test
     @DisplayName("증강_요청시_외부_genai_jobs_엔드포인트로_실제_POST_가_전송됨")
     void postsToGenAiJobsEndpoint() throws Exception {
@@ -108,8 +133,17 @@ class HttpExternalAugmentClientTest {
         assertThat(recorded.getPath()).isEqualTo("/api/genai/jobs");
     }
 
+    /**
+     * ★ v1.3 요청 바디 — 생성 조건은 최상위 {@code mtdt} 객체, 자유 지시문은 별개 {@code prompt}
+     * <b>문자열</b>이다.
+     *
+     * <p>구 계약(v1.1)은 5항목을 {@code prompt} 객체로 실었고 그보다 더 앞선 구현은 증강 유형별 고정
+     * 문구({@code style}/{@code instruction}/{@code preserve})를 서버가 만들어 보냈다. 둘 다 폐기됐다 —
+     * 명세가 <i>"prompt 값으로 객체를 전달하지 않습니다"</i> 를 명시하며 객체를 실으면
+     * {@code 400 INVALID_PARAMETER} 다. 이 시험이 그 회귀를 고정한다.
+     */
     @Test
-    @DisplayName("요청_바디가_명세서_v1_1_스키마와_일치함")
+    @DisplayName("요청_바디가_명세서_v1_3_스키마와_일치함")
     void requestBodyMatchesContract() throws Exception {
         enqueueAccepted("AUG-2", "job-2");
 
@@ -120,20 +154,27 @@ class HttpExternalAugmentClientTest {
         assertThat(body.get("request_channel").asText()).isEqualTo("AUTHORING");
         assertThat(body.get("operation_type").asText()).isEqualTo("AUGMENT");
         assertThat(body.get("generation_mode").asText()).isEqualTo("I2I");
-        assertThat(body.get("evnt_type").asText()).isEqualTo("FIRE");
+        // 이벤트 유형은 요청자가 고른 계약값이다(관제 이벤트 코드가 아니다).
+        assertThat(body.get("evnt_type").asText()).isEqualTo("FLOOD");
         assertThat(body.get("request_user_id").asText()).isEqualTo("1");
         assertThat(body.get("callback_url").asText()).endsWith("/v1/genai/callback");
-        // prompt 는 <사용자 입력 5필드>가 그대로 나간다 (2026-07-31). 구 계약은 증강 유형별 고정 문구
-        // ({style, instruction, preserve})를 서버가 만들어 보냈으나, 조건을 REVIEWER 가 정하도록 바뀌었다.
-        JsonNode prompt = body.get("prompt");
-        assertThat(prompt.isObject()).isTrue();
-        assertThat(prompt.get("time").asText()).isEqualTo("NIGHT");
-        assertThat(prompt.get("season").asText()).isEqualTo("WINTER");
-        assertThat(prompt.get("weather").asText()).isEqualTo("RAIN");
-        assertThat(prompt.get("terrain").asText()).isEqualTo("ROAD");
-        assertThat(prompt.get("severity").asText()).isEqualTo("HIGH");
-        assertThat(prompt.has("style")).as("서버 고정 문구 시절 키가 남아 있으면 안 된다").isFalse();
-        assertThat(prompt.has("instruction")).isFalse();
+
+        JsonNode mtdt = body.get("mtdt");
+        assertThat(mtdt.isObject()).as("생성 조건은 최상위 mtdt 객체다(v1.3)").isTrue();
+        assertThat(mtdt.get("time").asText()).isEqualTo("NIGHT");
+        assertThat(mtdt.get("season").asText()).isEqualTo("WINTER");
+        assertThat(mtdt.get("weather").asText()).isEqualTo("RAIN");
+        assertThat(mtdt.get("terrain").asText()).isEqualTo("ROAD");
+        assertThat(mtdt.get("severity").asText()).isEqualTo("HIGH");
+        assertThat(mtdt.has("style")).as("서버 고정 문구 시절 키가 남아 있으면 안 된다").isFalse();
+        assertThat(mtdt.has("instruction")).isFalse();
+
+        // 자유 지시문·침수 세부 유형은 <선택>이라 없으면 키 자체가 나가지 않는다.
+        assertThat(body.has("prompt"))
+                .as("prompt 를 객체로 되돌리는 회귀 차단 — 없을 때는 키 자체가 없어야 한다")
+                .isFalse();
+        assertThat(body.has("evnt_subtype")).isFalse();
+        assertThat(body.has("condition")).as("구 계약의 최상위 condition 은 제외됐다").isFalse();
 
         JsonNode files = body.get("input_files");
         assertThat(files.isArray()).isTrue();

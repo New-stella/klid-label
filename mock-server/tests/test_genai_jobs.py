@@ -1,4 +1,4 @@
-"""생성형 AI 벤더 목 — 「생성형 AI API 연동명세서 v1.1」 계약 테스트 (동기 4종).
+"""생성형 AI 벤더 목 — 「생성형 AI API 연동명세서 v1.3」 계약 테스트 (동기 4종).
 
 대상: 목 서버가 **제공**하는 4종
 - ① POST /api/genai/jobs            (작업 요청, 202 RECEIVED)
@@ -10,12 +10,17 @@
 상태 규칙 위반은 409 STATE_CONFLICT.
 
 인증은 스코프 제외 — 401/403(UNAUTHENTICATED/FORBIDDEN)은 의도적으로 구현하지 않는다.
+
+v1.3 요청 본문 계약(§4.1): 최상위 ``mtdt``(필수 객체) + 최상위 ``prompt``(선택 문자열 1000자).
+``Idempotency-Key`` 는 ① 작업 요청에서 필수이며, 구 형태(최상위 ``condition`` · 객체형
+``prompt``)와 미지원 값(I2V·V2V·TRANSFORM)은 400 으로 거부된다.
 """
 
 from __future__ import annotations
 
 import threading
 import time
+import uuid
 from collections.abc import Iterator
 
 import pytest
@@ -57,6 +62,23 @@ def _no_real_webhook(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(genai_sim, "send_webhook", _noop)
 
 
+@pytest.fixture(autouse=True)
+def _auto_idempotency_key(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """① 작업 요청의 ``Idempotency-Key``(v1.3 §3.1 필수)를 호출마다 자동 부여한다.
+
+    실호출자는 항상 키를 실으므로 매 테스트가 헤더를 반복해 적을 이유가 없다. 헤더를
+    **명시한** 호출(멱등 재요청 검증 · 누락 검증)은 그대로 두므로 계약 자체는 가려지지 않는다.
+    """
+    original_post = client.post
+
+    def _post(url: str, *args: object, **kwargs: object):  # noqa: ANN202
+        if url == JOBS_URL and "headers" not in kwargs:
+            kwargs["headers"] = {"Idempotency-Key": uuid.uuid4().hex}
+        return original_post(url, *args, **kwargs)
+
+    monkeypatch.setattr(client, "post", _post)
+
+
 def _input_file(tmp_path, name: str = "src.mp4", content: bytes = b"ORIGINAL") -> str:
     """입력 base 하위에 실제 원본 파일을 만들고 절대경로를 반환한다."""
     path = tmp_path / "in" / name
@@ -65,17 +87,26 @@ def _input_file(tmp_path, name: str = "src.mp4", content: bytes = b"ORIGINAL") -
 
 
 def _body(tmp_path, **over: object) -> dict:
+    """v1.3 §4.1 표준 요청 본문(AUGMENT × I2I — 저작도구 실사용 조합)."""
     body: dict = {
         "request_id": "req-0001",
         "request_channel": "AUTHORING",
         "request_user_id": "worker1",
-        "evnt_type": "FIRE",
+        "evnt_type": "FLOOD",
+        "evnt_subtype": "ROAD_FLOOD",
         "operation_type": "AUGMENT",
-        "generation_mode": "I2V",
+        "generation_mode": "I2I",
         "input_files": [
             {"sequence": 1, "file_path": _input_file(tmp_path), "checksum": "abc"}
         ],
-        "prompt": {"time": "night", "season": "winter", "weather": "rain"},
+        "mtdt": {
+            "time": "NIGHT",
+            "season": "WINTER",
+            "weather": "RAIN",
+            "terrain": "ROAD",
+            "severity": "HIGH",
+        },
+        "prompt": "원본 카메라 시점과 도로 구조를 유지하고 야간 도로 침수 장면으로 변경해줘.",
         "callback_url": CALLBACK_URL,
     }
     body.update(over)
@@ -109,18 +140,10 @@ def test_수용1_유효요청은_202와_RECEIVED를_반환(client: TestClient, t
     assert body["received_at"]
 
 
-# ── 수용기준 2 : I2V 인데 input_files 없음 → 400 ─────────────────
-def test_수용2_I2V인데_input_files없으면_400_REQUIRED_FIELD_MISSING(
+# ── 수용기준 2 : I2I 인데 input_files 없음 → 400 ─────────────────
+def test_수용2_I2I인데_input_files없으면_400_REQUIRED_FIELD_MISSING(
     client: TestClient, tmp_path
 ) -> None:
-    # given / when
-    res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="I2V", input_files=[]))
-    # then
-    assert res.status_code == 400
-    assert res.json()["code"] == "REQUIRED_FIELD_MISSING"
-
-
-def test_I2I도_input_files없으면_400(client: TestClient, tmp_path) -> None:
     # given / when
     res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="I2I", input_files=[]))
     # then
@@ -128,9 +151,22 @@ def test_I2I도_input_files없으면_400(client: TestClient, tmp_path) -> None:
     assert res.json()["code"] == "REQUIRED_FIELD_MISSING"
 
 
+def test_v13_미지원_생성모드_I2V는_400(client: TestClient, tmp_path) -> None:
+    # given / when — v1.2 까지 있던 I2V 는 v1.3 V0 지원 조합에서 빠졌다
+    res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="I2V"))
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_PARAMETER"
+
+
 def test_T2I는_input_files없어도_202(client: TestClient, tmp_path) -> None:
-    # given / when — 텍스트→이미지는 입력 파일이 필요 없다
-    res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="T2I", input_files=[]))
+    # given / when — 텍스트→이미지는 입력 파일이 필요 없다(GENERATE × T2I)
+    res = client.post(
+        JOBS_URL,
+        json=_body(
+            tmp_path, operation_type="GENERATE", generation_mode="T2I", input_files=[]
+        ),
+    )
     # then
     assert res.status_code == 202
 
@@ -207,14 +243,25 @@ def test_수용6_output_file_path가_가리키는_파일이_실제로_존재(
         assert str(out).startswith(str(tmp_path / "out"))
 
 
-def test_I2V는_media_type이_VIDEO_T2I는_IMAGE(client: TestClient, tmp_path) -> None:
-    # given — I2V
-    v_id = client.post(JOBS_URL, json=_body(tmp_path)).json()["job_id"]
+def test_T2V는_media_type이_VIDEO_T2I는_IMAGE(client: TestClient, tmp_path) -> None:
+    # given — T2V (v1.3 의 유일한 영상 생성 모드, 입력 없음)
+    v_id = client.post(
+        JOBS_URL,
+        json=_body(
+            tmp_path, operation_type="GENERATE", generation_mode="T2V", input_files=[]
+        ),
+    ).json()["job_id"]
     _wait_status(client, v_id, "SUCCEEDED")
     # given — T2I (입력 없음)
     i_id = client.post(
         JOBS_URL,
-        json=_body(tmp_path, request_id="req-0002", generation_mode="T2I", input_files=[]),
+        json=_body(
+            tmp_path,
+            request_id="req-0002",
+            operation_type="GENERATE",
+            generation_mode="T2I",
+            input_files=[],
+        ),
     ).json()["job_id"]
     _wait_status(client, i_id, "SUCCEEDED")
     # then
@@ -326,12 +373,22 @@ def test_수용11_동일_Idempotency_Key는_같은_job_id를_반환(
     assert len(jobs) == 1
 
 
-def test_Idempotency_Key_없으면_매번_새_job(client: TestClient, tmp_path) -> None:
-    # given / when
+def test_다른_Idempotency_Key는_매번_새_job(client: TestClient, tmp_path) -> None:
+    # given / when — 픽스처가 호출마다 새 키를 부여한다
     first = client.post(JOBS_URL, json=_body(tmp_path))
     second = client.post(JOBS_URL, json=_body(tmp_path))
     # then
     assert first.json()["job_id"] != second.json()["job_id"]
+
+
+def test_Idempotency_Key가_없으면_400_REQUIRED_FIELD_MISSING(
+    client: TestClient, tmp_path
+) -> None:
+    # given / when — v1.3 §3.1 에서 ① 작업 요청 한정 필수가 됐다
+    res = client.post(JOBS_URL, json=_body(tmp_path), headers={})
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "REQUIRED_FIELD_MISSING"
 
 
 def test_동시_동일_Idempotency_Key_요청도_job은_1건(client: TestClient, tmp_path) -> None:
@@ -379,37 +436,184 @@ def test_필수필드_누락은_REQUIRED_FIELD_MISSING(client: TestClient, tmp_p
 
 
 def test_잘못된_enum값은_INVALID_PARAMETER(client: TestClient, tmp_path) -> None:
-    # given / when — 규격 밖 generation_mode
+    # given / when — 규격 밖 generation_mode(V2V 는 v1.3 에서도 미지원)
     res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="V2V"))
     # then
     assert res.status_code == 400
     assert res.json()["code"] == "INVALID_PARAMETER"
 
 
-def test_prompt가_객체가_아니면_INVALID_METADATA(client: TestClient, tmp_path) -> None:
-    # given / when — prompt 는 구조화 메타(object)여야 한다
-    res = client.post(JOBS_URL, json=_body(tmp_path, prompt="겨울로 바꿔줘"))
+# ── v1.3 §4.1 prompt : 최상위 문자열(선택), 객체·배열 금지 ───────
+def test_prompt에_객체를_실으면_400_INVALID_PARAMETER(client: TestClient, tmp_path) -> None:
+    # given / when — v1.2 의 prompt.condition / prompt.text 객체 구조는 v1.3 표준에서 제외됐다
+    res = client.post(
+        JOBS_URL,
+        json=_body(tmp_path, prompt={"condition": {"season": "WINTER"}, "text": "겨울로"}),
+    )
     # then
     assert res.status_code == 400
-    assert res.json()["code"] == "INVALID_METADATA"
+    assert res.json()["code"] == "INVALID_PARAMETER"
 
 
-def test_허용목록_밖_evnt_type은_UNSUPPORTED_EVENT_TYPE(
-    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # given — 이벤트 유형 허용목록을 설정(기본은 빈값=전체 허용)
-    from app.config import reload_settings
+def test_prompt에_배열을_실으면_400_INVALID_PARAMETER(client: TestClient, tmp_path) -> None:
+    # given / when
+    res = client.post(JOBS_URL, json=_body(tmp_path, prompt=["겨울로", "야간으로"]))
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_PARAMETER"
 
-    monkeypatch.setenv("MOCK_GENAI_EVENT_TYPES", "FIRE,FALL")
-    reload_settings()
+
+def test_prompt는_선택값이라_없어도_202(client: TestClient, tmp_path) -> None:
+    # given
+    body = _body(tmp_path)
+    body.pop("prompt")
+    # when / then
+    assert client.post(JOBS_URL, json=body).status_code == 202
+
+
+def test_prompt가_1000자를_넘으면_400_INVALID_PARAMETER(client: TestClient, tmp_path) -> None:
+    # given / when — 임의로 자르지 않고 거부한다(§4.1 prompt 적용 규칙)
+    ok = client.post(JOBS_URL, json=_body(tmp_path, prompt="가" * 1000))
+    over = client.post(JOBS_URL, json=_body(tmp_path, prompt="가" * 1001))
+    # then
+    assert ok.status_code == 202
+    assert over.status_code == 400
+    assert over.json()["code"] == "INVALID_PARAMETER"
+
+
+# ── v1.3 §4.1 mtdt : 최상위 필수 객체 ────────────────────────────
+def test_mtdt가_없으면_400_REQUIRED_FIELD_MISSING(client: TestClient, tmp_path) -> None:
+    # given — §3.3 "Idempotency-Key, mtdt 또는 기타 필수 Body 누락"
+    body = _body(tmp_path)
+    body.pop("mtdt")
     # when
-    res = client.post(JOBS_URL, json=_body(tmp_path, evnt_type="EARTHQUAKE"))
+    res = client.post(JOBS_URL, json=body)
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "REQUIRED_FIELD_MISSING"
+
+
+def test_mtdt_항목값이_허용코드_밖이면_400_INVALID_PARAMETER(
+    client: TestClient, tmp_path
+) -> None:
+    # given / when — weather 는 CLEAR|CLOUDY|RAIN|SNOW|FOG|WINDY
+    res = client.post(
+        JOBS_URL, json=_body(tmp_path, mtdt={"weather": "TORNADO", "time": "NIGHT"})
+    )
+    # then
+    assert res.status_code == 400
+    body = res.json()
+    assert body["code"] == "INVALID_PARAMETER"
+    assert "mtdt" in body["message"]
+
+
+def test_mtdt가_비어있으면_400_INVALID_PARAMETER(client: TestClient, tmp_path) -> None:
+    # given / when — 유효한 조건값이 최소 1개는 있어야 한다
+    empty = client.post(JOBS_URL, json=_body(tmp_path, mtdt={}))
+    all_null = client.post(
+        JOBS_URL,
+        json=_body(
+            tmp_path,
+            mtdt={
+                "time": None,
+                "season": None,
+                "weather": None,
+                "terrain": None,
+                "severity": None,
+            },
+        ),
+    )
+    # then
+    assert empty.status_code == 400 and empty.json()["code"] == "INVALID_PARAMETER"
+    assert all_null.status_code == 400 and all_null.json()["code"] == "INVALID_PARAMETER"
+
+
+def test_mtdt는_한_항목만_채워도_202(client: TestClient, tmp_path) -> None:
+    # given / when — 벤더 계약은 "최소 1개". 저작도구가 5개를 다 보내는 것과 별개 축이다
+    res = client.post(JOBS_URL, json=_body(tmp_path, mtdt={"severity": "LOW"}))
+    # then
+    assert res.status_code == 202
+
+
+# ── v1.3 구 형태 거부 ────────────────────────────────────────────
+def test_최상위_condition은_400_INVALID_PARAMETER(client: TestClient, tmp_path) -> None:
+    # given — v1.3 표준에서 제외된 구 최상위 필드
+    body = _body(tmp_path)
+    body["condition"] = {"season": "WINTER"}
+    # when
+    res = client.post(JOBS_URL, json=body)
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_PARAMETER"
+
+
+def test_미지원_operation_type_TRANSFORM은_400(client: TestClient, tmp_path) -> None:
+    # given / when — V0 지원값은 GENERATE | AUGMENT
+    res = client.post(JOBS_URL, json=_body(tmp_path, operation_type="TRANSFORM"))
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_PARAMETER"
+
+
+def test_미지원_조합_AUGMENT_T2I는_400(client: TestClient, tmp_path) -> None:
+    # given / when — §4.1 V0 지원 조합은 GENERATE×T2I / AUGMENT×I2I / GENERATE×T2V
+    res = client.post(
+        JOBS_URL, json=_body(tmp_path, operation_type="AUGMENT", generation_mode="T2I",
+                             input_files=[])
+    )
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_PARAMETER"
+
+
+# ── v1.3 §4.1 evnt_type / evnt_subtype ───────────────────────────
+def test_WILDFIRE도_접수되고_evnt_subtype은_FLOOD전용(
+    client: TestClient, tmp_path
+) -> None:
+    # given / when — WILDFIRE 는 세부 코드가 없어 evnt_subtype 을 생략한다
+    body = _body(tmp_path, evnt_type="WILDFIRE")
+    body.pop("evnt_subtype")
+    ok = client.post(JOBS_URL, json=body)
+    # when — WILDFIRE 에 FLOOD 세부 유형을 실으면 거부
+    bad = client.post(
+        JOBS_URL, json=_body(tmp_path, evnt_type="WILDFIRE", evnt_subtype="ROAD_FLOOD")
+    )
+    # then
+    assert ok.status_code == 202
+    assert bad.status_code == 400 and bad.json()["code"] == "INVALID_PARAMETER"
+
+
+def test_허용코드_밖_evnt_subtype은_400(client: TestClient, tmp_path) -> None:
+    # given / when
+    res = client.post(JOBS_URL, json=_body(tmp_path, evnt_subtype="SEA_FLOOD"))
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_PARAMETER"
+
+
+def test_기본_허용목록_밖_evnt_type은_UNSUPPORTED_EVENT_TYPE(
+    client: TestClient, tmp_path
+) -> None:
+    # given / when — v1.3 §4.1 계약은 FLOOD | WILDFIRE 2종(설정 없이 기본 강제)
+    res = client.post(JOBS_URL, json=_body(tmp_path, evnt_type="FIRE"))
     # then
     assert res.status_code == 400
     assert res.json()["code"] == "UNSUPPORTED_EVENT_TYPE"
-    # 허용목록 안이면 정상 접수
-    ok = client.post(JOBS_URL, json=_body(tmp_path, evnt_type="FALL"))
-    assert ok.status_code == 202
+
+
+def test_evnt_type_허용목록을_비워도_계약목록으로_fail_closed(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # given — 설정을 빈값으로 둬도 "전체 허용" 으로 열리지 않아야 한다
+    from app.config import reload_settings
+
+    monkeypatch.setenv("MOCK_GENAI_EVENT_TYPES", "")
+    reload_settings()
+    # when
+    res = client.post(JOBS_URL, json=_body(tmp_path, evnt_type="FIRE"))
+    # then
+    assert res.status_code == 400
+    assert res.json()["code"] == "UNSUPPORTED_EVENT_TYPE"
 
 
 def test_입력파일_크기초과는_413_GA_MEDIA_001(

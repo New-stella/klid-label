@@ -35,7 +35,11 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * 외부 증강(생성형 AI) 위탁 클라이언트 — 「생성형 AI API 연동명세서 v1.1」 §4.1 정합 (Phase 7-A1).
+ * 외부 증강(생성형 AI) 위탁 클라이언트 — 「생성형 AI API 연동명세서」 정합 (Phase 7-A1).
+ *
+ * <p>위탁 요청(§4.1) 본문은 <b>v1.3</b> 형태다 — 생성 조건은 최상위 {@code mtdt}, 자유 지시문은
+ * 별개 {@code prompt} 문자열이다({@code @design INT-008}). 조회·취소(§4.4~§4.6)는 이번 정합에서
+ * 바뀌지 않았고 각 DTO 주석이 자기 절의 판을 적는다.
  *
  * <p>{@code POST /api/genai/jobs} 로 증강을 <b>비동기 위탁</b>하고 202 응답에서 외부가 발급한
  * {@code job_id} 를 받아온다. 결과는 웹훅으로 수신한다(A2 스코프).
@@ -485,32 +489,38 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     }
 
     /**
-     * 커맨드 → 명세서 §4.1 요청 바디. 채널/작업유형/생성모드는 저작도구 증강 고정값이다.
+     * 커맨드 → 명세서 v1.3 §4.1 요청 바디. 채널/작업유형/생성모드는 저작도구 증강 고정값이다.
      *
-     * <p>{@code prompt} 는 <b>요청 시점에 조립된 사용자 입력</b>({@code AugmentRequestService} →
-     * {@code AugmentPrompts.of})을 그대로 중계한다. 여기서 다시 만들지 않는다 — 클라이언트가 자체
-     * 조립하면 DB 에 적재한 원문({@code LS_DATA_AUG.PROMPT_CN})과 실제로 나간 값이 갈라진다.
+     * <p><b>여기는 매핑만 한다</b>. {@code mtdt}·{@code prompt}·{@code evnt_type} 은 모두 <b>요청 시점에
+     * 확정된 값</b>({@code AugmentRequestService} → {@code AugmentPrompts.mtdt})을 그대로 중계한다.
+     * 클라이언트가 자체 조립하거나 DB 를 다시 읽어 재구성하면 적재 원문
+     * ({@code LS_DATA_AUG.PROMPT_CN})과 실제로 나간 값이 갈라진다.
      *
-     * <p>{@code prompt} 는 계약상 <b>필수</b>이므로 비어 있으면 fail-closed 로 끊는다. 빈 dict 를 그대로
-     * 보내면 벤더가 임의 기본값으로 채워 "요청한 조건과 다른 결과" 가 조용히 돌아온다.
+     * <p>{@code mtdt} 는 계약상 <b>최소 1항목</b>이 필요하므로 비어 있으면 fail-closed 로 끊는다. 빈
+     * 객체를 그대로 보내면 벤더가 임의 기본값으로 채워 "요청한 조건과 다른 결과" 가 조용히 돌아온다.
+     *
+     * <p>{@code prompt} 는 <b>선택 문자열</b>이라 없으면 {@code null} 로 두고 {@code @JsonInclude}
+     * (NON_NULL)가 키 자체를 생략한다. {@code evnt_subtype} 도 같다(침수가 아니면 미전송).
      */
     private GenAiJobSubmitRequest toRequestBody(AugmentSubmitCommand command) {
         List<GenAiInputFile> files = command.inputFiles().stream()
                 .map(f -> new GenAiInputFile(f.sequence(), f.filePath()))
                 .toList();
-        if (command.prompt().isEmpty()) {
+        if (command.mtdt().isEmpty()) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
-                    "증강 위탁 prompt 가 비어 있습니다.");
+                    "증강 위탁 mtdt 가 비어 있습니다.");
         }
         return new GenAiJobSubmitRequest(
                 command.requestId(),
                 GenAiJobSubmitRequest.CHANNEL_AUTHORING,
                 command.requestUserId(),
                 command.evntType(),
+                command.evntSubtype(),
                 GenAiJobSubmitRequest.OPERATION_AUGMENT,
                 GenAiJobSubmitRequest.MODE_I2I,
                 files,
-                command.prompt(),
+                command.mtdt(),
+                command.promptText(),
                 command.callbackUrl());
     }
 

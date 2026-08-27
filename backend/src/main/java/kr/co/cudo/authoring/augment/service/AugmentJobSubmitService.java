@@ -10,8 +10,6 @@ import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -140,11 +138,7 @@ public class AugmentJobSubmitService {
     /** 명세서 §4.1 input_files 상한. 설정으로 낮출 수는 있어도 계약 상한을 넘길 수 없다. */
     private static final int CONTRACT_MAX_INPUT_FILES = 100;
 
-    /** 이벤트 유형 미상 영상의 대체값 — {@code evnt_type} 은 외부 계약상 필수(1~20)다. */
-    static final String EVNT_TYPE_FALLBACK = "ETC";
-
     private final LsDataSrcRepository srcRepository;
-    private final VideoRepository videoRepository;
     private final AugmentJobRecorder jobRecorder;
     private final ExternalAugmentClient externalClient;
     private final AugmentMetrics metrics;
@@ -157,7 +151,6 @@ public class AugmentJobSubmitService {
     private final int maxInputFiles;
 
     public AugmentJobSubmitService(LsDataSrcRepository srcRepository,
-                                   VideoRepository videoRepository,
                                    AugmentJobRecorder jobRecorder,
                                    ExternalAugmentClient externalClient,
                                    AugmentMetrics metrics,
@@ -167,7 +160,6 @@ public class AugmentJobSubmitService {
                                    @Value("${authoring.augment.external.max-input-files:100}")
                                    int maxInputFiles) {
         this.srcRepository = srcRepository;
-        this.videoRepository = videoRepository;
         this.jobRecorder = jobRecorder;
         this.externalClient = externalClient;
         this.metrics = metrics;
@@ -229,7 +221,6 @@ public class AugmentJobSubmitService {
             return SubmitOutcome.of(0);
         }
 
-        String evntType = resolveEventType(event.rawSn());
         List<List<FrameInput>> chunks = partition(inputs);
 
         // 전량 선기록 — <위탁 전에> 기대 job 집합을 완성한다(DEV_FIX 2차 MEDIUM-2).
@@ -240,7 +231,7 @@ public class AugmentJobSubmitService {
         }
         List<Long> augJobSns = issued.get();
 
-        dispatchChunks(event, evntType, chunks, augJobSns);
+        dispatchChunks(event, chunks, augJobSns);
         log.info("[Augment] 위탁 개시 originAugSn={} rawSn={} jobCount={}",
                 event.originAugSn(), event.rawSn(), chunks.size());
         return SubmitOutcome.of(chunks.size());
@@ -265,13 +256,13 @@ public class AugmentJobSubmitService {
      * "{@code accepted==0} 이면 즉시 실패 롤업" 이 여기로 이관됐다 —
      * {@link AugmentSubmitRollupTxService} 주석 참조.
      */
-    private void dispatchChunks(AugmentRequestedItemEvent event, String evntType,
+    private void dispatchChunks(AugmentRequestedItemEvent event,
                                 List<List<FrameInput>> chunks, List<Long> augJobSns) {
         int jobCount = chunks.size();
         try {
             Flux.range(0, jobCount)
                     .concatMap(i -> submitChunkAsync(
-                            event, evntType, chunks.get(i), augJobSns, i, jobCount))
+                            event, chunks.get(i), augJobSns, i, jobCount))
                     .then()
                     // 중단 신호는 오류가 아니다 — 남은 청크 종결 기록은 이미 끝났고 정상 완료로 흡수한다.
                     .onErrorResume(SubmitAbortedException.class, e -> Mono.empty())
@@ -308,7 +299,7 @@ public class AugmentJobSubmitService {
      * <p>실패는 {@code onErrorResume} 으로 흡수해 <b>다음 청크를 계속</b> 위탁한다(건별 격리 —
      * 기존 동기 계약과 동일). 사유는 핸들러가 DB 에 남긴다(조용한 삼킴 금지).
      */
-    private Mono<Void> submitChunkAsync(AugmentRequestedItemEvent event, String evntType,
+    private Mono<Void> submitChunkAsync(AugmentRequestedItemEvent event,
                                         List<FrameInput> chunk, List<Long> augJobSns,
                                         int index, int jobCount) {
         return Mono.defer(() -> {
@@ -322,9 +313,13 @@ public class AugmentJobSubmitService {
             }
             int jobSeq = index + 1;
             Long augJobSn = augJobSns.get(index);
+            // 이벤트 유형·생성 조건·자유 지시문은 모두 <요청 시점에 확정된 값>을 그대로 나른다 —
+            // 여기서 영상을 다시 읽어 재조립하면 적재 원문과 나간 값이 두 벌이 되어 갈라진다.
+            // [design: INT-008]
             AugmentSubmitCommand command = new AugmentSubmitCommand(
-                    event.originAugSn(), event.augType(), event.prompt(),
-                    chunkRequestId(event.idempotencyKey(), jobSeq), evntType,
+                    event.originAugSn(), event.augType(), event.mtdt(), event.promptText(),
+                    chunkRequestId(event.idempotencyKey(), jobSeq),
+                    event.evntType(), event.evntSubtype(),
                     event.requestUserNo(), event.callbackUrl(),
                     chunk.stream().map(FrameInput::toInputFile).toList(), jobSeq, jobCount);
             return externalClient.requestAugment(command)
@@ -491,14 +486,6 @@ public class AugmentJobSubmitService {
                     missing);
         }
         return files;
-    }
-
-    /** 관제 이벤트 유형 코드. 미상이면 계약 필수 필드를 채우기 위해 {@link #EVNT_TYPE_FALLBACK}. */
-    private String resolveEventType(Long rawSn) {
-        return videoRepository.findById(rawSn)
-                .map(LsDataRaw::getEvntTypeCd)
-                .filter(code -> code != null && !code.isBlank())
-                .orElse(EVNT_TYPE_FALLBACK);
     }
 
     private List<List<FrameInput>> partition(List<FrameInput> inputs) {
