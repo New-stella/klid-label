@@ -23,9 +23,10 @@ describe('augment api', () => {
     mock.restore();
   });
 
-  // BE 계약(2026-07-31): videoIds·types 는 각각 길이 1, prompt 5필드는 **필수**.
-  // prompt 를 빠뜨리면 BE 가 400 INVALID_INPUT 으로 거부한다.
-  it('requestAugment_POST_augments_request_요청_바디_videoIds_types_prompt_전달', async () => {
+  // BE 계약(v1.3, 2026-08-27): videoIds·types 는 각각 길이 1, `evntType` 과 `mtdt` 는 **필수**.
+  // `mtdt` 는 최상위 객체이고 `prompt` 는 **자유 지시문 문자열**이다(구 5필드 객체 prompt 는 400).
+  // `evntSubtype` 은 침수일 때만 싣는다 — 산불과 함께 보내면 BE 가 400 이다.
+  it('requestAugment_POST_augments_request_요청_바디_mtdt_evntType_prompt_전달', async () => {
     let body: unknown;
     mock.onPost('/augments/request').reply((config) => {
       body = JSON.parse(config.data ?? '{}');
@@ -48,25 +49,33 @@ describe('augment api', () => {
     const res = await requestAugment({
       videoIds: [1],
       types: ['WINTER'],
-      prompt: {
+      evntType: 'FLOOD',
+      evntSubtype: 'ROAD_FLOOD',
+      mtdt: {
         time: 'NIGHT',
         season: 'WINTER',
         weather: 'RAIN',
         terrain: 'ROAD',
         severity: 'HIGH',
       },
+      prompt: '원본 카메라 시점을 유지해줘.',
     });
     expect(body).toMatchObject({
       videoIds: [1],
       types: ['WINTER'],
-      prompt: {
+      evntType: 'FLOOD',
+      evntSubtype: 'ROAD_FLOOD',
+      mtdt: {
         time: 'NIGHT',
         season: 'WINTER',
         weather: 'RAIN',
         terrain: 'ROAD',
         severity: 'HIGH',
       },
+      prompt: '원본 카메라 시점을 유지해줘.',
     });
+    // 구 계약(5필드 객체 prompt)으로 되돌아가지 않는다 — prompt 는 문자열이다.
+    expect(typeof (body as { prompt: unknown }).prompt).toBe('string');
     expect(res.jobId).toBe(100);
     expect(res.videoCount).toBe(1);
     expect(res.typeCount).toBe(1);

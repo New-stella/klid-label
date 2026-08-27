@@ -48,7 +48,7 @@ class HttpExternalAugmentClientQueryTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** 위탁 payload 의 prompt — 서킷 격리 검증에서 위탁 경로를 태우기 위한 고정값. */
-    private static final Map<String, Object> PROMPT = Map.of(
+    private static final Map<String, Object> MTDT = Map.of(
             "time", "NIGHT", "season", "WINTER", "weather", "RAIN",
             "terrain", "ROAD", "severity", "HIGH");
 
@@ -484,7 +484,7 @@ class HttpExternalAugmentClientQueryTest {
         HttpExternalAugmentClient client = client(singleAttempt());
 
         AugmentSubmitResult submitted = client.requestAugment(new AugmentSubmitCommand(
-                10L, "WINTER", PROMPT, "AUG-40", "FIRE", "1",
+                10L, "WINTER", MTDT, null, "AUG-40", "FLOOD", null, "1",
                 "http://localhost:8080/api/v1/genai/callback",
                 List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg")),
                 1, 1)).block();

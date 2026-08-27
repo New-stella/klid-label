@@ -60,7 +60,7 @@ import static org.mockito.Mockito.verify;
 class AugmentJobSubmitServiceTest {
 
     /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
-    private static final java.util.Map<String, Object> PROMPT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
+    private static final java.util.Map<String, Object> MTDT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
 
 
     @Mock private LsDataSrcRepository srcRepository;
@@ -86,13 +86,13 @@ class AugmentJobSubmitServiceTest {
 
     private AugmentJobSubmitService newService(int maxInputFiles) {
         return new AugmentJobSubmitService(
-                srcRepository, videoRepository, jobRecorder, externalClient, metrics,
+                srcRepository, jobRecorder, externalClient, metrics,
                 deidentReportGate, outcomeRecorder, Schedulers.immediate(), maxInputFiles);
     }
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, "WINTER", PROMPT, "AUG-key",
+                7L, 700L, "WINTER", MTDT, null, "FLOOD", null, "AUG-key",
                 "http://localhost:8080/api/v1/genai/callback", "1");
     }
 
@@ -256,9 +256,17 @@ class AugmentJobSubmitServiceTest {
         verify(srcRepository, never()).findByRawSnOrderByFrameNoAsc(anyLong());
     }
 
+    /**
+     * 이벤트 유형은 <b>요청 이벤트가 실어 온 값</b>을 그대로 중계한다 (v1.3 · {@code @design INT-008}).
+     *
+     * <p>구 구현은 여기서 영상의 관제 이벤트 코드({@code LS_DATA_RAW.EVNT_TYPE_CD})를 조회해 싣고,
+     * 없으면 {@code "ETC"} 로 대체했다. 계약 허용값은 {@code FLOOD}/{@code WILDFIRE} 둘뿐이라 그 값들은
+     * 모두 벤더에서 {@code 400} 이 된다 — 그래서 조회도 대체값도 <b>폐기</b>됐다. 위탁 서비스가
+     * 영상을 다시 읽지 않는다는 것까지 함께 고정한다(다시 읽으면 두 벌이 되어 갈라진다).
+     */
     @Test
-    @DisplayName("이벤트유형이_없는_영상은_ETC_로_대체된다")
-    void fallsBackToEtcEventType() {
+    @DisplayName("이벤트유형은_요청에서_받은_값을_그대로_중계한다")
+    void relaysEventTypeFromRequest() {
         seedFrames(1);
 
         service.submit(event());
@@ -266,8 +274,8 @@ class AugmentJobSubmitServiceTest {
         ArgumentCaptor<AugmentSubmitCommand> captor =
                 ArgumentCaptor.forClass(AugmentSubmitCommand.class);
         verify(externalClient).requestAugment(captor.capture());
-        assertThat(captor.getValue().evntType())
-                .isEqualTo(AugmentJobSubmitService.EVNT_TYPE_FALLBACK);
+        assertThat(captor.getValue().evntType()).isEqualTo("FLOOD");
+        assertThat(captor.getValue().mtdt()).containsEntry("time", "NIGHT");
     }
 
     @Test

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
+import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
@@ -76,9 +78,10 @@ class AugmentRequestContractTest {
     private static final Long RAW_SN = 4001L;
     private static final Long SRC_SN = 5001L;
 
-    /** 프롬프트 자체가 관심사가 아닌 케이스에서 계약(5필드 필수)을 채우는 고정값. */
-    private static final AugmentRequestRequest.PromptFields PROMPT =
-            new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", "HIGH");
+    /** 생성 조건 자체가 관심사가 아닌 케이스에서 계약(5항목 필수)을 채우는 고정값. */
+    private static final AugmentRequestRequest.Mtdt MTDT = new AugmentRequestRequest.Mtdt(
+            AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER, AugmentPrompts.Weather.RAIN,
+            AugmentPrompts.Terrain.ROAD, AugmentPrompts.Severity.HIGH);
 
     @BeforeEach
     void setUp() {
@@ -119,7 +122,13 @@ class AugmentRequestContractTest {
     }
 
     private static AugmentRequestRequest single() {
-        return new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER), PROMPT);
+        return request(MTDT, null);
+    }
+
+    /** v1.3 요청 본문 — 이벤트 유형은 요청자가 고른 값(관제 코드 변환 아님). */
+    private static AugmentRequestRequest request(AugmentRequestRequest.Mtdt mtdt, String promptText) {
+        return new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, mtdt, promptText);
     }
 
     @SuppressWarnings("unchecked")
@@ -258,14 +267,16 @@ class AugmentRequestContractTest {
         withFrame();
 
         assertThatThrownBy(() -> service.request(
-                new AugmentRequestRequest(List.of(RAW_SN, 4002L), List.of(AugmentTypeCode.WINTER), PROMPT), reviewer))
+                new AugmentRequestRequest(List.of(RAW_SN, 4002L), List.of(AugmentTypeCode.WINTER),
+                        GenAiContract.EventType.FLOOD, null, MTDT, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
         assertThatThrownBy(() -> service.request(
                 new AugmentRequestRequest(List.of(RAW_SN),
-                        List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT), PROMPT), reviewer))
+                        List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT),
+                        GenAiContract.EventType.FLOOD, null, MTDT, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -323,69 +334,130 @@ class AugmentRequestContractTest {
         verify(eventPublisher).publishEvent(any(AugmentRequestedItemEvent.class));
     }
 
-    // ─── 구조화 프롬프트 계약 (2026-07-31) ──────────────────
+    // ─── 구조화 생성 조건 계약 (2026-07-31 신설 · 2026-08-27 v1.3 정합) ──────────────────
 
-    /** 5필드가 이벤트(→ 외부 위탁)로 <b>가공 없이</b> 전달되는지. 서버 고정 문구 시절로의 회귀 가드. */
+    /**
+     * 다섯 항목이 이벤트(→ 외부 위탁)로 <b>가공 없이</b> {@code mtdt} 로 전달되는지.
+     * 서버 고정 문구 시절로의 회귀 가드이자, v1.3 에서 키가 {@code prompt} → {@code mtdt} 로 옮겨간
+     * 것의 고정이다.
+     */
     @Test
-    @DisplayName("프롬프트_5필드를_입력하면_외부전송_prompt_객체에_그대로_담긴다")
-    void promptIsCarriedToSubmitEvent() {
+    @DisplayName("생성조건_5항목을_고르면_외부전송_mtdt_객체에_그대로_담긴다")
+    void mtdtIsCarriedToSubmitEvent() {
         withFrame();
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("DAWN", "SUMMER", "FOG", "TUNNEL", "LOW")),
-                reviewer);
+        service.request(request(new AugmentRequestRequest.Mtdt(
+                AugmentPrompts.Time.DAWN, AugmentPrompts.Season.SUMMER, AugmentPrompts.Weather.FOG,
+                AugmentPrompts.Terrain.UNDERPASS, AugmentPrompts.Severity.LOW), null), reviewer);
 
         ArgumentCaptor<AugmentRequestedItemEvent> captor =
                 ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().prompt()).containsExactlyInAnyOrderEntriesOf(Map.of(
+        assertThat(captor.getValue().mtdt()).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "time", "DAWN", "season", "SUMMER", "weather", "FOG",
-                "terrain", "TUNNEL", "severity", "LOW"));
+                "terrain", "UNDERPASS", "severity", "LOW"));
+    }
+
+    /**
+     * 자유 지시문은 <b>별개 최상위 문자열</b>이다(v1.3). 구 계약처럼 조건 객체 안으로 되돌리면
+     * 벤더가 {@code 400 INVALID_PARAMETER} 로 거부한다.
+     */
+    @Test
+    @DisplayName("자유지시문은_mtdt와_분리된_문자열로_전달된다")
+    void promptTextIsCarriedSeparately() {
+        withFrame();
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.request(request(MTDT, "  도로 구조를 유지해줘.  "), reviewer);
+
+        ArgumentCaptor<AugmentRequestedItemEvent> captor =
+                ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().promptText())
+                .as("앞뒤 공백은 정규화되고 값 자체는 가공되지 않는다")
+                .isEqualTo("도로 구조를 유지해줘.");
+        assertThat(captor.getValue().mtdt()).doesNotContainKey("prompt");
+    }
+
+    /** 자유 지시문은 <b>선택</b>이라 없으면 null 로 남아 외부 바디에서 키 자체가 생략된다. */
+    @Test
+    @DisplayName("자유지시문이_없으면_null로_남아_전송되지_않는다")
+    void absentPromptTextStaysNull() {
+        withFrame();
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.request(request(MTDT, "   "), reviewer);
+
+        ArgumentCaptor<AugmentRequestedItemEvent> captor =
+                ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().promptText()).isNull();
     }
 
     /**
      * 저장본(PROMPT_CN)과 전송본이 <b>같은 값</b>이어야 한다. 둘을 따로 만들면 "이 파생본은 어떤
      * 조건으로 만들었나" 라는 역추적이 조용히 거짓이 된다.
+     *
+     * <p>v1.3 부터 보관도 <b>분리 형태</b>({@code {"mtdt":{...},"prompt":"..."}})다 — 나간 바디와
+     * 모양이 같아야 대조가 성립한다.
      */
     @Test
-    @DisplayName("프롬프트가_DB에_보관되어_결과에서_역추적된다")
-    void promptIsPersistedOnAugRow() {
+    @DisplayName("생성조건이_DB에_분리형태로_보관되어_결과에서_역추적된다")
+    void mtdtIsPersistedOnAugRow() {
         withFrame();
         ArgumentCaptor<LsDataAug> saved = ArgumentCaptor.forClass(LsDataAug.class);
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("DAWN", "SUMMER", "FOG", "TUNNEL", "LOW")),
-                reviewer);
+        service.request(request(new AugmentRequestRequest.Mtdt(
+                AugmentPrompts.Time.DAWN, AugmentPrompts.Season.SUMMER, AugmentPrompts.Weather.FOG,
+                AugmentPrompts.Terrain.UNDERPASS, AugmentPrompts.Severity.LOW), "지시문"), reviewer);
 
         verify(augRepository).save(saved.capture());
         assertThat(saved.getValue().getPromptCn())
                 .isNotNull()
+                .contains("\"mtdt\"")
                 .contains("DAWN").contains("SUMMER").contains("FOG")
-                .contains("TUNNEL").contains("LOW");
+                .contains("UNDERPASS").contains("LOW")
+                .contains("\"prompt\"").contains("지시문");
+    }
+
+    /** 지시문이 없으면 보관 JSON 에도 그 키를 넣지 않는다 — 나간 바디와 모양을 맞춘다. */
+    @Test
+    @DisplayName("자유지시문이_없으면_보관JSON에도_그_키가_없다")
+    void storedJsonOmitsAbsentPromptText() {
+        withFrame();
+        ArgumentCaptor<LsDataAug> saved = ArgumentCaptor.forClass(LsDataAug.class);
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.request(single(), reviewer);
+
+        verify(augRepository).save(saved.capture());
+        assertThat(saved.getValue().getPromptCn())
+                .contains("\"mtdt\"")
+                .doesNotContain("\"prompt\"");
     }
 
     /**
-     * DTO 의 {@code @NotBlank}/{@code @Size} 는 <b>컨트롤러 진입에만</b> 적용된다. 서비스를 직접 부르는
-     * 경로가 그 상한을 우회하면 PROMPT_CN 적재 오류·무제한 외부 중계로 이어지므로 여기서도 막는다
+     * DTO 의 {@code @NotNull} 은 <b>컨트롤러 진입에만</b> 적용된다. 서비스를 직접 부르는 경로가 그
+     * 규칙을 우회하면 빈 조건이 외부로 나가 결과가 비결정적이 되므로 여기서도 막는다
      * (컨트롤러 400 은 {@code AugmentRequestControllerTest} 가 별도로 고정한다).
+     *
+     * <p><b>다섯 항목 전부 필수는 우리 규칙</b>이다 — 벤더 계약은 "최소 1개" 지만 완화하지 않는다.
      */
     @Test
-    @DisplayName("프롬프트_필드가_하나라도_비면_400")
-    void blankPromptFieldRejectedAtServiceLayer() {
+    @DisplayName("생성조건_항목이_하나라도_비면_400")
+    void missingMtdtFieldRejectedAtServiceLayer() {
         withFrame();
 
-        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields(null, "WINTER", "RAIN", "ROAD", "HIGH")),
-                reviewer))
+        assertThatThrownBy(() -> service.request(request(new AugmentRequestRequest.Mtdt(
+                null, AugmentPrompts.Season.WINTER, AugmentPrompts.Weather.RAIN,
+                AugmentPrompts.Terrain.ROAD, AugmentPrompts.Severity.HIGH), null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER), null), reviewer))
+        assertThatThrownBy(() -> service.request(request(null, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -394,91 +466,125 @@ class AugmentRequestContractTest {
         verify(eventPublisher, never()).publishEvent(any(AugmentRequestedItemEvent.class));
     }
 
-    /** 공백·제어문자만 남는 값은 "입력하지 않은 것" 과 동치다 — 빈 조건이 외부로 나가면 결과가 비결정적이 된다. */
+    /**
+     * 이벤트 유형은 요청 본문에서 온다 — 영상의 관제 이벤트 코드에서 변환하지 않는다.
+     *
+     * <p>구 구현은 위탁 시점에 {@code LS_DATA_RAW.EVNT_TYPE_CD} 를 읽어 실었는데, 계약 허용값은
+     * {@code FLOOD}/{@code WILDFIRE} 둘뿐이라 관제 코드를 그대로 보내면 벤더가 400 으로 거부한다.
+     * 시드 영상의 관제 코드는 {@code "EVT"} 이므로 그 값이 새어 나오면 이 가드가 깨진다.
+     */
     @Test
-    @DisplayName("공백만_입력한_필드는_400")
-    void whitespaceOnlyPromptFieldRejected() {
+    @DisplayName("이벤트유형은_요청본문에서_오고_관제코드로_대체되지_않는다")
+    void eventTypeComesFromRequestNotControlCode() {
         withFrame();
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("   ", "WINTER", "RAIN", "ROAD", "HIGH")),
-                reviewer))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
+        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.WILDFIRE, null, MTDT, null), reviewer);
 
-        // 제어문자만 있는 값도 정규화 후 남는 게 없으므로 동일하게 거부된다.
-        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields(String.valueOf((char) 9), "WINTER", "RAIN",
-                        "ROAD", "HIGH")),
-                reviewer))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-
-        verify(eventPublisher, never()).publishEvent(any(AugmentRequestedItemEvent.class));
+        ArgumentCaptor<AugmentRequestedItemEvent> captor =
+                ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().evntType()).isEqualTo("WILDFIRE");
+        assertThat(captor.getValue().evntSubtype()).isNull();
     }
 
-    /** 상한이 없으면 저장 컬럼(VARCHAR(4000))을 넘겨 적재 500 이 되고, 무제한 입력이 외부로 중계된다(CWE-770). */
+    /** 침수 세부 유형은 침수일 때만 — 계약에 산불 세부 코드가 없어 함께 보내면 벤더가 400 이다. */
     @Test
-    @DisplayName("프롬프트_필드_길이_상한_초과시_400")
-    void oversizedPromptFieldRejected() {
+    @DisplayName("침수_세부유형을_산불과_함께_보내면_400")
+    void floodSubtypeRejectedForWildfire() {
         withFrame();
-        String tooLong = "X".repeat(AugmentRequestRequest.PromptFields.MAX_FIELD_LENGTH + 1);
 
         assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
                 List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", tooLong)),
-                reviewer))
+                GenAiContract.EventType.WILDFIRE, GenAiContract.FloodSubtype.ROAD_FLOOD,
+                MTDT, null), reviewer))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(augRepository, never()).save(any(LsDataAug.class));
+    }
+
+    /** 침수면 세부 유형이 그대로 중계된다. */
+    @Test
+    @DisplayName("침수_세부유형은_침수일때_그대로_전달된다")
+    void floodSubtypeCarriedForFlood() {
+        withFrame();
+        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, GenAiContract.FloodSubtype.UNDERPASS_FLOOD,
+                MTDT, null), reviewer);
+
+        ArgumentCaptor<AugmentRequestedItemEvent> captor =
+                ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().evntSubtype()).isEqualTo("UNDERPASS_FLOOD");
+    }
+
+    /**
+     * 자유 지시문 상한이 없으면 저장 컬럼(VARCHAR(4000))을 넘겨 적재 500 이 되고, 무제한 입력이
+     * 외부로 중계된다(CWE-770).
+     */
+    @Test
+    @DisplayName("자유지시문_길이_상한_초과시_400")
+    void oversizedPromptTextRejected() {
+        withFrame();
+        String tooLong = "X".repeat(AugmentPrompts.MAX_PROMPT_LENGTH + 1);
+
+        assertThatThrownBy(() -> service.request(request(MTDT, tooLong), reviewer))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> {
                     CustomException ce = (CustomException) e;
                     assertThat(ce.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
                     assertThat(ce.getMessage())
-                            .as("입력값 원문을 되돌려주지 않는다 — 필드 이름만 알린다(CWE-359 반사 노출 차단)")
+                            .as("입력값 원문을 되돌려주지 않는다(CWE-359 반사 노출 차단)")
                             .doesNotContain(tooLong);
                 });
 
         verify(augRepository, never()).save(any(LsDataAug.class));
     }
 
-    /** 상한 경계(정확히 50자)는 통과해야 한다 — off-by-one 으로 정상 입력을 막지 않는지 고정. */
+    /** 상한 경계(정확히 1000자)는 통과해야 한다 — off-by-one 으로 정상 입력을 막지 않는지 고정. */
     @Test
-    @DisplayName("프롬프트_필드_길이_상한_경계값은_허용된다")
-    void promptFieldAtExactLimitAccepted() {
+    @DisplayName("자유지시문_길이_상한_경계값은_허용된다")
+    void promptTextAtExactLimitAccepted() {
         withFrame();
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
-        String atLimit = "X".repeat(AugmentRequestRequest.PromptFields.MAX_FIELD_LENGTH);
 
-        AugmentRequestResponse resp = service.request(new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", atLimit)),
-                reviewer);
+        AugmentRequestResponse resp = service.request(
+                request(MTDT, "X".repeat(AugmentPrompts.MAX_PROMPT_LENGTH)), reviewer);
 
         assertThat(resp.createdCount()).isEqualTo(1);
     }
 
     /**
-     * 증강 유형은 <b>prompt 에서 파생하지 않는다</b>. 자유 문자열이 AUG_TYPE_CD 로 흘러가면 파생 산출물
-     * 경로({@code .../{augTypeCd}.mp4}) 순회(CWE-22)와 RESL_ 네임스페이스 침범(검수 우회)이 열린다.
+     * 증강 유형은 <b>생성 조건에서도 이벤트 유형에서도 파생하지 않는다</b>. 그 값이 AUG_TYPE_CD 로
+     * 흘러가면 파생 산출물 경로({@code .../{augTypeCd}.mp4}) 순회(CWE-22)와 RESL_ 네임스페이스
+     * 침범(검수 우회)이 열린다.
+     *
+     * <p>허용 코드로 닫힌 뒤에도 유효한 가드다 — 코드 공간이 겹치기 때문이다
+     * ({@code Season.WINTER} ↔ {@code AUG_WINTER}).
      */
     @Test
-    @DisplayName("증강종류는_prompt가_아니라_types_enum에서만_결정된다")
-    void augTypeIsNeverDerivedFromPrompt() {
+    @DisplayName("증강종류는_생성조건이_아니라_types_enum에서만_결정된다")
+    void augTypeIsNeverDerivedFromMtdt() {
         withFrame();
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
         ArgumentCaptor<LsDataAug> saved = ArgumentCaptor.forClass(LsDataAug.class);
 
-        // prompt 에 경로 순회·RESL_ 침범을 노린 값을 넣어도 유형은 types[] enum 값 그대로여야 한다.
-        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("../../etc", "RESL_1080P", "RAIN",
-                        "ROAD", "HIGH")),
-                reviewer);
+        // 조건·지시문에 무엇을 넣어도 유형은 types[] enum 값 그대로여야 한다.
+        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.NIGHT),
+                GenAiContract.EventType.FLOOD, null,
+                new AugmentRequestRequest.Mtdt(
+                        AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER,
+                        AugmentPrompts.Weather.RAIN, AugmentPrompts.Terrain.ROAD,
+                        AugmentPrompts.Severity.HIGH),
+                "../../etc RESL_1080P"), reviewer);
 
         verify(augRepository).save(saved.capture());
-        assertThat(saved.getValue().getAugTypeCd()).isEqualTo(LsDataAug.AUG_WINTER);
+        assertThat(saved.getValue().getAugTypeCd()).isEqualTo(LsDataAug.AUG_NIGHT);
     }
 
     @Test

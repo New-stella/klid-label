@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NoopExternalAugmentClientTest {
 
     /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
-    private static final Map<String, Object> PROMPT = Map.of(
+    private static final Map<String, Object> MTDT = Map.of(
             "time", "NIGHT", "season", "WINTER", "weather", "RAIN",
             "terrain", "ROAD", "severity", "HIGH");
 
@@ -31,7 +31,7 @@ class NoopExternalAugmentClientTest {
     @DisplayName("운영_ExternalAugmentClient구현은_외부호출없이_noop이다")
     void noopSkipsWithoutExternalCall() {
         AugmentSubmitResult result = client.requestAugment(new AugmentSubmitCommand(
-                        10L, "WINTER", PROMPT, "abc-123_KEY", "FIRE", "1",
+                        10L, "WINTER", MTDT, null, "abc-123_KEY", "FLOOD", null, "1",
                         "http://localhost:8080/api/v1/genai/callback",
                         List.of(new AugmentInputFile(1, "/storage/deidentified/1.jpg")), 1, 1))
                 .block();

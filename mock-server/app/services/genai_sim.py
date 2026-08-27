@@ -1,7 +1,7 @@
 """
 생성형 AI 벤더 목 — 작업 진행 시뮬레이션 + 결과 파일 생성 + webhook 발신.
 
-「생성형 AI API 연동명세서 v1.1」 §3.2 상태머신을 백그라운드로 진행한다:
+「생성형 AI API 연동명세서 v1.3」 §3.2 상태머신을 백그라운드로 진행한다:
 
     RECEIVED ─[내부 큐 대기]→ (슬롯 확보) ─(단계 지연)→ RUNNING(전처리/추론/후처리)
                                                             └→ SUCCEEDED | FAILED
@@ -420,8 +420,11 @@ def is_failure_trigger(request_id: str) -> bool:
 
 # ── 결과 파일 생성 (§5.3 — 경로만 통보, 파일은 공유 스토리지에) ──
 def media_type_of(generation_mode: str) -> MediaType:
-    """생성 모드 → 결과 미디어 유형(T2I·I2I=IMAGE, T2V·I2V=VIDEO)."""
-    if generation_mode in (GenerationMode.T2V.value, GenerationMode.I2V.value):
+    """생성 모드 → 결과 미디어 유형(T2I·I2I=IMAGE, T2V=VIDEO).
+
+    v1.3 V0 지원 생성 모드는 T2I | I2I | T2V 뿐이라 영상 산출은 T2V 하나다(I2V·V2V 미지원).
+    """
+    if generation_mode == GenerationMode.T2V.value:
         return MediaType.VIDEO
     return MediaType.IMAGE
 

@@ -10,6 +10,8 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
 import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
+import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitResult;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
@@ -112,11 +114,12 @@ class AugmentRequestServiceTest {
     private static final AtomicLong RAW_SN_SEQ = new AtomicLong(990_000_000L);
 
     /**
-     * 생성 조건 5필드 — 프롬프트 자체가 관심사가 아닌 케이스에서 계약(필수)을 채우는 고정값.
-     * 프롬프트 검증·전달 자체는 아래 전용 테스트와 {@code AugmentRequestContractTest} 가 본다.
+     * 생성 조건 5항목 — 조건 자체가 관심사가 아닌 케이스에서 계약(전부 필수)을 채우는 고정값.
+     * 조건 검증·전달 자체는 아래 전용 테스트와 {@code AugmentRequestContractTest} 가 본다.
      */
-    private static final AugmentRequestRequest.PromptFields PROMPT =
-            new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", "HIGH");
+    private static final AugmentRequestRequest.Mtdt MTDT = new AugmentRequestRequest.Mtdt(
+            AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER, AugmentPrompts.Weather.RAIN,
+            AugmentPrompts.Terrain.ROAD, AugmentPrompts.Severity.HIGH);
 
     @BeforeEach
     void setup() {
@@ -235,7 +238,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         // when — 실제 커밋 → AFTER_COMMIT 발화
         service.request(req, reviewer);
@@ -262,7 +266,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.NIGHT), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.NIGHT),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         // when — request() 를 트랜잭션 안에서 호출 후 강제 롤백 (커밋 미발생)
         List<String> capturedKeys = tx.execute(s -> {
@@ -293,7 +298,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         service.request(req, reviewer);
 
@@ -318,7 +324,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.RAIN), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.RAIN),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         service.request(req, reviewer);
         awaitExternalSubmitted(1);
@@ -408,7 +415,7 @@ class AugmentRequestServiceTest {
         // when — 위탁 진입점을 프록시 경유로 동기 호출(비동기 브리지·커넥션 겹침 없음)
         AugmentJobSubmitService.SubmitOutcome outcome = submitService.submit(
                 new AugmentRequestedItemEvent(augSn, raw, LsDataAug.AUG_WINTER,
-                        java.util.Map.of("time", "NIGHT"), key,
+                        java.util.Map.of("time", "NIGHT"), null, "FLOOD", null, key,
                         "http://localhost/v1/genai/callback", "1"));
 
         assertThat(syncActive.get())
@@ -434,27 +441,35 @@ class AugmentRequestServiceTest {
      * 무시되고 예전 문구가 나가도 아무도 모른다.
      */
     @Test
-    @DisplayName("프롬프트_5필드를_입력하면_외부전송_prompt_객체에_그대로_담긴다")
-    void promptFieldsArePassedThroughToExternalPayload() {
+    @DisplayName("생성조건_5항목을_고르면_외부전송_mtdt_객체에_그대로_담긴다")
+    void mtdtIsPassedThroughToExternalPayload() {
         Long raw = nextRawSn();
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         seedFrame(raw, 0);
 
-        AugmentRequestRequest.PromptFields fields =
-                new AugmentRequestRequest.PromptFields("DAWN", "SUMMER", "FOG", "TUNNEL", "LOW");
+        AugmentRequestRequest.Mtdt fields = new AugmentRequestRequest.Mtdt(
+                AugmentPrompts.Time.DAWN, AugmentPrompts.Season.SUMMER, AugmentPrompts.Weather.FOG,
+                AugmentPrompts.Terrain.UNDERPASS, AugmentPrompts.Severity.LOW);
         service.request(new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.RAIN), fields), reviewer);
+                List.of(raw), List.of(AugmentTypeCode.RAIN),
+                GenAiContract.EventType.WILDFIRE, null, fields, "지시문"), reviewer);
         awaitExternalSubmitted(1);
 
         ArgumentCaptor<AugmentSubmitCommand> captor =
                 ArgumentCaptor.forClass(AugmentSubmitCommand.class);
         verify(externalClient, times(1)).requestAugment(captor.capture());
 
-        assertThat(captor.getValue().prompt())
-                .as("입력 5필드가 그대로 외부 prompt dict 가 된다(서버 고정 문구 아님)")
+        assertThat(captor.getValue().mtdt())
+                .as("고른 5항목이 그대로 외부 mtdt 객체가 된다(서버 고정 문구 아님)")
                 .containsExactlyInAnyOrderEntriesOf(java.util.Map.of(
                         "time", "DAWN", "season", "SUMMER", "weather", "FOG",
-                        "terrain", "TUNNEL", "severity", "LOW"));
+                        "terrain", "UNDERPASS", "severity", "LOW"));
+        assertThat(captor.getValue().promptText())
+                .as("자유 지시문은 mtdt 와 분리된 문자열로 나간다(v1.3)")
+                .isEqualTo("지시문");
+        assertThat(captor.getValue().evntType())
+                .as("이벤트 유형은 요청자가 고른 값이며 영상의 관제 이벤트 코드가 아니다")
+                .isEqualTo("WILDFIRE");
     }
 
     /**
@@ -463,27 +478,32 @@ class AugmentRequestServiceTest {
      * 둘이 갈라지면 역추적이 거짓이 된다.
      */
     @Test
-    @DisplayName("프롬프트가_DB에_보관되어_결과에서_역추적된다")
-    void promptIsPersistedForTraceability() {
+    @DisplayName("생성조건이_DB에_분리형태로_보관되어_결과에서_역추적된다")
+    void mtdtIsPersistedForTraceability() {
         Long raw = nextRawSn();
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
 
-        AugmentRequestRequest.PromptFields fields =
-                new AugmentRequestRequest.PromptFields("DAWN", "SUMMER", "FOG", "TUNNEL", "LOW");
+        AugmentRequestRequest.Mtdt fields = new AugmentRequestRequest.Mtdt(
+                AugmentPrompts.Time.DAWN, AugmentPrompts.Season.SUMMER, AugmentPrompts.Weather.FOG,
+                AugmentPrompts.Terrain.UNDERPASS, AugmentPrompts.Severity.LOW);
         service.request(new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), fields), reviewer);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, fields, "지시문"), reviewer);
 
         List<LsDataAug> augs = augsOf(frame);
         assertThat(augs).hasSize(1);
         String stored = augs.get(0).getPromptCn();
-        assertThat(stored).as("전송한 prompt 원문이 LS_DATA_AUG.PROMPT_CN 에 남아야 한다")
+        assertThat(stored)
+                .as("전송한 생성 조건이 나간 바디와 같은 분리 형태로 남아야 한다(v1.3)")
                 .isNotNull()
+                .contains("\"mtdt\":{")
                 .contains("\"time\":\"DAWN\"")
                 .contains("\"season\":\"SUMMER\"")
                 .contains("\"weather\":\"FOG\"")
-                .contains("\"terrain\":\"TUNNEL\"")
-                .contains("\"severity\":\"LOW\"");
+                .contains("\"terrain\":\"UNDERPASS\"")
+                .contains("\"severity\":\"LOW\"")
+                .contains("\"prompt\":\"지시문\"");
 
         // 결과 조회 경로(AugmentSummaryResponse)에서 도달 가능해야 한다.
         assertThat(kr.co.cudo.authoring.augment.dto.AugmentSummaryResponse.from(augs.get(0)).prompt())
@@ -495,23 +515,26 @@ class AugmentRequestServiceTest {
 
     /**
      * 개행이 섞인 입력이 <b>정규화 없이</b> 로그·저장·전송으로 흐르면 로그 위조(CWE-117)가 된다.
-     * 정규화 단일 원천({@code ControlCharNormalizer})을 실제로 통과하는지 값 축으로 고정한다.
+     * 정규화 단일 원천({@code VisibleTextNormalizer})을 실제로 통과하는지 값 축으로 고정한다.
      *
-     * <p>로그 축은 "프롬프트 원문을 아예 로그에 싣지 않는다" 는 설계로 닫혀 있다(서비스는 jobId·actor·
+     * <p><b>대상은 이제 자유 지시문 하나다</b>(v1.3) — 생성 조건 다섯 항목은 허용 코드 enum 이라
+     * 제어문자가 바인딩 단계를 통과할 수 없다. 반대로 자유 지시문은 여전히 사용자 자유 입력이라
+     * 이 방어가 그대로 필요하다.
+     *
+     * <p>로그 축은 "요청 원문을 아예 로그에 싣지 않는다" 는 설계로 닫혀 있다(서비스는 jobId·actor·
      * rawSn·augType 만 남긴다) — 개행을 제거하는 것과 애초에 찍지 않는 것 <b>두 겹</b> 방어다.
      */
     @Test
-    @DisplayName("개행이_포함된_프롬프트는_로그에_원본_개행이_남지_않는다")
-    void controlCharactersAreStrippedFromPrompt() {
+    @DisplayName("개행이_포함된_자유지시문은_저장·전송본에_원본_개행이_남지_않는다")
+    void controlCharactersAreStrippedFromPromptText() {
         Long raw = nextRawSn();
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
 
-        AugmentRequestRequest.PromptFields injected = new AugmentRequestRequest.PromptFields(
-                "NIGHT\n2026-01-01 FAKE LOG LINE", "WINTER\r\nINJECTED",
-                "RA\tIN", "ROAD " + (char) 0, "HIGH");
+        String injected = "NIGHT\n2026-01-01 FAKE LOG LINE\r\nINJECTED\tTAB" + (char) 0 + " ";
         service.request(new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.NIGHT), injected), reviewer);
+                List.of(raw), List.of(AugmentTypeCode.NIGHT),
+                GenAiContract.EventType.FLOOD, null, MTDT, injected), reviewer);
 
         List<LsDataAug> augs = augsOf(frame);
         assertThat(augs).hasSize(1);
@@ -521,10 +544,7 @@ class AugmentRequestServiceTest {
                         + "'제거됐다'고 오판한다(정규화를 지워도 통과하는 공허한 테스트가 된다)")
                 .doesNotContain("\n").doesNotContain("\r").doesNotContain("\t")
                 .doesNotContain("\\n").doesNotContain("\\r").doesNotContain("\\t")
-                .contains("NIGHT2026-01-01 FAKE LOG LINE")
-                .contains("RAIN")
-                // 앞뒤 공백도 정규화 대상 — "ROAD " 는 "ROAD" 로 다듬어진다(문자열 중간 공백은 유지).
-                .contains("\"terrain\":\"ROAD\"");
+                .contains("NIGHT2026-01-01 FAKE LOG LINEINJECTEDTAB");
 
         awaitJobsOf(augs.get(0).getDataAugSn());
     }
@@ -542,7 +562,8 @@ class AugmentRequestServiceTest {
 
         // 단건 계약(E-ISSUE-08) — 영상 1건 × 종류 1개
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(r1), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
@@ -563,7 +584,8 @@ class AugmentRequestServiceTest {
         Long frame1 = seedFrame(r1, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(r1), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         service.request(req, reviewer);
 
@@ -586,7 +608,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         service.request(req, reviewer);
 
@@ -612,7 +635,8 @@ class AugmentRequestServiceTest {
         // 프레임 미적재
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(r1), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -647,7 +671,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(r1, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(r1), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -678,7 +703,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(r1, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(r1), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         AugmentRequestResponse resp = service.request(req, reviewer);
 
@@ -696,7 +722,8 @@ class AugmentRequestServiceTest {
         seedStatus(r2, LsRawDataStatus.STTS_IN_REVIEW);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(r2), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(r2), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -724,7 +751,8 @@ class AugmentRequestServiceTest {
                 parentRawSn, derivativeRawSn);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(derivativeRawSn), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(derivativeRawSn), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         // when / then — 해상도 변경 경로와 동일한 400(INVALID_INPUT) 계열.
         assertThatThrownBy(() -> service.request(req, reviewer))
@@ -745,7 +773,8 @@ class AugmentRequestServiceTest {
         Long missing = nextRawSn(); // status row 없음
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(missing), List.of(AugmentTypeCode.NIGHT), PROMPT);
+                List.of(missing), List.of(AugmentTypeCode.NIGHT),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         assertThatThrownBy(() -> service.request(req, reviewer))
                 .isInstanceOf(CustomException.class)
@@ -776,13 +805,15 @@ class AugmentRequestServiceTest {
         seedFrame(r2, 0);
 
         assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(r1, r2), List.of(AugmentTypeCode.WINTER), PROMPT), reviewer))
+                List.of(r1, r2), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
         assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(r1), List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT), PROMPT), reviewer))
+                List.of(r1), List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT),
+                GenAiContract.EventType.FLOOD, null, MTDT, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -802,7 +833,8 @@ class AugmentRequestServiceTest {
                 .willReturn(Mono.error(new RuntimeException("외부 시스템 장애 (mock)")));
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         // when — 외부 호출은 AFTER_COMMIT 에서 실패하지만 요청 트랜잭션/응답에는 영향 없음
         AugmentRequestResponse resp = service.request(req, reviewer);
@@ -835,7 +867,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         assertThat(service.request(req, reviewer).createdCount()).isEqualTo(1);
         assertThat(service.request(req, reviewer).createdCount()).isEqualTo(1);
@@ -856,7 +889,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.NIGHT), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.NIGHT),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
         service.request(req, reviewer);
         // 검수 승인(ACCEPTED) — 채택된 파생본이 이미 존재하는 상태.
         tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
@@ -877,7 +911,8 @@ class AugmentRequestServiceTest {
         Long frame = seedFrame(raw, 0);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.RAIN), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.RAIN),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
         service.request(req, reviewer);
         // 반려(REJECTED) 후 재요청 — 구 정책에서도 허용되던 동선이며 정책 전환 후에도 그대로다(회귀 가드).
         tx.executeWithoutResult(s -> augRepository.findBySrcSnOrderByAugTypeCd(frame)
@@ -936,7 +971,8 @@ class AugmentRequestServiceTest {
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(raw, 0);
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         int threads = 2;
         java.util.concurrent.ExecutorService pool =
@@ -981,7 +1017,8 @@ class AugmentRequestServiceTest {
         seedStatus(raw, LsRawDataStatus.STTS_APPROVED);
 
         AugmentRequestRequest req = new AugmentRequestRequest(
-                List.of(raw), List.of(AugmentTypeCode.WINTER), PROMPT);
+                List.of(raw), List.of(AugmentTypeCode.WINTER),
+                GenAiContract.EventType.FLOOD, null, MTDT, null);
 
         assertThatThrownBy(() -> service.request(req, worker))
                 .isInstanceOf(CustomException.class)

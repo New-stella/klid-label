@@ -408,48 +408,201 @@ export interface CancelAugmentRequest {
 export const AUGMENT_CANCEL_REASON_MAX_LENGTH = 500;
 
 /**
- * 외부 생성형 AI 로 그대로 전달되는 **구조화 프롬프트 5필드** (「생성형 AI API 연동명세서 v1.1」 §4.1).
+ * 외부 생성형 AI 이벤트 유형 — 「생성형 AI API 연동명세서 v1.3」 §4.1 `evnt_type`.
  *
- * - **5필드 전부 필수** — 하나라도 비면 BE 가 400 으로 거부한다. 벤더가 빈 조건을 임의 기본값으로
- *   채우면 결과가 비결정적이 되기 때문이다.
- * - **값은 자유 문자열** — 연동명세서가 `prompt` 를 자유 dict 로만 규정하고 허용값 enum 을 정의하지
- *   않는다. 예시값(NIGHT/WINTER/RAIN/ROAD/HIGH)은 규격서 **샘플**일 뿐 선택지가 아니므로,
- *   FE 에서 select 로 고정해 사용자를 가두지 않는다(벤더가 지원하는 조건을 우리가 모르는 채 막게 된다).
- * - 형식만 닫는다: 필수 · 공백 불가 · **보이지 않는 문자만 채운 값 불가** · 50자 이내.
- *   검증 규칙은 `validateAugmentPrompt`(BE `VisibleTextNormalizer` 미러) 참조.
+ * **영상의 관제 이벤트 코드에서 변환하지 않는다.** 두 분류 축이 서로 다른 체계라 자동 변환은
+ * 추정이 되고, 추정한 값이 그대로 외부 위탁에 실린다. 요청자가 화면에서 고른 값을 그대로 중계한다.
+ *
+ * ⚠ **증강 종류(`AugmentType`)와 다른 축이다.** 이름이 비슷해 섞이기 쉬우나 값도 조달처도 전혀
+ * 다르며, 어느 한쪽을 다른 쪽에서 유추하지 않는다(아래 `AUGMENT_MTDT_CODES` 주석 참조).
+ *
+ * [@design INT-008] [@design API-060] [@design SCREEN-022]
  */
-export const AUGMENT_PROMPT_FIELD_KEYS = [
+export const AUGMENT_EVENT_TYPES = ['FLOOD', 'WILDFIRE'] as const;
+export type AugmentEventType = (typeof AUGMENT_EVENT_TYPES)[number];
+
+/** 이벤트 유형의 사용자 노출 문구 — 전송값은 언제나 코드다. */
+export const AUGMENT_EVENT_TYPE_LABEL: Record<AugmentEventType, string> = {
+  FLOOD: '침수',
+  WILDFIRE: '산불',
+};
+
+/**
+ * 침수 세부 유형 — v1.3 §4.1 `evnt_subtype`. **선택이며 침수일 때만 허용**한다.
+ *
+ * 계약에 산불 세부 코드가 정의돼 있지 않아 `WILDFIRE` 와 함께 보내면 BE 가 400 이다.
+ * 그래서 화면은 침수일 때만 노출하고, 산불이면 값 자체를 전송하지 않는다.
+ */
+export const AUGMENT_FLOOD_SUBTYPES = [
+  'ROAD_FLOOD',
+  'RIVER_OVERFLOW',
+  'UNDERPASS_FLOOD',
+  'URBAN_INUNDATION',
+  'OTHER',
+] as const;
+export type AugmentFloodSubtype = (typeof AUGMENT_FLOOD_SUBTYPES)[number];
+
+export const AUGMENT_FLOOD_SUBTYPE_LABEL: Record<AugmentFloodSubtype, string> = {
+  ROAD_FLOOD: '도로 침수',
+  RIVER_OVERFLOW: '하천 범람',
+  UNDERPASS_FLOOD: '지하차도 침수',
+  URBAN_INUNDATION: '도심 침수',
+  OTHER: '기타',
+};
+
+/**
+ * 외부로 나가는 **구조화 생성 조건**(v1.3 §4.1 최상위 `mtdt`)의 항목 키·순서.
+ *
+ * 순서는 명세서와 같다 — 화면의 표시 순서이자 BE 조립 순서다.
+ */
+export const AUGMENT_MTDT_FIELD_KEYS = [
   'time',
   'season',
   'weather',
   'terrain',
   'severity',
 ] as const;
-export type AugmentPromptFieldKey = (typeof AUGMENT_PROMPT_FIELD_KEYS)[number];
-
-/** 프롬프트 5필드 값 묶음 — 전송 페이로드의 `prompt` 그 자체. */
-export type AugmentPromptFields = Record<AugmentPromptFieldKey, string>;
-
-/** BE `PromptFields.MAX_FIELD_LENGTH` 와 동일 상한. 넘으면 BE 가 400 으로 거부한다. */
-export const AUGMENT_PROMPT_MAX_LENGTH = 50;
+export type AugmentMtdtFieldKey = (typeof AUGMENT_MTDT_FIELD_KEYS)[number];
 
 /**
- * 입력 폼 표시 메타 — 라벨과 **예시(placeholder)**.
- * placeholder 는 규격서 샘플값이며 선택지가 아니다(자유 입력을 막지 않는다).
+ * 다섯 축의 **허용 코드** — v1.3 이 전부 닫아 두었다(BE `AugmentPrompts` 의 enum 미러).
+ *
+ * ⚠ **구 서술 폐기(2026-08-27)**: *"연동명세서가 `prompt` 를 자유 dict 로만 규정하고 허용값 enum 을
+ * 정의하지 않으므로 FE 에서 select 로 고정해 사용자를 가두지 않는다"* 는 **더 이상 사실이 아니다.**
+ * v1.3 은 다섯 축 전부의 코드를 규정했고, 코드 밖 값은 벤더에서 `400 INVALID_PARAMETER` 로 돌아온다.
+ * 그래서 화면은 **드롭다운으로만** 고르게 해 허용 코드 밖 값을 보낼 수단 자체를 없앤다.
+ *
+ * ★**여기서 증강 종류(`AUG_TYPE_CD`)를 파생하지 않는다.** 생성 조건 값(예: `season=WINTER`)으로 종류를
+ * 유추하면 그 값이 파생 산출물 경로(`.../{augTypeCd}.mp4`)와 해상도 네임스페이스(`RESL_` 접두) 판별로
+ * 흘러 경로 순회(CWE-22)·검수 우회가 열린다. 코드 공간이 실제로 겹치므로(`Season.WINTER` ↔ 증강 종류
+ * `WINTER`) 코드로 닫힌 뒤에도 이 방어는 그대로 유효하다. 이벤트 유형에서도 파생하지 않는다.
  */
-export const AUGMENT_PROMPT_FIELD_META: Record<
-  AugmentPromptFieldKey,
-  { label: string; placeholder: string; hint: string }
-> = {
-  time: { label: '시간대', placeholder: 'NIGHT', hint: '예: NIGHT, 새벽, 해질녘' },
-  season: { label: '계절', placeholder: 'WINTER', hint: '예: WINTER, 초봄' },
-  weather: { label: '날씨', placeholder: 'RAIN', hint: '예: RAIN, 폭설, 안개' },
-  terrain: { label: '지형', placeholder: 'ROAD', hint: '예: ROAD, 교차로, 골목' },
-  severity: { label: '심각도', placeholder: 'HIGH', hint: '예: HIGH, 보통' },
+export const AUGMENT_MTDT_CODES = {
+  time: ['DAWN', 'DAY', 'DUSK', 'NIGHT'],
+  season: ['SPRING', 'SUMMER', 'AUTUMN', 'WINTER'],
+  weather: ['CLEAR', 'CLOUDY', 'RAIN', 'SNOW', 'FOG', 'WINDY'],
+  terrain: [
+    'ROAD',
+    'UNDERPASS',
+    'RIVER',
+    'URBAN',
+    'RESIDENTIAL',
+    'RURAL',
+    'MOUNTAIN',
+    'FOREST',
+  ],
+  severity: ['LOW', 'MEDIUM', 'HIGH'],
+} as const satisfies Record<AugmentMtdtFieldKey, readonly string[]>;
+
+export type AugmentTimeCode = (typeof AUGMENT_MTDT_CODES.time)[number];
+export type AugmentSeasonCode = (typeof AUGMENT_MTDT_CODES.season)[number];
+export type AugmentWeatherCode = (typeof AUGMENT_MTDT_CODES.weather)[number];
+export type AugmentTerrainCode = (typeof AUGMENT_MTDT_CODES.terrain)[number];
+export type AugmentSeverityCode = (typeof AUGMENT_MTDT_CODES.severity)[number];
+
+/**
+ * 전송되는 구조화 생성 조건 — **다섯 항목 전부 필수**.
+ *
+ * 벤더 계약은 "최소 1개" 지만 하나라도 비면 벤더가 어떤 기본값으로 채울지 알 수 없어 결과가
+ * 비결정적이 된다(2026-07-31 사용자 확정, 2026-08-27 재확인). **더 엄격한 쪽이 의도된 선택**이며
+ * BE 도 항목마다 `@NotNull` 로 400 을 낸다 — "계약이 선택이니 완화하자" 로 되돌리지 말 것.
+ */
+export interface AugmentMtdt {
+  time: AugmentTimeCode;
+  season: AugmentSeasonCode;
+  weather: AugmentWeatherCode;
+  terrain: AugmentTerrainCode;
+  severity: AugmentSeverityCode;
+}
+
+/**
+ * 입력 폼이 들고 있는 **초안** — 미선택은 빈 문자열이다.
+ *
+ * 전송 타입(`AugmentMtdt`)과 분리하는 이유는 "아직 고르지 않음" 을 타입으로 표현하기 위해서다.
+ * 초안 → 전송값 변환·검증은 `validateAugmentConditions` 한 곳이 담당한다.
+ */
+export type AugmentMtdtDraft = Record<AugmentMtdtFieldKey, string>;
+
+/**
+ * 항목별 표시 메타 — **라벨과 코드 표시 문구의 단일 정의 지점**.
+ *
+ * 컴포넌트는 이 표를 순회할 뿐 라벨·코드 목록을 복제하지 않는다. 복제하면 코드가 늘 때 한쪽만
+ * 고쳐져 화면과 전송값이 갈라진다.
+ */
+export const AUGMENT_MTDT_FIELD_META: {
+  [K in AugmentMtdtFieldKey]: {
+    label: string;
+    codes: readonly (typeof AUGMENT_MTDT_CODES)[K][number][];
+    codeLabel: Readonly<Record<(typeof AUGMENT_MTDT_CODES)[K][number], string>>;
+  };
+} = {
+  time: {
+    label: '시간대',
+    codes: AUGMENT_MTDT_CODES.time,
+    codeLabel: { DAWN: '새벽', DAY: '낮', DUSK: '황혼', NIGHT: '밤' },
+  },
+  season: {
+    label: '계절',
+    codes: AUGMENT_MTDT_CODES.season,
+    codeLabel: { SPRING: '봄', SUMMER: '여름', AUTUMN: '가을', WINTER: '겨울' },
+  },
+  weather: {
+    label: '날씨',
+    codes: AUGMENT_MTDT_CODES.weather,
+    codeLabel: {
+      CLEAR: '맑음',
+      CLOUDY: '흐림',
+      RAIN: '비',
+      SNOW: '눈',
+      FOG: '안개',
+      WINDY: '바람',
+    },
+  },
+  terrain: {
+    label: '지형',
+    codes: AUGMENT_MTDT_CODES.terrain,
+    codeLabel: {
+      ROAD: '도로',
+      UNDERPASS: '지하차도',
+      RIVER: '하천',
+      URBAN: '도심',
+      RESIDENTIAL: '주거지역',
+      RURAL: '시골',
+      MOUNTAIN: '산지',
+      FOREST: '숲',
+    },
+  },
+  severity: {
+    label: '심각도',
+    codes: AUGMENT_MTDT_CODES.severity,
+    codeLabel: { LOW: '낮음', MEDIUM: '보통', HIGH: '높음' },
+  },
 };
 
-/** 빈 프롬프트 초기값 — 상수 객체를 공유하지 않도록 매 호출 새 객체를 만든다(불변성). */
-export const createEmptyAugmentPrompt = (): AugmentPromptFields => ({
+/** 해당 축의 허용 코드인가 — 초안 문자열을 전송값으로 좁히는 fail-closed 판정. */
+export const isAugmentMtdtCode = (key: AugmentMtdtFieldKey, value: string): boolean =>
+  (AUGMENT_MTDT_CODES[key] as readonly string[]).includes(value);
+
+/**
+ * 코드 → 사람이 읽는 문구. 모르는 값(구 자유 문자열 적재분 등)은 **그대로 돌려준다**.
+ * 결과 화면이 옛 요청 원문을 보여줄 때 한글 자유 입력이 그대로 나와야 하기 때문이다.
+ */
+export const augmentMtdtCodeLabel = (
+  key: AugmentMtdtFieldKey,
+  code: string,
+): string =>
+  (AUGMENT_MTDT_FIELD_META[key].codeLabel as Record<string, string>)[code] ?? code;
+
+/**
+ * 자유 지시문(`prompt`) 길이 상한 — v1.3 §4.1. BE `AugmentPrompts.MAX_PROMPT_LENGTH` 미러.
+ *
+ * ⚠ 구 상수(생성 조건 필드당 50자)와 **다른 축이다**. 생성 조건은 이제 자유 입력이 아니라
+ * 드롭다운이라 길이 제한이 존재하지 않는다.
+ */
+export const AUGMENT_PROMPT_MAX_LENGTH = 1000;
+
+/** 빈 생성 조건 초안 — 상수 객체를 공유하지 않도록 매 호출 새 객체를 만든다(불변성). */
+export const createEmptyAugmentMtdt = (): AugmentMtdtDraft => ({
   time: '',
   season: '',
   weather: '',
@@ -460,51 +613,55 @@ export const createEmptyAugmentPrompt = (): AugmentPromptFields => ({
 /**
  * 증강 유형별 생성 조건 **기본값**(프리필) — 유형이 실제 요청을 가르게 하는 유일한 통로.
  *
- * <b>왜 필요한가</b>: 외부 위탁 요청 바디에는 증강 유형 필드가 없다(`request_id`/`request_channel`/
- * `request_user_id`/`evnt_type`/`operation_type`/`generation_mode`/`input_files`/`prompt`/
- * `callback_url`). 유형에 따라 달라질 수 있는 값은 `prompt` 하나뿐이므로, 유형이 prompt 에
- * 반영되지 않으면 겨울·야간·우천이 **완전히 동일한 요청**이 되어 종류를 나눈 의미가 사라진다.
+ * <b>왜 필요한가</b>: 외부 위탁 요청 바디에는 증강 유형 필드가 없다. 유형에 따라 달라질 수 있는
+ * 값은 생성 조건과 자유 지시문뿐이므로, 유형이 반영되지 않으면 겨울·야간·우천이 **완전히 동일한
+ * 요청**이 되어 종류를 나눈 의미가 사라진다.
  *
- * <b>강제가 아니라 기본값이다</b>: 검수자가 생성 조건을 조절할 수 있어야 한다는 정책을 지키려면
- * ①프리필 값을 수정할 수 있고 ②이미 사용자가 손댄 필드는 종류를 바꿔도 보존돼야 한다.
+ * <b>강제가 아니라 기본값이다</b>: 검수자가 조건을 조절할 수 있어야 한다는 정책을 지키려면
+ * ①프리필 값을 바꿀 수 있고 ②이미 사용자가 손댄 항목은 종류를 바꿔도 보존돼야 한다.
  * 그 판정(무엇을 사용자가 손댔는가)은 입력 화면이 소유한다 — 이 상수는 값만 정한다.
  *
- * <b>서버로 올라가는 파생은 없다</b>: 이 값은 사용자가 그대로 두면 전송되는 `prompt` 의 초기값일
- * 뿐이며, 반대 방향(=prompt 값으로 증강 유형을 유추)은 만들지 않는다. 자유 문자열이 유형 판정에
- * 흘러가면 산출물 경로·해상도 네임스페이스 판별로 새어 경로 순회가 열린다.
+ * <b>서버로 올라가는 파생은 없다</b>: 반대 방향(=생성 조건으로 증강 유형을 유추)은 만들지 않는다.
  *
  * 채우지 않는 축(지형·심각도 등)은 <b>비워 둔다</b> — 영상마다 다른 값을 시스템이 지어내면
  * 검수자가 확인하지 않은 조건이 그대로 외부로 나간다.
  */
-export const AUGMENT_PROMPT_PRESET: Record<
+export const AUGMENT_MTDT_PRESET: Record<
   AugmentType,
-  Readonly<Partial<AugmentPromptFields>>
+  Readonly<Partial<AugmentMtdtDraft>>
 > = {
-  WINTER: { season: '겨울', weather: '눈' },
-  NIGHT: { time: '야간' },
-  RAIN: { weather: '비' },
+  WINTER: { season: 'WINTER', weather: 'SNOW' },
+  NIGHT: { time: 'NIGHT' },
+  RAIN: { weather: 'RAIN' },
 };
 
 /**
- * 처리 종류에 대응하는 프롬프트 5필드 기본값을 만든다(매 호출 새 객체 — 불변성).
+ * 처리 종류에 대응하는 생성 조건 기본값을 만든다(매 호출 새 객체 — 불변성).
  *
- * 해상도 변경(RESOLUTION)은 외부 위탁이 아니라 프롬프트 자체가 없으므로 전부 빈 값이다.
- * 프리필이 없는 필드를 빈 문자열로 **명시**해 반환하는 이유는, 호출부가 "이전 종류의 프리필
+ * 해상도 변경(RESOLUTION)은 외부 위탁이 아니라 생성 조건 자체가 없으므로 전부 빈 값이다.
+ * 프리필이 없는 항목을 빈 문자열로 **명시**해 반환하는 이유는, 호출부가 "이전 종류의 프리필
  * 잔재"를 지울 수 있게 하기 위해서다(부분 병합이면 야간을 골라도 계절=겨울이 남는다).
  */
-export const createPromptPresetFor = (kind: ProcessKind): AugmentPromptFields => ({
-  ...createEmptyAugmentPrompt(),
-  ...(isAugmentKind(kind) ? AUGMENT_PROMPT_PRESET[kind] : {}),
+export const createMtdtPresetFor = (kind: ProcessKind): AugmentMtdtDraft => ({
+  ...createEmptyAugmentMtdt(),
+  ...(isAugmentKind(kind) ? AUGMENT_MTDT_PRESET[kind] : {}),
 });
 
 export interface RequestAugmentRequest {
   videoIds: number[];
-  types: AugmentType[];
   /**
-   * 생성 조건 5필드 — **필수**. 미전송 시 BE 가 400(INVALID_INPUT).
-   * `types` 는 이 값에서 파생되지 않는다(사용자가 카드로 직접 고른 값 그대로).
+   * 요청 증강 유형 — 사용자가 카드로 직접 고른 값 그대로다.
+   * 생성 조건·이벤트 유형 어느 쪽에서도 파생하지 않는다.
    */
-  prompt: AugmentPromptFields;
+  types: AugmentType[];
+  /** 외부 이벤트 유형 — **필수**. 미전송 시 BE 가 400. 관제 이벤트 코드에서 변환하지 않는다. */
+  evntType: AugmentEventType;
+  /** 침수 세부 유형 — 선택. `evntType==='FLOOD'` 일 때만 싣는다(산불과 함께 보내면 400). */
+  evntSubtype?: AugmentFloodSubtype;
+  /** 구조화 생성 조건 — **필수**이며 다섯 항목 전부 있어야 한다. */
+  mtdt: AugmentMtdt;
+  /** 자유 지시문 — 선택. 비어 있으면 키 자체를 싣지 않는다. */
+  prompt?: string;
 }
 
 export interface RequestAugmentResponse {

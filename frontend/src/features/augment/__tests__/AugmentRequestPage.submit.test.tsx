@@ -22,10 +22,16 @@ vi.mock('react-router-dom', async () => {
 });
 
 /**
- * 증강 생성 조건 5필드 — BE 필수 계약(2026-07-31). 증강 경로 실행 전에 반드시 채워야
- * 제출 버튼이 활성화된다. 해상도 변경 경로는 외부 위탁이 아니라 입력이 필요 없다.
+ * 증강 요청의 생성 조건 축 — BE 필수 계약(연동명세서 v1.3, 2026-08-27).
+ *
+ * 이벤트 유형과 생성 조건 5항목이 모두 채워져야 제출 버튼이 활성화된다. 값은 자유 문자열이
+ * 아니라 **허용 코드**이며 화면은 드롭다운으로만 고르게 한다. 해상도 변경 경로는 외부 위탁이
+ * 아니라 이 입력이 필요 없다.
  */
 const fillPromptFields = () => {
+  fireEvent.change(screen.getByLabelText(/이벤트 유형/), {
+    target: { value: 'FLOOD' },
+  });
   const values: Record<string, string> = {
     시간대: 'NIGHT',
     계절: 'WINTER',

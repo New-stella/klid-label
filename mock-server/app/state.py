@@ -436,7 +436,7 @@ def utc_now_iso() -> str:
 
 @dataclass
 class GenAiJob:
-    """「생성형 AI API 연동명세서 v1.1」 작업 1건의 인메모리 상태."""
+    """「생성형 AI API 연동명세서 v1.3」 작업 1건의 인메모리 상태."""
 
     job_id: str
     request_id: str

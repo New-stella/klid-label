@@ -222,6 +222,19 @@ tasks.named('test') {
         systemProperty 'logging.level.org.springframework.test.context.cache', 'DEBUG'
     }
 
+    // 목서버(:9400) 실왕복 연동시험(MockServerLiveIntegrationIT)을 켠다:
+    //   ./gradlew test -PmockLiveIT
+    // 기본은 꺼짐 — 목서버가 없는 환경에서 일반 회귀가 깨지지 않게 한다(그 클래스만 비활성).
+    //
+    // ★2026-08-27 신설 — 그전까지 <이 클래스를 켤 수 있는 경로가 아예 없었다>. 시험 파일은
+    //   환경변수 mockLiveIT 를 "이 저장소 build.gradle 에서 워커에 상속되는 실효 스위치" 라고
+    //   적어 두었으나 그 전달 선언이 실제로는 없었고, 그래서 목서버를 띄우고 스위치를 줘도
+    //   항상 5 skipped 였다. 바로 위 testContextCacheDebug 주석이 경고하는 그 함정
+    //   (환경변수·-D 는 워커까지 도달하지 않는다)에 이 키만 빠져 있었다.
+    if (project.hasProperty('mockLiveIT')) {
+        systemProperty 'mockLiveIT', 'true'
+    }
+
     // Phase 3 (Testcontainers PostgreSQL): Docker Desktop 서버는 min API 1.40 을 요구하는데
     // (docker version → Server APIVersion 1.54, MinAPIVersion 1.40), docker-java 클라이언트가
     // 기본 API 1.32 로 핑/info 를 보내 데몬이 "client version too old" 로 거부한다(/info → 400).
@@ -305,3 +318,4 @@ tasks.withType(JavaCompile).configureEach {
 clean {
     delete file(querydslDir)
 }
+

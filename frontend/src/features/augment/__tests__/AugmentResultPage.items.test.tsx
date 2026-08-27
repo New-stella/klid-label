@@ -26,12 +26,30 @@ describe('AugmentResultPage 결과 항목(탭 키잉·프롬프트·무결성·�
     terrain: 'ROAD',
     severity: 'LOW',
   });
+  /**
+   * 구 형태(연동명세서 v1.1) 보관 원문 — 다섯 항목이 **최상위에 평평하게** 있다.
+   * v1.3 전환 이후에도 이미 적재된 값을 계속 읽어야 한다(같은 영상×종류 파생을 구분하는
+   * 유일한 축이라 과거 결과물의 식별 근거다).
+   * `terrain: 'ALLEY'` 는 허용 코드 밖 값 — 옛 자유 입력이라 **그대로** 보여야 한다.
+   */
   const PROMPT_NEW = JSON.stringify({
     time: 'DAWN',
     season: 'WINTER',
     weather: 'RAIN',
     terrain: 'ALLEY',
     severity: 'HIGH',
+  });
+
+  /** v1.3 보관 원문 — 생성 조건(`mtdt`)과 자유 지시문(`prompt`)이 분리돼 있다. */
+  const PROMPT_V13 = JSON.stringify({
+    mtdt: {
+      time: 'DAWN',
+      season: 'WINTER',
+      weather: 'RAIN',
+      terrain: 'UNDERPASS',
+      severity: 'HIGH',
+    },
+    prompt: '원본 카메라 시점을 유지해줘.',
   });
 
   const item = (over: Record<string, unknown>) => ({
@@ -227,21 +245,40 @@ describe('AugmentResultPage 결과 항목(탭 키잉·프롬프트·무결성·�
   });
 
   it('항목별_생성조건_프롬프트가_표시된다', async () => {
-    // given
+    // given — 구 형태(평평한 5필드) 적재분
     mockResult([item({ id: 21, decision: 'PENDING', prompt: PROMPT_NEW })]);
     mockProgress(21);
 
     // when
     renderPage();
 
-    // then — 5필드가 라벨과 함께 보인다
+    // then — 5항목이 라벨과 함께 보인다. 코드값은 사람이 읽는 문구로 바꿔 보인다.
     const panel = await screen.findByTestId('augment-prompt-21');
     expect(within(panel).getByText('시간대')).toBeInTheDocument();
-    expect(within(panel).getByText('DAWN')).toBeInTheDocument();
+    expect(within(panel).getByText('새벽')).toBeInTheDocument();
     expect(within(panel).getByText('계절')).toBeInTheDocument();
-    expect(within(panel).getByText('WINTER')).toBeInTheDocument();
+    expect(within(panel).getByText('겨울')).toBeInTheDocument();
     expect(within(panel).getByText('심각도')).toBeInTheDocument();
-    expect(within(panel).getByText('HIGH')).toBeInTheDocument();
+    expect(within(panel).getByText('높음')).toBeInTheDocument();
+    // 허용 코드 밖 값(옛 자유 입력)은 지어내지 않고 원문 그대로 보인다.
+    expect(within(panel).getByText('ALLEY')).toBeInTheDocument();
+  });
+
+  it('v13_형태_보관원문의_생성조건과_자유지시문이_함께_표시된다', async () => {
+    // given — mtdt(구조화 조건) + prompt(자유 지시문) 분리 보관
+    mockResult([item({ id: 23, decision: 'PENDING', prompt: PROMPT_V13 })]);
+    mockProgress(23);
+
+    // when
+    renderPage();
+
+    // then — 중첩된 mtdt 를 읽어 항목을 보이고, 자유 지시문도 함께 보인다.
+    //        (평평한 형태만 읽으면 v1.3 적재분이 통째로 "원문 덤프"로 떨어진다)
+    const panel = await screen.findByTestId('augment-prompt-23');
+    expect(within(panel).getByText('지형')).toBeInTheDocument();
+    expect(within(panel).getByText('지하차도')).toBeInTheDocument();
+    expect(within(panel).getByText('자유 지시문')).toBeInTheDocument();
+    expect(within(panel).getByText('원본 카메라 시점을 유지해줘.')).toBeInTheDocument();
   });
 
   it('프롬프트가_JSON이_아니어도_화면이_깨지지_않는다', async () => {
