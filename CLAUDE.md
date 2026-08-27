@@ -699,6 +699,17 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - **예외**: 탐색·스파이크는 코드를 먼저 만져도 되나 **확정은 ITEM 에 먼저** 넣고 정식 구현은 그 뒤 · 구현 중 설계가 틀렸다고 판명되면 코드를 조용히 틀지 말고 **ITEM 을 먼저 고친 뒤 재개** · 긴급 장애로 코드가 앞섰다면 예외가 아니라 **빚**이라 같은 작업의 마무리로 ITEM 을 맞춘다.
 - 절차·함정 상세(한글 손상·배열 원소 소실·`status` 함정·검사기 사각): **`.claude/rules/logicraft-integration.md`** (ITEM 을 쓰기 전에 읽는다)
 
+### ★키트 — 워크트리 소유권 (2026-08-27 확정, 구속)
+
+**키트 상태의 소유자는 메인 워크트리 하나뿐이다.** 링크드 워크트리(`[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]` 가 참 — 현재 `orca/workspaces/klid-label/*` 가 여기 해당)에서는 아래를 지킨다. **어느 스킬이 호출됐는지와 무관하게 적용된다** (`mc-logi-*` · `klid-dispatch` · `klid-design-backfill` 전부).
+
+- **키트 SYNC 금지** — `docs/design/**`·`docs/screen-design/**` 에 쓰지 않는다(다운로더 `download-kit.mjs`·`arrange-screen-kit.mjs` 실행 포함). stale 이어도 사실만 보고하고 진행하며, 갱신은 메인에서 하고 이 트리를 rebase 한다.
+- **Phase 5(추적 역동기화) 전체 유예** — `IMPLEMENTATION.md`·`SCREENS.md`·`version-master.md`·이 파일의 `mc-logi-*:` 마커 블록에 쓰지 않고, IMPREC(`create_implementation_record`)도 기록하지 않는다. 기록했어야 할 내용은 **파일 대신 최종 보고로 반환**해 PR 본문 `## 키트 반영 대기` 블록에 싣는다.
+- **머지 방식은 PR 고정** — `main 머지`를 고르지 않는다(메인 워크트리가 main 을 점유해 git 이 거부한다).
+- **머지 후 메인 워크트리에서** `추적만`(Phase 5 단독)을 1회 실행해 유예분을 반영한다.
+
+> 왜: 구현 현황 표와 마커 블록은 **도메인 전역 레지스트리**다. 병렬 워크트리가 각자 종료 시점에 같은 파일의 같은 줄을 고치면, 의미상 합집합이어야 할 상태표가 git 에서는 경쟁 편집이 되어 **피처마다 머지 충돌**이 난다. 브랜치마다 다른 시점에 SYNC 하면 충돌 표면이 상태표를 넘어 설계 문서 전체로 넓어진다. IMPREC 를 워크트리에서 기록하면 squash 머지로 사라질 커밋 해시가 서버에 남아 추적이 어긋난다.
+
 ### ★★LogiCraft 완성도가 최우선이다 — 정합은 "타입"이 아니라 "층" 단위로 돈다 (2026-08-08 사용자 확정, 구속)
 
 > "똑같은 실수를 반복하지않게해. logicraft 완성도가 우선이야. 개발은 그거에 따라가면 그만이니깐." — 사용자 원문
@@ -729,10 +740,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 조건: **이미 구현된 코드의 수정·버그**(테스트하다 발견한 수정사항 포함) → 위임: `klid-dispatch` | 근거: 변경지시서(CO) 장부 + 영향 도메인 게이트 + **설계 선반영(Phase 3.6)** 후 도메인 implementer 병렬 fan-out + 독립 QA(`klid-qa-verifier`). 실행=메인
 - 조건: **밀린 설계 반영·IMPREC 백필** → 위임: `klid-design-backfill` | 근거: 부채 회수 3모드(CO 예외건 / 온보딩 이전 누적 / IMPREC 갭). 실행=메인
 - 조건: **신규 도메인 최초 구현** → 위임: `mc-logi-implement` | 근거: `klid-dispatch` 는 "이미 구현된 코드 수정" 전용이라 최초 구현은 대상이 아니다. 실행=메인
-- 조건: 도메인 백엔드 구현 (API·ERD/DB·domain_event·service·NFR) → 위임: `mc-logi-implement` | 근거: 키트가 단일 진실원이며 `@design <ITEM-ID>` 추적 태그 규약을 포함
-- 조건: 화면(screen_spec) 프론트엔드 구현 → 위임: `mc-logi-screen-implement` | 근거: 화면은 implement 가 아닌 screen-implement 담당 (중복 구현 방지)
+- 조건: 도메인 백엔드 구현 (API·ERD/DB·domain_event·service·NFR) → 위임: `mc-logi-implement` | 근거: 키트가 단일 진실원이며 `@design <ITEM-ID>` 추적 태그 규약을 포함. **[WT] 아래 §PM 보정 절차 적용**
+- 조건: 화면(screen_spec) 프론트엔드 구현 → 위임: `mc-logi-screen-implement` | 근거: 화면은 implement 가 아닌 screen-implement 담당 (중복 구현 방지). **[WT] 동일 보정**
 - 조건: 화면 비주얼 디자인·고충실도 목업 → 위임: `mc-logi-screen-design`
-- 조건: 키트 다운로드·동기화(stale 해소) → 위임: `mc-logi-implement-kit` / `mc-logi-screen-kit`
+- 조건: 키트 다운로드·동기화(stale 해소) → 위임: `mc-logi-implement-kit` / `mc-logi-screen-kit` | **[WT] 위임하지 않는다** — "키트 SYNC 는 메인 워크트리에서 하고 이 트리를 rebase 하세요"로 안내하고 종료
 - 조건: LogiCraft ITEM 수정·정합·cascade → 위임: `mc-logi-update` | 근거: AI 임의 등록 금지 + cascade 재귀 추적 절차 보유
 - 조건: ERD 컬럼 용어사전(4계층) 정합·표준화 → 위임: `mc-logi-glossary-align` | 근거: 위 "주요 비즈니스 규칙"의 사전 판정 규칙(CSV grep 우선, `createdBy` 확인)과 동일 절차를 강제
 - 조건: 구현 코드 ↔ 키트 정합 점검 → 위임: `mc-logi-implement-review`
@@ -740,7 +751,31 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - 조건: 구현 코드의 `code_module` 등록·정합 → 위임: `mc-logi-module-register`
 - 제외: **CBD 산출물(R1~D9) 생성은 기존대로 `/cc-doc-gen`** — LogiCraft ITEM → 문서 생성 축이라 구현 키트 축과 다르다. ⚠ 다만 그 산출물은 **2026-08-15 동결 중**(위 「문서 동기화 규칙」)이라 감사 결함 수정이 끝나기 전에는 재생성하지 않는다
 - 제외: LogiCraft ITEM과 무관한 일반 버그 수정·리팩토링·빌드/설정 변경, `docs/v2-wiki`·`docs/test-cases` 갱신 → 표준 `/cc` 파이프라인
+- 조건: 머지 완료 후 유예된 키트 상태 반영 (예: "키트 반영해줘", "추적만 돌려줘") → 위임: `mc-logi-implement 추적만` / `mc-logi-screen-implement 추적만` | 근거: Phase 5 단독 회수. **메인 워크트리에서만** — 워크트리면 거절하고 메인에서 실행하도록 안내. 실행=메인
 - 참고: 위 표에 없는 `mc-logi-*` 스킬은 스킬 description 매칭으로 호출된다 (표를 전수 유지하지 않는다)
+
+### PM 보정 절차 [WT] — 링크드 워크트리에서 구현 스킬을 위임할 때
+
+판별: `[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]` 가 참일 때만 적용한다(메인이면 스킬 기본 흐름 그대로).
+
+**위임 전** — 스킬 프롬프트에 아래를 그대로 실어 보낸다:
+
+~~~
+## 워크트리 세션 — 키트 정책 (CLAUDE.md §★키트 — 워크트리 소유권 우선)
+- Phase 4 까지만 수행하고 Phase 5(추적 역동기화) 전체를 유예한다.
+  IMPLEMENTATION.md / SCREENS.md / version-master.md / CLAUDE.md 마커 블록에 쓰지 않고,
+  IMPREC(create_implementation_record)도 기록하지 않는다.
+- Phase 0 에서 키트가 stale 이어도 SYNC 하지 않는다. stale 사실만 보고하고 진행한다.
+- Phase 4 게이트 3(머지 방식)은 PR 고정이다. `main 머지`를 선택지로 제시하지 않는다.
+- Phase 5 에서 기록했어야 할 내용(구현 현황 1줄·운영 전 확인 잔여·IMPREC 대상 ITEM 목록·
+  mc-logi-update 권고)은 파일에 쓰지 말고 최종 보고에 그대로 반환한다. PM 이 PR 본문에 싣는다.
+~~~
+
+**위임 후** — PM 이 수행한다:
+
+1. 회수한 내용을 `/cc-pr` 로 만드는 PR 본문에 **`## 키트 반영 대기`** 블록으로 싣는다(검증 블록과 같은 자리).
+2. 스킬이 키트 파일을 이미 건드렸으면 `git checkout -- <경로>` 로 되돌리고 그 사실을 사용자에게 1줄 보고한다. **조용히 넘어가지 않는다.**
+3. 완료 보고 마지막에 `머지 후 메인 워크트리에서 /cc 키트 반영해줘` 를 명시한다.
 
 > ⚠ **구 서술 폐기(2026-08-16)** — *"현재 이 저장소에는 로컬 키트가 아직 없다(`docs/design/` 은 비어 있다)"* 는 더 이상 사실이 아니다. **구현 키트가 활성 14 도메인 전량에 실재**한다(아래 「Logicraft 구현 키트」 블록). 따라서 키트 선행이 필요한 위임(`mc-logi-implement`·`mc-logi-implement-review`)은 곧바로 동작한다. **화면 키트는 여전히 7개뿐**이므로 `mc-logi-screen-implement` 는 대상 도메인의 화면 키트 유무를 먼저 확인한다. 납품 산출물이 2026-08-15 에 `docs/archive/frozen-20260815/` 로 동결 이관된 것은 그대로이고, 구 서술이 말한 `backup/`·`hwpx/` 디렉터리는 실재하지 않는다. 키트 유무는 `find docs/design docs/screen-design -maxdepth 2 -name version-master.md` 로 확인한다.
 
