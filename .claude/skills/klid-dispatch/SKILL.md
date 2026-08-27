@@ -11,7 +11,7 @@ description: KLID-저작도구 전용 수정 오케스트레이터. 이미 구�
 
 1. **★★설계를 먼저 확정한다 — 코드가 설계를 앞지르지 않는다.**
    `CO 작성 → 영향범위 확인 → 설계 선반영(Phase 3.6) → 구현 fan-out` 순서다.
-   이 프로젝트는 **「① ITEM 수정(사양 확정) → ② 그 ITEM 을 진실원으로 코드 반영 → ③ `@design` 태그로 잇기」** 를 구속 규칙으로 두고 있다(`CLAUDE.md` 「작업 위임 선언」 · `.claude/rules/logicraft-integration.md` §0.5). 코드를 먼저 고치고 ITEM 을 나중에 따라오게 하면 **ITEM 이 사양이 아니라 구현 상태 서술로 오염되고**, 다음 사람이 코드에서 설계를 역추정하게 된다.
+   이 프로젝트는 **「① ITEM 수정(사양 확정) → ② 그 ITEM 을 진실원으로 코드 반영 → ③ `@design` 태그로 잇기」** 를 구속 규칙으로 두고 있다(`CLAUDE.md` 「작업 위임 선언」 · `docs/rules/logicraft-integration.md` §0.5). 코드를 먼저 고치고 ITEM 을 나중에 따라오게 하면 **ITEM 이 사양이 아니라 구현 상태 서술로 오염되고**, 다음 사람이 코드에서 설계를 역추정하게 된다.
    > ⚠ 이 순서는 온보딩 템플릿 원형(코드 먼저 → 나중 배치 backfill)을 **이 프로젝트 규칙에 맞춰 개조**한 것이다. 재온보딩(업그레이드 모드) 시 diff 가 뜨는 것은 정상이며, 원형으로 되돌리지 말 것.
 2. **CO 파일이 작업 장부** — 수정사항을 `.claude/change-orders/CO-*.md` 에 자세히 기술하고, `.claude/change-orders/MASTER.md` 표로 CO별·도메인별 구현/설계반영 상태를 추적한다.
 3. **구현 에이전트는 로컬 키트를 SYNC 하지 않는다.** 메인이 CO 의 해당 도메인 변경 상세(`change_detail`)와 Phase 3.6 에서 확정한 `design_refs`(ITEM ID)를 프롬프트로 직접 내려준다.
@@ -110,7 +110,7 @@ edit_context: |
 ★★ **말단(leaf) 누락 방지 — 위임 프롬프트에 반드시 명시** ★★
 - *"cascade 를 **말단까지 완주**하라. 바뀐 상위 ITEM 마다 `analyze_impact` 로 하위 영향을 조회해 **AC·SCREEN·SEQ·CDIAG·CMP 등 leaf 를 빠짐없이 큐에 넣고** 정합하라. leaf 를 '변경 없음'으로 단정 말고 실제 대조 후 판정."*
 - CO §6 에 예상 하위 ITEM 이 있으면 그 ID 를 **명시적 cascade 대상으로 함께** 넘긴다.
-- `.claude/rules/logicraft-integration.md` 의 쓰기 규율(배열 원소 삭제 금지 · `status` 변경 금지 · 한글 이스케이프 금지 · 전체 교체 전 기준선 길이 확인 · 쓰기 전 `stale`·`stale_reason` 기록)을 위임 프롬프트에 함께 싣는다.
+- `docs/rules/logicraft-integration.md` 의 쓰기 규율(배열 원소 삭제 금지 · `status` 변경 금지 · 한글 이스케이프 금지 · 전체 교체 전 기준선 길이 확인 · 쓰기 전 `stale`·`stale_reason` 기록)을 위임 프롬프트에 함께 싣는다.
 
 **회수**: 바뀐 ITEM 목록(id·version)을 받아 CO §6 아래에 **"확정: <ITEM 목록·version>"** 으로 기록하고, MASTER 의 `설계반영` 을 🎨로 전환한다. 이 목록이 Phase 4 의 `design_refs` 가 된다.
 
