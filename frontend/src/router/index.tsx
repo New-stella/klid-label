@@ -255,10 +255,17 @@ const routes: RouteObject[] = [
           // 부모 경로 직접 진입(북마크·주소 입력·뒤로가기) 시 빈 화면이 뜨지 않도록 대표 하위로 보낸다.
           // index 라우트가 없으면 pathless 부모가 leaf 로 매칭되어 <Outlet/> 이 null 을 그린다.
           { index: true, element: <Navigate to="/video/status" replace /> },
+          // [@design NAV-001] [@design SCREEN-008] [@design SCREEN-009]
+          // 영상 처리 현황·영상 상세는 재시도·건너뛰기·재수행 같은 **운영 조치**를 제공하는
+          // 자리라 REVIEWER 전용이다(라벨 수정·검수 제출을 맡는 WORKER 의 역할 축이 아니다).
+          // ⚠ LNB(`components/layout/Lnb.tsx` 의 「영상」 그룹 `allow`)와 <b>같은 조건</b>이어야
+          //   한다 — 갈리면 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
+          // ⚠ 같은 「영상」 개념에 속하는 마킹(`marking/:rawSn`)은 이 제한 대상이 **아니다** —
+          //   WORKER 가 들어가는 화면이라 internalAllRoles 그대로 둔다.
           {
             path: 'status',
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<VideoListPage />)}
               </InternalRoute>
             ),
@@ -266,7 +273,7 @@ const routes: RouteObject[] = [
           {
             path: ':id',
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={internalReviewerOnly}>
                 {withSuspense(<VideoDetailPage />)}
               </InternalRoute>
             ),

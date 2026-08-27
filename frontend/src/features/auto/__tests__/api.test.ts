@@ -165,6 +165,57 @@ describe('auto api', () => {
     expect(r.readOnlyMeta).toEqual([]);
   });
 
+  // ───────── importedMeta(이관 원문) 보존 (2026-08-27) [design: API-066] ─────────
+
+  it('importedMeta는_어댑터가_버리지_않고_그대로_실어_나른다', async () => {
+    // given — 서버가 이관 원문을 네 번째 목록으로 갈라 내려준다.
+    //   ★어댑터가 알 수 없는 필드를 버리면 이관 영상의 메타가 화면에서 <b>조용히 사라진다</b>
+    //   (깨지는 것이 아니라 안 보이는 것이라 발견이 늦다).
+    mock.onGet('/frames/120/meta').reply(200, {
+      success: true,
+      data: {
+        items: [{ metaSn: 1, metaKey: 'vlm.description', metaVal: '연기가 보인다' }],
+        readOnlyMeta: [],
+        technicalMeta: [],
+        importedMeta: [
+          { metaSn: 5, metaKey: 'import.video.cctv_height', metaVal: '4.5' },
+          { metaSn: 6, metaKey: 'import.video.location', metaVal: '강남대로' },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(120);
+
+    // then — 새 목록이 보존되고, 기존 세 목록의 시맨틱은 그대로다.
+    expect(r.importedMeta.map((i) => i.metaKey)).toEqual([
+      'import.video.cctv_height',
+      'import.video.location',
+    ]);
+    expect(r.importedMeta.map((i) => i.metaVal)).toEqual(['4.5', '강남대로']);
+    // then — 이관 원문이 시계열 목록·결합 텍스트로 새지 않는다.
+    expect(r.items.map((i) => i.metaKey)).toEqual(['vlm.description']);
+    expect(r.vlmText).toBe('연기가 보인다');
+  });
+
+  it('importedMeta_누락응답도_빈배열로_안전기본값', async () => {
+    // given — 구 BE(배포 스큐) / 로딩 직후. 이관으로 들어오지 않은 영상도 같은 모양이다.
+    mock.onGet('/frames/121/meta').reply(200, {
+      success: true,
+      data: { items: [] },
+      message: null,
+      errorCode: null,
+    });
+
+    // when
+    const r = await getMeta(121);
+
+    // then — null 이 아니라 빈 배열이라 화면이 분기 없이 그린다.
+    expect(r.importedMeta).toEqual([]);
+  });
+
   it('레거시_구간은_start_sec_숫자순으로_결합된다', async () => {
     // given — 구간 10개 초과. 문자열 정렬이면 '10-18' 이 '8-16' 앞에 온다(시간순 파괴).
     const keys = [

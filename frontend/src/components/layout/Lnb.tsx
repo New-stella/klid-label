@@ -31,9 +31,20 @@ const MENU: MenuGroup[] = [
     items: [{ label: '대시보드', path: '/dashboard', allow: ['REVIEWER', 'WORKER'] }],
   },
   {
+    // [@design NAV-001] [@design SCREEN-008] [@design SCREEN-009]
+    // 「영상 처리 현황」과 그 하위 영상 상세는 배치 처리 상태를 보는 데 그치지 않고 재시도·
+    // 건너뛰기·재수행 같은 **운영 조치**를 제공하는 자리라 REVIEWER 전용이다 — 파이프라인을
+    // 다시 돌리거나 단계를 건너뛰게 하는 것은 라벨 수정·검수 제출을 맡는 WORKER 의 역할 축이
+    // 아니다. 항목이 이 하나뿐이라 WORKER 에게는 `visible.length === 0` 으로 그룹째 사라진다
+    // (그룹 헤더만 남는 일이 없다).
+    // ★그룹 노드 자체에 역할을 걸지 않는다 — 이 그룹의 개념 범위에는 마킹(`/marking/:rawSn`)도
+    //   들어가고 그건 WORKER 가 진입하는 화면이다(LNB 미노출 진입 맥락이라 이 배열엔 없다).
+    //   그룹에 걸면 나중에 WORKER 용 항목이 늘 때 통째로 막힌다.
+    // ⚠ `allow` 는 라우트 가드(`router/index.tsx` 의 video/status·video/:id → internalReviewerOnly)와
+    //   <b>같은 조건</b>이어야 한다 — 갈리면 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
     group: '영상',
     items: [
-      { label: '영상 처리 현황', path: '/video/status', allow: ['REVIEWER', 'WORKER'] },
+      { label: '영상 처리 현황', path: '/video/status', allow: ['REVIEWER'] },
     ],
   },
   {

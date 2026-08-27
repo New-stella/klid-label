@@ -16,16 +16,26 @@ import { Textarea } from '@/components/common/Textarea';
 
 import { useFrameDescription, useUpdateFrameDescription } from '../hooks/useFrameDescription';
 
-import { MetaCharCount, MetaSection } from './MetaSection';
+import { MetaCharCount, MetaReadonlyField, MetaSection } from './MetaSection';
 
 export interface FrameDescriptionPanelProps {
   srcSn: number | undefined;
+  /**
+   * 읽기 전용 모드 — 입력 칸·저장 버튼을 <b>렌더하지 않고</b> 설명만 보여준다.
+   *
+   * ★기본값은 <b>편집 가능</b>이다(false). 기본값이 읽기 전용으로 새면 작업자가 프레임 설명을
+   * 입력하지 못한다. 검수 화면만 명시적으로 켠다.
+   */
+  readOnly?: boolean;
 }
 
 const TEXTAREA_ID = 'frame-description-input';
 const MAX_LEN = 1000;
 
-export function FrameDescriptionPanel({ srcSn }: FrameDescriptionPanelProps) {
+export function FrameDescriptionPanel({
+  srcSn,
+  readOnly = false,
+}: FrameDescriptionPanelProps) {
   const { data, isLoading } = useFrameDescription(srcSn);
   const update = useUpdateFrameDescription(srcSn);
 
@@ -46,6 +56,18 @@ export function FrameDescriptionPanel({ srcSn }: FrameDescriptionPanelProps) {
     const payload = text.trim() === '' ? null : text;
     update.mutate(payload);
   };
+
+  // 읽기 전용(검수 화면) — 등록된 설명만 보여준다. 비활성 입력 칸을 두지 않는다.
+  if (readOnly) {
+    return (
+      <MetaSection title="프레임 설명">
+        <div data-testid="frame-description-readonly">
+          {/* BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다. */}
+          <MetaReadonlyField label="설명" value={data?.description ?? null} />
+        </div>
+      </MetaSection>
+    );
+  }
 
   return (
     <MetaSection title="프레임 설명">

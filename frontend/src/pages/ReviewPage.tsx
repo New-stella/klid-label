@@ -56,7 +56,6 @@ import {
   useStartReview,
 } from '@/features/review/hooks/useReviewActions';
 import { useReviewFrames } from '@/features/review/hooks/useReviewFrames';
-import { useReviewIssues } from '@/features/review/hooks/useReviewIssues';
 import {
   useReviewSelectionStore,
   type PendingIssue,
@@ -142,7 +141,13 @@ export function ReviewPage() {
   const { data: frameList, isLoading: framesLoading } = useReviewFrames(
     review?.videoId,
   );
-  const { data: issues } = useReviewIssues(reviewId);
+  // @design SCREEN-019 — 이 화면에서 `useReviewIssues`(검수 단위 이슈 목록)를 부르지 않는다.
+  // 유일한 소비처가 `ReviewMemoPanel` 의 서버 이슈 목록이었고, 그 목록이 「이슈」 탭과 중복이라
+  // 제거됐다. 호출만 남기면 화면이 쓰지 않는 요청이 매 진입마다 나간다.
+  // ⚠ 훅 자체(`hooks/useReviewIssues`)는 지우지 않았다 — `IssueSidebar` 가 여전히 쓴다.
+  // ⚠ 「이슈」 탭 배지의 미해소 건수는 이 훅이 아니라 아래 `useIssueThreads` 로 계산된다
+  //   (`unresolvedInquiries`) — 이 호출을 지워도 배지는 그대로다.
+  //
   // R1 — 영상 단위 이슈 스레드로 프레임 상태색 srcSn 집합 산출.
   // v2 반려는 영상 단위(REJECTION.srcSn=null)라 프레임 매핑 불가 → 주황(반려) 프레임색 미대상.
   // 미해소이슈(빨강)·저장(연두)·현재(강조)만 반영한다.
@@ -463,7 +468,10 @@ export function ReviewPage() {
               />
             </section>
 
-            <ReviewMemoPanel videoId={review.videoId} issues={issues ?? []} />
+            {/* @design SCREEN-019 — 이 패널에는 **반려 사유 초안만** 넘긴다. 서버 등록 이슈를
+                함께 넘기면 방금 낸 반려 사유가 스레드로 되돌아와 「이슈」 탭과 이 목록에 동시에
+                보인다(이중 표시). 서버 이슈의 열람·댓글·해소는 「이슈」 탭이 단독 담당한다. */}
+            <ReviewMemoPanel videoId={review.videoId} />
           </div>
         )}
 

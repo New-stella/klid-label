@@ -236,13 +236,27 @@ describe('ReviewPage 메타 읽기 표시', () => {
       expect(within(panel).getByText('침입')).toBeInTheDocument();
     });
     // 읽기 전용 — 승인/반려/저장 버튼이 메타 패널에 없어야 한다.
-    expect(within(panel).queryByRole('button')).toBeNull();
+    //
+    // ★2026-08-27 정정: 구 단언 `queryByRole('button')).toBeNull()` 은 폐기했다. 확정 사양
+    //   (SCREEN-019)이 <b>각 섹션을 접어서 감출 수 있어야 한다</b>고 규정하므로 섹션 토글
+    //   버튼은 반드시 존재한다. 「버튼이 0개」로 고정하면 사양이 요구하는 접기 기능을 가드가
+    //   막는다. 대신 <b>모든 버튼이 섹션 토글인지</b>를 단언한다 — 저장·승인·반려 버튼이
+    //   하나라도 섞이면 그 버튼에는 aria-expanded 가 없어 이 단언이 잡는다.
+    const buttons = within(panel).queryAllByRole('button');
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const btn of buttons) {
+      expect(btn).toHaveAttribute('aria-expanded');
+    }
+    expect(within(panel).queryByRole('button', { name: '저장' })).toBeNull();
     expect(within(panel).queryByTestId('ea-approve')).toBeNull();
     expect(within(panel).queryByTestId('ea-reject')).toBeNull();
     expect(within(panel).queryByTestId('ea-save')).toBeNull();
     expect(within(panel).queryByTestId('ts-approve-700')).toBeNull();
-    // 편집 인풋도 없어야 한다.
+    // 편집 인풋도 없어야 한다 — 입력·선택·체크박스 어느 것도 렌더되지 않는다.
     expect(within(panel).queryByRole('textbox')).toBeNull();
+    expect(within(panel).queryByRole('combobox')).toBeNull();
+    expect(within(panel).queryByRole('checkbox')).toBeNull();
+    expect(within(panel).queryByRole('radio')).toBeNull();
   });
 
   it('메타_0건_크래시없이_빈상태_렌더', async () => {

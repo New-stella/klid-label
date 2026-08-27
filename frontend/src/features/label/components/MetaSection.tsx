@@ -65,3 +65,57 @@ export function MetaCharCount({ current, max }: { current: number; max: number }
     </div>
   );
 }
+
+/** 값이 없을 때의 표식 — 빈 칸을 남기지 않는다. */
+export const NO_VALUE_MARK = '—';
+
+/**
+ * 메타 패널 <b>읽기 전용</b> 라벨-값 행.
+ *
+ * 검수 화면은 메타를 고치지 않고 확인만 한다(값의 수정은 라벨링 화면이 담당하고 검수 승인
+ * 시점에 동결된다). 그때 각 패널이 편집 컨트롤 대신 이 행을 쓴다 — ★비활성 컨트롤을 두지
+ * 않고 <b>렌더 자체를 하지 않는</b> 이유는, 눌리는 모양인데 반응이 없으면 검수자가 고장으로
+ * 읽기 때문이다.
+ *
+ * 값이 없으면 빈 칸을 남기지 않고 미입력 표식을 보여준다 — 빈 칸은 "값이 없다"와 "화면이
+ * 값을 못 그렸다"를 구분해 주지 못한다.
+ *
+ * 보안: 값은 React 텍스트 노드로만 출력해 자동 escape 된다(CWE-79).
+ */
+export function MetaReadonlyField({
+  label,
+  value,
+  hint,
+  testId,
+}: {
+  label: string;
+  value: string | null | undefined;
+  /** 값 옆에 덧붙이는 보조 표기(예: 기본값). */
+  hint?: string;
+  testId?: string;
+}) {
+  const shown = value != null && value !== '' ? value : NO_VALUE_MARK;
+  return (
+    <div data-testid={testId}>
+      <span className="block text-caption text-gray-500">{label}</span>
+      <p className="whitespace-pre-wrap break-words text-body-md text-gray-900">
+        {shown}
+        {hint != null && hint !== '' && (
+          <span className="ml-1 text-[10px] text-gray-500">{hint}</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 개인정보 판정(Y/N)의 화면 표시 문구 — 영상 축·프레임 축 <b>두 패널이 공유</b>한다.
+ *
+ * 두 패널에 각각 두면 한쪽만 바뀌어도 화면은 그럴듯하게 보인다. 값이 없으면 null 을 돌려
+ * 읽기 전용 행이 미입력 표식을 쓰게 한다 — 판정하지 않은 것과 '아니오'로 판정한 것은 다르다.
+ */
+export function ynLabel(value: string | null | undefined): string | null {
+  if (value === 'Y') return '예';
+  if (value === 'N') return '아니오';
+  return null;
+}

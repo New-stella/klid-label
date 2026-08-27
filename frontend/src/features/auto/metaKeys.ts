@@ -100,3 +100,49 @@ export function editableMetaLabel(metaKey: string): string {
  *   BE 응답의 readOnlyMeta 목록은 계약대로 남아 있고 어댑터도 계속 실어 나르지만, 화면은
  *   그것을 그리지 않는다 — 되살리려면 화면 사양(SCREEN-005·SCREEN-019)부터 고쳐야 한다.
  */
+
+/**
+ * <b>이관 원문 열쇠 → 사람이 읽는 이름</b> 매핑. 검수·라벨링 두 화면이 <b>이 표 하나만</b> 참조한다.
+ * [design: API-066][design: SCREEN-005][design: SCREEN-019]
+ *
+ * <h3>왜 화면이 아니라 여기에 두는가</h3>
+ * 같은 표를 두 화면에 각각 두면 열쇠가 늘 때 한쪽만 갱신돼 조용히 어긋난다(이 저장소의 반복 결함).
+ *
+ * <h3>이 표는 분류에 쓰지 않는다</h3>
+ * ★어느 목록에 담길지를 정하는 주체는 <b>서버</b>다. 화면은 응답이 준 목록을 그대로 그리며,
+ * 열쇠 접두({@code import.})를 파싱해 스스로 가르지 않는다 — 접두를 화면에 다시 선언하면
+ * 두 번째 진실원이 되어 서버가 접두를 바꿀 때 조용히 어긋난다. 이 표의 열쇠가 접두로 시작하는
+ * 것은 <b>BE 상수의 값을 그대로 옮겨 적은 결과</b>일 뿐 판정 근거가 아니다.
+ *
+ * BE {@code ImportMetaKeys} · {@code ExportPrivacyPolicy}(원천 축 개인정보 3열쇠) 미러.
+ */
+export const IMPORTED_META_LABELS: Readonly<Record<string, string>> = {
+  'import.video.coordinates': '좌표',
+  'import.video.location': '위치',
+  'import.video.cctv_height': '카메라 설치 높이',
+  'import.video.cctv_azimuth': '카메라 설치 방위',
+  'import.video.cctv_mng_no': '카메라 관리번호',
+  'import.video.data_source': '데이터 출처',
+  'import.video.event_log': '이벤트 기록',
+  'import.video.event_level1_name': '이벤트 상위 계층 이름 1',
+  'import.video.event_level2_name': '이벤트 상위 계층 이름 2',
+  'import.video.event_level3_name': '이벤트 상위 계층 이름 3',
+  'import.video.id': '외부 영상 식별자',
+  'import.video.anonymity': '원천 익명여부(영상)',
+  'import.video.pseudonymity': '원천 가명여부(영상)',
+  'import.video.privacy_included': '원천 개인정보 포함여부(영상)',
+  'import.image.anonymity': '원천 익명여부(프레임)',
+  'import.image.pseudonymity': '원천 가명여부(프레임)',
+  'import.image.privacy_included': '원천 개인정보 포함여부(프레임)',
+};
+
+/**
+ * 이관 원문 항목의 화면 라벨.
+ *
+ * ★<b>이름을 정하지 못한 열쇠는 버리지 않고 원문 열쇠 그대로 돌려준다</b>(조용한 손실 금지) —
+ * 이관이 새 열쇠를 늘려도 그 값이 화면에서 사라지지 않아야 한다. 표에 없다는 이유로 감추면
+ * 되돌릴 수 없는 원문이 화면에서 증발한다.
+ */
+export function importedMetaLabel(metaKey: string): string {
+  return IMPORTED_META_LABELS[metaKey] ?? metaKey;
+}
