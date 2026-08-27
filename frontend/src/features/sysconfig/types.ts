@@ -68,16 +68,12 @@ export interface ConfigUpdateRequest {
 }
 
 /**
- * R11 — 관리자 단기 유효창.
+ * 관리자 단기 유효창 — **구 이름**. 실제 타입은 관리자 유효창 모듈이 소유한다.
  *
- * `expiresAt` 은 **표시용**이다. 유효성 판정은 서버가 저장 요청마다 다시 한다(만료 시각이 토큰
- * 서명 대상 안에 들어 있어 클라이언트가 늘릴 수 없다).
+ * 유효창이 연동 주소 전용에서 관리 기능 공통으로 넓어져(ADR-046) 이 파일의 소관이 아니게 됐다.
+ * 기존 import 경로 호환을 위해 재노출만 한다 — 여기에 필드를 다시 적으면 두 벌이 된다.
  */
-export interface AdminSession {
-  token: string;
-  /** ISO-8601 UTC */
-  expiresAt: string;
-}
+export type { AdminSessionIssued as AdminSession } from '@/features/adminSession/store';
 
 /**
  * BE 응답(AiDefaultsResponse) 1:1 매핑 — `GET /v1/ai-defaults`.

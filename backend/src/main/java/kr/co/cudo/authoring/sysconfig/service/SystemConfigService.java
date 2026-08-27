@@ -7,7 +7,7 @@ import kr.co.cudo.authoring.common.config.CacheConfig;
 import kr.co.cudo.authoring.common.client.AiWaitBudgetPolicy;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.auth.service.AdminSessionTokenService;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
@@ -27,7 +27,6 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,8 +73,18 @@ public class SystemConfigService {
     private final LsSystemConfigRepository repository;
     private final ObjectMapper objectMapper;
 
-    /** R11 — 연동 주소 키 저장 시 요구하는 관리자 단기 유효창 검증기. */
-    private final AdminSessionTokenService adminSessionTokenService;
+    /**
+     * R11 — 연동 주소 키 저장 시 요구하는 관리자 단기 유효창 <b>게이트</b>. [@design ADR-046]
+     *
+     * <p>검증자를 직접 부르지 않고 게이트를 통한다. 같은 요구가 사용자 역할 변경·업로드 시작·관리자
+     * 자격 교체로 넓어지는데, 그때마다 검증자를 각자 부르면 「호출처마다 배선하면 샌다」가 그대로
+     * 재현된다. 게이트는 <b>얇은 층</b>이라 판정은 여전히 한 곳이 소유한다.
+     *
+     * <p>⚠ 이 창구는 <b>애노테이션이 아니라 프로그램적 경로</b>를 쓴다 — 요구가 설정 키 단위로
+     * 갈리기 때문이다(연동 주소 키에만 요구, 그 외 키는 검수자 권한만으로 저장). 창구 전체에
+     * 애노테이션을 붙이면 요구가 없는 키까지 함께 막힌다.
+     */
+    private final AdminSessionGate adminSessionGate;
 
     /** R11 — 연동 주소 값(스키마·형식) 판정기. 대역 차단은 하지 않는다. */
     private final IntegrationEndpointUrlValidator endpointUrlValidator;
@@ -240,10 +249,13 @@ public class SystemConfigService {
         }
 
         // R11 — 연동 주소 키는 REVIEWER 권한 위에 <b>관리자 단기 유효창</b>을 하나 더 요구한다.
-        // 게이트를 컨트롤러가 아니라 서비스에 두는 이유: 다른 진입점이 생겨도 우회되지 않게.
+        // 요구 여부를 <이 호출 지점>에서 판정하는 이유: 요구가 <설정 키 단위>로 갈리기 때문이다.
+        //   컨트롤러(창구)에 애노테이션으로 걸면 요구가 없는 배치·추론·정밀도·비식별 키까지 함께
+        //   막혀, 검수자가 늘 쓰던 설정 변경이 잠긴다. 어느 키에 요구가 걸리는가는 아래
+        //   IntegrationEndpoint 가 계속 소유하고, 게이트는 <걸린 뒤>의 판정만 맡는다.
         IntegrationEndpoint endpoint = IntegrationEndpoint.byConfigKey(key).orElse(null);
         if (endpoint != null) {
-            adminSessionTokenService.verify(adminSessionToken, actor.sub(), Instant.now());
+            adminSessionGate.require(adminSessionToken, actor.sub());
             endpointUrlValidator.validateForSave(endpoint, value);
             if (endpoint == IntegrationEndpoint.DEIDENTIFY) {
                 // 기동 시 가드는 @Value 배포값만 본다 — 화면에서 바꾼 값은 그 판정 밖이므로

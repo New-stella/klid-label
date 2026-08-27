@@ -159,12 +159,5 @@ export const integrationEndpointsSchema = z.object({
 
 export type IntegrationEndpointsForm = z.infer<typeof integrationEndpointsSchema>;
 
-/** 관리자 패스워드 입력 — BE DTO(`AdminSessionRequest`) 의 4~100자와 같은 범위. */
-export const adminSessionSchema = z.object({
-  adminPassword: z
-    .string()
-    .min(4, '관리자 패스워드를 입력해주세요')
-    .max(100, '관리자 패스워드는 100자를 초과할 수 없습니다'),
-});
-
-export type AdminSessionForm = z.infer<typeof adminSessionSchema>;
+// 관리자 패스워드 입력 검증은 관리자 유효창 모듈이 소유한다(`features/adminSession/schema`) —
+// 유효창이 연동 주소 전용에서 관리 기능 공통으로 넓어져 이 파일의 소관이 아니게 됐다.

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
 import { apiClient } from '@/lib/api/client';
 import { SystemSettingsPage } from '@/pages/manage/SystemSettingsPage';
@@ -55,20 +54,21 @@ describe('SystemSettingsPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('3섹션_렌더링_(Batch_health_danger)', async () => {
+  it('2섹션_렌더링_(편집_가능_+_실시간_모니터링)', async () => {
     mockConfigs(mock);
     mockHealth(mock);
 
     renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
 
-    // mock 정합 — 카드 제목: '배치 처리' / '외부 연동 상태' / '위험 구역'
-    // 섹션 헤더는 별도로 '편집 가능 — DB 영속화' / '실시간 모니터링' / '위험 액션'
+    // 카드 제목: '배치 처리' / '외부 연동 상태'
+    // 섹션 헤더는 별도로 '편집 가능 — DB 영속화' / '실시간 모니터링'
     await waitFor(() => {
       expect(screen.getByText('배치 처리')).toBeInTheDocument();
     });
     // '실시간 모니터링' 은 섹션 헤더(h2) 와 배지 양쪽에 등장 — getAllBy 로 처리
     expect(screen.getAllByText('실시간 모니터링').length).toBeGreaterThan(0);
-    expect(screen.getByText('위험 액션')).toBeInTheDocument();
+    // ⚠ 위험 액션 섹션은 관리자 페이지(`/admin/maintenance`)로 옮겨갔다.
+    expect(screen.queryByText('위험 액션')).not.toBeInTheDocument();
   });
 
   it('R3-2_저장된_설정값이_슬라이더에_반영됨_(재로드_시_기본값_폴백_금지)', async () => {
@@ -87,34 +87,20 @@ describe('SystemSettingsPage', () => {
     expect(intervalSlider).toHaveValue('60');
   });
 
-  it('위험_액션_클릭시_confirm_dialog_노출_및_API_호출_없음', async () => {
+  it('위험_액션과_연동_주소_카드가_이_화면에서_사라졌다', async () => {
+    // 옮긴 것이지 복제한 것이 아니다 — 두 화면에 다 뜨면 어느 쪽이 정본인지 알 수 없다.
+    // 실행 동작 자체의 회귀 가드는 옮겨간 화면(`AdminMaintenancePage`)이 갖는다.
     mockConfigs(mock);
     mockHealth(mock);
 
-    const user = userEvent.setup();
     renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
+    await waitFor(() => expect(screen.getByText('배치 처리')).toBeInTheDocument());
 
-    await waitFor(() => {
-      expect(screen.getByText('위험 액션')).toBeInTheDocument();
-    });
+    expect(screen.queryByRole('button', { name: /배치 큐 초기화/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /캐시 삭제/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('비식별 서버')).not.toBeInTheDocument();
 
-    const beforeCount = mock.history.delete.length + mock.history.post.length;
-
-    // 위험 액션 첫 버튼 클릭
-    const dangerBtn = screen.getByRole('button', { name: /배치 큐 초기화/ });
-    await user.click(dangerBtn);
-
-    // ConfirmDialog 노출 — dialog 안의 description 텍스트는 '이 작업은 되돌릴 수 없습니다' 가 포함됨.
-    // 페이지 상단에도 '되돌릴 수 없습니다' 가 있어 다수 매치 → getAllBy 로 확인.
-    await waitFor(() => {
-      expect(screen.getAllByText(/되돌릴 수 없습니다/).length).toBeGreaterThanOrEqual(2);
-    });
-
-    // 확인 클릭 — placeholder이므로 실제 API 호출 X
-    const confirmBtn = screen.getByRole('button', { name: '실행' });
-    await user.click(confirmBtn);
-
-    const afterCount = mock.history.delete.length + mock.history.post.length;
-    expect(afterCount).toBe(beforeCount);
+    // 존치 축 — 남아야 할 편집 카드는 그대로다(전부 사라지는 변이를 함께 막는다).
+    expect(screen.getByLabelText(/동시 처리 수/)).toBeInTheDocument();
   });
 });

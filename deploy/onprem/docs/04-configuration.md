@@ -213,7 +213,7 @@ frontend 는 env 파일을 런타임에 읽지 않는다. **Vite 가 빌드 시�
 | `VITE_TOKEN_INGRESS` | · | 기본 `localStorage` (토큰 인계 채널). 값: `url`\|`cookie`\|`localStorage`\|`both`\|`all`. **기본값을 바꾸지 말 것** — `url`/`both`/`all` 은 JWT 를 URL 쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598). 관제/포털은 동일 origin 브라우저 저장소로 인계한다 |
 | `VITE_CONTROL_LOGIN_URL` | ★ | **관제서버 로그인 페이지 절대 URL.** 예 `https://control.example.local/login` |
 | `VITE_PORTAL_LOGIN_URL` | ★ | **포털 로그인 페이지 절대 URL.** 예 `https://portal.example.local/login` |
-| `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true. **수동 업로드(`/dev/upload`)는 운영 상시 기능**이며 backend 도 기본 ON 이다(A 절 `DEV_UPLOAD_ENABLED`). 끄려면 **이 값과 backend 토글을 함께** — I 절 |
+| `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true. **수동 업로드(`/admin/uploads`)는 운영 상시 기능**이며 backend 도 기본 ON 이다(A 절 `DEV_UPLOAD_ENABLED`). 끄려면 **이 값과 backend 토글을 함께** — I 절 |
 | `VITE_DEV_LOGIN_ENABLED` | · | 온프렘 기본 true(FE 라우트만 dist 에 포함). **backend 는 기본 OFF** 라 `/v1/dev/tokens` 는 404 다. 브링업에서만 임시로 켠다 — H 절 |
 
 - **두 로그인 URL 은 `http://` 또는 `https://` 스킴을 포함한 완전한 URL**이어야 한다. 스킴이
@@ -349,14 +349,16 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
    > 지정이 무의미하다 — 구 기재는 사실과 달랐다.
 2. 브라우저에서 `/dev/login` 진입 → 임시 토큰 발급(파이프라인 검증에 필요한 역할 선택).
    **이 토큰은 브링업 검증용이며 최초 REVIEWER 를 만드는 정규 절차가 아니다** — 정규 절차는 G 절.
-3. `/dev/upload` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
+3. `/admin/uploads` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
+   ⚠ 이 화면은 **관리자 페이지 소속**이라 검수자 역할만으로는 못 들어간다 — `/admin` 에서 관리자
+   패스워드 확인을 거쳐야 도달하며, 업로드 **시작**에도 그때 열린 유효창이 실린다(G 절).
 4. **운영 정상화 후**: `DEV_LOGIN_ENABLED` 를 backend.env 에서 미설정(삭제/주석)하고 재기동
    → `/v1/dev/*` 중 **로그인 경로만** 차단된다. 이후 실제 사용자 권한은 G 절 경로로 부여한다.
    ⚠ 수동 업로드는 이 원복 대상이 **아니다** — 상시 기능이므로 계속 열려 있다(I 절).
 
 ---
 
-## I. 수동 업로드 (`/dev/upload`) — 운영 상시 노출
+## I. 수동 업로드 (`/admin/uploads`) — 운영 상시 노출
 
 2026-08-24(CO-008)부터 **수동 업로드는 운영에서 기본으로 켜져 있다.** 외부에서 받은 영상을
 운영자가 직접 올리는 동선이 실제로 있어 그 입구를 열어 둔 것이다. 화면 표시 명칭은 **「수동 업로드」**다.
@@ -368,6 +370,10 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 | 업로드 크기 | 개당 **500MB** / 요청 총량 1100MB | `application-prd.yml` 의 `spring.servlet.multipart` |
 
 - **인가는 REVIEWER 로 그대로 걸린다.** 화면·API 모두 검수자만 접근한다.
+- **화면은 관리자 페이지(`/admin/*`) 소속이라 관리자 패스워드 확인을 거쳐야 도달한다.** 검수자
+  역할 **위에** 단기 유효창이 가산되며, 그 유효창은 업로드 **시작**에만 실린다(청크 이어보내기·
+  취소에는 실리지 않아 대용량 영상이 유효창을 넘겨도 끊기지 않는다).
+  ⚠ **서버 창구 경로는 그대로 `POST /api/v1/dev/upload` 다** — 옮겨간 것은 화면 주소뿐이다.
 - **dev 로그인은 별개다.** `DEV_LOGIN_ENABLED` 는 여전히 기본 OFF 이고 `/v1/dev/tokens` 는 404 다.
   업로드를 켜는 것이 인증 우회 표면을 열지 않는다.
 - 켜져 있다는 사실은 기동 로그의 dev 토글 WARN 으로도 남는다(의도된 것 — 지우지 말 것).
@@ -388,5 +394,5 @@ VITE_DEV_UPLOAD_ENABLED=false
 >
 > ⚠ **frontend 만 끄는 것도 반쪽이다.** 화면은 사라지지만 API 는 열려 있다.
 
-되돌린 뒤 확인: LNB 에 「수동 업로드」가 없고, `/dev/upload` 직접 진입이 막히며,
+되돌린 뒤 확인: LNB 에 「수동 업로드」가 없고, `/admin/uploads` 직접 진입이 막히며,
 `POST /api/v1/dev/upload` 가 404 다.

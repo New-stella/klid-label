@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
+import { AdminSessionDialog } from '@/features/adminSession/components/AdminSessionDialog';
+import { AdminSessionStatus } from '@/features/adminSession/components/AdminSessionStatus';
+import {
+  ADMIN_SESSION_TTL_MINUTES_HINT,
+  useAdminSessionWindow,
+} from '@/features/adminSession/hooks/useAdminSessionWindow';
 import { AutolabelResultCard } from '@/features/dev/components/AutolabelResultCard';
 import { extractBeMessage, useAutolabelTest } from '@/features/dev/hooks/useAutolabelTest';
 import { useAutolabelStatus } from '@/features/dev/hooks/useAutolabelStatus';
 import { useEventTypes } from '@/features/eventType/hooks';
 import { TusUploadPanel } from '@/features/upload/components/TusUploadPanel';
-import { type AutolabelTestResult } from '@/features/dev/types';
+import { type AutolabelTestMeta, type AutolabelTestResult } from '@/features/dev/types';
 
 /**
- * [개발/검수 전용] 파일 업로드 화면 (`/dev/upload`). [@design SCREEN-027]
+ * 파일 업로드 화면 (`/admin/uploads`). [@design SCREEN-027] [@design API-158] [@design API-152]
+ *
+ * <p>관리자 페이지 소속이라 진입에 관리자 패스워드 확인을 거친다. 업로드 <b>시작</b>에도 그
+ * 유효창이 실린다 — 청크·취소에는 실리지 않아 대용량 영상이 유효창을 넘겨도 끊기지 않는다.
  *
  * <p>REVIEWER 전용. 입력 폼은 **한 벌**이고(`TusUploadPanel`) 최상단 «적재 경로» 라디오가 보내는
  * 곳과 그 뒤 흐름만 바꾼다:
@@ -31,6 +40,8 @@ import { type AutolabelTestResult } from '@/features/dev/types';
  * 입력을 평문으로 `console` 에 남기지 않는다.
  */
 export function DevAutolabelTestPage() {
+  const session = useAdminSessionWindow();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [result, setResult] = useState<AutolabelTestResult | null>(null);
   const [terminalReached, setTerminalReached] = useState(false);
@@ -71,11 +82,21 @@ export function DevAutolabelTestPage() {
     }
   }, [reachedTerminal, terminalReached]);
 
-  const handleImmediateSubmit = (args: Parameters<typeof mutation.mutate>[0]) => {
+  const handleImmediateSubmit = (args: { file: File; meta: AutolabelTestMeta }) => {
     setErrorMessage(null);
     setResult(null);
     setTerminalReached(false);
-    mutation.mutate(args);
+    // 유효창이 없으면 요청을 보내기 전에 확인 창을 먼저 연다 — 보내 봐야 403 이고, 그 거부는
+    // 화면에서 「이유를 알 수 없는 실패」로 보인다.
+    //
+    // 폼이 이미 같은 선처리를 하므로(두 적재 경로 공통) 여기까지 잠긴 채로 오지는 않는다. 그래도
+    // 남겨 두는 것은 이 핸들러가 폼 밖에서도 불릴 수 있는 prop 이기 때문이다 — 판정은 한 곳
+    // (`session.unlocked`)이고 여기서 다시 유도하지 않는다.
+    if (!session.unlocked) {
+      setDialogOpen(true);
+      return;
+    }
+    mutation.mutate({ ...args, adminSessionToken: session.token });
   };
 
   const handleReset = () => {
@@ -91,8 +112,18 @@ export function DevAutolabelTestPage() {
         description="영상 파일과 메타데이터를 한 폼에서 입력해 올립니다. 적재 경로를 파이프라인 즉시 실행과 관제 인입 재현 중에서 고를 수 있으며, 입력 폼은 두 경로가 같습니다."
       />
 
+      <AdminSessionStatus
+        unlocked={session.unlocked}
+        remainingLabel={session.remainingLabel}
+        onReauthenticate={() => setDialogOpen(true)}
+        scopeLabel="업로드 시작에는 관리자 확인이 필요합니다."
+      />
+
       <TusUploadPanel
         eventOptions={eventOptions}
+        adminSessionToken={session.token}
+        adminSessionLocked={!session.unlocked}
+        onAdminSessionRequired={() => setDialogOpen(true)}
         onImmediateSubmit={handleImmediateSubmit}
         immediatePending={mutation.isPending}
         onReset={handleReset}
@@ -118,6 +149,16 @@ export function DevAutolabelTestPage() {
           reachedMarkingReady={reachedMarkingReady}
         />
       )}
+
+      <AdminSessionDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={session.open}
+        isSubmitting={session.isOpening}
+        error={session.error}
+        ttlMinutesHint={ADMIN_SESSION_TTL_MINUTES_HINT}
+        unlockTargetLabel="영상 업로드"
+      />
     </main>
   );
 }

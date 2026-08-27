@@ -1,8 +1,13 @@
 // dev 업로드 경로 개명 회귀 가드 — 구 이름 `autolabel-test` 가 되살아나는 것을 차단한다.
 //
 // 무엇이 바뀌었나 (3축 + 설정 키):
-//   · 화면 URL: /dev/autolabel-test → /dev/upload
+//   · 화면 URL: /dev/autolabel-test → /dev/upload → **/admin/uploads** (관리자 페이지로 이동)
 //   · BE API:   /v1/dev/autolabel-test → /v1/dev/upload  (BE 가드는 DevUploadPathRenameGuardTest)
+//
+// ★**두 축이 갈렸다** — 화면 주소는 관리자 페이지(`/admin/uploads`)로 옮겨갔지만 **BE 창구 경로는
+//   `/v1/dev/upload` 그대로**다. 그 이동의 축은 화면 배치(관리자 패스워드 확인을 거쳐야 하는 화면
+//   인가)이지 창구 개명이 아니다. 그래서 이 가드는 화면 주소와 API 경로를 **따로** 못 박는다 —
+//   한 상수로 묶으면 둘 중 하나를 바꿀 때 나머지가 조용히 끌려간다.
 //   · 저장 서브디렉터리: autolabel-test → dev-upload      (BE 소관)
 //   · 설정 키: authoring.dev.autolabel-test.max-file-size → authoring.dev.upload.max-file-size
 //
@@ -31,7 +36,10 @@ import { router } from '@/router';
 
 /** 구 이름(케밥 표기). 이 문자열은 `frontend/src` 전역에서 이 파일에만 존재해야 한다. */
 const OLD_NAME = 'autolabel-test';
-const NEW_SCREEN_PATH = '/dev/upload';
+/** 화면 주소 — 관리자 페이지 소속이다. */
+const NEW_SCREEN_PATH = '/admin/uploads';
+/** BE 창구 경로 — 화면이 옮겨가도 이 값은 그대로다. */
+const UPLOAD_API_PATH = '/dev/upload';
 
 const SRC_ROOT = path.resolve(__dirname, '../..');
 /** 이 가드 자신 — 구 이름을 담아야 하므로 스캔에서 제외한다. */
@@ -60,6 +68,9 @@ interface MenuGroupLike {
   group: string;
   items: MenuItemLike[];
 }
+
+/** 파일 업로드 메뉴가 등록되는 그룹 — 「업로드」가 아니라 「관리자」다. */
+const MANUAL_UPLOAD_GROUP = '관리자';
 
 /** 라우트 트리를 순회해 절대 경로 문자열 목록을 만든다(부모 prefix 결합 포함). */
 function collectRoutePaths(routes: RouteObject[], prefix = ''): string[] {
@@ -97,8 +108,8 @@ describe('dev 업로드 경로 개명 (구 이름 회귀 차단)', () => {
     expect(paths.filter((p) => p.includes(OLD_NAME))).toEqual([]);
   });
 
-  it('LNB_업로드_메뉴가_새_URL을_가리킨다', () => {
-    const menu: MenuGroupLike[] = [{ group: '업로드', items: [] }];
+  it('LNB_파일_업로드_메뉴가_새_URL을_가리킨다', () => {
+    const menu: MenuGroupLike[] = [{ group: MANUAL_UPLOAD_GROUP, items: [] }];
     registerManualUploadMenu(menu as never);
 
     const uploadItem = menu
@@ -107,5 +118,13 @@ describe('dev 업로드 경로 개명 (구 이름 회귀 차단)', () => {
 
     // 메뉴가 구 URL 을 가리키면 클릭 시 빈 화면(매칭 실패)이 된다 — 라우트와 함께 못 박는다.
     expect(uploadItem?.path).toBe(NEW_SCREEN_PATH);
+  });
+
+  it('BE_창구_경로는_화면_이동과_무관하게_그대로다', () => {
+    // 화면 주소만 옮겼다 — 창구까지 끌려가면 서버에 없는 경로로 요청이 나간다.
+    const api = readFileSync(path.join(SRC_ROOT, 'features/dev/api.ts'), 'utf-8');
+    expect(api).toContain(`'${UPLOAD_API_PATH}'`);
+    // 두 축이 서로 다른 값이어야 한다(같아지면 한쪽이 다른 쪽을 따라간 것이다).
+    expect(UPLOAD_API_PATH).not.toBe(NEW_SCREEN_PATH);
   });
 });

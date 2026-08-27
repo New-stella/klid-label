@@ -19,6 +19,7 @@ import java.util.Base64;
 
 /**
  * 관리자 단기 유효창 토큰 — <b>무상태 서명 토큰</b> (R11).
+ * [@design ADR-046] [@design AC-121] [@design API-194]
  *
  * <h3>왜 무상태 서명인가 (2노드 Active-Active)</h3>
  * <p>세션을 발급 노드의 메모리에 담으면 <b>다음 요청이 다른 노드로 가는 순간 403</b> 이다(로드밸런서가
@@ -31,7 +32,10 @@ import java.util.Base64;
  *
  * <h3>토큰 형식</h3>
  * <pre>base64url(payload) + "." + base64url(HMAC-SHA256(derivedKey, payload))</pre>
- * payload = {@code v1|subject|expiryEpochSeconds}
+ * payload = {@code v2|subject|expiryEpochSeconds}
+ *
+ * <p>서명 키는 JWT 서명 키와 <b>현재 관리자 자격</b>에서 함께 파생된다({@link #derivedKey()}).
+ * 그래서 자격이 교체되면 그 전에 발급된 토큰이 별도 장부 없이 자동으로 무효가 된다.
  *
  * <h3>인증 토큰으로 오인될 수 없다</h3>
  * <p>서명 키는 JWT 서명 키를 <b>그대로 쓰지 않고</b> 고정 라벨로 HMAC 파생한 별도 키다
@@ -40,7 +44,9 @@ import java.util.Base64;
  * 두 축이 키를 공유하면 한쪽 토큰이 다른 쪽에서 통용될 여지가 생긴다.
  *
  * <h3>권한을 올리지 않는다</h3>
- * <p>토큰에는 <b>역할 클레임이 없다</b>. subject 만 실려 있고, 소비처는 연동 주소 키 저장 한 곳뿐이다.
+ * <p>토큰에는 <b>역할 클레임이 없다</b>. subject 만 실려 있다. 소비처는 운영·관리 성격의 <b>쓰기</b>
+ * 창구들이며(연동 주소 저장 · 사용자 역할 변경 · 업로드 시작 · 관리자 자격 교체 — 전수 목록이 아니라
+ * 예시이고 판정 기준은 「운영·관리 성격의 쓰기인가」 하나다), 조회에는 요구하지 않는다.
  * 즉 이 토큰이 있어도 REVIEWER 가 아닌 사람은 여전히 그 API 에 들어오지 못한다(인가는 기존
  * {@code @PreAuthorize} + 서비스 이중 검증이 그대로 담당하며, 이 토큰은 <b>그 위에 더해지는</b> 조건이다).
  *
@@ -57,8 +63,14 @@ public class AdminSessionTokenService {
 
     private static final String HMAC_ALG = "HmacSHA256";
 
-    /** 페이로드 버전 — 형식이 바뀌면 올려 과거 토큰을 자동 무효화한다. */
-    private static final String PAYLOAD_VERSION = "v1";
+    /**
+     * 페이로드 버전 — 형식이 바뀌면 올려 과거 토큰을 자동 무효화한다.
+     *
+     * <p>{@code v2} 로 올린 이유는 <b>검증 규칙이 바뀌었기 때문</b>이다(서명 키가 현재 관리자 자격에
+     * 의존하게 됐다). 배포 시점에 떠 있던 구 토큰이 새 로직에서 <b>조용히 통과하는</b> 일이 없도록
+     * 형식으로 구분한다.
+     */
+    private static final String PAYLOAD_VERSION = "v2";
 
     /**
      * 유효기간 상한 — <b>설정으로도 넘을 수 없다</b>. 단기 유효창이라는 성질 자체가 이 기능의
@@ -70,12 +82,15 @@ public class AdminSessionTokenService {
     public static final Duration DEFAULT_TTL = Duration.ofMinutes(10);
 
     private final JwtKeyResolver keyResolver;
+    private final AdminPasswordVerifier passwordVerifier;
     private final Duration ttl;
 
     public AdminSessionTokenService(
             JwtKeyResolver keyResolver,
+            AdminPasswordVerifier passwordVerifier,
             @Value("${authoring.auth.admin-session.ttl-minutes:10}") long ttlMinutes) {
         this.keyResolver = keyResolver;
+        this.passwordVerifier = passwordVerifier;
         this.ttl = clampTtl(ttlMinutes);
     }
 
@@ -181,13 +196,33 @@ public class AdminSessionTokenService {
         }
     }
 
-    /** JWT 서명 키에서 <b>별도 키</b>를 파생한다 — 두 축이 키를 공유하지 않게. */
+    /**
+     * JWT 서명 키에서 <b>별도 키</b>를 파생한다 — 두 축이 키를 공유하지 않게.
+     *
+     * <h4>★ 현재 관리자 자격을 함께 섞는다 — 무효화 장부를 두지 않기 위해서다</h4>
+     * <p>자격이 교체되면 그 전에 발급된 유효창은 모두 무효가 되어야 한다. 이를 세대 번호로 이루려면
+     * 토큰에 세대를 싣고 검증마다 현재 세대와 대조해야 하는데, 그러면 <b>상태가 하나 늘고</b> 그
+     * 상태가 토큰 형식과 결합한다. 대신 서명 키가 현재 자격에 의존하게 하면 자격이 바뀌는 순간
+     * 과거 토큰의 서명이 더는 맞지 않아 <b>같은 결과를 상태 없이</b> 얻는다.
+     *
+     * <p>예외 갈래가 없다는 것이 핵심이다 — 교체를 수행한 사람이 방금 쓴 유효창도 함께 끊긴다.
+     *
+     * <p>⚠ 자격을 읽지 못하면(저장소 장애) 유효창 검증이 <b>전부</b> 실패한다. 방향은 막히는 쪽이라
+     * 안전하며 ADR-046 에서 인지·수용한 잔여 위험이다.
+     *
+     * @throws CustomException 자격이 아예 없을 때 — 서명할 근거가 없으므로 거부한다(fail-closed)
+     */
     private SecretKey derivedKey() {
+        String credential = passwordVerifier.currentHash();
+        if (credential == null || credential.isEmpty()) {
+            throw expired();
+        }
         try {
             SecretKey base = keyResolver.resolve();
             Mac mac = Mac.getInstance(HMAC_ALG);
             mac.init(base);
-            byte[] derived = mac.doFinal(KEY_DERIVATION_LABEL.getBytes(StandardCharsets.UTF_8));
+            byte[] derived = mac.doFinal(
+                    (KEY_DERIVATION_LABEL + '|' + credential).getBytes(StandardCharsets.UTF_8));
             return new SecretKeySpec(derived, HMAC_ALG);
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("관리자 세션 서명 키 파생에 실패했습니다.", e);

@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.common.security.Channel;
 import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointUrlValidator;
 import kr.co.cudo.authoring.sysconfig.entity.LsSystemConfig;
 import kr.co.cudo.authoring.sysconfig.repository.LsSystemConfigRepository;
@@ -60,7 +61,7 @@ class VlmSkipByDefaultConfigTest {
     @BeforeEach
     void setUp() {
         service = new SystemConfigService(repository, new ObjectMapper(),
-                mock(AdminSessionTokenService.class),
+                new AdminSessionGate(mock(AdminSessionTokenService.class)),
                 mock(IntegrationEndpointUrlValidator.class),
                 mock(DeidentifyEndpointTrustGuard.class),
                 new AiWaitBudgetPolicy(RetryRegistry.of(RetryConfig.custom()

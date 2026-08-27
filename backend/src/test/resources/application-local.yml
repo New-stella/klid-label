@@ -135,6 +135,13 @@ authoring:
       initial-delay-ms: 86400000
   # 역할 승격 시도 원장 정리 잡 — 전용 executor 발화만 격리(RoleClaimAttemptPurgeIT 가 직접 호출).
   auth:
+    # ★ 관리자 자격의 배포 설정 폴백 — main/resources/application-local.yml 과 같은 해시다.
+    #   이 파일이 같은 이름·같은 위치라 main 쪽 local 프로파일을 **대체**하므로, 여기 없으면 테스트
+    #   컨텍스트의 자격이 비어 관리자 유효창이 발급조차 되지 않는다(fail-closed). 유효창 서명 키가
+    #   현재 자격에서 파생되기 때문에, 자격이 없으면 발급도 검증도 전부 403 이 된다.
+    #   ⚠ 평문은 저장소에 두지 않는다 — 평문이 필요한 시험은 자격 저장 행을 직접 심어 쓴다
+    #     (AdminPasswordControllerIT).
+    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2y$12$NxE8qu8kf7G6kxmhtKs8b.d4uWDvWg1YsSQ7ShVvQmrLTwCE.mCSq}
     role-claim:
       purge:
         enabled: false

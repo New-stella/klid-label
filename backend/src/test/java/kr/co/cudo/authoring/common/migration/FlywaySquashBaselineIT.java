@@ -89,6 +89,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       — 라벨명 소급 매칭은 동명이인·비활성 마스터에 다른 분류로 연결될 수 있어 빈 값보다
  *       나쁘다(재저장하면 자연 복구). FK 를 걸지 않아 마스터 수명과 독립이며, NULL 허용 +
  *       DEFAULT 없는 ADD COLUMN 이라 하위호환이고 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V21} — {@code LS_MNGR_PSWD}(관리자비밀번호) 신설. 관리자 유효창 발급에 쓰는 공유
+ *       자격이 배포 설정에만 있어 <b>재배포 말고는 바꿀 길이 없었다</b>. 이 표가 그 자격을 데이터로
+ *       옮긴다. <b>행은 최대 1개</b>이며 그것을 기본키 + {@code mngr_pswd_sn = 1} 체크 제약
+ *       <b>두 겹</b>으로 강제한다(기본키만이면 1·2·3 이 나란히 서고, 체크만이면 값이 전부 1 인 행이
+ *       여러 개 들어간다). <b>시드하지 않는다</b> — 행이 없는 것이 정상이고 그때는 배포 설정값으로
+ *       폴백하므로, 이 변경 이후에도 기존 배포는 아무것도 달라지지 않는다. 세대·판수 컬럼을 두지
+ *       않는 것도 결정이다(교체 시 기존 유효창 무효화는 서명이 현재 자격에 의존하게 해서 이룬다).
+ *       신규 테이블 생성뿐이라 하위호환이고 롤링 재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  * </ul>
  *
@@ -125,7 +133,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "9001");
+                        "17", "18", "19", "20", "21", "9001");
     }
 
     @Test
@@ -153,6 +161,7 @@ class FlywaySquashBaselineIT {
                         "V19__simplify_label_preset_to_event_and_labels.sql",
                         "V1__baseline.sql",
                         "V20__add_portal_user_label_master_and_track.sql",
+                        "V21__add_ls_mngr_pswd.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

@@ -52,10 +52,14 @@ class AdminSessionServiceTest {
         new SecureRandom().nextBytes(pw);
         adminPlaintext = Base64.getUrlEncoder().withoutPadding().encodeToString(pw);
 
+        // 검증기 하나를 두 곳에 물린다 — 실제 배선과 같다. 유효창 서명 키가 현재 자격에서 파생되므로
+        // 서로 다른 자격을 가진 검증기를 물리면 발급한 토큰을 자기 자신도 검증하지 못한다.
+        AdminPasswordVerifier verifier =
+                new AdminPasswordVerifier(new BCryptPasswordEncoder(12).encode(adminPlaintext));
         service = new AdminSessionService(
-                new AdminPasswordVerifier(new BCryptPasswordEncoder(12).encode(adminPlaintext)),
+                verifier,
                 new RoleClaimRateLimiter(null, 5, 50),
-                new AdminSessionTokenService(RESOLVER, 10));
+                new AdminSessionTokenService(RESOLVER, verifier, 10));
 
         logAppender = new ListAppender<>();
         logAppender.start();
@@ -154,10 +158,11 @@ class AdminSessionServiceTest {
     @Test
     @DisplayName("해시_미설정이면_항상_401 — 기능이_열리지_않는다 (fail-closed)")
     void deniesWhenHashNotConfigured() {
+        AdminPasswordVerifier unconfiguredVerifier = new AdminPasswordVerifier("");
         AdminSessionService unconfigured = new AdminSessionService(
-                new AdminPasswordVerifier(""),
+                unconfiguredVerifier,
                 new RoleClaimRateLimiter(null, 5, 50),
-                new AdminSessionTokenService(RESOLVER, 10));
+                new AdminSessionTokenService(RESOLVER, unconfiguredVerifier, 10));
 
         assertThatThrownBy(() -> unconfigured.open(new AdminSessionRequest(adminPlaintext), reviewer()))
                 .isInstanceOf(CustomException.class)

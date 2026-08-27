@@ -8,12 +8,14 @@
 // 운영에서 404를 받는 정합 이슈가 있었다. BE 시그니처에 맞춰 path 에 key 를 싣고
 // body 는 BE DTO(ConfigUpdateRequest) 와 동일하게 `{value}` 만 보낸다.
 
+import { ADMIN_SESSION_HEADER, adminSessionHeaders } from '@/features/adminSession/api';
 import { apiClient } from '@/lib/api/client';
 
-import type { AdminSession, AiDefaults, ConfigItem, ConfigUpdateRequest } from './types';
+import type { AiDefaults, ConfigItem, ConfigUpdateRequest } from './types';
 
-/** R11 — 관리자 단기 유효창 토큰을 싣는 헤더. BE `SystemConfigController.ADMIN_SESSION_HEADER`. */
-export const ADMIN_SESSION_HEADER = 'X-Admin-Session';
+// 헤더 이름의 단일 지점은 관리자 유효창 모듈이다 — 유효창이 관리 기능 공통으로 넓어지면서
+// 이 파일이 더는 그 계약의 소유자가 아니다. 기존 import 경로 호환을 위해 재노출만 한다.
+export { ADMIN_SESSION_HEADER };
 
 export function getConfigs() {
   return apiClient.get<ConfigItem[]>('/manage/configs').then((r) => r.data);
@@ -39,27 +41,12 @@ export function updateConfig(body: ConfigUpdateRequest) {
   const path = `/manage/configs/${encodeURIComponent(body.key)}`;
   // R11 — 관리자 세션 토큰은 **헤더**로 보낸다. 바디에 두면 설정 값과 자격증명이 한 구조에 섞여
   // 로그·검증 경로마다 자격증명이 딸려 다닌다. 없으면 헤더 자체를 붙이지 않는다.
-  const headers = body.adminSessionToken
-    ? { [ADMIN_SESSION_HEADER]: body.adminSessionToken }
-    : undefined;
+  const headers = adminSessionHeaders(body.adminSessionToken);
   return apiClient
     .put<ConfigItem>(path, { value: String(body.value) }, { headers })
     .then((r) => r.data);
 }
 
-/**
- * R11 — 관리자 단기 유효창을 연다 (`POST /v1/manage/admin-session`).
- *
- * ⚠ `skipAuthRedirect` 를 켠다. 여기서의 401 은 **관리자 패스워드 불일치**이지 로그인 세션 만료가
- * 아니다. 전역 인터셉터의 기본 동작(토큰 삭제 + 상위 시스템 로그인 페이지로 이동)이 그대로 돌면,
- * 패스워드를 한 번 잘못 친 검수자가 **저작도구에서 통째로 로그아웃된다**.
- */
-export function openAdminSession(adminPassword: string) {
-  return apiClient
-    .post<AdminSession>(
-      '/manage/admin-session',
-      { adminPassword },
-      { skipAuthRedirect: true },
-    )
-    .then((r) => r.data);
-}
+// 유효창 개시(`POST /v1/manage/admin-session`)는 관리자 유효창 모듈이 소유한다 —
+// 이제 연동 주소 전용이 아니라 관리 기능 공통 진입이라 이 파일의 소관이 아니다.
+export { openAdminSession } from '@/features/adminSession/api';

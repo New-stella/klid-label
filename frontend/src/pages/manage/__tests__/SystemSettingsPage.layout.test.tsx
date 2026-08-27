@@ -78,7 +78,7 @@ describe('SystemSettingsPage — 헬스 사이드바 재배치 (사양 SCREEN-02
     expect(sidebar).toHaveAccessibleName('실시간 모니터링');
   });
 
-  it('편집_가능_카드와_위험_액션은_본문에_남는다', async () => {
+  it('편집_가능_카드는_본문에_남고_사이드바로_간_것은_헬스뿐이다', async () => {
     // given / when
     renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
     await waitFor(() => expect(screen.getByText('배치 처리')).toBeInTheDocument());
@@ -86,10 +86,25 @@ describe('SystemSettingsPage — 헬스 사이드바 재배치 (사양 SCREEN-02
     // then: 사이드바로 옮겨간 것은 헬스뿐이다.
     const sidebar = screen.getByRole('complementary');
     expect(within(sidebar).queryByText('배치 처리')).not.toBeInTheDocument();
-    expect(within(sidebar).queryByText('위험 액션')).not.toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: '편집 가능 — DB 영속화' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '위험 액션' })).toBeInTheDocument();
+  });
+
+  it('위험_액션과_연동_주소는_이_화면에서_빠지고_외부_연동_헬스는_남는다', async () => {
+    // ★제거 축과 존치 축을 **짝으로** 단언한다. 「없다」만 보면 헬스 패널이 통째로 사라지는
+    //   변이도 통과한다 — 옮겨간 것은 연동 서버 «주소를 바꾸는 일»이고 «상태를 보는 일»이 아니다.
+    renderWithProviders(<SystemSettingsPage />, { initialEntries: ['/manage/settings'] });
+    await waitFor(() => expect(screen.getByText('배치 처리')).toBeInTheDocument());
+
+    // 제거 축 — 관리자 페이지(`/admin/maintenance`·`/admin/endpoints`)로 옮겨갔다.
+    expect(screen.queryByRole('heading', { name: '위험 액션' })).not.toBeInTheDocument();
+    expect(screen.queryByText('위험 구역')).not.toBeInTheDocument();
+    expect(screen.queryByText('연동 서버 주소')).not.toBeInTheDocument();
+
+    // 존치 축 — 헬스 모니터링 사이드바는 그대로다.
+    const sidebar = screen.getByRole('complementary');
+    expect(sidebar).toHaveAccessibleName('실시간 모니터링');
+    expect(within(sidebar).getByText('외부 연동 상태')).toBeInTheDocument();
   });
 
   it('사이드바는_스크롤을_따라오도록_고정된다_클래스_단언_한계', async () => {

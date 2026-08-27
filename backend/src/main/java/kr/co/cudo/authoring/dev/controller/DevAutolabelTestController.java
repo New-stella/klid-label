@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import kr.co.cudo.authoring.common.response.ApiResponse;
+import kr.co.cudo.authoring.common.security.adminsession.RequiresAdminSession;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestRequest;
 import kr.co.cudo.authoring.dev.dto.AutolabelTestResponse;
 import kr.co.cudo.authoring.dev.service.DevAutolabelTestService;
@@ -27,6 +28,16 @@ import org.springframework.web.multipart.MultipartFile;
  * <p>{@code authoring.dev.upload.enabled=true}(env {@code DEV_UPLOAD_ENABLED}) 일 때만 빈이 등록되어
  * endpoint 가 노출된다 (값 미지정 시 미등록 — fail-closed). <b>기본값은 프로파일이 정한다</b> —
  * 운영(prd)은 ON, 그 밖은 OFF. 추가로 {@code @PreAuthorize("hasRole('REVIEWER')")} 권한 가드.
+ *
+ * <h3>세 겹은 서로를 대체하지 않고 가산된다 [@design ADR-046 · API-152]</h3>
+ * <p>운영 토글이 켜져야 창구가 열리고, 검수자 권한이 있어야 하며, 그 위에 <b>관리자 단기 유효창</b>이
+ * 하나 더 필요하다({@link RequiresAdminSession} — {@code X-Admin-Session} 헤더). 영상 업로드의 시작은
+ * 운영·관리 성격의 쓰기이기 때문이며, 이 창구는 <b>한 번의 요청으로 업로드가 끝나므로</b> 확인도 이
+ * 호출 하나에서 끝난다(TUS 처럼 이어 올리기 예외를 둘 자리가 없다).
+ *
+ * <p>유효창은 역할을 <b>승격시키지 않는다</b> — 발급받은 사람에게 결박돼 있어 요청은 여전히 본인
+ * 자격으로 인증되고, 공유 패스워드로 여는 유효창인데도 업로드 기록에는 실제 행위자가 개인 단위로
+ * 남는다. 없거나 만료됐으면 403 이며 권한 부족과 구분해 알리지 않는다(CWE-209).
  *
  * <p>다음 보안 가드를 두 레이어에서 이중 적용한다:
  * <ul>
@@ -60,7 +71,7 @@ public class DevAutolabelTestController {
                     응답은 즉시 200 으로 반환되며, 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다.
 
                     <ul>
-                      <li>인증 필요 — REVIEWER 역할만 호출 가능.</li>
+                      <li>인증 필요 — REVIEWER 역할 + 관리자 단기 유효창(X-Admin-Session 헤더).</li>
                       <li>허용 확장자: mp4, webm, mov, avi. 기본 최대 크기 500MB.</li>
                       <li>vmsClipId 중복 시 409, cctvId 미등록 시 400.</li>
                     </ul>
@@ -80,12 +91,13 @@ public class DevAutolabelTestController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "업로드 성공 + 파이프라인 트리거"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력 검증 실패 / 확장자 불일치 / cctvId 미등록"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음 (REVIEWER 아님)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음(REVIEWER 아님) 또는 관리자 단기 유효창 없음·만료 — 두 사유를 구분해 알리지 않는다"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "vmsClipId 중복"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "413", description = "파일 크기 초과")
     })
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('REVIEWER')")
+    @RequiresAdminSession
     public ApiResponse<AutolabelTestResponse> upload(
             @RequestPart("file") MultipartFile file,
             @Valid @RequestPart("meta") AutolabelTestRequest meta

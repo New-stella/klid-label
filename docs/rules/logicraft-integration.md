@@ -467,6 +467,8 @@ POST https://<host>/api/mcp
 ⚠ **`generated_at` 시각 비교로 대체하지 마라** — 같은 리비전 안에서 렌더만 낡은 경우를 못 잡고, 렌더 업로드
 자신이 마지막 리비전이면 ms 차이로 오탐이 난다.
 
+⚠ **경로가 두 갈래다 (2026-08-27 실측)** — 화면 와이어프레임은 `/api/uploads/screens/{pid}/{SCREEN-ID}/{render}.html`, **고충실 시안(`screen_design`)은 `/api/uploads/designs/{pid}/{SD-ID}/{render}.html`** 이다. 시안을 `screens` 경로로 찾으면 404 다. 또 업로드 응답이 돌려주는 상대 경로(`/uploads/...`)를 그대로 GET 해도 **404** — **`/api` 접두가 필요**하다. 무인증 GET 200 은 두 경로 모두 성립하므로 바이트 대조 오라클은 그대로 쓸 수 있다.
+
 **★★렌더 HTML 은 무인증으로 내려받힌다 — 미러 층에는 진짜 바이트 오라클이 있다 (2026-08-08 실측)**
 
 `/api/uploads/screens/{project_id}/{SCREEN-ID}/{render}.html` 가 **인증 없이 GET 200** 이다(읽기 전용).
@@ -506,6 +508,11 @@ POST https://<host>/api/mcp
 
 실측(2026-08-13, 게시 10렌더): 이 방식으로 `replace=0 · 비공백차이 0 · CSS 10/10 원문일치` 를 얻어
 "내용 손상 0" 을 확정했다. 반면 정규화 8종만으로 판정했을 때는 **8건이 불일치로 잡혀** 오탐을 낼 뻔했다.
+
+★★**해시의 기준은 「내가 보낸 sections」가 아니라 「서버가 저장한 sections」다 (2026-08-27 실측)** — 서버가 스키마
+기본값(`components[].columns: []`·`options: []` 등)을 채워 넣으므로, **보낸 원본으로 계산하면 서버 해시와 어긋난다.**
+실측에서 같은 화면이 보낸 원본 기준 `11c41ef0…` / 서버 저장본 기준 `5b031ba8…` 로 갈렸다. 대조 전에 **반드시
+`get_item` 으로 다시 받은 sections** 로 계산하라 — 안 그러면 정상 업로드가 「미러 stale」로 오판된다.
 
 **`source_hash` 계산식 (실측 확정)** — `sha256(JSON.stringify(sections))`. 파이썬으로 재현하려면
 `json.dumps(sections, separators=(',',':'), ensure_ascii=False)` 를 sha256 한다. **ITEM 을 고친 뒤
@@ -606,11 +613,14 @@ kit-export?include_retired=true  → 951  (draft 664 · approved 209 · deprecat
 |---|---|
 | `patch` selector | 이름에 대괄호(`[폐기]`)가 있으면 **깨진다** → **인덱스 selector**(`sections[4].description`) 사용 |
 | `patch` 숫자 키 | **숫자로 시작하는 object 키는 세그먼트로 거부**된다(`responses.200` → `invalid segment '200'`). 그런 키의 **값 수정은 `merge`로 가능**하지만 **키 삭제는 불가능** — 남은 수단이 전체 `replace`뿐인데 그건 절단 위험(→ §2-C)이 큰 조작이다. 지우는 대신 `[폐기]` 표기(→ §2-A)로 남기는 쪽이 대개 맞다 |
+| ★**`add` 는 배열이 이미 있을 때만 된다** | 필드 자체가 없으면(`undefined`) `add` 가 `E_PATCH_OP: 'add' target '…' is not an array (got undefined). Use 'set' for non-array fields` 로 거부된다 — **배열을 새로 만들 때는 `set` 으로 전체 배열을 준다.** ⚠ 더 중요한 것은 **거부가 원자적**이라는 점이다: 같은 호출에 실린 **다른 정상 op(본문 수정 등)까지 함께 롤백**된다. 실측(2026-08-27)에서 본문 삽입 + 배열 추가를 한 번에 보냈다가 **아무것도 반영되지 않았고**, 버전이 그대로라 성공으로 오해할 뻔했다. ⇒ 쓰기 후 **버전이 올랐는지**를 반드시 확인하라(응답 문자열을 안 보고 재조회만 하면 「변경 없음」이 조용히 지나간다) |
 | `patch` 배열 **추가** | `op: add` 의 path 는 **배열 자체**로 끝나야 한다 — `sections[1].components` 또는 별칭 `sections[1].components[-]`. **인덱스를 붙이면 거부**된다(`components[11]` → `E_PATCH_OP`). 기존 원소 **교체**는 `set` + 인덱스(`components[4].note`). 즉 **추가는 인덱스 없이, 교체는 인덱스로** 라는 비대칭이다. 이 덕분에 §2-C 가 경고한 "배열 전체 `replace`"를 피할 수 있으니 원소 추가에 전체 교체를 쓰지 말 것 (2026-08-10 실측) |
 | 정적 렌더 업로드 | REST 엔드포인트는 **세션 인증만** 받아 API 키로는 401. **MCP 도구로만** 업로드 가능 |
 | ⚠ **`references[].item_id` 는 타입에 따라 링크를 만든다 — 2026-08-25 실측으로 뒤집혔다** | 구 기재(2026-08-16): *"값은 저장되는데 `get_neighbors` 에 뜨지 않는다. 20건 전부 forward 가 `belongs_to_domain` 하나뿐"*. **`adr` 타입에서는 반대다** — `references` 에 넣은 ID 마다 링크가 생겼고(`links.created` 가 넣은 수만큼 증가, `unresolved: 0`) `get_neighbors` forward 에 전부 떴다(19건 실측). ⇒ **"references 로는 못 잇는다"고 단정하지 말 것.** 이 차이가 중요한 이유: `api_endpoint`·`use_case`·`diagram_sequence` 에는 `references` 필드가 아예 없어 그 타입에서 ADR 로 잇는 수단이 `brownfield.decided_by`(**단일 값**) 뿐인데, 그걸 쓰면 기존 귀속을 덮어써야 한다. **ADR 쪽 `references` 에 대상들을 거는 것이 아무것도 덮어쓰지 않는 유일한 경로**다. ⚠ 단 그렇게 만든 것은 `forward_references` 이지 `direct_dependents` 가 아니다 — 그 대상들을 고칠 때 ADR 이 stale 로 서지는 않는다(반대 방향은 필드가 없어 성립 불가). **타입마다 확인하라** — 구 기재가 어느 타입을 본 것인지는 기록에 없다 |
 | **`referenced_by_screen_ids` 는 그래프 링크를 만들지 않는다** | ⚠ **위 `references[].item_id` 항목과 뭉뚱그리지 마라** — 그쪽은 타입에 따라 링크가 **생기기도 한다**(`adr` 실측). 이 필드는 그것과 별개로 관측된 것이다. 값은 정상 저장되는데 `get_neighbors` 에는 **그 화면들이 하나도 뜨지 않는다** — 실측(2026-08-25): `UI-018` 이 `["SCREEN-006","SCREEN-009"]` 를 들고 있는데 이웃에 **둘 다 없다**. ⇒ 이 필드를 근거로 「이 컴포넌트를 쓰는 화면은 여기 다 있다」고 판정하지 말 것이고, 이 필드를 고쳐도 **cascade 가 돌지 않으므로** 하위 정합은 손으로 훑어야 한다. 본문 정합용 목록으로만 유효하다. |
 | **`kit-export` 의 ITEM 본문은 `data` 가 아니라 `raw_json.data` 다** | 실측(2026-08-25): `it.get('data')` 로 전수 스캔했더니 **모든 패턴이 0건**으로 나왔다 — `BatchStageIndicator` 처럼 반드시 있어야 할 문자열조차 0건이었는데도 검사기는 조용히 통과했다. `kit-export` 응답은 `{project_id, domain, count, generated_at, items:[{id,type,version,stale,status,raw_json,skeleton_md,links}]}` 이고 **본문은 `raw_json.data`** 다. **전수 스캔 스크립트에는 반드시 sanity 앵커**(반드시 걸려야 하는 문자열)를 하나 넣고 그것이 0건이면 스캔 자체를 실패로 볼 것 — 이 프로젝트의 「0건을 믿지 마라」가 검사기 자신에게 일어난 사례다. |
+| **`update_item` 의 `patch` 는 `data_mode:'patch'` 와 짝이다** | 빠뜨리면 `E_VALIDATION: 'patch' provided but data_mode='replace'` 로 **쓰기 전체가 거부**된다. 다행히 거부라 리비전은 생기지 않는다. ⚠ **규격을 알아보려고 실재 ITEM 에 시험 호출을 하지 마라** — 통과해 버리면 의미 없는 `change_summary` 로 리비전이 남고 **그 쓰기가 `stale` 을 함께 지운다**(실측). 규격 확인은 **존재하지 않는 ID** 로 한다(`E_NOT_FOUND` 는 검증을 통과한 뒤에 나므로 인자 규격은 그대로 확인된다) |
+| ★**쓰기가 `implementation` 을 조용히 채운다 — 구현 현황 집계가 움직인다** | 쓰기 후 서버가 `implementation.module_paths: []` 를 채워 넣고, `implementation` 블록 자체가 없던 ITEM 에는 `{status:"planned", progress:0}` 을 **새로 만든다**. **내용 유실은 없지만 구현 현황이 `(미기재)` → `planned` 로 조용히 옮겨간다** — 정합 라운드로 ITEM 을 많이 쓰고 나면 **커버리지 집계의 `planned` 가 실제보다 부풀어 보인다.** 서로 다른 두 세션이 독립 관측한 실재 동작이다.<br>⚠ **같은 계열이 `implementation` 만이 아니다** — `erd` 에 테이블을 추가하면 서버가 그 원소에 `indexes` 키를 붙인다(실측). 즉 **스키마 기본값 채움은 타입·필드를 가리지 않고 일어난다**고 보는 편이 안전하다.<br>⇒ ①쓰기 후 대조는 **본문 통짜 비교가 아니라 실제로 건드린 필드만** 한다(통짜로 하면 「본문 바뀜」 **오탐**) ②라운드 뒤 구현 현황 수치를 인용할 때 이 이동을 감안한다 |
 | 미러 필드 삭제 | 생략하면 **기존 값이 남는다**. `sections: []`·`description: ""` 처럼 **빈 값을 명시**해야 지워진다 |
 | 필드별 **길이 상한이 타입·경로마다 다르다** | 넘으면 `E_VALIDATION too_big` 로 **쓰기 전체가 거부**된다. 실측: `screen_spec.sections[].description` **1000자**, `integration_point.description` **4000자**(2026-08-26 실측 — 4,015자가 거부됐다), `class_diagram` 의 `classes[].methods[].description` **500자**, `api_endpoint.responses[*].description` **500자**(2026-08-20 실측 — 초안 587자가 거부됐고 **같은 쓰기에 실린 `description` 변경까지 함께 롤백**됐다. 원자 거부다), `erd.tables[].columns[].description` **500자**(2026-08-20 실측 — 초안 556자를 487자로 압축). 상한 목록을 외우려 하지 말고 **거부되면 그 필드만 줄인다** — 다만 거부된 뒤 줄이는 왕복에서 전사 오류가 끼어들 자리가 생기므로, 긴 설명을 쓸 때는 **처음부터 짧게** 잡는 편이 안전하다 |
 | `screen_spec` 섹션 설명 **1000자 상한** | `sections[].description` 은 1000자를 넘으면 `E_VALIDATION too_big` 으로 **쓰기 전체가 거부**된다. 이미 900자대인 절이 흔해 한 문장만 더해도 넘는다 → 쓰기 **전에** `기존 길이 − 지울 길이 + 넣을 길이` 를 계산해 예산 안에서 문장을 고른다(거부된 뒤 줄이면 그 왕복에서 전사 오류가 끼어들 자리가 생긴다) |

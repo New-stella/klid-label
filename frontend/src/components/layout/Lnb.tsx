@@ -18,12 +18,17 @@ interface MenuGroup {
 }
 
 /**
- * 그룹 순서: 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 업로드 / 관리. [@design NAV-001]
+ * 그룹 순서: 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 업로드 / 관리 / 관리자. [@design NAV-001]
  *
- * 「업로드」는 데이터를 들여오는 화면만 모은 자리다 — 서버에 이미 있는 폴더를 가져오는 길
- * (산출물 가져오기)과 내려받아 둔 파일을 올리는 길(파일 업로드)이라는 **방식 차이**로 나뉜다.
- * 둘 다 설정을 다루는 화면이 아니라 「관리」에 있을 때 찾기 어려웠고, 서로 짝이라는 사실도
- * 메뉴에 드러나지 않았다.
+ * 「업로드」는 서버에 이미 있는 폴더를 데이터로 들여오는 자리다(산출물 가져오기). 내려받아 둔
+ * 파일을 올리는 길(파일 업로드)은 **관리자 페이지로 옮겨가** 「관리자」 그룹에 있다.
+ *
+ * 「관리자」는 역할 권한만으로 들어갈 수 없는 화면들의 자리다 — 관리자 패스워드로 연 단기
+ * 유효창을 함께 요구한다.
+ * ★**유효창을 메뉴 노출 조건으로 쓰지 않는다.** 유효창은 관리자 페이지에 들어가 패스워드를
+ *   넣어야 열리는데 그것을 노출 조건으로 삼으면 **들어갈 길 자체가 사라진다.**
+ * ★**진입 화면(`/admin`)은 메뉴에 두지 않는다** — 눌러서 가는 곳이 아니라 유효창이 없을 때
+ *   대신 열리는 자리다.
  */
 const MENU: MenuGroup[] = [
   {
@@ -72,21 +77,23 @@ const MENU: MenuGroup[] = [
     items: [{ label: '게시판', path: '/notice', allow: ['REVIEWER', 'WORKER'] }],
   },
   {
-    // [@design NAV-001] [@design SCREEN-039] [@design SCREEN-027]
-    // 「업로드」는 게시판과 관리 **사이**다. 항목이 둘 다 REVIEWER 전용이라 WORKER 에게는
+    // [@design NAV-001] [@design SCREEN-039]
+    // 「업로드」는 게시판과 관리 **사이**다. 항목이 REVIEWER 전용이라 WORKER 에게는
     // `visible.length === 0` 으로 그룹째 사라진다(그룹 헤더만 남는 일이 없다).
+    // ⚠ 「파일 업로드」는 이 그룹에서 **관리자 그룹으로 옮겨갔다** — 관리자 패스워드 확인을
+    //   거쳐야 하는 화면이라 요구 조건이 다르다.
     group: '업로드',
     items: [
       // ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다 — 갈리면
       //   「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
       { label: '산출물 가져오기', path: '/manage/imports', allow: ['REVIEWER'] },
-      // 「파일 업로드」(`/dev/upload`)는 아래 registerManualUploadMenu 가 토글 조건과 함께 넣는다.
     ],
   },
   {
+    // ⚠ 「사용자 관리」는 이 그룹에서 **관리자 그룹으로 옮겨갔다**(`/admin/users`) — 역할을 바꾸는
+    //   일이라 관리자 패스워드 확인을 함께 요구한다. 삭제가 아니라 이동이다.
     group: '관리',
     items: [
-      { label: '사용자 관리', path: '/manage/users', allow: ['REVIEWER'] },
       { label: '시스템 설정', path: '/manage/settings', allow: ['REVIEWER'] },
       { label: '라벨 관리', path: '/manage/labels', allow: ['REVIEWER'] },
       { label: '프리셋 관리', path: '/manage/presets', allow: ['REVIEWER'] },
@@ -99,34 +106,69 @@ const MENU: MenuGroup[] = [
       { label: '이벤트유형 관리', path: '/manage/event-types', allow: ['REVIEWER'] },
     ],
   },
+  {
+    // [@design NAV-001] [@design SCREEN-024] [@design SCREEN-041] [@design SCREEN-042]
+    // [@design SCREEN-043] [@design ADR-046]
+    // 관리자 페이지 — 검수자 권한 **위에** 관리자 패스워드 유효창이 가산되는 화면들이다.
+    // ★유효창 보유 여부를 노출 조건으로 쓰지 않는다(그러면 들어갈 길이 사라진다).
+    // ★진입 화면(`/admin`)은 여기에 두지 않는다.
+    // ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다.
+    group: '관리자',
+    items: [
+      { label: '사용자 관리', path: '/admin/users', allow: ['REVIEWER'] },
+      { label: '연동 서버 주소', path: '/admin/endpoints', allow: ['REVIEWER'] },
+      // 「파일 업로드」(`/admin/uploads`)는 아래 registerManualUploadMenu 가 토글 조건과 함께 넣는다.
+      { label: '패스워드 교체', path: '/admin/password', allow: ['REVIEWER'] },
+      { label: '위험 액션', path: '/admin/maintenance', allow: ['REVIEWER'] },
+    ],
+  },
 ];
 
-const UPLOAD_GROUP = '업로드';
-const MANUAL_UPLOAD_PATH = '/dev/upload';
+const ADMIN_GROUP = '관리자';
+const MANUAL_UPLOAD_PATH = '/admin/uploads';
+/** 파일 업로드가 놓일 자리 — 이 항목 **바로 앞**에 끼운다(NAV-001 순서). */
+const MANUAL_UPLOAD_ANCHOR_PATH = '/admin/password';
 
 /**
- * 파일 업로드(`/dev/upload`)를 「업로드」 그룹 끝에 멱등 등록한다. [@design SCREEN-027] [@design NAV-001]
+ * 파일 업로드(`/admin/uploads`)를 「관리자」 그룹에 멱등 등록한다. [@design SCREEN-027] [@design NAV-001]
  *
  * 노출 판정은 라우트(`router/index.tsx`)와 **같은 `isDevUploadEnabled()`** 를 쓴다. 두 판정이
  * 갈리면 «메뉴는 없는데 URL 로는 들어가진다»(또는 그 반대)는 비대칭이 생긴다 — 실제로 이 메뉴가
  * `import.meta.env.DEV` 로만 가려져 있어, 토글을 켠 운영 산출물에서 라우트는 사는데 메뉴만 통째로
  * dead-code 제거된 적이 있다.
  *
- * MENU 는 모듈 스코프 가변 배열이라 Vite HMR 로 본 모듈이 재평가될 때마다 무조건 push 하면 같은
+ * ⚠ **대상 그룹이 「업로드」에서 「관리자」로 바뀌었다.** 이 화면은 관리자 패스워드 확인을 거쳐야
+ *   도달하므로 「업로드」 그룹의 다른 항목(산출물 가져오기)과 요구 조건이 다르다.
+ *
+ * 끝에 붙이지 않고 **패스워드 교체 앞에** 끼우는 것은 NAV-001 이 정한 순서(사용자 관리 · 연동
+ * 서버 주소 · 파일 업로드 · 패스워드 교체 · 위험 액션)를 지키기 위해서다. 그 기준 항목이 없으면
+ * 끝에 붙인다 — 순서가 어긋나도 메뉴가 사라지는 것보다 낫다.
+ *
+ * MENU 는 모듈 스코프 가변 배열이라 Vite HMR 로 본 모듈이 재평가될 때마다 무조건 넣으면 같은
  * 항목이 중복 누적되어 렌더 시 React "two children with the same key"(key=i.path) 경고가 발생한다.
  * 이미 있으면 다시 넣지 않도록 경로 존재 여부를 가드한다(멱등).
  *
- * 「업로드」 그룹이 없으면 아무것도 하지 않는다 — 엉뚱한 자리에 그룹을 새로 만드는 것보다 메뉴가
+ * 「관리자」 그룹이 없으면 아무것도 하지 않는다 — 엉뚱한 자리에 그룹을 새로 만드는 것보다 메뉴가
  * 없는 편이 안전하다. 실제 MENU 에 그룹이 있는지는 Lnb 렌더 테스트가 고정한다.
  *
- * ⚠ 토글이 꺼진 산출물에서는 이 항목이 통째로 빠지지만 「업로드」 그룹 자체는 남는다 —
- *   산출물 가져오기가 MENU 배열에 직접 들어 있기 때문이다(그룹이 사라지지 않는다).
+ * ⚠ 토글이 꺼진 산출물에서는 이 항목이 통째로 빠지지만 「관리자」 그룹 자체는 남는다 —
+ *   나머지 네 항목이 MENU 배열에 직접 들어 있기 때문이다(그룹이 사라지지 않는다).
  */
 export function registerManualUploadMenu(menu: MenuGroup[]): void {
-  const upload = menu.find((g) => g.group === UPLOAD_GROUP);
-  if (!upload) return;
-  if (upload.items.some((i) => i.path === MANUAL_UPLOAD_PATH)) return;
-  upload.items.push({ label: '파일 업로드', path: MANUAL_UPLOAD_PATH, allow: ['REVIEWER'] });
+  const admin = menu.find((g) => g.group === ADMIN_GROUP);
+  if (!admin) return;
+  if (admin.items.some((i) => i.path === MANUAL_UPLOAD_PATH)) return;
+  const item: MenuItem = {
+    label: '파일 업로드',
+    path: MANUAL_UPLOAD_PATH,
+    allow: ['REVIEWER'],
+  };
+  const anchor = admin.items.findIndex((i) => i.path === MANUAL_UPLOAD_ANCHOR_PATH);
+  if (anchor === -1) {
+    admin.items.push(item);
+    return;
+  }
+  admin.items.splice(anchor, 0, item);
 }
 
 // 라우트와 같은 조건이고 빌드 시 상수로 접힌다 — 토글이 꺼진 산출물에서는 통째로 제거된다.
