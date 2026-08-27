@@ -70,6 +70,7 @@ import {
 
 
 import { BatchStageSkipModal } from './BatchStageSkipModal';
+import { BundleTargetRow } from './BundleTargetRow';
 
 /** 패널 판정에 필요한 최소 필드 — 전체 상세를 요구하지 않아 호출부·테스트가 가벼워진다. */
 type BatchAttentionFields = Pick<
@@ -930,7 +931,21 @@ export function BatchFailurePanel({ video }: BatchFailurePanelProps) {
             if (!rerunConfirmTarget) return;
             rerun.mutate(rerunConfirmTarget);
           }}
-        />
+        >
+          {/* 대상 칩 행 — 시안 `.dlg-target` 은 확인 창 **첫 줄**이다(설명보다 위). 표시명은
+              `bundleLabel`, 부제는 {@link BUNDLE_SUBTITLE} 로 **이미 있는 단일 원천을 그대로
+              재사용**한다 — 여기서 문자열을 새로 적으면 목록 행의 부제와 갈린다.
+              ⚠ 부제 규칙이 건너뛰기 모달과 **다른 것이 의도**다: 건너뛰기는 «멤버 나열»
+              (`bundleMemberSubtitle`)이라 멤버가 하나뿐인 시계열에는 줄이 없고, 재수행은
+              «그 묶음이 무엇을 만드는가»라 시계열에도 「영상 서술 생성」이 붙는다. 시안의 네
+              확인 창(`#dialog-skip-*` · `#dialog-rerun-*`)이 정확히 그렇게 갈려 있다. */}
+          {rerunConfirmTarget && (
+            <BundleTargetRow
+              label={bundleLabel(rerunConfirmTarget)}
+              subtitle={BUNDLE_SUBTITLE[rerunConfirmTarget]}
+            />
+          )}
+        </ConfirmDialog>
       )}
 
       <BatchStageSkipModal

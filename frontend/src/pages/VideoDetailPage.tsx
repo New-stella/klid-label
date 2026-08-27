@@ -4,7 +4,7 @@ import { ArrowLeft, Video as VideoIcon } from 'lucide-react';
 
 import { AuthImage } from '@/components/common/AuthImage';
 import { Badge } from '@/components/common/Badge';
-import { BatchStageIndicator } from '@/components/common/BatchStageIndicator';
+import { BatchStageIndicator, DOT_HALO_PX } from '@/components/common/BatchStageIndicator';
 import { Button } from '@/components/common/Button';
 import { Card, CardContent } from '@/components/common/Card';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -107,7 +107,16 @@ function InfoTab({ video, isReviewer }: { video: VideoDetail; isReviewer: boolea
       <div className="mt-2 border-t border-gray-200 pt-4">
         <p className="mb-2 text-label text-gray-900">처리 단계</p>
         {video.stages && video.stages.length > 0 ? (
-          <div className="overflow-x-auto">
+          /* ★ 이 래퍼는 좁은 폭에서 표시기를 **좌우로 밀어 읽게** 하는 자리이자, 동시에
+               **세로로도 잘라 내는 상자**다 — CSS 규칙상 한 축이 `visible` 이 아니면 다른 축도
+               `auto` 로 계산되기 때문이다. 표시기의 진행 중 점은 위쪽 모서리가 이 상자의 내용
+               상자 top 과 같고 헤일로는 `box-shadow` 라 스크롤 영역에 기여하지 않아, 위로 뻗은
+               두께가 그대로 잘려 «위가 평평한 반달»이 된다(브라우저 실측 — jsdom 은 못 본다).
+               위쪽 패딩으로 그 두께만큼 자리를 비워 준다.
+             ⚠ 숫자를 적지 않고 {@link DOT_HALO_PX} 에서 가져온다 — 헤일로 두께가 바뀌면 이 여백도
+               함께 따라와야 한다. 패딩은 점과 칸을 함께 밀어 내리므로 표시기 내부의 연결선 정렬
+               파생(`CONNECTOR_TOP_PX`)은 그대로 성립한다. */
+          <div className="overflow-x-auto" style={{ paddingTop: DOT_HALO_PX }}>
             <BatchStageIndicator stages={video.stages} />
           </div>
         ) : (

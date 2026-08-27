@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Button } from '@/components/common/Button';
@@ -990,6 +990,51 @@ describe('BatchFailurePanel', () => {
       expect(dialog).toHaveTextContent('시계열 묶음을 다시 수행할까요?');
       expect(dialog).toHaveTextContent('이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 시계열은 확정된 라벨을 건드리지 않고 영상 서술만 새로 받아 옵니다.');
       expect(dialog).toHaveTextContent('건너뛴 상태였다면 이 조작이 함께 해제합니다 — 따로 해제할 필요가 없습니다. 접수까지만 즉시 확인되고 실행은 뒤에서 이어집니다.');
+    });
+
+    // ── 대상 칩 행(시안 `.dlg-target`) — 확인 창 **첫 줄** ────────────────────────
+    //
+    // ★ 시안은 네 확인 창(`#dialog-skip-*` · `#dialog-rerun-*`) 모두 첫 줄에 «대상 묶음» 칩을 둔다.
+    //   건너뛰기 모달에만 있고 재수행 확인 창에는 없어, 같은 결정을 묻는 두 창이 갈려 있었다.
+    // ⚠ 문자열을 새로 적지 않는다 — 표시명은 `bundleLabel`, 부제는 목록 행이 쓰는 것과 **같은
+    //   원천**이다. 아래 가드는 그 사실을 «행의 부제와 글자가 같다»로 확인한다(둘이 갈리면 깨진다).
+    it('★재수행_확인창_첫_줄이_대상_묶음_칩이다_시계열', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('VLM')} />);
+
+      const rowSubtitle = screen.getByTestId('batch-stage-subtitle-VLM').textContent;
+      await user.click(screen.getByRole('button', { name: `${VLM_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      const row = within(dialog).getByTestId('bundle-target-row');
+      expect(within(row).getByText('대상 묶음')).toBeInTheDocument();
+      expect(within(dialog).getByTestId('bundle-target-chip')).toHaveTextContent(VLM_LABEL);
+      // 부제는 목록 행과 **같은 원천**이라 글자가 같다(「영상 서술 생성」).
+      expect(within(dialog).getByTestId('bundle-target-subtitle').textContent).toBe(rowSubtitle);
+
+      // 시안 순서: 칩 행 → 설명. 설명이 위로 올라오면 «무엇에 대한 확인인가»를 나중에 알게 된다.
+      const desc = within(dialog).getByText(
+        '이 묶음만 수행하고 다른 묶음은 건드리지 않습니다. 시계열은 확정된 라벨을 건드리지 않고 영상 서술만 새로 받아 옵니다.',
+      );
+      expect(row.compareDocumentPosition(desc) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('★재수행_확인창_첫_줄이_대상_묶음_칩이다_오토라벨', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<BatchFailurePanel video={cleared('AUTOLABEL')} />);
+
+      const rowSubtitle = screen.getByTestId('batch-stage-subtitle-AUTOLABEL').textContent;
+      await user.click(screen.getByRole('button', { name: `${AUTOLABEL_LABEL} 작업 재수행` }));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByTestId('bundle-target-chip')).toHaveTextContent(AUTOLABEL_LABEL);
+      // 멤버 나열은 단계 표에서 파생된다 — 손으로 적으면 묶음 구성이 바뀔 때 한쪽만 낡는다.
+      expect(within(dialog).getByTestId('bundle-target-subtitle').textContent).toBe(rowSubtitle);
+
+      // 칩 행은 경고 상자보다도 위다(대상 → 경고 → 설명 순서를 시안이 그렇게 둔다).
+      const row = within(dialog).getByTestId('bundle-target-row');
+      const warn = screen.getByTestId('confirm-dialog-warning');
+      expect(row.compareDocumentPosition(warn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     // ★ 오토라벨 확인 창은 **그대로**다 — 시계열에 확인 창을 더한 것이지 경고 상자를 걷어낸 것이 아니다.

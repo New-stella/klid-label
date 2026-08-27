@@ -8,10 +8,14 @@ import type { BatchStageItem } from '@/features/video/types';
 
 import {
   BatchStageIndicator,
+  CELL_MIN_WIDTH_PX,
   COLLAPSED_BUNDLE_LABEL,
+  DOT_HALO_PX,
   bundleLabel,
   collapseStages,
   collapsedStatus,
+  haloClassMatchesThickness,
+  maxWidthClassesMatch,
   stageLabel,
 } from '../BatchStageIndicator';
 
@@ -770,5 +774,79 @@ describe('BatchStageIndicator', () => {
       );
       expect(offenders).toEqual([]);
     });
+  });
+});
+
+
+// ── 브라우저 실렌더에서 잡힌 결함의 되돌림 가드 ─────────────────────────────────
+//
+// ⚠ **jsdom 은 레이아웃을 계산하지 않는다** — 아래 항목의 «진짜» 증상(캡션 겹침·헤일로 잘림·
+//   행간 픽셀)은 실브라우저에서만 관측된다. 그래서 여기서 고정하는 것은 **그 증상을 만들던
+//   클래스 조합**이다: 클래스를 되돌리면 이 가드가 실패하고, 증상 자체의 부재는 브라우저
+//   실측이 따로 증언한다. 둘 중 하나만으로는 부족하다(가짜 가드를 만들지 않기 위해 이 한계를
+//   여기 적어 둔다).
+describe('BatchStageIndicator — 실렌더 결함 되돌림 가드', () => {
+  it('★칸이_캡션_아래로_짜부러지지_않는다_min_content_바닥', () => {
+    render(<BatchStageIndicator stages={stages} />);
+
+    // 컨테이너 바닥 — 없으면 좁은 폭에서 칸이 캡션보다 좁아져 이웃과 겹친다(768px 실측:
+    // 칸 42.8px 에 캡션 60.5px). 폭 상수를 px 로 박지 않고 내용에서 파생시킨다.
+    const track = screen.getByTestId('batch-stage-indicator');
+    expect(track.className).toContain('min-w-min');
+
+    // 칸의 `min-w-0` 은 위 바닥을 무효로 만든다(최소 폭 0 인 아이템은 컨테이너 min-content 에
+    // 아무것도 보태지 않는다) — 둘은 한 벌이라 함께 단언한다.
+    const cells = ['DEIDENTIFY', 'MARKING', 'VLM', 'FRAME_EXTRACT', 'AUTOLABEL'].map((k) => {
+      const item = screen.getByTestId(`batch-stage-item-${k}`);
+      const cell = item.parentElement as HTMLElement | null;
+      expect(cell, `${k} 칸`).not.toBeNull();
+      return { k, cls: cell!.className, minWidth: cell!.style.minWidth };
+    });
+    expect(cells.filter((c) => c.cls.includes('min-w-0')).map((c) => c.k)).toEqual([]);
+    // 칸이 여전히 균등 분산이어야 한다(바닥을 넣느라 flex-1 을 잃으면 넓은 폭에서 좌측에 뭉친다).
+    expect(cells.filter((c) => !c.cls.includes('flex-1')).map((c) => c.k)).toEqual([]);
+    // 바닥값은 캡션·보조 표기의 최대 폭에서 계산된다 — 칸마다 같은 값이어야 한다.
+    expect(cells.filter((c) => c.minWidth !== `${CELL_MIN_WIDTH_PX}px`).map((c) => c.k)).toEqual([]);
+  });
+
+  // ★ 바닥값의 **도출 근거**가 실제 렌더 클래스와 같은 값을 말하는가. 캡션·보조 표기의 최대 폭을
+  //   클래스에서만 바꾸면 바닥이 그것을 따라오지 않아 다시 칸 밖으로 삐져나온다.
+  it('★칸_최소폭은_캡션과_보조표기의_최대폭에서_도출된다', () => {
+    // 보조 표기는 접은 칸이 진행 중/실패일 때만 있다 — 그 조건을 만들어 둘을 함께 관측한다.
+    render(
+      <BatchStageIndicator
+        stages={[
+          item('DEIDENTIFY', 'DONE'),
+          item('YOLO', 'FAIL'),
+          item('SAM2', 'PENDING'),
+          item('INTERPOLATE', 'PENDING'),
+        ]}
+      />,
+    );
+
+    const caption = screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement!;
+    const note = screen.getByTestId('batch-stage-note-AUTOLABEL');
+    expect(maxWidthClassesMatch(caption.className, note.className)).toBe(true);
+    // 칸이 «둘 중 더 넓은 것»을 담을 수 있어야 어떤 내용도 칸 밖으로 나가지 못한다.
+    expect(CELL_MIN_WIDTH_PX).toBe(132);
+  });
+
+  it('★캡션_행간을_토큰_위에_덮어쓰지_않는다', () => {
+    render(<BatchStageIndicator stages={stages} />);
+
+    // `text-caption` 토큰이 14px/1.5(=21px)를 싣는다 — 시안 `.t-caption` 과 같은 값이다.
+    // 구 `leading-tight`(1.25) 는 그 위를 덮어써 홀로 17.5px 였다(브라우저 실측).
+    const caption = screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement?.parentElement;
+    expect(caption).not.toBeNull();
+    expect(caption!.className).toContain('text-caption');
+    // 어떤 `leading-*` 유틸리티도 얹지 않는다(다른 값으로 바꿔 되돌리는 것도 막는다).
+    expect(caption!.className).not.toMatch(/\bleading-/);
+  });
+
+  it('★헤일로_두께_상수와_클래스가_같은_값을_말한다', () => {
+    // 바깥 래퍼가 이 두께만큼 위쪽 자리를 비워 줘야 헤일로가 잘리지 않는다. 두 곳에 숫자를
+    // 각각 적으면 한쪽만 바뀌어 다시 잘린다 — 판정기가 그 어긋남을 잡는다.
+    expect(DOT_HALO_PX).toBeGreaterThan(0);
+    expect(haloClassMatchesThickness()).toBe(true);
   });
 });

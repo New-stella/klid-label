@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '@/lib/api/client';
 import { VideoDetailPage } from '@/pages/VideoDetailPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { DOT_HALO_PX } from '@/components/common/BatchStageIndicator';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 vi.mock('react-router-dom', async () => {
@@ -247,6 +248,44 @@ describe('SCREEN-009 시안 정합 — 탭 레일 · 기본 정보', () => {
     // 시안이 색을 지정하지 않는다 = body 상속(--n-9). 한 단 흐린 gray-600 으로 되돌리지 말 것.
     expect(label.className).toContain('text-gray-900');
     expect(label.className).not.toContain('text-gray-600');
+  });
+
+  // ★ 브라우저 실렌더에서만 보이던 결함의 되돌림 가드. [@design SCREEN-009]
+  //   이 래퍼는 가로 스크롤을 위해 `overflow-x` 를 걸지만, CSS 규칙상 한 축이 `visible` 이
+  //   아니면 다른 축도 `auto` 로 계산되어 **세로로도 잘라 낸다**. 표시기의 진행 중 점은 위쪽
+  //   모서리가 이 상자의 내용 상자 top 과 같고 헤일로는 `box-shadow` 라 스크롤 영역에 기여하지
+  //   않아, 위로 뻗은 두께가 그대로 잘렸다(실측 3px — 점이 «위가 평평한 반달»이었다).
+  //   ⚠ jsdom 은 그 잘림을 계산하지 않는다 — 여기서 고정하는 것은 **여백이 헤일로 두께에서
+  //     파생된다는 사실**이고, 잘리지 않는다는 것은 브라우저 실측이 따로 증언한다.
+  it('★처리_단계_래퍼가_헤일로_두께만큼_위쪽_자리를_비운다', async () => {
+    // 기본 픽스처는 `stages: []`(표시기 미렌더 → 배지 폴백)이라 이 가드에서만 단계를 싣는다.
+    mock.reset();
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        ...DETAIL,
+        stages: [
+          { name: 'DEIDENTIFY', status: 'DONE', progress: null },
+          { name: 'MARKING', status: 'PROGRESS', progress: null },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+    mock.onGet('/videos/42/labels/auto').reply(200, {
+      success: true,
+      data: AUTO_LABELS,
+      message: null,
+      errorCode: null,
+    });
+    renderPage();
+    await loaded();
+
+    const wrapper = screen.getByTestId('batch-stage-indicator').parentElement;
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.className).toContain('overflow-x-auto');
+    // 숫자를 여기 적지 않는다 — 표시기가 내보내는 두께와 **같은 값**임을 단언한다.
+    expect(wrapper!.style.paddingTop).toBe(`${DOT_HALO_PX}px`);
   });
 });
 

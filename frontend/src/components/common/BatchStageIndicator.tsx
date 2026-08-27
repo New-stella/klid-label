@@ -119,6 +119,54 @@ const DOT_SIZE_PX = 16;
 const CONNECTOR_HEIGHT_PX = 2;
 
 /**
+ * 캡션 최대 폭(px) — 시안 `.stage-caption { max-width: 120px }`.
+ * 아래 `max-w-[120px]` 리터럴과 **같은 값**이며 {@link maxWidthClassesMatch} 가 둘을 묶는다.
+ */
+const CAPTION_MAX_PX = 120;
+
+/**
+ * 보조 표기 최대 폭(px) — 시안 `.stage-substep { max-width: 132px }`.
+ * 아래 `max-w-[132px]` 리터럴과 **같은 값**이다.
+ */
+const NOTE_MAX_PX = 132;
+
+/**
+ * 한 칸이 가질 수 있는 **최소 폭**(px) — 칸이 품는 것 중 가장 넓은 것을 담을 수 있는 폭이다.
+ *
+ * ★ **도출**: 칸의 내용은 캡션({@link CAPTION_MAX_PX})과 보조 표기({@link NOTE_MAX_PX}) 둘뿐이고
+ *   둘 다 스스로 최대 폭을 갖는다. 따라서 칸이 그 **최댓값**만큼 넓으면 어떤 내용도 칸 밖으로
+ *   나가지 못한다 — 겹침이 구조적으로 불가능해진다. 숫자를 새로 정한 것이 아니라 **이미 있던
+ *   두 상수에서 계산**한 값이다(시안이 그 둘을 정했다).
+ *
+ * ★ 왜 «가장 긴 낱말»(min-content)로는 부족한가: 그 바닥은 캡션이 칸을 **정확히 가득** 채우게
+ *   만들어 이웃과의 사이 여백이 0 이 된다. 겹치지는 않지만 낱말이 서로 붙어 읽히므로(768px
+ *   실측에서 확인) 판독성을 되찾는다는 목적을 이루지 못한다. 이 값은 캡션이 다 차더라도
+ *   남는 자리가 그대로 칸 사이 여백이 된다.
+ *
+ * ⚠ 이 바닥이 걸리는 것은 **칸 몫이 이보다 좁아질 때뿐**이다 — 넓은 폭에서는 칸이 이미 더
+ *   넓어 레이아웃이 달라지지 않는다(1440px 실측에서 칸 몫 177px). 좁은 폭에서는 대신 바깥
+ *   래퍼의 가로 스크롤이 생겨 좌우로 밀어 읽는다.
+ * ⚠ 칸 사이에 `gap` 을 넣어 여백을 만들려 하지 말 것 — 연결선이 «이 칸 중심에서 다음 칸 중심»을
+ *   `width: 100%` 로 잇고 있어 gap 만큼 짧아져 점에 닿지 않는다.
+ */
+const CELL_MIN_PX = Math.max(CAPTION_MAX_PX, NOTE_MAX_PX);
+
+/**
+ * 최대 폭 클래스가 위 두 상수와 같은 값을 말하는가 — **회귀 가드 전용 판정기**.
+ *
+ * Tailwind 는 클래스 문자열을 정적으로 훑으므로 `max-w-[${CAPTION_MAX_PX}px]` 로 조립할 수
+ * 없다(그 클래스가 생성되지 않는다). 리터럴을 두되 어긋나면 가드가 잡게 판정을 여기 둔다.
+ */
+export function maxWidthClassesMatch(captionCls: string, noteCls: string): boolean {
+  return (
+    captionCls.includes(`max-w-[${CAPTION_MAX_PX}px]`) && noteCls.includes(`max-w-[${NOTE_MAX_PX}px]`)
+  );
+}
+
+/** 칸 최소 폭 — 바깥에서 이 값을 근거로 회귀를 고정한다. */
+export const CELL_MIN_WIDTH_PX = CELL_MIN_PX;
+
+/**
  * 연결선의 세로 위치(px) — 선의 **중심**을 점의 **중심**에 맞춘다.
  * 시안 `.stage-line { top: 7px }`(16px 점 · 2px 선)과 같은 값이 계산으로 나온다.
  */
@@ -187,6 +235,35 @@ const DOT_HALO: Record<BatchStageStatus, string> = {
   FAIL: '',
   PENDING: '',
 };
+
+/**
+ * 헤일로가 점 바깥으로 뻗는 두께(px) — 위 {@link DOT_HALO} 의 `ring-[3px]` 과 **같은 값**이다.
+ *
+ * ★ 이 값을 내보내는 이유는 **바깥의 잘림 상자**가 그만큼 자리를 비워 줘야 하기 때문이다.
+ *   이 스테퍼를 감싸는 쪽은 가로 스크롤을 위해 `overflow-x` 를 걸고, CSS 규칙상 한 축이
+ *   `visible` 이 아니면 다른 축도 `auto` 로 계산되므로 그 래퍼는 **세로로도 잘라 낸다**.
+ *   칸이 `items-start` 라 점의 위쪽 모서리가 래퍼 내용 상자 top 과 정확히 같고, 헤일로는
+ *   `box-shadow` 라 스크롤 영역에 기여하지 않아 **위로 뻗은 이 두께가 그대로 잘린다**
+ *   (브라우저 실측에서 진행 중 점이 «위가 평평한 반달»로 보였다 — jsdom 은 이 결함을 못 본다).
+ *   래퍼가 이 값만큼 위쪽 패딩을 두면 헤일로가 패딩 상자 안으로 들어와 잘리지 않는다.
+ *
+ * ⚠ 패딩은 점과 칸을 **함께** 밀어 내리므로 연결선 파생({@link CONNECTOR_TOP_PX})은 그대로
+ *   성립한다(선이 점에서 떨어지지 않는다).
+ * ⚠ 숫자를 양쪽에 각각 적지 말 것 — 아래 {@link haloClassMatchesThickness} 가 클래스 문자열과
+ *   이 상수가 어긋나면 실패한다. 두께를 바꾸면 한 군데만 고쳐도 가드가 나머지를 붙잡는다.
+ */
+export const DOT_HALO_PX = 3;
+
+/**
+ * 헤일로 클래스가 {@link DOT_HALO_PX} 와 같은 두께를 말하는가 — **회귀 가드 전용 판정기**.
+ *
+ * Tailwind 는 클래스 문자열을 정적으로 훑어 CSS 를 만들므로 `ring-[${DOT_HALO_PX}px]` 처럼
+ * 조립할 수 없다(그 클래스가 생성되지 않는다). 그래서 리터럴을 두되 **둘이 어긋나면 가드가
+ * 잡도록** 판정을 여기 한 곳에 둔다.
+ */
+export function haloClassMatchesThickness(): boolean {
+  return DOT_HALO.PROGRESS.includes(`ring-[${DOT_HALO_PX}px]`);
+}
 
 function StageDot({ status, testId }: { status: BatchStageStatus; testId: string }) {
   return (
@@ -370,7 +447,14 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
   const cells = collapseStages(stages);
 
   return (
-    <div className="flex w-full items-start gap-0" data-testid="batch-stage-indicator">
+    // ★ `min-w-min`(= min-width: min-content) — 칸들의 최소 폭 합({@link CELL_MIN_PX} × 칸 수)을
+    //   **컨테이너 자신의 폭**으로 끌어올린다. 이게 없으면 칸들이 `w-full` 인 컨테이너 밖으로
+    //   삐져나가기만 해 스크롤 폭 계산이 내용과 어긋난다.
+    // ⚠ 여기에 칸 수를 곱한 px 를 적지 않는다 — 칸 수는 서버가 내려주는 단계에 따라 달라진다.
+    //   `min-content` 는 **실제로 그린 칸들이 요구하는 만큼**이라 칸이 늘거나 줄어도 따라온다.
+    // ⚠ 칸의 `min-w-0` 을 되살리면 이 바닥이 무효가 된다 — 최소 폭 0 인 아이템은 컨테이너의
+    //   min-content 에 아무것도 보태지 않는다. 둘은 한 벌이다.
+    <div className="flex w-full min-w-min items-start gap-0" data-testid="batch-stage-indicator">
       {/* 화면에는 보이지 않는 라이브 리전 — 진행 단계 변화를 스크린리더에 안내한다. */}
       <span className="sr-only" aria-live="polite" data-testid="batch-stage-live">
         {liveStageMessage(stages)}
@@ -387,9 +471,15 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
           //    `items-center` 로 **캡션 높이에 의존**해 맞춰져 있어 캡션 줄 수가 바뀌면 어긋났다.
           // 칸이 `flex-1` 이라 점이 칸 중앙에 오고, 연결선은 흐름에서 빼내 **점 중심 기준
           //    절대배치**한다(칸 폭이 커져도 선이 점에서 떨어지지 않는다).
+          // ⚠ **[폐기]** 구 `min-w-0` — 칸이 캡션 아래로 짜부러지는 것을 허용했다. 캡션은
+          //    `break-keep` 이라 낱말 밑으로 줄지 않으므로, 짜부러진 칸에서는 캡션이 칸 밖으로
+          //    나가 이웃과 겹쳤다(768px 실측: 칸 42.8px 에 캡션 60.5px → 판독 불가).
+          //    되살리지 말 것 — 아래 `minWidth` 와 위 컨테이너의 `min-w-min` 이 함께 무효가 된다.
           <div
             key={cell.key}
-            className="relative flex min-w-0 flex-1 items-start justify-center"
+            className="relative flex flex-1 items-start justify-center"
+            // 숫자를 여기 적지 않는다 — 캡션·보조 표기의 최대 폭에서 계산한다({@link CELL_MIN_PX}).
+            style={{ minWidth: CELL_MIN_PX }}
           >
             <div
               className="flex flex-col items-center gap-1"
@@ -402,8 +492,13 @@ export function BatchStageIndicator({ stages }: BatchStageIndicatorProps) {
                   `word-break: keep-all`(낱말 단위 줄바꿈)로 **두 줄을 허용**한다. 줄바꿈을 막으면
                   긴 묶음명·보조 표기가 칸 밖으로 넘쳐 이웃 칸과 겹친다.
                   ⚠ **[폐기]** 구 비-fill 경로의 두 줄 캡션 + 인라인 `fontSize: '10px'` 축소는
-                  인라인 배치처(마킹 화면 헤더)를 위한 것이었고 그 자리가 사라져 함께 걷어냈다. */}
-              <span className="flex flex-col items-center break-keep text-center text-caption leading-tight">
+                  인라인 배치처(마킹 화면 헤더)를 위한 것이었고 그 자리가 사라져 함께 걷어냈다.
+                  ⚠ **[폐기]** 구 `leading-tight`(1.25) — 행간을 **토큰이 정한 값 위에 덮어썼다**.
+                    `text-caption` 토큰은 이미 14px/1.5(=21px)를 싣고 있고 시안 `.t-caption` 도
+                    같은 1.5 라, 이 덮어쓰기만 홀로 17.5px 였다(브라우저 실측). 새 유틸리티를
+                    더하지 말고 **덮어쓰기를 걷어내면** 토큰값이 그대로 나온다 — 행간을 다시
+                    클래스로 지정하지 말 것(두 번째 진실원이 된다). */}
+              <span className="flex flex-col items-center break-keep text-center text-caption">
                 <span className={cn('max-w-[120px]', CAPTION_TONE[cell.status])}>
                   {nameSpan} {statusSpan}
                 </span>

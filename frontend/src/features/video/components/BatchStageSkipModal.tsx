@@ -15,6 +15,8 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/co
 import { Modal } from '@/components/common/Modal';
 import { Textarea } from '@/components/common/Textarea';
 
+import { BundleTargetRow } from './BundleTargetRow';
+
 /** 사유 길이 상한 — BE `BatchStageSkipRequest#reason` 의 `@Size(max=500)` 과 같은 값. */
 const SKIP_REASON_MAX_LENGTH = 500;
 
@@ -124,14 +126,9 @@ export function BatchStageSkipModal({
         data-testid="batch-stage-skip-modal"
         noValidate
       >
-        {/* 무엇을 건너뛰는지 제목 문자열에만 두지 않는다 — 확인 직전에 대상이 눈에 남아야 한다. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-label text-gray-600">대상 묶음</span>
-          <span className="inline-flex items-center rounded-sm bg-gray-100 px-2.5 py-0.5 text-label text-gray-800">
-            {bundleLabel}
-          </span>
-          {bundleMembers && <span className="text-caption text-gray-600">{bundleMembers}</span>}
-        </div>
+        {/* 대상 칩 행 — **재수행 확인 창과 같은 조각**이라 모양의 소유자를 공유 컴포넌트 한 곳에
+            둔다(시안 `.dlg-target`). 마크업·클래스는 그대로 옮겼을 뿐 바뀌지 않았다. */}
+        <BundleTargetRow label={bundleLabel} subtitle={bundleMembers} />
         <Field>
           {/* 글자 수는 라벨 줄 오른쪽에 둔다 — 도움말이 두 줄로 접혀도 숫자가 문단 중간에 뜨지 않는다. */}
           {/* 필수 표식은 눈(빨간 *)과 보조기술(sr-only '(필수)') 양쪽에 필요하다. 아래
