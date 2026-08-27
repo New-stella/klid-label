@@ -126,10 +126,19 @@ export function getVideo(id: number) {
         //   구 화면은 rawSn 으로 `video-0001` 을 조립해, 같은 화면 상단 제목의 진짜 식별자와
         //   서로 다른 두 값이 동시에 떴다. 없으면 조립값으로 되돌아가지 않고 그대로 비운다.
         vmsCctvId: d.vmsCctvId ?? null,
+        // [@design API-043] [@design SCREEN-009] 프레임 미리보기 — 기존 세 필드(식별자·번호·썸네일
+        //   주소)의 이름·타입·의미는 불변이고 두 값을 더한다.
+        //   ⚠ `timestampMs` 는 **`null` 이 실려 온다**(키 부재가 아니다 — 이 프로젝트는 직렬화에서
+        //     null 을 생략하지 않는다). 여기서 `?? null` 로 접어 「키 없음(구 응답)」과 「값 없음」을
+        //     한 형태로 만든다 — 두 형태가 섞이면 소비처가 `undefined` 만 거르다 null 을 통과시킨다.
+        //   ⚠ `hasIssue` 는 BE 가 원시 boolean 이라 null 이 오지 않지만, 값을 못 내리는 구 응답을
+        //     위해 `=== true` 로 좁힌다(없으면 「이슈 없음」이지 「미상」이 아니다).
         framePreviews: (d.framePreviews ?? []).map((fp) => ({
           srcSn: fp.srcSn,
           frameNo: fp.frameNo,
           thumbnailUrl: fp.thumbnailUrl,
+          timestampMs: fp.timestampMs ?? null,
+          hasIssue: fp.hasIssue === true,
         })),
         stages: d.stages ?? [],
         createdAt:

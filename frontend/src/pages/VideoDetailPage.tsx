@@ -41,13 +41,57 @@ function formatDuration(seconds: number | undefined): string {
   return `${m}분 ${s}초`;
 }
 
-/** 썸네일 캡션의 재생 시점(mm:ss) — 확정 디자인 `.thumb-caption` 의 `#0 · 00:00` 표기용. */
-function formatClock(ms: number | undefined): string {
-  if (ms === undefined || !Number.isFinite(ms) || ms < 0) return '00:00';
+/**
+ * 프레임의 영상 내 시각을 **아는가** — 썸네일 캡션과 확대 보기가 함께 쓰는 단일 판정기.
+ *
+ * ★값이 없을 때는 **`null` 도 `undefined` 와 같게** 다룬다 — 서버는 위치를 모르는 프레임에
+ * `timestampMs: null` 을 실어 보내므로(키 부재가 아니다) `undefined` 만 거르면 null 이 그대로
+ * 흘러든다. `0` 은 유효한 값이라 참/거짓으로 가리지 않는다(영상 첫 프레임).
+ *
+ * ⚠ 두 표시 자리가 이 판정을 **복제하지 않는다** — 복제하면 한쪽만 갱신돼 같은 프레임의 시각이
+ * 두 자리에서 다르게 보인다(음수·NaN 구간이 정확히 그렇게 갈렸다).
+ */
+function hasClock(ms: number | null | undefined): ms is number {
+  return typeof ms === 'number' && Number.isFinite(ms) && ms >= 0;
+}
+
+/**
+ * 썸네일 캡션의 재생 시점(mm:ss) — 확정 디자인 `.thumb-caption` 의 `#0 · 00:00` 표기용.
+ *
+ * ★★미상은 **`-`** 다 — `00:00` 을 돌려주면 안 된다. `00:00` 은 **영상 맨 앞 프레임의 실제
+ * 값**이라, 「위치를 모른다」와 「영상 맨 앞이다」가 화면에서 구분되지 않는다(미상을 실제 값처럼
+ * 보여주는 것이다). 표기는 바로 아래 `formatDateTime` 이 이미 쓰는 그 한 글자에 맞춘다.
+ */
+function formatClock(ms: number | null | undefined): string {
+  if (!hasClock(ms)) return '-';
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * 확대 보기의 정밀 재생 시점(`hh:mm:ss.SSS`) — 확정 디자인 `.lightbox-meta` 의 `00:00:00.960` 표기용.
+ *
+ * ★★위 `formatClock`(mm:ss)과 **일부러 다른 함수**다 — 합치지 말 것. 두 자리는 폭도 목적도 다르다:
+ * 썸네일 캡션은 타일 안 좁은 자리라 짧은 표기가 맞고, 확대 보기는 그 프레임이 영상의 정확히 어느
+ * 지점인지 읽는 자리라 밀리초까지 적는다. 하나로 합치면 한쪽은 잘리고 다른 쪽은 정밀도를 잃는다.
+ *
+ * ★구 표기는 원시 밀리초(`960 ms`)였다 — 긴 영상일수록 사람이 감을 잡지 못한다(`754320 ms` 가
+ * 영상의 어디인지 읽어낼 수 없다). 시안·사양·구현이 갈려 있던 것을 시안으로 통일했다.
+ *
+ * ⚠ 미상 판정은 이 자리에서 다시 쓰지 않고 `hasClock` 한 곳에 위임한다(캡션과 같은 술어) —
+ * 복제하면 음수·NaN 구간부터 두 자리가 갈린다. 미상은 `-` 이며 단위를 붙이지 않는다.
+ */
+function formatPreciseClock(ms: number | null | undefined): string {
+  if (!hasClock(ms)) return '-';
+  // 소수 밀리초가 들어와도 표기가 깨지지 않게 정수로 내린다(서버는 정수를 보내지만 계약이 아니다).
+  const total = Math.floor(ms);
+  const h = Math.floor(total / 3_600_000);
+  const m = Math.floor((total % 3_600_000) / 60_000);
+  const sec = Math.floor((total % 60_000) / 1000);
+  const milli = total % 1000;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(milli).padStart(3, '0')}`;
 }
 
 /** 날짜+시각 표기(초 제외) — 메타 그리드와 헤더 메타 행이 같은 값을 보이도록 한 곳에서 만든다. */
@@ -244,9 +288,20 @@ function FramePreviewTab({ video }: { video: VideoDetail }) {
             </div>
             <div className="flex flex-wrap items-center gap-4 text-body-md text-gray-500">
               <span>프레임 #{lightboxFrame.frameNo}</span>
-              {lightboxFrame.timestampMs !== undefined && (
-                <span>{lightboxFrame.timestampMs} ms</span>
-              )}
+              {/* [@design SCREEN-009] [@design API-043] 재생 시점 — 확정 디자인의 `00:00:00.960`
+                  표기다. ★구 표기는 원시 밀리초(`960 ms`)라 긴 영상에서 사람이 어느 지점인지
+                  읽어낼 수 없었다(시안·사양·구현이 갈려 있던 것을 시안으로 통일했다).
+                  ⚠ 캡션의 `formatClock`(mm:ss)과 **합치지 않는다** — 좁은 자리와 정밀 표기는
+                  목적이 다르다. 두 자리가 공유하는 것은 미상 판정(`hasClock`)뿐이다.
+                  ★★값이 없어도 **줄은 그린다** — 미상은 `-` 다. 줄을 통째로 숨기면 같은 프레임의
+                  썸네일 캡션(`formatClock` → `-`)과 이 자리가 같은 값을 다르게 보여준다.
+                  ⚠ 단위를 붙이지 않는다 — 없는 값에 단위를 붙이면 값처럼 읽힌다.
+                  ★글꼴은 **등폭**이다 — `hh:mm:ss.SSS` 는 자릿수가 고정된 값이라 본문체로 그리면
+                  글자마다 폭이 달라 프레임을 넘길 때 숫자가 좌우로 흔들린다. 같은 화면의 길이·
+                  해상도 값이 이미 같은 이유로 `font-mono text-mono` 를 쓴다 — 그 관례를 따른다. */}
+              <span className="font-mono text-mono">
+                {formatPreciseClock(lightboxFrame.timestampMs)}
+              </span>
               {/* 이슈 여부는 평문이 아니라 배지다 — 같은 사실을 그리드의 빨간 점과 같은 위험 톤으로
                   말해야 두 표시가 한 축임이 드러난다(`badge-error`). */}
               {lightboxFrame.hasIssue && <Badge variant="error" label="이슈 있음" />}

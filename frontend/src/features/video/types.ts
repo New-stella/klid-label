@@ -129,11 +129,23 @@ export interface Video {
   assignStatus?: AssignmentStatus;
 }
 
+/**
+ * 프레임 미리보기 1건 — BE `VideoDetailResponse.FramePreviewDto`. [@design API-043] [@design SCREEN-009]
+ *
+ * <p>★`timestampMs` 는 <b>`null` 이 실려 온다</b>(키 부재가 아니다). 이 프로젝트는 JSON 직렬화에서
+ * null 을 생략하지 않으므로, 영상 내 위치를 알 수 없는 예전 프레임은 값 자리에 `null` 이 온다.
+ * 그래서 소비처의 가드는 <b>`undefined` 만 걸러서는 안 된다</b> — `null` 이 그 검사를 통과해
+ * 「null ms」가 그대로 그려진다. 판정은 `typeof … === 'number'` 로 두 값을 함께 거른다.
+ *
+ * <p>⚠ `0` 은 <b>유효한 값</b>이다(영상 첫 프레임). 참/거짓 판정으로 가리면 그 프레임의 시각이 사라진다.
+ */
 export interface FramePreview {
   srcSn: number;
   frameNo: number;
   thumbnailUrl: string;
-  timestampMs?: number;
+  /** 영상 내 시각(ms) — 위치를 알 수 없는 프레임은 `null`. 지어내지 않고 화면이 그 줄을 그리지 않는다. */
+  timestampMs?: number | null;
+  /** 아직 해소되지 않은 문의가 그 프레임에 있는가 — BE 는 원시 boolean 이라 null 이 오지 않는다. */
   hasIssue?: boolean;
 }
 

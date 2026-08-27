@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.common.util.ManifestJsonlWriter;
+import kr.co.cudo.authoring.common.util.VideoFrameTimeCalculator;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -245,9 +246,9 @@ public class FfmpegFrameExtractor implements BatchStep {
         // 동일 레코드의 동일 값이므로, 마킹이 frameIndex 를 산출할 때 쓴 fps 와 구조적으로 정확히 일치한다.
         // pin 이 없으면(구 데이터·null) resolveFps 폴백 → 그래도 미상 시 30.0 이라 기존 결과와 동일(무회귀).
         //
-        // 무회귀 주의: seekMillis 는 Math.round(frameIndex*1000.0/fps) 로 계산한다. 구 정수절삭
-        // (frameIndex*1000/30) 대비 ≤1ms 차이가 날 수 있으나, ffmpeg 는 seek 위치에서 최근접 프레임으로
-        // snap 하므로 실제 선택되는 프레임은 불변이다(정확도 개선 — 구 절삭으로 되돌리지 않는다).
+        // 위치→시각 변환은 VideoFrameTimeCalculator.millisAt 한 곳이 소유한다 — 화면이 보여주는 시각
+        // (VideoQueryService 의 프레임 미리보기)이 같은 값이어야 하기 때문이다. 반올림 방식과 그 근거는
+        // 그 javadoc 참조 — 여기에 식을 다시 적지 않는다(두 벌이 되면 한쪽만 조용히 바뀐다).
         double fps = effectiveFps(pinnedFps, raw.getRawSn());
 
         // ── 재실행 멱등 (@req R1) — 이미 추출된 프레임의 <b>기존 행</b>을 먼저 확보한다.
@@ -282,7 +283,7 @@ public class FfmpegFrameExtractor implements BatchStep {
                 for (int i = 0; i < marks.size(); i++) {
                     MarkItem mark = marks.get(i);
                     Path frameFile = rawOutputDir.resolve("frame-" + i + ".jpg");
-                    long seekMillis = Math.round(mark.frameIndex() * 1000.0 / fps);
+                    long seekMillis = VideoFrameTimeCalculator.millisAt(mark.frameIndex(), fps);
 
                     // ── 멱등 분기 (@req R1) — 이 (RAW_SN, FRM_NO) 는 이미 추출됐다.
                     LsDataSrc existing = existingByFrameNo.get((long) i);

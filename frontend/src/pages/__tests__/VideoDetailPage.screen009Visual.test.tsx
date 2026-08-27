@@ -43,12 +43,16 @@ const DETAIL = {
   updatedAt: '2026-01-15T11:02:47',
   stages: [],
   deidentHistory: [],
-  // ⚠ timestampMs·hasIssue 는 **현재 서버 응답 계약에 없다**(BE FramePreviewDto 는 srcSn·
-  //   frameNo·thumbnailUrl 3필드다). 사양이 요구하는 «있어야 할» 형태로 두되, 그래서 화면에
-  //   도달하지 못한다는 사실은 아래 전용 가드가 고정한다.
+  // ★ timestampMs·hasIssue 는 **서버 응답 계약에 실린다**(BE FramePreviewDto — hasIssue 는 원시
+  //   boolean, timestampMs 는 nullable). 세 프레임이 각각 다른 축을 맡는다:
+  //   #0  시각 0 + 이슈 없음  — `0` 이 「없음」으로 접히지 않는지(참/거짓 판정 금지)
+  //   #24 시각 있음 + 이슈 있음 — 점·배지·시각 표기가 실제로 뜨는지
+  //   #48 **시각 null** + 이슈 없음 — ★null 이 `undefined` 가드를 통과해 「null ms」가 그려지지
+  //       않는지. 서버는 위치를 모르는 프레임에 **null 을 실어서** 보낸다(키 부재가 아니다).
   framePreviews: [
-    { srcSn: 101, frameNo: 0, thumbnailUrl: '/t/0.jpg', timestampMs: 0 },
+    { srcSn: 101, frameNo: 0, thumbnailUrl: '/t/0.jpg', timestampMs: 0, hasIssue: false },
     { srcSn: 102, frameNo: 24, thumbnailUrl: '/t/1.jpg', timestampMs: 8000, hasIssue: true },
+    { srcSn: 103, frameNo: 48, thumbnailUrl: '/t/2.jpg', timestampMs: null, hasIssue: false },
   ],
 };
 
@@ -316,7 +320,7 @@ describe('SCREEN-009 시안 정합 — 프레임 미리보기 탭', () => {
     await openFrames();
 
     // 분모는 영상 전체 프레임 수, 분자는 실제로 그린 미리보기 수다.
-    expect(screen.getByText('총 5,250개 프레임 중 2개 표시')).toBeInTheDocument();
+    expect(screen.getByText('총 5,250개 프레임 중 3개 표시')).toBeInTheDocument();
     expect(screen.getByText('빨간 점 = 이슈 있는 프레임')).toBeInTheDocument();
   });
 
@@ -330,7 +334,7 @@ describe('SCREEN-009 시안 정합 — 프레임 미리보기 탭', () => {
     });
     await openFrames();
 
-    expect(screen.getByText('총 2개 프레임 중 2개 표시')).toBeInTheDocument();
+    expect(screen.getByText('총 3개 프레임 중 3개 표시')).toBeInTheDocument();
   });
 
   // H2·H4 — 타일 테두리 + radius 6, 미디어 매트 n-8.
@@ -359,37 +363,200 @@ describe('SCREEN-009 시안 정합 — 프레임 미리보기 탭', () => {
   });
 
   /**
-   * H5·I3·I4 — ★이슈 점·타임스탬프·이슈 배지는 **현재 화면에 도달하지 못한다.**
+   * H5 — ★이슈 점은 **이슈가 있는 프레임에만** 뜬다.
    *
-   * ★원인은 **서버 응답 계약에 그 필드가 없다**는 것이다. 백엔드가 프레임 미리보기를 세 필드로만
-   * 정의한다 — `video/dto/VideoDetailResponse.java` 의
-   * `FramePreviewDto(Long srcSn, Integer frameNo, String thumbnailUrl)`. `hasIssue`·`timestampMs`
-   * 는 **애초에 응답에 실려 오지 않는다.**
+   * ⚠ 이 자리에는 «두 필드가 서버 응답 계약에 없어 도달 불가»를 고정하던 가드가 있었다. 그 가드는
+   * ①BE 계약 → ②FE 매핑 → ③표면 가드 순서로 고치라고 적어 두고, ①②가 끝나면 스스로 실패해
+   * ③을 알리도록 만들어진 장치였다. **계약이 채워져 전제가 소멸했으므로** 그 역할을 다했고,
+   * 여기서부터는 「그려진다」를 고정하는 표면 가드가 대신한다.
    *
-   * ⚠ 그러므로 `features/video/api.ts` 의 세 필드 매핑은 **필드를 버리는 것이 아니라 그 계약을
-   *   정확히 반영한 것**이다. 그 파일을 고칠 일이 아니다. FE 타입 `FramePreview` 가 두 필드를
-   *   선택 필드로 선언해 둔 것이 «서버가 주지 않는 값을 희망적으로 적어 둔» 쪽이다.
-   *
-   * 반면 사양 SCREEN-009 는 «이슈 있으면 빨간 점 표시» · «프레임 #/타임스탬프(ms)/이슈 여부를
-   * 표시»를 명시적으로 요구한다 ⇒ 진짜 결손은 **백엔드 응답 계약**이며 FE 만으로는 도달할 수 없다.
-   *
-   * 그래서 여기서는 «지금 도달 불가하다»는 사실 자체를 고정한다. 고치는 순서는
-   * ① BE 응답 계약에 두 필드를 싣고 → ② FE 매핑·타입을 그 계약에 맞추고 → ③ 위 표면 가드
-   * (10px 점 + 흰 테두리 · ms 표기 · 이슈 배지)를 켠다. 그 ①②가 끝나면 이 단언이 **실패하며**
-   * ③을 하라고 알린다. 도달 불가인 표면을 통과하는 가드로 위장하지 않기 위한 장치다.
+   * 색만으로 뜻을 전하지 않는다는 계약도 함께 본다 — 점에 보조기술용 이름(`이슈 있음`)이 있고
+   * 툴바 범례가 그 색의 뜻을 글로 적는다(범례는 H1 이 고정한다).
    */
-  it('H5_I3_I4_이슈_표시는_서버_응답_계약에_그_필드가_없어_현재_도달_불가다', async () => {
+  it('H5_이슈가_있는_프레임에만_점이_뜬다', async () => {
+    await openFrames();
+
+    const issueTile = screen.getByRole('button', { name: '프레임 24 상세 보기' });
+    const dot = within(issueTile).getByRole('img', { name: '이슈 있음' });
+    // 시안 `.frame-dot` — 10px 원 + 흰 테두리(어두운 프레임 위에서 점이 묻히지 않게 한다).
+    expect(dot.className).toContain('h-2.5');
+    expect(dot.className).toContain('w-2.5');
+    expect(dot.className).toContain('rounded-full');
+    expect(dot.className).toContain('border-white');
+    expect(dot.className).toContain('bg-danger');
+
+    // 이슈가 없는 프레임에는 뜨지 않는다 — 「전부 뜬다」로 통과하는 가드가 되지 않게 한다.
+    for (const frameNo of [0, 48]) {
+      const tile = screen.getByRole('button', { name: `프레임 ${frameNo} 상세 보기` });
+      expect(within(tile).queryByRole('img', { name: '이슈 있음' })).not.toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('img', { name: '이슈 있음' })).toHaveLength(1);
+  });
+
+  // I3·I4 — 확대 보기가 시각과 이슈 배지를 값에 따라 보여준다.
+  //
+  // ★표기는 확정 디자인의 `hh:mm:ss.SSS`(`00:00:00.960`)다 — 구 표기인 원시 밀리초(`8000 ms`)로
+  //   되돌리면 이 단언이 문다. 긴 영상에서 원시 밀리초는 사람이 어느 지점인지 읽어낼 수 없다.
+  it('I3_I4_확대_보기는_시각과_이슈_배지를_보여준다', async () => {
     const user = await openFrames();
-
-    // 픽스처는 hasIssue·timestampMs 를 실어 두지만(위 DETAIL) 그건 사양이 요구하는 «있어야 할»
-    // 응답이지 현재 서버가 주는 응답이 아니다 — 그래서 점이 그려지지 않는다.
-    expect(screen.queryByRole('img', { name: '이슈 있음' })).not.toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: '프레임 24 상세 보기' }));
+
     const dialog = await screen.findByRole('dialog');
+    // 다이얼로그의 접근 이름으로 대상을 확정한다 — 제목과 본문 줄이 같은 문자열이라
+    // `getByText` 는 두 노드를 함께 집는다(둘 다 정상 렌더다).
+    expect(dialog).toHaveAccessibleName('프레임 #24');
+    expect(within(dialog).getByText('00:00:08.000')).toBeInTheDocument();
+    // 구 표기(원시 밀리초)는 남지 않는다.
+    expect(within(dialog).queryByText('8000 ms')).not.toBeInTheDocument();
+    // 이슈 여부는 평문이 아니라 배지다(그리드의 빨간 점과 같은 위험 톤).
+    expect(within(dialog).getByText('이슈 있음')).toBeInTheDocument();
+  });
+
+  /**
+   * I3 표면 — ★확대 보기의 시각은 **등폭 글꼴**이다.
+   *
+   * `hh:mm:ss.SSS` 는 **자릿수가 고정된 값**이라 본문체로 그리면 글자마다 폭이 달라 프레임을 넘길
+   * 때 숫자가 좌우로 흔들린다. 같은 화면의 「길이」·「해상도」 값이 **이미 같은 이유로**
+   * `font-mono text-mono` 를 쓰므로 그 관례를 그대로 따른다(새 클래스·새 토큰을 만들지 않는다).
+   *
+   * ⚠ 이 케이스는 **글꼴 축만** 본다 — 표기값(`hh:mm:ss.SSS`)·시각 `0`·미상(`-`) 축은 위아래의
+   *   기존 케이스들이 맡는다. 한 케이스가 두 축을 함께 물면 어느 쪽이 깨졌는지 실패가 말해주지 못한다.
+   */
+  it('I3_확대_보기의_시각은_등폭_글꼴이다', async () => {
+    const user = await openFrames();
+    await user.click(screen.getByRole('button', { name: '프레임 24 상세 보기' }));
+
+    const dialog = await screen.findByRole('dialog');
+    const clock = within(dialog).getByText('00:00:08.000');
+    expect(clock.className).toContain('font-mono');
+    expect(clock.className).toContain('text-mono');
+  });
+
+  /**
+   * I3 경계 — ★시각 `0` 은 **유효한 값**이다(영상 첫 프레임).
+   *
+   * 가드를 참/거짓 판정(`timestampMs &&`)으로 좁히면 이 프레임의 시각이 조용히 사라진다.
+   *
+   * ⚠ `0` 의 표기는 **`00:00:00.000`** 이지 미상(`-`)이 아니다 — 둘이 같아지면 「모른다」와
+   *   「영상 맨 앞이다」가 확대 보기에서 구분되지 않는다(캡션 축의 `00:00` 과 같은 함정).
+   */
+  it('I3_시각이_0인_프레임도_시각을_보여준다', async () => {
+    const user = await openFrames();
+    await user.click(screen.getByRole('button', { name: '프레임 0 상세 보기' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('00:00:00.000')).toBeInTheDocument();
+    expect(within(dialog).queryByText('-')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('이슈 있음')).not.toBeInTheDocument();
-    // 타임스탬프(ms)도 같은 이유로 오지 않는다.
-    expect(within(dialog).queryByText(/ms$/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * I3 경계 — ★시·분·초·밀리 **네 칸이 각각 제 자리에** 들어가는지.
+   *
+   * ★★공용 픽스처(`0` · `8000`)로는 이 축이 **원리적으로 검증되지 않는다** — 두 값 모두 시·분이
+   * `0` 이라 시와 분을 맞바꾸거나 시 칸을 통째로 빠뜨려도 기대값이 그대로 나온다. 그래서 이
+   * 케이스만 네 칸이 **모두 다른 값**이 되는 응답으로 갈아 끼운다(`01:02:03.045`).
+   *
+   * ⚠ 밀리는 **세 자리**로 채운다 — `45` 로 적으면 `0.045초`가 `0.45초`로 읽힌다. 그래서 밀리가
+   * 두 자리인 값을 고른다(세 자리 값이면 자리채움이 검증되지 않는다).
+   */
+  it('I3_확대_보기는_시_분_초_밀리를_각각_제_자리에_적는다', async () => {
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        ...DETAIL,
+        framePreviews: [
+          { srcSn: 102, frameNo: 24, thumbnailUrl: '/t/1.jpg', timestampMs: 3_723_045, hasIssue: true },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    const user = await openFrames();
+    await user.click(screen.getByRole('button', { name: '프레임 24 상세 보기' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('01:02:03.045')).toBeInTheDocument();
+  });
+
+  /**
+   * I3 경계 — ★★시각이 **`null`** 인 프레임에서는 그 자리에 **`-`** 를 적는다.
+   *
+   * 서버는 영상 내 위치를 모르는 프레임에 `timestampMs: null` 을 **실어서** 보낸다(키 부재가
+   * 아니다 — 이 프로젝트는 직렬화에서 null 을 생략하지 않는다). 구 가드(`!== undefined`)는 그
+   * null 을 통과시켜 화면에 「null ms」를 그렸다. **픽스처가 `undefined` 였다면 그 결함을 되돌려도
+   * 통과한다** — 그래서 여기 실리는 값은 반드시 `null` 이어야 한다(그 축은 그대로 유지한다).
+   *
+   * ★★구 동작(줄을 통째로 그리지 않는다)에서 뒤집혔다 — **미상을 실제 값처럼 보여주던 것을
+   * 고쳤다**. 줄을 숨기면 같은 프레임의 썸네일 캡션과 이 자리가 같은 값을 다르게 보여준다.
+   * 미상은 `-` 하나이며 **`- ms` 처럼 단위를 붙이지 않는다**(없는 값에 단위를 붙이면 값처럼 읽힌다).
+   *
+   * ⚠ `00:00` 이 나오면 안 된다 — 그건 **영상 맨 앞 프레임의 실제 값**이라 미상과 구분되지 않는다.
+   */
+  it('I3_시각이_null_인_프레임에서는_미상_표기를_그린다', async () => {
+    const user = await openFrames();
+    await user.click(screen.getByRole('button', { name: '프레임 48 상세 보기' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveAccessibleName('프레임 #48');
+    // 줄은 그린다 — 그리고 그 자리에 적히는 것은 `-` 하나다.
+    expect(within(dialog).getByText('-')).toBeInTheDocument();
+    // ★구 결함(`null ms`)·구 미상 표기(`00:00`)·단위 붙은 미상(`- ms`) 어느 것도 나오면 안 된다.
+    expect(within(dialog).queryByText(/ms/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/null/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/undefined/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/00:00/)).not.toBeInTheDocument();
+    // 없는 값을 문구로 채우지 않는다.
+    expect(within(dialog).queryByText('없음')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('이슈 있음')).not.toBeInTheDocument();
+  });
+
+  /**
+   * I3 경계 — ★썸네일 캡션도 같은 기준이다(확대 보기와 두 자리가 갈리지 않게 한다).
+   *
+   * 헤더 썸네일은 `framePreviews[0]` 이므로 시각 `0` 인 #0 이 실린다 — **`00:00` 이 그대로**
+   * 나와야 한다. `0` 이 미상(`-`)으로 떨어지면 영상 맨 앞 프레임의 시각이 조용히 사라진다.
+   */
+  it('I3_썸네일_캡션은_시각_0을_00_00으로_그린다', async () => {
+    renderPage();
+    await loaded();
+
+    expect(screen.getByText('#0 · 00:00')).toBeInTheDocument();
+    expect(screen.queryByText('#0 · -')).not.toBeInTheDocument();
+  });
+
+  /**
+   * I3 경계 — ★★썸네일 캡션의 **미상**은 `-` 다. 이 케이스가 없으면 `formatClock` 의 미상
+   * 반환을 `'00:00'` 으로 되돌려도 아무도 못 잡는다(실증: 되돌리면 이 케이스만 RED).
+   *
+   * ★공용 픽스처의 `framePreviews[0]` 은 시각 `0` 이라 **미상 경로를 한 번도 지나지 않는다** —
+   * `0` 과 미상이 둘 다 `00:00` 으로 보이던 것이 바로 이 결함이었으므로, 그 픽스처로는 원리적으로
+   * 구분할 수 없다. 그래서 이 케이스만 **첫 프레임이 미상인 응답**으로 갈아 끼운다.
+   *
+   * ⚠ 실리는 값은 반드시 `null` 이다 — `undefined` 로 두면 서버가 실제로 보내는 모양과 달라져
+   * 「키가 없으면」 만 거르는 구현으로 되돌려도 통과한다(확대 보기 축과 같은 이유).
+   */
+  it('I3_썸네일_캡션은_시각이_null_이면_미상_표기를_그린다', async () => {
+    mock.reset();
+    mock.onGet('/videos/42').reply(200, {
+      success: true,
+      data: {
+        ...DETAIL,
+        framePreviews: [
+          { srcSn: 101, frameNo: 0, thumbnailUrl: '/t/0.jpg', timestampMs: null, hasIssue: false },
+        ],
+      },
+      message: null,
+      errorCode: null,
+    });
+
+    renderPage();
+    await loaded();
+
+    expect(screen.getByText('#0 · -')).toBeInTheDocument();
+    // ★`00:00` 은 **영상 맨 앞 프레임의 실제 값**이라 미상 자리에 나오면 안 된다.
+    expect(screen.queryByText('#0 · 00:00')).not.toBeInTheDocument();
   });
 
   // H6 — hover/focus 시 '상세 보기' 어포던스. 타일이 버튼이라 중첩 button 을 두지 않는다.

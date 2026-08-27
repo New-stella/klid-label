@@ -19,8 +19,10 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.VideoFrameTimeCalculator;
 import kr.co.cudo.authoring.label.entity.LsLabel;
 import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
 import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
@@ -81,6 +83,15 @@ public class VideoQueryService {
     private final UserNameResolver userNameResolver;
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final BatchStatusService batchStatusService;
+    /**
+     * 프레임 이슈 점 조달 — 그 영상에서 <b>아직 해소되지 않은 문의</b>가 달린 프레임 집합.
+     * [@design API-043] [@design SCREEN-009]
+     *
+     * <p>판정(해소 여부 축 · 영상 단위 문의 제외)은 저장소 쿼리 단일 지점이 갖는다. 이 서비스가
+     * 이미 여러 도메인 저장소를 가로질러 주입받는 것과 같은 방식이며, 여기서 규칙을 재유도하지
+     * 않는다 — 사본을 두면 화면의 점과 검수 화면의 문의 목록이 조용히 어긋난다.
+     */
+    private final IssueRepository issueRepository;
     /**
      * DEV_FIX(H10) — 영상 상세에 실 fps 를 실어 FE 마킹 화면이 서버와 동일한 fps 로 frameIndex 를
      * 산출하게 한다(FE 30fps 하드코딩 ↔ 서버 실 fps 상한의 불일치 제거). 마킹 상한 검증과 같은 진실원.
@@ -640,13 +651,27 @@ public class VideoQueryService {
         IngestSourceRow sourceMeta = ingestSourceRepository.findSourceMeta(entity.getRawSn());
         String cctvName = sourceMeta == null ? null : sourceMeta.getCctvNm();
         long frameCount = srcRepository.countByRawSn(entity.getRawSn());
+        // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
+        //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
+        //   ★ 프레임 미리보기의 timestampMs 도 <b>같은 값</b>을 쓴다 — 여기서 다시 해석하면 화면이
+        //     보는 시각과 마킹이 만드는 frameIndex 가 조용히 어긋난다.
+        double fps = fpsResolver.resolveFps(entity.getRawSn());
+        // [@design API-043] [@design SCREEN-009] 이슈가 달린 프레임 집합 — <b>영상당 한 번</b> 조회한다.
+        //   ★ 프레임마다 부르면 N+1 이다: 미리보기 대상은 그 영상의 프레임 전량이라 프레임 수만큼
+        //     쿼리가 늘어난다. 판정(미해소 문의 · 영상 단위 문의 제외)은 IssueRepository 단일 지점이며
+        //     여기서 재유도하지 않는다.
+        //   ★ HashSet 으로 감싸는 이유는 조회 결과가 List 라 contains 가 선형이기 때문이다.
+        Set<Long> issueFrameSrcSns =
+                new HashSet<>(issueRepository.findUnresolvedSrcSnsByDataRawSn(entity.getRawSn()));
         List<VideoDetailResponse.FramePreviewDto> framePreviews = srcRepository
                 .findByRawSnOrderByFrameNoAsc(entity.getRawSn())
                 .stream()
                 .map(src -> new VideoDetailResponse.FramePreviewDto(
                         src.getSrcSn(),
                         Math.toIntExact(src.getFrameNo()),
-                        "/v1/frames/" + src.getSrcSn() + "/image"
+                        "/v1/frames/" + src.getSrcSn() + "/image",
+                        issueFrameSrcSns.contains(src.getSrcSn()),
+                        frameTimestampMs(src.getVideoFrameNo(), fps)
                 ))
                 .toList();
         // 검수 상태(reviewSttsCd) = LS_RAW_DATA_STATUS.DATA_STTS_CD (진실원).
@@ -665,9 +690,6 @@ public class VideoQueryService {
                 .stream()
                 .map(s -> new VideoDetailResponse.StageStatusDto(s.name(), s.status(), s.progress()))
                 .toList();
-        // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
-        //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
-        double fps = fpsResolver.resolveFps(entity.getRawSn());
         // P2b — 화면이 신고·폐기 버튼을 미리 비활성화하도록 <b>승인 이력</b>을 함께 내린다.
         //   reviewSttsCd(현재 상태)와 다른 축이다 — 재검수 재제출로 상태가 내려간 구간에도 true 다.
         //   판정은 ReviewApprovalGate 단일 원천에 위임한다(여기서 재유도하지 않는다).
@@ -716,6 +738,37 @@ public class VideoQueryService {
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
                 skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions,
                 resolution);
+    }
+
+    /**
+     * 프레임의 <b>영상 내 시각(밀리초)</b>. [@design API-043] [@design SCREEN-009]
+     *
+     * <p>추출이 그 프레임을 뽑을 때 쓴 seek 위치를 <b>그대로 재현</b>한다 — 계산을
+     * {@link VideoFrameTimeCalculator#millisAt} 에 위임해 추출({@code FfmpegFrameExtractor})과
+     * <b>같은 식</b>을 쓴다. 화면이 보여주는 시각과 실제로 뽑힌 지점이 어긋나지 않아야 하기 때문이다.
+     * 식을 여기에 다시 적지 않는다 — 두 벌이 되면 한쪽만 조용히 바뀐다.
+     *
+     * <p><b>순번이 아니라 위치다.</b> {@code LS_DATA_SRC} 는 추출 순번({@code FRM_NO})과 실제 영상 내
+     * 위치({@code VDO_FRM_NO})를 각각 갖는다. 마킹 기반 추출은 사람이 고른 지점만 뽑으므로 둘은
+     * 전혀 다른 값이고, 순번으로 계산하면 영상 맨 앞 몇 초를 가리키는 엉뚱한 시각이 나온다.
+     *
+     * <p><b>모르면 비운다.</b> 위치가 없는 레거시 행({@code VDO_FRM_NO} NULL — 컬럼 신설 이전 추출)과
+     * 초당 프레임 수가 비정상인 경우는 값을 지어내지 않고 {@code null} 을 돌려준다. {@code 0} 으로
+     * 채우면 "영상 맨 앞"이라는 <i>사실</i>과 구분되지 않는다.
+     *
+     * @param videoFrameNo 실제 영상 내 0-base 프레임 위치({@code VDO_FRM_NO}). null/음수면 미상
+     * @param fps          초당 프레임 수 — 이 응답이 이미 쓰는 {@code VideoFpsResolver} 의 값.
+     *                     0 이하·비유한수는 나눗셈에 넣지 않고 미상으로 본다
+     * @return 영상 내 시각(ms, 0 이상) 또는 미상이면 {@code null}
+     */
+    static Long frameTimestampMs(Long videoFrameNo, double fps) {
+        if (videoFrameNo == null || videoFrameNo < 0) {
+            return null;
+        }
+        if (!Double.isFinite(fps) || fps <= 0) {
+            return null;
+        }
+        return VideoFrameTimeCalculator.millisAt(videoFrameNo, fps);
     }
 
     /**

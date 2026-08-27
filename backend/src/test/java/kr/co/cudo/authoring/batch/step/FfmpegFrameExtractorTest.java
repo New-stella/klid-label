@@ -727,6 +727,30 @@ class FfmpegFrameExtractorTest {
     }
 
     @Test
+    @DisplayName("반올림_정책이_추출_위치를_정한다_2와5_at30fps는_절삭66_166이_아니라_67_167ms")
+    void extractByMarks_roundingPolicyDeterminesSeekPosition() {
+        // given — fps 30 기본 stub. frameIndex 2 → 66.66…ms, 5 → 166.66…ms 로 <b>분수 밀리초</b>가 나온다.
+        //
+        // ★ 이 조합을 "깔끔한 숫자"로 바꾸지 말 것 — 기존 seekMillis 케이스는 전부 정확한 정수 밀리초라
+        //   (0·150·300 @30fps → 0·5000·10000 / 0·50 @25fps → 0·2000) 반올림과 절삭이 같은 값이 되어
+        //   <b>반올림 정책을 판별하지 못한다</b>(절삭으로 바꿔도 한 건도 물지 않음을 실측 확인).
+        //   분수 밀리초가 나오는 이 조합만이 그 정책을 고정한다.
+        //
+        // ★ 무엇을 지키는가: seek 위치 계산은 VideoFrameTimeCalculator.millisAt 한 곳이 소유하며,
+        //   그 한 줄이 <b>추출이 실제로 뽑는 위치</b>와 <b>화면이 보여주는 시각</b>을 동시에 정한다.
+        //   표시 축에만 가드가 있으면 추출 위치가 조용히 1ms 앞으로 밀려도 아무도 모른다.
+        FfmpegFrameExtractor extractor = newExtractor();
+        List<MarkItem> marks = List.of(new MarkItem(2, "00:00"), new MarkItem(5, "00:00"));
+
+        // when
+        List<LsDataSrc> frames = extractor.extractByMarks(newRaw(60), marks);
+
+        // then — round(2*1000/30)=67, round(5*1000/30)=167. 정수 절삭이면 66·166 이라 여기서 문다.
+        assertThat(frames).hasSize(2);
+        assertThat(recordedSeekMillis).containsExactly(67L, 167L);
+    }
+
+    @Test
     @DisplayName("듬성듬성한_마크_frameIndex_100과_250도_VDO_FRM_NO엔_실제값_FRM_NO엔_0과_1")
     void extractByMarks_sparseMarks_distinguishSeqFromActual() {
         FfmpegFrameExtractor extractor = newExtractor();
