@@ -4,7 +4,7 @@
 //   · 위치를 지정하지 않으면 허용 저장소 루트 목록으로 시작한다.
 //   · 폴더는 눌러 한 단계 내려가고, 「상위로」의 활성 여부는 응답의 `parent` 하나가 정한다.
 //   · 고른 값은 사용자가 누른 표기가 아니라 **서버가 돌려준 실제 위치(`path`)** 다.
-//   · `truncated` 면 목록이 전부가 아님을 알린다(조용히 자르지 않는다).
+//   · 나눠 받은 쪽들을 이어붙인다 — 그 축의 가드는 `ImportPathPickerCursor.test.tsx` 가 맡는다.
 //   · 조회가 거부돼도 창을 닫지 않고 그 자리에서 서버 메시지를 보여주며, 입력칸은 그대로 열려
 //     있어 경로를 직접 적어 검사할 수 있다 — 고르는 길이 적는 길을 대신하지 않는다.
 //
@@ -37,7 +37,7 @@ function browseBody(data: {
   path?: string | null;
   parent?: string | null;
   entries?: { name: string; path: string }[];
-  truncated?: boolean;
+  nextCursor?: string | null;
 }) {
   return {
     success: true,
@@ -45,7 +45,8 @@ function browseBody(data: {
       path: null,
       parent: null,
       entries: [],
-      truncated: false,
+      // 기본은 「끝까지 봤다」 — 이 파일의 케이스들은 이어받기 축이 아니라 이동·선택 축을 본다.
+      nextCursor: null,
       ...data,
     },
     message: null,
@@ -244,24 +245,6 @@ describe('SCREEN-039 경로 선택 — 찾아보기', () => {
     await user.click(screen.getByTestId('path-picker-up'));
     expect(await screen.findByRole('button', { name: /handover/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /nas-storage$/ })).toBeNull();
-  });
-
-  it('truncated_응답이면_일부만_표시됨을_알린다', async () => {
-    const user = userEvent.setup();
-    mock.onGet('/imports/folders', { params: {} }).reply(
-      200,
-      browseBody({
-        entries: [{ name: 'handover', path: '/nas-storage/handover' }],
-        truncated: true,
-      }),
-    );
-
-    renderWithProviders(<ImportPage />);
-    await user.click(screen.getByTestId('import-folder-browse'));
-
-    expect(await screen.findByTestId('path-picker-truncated')).toHaveTextContent(
-      '경로를 직접 입력해',
-    );
   });
 
   it('탐색이_거부돼도_창을_닫지_않고_서버_메시지를_그_자리에_보여준다', async () => {

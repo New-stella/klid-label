@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-08-26T04:27:59.593Z",
+  "synced_at": "2026-08-26T23:11:40.826Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -10,7 +10,7 @@
     "permission_role"
   ],
   "scope_mode": "pin",
-  "count": 62,
+  "count": 66,
   "items": {
     "AC-041": {
       "type": "acceptance",
@@ -77,6 +77,18 @@
       "domain_id": "DOMAIN-017",
       "version": 3,
       "content_hash": "9fde6a79f0c4c32478e53c3992993e8fa99e6e385c00429aac5fd99ccec7e712"
+    },
+    "AC-120": {
+      "type": "acceptance",
+      "domain_id": "DOMAIN-017",
+      "version": 13,
+      "content_hash": "273e428d63f7a5d36e8ab78ea1b591010dfbb9e2722c3d82d111bc5f98d9e261"
+    },
+    "ADR-023": {
+      "type": "adr",
+      "domain_id": "DOMAIN-007",
+      "version": 7,
+      "content_hash": "1a467369bf03cde891d36bb57b7cd6110ab7eeaaf97b380817d182958cddbca5"
     },
     "ADR-042": {
       "type": "adr",
@@ -150,11 +162,23 @@
       "version": 4,
       "content_hash": "383aad6424c4c970b3339c114e67c98cc25e4a63f5b8a53e2e942d0c116778f5"
     },
+    "API-221": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-017",
+      "version": 15,
+      "content_hash": "e2c5969084ccaf02189574710bc4c087614f41ec3323d4dcf86f1c53610b9c6b"
+    },
+    "API-222": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-017",
+      "version": 10,
+      "content_hash": "e31ebf4cd913a3497f3a3445cb885aef52d45f78a058956dab5e12c89089a221"
+    },
     "SEQ-026": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-017",
-      "version": 11,
-      "content_hash": "fd4df07113a1db75e22a5edf4dff9a0050f8cec34e462c1afde1883fdb887b7b"
+      "version": 13,
+      "content_hash": "982b355f2d1b00779a6a29e64b8b7386736fe6e0541dfaf6a45ed4162b22a380"
     },
     "DOMAIN-017": {
       "type": "domain",
@@ -351,8 +375,8 @@
     "SCREEN-039": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-017",
-      "version": 21,
-      "content_hash": "2480763f079fd3d22d7e67789061af457a2c887ce3739847723957de2d83fc0a"
+      "version": 32,
+      "content_hash": "a96db549000ded5e047f13ee93c0cddf8bb8992c2462482ef09cdd5078f087fc"
     },
     "TEST-007": {
       "type": "test_scenario",
@@ -375,8 +399,8 @@
     "UC-035": {
       "type": "use_case",
       "domain_id": "DOMAIN-017",
-      "version": 13,
-      "content_hash": "23deb0fcff37ce529f522f474fc83884490cc9749758c9fd63fac9bda36f5e91"
+      "version": 15,
+      "content_hash": "84f5383d108dd8f4c743832af16306a300c23416046ee2e980e292fef829a082"
     },
     "UC-036": {
       "type": "use_case",
