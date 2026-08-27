@@ -53,12 +53,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "SCREEN-029의 data.implementation 변경 — navigates_to",
-    "change_summary": "포털 메뉴 네 항목의 주소가 실제 화면과 모두 일치함을 대조로 확인했다.",
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "외부 위탁 규격 축에 대한 확인만 기록한다. 진입 노드와 주소를 담는 문서라 위탁 창구·요청 본문과 닿는 항목이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T05:06:56.120Z",
+    "last_updated_at": "2026-08-27T10:18:16.561Z",
     "created_at": "2026-06-02T13:21:29.524Z"
   }
 }

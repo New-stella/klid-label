@@ -1,0 +1,52 @@
+{
+  "item": {
+    "id": "AC-123",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "관리자 자격은 설정을 조회하는 것만으로 드러나지 않는다",
+    "slug": "관리자-자격은-설정을-조회하는-것만으로-드러나지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "이 기준이 자격을 일반 설정 저장소에 두지 않는 이유다. 그 저장소는 편집 가능한 키를 목록으로 돌려주므로, 자격을 거기 넣으면 설정을 볼 수 있는 사람 모두가 해시를 얻어 시간을 들여 원래 값을 되찾을 수 있다.\n\n값을 남기지 않는 것과 행위를 남기지 않는 것은 다르다. 공유 자격이라 값만으로는 누가 썼는지 알 수 없으므로, 누가 언제 바꿨는지는 오히려 반드시 남아야 한다.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "설정 조회 결과 어디에도 관리자 패스워드의 해시가 담기지 않는다",
+          "교체 응답에 바뀐 값이나 그 해시가 담기지 않는다",
+          "성공이든 실패든 기록에 값이나 해시가 남지 않는다",
+          "누가 언제 바꿨는지는 남는다"
+        ],
+        "when": [
+          "운영 설정을 목록으로 조회한다",
+          "관리자 패스워드를 교체한다"
+        ],
+        "given": [
+          "검수자로 인증한 사용자가 있다"
+        ]
+      },
+      "statement": "관리자 패스워드의 해시는 설정 목록·상세 조회로 드러나지 않으며, 어떤 응답에도 어떤 기록에도 값이나 그 해시가 실리지 않는다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "관리자 자격 축의 수용기준을 신설한다. 유효창 자체의 요구 대상·길이 축은 기존 기준이 이미 다루므로 여기서 복제하지 않고, 자격을 바꾸는 요건과 자격이 없을 때의 방향, 자격이 드러나지 않는다는 것만 새로 규정한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T09:31:21.118Z",
+    "created_at": "2026-08-27T09:31:21.118Z"
+  }
+}

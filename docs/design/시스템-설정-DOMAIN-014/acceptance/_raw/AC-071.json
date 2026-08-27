@@ -67,12 +67,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": true,
-    "stale_reason": "DFEAT-045의 data.implemented_by_endpoints 변경이 derived_from로 2-hop 전파",
-    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:24.923Z",
+    "stale_reason": "UC-031의 data.tech_considerations 변경 — derived_from",
+    "change_summary": "본문 변경 없음 — 확인 내역을 기록한다. 이 기준의 축은 연동 서버 주소 저장이 대역을 이유로 거부되지 않는다는 판정 정책이고, 이번에 바뀐 것은 그 저장이 일어나는 자리(관리자 페이지로 이동)뿐이라 판정 정책은 그대로다. 전제가 이미 관리자 유효창이 열린 상태를 말하고 있어 유효창 축과도 어긋나지 않는다. 폐기된 화면·인터페이스 참조가 없는 것도 확인했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T09:08:28.603Z",
     "created_at": "2026-08-23T10:08:56.983Z"
   }
 }

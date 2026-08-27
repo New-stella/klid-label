@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| SD | SD-004 v18 |
+| SD | SD-004 v19 |
 | status | draft |
 | designer | claude-screen-design |
 | designs_screen | SCREEN-009 |

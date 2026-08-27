@@ -1,0 +1,207 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="main.css"></head><body><main class="screen-root pw-root">
+
+  <div class="page-head">
+    <nav aria-label="현재 위치">
+      <ol class="breadcrumb">
+        <li><a href="#">관리</a></li>
+        <li class="sep" aria-hidden="true">›</li>
+        <li aria-current="page"><span class="current">관리자 패스워드 교체</span></li>
+      </ol>
+    </nav>
+    <div class="page-sub">
+      <h1 class="t-title-lg">관리자 패스워드 교체</h1>
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 전용</span>
+      <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>관리자 유효창 열림</span>
+      <span class="countdown" role="timer" aria-live="off">
+        <span class="t-label">남은 유효 시간</span>
+        <span class="cd-time">08:12</span>
+      </span>
+    </div>
+    <p class="page-desc t-body-md text-muted">관리자 공유 패스워드를 운영 중에 바꿉니다. 교체 전 안내 · 입력 · 교체 후 안내 순서로 진행합니다.</p>
+  </div>
+
+  <ol class="flow">
+
+    <li class="flow-step" id="step-before">
+      <div class="flow-rail" aria-hidden="true">
+        <span class="flow-num">1</span>
+      </div>
+      <section class="card step-card" aria-labelledby="s1-title">
+        <header class="card-header">
+          <div class="config-heading">
+            <h2 class="t-title-md" id="s1-title">교체 전 안내</h2>
+            <p class="t-caption text-muted">무엇이 갖춰져야 바꿀 수 있고, 바꾸고 나면 무엇이 끊기는지</p>
+          </div>
+        </header>
+        <div class="card-content stack-lg">
+
+          <div class="req-block">
+            <h3 class="t-title-sm">교체 요건</h3>
+            <ul class="req-grid">
+              <li class="req-item">
+                <svg class="icon req-check" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span class="t-body-md req-name">검수자 권한</span>
+              </li>
+              <li class="req-item">
+                <svg class="icon req-check" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span class="t-body-md req-name">유효한 관리자 유효창</span>
+              </li>
+              <li class="req-item">
+                <svg class="icon req-check" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                <span class="t-body-md req-name">현재 패스워드 재확인</span>
+              </li>
+            </ul>
+            <p class="t-body-sm req-note">셋이 함께 성립해야 합니다. 유효창은 인가를 대체하지 않고 더해지므로 검수자 권한이 그대로 필요하며, 유효창이 열려 있어도 현재 패스워드를 다시 받습니다.</p>
+          </div>
+
+          <div class="notice notice-primary" role="note">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 16v-4m0-4h.01M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z"></path></svg>
+            <div class="notice-body">
+              <p class="t-title-sm notice-title">교체하면 열려 있는 유효창이 모두 끊깁니다</p>
+              <p class="t-body-md notice-text">지금 이 화면을 열어 준 유효창도 함께 끊깁니다. 오류가 아니라 정상 동작이므로 누르기 전에 미리 알립니다. 이어서 관리 기능을 쓰려면 새 패스워드로 다시 진입해야 합니다.</p>
+            </div>
+          </div>
+
+          <div class="keep-note">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.2 8.2 8 9 4.8-.8 8-4.5 8-9V6l-8-3Z"></path></svg>
+            <div class="keep-body">
+              <p class="t-title-sm">입력한 값은 어디에도 남지 않습니다</p>
+              <p class="t-body-md text-muted">현재 패스워드도 새 패스워드도 화면에 다시 나타나지 않고 기록에도 남지 않습니다. 실패 안내에도 값을 싣지 않습니다.</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </li>
+
+    <li class="flow-step" id="step-form">
+      <div class="flow-rail" aria-hidden="true">
+        <span class="flow-num is-active">2</span>
+      </div>
+      <section class="card step-card" aria-labelledby="s2-title">
+        <header class="card-header">
+          <div class="config-heading">
+            <h2 class="t-title-md" id="s2-title">패스워드 교체 폼</h2>
+            <p class="t-caption text-muted">세 칸 모두 가림 입력 · 새 값은 두 번 받습니다</p>
+          </div>
+        </header>
+        <div class="card-content stack-lg">
+
+          <div class="field">
+            <label class="t-label field-label" for="pw-current">현재 패스워드 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+            <input class="input" id="pw-current" type="password" value="············" placeholder="현재 관리자 패스워드" aria-describedby="pw-current-help" />
+            <p class="t-caption field-help" id="pw-current-help">필수 · 4~100자 · 가림 입력. 유효창이 열려 있더라도 이 값을 다시 대조합니다 — 유효창 탈취가 곧 자격 완전 탈취가 되지 않게 하는 자리입니다.</p>
+          </div>
+
+          <div class="field">
+            <label class="t-label field-label" for="pw-new">새 패스워드 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+            <input class="input" id="pw-new" type="password" value="··············" placeholder="새 관리자 패스워드" aria-describedby="pw-new-help" />
+            <p class="t-caption field-help" id="pw-new-help">필수 · 8~100자 · 가림 입력. 현재 값과 같으면 거부합니다 — 바뀌지도 않았는데 열려 있던 유효창만 전부 끊기는 일을 막습니다.</p>
+          </div>
+
+          <div class="field">
+            <label class="t-label field-label" for="pw-confirm">새 패스워드 확인 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+            <input class="input" id="pw-confirm" type="password" placeholder="새 관리자 패스워드 다시 입력" aria-describedby="pw-confirm-help" />
+            <p class="t-caption field-help" id="pw-confirm-help">필수 · 새 패스워드와 일치. 두 칸이 어긋나면 제출되지 않습니다 — 잘못 친 값으로 바뀌면 아무도 다시 진입하지 못하므로 보내기 전에 화면에서 막습니다.</p>
+          </div>
+
+          <div class="submit-guard">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <p class="t-body-md">누르는 순간 지금 열려 있는 유효창이 모두 끊깁니다. 방금까지 쓰던 자기 유효창도 함께 끊깁니다.</p>
+          </div>
+
+          <div class="form-actions">
+            <p class="t-caption field-help submit-hint" id="pw-submit-help">세 칸이 모두 채워지고 새 값 두 칸이 일치할 때만 눌립니다.</p>
+            <div class="action-buttons">
+              <button type="button" class="btn btn-secondary">취소</button>
+              <button type="button" class="btn btn-primary" disabled aria-describedby="pw-submit-help">패스워드 교체</button>
+            </div>
+          </div>
+
+          <div class="state-preview">
+            <p class="t-label preview-tag"><span class="preview-dot" aria-hidden="true"></span>교체 실패 안내 — 숨김 · 교체가 실패했을 때만 보입니다</p>
+            <div class="notice notice-error" role="note">
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+              <div class="notice-body">
+                <p class="t-title-sm notice-title">패스워드를 교체하지 못했습니다</p>
+                <p class="t-body-md notice-text">현재 패스워드가 맞지 않거나, 새 값이 규칙에 맞지 않거나 현재 값과 같거나, 시도가 너무 잦습니다. 잠시 뒤 다시 시도해 주세요.</p>
+                <p class="t-caption notice-meta">사유를 지나치게 가르지 않습니다 — 권한이 없는 것과 유효창이 끝난 것을 구분해 알리지 않습니다. 어느 경우에도 입력한 값을 싣지 않습니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="state-preview">
+            <p class="t-label preview-tag"><span class="preview-dot" aria-hidden="true"></span>관리자 확인 — 숨김 · 유효창이 없거나 이미 끝난 채로 제출했을 때만 열립니다</p>
+            <div class="preview-row">
+              <div class="preview-row-text">
+                <p class="t-title-sm">관리자 확인</p>
+                <p class="t-body-sm text-muted">관리자 패스워드를 다시 확인해 유효창을 엽니다. 이 확인이 여는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 창이며, 검수자 권한은 그대로 필요합니다.</p>
+              </div>
+              <a class="btn btn-secondary btn-sm" href="#dlg-admin">다이얼로그 보기</a>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </li>
+
+    <li class="flow-step" id="step-after">
+      <div class="flow-rail" aria-hidden="true">
+        <span class="flow-num">3</span>
+      </div>
+      <section class="card step-card is-preview" aria-labelledby="s3-title">
+        <header class="card-header">
+          <div class="config-heading">
+            <h2 class="t-title-md" id="s3-title">교체 후 안내</h2>
+            <p class="t-caption text-muted">다음에 할 일을 알리는 자리</p>
+          </div>
+          <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>교체 성공 후에만 표시</span>
+        </header>
+        <div class="card-content stack-lg">
+
+          <div class="notice notice-primary" role="note">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+            <div class="notice-body">
+              <p class="t-title-sm notice-title">패스워드를 교체했습니다</p>
+              <p class="t-body-md notice-text">열려 있던 유효창이 모두 끊겼습니다. 이 교체가 의도한 결과이며 오류가 아닙니다. 바뀐 값은 다시 보여 드리지 않습니다.</p>
+            </div>
+          </div>
+
+          <div class="next-step">
+            <p class="t-title-sm">이어서 쓰려면 새 패스워드로 다시 진입해야 합니다</p>
+            <p class="t-body-md text-muted">관리 기능의 쓰기는 새 패스워드로 관리자 확인을 다시 거쳐야 열립니다. 조회는 검수자 권한만으로 계속 되므로 화면이 통째로 잠긴 것은 아닙니다.</p>
+            <div class="next-actions">
+              <a class="btn btn-primary" href="#dlg-admin">관리자 확인 다시 하기</a>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </li>
+
+  </ol>
+
+  <div id="dlg-admin" class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-admin-title">
+    <a href="#step-form" class="modal-backdrop" aria-hidden="true"></a>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 class="t-title-sm" id="dlg-admin-title">관리자 확인</h3>
+        <a href="#step-form" class="modal-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <p class="t-body-sm modal-desc">관리자 패스워드를 확인해 유효창을 엽니다. 여는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 창이며, 검수자 권한은 그대로 필요합니다.</p>
+      <div class="field">
+        <label class="t-label field-label" for="dlg-admin-pw">관리자 패스워드</label>
+        <input class="input" id="dlg-admin-pw" type="password" aria-describedby="dlg-admin-pw-help" />
+        <p class="t-caption field-help" id="dlg-admin-pw-help">입력한 값은 화면에 다시 표시되지 않습니다.</p>
+      </div>
+      <div class="modal-footer">
+        <a href="#step-form" class="btn btn-secondary">취소</a>
+        <a href="#step-form" class="btn btn-primary">확인</a>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body></html>

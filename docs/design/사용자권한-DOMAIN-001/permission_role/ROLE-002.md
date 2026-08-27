@@ -1,18 +1,18 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 7
+version: 8
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:51:38.968Z
+synced_at: 2026-08-27T20:54:27.193Z
 status: CHANGED
-prev_version: 6
-content_hash: 0c0c65787cdc026e6f83f2669163a7772ae0dd58a9dfa0510b923a22f09bb8ab
-stale: true
+prev_version: 7
+content_hash: 3d4660839db789458c4ad7a20a93606024ebac2ac080cc9f0095d83eebf16416
+stale: false
 raw: ./_raw/ROLE-002.json
 links:
   granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
-  requires_backward: ["[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
+  requires_backward: ["[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
 ---
 
 # 라벨링 작업자 (WORKER)
@@ -113,7 +113,7 @@ WORKER
 
 - view
 
-- **condition**: 본인 배정 영상의 비식별 처리 상태·이력 확인
+- **condition**: 비식별 처리 상태는 마킹 화면의 진입 차단 안내로만 전달된다. 처리 이력 확인은 두지 않는다 — 이력이 드러나는 자리가 검수자 전용 화면뿐이기 때문이다.
 - **target_id**: FEAT-006
 - **target_kind**: feature
 
@@ -167,7 +167,7 @@ WORKER
 
 - view
 
-- **condition**: 영상 상세 — 본인 배정 영상
+- **condition**: [폐기] 영상 상세 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
 - **target_id**: SCREEN-009
 - **target_kind**: screen_spec
 
@@ -197,7 +197,7 @@ WORKER
 
 - view
 
-- **condition**: 영상 처리 현황 — 본인에게 배정된 영상만 목록에 보이며, 조회만 가능하고 마킹 진입·배정 동선은 없다
+- **condition**: [폐기] 영상 처리 현황 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 

@@ -26,7 +26,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "설정키"
             },
@@ -42,7 +43,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "설정값"
             },
@@ -65,7 +67,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "설정유형코드"
             },
@@ -81,7 +84,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "설명"
             },
@@ -97,7 +101,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정자아이디"
             },
@@ -114,7 +119,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
@@ -132,25 +138,26 @@
         "notes": "고도화 신규",
         "status": "new"
       },
-      "description": "고도화 저작도구 시스템 설정 저장소. LS_SYSTEM_CONFIG 는 화이트리스트에 등록된 운영 파라미터 키만 보유하며(예: BATCH_INTERVAL_SEC · POLYGON_SIMPLIFY_TOLERANCE — 전수 목록이 아니라 예시다) Caffeine 로컬 캐시(TTL 60s)로 읽힌다. 진실원: 베이스라인 마이그레이션의 CREATE TABLE 정의. 신설 세대는 V11·V36 이며 그 원문은 이전 이력에 보존된다. 전역 메타 키-값 저장소는 두지 않는다 — 저작도구의 운영 설정은 시스템 설정 테이블이 담당하고, 이 저장소를 읽는 경로가 설계에 없다.",
+      "description": "고도화 저작도구 시스템 설정 저장소. LS_SYSTEM_CONFIG 는 화이트리스트에 등록된 운영 파라미터 키만 보유하며(예: BATCH_INTERVAL_SEC · POLYGON_SIMPLIFY_TOLERANCE — 전수 목록이 아니라 예시다) Caffeine 로컬 캐시(TTL 60s)로 읽힌다. 진실원: 베이스라인 마이그레이션의 CREATE TABLE 정의. 신설 세대는 V11·V36 이며 그 원문은 이전 이력에 보존된다. 전역 메타 키-값 저장소는 두지 않는다 — 저작도구의 운영 설정은 시스템 설정 테이블이 담당하고, 이 저장소를 읽는 경로가 설계에 없다. 관리자 자격도 이 저장소에 두지 않는다 — 편집 가능 키 목록을 조회하면 값이 함께 드러나므로, 자격을 여기에 넣으면 그 목록을 볼 수 있는 사람 모두에게 노출된다. 관리 기능 진입에 쓰이는 자격은 별도의 전용 저장 지점이 보유한다.",
       "relationships": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "진실원 서술에 JPA 엔티티 클래스명(LsSystemConfig)과 저장소 내부 경로(마이그레이션 아카이브)가 그대로 노출돼 있었다. ERD 는 제3자가 스키마를 재구현할 수 있어야 하므로 구현 클래스명·경로 대신 일반화된 표현으로 정정한다(V11·V36 이 베이스라인으로 스쿼시됐다는 사실 자체는 유지).",
+    "change_summary": "설정 저장소에 관리자 자격을 두지 않는다는 배제를 명시한다. 이 저장소는 편집 가능 키 목록 조회로 값이 함께 드러나므로 자격을 넣으면 그 목록을 볼 수 있는 사람 모두에게 노출되며, 그 성질이 자격을 별도 저장 지점에 두는 근거다. 기존 배제 서술(전역 메타 키-값 저장소를 두지 않는다) 옆에 같은 축으로 덧붙였다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:33:35.652Z",
+    "last_updated_at": "2026-08-27T09:02:04.210Z",
     "created_at": "2026-06-01T02:46:19.794Z"
   }
 }

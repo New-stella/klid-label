@@ -1,14 +1,14 @@
 ---
 logicraft_item: EXTSYS-002
 type: external_system
-version: 11
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:53:48.342Z
-status: NEW
-prev_version: null
-content_hash: 46422d3339171db5a4254c9b1f2994354b12e582d8052ee560e8e13871b89ee1
-stale: false
+synced_at: 2026-08-27T20:54:27.653Z
+status: CHANGED
+prev_version: 11
+content_hash: b7dffe5fa0c020f0d878a0a5670258a87b0965a7cc96832c2ea930f7e3d780cc
+stale: true
 raw: ./_raw/EXTSYS-002.json
 links:
   based_on: ["[[ADR-046]]"]
@@ -75,7 +75,7 @@ high
 
 ## 인증 체계 — 방향별 비대칭
 - **위탁(out)**: `vlm.client.token` 설정 시에만 `Authorization: Bearer` 부착(조건부)
-- **콜백(in)**: 벤더가 **무서명 콜백** 규격이라 HMAC 을 적용할 수 없다 → 대체 3계층(① IP allowlist `webhook.vlm.allowed-ip-cidrs` ② rate limit + 본문 크기 상한 ③ `request_id` 발급 게이트). 증강 콜백(EXTSYS-004/INT-006)이 무서명(명세서 v1.1) + IP allowlist(미설정시 fail-closed) 3계층인 것과 유사한 방식이며 각 벤더 규격 차이에 따른 의도된 설계다.
+- **콜백(in)**: 벤더가 **무서명 콜백** 규격이라 HMAC 을 적용할 수 없다 → 대체 3계층(① IP allowlist `webhook.vlm.allowed-ip-cidrs` ② rate limit + 본문 크기 상한 ③ `request_id` 발급 게이트). 증강 콜백(EXTSYS-004/INT-006)이 무서명(그쪽 명세서 v1.3) + IP allowlist(미설정시 fail-closed) 3계층인 것과 유사한 방식이며 각 벤더 규격 차이에 따른 의도된 설계다.
 
 ## ★★ 활성화 상태 — 설정 토글은 폐지됐다 (ADR-049)
 연동 여부를 설정으로 켜고 끄던 토글은 폐지됐다. 연동 주소가 주입되어 있지 않으면 위탁은 **실패**하며 조용히 건너뛰지 않는다. 구 동작은 토글이 꺼져 있으면 외부 호출 없이 즉시 건너뛴 것으로 처리하고 아무 기록도 남기지 않았는데, 그 기본값이 비활성이라 시계열이 꺼진 채로 납품될 수 있었다.
@@ -119,6 +119,10 @@ _(empty)_
 100
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

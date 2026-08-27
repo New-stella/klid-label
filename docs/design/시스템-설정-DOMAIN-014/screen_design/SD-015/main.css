@@ -1,8 +1,8 @@
 /*
  * SCREEN-025 시스템 설정 화면 — 고충실도 디자인 CSS
  * 디자인 시스템: DS-001 KRDS Public (_shared/design-system.md verbatim 값만 사용)
- * 무 JS · CSS-only (잠금 해제 = :checked, 다이얼로그 = :target)
- * 토큰 섹션(0)·베이스(1)·타이포(2)·카드(3)·버튼(4)·배지(5)·Alert/상태(6)·참고패널(7)·모달(8)은
+ * 무 JS · CSS-only
+ * 토큰 섹션(0)·베이스(1)·타이포(2)·카드(3)·버튼(4)·배지(5)·Alert/상태(6)·참고패널(7)은
  * SCREEN-009 design-main.css 의 관례를 그대로 따른다(화면마다 다른 기본형을 만들지 않는다).
  */
 
@@ -341,6 +341,24 @@ label.btn { cursor: pointer; }
 .slider-guard .icon-sm { flex: 0 0 auto; }
 
 /* 토글 스위치 (Custom · 카탈로그 미등록) */
+/* 화면에는 안 보이고 보조기술에만 읽히는 문장 — 필수 표식(*)은 기호라 낭독되지 않는다. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* 시계열 위탁 전체 건너뛰기 — 켜져 있는 동안 들어오는 영상은 전건이 시계열 없이 확정된다.
+   그래서 켜짐을 카드가 눈에 띄게 드러내되, 상태를 말하는 것은 색이 아니라 아래 문구다. */
+.skip-field[data-on="true"] {
+  padding: var(--sp-md);
+  border: 1px solid var(--e-2);
+  border-radius: var(--radius-md);
+  background: var(--e-0);
+}
+.skip-on-note { color: var(--e-7); word-break: keep-all; }
+.skip-field .req { color: var(--e-6); }
+
 .switch { display: inline-flex; align-items: center; gap: var(--sp-sm); min-height: 44px; cursor: pointer; }
 .switch input { position: absolute; width: 0; height: 0; opacity: 0; }
 .switch-track {
@@ -371,59 +389,7 @@ label.btn { cursor: pointer; }
 }
 .link-note .icon-sm { flex: 0 0 auto; margin-top: 2px; }
 
-/* ── 8. 연동 서버 주소 카드 — 잠금/해제 (CSS-only :checked) ───────── */
-.lockstate { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
-
-.endpoint-card .endpoint-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-lg) var(--sp-md);
-}
-.lock-banner {
-  display: flex; align-items: center; gap: var(--sp-sm);
-  padding: var(--sp-md);
-  border: 1px solid var(--n-2);
-  border-radius: var(--radius-md);
-  background: var(--n-0);
-  color: var(--n-7);
-}
-.lock-banner .icon { flex: 0 0 auto; color: var(--n-6); }
-.lock-banner .lock-text { flex: 1 1 auto; min-width: 0; }
-
-.unlock-banner {
-  display: flex; align-items: center; gap: var(--sp-sm);
-  padding: var(--sp-md);
-  border: 1px solid var(--su-2);
-  border-radius: var(--radius-md);
-  background: var(--su-0);
-  color: var(--su-7);
-}
-.unlock-banner .icon { flex: 0 0 auto; color: var(--su-6); }
-.countdown {
-  margin-left: auto;
-  display: inline-flex; align-items: baseline; gap: var(--sp-xs);
-  background: var(--bg-page);
-  border: 1px solid var(--su-2);
-  border-radius: var(--radius-full);
-  padding: 3px 12px;
-  color: var(--su-7);
-}
-.countdown .cd-time { font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
-
-/* 잠금 상태에서만 보이는 것 / 해제 상태에서만 보이는 것
-   (.only-locked 에는 display 를 주지 않는다 — 요소 고유 display 를 그대로 둔다) */
-.only-unlocked,
-.config-card > .card-content.only-unlocked { display: none; }
-#lock-open:checked ~ .settings-layout .only-locked { display: none; }
-#lock-open:checked ~ .settings-layout .card-content.only-unlocked { display: flex; }
-#lock-open:checked ~ .settings-layout .badge.only-unlocked { display: inline-flex; }
-/* 잠금이 풀린 뒤에는 패스워드 다이얼로그가 다시 뜨지 않는다 */
-#lock-open:checked ~ #dlg-admin { display: none; }
-
-/* 카드 본문 세로 스택 */
-.stack-lg { flex-direction: column; gap: var(--sp-lg); }
-
-/* ── 9. 헬스 목록 (UI-089 HealthStatusList) ──────────────────────── */
+/* ── 8. 헬스 목록 (UI-089 HealthStatusList) ──────────────────────── */
 .health-card > .card-header { padding-bottom: var(--sp-md); border-bottom: 1px solid var(--n-1); align-items: center; }
 .health-list { display: flex; flex-direction: column; }
 .health-item {
@@ -477,25 +443,7 @@ label.btn { cursor: pointer; }
   color: var(--su-7);
 }
 
-/* ── 10. 위험 구역 (UI-090 DangerActions) ────────────────────────── */
-.danger-card { border-color: var(--e-2); }
-.danger-card > .card-header { align-items: center; padding-bottom: var(--sp-md); border-bottom: 1px solid var(--e-1); }
-.danger-card .config-heading h2 { color: var(--e-7); }
-.danger-actions { display: flex; align-items: stretch; gap: var(--sp-md); flex-wrap: wrap; }
-.danger-action {
-  flex: 1 1 220px;
-  display: flex; flex-direction: column; gap: var(--sp-sm);
-  padding: var(--sp-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-page);
-}
-.danger-action.is-destructive { border-color: var(--e-2); background: var(--e-0); }
-.danger-action .da-desc { color: var(--n-7); flex: 1 1 auto; }
-.danger-action.is-destructive .da-desc { color: var(--e-7); }
-.danger-warning { display: flex; align-items: center; gap: 6px; color: var(--e-7); }
-
-/* ── 11. Alert / 상태 박스 / 스켈레톤 / 토스트 ───────────────────── */
+/* ── 9. Alert / 상태 박스 / 스켈레톤 / 토스트 ───────────────────── */
 .alert { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); border-radius: var(--radius-md); border: 1px solid; }
 .alert-info { background: var(--i-0); border-color: var(--i-2); color: var(--i-7); }
 .alert-warn { background: var(--w-0); border-color: var(--w-2); color: var(--w-7); }
@@ -540,7 +488,7 @@ label.btn { cursor: pointer; }
 .toast-error { border-color: var(--e-2); }
 .toast-error .toast-icon { color: var(--e-5); }
 
-/* ── 12. 상태 참고 패널 (골격 외 보조 문서화 — SCREEN-009 관례) ──── */
+/* ── 10. 상태 참고 패널 (골격 외 보조 문서화 — SCREEN-009 관례) ──── */
 .reference-panel {
   border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
@@ -552,34 +500,7 @@ label.btn { cursor: pointer; }
 .reference-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
 .reference-panel .ref-caption { display: block; margin-bottom: var(--sp-sm); color: var(--n-6); }
 
-/* ── 13. 모달 (UI-004 Modal / UI-005 ConfirmDialog, :target) ─────── */
-.modal { display: none; position: fixed; inset: 0; z-index: 1000; }
-.modal:target { display: block; }
-.modal-backdrop { position: absolute; inset: 0; background: rgba(19,20,22,0.6); }
-.modal-box {
-  position: relative; z-index: 1;
-  width: min(520px, calc(100% - var(--sp-lg) * 2));
-  max-height: calc(100vh - var(--sp-2xl) * 2);
-  margin: var(--sp-2xl) auto 0;
-  background: var(--bg-page);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  padding: var(--sp-lg);
-  display: flex; flex-direction: column; gap: var(--sp-md);
-  overflow-y: auto;
-}
-.modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); }
-.modal-close {
-  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-md); color: var(--n-6); text-decoration: none; flex: 0 0 auto;
-}
-.modal-close:hover { background: var(--n-0); color: var(--n-9); }
-.modal-desc { color: var(--n-7); }
-.modal-footer { display: flex; justify-content: flex-end; gap: var(--sp-sm); margin-top: var(--sp-sm); }
-.modal-danger-mark { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); border-radius: var(--radius-md); background: var(--e-0); border: 1px solid var(--e-2); color: var(--e-7); }
-.modal-danger-mark .icon { flex: 0 0 auto; margin-top: 2px; }
-
-/* ── 14. 아이콘 ──────────────────────────────────────────────────── */
+/* ── 11. 아이콘 ──────────────────────────────────────────────────── */
 /* 아이콘 선 표현 — 종전 SVG 표현 속성(stroke-width/linecap/linejoin)을 CSS 로 옮겼다.
    게시 sanitizer 가 그 속성들을 떨어뜨려 굵기·끝모양이 소실되기 때문이다. */
 svg { stroke-width: 2; }
@@ -588,12 +509,11 @@ svg { stroke-width: 2; }
 .icon-lg { width: 32px; height: 32px; flex: 0 0 auto; }
 .icon-sm { width: 16px; height: 16px; flex: 0 0 auto; }
 
-/* ── 15. 반응형 (desktop 기준 화면) ──────────────────────────────── */
+/* ── 12. 반응형 (desktop 기준 화면) ──────────────────────────────── */
 @media (max-width: 1279px) {
   .settings-layout { grid-template-columns: minmax(0, 1fr); }
   .settings-side { position: static; }
   .settings-grid { grid-template-columns: minmax(0, 1fr); }
-  .endpoint-card .endpoint-grid { grid-template-columns: minmax(0, 1fr); }
   .reference-grid { grid-template-columns: minmax(0, 1fr); }
   .reference-grid-2 { grid-template-columns: minmax(0, 1fr); }
 }

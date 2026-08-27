@@ -51,6 +51,7 @@
             <a href="#_" class="wf-btn wf-btn-ghost">라벨링</a><span class="wf-help">READY 자산만 노출 → /portal/uploads/{uldSn}/label</span>
             <button class="wf-btn wf-btn-outline">삭제</button><span class="wf-help">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</span>
             <span class="wf-muted">만료 예정일 (만료: YYYY-MM-DD)</span><span class="wf-help">상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.</span>
+            <button class="wf-btn">AI 증강 요청</button><span class="wf-help">영상 자산만 노출 — 이미지 자산에는 두지 않는다</span>
           </div>
         </div>
       </div>
@@ -79,8 +80,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 업로드 자산 목록</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수 + 만료 예정일. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청. 만료 예정일은 응답의 expiresAt 을 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). expiresAt 이 없는 자산은 만료 예정일 자리를 비운다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라 값이 내려오지 않는다. 만료 예정일이 내려오는 것은 준비 완료·실패 자산이다. 이 값은 조회 시점의 보존기간 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 매 조회마다 갱신한다. 만료가 가까운 자산을 색·아이콘으로 강조하는 표기는 두지 않는다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(업로드 자산 목록) · binds uploads</li><li>Badge(상태 배지 (업로드됨/처리중/준비 완료/실패))</li><li>Link(라벨링)<p class="wf-help" style="margin:2px 0 0">READY 자산만 노출 → /portal/uploads/{uldSn}/label</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</p></li><li>Text(만료 예정일 (만료: YYYY-MM-DD)) · binds uploads[].expiresAt<p class="wf-help" style="margin:2px 0 0">상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(업로드됨/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수 + 만료 예정일. READY 자산만 '라벨링' 링크(/portal/uploads/{uldSn}/label) 노출. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청. 만료 예정일은 응답의 expiresAt 을 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). expiresAt 이 없는 자산은 만료 예정일 자리를 비운다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라 값이 내려오지 않는다. 만료 예정일이 내려오는 것은 준비 완료·실패 자산이다. 이 값은 조회 시점의 보존기간 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 매 조회마다 갱신한다. 만료가 가까운 자산을 색·아이콘으로 강조하는 표기는 두지 않는다. 준비 완료 상태인 영상 자산 행에는 「AI 증강 요청」 액션을 함께 둔다 — 이미지 자산은 대상이 아니고, 아직 준비되지 않은 영상에도 두지 않는다(라벨링 링크와 같은 규칙이라, 그 자산에서 할 수 없는 액션은 비활성으로 두지 않고 아예 노출하지 않는다). 본인이 올린 자산이면 요청할 수 있으며 검수를 통과했는지는 묻지 않는다 — 이 경로에는 검수가 없다. 이 요청은 서버가 외부로 보내는 비동기 위탁이라 누른 즉시 결과가 나오지 않으며, 포털 사용자가 외부 추론 엔드포인트를 직접 호출하지 않는다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(업로드 자산 목록) · binds uploads</li><li>Badge(상태 배지 (업로드됨/처리중/준비 완료/실패))</li><li>Link(라벨링)<p class="wf-help" style="margin:2px 0 0">READY 자산만 노출 → /portal/uploads/{uldSn}/label</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</p></li><li>Text(만료 예정일 (만료: YYYY-MM-DD)) · binds uploads[].expiresAt<p class="wf-help" style="margin:2px 0 0">상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.</p></li><li>Button(AI 증강 요청)<p class="wf-help" style="margin:2px 0 0">영상 자산만 노출 — 이미지 자산에는 두지 않는다</p></li></ul></div>
     </div>
   </div>
 </body>

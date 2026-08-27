@@ -1,20 +1,24 @@
 ---
 logicraft_item: SCREEN-002
 type: screen_spec
-version: 17
-last_updated_at: 2026-08-25T01:21:32.912Z
+version: 22
+last_updated_at: 2026-08-27T09:02:20.247Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T08:33:50.650Z
-sync_session: 30
+synced_at: 2026-08-27T20:53:19.455Z
+sync_session: 31
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 17
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-007]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v17 → v22**
+> change_summary: 권한 부여 폼이 요구하는 패스워드가 관리 기능 진입에 쓰이는 것과 같은 값이며 운영 중 교체될 수 있다는 사실을 명시한다. 교체 뒤에는 이 화면에도 교체된 값을 넣어야 한다. 자격을 어디에 보관하는지는 이 화면이 적지 않는다 — 이 화면이 패스워드를 다루는 지점은 입력 항목과 안내 문구, 상태코드 매핑뿐이다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 역할 클레임 화면
 
@@ -176,7 +180,7 @@ _(empty)_
 - **variant**: primary
 - **triggers_api**: API-007
 
-- **description**: 관리자 공유 패스워드 입력(type=password, autoComplete=new-password) + 제출. 역할 미선택 또는 패스워드 공백 또는 진행 중이면 제출 비활성. 제출 시 POST /v1/auth/role-claim 호출 — role·adminPassword 외에, 상위 시스템(관제서버)이 세션 인계 과정에서 함께 전달한 표시용 사용자 정보(사용자ID·사용자명, 있는 경우만)를 함께 전송한다 — 서버는 이 정보를 이용해 사용자 마스터를 자동등록한다. 성공 시 새 accessToken 으로 토큰 교체 후 /dashboard 로 이동. 실패 시 status 별 에러 메시지를 alert 로 표시: 401=패스워드 불일치, 403=해당 역할은 자가 부여할 수 없음(검수자에게 권한 부여를 요청하라는 안내 — 현재 화면은 WORKER/REVIEWER 2종만 노출해 정상 동선에서는 도달하지 않으나 서버 측 허용 역할 정책이 바뀌면 도달 가능), 409=이미 부여됨, 429=시도 초과, 그 외=일반 오류.
+- **description**: 관리자 공유 패스워드 입력(type=password, autoComplete=new-password) + 제출. 역할 미선택 또는 패스워드 공백 또는 진행 중이면 제출 비활성. 제출 시 POST /v1/auth/role-claim 호출 — role·adminPassword 외에, 상위 시스템(관제서버)이 세션 인계 과정에서 함께 전달한 표시용 사용자 정보(사용자ID·사용자명, 있는 경우만)를 함께 전송한다 — 서버는 이 정보를 이용해 사용자 마스터를 자동등록한다. 성공 시 새 accessToken 으로 토큰 교체 후 /dashboard 로 이동. 실패 시 status 별 에러 메시지를 alert 로 표시: 401=패스워드 불일치, 403=해당 역할은 자가 부여할 수 없음(검수자에게 권한 부여를 요청하라는 안내 — 현재 화면은 WORKER/REVIEWER 2종만 노출해 정상 동선에서는 도달하지 않으나 서버 측 허용 역할 정책이 바뀌면 도달 가능), 409=이미 부여됨, 429=시도 초과. 400 은 전용 문구를 두지 않고 서버가 내려준 메시지를 그대로 싣는 갈래에 속한다 — 자가 부여 대상이 아닌 역할이나 허용 범위를 벗어난 패스워드 길이처럼 화면이 제출 전에 걸러내는 값이라 정상 동선에서는 도달하지 않고, 상태코드만으로는 사유를 가를 수 없어 고정 문구로 덮으면 실제 원인이 가려진다. 그 밖의 실패도 같은 갈래이며 서버 메시지가 없을 때만 일반 오류 문구를 쓴다. 이 화면이 요구하는 패스워드는 관리 기능 진입에 쓰이는 것과 같은 관리자 패스워드다 — 그 값이 운영 중에 교체되면 이 화면에서도 교체된 값을 입력해야 한다.
 
 **references_apis**:
 
@@ -237,6 +241,10 @@ _(empty)_
 ### last_updated
 
 2026-08-25T01:21:32.912Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 

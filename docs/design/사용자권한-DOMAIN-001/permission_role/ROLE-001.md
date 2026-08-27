@@ -1,18 +1,19 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 10
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:50.363Z
-status: NEW
-prev_version: null
-content_hash: d50ab58d55e8796b352ecb87f593d0baad9ff8f967261c5bb7d995585c6da918
+synced_at: 2026-08-27T20:54:27.193Z
+status: CHANGED
+prev_version: 10
+content_hash: 9fd2d3ef10567acf71f4102696fbc11a4bfb5959b0946a6ad99a62ff5aa1e9c4
 stale: true
 raw: ./_raw/ROLE-001.json
 links:
+  based_on: ["[[ADR-003]]"]
   granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-003]]", "[[FEAT-004]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[FEAT-009]]", "[[SCREEN-008]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
-  requires_backward: ["[[NAV-001]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-027]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
+  requires_backward: ["[[NAV-001]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-027]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]", "[[SCREEN-039]]", "[[SCREEN-040]]", "[[SCREEN-041]]", "[[SCREEN-042]]", "[[SCREEN-043]]"]
 ---
 
 # 검수자 (REVIEWER)
@@ -51,7 +52,7 @@ ADMIN
 
 ## description
 
-검수자. 시스템 관리자(ADMIN) 역할을 별도로 두지 않으며 모든 관리 권한이 이 역할에 통합돼 있다. 화면 호칭은 '검수자'이고 관리 화면은 /manage/* 경로에 모인다.
+검수자. 시스템 관리자(ADMIN) 역할을 별도로 두지 않으며 모든 관리 권한이 이 역할에 통합돼 있다. 화면 호칭은 '검수자'이고 관리 화면은 두 경로로 갈린다 — 라벨 마스터·오토라벨 프리셋·이벤트유형·비식별 누락 신고 관리와 배치·추론·정밀도·비식별 설정은 /manage/* 에 남고, 사용자 관리·연동 서버 주소·업로드·위험 액션·관리자 패스워드 교체는 /admin/* 에 모인다. /admin/* 의 쓰기는 이 역할 권한에 더해 관리자 패스워드로 연 단기 유효창을 요구하며, 조회는 그 요구 없이 이 역할 권한만으로 된다.
 
 **관리** — 사용자 관리 · 시스템 설정 · 라벨 마스터 관리 · 오토라벨 프리셋 관리 · 비식별 누락 신고 관리 · 이벤트유형 관리.
 
@@ -303,7 +304,7 @@ ADMIN
 - view
 - update
 
-- **condition**: 영상 처리 현황을 전체 기준으로 조회, 마킹 진입·작업자 배정·재배정
+- **condition**: 영상 처리 현황 조회, 마킹 진입·작업자 배정·재배정
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 
@@ -386,6 +387,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

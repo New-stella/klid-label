@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-008
 type: class_diagram
-version: 5
+version: 7
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:11:02.326Z
+synced_at: 2026-08-27T20:54:27.187Z
 status: CHANGED
-prev_version: 4
-content_hash: f0b74e69a8ed6c5b5b74880b9befc363ebd8328063ed8a88e5ca336860ca7bed
-stale: false
+prev_version: 5
+content_hash: 7517d6007114c9280d3ac389b779a44f2f8594761044be733b98ced819accdcd
+stale: true
 raw: ./_raw/CDIAG-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]
@@ -87,6 +87,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### role
 
 - **type**: Role
@@ -116,6 +120,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### channel
 
 - **type**: Channel
@@ -142,6 +150,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -203,6 +215,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### role
 
 - **type**: Role
@@ -229,6 +245,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -261,6 +281,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### issuer
 
 - **type**: String
@@ -290,6 +314,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### expiresAt
 
 - **type**: Instant
@@ -316,6 +344,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -377,6 +409,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### menuCode
 
 - **type**: String
@@ -406,6 +442,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### accessible
 
 - **type**: boolean
@@ -432,6 +472,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -531,11 +575,22 @@ _(empty)_
 - **is_abstract**: false
 - **return_type**: List<MenuAccessRule>
 
+#### openAdminSession
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: AdminSessionToken
+
 **attributes**:
 
 _(empty)_
 
-- **description**: JWT 검증 → TokenClaims 추출 → 역할 기반 접근 제어를 수행하는 도메인 서비스. 검증 실패 시 상위 시스템 로그인으로 리다이렉트, 역할/메뉴 매핑 판정. DFEAT-001/DFEAT-002 구현.
+- **description**: JWT 검증 → TokenClaims 추출 → 역할 기반 접근 제어를 수행하는 도메인 서비스. 검증 실패 시 상위 시스템 로그인으로 리다이렉트, 역할/메뉴 매핑 판정. DFEAT-001/DFEAT-002 구현. 관리 기능 쓰기에는 역할 판정만으로 부족해, 공유 자격을 확인한 뒤 단기 유효창을 발급하고 요청마다 그 유효창을 다시 본다.
 
 **enum_values**:
 
@@ -587,6 +642,229 @@ _(empty)_
 
 _(empty)_
 
+### AdminSessionToken
+
+- **kind**: entity
+
+**methods**:
+
+#### isValidFor
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: boolean
+
+**attributes**:
+
+#### subject
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### expiresAt
+
+- **type**: Instant
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 관리자 단기 유효창(개념). 관리 기능 쓰기 요청에 더해지는 조건으로, 공유 자격을 확인한 REVIEWER 에게 발급되고 발급받은 사람에게만 유효하다. 저장소를 두지 않는 서명값이라 만료 시각이 서명 대상 안에 들어 있어 클라이언트가 늘릴 수 없고, 서버가 요청마다 서명·만료·발급 대상을 다시 본다. 역할 클레임을 담지 않으므로 권한을 올리지 않고 기존 역할 판정 위에 더해질 뿐이다. 무효화 장부나 세대 값을 두지 않으며, 서명이 현재 자격에 의존하므로 자격이 교체되면 이전 유효창이 자연히 검증에 실패한다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### AdminCredential
+
+- **kind**: entity
+
+**methods**:
+
+#### matches
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: boolean
+
+**attributes**:
+
+#### passwordHash
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### modifiedBy
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### modifiedAt
+
+- **type**: Instant
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 관리 기능 진입을 여는 운영자 공유 자격(개념). 개별 사용자 계정의 자격증명이 아니라 운영자가 함께 쓰는 단 하나의 자격이라 이 도메인에 하나만 존재한다. 평문은 어디에도 두지 않고 되돌릴 수 없는 해시만 보관하며 응답과 로그로 내보내지 않는다. 목록 조회로 값이 함께 드러나는 일반 설정 저장소에 두지 않는 것이 이 자격을 따로 두는 이유다. 값이 비어 있으면 배포 설정값으로 되돌아가 판정하고, 둘 다 없으면 어떤 비밀번호도 통과하지 않는다. 공유 자격이라 값 자체로는 사용자를 가릴 수 없어 누가 언제 교체했는지를 함께 남긴다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
 ## description
 
 외부 JWT 인계 인증과 역할 기반 접근 제어(RBAC)를 표현하는 개념 모델. 저작도구는 독립 로그인 UI 가 없고 관제서버/포털이 발급한 JWT 의 role·channel 클레임으로 사용자·권한을 식별한다.
@@ -600,6 +878,8 @@ _(empty)_
 [역할 3종] REVIEWER · WORKER · PORTAL_USER. 별도 ADMIN 은 없고 관리 권한은 REVIEWER 에 통합된다(ADR-003). 자가부여 화이트리스트에는 WORKER 와 REVIEWER 가 들어가며, 관리자 비밀번호의 관리 수준이 시스템 전체 권한 경계다(인지·수용된 잔여 위험).
 
 전용 활성 ERD 가 없어(1차 ERD-001 폐기) 물리 컬럼이 아닌 도메인 개념 속성으로 구성한다.
+
+[관리자 단기 유효창] 관리 기능 쓰기는 역할만으로 열리지 않고, 공유 자격을 확인해 얻은 단기 유효창이 함께 있어야 한다. 유효창은 역할을 올리지 않고 기존 역할 판정 위에 더해지며, 저장소를 두지 않는 서명값이라 그것을 담는 구조가 이 모델에 없다. 그럼에도 개념으로 올린 것은 이 모델이 물리 저장이 아니라 인가 판정에 참여하는 개념을 그리기 때문이다. 반면 자격 자체는 보관되는 값이라 이 도메인이 갖는다. 무효화 장부를 따로 두지 않는 대신 서명이 현재 자격에 의존하게 해, 자격을 교체하는 것만으로 그 전에 발급된 유효창이 무효가 된다.
 
 ## module_name
 
@@ -679,11 +959,64 @@ UserAccessControl
 - **to_multiplicity**: 0..*
 - **from_multiplicity**: 1
 
+### [9]
+
+- **to**: AdminCredential
+- **from**: AccessControlService
+- **kind**: dependency
+- **label**: 공유 자격 확인
+- **to_multiplicity**: 1
+- **from_multiplicity**: 1
+
+### [10]
+
+- **to**: AdminSessionToken
+- **from**: AccessControlService
+- **kind**: dependency
+- **label**: 관리자 유효창 발급·검증
+- **to_multiplicity**: 0..*
+- **from_multiplicity**: 1
+
+### [11]
+
+- **to**: AdminCredential
+- **from**: AdminSessionToken
+- **kind**: dependency
+- **label**: 서명이 현재 자격에 의존
+- **to_multiplicity**: 1
+- **from_multiplicity**: 0..*
+
 ## depicts_dfeats
 
 - DFEAT-001
 - DFEAT-002
 - DFEAT-003
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

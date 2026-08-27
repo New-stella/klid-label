@@ -1,18 +1,19 @@
 ---
 logicraft_item: DOMAIN-014
 type: domain
-version: 5
+version: 6
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:57.150Z
-status: NEW
-prev_version: null
-content_hash: ee806a0cd64ed9beb2741ca9a27f45d0fde97c53271a4a54d6b0e36fa03c0520
+synced_at: 2026-08-27T20:54:27.651Z
+status: CHANGED
+prev_version: 5
+content_hash: e822c876a47b8be672af86bf14284ca98e2f5364fa7a3623311f6ad8c5516065
 stale: false
 raw: ./_raw/DOMAIN-014.json
 links:
   applies_to_backward: ["[[NFR-013]]", "[[NFR-020]]"]
-  belongs_to_domain_backward: ["[[ADR-039]]", "[[ADR-046]]", "[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-118]]", "[[API-141]]", "[[API-193]]", "[[API-194]]", "[[CDIAG-012]]", "[[CMP-011]]", "[[DFEAT-045]]", "[[ERD-016]]", "[[SCREEN-025]]", "[[SD-015]]", "[[SEQ-024]]", "[[SEQ-025]]", "[[UC-031]]"]
+  belongs_to_domain_backward: ["[[AC-071]]", "[[AC-072]]", "[[AC-073]]", "[[AC-074]]", "[[AC-075]]", "[[AC-076]]", "[[AC-077]]", "[[AC-078]]", "[[ADR-039]]", "[[ADR-046]]", "[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-118]]", "[[API-141]]", "[[API-193]]", "[[API-194]]", "[[API-219]]", "[[API-220]]", "[[CDIAG-012]]", "[[CMP-011]]", "[[DFEAT-045]]", "[[ERD-016]]", "[[ERD-033]]", "[[SCREEN-025]]", "[[SCREEN-042]]", "[[SCREEN-043]]", "[[SD-015]]", "[[SD-035]]", "[[SD-036]]", "[[SEQ-024]]", "[[SEQ-025]]", "[[UC-031]]"]
+  derived_domain_backward: ["[[AC-071]]", "[[AC-072]]", "[[AC-073]]", "[[AC-074]]", "[[AC-075]]", "[[AC-076]]", "[[AC-077]]"]
   implements_in_backward: ["[[MOD-016]]", "[[MOD-050]]"]
 ---
 
@@ -40,7 +41,7 @@ new
 
 저작도구 운영 파라미터를 관리하는 도메인. 성격이 다른 두 계층을 구분한다.
 
-[계층 1 — 런타임 설정(DB 키-값)] LS_SYSTEM_CONFIG 에 저장되며 REVIEWER 가 관리 화면(/manage/settings)에서 조회·수정한다. 서버가 타입별 값 + 범위 검증을 건다. Caffeine 로컬 캐시 TTL 60s. 예: POLYGON_SIMPLIFY_TOLERANCE, YOLO_CONF_THRESHOLD, portal.upload.frame-interval-sec(기본 5초). 외부 연동 서버 주소(비식별 · AI 추론 · 외부 시계열 분석 벤더 · 관제 통지 수신처)도 이 계층이다 — 관리자 패스워드를 다시 확인해 여는 짧은 유효창(기본 10분, 상한 30분) 안에서만 저장할 수 있고, 저장하면 재기동 없이 다음 호출부터 반영된다. 값의 우선순위는 설정에 값이 있으면 설정, 없으면 배포 기본값이다.
+[계층 1 — 런타임 설정(DB 키-값)] LS_SYSTEM_CONFIG 에 저장되며 REVIEWER 가 조회·수정한다. 다만 화면은 두 곳으로 갈린다 — 배치·추론·정밀도·비식별 관련 키는 검수자 화면에서 검수자 권한만으로 다루고, 외부 연동 서버 주소는 관리자 페이지의 전용 화면에서 다룬다. 서버가 타입별 값 + 범위 검증을 건다. Caffeine 로컬 캐시 TTL 60s. 예: POLYGON_SIMPLIFY_TOLERANCE, YOLO_CONF_THRESHOLD, portal.upload.frame-interval-sec(기본 5초). 외부 연동 서버 주소(비식별 · AI 추론 · 외부 시계열 분석 벤더 · 관제 통지 수신처)도 이 계층이다 — 관리자 패스워드를 다시 확인해 여는 짧은 유효창(기본 10분, 상한 30분) 안에서만 저장할 수 있고, 저장하면 재기동 없이 다음 호출부터 반영된다. 값의 우선순위는 설정에 값이 있으면 설정, 없으면 배포 기본값이다. 되돌릴 수 없는 운영 액션(시스템 초기화·배치 큐 초기화·캐시 삭제)도 관리자 페이지의 전용 화면으로 옮겨갔으며, 확인 절차를 거친 뒤에만 실행된다. 관리자 패스워드 자체를 교체하는 것도 이 도메인의 책임인데, 그 자격은 목록 조회로 값이 드러나는 이 설정 저장소가 아니라 자격 전용 저장 위치가 보관한다.
 
 [계층 2 — 배포 설정(환경변수·프로파일)] DB 접속·토글 등은 화면에서 바꾸지 않고 배포 형상으로 관리한다.
 

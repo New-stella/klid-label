@@ -293,11 +293,19 @@ span.input  { display: flex; align-items: center; color: var(--n-9); }
 /* ── 9. 검색·필터 바 (섹션② · UI-095 VideoFilters) ─────────────────── */
 .filter-form {
   display: grid;
-  grid-template-columns: minmax(240px, 1.6fr) repeat(2, minmax(160px, 1fr)) repeat(2, minmax(150px, 0.8fr)) auto;
+  /* 조회 조건이 일곱이라 한 줄에 담기지 않는다 — 다섯 칸 두 줄로 흘리고 조작 버튼은 둘째 줄
+     오른쪽 끝에 고정한다(줄 끝을 따라다니면 버튼 자리가 조건 수에 따라 흔들린다). */
+  grid-template-columns: minmax(240px, 1.6fr) repeat(4, minmax(150px, 1fr));
   gap: var(--sp-md);
-  align-items: end;
+  align-items: start;
 }
-.filter-actions { display: flex; align-items: center; gap: var(--sp-sm); }
+/* 둘째 줄의 두 필터는 도움말이 길다 — 축이 헷갈리기 쉬운 자리라 문장을 줄이는 대신 폭을 준다. */
+.filter-form .field--wide { grid-column: span 2; }
+.filter-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-sm); grid-column: 5 / 6; align-self: end; }
+/* 도움말은 조건 아래 줄에 붙되 폭을 넘기지 않는다 — 두 필터는 이름만으로 축이 갈리지 않는다. */
+.filter-form .field-help { word-break: keep-all; }
+/* 배너 안의 길 — 켜 둔 사람이 곧바로 끄러 갈 수 있어야 한다. */
+.alert-link { color: inherit; font-weight: 600; text-decoration: underline; }
 
 /* ── 10. 목록 그룹 — 일괄 작업 바(섹션③) + 테이블 카드(섹션④)를 한 덩어리로 ── */
 .list-group { display: flex; flex-direction: column; }
@@ -571,6 +579,7 @@ svg { stroke-linecap: round; stroke-linejoin: round; }
 @media (max-width: 1279px) {
   .screen-root { padding: var(--sp-lg) var(--sp-lg) var(--sp-xl); }
   .filter-form { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+  .filter-actions { grid-column: 1 / -1; }
   .filter-actions { grid-column: 1 / -1; justify-content: flex-end; }
   .reference-grid { grid-template-columns: 1fr; }
   .col-event, .col-len { width: auto; }

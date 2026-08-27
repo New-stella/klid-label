@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 24
-last_updated_at: 2026-08-26T05:01:49.902Z
+version: 26
+last_updated_at: 2026-08-27T01:03:34.722Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T08:33:50.677Z
-sync_session: 30
+synced_at: 2026-08-27T20:53:19.484Z
+sync_session: 31
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 22
 raw: ./_raw/SCREEN-028.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-024]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v22 → v26**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 홈 화면
 
@@ -288,7 +292,7 @@ _(empty)_
 
 #### [5]
 
-- **note**: 카드 클릭 영역과 분리된 버튼. myLabelExpiresAt 이 null 이면 비활성 + '저장된 라벨이 없습니다' 툴팁. non-null 이면 '만료: YYYY-MM-DD' 텍스트 병기. 클릭 시 blob 응답을 받아 브라우저 다운로드 트리거(JWT 인증 하 직링크 불가).
+- **note**: 카드 클릭 영역과 분리된 버튼. 활성 여부는 이 영상을 내려받는 중인지와 다른 영상을 받는 중이라 잠겼는지로만 정한다. myLabelExpiresAt 은 값이 있을 때만 '만료: YYYY-MM-DD' 텍스트로 병기하고, 없으면 그 자리를 비워 카드 정렬을 유지한다. 클릭 시 blob 응답을 받아 브라우저 다운로드 트리거(JWT 인증 하 직링크 불가).
 - **type**: Custom
 - **label**: 영상 카드 다운로드 버튼(만료일 표시 포함)
 
@@ -386,6 +390,10 @@ _(empty)_
 
 2026-08-17T22:48:30.526Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-003
@@ -404,8 +412,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 3344129b50d0222b3a3b53e04305001bcd9c79022adf89efadf6ca790ead4174
-- **generated_at**: 2026-08-17T22:21:55.546Z
+- **source_hash**: bc47c9c91ef98b3dd6461c7c1201d764e9d8f7053d16167657e4ca06ec68bf19
+- **generated_at**: 2026-08-27T01:03:34.721Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

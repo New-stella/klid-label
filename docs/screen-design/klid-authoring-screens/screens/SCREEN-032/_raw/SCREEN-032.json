@@ -224,7 +224,7 @@
     "schema_version": 1,
     "current_version": 23,
     "stale": true,
-    "stale_reason": "UC-016의 data.implementation 변경 — realizes",
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
     "change_summary": "이 화면이 어느 유스케이스를 실현하는지 역방향 연결이 비어 있었다. 유스케이스 쪽은 이미 이 화면을 선언하고 있어 한쪽만 채워져 있던 것을 맞춘다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-16T07:12:37.508Z",

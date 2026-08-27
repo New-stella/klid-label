@@ -3,7 +3,7 @@
     "id": "ADR-043",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "adr",
-    "title": "사용자 마스터 = 역할 클레임 시 자동등록(localStorage 인계) + REVIEWER 자가부여 허용",
+    "title": "사용자 마스터 = 역할 클레임 시 자동등록(관제 채널 인계) + REVIEWER 자가부여 허용",
     "slug": "사용자-마스터-역할-클레임-시-자동등록localstorage-인계-reviewer-자가부여-허용",
     "sub_id": null,
     "status": "approved",
@@ -14,7 +14,7 @@
       ],
       "decision": {
         "chosen_option": "역할 클레임 시점 자동등록 + REVIEWER 자가부여 허용(채택)",
-        "justification": "사용자 마스터를 관제 공유 MNG_ACCT_USER 에서 저작도구 소유 테이블로 이관하고, 채우는 주체를 관제 DB 가 아니라 역할 클레임 흐름으로 바꾼다. 등록 시점은 역할 클레임 때만이고(모든 접속 시가 아니다), userNo 는 JWT sub 에서만 취해 요청 바디의 값을 신뢰하지 않는다. 프론트는 localStorage 의 userId·userNm 을 읽어 클레임 요청에 동봉하며, RoleClaimRequest 에는 선택 필드로 추가해 하위호환을 유지한다. 자가부여 가능 역할에 REVIEWER 를 항상 허용으로 추가한다 — 처음에는 'REVIEWER 0명일 때만 허용(부트스트랩 예외)'을 권했으나 트레이드오프를 명시 제시한 뒤 사용자가 '항상 자가부여'를 선택했다. 유지할 방어는 그대로 둔다: rate limit(CWE-307)·BCrypt 상수시간 비교(CWE-203)·평문 비밀번호 로그 금지(CWE-532)·INTERNAL 채널 + role==null 게이트."
+        "justification": "사용자 마스터를 관제 공유 MNG_ACCT_USER 에서 저작도구 소유 테이블로 이관하고, 채우는 주체를 관제 DB 가 아니라 역할 클레임 흐름으로 바꾼다. 등록 시점은 역할 클레임 때만이고(모든 접속 시가 아니다), userNo 는 JWT sub 에서만 취해 요청 바디의 값을 신뢰하지 않는다. 프론트가 브라우저 저장소의 userId·userNm 을 읽어 클레임 요청에 동봉하는 것은 관제 채널로 진입한 경우의 전제다 — 관제가 그 저장소에 사용자 정보를 넣어 주기 때문이며, RoleClaimRequest 에는 선택 필드로 추가해 하위호환을 유지한다. 포털 Host 임베딩 채널은 토큰 인계 수단이 달라(ADR-012) 브라우저 저장소를 쓰지 않으므로 이 경로를 타지 않는다 — 그 채널 사용자는 포털 권한 사용자이고 역할 자가부여 대상이 아니라 실질 충돌은 없다. 자가부여 가능 역할에 REVIEWER 를 항상 허용으로 추가한다 — 처음에는 'REVIEWER 0명일 때만 허용(부트스트랩 예외)'을 권했으나 트레이드오프를 명시 제시한 뒤 사용자가 '항상 자가부여'를 선택했다. 자가부여가 대조하는 관리자 공유 패스워드는 배포 설정에 고정된 값이 아니라 자격 전용 저장 위치에 보관된 해시를 진실원으로 삼는다 — 그 위치에 값이 아직 없으면 배포 설정값으로 되돌아가 판정하고, 둘 다 없으면 어떤 패스워드도 통과하지 않는다. 따라서 이 패스워드는 운영 중에 교체할 수 있고, 교체하면 그 전에 발급된 관리자 유효창은 모두 무효가 된다. 교체가 열렸다고 해서 '이 패스워드의 관리 수준이 곧 시스템 전체 권한 경계'라는 판단이 약해지지 않는다 — 경계를 옮길 수 있는 수단이 생긴 만큼 그 판단은 오히려 더 강해진다. 유지할 방어는 그대로 둔다: rate limit(CWE-307)·BCrypt 상수시간 비교(CWE-203)·평문 비밀번호 로그 금지(CWE-532)·INTERNAL 채널 + role==null 게이트."
       },
       "brownfield": {
         "notes": "ADR-042(관제 데이터 참조 전면 제거)의 사용자축 실행 결정이다 — ADR 간 관계는 supersedes 링크만 지원되므로 decided_by 로 걸지 않고 여기 명시한다. 역할 판정 진실원 자체는 ADR-021 대로 LS_USER_ROLE(V75) 이 이미 단독 소유하고 있어 변경 없다.",
@@ -25,6 +25,12 @@
         ],
         "diff_summary": "사용자 마스터: 관제 공유 MNG_ACCT_USER READ 조인 → 저작도구 소유 테이블 + 역할 클레임 시 localStorage 인계값 upsert. 자가부여 역할: WORKER 단일 → WORKER + REVIEWER"
       },
+      "references": [
+        {
+          "title": "관리자 단기 유효창으로 관리 기능 진입을 좁힌다",
+          "item_id": "ADR-046"
+        }
+      ],
       "consequences": {
         "risks": [
           "REVIEWER 자가부여 개방은 사용자가 인지·수용한 잔여 위험이다. '보안 강화' 명목으로 WORKER 단일 화이트리스트로 되돌리지 말 것(이 저장소의 '철회된 정책 재시도' 차단 관례)",
@@ -89,12 +95,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "본문 오염 제거(어휘 교체, 결정 내용 불변) — 역할 클레임 서비스·JWT 클레임 타입·회귀 테스트 클래스명을 행위 서술로 바꿨다. 요청 스키마명(RoleClaimRequest)과 테이블 물리명은 계약 어휘라 유지한다.",
+    "current_version": 10,
+    "stale": true,
+    "stale_reason": "ADR-046의 data.consequences 변경 — references",
+    "change_summary": "역할 자가부여가 대조하는 자격의 소유 결정을 참조로 잇는다. 이 결정은 검수자를 자가부여로 허용하면서 그 자격의 관리 수준을 시스템 전체 권한 경계로 삼는데, 그 자격을 어디에 두고 어떻게 교체하는지는 다른 결정이 소유한다 — 두 결정이 서로를 가리키지 않으면 한쪽만 읽고 자격의 성질을 오해한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T13:16:46.355Z",
+    "last_updated_at": "2026-08-27T10:22:31.195Z",
     "created_at": "2026-08-04T08:17:55.717Z"
   }
 }

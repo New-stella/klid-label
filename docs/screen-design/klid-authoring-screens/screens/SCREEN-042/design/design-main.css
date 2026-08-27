@@ -1,0 +1,499 @@
+:root{
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+}
+
+/* ── 1. 리셋 & 베이스 (SD-015 관례 그대로) ───────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, span, li, button, label, dt, dd { color: inherit; margin: 0; }
+button, input, select, textarea { font-family: inherit; }
+button { cursor: pointer; }
+ul, ol, dl { margin: 0; padding: 0; list-style: none; }
+strong { font-weight: 600; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, input:focus-visible, label.btn:focus-within,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 2. 타이포그래피 ladder ──────────────────────────────────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); }
+.text-strong { color: var(--n-9); }
+
+/* ── 3. 레이아웃 셸 ──────────────────────────────────────────────── */
+.screen-root {
+  max-width: none;
+  padding: var(--sp-lg) var(--sp-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+}
+
+.page-head { display: flex; flex-direction: column; gap: var(--sp-xs); }
+.breadcrumb { display: flex; align-items: center; gap: var(--sp-sm); }
+.breadcrumb li { display: flex; align-items: center; gap: var(--sp-sm); }
+.breadcrumb a { color: var(--n-6); text-decoration: none; font-size: 15px; }
+.breadcrumb a:hover { color: var(--p-6); text-decoration: underline; }
+.breadcrumb .sep { color: var(--n-5); font-size: 13px; }
+.breadcrumb .current { color: var(--n-8); font-weight: 600; font-size: 15px; }
+.page-head h1 { color: var(--n-10); }
+.page-head .page-sub { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.page-head .page-desc { max-width: 920px; }
+
+/* 대상 밖 안내 — 오류가 아니라 범위 고지라 info 계열 */
+.scope-note {
+  display: inline-flex; align-items: center; gap: 6px;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: var(--sp-xs) 10px;
+  border-radius: var(--radius-sm);
+  background: var(--i-0);
+  color: var(--i-7);
+}
+.scope-note .icon-sm { flex: 0 0 auto; }
+
+/* 본문 2분할 — 좌: 주소 폼, 우: 유효창 상태(320px, SD-015 사이드 폭 유지) */
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--sp-md);
+  align-items: start;
+}
+.settings-main { display: flex; flex-direction: column; gap: var(--sp-md); min-width: 0; }
+.settings-side { display: flex; flex-direction: column; gap: var(--sp-md); position: sticky; top: var(--sp-lg); }
+
+/* ── 4. Card (UI-011) ────────────────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) 0;
+}
+.card > .card-content { padding: var(--sp-lg); }
+
+.config-card { display: flex; flex-direction: column; }
+.config-card > .card-header { align-items: center; padding-bottom: var(--sp-md); border-bottom: 1px solid var(--n-1); }
+.config-card .config-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.config-card .config-heading h2 { color: var(--n-10); }
+.config-card .config-actions { display: flex; align-items: center; gap: var(--sp-sm); flex: 0 0 auto; }
+.config-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-lg); }
+
+.stack-lg { flex-direction: column; gap: var(--sp-lg); }
+.stack-md { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+/* ── 5. 버튼 (UI-001) ────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 17px; font-weight: 500; line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.btn:disabled { cursor: not-allowed; }
+label.btn { cursor: pointer; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-primary:disabled { background: var(--n-1); color: var(--n-6); border-color: var(--n-2); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+.btn-sm { min-height: 36px; padding: 0 var(--sp-md); font-size: 15px; }
+.btn-block { width: 100%; }
+.btn .icon { width: 18px; height: 18px; }
+
+/* ── 6. 배지 (UI-014) ────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.badge .icon-sm { margin-left: -2px; }
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+.badge-warn    { background: var(--w-0); color: var(--w-7); }
+.badge-warn .dot { background: var(--w-6); }
+.badge-error   { background: var(--e-0); color: var(--e-7); }
+.badge-error .dot { background: var(--e-5); }
+.badge-info    { background: var(--i-0); color: var(--i-7); }
+.badge-info .dot { background: var(--i-5); }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-6); }
+
+/* ── 7. 폼 필드 (UI-099) ─────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); }
+.field-label { color: var(--n-8); }
+.field-help { color: var(--n-6); }
+
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-9);
+  font-size: 17px;
+  line-height: 1.4;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.input::placeholder { color: var(--n-6); }
+.input:hover:not(:disabled) { border-color: var(--n-5); }
+.input:disabled { background: var(--n-0); color: var(--n-7); border-color: var(--n-2); cursor: not-allowed; }
+.input-mono { font-family: var(--font-mono); font-size: 15px; }
+.input.is-invalid { border-color: var(--e-5); border-width: 2px; background: var(--e-0); color: var(--e-8); }
+
+/* ── 8. 잠금/해제 상태 전환 (CSS-only :checked) ──────────────────── */
+.lockstate { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+
+/* .only-locked 에는 display 를 주지 않는다 — 요소 고유 display 를 그대로 둔다 */
+.only-unlocked,
+.config-card > .card-content.only-unlocked { display: none; }
+#lock-open:checked ~ * .only-locked { display: none; }
+#lock-open:checked ~ * .card-content.only-unlocked { display: flex; }
+#lock-open:checked ~ * .badge.only-unlocked { display: inline-flex; }
+/* 잠금이 풀린 뒤에는 패스워드 다이얼로그가 다시 뜨지 않는다 */
+#lock-open:checked ~ #dlg-admin { display: none; }
+
+.lock-banner {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--n-2);
+  border-radius: var(--radius-md);
+  background: var(--n-0);
+  color: var(--n-7);
+}
+.lock-banner .icon { flex: 0 0 auto; color: var(--n-6); }
+.lock-banner .lock-text { flex: 1 1 auto; min-width: 0; }
+.lock-banner strong { color: var(--n-9); }
+
+.unlock-banner {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-md);
+  background: var(--su-0);
+  color: var(--su-7);
+}
+.unlock-banner .icon { flex: 0 0 auto; color: var(--su-6); }
+.unlock-banner .lock-text { flex: 1 1 auto; min-width: 0; }
+
+.countdown {
+  margin-left: auto;
+  display: inline-flex; align-items: baseline; gap: var(--sp-xs);
+  background: var(--bg-page);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  color: var(--su-7);
+  flex: 0 0 auto;
+}
+.countdown .cd-time { font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ── 9. 연동 주소 그리드 ─────────────────────────────────────────── */
+.endpoint-card .endpoint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-lg) var(--sp-md);
+}
+
+/* 주소 한 건 — 라벨 / 성격 한 줄 / 입력 / 설정 키 */
+.ep-field { gap: 6px; }
+.ep-field .input { margin-top: 2px; }
+.ep-role { color: var(--n-7); word-break: keep-all; }
+.ep-role strong { color: var(--n-9); }
+.ep-key {
+  color: var(--n-6);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+/* 저장 행이 아직 없는 주소 — 오류가 아니라 정상 상태라 중립 표기 */
+.ep-empty {
+  display: inline-flex; align-items: center; gap: 6px;
+  align-self: flex-start;
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--radius-sm);
+  background: var(--n-0);
+  color: var(--n-7);
+}
+.ep-empty .icon-sm { flex: 0 0 auto; }
+
+/* 바깥으로 나가는 주소 — 겁주지 않되 조용히 구분한다 */
+.ep-field.is-external {
+  padding: var(--sp-md);
+  margin: -2px;
+  border: 1px solid var(--w-2);
+  border-radius: var(--radius-md);
+  background: var(--w-0);
+}
+.ep-field.is-external .field-label { color: var(--w-7); }
+.ep-field.is-external .ep-role { color: var(--w-7); }
+.ep-field.is-external .ep-role strong { color: var(--w-8); }
+.ep-field.is-external .ep-key { color: var(--w-6); }
+.ep-field.is-external .input { background: var(--bg-page); }
+.ep-caution {
+  display: flex; align-items: flex-start; gap: 6px;
+  color: var(--w-8);
+  word-break: keep-all;
+}
+.ep-caution .icon-sm { flex: 0 0 auto; margin-top: 2px; }
+
+/* 값 규칙 + 반영 시점 안내 */
+.rule-note {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--i-2);
+  border-radius: var(--radius-md);
+  background: var(--i-0);
+  color: var(--i-7);
+}
+.rule-note .icon { flex: 0 0 auto; margin-top: 1px; }
+.rule-note .rule-body { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
+.rule-note strong { color: var(--i-8); }
+.rule-sub { color: var(--i-8); }
+
+/* ── 10. 관리자 유효창 사이드 ────────────────────────────────────── */
+.window-card > .card-content { gap: var(--sp-md); }
+.win-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-sm); }
+.win-desc { color: var(--n-7); word-break: keep-all; }
+.win-desc strong { color: var(--n-9); }
+
+.win-timer {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: var(--sp-md);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-md);
+  background: var(--su-0);
+  color: var(--su-7);
+}
+.win-timer .win-time {
+  font-family: var(--font-mono);
+  font-size: 30px; font-weight: 700; line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--su-7);
+}
+.win-meter {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--n-2);
+  overflow: hidden;
+}
+.win-meter .win-meter-fill {
+  display: block;
+  height: 100%;
+  width: var(--fill, 100%);
+  border-radius: var(--radius-full);
+  background: var(--su-7);
+}
+/* 얼마 남지 않은 상태 — 색만 바꾸지 않고 문구도 함께 바뀐다 */
+.win-timer.is-expiring { border-color: var(--w-2); background: var(--w-0); color: var(--w-7); }
+.win-timer.is-expiring .win-time { color: var(--w-7); }
+.win-timer.is-expiring .win-meter { background: var(--w-1); }
+.win-timer.is-expiring .win-meter .win-meter-fill { background: var(--w-6); }
+
+.win-meta { display: flex; flex-direction: column; gap: 6px; padding-top: var(--sp-sm); border-top: 1px solid var(--n-1); }
+.win-meta-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm); }
+.win-meta-val { color: var(--n-8); font-weight: 600; }
+
+.win-note {
+  display: flex; align-items: flex-start; gap: 6px;
+  color: var(--n-7);
+  word-break: keep-all;
+}
+.win-note .icon-sm { flex: 0 0 auto; margin-top: 2px; color: var(--n-6); }
+
+/* 인가 축 대비 — 조회는 열려 있고 저장만 가산된다 */
+.auth-card > .card-content { padding: var(--sp-lg); }
+.auth-card h2 { color: var(--n-10); }
+.auth-list { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.auth-item {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.auth-item .icon { flex: 0 0 auto; margin-top: 2px; }
+.auth-item .auth-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.auth-item .auth-name { font-weight: 600; }
+.auth-item .auth-sub { word-break: keep-all; }
+.auth-item.is-open { border-color: var(--su-2); background: var(--su-0); color: var(--su-7); }
+.auth-item.is-open .icon { color: var(--su-6); }
+.auth-item.is-gated { border-color: var(--n-2); background: var(--n-0); color: var(--n-7); }
+.auth-item.is-gated .icon { color: var(--n-6); }
+.auth-item.is-gated .auth-name { color: var(--n-9); }
+.auth-item.is-gated strong { color: var(--n-9); }
+
+/* ── 11. Alert / 토스트 ──────────────────────────────────────────── */
+.alert { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); border-radius: var(--radius-md); border: 1px solid; }
+.alert-info  { background: var(--i-0); border-color: var(--i-2); color: var(--i-7); }
+.alert-warn  { background: var(--w-0); border-color: var(--w-2); color: var(--w-7); }
+.alert-error { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+.alert .alert-icon { flex: 0 0 auto; margin-top: 2px; }
+.alert .alert-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.alert .alert-title { font-weight: 600; }
+
+.toast {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: 12px var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-page);
+  box-shadow: var(--shadow-md);
+}
+.toast .toast-icon { flex: 0 0 auto; margin-top: 2px; }
+.toast .toast-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.toast .toast-title { font-weight: 600; color: var(--n-9); }
+.toast-success { border-color: var(--su-2); }
+.toast-success .toast-icon { color: var(--su-5); }
+
+/* ── 12. 상태 참고 패널 (골격 외 보조 문서화 — SD-015 관례) ─────── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel .reference-flag { display: flex; align-items: center; gap: var(--sp-sm); margin-bottom: var(--sp-md); flex-wrap: wrap; }
+.reference-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+.reference-panel .ref-caption { display: block; color: var(--n-7); }
+.ref-body { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+/* ── 13. 모달 (UI-004 / UI-005, :target) ─────────────────────────── */
+.modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+.modal:target { display: block; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(19,20,22,0.6); }
+.modal-box {
+  position: relative; z-index: 1;
+  width: min(520px, calc(100% - var(--sp-lg) * 2));
+  max-height: calc(100vh - var(--sp-2xl) * 2);
+  margin: var(--sp-2xl) auto 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+  display: flex; flex-direction: column; gap: var(--sp-md);
+  overflow-y: auto;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); }
+.modal-close {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md); color: var(--n-6); text-decoration: none; flex: 0 0 auto;
+}
+.modal-close:hover { background: var(--n-0); color: var(--n-9); }
+.modal-desc { color: var(--n-7); }
+.modal-footer { display: flex; justify-content: flex-end; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+
+/* ── 14. 아이콘 ──────────────────────────────────────────────────── */
+/* 게시 sanitizer 가 SVG 표현 속성을 떨어뜨려 굵기·끝모양이 소실되므로 CSS 로 준다 */
+svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; }
+
+/* ── 15. 반응형 (desktop 기준 화면) ──────────────────────────────── */
+@media (max-width: 1279px) {
+  .settings-layout { grid-template-columns: minmax(0, 1fr); }
+  .settings-side { position: static; }
+  .endpoint-card .endpoint-grid { grid-template-columns: minmax(0, 1fr); }
+  .reference-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 899px) {
+  .screen-root { padding: var(--sp-md); }
+  .reference-grid { grid-template-columns: minmax(0, 1fr); }
+  .lock-banner, .unlock-banner { flex-wrap: wrap; }
+  .countdown { margin-left: 0; }
+}

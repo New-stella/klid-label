@@ -5,11 +5,11 @@ version: 41
 last_updated_at: 2026-08-26T08:07:13.899Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T08:33:50.679Z
-sync_session: 30
+synced_at: 2026-08-27T20:53:19.485Z
+sync_session: 31
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 39
 raw: ./_raw/SCREEN-029.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-024]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v39 → v41**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (19.8KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 라벨링 화면
 

@@ -1005,8 +1005,22 @@
         <span class="btn btn-danger btn-sm btn-block">트랙 삭제 — 지정 프레임 이후</span>
         <span class="btn btn-secondary btn-sm btn-block">트랙 분할</span>
         <span class="btn btn-secondary btn-sm btn-block">트랙 병합</span>
-        <span class="btn btn-outline btn-sm btn-block">AI 트랙(인터랙티브)</span>
-        <p class="field-help t-caption">AI 트랙은 조회 전용이라 결과를 저장하지 않는다.</p>
+        <span class="btn btn-outline btn-sm btn-block">AI 자동 추적</span>
+        <p class="field-help t-caption">조회 전용이라 서버에 결과를 저장하지 않는다. 선택한 객체 하나를 따라가는 「AI 추적」과 이름이 겹치지 않게 구분한 표기다.</p>
+
+        <div class="field mt-md">
+          <span class="t-label field-label" id="track-apply-label">트랙 결과 적용 방식</span>
+          <div class="tri-opts" role="radiogroup" aria-labelledby="track-apply-label">
+            <button type="button" class="chip-radio" role="radio" aria-checked="true">검토 후 수락</button>
+            <button type="button" class="chip-radio" role="radio" aria-checked="false">자동 반영</button>
+          </div>
+          <p class="field-help t-caption">기본값은 검토 후 수락이다. 이 실행은 여러 객체를 여러 프레임에 걸쳐 한 번에 만들어 오검출의 영향 범위가 단일 객체 추적보다 크므로 자동 반영은 사용자가 켜는 쪽이다. 고른 방식은 그 실행에만 적용되고 다음 실행은 다시 기본값으로 시작한다 — 이전 선택을 기억하지 않는다. 수락·제외의 단위는 트랙이며 검출 하나하나를 따로 고르지 않는다.</p>
+        </div>
+
+        <div class="alert alert-info mt-md" role="status">
+          <svg class="icon-sm alert-icon cap-round" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+          <span class="t-body-sm">검출 3건은 라벨 마스터에 연결되지 않아 반영 대상에서 빠졌습니다. (대응 마스터 없음 · 검출 클래스 매핑 미지정)</span>
+        </div>
       </div>
     </div>
 

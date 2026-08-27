@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-005
 type: screen_spec
-version: 100
-last_updated_at: 2026-08-25T10:21:57.263Z
+version: 102
+last_updated_at: 2026-08-27T09:24:04.255Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T08:33:50.654Z
-sync_session: 30
+synced_at: 2026-08-27T20:53:19.462Z
+sync_session: 31
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 100
 raw: ./_raw/SCREEN-005.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-004]]", "[[UC-005]]", "[[UC-006]]", "[[UC-007]]", "[[UC-008]]", "[[UC-021]]", "[[UC-022]]", "[[UC-034]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v100 → v102**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (61.8KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 라벨링 캔버스 화면
 
@@ -1827,6 +1831,67 @@ _(empty)_
 
 _(empty)_
 
+### 이관 원문 정보 패널
+
+- **role**: side
+- **layout**: detail
+
+**components**:
+
+#### [1]
+
+- **note**: 메타 탭의 여섯 패널 뒤에 참고 정보로 붙는 영역의 제목이다. 이관으로 들어온 영상에서만 노출한다.
+- **type**: Heading
+- **label**: 이관 원문 정보(읽기전용)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: API-066 importedMeta 목록을 값만 표시한다 — 편집 불가, 참고용이다. 사람이 읽는 이름으로 라벨을 표시하고 원문 열쇠 문자열을 그대로 쓰지 않으며, 이름을 정하지 못한 열쇠는 버리지 않고 원문 열쇠 그대로 표시한다.
+- **type**: KeyValue
+- **label**: 이관 원문 항목
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **triggers_api**: API-066
+
+#### [3]
+
+- **note**: 이관으로 들어오지 않은 영상에서는 목록이 비어 있는 것이 정상이라 오류로 안내하지 않는다. 이 경우 패널 자체를 노출하지 않는다.
+- **type**: Text
+- **label**: 이관 원문 없음 안내
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 이 패널은 우측 패널의 '메타' 탭 맨 아래에 참고 정보로 둔다 — 위의 여섯 패널이 모두 끝난 뒤 마지막에 나열하며 그 여섯의 나열 순서는 바꾸지 않는다. 외부 산출물 이관이 저작도구 스키마에 착지할 컬럼이 없어 원문 그대로 보관한 값을 보여준다(API-066 의 importedMeta 목록). 담기는 값은 좌표·위치·카메라 설치 높이·설치 방위·카메라 관리번호·데이터 출처·이벤트 기록·이벤트 상위 계층 이름·외부 영상 식별자·원천 축 개인정보 판정이다. ★읽기 전용이다 — 편집·저장 대상이 아니며 이 열쇠를 수정 요청하면 거부된다. '영상 기술 정보(읽기전용)' 과 같은 결로 값만 보여주고 입력 칸을 두지 않는다. ★표시는 사람이 읽는 이름으로 한다 — 원문 열쇠 문자열을 라벨에 그대로 쓰지 않는다. 이름을 정하지 못한 열쇠는 버리지 않고 원문 열쇠 그대로 표시한다(조용한 손실 금지). ★목록을 가르는 주체는 서버다 — 화면이 열쇠 접두를 파싱해 시계열 메타와 이관 원문을 스스로 나누지 않는다. 이관으로 들어온 영상에서만 표시하며, 그 밖의 영상에서는 목록이 비어 있고 그것이 정상이라 패널 자체를 감춘다.
+
+**references_apis**:
+
+- API-066
+
+**references_features**:
+
+_(empty)_
+
 ## brownfield
 
 ### status
@@ -1953,8 +2018,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 38990cf13dd44e12d404019aac71b8acfae27df1c24d9093b15f476b55a42de8
-- **generated_at**: 2026-08-25T10:21:57.262Z
+- **source_hash**: 20c15b160b04c754c002e0dc3cf67a2a186402491c0aeff56dbd31bb9b6a9887
+- **generated_at**: 2026-08-27T09:24:04.255Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

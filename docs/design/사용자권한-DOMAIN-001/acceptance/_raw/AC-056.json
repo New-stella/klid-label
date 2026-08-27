@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "draft",
     "data": {
-      "notes": "이 기준이 다루는 것은 누가 수행할 수 있는가 하나다. 자기 자신의 정보를 조회하는 것은 역할과 무관하게 열려 있으므로 이 기준의 대상이 아니다.",
+      "notes": "이 기준이 다루는 것은 누가 수행할 수 있는가 하나다. 자기 자신의 정보를 조회하는 것은 역할과 무관하게 열려 있으므로 이 기준의 대상이 아니다. 조회와 쓰기는 요구가 다르다. 목록 조회와 단건 조회는 검수자 권한만으로 되고, 역할 변경에는 거기에 관리자 유효창이 더해진다. 유효창은 인가를 대체하지 않고 가산되므로, 검수자가 아닌 사람은 유효창을 열어도 이 기준에 따라 거부된다.",
       "priority": "critical",
       "scenario": {
         "then": [
@@ -23,14 +23,15 @@
           "검수자가 아닌 역할로 인증을 마친 사용자가 있다"
         ]
       },
-      "statement": "사용자 목록 조회와 단건 조회, 역할 변경은 검수자만 수행할 수 있다.",
+      "statement": "사용자 목록 조회와 단건 조회, 역할 변경은 검수자만 수행할 수 있으며, 그중 역할 변경은 검수자 권한에 더해 관리자 패스워드로 연 유효창 안에서만 수행할 수 있다.",
       "is_negative": true,
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "derived_domain_ids": [
         "DOMAIN-001"
@@ -43,12 +44,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": true,
-    "stale_reason": "UC-030의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "사용자 관리 기능의 수행 주체를 검수자로 한정하는 검증 기준을 신설한다. 이 도메인에는 인수기준이 한 건도 없어 사용자 관리 흐름이 검증 기준 없이 남아 있었다.",
+    "stale_reason": "DFEAT-003의 data.implementation 변경이 derived_from로 2-hop 전파",
+    "change_summary": "역할 변경에는 검수자 권한에 더해 관리자 유효창이 필요하다는 축을 statement 에 명시하고, 조회와 쓰기의 요구 차이를 notes 로 갈랐다. 제목은 유지한다 — 유효창은 검수자에게 추가로 요구되는 것이지 다른 역할에게 열어주는 것이 아니라 「검수자만 수행한다」는 문장이 여전히 참이기 때문이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-22T15:23:39.463Z",
+    "last_updated_at": "2026-08-27T09:00:46.858Z",
     "created_at": "2026-08-22T15:23:39.463Z"
   }
 }

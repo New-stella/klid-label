@@ -1,11 +1,15 @@
 ---
 logicraft_item: ROLE-003
 type: permission_role
-version: 8
-status: UNCHANGED
-prev_version: null
+version: 9
+status: CHANGED
+prev_version: 8
 raw: ./_raw/ROLE-003.json
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v8 → v9**
+> change_summary: 업로드 영상의 이벤트구간 마킹·AI 증강 축에 대한 확인만 기록한다. 이 역할 문서는 그 둘을 이미 담고 있다 — 본문이 본인이 올린 영상에 한해 마킹과 증강 연동 요청을 수행한다고 적고, 그 증강이 서버가 서버로 보내는 비동기 위탁이라 사용자가 외부 추론 엔드포인트를 직접 호출하는 구조가 아니라는 구분까지 함께 두고 있으며, 변경 이력 요약에도 2차에 그 둘이 더해졌다고 적혀 있다. 이번에 화면 쪽에서 정한 것은 그 둘을 어느 화면에서 하느냐이고, 권한 축은 그대로라 이 문서에 걸리는 항목이 없다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 회원 (PORTAL_USER)
 

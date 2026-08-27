@@ -436,12 +436,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": true,
-    "stale_reason": "REQ-001의 2개 필드 변경이 implements로 2-hop 전파",
-    "change_summary": "D007-CNT-011: request_body...output_file_path.description 에 잔존한 내부 클래스명(GenAiCallbackService) 제거",
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파를 확인하고 변경 없음을 기록한다. 이 표식의 원천은 해상도 변경 요구이고, 해상도 파생은 외부 위탁이 전혀 없는 내부 수행이라 이 수신 창구를 타지 않는다 — 요청 스키마는 상태와 식별자, 산출물 목록으로만 이뤄져 있어 해상도나 생성 조건이 실릴 자리가 없다. 함께 진행 중인 위탁 요청 본문 축과도 접점이 없다. 그쪽 변경은 보내는 쪽 구조이고 이 문서는 받는 쪽 계약이며, 준용 판을 명시하지 않고 외부 연동명세서 정합이라고만 서술하고 있어 판 표기를 옮길 자리도 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:14:03.917Z",
+    "last_updated_at": "2026-08-27T12:46:05.453Z",
     "created_at": "2026-07-30T07:09:17.965Z"
   }
 }

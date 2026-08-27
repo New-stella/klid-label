@@ -144,7 +144,7 @@
               "options": []
             },
             {
-              "note": "카드 클릭 영역과 분리된 버튼. myLabelExpiresAt 이 null 이면 비활성 + '저장된 라벨이 없습니다' 툴팁. non-null 이면 '만료: YYYY-MM-DD' 텍스트 병기. 클릭 시 blob 응답을 받아 브라우저 다운로드 트리거(JWT 인증 하 직링크 불가).",
+              "note": "카드 클릭 영역과 분리된 버튼. 활성 여부는 이 영상을 내려받는 중인지와 다른 영상을 받는 중이라 잠겼는지로만 정한다. myLabelExpiresAt 은 값이 있을 때만 '만료: YYYY-MM-DD' 텍스트로 병기하고, 없으면 그 자리를 비워 카드 정렬을 유지한다. 클릭 시 blob 응답을 받아 브라우저 다운로드 트리거(JWT 인증 하 직링크 불가).",
               "type": "Custom",
               "label": "영상 카드 다운로드 버튼(만료일 표시 포함)",
               "columns": [],
@@ -192,7 +192,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T22:48:30.526Z"
+        "last_updated": "2026-08-17T22:48:30.526Z",
+        "module_paths": []
       },
       "required_roles": [
         "ROLE-003"
@@ -206,8 +207,8 @@
           "surface": "page",
           "platform": "web",
           "sections": [],
-          "source_hash": "3344129b50d0222b3a3b53e04305001bcd9c79022adf89efadf6ca790ead4174",
-          "generated_at": "2026-08-17T22:21:55.546Z",
+          "source_hash": "bc47c9c91ef98b3dd6461c7c1201d764e9d8f7053d16167657e4ca06ec68bf19",
+          "generated_at": "2026-08-27T01:03:34.721Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -221,12 +222,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 24,
+    "current_version": 26,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이 화면은 영상 선택과 진입을 담당하며 산출물의 내부 구조나 라벨 저장 값 구성을 안내하지 않는다. 앞서 본문 문자열 전수 대조로 관련 서술이 없음을 확인했고 그 뒤 실현 엔드포인트 목록 변경이 다시 전파된 것이라 추가 수정이 없다.",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.0KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T05:01:49.902Z",
+    "last_updated_at": "2026-08-27T01:03:34.722Z",
     "created_at": "2026-05-30T07:55:58.838Z"
   }
 }

@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-034
 type: screen_spec
-version: 22
-last_updated_at: 2026-08-26T01:00:11.308Z
+version: 26
+last_updated_at: 2026-08-27T10:18:16.372Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T08:33:50.688Z
-sync_session: 30
-stale: true
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-08-27T20:53:19.491Z
+sync_session: 31
+stale: false
+status: CHANGED
+prev_version: 22
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v22 → v26**
+> change_summary: 외부 위탁 규격 축에 대한 확인만 기록한다. 이 화면은 마킹만 갖고 증강 요청은 업로드 목록 소관이라, 위탁 창구가 어디이고 요청 본문에 무엇이 필요한지는 이 화면의 사양에 닿지 않는다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 라벨링 화면
 
@@ -38,7 +42,7 @@ draft
 
 ## purpose
 
-PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩 박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 오토라벨링·SAM2·VLM·검수·버전관리는 여전히 제공하지 않는다. 접근: PORTAL_USER.
+PORTAL_USER가 본인 업로드 자산(이미지 1장 또는 영상에서 추출된 프레임)에 수동 라벨링만 수행하는 화면. 라벨링 코어(CanvasShell)를 props 조립으로 재사용하되 노출 도구는 선택/이동/바운딩 박스/폴리곤 4종뿐이며 SAM 분할·SAM 추적·키포인트·오토라벨(YOLO)은 제공하지 않는다(데이터마트 라벨링 화면 SCREEN-005와 도구 구성이 다름). 이미지 자산은 단일 프레임, 영상 자산은 프레임 좌우 네비게이션을 제공하며 저장은 현재 프레임 라벨 전체교체(PUT) 1회다. 라벨 분류는 자유 텍스트가 아니라 활성 라벨 마스터 목록에서 선택한다. 상단에서 라벨 JSON 내보내기와 원본 파일 다운로드를 제공한다. READY 상태가 아닌 자산은 안내만 표시하고 라벨링을 진행할 수 없다. 업로드한 영상 자산에 한해 이 화면에서 이벤트구간 마킹을 수행한다 — 이미지 자산은 대상이 아니다. 미제공은 오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)을 뜻한다. 접근: PORTAL_USER.
 
 ## sections
 
@@ -338,6 +342,37 @@ _(empty)_
 
 _(empty)_
 
+### 이벤트구간 마킹 (영상 자산만)
+
+- **role**: main
+- **layout**: stack
+
+**components**:
+
+#### [1]
+
+- **note**: 영상 자산만 노출 — 이미지 자산에는 두지 않는다
+- **type**: Button
+- **label**: 이벤트구간 마킹
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **description**: 영상 자산일 때만 노출한다 — 이미지 자산은 이벤트구간 마킹 대상이 아니다. 업로드한 영상의 이벤트구간을 이 화면에서 표시해 저장한다. 그렇게 만들어진 마킹은 업로드 자산 경로 안에 머물며 내부 파이프라인·데이터마트로 넘어가지 않는다 — 본인 자산 업로드 예외의 연장이라 분리 원칙이 그대로 유지된다.
+
+**references_apis**:
+
+_(empty)_
+
+**references_features**:
+
+_(empty)_
+
 ### 미준비/실패/오류 안내
 
 - **role**: main
@@ -422,6 +457,10 @@ _(empty)_
 
 2026-08-25T01:21:34.047Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-003
@@ -440,8 +479,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 8bcbb4e3117b1eb48d3bc1d6686eb76158e857fd2e68b7bf02c49d3eb81c96b7
-- **generated_at**: 2026-08-18T03:30:50.206Z
+- **source_hash**: 27b87478ad74ffc0bd0bea3d6678c9e0933beb86c22ab65eaa067baee3ad2120
+- **generated_at**: 2026-08-27T09:26:24.278Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

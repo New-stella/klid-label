@@ -1,12 +1,12 @@
 ---
 logicraft_item: ROLE-003
 type: permission_role
-version: 8
+version: 9
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T04:28:02.450Z
+synced_at: 2026-08-27T20:54:27.657Z
 status: CHANGED
-prev_version: 7
+prev_version: 8
 content_hash: f7b96c5a16b1ed0afaf7d82133dc9e81f0f14c07782fa181c4c046be1b0f7912
 stale: false
 raw: ./_raw/ROLE-003.json

@@ -22,7 +22,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -36,7 +37,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -50,7 +52,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -64,7 +67,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -72,17 +76,18 @@
           "name": "AdminSessionController",
           "arch_role": "driving_adapter",
           "technology": "Spring @RestController (/v1/manage/admin-session, @PreAuthorize REVIEWER)",
-          "description": "연동 서버 주소 4종을 바꾸기 위한 관리자 단기 유효창을 발급한다(POST). 인가 → 속도 제한 → 관리자 패스워드 대조 순으로 판정하고, 성공하면 무상태 서명 토큰과 만료 일시를 돌려준다.",
+          "description": "관리 기능 공통 진입인 관리자 단기 유효창을 발급한다(POST). 이 창은 연동 주소 변경 전용이 아니라 운영·관리 성격의 쓰기 전반에 요구되며, 요구 대상은 개수가 아니라 성질로 정한다. 인가 → 속도 제한 → 관리자 패스워드 대조 순으로 판정하고, 성공하면 무상태 서명 토큰과 만료 일시를 돌려준다. 이 순서는 권한 없는 시도가 속도 제한 몫을 갉아먹지 않게 하려는 것이다. 발급된 창은 역할을 승격시키지 않는다 — 검수자 권한은 그대로 필요하다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
-      "description": "시스템 설정 컴포넌트. 비식별 옵션 값도 같은 설정 키-값 경로에 담기지만 이 컴포넌트는 저장과 제공만 담당한다. REVIEWER 가 /v1/manage/configs 에서 화이트리스트 키(ConfigKeys.ALLOWED)만 조회/수정한다. SystemConfigController(@PreAuthorize REVIEWER) → SystemConfigService(Caffeine 'sysconfig' 캐시 TTL 60s, getInt/getDouble/getString 핫패스 가속, update 시 allEntries 무효화) → LsSystemConfigRepository(@ControlRepo). 타입별 검증(NUMBER 범위/DECIMAL 범위/BOOLEAN true|false) + 키별 범위(ConfigKeys.NUMBER_RANGE/DECIMAL_RANGE) + Service 단 REVIEWER 이중 검증. CWE-117 방어로 허용 안된 키는 원본 메시지 미노출. 설정값은 비식별 처리(DeidentifyClient 호출 시) 등 소비측이 읽어간다.",
+      "description": "시스템 설정 컴포넌트. 비식별 옵션 값도 같은 설정 키-값 경로에 담기지만 이 컴포넌트는 저장과 제공만 담당한다. REVIEWER 가 /v1/manage/configs 에서 화이트리스트 키(ConfigKeys.ALLOWED)만 조회/수정한다. SystemConfigController(@PreAuthorize REVIEWER) → SystemConfigService(Caffeine 'sysconfig' 캐시 TTL 60s, getInt/getDouble/getString 핫패스 가속, update 시 allEntries 무효화) → LsSystemConfigRepository(@ControlRepo). 타입별 검증(NUMBER 범위/DECIMAL 범위/BOOLEAN true|false) + 키별 범위(ConfigKeys.NUMBER_RANGE/DECIMAL_RANGE) + Service 단 REVIEWER 이중 검증. CWE-117 방어로 허용 안된 키는 원본 메시지 미노출. 설정값은 비식별 처리(DeidentifyClient 호출 시) 등 소비측이 읽어간다. 연동 서버 주소 키는 검수자 권한 위에 관리자 단기 유효창을 하나 더 요구한다. 유효창이 유효한지 판정하는 일은 관리자 세션 발급·검증이 단일 지점으로 소유하고 이 컴포넌트는 그 판정을 복제하지 않는다. 다만 이 창구는 표식을 붙이지 않고 저장을 수행하는 지점에서 판정 지점을 직접 부른다 — 요구가 창구가 아니라 설정 키 단위로 갈리는데 표식은 창구 전체에 걸리므로, 붙이면 요구가 없는 키까지 함께 막혀 운영자가 늘 쓰던 설정 변경이 잠긴다. 유효창 자체는 연동 주소 전용이 아니라 관리 기능 공통 진입이지만, 이 창구에서 그것을 요구하는 지점은 주소 키에 한정된다 — 두 축을 뭉뚱그려 이 설정 축 전체에 게이트를 걸지 않는다. 관리자 패스워드는 이 설정 저장소가 아니라 자격 전용 저장 위치에 해시로만 두고 운영 화면에서 교체하며, 교체하면 그 전에 발급된 유효창이 모두 무효가 된다.",
       "module_name": "sysconfig",
       "relationships": [
         {
@@ -114,12 +119,20 @@
         {
           "to": "관리자 세션 발급·검증 (auth 패키지)",
           "from": "SystemConfigService",
-          "description": "연동 서버 주소 키 저장 시 X-Admin-Session 토큰 검증. 저장을 수행하는 지점 한 곳에서만 확인한다"
+          "description": "연동 서버 주소 키 저장 시 X-Admin-Session 토큰 검증(verify). 판정은 관리자 세션 발급·검증이 단일 지점으로 소유하고 이 컴포넌트는 복제하지 않는다. 이 창구는 요구가 설정 키 단위로 갈려 표식을 쓰지 않고 저장을 수행하는 지점에서 판정 지점을 직접 부른다 — 표식은 창구 전체에 걸려서, 붙이면 요구가 없는 키까지 함께 막힌다. 이 창구에서 요구하는 지점은 연동 서버 주소 키에 한정되며, 배치·추론·정밀도·비식별 관련 키는 검수자 권한만으로 바꾼다"
         }
       ],
       "depicts_dfeats": [
         "DFEAT-045"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "external_dependencies": [
         {
@@ -138,18 +151,18 @@
           "kind": "container",
           "name": "관리자 세션 발급·검증 (auth 패키지)",
           "technology": "AdminSessionService / AdminSessionTokenService",
-          "description": "관리자 공유 패스워드 대조와 무상태 서명 토큰의 발급·검증을 담당. AdminSessionController 가 발급을, SystemConfigService 가 연동 주소 저장 시 검증(verify)을 위임한다. 토큰은 주소 설정 변경에만 효력이 있고 역할을 승격시키지 않는다."
+          "description": "관리자 공유 패스워드 대조와 무상태 서명 토큰의 발급·검증을 담당(AdminSessionService · AdminSessionTokenService · AdminPasswordVerifier). AdminSessionController 가 발급을, SystemConfigService 가 연동 주소 저장 시 검증(verify)을 위임한다. 토큰은 관리 기능 공통 진입으로 쓰이며 역할을 승격시키지 않는다 — 인가는 대체되지 않고 가산된다. 패스워드 해시와 속도 제한은 역할 자가부여 진입점과 공유한다(버킷을 나누면 두 진입점을 번갈아 써서 실효 한도가 두 배가 된다). 관리자 패스워드는 해시로만 보관하되 일반 설정 저장소가 아닌 자격 전용 저장 위치에 두고 운영 화면에서 교체하며, 교체하면 그 전에 발급된 창이 모두 무효가 된다 — 토큰 서명이 현재 패스워드에 의존해 별도 무효화 장부가 필요 없다."
         }
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
-    "stale": true,
-    "stale_reason": "API-193의 data.implementation 변경이 depicts로 2-hop 전파",
-    "change_summary": "제목과 첫 문장이 선언하는 범위를 실제 구성에 맞춘다. 비식별 옵션을 정체성으로 내세우면서도 그 옵션을 담당하는 구성요소는 하나도 그리지 않았고, 같은 항목이 스스로 '저장과 제공만 담당'이라고 한정하고 있었다. 비식별 옵션이 같은 설정 경로를 쓴다는 사실은 남기고 소비 관계는 기존 의존 표현이 계속 담는다.",
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "게이트를 두는 자리 서술을 확정 사양으로 정정한다. 구 서술 '게이트는 컨트롤러가 아니라 저장을 수행하는 지점 한 곳에 둔다 — 호출처마다 배선하면 새 진입점이 생길 때 샌다'는 폐기다. 그 문장이 지키려던 것(어느 창구도 판정을 복제하지 않는다)은 '판정은 관리자 세션 발급·검증이 단일 지점으로 소유한다'로 남기고, 어느 요청에 요구가 걸리는지는 창구가 표식으로 선언한다는 확정 사양을 반영한다. 다만 이 설정 축은 그 표식 방식의 예외다 — 요구가 창구가 아니라 설정 키 단위로 갈리는데 표식은 창구 전체에 걸리므로, 붙이면 요구가 없는 키까지 함께 막혀 운영자가 늘 쓰던 설정 변경이 잠긴다. 그래서 이 창구는 표식을 쓰지 않고 저장을 수행하는 지점에서 판정 지점을 직접 부른다는 사실을 명시했다. 요구 지점이 연동 서버 주소 키에 한정된다는 축 구분과 관리자 패스워드 저장 위치 서술은 그대로 두었고, 컴포넌트·외부 의존·관계 원소는 하나도 지우지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:46:00.386Z",
+    "last_updated_at": "2026-08-27T14:25:07.165Z",
     "created_at": "2026-06-11T01:09:26.430Z"
   }
 }

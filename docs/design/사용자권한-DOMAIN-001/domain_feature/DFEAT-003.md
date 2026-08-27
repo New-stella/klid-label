@@ -1,20 +1,20 @@
 ---
 logicraft_item: DFEAT-003
 type: domain_feature
-version: 8
+version: 9
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:11:02.328Z
+synced_at: 2026-08-27T20:54:27.190Z
 status: CHANGED
-prev_version: 7
-content_hash: 0ceb65f103aaa4751adeea5ad8ab270381b8e2c7377e453d19f5340fa2771a5f
+prev_version: 8
+content_hash: c26ea197ebdf0d65d080f3fb96f8d7819bc1160f32d0a0b821a0312fce039a9a
 stale: false
 raw: ./_raw/DFEAT-003.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]
   implements: ["[[API-001]]", "[[API-002]]", "[[API-003]]", "[[API-004]]", "[[API-005]]"]
   migrated_from: ["[[LEGACY-125]]"]
-  depicts_backward: ["[[CDIAG-008]]"]
+  depicts_backward: ["[[CDIAG-008]]", "[[CMP-012]]"]
   realizes_backward: ["[[UC-030]]"]
   references_backward: ["[[CDIAG-008]]"]
 ---
@@ -91,6 +91,8 @@ REVIEWER 가 사용자 목록을 조회하고 역할을 부여·변경한다(별
 
 [자가부여 범위] 자가부여 화이트리스트에 WORKER 와 REVIEWER 가 들어간다. 관리자 비밀번호(BCrypt)를 아는 사람은 누구나 검수자가 될 수 있으며, 그 비밀번호의 관리 수준이 시스템 전체 권한 경계다 — 사용자가 트레이드오프를 명시적으로 수용한 결정이다.
 
+[역할 변경의 요건] 역할을 부여·변경하는 것은 운영·관리 성격의 쓰기라 검수자 권한에 관리자 단기 유효창이 가산된다. 유효창은 역할을 올리지 않으므로 검수자 권한은 그대로 필요하다. 조회는 그 대상이 아니다 — 목록·단건 조회와 배정 대상 조회는 검수자 권한만으로 되며, 조회까지 막으면 작업 배정 흐름이 끊긴다.
+
 (1차 baseline: 관리자가 사용자 목록 조회·역할/권한 부여, 화면 SKKLID-UI-03-05-01)
 
 ## invokes_apis
@@ -122,6 +124,10 @@ _(empty)_
 ### last_updated
 
 2026-05-30T02:33:04.975Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 

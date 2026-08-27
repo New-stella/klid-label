@@ -1,0 +1,302 @@
+{
+  "item": {
+    "id": "CMP-012",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_c4_component",
+    "title": "인증 컴포넌트",
+    "slug": "인증-컴포넌트",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "인증 컴포넌트",
+      "components": [
+        {
+          "kind": "controller",
+          "name": "RoleClaimController",
+          "arch_role": "driving_adapter",
+          "technology": "Spring @RestController",
+          "description": "역할 자가부여 창구. 관리자 공유 패스워드를 대조해 인계 토큰에 역할을 붙인다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "SessionController",
+          "arch_role": "driving_adapter",
+          "technology": "Spring @RestController",
+          "description": "현재 세션의 사용자·역할·채널 정보를 돌려준다. 역할이 없는 사용자도 호출할 수 있어야 자가부여로 갈 수 있다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "AdminSessionService",
+          "arch_role": "application",
+          "technology": "Spring @Service",
+          "description": "관리 기능 진입 요청을 받아 자격 대조와 토큰 발급을 조립한다. 판정 순서는 인가, 속도 제한, 자격 대조다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "AdminSessionTokenService",
+          "arch_role": "domain",
+          "technology": "HMAC 서명 · 무상태",
+          "description": "유효창 토큰의 발급·검증·만료 판정을 소유한다. 저장소를 두지 않고 서명과 만료 시각만으로 판정하며, 서명 유도에 현재 자격을 섞어 자격 교체가 곧 일괄 무효가 되게 한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "AdminPasswordVerifier",
+          "arch_role": "domain",
+          "technology": "단방향 해시 대조",
+          "description": "관리자 공유 자격을 대조한다. 자격 전용 저장 위치를 먼저 보고 비어 있으면 배포 설정값으로 되돌아가며 둘 다 없으면 아무것도 통과시키지 않는다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "RoleClaimService",
+          "arch_role": "application",
+          "technology": "Spring @Service",
+          "description": "자가부여 가능 역할인지 판정하고 사용자 마스터를 인계값으로 자동 등록·갱신한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "RoleClaimRateLimiter",
+          "arch_role": "domain",
+          "technology": "창 단위 집계",
+          "description": "자가부여와 관리 기능 진입이 함께 쓰는 속도 제한. 버킷을 나누지 않는 것이 의도다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "WorkLockService",
+          "arch_role": "application",
+          "technology": "Spring @Service",
+          "description": "작업 단위 잠금. 이 컴포넌트에 함께 있으나 관리자 유효창과는 다른 축이다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "AdminSessionController",
+          "arch_role": "driving_adapter",
+          "technology": "Spring @RestController",
+          "description": "관리 기능 진입 창구. 관리자 자격 재확인 요청을 받아 유효창 발급을 조립 지점에 넘긴다. 원래 설정 패키지에 있었으나 자격을 다루는 창구는 판정을 소유한 이 컴포넌트에 모여 있어야 하므로 주소는 그대로 두고 소속만 옮겼다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "AdminPasswordController",
+          "arch_role": "driving_adapter",
+          "technology": "Spring @RestController",
+          "description": "관리자 공유 자격 교체 창구. 새 자격을 받아 교체를 조립 지점에 넘긴다. 어떤 요청도 예외 없이 유효창을 요구하므로 표식으로 그 요구를 선언하고, 판정 자체는 공통 배선을 거쳐 판정 지점이 한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "AdminPasswordService",
+          "arch_role": "application",
+          "technology": "Spring @Service",
+          "description": "자격 교체를 조립한다. 판정 순서는 인가, 속도 제한, 현재 자격 재확인이며 속도 제한을 자격 대조보다 앞에 둔다. 새 값이 현재 값과 같으면 거부한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "adapter",
+          "name": "관리자 유효창 공통 배선",
+          "arch_role": "driving_adapter",
+          "technology": "Spring 요청 인터셉터",
+          "description": "요청이 닿을 창구에 유효창 요구 표식이 걸려 있는지 읽고, 걸려 있으면 판정 지점에 넘긴다. 표식을 읽을 뿐 유효 판정을 스스로 하지 않는다. 표식을 찾는 축은 둘이다 — 창구 자체에 붙은 표식과, 그 창구를 담은 타입에 붙어 그 안의 창구 전체에 걸리는 표식.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        }
+      ],
+      "description": "인증 컴포넌트. 저작도구는 독립 로그인 화면을 갖지 않고 상위 시스템이 발급한 토큰을 인계받아 검증하므로, 이 컴포넌트가 소유하는 것은 로그인이 아니라 그 인계 위에 얹히는 두 가지다 — 역할 자가부여와 관리 기능 진입의 단기 유효창.\n\n★관리자 단기 유효창의 발급·검증·만료 판정이 이 컴포넌트의 단일 지점이다. 관리 기능의 쓰기가 여러 창구로 넓어지면서 판정을 호출처마다 배선하면 새기 때문에, 어느 창구도 그 판정을 복제하지 않고 이 지점 하나가 소유한다. 어느 설정 키에 그 요구가 걸리는가는 설정 컴포넌트가 따로 갖는다 — 두 책임을 한쪽에 몰면 그것이 곧 복제다.\n\n어느 요청에 이 요구가 걸리는지는 창구가 스스로 선언하고, 그 선언을 읽어 판정 지점에 넘기는 것은 공통 배선의 몫이다. 이 컴포넌트는 판정 지점과 함께 그 공통 배선도 소유한다. 창구가 들고 있는 것은 요구가 걸린다는 선언뿐이고 판정 자체가 아니므로, 그 선언은 판정의 복제가 아니다.\n\n표식은 사람이 붙이는 것이라 빠뜨려도 아무 신호가 나지 않는다. 그래서 표식 누락을 잡는 정적 검사도 이 컴포넌트가 함께 소유한다. 그 검사는 표식을 찾는 축이 둘이라는 사실을 반영해야 한다 — 창구 자체에 붙은 표식과, 그 창구를 담은 타입에 붙어 그 안의 창구 전체에 걸리는 표식. 한 축만 보는 검사는 다른 축으로 들어온 변경을 놓친다. 실제로 이 축에서 두 술어가 갈려, 한쪽 축으로만 들어온 창구가 검사를 그대로 지나가는 우회 구멍이 발견된 적이 있다.\n\n표식이 창구 전체에 걸리는 방식이므로, 요구가 요청 내용에 따라 갈리는 창구에는 표식을 쓰지 않고 판정 지점을 직접 부른다. 표식을 붙이면 요구가 걸리지 않아야 할 요청까지 함께 막히기 때문이다. 어느 요청에 요구가 걸리는지를 가르는 판정은 그 창구가 속한 축이 계속 갖고, 이 컴포넌트로 가져오지 않는다.\n\n유효창은 무상태 서명 토큰이라 어디에도 저장하지 않는다. 발급 대상자에게 묶이고 역할을 올리지 않아 인가는 대체되지 않고 가산된다. 유효 시간은 기본 10분이며 상한 30분을 설정으로도 넘지 못하고, 유효 여부 판정은 서버가 소유한다.\n\n대조하는 자격은 자격 전용 저장 위치의 해시이며 그 위치가 비어 있으면 배포 설정값으로 되돌아가고 둘 다 없으면 어떤 패스워드도 통과하지 않는다. 자격이 교체되면 그 전에 발급된 유효창이 모두 무효가 되는데, 무효화 장부나 세대 값을 두지 않고 서명이 현재 자격에 의존하게 만들어 이룬다. 역할 자가부여와 유효창 발급은 속도 제한을 공유한다 — 버킷을 나누면 두 진입점을 번갈아 써서 실효 한도가 두 배가 되기 때문이다.",
+      "module_name": "auth",
+      "relationships": [
+        {
+          "to": "RoleClaimService",
+          "from": "RoleClaimController",
+          "description": "자가부여 요청 위임"
+        },
+        {
+          "to": "AdminPasswordVerifier",
+          "from": "RoleClaimService",
+          "description": "관리자 공유 자격 대조"
+        },
+        {
+          "to": "RoleClaimRateLimiter",
+          "from": "RoleClaimService",
+          "description": "시도 제한 확인"
+        },
+        {
+          "to": "AdminPasswordVerifier",
+          "from": "AdminSessionService",
+          "description": "관리자 공유 자격 대조"
+        },
+        {
+          "to": "RoleClaimRateLimiter",
+          "from": "AdminSessionService",
+          "description": "같은 축의 속도 제한을 공유한다"
+        },
+        {
+          "to": "AdminSessionTokenService",
+          "from": "AdminSessionService",
+          "description": "유효창 토큰 발급"
+        },
+        {
+          "to": "AdminPasswordVerifier",
+          "from": "AdminSessionTokenService",
+          "description": "서명 유도에 현재 자격을 섞어, 자격이 바뀌면 이전 토큰이 검증에 실패한다"
+        },
+        {
+          "to": "AdminSessionService",
+          "from": "AdminSessionController",
+          "description": "관리 기능 진입 요청 위임"
+        },
+        {
+          "to": "AdminPasswordService",
+          "from": "AdminPasswordController",
+          "description": "자격 교체 요청 위임"
+        },
+        {
+          "to": "AdminPasswordVerifier",
+          "from": "AdminPasswordService",
+          "description": "현재 자격 재확인과 새 자격 교체"
+        },
+        {
+          "to": "RoleClaimRateLimiter",
+          "from": "AdminPasswordService",
+          "description": "자격 대조보다 앞서 시도 제한을 소비한다 — 같은 축의 속도 제한을 공유한다"
+        },
+        {
+          "to": "AdminPasswordController",
+          "from": "관리자 유효창 공통 배선",
+          "description": "창구에 붙은 유효창 요구 표식을 읽고, 판정을 통과한 요청만 창구 본문에 닿게 한다"
+        },
+        {
+          "to": "AdminSessionTokenService",
+          "from": "관리자 유효창 공통 배선",
+          "description": "표식이 걸린 요청의 유효 판정을 단일 지점에 넘긴다"
+        }
+      ],
+      "depicts_dfeats": [
+        "DFEAT-001",
+        "DFEAT-003"
+      ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "referenced_items": [],
+      "external_dependencies": [
+        {
+          "kind": "container",
+          "name": "자격 전용 저장 위치",
+          "technology": "PostgreSQL",
+          "description": "관리자 공유 자격의 해시를 보관한다. 목록 조회로 값이 드러나는 설정 저장소에 두지 않는다."
+        },
+        {
+          "kind": "container",
+          "name": "인가 필터 (common)",
+          "technology": "Spring Security",
+          "description": "인계 토큰을 검증해 보안 컨텍스트를 채운다. 유효창은 그 인가를 대체하지 않고 가산된다."
+        }
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "서술이 주장하는 것을 도해가 실제로 그리게 한다 — 순수 추가이며 기존 원소는 하나도 지우지 않았다. 첫째, 자격 교체 창구를 내부 구성으로 세웠다. 같은 자격을 다루는 두 창구 중 진입 창구만 그려져 있어 비대칭이었고, 소속 이동 대상에 자격 교체 창구가 함께 적혀 있다. 진입 창구를 세운 방식 그대로 같은 종류·같은 역할 표기로 넣었고, 엣지 없는 외톨이가 되지 않도록 그 요청을 받는 조립 지점도 함께 세워 위임 엣지를 이었다. 그 조립 지점이 자격 대조와 속도 제한을 부르는 두 엣지도 함께 그렸다 — 셋 다 실제 배선을 확인하고 넣었으며 추정으로 만든 엣지는 없다. 둘째, 공통 배선을 원소로 세웠다. 판정 지점과 함께 공통 배선도 소유한다고 서술이 선언하는데 그리는 원소가 없었다. 표식을 읽는 쪽과 판정 지점을 부르는 쪽 두 엣지를 함께 넣어 그 역할이 도해에서 드러나게 했고, 이름과 설명은 같은 배선을 참가자로 세운 흐름 도해의 어휘를 따랐다. 셋째, 표식 누락 정적 검사는 원소로 넣지 않았다. 그것은 실행 중에 존재하는 구성요소가 아니라 시험이라 컴포넌트 상자로 그리면 범주가 어긋난다. 서술은 그대로 두었다 — 이 도해의 서술은 처음부터 그리는 단위가 무엇을 소유하는가를 말하는 자리이고 소유 선언은 그 층에서 정합하며, 그 요구 자체를 약화시키지 않는다. 판정 지점 단일 소유·설정 컴포넌트 책임 분리·표식과 공통 배선·정적 검사 두 축 서술은 한 글자도 건드리지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T14:40:36.205Z",
+    "created_at": "2026-08-27T10:35:49.373Z"
+  }
+}

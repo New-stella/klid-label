@@ -143,7 +143,7 @@
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "description": "REVIEWER 권한 없음, 또는 관리자 단기 유효창이 없거나 만료됨. 두 사유를 구분해 알리지 않는다 — 응답이 관리자 유효창 보유 여부를 알려주는 수단이 되지 않게 한다. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "409": {
@@ -215,13 +215,24 @@
         "status": "new",
         "decided_by": "ADR-039",
         "change_kind": [
-          "capability-add"
+          "capability-add",
+          "security-architecture"
         ],
-        "diff_summary": "dev 전용 영상 업로드 + 오토라벨 파이프라인 트리거 — 2차 신설. authoring.dev.upload.enabled 토글 기본 false"
+        "diff_summary": "dev 전용 영상 업로드 + 오토라벨 파이프라인 트리거 — 2차 신설. authoring.dev.upload.enabled 토글 기본 false. 검수자 권한과 그 토글 위에 관리자 단기 유효창이 가산된다."
       },
       "deprecated": false,
-      "parameters": [],
-      "description": "authoring.dev.upload.enabled=true(env DEV_UPLOAD_ENABLED) 일 때만 빈이 등록되어 endpoint 가 노출된다(기본 false, fail-closed, ADR-039). 미설정/false 면 prd·dev 무관하게 빈 부재(404). 추가로 REVIEWER 권한 가드. multipart/form-data 로 영상 파일과 JSON 메타데이터를 함께 업로드한다. 응답은 즉시(200) 반환되고 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다. 허용 확장자: mp4/webm/mov/avi, 기본 최대 500MB.",
+      "parameters": [
+        {
+          "in": "header",
+          "name": "X-Admin-Session",
+          "schema": {
+            "type": "string"
+          },
+          "required": true,
+          "description": "관리자 진입에서 발급받은 단기 토큰. 영상 업로드 시작은 운영·관리 성격의 쓰기라 이 창구에서는 항상 요구한다. 없거나 만료됐으면 403 이며, 권한 부족과 구분해 알리지 않는다."
+        }
+      ],
+      "description": "authoring.dev.upload.enabled=true(env DEV_UPLOAD_ENABLED) 일 때만 빈이 등록되어 endpoint 가 노출된다(기본 false, fail-closed, ADR-039). 미설정/false 면 prd·dev 무관하게 빈 부재(404). 추가로 REVIEWER 권한 가드. multipart/form-data 로 영상 파일과 JSON 메타데이터를 함께 업로드한다. 응답은 즉시(200) 반환되고 프레임 추출 + YOLO + SAM2 는 백그라운드로 실행된다. 허용 확장자: mp4/webm/mov/avi, 기본 최대 500MB.\n\n검수자 권한과 위 운영 토글에 더해, 유효한 관리자 단기 유효창을 함께 요구한다. 셋은 서로를 대체하지 않고 가산된다 — 토글이 켜져 있어야 창구가 열리고, 검수자 권한이 있어야 하며, 그 위에 유효창이 하나 더 필요하다. 유효창은 관리자 진입에서 발급받은 단기 토큰을 X-Admin-Session 헤더로 실어 제시한다. 영상 업로드의 시작은 운영·관리 성격의 쓰기이므로 이 요구의 대상이며, 이 창구는 한 번의 요청으로 업로드가 끝나므로 그 확인도 이 호출 하나에서 이뤄진다. 유효창이 없거나 만료됐으면 403 이고, 거부 사유는 권한 부족과 구분해 알리지 않는다 — 응답이 관리자 유효창의 보유 여부를 알려주는 수단이 되지 않게 한다.\n\n이 창구는 관리 기능의 공통 진입 경로에 속한다. 유효창은 역할을 승격시키지 않으며, 발급받은 사람에게 묶여 있어 요청은 여전히 본인 자격으로 인증된다 — 공유 패스워드로 여는 유효창이지만 업로드 기록에는 실제 행위자가 개인 단위로 남는다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -308,7 +319,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:27.008Z"
+        "last_updated": "2026-08-25T01:21:27.008Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -316,12 +328,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "제목과 식별 슬러그에 남아 있던 옛 엔드포인트 주소 표기를 새 주소로 맞춘다. 앞선 리비전이 경로 값만 바꾸고 제목·슬러그를 함께 고치지 않아, 목록에서는 옛 주소로 보이고 실제 계약은 새 주소인 상태가 되어 있었다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:27.008Z",
+    "change_summary": "영상 업로드의 시작은 운영·관리 성격의 쓰기이므로, 검수자 권한과 기존 운영 토글 위에 유효한 관리자 단기 유효창을 하나 더 요구한다. 셋은 서로를 대체하지 않고 가산되며 토글의 기본값(끄는 쪽)과 검수자 권한 요구는 그대로다. 유효창을 싣는 헤더를 파라미터로 계약에 명시하고, 유효창이 없거나 만료된 경우의 거부를 403 응답 서술에 더한다 — 권한 부족과 구분해 알리지 않아 응답이 유효창 보유 여부를 알려주는 수단이 되지 않게 한다. 이 창구가 관리 기능의 공통 진입 경로에 속한다는 점과, 유효창 토큰이 발급받은 사람에게 묶여 있어 기록에 행위자가 개인 단위로 남는다는 점을 함께 적는다. 요청 형식(멀티파트)과 응답 스키마 계열은 무변경이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T08:14:35.199Z",
     "created_at": "2026-07-30T07:05:56.454Z"
   }
 }
