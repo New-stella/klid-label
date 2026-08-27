@@ -4,7 +4,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」의 <b>코드 공간 단일 원천</b> — Phase 7-A2 (INT-020/030/031).
+ * 「생성형 AI API 연동명세서 v1.3」의 <b>코드 공간 단일 원천</b> — Phase 7-A2 (INT-020/030/031).
  *
  * <p>상태·오류코드·미디어유형을 <b>enum 이 아니라 String + 화이트리스트</b>로 다룬다. 이유는 둘이다:
  * <ul>
@@ -94,5 +94,33 @@ public final class GenAiContract {
     /** 외부 job_id 가 계약 형식인가 — 위반이면 외부 호출 자체를 개시하지 않는다(fail-fast). */
     public static boolean isValidJobId(String jobId) {
         return jobId != null && JOB_ID.matcher(jobId).matches();
+    }
+
+    /**
+     * §4.1 {@code evnt_type} 허용 코드 — <b>우리가 보내는 값</b>이라 enum 으로 닫는다.
+     *
+     * <p>위쪽 상태·오류 코드 공간이 String + 화이트리스트인 것과 <b>방향이 반대</b>다: 그쪽은 벤더가
+     * 보내오는 값이라 미지의 값에 파싱이 깨지면 응답 전체를 잃지만, 이쪽은 우리가 조립하는 값이라
+     * 계약 밖 값을 만들 수 있는 것 자체가 결함이다(요청이 {@code 400} 으로 되돌아온다).
+     *
+     * <p><b>영상의 관제 이벤트 코드에서 변환하지 않는다</b>: 두 분류 축이 서로 다른 체계라 자동 변환은
+     * 추정이 되고, 추정한 값이 그대로 위탁에 실린다. 요청자가 화면에서 고른 값을 그대로 중계한다.
+     *
+     * @design INT-008
+     */
+    public enum EventType {
+        FLOOD, WILDFIRE
+    }
+
+    /**
+     * §4.1 {@code evnt_subtype} 허용 코드 — <b>침수 전용</b>(선택).
+     *
+     * <p>계약에 산불 세부 코드가 정의돼 있지 않으므로 {@link EventType#WILDFIRE} 와 함께 보내면
+     * {@code 400} 이다. 그 조합은 우리 접수 단계에서 먼저 끊는다.
+     *
+     * @design INT-008
+     */
+    public enum FloodSubtype {
+        ROAD_FLOOD, RIVER_OVERFLOW, UNDERPASS_FLOOD, URBAN_INUNDATION, OTHER
     }
 }

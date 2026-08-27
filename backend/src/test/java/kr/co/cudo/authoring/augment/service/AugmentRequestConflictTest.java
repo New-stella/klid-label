@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -129,6 +130,11 @@ class AugmentRequestConflictTest {
     private static AugmentRequestRequest request() {
         return new AugmentRequestRequest(
                 List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", "HIGH"));
+                kr.co.cudo.authoring.augment.integration.dto.GenAiContract.EventType.FLOOD, null,
+                new AugmentRequestRequest.Mtdt(
+                        AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER,
+                        AugmentPrompts.Weather.RAIN, AugmentPrompts.Terrain.ROAD,
+                        AugmentPrompts.Severity.HIGH),
+                null);
     }
 }

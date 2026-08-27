@@ -17,6 +17,7 @@ security-reviewer 가 실측 재현한 결함을 **먼저 실패(RED)하는 테�
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -59,16 +60,41 @@ def _no_real_webhook(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(genai_sim, "send_webhook", _noop)
 
 
+@pytest.fixture(autouse=True)
+def _auto_idempotency_key(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """① 작업 요청의 ``Idempotency-Key``(v1.3 §3.1 필수)를 호출마다 자동 부여한다.
+
+    헤더를 **명시한** 호출은 그대로 두므로 멱등·누락 계약은 가려지지 않는다.
+    """
+    original_post = client.post
+
+    def _post(url: str, *args: object, **kwargs: object):  # noqa: ANN202
+        if url == JOBS_URL and "headers" not in kwargs:
+            kwargs["headers"] = {"Idempotency-Key": uuid.uuid4().hex}
+        return original_post(url, *args, **kwargs)
+
+    monkeypatch.setattr(client, "post", _post)
+
+
 def _body(tmp_path, **over: object) -> dict:
+    """v1.3 §4.1 표준 요청 본문."""
     body: dict = {
         "request_id": "req-sec",
         "request_channel": "AUTHORING",
-        "evnt_type": "FIRE",
-        "operation_type": "AUGMENT",
-        # 기본은 입력 파일이 필요 없는 T2I — 입력이 필요한 케이스만 개별 override 한다.
+        "evnt_type": "FLOOD",
+        "evnt_subtype": "ROAD_FLOOD",
+        # 기본은 입력 파일이 필요 없는 GENERATE × T2I — 입력이 필요한 케이스만 개별 override.
+        "operation_type": "GENERATE",
         "generation_mode": "T2I",
         "input_files": [],
-        "prompt": {"season": "winter"},
+        "mtdt": {
+            "time": "NIGHT",
+            "season": "WINTER",
+            "weather": "RAIN",
+            "terrain": "ROAD",
+            "severity": "HIGH",
+        },
+        "prompt": "야간 도로 침수 장면으로 변경해줘.",
         "callback_url": CALLBACK_URL,
     }
     body.update(over)
@@ -113,7 +139,12 @@ def test_F1_접수후_입력파일이_base밖_심볼릭링크로_바뀌면_유�
 
     files = [{"sequence": 1, "file_path": str(victim)}]
     # when — 접수(202) 직후 공격 창에서 교체
-    res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="I2I", input_files=files))
+    res = client.post(
+        JOBS_URL,
+        json=_body(
+            tmp_path, operation_type="AUGMENT", generation_mode="I2I", input_files=files
+        ),
+    )
     assert res.status_code == 202
     job_id = res.json()["job_id"]
     victim.unlink()
@@ -283,20 +314,20 @@ def test_F3_잡_수_상한을_넘으면_오래된_작업부터_만료된다(
     assert {j["job_id"] for j in jobs} == set(ids[-3:])
 
 
-def test_F3_과대_prompt는_400_INVALID_METADATA(
+def test_F3_과대_prompt는_400_INVALID_PARAMETER(
     client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # given — prompt 직렬화 상한 200바이트(바디 상한보다 작게)
+    # given — prompt 바이트 상한 200(계약 길이 1000자와 별개인 목 자원 보호 축)
     from app.config import reload_settings
 
     monkeypatch.setenv("MOCK_GENAI_MAX_BODY_BYTES", "1048576")
     monkeypatch.setenv("MOCK_GENAI_MAX_PROMPT_BYTES", "200")
     reload_settings()
-    # when
-    res = client.post(JOBS_URL, json=_body(tmp_path, prompt={"pad": "A" * 4096}))
-    # then
+    # when — 1000자 이내라 pydantic 은 통과하지만 UTF-8 로는 상한 초과
+    res = client.post(JOBS_URL, json=_body(tmp_path, prompt="가" * 300))
+    # then — v1.3 §3.3 "prompt 제한 초과" 는 INVALID_PARAMETER
     assert res.status_code == 400
-    assert res.json()["code"] == "INVALID_METADATA"
+    assert res.json()["code"] == "INVALID_PARAMETER"
 
 
 # ── F-6 : input_base 미설정 fail-open ────────────────────────────
@@ -319,7 +350,12 @@ def test_F6_base_미설정_상태의_접수는_400(
     reload_settings()
     files = [{"sequence": 1, "file_path": "/etc/passwd"}]
     # when
-    res = client.post(JOBS_URL, json=_body(tmp_path, generation_mode="I2I", input_files=files))
+    res = client.post(
+        JOBS_URL,
+        json=_body(
+            tmp_path, operation_type="AUGMENT", generation_mode="I2I", input_files=files
+        ),
+    )
     # then
     assert res.status_code == 400
     assert res.json()["code"] == "INVALID_PARAMETER"
@@ -340,7 +376,10 @@ def test_F7_접수후_입력파일이_커지면_복사되지_않고_FAILED(
     files = [{"sequence": 1, "file_path": str(src)}]
     # when — 접수 직후 파일을 상한 위로 키운다
     job_id = client.post(
-        JOBS_URL, json=_body(tmp_path, generation_mode="I2I", input_files=files)
+        JOBS_URL,
+        json=_body(
+            tmp_path, operation_type="AUGMENT", generation_mode="I2I", input_files=files
+        ),
     ).json()["job_id"]
     src.write_bytes(b"X" * 10_000)
 
@@ -425,7 +464,10 @@ def test_F11_취소된_작업의_산출물은_남지_않는다(
     files = [{"sequence": 1, "file_path": str(src)}]
     # when
     job_id = client.post(
-        JOBS_URL, json=_body(tmp_path, generation_mode="I2V", input_files=files)
+        JOBS_URL,
+        json=_body(
+            tmp_path, operation_type="AUGMENT", generation_mode="I2I", input_files=files
+        ),
     ).json()["job_id"]
     body = _wait_terminal(client, job_id)
     # then — 상태는 CANCELED 이고 디스크에 고아 산출물이 없다

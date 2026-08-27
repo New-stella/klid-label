@@ -391,7 +391,12 @@ class AugmentReviewServiceTest {
     void unresolvableRawSnRejectedWithoutSentinel() {
         // given — LS_DATA_AUG.SRC_SN 에는 프레임 FK 가 없어(V146 범위 밖) 프레임이 사라진 뒤에도
         //         증강 행이 남는다. 그 상태에서는 SRC_SN → RAW_SN 역해석이 실패한다.
-        Long danglingSrcSn = 500L; // LS_DATA_SRC 에 없는 프레임
+        // ⚠ 작은 상수(구 값 500L)를 쓰면 안 된다 — LS_DATA_SRC 의 PK 는 IDENTITY 라 1 부터 순차
+        //    발급되고, 테스트 JVM 하나가 컨테이너 DB 를 공유한다. 즉 <다른 클래스가 프레임을 몇 개
+        //    시드했는가>에 따라 그 id 가 실재하게 되어, 이 클래스를 단독 실행하면 통과하고 넓은
+        //    스코프로 함께 돌리면 실패하는 순서 의존이 된다(실제로 그렇게 깨졌다).
+        //    IDENTITY 가 도달할 수 없는 값을 쓰고, 그럼에도 아래 isEmpty() 가드를 남겨 fail-closed 한다.
+        Long danglingSrcSn = 9_000_000_500L; // LS_DATA_SRC 에 없는 프레임
         assertThat(srcRepository.findById(danglingSrcSn)).isEmpty();
         // 생성은 성공한(결과물 실재) 행이어야 한다 — 그래야 결정 사전조건을 통과해 <rawSn 역해석>
         // 단계까지 도달한다. PENDING 으로 두면 앞단 가드가 먼저 CONFLICT 를 내 이 테스트가 검증하려는

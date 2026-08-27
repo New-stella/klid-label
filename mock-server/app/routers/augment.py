@@ -1,5 +1,5 @@
 """
-생성형 AI(증강) 벤더 목 라우터 — 「생성형 AI API 연동명세서 v1.1」 정합.
+생성형 AI(증강) 벤더 목 라우터 — 「생성형 AI API 연동명세서 v1.3」 정합.
 
 목이 **제공**하는 4종 (prefix ``/api/genai``):
 - ① POST /api/genai/jobs                     : 작업 요청 → 202 RECEIVED
@@ -18,7 +18,20 @@
 - POST /api/genai/_mock/jobs/{job_id}/status-sync   : ③ 상태 동기화 수동 발신
 
 인증(§ 401 UNAUTHENTICATED / 403 FORBIDDEN)은 **이번 스코프에서 의도적으로 미구현**이다.
-``Idempotency-Key`` 헤더는 선택 — 동일 키 재요청은 기존 작업을 그대로 반환한다.
+``Idempotency-Key`` 헤더는 ① 작업 요청에서 **필수**(§3.1)이며 동일 키 재요청은 기존 작업을
+그대로 반환한다. 나머지 API 에는 불필요하다.
+
+v1.3 요청 본문 계약(§4.1) — 이 목이 강제하는 것:
+- ``mtdt``(객체)는 **필수**. 누락 시 400 REQUIRED_FIELD_MISSING(§3.3 "mtdt 또는 기타 필수 Body 누락").
+- ``mtdt`` 하위 5필드는 선택·nullable 이나 **유효한 조건값이 최소 1개** 있어야 한다(400
+  INVALID_PARAMETER). 허용 코드 밖 값도 같은 코드로 거부한다.
+  ⚠ 저작도구는 5필드를 전부 채워 보내지만 이 목은 **벤더**를 연기하므로 벤더 계약(최소 1개)만
+  강제한다 — 목을 우리 규칙으로 좁히면 실연동 판정과 어긋난다.
+- ``prompt`` 는 **문자열(최대 1000자) 선택**. 객체·배열이면 400 INVALID_PARAMETER.
+- **구 형태 거부** — 최상위 ``condition`` 과 객체형 ``prompt``(v1.2 의 prompt.condition /
+  prompt.text)는 v1.3 표준에서 제외됐으므로 접수하지 않는다.
+- ``evnt_type`` 은 FLOOD | WILDFIRE(§4.1). 목록 밖은 400 UNSUPPORTED_EVENT_TYPE.
+- ``evnt_subtype`` 은 FLOOD 세부 유형 5종(선택)이며 evnt_type=FLOOD 일 때만 전달한다.
 
 보안:
 - 입력 검증(CWE-20/915): pydantic 모델로 타입·필수·길이·enum 검증, 미선언 필드 무시.
@@ -45,7 +58,10 @@ from pydantic import BaseModel, ValidationError
 from app.config import Settings, get_settings
 from app.exceptions import GenAiApiError
 from app.schemas.genai import (
+    EVNT_SUBTYPE_APPLICABLE_TYPE,
     INPUT_REQUIRED_MODES,
+    SUPPORTED_EVNT_TYPES,
+    SUPPORTED_REQUEST_COMBINATIONS,
     CancelRequest,
     ErrorCode,
     JobAcceptedResponse,
@@ -54,6 +70,7 @@ from app.schemas.genai import (
     JobStatus,
     JobStatusResponse,
     JobSubmitRequest,
+    Mtdt,
 )
 from app.services import genai_sim
 from app.state import GenAiJob, sanitize_for_log
@@ -63,9 +80,13 @@ logger = logging.getLogger(__name__)
 
 _ModelT = TypeVar("_ModelT", bound=BaseModel)
 
-# Idempotency-Key 헤더 — 명세서상 string(64) 선택 항목.
+# Idempotency-Key 헤더 — §3.1 string(64). ① 작업 요청에서만 필수(나머지 API 는 불필요).
 _IDEMPOTENCY_HEADER = "Idempotency-Key"
 _IDEMPOTENCY_MAX_LEN = 64
+
+# v1.3 표준에서 제외된 구 최상위 필드 — 받으면 조용히 무시하지 않고 400 으로 거부한다.
+# extra="ignore" 라 모델까지 내려가면 사라지므로 파싱 직후 원본 payload 에서 판정해야 한다.
+_RETIRED_TOP_LEVEL_FIELDS = ("condition",)
 
 
 # ── 요청 파싱/검증 ────────────────────────────────────────────────
@@ -137,12 +158,14 @@ def _validate(model_cls: Type[_ModelT], payload: dict[str, Any]) -> _ModelT:
 
 
 def _error_code_of(exc: ValidationError) -> str:
-    """검증 오류 → 명세서 §3.3 400 코드 매핑."""
+    """검증 오류 → 명세서 §3.3 400 코드 매핑.
+
+    v1.3 에서 ``prompt`` 위반(객체 전달·제한 초과)과 ``mtdt`` 형식/허용 코드 오류는 모두
+    **INVALID_PARAMETER** 다(§3.3). v1.2 의 ``prompt`` → INVALID_METADATA 매핑은 폐기.
+    """
     errors = exc.errors()
     if any(err.get("type") == "missing" for err in errors):
         return ErrorCode.REQUIRED_FIELD_MISSING.value
-    if any((err.get("loc") or ("",))[0] == "prompt" for err in errors):
-        return ErrorCode.INVALID_METADATA.value
     return ErrorCode.INVALID_PARAMETER.value
 
 
@@ -152,22 +175,36 @@ def _first_message(exc: ValidationError) -> str:
     if not errors:
         return "요청 값이 유효하지 않습니다"
     first = errors[0]
-    field = ".".join(str(part) for part in first.get("loc", ()))
-    return f"{field}: {first.get('msg', 'invalid value')}" if field else str(first.get("msg"))
+    loc = first.get("loc", ())
+    field = ".".join(str(part) for part in loc)
+    detail = f"{field}: {first.get('msg', 'invalid value')}" if field else str(first.get("msg"))
+    # 누락은 §3.3 의 "필수 Body 누락" 축이라 형식 오류 문구를 덧붙이지 않는다.
+    if first.get("type") == "missing":
+        return detail
+    # mtdt 하위 값 위반은 "형식/허용 코드 오류"임을 메시지로 명시한다(§3.3 적용 예시).
+    if loc and str(loc[0]) == "mtdt":
+        return f"mtdt 형식/허용 코드 오류 — {detail}"
+    if loc and str(loc[0]) == "prompt":
+        return f"prompt 는 최대 1000자 문자열이며 객체·배열은 허용되지 않습니다 — {detail}"
+    return detail
 
 
 def _bad_request(code: ErrorCode, message: str) -> GenAiApiError:
     return GenAiApiError(status.HTTP_400_BAD_REQUEST, code.value, message)
 
 
-def _idempotency_key(request: Request) -> str | None:
-    """Idempotency-Key 헤더를 읽고 길이(64)를 검증한다."""
-    key = request.headers.get(_IDEMPOTENCY_HEADER)
-    if key is None:
-        return None
-    key = key.strip()
+def _require_idempotency_key(request: Request) -> str:
+    """Idempotency-Key 헤더를 읽고 필수·길이(64)를 검증한다(§3.1 · §3.3).
+
+    v1.2 까지는 선택이었으나 v1.3 에서 ① 작업 요청 한정 **필수** 가 됐다. 누락·공백이면
+    400 REQUIRED_FIELD_MISSING.
+    """
+    key = (request.headers.get(_IDEMPOTENCY_HEADER) or "").strip()
     if not key:
-        return None
+        raise _bad_request(
+            ErrorCode.REQUIRED_FIELD_MISSING,
+            f"{_IDEMPOTENCY_HEADER} 헤더는 작업 요청에서 필수입니다",
+        )
     if len(key) > _IDEMPOTENCY_MAX_LEN:
         raise _bad_request(
             ErrorCode.INVALID_PARAMETER, f"{_IDEMPOTENCY_HEADER} 는 64자 이하여야 합니다"
@@ -175,12 +212,66 @@ def _idempotency_key(request: Request) -> str | None:
     return key
 
 
+def _reject_retired_fields(payload: dict[str, Any]) -> None:
+    """v1.3 표준에서 제외된 구 최상위 필드를 거부한다(§4.1 「v1.3 Request Body 구조 규칙」).
+
+    ``extra="ignore"`` 라 모델 검증에 맡기면 조용히 사라져 **구 형태 요청이 통과**한다.
+    로컬이 구 계약을 계속 받아 주면 실벤더에서만 400 이 나는 드리프트를 못 잡으므로,
+    파싱 직후 원본 payload 에서 명시적으로 판정한다.
+    """
+    for name in _RETIRED_TOP_LEVEL_FIELDS:
+        if name in payload:
+            raise _bad_request(
+                ErrorCode.INVALID_PARAMETER,
+                f"최상위 {name} 은 v1.3 표준에서 제외됐습니다 — 생성 조건은 mtdt 로 전달하십시오",
+            )
+
+
 def _check_event_type(evnt_type: str, settings: Settings) -> None:
-    """허용 evnt_type 목록이 설정된 경우에만 화이트리스트를 강제한다."""
-    allowed = settings.genai_event_types_set()
-    if allowed and evnt_type not in allowed:
+    """evnt_type 화이트리스트(§4.1 FLOOD | WILDFIRE)를 강제한다(§3.3).
+
+    기본 허용 목록은 설정(``MOCK_GENAI_EVENT_TYPES``)이 정하며 그 기본값이 곧 v1.3 계약이다.
+    설정을 빈값으로 두면 검증을 끄지 않고 **계약 목록으로 fail-closed** 한다 — 목이 계약 밖
+    값을 받아 주면 이 목을 쓰는 로컬 검증이 무의미해진다.
+    """
+    allowed = settings.genai_event_types_set() or SUPPORTED_EVNT_TYPES
+    if evnt_type not in allowed:
         raise _bad_request(
             ErrorCode.UNSUPPORTED_EVENT_TYPE, "지원하지 않는 이벤트 유형입니다"
+        )
+
+
+def _check_evnt_subtype(evnt_type: str, evnt_subtype: Any) -> None:
+    """evnt_subtype 은 FLOOD 세부 유형이므로 다른 evnt_type 과 함께 오면 거부한다(§4.1).
+
+    허용 코드 자체는 pydantic enum 이 검증한다(코드 밖 → 400 INVALID_PARAMETER).
+    """
+    if evnt_subtype is not None and evnt_type != EVNT_SUBTYPE_APPLICABLE_TYPE:
+        raise _bad_request(
+            ErrorCode.INVALID_PARAMETER,
+            "evnt_subtype 은 evnt_type=FLOOD 에서만 사용합니다",
+        )
+
+
+def _check_request_combination(req: JobSubmitRequest) -> None:
+    """§4.1 「V0 지원 요청 조합」 — 표 밖은 400 INVALID_PARAMETER(§3.3 "미지원 조합")."""
+    pair = (req.operation_type.value, req.generation_mode.value)
+    if pair not in SUPPORTED_REQUEST_COMBINATIONS:
+        raise _bad_request(
+            ErrorCode.INVALID_PARAMETER,
+            "지원하지 않는 operation_type · generation_mode 조합입니다",
+        )
+
+
+def _check_mtdt(mtdt: Mtdt) -> None:
+    """mtdt 에 유효한 조건값이 최소 1개 있는지 검증한다(§4.1 mtdt 적용 규칙).
+
+    허용 코드·타입 위반은 pydantic 이 이미 잡았고, 여기서는 ``{}`` 또는 전 필드 null 만 남는다.
+    """
+    if not mtdt.has_any_value():
+        raise _bad_request(
+            ErrorCode.INVALID_PARAMETER,
+            "mtdt 형식/허용 코드 오류 — 유효한 생성 조건을 최소 1개 이상 전달해야 합니다",
         )
 
 
@@ -205,15 +296,18 @@ def _check_callback_url(callback_url: str | None, settings: Settings) -> None:
         )
 
 
-def _check_prompt(prompt: dict[str, Any], settings: Settings) -> None:
-    """prompt 직렬화 크기 상한(CWE-770) — 초과 시 400 INVALID_METADATA."""
-    try:
-        size = len(json.dumps(prompt, ensure_ascii=False).encode("utf-8"))
-    except (TypeError, ValueError, RecursionError):
-        raise _bad_request(ErrorCode.INVALID_METADATA, "prompt 를 해석할 수 없습니다")
-    if size > settings.genai_max_prompt_bytes:
+def _check_prompt(prompt: str | None, settings: Settings) -> None:
+    """prompt 바이트 상한(CWE-770) — 초과 시 400 INVALID_PARAMETER.
+
+    계약상 길이 제한(1000자)은 pydantic 이 이미 잡는다. 이 검사는 그와 별개로 **목 서버 자원
+    보호**를 위한 바이트 상한이며(멀티바이트 1000자는 최대 4KiB), §4.1 「제한을 초과하면 임의로
+    자르지 않고 400 INVALID_PARAMETER 를 반환한다」에 맞춰 자르지 않고 거부한다.
+    """
+    if prompt is None:
+        return
+    if len(prompt.encode("utf-8")) > settings.genai_max_prompt_bytes:
         raise _bad_request(
-            ErrorCode.INVALID_METADATA, "prompt 크기가 허용 한도를 초과했습니다"
+            ErrorCode.INVALID_PARAMETER, "prompt 크기가 허용 한도를 초과했습니다"
         )
 
 
@@ -222,7 +316,7 @@ def _resolve_input_files(req: JobSubmitRequest, settings: Settings) -> list[tupl
     if req.generation_mode.value in INPUT_REQUIRED_MODES and not req.input_files:
         raise _bad_request(
             ErrorCode.REQUIRED_FIELD_MISSING,
-            "input_files 는 I2I·I2V 에서 1건 이상 필요합니다",
+            "input_files 는 I2I 에서 1건 이상 필요합니다",
         )
 
     sequences = [f.sequence for f in req.input_files]
@@ -264,14 +358,18 @@ def _resolve_input_files(req: JobSubmitRequest, settings: Settings) -> list[tupl
 async def submit_job(request: Request) -> JobAcceptedResponse:
     """작업 요청 접수 — 202 로 즉시 수락하고 백그라운드로 진행하며 webhook 을 발사한다."""
     payload = await _load_json_object(request)
+    _reject_retired_fields(payload)
     req = _validate(JobSubmitRequest, payload)
     settings = get_settings()
 
+    idempotency_key = _require_idempotency_key(request)
     _check_event_type(req.evnt_type, settings)
+    _check_evnt_subtype(req.evnt_type, req.evnt_subtype)
+    _check_request_combination(req)
+    _check_mtdt(req.mtdt)
     _check_prompt(req.prompt, settings)
     input_files = _resolve_input_files(req, settings)
     _check_callback_url(req.callback_url, settings)
-    idempotency_key = _idempotency_key(request)
 
     job = GenAiJob(
         job_id=uuid.uuid4().hex,

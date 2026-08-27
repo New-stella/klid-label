@@ -106,7 +106,7 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ── 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.1」 ─────────
+    # ── 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.3」 ─────────
     genai_step_delay_sec: float = Field(
         default=2.0,
         ge=0.0,
@@ -176,10 +176,11 @@ class Settings(BaseSettings):
         ),
     )
     genai_event_types: str = Field(
-        default="",
+        default="FLOOD,WILDFIRE",
         description=(
-            "허용 evnt_type 목록(콤마 구분). 빈값이면 검증하지 않고 모두 허용한다. "
-            "설정 시 목록 밖 값은 400 UNSUPPORTED_EVENT_TYPE"
+            "허용 evnt_type 목록(콤마 구분). 기본값이 곧 「생성형 AI API 연동명세서 v1.3」 §4.1 "
+            "계약(FLOOD | WILDFIRE)이며, 목록 밖 값은 400 UNSUPPORTED_EVENT_TYPE. "
+            "빈값으로 두어도 검증이 꺼지지 않고 계약 목록으로 fail-closed 한다"
         ),
     )
     genai_max_input_bytes: int = Field(
