@@ -1,10 +1,18 @@
-// SCR-REVIEW-002 Phase 6 — 검수 메모 통합 패널 (우측 aside 하단).
+// @design SCREEN-019 §검수 우측 패널 — 객체 탭: 검수 메모.
 //
 // 구성 (위→아래):
 //   1) 검수 메모 헤더 + 이슈 추가 모드 토글 버튼
-//   2) 이슈 목록 — BE 등록 이슈 + 로컬 pending 이슈 (이슈 추가 모드에서 누적)
+//   2) 반려 사유 초안 목록 — 로컬 pending 지적만 (이슈 추가 모드에서 캔버스 라벨을 찍어 누적)
 //   3) 첨부파일 — placeholder ("첨부파일 기능 준비 중")
 //   4) 검수 의견 textarea — 0/200 글자 카운터 (store 의 reviewComment 와 연동)
+//
+// ★이 패널은 통째로 «아직 보내지 않은 반려 사유 초안»이다 — 여기 쌓인 지적과 검수 의견이
+//   반려 시 `composeRejectReason` 으로 사유 문자열 하나로 합쳐져 전송된다.
+//   ⚠ **서버에 등록된 이슈를 이 목록에 섞지 않는다.** 구 구현은 `useReviewIssues` 결과를 이 목록에
+//     함께 그렸는데, 반려하면 그 사유가 서버 스레드가 되어 되돌아오므로 방금 쓴 반려 사유가
+//     「이슈」 탭과 이 목록에 **동시에** 나타났다(같은 내용의 이중 표시).
+//     서버 등록 이슈(반려 이력·문의)의 열람·댓글·해소는 「이슈」 탭(IssueThreadPanel)이 단독으로
+//     담당한다 — 사양이 그 분담을 규정한다.
 //
 // 보안:
 // - 모든 텍스트는 React 자동 escape (XSS 방어).
@@ -19,13 +27,10 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { Textarea } from '@/components/common/Textarea';
 
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
-import type { ReviewIssue } from '../types';
 
 export interface ReviewMemoPanelProps {
   /** 영상 id — 향후 BE issue 추가 호출 시 사용 (현재는 표시 전용) */
   videoId: number;
-  /** 이미 BE에 등록된 이슈 (useReviewIssues 의 결과) */
-  issues: ReviewIssue[];
 }
 
 const REVIEW_COMMENT_MAX = 200;
@@ -37,7 +42,7 @@ const REVIEW_COMMENT_MAX = 200;
  * 모드 ON 상태에서 캔버스의 라벨을 클릭하면 LabelCanvas 가 자동으로
  * pendingIssue 를 추가한다 (텍스트는 카드에서 사용자가 수정 가능).
  */
-export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelProps) {
+export function ReviewMemoPanel({ videoId: _videoId }: ReviewMemoPanelProps) {
   const issueMode = useReviewSelectionStore((s) => s.issueMode);
   const toggleIssueMode = useReviewSelectionStore((s) => s.toggleIssueMode);
   const reviewComment = useReviewSelectionStore((s) => s.reviewComment);
@@ -46,7 +51,7 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
   const updatePendingIssue = useReviewSelectionStore((s) => s.updatePendingIssue);
   const removePendingIssue = useReviewSelectionStore((s) => s.removePendingIssue);
 
-  const hasIssues = issues.length > 0 || pendingIssues.length > 0;
+  const hasIssues = pendingIssues.length > 0;
 
   return (
     <div
@@ -70,38 +75,21 @@ export function ReviewMemoPanel({ videoId: _videoId, issues }: ReviewMemoPanelPr
         </Button>
       </header>
 
-      {/* 2) 이슈 목록 */}
+      {/* 2) 반려 사유 초안 목록 — 아직 보내지 않은 지적만 담는다(서버 등록 이슈는 「이슈」 탭). */}
       <section
         aria-labelledby="memo-issues-heading"
         data-testid="memo-issues"
         className="flex flex-col gap-2"
       >
         <h4 id="memo-issues-heading" className="text-sub font-medium text-gray-700">
-          이슈 목록 ({issues.length + pendingIssues.length}건)
+          반려 사유에 첨부할 지적 ({pendingIssues.length}건)
         </h4>
         {!hasIssues ? (
           <div data-testid="memo-issues-empty">
-            <EmptyState message="등록된 이슈가 없습니다" />
+            <EmptyState message="첨부할 지적이 없습니다" />
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {issues.map((issue) => (
-              <article
-                key={`be-${issue.id}`}
-                className="flex flex-col gap-1 rounded border border-gray-200 bg-gray-50 p-3"
-                data-testid={`memo-issue-be-${issue.id}`}
-              >
-                <span className="text-sub font-medium text-primary-700">
-                  프레임 #{issue.frameId}
-                </span>
-                <p className="text-body whitespace-pre-wrap break-words text-gray-900">
-                  {issue.description}
-                </p>
-                <span className="text-sub text-gray-600">
-                  {new Date(issue.createdAt).toLocaleString('ko-KR')}
-                </span>
-              </article>
-            ))}
             {pendingIssues.map((p, idx) => (
               <article
                 key={`pending-${idx}`}

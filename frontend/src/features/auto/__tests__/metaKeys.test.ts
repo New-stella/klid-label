@@ -5,8 +5,10 @@ import {
   DESCRIPTION_META_KEY,
   EDITABLE_META_KEYS,
   MANUAL_TIMESERIES_META_KEY,
+  IMPORTED_META_LABELS,
   compareByStartSec,
   editableMetaLabel,
+  importedMetaLabel,
   isEditableMetaKey,
   startSecOf,
 } from '../metaKeys';
@@ -172,6 +174,56 @@ describe('metaKeys — 시계열 메타 키 판정 단일 원천', () => {
       // given/when/then — 화면 문구에 모델명·기술 용어를 노출하지 않는다
       expect(editableMetaLabel(DESCRIPTION_META_KEY)).toBe('시계열 서술');
       expect(editableMetaLabel(MANUAL_TIMESERIES_META_KEY)).toBe('시계열 메타');
+    });
+  });
+
+  describe('importedMetaLabel — 이관 원문 화면 라벨 [design: API-066]', () => {
+    /**
+     * ★<b>값 고정</b> 축이다 — 형식(한글인가·비었는가)만 보는 검사는 두 항목의 값이 서로
+     * 뒤바뀌어도 통과한다. 열쇠↔이름 쌍을 여기에 못박아 그 변이를 잡는다.
+     *
+     * 열쇠 문자열은 BE 상수(ImportMetaKeys · ExportPrivacyPolicy)의 미러이며, 어긋나면 그
+     * 열쇠가 이름 없이 원문으로 떨어져 사람이 읽을 수 없게 된다.
+     */
+    const EXPECTED_PAIRS: ReadonlyArray<readonly [string, string]> = [
+      ['import.video.coordinates', '좌표'],
+      ['import.video.location', '위치'],
+      ['import.video.cctv_height', '카메라 설치 높이'],
+      ['import.video.cctv_azimuth', '카메라 설치 방위'],
+      ['import.video.cctv_mng_no', '카메라 관리번호'],
+      ['import.video.data_source', '데이터 출처'],
+      ['import.video.event_log', '이벤트 기록'],
+      ['import.video.event_level1_name', '이벤트 상위 계층 이름 1'],
+      ['import.video.event_level2_name', '이벤트 상위 계층 이름 2'],
+      ['import.video.event_level3_name', '이벤트 상위 계층 이름 3'],
+      ['import.video.id', '외부 영상 식별자'],
+      ['import.video.anonymity', '원천 익명여부(영상)'],
+      ['import.video.pseudonymity', '원천 가명여부(영상)'],
+      ['import.video.privacy_included', '원천 개인정보 포함여부(영상)'],
+      ['import.image.anonymity', '원천 익명여부(프레임)'],
+      ['import.image.pseudonymity', '원천 가명여부(프레임)'],
+      ['import.image.privacy_included', '원천 개인정보 포함여부(프레임)'],
+    ];
+
+    it('열쇠별_한글_이름이_고정돼_있다', () => {
+      for (const [key, label] of EXPECTED_PAIRS) {
+        expect(importedMetaLabel(key)).toBe(label);
+      }
+    });
+
+    it('매핑_전량이_기대_쌍과_정확히_같다_추가도_누락도_없다', () => {
+      // 항목이 늘거나 줄면 이 단언이 먼저 깨진다 — 표를 고칠 때 시험도 함께 고치게 강제한다.
+      expect(Object.entries(IMPORTED_META_LABELS).sort()).toEqual(
+        EXPECTED_PAIRS.map(([k, v]) => [k, v]).sort(),
+      );
+    });
+
+    it('★매핑에_없는_열쇠는_버리지_않고_원문_그대로_돌려준다', () => {
+      // 조용한 손실 금지 — 이관이 새 열쇠를 늘려도 화면에서 값이 증발하면 안 된다.
+      expect(importedMetaLabel('import.video.brand_new_key')).toBe(
+        'import.video.brand_new_key',
+      );
+      expect(importedMetaLabel('')).toBe('');
     });
   });
 

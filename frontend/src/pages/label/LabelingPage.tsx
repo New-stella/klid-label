@@ -60,6 +60,7 @@ import { EventAnnotationPanel } from '@/features/label/components/EventAnnotatio
 import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
 import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
+import { ImportedMetaPanel } from '@/features/label/components/ImportedMetaPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
@@ -2000,6 +2001,10 @@ export function LabelingPage() {
               <TimeseriesSidePanel srcSn={data?.srcSn} />
               {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
               <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />
+              {/* 참고 정보 — 이관 원문(읽기 전용). ★위 여섯 패널 <b>뒤</b>가 사양 고정 자리이며
+                  여섯의 나열 순서는 바꾸지 않는다. 이관으로 들어온 영상에서만 스스로 렌더한다
+                  (그 밖의 영상에서는 목록이 비어 있는 것이 정상이라 패널째 감춘다). */}
+              <ImportedMetaPanel srcSn={data?.srcSn} />
             </div>
           ) : (
             /* ★'객체' 탭의 세로 구성은 사양 고정이다 — 객체 목록 → (AI 자동 추적) → 속성 →

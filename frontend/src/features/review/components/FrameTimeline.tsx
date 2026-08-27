@@ -214,11 +214,19 @@ export function FrameTimeline({
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
-        {/* 가로 스크롤 썸네일 리스트 — 접히면 DOM 에서 빠진다(포커스가 갇히지 않도록). */}
+        {/* 가로 스크롤 썸네일 리스트 — 접히면 DOM 에서 빠진다(포커스가 갇히지 않도록).
+            ★안쪽 여백(px-2 py-1)은 장식이 아니라 사양이다 — 현재 프레임 강조가 `scale-105` 로
+              썸네일 경계 **바깥**에 그려지는데, `overflow-x-auto` 가 이 상자 밖을 잘라낸다.
+              여백이 0 이면 첫/마지막 썸네일을 고를 때 선택 테두리의 바깥쪽이 잘려 보인다.
+            ⚠ 여백을 첫 항목(자식)에만 주면 마지막 항목이 그대로 잘리고 항목 간격도 첫 칸만
+              달라진다 — 반드시 **스크롤 컨테이너**에 준다.
+            ⚠ `FRAME_STATUS_BORDER.CURRENT` 의 `scale-105` 를 빼서 해결하지 않는다 — 그 표는
+              라벨링 화면(FrameFilmstrip)과 **공유**하므로 작업자 화면의 현재 프레임 강조가 함께
+              약해진다. 값은 그 필름스트립(`overflow-x-auto px-2 py-1`)을 기준으로 맞췄다. */}
         {expanded && (
           <div
             ref={scrollRef}
-            className="flex items-center gap-1 overflow-x-auto py-0.5"
+            className="flex items-center gap-1 overflow-x-auto px-2 py-1"
             data-testid="frame-timeline-strip"
           >
             {frames.map((f, idx) => {

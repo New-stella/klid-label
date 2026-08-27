@@ -35,7 +35,9 @@ public class MetaController {
             summary = "프레임 시계열 메타 조회",
             description = "외부 시스템(SFR-03)이 생성한 시계열 메타를 조회한다. WORKER는 본인 배정 프레임만. "
                     + "응답 items 는 편집 가능한 시계열 메타만 담는다. 영상 기술메타(video.*)는 technicalMeta 로, "
-                    + "화면 전용 읽기 메타(vlm.accuracy 등)는 readOnlyMeta 로 분리해 반환한다(둘 다 읽기 전용)."
+                    + "화면 전용 읽기 메타(vlm.accuracy 등)는 readOnlyMeta 로, 외부 산출물 이관 원문(import.*)은 "
+                    + "importedMeta 로 분리해 반환한다(셋 다 읽기 전용). importedMeta 는 이관으로 들어오지 않은 "
+                    + "영상에서는 빈 배열이 정상이다. 분류의 소유자는 서버이며 화면이 키 접두를 파싱해 스스로 가르지 않는다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
@@ -53,7 +55,8 @@ public class MetaController {
     @Operation(
             summary = "프레임 시계열 메타 수정",
             description = "외부 메타 검토 결과 수정사항을 반영한다 (저작도구 책임 범위는 검토·수정만). "
-                    + "영상 기술메타(video.*)와 화면 전용 읽기 메타(vlm.accuracy 등)는 수정 대상이 아니며 요청에 포함되면 400."
+                    + "영상 기술메타(video.*)·화면 전용 읽기 메타(vlm.accuracy 등)·외부 산출물 이관 원문(import.*)은 "
+                    + "수정 대상이 아니며 요청에 포함되면 400. 한 항목이라도 걸리면 같은 요청의 편집 가능 키도 저장되지 않는다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "성공"),
