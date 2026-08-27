@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/검수-DOMAIN-005/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 개인정보·비식별 신고 규칙의 정본은 `.claude/rules/klid-privacy.md` 다** — 차단 범위·응답 코드(412/404/400)·`no-store` 적용 경로·심링크 방어 규약·승인 이력 판정은 **그 파일을 `Read` 해서 확인한다.** 아래 요약은 이 도메인 관점의 발췌이므로 **개수·목록은 stale 될 수 있다** — 판정 근거로 쓰지 말고 정본을 연다.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
