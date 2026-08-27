@@ -6,7 +6,20 @@
 ## 3.1 인증·진입 (독립 로그인 없음)
 
 - 저작도구는 **독립 로그인 UI 없음** — 관제서버(내부)/포털 서버(외부)가 발급한 **JWT 토큰을 인계**받는다.
-- 관제서버와 **동일 도메인 운영** → 브라우저 스토리지(localStorage/sessionStorage) 공유로 JWT 전달. URL 쿼리(`?token=`) 미사용.
+- **토큰 인계 수단은 채널마다 갈린다 (2026-08-27 · ADR-012 개정)** — 아래 표가 정본이다.
+
+| 채널 | 인계 수단 |
+|---|---|
+| 관제(INTERNAL) | 관제서버와 **동일 도메인 운영** → 브라우저 스토리지(localStorage/sessionStorage) 공유로 JWT 전달 (기존 그대로) |
+| 포털(PORTAL) | 포털 Host 가 주입한 **인계 창구**(토큰 획득·갱신·인증 실패 통지·활동 통지)로 토큰을 얻어 **`x-access-token` 헤더**로 전송(Bearer 미사용). access token 은 **Host 메모리에만** 두고 브라우저 저장소를 쓰지 않는다 |
+
+  두 채널 모두 URL 쿼리(`?token=`)는 노출 위험으로 미사용.
+
+  > ⚠ **구 서술 폐기** — *"관제서버와 동일 도메인 운영 → 브라우저 스토리지 공유로 JWT 전달"* 을 **전 채널 규칙으로 읽지 말 것.** 포털이 저작도구 프론트를 자기 화면에서 런타임 실행하는 임베딩(`INT-013`)으로 확정되면서 그 채널에서는 전제가 성립하지 않는다. 저장소나 그 스냅샷을 직접 읽으면 Host 가 토큰을 갱신한 시점 이후로는 **이미 무효가 된 토큰**을 붙잡게 되고, 수십 분을 한 화면에 머무는 저작 화면은 그 파손을 반드시 겪는다 — 포털이 **비협상 조건**으로 제시했다.
+  >
+  > 해법은 인계 계층을 저장소 직접 읽기가 아니라 **토큰을 얻는 창구 뒤로 추상화하는 어댑터 한 겹**이다. 그러면 관제(저장소)·포털(메모리) 두 Host 를 호출부 분기 없이 지원한다. 개정 전에는 *"인증 진입 경로의 코드 변경이 없다"* 가 전제였으나 폐기됐다.
+  >
+  > ⚠ **코드 미반영 (2026-08-27 실측)** — `features/auth/tokenIngress.ts` 가 `localStorage` 를 직접 읽고 기본 전략도 `localStorage` 이며, 요청 헤더는 전 경로 `Authorization: Bearer` 다. `x-access-token` 은 레포에 있으나 **방향이 반대**(저작도구 → 관제 outbound 통지 헤더 + 로그 마스킹)이고 inbound 수용은 **0건**이다. Module Federation 설정(`vite.config.ts` 의 `federation`·`exposes`·`remoteEntry`) 자체가 **0건**이다.
 - 두 채널 모두 **동일 JWT 발급 서버** → 단일 검증 로직(`JwtAuthenticationFilter`).
 - 토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기. **저작도구 인가 역할(REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
   - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
