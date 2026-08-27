@@ -14,12 +14,13 @@ import type { FrameMeta, FrameMetaUpdateRequest, MetaItem } from './types';
  * {@code {metaSn, metaKey, metaVal, dataMetaReviewSn, reviewStatus}} (영상 단위 K/V, 0건 가능).
  *
  * {@code items}=시계열 메타(편집 가능), {@code technicalMeta}=영상 기술메타({@code video.*}),
- * {@code readOnlyMeta}=화면 전용 읽기 메타(일치도 등).
+ * {@code readOnlyMeta}=화면 전용 읽기 메타(일치도 등), {@code importedMeta}=이관 원문(읽기 전용).
  */
 interface MetaApiResponse {
   items?: MetaItem[] | null;
   technicalMeta?: MetaItem[] | null;
   readOnlyMeta?: MetaItem[] | null;
+  importedMeta?: MetaItem[] | null;
 }
 
 /**
@@ -49,6 +50,10 @@ function isTechnicalMetaKey(metaKey: unknown): boolean {
  * 분류의 진실원은 BE 이며 FE 는 재해석하지 않는다(누락 응답은 빈 배열). [req: R8]
  * 결합 순서는 {@code metaKey} 문자열 정렬이 아니라 {@code start_sec} <b>숫자</b> 정렬이다 —
  * 문자열이면 구간이 10개를 넘는 순간 {@code "10-18"} 이 {@code "8-16"} 앞으로 온다. [req: R9]
+ *
+ * 2026-08-27: 이관 원문({@code importedMeta})을 그대로 실어 나른다 — 여기서 버리면 이관 영상의
+ * 메타가 화면에서 조용히 사라진다(변경 전에는 그 값이 틀린 분류로나마 {@code items} 에 있어
+ * 보였다). 분류의 진실원은 BE 이며 FE 는 접두를 파싱해 재해석하지 않는다. [design: API-066]
  */
 function toFrameMeta(res: MetaApiResponse | null | undefined): FrameMeta {
   const rawItems: MetaItem[] = Array.isArray(res?.items) ? res!.items! : [];
@@ -57,6 +62,12 @@ function toFrameMeta(res: MetaApiResponse | null | undefined): FrameMeta {
     : [];
   const readOnlyMeta: MetaItem[] = Array.isArray(res?.readOnlyMeta)
     ? res!.readOnlyMeta!
+    : [];
+  // 이관 원문(importedMeta)도 같은 규약으로 <b>그대로 실어 나른다</b>. 여기서 버리면 이관 영상의
+  // 메타가 화면에서 조용히 사라진다 — 깨지는 것이 아니라 안 보이는 것이라 발견이 늦다.
+  // 구 BE(필드 없음) 응답에서는 빈 배열로 폴백한다(기존 두 목록과 동일한 방어 패턴).
+  const importedMeta: MetaItem[] = Array.isArray(res?.importedMeta)
+    ? res!.importedMeta!
     : [];
 
   const items = rawItems.filter((it) => !isTechnicalMetaKey(it.metaKey));
@@ -69,7 +80,7 @@ function toFrameMeta(res: MetaApiResponse | null | undefined): FrameMeta {
     .sort((a, b) => compareByStartSec(String(a.metaKey), String(b.metaKey)))
     .map((it) => it.metaVal ?? '')
     .join('\n');
-  return { items, technicalMeta, readOnlyMeta, vlmText, stateChanges: [] };
+  return { items, technicalMeta, readOnlyMeta, importedMeta, vlmText, stateChanges: [] };
 }
 
 export function getMeta(srcSn: number): Promise<FrameMeta> {

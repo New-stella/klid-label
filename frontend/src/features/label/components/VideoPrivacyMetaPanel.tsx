@@ -26,10 +26,17 @@ import { Checkbox } from '@/components/common/Checkbox';
 import type { PrivacyMetaSource, YnFlag } from '../api/videoPrivacyMeta';
 import { useVideoPrivacyMeta, useUpdateVideoPrivacyMeta } from '../hooks/useVideoPrivacyMeta';
 
-import { MetaSection } from './MetaSection';
+import { MetaReadonlyField, MetaSection, ynLabel } from './MetaSection';
 
 export interface VideoPrivacyMetaPanelProps {
   rawSn: number | undefined;
+  /**
+   * 읽기 전용 모드 — 체크박스·저장 버튼을 <b>렌더하지 않고</b> 판정값만 보여준다.
+   *
+   * ★기본값은 <b>편집 가능</b>이다(false). 기본값이 읽기 전용으로 새면 작업자가 개인정보
+   * 판정을 입력하지 못한다. 검수 화면만 명시적으로 켠다.
+   */
+  readOnly?: boolean;
 }
 
 interface PrivacyForm {
@@ -65,7 +72,10 @@ function resolveField(current: boolean, original: boolean, source: PrivacyMetaSo
   return null;
 }
 
-export function VideoPrivacyMetaPanel({ rawSn }: VideoPrivacyMetaPanelProps) {
+export function VideoPrivacyMetaPanel({
+  rawSn,
+  readOnly = false,
+}: VideoPrivacyMetaPanelProps) {
   const { data, isLoading } = useVideoPrivacyMeta(rawSn);
   const update = useUpdateVideoPrivacyMeta(rawSn);
 
@@ -118,6 +128,28 @@ export function VideoPrivacyMetaPanel({ rawSn }: VideoPrivacyMetaPanelProps) {
       ),
     });
   };
+
+  // 읽기 전용(검수 화면) — 판정값만 보여준다. 비활성 체크박스를 두지 않고 렌더 자체를 하지 않는다.
+  if (readOnly) {
+    return (
+      <MetaSection title="개인정보(영상)">
+        <div className="space-y-1.5" data-testid="video-privacy-meta-readonly">
+          {FIELDS.map((f) => (
+            <MetaReadonlyField
+              key={f.key}
+              label={f.label}
+              // BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
+              value={ynLabel(data?.[f.key] ?? null)}
+              hint={sources[f.key] === 'DERIVED' ? '기본값' : undefined}
+            />
+          ))}
+        </div>
+        <p className="text-[11px] leading-snug text-gray-500">
+          영상 전체 기준의 판정입니다. 프레임별 판정은 아래 프레임 개인정보에서 확인하세요.
+        </p>
+      </MetaSection>
+    );
+  }
 
   return (
     <MetaSection title="개인정보(영상)">

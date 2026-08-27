@@ -8,21 +8,6 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 
 import { ReviewMemoPanel } from '../components/ReviewMemoPanel';
 import { useReviewSelectionStore } from '../store/useReviewSelectionStore';
-import type { ReviewIssue } from '../types';
-
-const issue1: ReviewIssue = {
-  id: 1,
-  frameId: 3,
-  description: 'BE 등록 이슈 1',
-  createdAt: '2026-05-07T10:00:00Z',
-};
-
-const issue2: ReviewIssue = {
-  id: 2,
-  frameId: 5,
-  description: 'BE 등록 이슈 2',
-  createdAt: '2026-05-07T11:00:00Z',
-};
 
 describe('ReviewMemoPanel', () => {
   beforeEach(() => {
@@ -33,7 +18,7 @@ describe('ReviewMemoPanel', () => {
 
   it('ReviewMemoPanel_이슈_추가_모드_버튼_active_표시', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReviewMemoPanel videoId={1} issues={[]} />);
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
     const toggle = screen.getByTestId('issue-mode-toggle');
     // 초기 상태: aria-pressed false
@@ -48,7 +33,7 @@ describe('ReviewMemoPanel', () => {
 
   it('ReviewMemoPanel_검수의견_200자_초과_막힘', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<ReviewMemoPanel videoId={1} issues={[]} />);
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
     const textarea = screen.getByTestId('memo-comment-textarea') as HTMLTextAreaElement;
     // maxLength 속성으로 브라우저 레벨에서 입력 차단.
@@ -65,40 +50,33 @@ describe('ReviewMemoPanel', () => {
     );
   });
 
-  it('ReviewMemoPanel_빈_이슈_안내문', () => {
-    renderWithProviders(<ReviewMemoPanel videoId={1} issues={[]} />);
+  it('ReviewMemoPanel_빈_초안_안내문', () => {
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
     expect(screen.getByTestId('memo-issues-empty')).toBeInTheDocument();
-    expect(screen.getByText('등록된 이슈가 없습니다')).toBeInTheDocument();
+    expect(screen.getByText('첨부할 지적이 없습니다')).toBeInTheDocument();
   });
 
-  it('ReviewMemoPanel_BE_이슈와_pending_이슈_모두_렌더', () => {
-    // pending 이슈 1건 추가.
+  // [폐기] ReviewMemoPanel_BE_이슈와_pending_이슈_모두_렌더
+  //   서버 등록 이슈를 이 목록에 함께 그리던 동작이 폐기됐다 — 반려하면 그 사유가 스레드가 되어
+  //   되돌아와 「이슈」 탭과 이 목록에 동시에 보였다. 서버 등록 이슈의 열람·댓글·해소는 「이슈」
+  //   탭(IssueThreadPanel)이 단독으로 담당한다. 대체 가드: ReviewMemoPanelDraftOnly.test.tsx.
+  it('ReviewMemoPanel_pending_이슈만_렌더되고_건수도_초안만_센다', () => {
     useReviewSelectionStore.getState().addPendingIssue('로컬 이슈 텍스트', 99);
 
-    renderWithProviders(
-      <ReviewMemoPanel videoId={1} issues={[issue1, issue2]} />,
-    );
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
-    // BE 이슈 2건
-    expect(screen.getByTestId('memo-issue-be-1')).toBeInTheDocument();
-    expect(screen.getByTestId('memo-issue-be-2')).toBeInTheDocument();
-    expect(screen.getByText('BE 등록 이슈 1')).toBeInTheDocument();
-    expect(screen.getByText('BE 등록 이슈 2')).toBeInTheDocument();
-
-    // pending 이슈 1건 (textarea 안에 value 로 렌더됨)
     const pendingTextarea = screen.getByTestId(
       'memo-issue-pending-text-0',
     ) as HTMLTextAreaElement;
     expect(pendingTextarea).toBeInTheDocument();
     expect(pendingTextarea.value).toBe('로컬 이슈 텍스트');
 
-    // 합계 카운트 (3건)
-    expect(screen.getByText(/이슈 목록 \(3건\)/)).toBeInTheDocument();
+    expect(screen.getByText(/반려 사유에 첨부할 지적 \(1건\)/)).toBeInTheDocument();
   });
 
   it('ReviewMemoPanel_첨부파일_placeholder_표시', () => {
-    renderWithProviders(<ReviewMemoPanel videoId={1} issues={[]} />);
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
     expect(screen.getByTestId('memo-attach-placeholder')).toBeInTheDocument();
     expect(screen.getByText('첨부파일 기능 준비 중')).toBeInTheDocument();
@@ -111,7 +89,7 @@ describe('ReviewMemoPanel', () => {
     useReviewSelectionStore.getState().addPendingIssue('초기', 1);
 
     const user = userEvent.setup();
-    renderWithProviders(<ReviewMemoPanel videoId={1} issues={[]} />);
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
     const ta = screen.getByTestId('memo-issue-pending-text-0') as HTMLTextAreaElement;
     expect(ta.value).toBe('초기');
@@ -127,7 +105,7 @@ describe('ReviewMemoPanel', () => {
     useReviewSelectionStore.getState().addPendingIssue('남길 이슈', 2);
 
     const user = userEvent.setup();
-    renderWithProviders(<ReviewMemoPanel videoId={1} issues={[]} />);
+    renderWithProviders(<ReviewMemoPanel videoId={1} />);
 
     expect(useReviewSelectionStore.getState().pendingIssues).toHaveLength(2);
 
