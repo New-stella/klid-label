@@ -93,6 +93,25 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.errorCode").value("METHOD_NOT_ALLOWED"));
     }
 
+    @Test
+    @DisplayName("본문은_JSON만_받는_창구에_다른_미디어타입으로_보내면_415_UNSUPPORTED_MEDIA_TYPE_반환_500_금지")
+    void mediaTypeNotSupportedReturns415() throws Exception {
+        // 405·404·400 과 같은 계열이다 — 전용 핸들러가 없으면 @ExceptionHandler(Exception.class) 로
+        // 떨어져 500 + ERROR 스택트레이스가 된다. 이 저장소에는 그 실사고 전례가 있다(검수 승인 창구가
+        // 바디 없는 POST 를 415 로 거부했는데 그것이 500 으로 표면화돼 승인 전 구간이 통째로 막혔다).
+        // Accept-Post 헤더는 RFC 9110 이 415 응답에 권고한다 — 클라이언트가 무엇을 보내야 하는지 알 길이
+        // 그것뿐이다.
+        mockMvc.perform(post("/test/validate")
+                        .header("X-Test-Bypass", "1")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("name=x"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(header().string("Accept-Post",
+                        org.hamcrest.Matchers.containsString(MediaType.APPLICATION_JSON_VALUE)))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean

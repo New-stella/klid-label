@@ -288,6 +288,46 @@ public class GlobalExceptionHandler {
         return builder.body(ApiResponse.error(ErrorCode.METHOD_NOT_ALLOWED));
     }
 
+    /**
+     * 경로·메서드는 맞고 요청 본문의 미디어 타입만 창구가 받지 않는 경우 — <b>415</b>.
+     *
+     * <p>{@link org.springframework.web.HttpRequestMethodNotSupportedException}(405) ·
+     * {@link NoResourceFoundException}(404) · {@link HttpMessageNotReadableException}(400) 과 같은
+     * 계열이며, 이 하나만 빠져 있었다. 전용 핸들러가 없으면 {@code @ExceptionHandler(Exception.class)}
+     * 로 떨어져 <b>500 + ERROR 스택트레이스</b>가 된다(2026-08-28 실측 — 시험이
+     * {@code expected:<415> but was:<500>} 로 재현했다). 정상 오요청이 서버 장애로 보고되고 모니터링
+     * 로그가 오염된다.
+     *
+     * <p>이 저장소에는 그 실사고 전례가 있다 — 검수 승인 창구가 바디 없는 POST 를 415 로 거부했는데
+     * 그것이 500 으로 표면화돼 <b>승인 전 구간이 통째로 막혔다</b>({@code review/api.ts} 의 회귀 주석).
+     * 그때는 호출 쪽에서 우회했고 이 자리는 그대로 남아 있었다.
+     *
+     * <p>어느 타입을 받는지는 클라이언트가 알 길이 응답 헤더뿐이라 함께 싣는다. RFC 9110 은 {@code Accept-Post}
+     * (POST) 와 {@code Accept-Patch}(PATCH) 만 정의하므로 <b>그 두 메서드에만</b> 싣는다 —
+     * {@code Accept-Put} 이라는 헤더는 없다. 로그는 WARN(정상 오요청) 이고 <b>받은 미디어 타입 원문을
+     * 남기지 않는다</b> — 클라이언트가 보낸 문자열이라 개행·제어문자가 섞일 수 있다(CWE-117).
+     */
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMediaTypeNotSupported(
+            org.springframework.web.HttpMediaTypeNotSupportedException e,
+            jakarta.servlet.http.HttpServletRequest request) {
+        log.warn("[Exception] unsupported media type supported={}", e.getSupportedMediaTypes());
+        ResponseEntity.BodyBuilder builder =
+                ResponseEntity.status(ErrorCode.UNSUPPORTED_MEDIA_TYPE.status());
+        java.util.List<org.springframework.http.MediaType> supported = e.getSupportedMediaTypes();
+        if (supported != null && !supported.isEmpty()) {
+            String header = switch (request.getMethod() == null ? "" : request.getMethod().toUpperCase()) {
+                case "POST" -> "Accept-Post";
+                case "PATCH" -> "Accept-Patch";
+                default -> null;
+            };
+            if (header != null) {
+                builder.header(header, org.springframework.http.MediaType.toString(supported));
+            }
+        }
+        return builder.body(ApiResponse.error(ErrorCode.UNSUPPORTED_MEDIA_TYPE));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception e) {
         log.error("[Exception] unhandled exception", e);
