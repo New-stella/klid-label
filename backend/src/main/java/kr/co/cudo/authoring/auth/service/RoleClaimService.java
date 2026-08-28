@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.UserDisplayNames;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -25,26 +26,54 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * 권한 자가 부여 서비스.
+ * 관리자 부트스트랩 서비스 (역할 자가 부여).
  *
- * <p>인증은 되었으나 role 클레임이 없는 사용자가 관리자 공유 패스워드와 함께
- * 본인에게 {@link Role#WORKER} 또는 {@link Role#REVIEWER} 역할을 부여한다. 사용자 마스터
- * 행이 없으면 이 시점에 <b>자동등록</b>된다(V169 — 아래 {@code claim} 참조).
+ * <p>인증은 되었으나 role 클레임이 없는 사용자가 관리자 공유 패스워드와 함께 본인에게
+ * {@link Role#ADMIN} 역할을 부여한다. 사용자 마스터 행이 없으면 이 시점에 <b>자동등록</b>된다
+ * (V169 — 아래 {@code claim} 참조).
  *
- * <h3>★ REVIEWER 자가부여 개방 (2026-08-04 사용자 확정 — 되돌리지 말 것)</h3>
- * <p>{@link #allowedClaimRoles()} 는 이제 {@code WORKER}·{@code REVIEWER} 를 모두 허용한다.
- * <b>사용자가 인지하고 수용한 잔여 위험</b>: 관리자 공유 패스워드를 아는 사람은 누구나 REVIEWER
- * (사용자 관리·시스템 설정·검수 승인)가 된다 — 즉 <b>그 패스워드의 관리 수준이 시스템 전체의 권한
- * 경계</b>다.
+ * <h3>★ 이 창구는 <b>관리자 부트스트랩 전용</b>이다 (ADR-055)</h3>
+ * <p>전제는 <b>둘</b>이며 둘이 모두 참일 때만 승인한다 — ① 내부 채널일 것 ② <b>시스템에
+ * {@link Role#ADMIN} 이 한 명도 없을 것</b>. 관리자가 한 명이라도 생기면 이 창구는 누구에게도
+ * 열리지 않는다(관리자 패스워드를 알아도 마찬가지). 그 뒤의 역할 부여는 관리자가 사용자 관리
+ * 화면에서 하고, 일반 진입자는 작업자로 <b>자동 등록</b>된다.
  *
- * <p><b>구 정책(폐기) — 경위 보존</b>: 원래는 A-ISSUE-17(CWE-269/CWE-1392)을 근거로 WORKER 단일
- * 화이트리스트였고, REVIEWER 는 "기존 REVIEWER 의 {@code /manage} 경로로만 부여"하도록 했다. 그러나
- * 그 전제(=이미 REVIEWER 인 사람이 존재한다)가 <b>온프렘 신규 설치에서 성립하지 않았다</b> — 최초
- * REVIEWER 를 만들 정규 경로가 없어 운영 문서가 dev 편의 경로({@code /dev/login})를 부트스트랩으로
- * 안내하고 있었다(그쪽이 더 위험하다). 정책을 뒤집은 것이 아니라, 부트스트랩 결함을 정규 경로로
- * 흡수한 것이다. ⚠ "보안 강화" 명목으로 WORKER 단일로 되돌리지 말 것.
+ * <h3>★★ 창이 열려 있는 동안에는 <b>역할 보유를 따지지 않는다</b> (되돌리면 교착이다)</h3>
+ * <p>검수자·작업자도 이 창구로 관리자가 되며, 기존 역할은 관리자로 <b>교체</b>된다. 역할 보유를
+ * 거절 사유로 삼는 것은 <b>창이 닫힌 뒤</b>에만 성립한다 — 창이 열려 있다는 것 자체가 아직 아무도
+ * 관리자가 아니라는 뜻이라, 그 구간에서 역할 보유자를 막으면 최초 관리자를 만들 수 있는 사람이
+ * 아무도 남지 않는다.
  *
- * <p><b>개방과 함께 그대로 유지되는 방어</b>(하나라도 빼면 개방이 성립하지 않는다):
+ * <p><b>실제로 그 교착이 났다</b>(그래서 이 문단이 있다). 두 축이 각각은 규정대로였다:
+ * <ul>
+ *   <li><b>신규 설치</b> — 진입 시 자동 등록이 <b>같은 요청의 앞단</b>(인증 필터)에서 작업자 역할을
+ *       부여하고, 그 클레임이 그대로 principal 이 되어 "이미 역할 보유" 로 거절됐다. FE 가 첫 화면에서
+ *       {@code /v1/me} 만 불러도 같은 결과다.</li>
+ *   <li><b>이미 운영 중인 시스템</b> — 자동 등록과 무관하게, 그곳에는 역할 없는 사용자가 <b>애초에
+ *       없다</b>(전원 검수자 아니면 작업자). 업그레이드 배포에서는 어떤 수를 써도 최초 관리자가
+ *       생기지 않았다.</li>
+ * </ul>
+ * <p>⇒ 아래 판정 순서에서 <b>관리자 0명 게이트가 채널 검사 바로 뒤</b>에 오는 것이 핵심이다.
+ * 그 게이트가 "창이 닫혔으면 전원 거절" 을 이미 담당하므로 역할 보유 거절은 논리적으로 포섭된다.
+ *
+ * <p><b>부여 역할은 {@link Role#ADMIN} 고정</b>이다. 요청 바디의 {@code role} 은 더 이상 선택지가
+ * 아니며 다른 값을 실어도 결과를 바꾸지 못한다({@code PORTAL_USER} 만 진입부에서 400 으로
+ * 거절된다 — 별도 채널이라 이 창구의 대상이 아님을 요청자에게 알린다).
+ *
+ * <p><b>화이트리스트({@link #allowedClaimRoles()})는 값만 좁혔고 구조는 그대로다</b> —
+ * {@link Role} enum 이 확장될 때 새 역할이 <b>자동으로</b> 자가부여 대상이 되면 안 되기 때문이다
+ * (deny-by-default). 검사 대상이 요청값이 아니라 <b>부여할 역할</b>이라 현재 역할 집합에서는 이
+ * 분기가 통과만 하지만, 그것이 이 장치의 목적이다.
+ *
+ * <p><b>구 정책(폐기) — 경위 보존</b>: ①원래는 WORKER 단일 화이트리스트였다(A-ISSUE-17,
+ * CWE-269/CWE-1392). 그 전제(=이미 REVIEWER 인 사람이 존재한다)가 온프렘 신규 설치에서 성립하지
+ * 않아 dev 편의 경로가 부트스트랩이 되어 있었고, 그래서 2026-08-04 에 REVIEWER 를 열었다.
+ * ②그 개방은 "관리자 공유 패스워드를 아는 사람은 누구나 REVIEWER" 를 뜻해, 역할 획득과 관리자
+ * 유효창이 <b>같은 비밀 하나</b>에 매달렸다. ADR-055 는 그 둘을 갈랐다 — 창구를 최초 1회로 닫아
+ * 패스워드로는 더 이상 역할을 얻지 못하게 하고, 대신 관리자 역할을 신설했다. ⚠ "부트스트랩이
+ * 막힌다" 는 이유로 조건 없는 개방으로 되돌리지 말 것 — 조건이 곧 이 결정이다.
+ *
+ * <p><b>그대로 유지되는 방어</b>(하나라도 빼면 부트스트랩 창구가 위험해진다):
  * rate limit(CWE-307) · BCrypt 상수시간 비교(CWE-203) · 평문 패스워드 로그 금지(CWE-532) ·
  * INTERNAL 채널 + {@code role==null} 게이트(CWE-863) · {@code PORTAL_USER} 거절.
  *
@@ -55,13 +84,16 @@ import java.util.List;
  *   <li><b>CWE-307 Improper Restriction of Excessive Authentication Attempts</b> —
  *       {@link RoleClaimRateLimiter} 가 계정 축 + 엔드포인트 전역 축을, 노드 공유 저장소와 함께 강제한다.
  *       초과 시 {@link ErrorCode#TOO_MANY_REQUESTS}.</li>
- *   <li><b>CWE-863 Incorrect Authorization</b> — actor 가 이미 WORKER/REVIEWER 라면 409 CONFLICT.
+ *   <li><b>CWE-863 Incorrect Authorization</b> — actor 가 이미 역할을 보유하면 409 CONFLICT.
  *       PORTAL_USER 는 별도 채널이므로 본 API 진입 자체를 거절.</li>
  *   <li><b>CWE-117 Log Injection / CWE-532</b> — adminPassword 평문은 로그에 절대 출력하지 않으며,
  *       성공/실패 결과만 (userNo, role) 형식으로 로그한다.</li>
  *   <li><b>CWE-203 Observable Timing Discrepancy</b> — {@link AdminPasswordVerifier} 의 BCrypt 비교가
  *       상수시간을 보장하므로 별도 조치 불필요.</li>
  * </ul>
+ *
+ * @design ADR-055
+ * @design API-007
  */
 @Slf4j
 @Service
@@ -70,10 +102,18 @@ public class RoleClaimService {
     /** 새 토큰의 TTL — 기존 DevTokenService 의 기본값과 동일하게 1시간. */
     private static final long ISSUED_TOKEN_TTL_SECONDS = 3600L;
 
-    /** {@code LS_ACNT_USER.USER_ID} 컬럼 길이(명V20). DTO {@code @Size} 와 같은 값이어야 한다. */
-    static final int MAX_USER_ID_LENGTH = 20;
-    /** {@code LS_ACNT_USER.USER_NM} 컬럼 길이(명V100). DTO {@code @Size} 와 같은 값이어야 한다. */
-    static final int MAX_USER_NM_LENGTH = 100;
+    /**
+     * 이 창구가 부여하는 역할 — <b>고정</b>이다. 요청 바디의 {@code role} 은 무시된다(ADR-055).
+     * 이 값을 넓히려면 {@link #allowedClaimRoles()} 와 함께 바꿔야 한다.
+     */
+    private static final Role BOOTSTRAP_ROLE = Role.ADMIN;
+
+    /**
+     * 표시 정보 컬럼 길이 — 진입 시 자동 등록과 <b>같은 상수</b>를 쓴다. 상한이 갈리면 한쪽 경로에서만
+     * 컬럼 폭을 넘겨 INSERT 시점 DB 오류가 난다.
+     */
+    static final int MAX_USER_ID_LENGTH = UserDisplayNames.MAX_USER_ID_LENGTH;
+    static final int MAX_USER_NM_LENGTH = UserDisplayNames.MAX_USER_NM_LENGTH;
 
     private final UserRepository userRepository;
     private final LsUserRoleRepository lsUserRoleRepository;
@@ -118,25 +158,60 @@ public class RoleClaimService {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "PORTAL_USER 역할은 본 API 로 부여할 수 없습니다.");
         }
-        // ① CWE-269 — 자가부여 가능 역할 화이트리스트(WORKER·REVIEWER)를 **가장 먼저** 강제한다.
-        //    화이트리스트 참조가 없으면 Role enum 확장 시 새 역할이 자동으로 자가부여 대상이 된다.
-        //    rate limit 보다 앞에 두어야 잘못된 role 시도가 정상 사용자의 쿼터를 소모하지 않는다.
-        if (!allowedClaimRoles().contains(req.role())) {
-            log.warn("[RoleClaim] denied userNo={} role={} reason=role_not_self_claimable",
-                    sanitize(actor.sub()), req.role());
+        // ① CWE-269 — 자가부여 가능 역할 화이트리스트를 **가장 먼저** 강제한다(deny-by-default).
+        //    ★검사 대상은 요청값이 아니라 <부여할 역할>이다 — 부여 역할이 ADMIN 으로 고정된 뒤에도
+        //      Role enum 이 확장될 때 새 역할이 자동으로 자가부여 대상이 되지 않게 하는 장치다.
+        //      요청값을 검사하면 REVIEWER/WORKER 를 실은 구 클라이언트가 403 을 받는데, 설계상
+        //      그 요청은 <결과를 바꾸지 못할 뿐> 거절 대상이 아니다(API-007).
+        //    rate limit 보다 앞에 두어야 잘못된 시도가 정상 사용자의 쿼터를 소모하지 않는다.
+        if (!allowedClaimRoles().contains(BOOTSTRAP_ROLE)) {
+            log.warn("[RoleClaim] denied userNo={} reason=role_not_self_claimable",
+                    sanitize(actor.sub()));
             throw new CustomException(ErrorCode.FORBIDDEN,
-                    "해당 역할은 자가 부여할 수 없습니다. 검수자에게 권한 부여를 요청하세요.");
+                    "해당 역할은 자가 부여할 수 없습니다. 관리자에게 권한 부여를 요청하세요.");
         }
-        // ② CWE-863 — fail-closed 화이트리스트: INTERNAL 채널 + 역할 미보유(role==null) actor 만 허용.
-        // PORTAL_USER(channel=PORTAL) 의 교차채널 자가부여(INTERNAL WORKER/REVIEWER 상승)와 이미
-        // 권한 보유자(WORKER/REVIEWER)를 모두 거절한다. (deny-by-default)
-        if (actor.channel() != Channel.INTERNAL || actor.role() != null) {
-            throw new CustomException(ErrorCode.CONFLICT, "이미 권한이 부여된 사용자입니다.");
+        // ② CWE-863 — 채널 격리. PORTAL_USER(channel=PORTAL) 의 교차채널 자가부여를 거절한다.
+        //    ★역할 보유 검사는 여기 두지 않는다 — 아래 ④(관리자 0명)가 "창이 닫혔으면 전원 거절" 을
+        //      담당하고, 창이 열려 있는 동안에는 역할 보유자도 관리자가 돼야 한다(클래스 javadoc
+        //      §창이 열려 있는 동안에는 역할 보유를 따지지 않는다). 여기로 되돌리면 부트스트랩이
+        //      도달 불가능해진다 — 자동 등록이 같은 요청의 앞단에서 역할을 부여하기 때문이다.
+        if (actor.channel() != Channel.INTERNAL) {
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이 창구는 내부 채널에서만 사용할 수 있습니다.");
         }
 
         // ③ CWE-307 — rate limit. 패스워드 검증(BCrypt)/DB 작업 전에 차단한다.
         //    계정 축 + 전역 축 + 노드 공유 축을 모두 강제한다(A-ISSUE-18).
         rateLimiter.consumeOrReject(actor.sub());
+
+        // ④ ADR-055 — <관리자가 0명일 때만> 열리는 부트스트랩 창구다. 한 명이라도 있으면 닫힌다.
+        //    ★이 게이트가 <역할 보유자 거절>까지 포섭한다 — 창이 닫힌 뒤에는 역할 보유 여부와
+        //      무관하게 전원 거절되고, 그때는 관리자가 역할을 부여하는 정규 경로가 존재한다.
+        //      그래서 ②에는 채널 검사만 남았다 — 둘은 한 쌍이라 ②에 역할 검사를 되살리면
+        //      부트스트랩이 도달 불가능해진다(클래스 javadoc §창이 열려 있는 동안…).
+        //
+        //    ★★rate limit <뒤>에 둔다 (구 위치는 앞이었다 — 되돌리지 말 것).
+        //      앞에 두면 인증된 내부 사용자가 <아무 패스워드로 1회> 호출해 응답만 보고 창의
+        //      개폐를 읽는다(닫힘=409 / 열림=401·429). 그리고 "열림" 은 곧
+        //      <지금 패스워드를 맞히면 관리자가 된다>는 신호라, 쿼터를 한 톨도 쓰지 않고 얻는
+        //      정찰 창구가 된다. 뒤로 내리면 그 관측에도 시도 횟수가 든다.
+        //      ⚠ 구 근거 *"닫힌 창구에 대한 시도가 정상 사용자의 쿼터를 소모하면 안 된다"* 는
+        //        폐기됐다 — 창이 닫혔으면 이 창구를 쓸 <정상 사용자가 애초에 없다>. 아낄 쿼터의
+        //        주인이 존재하지 않으므로 그 근거는 성립하지 않는다.
+        //      ⚠ 패스워드 검증보다는 여전히 <앞>이다. 뒤로 더 내리면 닫힌 창에서도 패스워드
+        //        정오답이 401/409 로 갈려 패스워드 오라클이 된다(회귀 가드가 이 순서를 고정한다).
+        //
+        //    ★409 의 뜻 — 이제 이 코드는 <창이 닫혔다> 하나만 뜻한다(그리고 ②의 포털 채널 거절).
+        //      ⚠ 구 서술 폐기: *"'이미 권한이 부여된 사용자'와 같은 409 라 두 사유를 코드로 구분하지
+        //        않는 것이 의도"*. 그 조건은 제거됐으므로(API-007 v14) 근거가 무효다. 되살리면
+        //        자동 등록이 같은 요청 앞단에서 역할을 부여하므로 <창구가 도달 불가능해진다>.
+        //    ⚠ 이 확인과 아래 부여 사이에는 창이 있다. 그 창은 조건부 INSERT
+        //      (upsertRoleIfNoneHasRole)가 문장 안에서 다시 닫는다 — 여기 하나만으로는 부족하다.
+        if (lsUserRoleRepository.countByRoleCd(BOOTSTRAP_ROLE.name()) > 0) {
+            log.warn("[RoleClaim] denied userNo={} reason=bootstrap_closed", sanitize(actor.sub()));
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 관리자가 있어 자가부여가 닫혀 있습니다. 관리자에게 역할 부여를 요청하세요.");
+        }
 
         // CWE-203 — 상수시간 비교. 미설정(해시 비어 있음)이면 항상 false 다(fail-closed).
         if (!adminPasswordVerifier.matches(req.adminPassword())) {
@@ -154,13 +229,12 @@ public class RoleClaimService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "userNo 형식이 올바르지 않습니다.");
         }
 
-        // CWE-863 — JWT role 이 비어있어도(stale token) 저작도구 소유 역할이 이미 있으면 409.
-        // ★자동등록보다 <먼저> 판정한다 — 어차피 거절될 요청이 사용자 행을 만들지 않게 한다.
-        if (lsUserRoleRepository.findByUserNo(userNo).isPresent()) {
-            throw new CustomException(ErrorCode.CONFLICT, "이미 권한이 부여된 사용자입니다.");
-        }
+        // ★저작도구 소유 역할 보유 여부는 여기서도 따지지 않는다 (구 구현은 여기서 409 를 던졌다).
+        //   위 ② 와 같은 축이다 — 자동 등록으로 행이 생긴 사용자, 그리고 이미 운영 중인 시스템의
+        //   모든 사용자가 이 분기에 걸려 최초 관리자를 만들 경로가 0개가 됐다. 창이 닫혔는지는
+        //   ④ 가 판정하고, 부여 문장(아래)이 같은 조건을 한 번 더 확인한다.
 
-        // ④ 사용자 자동등록 (V169) — 없으면 만들고, 있으면 표시 정보를 갱신한다.
+        // ⑤ 사용자 자동등록 (V169) — 없으면 만들고, 있으면 표시 정보를 갱신한다.
         //    구 구현은 여기서 404 를 던졌다: 관제가 사용자 마스터를 채워 준다는 전제였는데
         //    실제로는 아무도 채우지 않아 <DBA 가 손으로 넣기 전까지 아무도 역할을 받을 수 없었다>.
         //    이제 관제가 localStorage 로 인계한 표시 정보(userId·userNm)로 우리가 등록한다.
@@ -185,8 +259,18 @@ public class RoleClaimService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_ERROR,
                         "사용자 등록에 실패했습니다."));
 
-        // 역할 부여 — LS_USER_ROLE 원자 upsert (역할 단일화, PK race 안전).
-        lsUserRoleRepository.upsertRole(userNo, req.role().name());
+        // 역할 부여 — <조건부> INSERT. 부여 역할은 ADMIN 고정이며 요청값을 쓰지 않는다(ADR-055).
+        //   ★위 ④ 게이트의 확인 이후 다른 노드가 관리자를 만들었으면 여기서 0 이 돌아온다.
+        //     문장 안에서 조건을 다시 판정하므로 "확인 → 부여" 사이의 창이 좁혀진다.
+        //   ★요청자에게 이미 역할이 있으면 <덮어쓴다>(ON CONFLICT DO UPDATE). 덮지 않으면 자동
+        //     등록으로 작업자가 된 사용자·기존 검수자에게 관리자가 붙지 않아 부트스트랩이 도달
+        //     불가능해진다. 덮어쓰기 대상은 요청자 자신 하나이고(userNo 는 JWT sub), 조건이 그대로라
+        //     "아직 아무도 관리자가 아닌" 구간에서만 일어난다.
+        if (lsUserRoleRepository.upsertRoleIfNoneHasRole(userNo, BOOTSTRAP_ROLE.name()) != 1) {
+            log.warn("[RoleClaim] denied userNo={} reason=bootstrap_closed_race", userNo);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "이미 관리자가 있어 자가부여가 닫혀 있습니다. 관리자에게 역할 부여를 요청하세요.");
+        }
 
         // Phase 3 — 인가 역할 캐시 무효화(AFTER_COMMIT). 직전까지 무권한(null)이라 캐시엔 항목이
         // 없을(unless=null) 가능성이 크지만, 일관성을 위해 부여 시에도 커밋 후 evict 한다.
@@ -203,14 +287,14 @@ public class RoleClaimService {
         }
 
         // 새 토큰 발급 — channel=INTERNAL (관제 채널 본 API 진입 사용자), role=신규.
-        String token = issueInternalToken(userNo, req.role(), user.getUserNm());
+        String token = issueInternalToken(userNo, BOOTSTRAP_ROLE, user.getUserNm());
 
         // userNo 는 Long 으로 파싱 완료된 안전한 값. role 은 enum.
-        log.info("[RoleClaim] granted userNo={} role={}", userNo, req.role().name());
+        log.info("[RoleClaim] granted userNo={} role={} (bootstrap)", userNo, BOOTSTRAP_ROLE.name());
 
         return new RoleClaimResponse(
                 token,
-                req.role().name(),
+                BOOTSTRAP_ROLE.name(),
                 userNo,
                 user.getUserNm()
         );
@@ -242,17 +326,23 @@ public class RoleClaimService {
     }
 
     /**
-     * 자가부여 가능 역할 화이트리스트 (deny-by-default).
+     * 자가부여 가능 역할 화이트리스트 (deny-by-default) — <b>{@link Role#ADMIN} 하나뿐</b>이다.
      *
-     * <p>{@link Role#WORKER}·{@link Role#REVIEWER} 를 허용한다(2026-08-04 사용자 확정 — 클래스
-     * Javadoc §REVIEWER 자가부여 개방 참조). {@link Role#PORTAL_USER} 는 별도 채널이라 목록에 없고
-     * {@code claim} 진입부에서도 400 으로 거절된다.
+     * <p>이 창구는 관리자 부트스트랩 전용이라 다른 역할을 부여하지 않는다(ADR-055). 일반
+     * 사용자는 진입 시 작업자로 자동 등록되고, 그 뒤의 역할 지정은 관리자가 한다.
      *
-     * <p>화이트리스트 자체는 유지된다 — {@link Role} enum 이 확장될 때 새 역할이 <b>자동으로</b>
-     * 자가부여 대상이 되면 안 되기 때문이다(deny-by-default).
+     * <p>값만 좁혔고 <b>구조는 그대로</b>다 — {@link Role} enum 이 확장될 때 새 역할이
+     * <b>자동으로</b> 자가부여 대상이 되면 안 되기 때문이다. 목록을 없애고 상수 비교로 바꾸면 그
+     * 방어가 사라진다.
+     *
+     * <p>⚠ {@code WORKER}·{@code REVIEWER} 를 되살리지 말 것 — 되살리면 관리자 공유 패스워드
+     * 하나로 다시 검수자가 되어, 역할 획득과 관리자 유효창이 같은 비밀에 매달리던 상태로 돌아간다
+     * (ADR-055 가 갈라놓은 바로 그 지점).
+     *
+     * @design ADR-055
      */
     public static List<Role> allowedClaimRoles() {
-        return List.of(Role.WORKER, Role.REVIEWER);
+        return List.of(BOOTSTRAP_ROLE);
     }
 
     /**
@@ -268,13 +358,6 @@ public class RoleClaimService {
      * </ul>
      */
     static String normalize(String value, int maxLength) {
-        if (value == null) {
-            return null;
-        }
-        String cleaned = value.replaceAll("[\\p{Cc}\\p{Zl}\\p{Zp}]", "").trim();
-        if (cleaned.isEmpty()) {
-            return null;
-        }
-        return cleaned.length() > maxLength ? cleaned.substring(0, maxLength) : cleaned;
+        return UserDisplayNames.normalize(value, maxLength);
     }
 }

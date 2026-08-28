@@ -38,9 +38,13 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li><b>REVIEWER 전용</b> — {@code SecurityConfig} 의 {@code /v1/**} 매처와 {@code @PreAuthorize}
  *       이중 방어. 인가는 이력 존재 판정보다 <b>먼저</b> 평가되므로 권한 없는 요청에는 그 이력이 있는지
  *       없는지가 응답으로 새지 않는다(CWE-209).</li>
+ *   <li>★ <b>이 창구는 일부러 좁히지 않았다</b> — 같은 도메인의 적재 실행·분류 대응 확정은
+ *       관리자로 좁혔지만, 탐색·검사와 이력 조회는 검수자 권한으로 응답한다(ROLE-004). 함께
+ *       좁히면 화면이 열리자마자 빈 채로 죽는다. 관리자는 계층으로 여기에도 그대로 들어온다.</li>
  * </ul>
  *
  * @design DOMAIN-017
+ * @design ROLE-004
  * @design API-207
  * @design API-208
  * @design DFEAT-059

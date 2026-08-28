@@ -408,8 +408,11 @@ class AssignmentEventTypeOptionsTest {
         String portalToken = JwtTestSupport.token(secret, "500", "PORTAL_USER", "PORTAL", issuer, 60);
         mockMvc.perform(eventTypes(portalToken)).andExpect(status().isForbidden());
 
-        // 저작도구 역할이 배정되지 않은 INTERNAL 토큰도 통과할 수 없다(fail-closed).
-        String roleless = JwtTestSupport.token(secret, "501", null, "INTERNAL", issuer, 60);
+        // 저작도구 역할이 해석되지 않는 INTERNAL 토큰도 통과할 수 없다(fail-closed).
+        //   ★ADR-055(진입 시 작업자 자동 등록) 이후 <시드에 없는 숫자 sub> 는 첫 요청에 WORKER 로
+        //     등록되므로 더 이상 무권한 표본이 아니다. 770001 은 Role enum 밖 코드로 시드돼 있어
+        //     역할 해석이 null 이고, 자동 등록도 그 행을 덮지 않는다(DO NOTHING).
+        String roleless = JwtTestSupport.token(secret, "770001", null, "INTERNAL", issuer, 60);
         mockMvc.perform(eventTypes(roleless)).andExpect(status().isForbidden());
     }
 

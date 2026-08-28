@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.response.ApiResponse;
 import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
+import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,8 @@ public class SecurityConfig {
     private final UserRoleResolver userRoleResolver;
     /** 최종로그인일시 기록기 — JWT 필터가 INTERNAL 요청마다 호출한다(@design SCREEN-024). */
     private final LastLoginRecorder lastLoginRecorder;
+    /** 진입 시 작업자 자동 등록기 — JWT 필터가 역할 없는 INTERNAL 요청에만 호출한다(@design AC-126). */
+    private final AutoWorkerRegistrar autoWorkerRegistrar;
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
@@ -47,9 +50,12 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                    CorsConfigurationSource corsConfigurationSource) throws Exception {
+                                                    CorsConfigurationSource corsConfigurationSource,
+                                                    org.springframework.security.access.hierarchicalroles.RoleHierarchy roleHierarchy)
+            throws Exception {
         JwtAuthenticationFilter jwtFilter =
-                new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver, lastLoginRecorder);
+                new JwtAuthenticationFilter(keyResolver, issuerValidator, userRoleResolver,
+                        lastLoginRecorder, autoWorkerRegistrar);
 
         // 개발/검수 전용 토큰 발급 endpoint — authoring.dev.login.enabled=true 일 때만 permitAll 매처 추가.
         // 판정 소스를 프로파일에서 프로퍼티로 교체(DevTokenController/Service 의 @ConditionalOnProperty 와 정합).
@@ -151,7 +157,8 @@ public class SecurityConfig {
                             .requestMatchers("/v1/notices", "/v1/notices/**").hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name())
                             // R5-1: 채널 격리 — 포털 API 는 PORTAL 채널 토큰만 (CHANNEL_PORTAL + PORTAL_USER role).
                             .requestMatchers("/v1/portal/**")
-                                .access(allOf("ROLE_" + Role.PORTAL_USER.name(), "CHANNEL_" + Channel.PORTAL.name()))
+                                .access(allOf(roleHierarchy,
+                                        "ROLE_" + Role.PORTAL_USER.name(), "CHANNEL_" + Channel.PORTAL.name()))
                             // R5-1: 그 외 모든 내부 /v1/** API 는 INTERNAL 채널 토큰만.
                             // channel 클레임 없는 토큰은 JwtAuthenticationFilter 에서 INTERNAL 로 기본값 처리되므로
                             // 기존 내부 사용자 토큰 호환(fail-closed: 무클레임=INTERNAL → 내부 허용, 외부 노출 없음).
@@ -165,8 +172,9 @@ public class SecurityConfig {
                             // 영상 단위 인가는 컨트롤러 진입부의 LabelAccessGuard 가 별도로 강제한다(B-ISSUE-63).
                             .requestMatchers("/v1/**")
                                 .access(allOf(
-                                        hasAuthority("CHANNEL_" + Channel.INTERNAL.name()),
-                                        anyOf("ROLE_" + Role.REVIEWER.name(),
+                                        hasAuthority(roleHierarchy, "CHANNEL_" + Channel.INTERNAL.name()),
+                                        anyOf(roleHierarchy,
+                                              "ROLE_" + Role.REVIEWER.name(),
                                               "ROLE_" + Role.WORKER.name(),
                                               StreamSignatureFilter.AUTHORITY_STREAM_SIGNED)))
                             .anyRequest().authenticated();
@@ -227,18 +235,34 @@ public class SecurityConfig {
         return source;
     }
 
-    /** 단일 권한(authority) 요구 — 채널 격리용. */
-    private static AuthorizationManager<RequestAuthorizationContext> hasAuthority(String authority) {
-        return AuthorityAuthorizationManager.hasAuthority(authority);
+    /**
+     * 단일 권한(authority) 요구 — 채널 격리용.
+     *
+     * <p>★ <b>역할 계층을 반드시 넘긴다.</b> {@code hasRole(...)} 매처와 {@code @PreAuthorize} 는
+     * Spring 이 {@code RoleHierarchy} 빈을 자동으로 물려주지만, 여기처럼 <b>직접 조립한</b>
+     * 매니저에는 아무도 물려주지 않는다. 넘기지 않으면 관리자({@code ROLE_ADMIN})가 아래
+     * {@code /v1/**} 포괄 매처의 {@code ROLE_REVIEWER} 요구를 통과하지 못해 <b>내부 API 전체에서
+     * 403</b> 이 된다 — 계층을 두고도 관리자가 아무것도 못 하는 상태다.
+     *
+     * @design ADR-055
+     */
+    private static AuthorizationManager<RequestAuthorizationContext> hasAuthority(
+            org.springframework.security.access.hierarchicalroles.RoleHierarchy roleHierarchy,
+            String authority) {
+        AuthorityAuthorizationManager<RequestAuthorizationContext> manager =
+                AuthorityAuthorizationManager.hasAuthority(authority);
+        manager.setRoleHierarchy(roleHierarchy);
+        return manager;
     }
 
     /** 모든 권한(authority) 동시 요구 — role + channel 결합 강제용. */
-    @SafeVarargs
-    private static AuthorizationManager<RequestAuthorizationContext> allOf(String... authorities) {
+    private static AuthorizationManager<RequestAuthorizationContext> allOf(
+            org.springframework.security.access.hierarchicalroles.RoleHierarchy roleHierarchy,
+            String... authorities) {
         @SuppressWarnings("unchecked")
         AuthorizationManager<RequestAuthorizationContext>[] managers =
                 java.util.Arrays.stream(authorities)
-                        .map(SecurityConfig::hasAuthority)
+                        .map(a -> hasAuthority(roleHierarchy, a))
                         .toArray(AuthorizationManager[]::new);
         return AuthorizationManagers.allOf(managers);
     }
@@ -251,11 +275,13 @@ public class SecurityConfig {
     }
 
     /** 하나 이상의 권한(authority) 보유 요구 — 역할 OR 서명 스트림 권한 결합용. */
-    private static AuthorizationManager<RequestAuthorizationContext> anyOf(String... authorities) {
+    private static AuthorizationManager<RequestAuthorizationContext> anyOf(
+            org.springframework.security.access.hierarchicalroles.RoleHierarchy roleHierarchy,
+            String... authorities) {
         @SuppressWarnings("unchecked")
         AuthorizationManager<RequestAuthorizationContext>[] managers =
                 java.util.Arrays.stream(authorities)
-                        .map(SecurityConfig::hasAuthority)
+                        .map(a -> hasAuthority(roleHierarchy, a))
                         .toArray(AuthorizationManager[]::new);
         return AuthorizationManagers.anyOf(managers);
     }

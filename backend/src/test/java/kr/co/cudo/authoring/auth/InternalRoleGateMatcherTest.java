@@ -37,8 +37,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("local")
 class InternalRoleGateMatcherTest {
 
+    /**
+     * 저장소에 <b>역할 행 자체가 없는</b> sub — 부트스트랩 모집단의 진짜 표본.
+     * 아래 {@code unassignedToken}(enum 밖 코드 보유)과 <b>뜻이 다르므로 헬퍼를 공유하지 않는다</b>.
+     */
+    private static final long UNSEEDED_USER_NO = 969_700_001L;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private org.springframework.cache.CacheManager cacheManager;
+    @Autowired private kr.co.cudo.authoring.common.security.UserRoleResolver userRoleResolver;
+
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("controlDataSource")
+    private javax.sql.DataSource controlDataSource;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -48,6 +59,19 @@ class InternalRoleGateMatcherTest {
      * 호출하므로 빈 결과가 캐시에 남아 같은 컨텍스트를 공유하는 다른 테스트(StatsControllerTest 등)를
      * 오염시킨다. 호출 후 반드시 비운다(테스트 격리 — 프로덕션 동작과 무관).
      */
+    /**
+     * 이 시험이 만드는 유일한 부수효과 — 진입 시 자동 등록으로 생기는 사용자 행·역할 행을 지운다.
+     * 남기면 사용자·작업자 목록 픽스처를 오염시킨다.
+     */
+    @org.junit.jupiter.api.AfterEach
+    void purgeAutoRegisteredUser() {
+        org.springframework.jdbc.core.JdbcTemplate jdbc =
+                new org.springframework.jdbc.core.JdbcTemplate(controlDataSource);
+        jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", UNSEEDED_USER_NO);
+        jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", UNSEEDED_USER_NO);
+        userRoleResolver.evict(UNSEEDED_USER_NO);
+    }
+
     @org.junit.jupiter.api.AfterEach
     void evictEventTypeCache() {
         org.springframework.cache.Cache cache =
@@ -57,7 +81,13 @@ class InternalRoleGateMatcherTest {
         }
     }
 
-    /** LS 미배정 sub — 인증은 되지만 저작도구 역할 없음(role=null). */
+    /**
+     * 역할이 해석되지 않는 sub — 인증은 되지만 저작도구 역할 없음(role=null).
+     *
+     * <p>★ADR-055(진입 시 작업자 자동 등록) 이후 <b>시드에 없는 숫자 sub 는 role=null 표본이
+     * 아니다</b> — 첫 요청에 WORKER 로 등록된다. 그래서 770001 은 V9002 가 Role enum 밖 코드로
+     * 심어 두고, 자동 등록이 그 행을 덮지 않는다는 성질(DO NOTHING)에 기대어 표본을 유지한다.
+     */
     private String unassignedToken() {
         return JwtTestSupport.token(secret, "770001", "REVIEWER", "INTERNAL", issuer, 60);
     }
@@ -158,13 +188,20 @@ class InternalRoleGateMatcherTest {
     }
 
     @Test
-    @DisplayName("role_null_사용자도_role_claim_엔드포인트에는_도달_403_아님")
+    @DisplayName("★역할_행이_없는_사용자도_role_claim_엔드포인트에는_도달_403_아님")
     void roleNullReachesRoleClaimEndpoint() throws Exception {
         // 매처가 막으면 403 이 된다. 도달하면 관리자 패스워드 미설정/불일치로 401 이 정상.
+        //
+        // ★표본이 <저장소에 행이 없는 sub> 여야 한다. enum 밖 역할코드 표본(770001)은 자동 등록이
+        //   일어나지 않는 인위적 조건이라 프로덕션 부트스트랩 모집단을 대표하지 않는다 — 실제로
+        //   그 표본으로 바꾼 탓에 「자동 등록이 부트스트랩을 막는다」는 결함이 전건 GREEN 으로
+        //   숨었다. 도달성 자체는 AC-127 시험이 200 까지 확인한다.
+        String unseeded = JwtTestSupport.token(
+                secret, String.valueOf(UNSEEDED_USER_NO), "REVIEWER", "INTERNAL", issuer, 60);
         mockMvc.perform(post("/v1/auth/role-claim")
-                        .header("Authorization", "Bearer " + unassignedToken())
+                        .header("Authorization", "Bearer " + unseeded)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"WORKER\",\"adminPassword\":\"not-the-password\"}"))
+                        .content("{\"role\":\"ADMIN\",\"adminPassword\":\"not-the-password\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }

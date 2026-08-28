@@ -48,7 +48,14 @@ import java.util.TreeMap;
  * <ul>
  *   <li>WORKER  — myTaskCount / myTask 분해 채워서 반환.</li>
  *   <li>REVIEWER — myTask 는 항상 0 (UI 가 사용하지 않음).</li>
+ *   <li>ADMIN — 검수자 시야를 계층으로 물려받는다. 작업자 시야로 좁혀지지 않는다.</li>
  * </ul>
+ *
+ * <p>역할 판정은 {@link TokenClaims#hasRole(Role)} 에 위임한다 — 이 서비스가 역할을 스스로
+ * 비교하면 계층이 갈려 관리자가 통계에서만 다르게 취급된다.
+ *
+ * @design ADR-055
+ * @design AC-125
  */
 @Slf4j
 @Service
@@ -105,7 +112,10 @@ public class StatsService {
                 toMap(statsQueryRepository.countFrameByEventTypeAndStatus(LsRawDataStatus.STTS_APPROVED)));
 
         Long userNo = parseUserNo(actor);
-        boolean isWorker = actor != null && actor.role() == Role.WORKER && userNo != null;
+        // 「내 작업」 축은 작업자 전용이다 — 관리자·검수자는 계층으로도 이 자리에 들어가지 않는다.
+        // 판정은 TokenClaims 가 단독으로 소유한다(actor null 안전 진입점). 여기서 역할을 다시
+        // 비교하면 계층이 갈려, 관리자가 검수자 시야 대신 작업자 시야로 좁혀질 수 있다.
+        boolean isWorker = TokenClaims.hasRole(actor, Role.WORKER) && userNo != null;
 
         long myTaskCount = isWorker ? authrtRepository.countActiveTasksByUserNo(userNo) : 0L;
         MyTaskBreakdown myTask = isWorker ? buildMyTask(userNo) : MyTaskBreakdown.empty();
@@ -200,11 +210,15 @@ public class StatsService {
      * <ul>
      *   <li>WORKER 는 본인 통계만 — workerId 가 자기 자신이 아니면 403.</li>
      *   <li>REVIEWER 는 workerId 로 임의 작업자 통계 조회 가능. 미지정 시 본인.</li>
+     *   <li>ADMIN 은 검수자 자리를 계층으로 물려받아 임의 작업자 통계를 조회할 수 있다 —
+     *       이 가드는 <b>작업자만</b> 붙잡는다.</li>
      * </ul>
      *
      * @param actor    인증된 사용자 (필수)
-     * @param workerId 조회 대상 (REVIEWER 만 의미 있음). null → actor 본인.
+     * @param workerId 조회 대상 (검수자 이상만 의미 있음). null → actor 본인.
      * @return 통계 응답. 데이터 없는 사용자는 모든 카운트 0, 빈 배열로 안전 응답.
+     * @design ADR-055
+     * @design AC-125
      */
     public WorkerStatSummaryResponse getWorkerSummary(TokenClaims actor, Long workerId) {
         Long actorUserNo = parseUserNo(actor);
@@ -214,7 +228,7 @@ public class StatsService {
         Long targetUserNo = (workerId != null) ? workerId : actorUserNo;
 
         // CWE-639 IDOR — WORKER 는 본인만 조회 가능.
-        if (actor.role() == Role.WORKER && !actorUserNo.equals(targetUserNo)) {
+        if (actor.hasRole(Role.WORKER) && !actorUserNo.equals(targetUserNo)) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
 

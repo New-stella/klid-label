@@ -19,9 +19,23 @@ import org.springframework.stereotype.Component;
  * LabelService / Sam2TrackService 등 프레임(SRC_SN) 단위로 라벨을 변경하는 모든 진입점이
  * 동일한 규칙으로 권한을 검사하도록 추출되었다.
  *
- *  - REVIEWER : 통과 (모든 프레임 검수 책임)
- *  - WORKER   : 본인이 LABELER 로 배정된 RAW 영상에 속한 프레임만 통과
- *  - 그 외    : 차단
+ *  - REVIEWER 이상 : 통과 (모든 프레임 검수 책임). <b>관리자는 계층으로 물려받는다</b>
+ *  - WORKER        : 본인이 LABELER 로 배정된 RAW 영상에 속한 프레임만 통과
+ *  - 그 외         : 차단
+ *
+ * <p><b>역할 판정은 동등 비교가 아니라 {@link TokenClaims#hasRole(Role)} 이다.</b>
+ * Spring 의 {@code RoleHierarchy} 는 권한(authority) 축에만 걸리므로, 이 가드가 역할을 그대로
+ * 동등 비교하면 관리자가 두 분기 어디에도 걸리지 않고 마지막 {@code FORBIDDEN} 으로 떨어진다.
+ * 그러면 관리자는 관리 기능은 쓰되 <b>라벨·프레임 접근이 통째로 403</b> 이 되어 계층이 반쪽만
+ * 성립한다 — 이 가드는 라벨 조회·저장·프레임 이미지·메타 등 대부분의 프레임 경로가 통과하는
+ * 길목이라 그 영향이 특히 넓다. [design: ADR-055] [design: ROLE-004] [design: AC-125]
+ *
+ * <p>⚠ {@code hasRole(Role.WORKER)} 는 <b>작업자만</b> 참이다 — 관리자·검수자는 위 분기에서 이미
+ * 통과하므로 배정 검사에 흘러들지 않는다(작업자 전용 자리를 계층이 열지 않는다는 규정 그대로).
+ *
+ * <p>⚠ 다만 <b>원본(비-비식별) 프레임 이미지 열람</b>은 이 계층의 <b>유일한 예외</b>라 관리자가
+ * 물려받지 않는다. 그 판정은 이 가드가 아니라 {@code FrameImageService.serveFrame} 과
+ * {@code LabelService.resolveFrameImageType} 두 곳에 있으며 <b>동등 비교를 의도적으로 유지</b>한다.
  */
 @Slf4j
 @Component
@@ -56,10 +70,11 @@ public class LabelAccessGuard {
         }
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
-        if (actor.role() == Role.REVIEWER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        if (actor.hasRole(Role.REVIEWER)) {
             return src;
         }
-        if (actor.role() == Role.WORKER) {
+        if (actor.hasRole(Role.WORKER)) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
                     selfNo, LsTaskAssignment.TASK_LABELER, src.getRawSn());
@@ -75,19 +90,20 @@ public class LabelAccessGuard {
      * 영상(rawSn) 단위 접근 인가 검사 — 프레임(srcSn)이 아니라 영상 ID 만으로 권한을 확인할 때 사용.
      * <p>비식별 신고 resolve(R1 v1.14) 처럼 srcSn 컨텍스트 없이 rawSn 만 있는 경로용.
      * <ul>
-     *   <li>REVIEWER : 통과</li>
-     *   <li>WORKER   : 본인 LABELER 배정 영상만 통과 (CWE-639 IDOR 방어)</li>
-     *   <li>그 외    : 차단</li>
+     *   <li>REVIEWER 이상 : 통과 (관리자 포함 — 계층)</li>
+     *   <li>WORKER        : 본인 LABELER 배정 영상만 통과 (CWE-639 IDOR 방어)</li>
+     *   <li>그 외         : 차단</li>
      * </ul>
      */
     public void verifyRawAccess(Long rawSn, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() == Role.REVIEWER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        if (actor.hasRole(Role.REVIEWER)) {
             return;
         }
-        if (actor.role() == Role.WORKER) {
+        if (actor.hasRole(Role.WORKER)) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
                     selfNo, LsTaskAssignment.TASK_LABELER, rawSn);

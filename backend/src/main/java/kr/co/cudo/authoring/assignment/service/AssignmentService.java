@@ -325,7 +325,11 @@ public class AssignmentService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "배정을 찾을 수 없습니다."));
 
         // IDOR 방어 — WORKER 는 본인 배정 이력만 조회 가능.
-        if (actor != null && actor.role() == Role.WORKER) {
+        // 계층 판정으로 통일한다 — actor null 은 정적 진입점이 fail-closed 로 처리하므로
+        // 호출부가 null 검사를 따로 들고 있지 않다. hasRole(WORKER) 는 작업자만 참이라
+        // 관리자·검수자는 이 좁힘에 걸리지 않는다(계층은 작업자 전용 자리를 열지 않는다).
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (TokenClaims.hasRole(actor, Role.WORKER)) {
             Long selfNo = parseUserNo(actor.sub());
             if (authrt.getUserNo() == null || !authrt.getUserNo().equals(selfNo)) {
                 throw new CustomException(ErrorCode.FORBIDDEN, "본인 배정 이력만 조회할 수 있습니다.");
@@ -472,10 +476,13 @@ public class AssignmentService {
         AssignmentSearchCondition requested = condition != null ? condition : AssignmentSearchCondition.none();
         AssignmentSearchCondition expanded =
                 requested.withEventTypeGroup(eventTypeFilterSupport.matchCodesFor(requested.eventTypeCd()));
-        if (actor.role() == Role.WORKER) {
+        // 역할 계층 반영 — 검수자 분기는 「검수자 이상」이라 관리자가 그대로 board 전체를 본다.
+        // 작업자 분기는 hasRole(WORKER) 가 작업자만 참이라 본인 배정분 좁힘이 그대로 유지된다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (actor.hasRole(Role.WORKER)) {
             return expanded.scopedToSelf(parseUserNo(actor.sub()));
         }
-        if (actor.role() == Role.REVIEWER) {
+        if (actor.hasRole(Role.REVIEWER)) {
             return expanded;
         }
         throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
@@ -675,7 +682,9 @@ public class AssignmentService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // 「검수자 전용」은 「검수자 이상」이다 — 관리자가 계층으로 물려받아 배정·재배정에 들어간다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

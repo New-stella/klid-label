@@ -37,6 +37,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AugmentReviewServiceTest {
 
     @Autowired private AugmentReviewService service;
+    /** 폐기 복구(restore) 도 같은 역할 게이트를 쓴다 — 관리자 통과를 여기서 함께 고정한다. */
+    @Autowired private kr.co.cudo.authoring.augment.service.AugmentDiscardService discardService;
     @Autowired private LsDataAugRepository repository;
     @Autowired private LsDataAugRvwRepository reviewRepository;
     @Autowired private LsDataSrcRepository srcRepository;
@@ -44,6 +46,14 @@ class AugmentReviewServiceTest {
 
     private TokenClaims reviewer;
     private TokenClaims worker;
+    /**
+     * 관리자 — 검수자 권한을 <b>계층으로</b> 물려받는다.
+     *
+     * <p>토큰 객체로만 만든다(역할 저장소에 관리자 행을 심지 않는다). 공용 시드에 관리자를 넣으면
+     * 「시스템에 관리자가 항상 있는」 상태가 되어 관리자 0명일 때만 열리는 부트스트랩 창구 시험이
+     * 통째로 깨진다.
+     */
+    private TokenClaims admin;
 
     /**
      * 증강 대표 프레임(srcSn) — <b>실재하는</b> 영상의 프레임이어야 한다.
@@ -59,6 +69,7 @@ class AugmentReviewServiceTest {
     void setup() {
         reviewer = new TokenClaims("1",   Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         worker   = new TokenClaims("100", Role.WORKER,   Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        admin    = new TokenClaims("9",   Role.ADMIN,    Channel.INTERNAL, Instant.now().plusSeconds(3600));
         reviewRepository.deleteAll();
         repository.deleteAll();
         srcSn = newFrame();
@@ -802,5 +813,71 @@ class AugmentReviewServiceTest {
         assertThat(job.types()).containsExactly("WINTER", "NIGHT", "RAIN");
         assertThat(job.resolutionTypes()).isEmpty();
         assertThat(job.status()).isEqualTo(AugmentJobStatus.REQUESTED.name());
+    }
+
+    // ============================================================
+    // 역할 계층 — 관리자가 검수자 자리를 물려받는다 (ADR-055 · ROLE-004 · AC-125)
+    // ============================================================
+
+    /**
+     * <p>픽스처는 {@link #seedGenerated} 다 — 생성이 성공해 결정이 <b>실제로 가능한</b> 상태다.
+     * PENDING 픽스처로 짜면 「관리자도 못 한다」가 역할이 아니라 <b>생성 미완료</b>(409) 때문에
+     * 항상 참이 되어, 역할 판정을 동등 비교로 되돌려도 초록이 된다.
+     */
+    @Test
+    @DisplayName("관리자는_증강_결과를_채택할_수_있다_계층으로_검수자_자리를_물려받는다")
+    void adminCanAccept() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_WINTER);
+
+        var resp = service.accept(seed.getDataAugSn(), admin);
+
+        assertThat(resp.decisionUserNo()).isEqualTo("9");
+        // 상태코드가 아니라 <부수효과> 로도 단언한다 — 검수 행이 실제로 채택으로 기록돼야 한다.
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
+        assertThat(rvw.getRvwId()).isEqualTo("9");
+    }
+
+    @Test
+    @DisplayName("관리자는_증강_결과를_반려할_수_있다")
+    void adminCanReject() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_NIGHT);
+
+        service.reject(seed.getDataAugSn(), "관리자 반려 사유", admin);
+
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_REJECTED);
+        assertThat(rvw.getRejectRsn()).isEqualTo("관리자 반려 사유");
+        assertThat(rvw.getRvwId()).isEqualTo("9");
+    }
+
+    @Test
+    @DisplayName("관리자는_반려를_되돌려_검수를_재오픈할_수_있다")
+    void adminCanRestore() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_RAIN);
+        service.reject(seed.getDataAugSn(), "일단 반려", reviewer);
+
+        discardService.restore(seed.getDataAugSn(), "오반려였다", admin);
+
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd())
+                .as("복구는 반려 자체를 되돌려 다시 채택/반려를 고를 수 있게 한다")
+                .isEqualTo(LsDataAugRvw.STTS_PENDING);
+    }
+
+    @Test
+    @DisplayName("작업자는_반려를_되돌릴_수_없고_검수_상태도_바뀌지_않는다")
+    void workerCannotRestore() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_WINTER);
+        service.reject(seed.getDataAugSn(), "일단 반려", reviewer);
+
+        assertThatThrownBy(() -> discardService.restore(seed.getDataAugSn(), "되돌려줘", worker))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        assertThat(reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow().getRvwSttsCd())
+                .as("거부는 상태코드뿐 아니라 <아무 일도 일어나지 않음> 으로도 확인한다")
+                .isEqualTo(LsDataAugRvw.STTS_REJECTED);
     }
 }

@@ -66,7 +66,13 @@ public class AdminPasswordService {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         // 인가를 먼저 본다 — 권한 없는 사람의 시도가 정상 사용자의 속도 제한 쿼터를 갉아먹지 않게.
-        if (actor.role() != Role.REVIEWER) {
+        //
+        // ★★이 비교는 <역할 계층을 타지 않는다>(enum 동등 비교). 컨트롤러의
+        //   @PreAuthorize("hasRole('ADMIN')") 와 <같은 값>을 유지해야 하며, 한쪽만 바꾸면
+        //   통과한 사용자가 다른 쪽에서 403 을 받는다.
+        // 관리자 패스워드 교체는 관리 권한 경계 자체를 바꾸는 일이라 관리자 전용이다
+        //   (AC-072 · ROLE-004 SCREEN-041 · ADR-055).
+        if (actor.role() != Role.ADMIN) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
         if (request == null) {

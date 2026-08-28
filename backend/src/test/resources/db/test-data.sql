@@ -60,4 +60,9 @@ INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES
   (101,  'WORKER',   CURRENT_TIMESTAMP),
   (200,  'WORKER',   CURRENT_TIMESTAMP),
   (1001, 'REVIEWER', CURRENT_TIMESTAMP),
-  (2001, 'WORKER',   CURRENT_TIMESTAMP);
+  (2001, 'WORKER',   CURRENT_TIMESTAMP),
+  -- ADR-055 표본(V9002 와 동일해야 한다) — 자동 등록 이후 "시드에 없는 숫자 sub" 는 더 이상
+  -- role=null 을 뜻하지 않으므로, role=null 표본(770001, enum 밖 코드)과 "배정 안 된 작업자"
+  -- 표본(424242)을 여기서도 재삽입한다. 빠뜨리면 이 파일을 적재한 뒤 도는 테스트에서만 깨진다.
+  (770001, 'LEARN_MANAGER', CURRENT_TIMESTAMP),
+  (424242, 'WORKER',        CURRENT_TIMESTAMP);

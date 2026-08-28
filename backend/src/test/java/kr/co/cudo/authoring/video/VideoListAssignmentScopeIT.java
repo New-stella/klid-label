@@ -60,9 +60,23 @@ class VideoListAssignmentScopeIT {
     private static final long WORKER_NO = 100L;
     private static final long OTHER_WORKER_NO = 101L;
 
+    /**
+     * 이 시험 전용 관리자 사용자번호 — 공용 시드·다른 시험과 겹치지 않는 대역.
+     *
+     * <p>★ 공용 시드에 관리자를 넣지 않는 이유: 시스템에 관리자가 <b>항상</b> 있는 셈이 되어
+     * 관리자 부트스트랩 창구(관리자 0명일 때만 열린다)가 영구히 닫히고, 그 창구를 검증하는 시험들이
+     * 통째로 깨진다. 그래서 이 클래스가 직접 심고 <b>반드시 지운다</b>.
+     */
+    private static final long ADMIN_NO = 969_300_011L;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsTaskAssignmentRepository assignmentRepository;
+    @Autowired private kr.co.cudo.authoring.common.security.UserRoleResolver userRoleResolver;
+
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("controlDataSource")
+    private javax.sql.DataSource controlDataSource;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -70,6 +84,9 @@ class VideoListAssignmentScopeIT {
     private String workerToken;
     private String otherWorkerToken;
     private String reviewerToken;
+    private String adminToken;
+
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @BeforeEach
     void setUp() {
@@ -77,6 +94,27 @@ class VideoListAssignmentScopeIT {
         otherWorkerToken =
                 JwtTestSupport.token(secret, String.valueOf(OTHER_WORKER_NO), "WORKER", "INTERNAL", issuer, 60);
         reviewerToken = JwtTestSupport.token(secret, String.valueOf(REVIEWER_NO), "REVIEWER", "INTERNAL", issuer, 60);
+        // JWT 의 role 클레임은 인가에 쓰이지 않는다(LS_USER_ROLE 이 진실원) — 값은 표기일 뿐이다.
+        adminToken = JwtTestSupport.token(secret, String.valueOf(ADMIN_NO), "ADMIN", "INTERNAL", issuer, 60);
+
+        // @Sql(BEFORE_TEST_METHOD) 가 LS_USER_ROLE 을 통째로 지우고 재삽입한 <이후>에 심어야 살아남는다
+        // (Spring 의 스크립트 실행이 @BeforeEach 보다 앞선다).
+        jdbc = new org.springframework.jdbc.core.JdbcTemplate(controlDataSource);
+        clearAdminRole();
+        jdbc.update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, 'ADMIN', CURRENT_TIMESTAMP)",
+                ADMIN_NO);
+        userRoleResolver.evict(ADMIN_NO);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() {
+        clearAdminRole();
+    }
+
+    private void clearAdminRole() {
+        jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", ADMIN_NO);
+        jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", ADMIN_NO);
+        userRoleResolver.evict(ADMIN_NO);
     }
 
     // ---------------------------------------------------------------- fixtures
@@ -233,6 +271,60 @@ class VideoListAssignmentScopeIT {
                         .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    // ------------------------------------------------- 역할 계층 (ADR-055 · ROLE-004 · AC-125)
+
+    @Test
+    @DisplayName("★관리자는_영상목록에서_403이_아니라_검수자와_같은_전체_범위를_본다")
+    void adminSeesFullScopeLikeReviewer() throws Exception {
+        // given: 아무에게도 배정되지 않은 영상 + 남에게 배정된 영상
+        //   [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        //
+        // ★ 이 창구의 스코프 판정이 역할 <동등 비교>였을 때 관리자는 작업자 분기에도 검수자 분기에도
+        //   걸리지 않고 마지막 FORBIDDEN 으로 떨어져 <b>영상 목록이 통째로 403</b> 이었다.
+        //   Spring 의 RoleHierarchy 는 권한(authority) 축에만 걸리므로 @PreAuthorize 는 통과시키고
+        //   그 뒤 서비스에서 다시 막는 형태였다 — 이 라운드의 release-blocking 대표 증거다.
+        LsDataRaw unassigned = seedVideo("CLIP-SCOPE-ADMIN-UNASSIGNED");
+        LsDataRaw othersVideo = seedVideo("CLIP-SCOPE-ADMIN-OTHERS");
+        assignLabeler(othersVideo, OTHER_WORKER_NO);
+
+        // when / then: 미배정 영상이 보인다 — 판정을 되돌리면 403(전부 실패)이 된다.
+        //   총 건수는 공유 컨테이너 잔여에 종속되므로 영상 ID 검색어로 좁혀 대조한다(검수자 케이스와 동일).
+        mockMvc.perform(get("/v1/videos")
+                        .param("cctvNameKeyword", String.valueOf(unassigned.getRawSn()))
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(unassigned.getRawSn()));
+
+        // 남에게 배정된 영상도 그대로 보인다 — 관리자가 작업자 분기로 흘러 <본인 배정분>으로 좁혀지면
+        // 여기가 0건이 된다(hasRole(WORKER) 가 작업자 전용임을 결과로 고정).
+        mockMvc.perform(get("/v1/videos")
+                        .param("cctvNameKeyword", String.valueOf(othersVideo.getRawSn()))
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(othersVideo.getRawSn()));
+    }
+
+    @Test
+    @DisplayName("★관리자의_조회_범위는_검수자와_같다_같은_영상을_같은_건수로_본다")
+    void adminScopeEqualsReviewerScope() throws Exception {
+        // 「403 이 아니다」만 확인하면 관리자가 <일부만> 보는 상태도 통과한다. 같은 검색어로 두 역할의
+        // 결과를 맞대어 <범위가 동일함>을 고정한다(ROLE-004: 관리자는 검수자에게 열린 자리에 그대로 들어간다).
+        LsDataRaw target = seedVideo("CLIP-SCOPE-ADMIN-PARITY");
+        assignLabeler(target, OTHER_WORKER_NO);
+        String keyword = String.valueOf(target.getRawSn());
+
+        for (String token : new String[]{reviewerToken, adminToken}) {
+            mockMvc.perform(get("/v1/videos")
+                            .param("cctvNameKeyword", keyword)
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.totalElements").value(1))
+                    .andExpect(jsonPath("$.data.content[0].id").value(target.getRawSn()));
+        }
     }
 
     // ---------------------------------------------------------------- AC-6

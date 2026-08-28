@@ -42,10 +42,15 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>검사 응답이 이름이 비슷한 후보를 제시하지만, 저장되는 것은 <b>사람이 고른 값</b>뿐이다. 서버가
  * 대신 확정하는 통로는 이 API 에 없다.
  *
- * <h3>보안</h3>
+ * <h3>보안 — 한 클래스 안에서 축이 갈린다</h3>
  * <ul>
- *   <li><b>REVIEWER 전용</b> — {@code SecurityConfig} 의 {@code /v1/**} 매처와
- *       {@code @PreAuthorize} 이중 방어.</li>
+ *   <li><b>조회는 검수자 이상, 쓰기는 관리자 전용</b>이다. 목록 조회(API-209)는 검수자 권한으로
+ *       응답하고, 대응 확정(API-210)과 해제(API-211)는 관리자만 호출할 수 있다 — 산출물을 들여오는
+ *       쪽은 운영·관리 성격의 쓰기이기 때문이다(ROLE-004).</li>
+ *   <li>★ <b>클래스에 건 게이트를 관리자로 올리지 말 것</b> — 그러면 조회까지 함께 좁아져 화면이
+ *       열리자마자 빈 채로 죽는다. 좁히는 표기는 <b>쓰기 메서드에만</b> 얹는다. 관리자는 검수자
+ *       권한을 계층으로 물려받으므로 조회에도 그대로 들어온다.</li>
+ *   <li>{@code SecurityConfig} 의 {@code /v1/**} 매처와 {@code @PreAuthorize} 이중 방어.</li>
  *   <li>요청 본문은 DTO 로만 받는다 — 식별번호·등록일시·사용여부를 요청으로 받지 않는다(CWE-915).</li>
  *   <li>목록은 페이지 단위로만 돌려준다 — 대응 표는 산출물을 가져올수록 늘어난다(CWE-770).</li>
  * </ul>
@@ -54,9 +59,11 @@ import org.springframework.web.bind.annotation.RestController;
  * @design API-209
  * @design API-210
  * @design API-211
+ * @design ADR-055
+ * @design ROLE-004
  * @design AC-043
  */
-@Tag(name = "ImportMapping", description = "외부 분류 대응 목록·확정·해제 — REVIEWER 전용.")
+@Tag(name = "ImportMapping", description = "외부 분류 대응 — 조회는 검수자 이상, 확정·해제는 관리자 전용.")
 @RestController
 @RequestMapping("/v1/import-mappings")
 @RequiredArgsConstructor
@@ -70,7 +77,7 @@ public class ImportMappingController {
 
     private final ImportMappingService importMappingService;
 
-    @Operation(summary = "분류 대응 목록 조회 (REVIEWER)",
+    @Operation(summary = "분류 대응 목록 조회 (REVIEWER 이상)",
             description = "종류로 거를 수 있다. 해제된 대응은 기본적으로 뺀다.")
     @GetMapping
     public ApiResponse<ImportMappingListResponse> list(
@@ -86,8 +93,13 @@ public class ImportMappingController {
         return ApiResponse.ok(importMappingService.list(kind, includeUnused, pageable));
     }
 
-    @Operation(summary = "분류 대응 확정 (REVIEWER)",
+    /**
+     * 분류 대응 확정 — <b>관리자 전용</b>. 클래스에 걸린 검수자 게이트보다 좁은 표기를 이 자리에만
+     * 얹는다(API-210 · ROLE-004). 같은 클래스의 목록 조회는 검수자 권한으로 계속 응답한다.
+     */
+    @Operation(summary = "분류 대응 확정 (ADMIN)",
             description = "사람이 고른 연결만 저장한다. 이미 있는 대응을 바꾸려면 overwrite 를 함께 보낸다.")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ImportMappingSaveResponse> create(
@@ -97,8 +109,12 @@ public class ImportMappingController {
         return ApiResponse.ok(importMappingService.save(request, actorId));
     }
 
-    @Operation(summary = "분류 대응 해제 (REVIEWER)",
+    /**
+     * 분류 대응 해제 — <b>관리자 전용</b>. 확정과 같은 축이라 같은 요구를 건다(API-211 · ROLE-004).
+     */
+    @Operation(summary = "분류 대응 해제 (ADMIN)",
             description = "행을 지우지 않고 쓰지 않음으로 표시한다. 이미 적재된 라벨은 그대로 둔다.")
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{mpngSn}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable @Min(1) long mpngSn,

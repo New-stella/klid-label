@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.transfer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.dataset.export.DatasetExportOutcome;
 import kr.co.cudo.authoring.dataset.export.DatasetExportService;
 import kr.co.cudo.authoring.eventtype.service.EventTypeCacheEvictor;
@@ -60,8 +61,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>저장소에 함께 둔 산출물 폴더를 그대로 읽는다({@link ImportSampleFolder}). 저장 위치는 빌드
  * 디렉터리 아래로 돌려, 시험이 실제 저장소를 건드리지 않게 한다.
  *
+ * <h3>적재는 관리자 자리다 (ADR-055)</h3>
+ * <p>적재 실행과 분류 대응 확정은 관리자만 호출한다. 반면 검수·프레임 열람 같은 뒤이은 자리는
+ * 검수자 그대로라, 이 시험은 두 배우를 <b>일부러 갈라</b> 쓴다 — 한 배우로 통일하면 축이 갈렸다는
+ * 사실이 시험에서 사라진다.
+ *
  * @design DOMAIN-017
  * @design API-206
+ * @design ADR-055
+ * @design ROLE-004
  * @design AC-044
  * @design AC-045
  * @design AC-046
@@ -88,7 +96,11 @@ class ImportControllerIT {
     private static final Duration EXPORT_SETTLE_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration EXPORT_SETTLE_POLL = Duration.ofMillis(100);
 
+    /** 이 시험 전용 관리자 사용자번호 — 공용 시드·다른 시험과 겹치지 않는 대역. */
+    private static final long ADMIN_NO = 969_300_042L;
+
     @Autowired private MockMvc mockMvc;
+    @Autowired private UserRoleResolver userRoleResolver;
     @Autowired private EventTypeCacheEvictor eventTypeCacheEvictor;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DatasetExportService datasetExportService;
@@ -106,6 +118,8 @@ class ImportControllerIT {
     private Executor batchAsyncExecutor;
 
     private JdbcTemplate jdbc;
+    private ImportAdminActor admin;
+    private String adminToken;
     private String reviewerToken;
     private String workerToken;
     private long labelId;
@@ -114,6 +128,10 @@ class ImportControllerIT {
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanup();
+        admin = new ImportAdminActor(jdbc, userRoleResolver, ADMIN_NO);
+        admin.grant();
+        // JWT 의 role 클레임은 인가에 쓰이지 않는다(역할 저장소가 진실원) — 값은 표기일 뿐이다.
+        adminToken = JwtTestSupport.token(secret, String.valueOf(ADMIN_NO), "ADMIN", "INTERNAL", issuer, 60);
         reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken = JwtTestSupport.token(secret, "2", "WORKER", "INTERNAL", issuer, 60);
         labelId = insertLabel();
@@ -123,6 +141,7 @@ class ImportControllerIT {
     @AfterEach
     void tearDown() {
         cleanup();
+        admin.clear();
     }
 
     // ------------------------------------------------------------------ 적재
@@ -193,7 +212,8 @@ class ImportControllerIT {
         assertThat(((Number) history.get("lbl_cnt")).intValue())
                 .isEqualTo(ImportSampleFolder.LABEL_COUNT);
         assertThat(history.get("orgnl_fldr_nm")).isEqualTo(ImportSampleFolder.FOLDER_NAME);
-        assertThat(history.get("reg_id")).isEqualTo("1");
+        // 가져온 사람이 그대로 남는다 — 적재는 관리자 자리이므로 그 관리자의 식별자다.
+        assertThat(history.get("reg_id")).isEqualTo(String.valueOf(ADMIN_NO));
 
         // 파일이 실제로 옮겨졌다 — 경로만 적히고 파일이 없으면 관제가 픽업해도 열 것이 없다.
         assertThat(Files.isRegularFile(Paths.get((String) frame.get("de_idntf_src_file_path_nm"))))
@@ -236,7 +256,7 @@ class ImportControllerIT {
         long framesBefore = countFrames(rawSn);
 
         mockMvc.perform(post(IMPORTS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(importBody(true, null)))
                 .andExpect(status().isConflict())
@@ -341,7 +361,7 @@ class ImportControllerIT {
     void 대응이_정해지지_않은_분류가_남으면_적재하지_않는다() throws Exception {
         // 대응을 하나도 확정하지 않은 상태다 — 짐작으로 연결하면 다른 분류로 저장되고 되돌릴 수 없다.
         mockMvc.perform(post(IMPORTS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(importBody(true, null)))
                 .andExpect(status().isBadRequest())
@@ -351,13 +371,56 @@ class ImportControllerIT {
         assertThat(historyCount()).isZero();
     }
 
+    /**
+     * ★ 이번 좁히기의 핵심 대조군 — 적재만 관리자로 좁아지고 검사·이력 조회는 검수자 그대로다.
+     *
+     * <h3>본문을 일부러 "성공하는 본문"으로 준다</h3>
+     * <p>인가 뒤에는 경로 판정·대응 확정 여부 같은 게이트가 줄줄이 이어진다. 그중 하나에라도 걸리는
+     * 본문을 주면 인가를 통째로 풀어도 같은 거부가 나와 시험이 <b>조용히 항상 참</b>이 된다. 그래서
+     * 같은 본문을 관리자가 보내면 실제로 만들어지는 것까지 함께 단언한다 — 그 짝이 있어야 위의
+     * 거부가 본문 결함이 아니라 인가였음이 증명된다.
+     */
+    @Test
+    @DisplayName("검수자는_적재에서만_막히고_검사와_이력_조회는_그대로_통과한다")
+    void 검수자는_적재에서만_막히고_검사와_이력_조회는_그대로_통과한다() throws Exception {
+        confirmMappings();
+        String body = importBody(true, null);
+
+        mockMvc.perform(post(IMPORTS)
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+        assertThat(importedRawCount()).isZero();
+        assertThat(historyCount()).isZero();
+
+        // 대조군 — 검사와 이력 조회는 검수자 권한으로 계속 응답한다. 함께 좁아지면 화면이
+        //   열리자마자 빈 채로 죽는다.
+        mockMvc.perform(post(IMPORTS + "/scan")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("folderPath", ImportSampleFolder.path().toString()))))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(IMPORTS).header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk());
+
+        // 같은 본문을 관리자가 보내면 실제로 들어온다 — 위 거부가 본문 결함이 아니었다는 증명.
+        mockMvc.perform(post(IMPORTS)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated());
+        assertThat(importedRawCount()).isEqualTo(1L);
+    }
+
     @Test
     @DisplayName("허용_범위_밖_경로와_권한_없는_요청은_아무것도_남기지_않고_거부한다")
     void 허용_범위_밖_경로와_권한_없는_요청은_아무것도_남기지_않고_거부한다() throws Exception {
         confirmMappings();
 
         mockMvc.perform(post(IMPORTS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 Map.of("folderPath", "/etc", "deidentified", true))))
@@ -398,7 +461,7 @@ class ImportControllerIT {
                 "acknowledgedWarnings", List.of("UNPAIRED_IMAGE", "DECLARED_COUNT_MISMATCH")));
 
         mockMvc.perform(post(IMPORTS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
@@ -536,7 +599,7 @@ class ImportControllerIT {
 
     private long importFolder(boolean deidentified, String videoPath) throws Exception {
         MvcResult result = mockMvc.perform(post(IMPORTS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(importBody(deidentified, videoPath)))
                 .andExpect(status().isCreated())
@@ -570,7 +633,7 @@ class ImportControllerIT {
                         "externalName", ImportSampleFolder.EVENT_CATEGORY,
                         "evntTypeCd", EVENT_TYPE_CD))));
         mockMvc.perform(post(MAPPINGS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated());

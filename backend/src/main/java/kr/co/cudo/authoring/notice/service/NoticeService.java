@@ -26,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>WORKER 는 PUBLISHED 공지만 조회 가능 — 목록은 QueryDSL WHERE 로 DRAFT 제외,
  *       상세는 DRAFT 접근 시 <b>404</b>(403 아님 — DRAFT 존재 자체를 노출하지 않음).</li>
  *   <li>REVIEWER 는 DRAFT 포함 전체 조회 가능.</li>
+ *   <li>ADMIN 은 역할 계층(관리자 &gt; 검수자)으로 REVIEWER 와 동일하게 취급한다 —
+ *       판정은 {@link #isReviewerOrAbove(TokenClaims)} 한 곳이 소유한다.</li>
  * </ul>
  */
 @Slf4j
@@ -51,7 +53,7 @@ public class NoticeService {
 
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<LsNotice> search(SearchField field, String keyword, Pageable pageable, TokenClaims actor) {
-        boolean publishedOnly = !isReviewer(actor);
+        boolean publishedOnly = !isReviewerOrAbove(actor);
         return noticeQueryRepository.search(field, keyword, publishedOnly, pageable);
     }
 
@@ -60,7 +62,7 @@ public class NoticeService {
         LsNotice notice = noticeRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "공지를 찾을 수 없습니다."));
         // WORKER 가 DRAFT 에 접근하면 존재를 숨기기 위해 404 로 응답.
-        if (!isReviewer(actor) && !notice.isPublished()) {
+        if (!isReviewerOrAbove(actor) && !notice.isPublished()) {
             throw new CustomException(ErrorCode.NOT_FOUND, "공지를 찾을 수 없습니다.");
         }
         return notice;
@@ -132,8 +134,28 @@ public class NoticeService {
         return userNameResolver.resolveOne(notice.getRegId());
     }
 
-    private static boolean isReviewer(TokenClaims actor) {
-        return actor != null && actor.role() == Role.REVIEWER;
+    /**
+     * <b>검수자 이상인가</b> — 게시판 관리 권한 판정의 단일 지점.
+     *
+     * <p>「검수자 전용」 창구는 <b>「검수자 이상」</b>으로 읽는다. 공지는 관리 업무 성격이라
+     * 관리자도 등록·수정·삭제·발행하고 첨부를 올리고 지운다. 역할 enum 을 검수자와 그대로
+     * 동등 비교하면 관리자가 여기서 떨어져 목록에서 DRAFT 가 사라지고,
+     * DRAFT 상세·그 공지의 첨부 업로드/다운로드/삭제가 전부 404 가 된다
+     * (첨부 3경로는 {@link NoticeAttachService} 가 {@link #get(long, TokenClaims)} 에 위임하므로
+     * 이 한 곳이 그대로 파급된다).
+     *
+     * <p>계층 판정은 {@link TokenClaims#hasRole(TokenClaims, Role)} 에 위임하며 <b>복제하지 않는다</b>.
+     * {@code actor} 가 null 일 수 있는 자리라 null 안전 정적 진입점을 쓴다(fail-closed).
+     *
+     * <p>⚠ 이름을 {@code isReviewer} 로 되돌리지 말 것 — 관리자도 참이므로 그 이름은
+     * 「검수자만 참」으로 오독된다.
+     *
+     * @design ADR-055
+     * @design ROLE-004
+     * @design AC-125
+     */
+    private static boolean isReviewerOrAbove(TokenClaims actor) {
+        return TokenClaims.hasRole(actor, Role.REVIEWER);
     }
 
     private static String actorId(TokenClaims actor) {

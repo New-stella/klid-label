@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
+import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,11 +33,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
     private final LastLoginRecorder lastLoginRecorder;
+    /** 진입 시 작업자 자동 등록기 — 역할이 없는 INTERNAL 사용자에게만 돈다(@design AC-126). */
+    private final AutoWorkerRegistrar autoWorkerRegistrar;
 
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
                                    JwtIssuerValidator issuerValidator,
                                    UserRoleResolver userRoleResolver,
-                                   LastLoginRecorder lastLoginRecorder) {
+                                   LastLoginRecorder lastLoginRecorder,
+                                   AutoWorkerRegistrar autoWorkerRegistrar) {
         if (keyResolver == null) {
             throw new IllegalArgumentException("keyResolver must not be null (fail-closed)");
         }
@@ -52,10 +56,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (lastLoginRecorder == null) {
             throw new IllegalArgumentException("lastLoginRecorder must not be null (wiring bug)");
         }
+        // 등록기 부재도 <배선 버그>다 — 인증은 계속 되지만 역할 없는 진입자가 영영 등록되지 않아
+        // 배정 목록에 뜨지 않는다. 등록 <실패> 시의 fail-open 은 등록기 내부 책임이고, 등록기
+        // <부재> 는 여기서 즉시 드러낸다.
+        if (autoWorkerRegistrar == null) {
+            throw new IllegalArgumentException("autoWorkerRegistrar must not be null (wiring bug)");
+        }
         this.keyResolver = keyResolver;
         this.issuerValidator = issuerValidator;
         this.userRoleResolver = userRoleResolver;
         this.lastLoginRecorder = lastLoginRecorder;
+        this.autoWorkerRegistrar = autoWorkerRegistrar;
     }
 
     @Override
@@ -93,6 +104,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                // 이름 클레임은 인가 이전에 읽는다 — 자동 등록이 사용자 마스터의 표시 이름을
+                //   채우는 데 쓰기 때문이다(그 창구가 부트스트랩 전용으로 닫히면서 이름을 채우는
+                //   유일한 경로가 여기로 옮겨왔다). 요청 속성 노출은 종전 위치·의미 그대로다.
+                String name = body.get("name", String.class);
+
                 String channelStr = body.get("channel", String.class);
                 Channel channel = channelStr == null ? Channel.INTERNAL : Channel.valueOf(channelStr);
 
@@ -105,6 +121,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (channel == Channel.INTERNAL) {
                     Long userNo = parseUserNo(body.getSubject());
                     role = userNo == null ? null : userRoleResolver.resolve(userNo);
+                    // 진입 시 작업자 자동 등록 (ADR-055 · @design AC-126) — 역할 자가부여 창구가
+                    //   관리자 부트스트랩 전용으로 좁혀지면서 일반 사용자가 등록될 통로가 사라졌다.
+                    //   그래서 <진입 자체>가 등록 시점이 된다.
+                    //   * 조건부다 — 역할이 이미 해석되면 호출조차 하지 않으므로 사용자당 사실상 1회다
+                    //     (매 요청 쓰기가 아니다).
+                    //   * 이미 부여된 역할은 덮지 않는다 — 관리자가 지정한 역할이 다음 요청에
+                    //     되돌려지면 안 된다. 덮지 않아 삽입이 일어나지 않은 경우는 null 이 돌아와
+                    //     무권한으로 흐른다(fail-closed).
+                    //   * 등록 실패는 요청을 죽이지 않는다(fail-open, 등록기 내부에서 흡수).
+                    //   ★ PORTAL 채널은 대상이 아니다 — 이 분기 자체가 INTERNAL 전용이다.
+                    if (role == null) {
+                        role = autoWorkerRegistrar.registerAsWorker(userNo, name);
+                    }
                     // 최종로그인일시 기록 (V12 · @design SCREEN-024) — 저작도구엔 독립 로그인 UI 가 없어
                     //   "로그인" 이벤트가 존재하지 않는다. 관측 가능한 가장 가까운 사실이 <검증을 통과한
                     //   요청>이라 여기가 기록 지점이다.
@@ -142,7 +171,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(claims, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
-                String name = body.get("name", String.class);
                 if (name != null) {
                     request.setAttribute(AUTH_NAME_ATTR, name);
                 }

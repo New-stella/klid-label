@@ -314,7 +314,9 @@ public class EvntAnnoReviewService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // [design: ADR-055] 창구의 「검수자 전용」은 「검수자 이상」으로 읽는다 — 관리자는 물려받는다.
+        //   event_annotation 승인·반려는 검수자가 하는 일이라 계층이 그대로 적용된다.
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

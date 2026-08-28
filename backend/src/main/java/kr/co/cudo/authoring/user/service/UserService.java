@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.user.service;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.user.dto.UserProfileResponse;
@@ -123,9 +124,12 @@ public class UserService {
      *   <li>{@code role} 미제공: 기존 LS 역할(없으면 null 미배정)을 그대로 응답한다.</li>
      * </ul>
      *
-     * <p>보안: role 은 Controller/DTO {@code @Pattern} 화이트리스트(REVIEWER|WORKER|PORTAL_USER)로
+     * <p>보안: role 은 Controller/DTO {@code @Pattern} 화이트리스트(ADMIN|REVIEWER|WORKER|PORTAL_USER)로
      * 사전 검증된 값만 도달하며 native upsert 는 파라미터 바인딩만 사용한다 (SQL Injection 차단).
      * 역할 변경(특히 강등)은 감사 추적을 위해 변경 전/후 역할을 info 로그로 남긴다 (PII·토큰 미출력).
+     *
+     * @design API-004
+     * @design AC-124
      */
     @Transactional("controlTransactionManager")
     public UserProfileResponse update(Long userNo, UserUpdateRequest req) {
@@ -141,6 +145,7 @@ public class UserService {
         // 동일 역할 재적용은 skip — 불필요한 UPD_DT 갱신/Phase3 캐시 churn 방지(멱등).
         // LS 행이 없으면(currentRole=null) 신규 부여는 진행한다.
         if (req.role() != null && !req.role().equals(currentRole)) {
+            guardLastAdmin(userNo, currentRole, req.role());
             lsUserRoleRepository.upsertRole(userNo, req.role());
             nextRole = req.role();
             // Phase 3 — 인가 역할 캐시 무효화. 커밋 후(AFTER_COMMIT)에 evict 하여 강등이 즉시(≤다음요청)
@@ -159,6 +164,40 @@ public class UserService {
                 nextRole,
                 ""
         );
+    }
+
+    /**
+     * <b>마지막 관리자 보호</b> — 관리자가 한 명뿐일 때 그 사람을 다른 역할로 내리면 409.
+     *
+     * <h3>왜 조회 후 판정이 아닌가 (CWE-362 write skew)</h3>
+     * <p>두 관리자가 서로를 <b>동시에</b> 내리면, 각자 조회 시점에는 둘 다 "관리자가 둘" 이라고
+     * 보아 통과하고 결과적으로 0명이 된다. 위 {@code currentRole} 조회값만으로 판정하면 정확히 그
+     * 결함이다. 그래서 판정 직전에 <b>관리자 행 집합을 잠그고</b>({@code FOR UPDATE}) 그 잠금이
+     * 돌려준 목록으로 센다 — 뒤늦은 트랜잭션은 앞선 강등이 커밋된 뒤의 목록을 보므로 "이제 한
+     * 명뿐" 을 정확히 관측한다(리포지토리 javadoc 참조).
+     *
+     * <h3>대가</h3>
+     * <p>관리자 계정을 전부 잃으면 저장소를 직접 고치는 것이 유일한 복구 경로다 — 인지하고 받아들인
+     * 대가이며 운영 문서에 복구 절차를 남긴다.
+     *
+     * @param userNo      대상 사용자번호
+     * @param currentRole 변경 전 역할(없으면 null)
+     * @param nextRole    변경 후 역할 — 관리자 유지면 보호가 필요 없다
+     * @design AC-124
+     */
+    private void guardLastAdmin(Long userNo, String currentRole, String nextRole) {
+        // 관리자를 내리는 경우에만 판정한다 — 그 외에는 관리자 수가 줄지 않으므로 잠글 이유가 없다
+        // (모든 역할 변경이 관리자 행 전체를 잠그면 불필요한 직렬화가 생긴다).
+        if (!Role.ADMIN.name().equals(currentRole) || Role.ADMIN.name().equals(nextRole)) {
+            return;
+        }
+        List<Long> admins = lsUserRoleRepository.lockUserNosByRoleCd(Role.ADMIN.name());
+        // 목록에 없으면 그 사이 이미 강등됐다는 뜻이라 보호 대상이 아니다(남은 관리자를 줄이지 않는다).
+        if (admins.contains(userNo) && admins.size() <= 1) {
+            log.warn("[User] last admin demotion denied userNo={}", userNo);
+            throw new CustomException(ErrorCode.CONFLICT,
+                    "마지막 관리자는 다른 역할로 변경할 수 없습니다. 다른 사용자를 관리자로 지정한 뒤 다시 시도하세요.");
+        }
     }
 
     private Long parseUserNo(String sub) {

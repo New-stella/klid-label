@@ -585,7 +585,11 @@ public class AugmentRequestService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // 「검수자 전용」은 「검수자 이상」이다 — 관리자가 계층으로 물려받아 증강 요청에 들어간다.
+        // Spring 의 RoleHierarchy 는 권한(authority) 축에만 걸리므로 여기서 역할을 동등 비교하면
+        // 관리자가 이 창구에서만 403 이 되어 계층이 반쪽만 성립한다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

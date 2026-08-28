@@ -53,6 +53,7 @@ class ReviewControllerTest {
     private javax.sql.DataSource controlDataSource;
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private kr.co.cudo.authoring.common.security.UserRoleResolver userRoleResolver;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private VideoRepository rawRepository;
     @Autowired private LsTaskAssignmentRepository authrtRepository;
@@ -216,6 +217,38 @@ class ReviewControllerTest {
     }
 
     // ---------- submit (WORKER 전용) ----------
+
+    /** 이 시험 전용 관리자 — 공용 시드에 관리자를 넣으면 부트스트랩 창구가 영구히 닫힌다. */
+    private static final long ADMIN_NO = 969_900_001L;
+
+    @Test
+    @DisplayName("★ADMIN도_검수제출·제출취소는_403 — 역할_계층은_작업자까지_내려오지_않는다")
+    void adminCannotSubmitOrCancelSubmit() throws Exception {
+        // ADR-055 · AC-125 — 관리자는 검수자 권한을 물려받지만 <작업자 전용> 자리에는 들어가지 못한다.
+        //   실지점 두 곳(검수 제출·제출 취소)을 직접 친다 — 스텁은 계층 되돌림을 빠르게 잡는 축이고,
+        //   여기서는 실제 창구가 정말 닫혀 있는지 본다.
+        seedDataStts(LsRawDataStatus.STTS_ASSIGNED);
+        JdbcTemplate jdbc = new JdbcTemplate(controlDataSource);
+        jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", ADMIN_NO);
+        jdbc.update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, 'ADMIN', CURRENT_TIMESTAMP)",
+                ADMIN_NO);
+        userRoleResolver.evict(ADMIN_NO);
+        try {
+            String adminToken = JwtTestSupport.token(
+                    secret, String.valueOf(ADMIN_NO), "ADMIN", "INTERNAL", issuer, 60);
+
+            mockMvc.perform(post("/v1/reviews/" + videoId + "/submit")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/v1/reviews/" + videoId + "/cancel-submit")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isForbidden());
+        } finally {
+            jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", ADMIN_NO);
+            jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", ADMIN_NO);
+            userRoleResolver.evict(ADMIN_NO);
+        }
+    }
 
     @Test
     @DisplayName("ReviewController_미배정_WORKER가_submit_시도시_403_IDOR")

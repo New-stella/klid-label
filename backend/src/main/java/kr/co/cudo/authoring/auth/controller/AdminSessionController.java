@@ -46,21 +46,37 @@ public class AdminSessionController {
     private final AdminSessionService adminSessionService;
 
     @Operation(
-            summary = "관리자 단기 유효창 개시 (REVIEWER)",
+            summary = "관리자 단기 유효창 개시 (ADMIN)",
             description = """
                     관리자 공유 패스워드를 확인하고 짧은 유효기간의 토큰을 발급한다.
-                    이 토큰은 연동 서버 주소 키를 저장할 때 X-Admin-Session 헤더로 전송한다.
-                    역할을 승격시키지 않으며, 다른 설정 키·다른 기능에는 아무 효력이 없다.
+                    이 토큰은 관리 성격의 쓰기(연동 서버 주소 저장·사용자 역할 변경 등)에
+                    X-Admin-Session 헤더로 전송한다.
+                    역할을 승격시키지 않으며, 유효창만으로는 어떤 관리 기능에도 닿지 못한다 —
+                    관리자 역할이 1차 축이고 유효창은 그 위에 가산되는 2차 요건이다.
                     """)
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "발급 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "입력값 검증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "미인증 또는 관리자 패스워드 불일치"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "ADMIN 권한 없음"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "시도 횟수 제한 초과")
     })
+    /**
+     * ★ <b>관리자 역할이 1차 축이다</b> — 유효창은 그 위에 가산되는 2차 요건이지 역할을 대신하지
+     * 않는다. 검수자에게 이 창구를 열어 두면 <b>관리자 공유 패스워드를 아는 검수자</b>가 유효창을
+     * 얻어 관리 성격의 쓰기(그리고 관리자 패스워드 교체 자체)에 닿는다.
+     *
+     * <p>⚠ 이 창구를 좁히면 <b>유효창을 소비하는 모든 창구가 함께 관리자 전용이 된다</b>(발급을
+     * 못 받으면 소비도 못 한다). 소비처의 역할 게이트를 따로 올리지 않아도 실질 경계가 여기서
+     * 정해지므로, 검수자가 계속 써야 하는 흐름이 새로 생기면 <b>이 창구가 아니라 그 흐름의 요구
+     * 자체</b>를 재검토해야 한다.
+     *
+     * @design AC-072
+     * @design ROLE-004
+     * @design ADR-055
+     */
     @PostMapping
-    @PreAuthorize("hasRole('REVIEWER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<AdminSessionResponse> open(@Valid @RequestBody AdminSessionRequest request,
                                                   @AuthenticationPrincipal TokenClaims claims) {
         return ApiResponse.ok(adminSessionService.open(request, claims));

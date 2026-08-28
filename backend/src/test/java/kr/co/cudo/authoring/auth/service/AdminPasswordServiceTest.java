@@ -56,8 +56,9 @@ class AdminPasswordServiceTest {
     private AdminPasswordService service;
     private ListAppender<ILoggingEvent> logAppender;
 
-    private static TokenClaims reviewer() {
-        return new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, null);
+    /** 이 창구의 정상 호출자 — 관리자다(ADR-055 · AC-072 · ROLE-004 SCREEN-041). */
+    private static TokenClaims admin() {
+        return new TokenClaims("1", Role.ADMIN, Channel.INTERNAL, null);
     }
 
     @BeforeEach
@@ -98,7 +99,7 @@ class AdminPasswordServiceTest {
     @Test
     @DisplayName("현재_패스워드가_맞으면_바뀐다")
     void changesWithCorrectCurrentPassword() {
-        service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), reviewer());
+        service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), admin());
 
         assertThat(verifier.matches(NEXT)).isTrue();
         assertThat(verifier.matches(CURRENT)).isFalse();
@@ -108,7 +109,7 @@ class AdminPasswordServiceTest {
     @DisplayName("★현재_패스워드가_틀리면_401_이고_바뀌지_않는다 — 유효창_탈취가_자격_완전_탈취가_되지_않게")
     void rejectsWrongCurrentPassword() {
         assertThatThrownBy(() -> service.change(
-                new AdminPasswordChangeRequest("wrong-current-secret", NEXT), reviewer()))
+                new AdminPasswordChangeRequest("wrong-current-secret", NEXT), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.UNAUTHORIZED));
@@ -127,7 +128,7 @@ class AdminPasswordServiceTest {
         assertThatCode(() -> tokenService.verify(sessionUsedForThisChange, "1", now.plusSeconds(60)))
                 .doesNotThrowAnyException();
 
-        service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), reviewer());
+        service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), admin());
 
         assertThatThrownBy(() -> tokenService.verify(sessionUsedForThisChange, "1", now.plusSeconds(60)))
                 .isInstanceOf(CustomException.class)
@@ -146,7 +147,7 @@ class AdminPasswordServiceTest {
     @DisplayName("★새_값이_현재_값과_같으면_400 — 바뀌지도_않았는데_유효창만_전부_끊기는_일을_막는다")
     void rejectsUnchangedPassword() {
         assertThatThrownBy(() -> service.change(
-                new AdminPasswordChangeRequest(CURRENT, CURRENT), reviewer()))
+                new AdminPasswordChangeRequest(CURRENT, CURRENT), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
@@ -155,8 +156,16 @@ class AdminPasswordServiceTest {
     }
 
     @Test
-    @DisplayName("REVIEWER가_아니면_403 — 유효창은_인가를_대체하지_않는다")
-    void deniesNonReviewer() {
+    @DisplayName("★ADMIN이_아니면_403 — 유효창은_인가를_대체하지_않으며_검수자도_막힌다")
+    void deniesNonAdmin() {
+        // ★★이 서비스의 판정은 enum 동등 비교라 <역할 계층을 타지 않는다>. 컨트롤러가
+        //   hasRole('ADMIN') 이어도 여기가 REVIEWER 로 남아 있으면 관리자가 서비스에서 403 을
+        //   받는다(구현 당시 실제로 그렇게 났다). 두 값을 함께 고정한다.
+        TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, null);
+        assertThatThrownBy(() -> service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), reviewer))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
         TokenClaims worker = new TokenClaims("1", Role.WORKER, Channel.INTERNAL, null);
         assertThatThrownBy(() -> service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), worker))
                 .isInstanceOf(CustomException.class)
@@ -176,14 +185,14 @@ class AdminPasswordServiceTest {
 
         // 첫 시도는 패스워드 비교까지 가 401.
         assertThatThrownBy(() -> limited.change(
-                new AdminPasswordChangeRequest("wrong-current-secret", NEXT), reviewer()))
+                new AdminPasswordChangeRequest("wrong-current-secret", NEXT), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.UNAUTHORIZED));
 
         // 두 번째는 패스워드가 맞아도 비교 전에 막힌다.
         assertThatThrownBy(() -> limited.change(
-                new AdminPasswordChangeRequest(CURRENT, NEXT), reviewer()))
+                new AdminPasswordChangeRequest(CURRENT, NEXT), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.TOO_MANY_REQUESTS));
@@ -195,9 +204,9 @@ class AdminPasswordServiceTest {
     void neverLogsSecrets() {
         String before = verifier.currentHash();
         assertThatThrownBy(() -> service.change(
-                new AdminPasswordChangeRequest("wrong-current-secret", NEXT), reviewer()))
+                new AdminPasswordChangeRequest("wrong-current-secret", NEXT), admin()))
                 .isInstanceOf(CustomException.class);
-        service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), reviewer());
+        service.change(new AdminPasswordChangeRequest(CURRENT, NEXT), admin());
 
         String logs = logs();
         assertThat(logs).doesNotContain(CURRENT);
