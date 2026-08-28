@@ -45,13 +45,13 @@
 | SC-021 | 전체 통계 | `/stat/overall` | REVIEWER | [17](17-statistics.md) |
 | SC-022 | 증강 요청 | `/augment`, `/augment/request` | REVIEWER | [14](14-augmentation.md) |
 | SC-023 | 증강 결과 | `/augment/result/:rawSn` | REVIEWER | [14](14-augmentation.md) |
-| SC-024 | 사용자 관리 | `/admin/users` | REVIEWER | [03](03-auth-roles.md) |
+| SC-024 | 사용자 관리 | `/admin/users` | **ADMIN** | [03](03-auth-roles.md) |
 | SC-025 | 시스템 설정 | `/manage/settings` | REVIEWER | [10](10-labeling.md#105-정밀도-설정-rq-sfr-08-03) |
 | SC-026 | 프리셋 관리 | `/manage/presets` | REVIEWER | [10](10-labeling.md#104-라벨-프리셋) |
 | SC-032 | 비식별 신고 관리 | `/manage/deident-reports` | REVIEWER | [08 §8.4](08-deidentification.md) |
 | SC-035 | 라벨 관리 | `/manage/labels` | REVIEWER | [10](10-labeling.md) |
 | SC-038 | 이벤트유형 관리 | `/manage/event-types` | REVIEWER | [18](18-database.md) |
-| SC-039 | 산출물 가져오기 | `/manage/imports` | REVIEWER | [25](25-external-import.md) |
+| SC-039 | 산출물 가져오기 | **`/admin/imports`** | **ADMIN** | [25](25-external-import.md) |
 | SC-030 | 게시판 목록 | `/notice` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-031 | 게시판 상세 | `/notice/:id` | WORKER/REVIEWER | [20](20-notice-board.md) |
 | SC-036 | 게시판 작성 | `/notice/new` | REVIEWER | [20](20-notice-board.md) |
@@ -88,16 +88,20 @@
 
 개발 전용: `/dev/login`(SC-004) — DEV 빌드만.
 
-> ★**「관리자」 그룹 신설 — 관리 기능이 별도 주소로 모였고 진입에 자격이 필요하다 (2026-08-27)**
-> 좌측 메뉴에 **「관리자」 그룹**이 생겼고 그 아래 다섯 화면이 `/admin/*` 로 모였다 —
-> 사용자 관리(`/admin/users`) · 연동 서버 주소(`/admin/endpoints`) · 파일 업로드(`/admin/uploads`) ·
-> 패스워드 교체(`/admin/password`) · 위험 액션(`/admin/maintenance`).
-> **진입에는 검수자 역할만으로 부족하다** — 진입 화면 `/admin` 에서 관리자 패스워드를 확인받아야
-> 하고, 그때 열리는 단기 유효창 동안만 그 아래 화면의 **쓰기**가 열린다.
-> ⚠ **`/manage/*` 가 통째로 옮겨간 것이 아니다** — 시스템 설정 · 라벨 관리 · 프리셋 관리 ·
-> 비식별 신고 · 이벤트유형 관리 · 산출물 가져오기는 그대로 `/manage/*` 에 남아 있고 관리자
-> 패스워드를 요구하지 않는다. 위 표에서 자리를 옮긴 것은 **SC-024 하나**이며, 그 밖에
-> 「업로드」 그룹에 있던 **SC-027 파일 업로드**가 함께 옮겨갔다(요구 조건이 달라졌기 때문이다).
+> ★**「관리자」 그룹 = ADMIN 역할 전용 (2026-08-28 갱신 · `ADR-055`)**
+> 좌측 메뉴 **「관리자」 그룹** 아래 여섯 화면이 `/admin/*` 에 있다 —
+> 사용자 관리(`/admin/users`) · 연동 서버 주소(`/admin/endpoints`) · **산출물 가져오기(`/admin/imports`)** ·
+> 파일 업로드(`/admin/uploads`) · 패스워드 교체(`/admin/password`) · 위험 액션(`/admin/maintenance`).
+> **이 그룹은 `ADMIN` 에게만 보이고 `ADMIN` 만 들어간다** — 검수자에게는 그룹 자체가 나타나지 않는다.
+> 진입 화면 `/admin` 에서 관리자 패스워드를 확인받아 열리는 단기 유효창은 그 위에 **가산**되며,
+> 그 동안만 **쓰기**가 열린다. 유효창은 역할을 올리지 않는다.
+>
+> ⚠ **구 서술 폐기(2026-08-27)** — *"진입에는 검수자 역할만으로 부족하다"* 와 *"산출물 가져오기는
+> 그대로 `/manage/*` 에 남아 있고 관리자 패스워드를 요구하지 않는다"* 는 둘 다 **사실이 아니게 됐다.**
+> 관리 기능 접근의 1차 축이 **유효창이 아니라 역할**로 바뀌었고, SC-039 는 `/admin/imports` 로 옮겨갔다.
+>
+> ⚠ **`/manage/*` 가 통째로 옮겨간 것은 여전히 아니다** — 시스템 설정 · 라벨 관리 · 프리셋 관리 ·
+> 비식별 신고 · 이벤트유형 관리는 그대로 `/manage/*` 에 남아 **검수자 권한만으로** 쓴다.
 
 > ★**파일 업로드(SC-027)는 2026-08-24(CO-008)부터 개발 전용이 아니다.** **운영(prd)에서도 기본으로 노출**된다.
 > 화면 이름은 **「파일 업로드」**이고 **주소는 `/admin/uploads`**, 메뉴 위치는 좌측 **「관리자」 그룹**의
