@@ -5,7 +5,7 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-28T14:42:42.757Z (session 14) |
+| Last sync | 2026-08-28T15:27:45.738Z (session 15) |
 | Mode | INITIAL — NEW 168 / CHANGED 0 / UNCHANGED 0 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 
@@ -22,13 +22,13 @@
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 14 | false | NEW |
 | [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | NEW |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | NEW |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 25 | true | NEW |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | false | NEW |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | NEW |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | NEW |
 | [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 16 | false | NEW |
 | [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 22 | true | NEW |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 12 | false | NEW |
-| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | NEW |
+| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 13 | false | NEW |
 | [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 29 | false | NEW |
 | [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 9 | true | NEW |
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 3 | false | NEW |

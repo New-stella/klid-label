@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-28T14:42:42.751Z (session 14) |
+| last sync | 2026-08-28T15:27:45.732Z (session 15) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |

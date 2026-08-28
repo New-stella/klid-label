@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-004
 type: screen_spec
-version: 11
-last_updated_at: 2026-08-25T01:21:33.367Z
+version: 13
+last_updated_at: 2026-08-28T15:24:05.559Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T14:41:56.789Z
-sync_session: 32
+synced_at: 2026-08-28T15:27:44.439Z
+sync_session: 33
 stale: false
 status: NEW
 prev_version: null
@@ -119,6 +119,7 @@ _(empty)_
 
 **options**:
 
+- ADMIN (9001, 박관리) · INTERNAL
 - REVIEWER (1001, 김검수) · INTERNAL
 - WORKER (2001, 최라벨) · INTERNAL
 - PORTAL_USER (3001, 홍길동) · PORTAL
@@ -191,7 +192,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 역할(REVIEWER/WORKER/PORTAL_USER) 라디오 선택 + userNo(선택, 비우면 BE 기본값) + expSeconds(선택, 기본 3600) 입력 후 제출. 제출 시 POST /api/v1/dev/tokens 호출 → 응답 token을 localStorage[klid-jwt-token]에 저장 + claims 일부(사용자ID/명/권한) 스텁 저장 → /ingress 로 이동(운영 시나리오 1:1 재현). 실패 시 인라인 에러 알림 표시. 제출 중에는 버튼 disabled + '발급 중…'. 역할 선택에 따라 userNo placeholder와 기본값 안내(1001 김검수 / 2001 최라벨 / 3001 홍길동), channel(INTERNAL/PORTAL)이 연동된다.
+- **description**: 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER) 라디오 선택 + userNo(선택, 비우면 BE 기본값) + expSeconds(선택, 기본 3600) 입력 후 제출. 제출 시 POST /api/v1/dev/tokens 호출 → 응답 token을 localStorage[klid-jwt-token]에 저장 + claims 일부(사용자ID/명/권한) 스텁 저장 → /ingress 로 이동(운영 시나리오 1:1 재현). 실패 시 인라인 에러 알림 표시. 제출 중에는 버튼 disabled + '발급 중…'. 역할 선택에 따라 userNo placeholder와 기본값 안내(9001 박관리 / 1001 김검수 / 2001 최라벨 / 3001 홍길동), channel(INTERNAL/PORTAL)이 연동된다. 관리자를 선택지에 두는 이유는 이 화면이 인계 흐름을 재현하는 자리기 때문이다 — 재현할 수 없는 역할이 남으면 관리자 전용 화면을 사람이 눌러 확인할 수단이 없어진다.
 
 **references_apis**:
 
@@ -236,6 +237,7 @@ _(empty)_
 ### records
 
 - IMPREC-107
+- IMPREC-187
 
 ### progress
 
@@ -247,7 +249,11 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T01:21:33.367Z
+2026-08-28T15:24:05.559Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 

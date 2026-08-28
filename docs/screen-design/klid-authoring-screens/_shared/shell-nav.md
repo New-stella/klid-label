@@ -320,7 +320,7 @@ NAV-002
 - **key**: review-list
 - **kind**: link
 - **label**: 검수 목록
-- **route**: /review
+- **route**: /review/pending
 - **screen_id**: SCREEN-018
 - **required_role**: ROLE-001
 
@@ -356,7 +356,7 @@ NAV-002
 - **key**: augment-request
 - **kind**: link
 - **label**: 증강 요청
-- **route**: /augment
+- **route**: /augment/request
 - **screen_id**: SCREEN-022
 - **required_role**: ROLE-001
 

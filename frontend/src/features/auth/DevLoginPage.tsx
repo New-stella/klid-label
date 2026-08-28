@@ -29,7 +29,7 @@ import { LOCAL_STORAGE_TOKEN_KEY } from './tokenIngress';
  *   - 응답 토큰 형식 검증은 SessionIngressPage 가 수행 — 여기서는 raw 저장만.
  */
 
-type DevRole = Extract<Role, 'REVIEWER' | 'WORKER' | 'PORTAL_USER'>;
+type DevRole = Extract<Role, 'ADMIN' | 'REVIEWER' | 'WORKER' | 'PORTAL_USER'>;
 
 interface RolePreset {
   readonly role: DevRole;
@@ -44,12 +44,20 @@ interface RolePreset {
 // DevTokenService 기본값과 1:1 매핑 (사양 명시값)
 const ROLE_PRESETS: readonly RolePreset[] = [
   {
+    role: Role.ADMIN,
+    channel: Channel.INTERNAL,
+    defaultUserNo: '9001',
+    defaultName: '박관리',
+    label: 'ADMIN (9001, 박관리)',
+    description: '사용자 관리·연동 설정 등 관리 기능을 소유하며 검수자 권한을 함께 갖는 역할입니다.',
+  },
+  {
     role: Role.REVIEWER,
     channel: Channel.INTERNAL,
     defaultUserNo: '1001',
     defaultName: '김검수',
     label: 'REVIEWER (1001, 김검수)',
-    description: '배정·검수 승인과 관리 화면을 담당하는 역할입니다.',
+    description: '배정·검수 승인과 라벨·프리셋 등 작업 기준 관리를 담당하는 역할입니다.',
   },
   {
     role: Role.WORKER,

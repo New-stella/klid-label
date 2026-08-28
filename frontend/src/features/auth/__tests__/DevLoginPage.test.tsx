@@ -276,4 +276,102 @@ describe('DevLoginPage', () => {
     });
     expect(captured.value).not.toHaveProperty('expSeconds');
   });
+
+  it('역할_선택지는_사양이_정한_넷이며_순서까지_같다', () => {
+    // @design SCREEN-004 — 선택지는 넷이고 관리자가 첫 번째다. 재현할 수 없는 역할이 남으면
+    // 관리자 전용 화면을 사람이 눌러 확인할 수단이 없어진다(사양이 밝힌 이유).
+    // 구 구현은 셋뿐이라 시드·토큰 창구가 관리자를 지원해도 들어갈 길이 없었다.
+    renderPage();
+
+    const radios = screen.getAllByRole('radio');
+    const expected = [
+      ['ADMIN (9001, 박관리)', 'INTERNAL'],
+      ['REVIEWER (1001, 김검수)', 'INTERNAL'],
+      ['WORKER (2001, 최라벨)', 'INTERNAL'],
+      ['PORTAL_USER (3001, 홍길동)', 'PORTAL'],
+    ] as const;
+
+    expect(radios).toHaveLength(expected.length);
+    expected.forEach(([title, channel], i) => {
+      const radio = radios[i];
+      // 접근 이름은 제목만이다(설명은 aria-describedby 로 갈린다 — RadioCard 계약).
+      expect(radio).toHaveAccessibleName(title);
+      // 채널 칩은 카드의 후행 슬롯이라 접근 이름에 들어오지 않는다 → 카드 본문에서 확인한다.
+      expect(radio.closest('label')).toHaveTextContent(channel);
+    });
+  });
+
+  it('기본_선택은_검수자_그대로다', () => {
+    // 관리자를 선택지에 더하는 것과 기본값을 옮기는 것은 다른 축이다. 개발자가 가장 자주 쓰는
+    // 역할이 바뀌면 기존 동선이 흔들리므로, 관리자는 '고를 수 있으면' 된다.
+    renderPage();
+
+    expect(screen.getByLabelText('REVIEWER (1001, 김검수)')).toBeChecked();
+    expect(screen.getByLabelText('ADMIN (9001, 박관리)')).not.toBeChecked();
+  });
+
+  it('ADMIN_선택_시_role_ADMIN_channel_INTERNAL_로_전송되고_ingress_로_진입한다', async () => {
+    const user = userEvent.setup();
+    const token = buildJwt(
+      { alg: 'HS256', typ: 'JWT' },
+      { sub: '9001', role: 'ADMIN', channel: 'INTERNAL', exp: 9999999999, name: '박관리' },
+    );
+
+    const captured: BodyHolder = { value: null };
+    mock.onPost('/dev/tokens').reply((config) => {
+      captured.value = JSON.parse(config.data as string) as Record<string, unknown>;
+      return [
+        200,
+        {
+          success: true,
+          data: {
+            token,
+            tokenType: 'Bearer',
+            expiresAt: '2099-01-01T00:00:00Z',
+            claims: {
+              sub: '9001',
+              role: 'ADMIN',
+              channel: 'INTERNAL',
+              name: '박관리',
+              exp: 9999999999,
+            },
+            authorizationHeader: `Bearer ${token}`,
+          },
+          message: null,
+          errorCode: null,
+        },
+      ];
+    });
+
+    renderPage();
+
+    await user.click(screen.getByLabelText('ADMIN (9001, 박관리)'));
+    await user.click(screen.getByRole('button', { name: /토큰 발급/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText('INGRESS_STUB')).toBeInTheDocument();
+    });
+
+    expect(localStorage.getItem(LOCAL_STORAGE_TOKEN_KEY)).toBe(token);
+    expect(captured.value?.role).toBe('ADMIN');
+    // ADMIN 은 내부 채널 역할이다 — BE 의 role-channel 정합 검사가 PORTAL 조합을 400 으로 막는다.
+    expect(captured.value?.channel).toBe('INTERNAL');
+    // 관제서버 stub 재현 — 관리자 화면이 읽는 사용자 식별값도 함께 놓인다.
+    expect(localStorage.getItem('klid-authority')).toBe('ADMIN');
+    expect(localStorage.getItem('klid-user-id')).toBe('9001');
+  });
+
+  it('ADMIN_기본값_안내는_9001_박관리다', async () => {
+    // userNo placeholder·안내 문구가 역할과 연동된다(사양). 시드(9001 박관리)와 어긋나면
+    // 토큰의 sub 가 다른 사람의 행을 가리킨다 — 과거 1002/2001 오매핑이 그 사고였다.
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByLabelText('ADMIN (9001, 박관리)'));
+
+    const userNoInput = screen.getByLabelText(/userNo/i) as HTMLInputElement;
+    expect(userNoInput.placeholder).toBe('9001');
+    // 카드 제목에도 같은 값이 들어 있으므로 안내 문구 쪽만 집는다.
+    expect(screen.getByText(/비워두면 BE 기본값\(9001, 박관리\)/)).toBeInTheDocument();
+  });
 });

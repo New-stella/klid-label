@@ -5,8 +5,8 @@ version: 22
 last_updated_at: 2026-08-27T09:02:20.247Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T14:42:42.716Z
-sync_session: 14
+synced_at: 2026-08-28T15:27:45.698Z
+sync_session: 15
 stale: true
 status: NEW
 prev_version: null
