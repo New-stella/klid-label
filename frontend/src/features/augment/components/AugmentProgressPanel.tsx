@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Button } from '@/components/common/Button';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -125,7 +126,8 @@ export function AugmentProgressPanel({ augmentId, enabled }: AugmentProgressPane
 
   if (!enabled) return null;
 
-  const canCancel = role === Role.REVIEWER && data?.cancelable === true;
+  // 검수자 자리 — 관리자는 계층으로 함께 들어온다(판정은 `@/lib/authz` 소유).
+  const canCancel = roleSatisfies(role, Role.REVIEWER) && data?.cancelable === true;
   const unavailable = data?.unavailableReason
     ? (UNAVAILABLE_TEXT[data.unavailableReason] ?? UNKNOWN_UNAVAILABLE)
     : null;

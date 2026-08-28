@@ -20,6 +20,7 @@
  */
 // [@design DS-001]
 export const ROLE_LABEL: Record<string, string> = {
+  ADMIN: '관리자',
   REVIEWER: '검수자',
   WORKER: '작업자',
   PORTAL_USER: '포털',
@@ -27,6 +28,9 @@ export const ROLE_LABEL: Record<string, string> = {
 
 // [@design DS-001]
 export const ROLE_COLOR: Record<string, string> = {
+  // 관리자는 검수자와 **다른 슬롯**을 쓴다 — 계층으로 이어져 있다고 해서 같은 색을 주면
+  // 배지가 두 역할을 구분하지 못한다(배지의 존재 이유가 그 구분이다).
+  ADMIN: 'bg-category-5-100 text-category-5-700',
   REVIEWER: 'bg-category-3-100 text-category-3-700',
   WORKER: 'bg-category-1-100 text-category-1-700',
   PORTAL_USER: 'bg-category-4-100 text-category-4-700',

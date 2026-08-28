@@ -49,15 +49,28 @@ export const REVIEWER_ROUTES: A11yRoute[] = [
   { path: '/stat/worker' },
   { path: '/stat/overall' },
   { path: '/augment/request' },
-  { path: '/manage/users' },
   { path: '/manage/settings' },
   { path: '/manage/presets' },
   { path: '/manage/labels' },
   { path: '/manage/event-types' },
   { path: '/manage/deident-reports' },
-  { path: '/manage/imports' },
   { path: '/notice' },
 ];
+
+/*
+ * ★관리자(`/admin/*`) 화면은 이 목록에 없다 — 여기는 **검수자로** 진입하는 감사이고, 그 화면들은
+ *   관리자 역할 + 관리자 유효창 두 겹을 요구해 검수자로는 `/forbidden` 으로 튕긴다. 이 파일의
+ *   규약상 그건 «통과»가 아니라 실패다.
+ *
+ *   그래서 두 경로를 이 목록에서 뺐다:
+ *   - `/manage/imports` — 산출물 가져오기가 `/admin/imports` 로 옮겨갔다(2026-08-28 · SCREEN-039).
+ *     서버가 적재 실행·대응 저장/삭제를 관리자 전용으로 좁힌 것에 화면을 맞춘 결과다.
+ *   - `/manage/users` — 사용자 관리는 그 이전에 `/admin/users` 로 옮겨갔고 구 주소 라우트 자체가
+ *     **없다**(회귀 가드가 부재를 고정한다). 이 항목은 그때부터 죽어 있었다.
+ *
+ *   ⚠ 관리자 화면의 접근성 감사는 **아직 없다** — 관리자 토큰 + 유효창을 여는 전용 fixture 가
+ *     필요해 별건이다. 「목록에 없다 = 감사했다」로 읽지 말 것.
+ */
 
 /** PORTAL_USER 로 진입하는 외부 채널 화면. */
 export const PORTAL_ROUTES: A11yRoute[] = [{ path: '/portal' }, { path: '/portal/uploads' }];

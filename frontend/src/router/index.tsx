@@ -178,8 +178,12 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
+// 허용 목록은 「그 자리가 요구하는 역할」을 적는 것이지 「들어올 수 있는 역할 전부」를 열거하는
+// 것이 아니다 — 상위 역할은 `RoleGuard` 가 계층으로 통과시킨다(관리자를 여기에 덧붙이지 말 것).
 const internalAllRoles = [Role.REVIEWER, Role.WORKER];
 const internalReviewerOnly = [Role.REVIEWER];
+/** 관리자 전용 — 검수자는 계층의 아래쪽이라 여기에 닿지 않는다. [@design ROLE-004] */
+const internalAdminOnly = [Role.ADMIN];
 const portalOnly = [Role.PORTAL_USER];
 
 function InternalRoute({ allow, children }: { allow: Role[]; children: ReactNode }) {
@@ -200,16 +204,19 @@ function PortalRoute({ children }: { children: ReactNode }) {
 
 /**
  * 관리자 페이지 라우트 — 역할 가드 **안쪽**에 진입 게이트를 얹는다. [@design SCREEN-040]
+ * [@design ROLE-004]
  *
  * ★순서가 계약이다. 유효창은 인가를 대체하지 않고 **가산**되므로 역할 가드가 바깥에 있어야
- * 검수자가 아닌 사용자는 패스워드를 알더라도 여기에 닿지 못한다. 뒤집으면 「패스워드를 아는
- * 사람이 관리자」가 되어 역할 체계를 손대지 않는다는 이 변경의 전제가 무너진다.
+ * 관리자가 아닌 사용자는 패스워드를 알더라도 여기에 닿지 못한다. 뒤집으면 「패스워드를 아는
+ * 사람이 관리자」가 되어 역할로 가른다는 이 구성의 전제가 무너진다.
  *
+ * ⚠ 역할 조건은 좌측 메뉴(`components/layout/Lnb.tsx` 의 「관리자」 그룹 `allow`)와 <b>같아야</b>
+ *   한다 — 갈리면 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
  * ⚠ 진입 화면(`/admin`) 자신에게는 쓰지 않는다 — 유효창이 없을 때 자기 자신으로 무한히 되돌아간다.
  */
 function AdminRoute({ children }: { children: ReactNode }) {
   return (
-    <InternalRoute allow={internalReviewerOnly}>
+    <InternalRoute allow={internalAdminOnly}>
       <AdminSessionGuard>{children}</AdminSessionGuard>
     </InternalRoute>
   );
@@ -481,12 +488,12 @@ const routes: RouteObject[] = [
             ),
           },
           {
+            // 구 주소 — 북마크·공유 링크를 새 자리로 잇는다. 화면은 「관리자」 소속
+            // (`/admin/imports`)으로 옮겨갔고 여기서 그리지 않는다. [@design SCREEN-039]
+            // ⚠ 여기에 역할 가드를 걸지 않는다 — 이동만 하는 자리이고, 인가 판정은 목적지
+            //   라우트가 한다. 여기서 막으면 검수자가 「접근 거부」 대신 빈 화면을 본다.
             path: 'imports',
-            element: (
-              <InternalRoute allow={internalReviewerOnly}>
-                {withSuspense(<ImportPage />)}
-              </InternalRoute>
-            ),
+            element: <Navigate to="/admin/imports" replace />,
           },
           {
             path: '*',
@@ -538,8 +545,8 @@ const routes: RouteObject[] = [
         ],
       },
       {
-        // 관리자 페이지 — 역할 권한만으로는 들어갈 수 없고 관리자 패스워드로 연 단기 유효창을
-        // 함께 요구한다. [@design NAV-001] [@design ADR-046]
+        // 관리자 페이지 — 관리자 역할에게만 열리고, 그 위에 관리자 패스워드로 연 단기 유효창을
+        // 함께 요구한다. [@design NAV-001] [@design ADR-046] [@design ROLE-004]
         path: 'admin',
         children: [
           {
@@ -547,7 +554,7 @@ const routes: RouteObject[] = [
             //   자기 자신으로 무한히 되돌아간다. 역할 가드는 그대로 필요하다.
             index: true,
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={internalAdminOnly}>
                 {withSuspense(<AdminGatePage />)}
               </InternalRoute>
             ),
@@ -559,6 +566,16 @@ const routes: RouteObject[] = [
           {
             path: 'endpoints',
             element: <AdminRoute>{withSuspense(<AdminEndpointsPage />)}</AdminRoute>,
+          },
+          {
+            // 산출물 가져오기 — 구 주소 `/manage/imports` 에서 옮겨왔다. [@design SCREEN-039]
+            // 서버가 적재 실행(`POST /v1/imports`)과 대응 저장·삭제(`/v1/import-mappings`)를
+            // 관리자 전용으로 좁혔는데 화면이 검수자에게 열려 있어, 폴더 탐색·검사까지 정상
+            // 진행한 뒤 **마지막 단계에서만 403** 을 받는 상태였다(그 화면에는 역할 참조가
+            // 한 줄도 없어 사유 안내조차 없었다). 진입 자체를 관리자로 좁혀 해소한다.
+            // ⚠ 좌측 메뉴(「관리자」 그룹)와 <b>같은 조건</b>이어야 한다.
+            path: 'imports',
+            element: <AdminRoute>{withSuspense(<ImportPage />)}</AdminRoute>,
           },
           {
             path: 'password',

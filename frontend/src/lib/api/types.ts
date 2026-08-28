@@ -21,7 +21,17 @@ export const ErrorCode = {
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
+/**
+ * 인가 역할 — 서버 역할 enum 의 미러.
+ *
+ * 선언 순서는 권한이 넓은 쪽부터다(관리자 · 검수자 · 작업자 · 포털 회원). 순서 자체가 인가를
+ * 결정하지는 않는다 — 역할 사이의 포함 관계 판정은 `@/lib/authz` 한 곳이 소유한다.
+ *
+ * ⚠ 이 객체는 **값의 집합**만 선언한다. 어떤 역할이 어떤 역할을 대신할 수 있는지는 여기에
+ * 적지 않는다(적으면 판정이 두 곳으로 갈린다).
+ */
 export const Role = {
+  ADMIN: 'ADMIN',
   REVIEWER: 'REVIEWER',
   WORKER: 'WORKER',
   PORTAL_USER: 'PORTAL_USER',

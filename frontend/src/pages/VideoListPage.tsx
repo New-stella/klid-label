@@ -42,6 +42,7 @@ import {
 import { ApiError } from '@/lib/api/errors';
 import { useUiStore } from '@/stores/useUiStore';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { ASSIGNMENT_KEYS, VIDEO_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -97,7 +98,7 @@ export function VideoListPage() {
   // 작업자 배정 — REVIEWER 전용 UX 게이팅(실제 권한 강제는 BE @PreAuthorize).
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
   // 전체 건너뛰기 스위치 상태 — 배너 노출의 단일 근거(판정은 훅이 갖고 화면은 결과만 쓴다).
   const vlmSkipDefault = useVlmSkipDefault({ enabled: isReviewer });
 

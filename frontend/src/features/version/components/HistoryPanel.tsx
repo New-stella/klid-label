@@ -25,6 +25,7 @@ import { useDiff } from '@/features/version/hooks/useDiff';
 import { useVersions } from '@/features/version/hooks/useVersions';
 import { useWorkingDiff } from '@/features/version/hooks/useWorkingDiff';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { resolveDisplayName } from '@/lib/displayName';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -78,7 +79,9 @@ export function HistoryPanel({
   onRevert,
 }: HistoryPanelProps) {
   const role = useAuthStore((s) => s.claims?.role ?? null);
-  const canRollback = role === Role.REVIEWER || role === Role.WORKER;
+  // 검수자 축만 계층 판정으로 넘긴다 — 작업자 비교는 **작업자 전용**이라 그대로 둔다
+  // (그 자리에 상위 역할이 흘러들면 안 되고, 여기서는 두 축이 OR 로 묶여 결과가 같다).
+  const canRollback = roleSatisfies(role, Role.REVIEWER) || role === Role.WORKER;
   // 편집 차단 단일 판정원 — 롤백은 **서버측 라벨 재작성**이라 저장 PUT in-flight 와 교차 실행되면
   // 어느 쪽이 최종본인지 결정되지 않는다. 진행 중에는 진입 자체를 막는다.
   const editBlocked = useIsEditBlocked();

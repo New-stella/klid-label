@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
-import { Channel, Role, type TokenClaims } from '@/lib/api/types';
+import { isKnownRole } from '@/lib/authz';
+import { Channel, type Role, type TokenClaims } from '@/lib/api/types';
 
 const SESSION_KEY = 'klid_jwt';
 
@@ -42,11 +43,18 @@ function decodeJwtPayload(token: string): TokenClaims | null {
 
     const sub = typeof raw.sub === 'string' ? raw.sub : '';
     // Phase 2 — role 클레임이 비어 있는 인증 토큰(권한 자가 부여 대기 상태)을 허용한다.
-    // role 이 명시되어 있다면 화이트리스트(Role enum) 검증을 통과해야 하며, 알 수 없는 값은
-    // 무효 토큰으로 거절한다.
-    const hasRole = raw.role !== undefined && raw.role !== null && raw.role !== '';
-    if (hasRole && !isRole(raw.role)) return null;
-    const role = hasRole ? (raw.role as Role) : null;
+    //
+    // ★모르는 역할 값 하나로 인증 전체를 버리지 않는다. 예전에는 우리가 아는 목록에 없는 값이
+    //   오면 클레임 객체를 통째로 null 로 만들어, 그 사용자가 **로그인 자체를 못 했다**. 서버가
+    //   역할을 새로 늘리는 것은 정상적인 일이고 그때마다 화면이 진입 불가가 되는 것은 fail-closed
+    //   가 아니라 그냥 고장이다(실제로 관리자 역할이 늘었을 때 그 일이 일어났다).
+    //
+    //   그래서 모르는 값은 **역할 미부여로 낮춘다** — 인증은 살아 있고 권한만 없다. 권한이 없는
+    //   상태의 처리는 이미 있다(내부 채널이면 역할 부여 안내로 보낸다). 인가 판정은 어차피
+    //   서버가 소유하므로, 화면이 모르는 값에 권한을 주는 일은 이 경로 어디에도 없다.
+    const rawRole = raw.role;
+    const hasRole = rawRole !== undefined && rawRole !== null && rawRole !== '';
+    const role: Role | null = hasRole && isKnownRole(rawRole) ? rawRole : null;
     const channel = isChannel(raw.channel) ? raw.channel : null;
     const exp = typeof raw.exp === 'number' ? raw.exp : 0;
     const name = typeof raw.name === 'string' ? raw.name : undefined;
@@ -56,10 +64,6 @@ function decodeJwtPayload(token: string): TokenClaims | null {
   } catch {
     return null;
   }
-}
-
-function isRole(value: unknown): value is Role {
-  return typeof value === 'string' && (Object.values(Role) as string[]).includes(value);
 }
 
 function isChannel(value: unknown): value is Channel {

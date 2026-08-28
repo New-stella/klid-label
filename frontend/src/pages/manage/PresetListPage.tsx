@@ -27,6 +27,7 @@ import { type Preset, type PresetForm } from '@/features/preset/types';
 import { formatEventTypeDisplay } from '@/features/preset/utils/eventTypeDisplay';
 import { ApiError } from '@/lib/api/errors';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -143,7 +144,7 @@ export function PresetListPage() {
   const { create, update, remove } = usePresetActions();
   const pushToast = useUiStore((s) => s.pushToast);
   const role = useAuthStore((s) => s.claims?.role);
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
 
   const [editing, setEditing] = useState<Preset | null>(null);
   const [modalOpen, setModalOpen] = useState(false);

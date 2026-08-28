@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn';
 import { resolveDisplayName } from '@/lib/displayName';
 import { formatFileSize } from '@/lib/formatFileSize';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -50,7 +51,7 @@ export function NoticeDetailPage() {
   const id = Number(idParam);
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.claims?.role) ?? Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
   const pushToast = useUiStore((s) => s.pushToast);
 
   const { data: notice, isLoading, error } = useNotice(

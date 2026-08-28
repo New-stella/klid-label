@@ -70,7 +70,7 @@ function groupHeaders(): (string | null)[] {
   ).map((el) => el.textContent);
 }
 
-function setRole(role: 'REVIEWER' | 'WORKER') {
+function setRole(role: 'ADMIN' | 'REVIEWER' | 'WORKER') {
   useAuthStore.setState({
     // 값은 쓰이지 않는다 — 가드가 보는 것은 claims 뿐이다.
     token: 'dummy-token',
@@ -159,7 +159,11 @@ describe('영상 메뉴 — REVIEWER 전용', () => {
 
   it('그룹_순서는_그대로다_WORKER_에게서는_영상_자리만_새로_빠진다', () => {
     // 그룹 순서는 NAV-001 이 정한다 — 이번 변경은 접근 권한 축이라 순서를 건드리지 않는다.
-    setRole('REVIEWER');
+    //
+    // ⚠ 기준선을 **관리자**로 잡는다. 「관리자」 그룹이 역할로 갈리면서 검수자에게는 그 그룹이
+    //   보이지 않으므로, 검수자로 잡으면 전체 순서를 확인할 수 없다(그 축의 회귀 가드는
+    //   `adminRouteGuard.test.tsx` 가 따로 갖는다).
+    setRole('ADMIN');
     const { unmount } = renderWithProviders(<Lnb />);
     const reviewerGroups = groupHeaders();
     expect(reviewerGroups).toEqual([
@@ -169,7 +173,6 @@ describe('영상 메뉴 — REVIEWER 전용', () => {
       '데이터',
       '통계',
       '게시판',
-      '업로드',
       '관리',
       '관리자',
     ]);
@@ -179,7 +182,7 @@ describe('영상 메뉴 — REVIEWER 전용', () => {
     renderWithProviders(<Lnb />);
     const workerGroups = groupHeaders();
 
-    // 이번 변경으로 「영상」이 빠진다. 나머지 차이(데이터·업로드·관리)는 원래부터 REVIEWER 전용인
+    // 이번 변경으로 「영상」이 빠진다. 나머지 차이(데이터·관리)는 원래부터 REVIEWER 전용인
     // 그룹이라 이 변경과 무관하다 — 그래서 목록 전체를 그대로 못박는다.
     expect(workerGroups).toEqual(['대시보드', '작업', '통계', '게시판']);
     // 남은 그룹의 상대 순서는 REVIEWER 와 동일하다(부분수열).

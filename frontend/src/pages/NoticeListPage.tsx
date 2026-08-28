@@ -20,6 +20,7 @@ import {
 import { NoticePubStatus, NoticeSearchField } from '@/features/notice/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const PAGE_SIZE = 20;
@@ -58,7 +59,7 @@ function formatDate(iso: string | null): string {
 export function NoticeListPage() {
   const navigate = useNavigate();
   const role = useAuthStore((s) => s.claims?.role) ?? Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
 
   // 검색 조건·페이지는 URL 쿼리에 반영(뒤로가기 유지·URL 공유) — VideoListPage/ReviewListPage 컨벤션.
   const [searchParams, setSearchParams] = useSearchParams();

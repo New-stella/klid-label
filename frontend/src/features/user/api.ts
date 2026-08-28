@@ -45,13 +45,13 @@ export function getUser(userNo: number) {
  * 활성/비활성(useYn)은 관제서버 책임으로 이관되어 저작도구에서 변경하지 않는다.
  */
 export interface UserUpdatePayload {
-  role?: 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
+  role?: 'ADMIN' | 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
 }
 
 /**
  * 사용자 역할 변경 (REVIEWER + 관리자 유효창). [@design API-004] [@design ADR-046]
  *
- * BE 가 @Pattern 화이트리스트로 role(REVIEWER|WORKER|PORTAL_USER) 검증.
+ * BE 가 @Pattern 화이트리스트로 role(ADMIN|REVIEWER|WORKER|PORTAL_USER) 검증.
  *
  * <p>역할 부여·변경은 운영·관리 성격의 쓰기라 검수자 권한 <b>위에</b> 관리자 단기 유효창이
  * 가산된다. 유효창이 없거나 끝났으면 서버가 403 으로 거부한다 — 화면은 그 거부를 조용히 삼키지

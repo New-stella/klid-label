@@ -25,6 +25,7 @@ import { useVideoLabels } from '@/features/video/hooks/useVideoLabels';
 import { isBatchProcessing } from '@/features/video/types';
 import type { FramePreview, VideoDetail } from '@/features/video/types';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -537,7 +538,7 @@ export function VideoDetailPage() {
   //   컴포넌트 목록에 없다). 헤더에는 1차 액션이 없다(조회 화면). 서버 측 재비식별 경로는 그대로다.
   // REVIEWER 판정은 배치 실패 조치 패널(REVIEWER 전용) 노출에 계속 쓰인다.
   const role = useAuthStore((s) => s.claims?.role ?? null);
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
 
   if (validId === null) {
     return <ErrorState title="잘못된 영상 ID" message="유효한 영상 ID가 필요합니다." />;
