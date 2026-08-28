@@ -2,11 +2,16 @@ package kr.co.cudo.authoring.user;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.auth.service.AdminSessionTokenService;
+import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -15,13 +20,20 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import org.springframework.http.MediaType;
 
+import javax.sql.DataSource;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 사용자 창구 — 인가 + <b>역할 변경에만</b> 얹히는 관리자 유효창. [@design API-004] [@design ADR-046]
+ * 사용자 창구 — 인가 + <b>역할 변경에만</b> 얹히는 관리자 유효창.
+ * [@design API-004] [@design ADR-046] [@design ADR-055] [@design AC-056]
+ *
+ * <p>★ 축이 둘로 갈렸다(ADR-055) — <b>조회는 검수자, 역할 변경은 관리자</b>다. 조회까지 관리자로
+ * 올리면 작업 배정 흐름이 끊기고, 역할 변경을 검수자에게 두면 검수자가 스스로를 관리자로 올릴 수
+ * 있어 권한 분리가 성립하지 않는다. 두 축을 "일관성" 을 이유로 통일하지 말 것.
  *
  * <p>★ 이 파일은 {@code @SpringBootTest + @AutoConfigureMockMvc} 여야 한다. standalone MockMvc 는
  * 인터셉터가 배선되지 않아 유효창 게이트가 <b>아예 돌지 않고</b>, 그러면 게이트를 잘못 넓게 걸어도
@@ -33,10 +45,59 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Sql(scripts = "/db/test-data.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class UserControllerTest {
 
+    /**
+     * 이 시험 전용 <b>관리자</b> 주체. 공용 시드에 관리자를 넣지 않는 이유는 그러면 시스템에 늘
+     * 관리자가 있는 셈이 되어 관리자 부트스트랩 창구가 영구히 닫히고, 그 창구를 검증하는 시험들이
+     * 통째로 깨지기 때문이다. 심고 지우는 책임을 이 클래스가 진다.
+     */
+    private static final long ADMIN_NO = 969_600_001L;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private AdminSessionTokenService adminSessionTokenService;
+    @Autowired private UserRoleResolver userRoleResolver;
+
+    @Autowired
+    @Qualifier("controlDataSource")
+    private DataSource controlDataSource;
+
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
+
+    private JdbcTemplate jdbc;
+
+    /**
+     * ★ @Sql(test-data.sql)은 LS_USER_ROLE 을 통째로 비우고 다시 채운다. Spring 의 스크립트 실행은
+     * JUnit 의 {@code @BeforeEach} <b>보다 먼저</b> 돌므로, 여기서 심으면 그 wipe 뒤에 남는다.
+     */
+    @BeforeEach
+    void seedAdmin() {
+        jdbc = new JdbcTemplate(controlDataSource);
+        cleanupAdmin();
+        jdbc.update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, 'ADMIN', CURRENT_TIMESTAMP)",
+                ADMIN_NO);
+        userRoleResolver.evict(ADMIN_NO);
+    }
+
+    @AfterEach
+    void tearDownAdmin() {
+        cleanupAdmin();
+    }
+
+    private void cleanupAdmin() {
+        jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", ADMIN_NO);
+        jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", ADMIN_NO);
+        userRoleResolver.evict(ADMIN_NO);
+    }
+
+    /** 관리자 토큰 — 역할 변경 창구의 정상 호출자. */
+    private String adminToken() {
+        return JwtTestSupport.token(secret, String.valueOf(ADMIN_NO), "ADMIN", "INTERNAL", issuer, 60);
+    }
+
+    /** 관리자 주체에게 결박된 유효창. */
+    private String adminSessionForAdmin() {
+        return adminSession(String.valueOf(ADMIN_NO));
+    }
 
     /** 그 사용자(JWT sub)에게 결박된 관리자 유효창 토큰. */
     private String adminSession(String sub) {
@@ -123,37 +184,61 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("REVIEWER가_PATCH_users_role_화이트리스트_위반시_400")
-    void reviewerPatchInvalidRoleRejected() throws Exception {
+    @DisplayName("ADMIN이_PATCH_users_role_화이트리스트_위반시_400")
+    void adminPatchInvalidRoleRejected() throws Exception {
+        // ★ADMIN 은 이제 <허용> 값이다(ADR-055) — 목록 밖 값으로 판정해야 화이트리스트를 본다.
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"SUPERUSER\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("★ADMIN은_role_을_ADMIN_으로_지정할_수_있다_허용_역할_집합에_관리자가_들어왔다")
+    void adminCanAssignAdminRole() throws Exception {
+        mockMvc.perform(patch("/v1/users/101")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("ADMIN"));
+    }
+
+    @Test
+    @DisplayName("★REVIEWER는_유효창이_있어도_PATCH_users_가_403 — 역할이_1차_축이고_유효창은_가산일_뿐이다")
+    void reviewerWithAdminSessionStillForbidden() throws Exception {
+        // ADR-055 — 검수자가 스스로 역할을 바꿀 수 있으면 권한 분리가 성립하지 않는다.
+        //   유효창은 역할을 승격시키지 않으므로 관리자 패스워드를 알아도 통과하지 못한다.
         String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         mockMvc.perform(patch("/v1/users/100")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .header(AdminSessionGate.HEADER, adminSession("1"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"role\":\"ADMIN\"}"))
-                .andExpect(status().isBadRequest());
+                        .content("{\"role\":\"REVIEWER\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("REVIEWER가_PATCH_users_미존재_userNo_404")
-    void reviewerPatchMissingUser() throws Exception {
-        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+    @DisplayName("ADMIN이_PATCH_users_미존재_userNo_404")
+    void adminPatchMissingUser() throws Exception {
         mockMvc.perform(patch("/v1/users/9999")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .header(AdminSessionGate.HEADER, adminSession("1"))
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"WORKER\"}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("REVIEWER가_PATCH_users_role_변경시_200_역할_반영")
-    void reviewerPatchChangesRole() throws Exception {
-        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+    @DisplayName("ADMIN이_PATCH_users_role_변경시_200_역할_반영")
+    void adminPatchChangesRole() throws Exception {
         // 시드: userNo=100 은 WORKER → REVIEWER 로 변경
         mockMvc.perform(patch("/v1/users/100")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .header(AdminSessionGate.HEADER, adminSession("1"))
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"REVIEWER\"}"))
                 .andExpect(status().isOk())
@@ -167,11 +252,10 @@ class UserControllerTest {
     // ------------------------------------------------------------------------
 
     @Test
-    @DisplayName("★REVIEWER라도_관리자_유효창_없이_PATCH_users_하면_403 — 인가에_가산되는_조건이다")
-    void reviewerPatchWithoutAdminSessionForbidden() throws Exception {
-        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+    @DisplayName("★ADMIN이라도_관리자_유효창_없이_PATCH_users_하면_403 — 인가에_가산되는_조건이다")
+    void adminPatchWithoutAdminSessionForbidden() throws Exception {
         mockMvc.perform(patch("/v1/users/100")
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"REVIEWER\"}"))
                 .andExpect(status().isForbidden());
@@ -179,10 +263,9 @@ class UserControllerTest {
 
     @Test
     @DisplayName("★남의_유효창으로는_PATCH_users_가_안_된다 — 토큰은_발급받은_사람에게_묶여_있다")
-    void reviewerPatchWithOtherSubjectSessionForbidden() throws Exception {
-        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+    void adminPatchWithOtherSubjectSessionForbidden() throws Exception {
         mockMvc.perform(patch("/v1/users/100")
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, adminSession("999"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"role\":\"REVIEWER\"}"))
@@ -212,13 +295,12 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("REVIEWER가_PATCH_users_role_미제공시_200_역할_미변경")
-    void reviewerPatchWithoutRoleKeepsRole() throws Exception {
-        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+    @DisplayName("ADMIN이_PATCH_users_role_미제공시_200_역할_미변경")
+    void adminPatchWithoutRoleKeepsRole() throws Exception {
         // role 없이 알 수 없는 필드만 전송 → 무시되고 역할 미변경 (시드 userNo=100 은 WORKER)
         mockMvc.perform(patch("/v1/users/100")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .header(AdminSessionGate.HEADER, adminSession("1"))
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"useYn\":\"Y\"}"))
                 .andExpect(status().isOk())

@@ -58,9 +58,17 @@ import java.util.Map;
  *
  * <p>RBAC:
  * <ul>
- *   <li>submit (PENDING 으로 제출)       : WORKER (본인 배정 영상만)</li>
- *   <li>startReview / approve / reject   : REVIEWER 만 (현재 정책: 모든 영상 가능)</li>
+ *   <li>submit / cancelSubmit            : <b>WORKER 전용</b> (본인 배정 영상만) — 관리자·검수자도 못 한다</li>
+ *   <li>startReview / approve / reject   : REVIEWER 이상 (관리자 포함 · 현재 정책: 모든 영상 가능)</li>
  * </ul>
+ *
+ * <p><b>역할 판정은 동등 비교가 아니라 {@link TokenClaims#hasRole(Role)} 이다.</b>
+ * Spring 의 {@code RoleHierarchy} 는 권한(authority) 축에만 걸리므로, 이 서비스가 역할을 그대로
+ * 동등 비교하면 관리자가 검수 목록·상세·승인·반려에서 거부되어 계층이 반쪽만 성립한다. 창구의
+ * 「검수자 전용」은 「검수자 이상」으로 읽는다. [design: ADR-055] [design: ROLE-004] [design: AC-125]
+ *
+ * <p>⚠ <b>예외 — 검수 제출({@link #verifyAssignedWorker})은 작업자 전용이라 계층을 타지 않는다.</b>
+ * 그 자리는 동등 비교를 <b>의도적으로 유지</b>한다(자세한 근거는 해당 메서드 javadoc).
  *
  * <p>동시성: LS_RAW_DATA_STATUS 의 {@code @Version} 컬럼으로 낙관적 잠금. 동시 두 REVIEWER 가
  * 같은 영상을 승인 시도할 때 1건만 성공 → 다른 1건은 {@link ErrorCode#CONFLICT}.
@@ -687,11 +695,21 @@ public class ReviewService {
     /**
      * 작업자 본인이 LABELER 로 배정된 영상인지 검증 (CWE-639 IDOR 방어).
      * REVIEWER 가 호출하면 권한 부족으로 차단 (submit 은 WORKER 전용).
+     *
+     * <p><b>★ 이 자리의 동등 비교는 남긴다 — 빠뜨린 곳이 아니다.</b> 검수 제출·제출취소는
+     * <b>작업자 전용</b> 자리이며 역할 계층은 작업자를 열지 않는다({@code ADMIN.satisfies(WORKER)}
+     * 는 거짓). 이 서비스의 다른 세 지점과 달리 여기에는 <b>짝을 이루는 검수자 분기가 없어</b>
+     * 계층 판정으로 바꿔서 얻는 것이 없고, 잘못 넓히면 관리자·검수자가 작업자 자리에 흘러들어
+     * 「작업자가 제출하고 검수자가 검수한다」는 워크플로 자체가 무너진다.
+     * [design: ADR-055] [design: AC-125]
+     *
+     * <p>회귀 가드: {@code ReviewRoleHierarchyTest} 가 관리자·검수자의 제출 거부를 고정한다.
      */
     private void verifyAssignedWorker(Long videoId, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
+        // [design: AC-125] 작업자 전용 자리 — 계층이 열지 않는다. hasRole 로 바꾸지 말 것.
         if (actor.role() != Role.WORKER) {
             throw new CustomException(ErrorCode.FORBIDDEN, "WORKER 권한이 필요합니다.");
         }
@@ -704,17 +722,20 @@ public class ReviewService {
     }
 
     /**
-     * 단건 상세 조회 접근 제어 — REVIEWER 는 전체, WORKER 는 본인 LABELER 배정 영상만 (CWE-639 IDOR 방어).
-     * 그 외 역할/미인증/타인 배정 영상은 거부. approve/reject/list 등 다른 액션 권한은 변경하지 않는다.
+     * 단건 상세 조회 접근 제어 — REVIEWER 이상(관리자 포함)은 전체, WORKER 는 본인 LABELER 배정
+     * 영상만 (CWE-639 IDOR 방어). 그 외 역할/미인증/타인 배정 영상은 거부.
+     * approve/reject/list 등 다른 액션 권한은 변경하지 않는다. [design: ADR-055]
      */
     private void requireAssignedOrReviewer(Long videoId, TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() == Role.REVIEWER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        //   동등 비교로 두면 관리자가 두 분기 어디에도 안 걸려 마지막 FORBIDDEN 으로 떨어진다.
+        if (actor.hasRole(Role.REVIEWER)) {
             return;
         }
-        if (actor.role() == Role.WORKER) {
+        if (actor.hasRole(Role.WORKER)) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
                     selfNo, LsTaskAssignment.TASK_LABELER, videoId);
@@ -726,11 +747,15 @@ public class ReviewService {
         throw new CustomException(ErrorCode.FORBIDDEN, "검수 상세 조회 권한이 없습니다.");
     }
 
+    /**
+     * 검수 창구 인가 — 창구의 「검수자 전용」은 <b>「검수자 이상」</b>으로 읽는다(관리자 포함).
+     * [design: ADR-055] [design: ROLE-004]
+     */
     private void requireReviewer(TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

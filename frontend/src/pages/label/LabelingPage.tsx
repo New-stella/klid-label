@@ -112,6 +112,7 @@ import {
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
@@ -163,7 +164,7 @@ export function LabelingPage() {
   const portalMode = useAuthStore((s) => s.claims?.channel === 'PORTAL');
   const role = useAuthStore((s) => s.claims?.role);
   const isWorker = role === Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
   // INTERNAL 채널 + WORKER/REVIEWER 만 비식별 누락 신고 가능 (포털 회원은 미노출)
   const canReportDeident = !portalMode && (isWorker || isReviewer);
   const pushToast = useUiStore((s) => s.pushToast);

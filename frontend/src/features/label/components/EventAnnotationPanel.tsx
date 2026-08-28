@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/common/Button';
 import { Textarea } from '@/components/common/Textarea';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
@@ -101,7 +102,8 @@ export function EventAnnotationPanel({ rawSn, currentSrcSn }: EventAnnotationPan
   const pushToast = useUiStore((s) => s.pushToast);
   const role = useAuthStore((s) => s.claims?.role);
   const channel = useAuthStore((s) => s.claims?.channel);
-  const isReviewer = role === Role.REVIEWER && channel === 'INTERNAL';
+  // 검수자 자리 — 관리자는 계층으로 함께 들어온다. 채널 축은 별개라 그대로 둔다.
+  const isReviewer = roleSatisfies(role, Role.REVIEWER) && channel === 'INTERNAL';
 
   // 캔버스 선택 객체(evidence 자동연결용) — 필요한 값만 셀렉터로 구독(스토어 전체 구독 금지).
   const selectedLabelId = useLabelStore((s) => s.selectedLabelId);

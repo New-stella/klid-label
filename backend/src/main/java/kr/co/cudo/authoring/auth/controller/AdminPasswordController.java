@@ -41,10 +41,10 @@ public class AdminPasswordController {
     private final AdminPasswordService adminPasswordService;
 
     @Operation(
-            summary = "관리자 패스워드 교체 (REVIEWER + 관리자 유효창)",
+            summary = "관리자 패스워드 교체 (ADMIN + 관리자 유효창)",
             description = """
                     관리자 공유 패스워드를 교체한다. 요구는 셋이 함께 성립해야 한다 —
-                    검수자 권한, 유효한 관리자 유효창(X-Admin-Session), 현재 패스워드 재확인이다.
+                    관리자 권한, 유효한 관리자 유효창(X-Admin-Session), 현재 패스워드 재확인이다.
 
                     교체가 성공하면 그 전에 발급된 모든 유효창이 무효가 된다 — 방금 이 요청에 쓴 것도
                     포함된다. 이어서 관리 기능을 쓰려면 새 패스워드로 다시 열어야 한다.
@@ -60,14 +60,23 @@ public class AdminPasswordController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
                     description = "인증 실패 또는 현재 패스워드 불일치. 어느 쪽이 틀렸는지 이상은 알리지 않는다."),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
-                    description = "검수자 권한이 없거나 관리자 유효창이 없거나 만료됐다. 두 사유를 구분해 알리지 않는다."),
+                    description = "관리자 권한이 없거나 관리자 유효창이 없거나 만료됐다. 두 사유를 구분해 알리지 않는다."),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429",
                     description = "시도가 너무 잦다. 유효창 발급과 같은 축에서 제한한다.")
     })
     @Parameter(in = ParameterIn.HEADER, name = AdminSessionGate.HEADER, required = true,
             description = "관리자 유효창이 발급한 단기 토큰. 없거나 만료됐으면 403 이다.")
+    /**
+     * ★ 관리자 패스워드를 바꾸는 것은 <b>관리 권한 경계 자체를 바꾸는 일</b>이다. 검수자에게 열어
+     * 두면 검수자가 관리자 진입 자격을 갈아치울 수 있어 권한 분리가 성립하지 않는다
+     * ({@code SCREEN-041} 은 관리자 소유 화면이다).
+     *
+     * @design AC-072
+     * @design ROLE-004
+     * @design ADR-055
+     */
     @PutMapping
-    @PreAuthorize("hasRole('REVIEWER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @RequiresAdminSession
     public ApiResponse<Void> change(@Valid @RequestBody AdminPasswordChangeRequest request,
                                     @AuthenticationPrincipal TokenClaims claims) {

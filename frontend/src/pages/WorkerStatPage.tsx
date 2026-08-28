@@ -20,6 +20,7 @@ import { DailyCompletionChart } from '@/features/stat/components/DailyCompletion
 import { useWorkerStat } from '@/features/stat/hooks/useWorkerStat';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -48,7 +49,7 @@ const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide 
 
 export function WorkerStatPage() {
   const claims = useAuthStore((s) => s.claims);
-  const isReviewer = claims?.role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(claims?.role, Role.REVIEWER);
   const myId = claims?.sub;
 
   // REVIEWER만 작업자 목록 로드 (selector) — /users 는 REVIEWER 전용 API 라 enabled 로 호출 자체를 막는다.

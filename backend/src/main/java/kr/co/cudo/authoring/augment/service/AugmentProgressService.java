@@ -281,7 +281,10 @@ public class AugmentProgressService {
                                         Map<Long, GenAiJobStatusResponse> statuses,
                                         AugmentRequestBudget budget,
                                         TokenClaims actor) {
-        if (statuses.isEmpty() || actor.role() != Role.REVIEWER) {
+        // 역할 항만 계층 판정으로 옮긴다 — 부작용(회수)을 검수자 폴링으로 좁힌다는 규칙은 그대로고,
+        // 그 자리에 관리자가 계층으로 함께 들어간다. statuses.isEmpty() 좌변은 변경 없다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (statuses.isEmpty() || !actor.hasRole(Role.REVIEWER)) {
             return false;
         }
         boolean recovered = false;
@@ -367,7 +370,10 @@ public class AugmentProgressService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER && actor.role() != Role.WORKER) {
+        // 검수자·작업자 둘 다 아니면 거부한다. 관리자는 앞항(검수자 이상)에서 통과한다 —
+        // hasRole(WORKER) 는 작업자만 참이라 뒷항이 작업자 전용 자리를 열지 않는다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER) && !actor.hasRole(Role.WORKER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "증강 진행상태 조회 권한이 없습니다.");
         }
     }

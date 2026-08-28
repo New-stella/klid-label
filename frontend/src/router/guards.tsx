@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 
 import { redirectToUpstream } from '@/features/auth/redirectToUpstream';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
+import { roleSatisfiesAny } from '@/lib/authz';
 import type { Channel, Role } from '@/lib/api/types';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { ErrorState } from '@/components/common/ErrorState';
@@ -108,7 +109,9 @@ export function RoleGuard({ allow, children }: RoleGuardProps) {
     if (isPortalEmbedChannel()) return <PortalEmbedNotice kind="role-required" />;
     return <Navigate to="/role-claim" replace />;
   }
-  if (!claims.role || !allow.includes(claims.role)) {
+  // ★역할 포함 관계 판정은 `@/lib/authz` 가 소유한다 — 허용 목록에 이름이 그대로 있는지만
+  //   보면 상위 역할이 하위 역할 자리에서 거부된다(관리자가 검수자 화면에서 막히던 결함).
+  if (!roleSatisfiesAny(claims.role, allow)) {
     if (isPortalEmbedChannel()) return <PortalEmbedNotice kind="forbidden" />;
     return <Navigate to="/forbidden" replace />;
   }

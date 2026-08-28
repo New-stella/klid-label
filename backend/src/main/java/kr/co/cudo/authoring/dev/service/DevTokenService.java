@@ -31,7 +31,7 @@ import java.util.Optional;
  * <ul>
  *   <li>HS256 명시 ({@code Jwts.SIG.HS256}) — alg none 차단 (CWE-347).</li>
  *   <li>secret 은 {@link JwtKeyResolver} 통해서만 접근 — 응답/로그에 절대 노출 X (CWE-200/798).</li>
- *   <li>role-channel 일관성 검증: PORTAL_USER ↔ PORTAL, REVIEWER/WORKER ↔ INTERNAL.</li>
+ *   <li>role-channel 일관성 검증: PORTAL_USER ↔ PORTAL, ADMIN/REVIEWER/WORKER ↔ INTERNAL.</li>
  *   <li>expSeconds 60 ~ 86400(24h) 이중 가드 (Bean Validation + Service).</li>
  *   <li>로그는 발급 사실(role/channel/userNo)만, 토큰 자체는 앞 12자만 마스킹 출력.</li>
  * </ul>
@@ -54,6 +54,12 @@ public class DevTokenService {
     private static final String DEFAULT_NAME_REVIEWER = "검수자";
     private static final String DEFAULT_NAME_WORKER = "라벨러";
     private static final String DEFAULT_NAME_PORTAL = "포털사용자";
+    /**
+     * 관리자 표시명 기본값. ★관리자에게는 <b>기본 USER_NO 가 없다</b> — dev 시드에 관리자 행이
+     * 없기 때문이며, 없는 번호를 지어내면 그 토큰의 sub 가 <b>다른 사람의 행</b>을 가리킨다
+     * (과거 1002/2001 오매핑이 정확히 그 사고였다). 관리자 토큰은 userNo 를 명시해 발급한다.
+     */
+    private static final String DEFAULT_NAME_ADMIN = "관리자";
 
     private final JwtKeyResolver keyResolver;
     private final UserRepository userRepository;
@@ -126,7 +132,8 @@ public class DevTokenService {
 
     private static void validateRoleChannelConsistency(Role role, Channel channel) {
         boolean ok = switch (role) {
-            case REVIEWER, WORKER -> channel == Channel.INTERNAL;
+            // ADMIN 은 내부 채널 역할이다(ADR-055) — 관리자도 관제 채널로 진입한다.
+            case ADMIN, REVIEWER, WORKER -> channel == Channel.INTERNAL;
             case PORTAL_USER -> channel == Channel.PORTAL;
         };
         if (!ok) {
@@ -157,6 +164,10 @@ public class DevTokenService {
             case REVIEWER -> DEFAULT_USER_NO_REVIEWER;
             case WORKER -> DEFAULT_USER_NO_WORKER;
             case PORTAL_USER -> DEFAULT_USER_NO_PORTAL;
+            // 관리자 기본 사용자는 시드에 없다 — 지어내지 않고 명시를 요구한다(위 상수 주석 참조).
+            case ADMIN -> throw new CustomException(
+                    ErrorCode.INVALID_INPUT,
+                    "ADMIN 토큰은 userNo 를 명시해야 합니다. (dev 시드에 관리자 기본 사용자가 없습니다)");
         };
     }
 
@@ -181,6 +192,7 @@ public class DevTokenService {
 
     private static String defaultNameByRole(Role role) {
         return switch (role) {
+            case ADMIN -> DEFAULT_NAME_ADMIN;
             case REVIEWER -> DEFAULT_NAME_REVIEWER;
             case WORKER -> DEFAULT_NAME_WORKER;
             case PORTAL_USER -> DEFAULT_NAME_PORTAL;

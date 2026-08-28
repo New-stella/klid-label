@@ -423,10 +423,12 @@ public class MetaService {
         }
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
-        if (actor.role() == Role.REVIEWER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        //   동등 비교로 두면 관리자가 두 분기 어디에도 안 걸려 메타 접근이 통째로 403 이 된다.
+        if (actor.hasRole(Role.REVIEWER)) {
             return src;
         }
-        if (actor.role() == Role.WORKER) {
+        if (actor.hasRole(Role.WORKER)) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
                     selfNo, LsTaskAssignment.TASK_LABELER, src.getRawSn());
@@ -442,7 +444,8 @@ public class MetaService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // [design: ADR-055] 창구의 「검수자 전용」은 「검수자 이상」으로 읽는다 — 관리자는 물려받는다.
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

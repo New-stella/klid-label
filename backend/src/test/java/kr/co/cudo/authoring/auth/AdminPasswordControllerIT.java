@@ -83,16 +83,24 @@ class AdminPasswordControllerIT {
     private String reviewerSub;
     /** 이 시험의 작업자 주체. 검수자와도, 다른 시험과도 겹치지 않는다. */
     private String workerSub;
+    /**
+     * 이 시험의 <b>관리자</b> 주체 — 이 창구의 정상 호출자다(ADR-055 · AC-072 · ROLE-004).
+     * ★{@code @Transactional} 이 이 역할 행을 되돌린다. 관리자 행이 공유 DB 에 <b>남으면</b>
+     * 부트스트랩 창구를 검증하는 시험들이 409 로 뒤집히므로 절대 커밋되게 두지 말 것.
+     */
+    private String adminSub;
 
     @BeforeEach
     void seedCredential() {
         reviewerSub = String.valueOf(SUBJECT_SEQ.incrementAndGet());
         workerSub = String.valueOf(SUBJECT_SEQ.incrementAndGet());
+        adminSub = String.valueOf(SUBJECT_SEQ.incrementAndGet());
         // 인가 역할은 JWT 의 role 클레임이 아니라 LS_USER_ROLE 조회로 해석된다(Phase 3). 새 주체를
         // 뽑았으면 그 역할도 함께 심어야 한다 — 안 심으면 role=null 로 fail-closed 되어 이 시험이
         // <검증하려던 것과 다른 이유로> 403 을 받는다. @Transactional 이 함께 되돌린다.
         lsUserRoleRepository.save(LsUserRole.of(Long.valueOf(reviewerSub), "REVIEWER"));
         lsUserRoleRepository.save(LsUserRole.of(Long.valueOf(workerSub), "WORKER"));
+        lsUserRoleRepository.save(LsUserRole.of(Long.valueOf(adminSub), "ADMIN"));
 
         String hash = new BCryptPasswordEncoder(AdminPasswordVerifier.BCRYPT_COST).encode(CURRENT);
         LsMngrPswd row = mngrPswdRepository.findById(LsMngrPswd.SINGLE_ROW_SN).orElse(null);
@@ -112,8 +120,13 @@ class AdminPasswordControllerIT {
         return JwtTestSupport.token(secret, workerSub, "WORKER", "INTERNAL", issuer, 60);
     }
 
+    /** 이 창구의 정상 호출자 — 관리자. */
+    private String adminToken() {
+        return JwtTestSupport.token(secret, adminSub, "ADMIN", "INTERNAL", issuer, 60);
+    }
+
     private String adminSession() {
-        return adminSession(reviewerSub);
+        return adminSession(adminSub);
     }
 
     /**
@@ -131,10 +144,24 @@ class AdminPasswordControllerIT {
     }
 
     @Test
-    @DisplayName("★관리자_유효창_없이는_403 — 검수자_권한만으로는_열리지_않는다")
+    @DisplayName("★관리자_유효창_없이는_403 — 관리자_권한만으로는_열리지_않는다")
     void withoutAdminSessionForbidden() throws Exception {
         mockMvc.perform(put(PATH)
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(CURRENT, NEXT)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("★REVIEWER는_유효창을_들고_와도_403 — 관리자_패스워드_교체는_관리자_전용이다")
+    void reviewerWithSessionForbidden() throws Exception {
+        // ADR-055 · ROLE-004(SCREEN-041) — 검수자에게 열어 두면 검수자가 관리자 진입 자격 자체를
+        //   갈아치울 수 있어 권한 분리가 성립하지 않는다. 유효창은 역할을 올리지 않으므로
+        //   <자기 주체의 유효창>을 들고 와도 막힌다.
+        mockMvc.perform(put(PATH)
                         .header("Authorization", "Bearer " + reviewerToken())
+                        .header(AdminSessionGate.HEADER, adminSession(reviewerSub))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(CURRENT, NEXT)))
                 .andExpect(status().isForbidden());
@@ -155,7 +182,7 @@ class AdminPasswordControllerIT {
     @DisplayName("★유효창이_있어도_현재_패스워드가_틀리면_401 — 세션_탈취가_자격_완전_탈취가_되지_않는다")
     void wrongCurrentPasswordUnauthorized() throws Exception {
         mockMvc.perform(put(PATH)
-                        .header("Authorization", "Bearer " + reviewerToken())
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, adminSession())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("wrong-current-secret", NEXT)))
@@ -166,7 +193,7 @@ class AdminPasswordControllerIT {
     @DisplayName("새_패스워드가_현재_값과_같으면_400")
     void unchangedPasswordBadRequest() throws Exception {
         mockMvc.perform(put(PATH)
-                        .header("Authorization", "Bearer " + reviewerToken())
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, adminSession())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(CURRENT, CURRENT)))
@@ -177,7 +204,7 @@ class AdminPasswordControllerIT {
     @DisplayName("새_패스워드가_8자_미만이면_400")
     void tooShortNewPasswordBadRequest() throws Exception {
         mockMvc.perform(put(PATH)
-                        .header("Authorization", "Bearer " + reviewerToken())
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, adminSession())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(CURRENT, "short")))
@@ -190,7 +217,7 @@ class AdminPasswordControllerIT {
         String sessionUsedForChange = adminSession();
 
         String responseBody = mockMvc.perform(put(PATH)
-                        .header("Authorization", "Bearer " + reviewerToken())
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, sessionUsedForChange)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(CURRENT, NEXT)))
@@ -204,7 +231,7 @@ class AdminPasswordControllerIT {
 
         // 방금 교체에 쓴 그 유효창도 함께 끊긴다 — 예외 갈래가 없다.
         mockMvc.perform(put(PATH)
-                        .header("Authorization", "Bearer " + reviewerToken())
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, sessionUsedForChange)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(NEXT, "yet-another-secret")))
@@ -212,7 +239,7 @@ class AdminPasswordControllerIT {
 
         // 새 자격으로 다시 열면 정상 동작한다 — 무효화가 기능을 죽이는 것이 아니다.
         mockMvc.perform(put(PATH)
-                        .header("Authorization", "Bearer " + reviewerToken())
+                        .header("Authorization", "Bearer " + adminToken())
                         .header(AdminSessionGate.HEADER, adminSession())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(NEXT, "yet-another-secret")))

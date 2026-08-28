@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.transfer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.dataset.export.DatasetExportOutcome;
 import kr.co.cudo.authoring.dataset.export.DatasetExportService;
 import kr.co.cudo.authoring.eventtype.service.EventTypeCacheEvictor;
@@ -85,7 +86,11 @@ class ImportDeidentCompleteControllerIT {
     /** 확인을 통과하면 안 되는 폴더 — 파일은 있으나 <b>내용이 비어 있다</b>. */
     private static final Path HOLLOW_DIR = STORAGE_ROOT.resolve("raw").resolve("outside-deid-hollow");
 
+    /** 이 시험 전용 관리자 사용자번호 — 공용 시드·다른 시험과 겹치지 않는 대역. */
+    private static final long ADMIN_NO = 969_300_044L;
+
     @Autowired private MockMvc mockMvc;
+    @Autowired private UserRoleResolver userRoleResolver;
     @Autowired private EventTypeCacheEvictor eventTypeCacheEvictor;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DatasetExportService datasetExportService;
@@ -98,6 +103,8 @@ class ImportDeidentCompleteControllerIT {
     private DataSource controlDataSource;
 
     private JdbcTemplate jdbc;
+    private ImportAdminActor admin;
+    private String adminToken;
     private String reviewerToken;
     private String workerToken;
     private long labelId;
@@ -106,6 +113,10 @@ class ImportDeidentCompleteControllerIT {
     void setUp() throws Exception {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanup();
+        admin = new ImportAdminActor(jdbc, userRoleResolver, ADMIN_NO);
+        admin.grant();
+        // 기록 자체는 검수자 자리지만, 준비 단계인 적재·분류 대응 확정은 관리자 자리다.
+        adminToken = JwtTestSupport.token(secret, String.valueOf(ADMIN_NO), "ADMIN", "INTERNAL", issuer, 60);
         reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken = JwtTestSupport.token(secret, "2", "WORKER", "INTERNAL", issuer, 60);
         labelId = insertLabel();
@@ -132,6 +143,7 @@ class ImportDeidentCompleteControllerIT {
     @AfterEach
     void tearDown() {
         cleanup();
+        admin.clear();
     }
 
     // ------------------------------------------------------------------ fail-closed
@@ -371,7 +383,7 @@ class ImportDeidentCompleteControllerIT {
         body.put("folderPath", ImportSampleFolder.path().toString());
         body.put("deidentified", deidentified);
         MvcResult result = mockMvc.perform(post(IMPORTS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
@@ -391,7 +403,7 @@ class ImportDeidentCompleteControllerIT {
                         "externalName", ImportSampleFolder.EVENT_CATEGORY,
                         "evntTypeCd", EVENT_TYPE_CD))));
         mockMvc.perform(post(MAPPINGS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated());

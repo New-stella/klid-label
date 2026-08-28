@@ -21,6 +21,9 @@ export const ISSUE_STATUS_LABEL: Record<IssueStatus, string> = {
 const ISSUE_AUTHOR_ROLE_LABEL: Record<string, string> = {
   WORKER: '작업자',
   REVIEWER: '검수자',
+  // 관리자도 문의·댓글을 쓴다 — 응답 계약의 작성자 역할 값에 포함돼 있다. 빠뜨리면 아래 폴백이
+  // 코드값을 그대로 노출해 「홍길동 (ADMIN)」이 된다(이 표의 존재 이유가 그것을 막는 것이다).
+  ADMIN: '관리자',
 };
 
 /** 매핑에 없는 코드는 원문 폴백 — 새 역할이 생겨도 빈칸이 되지 않게 한다. */

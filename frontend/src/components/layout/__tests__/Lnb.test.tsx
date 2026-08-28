@@ -5,9 +5,12 @@
 //   렌더 시 React "two children with the same key"(key=i.path) 경고가 발생한다.
 //   registerManualUploadMenu 의 멱등 가드가 적용되면 재호출해도 항목은 1개로 유지된다.
 //
-// 「업로드」 그룹은 서버에 이미 있는 폴더를 데이터로 들여오는 자리이며 게시판과 관리 **사이**에
-//   온다. 「파일 업로드」는 관리자 패스워드 확인을 거쳐야 하는 화면이라 「관리자」 그룹으로
-//   옮겨갔다 — 두 자리에 다 뜨면 어느 쪽이 정본인지 알 수 없다.
+// ★「업로드」 그룹은 **없어졌다**(2026-08-28). 데이터를 들여오는 두 화면이 모두 「관리자」 그룹으로
+//   옮겨가 항목이 하나도 남지 않았기 때문이다 — 「산출물 가져오기」는 서버가 적재 실행·대응
+//   저장/삭제를 관리자 전용으로 좁히면서, 「파일 업로드」는 관리자 패스워드 확인을 요구하면서.
+//   ⚠ 구 단언 폐기 — *"업로드 그룹에는 산출물 가져오기만 남는다"* · *"업로드 그룹이 게시판과 관리
+//     사이에 놓인다"*. 되살리면 검수자가 열어서 마지막 단계에만 403 을 받는 상태로 돌아간다.
+//   두 자리에 다 뜨면 어느 쪽이 정본인지 알 수 없으므로 이동은 **복제가 아님**을 함께 못박는다.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
@@ -21,12 +24,17 @@ interface MenuGroupLike {
   items: { label: string; path: string; allow: string[] }[];
 }
 
+/** 렌더 배우를 바꾼다 — 「관리자」 그룹은 관리자에게만 보이므로 케이스마다 역할이 다르다. */
+function setRole(role: 'ADMIN' | 'REVIEWER' | 'WORKER') {
+  useAuthStore.setState({
+    token: 'tok',
+    claims: { sub: '1', role, channel: 'INTERNAL', exp: 9999999999 },
+  });
+}
+
 describe('Lnb 메뉴 키 유일성', () => {
   beforeEach(() => {
-    useAuthStore.setState({
-      token: 'tok',
-      claims: { sub: '1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 },
-    });
+    setRole('REVIEWER');
   });
 
   afterEach(() => {
@@ -62,23 +70,48 @@ describe('Lnb 메뉴 키 유일성', () => {
     expect(menu.flatMap((g) => g.items)).toHaveLength(0);
   });
 
-  it('업로드_그룹에는_산출물_가져오기만_남는다', () => {
-    // 파일 업로드는 관리자 그룹으로 옮겨갔다 — 옮긴 것이지 복제한 것이 아니다.
-    // 그룹 헤더(span) → 래퍼 div → 그룹 컨테이너 순으로 거슬러 올라간다.
+  it('업로드_그룹은_항목이_없어_통째로_사라진다', () => {
+    // ★두 화면이 모두 「관리자」로 옮겨가 남은 항목이 없다. 그룹 헤더만 덩그러니 남으면
+    //   누를 것이 없는 자리가 되므로 `visible.length === 0` 으로 통째로 빠지는 것이 맞다.
+    //   ⚠ 관리자 시야로 확인한다 — 가장 많이 보이는 시야에서도 없어야 「사라졌다」가 성립한다
+    //     (검수자 시야에서는 관리자 항목이 안 보여 이 단언이 공허해진다).
+    setRole('ADMIN');
     renderWithProviders(<Lnb />);
-    const uploadGroup = screen.getByText('업로드').parentElement?.parentElement;
-    expect(uploadGroup).toBeTruthy();
 
-    const labels = within(uploadGroup as HTMLElement)
-      .getAllByRole('link')
-      .map((a) => a.textContent);
-
-    expect(labels).toEqual(['산출물 가져오기']);
+    expect(screen.queryByText('업로드')).toBeNull();
   });
 
-  it('관리자_그룹이_NAV_001_순서대로_다섯_항목을_갖는다', () => {
+  it('산출물_가져오기는_관리자_그룹으로_옮겨갔고_구_주소를_쓰지_않는다', () => {
+    // 옮긴 것이지 복제한 것이 아니다 — 두 자리에 다 뜨면 어느 쪽이 정본인지 알 수 없다.
+    setRole('ADMIN');
+    renderWithProviders(<Lnb />);
+
+    const link = screen.getByRole('link', { name: '산출물 가져오기' });
+    expect(link).toHaveAttribute('href', '/admin/imports');
+
+    const adminGroup = screen.getByText('관리자').parentElement?.parentElement;
+    expect(
+      within(adminGroup as HTMLElement).getByRole('link', { name: '산출물 가져오기' }),
+    ).toBe(link);
+  });
+
+  it('검수자에게는_산출물_가져오기가_보이지_않는다', () => {
+    // ★서버가 적재 실행·대응 저장/삭제를 관리자 전용으로 좁혔다. 화면을 열어 폴더 탐색·검사까지
+    //   진행한 뒤 마지막 단계에서만 403 을 받는 것이 이번에 고친 상태이므로, 진입 자체가 없어야 한다.
+    setRole('REVIEWER');
+    renderWithProviders(<Lnb />);
+
+    expect(screen.queryByRole('link', { name: '산출물 가져오기' })).toBeNull();
+    expect(document.querySelector('a[href="/admin/imports"]')).toBeNull();
+    // 구 주소도 남아 있지 않다(이동이지 복제가 아니다).
+    expect(document.querySelector('a[href="/manage/imports"]')).toBeNull();
+  });
+
+  it('관리자_그룹이_NAV_001_순서대로_여섯_항목을_갖는다', () => {
     // vitest 는 DEV 빌드라 isDevUploadEnabled() 가 true → 실제 MENU 에 파일 업로드가 등록된다.
     // 순서는 NAV-001 이 정한다 — 파일 업로드는 끝에 붙는 것이 아니라 패스워드 교체 **앞**이다.
+    // ⚠ 이 그룹은 관리자에게만 보인다 — 검수자로 두면 그룹이 없어 순서 확인 자체가 성립하지 않는다.
+    setRole('ADMIN');
     renderWithProviders(<Lnb />);
     const adminGroup = screen.getByText('관리자').parentElement?.parentElement;
     expect(adminGroup).toBeTruthy();
@@ -87,6 +120,7 @@ describe('Lnb 메뉴 키 유일성', () => {
     expect(links.map((a) => a.textContent)).toEqual([
       '사용자 관리',
       '연동 서버 주소',
+      '산출물 가져오기',
       '파일 업로드',
       '패스워드 교체',
       '위험 액션',
@@ -94,6 +128,7 @@ describe('Lnb 메뉴 키 유일성', () => {
     expect(links.map((a) => a.getAttribute('href'))).toEqual([
       '/admin/users',
       '/admin/endpoints',
+      '/admin/imports',
       '/admin/uploads',
       '/admin/password',
       '/admin/maintenance',
@@ -110,9 +145,11 @@ describe('Lnb 메뉴 키 유일성', () => {
     expect(hrefs).not.toContain('/admin');
   });
 
-  it('업로드_그룹이_게시판과_관리_사이에_놓이고_관리자_그룹이_맨_뒤다', () => {
-    // 그룹 순서는 NAV-001 이 정한다 — 데이터를 들여오는 자리를 설정을 다루는 「관리」 앞에 두고,
-    // 관리자 패스워드 확인을 요구하는 「관리자」를 맨 뒤에 둔다.
+  it('게시판_다음이_관리이고_관리자_그룹이_맨_뒤다', () => {
+    // 그룹 순서는 NAV-001 이 정한다 — 검수자가 쓰는 「관리」 다음에 관리자 전용 「관리자」를 둔다.
+    // ⚠ 전체 순서를 보려면 모든 그룹이 보이는 관리자로 렌더해야 한다.
+    // ⚠ 구 단언 폐기 — 「업로드」가 게시판과 관리 사이에 있었으나 그 그룹이 없어졌다.
+    setRole('ADMIN');
     renderWithProviders(<Lnb />);
     const nav = screen.getByRole('navigation', { name: '좌측 메뉴' });
     const groupHeaders = Array.from(
@@ -126,10 +163,10 @@ describe('Lnb 메뉴 키 유일성', () => {
       '데이터',
       '통계',
       '게시판',
-      '업로드',
       '관리',
       '관리자',
     ]);
+    expect(groupHeaders).not.toContain('업로드');
   });
 
   it('관리_그룹에_이관_업로드_항목이_남아있지_않다', () => {
@@ -147,15 +184,12 @@ describe('Lnb 메뉴 키 유일성', () => {
     expect(labels).not.toContain('수동 업로드');
   });
 
-  it('WORKER_에게는_업로드와_관리자_그룹이_통째로_보이지_않는다', () => {
-    // 모든 항목이 REVIEWER 전용이라 visible.length === 0 으로 그룹 헤더까지 사라진다.
-    useAuthStore.setState({
-      token: 'tok',
-      claims: { sub: '2', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
-    });
+  it('WORKER_에게는_관리와_관리자_그룹이_통째로_보이지_않는다', () => {
+    // 항목이 전부 그 자리보다 넓은 역할을 요구해 visible.length === 0 으로 헤더까지 사라진다.
+    setRole('WORKER');
     renderWithProviders(<Lnb />);
 
-    expect(screen.queryByText('업로드')).toBeNull();
+    expect(screen.queryByText('관리')).toBeNull();
     expect(screen.queryByRole('link', { name: '산출물 가져오기' })).toBeNull();
     expect(screen.queryByText('관리자')).toBeNull();
     expect(screen.queryByRole('link', { name: '파일 업로드' })).toBeNull();
@@ -172,6 +206,8 @@ describe('Lnb 메뉴 키 유일성', () => {
   });
 
   it('반복_렌더_시_중복_key_React_경고가_발생하지_않는다', () => {
+    // 항목이 가장 많은 시야(관리자)로 돌린다 — 중복 등록은 「관리자」 그룹에서 일어난다.
+    setRole('ADMIN');
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       for (let i = 0; i < 3; i += 1) {
@@ -212,10 +248,7 @@ describe('Lnb 메뉴 키 유일성', () => {
   it('WORKER_에게는_이벤트유형_관리_메뉴가_보이지_않는다', () => {
     // ⚠ 메뉴 노출 조건은 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다 —
     //   갈리면 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
-    useAuthStore.setState({
-      token: 'tok',
-      claims: { sub: '2', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
-    });
+    setRole('WORKER');
     renderWithProviders(<Lnb />);
 
     expect(screen.queryByRole('link', { name: '이벤트유형 관리' })).toBeNull();

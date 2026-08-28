@@ -41,7 +41,7 @@ target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐
 
 ### 진실원·엔티티
 - **상태별 집계의 코드값 축은 `LS_RAW_DATA_STATUS.DATA_STTS_CD`**(상수 `LsRawDataStatus.STTS_*`)다 — 이 도메인은 그 컬럼을 직접 센다. 유효값은 `PENDING`·`ASSIGNED`·`IN_REVIEW`·`APPROVED`·`REJECTED`. 근거: CDIAG-009(WorkStatus)
-- **`IN_PROGRESS`·`COMPLETED`·`REVIEW_REQUESTED`(구 '확인요청')는 이 축에서 폐기값**이다. 그대로 집계하면 **검수 완료 작업이 어느 항목에도 잡히지 않는다**. 검수 종결값은 `APPROVED`. 근거: CDIAG-009(WorkStatus) · ADR-003
+- **`IN_PROGRESS`·`COMPLETED`·`REVIEW_REQUESTED`(구 '확인요청')는 이 축에서 폐기값**이다. 그대로 집계하면 **검수 완료 작업이 어느 항목에도 잡히지 않는다**. 검수 종결값은 `APPROVED`. 근거: CDIAG-009(WorkStatus) · ADR-003(⚠ 역할 통합 축은 `ADR-055` 가 supersede 했으나 이 폐기값 결론은 그대로다)
 - `StatPeriod` = `DAILY`|`MONTHLY` 두 값만. 근거: CDIAG-009(StatPeriod)
 - 집계 결과는 물리 엔티티가 아니라 **VO**(`WorkerStatistics`·`OperationStatistics`·`StatusCount`·`DailyProgress`)로 모델링된 개념 모델이다. 근거: CDIAG-009
 - (정보부족 — 설계 보완 또는 첫 구현 중 확인 필요: 어느 원장 테이블을 어떤 조인으로 세는지가 설계에 없다. "영상·프레임·작업 상태 원장"이라고만 적혀 있어 실제 소스 테이블은 `stats/repository/StatsQueryRepository.java` 를 읽어 확인해야 한다)
@@ -62,7 +62,7 @@ target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐
 - **정렬 키는 allowlist 매핑으로만 해석하고 개수 상한을 둔다**(CWE-89 / CWE-770). 근거: ADR-038
 - **미등록 정렬키 응답은 엔드포인트별로 의도적으로 다르다** — `/v1/tasks/board*` 는 strict(400), `/v1/reviews*` 는 lenient(200 + 기본 정렬 폴백 + WARN). **"일관성"을 이유로 통일하지 말 것**(회귀 방어로 고정됨). 근거: ADR-038
 - **하위호환 규약**: 목록 API 에 필터·정렬을 추가할 때 신규 파라미터는 전부 optional, BE 기본값 불변, 축이 다른 필터는 별도 파라미터로 신설(예: `status` vs `workStatus`). 근거: ADR-038
-- 상태 축에서 구 '확인요청'은 관리자 역할 통합으로 폐기됐다 — 되살리지 말 것. 근거: ADR-003 · DOMAIN-006 본문 · CDIAG-009(WorkStatus)
+- 상태 축에서 구 '확인요청'은 폐기됐다 — 되살리지 말 것. ⚠ 폐기 **사유**였던 「관리자 역할 통합」은 `ADR-055` 로 뒤집혔지만(관리자 역할이 다시 생겼다) **이 상태값이 되살아나는 것은 아니다** — 관리자는 검수자 권한을 계층으로 물려받을 뿐 별도 확인 단계를 만들지 않는다. 근거: `ADR-055` · DOMAIN-006 본문 · CDIAG-009(WorkStatus)
 - (정보부족 — 설계 보완 또는 첫 구현 중 확인 필요: 통계 응답의 캐시 TTL·집계 주기·대용량 집계 시 응답시간 예산이 이 도메인 ITEM 에 없다. NFR-011(화면 응답시간)·NFR-012(자원 효율)가 링크돼 있으나 통계 전용 수치는 없다)
 
 ### 코드 레이아웃

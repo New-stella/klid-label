@@ -237,16 +237,30 @@ public class VideoQueryService {
      * <p>역할 게이트({@code @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")})와 <b>이중 방어</b>다 —
      * 그 게이트가 느슨해져도 여기서 다시 막힌다.
      *
-     * @return 라벨링 작업자면 본인 사용자 번호, 검수자면 {@code null}(스코핑 미적용)
+     * <p><b>역할 판정은 계층을 반영한다</b>({@link TokenClaims#hasRole}) — 동등 비교로 두면
+     * 관리자가 두 분기 중 어디에도 걸리지 않고 마지막 {@code FORBIDDEN} 으로 떨어져 <b>영상 목록이
+     * 통째로 403</b> 이 된다. Spring 의 {@code RoleHierarchy} 는 권한(authority) 축에만 걸리므로
+     * 그 게이트를 통과한 관리자가 여기서 다시 막히는 형태였다.
+     * <ul>
+     *   <li>{@code hasRole(WORKER)} 는 <b>작업자만</b> 참이다 — 관리자·검수자가 본인 배정분으로
+     *       좁혀지지 않는다(계층은 작업자 전용 자리를 열지 않는다).</li>
+     *   <li>{@code hasRole(REVIEWER)} 는 관리자·검수자가 참이다 — 관리자는 <b>검수자와 같은 범위</b>
+     *       (전체 조회)를 본다.</li>
+     * </ul>
+     *
+     * @return 라벨링 작업자면 본인 사용자 번호, 검수자 이상(관리자 포함)이면 {@code null}(스코핑 미적용)
+     * @design ADR-055
+     * @design ROLE-004
+     * @design AC-125
      */
     private Long scopeUserNoFor(TokenClaims actor) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() == Role.WORKER) {
+        if (actor.hasRole(Role.WORKER)) {
             return parseUserNo(actor.sub());
         }
-        if (actor.role() == Role.REVIEWER) {
+        if (actor.hasRole(Role.REVIEWER)) {
             return null;
         }
         throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");

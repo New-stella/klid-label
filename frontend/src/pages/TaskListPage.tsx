@@ -51,6 +51,7 @@ import { useUsers } from '@/features/user/hooks/useUsers';
 import { type BadgeStatus } from '@/components/common/StatusBadge';
 import { type Video } from '@/features/video/types';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const PAGE_SIZE = 20;
@@ -95,7 +96,7 @@ export function TaskListPage() {
   const navigate = useNavigate();
   const claims = useAuthStore((s) => s.claims);
   const role = claims?.role ?? Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
   const headerSubtitle = isReviewer
     ? HEADER_SUBTITLE.REVIEWER
     : HEADER_SUBTITLE.WORKER;

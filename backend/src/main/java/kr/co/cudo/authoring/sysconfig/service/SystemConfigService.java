@@ -524,8 +524,19 @@ public class SystemConfigService {
         return values;
     }
 
+    /**
+     * 설정 저장의 역할 게이트 — <b>검수자 이상</b>이면 통과한다. [@design ADR-055] [@design ROLE-004]
+     *
+     * <p>판정은 {@link TokenClaims#hasRole(TokenClaims, Role)} <b>한 곳</b>이 소유한다. 역할을 여기서
+     * 그대로 동등 비교하면 계층이 권한 축에만 걸리고 이 자리에서는 끊겨, 관리자가 자기 소유 화면
+     * (연동 서버 주소)에서 거부된다. 정적 진입점을 쓰므로 행위자 없음도 그 판정 안에서 거짓으로
+     * 떨어진다(fail-closed) — 앞에서 따로 검사하지 않는다.
+     *
+     * <p>⚠ 이 게이트는 <b>역할 축만</b> 본다. 연동 주소 키가 추가로 요구하는 관리자 단기 유효창은
+     * 별개 축이며 서로를 대체하지 않는다 — 역할을 통과했다고 유효창이 면제되지 않는다.
+     */
     private void verifyReviewer(TokenClaims actor) {
-        if (actor == null || actor.role() != Role.REVIEWER) {
+        if (!TokenClaims.hasRole(actor, Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }

@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 
 import { cn } from '@/lib/cn';
 import { isDevUploadEnabled } from '@/lib/devUpload';
+import { roleSatisfiesAny } from '@/lib/authz';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
 import type { Role } from '@/lib/api/types';
@@ -18,15 +19,20 @@ interface MenuGroup {
 }
 
 /**
- * 그룹 순서: 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 업로드 / 관리 / 관리자. [@design NAV-001]
+ * 그룹 순서: 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 관리 / 관리자. [@design NAV-001]
  *
- * 「업로드」는 서버에 이미 있는 폴더를 데이터로 들여오는 자리다(산출물 가져오기). 내려받아 둔
- * 파일을 올리는 길(파일 업로드)은 **관리자 페이지로 옮겨가** 「관리자」 그룹에 있다.
+ * ⚠ **「업로드」 그룹은 없어졌다.** 데이터를 들여오는 두 화면(산출물 가져오기 · 파일 업로드)이
+ *   모두 「관리자」 그룹으로 옮겨가 항목이 하나도 남지 않았기 때문이다. 구 서술 폐기 —
+ *   *"「업로드」는 게시판과 관리 사이이고 산출물 가져오기가 그 자리에 있다"*. 되살리지 말 것.
  *
- * 「관리자」는 역할 권한만으로 들어갈 수 없는 화면들의 자리다 — 관리자 패스워드로 연 단기
- * 유효창을 함께 요구한다.
- * ★**유효창을 메뉴 노출 조건으로 쓰지 않는다.** 유효창은 관리자 페이지에 들어가 패스워드를
- *   넣어야 열리는데 그것을 노출 조건으로 삼으면 **들어갈 길 자체가 사라진다.**
+ * 「관리자」는 관리자 역할에게만 열리는 화면들의 자리다. 검수자에게는 이 그룹이 통째로 보이지
+ * 않는다 — 항목이 전부 관리자 전용이라 `visible.length === 0` 으로 헤더까지 사라진다.
+ * ★**가르는 축은 역할이다.** 예전에는 이 항목들이 검수자에게도 보이고 진입 시점에 관리자
+ *   패스워드로 걸렀는데, 관리자 역할이 생기면서 노출 단계에서 가를 수 있게 됐다. 유효창은
+ *   없어지지 않고 역할 **위에** 그대로 가산된다(라우트 안쪽 게이트).
+ * ★**유효창을 메뉴 노출 조건으로 쓰지 않는다.** 결론은 그대로다 — 유효창은 관리자 페이지에
+ *   들어가 패스워드를 넣어야 열리는데 그것을 노출 조건으로 삼으면 **들어갈 길 자체가 사라진다.**
+ *   바뀐 것은 「무엇으로 가르는가」이지 「유효창으로 가르지 않는다」가 아니다.
  * ★**진입 화면(`/admin`)은 메뉴에 두지 않는다** — 눌러서 가는 곳이 아니라 유효창이 없을 때
  *   대신 열리는 자리다.
  */
@@ -77,19 +83,6 @@ const MENU: MenuGroup[] = [
     items: [{ label: '게시판', path: '/notice', allow: ['REVIEWER', 'WORKER'] }],
   },
   {
-    // [@design NAV-001] [@design SCREEN-039]
-    // 「업로드」는 게시판과 관리 **사이**다. 항목이 REVIEWER 전용이라 WORKER 에게는
-    // `visible.length === 0` 으로 그룹째 사라진다(그룹 헤더만 남는 일이 없다).
-    // ⚠ 「파일 업로드」는 이 그룹에서 **관리자 그룹으로 옮겨갔다** — 관리자 패스워드 확인을
-    //   거쳐야 하는 화면이라 요구 조건이 다르다.
-    group: '업로드',
-    items: [
-      // ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다 — 갈리면
-      //   「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
-      { label: '산출물 가져오기', path: '/manage/imports', allow: ['REVIEWER'] },
-    ],
-  },
-  {
     // ⚠ 「사용자 관리」는 이 그룹에서 **관리자 그룹으로 옮겨갔다**(`/admin/users`) — 역할을 바꾸는
     //   일이라 관리자 패스워드 확인을 함께 요구한다. 삭제가 아니라 이동이다.
     group: '관리',
@@ -108,18 +101,25 @@ const MENU: MenuGroup[] = [
   },
   {
     // [@design NAV-001] [@design SCREEN-024] [@design SCREEN-041] [@design SCREEN-042]
-    // [@design SCREEN-043] [@design ADR-046]
-    // 관리자 페이지 — 검수자 권한 **위에** 관리자 패스워드 유효창이 가산되는 화면들이다.
+    // [@design SCREEN-043] [@design ADR-046] [@design ROLE-004]
+    // 관리자 페이지 — 관리자 역할 **위에** 관리자 패스워드 유효창이 가산되는 화면들이다.
+    // ★`allow` 가 ADMIN 이라 검수자에게는 이 그룹이 통째로 보이지 않는다. 관리자는 계층으로
+    //   검수자 권한을 물려받으므로 검수·배정 메뉴도 함께 보인다(그쪽 항목은 REVIEWER 그대로).
     // ★유효창 보유 여부를 노출 조건으로 쓰지 않는다(그러면 들어갈 길이 사라진다).
     // ★진입 화면(`/admin`)은 여기에 두지 않는다.
-    // ⚠ `allow` 는 라우트 가드(internalReviewerOnly)와 <b>같은 조건</b>이어야 한다.
+    // ⚠ `allow` 는 라우트 가드(internalAdminOnly)와 <b>같은 조건</b>이어야 한다.
     group: '관리자',
     items: [
-      { label: '사용자 관리', path: '/admin/users', allow: ['REVIEWER'] },
-      { label: '연동 서버 주소', path: '/admin/endpoints', allow: ['REVIEWER'] },
+      { label: '사용자 관리', path: '/admin/users', allow: ['ADMIN'] },
+      { label: '연동 서버 주소', path: '/admin/endpoints', allow: ['ADMIN'] },
+      // ⚠ 「산출물 가져오기」가 **「업로드」 그룹에서 여기로 옮겨왔다**(`/manage/imports` →
+      //   `/admin/imports`). 서버가 적재 실행·대응 저장/삭제를 관리자 전용으로 좁혀, 검수자가
+      //   화면을 열어 폴더 탐색·검사까지 마친 뒤 마지막 단계에서만 거부되던 상태였다.
+      //   ★그 결과 「업로드」 그룹은 항목이 비어 **통째로 사라졌다** — 삭제가 아니라 이동이다.
+      { label: '산출물 가져오기', path: '/admin/imports', allow: ['ADMIN'] },
       // 「파일 업로드」(`/admin/uploads`)는 아래 registerManualUploadMenu 가 토글 조건과 함께 넣는다.
-      { label: '패스워드 교체', path: '/admin/password', allow: ['REVIEWER'] },
-      { label: '위험 액션', path: '/admin/maintenance', allow: ['REVIEWER'] },
+      { label: '패스워드 교체', path: '/admin/password', allow: ['ADMIN'] },
+      { label: '위험 액션', path: '/admin/maintenance', allow: ['ADMIN'] },
     ],
   },
 ];
@@ -161,7 +161,9 @@ export function registerManualUploadMenu(menu: MenuGroup[]): void {
   const item: MenuItem = {
     label: '파일 업로드',
     path: MANUAL_UPLOAD_PATH,
-    allow: ['REVIEWER'],
+    // 「관리자」 그룹의 다른 항목과 같은 조건이다 — 한 그룹 안에서 항목마다 조건이 갈리면
+    // 그룹이 반쪽만 보이는 상태가 생긴다.
+    allow: ['ADMIN'],
   };
   const anchor = admin.items.findIndex((i) => i.path === MANUAL_UPLOAD_ANCHOR_PATH);
   if (anchor === -1) {
@@ -190,7 +192,11 @@ export function Lnb() {
     >
       <div className="py-3">
         {MENU.map((g) => {
-          const visible = g.items.filter((i) => !role || i.allow.includes(role));
+          // ★판정은 `@/lib/authz` 에 위임한다 — 허용 목록에 이름이 그대로 있는지만 보면 상위
+          //   역할이 하위 역할 자리에서 빠진다(관리자에게 검수 메뉴가 사라지던 결함).
+          //   역할 미부여는 아무것도 보여주지 않는다 — 라우트 가드가 그 상태를 역할 부여 화면으로
+          //   보내므로, 그 사이에 전체 메뉴가 잠깐 펼쳐지는 것이 오히려 어긋난 화면이다.
+          const visible = g.items.filter((i) => roleSatisfiesAny(role, i.allow));
           if (visible.length === 0) return null;
           return (
             <div key={g.group} className="mb-1">
