@@ -31,7 +31,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RouteObject } from 'react-router-dom';
 
-import { registerManualUploadMenu } from '@/components/layout/Lnb';
+import { buildMenuGroups } from '@/lib/routeAccess';
 import { router } from '@/router';
 
 /** 구 이름(케밥 표기). 이 문자열은 `frontend/src` 전역에서 이 파일에만 존재해야 한다. */
@@ -59,17 +59,7 @@ function collectSourceFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-interface MenuItemLike {
-  label: string;
-  path: string;
-  allow: string[];
-}
-interface MenuGroupLike {
-  group: string;
-  items: MenuItemLike[];
-}
-
-/** 파일 업로드 메뉴가 등록되는 그룹 — 「업로드」가 아니라 「관리자」다. */
+/** 파일 업로드 메뉴가 놓이는 그룹 — 「업로드」가 아니라 「관리자」다. */
 const MANUAL_UPLOAD_GROUP = '관리자';
 
 /** 라우트 트리를 순회해 절대 경로 문자열 목록을 만든다(부모 prefix 결합 포함). */
@@ -109,10 +99,10 @@ describe('dev 업로드 경로 개명 (구 이름 회귀 차단)', () => {
   });
 
   it('LNB_파일_업로드_메뉴가_새_URL을_가리킨다', () => {
-    const menu: MenuGroupLike[] = [{ group: MANUAL_UPLOAD_GROUP, items: [] }];
-    registerManualUploadMenu(menu as never);
-
-    const uploadItem = menu
+    // 메뉴는 `@/lib/routeAccess` 선언에서 파생된다 — 라우트도 같은 선언을 읽으므로 두 축이
+    // 갈릴 수 없다. 여기서는 그 파생 결과가 새 주소를 가리키는지만 못 박는다.
+    const uploadItem = buildMenuGroups({ devUploadEnabled: true })
+      .filter((group) => group.group === MANUAL_UPLOAD_GROUP)
       .flatMap((group) => group.items)
       .find((item) => item.label === '파일 업로드');
 

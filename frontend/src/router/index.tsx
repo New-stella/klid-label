@@ -12,6 +12,7 @@ import { Role } from '@/lib/api/types';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 import { isDevUploadEnabled } from '@/lib/devUpload';
 import { resolveRouterBasename } from '@/lib/remoteMount';
+import { allowFor } from '@/lib/routeAccess';
 
 import { AdminSessionGuard } from './adminSessionGuard';
 import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
@@ -178,15 +179,18 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
-// 허용 목록은 「그 자리가 요구하는 역할」을 적는 것이지 「들어올 수 있는 역할 전부」를 열거하는
-// 것이 아니다 — 상위 역할은 `RoleGuard` 가 계층으로 통과시킨다(관리자를 여기에 덧붙이지 말 것).
-const internalAllRoles = [Role.REVIEWER, Role.WORKER];
-const internalReviewerOnly = [Role.REVIEWER];
-/** 관리자 전용 — 검수자는 계층의 아래쪽이라 여기에 닿지 않는다. [@design ROLE-004] */
-const internalAdminOnly = [Role.ADMIN];
+// ★내부 채널의 허용 목록은 이 파일이 갖지 않는다 — `@/lib/routeAccess` 선언 한 곳에서
+//   `allowFor(경로)` 로 가져온다. 좌측 메뉴도 같은 선언에서 파생하므로 두 축이 갈릴 수 없다.
+//   구 구현은 여기 세 상수(internalAllRoles·internalReviewerOnly·internalAdminOnly)를 두고
+//   메뉴가 항목마다 `allow` 를 따로 들어, 두 파일의 주석이 「같은 조건이어야 한다」고 서로를
+//   향해 경고만 했다. 되살리지 말 것.
+//   ⚠ 그 선언에는 「그 자리가 요구하는 역할」만 적는다 — 상위 역할은 `RoleGuard` 가 계층으로
+//     통과시키므로 관리자를 검수자 자리에 덧붙이지 않는다. [@design ROLE-004] [@design ADR-055]
+//
+// 포털은 채널 자체가 달라 내부 선언의 대상이 아니다(여기 그대로 둔다).
 const portalOnly = [Role.PORTAL_USER];
 
-function InternalRoute({ allow, children }: { allow: Role[]; children: ReactNode }) {
+function InternalRoute({ allow, children }: { allow: readonly Role[]; children: ReactNode }) {
   return (
     <ChannelGuard channel="INTERNAL">
       <RoleGuard allow={allow}>{children}</RoleGuard>
@@ -210,13 +214,14 @@ function PortalRoute({ children }: { children: ReactNode }) {
  * 관리자가 아닌 사용자는 패스워드를 알더라도 여기에 닿지 못한다. 뒤집으면 「패스워드를 아는
  * 사람이 관리자」가 되어 역할로 가른다는 이 구성의 전제가 무너진다.
  *
- * ⚠ 역할 조건은 좌측 메뉴(`components/layout/Lnb.tsx` 의 「관리자」 그룹 `allow`)와 <b>같아야</b>
- *   한다 — 갈리면 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
+ * ★역할 조건을 자기 안에 박지 않고 **호출자가 `allowFor(경로)` 로 넘긴다**. 그래야 좌측 메뉴와
+ *   같은 선언에서 나온 값인지 참조 동일성으로 확인할 수 있다 — 여기 상수를 다시 두면 그 확인이
+ *   불가능해지고 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 되살아난다.
  * ⚠ 진입 화면(`/admin`) 자신에게는 쓰지 않는다 — 유효창이 없을 때 자기 자신으로 무한히 되돌아간다.
  */
-function AdminRoute({ children }: { children: ReactNode }) {
+function AdminRoute({ allow, children }: { allow: readonly Role[]; children: ReactNode }) {
   return (
-    <InternalRoute allow={internalAdminOnly}>
+    <InternalRoute allow={allow}>
       <AdminSessionGuard>{children}</AdminSessionGuard>
     </InternalRoute>
   );
@@ -254,7 +259,11 @@ if (isDevUploadEnabled()) {
   );
   devUploadRoutes.push({
     path: 'uploads',
-    element: <AdminRoute>{withSuspense(<DevAutolabelTestPage />)}</AdminRoute>,
+    element: (
+      <AdminRoute allow={allowFor('/admin/uploads')}>
+        {withSuspense(<DevAutolabelTestPage />)}
+      </AdminRoute>
+    ),
   });
 }
 
@@ -276,7 +285,7 @@ const routes: RouteObject[] = [
   {
     path: '/label/:id',
     element: (
-      <InternalRoute allow={internalAllRoles}>{withSuspense(<LabelingPage />)}</InternalRoute>
+      <InternalRoute allow={allowFor('/label/:id')}>{withSuspense(<LabelingPage />)}</InternalRoute>
     ),
     errorElement: <AppErrorPage status={500} />,
   },
@@ -298,14 +307,14 @@ const routes: RouteObject[] = [
           // [@design NAV-001] [@design SCREEN-008] [@design SCREEN-009]
           // 영상 처리 현황·영상 상세는 재시도·건너뛰기·재수행 같은 **운영 조치**를 제공하는
           // 자리라 REVIEWER 전용이다(라벨 수정·검수 제출을 맡는 WORKER 의 역할 축이 아니다).
-          // ⚠ LNB(`components/layout/Lnb.tsx` 의 「영상」 그룹 `allow`)와 <b>같은 조건</b>이어야
-          //   한다 — 갈리면 「메뉴는 없는데 주소로는 들어가진다」(또는 그 반대)가 된다.
+          // ★LNB 와 이 가드는 `@/lib/routeAccess` 의 **같은 선언**을 읽는다 — 두 곳에 조건을
+          //   적어 두고 「같아야 한다」고 주석으로만 당부하던 구조를 없앴다.
           // ⚠ 같은 「영상」 개념에 속하는 마킹(`marking/:rawSn`)은 이 제한 대상이 **아니다** —
           //   WORKER 가 들어가는 화면이라 internalAllRoles 그대로 둔다.
           {
             path: 'status',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/video/status')}>
                 {withSuspense(<VideoListPage />)}
               </InternalRoute>
             ),
@@ -313,7 +322,7 @@ const routes: RouteObject[] = [
           {
             path: ':id',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/video/:id')}>
                 {withSuspense(<VideoDetailPage />)}
               </InternalRoute>
             ),
@@ -323,7 +332,7 @@ const routes: RouteObject[] = [
       {
         path: 'dashboard',
         element: (
-          <InternalRoute allow={internalAllRoles}>
+          <InternalRoute allow={allowFor('/dashboard')}>
             {withSuspense(<DashboardPage />)}
           </InternalRoute>
         ),
@@ -334,7 +343,7 @@ const routes: RouteObject[] = [
           {
             index: true,
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={allowFor('/task')}>
                 {withSuspense(<TaskListPage />)}
               </InternalRoute>
             ),
@@ -344,7 +353,7 @@ const routes: RouteObject[] = [
       {
         path: 'marking/:rawSn',
         element: (
-          <InternalRoute allow={internalAllRoles}>
+          <InternalRoute allow={allowFor('/marking/:rawSn')}>
             {withSuspense(<MarkingPage />)}
           </InternalRoute>
         ),
@@ -355,7 +364,7 @@ const routes: RouteObject[] = [
           {
             index: true,
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/review')}>
                 {withSuspense(<ReviewListPage />)}
               </InternalRoute>
             ),
@@ -364,7 +373,7 @@ const routes: RouteObject[] = [
             // mock 정합 alias — /review/pending == /review
             path: 'pending',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/review/pending')}>
                 {withSuspense(<ReviewListPage />)}
               </InternalRoute>
             ),
@@ -372,7 +381,7 @@ const routes: RouteObject[] = [
           {
             path: ':id',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/review/:id')}>
                 {withSuspense(<ReviewPage />)}
               </InternalRoute>
             ),
@@ -385,7 +394,7 @@ const routes: RouteObject[] = [
           {
             index: true,
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={allowFor('/stat')}>
                 {withSuspense(<WorkerStatPage />)}
               </InternalRoute>
             ),
@@ -394,7 +403,7 @@ const routes: RouteObject[] = [
             // mock 정합 alias — /stat/worker == /stat
             path: 'worker',
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={allowFor('/stat/worker')}>
                 {withSuspense(<WorkerStatPage />)}
               </InternalRoute>
             ),
@@ -402,7 +411,7 @@ const routes: RouteObject[] = [
           {
             path: 'overall',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/stat/overall')}>
                 {withSuspense(<OverallStatPage />)}
               </InternalRoute>
             ),
@@ -415,7 +424,7 @@ const routes: RouteObject[] = [
           {
             index: true,
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/augment')}>
                 {withSuspense(<AugmentRequestPage />)}
               </InternalRoute>
             ),
@@ -424,7 +433,7 @@ const routes: RouteObject[] = [
             // mock 정합 alias — /augment/request == /augment
             path: 'request',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/augment/request')}>
                 {withSuspense(<AugmentRequestPage />)}
               </InternalRoute>
             ),
@@ -432,7 +441,7 @@ const routes: RouteObject[] = [
           {
             path: 'result/:rawSn',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/augment/result/:rawSn')}>
                 {withSuspense(<AugmentResultPage />)}
               </InternalRoute>
             ),
@@ -450,7 +459,7 @@ const routes: RouteObject[] = [
           {
             path: 'settings',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/manage/settings')}>
                 {withSuspense(<SystemSettingsPage />)}
               </InternalRoute>
             ),
@@ -458,7 +467,7 @@ const routes: RouteObject[] = [
           {
             path: 'presets',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/manage/presets')}>
                 {withSuspense(<PresetListPage />)}
               </InternalRoute>
             ),
@@ -466,7 +475,7 @@ const routes: RouteObject[] = [
           {
             path: 'labels',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/manage/labels')}>
                 {withSuspense(<LabelMasterManagePage />)}
               </InternalRoute>
             ),
@@ -474,7 +483,7 @@ const routes: RouteObject[] = [
           {
             path: 'event-types',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/manage/event-types')}>
                 {withSuspense(<EventTypeManagePage />)}
               </InternalRoute>
             ),
@@ -482,7 +491,7 @@ const routes: RouteObject[] = [
           {
             path: 'deident-reports',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/manage/deident-reports')}>
                 {withSuspense(<DeidentReportListPage />)}
               </InternalRoute>
             ),
@@ -498,7 +507,7 @@ const routes: RouteObject[] = [
           {
             path: '*',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/manage/*')}>
                 <PlaceholderPage title="관리" />
               </InternalRoute>
             ),
@@ -511,7 +520,7 @@ const routes: RouteObject[] = [
           {
             index: true,
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={allowFor('/notice')}>
                 {withSuspense(<NoticeListPage />)}
               </InternalRoute>
             ),
@@ -521,7 +530,7 @@ const routes: RouteObject[] = [
           {
             path: 'new',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/notice/new')}>
                 {withSuspense(<NoticeCreatePage />)}
               </InternalRoute>
             ),
@@ -529,7 +538,7 @@ const routes: RouteObject[] = [
           {
             path: ':id',
             element: (
-              <InternalRoute allow={internalAllRoles}>
+              <InternalRoute allow={allowFor('/notice/:id')}>
                 {withSuspense(<NoticeDetailPage />)}
               </InternalRoute>
             ),
@@ -537,7 +546,7 @@ const routes: RouteObject[] = [
           {
             path: ':id/edit',
             element: (
-              <InternalRoute allow={internalReviewerOnly}>
+              <InternalRoute allow={allowFor('/notice/:id/edit')}>
                 {withSuspense(<NoticeEditPage />)}
               </InternalRoute>
             ),
@@ -554,18 +563,26 @@ const routes: RouteObject[] = [
             //   자기 자신으로 무한히 되돌아간다. 역할 가드는 그대로 필요하다.
             index: true,
             element: (
-              <InternalRoute allow={internalAdminOnly}>
+              <InternalRoute allow={allowFor('/admin')}>
                 {withSuspense(<AdminGatePage />)}
               </InternalRoute>
             ),
           },
           {
             path: 'users',
-            element: <AdminRoute>{withSuspense(<UserManagePage />)}</AdminRoute>,
+            element: (
+              <AdminRoute allow={allowFor('/admin/users')}>
+                {withSuspense(<UserManagePage />)}
+              </AdminRoute>
+            ),
           },
           {
             path: 'endpoints',
-            element: <AdminRoute>{withSuspense(<AdminEndpointsPage />)}</AdminRoute>,
+            element: (
+              <AdminRoute allow={allowFor('/admin/endpoints')}>
+                {withSuspense(<AdminEndpointsPage />)}
+              </AdminRoute>
+            ),
           },
           {
             // 산출물 가져오기 — 구 주소 `/manage/imports` 에서 옮겨왔다. [@design SCREEN-039]
@@ -573,17 +590,29 @@ const routes: RouteObject[] = [
             // 관리자 전용으로 좁혔는데 화면이 검수자에게 열려 있어, 폴더 탐색·검사까지 정상
             // 진행한 뒤 **마지막 단계에서만 403** 을 받는 상태였다(그 화면에는 역할 참조가
             // 한 줄도 없어 사유 안내조차 없었다). 진입 자체를 관리자로 좁혀 해소한다.
-            // ⚠ 좌측 메뉴(「관리자」 그룹)와 <b>같은 조건</b>이어야 한다.
+            // ★좌측 메뉴와 이 가드는 `@/lib/routeAccess` 의 같은 선언을 읽는다.
             path: 'imports',
-            element: <AdminRoute>{withSuspense(<ImportPage />)}</AdminRoute>,
+            element: (
+              <AdminRoute allow={allowFor('/admin/imports')}>
+                {withSuspense(<ImportPage />)}
+              </AdminRoute>
+            ),
           },
           {
             path: 'password',
-            element: <AdminRoute>{withSuspense(<AdminPasswordPage />)}</AdminRoute>,
+            element: (
+              <AdminRoute allow={allowFor('/admin/password')}>
+                {withSuspense(<AdminPasswordPage />)}
+              </AdminRoute>
+            ),
           },
           {
             path: 'maintenance',
-            element: <AdminRoute>{withSuspense(<AdminMaintenancePage />)}</AdminRoute>,
+            element: (
+              <AdminRoute allow={allowFor('/admin/maintenance')}>
+                {withSuspense(<AdminMaintenancePage />)}
+              </AdminRoute>
+            ),
           },
           // 파일 업로드(`/admin/uploads`) — DEV_UPLOAD_ENABLED 토글로 빌드 포함 여부가 갈린다.
           ...devUploadRoutes,

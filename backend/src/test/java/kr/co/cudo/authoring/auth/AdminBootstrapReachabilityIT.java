@@ -83,11 +83,19 @@ class AdminBootstrapReachabilityIT {
     private JdbcTemplate jdbc;
     private String adminPlaintext;
     private LsMngrPswd savedRow;
+    /**
+     * ★이 시험의 전제 — <b>시스템에 관리자가 0명</b>이다. 창구는 관리자 0명일 때만 열리는데 그
+     * 판정이 전역 카운트라, 다른 시험이 공유 컨테이너에 남긴 관리자 행 하나로 "도달 가능성" 시험이
+     * 통째로 닫힌 창구를 치게 된다(그러면 이 클래스가 무엇을 지키는지 알 수 없다).
+     */
+    private AdminBootstrapWindow bootstrapWindow;
 
     @BeforeEach
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanup();
+        bootstrapWindow = new AdminBootstrapWindow(jdbc, userRoleResolver);
+        bootstrapWindow.park();
 
         byte[] pw = new byte[24];
         new SecureRandom().nextBytes(pw);
@@ -105,7 +113,9 @@ class AdminBootstrapReachabilityIT {
 
     @AfterEach
     void tearDown() {
+        // 이 시험이 만든 행(창이 닫힌 뒤를 재현하는 관리자 표본 포함)을 먼저 지우고 원래 상태를 되돌린다.
         cleanup();
+        bootstrapWindow.restore();
         // 자격 행은 다른 시험(관리자 유효창)이 공유하므로 이 시험이 만든 해시를 남기지 않는다.
         mngrPswdRepository.deleteById(LsMngrPswd.SINGLE_ROW_SN);
     }

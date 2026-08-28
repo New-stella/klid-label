@@ -6,7 +6,7 @@
 --       검수 → 비식별 신고)를 처음부터 실행하기 위한 마스터 데이터만 적재.
 --
 -- 남기는 것 (플로우 시작점):
---   - LS_ACNT_USER          사용자 5명 (REVIEWER 2 / WORKER 2 / PORTAL 1)
+--   - LS_ACNT_USER          사용자 6명 (ADMIN 1 / REVIEWER 2 / WORKER 2 / PORTAL 1)
 --   - LS_USER_ROLE          사용자-역할 매핑 (저작도구 소유 — 인가 판정의 단일 진실원)
 --   - LS_LABEL              라벨 마스터 9건 (CVAT-Like 라벨 풀, 표시명 한글)
 --   - LS_EVNT_TYPE          이벤트유형 마스터 16종 / LS_EVNT_CTGRY 카테고리 11종
@@ -24,6 +24,8 @@
 --   - REVIEWER : 1001 (DevTokenService 기본값), 1002 (검수 배정용)
 --   - WORKER   : 2001 (DevTokenService 기본값), 2002 (작업 배정 다양성)
 --   - PORTAL   : 3001 (DevTokenService 기본값)
+--   - ADMIN    : 9001 (DevTokenService 기본값) — 번호대를 9xxx 로 뗀 것은 기존 1·2·3xxx 와
+--                섞이지 않게 하려는 것뿐이며 다른 의미는 없다.
 -- ============================================================
 
 -- ============================================================
@@ -53,10 +55,24 @@
 --    저작도구 역할 코드(REVIEWER/WORKER/PORTAL_USER)는 별도 마스터 테이블 없이
 --    LS_USER_ROLE.ROLE_CD 화이트리스트로만 관리한다(아래 §4).
 
--- 3) 사용자 (5명)
+-- 3) 사용자 (6명)
 --   1001 = DevTokenService.DEFAULT_USER_NO_REVIEWER (REVIEWER 기본)
 --   2001 = DevTokenService WORKER 기본
 --   3001 = DevTokenService PORTAL 기본
+--   9001 = DevTokenService ADMIN 기본 — 관리자 화면을 <로컬에서> 실제로 열어 보려면 이 행이
+--          있어야 한다. 없으면 ADMIN 토큰 발급이 「userNo 를 명시하라」로 막혀, 관리자 화면이
+--          시험으로만 고정되고 사람이 눌러 볼 수단이 없다.
+--          ⚠ 적재 경로는 <로컬 한정>이다 — DevSeedRunner 가 @Profile("local") 이라 dev/stg/prd
+--            프로파일에서는 빈 자체가 등록되지 않고, 이 파일을 적용하는 배포 스크립트도 없다.
+--            로컬이 아닌 환경에서 필요하면 psql 로 직접 적용해야 한다:
+--              psql -h <host> -U <user> -d <db> -v ON_ERROR_STOP=1 -f dev-seed.sql
+--            (운영 DB 실행 금지 — 파일 머리말 참조)
+--          ⚠ 이 행이 있으면 <최초 관리자 자가부여 창구(POST /v1/auth/role-claim)가 닫힌다>.
+--            그 창구는 「시스템에 ADMIN 이 0명」일 때만 열리기 때문이다(ADR-055). 로컬에서 그
+--            부트스트랩 흐름을 손으로 확인하려면 역할 행을 지운 뒤 시도한다:
+--              DELETE FROM LS_USER_ROLE WHERE ROLE_CD = 'ADMIN';
+--            (사용자 행 9001 은 지울 필요가 없다. 확인이 끝나면 재기동하거나 아래 §4 의 역할
+--             INSERT 를 다시 실행하면 원상복구된다.)
 --   ※ 운영에서는 이 테이블을 시드하지 않는다 — 역할 클레임(/role-claim) 시점에 관제가
 --     localStorage 로 인계한 값(userId·userNm)으로 <자동등록>된다(V169). dev 시드는 배정·검수
 --     화면을 바로 볼 수 있도록 고정 사용자를 미리 심어 두는 것뿐이다.
@@ -65,7 +81,8 @@ INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USER_EML_ADDR, USE_YN, REG_
     (1002, 'reviewer2', '이검수', 'reviewer2@cudo.co.kr', 'Y', '2026-02-01 09:00:00'),
     (2001, 'worker1',   '최라벨', 'worker1@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
     (2002, 'worker2',   '정작업', 'worker2@cudo.co.kr',   'Y', '2026-02-05 09:00:00'),
-    (3001, 'portal1',   '홍길동', 'portal1@example.com',  'Y', '2026-03-01 09:00:00')
+    (3001, 'portal1',   '홍길동', 'portal1@example.com',  'Y', '2026-03-01 09:00:00'),
+    (9001, 'admin1',    '박관리', 'admin1@cudo.co.kr',    'Y', '2026-08-28 09:00:00')
 ON CONFLICT (USER_NO) DO UPDATE SET
     USER_NM       = EXCLUDED.USER_NM,
     USER_EML_ADDR = EXCLUDED.USER_EML_ADDR,
@@ -80,7 +97,8 @@ INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES
     (1002, 'REVIEWER',    '2026-02-01 09:00:00'),
     (2001, 'WORKER',      '2026-02-05 09:00:00'),
     (2002, 'WORKER',      '2026-02-05 09:00:00'),
-    (3001, 'PORTAL_USER', '2026-03-01 09:00:00')
+    (3001, 'PORTAL_USER', '2026-03-01 09:00:00'),
+    (9001, 'ADMIN',       '2026-08-28 09:00:00')
 ON CONFLICT (USER_NO) DO UPDATE SET ROLE_CD = EXCLUDED.ROLE_CD;
 
 -- 5-1) (폐지) 관제 인입 픽업 후보 (LS_DATA_INGEST) — 시드하지 않는다.
@@ -217,4 +235,4 @@ UNION ALL SELECT 'LS_EVNT_TYPE(Y)',      COUNT(*) FROM LS_EVNT_TYPE          WHE
 UNION ALL SELECT 'LS_EVNT_CTGRY',        COUNT(*) FROM LS_EVNT_CTGRY
 UNION ALL SELECT 'LS_LABEL',              COUNT(*) FROM LS_LABEL              WHERE USE_YN = 'Y';
 -- (LS_LABEL 컬럼: LBL_NM/COLR_VL/LBL_TYPE_CD/SORT_SEQ 표준화 적용됨)
--- 예상(신규 설치): LS_ACNT_USER=5, LS_USER_ROLE=5, LS_LABEL=9, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11
+-- 예상(신규 설치): LS_ACNT_USER=6, LS_USER_ROLE=6, LS_LABEL=9, LS_EVNT_TYPE(Y)=15, LS_EVNT_CTGRY=11

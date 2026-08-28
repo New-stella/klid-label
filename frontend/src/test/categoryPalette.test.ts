@@ -201,13 +201,104 @@ describe('DS-001 범주 구분색 — H3 역할 색표 단일 진실원', () => 
     expect(definers.map((f) => path.relative(repoRoot, f))).toEqual(['src/lib/roleDisplay.ts']);
   });
 
-  it('두_소비처가_공용_모듈을_import_한다', () => {
+  it('배지_컴포넌트가_공용_모듈을_import_한다', () => {
+    // 두 화면(GNB·접근 거부)의 역할 배지는 `CurrentRoleBadge` 하나가 그린다 — 그 컴포넌트가
+    // 공용 표를 읽는다. 예전에는 두 화면이 각자 표를 들고 있었고, 그 뒤에는 각자 공용 표를
+    // import 했다. 지금은 배지 자체가 한 곳이라 여기서 그 한 곳을 못 박는다.
+    const src = readSrc('src/components/common/CurrentRoleBadge.tsx');
+    expect(src, 'CurrentRoleBadge 가 공용 역할 표를 쓰지 않는다').toMatch(
+      /import \{[^}]*ROLE_COLOR[^}]*\} from '@\/lib\/roleDisplay'/,
+    );
+  });
+
+  it('두_화면이_역할_배지를_직접_그리지_않고_공용_컴포넌트에_맡긴다', () => {
+    // 배지를 화면이 직접 그리면 「역할이 없을 때 무엇을 보일지」가 화면마다 갈린다 — 실제로
+    // 두 화면이 각각 `?? Role.WORKER` 로 작업자를 채워 사실과 다른 역할을 보여주고 있었다.
     for (const file of ['src/components/layout/Gnb.tsx', 'src/components/common/ForbiddenPage.tsx']) {
       const src = readSrc(file);
-      expect(src, `${file} 이 공용 역할 표를 쓰지 않는다`).toMatch(
-        /import \{[^}]*ROLE_COLOR[^}]*\} from '@\/lib\/roleDisplay'/,
-      );
+      expect(src, `${file} 이 공용 배지 컴포넌트를 쓰지 않는다`).toContain('CurrentRoleBadge');
+      expect(src, `${file} 이 역할 색표를 직접 읽는다`).not.toMatch(/ROLE_COLOR\b/);
+      expect(src, `${file} 이 역할 표시명 표를 직접 읽는다`).not.toMatch(/ROLE_LABEL\b/);
     }
+  });
+});
+
+/**
+ * H3 의 짝 — **표시명 축**의 단일 진실원.
+ *
+ * 색 축에만 유일성 가드가 있고 표시명 축에는 없었다. 그래서 사용자 관리 화면이 같은 표를 한 벌
+ * 더 들고 있어도 아무도 잡지 못했고, 관리자 역할이 신설될 때 두 곳을 각각 고쳐야 했다.
+ *
+ * ⚠ **`RoleBadge` 는 의도된 예외다 — 「빠뜨린 것」으로 보고 합치지 말 것.** 그쪽은 미배정
+ *   variant 와 경고 아이콘을 갖고 semantic 토큰(primary/secondary/warning)으로 대비를 따로
+ *   실측한 **별도 화면 사양**이다. 표시명이 겹치는 것은 우연이 아니라 같은 역할을 가리키기
+ *   때문이고, 색 축은 서로 다르다. 그래서 정의는 하나가 아니라 **둘**이 정답이다 —
+ *   공용 표시축(`roleDisplay`) 1 + 배지 사양(`RoleBadge`) 1.
+ */
+describe('역할 표시명 단일 진실원 — 공용 표시축 + 배지 사양 둘뿐', () => {
+  /** 네 역할의 표시명 — 이 중 셋 이상을 한 객체 안에 나열하면 「역할 표시명 표」로 본다. */
+  const ROLE_LABEL_VALUES = ['관리자', '검수자', '작업자', '포털'];
+
+  /**
+   * 이 축의 **정당한 예외**. 술어를 느슨하게 하는 대신 여기에 못 박는다 — 검사를 넓히면 표가
+   * 몇 벌이 늘어도 초록으로 남아 그 축이 통째로 죽는다.
+   */
+  const ROLE_LABEL_TABLE_FILES = [
+    'src/components/common/RoleBadge.tsx', // 배지 사양(미배정 variant + 경고 아이콘 + 별도 색 축)
+    'src/lib/roleDisplay.ts', // 공용 표시축
+    // 검수 이슈 **작성자 역할** 표기 — 모집단이 다르다. 이슈를 쓰는 것은 내부 작업자·검수자·
+    // 관리자뿐이고 포털 회원은 이 축에 등장하지 않아, 그 코드가 오면 「모르는 역할」로 원문
+    // 폴백하는 것이 이 화면의 사양이다(회귀 가드가 그 폴백을 직접 못 박고 있다).
+    // 공용 표시축으로 합치면 포털 코드가 '포털' 로 해석돼 그 사양이 바뀐다 — 합치려면 그
+    // 화면 사양을 먼저 정해야 하므로 여기서는 예외로 못 박아 둔다.
+    'src/features/review/issueLabels.ts',
+  ];
+
+  /** `const NAME ... = { ... };` 블록을 전부 뽑는다(중첩 없는 1단 객체 전제). */
+  function constObjectBodies(source: string): string[] {
+    const re = /\n(?:export )?const [A-Za-z_$][\w$]*[^=\n]*=\s*\{([\s\S]*?)\n\};/g;
+    const bodies: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(source)) !== null) bodies.push(m[1]);
+    return bodies;
+  }
+
+  it('역할_표시명_표가_두_곳뿐이다', () => {
+    // 시험 파일은 제외한다 — 기대값으로 라벨을 나열하는 것이 정상이라 그것까지 세면 가드가
+    // 자기 자신을 잡는다.
+    const files = listSourceFiles(path.join(repoRoot, 'src')).filter(
+      (f) => !/\.test\.tsx?$/.test(f) && !f.includes(`${path.sep}__tests__${path.sep}`) &&
+        !f.includes(`${path.sep}test${path.sep}`),
+    );
+    expect(files.length, 'src 소스 파일을 한 건도 스캔하지 못했다').toBeGreaterThan(100);
+
+    const definers = files.filter((f) =>
+      constObjectBodies(readFileSync(f, 'utf-8')).some(
+        (body) => ROLE_LABEL_VALUES.filter((v) => body.includes(`'${v}'`)).length >= 3,
+      ),
+    );
+
+    expect(definers.map((f) => path.relative(repoRoot, f)).sort()).toEqual(
+      [...ROLE_LABEL_TABLE_FILES].sort(),
+    );
+  });
+
+  it('공용_표시축이_네_역할을_모두_담는다', () => {
+    // 스캔이 실제로 무언가를 본다는 확인 + 표시명 값 자체의 고정(형식만 보는 가드는 값이 서로
+    // 뒤바뀌어도 통과한다).
+    const body = constObjectBody(readSrc('src/lib/roleDisplay.ts'), 'ROLE_LABEL', 'roleDisplay.ts');
+    expect(body).toContain("ADMIN: '관리자'");
+    expect(body).toContain("REVIEWER: '검수자'");
+    expect(body).toContain("WORKER: '작업자'");
+    expect(body).toContain("PORTAL_USER: '포털'");
+  });
+
+  it('사용자_관리_화면이_자기_표시명_표를_갖지_않는다', () => {
+    // 이 화면이 정확히 그 중복을 갖고 있었다 — 관리자 역할 신설 때 두 곳을 각각 고쳐야 했던
+    // 자리다. 공용 표시축을 import 해 쓴다.
+    const src = readSrc('src/pages/manage/UserManagePage.tsx');
+    expect(src).not.toMatch(/\nconst ROLE_LABEL\b/);
+    expect(src).toMatch(/import \{[^}]*ROLE_LABEL[^}]*\} from '@\/lib\/roleDisplay'/);
   });
 });
 

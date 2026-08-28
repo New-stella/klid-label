@@ -60,7 +60,14 @@ function PortalEmbedNotice({ kind }: { kind: EmbedNoticeKind }) {
 }
 
 interface RoleGuardProps {
-  allow: Role[];
+  /**
+   * 그 자리가 요구하는 역할. 내부 채널 라우트는 `@/lib/routeAccess` 의 선언에서
+   * `allowFor(경로)` 로 받아 넘긴다 — 좌측 메뉴가 읽는 것과 같은 값이다.
+   *
+   * `readonly` 인 것은 그 선언이 얼린 배열을 그대로 내주기 때문이다(복사본을 만들면 라우트가
+   * 정말 그 선언에서 값을 받았는지 참조로 확인할 수 없다).
+   */
+  allow: readonly Role[];
   children: ReactNode;
 }
 

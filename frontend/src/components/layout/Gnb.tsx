@@ -2,9 +2,8 @@ import { Link } from 'react-router-dom';
 import { Video } from 'lucide-react';
 
 import { cn } from '@/lib/cn';
+import { CurrentRoleBadge } from '@/components/common/CurrentRoleBadge';
 import { KRDS_FOCUS } from '@/lib/focusRing';
-import { Role } from '@/lib/api/types';
-import { ROLE_COLOR, ROLE_COLOR_FALLBACK, ROLE_LABEL } from '@/lib/roleDisplay';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 /**
@@ -12,10 +11,14 @@ import { useAuthStore } from '@/stores/useAuthStore';
  * 좌측: 로고 + 제목, 우측: 역할 라벨 + 사용자 아바타.
  *
  * SSO 채널이라 역할 변경은 불가 — mock의 RoleSwitcher 대신 read-only 표시.
+ *
+ * ★역할 배지는 `CurrentRoleBadge` 가 그린다 — 접근 거부 화면과 **같은 컴포넌트**다.
+ *   구 구현은 역할이 없으면 `?? Role.WORKER` 로 작업자를 채워, 역할을 아직 받지 못한 사람에게
+ *   사실과 다른 역할을 보여줬다(같은 결함이 접근 거부 화면에도 그대로 복제돼 있었다).
+ *   지금은 역할이 없으면 **미배정**으로 보인다. [@design SHELL-001]
  */
 export function Gnb() {
   const claims = useAuthStore((s) => s.claims);
-  const role = claims?.role ?? Role.WORKER;
   const name = claims?.name ?? '사용자';
   const initials = name.slice(0, 1);
 
@@ -39,15 +42,8 @@ export function Gnb() {
 
       {/* Right: Role label + User */}
       <div className="flex items-center gap-3">
-        <span
-          className={cn(
-            // 역할 배지 = ladder `label`(14px). 크기는 구 `text-xs` 와 동일.
-            'inline-flex items-center px-2.5 py-1 rounded-full text-label font-semibold',
-            ROLE_COLOR[role] ?? ROLE_COLOR_FALLBACK,
-          )}
-        >
-          {ROLE_LABEL[role] ?? role}
-        </span>
+        {/* 역할 배지 = ladder `label`(14px). 크기는 구 `text-xs` 와 동일. */}
+        <CurrentRoleBadge role={claims?.role} />
         <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
           {/* 이니셜 모노그램 = 제목도 라벨도 아니라 크기를 보존하는 `body-md`(17px). weight 는 font-bold 유지. */}
           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-700 text-body-md font-bold shrink-0">

@@ -34,6 +34,7 @@ import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
 import { ApiError } from '@/lib/api/errors';
 import { Role } from '@/lib/api/types';
+import { ROLE_LABEL } from '@/lib/roleDisplay';
 import { USER_KEYS } from '@/lib/queryKeys';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -57,12 +58,13 @@ import { useUiStore } from '@/stores/useUiStore';
  * - role 은 TypeScript 리터럴 유니온 + BE @Pattern 화이트리스트로 이중 검증
  * - 역할 변경은 Modal 한 단계 거쳐 실수 방지
  */
-const ROLE_LABEL: Record<Role, string> = {
-  [Role.ADMIN]: '관리자',
-  [Role.REVIEWER]: '검수자',
-  [Role.WORKER]: '작업자',
-  [Role.PORTAL_USER]: '포털',
-};
+/*
+ * 역할 표시명은 이 화면이 갖지 않는다 — 공용 표시축(`@/lib/roleDisplay`)에서 가져온다.
+ * 구 구현은 같은 표를 여기 한 벌 더 두고 있었고, 관리자 역할이 신설될 때 두 곳을 각각 고쳐야
+ * 했다. 한쪽만 갱신되면 화면마다 다른 이름으로 갈린다.
+ * ⚠ `RoleBadge`(배지 사양)는 여전히 자기 표를 갖는다 — 미배정 variant 와 경고 아이콘을 갖고
+ *   색 축이 달라 별도 사양이다. 셋을 하나로 합치려다 그 사양을 깨뜨리지 말 것.
+ */
 
 /**
  * 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. 권한이 넓은 쪽부터 둔다.

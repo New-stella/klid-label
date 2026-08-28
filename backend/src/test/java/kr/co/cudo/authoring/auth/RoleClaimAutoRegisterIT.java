@@ -85,12 +85,20 @@ class RoleClaimAutoRegisterIT {
     private TransactionTemplate tx;
     private RoleClaimService service;
     private String adminPlaintext;
+    /**
+     * ★이 시험의 전제 — <b>시스템에 관리자가 0명</b>이다. 부트스트랩 게이트가 전역 카운트라
+     * 다른 시험(예: dev 시드를 공유 DB 에 적재하는 {@code DevSeedRunnerTest})이 남긴 관리자 행
+     * 하나로 창구가 닫힌다. 전제를 암묵으로 두지 않고 여기서 세우고 되돌린다.
+     */
+    private AdminBootstrapWindow bootstrapWindow;
 
     @BeforeEach
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         tx = new TransactionTemplate(txManager);
         cleanup();
+        bootstrapWindow = new AdminBootstrapWindow(jdbc, userRoleResolver);
+        bootstrapWindow.park();
 
         byte[] random = new byte[32];
         new SecureRandom().nextBytes(random);
@@ -109,7 +117,9 @@ class RoleClaimAutoRegisterIT {
 
     @AfterEach
     void tearDown() {
+        // 이 시험이 만든 행(창이 닫힌 뒤를 재현하는 관리자 표본 포함)을 먼저 지우고 원래 상태를 되돌린다.
         cleanup();
+        bootstrapWindow.restore();
     }
 
     private void cleanup() {

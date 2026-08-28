@@ -1,9 +1,10 @@
 // Lnb — 좌측 메뉴 키 유일성 + 「업로드」·「관리자」 그룹 구성 검증. [@design NAV-001]
 //
-// 배경: Lnb 모듈은 모듈 스코프 가변 배열 MENU 의 '관리자' 그룹에 파일 업로드 항목을 등록한다.
-//   Vite HMR 로 본 모듈이 재평가되면 등록이 누적되어 같은 항목이 중복 추가되고,
-//   렌더 시 React "two children with the same key"(key=i.path) 경고가 발생한다.
-//   registerManualUploadMenu 의 멱등 가드가 적용되면 재호출해도 항목은 1개로 유지된다.
+// 배경: 좌측 메뉴는 이제 `@/lib/routeAccess` 선언에서 **파생**된다(`buildMenuGroups`).
+//   구 구현은 모듈 스코프 가변 배열 MENU 에 파일 업로드 항목을 밀어 넣어, Vite HMR 로 모듈이
+//   재평가되면 같은 항목이 누적돼 React "two children with the same key"(key=i.path) 경고가 났고
+//   그것을 막으려 `registerManualUploadMenu` 가 멱등 가드를 들고 있었다. 지금은 호출마다 새
+//   배열을 만드는 순수 파생이라 그 누적 자체가 없다 — 그래서 그 함수도 없어졌다.
 //
 // ★「업로드」 그룹은 **없어졌다**(2026-08-28). 데이터를 들여오는 두 화면이 모두 「관리자」 그룹으로
 //   옮겨가 항목이 하나도 남지 않았기 때문이다 — 「산출물 가져오기」는 서버가 적재 실행·대응
@@ -15,14 +16,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
 
-import { Lnb, registerManualUploadMenu } from '@/components/layout/Lnb';
+import { Lnb } from '@/components/layout/Lnb';
+import { buildMenuGroups, MENU_GROUP_ORDER } from '@/lib/routeAccess';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
-
-interface MenuGroupLike {
-  group: string;
-  items: { label: string; path: string; allow: string[] }[];
-}
 
 /** 렌더 배우를 바꾼다 — 「관리자」 그룹은 관리자에게만 보이므로 케이스마다 역할이 다르다. */
 function setRole(role: 'ADMIN' | 'REVIEWER' | 'WORKER') {
@@ -42,32 +39,40 @@ describe('Lnb 메뉴 키 유일성', () => {
     cleanup();
   });
 
-  it('registerManualUploadMenu_재호출_시_파일_업로드_항목이_중복되지_않는다', () => {
-    // HMR 로 모듈이 여러 번 재평가되는 상황을 모사 — 동일 배열에 반복 등록
-    const menu: MenuGroupLike[] = [{ group: '관리자', items: [] }];
-    registerManualUploadMenu(menu as never);
-    registerManualUploadMenu(menu as never);
-    registerManualUploadMenu(menu as never);
+  it('메뉴를_여러_번_파생해도_결과가_같고_경로가_중복되지_않는다', () => {
+    // HMR 로 모듈이 여러 번 재평가되는 상황을 모사 — 구 구현은 같은 배열에 항목을 누적했다.
+    // 지금은 호출마다 새 배열을 만드는 순수 파생이라 몇 번을 불러도 결과가 같다.
+    const first = buildMenuGroups({ devUploadEnabled: true });
+    const second = buildMenuGroups({ devUploadEnabled: true });
+    const third = buildMenuGroups({ devUploadEnabled: true });
 
-    const items = menu.flatMap((g) => g.items);
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+
+    const items = third.flatMap((g) => g.items);
     expect(items.filter((i) => i.path === '/admin/uploads')).toHaveLength(1);
 
     // path(=key) 의 유일성 — 중복 key 가 없어야 React 경고가 발생하지 않음
     const itemKeys = items.map((i) => i.path);
+    expect(itemKeys.length).toBeGreaterThan(0);
     expect(new Set(itemKeys).size).toBe(itemKeys.length);
   });
 
-  it('관리자_그룹이_없는_메뉴에는_아무것도_등록하지_않는다', () => {
-    // fail-closed — 엉뚱한 자리에 '관리자' 그룹을 새로 만들지 않는다.
+  it('선언에_없는_그룹은_만들어지지_않는다', () => {
+    // fail-closed — 엉뚱한 자리에 그룹을 새로 만들지 않는다. 파생 결과의 그룹은 전부
+    // MENU_GROUP_ORDER 안에 있고, 항목이 없는 그룹은 아예 생기지 않는다.
     //
-    // ★픽스처를 **옛 대상 그룹('업로드')** 으로 둔다. 무관한 제3의 그룹('통계')을 쓰면 대상
+    // ★확인 대상을 **옛 그룹명('업로드')** 으로 둔다. 무관한 제3의 이름('통계')을 쓰면 대상
     //   상수가 바뀌어도 단언이 그대로 참이라, 개명을 안 해도 초록으로 남아 「가드가 낡은 상수를
     //   고정하고 있다」는 사실 자체를 숨긴다(부정 케이스는 개명에 둔감하다).
-    const menu: MenuGroupLike[] = [{ group: '업로드', items: [] }];
-    registerManualUploadMenu(menu as never);
+    const groups = buildMenuGroups({ devUploadEnabled: true });
 
-    expect(menu).toHaveLength(1);
-    expect(menu.flatMap((g) => g.items)).toHaveLength(0);
+    expect(groups.length).toBeGreaterThan(0);
+    for (const g of groups) {
+      expect(MENU_GROUP_ORDER, `선언에 없는 그룹이 생겼다: ${g.group}`).toContain(g.group);
+      expect(g.items.length, `${g.group} 그룹이 비었는데도 만들어졌다`).toBeGreaterThan(0);
+    }
+    expect(groups.map((g) => g.group)).not.toContain('업로드');
   });
 
   it('업로드_그룹은_항목이_없어_통째로_사라진다', () => {
@@ -196,13 +201,14 @@ describe('Lnb 메뉴 키 유일성', () => {
     expect(screen.queryByRole('link', { name: '사용자 관리' })).toBeNull();
   });
 
-  it('registerManualUploadMenu_는_파일_업로드만_넣는다', () => {
-    // 나머지 네 항목은 MENU 배열에 직접 들어 있어 이 함수의 소관이 아니다 — 그래서 dev 업로드
-    // 토글이 꺼져도 「관리자」 그룹이 통째로 사라지지 않는다(그 렌더 검증은 LnbDevUploadOff).
-    const menu: MenuGroupLike[] = [{ group: '관리자', items: [] }];
-    registerManualUploadMenu(menu as never);
+  it('dev_업로드_토글이_가르는_항목은_파일_업로드_하나뿐이다', () => {
+    // 나머지 다섯 항목은 토글과 무관하게 선언에 들어 있다 — 그래서 토글이 꺼져도 「관리자」
+    // 그룹이 통째로 사라지지 않는다(그 렌더 검증은 LnbDevUploadOff).
+    const on = buildMenuGroups({ devUploadEnabled: true }).flatMap((g) => g.items.map((i) => i.label));
+    const off = buildMenuGroups({ devUploadEnabled: false }).flatMap((g) => g.items.map((i) => i.label));
 
-    expect(menu[0]!.items.map((i) => i.label)).toEqual(['파일 업로드']);
+    expect(on.filter((l) => !off.includes(l))).toEqual(['파일 업로드']);
+    expect(off.filter((l) => !on.includes(l))).toEqual([]);
   });
 
   it('반복_렌더_시_중복_key_React_경고가_발생하지_않는다', () => {
