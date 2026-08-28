@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-26T05:08:41.839Z (session 13) |
+| last sync | 2026-08-28T14:42:40.687Z (session 14) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/게시판공지-DOMAIN-009 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -32,7 +32,7 @@
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 10 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 2 |
+| permission_role | _shared/role/ | 3 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -73,6 +73,7 @@
 | [[NAV-001]] | navigation_tree | NEW |
 | [[ROLE-001]] | permission_role | NEW |
 | [[ROLE-002]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | NEW |
 | [[SD-007]] | screen_design | NEW |
 | [[SD-008]] | screen_design | NEW |
 | [[SD-010]] | screen_design | NEW |

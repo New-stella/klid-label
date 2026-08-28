@@ -5,20 +5,16 @@ version: 22
 last_updated_at: 2026-08-27T09:02:20.247Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:53:19.455Z
-sync_session: 31
-stale: false
-status: CHANGED
-prev_version: 17
+synced_at: 2026-08-28T14:41:56.787Z
+sync_session: 32
+stale: true
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-007]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v17 → v22**
-> change_summary: 권한 부여 폼이 요구하는 패스워드가 관리 기능 진입에 쓰이는 것과 같은 값이며 운영 중 교체될 수 있다는 사실을 명시한다. 교체 뒤에는 이 화면에도 교체된 값을 넣어야 한다. 자격을 어디에 보관하는지는 이 화면이 적지 않는다 — 이 화면이 패스워드를 다루는 지점은 입력 항목과 안내 문구, 상태코드 매핑뿐이다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 역할 클레임 화면
 

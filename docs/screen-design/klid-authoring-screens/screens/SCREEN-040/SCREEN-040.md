@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-040
 type: screen_spec
-version: 3
-last_updated_at: 2026-08-27T09:39:41.360Z
+version: 6
+last_updated_at: 2026-08-28T04:16:56.247Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:53:19.497Z
-sync_session: 31
-stale: true
+synced_at: 2026-08-28T14:41:56.819Z
+sync_session: 32
+stale: false
 status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-040.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-194]]"]
-  required_roles: ["[[ROLE-001]]"]
+  required_roles: ["[[ROLE-004]]"]
 ---
 
 # 관리자 페이지 진입 화면
@@ -37,7 +37,7 @@ draft
 
 ## purpose
 
-관리 기능에 들어가기 전에 관리자 패스워드를 확인하는 게이트 화면. 이 화면은 확인만 맡고 관리 기능 자체를 담지 않는다. 유효창이 없거나 끝난 상태로 관리 화면을 열려고 하면 그 화면 대신 이 화면이 뜨고, 확인을 통과하면 원래 가려던 화면으로 되돌려 보낸다. 패스워드가 여는 것은 확인한 사람에게 잠깐 열리는 유효창이며 역할을 승격시키지 않는다 — 검수자 권한은 그대로 필요하고 유효창은 인가를 대체하지 않고 가산된다. 접근: 검수자.
+관리 기능에 들어가기 전에 관리자 패스워드를 확인하는 게이트 화면. 이 화면은 확인만 맡고 관리 기능 자체를 담지 않는다. 유효창이 없거나 끝난 상태로 관리 화면을 열려고 하면 그 화면 대신 이 화면이 뜨고, 확인을 통과하면 원래 가려던 화면으로 되돌려 보낸다. 패스워드가 여는 것은 확인한 사람에게 잠깐 열리는 유효창이며 역할을 승격시키지 않는다 — 관리자 역할은 그대로 필요하고 유효창은 인가를 대체하지 않고 가산된다. 접근: 관리자.
 
 ## sections
 
@@ -160,7 +160,7 @@ _(empty)_
 
 - **variant**: secondary
 
-- **description**: 관리자 패스워드를 입력받아 진입 세션 발급을 요청한다. 입력이 비어 있거나 허용 길이를 벗어나면 확인 버튼을 비활성으로 두고, 요청이 진행되는 동안에도 비활성으로 두어 같은 요청이 겹치지 않게 한다. 입력한 패스워드는 화면에도 기록에도 남지 않는다 — 가려진 입력으로 받고, 다시 표시하지 않으며, 요청을 보낸 뒤 화면에서 지운다. 확인에 성공하면 서버가 유효창을 열고 만료 시각을 함께 알려준다. 유효 여부 판정은 서버가 소유하므로 화면이 스스로 아직 유효하다고 정하지 않는다. 취소하면 진입을 그만두고 직전 업무 화면으로 돌아간다.
+- **description**: 관리자 패스워드를 입력받아 유효창 발급을 요청한다. 입력이 비어 있거나 허용 길이를 벗어나면 확인 버튼을 비활성으로 두고, 요청이 진행되는 동안에도 비활성으로 두어 같은 요청이 겹치지 않게 한다. 입력한 패스워드는 화면에도 기록에도 남지 않는다 — 가려진 입력으로 받고, 다시 표시하지 않으며, 요청을 보낸 뒤 화면에서 지운다. 확인에 성공하면 서버가 유효창을 열고 만료 시각을 함께 알려준다. 유효 여부 판정은 서버가 소유하므로 화면이 스스로 아직 유효하다고 정하지 않는다. 취소하면 진입을 그만두고 직전 업무 화면으로 돌아간다.
 
 **references_apis**:
 
@@ -301,7 +301,7 @@ web
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -309,15 +309,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-154
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-27T20:56:57.088Z
 
 ### module_paths
 
@@ -325,7 +329,7 @@ _(empty)_
 
 ## required_roles
 
-- ROLE-001
+- ROLE-004
 
 ## static_renders
 
@@ -336,9 +340,19 @@ _(empty)_
 - **width**: 1440
 - **surface**: page
 - **platform**: web
-- **source_hash**: f5b39318f122b7ae7bbcb8fdc3867ec43ed97df14fd9473bb9cb349dfa4d4e5f
-- **generated_at**: 2026-08-27T09:39:41.359Z
+
+**sections**:
+
+_(empty)_
+
+- **description**: 
+- **source_hash**: 6d119a4e786a0adaba30f98c5a986d72ae267ce75cff1a5fafc529e7c3372dab
+- **generated_at**: 2026-08-27T23:34:58.374Z
 - **generated_by**: generate-wireframes.py
+
+**triggered_by**:
+
+_(empty)_
 
 ## uses_constants
 

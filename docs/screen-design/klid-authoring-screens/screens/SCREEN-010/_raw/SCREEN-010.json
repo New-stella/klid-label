@@ -179,7 +179,7 @@
     "schema_version": 1,
     "current_version": 37,
     "stale": true,
-    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
+    "stale_reason": "ROLE-002의 data.brownfield 변경 — requires",
     "change_summary": "D010 P1(D010-LINK-008 일부): realizes_use_cases=[] → UC-008 배선. 근거: purpose 가 서술하는 \"불러오기는 서버에 쓰지 않으며 저장을 눌러야 확정\" 동선이 UC-008 의 2026-08-11 확정 되돌리기 흐름과 정확히 일치. (route 빈 문자열은 별건 — purpose 가 \"별도 라우트를 두지 않는다\"고 명시하는 의도된 값이라 미변경)",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-16T07:22:17.530Z",

@@ -5,37 +5,38 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-26T05:08:26.420Z (session 13) |
-| Mode | INITIAL — NEW 167 / CHANGED 0 / UNCHANGED 0 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/사용자권한-DOMAIN-001 |
+| Last sync | 2026-08-28T14:42:42.757Z (session 14) |
+| Mode | INITIAL — NEW 168 / CHANGED 0 / UNCHANGED 0 |
+| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[API-001]] | api_endpoint | GET /v1/users | 5 | false | NEW |
+| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | NEW |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | NEW |
-| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 4 | false | NEW |
-| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 5 | false | NEW |
+| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 5 | false | NEW |
+| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 8 | false | NEW |
 | [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | NEW |
-| [[API-006]] | api_endpoint | GET /v1/me | 9 | false | NEW |
-| [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 7 | false | NEW |
+| [[API-006]] | api_endpoint | GET /v1/me | 10 | false | NEW |
+| [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 14 | false | NEW |
 | [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | NEW |
-| [[DS-001]] | design_system | KRDS Public | 8 | false | NEW |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | NEW |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | NEW |
-| [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 13 | false | NEW |
-| [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 17 | false | NEW |
-| [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 10 | false | NEW |
+| [[DS-001]] | design_system | KRDS Public | 9 | false | NEW |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 25 | true | NEW |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | NEW |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | NEW |
+| [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 16 | false | NEW |
+| [[SCREEN-002]] | screen_spec | 역할 클레임 화면 | 22 | true | NEW |
+| [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 12 | false | NEW |
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 11 | false | NEW |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 24 | true | NEW |
-| [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 7 | true | NEW |
-| [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 2 | false | NEW |
-| [[SD-018]] | screen_design | SCREEN-002 역할 클레임 화면 | 5 | false | NEW |
-| [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 2 | false | NEW |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 29 | false | NEW |
+| [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 9 | true | NEW |
+| [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 3 | false | NEW |
+| [[SD-018]] | screen_design | SCREEN-002 역할 클레임 화면 | 5 | true | NEW |
+| [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 2 | true | NEW |
 | [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 2 | true | NEW |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | NEW |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 8 | false | NEW |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | NEW |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 12 | false | NEW |
 | [[UI-001]] | ui_component | action: Button | 3 | false | NEW |
 | [[UI-002]] | ui_component | input: Input | 6 | false | NEW |
 | [[UI-003]] | ui_component | input: Select | 5 | false | NEW |
@@ -53,7 +54,7 @@
 | [[UI-015]] | ui_component | [폐기] display: PrivacyBadge | 4 | false | NEW |
 | [[UI-016]] | ui_component | display: EventTypeBadge | 5 | false | NEW |
 | [[UI-017]] | ui_component | display: StageBadge | 8 | false | NEW |
-| [[UI-018]] | ui_component | display: BatchStageIndicator | 9 | false | NEW |
+| [[UI-018]] | ui_component | display: BatchStageIndicator | 10 | false | NEW |
 | [[UI-019]] | ui_component | feedback: ProgressBar | 4 | false | NEW |
 | [[UI-020]] | ui_component | feedback: EmptyState | 5 | false | NEW |
 | [[UI-021]] | ui_component | feedback: ErrorState | 4 | false | NEW |
@@ -125,11 +126,11 @@
 | [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | NEW |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | NEW |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | NEW |
-| [[UI-090]] | ui_component | action: DangerActions | 4 | false | NEW |
+| [[UI-090]] | ui_component | action: DangerActions | 6 | false | NEW |
 | [[UI-091]] | ui_component | overlay: PresetEditModal | 6 | false | NEW |
 | [[UI-092]] | ui_component | display: PresetCodeChip | 4 | false | NEW |
 | [[UI-093]] | ui_component | [폐기] display: BatchStageSteps | 6 | false | NEW |
-| [[UI-094]] | ui_component | action: VideoActions | 4 | false | NEW |
+| [[UI-094]] | ui_component | action: VideoActions | 5 | false | NEW |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | NEW |
 | [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 5 | false | NEW |
 | [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | NEW |

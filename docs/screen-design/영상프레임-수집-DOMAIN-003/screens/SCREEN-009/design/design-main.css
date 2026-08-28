@@ -221,7 +221,7 @@ a.btn, a.btn:hover { text-decoration: none; }
 }
 .badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
 
-.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success { background: var(--su-0); color: var(--su-7); }
 .badge-success .dot { background: var(--su-5); }
 .badge-warn    { background: var(--w-0); color: var(--w-7); }
 .badge-warn .dot { background: var(--w-5); }

@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-003
 type: screen_spec
-version: 10
-last_updated_at: 2026-08-25T01:21:33.118Z
+version: 12
+last_updated_at: 2026-08-28T13:34:17.064Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:08:26.376Z
-sync_session: 13
+synced_at: 2026-08-28T14:42:42.717Z
+sync_session: 14
 stale: false
 status: NEW
 prev_version: null
@@ -108,7 +108,7 @@ _(empty)_
 #### [1]
 
 - **type**: Badge
-- **label**: 현재 역할 배지 (검수자/작업자/포털)
+- **label**: 현재 역할 배지 (관리자/검수자/작업자/포털, 역할이 없으면 미배정)
 
 **columns**:
 
@@ -136,7 +136,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: '현재 역할:' 라벨 + 역할 배지(REVIEWER=검수자/WORKER=작업자/PORTAL_USER=포털, 매핑 없으면 원본 role 코드). 역할 값은 클라이언트 상태 저장소의 claims.role 구독(기본값 WORKER), 서버 호출 없음. 하단 '대시보드로' primary 버튼 클릭 시 navigate('/').
+- **description**: '현재 역할:' 라벨 + 역할 배지(ADMIN=관리자/REVIEWER=검수자/WORKER=작업자/PORTAL_USER=포털, 매핑 없으면 원본 role 코드). 역할 값은 클라이언트 상태 저장소의 claims.role 구독, 서버 호출 없음. 역할이 없으면 미배정으로 표시하며 특정 역할로 채우지 않는다 — 접근이 거부된 자리에서 없는 역할을 있는 것처럼 보이면 왜 막혔는지를 오히려 흐린다. 하단 '대시보드로' primary 버튼 클릭 시 navigate('/').
 
 **references_apis**:
 
@@ -176,11 +176,12 @@ implemented
 
 ### modules
 
-_(empty)_
+- MOD-039
 
 ### records
 
 - IMPREC-106
+- IMPREC-184
 
 ### progress
 
@@ -192,7 +193,11 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T01:21:33.118Z
+2026-08-28T13:34:17.064Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 

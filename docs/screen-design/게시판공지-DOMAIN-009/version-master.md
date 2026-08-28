@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 게시판·공지 |
 | 다운로드 화면 | SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037 |
-| Last sync | 2026-08-26T05:08:41.844Z (session 13) |
-| Mode | INITIAL — NEW 167 / CHANGED 0 / UNCHANGED 0 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/게시판공지-DOMAIN-009 |
+| Last sync | 2026-08-28T14:42:40.692Z (session 14) |
+| Mode | INITIAL — NEW 168 / CHANGED 0 / UNCHANGED 0 |
+| 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009 |
 
 ## ITEM 버전 표
 
@@ -23,10 +23,11 @@
 | [[API-106]] | api_endpoint | POST /v1/notices/{id}/attachments | 9 | false | NEW |
 | [[API-107]] | api_endpoint | GET /v1/notices/{id}/attachments/{attachId}/download | 7 | false | NEW |
 | [[API-108]] | api_endpoint | DELETE /v1/notices/{id}/attachments/{attachId} | 6 | false | NEW |
-| [[DS-001]] | design_system | KRDS Public | 8 | false | NEW |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | NEW |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | NEW |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 7 | true | NEW |
+| [[DS-001]] | design_system | KRDS Public | 9 | false | NEW |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 25 | true | NEW |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | NEW |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | NEW |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | NEW |
 | [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 26 | true | NEW |
 | [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 33 | true | NEW |
 | [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | NEW |
@@ -35,7 +36,7 @@
 | [[SD-008]] | screen_design | SCREEN-036 공지 작성 화면 | 4 | true | NEW |
 | [[SD-010]] | screen_design | SCREEN-031 공지 상세 화면 | 10 | true | NEW |
 | [[SD-011]] | screen_design | SCREEN-037 공지 수정 화면 | 6 | false | NEW |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | NEW |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | NEW |
 | [[UI-001]] | ui_component | action: Button | 3 | false | NEW |
 | [[UI-002]] | ui_component | input: Input | 6 | false | NEW |
 | [[UI-003]] | ui_component | input: Select | 5 | false | NEW |
@@ -53,7 +54,7 @@
 | [[UI-015]] | ui_component | [폐기] display: PrivacyBadge | 4 | false | NEW |
 | [[UI-016]] | ui_component | display: EventTypeBadge | 5 | false | NEW |
 | [[UI-017]] | ui_component | display: StageBadge | 8 | false | NEW |
-| [[UI-018]] | ui_component | display: BatchStageIndicator | 9 | false | NEW |
+| [[UI-018]] | ui_component | display: BatchStageIndicator | 10 | false | NEW |
 | [[UI-019]] | ui_component | feedback: ProgressBar | 4 | false | NEW |
 | [[UI-020]] | ui_component | feedback: EmptyState | 5 | false | NEW |
 | [[UI-021]] | ui_component | feedback: ErrorState | 4 | false | NEW |
@@ -125,11 +126,11 @@
 | [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | NEW |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | NEW |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | NEW |
-| [[UI-090]] | ui_component | action: DangerActions | 4 | false | NEW |
+| [[UI-090]] | ui_component | action: DangerActions | 6 | false | NEW |
 | [[UI-091]] | ui_component | overlay: PresetEditModal | 6 | false | NEW |
 | [[UI-092]] | ui_component | display: PresetCodeChip | 4 | false | NEW |
 | [[UI-093]] | ui_component | [폐기] display: BatchStageSteps | 6 | false | NEW |
-| [[UI-094]] | ui_component | action: VideoActions | 4 | false | NEW |
+| [[UI-094]] | ui_component | action: VideoActions | 5 | false | NEW |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | NEW |
 | [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 5 | false | NEW |
 | [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | NEW |

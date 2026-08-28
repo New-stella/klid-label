@@ -68,7 +68,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 관리자 패스워드 확인</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>관리자 패스워드를 입력받아 진입 세션 발급을 요청한다. 입력이 비어 있거나 허용 길이를 벗어나면 확인 버튼을 비활성으로 두고, 요청이 진행되는 동안에도 비활성으로 두어 같은 요청이 겹치지 않게 한다. 입력한 패스워드는 화면에도 기록에도 남지 않는다 — 가려진 입력으로 받고, 다시 표시하지 않으며, 요청을 보낸 뒤 화면에서 지운다. 확인에 성공하면 서버가 유효창을 열고 만료 시각을 함께 알려준다. 유효 여부 판정은 서버가 소유하므로 화면이 스스로 아직 유효하다고 정하지 않는다. 취소하면 진입을 그만두고 직전 업무 화면으로 돌아간다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>관리자 패스워드를 입력받아 유효창 발급을 요청한다. 입력이 비어 있거나 허용 길이를 벗어나면 확인 버튼을 비활성으로 두고, 요청이 진행되는 동안에도 비활성으로 두어 같은 요청이 겹치지 않게 한다. 입력한 패스워드는 화면에도 기록에도 남지 않는다 — 가려진 입력으로 받고, 다시 표시하지 않으며, 요청을 보낸 뒤 화면에서 지운다. 확인에 성공하면 서버가 유효창을 열고 만료 시각을 함께 알려준다. 유효 여부 판정은 서버가 소유하므로 화면이 스스로 아직 유효하다고 정하지 않는다. 취소하면 진입을 그만두고 직전 업무 화면으로 돌아간다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(관리자 패스워드) · binds adminPassword · 검증: 필수 · 4~100자<p class="wf-help" style="margin:2px 0 0">가려진 입력으로 받고 자동완성 저장을 쓰지 않는다. 입력한 값은 화면에 다시 나타나지 않고 요청 후 지우며 어떤 기록에도 남기지 않는다.</p></li><li>Button(확인) · → API-194<p class="wf-help" style="margin:2px 0 0">패스워드가 비어 있거나 허용 길이를 벗어나면 비활성. 요청이 진행되는 동안에도 비활성으로 두어 중복 제출을 막는다.</p></li><li>Button(취소)<p class="wf-help" style="margin:2px 0 0">진입을 그만두고 직전 업무 화면으로 돌아간다. 유효창은 열리지 않는다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-194</li></ul></div>
     </div>

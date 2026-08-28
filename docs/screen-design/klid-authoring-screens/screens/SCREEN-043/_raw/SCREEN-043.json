@@ -12,7 +12,7 @@
       "title": "위험 작업 화면",
       "device": "desktop",
       "status": "draft",
-      "purpose": "검수자가 되돌릴 수 없는 파괴적 운영 작업을 실행하는 화면. 시스템 초기화·배치 큐 초기화·캐시 삭제를 다룬다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 전용 화면으로 분리한 것은 다른 일을 하다가 실수로 누르는 동선을 없애기 위해서다. 버튼을 누르는 것만으로는 실행되지 않는다 — 수행할 작업명과 그 작업이 무엇을 지우는지에 대한 설명, 되돌릴 수 없다는 경고를 함께 보여주는 확인 절차를 먼저 거치며, 확인하지 않고 벗어나면 아무것도 실행되지 않는다. 실행에는 검수자 권한에 더해 유효한 관리자 단기 유효창이 가산되며, 유효 기간이 끝나면 관리자 패스워드 재확인을 요구한다. 접근: REVIEWER.",
+      "purpose": "관리자가 되돌릴 수 없는 파괴적 운영 작업을 실행하는 화면. 시스템 초기화·배치 큐 초기화·캐시 삭제를 다룬다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 전용 화면으로 분리한 것은 다른 일을 하다가 실수로 누르는 동선을 없애기 위해서다. 버튼을 누르는 것만으로는 실행되지 않는다 — 수행할 작업명과 그 작업이 무엇을 지우는지에 대한 설명, 되돌릴 수 없다는 경고를 함께 보여주는 확인 절차를 먼저 거치며, 확인하지 않고 벗어나면 아무것도 실행되지 않는다. 실행에는 관리자 역할에 더해 유효한 관리자 단기 유효창이 가산되며, 유효 기간이 끝나면 관리자 패스워드 재확인을 요구한다. 접근: 관리자.",
       "sections": [
         {
           "name": "위험 구역 안내",
@@ -171,15 +171,18 @@
       "surface_kind": "web",
       "consumes_apis": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-157"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-27T20:57:09.134Z",
         "module_paths": []
       },
       "required_roles": [
-        "ROLE-001"
+        "ROLE-004"
       ],
       "static_renders": [
         {
@@ -191,7 +194,8 @@
           "sections": [],
           "source_hash": "a51f3dd14a69d234842edaaba92891c502733c69edda5a48c28e21db567324ca",
           "generated_at": "2026-08-27T09:39:42.279Z",
-          "generated_by": "generate-wireframes.py"
+          "generated_by": "generate-wireframes.py",
+          "triggered_by": []
         }
       ],
       "uses_constants": [],
@@ -201,12 +205,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "ADR-046의 data.consequences 변경 — based_on",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (8.0KB)",
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "ADR-055 — 관리자 역할 신설에 따라 이 화면을 관리자 전용으로. required_roles ROLE-001 → ROLE-004",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T09:39:42.279Z",
+    "last_updated_at": "2026-08-28T04:16:56.826Z",
     "created_at": "2026-08-27T09:35:06.582Z"
   }
 }

@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-26T05:08:26.414Z (session 13) |
+| last sync | 2026-08-28T14:42:42.751Z (session 14) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/사용자권한-DOMAIN-001 |
+| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -22,7 +22,7 @@
 | [[SCREEN-002]] | 역할 클레임 화면 | NEW | ✅ | [[API-007]] |  |
 | [[SCREEN-003]] | 접근 거부 화면 | NEW | ✅ |  |  |
 | [[SCREEN-004]] | 개발용 로그인 화면 | NEW | ✅ | [[API-153]] |  |
-| [[SCREEN-024]] | 사용자 관리 화면 | NEW | ✅ | [[API-001]], [[API-004]] | [[ROLE-001]] |
+| [[SCREEN-024]] | 사용자 관리 화면 | NEW | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
 
 ## 공유 자산 인덱스
 
@@ -33,7 +33,7 @@
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 8 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 1 |
+| permission_role | _shared/role/ | 2 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -72,6 +72,7 @@
 | [[DS-001]] | design_system | NEW |
 | [[NAV-001]] | navigation_tree | NEW |
 | [[ROLE-001]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | NEW |
 | [[SD-009]] | screen_design | NEW |
 | [[SD-017]] | screen_design | NEW |
 | [[SD-018]] | screen_design | NEW |
@@ -99,7 +100,6 @@
 | [[UI-015]] | ui_component | NEW |
 | [[UI-016]] | ui_component | NEW |
 | [[UI-017]] | ui_component | NEW |
-| [[UC-030]] | use_case | NEW |
 | [[UI-018]] | ui_component | NEW |
 | [[UI-019]] | ui_component | NEW |
 | [[UI-020]] | ui_component | NEW |
@@ -227,6 +227,7 @@
 | [[UI-142]] | ui_component | NEW |
 | [[UI-143]] | ui_component | NEW |
 | [[UI-144]] | ui_component | NEW |
+| [[UC-030]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 

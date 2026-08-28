@@ -363,7 +363,7 @@
     "schema_version": 1,
     "current_version": 35,
     "stale": true,
-    "stale_reason": "ROLE-001의 data.implementation 변경 — requires",
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (16.9KB)",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-27T01:18:40.023Z",

@@ -5,11 +5,11 @@ version: 23
 last_updated_at: 2026-08-27T10:18:16.290Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:53:19.490Z
-sync_session: 31
+synced_at: 2026-08-28T14:41:56.813Z
+sync_session: 32
 stale: false
-status: CHANGED
-prev_version: 18
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-033.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v18 → v23**
-> change_summary: 외부 위탁 창구가 이미 규정돼 있다는 사실과 이벤트 유형 합의가 남았다는 축에 대한 확인만 기록한다. 이 화면이 담는 것은 요청을 어느 행에서 어떤 조건으로 띄우는지이고, 그 조건(본인 자산·준비 완료)은 직전 리비전에서 이미 반영했다. 요청 본문을 무엇으로 채우는지는 이 화면의 사양이 아니라 위탁 규격의 몫이라 걸리는 항목이 없다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 화면
 

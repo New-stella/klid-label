@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-043
 type: screen_spec
-version: 3
-last_updated_at: 2026-08-27T09:39:42.279Z
+version: 4
+last_updated_at: 2026-08-28T04:16:56.826Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:53:19.499Z
-sync_session: 31
-stale: true
+synced_at: 2026-08-28T14:41:56.821Z
+sync_session: 32
+stale: false
 status: NEW
 prev_version: null
 raw: ./_raw/SCREEN-043.json
 wireframe: ./wireframe.html
 links:
-  required_roles: ["[[ROLE-001]]"]
+  required_roles: ["[[ROLE-004]]"]
 ---
 
 # 위험 작업 화면
@@ -36,7 +36,7 @@ draft
 
 ## purpose
 
-검수자가 되돌릴 수 없는 파괴적 운영 작업을 실행하는 화면. 시스템 초기화·배치 큐 초기화·캐시 삭제를 다룬다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 전용 화면으로 분리한 것은 다른 일을 하다가 실수로 누르는 동선을 없애기 위해서다. 버튼을 누르는 것만으로는 실행되지 않는다 — 수행할 작업명과 그 작업이 무엇을 지우는지에 대한 설명, 되돌릴 수 없다는 경고를 함께 보여주는 확인 절차를 먼저 거치며, 확인하지 않고 벗어나면 아무것도 실행되지 않는다. 실행에는 검수자 권한에 더해 유효한 관리자 단기 유효창이 가산되며, 유효 기간이 끝나면 관리자 패스워드 재확인을 요구한다. 접근: REVIEWER.
+관리자가 되돌릴 수 없는 파괴적 운영 작업을 실행하는 화면. 시스템 초기화·배치 큐 초기화·캐시 삭제를 다룬다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 전용 화면으로 분리한 것은 다른 일을 하다가 실수로 누르는 동선을 없애기 위해서다. 버튼을 누르는 것만으로는 실행되지 않는다 — 수행할 작업명과 그 작업이 무엇을 지우는지에 대한 설명, 되돌릴 수 없다는 경고를 함께 보여주는 확인 절차를 먼저 거치며, 확인하지 않고 벗어나면 아무것도 실행되지 않는다. 실행에는 관리자 역할에 더해 유효한 관리자 단기 유효창이 가산되며, 유효 기간이 끝나면 관리자 패스워드 재확인을 요구한다. 접근: 관리자.
 
 ## sections
 
@@ -356,7 +356,7 @@ _(empty)_
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -364,15 +364,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-157
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-27T20:57:09.134Z
 
 ### module_paths
 
@@ -380,7 +384,7 @@ _(empty)_
 
 ## required_roles
 
-- ROLE-001
+- ROLE-004
 
 ## static_renders
 
@@ -398,6 +402,10 @@ _(empty)_
 - **source_hash**: a51f3dd14a69d234842edaaba92891c502733c69edda5a48c28e21db567324ca
 - **generated_at**: 2026-08-27T09:39:42.279Z
 - **generated_by**: generate-wireframes.py
+
+**triggered_by**:
+
+_(empty)_
 
 ## uses_constants
 

@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-26T05:08:42.925Z (session 13) |
+| last sync | 2026-08-28T14:42:41.718Z (session 14) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/라벨링-DOMAIN-010 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -30,7 +30,7 @@
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 49 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 2 |
+| permission_role | _shared/role/ | 3 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -121,19 +121,11 @@
 | [[NAV-001]] | navigation_tree | NEW |
 | [[ROLE-001]] | permission_role | NEW |
 | [[ROLE-002]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | NEW |
 | [[SD-002]] | screen_design | NEW |
 | [[SD-006]] | screen_design | NEW |
 | [[SCREEN-005]] | screen_spec | NEW |
 | [[SCREEN-026]] | screen_spec | NEW |
-| [[UC-004]] | use_case | NEW |
-| [[UC-005]] | use_case | NEW |
-| [[UC-006]] | use_case | NEW |
-| [[UC-007]] | use_case | NEW |
-| [[UC-008]] | use_case | NEW |
-| [[UC-021]] | use_case | NEW |
-| [[UC-022]] | use_case | NEW |
-| [[UC-032]] | use_case | NEW |
-| [[UC-034]] | use_case | NEW |
 | [[UI-001]] | ui_component | NEW |
 | [[UI-002]] | ui_component | NEW |
 | [[UI-003]] | ui_component | NEW |
@@ -278,6 +270,15 @@
 | [[UI-142]] | ui_component | NEW |
 | [[UI-143]] | ui_component | NEW |
 | [[UI-144]] | ui_component | NEW |
+| [[UC-004]] | use_case | NEW |
+| [[UC-005]] | use_case | NEW |
+| [[UC-006]] | use_case | NEW |
+| [[UC-007]] | use_case | NEW |
+| [[UC-008]] | use_case | NEW |
+| [[UC-021]] | use_case | NEW |
+| [[UC-022]] | use_case | NEW |
+| [[UC-032]] | use_case | NEW |
+| [[UC-034]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 

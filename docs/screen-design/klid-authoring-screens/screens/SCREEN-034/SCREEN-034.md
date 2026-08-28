@@ -5,11 +5,11 @@ version: 26
 last_updated_at: 2026-08-27T10:18:16.372Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:53:19.491Z
-sync_session: 31
+synced_at: 2026-08-28T14:41:56.814Z
+sync_session: 32
 stale: false
-status: CHANGED
-prev_version: 22
+status: NEW
+prev_version: null
 raw: ./_raw/SCREEN-034.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-027]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v22 → v26**
-> change_summary: 외부 위탁 규격 축에 대한 확인만 기록한다. 이 화면은 마킹만 갖고 증강 요청은 업로드 목록 소관이라, 위탁 창구가 어디이고 요청 본문에 무엇이 필요한지는 이 화면의 사양에 닿지 않는다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 포털 업로드 라벨링 화면
 

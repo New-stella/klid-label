@@ -820,6 +820,19 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ★ **2026-08-28 SYNC — 7개 키트 전부 · 그리고 이제 `.kit-scope.json` pin 이 있다.** 그전까지 화면 키트는
+> **pin 이 없어 그래프 폴백(재현율 약 90%)** 으로 돌았고, 그게 아래 ★★ 가 기록한 **스코프 526→469 조용한
+> 축소** 사고의 조건이었다. 이번에 **직전 커밋의 `version-master.md` 표를 모집단으로** pin 을 세워 그
+> 위험을 구조적으로 닫았다. 화면 8건이 갱신됐다(`SCREEN-003` v10→v12 · `024` v27→v29 · `025`·`027`·
+> `040`·`041`·`042`·`043`). `ROLE-004`(관리자 역할)를 전 키트에 승격했다.
+> **검증**: 7키트 전건 **유실 0** · 신규는 의도한 `ROLE-004` 하나뿐 · `배치본 파일 − 표` 가 정확히
+> **렌더 전용 `SD` 건수**와 일치 · `design.*` 로컬 원본 변경·삭제 **0건**.
+> ⚠ **다운로더는 `--domain` 이 있을 때만 pin 을 본다** — 빼고 부르면 pin 을 무시하고 프로젝트 전량
+> (1,358건)을 받는다. 이번에 실제로 그렇게 됐고 **pin 건수와 대조해서 잡았다.** 스코프는 축소만
+> 위험한 게 아니라 확대도 조용히 일어난다 — **매번 「서버 N건」이 pin 건수와 같은지 확인할 것.**
+> ⚠ 화면 키트 스코프에는 **`adr`·`nfr` 타입이 없다** — 그 축의 🚨 유실 경고는 설계상 정상이며
+> 미판정에 올라오는 `NFR-*` 도 기각 대상이다. `SCREEN-039` 도 여전히 스코프 밖이다(별도 폐포 라운드).
+>
 > **2026-08-26 SYNC — 7개 키트 전부** · 서버 현재 버전과 **불일치 0건** · **정적 렌더 미러 33/33 최신**(`source_hash` 대조).
 > 그날 화면 5건의 와이어프레임을 재생성·재게시했다 — `SCREEN-012`·`022`·`024`·`030`·`031`(모달 포함). 모달 렌더는 생성기가 만들지 않는 표면이라 내용이 현재 사양과 일치함을 확인한 뒤 동일 바이트로 재게시해 스탬프만 갱신했다.
 >
@@ -831,13 +844,13 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-26 (s27)** | 526 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-26 (s13) | 224 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-26 (s13) | 171 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-26 (s13) | 162 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-26 (s13) | 165 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-26 (s13) | 167 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-26 (s13) | 167 |
+| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-28 (s32)** | 539 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-28 (s14) | 225 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-28 (s14) | 172 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-28 (s14) | 163 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-28 (s17) | 166 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-28 (s14) | 168 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-28 (s14) | 168 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

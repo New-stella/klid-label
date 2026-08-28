@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-26T05:08:42.931Z (session 13) |
-| Mode | INITIAL — NEW 224 / CHANGED 0 / UNCHANGED 0 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/라벨링-DOMAIN-010 |
+| Last sync | 2026-08-28T14:42:41.723Z (session 14) |
+| Mode | INITIAL — NEW 225 / CHANGED 0 / UNCHANGED 0 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
 
 ## ITEM 버전 표
 
@@ -27,10 +27,10 @@
 | [[AC-039]] | acceptance | 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점 | 5 | false | NEW |
 | [[AC-040]] | acceptance | 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달 | 5 | false | NEW |
 | [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | NEW |
-| [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 4 | false | NEW |
+| [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 5 | false | NEW |
 | [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | NEW |
 | [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 14 | false | NEW |
-| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 8 | false | NEW |
+| [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | NEW |
 | [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | NEW |
 | [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | NEW |
 | [[API-024]] | api_endpoint | GET /v1/manage/labels | 6 | false | NEW |
@@ -43,12 +43,12 @@
 | [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | NEW |
 | [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | NEW |
 | [[API-041]] | api_endpoint | [폐기] POST /v1/manage/presets/{id}/clone | 5 | false | NEW |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 6 | false | NEW |
-| [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 6 | false | NEW |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | NEW |
+| [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | NEW |
 | [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | NEW |
-| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 13 | false | NEW |
-| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 10 | false | NEW |
-| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 12 | false | NEW |
+| [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 14 | false | NEW |
+| [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 11 | false | NEW |
+| [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 14 | false | NEW |
 | [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | NEW |
 | [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | NEW |
 | [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 13 | false | NEW |
@@ -75,15 +75,16 @@
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 7 | false | NEW |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | NEW |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 5 | false | NEW |
-| [[DS-001]] | design_system | KRDS Public | 8 | false | NEW |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 18 | true | NEW |
-| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 10 | true | NEW |
-| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 7 | true | NEW |
-| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 100 | true | NEW |
-| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 34 | true | NEW |
-| [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 16 | true | NEW |
-| [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 4 | true | NEW |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 10 | true | NEW |
+| [[DS-001]] | design_system | KRDS Public | 9 | false | NEW |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 25 | true | NEW |
+| [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | NEW |
+| [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | NEW |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | NEW |
+| [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 102 | true | NEW |
+| [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 35 | true | NEW |
+| [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 17 | true | NEW |
+| [[SD-006]] | screen_design | SCREEN-026 프리셋 관리 화면 | 5 | true | NEW |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | NEW |
 | [[UC-004]] | use_case | 객체 자동 추적 | 15 | true | NEW |
 | [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 10 | true | NEW |
 | [[UC-006]] | use_case | 라벨링 정밀도 조절 | 9 | true | NEW |
@@ -110,7 +111,7 @@
 | [[UI-015]] | ui_component | [폐기] display: PrivacyBadge | 4 | false | NEW |
 | [[UI-016]] | ui_component | display: EventTypeBadge | 5 | false | NEW |
 | [[UI-017]] | ui_component | display: StageBadge | 8 | false | NEW |
-| [[UI-018]] | ui_component | display: BatchStageIndicator | 9 | false | NEW |
+| [[UI-018]] | ui_component | display: BatchStageIndicator | 10 | false | NEW |
 | [[UI-019]] | ui_component | feedback: ProgressBar | 4 | false | NEW |
 | [[UI-020]] | ui_component | feedback: EmptyState | 5 | false | NEW |
 | [[UI-021]] | ui_component | feedback: ErrorState | 4 | false | NEW |
@@ -182,11 +183,11 @@
 | [[UI-087]] | ui_component | input: BatchConfigCard | 5 | false | NEW |
 | [[UI-088]] | ui_component | input: PrecisionConfigCard | 4 | false | NEW |
 | [[UI-089]] | ui_component | display: HealthStatusList | 5 | false | NEW |
-| [[UI-090]] | ui_component | action: DangerActions | 4 | false | NEW |
+| [[UI-090]] | ui_component | action: DangerActions | 6 | false | NEW |
 | [[UI-091]] | ui_component | overlay: PresetEditModal | 6 | false | NEW |
 | [[UI-092]] | ui_component | display: PresetCodeChip | 4 | false | NEW |
 | [[UI-093]] | ui_component | [폐기] display: BatchStageSteps | 6 | false | NEW |
-| [[UI-094]] | ui_component | action: VideoActions | 4 | false | NEW |
+| [[UI-094]] | ui_component | action: VideoActions | 5 | false | NEW |
 | [[UI-095]] | ui_component | input: VideoFilters | 5 | false | NEW |
 | [[UI-096]] | ui_component | input: AugmentTypeCheckbox | 5 | false | NEW |
 | [[UI-097]] | ui_component | data: IssueThreadPanel (이슈 스레드 패널) | 5 | false | NEW |

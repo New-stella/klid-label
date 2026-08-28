@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-26T05:08:40.901Z (session 13) |
+| last sync | 2026-08-28T14:42:39.654Z (session 14) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -19,7 +19,7 @@
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
 | [[SCREEN-018]] | 검수 목록 화면 | NEW | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
-| [[SCREEN-019]] | 검수 상세 화면 | NEW | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]] | [[ROLE-001]] |
+| [[SCREEN-019]] | 검수 상세 화면 | NEW | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -30,7 +30,7 @@
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 15 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 1 |
+| permission_role | _shared/role/ | 2 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -75,6 +75,7 @@
 | [[DS-001]] | design_system | NEW |
 | [[NAV-001]] | navigation_tree | NEW |
 | [[ROLE-001]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | NEW |
 | [[SD-001]] | screen_design | NEW |
 | [[SD-005]] | screen_design | NEW |
 | [[SCREEN-018]] | screen_spec | NEW |
@@ -92,8 +93,6 @@
 | [[UI-011]] | ui_component | NEW |
 | [[UI-012]] | ui_component | NEW |
 | [[UI-013]] | ui_component | NEW |
-| [[UC-009]] | use_case | NEW |
-| [[UC-023]] | use_case | NEW |
 | [[UI-014]] | ui_component | NEW |
 | [[UI-015]] | ui_component | NEW |
 | [[UI-016]] | ui_component | NEW |
@@ -225,6 +224,8 @@
 | [[UI-142]] | ui_component | NEW |
 | [[UI-143]] | ui_component | NEW |
 | [[UI-144]] | ui_component | NEW |
+| [[UC-009]] | use_case | NEW |
+| [[UC-023]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 

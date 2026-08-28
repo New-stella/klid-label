@@ -13,7 +13,7 @@
         "config"
       ],
       "method": "POST",
-      "summary": "관리 기능 진입 세션 발급",
+      "summary": "관리 기능 유효창 발급",
       "security": [
         {
           "jwt": [
@@ -235,11 +235,14 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-151"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-27T20:56:35.204Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -250,12 +253,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": true,
-    "stale_reason": "ADR-046의 data.consequences 변경 — based_on",
-    "change_summary": "자격 저장 위치가 비어 있을 때 배포 설정값으로 되돌아가고 둘 다 없으면 통과시키지 않는다는 기준을 잇는다. 그 판정이 실제로 일어나는 곳이 이 발급 창구다.",
+    "stale_reason": "ADR-046의 data.references 변경 — based_on",
+    "change_summary": "발급 창구의 요약에 남아 있던 「진입 세션」을 「유효창」으로 바꾼다. 이 창구가 내주는 것을 결정과 화면이 유효창이라 부르므로 이름을 맞춘다. 발급 조건·응답·제한 축은 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T09:31:35.671Z",
+    "last_updated_at": "2026-08-27T23:32:59.529Z",
     "created_at": "2026-08-10T07:38:17.632Z"
   }
 }

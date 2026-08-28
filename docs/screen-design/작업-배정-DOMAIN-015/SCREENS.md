@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-26T05:08:25.482Z (session 13) |
+| last sync | 2026-08-28T14:42:44.585Z (session 14) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | /Users/ck/orca/workspaces/klid-label/portal/docs/screen-design/작업-배정-DOMAIN-015 |
+| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -29,7 +29,7 @@
 | app_shell + nav | _shared/shell-nav.md | 2 |
 | api_endpoint | _shared/api/ | 10 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 2 |
+| permission_role | _shared/role/ | 3 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -67,6 +67,7 @@
 | [[NAV-001]] | navigation_tree | NEW |
 | [[ROLE-001]] | permission_role | NEW |
 | [[ROLE-002]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | NEW |
 | [[SD-003]] | screen_design | NEW |
 | [[SCREEN-012]] | screen_spec | NEW |
 | [[UI-001]] | ui_component | NEW |
@@ -91,7 +92,6 @@
 | [[UI-020]] | ui_component | NEW |
 | [[UI-021]] | ui_component | NEW |
 | [[UI-022]] | ui_component | NEW |
-| [[UC-029]] | use_case | NEW |
 | [[UI-023]] | ui_component | NEW |
 | [[UI-024]] | ui_component | NEW |
 | [[UI-025]] | ui_component | NEW |
@@ -214,6 +214,7 @@
 | [[UI-142]] | ui_component | NEW |
 | [[UI-143]] | ui_component | NEW |
 | [[UI-144]] | ui_component | NEW |
+| [[UC-029]] | use_case | NEW |
 
 ## Obsidian 볼트로 보기
 
