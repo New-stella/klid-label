@@ -135,6 +135,27 @@ class AdminSessionGateTest {
                 .containsOnly(messages.get(0));
     }
 
+    @Test
+    @DisplayName("★유효창_거부는_권한_없음과_문구가_다르다 — 막힌 사람이 돌아올 길을 알려야 한다")
+    void 유효창_거부는_권한_없음과_문구가_다르다() {
+        // AC-072 의 기대 결과 — 상태코드와 오류 코드로는 두 사유가 구분되지 않지만 <b>안내 문구는
+        // 다르다</b>. 유효창이 없거나 끝난 경우에는 다시 인증할 자리를 안내하고, 검수자 권한이 없는
+        // 경우에는 권한이 없다고만 말한다. 그러지 않으면 막힌 사람이 스스로 돌아올 길이 없어
+        // 재인증 동선 자체가 성립하지 않는다.
+        //
+        // ★위 «거부_사유를_구분해_알리지_않는다» 와 <b>대상이 다르다</b> — 그 시험은 유효창 거부
+        // <b>안에서</b> 없음·만료·위조·타인 발급이 서로 구분되지 않음을 본다. 이 시험은 유효창 축과
+        // <b>인가 축</b>이 서로 구분됨을 본다. 둘을 같은 것으로 읽어 한쪽을 지우면, 문구를 하나로
+        // 합치는 «일관성» 정리가 재인증 동선을 소리 없이 없앤다.
+        String rejected = messageOfRejection(null, SUBJECT);
+
+        assertThat(rejected)
+                .as("인가 거부와 같은 문구면 두 사유가 화면에서 구분되지 않는다")
+                .isNotEqualTo(ErrorCode.FORBIDDEN.defaultMessage())
+                .as("다시 인증할 자리를 가리키지 않으면 막힌 사람이 돌아올 길이 없다")
+                .contains("인증");
+    }
+
     private String messageOfRejection(String token, String subject) {
         try {
             gate.require(token, subject);
