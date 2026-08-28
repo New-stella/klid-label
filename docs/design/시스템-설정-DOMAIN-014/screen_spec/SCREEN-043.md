@@ -1,20 +1,22 @@
 ---
 logicraft_item: SCREEN-043
 type: screen_spec
-version: 3
+version: 4
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:54:27.748Z
-status: NEW
-prev_version: null
-content_hash: 86215cab04db3e88115c81e21b302f2de75baf63d66c6bf0b1a15b497f9f90e4
-stale: true
+synced_at: 2026-08-28T11:36:56.080Z
+status: CHANGED
+prev_version: 3
+content_hash: 334c8b3bf1ed54ddec970b44ee69b33ffb88987e4ae4823039fa665dd831e6c3
+stale: false
 raw: ./_raw/SCREEN-043.json
 links:
   based_on: ["[[ADR-046]]"]
   belongs_to_domain: ["[[DOMAIN-014]]"]
-  requires: ["[[ROLE-001]]"]
+  implements: ["[[IMPREC-157]]"]
+  requires: ["[[ROLE-004]]"]
   designs_backward: ["[[SD-035]]"]
+  granted_on_backward: ["[[ROLE-004]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   references_backward: ["[[ADR-046]]"]
 ---
@@ -39,7 +41,7 @@ draft
 
 ## purpose
 
-검수자가 되돌릴 수 없는 파괴적 운영 작업을 실행하는 화면. 시스템 초기화·배치 큐 초기화·캐시 삭제를 다룬다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 전용 화면으로 분리한 것은 다른 일을 하다가 실수로 누르는 동선을 없애기 위해서다. 버튼을 누르는 것만으로는 실행되지 않는다 — 수행할 작업명과 그 작업이 무엇을 지우는지에 대한 설명, 되돌릴 수 없다는 경고를 함께 보여주는 확인 절차를 먼저 거치며, 확인하지 않고 벗어나면 아무것도 실행되지 않는다. 실행에는 검수자 권한에 더해 유효한 관리자 단기 유효창이 가산되며, 유효 기간이 끝나면 관리자 패스워드 재확인을 요구한다. 접근: REVIEWER.
+관리자가 되돌릴 수 없는 파괴적 운영 작업을 실행하는 화면. 시스템 초기화·배치 큐 초기화·캐시 삭제를 다룬다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 전용 화면으로 분리한 것은 다른 일을 하다가 실수로 누르는 동선을 없애기 위해서다. 버튼을 누르는 것만으로는 실행되지 않는다 — 수행할 작업명과 그 작업이 무엇을 지우는지에 대한 설명, 되돌릴 수 없다는 경고를 함께 보여주는 확인 절차를 먼저 거치며, 확인하지 않고 벗어나면 아무것도 실행되지 않는다. 실행에는 관리자 역할에 더해 유효한 관리자 단기 유효창이 가산되며, 유효 기간이 끝나면 관리자 패스워드 재확인을 요구한다. 접근: 관리자.
 
 ## sections
 
@@ -359,7 +361,7 @@ _(empty)_
 
 ### status
 
-planned
+implemented
 
 ### modules
 
@@ -367,15 +369,19 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-157
 
 ### progress
 
-0
+100
 
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-27T20:57:09.134Z
 
 ### module_paths
 
@@ -383,7 +389,7 @@ _(empty)_
 
 ## required_roles
 
-- ROLE-001
+- ROLE-004
 
 ## static_renders
 
@@ -401,6 +407,10 @@ _(empty)_
 - **source_hash**: a51f3dd14a69d234842edaaba92891c502733c69edda5a48c28e21db567324ca
 - **generated_at**: 2026-08-27T09:39:42.279Z
 - **generated_by**: generate-wireframes.py
+
+**triggered_by**:
+
+_(empty)_
 
 ## uses_constants
 

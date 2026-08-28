@@ -63,11 +63,13 @@
         "status": "verified",
         "modules": [],
         "records": [
-          "IMPREC-012"
+          "IMPREC-012",
+          "IMPREC-137",
+          "IMPREC-142"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-17T04:33:50.092Z",
+        "last_updated": "2026-08-26T07:44:41.628Z",
         "module_paths": [
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
           "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalLabelService.java"
@@ -88,8 +90,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "이번 라운드에서 검증 대상을 프레임별 어노테이션 문서의 어노테이션 항목으로 재서술했고, 병합 입도가 프레임 단위로 정확히 적혀 있음을 함께 확인했다. 그 뒤 실현 엔드포인트 목록 변경이 다시 전파된 것이라 추가 수정이 없다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T05:01:48.311Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-26T07:44:41.628Z",
     "created_at": "2026-08-17T01:10:43.946Z"
   }
 }

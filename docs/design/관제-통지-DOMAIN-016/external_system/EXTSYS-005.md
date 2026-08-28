@@ -1,13 +1,13 @@
 ---
 logicraft_item: EXTSYS-005
 type: external_system
-version: 14
+version: 15
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:15.708Z
+synced_at: 2026-08-28T11:36:57.544Z
 status: CHANGED
-prev_version: 12
-content_hash: 7fad21ebbe7768911ecdffced1e904f1e6b46f01f748fe012dde6088664d4821
+prev_version: 14
+content_hash: 9529b0a9d3d776b2e6d73b302dfa6e5a89034730018bf91b9ae4d810fb8c02db
 stale: false
 raw: ./_raw/EXTSYS-005.json
 links:
@@ -147,4 +147,4 @@ internal
 
 ## shared_with_projects
 
-_(empty)_
+- 95f00d2e-30e8-4426-bc37-9bd85aa969e9

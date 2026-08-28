@@ -18,7 +18,7 @@
           "label": "이벤트유형 관리 화면 — 고충실 디자인",
           "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-023/main.css",
           "surface": "page",
-          "uploaded_at": "2026-08-13T15:07:46.887Z",
+          "uploaded_at": "2026-08-26T13:11:57.904Z",
           "uploaded_by": "claude-screen-design"
         }
       ],
@@ -32,12 +32,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": false,
-    "stale_reason": null,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "SCREEN-038의 data.sections 변경 — designs",
     "change_summary": "디자인 화면 업로드 (main, page) +css",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-13T15:07:46.888Z",
+    "last_updated_at": "2026-08-26T13:11:57.905Z",
     "created_at": "2026-08-13T15:03:59.490Z"
   }
 }

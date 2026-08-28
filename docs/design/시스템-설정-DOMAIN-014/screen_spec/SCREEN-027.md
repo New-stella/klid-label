@@ -1,0 +1,923 @@
+---
+logicraft_item: SCREEN-027
+type: screen_spec
+version: 39
+domain: DOMAIN-004
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-08-28T11:38:12.524Z
+status: NEW
+prev_version: null
+content_hash: 936c7693e6e7fea64ef94c8360bc76d2aeda5f9eae38a21ba34e0a854ad1c37c
+stale: true
+raw: ./_raw/SCREEN-027.json
+links:
+  belongs_to_domain: ["[[DOMAIN-004]]"]
+  consumes: ["[[API-043]]", "[[API-152]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-194]]", "[[API-216]]", "[[API-217]]", "[[API-218]]"]
+  covered_by: ["[[AC-099]]", "[[AC-100]]", "[[AC-101]]", "[[AC-102]]", "[[AC-103]]", "[[AC-104]]", "[[AC-105]]", "[[AC-106]]"]
+  implements: ["[[IMPREC-109]]", "[[IMPREC-164]]"]
+  realizes: ["[[UC-037]]"]
+  references: ["[[API-043]]", "[[API-152]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-216]]", "[[API-217]]", "[[API-218]]"]
+  requires: ["[[ROLE-004]]"]
+  applies_to_backward: ["[[SHELL-001]]"]
+  designs_backward: ["[[SD-033]]"]
+  granted_on_backward: ["[[ROLE-004]]"]
+  navigates_to_backward: ["[[NAV-001]]"]
+  realizes_backward: ["[[MOD-041]]", "[[MOD-048]]"]
+  references_backward: ["[[ADR-046]]", "[[UC-037]]"]
+---
+
+# 파일 업로드
+
+## route
+
+/admin/uploads
+
+## title
+
+파일 업로드
+
+## device
+
+desktop
+
+## status
+
+draft
+
+## purpose
+
+영상을 저작도구에 직접 올려 처리에 태우는 화면. 한 건씩 파일을 골라 올리는 방식과, 서버가 읽을 수 있는 폴더를 훑어 여러 건을 한 번에 올리는 방식 두 가지를 제공한다. 한 건씩 올릴 때는 올린 영상을 파이프라인으로 곧바로 보낼지 관제 인입 원장에 적재해 주기 배치가 가져가게 할지 고를 수 있으며, 두 경로가 같은 입력 폼을 쓴다. 전송은 청크 단위 재개 업로드라 대용량 영상도 네트워크가 끊긴 지점부터 이어 보낼 수 있다. 폴더에서 한 번에 올릴 때는 이벤트 마킹이 끝난 영상 묶음을 대상으로 하며, 찾은 짝을 먼저 보여 주고 확인하면 뒤에서 건별로 적재한다. 운영에서도 쓰는 화면이며 노출 여부는 설정으로 조절한다. 관리자 페이지에 속해 관리자 패스워드 확인을 거쳐야 도달한다. 접근: 관리자.
+
+## sections
+
+### 업로드 입력
+
+- **role**: main
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **note**: 올린 영상을 어디로 보낼지 고른다. 두 경로가 같은 입력 폼을 쓰며 고르는 값에 따라 보내는 곳과 그 뒤 흐름만 달라진다. 파이프라인 즉시 실행은 올리자마자 비식별과 마킹 대기까지 이어지고, 관제 인입 재현은 인입 원장에 적재한 뒤 주기 배치가 훑을 때 진행된다.
+- **type**: RadioGroup
+- **label**: 적재 경로
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- 파이프라인 즉시 실행 (올린 직후 비식별 후 마킹 대기까지)
+- 관제 인입 재현 (인입 원장 적재 후 주기 배치가 진행)
+
+#### [2]
+
+- **note**: type=file, accept=video/mp4,webm,quicktime,x-msvideo + .mp4/.webm/.mov/.avi. 선택 후 파일명·크기(MB) 표시
+- **type**: Input
+- **label**: 영상 파일
+- **state**: default
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [3]
+
+- **note**: 필수 4종 + 선택 1종. 영상 클립 ID*(저장 파일명이 됨, 영문/숫자/_/- 64자) · CCTV ID*(영문/숫자/_/- 64자) · 출처유형*(select) · 지자체코드*(숫자 1~10자리) · 촬영일시(datetime-local, 선택)
+- **type**: Custom
+- **label**: 식별 정보
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: FieldsetGroup
+
+#### [4]
+
+- **note**: 저장 값은 이벤트유형코드다. 이벤트유형마스터에 등록된 코드를 동적으로 조회해 선택 — 형식은 EV+숫자 8자리(예 EV02000101=화재, EV03000101=교통사고, EV05000101=싸움). 고정된 6종 화이트리스트가 아니라 관제가 운영하는 코드 전체가 대상이며, 신규 등록되면 즉시 선택 가능해진다. 여러 코드가 같은 한글 이름으로 해석되는 경우(예 화재가 여러 상세코드로 나뉨) 이름 옆에 코드를 함께 표시해 구분한다. 마스터에 아직 없는 코드도 넣을 수 있게 직접 입력을 함께 둔다 — 적재가 처음 보는 코드를 이벤트유형마스터에 자동 등록하므로, 고르기만 가능하게 좁히면 관제가 코드를 넓힐 때 우리가 먼저 막는다.
+- **type**: Select
+- **label**: 이벤트유형
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- EV02000101 (화재)
+- EV03000101 (교통사고)
+- EV05000101 (싸움)
+- … (관제 등록 코드 전체, 동적 로드)
+
+#### [5]
+
+- **note**: 선택값은 표시용 메타데이터일 뿐이며 비식별 처리 여부에는 영향을 주지 않는다 — 비식별은 업로드된 모든 영상에 대해 예외 없이 자동 실행된다.
+- **type**: RadioGroup
+- **label**: 개인정보 유형
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- ANONY (비식별 미적용)
+- PRVC (개인정보 포함)
+- PSDO (가명 정보)
+
+#### [6]
+
+- **note**: 전부 선택 입력. 지자체명 · 기관코드 · CCTV명 · 카메라 높이(m) · 위도(WGS84) · 경도(WGS84) · 주감시방향(도, 0~360). 촬영 시점 값으로 고정 저장되어, 이후 카메라 제원이 바뀌어도 과거 영상 값은 유지된다.
+- **type**: Custom
+- **label**: 위치 · CCTV 제원
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: FieldsetGroup
+
+#### [7]
+
+- **note**: 선택, 예 ABA_0001 — 이벤트유형코드가 아니다
+- **type**: Input
+- **label**: 이벤트 ID
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [8]
+
+- **note**: 선택
+- **type**: Input
+- **label**: 이벤트명
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [9]
+
+- **note**: 값은 '미지정(외부 시계열 검증 위탁 생략)', 외부 시계열 분석이 지원하는 유형 여섯, '직접 입력' 중에서 고른다. 그 여섯은 자주 쓰는 값을 골라 놓은 것이 아니라 **현재 외부 시계열 분석이 받아 주는 유형 전부**이며, 벤더 규격이 그 여섯만 열거한다. 따라서 목록 밖 값을 보내면 우리 서버는 통과시켜도 **외부에서 거부되어 위탁이 실패로 끝난다**. 그런데도 화면과 서버가 목록으로 막지 않는 이유는 그 목록의 주인이 외부이기 때문이다 — 외부가 유형을 늘리거나 바꾸면 우리 쪽을 고치지 않고도 바로 쓸 수 있어야 하고, 반대로 우리가 사본을 들고 막으면 외부가 넓힌 정상 값을 우리가 먼저 차단하게 된다. 그래서 서버는 목록이 아니라 형식(영문 소문자·숫자·밑줄 조합, 20자 이내)만 본다. '직접 입력'은 외부가 유형을 늘렸을 때 쓰는 통로이며, '직접 입력' 항목 자체는 화면의 입력 모드를 바꾸는 표식일 뿐 전송되는 값이 아니다.
+- **type**: Select
+- **label**: 시계열 이벤트유형
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+- 미지정 (시계열 검증 위탁 생략)
+- 외부 시계열 분석 지원 유형 여섯 (벤더 규격 영문 소문자 값)
+- 직접 입력
+
+#### [10]
+
+- **note**: 선택, 최대 4000자. Upload-Metadata 헤더가 아니라 세션 생성 요청의 JSON 바디로 전송된다(헤더 용량 한도로는 이 분량을 담을 수 없다).
+- **type**: Textarea
+- **label**: 관제일지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [11]
+
+- **note**: 전부 선택. 관제 인입 재현에서는 값을 입력한 항목만 입력값 그대로 사용되고, 비운 항목만 서버가 업로드된 파일에서 자동 추출한다(ffprobe). 항목: 영상길이(초) · FPS · 프레임수 · 가로(px) · 세로(px) · 해상도(예 1920x1080) · 종횡비(예 16:9) · 코덱 · 파일형식(비우면 확장자) · 파일크기(byte, 비우면 실제 전송 크기) · BIT(색심도, 예 24bit — 비트레이트 아님) · PXL(화소, 예 4K). 파이프라인 즉시 실행은 이 묶음을 서버로 전달하지 않으므로 전부 서버가 올린 파일에서 읽어 채운다(서버 설정으로 끌 수 있고, 읽을 수 없는 항목은 비워 둔다 — 지어내지 않는다).
+- **type**: Custom
+- **label**: 영상 기술메타 (선택)
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: FieldsetGroup
+
+#### [12]
+
+- **note**: 입력 불가 — 서버가 업로드된 파일에서 자동 추출(ffprobe, 1~7200초 검증) 안내 박스
+- **type**: Custom
+- **label**: 영상 길이
+- **state**: readonly
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: DurationPlaceholder
+
+#### [13]
+
+- **note**: 진행률(%), 전송량/전체용량(MB), 상태 텍스트 표시. 진행 상태 확인에는 관리자 유효창을 요구하지 않으며, 유효창이 도중에 끝나도 진행 중인 대용량 업로드는 끊기지 않는다.
+- **type**: Custom
+- **label**: 진행률
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ProgressBar
+
+#### [14]
+
+- **note**: role=alert, 서버 메시지 표시(XSS는 자동 이스케이프). 조건부 렌더
+- **type**: Alert
+- **label**: 에러 메시지
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+
+#### [15]
+
+- **note**: 완료 시 정상 케이스('인입 대기 중')와, 서버의 인입 스캔 기능이 꺼져 있어 적재되지 않는 경고 케이스 2종을 색상으로 구분해 표시
+- **type**: Custom
+- **label**: 업로드 완료 안내
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: StatusBanner
+
+#### [16]
+
+- **note**: 파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 검수자 권한은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.
+- **type**: Button
+- **label**: 업로드 시작
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+
+#### [17]
+
+- **note**: 업로드 진행 중에만 노출
+- **type**: Button
+- **label**: 일시정지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [18]
+
+- **note**: 일시정지 상태에서만 노출 — 기존 세션을 이어받아 재개한다. 이어올리기에는 관리자 유효창을 요구하지 않는다. 업로드 건의 소유자 검증이 이미 그 사람으로 한정하고 있어 업로드 식별자가 남에게 새지 않기 때문이며, 이 비대칭은 의도된 것이다.
+- **type**: Button
+- **label**: 재개
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+
+#### [19]
+
+- **note**: 업로드 중이거나 일시정지·오류 상태에서 노출. 취소에도 관리자 유효창을 요구하지 않는다 — 시작과 달리 소유자 검증만으로 충분하다.
+- **type**: Button
+- **label**: 취소
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+#### [20]
+
+- **note**: 폼/파일/결과 리셋
+- **type**: Button
+- **label**: 초기화
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: secondary
+
+**description**:
+
+영상 파일과 메타데이터를 한 폼에서 입력해 올린다. 적재 경로를 파이프라인 즉시 실행과 관제 인입 재현 중에서 고르며, 입력 폼은 두 경로가 완전히 같다 — 고른 값에 따라 보내는 곳과 그 뒤 흐름만 달라진다.
+
+입력 부담을 낮추는 것이 이 폼의 설계 기준이다. 반드시 채우는 것은 식별 정보의 네 항목뿐이고 나머지 묶음은 모두 선택이라 처음에는 접어 둔다. 영상 기술메타는 비워 두면 서버가 올린 파일에서 직접 읽어 채우므로 전부 비워도 된다. 영상 길이는 아예 입력하지 않는다. 영상 클립 ID 와 CCTV ID 와 지자체코드에는 바로 쓸 수 있는 기본값을 미리 채워 둔다.
+
+500MB 한도는 영상 크기 제한이 아니라 한 번에 통째로 보내는 방식의 한도다. 그래서 파이프라인 즉시 실행에만 걸린다. 청크로 나눠 보내 끊긴 지점부터 이어 보낼 수 있는 관제 인입 재현은 이 한도를 받지 않으며, 전체 크기 상한은 서버 설정이 따로 정한다. 확장자 제한은 고르기를 돕는 보조 안내이며 실제 검증은 서버가 한다.
+
+입력 폼은 두 경로가 같지만 서버로 실제 전달되는 항목은 경로마다 다르다. 파이프라인 즉시 실행은 식별 정보와 개인정보 유형만 받고, 위치와 CCTV 제원 · 이벤트 ID · 이벤트명 · 관제일지 · 시계열 이벤트유형은 관제 인입 재현에서만 전달된다. 전달되지 않는 묶음은 화면이 그 사실을 알려 저장됐다고 오해하지 않게 한다.
+
+업로드 시작은 파일과 필수값이 모두 채워졌을 때만 눌리고 전송하는 동안에는 폼 전체가 잠긴다. 오류가 나면 서버가 보낸 문구를 그대로 보여준다. 초기화는 입력값과 고른 파일과 결과를 모두 비운다. 단계별 실행을 고르는 기능은 두지 않는다 — 즉시 실행의 흐름은 업로드 다음 비식별 다음 마킹 대기 정지로 고정이며 비식별은 예외 없이 항상 실행된다.
+
+이 폼은 한 건씩 올리는 자리다. 이벤트 마킹이 끝난 영상 묶음을 한 번에 올리려면 아래의 폴더에서 일괄 올리기를 쓴다. 두 자리는 입력도 결과도 서로 섞이지 않는다.
+
+**references_apis**:
+
+- API-152
+- API-156
+- API-158
+- API-160
+- API-162
+- API-164
+
+**references_features**:
+
+_(empty)_
+
+### 실행 결과 + 파이프라인 상태
+
+- **role**: side
+- **layout**: detail
+
+**components**:
+
+#### [1]
+
+- **note**: result 존재 시에만 조건부 렌더
+- **type**: Card
+- **label**: 업로드 결과
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: mono 스타일, data-testid=autolabel-raw-sn
+- **type**: Custom
+- **label**: rawSn 칩
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: RawSnChip
+
+#### [3]
+
+- **note**: 영상 상세 조회 결과의 status, 없으면 업로드 응답의 pipelineStatus로 대체
+- **type**: Custom
+- **label**: 파이프라인 상태
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: PipelineStatus
+
+#### [4]
+
+- **note**: terminal(MARKING_READY/FAILED) 미도달 시 표시
+- **type**: Custom
+- **label**: 파이프라인 진행 중
+- **state**: loading
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: Spinner
+
+#### [5]
+
+- **note**: 상태가 MARKING_READY 도달 시 role=status로 노출(rawSn 포함) — 비식별 후 마킹 대기 상태이며, 마킹 화면에서 마킹을 진행하면 잔여 배치가 실행된다는 안내
+- **type**: Alert
+- **label**: 마킹 대기 안내
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: primary
+
+#### [6]
+
+- **note**: 상태가 FAILED 도달 시 role=alert (rawSn 포함)
+- **type**: Alert
+- **label**: 파이프라인 실행 실패
+- **state**: hidden
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **variant**: destructive
+
+#### [7]
+
+- **note**: 파일 경로 / 프레임 수 / 트리거 시각
+- **type**: List
+- **label**: 결과 메타 3열
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [8]
+
+- **note**: 업로드된 영상의 마킹 화면으로 이동. 이 경로는 마킹 대기에서 멈추므로 사용자가 다음에 할 일이 마킹이다
+- **type**: Custom
+- **label**: 마킹 화면으로 이동 →
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: Link
+
+#### [9]
+
+- **note**: 영상 처리 현황 목록 화면으로 이동
+- **type**: Custom
+- **label**: 영상 목록 보기 →
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: Link
+
+- **description**: 업로드 성공(rawSn 수신) 시에만 렌더되는 결과 카드. 영상 상세를 2초 간격으로 폴링하여 파이프라인 진행을 가시화한다. 표시: rawSn 칩, 파이프라인 상태 텍스트, 진행 중 스피너(terminal 도달 전까지), 저장 파일 경로, 프레임 수, 트리거 시각. 이 화면의 즉시 실행 경로는 고정 플로우(업로드→비식별 무조건 실행→마킹 대기 정지)이므로 폴링 종료(terminal) 조건은 상태가 MARKING_READY(마킹 대기) 또는 FAILED에 도달한 시점이며, 이 경로에서 상태가 완료(COMPLETED)로 가는 일은 없다 — 잔여 배치(마킹 이후 단계)는 사용자가 마킹 화면에서 마킹을 완료해야 트리거된다. MARKING_READY 도달 시 마킹 대기 안내 배너를, FAILED 도달 시 실패 배너(role=alert)를 노출한다. 하단에 영상 상세 화면(rawSn 기준)과 영상 처리 현황 목록으로 이동하는 링크 2건을 제공한다. 적재 경로로 파이프라인 즉시 실행을 골랐을 때는 업로드 응답이 곧바로 영상 식별자를 주므로 이 패널이 바로 뜬다. 관제 인입 재현을 골랐을 때는 인입 원장에 적재만 되고 영상 식별자는 주기 배치가 그 행을 가져간 뒤에 생기므로, 그 전까지는 이 패널 대신 인입 대기 안내만 보인다.
+
+**references_apis**:
+
+- API-043
+
+**references_features**:
+
+_(empty)_
+
+### 폴더에서 일괄 올리기
+
+- **role**: main
+- **layout**: form
+
+**components**:
+
+#### [1]
+
+- **note**: 서버가 읽을 수 있는 폴더의 위치. 허용된 저장소 범위 밖이거나 상위로 거슬러 올라가는 표기가 섞이면 서버가 거부한다. 길이는 폴더경로명 표준 도메인 폭을 따른다.
+- **type**: Input
+- **label**: 폴더 위치
+- **state**: default
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [2]
+
+- **note**: 필수 4종 + 선택 1종. 이벤트유형*(마스터 조회 select, 형식은 EV+숫자 8자리) · 지자체코드*(숫자 1~10자리) · CCTV ID*(영문/숫자/_/- 64자) · 출처유형*(select) · 촬영일시(선택). 마킹 문서에서 얻을 수 없는 값만 받으며 항목마다 같은 값으로 붙는다. 영상 클립 ID 는 영상 파일 이름에서 얻으므로 받지 않는다.
+- **type**: Custom
+- **label**: 일괄 공통 정보
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: FieldsetGroup
+
+#### [3]
+
+- **note**: 폴더 위치가 채워졌을 때만 활성. 누르면 짝을 찾아 목록으로 보여 주며 이 단계에서는 아무것도 저장하지 않는다.
+- **type**: Button
+- **label**: 폴더 검사
+- **state**: default
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 훑은 파일 수 · 짝을 찾은 수 · 적재할 수 있는 수 · 어느 문서도 가리키지 않은 영상 수를 표시. 상한에 걸려 일부만 훑었으면 role=alert 로 그 사실을 함께 알린다 — 조용히 자르면 일부가 전부로 보인다.
+- **type**: Custom
+- **label**: 검사 요약
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: StatusBanner
+
+#### [5]
+
+- **note**: 검사 결과를 한 줄에 한 짝씩 표시. 적재할 수 없는 항목은 선택이 꺼진 채 사유가 보이고, 짝을 찾지 못한 항목도 목록에 남아 무엇이 빠졌는지 알 수 있다. 역산 속도와 실측 속도가 다르면 그 줄을 눈에 띄게 표시한다 — 어긋난 채로 적재하면 이벤트가 없는 엉뚱한 자리의 프레임을 뽑는다.
+- **type**: Table
+- **label**: 짝 목록
+
+**columns**:
+
+- 선택
+- 마킹 문서
+- 영상 파일
+- 구간 수
+- 시점 수
+- 역산 속도
+- 실측 속도
+- 영상 프레임 수
+- 적재 가능
+- 사유
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 적재할 수 없는 항목은 이 선택에 포함되지 않는다.
+- **type**: Checkbox
+- **label**: 적재 가능한 항목 전체 선택
+- **state**: default
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [7]
+
+- **note**: 선택한 항목이 하나 이상이고 공통 정보가 모두 채워졌을 때만 활성. 누르면 작업이 등록되고 응답이 곧바로 돌아오며 옆 패널이 진행을 보여 준다. 비활성인 사유를 버튼 옆에 적어 무엇을 채워야 하는지 알린다.
+- **type**: Button
+- **label**: 선택한 항목 적재
+- **state**: disabled
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+**description**:
+
+서버가 읽을 수 있는 폴더의 위치를 넣으면 그 아래를 재귀로 훑어 마킹 문서와 영상의 짝을 찾아 보여 준다. 이벤트 마킹이 끝난 영상 묶음을 한 번에 올리기 위한 자리이며, 한 건씩 올리는 위쪽 폼과 입력도 결과도 서로 섞이지 않는다.
+
+짝짓기 기준은 폴더 구조가 아니라 마킹 문서가 스스로 적어 둔 영상 파일 이름이다. 그래서 문서와 영상이 서로 다른 하위 자리에 놓여 있어도 짝이 된다. 검사 단계에서는 아무것도 저장하지 않으므로 폴더를 잘못 넣어도 되돌릴 것이 없다.
+
+마킹 문서에서 얻을 수 없는 값만 사람이 지정한다. 이벤트 유형과 지자체 코드와 카메라 식별자와 개인정보 유형이 그것이며, 항목마다 같은 값이 붙는다. 한 폴더에 여러 카메라가 섞여 있으면 폴더를 나눠 따로 올린다. 영상 식별자는 영상 파일 이름에서 얻으므로 따로 받지 않는다.
+
+적재를 막는 사유는 제출 전에 알린다. 적재할 수 있는 항목이 하나도 없거나 공통 정보가 비어 있으면 적재 버튼이 눌리지 않으며, 다 고르고 난 뒤에야 거부되는 동선을 만들지 않는다. 상한에 걸려 폴더를 일부만 훑었으면 그 사실을 조용히 넘기지 않고 함께 알린다.
+
+**references_apis**:
+
+- API-216
+- API-217
+
+**references_features**:
+
+_(empty)_
+
+### 일괄 적재 진행
+
+- **role**: side
+- **layout**: detail
+
+**components**:
+
+#### [1]
+
+- **note**: 끝난 항목 수 / 대상 항목 수. 지금 처리 중인 항목의 영상 이름을 아래에 함께 표시한다.
+- **type**: Custom
+- **label**: 진행률
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: ProgressBar
+
+#### [2]
+
+- **note**: 성공 · 실패 · 건너뜀 수. 작업이 종결되면 완료인지 실패가 남았는지를 색으로 구분해 표시한다.
+- **type**: Custom
+- **label**: 집계
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: StatusBanner
+
+#### [3]
+
+- **note**: 상태로 걸러 볼 수 있어 실패한 것만 모아 보기 쉽다. 거르기는 담기는 목록만 좁히며 위쪽 집계는 언제나 전체 기준이다. 결과가 상한에 걸려 일부만 담기면 그 사실을 함께 알린다.
+- **type**: Table
+- **label**: 건별 결과
+
+**columns**:
+
+- 마킹 문서
+- 영상 파일
+- 상태
+- 영상 번호
+- 사유
+
+**options**:
+
+_(empty)_
+
+#### [4]
+
+- **note**: 작업이 실패가 남은 채 종결되면 role=alert 로 노출. 무엇을 고쳐 다시 올려야 하는지를 사유와 함께 안내한다. 조건부 렌더.
+- **type**: Custom
+- **label**: 실패 안내
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: Alert
+
+#### [5]
+
+- **note**: 적재된 영상이 목록에 올라온 것을 확인하고 작업자에게 배정하러 가는 다음 걸음.
+- **type**: Custom
+- **label**: 영상 처리 현황으로 이동
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+- **custom_name**: Link
+
+**description**:
+
+일괄 적재 작업을 등록했을 때만 렌더되는 진행 패널. 적재 요청이 곧바로 반환하므로 끝나는 시점을 응답으로 알 수 없고, 이 패널이 조회를 되풀이해 그 자리를 대신한다. 작업이 종결되면 되풀이를 멈춘다.
+
+진행률은 끝난 항목 수를 대상 항목 수로 나눈 값이다. 백 건이면 영상 복사가 시간을 지배하므로 겉보기에 멈춘 듯 보일 수 있어, 지금 몇 건째를 옮기고 있는지를 함께 보여 준다.
+
+실패한 항목과 건너뛴 항목은 구분해 보여 준다. 건너뜀은 짝을 찾지 못했거나 적재할 수 없는 상태여서 처리하지 않은 것이고 실패는 처리하다 실패한 것이라, 사람이 할 일이 다르다.
+
+브라우저를 닫았다 다시 열어도 작업 식별번호로 같은 결과를 볼 수 있다. 서버가 다시 떠도 마찬가지이며, 처리 도중이던 항목은 다시 집혀 이어진다.
+
+**references_apis**:
+
+- API-218
+
+**references_features**:
+
+_(empty)_
+
+## brownfield
+
+### status
+
+new
+
+### change_kind
+
+- capability-add
+
+### diff_summary
+
+2차 신설. 개발용 오토라벨 시험 통로로 출발했으나 운영에서 쓰는 파일 업로드 화면이 되었고, 관리자 페이지에 속해 진입 시 관리자 패스워드 확인을 거친다.
+
+## surface_kind
+
+web
+
+## consumes_apis
+
+- API-043
+- API-152
+- API-156
+- API-158
+- API-160
+- API-162
+- API-164
+- API-216
+- API-217
+- API-218
+- API-194
+
+## implementation
+
+### status
+
+implemented
+
+### modules
+
+- MOD-048
+- MOD-041
+
+### records
+
+- IMPREC-109
+- IMPREC-164
+
+### progress
+
+100
+
+### subtasks
+
+_(empty)_
+
+### last_updated
+
+2026-08-27T20:57:54.582Z
+
+### module_paths
+
+_(empty)_
+
+## required_roles
+
+- ROLE-004
+
+## static_renders
+
+### main
+
+- **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-027/main.html
+- **label**: 파일 업로드 — 와이어프레임
+- **width**: 1440
+- **surface**: page
+- **platform**: web
+
+**sections**:
+
+_(empty)_
+
+- **description**: 
+- **source_hash**: cd8650c2df33d4dfaacebfad43f747218fe169541ae063651e346ca7d6908275
+- **generated_at**: 2026-08-27T10:16:36.631Z
+- **generated_by**: generate-wireframes.py
+
+**triggered_by**:
+
+_(empty)_
+
+## uses_constants
+
+_(empty)_
+
+## external_designs
+
+_(empty)_
+
+## realizes_use_cases
+
+- UC-037
+
+## covered_by_acceptances
+
+- AC-099
+- AC-100
+- AC-101
+- AC-102
+- AC-103
+- AC-104
+- AC-105
+- AC-106

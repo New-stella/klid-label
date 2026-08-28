@@ -39,12 +39,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
-    "stale": true,
-    "stale_reason": "UC-002의 data.implementation 변경 — realizes",
-    "change_summary": "전파 확인만 기록한다 — 원천 INT-006 v11 의 변경은 콜백 계약을 새 연동 판에 맞춘 것이고, 이 흐름은 종료 한 번의 발사와 취소 도착을 이미 단계에 담고 있어 고칠 내용이 없다.",
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파를 확인하고 변경 없음을 기록한다. 흐름의 모든 단계가 결과 도착 이후를 다룬다 — 멱등 원장 판정, 부모 게이트, 새 영상 생성, 커밋 이후 3단계 비동기 확정. 위탁 요청 본문을 조립하거나 내보내는 단계는 하나도 없고, 이 흐름이 참조하는 창구도 수신 계약이다. 원천 변경은 보내는 쪽 요청 본문의 구조라 접점이 없다. 직전 리비전도 같은 원천으로 확인만 기록했으나 그때는 종료 발사와 취소 도착의 단계 보유 여부를 본 것이고, 이번에 확인한 것은 생성 조건과 자유 지시문이 이 흐름 어디에도 등장하지 않는다는 점이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T00:41:13.119Z",
+    "last_updated_at": "2026-08-27T12:45:46.776Z",
     "created_at": "2026-06-02T13:10:55.248Z"
   }
 }

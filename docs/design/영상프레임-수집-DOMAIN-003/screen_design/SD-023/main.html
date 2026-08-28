@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head>
 <body>
 <main class="screen-root">
 
@@ -29,6 +29,22 @@
   </div>
 
   
+  
+  <section class="card" aria-label="목록 조건">
+    <div class="card-header">
+      <h2 class="t-title-sm card-title">목록 조건</h2>
+    </div>
+    <div class="filter-row">
+      <label class="check-field" for="filter-withheld">
+        <input class="check-box" id="filter-withheld" type="checkbox" aria-describedby="filter-withheld-help" />
+        <span class="check-label t-body-md">오토라벨 보류만 보기</span>
+      </label>
+      <p class="filter-help t-body-sm" id="filter-withheld-help">프리셋이 없거나 무효인 이벤트유형의 영상은 오토라벨링이 보류됩니다.</p>
+    </div>
+    <p class="filter-note t-caption">보류로 볼 상태의 정의는 서버가 갖고 있습니다 — 이 조건은 그 정의 전체를 한 값으로 물어보므로, 보류로 치는 상태가 늘어나도 조건은 그대로 따라갑니다. 프리셋에 라벨을 하나도 담지 않아 일부러 오토라벨에서 뺀 연결됨(제외) 유형은 보류가 아니라 이 조건에 걸리지 않습니다.</p>
+  </section>
+
+  
   <section class="card" aria-label="이벤트유형 목록">
     <div class="card-header">
       <h2 class="t-title-sm card-title">이벤트유형 목록</h2>
@@ -44,6 +60,7 @@
             <th class="col-name">표시명</th>
             <th class="col-origin">관제 원본</th>
             <th class="col-ctgry">카테고리</th>
+            <th class="col-preset">프리셋</th>
             <th class="col-collect">수집</th>
             <th class="col-manage">관리</th>
           </tr>
@@ -64,6 +81,12 @@
             </td>
             <td class="cell-dim">-</td>
             <td>침수(범람)</td>
+            <td>
+              <span class="preset-badge" data-preset="linked">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                연결됨
+              </span>
+            </td>
             <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="true">
@@ -95,6 +118,12 @@
             <td class="cell-dim">-</td>
             <td>침수(범람)</td>
             <td>
+              <span class="preset-badge" data-preset="invalid">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+                연결됨(무효)
+              </span>
+            </td>
+            <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="true">
                   <span class="knob" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"></path></svg></span>
@@ -125,6 +154,12 @@
             <td class="cell-dim">-</td>
             <td>침수(범람)</td>
             <td>
+              <span class="preset-badge" data-preset="none">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><path d="M12 16.5h.01"></path></svg>
+                미연결
+              </span>
+            </td>
+            <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="true">
                   <span class="knob" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"></path></svg></span>
@@ -154,6 +189,12 @@
             <td>쓰러짐 감지</td>
             <td>쓰러짐</td>
             <td>
+              <span class="preset-badge" data-preset="linked">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                연결됨
+              </span>
+            </td>
+            <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="true">
                   <span class="knob" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"></path></svg></span>
@@ -181,6 +222,12 @@
             </td>
             <td class="cell-dim">-</td>
             <td>교통사고</td>
+            <td>
+              <span class="preset-badge" data-preset="excluded">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
+                연결됨(제외)
+              </span>
+            </td>
             <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="true">
@@ -210,6 +257,13 @@
             </td>
             <td class="cell-dim">-</td>
             <td>교통사고</td>
+            
+            <td>
+              <span class="preset-badge" data-preset="excluded">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
+                연결됨(제외)
+              </span>
+            </td>
             <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="false">
@@ -239,6 +293,12 @@
             <td class="cell-dim">-</td>
             <td>화재</td>
             <td>
+              <span class="preset-badge" data-preset="linked">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                연결됨
+              </span>
+            </td>
+            <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="true">
                   <span class="knob" aria-hidden="true"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"></path></svg></span>
@@ -267,6 +327,12 @@
             </td>
             <td class="cell-dim">-</td>
             <td class="cell-dim">-</td>
+            <td>
+              <span class="preset-badge" data-preset="none">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><path d="M12 16.5h.01"></path></svg>
+                미연결
+              </span>
+            </td>
             <td>
               <span class="toggle-hit">
                 <button type="button" class="collect-toggle" aria-pressed="false">
@@ -327,6 +393,48 @@
           <p class="t-caption text-muted">접기는 영구 병합이 아니라 표시명이 같은 동안만 유지되는 상태입니다. 이름을 비워 저장하면 다시 합쳐집니다.</p>
         </div>
       </div>
+    </div>
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">프리셋 칸에 붙는 상태 배지 4종과, 목록 조건을 켠 모습입니다 — 값은 서버 응답에 실려 온 것을 그대로 쓰고, 화면이 프리셋 유무나 실효 여부를 다시 판정하지 않습니다.</span>
+    </div>
+    <div class="reference-grid cols-2">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 프리셋 연결 상태 4종</p>
+        <div class="ref-box">
+          <ul class="opt-list preset-legend">
+          <li class="opt-item"><span class="preset-badge" data-preset="linked"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>연결됨</span><span class="t-caption text-muted">프리셋이 걸려 있고 실효합니다.</span></li>
+          <li class="opt-item"><span class="preset-badge" data-preset="invalid"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>연결됨(무효)</span><span class="t-caption text-muted">프리셋은 걸려 있으나 AI 검출 클래스에 매핑된 라벨이 하나도 없어 실효하지 않습니다.</span></li>
+          <li class="opt-item"><span class="preset-badge" data-preset="excluded"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>연결됨(제외)</span><span class="t-caption text-muted">프리셋에 라벨을 하나도 담지 않아 그 유형을 오토라벨 대상에서 뺀 상태입니다.</span></li>
+          <li class="opt-item"><span class="preset-badge" data-preset="none"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><path d="M12 16.5h.01"></path></svg>미연결</span><span class="t-caption text-muted">프리셋이 없습니다.</span></li>
+          </ul>
+          <p class="t-caption text-muted legend-foot">연결됨(무효)와 연결됨(제외)는 갈라 읽어야 합니다 — 앞은 라벨을 골랐는데 전부 매핑이 없어 못 도는 사고이고, 뒤는 라벨을 하나도 담지 않아 사람이 일부러 오토라벨에서 뺀 선언입니다. 같아 보이면 사고를 의도로 오인합니다.</p>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 목록 조건을 켠 상태</p>
+        <div class="ref-box">
+          <div class="demo-stack">
+            <label class="check-field" for="filter-withheld-on">
+              <input class="check-box" id="filter-withheld-on" type="checkbox" checked />
+              <span class="check-label t-body-sm">오토라벨 보류만 보기</span>
+            </label>
+            <ul class="opt-list">
+              <li class="opt-item"><span class="t-body-sm">EV01000102 · 침수(범람) 하천</span><span class="preset-badge" data-preset="invalid"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>연결됨(무효)</span></li>
+              <li class="opt-item"><span class="t-body-sm">EV01000103 · 침수(범람)</span><span class="preset-badge" data-preset="none"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><path d="M12 16.5h.01"></path></svg>미연결</span></li>
+              <li class="opt-item"><span class="t-body-sm">EV09000001</span><span class="preset-badge" data-preset="none"><svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><path d="M12 16.5h.01"></path></svg>미연결</span></li>
+            </ul>
+            <p class="t-caption text-muted">조건을 바꾸면 목록을 처음부터 다시 조회합니다. 조건을 켜 둔 채 표시명이나 수집여부를 저장해 그 행이 조건에서 벗어나더라도, 저장한 행은 그 자리에 그대로 두고 사라지게 하지 않습니다. 연결됨(제외) 유형은 보류가 아니라 이 조건에 걸리지 않습니다.</p>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -406,6 +514,271 @@
           </li>
         </ul>
       </div>
+    </div>
+  </div>
+
+
+  
+  <section class="card" aria-label="검증 이벤트 유형·질문 관리">
+    <div class="card-header">
+      <h2 class="t-title-sm card-title">검증 이벤트 유형·질문</h2>
+      <span class="card-count t-body-sm">전체 4개 유형 · 질문 7개</span>
+    </div>
+    <p class="section-desc t-body-sm">외부 시계열 분석에 쓰는 검증 이벤트 유형과 유형별 질문 문구를 관리합니다. 유형 자체는 추가·삭제할 수 없고 질문만 편집합니다.</p>
+
+    <div class="verify-stack">
+
+      
+      <div class="table-scroll">
+        <table class="data-table verify-table t-body-sm">
+          <caption class="sr-only">등록된 검증 이벤트 유형 목록입니다. 정렬순서 오름차순으로 표시하며, 유형을 고르면 아래 질문 목록이 그 유형의 것으로 바뀝니다.</caption>
+          <thead>
+            <tr>
+              <th class="col-pick"><span class="sr-only">유형 선택</span></th>
+              <th class="col-order">정렬순서</th>
+              <th class="col-vcode">검증 유형 코드</th>
+              <th class="col-vname">유형명</th>
+              <th class="col-vdesc">설명</th>
+              <th class="col-pair">관제 이벤트유형 코드</th>
+              <th class="col-qcnt">질문 수</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr>
+              <td class="cell-pick">
+                <label class="radio-hit" for="vt-fire"><input class="row-radio" type="radio" name="verify-type" id="vt-fire" /></label>
+              </td>
+              <td class="cell-num">1</td>
+              <td class="cell-vcode">fire</td>
+              <td><label class="type-name" for="vt-fire">화재</label></td>
+              <td>불꽃 또는 연기가 관측되는 장면</td>
+              <td>
+                <span class="pair-codes">
+                  <span class="pair-code">EV01000401</span>
+                  <span class="pair-code">EV01000402</span>
+                </span>
+              </td>
+              <td class="cell-num">2</td>
+            </tr>
+
+            <tr>
+              <td class="cell-pick">
+                <label class="radio-hit" for="vt-fall"><input class="row-radio" type="radio" name="verify-type" id="vt-fall" /></label>
+              </td>
+              <td class="cell-num">2</td>
+              <td class="cell-vcode">fall</td>
+              <td><label class="type-name" for="vt-fall">쓰러짐</label></td>
+              <td>사람이 넘어진 뒤 일어나지 못하는 장면</td>
+              <td>
+                <span class="pair-codes">
+                  <span class="pair-code">EV01000201</span>
+                </span>
+              </td>
+              <td class="cell-num">2</td>
+            </tr>
+
+            
+            <tr>
+              <td class="cell-pick">
+                <label class="radio-hit" for="vt-violence"><input class="row-radio" type="radio" name="verify-type" id="vt-violence" /></label>
+              </td>
+              <td class="cell-num">3</td>
+              <td class="cell-vcode">violence</td>
+              <td><label class="type-name" for="vt-violence">폭력</label></td>
+              <td class="cell-dim">-</td>
+              <td><span class="pair-none">짝 없음</span></td>
+              <td class="cell-num" data-zero="true">0</td>
+            </tr>
+
+            
+            <tr data-selected="true">
+              <td class="cell-pick">
+                <label class="radio-hit" for="vt-flooding"><input class="row-radio" type="radio" name="verify-type" id="vt-flooding" checked /></label>
+              </td>
+              <td class="cell-num">4</td>
+              <td class="cell-vcode">flooding</td>
+              <td><label class="type-name" for="vt-flooding">침수(범람)</label></td>
+              <td>도로 또는 하천이 물에 잠긴 장면</td>
+              <td>
+                <span class="pair-codes">
+                  <span class="pair-code">EV01000101</span>
+                  <span class="pair-code">EV01000102</span>
+                  <span class="pair-code">EV01000103</span>
+                </span>
+              </td>
+              <td class="cell-num">3</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+
+      <p class="section-note t-caption">관제 이벤트유형 코드는 인입 원장에 실려 온 짝을 그대로 읽어 보여줍니다 — 이 화면이 대응을 만들지 않으므로 여기서 고칠 수 없고, 한 유형에 여러 개가 붙거나 한 건도 없을 수 있습니다. 검증 유형 코드와는 서로 다른 코드 체계라 한 칸에 섞어 적지 않습니다.</p>
+
+      
+      <div class="q-panel">
+        <div class="q-panel-head">
+          <span class="q-panel-title">
+            <span class="t-title-sm">침수(범람) 질문 목록</span>
+            <span class="q-panel-sub t-caption">검증 유형 코드 <span class="q-code">flooding</span> · 위에서 고른 유형의 질문입니다.</span>
+          </span>
+          <span class="q-count t-caption">3개</span>
+        </div>
+
+        <div class="q-panel-body">
+
+          
+          <div class="alert alert-error" role="alert">
+            <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+            </svg>
+            <div class="alert-body">
+              <span class="alert-title t-title-sm">질문 문구를 저장할 수 없습니다</span>
+              <span class="alert-desc t-body-sm">3번째 질문 · 문구가 비어 있습니다. 문구를 채우거나 그 줄을 삭제한 뒤 다시 저장해 주세요.</span>
+              <span class="alert-desc t-caption">요청 전체가 거부되었을 뿐 편집하던 목록은 그대로 남아 있습니다.</span>
+            </div>
+          </div>
+
+          <ol class="q-list">
+
+            <li class="q-item" data-first="true">
+              <div class="q-item-head">
+                <span class="q-order" aria-hidden="true">1</span>
+                <span class="badge badge-primary">
+                  <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 9.7l5.4-.8Z"></path></svg>
+                  기본 질문
+                </span>
+                <span class="q-item-tools">
+                  <button type="button" class="icon-btn" aria-label="1번째 질문 순서 올리기" disabled>
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="1번째 질문 순서 내리기">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>
+                  </button>
+                  <button type="button" class="btn btn-danger" aria-label="1번째 질문 삭제">삭제</button>
+                </span>
+              </div>
+              <label class="sr-only" for="q-1">1번째 질문 문구</label>
+              <textarea class="textarea" id="q-1" rows="2" aria-describedby="q-1-help" placeholder="영상에서 '&lt;이벤트&gt;' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?">영상에서 침수(범람) 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?</textarea>
+              <div class="field-foot">
+                <span class="field-help t-caption" id="q-1-help">정렬순서 첫 번째라 이 유형의 기본 질문으로 쓰입니다.</span>
+                <span class="char-count t-caption">44자</span>
+              </div>
+            </li>
+
+            <li class="q-item">
+              <div class="q-item-head">
+                <span class="q-order" aria-hidden="true">2</span>
+                <span class="q-item-tools">
+                  <button type="button" class="icon-btn" aria-label="2번째 질문 순서 올리기">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="2번째 질문 순서 내리기">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>
+                  </button>
+                  <button type="button" class="btn btn-danger" aria-label="2번째 질문 삭제">삭제</button>
+                </span>
+              </div>
+              <label class="sr-only" for="q-2">2번째 질문 문구</label>
+              <textarea class="textarea" id="q-2" rows="2" aria-describedby="q-2-help" placeholder="영상에서 '&lt;이벤트&gt;' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?">도로나 보도에 물이 차오른 구간이 보이는가? 보인다면 그 위치와 잠긴 정도를 함께 설명하라.</textarea>
+              <div class="field-foot">
+                <span class="field-help t-caption" id="q-2-help">한 줄로 적습니다. 줄바꿈·제어문자는 넣을 수 없습니다.</span>
+                <span class="char-count t-caption">51자</span>
+              </div>
+            </li>
+
+            
+            <li class="q-item" data-invalid="true">
+              <div class="q-item-head">
+                <span class="q-order" aria-hidden="true">3</span>
+                <span class="q-item-tools">
+                  <button type="button" class="icon-btn" aria-label="3번째 질문 순서 올리기">
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+                  </button>
+                  <button type="button" class="icon-btn" aria-label="3번째 질문 순서 내리기" disabled>
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path></svg>
+                  </button>
+                  <button type="button" class="btn btn-danger" aria-label="3번째 질문 삭제">삭제</button>
+                </span>
+              </div>
+              <label class="sr-only" for="q-3">3번째 질문 문구</label>
+              <textarea class="textarea" id="q-3" rows="2" aria-invalid="true" aria-describedby="q-3-help" placeholder="영상에서 '&lt;이벤트&gt;' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?"></textarea>
+              <div class="field-foot">
+                <span class="field-error t-caption" id="q-3-help">
+                  <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+                  문구가 비어 있습니다
+                </span>
+                <span class="char-count t-caption">0자</span>
+              </div>
+            </li>
+
+          </ol>
+
+          <button type="button" class="btn btn-secondary q-add">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            질문 추가
+          </button>
+        </div>
+
+        <div class="q-panel-foot">
+          <span class="t-caption text-muted">저장은 이 목록 전체를 한 번에 교체합니다. 지금 보이는 순서가 그대로 정렬순서가 되고 첫 번째 질문이 기본 질문이 됩니다. 항목마다 따로 저장하는 통로는 두지 않습니다.</span>
+          <span class="q-foot-actions">
+            <button type="button" class="btn btn-secondary">취소</button>
+            <button type="button" class="btn btn-primary">질문 목록 저장</button>
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">질문 목록이 상태에 따라 갖는 세 가지 모습입니다 — 실제 화면에서는 위 질문 패널 자리에 이 중 하나가 대신 표시되고, 알림은 저장 직후 잠시 떴다 사라집니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 질문이 없는 유형</p>
+        <div class="ref-box">
+          <div class="empty-box">
+            <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M8 10h8"></path><path d="M8 14h5"></path><path d="M21 12a9 9 0 0 1-9 9H3l2.3-3.2A9 9 0 1 1 21 12Z"></path>
+            </svg>
+            <span class="t-body-sm">이 유형에는 등록된 질문이 없습니다</span>
+            <span class="t-caption text-muted">질문을 하나도 두지 않는 것도 허용되는 상태입니다. 필요하면 아래에서 첫 질문을 추가하세요.</span>
+            <button type="button" class="btn btn-secondary btn-sm">질문 추가</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 질문 목록 로딩</p>
+        <div class="ref-box">
+          <div class="skel-row"><span class="skel" style="width:28px"></span><span class="skel" style="width:56%"></span></div>
+          <div class="skel-row"><span class="skel" style="width:28px"></span><span class="skel" style="width:64%"></span></div>
+          <div class="skel-row"><span class="skel" style="width:28px"></span><span class="skel" style="width:42%"></span></div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 저장 결과 알림</p>
+        <div class="ref-box" style="display:flex;flex-direction:column;gap:8px">
+          <div class="toast" data-tone="success" role="status">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.5 2.5 2.5 4.5-5"></path></svg>
+            <span class="t-body-sm">질문 목록을 저장했습니다</span>
+          </div>
+          <div class="toast" data-tone="error" role="alert">
+            <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+            <span class="t-body-sm">저장에 실패했습니다</span>
+          </div>
+          <p class="t-caption text-muted">실패 알림은 서버가 준 메시지를 그대로 보여주고, 메시지가 없을 때만 위 문구를 씁니다.</p>
+        </div>
+      </div>
+
     </div>
   </div>
 

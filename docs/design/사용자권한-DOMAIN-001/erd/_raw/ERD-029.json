@@ -306,11 +306,14 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-153"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-27T20:56:48.275Z",
         "module_paths": []
       },
       "uses_constants": []
@@ -321,8 +324,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "약속해 둔 자격 전용 테이블을 실제로 더한다. 관리자 비밀번호 해시는 일반 설정 저장소가 아니라 이 테이블이 보관하며, 공유 자격이라 행이 하나뿐이다. 세대·판수 컬럼을 두지 않는 이유(유효창 서명이 현재 해시에 의존해 교체만으로 무효가 된다)도 함께 적었다. 물리명은 표준 단어 조합이다 — 관리자·비밀번호·일련번호·해시·수정자·수정일시 모두 등록된 단어에서 왔고 새 약어를 만들지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T09:22:20.651Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-27T20:56:48.275Z",
     "created_at": "2026-08-16T04:20:31.216Z"
   }
 }

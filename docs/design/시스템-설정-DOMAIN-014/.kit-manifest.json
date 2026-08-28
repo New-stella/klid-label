@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
-  "domain": null,
-  "synced_at": "2026-08-27T20:54:27.765Z",
+  "domain": "DOMAIN-014",
+  "synced_at": "2026-08-28T11:38:12.581Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -9,8 +9,8 @@
     "implementation_guideline",
     "permission_role"
   ],
-  "scope_mode": "domain_id",
-  "count": 76,
+  "scope_mode": "pin",
+  "count": 91,
   "items": {
     "AC-006": {
       "type": "acceptance",
@@ -27,43 +27,43 @@
     "AC-071": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 4,
+      "version": 5,
       "content_hash": "60016c7db714865b5c7b93ec2699476561150d922130bee1421038ed2b41b8df"
     },
     "AC-072": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 8,
-      "content_hash": "d3c8c7f84c10b6750c2872197f9533124eb055d684b1c994a288657f844b15f0"
+      "version": 9,
+      "content_hash": "5e7ea5dd5b5169854ce558af70226c1cb8be97bb1b2bef8ebd2d7ffbf61deeb5"
     },
     "AC-073": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 4,
+      "version": 5,
       "content_hash": "e6a7760df37ff20f69538f191bbdad3c80e3f7e4c78f64a5d911fea7b4a5ab5c"
     },
     "AC-074": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 1,
+      "version": 2,
       "content_hash": "1a2c3847c5322baea28badc01961ccfd8d069e8f0ae01fa4eaea0a9bbfaf009f"
     },
     "AC-075": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 3,
+      "version": 4,
       "content_hash": "e3cff7f035a69d560b08de19ed3470e1b807da0c67957f7eb1ceb62e579d6275"
     },
     "AC-076": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 1,
+      "version": 2,
       "content_hash": "ca5196bf5d784d7e97b16bda88f013cd961997c1b40305100bd3bc1dc64af608"
     },
     "AC-077": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 2,
+      "version": 3,
       "content_hash": "d6de559d1a73ef5238135b6c7fffae17c23647defbce902f37a4d11faaece5e3"
     },
     "AC-078": {
@@ -72,11 +72,11 @@
       "version": 1,
       "content_hash": "88cf4698bdc8fffb2006b49dc7d63235711eb7dd9ec3633309232f03c56d29b1"
     },
-    "ADR-003": {
-      "type": "adr",
+    "AC-122": {
+      "type": "acceptance",
       "domain_id": "DOMAIN-001",
-      "version": 2,
-      "content_hash": "bceab92d200ea452c9f3e6b52ab2de3db7d91d4571498ca418cb0fe7e080599a"
+      "version": 1,
+      "content_hash": "6c82592f1a753e641c2631eb480802cd6728af74b25a4afbc170ff2dc6abb2c5"
     },
     "ADR-006": {
       "type": "adr",
@@ -99,8 +99,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 6,
-      "content_hash": "ac13b387487f7e98d960cd1b93f0a7d6eded02c3ddee2818b8f3bf9abbeff255"
+      "version": 7,
+      "content_hash": "b962d399a3247bf24c8682c5dcdd6df2faa9d225dfe3d4035e08ce365f1241f2"
     },
     "ADR-051": {
       "type": "adr",
@@ -113,6 +113,18 @@
       "domain_id": "DOMAIN-004",
       "version": 1,
       "content_hash": "dc4c2140b8a98b544fa64b4e474f15c4a7d6a6801a47c8aad8b4c70ffe1a9275"
+    },
+    "ADR-055": {
+      "type": "adr",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "ad80ed27d50abb46be47d76e44f7a8e5992965e196aea8d88348b8129318067c"
+    },
+    "API-004": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-001",
+      "version": 8,
+      "content_hash": "c3fa069929baadff6546535e1df64ee6958553833f65622238422d97e2a854e2"
     },
     "API-068": {
       "type": "api_endpoint",
@@ -144,6 +156,24 @@
       "version": 2,
       "content_hash": "b75c26016a57171e6af33805ee78184b6e7f22547f2115b08e0a358f280b0265"
     },
+    "API-152": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-004",
+      "version": 8,
+      "content_hash": "cc2cae0626a684cb8d588fdd1b1b73553ce5df77fd191f26a07c6284b14153e2"
+    },
+    "API-153": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-001",
+      "version": 4,
+      "content_hash": "bdcf55904aed126cb392b4e875875e913d660fa02044e979690468b052b17555"
+    },
+    "API-158": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-003",
+      "version": 5,
+      "content_hash": "e5132c07a28e05d25bd5e346f70644b7ec59a6b036dd799844de1d416f91b226"
+    },
     "API-193": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-014",
@@ -153,8 +183,8 @@
     "API-194": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-014",
-      "version": 7,
-      "content_hash": "7c66cb70cfd1d1affa34b6869d778162a1da81058dd21a8ed1e9a9a7fc78f37e"
+      "version": 8,
+      "content_hash": "f2c07deef31bf9d6906b5ce2c0ae8089f97a865d4f9b00b9c0d365a23d571216"
     },
     "API-219": {
       "type": "api_endpoint",
@@ -168,6 +198,18 @@
       "version": 3,
       "content_hash": "3e2f74081514907f1bd53ffcbfbd33fcbf42c9b3427f20e1af047f8a8c9794a4"
     },
+    "API-223": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-001",
+      "version": 4,
+      "content_hash": "5eb2c7796becbcc9a2b125307e0c5db12037a75891cde2a74bdea1d557107b50"
+    },
+    "SHELL-001": {
+      "type": "app_shell",
+      "domain_id": null,
+      "version": 10,
+      "content_hash": "eaa271a476992c03c6f2a5941f41873180a686594a5bceae94336d7ec76d38a6"
+    },
     "CDIAG-012": {
       "type": "class_diagram",
       "domain_id": "DOMAIN-014",
@@ -179,6 +221,36 @@
       "domain_id": "DOMAIN-014",
       "version": 9,
       "content_hash": "170643db82a80dd3e77f83c6ad8d20952882be6df8866aeb81b329ea8887df60"
+    },
+    "SEQ-007": {
+      "type": "diagram_sequence",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "25f1d34445b47b689d9db6b93bd92803e08518ff55b1fd7b26ba8f7718903d44"
+    },
+    "SEQ-013": {
+      "type": "diagram_sequence",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "83b229ade2a65a3e6b4b3bb2bc7299a42568e949c4b6c1ab54bea69a1e93fd10"
+    },
+    "SEQ-018": {
+      "type": "diagram_sequence",
+      "domain_id": "DOMAIN-001",
+      "version": 4,
+      "content_hash": "ac58276f0a749e46f0fc4377325aa64d0f0d7de01403b007898b65677535da37"
+    },
+    "SEQ-024": {
+      "type": "diagram_sequence",
+      "domain_id": "DOMAIN-014",
+      "version": 3,
+      "content_hash": "947424e11148c010abab19ce0a986a60da9cbb2b02a2879fb41b388455c56cca"
+    },
+    "SEQ-025": {
+      "type": "diagram_sequence",
+      "domain_id": "DOMAIN-014",
+      "version": 5,
+      "content_hash": "b48af595d9d71e953106fa844fd46cefff75e9303875f1f75c239c51dd0cf0bc"
     },
     "DOMAIN-014": {
       "type": "domain",
@@ -252,41 +324,11 @@
       "version": 12,
       "content_hash": "78fec5d4b712ae8c8c1c7c06299bff5b38620b5e15f929c9db5ce5f18c0b44c8"
     },
-    "SHELL-001": {
-      "type": "app_shell",
-      "domain_id": null,
-      "version": 10,
-      "content_hash": "eaa271a476992c03c6f2a5941f41873180a686594a5bceae94336d7ec76d38a6"
-    },
-    "SEQ-007": {
-      "type": "diagram_sequence",
-      "domain_id": null,
-      "version": 6,
-      "content_hash": "25f1d34445b47b689d9db6b93bd92803e08518ff55b1fd7b26ba8f7718903d44"
-    },
-    "SEQ-013": {
-      "type": "diagram_sequence",
-      "domain_id": null,
-      "version": 6,
-      "content_hash": "83b229ade2a65a3e6b4b3bb2bc7299a42568e949c4b6c1ab54bea69a1e93fd10"
-    },
-    "SEQ-024": {
-      "type": "diagram_sequence",
-      "domain_id": "DOMAIN-014",
-      "version": 2,
-      "content_hash": "947424e11148c010abab19ce0a986a60da9cbb2b02a2879fb41b388455c56cca"
-    },
-    "SEQ-025": {
-      "type": "diagram_sequence",
-      "domain_id": "DOMAIN-014",
-      "version": 5,
-      "content_hash": "b48af595d9d71e953106fa844fd46cefff75e9303875f1f75c239c51dd0cf0bc"
-    },
     "NAV-001": {
       "type": "navigation_tree",
       "domain_id": null,
-      "version": 23,
-      "content_hash": "d8a99a547c04fca5b639ac5ca424d2515722328eba00ae171af4107f1dc012e9"
+      "version": 25,
+      "content_hash": "0e603fab6692aa2d78bc5c1556fbea407830e6b3b593d40b251e514941fa6ca5"
     },
     "NFR-008": {
       "type": "nfr",
@@ -375,20 +417,26 @@
     "ROLE-001": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 12,
-      "content_hash": "9fd2d3ef10567acf71f4102696fbc11a4bfb5959b0946a6ad99a62ff5aa1e9c4"
+      "version": 13,
+      "content_hash": "c2b276a2692ada501ead009e95f55bf913e2b55d379bfcdf0902e63d99ec7d83"
     },
     "ROLE-002": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 8,
-      "content_hash": "3d4660839db789458c4ad7a20a93606024ebac2ac080cc9f0095d83eebf16416"
+      "version": 9,
+      "content_hash": "0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4"
     },
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 9,
-      "content_hash": "f7b96c5a16b1ed0afaf7d82133dc9e81f0f14c07782fa181c4c046be1b0f7912"
+      "version": 10,
+      "content_hash": "9b373200683b66162b66078ad809a200cbf8c8ac825d9302bbb568a636f207ea"
+    },
+    "ROLE-004": {
+      "type": "permission_role",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "d77983f88ac9c37d6a61cbf31a7c3840f1cd8737c632db29097539bb2f917e34"
     },
     "REQ-008": {
       "type": "requirement",
@@ -402,6 +450,12 @@
       "version": 7,
       "content_hash": "505a2e6136829316f7d41a3c03cefff0ddde5f6632d79c3358f11072ef1544d7"
     },
+    "SD-034": {
+      "type": "screen_design",
+      "domain_id": "DOMAIN-001",
+      "version": 3,
+      "content_hash": "8791b271557547a08f7b6bc42440adcc5099ead56365bdde635c10d2beb1c5cf"
+    },
     "SD-035": {
       "type": "screen_design",
       "domain_id": "DOMAIN-014",
@@ -413,6 +467,12 @@
       "domain_id": "DOMAIN-014",
       "version": 2,
       "content_hash": "e7f70b2409bcc2245405ce0d5b585c899e63cd37fa1e591a6f8b0f609f4a7748"
+    },
+    "SD-037": {
+      "type": "screen_design",
+      "domain_id": "DOMAIN-001",
+      "version": 3,
+      "content_hash": "c0b999f85248d058597347b7224f91c594541701b430006e4e34c50636cce632"
     },
     "SCREEN-005": {
       "type": "screen_spec",
@@ -426,11 +486,23 @@
       "version": 47,
       "content_hash": "621f7c61871a4a79b4c8de9f84c252344bae38ca6f8af68f1b257d982c9e28f6"
     },
+    "SCREEN-024": {
+      "type": "screen_spec",
+      "domain_id": "DOMAIN-001",
+      "version": 29,
+      "content_hash": "d51bb257f42d08ff935dfe4c4942cfcfb353bbe46b805f8697d2e53d240c3549"
+    },
     "SCREEN-025": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-014",
-      "version": 43,
-      "content_hash": "84ad7f2f81d63b7625cefd0fa228ee5aabe237a60936cad381146190191c1046"
+      "version": 44,
+      "content_hash": "582b9c1dc8965400526b4613c8e9b2a0570f50e9d816fc38c771199a4ca67b22"
+    },
+    "SCREEN-027": {
+      "type": "screen_spec",
+      "domain_id": "DOMAIN-004",
+      "version": 39,
+      "content_hash": "936c7693e6e7fea64ef94c8360bc76d2aeda5f9eae38a21ba34e0a854ad1c37c"
     },
     "SCREEN-038": {
       "type": "screen_spec",
@@ -438,17 +510,29 @@
       "version": 14,
       "content_hash": "f1e154a624ffedca4a3c7e2e48eb23fc72f70b47716b59705ab914669805e60a"
     },
+    "SCREEN-040": {
+      "type": "screen_spec",
+      "domain_id": "DOMAIN-001",
+      "version": 6,
+      "content_hash": "877963b80f428f021fdb3fba1582bbe6627697b21a62ecb74f3feefb68f94239"
+    },
+    "SCREEN-041": {
+      "type": "screen_spec",
+      "domain_id": "DOMAIN-001",
+      "version": 7,
+      "content_hash": "4b25c1c2d22487c03d3a83276d49fdb7793f4435f1277f891618f24c0e3a9b26"
+    },
     "SCREEN-042": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-014",
-      "version": 3,
-      "content_hash": "93895a31b9d1a859fe61602d2aa76b06f9e5d758a5e3a1391aac61f35a318370"
+      "version": 5,
+      "content_hash": "552687d80b87c1acdf2491cd4ac8b6930bc436d7cf4fca69cb68d723a2d31c4c"
     },
     "SCREEN-043": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-014",
-      "version": 3,
-      "content_hash": "86215cab04db3e88115c81e21b302f2de75baf63d66c6bf0b1a15b497f9f90e4"
+      "version": 4,
+      "content_hash": "334c8b3bf1ed54ddec970b44ee69b33ffb88987e4ae4823039fa665dd831e6c3"
     },
     "UC-006": {
       "type": "use_case",
@@ -461,6 +545,12 @@
       "domain_id": "DOMAIN-012",
       "version": 9,
       "content_hash": "71d28c00faf7eafebf8463e7e5ba50c6bffa722855bfa60bf98378cd2f1e6c6d"
+    },
+    "UC-030": {
+      "type": "use_case",
+      "domain_id": "DOMAIN-001",
+      "version": 12,
+      "content_hash": "01b8d6a05d3317608964812f268216fec5fd643e0e619992d0893dff9ac852d4"
     },
     "UC-031": {
       "type": "use_case",

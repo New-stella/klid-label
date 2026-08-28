@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-011
 type: class_diagram
-version: 10
+version: 11
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T05:06:15.993Z
+synced_at: 2026-08-28T11:37:03.064Z
 status: CHANGED
-prev_version: 9
-content_hash: 78f833a2d22a08fa4c3b63a6426757764a0e1250445fc17fb276338365e08dc6
+prev_version: 10
+content_hash: 90abd4bc8f301c0647f8f68ed1e72fc335883940ce4bb3cfc241a099f4524fcf
 stale: false
 raw: ./_raw/CDIAG-011.json
 links:
@@ -63,6 +63,7 @@ _(empty)_
 - **type**: Long
 - **is_static**: false
 - **visibility**: private
+- **description**: 포털 작업 저장소가 이 행에 부여하는 식별자. 내려받기 산출물에서 어노테이션 항목의 식별자를 채우는 조달처이며, 이 저장소에 담긴 라벨(포털 사용자가 직접 저장한 것)이 산출될 때 그 값이 된다. 다만 문서 사이의 유일성은 보장하지 않는다 — 다른 프레임 문서가 우연히 같은 값을 가질 수 있다. 문서 안에서 항목을 가리키는 용도이지 영상 전체에서 유일한 키가 아니다.
 - **is_readonly**: true
 
 **implementation**:

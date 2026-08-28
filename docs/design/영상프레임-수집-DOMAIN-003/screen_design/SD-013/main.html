@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head><body><main class="screen-root">
+<html><head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head><body><main class="screen-root">
 
   
   <div class="page-head-row">
@@ -24,7 +24,16 @@
     </div>
   </div>
 
-  
+  <div class="alert alert-warn" role="status">
+    <svg class="alert-icon icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+    </svg>
+    <div class="alert-body">
+      <p class="alert-title t-title-sm">시계열 위탁을 전체 건너뛰는 중입니다</p>
+      <p class="alert-desc t-body-sm">지금 들어오는 영상은 외부 시계열 분석에 위탁하지 않고 건너뛴 것으로 기록됩니다. 사유: 벤더 연동 전. 연동이 끝나면 <a class="alert-link" href="#">시스템 설정</a>에서 꺼 주세요 — 끄지 않으면 이후 영상도 계속 건너뜁니다.</p>
+    </div>
+  </div>
+
   <section class="card" aria-label="검색·필터">
     <div class="card-content">
       <form class="filter-form">
@@ -68,6 +77,25 @@
           <input class="input" id="f-to" type="date" value="2026-01-15" />
         </div>
 
+        <div class="field field--wide">
+          <label class="t-label" for="f-skip">시계열 건너뜀</label>
+          <select class="select" id="f-skip">
+            <option selected>전체</option>
+            <option>시계열 건너뜀</option>
+          </select>
+          <p class="field-help t-caption">지금 시계열 묶음이 건너뛴 상태인 영상만 남깁니다. 이미 되살린 영상은 남지 않습니다.</p>
+        </div>
+
+        <div class="field field--wide">
+          <label class="t-label" for="f-failed">작업 묶음 실패</label>
+          <select class="select" id="f-failed">
+            <option selected>전체</option>
+            <option>시계열 실패</option>
+            <option>오토라벨 실패</option>
+          </select>
+          <p class="field-help t-caption">상태 필터와 다른 축입니다 — 시계열 위탁 실패는 파이프라인을 멈추지 않아 그 영상의 배치 상태가 완료로 남습니다. 실패한 건을 모아 일괄로 건너뛰는 자리입니다.</p>
+        </div>
+
         <div class="filter-actions">
           <button type="submit" class="btn btn-primary">
             <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -104,13 +132,7 @@
           </svg>
           3건 시계열 건너뛰기
         </a>
-        <button type="button" class="btn btn-secondary btn-sm">
-          <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 2.64-6.36"></path><path d="M3 4v5h5"></path>
-          </svg>
-          3건 시계열 건너뛰기 해제
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm">
+                <button type="button" class="btn btn-secondary btn-sm">
           <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
             <path d="M5 12a7 7 0 1 1 2.05 4.95"></path><path d="M5 8v4h4"></path><path d="m11 10 4 2-4 2z"></path>
           </svg>

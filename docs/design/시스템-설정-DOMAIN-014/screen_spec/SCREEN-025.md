@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 43
+version: 44
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:54:27.722Z
+synced_at: 2026-08-28T11:36:56.029Z
 status: CHANGED
-prev_version: 39
-content_hash: 84ad7f2f81d63b7625cefd0fa228ee5aabe237a60936cad381146190191c1046
+prev_version: 43
+content_hash: 582b9c1dc8965400526b4613c8e9b2a0570f50e9d816fc38c771199a4ca67b22
 stale: true
 raw: ./_raw/SCREEN-025.json
 links:
@@ -15,7 +15,7 @@ links:
   belongs_to_domain: ["[[DOMAIN-014]]"]
   consumes: ["[[API-068]]", "[[API-069]]", "[[API-090]]"]
   covered_by: ["[[AC-055]]"]
-  implements: ["[[IMPREC-054]]"]
+  implements: ["[[IMPREC-054]]", "[[IMPREC-163]]"]
   realizes: ["[[UC-006]]", "[[UC-013]]", "[[UC-031]]"]
   references: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[FEAT-007]]"]
   requires: ["[[ROLE-001]]"]
@@ -483,6 +483,7 @@ _(empty)_
 ### records
 
 - IMPREC-054
+- IMPREC-163
 
 ### progress
 
@@ -494,7 +495,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-21T04:27:30.854Z
+2026-08-27T20:57:49.711Z
 
 ### module_paths
 

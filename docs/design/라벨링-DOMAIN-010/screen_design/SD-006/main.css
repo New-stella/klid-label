@@ -450,6 +450,52 @@ html { color-scheme: only light; }
 .psm-alert__list { margin: 4px 0 2px; padding-left: 18px; }
 .psm-alert__list li { margin-bottom: 2px; }
 
+/* 화면에는 안 보이고 보조기술에만 읽히는 문장 — 배지 글자만으로는 "그래서 어떻게 되는가"가
+   드러나지 않아 보조 안내를 함께 싣는다(눈으로 보는 사람에게는 title 툴팁이 같은 일을 한다). */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* 카드 제목의 유형코드 — 같은 표시명이 여러 코드로 나뉘므로 코드가 구분을 맡는다.
+   이름보다 한 단 낮춰 제목의 주인이 이름임을 지킨다. */
+.psm-card__code { font-size: 14px; font-weight: 400; color: var(--text-muted); white-space: nowrap; }
+
+/* 오토라벨 상태 배지 2종 — 서로 다른 상태라 한 카드에 함께 붙지 않는다.
+   「미적용」은 라벨을 담았는데 적용되지 않는 사고이고, 「제외」는 사람이 대상에서 뺀 선언이다.
+   글자가 곧 뜻이라 색 단독 구분이 아니며, 보조 문구는 title 과 낭독용 문장으로 함께 싣는다. */
+.psm-auto-badge {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 var(--sp-sm);
+  border-radius: var(--radius-full); white-space: nowrap; flex: 0 0 auto;
+}
+.psm-auto-badge--ineffective { background: var(--e-0); color: var(--e-7); }   /* 사고 축 */
+.psm-auto-badge--excluded    { background: var(--n-1); color: var(--n-8); }   /* 선언 축 — 중립 톤 */
+
+/* 라벨을 하나도 담지 않은 프리셋의 본문 — 칩 자리를 비우지 않고 이유를 적는다. */
+.psm-card__none { color: var(--text-muted); word-break: keep-all; }
+
+/* 라벨마다 붙는 AI 검출 클래스 매핑 표시 — 고르는 것을 막지는 않는다. */
+.psm-ai-tag {
+  margin-left: auto; flex: 0 0 auto;
+  padding: 0 6px; height: 20px; display: inline-flex; align-items: center;
+  border-radius: var(--radius-full);
+  background: var(--n-1); color: var(--n-8);
+}
+
+.psm-alert--warn { background: var(--w-0); color: var(--w-7); border: 1px solid var(--w-2); }
+
+/* 저장 뒤 안내 — 다이얼로그 미리보기 안에 함께 보인다(실제로는 저장 성공 후 뜬다). */
+.psm-toast {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  margin-top: var(--sp-md);
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--radius-md);
+  background: var(--su-0); color: var(--su-7); border: 1px solid var(--su-2);
+}
+.psm-toast__icon { flex: 0 0 auto; }
+.psm-dialog-preview__note { display: block; margin-top: var(--sp-sm); color: var(--text-muted); word-break: keep-all; }
+
 /* ============================== 9. 오버레이 쇼케이스 (모달/다이얼로그 정적 미리보기) ============================== */
 /* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
 .psm-overlay-showcase {

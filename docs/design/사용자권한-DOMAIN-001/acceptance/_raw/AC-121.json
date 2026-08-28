@@ -30,11 +30,14 @@
       "statement": "관리자 패스워드는 검수자 권한과 유효한 관리자 유효창에 더해 현재 패스워드를 다시 맞혀야만 바꿀 수 있고, 바뀌는 순간 그 전에 발급된 유효창은 방금 쓰던 것까지 모두 무효가 된다.",
       "is_negative": false,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-158"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-27T20:57:17.460Z",
         "module_paths": []
       },
       "derived_domain_ids": [],
@@ -47,8 +50,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "관리자 자격 축의 수용기준을 신설한다. 유효창 자체의 요구 대상·길이 축은 기존 기준이 이미 다루므로 여기서 복제하지 않고, 자격을 바꾸는 요건과 자격이 없을 때의 방향, 자격이 드러나지 않는다는 것만 새로 규정한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T09:31:20.628Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-27T20:57:17.460Z",
     "created_at": "2026-08-27T09:31:20.628Z"
   }
 }

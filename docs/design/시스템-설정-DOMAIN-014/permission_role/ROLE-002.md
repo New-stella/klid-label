@@ -1,16 +1,17 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 8
+version: 9
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:54:27.656Z
+synced_at: 2026-08-28T11:36:56.028Z
 status: CHANGED
-prev_version: 7
-content_hash: 3d4660839db789458c4ad7a20a93606024ebac2ac080cc9f0095d83eebf16416
-stale: false
+prev_version: 8
+content_hash: 0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4
+stale: true
 raw: ./_raw/ROLE-002.json
 links:
+  based_on: ["[[ADR-055]]"]
   granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
   requires_backward: ["[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
 ---
@@ -27,13 +28,17 @@ WORKER
 
 preserved
 
+### decided_by
+
+ADR-055
+
 ### change_kind
 
 - preserved
 
 ### diff_summary
 
-1차 라벨링 작업자 역할 보존
+1차 라벨링 작업자 역할 보존. 2차에서 진입 시 자동 부여되는 기본 역할이 됐다.
 
 ### legacy_source
 
@@ -57,7 +62,7 @@ WORKER
 
 **비식별 누락 신고** — 마킹 또는 라벨링 중 개인정보 노출을 발견하면 신고한다.
 
-진입 경로: 저작도구는 자체 로그인 화면을 갖지 않고 상위 시스템이 발급한 토큰을 인계받으며, 토큰의 역할 클레임과 채널 클레임으로 접근을 분기한다. 작업자는 내부 채널로 진입해 외부 채널(포털 회원)과 진입 경로가 다르다. 시스템 관리자(ADMIN) 역할은 두지 않으며 관리 권한은 검수자에 통합돼 있어, 이 역할은 관리 화면(/manage/*)에 접근하지 않는다.
+진입 경로: 저작도구는 자체 로그인 화면을 갖지 않고 상위 시스템이 발급한 토큰을 인계받으며, 토큰의 역할 클레임과 채널 클레임으로 접근을 분기한다. 작업자는 내부 채널로 진입해 외부 채널(포털 회원)과 진입 경로가 다르다. 관리 권한은 관리자 역할이 소유하며 이 역할은 관리 화면에 접근하지 않는다. 역할이 없는 상태로 내부 채널에 진입하면 그 시점에 이 역할이 자동으로 부여된다 — 자가부여 창구를 거치지 않아도 등록되며, 이후 다른 역할로 바꾸는 것은 관리자가 한다.
 
 선행조건(권한과 구분) — 비식별 누락 신고가 열려 있는 구간의 차단은 권한이 아니라 선행조건이라 역할과 무관하게 적용된다. 본인 배정 영상이어도 신고가 열려 있는 동안에는 라벨 조회·저장, 프레임 이미지, 영상 재생이 거부되며, 신고가 해소돼야 풀린다.
 

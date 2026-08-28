@@ -3,8 +3,8 @@
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-005",
   "decided_by": "llm",
-  "decided_at": "2026-08-25T10:55:04.106735Z",
-  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-21 pending 판정: ERD-030(자기 소속)·TEST-006(상호 참조) 승격 / REQ-024·026 기각(제외 타입) | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-25: INTSPEC-002 승격(INT-003 이 references 로 가리키는 짝 규격 — INT-007↔INTSPEC-004 선례와 동일. 어느 키트에도 없어 CO-009 변경분이 도달 불가였음) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건",
+  "decided_at": "2026-08-28T11:37:53.611065Z",
+  "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-21 pending 판정: ERD-030(자기 소속)·TEST-006(상호 참조) 승격 / REQ-024·026 기각(제외 타입) | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-25: INTSPEC-002 승격(INT-003 이 references 로 가리키는 짝 규격 — INT-007↔INTSPEC-004 선례와 동일. 어느 키트에도 없어 CO-009 변경분이 도달 불가였음) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
     "AC-010",
     "AC-022",
@@ -19,6 +19,7 @@
     "ADR-019",
     "ADR-020",
     "ADR-031",
+    "ADR-055",
     "API-008",
     "API-009",
     "API-010",
@@ -37,9 +38,13 @@
     "API-103",
     "API-104",
     "API-105",
+    "API-128",
     "API-132",
     "API-138",
+    "API-168",
+    "API-172",
     "API-178",
+    "API-183",
     "CDIAG-006",
     "CDIAG-014",
     "CMP-005",
@@ -81,6 +86,7 @@
     "ROLE-001",
     "ROLE-002",
     "ROLE-003",
+    "ROLE-004",
     "SCREEN-005",
     "SCREEN-018",
     "SCREEN-019",
@@ -102,7 +108,8 @@
     "UC-009",
     "UC-010",
     "UC-022",
-    "UC-023"
+    "UC-023",
+    "UI-097"
   ],
   "pending": [
     "SHELL-001",
@@ -111,6 +118,9 @@
     "MOD-011",
     "MOD-043",
     "MOD-047",
+    "IMPREC-099",
+    "IMPREC-108",
+    "IMPREC-114",
     "LEGACY-077",
     "LEGACY-078",
     "LEGACY-079",
@@ -118,5 +128,5 @@
     "REQ-024",
     "REQ-026"
   ],
-  "last_sync_at": "2026-08-26T04:28:06.254Z"
+  "last_sync_at": "2026-08-28T11:38:08.022Z"
 }

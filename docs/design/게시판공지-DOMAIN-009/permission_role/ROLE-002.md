@@ -1,18 +1,19 @@
 ---
 logicraft_item: ROLE-002
 type: permission_role
-version: 7
+version: 9
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:09.036Z
+synced_at: 2026-08-28T11:36:59.857Z
 status: CHANGED
-prev_version: 6
-content_hash: 0c0c65787cdc026e6f83f2669163a7772ae0dd58a9dfa0510b923a22f09bb8ab
+prev_version: 7
+content_hash: 0c6b0563cfb7b8d1e0f0d824533911367f909731c2fff975790871e242e471e4
 stale: true
 raw: ./_raw/ROLE-002.json
 links:
+  based_on: ["[[ADR-055]]"]
   granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
-  requires_backward: ["[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
+  requires_backward: ["[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-020]]", "[[SCREEN-030]]", "[[SCREEN-031]]"]
 ---
 
 # 라벨링 작업자 (WORKER)
@@ -27,13 +28,17 @@ WORKER
 
 preserved
 
+### decided_by
+
+ADR-055
+
 ### change_kind
 
 - preserved
 
 ### diff_summary
 
-1차 라벨링 작업자 역할 보존
+1차 라벨링 작업자 역할 보존. 2차에서 진입 시 자동 부여되는 기본 역할이 됐다.
 
 ### legacy_source
 
@@ -57,7 +62,7 @@ WORKER
 
 **비식별 누락 신고** — 마킹 또는 라벨링 중 개인정보 노출을 발견하면 신고한다.
 
-진입 경로: 저작도구는 자체 로그인 화면을 갖지 않고 상위 시스템이 발급한 토큰을 인계받으며, 토큰의 역할 클레임과 채널 클레임으로 접근을 분기한다. 작업자는 내부 채널로 진입해 외부 채널(포털 회원)과 진입 경로가 다르다. 시스템 관리자(ADMIN) 역할은 두지 않으며 관리 권한은 검수자에 통합돼 있어, 이 역할은 관리 화면(/manage/*)에 접근하지 않는다.
+진입 경로: 저작도구는 자체 로그인 화면을 갖지 않고 상위 시스템이 발급한 토큰을 인계받으며, 토큰의 역할 클레임과 채널 클레임으로 접근을 분기한다. 작업자는 내부 채널로 진입해 외부 채널(포털 회원)과 진입 경로가 다르다. 관리 권한은 관리자 역할이 소유하며 이 역할은 관리 화면에 접근하지 않는다. 역할이 없는 상태로 내부 채널에 진입하면 그 시점에 이 역할이 자동으로 부여된다 — 자가부여 창구를 거치지 않아도 등록되며, 이후 다른 역할로 바꾸는 것은 관리자가 한다.
 
 선행조건(권한과 구분) — 비식별 누락 신고가 열려 있는 구간의 차단은 권한이 아니라 선행조건이라 역할과 무관하게 적용된다. 본인 배정 영상이어도 신고가 열려 있는 동안에는 라벨 조회·저장, 프레임 이미지, 영상 재생이 거부되며, 신고가 해소돼야 풀린다.
 
@@ -113,7 +118,7 @@ WORKER
 
 - view
 
-- **condition**: 본인 배정 영상의 비식별 처리 상태·이력 확인
+- **condition**: 비식별 처리 상태는 마킹 화면의 진입 차단 안내로만 전달된다. 처리 이력 확인은 두지 않는다 — 이력이 드러나는 자리가 검수자 전용 화면뿐이기 때문이다.
 - **target_id**: FEAT-006
 - **target_kind**: feature
 
@@ -167,7 +172,7 @@ WORKER
 
 - view
 
-- **condition**: 영상 상세 — 본인 배정 영상
+- **condition**: [폐기] 영상 상세 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
 - **target_id**: SCREEN-009
 - **target_kind**: screen_spec
 
@@ -197,7 +202,7 @@ WORKER
 
 - view
 
-- **condition**: 영상 처리 현황 — 본인에게 배정된 영상만 목록에 보이며, 조회만 가능하고 마킹 진입·배정 동선은 없다
+- **condition**: [폐기] 영상 처리 현황 — 이 화면의 접근 권한을 두지 않는다. 배치 처리 상태 확인에 더해 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리이며, 그것은 라벨 수정·검수 제출을 맡는 작업자의 역할 축이 아니다.
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 

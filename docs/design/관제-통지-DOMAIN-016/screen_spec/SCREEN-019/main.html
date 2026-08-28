@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-019</span><span class="sep">/</span><span>검수 상세 화면</span></div>
       <h1 style="white-space:nowrap">검수 상세 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER가 영상 검수 상세를 확인하고 승인 또는 반려를 결정하는 화면. 상단에 영상 메타 정보와 상태를 보여주는 헤더, 그 아래 프레임 이동 컨트롤이 있는 상단바, 캔버스 위의 프레임 썸네일 스트립, 중앙의 읽기 전용 라벨 캔버스, 우측에 객체/메타/이슈 3개 탭으로 구성된 패널이 배치된다. 승인·반려 액션은 검수 헤더가 단독으로 담당한다. 우측 패널의 '객체' 탭은 프레임 라벨 목록·선택 객체 속성·검수 메모를 다루고, '메타' 탭은 이벤트 어노테이션과 외부 시계열 메타를 검토하며, '이슈' 탭은 서버 연동 문의 스레드를 다룬다. 영상에 라벨이 하나도 없는 상태에서 승인을 시도하면 확인 절차를 한 번 더 거친다. 승인은 작업 완료를 의미한다. 접근: REVIEWER. 이미 완료(승인)된 영상 중 검… · route /review/:id</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER가 영상 검수 상세를 확인하고 승인 또는 반려를 결정하는 화면. 상단에 영상 메타 정보와 상태를 보여주는 헤더, 그 아래 프레임 이동 컨트롤이 있는 상단바, 캔버스 위의 프레임 썸네일 스트립, 중앙의 읽기 전용 라벨 캔버스, 우측에 객체/메타/이슈 3개 탭으로 구성된 패널이 배치된다. 승인·반려 액션은 검수 헤더가 단독으로 담당한다. 우측 패널의 '객체' 탭은 프레임 라벨 목록·선택 객체 속성·반려 사유 초안이 되는 검수 메모를 다루고, '메타' 탭은 촬영환경·개인정보 판정·프레임 설명·시계열 메타·이벤트 어노테이션을 읽기 전용으로 검토하며, '이슈' 탭은 서버에 등록된 이슈(반려 이력·문의)의 열람·댓글·해소를 단독으로 담당한다. 영상에 라벨이 하나도 없는 상태에서 승인을 시도하면 확인 절차… · route /review/:id</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 검수 헤더 (영상 메타·상태)</h2>
@@ -124,11 +124,21 @@
             <span class="wf-badge">layout: stack</span>
             <span class="wf-badge wf-badge-primary">API-132</span>
             <span class="wf-badge wf-badge-primary">API-066</span>
+            <span class="wf-badge wf-badge-primary">API-168</span>
+            <span class="wf-badge wf-badge-primary">API-183</span>
+            <span class="wf-badge wf-badge-primary">API-128</span>
+            <span class="wf-badge wf-badge-primary">API-172</span>
             <a href="#wf-sec-8" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
-            <span class="wf-muted">EventAnnotationReviewPanel</span><span class="wf-help">이벤트 어노테이션 내용을 검토한다 — 이벤트 분류(event_class), 질문(question)과 답변(answer), 캡션 후보(caption c1..cn — 캡션 문장과 사고 단계), 근거 후보(evidence c1..cn — 근거 문장과 프레임·객체 지시)를 본다. 같은 후보 키…</span>
+            <span class="wf-muted">MetaSectionCollapseToggle</span><span class="wf-help">메타 탭의 각 섹션을 접어서 감출 수 있다. 검수자가 지금 보려는 축만 남기고 나머지를 접어 세로 길이를 줄인다.</span>
+            <span class="wf-muted">EnvironmentMetaReviewPanel</span><span class="wf-help">작업자가 라벨링 화면에서 입력한 영상 단위 촬영환경(날씨·시간대·계절)을 읽기 전용으로 확인한다. 학습데이터 산출물의 촬영환경 조달원이므로 검수자가 승인 전에 값을 확인한다.</span>
+            <span class="wf-muted">VideoPrivacyMetaReviewPanel</span><span class="wf-help">영상 단위 개인정보 판정(익명·가명·개인정보 포함여부)을 읽기 전용으로 확인한다. 학습데이터 산출물의 video 블록으로 나가는 값이라 검수 없이 확정되면 안 된다. 프레임 축 판정과 입도가 달라 두 값이 서로 달라도 모순이 아니다.</span>
+            <span class="wf-muted">FrameDescriptionReviewPanel</span><span class="wf-help">현재 프레임의 설명을 읽기 전용으로 확인한다. 학습데이터 산출물의 이미지 설명 조달원이다.</span>
+            <span class="wf-muted">FramePrivacyMetaReviewPanel</span><span class="wf-help">현재 프레임의 개인정보 판정(익명·가명·개인정보 포함여부)을 읽기 전용으로 확인한다. 학습데이터 산출물의 image 블록으로 나가는 값이며, 영상 축 판정과 입도가 다른 별개 축이다.</span>
             <span class="wf-muted">TimeseriesMetaReviewPanel</span><span class="wf-help">외부 시계열 분석 결과(서술 전문)를 프레임 단위로 검토한다. 이 화면에서는 값을 고치지 않고 읽기 전용으로 확인한다 — 서술 전문의 수정은 라벨링 화면의 메타 패널이 담당하며, 검수 승인 시점에 그 값이 동결된다. 편집 지점을 두 화면에 두면 확정 경로가 갈라진다.</span>
+            <span class="wf-muted">EventAnnotationReviewPanel</span><span class="wf-help">이벤트 어노테이션 내용을 검토한다 — 이벤트 분류(event_class), 질문(question)과 답변(answer), 캡션 후보(caption c1..cn — 캡션 문장과 사고 단계), 근거 후보(evidence c1..cn — 근거 문장과 프레임·객체 지시)를 본다. 같은 후보 키…</span>
+            <span class="wf-muted">ImportedMetaReviewPanel</span><span class="wf-help">외부 산출물 이관이 저작도구 스키마에 착지할 컬럼이 없어 원문 그대로 보관한 값을 참고용으로 표시한다 — 좌표·위치·카메라 설치 높이·설치 방위·카메라 관리번호·데이터 출처·이벤트 기록·이벤트 상위 계층 이름·외부 영상 식별자·원천 축 개인정보 판정. 사람이 읽는 이름으로 표시하며 원문…</span>
             <span class="wf-muted">VideoTechnicalMetaPanel</span>
             <span class="wf-muted">EmptyState</span>
           </div>
@@ -148,7 +158,7 @@
             <div class="wf-stack"><span class="wf-bold">문의 스레드</span><ul class="wf-list"><li>항목 1</li><li>항목 2</li></ul></div><span class="wf-help">'객체' 탭 안의 메모(이 화면 전용)와는 서로 다른 별개 기능이다.</span>
             <button class="wf-btn">문의 등록</button>
             <button class="wf-btn">댓글 추가</button>
-            <button class="wf-btn">해결 처리</button>
+            <button class="wf-btn">해소</button>
             <span class="wf-badge">미해결 문의 건수</span>
             <span class="wf-badge">이슈 유형·진행 상태 배지</span>
             <span class="wf-muted">ConflictNotice</span>
@@ -200,7 +210,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 프레임 썸네일 스트립</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>캔버스 바로 위에 위치하며 접고 펼칠 수 있는 가로 스크롤 썸네일 스트립. 썸네일 클릭 시 현재 프레임이 바뀌고, 현재 프레임 위치로 자동 스크롤한다. 좌우 방향키로도 프레임을 이동할 수 있다. 프레임 이미지는 인증된 요청으로 개별 발급받는다. 프레임이 0건이면 안내 문구를 표시한다. 각 썸네일 테두리 색은 프레임 상태를 우선순위로 나타낸다: 현재 프레임(강조) &gt; 미해소 문의가 있는 프레임(경고색) &gt; 라벨이 저장된 프레임(완료색) &gt; 기본. 썸네일 이미지를 불러오지 못한 자리는 빈 칸으로 두지 않고 불러오지 못했음을 알 수 있는 자리표시를 보여준다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>캔버스 바로 위에 위치하며 접고 펼칠 수 있는 가로 스크롤 썸네일 스트립. 썸네일 클릭 시 현재 프레임이 바뀌고, 현재 프레임 위치로 자동 스크롤한다. 좌우 방향키로도 프레임을 이동할 수 있다. 프레임 이미지는 인증된 요청으로 개별 발급받는다. 프레임이 0건이면 안내 문구를 표시한다. 각 썸네일 테두리 색은 프레임 상태를 우선순위로 나타낸다: 현재 프레임(강조) &gt; 미해소 문의가 있는 프레임(경고색) &gt; 라벨이 저장된 프레임(완료색) &gt; 기본. 현재 프레임 강조 표시는 썸네일 경계보다 바깥에 그려지므로, 스트립은 목록의 첫 항목과 마지막 항목에서도 그 표시가 잘리지 않을 만큼의 여백을 갖는다. 썸네일 이미지를 불러오지 못한 자리는 빈 칸으로 두지 않고 불러오지 못했음을 알 수 있는 자리표시를 보여준다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(썸네일 스트립 접기/펼치기)</li><li>List(프레임 썸네일 스트립) · binds frameList.frames</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-010</li><li>API-021</li><li>API-103</li></ul></div>
     </div>
@@ -240,7 +250,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑦ 검수 우측 패널 — 객체 탭: 검수 메모</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 패널 '객체' 탭 하단. 프레임/객체별 검수 메모 목록(서버 미연동, 이 화면 전용) — 메모 추가 시점의 프레임과 선택 객체가 자동 태깅된다. 메모는 반려 시 반려 사유에 합쳐진다. 이 화면 전용 메모와 별개로, 검수 요청 이전에 이미 서버에 등록되어 있던 이슈가 있으면 같은 목록에 참고용으로 함께 표시된다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 패널 '객체' 탭 하단. 프레임/객체별 검수 메모 목록(서버 미연동, 이 화면 전용) — 메모 추가 시점의 프레임과 선택 객체가 자동 태깅된다. 메모는 반려 시 반려 사유에 합쳐진다. 이 목록은 아직 보내지 않은 반려 사유 초안이다 — 캔버스 라벨을 찍어 지적을 쌓고 검수 의견을 적으면 그 둘이 반려 시 반려 사유로 합쳐져 전송된다. 서버에 등록된 이슈(반려 이력·문의)의 열람·댓글·해소는 '이슈' 탭이 단독으로 담당하므로 이 목록에는 서버에 등록된 이슈를 섞지 않는다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(프레임/객체별 검수 메모 목록) · binds reviewMemos.items<p class="wf-help" style="margin:2px 0 0">메모를 추가하면 그 시점의 현재 프레임 번호와 선택 객체가 자동으로 태깅된다. 각 메모는 최대 1000자이며 수정·삭제할 수 있다. 서버에 저장되지 않는 이 화면 전용 메모이며, 반려 시 반려 사유에 합쳐진다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-011</li></ul></div>
     </div>
@@ -250,9 +260,9 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑧ 검수 우측 패널 — 메타 탭</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 패널 '메타' 탭. 이벤트 어노테이션 검토와 외부 시계열 메타 검토(서술 전문을 읽기 전용으로 표시) 두 영역으로 구성된다. 검토 대상에 포함되지 않는 영상 기술 정보(해상도·코덱 등)도 참고용으로 함께 표시되며, 표시할 정보가 전혀 없으면 빈 상태 안내를 노출한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(이벤트 어노테이션 검토)<p class="wf-help" style="margin:2px 0 0">이벤트 어노테이션 내용을 검토한다 — 이벤트 분류(event_class), 질문(question)과 답변(answer), 캡션 후보(caption c1..cn — 캡션 문장과 사고 단계), 근거 후보(evidence c1..cn — 근거 문장과 프레임·객체 지시)를 본다. 같은 후보 키(cN)의 캡션과 근거는 짝을 이룬다. 시각(시작·종료) 필드는 없다. 검토 대상 값은 외부 시계열 분석(서술 생성·질의응답) 결과가 채운 초안에서 출발할 수 있으며, 사람이 이미 고친 값과 승인으로 동결된 값은 그 자동 채움이 덮지 않는다.</p></li><li>Custom(시계열 메타 검토)<p class="wf-help" style="margin:2px 0 0">외부 시계열 분석 결과(서술 전문)를 프레임 단위로 검토한다. 이 화면에서는 값을 고치지 않고 읽기 전용으로 확인한다 — 서술 전문의 수정은 라벨링 화면의 메타 패널이 담당하며, 검수 승인 시점에 그 값이 동결된다. 편집 지점을 두 화면에 두면 확정 경로가 갈라진다.</p></li><li>Custom(영상 기술 정보(읽기 전용))</li><li>Custom(표시할 메타 정보가 없습니다)</li></ul></div>
-      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-132</li><li>API-066</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 패널 '메타' 탭. 촬영환경(날씨·시간대·계절, 영상 단위) → 개인정보 판정(익명·가명·개인정보 포함여부, 영상 단위) → 프레임 설명(프레임 단위) → 개인정보 판정(익명·가명·개인정보 포함여부, 프레임 단위) → 시계열 메타(프레임 단위) → 이벤트 어노테이션(영상 단위) 여섯 섹션을 이 순서로 세로로 나열하고, 그 뒤에 참고 정보로 이관 원문 정보(이관으로 들어온 영상에서만 표시)와 영상 기술 정보(해상도·코덱 등)를 둔다. 각 섹션은 접어서 감출 수 있다. ★이 순서는 라벨링 화면(SCREEN-005)의 메타 탭과 같다 — 두 화면을 오가는 검수자가 같은 자리에서 같은 것을 보아야 하며, 순서가 갈리면 무엇을 보고 있는지 대응시키지 못한다. ★여섯 섹션 모두 이 화면에서는 값을 고치지 않고 읽기 전용으로 확인한다 — 값의 수정은 라벨링 화면의 메타 패널이 담당하며, 검수 승인 시점에 그 값이 동결된다. 편집 지점을 두 화면에 두면 확정 경로가 갈라진다. 표시할 정보가 전혀 없으면 빈 상태 안내를 노출한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Custom(메타 섹션 접기/펼치기)<p class="wf-help" style="margin:2px 0 0">메타 탭의 각 섹션을 접어서 감출 수 있다. 검수자가 지금 보려는 축만 남기고 나머지를 접어 세로 길이를 줄인다.</p></li><li>Custom(촬영환경 검토)<p class="wf-help" style="margin:2px 0 0">작업자가 라벨링 화면에서 입력한 영상 단위 촬영환경(날씨·시간대·계절)을 읽기 전용으로 확인한다. 학습데이터 산출물의 촬영환경 조달원이므로 검수자가 승인 전에 값을 확인한다.</p></li><li>Custom(개인정보 판정 검토 (영상 축))<p class="wf-help" style="margin:2px 0 0">영상 단위 개인정보 판정(익명·가명·개인정보 포함여부)을 읽기 전용으로 확인한다. 학습데이터 산출물의 video 블록으로 나가는 값이라 검수 없이 확정되면 안 된다. 프레임 축 판정과 입도가 달라 두 값이 서로 달라도 모순이 아니다.</p></li><li>Custom(프레임 설명 검토)<p class="wf-help" style="margin:2px 0 0">현재 프레임의 설명을 읽기 전용으로 확인한다. 학습데이터 산출물의 이미지 설명 조달원이다.</p></li><li>Custom(개인정보 판정 검토 (프레임 축))<p class="wf-help" style="margin:2px 0 0">현재 프레임의 개인정보 판정(익명·가명·개인정보 포함여부)을 읽기 전용으로 확인한다. 학습데이터 산출물의 image 블록으로 나가는 값이며, 영상 축 판정과 입도가 다른 별개 축이다.</p></li><li>Custom(시계열 메타 검토)<p class="wf-help" style="margin:2px 0 0">외부 시계열 분석 결과(서술 전문)를 프레임 단위로 검토한다. 이 화면에서는 값을 고치지 않고 읽기 전용으로 확인한다 — 서술 전문의 수정은 라벨링 화면의 메타 패널이 담당하며, 검수 승인 시점에 그 값이 동결된다. 편집 지점을 두 화면에 두면 확정 경로가 갈라진다.</p></li><li>Custom(이벤트 어노테이션 검토)<p class="wf-help" style="margin:2px 0 0">이벤트 어노테이션 내용을 검토한다 — 이벤트 분류(event_class), 질문(question)과 답변(answer), 캡션 후보(caption c1..cn — 캡션 문장과 사고 단계), 근거 후보(evidence c1..cn — 근거 문장과 프레임·객체 지시)를 본다. 같은 후보 키(cN)의 캡션과 근거는 짝을 이룬다. 시각(시작·종료) 필드는 없다. 검토 대상 값은 외부 시계열 분석(서술 생성·질의응답) 결과가 채운 초안에서 출발할 수 있으며, 사람이 이미 고친 값과 승인으로 동결된 값은 그 자동 채움이 덮지 않는다.</p></li><li>Custom(이관 원문 정보 검토)<p class="wf-help" style="margin:2px 0 0">외부 산출물 이관이 저작도구 스키마에 착지할 컬럼이 없어 원문 그대로 보관한 값을 참고용으로 표시한다 — 좌표·위치·카메라 설치 높이·설치 방위·카메라 관리번호·데이터 출처·이벤트 기록·이벤트 상위 계층 이름·외부 영상 식별자·원천 축 개인정보 판정. 사람이 읽는 이름으로 표시하며 원문 열쇠 문자열을 라벨에 그대로 쓰지 않는다. 이름을 정하지 못한 열쇠는 버리지 않고 원문 열쇠로 표시한다. 이관으로 들어오지 않은 영상에서는 이 영역을 표시하지 않는다.</p></li><li>Custom(영상 기술 정보(읽기 전용))</li><li>Custom(표시할 메타 정보가 없습니다)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-132</li><li>API-066</li><li>API-168</li><li>API-183</li><li>API-128</li><li>API-172</li></ul></div>
     </div>
   </div>
   <div id="wf-sec-9" class="wf-sec-detail-modal">
@@ -260,8 +270,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">⑨ 검수 우측 패널 — 이슈 탭</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 패널 '이슈' 탭. 검수 중 발견한 문제를 등록·댓글·해결 처리하는 서버 연동 문의 스레드. '객체' 탭 안의 메모(이 화면 전용)와는 서로 다른 별개 기능이다. 상단에 아직 해결되지 않은 문의 건수를 표시하고, 각 스레드는 유형(반려/문의)과 진행 상태(미해결/답변완료/해결)를 배지로 구분해 보여준다. 반려 이력은 해결 처리 이후에도 댓글을 남길 수 있지만, 해결된 문의는 댓글 입력이 잠긴다. 다른 사용자가 같은 문의를 먼저 처리한 경우 동시 처리 충돌 안내를 표시한다. 각 스레드와 각 댓글에는 작성자를 '이름 (역할)' 형태로 표시한다 — 역할은 코드값이 아니라 한글 호칭(작업자·검수자)으로 바꿔 보여주고, 목록에 없는 값은 받은 값을 그대로 쓴다. 이름을 해석하지 못하면 사번으로 대신하고, 역할을 해석하지 못하면 빈 괄호를 남기지 않고 이름만 표시한다. 문의는 작업자와 검수자가 모두 등록할 수 있어 이 표기가 누가 낸 문의인지 가르는 축이 된다. ★스레드 작성자의 역할과 댓글 작성자의 역할은 기준 시점이 다르다 — 댓글은 작성 당시의 역할을 그대로 보존해 보여주고, 스레드는 조회하는 시점의 현재 역할을 보여준다. 따라서 문의를 낸 뒤 역할이 바뀐 사용자는 스레드에서는 바뀐 역할로, 그 사람이 그때 남긴 댓글에서는 당시 역할로 보인다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(문의 스레드) · binds issueThread.items<p class="wf-help" style="margin:2px 0 0">'객체' 탭 안의 메모(이 화면 전용)와는 서로 다른 별개 기능이다.</p></li><li>Button(문의 등록)</li><li>Button(댓글 추가)</li><li>Button(해결 처리)</li><li>Badge(미해결 문의 건수)</li><li>Badge(이슈 유형·진행 상태 배지)</li><li>Custom(동시 처리 충돌 안내)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>우측 패널 '이슈' 탭. 검수 중 발견한 문제를 등록·댓글·해소하는 서버 연동 문의 스레드. '객체' 탭 안의 메모(이 화면 전용)와는 서로 다른 별개 기능이다. 서버에 등록된 이슈의 열람·댓글·해소는 이 탭이 단독으로 담당한다. 상단에 아직 해결되지 않은 문의 건수를 표시하고, 각 스레드는 유형(반려/문의)과 진행 상태(미해결/답변완료/해결)를 배지로 구분해 보여준다. 반려 이력은 해소 이후에도 댓글을 남길 수 있지만, 해결된 문의는 댓글 입력이 잠긴다. 다른 사용자가 같은 문의를 먼저 처리한 경우 동시 처리 충돌 안내를 표시한다. 각 스레드와 각 댓글에는 작성자를 '이름 (역할)' 형태로 표시한다 — 역할은 코드값이 아니라 한글 호칭(작업자·검수자)으로 바꿔 보여주고, 목록에 없는 값은 받은 값을 그대로 쓴다. 이름을 해석하지 못하면 사번으로 대신하고, 역할을 해석하지 못하면 빈 괄호를 남기지 않고 이름만 표시한다. 문의는 작업자와 검수자가 모두 등록할 수 있어 이 표기가 누가 낸 문의인지 가르는 축이 된다. ★스레드 작성자의 역할과 댓글 작성자의 역할은 기준 시점이 다르다 — 댓글은 작성 당시의 역할을 그대로 보존해 보여주고, 스레드는 조회하는 시점의 현재 역할을 보여준다. 따라서 문의를 낸 뒤 역할이 바뀐 사용자는 스레드에서는 바뀐 역할로, 그 사람이 그때 남긴 댓글에서는 당시 역할로 보인다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(문의 스레드) · binds issueThread.items<p class="wf-help" style="margin:2px 0 0">'객체' 탭 안의 메모(이 화면 전용)와는 서로 다른 별개 기능이다.</p></li><li>Button(문의 등록)</li><li>Button(댓글 추가)</li><li>Button(해소)</li><li>Badge(미해결 문의 건수)</li><li>Badge(이슈 유형·진행 상태 배지)</li><li>Custom(동시 처리 충돌 안내)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-102</li><li>API-103</li><li>API-104</li><li>API-105</li></ul></div>
     </div>
   </div>

@@ -249,11 +249,14 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-135"
+        ],
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-26T06:48:51.441Z",
         "module_paths": []
       },
       "uses_constants": []
@@ -264,8 +267,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "LS_PORTAL_USER_LABEL 에 라벨 마스터 참조(LBL_ID, bigint)와 트랙 식별자(TRCK_ID, varchar(30))를 추가했다. 포털 사용자 작업 데이터를 학습데이터 산출물과 같은 구조로 내보내기로 확정했는데, 이 테이블이 라벨 유형 코드·라벨명·좌표만 보유해 어노테이션 항목의 분류 식별자·트랙 식별자를 채울 수 없었다. 두 컬럼 모두 기존 자산(라벨 마스터·데이터 라벨)의 물리명·타입·크기를 그대로 재사용하므로 표준용어를 새로 등록하지 않는다. 외래키는 두지 않는다 — 포털 전용 저장소는 내부 파이프라인과 분리 운영되고 라벨 마스터가 비활성화돼도 포털 사용자의 과거 작업이 지워지면 안 되기 때문이며, 참조 무결성은 조회 시점 결합으로 처리한다. 둘 다 NULL 을 허용하고, 이 결정 이전에 저장된 행은 값을 소급해 채우지 않는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T04:23:54.706Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-26T06:48:51.441Z",
     "created_at": "2026-06-01T02:46:33.648Z"
   }
 }

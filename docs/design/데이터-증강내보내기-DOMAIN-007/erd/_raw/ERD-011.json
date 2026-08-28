@@ -258,7 +258,7 @@
               "type": "varchar(4000)",
               "unique": false,
               "nullable": true,
-              "description": "요청 시 생성조건(prompt) 원문 JSON(V153 신설). REVIEWER 가 입력한 time/season/weather/terrain/severity 5필드를 「생성형 AI API 연동명세서 v1.1」 §4.1 prompt 로 가공 없이 전송하고 그 원문을 보관한다. 명세가 허용값 enum 을 정의하지 않아 자유 문자열이며, 이 값은 AUG_TYPE_CD 판정에 쓰지 않는다(자유 문자열이 유형 판정에 흘러가면 경로 순회·RESL_ 네임스페이스 침범이 열린다). 중복 요청을 허용(ADR-044)하므로 같은 (영상×종류) 파생이 공존하며, 결과물을 구분하는 유일한 축이라 조회 경로에서 반드시 노출한다.",
+              "description": "요청 시 생성조건(prompt) 원문 JSON(V153 신설). REVIEWER 가 입력한 time/season/weather/terrain/severity 5필드를 「생성형 AI API 연동명세서 v1.3」 §4.1 의 최상위 mtdt 로 전송하고, 자유 지시문(prompt 문자열)과 분리한 형태로 함께 보관한다 — 나간 값과 보관값이 갈라지지 않게 하기 위해서다. v1.3 이 다섯 항목의 허용 코드를 닫아 두어 자유 문자열이 아니다(구 서술 폐기 — 구 계약은 prompt 객체로 보냈고 허용값이 열려 있었다). 이 값은 AUG_TYPE_CD 판정에 쓰지 않는다(그 값이 유형 판정에 흘러가면 경로 순회·RESL_ 네임스페이스 침범이 열린다). 중복 요청을 허용(ADR-044)하므로 같은 (영상×종류) 파생이 공존하며, 결과물을 구분하는 유일한 축이라 조회 경로에서 반드시 노출한다.",
               "primary_key": false,
               "logical_column_name": "프롬프트내용"
             },
@@ -1367,12 +1367,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 24,
+    "current_version": 25,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "SCALE_X/SCALE_Y 를 균일 배율로 적재(오프셋 0 — 두 값만으로 완전 역산). 컬럼 변경 없음",
+    "change_summary": "생성조건 보관 컬럼의 서술을 정본 계약에 맞춘다. 구 서술은 다섯 항목을 가공 없이 요청의 자유 지시문 자리로 보내고 그 원문을 보관한다고 적었고, 명세가 허용값을 정의하지 않아 자유 문자열이라고 단정했다. 둘 다 거짓이다 — 정본은 다섯 항목을 요청 본문의 최상위 구조화 조건으로 옮기고 자유 지시문을 별개 문자열로 분리했으며, 다섯 항목의 허용 코드를 닫아 두었다. 보관도 나간 값과 갈라지지 않도록 분리한 형태로 한다. 증강 종류를 이 값에서 파생하지 않는다는 방어와 중복 요청 허용으로 결과물을 구분하는 유일한 축이라는 서술은 그대로 두었고, 그 방어의 근거 문구에서 자유 문자열을 전제한 표현만 값 일반으로 고쳤다. 쓰기 직전 이 문서에 stale 표식은 없었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T02:28:49.740Z",
+    "last_updated_at": "2026-08-27T12:20:44.049Z",
     "created_at": "2026-06-01T02:41:59.688Z"
   }
 }

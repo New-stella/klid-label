@@ -43,12 +43,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-031의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "시스템 운영 설정 흐름의 검증 기준을 신설한다. 이 유스케이스를 검증하는 인수기준이 없어 설정 저장과 조회 동작이 기준 없이 남아 있었다.",
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 변경 없음 — 확인 내역을 기록한다. 상위 흐름이 이번에 더한 것은 유효창 요구를 창구가 어떻게 판정 지점에 묻는지와 유효창 거부 문구를 어떻게 안내하는지 두 축이며, 둘 다 관리자 자격 축이다. 이 기준의 축은 설정 저장의 요청 입자 — 실제로 바뀐 키만 개별로 보낸다는 것 — 이라 겹치지 않는다. 다만 두 축이 같은 저장 창구를 공유한다는 사실은 확인했고, 요구가 설정 키 단위로 갈린다는 새 서술은 오히려 이 기준의 키 단위 요청 입자와 같은 방향이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T10:08:57.228Z",
+    "last_updated_at": "2026-08-27T23:15:14.243Z",
     "created_at": "2026-08-23T10:08:57.228Z"
   }
 }

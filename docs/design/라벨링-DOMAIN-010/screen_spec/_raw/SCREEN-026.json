@@ -347,7 +347,7 @@
           "sections": [],
           "description": "",
           "source_hash": "5c1ab019552f68cf5c1fb906753a30ce263e779c31460531da63ebef987110f4",
-          "generated_at": "2026-08-25T10:59:24.403Z",
+          "generated_at": "2026-08-27T01:18:40.023Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -361,12 +361,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 34,
+    "current_version": 35,
     "stale": true,
-    "stale_reason": "API-037의 data.responses 변경 — consumes",
+    "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (16.9KB)",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T12:54:05.844Z",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T01:18:40.023Z",
     "created_at": "2026-05-30T07:55:46.992Z"
   }
 }

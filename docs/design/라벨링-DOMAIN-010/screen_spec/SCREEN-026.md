@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-026
 type: screen_spec
-version: 34
+version: 35
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T23:29:30.199Z
+synced_at: 2026-08-28T11:37:00.703Z
 status: CHANGED
-prev_version: 32
-content_hash: 429b078d04661a4290766a29cb74030711e5d48cc75958f2524ff4b20e725910
+prev_version: 34
+content_hash: 4154c8a3af7aa309f6df4ad89343571e842ad6f2ceff1af719b8a93c9341f94a
 stale: true
 raw: ./_raw/SCREEN-026.json
 links:
   based_on: ["[[ADR-034]]"]
   belongs_to_domain: ["[[DOMAIN-010]]"]
   consumes: ["[[API-037]]", "[[API-038]]", "[[API-039]]", "[[API-040]]", "[[API-185]]"]
-  implements: ["[[IMPREC-003]]"]
+  implements: ["[[IMPREC-003]]", "[[IMPREC-127]]"]
   migrated_from: ["[[LEGACY-004]]"]
   realizes: ["[[UC-032]]"]
   references: ["[[API-037]]", "[[API-038]]", "[[API-039]]", "[[API-040]]"]
@@ -676,7 +676,7 @@ _(empty)_
 
 - **description**: 
 - **source_hash**: 5c1ab019552f68cf5c1fb906753a30ce263e779c31460531da63ebef987110f4
-- **generated_at**: 2026-08-25T10:59:24.403Z
+- **generated_at**: 2026-08-27T01:18:40.023Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

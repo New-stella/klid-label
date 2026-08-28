@@ -43,12 +43,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "UC-031의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "설정 행이 없는 것이 정상 상태임을 검증 기준으로 남긴다. 부재를 결함으로 읽고 미리 행을 채우면 저장 여부를 구분할 수 없게 된다.",
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 변경 없음 — 확인 내역을 기록한다. 상위 흐름이 이번에 더한 두 축은 모두 관리자 자격 축(요구 배선과 거부 문구)이고, 이 기준의 축은 저장한 적 없는 설정 키가 목록에 없는 것이 정상이라는 조회 결과다. 시드 행을 만들지 않고 배포 기본값으로 동작한다는 결론은 상위 결정에도 그대로 남아 있어 충돌이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T10:08:57.384Z",
+    "last_updated_at": "2026-08-27T23:15:14.428Z",
     "created_at": "2026-08-23T10:08:57.384Z"
   }
 }

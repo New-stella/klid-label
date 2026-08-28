@@ -17,7 +17,7 @@
       "security": [
         {
           "jwt": [
-            "REVIEWER"
+            "ADMIN"
           ]
         }
       ],
@@ -84,11 +84,11 @@
           },
           "example": {
             "data": null,
-            "message": "검수자만 분류 대응을 해제할 수 있습니다.",
+            "message": "관리자만 분류 대응을 해제할 수 있습니다.",
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "검수자 권한이 없다. ErrorCode=FORBIDDEN",
+          "description": "관리자 역할이 없다. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "404": {
@@ -140,18 +140,20 @@
           "description": "해제할 대응의 식별번호."
         }
       ],
-      "description": "잘못 연결된 대응을 해제한다. 해제하면 그 분류는 다시 처음 보는 분류가 되어, 다음에 가져올 때 사람이 다시 확정해야 한다.\n\n행을 지우지 않고 쓰지 않음으로 표시한다. 과거에 어떤 대응이 걸려 있었는지를 되짚을 수 있어야 하기 때문이다.\n\n이미 이 대응으로 적재된 라벨은 그대로 둔다. 해제는 앞으로 가져올 것에만 적용되며, 이미 검수를 거친 결과를 소급해서 바꾸지 않는다.\n\n검수자만 호출할 수 있다.",
+      "description": "잘못 연결된 대응을 해제한다. 해제하면 그 분류는 다시 처음 보는 분류가 되어, 다음에 가져올 때 사람이 다시 확정해야 한다.\n\n행을 지우지 않고 쓰지 않음으로 표시한다. 과거에 어떤 대응이 걸려 있었는지를 되짚을 수 있어야 하기 때문이다.\n\n이미 이 대응으로 적재된 라벨은 그대로 둔다. 해제는 앞으로 가져올 것에만 적용되며, 이미 검수를 거친 결과를 소급해서 바꾸지 않는다.\n\n관리자만 호출할 수 있다.",
       "operation_id": "deleteImportMapping",
       "calls_external": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-093"
+          "IMPREC-093",
+          "IMPREC-181"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:29.853Z"
+        "last_updated": "2026-08-28T11:32:38.313Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -161,12 +163,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "대응 해제를 구현했다. 행을 지우지 않고 사용여부만 바꾸며 본문 없이 응답한다.",
+    "change_summary": "ADR-055 후속 정정 — purpose 밖(sections·brownfield·응답 예시·권한 조건)에 남아 있던 검수자 기준 서술을 관리자 기준으로 맞춘다.",
     "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:29.853Z",
+    "last_updated_at": "2026-08-28T11:32:38.313Z",
     "created_at": "2026-08-19T07:55:04.768Z"
   }
 }
