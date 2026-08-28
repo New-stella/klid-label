@@ -760,6 +760,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★ **2026-08-29 SYNC — 15 도메인 전량 (역할 축 시안·사양 정합 라운드).** 서버 대비 변경분만 내려왔고 전 키트 **`서버 건수 = pin 건수`** 로 스코프 무변동을 확인했다. 실질 내용 변경은 **전역 타입 둘**이다 — `NFR-020`(v7→v8: *"관리 화면은 검수자 전용"* → **관리자 전용**, 역할 열거에 `ADMIN` 추가)과 `ADR-046`(v7→v8: 「새 관리자 역할을 만들지 않는다」 절이 `ADR-055` 로 **뒤집힌 사실을 표기**). ⚠ **ADR 본문은 고치지 않았다** — 결정 기록이라 기각 근거를 지우면 왜 그때 그렇게 정했는지가 사라진다. 반전 표기만 덧붙였다.
+> ⚠ **`--exclude-types` 를 붙이면 D003·D004·D013·D014 에서 파일이 사라진다** — pin 에 남아 있는 제외 타입(SHELL·NAV·REQ·LEGACY)이 `_retired/` 로 밀려나기 때문이다. 이번에 한 번 그렇게 됐다가 **원상복구**했다. `CLAUDE.md` 가 정한 대로 **pin 이 정본**이라, 빼려면 pin 에서 먼저 지워야 한다. 그 넷은 종전대로 **exclude 없이** 돌린다.
+> ⚠ 미판정은 이번에도 올라왔고(D001 30건 등) 전부 제외 타입이라 기각했다 — 다음 SYNC 에도 다시 올라오며 그것이 정상이다.
+>
 > ★ **2026-08-28 SYNC — 15 도메인 전량 재동기화 (관리자 역할 라운드 · PR #160)**. `ADR-055` 가 `ADR-003`·`ADR-043` 을 supersede 해
 > **`ADR-003` 이 pin 돼 있던 14개 키트가 폐기된 역할 결정을 들고 있던 상태**를 닫았다 — 두 결정은 `_retired/` 로 옮겨졌고 대체 결정 `ADR-055` 와
 > `ROLE-004`(관리자 역할)를 **15개 전 키트에 pin 승격**했다(`permission_role` 은 전역 타입이라 전 키트 대상). 이어서 누적 미판정을 판정해
@@ -820,6 +824,10 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ★★ **2026-08-29 SYNC — 7개 키트 전부 · `--ids` 대신 pin(`--scope-file`)으로 돌렸다.** 전 키트 **`서버 건수 = pin 건수`**(통합 539·D010 225·D005 172·D001 168·D009 168·D003 166·D015 163)이고, 직전 커밋 `version-master.md` 대비 **유실 0 · 신규 0**. 통합 키트는 **32 → 36 화면**이 됐다(SCREEN-040~043 편입). 세션은 통합 s33 · 도메인 s15(D003 만 s18)다.
+> 이 라운드가 바꾼 것: **`SCREEN-002` 가 「역할 클레임」에서 「관리자 등록」으로 전면 개정**됐고(역할 선택 라디오가 사양에서 사라졌다), 관리자 화면 6곳의 `검수자 권한`·`검수자 전용` 서술이 실제 인가(`ADMIN_ONLY`)에 맞춰졌으며, `UI-110` 배지 카탈로그에 **관리자·미매핑** 변형이 생겼다. 와이어프레임 7건·시안 9건을 재게시했고 전건 **`replace` opcode 0** 으로 무손상을 증명했다.
+> ⚠ **`검수자 권한` 을 일괄 치환하지 마라** — *"조회도 검수자 권한만으로는 되지 않는다"*(검수자를 **하한**으로 말함)와 *"관리자가 검수자 권한을 계층으로 물려받는다"* 는 **정당한 서술**이다. 실제로 `GET /v1/users` 는 `hasRole('REVIEWER')` 이고 `PATCH` 만 `ADMIN` 이다. 바꿔야 하는 것은 **유효창이 가산되는 밑바탕 권한**을 검수자로 적은 자리뿐이다.
+>
 > ★ **2026-08-28 SYNC — 7개 키트 전부 · 그리고 이제 `.kit-scope.json` pin 이 있다.** 그전까지 화면 키트는
 > **pin 이 없어 그래프 폴백(재현율 약 90%)** 으로 돌았고, 그게 아래 ★★ 가 기록한 **스코프 526→469 조용한
 > 축소** 사고의 조건이었다. 이번에 **직전 커밋의 `version-master.md` 표를 모집단으로** pin 을 세워 그
@@ -839,18 +847,18 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 > ★★ **`--ids` 를 `.staging` 글롭에서 뽑지 마라 — 통합 키트 스코프가 526 → 469 로 조용히 줄었다.** `.staging` 은 gitignore 대상이라 이전 판에 있던 ITEM 이 빠져 있을 수 있고, 그렇게 줄어든 목록으로 SYNC 하면 배치본에 파일만 남아 **영구히 낡는다**(실제로 `AC-095`~`098` 이 그 상태였다). 복원 근거는 **직전 커밋의 `version-master.md`** 이며, 매 SYNC 뒤 `git show HEAD:<version-master> 대비 유실 0` 과 `배치본 파일 − 표 = 0` 두 검사를 돌린다.
 >
 > ★ **통합 키트가 정본이다** — 도메인별 소형 키트는 화면 1~5개만 담으므로, 화면을 동기화하거나
-> 사양을 판정할 때는 **먼저 `klid-authoring-screens/`(32화면 통합)를 본다.** 소형 키트만 보면
+> 사양을 판정할 때는 **먼저 `klid-authoring-screens/`(36화면 통합)를 본다.** 소형 키트만 보면
 > 그 스코프 밖 화면의 변경이 절대 반영되지 않는다.
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (32화면)** | 32개 (SCREEN-001~038 중 32건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-28 (s32)** | 539 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-28 (s14) | 225 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-28 (s14) | 172 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-28 (s14) | 163 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-28 (s17) | 166 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-28 (s14) | 168 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-28 (s14) | 168 |
+| **전체 통합 (36화면)** | 36개 (SCREEN-001~043 중 36건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-28 (s33)** | 539 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-28 (s15) | 225 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-28 (s15) | 172 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-28 (s15) | 163 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-28 (s18) | 166 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-28 (s15) | 168 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-28 (s15) | 168 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.
@@ -870,6 +878,6 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 - **DOMAIN-015**: SCREEN-012 는 AC(수용기준) 링크가 아직 없다(UC-029 에 covered_by 미등록) — 화면 키트는 정상이고 logicraft 쪽 보강 여지다.
 - **DOMAIN-003**: SCREEN-009 1화면. 변경 알림·RETIRED 없음.
 - **DOMAIN-009**: 화면 4개 모두 use_case·acceptance 미연결. SCREEN-031(공지 상세)은 와이어프레임 렌더 2건(main + delete-confirm)을 갖는다.
-- **DOMAIN-001**: SCREEN-001·SCREEN-003·SCREEN-004(세션 인계·접근 거부·개발용 로그인)는 인증 전이거나 셸이 없는 화면이라 SHELL-001·NAV-001 미적용이고 consumes_apis·required_roles·UC/AC 링크가 모두 없다. SCREEN-002(역할 클레임)는 API-007 만 연결된다. SCREEN-024(사용자 관리)만 SHELL-001+NAV-001 적용 대상이며 UC-030(사용자 계정·역할 관리)이 역참조로 연결된다(AC 없음).
+- **DOMAIN-001**: SCREEN-001·SCREEN-003·SCREEN-004(세션 인계·접근 거부·개발용 로그인)는 인증 전이거나 셸이 없는 화면이라 SHELL-001·NAV-001 미적용이고 consumes_apis·required_roles·UC/AC 링크가 모두 없다. SCREEN-002(관리자 등록 — 관리자가 0명일 때만 열리는 부트스트랩 창구)는 API-007 만 연결된다. ⚠ 구 이름 「역할 클레임 화면」은 폐기다(`ADR-055`) — 역할을 고르는 화면이 아니라 부여 역할이 관리자로 고정된 화면이다. SCREEN-024(사용자 관리)만 SHELL-001+NAV-001 적용 대상이며 UC-030(사용자 계정·역할 관리)이 역참조로 연결된다(AC 없음).
 <!-- mc-logi-screen-kit:end -->
 

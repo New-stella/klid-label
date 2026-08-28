@@ -202,7 +202,7 @@ describe('RoleClaimPage', () => {
       expect(screen.getByText('패스워드가 일치하지 않습니다')).toBeInTheDocument();
     });
     expect(
-      screen.getByText('관리자에게 받은 패스워드를 다시 확인해주세요.'),
+      screen.getByText('배포 시 설정된 공유 패스워드를 다시 확인해주세요.'),
     ).toBeInTheDocument();
   });
 

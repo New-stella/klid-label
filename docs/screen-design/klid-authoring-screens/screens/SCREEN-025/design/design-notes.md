@@ -2,32 +2,55 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 화면 | SCREEN-025 (screen_spec v23, `/manage/settings`, device: desktop) |
+| 대상 화면 | SCREEN-025 (`/manage/settings`, device: desktop) — 시안 착수 시 screen_spec **v23**, 이 노트는 **v44** 골격으로 재대조했다 |
 | 디자인 시스템 | DS-001 **KRDS Public** v8 (`_shared/design-system.md`) |
-| 골격 출처 | `SCREEN-025.md` + `wireframe.html` (섹션 4개 · 컴포넌트 32개) |
-| 관례 출처 | `SCREEN-009/design/*`(주) · `SCREEN-005/design/*` — 토큰·타이포 ladder·카드/버튼/배지/Alert/참고패널/모달 기본형을 그대로 승계 |
+| 골격 출처 | `SCREEN-025.md` + `wireframe.html` (v44 기준 **섹션 3개 · 컴포넌트 21개**) |
+| 관례 출처 | `SCREEN-009/design/*`(주) · `SCREEN-005/design/*` — 토큰·타이포 ladder·카드/버튼/배지/참고패널 기본형을 그대로 승계 |
 | 기준 폭 | 1440px (DS desktop >= 1280px) |
-| 구현 방식 | 무 JS · CSS-only (잠금 토글 = `:checked`, 다이얼로그 = `:target`) |
+| 구현 방식 | 무 JS · CSS-only |
+
+> ### ⚠ 구 서술 폐기 — 관리자 화면 분리로 표면이 **이관**됐다 (되살리지 말 것)
+>
+> 이 화면에 있던 아래 표면은 **빠뜨린 것이 아니라 다른 화면으로 옮긴 것**이다.
+>
+> | 옮긴 표면 | 간 곳 |
+> |---|---|
+> | **연동 서버 주소 카드** — Input ×4 · 「관리자 설정」 · 잠금/해제 배너 · `AdminSessionCountdown` · 관리자 패스워드 모달(`#dlg-admin`) · 잠금 토글(`#lock-open`) | **SCREEN-042 연동 서버 주소 관리** (`/admin/endpoints`) |
+> | **위험 구역 섹션** — 되돌릴 수 없는 실행 액션 타일 · 확인 모달(`#dlg-reset`·`#dlg-queue`·`#dlg-cache`) | **SCREEN-043 위험 작업** (`/admin/maintenance`) |
+> | 위 두 축을 미리보기로 보여주던 **오버레이 참고 패널 2컷**(관리자 패스워드 · 배치 큐 초기화) | 이 화면에서 **제거**. ⚠ 같은 2컷이 그대로 옮겨간 것은 아니다 — SCREEN-042 는 자기 화면 기준의 참고 패널 6컷을 따로 갖고, SCREEN-043 에는 참고 패널이 없다(실측) |
+>
+> 따라서 폐기하는 구 표기는 다음과 같다 — 골격 출처의 *"(섹션 4개 · 컴포넌트 32개)"*,
+> 관례 출처의 *"Alert / 모달 기본형"*, 구현 방식의 *"(잠금 토글 = `:checked`, 다이얼로그 = `:target`)"*.
+> 이 노트에서 「위험 구역 / 잠금 / 관리자 패스워드 / 모달 / 연동 서버 주소」를 서술하던 대목은
+> 아래 각 절에서 같은 방식으로 폐기 표기했다.
 
 ---
 
-## 1. 골격에 실제로 있던 카드 (진실원 = `SCREEN-025.md` sections)
+## 1. 골격에 실제로 있던 카드 (진실원 = `SCREEN-025.md` **v44** sections)
 
-섹션 ②의 제목은 "설정 카드 5종"이고, `components` 배열의 `type: Card` 는 **정확히 5개**다.
+골격 섹션은 **3개**(header / main / side)이고, 섹션 ②의 `components` 배열에서 `type: Card` 는 **4개**다.
+시안도 그 4장을 2열 그리드에 2×2 로 놓는다(빈칸 없음 — §4-3 실측).
 
 | # | 카드 | 하위 필드 (골격 그대로) | triggers_api |
 |---|---|---|---|
-| 1 | 배치 처리 | 처리 주기(초) · 동시 처리 수 — 둘 다 `custom_name: Slider` | API-069 |
-| 2 | AI 탐지 추론 파라미터 | Confidence Threshold(Slider) · 이미지 크기(Input) · IoU 임계값(Slider) | API-069 |
+| 1 | 배치 처리 | 처리 주기(초) · 동시 처리 수 — 둘 다 `custom_name: Slider` · **시계열 위탁 전체 건너뛰기**(스위치 + 필수 사유 Input) | API-069 |
+| 2 | AI 탐지 추론 파라미터 | Confidence Threshold(Slider) · IoU 임계값(Slider) | API-069 |
 | 3 | 라벨링 정밀도 | 인식 민감도(Slider) · 경계 세밀함(Slider) | API-069 |
 | 4 | **비식별 옵션** (`custom_name: DeidentConfigCard`) | 마스킹 방식(Select 3지) · 마스킹 범위 0.5~2.0(Custom) · 프레임 저장 여부(Custom) | — |
-| 5 | **연동 서버 주소** | Input ×4 · 「관리자 설정」Button · 관리자 패스워드 Dialog · 남은 유효 시간(`AdminSessionCountdown`) | API-069 |
 
-→ 위임 브리핑이 말한 "최근 늘어난 카드 2종(비식별 옵션 · 연동 서버 주소)"과 **골격이 일치**함을 확인하고 반영했다.
-「저장」 Button 은 카드 5개 사이에 **1개만** 선언돼 있고 note 가 *"카드별 독립 폼"* 이라 명시하므로, 카드마다 1개씩 배치했다.
+「저장」 Button 은 골격에 **1개만** 선언돼 있고 note 가 *"카드별 독립 폼"* 이라 명시하므로, 카드마다 1개씩 배치했다(총 4개).
 
-섹션 ③ 헬스(side, 320px) · 섹션 ④ 위험 액션(main, stack)은 와이어프레임 배치를 그대로 유지했다.
-**영역을 더하거나 뺀 곳은 없다.** 참고 패널 2개는 골격 밖 보조 문서화이며 SCREEN-009 의 `reference-panel` 관례를 그대로 따랐다.
+섹션 ③ 헬스(side, 320px)는 와이어프레임 배치를 그대로 유지했다.
+참고 패널은 골격 밖 보조 문서화이며 SCREEN-009 의 `reference-panel` 관례를 그대로 따랐다.
+
+> **⚠ 구 서술 폐기 — 「카드 5종 · 섹션 4개」**
+> - 구 **5번 카드 「연동 서버 주소」**(Input ×4 · 「관리자 설정」Button · 관리자 패스워드 Dialog · `AdminSessionCountdown`)는
+>   **SCREEN-042** 로 이관됐다. 구 **섹션 ④ 「위험 액션」**(main, stack)은 **SCREEN-043** 으로 이관됐다.
+> - 구 2번 카드의 **「이미지 크기(Input)」** 도 v44 골격·시안 양쪽에 없다. **다만 그 제거는 관리자 화면 분리와 별개 축이며
+>   이 노트는 경위를 확인하지 못했다**(§6).
+> - 반대로 **「시계열 위탁 전체 건너뛰기」**(+필수 사유)는 v44 골격 `sections[main]` 과 시안에 실재하는데 구 노트가 적지 않았다 — 위 표에 반영했다.
+> - 따라서 구 문장 *"섹션 ②의 제목은 「설정 카드 5종」"*, *"위임 브리핑이 말한 최근 늘어난 카드 2종 … 과 골격이 일치"*,
+>   *"영역을 더하거나 뺀 곳은 없다"*, *"참고 패널 2개"* 는 전부 폐기한다.
 
 ---
 
@@ -38,39 +61,55 @@
 | 결정 | 근거 |
 |---|---|
 | 본문 = `minmax(0,1fr) / 320px` 2분할, 우측 헬스 패널 `position: sticky` | 와이어프레임의 320px 고정 사이드를 유지. 좌측이 길어 스크롤 중에도 헬스가 보여야 실시간 모니터링이 성립 |
-| 설정 카드를 **2열 그리드**, 「연동 서버 주소」만 `grid-column: 1/-1` 전체 폭 | 섹션 ② `layout: grid` + description *"카드 5종을 2열 그리드로 표시"*. 주소 카드만 Input 4개라 2열 안에서 URL 이 잘려 mono 텍스트 가독성이 무너짐 |
+| 설정 카드 **4장을 2열 그리드**(`repeat(2, minmax(0,1fr))`) — 전체 폭 예외 없음 | 섹션 ② `layout: grid` + description *"카드를 2열 그리드로 표시"*. ⚠ 구 서술 폐기 — *"「연동 서버 주소」만 `grid-column: 1/-1` 전체 폭 … 주소 카드만 Input 4개라 2열 안에서 URL 이 잘려 mono 가독성이 무너짐"* 은 그 카드가 **SCREEN-042** 로 이관되면서 근거 자체가 사라졌다 |
 | 카드 헤더 = 제목 + 부제 + (상태배지) + 저장, 헤더 아래 `1px` 구분선 | 카드마다 독립 폼이라 "이 카드의 저장 버튼"이 시각적으로 묶여야 함 |
 | 카드 내 필드 간격 `--sp-lg`(24), 필드 내부 `--sp-sm`(8) | DS whitespace_principle "폼 필드 사이 16-24px" |
-| 카드 부제 1줄 추가 (예: "신규 영상을 픽업하는 주기와 동시 처리 수") | 골격 문장이 아니라 카탈로그 UI-086~088·UI-100 description 을 요약한 것. 5개 카드가 2열로 늘어서면 제목만으로는 무엇을 다루는 카드인지 구분이 늦다 |
+| 카드 부제 1줄 추가 (예: "신규 영상을 픽업하는 주기와 동시 처리 수") | 골격 문장이 아니라 카탈로그 UI-086~088·UI-100 description 을 요약한 것. 카드가 2열로 늘어서면 제목만으로는 무엇을 다루는 카드인지 구분이 늦다 |
 
 ### 2-2. 상태 표현 (와이어프레임에 없던 것)
 
 | 결정 | 근거 |
 |---|---|
-| **「라벨링 정밀도」 카드만 변경됨(isDirty) 상태**로 렌더 — `badge-primary "변경됨"` + 저장 버튼 활성. 나머지 4개는 저장 `disabled` | 골격 note *"값이 하나라도 변경되어야(isDirty) 활성화된다"*. 두 상태를 한 화면에서 동시에 보여야 시안이 사양을 설명한다 |
-| **연동 서버 주소 카드 = 잠금/해제 두 상태를 모두 구현** (`#lock-open` 체크박스로 CSS-only 전환). 잠금 = 배지 "잠김" + 회색 안내 배너 + `disabled` 입력 4개 + 「관리자 설정」 / 해제 = 배지 "편집 가능" + 성공색 배너 + `남은 유효 시간 09:42` + 활성 입력 + 「잠그기」·「주소 저장」 | 골격 description 이 잠금·인증·유효시간·재잠김을 모두 규정. 두 상태 마크업을 각각 두고 CSS 로 전환 — `disabled` 속성은 CSS 로 못 바꾸므로 한 벌로는 불가능 |
-| 잠금이 풀린 뒤에는 패스워드 다이얼로그가 다시 뜨지 않음 (`#lock-open:checked ~ #dlg-admin { display:none }`) | 인증 성공 → 모달 닫힘의 실제 동선을 무 JS 로 재현 |
-| `남은 유효 시간` 을 배너 우측 pill 로, 시간만 mono·600 | `AdminSessionCountdown` 이 "만료되면 다시 잠긴다"는 신호를 계속 줘야 함. 숫자가 바뀌므로 `tabular-nums` |
+| **「라벨링 정밀도」 카드만 변경됨(isDirty) 상태**로 렌더 — `badge-primary "변경됨"` + 저장 버튼 활성. 나머지 3개는 저장 `disabled` | 골격 note *"값이 하나라도 변경되어야(isDirty) 활성화된다"*. 두 상태를 한 화면에서 동시에 보여야 시안이 사양을 설명한다 |
+| **「시계열 위탁 전체 건너뛰기」가 켜진 상태**로 렌더 — 필드를 `--e-0` 표면 + `--e-2` 테두리로 감싸고, 상태를 말하는 것은 색이 아니라 `role="status"` 안내문(*"끄지 않으면 이후 영상도 계속 건너뜁니다"*). 사유 Input 은 필수(`*` + `sr-only` "필수") | 골격 validation *"켜져 있는 동안 들어오는 영상은 전건이 시계열 없이 확정되므로 켜짐 상태를 카드가 눈에 띄게 드러내고, 끄는 것을 잊으면 … 계속 건너뛴다는 사실을 보조 문구로 알린다 · 아래 사유가 비어 있으면 켤 수 없다"* |
 | IoU 슬라이더 아래 **`0.30 미만 구간은 저장할 수 없습니다.`** warn 인라인 문구 | 골격 validation 이 *"화면 슬라이더는 25~80으로 노출되어 25~29 구간을 입력할 수 있으나 서버가 거부한다"*고 규정한 **의도된 불일치**. 화면이 이를 알리지 않으면 사용자가 이유 없이 실패한다. (배치 처리·Confidence 는 화면 범위가 서버보다 좁아 드러나지 않으므로 문구를 두지 않았다) |
 | 인식 민감도 아래 **값 공유 안내**(info 표면 + 링크 아이콘) | UI-088 description *"AI 탐지 추론 파라미터의 Confidence Threshold와 같은 설정값을 공유하므로 한쪽에서 바꾸면 다른 카드에도 반영된다"*. 두 카드에 같은 숫자가 따로 보이면 버그로 읽힌다 |
-| 위험 구역 3종을 **타일 3개**(제목 + 개별 설명 + 버튼)로, 시스템 초기화만 error 표면 | UI-090 이 확인 다이얼로그에 *"작업명 + 개별 설명"* 을 요구 → 그 설명을 화면에도 미리 노출해 오조작을 줄인다. `destructive` 1개만 강조해 세 버튼이 같은 무게로 보이지 않게 함 |
-| 위험 액션 확인 다이얼로그를 **작업별 3개**(`#dlg-reset`·`#dlg-queue`·`#dlg-cache`)로 분리 | 골격은 Dialog 1개지만 note 가 *"수행할 작업명"* 표시를 요구. 공통 컴포넌트 1종을 작업별 내용으로 여는 것을 시안에서 3벌로 표현 |
 | 헬스 목록: 상태별 아이콘(Wifi/WifiOff/느낌표) + 배지 + latency + URL(있을 때만) | UI-089 accessibility_notes *"아이콘 + 색상 배지 텍스트를 함께 써서 색상 단독으로 정보를 전달하지 않는다"*. DS do_rule 과도 일치 |
 | 헬스 카드 헤더에 `5초마다 갱신` + 맥동 점 | 골격 *"5초 폴링"*. 화면이 살아 있음을 알리는 유일한 단서 |
 
+> **⚠ 구 서술 폐기 — 잠금·인증·위험 액션 관련 디자인 결정 5건**
+> 아래 결정은 그 표면이 **SCREEN-042 / SCREEN-043 으로 이관**되면서 이 화면의 사양이 아니게 됐다.
+> 결정 자체가 틀렸던 것이 아니라 **소속 화면이 바뀐 것**이다. ⚠ 두 화면에는 아직 `design-notes.md` 가 없으므로
+> (`design/` 에 `_sd-meta.md` + `design.html`/`.css` + 게시 미러만 있다, 실측) 실제 구현은 그 시안을 직접 읽는다.
+>
+> | 폐기한 구 결정 | 간 곳 |
+> |---|---|
+> | 연동 서버 주소 카드를 **잠금/해제 두 상태**로 모두 구현(`#lock-open` 체크박스 CSS-only 전환, `disabled` 입력 4개 ↔ 활성 입력) | SCREEN-042 |
+> | 잠금이 풀린 뒤 패스워드 다이얼로그가 다시 뜨지 않음(`#lock-open:checked ~ #dlg-admin { display:none }`) | SCREEN-042 |
+> | `남은 유효 시간`(`AdminSessionCountdown`)을 배너 우측 pill 로, 시간만 mono·600·`tabular-nums` | SCREEN-042 |
+> | 위험 구역 3종을 **타일 3개**(제목 + 개별 설명 + 버튼)로, 시스템 초기화만 error 표면 | SCREEN-043 |
+> | 위험 액션 확인 다이얼로그를 **작업별 3개**(`#dlg-reset`·`#dlg-queue`·`#dlg-cache`)로 분리 | SCREEN-043 |
+
 ### 2-3. 예시로 채운 값 (골격에 기본값 규정이 **없어** 시안 표시용으로 정한 값 — 사양 아님)
 
-처리 주기 60초 · 동시 처리 수 3 · Confidence 0.45 · 이미지 크기 640 · IoU 0.45 · 인식 민감도 0.45 · 경계 세밀함 **2.5px**(변경됨 상태 연출용) · 마스킹 방식 **모자이크** · 마스킹 범위 1.0배 · 프레임 저장 여부 **off**.
-연동 주소 4종은 내부 호스트명 형태(`https://deid.klid.internal` 등)로 표기했다.
+처리 주기 60초 · 동시 처리 수 3 · 시계열 건너뛰기 **on** + 사유 *"외부 시계열 분석 벤더 연동 전"* · Confidence 0.45 · IoU 0.45 · 인식 민감도 0.45 · 경계 세밀함 **2.5px**(변경됨 상태 연출용) · 마스킹 방식 **모자이크** · 마스킹 범위 1.0배 · 프레임 저장 여부 **off**.
 헬스 6행(정상 4 / 서비스 중단 1 / 연결 끊김 1)은 3가지 상태를 모두 보여주기 위한 구성이다.
+
+⚠ 구 예시값 중 **이미지 크기 640** 과 **연동 주소 4종**(`https://deid.klid.internal` 등)은 폐기한다 — 전자는 해당 입력이
+v44 골격·시안에 없고, 후자는 그 카드가 **SCREEN-042** 로 이관됐다.
 
 > ⚠️ 위 값은 전부 **표시용 예시**다. 실제 기본값·초기값은 골격·UC·AC 어디에도 없으므로 이 시안을 근거로 기본값을 정하지 말 것.
 
 ### 2-4. 보안 표기
 
-- 패스워드 입력은 **`value=""` 빈 값**으로만 렌더했고 마스킹된 더미 문자열도 넣지 않았다(자격증명처럼 보이는 문자열 생성 금지).
-- 도움말 `입력한 값은 화면에 다시 표시되지 않습니다.` 를 필드에 `aria-describedby` 로 연결.
-- 연동 주소에 토큰·키·자격증명 쿼리를 넣지 않았다.
+- **이 화면에는 자격증명 성격의 입력이 하나도 없다** — `type="password"` 0건 · 연동 주소·토큰·키 표기 0건(§4-3 실측).
+- 헬스 목록의 URL 은 호스트 경로만 표시하며 쿼리스트링·자격증명을 싣지 않는다.
+
+> **⚠ 구 서술 폐기 — 관리자 패스워드 표기 규칙 3건.**
+> *"패스워드 입력은 `value=""` 빈 값으로만 렌더 · 더미 문자열 금지"*, *"도움말 「입력한 값은 화면에 다시 표시되지 않습니다.」 를
+> `aria-describedby` 로 연결"*, *"연동 주소에 토큰·키·자격증명 쿼리를 넣지 않았다"* 는 **규칙이 폐지된 것이 아니라**
+> 그 입력이 **SCREEN-042 / SCREEN-043 으로 이관**된 것이다 — 두 화면의 시안에 `type="password"` 가 실재한다(실측).
+> 규칙을 이어받았는지는 그 시안에서 확인할 것.
 
 ---
 
@@ -79,22 +118,27 @@
 | 영역 | 카탈로그 컴포넌트 | 주요 토큰 |
 |---|---|---|
 | ① 페이지 헤더 | UI-012 PageHeader · UI-013 Breadcrumb · UI-014 StatusBadge(검수자 전용) | `title-lg`/22·700, `body-sm`/15 + `--n-6`, badge `--n-0`/`--n-7` |
-| ② 카드 1 배치 처리 | **UI-087 BatchConfigCard** · UI-001 Button(primary/sm) · UI-099 Field | 카드 `--radius-lg`+`--shadow-sm`+`--n-2` 테두리, 슬라이더 채움 `--p-5` / 빈 트랙 `--n-4` |
-| ② 카드 2 AI 탐지 추론 | **UI-086 YoloConfigCard** · UI-002 Input(number) · UI-099 Field | 입력 테두리 `--n-4`, 경고 인라인 `--w-0`/`--w-7` |
+| ② 카드 1 배치 처리 | **UI-087 BatchConfigCard** · UI-001 Button(primary/sm) · UI-099 Field · UI-024 Checkbox(스위치 형태) · UI-002 Input(사유) | 카드 `--radius-lg`+`--shadow-sm`+`--n-2` 테두리, 슬라이더 채움 `--p-5` / 빈 트랙 `--n-4`, 건너뛰기 켜짐 표면 `--e-0`/`--e-2`/`--e-7` |
+| ② 카드 2 AI 탐지 추론 | **UI-086 YoloConfigCard** · UI-099 Field | 슬라이더 트랙 `--n-4`, 경고 인라인 `--w-0`/`--w-7` |
 | ② 카드 3 라벨링 정밀도 | **UI-088 PrecisionConfigCard** · UI-014 StatusBadge(변경됨) | 변경 배지 `--p-0`/`--p-7`, 값 공유 안내 `--i-0`/`--i-7` |
 | ② 카드 4 비식별 옵션 | **UI-100 DeidentConfigCard** · UI-003 Select · UI-024 Checkbox(스위치 형태) | select `--n-4` 테두리, 스위치 ON `--p-5` / OFF `--n-5` |
-| ② 카드 5 연동 서버 주소 | UI-002 Input ×4 · UI-001 Button · **UI-004 Modal** · UI-014 StatusBadge | 잠금 `--n-0`/`--n-7`, 해제 `--su-0`/`--su-7`, 모달 `--shadow-lg` + 스크림 `rgba(19,20,22,0.6)` |
 | ③ 외부 연동 헬스 | **UI-089 HealthStatusList** · UI-014 StatusBadge | 정상 `--su-*` / 연결 끊김 `--e-*` / 서비스 중단 `--w-*`, 행 구분 `--n-1` |
-| ④ 위험 액션 | **UI-090 DangerActions** · UI-005 ConfirmDialog · Alert(info) · UI-001 Button(danger/secondary) | 카드 테두리 `--e-2`, destructive 타일 `--e-0`, 안내 `--i-0`/`--i-2`/`--i-7` |
 | 참고 패널 | UI-033 Skeleton · UI-021 ErrorState · UI-023 Toast | `--n-1` 스켈레톤, 토스트 `--shadow-md` |
+
+> **⚠ 구 서술 폐기 — 매핑 2행.** *"② 카드 5 연동 서버 주소 — UI-002 Input ×4 · UI-001 Button · **UI-004 Modal** ·
+> UI-014 StatusBadge / 잠금 `--n-0`/`--n-7`, 해제 `--su-0`/`--su-7`, 모달 `--shadow-lg` + 스크림 `rgba(19,20,22,0.6)`"* 는
+> **SCREEN-042** 로, *"④ 위험 액션 — **UI-090 DangerActions** · UI-005 ConfirmDialog · Alert(info) ·
+> UI-001 Button(danger/secondary)"* 는 **SCREEN-043** 으로 이관됐다.
+> ⚠ 그 결과 **UI-004 Modal · UI-005 ConfirmDialog · UI-090 DangerActions 는 이 화면에서 소비하지 않는다**(카탈로그에서
+> 없어진 것이 아니다). CSS 에는 `.btn-danger`·`.btn-secondary`·`.alert-*` 규칙이 남아 있으나 이 화면의 HTML 소비처는 0건이다.
 
 ### ⚠️ 미정 — 카탈로그에 대응 컴포넌트가 없는 요소 (임의 등록하지 않음)
 
 | 요소 | 골격 표기 | 상태 |
 |---|---|---|
 | **Slider** | 골격에 `custom_name: Slider` 로 7회 등장 | ⚠️ 미정 — `ui-catalog.md` 100건에 Slider **없음**(`showSlider` prop 1건이 전부). 네이티브 `input[type=range]` 를 DS 토큰으로 스타일링해 대체 |
-| **토글 스위치** (프레임 저장 여부) | `type: Custom` (custom_name 없음) | ⚠️ 미정 — Switch/Toggle 컴포넌트 없음. UI-024 Checkbox 를 스위치 형태로 표현 |
-| **AdminSessionCountdown** | `custom_name: AdminSessionCountdown` | ⚠️ 미정 — 카탈로그 미등록 |
+| **토글 스위치** (프레임 저장 여부 · 시계열 위탁 전체 건너뛰기 — 2곳) | `type: Custom` (custom_name 없음) | ⚠️ 미정 — Switch/Toggle 컴포넌트 없음. UI-024 Checkbox 를 스위치 형태로 표현 |
+| ~~**AdminSessionCountdown**~~ | ~~`custom_name: AdminSessionCountdown`~~ | **이관 — 이 화면 소관 아님.** 「관리자 설정」 유효시간 표시와 함께 **SCREEN-042** 로 갔다 |
 | **HealthDetailUrl / OverallStatusRow** | `custom_name` 2건 | UI-089 HealthStatusList description 이 두 동작을 모두 서술하므로 **그 컴포넌트 내부 표현**으로 처리(별도 등록 불필요) |
 | 값 리드아웃(`field-readout`) | 골격 없음 | 디자인 결정. 슬라이더는 현재 값을 숫자로 병기하지 않으면 조작이 불가능 |
 
@@ -107,16 +151,19 @@
 ### 4-1. raw hex 감사
 
 ```
-$ grep -oE "#[0-9a-fA-F]{3,6}" design-main.html design.css | sort | uniq -c | sort -rn
+$ grep -oE "#[0-9a-fA-F]{3,6}" design.html design.css | sort | uniq -c | sort -rn
 ```
+
+> 아래 hex·`:root` 수치는 **이번 이관 회차에 재확인했다**(토큰 블록은 손대지 않아 78종 그대로). 표 안의 파일명은
+> 로컬 원본 `design.html` 기준이며, 게시 미러 `design-main.html` 은 `<head>` 를 뺀 본문이 바이트 동일이다.
 
 | 대상 | 결과 |
 |---|---|
-| `design-main.html` raw hex | **0건** (색은 전부 클래스로) |
+| `design.html` raw hex | **0건** (색은 전부 클래스로) |
 | `design.css` `:root` **밖** raw hex | **0건** (사용처는 전부 `var(--*)`) |
 | `design.css` `:root` 안 hex 종류 | 78종 — DS 정본 대조 결과 **77종 완전 일치**, 미등재 1건 |
 | 미등재 1건 | `#ffffff` = `--bg-page`. DS 팔레트에 흰색 토큰이 없어 표면 기준색으로 선언. **SCREEN-009 와 동일 관례** |
-| `rgba()` | `rgba(14,21,40,0.06/0.08/0.12)` = DS shadow 토큰 **verbatim** · `rgba(19,20,22,0.6)` = `--n-10` 60% 모달 스크림(SCREEN-009 승계) · `rgba(255,255,255,0.55)` = 스켈레톤 스윕(SCREEN-009 승계) |
+| `rgba()` | `rgba(14,21,40,0.06/0.08/0.12)` = DS shadow 토큰 **verbatim** · `rgba(255,255,255,0.55)` = 스켈레톤 스윕(SCREEN-009 승계). ⚠ 구 항목 `rgba(19,20,22,0.6)`(모달 스크림)은 모달과 함께 **CSS 에서 제거**됐다(현재 파일 실측 0건) |
 | 인라인 `<style>` / `<script>` | **각 0건** |
 
 폰트는 `--font-body: 'Pretendard GOV'` · `--font-mono: 'D2Coding'` 만 사용(DS `font_substitutes` 폴백 순서 그대로).
@@ -125,31 +172,34 @@ $ grep -oE "#[0-9a-fA-F]{3,6}" design-main.html design.css | sort | uniq -c | so
 
 `contrast_checker.py` 로 **실제 사용한 조합 전수** 검사. 전부 통과.
 
+> ⚠ **아래 비율은 최초 회차 측정값이며 이번 이관 회차에 재측정하지 않았다.** 비율 자체는 토큰 쌍의 성질이라
+> 표면이 빠져도 달라지지 않지만, **「쓰인 곳」 열은 이번에 갱신**했다(이관으로 소비처가 사라진 조합은 취소선).
+
 | 전경 | 배경 | 비율 | 판정 | 쓰인 곳 |
 |---|---|---|---|---|
 | `--n-9` #1e2124 | #ffffff | **16.18** | AAA | 본문 기본 |
 | `--n-10` #131416 | #ffffff | **18.43** | AAA | h1·카드 제목 |
 | `--n-8` #33363d | #ffffff | **12.10** | AAA | 폼 라벨·스위치 텍스트 |
-| `--n-7` #464c53 | #ffffff | **8.68** | AAA | 액션 설명·모달 본문·latency |
+| `--n-7` #464c53 | #ffffff | **8.68** | AAA | 헬스 latency (~~액션 설명·모달 본문~~ → SCREEN-042/043) |
 | `--n-6` #58616a | #ffffff | **6.30** | AA | **도움말·캡션·슬라이더 눈금·헬스 URL** |
-| `--n-5` #6d7882 | #ffffff | **4.51** | AA | `text-faint`(칼럼 플래그)·breadcrumb 구분자 |
+| `--n-5` #6d7882 | #ffffff | **4.51** | AA | breadcrumb 구분자 (`text-faint` 는 이 노트 말미 「지어낸 화면 문구 제거」에서 이미 삭제) |
 | `--p-6` #0b50d0 | #ffffff | **6.83** | AA | 링크 hover |
-| `--e-7` #8a240f | #ffffff | **8.97** | AAA | 위험 구역 제목·경고문 |
-| `--su-7` #285d33 | #ffffff | **7.77** | AAA | 카운트다운 |
-| `--n-7` | `--n-0` #f4f5f6 | **7.95** | AAA | 잠금 배너 본문·neutral 배지 |
-| `--n-6` | `--n-0` | **5.77** | AA | **비활성 input·select 값** · readout 단위 · 참고 캡션 |
+| `--e-7` #8a240f | #ffffff | **8.97** | AAA | 에러 상태 제목(참고 패널) (~~위험 구역 제목·경고문~~ → SCREEN-043) |
+| ~~`--su-7` #285d33~~ | ~~#ffffff~~ | ~~7.77~~ | — | ~~카운트다운~~ → SCREEN-042 이관. 이 화면에 남은 `--su-7` 소비처는 `--su-0` 표면 위(아래 행)뿐 |
+| `--n-7` | `--n-0` #f4f5f6 | **7.95** | AAA | neutral 배지(「검수자 전용」) (~~잠금 배너 본문~~ → SCREEN-042) |
+| `--n-6` | `--n-0` | **5.77** | AA | 값 리드아웃 단위 · 참고 캡션 (~~비활성 input·select 값~~ → SCREEN-042) |
 | `--n-9` | `--n-0` | **14.82** | AAA | 값 리드아웃 숫자 |
 | `--n-6` | `--n-1` #e6e8ea | **5.13** | AA | **비활성 저장 버튼 라벨** |
 | `--su-6` | `--su-0` | **5.26** | AA | 정상 배지 |
-| `--su-7` | `--su-0` | **6.99** | AA | 해제 배너·전체 상태 행 |
+| `--su-7` | `--su-0` | **6.99** | AA | 전체 상태 행(참고 패널) (~~해제 배너~~ → SCREEN-042) |
 | `--w-7` | `--w-0` | **8.43** | AAA | 서비스 중단 배지·IoU 경고 |
-| `--e-7` | `--e-0` | **8.01** | AAA | 연결 끊김 배지·위험 타일·모달 경고 |
-| `--i-7` | `--i-0` | **6.82** | AA | 이관 안내·값 공유 안내 |
+| `--e-7` | `--e-0` | **8.01** | AAA | 연결 끊김 배지 · 건너뛰기 켜짐 안내문(`.skip-on-note`) (~~위험 타일·모달 경고~~ → SCREEN-043) |
+| `--i-7` | `--i-0` | **6.82** | AA | 값 공유 안내(`.link-note`) |
 | `--p-7` | `--p-0` | **9.42** | AAA | 변경됨 배지 |
 | #ffffff | `--p-5` | **4.55** | AA | primary 버튼 |
 | #ffffff | `--p-6` | **6.83** | AA | primary hover |
-| #ffffff | `--e-5` | **4.56** | AA | danger 버튼 |
-| #ffffff | `--e-6` | **5.95** | AA | danger hover |
+| ~~#ffffff~~ | ~~`--e-5`~~ | ~~4.56~~ | — | ~~danger 버튼~~ → SCREEN-043 이관. `.btn-danger` 규칙은 CSS 에 남았으나 이 화면의 소비처 0건 |
+| ~~#ffffff~~ | ~~`--e-6`~~ | ~~5.95~~ | — | ~~danger hover~~ → 동상 |
 
 **비텍스트 UI (WCAG 1.4.11, 3:1)**
 
@@ -170,25 +220,33 @@ $ grep -oE "#[0-9a-fA-F]{3,6}" design-main.html design.css | sort | uniq -c | so
 | 검사 | 결과 |
 |---|---|
 | HTML 태그 균형 | 오류 0 · 미닫힘 0 |
-| `id` 중복 | 0 (총 50개) |
+| `id` 중복 | 0 (총 **27개** — 이번 회차 브라우저 실측. 구 수치 50개는 이관 전 값) |
 | `label[for]` → 존재하지 않는 id | 0 |
 | `href="#..."` → 존재하지 않는 앵커 | 0 |
 | `aria-describedby` / `aria-labelledby` 미해결 | 각 0 |
-| `type="password"` 에 채워진 값 | 0 (`""` 2건) |
-| 실제 렌더(Chromium 1440×1200) | 콘솔 오류 0 (favicon 404 제외) · 접근성 트리에 4개 섹션 전부 정상 노출 |
-| 잠금/해제 전환 실동작 | `#lock-open` 체크 시 잠금 블록 `none` → 해제 블록 `flex`, 배지 교체, 패스워드 모달 `none` — **실측 확인** |
-| 다이얼로그 `:target` | `#dlg-admin` 진입 시 `role=dialog` + 스크림 + 포커스 가능한 닫기 링크 렌더 — **실측 확인** |
+| `type="password"` 요소 | **0건** (필드 자체가 SCREEN-042/043 으로 이관 — 구 기재 *"0 (`""` 2건)"* 폐기) |
+| 실제 렌더(Chromium 1440×1200) | 콘솔 오류·경고 **0건** · `main` 직계 3블록(페이지 헤더 / 설정+헬스 레이아웃 / 참고 패널) 정상 노출 — **이번 회차 실측** |
+| 설정 그리드 실측 (1440px) | `grid-template-columns: 504px 504px` — **2열 × 2행, 빈칸 없음**. 문서 `scrollWidth == innerWidth`(가로 오버플로 0) — **이번 회차 실측** |
+| 반응형 실측 (1279px) | 설정 그리드·본문 레이아웃 모두 1열로 접히고 `aside` 가 `position: static` 으로 전환, 가로 오버플로 0 — **이번 회차 실측** |
+| 이관 잔재 (`.endpoint-card` · `.danger-card` · `[role=dialog]` · `#lock-open`/`.lockstate` · `input[type=password]`) | **각 0건** — **이번 회차 실측** |
 
-> 렌더 중 발견해 고친 실제 결함 1건: `.only-unlocked{display:none}`(0,1,0)이 `.config-card > .card-content{display:flex}`(0,2,0)에 **specificity 로 져서 잠금·해제 블록이 동시에 표시**됐다. `.config-card > .card-content.only-unlocked` 로 특정도를 맞춰 해결.
+> **⚠ 구 검사 항목 폐기 2건.** *"잠금/해제 전환 실동작 — `#lock-open` 체크 시 잠금 블록 `none` → 해제 블록 `flex` …"* 와
+> *"다이얼로그 `:target` — `#dlg-admin` 진입 시 `role=dialog` + 스크림 …"* 은 대상 표면이 **SCREEN-042/043 으로 이관**돼
+> 이 화면의 검사 항목이 아니다. 두 화면에서 각각 확인한다.
+
+> **[이관으로 무효가 된 수정 이력]** 최초 회차에 고쳤던 결함 — `.only-unlocked{display:none}`(0,1,0)이
+> `.config-card > .card-content{display:flex}`(0,2,0)에 **specificity 로 져서 잠금·해제 블록이 동시에 표시**되던 것을
+> `.config-card > .card-content.only-unlocked` 로 해결 — 은 그 잠금 표면이 **SCREEN-042** 로 가면서 이 화면에서
+> 재현 대상이 아니게 됐다. **함정 자체는 유효하므로** 이관 화면에서 같은 구조를 쓸 때 참고할 것.
 
 ### 4-4. DS 규칙 준수 점검
 
 - 타이포는 `typography_use` ladder step 만 사용. **예외 1건** — `.breadcrumb .sep { font-size: 13px }` 은 ladder 밖이지만 **SCREEN-009 에서 verbatim 승계**한 장식 문자(`aria-hidden`)라 관례 일관성을 우선해 유지했다. 내가 새로 만든 13px(헬스 URL·latency·리드아웃 단위)은 전부 **14px(caption/mono)로 교정**했다.
-- 간격·radius·shadow 는 토큰 값만 사용(`--sp-*`/`--radius-*`/`--shadow-*`). 카드는 `shadow.sm` 만, 모달만 `shadow.lg`.
+- 간격·radius·shadow 는 토큰 값만 사용(`--sp-*`/`--radius-*`/`--shadow-*`). 카드는 `shadow.sm`, 토스트 미리보기는 `shadow.md`. ⚠ 구 서술 *"모달만 `shadow.lg`"* 폐기 — 모달이 SCREEN-042/043 으로 이관돼 이 화면에 `shadow.lg` 소비처가 없다.
 - 모든 인터랙티브 요소 `min-height: 44px` (슬라이더도 트랙 8px 을 44px 히트영역 안에 배치).
 - `focus-visible` 3px outline + 2px offset.
-- 상태는 **색 + 텍스트 + 아이콘** 동반(헬스 3상태·IoU 경고·위험 경고).
-- pill(`--radius-full`)은 배지와 카운트다운에만 사용.
+- 상태는 **색 + 텍스트 + 아이콘** 동반(헬스 3상태·IoU 경고·시계열 건너뛰기 켜짐 안내). ⚠ 구 서술의 "위험 경고"는 SCREEN-043 으로 이관.
+- pill(`--radius-full`)은 배지·스위치 트랙에만 사용. ⚠ 구 서술의 "카운트다운"은 SCREEN-042 로 이관.
 - 다크 표면 0건 (이 화면엔 미디어 매트가 없다).
 - 클릭 가능한 요소는 전부 `button`/`a`/`label`.
 
@@ -198,13 +256,24 @@ $ grep -oE "#[0-9a-fA-F]{3,6}" design-main.html design.css | sort | uniq -c | so
 
 | surface | 파일 | 크기 | 내용 |
 |---|---|---|---|
-| **main** (page) | `design-main.html` | 37.1 KB | 화면 본문 전체 — 섹션 ①~④ + 참고 패널 2종 + 다이얼로그 4종(`:target`) |
-| (공유) | `design.css` | 26.9 KB | DS 토큰 + 베이스/타이포/카드/버튼/배지 + 화면 고유(슬라이더·스위치·잠금·헬스·위험구역) |
+| **main** (page) — 로컬 원본 | `design.html` | 20.0 KB | 화면 본문 전체 — 섹션 ①~③(헤더 / 설정 카드 4장 / 헬스) + 참고 패널 1벌(미리보기 5컷: 전체 상태 대체행 · 스켈레톤 · 에러 상태 · 성공/실패 토스트) |
+| **main** (page) — 게시 미러 | `design-main.html` | 20.0 KB | 서버 게시본의 미러. `<head>` 를 뺀 본문은 `design.html` 과 바이트 동일 |
+| (공유) 로컬 원본 / 게시 미러 | `design.css` / `design-main.css` | 각 22.7 KB (바이트 동일) | DS 토큰 + 베이스/타이포/카드/버튼/배지 + 화면 고유(슬라이더·스위치·건너뛰기 표면·헬스·참고 패널) |
 | (문서) | `design-notes.md` | — | 이 파일 |
 
 - 셸(GNB/LNB/Footer)은 그리지 않았다 — `app_shell` 소관.
 - `<script>` 0건 · 인라인 `<style>` 0건. HTML 의 `style=` 속성은 슬라이더 채움률(`--fill`)과 여백 미세조정에만 쓰였고 **색·폰트는 한 건도 없다**(SCREEN-009 의 `style="width:56%"` 관례와 동일).
-- 오버레이 전용 surface 파일은 만들지 않았다 — 다이얼로그를 main 안에 `:target` 으로 두는 것이 SCREEN-009 관례이며, 골격의 `static_renders` 도 `main`(surface: page) 1건뿐이다.
+- 오버레이 전용 surface 파일은 만들지 않았다 — 골격의 `static_renders` 는 `main`(surface: page) **1건뿐**이며 이번 이관 뒤에도 그대로다.
+
+> **⚠ 구 인덱스 폐기.** 구 표는 `design-main.html` **37.1 KB** / `design.css` **26.9 KB** 였고 내용을
+> *"섹션 ①~④ + 참고 패널 2종 + 다이얼로그 4종(`:target`)"* · *"화면 고유(… 잠금 · 위험구역)"* 로 적었다.
+> 다이얼로그 4종(`#dlg-admin`·`#dlg-reset`·`#dlg-queue`·`#dlg-cache`)과 오버레이 참고 패널 2컷,
+> 관련 CSS 3섹션이 **SCREEN-042 / SCREEN-043 으로 이관**되면서 파일이 그만큼 줄었다.
+> **삭제된 CSS 섹션**(구 번호 기준) — `8. 연동 서버 주소 카드 — 잠금/해제 (CSS-only :checked)` ·
+> `10. 위험 구역 (UI-090 DangerActions)` · `13. 모달 (UI-004 Modal / UI-005 ConfirmDialog, :target)`.
+> 그에 따라 뒤 섹션이 **재번호**됐다 — 헬스 9→**8**, Alert/상태박스 11→**9**, 참고 패널 12→**10**,
+> 아이콘 14→**11**, 반응형 15→**12**. (구 0~7 은 번호 변동 없음.)
+> 위 파일 크기는 **이번 회차에 실측**했다.
 
 ---
 
@@ -213,12 +282,14 @@ $ grep -oE "#[0-9a-fA-F]{3,6}" design-main.html design.css | sort | uniq -c | so
 | 항목 | 상태 |
 |---|---|
 | 각 설정의 **실제 기본값/초기값** | 골격·UC-006/013/031·AC-006/013 어디에도 없음 → §2-3 예시값으로 표시. **사양 아님** |
-| 「관리자 설정」 유효 시간의 **정확한 길이** | 골격은 *"정해진 짧은 시간"* 까지만 규정 → `09:42` 는 예시 |
+| ~~「관리자 설정」 유효 시간의 **정확한 길이**~~ | **이관 — 이 화면 소관 아님.** 관리자 인증 유효창은 **SCREEN-042** 로 갔다 |
 | 저장 실패 시 **서버 문구 원문** | 골격이 *"범용 실패 토스트"* 라고만 규정 → 문구는 예시 |
 | 마스킹 방식의 **기본 선택지** | 미규정 → "모자이크" 선택 상태는 예시 |
 | 헬스 컴포넌트의 **정확한 목록·표기명** | 골격 description 의 6종(DB/디스크/관제서버/포털서버/AI서버/비식별서버)만 사용. DB 는 "데이터베이스"로 표기 |
-| Slider·Switch·AdminSessionCountdown **컴포넌트 등록** | ⚠️ 미정으로 남김. 카탈로그 임의 등록은 하지 않음 |
-| API-068/069/090/194 **응답 스키마** | 열어보지 않았고 필드를 유추해 화면에 추가하지 않았다. 화면에 나온 값은 전부 골격 `binds_to` 로 선언된 것뿐 |
+| Slider·Switch **컴포넌트 등록** | ⚠️ 미정으로 남김. 카탈로그 임의 등록은 하지 않음 (AdminSessionCountdown 은 SCREEN-042 로 이관돼 이 화면 소관 아님) |
+| API-068/069/090 **응답 스키마** | 열어보지 않았고 필드를 유추해 화면에 추가하지 않았다. 화면에 나온 값은 전부 골격 `binds_to` 로 선언된 것뿐. ⚠ 구 기재의 **API-194** 는 v44 `consumes_apis` 에서 빠졌고 **SCREEN-042** 가 소비한다 |
+| **「이미지 크기(Input)」 제거 경위** | 구 노트의 2번 카드에는 있었으나 v44 골격·현재 시안 양쪽에 없다. **관리자 화면 분리와는 별개 축**이며 언제·왜 빠졌는지는 확인하지 못했다 |
+| v44 골격 `sections[main]` **description 과 components 의 불일치** | description 이 카드를 ①~**⑤**로 서술하며 ⑤ *"AI 최대 대기 상한"* 을 규정하는데, 같은 섹션 `components` 에는 그 Card 가 **없고** 시안에도 없다. 이 노트는 실재하는 **Card 4개**를 따랐다 — **골격 쪽 정합이 필요한 사안**으로 보고만 한다 |
 | **Phase 5 (logicraft 역등록)** | 위임 범위 밖이라 수행하지 않음. LogiCraft 쓰기 도구 호출 0건 |
 
 

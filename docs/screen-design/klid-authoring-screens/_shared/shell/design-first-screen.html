@@ -13,7 +13,9 @@
 
      역할은 작업자(WORKER). 안에 넣은 대시보드 본문이 작업자 시점 렌더(KPI 4장 +
      '내 작업 현황' 표)라, 셸도 같은 역할로 맞춰야 한 화면 안에서 앞뒤가 맞는다.
-     검수자 시점의 주 메뉴는 아래 참고 패널에 나란히 두었다.
+     검수자·관리자 시점의 주 메뉴는 아래 참고 패널에 나란히 두었다 — 역할 계층이
+     관리자 → 검수자 한 단계라 관리자는 검수자 메뉴를 그대로 물려받고 '관리자'
+     묶음만 더 갖는다.
 
      ★ 아래 <main class="screen-root"> 블록은 SCREEN-011 시안(design-main.html)에서
        그대로 복제한 것이며 한 글자도 고치지 않았다. 그 시안이 자기 문서 끝에 달고 있는
@@ -45,7 +47,7 @@
     </div>
   </header>
 
-  <!-- ② 좌측 고정 주 메뉴 240px (UI-036 Lnb · NAV-001) — 작업자 5항목 -->
+  <!-- ② 좌측 고정 주 메뉴 240px (UI-036 Lnb · NAV-001) — 작업자 4항목 -->
   <nav class="lnb" aria-label="주 메뉴">
     <div class="lnb-group">
       <a class="lnb-link t-nav-link" href="#" aria-current="page">
@@ -57,11 +59,6 @@
         </svg>
         <span>대시보드</span>
       </a>
-    </div>
-
-    <div class="lnb-group">
-      <span class="lnb-group-label t-label">영상</span>
-      <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
     </div>
 
     <div class="lnb-group">
@@ -470,7 +467,7 @@
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>역할 분기</span>
-      <span class="t-body-sm text-muted">위 주 렌더는 작업자 시점입니다. 검수자로 들어오면 헤더 배지가 바뀌고 주 메뉴 항목이 5개에서 14개로 늘어납니다 — 데이터·관리 묶음이 새로 나타나고, 작업·통계 묶음에도 항목이 하나씩 더 붙습니다.</span>
+      <span class="t-body-sm text-muted">위 주 렌더는 작업자 시점입니다. 검수자로 들어오면 헤더 배지가 바뀌고 주 메뉴 항목이 4개에서 13개로 늘어납니다 — 영상·데이터·관리 묶음이 새로 나타나고, 작업·통계 묶음에도 항목이 하나씩 더 붙습니다. 관리자는 역할 계층으로 검수자 메뉴를 그대로 물려받은 위에 ‘관리자’ 묶음 6개가 더해져 19개가 됩니다.</span>
     </div>
 
     <div class="role-compare">
@@ -478,7 +475,7 @@
       <div class="role-col">
         <div class="role-col-head">
           <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>작업자</span>
-          <span class="lnb-count t-body-sm">4개 묶음 · 5개 항목 (위 주 렌더와 동일)</span>
+          <span class="lnb-count t-body-sm">4개 묶음 · 4개 항목 (위 주 렌더와 동일)</span>
         </div>
         <nav class="lnb" aria-label="주 메뉴 — 작업자 노출 기준">
           <div class="lnb-group">
@@ -491,10 +488,6 @@
               </svg>
               <span>대시보드</span>
             </a>
-          </div>
-          <div class="lnb-group">
-            <span class="lnb-group-label t-label">영상</span>
-            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
           </div>
           <div class="lnb-group">
             <span class="lnb-group-label t-label">작업</span>
@@ -514,7 +507,7 @@
       <div class="role-col">
         <div class="role-col-head">
           <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자</span>
-          <span class="lnb-count t-body-sm">7개 묶음 · 14개 항목</span>
+          <span class="lnb-count t-body-sm">7개 묶음 · 13개 항목</span>
         </div>
         <nav class="lnb" aria-label="주 메뉴 — 검수자 노출 기준">
           <div class="lnb-group">
@@ -552,7 +545,6 @@
           </div>
           <div class="lnb-group">
             <span class="lnb-group-label t-label">관리</span>
-            <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
             <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
             <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
             <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
@@ -560,6 +552,66 @@
             <a class="lnb-link t-nav-link" href="#"><span>이벤트유형 관리</span></a>
           </div>
         </nav>
+      </div>
+
+      <div class="role-col">
+        <div class="role-col-head">
+          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>관리자</span>
+          <span class="lnb-count t-body-sm">8개 묶음 · 19개 항목</span>
+        </div>
+        <nav class="lnb" aria-label="주 메뉴 — 관리자 노출 기준">
+          <div class="lnb-group">
+            <a class="lnb-link t-nav-link" href="#" aria-current="page">
+              <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span>대시보드</span>
+            </a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">영상</span>
+            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">작업</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>검수 목록</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">데이터</span>
+            <a class="lnb-link t-nav-link" href="#"><span>증강 요청</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">통계</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>전체 구축 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">게시판</span>
+            <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">관리</span>
+            <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>비식별 신고</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>이벤트유형 관리</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">관리자</span>
+            <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>연동 서버 주소</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>산출물 가져오기</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>파일 업로드</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>패스워드 교체</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>위험 액션</span></a>
+          </div>
+        </nav>
+        <p class="t-caption text-faint" style="margin:0">‘파일 업로드’는 빌드 설정으로 노출이 갈립니다 — 꺼진 빌드에서는 18개입니다.</p>
       </div>
 
     </div>

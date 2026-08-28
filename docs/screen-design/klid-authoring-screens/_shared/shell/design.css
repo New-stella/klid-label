@@ -154,6 +154,10 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .badge-neutral .dot { background: var(--n-5); }
 .badge-secondary { background: var(--s-0); color: var(--s-7); }
 .badge-secondary .dot { background: var(--s-5); }
+/* 관리자 역할 배지 — 역할 계층의 맨 위라 주 색(primary)을 쓴다. 검수자(secondary)·
+   작업자(neutral)와 한눈에 갈리게 두되, 색만으로 뜻을 전하지 않도록 항상 역할명을 함께 적는다. */
+.badge-primary { background: var(--p-0); color: var(--p-7); }
+.badge-primary .dot { background: var(--p-5); }
 
 /* ── 4. Card (UI-011 골격 재사용) ─────────────────────────────────── */
 .card {
@@ -351,8 +355,8 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .reference-grid > .card { background: var(--bg-page); }
 .reference-grid .ref-caption { display: block; margin-bottom: var(--sp-sm); }
 
-/* 역할 분기 비교 — 두 역할의 주 메뉴를 나란히 둔다 */
-.role-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+/* 역할 분기 비교 — 관리자·검수자·작업자 세 역할의 주 메뉴를 나란히 둔다 */
+.role-compare { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
 .role-compare .role-col { display: flex; flex-direction: column; gap: var(--sp-sm); }
 .role-compare .role-col-head { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
 .role-compare .lnb {

@@ -7,7 +7,7 @@
       <div class="wf-breadcrumb"><span>SCREEN-042</span><span class="sep">/</span><span>연동 서버 주소 관리 화면</span></div>
       <h1 style="white-space:nowrap">연동 서버 주소 관리 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">검수자가 외부 연동 대상의 주소를 재기동 없이 교체하는 관리자 페이지 화면. 다루는 주소는 비식별 서버·AI 추론 서버·외부 시계열 분석 벤더·관제 통지 수신처이며, 데이터베이스 접속정보는 이 화면의 대상이 아니다. 조회는 검수자 권한만으로 되고 저장에만 관리자 패스워드로 연 단기 유효창이 가산된다 — 유효창은 역할을 올리지 않는다. 값은 스킴과 형식만 보고 주소 대역으로는 막지 않으며, 저장한 값은 다음 호출부터 쓰인다. · route /admin/endpoints</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">관리자가 외부 연동 대상의 주소를 재기동 없이 교체하는 관리자 페이지 화면. 다루는 주소는 비식별 서버·AI 추론 서버·외부 시계열 분석 벤더·관제 통지 수신처이며, 데이터베이스 접속정보는 이 화면의 대상이 아니다. 이 화면은 관리자 역할을 요구하며, 저장에는 관리자 패스워드로 연 단기 유효창이 더 가산된다 — 유효창은 역할을 올리지 않는다. 값은 스킴과 형식만 보고 주소 대역으로는 막지 않으며, 저장한 값은 다음 호출부터 쓰인다. · route /admin/endpoints</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 페이지 헤더</h2>
@@ -93,7 +93,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '연동 서버 주소'와 부제('비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처'). 관리자 페이지에 속하는 화면이라 진입할 때 관리자 패스워드 확인을 거친다. 조회 자체는 검수자 권한만으로 되므로, 확인을 마치지 않은 상태에서도 현재 값은 보이고 저장만 막힌다. 데이터베이스 접속정보는 이 화면에서 다루지 않는다는 사실을 부제 아래 보조 문구로 밝혀, 여기서 찾다가 없다고 판단하는 일이 없게 한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '연동 서버 주소'와 부제('비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처'). 관리자 페이지에 속하는 화면이라 진입할 때 관리자 패스워드 확인을 거친다. 조회 자체는 관리자 역할만으로 되므로, 패스워드 확인을 마치지 않은 상태에서도 현재 값은 보이고 저장만 막힌다. 데이터베이스 접속정보는 이 화면에서 다루지 않는다는 사실을 부제 아래 보조 문구로 밝혀, 여기서 찾다가 없다고 판단하는 일이 없게 한다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(연동 서버 주소)</li><li>Text(비식별 서버 · AI 추론 서버 · 외부 시계열 분석 벤더 · 관제 통지 수신처)<p class="wf-help" style="margin:2px 0 0">부제. 이 화면이 다루는 대상을 그대로 나열한다.</p></li><li>Text(데이터베이스 접속정보는 이 화면에서 다루지 않습니다.)<p class="wf-help" style="margin:2px 0 0">보조 문구. 대상 밖이라는 사실을 화면에서 밝혀 오인을 막는다.</p></li></ul></div>
     </div>
   </div>
@@ -102,7 +102,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 연동 서버 주소</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>현재 저장된 주소를 불러와 입력란에 채운다. 저장된 값이 없으면 배포 기본값이 쓰이는 상태이며, 그 경우 입력란은 비어 있고 '저장된 값 없음'을 보조 문구로 알린다. 값이 없는 것은 오류가 아니라 정상 상태다. 조회는 검수자 권한만으로 되고 유효창을 요구하지 않는다. 저장은 실제로 바뀐 주소만 요청에 담는다. 값 검증은 스킴이 http 또는 https 인지와 주소 형식·호스트 존재까지이며, 주소 대역으로는 막지 않는다 — 사설망·루프백 주소도 그대로 저장된다. 연동 대상이 내부망의 별도 서버에 있을 수 있어 대역으로 막으면 정당한 연동이 막히기 때문이고, 망 통제는 인프라 계층이 담당한다. 형식이 올바르지 않으면 거부하되 거부 사유에 입력 원문·호스트·해석 결과를 싣지 않는다. 저장한 값은 재기동 없이 다음 호출부터 반영된다 — 값을 바꾼 노드에서는 즉시, 다른 노드에서는 설정 캐시 수명만큼 늦다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>현재 저장된 주소를 불러와 입력란에 채운다. 저장된 값이 없으면 배포 기본값이 쓰이는 상태이며, 그 경우 입력란은 비어 있고 '저장된 값 없음'을 보조 문구로 알린다. 값이 없는 것은 오류가 아니라 정상 상태다. 조회는 관리자 역할만으로 되고 유효창을 요구하지 않는다. 저장은 실제로 바뀐 주소만 요청에 담는다. 값 검증은 스킴이 http 또는 https 인지와 주소 형식·호스트 존재까지이며, 주소 대역으로는 막지 않는다 — 사설망·루프백 주소도 그대로 저장된다. 연동 대상이 내부망의 별도 서버에 있을 수 있어 대역으로 막으면 정당한 연동이 막히기 때문이고, 망 통제는 인프라 계층이 담당한다. 형식이 올바르지 않으면 거부하되 거부 사유에 입력 원문·호스트·해석 결과를 싣지 않는다. 저장한 값은 재기동 없이 다음 호출부터 반영된다 — 값을 바꾼 노드에서는 즉시, 다른 노드에서는 설정 캐시 수명만큼 늦다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Input(비식별 서버 주소) · binds configs.kpst.deid.base-url · 검증: 필수 · 스킴은 http 또는 https · 주소 형식과 호스트가 있어야 한다 · 길이 상한 있음. 주소 대역으로는 막지 않으므로 사설망·루프백 주소도 저장된다.<p class="wf-help" style="margin:2px 0 0">위탁 요청과 진행 상태 조회가 함께 이 주소를 따라간다.</p></li><li>Input(AI 추론 서버 주소) · binds configs.authoring.integration.ai-server.base-url · 검증: 필수 · 스킴은 http 또는 https · 주소 형식과 호스트가 있어야 한다 · 길이 상한 있음. 주소 대역으로는 막지 않으므로 사설망·루프백 주소도 저장된다.</li><li>Input(외부 시계열 분석 벤더 주소) · binds configs.vlm.client.url · 검증: 필수 · 스킴은 http 또는 https · 주소 형식과 호스트가 있어야 한다 · 길이 상한 있음. 주소 대역으로는 막지 않으므로 사설망·루프백 주소도 저장된다.</li><li>Input(관제 통지 수신처 주소) · binds configs.authoring.control-notify.url · 검증: 필수 · 스킴은 http 또는 https · 주소 형식과 호스트가 있어야 한다 · 길이 상한 있음. 주소 대역으로는 막지 않으므로 사설망·루프백 주소도 저장된다.</li><li>Text(저장된 값 없음 — 배포 기본값으로 동작 중)<p class="wf-help" style="margin:2px 0 0">그 주소의 저장 행이 아직 없을 때만 입력란 아래에 붙는다. 오류 표기로 그리지 않는다.</p></li><li>Button(저장) · → API-069<p class="wf-help" style="margin:2px 0 0">실제로 바뀐 주소만 요청에 담는다. 유효창이 남아 있지 않으면 요청을 보내기 전에 관리자 확인 창을 먼저 연다.</p></li><li>Alert(주소 형식이 올바르지 않습니다)<p class="wf-help" style="margin:2px 0 0">거부 안내는 어느 입력란이 문제인지까지만 알리고, 입력 원문·호스트·해석 결과를 문구에 담지 않는다.</p></li><li>Text(저장한 주소는 재기동 없이 다음 호출부터 쓰입니다)<p class="wf-help" style="margin:2px 0 0">값을 바꾼 노드에서는 즉시, 다른 노드에서는 설정 캐시 수명만큼 늦게 반영된다는 사실을 함께 적어, 바로 반영되지 않는 것을 오류로 읽지 않게 한다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-068</li><li>API-069</li></ul></div>
     </div>
@@ -112,7 +112,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 관리자 유효창 상태</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>관리자 패스워드로 연 유효창이 지금 열려 있는지와 남은 시간을 사람이 볼 수 있게 표시한다. 남은 시간을 보여주는 이유는, 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을 없애기 위해서다. 유효 여부의 판정은 서버가 소유하므로 이 표시는 안내일 뿐이며 화면이 스스로 아직 유효하다고 정하지 않는다. 유효창은 역할을 올리지 않는다 — 검수자 권한은 그대로 필요하고, 유효창은 저장에만 가산된다. 조회는 유효창 없이도 된다. 남은 시간이 끝난 뒤 저장을 누르면 거부 코드로만 알리고 끝내지 않고 관리자 확인 창을 다시 열어 준다. 확인을 마치면 누르던 저장을 이어서 수행한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>관리자 패스워드로 연 유효창이 지금 열려 있는지와 남은 시간을 사람이 볼 수 있게 표시한다. 남은 시간을 보여주는 이유는, 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을 없애기 위해서다. 유효 여부의 판정은 서버가 소유하므로 이 표시는 안내일 뿐이며 화면이 스스로 아직 유효하다고 정하지 않는다. 유효창은 역할을 올리지 않는다 — 관리자 역할은 그대로 필요하고, 유효창은 저장에만 가산된다. 조회는 유효창 없이도 된다. 남은 시간이 끝난 뒤 저장을 누르면 거부 코드로만 알리고 끝내지 않고 관리자 확인 창을 다시 열어 준다. 확인을 마치면 누르던 저장을 이어서 수행한다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Badge(관리자 확인됨 / 확인 필요)<p class="wf-help" style="margin:2px 0 0">유효창이 열려 있는지를 두 상태로만 보여준다.</p></li><li>Text(남은 유효 시간)<p class="wf-help" style="margin:2px 0 0">남은 시간을 분·초로 보여주고 얼마 남지 않으면 눈에 띄게 바꾼다. 판정은 서버가 가지므로 이 값은 안내다.</p></li><li>Button(관리자 확인) · → API-194<p class="wf-help" style="margin:2px 0 0">유효창을 새로 열거나 남은 시간을 다시 채울 때 누른다. 관리자 확인 창을 연다.</p></li><li>Text(조회는 이 확인 없이도 됩니다)<p class="wf-help" style="margin:2px 0 0">확인이 저장에만 가산되고 역할을 올리지 않는다는 사실을 화면에서 밝힌다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-194</li></ul></div>
     </div>

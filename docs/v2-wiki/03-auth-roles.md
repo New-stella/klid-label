@@ -25,7 +25,7 @@
   - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트.
 
-화면: `SC-001`(세션 인계 진입 `/ingress`) → channel 클레임으로 `/portal` 또는 `/dashboard` 라우팅. `SC-002`(역할 클레임 `/role-claim`) — role 미부여 시 진입.
+화면: `SC-001`(세션 인계 진입 `/ingress`) → channel 클레임으로 `/portal` 또는 `/dashboard` 라우팅. `SC-002`(관리자 등록 `/role-claim`) — role 미부여 시 진입. 화면 이름이 「역할 클레임」이던 것은 역할을 고르던 시절의 것이고, 지금은 부여 역할이 관리자 고정이라 고를 자리가 없다(`ADR-055`). 경로·엔드포인트 이름(`role-claim`)은 그대로다.
 
 > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 위 두 화면을 *"`KLID-AT-SC-001`"*·*"`KLID-AT-SC-002`"* 로 부르던 것은 낡은 식별자다. 코드의 1차 식별자는 `SCREEN-NNN`(LogiCraft ID)이고, `KLID-AT-SC-NNN` 헤더는 `NoticeListPage.tsx`·`NoticeDetailPage.tsx` **2개 파일에만** 남은 옛 D2 설계서 체계의 잔재다. 이 위키는 `SCREEN-NNN` 을 `SC-NNN` 으로 축약 표기한다. 근거: `04-screens-ia.md`(§4.1) · `reports/wiki-align-20260819/facts/F3-frontend-screens.md`.
 

@@ -32,7 +32,7 @@
 | 화면 ID | 화면명 | 라우트 | 권한 | 위키 |
 |---------|-------|--------|------|------|
 | SC-001 | 세션 인계 진입 | `/ingress` | 전체 | [03](03-auth-roles.md) |
-| SC-002 | 역할 클레임 | `/role-claim` | 전체 | [03](03-auth-roles.md) |
+| SC-002 | 관리자 등록 | `/role-claim` | 전체 | [03](03-auth-roles.md) |
 | SC-005 | 라벨링 캔버스 | `/label/:id` | WORKER/REVIEWER | [10](10-labeling.md) |
 | SC-006 | 마킹 | `/marking/:rawSn` | WORKER/REVIEWER | [06](06-marking.md) |
 | SC-008 | 영상 목록(영상 처리 현황) | `/video/status` | REVIEWER | [05](05-video-management.md) |

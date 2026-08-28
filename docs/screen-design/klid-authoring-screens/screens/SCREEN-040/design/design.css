@@ -1,0 +1,345 @@
+/*
+ * SCREEN-040 관리자 페이지 진입 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only. 토큰(0)·베이스(1)·타이포(2)·카드(4)·버튼(5)·배지(6)·필드(7)·Alert(11)·
+ * 참고 패널(12)·아이콘(14) 은 SCREEN-025 / SCREEN-009 관례를 그대로 따른다.
+ * 이 화면 고유 규칙은 섹션 3(게이트 무대) 과 섹션 9(유효창 스트립) 뿐이다.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+}
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-alt);
+  -webkit-font-smoothing: antialiased;
+  /* 한글은 어절 단위로 끊는다 — 낱말 중간에서 줄이 갈리지 않게 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+h1, h2, h3, h4, dt, dd, p, span, li, button, label, output { color: inherit; margin: 0; }
+button, input, select, textarea { font-family: inherit; }
+button { cursor: pointer; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); }
+.text-strong { color: var(--n-9); }
+
+/* ── 3. 게이트 무대 — 이 화면 고유 레이아웃 ──────────────────────────
+   관리 대시보드가 아니라 "지나가는 문"이다. 화면을 채우지 않고
+   좁은 카드 하나를 넓은 여백 가운데 세워 그 성격을 시각으로 말한다. */
+.screen-root {
+  padding: var(--sp-lg) var(--sp-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+}
+.gate-root {
+  min-height: 100vh;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: var(--sp-2xl);
+  padding-bottom: var(--sp-2xl);
+  gap: var(--sp-2xl);
+  background: var(--bg-alt);
+}
+.gate-stage {
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-md);
+}
+.gate-foot { color: var(--n-6); text-align: center; }
+
+/* ── 4. Card (UI-011) ────────────────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) 0;
+}
+.card > .card-content { padding: var(--sp-lg); }
+.ref-caption { display: block; margin-bottom: var(--sp-sm); color: var(--n-6); }
+.ref-note { margin-top: var(--sp-sm); color: var(--n-6); }
+
+/* 게이트 카드 — 안내(헤더) / 입력(폼) / 결과(유효창) 3단 */
+.gate-card { display: flex; flex-direction: column; box-shadow: var(--shadow-md); overflow: hidden; }
+
+/* ── 5. 버튼 (UI-001 Button variants) ────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 17px; font-weight: 500; line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.btn:disabled { cursor: not-allowed; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-primary:disabled { background: var(--n-1); color: var(--n-6); border-color: var(--n-2); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+.btn-secondary:disabled { background: var(--n-0); color: var(--n-6); border-color: var(--n-2); }
+.btn-block { width: 100%; }
+
+/* ── 6. 배지 (UI-014 StatusBadge) ────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.badge .icon-sm { margin-left: -2px; }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-6); }
+.badge-primary { background: var(--p-0); color: var(--p-7); }
+.badge-primary .dot { background: var(--p-6); }
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+
+/* ── 7. 폼 필드 (UI-099 Field 조립 구조) ─────────────────────────── */
+.field { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.field-label { color: var(--n-8); }
+.field-help { color: var(--n-6); }
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-9);
+  font-size: 17px;
+  line-height: 1.4;
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+.input::placeholder { color: var(--n-6); }
+.input:hover:not(:disabled) { border-color: var(--n-5); }
+.input:disabled { background: var(--n-0); color: var(--n-6); border-color: var(--n-2); cursor: not-allowed; }
+
+/* ── 8. 섹션① 진입 안내 ─────────────────────────────────────────────
+   문패 성격의 머리. 자물쇠 표식은 장식이 아니라 "지금은 잠겨 있다"는 상태 표시이며
+   제목·배지·문구가 그 사실을 글자로도 함께 말한다(색만으로 구분하지 않는다). */
+.gate-card > .card-header.gate-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-md);
+  padding: var(--sp-xl) var(--sp-lg) var(--sp-lg);
+  border-bottom: 1px solid var(--n-1);
+}
+.gate-mark {
+  width: 56px; height: 56px;
+  border-radius: var(--radius-full);
+  background: var(--p-0);
+  color: var(--p-7);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+}
+.gate-heading { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.gate-heading h1 { color: var(--n-10); }
+.gate-badges { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.gate-lead { color: var(--n-8); }
+
+/* 유효창의 성격을 중립적으로 설명하는 보조 문구 — 권한 부족을 나무라지 않는다 */
+.gate-note {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: 12px var(--sp-md);
+  border: 1px solid var(--n-2);
+  border-radius: var(--radius-md);
+  background: var(--n-0);
+  color: var(--n-7);
+}
+.gate-note .icon { flex: 0 0 auto; margin-top: 2px; color: var(--n-6); }
+
+/* 어디로 가려다 막혔는지 — 목적지를 사람이 알 수 있게 되돌아갈 화면을 밝힌다 */
+.gate-return {
+  display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap;
+  color: var(--n-7);
+}
+.gate-return-icon { color: var(--p-6); }
+.gate-return-text { flex: 1 1 auto; min-width: 0; }
+.gate-dest {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--p-4);
+  border-radius: var(--radius-sm);
+  background: var(--p-0);
+  color: var(--p-7);
+  white-space: nowrap;
+}
+.gate-return-sub { color: var(--n-6); margin-top: calc(var(--sp-sm) * -1 + 2px); }
+
+/* ── 9. 섹션② 관리자 패스워드 확인 ───────────────────────────────── */
+.gate-card > .card-content.gate-form {
+  display: flex; flex-direction: column; gap: var(--sp-lg);
+  padding: var(--sp-lg);
+}
+/* 확인이 주 행동, 취소가 보조 — 세로로 쌓아 골격 순서(확인 → 취소)를 눈으로도 지킨다 */
+.gate-actions { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.gate-actions-note { color: var(--n-6); text-align: center; margin-top: calc(var(--sp-lg) * -1 + var(--sp-sm)); }
+
+/* ── 10. 섹션③ 확인 결과 안내 — 유효창 스트립 ────────────────────── */
+.gate-card > .card-content.gate-result {
+  padding: var(--sp-md) var(--sp-lg) var(--sp-lg);
+  border-top: 1px solid var(--n-1);
+  background: var(--bg-page);
+}
+.window-strip {
+  display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap;
+  padding: 12px var(--sp-md);
+  border: 1px solid var(--n-2);
+  border-radius: var(--radius-md);
+  background: var(--n-0);
+  color: var(--n-7);
+}
+.window-strip .window-icon { flex: 0 0 auto; color: var(--n-6); }
+.window-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 240px; min-width: 0; }
+.window-title { color: var(--n-8); }
+.window-strip-open { border-color: var(--su-2); background: var(--su-0); }
+.window-strip-open .window-icon { color: var(--su-6); }
+
+/* 남은 유효 시간 — 열려 있으면 success, 아직 열리지 않았으면 중립 */
+.countdown {
+  margin-left: auto;
+  display: inline-flex; align-items: baseline; gap: var(--sp-xs);
+  background: var(--bg-page);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  color: var(--su-7);
+  flex: 0 0 auto;
+}
+.countdown .cd-time { font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.countdown-idle { border-color: var(--n-2); color: var(--n-7); }
+
+/* ── 11. Alert (UI-013) ──────────────────────────────────────────── */
+.alert { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); border-radius: var(--radius-md); border: 1px solid; }
+.alert-error   { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+.alert-neutral { background: var(--n-0); border-color: var(--n-2); color: var(--n-8); }
+.alert .alert-icon { flex: 0 0 auto; margin-top: 2px; }
+.alert .alert-body { display: flex; flex-direction: column; gap: 2px; }
+.alert .alert-title { font-weight: 600; }
+
+/* ── 12. 상태 참고 패널 (골격 외 보조 문서화 — SCREEN-009 관례) ──── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-page);
+  padding: var(--sp-lg);
+}
+.gate-reference { width: min(1080px, 100%); }
+.reference-panel .reference-flag { display: flex; align-items: center; gap: var(--sp-sm); margin-bottom: var(--sp-md); flex-wrap: wrap; }
+.reference-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-md); align-items: start; }
+
+/* ── 13. 아이콘 ──────────────────────────────────────────────────────
+   게시 sanitizer 가 SVG 표현 속성을 떨어뜨리므로 선 굵기·끝모양을 CSS 로 둔다. */
+svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon    { width: 20px; height: 20px; flex: 0 0 auto; }
+.icon-lg { width: 32px; height: 32px; flex: 0 0 auto; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; }
+
+/* ── 14. 반응형 ──────────────────────────────────────────────────── */
+@media (max-width: 899px) {
+  .gate-root { padding: var(--sp-lg) var(--sp-md); gap: var(--sp-xl); }
+  .reference-grid-2 { grid-template-columns: minmax(0, 1fr); }
+}

@@ -177,7 +177,7 @@ function toUserNotice(err: unknown): ClaimErrorNotice {
       // 시안 SCREEN-002 ③ 원문.
       return {
         title: '패스워드가 일치하지 않습니다',
-        description: '관리자에게 받은 패스워드를 다시 확인해주세요.',
+        description: '배포 시 설정된 공유 패스워드를 다시 확인해주세요.',
       };
     }
     if (err.status === 403) {
