@@ -7909,6 +7909,10 @@ display
 
 ## variants
 
+### admin
+
+- **description**: 관리자 — 검수자와 같은 primary 축을 쓰되 한 단계 짙게 둔다(primary-100 배경 + primary-800 텍스트). 계층으로 이어진 두 역할이 서로 무관해 보이지 않으면서도 목록에서 구분된다 — 같은 톤을 그대로 쓰면 구분이 사라진다
+
 ### reviewer
 
 - **description**: 검수자 — primary-05 배경 + primary-60 텍스트(6.09:1, AA)
@@ -7925,17 +7929,21 @@ display
 
 - **description**: 미배정 — warn-05 배경 + warn-70 텍스트(8.43:1, AAA) + warning 아이콘(삼각형 경고) 병기, 색상 단독으로 "주의 필요"를 전달하지 않기 위함
 
+### unknown
+
+- **description**: 아는 역할이 아닌 값 — 중립 회색(neutral-100 배경 + neutral-700 텍스트)으로 받은 값을 그대로 노출한다. 미배정으로 떨어뜨리지 않는다: 「모르는 역할」과 「역할 없음」은 다른 사실이라 같은 표시로 합치면 거짓을 말하게 된다
+
 ## description
 
-사용자의 역할(검수자/작업자/포털 사용자/미배정)을 표시하는 배지. 작업/배치 워크플로 상태를 표시하는 StatusBadge(UI-014, 16종 매핑)와는 의미 축이 달라(역할 vs 상태) 별도로 정의한다.
+사용자의 역할(관리자/검수자/작업자/포털 사용자)과 미배정·미매핑을 표시하는 배지. 작업/배치 워크플로 상태를 표시하는 StatusBadge(UI-014)와는 의미 축이 달라(역할 vs 상태) 별도로 정의한다.
 
 ## props_schema
 
 ### role
 
-- **type**: 'REVIEWER'|'WORKER'|'PORTAL_USER'|null
+- **type**: 'ADMIN'|'REVIEWER'|'WORKER'|'PORTAL_USER'|null
 - **required**: true
-- **description**: 역할 코드. null은 미배정을 의미
+- **description**: 역할 코드. null 은 미배정을 뜻한다. 이 네 값 밖의 코드가 들어와도 배지를 비우지 않고 받은 값을 그대로 노출한다
 
 ### label
 

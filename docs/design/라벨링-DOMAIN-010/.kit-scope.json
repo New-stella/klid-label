@@ -192,18 +192,6 @@
     "UC-034"
   ],
   "pending": [
-    "SHELL-001",
-    "MOD-006",
-    "MOD-007",
-    "MOD-008",
-    "MOD-010",
-    "MOD-021",
-    "MOD-028",
-    "MOD-031",
-    "MOD-032",
-    "MOD-033",
-    "MOD-043",
-    "MOD-047",
     "IMPREC-003",
     "IMPREC-021",
     "IMPREC-075",
@@ -211,17 +199,7 @@
     "IMPREC-084",
     "IMPREC-085",
     "IMPREC-127",
-    "LEGACY-004",
-    "LEGACY-017",
-    "LEGACY-054",
-    "LEGACY-055",
-    "LEGACY-056",
-    "LEGACY-057",
-    "LEGACY-065",
-    "LEGACY-068",
-    "LEGACY-070",
-    "LEGACY-072",
-    "NAV-001"
+    "NFR-022"
   ],
-  "last_sync_at": "2026-08-28T11:38:09.478Z"
+  "last_sync_at": "2026-08-28T22:51:27.093Z"
 }

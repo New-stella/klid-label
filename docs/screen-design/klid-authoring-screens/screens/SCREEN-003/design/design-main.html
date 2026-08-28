@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
 <body>
 <main class="screen-root">
 
@@ -53,12 +53,26 @@
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
-      <span class="t-body-sm text-muted">'현재 역할' 자리에 들어가는 배지 4종입니다 — 화면에 저장된 역할 값에 따라 이 중 하나가 표시되며, 아는 값이 아니면 받은 값을 그대로 보여줍니다.</span>
+      <span class="t-body-sm text-muted">'현재 역할' 자리에 들어가는 배지입니다 — 화면에 저장된 역할 값에 따라 이 중 하나가 표시되며, 역할 값이 없으면 미배정으로, 아는 값이 아니면 받은 값을 그대로 보여줍니다.</span>
     </div>
     <div class="reference-grid">
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">① 검수자</p>
+        <p class="t-label ref-variant-title">① 관리자</p>
+        <div class="ref-surface">
+          <span class="role-badge role-admin">
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path>
+              <circle cx="16.5" cy="7.5" r="0.5" fill="currentColor"></circle>
+            </svg>
+            관리자
+          </span>
+          <span class="ref-note t-caption">사용자 관리와 연동 설정을 담당하며, 검수자 권한을 계층으로 물려받습니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 검수자</p>
         <div class="ref-surface">
           <span class="role-badge role-reviewer">
             <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -67,12 +81,12 @@
             </svg>
             검수자
           </span>
-          <span class="ref-note t-caption">배정·검수 승인과 관리 화면을 담당하는 역할입니다.</span>
+          <span class="ref-note t-caption">작업 배정과 검수 승인·반려, 시스템 설정을 담당합니다.</span>
         </div>
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">② 작업자</p>
+        <p class="t-label ref-variant-title">③ 작업자</p>
         <div class="ref-surface">
           <span class="role-badge role-worker">
             <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -81,12 +95,12 @@
             </svg>
             작업자
           </span>
-          <span class="ref-note t-caption">화면에 역할 값이 없을 때의 기본값도 이 역할입니다.</span>
+          <span class="ref-note t-caption">영상에 라벨을 만들고 수정해 검수를 요청하는 역할입니다.</span>
         </div>
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">③ 포털</p>
+        <p class="t-label ref-variant-title">④ 포털</p>
         <div class="ref-surface">
           <span class="role-badge role-portal">
             <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -100,15 +114,30 @@
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">④ 아는 역할이 아닌 경우</p>
+        <p class="t-label ref-variant-title">⑤ 미배정</p>
         <div class="ref-surface">
           <span class="role-badge role-unassigned">
             <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
             </svg>
+            미배정
+          </span>
+          <span class="ref-note t-caption">역할 값이 없을 때입니다 — 넷 중 하나로 임의로 채우지 않습니다. 조치가 필요한 상태라 경고 아이콘을 병기합니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">⑥ 아는 역할이 아닌 경우</p>
+        <div class="ref-surface">
+          <span class="role-badge role-unknown">
+            <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"></path>
+              <path d="M9.6 9.3a2.5 2.5 0 0 1 4.9.8c0 1.7-2.5 2.4-2.5 2.4"></path>
+              <path d="M12 16.8h.01"></path>
+            </svg>
             받은 값 그대로
           </span>
-          <span class="ref-note t-caption">이름이 정해지지 않은 역할 값은 지어내지 않고 받은 값을 그대로 노출합니다.</span>
+          <span class="ref-note t-caption">이름이 정해지지 않은 역할 값은 지어내지 않고 받은 값을 그대로 노출합니다. '역할 없음' 과는 다른 사실이라 미배정과 같은 표시로 합치지 않습니다.</span>
         </div>
       </div>
 

@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-042
 type: screen_spec
-version: 5
+version: 8
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:56.064Z
+synced_at: 2026-08-28T22:51:21.482Z
 status: CHANGED
-prev_version: 3
-content_hash: 552687d80b87c1acdf2491cd4ac8b6930bc436d7cf4fca69cb68d723a2d31c4c
+prev_version: 5
+content_hash: db454e81e7a060f2e82b4ffcc961fcec24642c947b51bfc73b506354bd48568f
 stale: false
 raw: ./_raw/SCREEN-042.json
 links:
@@ -327,7 +327,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 관리자 패스워드로 연 유효창이 지금 열려 있는지와 남은 시간을 사람이 볼 수 있게 표시한다. 남은 시간을 보여주는 이유는, 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을 없애기 위해서다. 유효 여부의 판정은 서버가 소유하므로 이 표시는 안내일 뿐이며 화면이 스스로 아직 유효하다고 정하지 않는다. 유효창은 역할을 올리지 않는다 — 검수자 권한은 그대로 필요하고, 유효창은 저장에만 가산된다. 조회는 유효창 없이도 된다. 남은 시간이 끝난 뒤 저장을 누르면 거부 코드로만 알리고 끝내지 않고 관리자 확인 창을 다시 열어 준다. 확인을 마치면 누르던 저장을 이어서 수행한다.
+- **description**: 관리자 패스워드로 연 유효창이 지금 열려 있는지와 남은 시간을 사람이 볼 수 있게 표시한다. 남은 시간을 보여주는 이유는, 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을 없애기 위해서다. 유효 여부의 판정은 서버가 소유하므로 이 표시는 안내일 뿐이며 화면이 스스로 아직 유효하다고 정하지 않는다. 유효창은 역할을 올리지 않는다 — 관리자 역할은 그대로 필요하고, 유효창은 저장에만 가산된다. 조회는 유효창 없이도 된다. 남은 시간이 끝난 뒤 저장을 누르면 거부 코드로만 알리고 끝내지 않고 관리자 확인 창을 다시 열어 준다. 확인을 마치면 누르던 저장을 이어서 수행한다.
 
 **references_apis**:
 
@@ -510,8 +510,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 5b031ba8d079a162b8f0af8f0dced248acd596bca6e4e71e5e39676e9f69c893
-- **generated_at**: 2026-08-27T09:39:42.066Z
+- **source_hash**: 5f5cfedaf7ca7610f7c7fb4b621b001c517a150133b598dc78715896f3f2abd0
+- **generated_at**: 2026-08-28T22:11:36.616Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

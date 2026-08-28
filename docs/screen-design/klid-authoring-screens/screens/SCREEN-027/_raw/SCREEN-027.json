@@ -152,7 +152,7 @@
               "custom_name": "StatusBanner"
             },
             {
-              "note": "파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 검수자 권한은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.",
+              "note": "파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 관리자 역할은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.",
               "type": "Button",
               "label": "업로드 시작",
               "columns": [],
@@ -474,8 +474,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "cd8650c2df33d4dfaacebfad43f747218fe169541ae063651e346ca7d6908275",
-          "generated_at": "2026-08-27T10:16:36.631Z",
+          "source_hash": "d4f688444f965f137b3ef503cc8a37db075987f1158fc88b78c9d19d178b2690",
+          "generated_at": "2026-08-28T22:11:34.235Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -498,12 +498,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 39,
-    "stale": true,
-    "stale_reason": "API-152의 data.security 변경 — consumes",
-    "change_summary": "ADR-055 — 관리자 역할 신설에 따라 이 화면을 관리자 전용으로. required_roles ROLE-001 → ROLE-004",
+    "current_version": 42,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (24.0KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-28T04:16:55.714Z",
+    "last_updated_at": "2026-08-28T22:11:34.236Z",
     "created_at": "2026-05-30T07:55:52.978Z"
   }
 }

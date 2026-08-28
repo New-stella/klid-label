@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-28T11:38:10.982Z |
-| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 80 |
+| Last sync | 2026-08-28T22:51:28.589Z |
+| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 80 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-012 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 6건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 2건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -29,6 +29,7 @@
   ℹ️  acceptance: 이번 키트 6건 / 스코프 밖 118건 (그중 domain_id 없음 36건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 15건 / 스코프 밖 33건 (그중 domain_id 없음 2건)
+  ℹ️  nfr: 이번 키트 14건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
@@ -41,9 +42,9 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-049]]
-- NEW [[API-175]]
-- NEW [[SCREEN-019]]
+- CHANGED [[ADR-046]] (prev v7)
+- CHANGED [[NFR-020]] (prev v7)
+- CHANGED [[ROLE-004]] (prev v4)
 
 ## ITEM 표
 
@@ -65,8 +66,8 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 7 | UNCHANGED |
-| [[ADR-049]] | adr | 4 | NEW |
+| [[ADR-046]] | adr | 8 | CHANGED |
+| [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
@@ -75,7 +76,7 @@
 | [[API-094]] | api_endpoint | 9 | UNCHANGED |
 | [[API-109]] | api_endpoint | 5 | UNCHANGED |
 | [[API-112]] | api_endpoint | 5 | UNCHANGED |
-| [[API-175]] | api_endpoint | 2 | NEW |
+| [[API-175]] | api_endpoint | 2 | UNCHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
 | [[API-184]] | api_endpoint | 2 | UNCHANGED |
 | [[API-202]] | api_endpoint | 2 | UNCHANGED |
@@ -108,16 +109,16 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 7 | UNCHANGED |
+| [[NFR-020]] | nfr | 8 | CHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
+| [[ROLE-004]] | permission_role | 4 | CHANGED |
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 75 | UNCHANGED |
-| [[SCREEN-019]] | screen_spec | 43 | NEW |
+| [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 44 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |

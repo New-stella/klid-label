@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-043
 type: screen_spec
-version: 4
+version: 7
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:56.080Z
+synced_at: 2026-08-28T22:51:21.505Z
 status: CHANGED
-prev_version: 3
-content_hash: 334c8b3bf1ed54ddec970b44ee69b33ffb88987e4ae4823039fa665dd831e6c3
+prev_version: 4
+content_hash: 13c2c83b72fb0d90eee7016a050b201278437e4d171e3b9e67d1d2d4988b3e20
 stale: false
 raw: ./_raw/SCREEN-043.json
 links:
@@ -206,7 +206,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 시스템 초기화·배치 큐 초기화·캐시 삭제를 각각 실행 버튼으로 둔다. 어느 버튼도 누르는 것만으로 실행되지 않으며 반드시 확인 절차를 거친다. 실행에는 검수자 권한에 더해 유효한 관리자 단기 유효창이 필요하다 — 유효창은 검수자 권한을 대체하지 않고 그 위에 가산되며 역할을 승격시키지 않는다. 유효 여부 판정은 서버가 소유하며 화면이 스스로 아직 유효하다고 정하지 않는다. 화면에는 남은 유효 시간을 표시하고, 유효창이 없거나 기간이 끝난 뒤 실행을 시도하면 만료 사실을 안내한 뒤 관리자 패스워드 재확인을 요구한다. 이 영역의 구성과 동작은 컴포넌트 카탈로그의 DangerActions 가 소유하므로 여기에 다시 정의하지 않는다.
+- **description**: 시스템 초기화·배치 큐 초기화·캐시 삭제를 각각 실행 버튼으로 둔다. 어느 버튼도 누르는 것만으로 실행되지 않으며 반드시 확인 절차를 거친다. 실행에는 관리자 역할에 더해 유효한 관리자 단기 유효창이 필요하다 — 유효창은 관리자 역할을 대체하지 않고 그 위에 가산되며 역할을 승격시키지 않는다. 유효 여부 판정은 서버가 소유하며 화면이 스스로 아직 유효하다고 정하지 않는다. 화면에는 남은 유효 시간을 표시하고, 유효창이 없거나 기간이 끝난 뒤 실행을 시도하면 만료 사실을 안내한 뒤 관리자 패스워드 재확인을 요구한다. 이 영역의 구성과 동작은 컴포넌트 카탈로그의 DangerActions 가 소유하므로 여기에 다시 정의하지 않는다.
 
 **references_apis**:
 
@@ -404,8 +404,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: a51f3dd14a69d234842edaaba92891c502733c69edda5a48c28e21db567324ca
-- **generated_at**: 2026-08-27T09:39:42.279Z
+- **source_hash**: c21d3d14b7a118d09b8934c50cb40ad461f1181952a7631ba730e24b7057424c
+- **generated_at**: 2026-08-28T22:11:37.239Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

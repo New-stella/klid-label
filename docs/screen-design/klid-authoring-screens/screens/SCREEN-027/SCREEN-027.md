@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 39
-last_updated_at: 2026-08-28T04:16:55.714Z
+version: 42
+last_updated_at: 2026-08-28T22:11:34.236Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T15:27:44.456Z
+synced_at: 2026-08-28T22:54:49.347Z
 sync_session: 33
-stale: true
-status: NEW
-prev_version: null
+stale: false
+status: CHANGED
+prev_version: 39
 raw: ./_raw/SCREEN-027.json
 wireframe: ./wireframe.html
 links:
@@ -18,6 +18,10 @@ links:
   realizes_use_cases: ["[[UC-037]]"]
   acceptance: ["[[AC-099]]", "[[AC-100]]", "[[AC-101]]", "[[AC-102]]", "[[AC-103]]", "[[AC-104]]", "[[AC-105]]", "[[AC-106]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v39 → v42**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (24.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 파일 업로드
 
@@ -288,7 +292,7 @@ _(empty)_
 
 #### [16]
 
-- **note**: 파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 검수자 권한은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.
+- **note**: 파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 관리자 역할은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.
 - **type**: Button
 - **label**: 업로드 시작
 
@@ -884,8 +888,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: cd8650c2df33d4dfaacebfad43f747218fe169541ae063651e346ca7d6908275
-- **generated_at**: 2026-08-27T10:16:36.631Z
+- **source_hash**: d4f688444f965f137b3ef503cc8a37db075987f1158fc88b78c9d19d178b2690
+- **generated_at**: 2026-08-28T22:11:34.235Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

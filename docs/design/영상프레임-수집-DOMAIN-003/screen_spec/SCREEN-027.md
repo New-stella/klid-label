@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 39
+version: 42
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:54.440Z
+synced_at: 2026-08-28T22:51:19.712Z
 status: CHANGED
-prev_version: 34
-content_hash: 936c7693e6e7fea64ef94c8360bc76d2aeda5f9eae38a21ba34e0a854ad1c37c
-stale: true
+prev_version: 39
+content_hash: 4fcd6e0cebbf1d7955deaf4877821ea29b690fe5657755b3dd4039211e838b54
+stale: false
 raw: ./_raw/SCREEN-027.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
@@ -295,7 +295,7 @@ _(empty)_
 
 #### [16]
 
-- **note**: 파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 검수자 권한은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.
+- **note**: 파일 선택 시 활성. 이 화면에서 관리자 유효창을 요구하는 자리는 여기 하나뿐이다. 관리자 패스워드 확인이 열어 주는 것은 역할 승격이 아니라 그 사람에게 잠깐 열리는 유효창이며, 관리자 역할은 그대로 필요하다 — 유효창은 인가를 대체하지 않고 더해진다.
 - **type**: Button
 - **label**: 업로드 시작
 
@@ -891,8 +891,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: cd8650c2df33d4dfaacebfad43f747218fe169541ae063651e346ca7d6908275
-- **generated_at**: 2026-08-27T10:16:36.631Z
+- **source_hash**: d4f688444f965f137b3ef503cc8a37db075987f1158fc88b78c9d19d178b2690
+- **generated_at**: 2026-08-28T22:11:34.235Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

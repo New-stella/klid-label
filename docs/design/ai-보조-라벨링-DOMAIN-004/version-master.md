@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-28T11:38:07.311Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 109 |
+| Last sync | 2026-08-28T22:52:20.537Z |
+| Mode | SYNC — NEW 5 / CHANGED 0 / UNCHANGED 105 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-004 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 12건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 13건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -29,6 +29,7 @@
   ℹ️  acceptance: 이번 키트 14건 / 스코프 밖 110건 (그중 domain_id 없음 35건)
   ℹ️  constant: 이번 키트 1건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   ℹ️  adr: 이번 키트 19건 / 스코프 밖 29건 (그중 domain_id 없음 3건)
+  ℹ️  nfr: 이번 키트 14건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   ℹ️  feature: 이번 키트 3건 / 스코프 밖 7건 (그중 domain_id 없음 6건)
 ```
 
@@ -41,7 +42,11 @@
 
 ## Changelog (this run)
 
-- NEW [[API-194]]
+- NEW [[SHELL-001]]
+- NEW [[LEGACY-005]]
+- NEW [[LEGACY-066]]
+- NEW [[LEGACY-067]]
+- NEW [[LEGACY-096]]
 
 ## ITEM 표
 
@@ -73,7 +78,7 @@
 | [[ADR-039]] | adr | 6 | UNCHANGED |
 | [[ADR-040]] | adr | 2 | UNCHANGED |
 | [[ADR-041]] | adr | 4 | UNCHANGED |
-| [[ADR-046]] | adr | 7 | UNCHANGED |
+| [[ADR-046]] | adr | 8 | UNCHANGED |
 | [[ADR-047]] | adr | 1 | UNCHANGED |
 | [[ADR-048]] | adr | 5 | UNCHANGED |
 | [[ADR-052]] | adr | 2 | UNCHANGED |
@@ -101,7 +106,7 @@
 | [[API-162]] | api_endpoint | 6 | UNCHANGED |
 | [[API-164]] | api_endpoint | 3 | UNCHANGED |
 | [[API-177]] | api_endpoint | 4 | UNCHANGED |
-| [[API-194]] | api_endpoint | 8 | NEW |
+| [[API-194]] | api_endpoint | 8 | UNCHANGED |
 | [[API-204]] | api_endpoint | 1 | UNCHANGED |
 | [[API-216]] | api_endpoint | 2 | UNCHANGED |
 | [[API-217]] | api_endpoint | 2 | UNCHANGED |
@@ -119,10 +124,10 @@
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
 | [[FEAT-009]] | feature | 3 | UNCHANGED |
 | [[INFRA-001]] | infra_component | 4 | UNCHANGED |
-| [[LEGACY-005]] | legacy_artifact | 1 | UNCHANGED |
-| [[LEGACY-066]] | legacy_artifact | 1 | UNCHANGED |
-| [[LEGACY-067]] | legacy_artifact | 1 | UNCHANGED |
-| [[LEGACY-096]] | legacy_artifact | 1 | UNCHANGED |
+| [[LEGACY-005]] | legacy_artifact | 1 | NEW |
+| [[LEGACY-066]] | legacy_artifact | 1 | NEW |
+| [[LEGACY-067]] | legacy_artifact | 1 | NEW |
+| [[LEGACY-096]] | legacy_artifact | 1 | NEW |
 | [[MODEL-001]] | model_usage | 1 | UNCHANGED |
 | [[MODEL-002]] | model_usage | 1 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
@@ -137,7 +142,7 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 7 | UNCHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
@@ -145,13 +150,13 @@
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 44 | UNCHANGED |
-| [[SCREEN-027]] | screen_spec | 39 | UNCHANGED |
+| [[SCREEN-027]] | screen_spec | 42 | UNCHANGED |
 | [[SD-033]] | screen_design | 11 | UNCHANGED |
 | [[SEQ-005]] | diagram_sequence | 9 | UNCHANGED |
 | [[SEQ-006]] | diagram_sequence | 7 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 8 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 10 | UNCHANGED |
+| [[SHELL-001]] | app_shell | 11 | NEW |
 | [[UC-004]] | use_case | 15 | UNCHANGED |
 | [[UC-005]] | use_case | 10 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |

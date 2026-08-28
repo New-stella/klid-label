@@ -4,11 +4,11 @@ type: permission_role
 version: 4
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:55.231Z
-status: NEW
-prev_version: null
-content_hash: d77983f88ac9c37d6a61cbf31a7c3840f1cd8737c632db29097539bb2f917e34
-stale: false
+synced_at: 2026-08-28T22:51:20.499Z
+status: CHANGED
+prev_version: 4
+content_hash: 69937078736448b8b100421e9c5402e92abefc5a1ed0e1c07fc523b758dccaae
+stale: true
 raw: ./_raw/ROLE-004.json
 links:
   based_on: ["[[ADR-055]]"]
@@ -159,6 +159,7 @@ _(empty)_
 ### records
 
 - IMPREC-165
+- IMPREC-186
 
 ### progress
 
@@ -170,7 +171,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-28T11:30:52.540Z
+2026-08-28T14:05:37.931Z
 
 ### module_paths
 

@@ -4,7 +4,7 @@ type: legacy_artifact
 version: 1
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:50.127Z
+synced_at: 2026-08-28T22:52:20.537Z
 status: NEW
 prev_version: null
 content_hash: a3cd5139a7eda433a1bc0661cf2ebd95462eed361d4833654f71fc0c0bafdb63
@@ -12,6 +12,7 @@ stale: false
 raw: ./_raw/LEGACY-067.json
 links:
   migrated_from_backward: ["[[AC-038]]", "[[AC-039]]", "[[AC-040]]", "[[DFEAT-019]]", "[[REQ-006]]", "[[UC-034]]"]
+  references_backward: ["[[ADR-047]]"]
 ---
 
 # [screen] SKKLID-UI-02-02-06 데이터 작업 - 오토 라벨링 기능

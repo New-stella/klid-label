@@ -373,6 +373,7 @@ select:focus-visible,
 .du-badge--inactive { background: var(--n-0); color: var(--n-7); }
 
 /* 역할 배지 — 카탈로그 외 신규 후보(design-notes §역등록 참고, Phase 6 보강 권고 대상) */
+.du-badge--role-admin { background: var(--p-6); color: var(--bg-page); }
 .du-badge--role-reviewer { background: var(--p-0); color: var(--p-6); }
 .du-badge--role-worker { background: var(--s-0); color: var(--s-7); }
 .du-badge--role-portal { background: var(--n-0); color: var(--n-8); border: 1px solid var(--border); }

@@ -2,11 +2,11 @@
 
 | 항목 | 값 |
 |---|---|
-| SD | SD-018 v5 |
+| SD | SD-018 v8 |
 | status | draft |
 | designer | claude-screen-design |
 | designs_screen | SCREEN-002 |
 
 ## renders
 
-- main (page) — 역할 클레임 화면 — 고충실 디자인
+- main (page) — 관리자 등록 화면 — 고충실 디자인

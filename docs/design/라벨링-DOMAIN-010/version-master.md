@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-08-28T11:38:09.477Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 182 |
+| Last sync | 2026-08-28T22:51:27.093Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 181 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-010 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 30건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 8건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -28,6 +28,7 @@
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
   ℹ️  acceptance: 이번 키트 26건 / 스코프 밖 98건 (그중 domain_id 없음 27건)
   ℹ️  adr: 이번 키트 19건 / 스코프 밖 29건 (그중 domain_id 없음 3건)
+  ℹ️  nfr: 이번 키트 14건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
 ```
 
@@ -40,7 +41,8 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-015]]
+- CHANGED [[NFR-020]] (prev v7)
+- CHANGED [[ROLE-004]] (prev v4)
 
 ## ITEM 표
 
@@ -79,7 +81,7 @@
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-009]] | adr | 5 | UNCHANGED |
 | [[ADR-010]] | adr | 1 | UNCHANGED |
-| [[ADR-015]] | adr | 4 | NEW |
+| [[ADR-015]] | adr | 4 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
 | [[ADR-020]] | adr | 10 | UNCHANGED |
 | [[ADR-022]] | adr | 5 | UNCHANGED |
@@ -188,12 +190,12 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 7 | UNCHANGED |
+| [[NFR-020]] | nfr | 8 | CHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
+| [[ROLE-004]] | permission_role | 4 | CHANGED |
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 75 | UNCHANGED |
 | [[SCREEN-010]] | screen_spec | 37 | UNCHANGED |

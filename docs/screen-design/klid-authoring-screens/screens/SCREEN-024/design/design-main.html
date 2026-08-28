@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" />
+<head><link rel="stylesheet" href="design-main.css">
+  <meta charset="utf-8" />
   <title>SCREEN-024 사용자 관리 화면 — 고충실도 디자인</title>
 </head>
 <body class="screen-024">
@@ -25,6 +26,7 @@
           <label class="du-label t-label" for="du-role-filter">역할</label>
           <select class="du-select t-body-md" id="du-role-filter">
             <option>전체 역할</option>
+            <option>관리자</option>
             <option>검수자</option>
             <option>작업자</option>
             <option>포털</option>
@@ -54,6 +56,19 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">박</span>
+                  <span class="du-cell-name">박지훈</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">jihoon.park@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-admin t-label">관리자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-01-05</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
             <tr>
               <td class="t-body-md">
                 <div class="du-cell-user">
@@ -239,11 +254,12 @@
               <label class="du-label t-label" for="du-modal-role">역할</label>
               <select class="du-select t-body-md" id="du-modal-role">
                 <option disabled>선택하세요</option>
+                <option>관리자</option>
                 <option selected>검수자</option>
                 <option>작업자</option>
                 <option>포털</option>
               </select>
-              <p class="du-help t-caption">저장하려면 반드시 선택해야 합니다. 서버가 허용값(검수자/작업자/포털)을 재검증합니다.</p>
+              <p class="du-help t-caption">저장하려면 반드시 선택해야 합니다. 서버가 허용값(관리자/검수자/작업자/포털)을 재검증합니다.</p>
             </div>
             <div class="du-readonly-row">
               <span class="du-label t-label" style="margin:0">상태</span>
@@ -262,7 +278,7 @@
 
             <p class="du-save-req t-caption">
               <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
-              <span>역할 변경 저장에는 검수자 권한과 함께 유효한 관리자 확인이 필요합니다. 유효 여부는 서버가 판정합니다. 목록·단건 조회에는 요구되지 않습니다.</span>
+              <span>역할 변경 저장에는 관리자 역할과 함께 유효한 관리자 확인이 필요합니다. 유효 여부는 서버가 판정합니다. 목록·단건 조회에는 요구되지 않습니다.</span>
             </p>
           </div>
           <div class="du-modal-footer">

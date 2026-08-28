@@ -55,6 +55,7 @@
               "label": "역할 선택",
               "columns": [],
               "options": [
+                "ADMIN (9001, 박관리) · INTERNAL",
                 "REVIEWER (1001, 김검수) · INTERNAL",
                 "WORKER (2001, 최라벨) · INTERNAL",
                 "PORTAL_USER (3001, 홍길동) · PORTAL"
@@ -96,7 +97,7 @@
               "variant": "primary"
             }
           ],
-          "description": "역할(REVIEWER/WORKER/PORTAL_USER) 라디오 선택 + userNo(선택, 비우면 BE 기본값) + expSeconds(선택, 기본 3600) 입력 후 제출. 제출 시 POST /api/v1/dev/tokens 호출 → 응답 token을 localStorage[klid-jwt-token]에 저장 + claims 일부(사용자ID/명/권한) 스텁 저장 → /ingress 로 이동(운영 시나리오 1:1 재현). 실패 시 인라인 에러 알림 표시. 제출 중에는 버튼 disabled + '발급 중…'. 역할 선택에 따라 userNo placeholder와 기본값 안내(1001 김검수 / 2001 최라벨 / 3001 홍길동), channel(INTERNAL/PORTAL)이 연동된다.",
+          "description": "역할(ADMIN/REVIEWER/WORKER/PORTAL_USER) 라디오 선택 + userNo(선택, 비우면 BE 기본값) + expSeconds(선택, 기본 3600) 입력 후 제출. 제출 시 POST /api/v1/dev/tokens 호출 → 응답 token을 localStorage[klid-jwt-token]에 저장 + claims 일부(사용자ID/명/권한) 스텁 저장 → /ingress 로 이동(운영 시나리오 1:1 재현). 실패 시 인라인 에러 알림 표시. 제출 중에는 버튼 disabled + '발급 중…'. 역할 선택에 따라 userNo placeholder와 기본값 안내(9001 박관리 / 1001 김검수 / 2001 최라벨 / 3001 홍길동), channel(INTERNAL/PORTAL)이 연동된다. 관리자를 선택지에 두는 이유는 이 화면이 인계 흐름을 재현하는 자리기 때문이다 — 재현할 수 없는 역할이 남으면 관리자 전용 화면을 사람이 눌러 확인할 수단이 없어진다.",
           "references_apis": [
             "API-153"
           ],
@@ -118,11 +119,13 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-107"
+          "IMPREC-107",
+          "IMPREC-187"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:33.367Z"
+        "last_updated": "2026-08-28T15:24:05.559Z",
+        "module_paths": []
       },
       "required_roles": [],
       "static_renders": [
@@ -133,8 +136,8 @@
           "width": 1440,
           "surface": "page",
           "sections": [],
-          "source_hash": "db9086586b1a94902f629231c46e3a1d87bd153776a8f8e07ed98c796120eca2",
-          "generated_at": "2026-08-16T12:43:58.304Z",
+          "source_hash": "f2184e06045658464ba2e7c515ffd8dcac2ef78ee5541375cbcaaee97146ae56",
+          "generated_at": "2026-08-28T21:59:13.629Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -146,12 +149,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.3KB)",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:33.367Z",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.5KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-28T21:59:13.629Z",
     "created_at": "2026-05-30T07:53:40.390Z"
   }
 }

@@ -1,18 +1,22 @@
 ---
 logicraft_item: SCREEN-003
 type: screen_spec
-version: 12
-last_updated_at: 2026-08-28T13:34:17.064Z
+version: 14
+last_updated_at: 2026-08-28T21:56:59.553Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T15:27:44.438Z
+synced_at: 2026-08-28T22:54:49.330Z
 sync_session: 33
 stale: false
-status: NEW
-prev_version: null
+status: CHANGED
+prev_version: 12
 raw: ./_raw/SCREEN-003.json
 wireframe: ./wireframe.html
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v12 → v14**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (3.4KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 접근 거부 화면
 
@@ -216,9 +220,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: e31fcda54f4e8081eacba81a8ad44084adece4f0a1dc3e6d4a836ebd3fcb52e0
-- **generated_at**: 2026-08-13T01:02:39.049Z
-- **generated_by**: sections-deterministic-generator
+- **source_hash**: 604871f4435dd6ebfebd43805e6fdaab695fd3dd76ead82782b9f33922c224a9
+- **generated_at**: 2026-08-28T21:56:59.553Z
+- **generated_by**: generate-wireframes.py
 
 **triggered_by**:
 

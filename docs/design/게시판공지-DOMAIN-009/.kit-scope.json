@@ -58,24 +58,11 @@
     "SD-011"
   ],
   "pending": [
-    "SHELL-001",
-    "MOD-026",
-    "MOD-027",
-    "MOD-029",
-    "MOD-034",
-    "MOD-035",
-    "MOD-036",
-    "MOD-037",
-    "MOD-038",
-    "MOD-044",
     "IMPREC-004",
     "IMPREC-005",
     "IMPREC-006",
     "IMPREC-007",
-    "LEGACY-001",
-    "LEGACY-085",
-    "LEGACY-127",
-    "NAV-001"
+    "NFR-022"
   ],
-  "last_sync_at": "2026-08-28T11:36:59.858Z"
+  "last_sync_at": "2026-08-28T22:51:26.330Z"
 }

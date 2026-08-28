@@ -112,21 +112,10 @@
     "UI-097"
   ],
   "pending": [
-    "SHELL-001",
-    "MOD-009",
-    "MOD-010",
-    "MOD-011",
-    "MOD-043",
-    "MOD-047",
     "IMPREC-099",
     "IMPREC-108",
     "IMPREC-114",
-    "LEGACY-077",
-    "LEGACY-078",
-    "LEGACY-079",
-    "NAV-001",
-    "REQ-024",
-    "REQ-026"
+    "NFR-022"
   ],
-  "last_sync_at": "2026-08-28T11:38:08.022Z"
+  "last_sync_at": "2026-08-28T22:51:24.829Z"
 }

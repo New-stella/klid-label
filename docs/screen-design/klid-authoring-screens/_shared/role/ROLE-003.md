@@ -2,7 +2,7 @@
 logicraft_item: ROLE-003
 type: permission_role
 version: 10
-status: NEW
+status: UNCHANGED
 prev_version: null
 raw: ./_raw/ROLE-003.json
 ---

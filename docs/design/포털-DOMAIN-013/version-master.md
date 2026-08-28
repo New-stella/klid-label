@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-08-28T11:38:11.721Z |
-| Mode | SYNC — NEW 1 / CHANGED 0 / UNCHANGED 83 |
+| Last sync | 2026-08-28T22:52:21.528Z |
+| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 82 |
 | 출력 루트 | docs/design/포털-DOMAIN-013/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-013 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 22건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 23건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -29,6 +29,7 @@
   ℹ️  acceptance: 이번 키트 10건 / 스코프 밖 114건 (그중 domain_id 없음 41건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 4건 / 스코프 밖 44건 (그중 domain_id 없음 8건)
+  ℹ️  nfr: 이번 키트 14건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -41,7 +42,8 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-012]]
+- NEW [[SHELL-002]]
+- NEW [[NAV-002]]
 
 ## ITEM 표
 
@@ -57,7 +59,7 @@
 | [[AC-096]] | acceptance | 2 | UNCHANGED |
 | [[AC-097]] | acceptance | 2 | UNCHANGED |
 | [[AC-098]] | acceptance | 2 | UNCHANGED |
-| [[ADR-012]] | adr | 7 | NEW |
+| [[ADR-012]] | adr | 7 | UNCHANGED |
 | [[ADR-013]] | adr | 11 | UNCHANGED |
 | [[ADR-026]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
@@ -98,7 +100,7 @@
 | [[EXTSYS-006]] | external_system | 7 | UNCHANGED |
 | [[INT-009]] | integration_point | 6 | UNCHANGED |
 | [[INT-013]] | integration_point | 9 | UNCHANGED |
-| [[NAV-002]] | navigation_tree | 8 | UNCHANGED |
+| [[NAV-002]] | navigation_tree | 8 | NEW |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -111,7 +113,7 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 7 | UNCHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
@@ -127,7 +129,7 @@
 | [[SD-027]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-016]] | diagram_sequence | 4 | UNCHANGED |
 | [[SEQ-019]] | diagram_sequence | 5 | UNCHANGED |
-| [[SHELL-002]] | app_shell | 5 | UNCHANGED |
+| [[SHELL-002]] | app_shell | 5 | NEW |
 | [[TEST-005]] | test_scenario | 11 | UNCHANGED |
 | [[UC-024]] | use_case | 17 | UNCHANGED |
 | [[UC-027]] | use_case | 16 | UNCHANGED |

@@ -1,18 +1,19 @@
 ---
 logicraft_item: SCREEN-004
 type: screen_spec
-version: 11
+version: 14
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:51:39.029Z
+synced_at: 2026-08-28T22:51:23.967Z
 status: CHANGED
 prev_version: 11
-content_hash: 47f2762a332334b04a0b7cf204f6237637b7dfd201e26f9a91adfe5cce491c63
+content_hash: 945679d4d15610d44ae086b2cfc1a566b04b5aa4646ede5927b075e0bee10bba
 stale: false
 raw: ./_raw/SCREEN-004.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]
   consumes: ["[[API-153]]"]
+  implements: ["[[IMPREC-107]]"]
   references: ["[[API-153]]"]
   designs_backward: ["[[SD-020]]"]
   realizes_backward: ["[[MOD-040]]"]
@@ -121,6 +122,7 @@ _(empty)_
 
 **options**:
 
+- ADMIN (9001, 박관리) · INTERNAL
 - REVIEWER (1001, 김검수) · INTERNAL
 - WORKER (2001, 최라벨) · INTERNAL
 - PORTAL_USER (3001, 홍길동) · PORTAL
@@ -193,7 +195,7 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 역할(REVIEWER/WORKER/PORTAL_USER) 라디오 선택 + userNo(선택, 비우면 BE 기본값) + expSeconds(선택, 기본 3600) 입력 후 제출. 제출 시 POST /api/v1/dev/tokens 호출 → 응답 token을 localStorage[klid-jwt-token]에 저장 + claims 일부(사용자ID/명/권한) 스텁 저장 → /ingress 로 이동(운영 시나리오 1:1 재현). 실패 시 인라인 에러 알림 표시. 제출 중에는 버튼 disabled + '발급 중…'. 역할 선택에 따라 userNo placeholder와 기본값 안내(1001 김검수 / 2001 최라벨 / 3001 홍길동), channel(INTERNAL/PORTAL)이 연동된다.
+- **description**: 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER) 라디오 선택 + userNo(선택, 비우면 BE 기본값) + expSeconds(선택, 기본 3600) 입력 후 제출. 제출 시 POST /api/v1/dev/tokens 호출 → 응답 token을 localStorage[klid-jwt-token]에 저장 + claims 일부(사용자ID/명/권한) 스텁 저장 → /ingress 로 이동(운영 시나리오 1:1 재현). 실패 시 인라인 에러 알림 표시. 제출 중에는 버튼 disabled + '발급 중…'. 역할 선택에 따라 userNo placeholder와 기본값 안내(9001 박관리 / 1001 김검수 / 2001 최라벨 / 3001 홍길동), channel(INTERNAL/PORTAL)이 연동된다. 관리자를 선택지에 두는 이유는 이 화면이 인계 흐름을 재현하는 자리기 때문이다 — 재현할 수 없는 역할이 남으면 관리자 전용 화면을 사람이 눌러 확인할 수단이 없어진다.
 
 **references_apis**:
 
@@ -238,6 +240,7 @@ _(empty)_
 ### records
 
 - IMPREC-107
+- IMPREC-187
 
 ### progress
 
@@ -249,7 +252,11 @@ _(empty)_
 
 ### last_updated
 
-2026-08-25T01:21:33.367Z
+2026-08-28T15:24:05.559Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 
@@ -268,8 +275,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: db9086586b1a94902f629231c46e3a1d87bd153776a8f8e07ed98c796120eca2
-- **generated_at**: 2026-08-16T12:43:58.304Z
+- **source_hash**: f2184e06045658464ba2e7c515ffd8dcac2ef78ee5541375cbcaaee97146ae56
+- **generated_at**: 2026-08-28T21:59:13.629Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

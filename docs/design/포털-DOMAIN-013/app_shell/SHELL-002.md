@@ -4,11 +4,11 @@ type: app_shell
 version: 5
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T23:29:32.935Z
+synced_at: 2026-08-28T22:52:21.525Z
 status: NEW
 prev_version: null
 content_hash: 926982400a27d9bf80d779df8496a53eecb9516188242ee0e28f8c9a831958fa
-stale: false
+stale: true
 raw: ./_raw/SHELL-002.json
 links:
   applies_to: ["[[SCREEN-029]]"]

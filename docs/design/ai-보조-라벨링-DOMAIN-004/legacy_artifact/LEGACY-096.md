@@ -4,7 +4,7 @@ type: legacy_artifact
 version: 1
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:50.128Z
+synced_at: 2026-08-28T22:52:20.537Z
 status: NEW
 prev_version: null
 content_hash: df76cdd3778c925b9d6b9ef67efbd250154322aaf8599bd5ba40bc313cd661ce

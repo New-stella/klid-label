@@ -136,8 +136,8 @@
           "width": 1440,
           "surface": "page",
           "sections": [],
-          "source_hash": "db9086586b1a94902f629231c46e3a1d87bd153776a8f8e07ed98c796120eca2",
-          "generated_at": "2026-08-16T12:43:58.304Z",
+          "source_hash": "f2184e06045658464ba2e7c515ffd8dcac2ef78ee5541375cbcaaee97146ae56",
+          "generated_at": "2026-08-28T21:59:13.629Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -149,12 +149,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "직전 리비전에서 한 음절이 손상된 것을 되돌린다. 스텁이 스턴으로 바뀌어 있었다 — 깨진 글자가 아니라 읽히는 다른 낱말이라 통독으로는 드러나지 않는 종류다. 그 한 음절 외에 바뀐 것은 없다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-28T15:24:05.559Z",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.5KB)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-28T21:59:13.629Z",
     "created_at": "2026-05-30T07:53:40.390Z"
   }
 }

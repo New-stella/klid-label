@@ -1,21 +1,25 @@
 ---
 logicraft_item: SCREEN-042
 type: screen_spec
-version: 5
-last_updated_at: 2026-08-28T04:25:10.707Z
+version: 8
+last_updated_at: 2026-08-28T22:11:36.617Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T15:27:44.469Z
+synced_at: 2026-08-28T22:54:49.360Z
 sync_session: 33
 stale: false
-status: NEW
-prev_version: null
+status: CHANGED
+prev_version: 5
 raw: ./_raw/SCREEN-042.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-068]]", "[[API-069]]", "[[API-194]]"]
   required_roles: ["[[ROLE-004]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v5 → v8**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (12.4KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 연동 서버 주소 관리 화면
 
@@ -321,7 +325,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 관리자 패스워드로 연 유효창이 지금 열려 있는지와 남은 시간을 사람이 볼 수 있게 표시한다. 남은 시간을 보여주는 이유는, 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을 없애기 위해서다. 유효 여부의 판정은 서버가 소유하므로 이 표시는 안내일 뿐이며 화면이 스스로 아직 유효하다고 정하지 않는다. 유효창은 역할을 올리지 않는다 — 검수자 권한은 그대로 필요하고, 유효창은 저장에만 가산된다. 조회는 유효창 없이도 된다. 남은 시간이 끝난 뒤 저장을 누르면 거부 코드로만 알리고 끝내지 않고 관리자 확인 창을 다시 열어 준다. 확인을 마치면 누르던 저장을 이어서 수행한다.
+- **description**: 관리자 패스워드로 연 유효창이 지금 열려 있는지와 남은 시간을 사람이 볼 수 있게 표시한다. 남은 시간을 보여주는 이유는, 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을 없애기 위해서다. 유효 여부의 판정은 서버가 소유하므로 이 표시는 안내일 뿐이며 화면이 스스로 아직 유효하다고 정하지 않는다. 유효창은 역할을 올리지 않는다 — 관리자 역할은 그대로 필요하고, 유효창은 저장에만 가산된다. 조회는 유효창 없이도 된다. 남은 시간이 끝난 뒤 저장을 누르면 거부 코드로만 알리고 끝내지 않고 관리자 확인 창을 다시 열어 준다. 확인을 마치면 누르던 저장을 이어서 수행한다.
 
 **references_apis**:
 
@@ -504,8 +508,8 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 5b031ba8d079a162b8f0af8f0dced248acd596bca6e4e71e5e39676e9f69c893
-- **generated_at**: 2026-08-27T09:39:42.066Z
+- **source_hash**: 5f5cfedaf7ca7610f7c7fb4b621b001c517a150133b598dc78715896f3f2abd0
+- **generated_at**: 2026-08-28T22:11:36.616Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

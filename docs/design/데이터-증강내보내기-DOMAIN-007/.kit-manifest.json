@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-007",
-  "synced_at": "2026-08-28T11:38:08.747Z",
+  "synced_at": "2026-08-28T22:51:20.540Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -375,8 +375,8 @@
     "NFR-020": {
       "type": "nfr",
       "domain_id": null,
-      "version": 7,
-      "content_hash": "0d0e8382c7de56665c6167b2c678469600cb44c4138988e4ec3ff5880213e9f5"
+      "version": 8,
+      "content_hash": "7a128a841562c8a3428c0519a6a5b6e6e57057b28b7fdee25913fb7d8f5ee657"
     },
     "NFR-021": {
       "type": "nfr",
@@ -406,7 +406,7 @@
       "type": "permission_role",
       "domain_id": null,
       "version": 4,
-      "content_hash": "d77983f88ac9c37d6a61cbf31a7c3840f1cd8737c632db29097539bb2f917e34"
+      "content_hash": "69937078736448b8b100421e9c5402e92abefc5a1ed0e1c07fc523b758dccaae"
     },
     "SD-028": {
       "type": "screen_design",
@@ -423,8 +423,8 @@
     "SCREEN-022": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-007",
-      "version": 45,
-      "content_hash": "ccc26af69e828afacc8bddaf24892bc5715c59a1143b8264ada067fe90533de2"
+      "version": 46,
+      "content_hash": "8940ae8c637f28a1905e93a07707cf4f91a8bd14bc12a95b2f7684e872f72476"
     },
     "SCREEN-023": {
       "type": "screen_spec",
