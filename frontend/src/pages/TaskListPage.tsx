@@ -95,7 +95,9 @@ export function TaskListPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const claims = useAuthStore((s) => s.claims);
-  const role = claims?.role ?? Role.WORKER;
+  // 역할이 없으면(토큰 미인계·미부여) 비운 채로 넘긴다 — `roleSatisfies` 가 fail-closed 라
+  // 검수자로 서지 않는다. 여기서 작업자를 채우면 「역할이 없으면 작업자」라는 없는 규칙이 남는다.
+  const role = claims?.role;
   const isReviewer = roleSatisfies(role, Role.REVIEWER);
   const headerSubtitle = isReviewer
     ? HEADER_SUBTITLE.REVIEWER
