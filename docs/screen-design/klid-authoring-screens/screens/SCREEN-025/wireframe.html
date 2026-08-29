@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<html lang="ko">
+<head><meta charset="utf-8"></head>
 <body>
   <main class="wf-content">
     <div class="wf-page-header">
       <div class="wf-breadcrumb"><span>SCREEN-025</span><span class="sep">/</span><span>시스템 설정 화면</span></div>
       <h1 style="white-space:nowrap">시스템 설정 화면</h1>
     </div>
-    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER가 운영 파라미터(배치 처리, AI 탐지 추론, 라벨링 정밀도, 비식별 옵션)를 조회·수정하고 외부 연동 헬스를 실시간 모니터링하는 화면. 설정값은 서버가 타입별 범위를 검증하며, 화면은 보조적으로 입력을 범위 내로 보정해 전송한다. 사용자에게 노출되는 모든 문구는 기술 모델명을 쓰지 않는다(예: 'AI 탐지 추론 파라미터'). 접근: REVIEWER 전용. · route /manage/settings</p>
+    <p class="wf-muted" style="margin:-8px 0 16px">REVIEWER가 운영 파라미터(배치 처리, AI 탐지 추론, 라벨링 정밀도, 비식별 옵션)를 조회·수정하고 외부 연동 헬스를 실시간 모니터링하는 화면. 설정값은 서버가 타입별 범위를 검증하며, 화면은 보조적으로 입력을 범위 내로 보정해 전송한다. 사용자에게 노출되는 모든 문구는 기술 모델명을 쓰지 않는다(예: &#x27;AI 탐지 추론 파라미터&#x27;). 접근: REVIEWER 전용. · route /manage/settings</p>
     <div class="wf-card">
       <div class="wf-cluster">
         <h2 class="wf-card-title">① 페이지 헤더</h2>
@@ -76,7 +76,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '시스템 설정' + 부제('배치 파라미터 · 외부 연동 헬스'). 검수자(REVIEWER) 전용 화면.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 &#x27;시스템 설정&#x27; + 부제(&#x27;배치 파라미터 · 외부 연동 헬스&#x27;). 검수자(REVIEWER) 전용 화면.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(시스템 설정)</li></ul></div>
     </div>
   </div>
@@ -85,7 +85,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 편집 가능 — 설정 카드</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>설정 키-값 목록을 로드해 카드를 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수/시계열 위탁 전체 건너뛰기. ②AI 탐지 추론 파라미터: Confidence Threshold/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤AI 최대 대기 상한: 라벨링 화면의 AI 보조 작업이 한 실행을 얼마나 기다릴지 정한다. 작업 종류(AI 탐지·AI 분할·AI 추적·AI 자동 추적)별로 고정분과 프레임당 가산분을 두고, 계산값의 절대 상한을 함께 둔다. 각 값의 하한은 서버가 그 작업에 정당하게 쓸 수 있는 최악 소요에서 정해지며 그보다 낮은 값은 저장되지 않는다. 절대 상한의 기본값은 앞단이 응답을 기다려 주는 시간과 같아, 늘리려면 앞단도 함께 늘려야 한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>설정 키-값 목록을 로드해 카드를 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수/시계열 위탁 전체 건너뛰기. ②AI 탐지 추론 파라미터: Confidence Threshold/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤AI 최대 대기 상한 — ⚠**이 화면에 아직 카드가 없다**(값·저장 창구는 서버에 있고 조작 표면만 미구현이라 지금은 설정 API 로만 바꾼다). ①~④ 와 달리 화면 구성이 아니라 **채워지지 않은 요구**이며 그래서 컴포넌트 목록에도 없다 — 어긋나 보이는 것은 누락이 아니라 그 사실을 적어 둔 것이다. 배포 없이 운영자가 조정하라고 연 손잡이라 화면이 있어야 하므로 요구를 지우지 말 것. 규정: 라벨링 화면의 AI 보조 작업이 한 실행을 얼마나 기다릴지 정한다. 작업 종류(AI 탐지·AI 분할·AI 추적·AI 자동 추적)별로 고정분과 프레임당 가산분을 두고, 계산값의 절대 상한을 함께 둔다. 각 값의 하한은 서버가 그 작업에 정당하게 쓸 수 있는 최악 소요에서 정해지며 그보다 낮은 값은 저장되지 않는다. 절대 상한의 기본값은 앞단이 응답을 기다려 주는 시간과 같아, 늘리려면 앞단도 함께 늘려야 한다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Card(배치 처리) · → API-069</li><li>Custom(처리 주기 (초)) · binds configs.BATCH_INTERVAL_SEC · 검증: 서버: 정수 10~3600초. 화면 슬라이더는 10~300초 범위만 노출하고 그 이상은 입력할 수 없다(서버 허용 범위와 화면 슬라이더 범위가 다름 — 화면에서는 300초를 넘는 값을 입력할 수 없으므로 이 불일치는 실제로 드러나지 않는다).</li><li>Custom(동시 처리 수) · binds configs.BATCH_CONCURRENCY · 검증: 서버: 정수 1~10. 화면 슬라이더는 1~8 범위만 노출(위와 동일한 이유로 불일치가 드러나지 않는다).</li><li>Custom(시계열 위탁 전체 건너뛰기) · binds configs.batch.vlm.skip-by-default · 검증: 켜고 끄는 스위치. 켜면 이후 배치가 외부 시계열 위탁 단계에 진입하기 직전 건너뜀 표식을 자동으로 남기고 외부 호출을 하지 않는다. 아래 사유가 비어 있으면 켤 수 없다. 켜져 있는 동안 들어오는 영상은 전건이 시계열 없이 확정되므로 켜짐 상태를 카드가 눈에 띄게 드러내고, 끄는 것을 잊으면 벤더 연동이 끝난 뒤에도 계속 건너뛴다는 사실을 보조 문구로 알린다. 이미 사람이 남긴 표식은 덮지 않는다.</li><li>Input(건너뛰기 사유) · binds configs.batch.vlm.skip-by-default-reason · 검증: 필수. 공백만으로는 수락하지 않으며 비어 있으면 위 스위치를 켤 수 없다. 이 문구가 건너뜀 표식의 사유로 그대로 기록되어, 나중에 그 영상의 시계열이 왜 비어 있는지 되짚는 근거가 된다.</li><li>Card(AI 탐지 추론 파라미터) · → API-069</li><li>Custom(Confidence Threshold 0.25~0.80) · binds configs.YOLO_CONF_THRESHOLD · 검증: 서버·화면 모두 정수 25~80(표시는 /100하여 0.25~0.80).</li><li>Custom(IoU 임계값) · binds configs.YOLO_IOU · 검증: 서버: 정수 30~80(표시는 0.30~0.80). 화면 슬라이더는 25~80으로 노출되어 25~29 구간을 입력할 수 있으나 이 구간은 서버가 거부한다(화면 표시 범위가 서버 허용 범위보다 넓은 불일치).</li><li>Card(라벨링 정밀도) · → API-069</li><li>Custom(인식 민감도 0.25~0.80) · binds configs.YOLO_CONF_THRESHOLD · 검증: 서버·화면 모두 정수 25~80(표시는 0.25~0.80). 값이 높을수록 확신도가 높은 객체만 인식한다.</li><li>Custom(경계 세밀함 0.0~50.0px) · binds configs.POLYGON_SIMPLIFY_TOLERANCE · 검증: 서버: 소수 0.0~50.0(0.5 단위 입력). 값이 작을수록 폴리곤 경계가 원본에 가깝게 세밀해진다(점 수 증가).</li><li>Button(저장) · → API-069<p class="wf-help" style="margin:2px 0 0">카드별 독립 폼이며 값이 하나라도 변경되어야 활성화된다. 카드 내 여러 필드 중 실제로 변경된 키만 저장 요청에 포함된다.</p></li><li>Card(비식별 옵션)<p class="wf-help" style="margin:2px 0 0">위탁 시 전송하는 비식별 처리 옵션. 전역 1벌</p></li><li>Select(마스킹 방식) · binds configs.kpst.deid.masking-type<p class="wf-help" style="margin:2px 0 0">색상/모자이크/블러 셋 중 하나. 벤더 정의 밖의 값은 고를 수 없다</p></li><li>Custom(마스킹 범위 0.5~2.0) · binds configs.kpst.deid.masking-range<p class="wf-help" style="margin:2px 0 0">실수. 감지 영역을 얼마나 넓게 덮을지</p></li><li>Custom(프레임 저장 여부) · binds configs.kpst.deid.db-save<p class="wf-help" style="margin:2px 0 0">비식별 서버가 처리 프레임을 자기 DB 에 남길지</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-068</li><li>API-069</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>Feature</h4><ul><li>FEAT-007</li></ul></div>

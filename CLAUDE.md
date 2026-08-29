@@ -870,6 +870,7 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 ## 공통 주의
 - ★ **`design-main.html`/`.css` 는 서버 게시본의 미러**라 SYNC 가 서버 판으로 되돌린다. 로컬에서 미러를 고치면 SYNC 한 번에 사라지므로, 순서는 **`design.html`(로컬 원본) 수정 → `upload_design_render` 로 게시 → 미러가 따라옴** 이다. (2026-08-21 SYNC 실측: `design.*` 원본 변경 0건 · 삭제 0건.)
 - ⚠ **`SCREEN-039`(외부 산출물 이관 이력)는 어느 화면 키트에도 없다.** 통합 키트 스코프가 SCREEN-038 까지라 이번 SYNC 에서도 들어오지 않았다. 그 화면의 설계는 **`docs/design/외부-산출물-이관-DOMAIN-017/screen_spec/`** 에 있다. 통합 키트에 넣으려면 화면 폐포(소비 API·UC·AC·렌더)를 함께 승격하는 별도 SYNC 가 필요하다.
+- ⚠ **게시본으로 접근성을 판정하지 마라 (2026-08-29 실측)** — 게시 sanitizer 가 `scope`·`autocomplete`·`inputmode`·`min` 을 **지운다**(`aria-*`·`role`·`title` 은 보존). 시안 원본에는 있는데 게시본에만 없으므로, 게시본만 보면 실제보다 나쁘게 나온다. 우리 잘못이 아니고 정규화기를 늘려 맞출 일도 아니다 — LogiCraft 에 신고돼 있다. 판정은 **로컬 원본**으로 한다.
 - ⚠ `.staging/` 은 gitignore 대상이라 워크트리를 바꾸면 델타 기준선이 사라지고 **첫 SYNC 가 전건 `NEW` 로 찍힌다.** 재동기화 1회로 `UNCHANGED` 로 정착하며, 진짜 델타는 git 의 이전 `version-master.md` 와 대조해 얻는다.
 
 ## 도메인별 주의 (상세는 각 SCREENS.md §주의)
