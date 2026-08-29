@@ -104,6 +104,21 @@ journalctl -u klid-frontend  -f
 ls -al /var/log/klid
 ```
 
+## 설치 직후 — 관리자 등록이 남아 있다
+
+헬스가 모두 UP 이어도 **관리자(ADMIN)는 아직 0명**이라 관리 영역(`/admin/*` — 사용자 관리 · 연동
+서버 주소 · 파일 업로드 · 산출물 가져오기 · 패스워드 교체 · 위험 작업)에는 아무도 들어가지 못한다.
+검수자·작업자 기능은 그대로 쓸 수 있으므로 **장애가 아니라 남은 설치 절차**다.
+
+```bash
+# 확인 — 0 이면 아직 등록 전이다
+sudo -u postgres psql -d klid_system -tAc \
+  "SELECT count(*) FROM klid_at.ls_user_role WHERE role_cd = 'ADMIN';"
+```
+
+절차는 [04-configuration.md](04-configuration.md) 의 「G. 최초 관리자(ADMIN) 만들기」 절이 정본이다. 자가부여 창구는
+**관리자가 0명일 때만** 열리고 한 명이라도 생기면 닫히므로, 최초 1회는 그 창이 열려 있는 동안 끝낸다.
+
 ## 추가 스모크(선택)
 
 ```bash

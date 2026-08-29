@@ -125,6 +125,16 @@ sudo -u postgres psql -d klid_system \
 > 롤이 없는 새 인스턴스라면 DB 복원 전 `sudo -u postgres psql -f /backup/klid/<날짜>/globals.sql` 로
 > 롤/권한을 먼저 복원한다.
 
+> ⚠ **DB 를 복원하면 관리자 공유 패스워드도 그 시점으로 되돌아간다.** 운영 중 화면에서 바꾼
+> 패스워드는 `klid_at.ls_mngr_pswd`(한 행)에 저장되므로 스키마 덤프에 함께 담긴다. 복원 뒤 관리자
+> 패스워드가 예전 것으로 보이는 것은 결함이 아니다. 그 값을 모르면 저장소 행을 비워 배포 설정값
+> (`ADMIN_CLAIM_PASSWORD_HASH`)으로 되돌린다 — 절차는
+> [09-operations-runbook.md](09-operations-runbook.md) §4-2.
+>
+> ⚠ **역할도 함께 되돌아간다.** 복원 시점 이후에 부여·변경한 역할은 사라지므로, 복원 직후
+> `klid_at.ls_user_role` 의 관리자 수를 확인한다. 0 이면 자가부여 창구가 다시 열리므로
+> [04-configuration.md](04-configuration.md) 의 「G. 최초 관리자(ADMIN) 만들기」로 회복한다.
+
 ### 3-2. 설정·시크릿 복원
 
 ```bash
