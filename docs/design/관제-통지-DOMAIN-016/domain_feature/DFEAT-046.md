@@ -1,16 +1,17 @@
 ---
 logicraft_item: DFEAT-046
 type: domain_feature
-version: 9
+version: 10
 domain: DOMAIN-016
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.386Z
-status: NEW
-prev_version: null
-content_hash: 44e9a349c2dce11fc84800b3c9819e436225b78071768108d87992e62c033fb9
+synced_at: 2026-08-29T01:19:22.545Z
+status: CHANGED
+prev_version: 9
+content_hash: 72b0556b146f56432cae34b39faf3b45fa30a33dda98ee0b08e1aa70caa7d906
 stale: false
 raw: ./_raw/DFEAT-046.json
 links:
+  based_on: ["[[ADR-007]]"]
   belongs_to_domain: ["[[DOMAIN-016]]"]
   consumes: ["[[EVT-009]]"]
   specializes: ["[[FEAT-003]]"]
@@ -92,9 +93,13 @@ _(empty)_
 
 ### progress
 
-0
+100
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

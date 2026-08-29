@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-08-28T22:51:23.097Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 60 |
+| Last sync | 2026-08-29T01:19:22.548Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 61 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-016 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 4건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 5건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -42,9 +42,8 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ADR-046]] (prev v7)
-- CHANGED [[NFR-020]] (prev v7)
-- CHANGED [[ROLE-004]] (prev v4)
+- CHANGED [[DFEAT-046]] (prev v9)
+- CHANGED [[DFEAT-047]] (prev v6)
 
 ## ITEM 표
 
@@ -59,7 +58,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
 | [[ADR-037]] | adr | 3 | UNCHANGED |
-| [[ADR-046]] | adr | 8 | CHANGED |
+| [[ADR-046]] | adr | 8 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
@@ -69,8 +68,8 @@
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-043]] | domain_feature | 12 | UNCHANGED |
 | [[DFEAT-044]] | domain_feature | 12 | UNCHANGED |
-| [[DFEAT-046]] | domain_feature | 9 | UNCHANGED |
-| [[DFEAT-047]] | domain_feature | 6 | UNCHANGED |
+| [[DFEAT-046]] | domain_feature | 10 | CHANGED |
+| [[DFEAT-047]] | domain_feature | 7 | CHANGED |
 | [[DFEAT-053]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-016]] | domain | 12 | UNCHANGED |
@@ -99,12 +98,12 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | CHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | CHANGED |
+| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 4 | UNCHANGED |

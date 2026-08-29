@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-016",
-  "synced_at": "2026-08-28T22:51:23.097Z",
+  "synced_at": "2026-08-29T01:19:22.548Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -195,14 +195,14 @@
     "DFEAT-046": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-016",
-      "version": 9,
-      "content_hash": "44e9a349c2dce11fc84800b3c9819e436225b78071768108d87992e62c033fb9"
+      "version": 10,
+      "content_hash": "72b0556b146f56432cae34b39faf3b45fa30a33dda98ee0b08e1aa70caa7d906"
     },
     "DFEAT-047": {
       "type": "domain_feature",
       "domain_id": "DOMAIN-016",
-      "version": 6,
-      "content_hash": "68d454aa6b0bbcd753c78ade4f5736461d7330634b937704dd8db660ba7bdff6"
+      "version": 7,
+      "content_hash": "2c931ad50f5c84d1441842fbb13f8586a6f74c9e40d473341f0486737145b908"
     },
     "DFEAT-053": {
       "type": "domain_feature",

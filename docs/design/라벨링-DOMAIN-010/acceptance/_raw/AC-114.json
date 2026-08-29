@@ -29,10 +29,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-191"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T11:52:16.895Z",
+        "last_updated": "2026-08-29T01:18:01.056Z",
         "module_paths": []
       },
       "derived_domain_ids": [],
@@ -48,8 +50,8 @@
     "stale": true,
     "stale_reason": "UC-032의 4개 필드 변경 — derived_from",
     "change_summary": "매핑 없는 프리셋의 보류와 사유 구분을 구현했다",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T11:52:16.895Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.056Z",
     "created_at": "2026-08-25T10:32:49.058Z"
   }
 }

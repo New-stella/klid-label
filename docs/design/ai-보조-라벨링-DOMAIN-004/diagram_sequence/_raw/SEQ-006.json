@@ -24,7 +24,7 @@
         "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
         "module_paths": []
       },
@@ -39,12 +39,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "취소로 끝난 추론의 종결 경로를 흐름에 더한다. 이 흐름은 입력 검증 실패와 상한 초과, 신고 구간 차단의 종결 경로를 모두 열거하는데 취소만 빠져 있어, 열거를 신뢰하고 읽으면 취소가 어디로 가는지 알 수 없었다. 취소는 정상 종료라 화면이 오류를 띄우지 않는다는 기존 원칙과 이어진다. 응답 코드 자체는 그 계약을 소유한 엔드포인트 문서에 둔다.",
+    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T00:58:12.001Z",
+    "last_updated_at": "2026-08-29T01:15:00.879Z",
     "created_at": "2026-06-02T13:12:02.643Z"
   }
 }

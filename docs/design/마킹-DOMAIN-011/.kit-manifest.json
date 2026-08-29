@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-011",
-  "synced_at": "2026-08-28T22:51:27.835Z",
+  "synced_at": "2026-08-29T01:19:27.084Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -183,8 +183,8 @@
     "INT-002": {
       "type": "integration_point",
       "domain_id": null,
-      "version": 17,
-      "content_hash": "5ba633d9a57200e1d053738b745594bdf2e7a33a094feb3ef1a9c2e517ff896a"
+      "version": 18,
+      "content_hash": "31f962ba58a8855a0fe0732ae7de7f039b46c385784217d2c2e791ff883ca2dc"
     },
     "INTSPEC-003": {
       "type": "integration_spec",

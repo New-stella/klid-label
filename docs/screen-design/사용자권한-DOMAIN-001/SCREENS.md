@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-28T22:53:26.433Z (session 15) |
+| last sync | 2026-08-29T01:19:48.490Z (session 16) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
+| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001/ |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -19,10 +19,10 @@
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
 | [[SCREEN-001]] | 세션 인계 진입 화면 | UNCHANGED | ✅ |  |  |
-| [[SCREEN-002]] | 관리자 등록 화면 | CHANGED | ✅ | [[API-007]] |  |
-| [[SCREEN-003]] | 접근 거부 화면 | CHANGED | ✅ |  |  |
-| [[SCREEN-004]] | 개발용 로그인 화면 | CHANGED | ✅ | [[API-153]] |  |
-| [[SCREEN-024]] | 사용자 관리 화면 | CHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
+| [[SCREEN-002]] | 관리자 등록 화면 | UNCHANGED | ✅ | [[API-007]] |  |
+| [[SCREEN-003]] | 접근 거부 화면 | UNCHANGED | ✅ |  |  |
+| [[SCREEN-004]] | 개발용 로그인 화면 | UNCHANGED | ✅ | [[API-153]] |  |
+| [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
 
 ## 공유 자산 인덱스
 
@@ -60,15 +60,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[SD-009]] | screen_design | CHANGED (v9→v12) |
-| [[SD-018]] | screen_design | CHANGED (v5→v8) |
-| [[SD-019]] | screen_design | CHANGED (v2→v3) |
-| [[SD-020]] | screen_design | CHANGED (v2→v4) |
-| [[SCREEN-002]] | screen_spec | CHANGED (v22→v26) |
-| [[SCREEN-003]] | screen_spec | CHANGED (v12→v14) |
-| [[SCREEN-004]] | screen_spec | CHANGED (v13→v14) |
-| [[SCREEN-024]] | screen_spec | CHANGED (v29→v32) |
-| [[UI-110]] | ui_component | CHANGED (v1→v2) |
+| [[UC-030]] | use_case | CHANGED (v12→v13) |
 
 ## Obsidian 볼트로 보기
 

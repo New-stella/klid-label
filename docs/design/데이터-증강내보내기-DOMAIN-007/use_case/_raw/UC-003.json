@@ -54,10 +54,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-212"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-26T03:07:50.467Z",
+        "last_updated": "2026-08-29T01:18:03.071Z",
         "module_paths": []
       },
       "postconditions": [
@@ -116,10 +118,10 @@
     "schema_version": 1,
     "current_version": 14,
     "stale": true,
-    "stale_reason": "REQ-001의 2개 필드 변경이 realizes로 2-hop 전파",
+    "stale_reason": "SCREEN-022의 data.sections 변경 — references",
     "change_summary": "DEV_FIX — 기본흐름 산출 크기가 실제 파일과 일치. 4대3 원본은 1080p 스킵으로 파생 2건(가시 변화)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T03:07:50.467Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:03.071Z",
     "created_at": "2026-06-01T06:23:30.020Z"
   }
 }

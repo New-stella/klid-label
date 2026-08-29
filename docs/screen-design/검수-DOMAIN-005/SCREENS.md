@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-28T22:53:49.705Z (session 15) |
+| last sync | 2026-08-29T01:19:49.382Z (session 16) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
+| 출력 루트 | docs/screen-design/검수-DOMAIN-005/ |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -54,8 +54,7 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[NAV-001]] | navigation_tree | CHANGED (v25→v26) |
-| [[UI-110]] | ui_component | CHANGED (v1→v2) |
+| [[API-066]] | api_endpoint | CHANGED (v7→v7) |
 
 ## Obsidian 볼트로 보기
 

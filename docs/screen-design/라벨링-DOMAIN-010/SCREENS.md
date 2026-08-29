@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-28T22:53:53.203Z (session 15) |
+| last sync | 2026-08-29T01:19:51.275Z (session 16) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010/ |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -54,8 +54,11 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[NAV-001]] | navigation_tree | CHANGED (v25→v26) |
-| [[UI-110]] | ui_component | CHANGED (v1→v2) |
+| [[API-037]] | api_endpoint | CHANGED (v12→v12) |
+| [[API-038]] | api_endpoint | CHANGED (v14→v14) |
+| [[API-039]] | api_endpoint | CHANGED (v13→v13) |
+| [[API-040]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-066]] | api_endpoint | CHANGED (v7→v7) |
 
 ## Obsidian 볼트로 보기
 

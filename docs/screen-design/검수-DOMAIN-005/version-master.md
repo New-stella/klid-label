@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-005 검수 |
 | 다운로드 화면 | SCREEN-018, SCREEN-019 |
-| Last sync | 2026-08-28T22:53:49.710Z (session 15) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 170 |
-| 출력 루트 | docs/screen-design/검수-DOMAIN-005 |
+| Last sync | 2026-08-29T01:19:49.388Z (session 16) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 171 |
+| 출력 루트 | docs/screen-design/검수-DOMAIN-005/ |
 
 ## ITEM 버전 표
 
@@ -23,7 +23,7 @@
 | [[API-014]] | api_endpoint | POST /v1/reviews/{videoId}/approve | 12 | false | UNCHANGED |
 | [[API-015]] | api_endpoint | POST /v1/reviews/{videoId}/reject | 8 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | CHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 14 | false | UNCHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 11 | false | UNCHANGED |
 | [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 14 | false | UNCHANGED |
@@ -31,7 +31,7 @@
 | [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 5 | false | UNCHANGED |
 | [[API-138]] | api_endpoint | GET /v1/reviews/summary | 4 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | CHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | true | UNCHANGED |
@@ -150,7 +150,7 @@
 | [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
-| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | CHANGED |
+| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |

@@ -23,8 +23,9 @@
         "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 100,
+        "subtasks": [],
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -40,12 +41,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "폴링 상태 컬럼명과 처리 상태 코드값을 실제 등재값으로 맞춘다. 컬럼은 폴링상태코드이고 처리 상태의 성공·실패 코드값은 SUCCEEDED·FAILED 다. 그림과 설명이 짧은 이름을 쓰고 있어 그대로 조회문을 만들면 맞지 않는다. 흐름 자체는 바꾸지 않는다.",
+    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T10:01:55.534Z",
+    "last_updated_at": "2026-08-29T01:15:02.129Z",
     "created_at": "2026-06-02T13:14:34.920Z"
   }
 }

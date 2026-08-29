@@ -31,7 +31,7 @@
         "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
         "module_paths": []
       },
@@ -48,12 +48,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "포털 DB 의 DBMS 축이 비어 있던 것을 채운다 — 포털 DB 도 PostgreSQL 이며 포털향만 다른 RDB 로 가르는 분리 빌드는 채택하지 않는다(2026-08-28 확정). 복제 upsert 의 PostgreSQL 문법(CAST(... AS jsonb) · ON CONFLICT ... DO NOTHING)이 잠정이 아니라 확정 전제임을 함께 명시. 기존 서술 삭제·재작성 없이 절 하나만 추가.",
+    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-28T05:00:36.841Z",
+    "last_updated_at": "2026-08-29T01:14:59.793Z",
     "created_at": "2026-06-01T06:34:49.584Z"
   }
 }

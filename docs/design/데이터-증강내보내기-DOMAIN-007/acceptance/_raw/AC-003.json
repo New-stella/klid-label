@@ -59,7 +59,9 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-189"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -91,7 +93,7 @@
             "description": "⑨ 종단 가드 — materialize 에 실제 리사이저를 주입해 산출 파일 치수가 스냅샷 산출 크기와 같음을 단언(mutation 실증: 구 배선에서 854 대신 853)"
           }
         ],
-        "last_updated": "2026-08-26T03:41:58.085Z",
+        "last_updated": "2026-08-29T01:18:00.917Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -108,8 +110,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "종단 가드 추가 — materialize 가 실제 리사이저로 산출한 파일 치수를 직접 단언",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T03:41:58.085Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:00.917Z",
     "created_at": "2026-06-01T07:04:16.902Z"
   }
 }

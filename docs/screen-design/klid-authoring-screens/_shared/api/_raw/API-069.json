@@ -276,9 +276,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-200"
+        ],
         "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-29T01:18:01.798Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -293,8 +296,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "토큰의 효력 축과 이 창구의 요구 지점을 구분해 다시 적는다. 「이 토큰은 연동 주소 설정 변경에만 효력이 있다」는 축은 폐기됐고, 토큰은 관리 기능 공통 진입에 쓰인다. 다만 이 창구가 토큰을 요구하는 지점은 연동 서버 주소 키 그대로이며 요구 범위는 바뀌지 않는다 — 그 밖의 설정 키는 유효창 없이 검수자 권한만으로 저장된다. 요구 여부가 설정 키 단위로 갈리고 그 판정이 한 곳에서만 이뤄진다는 점도 함께 적었다. 403 계약과 값 검증·감사·로그 규약은 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T08:23:27.173Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.798Z",
     "created_at": "2026-05-30T07:26:21.137Z"
   }
 }

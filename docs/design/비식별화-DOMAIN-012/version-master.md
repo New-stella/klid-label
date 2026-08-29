@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-28T22:51:28.589Z |
+| Last sync | 2026-08-29T01:19:27.891Z |
 | Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 80 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-012 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 2건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 7건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -42,9 +42,9 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ADR-046]] (prev v7)
-- CHANGED [[NFR-020]] (prev v7)
-- CHANGED [[ROLE-004]] (prev v4)
+- CHANGED [[SEQ-012]] (prev v11)
+- CHANGED [[SEQ-013]] (prev v6)
+- CHANGED [[SCREEN-025]] (prev v44)
 
 ## ITEM 표
 
@@ -66,7 +66,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 8 | CHANGED |
+| [[ADR-046]] | adr | 8 | UNCHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
@@ -109,22 +109,22 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | CHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | CHANGED |
+| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 75 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 44 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 46 | CHANGED |
 | [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |
-| [[SEQ-012]] | diagram_sequence | 11 | UNCHANGED |
-| [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
+| [[SEQ-012]] | diagram_sequence | 12 | CHANGED |
+| [[SEQ-013]] | diagram_sequence | 7 | CHANGED |
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 5 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 10 | UNCHANGED |

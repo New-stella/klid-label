@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-28T22:53:53.208Z (session 15) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 223 |
-| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010 |
+| Last sync | 2026-08-29T01:19:51.281Z (session 16) |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 220 |
+| 출력 루트 | docs/screen-design/라벨링-DOMAIN-010/ |
 
 ## ITEM 버전 표
 
@@ -38,12 +38,12 @@
 | [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 9 | false | UNCHANGED |
 | [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 11 | false | UNCHANGED |
 | [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 11 | false | UNCHANGED |
-| [[API-037]] | api_endpoint | GET /v1/manage/presets | 12 | false | UNCHANGED |
-| [[API-038]] | api_endpoint | POST /v1/manage/presets | 14 | false | UNCHANGED |
-| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | UNCHANGED |
-| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | UNCHANGED |
+| [[API-037]] | api_endpoint | GET /v1/manage/presets | 12 | false | CHANGED |
+| [[API-038]] | api_endpoint | POST /v1/manage/presets | 14 | false | CHANGED |
+| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | CHANGED |
+| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | CHANGED |
 | [[API-041]] | api_endpoint | [폐기] POST /v1/manage/presets/{id}/clone | 5 | false | UNCHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | CHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | UNCHANGED |
 | [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | UNCHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 14 | false | UNCHANGED |
@@ -76,7 +76,7 @@
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | UNCHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 5 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | CHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
@@ -203,7 +203,7 @@
 | [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
-| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | CHANGED |
+| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |

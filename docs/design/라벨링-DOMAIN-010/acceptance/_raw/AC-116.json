@@ -30,7 +30,9 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-193"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -54,7 +56,7 @@
             "description": "그룹당 1회 해석 메모이즈로 행 단위 반복 조회를 없앤다"
           }
         ],
-        "last_updated": "2026-08-25T12:22:57.032Z",
+        "last_updated": "2026-08-29T01:18:01.188Z",
         "module_paths": []
       },
       "derived_domain_ids": [],
@@ -70,8 +72,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "연결 상태를 네 값으로 맞추고 거르기 축을 정정한다 — 라벨을 하나도 담지 않은 연결됨(제외)이 신설되면서 세 값 서술이 뒤처졌고, 거르기도 미연결 단독이 아니라 오토라벨이 보류된 유형 전체를 대상으로 한다. 제외는 사람이 일부러 뺀 선언이라 보류를 유발하지 않으므로 그 결과에 들어가지 않는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T12:35:21.113Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.188Z",
     "created_at": "2026-08-25T10:32:49.208Z"
   }
 }

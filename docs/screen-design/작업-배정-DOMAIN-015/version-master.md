@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-015 작업 배정 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-28T22:53:50.587Z (session 15) |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 161 |
-| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
+| Last sync | 2026-08-29T01:19:47.414Z (session 16) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 163 |
+| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015/ |
 
 ## ITEM 버전 표
 
@@ -24,7 +24,7 @@
 | [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | UNCHANGED |
 | [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | CHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
@@ -141,7 +141,7 @@
 | [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
-| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | CHANGED |
+| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |

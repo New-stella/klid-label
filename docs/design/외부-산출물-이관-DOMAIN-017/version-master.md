@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-28T22:51:18.910Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 66 |
+| Last sync | 2026-08-29T01:19:18.647Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 67 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-017 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 24건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 26건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -42,8 +42,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[NFR-020]] (prev v7)
-- CHANGED [[ROLE-004]] (prev v4)
+- CHANGED [[ERD-019]] (prev v23)
 
 ## ITEM 표
 
@@ -85,7 +84,7 @@
 | [[ERD-010]] | erd | 28 | UNCHANGED |
 | [[ERD-012]] | erd | 45 | UNCHANGED |
 | [[ERD-017]] | erd | 22 | UNCHANGED |
-| [[ERD-019]] | erd | 23 | UNCHANGED |
+| [[ERD-019]] | erd | 23 | CHANGED |
 | [[ERD-025]] | erd | 4 | UNCHANGED |
 | [[ERD-031]] | erd | 15 | UNCHANGED |
 | [[EVT-005]] | domain_event | 5 | UNCHANGED |
@@ -104,12 +103,12 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | CHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | CHANGED |
+| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-039]] | screen_spec | 33 | UNCHANGED |
 | [[SEQ-026]] | diagram_sequence | 13 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 1 | UNCHANGED |

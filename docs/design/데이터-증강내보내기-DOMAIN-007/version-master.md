@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-08-28T22:51:20.540Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 72 |
+| Last sync | 2026-08-29T01:19:20.286Z |
+| Mode | SYNC — NEW 0 / CHANGED 9 / UNCHANGED 66 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-007 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 3건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 10건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -42,9 +42,15 @@
 
 ## Changelog (this run)
 
-- CHANGED [[NFR-020]] (prev v7)
-- CHANGED [[ROLE-004]] (prev v4)
-- CHANGED [[SCREEN-022]] (prev v45)
+- CHANGED [[AC-003]] (prev v12)
+- CHANGED [[API-092]] (prev v10)
+- CHANGED [[API-179]] (prev v9)
+- CHANGED [[SEQ-002]] (prev v8)
+- CHANGED [[SEQ-003]] (prev v11)
+- CHANGED [[SEQ-011]] (prev v8)
+- CHANGED [[SCREEN-022]] (prev v46)
+- CHANGED [[SCREEN-023]] (prev v41)
+- CHANGED [[UC-003]] (prev v14)
 
 ## ITEM 표
 
@@ -52,7 +58,7 @@
 |---|---|---|---|
 | [[AC-001]] | acceptance | 11 | UNCHANGED |
 | [[AC-002]] | acceptance | 8 | UNCHANGED |
-| [[AC-003]] | acceptance | 12 | UNCHANGED |
+| [[AC-003]] | acceptance | 12 | CHANGED |
 | [[AC-018]] | acceptance | 6 | UNCHANGED |
 | [[AC-021]] | acceptance | 5 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
@@ -73,10 +79,10 @@
 | [[API-061]] | api_endpoint | 10 | UNCHANGED |
 | [[API-062]] | api_endpoint | 7 | UNCHANGED |
 | [[API-063]] | api_endpoint | 9 | UNCHANGED |
-| [[API-092]] | api_endpoint | 10 | UNCHANGED |
+| [[API-092]] | api_endpoint | 10 | CHANGED |
 | [[API-165]] | api_endpoint | 7 | UNCHANGED |
 | [[API-175]] | api_endpoint | 2 | UNCHANGED |
-| [[API-179]] | api_endpoint | 9 | UNCHANGED |
+| [[API-179]] | api_endpoint | 9 | CHANGED |
 | [[API-188]] | api_endpoint | 2 | UNCHANGED |
 | [[API-189]] | api_endpoint | 2 | UNCHANGED |
 | [[API-190]] | api_endpoint | 6 | UNCHANGED |
@@ -106,22 +112,22 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | CHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | CHANGED |
+| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 46 | CHANGED |
-| [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
+| [[SCREEN-023]] | screen_spec | 41 | CHANGED |
 | [[SD-028]] | screen_design | 4 | UNCHANGED |
 | [[SD-029]] | screen_design | 5 | UNCHANGED |
-| [[SEQ-002]] | diagram_sequence | 8 | UNCHANGED |
-| [[SEQ-003]] | diagram_sequence | 11 | UNCHANGED |
+| [[SEQ-002]] | diagram_sequence | 9 | CHANGED |
+| [[SEQ-003]] | diagram_sequence | 12 | CHANGED |
 | [[SEQ-004]] | diagram_sequence | 9 | UNCHANGED |
-| [[SEQ-011]] | diagram_sequence | 8 | UNCHANGED |
+| [[SEQ-011]] | diagram_sequence | 9 | CHANGED |
 | [[TEST-003]] | test_scenario | 15 | UNCHANGED |
 | [[UC-001]] | use_case | 13 | UNCHANGED |
 | [[UC-002]] | use_case | 15 | UNCHANGED |
-| [[UC-003]] | use_case | 14 | UNCHANGED |
+| [[UC-003]] | use_case | 14 | CHANGED |
 | [[UC-010]] | use_case | 13 | UNCHANGED |

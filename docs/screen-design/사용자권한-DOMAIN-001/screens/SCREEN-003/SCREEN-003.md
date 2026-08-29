@@ -5,18 +5,14 @@ version: 14
 last_updated_at: 2026-08-28T21:56:59.553Z
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T22:53:26.399Z
-sync_session: 15
+synced_at: 2026-08-29T01:19:48.449Z
+sync_session: 16
 stale: false
-status: CHANGED
-prev_version: 12
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-003.json
 wireframe: ./wireframe.html
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v12 → v14**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (3.4KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 접근 거부 화면
 

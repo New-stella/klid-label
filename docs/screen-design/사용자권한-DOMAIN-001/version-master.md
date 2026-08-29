@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-28T22:53:26.439Z (session 15) |
-| Mode | SYNC — NEW 0 / CHANGED 9 / UNCHANGED 159 |
-| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001 |
+| Last sync | 2026-08-29T01:19:48.495Z (session 16) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 167 |
+| 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001/ |
 
 ## ITEM 버전 표
 
@@ -26,17 +26,17 @@
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
 | [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
 | [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 16 | false | UNCHANGED |
-| [[SCREEN-002]] | screen_spec | 관리자 등록 화면 | 26 | false | CHANGED |
-| [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 14 | false | CHANGED |
-| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 14 | false | CHANGED |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | false | CHANGED |
-| [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 12 | true | CHANGED |
+| [[SCREEN-002]] | screen_spec | 관리자 등록 화면 | 26 | false | UNCHANGED |
+| [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 14 | false | UNCHANGED |
+| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 14 | false | UNCHANGED |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | false | UNCHANGED |
+| [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 12 | true | UNCHANGED |
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 3 | false | UNCHANGED |
-| [[SD-018]] | screen_design | SCREEN-002 관리자 등록 화면 | 8 | false | CHANGED |
-| [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 3 | true | CHANGED |
-| [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 4 | true | CHANGED |
+| [[SD-018]] | screen_design | SCREEN-002 관리자 등록 화면 | 8 | false | UNCHANGED |
+| [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 3 | true | UNCHANGED |
+| [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 4 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 12 | false | UNCHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | CHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -146,7 +146,7 @@
 | [[UI-107]] | ui_component | input: EventAnnotationPanel | 1 | false | UNCHANGED |
 | [[UI-108]] | ui_component | input: PrivacyMetaPanel | 1 | false | UNCHANGED |
 | [[UI-109]] | ui_component | display: Avatar | 1 | false | UNCHANGED |
-| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | CHANGED |
+| [[UI-110]] | ui_component | display: RoleBadge | 2 | false | UNCHANGED |
 | [[UI-111]] | ui_component | display: Badge | 3 | false | UNCHANGED |
 | [[UI-112]] | ui_component | display: AttachmentList | 3 | false | UNCHANGED |
 | [[UI-113]] | ui_component | display: PresetLabelOverflowChip | 1 | false | UNCHANGED |

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-005",
-  "synced_at": "2026-08-28T22:51:24.828Z",
+  "synced_at": "2026-08-29T01:19:24.089Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -166,7 +166,7 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-010",
       "version": 7,
-      "content_hash": "b50c0cad81c16446d0f86e49e2201e4a68a18ad8e21b24840ad45343154b5be2"
+      "content_hash": "005689db66b64b6c01506def4ad704209b6035281a556b2cb599888ead3785f5"
     },
     "API-067": {
       "type": "api_endpoint",
@@ -261,8 +261,8 @@
     "SEQ-008": {
       "type": "diagram_sequence",
       "domain_id": null,
-      "version": 8,
-      "content_hash": "74e284c1f2091f5dfccb598620c0c672b7455a97ecf027d4d0b1da8432877b30"
+      "version": 9,
+      "content_hash": "a8dc558c1240e81a7f0e978cd4106b2dab1896c7e8f82d568e44116c25ccc10b"
     },
     "SEQ-010": {
       "type": "diagram_sequence",
@@ -273,8 +273,8 @@
     "SEQ-011": {
       "type": "diagram_sequence",
       "domain_id": null,
-      "version": 8,
-      "content_hash": "b1a783bd9a2981fbdefd20fb7d041faa26971c3e1e62ec55719732956e5213db"
+      "version": 9,
+      "content_hash": "c805c0be7423a66630e7e4d6a7f890e78ac3fd7f9b154d25ce5d263ec22498d1"
     },
     "SEQ-015": {
       "type": "diagram_sequence",
@@ -370,7 +370,7 @@
       "type": "erd",
       "domain_id": "DOMAIN-005",
       "version": 10,
-      "content_hash": "411d5afc52bfb7b0e4b2fd9a89184e2f5ebb0526531cf7627b313093b475554e"
+      "content_hash": "86bc85ce22ca0b015fdd6e844a50f88acfd39acb07fdf632bbab8bafdc2f3516"
     },
     "ERD-030": {
       "type": "erd",
@@ -405,8 +405,8 @@
     "INT-003": {
       "type": "integration_point",
       "domain_id": null,
-      "version": 17,
-      "content_hash": "780aa502793fecf9d1e448126e32ff3c4695d2682287d6e372cf068416409549"
+      "version": 18,
+      "content_hash": "7828ada77da7d3682dfaf15c5bea7ebf1e46d062aecab4f0c939442b283bf642"
     },
     "INTSPEC-002": {
       "type": "integration_spec",
@@ -556,7 +556,7 @@
       "type": "screen_spec",
       "domain_id": "DOMAIN-007",
       "version": 41,
-      "content_hash": "d50cd5a2413e720fe4bdca0fb507488ffcaf09108cf6c427de2591e5df205772"
+      "content_hash": "e7fa73b1f7c843cbd5698372f13253ca17330e7cf6d2f5a5f615bfdf4794ead9"
     },
     "TEST-002": {
       "type": "test_scenario",

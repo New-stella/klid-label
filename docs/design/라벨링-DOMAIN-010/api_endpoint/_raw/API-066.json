@@ -314,9 +314,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-199"
+        ],
         "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-29T01:18:01.690Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -329,8 +332,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "프레임 시계열 메타 조회 응답에 읽기 전용 목록 importedMeta 를 추가한다. 외부 산출물 이관이 저작도구 스키마에 착지할 컬럼이 없어 원문 그대로 보관하는 값(키 접두 import.)을 담는 자리이며, 이관으로 들어오지 않은 영상에서는 빈 배열이 정상이다. 별도 목록으로 가른 근거는 이관 원문이 시계열 분석 결과가 아니라는 점이다 — items 에 섞으면 화면이 그것을 시계열 메타로 표시해 검토 대상이 아닌 값이 검토 대상처럼 보이고, 학습데이터 산출물의 상황묘사 조달이 그 값을 서술로 집을 여지가 생긴다. 분류의 소유자는 서버이며 화면이 키 접두를 파싱해 스스로 가르지 않는다. 기존 items·readOnlyMeta·technicalMeta 의 필드명·타입·시맨틱은 불변이고 추가만 했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T09:15:23.430Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.690Z",
     "created_at": "2026-05-30T07:26:04.075Z"
   }
 }

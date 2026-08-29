@@ -359,10 +359,12 @@
         "modules": [
           "MOD-003"
         ],
-        "records": [],
+        "records": [
+          "IMPREC-201"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-26T03:07:41.964Z",
+        "last_updated": "2026-08-29T01:18:01.858Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -377,8 +379,8 @@
     "stale": true,
     "stale_reason": "REQ-001의 2개 필드 변경이 implements로 2-hop 전파",
     "change_summary": "DEV_FIX — 응답 targetW/targetH 가 실제 산출 파일 크기와 정확히 일치하도록 이중 변환 제거",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T03:07:41.965Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.858Z",
     "created_at": "2026-06-02T12:46:24.641Z"
   }
 }

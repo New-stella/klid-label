@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-08-28T22:52:21.528Z |
-| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 82 |
+| Last sync | 2026-08-29T01:19:28.638Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 83 |
 | 출력 루트 | docs/design/포털-DOMAIN-013/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,8 +42,7 @@
 
 ## Changelog (this run)
 
-- NEW [[SHELL-002]]
-- NEW [[NAV-002]]
+- CHANGED [[INT-009]] (prev v6)
 
 ## ITEM 표
 
@@ -98,9 +97,9 @@
 | [[ERD-028]] | erd | 2 | UNCHANGED |
 | [[EVT-012]] | domain_event | 3 | UNCHANGED |
 | [[EXTSYS-006]] | external_system | 7 | UNCHANGED |
-| [[INT-009]] | integration_point | 6 | UNCHANGED |
+| [[INT-009]] | integration_point | 7 | CHANGED |
 | [[INT-013]] | integration_point | 9 | UNCHANGED |
-| [[NAV-002]] | navigation_tree | 8 | NEW |
+| [[NAV-002]] | navigation_tree | 8 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -129,7 +128,7 @@
 | [[SD-027]] | screen_design | 9 | UNCHANGED |
 | [[SEQ-016]] | diagram_sequence | 4 | UNCHANGED |
 | [[SEQ-019]] | diagram_sequence | 5 | UNCHANGED |
-| [[SHELL-002]] | app_shell | 5 | NEW |
+| [[SHELL-002]] | app_shell | 5 | UNCHANGED |
 | [[TEST-005]] | test_scenario | 11 | UNCHANGED |
 | [[UC-024]] | use_case | 17 | UNCHANGED |
 | [[UC-027]] | use_case | 16 | UNCHANGED |

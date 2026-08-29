@@ -33,10 +33,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-190"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T11:52:15.959Z",
+        "last_updated": "2026-08-29T01:18:00.994Z",
         "module_paths": []
       },
       "derived_domain_ids": [],
@@ -52,8 +54,8 @@
     "stale": true,
     "stale_reason": "UC-032의 4개 필드 변경 — derived_from",
     "change_summary": "프리셋 없는 이벤트 유형의 오토라벨 보류를 구현했다",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T11:52:15.960Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:00.994Z",
     "created_at": "2026-08-25T10:32:49.003Z"
   }
 }

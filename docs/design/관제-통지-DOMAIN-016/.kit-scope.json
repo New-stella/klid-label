@@ -72,10 +72,11 @@
     "UC-009"
   ],
   "pending": [
+    "MOD-015",
     "IMPREC-100",
     "IMPREC-101",
     "NFR-022",
     "RISK-004"
   ],
-  "last_sync_at": "2026-08-28T22:51:23.098Z"
+  "last_sync_at": "2026-08-29T01:19:22.548Z"
 }

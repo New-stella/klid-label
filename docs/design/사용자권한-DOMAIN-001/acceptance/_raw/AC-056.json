@@ -26,11 +26,14 @@
       "statement": "사용자 관리 화면 진입과 역할 변경은 관리자만 수행할 수 있으며, 그중 역할 변경은 관리자 역할에 더해 관리자 패스워드로 연 유효창 안에서만 수행할 수 있다.",
       "is_negative": true,
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
+        "records": [
+          "IMPREC-188"
+        ],
+        "progress": 50,
         "subtasks": [],
+        "last_updated": "2026-08-29T01:16:24.707Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -48,8 +51,8 @@
     "stale": true,
     "stale_reason": "UC-030의 data.main_flow 변경 — derived_from",
     "change_summary": "ADR-055 — 사용자 관리를 관리자 전용으로. 화면 진입·역할 변경은 관리자, 조회 창구는 배정 흐름 때문에 검수자 유지.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-28T04:22:12.450Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:16:24.707Z",
     "created_at": "2026-08-22T15:23:39.463Z"
   }
 }

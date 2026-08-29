@@ -5,9 +5,9 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038, SCREEN-039, SCREEN-040, SCREEN-041, SCREEN-042, SCREEN-043 |
-| Last sync | 2026-08-29T00:36:51.774Z (session 35) |
-| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 555 |
-| 출력 루트 | docs/screen-design/klid-authoring-screens |
+| Last sync | 2026-08-29T01:19:52.560Z (session 36) |
+| Mode | SYNC — NEW 0 / CHANGED 16 / UNCHANGED 544 |
+| 출력 루트 | docs/screen-design/klid-authoring-screens/ |
 
 ## ITEM 버전 표
 
@@ -15,7 +15,7 @@
 |---|---|---|---|---|---|
 | [[AC-001]] | acceptance | 증강 영상 생성 요청 수용 | 11 | true | UNCHANGED |
 | [[AC-002]] | acceptance | 증강 결과 수신·새 영상 등록 | 8 | true | UNCHANGED |
-| [[AC-003]] | acceptance | 해상도 변경 파생영상 생성·좌표 재계산 | 12 | false | UNCHANGED |
+| [[AC-003]] | acceptance | 해상도 변경 파생영상 생성·좌표 재계산 | 12 | false | CHANGED |
 | [[AC-004]] | acceptance | 객체 자동 추적(SAM2) 수행 | 7 | true | UNCHANGED |
 | [[AC-005]] | acceptance | 객체 외곽 경계 자동 밀착 | 7 | true | UNCHANGED |
 | [[AC-006]] | acceptance | 라벨링 정밀도(폴리곤 단순화) 조절 | 9 | false | UNCHANGED |
@@ -61,7 +61,7 @@
 | [[AC-050]] | acceptance | 시계열 일괄 재수행은 부분 성공을 그대로 알린다 | 5 | false | UNCHANGED |
 | [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 11 | false | UNCHANGED |
 | [[AC-055]] | acceptance | 시계열 위탁 전체 건너뛰기 — 사유 없이 켤 수 없고 켜진 동안 외부 호출이 없다 | 3 | false | UNCHANGED |
-| [[AC-056]] | acceptance | 사용자 관리는 관리자만 수행한다 | 3 | true | UNCHANGED |
+| [[AC-056]] | acceptance | 사용자 관리는 관리자만 수행한다 | 3 | true | CHANGED |
 | [[AC-057]] | acceptance | 허용 목록 밖의 역할 값은 저장에 이르지 못한다 | 3 | true | UNCHANGED |
 | [[AC-058]] | acceptance | 이미 가진 역할을 다시 저장하면 아무것도 바뀌지 않는다 | 2 | true | UNCHANGED |
 | [[AC-059]] | acceptance | 역할 변경의 효력은 커밋된 뒤에 생긴다 | 2 | true | UNCHANGED |
@@ -147,10 +147,10 @@
 | [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 9 | false | UNCHANGED |
 | [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 11 | false | UNCHANGED |
 | [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 11 | false | UNCHANGED |
-| [[API-037]] | api_endpoint | GET /v1/manage/presets | 12 | false | UNCHANGED |
-| [[API-038]] | api_endpoint | POST /v1/manage/presets | 14 | false | UNCHANGED |
-| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | UNCHANGED |
-| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | UNCHANGED |
+| [[API-037]] | api_endpoint | GET /v1/manage/presets | 12 | false | CHANGED |
+| [[API-038]] | api_endpoint | POST /v1/manage/presets | 14 | false | CHANGED |
+| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | CHANGED |
+| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | CHANGED |
 | [[API-041]] | api_endpoint | [폐기] POST /v1/manage/presets/{id}/clone | 5 | false | UNCHANGED |
 | [[API-042]] | api_endpoint | GET /v1/videos | 8 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 25 | false | UNCHANGED |
@@ -168,10 +168,10 @@
 | [[API-062]] | api_endpoint | POST /v1/augments/{id}/accept | 7 | true | UNCHANGED |
 | [[API-063]] | api_endpoint | POST /v1/augments/{id}/reject | 9 | true | UNCHANGED |
 | [[API-065]] | api_endpoint | POST /v1/vlm/callback | 21 | false | UNCHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | CHANGED |
 | [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | UNCHANGED |
 | [[API-068]] | api_endpoint | GET /v1/manage/configs | 4 | false | UNCHANGED |
-| [[API-069]] | api_endpoint | PUT /v1/manage/configs/{key} | 9 | false | UNCHANGED |
+| [[API-069]] | api_endpoint | PUT /v1/manage/configs/{key} | 9 | false | CHANGED |
 | [[API-070]] | api_endpoint | POST /v1/assignments | 8 | false | UNCHANGED |
 | [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | UNCHANGED |
 | [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | UNCHANGED |
@@ -185,7 +185,7 @@
 | [[API-084]] | api_endpoint | GET /v1/videos/{rawSn}/stream | 8 | false | UNCHANGED |
 | [[API-090]] | api_endpoint | GET /v1/manage/health | 4 | false | UNCHANGED |
 | [[API-091]] | api_endpoint | POST /v1/videos/{rawSn}/deident-report | 12 | false | UNCHANGED |
-| [[API-092]] | api_endpoint | POST /v1/videos/{rawSn}/resolution | 10 | true | UNCHANGED |
+| [[API-092]] | api_endpoint | POST /v1/videos/{rawSn}/resolution | 10 | true | CHANGED |
 | [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | UNCHANGED |
 | [[API-094]] | api_endpoint | POST /v1/deident-reports/{rprtSn}/resolve | 9 | false | UNCHANGED |
 | [[API-095]] | api_endpoint | GET /v1/notices | 6 | false | UNCHANGED |
@@ -249,7 +249,7 @@
 | [[API-155]] | api_endpoint | GET /v1/portal/uploads/frames/{uldFrmeSn}/labels | 2 | false | UNCHANGED |
 | [[API-156]] | api_endpoint | OPTIONS /v1/uploads | 3 | false | UNCHANGED |
 | [[API-157]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/export | 3 | false | UNCHANGED |
-| [[API-158]] | api_endpoint | POST /v1/uploads | 5 | true | UNCHANGED |
+| [[API-158]] | api_endpoint | POST /v1/uploads | 5 | true | CHANGED |
 | [[API-159]] | api_endpoint | GET /v1/portal/uploads/{uldSn}/file | 4 | false | UNCHANGED |
 | [[API-160]] | api_endpoint | HEAD /v1/uploads/{uploadId} | 4 | false | UNCHANGED |
 | [[API-161]] | api_endpoint | OPTIONS /v1/portal/uploads/tus | 3 | false | UNCHANGED |
@@ -270,7 +270,7 @@
 | [[API-176]] | api_endpoint | GET /v1/frames/{srcSn}/label-history | 3 | false | UNCHANGED |
 | [[API-177]] | api_endpoint | GET /v1/manage/labels/detect-candidates | 4 | false | UNCHANGED |
 | [[API-178]] | api_endpoint | POST /v1/reviews/{videoId}/cancel-submit | 8 | false | UNCHANGED |
-| [[API-179]] | api_endpoint | GET /v1/videos/{rawSn}/resolution | 9 | false | UNCHANGED |
+| [[API-179]] | api_endpoint | GET /v1/videos/{rawSn}/resolution | 9 | false | CHANGED |
 | [[API-181]] | api_endpoint | GET /v1/event-types | 7 | false | UNCHANGED |
 | [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 4 | false | UNCHANGED |
 | [[API-183]] | api_endpoint | GET /v1/videos/{rawSn}/privacy-meta | 1 | false | UNCHANGED |
@@ -284,7 +284,7 @@
 | [[API-191]] | api_endpoint | POST /v1/control-ingests/{rcptnSn}/requeue | 2 | false | UNCHANGED |
 | [[API-192]] | api_endpoint | POST /v1/control-ingests/requeue | 4 | false | UNCHANGED |
 | [[API-193]] | api_endpoint | GET /v1/ai-defaults | 5 | false | UNCHANGED |
-| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 9 | false | CHANGED |
+| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 9 | false | UNCHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 7 | false | UNCHANGED |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | UNCHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 5 | false | UNCHANGED |
@@ -309,11 +309,11 @@
 | [[API-216]] | api_endpoint | 마킹 산출물 폴더 검사 | 2 | false | UNCHANGED |
 | [[API-217]] | api_endpoint | 마킹 산출물 일괄 적재 | 2 | false | UNCHANGED |
 | [[API-218]] | api_endpoint | 일괄 적재 진행 조회 | 2 | false | UNCHANGED |
-| [[API-219]] | api_endpoint | GET /v1/manage/verification-event-types | 3 | false | UNCHANGED |
-| [[API-220]] | api_endpoint | PUT /v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions | 3 | false | UNCHANGED |
+| [[API-219]] | api_endpoint | GET /v1/manage/verification-event-types | 3 | false | CHANGED |
+| [[API-220]] | api_endpoint | PUT /v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions | 3 | false | CHANGED |
 | [[API-221]] | api_endpoint | 이관 대상 폴더 탐색 | 15 | false | UNCHANGED |
 | [[API-222]] | api_endpoint | 이관 대상 영상 파일 탐색 | 10 | false | UNCHANGED |
-| [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 5 | false | CHANGED |
+| [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 5 | false | UNCHANGED |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
@@ -338,10 +338,10 @@
 | [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 43 | true | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 작업자 통계 화면 | 32 | true | UNCHANGED |
 | [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 28 | true | UNCHANGED |
-| [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 46 | true | UNCHANGED |
-| [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 41 | true | UNCHANGED |
+| [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 46 | true | CHANGED |
+| [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 41 | true | CHANGED |
 | [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | false | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 46 | false | CHANGED |
+| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 46 | false | UNCHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 35 | true | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 파일 업로드 | 42 | false | UNCHANGED |
 | [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 26 | false | UNCHANGED |
@@ -401,7 +401,7 @@
 | [[SHELL-002]] | app_shell | 포털 채널 셸 | 5 | true | UNCHANGED |
 | [[UC-001]] | use_case | 증강 영상 생성 요청 | 13 | true | UNCHANGED |
 | [[UC-002]] | use_case | 증강 결과 수신·등록 | 15 | true | UNCHANGED |
-| [[UC-003]] | use_case | 해상도 변경 수행 | 14 | true | UNCHANGED |
+| [[UC-003]] | use_case | 해상도 변경 수행 | 14 | true | CHANGED |
 | [[UC-004]] | use_case | 객체 자동 추적 | 15 | true | UNCHANGED |
 | [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 10 | true | UNCHANGED |
 | [[UC-006]] | use_case | 라벨링 정밀도 조절 | 9 | true | UNCHANGED |
@@ -421,14 +421,14 @@
 | [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 16 | false | UNCHANGED |
 | [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 6 | false | UNCHANGED |
 | [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 11 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | CHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | UNCHANGED |
 | [[UC-031]] | use_case | 시스템 운영 설정 관리 | 12 | true | UNCHANGED |
 | [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 11 | false | UNCHANGED |
 | [[UC-033]] | use_case | 전체 구축 현황 조회 — 검수완료 기준과 전체 기준 병기 | 3 | false | UNCHANGED |
 | [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 5 | true | UNCHANGED |
 | [[UC-035]] | use_case | 외부 산출물 가져오기 | 15 | true | UNCHANGED |
 | [[UC-036]] | use_case | 이관 이력 조회 | 3 | true | UNCHANGED |
-| [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 2 | false | CHANGED |
+| [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 2 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

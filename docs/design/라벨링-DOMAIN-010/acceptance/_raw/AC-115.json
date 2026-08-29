@@ -30,7 +30,9 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-192"
+        ],
         "progress": 100,
         "subtasks": [
           {
@@ -46,7 +48,7 @@
             "description": "프리셋 저장 커밋 → 커밋 후 리스너 → 재개 러너 → 오토라벨 묶음 재진입 사슬의 자동 시험(재촉발 멱등·제외 선언 미재개 포함). 재진입 이후의 추론·라벨 적재는 이 시험 범위 밖이다"
           }
         ],
-        "last_updated": "2026-08-25T13:40:16.896Z",
+        "last_updated": "2026-08-29T01:18:01.121Z",
         "module_paths": []
       },
       "derived_domain_ids": [],
@@ -62,8 +64,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "재개 사슬 전 구간을 잇는 자동 시험이 생겨 검증 공백을 닫았다",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T13:40:16.896Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.121Z",
     "created_at": "2026-08-25T10:32:49.154Z"
   }
 }

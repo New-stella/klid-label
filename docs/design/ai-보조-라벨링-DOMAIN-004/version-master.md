@@ -4,9 +4,9 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-29T00:36:38.314Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 107 |
-| 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004 |
+| Last sync | 2026-08-29T01:19:29.389Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 105 |
+| 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-004 — .kit-scope.json (스킬 LLM 판정) |
@@ -42,9 +42,11 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-194]] (prev v8)
-- CHANGED [[SCREEN-025]] (prev v44)
-- CHANGED [[UC-037]] (prev v1)
+- CHANGED [[API-158]] (prev v5)
+- CHANGED [[SEQ-005]] (prev v9)
+- CHANGED [[SEQ-006]] (prev v7)
+- CHANGED [[SEQ-007]] (prev v6)
+- CHANGED [[ERD-019]] (prev v23)
 
 ## ITEM 표
 
@@ -99,12 +101,12 @@
 | [[API-127]] | api_endpoint | 2 | UNCHANGED |
 | [[API-152]] | api_endpoint | 8 | UNCHANGED |
 | [[API-156]] | api_endpoint | 3 | UNCHANGED |
-| [[API-158]] | api_endpoint | 5 | UNCHANGED |
+| [[API-158]] | api_endpoint | 5 | CHANGED |
 | [[API-160]] | api_endpoint | 4 | UNCHANGED |
 | [[API-162]] | api_endpoint | 6 | UNCHANGED |
 | [[API-164]] | api_endpoint | 3 | UNCHANGED |
 | [[API-177]] | api_endpoint | 4 | UNCHANGED |
-| [[API-194]] | api_endpoint | 9 | CHANGED |
+| [[API-194]] | api_endpoint | 9 | UNCHANGED |
 | [[API-204]] | api_endpoint | 1 | UNCHANGED |
 | [[API-216]] | api_endpoint | 2 | UNCHANGED |
 | [[API-217]] | api_endpoint | 2 | UNCHANGED |
@@ -116,7 +118,7 @@
 | [[DFEAT-019]] | domain_feature | 9 | UNCHANGED |
 | [[DFEAT-020]] | domain_feature | 6 | UNCHANGED |
 | [[DOMAIN-004]] | domain | 11 | UNCHANGED |
-| [[ERD-019]] | erd | 23 | UNCHANGED |
+| [[ERD-019]] | erd | 23 | CHANGED |
 | [[ERD-032]] | erd | 1 | UNCHANGED |
 | [[FEAT-001]] | feature | 9 | UNCHANGED |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |
@@ -147,16 +149,16 @@
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 46 | CHANGED |
+| [[SCREEN-025]] | screen_spec | 46 | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 42 | UNCHANGED |
 | [[SD-033]] | screen_design | 11 | UNCHANGED |
-| [[SEQ-005]] | diagram_sequence | 9 | UNCHANGED |
-| [[SEQ-006]] | diagram_sequence | 7 | UNCHANGED |
-| [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
+| [[SEQ-005]] | diagram_sequence | 10 | CHANGED |
+| [[SEQ-006]] | diagram_sequence | 8 | CHANGED |
+| [[SEQ-007]] | diagram_sequence | 7 | CHANGED |
 | [[SEQ-023]] | diagram_sequence | 8 | UNCHANGED |
 | [[SHELL-001]] | app_shell | 11 | UNCHANGED |
 | [[UC-004]] | use_case | 15 | UNCHANGED |
 | [[UC-005]] | use_case | 10 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |
 | [[UC-034]] | use_case | 5 | UNCHANGED |
-| [[UC-037]] | use_case | 2 | CHANGED |
+| [[UC-037]] | use_case | 2 | UNCHANGED |

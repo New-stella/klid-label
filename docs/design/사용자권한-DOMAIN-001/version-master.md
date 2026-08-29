@@ -4,9 +4,9 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-08-29T00:36:37.548Z |
-| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 74 |
-| 출력 루트 | docs/design/사용자권한-DOMAIN-001 |
+| Last sync | 2026-08-29T01:19:23.280Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 78 |
+| 출력 루트 | docs/design/사용자권한-DOMAIN-001/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-001 — .kit-scope.json (스킬 LLM 판정) |
@@ -42,17 +42,13 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-194]] (prev v8)
-- CHANGED [[API-223]] (prev v4)
-- CHANGED [[CDIAG-008]] (prev v7)
-- CHANGED [[SEQ-018]] (prev v4)
-- CHANGED [[UC-030]] (prev v12)
+- CHANGED [[AC-056]] (prev v3)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-056]] | acceptance | 3 | UNCHANGED |
+| [[AC-056]] | acceptance | 3 | CHANGED |
 | [[AC-057]] | acceptance | 3 | UNCHANGED |
 | [[AC-058]] | acceptance | 2 | UNCHANGED |
 | [[AC-059]] | acceptance | 2 | UNCHANGED |
@@ -85,9 +81,9 @@
 | [[API-006]] | api_endpoint | 10 | UNCHANGED |
 | [[API-007]] | api_endpoint | 14 | UNCHANGED |
 | [[API-153]] | api_endpoint | 4 | UNCHANGED |
-| [[API-194]] | api_endpoint | 9 | CHANGED |
-| [[API-223]] | api_endpoint | 5 | CHANGED |
-| [[CDIAG-008]] | class_diagram | 8 | CHANGED |
+| [[API-194]] | api_endpoint | 9 | UNCHANGED |
+| [[API-223]] | api_endpoint | 5 | UNCHANGED |
+| [[CDIAG-008]] | class_diagram | 8 | UNCHANGED |
 | [[CMP-012]] | diagram_c4_component | 4 | UNCHANGED |
 | [[DFEAT-001]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-002]] | domain_feature | 7 | UNCHANGED |
@@ -129,5 +125,5 @@
 | [[SD-020]] | screen_design | 4 | UNCHANGED |
 | [[SD-034]] | screen_design | 6 | UNCHANGED |
 | [[SD-037]] | screen_design | 5 | UNCHANGED |
-| [[SEQ-018]] | diagram_sequence | 5 | CHANGED |
-| [[UC-030]] | use_case | 13 | CHANGED |
+| [[SEQ-018]] | diagram_sequence | 5 | UNCHANGED |
+| [[UC-030]] | use_case | 13 | UNCHANGED |

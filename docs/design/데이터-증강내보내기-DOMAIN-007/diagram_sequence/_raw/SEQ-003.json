@@ -23,8 +23,9 @@
         "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": []
+        "progress": 100,
+        "subtasks": [],
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -39,12 +40,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "전파를 확인하고 변경 없음을 기록한다. 흐름의 모든 단계가 결과 도착 이후를 다룬다 — 멱등 원장 판정, 부모 게이트, 새 영상 생성, 커밋 이후 3단계 비동기 확정. 위탁 요청 본문을 조립하거나 내보내는 단계는 하나도 없고, 이 흐름이 참조하는 창구도 수신 계약이다. 원천 변경은 보내는 쪽 요청 본문의 구조라 접점이 없다. 직전 리비전도 같은 원천으로 확인만 기록했으나 그때는 종료 발사와 취소 도착의 단계 보유 여부를 본 것이고, 이번에 확인한 것은 생성 조건과 자유 지시문이 이 흐름 어디에도 등장하지 않는다는 점이다.",
+    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T12:45:46.776Z",
+    "last_updated_at": "2026-08-29T01:15:00.336Z",
     "created_at": "2026-06-02T13:10:55.248Z"
   }
 }

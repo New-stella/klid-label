@@ -24,7 +24,7 @@
         "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
         "module_paths": []
       },
@@ -39,12 +39,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "안내 메시지 자리가 무엇을 싣는 통로인지 한 문장으로 못 박는다. 이 흐름은 제외 사실이 안내 메시지가 된다는 것까지는 적고 있었으나 그 자리의 배타성을 적지 않아, 후속 프레임 상한으로 잘린 사실을 같은 자리에 얹으면 두 다른 사실이 한 문장으로 섞인다. 절단 여부는 응답 본문의 값으로 판단한다.",
+    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T00:59:08.382Z",
+    "last_updated_at": "2026-08-29T01:15:00.619Z",
     "created_at": "2026-06-02T13:11:37.996Z"
   }
 }

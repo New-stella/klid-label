@@ -8,10 +8,10 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-28T22:53:50.582Z (session 15) |
+| last sync | 2026-08-29T01:19:47.409Z (session 16) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015 |
+| 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015/ |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -47,13 +47,6 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-012]] — 작업 목록 화면 | screens/SCREEN-012/SCREEN-012.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[NAV-001]] | navigation_tree | CHANGED (v25→v26) |
-| [[UI-110]] | ui_component | CHANGED (v1→v2) |
 
 ## Obsidian 볼트로 보기
 

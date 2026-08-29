@@ -425,10 +425,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-211"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T07:48:53.061Z",
+        "last_updated": "2026-08-29T01:18:02.997Z",
         "module_paths": []
       },
       "publishes_events": [],
@@ -444,10 +446,10 @@
     "schema_version": 1,
     "current_version": 5,
     "stale": true,
-    "stale_reason": "API-039의 data.request_body 변경 — consumes",
+    "stale_reason": "API-037의 data.responses 변경 — consumes",
     "change_summary": "프리셋 등록·수정이 성공하면 그 이벤트 유형에 보류돼 있던 오토라벨 묶음의 재개가 촉발된다는 것과, 담긴 라벨이 전부 AI 검출 클래스에 미매핑이어도 저장은 성공하고 경고만 한다는 것을 흐름에 반영한다. 보류만 두고 되살리는 경로가 없으면 그 영상이 영구히 고착되므로 프리셋을 고치는 행위 자체를 재개 트리거로 삼는다. 재개는 응답을 지연시키지 않고, 재개가 실패해도 저장이 되돌아가지 않으며, 지금 프리셋이 실효한다는 조건이 멱등을 담당한다. 삭제는 재개를 촉발하지 않는다는 것도 함께 못박는다 — 프리셋이 사라지면 오히려 보류 조건이 성립하므로 그 단계를 넣지 않는다. 목록 조회가 내려주는 실효 여부도 오토라벨 보류 판정을 재사용해 조달하며 이 흐름이 다시 판정하지 않는다는 것을 드러낸다. CRUD 단계 자체는 바꾸지 않았고 성립하지 않게 된 메시지가 없어 제거한 원소도 없다. 렌더 원문도 메시지와 같은 사양으로 함께 고쳤다 — 한쪽만 고쳐 도해가 옛 사양을 계속 그리던 일을 되풀이하지 않기 위해서다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-25T10:29:26.932Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:02.997Z",
     "created_at": "2026-08-16T04:22:30.294Z"
   }
 }
