@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-001",
-  "synced_at": "2026-08-28T22:51:24.043Z",
+  "synced_at": "2026-08-29T00:36:37.548Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -213,20 +213,20 @@
     "API-194": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-014",
-      "version": 8,
-      "content_hash": "f2c07deef31bf9d6906b5ce2c0ae8089f97a865d4f9b00b9c0d365a23d571216"
+      "version": 9,
+      "content_hash": "549d3c7d89ae52ff0a62ec47e7d51a37c5df679506b554288fbb0c67264aeb1c"
     },
     "API-223": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-001",
-      "version": 4,
-      "content_hash": "5eb2c7796becbcc9a2b125307e0c5db12037a75891cde2a74bdea1d557107b50"
+      "version": 5,
+      "content_hash": "ab55c8e56f3fd6549c36171e024f3e9d201837450cabefa7e582248c6f2acc5a"
     },
     "CDIAG-008": {
       "type": "class_diagram",
       "domain_id": "DOMAIN-001",
-      "version": 7,
-      "content_hash": "7517d6007114c9280d3ac389b779a44f2f8594761044be733b98ced819accdcd"
+      "version": 8,
+      "content_hash": "0e7232357b1069f364f77b28ed4260a20acf504504b84235d672df519742d932"
     },
     "CMP-012": {
       "type": "diagram_c4_component",
@@ -237,8 +237,8 @@
     "SEQ-018": {
       "type": "diagram_sequence",
       "domain_id": "DOMAIN-001",
-      "version": 4,
-      "content_hash": "ac58276f0a749e46f0fc4377325aa64d0f0d7de01403b007898b65677535da37"
+      "version": 5,
+      "content_hash": "f2ac74e4a877362513a4ec7b062e413258d3171051954f689c5efa0e77ba5072"
     },
     "DOMAIN-001": {
       "type": "domain",
@@ -483,8 +483,8 @@
     "UC-030": {
       "type": "use_case",
       "domain_id": "DOMAIN-001",
-      "version": 12,
-      "content_hash": "01b8d6a05d3317608964812f268216fec5fd643e0e619992d0893dff9ac852d4"
+      "version": 13,
+      "content_hash": "401ed5fc6efa5d9b7da21597d1ae0651a1c0821834da197a5f82a5f76031f257"
     }
   }
 }

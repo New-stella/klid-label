@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-29T00:20:47.534Z (session 34) |
+| last sync | 2026-08-29T00:36:51.768Z (session 35) |
 | 화면 수 | 37개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
@@ -50,7 +50,7 @@
 | [[SCREEN-036]] | 공지 작성 화면 | UNCHANGED | ✅ | [[API-097]] | [[ROLE-001]] |
 | [[SCREEN-037]] | 공지 수정 화면 | UNCHANGED | ✅ | [[API-096]], [[API-098]], [[API-106]], [[API-108]] | [[ROLE-001]] |
 | [[SCREEN-038]] | 이벤트유형 관리 화면 | UNCHANGED | ✅ | [[API-185]], [[API-186]], [[API-219]], [[API-220]] | [[ROLE-001]] |
-| [[SCREEN-039]] | 산출물 가져오기 | NEW | ✅ | [[API-205]], [[API-206]], [[API-207]], [[API-208]], [[API-209]], [[API-210]], [[API-211]], [[API-215]], [[API-221]], [[API-222]] | [[ROLE-004]] |
+| [[SCREEN-039]] | 산출물 가져오기 | UNCHANGED | ✅ | [[API-205]], [[API-206]], [[API-207]], [[API-208]], [[API-209]], [[API-210]], [[API-211]], [[API-215]], [[API-221]], [[API-222]] | [[ROLE-004]] |
 | [[SCREEN-040]] | 관리자 페이지 진입 화면 | UNCHANGED | ✅ | [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-041]] | 관리자 패스워드 교체 | UNCHANGED | ✅ | [[API-223]], [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-042]] | 연동 서버 주소 관리 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-194]] | [[ROLE-004]] |
@@ -124,28 +124,11 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-041]] | acceptance | NEW |
-| [[AC-042]] | acceptance | NEW |
-| [[AC-043]] | acceptance | NEW |
-| [[AC-044]] | acceptance | NEW |
-| [[AC-045]] | acceptance | NEW |
-| [[AC-046]] | acceptance | NEW |
-| [[AC-047]] | acceptance | NEW |
-| [[AC-120]] | acceptance | NEW |
-| [[API-205]] | api_endpoint | NEW |
-| [[API-206]] | api_endpoint | NEW |
-| [[API-207]] | api_endpoint | NEW |
-| [[API-208]] | api_endpoint | NEW |
-| [[API-209]] | api_endpoint | NEW |
-| [[API-210]] | api_endpoint | NEW |
-| [[API-211]] | api_endpoint | NEW |
-| [[API-215]] | api_endpoint | NEW |
-| [[API-221]] | api_endpoint | NEW |
-| [[API-222]] | api_endpoint | NEW |
-| [[SCREEN-025]] | screen_spec | CHANGED (v44→v45) |
-| [[SCREEN-039]] | screen_spec | NEW |
-| [[UC-035]] | use_case | NEW |
-| [[UC-036]] | use_case | NEW |
+| [[API-194]] | api_endpoint | CHANGED (v8→v9) |
+| [[API-223]] | api_endpoint | CHANGED (v4→v5) |
+| [[SCREEN-025]] | screen_spec | CHANGED (v45→v46) |
+| [[UC-030]] | use_case | CHANGED (v12→v13) |
+| [[UC-037]] | use_case | CHANGED (v1→v2) |
 
 ## Obsidian 볼트로 보기
 

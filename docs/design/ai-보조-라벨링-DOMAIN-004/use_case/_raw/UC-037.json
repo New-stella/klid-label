@@ -87,7 +87,7 @@
       ],
       "preconditions": [
         "마킹 문서와 영상이 저작도구가 읽을 수 있는 위치에 놓여 있다.",
-        "검수자 권한으로 로그인된 상태다.",
+        "관리자 역할로 로그인된 상태다.",
         "사람이 영상을 직접 적재하는 경로가 켜져 있다."
       ],
       "implementation": {
@@ -168,12 +168,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "SCREEN-027의 5개 필드 변경 — references",
-    "change_summary": "외부에서 이벤트 마킹까지 끝낸 영상 묶음을 폴더에서 일괄로 올려 비식별부터 라벨링까지 이어지는 처리에 태우는 흐름을 신설한다. 짝짓기와 검사, 일괄 적재와 진행 조회, 예약된 마킹의 자동 활성화, 그리고 짝 없음·속도 불일치·식별자 중복·비식별 실패·서버 재기동의 대안 흐름을 담는다.",
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "실제 인가에 맞춰 밑바탕 권한을 관리자 역할로 정정한다. 이 창구·흐름은 hasRole('ADMIN') 이라 «검수자 권한 + 유효창» 이라는 서술이 사실과 다르다(admin-session·admin-password 는 ADMIN, 사용자 역할 변경 PATCH 도 ADMIN). ⚠ 같은 낱말이라도 창구가 검수자 이상이면 그 서술은 정확하므로 건드리지 않았다 — 조회 축(«조회는 검수자 권한만으로 된다»)과 계층 서술(«관리자가 검수자 권한을 물려받는다»)은 그대로 둔다. ROLE-004 의 판독 규칙(창구의 «검수자 전용» 은 «검수자 이상» 으로 읽는다)을 따랐다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T10:34:13.876Z",
+    "last_updated_at": "2026-08-29T00:32:20.216Z",
     "created_at": "2026-08-24T10:34:13.876Z"
   }
 }

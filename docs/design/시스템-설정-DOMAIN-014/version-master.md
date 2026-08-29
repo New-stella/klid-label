@@ -4,9 +4,9 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-28T22:52:22.438Z |
-| Mode | SYNC — NEW 3 / CHANGED 0 / UNCHANGED 88 |
-| 출력 루트 | docs/design/시스템-설정-DOMAIN-014/ |
+| Last sync | 2026-08-29T00:36:36.733Z |
+| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 85 |
+| 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
@@ -42,9 +42,12 @@
 
 ## Changelog (this run)
 
-- NEW [[SHELL-001]]
-- NEW [[NAV-001]]
-- NEW [[REQ-008]]
+- CHANGED [[API-194]] (prev v8)
+- CHANGED [[API-223]] (prev v4)
+- CHANGED [[SEQ-018]] (prev v4)
+- CHANGED [[DFEAT-045]] (prev v18)
+- CHANGED [[SCREEN-025]] (prev v44)
+- CHANGED [[UC-030]] (prev v12)
 
 ## ITEM 표
 
@@ -78,13 +81,13 @@
 | [[API-153]] | api_endpoint | 4 | UNCHANGED |
 | [[API-158]] | api_endpoint | 5 | UNCHANGED |
 | [[API-193]] | api_endpoint | 5 | UNCHANGED |
-| [[API-194]] | api_endpoint | 8 | UNCHANGED |
+| [[API-194]] | api_endpoint | 9 | CHANGED |
 | [[API-219]] | api_endpoint | 3 | UNCHANGED |
 | [[API-220]] | api_endpoint | 3 | UNCHANGED |
-| [[API-223]] | api_endpoint | 4 | UNCHANGED |
+| [[API-223]] | api_endpoint | 5 | CHANGED |
 | [[CDIAG-012]] | class_diagram | 5 | UNCHANGED |
 | [[CMP-011]] | diagram_c4_component | 9 | UNCHANGED |
-| [[DFEAT-045]] | domain_feature | 18 | UNCHANGED |
+| [[DFEAT-045]] | domain_feature | 19 | CHANGED |
 | [[DOMAIN-014]] | domain | 6 | UNCHANGED |
 | [[ERD-016]] | erd | 14 | UNCHANGED |
 | [[ERD-033]] | erd | 2 | UNCHANGED |
@@ -96,7 +99,7 @@
 | [[INT-005]] | integration_point | 7 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
 | [[INTSPEC-003]] | integration_spec | 12 | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 26 | NEW |
+| [[NAV-001]] | navigation_tree | 26 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -111,7 +114,7 @@
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
-| [[REQ-008]] | requirement | 7 | NEW |
+| [[REQ-008]] | requirement | 7 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
@@ -119,7 +122,7 @@
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 32 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 44 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 46 | CHANGED |
 | [[SCREEN-027]] | screen_spec | 42 | UNCHANGED |
 | [[SCREEN-038]] | screen_spec | 14 | UNCHANGED |
 | [[SCREEN-040]] | screen_spec | 9 | UNCHANGED |
@@ -133,11 +136,11 @@
 | [[SD-037]] | screen_design | 5 | UNCHANGED |
 | [[SEQ-007]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 6 | UNCHANGED |
-| [[SEQ-018]] | diagram_sequence | 4 | UNCHANGED |
+| [[SEQ-018]] | diagram_sequence | 5 | CHANGED |
 | [[SEQ-024]] | diagram_sequence | 3 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 5 | UNCHANGED |
-| [[SHELL-001]] | app_shell | 11 | NEW |
+| [[SHELL-001]] | app_shell | 11 | UNCHANGED |
 | [[UC-006]] | use_case | 9 | UNCHANGED |
 | [[UC-013]] | use_case | 9 | UNCHANGED |
-| [[UC-030]] | use_case | 12 | UNCHANGED |
+| [[UC-030]] | use_case | 13 | CHANGED |
 | [[UC-031]] | use_case | 12 | UNCHANGED |

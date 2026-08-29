@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-008
 type: class_diagram
-version: 7
+version: 8
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:54:27.187Z
+synced_at: 2026-08-29T00:36:37.546Z
 status: CHANGED
-prev_version: 5
-content_hash: 7517d6007114c9280d3ac389b779a44f2f8594761044be733b98ced819accdcd
-stale: true
+prev_version: 7
+content_hash: 0e7232357b1069f364f77b28ed4260a20acf504504b84235d672df519742d932
+stale: false
 raw: ./_raw/CDIAG-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]
@@ -875,7 +875,7 @@ _(empty)_
 
 [식별자 신뢰 경계] userNo 는 JWT sub 에서 오므로 위조 불가하고, userId/userNm 은 FE 가 보내는 표시용 값이라 위조해도 자기 행 이름만 바뀐다.
 
-[역할 3종] REVIEWER · WORKER · PORTAL_USER. 별도 ADMIN 은 없고 관리 권한은 REVIEWER 에 통합된다(ADR-003). 자가부여 화이트리스트에는 WORKER 와 REVIEWER 가 들어가며, 관리자 비밀번호의 관리 수준이 시스템 전체 권한 경계다(인지·수용된 잔여 위험).
+[역할 4종] ADMIN · REVIEWER · WORKER · PORTAL_USER. 관리 권한은 별도 역할인 ADMIN 이 소유하고 계층이 관리자에서 검수자로 한 단계 이어져 관리자가 검수자 일을 그대로 한다(ADR-055). 자가부여 화이트리스트는 ADMIN 하나뿐이고 그 창구는 관리자가 0명일 때만 열린다. ⚠ 구 서술 폐기 — «별도 ADMIN 은 없고 관리 권한은 REVIEWER 에 통합»(ADR-003)과 «자가부여 화이트리스트에 WORKER 와 REVIEWER»(ADR-043)는 ADR-055 가 대체했다. 관리자 비밀번호의 관리 수준이 시스템 전체 권한 경계라는 사실은 그대로다(인지·수용된 잔여 위험).
 
 전용 활성 ERD 가 없어(1차 ERD-001 폐기) 물리 컬럼이 아닌 도메인 개념 속성으로 구성한다.
 

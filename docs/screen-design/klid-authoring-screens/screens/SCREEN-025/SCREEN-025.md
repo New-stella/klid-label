@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 45
-last_updated_at: 2026-08-29T00:20:00.224Z
+version: 46
+last_updated_at: 2026-08-29T00:22:50.595Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T00:20:47.360Z
-sync_session: 34
+synced_at: 2026-08-29T00:36:51.585Z
+sync_session: 35
 stale: false
 status: CHANGED
-prev_version: 44
+prev_version: 45
 raw: ./_raw/SCREEN-025.json
 wireframe: ./wireframe.html
 links:
@@ -19,8 +19,8 @@ links:
   acceptance: ["[[AC-055]]"]
 ---
 
-> ⚠️ **버전 변경 감지 — logicraft v44 → v45**
-> change_summary: ⑤ AI 최대 대기 상한이 화면에 없다는 사실을 명시한다. 서술은 카드 다섯을 열거하는데 컴포넌트·시안·구현에는 넷뿐이라 내부가 어긋나 있었다. 값과 저장 창구는 서버에 실재하고(설정 키 ai.wait-budget.ceiling-sec) 배포 없이 운영자가 조정하라고 연 손잡이라 요구를 지우지 않고, 조작 표면이 미구현이라는 사실을 적어 어긋남을 의도된 기록으로 바꾼다. 카드를 지어내지 않는다 — 화면 구성은 별도 설계 사안이다.
+> ⚠️ **버전 변경 감지 — logicraft v45 → v46**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (9.8KB)
 > ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 시스템 설정 화면
@@ -516,8 +516,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 2e697447e4769aa610bd1e6fc4cbddc69558f1c3b0108240d2d67f582f514198
-- **generated_at**: 2026-08-27T10:16:36.448Z
+- **source_hash**: 6c0d3f84085078e36f61b149e90d98f359d0fa86fa1233db775384e3dd5c5063
+- **generated_at**: 2026-08-29T00:22:50.595Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

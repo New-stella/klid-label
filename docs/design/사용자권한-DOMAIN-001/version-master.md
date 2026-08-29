@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-08-28T22:51:24.043Z |
-| Mode | SYNC — NEW 0 / CHANGED 16 / UNCHANGED 63 |
-| 출력 루트 | docs/design/사용자권한-DOMAIN-001/ |
+| Last sync | 2026-08-29T00:36:37.548Z |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 74 |
+| 출력 루트 | docs/design/사용자권한-DOMAIN-001 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-001 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 14건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 32건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -42,22 +42,11 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-127]] (prev v1)
-- CHANGED [[ADR-046]] (prev v7)
-- CHANGED [[NFR-020]] (prev v7)
-- CHANGED [[ROLE-004]] (prev v4)
-- CHANGED [[SD-009]] (prev v9)
-- CHANGED [[SD-018]] (prev v5)
-- CHANGED [[SD-019]] (prev v2)
-- CHANGED [[SD-020]] (prev v2)
-- CHANGED [[SD-034]] (prev v3)
-- CHANGED [[SD-037]] (prev v3)
-- CHANGED [[SCREEN-002]] (prev v22)
-- CHANGED [[SCREEN-003]] (prev v10)
-- CHANGED [[SCREEN-004]] (prev v11)
-- CHANGED [[SCREEN-024]] (prev v29)
-- CHANGED [[SCREEN-040]] (prev v6)
-- CHANGED [[SCREEN-041]] (prev v7)
+- CHANGED [[API-194]] (prev v8)
+- CHANGED [[API-223]] (prev v4)
+- CHANGED [[CDIAG-008]] (prev v7)
+- CHANGED [[SEQ-018]] (prev v4)
+- CHANGED [[UC-030]] (prev v12)
 
 ## ITEM 표
 
@@ -78,7 +67,7 @@
 | [[AC-124]] | acceptance | 1 | UNCHANGED |
 | [[AC-125]] | acceptance | 2 | UNCHANGED |
 | [[AC-126]] | acceptance | 1 | UNCHANGED |
-| [[AC-127]] | acceptance | 1 | CHANGED |
+| [[AC-127]] | acceptance | 1 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
@@ -86,7 +75,7 @@
 | [[ADR-021]] | adr | 4 | UNCHANGED |
 | [[ADR-039]] | adr | 6 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
-| [[ADR-046]] | adr | 8 | CHANGED |
+| [[ADR-046]] | adr | 8 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
 | [[API-001]] | api_endpoint | 6 | UNCHANGED |
 | [[API-002]] | api_endpoint | 2 | UNCHANGED |
@@ -96,9 +85,9 @@
 | [[API-006]] | api_endpoint | 10 | UNCHANGED |
 | [[API-007]] | api_endpoint | 14 | UNCHANGED |
 | [[API-153]] | api_endpoint | 4 | UNCHANGED |
-| [[API-194]] | api_endpoint | 8 | UNCHANGED |
-| [[API-223]] | api_endpoint | 4 | UNCHANGED |
-| [[CDIAG-008]] | class_diagram | 7 | UNCHANGED |
+| [[API-194]] | api_endpoint | 9 | CHANGED |
+| [[API-223]] | api_endpoint | 5 | CHANGED |
+| [[CDIAG-008]] | class_diagram | 8 | CHANGED |
 | [[CMP-012]] | diagram_c4_component | 4 | UNCHANGED |
 | [[DFEAT-001]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-002]] | domain_feature | 7 | UNCHANGED |
@@ -118,27 +107,27 @@
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | CHANGED |
+| [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
-| [[ROLE-004]] | permission_role | 4 | CHANGED |
+| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-001]] | screen_spec | 16 | UNCHANGED |
-| [[SCREEN-002]] | screen_spec | 26 | CHANGED |
-| [[SCREEN-003]] | screen_spec | 14 | CHANGED |
-| [[SCREEN-004]] | screen_spec | 14 | CHANGED |
+| [[SCREEN-002]] | screen_spec | 26 | UNCHANGED |
+| [[SCREEN-003]] | screen_spec | 14 | UNCHANGED |
+| [[SCREEN-004]] | screen_spec | 14 | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 32 | CHANGED |
-| [[SCREEN-040]] | screen_spec | 9 | CHANGED |
-| [[SCREEN-041]] | screen_spec | 10 | CHANGED |
-| [[SD-009]] | screen_design | 12 | CHANGED |
+| [[SCREEN-024]] | screen_spec | 32 | UNCHANGED |
+| [[SCREEN-040]] | screen_spec | 9 | UNCHANGED |
+| [[SCREEN-041]] | screen_spec | 10 | UNCHANGED |
+| [[SD-009]] | screen_design | 12 | UNCHANGED |
 | [[SD-017]] | screen_design | 3 | UNCHANGED |
-| [[SD-018]] | screen_design | 8 | CHANGED |
-| [[SD-019]] | screen_design | 3 | CHANGED |
-| [[SD-020]] | screen_design | 4 | CHANGED |
-| [[SD-034]] | screen_design | 6 | CHANGED |
-| [[SD-037]] | screen_design | 5 | CHANGED |
-| [[SEQ-018]] | diagram_sequence | 4 | UNCHANGED |
-| [[UC-030]] | use_case | 12 | UNCHANGED |
+| [[SD-018]] | screen_design | 8 | UNCHANGED |
+| [[SD-019]] | screen_design | 3 | UNCHANGED |
+| [[SD-020]] | screen_design | 4 | UNCHANGED |
+| [[SD-034]] | screen_design | 6 | UNCHANGED |
+| [[SD-037]] | screen_design | 5 | UNCHANGED |
+| [[SEQ-018]] | diagram_sequence | 5 | CHANGED |
+| [[UC-030]] | use_case | 13 | CHANGED |

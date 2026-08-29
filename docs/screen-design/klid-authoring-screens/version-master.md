@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-000 저작도구 화면 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038, SCREEN-039, SCREEN-040, SCREEN-041, SCREEN-042, SCREEN-043 |
-| Last sync | 2026-08-29T00:20:47.540Z (session 34) |
-| Mode | SYNC — NEW 21 / CHANGED 1 / UNCHANGED 538 |
+| Last sync | 2026-08-29T00:36:51.774Z (session 35) |
+| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 555 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens |
 
 ## ITEM 버전 표
@@ -50,13 +50,13 @@
 | [[AC-038]] | acceptance | 온디맨드 AI 자동 추적 — 진입점 구분과 시작 객체 없는 실행 | 5 | false | UNCHANGED |
 | [[AC-039]] | acceptance | 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점 | 5 | false | UNCHANGED |
 | [[AC-040]] | acceptance | 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달 | 5 | false | UNCHANGED |
-| [[AC-041]] | acceptance | 검사는 아무것도 저장하지 않고 미리보기만 돌려준다 | 5 | true | NEW |
-| [[AC-042]] | acceptance | 대응이 정해지지 않은 분류가 남으면 적재하지 않는다 | 4 | true | NEW |
-| [[AC-043]] | acceptance | 한 번 확정한 분류 대응은 다음부터 자동으로 적용된다 | 5 | true | NEW |
-| [[AC-044]] | acceptance | 같은 산출물을 두 번 가져오면 거부한다 | 6 | true | NEW |
-| [[AC-045]] | acceptance | 적재된 영상은 배정 없이 바로 검수할 수 있다 | 7 | true | NEW |
-| [[AC-046]] | acceptance | 원본으로 가져온 영상은 비식별이 끝나기 전에는 승인되지 않는다 | 11 | true | NEW |
-| [[AC-047]] | acceptance | 짝이 없거나 개수가 다른 산출물은 경고만 하고 실제 파일 기준으로 적재한다 | 7 | true | NEW |
+| [[AC-041]] | acceptance | 검사는 아무것도 저장하지 않고 미리보기만 돌려준다 | 5 | true | UNCHANGED |
+| [[AC-042]] | acceptance | 대응이 정해지지 않은 분류가 남으면 적재하지 않는다 | 4 | true | UNCHANGED |
+| [[AC-043]] | acceptance | 한 번 확정한 분류 대응은 다음부터 자동으로 적용된다 | 5 | true | UNCHANGED |
+| [[AC-044]] | acceptance | 같은 산출물을 두 번 가져오면 거부한다 | 6 | true | UNCHANGED |
+| [[AC-045]] | acceptance | 적재된 영상은 배정 없이 바로 검수할 수 있다 | 7 | true | UNCHANGED |
+| [[AC-046]] | acceptance | 원본으로 가져온 영상은 비식별이 끝나기 전에는 승인되지 않는다 | 11 | true | UNCHANGED |
+| [[AC-047]] | acceptance | 짝이 없거나 개수가 다른 산출물은 경고만 하고 실제 파일 기준으로 적재한다 | 7 | true | UNCHANGED |
 | [[AC-049]] | acceptance | 시계열 일괄 건너뛰기 — 대상은 실패한 영상이고 사유는 요청 단위로 검증된다 | 5 | false | UNCHANGED |
 | [[AC-050]] | acceptance | 시계열 일괄 재수행은 부분 성공을 그대로 알린다 | 5 | false | UNCHANGED |
 | [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 11 | false | UNCHANGED |
@@ -108,7 +108,7 @@
 | [[AC-110]] | acceptance | 프리셋 목록은 이벤트명과 코드를 함께 보인다 | 2 | true | UNCHANGED |
 | [[AC-111]] | acceptance | 프리셋 복제 동선은 존재하지 않는다 | 3 | true | UNCHANGED |
 | [[AC-112]] | acceptance | 프리셋 단순화가 오토라벨 동작을 바꾸지 않는다 | 3 | true | UNCHANGED |
-| [[AC-120]] | acceptance | 이관 대상 위치 탐색 | 13 | false | NEW |
+| [[AC-120]] | acceptance | 이관 대상 위치 탐색 | 13 | false | UNCHANGED |
 | [[AC-121]] | acceptance | 관리자 패스워드 교체는 현재 패스워드를 다시 확인한 뒤에만 이뤄진다 | 1 | false | UNCHANGED |
 | [[AC-122]] | acceptance | 자격 저장 위치가 비어 있으면 배포 설정값으로 판정하고, 둘 다 없으면 아무 패스워드도 통과하지 않는다 | 1 | false | UNCHANGED |
 | [[AC-123]] | acceptance | 관리자 자격은 설정을 조회하는 것만으로 드러나지 않는다 | 1 | false | UNCHANGED |
@@ -284,7 +284,7 @@
 | [[API-191]] | api_endpoint | POST /v1/control-ingests/{rcptnSn}/requeue | 2 | false | UNCHANGED |
 | [[API-192]] | api_endpoint | POST /v1/control-ingests/requeue | 4 | false | UNCHANGED |
 | [[API-193]] | api_endpoint | GET /v1/ai-defaults | 5 | false | UNCHANGED |
-| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 8 | true | UNCHANGED |
+| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 9 | false | CHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 7 | false | UNCHANGED |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | UNCHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 5 | false | UNCHANGED |
@@ -295,25 +295,25 @@
 | [[API-202]] | api_endpoint | GET /v1/deident-reports/{rprtSn}/deident-candidates | 2 | false | UNCHANGED |
 | [[API-203]] | api_endpoint | 포털 사용자 작업 데이터 ZIP 다운로드 | 6 | false | UNCHANGED |
 | [[API-204]] | api_endpoint | POST /v1/ai-requests/{requestId}/cancel | 1 | false | UNCHANGED |
-| [[API-205]] | api_endpoint | 외부 산출물 폴더 검사 | 8 | true | NEW |
-| [[API-206]] | api_endpoint | 외부 산출물 적재 | 12 | false | NEW |
-| [[API-207]] | api_endpoint | 이관 이력 목록 조회 | 7 | false | NEW |
-| [[API-208]] | api_endpoint | 이관 이력 상세 조회 | 5 | false | NEW |
-| [[API-209]] | api_endpoint | 분류 대응 목록 조회 | 6 | true | NEW |
-| [[API-210]] | api_endpoint | 분류 대응 확정 | 9 | false | NEW |
-| [[API-211]] | api_endpoint | 분류 대응 해제 | 8 | false | NEW |
+| [[API-205]] | api_endpoint | 외부 산출물 폴더 검사 | 8 | true | UNCHANGED |
+| [[API-206]] | api_endpoint | 외부 산출물 적재 | 12 | false | UNCHANGED |
+| [[API-207]] | api_endpoint | 이관 이력 목록 조회 | 7 | false | UNCHANGED |
+| [[API-208]] | api_endpoint | 이관 이력 상세 조회 | 5 | false | UNCHANGED |
+| [[API-209]] | api_endpoint | 분류 대응 목록 조회 | 6 | true | UNCHANGED |
+| [[API-210]] | api_endpoint | 분류 대응 확정 | 9 | false | UNCHANGED |
+| [[API-211]] | api_endpoint | 분류 대응 해제 | 8 | false | UNCHANGED |
 | [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 5 | true | UNCHANGED |
 | [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 6 | true | UNCHANGED |
 | [[API-214]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/rerun | 4 | true | UNCHANGED |
-| [[API-215]] | api_endpoint | 비식별 완료 기록 | 4 | true | NEW |
+| [[API-215]] | api_endpoint | 비식별 완료 기록 | 4 | true | UNCHANGED |
 | [[API-216]] | api_endpoint | 마킹 산출물 폴더 검사 | 2 | false | UNCHANGED |
 | [[API-217]] | api_endpoint | 마킹 산출물 일괄 적재 | 2 | false | UNCHANGED |
 | [[API-218]] | api_endpoint | 일괄 적재 진행 조회 | 2 | false | UNCHANGED |
 | [[API-219]] | api_endpoint | GET /v1/manage/verification-event-types | 3 | false | UNCHANGED |
 | [[API-220]] | api_endpoint | PUT /v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions | 3 | false | UNCHANGED |
-| [[API-221]] | api_endpoint | 이관 대상 폴더 탐색 | 15 | false | NEW |
-| [[API-222]] | api_endpoint | 이관 대상 영상 파일 탐색 | 10 | false | NEW |
-| [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 4 | true | UNCHANGED |
+| [[API-221]] | api_endpoint | 이관 대상 폴더 탐색 | 15 | false | UNCHANGED |
+| [[API-222]] | api_endpoint | 이관 대상 영상 파일 탐색 | 10 | false | UNCHANGED |
+| [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 5 | false | CHANGED |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
@@ -341,7 +341,7 @@
 | [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 46 | true | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 41 | true | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | false | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 45 | false | CHANGED |
+| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 46 | false | CHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 35 | true | UNCHANGED |
 | [[SCREEN-027]] | screen_spec | 파일 업로드 | 42 | false | UNCHANGED |
 | [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 26 | false | UNCHANGED |
@@ -355,7 +355,7 @@
 | [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | UNCHANGED |
 | [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 8 | true | UNCHANGED |
 | [[SCREEN-038]] | screen_spec | 이벤트유형 관리 화면 | 14 | true | UNCHANGED |
-| [[SCREEN-039]] | screen_spec | 산출물 가져오기 | 33 | true | NEW |
+| [[SCREEN-039]] | screen_spec | 산출물 가져오기 | 33 | true | UNCHANGED |
 | [[SCREEN-040]] | screen_spec | 관리자 페이지 진입 화면 | 9 | false | UNCHANGED |
 | [[SCREEN-041]] | screen_spec | 관리자 패스워드 교체 | 10 | false | UNCHANGED |
 | [[SCREEN-042]] | screen_spec | 연동 서버 주소 관리 화면 | 8 | false | UNCHANGED |
@@ -421,14 +421,14 @@
 | [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 16 | false | UNCHANGED |
 | [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 6 | false | UNCHANGED |
 | [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 11 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 12 | false | UNCHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | CHANGED |
 | [[UC-031]] | use_case | 시스템 운영 설정 관리 | 12 | true | UNCHANGED |
 | [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 11 | false | UNCHANGED |
 | [[UC-033]] | use_case | 전체 구축 현황 조회 — 검수완료 기준과 전체 기준 병기 | 3 | false | UNCHANGED |
 | [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 5 | true | UNCHANGED |
-| [[UC-035]] | use_case | 외부 산출물 가져오기 | 15 | true | NEW |
-| [[UC-036]] | use_case | 이관 이력 조회 | 3 | true | NEW |
-| [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 1 | true | UNCHANGED |
+| [[UC-035]] | use_case | 외부 산출물 가져오기 | 15 | true | UNCHANGED |
+| [[UC-036]] | use_case | 이관 이력 조회 | 3 | true | UNCHANGED |
+| [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 2 | false | CHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
