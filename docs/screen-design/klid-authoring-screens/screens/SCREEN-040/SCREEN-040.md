@@ -5,21 +5,17 @@ version: 9
 last_updated_at: 2026-08-28T22:11:35.831Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T22:54:49.358Z
-sync_session: 33
+synced_at: 2026-08-29T00:20:47.376Z
+sync_session: 34
 stale: false
-status: CHANGED
-prev_version: 6
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-040.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-194]]"]
   required_roles: ["[[ROLE-004]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v6 → v9**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (7.5KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 관리자 페이지 진입 화면
 
