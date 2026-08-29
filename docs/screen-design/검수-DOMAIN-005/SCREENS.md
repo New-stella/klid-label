@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-29T01:19:49.382Z (session 16) |
+| last sync | 2026-08-29T01:27:53.515Z (session 17) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005/ |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
+| [[SCREEN-018]] | 검수 목록 화면 | CHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
 | [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
@@ -54,7 +54,16 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[API-066]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-008]] | api_endpoint | CHANGED (v12→v12) |
+| [[API-009]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-010]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-011]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-013]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-014]] | api_endpoint | CHANGED (v12→v12) |
+| [[API-015]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-105]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-138]] | api_endpoint | CHANGED (v4→v4) |
+| [[SCREEN-018]] | screen_spec | CHANGED (v29→v29) |
 
 ## Obsidian 볼트로 보기
 

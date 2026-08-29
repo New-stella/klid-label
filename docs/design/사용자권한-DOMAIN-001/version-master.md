@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 |
-| Last sync | 2026-08-29T01:19:23.280Z |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 78 |
+| Last sync | 2026-08-29T01:27:28.534Z |
+| Mode | SYNC — NEW 0 / CHANGED 9 / UNCHANGED 70 |
 | 출력 루트 | docs/design/사용자권한-DOMAIN-001/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,13 +42,21 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-056]] (prev v3)
+- CHANGED [[API-001]] (prev v6)
+- CHANGED [[API-002]] (prev v2)
+- CHANGED [[API-003]] (prev v5)
+- CHANGED [[API-005]] (prev v5)
+- CHANGED [[API-006]] (prev v10)
+- CHANGED [[API-153]] (prev v4)
+- CHANGED [[DFEAT-001]] (prev v8)
+- CHANGED [[DFEAT-003]] (prev v9)
+- CHANGED [[SCREEN-012]] (prev v47)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-056]] | acceptance | 3 | CHANGED |
+| [[AC-056]] | acceptance | 3 | UNCHANGED |
 | [[AC-057]] | acceptance | 3 | UNCHANGED |
 | [[AC-058]] | acceptance | 2 | UNCHANGED |
 | [[AC-059]] | acceptance | 2 | UNCHANGED |
@@ -73,21 +81,21 @@
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-046]] | adr | 8 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-001]] | api_endpoint | 6 | UNCHANGED |
-| [[API-002]] | api_endpoint | 2 | UNCHANGED |
-| [[API-003]] | api_endpoint | 5 | UNCHANGED |
+| [[API-001]] | api_endpoint | 6 | CHANGED |
+| [[API-002]] | api_endpoint | 2 | CHANGED |
+| [[API-003]] | api_endpoint | 5 | CHANGED |
 | [[API-004]] | api_endpoint | 8 | UNCHANGED |
-| [[API-005]] | api_endpoint | 5 | UNCHANGED |
-| [[API-006]] | api_endpoint | 10 | UNCHANGED |
+| [[API-005]] | api_endpoint | 5 | CHANGED |
+| [[API-006]] | api_endpoint | 10 | CHANGED |
 | [[API-007]] | api_endpoint | 14 | UNCHANGED |
-| [[API-153]] | api_endpoint | 4 | UNCHANGED |
+| [[API-153]] | api_endpoint | 4 | CHANGED |
 | [[API-194]] | api_endpoint | 9 | UNCHANGED |
 | [[API-223]] | api_endpoint | 5 | UNCHANGED |
 | [[CDIAG-008]] | class_diagram | 8 | UNCHANGED |
 | [[CMP-012]] | diagram_c4_component | 4 | UNCHANGED |
-| [[DFEAT-001]] | domain_feature | 8 | UNCHANGED |
+| [[DFEAT-001]] | domain_feature | 8 | CHANGED |
 | [[DFEAT-002]] | domain_feature | 7 | UNCHANGED |
-| [[DFEAT-003]] | domain_feature | 9 | UNCHANGED |
+| [[DFEAT-003]] | domain_feature | 9 | CHANGED |
 | [[DOMAIN-001]] | domain | 11 | UNCHANGED |
 | [[ERD-029]] | erd | 4 | UNCHANGED |
 | [[INT-013]] | integration_point | 9 | UNCHANGED |
@@ -113,7 +121,7 @@
 | [[SCREEN-002]] | screen_spec | 26 | UNCHANGED |
 | [[SCREEN-003]] | screen_spec | 14 | UNCHANGED |
 | [[SCREEN-004]] | screen_spec | 14 | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 47 | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 47 | CHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 32 | UNCHANGED |
 | [[SCREEN-040]] | screen_spec | 9 | UNCHANGED |

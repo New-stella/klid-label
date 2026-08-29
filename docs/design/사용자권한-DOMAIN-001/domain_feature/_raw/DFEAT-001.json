@@ -32,10 +32,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-348"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-05-30T02:33:01.456Z",
+        "last_updated": "2026-08-29T01:26:19.452Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -57,10 +59,10 @@
     "schema_version": 1,
     "current_version": 8,
     "stale": true,
-    "stale_reason": "API-006의 data.implementation 변경 — implements",
+    "stale_reason": "API-007의 data.request_body 변경 — implements",
     "change_summary": "앞 리비전에서 더한 문단이 이 기능의 첫 문단과 같은 산출물 안에서 앞뒤가 어긋날 여지를 없앤다. 첫 문단은 저작도구가 토큰을 발급하지 않는다고 단정하는데, 새 문단이 관리 기능 진입에 유효창을 발급한다고 적어 두 문장을 나란히 읽으면 모순으로 보인다. 발급하지 않는다는 것은 로그인 토큰이고 유효창은 로그인 수단이 아니라 이미 인증된 사용자에게 관리 기능만 잠깐 열어 주는 확인 절차라는 구분을 새 문단 안에 명시해, 첫 문단의 서술은 손대지 않고 그대로 성립하게 한다. 같은 구분을 세션·계정 보안대책 쪽에서도 예외 항으로 명시하고 있어 그 서술과도 어긋나지 않는다. 고친 범위는 새 문단의 한 문장뿐이다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T10:22:27.144Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:19.452Z",
     "created_at": "2026-05-29T06:26:39.200Z"
   }
 }

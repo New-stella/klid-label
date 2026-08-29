@@ -327,9 +327,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-300"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:48.627Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -341,8 +344,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "요청 배열 상한은 요청 본문 스키마가 이미 규정하므로, 구현 계층·어노테이션을 적은 문장을 본문에서 뺀다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:12.541Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:48.627Z",
     "created_at": "2026-07-30T07:06:27.047Z"
   }
 }

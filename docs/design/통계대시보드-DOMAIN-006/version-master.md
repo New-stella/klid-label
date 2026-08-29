@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-08-29T01:19:24.832Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 45 |
+| Last sync | 2026-08-29T01:27:30.140Z |
+| Mode | SYNC — NEW 0 / CHANGED 10 / UNCHANGED 35 |
 | 출력 루트 | docs/design/통계대시보드-DOMAIN-006/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,7 +42,16 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[API-001]] (prev v6)
+- CHANGED [[API-055]] (prev v6)
+- CHANGED [[API-057]] (prev v6)
+- CHANGED [[API-058]] (prev v3)
+- CHANGED [[API-072]] (prev v10)
+- CHANGED [[DFEAT-026]] (prev v3)
+- CHANGED [[DFEAT-027]] (prev v4)
+- CHANGED [[DFEAT-028]] (prev v4)
+- CHANGED [[SCREEN-011]] (prev v21)
+- CHANGED [[SCREEN-021]] (prev v28)
 
 ## ITEM 표
 
@@ -55,17 +64,17 @@
 | [[ADR-019]] | adr | 8 | UNCHANGED |
 | [[ADR-038]] | adr | 4 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-001]] | api_endpoint | 6 | UNCHANGED |
+| [[API-001]] | api_endpoint | 6 | CHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
-| [[API-055]] | api_endpoint | 6 | UNCHANGED |
+| [[API-055]] | api_endpoint | 6 | CHANGED |
 | [[API-056]] | api_endpoint | 7 | UNCHANGED |
-| [[API-057]] | api_endpoint | 6 | UNCHANGED |
-| [[API-058]] | api_endpoint | 3 | UNCHANGED |
-| [[API-072]] | api_endpoint | 10 | UNCHANGED |
+| [[API-057]] | api_endpoint | 6 | CHANGED |
+| [[API-058]] | api_endpoint | 3 | CHANGED |
+| [[API-072]] | api_endpoint | 10 | CHANGED |
 | [[CDIAG-009]] | class_diagram | 4 | UNCHANGED |
-| [[DFEAT-026]] | domain_feature | 3 | UNCHANGED |
-| [[DFEAT-027]] | domain_feature | 4 | UNCHANGED |
-| [[DFEAT-028]] | domain_feature | 4 | UNCHANGED |
+| [[DFEAT-026]] | domain_feature | 3 | CHANGED |
+| [[DFEAT-027]] | domain_feature | 4 | CHANGED |
+| [[DFEAT-028]] | domain_feature | 4 | CHANGED |
 | [[DOMAIN-006]] | domain | 8 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
@@ -85,9 +94,9 @@
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
-| [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
+| [[SCREEN-011]] | screen_spec | 21 | CHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
-| [[SCREEN-021]] | screen_spec | 28 | UNCHANGED |
+| [[SCREEN-021]] | screen_spec | 28 | CHANGED |
 | [[SD-014]] | screen_design | 5 | UNCHANGED |
 | [[SD-030]] | screen_design | 5 | UNCHANGED |
 | [[SD-031]] | screen_design | 2 | UNCHANGED |

@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-08-29T01:19:28.638Z |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 83 |
+| Last sync | 2026-08-29T01:27:33.950Z |
+| Mode | SYNC — NEW 0 / CHANGED 17 / UNCHANGED 67 |
 | 출력 루트 | docs/design/포털-DOMAIN-013/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,7 +42,23 @@
 
 ## Changelog (this run)
 
-- CHANGED [[INT-009]] (prev v6)
+- CHANGED [[API-081]] (prev v6)
+- CHANGED [[API-111]] (prev v3)
+- CHANGED [[API-139]] (prev v3)
+- CHANGED [[API-147]] (prev v2)
+- CHANGED [[API-149]] (prev v3)
+- CHANGED [[API-151]] (prev v2)
+- CHANGED [[API-154]] (prev v4)
+- CHANGED [[API-155]] (prev v2)
+- CHANGED [[API-157]] (prev v3)
+- CHANGED [[API-159]] (prev v4)
+- CHANGED [[API-161]] (prev v3)
+- CHANGED [[API-163]] (prev v3)
+- CHANGED [[API-166]] (prev v3)
+- CHANGED [[API-169]] (prev v6)
+- CHANGED [[API-171]] (prev v3)
+- CHANGED [[EVT-012]] (prev v3)
+- CHANGED [[DFEAT-053]] (prev v8)
 
 ## ITEM 표
 
@@ -63,41 +79,41 @@
 | [[ADR-026]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
 | [[API-024]] | api_endpoint | 6 | UNCHANGED |
-| [[API-081]] | api_endpoint | 6 | UNCHANGED |
+| [[API-081]] | api_endpoint | 6 | CHANGED |
 | [[API-082]] | api_endpoint | 9 | UNCHANGED |
 | [[API-083]] | api_endpoint | 6 | UNCHANGED |
 | [[API-110]] | api_endpoint | 4 | UNCHANGED |
-| [[API-111]] | api_endpoint | 3 | UNCHANGED |
+| [[API-111]] | api_endpoint | 3 | CHANGED |
 | [[API-115]] | api_endpoint | 3 | UNCHANGED |
-| [[API-139]] | api_endpoint | 3 | UNCHANGED |
+| [[API-139]] | api_endpoint | 3 | CHANGED |
 | [[API-140]] | api_endpoint | 5 | UNCHANGED |
 | [[API-142]] | api_endpoint | 4 | UNCHANGED |
-| [[API-147]] | api_endpoint | 2 | UNCHANGED |
-| [[API-149]] | api_endpoint | 3 | UNCHANGED |
-| [[API-151]] | api_endpoint | 2 | UNCHANGED |
-| [[API-154]] | api_endpoint | 4 | UNCHANGED |
-| [[API-155]] | api_endpoint | 2 | UNCHANGED |
-| [[API-157]] | api_endpoint | 3 | UNCHANGED |
-| [[API-159]] | api_endpoint | 4 | UNCHANGED |
-| [[API-161]] | api_endpoint | 3 | UNCHANGED |
-| [[API-163]] | api_endpoint | 3 | UNCHANGED |
-| [[API-166]] | api_endpoint | 3 | UNCHANGED |
-| [[API-169]] | api_endpoint | 6 | UNCHANGED |
-| [[API-171]] | api_endpoint | 3 | UNCHANGED |
+| [[API-147]] | api_endpoint | 2 | CHANGED |
+| [[API-149]] | api_endpoint | 3 | CHANGED |
+| [[API-151]] | api_endpoint | 2 | CHANGED |
+| [[API-154]] | api_endpoint | 4 | CHANGED |
+| [[API-155]] | api_endpoint | 2 | CHANGED |
+| [[API-157]] | api_endpoint | 3 | CHANGED |
+| [[API-159]] | api_endpoint | 4 | CHANGED |
+| [[API-161]] | api_endpoint | 3 | CHANGED |
+| [[API-163]] | api_endpoint | 3 | CHANGED |
+| [[API-166]] | api_endpoint | 3 | CHANGED |
+| [[API-169]] | api_endpoint | 6 | CHANGED |
+| [[API-171]] | api_endpoint | 3 | CHANGED |
 | [[API-203]] | api_endpoint | 6 | UNCHANGED |
 | [[CDIAG-011]] | class_diagram | 11 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 14 | UNCHANGED |
 | [[DFEAT-043]] | domain_feature | 12 | UNCHANGED |
 | [[DFEAT-044]] | domain_feature | 12 | UNCHANGED |
-| [[DFEAT-053]] | domain_feature | 8 | UNCHANGED |
+| [[DFEAT-053]] | domain_feature | 8 | CHANGED |
 | [[DFEAT-055]] | domain_feature | 6 | UNCHANGED |
 | [[DOMAIN-013]] | domain | 10 | UNCHANGED |
 | [[ERD-018]] | erd | 11 | UNCHANGED |
 | [[ERD-026]] | erd | 4 | UNCHANGED |
 | [[ERD-028]] | erd | 2 | UNCHANGED |
-| [[EVT-012]] | domain_event | 3 | UNCHANGED |
+| [[EVT-012]] | domain_event | 3 | CHANGED |
 | [[EXTSYS-006]] | external_system | 7 | UNCHANGED |
-| [[INT-009]] | integration_point | 7 | CHANGED |
+| [[INT-009]] | integration_point | 7 | UNCHANGED |
 | [[INT-013]] | integration_point | 9 | UNCHANGED |
 | [[NAV-002]] | navigation_tree | 8 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |

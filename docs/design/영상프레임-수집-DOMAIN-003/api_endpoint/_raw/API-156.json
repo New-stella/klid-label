@@ -107,9 +107,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-302"
+        ],
         "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-29T01:23:48.854Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -122,8 +125,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "업로드 시작 창구에만 관리자 단기 유효창을 요구하기로 한 결정에 따라, 이 창구는 요구 대상이 아님을 계약에 명시한다. 명시하지 않으면 요구 대상을 성질로 규정한 그 결정을 읽은 사람이 이 창구에도 요구를 붙여 전송이 끊기거나, 반대로 왜 시작만인지 되물어 같은 논의를 반복한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T08:22:06.175Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:48.854Z",
     "created_at": "2026-07-30T07:06:50.927Z"
   }
 }

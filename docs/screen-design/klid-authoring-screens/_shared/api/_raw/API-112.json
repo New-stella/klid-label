@@ -191,9 +191,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-275"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:45.307Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -207,8 +210,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "전파 확인만 기록한다 — 원천 REQ-015 v9 의 변경은 제약 문구에서 문서 편집 경위를 걷어낸 편집이고 원문이 지목한 위치와 실제 설정 위치가 다르다는 괴리 자체는 그대로 남는다. 이 문서의 축은 승인 이력이 있는 영상의 재비식별 요청 계약이고, 배제 가드와 응답 코드 어디에도 그 편집과 겹치는 항목이 없어 고칠 내용이 없다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T00:38:56.120Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:45.307Z",
     "created_at": "2026-07-07T07:30:21.375Z"
   }
 }

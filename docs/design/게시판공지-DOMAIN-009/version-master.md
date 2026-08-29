@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-009 |
-| Last sync | 2026-08-29T01:19:25.576Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 49 |
+| Last sync | 2026-08-29T01:27:30.878Z |
+| Mode | SYNC — NEW 0 / CHANGED 12 / UNCHANGED 37 |
 | 출력 루트 | docs/design/게시판공지-DOMAIN-009/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,7 +42,18 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[API-095]] (prev v6)
+- CHANGED [[API-096]] (prev v7)
+- CHANGED [[API-097]] (prev v7)
+- CHANGED [[API-098]] (prev v7)
+- CHANGED [[API-099]] (prev v6)
+- CHANGED [[API-100]] (prev v8)
+- CHANGED [[API-101]] (prev v8)
+- CHANGED [[API-106]] (prev v9)
+- CHANGED [[API-107]] (prev v7)
+- CHANGED [[API-108]] (prev v6)
+- CHANGED [[DFEAT-037]] (prev v11)
+- CHANGED [[DFEAT-038]] (prev v15)
 
 ## ITEM 표
 
@@ -57,18 +68,18 @@
 | [[AC-085]] | acceptance | 1 | UNCHANGED |
 | [[ADR-014]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-095]] | api_endpoint | 6 | UNCHANGED |
-| [[API-096]] | api_endpoint | 7 | UNCHANGED |
-| [[API-097]] | api_endpoint | 7 | UNCHANGED |
-| [[API-098]] | api_endpoint | 7 | UNCHANGED |
-| [[API-099]] | api_endpoint | 6 | UNCHANGED |
-| [[API-100]] | api_endpoint | 8 | UNCHANGED |
-| [[API-101]] | api_endpoint | 8 | UNCHANGED |
-| [[API-106]] | api_endpoint | 9 | UNCHANGED |
-| [[API-107]] | api_endpoint | 7 | UNCHANGED |
-| [[API-108]] | api_endpoint | 6 | UNCHANGED |
-| [[DFEAT-037]] | domain_feature | 11 | UNCHANGED |
-| [[DFEAT-038]] | domain_feature | 15 | UNCHANGED |
+| [[API-095]] | api_endpoint | 6 | CHANGED |
+| [[API-096]] | api_endpoint | 7 | CHANGED |
+| [[API-097]] | api_endpoint | 7 | CHANGED |
+| [[API-098]] | api_endpoint | 7 | CHANGED |
+| [[API-099]] | api_endpoint | 6 | CHANGED |
+| [[API-100]] | api_endpoint | 8 | CHANGED |
+| [[API-101]] | api_endpoint | 8 | CHANGED |
+| [[API-106]] | api_endpoint | 9 | CHANGED |
+| [[API-107]] | api_endpoint | 7 | CHANGED |
+| [[API-108]] | api_endpoint | 6 | CHANGED |
+| [[DFEAT-037]] | domain_feature | 11 | CHANGED |
+| [[DFEAT-038]] | domain_feature | 15 | CHANGED |
 | [[DOMAIN-009]] | domain | 13 | UNCHANGED |
 | [[ERD-022]] | erd | 17 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |

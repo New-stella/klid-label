@@ -230,9 +230,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-316"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:50.839Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -244,8 +247,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "200 응답에 실제로 내려가는 3개 필드(anonymitySource·pseudonymitySource·privacyIncludedSource)가 선언에서 빠져 있어 추가한다. 각 값이 사용자가 직접 저장한 것인지 시스템 기본값으로 프리필된 것인지 구분하는 출처 필드다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T23:38:47.040Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:50.839Z",
     "created_at": "2026-07-30T07:11:26.428Z"
   }
 }

@@ -169,9 +169,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-327"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:52.313Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -183,8 +186,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "탐지 백엔드 서술을 ADR-041 확정에 맞춰 정정했다. 설정값에 따라 두 백엔드로 나뉜다는 서술은 폐기됐고, 탐지 백엔드는 하나이며 설정이나 요청으로 고르지 않는다. 경로·메서드·요청·응답 계약은 그대로 두었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T02:29:15.515Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:52.313Z",
     "created_at": "2026-07-07T07:30:36.951Z"
   }
 }

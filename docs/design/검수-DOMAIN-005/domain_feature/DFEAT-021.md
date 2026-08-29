@@ -4,20 +4,22 @@ type: domain_feature
 version: 8
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:14.284Z
-status: NEW
-prev_version: null
-content_hash: 38ce6b01e3d8f3048787d492a64061b5d7b71f0b2a16572a8c17452d5eb70105
+synced_at: 2026-08-29T01:27:29.301Z
+status: CHANGED
+prev_version: 8
+content_hash: b8e3efc1ee3f31b2876b702c353fefe28b66e67a19e7434845f0390e82351c01
 stale: true
 raw: ./_raw/DFEAT-021.json
 links:
+  based_on: ["[[ADR-002]]"]
   belongs_to_domain: ["[[DOMAIN-005]]"]
   implements: ["[[API-008]]", "[[API-009]]", "[[API-010]]", "[[API-012]]", "[[API-013]]", "[[API-138]]", "[[API-178]]"]
   migrated_from: ["[[LEGACY-077]]"]
   specializes: ["[[FEAT-008]]"]
   verifies: ["[[AC-022]]"]
-  depicts_backward: ["[[CDIAG-006]]"]
+  depicts_backward: ["[[CDIAG-006]]", "[[CMP-005]]"]
   realizes_backward: ["[[UC-023]]"]
+  references_backward: ["[[ADR-002]]"]
 ---
 
 # 검수 (검수자 1인 승인까지 반복)
@@ -113,7 +115,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-357
 
 ### progress
 
@@ -125,7 +127,7 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T04:05:05.954Z
+2026-08-29T01:26:20.543Z
 
 ## uses_constants
 

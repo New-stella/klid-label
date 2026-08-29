@@ -36,9 +36,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-342"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:15.062Z"
       },
       "payload_schema": {
         "rawSn": "Long — 신고가 해소된 영상 PK (LS_DATA_RAW.RAW_SN)"
@@ -54,8 +57,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "구현 클래스명을 그 책임 이름으로 바꾼다. FAILED 행만 스캔한다는 판정 조건이 본문에 남아 있어 왜 회수 대상이 되지 못하는지는 그대로 읽힌다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:21:31.483Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:15.062Z",
     "created_at": "2026-08-04T08:53:21.322Z"
   }
 }

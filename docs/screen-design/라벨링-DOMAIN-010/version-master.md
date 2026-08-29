@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 라벨링 |
 | 다운로드 화면 | SCREEN-005, SCREEN-026 |
-| Last sync | 2026-08-29T01:19:51.281Z (session 16) |
-| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 220 |
+| Last sync | 2026-08-29T01:27:55.348Z (session 17) |
+| Mode | SYNC — NEW 0 / CHANGED 26 / UNCHANGED 199 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010/ |
 
 ## ITEM 버전 표
@@ -26,52 +26,52 @@
 | [[AC-038]] | acceptance | 온디맨드 AI 자동 추적 — 진입점 구분과 시작 객체 없는 실행 | 5 | false | UNCHANGED |
 | [[AC-039]] | acceptance | 온디맨드 AI 자동 추적 — 결과 적용 방식과 수락 입도, 확정 시점 | 5 | false | UNCHANGED |
 | [[AC-040]] | acceptance | 온디맨드 AI 자동 추적 — 라벨 마스터 식별자 전달 | 5 | false | UNCHANGED |
-| [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | UNCHANGED |
+| [[API-012]] | api_endpoint | POST /v1/reviews/{videoId}/submit | 6 | false | CHANGED |
 | [[API-018]] | api_endpoint | GET /v1/frames/{srcSn}/labels | 5 | false | UNCHANGED |
-| [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | UNCHANGED |
-| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 14 | false | UNCHANGED |
+| [[API-019]] | api_endpoint | PUT /v1/frames/{srcSn}/labels | 8 | false | CHANGED |
+| [[API-020]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-track | 14 | false | CHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
-| [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
-| [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | UNCHANGED |
+| [[API-022]] | api_endpoint | GET /v1/labels/{lblSn}/attrs | 4 | false | CHANGED |
+| [[API-023]] | api_endpoint | PUT /v1/labels/{lblSn}/attrs | 4 | false | CHANGED |
 | [[API-024]] | api_endpoint | GET /v1/manage/labels | 6 | false | UNCHANGED |
-| [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 8 | false | UNCHANGED |
-| [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 9 | false | UNCHANGED |
-| [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 11 | false | UNCHANGED |
-| [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 11 | false | UNCHANGED |
-| [[API-037]] | api_endpoint | GET /v1/manage/presets | 12 | false | CHANGED |
-| [[API-038]] | api_endpoint | POST /v1/manage/presets | 14 | false | CHANGED |
-| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | CHANGED |
-| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | CHANGED |
+| [[API-032]] | api_endpoint | POST /v1/labels/{srcSn}/deident-report | 8 | false | CHANGED |
+| [[API-034]] | api_endpoint | GET /v1/frames/{srcSn}/versions | 9 | false | CHANGED |
+| [[API-035]] | api_endpoint | GET /v1/versions/{version}/diff | 11 | false | CHANGED |
+| [[API-036]] | api_endpoint | POST /v1/versions/{version}/rollback | 11 | false | CHANGED |
+| [[API-037]] | api_endpoint | GET /v1/manage/presets | 12 | false | UNCHANGED |
+| [[API-038]] | api_endpoint | POST /v1/manage/presets | 14 | false | UNCHANGED |
+| [[API-039]] | api_endpoint | PUT /v1/manage/presets/{id} | 13 | false | UNCHANGED |
+| [[API-040]] | api_endpoint | DELETE /v1/manage/presets/{id} | 4 | false | UNCHANGED |
 | [[API-041]] | api_endpoint | [폐기] POST /v1/manage/presets/{id}/clone | 5 | false | UNCHANGED |
-| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | CHANGED |
-| [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | UNCHANGED |
-| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | UNCHANGED |
+| [[API-066]] | api_endpoint | GET /v1/frames/{srcSn}/meta | 7 | false | UNCHANGED |
+| [[API-067]] | api_endpoint | PUT /v1/frames/{srcSn}/meta | 8 | false | CHANGED |
+| [[API-093]] | api_endpoint | POST /v1/frames/{srcSn}/sam2-segment | 14 | false | CHANGED |
 | [[API-102]] | api_endpoint | POST /v1/videos/{rawSn}/issues | 14 | false | UNCHANGED |
 | [[API-103]] | api_endpoint | GET /v1/videos/{rawSn}/issues | 11 | false | UNCHANGED |
 | [[API-104]] | api_endpoint | POST /v1/issues/{issueSn}/comments | 14 | false | UNCHANGED |
-| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | UNCHANGED |
-| [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | UNCHANGED |
+| [[API-105]] | api_endpoint | POST /v1/issues/{issueSn}/resolve | 7 | false | CHANGED |
+| [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | CHANGED |
 | [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 13 | false | UNCHANGED |
-| [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 10 | false | UNCHANGED |
-| [[API-125]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/merge | 2 | false | UNCHANGED |
-| [[API-126]] | api_endpoint | DELETE /v1/videos/{rawSn}/tracks/{trackId} | 2 | false | UNCHANGED |
-| [[API-127]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/{trackId}/split | 2 | false | UNCHANGED |
-| [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | UNCHANGED |
-| [[API-129]] | api_endpoint | PUT /v1/frames/{srcSn}/description | 5 | false | UNCHANGED |
+| [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 10 | false | CHANGED |
+| [[API-125]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/merge | 2 | false | CHANGED |
+| [[API-126]] | api_endpoint | DELETE /v1/videos/{rawSn}/tracks/{trackId} | 2 | false | CHANGED |
+| [[API-127]] | api_endpoint | POST /v1/videos/{rawSn}/tracks/{trackId}/split | 2 | false | CHANGED |
+| [[API-128]] | api_endpoint | GET /v1/frames/{srcSn}/description | 3 | false | CHANGED |
+| [[API-129]] | api_endpoint | PUT /v1/frames/{srcSn}/description | 5 | false | CHANGED |
 | [[API-132]] | api_endpoint | GET /v1/videos/{rawSn}/event-annotation | 5 | false | UNCHANGED |
 | [[API-133]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/approve | 4 | false | UNCHANGED |
 | [[API-134]] | api_endpoint | PUT /v1/videos/{rawSn}/event-annotation | 5 | false | UNCHANGED |
 | [[API-135]] | api_endpoint | POST /v1/videos/{rawSn}/event-annotation/reject | 4 | false | UNCHANGED |
-| [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | UNCHANGED |
-| [[API-170]] | api_endpoint | PUT /v1/videos/{rawSn}/environment-meta | 3 | false | UNCHANGED |
-| [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 4 | false | UNCHANGED |
-| [[API-173]] | api_endpoint | PUT /v1/frames/{srcSn}/privacy-meta | 6 | false | UNCHANGED |
+| [[API-168]] | api_endpoint | GET /v1/videos/{rawSn}/environment-meta | 2 | false | CHANGED |
+| [[API-170]] | api_endpoint | PUT /v1/videos/{rawSn}/environment-meta | 3 | false | CHANGED |
+| [[API-172]] | api_endpoint | GET /v1/frames/{srcSn}/privacy-meta | 4 | false | CHANGED |
+| [[API-173]] | api_endpoint | PUT /v1/frames/{srcSn}/privacy-meta | 6 | false | CHANGED |
 | [[API-177]] | api_endpoint | GET /v1/manage/labels/detect-candidates | 4 | false | UNCHANGED |
-| [[API-178]] | api_endpoint | POST /v1/reviews/{videoId}/cancel-submit | 8 | false | UNCHANGED |
-| [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 4 | false | UNCHANGED |
+| [[API-178]] | api_endpoint | POST /v1/reviews/{videoId}/cancel-submit | 8 | false | CHANGED |
+| [[API-182]] | api_endpoint | GET /v1/versions/{version}/diff-with-working | 4 | false | CHANGED |
 | [[API-183]] | api_endpoint | GET /v1/videos/{rawSn}/privacy-meta | 1 | false | UNCHANGED |
 | [[API-184]] | api_endpoint | PUT /v1/videos/{rawSn}/privacy-meta | 2 | false | UNCHANGED |
-| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 5 | false | UNCHANGED |
+| [[API-193]] | api_endpoint | GET /v1/ai-defaults | 5 | false | CHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 7 | false | UNCHANGED |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | UNCHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 5 | false | UNCHANGED |

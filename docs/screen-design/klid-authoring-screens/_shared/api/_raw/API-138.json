@@ -228,9 +228,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-287"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:46.877Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -244,8 +247,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:12.511Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:46.877Z",
     "created_at": "2026-07-30T05:54:22.779Z"
   }
 }

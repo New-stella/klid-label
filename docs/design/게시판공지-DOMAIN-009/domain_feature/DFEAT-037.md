@@ -4,16 +4,18 @@ type: domain_feature
 version: 11
 domain: DOMAIN-009
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:53.424Z
-status: NEW
-prev_version: null
-content_hash: c77a8782b899e786a780d344137e9de63321fa9ccd5f09ab9e7354a59758ca19
+synced_at: 2026-08-29T01:27:30.877Z
+status: CHANGED
+prev_version: 11
+content_hash: 31e933a9dd70141de342e1c5c6ea9403218f254e95a0c6dbabc2e3a06f4f643d
 stale: true
 raw: ./_raw/DFEAT-037.json
 links:
+  based_on: ["[[ADR-014]]"]
   belongs_to_domain: ["[[DOMAIN-009]]"]
   implements: ["[[API-095]]", "[[API-096]]", "[[API-107]]"]
   migrated_from: ["[[LEGACY-085]]"]
+  references_backward: ["[[ADR-014]]"]
 ---
 
 # 게시글 목록·상세 조회
@@ -113,7 +115,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-364
 
 ### progress
 
@@ -122,6 +124,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:26:21.545Z
 
 ## uses_constants
 

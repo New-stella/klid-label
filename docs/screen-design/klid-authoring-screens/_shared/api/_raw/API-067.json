@@ -381,9 +381,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-250"
+        ],
         "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-29T01:23:41.355Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -396,8 +399,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "수정 대상이 아닌 목록 열거에서 빠져 있던 이관 원문 목록을 채운다. 같은 응답이 네 목록을 내려주는데 이 문장만 둘을 열거해, 이관 원문이 이 저장 요청으로 바뀔 수 있다고 읽힐 여지가 있었다. 그 목록의 성격(읽기 전용·수정 요청 시 거부)은 이미 같은 응답의 다른 자리와 거부 응답이 규정하고 있어, 여기서는 열거만 맞춘다. 그 밖의 서술·필드는 손대지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T11:16:30.013Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:41.355Z",
     "created_at": "2026-05-30T07:26:07.991Z"
   }
 }

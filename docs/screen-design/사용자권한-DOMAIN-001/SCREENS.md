@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-29T01:19:48.490Z (session 16) |
+| last sync | 2026-08-29T01:27:52.577Z (session 17) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001/ |
@@ -60,7 +60,12 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[UC-030]] | use_case | CHANGED (v12→v13) |
+| [[API-001]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-002]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-003]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-005]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-006]] | api_endpoint | CHANGED (v10→v10) |
+| [[API-153]] | api_endpoint | CHANGED (v4→v4) |
 
 ## Obsidian 볼트로 보기
 

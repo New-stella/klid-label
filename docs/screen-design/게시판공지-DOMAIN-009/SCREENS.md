@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-009 게시판·공지 |
-| last sync | 2026-08-29T01:19:50.314Z (session 16) |
+| last sync | 2026-08-29T01:27:54.421Z (session 17) |
 | 화면 수 | 4개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/게시판공지-DOMAIN-009/ |
@@ -53,6 +53,21 @@
 | 2 | [[SCREEN-031]] — 공지 상세 화면 | screens/SCREEN-031/SCREEN-031.md | wireframe.html | uc/ | ac/ |
 | 3 | [[SCREEN-036]] — 공지 작성 화면 | screens/SCREEN-036/SCREEN-036.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-037]] — 공지 수정 화면 | screens/SCREEN-037/SCREEN-037.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[API-095]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-096]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-097]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-098]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-099]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-100]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-101]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-106]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-107]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-108]] | api_endpoint | CHANGED (v6→v6) |
 
 ## Obsidian 볼트로 보기
 

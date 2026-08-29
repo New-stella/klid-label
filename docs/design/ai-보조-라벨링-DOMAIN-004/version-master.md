@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-004 |
-| Last sync | 2026-08-29T01:19:29.389Z |
-| Mode | SYNC — NEW 0 / CHANGED 5 / UNCHANGED 105 |
+| Last sync | 2026-08-29T01:27:34.697Z |
+| Mode | SYNC — NEW 0 / CHANGED 22 / UNCHANGED 88 |
 | 출력 루트 | docs/design/ai-보조-라벨링-DOMAIN-004/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,11 +42,28 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-158]] (prev v5)
-- CHANGED [[SEQ-005]] (prev v9)
-- CHANGED [[SEQ-006]] (prev v7)
-- CHANGED [[SEQ-007]] (prev v6)
-- CHANGED [[ERD-019]] (prev v23)
+- CHANGED [[API-020]] (prev v14)
+- CHANGED [[API-065]] (prev v21)
+- CHANGED [[API-093]] (prev v14)
+- CHANGED [[API-113]] (prev v3)
+- CHANGED [[API-119]] (prev v3)
+- CHANGED [[API-120]] (prev v3)
+- CHANGED [[API-121]] (prev v3)
+- CHANGED [[API-122]] (prev v2)
+- CHANGED [[API-124]] (prev v10)
+- CHANGED [[API-125]] (prev v2)
+- CHANGED [[API-126]] (prev v2)
+- CHANGED [[API-127]] (prev v2)
+- CHANGED [[API-156]] (prev v3)
+- CHANGED [[API-160]] (prev v4)
+- CHANGED [[API-162]] (prev v6)
+- CHANGED [[API-164]] (prev v3)
+- CHANGED [[SEQ-005]] (prev v10)
+- CHANGED [[SEQ-006]] (prev v8)
+- CHANGED [[SEQ-007]] (prev v7)
+- CHANGED [[DFEAT-018]] (prev v9)
+- CHANGED [[DFEAT-019]] (prev v9)
+- CHANGED [[DFEAT-020]] (prev v6)
 
 ## ITEM 표
 
@@ -85,26 +102,26 @@
 | [[ADR-053]] | adr | 1 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-020]] | api_endpoint | 14 | UNCHANGED |
+| [[API-020]] | api_endpoint | 14 | CHANGED |
 | [[API-043]] | api_endpoint | 25 | UNCHANGED |
-| [[API-065]] | api_endpoint | 21 | UNCHANGED |
-| [[API-093]] | api_endpoint | 14 | UNCHANGED |
-| [[API-113]] | api_endpoint | 3 | UNCHANGED |
-| [[API-119]] | api_endpoint | 3 | UNCHANGED |
-| [[API-120]] | api_endpoint | 3 | UNCHANGED |
-| [[API-121]] | api_endpoint | 3 | UNCHANGED |
-| [[API-122]] | api_endpoint | 2 | UNCHANGED |
+| [[API-065]] | api_endpoint | 21 | CHANGED |
+| [[API-093]] | api_endpoint | 14 | CHANGED |
+| [[API-113]] | api_endpoint | 3 | CHANGED |
+| [[API-119]] | api_endpoint | 3 | CHANGED |
+| [[API-120]] | api_endpoint | 3 | CHANGED |
+| [[API-121]] | api_endpoint | 3 | CHANGED |
+| [[API-122]] | api_endpoint | 2 | CHANGED |
 | [[API-123]] | api_endpoint | 13 | UNCHANGED |
-| [[API-124]] | api_endpoint | 10 | UNCHANGED |
-| [[API-125]] | api_endpoint | 2 | UNCHANGED |
-| [[API-126]] | api_endpoint | 2 | UNCHANGED |
-| [[API-127]] | api_endpoint | 2 | UNCHANGED |
+| [[API-124]] | api_endpoint | 10 | CHANGED |
+| [[API-125]] | api_endpoint | 2 | CHANGED |
+| [[API-126]] | api_endpoint | 2 | CHANGED |
+| [[API-127]] | api_endpoint | 2 | CHANGED |
 | [[API-152]] | api_endpoint | 8 | UNCHANGED |
-| [[API-156]] | api_endpoint | 3 | UNCHANGED |
-| [[API-158]] | api_endpoint | 5 | CHANGED |
-| [[API-160]] | api_endpoint | 4 | UNCHANGED |
-| [[API-162]] | api_endpoint | 6 | UNCHANGED |
-| [[API-164]] | api_endpoint | 3 | UNCHANGED |
+| [[API-156]] | api_endpoint | 3 | CHANGED |
+| [[API-158]] | api_endpoint | 5 | UNCHANGED |
+| [[API-160]] | api_endpoint | 4 | CHANGED |
+| [[API-162]] | api_endpoint | 6 | CHANGED |
+| [[API-164]] | api_endpoint | 3 | CHANGED |
 | [[API-177]] | api_endpoint | 4 | UNCHANGED |
 | [[API-194]] | api_endpoint | 9 | UNCHANGED |
 | [[API-204]] | api_endpoint | 1 | UNCHANGED |
@@ -114,11 +131,11 @@
 | [[CDIAG-005]] | class_diagram | 5 | UNCHANGED |
 | [[CMP-008]] | diagram_c4_component | 3 | UNCHANGED |
 | [[CONST-002]] | constant | 3 | UNCHANGED |
-| [[DFEAT-018]] | domain_feature | 9 | UNCHANGED |
-| [[DFEAT-019]] | domain_feature | 9 | UNCHANGED |
-| [[DFEAT-020]] | domain_feature | 6 | UNCHANGED |
+| [[DFEAT-018]] | domain_feature | 9 | CHANGED |
+| [[DFEAT-019]] | domain_feature | 9 | CHANGED |
+| [[DFEAT-020]] | domain_feature | 6 | CHANGED |
 | [[DOMAIN-004]] | domain | 11 | UNCHANGED |
-| [[ERD-019]] | erd | 23 | CHANGED |
+| [[ERD-019]] | erd | 23 | UNCHANGED |
 | [[ERD-032]] | erd | 1 | UNCHANGED |
 | [[FEAT-001]] | feature | 9 | UNCHANGED |
 | [[FEAT-007]] | feature | 6 | UNCHANGED |

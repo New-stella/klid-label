@@ -183,9 +183,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-214"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:35.720Z"
       },
       "implements_features": [],
       "verifies_acceptance": []
@@ -196,8 +199,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "응답 스키마 백필 — ApiResponse<List<WorkerSummaryResponse>> 본문 + 401/403 에러 응답 + example (실제 UserController/WorkerSummaryResponse 코드 기준)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:00:59.728Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:35.720Z",
     "created_at": "2026-05-30T06:56:27.603Z"
   }
 }

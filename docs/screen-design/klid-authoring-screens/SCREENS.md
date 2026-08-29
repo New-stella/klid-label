@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-29T01:19:52.555Z (session 36) |
+| last sync | 2026-08-29T01:27:56.588Z (session 37) |
 | 화면 수 | 37개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/klid-authoring-screens/ |
@@ -27,14 +27,14 @@
 | [[SCREEN-008]] | 영상 처리 현황 화면 | UNCHANGED | ✅ | [[API-042]], [[API-047]], [[API-068]], [[API-070]], [[API-071]], [[API-181]], [[API-212]], [[API-214]] | [[ROLE-001]] |
 | [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
 | [[SCREEN-010]] | 로드 버전 선택 | UNCHANGED | ✅ | [[API-197]], [[API-182]], [[API-195]], [[API-034]], [[API-035]], [[API-036]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-011]] | 대시보드 화면 | UNCHANGED | ✅ | [[API-042]], [[API-055]], [[API-072]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
+| [[SCREEN-011]] | 대시보드 화면 | CHANGED | ✅ | [[API-042]], [[API-055]], [[API-072]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-012]] | 작업 목록 화면 | CHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-018]] | 검수 목록 화면 | CHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
 | [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
 | [[SCREEN-020]] | 작업자 통계 화면 | UNCHANGED | ✅ | [[API-001]], [[API-056]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-021]] | 전체 구축 현황 화면 | UNCHANGED | ✅ | [[API-057]], [[API-058]] | [[ROLE-001]] |
-| [[SCREEN-022]] | 증강 요청 화면 | CHANGED | ✅ | [[API-042]], [[API-059]], [[API-060]], [[API-092]], [[API-179]] | [[ROLE-001]] |
-| [[SCREEN-023]] | 증강 결과 화면 | CHANGED | ✅ | [[API-061]], [[API-062]], [[API-063]], [[API-188]], [[API-189]], [[API-190]], [[API-175]] | [[ROLE-001]] |
+| [[SCREEN-021]] | 전체 구축 현황 화면 | CHANGED | ✅ | [[API-057]], [[API-058]] | [[ROLE-001]] |
+| [[SCREEN-022]] | 증강 요청 화면 | UNCHANGED | ✅ | [[API-042]], [[API-059]], [[API-060]], [[API-092]], [[API-179]] | [[ROLE-001]] |
+| [[SCREEN-023]] | 증강 결과 화면 | UNCHANGED | ✅ | [[API-061]], [[API-062]], [[API-063]], [[API-188]], [[API-189]], [[API-190]], [[API-175]] | [[ROLE-001]] |
 | [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
 | [[SCREEN-025]] | 시스템 설정 화면 | UNCHANGED | ✅ | [[API-068]], [[API-069]], [[API-090]] | [[ROLE-001]] |
 | [[SCREEN-026]] | 프리셋 관리 화면 | UNCHANGED | ✅ | [[API-037]], [[API-038]], [[API-039]], [[API-040]], [[API-185]] | [[ROLE-001]] |
@@ -43,7 +43,7 @@
 | [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]] | [[ROLE-003]] |
 | [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-032]] | 비식별 신고 관리 화면 | UNCHANGED | ✅ | [[API-094]], [[API-109]], [[API-202]] | [[ROLE-001]] |
+| [[SCREEN-032]] | 비식별 신고 관리 화면 | CHANGED | ✅ | [[API-094]], [[API-109]], [[API-202]] | [[ROLE-001]] |
 | [[SCREEN-033]] | 포털 업로드 화면 | UNCHANGED | ✅ | [[API-139]], [[API-142]], [[API-151]], [[API-163]], [[API-166]], [[API-169]], [[API-171]], [[API-161]] | [[ROLE-003]] |
 | [[SCREEN-034]] | 포털 업로드 라벨링 화면 | UNCHANGED | ✅ | [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-157]], [[API-159]] | [[ROLE-003]] |
 | [[SCREEN-035]] | 라벨 관리 화면 | UNCHANGED | ✅ | [[API-024]], [[API-025]], [[API-026]], [[API-027]], [[API-028]], [[API-029]], [[API-030]], [[API-031]] | [[ROLE-001]] |
@@ -124,22 +124,130 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-003]] | acceptance | CHANGED (v12→v12) |
-| [[AC-056]] | acceptance | CHANGED (v3→v3) |
-| [[API-037]] | api_endpoint | CHANGED (v12→v12) |
-| [[API-038]] | api_endpoint | CHANGED (v14→v14) |
-| [[API-039]] | api_endpoint | CHANGED (v13→v13) |
-| [[API-040]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-066]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-069]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-092]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-158]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-179]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-219]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-220]] | api_endpoint | CHANGED (v3→v3) |
-| [[SCREEN-022]] | screen_spec | CHANGED (v46→v46) |
-| [[SCREEN-023]] | screen_spec | CHANGED (v41→v41) |
-| [[UC-003]] | use_case | CHANGED (v14→v14) |
+| [[API-001]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-002]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-003]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-005]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-006]] | api_endpoint | CHANGED (v10→v10) |
+| [[API-008]] | api_endpoint | CHANGED (v12→v12) |
+| [[API-009]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-010]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-011]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-012]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-013]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-014]] | api_endpoint | CHANGED (v12→v12) |
+| [[API-015]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-016]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-017]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-019]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-020]] | api_endpoint | CHANGED (v14→v14) |
+| [[API-022]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-023]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-025]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-026]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-027]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-029]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-030]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-031]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-032]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-034]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-035]] | api_endpoint | CHANGED (v11→v11) |
+| [[API-036]] | api_endpoint | CHANGED (v11→v11) |
+| [[API-045]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-055]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-057]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-058]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-061]] | api_endpoint | CHANGED (v10→v10) |
+| [[API-062]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-063]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-065]] | api_endpoint | CHANGED (v21→v21) |
+| [[API-067]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-070]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-071]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-072]] | api_endpoint | CHANGED (v10→v10) |
+| [[API-073]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-074]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-075]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-076]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-081]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-090]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-091]] | api_endpoint | CHANGED (v12→v12) |
+| [[API-093]] | api_endpoint | CHANGED (v14→v14) |
+| [[API-094]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-095]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-096]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-097]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-098]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-099]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-100]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-101]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-105]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-106]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-107]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-108]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-111]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-112]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-113]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-116]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-117]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-118]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-119]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-120]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-121]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-122]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-124]] | api_endpoint | CHANGED (v10→v10) |
+| [[API-125]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-126]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-127]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-128]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-129]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-136]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-137]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-138]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-139]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-141]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-143]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-144]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-145]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-146]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-147]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-148]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-149]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-150]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-151]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-153]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-154]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-155]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-156]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-157]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-159]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-160]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-161]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-162]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-163]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-164]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-165]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-166]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-168]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-169]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-170]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-171]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-172]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-173]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-174]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-175]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-176]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-178]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-181]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-182]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-187]] | api_endpoint | CHANGED (v3→v3) |
+| [[API-193]] | api_endpoint | CHANGED (v5→v5) |
+| [[API-202]] | api_endpoint | CHANGED (v2→v2) |
+| [[SCREEN-011]] | screen_spec | CHANGED (v21→v21) |
+| [[SCREEN-012]] | screen_spec | CHANGED (v47→v47) |
+| [[SCREEN-018]] | screen_spec | CHANGED (v29→v29) |
+| [[SCREEN-021]] | screen_spec | CHANGED (v28→v28) |
+| [[SCREEN-032]] | screen_spec | CHANGED (v23→v23) |
 
 ## Obsidian 볼트로 보기
 

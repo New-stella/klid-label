@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-015 작업 배정 |
-| last sync | 2026-08-29T01:19:47.409Z (session 16) |
+| last sync | 2026-08-29T01:27:51.679Z (session 17) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015/ |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-012]] | 작업 목록 화면 | CHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
 
 ## 공유 자산 인덱스
 
@@ -47,6 +47,22 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-012]] — 작업 목록 화면 | screens/SCREEN-012/SCREEN-012.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[API-001]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-002]] | api_endpoint | CHANGED (v2→v2) |
+| [[API-070]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-071]] | api_endpoint | CHANGED (v7→v7) |
+| [[API-072]] | api_endpoint | CHANGED (v10→v10) |
+| [[API-073]] | api_endpoint | CHANGED (v9→v9) |
+| [[API-116]] | api_endpoint | CHANGED (v8→v8) |
+| [[API-136]] | api_endpoint | CHANGED (v4→v4) |
+| [[API-137]] | api_endpoint | CHANGED (v6→v6) |
+| [[API-187]] | api_endpoint | CHANGED (v3→v3) |
+| [[SCREEN-012]] | screen_spec | CHANGED (v47→v47) |
 
 ## Obsidian 볼트로 보기
 

@@ -38,10 +38,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-357"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-05-30T04:05:05.954Z"
+        "last_updated": "2026-08-29T01:26:20.543Z"
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -68,10 +70,10 @@
     "schema_version": 1,
     "current_version": 8,
     "stale": true,
-    "stale_reason": "UC-023의 data.brownfield 변경이 verifies로 2-hop 전파",
+    "stale_reason": "API-009의 data.responses 변경 — implements",
     "change_summary": "추적성 링크 4종(implemented_by_endpoints/invokes_apis/persists_in_tables/related_acceptances)이 전건 공란이었다. 코드 실측(ReviewController) 기준 이 DFEAT(검수 워크플로우 자체 — 목록/상세/프레임/제출/시작/취소/요약)가 구현되는 엔드포인트, 상태를 적재하는 ERD-015 LS_RAW_DATA_STATUS 테이블, 이를 검증하는 AC-022 로 채운다. invokes_apis 는 이 DFEAT 가 다른 내부 api_endpoint 를 동기 호출하는 근거가 확인되지 않아 공란 유지.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:16:42.651Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:20.543Z",
     "created_at": "2026-05-29T06:31:03.092Z"
   }
 }

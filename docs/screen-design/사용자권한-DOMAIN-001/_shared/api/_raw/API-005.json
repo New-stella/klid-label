@@ -177,9 +177,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-216"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:36.070Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -191,8 +194,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "channel enum 오표기 수정 — 실재하지 않는 CONTROL 값을 실제 Channel enum(INTERNAL/PORTAL)에 맞춰 INTERNAL 로 정정. 근거: backend Channel.java(INTERNAL,PORTAL) · frontend types.ts(Channel) · CONTROL 리터럴 grep 0건. 대조군 API-153 example 표기(INTERNAL)와 정합.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T01:57:44.716Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:36.070Z",
     "created_at": "2026-05-30T06:56:44.762Z"
   }
 }

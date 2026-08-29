@@ -5,8 +5,8 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-003 영상·프레임 수집 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-29T01:19:46.524Z (session 19) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 166 |
+| Last sync | 2026-08-29T01:27:50.769Z (session 20) |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 165 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003/ |
 
 ## ITEM 버전 표
@@ -21,7 +21,7 @@
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 25 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 9 | false | UNCHANGED |
-| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 5 | false | UNCHANGED |
+| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 5 | false | CHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | UNCHANGED |

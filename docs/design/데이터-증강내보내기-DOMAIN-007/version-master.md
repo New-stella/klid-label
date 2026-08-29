@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-08-29T01:19:20.286Z |
-| Mode | SYNC — NEW 0 / CHANGED 9 / UNCHANGED 66 |
+| Last sync | 2026-08-29T01:27:25.364Z |
+| Mode | SYNC — NEW 0 / CHANGED 11 / UNCHANGED 64 |
 | 출력 루트 | docs/design/데이터-증강내보내기-DOMAIN-007/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,15 +42,17 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-003]] (prev v12)
-- CHANGED [[API-092]] (prev v10)
-- CHANGED [[API-179]] (prev v9)
-- CHANGED [[SEQ-002]] (prev v8)
-- CHANGED [[SEQ-003]] (prev v11)
-- CHANGED [[SEQ-011]] (prev v8)
-- CHANGED [[SCREEN-022]] (prev v46)
-- CHANGED [[SCREEN-023]] (prev v41)
-- CHANGED [[UC-003]] (prev v14)
+- CHANGED [[API-061]] (prev v10)
+- CHANGED [[API-062]] (prev v7)
+- CHANGED [[API-063]] (prev v9)
+- CHANGED [[API-165]] (prev v7)
+- CHANGED [[API-175]] (prev v2)
+- CHANGED [[SEQ-002]] (prev v9)
+- CHANGED [[SEQ-003]] (prev v12)
+- CHANGED [[SEQ-004]] (prev v9)
+- CHANGED [[SEQ-011]] (prev v9)
+- CHANGED [[EVT-011]] (prev v4)
+- CHANGED [[DFEAT-029]] (prev v16)
 
 ## ITEM 표
 
@@ -58,7 +60,7 @@
 |---|---|---|---|
 | [[AC-001]] | acceptance | 11 | UNCHANGED |
 | [[AC-002]] | acceptance | 8 | UNCHANGED |
-| [[AC-003]] | acceptance | 12 | CHANGED |
+| [[AC-003]] | acceptance | 12 | UNCHANGED |
 | [[AC-018]] | acceptance | 6 | UNCHANGED |
 | [[AC-021]] | acceptance | 5 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
@@ -76,23 +78,23 @@
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
 | [[API-059]] | api_endpoint | 6 | UNCHANGED |
 | [[API-060]] | api_endpoint | 16 | UNCHANGED |
-| [[API-061]] | api_endpoint | 10 | UNCHANGED |
-| [[API-062]] | api_endpoint | 7 | UNCHANGED |
-| [[API-063]] | api_endpoint | 9 | UNCHANGED |
-| [[API-092]] | api_endpoint | 10 | CHANGED |
-| [[API-165]] | api_endpoint | 7 | UNCHANGED |
-| [[API-175]] | api_endpoint | 2 | UNCHANGED |
-| [[API-179]] | api_endpoint | 9 | CHANGED |
+| [[API-061]] | api_endpoint | 10 | CHANGED |
+| [[API-062]] | api_endpoint | 7 | CHANGED |
+| [[API-063]] | api_endpoint | 9 | CHANGED |
+| [[API-092]] | api_endpoint | 10 | UNCHANGED |
+| [[API-165]] | api_endpoint | 7 | CHANGED |
+| [[API-175]] | api_endpoint | 2 | CHANGED |
+| [[API-179]] | api_endpoint | 9 | UNCHANGED |
 | [[API-188]] | api_endpoint | 2 | UNCHANGED |
 | [[API-189]] | api_endpoint | 2 | UNCHANGED |
 | [[API-190]] | api_endpoint | 6 | UNCHANGED |
 | [[CDIAG-010]] | class_diagram | 11 | UNCHANGED |
 | [[CMP-007]] | diagram_c4_component | 6 | UNCHANGED |
-| [[DFEAT-029]] | domain_feature | 16 | UNCHANGED |
+| [[DFEAT-029]] | domain_feature | 16 | CHANGED |
 | [[DFEAT-030]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-007]] | domain | 16 | UNCHANGED |
 | [[ERD-011]] | erd | 25 | UNCHANGED |
-| [[EVT-011]] | domain_event | 4 | UNCHANGED |
+| [[EVT-011]] | domain_event | 4 | CHANGED |
 | [[EXTSYS-004]] | external_system | 9 | UNCHANGED |
 | [[FEAT-001]] | feature | 9 | UNCHANGED |
 | [[FEAT-004]] | feature | 10 | UNCHANGED |
@@ -118,16 +120,16 @@
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
-| [[SCREEN-022]] | screen_spec | 46 | CHANGED |
-| [[SCREEN-023]] | screen_spec | 41 | CHANGED |
+| [[SCREEN-022]] | screen_spec | 46 | UNCHANGED |
+| [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
 | [[SD-028]] | screen_design | 4 | UNCHANGED |
 | [[SD-029]] | screen_design | 5 | UNCHANGED |
 | [[SEQ-002]] | diagram_sequence | 9 | CHANGED |
 | [[SEQ-003]] | diagram_sequence | 12 | CHANGED |
-| [[SEQ-004]] | diagram_sequence | 9 | UNCHANGED |
+| [[SEQ-004]] | diagram_sequence | 9 | CHANGED |
 | [[SEQ-011]] | diagram_sequence | 9 | CHANGED |
 | [[TEST-003]] | test_scenario | 15 | UNCHANGED |
 | [[UC-001]] | use_case | 13 | UNCHANGED |
 | [[UC-002]] | use_case | 15 | UNCHANGED |
-| [[UC-003]] | use_case | 14 | CHANGED |
+| [[UC-003]] | use_case | 14 | UNCHANGED |
 | [[UC-010]] | use_case | 13 | UNCHANGED |

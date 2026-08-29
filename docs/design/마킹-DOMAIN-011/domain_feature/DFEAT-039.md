@@ -4,10 +4,10 @@ type: domain_feature
 version: 11
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:10.954Z
+synced_at: 2026-08-29T01:27:32.394Z
 status: CHANGED
-prev_version: 9
-content_hash: e9af0a9c60484fa9ab95d35d723ceaef22026db844dde05d623767cda63ab11d
+prev_version: 11
+content_hash: 9a30f12f4a6233ee43836d1ca69d4e5a8cf775890cf8c5f6dda5d8000d1baa32
 stale: true
 raw: ./_raw/DFEAT-039.json
 links:
@@ -18,7 +18,7 @@ links:
   verifies: ["[[AC-027]]", "[[AC-028]]"]
   depicts_backward: ["[[CDIAG-002]]", "[[CMP-002]]"]
   realizes_backward: ["[[MOD-004]]", "[[UC-019]]"]
-  references_backward: ["[[CDIAG-002]]"]
+  references_backward: ["[[ADR-008]]", "[[CDIAG-002]]"]
 ---
 
 # 마킹 (자동/수동 이벤트 식별)
@@ -95,7 +95,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-366
 
 ### progress
 
@@ -107,7 +107,7 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T02:38:52.483Z
+2026-08-29T01:26:21.821Z
 
 ### module_paths
 

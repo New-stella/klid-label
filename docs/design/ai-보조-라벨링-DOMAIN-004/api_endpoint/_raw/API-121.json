@@ -157,9 +157,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-330"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:52.800Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -173,8 +176,8 @@
     "stale": true,
     "stale_reason": "REQ-023의 domain_id 변경이 implements로 2-hop 전파",
     "change_summary": "API-121 description 말미에 문서 감사 라운드 표기(\"D4 Rev1.1 목록에서는 제외, 코드는 구현됨\")가 남아 있었다(감사 지적) — ITEM 본문은 이 저장소 작업 이력을 담지 않는다. 요구사항 태그(SFR-08-01)만 남기고 감사 이력 서술을 제거한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:28:42.970Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:52.800Z",
     "created_at": "2026-07-07T07:35:16.845Z"
   }
 }

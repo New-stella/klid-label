@@ -39,10 +39,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-358"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-05-30T02:36:23.314Z"
+        "last_updated": "2026-08-29T01:26:20.690Z"
       },
       "uses_constants": [],
       "acceptance_rules": [
@@ -81,10 +83,10 @@
     "schema_version": 1,
     "current_version": 10,
     "stale": true,
-    "stale_reason": "API-014의 2개 필드 변경 — implements",
+    "stale_reason": "ADR-003의 data.superseded_by 변경 — based_on",
     "change_summary": "검수 승인의 전제조건에 검수 워크플로 상태의 비식별화완료여부 게이트를 명시한다. 외부 산출물 이관 경로로 원본이라고 지정해 들어온 영상은 비식별이 끝나기 전까지 승인이 거부되며, 이 판정이 상태 전이보다 앞서므로 거부 시 상태 전이·버전 스냅샷·학습데이터 산출물·관제 통지가 하나도 생기지 않는다. 기본값을 완료로 둔 것은 이관 경로와 무관한 기존 영상을 이 전제조건이 막지 않게 하기 위함이다. 막는 범위가 검수 승인으로 한정된다는 점(라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성 경로는 닫지 않으며, 그 통로들을 함께 닫는 것은 비식별 누락 신고라는 별개 축이다)을 함께 적어, 다음 사람이 이 값으로 다른 통로까지 닫으려 하는 것을 막는다. 승인·반려의 기존 책임 서술과 상태 전이 규칙은 그대로 두고 덧붙이기만 했으며, 영속 테이블 목록은 이미 검수 워크플로 상태 표를 담고 있어 변경하지 않았다. 수용 규칙은 신규 추가이며 기존 원소 삭제는 없다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:38:32.520Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:20.690Z",
     "created_at": "2026-05-29T06:31:31.689Z"
   }
 }

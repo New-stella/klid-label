@@ -268,9 +268,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-231"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:38.443Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -282,8 +285,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "D010 P1(D010-SCH-006): request_body 통째 부재 → LabelAttrValueUpsertRequest(코드 실물) 배선.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:26:08.120Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:38.443Z",
     "created_at": "2026-05-30T07:20:03.884Z"
   }
 }

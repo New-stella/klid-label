@@ -224,9 +224,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-324"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:51.858Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -238,8 +241,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "구현 상태를 실제에 맞춘다. 미착수로 적혀 있었으나 이 엔드포인트는 서버와 화면 양쪽에 이미 배선되어 동작한다 — 배정 목록 화면의 이벤트유형 선택지를 이 경로로 받는다. 코드 모듈 연결은 아직 채우지 못했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-18T06:35:43.241Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:51.858Z",
     "created_at": "2026-08-07T03:05:22.455Z"
   }
 }

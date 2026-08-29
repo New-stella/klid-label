@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-011 |
-| Last sync | 2026-08-29T01:19:27.084Z |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 53 |
+| Last sync | 2026-08-29T01:27:32.394Z |
+| Mode | SYNC — NEW 0 / CHANGED 4 / UNCHANGED 50 |
 | 출력 루트 | docs/design/마킹-DOMAIN-011/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,7 +42,10 @@
 
 ## Changelog (this run)
 
-- CHANGED [[INT-002]] (prev v17)
+- CHANGED [[API-091]] (prev v12)
+- CHANGED [[EVT-001]] (prev v5)
+- CHANGED [[EVT-005]] (prev v5)
+- CHANGED [[DFEAT-039]] (prev v11)
 
 ## ITEM 표
 
@@ -62,19 +65,19 @@
 | [[API-043]] | api_endpoint | 25 | UNCHANGED |
 | [[API-047]] | api_endpoint | 12 | UNCHANGED |
 | [[API-084]] | api_endpoint | 8 | UNCHANGED |
-| [[API-091]] | api_endpoint | 12 | UNCHANGED |
+| [[API-091]] | api_endpoint | 12 | CHANGED |
 | [[API-114]] | api_endpoint | 2 | UNCHANGED |
 | [[CDIAG-002]] | class_diagram | 6 | UNCHANGED |
 | [[CMP-002]] | diagram_c4_component | 3 | UNCHANGED |
-| [[DFEAT-039]] | domain_feature | 11 | UNCHANGED |
+| [[DFEAT-039]] | domain_feature | 11 | CHANGED |
 | [[DFEAT-048]] | domain_feature | 16 | UNCHANGED |
 | [[DOMAIN-011]] | domain | 8 | UNCHANGED |
 | [[ERD-013]] | erd | 12 | UNCHANGED |
-| [[EVT-001]] | domain_event | 5 | UNCHANGED |
+| [[EVT-001]] | domain_event | 5 | CHANGED |
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
-| [[EVT-005]] | domain_event | 5 | UNCHANGED |
+| [[EVT-005]] | domain_event | 5 | CHANGED |
 | [[FEAT-005]] | feature | 10 | UNCHANGED |
-| [[INT-002]] | integration_point | 18 | CHANGED |
+| [[INT-002]] | integration_point | 18 | UNCHANGED |
 | [[INTSPEC-003]] | integration_spec | 12 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |

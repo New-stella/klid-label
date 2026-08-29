@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-012",
-  "synced_at": "2026-08-29T01:19:27.891Z",
+  "synced_at": "2026-08-29T01:27:33.182Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -142,19 +142,19 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-010",
       "version": 8,
-      "content_hash": "d0e9143396df8f0efefd6231f5dee72e495d1db67f45fd29e1bf8ed5f9e96367"
+      "content_hash": "50fb68c020973989e2427d009a383768c2e957839b91c0f2f91454dd8073611e"
     },
     "API-091": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-011",
       "version": 12,
-      "content_hash": "d4627c9441284f58c3039ca5dda20db523c109beabde4f4748c55089371259ad"
+      "content_hash": "bc6d381a51062bcb6ac5a462c4ce345c859dac6cddb1a5eb1147723efed75dae"
     },
     "API-094": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-012",
       "version": 9,
-      "content_hash": "6f0bb96160a7c773355932a01e42a8325a0f14368cae09ad847307cac8896bdd"
+      "content_hash": "f0dcb0d25e22b8ff94d402370a59a83b545c900a2f50ddf7c110626c350871a1"
     },
     "API-109": {
       "type": "api_endpoint",
@@ -166,13 +166,13 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-012",
       "version": 5,
-      "content_hash": "704e287c8b2e38c8a92da571c3bc53ce6f8d4d599b731a446b146396da1f122b"
+      "content_hash": "b0738e47ec6dff63c1c2287c293378aee67ed2a4cb6b60e46de7d1611fb03eb0"
     },
     "API-175": {
       "type": "api_endpoint",
       "domain_id": "DOMAIN-010",
       "version": 2,
-      "content_hash": "6f597cc92ede91c8c0afb0568a161504b558da4759d638523327da91e2e74046"
+      "content_hash": "a746ebad86a923bf18f6adac0ae3037b06edde83e0105c818a1ba3f99166da1e"
     },
     "API-183": {
       "type": "api_endpoint",
@@ -190,7 +190,7 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-012",
       "version": 2,
-      "content_hash": "9f5276fd8910bd78d06dd2a2a98dd85096df30dd98367792fd436d53a02aa033"
+      "content_hash": "84f8c4404ac880119d5a9f1d1ad5a31b8494b6787b51bc4ed691c1698cd489c7"
     },
     "CDIAG-003": {
       "type": "class_diagram",
@@ -214,13 +214,13 @@
       "type": "diagram_sequence",
       "domain_id": null,
       "version": 12,
-      "content_hash": "834026705427830b66ff82fa5e288b04a64af8711e23e73eaa24160cd09d7a6c"
+      "content_hash": "f45289677fe0e29464843a1df5a7110121c83ad5e8d9864007fa97e700610905"
     },
     "SEQ-013": {
       "type": "diagram_sequence",
       "domain_id": null,
       "version": 7,
-      "content_hash": "89d3ee2b79c7e82c61bfd2cc0ca0d2cdbcc0d30af4d7ef2dabec4cf526b3843d"
+      "content_hash": "66129424055d904d5e08ccfef659edf8a76cdb53a743349b63982bf26891c127"
     },
     "SEQ-014": {
       "type": "diagram_sequence",
@@ -244,13 +244,13 @@
       "type": "domain_event",
       "domain_id": "DOMAIN-012",
       "version": 3,
-      "content_hash": "8d227f3719952f0f89d1186f5e4552324ce36744c53b3e98a58c46db5fc3cab2"
+      "content_hash": "62aa24ab8747ed7d0dcce002e5bca0ff5700002970f3f40a7f7a81afc24b5ff5"
     },
     "EVT-008": {
       "type": "domain_event",
       "domain_id": "DOMAIN-012",
       "version": 8,
-      "content_hash": "599859ad4782b7b68ebdbf0f307fb2d1b9f2b7c0340730c9694895027e854f36"
+      "content_hash": "842cdf51cb794b094e1d3d080177b2258a034923b44156eb812a37c372da4628"
     },
     "DFEAT-041": {
       "type": "domain_feature",
@@ -274,7 +274,7 @@
       "type": "domain_feature",
       "domain_id": "DOMAIN-010",
       "version": 5,
-      "content_hash": "e2e08aba5a264faedfdd69cf2e5429e73adcd094673338ea9f9252ebe1f5b473"
+      "content_hash": "391209939f781e8c0a53a2e83778737cd828695ee0280bb1cdab489c70a4f7eb"
     },
     "DFEAT-054": {
       "type": "domain_feature",
@@ -472,7 +472,7 @@
       "type": "screen_spec",
       "domain_id": "DOMAIN-012",
       "version": 23,
-      "content_hash": "022b974dbb9d576507aafdd576ba0a10f182098e48f4d2574bb1e0d5f915fe2c"
+      "content_hash": "b51d611dce18bb693eb72bd73006fc9251650be75a8adbe63f8e7a24e696292b"
     },
     "TEST-001": {
       "type": "test_scenario",

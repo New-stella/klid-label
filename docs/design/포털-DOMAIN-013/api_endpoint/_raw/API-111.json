@@ -173,9 +173,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-274"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:45.176Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -187,8 +190,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "no-store 계약을 412 설명에서 200 성공 응답으로 옮긴다 — 캐시 대상은 이미지 바이너리를 돌려주는 200 이라 그쪽에 적혀야 계약으로 읽힌다. 프레임워크 반환형·프론트엔드 훅 표기도 걷어낸다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:11.934Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:45.176Z",
     "created_at": "2026-06-19T00:59:05.589Z"
   }
 }

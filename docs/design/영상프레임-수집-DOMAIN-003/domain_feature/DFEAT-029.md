@@ -4,10 +4,10 @@ type: domain_feature
 version: 16
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:36:54.231Z
+synced_at: 2026-08-29T01:27:24.569Z
 status: CHANGED
-prev_version: 14
-content_hash: 6c899ec1adc59aba591b8b3dd4eea2160ffc879d627c9e6a53af6507601f24fc
+prev_version: 16
+content_hash: 58ba9bb4704426c0a63ba523fd0d5fcfddaf1f1b57f1cdfac7b28f7073410ce9
 stale: true
 raw: ./_raw/DFEAT-029.json
 links:
@@ -107,7 +107,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-363
 
 ### progress
 
@@ -119,7 +119,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-26T02:28:59.890Z
+2026-08-29T01:26:21.365Z
 
 ### module_paths
 

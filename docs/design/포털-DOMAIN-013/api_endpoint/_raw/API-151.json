@@ -188,9 +188,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-298"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:48.401Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -202,8 +205,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "변경요약에서 내부 회차·구현 심볼 표기를 걷어낸다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:12.419Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:48.401Z",
     "created_at": "2026-07-30T07:05:25.198Z"
   }
 }

@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-29T01:19:27.891Z |
-| Mode | SYNC — NEW 0 / CHANGED 3 / UNCHANGED 80 |
+| Last sync | 2026-08-29T01:27:33.182Z |
+| Mode | SYNC — NEW 0 / CHANGED 12 / UNCHANGED 71 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,9 +42,18 @@
 
 ## Changelog (this run)
 
-- CHANGED [[SEQ-012]] (prev v11)
-- CHANGED [[SEQ-013]] (prev v6)
-- CHANGED [[SCREEN-025]] (prev v44)
+- CHANGED [[API-032]] (prev v8)
+- CHANGED [[API-091]] (prev v12)
+- CHANGED [[API-094]] (prev v9)
+- CHANGED [[API-112]] (prev v5)
+- CHANGED [[API-175]] (prev v2)
+- CHANGED [[API-202]] (prev v2)
+- CHANGED [[SEQ-012]] (prev v12)
+- CHANGED [[SEQ-013]] (prev v7)
+- CHANGED [[EVT-007]] (prev v3)
+- CHANGED [[EVT-008]] (prev v8)
+- CHANGED [[DFEAT-051]] (prev v5)
+- CHANGED [[SCREEN-032]] (prev v23)
 
 ## ITEM 표
 
@@ -71,26 +80,26 @@
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-032]] | api_endpoint | 8 | UNCHANGED |
-| [[API-091]] | api_endpoint | 12 | UNCHANGED |
-| [[API-094]] | api_endpoint | 9 | UNCHANGED |
+| [[API-032]] | api_endpoint | 8 | CHANGED |
+| [[API-091]] | api_endpoint | 12 | CHANGED |
+| [[API-094]] | api_endpoint | 9 | CHANGED |
 | [[API-109]] | api_endpoint | 5 | UNCHANGED |
-| [[API-112]] | api_endpoint | 5 | UNCHANGED |
-| [[API-175]] | api_endpoint | 2 | UNCHANGED |
+| [[API-112]] | api_endpoint | 5 | CHANGED |
+| [[API-175]] | api_endpoint | 2 | CHANGED |
 | [[API-183]] | api_endpoint | 1 | UNCHANGED |
 | [[API-184]] | api_endpoint | 2 | UNCHANGED |
-| [[API-202]] | api_endpoint | 2 | UNCHANGED |
+| [[API-202]] | api_endpoint | 2 | CHANGED |
 | [[CDIAG-003]] | class_diagram | 11 | UNCHANGED |
 | [[CMP-003]] | diagram_c4_component | 10 | UNCHANGED |
 | [[DFEAT-041]] | domain_feature | 12 | UNCHANGED |
 | [[DFEAT-042]] | domain_feature | 11 | UNCHANGED |
 | [[DFEAT-048]] | domain_feature | 16 | UNCHANGED |
-| [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
+| [[DFEAT-051]] | domain_feature | 5 | CHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-012]] | domain | 8 | UNCHANGED |
 | [[ERD-017]] | erd | 22 | UNCHANGED |
-| [[EVT-007]] | domain_event | 3 | UNCHANGED |
-| [[EVT-008]] | domain_event | 8 | UNCHANGED |
+| [[EVT-007]] | domain_event | 3 | CHANGED |
+| [[EVT-008]] | domain_event | 8 | CHANGED |
 | [[EXTSYS-003]] | external_system | 8 | UNCHANGED |
 | [[FEAT-005]] | feature | 10 | UNCHANGED |
 | [[FEAT-006]] | feature | 11 | UNCHANGED |
@@ -119,8 +128,8 @@
 | [[SCREEN-008]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 75 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 46 | CHANGED |
-| [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 46 | UNCHANGED |
+| [[SCREEN-032]] | screen_spec | 23 | CHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |
 | [[SEQ-012]] | diagram_sequence | 12 | CHANGED |

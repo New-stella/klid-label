@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-08-29T01:19:22.548Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 61 |
+| Last sync | 2026-08-29T01:27:27.704Z |
+| Mode | SYNC — NEW 0 / CHANGED 12 / UNCHANGED 51 |
 | 출력 루트 | docs/design/관제-통지-DOMAIN-016/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -42,8 +42,18 @@
 
 ## Changelog (this run)
 
-- CHANGED [[DFEAT-046]] (prev v9)
-- CHANGED [[DFEAT-047]] (prev v6)
+- CHANGED [[API-074]] (prev v7)
+- CHANGED [[API-075]] (prev v8)
+- CHANGED [[API-076]] (prev v9)
+- CHANGED [[SEQ-010]] (prev v14)
+- CHANGED [[EVT-003]] (prev v6)
+- CHANGED [[EVT-004]] (prev v10)
+- CHANGED [[EVT-006]] (prev v8)
+- CHANGED [[EVT-009]] (prev v4)
+- CHANGED [[EVT-010]] (prev v4)
+- CHANGED [[DFEAT-006]] (prev v8)
+- CHANGED [[DFEAT-047]] (prev v7)
+- CHANGED [[DFEAT-053]] (prev v8)
 
 ## ITEM 표
 
@@ -60,26 +70,26 @@
 | [[ADR-037]] | adr | 3 | UNCHANGED |
 | [[ADR-046]] | adr | 8 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-074]] | api_endpoint | 7 | UNCHANGED |
-| [[API-075]] | api_endpoint | 8 | UNCHANGED |
-| [[API-076]] | api_endpoint | 9 | UNCHANGED |
+| [[API-074]] | api_endpoint | 7 | CHANGED |
+| [[API-075]] | api_endpoint | 8 | CHANGED |
+| [[API-076]] | api_endpoint | 9 | CHANGED |
 | [[CDIAG-013]] | class_diagram | 7 | UNCHANGED |
 | [[CMP-009]] | diagram_c4_component | 14 | UNCHANGED |
-| [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
+| [[DFEAT-006]] | domain_feature | 8 | CHANGED |
 | [[DFEAT-043]] | domain_feature | 12 | UNCHANGED |
 | [[DFEAT-044]] | domain_feature | 12 | UNCHANGED |
-| [[DFEAT-046]] | domain_feature | 10 | CHANGED |
+| [[DFEAT-046]] | domain_feature | 10 | UNCHANGED |
 | [[DFEAT-047]] | domain_feature | 7 | CHANGED |
-| [[DFEAT-053]] | domain_feature | 8 | UNCHANGED |
+| [[DFEAT-053]] | domain_feature | 8 | CHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-016]] | domain | 12 | UNCHANGED |
 | [[ERD-021]] | erd | 14 | UNCHANGED |
 | [[ERD-027]] | erd | 6 | UNCHANGED |
-| [[EVT-003]] | domain_event | 6 | UNCHANGED |
-| [[EVT-004]] | domain_event | 10 | UNCHANGED |
-| [[EVT-006]] | domain_event | 8 | UNCHANGED |
-| [[EVT-009]] | domain_event | 4 | UNCHANGED |
-| [[EVT-010]] | domain_event | 4 | UNCHANGED |
+| [[EVT-003]] | domain_event | 6 | CHANGED |
+| [[EVT-004]] | domain_event | 10 | CHANGED |
+| [[EVT-006]] | domain_event | 8 | CHANGED |
+| [[EVT-009]] | domain_event | 4 | CHANGED |
+| [[EVT-010]] | domain_event | 4 | CHANGED |
 | [[EXTSYS-005]] | external_system | 15 | UNCHANGED |
 | [[FEAT-003]] | feature | 11 | UNCHANGED |
 | [[INT-007]] | integration_point | 11 | UNCHANGED |
@@ -105,7 +115,7 @@
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
-| [[SEQ-010]] | diagram_sequence | 14 | UNCHANGED |
+| [[SEQ-010]] | diagram_sequence | 14 | CHANGED |
 | [[SEQ-015]] | diagram_sequence | 4 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 1 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 8 | UNCHANGED |

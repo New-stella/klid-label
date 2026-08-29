@@ -39,9 +39,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-364"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:21.545Z"
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -64,8 +67,8 @@
     "stale": true,
     "stale_reason": "API-107의 data.brownfield 변경 — implements",
     "change_summary": "비고에 남아 있던 점검 회차 작업 로그를 걷어낸다. 설계 산출물 본문은 이 저장소의 작업 이력을 모르는 사람도 그대로 읽을 수 있어야 하고, 어느 회차에 무엇을 재확인했는지는 리비전 이력이 이미 담고 있다. 남길 사실(1차 폐기와 재도입 계보)은 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:47:00.270Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:21.545Z",
     "created_at": "2026-05-29T06:33:36.834Z"
   }
 }

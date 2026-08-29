@@ -163,9 +163,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-284"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:46.482Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -177,8 +180,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "산출·통지의 트리거를 재검수 승인으로 정정한다. 수정 시점이 아니라 검수자가 그 수정을 다시 승인한 시점이며, 그래야 검수를 통과한 내용만 관제로 나간다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T04:12:52.329Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:46.482Z",
     "created_at": "2026-07-20T01:32:39.850Z"
   }
 }

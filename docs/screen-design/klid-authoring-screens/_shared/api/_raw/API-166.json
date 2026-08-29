@@ -232,9 +232,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-311"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:50.186Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -246,8 +249,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "내부 이슈 번호 대신 차단 대상을 그대로 적는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:13.048Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:50.186Z",
     "created_at": "2026-07-30T07:09:39.457Z"
   }
 }

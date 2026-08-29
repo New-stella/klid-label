@@ -297,9 +297,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-303"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:49.002Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -311,8 +314,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "산출물 설명에서 내부 표식을 걷어내고 변경요약의 회차·구현 심볼을 뺀다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:12.730Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:49.002Z",
     "created_at": "2026-07-30T07:07:24.097Z"
   }
 }

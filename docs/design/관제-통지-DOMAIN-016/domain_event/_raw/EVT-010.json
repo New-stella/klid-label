@@ -33,9 +33,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-344"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:15.314Z"
       },
       "payload_schema": {
         "rawSn": "Long — 재동결·재산출 대상 영상 PK (LS_DATA_RAW.RAW_SN)"
@@ -51,8 +54,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "휴면 확장점을 존치하는 두 근거는 그대로 두고, 그 근거를 서술하던 구현 클래스명과 구현 상태 표현만 걷어낸다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:21:31.986Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:15.314Z",
     "created_at": "2026-08-04T08:54:36.604Z"
   }
 }

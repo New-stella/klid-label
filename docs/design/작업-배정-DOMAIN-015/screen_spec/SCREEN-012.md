@@ -4,13 +4,14 @@ type: screen_spec
 version: 47
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:10:59.425Z
+synced_at: 2026-08-29T01:27:26.917Z
 status: CHANGED
-prev_version: 46
-content_hash: 8d0d2a47ac4118a9cf25234b41b231de00a46284158d7e004e2e68fc19e198fd
+prev_version: 47
+content_hash: 8cc23ebfe24b5625a7b124be2945b311a621ef659077bd89b2a857e4d424919a
 stale: true
 raw: ./_raw/SCREEN-012.json
 links:
+  based_on: ["[[ADR-001]]"]
   belongs_to_domain: ["[[DOMAIN-015]]"]
   consumes: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-116]]", "[[API-136]]", "[[API-137]]", "[[API-187]]"]
   migrated_from: ["[[LEGACY-112]]"]
@@ -831,7 +832,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-333
 
 ### progress
 
@@ -840,6 +841,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:25:13.851Z
 
 ## required_roles
 

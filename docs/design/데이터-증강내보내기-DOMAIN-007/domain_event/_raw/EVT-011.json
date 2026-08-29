@@ -47,9 +47,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-345"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:15.449Z"
       },
       "payload_schema": {
         "rawSn": "Long — 증강 대상 영상 식별자 (비식별 프레임 경로 조회용)",
@@ -73,8 +76,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "발행·소비와 커밋 이후 수신 계약을 구현 클래스명·어노테이션·소스 파일 경로 없이 적는다. 롤백되면 위탁이 나가지 않는다는 계약이 이 이벤트의 핵심이며 그 문장은 그대로 남는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:21:32.231Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:15.449Z",
     "created_at": "2026-08-04T08:55:34.097Z"
   }
 }

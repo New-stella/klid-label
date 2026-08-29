@@ -159,9 +159,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-245"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:40.613Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -173,8 +176,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "P1 반영: 실재하는 period 쿼리 파라미터 선언 추가(400 응답이 이미 전제하던 값), 200/400 설명에서 ResponseEntity<String>·@Pattern 등 Java 구현 타입/어노테이션 노출 및 \"placeholder\" 구현상태 어휘 제거 — 현재 응답 내용(헤더 행만 포함)은 사실로 유지.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:00:54.037Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:40.613Z",
     "created_at": "2026-05-30T07:25:20.135Z"
   }
 }

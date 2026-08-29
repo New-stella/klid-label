@@ -136,9 +136,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-290"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:47.218Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -150,8 +153,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "적재 모델이 반전된 뒤의 어휘로 요약·설명을 맞추고, 변경 요약에서 컨트롤러 클래스명과 작업 서술을 걷어낸다. 이 트리거가 실행하는 주기 배치는 관제 공유 설정을 스캔해 픽업하는 것이 아니라 관제가 인입 원장에 등록한 미처리 행을 폴링해 적재한다. 주기 표기도 건수가 아니라 실행 횟수 기준으로 바로잡았다. 경로·권한·응답 계약은 그대로다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T10:01:08.453Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:47.218Z",
     "created_at": "2026-07-30T07:03:37.600Z"
   }
 }

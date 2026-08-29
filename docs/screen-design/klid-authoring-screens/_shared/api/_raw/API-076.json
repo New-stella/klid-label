@@ -266,9 +266,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-257"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:42.541Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -283,8 +286,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "일치도 서술 정확화 — 응답에 함께 나가는 일치도는 이미 적재된 과거 행에 한한다는 점을 명시. 연동 대상 시계열 분석 API 가 일치도와 판정을 반환하지 않아 신규 적재가 없어졌고, 과거 행은 그대로 남아 계속 나간다. 전 행 반환이 의도라는 점·데이터마트 뷰와 다른 채널이라는 점·영상 기술 메타 동반·응답 범위를 좁히지 않는다는 점·좁히려면 관제 계약 협의가 선행돼야 한다는 점은 모두 유지하며 응답 스키마는 변경하지 않는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T08:18:43.591Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:42.541Z",
     "created_at": "2026-05-30T07:27:01.543Z"
   }
 }

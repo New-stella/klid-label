@@ -37,9 +37,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-337"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:14.345Z"
       },
       "payload_schema": {
         "type": "object",
@@ -71,8 +74,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "본문 오염 제거 — 자기 리비전 서술('이전 본문은... 라고 적었으나')·파일 경로(marking/event/....java)·@Async 어노테이션을 제거하고 사양 문장으로 정리. payload_schema 를 실물(rawSn·markingSn 2필드)로 채움(SCH-018 — 기존 빈 객체였다).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:55:09.494Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:14.345Z",
     "created_at": "2026-06-01T06:35:56.793Z"
   }
 }

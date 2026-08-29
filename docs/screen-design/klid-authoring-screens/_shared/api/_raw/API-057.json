@@ -333,9 +333,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-244"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:40.469Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -347,8 +350,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "검수완료 기준 이미지 건수(approvedImageCount)의 계산 범위에 «폐기되지 않은 프레임만 센다» 를 명시. 학습데이터 산출물과 데이터마트 노출이 폐기된 프레임을 구조적으로 제외하므로, 같은 분량을 뜻한다고 서술된 이 수치도 같은 집합이어야 한다(어긋나면 화면 숫자가 실제 산출 분량보다 커진다). 함께 두는 cumulativeImageCount 는 «수집한 전체 분량» 이라는 다른 축이므로 폐기 여부로 걸러내지 않는다. 영상 단위 수치와 영상 단위 이벤트 분포는 폐기가 프레임 축이라 영향이 없어 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T12:39:29.361Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:40.469Z",
     "created_at": "2026-05-30T07:25:15.653Z"
   }
 }

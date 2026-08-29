@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-29T01:19:46.518Z (session 19) |
+| last sync | 2026-08-29T01:27:50.763Z (session 20) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003/ |
@@ -47,6 +47,12 @@
 | 순서 | 화면 | screen_spec | 와이어프레임 | UC | AC |
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
+
+## 변경 알림 (코드 재반영 필요)
+
+| ITEM | type | 상태 |
+|---|---|---|
+| [[API-112]] | api_endpoint | CHANGED (v5→v5) |
 
 ## Obsidian 볼트로 보기
 

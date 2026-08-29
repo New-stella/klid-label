@@ -4,7 +4,7 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-29T01:19:18.647Z |
+| Last sync | 2026-08-29T01:27:23.797Z |
 | Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 67 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
@@ -42,7 +42,7 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ERD-019]] (prev v23)
+- CHANGED [[EVT-005]] (prev v5)
 
 ## ITEM 표
 
@@ -84,10 +84,10 @@
 | [[ERD-010]] | erd | 28 | UNCHANGED |
 | [[ERD-012]] | erd | 45 | UNCHANGED |
 | [[ERD-017]] | erd | 22 | UNCHANGED |
-| [[ERD-019]] | erd | 23 | CHANGED |
+| [[ERD-019]] | erd | 23 | UNCHANGED |
 | [[ERD-025]] | erd | 4 | UNCHANGED |
 | [[ERD-031]] | erd | 15 | UNCHANGED |
-| [[EVT-005]] | domain_event | 5 | UNCHANGED |
+| [[EVT-005]] | domain_event | 5 | CHANGED |
 | [[EXTSYS-007]] | external_system | 1 | UNCHANGED |
 | [[FEAT-010]] | feature | 4 | UNCHANGED |
 | [[INT-012]] | integration_point | 2 | UNCHANGED |

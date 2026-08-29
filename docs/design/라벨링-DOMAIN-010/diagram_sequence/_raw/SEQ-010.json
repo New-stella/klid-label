@@ -23,9 +23,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-381"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:56.700Z"
       },
       "publishes_events": [
         "EVT-004",
@@ -46,10 +49,10 @@
     "schema_version": 1,
     "current_version": 14,
     "stale": true,
-    "stale_reason": "API-014의 data.responses 변경 — consumes",
+    "stale_reason": "DFEAT-046의 data.implementation 변경이 realizes로 2-hop 전파",
     "change_summary": "수정 통지 페이로드의 개수 표기를 걷어냈다. 필드가 하나 늘 때마다 그 수를 인용한 모든 곳이 동시에 틀리기 때문이며, 이 페이로드는 실제로 그 사고를 겪었다. 필드명 열거는 그대로 두고 개수만 뺐다. 흐름도와 서술을 함께 고쳐 같은 ITEM 안에 두 진실원이 생기지 않게 했다. 제외 목록의 개수처럼 닫힌 집합의 수는 드리프트하지 않으므로 건드리지 않았다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T16:03:39.845Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:56.701Z",
     "created_at": "2026-06-02T13:13:42.676Z"
   }
 }

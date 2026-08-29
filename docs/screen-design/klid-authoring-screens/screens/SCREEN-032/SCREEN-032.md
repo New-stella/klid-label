@@ -2,14 +2,14 @@
 logicraft_item: SCREEN-032
 type: screen_spec
 version: 23
-last_updated_at: 2026-08-16T07:12:37.508Z
+last_updated_at: 2026-08-29T01:25:14.226Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:19:52.361Z
-sync_session: 36
+synced_at: 2026-08-29T01:27:56.428Z
+sync_session: 37
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 23
 raw: ./_raw/SCREEN-032.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-016]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v23 → v23**
+> change_summary: 이 화면이 어느 유스케이스를 실현하는지 역방향 연결이 비어 있었다. 유스케이스 쪽은 이미 이 화면을 선언하고 있어 한쪽만 채워져 있던 것을 맞춘다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 비식별 신고 관리 화면
 
@@ -362,7 +366,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-336
 
 ### progress
 
@@ -371,6 +375,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:25:14.226Z
 
 ## required_roles
 

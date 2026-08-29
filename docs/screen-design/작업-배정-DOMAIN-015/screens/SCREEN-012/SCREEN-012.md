@@ -2,14 +2,14 @@
 logicraft_item: SCREEN-012
 type: screen_spec
 version: 47
-last_updated_at: 2026-08-26T01:08:05.957Z
+last_updated_at: 2026-08-29T01:25:13.851Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:19:47.371Z
-sync_session: 16
+synced_at: 2026-08-29T01:27:51.641Z
+sync_session: 17
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 47
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-029]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v47 → v47**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
@@ -824,7 +828,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-333
 
 ### progress
 
@@ -833,6 +837,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:25:13.851Z
 
 ## required_roles
 

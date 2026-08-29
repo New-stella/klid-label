@@ -138,9 +138,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-217"
+        ],
         "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-29T01:23:36.187Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -153,8 +156,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "조회 창구에 관리자 유효창을 요구하지 않는다는 것을 명시한다. 이 창구는 역할이 없는 사용자가 자신의 무권한을 확인하고 역할을 청구하러 가는 유일한 길이라, 여기에 요건을 얹으면 온보딩이 통째로 끊긴다. 형제 조회 창구와 같은 표현을 쓴다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T10:25:40.107Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:36.187Z",
     "created_at": "2026-05-30T06:56:53.578Z"
   }
 }

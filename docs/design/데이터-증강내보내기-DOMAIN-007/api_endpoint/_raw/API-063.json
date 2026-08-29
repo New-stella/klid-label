@@ -298,9 +298,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-248"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:41.052Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -311,11 +314,11 @@
     "data_projected_to": null,
     "schema_version": 1,
     "current_version": 9,
-    "stale": false,
-    "stale_reason": null,
+    "stale": true,
+    "stale_reason": "REQ-001의 2개 필드 변경이 implements로 2-hop 전파",
     "change_summary": "200 응답에 실제로 내려가는 1개 필드(prompt)가 선언에서 빠져 있어 추가한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T23:40:25.943Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:41.052Z",
     "created_at": "2026-05-30T07:25:46.873Z"
   }
 }

@@ -5,22 +5,22 @@
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-001 사용자·권한 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-29T01:19:48.495Z (session 16) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 167 |
+| Last sync | 2026-08-29T01:27:52.582Z (session 17) |
+| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 162 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001/ |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | UNCHANGED |
-| [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
-| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 5 | false | UNCHANGED |
+| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | CHANGED |
+| [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | CHANGED |
+| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 5 | false | CHANGED |
 | [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 8 | false | UNCHANGED |
-| [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | UNCHANGED |
-| [[API-006]] | api_endpoint | GET /v1/me | 10 | false | UNCHANGED |
+| [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | CHANGED |
+| [[API-006]] | api_endpoint | GET /v1/me | 10 | false | CHANGED |
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 14 | false | UNCHANGED |
-| [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | UNCHANGED |
+| [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | CHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | false | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
@@ -36,7 +36,7 @@
 | [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 3 | true | UNCHANGED |
 | [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 4 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | CHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

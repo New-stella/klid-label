@@ -4,16 +4,17 @@ type: domain_feature
 version: 8
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T01:11:03.598Z
+synced_at: 2026-08-29T01:27:29.302Z
 status: CHANGED
-prev_version: 7
-content_hash: fb187a6a43f8f346a3f545c88427b2b3aaa1cbf3b4ceb170835de98cb7274cf2
-stale: false
+prev_version: 8
+content_hash: 1c23a2f5fafe743deb908e3145723368b2735859c4f164b31f246dddccb4ed08
+stale: true
 raw: ./_raw/DFEAT-049.json
 links:
   based_on: ["[[ADR-015]]"]
   belongs_to_domain: ["[[DOMAIN-005]]"]
   implements: ["[[API-102]]", "[[API-103]]", "[[API-104]]", "[[API-105]]"]
+  references_backward: ["[[ADR-015]]"]
 ---
 
 # 검수자↔작업자 이슈 소통 채널 (반려·문의 통합 스레드)
@@ -100,7 +101,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-368
 
 ### progress
 
@@ -109,6 +110,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:26:22.045Z
 
 ## uses_constants
 

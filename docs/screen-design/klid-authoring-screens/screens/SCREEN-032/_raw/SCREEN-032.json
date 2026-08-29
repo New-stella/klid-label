@@ -191,9 +191,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-336"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:14.226Z"
       },
       "required_roles": [
         "ROLE-001"
@@ -226,8 +229,8 @@
     "stale": true,
     "stale_reason": "ROLE-001의 data.permissions 변경 — requires",
     "change_summary": "이 화면이 어느 유스케이스를 실현하는지 역방향 연결이 비어 있었다. 유스케이스 쪽은 이미 이 화면을 선언하고 있어 한쪽만 채워져 있던 것을 맞춘다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:12:37.508Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:14.226Z",
     "created_at": "2026-06-18T02:12:02.998Z"
   }
 }

@@ -273,9 +273,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-258"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:42.709Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -287,8 +290,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "parameters 가 빈 배열이었는데 400 설명이 rawSn 파라미터를 참조하는 자기모순이 있었다. 컨트롤러가 실제로 받는 rawSn(필수)/page/size 3개 쿼리 파라미터를 채웠다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T23:46:01.066Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:42.709Z",
     "created_at": "2026-05-30T07:27:30.274Z"
   }
 }

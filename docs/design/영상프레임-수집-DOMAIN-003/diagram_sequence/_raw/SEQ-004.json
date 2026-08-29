@@ -23,10 +23,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-375"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-26T02:28:52.981Z",
+        "last_updated": "2026-08-29T01:26:55.907Z",
         "module_paths": []
       },
       "publishes_events": [],
@@ -44,8 +46,8 @@
     "stale": true,
     "stale_reason": "API-179의 data.implementation 변경 — consumes",
     "change_summary": "해상도 파생 흐름의 산출 크기 산정·스킵 분기를 가변 캔버스 규칙으로 구현",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T02:28:52.981Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:55.907Z",
     "created_at": "2026-06-02T13:11:04.813Z"
   }
 }

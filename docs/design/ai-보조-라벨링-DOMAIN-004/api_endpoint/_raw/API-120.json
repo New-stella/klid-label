@@ -155,9 +155,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-329"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:52.638Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -171,8 +174,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "API-120(/infer/sam2/segment) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). BE sam2-segment(API-093) 가 프록시하는 ai-server 추론 primitive 로 FEAT-001(AI 보조 라벨링)을 지지하므로 연결한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:33:18.694Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:52.638Z",
     "created_at": "2026-07-07T07:34:49.728Z"
   }
 }

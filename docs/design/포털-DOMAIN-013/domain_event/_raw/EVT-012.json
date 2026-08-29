@@ -34,9 +34,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-346"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:15.629Z"
       },
       "payload_schema": {
         "uldSn": "Long — 완료된 포털 업로드 마스터(LS_PORTAL_ULD) 순번"
@@ -54,8 +57,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "발행·소비를 구현 클래스명이 아니라 행위로 적는다. 포털 경로가 내부 파이프라인과 절대 연결되지 않는다는 경계 선언은 그대로 남는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:21:32.460Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:15.629Z",
     "created_at": "2026-08-04T08:55:59.902Z"
   }
 }

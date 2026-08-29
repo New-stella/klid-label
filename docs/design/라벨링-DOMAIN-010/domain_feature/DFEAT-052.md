@@ -4,13 +4,14 @@ type: domain_feature
 version: 3
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:54.251Z
-status: NEW
-prev_version: null
-content_hash: 0b4f501518bc39608e2dbfe2d281c409c74a0f473b18e3131f5563078c33a656
+synced_at: 2026-08-29T01:27:31.637Z
+status: CHANGED
+prev_version: 3
+content_hash: e581bbaed00b6e9d8ede12474fb8acc7484facfcea52102009d2b83cf7796b80
 stale: true
 raw: ./_raw/DFEAT-052.json
 links:
+  based_on: ["[[ADR-034]]"]
   belongs_to_domain: ["[[DOMAIN-010]]"]
   implements: ["[[API-024]]", "[[API-025]]", "[[API-026]]", "[[API-027]]", "[[API-028]]", "[[API-029]]", "[[API-030]]", "[[API-031]]"]
   depicts_backward: ["[[CDIAG-004]]"]
@@ -91,7 +92,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-371
 
 ### progress
 
@@ -100,6 +101,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:26:22.483Z
 
 ## uses_constants
 
