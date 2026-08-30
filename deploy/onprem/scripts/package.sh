@@ -25,10 +25,20 @@ set -euo pipefail
 #     SKIP_POSTGRES=1 ./scripts/package.sh   # 번들 PG16 RPM 수집 생략(타깃에 이미 PG 있을 때)
 #     PREFETCH_HF=1 ./scripts/package.sh     # HF 모델(sam2)도 사전 다운로드
 #     WITH_BUILDTOOLS=1 ./scripts/package.sh # 오프라인 빌드 키트(buildtools/+src/)도 수집
+#     WITH_BACKEND_JAR=1 ./scripts/package.sh # 베어메탈 형상용 실행 가능 jar 도 빌드·수집
 #     SKIP_COPYLEFT_SRC=1 ./scripts/package.sh # (L)GPL 대응 소스 동봉 생략(서면 확약만)
 #
+#   ★ 중간에 막혔을 때는 <처음부터> 다시 돌리지 않아도 된다 — 단계별 러너가 있다.
+#       ./scripts/package-step.sh list        # 단계 목록(소요·선행조건·재실행 안전 여부)
+#       ./scripts/package-step.sh 30          # 30 단계만
+#       ./scripts/package-step.sh from 40     # 40 부터 끝까지 이어서
+#     두 경로는 같은 목록(package/steps.sh)을 읽으므로 순서가 어긋나지 않는다.
+#     상세는 docs/02-build-package.md 「단계별 실행」.
+#
 #   ★ 배포 형상 = <외부 WAS 에 api.war 반입> (@design DEPLOY-001 · RUNBOOK-001).
-#     1단계가 만드는 api.war 가 반입 정본이고, klid-backend.jar 는 개발 환경 전용이다.
+#     1단계가 만드는 api.war 가 반입 정본이고, klid-backend.jar 는 개발 환경 전용이라
+#     <기본으로 만들지도 담지도 않는다>(2026-08-30 매체에서 제외). 베어메탈 형상으로 갈 때만
+#     WITH_BACKEND_JAR=1 로 켠다 — 토글은 남겨 둔다.
 #     자바 런타임은 반입하지 않는다 — 대상 장비의 WAS(Tomcat 10.1.x)가 Java 17 로 이미 돌고 있다.
 #     ⚠ ai-server 의 Python 런타임·오프라인 휠·모델은 WAR 와 무관한 별도 프로세스라 그대로 반입한다.
 #
@@ -49,6 +59,8 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SELF_DIR}/lib/common.sh"
 # shellcheck source=lib/versions.sh
 source "${SELF_DIR}/lib/versions.sh"
+# shellcheck source=package/steps.sh
+source "${SELF_DIR}/package/steps.sh"
 
 ONPREM="$(onprem_root)"
 PKG_DIR="${SELF_DIR}/package"
@@ -77,34 +89,16 @@ fi
 # ---- 빌드 도구 확인 ----
 require_cmd bash tar curl git
 
-STEPS=(
-  "10-build-backend.sh"
-  "20-build-frontend.sh"
-  "30-collect-ai-server.sh"
-  "40-collect-runtimes.sh"
-  "50-collect-syspkgs.sh"
-  "55-collect-postgresql.sh"
-)
-# 오프라인 빌드 키트(소스 재빌드용) — 기본 제외(2026-08-30 반전), WITH_BUILDTOOLS=1 로 켠다.
-#   ⚠ 구 기본값 폐기(2026-08-30) — "기본 포함, SKIP_BUILDTOOLS=1 로 끈다".
-#     SKIP_BUILDTOOLS 토글은 <계속 존중>한다 — 그 값으로 돌리던 기존 호출/문서가 깨지지 않게.
-#     둘이 충돌하면(WITH=1 + SKIP=1) 제외가 이긴다(안전한 쪽).
-if [[ "${WITH_BUILDTOOLS:-0}" == "1" && "${SKIP_BUILDTOOLS:-0}" != "1" ]]; then
-  STEPS+=("60-collect-buildtools.sh")
-  info "오프라인 빌드 키트 수집 포함(WITH_BUILDTOOLS=1) — buildtools/ 와 src/ 가 채워집니다."
-else
-  info "오프라인 빌드 키트 수집 생략(기본값) — 사전 빌드 아티팩트만 번들합니다."
-  info "  타깃에서 소스 재빌드가 필요하면 WITH_BUILDTOOLS=1 ./scripts/package.sh 로 다시 수집하세요."
-fi
-
-# 카피레프트 대응 소스 수집 — 고지 생성 <앞>에 둔다. 70 단계가 그 결과를 근거로
-#   "실었는지 / 서면 확약으로 대신하는지"를 판정하기 때문이다.
-STEPS+=("65-collect-copyleft-sources.sh")
-
-# 라이선스 고지 집합 생성 — <항상 마지막>이다. 앞 단계들이 각자 떨군 고지를 모아
-#   NOTICE·INVENTORY·UNRESOLVED 를 만든다. 중간에 두면 그 시점에 없던 수집물이 빠진다.
-#   ⚠ 이 단계를 끄는 토글을 두지 않는다 — 고지 없는 매체는 반출 자체가 위반이다.
-STEPS+=("70-generate-notices.sh")
+# ---- 단계 목록 ----
+#   ★ 목록·순서·토글 규칙은 package/steps.sh 가 단일 진실원이다. 여기에 다시 적지 않는다 —
+#     단계별 러너(package-step.sh)가 같은 목록을 읽어야 "일괄로는 도는데 단계별로는 빠지는
+#     단계"가 생기지 않는다.
+package_step_explain
+#   ⚠ mapfile 을 쓰지 않는다 — macOS 기본 bash 는 3.2 라 그 내장이 없다(이 저장소의
+#     스크립트는 전부 `env bash` 로 돌므로 빌드머신이 맥이면 그쪽이 잡힐 수 있다).
+STEPS=()
+while IFS= read -r _s; do [[ -n "${_s}" ]] && STEPS+=("${_s}"); done < <(package_step_list)
+unset _s
 
 for step in "${STEPS[@]}"; do
   script="${PKG_DIR}/${step}"
@@ -114,33 +108,11 @@ for step in "${STEPS[@]}"; do
   ok "완료: ${step}"
 done
 
-# ---- 반입물 위생 스윕(파이썬 바이트코드) ----
-#   매체는 deploy/onprem/ 폴더 <통째로> 복사한 것이라 이 트리의 상태가 곧 매체의 상태다.
-#   수집 단계(30)가 자기 복사물은 이미 정리하지만, 그것만으로는 부족하다 — 빌드머신에서
-#   누가 파이썬 모듈을 한 번 import 하기만 해도 그 자리에 __pycache__ 가 생기고 그대로
-#   매체에 실린다(실제로 scripts/lib/__pycache__ 가 그렇게 들어가 있었다. 패키징이 만든 것이
-#   아니다 — 스크립트로 실행하면 캐시를 안 쓰고, import 해야 생긴다).
-#   빌드머신 파이썬이 대상(3.11)과 다르면 cpython-314 같은 남의 태그가 반입물에 남는다.
-#   동작에는 무해하지만 심의에서 설명해야 할 자리이므로 반출 직전에 쓸어낸다.
-if [[ -n "${ONPREM:-}" && -d "${ONPREM}" ]]; then
-  _pyc_n="$(find "${ONPREM}" -name '*.pyc' -o -name '*.pyo' | wc -l | tr -d ' ')"
-  _pyd_n="$(find "${ONPREM}" -type d -name '__pycache__' | wc -l | tr -d ' ')"
-  if [[ "${_pyc_n}" != "0" || "${_pyd_n}" != "0" ]]; then
-    warn "[위생] 파이썬 바이트코드 잔재 제거: __pycache__ ${_pyd_n}개 / 파일 ${_pyc_n}개"
-    find "${ONPREM}" -type d -name '__pycache__' -prune -exec rm -rf {} +
-    find "${ONPREM}" \( -name '*.pyc' -o -name '*.pyo' \) -delete
-  fi
-  ok "[위생] 파이썬 바이트코드 잔재 없음(반입물 확인)"
-  unset _pyc_n _pyd_n
-fi
-
-# ---- 패키지 버전 메타 기록 ----
-{
-  echo "package_built_at=$(date '+%Y-%m-%dT%H:%M:%S%z')"
-  echo "package_built_on=${uname_s} ${uname_m}"
-  echo "git_commit=$(cd "$(repo_root)" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-} > "${ONPREM}/VERSION.built"
-ok "패키지 메타 기록: ${ONPREM}/VERSION.built"
+# ---- 반출 직전 마무리(위생 스윕 · VERSION.built) ----
+#   ★ 위 단계 루프의 <마지막 단계>인 90-finalize-media.sh 가 이미 수행했다.
+#     예전에는 그 두 가지가 이 파일 안의 블록이라, 단계별 러너(package-step.sh)로 돌면
+#     한 번도 실행되지 않았다. 단계로 떼어내 두 경로가 같은 마무리를 돌게 했다(2026-08-30).
+#     ⚠ 여기에 다시 적지 않는다 — 적는 순간 두 번째 진실원이 되어 한쪽만 갱신된다.
 
 info "================================================================"
 ok " 수집 완료. 다음 단계:"
