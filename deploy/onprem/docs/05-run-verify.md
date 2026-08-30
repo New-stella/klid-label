@@ -122,6 +122,32 @@ curl -fsS http://127.0.0.1/api/actuator/health/liveness
 
 기대: ai-server `{"status":"ok"}` 류, backend liveness `{"status":"UP"}`, frontend `200`.
 
+## 프론트엔드 런타임 설정 확인
+
+화면이 뜨는 것과 **상위 로그인 주소가 맞는 것**은 다른 문제다. 주소가 비거나 틀리면 세션 만료
+전까지는 아무 증상이 없다가, 만료되는 순간 사용자가 갈 곳을 잃는다. 설치 직후 한 번 본다.
+
+```bash
+# 1) 생성물이 실제로 서빙되는가 + 어떤 값이 실렸는가
+curl -fsS http://127.0.0.1/klid-config.js
+
+# 2) 캐시되지 않는가 (no-store 가 없으면 값을 고쳐도 브라우저가 옛 값을 계속 쓴다)
+curl -sS -o /dev/null -D - http://127.0.0.1/klid-config.js | grep -i cache-control
+```
+
+기대: 1)에 `VITE_CONTROL_LOGIN_URL`/`VITE_PORTAL_LOGIN_URL` 이 **현장 주소**로 보이고,
+2)에 `Cache-Control: no-store...` 가 보인다.
+
+- 값이 예시 주소(`*.example.local`)로 보이면 정본을 안 고친 것이다.
+- 값을 바꾸는 절차는 **재빌드·재설치가 아니라 한 줄**이다:
+  ```bash
+  sudo vi /etc/klid/frontend.env
+  sudo /opt/klid/bin/klid-frontend-config
+  ```
+  (웹 서버 재기동도 필요 없다. 브라우저 새로고침이면 반영된다 — `04-configuration.md` C-1 절)
+- ★ **이 파일은 브라우저로 그대로 내려간다.** 출력에 비밀값이 보이면 정본에 잘못 적은 것이다 —
+  생성기가 allowlist 로 거르지만, 그 목록에 키를 추가하는 순간 공개된다.
+
 ## 로그 위치
 
 ```bash

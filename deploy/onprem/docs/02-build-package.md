@@ -183,7 +183,7 @@ docker run --rm --platform linux/amd64 -v "$PWD:/work" -w /work rockylinux/rocky
   dnf download --resolve --alldeps --archlist=x86_64,noarch --downloaddir syspkgs/rpm \
     mesa-libGL libglvnd-glx glib2 httpd policycoreutils-python-utils && \
   createrepo_c syspkgs/ffmpeg && createrepo_c syspkgs/rpm && \
-  mkdir -p syspkgs/gpg && cp /etc/pki/rpm-gpg/RPM-GPG-KEY-* syspkgs/gpg/ && \
+  mkdir -p syspkgs/gpg && cp /etc/pki/rpm-gpg/*GPG-KEY* syspkgs/gpg/ && \
   mkdir -p syspkgs/ffmpeg-src && \
   dnf download --source --downloaddir syspkgs/ffmpeg-src ffmpeg x264-libs x265-libs && \
   for d in ffmpeg rpm gpg ffmpeg-src; do ( cd syspkgs/$d && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS ); done
@@ -204,7 +204,7 @@ docker run --rm --platform linux/amd64 -v "$PWD/../..:/work" -w /work/deploy/onp
   dnf download --resolve --alldeps --archlist=x86_64,noarch --downloaddir syspkgs/postgresql \
     postgresql16-server postgresql16 postgresql16-libs postgresql16-contrib && \
   createrepo_c syspkgs/postgresql && \
-  mkdir -p syspkgs/gpg && cp /etc/pki/rpm-gpg/RPM-GPG-KEY-* syspkgs/gpg/ && \
+  mkdir -p syspkgs/gpg && cp /etc/pki/rpm-gpg/*GPG-KEY* syspkgs/gpg/ && \
   ( cd syspkgs/postgresql && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
 '
 ```
@@ -235,7 +235,7 @@ docker run --rm --platform linux/amd64 -v "$PWD/../..:/work" -w /work/deploy/onp
 > `SHA256SUMS`(전송 무결성)와 별개의 **출처(공급망) 무결성** 검증이다.
 >
 > **RPM(ffmpeg·시스템·PG)은 검증 축이 다르다** — 버전 핀·체크섬 핀을 두지 않고 **RPM 서명**으로
-> 검증한다. 조달 시 `syspkgs/gpg/RPM-GPG-KEY-*` 를 함께 반입하고, 설치 시 `rpm --import` 후
+> 검증한다. 조달 시 `syspkgs/gpg/` 의 공개키를 함께 반입하고(PGDG 는 `PGDG-RPM-GPG-KEY-RHEL` 이라 `RPM-GPG-KEY-*` 글롭에 걸리지 않는다), 설치 시 `rpm --import` 후
 > `gpgcheck=1` 로 확인한다(기본값). 전송 무결성은 각 디렉토리 `SHA256SUMS` 가 담당한다.
 > ⚠ 구 서술 폐기(2026-08-28): "ffmpeg 정적은 BtbN 의 dated autobuild 태그 … `checksums.sha256`
 > 값으로 검증한다" — 정적 tarball 조달 자체가 폐기됐다.
@@ -396,14 +396,42 @@ docker run --rm --network none --platform linux/amd64 \
 
 > ⚠ **이 리허설은 WAS 를 재현하지 않는다.** 컨테이너에 Tomcat 이 없으므로 `api.war` 실제 기동과
 > WAS 설정 이관(docs/10-was-settings.md) 효과는 **여기서 검증되지 않는다.**
-> 그 두 가지는 대상 장비의 WAS 에서만 확인할 수 있고, 특히 **대용량 업로드는 사람이 1회 수행**해야 한다.
+> 그 두 가지는 대상 장비의 WAS 에서만 확인할 수 있고, 특히 **대용량 업로드 설정은 사람이 1회 수행**해야 한다.
+> ⚠ 그 1회를 **빠뜨려도 설치는 성공하고 화면도 뜬다** — 아무 신호가 없다가 큰 파일 업로드에서만 실패한다.
 
 > ⚠ 리허설 컨테이너는 최소 이미지라 **실제 RHEL 8.9 서버보다 설치된 패키지가 적다**. 즉 이 리허설을
 > 통과하면 실서버에서는 더 안전한 쪽이다(반대는 성립하지 않는다). 다만 서버에만 있는 SELinux
 > Enforcing·방화벽·기존 PG 같은 조건은 여기서 재현되지 않으므로 05-run-verify.md 를 함께 본다.
 >
-> ⚠ 이 리허설은 **절차만 기술**돼 있고 이번 정합 라운드에서 전체 실행하지는 않았다.
-> ffmpeg/시스템 RPM 구간(위 1·2·6·7)만 `--network none` 으로 검증했다(2026-08-30).
+### 리허설이 실제로 검증한 범위 (2026-08-30 실측)
+
+아래는 `--network none`(DNS 해석 실패로 차단을 먼저 확인) 상태에서 **실행해 통과한 것**이다.
+구 기재 *"절차만 기술돼 있고 ffmpeg/시스템 RPM 구간(1·2·6·7)만 검증"* 은 **폐기** — 그 뒤
+리허설이 더 넓게 돌았다.
+
+| 구간 | 검증 내용 | 표 항목 |
+|---|---|---|
+| GPG·저장소 | GPG 키 등록 → 로컬 저장소에서 RPM 설치 성공. **glibc 무변경** 확인 | 6 |
+| httpd | 모듈러 스트림으로 설치 완주 | 7 |
+| SELinux 도구 | 관련 도구 패키지 설치 완주 | — |
+| ffmpeg | 3단 전부 — 부재 시 `die` → 번들 RPM 설치 → **실동작 검증 통과** | 1 · 2 |
+| 파이썬 오프라인 설치 | 번들 파이썬 venv 에 `--no-index` 로 설치 후 **import 성공**: `cv2` 4.13.0 · `torch` 2.12.0+cpu · `onnxruntime` 1.27.0 · `sam2` · `fastapi` | 3 · 4 · 5 |
+| 설치 스크립트 | `install.sh --role=ai` 완주 · `install.sh --role=app` 완주(설정값을 채운 뒤) | — |
+
+### 리허설이 확인하지 <못한> 것
+
+통과했다고 해서 아래가 검증된 것은 **아니다**. 이 경계가 이 절의 값어치다.
+
+- **WAS 기동·`api.war` 실행** — 컨테이너에 Tomcat 이 없다. 설치 스크립트가 WAR 를 배치하는
+  데까지만 확인됐고 그것이 뜨는지는 보지 않았다.
+- **WAS 설정 이관 효과**(docs/10-was-settings.md) — 대상 장비의 WAS 에서만 확인된다.
+  ★ **대용량 업로드 설정은 대상 장비에서 사람이 1회 수행해야 하고, 빠뜨려도 아무 신호가 없다.**
+  설치는 성공하고 화면도 뜨는데 큰 파일을 올릴 때에야 실패한다.
+- **PostgreSQL 실기동** — 리허설의 `systemctl` 은 스텁이다. 기동·스키마 적용은 확인되지 않았다.
+- **SELinux Enforcing 문맥** — 도구 설치만 했을 뿐 Enforcing 상태에서의 파일 문맥·포트 정책은
+  재현하지 않았다.
+- **ai-server 실기동·추론** — import 까지만 확인했다. 서비스 기동과 실제 추론은 보지 않았다.
+- **실제 RHEL 8.9** — 리허설 베이스는 **Rocky 8.10** 이다. glibc 계열은 같지만 동일 OS 가 아니다.
 
 ## 전송
 

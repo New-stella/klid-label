@@ -57,6 +57,22 @@ sudo USE_NGINX=1 ./scripts/install.sh
 sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
 ```
 
+### ★ 상위 시스템 로그인 주소를 함께 준다 (안 주면 5단계에서 멈춘다)
+
+프론트엔드 산출물은 **환경 무관**이라 로그인 주소를 갖고 있지 않다. 그 값은 설치 시점에 대상
+서버의 정본(`/etc/klid/frontend.env`)으로 들어간다. 첫 설치에서 한 번에 채우려면:
+
+```bash
+sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
+     VITE_PORTAL_LOGIN_URL=https://portal.example.local/login \
+     ./scripts/install.sh --role=app
+```
+
+주지 않으면 정본이 빈 값으로 놓이고 **그 자리에서 설치가 멈춘다**(fail-closed — 저작도구는 자체
+로그인 UI 가 없어 이 값이 비면 세션 만료 시 갈 곳이 없다). 값을 채우고
+`sudo /opt/klid/bin/klid-frontend-config` 실행 후 `install.sh` 를 다시 돌리면 이어진다.
+설치 후 값 변경은 재빌드·재설치 없이 그 명령 한 줄이다 — `04-configuration.md` C-1 절.
+
 ## 단계별 동작
 
 | 단계 | 역할 | 스크립트 | 동작 |
@@ -66,7 +82,7 @@ sudo KLID_PREFIX=/opt/klid KLID_USER=klid ./scripts/install.sh
 | 2 | **ai** | `install/11-install-runtimes.sh` | **Python**(ai-server 용) + **RPM**(mesa-libGL/libglvnd-glx/glib2) 오프라인 설치. ⚠ 구 동작 폐기(2026-08-30): "**ffmpeg RPM 도 여기서 자동 설치**" — ffmpeg 는 서버 A 의 전제조건이라 자동 설치하지 않는다 |
 | 3 | app | `install/12-install-backend.sh` | **`api.war` 배치**(`/opt/klid/app/api.war`) + `application.properties`/`backend.env` + **`was.env`**(WAS 현장값 기록 파일). **기동하지 않는다** — WAS 배포·WAS 설정은 사람 작업. 베어메탈 형상(jar + systemd 유닛)은 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 일 때만 |
 | 4 | **ai** | `install/13-install-ai-server.sh` | venv + `pip --no-index` 설치 + 모델 배치 + 유닛(`klid-ai-server`) |
-| 5 | app | `install/14-install-frontend.sh` | dist 배치 + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
+| 5 | app | `install/14-install-frontend.sh` | dist 배치 + **런타임 설정 정본(`/etc/klid/frontend.env`) 배치 + `klid-config.js` 생성**(★ 상위 로그인 주소가 비면 **여기서 설치가 멈춘다**) + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
 | 6 | app | `install/15-init-db.sh` | (옵션) control/portal **DB·유저** 생성 안내 또는 수행 (테이블 생성 아님) |
 | 9 | app | `install/19-verify-ffmpeg.sh` | **ffmpeg·ffprobe 전제조건 검증**. 없으면 **설치를 중단한다**(아래 「ffmpeg」 절) |
 

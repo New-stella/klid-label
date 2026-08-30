@@ -268,50 +268,76 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 
 ---
 
-## C-1. frontend 빌드 타임 변수 (VITE_*) — ★ 빌드 차단 주의
+## C-1. frontend 런타임 설정 (`/etc/klid/frontend.env`) — ★ 설치 차단 주의
 
-frontend 는 env 파일을 런타임에 읽지 않는다. **Vite 가 빌드 시점에 `import.meta.env.VITE_*` 를
-정적 치환**하므로, 아래 값은 `dist` 를 만드는 순간 결정되며 **대상 서버에서 바꿀 수 없다**.
-빌드 진입점은 서로 독립인 3곳이고, 셋 다 같은 값을 주입해야 한다.
+**정본은 `/etc/klid/frontend.env` 다.** 백엔드가 DB 접속정보를 산출물이 아니라 `/etc/klid` 에서
+읽는 것과 같은 관례이고, 값을 바꾸는 데 **재빌드도 재설치도 필요 없다**.
 
-| 진입점 | 주입 방법 |
-|--------|-----------|
-| 빌드머신 사전빌드 | `scripts/package/20-build-frontend.sh` 실행 시 환경변수로 주입 |
-| 폐쇄망 대상서버 재빌드 | `scripts/install/build-from-source.sh` 실행 시 환경변수로 주입 |
-| 컨테이너 이미지 | `frontend/Dockerfile` build stage `--build-arg` |
+> ⚠ **구 서술 폐기(2026-08-30)** — *"frontend 는 env 파일을 런타임에 읽지 않는다. Vite 가 빌드
+> 시점에 정적 치환하므로 대상 서버에서 바꿀 수 없다"*. 그 형상에서는 **환경마다 다시 빌드**해야
+> 했고, 폐쇄망 반입(빌드머신이 고객 환경의 실주소를 모른 채 매체를 만든다)에서는 배포 가능한
+> 산출물 자체를 만들 수 없었다 — 실제로 예시 주소가 구워진 `dist` 가 반입 대상으로 놓여 있었다.
+> 지금 빌드 산출물은 **환경 무관**이고, 아래 값들은 설치 시점에 주입된다.
+
+### 값을 바꾸는 절차 (한 줄)
+
+```bash
+sudo vi /etc/klid/frontend.env          # 1) 정본 편집
+sudo /opt/klid/bin/klid-frontend-config # 2) 반영 (웹 서버 재기동 불필요)
+```
+
+2)가 정본을 읽어 문서 루트에 `klid-config.js` 를 **생성**한다. 브라우저는 그 파일을 번들보다 먼저
+읽는다. 웹 서버 설정이 이 파일에 `Cache-Control: no-store` 를 걸어 두므로 **새로고침이면 즉시 반영**된다.
+
+- `klid-config.js` 는 **생성물이다 — 직접 고치지 말 것.** 다음 생성에서 덮인다.
+- ★★ **이 파일의 내용은 브라우저로 그대로 내려간다. 비밀값을 넣지 마라.** 생성기는 아래 표의
+  키만 내보내지만(allowlist), 그것이 "여기에 비밀값을 둬도 된다"는 뜻은 아니다. DB 비밀번호·JWT
+  시크릿·웹훅 서명값은 `application.properties` / `backend.env` 에 둔다.
+- 정본에 표에 없는 키를 적으면 **내보내지 않고 무시**하며 키 이름만 로그에 남긴다(값은 찍지 않는다).
 
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
-| `VITE_API_BASE_URL` | · | 기본 `/api/v1` (프록시가 backend 로 넘김) |
-| `VITE_TOKEN_INGRESS` | · | 기본 `localStorage` (토큰 인계 채널). 값: `url`\|`cookie`\|`localStorage`\|`both`\|`all`. **기본값을 바꾸지 말 것** — `url`/`both`/`all` 은 JWT 를 URL 쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598). 관제/포털은 동일 origin 브라우저 저장소로 인계한다 |
 | `VITE_CONTROL_LOGIN_URL` | ★ | **관제서버 로그인 페이지 절대 URL.** 예 `https://control.example.local/login` |
 | `VITE_PORTAL_LOGIN_URL` | ★ | **포털 로그인 페이지 절대 URL.** 예 `https://portal.example.local/login` |
-| `VITE_DEV_UPLOAD_ENABLED` | · | 온프렘 기본 true. **수동 업로드(`/admin/uploads`)는 운영 상시 기능**이며 backend 도 기본 ON 이다(A 절 `DEV_UPLOAD_ENABLED`). 끄려면 **이 값과 backend 토글을 함께** — I 절 |
-| `VITE_DEV_LOGIN_ENABLED` | · | 온프렘 기본 true(FE 라우트만 dist 에 포함). **backend 는 기본 OFF** 라 `/v1/dev/tokens` 는 404 다. 브링업에서만 임시로 켠다 — H 절 |
+| `VITE_API_BASE_URL` | · | 기본 `/api/v1` (프록시가 backend 로 넘김) |
+| `VITE_TOKEN_INGRESS` | · | 기본 `localStorage` (토큰 인계 채널). 값: `url`\|`cookie`\|`localStorage`\|`both`\|`all`. **기본값을 바꾸지 말 것** — `url`/`both`/`all` 은 JWT 를 URL 쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598). 관제/포털은 동일 origin 브라우저 저장소로 인계한다 |
+| `VITE_DEV_UPLOAD_ENABLED` | · | 기본 true. **수동 업로드(`/admin/uploads`)는 운영 상시 기능**이며 backend 도 기본 ON 이다(A 절 `DEV_UPLOAD_ENABLED`). 끄려면 **이 값과 backend 토글을 함께** — I 절 |
+| `VITE_DEV_LOGIN_ENABLED` | · | 기본 true. **backend 는 기본 OFF** 라 `/v1/dev/tokens` 는 404 다. **브링업이 끝나면 `false` 로 바꾸고 위 반영 명령을 다시 실행할 것** — H 절 |
 
 - **두 로그인 URL 은 `http://` 또는 `https://` 스킴을 포함한 완전한 URL**이어야 한다. 스킴이
   없으면 브라우저가 상대경로로 해석해 저작도구 자기 자신으로 되돌아온다.
-- **미설정이면 빌드가 중단된다(fail-closed).** 저작도구는 자체 로그인 UI 가 없어 토큰 없음·만료
-  (401) 시 상위 시스템으로 redirect 하는 것이 유일한 복귀 경로인데, 값이 비면 **에러 없이 아무
-  반응도 없는 막다른 화면**이 되어 배포 후에야 드러난다. 산출물을 만드는 **3개 진입점 전부**가
-  각각 독립으로 가드를 갖는다 — 한 곳만 막으면 나머지 경로로 빈 값이 빠져나간다.
+- **미설정이면 설치가 중단된다(fail-closed).** 저작도구는 자체 로그인 UI 가 없어 토큰 없음·만료
+  (401) 시 상위 시스템으로 redirect 하는 것이 유일한 복귀 경로다. 값이 비면 화면은 **"로그인
+  주소가 설정되지 않았습니다" + 해당 설정 항목 이름**을 띄운다(막다른 화면이 아니다).
 
-  | 진입점 | 가드 |
-  |--------|------|
-  | `scripts/package/20-build-frontend.sh` | `require_upstream_login_urls`(`lib/common.sh`) |
-  | `scripts/install/build-from-source.sh` | `require_upstream_login_urls`(`lib/common.sh`) |
-  | `frontend/Dockerfile` 직접 `docker build` | build stage 의 `RUN test -n ...` (`npm run build` 직전) |
+  | 시점 | 가드 |
+  |------|------|
+  | 설치 `scripts/install/14-install-frontend.sh` | 생성기 실패 → `die` (설치 중단) |
+  | 반영 `/opt/klid/bin/klid-frontend-config` | 필수 값 없음·스킴 누락 → 생성 거부(기존 생성물 보존) |
 
-- 로컬/CI 에서 `frontend/` 디렉터리 안에서 직접 실행하는 `npm run build` 는 **의도적으로 가드
-  대상이 아니다**(`.env.development` 의 빈 값이 정상 동작해야 하므로). 배포 산출물은 반드시 위
-  3개 진입점 중 하나로 만든다.
+  > ⚠ 이 가드는 **예전에 빌드에 있던 것**(`require_upstream_login_urls`)을 옮겨 온 것이다.
+  > 빌드 스크립트에 되살리지 말 것 — 되살리면 산출물이 다시 환경 종속이 된다.
+
+### 첫 설치에서 한 번에 채우기
+
+설치 시 환경변수로 주면 정본이 처음부터 완성된 상태로 놓인다(종전 빌드 인자와 같은 사용감).
 
 ```bash
-# 예: 빌드머신 사전빌드
-VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
-VITE_PORTAL_LOGIN_URL=https://portal.example.local/login \
-  ./scripts/package/20-build-frontend.sh
+sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
+     VITE_PORTAL_LOGIN_URL=https://portal.example.local/login \
+     ./scripts/install.sh --role=app
 ```
+
+주지 않으면 정본이 **빈 값으로** 놓이고 그 자리에서 설치가 멈춘다. 값을 채우고
+`sudo /opt/klid/bin/klid-frontend-config` 를 실행한 뒤 `install.sh` 를 다시 돌리면 이어진다.
+**재설치는 기존 정본을 덮어쓰지 않는다**(현장값 보존 — backend 설정과 같은 규칙).
+
+### 빌드 시점 변수는 무엇이 되었나 (폴백)
+
+같은 이름의 `VITE_*` 를 빌드에 주면 **런타임 설정이 없을 때의 폴백**으로만 쓰인다. 해석 순서는
+**런타임 → 빌드 → 없음**이다. 로컬 개발(`npm run dev`)과 컨테이너 이미지가 종전처럼 동작하는
+것이 이 폴백 덕분이다. 빌드에 어떤 값이 들어갔는지는 산출물 옆
+`artifacts/frontend/BUILD-INFO.txt` 에 기록된다(예전에는 로그로만 찍혀 `dist` 만 보고는 알 수 없었다).
 
 ---
 
@@ -495,6 +521,9 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 4. **운영 정상화 후**: `DEV_LOGIN_ENABLED` 를 백엔드 설정 정본에서 미설정(삭제/주석)하고 재기동
    → `/v1/dev/*` 중 **로그인 경로만** 차단된다. 이후 실제 사용자 권한은 G 절 경로로 부여한다.
    ⚠ 수동 업로드는 이 원복 대상이 **아니다** — 상시 기능이므로 계속 열려 있다(I 절).
+5. **화면에서도 지운다(2026-08-30 추가)**: `/etc/klid/frontend.env` 의 `VITE_DEV_LOGIN_ENABLED=false`
+   → `sudo /opt/klid/bin/klid-frontend-config`. backend 를 끄면 API 는 404 가 되지만 **화면은 남아**
+   운영자가 "왜 안 되나"를 묻게 된다. 예전에는 이 축이 빌드에 굳어 있어 끌 방법이 재빌드뿐이었다.
 
 ---
 
@@ -506,7 +535,7 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 | 축 | 값 | 어디서 |
 |---|---|---|
 | backend 토글 | `DEV_UPLOAD_ENABLED` — **기본 `true`** | `application-prd.yml` 의 `authoring.dev.upload.enabled` |
-| frontend 토글 | `VITE_DEV_UPLOAD_ENABLED` — **기본 `true`** | 빌드 시점 주입(`build-from-source.sh`) |
+| frontend 토글 | `VITE_DEV_UPLOAD_ENABLED` — **기본 `true`** | 런타임 설정 `/etc/klid/frontend.env` (C-1 절) |
 | 업로드 크기 | 개당 **500MB** / 요청 총량 1100MB | `application-prd.yml` 의 `spring.servlet.multipart` |
 
 - **인가는 REVIEWER 로 그대로 걸린다.** 화면·API 모두 검수자만 접근한다.
@@ -524,9 +553,13 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 # 1) backend — WAR 형상: /etc/klid/application.properties · 베어메탈 토글: /etc/klid/backend.env
 DEV_UPLOAD_ENABLED=false      # 재기동 필요(WAR 형상이면 WAS 재기동)
 
-# 2) frontend — 재빌드 필요 (빌드타임 치환이라 런타임 토글이 아니다)
+# 2) frontend — /etc/klid/frontend.env 편집 후 반영 명령 한 줄 (재빌드·재설치 불필요)
 VITE_DEV_UPLOAD_ENABLED=false
+#    sudo /opt/klid/bin/klid-frontend-config
 ```
+
+> ★ **2026-08-30 변경** — 구 기재 *"frontend 는 재빌드 필요(빌드타임 치환이라 런타임 토글이
+> 아니다)"* 는 폐기됐다. 이 토글은 이제 런타임 설정이라 새로고침이면 반영된다(C-1 절).
 
 > ⚠ **backend 만 끄면 안 된다.** 화면과 LNB 항목은 그대로 보이는데 API 만 404 가 되어
 > 운영자가 원인을 못 찾는다. 실제로 CO-008 이전 형상이 정확히 그 상태였다 —

@@ -105,7 +105,7 @@
   **`repodata/` 가 없으면 설치가 실패한다** — 빌드머신에서 `50-collect-syspkgs.sh` 를 재실행하라.
 - 수동 설치(로컬 저장소 방식 — 폴백):
   ```bash
-  sudo rpm --import syspkgs/gpg/RPM-GPG-KEY-*
+  sudo rpm --import syspkgs/gpg/*GPG-KEY*
   sudo tee /etc/yum.repos.d/klid-ffmpeg.repo >/dev/null <<'EOF'
   [klid-ffmpeg]
   name=KLID offline bundle (ffmpeg)
@@ -139,7 +139,7 @@
   (파일 직접 설치). 조달이 `--alldeps` 로 바뀌어 기반 패키지가 섞이면서 그 방식은 충돌로 실패한다.
 - **`GPG check FAILED` / `public key is not installed` 로 dnf install 실패 시**: 폐쇄망 타깃에 EPEL/
   RPM Fusion 공개키가 없을 때 발생한다. 정석은 **번들 키를 등록**하는 것이다:
-  `sudo rpm --import syspkgs/gpg/RPM-GPG-KEY-*` (`11-install-runtimes.sh` 가 이미 수행).
+  `sudo rpm --import syspkgs/gpg/*GPG-KEY*` (`11-install-runtimes.sh` 가 이미 수행).
   키 자체가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 검증을 낮춰 설치할 수 있다(그 경우
   무결성은 번들 `SHA256SUMS` 에만 의존한다).
 - **`No available modular metadata for modular package 'httpd-…module+el8…'`**: el8 의 httpd 는
@@ -220,7 +220,7 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
   타깃에 이미 PG 가 있으면 `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh`. 번들이 필요하면
   el8 컨테이너에서 PG16 RPM(+`repodata/`)을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
 - **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 타깃에 PGDG GPG 키가 없을 때.
-  정석은 번들 키 등록이다: `sudo rpm --import syspkgs/gpg/RPM-GPG-KEY-*`
+  정석은 번들 키 등록이다: `sudo rpm --import syspkgs/gpg/*GPG-KEY*`
   (`10-install-postgresql.sh` 가 이미 수행). 키가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 낮춘다.
   수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
 - **initdb 위치/실패**: PGDG PG16 의 데이터 디렉토리는 `/var/lib/pgsql/16/data`,
