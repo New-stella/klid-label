@@ -41,10 +41,12 @@ public interface PortalDatasetVideoMetaRepository extends JpaRepository<LsDatase
      * (포털 채널이 read-only 로 소비하는 값이라 그대로 결손). 컬럼 <b>수</b>를 세는 검사로는 잡히지 않는다 —
      * DDL 은 맞고 이 SQL 만 틀렸기 때문. 회귀 가드: {@code PortalMetaReplicaColumnParityGuardTest}.
      *
-     * <h3>⚠ dialect 결합 지점</h3>
+     * <h3>PostgreSQL 문법은 확정 전제다 — 이기종 대응을 넣지 않는다</h3>
      * {@code CAST(... AS jsonb)} 와 {@code ON CONFLICT ... DO NOTHING} 은 <b>PostgreSQL 문법</b>이다.
-     * 포털 DB 를 다른 RDB 로 바꾸는 검토가 있으며, 그때 이 두 구문이 함께 달라진다. 지금은 control 과
-     * 동형을 맞추는 것이 우선이라 PostgreSQL 기준으로 유지한다(선제 대응하지 않는다).
+     * 포털 DB 도 PostgreSQL 이며, 포털향만 다른 RDB(MariaDB 등)로 가르는 분리 빌드는 채택하지 않는다
+     * (2026-08-28 확정). ⚠ 구 서술 폐기 — <i>"포털 DB 를 다른 RDB 로 바꾸는 검토가 있으며 그때 이 두
+     * 구문이 함께 달라진다"</i>. 그 검토는 기각됐으므로 이 두 구문은 잠정 선택이 아니라 확정 전제이고,
+     * 방언 중립으로 되돌리지 말고 control 과 같은 문법으로 동형을 유지한다.
      */
     @Modifying(clearAutomatically = false, flushAutomatically = true)
     @Query(value = "INSERT INTO LS_DATASET_VIDEO_META ("

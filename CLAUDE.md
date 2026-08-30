@@ -477,6 +477,10 @@ slowBuild: true
 
 ### DB 정책
 - `klid_at` 스키마(PostgreSQL)에 저작도구 전용 테이블(LS_*) 운영 — 저작도구가 직접 소유·구성
+- **★전 환경·전 채널 PostgreSQL 이다 — 포털향을 다른 RDB 로 가르지 않는다 (2026-08-28 사용자 확정, 구속)**: 관제향(control)과 **포털향(portal) DB 가 모두 PostgreSQL** 이며, *"포털향은 MariaDB 로 전환될 수 있다"* 는 검토는 **기각**됐다(관제향 PostgreSQL / 포털향 MariaDB 두 벌로 가르는 **분리 빌드 미채택**).
+  - **귀결 — 이기종 대응을 미리 넣지 않는다.** 포털 복제 upsert 의 `CAST(... AS jsonb)` · `ON CONFLICT ... DO NOTHING` 은 잠정 선택이 아니라 **확정 전제**이므로, 방언 중립(dialect-neutral)으로 되돌리거나 그것을 제약으로 새로 세우지 말 것. 복제본은 원본(control)과 **같은 문법으로 동형**을 유지한다. 판정 진실원은 `INT-009`.
+  - ⚠ **낡은 근거를 되살리지 말 것** — 코드 주석의 *"TO_CHAR 가 MariaDB 미지원이라"*(통계 일별·월별 그룹화) · *"H2(local) / MariaDB(dev/stg/prd) 모두 지원"*(배치 큐 잠금)은 **1차 MariaDB 시절 서술**이고 전부 폐기됐다. **local 도 Testcontainers PostgreSQL** 이다. 단 그 서술이 낳은 **동작(Java 측 키 생성 · 비관적 잠금 no-wait)은 그대로 둔다** — 근거만 무효이고 바꿔서 얻는 것이 없다.
+  - ⚠ **v1(1차) 관련 MariaDB 기록은 정정 대상이 아니다** — `ADR-010`(MariaDB→PostgreSQL 전환 결정) · LogiCraft `legacy_artifact` 30건의 `legacy_dbms: MariaDB` · ERD 의 `legacy_source.legacy_dbms` 는 **v1 사실의 기록**이라 그대로 둔다.
 - **★스키마 `klid_at` 은 이제 설정으로 실제 배선돼 있다 (2026-08-13 — 전 환경, 구속)**: 그 전까지 이 서술은 **설계 문서에만 있고 코드에는 없었다**(어디에도 스키마 지정이 없어 PostgreSQL 기본값 `public` 으로 떨어져 있었다 — 주석·javadoc 에만 존재하던 드리프트).
   - **배선 지점 4곳 + 값 1개**: 값은 `${DB_SCHEMA:klid_at}` 하나이고 네 지점이 **모두 그 값을 읽는다**(갈리면 JPA·네이티브 쿼리·Quartz 가 서로 다른 스키마를 본다). ① 커넥션 `spring.datasource.control.data-source-properties.currentSchema`(pgjdbc 접속 시작 파라미터 → search_path) ② Flyway `schemas`/`default-schema`/`create-schemas` ③ Quartz `org.quartz.jobStore.tablePrefix` ④ control EMF 의 `hibernate.default_schema`(`ControlDataSourceConfig`).
   - **★네이티브 쿼리 축이 핵심이다** — `hibernate.default_schema` 는 **JPA 매핑 SQL 만** 한정하고 `@Query(nativeQuery=true)` 의 비한정 테이블명·Quartz JobStore·Flyway 는 전부 **커넥션의 search_path** 를 따른다. ①이 빠지면 **테스트는 통과하는데 런타임에서 네이티브 쿼리만 깨진다**. JDBC URL 에 `?currentSchema=` 로 붙이지 않는 이유는 프로파일 yml 4곳 복제 + **테스트가 URL 을 Testcontainers 값으로 통째로 덮어써 그 파라미터가 사라지기** 때문이다(= 검증되지 않는 배선).

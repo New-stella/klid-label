@@ -402,10 +402,15 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * SCR-STAT-001 — 최근 N 일간 작업자 일별 완료 row (APPROVED 상태 영상 기준).
      * UPD_DT 가 APPROVED 로 전이된 시점이라고 가정 (review.transitionTo() 가 updDt 갱신).
      *
-     * <p><b>dialect 호환성:</b> 일별 그룹화는 JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 에 없어
-     * 실행 실패하므로, raw 행을 그대로 반환하고 서비스 레이어 Java 측에서 DateTimeFormatter +
-     * groupingBy 로 'YYYY-MM-DD' 키를 만든다. 데이터량은 단일 사용자/30일 윈도 → 수십 ~ 수백 행이라
-     * 메모리 부담 없음.
+     * <p><b>Java 측 그룹화(이 파일의 날짜 그룹화 4곳 공통 — 근거는 여기에만 적는다):</b>
+     * raw 행을 그대로 반환하고 서비스 레이어 Java 측에서 DateTimeFormatter + groupingBy 로
+     * 'YYYY-MM-DD' 키를 만든다. 데이터량은 단일 사용자/30일 윈도 → 수십 ~ 수백 행이라 메모리 부담 없음.
+     *
+     * <p>⚠ <b>구 근거 폐기(2026-08-28)</b> — <i>"JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 에 없어 실행
+     * 실패하므로"</i>. 그건 1차 MariaDB 시절 서술이고 이 프로젝트는 <b>PostgreSQL 확정</b>이다
+     * (ADR-010 전환 · 포털 DB 도 PostgreSQL 이며 이기종 분리 빌드는 기각 — INT-009).
+     * 즉 TO_CHAR 를 쓸 수 있으나 <b>Java 측 키 생성을 그대로 둔다</b> — 이미 정상 동작하고 바꿔서 얻는
+     * 것이 없다. 이 서술을 "이기종 대비"로 읽고 방언 중립 제약을 새로 세우지 말 것.
      */
     @Query("""
             SELECT s.updDt AS updDt
@@ -431,8 +436,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * <p>완료 시각의 기준은 {@code LS_RAW_DATA_STATUS.UPD_DT}(APPROVED 전이 시점)이며
      * 대시보드 "최근 완료 영상" 정렬과 동일 축이다.
      *
-     * <p>dialect 호환성: 일별 그룹화는 JPQL TO_CHAR 가 dialect 종속이라 raw 행만 반환하고
-     * 서비스 레이어에서 'YYYY-MM-DD' 키로 묶는다(작업자 경로와 동일 방식). 데이터량은
+     * <p>Java 측 그룹화: 일별 그룹화 키는 raw 행만 반환해
+     * 서비스 레이어에서 'YYYY-MM-DD' 로 묶는다(작업자 경로와 동일 방식 · 근거는 위 참조). 데이터량은
      * 30일 윈도우의 승인 건수라 목표 규모(영상 5,000건)에서도 수백 행 수준이다.
      */
     @Query("""
@@ -446,8 +451,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * SCR-STAT-001 — 최근 N 개월 작업자 월별 완료/반려 raw row.
      *
-     * <p>dialect 호환성: TO_CHAR 제거. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY 하면서
-     * dataSttsCd 에 따라 completed/rejected 분기.
+     * <p>Java 측 그룹화: 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY 하면서
+     * dataSttsCd 에 따라 completed/rejected 분기(근거는 위 참조).
      */
     @Query("""
             SELECT s.updDt AS updDt, s.dataSttsCd AS dataSttsCd
@@ -468,7 +473,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * 작업자에게 LABELER 로 배정된 raw 의 모든 LsDataLbl (자동+수동) 을 대상으로
      * regDt timestamp 만 반환한다. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY.
      *
-     * <p>dialect 호환성: JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 미지원이라 raw 행 반환.
+     * <p>Java 측 그룹화: 키 생성은 서비스 레이어가 하고 여기서는 raw 행만 반환한다(근거는 위 참조).
      * 데이터량: 단일 사용자/12개월 윈도 → 라벨 timestamp 만 select 이므로 N+1 없음.
      */
     @Query("""
@@ -522,7 +527,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * SCR-STAT-001 일별 완료 raw row projection.
      * <p>서비스 레이어에서 Java DateTimeFormatter 로 'YYYY-MM-DD' 키로 묶어 카운트한다.
-     * (TO_CHAR JPQL FUNCTION 이 MariaDB 미지원이라 dialect 호환을 위해 raw 행을 반환.)
+     * (키 생성을 Java 측이 맡으므로 여기서는 raw 행만 반환한다 — 근거는 이 파일의 날짜 그룹화 첫 메서드 javadoc.)
      */
     interface DailyRawRow {
         java.time.LocalDateTime getUpdDt();

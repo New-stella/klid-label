@@ -68,8 +68,9 @@ public class StatsService {
     /** SCR-STAT-001 월별 표 윈도우. */
     private static final int MONTHLY_WINDOW_MONTHS = 12;
     /**
-     * SCR-STAT-001 일별/월별 키 포맷. JPQL TO_CHAR 가 MariaDB 미지원이라
-     * 서비스 레이어에서 dialect 무관하게 문자열 키를 생성한다.
+     * SCR-STAT-001 일별/월별 키 포맷. 날짜 그룹화 키는 DB 함수(TO_CHAR)가 아니라
+     * 서비스 레이어가 만든다 — 근거는 {@code StatsQueryRepository} 의 날짜 그룹화 첫 메서드 javadoc.
+     * ⚠ 구 근거 <i>"JPQL TO_CHAR 가 MariaDB 미지원이라"</i> 는 폐기(2026-08-28) — PostgreSQL 확정이다.
      */
     private static final DateTimeFormatter DAILY_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter MONTHLY_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
@@ -287,7 +288,7 @@ public class StatsService {
 
         // 5) 월별 12개월 — completed/rejected 는 LS_RAW_DATA_STATUS.UPD_DT 기준,
         //    labelCount 는 LS_DATA_LBL.REG_DT 기준으로 별도 쿼리 후 동일 'YYYY-MM' 키로 매핑.
-        //    JPQL TO_CHAR 대신 raw 행 받아 Java 측 키 생성 → dialect 무관.
+        //    JPQL TO_CHAR 대신 raw 행 받아 Java 측에서 키 생성(근거는 DAILY_KEY_FMT javadoc).
         LocalDateTime monthlySince = LocalDate.now()
                 .minusMonths(MONTHLY_WINDOW_MONTHS - 1L)
                 .withDayOfMonth(1)
