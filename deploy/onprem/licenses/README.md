@@ -66,3 +66,29 @@ cat licenses/UNRESOLVED.md
 - **자바 런타임** — WAR 반입 형상이라 우리가 JRE 를 싣지 않는다(대상 WAS 가 이미 Java 17).
 - **시스템 RPM**(`syspkgs/`) — 배포판 패키지라 각 RPM 이 자기 `%license` 를 담고 있고,
   GPL 대응 소스는 `syspkgs/ffmpeg-src/` 로 따로 다룬다(50 단계).
+
+### 4-1. 시스템 RPM 을 `INVENTORY.md` 에 넣지 않은 이유 (심의 예상 질문)
+
+`INVENTORY.md` 의 집계(현재 371 건)는 **우리가 조립한 산출물의 의존성**(백엔드 jar · 프론트엔드
+npm · 파이썬 wheel · 모델 가중치)만 센다. `syspkgs/` 의 RPM 은 그 집계에 **의도적으로 없다.**
+
+- **고지가 이미 패키지 안에 있다.** RPM 은 `%license` 로 표시된 라이선스 전문을 자기 페이로드에
+  담고 설치 시 `/usr/share/licenses/<name>/` 에 푼다. 우리가 사본을 따로 만들면 **배포판 원본과
+  갈라질 수 있는 두 번째 진실원**이 된다.
+- **재배포 주체가 다르다.** 이들은 우리가 조립한 것이 아니라 배포판이 이미 패키징·서명한
+  바이너리를 그대로 옮기는 것이다. 서명(`gpgcheck=1`)이 출처를 보증한다.
+- **카피레프트 대응 소스는 별도 축으로 이미 다룬다** — `syspkgs/ffmpeg-src/`(SRPM) + 65 단계의
+  기계 대조 + `licenses/manual/LGPL-SOURCE-OFFER.md` 의 3년 서면 확약.
+
+**목록을 요구받으면 매체에서 바로 뽑을 수 있다**(별도 반입물 불필요, 오프라인 동작):
+
+```bash
+# 대상 서버 또는 빌드머신(rpm 명령이 있는 곳)에서, 매체를 마운트한 채 실행
+find syspkgs -name '*.rpm' ! -name '*.src.rpm' -print0 \
+  | xargs -0 rpm -qp --qf '%{NAME}|%{VERSION}-%{RELEASE}|%{LICENSE}\n' 2>/dev/null \
+  | sort -u
+```
+
+현재 매체 기준 대상은 **666 개**(`ffmpeg` 261 · `postgresql` 209 · `rpm` 196)이며 GPL 대응
+소스 SRPM 3 개는 별도다. ⚠ 이 숫자는 수집할 때마다 달라지므로 **위 명령의 출력이 정답**이고
+이 문장은 참고값이다. 숫자를 인용하기 전에 다시 세라.

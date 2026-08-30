@@ -55,7 +55,8 @@ _pg_body() {
   cat <<'BODY'
 set -euo pipefail
 PG_OUT="$1"; GPG_OUT="$2"; shift 2
-dnf install -y dnf-plugins-core createrepo_c >/dev/null
+# gnupg2 — 아래 커버리지 검증이 공개키의 키 ID 를 읽는 데 쓴다(없으면 검증 자체가 불가).
+dnf install -y dnf-plugins-core createrepo_c gnupg2 >/dev/null
 echo "[collect] PGDG repo 추가: ${PGDG_REPO_RPM_URL}"
 dnf install -y "${PGDG_REPO_RPM_URL}" >/dev/null
 # 내장(AppStream) postgresql 모듈 비활성 — PGDG 패키지와 충돌 방지(미적용 시 구버전이 깔림).
@@ -65,10 +66,16 @@ dnf download --resolve --alldeps --archlist=x86_64,noarch --downloaddir "${PG_OU
 # 로컬 yum 저장소 메타데이터 — 타깃이 이 repodata 로 의존성을 스스로 해소한다.
 echo "[collect] 로컬 저장소 메타데이터 생성(createrepo_c)"
 createrepo_c --quiet "${PG_OUT}"
-# PGDG GPG 공개키 반입 — 폐쇄망 타깃에 이 키가 없으면 gpgcheck=1 설치가 거부된다.
-mkdir -p "${GPG_OUT}"
-cp -f /etc/pki/rpm-gpg/RPM-GPG-KEY-* "${GPG_OUT}/" 2>/dev/null || true
-ls -1 "${GPG_OUT}" | sed 's/^/  key: /'
+# ---- PGDG GPG 공개키 반입 ----
+#   ★★ 이름 글롭(RPM-GPG-KEY-*)으로 복사하지 않는다 — PGDG 의 키 파일명은
+#     `PGDG-RPM-GPG-KEY-RHEL` 이라 그 글롭에 걸리지 않는다(2026-08-30 실측). 그래서
+#     키가 한 건도 안 담긴 채 수집이 "성공"으로 끝났고, 타깃에서 번들 PG 설치가
+#     `GPG check FAILED (Key ID 40bca2b408b40d20)` 로 <첫 단계에서> 죽었다.
+#     판정은 파일 <내용>(PGP 공개키 블록)으로 한다 — 공유 조각 참조.
+_klid_collect_gpg_keys /etc/pki/rpm-gpg "${GPG_OUT}"
+# ---- 수집 후 검증: 받은 RPM 의 서명 키를 매체가 실제로 갖고 있는가 ----
+#   복사 "시도"만 하고 맞는지 보지 않았던 것이 이번 사고의 본체다. 여기서 대조한다.
+_klid_verify_gpg_coverage "${GPG_OUT}" postgresql "${PG_OUT}"
 BODY
 }
 
@@ -77,10 +84,18 @@ _pg_env() {
   printf 'POSTGRES_RPM_PKGS=(%s)\n' "${POSTGRES_RPM_PKGS[*]}"
 }
 
+# ★ rc 90 = GPG 키 커버리지 실패(공유 조각). "dnf 가 없어 못 받았다"와 <구분해서> 보고해야
+#   한다 — 둘을 같은 실패로 뭉개면 "네트워크 문제인가 보다"로 오독되고, 매체는 조용히
+#   설치 불가 상태로 남는다.
+GPG_COVERAGE_FAIL=0
+
 collect_pg_native() {
   command -v dnf >/dev/null 2>&1 || return 1
   info "[postgres] 네이티브 dnf 로 수집합니다(빌드머신이 el8 계열이라고 가정)."
-  bash -c "$( _pg_env; _pg_body )" _ "${PG_OUT}" "${GPG_OUT}" \
+  local rc=0
+  bash -c "$( _pg_env; klid_rpm_gpg_snippet; _pg_body )" _ "${PG_OUT}" "${GPG_OUT}" || rc=$?
+  if [[ "${rc}" -eq 90 ]]; then GPG_COVERAGE_FAIL=1; return 1; fi
+  [[ "${rc}" -eq 0 ]] \
     || { warn "[postgres] dnf 수집 실패 — 부분 수집을 성공으로 위장하지 않고 폴백/안내로 전환합니다."; return 1; }
   return 0
 }
@@ -89,11 +104,14 @@ collect_pg_docker() {
   command -v docker >/dev/null 2>&1 || return 1
   docker info >/dev/null 2>&1 || { warn "[postgres] docker 데몬이 응답하지 않습니다 — 컨테이너 수집 불가."; return 1; }
   info "[postgres] dnf 가 없어 ${EL8_BUILDER_IMAGE} 컨테이너로 수집합니다(--platform ${EL8_BUILDER_PLATFORM})."
+  local rc=0
   docker run --rm \
     --platform "${EL8_BUILDER_PLATFORM}" \
     -v "${ONPREM}/syspkgs:/sys" \
     "${EL8_BUILDER_IMAGE}" \
-    bash -c "$( _pg_env; _pg_body )" _ /sys/postgresql /sys/gpg \
+    bash -c "$( _pg_env; klid_rpm_gpg_snippet; _pg_body )" _ /sys/postgresql /sys/gpg || rc=$?
+  if [[ "${rc}" -eq 90 ]]; then GPG_COVERAGE_FAIL=1; return 1; fi
+  [[ "${rc}" -eq 0 ]] \
     || { warn "[postgres] 컨테이너 수집 실패 — 부분 수집을 성공으로 위장하지 않고 폴백/안내로 전환합니다."; return 1; }
   return 0
 }
@@ -124,11 +142,21 @@ collect_pg() {
     || { warn "[postgres] 로컬 저장소 메타데이터 누락: ${PG_OUT}/repodata/repomd.xml — 타깃에서 의존성 해소가 불가합니다."; return 1; }
   ok "[postgres] PG16 RPM 수집: ${PG_OUT}  (${count} 개, 핵심 패키지 ${#POSTGRES_RPM_PKGS[@]} 종 확인)"
   sha256_write "${PG_OUT}"
+  # ★ GPG 키 디렉터리의 체크섬도 <여기서> 다시 쓴다. 이 단계가 PGDG 키를 새로 넣으므로,
+  #   50 단계가 먼저 기록해 둔 SHA256SUMS 는 그 키를 모른다(= 매체의 무결성 기준 밖에 남는다).
+  sha256_write "${GPG_OUT}"
   return 0
 }
 
 if collect_pg; then
   :
+elif [[ "${GPG_COVERAGE_FAIL}" -eq 1 ]]; then
+  # ★ graceful SKIP 으로 흘리지 않는다. 여기까지 왔다는 것은 RPM 은 받았는데 <그것을 검증할
+  #   공개키가 매체에 없다>는 뜻이라, 이 매체로는 타깃 설치가 반드시 실패한다.
+  die "[postgres] GPG 키 커버리지 검증 실패 — 받은 PG RPM 의 서명 키가 매체에 없습니다.
+       리포트: ${GPG_OUT}/KEY-COVERAGE-postgresql.txt (MISSING 행)
+       이대로 매체를 만들면 타깃에서 'GPG check FAILED' 로 설치가 첫 단계에서 죽습니다.
+       (임시 우회 KLID_RPM_GPGCHECK=0 은 <해결이 아니라> 서명 검증을 끄는 것입니다.)"
 else
   warn "[postgres] dnf/docker 부재이거나 수집 실패 — PG16 RPM 수집을 건너뜁니다(graceful SKIP)."
   warn "  타깃 RHEL 8.9 용 PG16 RPM 은 el8 컨테이너에서 수집해야 합니다. 예:"
@@ -152,7 +180,7 @@ else
     dnf install -y createrepo_c &&
     dnf download --resolve --alldeps --archlist=x86_64,noarch --downloaddir /sys/postgresql ${POSTGRES_RPM_PKGS[*]} &&
     createrepo_c /sys/postgresql &&
-    mkdir -p /sys/gpg && cp /etc/pki/rpm-gpg/RPM-GPG-KEY-* /sys/gpg/
+    mkdir -p /sys/gpg && cp /etc/pki/rpm-gpg/*GPG-KEY* /sys/gpg/
   '
 
 수집 후 체크섬을 기록하세요:
@@ -166,7 +194,8 @@ else
   - --alldeps 와 createrepo_c 는 <한 세트>입니다. --alldeps 없이 받으면 타깃에 없는 의존이
     누락되고, createrepo_c 없이 RPM 파일을 직접 dnf 에 넘기면 기반 패키지 충돌로 설치가
     실패합니다(2026-08-30 실측).
-  - syspkgs/gpg/RPM-GPG-KEY-* 도 함께 반입해야 타깃에서 서명 검증(gpgcheck=1)이 통과합니다.
+  - syspkgs/gpg/ 의 공개키도 함께 반입해야 타깃에서 서명 검증(gpgcheck=1)이 통과합니다.
+    ★ PGDG 의 키 파일명은 PGDG-RPM-GPG-KEY-RHEL 이라 RPM-GPG-KEY-* 글롭에 걸리지 않습니다.
 
 번들 PG 가 불필요하면(타깃에 이미 PG 가 있으면):
   - 수집:  SKIP_POSTGRES=1 ./scripts/package.sh

@@ -207,16 +207,37 @@ TORCHVISION_CPU_PIN="torchvision==0.27.0"
 #
 #   ★ 핀을 두는 이유: 이 두 개만 "수집 시점의 최신"으로 흘러가면 빌드머신을 언제 돌리느냐에
 #     따라 반입물이 달라져 재현성이 깨진다(락의 다른 의존성은 전부 pip-compile 로 고정된다).
-#   ★ 하한 제약: sam2 의 [build-system] requires 가 setuptools>=61.0 이다(핀 커밋
-#     ${SAM2_GIT_REF} 의 pyproject.toml 실측). 아래 핀은 이 하한을 만족해야 한다.
+#
+#   ★★ setuptools 는 <상한이 있다> — torch 가 걸어 둔 제약이다. 위아래 양쪽을 만족해야 한다:
+#        하한  setuptools>=61.0  ← sam2 의 [build-system] requires (${SAM2_GIT_REF} 커밋 pyproject.toml)
+#        상한  setuptools<82     ← ${TORCH_CPU_PIN} 의 wheel METADATA "Requires-Dist: setuptools<82"
+#      sam2 는 [build-system] requires 에 setuptools 와 torch 를 <함께> 적으므로, PEP 517 빌드
+#      격리 환경은 그 둘을 <동시에> 만족시켜야 한다. 상한을 넘기면 그 자리에서 죽는다:
+#        ERROR: Cannot install setuptools>=61.0 and torch==2.12.0+cpu because these package
+#               versions have conflicting dependencies. … ERROR: ResolutionImpossible
+#      ⚠ 이 실패는 <조용하다>. venv 에 이미 있는 setuptools 는 빌드 격리가 쓰지 않으므로 로컬
+#        설치 상태로는 드러나지 않고, 13-install-ai-server.sh 가 sam2 실패를 흘려보내면(현재는
+#        모델 캐시가 동봉된 납품에서만 die) 설치가 완주한다. 그러면 SAM2 분할·Track 이
+#        <mock 으로 폴백>한다 — ENV=stg|prd 면 503 으로 거부되지만 그 사실은 현장에서
+#        누군가 그 기능을 처음 눌러 볼 때에야 드러난다.
+#
+#   ★ 그래서 "PyPI 최신"을 그대로 쓰지 않는다. 2026-08-30 에 실제로 그렇게 84.0.0 으로 올렸다가
+#     이 결함을 만들었다. <상한을 함께 확인하지 않은 인상>이 원인이다.
+#   ⚠ 올릴 때 반드시 함께 볼 것:
+#       ① TORCH_CPU_PIN 이 바뀌면 그 wheel 의 Requires-Dist 를 다시 읽어 상한을 재확인한다
+#          (torch 가 상한을 풀거나 더 좁힐 수 있다 — 우리가 기억한 값이 아니라 METADATA 가 정본).
+#       ② SAM2_GIT_REF 가 바뀌면 그 커밋의 pyproject.toml 에서 하한을 재확인한다.
+#       ③ 무네트워크 리허설로 sam2 가 <실제로 빌드·설치·import 되는지>까지 확인한다.
+#     30-collect-ai-server.sh 의 3-c 검증이 이 상·하한을 wheel METADATA 로 자동 대조하지만,
+#     그것은 <받은 뒤>에 도는 사후 그물이다. 핀을 고를 때 먼저 확인하는 편이 싸다.
+#
 #   검증: 2026-08-30
-#     - PyPI 최신 안정: setuptools 84.0.0 (requires_python >=3.10) / wheel 0.48.0 (>=3.9)
-#       → 타깃 런타임 Python ${PYTHON_STANDALONE_VERSION} (3.11) 와 정합, 84.0.0 >= 61.0 충족.
-#     - 무네트워크 리허설: python3.11 venv 에서 --no-index --find-links 로 위 두 wheel 만 주고
-#       antlr4-python3-runtime==4.9.3 / iopath==0.1.10 sdist 를 <빌드 격리 켠 채> 빌드 성공.
-#   ⚠ 이 값을 올릴 때는 위 리허설을 다시 돌릴 것 — setuptools 메이저는 레거시 setup.py 지원을
-#     계속 걷어내고 있어, 하한만 보고 올리면 sdist 빌드가 조용히 깨진다.
-PEP517_SETUPTOOLS_PIN="setuptools==84.0.0"
+#     - PyPI 조회: setuptools 최신 안정은 84.0.0 이나 <82 조건에 걸린다. 82.0.0(2026-02-08)·
+#       82.0.1·83.0.0·84.0.0 은 상한 초과 → 조건을 만족하는 <최신>은 81.0.0 (2026-02-06,
+#       yanked 아님, requires_python >=3.9 ⊇ 타깃 3.11). 그 아래는 80.10.2 이므로 81.0.0 을 택한다.
+#     - wheel 0.48.0 (requires_python >=3.9) — 상한 제약 없음, 최신 유지.
+#     - 무네트워크 리허설(--network none 컨테이너): 이 핀으로 sam2 빌드·설치·import 성공.
+PEP517_SETUPTOOLS_PIN="setuptools==81.0.0"
 PEP517_WHEEL_PIN="wheel==0.48.0"
 
 # ---- sam2 VCS 의존성 ----

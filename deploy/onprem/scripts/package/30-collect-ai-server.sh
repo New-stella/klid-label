@@ -60,12 +60,29 @@ if [[ "${pyver}" != "${BUILD_PYTHON_MINOR}" ]]; then
 fi
 
 # ---- 1) 앱 소스 + requirements 복사 ----
+#   함정 2건(2026-08-30 수정):
+#     (1) __pycache__/*.pyc 가 함께 복사되어 빌드머신의 바이트코드가 반입물에 실린다.
+#         빌드머신 파이썬이 대상(3.11)과 다르면 cpython-314 같은 태그가 매체에 남는다.
+#         동작에는 무해하나(3.11 은 자기 태그가 아닌 캐시를 무시한다) 반입물 위생 문제다.
+#         제외를 tar --exclude 로 하지 않고 복사 후 find 로 지우는 이유는 tar 방언 차이다 —
+#         GNU tar 는 --exclude='./__pycache__' 를 선두 고정으로 해석해 중첩된 것을 놓치고
+#         bsdtar 는 잡는다. 빌드머신의 tar 가 어느 쪽인지에 결과가 좌우되면 안 된다.
+#     (2) tests 에 rm -rf 가 없어 재수집할 때마다 한 겹씩 중첩됐다.
+#         cp -R src dst 는 dst 가 이미 있으면 그 안으로 들어가므로 tests/tests/tests/... 로
+#         쌓인다(실제로 tests/tests 까지 진행돼 있었다).
 info "[ai-server] 앱 소스 복사..."
-rm -rf "${OUT}/app"
+rm -rf "${OUT}/app" "${OUT}/tests"
 cp -R "${AI_SRC}/app" "${OUT}/app"
 cp "${AI_SRC}/requirements.txt" "${OUT}/requirements.txt"
 # tests 는 운영에 불필요하나 스모크 참고용으로 동봉(선택)
 [[ -d "${AI_SRC}/tests" ]] && cp -R "${AI_SRC}/tests" "${OUT}/tests" || true
+# 파이썬 바이트코드 캐시 제거 — 방금 복사한 트리 안에서만 지운다.
+for _pysrc in "${OUT}/app" "${OUT}/tests"; do
+  [[ -d "${_pysrc}" ]] || continue
+  find "${_pysrc}" -type d -name '__pycache__' -prune -exec rm -rf {} +
+  find "${_pysrc}" \( -name '*.pyc' -o -name '*.pyo' \) -delete
+done
+unset _pysrc
 ok "[ai-server] 소스 수집: ${OUT}/app"
 
 # ---- 2) sam2 VCS 의존성 → 소스 vendor ----
@@ -124,9 +141,31 @@ warn "  CPU 인덱스(${PYTORCH_CPU_INDEX_URL})에 해당 버전 wheel 이 없�
 warn "  실패 시 06-troubleshooting.md 'torch CPU' 절을 참고해 인접 버전으로 조정하세요."
 # --extra-index-url(PyPI) 폴백을 두지 않는다 — CPU 인덱스에 없으면 거대 CUDA wheel 로
 # 조용히 폴백되어 번들에 혼입되므로, 명시적으로 실패시켜 troubleshooting 으로 유도한다.
+#
+# ★★ --no-deps 로 <본체만> 받는다 (2026-08-30 실측 실패 대응).
+#   --index-url 은 PyPI 를 <대체>한다(추가가 아니다). 그래서 torch 의 의존성까지 CPU 인덱스라는
+#   좁은 인덱스 안에서만 찾게 되고, 그 인덱스에는 torch 계열 말고는 빌드 의존이 없다.
+#   실측 실패 경로:
+#     ① typing-extensions 4.16.0 <wheel> 을 pip 가 discard 한다 —
+#        "inconsistent Name: expected 'typing-extensions', but metadata has 'typing_extensions'"
+#        (CPU 인덱스가 노출하는 이름과 wheel METADATA 의 이름 표기가 어긋난다)
+#     ② wheel 이 버려지니 sdist(typing_extensions-4.16.0.tar.gz) 로 폴백
+#     ③ 그 sdist 의 PEP 517 빌드 의존 flit_core<4,>=3.11 을 CPU 인덱스에서 찾지 못함
+#        → "ERROR: No matching distribution found for flit_core" 로 <수집 전체가 죽는다>
+#   ⚠ 해법으로 --extra-index-url(PyPI) 를 더하지 말 것 — 위 금지 사유가 그대로 되살아난다
+#     (CPU 판이 없거나 우선순위가 밀리면 수 GB 짜리 CUDA torch 가 조용히 섞인다).
+#   → 대신 <의존성 해석 자체를 끈다>. torch/torchvision 의 의존성은 위 (1/2) 단계에서 이미
+#     전부 받혔다 — requirements.txt 가 pip-compile 산출물이라 torch 의 의존성(filelock ·
+#     typing-extensions · sympy · networkx · jinja2 · fsspec · numpy · pillow …)도 그 lock 안에
+#     함께 고정돼 있기 때문이다.
+#   ⚠ --no-deps 는 "의존성이 이미 다 있다"는 <전제에 기댄다>. 그 전제가 깨지면 수집은 성공으로
+#     끝나고 <폐쇄망 설치가 그 자리에서 죽는다> — 조용한 실패다.
+#     그래서 아래 3-c 에서 받은 wheel 의 Requires-Dist 를 읽어 폐포를 <반드시> 검증한다.
+#     그 검증을 지우면 이 --no-deps 는 안전하지 않다. 세트로 다뤄야 한다.
 "${PYBIN}" -m pip download \
   --dest "${WHEELS}" \
   --index-url "${PYTORCH_CPU_INDEX_URL}" \
+  --no-deps \
   "${torch_pin:-torch}" "${tv_pin:-torchvision}" \
   || die "[ai-server] torch CPU wheel 다운로드 실패 — 06-troubleshooting.md 의 'torch CPU' 절을 참조하세요."
 
@@ -147,21 +186,297 @@ warn "  실패 시 06-troubleshooting.md 'torch CPU' 절을 참고해 인접 버
 #   ★ 버전은 versions.sh 의 PEP517_* 핀으로 고정한다(단일 출처). 락의 다른 의존성은 전부
 #     pip-compile 로 고정되는데 이 보강분만 "수집 시점의 최신"으로 흘러가면, 빌드머신을 언제
 #     돌리느냐에 따라 반입물이 달라져 재현성이 깨진다.
-#   ★ 하한 검증: sam2 의 [build-system] requires 가 setuptools>=61.0 이다(SAM2_GIT_REF 커밋의
+#   ★ 하한 사전검사: sam2 의 [build-system] requires 가 setuptools>=61.0 이다(SAM2_GIT_REF 커밋의
 #     pyproject.toml). 핀을 그 아래로 낮추면 폐쇄망에서 sam2 빌드가 "찾을 수 없다"로 실패하므로
 #     받기 전에 막는다.
+#   ⚠ 이 61.0 은 <사전검사용 사본>이고 판정의 정본이 아니다. 아래 3-c 가 vendor 한 sam2 의
+#     pyproject.toml 을 직접 읽어 상·하한을 대조하므로, sam2 가 요구를 바꾸면 그쪽이 잡는다.
+#     여기 숫자는 "받기 전에 싸게 걸러내는" 용도이므로 어긋나도 최종 판정은 3-c 가 한다.
+#   ⚠ <상한은 여기서 검사하지 않는다>. 상한(torch 의 setuptools<82)은 우리가 외울 값이 아니라
+#     받은 torch wheel 의 METADATA 에 있다 — 여기에 숫자로 박으면 torch 핀이 바뀔 때 조용히
+#     낡는 두 번째 진실원이 된다. 3-c 가 METADATA 를 읽어 판정한다.
 _su_ver="${PEP517_SETUPTOOLS_PIN#setuptools==}"
 [[ "$(printf '%s\n61.0\n' "${_su_ver}" | sort -V | head -1)" == "61.0" ]] \
   || die "[ai-server] setuptools 핀(${PEP517_SETUPTOOLS_PIN})이 sam2 의 하한 61.0 미만입니다 — versions.sh 의 PEP517_SETUPTOOLS_PIN 을 올리세요."
 
 info "[ai-server] (보강) PEP 517 빌드 백엔드 wheel 수집(${PEP517_SETUPTOOLS_PIN}, ${PEP517_WHEEL_PIN})..."
+# ★★ --no-deps 로 <핀한 두 개만> 받는다 (2026-08-30 — packaging 이중 반입 대응).
+#   wheel 은 packaging>=24.0 을 요구한다. --no-deps 없이 받으면 pip 가 그 요구를 <락과 무관하게>
+#   새로 풀어 PyPI 최신을 함께 끌어온다(실측: packaging 26.3 이 딸려 왔다). 그런데 락은
+#   packaging==26.2 를 고정하고 있어 같은 배포물이 <두 판> 반입된다. 설치를 깨뜨리지는 않지만
+#   ① 재현성이 깨지고(빌드머신을 언제 돌리느냐에 따라 반입물이 달라진다)
+#   ② 폐쇄망에서 어느 판이 쓰이는지가 pip 의 해석에 맡겨지며
+#   ③ 라이선스 인벤토리가 같은 패키지를 두 줄로 계상한다.
+#   → 락이 이미 고정한 의존은 <락에서만> 온다. 위 torch --no-deps 와 같은 원칙이다.
+#   ⚠ 이 --no-deps 도 전제("그 의존은 이미 락에 있다")에 기댄다. 그래서 아래 3-c 가
+#     setuptools·wheel 을 <검증 루트에 포함해> 폐포를 확인한다. 세트로 다뤄야 한다.
 "${PYBIN}" -m pip download \
   --dest "${WHEELS}" \
   --only-binary=:all: \
+  --no-deps \
   "${PEP517_SETUPTOOLS_PIN}" "${PEP517_WHEEL_PIN}" \
   || die "[ai-server] setuptools/wheel wheel 다운로드 실패 — 이대로 반입하면 폐쇄망에서 sam2/sdist 설치가 실패합니다."
 
-# ---- 3-c) sdist 혼입 점검 (폐쇄망 경고) ----
+# ---- 3-c) 의존성 폐포 검증 — <버전 지정자까지> 대조 (--no-deps 의 안전장치) ----
+#   ★ 위 (2/2)·(보강) 두 단계가 --no-deps 로 <본체만> 받는다. 그 전제("의존성은 이미 다
+#     받혔다")가 깨지면 수집은 <성공으로 끝나고> 폐쇄망 설치가 그 자리에서 죽는다. 빌드머신에서
+#     시끄럽게 실패하는 편이 낫다 — 그래서 받은 wheel 의 METADATA(Requires-Dist)를 실제로 읽어
+#     반입물(vendor/wheels) 안에서 의존성이 <닫히는지> 확인하고, 하나라도 어긋나면 die 한다.
+#
+#   ★★ 이름만 보지 않고 <버전 지정자를 평가>한다 (2026-08-30 — 이 검사가 실패를 통과시킨 뒤 보강).
+#     구 검사는 "그 이름의 배포물이 있는가"만 봤다. 그래서 다음이 <통과>했다:
+#         torch 2.12.0+cpu 의 "Requires-Dist: setuptools<82"  vs  반입된 setuptools 84.0.0
+#     이름은 있으니 통과 → 폐쇄망에서 sam2 빌드가 ResolutionImpossible 로 죽었다.
+#     이름 존재는 필요조건일 뿐이고, 설치를 가르는 것은 <버전>이다.
+#
+#   ★ sam2 의 [build-system] requires 도 함께 본다. sam2 는 wheel 이 아니라 <소스 디렉터리>로
+#     반입되므로 그 빌드 의존(setuptools>=61.0, torch>=2.5.1)은 어떤 wheel METADATA 에도 없다.
+#     wheel 만 훑는 검사는 이 축을 <구조적으로> 볼 수 없다. 실제 실패가 난 자리가 여기다.
+#
+#   ★ requirements.txt 를 다시 읽어 판정하지 않는다 — 그러면 "lock 이 곧 진실"이라는 같은
+#     전제를 두 번 믿는 것이라 검증이 되지 않는다. 판정 근거는 <실제로 받은 파일>이다.
+#   ★ 마커는 <타깃 환경>(cp311 · Linux · x86_64) 기준으로 평가한다. 빌드머신의 기본 환경으로
+#     평가하면 mac 에서 돌릴 때 sys_platform=='darwin' 이 되어 리눅스 전용 의존을 통째로
+#     건너뛴다 — 검사가 조용히 무력해진다.
+#   ★ extras(선택 기능) 의존은 제외한다. 우리는 extras 없이 설치하므로 설치 대상이 아니다.
+#   ★ 폐포를 <재귀로> 따라간다. 직접 의존만 보면 그 아래 한 단이 비었을 때를 놓친다.
+#   ★ <평가하지 못한 것은 통과시키지 않고 이름을 남긴다>. "검사 못 함"과 "통과"는 다르다 —
+#     구 검사는 파싱 실패한 요구사항을 조용히 continue 했다(그 요구는 아무도 안 본 게 된다).
+info "[ai-server] (검증) 반입물 안에서 의존성이 <버전까지> 닫히는지 확인..."
+"${PYBIN}" - "${WHEELS}" "${SAM2_OUT}/sam2-src" <<'PY' || die "[ai-server] 반입물(vendor/wheels)의 의존성이 닫히지 않습니다.
+       위에 [없음]/[불만족] 으로 표시된 항목이 폐쇄망 설치를 실패시킵니다.
+       조치(누락): 누락분을 ai-server/requirements.txt(lock)에 반영해 (1/2) 단계에서 함께 받게 하세요.
+       조치(버전 불만족): versions.sh 의 해당 핀을 지정자를 만족하는 값으로 조정하세요
+         — 특히 PEP517_SETUPTOOLS_PIN 은 sam2 의 하한과 torch 의 상한을 <동시에> 만족해야 합니다.
+       ⚠ torch 다운로드에 --extra-index-url(PyPI)을 더해 해결하려 하지 마세요 — CUDA wheel 혼입 경로가 열립니다."
+import pathlib
+import re
+import sys
+import zipfile
+
+wheels = pathlib.Path(sys.argv[1])
+sam2_src = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None
+
+
+def norm(name):
+    """PEP 503 정규화 — typing_extensions 와 typing-extensions 를 같은 것으로 본다."""
+    return re.sub(r"[-_.]+", "-", name).strip().lower()
+
+
+try:
+    from pip._vendor.packaging.requirements import Requirement
+    from pip._vendor.packaging.version import InvalidVersion, Version
+except Exception:
+    try:
+        from packaging.requirements import Requirement
+        from packaging.version import InvalidVersion, Version
+    except Exception:
+        print("packaging 모듈을 찾을 수 없어 의존성 폐포를 검증하지 못했습니다.")
+        print("  pip 가 vendor 한 packaging 도, 독립 packaging 도 없습니다.")
+        print("  ★ 이 검사를 건너뛴 채로 반입하지 마세요 — 이 검사가 없으면 위 --no-deps 는")
+        print("    안전하지 않습니다(폐쇄망 설치 실패가 빌드 시점에 드러나지 않습니다).")
+        sys.exit(2)
+
+# 반입물 인덱스: {정규화이름: [(Version|None, 파일, wheel여부), ...]}
+#   wheel  파일명 규약: {name}-{version}-{pytag}-{abi}-{platform}.whl
+#   sdist  파일명 규약: {name}-{version}.tar.gz
+present = {}
+
+
+def _add(name, ver_str, path, is_wheel):
+    try:
+        ver = Version(ver_str)
+    except (InvalidVersion, Exception):
+        ver = None
+    present.setdefault(norm(name), []).append((ver, path, is_wheel))
+
+
+for f in sorted(wheels.iterdir()):
+    if f.name.endswith(".whl"):
+        parts = f.name[: -len(".whl")].split("-")
+        if len(parts) >= 2:
+            _add(parts[0], parts[1], f, True)
+    elif f.name.endswith(".tar.gz"):
+        stem = f.name[: -len(".tar.gz")]
+        if "-" in stem:
+            nm, _, vr = stem.rpartition("-")
+            _add(nm, vr, f, False)
+
+# 타깃 런타임 환경(마커 평가 기준) — 빌드머신 환경이 아니다.
+TARGET_ENV = {
+    "implementation_name": "cpython",
+    "implementation_version": "3.11.15",
+    "os_name": "posix",
+    "platform_machine": "x86_64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "",
+    "platform_system": "Linux",
+    "platform_version": "",
+    "python_full_version": "3.11.15",
+    "python_version": "3.11",
+    "sys_platform": "linux",
+}
+
+
+def requires_dist(whl):
+    """wheel 의 dist-info/METADATA 에서 Requires-Dist 헤더만 뽑는다."""
+    out = []
+    with zipfile.ZipFile(whl) as z:
+        metas = [n for n in z.namelist()
+                 if n.endswith(".dist-info/METADATA") and n.count("/") == 1]
+        if not metas:
+            return out
+        text = z.read(metas[0]).decode("utf-8", "replace")
+    for line in text.splitlines():
+        if line == "":
+            break  # 헤더 끝(본문 시작)
+        if line.lower().startswith("requires-dist:"):
+            out.append(line.split(":", 1)[1].strip())
+    return out
+
+
+missing = []      # 이름 자체가 반입물에 없음
+unsatisfied = []  # 이름은 있으나 <어떤 반입 버전도> 지정자를 만족하지 못함
+unchecked = []    # 파싱·평가 실패 — "통과"가 아니라 "검사 못 함"
+edges = []
+
+
+def check(parent, raw):
+    """요구사항 하나를 반입물과 대조. 만족하면 그 이름을, 아니면 None 을 돌려준다."""
+    try:
+        req = Requirement(raw)
+    except Exception as exc:
+        unchecked.append((parent, raw, "요구사항 파싱 실패: %s" % exc))
+        return None
+    if req.marker is not None:
+        if "extra" in str(req.marker):
+            return None  # 선택 기능 — 설치 대상 아님
+        try:
+            if not req.marker.evaluate(TARGET_ENV):
+                return None
+        except Exception as exc:
+            unchecked.append((parent, raw, "마커 평가 실패(필수로 간주): %s" % exc))
+    dep = norm(req.name)
+    cands = present.get(dep, [])
+    if not cands:
+        edges.append((parent, dep, raw, "없음"))
+        missing.append((parent, raw))
+        return None
+    spec = req.specifier
+    if not str(spec):
+        edges.append((parent, dep, raw, ""))
+        return dep
+    unparsable = [p for (v, p, _w) in cands if v is None]
+    ok = []
+    for (ver, path, _w) in cands:
+        if ver is None:
+            continue
+        try:
+            if spec.contains(ver, prereleases=True):
+                ok.append(str(ver))
+        except Exception as exc:
+            unchecked.append((parent, raw, "지정자 평가 실패: %s" % exc))
+            return dep
+    if unparsable:
+        unchecked.append(
+            (parent, raw,
+             "버전을 읽지 못한 반입 파일: %s" % ", ".join(p.name for p in unparsable)))
+    if not ok:
+        have = ", ".join(str(v) for (v, _p, _w) in cands if v is not None) or "(버전 불명)"
+        edges.append((parent, dep, raw, "불만족"))
+        unsatisfied.append((parent, raw, have))
+        return None
+    edges.append((parent, dep, raw, ""))
+    return dep
+
+
+ROOTS = ["torch", "torchvision", "setuptools", "wheel"]
+# 루트 자체가 없으면 "간선 0건이라 통과"가 되어 검사가 무의미해진다 — 먼저 막는다.
+_absent = [r for r in ROOTS if not any(w for (_v, _p, w) in present.get(r, []))]
+if _absent:
+    print("★ 루트 wheel 이 반입물에 없습니다: %s" % ", ".join(_absent))
+    print("  (해당 다운로드 단계가 실제로 성공했는지 확인하세요)")
+    sys.exit(1)
+
+seen = set()
+queue = list(ROOTS)
+while queue:
+    name = norm(queue.pop(0))
+    if name in seen:
+        continue
+    seen.add(name)
+    for (_ver, f, is_wheel) in present.get(name, []):
+        if not is_wheel:
+            # sdist 는 METADATA 위치가 제각각이라 잎으로 둔다 — 아래에서 명시 보고한다.
+            continue
+        for raw in requires_dist(f):
+            dep = check(name, raw)
+            if dep:
+                queue.append(dep)
+
+# ---- sam2 [build-system] requires — wheel METADATA 에 없는 축 ----
+#   sam2 는 소스 디렉터리로 반입되므로 이 요구는 pyproject.toml 에만 있다.
+#   PEP 517 빌드 격리 환경이 이 목록을 <동시에> 만족시켜야 한다.
+sam2_reqs = []
+if sam2_src is not None and (sam2_src / "pyproject.toml").is_file():
+    try:
+        import tomllib
+        with open(sam2_src / "pyproject.toml", "rb") as fh:
+            sam2_reqs = tomllib.load(fh).get("build-system", {}).get("requires", []) or []
+    except Exception as exc:
+        unchecked.append(("sam2/pyproject.toml", "[build-system] requires",
+                          "읽기 실패: %s" % exc))
+    for raw in sam2_reqs:
+        check("sam2(build-system)", raw)
+elif sam2_src is not None:
+    unchecked.append(("sam2", "[build-system] requires",
+                      "pyproject.toml 을 찾지 못함: %s" % sam2_src))
+
+for parent, dep, raw, flag in edges:
+    print("    %-22s -> %-24s %s%s"
+          % (parent, dep, raw, ("   [%s]" % flag) if flag else ""))
+print("  검사 간선 %d / 반입 배포물 %d / 추적한 패키지 %d / sam2 빌드요구 %d"
+      % (len(edges), len(present), len(seen), len(sam2_reqs)))
+
+# 같은 배포물이 여러 판 들어온 경우 — 재현성 결함이라 이름을 남긴다(설치를 깨뜨리진 않는다).
+dups = {n: c for n, c in present.items() if len({str(v) for (v, _p, _w) in c}) > 1}
+if dups:
+    print("")
+    print("⚠ 같은 배포물이 여러 판 반입됐습니다(재현성 결함 — 락과 다른 판이 섞였는지 확인):")
+    for n, c in sorted(dups.items()):
+        print("    %s: %s" % (n, ", ".join(sorted(p.name for (_v, p, _w) in c))))
+
+_sdist_leaves = sorted(n for n, c in present.items() if all(not w for (_v, _p, w) in c))
+if _sdist_leaves:
+    print("")
+    print("⚠ sdist 라 의존성을 읽지 못해 <잎으로 둔> 배포물(그 아래 단은 검사되지 않았습니다):")
+    print("    %s" % ", ".join(_sdist_leaves))
+
+if unchecked:
+    print("")
+    print("⚠ 평가하지 못한 요구사항 — <통과가 아니라 미검사>입니다. 사람이 확인하세요:")
+    for parent, raw, why in unchecked:
+        print("    %s 의 '%s' — %s" % (parent, raw, why))
+
+if missing:
+    print("")
+    print("★ 반입물(vendor/wheels)에 없는 필수 의존:")
+    for parent, raw in missing:
+        print("    %s 가 요구: %s" % (parent, raw))
+
+if unsatisfied:
+    print("")
+    print("★ 이름은 있으나 <버전이 요구를 만족하지 않는> 의존:")
+    for parent, raw, have in unsatisfied:
+        print("    %s 가 요구: %s   — 반입된 판: %s" % (parent, raw, have))
+
+if missing or unsatisfied:
+    sys.exit(1)
+print("  OK — 반입물 안에서 의존성이 버전까지 닫힙니다(sam2 빌드 요구 포함).")
+PY
+ok "[ai-server] 의존성 폐포 검증 통과(버전 지정자 대조 + sam2 빌드 요구 포함)"
+
+# ---- 3-d) sdist 혼입 점검 (폐쇄망 경고) ----
 #   sdist(.tar.gz)는 설치 시점에 빌드를 요구한다. 순수 파이썬이면 위 빌드 백엔드로 충분하지만,
 #   C 확장 sdist 라면 타깃에 컴파일러·헤더가 필요해진다 — 폐쇄망에서 그 자리에 멈춘다.
 #   ★ --only-binary=:all: 를 <전체에 강제하지는 않는다>: 2026-08-30 실측 기준 이 lock 에는
@@ -245,94 +560,15 @@ else
 fi
 
 # ---- 라이선스 고지 수집 (wheel + sam2 + 가중치) -----------------------------
-#   ★ 대상은 <실제로 반입되는 wheel 파일>이다. requirements.txt 를 읽어 목록을 만들면
-#     torch 처럼 별도 인덱스에서 받은 것·빌드 백엔드 보강분(setuptools/wheel)이 빠진다.
-#   ★ wheel 안 고지 파일은 두 자리에 있다 — PEP 639 이후는 `*.dist-info/licenses/**`,
-#     그 이전은 dist-info 바로 아래. 둘 다 훑는다(한쪽만 보면 세대 하나를 통째로 놓친다).
-#   ★★ opencv-python 의 `LICENSE-3RD-PARTY.txt` 가 여기서 <반드시> 딸려 나와야 한다.
-#     그 파일이 이 반입물의 유일한 FFmpeg(LGPL-2.1)·Qt5(LGPL-3.0) 고지다.
-#     ⚠ 그 두 건은 고지만으로 끝나지 않는다 — 대응 소스 제공 의무가 남는다.
-#       licenses/manual/LGPL-SOURCE-OFFER.md 를 함께 반입할 것.
-LIC_PY_PKG="$(lic_root)/python-packages"
-if ! command -v unzip >/dev/null 2>&1; then
-  warn "[ai-server] unzip 이 없어 wheel 라이선스 고지를 수집하지 못했습니다."
-else
-  lic_reset_area "python-packages"
-  _pinv="${LIC_PY_PKG}/INVENTORY.tsv"
-  lic_inventory_init "${_pinv}"
-  _pw=0; _ptxt=0; _pnam=0; _punres=0
-  while IFS= read -r _whl; do
-    [[ -n "${_whl}" ]] || continue
-    _pw=$((_pw+1))
-    _wb="$(basename "${_whl}")"
-    # wheel 파일명 규약: {name}-{version}-{pytag}-...
-    _wname="${_wb%%-*}"
-    _wver="$(printf '%s' "${_wb#"${_wname}"-}" | cut -d- -f1)"
-    _cnt="$(lic_wheel_copy_notices "${_whl}" "${LIC_PY_PKG}/$(lic_slug "${_wname}-${_wver}")")"
-    _wlic="$(lic_wheel_metadata_license "${_whl}")"
-    if [[ "${_cnt}" -gt 0 ]]; then
-      _ptxt=$((_ptxt+1)); _psrc="ARCHIVE"; _pst="OK"
-    elif [[ -n "${_wlic}" ]]; then
-      _pnam=$((_pnam+1)); _psrc="METADATA"; _pst="TEXT_MISSING"
-    else
-      _punres=$((_punres+1)); _psrc="NONE"; _pst="UNRESOLVED"
-    fi
-    lic_inventory_add "${_pinv}" python-packages "${_wname}" "${_wver}" "${_wlic}" "${_psrc}" "${_pst}"
-  done < <(find "${WHEELS}" -maxdepth 1 -name '*.whl' -type f | sort)
-
-  # sdist(.tar.gz)도 반입물이다 — 이름/버전만 인벤토리에 남긴다(내부 구조가 제각각이라
-  # 고지 파일 위치를 일반화할 수 없다. 전문은 사람이 OVERRIDES.tsv 로 채운다).
-  while IFS= read -r _sd; do
-    [[ -n "${_sd}" ]] || continue
-    _sb="$(basename "${_sd}" .tar.gz)"
-    lic_inventory_add "${_pinv}" python-packages "${_sb}" "" "" "NONE" "UNRESOLVED"
-    _punres=$((_punres+1))
-  done < <(find "${WHEELS}" -maxdepth 1 -name '*.tar.gz' -type f | sort)
-
-  # sam2 는 wheel 이 아니라 <소스 디렉터리>로 반입되므로 따로 챙긴다.
-  if [[ -d "${SAM2_OUT}/sam2-src" ]]; then
-    _n=0
-    while IFS= read -r _f; do
-      [[ -n "${_f}" ]] || continue
-      mkdir -p "${LIC_PY_PKG}/sam2"
-      cp -f "${_f}" "${LIC_PY_PKG}/sam2/$(lic_slug "$(basename "${_f}")")" && _n=$((_n+1))
-    done < <(find "${SAM2_OUT}/sam2-src" -maxdepth 1 -type f \
-               \( -iname 'LICENSE' -o -iname 'LICENSE.*' -o -iname 'NOTICE' -o -iname 'NOTICE.*' \) 2>/dev/null | sort)
-    if [[ "${_n}" -gt 0 ]]; then
-      lic_inventory_add "${_pinv}" python-packages "sam2 (소스 vendor)" "${SAM2_GIT_REF:-}" "" ARCHIVE OK
-    else
-      lic_inventory_add "${_pinv}" python-packages "sam2 (소스 vendor)" "${SAM2_GIT_REF:-}" "" NONE UNRESOLVED
-      _punres=$((_punres+1))
-    fi
-  fi
-
-  # YOLOX 가중치 — 바이너리라 안에 고지가 없다. 출처·라이선스는 저장소 기록이 정본이므로
-  # 그 기록 파일을 그대로 동봉한다(우리가 문장을 새로 쓰지 않는다).
-  if [[ -f "${WEIGHTS_OUT}/yolox_s.onnx" ]]; then
-    if [[ -f "${AI_SRC}/weights/README.md" ]]; then
-      mkdir -p "${LIC_PY_PKG}/yolox-weights"
-      cp -f "${AI_SRC}/weights/README.md" "${LIC_PY_PKG}/yolox-weights/PROVENANCE.md"
-      lic_inventory_add "${_pinv}" python-packages "yolox_s.onnx (모델 가중치)" "0.1.1rc0" "Apache-2.0" METADATA TEXT_MISSING
-      _pnam=$((_pnam+1))
-    else
-      lic_inventory_add "${_pinv}" python-packages "yolox_s.onnx (모델 가중치)" "" "" NONE UNRESOLVED
-      _punres=$((_punres+1))
-    fi
-  fi
-
-  # SAM2 HF 모델 캐시 — 받았을 때만 인벤토리에 남긴다(전문은 캐시에 없다).
-  if [[ -n "$(ls -A "${HF_OUT}" 2>/dev/null || true)" ]]; then
-    lic_inventory_add "${_pinv}" python-packages "${HF_SAM2_MODEL_ID} (HF 모델 캐시)" "" "" NONE UNRESOLVED
-    _punres=$((_punres+1))
-  fi
-
-  ok "[ai-server] 라이선스 고지 수집: ${LIC_PY_PKG} (wheel ${_pw} / 전문 ${_ptxt} / 이름만 ${_pnam} / 미해석 ${_punres})"
-  if [[ ! -d "${LIC_PY_PKG}" ]] || ! find "${LIC_PY_PKG}" -name 'LICENSE-3RD-PARTY*' -print -quit | grep -q .; then
-    warn "[ai-server] ★opencv 의 LICENSE-3RD-PARTY 고지를 찾지 못했습니다."
-    warn "  그 파일이 이 반입물의 유일한 FFmpeg(LGPL-2.1)·Qt5(LGPL-3.0) 고지입니다 — 반드시 확인하세요."
-  fi
-  [[ "${_punres}" -gt 0 ]] && warn "[ai-server] 미해석 ${_punres} 건 — licenses/manual/OVERRIDES.tsv 에 사람이 적어야 합니다."
-fi
+#   ★ 본문은 35-collect-python-licenses.sh 로 <떼어냈다>(2026-08-30). 그 로직은 이미 디스크에
+#     있는 반입물만 읽으므로 수집 결과에 의존하지 않는데, 여기 붙어 있으면 다시 돌리려고
+#     수 GB 를 재다운로드해야 했다. 실제로 그래서 휠을 교체한 뒤 고지 스테이징만 낡은 채로
+#     남았다(setuptools 84.0.0 · packaging 26.3 이 고지에만 있고 반입물엔 없었다).
+#   ⚠ 여기서 호출하는 것은 그대로 둔다 — 수집 직후 자동으로 최신화되어야 한다.
+#     스테이징만 다시 만들 때는 아래 두 줄이면 된다(재다운로드 없음):
+#       bash scripts/package/35-collect-python-licenses.sh
+#       bash scripts/package/70-generate-notices.sh
+bash "${SELF_DIR}/35-collect-python-licenses.sh"
 
 # ---- 무결성 체크섬 ----
 sha256_write "${WHEELS}"

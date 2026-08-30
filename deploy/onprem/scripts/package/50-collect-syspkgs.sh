@@ -133,7 +133,8 @@ _collect_body() {
 set -euo pipefail
 FF_OUT="$1"; RPM_OUT="$2"; GPG_OUT="$3"; FFSRC_OUT="$4"; shift 4
 mkdir -p "${FF_OUT}" "${RPM_OUT}" "${GPG_OUT}" "${FFSRC_OUT}"
-dnf install -y dnf-plugins-core createrepo_c >/dev/null
+# gnupg2 — 아래 커버리지 검증이 공개키의 키 ID 를 읽는 데 쓴다(없으면 검증 자체가 불가).
+dnf install -y dnf-plugins-core createrepo_c gnupg2 >/dev/null
 
 if [ "${COLLECT_FFMPEG}" = "1" ]; then
   # ffmpeg 는 base/AppStream 에 없다 — EPEL + RPM Fusion 을 추가하고 PowerTools(CRB)를 켠다.
@@ -194,9 +195,21 @@ createrepo_c --quiet "${RPM_OUT}"
 
 # GPG 공개키 반입 — 폐쇄망 타깃에는 EPEL/RPM Fusion 키가 없어 gpgcheck 가 켜져 있으면
 #   서명 검증이 불가해 설치가 거부된다. 키 파일을 함께 반입해 설치 스크립트가 rpm --import 한다.
-echo "[collect] RPM GPG 공개키 수집 → ${GPG_OUT}"
-cp -f /etc/pki/rpm-gpg/RPM-GPG-KEY-* "${GPG_OUT}/" 2>/dev/null || true
-ls -1 "${GPG_OUT}" | sed 's/^/  key: /'
+# ---- RPM GPG 공개키 반입 ----
+#   ★★ 이름 글롭(RPM-GPG-KEY-*)으로 복사하지 않는다 — 이름 규약은 배포처마다 다르다.
+#     실제로 PGDG 는 `PGDG-RPM-GPG-KEY-RHEL` 을 쓰고, 그래서 55 단계가 그 키를 한 건도
+#     담지 못한 채 "성공"으로 끝났다(2026-08-30). 여기(EPEL·RPM Fusion)는 우연히 이름이
+#     맞아 통과했을 뿐 <같은 구조적 사각>이다. 판정을 파일 내용으로 바꾼다.
+_klid_collect_gpg_keys /etc/pki/rpm-gpg "${GPG_OUT}"
+
+# ---- 수집 후 검증: 받은 RPM 의 서명 키를 매체가 실제로 갖고 있는가 ----
+#   ★ 키를 "복사 시도"만 하고 맞는지 보지 않으면, 리포가 하나 늘 때마다 같은 사고가 되살아난다.
+#     여기서 RPM 전량의 서명 키 ID 를 뽑아 매체의 공개키와 대조한다(미보유면 exit 90).
+if [ "${COLLECT_FFMPEG}" = "1" ]; then
+  _klid_verify_gpg_coverage "${GPG_OUT}" syspkgs "${RPM_OUT}" "${FF_OUT}"
+else
+  _klid_verify_gpg_coverage "${GPG_OUT}" syspkgs "${RPM_OUT}"
+fi
 BODY
 }
 
@@ -229,10 +242,17 @@ _verify_collected() {
   return 0
 }
 
+# ★ rc 90 = GPG 키 커버리지 실패(공유 조각). "dnf 가 없어 못 받았다"와 <구분해서> 보고한다.
+GPG_COVERAGE_FAIL=0
+
 collect_native() {
   command -v dnf >/dev/null 2>&1 || return 1
   info "[syspkgs] 네이티브 dnf 로 수집합니다(빌드머신이 el8 계열이라고 가정)."
-  bash -c "$( _collect_env; _collect_body )" _ "${FFMPEG_OUT}" "${RPM_OUT}" "${GPG_OUT}" "${FFMPEG_SRC_OUT}" \
+  local rc=0
+  bash -c "$( _collect_env; klid_rpm_gpg_snippet; _collect_body )" _ \
+    "${FFMPEG_OUT}" "${RPM_OUT}" "${GPG_OUT}" "${FFMPEG_SRC_OUT}" || rc=$?
+  if [[ "${rc}" -eq 90 ]]; then GPG_COVERAGE_FAIL=1; return 1; fi
+  [[ "${rc}" -eq 0 ]] \
     || { warn "[syspkgs] dnf 수집 실패 — 부분 수집을 성공으로 위장하지 않고 폴백/안내로 전환합니다."; return 1; }
   return 0
 }
@@ -241,11 +261,15 @@ collect_docker() {
   command -v docker >/dev/null 2>&1 || return 1
   docker info >/dev/null 2>&1 || { warn "[syspkgs] docker 데몬이 응답하지 않습니다 — 컨테이너 수집 불가."; return 1; }
   info "[syspkgs] dnf 가 없어 ${EL8_BUILDER_IMAGE} 컨테이너로 수집합니다(--platform ${EL8_BUILDER_PLATFORM})."
+  local rc=0
   docker run --rm \
     --platform "${EL8_BUILDER_PLATFORM}" \
     -v "${ONPREM}/syspkgs:/out" \
     "${EL8_BUILDER_IMAGE}" \
-    bash -c "$( _collect_env; _collect_body )" _ /out/ffmpeg /out/rpm /out/gpg /out/ffmpeg-src \
+    bash -c "$( _collect_env; klid_rpm_gpg_snippet; _collect_body )" _ \
+    /out/ffmpeg /out/rpm /out/gpg /out/ffmpeg-src || rc=$?
+  if [[ "${rc}" -eq 90 ]]; then GPG_COVERAGE_FAIL=1; return 1; fi
+  [[ "${rc}" -eq 0 ]] \
     || { warn "[syspkgs] 컨테이너 수집 실패 — 부분 수집을 성공으로 위장하지 않고 폴백/안내로 전환합니다."; return 1; }
   return 0
 }
@@ -256,8 +280,19 @@ collect_docker() {
 _collected=0
 if collect_native; then
   _collected=1
+elif [[ "${GPG_COVERAGE_FAIL}" -eq 1 ]]; then
+  :
 elif collect_docker; then
   _collected=1
+fi
+
+# ★ graceful SKIP 으로 흘리지 않는다 — RPM 은 받았는데 <그것을 검증할 공개키가 매체에 없다>는
+#   뜻이라, 이 매체로는 타깃 설치가 반드시 실패한다.
+if [[ "${GPG_COVERAGE_FAIL}" -eq 1 ]]; then
+  die "[syspkgs] GPG 키 커버리지 검증 실패 — 받은 RPM 의 서명 키가 매체에 없습니다.
+       리포트: ${GPG_OUT}/KEY-COVERAGE-syspkgs.txt (MISSING 행)
+       이대로 매체를 만들면 타깃에서 'GPG check FAILED' 로 설치가 죽습니다.
+       (임시 우회 KLID_RPM_GPGCHECK=0 은 <해결이 아니라> 서명 검증을 끄는 것입니다.)"
 fi
 
 if [[ "${_collected}" -eq 1 ]]; then
@@ -267,7 +302,9 @@ if [[ "${_collected}" -eq 1 ]]; then
   [[ -f "${RPM_OUT}/repodata/repomd.xml" ]] \
     || { warn "[syspkgs] 로컬 저장소 메타데이터 누락: ${RPM_OUT}/repodata/repomd.xml"; _ok=0; }
   # GPG 키가 없으면 타깃에서 gpgcheck=1 설치가 거부된다.
-  if ! ls "${GPG_OUT}"/RPM-GPG-KEY-* >/dev/null 2>&1; then
+  # ★ 이름이 아니라 <내용>으로 센다(klid_gpg_key_files) — PGDG 처럼 이름 규약이 다른 키를
+  #   "없는 것"으로 오판하지 않기 위해서다.
+  if [[ -z "$(klid_gpg_key_files "${GPG_OUT}")" ]]; then
     warn "[syspkgs] RPM GPG 공개키를 수집하지 못했습니다: ${GPG_OUT}"
     warn "          타깃에서 서명 검증이 불가해 설치가 거부될 수 있습니다(KLID_RPM_GPGCHECK=0 로 우회 가능)."
     _ok=0
@@ -331,7 +368,7 @@ cat > "${RPM_OUT}/README-collect-on-el8.txt" <<TXT
     mkdir -p /out/ffmpeg-src &&
     dnf download --source --downloaddir /out/ffmpeg-src ffmpeg x264-libs x265-libs &&
     createrepo_c /out/ffmpeg && createrepo_c /out/rpm &&
-    mkdir -p /out/gpg && cp /etc/pki/rpm-gpg/RPM-GPG-KEY-* /out/gpg/
+    mkdir -p /out/gpg && cp /etc/pki/rpm-gpg/*GPG-KEY* /out/gpg/
   '
 
 수집 후 체크섬을 기록하세요:
@@ -369,5 +406,6 @@ cat > "${RPM_OUT}/README-collect-on-el8.txt" <<TXT
   - --alldeps 와 createrepo_c 는 <한 세트>입니다. --alldeps 없이 받으면 타깃에 없는 의존이
     누락되고, createrepo_c 없이 RPM 파일을 직접 dnf 에 넘기면 기반 패키지 충돌로 설치가
     통째로 실패합니다. 로컬 저장소로 주면 dnf 가 필요한 것만 골라 설치합니다(2026-08-30 실측).
-  - syspkgs/gpg/RPM-GPG-KEY-* 도 함께 반입해야 타깃에서 서명 검증(gpgcheck=1)이 통과합니다.
+  - syspkgs/gpg/ 의 공개키(RPM-GPG-KEY-* / PGDG-RPM-GPG-KEY-* 등 <이름은 리포마다 다르다>)도
+    함께 반입해야 타깃에서 서명 검증(gpgcheck=1)이 통과합니다.
 TXT

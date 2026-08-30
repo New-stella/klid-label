@@ -114,6 +114,26 @@ for step in "${STEPS[@]}"; do
   ok "완료: ${step}"
 done
 
+# ---- 반입물 위생 스윕(파이썬 바이트코드) ----
+#   매체는 deploy/onprem/ 폴더 <통째로> 복사한 것이라 이 트리의 상태가 곧 매체의 상태다.
+#   수집 단계(30)가 자기 복사물은 이미 정리하지만, 그것만으로는 부족하다 — 빌드머신에서
+#   누가 파이썬 모듈을 한 번 import 하기만 해도 그 자리에 __pycache__ 가 생기고 그대로
+#   매체에 실린다(실제로 scripts/lib/__pycache__ 가 그렇게 들어가 있었다. 패키징이 만든 것이
+#   아니다 — 스크립트로 실행하면 캐시를 안 쓰고, import 해야 생긴다).
+#   빌드머신 파이썬이 대상(3.11)과 다르면 cpython-314 같은 남의 태그가 반입물에 남는다.
+#   동작에는 무해하지만 심의에서 설명해야 할 자리이므로 반출 직전에 쓸어낸다.
+if [[ -n "${ONPREM:-}" && -d "${ONPREM}" ]]; then
+  _pyc_n="$(find "${ONPREM}" -name '*.pyc' -o -name '*.pyo' | wc -l | tr -d ' ')"
+  _pyd_n="$(find "${ONPREM}" -type d -name '__pycache__' | wc -l | tr -d ' ')"
+  if [[ "${_pyc_n}" != "0" || "${_pyd_n}" != "0" ]]; then
+    warn "[위생] 파이썬 바이트코드 잔재 제거: __pycache__ ${_pyd_n}개 / 파일 ${_pyc_n}개"
+    find "${ONPREM}" -type d -name '__pycache__' -prune -exec rm -rf {} +
+    find "${ONPREM}" \( -name '*.pyc' -o -name '*.pyo' \) -delete
+  fi
+  ok "[위생] 파이썬 바이트코드 잔재 없음(반입물 확인)"
+  unset _pyc_n _pyd_n
+fi
+
 # ---- 패키지 버전 메타 기록 ----
 {
   echo "package_built_at=$(date '+%Y-%m-%dT%H:%M:%S%z')"

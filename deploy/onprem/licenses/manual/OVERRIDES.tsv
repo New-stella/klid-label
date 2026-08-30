@@ -24,3 +24,25 @@
 #
 # ---- 예시 (실제 항목이 아니다 — 그대로 두면 매칭되지 않는다) ----
 # frontend	victory-vendor	MIT AND ISC	MANUAL	OK
+
+# ============================================================================
+# 2026-08-30 — 반출 전 미해석 8건 해소
+#   근거: 각 항목의 라이선스 전문을 licenses/manual/texts/ 에 <전문 그대로> 넣었고,
+#         그 파일 머리말에 출처(URL·조회일·SHA256) 또는 "반입물 어디에서 꺼냈는지"를 적었다.
+#   ⚠ license 값은 <원 표기 그대로> 둔다(빈 칸이면 덮어쓰지 않는다). SPDX 로 임의 정규화하면
+#     배포자가 실제로 쓴 표기와 갈린다.
+# ----------------------------------------------------------------------------
+# 전문이 <매체 안에> 있었는데 스캐너가 못 본 것 (사각 — 각 텍스트 파일 머리말에 사유 기록)
+#   onnxruntime : 라이선스가 dist-info 가 아니라 패키지 디렉터리에 있다
+#   iopath      : sdist 는 열어 보지 않는다
+#   sam2-hiera-tiny : HF 캐시에는 라이선스 파일이 내려오지 않는다(모델 카드 머리말이 선언)
+python-packages	onnxruntime		MANUAL	OK
+python-packages	iopath-0.1.10	MIT	MANUAL	OK
+python-packages	facebook/sam2-hiera-tiny (HF 모델 캐시)	Apache-2.0	MANUAL	OK
+# ----------------------------------------------------------------------------
+# 전문이 반입물에 <없어> 상류에서 받아 온 것 (URL·조회일은 텍스트 파일 머리말에 기록)
+python-packages	flatbuffers		MANUAL	OK
+python-packages	antlr4-python3-runtime-4.9.3	BSD-3-Clause	MANUAL	OK
+python-packages	yolox_s.onnx (모델 가중치)		MANUAL	OK
+frontend	victory-vendor		MANUAL	OK
+frontend	react-remove-scroll-bar		MANUAL	OK

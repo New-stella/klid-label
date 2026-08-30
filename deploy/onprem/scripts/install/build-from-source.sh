@@ -238,10 +238,13 @@ else
   export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-localStorage}"
   export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"
   export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
-  # 상위 시스템 로그인 URL(H-ISSUE-02) — 기본값 없이 fail-closed. 비면 세션 만료 시 막다른 화면.
+  # 상위 시스템 로그인 URL — <빌드에 요구하지 않는다>. 이 값들은 런타임 설정
+  # (/etc/klid/frontend.env → klid-config.js)에서 읽으며, 여기 주는 값은 런타임 설정이 없을
+  # 때의 폴백일 뿐이다. fail-closed 가드는 설치 시점으로 옮겼다
+  # (install/render-frontend-config.sh — 필수 값이 비면 생성을 거부한다).
+  # ⚠ 되살리지 말 것: 되살리면 대상 서버에서 재빌드해야만 주소를 바꿀 수 있는 상태로 돌아간다.
   export VITE_CONTROL_LOGIN_URL="${VITE_CONTROL_LOGIN_URL:-}"
   export VITE_PORTAL_LOGIN_URL="${VITE_PORTAL_LOGIN_URL:-}"
-  require_upstream_login_urls
   info "[build-src] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
   info "[build-src] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 

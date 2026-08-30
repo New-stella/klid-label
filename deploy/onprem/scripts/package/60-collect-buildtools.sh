@@ -190,6 +190,12 @@ fi
 # 6) 빌드용 소스 복사(플랫폼 무관)
 #    제외: .git, node_modules, backend/build, frontend/dist 등 대용량/비필요.
 #
+#    ⚠ __pycache__ 는 선두 고정 패턴('./__pycache__')만으로는 부족하다. GNU tar 는 '/' 가 든
+#      패턴을 선두에 고정해 해석하므로 중첩된 app/__pycache__ 를 놓친다(bsdtar 는 잡는다).
+#      빌드머신의 tar 방언에 결과가 좌우되지 않도록 비고정 패턴을 함께 둔다. 반대로
+#      './build' · './dist' 는 <고정이 의도>다 — 비고정으로 바꾸면 소스 트리 안의 동명
+#      디렉터리까지 통째로 빠진다.
+#
 #    ⚠ deploy/onprem/src/ 는 gitignore 된 **생성물**이다(정본 아님). copy_src 가 매 패키징마다
 #      rm -rf 후 저장소 정본(${REPO}/backend 등)에서 새로 복사하므로, 그 안의 낡은 사본을 직접
 #      수정해도 패키지에 반영되지 않는다(=구버전 취약 코드가 폐쇄망으로 새지 않는다, S-26).
@@ -217,6 +223,9 @@ else
         --exclude='./venv' \
         --exclude='./.venv' \
         --exclude='./__pycache__' \
+        --exclude='*/__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='*.pyo' \
         . ) | ( cd "${to}" && tar -xf - ) \
       || die "[buildtools] 소스 복사 실패: ${name}"
     ok "[buildtools] 소스: ${to}  ($(du -sh "${to}" | cut -f1))"

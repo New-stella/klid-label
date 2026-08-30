@@ -141,7 +141,7 @@ for sp in "${STORAGE_RAW_PATH}" "${STORAGE_DEIDENTIFIED_PATH}"; do
 done
 
 # ---- 패키지 무결성 검증(선택, SHA256SUMS 존재 시) ----
-#   ★ syspkgs/gpg 를 빠뜨리지 말 것 — 이 디렉토리의 RPM-GPG-KEY-* 는 klid_import_rpm_gpg_keys 가
+#   ★ syspkgs/gpg 를 빠뜨리지 말 것 — 이 디렉토리의 공개키(이름 규약은 리포마다 다르다)는 klid_import_rpm_gpg_keys 가
 #     rpm --import 해 <이후 모든 RPM 설치의 서명 검증 기준>이 되는 파일이다. 검증 대상에서
 #     빠지면 "무결성 기준 그 자체"만 검증 없이 반입되는 셈이 된다.
 #   ★ syspkgs/ffmpeg-src 는 설치 대상이 아니라 GPL 대응 소스(SRPM) 동봉물이다. 설치에 쓰이지는
@@ -197,10 +197,19 @@ if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
   STEPS+=("17-load-portal-schema.sh")
 fi
 
-# 19: ffmpeg·ffprobe 전제조건 검증(app 전용). ★ <맨 마지막>에 둔다 —
-#     여기서 die 해도 앞 단계는 이미 끝나 있어, ffmpeg 를 마련한 뒤 재실행하면 된다(멱등).
-#     ⚠ 설치가 아니라 검증이다. ffmpeg 설치는 install/install-ffmpeg.sh 를 <사람이> 부른다.
+# ---- 끝단 검증 단계(app 전용) ----
+#   ★ <맨 마지막>에 모아 둔다. 여기서 die 해도 앞 단계(WAR 배치·httpd·정적 자산·DB)는 이미
+#     끝나 있어, 미충족 항목을 마련한 뒤 재실행하면 이어진다(멱등).
+#   ★ 이 자리의 규칙: "되돌리기 어렵고 값과 무관한 설치"를 먼저 끝내고, <미충족 상태로
+#     설치 완료가 나오는 것>만 여기서 막는다. 검증을 설치 앞으로 끌어오면 첫 실행이
+#     구조적으로 실패해 뒤 단계가 통째로 날아간다(2026-08-30 14 단계 사고).
+#
+# 19: ffmpeg·ffprobe 전제조건 검증. ⚠ 설치가 아니라 검증이다 — ffmpeg 설치는
+#     install/install-ffmpeg.sh 를 <사람이> 부른다(관제 설치본을 덮어쓰지 않기 위해).
 klid_role_has app && STEPS+=("19-verify-ffmpeg.sh")
+# 20: 프론트엔드 런타임 설정(상위 시스템 로그인 URL) 최종 게이트.
+#     ⚠ 값이 비면 화면은 뜨는데 세션 만료 시 이동할 곳이 없다 — 조용히 완료로 끝내지 않는다.
+klid_role_has app && STEPS+=("20-verify-frontend-config.sh")
 
 [[ "${#STEPS[@]}" -gt 0 ]] || die "실행할 단계가 없습니다(KLID_ROLE=${KLID_ROLE}) — 역할 지정을 확인하세요."
 

@@ -45,6 +45,57 @@ if [[ "${#_missing[@]}" -gt 0 ]]; then
   warn "  해당 수집 단계를 건너뛰었다면 정상입니다(그 영역의 고지는 이번 매체에 없습니다)."
 fi
 
+# ---- 0-b) 반입물 ↔ 고지 스테이징 정합 검사 (기계 검사, fail-closed) ---------
+#
+#   ★★ 왜 있나 (2026-08-30 실사고):
+#     이 단계는 <스테이징만> 읽는다. 그래서 휠을 교체한 뒤 스테이징이 다시 돌지 않으면,
+#     70 을 몇 번을 돌려도 고지가 실물과 어긋난 채 그대로 재생성된다. 실제로:
+#         반입물  setuptools-81.0.0 · packaging-26.2
+#         고지    setuptools 84.0.0 · packaging 26.3   ← 둘 다 <반입물에 없는 버전>
+#         (그리고 실제로 반입된 setuptools 81.0.0 은 고지에 <없었다>)
+#     "스테이징만 보고 집계"했기 때문에 이 불일치가 조용히 통과했다.
+#
+#   ★ 그래서 <실물 파일 목록>과 대조한다. 35-collect-python-licenses.sh 가 자기가 읽은
+#     아카이브 파일명 전수를 SOURCES.txt 에 남기고, 여기서 vendor/wheels 의 현재 내용과
+#     정확히 같은지 본다. 이름·버전 파싱을 거치지 않고 <파일명 그대로> 비교하므로
+#     파싱 규칙이 달라져도 어긋나지 않는다.
+#
+#   ★ 여기서는 die 한다 — 이 단계의 다른 실패(UNRESOLVED 잔존)와 성격이 <다르다>.
+#     UNRESOLVED 는 "모른다는 것을 아는" 상태라 문서에 그대로 적히지만, 스테이징 불일치는
+#     문서가 <사실이 아닌 것을 단언하는> 상태다. 틀린 고지는 빠진 고지보다 나쁘다.
+#
+#   ⚠ 이 대조가 가능한 것은 python 축뿐이다 — 휠이 <개별 파일>로 반입되기 때문이다.
+#     backend 의존성은 api.war 안에 들어 있고 frontend 는 node_modules 를 반입하지 않아
+#     "실물 목록"이라는 비교 대상 자체가 없다. 그래서 여기만 검사한다.
+WHEEL_DIR="${ONPREM}/vendor/wheels"
+PY_SRC_LIST="${LIC}/python-packages/SOURCES.txt"
+if [[ -d "${WHEEL_DIR}" ]] && ls "${WHEEL_DIR}"/*.whl >/dev/null 2>&1; then
+  if [[ ! -f "${PY_SRC_LIST}" ]]; then
+    die "[notices] 고지 스테이징이 없습니다(또는 옛 형식): ${PY_SRC_LIST}
+       vendor/wheels 에 휠이 있는데 그것을 읽은 기록이 없습니다 — 고지가 실물과 어긋납니다.
+       → bash ${SELF_DIR}/35-collect-python-licenses.sh   (재다운로드 없음)
+         bash ${SELF_DIR}/70-generate-notices.sh"
+  fi
+  _lic_actual="$(mktemp)"; _lic_staged="$(mktemp)"
+  ( cd "${WHEEL_DIR}" && find . -maxdepth 1 -type f \( -name '*.whl' -o -name '*.tar.gz' \) \
+      | sed 's#^\./##' ) | LC_ALL=C sort > "${_lic_actual}"
+  LC_ALL=C sort "${PY_SRC_LIST}" > "${_lic_staged}"
+  if ! cmp -s "${_lic_actual}" "${_lic_staged}"; then
+    warn "[notices] ★반입물과 고지 스테이징이 어긋납니다 — 고지가 <사실과 다른> 상태입니다."
+    warn "  반입물에 있는데 고지에 없음(고지 누락):"
+    comm -23 "${_lic_actual}" "${_lic_staged}" | sed 's/^/      + /' >&2 || true
+    warn "  고지에 있는데 반입물에 없음(유령 고지):"
+    comm -13 "${_lic_actual}" "${_lic_staged}" | sed 's/^/      - /' >&2 || true
+    rm -f "${_lic_actual}" "${_lic_staged}"
+    die "[notices] 고지 스테이징이 낡았습니다 — 이대로 매체를 반출하면 안 됩니다.
+       ⚠ 70 단계만 다시 돌려도 고쳐지지 않습니다(이 단계는 스테이징만 읽습니다).
+       → bash ${SELF_DIR}/35-collect-python-licenses.sh   (재다운로드 없음)
+         bash ${SELF_DIR}/70-generate-notices.sh"
+  fi
+  rm -f "${_lic_actual}" "${_lic_staged}"
+  ok "[notices] 반입물 ↔ 고지 스테이징 정합 확인: $(wc -l < "${PY_SRC_LIST}" | tr -d ' ') 개 아카이브 일치"
+fi
+
 # ---- 1) NOTICE ----------------------------------------------------------------
 #   Apache-2.0 §4(d): 배포물에 NOTICE 파일이 있으면 <그 내용을 전파>해야 한다.
 #   backend 의존성 다수가 Apache-2.0 이고 실제로 META-INF/NOTICE 를 담고 있다.

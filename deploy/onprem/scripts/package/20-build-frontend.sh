@@ -3,18 +3,27 @@ set -euo pipefail
 # ============================================================================
 # 20-build-frontend.sh — [빌드머신] frontend(React+Vite) 정적 빌드 + 수집
 #
-#   ★ Vite 는 VITE_* 변수를 "빌드 시점"에 정적 치환한다. 따라서 API base 와
-#     토큰 인입 모드는 여기서 주입해야 한다(대상 서버에서 변경 불가).
-#       VITE_API_BASE_URL : 프론트가 호출할 API base. 웹 서버(httpd)가 /api 를
-#                           backend(127.0.0.1:8080)로 프록시하므로 '/api/v1'.
-#       VITE_TOKEN_INGRESS: 토큰 인계 채널(기본 localStorage).
+#   ★★ 이 산출물은 <환경 무관>이다 (2026-08-30 전환). 상위 시스템 로그인 주소·개발용 화면
+#     토글처럼 현장마다 다른 값은 더 이상 빌드에 굽지 않고, 대상 서버의 설정 정본
+#     (/etc/klid/frontend.env)에서 <런타임>에 읽는다. 폐쇄망 반입은 빌드머신에서 한 번 만들어
+#     매체로 넘기는 모델인데, 빌드가 고객 환경의 실주소를 요구하면 <배포 가능한 산출물 자체를
+#     만들 수 없다>. 실제로 예시 주소(control.example.local)가 구워진 dist 가 반입 대상으로
+#     놓여 있었다.
+#
+#   ★ 그래서 구 fail-closed 가드(require_upstream_login_urls) 호출을 <여기서 걷어냈다>.
+#     방어가 사라진 것이 아니라 <설치 시점>으로 옮겼다 —
+#       deploy/onprem/scripts/install/render-frontend-config.sh 가 필수 값이 비면 생성을 거부하고,
+#       14-install-frontend.sh 가 그 실패로 설치를 중단한다.
+#     ⚠ 되살리지 말 것. 되살리면 위의 "환경 무관 산출물"이 다시 성립하지 않는다.
+#
+#   ★ 아래 VITE_* 는 <런타임 값이 없을 때의 기본값>으로만 남는다(개발·컨테이너 경로 보존).
+#       VITE_API_BASE_URL : 웹 서버(httpd)가 /api 를 backend 로 프록시하므로 '/api/v1'.
+#       VITE_TOKEN_INGRESS: 토큰 인계 채널 기본값(localStorage).
 #                           'url'/'both'/'all' 은 JWT 를 URL 쿼리에 싣는 채널을 열어
 #                           접근 로그·리퍼러·히스토리에 토큰이 잔존한다(CWE-598).
-#                           레거시 호환이 필요한 현장만 명시 override.
-#       VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL:
-#                           세션 만료·401 시 이동할 상위 시스템 로그인 페이지.
-#                           ★ 기본값 없음 — 미설정이면 빌드를 중단한다(fail-closed).
 #   결과: frontend/dist → artifacts/frontend/dist
+#         artifacts/frontend/BUILD-INFO.txt (이 빌드에 실제로 들어간 값 — dist 만 보고는
+#         무엇으로 구워졌는지 알 수 없어, 확인하려면 번들 JS 를 grep 해야 했다)
 #
 #   ★ 제3자 라이선스 고지도 여기서 함께 수집한다 (2026-08-30 신설).
 #     dist 에는 <폰트 바이너리 2,166개>(Pretendard·D2Coding)와 번들된 npm 패키지 코드가
@@ -47,10 +56,10 @@ export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-localStorage}"
 # (FE 라우트만 존재, BE off 면 /v1/dev/* 호출 시 404). 관제서버 미기동 브링업 대비.
 export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"
 export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
-# 상위 시스템 로그인 URL(H-ISSUE-02) — 기본값 없이 fail-closed. 비면 세션 만료 시 막다른 화면.
+# 상위 시스템 로그인 URL — <빌드에 요구하지 않는다>(위 머리말 참조). 값을 주면 런타임 설정이
+# 없을 때의 폴백으로만 쓰인다. 대상 서버의 정본은 /etc/klid/frontend.env 다.
 export VITE_CONTROL_LOGIN_URL="${VITE_CONTROL_LOGIN_URL:-}"
 export VITE_PORTAL_LOGIN_URL="${VITE_PORTAL_LOGIN_URL:-}"
-require_upstream_login_urls
 info "[frontend] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
 info "[frontend] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 
@@ -65,6 +74,27 @@ info "[frontend] 프로덕션 빌드 (npm run build)..."
 rm -rf "${OUT}/dist"
 cp -R "${FE_SRC}/dist" "${OUT}/dist"
 ok "[frontend] 수집: ${OUT}/dist  ($(du -sh "${OUT}/dist" | cut -f1))"
+
+# ---- 이 빌드에 실제로 들어간 값 기록 ----------------------------------------
+#   ★ 로그로만 찍으면 매체를 받은 사람은 <dist 만 보고는 무엇으로 구워졌는지 알 수 없다>.
+#     실제로 확인하려면 번들 JS 를 grep 해야 했다. 산출물 옆에 남긴다.
+#   ★ dist <안>이 아니라 옆에 둔다 — 이 파일은 운영 중 웹으로 공개할 이유가 없다.
+#     (그래서 dist 의 SHA256SUMS 목록에는 들어가지 않는다. 무결성 대상이 아닌 참고 기록이다.)
+{
+  printf '# klid-label frontend 빌드 기록\n'
+  printf '#   이 값들은 <런타임 설정이 없을 때의 폴백>이다. 대상 서버의 정본은\n'
+  printf '#   /etc/klid/frontend.env 이며 설치 시 klid-config.js 로 생성된다.\n'
+  printf 'built_at=%s\n' "$(date '+%Y-%m-%d %H:%M:%S%z')"
+  printf 'git_commit=%s\n' "$(cd "${REPO}" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  printf 'node=%s\n' "$(node -v 2>/dev/null || echo unknown)"
+  printf 'VITE_API_BASE_URL=%s\n' "${VITE_API_BASE_URL}"
+  printf 'VITE_TOKEN_INGRESS=%s\n' "${VITE_TOKEN_INGRESS}"
+  printf 'VITE_DEV_LOGIN_ENABLED=%s\n' "${VITE_DEV_LOGIN_ENABLED}"
+  printf 'VITE_DEV_UPLOAD_ENABLED=%s\n' "${VITE_DEV_UPLOAD_ENABLED}"
+  printf 'VITE_CONTROL_LOGIN_URL=%s\n' "${VITE_CONTROL_LOGIN_URL}"
+  printf 'VITE_PORTAL_LOGIN_URL=%s\n' "${VITE_PORTAL_LOGIN_URL}"
+} > "${OUT}/BUILD-INFO.txt"
+ok "[frontend] 빌드 기록: ${OUT}/BUILD-INFO.txt"
 
 # ---- 제3자 라이선스 고지 수집 (폰트 + 번들 npm 패키지) ----------------------
 #   ★ 대상 판정은 <npm 이 알려주는 production 의존성 트리>다. devDependencies 는 dist 에

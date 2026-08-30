@@ -49,34 +49,22 @@ require_root() {
 }
 
 # ----------------------------------------------------------------------------
-# 상위 시스템 로그인 URL 가드 (H-ISSUE-02, fail-closed)
+# [제거됨] require_upstream_login_urls — 상위 시스템 로그인 URL 빌드 가드 (H-ISSUE-02)
 # ----------------------------------------------------------------------------
-# 저작도구는 자체 로그인 UI 가 없어, 토큰 없음/만료(401) 시 관제서버·포털 로그인 페이지로
-# redirect 해야 한다(frontend/src/features/auth/redirectToUpstream.ts). 대상 URL 은 VITE_* 라
-# Vite 가 <b>빌드 시점</b>에 정적 치환하므로, 빌드에 값이 없으면 dist 안에 빈 문자열이 박히고
-# 대상 서버에서는 고칠 수 없다. 그 상태의 증상은 에러가 아니라 "아무 반응 없는 막다른 화면"이라
-# 배포 후에야 드러난다 → 빌드를 진행시키지 않고 여기서 끊는다.
+# 2026-08-30 제거. 사라진 것이 아니라 <자리를 옮겼다>.
 #
-# ⚠ 이 가드는 <b>배포 산출물을 만드는 스크립트에서만</b> 호출한다. frontend 에서 직접 도는
-#   로컬/CI `npm run build` 는 `.env.development` 의 빈 값이 정상이므로 대상이 아니다.
-require_upstream_login_urls() {
-  local key value missing=0
-  for key in VITE_CONTROL_LOGIN_URL VITE_PORTAL_LOGIN_URL; do
-    value="${!key:-}"
-    if [[ -z "${value}" ]]; then
-      warn "${key} 미설정 — 세션 만료 시 상위 로그인 페이지로 이동할 수 없습니다."
-      missing=1
-    elif [[ "${value}" != http://* && "${value}" != https://* ]]; then
-      # 스킴이 없으면 브라우저가 상대경로로 해석해 저작도구 자기 자신으로 되돌아온다.
-      warn "${key} 값에 스킴이 없습니다(현재: ${value}) — http:// 또는 https:// 로 시작해야 합니다."
-      missing=1
-    fi
-  done
-  [[ "${missing}" -eq 0 ]] || die "상위 시스템 로그인 URL 이 필요합니다. 예:
-       VITE_CONTROL_LOGIN_URL=https://control.example.local/login
-       VITE_PORTAL_LOGIN_URL=https://portal.example.local/login
-     (deploy/onprem/docs/04-configuration.md 'frontend 빌드 타임 변수' 참고)"
-}
+# 그 가드는 <빌드>가 VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL 을 요구하게 했다. 값이
+# 빌드 시점에 dist 안으로 정적 치환되던 시절에는 그게 유일한 방어 지점이었다. 그런데 폐쇄망
+# 반입은 빌드머신에서 한 번 만들어 매체로 넘기는 모델이라, 빌드가 고객 환경의 실주소를 요구하면
+# <배포 가능한 산출물 자체를 만들 수 없다> — 실제로 예시 주소가 구워진 dist 가 반입 대상으로
+# 놓여 있었고, 배포 후에는 고칠 방법이 없었다.
+#
+# 지금은 그 값들이 대상 서버의 설정 정본(/etc/klid/frontend.env)에서 <런타임>에 읽힌다.
+# 따라서 fail-closed 검사도 그 값이 실제로 필요해지는 시점으로 옮겼다:
+#     deploy/onprem/scripts/install/render-frontend-config.sh   (미설정·스킴 누락이면 생성 거부)
+#     deploy/onprem/scripts/install/14-install-frontend.sh      (그 실패로 설치 중단)
+#
+# ⚠ 빌드 스크립트에 이 함수를 다시 만들지 말 것 — 되살리는 순간 산출물이 다시 환경 종속이 된다.
 
 # ----------------------------------------------------------------------------
 # 경로 헬퍼
@@ -240,13 +228,41 @@ confirm() {
 #     RPM 을 써야 하면 KLID_RPM_GPGCHECK=0 으로 낮춘다(그 경우 무결성은 SHA256SUMS 에만 의존).
 # ----------------------------------------------------------------------------
 
+# klid_gpg_key_files <dir> — 디렉터리 안의 <PGP 공개키 파일> 경로를 개행 구분으로 출력.
+#
+#   ★★ 파일 <이름>으로 고르지 않는다 — 이름 규약이 배포처마다 다르다 (2026-08-30 실측 사고).
+#     PGDG(PostgreSQL 공식 리포)의 키 파일명은 `PGDG-RPM-GPG-KEY-RHEL` 이라 종전의
+#     `RPM-GPG-KEY-*` 글롭에 <걸리지 않는다>. 그 한 글자 차이로:
+#       · 조달(55-collect-postgresql.sh)이 그 키를 매체에 담지 못했고
+#       · 설치(이 함수)가 담겼더라도 import 하지 못했을 것이며
+#       · 타깃에서 `Public key for postgresql16-....rpm is not installed / GPG check FAILED`
+#         (Key ID 40bca2b408b40d20)로 번들 PG 설치가 <첫 단계에서> 죽었다.
+#     set -e 라 그 뒤 12·14·15·16·17·19 단계가 통째로 실행되지 않았다 — WAR·httpd·dist 가
+#     아무것도 깔리지 않는데 "설치 스크립트가 죽었다"는 신호만 남는다.
+#   → 그래서 판정을 <내용>으로 바꾼다: PGP 공개키 블록이 들어 있으면 키로 본다.
+#     새 리포가 어떤 이름을 쓰든 자동으로 걸린다.
+klid_gpg_key_files() {
+  local dir="${1:-}" f
+  [[ -d "${dir}" ]] || return 0
+  shopt -s nullglob
+  for f in "${dir}"/*; do
+    [[ -f "${f}" ]] || continue
+    # 무결성 목록·안내문·커버리지 리포트는 키가 아니다(내용 검사로도 걸러지지만 명시한다).
+    case "$(basename "${f}")" in SHA256SUMS|README*|KEY-COVERAGE*) continue ;; esac
+    grep -qs -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "${f}" || continue
+    printf '%s\n' "${f}"
+  done
+  shopt -u nullglob
+}
+
 # klid_import_rpm_gpg_keys — 번들에 반입된 RPM GPG 공개키를 타깃 rpm DB 에 등록(멱등).
 klid_import_rpm_gpg_keys() {
   local gpg_dir="${1:-$(onprem_root)/syspkgs/gpg}"
   command -v rpm >/dev/null 2>&1 || return 0
-  shopt -s nullglob
-  local keys=("${gpg_dir}"/RPM-GPG-KEY-*)
-  shopt -u nullglob
+  local keys=() _k
+  while IFS= read -r _k; do
+    [[ -n "${_k}" ]] && keys+=("${_k}")
+  done < <(klid_gpg_key_files "${gpg_dir}")
   if [[ "${#keys[@]}" -eq 0 ]]; then
     warn "[rpm] 반입된 GPG 공개키가 없습니다: ${gpg_dir}"
     warn "      서명 검증이 필요한 RPM 설치가 거부될 수 있습니다(KLID_RPM_GPGCHECK=0 로 우회 가능)."
@@ -256,6 +272,143 @@ klid_import_rpm_gpg_keys() {
     && ok "[rpm] GPG 공개키 ${#keys[@]} 개 등록: ${gpg_dir}" \
     || warn "[rpm] GPG 공개키 등록 일부 실패: ${gpg_dir}"
   return 0
+}
+
+# ----------------------------------------------------------------------------
+# klid_rpm_gpg_snippet — [빌드머신] 수집 환경(el8 컨테이너 또는 네이티브 dnf)에서 실행할
+#   <GPG 공개키 수집 + 서명 키 커버리지 검증> 코드 조각을 stdout 으로 출력한다.
+#
+#   50/55-collect-*.sh 가 `bash -c "$( _env; klid_rpm_gpg_snippet; _body )"` 형태로 본문 앞에
+#   붙여 실행한다. 두 스크립트가 <같은 코드>를 쓰게 하려는 것이다 — 키 수집 규칙이 갈리면
+#   한쪽만 고쳐지고 다른 쪽은 조용히 옛 규칙으로 남는다(이번 사고가 정확히 그 형태였다).
+#
+#   ★★ 왜 "수집 후 검증"이 필요한가 (2026-08-30 사고의 진짜 교훈):
+#     종전 코드는 키를 <복사 시도>만 하고(`cp ... || true`) 그것이 맞는 키인지 보지 않았다.
+#     그래서 PGDG 키가 한 건도 안 담겼는데도 수집이 "성공"으로 끝났고, 결함은 반출 직전
+#     무네트워크 리허설에서야 드러났다. 조달이 <자기가 받은 RPM 의 서명 키>를 스스로 대조하지
+#     않으면, 같은 사각이 새 리포를 추가할 때마다 되살아난다.
+#
+#   ⚠ 이 검증은 rpm·gpg 가 있는 환경에서만 가능하다(맥 빌드머신에는 없다). 그래서 수집이
+#     도는 바로 그 자리(컨테이너/네이티브 dnf)에서 함께 돈다.
+#   ⚠ 커버리지 실패는 <exit 90> 이다. 호출부가 "dnf 부재로 수집 못함"(graceful SKIP)과
+#     구분해서 보고해야 하기 때문이다 — 둘을 같은 rc 로 뭉개면 "네트워크가 없었나 보다"로
+#     오독된다.
+# ----------------------------------------------------------------------------
+klid_rpm_gpg_snippet() {
+  cat <<'GPGSNIPPET'
+# ==== (공유 조각) RPM GPG 공개키 수집·검증 — klid_rpm_gpg_snippet ====
+# _klid_key_files <dir> — 내용으로 판정한 PGP 공개키 파일 목록(이름 규약에 의존하지 않는다).
+_klid_key_files() {
+  local dir="$1" f
+  [ -d "${dir}" ] || return 0
+  for f in "${dir}"/*; do
+    [ -f "${f}" ] || continue
+    case "${f##*/}" in SHA256SUMS|README*|KEY-COVERAGE*) continue ;; esac
+    grep -qs -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "${f}" || continue
+    printf '%s\n' "${f}"
+  done
+}
+
+# _klid_collect_gpg_keys <src_dir> <out_dir> — 리포가 설치한 공개키를 매체로 복사.
+_klid_collect_gpg_keys() {
+  local src="$1" out="$2" f n=0
+  mkdir -p "${out}"
+  while IFS= read -r f; do
+    [ -n "${f}" ] || continue
+    cp -f "${f}" "${out}/${f##*/}" && n=$((n+1))
+  done < <(_klid_key_files "${src}")
+  echo "[collect] RPM GPG 공개키 ${n} 개 수집 → ${out}"
+  _klid_key_files "${out}" | sed 's#^.*/#  key: #'
+}
+
+# _klid_provided_keyids <gpg_out> — 매체에 담긴 키가 제공하는 키 ID(주키+부키, 소문자 16hex).
+#   ★ 부키(sub)까지 세는 이유: 리포에 따라 서명은 <서명 전용 부키>로 한다. 주키만 보면
+#     정상 반입인데 "키 없음"으로 오판한다.
+_klid_provided_keyids() {
+  local f
+  command -v gpg >/dev/null 2>&1 || return 0
+  while IFS= read -r f; do
+    [ -n "${f}" ] || continue
+    gpg --show-keys --with-colons "${f}" 2>/dev/null | awk -F: '$1=="pub" || $1=="sub" { print $5 }'
+  done < <(_klid_key_files "$1") | tr 'A-F' 'a-f' | sort -u
+}
+
+# _klid_rpm_sig_keyid <rpm> — 그 RPM 을 서명한 키 ID(소문자 16hex). 미서명이면 빈 문자열.
+_klid_rpm_sig_keyid() {
+  rpm -qp --nosignature --qf '%{SIGPGP:pgpsig} %{RSAHEADER:pgpsig}\n' "$1" 2>/dev/null \
+    | grep -oiE '[0-9a-f]{16}' | head -n1 | tr 'A-F' 'a-f'
+}
+
+# _klid_verify_gpg_coverage <gpg_out> <label> <rpm_dir...>
+#   수집한 RPM 전량의 서명 키가 매체의 공개키로 검증 가능한지 대조하고
+#   <gpg_out>/KEY-COVERAGE-<label>.txt 에 요약을 남긴다. 미보유 키가 있으면 exit 90.
+#   ★ label 로 파일을 나누는 이유: 50(syspkgs)과 55(postgresql)가 같은 gpg 디렉터리를 쓰므로,
+#     한 이름을 공유하면 <나중에 도는 쪽이 앞의 리포트를 덮어> 무엇을 검사했는지 남지 않는다.
+_klid_verify_gpg_coverage() {
+  local out="$1" label="$2"; shift 2
+  local report="${out}/KEY-COVERAGE-${label}.txt"
+  local provided tmp d f id total=0 unsigned=0 missing=0
+  provided="$(_klid_provided_keyids "${out}")"
+  if [ -z "${provided}" ]; then
+    echo "ERROR: 매체의 GPG 공개키에서 키 ID 를 추출하지 못했습니다(gpg 부재 또는 키 0건): ${out}" >&2
+    exit 90
+  fi
+  tmp="$(mktemp)"
+  for d in "$@"; do
+    [ -d "${d}" ] || continue
+    for f in "${d}"/*.rpm; do
+      [ -e "${f}" ] || continue
+      total=$((total+1))
+      id="$(_klid_rpm_sig_keyid "${f}")"
+      if [ -z "${id}" ]; then
+        unsigned=$((unsigned+1))
+        printf 'UNSIGNED\t%s\n' "${f##*/}" >> "${tmp}"
+      else
+        printf '%s\t%s\n' "${id}" "${f##*/}" >> "${tmp}"
+      fi
+    done
+  done
+
+  {
+    echo "# 번들 RPM 서명 키 커버리지 (자동 생성 — 직접 편집 금지)"
+    echo "# 생성: $(date '+%Y-%m-%d %H:%M:%S%z')"
+    echo "# 검사 대상 RPM: ${total} 개 / 대상 디렉터리: $*"
+    echo "#"
+    echo "# 여기 MISSING 이 하나라도 있으면 타깃에서 gpgcheck=1 설치가 거부된다."
+    echo "# (증상: 'Public key for xxx.rpm is not installed' → 'GPG check FAILED')"
+    echo ""
+    printf '%-9s %-16s %6s  %s\n' "상태" "키ID" "RPM수" "예시"
+  } > "${report}"
+
+  local keyid cnt example status
+  while IFS= read -r keyid; do
+    [ -n "${keyid}" ] || continue
+    cnt="$(awk -F'\t' -v k="${keyid}" '$1==k' "${tmp}" | wc -l | tr -d ' ')"
+    example="$(awk -F'\t' -v k="${keyid}" '$1==k {print $2; exit}' "${tmp}")"
+    if [ "${keyid}" = "UNSIGNED" ]; then
+      status="UNSIGNED"
+    elif printf '%s\n' "${provided}" | grep -qx "${keyid}"; then
+      status="OK"
+    else
+      status="MISSING"
+      missing=$((missing + cnt))
+    fi
+    printf '%-9s %-16s %6s  %s\n' "${status}" "${keyid}" "${cnt}" "${example}" >> "${report}"
+  done < <(awk -F'\t' '{print $1}' "${tmp}" | sort -u)
+  rm -f "${tmp}"
+
+  cat "${report}"
+  if [ "${missing}" -gt 0 ]; then
+    echo "ERROR: 서명 키를 매체가 갖고 있지 않은 RPM 이 ${missing} 개 있습니다 — 위 MISSING 행 참조." >&2
+    exit 90
+  fi
+  if [ "${unsigned}" -gt 0 ]; then
+    echo "WARN: 서명되지 않은 RPM ${unsigned} 개 — gpgcheck=1 에서 거부될 수 있습니다." >&2
+  fi
+  echo "[collect] GPG 키 커버리지 확인: RPM ${total} 개, 미보유 키 0 (리포트: ${report})"
+}
+# ==== (공유 조각 끝) ====
+GPGSNIPPET
 }
 
 # klid_dnf_install_from_bundle <repo_id> <rpm_dir> <pkg...>
