@@ -12,6 +12,23 @@
 
 아래는 "옮기지 않으면 무엇이 깨지는가"를 기준으로 정리했다.
 
+## 예시 파일 — `config/was/`
+
+이 문서가 **무엇을 왜** 옮기는지의 정본이고, 그것을 **옮겨 적기 좋은 형태로 구체화한 예시**가
+[`config/was/`](../config/was/) 에 있다. 값이 갈리면 이 문서가 이긴다.
+
+| 예시 파일 | 대상 위치(예) | 이 문서의 어느 절 |
+|---|---|---|
+| [`config/was/setenv.sh.example`](../config/was/setenv.sh.example) | `<WAS_HOME>/bin/setenv.sh` | 설정 파일 위치·프로파일·JVM 옵션(→ [04-configuration.md](04-configuration.md)) |
+| [`config/was/server-connector.xml.example`](../config/was/server-connector.xml.example) | `<WAS_BASE>/conf/server.xml` 의 커넥터 | 1·2·3·4절 |
+| [`config/was/context-api.xml.example`](../config/was/context-api.xml.example) | `<WAS_BASE>/conf/Catalina/localhost/api.xml` | 컨텍스트 배포(`api.war` → `/api`) |
+| [`config/was/README.md`](../config/was/README.md) | — | 쓰는 법·자리표시자·병합 주의 |
+
+> ⚠ **예시를 그대로 덮어쓰지 않는다.** 특히 `server.xml` 은 통째로 교체하면 같은 WAS 의 다른
+> 애플리케이션이 죽는다 — **해당 속성만 병합**한다.
+> `<WAS_HOME>` 등 현장값은 설치 시 `/etc/klid/was.env` 에 적어 둔다
+> (→ [09-operations-runbook.md](09-operations-runbook.md) §0-1).
+
 ---
 
 ## 1. 업로드 본문 한도 — 안 옮기면 대용량 업로드가 실패한다
@@ -72,6 +89,10 @@ WAS 의 종료 절차를 따른다. 배포 때마다 진행 중 요청이 끊기
 
 ## 점검 체크리스트
 
+- [ ] 현장값(`<WAS 유닛명>`·`<WAS_HOME>`·`<WAS_BASE>`·`<WAS_LOG_DIR>`)을 `/etc/klid/was.env` 에 적었다
+- [ ] `api.war` 를 **파일명 그대로** 배포했다(이름이 곧 컨텍스트 `/api`)
+- [ ] `CATALINA_OPTS` 에 `-Dspring.config.additional-location=file:/etc/klid/` 와 `-Dspring.profiles.active=prd` 를 넣었다
+- [ ] WAS 실행 계정이 `/etc/klid/application.properties` 를 **읽을 수 있다**(권한 640 · 소유 그룹 확인)
 - [ ] 업로드 본문 한도 2종을 WAS 커넥터에 반영했다
 - [ ] 앞단 웹 서버의 본문 한도와 어긋나지 않는다
 - [ ] 요청 스레드 상한을 명시했다

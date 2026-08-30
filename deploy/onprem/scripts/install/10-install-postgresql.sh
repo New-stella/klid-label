@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# 10-install-postgresql.sh — [대상 서버 / Rocky Linux 9] 번들 PostgreSQL 16 오프라인 설치
+# 10-install-postgresql.sh — [대상 서버 / RHEL 8.9] 번들 PostgreSQL 16 오프라인 설치
+#   ⚠ 구 서술 폐기(2026-08-28) — "Rocky Linux 9". PGDG 리포도 EL-9 → EL-8 로 바뀌었다.
 #
 #   ★ 옵션 단계다. install.sh 가 USE_BUNDLED_POSTGRES 가드 하에 호출한다.
 #       USE_BUNDLED_POSTGRES=1 (기본) → 번들 PG16 RPM 을 오프라인 설치 + initdb + 서비스 기동.
@@ -63,16 +64,13 @@ if [[ -x "${PG_SETUP}" ]]; then
   info "[postgres] PG${PG_MAJOR} 가 이미 설치돼 있습니다(${PG_SETUP}) — RPM 설치 생략."
 else
   info "[postgres] PG${PG_MAJOR} RPM 오프라인 설치: ${#pg_rpms[@]} 개"
+  # ★ 로컬 yum 저장소 방식(2026-08-30) — 근거는 common.sh 의 klid_dnf_install_from_bundle 주석.
+  #   ⚠ 구 방식 폐기: `dnf install -y --disablerepo='*' <RPM 파일 목록>`. 조달이 --alldeps 로
+  #     바뀌면서 기반 패키지(glibc 등)가 세트에 섞이고, 파일 직접 설치는 그 충돌로 실패한다.
+  klid_import_rpm_gpg_keys "${ONPREM}/syspkgs/gpg" || true
   if command -v dnf >/dev/null 2>&1; then
-    # --disablerepo='*' 로 외부 네트워크 미접근. 의존성은 번들 RPM 들로 로컬 해소.
-    # --setopt=gpgcheck=0: 최소 Rocky 9 폐쇄망 이미지의 PGDG GPG 키 부재로 실패하지 않도록 비활성
-    #   (무결성은 번들 SHA256SUMS 로 install.sh 가 이미 검증).
-    # L2: dnf 실패 시 곧장 die 하지 않고 warn 후 rpm -Uvh 로 폴백, 그마저 실패하면 die(명시 분리).
-    if ! dnf install -y --disablerepo='*' --setopt=gpgcheck=0 "${pg_rpms[@]}"; then
-      warn "[postgres] dnf 설치 실패 — rpm -Uvh 폴백을 시도합니다(의존성 미해소 시 실패할 수 있음)."
-      rpm -Uvh --replacepkgs "${pg_rpms[@]}" \
-        || die "[postgres] PG${PG_MAJOR} RPM 설치 실패(dnf·rpm 모두) — 06-troubleshooting.md 'PostgreSQL 번들 설치' 참고."
-    fi
+    klid_dnf_install_from_bundle postgresql "${ONPREM}/syspkgs/postgresql" "${POSTGRES_RPM_PKGS[@]}" \
+      || die "[postgres] PG${PG_MAJOR} RPM 설치 실패 — 06-troubleshooting.md 'PostgreSQL 번들 설치' 참고."
   elif command -v rpm >/dev/null 2>&1; then
     rpm -Uvh --replacepkgs "${pg_rpms[@]}" \
       || die "[postgres] PG${PG_MAJOR} RPM 설치 실패(rpm) — dnf 로 의존성 해소가 필요할 수 있습니다."
@@ -171,7 +169,16 @@ fi
 # 번들 PG 의 유닛명은 postgresql-16.service 라, backend 유닛의 After=postgresql.service(이름 불일치)
 # 만으로는 부팅 시 순서 보장이 안 된다. 번들 PG 사용 시에만 drop-in 으로 실제 유닛명 순서를 묶는다
 # (외부 PG 면 이 스크립트는 앞에서 exit 0 되므로 미생성).
-if command -v systemctl >/dev/null 2>&1; then
+#
+# ★ 이 drop-in 은 <베어메탈 형상(klid-backend.service)> 전용이다. 확정 형상인 WAR 반입에서는
+#   그 유닛이 설치되지 않으므로(12-install-backend.sh) drop-in 도 만들지 않는다 — 없는 유닛에
+#   대한 drop-in 디렉터리를 만들어 두면 "순서가 보장돼 있다"는 잘못된 인상만 남는다.
+#   WAR 형상에서 <WAS 를 PG 뒤에 세우는 것>은 WAS 유닛 소관이라 우리가 배선할 수 없다(안내만 한다).
+if [[ "${INSTALL_BACKEND_SYSTEMD_UNIT:-0}" != "1" ]]; then
+  info "[postgres] backend 기동순서 drop-in 은 만들지 않습니다(WAR 반입 형상 — backend systemd 유닛 없음)."
+  info "           WAS 유닛이 ${PG_SERVICE}.service 뒤에 기동되도록 WAS 쪽에서 순서를 거세요:"
+  info "             [Unit] After=${PG_SERVICE}.service klid-ai-server.service"
+elif command -v systemctl >/dev/null 2>&1; then
   PG_DROPIN_DIR="/etc/systemd/system/klid-backend.service.d"
   PG_DROPIN="${PG_DROPIN_DIR}/10-pg16-after.conf"
   ensure_dir "${PG_DROPIN_DIR}"

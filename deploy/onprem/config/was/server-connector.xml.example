@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  klid-label backend — WAS 커넥터 설정 예시  [@design DEPLOY-001 · RUNBOOK-001]
+
+  대상 위치: <WAS_BASE>/conf/server.xml 안의 HTTP 커넥터
+
+  ★★ 이 파일을 server.xml 에 통째로 덮어쓰지 말 것.
+     같은 WAS 에 다른 애플리케이션이 함께 돌고 있을 수 있고, server.xml 을 교체하면 그쪽이 죽는다.
+     아래 <Connector> 의 <속성만> 기존 커넥터에 병합한다.
+     바깥의 <Server>/<Service> 골격은 <어디에 넣는지>를 보이기 위한 것이며 붙여 넣는 대상이 아니다.
+
+  ★ 왜 옮겨야 하는가 — 스프링의 server.* 설정은 <내장 서버 전용>이라 WAR 배포에서 적용되지 않는다.
+    문제는 적용되지 않아도 <기동은 정상이고 일반 요청도 정상>이라는 점이다. 배포 시점에는 아무
+    신호가 없고 현장에서 특정 기능만 깨진다.
+    규정 정본: docs/10-was-settings.md
+
+  ★ 검증은 기동 성공이 아니라 <대용량 업로드 1회 실제 수행>이다.
+-->
+<Server>
+  <Service name="Catalina">
+
+    <Connector port="8080"
+               protocol="HTTP/1.1"
+               URIEncoding="UTF-8"
+
+               connectionTimeout="20000"
+
+               maxSwallowSize="-1"
+               maxPostSize="-1"
+
+               maxThreads="200"
+
+               asyncTimeout="300000" />
+
+    <!--
+      항목별 근거 (docs/10-was-settings.md 1~3절)
+
+        maxSwallowSize="-1"
+          스프링의 server.tomcat.max-swallow-size 에 대응. 거부된 요청의 잔여 본문을 끝까지
+          읽도록 제한을 푼다. 걸려 있으면 대용량 업로드에서 커넥션이 끊긴다.
+
+        maxPostSize="-1"
+          스프링의 server.tomcat.max-http-form-post-size 에 대응. 폼 본문 크기 제한 해제.
+          ⚠ 여기서 풀어도 <앞단 httpd 의 LimitRequestBody 가 실제 상한>이다(현재 1258291200 =
+             1.2GB, config/frontend/httpd-klid.conf.template). 둘 중 작은 쪽이 이긴다.
+
+        maxThreads="200"
+          스프링의 server.tomcat.threads.max 기본값과 같은 값을 <명시>한다. 기본값에 기대면
+          동시 요청 상한이 어디에도 적혀 있지 않아, 되밀기가 요청 스레드를 잠식해도 한계를
+          아무도 모른 채 무응답이 된다. 장비 사양에 맞춰 조정하되 값을 비워 두지 않는다.
+
+        asyncTimeout="300000"   (밀리초 = 300초)
+          비동기·스트리밍 응답의 절대 제한. 응답을 계속 쓰고 있어도 리셋되지 않으므로,
+          기본값(30초)이면 긴 스트리밍이 통째로 잘린다.
+          ⚠ 앞단 httpd 의 프록시 타임아웃(300초)과 <함께> 본다 — 둘 중 작은 쪽이 실제 상한이다.
+             한쪽만 키우면 다른 쪽에서 끊긴다(config/frontend/httpd-klid.conf.template).
+
+        port="8080"
+          앞단 httpd 의 /api 프록시 대상과 일치해야 한다(httpd 설정의 BACKEND_ORIGIN).
+          현장 포트가 다르면 <양쪽을 함께> 바꾼다.
+    -->
+
+    <!--
+      ★★ 프록시 IP 치환 밸브를 추가하지 말 것 (docs/10-was-settings.md 4절)
+         getRemoteAddr() 을 X-Forwarded-For 값으로 무검증 치환해, 신뢰 프록시 대조와 웹훅
+         시도 횟수 제한이 헤더 한 줄로 우회된다(CWE-348 / CWE-307).
+         앱 가드는 WAS 설정 파일을 볼 수 없어 이 경우를 잡지 못한다.
+      <Valve className="org.apache.catalina.valves.RemoteIpValve" />   <- 넣지 않는다
+    -->
+
+    <!--
+      접근 로그는 WAS 기본 설정을 따른다. 저작도구가 요구하는 필드는 없다.
+      다만 로그에 토큰·개인정보가 실리지 않도록 쿼리스트링 기록 정책을 확인할 것
+      (영상 스트림은 단기 서명 URL 을 쓰므로 쿼리스트링에 서명이 실린다).
+    -->
+
+  </Service>
+</Server>

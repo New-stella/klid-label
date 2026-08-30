@@ -1,15 +1,78 @@
 # 04. 환경설정
 
-환경설정은 systemd `EnvironmentFile` 로 로드되는 두 파일이다.
+## ★ 어느 파일이 정본인가 — 배포 형상마다 다르다 (먼저 읽을 것)
 
-- `/etc/klid/backend.env`  (템플릿: `config/backend/env.template`)
-- `/etc/klid/ai-server.env` (템플릿: `config/ai-server/env.template`)
+확정 배포 형상은 **외부 WAS(Tomcat 10.1) 에 `api.war` 반입**이다(@design DEPLOY-001 · RUNBOOK-001).
+그 형상에서 **백엔드가 실제로 읽는 파일은 `backend.env` 가 아니다.**
 
-> 형식은 `KEY=VALUE`(한 줄 1개, 따옴표/셸확장 없음). 비밀번호 포함 → `chmod 640`, `root:klid`.
+| 형상 | 백엔드 설정 정본 | 템플릿 | 읽는 주체 |
+|---|---|---|---|
+| **WAR 반입 (확정 형상)** | **`/etc/klid/application.properties`** | `config/backend/application.properties.template` | **WAS** — 기동 옵션 `-Dspring.config.additional-location=file:/etc/klid/` |
+| 베어메탈 토글(`INSTALL_BACKEND_SYSTEMD_UNIT=1`) | `/etc/klid/backend.env` | `config/backend/env.template` | systemd — `EnvironmentFile=/etc/klid/backend.env` |
+| ai-server (형상 무관) | `/etc/klid/ai-server.env` | `config/ai-server/env.template` | systemd — `EnvironmentFile=` |
+
+- 설치 스크립트는 **두 백엔드 파일을 모두 배치**한다(형상을 나중에 바꿀 수 있게). **쓰이지 않는 쪽을
+  고치고 "반영이 안 된다"고 하는 것이 이 형상의 대표 함정**이므로, 고치기 전에 위 표를 확인한다.
+- 형식은 두 파일 모두 `KEY=VALUE`(한 줄 1개, 따옴표/셸확장 없음). 비밀번호 포함 → `chmod 640`, `root:klid`.
+- **아래 A 절의 항목표는 두 파일에 공통**이다. 표의 「변수」는 앱 고유 키 기준이며, `application.properties`
+  에서 이름이 달라지는 예외는 바로 아래 「키 이름 변환 규칙」이 전부다.
+- WAS 유닛명·경로 등 **현장값**은 `/etc/klid/was.env` 에 적어 둔다
+  (→ [09-operations-runbook.md](09-operations-runbook.md) §0-1. 운영 관례이며 프로그램이 읽는 설정이 아니다).
+
+### ★ 키 이름 변환 규칙 (`backend.env` → `application.properties`)
+
+**환경변수일 때만** 스프링이 `SPRING_FLYWAY_ENABLED` → `spring.flyway.enabled` 로 이름을 변환한다.
+`application.properties` 는 환경변수가 아니라 **설정 파일**이라 그 변환이 일어나지 않는다.
+
+| 키의 성격 | `backend.env`(환경변수) | `application.properties`(설정 파일) | 비고 |
+|---|---|---|---|
+| **앱 고유 키** (`CONTROL_DB_HOST` · `JWT_SECRET` · `KPST_*` · `STORAGE_*` · `ENV` …) | `CONTROL_DB_HOST=...` | **그대로** `CONTROL_DB_HOST=...` | 프로파일 yml 의 자리표시자가 이 이름으로 찾으므로 정상 해석 |
+| **스프링 자체 설정** (`SPRING_` 접두) | `SPRING_FLYWAY_ENABLED=false` | **점 표기** `spring.flyway.enabled=false` | 대문자·밑줄로 적으면 **조용히 무시된다** |
+| **활성 프로파일** | `SPRING_PROFILES_ACTIVE=prd` | **파일에 적지 않는다** → WAS 기동 옵션 `-Dspring.profiles.active=prd` | 설정 파일이 로드되는 시점을 프로파일이 정하므로 |
+| **JVM 옵션** | `JAVA_OPTS=...`(systemd 가 `ExecStart` 에 전개) | **파일에 적지 않는다** → WAS 의 `CATALINA_OPTS` | JVM 기동 옵션이라 스프링이 읽지 않는다 |
+
+> ⚠ **`SPRING_FLYWAY_ENABLED=false` 를 `application.properties` 에 적은 사고가 실제로 있었다** —
+> 조용히 무시되어 DBA 가 선적용한 스키마 위에서 마이그레이션이 그대로 돌았다.
+> `spring.flyway.enabled=false` 로 고치니 실행 0건이 됐다. **오류가 아니라 무시**라 로그에도 안 남는다.
+>
+> ⚠ **`server.*` 는 어느 파일에 적어도 WAR 형상에서 적용되지 않는다**(내장 서버 전용).
+> 업로드 본문 한도·스레드 예산·비동기 타임아웃은 **WAS 커넥터 설정**으로 옮겨야 한다 —
+> → [10-was-settings.md](10-was-settings.md), 예시 파일 `config/was/`.
+
+### ★ 두 템플릿의 키 집합은 사람이 맞춘다 — 어긋나면 조용히 기본값이 된다
+
+`env.template` 과 `application.properties.template` 은 **같은 키 목록을 각자 들고 있는 사본 관계**다.
+한쪽에만 키를 추가하면 다른 형상에서 그 키가 빠진 채 배포되고, **빠진 키는 오류가 아니라 기본값으로
+동작**한다(부팅 차단 대상 키가 아니면 아무 신호가 없다).
+
+- **키 목록의 진실원은 `config/backend/env.template`** 이다. `application.properties.template` 은 그것을
+  옮겨 적은 사본이며 머리말에도 그렇게 적혀 있다. **키를 추가·삭제하면 두 파일을 같은 커밋에서 고친다.**
+- **어긋났는지 확인하는 법** — 주석·빈 줄을 걷어내고 키 이름만 뽑아 대조한다.
+
+```bash
+cd deploy/onprem/config/backend
+keys() { grep -oE '^[A-Za-z_][A-Za-z0-9_.]*=' "$1" | tr -d '=' | sort -u; }
+diff <(keys env.template) <(keys application.properties.template)
+# 출력이 비어 있으면 동기 상태.
+# 나오는 것이 정상인 <의도된 차이>는 아래 넷뿐이다:
+#   < SPRING_PROFILES_ACTIVE   (properties 쪽은 WAS 기동 옵션으로 준다)
+#   < SPRING_FLYWAY_ENABLED    (properties 쪽은 spring.flyway.enabled 로 표기)
+#   < JAVA_OPTS                (properties 쪽은 CATALINA_OPTS 로 옮긴다)
+#   > spring.flyway.enabled    (위 SPRING_FLYWAY_ENABLED 의 점 표기 짝)
+# 그 밖의 줄이 나오면 한쪽에만 추가된 키다 — 반드시 양쪽을 맞춘다.
+```
+
+> ⚠ **이 대조는 자동화돼 있지 않다**(빌드·설치·CI 어디에도 검사가 없다). 키를 만지는 사람이
+> 위 명령을 직접 돌리는 것이 현재의 유일한 방어다. 값까지 같은지는 검사하지 않는다 — 두 파일의
+> **값은 형상마다 다를 수 있고**(예 주소), 맞춰야 하는 것은 **키의 존재**와 **운영 값의 일치**다.
 
 ---
 
-## A. backend.env 항목표
+## A. 백엔드 설정 항목표 (두 형상 공통)
+
+**WAR 형상은 `/etc/klid/application.properties`, 베어메탈 토글은 `/etc/klid/backend.env` 에 적는다** —
+표의 「변수」는 두 파일에 같은 이름으로 쓰인다(예외는 위 「키 이름 변환 규칙」의 넷뿐).
+⚠ 구 제목 폐기(2026-08-30) — *"A. backend.env 항목표"*. 확정 형상에서 그 파일은 쓰이지 않는다.
 
 출처: `backend/src/main/resources/application.yml` + `application-prd.yml`(+ local).
 ★=필수, ·=선택/기본값 사용 가능.
@@ -98,15 +161,25 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 | `FFMPEG_BIN`/`FFPROBE_BIN`/`FFMPEG_THREADS` | · | 기본 `ffmpeg`/`ffprobe`/2 |
 | `BATCH_ENABLED`/`BATCH_INTERVAL_SEC` | · | 기본 true/60 |
 | `TRAINING_SCAN_ENABLED` | ★ | **인입 폴링**(`LS_DATA_INGEST` 픽업 → `LS_DATA_RAW` 적재). 기본 true — **반드시 켜 둘 것**. 적재 주체 반전 이후 관제 인입분과 관리 화면 자체 업로드분이 **모두** 이 잡을 통해서만 적재된다(구 안내 "공유 DB 없으면 false 권장"은 폐기). false 면 업로드는 200 을 받고도 인입 행이 영원히 `PENDING` 에 머물러 영상이 목록에 나타나지 않는다(기동 시 ERROR 로그 + 업로드 완료 응답 `X-Ingest-Status: PENDING_SCAN_DISABLED`) |
-| `JAVA_OPTS` | · | 기본 `-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul` |
+| `JAVA_OPTS` | · | 기본 `-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul`. ⚠ **베어메탈 토글 전용 키다** — WAR 형상에서는 `application.properties` 에 적어도 아무 효과가 없다(JVM 기동 옵션이라 스프링이 읽지 않는다). WAS 의 `CATALINA_OPTS` 로 옮긴다(예시 `config/was/setenv.sh.example`). 같은 WAS 에 다른 애플리케이션이 있으면 `MaxRAMPercentage` 를 그대로 옮기기 전에 영향을 확인할 것 |
 
 > ⚠ **`{STORAGE_RAW_PATH}/data/upload/v2` 는 저작도구 내부 업로드 전용이다 — 관제가 이 디렉터리에 클립을 놓지 말 것.**
 > 저작도구는 관제가 INSERT 한 인입 행(`LS_DATA_INGEST`)과 자기가 만든 인입 행을 **`RAW_FILE_PATH_NM` 의 부모 디렉터리가 이 경로인가**로만 구분한다(관제 행은 관제 NAS 경로를 가리킨다). 이 판별자는 위 운영 규약에만 기대며 코드로 강제되지 않는데, 소비자가 **되살리기**(취소한 클립 ID 재사용)와 **업로드 완료 시 기술메타 back-fill** 둘이라, 관제가 이 디렉터리에 클립을 놓으면 그 관제 인입 행이 저작도구의 쓰기 대상이 될 수 있다(관제 수신 원장 변조 — CWE-915). 클립은 반드시 이 디렉터리 **밖**에 둘 것.
 >
-> ⚠ **`STORAGE_RAW_PATH`/`STORAGE_DEIDENTIFIED_PATH` 변경 시**: 이 경로는 systemd 유닛의 `ReadWritePaths`(`ProtectSystem=full` 하 쓰기 허용 목록)에도 박힌다. env 만 바꾸면 쓰기가 차단되므로 **반드시 재설치(또는 유닛 갱신) 후 재로드**:
+> ⚠ **`STORAGE_RAW_PATH`/`STORAGE_DEIDENTIFIED_PATH` 변경 시 — 형상에 따라 할 일이 다르다.**
+> **베어메탈 토글**에서는 이 경로가 systemd 유닛의 `ReadWritePaths`(`ProtectSystem=full` 하 쓰기 허용
+> 목록)에도 박히므로, 설정만 바꾸면 쓰기가 차단된다. **반드시 재설치(또는 유닛 갱신) 후 재로드**:
 > ```
-> sudo STORAGE_RAW_PATH=/새경로 ./scripts/install.sh   # 유닛 ReadWritePaths 재치환
+> sudo INSTALL_BACKEND_SYSTEMD_UNIT=1 STORAGE_RAW_PATH=/새경로 ./scripts/install.sh   # 유닛 ReadWritePaths 재치환
 > sudo systemctl daemon-reload && sudo systemctl restart klid-backend
+> ```
+> **WAR 형상에는 그 유닛이 없으므로 `ReadWritePaths` 제약도 없다** — `application.properties` 를 고치고
+> WAS 를 재기동하면 된다. 대신 **WAS 프로세스를 돌리는 OS 계정이 새 경로에 쓸 수 있어야 한다**
+> (베어메탈은 `klid` 계정이지만 WAS 계정은 다를 수 있다 — 이쪽이 이 형상의 실제 실패 지점이다).
+> ```
+> sudo -u <WAS 실행 계정> test -w /새경로 && echo OK || echo '쓰기 불가 — 소유권/권한을 조정할 것'
+> source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+> sudo systemctl restart "$WAS_UNIT"
 > ```
 > 또한 NAS 를 해당 경로로 **미리 마운트**해야 한다(설치는 부재해도 warn 후 계속되나, 서비스가 영상을 못 쓴다). DB 에 저장된 절대경로가 이 베이스로 시작해야 서빙된다(startsWith 가드).
 >
@@ -289,6 +362,9 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
   폐쇄망이라 TLS 는 걸지 않는다. 외부 노출 시 사내 TLS 종단을 앞단에.
   ★ 프록시 응답 버퍼링을 끈다(`flushpackets=on`) — 기본값이면 스트리밍 응답이 클라이언트에 아무것도 가지 않다가 끊긴다.
 - 대안: `USE_NGINX=1` 설치 시 `config/frontend/nginx.conf.template`(proxy_pass 127.0.0.1:8080) 배치.
+- ★ **앞단(httpd)과 WAS 는 한도를 각자 갖는다 — 둘 중 작은 쪽이 실제 상한**이다. 업로드 본문 한도·
+  프록시 타임아웃을 한쪽만 키우면 다른 쪽에서 잘린다. WAS 쪽 값과 예시는
+  [10-was-settings.md](10-was-settings.md) · `config/was/` 를 함께 본다.
 
 ---
 
@@ -308,7 +384,8 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 > 저작도구는 자체 로그인 UI 가 없다. 사용자는 **관제서버가 발급한 JWT** 를 인계받아 진입하고,
 > 그 토큰에 역할이 없으면 화면이 `/role-claim`(권한 부여) 으로 안내한다.
 
-1. `/etc/klid/backend.env` 에 **관리자 공유 패스워드 해시**를 설정하고 재기동한다(E 절 치트시트로 생성).
+1. **백엔드 설정 정본**(WAR 형상 `/etc/klid/application.properties` · 베어메탈 토글 `/etc/klid/backend.env`)에
+   **관리자 공유 패스워드 해시**를 설정하고 재기동한다(E 절 치트시트로 생성).
    ```
    ADMIN_CLAIM_PASSWORD_HASH=$2b$12$....   # BCrypt cost≥12. 평문이면 기동 실패
    ```
@@ -402,7 +479,8 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 > 미설정(OFF)으로 원복하고 backend 를 재기동한다. 온프렘 FE 번들은 dev 라우트를 dist 에 포함하되
 > 실제 게이팅은 BE 런타임 토글이 결정하므로(BE off 면 `/v1/dev/*` 404), env 원복만으로 차단된다.
 
-1. `/etc/klid/backend.env` 에 dev 로그인 토글만 설정 후 재기동:
+1. 백엔드 설정 정본(WAR 형상 `/etc/klid/application.properties` · 베어메탈 토글 `/etc/klid/backend.env`)에
+   dev 로그인 토글만 설정 후 재기동:
    ```
    DEV_LOGIN_ENABLED=true
    ```
@@ -414,7 +492,7 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 3. `/admin/uploads` 에서 테스트 영상 업로드 → 파이프라인(선두 비식별 → 마킹대기) 진행 확인.
    ⚠ 이 화면은 **관리자 페이지 소속**이라 검수자 역할만으로는 못 들어간다 — `/admin` 에서 관리자
    패스워드 확인을 거쳐야 도달하며, 업로드 **시작**에도 그때 열린 유효창이 실린다(G 절).
-4. **운영 정상화 후**: `DEV_LOGIN_ENABLED` 를 backend.env 에서 미설정(삭제/주석)하고 재기동
+4. **운영 정상화 후**: `DEV_LOGIN_ENABLED` 를 백엔드 설정 정본에서 미설정(삭제/주석)하고 재기동
    → `/v1/dev/*` 중 **로그인 경로만** 차단된다. 이후 실제 사용자 권한은 G 절 경로로 부여한다.
    ⚠ 수동 업로드는 이 원복 대상이 **아니다** — 상시 기능이므로 계속 열려 있다(I 절).
 
@@ -443,8 +521,8 @@ htpasswd -bnBC 12 "" '평문' | tr -d ':\n'   # ADMIN_CLAIM_PASSWORD_HASH (BCryp
 ### 되돌리는 법 (비노출로 전환) ★ 둘을 반드시 함께
 
 ```
-# 1) backend — /etc/klid/backend.env
-DEV_UPLOAD_ENABLED=false      # 재기동 필요
+# 1) backend — WAR 형상: /etc/klid/application.properties · 베어메탈 토글: /etc/klid/backend.env
+DEV_UPLOAD_ENABLED=false      # 재기동 필요(WAR 형상이면 WAS 재기동)
 
 # 2) frontend — 재빌드 필요 (빌드타임 치환이라 런타임 토글이 아니다)
 VITE_DEV_UPLOAD_ENABLED=false

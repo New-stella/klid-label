@@ -26,9 +26,11 @@
 # ============================================================================
 
 # ============================================================================
-# klid-backend 환경설정 (EnvironmentFile=/etc/klid/backend.env)
+# klid-backend 환경설정
 #
-#   ★ 이 파일은 systemd 의 EnvironmentFile 로 로드된다.
+#   ⚠ 아래 소제목은 원본(backend/env.template)에서 옮겨 온 것이라 systemd 를 전제한다.
+#     이 파일은 <WAS 가 -Dspring.config.additional-location 으로 읽는 설정 파일>이며
+#     systemd 의 EnvironmentFile 이 아니다(위 머리말이 정본).
 #     - 형식: KEY=VALUE (한 줄 1개, 따옴표 불필요, 셸 확장 없음)
 #     - 권한: chmod 640, owner root:klid (비밀번호 포함 → 외부 노출 금지)
 #
@@ -168,12 +170,14 @@ AI_SERVER_URL=http://127.0.0.1:9300
 #   다른 도메인에서 호출 시 콤마 구분 allowlist(예: https://fe.example.com)
 CORS_ALLOWED_ORIGINS=
 
-# ---- FFmpeg (런타임 의존: 번들 정적 바이너리) -----------------------------
-# · Rocky 9 에는 ffmpeg RPM 이 base/AppStream 에 없어 정적 바이너리를 번들한다.
-#   설치 시 /opt/klid/runtime/ffmpeg/bin/{ffmpeg,ffprobe} 로 배치된다(절대경로 기본값).
-#   (systemd 유닛 PATH 에도 이 경로가 추가되므로 bare 이름으로도 잡히지만, 명확성을 위해 절대경로.)
-FFMPEG_BIN=/opt/klid/runtime/ffmpeg/bin/ffmpeg
-FFPROBE_BIN=/opt/klid/runtime/ffmpeg/bin/ffprobe
+# ---- FFmpeg (런타임 의존: 시스템 RPM 설치본) ------------------------------
+# · ffmpeg 는 base/AppStream 에 없어 EPEL + RPM Fusion + PowerTools(CRB) 에서 받아
+#   오프라인 번들(syspkgs/ffmpeg/*.rpm)로 설치한다 → /usr/bin/{ffmpeg,ffprobe}.
+# ⚠ 구 서술 폐기(2026-08-28) — "Rocky 9 … 정적 바이너리를 번들한다 /
+#   /opt/klid/runtime/ffmpeg/bin/{ffmpeg,ffprobe} 로 배치된다".
+#   타깃이 RHEL 8.9(glibc 2.28)로 확정되어 정적 빌드(glibc 2.31 기반)가 동작하지 않는다.
+FFMPEG_BIN=/usr/bin/ffmpeg
+FFPROBE_BIN=/usr/bin/ffprobe
 FFMPEG_THREADS=2
 
 # ---- 배치 파이프라인 ------------------------------------------------------
@@ -282,11 +286,21 @@ WEBHOOK_CALLBACK_BASE_URL=http://127.0.0.1:8080/api
 QUARTZ_CLUSTERED=true
 QUARTZ_CHECKIN_MS=20000
 
-# ---- JVM 옵션 (systemd 유닛에서 사용) -------------------------------------
+# ---- JVM 옵션 — ★ 이 파일에 적어도 <아무 효과가 없다> ----------------------
+#   JVM 옵션은 프로세스 기동 시점에 정해지는데, WAR 반입 형상에서 그 프로세스는 WAS 다.
+#   아래 값은 <WAS 의 JVM 기동 옵션>(예 Tomcat setenv.sh 의 CATALINA_OPTS)으로 옮겨야 한다.
+#   그래서 여기서는 키=값으로 두지 않고 <옮길 내용>만 주석으로 남긴다.
+#
+#     -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul \
+#     -Djava.security.egd=file:/dev/./urandom
+#
 # · -Djava.security.egd=file:/dev/./urandom : 폐쇄망/신규 VM 의 엔트로피 고갈로
 #   SecureRandom 초기화가 수십초~수분 블로킹되는 기동 지연 방지(/./ 는 JDK 알려진
 #   동작 회피용으로 의도된 표기). 추가로 OS 에 haveged/rng-tools 설치 권장.
-JAVA_OPTS=-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul -Djava.security.egd=file:/dev/./urandom
+# ⚠ 구 서술 폐기(2026-08-30) — "JVM 옵션 (systemd 유닛에서 사용)" + JAVA_OPTS= 키.
+#   이 파일은 스프링 설정 파일이라 JAVA_OPTS 라는 키를 스프링이 읽지도, JVM 이 보지도 않는다.
+#   ⚠ WAS 의 JVM 은 이 애플리케이션 전용이 아닐 수 있다 — 같은 WAS 에 다른 앱이 있으면
+#     MaxRAMPercentage 를 그대로 옮기기 전에 그 영향을 확인할 것.
 
 # ============================================================================
 # ★ 비식별 정책 (확정 — KPST 동거 연동):

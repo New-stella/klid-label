@@ -2,8 +2,29 @@
 
 ## 기동 순서
 
-의존 순서대로 **PostgreSQL → ai-server → backend → frontend** 로 켠다(유닛에도 의존성이 박혀 있다).
+의존 순서대로 **PostgreSQL → ai-server → backend(WAS) → frontend(httpd)** 로 켠다.
 번들 PG 를 설치했다면 `10-install-postgresql.sh` 가 이미 `postgresql-16` 을 `enable --now` 해 둔다.
+
+> ★ **서버가 2대면 이 절의 명령이 장비마다 갈린다** (`--role=app` / `--role=ai`).
+> `klid-ai-server` 는 **서버 B(ai)** 에만, `httpd` 와 WAS 는 **서버 A(app)** 에만 있다.
+> 한 장비에서 전부 돌리려다 없는 유닛에 `systemctl` 을 걸면 실패한다.
+> 단일 서버 설치(`--role` 미지정 = `all`)면 종전대로 한 장비에서 전부 확인한다.
+
+> ★ **ffmpeg 은 우리가 설치하지 않는다 — 서버 A 의 전제조건이다.**
+> 없으면 backend 는 **정상 기동하고 헬스체크도 통과하지만** 프레임 추출·영상 메타 조회가
+> 배치 실행 시점에 죽는다. 그래서 설치 마지막 단계 `19-verify-ffmpeg.sh` 가 die 한다.
+> 기동 전에 `command -v ffmpeg ffprobe` 로 확인하고, 없으면
+> `sudo ./scripts/install/install-ffmpeg.sh` 로 번들 판을 설치한다
+> (관제지원시스템과 공동 배치라 자동 설치하지 않는다 — [06-troubleshooting.md](06-troubleshooting.md)).
+
+> ★ **backend 는 systemd 유닛이 아니다** (배포 형상 = 외부 WAS 에 WAR 반입, @design DEPLOY-001).
+> `api.war` 를 WAS 배포 디렉터리에 올리고 **WAS 를 기동**한다. 그 전에 **WAS 설정 이관**
+> ([10-was-settings.md](10-was-settings.md))이 끝나 있어야 한다 — 안 끝나 있어도 기동은 성공하고
+> 대용량 업로드에서만 실패하므로, 기동 성공을 그 단계의 완료 근거로 쓰지 말 것.
+>
+> ⚠ 구 서술 폐기(2026-08-30) — `sudo systemctl enable --now klid-backend` / `klid-frontend`.
+> 전자는 베어메탈 형상 전용 유닛이라 기본 설치되지 않고, 후자는 **애초에 존재한 적 없는 유닛명**이다
+> (웹 서버는 배포판 `httpd.service` — 2026-08-19 Caddy 폐기 이후).
 
 ```bash
 sudo systemctl daemon-reload
@@ -13,10 +34,17 @@ systemctl is-active postgresql-16    # active 가 아니면: sudo systemctl enab
 
 # enable + 즉시 시작 (한 번에)
 sudo systemctl enable --now klid-ai-server
-sudo systemctl enable --now klid-backend
-sudo systemctl enable --now klid-frontend
+sudo systemctl enable --now httpd
+
+# backend — WAS 배포 후 WAS 를 기동한다(유닛명은 WAS 설치 형상에 따름).
+#   예) sudo cp /opt/klid/app/api.war <WAS_HOME>/webapps/api.war   # 파일명 변경 금지
+#       sudo systemctl restart <WAS 유닛명>
 ```
 
+> ⚠ 아래 「번들 PG 순서 drop-in」 설명은 **베어메탈 형상(systemd 유닛으로 backend 를 띄우는 경우)**
+> 에만 해당한다. WAR 형상에서는 기동 순서를 WAS 가 갖고 있으므로, **WAS 유닛에 PG·ai-server 기동
+> 순서를 거는 것은 WAS 설정 소관**이다(우리 drop-in 은 만들어지지 않는다 — 유닛 자체가 없다).
+>
 > backend 유닛은 `Requires=klid-ai-server` + `After=postgresql.service klid-ai-server.service` 라
 > ai-server 준비 후 기동된다. backend 첫 기동 시 Flyway 가 LS_*·MNG_*·QRTZ_* 스키마를 자동
 > 부트스트랩(`CREATE TABLE IF NOT EXISTS`)하므로 시작이 다소 길 수 있다(TimeoutStartSec=180).
@@ -43,7 +71,9 @@ sudo systemctl enable --now klid-frontend
 ## 상태 확인
 
 ```bash
-systemctl status klid-ai-server klid-backend klid-frontend --no-pager
+# 서버 A(app): httpd + WAS  /  서버 B(ai): klid-ai-server
+systemctl status klid-ai-server httpd --no-pager
+# backend 는 WAS 프로세스 안에 있다 — WAS 유닛 상태와 아래 liveness 로 확인한다.
 ```
 
 ## PostgreSQL 스모크 (번들 PG)
@@ -71,7 +101,7 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 > 온프렘(`SPRING_FLYWAY_ENABLED=false`)은 설치 시 `db/schema.sql` 로드로 이 스키마가 만들어지며,
 > 그 경우 `flyway_schema_history` 는 생성되지 않는다(덤프에서 의도적으로 제외 — Flyway 미사용).
 
-> backend 로그(`journalctl -u klid-backend`)에 Flyway `Migrating schema ... to version 2`,
+> backend 로그(**WAR 형상이면 WAS 로그**, 베어메탈이면 `journalctl -u klid-backend`)에 Flyway `Migrating schema ... to version 2`,
 > `Successfully applied N migration(s)` 가 보이면 스키마 자동 부트스트랩이 성공한 것이다.
 
 ## 헬스체크 (스모크)
@@ -96,9 +126,10 @@ curl -fsS http://127.0.0.1/api/actuator/health/liveness
 
 ```bash
 # systemd journald (권장)
-journalctl -u klid-backend   -f
 journalctl -u klid-ai-server -f
-journalctl -u klid-frontend  -f
+journalctl -u httpd          -f
+# backend 로그는 WAS 의 로그다 — WAS 유닛(journalctl -u <WAS 유닛명>) 또는 WAS 로그 디렉터리를 본다.
+# (베어메탈 형상에서만 journalctl -u klid-backend 가 존재한다)
 
 # 앱 로그 디렉토리(앱이 파일 로깅 시)
 ls -al /var/log/klid
@@ -150,8 +181,9 @@ curl -fsS http://127.0.0.1:8080/api/actuator/health
 ## 재시작 / 정지
 
 ```bash
-sudo systemctl restart klid-backend
-sudo systemctl stop klid-frontend klid-backend klid-ai-server
+sudo systemctl restart <WAS 유닛명>              # backend 재기동 = WAS 재기동
+sudo systemctl stop httpd klid-ai-server
+sudo systemctl stop <WAS 유닛명>
 ```
 
 ## 환경설정 변경 반영
@@ -159,5 +191,11 @@ sudo systemctl stop klid-frontend klid-backend klid-ai-server
 `/etc/klid/*.env` 수정 후:
 
 ```bash
-sudo systemctl restart klid-backend     # 또는 klid-ai-server
+sudo systemctl restart <WAS 유닛명>     # backend(.env 는 WAS 가 읽는다 — 아래 주의)
+sudo systemctl restart klid-ai-server
 ```
+
+> ⚠ `/etc/klid/backend.env` 는 **베어메탈 유닛의 `EnvironmentFile`** 로 주입되던 파일이다.
+> WAR 형상에서는 그 유닛이 없으므로 **WAS 프로세스에 같은 환경변수가 전달되도록 WAS 쪽에서
+> 배선**해야 한다(WAS 서비스 유닛의 `EnvironmentFile` 또는 `setenv.sh`). 배선하지 않으면
+> DB 접속·시크릿이 비어 기동이 실패한다.

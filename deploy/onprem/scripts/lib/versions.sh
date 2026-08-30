@@ -5,9 +5,27 @@
 #   package/* 스크립트가 source 하여 사용한다. 폐쇄망 정합을 위해
 #   대상 서버와 동일한 OS/아키텍처(linux x86_64, glibc) 빌드를 받아야 한다.
 #
+#   ★ 타깃 OS = 레드햇 엔터프라이즈 리눅스 8.9 (RHEL 8 계열, x86_64, glibc 2.28, dnf/rpm).
+#     RHEL 8 은 8.0~8.10 전 버전이 glibc 2.28 로 고정이므로 8.9 도 2.28 이다.
+#     ⚠ 구 서술 폐기(2026-08-28) — "타깃 OS = Rocky Linux 9 (RHEL 9 계열, glibc 2.34)".
+#       그 전제로 받은 el9 RPM 은 RHEL 8 에 설치되지 않고, glibc 2.31 기반 정적 바이너리는
+#       2.28 에서 GLIBC_2.31 not found 로 죽는다.
+#
 #   ※ 아래 URL/버전은 "권장 기본값"이다. 사내 미러나 다른 패치 버전을 쓰려면
 #     이 파일만 수정하면 된다. 모든 URL 은 빌드머신(인터넷 가능)에서만 호출된다.
 # ============================================================================
+
+# ---- 타깃 OS / 수집용 컨테이너 이미지 ----
+#   RPM·pip wheel 은 반드시 타깃과 같은 세대(el8, glibc 2.28)에서 수집해야 한다.
+#   맥/윈도 빌드머신에서는 아래 이미지를 docker 로 띄워 수집한다.
+#   ★ --platform linux/amd64 를 반드시 지정한다 — Apple Silicon 에서 생략하면 aarch64 RPM 을
+#     받아 놓고 "성공"으로 끝나는 조용한 실패가 된다(타깃 x86_64 에 설치 불가).
+#   검증: 2026-08-30, rockylinux/rockylinux:8 → Rocky Linux 8.10 / glibc 2.28 / x86_64,
+#     baseos·appstream·extras·powertools 리포 정상(vault 아님).
+#     (동등 대안 almalinux:8 도 8.10 / glibc 2.28 로 동일 확인. 어느 쪽이든 el8 RPM 은 호환)
+EL8_BUILDER_IMAGE="rockylinux/rockylinux:8"
+EL8_BUILDER_PLATFORM="linux/amd64"
+TARGET_OS_LABEL="레드햇 엔터프라이즈 리눅스 8.9 (el8, x86_64, glibc 2.28)"
 
 # ---- 빌드 도구 버전(빌드머신에 설치되어 있어야 함, 번들 대상 아님) ----
 BUILD_JDK_MAJOR="17"        # backend bootJar 빌드용 (Temurin 17)
@@ -15,9 +33,16 @@ BUILD_NODE_MAJOR="20"       # frontend vite build 용
 BUILD_PYTHON_MINOR="3.11"   # ai-server pip download 용 (대상과 동일 마이너)
 
 # ---- 대상 서버 런타임(번들 대상) ----
+# ★★ 아래 TEMURIN_JRE_* 는 <더 이상 수집되지 않는다> (2026-08-30 사용자 확정, 구속).
+#   배포 형상이 <외부 WAS 에 WAR 반입>으로 확정됐고(@design DEPLOY-001), 대상 장비의 WAS
+#   (Tomcat 10.1.x)가 이미 Java 17 로 돌고 있어 자바 런타임을 한 벌 더 반입하지 않는다.
+#   40-collect-runtimes.sh 도 11-install-runtimes.sh 도 이 값을 읽지 않는다.
+#   ⚠ 핀을 지우지 않고 남기는 이유: 베어메탈 형상(java -jar)으로 되돌려야 할 때 재조달의
+#     기준값이 여기 말고는 없다. 되살리려면 위 두 스크립트에 수집·설치를 다시 배선해야 한다.
+#   ⚠ 이 핀과 아래 JDK17_FULL_* 는 <별개>다. 둘 다 지금은 반입되지 않지만 이유가 다르다 —
+#     이쪽은 "형상이 자바를 안 쓴다", 저쪽은 "현장 재빌드 요구가 없다"(빌드 키트 기본 제외).
+#
 # Eclipse Temurin JRE 17 (linux x64, glibc, hotspot). 헤드리스 JRE 로 충분.
-# ★ JRE 는 "설치 런타임"(대상 서버 backend 실행)용이다. 소스 빌드용 JDK(javac 포함)는
-#   아래 JDK17_FULL_* 핀(별개)을 쓴다 — 둘 다 유지한다(혼동 금지).
 # 검증: 2026-06-24, 출처 https://api.adoptium.net/v3/assets/latest/17/hotspot?os=linux&architecture=x64&image_type=jre
 #   (release_name jdk-17.0.19+10, package.checksum = sha256)
 TEMURIN_JRE_VERSION="17.0.19+10"
@@ -26,7 +51,7 @@ TEMURIN_JRE_SHA256="adb5a2364baa51de1ef91bb9911f5a61d24b045fe1d6647cb8050272a3a8
 
 # ============================================================================
 # ---- 오프라인 빌드 키트(buildtools/) — 타깃에서 "소스 재빌드" 용 ----
-#   사전 빌드 아티팩트(jar/dist)와 별개로, 폐쇄망 타깃(Rocky 9)에서 소스를
+#   사전 빌드 아티팩트(jar/dist)와 별개로, 폐쇄망 타깃(RHEL 8.9)에서 소스를
 #   인터넷 없이 재빌드하기 위한 빌드 도구다. 의존성 캐시(gradle-home/node_modules)
 #   까지 함께 번들해야 오프라인 빌드가 닫힌다(60-collect-buildtools.sh 참조).
 # ============================================================================
@@ -64,30 +89,70 @@ PYTHON_STANDALONE_VERSION="3.11.15"
 PYTHON_STANDALONE_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.11.15+20260623-x86_64-unknown-linux-gnu-install_only.tar.gz"
 PYTHON_STANDALONE_SHA256="60295e3e703b48c270e8d8c685195b8d5c2f0b8a596c1a910d7e24a2cc55afdd"
 
-# ffmpeg/ffprobe 정적 바이너리 (linux64, LGPL) — backend FFmpegStep(net.bramp 래퍼)용
-#   ★ Rocky Linux 9 정책: ffmpeg 는 base/AppStream 에 없고 RPM Fusion/EPEL 미러가 필요해
-#     폐쇄망에서 의존성 지옥에 빠진다. 따라서 정적 코덱 바이너리를 번들한다.
-#   ★ 라이선스: LGPL 빌드를 쓴다(지방정부 납품 — GPL 의무 회피). LGPL 빌드는 native H.264/HEVC
-#     디코더를 포함하므로 프레임 추출(디코드)·duration 추출에 충분하다. 우리는 인코딩을 하지 않으며
-#     GPL 코덱(libx264/x265 = 인코더)은 불필요하다.
-#   ★ glibc: BtbN 빌드는 glibc 에 동적 링크(약 glibc 2.31 기반 빌드), 코덱만 정적 링크된다.
-#     Rocky 9 의 glibc 2.34 는 상위호환이므로 정상 동작한다(빌드 glibc ≤ 대상 glibc).
-#   BtbN FFmpeg-Builds 의 "dated autobuild" 태그는 자산이 불변(immutable)이라 재현 가능하다
-#   ("latest" 태그는 매일 덮어써져 체크섬이 바뀌므로 핀에 부적합 — dated 태그를 쓴다).
-#   linux64-lgpl(비-shared) = 코덱 정적 링크. 압축은 .tar.xz (수집/설치 스크립트가 xz 로 해제).
-#   검증: 2026-06-24, 출처 https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-06-23-13-52
-#     SHA256 출처: 동 릴리스 checksums.sha256 의 (ffmpeg-n7.1.5-linux64-lgpl-7.1.tar.xz 행)
-#     공식 checksums.sha256 와 대조 일치 확인: 2026-06-24
-FFMPEG_STATIC_VERSION="n7.1.5"
-FFMPEG_STATIC_URL="https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-06-23-13-52/ffmpeg-n7.1.5-linux64-lgpl-7.1.tar.xz"
-FFMPEG_STATIC_SHA256="86821c89fcde7adf381005329dc696a02fa99ba2bc5b6f0a4fac3dafc247e1b2"
+# ★ 같은 릴리스의 <full 아카이브> — 라이선스 고지 19종을 꺼내려고만 받는다 (2026-08-30 신설).
+#   ⚠ 왜 별도 URL 인가: 우리가 실제로 반입하는 install_only tarball 에는 <licenses/ 디렉터리가
+#     없다>(실측 — 그 안에는 python/install/... 만 들어 있다). 그래서 OpenSSL·Berkeley DB·
+#     ncurses·libedit·tcl 등 <번들 파이썬이 정적으로 안고 있는 제3자 고지 19종>을 한 건도
+#     담지 못한 채 배포하고 있었다. full 아카이브에만 python/licenses/*.txt 가 들어 있다.
+#   ★ full 아카이브 자체는 <반입하지 않는다>. 71MB 를 받아 168KB 의 고지만 꺼내고 버린다.
+#     실행 런타임은 여전히 install_only 다(형상 변경 아님).
+#   검증: 2026-08-30, 동 릴리스 SHA256SUMS 행과 실제 다운로드 파일 해시 일치 확인.
+#     추출된 목록(19): bdb · bzip2 · cpython · expat · libedit · libffi · liblzma · libuuid ·
+#       libX11 · libXau · libxcb · mpdecimal · ncurses · openssl-1.1 · openssl-3 · sqlite ·
+#       tcl · tix · zlib
+PYTHON_STANDALONE_FULL_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.11.15%2B20260623-x86_64-unknown-linux-gnu-pgo%2Blto-full.tar.zst"
+PYTHON_STANDALONE_FULL_SHA256="ca7dadd778176c1aac3d37f3444adcb7bb2aa5c2e8e282f856727811b0207cdf"
+
+# ---- ffmpeg/ffprobe — 시스템 RPM(RPM Fusion el8) 설치본 ----
+#   backend FFmpegStep(net.bramp 래퍼)이 호출하는 실행 파일. 프레임 추출·duration 산출용.
+#
+#   ★ 조달 경로: 정적 바이너리 번들 → 배포판 RPM 으로 전환한다(2026-08-28 사용자 확정, 구속).
+#     관제지원시스템이 이미 쓰고 있는 형상과 맞춘다. dev 서버(cudo_246) 실측:
+#       ffmpeg 3.4.13 · --enable-gpl --enable-libx264 --enable-libx265
+#       RPM License: GPLv2+ · Vendor: RPM Fusion · Source: ffmpeg-3.4.13-1.el7.src.rpm
+#
+#   ⚠ 구 정책 폐기(2026-08-28) — 아래 두 줄은 더 이상 우리 정책이 아니다. 되살리지 말 것.
+#       "라이선스: LGPL 빌드를 쓴다(지방정부 납품 — GPL 의무 회피). … 우리는 인코딩을 하지
+#        않으며 GPL 코덱(libx264/x265 = 인코더)은 불필요하다."
+#       "glibc: BtbN 빌드는 glibc 에 동적 링크(약 glibc 2.31 기반 빌드) … Rocky 9 의 glibc 2.34 는
+#        상위호환이므로 정상 동작한다(빌드 glibc ≤ 대상 glibc)."
+#     폐기 사유: 타깃이 RHEL 8.9(glibc 2.28)로 확정되어 2.28 < 2.31 로 그 부등식이 뒤집힌다.
+#       BtbN 정적 바이너리는 타깃에서 GLIBC_2.31 not found 로 죽는다(배포 차단급).
+#     라이선스 성격 변화: el8 RPM Fusion 의 ffmpeg 는 GPLv3+ 다(실측 아래). 인코더(x264/x265)가
+#       포함되지만 저작도구는 ffmpeg 를 별도 프로세스로 호출할 뿐 링크하지 않으므로
+#       코드 전염 우려가 낮다(관제 OSS-077 이 적은 판단과 동일 축).
+#     ⚠ 대가: 정적 번들을 택했던 원래 이유가 되살아난다 — ffmpeg 는 base/AppStream 에 없고
+#       EPEL + RPM Fusion + PowerTools(CRB) 세 리포가 필요하다. 그래서 전이 의존성까지
+#       통째로 받아 오프라인 번들에 넣는다(50-collect-syspkgs.sh).
+#
+#   ★ 필요한 리포 3종(수집 컨테이너에서 활성화 — 타깃에는 필요 없다, 오프라인 RPM 설치이므로):
+#     - EPEL 8            : ${EPEL_RELEASE_RPM_URL}
+#     - RPM Fusion free 8 : ${RPMFUSION_FREE_RELEASE_RPM_URL}  (ffmpeg 본체 제공)
+#     - PowerTools(CRB)   : ${EL8_CRB_REPO_ID}  — libSDL2 등 ffmpeg 의존을 제공.
+#       ⚠ 이걸 켜지 않으면 "nothing provides libSDL2-2.0.so.0()(64bit) needed by ffmpeg" 로
+#         의존 해소가 실패한다(2026-08-30 실측). RHEL 8 에서의 동등 리포는
+#         codeready-builder-for-rhel-8-x86_64-rpms 다.
+#
+#   ★ 버전 핀을 두지 않는다 — 정적 tarball 과 달리 RPM 은 리포의 현재 최신을 받는다.
+#     받은 *.rpm 의 전송 무결성은 syspkgs/ffmpeg/SHA256SUMS 로 검증한다(기존 방식과 동일).
+#   검증: 2026-08-30, ${EL8_BUILDER_IMAGE} 에서 수집·오프라인 설치·실행까지 확인
+#     → ffmpeg 4.4.8-1.el8 / ffprobe 4.4.8 / License GPLv3+ / Vendor RPM Fusion
+#     → 설치 경로 /usr/bin/ffmpeg, /usr/bin/ffprobe
+EPEL_RELEASE_RPM_URL="https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+RPMFUSION_FREE_RELEASE_RPM_URL="https://download1.rpmfusion.org/free/el/rpmfusion-free-release-8.noarch.rpm"
+# PowerTools 리포 id — Rocky/Alma 8 은 "powertools", RHEL 8 은 CRB(구독 리포)다.
+EL8_CRB_REPO_ID="powertools"
+FFMPEG_RPM_PKGS=(ffmpeg)
+# 타깃에 설치된 뒤의 실행 파일 절대경로(설치 스크립트·설정 템플릿이 공유하는 단일 출처).
+FFMPEG_BIN_PATH="/usr/bin/ffmpeg"
+FFPROBE_BIN_PATH="/usr/bin/ffprobe"
 
 # 웹 서버는 여기서 버전을 고정하지 않는다 — httpd 를 배포판 RPM(syspkgs)으로 설치한다.
 #   ★ 구 형상(Caddy 정적 바이너리 다운로드)은 폐기했다(2026-08-19). 배포 대상의 웹 서버를
 #     관제지원시스템과 하나로 통일하기 위함이며, RPM 은 모듈 적재와 SELinux 문맥이
 #     이미 갖춰져 있어 우리가 관리할 표면이 줄어든다.
 
-# ---- PostgreSQL 16 (PGDG, Rocky 9 오프라인 번들) ----
+# ---- PostgreSQL 16 (PGDG, RHEL 8.9 / el8 오프라인 번들) ----
 #   ★ 번들 PG 는 "옵션"이다(USE_BUNDLED_POSTGRES=1 기본). 타깃에 이미 PG 가 있으면 끈다(=0).
 #   ★ DB 스키마는 backend Flyway 가 자동 부트스트랩한다(V2__phase3_video_queue_quartz.sql 가
 #     LS_*·MNG_*·QRTZ_* 를 CREATE TABLE IF NOT EXISTS 로 생성, flyway.enabled=true). 따라서
@@ -105,7 +170,9 @@ FFMPEG_STATIC_SHA256="86821c89fcde7adf381005329dc696a02fa99ba2bc5b6f0a4fac3dafc2
 #     핀이 불가하다. 수집 스크립트는 repo RPM 을 한 번 설치해 PGDG repo 메타만 추가하고 그것으로
 #     PG16 RPM 을 받는다. 받은 PG16 *.rpm 의 전송 무결성은 syspkgs/postgresql/SHA256SUMS 로 검증한다.
 POSTGRES_MAJOR="16"
-PGDG_REPO_RPM_URL="https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+# ⚠ 구 값 폐기(2026-08-28) — EL-9-x86_64. el9 PG RPM 은 RHEL 8 에 설치되지 않는다.
+#   검증: 2026-08-30, 아래 EL-8 URL HTTP 200 확인.
+PGDG_REPO_RPM_URL="https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
 # 받을 PG16 RPM(전이 의존성은 dnf download --resolve --alldeps 가 함께 받는다).
 POSTGRES_RPM_PKGS=(postgresql16-server postgresql16 postgresql16-libs postgresql16-contrib)
 
@@ -118,6 +185,9 @@ PYTORCH_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
 # 검증: 2026-06-24, CPU 인덱스에 cp311 x86_64 wheel 존재 확인
 #   - torch-2.12.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl
 #   - torchvision-0.27.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl
+#   ★ manylinux_2_28 태그가 곧 glibc 2.28 기준선이라 RHEL 8.9 와 정확히 일치한다 —
+#     타깃 OS 정정(Rocky 9 → RHEL 8.9)에도 이 wheel 은 재수집이 불필요하다.
+#     ⚠ 구 근거 폐기: "glibc 2.34 호환이라 그대로 쓴다"(근거만 낡았고 결론은 그대로 참).
 #   (출처: https://download.pytorch.org/whl/cpu/torch/ , .../torchvision/)
 #   → lock 핀 그대로 CPU 인덱스에서 받을 수 있다. 인접 버전 조정 불필요.
 # 만약 향후 lock 의 torch 버전이 CPU 인덱스에 없으면 06-troubleshooting.md "torch CPU" 절 참고.
@@ -127,6 +197,27 @@ PYTORCH_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
 # 상황에서만 troubleshooting 절차에 따라 아래 값으로 대체한다(sam2 의 torch>=2.5.1 하한 충족).
 TORCH_CPU_PIN="torch==2.12.0"
 TORCHVISION_CPU_PIN="torchvision==0.27.0"
+
+# ---- PEP 517 빌드 백엔드(setuptools / wheel) ----
+#   requirements.txt 는 pip-compile 산출물이라 setuptools 가 <락에서 제외>된다("considered to
+#   be unsafe" 주석만 남는다). 그런데 이 번들에는 wheel 이 없는 sdist 가 있고(2026-08-30 실측:
+#   antlr4-python3-runtime, iopath) sam2 도 로컬 소스로 설치하므로, pip 가 만드는 <빌드 격리
+#   환경>이 setuptools·wheel 을 다시 찾는다. 폐쇄망(--no-index)에서는 그 조회가 나갈 수 없어
+#   설치가 그 자리에서 멈춘다 → 30-collect-ai-server.sh 가 여기 핀으로 명시 반입한다.
+#
+#   ★ 핀을 두는 이유: 이 두 개만 "수집 시점의 최신"으로 흘러가면 빌드머신을 언제 돌리느냐에
+#     따라 반입물이 달라져 재현성이 깨진다(락의 다른 의존성은 전부 pip-compile 로 고정된다).
+#   ★ 하한 제약: sam2 의 [build-system] requires 가 setuptools>=61.0 이다(핀 커밋
+#     ${SAM2_GIT_REF} 의 pyproject.toml 실측). 아래 핀은 이 하한을 만족해야 한다.
+#   검증: 2026-08-30
+#     - PyPI 최신 안정: setuptools 84.0.0 (requires_python >=3.10) / wheel 0.48.0 (>=3.9)
+#       → 타깃 런타임 Python ${PYTHON_STANDALONE_VERSION} (3.11) 와 정합, 84.0.0 >= 61.0 충족.
+#     - 무네트워크 리허설: python3.11 venv 에서 --no-index --find-links 로 위 두 wheel 만 주고
+#       antlr4-python3-runtime==4.9.3 / iopath==0.1.10 sdist 를 <빌드 격리 켠 채> 빌드 성공.
+#   ⚠ 이 값을 올릴 때는 위 리허설을 다시 돌릴 것 — setuptools 메이저는 레거시 setup.py 지원을
+#     계속 걷어내고 있어, 하한만 보고 올리면 sdist 빌드가 조용히 깨진다.
+PEP517_SETUPTOOLS_PIN="setuptools==84.0.0"
+PEP517_WHEEL_PIN="wheel==0.48.0"
 
 # ---- sam2 VCS 의존성 ----
 # requirements.txt: sam-2 @ git+https://github.com/facebookresearch/sam2.git

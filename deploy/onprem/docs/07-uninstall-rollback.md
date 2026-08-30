@@ -4,12 +4,21 @@
 
 서비스 중지·비활성화 + 앱/런타임 제거. **데이터·환경설정·로그는 보존**한다.
 
+> ⚠ **backend 는 이 스크립트가 내리지 못한다** (배포 형상 = 외부 WAS 에 WAR 반입).
+> WAS 에 올린 `api.war` 의 언디플로이는 **사람이 WAS 쪽에서** 수행한다.
+> `uninstall.sh` 는 `klid-backend` 유닛을 정지 시도하지만 WAR 형상에서는 그 유닛이 없어 무시된다.
+
 ```bash
 cd deploy/onprem
 sudo ./scripts/uninstall.sh
 ```
 
 보존되는 것: `/etc/klid`(env), `/var/lib/klid`(런타임 데이터), `/var/log/klid`(로그), 그리고 **NAS 영상 저장소**(`STORAGE_RAW_PATH`, 기본 `/nas-storage`) — 제거 스크립트는 NAS 를 건드리지 않는다(마운트 해제·삭제는 운영자 수동).
+
+> ★ **`/etc/klid/was.env` 는 별도 제거 대상이 아니다 — `/etc/klid` 안에 있어 함께 보존된다.**
+> 그 파일에는 WAS 유닛명·`WAS_HOME`·배포 디렉터리·로그 경로 같은 **현장값**이 들어 있고
+> 비밀값은 없다. 위에서 안내하는 **수동 WAS 언디플로이가 바로 그 값을 필요로 하므로**,
+> 데이터 보존 제거에서 이 파일을 지우면 그다음 작업을 할 수 없게 된다.
 
 ## 완전 제거 (PURGE)
 
@@ -19,6 +28,11 @@ sudo ./scripts/uninstall.sh
 sudo PURGE=1 ./scripts/uninstall.sh
 ```
 
+> ⚠ **PURGE 는 `/etc/klid/was.env` 도 지운다 — 순서에 함정이 있다.**
+> 그 값이 없으면 `api.war` 를 **어느 WAS 의 어느 디렉터리에서** 걷어내야 하는지 알 수 없다.
+> `uninstall.sh` 는 삭제 직전에 그 값을 화면에 출력하므로 **그때 받아 적거나**,
+> 안전하게는 **WAS 언디플로이를 먼저 끝낸 뒤** PURGE 를 실행한다.
+
 > PostgreSQL DB(klid_system/portal) 는 외부/별도 자원이라 uninstall 이 건드리지 않는다.
 > DB 삭제가 필요하면 DBA 가 별도 수행한다.
 
@@ -26,10 +40,16 @@ sudo PURGE=1 ./scripts/uninstall.sh
 
 이 패키지는 단순 파일 배치 방식이라 버전 롤백은 "이전 패키지로 재설치"로 한다.
 
-1. 현재 서비스 중지: `sudo systemctl stop httpd klid-backend klid-ai-server`
+1. 현재 서비스 중지: `sudo systemctl stop httpd klid-ai-server` + **WAS 중지(backend)**
 2. 이전 버전 `deploy/onprem/` 패키지로 `sudo ./scripts/install.sh` 재실행
    (env 는 보존되므로 그대로 사용, 필요 시 수정).
-3. 기동·검증: 05-run-verify.md.
+3. **이전 버전 `api.war` 를 WAS 배포 디렉터리로 다시 복사**(파일명 `api.war` 유지).
+   WAS 가 압축을 푼 이전 디렉터리(`webapps/api/`)가 남아 있으면 함께 정리해야 새 WAR 가 반영된다.
+4. 기동·검증: 05-run-verify.md.
+
+> ⚠ 구 절차 폐기(2026-08-30) — 3 단계 없이 `install.sh` 재실행만으로 backend 가 교체되던 것
+> (베어메탈 형상). WAR 형상에서 `install.sh` 는 `/opt/klid/app/api.war` 를 갱신할 뿐이고,
+> **WAS 에 올라간 것은 사람이 바꾸기 전까지 그대로다.**
 
 > DB 스키마는 Flyway 가 관리한다. **하위 버전으로 내릴 때 마이그레이션 호환성**(이전 jar 가 최신 스키마를
 > validate 통과하는지)을 반드시 확인하라. 비호환이면 DB 백업 복원이 필요할 수 있다.

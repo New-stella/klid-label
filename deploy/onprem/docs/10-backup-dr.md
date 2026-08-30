@@ -13,7 +13,7 @@
 
 | 등급 | 대상 | 경로 | 책임 주체 | 백업 방식 | 권장 주기 |
 |---|---|---|---|---|---|
-| **T1 (저작도구 소관·필수)** | 환경설정·시크릿 | `/etc/klid/*.env`(+ `kpst-ca.crt` 등) | **저작도구 운영자** | 파일 복사(권한 640 유지) | 변경 시 + 주 1회 |
+| **T1 (저작도구 소관·필수)** | 환경설정·시크릿 | `/etc/klid/` 전체 — **`application.properties`(WAR 형상 정본)** · `*.env` · `was.env` · `kpst-ca.crt` 등 | **저작도구 운영자** | 파일 복사(권한 640 유지) | 변경 시 + 주 1회 |
 | **T2 (스토리지 운영 정책)** | 저장소: 비식별 영상·프레임 | `STORAGE_RAW_PATH`·`STORAGE_DEIDENTIFIED_PATH`(기본 `/nas-storage`) | 스토리지(NAS) 운영 주체 | `rsync` 증분 또는 스토리지 스냅샷 | **일 1회(증분)** |
 | **외부 책임** | DB: `klid_system`(관제/저작도구)·`portal` | 외부 DB 인프라 | **DB 운영(인프라) 주체** | DB 운영 주체 정책(참고 §1) | DB 운영 주체 정책 |
 | **재설치 가능** | 앱·런타임 | `/opt/klid`, `/var/lib/klid` | 설치 패키지로 재설치 | 백업 불필요(패키지 보관으로 갈음) | — |
@@ -93,7 +93,8 @@ sudo rsync -a --info=progress2 /nas-storage/ /backup/klid-storage/
 ```
 
 - 저장소는 대용량이므로 전량 재백업보다 **증분(rsync)·스냅샷** 을 권장한다.
-- 경로는 `backend.env` 의 `STORAGE_RAW_PATH`·`STORAGE_DEIDENTIFIED_PATH` 실제 설정값을 사용한다.
+- 경로는 설정 파일(WAR 형상 `application.properties` · 베어메탈 토글 `backend.env`)의
+  `STORAGE_RAW_PATH`·`STORAGE_DEIDENTIFIED_PATH` 실제 설정값을 사용한다.
 
 ## 3. 복원(Restore)
 
@@ -101,7 +102,14 @@ sudo rsync -a --info=progress2 /nas-storage/ /backup/klid-storage/
 
 ```bash
 # 서비스 정지(쓰기 차단) 후 복원 권장
-sudo systemctl stop klid-backend
+#   ★ backend 정지 = WAS 정지다 — 백엔드는 systemd 유닛이 아니라 외부 WAS 가 api.war 를 기동한다
+#     (배포 형상 @design DEPLOY-001 · 09-operations-runbook.md §0).
+#     <WAS 유닛명> 등 현장값은 설치 시 /etc/klid/was.env 에 적어 둔다(같은 §0-1).
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl stop "$WAS_UNIT"
+#   (베어메탈 토글 형상이면: sudo systemctl stop klid-backend)
+#   ⚠ WAS 를 통째로 내릴 수 없으면 api.war 컨텍스트만 정지시킨다 — 필요한 것은 "앱이 DB 에 붙어
+#     있지 않다" 이지 "WAS 프로세스가 없다" 가 아니다.
 
 # 대상 DB 재생성(기존 손상분 폐기 시) — 주의: 데이터 삭제
 sudo -u postgres dropdb --if-exists klid_system
@@ -113,7 +121,8 @@ sudo -u postgres dropdb --if-exists portal
 sudo -u postgres createdb -O klid_user -E UTF8 portal
 sudo -u postgres pg_restore -d portal --no-owner /backup/klid/<날짜>/portal.dump
 
-sudo systemctl start klid-backend
+sudo systemctl start "$WAS_UNIT"
+#   (베어메탈 토글 형상이면: sudo systemctl start klid-backend)
 # 검증: 핵심 테이블 확인 (저작도구 객체는 klid_at 스키마 — 스키마 한정 필수)
 sudo -u postgres psql -d klid_system \
   -c "select count(*) from klid_at.ls_data_raw;"
@@ -138,19 +147,32 @@ sudo -u postgres psql -d klid_system \
 ### 3-2. 설정·시크릿 복원
 
 ```bash
-sudo tar -C /etc -xzpf /backup/klid/<날짜>/etc-klid.tgz   # /etc/klid/*.env 복원(권한 640 유지)
+sudo tar -C /etc -xzpf /backup/klid/<날짜>/etc-klid.tgz   # /etc/klid/ 복원(권한 640 유지)
 ```
+
+> ⚠ **WAR 형상에서 백엔드가 실제로 읽는 것은 `/etc/klid/application.properties` 다.** 이 파일이
+> 복원되지 않으면 WAS 는 뜨는데 애플리케이션이 DB 접속·시크릿 없이 기동에 실패한다.
+> `backend.env` 는 베어메탈 토글 형상용이라 WAS 가 읽지 않는다(→ [04-configuration.md](04-configuration.md)).
+>
+> ⚠ **`/etc/klid/was.env` 는 백업 대상이되 복원 대상은 아닐 수 있다** — WAS 유닛명·경로는 **새 서버의
+> 실제 값**이라야 한다. 복원 후 새 장비의 값으로 다시 확인해 고친다.
 
 ## 4. 재해복구(DR) — 전체 서버 손실
 
 전체 서버가 소실된 경우 아래 순서로 복원한다.
 
-1. **OS 준비**: Rocky Linux 9 재설치(설치 요구사항 → [01-prerequisites.md](01-prerequisites.md)).
+1. **OS 준비**: 레드햇 엔터프라이즈 리눅스 8.9 재설치(설치 요구사항 → [01-prerequisites.md](01-prerequisites.md)).
 2. **패키지 설치**: 보관 중인 온프렘 설치 패키지로 런타임·앱 설치(→ [03-install.md](03-install.md)). 외부 DB 사용 시 DB 는 인프라 주체가 제공·복구하며, 번들 PG 단독 구성 시에만 PG16 을 함께 설치한다.
-3. **설정 복원**: 3-2 로 `/etc/klid/*.env` 복원(백업이 없으면 [04-configuration.md](04-configuration.md) 로 재작성).
+3. **설정 복원**: 3-2 로 `/etc/klid/` 복원(백업이 없으면 [04-configuration.md](04-configuration.md) 로 재작성).
+   **WAR 형상은 `application.properties` 가 정본**이다.
 4. **DB 복원**: **외부 DB 는 DB 운영 주체가 복구**하며 저작도구는 접속 정보만 설정한다. (번들 PG 단독 구성이면 3-1 로 `klid_system`·`portal` 복원, 필요 시 `globals.sql` 선복원.)
 5. **저장소 복원**: `/nas-storage` 를 백업/스냅샷에서 복원(스토리지 운영 주체 정책, 마운트가 살아 있으면 재마운트만).
-6. **기동·검증**: 의존 순서(PostgreSQL→ai-server→backend→frontend)로 기동 후 스모크(→ [05-run-verify.md](05-run-verify.md)).
+6. **★ WAS 재구성**: 새 장비의 WAS 에 `api.war` 를 배포하고 기동 옵션
+   (`-Dspring.config.additional-location=file:/etc/klid/` · `-Dspring.profiles.active=prd` · `CATALINA_OPTS`)과
+   **WAS 설정 이관**([10-was-settings.md](10-was-settings.md))을 다시 수행한다. 예시 파일은
+   `config/was/` 에 있다. **이 단계는 설치 스크립트가 대신하지 못한다** — 빠뜨리면 기동은 되는데
+   대용량 업로드만 조용히 깨진다. 확정한 현장값은 `/etc/klid/was.env` 에 다시 적는다.
+7. **기동·검증**: 의존 순서(PostgreSQL→ai-server→backend(WAS)→httpd)로 기동 후 스모크(→ [05-run-verify.md](05-run-verify.md)).
 
 ### 목표 지표(RPO/RTO — 운영 정책으로 확정)
 

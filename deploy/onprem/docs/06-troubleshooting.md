@@ -73,42 +73,96 @@
   `30-collect-ai-server.sh` 는 이 SHA 로 clone 후 `git checkout` 한다(브랜치/태그가 아니므로 `--branch` 불가).
   다른 커밋으로 바꾸려면 이 값만 교체 후 재수집.
 
-## ffmpeg / ffprobe 없음 (Rocky 9: 정적 바이너리)
+## ffmpeg / ffprobe 없음 (RHEL 8.9: 시스템 RPM)
 
 증상: backend 프레임 추출/duration 추출 실패(`ffmpeg`/`ffprobe` not found 또는 Permission denied).
 
-해결(Rocky 9 는 정적 바이너리 번들이 정석 — base/AppStream 에 ffmpeg RPM 이 없음):
-- 번들은 **LGPL 빌드**(BtbN `linux64-lgpl`)다 — 지방정부 납품 GPL 회피용. native H.264/HEVC 디코더를
-  포함하므로 프레임 추출(디코드)·duration 추출에 충분하다(인코딩 미사용 → GPL 코덱 불필요).
-- 설치 확인: `ls -l /opt/klid/runtime/ffmpeg/bin/` → `ffmpeg`/`ffprobe` 가 있고 `chmod +x`(0755) 인지.
-  없으면 `syspkgs/ffmpeg/*.tar.xz` 가 번들됐는지 확인 후 `11-install-runtimes.sh` 재실행.
-- 권한 오류면: `sudo chmod +x /opt/klid/runtime/ffmpeg/bin/ffmpeg /opt/klid/runtime/ffmpeg/bin/ffprobe`.
-- 경로 확인: `backend.env` 의 `FFMPEG_BIN=/opt/klid/runtime/ffmpeg/bin/ffmpeg`(절대경로) 인지.
-  systemd 유닛 PATH 에도 `…/ffmpeg/bin` 이 추가돼 있어 bare 이름으로도 잡힌다.
-- 직접 보강: 정적 바이너리를 `/opt/klid/runtime/ffmpeg/bin/` 에 두고 `chmod +x` 후 재기동.
+> ⚠ 구 절 폐기(2026-08-28) — "Rocky 9 는 **정적 바이너리 번들**이 정석 / 번들은 **LGPL 빌드**(BtbN
+> `linux64-lgpl`)다 — 지방정부 납품 GPL 회피용 / `/opt/klid/runtime/ffmpeg/bin/` 에 배치·`chmod +x`".
+> 타깃이 RHEL 8.9(glibc 2.28)로 확정되어 그 정적 빌드(glibc 2.31 기반)는 `GLIBC_2.31 not found` 로
+> 죽는다. 관제지원시스템과 같은 형상(RPM Fusion RPM)으로 전환했고 라이선스는 **GPLv3+** 다
+> (별도 프로세스 호출이라 코드 전염 우려 낮음).
+
+> ★★ **`install.sh` 는 ffmpeg 을 설치하지 않는다** (2026-08-30 사용자 확정, 구속).
+> ffmpeg 은 **우리 반입물이 아니라 대상 장비(서버 A)의 전제조건**이며, 이 장비는
+> 관제지원시스템과 **공동 배치**라 우리가 자동으로 깔면 **관제가 쓰던 설치본을 덮어써
+> 관제 기능이 깨질 수 있다.** 그래서 설치는 <사람이 명시적으로 부를 때만> 일어난다.
+> 설치 스크립트 중 **번호 접두가 없는 것**(`install-ffmpeg.sh`)이 그 표식이다.
+>
+> - 설치(있으면 아무것도 안 함): `sudo ./scripts/install/install-ffmpeg.sh`
+> - 번들 판으로 교체: `sudo ./scripts/install/install-ffmpeg.sh --force`
+> - 무엇을 할지만 확인: `sudo ./scripts/install/install-ffmpeg.sh --dry-run`
+>
+> 검증 단계 `19-verify-ffmpeg.sh` 는 **없으면 warn 이 아니라 die** 한다. ffmpeg 이 없어도
+> backend 는 정상 기동하고 헬스체크도 통과하며 **배치를 실제로 돌려야 드러나기** 때문이다.
+> 이 단계는 서버 A(`--role=app`) 전용이다 — ai 서버에서 돌리면 정상 설치를 실패시킨다
+> (ai-server 소스에 ffmpeg/ffprobe 호출 0건).
+
+해결(el8 base/AppStream 에 ffmpeg RPM 이 없어 EPEL + RPM Fusion + PowerTools 에서 번들한다):
+- **먼저 위 `install-ffmpeg.sh` 를 쓴다.** 아래 수동 절차는 그 스크립트가 못 도는 상황의 폴백이다.
+- 설치 확인: `rpm -q ffmpeg` → `ffmpeg-4.4.8-1.el8` 류. `command -v ffmpeg ffprobe` → `/usr/bin/…`.
+- 없으면 번들 확인: `ls syspkgs/ffmpeg/*.rpm` 과 `ls syspkgs/ffmpeg/repodata/repomd.xml`.
+  **`repodata/` 가 없으면 설치가 실패한다** — 빌드머신에서 `50-collect-syspkgs.sh` 를 재실행하라.
+- 수동 설치(로컬 저장소 방식 — 폴백):
+  ```bash
+  sudo rpm --import syspkgs/gpg/RPM-GPG-KEY-*
+  sudo tee /etc/yum.repos.d/klid-ffmpeg.repo >/dev/null <<'EOF'
+  [klid-ffmpeg]
+  name=KLID offline bundle (ffmpeg)
+  baseurl=file:///<절대경로>/deploy/onprem/syspkgs/ffmpeg
+  enabled=1
+  gpgcheck=1
+  EOF
+  sudo dnf install -y --disablerepo='*' --enablerepo=klid-ffmpeg ffmpeg
+  ```
+  ⚠ `dnf install syspkgs/ffmpeg/*.rpm` 처럼 **파일을 직접 넘기지 말 것** — 번들에는 전이 의존성이
+  전량(261개) 들어 있어 이미 설치된 glibc·coreutils 와 충돌하며 설치가 통째로 실패한다.
+- 경로 확인: `backend.env` 의 `FFMPEG_BIN=/usr/bin/ffmpeg` 인지.
+- 실동작 확인:
+  `ffmpeg -f lavfi -i testsrc=duration=3:size=320x240:rate=10 -y /tmp/t.mp4 && ffprobe -v error -show_entries format=duration -of default=nw=1 /tmp/t.mp4`
+  → `duration=3.000000`
+- ⚠ **라이선스**: 번들 ffmpeg 은 RPM Fusion 의 **GPLv3+** 빌드다. 매체에 담아 반입한 시점에
+  이미 재배포이므로 대응 소스(`syspkgs/ffmpeg-src/*.src.rpm`)가 함께 반입되어 있어야 한다.
+  ⚠ 이것은 **ai-server 의 opencv wheel 안에 번들된 LGPL FFmpeg 과 다른 물건**이다
+  (그쪽 대응 소스는 `licenses/copyleft-sources/`). 어느 한쪽을 중복으로 보고 지우지 말 것 —
+  판도 라이선스도 다르다. 상세는 `licenses/manual/LGPL-SOURCE-OFFER.md`.
 
 ## libGL / opencv (`ImportError: libGL.so.1`)
 
 증상: ai-server 기동 시 opencv import 실패(`libGL.so.1: cannot open shared object file`).
 
-해결(Rocky 9 AppStream RPM):
+해결(el8 AppStream RPM):
 - 번들 RPM 설치 확인: `rpm -q mesa-libGL libglvnd-glx glib2`.
-- 누락 시 오프라인 설치: `sudo dnf install -y --disablerepo='*' --setopt=gpgcheck=0 syspkgs/rpm/*.rpm`
-  (폴백 `sudo rpm -Uvh --replacepkgs syspkgs/rpm/*.rpm`).
-- **`GPG check FAILED` / `public key is not installed` 로 dnf install 실패 시**: 최소 Rocky 9 이미지에
-  GPG 키가 없을 때 발생한다. 무결성은 번들 `SHA256SUMS` 로 이미 검증되므로
-  `--setopt=gpgcheck=0` 을 붙여 설치한다(`11-install-runtimes.sh` 가 이미 이 옵션으로 설치).
+- 누락 시 오프라인 설치(로컬 저장소 방식 — 위 ffmpeg 절의 `.repo` 예시에서 `baseurl` 만
+  `syspkgs/rpm` 으로 바꿔 `dnf install -y --disablerepo='*' --enablerepo=klid-… mesa-libGL libglvnd-glx glib2`).
+  ⚠ 구 명령 폐기(2026-08-30): `dnf install -y --disablerepo='*' --setopt=gpgcheck=0 syspkgs/rpm/*.rpm`
+  (파일 직접 설치). 조달이 `--alldeps` 로 바뀌어 기반 패키지가 섞이면서 그 방식은 충돌로 실패한다.
+- **`GPG check FAILED` / `public key is not installed` 로 dnf install 실패 시**: 폐쇄망 타깃에 EPEL/
+  RPM Fusion 공개키가 없을 때 발생한다. 정석은 **번들 키를 등록**하는 것이다:
+  `sudo rpm --import syspkgs/gpg/RPM-GPG-KEY-*` (`11-install-runtimes.sh` 가 이미 수행).
+  키 자체가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 검증을 낮춰 설치할 수 있다(그 경우
+  무결성은 번들 `SHA256SUMS` 에만 의존한다).
+- **`No available modular metadata for modular package 'httpd-…module+el8…'`**: el8 의 httpd 는
+  모듈러 패키지인데 번들 로컬 저장소에는 모듈러 메타데이터가 없어서 나는 오류다. 정석은 저장소
+  정의에 `module_hotfixes=1` 을 넣는 것이다(`common.sh` 의 `klid_dnf_install_from_bundle` 가 이미
+  포함). 수동으로 `.repo` 를 만들 때 이 줄을 빠뜨리면 **httpd·semanage 설치가 실패한다**.
 - **`rpm -Uvh` 폴백은 의존성 자동해소를 못 한다** — 정상 경로는 dnf(로컬 의존 해소)다. 폴백이
   `Failed dependencies` 로 실패하면 번들 RPM 세트가 불완전한 것이니, 빌드머신에서
   `50-collect-syspkgs.sh` 로 전이 의존성까지 포함해 재수집한 RPM 세트를 점검하라.
 - 사내 미러가 있으면: `sudo dnf install -y mesa-libGL libglvnd-glx glib2`.
-- 번들이 비었으면 rockylinux:9 컨테이너에서 `dnf download --resolve mesa-libGL libglvnd-glx glib2` 로
-  받아 `syspkgs/rpm/` 에 채워 재설치(02-build-package.md 참고).
+- 번들이 비었으면 el8 컨테이너에서 `dnf download --resolve --alldeps --archlist=x86_64,noarch mesa-libGL libglvnd-glx glib2`
+  로 받고 `createrepo_c` 로 `repodata/` 까지 만들어 `syspkgs/rpm/` 에 채워 재설치(02-build-package.md 참고).
 
 ## glibc 불일치 (`version 'GLIBC_2.xx' not found`)
 
-원인: 빌드머신 glibc > 대상 서버 glibc.
-해결: **대상 서버와 동일(또는 더 낮은) glibc 빌드머신**에서 재수집. 런타임 바이너리/whl 모두 영향.
+원인: 빌드머신 glibc > 대상 서버 glibc. **대상은 RHEL 8.9 = glibc 2.28** 이다(RHEL 8 은 8.0~8.10 전
+버전이 2.28 고정). 즉 빌드 glibc 는 반드시 **2.28 이하**여야 한다.
+
+해결: **el8 빌드머신/컨테이너**(`rockylinux/rockylinux:8`, glibc 2.28)에서 재수집. 런타임 바이너리·wheel 모두 영향.
+
+실제 사례(2026-08-28 확정): ffmpeg 정적 바이너리(BtbN `linux64-lgpl`)가 glibc **2.31** 기반이라
+타깃에서 `GLIBC_2.31 not found` 로 죽었다 — 이 때문에 ffmpeg 조달을 **정적 번들 → el8 RPM** 으로
+전환했다. 반면 torch wheel 은 `manylinux_2_28` 태그라 **정확히 2.28 기준선**이어서 영향이 없다.
 
 ## HF 모델 못 찾음 (SAM2, 오프라인)
 
@@ -133,6 +187,21 @@
 (`mountpoint /nas-storage`) ② `klid` 쓰기 가능 확인(`sudo runuser -u klid -- test -w /nas-storage`).
 **NAS 전체에 `chown -R` 금지**(기존 v1 대용량 파일 소유권 훼손) — v2 가 쓰는 하위 디렉터리만 권한 부여.
 
+## backend 가 안 보인다 — WAR 반입 형상 (2026-08-30 형상 확정)
+
+배포 형상이 **외부 WAS 에 `api.war` 반입**이라(@design DEPLOY-001 · RUNBOOK-001), 베어메탈 시절의
+`systemctl status klid-backend` 는 **유닛이 없어서** 실패한다. 그건 장애가 아니라 형상이다.
+
+| 증상 | 원인 | 조치 |
+|------|------|------|
+| `Unit klid-backend.service could not be found` | WAR 형상에는 그 유닛이 없다(기동 주체는 WAS) | WAS 유닛 상태와 `curl /api/actuator/health/liveness` 로 확인 |
+| 모든 요청이 **404**(WAR 는 배포됐는데 로그도 없음) | 컨텍스트 경로 불일치 — WAR 배포에서 `server.servlet.context-path` 는 **적용되지 않고** 컨텍스트는 **파일명**이 정한다 | 배포 파일명이 `api.war` 인지 확인(rename 금지). 이미 `webapps/xxx/` 로 풀린 이전 배포가 남았으면 함께 정리 |
+| 기동 실패 — DB 접속/시크릿 없음 | WAS 가 설정 파일을 못 읽었다. `/etc/klid/backend.env` 는 **베어메탈 유닛의 `EnvironmentFile`** 이라 WAS 에 자동 전달되지 않는다 | WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` (읽히는 파일은 `/etc/klid/application.properties`) + `-Dspring.profiles.active=prd` 를 넣는다. 환경변수로 주고 싶으면 WAS 유닛의 `EnvironmentFile=`/`setenv.sh` 로 배선 |
+| `SPRING_*` 설정이 무시됨(예 Flyway 가 그대로 돌음) | 그 파일은 **환경변수가 아니라 스프링 설정 파일**이라 `SPRING_FLYWAY_ENABLED` 같은 이름 변환이 일어나지 않는다 | **점 표기**로 적는다 — `spring.flyway.enabled=false`. 실측으로 확인된 함정이다(DBA 선적용 스키마 위에서 마이그레이션이 또 돈다) |
+| **대용량 업로드만** 실패(그 외 전부 정상) | `server.tomcat.*`(본문 한도·스레드·비동기 타임아웃)는 내장 서버 전용이라 WAR 배포에서 무시된다 | [10-was-settings.md](10-was-settings.md) 의 WAS 설정 이관을 수행. **기동 성공은 이 단계의 완료 근거가 아니다** |
+| 앞단은 통과했는데 본문이 잘림 | 앞단 httpd 본문 한도와 WAS 커넥터 한도 중 **작은 쪽**이 실제 상한 | 두 값을 함께 본다(`httpd-klid.conf.template` + WAS 커넥터) |
+| `java` 를 못 찾음(베어메탈로 되돌린 경우) | 패키지가 **JRE 를 반입하지 않는다**(2026-08-30) — `klid-backend.service` 의 `/opt/klid/runtime/jre` 는 없는 경로다 | 그 형상이 필요하면 `40-collect-runtimes.sh`/`11-install-runtimes.sh` 의 JRE 배선을 되살리거나 `ExecStart` 를 장비의 자바로 바꾼다 |
+
 ## backend 부팅 실패 — webhook HMAC
 
 증상: prd 부팅 시 `webhook.hmac.secret.augment 이(가) 설정되지 않았습니다`.
@@ -149,10 +218,11 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
 
 - **RPM 누락 / 설치 스킵**: `syspkgs/postgresql/*.rpm` 이 비어 있으면 설치를 건너뛴다(안내 출력).
   타깃에 이미 PG 가 있으면 `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh`. 번들이 필요하면
-  rockylinux:9 컨테이너에서 PG16 RPM 을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
-- **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 Rocky 9 에 PGDG GPG 키가 없을 때.
-  무결성은 번들 `SHA256SUMS` 로 이미 검증되므로 `--setopt=gpgcheck=0` 으로 설치한다
-  (`10-install-postgresql.sh` 가 이미 이 옵션 사용). 수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
+  el8 컨테이너에서 PG16 RPM(+`repodata/`)을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
+- **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 타깃에 PGDG GPG 키가 없을 때.
+  정석은 번들 키 등록이다: `sudo rpm --import syspkgs/gpg/RPM-GPG-KEY-*`
+  (`10-install-postgresql.sh` 가 이미 수행). 키가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 낮춘다.
+  수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
 - **initdb 위치/실패**: PGDG PG16 의 데이터 디렉토리는 `/var/lib/pgsql/16/data`,
   초기화는 `/usr/pgsql-16/bin/postgresql-16-setup initdb` 다(base RHEL `postgresql-setup` 과 경로가 다름).
   이미 초기화돼 있으면(`/var/lib/pgsql/16/data/PG_VERSION` 존재) 스크립트가 건너뛴다. 실패 시 데이터
@@ -175,7 +245,8 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
   validate 한다. 즉 **빈 DB 면 저작도구가 전 스키마를 자동 부트스트랩**하므로 관제 스키마를 사전
   적재할 필요가 없다(04-configuration.md D 절).
 - 그래도 validate 가 실패하면 Flyway 가 **꺼졌거나 마이그레이션이 적용되지 않은** 경우다:
-  - `journalctl -u klid-backend` 에서 Flyway 로그(`Migrating schema ... to version 2`)가 보이는지 확인.
+  - **WAS 로그**(WAR 형상) 또는 `journalctl -u klid-backend`(베어메탈 형상)에서 Flyway 로그
+    (`Migrating schema ... to version 2`)가 보이는지 확인.
   - 안 보이면 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있는지 확인 —
     `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
   - 관제가 이미 채운 공유 테이블과 **컬럼 스키마가 다르면** validate 가 불일치로 실패할 수 있다.

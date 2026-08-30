@@ -1,0 +1,46 @@
+#!/bin/sh
+# ============================================================================
+# klid-label backend — WAS JVM 기동 옵션 예시  [@design DEPLOY-001]
+#
+#   대상 위치: <WAS_HOME>/bin/setenv.sh   (chmod 0755, 소유 <WAS 실행 계정>)
+#   Tomcat 의 catalina.sh 가 기동 시 이 파일을 source 한다.
+#
+#   ★ 이미 setenv.sh 가 있으면 덮어쓰지 말고 <아래 항목만 병합>한다.
+#     같은 WAS 에 다른 애플리케이션이 있을 수 있고, 그쪽 옵션이 함께 들어 있다.
+#
+#   ★ 여기 적는 것은 <JVM 기동 옵션>뿐이다. DB 접속 정보·시크릿은 적지 않는다 —
+#     그것들은 /etc/klid/application.properties 에 있고, 이 파일은 그 <위치만> 알려 준다.
+#
+#   ⚠ 이 값들을 바꾸면 컨텍스트 재배포로는 반영되지 않는다. JVM 기동 옵션이라
+#     WAS 프로세스를 다시 띄워야 한다: sudo systemctl restart <WAS 유닛명>
+# ============================================================================
+
+# ---- 스프링 외부 설정 --------------------------------------------------------
+#   · additional-location 은 <디렉터리>를 가리키고 끝에 슬래시가 필요하다.
+#     그 디렉터리의 application.properties / application-<프로파일>.properties 가 읽힌다.
+#   · 활성 프로파일은 설정 파일이 아니라 여기서 준다(파일 로드 시점을 프로파일이 정하므로).
+#   · 파일은 <WAS 실행 계정>이 읽을 수 있어야 한다. 권한이 root:klid 640 이면
+#     WAS 계정을 klid 그룹에 넣거나 소유 그룹을 조정한다 —
+#     못 읽으면 WAS 는 뜨고 애플리케이션만 설정 없이 기동에 실패한다.
+KLID_OPTS="-Dspring.config.additional-location=file:/etc/klid/"
+KLID_OPTS="${KLID_OPTS} -Dspring.profiles.active=prd"
+
+# ---- JVM ---------------------------------------------------------------------
+#   ⚠ MaxRAMPercentage 는 <WAS 전체>에 걸린다. 같은 WAS 에 다른 애플리케이션이 있으면
+#     그대로 옮기기 전에 총 사용량을 확인할 것.
+KLID_OPTS="${KLID_OPTS} -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
+KLID_OPTS="${KLID_OPTS} -Duser.timezone=Asia/Seoul"
+#   · 폐쇄망/신규 VM 의 엔트로피 고갈로 SecureRandom 초기화가 수십초~수분 블로킹되는 기동
+#     지연을 막는다. /./ 는 JDK 의 알려진 동작을 피하기 위한 의도된 표기이며 오타가 아니다.
+#     추가로 OS 에 haveged 또는 rng-tools 설치를 권장한다.
+KLID_OPTS="${KLID_OPTS} -Djava.security.egd=file:/dev/./urandom"
+
+# ---- 반영 --------------------------------------------------------------------
+#   기존 CATALINA_OPTS 를 덮어쓰지 않고 뒤에 붙인다(다른 애플리케이션 옵션 보존).
+CATALINA_OPTS="${CATALINA_OPTS} ${KLID_OPTS}"
+export CATALINA_OPTS
+
+# ---- 확인 --------------------------------------------------------------------
+#   기동 후 실제로 걸렸는지 본다(아래는 예시 명령 — 이 파일에서 실행하지 않는다):
+#     ps -ef | grep -i catalina | tr ' ' '\n' | grep -E 'spring.config|spring.profiles|MaxRAM'
+#   애플리케이션이 어떤 설정 파일을 읽었는지는 기동 로그의 스프링 배너 직후 줄에도 남는다.

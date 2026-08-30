@@ -3,17 +3,27 @@ set -euo pipefail
 # ============================================================================
 # 60-collect-buildtools.sh — [빌드머신] 오프라인 "소스 재빌드" 키트 수집(신규)
 #
-#   사전 빌드 아티팩트(jar/dist)와 별개로, 폐쇄망 타깃(Rocky 9)에서 소스를
+#   사전 빌드 아티팩트(jar/dist)와 별개로, 폐쇄망 타깃(RHEL 8.9)에서 소스를
 #   인터넷 없이 재빌드하기 위한 빌드 도구 + 의존성 캐시 + 소스를 번들한다.
 #   빌드 도구 바이너리만으로는 오프라인 빌드가 닫히지 않는다 — gradle 의존
 #   캐시(GRADLE_USER_HOME)와 frontend node_modules 까지 채워야 한다.
 #
+#   ★★ 이 단계는 <기본 수집 대상이 아니다> (2026-08-30 사용자 확정, 구속).
+#     package.sh 는 WITH_BUILDTOOLS=1 일 때만 이 스크립트를 부른다. 현장 재빌드 요구가 없음을
+#     확인했고, 빼면 라이선스 표면(JDK full 한 벌 · node_modules 645 패키지, MPL-2.0 3건)·
+#     매체 용량·타깃의 빌드 도구 체인(보안 표면)이 함께 줄어든다.
+#     ⚠ 여기 JDK17 full 은 <소스 빌드용>이다 — 실행용 JRE(versions.sh 의 TEMURIN_JRE_*)와 별개이며,
+#       둘 다 반입되지 않지만 이유가 다르다(그쪽은 대상 WAS 가 Java 17 을 제공하기 때문).
+#     이 스크립트를 직접 실행하면 토글과 무관하게 수집한다(수동 보강 경로).
+#
 #   ★ 이 스크립트는 인터넷이 필요하다(빌드머신에서만 실행). gradle-home/node_modules
-#     populate 단계는 실제로 gradle/npm 을 호출하므로 권장 환경은 rockylinux:9 컨테이너다.
+#     populate 단계는 실제로 gradle/npm 을 호출하므로 권장 환경은 el8 컨테이너다.
 #
 #   ★ node_modules 는 플랫폼 의존 바이너리(esbuild 등)를 포함한다 → 반드시
-#     Linux x64 에서 `npm ci` 로 채워야 한다. mac(Darwin)에서 수집하면 타깃에서
-#     동작하지 않으므로, Darwin 에서는 경고 후 node_modules 단계만 SKIP 한다.
+#     Linux x64 에서 `npm ci` 로 채워야 한다. mac(Darwin)에서 직접 수집하면 타깃에서
+#     동작하지 않으므로, Darwin 에서는 docker 로 el8(linux/amd64) 컨테이너를 띄워 채운다.
+#     ⚠ 구 동작(2026-08-28 이전): Darwin 이면 무조건 SKIP 이라 mac 빌드머신에서는 오프라인
+#       빌드 키트가 영영 닫히지 않았다. docker 가 없을 때만 SKIP 으로 남긴다.
 #
 #   번들 산출물:
 #     buildtools/jdk/      : Temurin JDK17 full tarball (javac 포함)
@@ -124,11 +134,42 @@ if [[ "${SKIP_NODE_MODULES:-0}" == "1" ]]; then
   warn "[buildtools] (5/6) node_modules populate SKIP (SKIP_NODE_MODULES=1)"
 else
   uname_s="$(uname -s)"
-  if [[ "${uname_s}" == "Darwin" ]]; then
-    warn "[buildtools] (5/6) node_modules populate SKIP — 빌드머신이 Darwin(mac)입니다."
+  # Darwin(mac)에서는 네이티브 npm ci 산출물이 타깃(Linux x64)에서 동작하지 않는다.
+  # docker 가 있으면 el8 컨테이너(linux/amd64)에서 채우고, 없을 때만 SKIP 한다.
+  if [[ "${uname_s}" == "Darwin" ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    FE_SRC="${REPO}/frontend"
+    [[ -d "${FE_SRC}" ]] || die "[buildtools] frontend 디렉토리 없음: ${FE_SRC}"
+    [[ -s "${NODE_FILE}" ]] || die "[buildtools] Node20 tarball 이 없습니다: ${NODE_FILE}"
+    info "[buildtools] (5/6) node_modules populate — ${EL8_BUILDER_IMAGE} 컨테이너(${EL8_BUILDER_PLATFORM})"
+    info "  빌드머신이 Darwin 이라 네이티브 npm ci 산출물을 쓸 수 없습니다(esbuild 등 plat 바이너리)."
+    rm -f "${NM_TARBALL}"
+    # 번들해 둔 Node20(linux-x64) tarball 을 컨테이너 안에서 풀어 그 npm 으로 ci 를 돌린다
+    # (컨테이너 배포판의 node 버전에 의존하지 않도록 — BUILD_NODE_MAJOR 핀과 정합).
+    docker run --rm \
+      --platform "${EL8_BUILDER_PLATFORM}" \
+      -v "${FE_SRC}:/fe" \
+      -v "${NODE_FILE}:/node.tar.xz:ro" \
+      -v "${BT}:/bt" \
+      "${EL8_BUILDER_IMAGE}" \
+      bash -c '
+        set -euo pipefail
+        dnf install -y tar xz gzip findutils >/dev/null
+        mkdir -p /opt/node && tar -xJf /node.tar.xz -C /opt/node --strip-components=1
+        export PATH=/opt/node/bin:$PATH
+        echo "[collect] node $(node --version) / npm $(npm --version)"
+        cd /fe
+        npm ci
+        tar -czf /bt/frontend-node_modules.tar.gz node_modules
+      ' || die "[buildtools] 컨테이너 npm ci 실패 — 네트워크/frontend 락파일 확인"
+    [[ -s "${NM_TARBALL}" ]] || die "[buildtools] node_modules 번들 미생성: ${NM_TARBALL}"
+    ok "[buildtools] node_modules 번들: ${NM_TARBALL}  ($(du -h "${NM_TARBALL}" | cut -f1))"
+  elif [[ "${uname_s}" == "Darwin" ]]; then
+    warn "[buildtools] (5/6) node_modules populate SKIP — 빌드머신이 Darwin(mac)이고 docker 도 없습니다."
     warn "  node_modules 는 플랫폼 의존 바이너리(esbuild 등)를 포함하므로 반드시 Linux x64 에서"
-    warn "  수집해야 합니다(mac 산출물은 Rocky 9 타깃에서 동작하지 않음)."
-    warn "  → rockylinux:9 컨테이너에서 60-collect-buildtools.sh 를 실행해 node_modules 를 채우세요."
+    warn "  수집해야 합니다(mac 산출물은 RHEL 8.9 타깃에서 동작하지 않음)."
+    warn "  → docker 를 설치하거나, el8 컨테이너에서 60-collect-buildtools.sh 를 실행하세요:"
+    warn "     docker run --rm --platform ${EL8_BUILDER_PLATFORM} -v \"\$PWD/../..:/work\" -w /work/deploy/onprem \\"
+    warn "       ${EL8_BUILDER_IMAGE} ./scripts/package/60-collect-buildtools.sh"
   else
     FE_SRC="${REPO}/frontend"
     [[ -d "${FE_SRC}" ]] || die "[buildtools] frontend 디렉토리 없음: ${FE_SRC}"

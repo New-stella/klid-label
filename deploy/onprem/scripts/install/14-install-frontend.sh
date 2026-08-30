@@ -41,13 +41,13 @@ if command -v httpd >/dev/null 2>&1; then
 else
   rpms=("${ONPREM}"/syspkgs/rpm/httpd*.rpm)
   if [[ -e "${rpms[0]}" ]]; then
-    info "[frontend] httpd 오프라인 설치(syspkgs/rpm)..."
-    # 전이 의존성까지 함께 받아 뒀으므로 디렉터리 전체를 대상으로 준다.
-    if ! dnf install -y --disablerepo='*' --setopt=gpgcheck=0 "${ONPREM}"/syspkgs/rpm/*.rpm; then
-      warn "[frontend] dnf 설치 실패 — rpm -Uvh 폴백을 시도합니다(의존성 미해소 시 실패)."
-      rpm -Uvh --replacepkgs "${ONPREM}"/syspkgs/rpm/*.rpm \
-        || die "[frontend] httpd 설치 실패 — 06-troubleshooting.md 참고"
-    fi
+    info "[frontend] httpd 오프라인 설치(syspkgs/rpm 로컬 저장소)..."
+    # ★ 로컬 yum 저장소 방식(2026-08-30) — 근거는 common.sh 의 klid_dnf_install_from_bundle 주석.
+    #   ⚠ 구 방식 폐기: `dnf install -y --disablerepo='*' syspkgs/rpm/*.rpm`(파일 직접 설치).
+    #     조달이 --alldeps 로 바뀌면서 기반 패키지가 세트에 섞여 그 방식은 충돌로 실패한다.
+    klid_import_rpm_gpg_keys "${ONPREM}/syspkgs/gpg" || true
+    klid_dnf_install_from_bundle syspkgs "${ONPREM}/syspkgs/rpm" httpd policycoreutils-python-utils \
+      || die "[frontend] httpd 설치 실패 — 06-troubleshooting.md 참고"
     ok "[frontend] httpd 설치: $(httpd -v 2>&1 | head -n1)"
   else
     die "[frontend] httpd RPM 이 번들에 없습니다: ${ONPREM}/syspkgs/rpm/httpd*.rpm
