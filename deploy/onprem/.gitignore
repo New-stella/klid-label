@@ -5,7 +5,8 @@
 
 # 빌드 아티팩트
 #   *.war = 반입 정본(api.war — 외부 WAS 반입, @design DEPLOY-001)
-#   *.jar = 개발 환경 전용(klid-backend.jar — 반입 대상 아님. 설치가 배치하지 않는다)
+#   *.jar = 개발 환경 전용(klid-backend.jar — 반입 대상 아님. 설치가 배치하지 않고,
+#           수집도 WITH_BACKEND_JAR=1 일 때만 한다 — 2026-08-30 매체에서 제외)
 artifacts/backend/*.jar
 artifacts/backend/*.war
 artifacts/frontend/dist/
@@ -15,13 +16,15 @@ artifacts/ai-server/requirements.txt
 artifacts/ai-server/requirements.in
 
 # 런타임 바이너리
-#   ⚠ runtimes/jdk 와 runtimes/caddy 는 <더 이상 채워지지 않는다>. 디렉터리 골격만 남긴다.
-#     · jdk   : 자바 런타임 미반입(2026-08-30 — 대상 WAS 가 Tomcat 10.1.x + Java 17 로 이미 구동)
-#     · caddy : 웹 서버를 배포판 httpd RPM 으로 전환(2026-08-19 Caddy 폐기)
-#     골격을 지우지 않는 이유는 베어메탈 복귀 시 수집 스크립트가 쓰는 자리이기 때문이다.
+#   ⚠ runtimes/jdk 는 <더 이상 채워지지 않지만> 골격을 남긴다 — 자바 런타임 미반입
+#     (2026-08-30 — 대상 WAS 가 Tomcat 10.1.x + Java 17 로 이미 구동). 수집 단계
+#     (40-collect-runtimes.sh)가 이전 판의 JRE tarball 잔재를 여기서 검사하므로 자리가 필요하다.
+#   ⚠ runtimes/caddy 는 <삭제했다>(2026-08-30). 웹 서버가 배포판 httpd RPM 으로 전환되며
+#     Caddy 가 폐기됐고(2026-08-19), 그 뒤 이 디렉터리를 채우거나 검사하는 스크립트가 0건이라
+#     빈 골격이 반입 매체에 남아 있을 근거가 없었다. 구 사유 "베어메탈 복귀 시 수집 스크립트가
+#     쓰는 자리"는 caddy 에 대해서는 사실이 아니었다(그 수집 코드 자체가 없다).
 runtimes/jdk/*
 runtimes/python/*
-runtimes/caddy/*
 
 # pip wheel / sam2 소스
 vendor/wheels/*

@@ -1,18 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# 10-build-backend.sh — [빌드머신] backend 산출물(WAR + JAR) 빌드 + 수집
+# 10-build-backend.sh — [빌드머신] backend 산출물(WAR) 빌드 + 수집
+# @step 인터넷=필요(gradle 의존 해석) | 소요=약 20초(캐시 웜)~수 분(콜드) | 선행=없음 | 재실행=안전(매번 재빌드 — 실패해도 매체의 api.war 는 남는다)
 #
-#   ./gradlew bootJar bootWar 로 두 산출물을 만들어 artifacts/backend/ 로 복사한다.
+#   ./gradlew bootWar 로 반입 정본을 만들어 artifacts/backend/ 로 복사한다.
 #
 #   ★ 반입 정본은 api.war 다 (@design DEPLOY-001 · RUNBOOK-001, 2026-08-30 사용자 확정).
 #     대상 장비의 외부 WAS(Tomcat 10.1.x + Java 17)에 이 WAR 를 올린다.
 #     WAR 가 없으면 <실패>다 — 형상이 성립하지 않는 반입물을 만들어 내보내지 않는다.
-#   ★ klid-backend.jar 는 <개발 환경 전용>이라 반입 대상이 아니다(DEPLOY-001 의 build_artifacts).
-#     설치 스크립트(12-install-backend.sh)는 WAR 형상에서 이 jar 를 설치하지 않고,
-#     베어메탈 형상 토글(INSTALL_BACKEND_SYSTEMD_UNIT=1)에서만 쓴다.
-#     여기서 계속 만들어 두는 이유는 개발 형상과 베어메탈 복귀 경로가 그 산출물을 쓰기 때문이며,
-#     두 산출물은 같은 소스에서 나오므로 내용이 갈릴 일이 없다.
+#   ★ klid-backend.jar 는 <반입 대상이 아니므로 기본으로 만들지도 담지도 않는다>
+#     (2026-08-30 사용자 확정 — 매체에서 제외). DEPLOY-001 의 build_artifacts 가 그 jar 를
+#     <개발 환경 전용>으로 규정하고, 설치 스크립트(12-install-backend.sh)도 WAR 형상에서는
+#     설치하지 않는다. 그런데 수집은 계속하고 있어 83.6 MiB 가 매체에 실려 있었다 —
+#     규정과 동작이 어긋난 상태였고 이 단계가 그것을 맞춘다.
+#     ⚠ 구 동작 폐기(2026-08-30) — "bootJar 를 항상 만들어 artifacts/backend/ 로 무조건 복사".
+#
+#   토글:
+#     WITH_BACKEND_JAR=1  베어메탈 형상용 실행 가능 jar 도 빌드·수집(기본 0)
+#
+#   ★ 능력을 없앤 것이 아니다. 베어메탈 형상(INSTALL_BACKEND_SYSTEMD_UNIT=1)은 그 jar 를 쓰므로
+#     위 토글로 켤 수 있게 남긴다. 두 산출물은 같은 소스에서 나오므로 내용이 갈릴 일이 없고,
+#     토글을 켜면 그 자리에서 다시 만들어진다.
+#   ★ bootJar 를 <빌드 자체에서> 뺀다(복사만 거르지 않는다). bootWar 는 bootJar 에 의존하지
+#     않으므로(태스크 그래프 실측: compileJava → processResources → classes →
+#     resolveMainClassName → bootWar) 빼도 WAR 경로가 성립하고, clean 빌드마다 아무도 쓰지 않는
+#     87 MiB 아카이브를 한 벌 더 조립하지 않아도 된다.
 #   결과 jar 패턴: backend/build/libs/*.jar (plain.jar 제외).
 #
 #   ★ 라이선스 고지도 여기서 <함께> 수집한다 (2026-08-30 신설).
@@ -36,34 +49,53 @@ OUT="${ONPREM}/artifacts/backend"
 [[ -d "${BE_SRC}" ]] || die "backend 디렉토리를 찾을 수 없습니다: ${BE_SRC}"
 ensure_dir "${OUT}"
 
-# ★ WAR 도 함께 만든다(@design DEPLOY-001). 외부 WAS 반입 형상의 산출물이다.
-#   실행 가능 JAR 를 없애지 않는 이유: 개발·단독 기동 형상이 아직 그 산출물을 쓴다.
-#   두 산출물은 같은 소스에서 나오므로 내용이 갈릴 일이 없다.
-info "[backend] Gradle bootJar + bootWar 빌드 (Java 17 필요)..."
-if [[ -x "${BE_SRC}/gradlew" ]]; then
-  ( cd "${BE_SRC}" && ./gradlew --no-daemon clean bootJar bootWar )
+# ---- 빌드 대상 결정 ----
+#   기본은 bootWar 하나다(@design DEPLOY-001). 외부 WAS 반입 형상의 산출물이 그것뿐이다.
+#   WITH_BACKEND_JAR=1 이면 베어메탈 형상용 bootJar 도 함께 만든다.
+GRADLE_TASKS=(clean bootWar)
+if [[ "${WITH_BACKEND_JAR:-0}" == "1" ]]; then
+  GRADLE_TASKS=(clean bootJar bootWar)
+  info "[backend] 실행 가능 jar 도 함께 빌드·수집합니다(WITH_BACKEND_JAR=1 — 베어메탈 형상용)."
 else
-  require_cmd gradle
-  ( cd "${BE_SRC}" && gradle --no-daemon clean bootJar bootWar )
+  info "[backend] 실행 가능 jar(klid-backend.jar)는 만들지 않습니다(기본값 — 반입 대상 아님)."
+  info "          베어메탈 형상(INSTALL_BACKEND_SYSTEMD_UNIT=1)이 필요하면 빌드머신에서"
+  info "            WITH_BACKEND_JAR=1 ./scripts/package.sh"
+  info "          로 다시 수집하세요."
 fi
 
-# bootJar 결과만 선택(-plain.jar 는 라이브러리 jar 이므로 제외)
-shopt -s nullglob
-jars=()
-for j in "${BE_SRC}"/build/libs/*.jar; do
-  case "${j}" in
-    *-plain.jar) : ;;       # 제외
-    *) jars+=("${j}") ;;
-  esac
-done
-shopt -u nullglob
+info "[backend] Gradle ${GRADLE_TASKS[*]} 빌드 (Java 17 필요)..."
+if [[ -x "${BE_SRC}/gradlew" ]]; then
+  ( cd "${BE_SRC}" && ./gradlew --no-daemon "${GRADLE_TASKS[@]}" )
+else
+  require_cmd gradle
+  ( cd "${BE_SRC}" && gradle --no-daemon "${GRADLE_TASKS[@]}" )
+fi
 
-[[ "${#jars[@]}" -ge 1 ]] || die "bootJar 결과를 찾을 수 없습니다: ${BE_SRC}/build/libs/*.jar"
-
-# 단일 실행 jar 를 고정 이름으로 복사(설치 스크립트가 이 이름을 참조)
+# ---- 실행 가능 JAR 수집 (기본 <생략> — 반입 대상이 아니다) ----
+#   ★ 삭제는 토글과 무관하게 <항상> 한다. 앞선 실행이 남긴 jar 가 그대로 있으면 매체에 다시
+#     실리고, 아래 sha256_write 가 그것을 SHA256SUMS 에 적어 "반입 대상 아닌 파일"이
+#     무결성 목록의 일부로 굳는다. 껐는데도 남아 있는 상태를 만들지 않는다.
 rm -f "${OUT}"/*.jar
-cp "${jars[0]}" "${OUT}/klid-backend.jar"
-ok "[backend] 수집: ${OUT}/klid-backend.jar  ($(du -h "${OUT}/klid-backend.jar" | cut -f1))"
+if [[ "${WITH_BACKEND_JAR:-0}" == "1" ]]; then
+  # bootJar 결과만 선택(-plain.jar 는 라이브러리 jar 이므로 제외)
+  shopt -s nullglob
+  jars=()
+  for j in "${BE_SRC}"/build/libs/*.jar; do
+    case "${j}" in
+      *-plain.jar) : ;;       # 제외
+      *) jars+=("${j}") ;;
+    esac
+  done
+  shopt -u nullglob
+
+  [[ "${#jars[@]}" -ge 1 ]] || die "bootJar 결과를 찾을 수 없습니다: ${BE_SRC}/build/libs/*.jar"
+
+  # 단일 실행 jar 를 고정 이름으로 복사(설치 스크립트가 이 이름을 참조)
+  cp "${jars[0]}" "${OUT}/klid-backend.jar"
+  ok "[backend] 수집: ${OUT}/klid-backend.jar  ($(du -h "${OUT}/klid-backend.jar" | cut -f1))"
+  warn "[backend] 이 jar 는 <반입 정본이 아니다> — 베어메탈 형상에서만 쓰이며,"
+  warn "          WAR 반입 형상으로 내보낼 매체라면 다시 WITH_BACKEND_JAR 없이 수집하세요."
+fi
 
 # ---- WAR 수집 (외부 WAS 반입용 — 반입 정본) ----
 #   ★ 파일 이름이 곧 웹 컨텍스트다. 이름을 바꾸면 프론트엔드와 관제의 호출 주소가

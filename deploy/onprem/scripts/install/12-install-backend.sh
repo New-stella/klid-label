@@ -14,6 +14,9 @@ set -euo pipefail
 #
 #   토글:
 #     INSTALL_BACKEND_SYSTEMD_UNIT=1  베어메탈 형상용 systemd 유닛도 설치(기본 0)
+#       ⚠ 이 토글은 klid-backend.jar 를 요구한다. 그 jar 은 <반입 대상이 아니라> 기본 매체에
+#         없으므로, 빌드머신에서 WITH_BACKEND_JAR=1 ./scripts/package.sh 로 수집한 매체가
+#         있어야 한다. 없으면 이 스크립트가 사유와 함께 <실패>한다(조용히 넘기지 않는다).
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,12 +42,25 @@ ok "[backend] WAR 배치: ${APP_DIR}/api.war  ($(du -h "${APP_DIR}/api.war" | cu
 
 # ---- 실행 가능 JAR — 반입 대상이 아니다 ----
 #   @design DEPLOY-001 의 build_artifacts 가 klid-backend.jar 를 <개발 환경 전용>으로 규정한다.
-#   패키지에 남아 있어도 WAR 형상에서는 설치하지 않는다(설치하면 WAS 가 띄운 것과 별개의
-#   두 번째 백엔드를 실수로 기동할 여지가 생긴다 — 같은 DB 를 두 형상이 물게 된다).
+#   ★ 2026-08-30 부터 매체에 <아예 담기지 않는다> — 수집 단계(10-build-backend.sh)가 기본으로
+#     만들지도 복사하지도 않는다(WITH_BACKEND_JAR=1 일 때만 담긴다). 그래서 아래 부재 처리는
+#     "있을 수도 있는 파일"이 아니라 <기본 상태>를 다룬다.
+#   WAR 형상에서는 있더라도 설치하지 않는다(설치하면 WAS 가 띄운 것과 별개의 두 번째 백엔드를
+#   실수로 기동할 여지가 생긴다 — 같은 DB 를 두 형상이 물게 된다).
 #   베어메탈 형상으로 갈 때만 아래 토글로 배치한다.
+#   ★ 부재는 <조용히 넘기지 않는다>. 넘기면 설치는 끝났는데 기동만 안 되는 상태가 되고,
+#     운영자는 systemd 의 사유 없는 종료만 보게 된다. 여기서 사유와 복구 명령을 함께 준다.
+#   ⚠ WAR 형상(기본)에는 영향이 없다 — 아래 die 는 INSTALL_BACKEND_SYSTEMD_UNIT=1 안에만 있다.
 JAR_SRC="${ONPREM}/artifacts/backend/klid-backend.jar"
 if [[ "${INSTALL_BACKEND_SYSTEMD_UNIT:-0}" == "1" ]]; then
-  [[ -f "${JAR_SRC}" ]] || die "[backend] 베어메탈 형상인데 jar 가 없습니다: ${JAR_SRC}"
+  if [[ ! -f "${JAR_SRC}" ]]; then
+    warn "[backend] 베어메탈 형상(INSTALL_BACKEND_SYSTEMD_UNIT=1)인데 실행 jar 이 매체에 없습니다:"
+    warn "            ${JAR_SRC}"
+    warn "          손상이 아니라 <형상>입니다 — 이 jar 은 반입 대상이 아니라서 기본 수집에서 빠집니다."
+    warn "          빌드머신에서 아래 한 줄로 다시 수집한 뒤 매체를 재전송하고 설치를 다시 하십시오:"
+    warn "            WITH_BACKEND_JAR=1 ./scripts/package.sh"
+    die   "[backend] 베어메탈 형상용 실행 jar 없음: ${JAR_SRC} (위 명령으로 재수집하세요)"
+  fi
   install -m 0644 "${JAR_SRC}" "${APP_DIR}/klid-backend.jar"
   chown "${KLID_USER}:${KLID_GROUP}" "${APP_DIR}/klid-backend.jar"
   warn "[backend] 베어메탈 형상 jar 배치: ${APP_DIR}/klid-backend.jar (WAR 형상에서는 쓰지 않는다)"
@@ -130,6 +146,8 @@ if [[ "${INSTALL_BACKEND_SYSTEMD_UNIT:-0}" == "1" ]]; then
 else
   info "[backend] systemd 유닛은 설치하지 않습니다(WAR 반입 형상 — 기동 주체는 WAS)."
   info "          베어메탈 형상이 필요하면 INSTALL_BACKEND_SYSTEMD_UNIT=1 로 재실행하세요."
+  info "          ⚠ 그 형상은 klid-backend.jar 를 요구하며, 그 jar 은 반입 대상이 아니라 기본 매체에"
+  info "            없습니다 — 빌드머신에서 WITH_BACKEND_JAR=1 ./scripts/package.sh 로 재수집하세요."
 fi
 
 # ---- 사람이 해야 하는 남은 단계 (건너뛰면 조용히 깨진다) ----

@@ -17,7 +17,10 @@ set -euo pipefail
 #
 #   산출물(install.sh 가 기대하는 위치에 배치 — 이후 install.sh 가 그대로 설치):
 #     artifacts/backend/api.war          ← 반입 정본(외부 WAS 반입, @design DEPLOY-001)
-#     artifacts/backend/klid-backend.jar ← 개발/베어메탈 형상용(반입 대상 아님)
+#     artifacts/backend/klid-backend.jar ← 베어메탈 형상용(반입 대상 아님)
+#       ★ 빌드머신 수집(package/10-build-backend.sh)은 2026-08-30 부터 이 jar 를 <담지 않는다>
+#         (WITH_BACKEND_JAR=1 일 때만). 여기서는 계속 만든다 — 이 스크립트는 <타깃 장비>에서
+#         돌고 그 결과물은 매체가 아니라 설치 장비에 생기며, 베어메탈 복귀 경로가 그것을 쓴다.
 #     artifacts/frontend/dist
 #
 #   ★ 빌드 키트는 2026-08-30 부터 <기본 반입 대상이 아니다>(현장 재빌드 요구 없음 확인).
@@ -30,8 +33,13 @@ set -euo pipefail
 #     SKIP_FRONTEND=1 ./scripts/install/build-from-source.sh
 #     VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage ... 빌드 인자 override 가능
 #
-#   ★ frontend 재빌드 시 VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL 은 필수다
-#     (미설정이면 빌드 중단 — 세션 만료 시 상위 로그인 페이지로 이동 불가).
+#   ★ 상위 로그인 주소(VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL)는 <빌드에 필요 없다>.
+#     런타임 설정(/etc/klid/frontend.env → klid-config.js)에서 읽으므로 여기 주는 값은
+#     런타임 설정이 없을 때의 폴백일 뿐이다. 필수 값 검사는 설치 시점으로 옮겼다
+#     (install/render-frontend-config.sh 가 비면 생성을 거부한다).
+#     ⚠ 구 서술 폐기(2026-08-30): "재빌드 시 필수다 — 미설정이면 빌드 중단". 그대로 두면
+#       주소를 바꾸려고 대상 서버에서 재빌드하게 만든다(런타임 주입을 도입한 이유가 그것이다).
+#       같은 파일 본문(빌드 인자 조립부)이 이미 반대로 적고 있어 자기모순이었다.
 #
 #   ai-server 는 별도 컴파일이 없다 — 13-install-ai-server.sh 가
 #   pip install --no-index --find-links vendor/wheels 로 소스 설치한다(아래 안내).

@@ -2,6 +2,7 @@
 set -euo pipefail
 # ============================================================================
 # 55-collect-postgresql.sh — [빌드머신] PostgreSQL 16 RPM 수집 (RHEL 8.9 / el8 / PGDG)
+# @step 인터넷=필요 | 소요=약 50초(RPM 보유 시) | 선행=dnf 또는 docker | 재실행=안전(받은 RPM 은 건너뜀)
 #
 #   타깃 OS = 레드햇 엔터프라이즈 리눅스 8.9 (RHEL 8 계열, x86_64, glibc 2.28, dnf/rpm).
 #   ⚠ 구 서술 폐기(2026-08-28) — "Rocky Linux 9 (RHEL 9 계열, glibc 2.34)".
@@ -10,8 +11,15 @@ set -euo pipefail
 #
 #   ★ 번들 PG 는 "옵션"이다. 타깃에 이미 PostgreSQL 이 있으면 외부 PG 를 쓰면 되고
 #     (설치 단계에서 USE_BUNDLED_POSTGRES=0), 이 수집도 SKIP_POSTGRES=1 로 끌 수 있다.
-#   ★ DB 스키마는 backend Flyway 가 자동 부트스트랩하므로(LS_*·MNG_*·QRTZ_* 를
-#     CREATE TABLE IF NOT EXISTS), PG 사전요건은 "빈 DB 2개 + 접속 사용자"뿐이다.
+#   ★ DB 스키마를 <자동으로 만들어 주는 주체는 없다>. PG 사전요건은 "빈 DB 2개 + 접속 사용자"
+#     이고, 그 빈 DB 에 db/schema.sql 을 1회 로드해야 테이블이 생긴다(설치 16·17 단계).
+#     번들 PG 를 쓰면 SCHEMA_LOAD_RUN=1 로 설치가 로드하고, 외부 DB 면 DBA 가 선적용한다.
+#   ⚠ 구 서술 폐기(2026-08-30) — "DB 스키마는 backend Flyway 가 자동 부트스트랩하므로
+#     (LS_*·MNG_*·QRTZ_* 를 CREATE TABLE IF NOT EXISTS)". 세 겹으로 틀렸다:
+#       ① 온프렘은 Flyway 를 쓰지 않는다(spring.flyway.enabled=false). 아무도 로드하지 않으면
+#          테이블이 <생기지 않는다>. ⚠ 그런데도 앱은 기동에 성공하므로 조용히 넘어간다.
+#       ② MNG_* 는 db/schema.sql 에 0건이다(관제 공유 테이블 전면 정리로 제거됐다).
+#       ③ 덤프는 CREATE TABLE 이지 CREATE TABLE IF NOT EXISTS 가 아니다 — 빈 DB 전제다.
 #
 #   수집물: PGDG 의 PG16 RPM (+전이 의존성) → syspkgs/postgresql/
 #     postgresql16-server / postgresql16 / postgresql16-libs / postgresql16-contrib

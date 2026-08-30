@@ -6,6 +6,13 @@
 #   그래서 install/12-install-backend.sh 는 이 유닛을 <기본적으로 설치하지 않는다>
 #   (INSTALL_BACKEND_SYSTEMD_UNIT=1 로 명시할 때만 설치).
 #
+#   ★★ 되살려 쓰기 전에 <실행 jar 부터 마련해야 한다> — 2026-08-30 부터 klid-backend.jar 는
+#     반입 대상이 아니라서 <기본 매체에 없다>(수집 단계가 만들지도 담지도 않는다).
+#     → 빌드머신에서  WITH_BACKEND_JAR=1 ./scripts/package.sh  로 재수집한 매체가 있어야 한다.
+#       없이 INSTALL_BACKEND_SYSTEMD_UNIT=1 로 설치하면 12-install-backend.sh 가 <사유와 함께
+#       실패>한다(설치만 끝나고 기동이 안 되는 상태를 만들지 않기 위함).
+#     ⚠ 아래 자바 부재와 <별개 조건>이다. 둘 다 채워야 이 유닛이 뜬다.
+#
 #   ★★ 되살려 쓰기 전에 <자바부터 마련해야 한다> — 지금 이 유닛은 그대로는 뜨지 않는다.
 #     패키지는 2026-08-30 부터 JRE 를 반입하지 않으므로 아래 ExecStart 의
 #     @KLID_PREFIX@/runtime/jre 는 <설치되지 않는 경로>다.
@@ -50,16 +57,22 @@ Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   이것이 없으면 systemd 가 "203/EXEC" 만 남기고 끝나 — 운영자가 원인을 못 찾는다.
 #   ExecStartPre 가 실패하면 유닛은 기동하지 않고 아래 메시지가 로그에 남는다.
 ExecStartPre=/bin/sh -c '[ -x @KLID_PREFIX@/runtime/jre/bin/java ] || { echo "[klid-backend] 자바 런타임이 없습니다: @KLID_PREFIX@/runtime/jre/bin/java — 패키지는 JRE 를 반입하지 않습니다(확정 형상은 외부 WAS 에 api.war 반입). 이 유닛으로 운영하려면 JRE 반입을 되살리거나 ExecStart/ExecStartPre 의 자바 경로를 장비의 Java 17 로 바꾸십시오. 유닛 헤더 주석 / docs/09-operations-runbook.md §0-3" >&2; exit 1; }'
-ExecStartPre=/bin/sh -c '[ -f @KLID_PREFIX@/app/klid-backend.jar ] || { echo "[klid-backend] 실행 jar 이 없습니다: @KLID_PREFIX@/app/klid-backend.jar — WAR 반입 형상으로 설치되어 jar 을 배치하지 않았을 수 있습니다. sudo INSTALL_BACKEND_SYSTEMD_UNIT=1 ./scripts/install.sh 로 재설치하십시오." >&2; exit 1; }'
+ExecStartPre=/bin/sh -c '[ -f @KLID_PREFIX@/app/klid-backend.jar ] || { echo "[klid-backend] 실행 jar 이 없습니다: @KLID_PREFIX@/app/klid-backend.jar — 원인은 둘 중 하나입니다. (1) WAR 반입 형상으로 설치되어 jar 을 배치하지 않았다 → sudo INSTALL_BACKEND_SYSTEMD_UNIT=1 ./scripts/install.sh 로 재설치. (2) 매체에 jar 자체가 없다(2026-08-30 부터 반입 대상이 아니라 기본 수집에서 빠진다) → 빌드머신에서 WITH_BACKEND_JAR=1 ./scripts/package.sh 로 재수집 후 매체를 다시 전송. (2) 이면 (1) 을 해도 설치가 사유와 함께 실패합니다." >&2; exit 1; }'
 # JAVA_OPTS 는 backend.env 에서 주입(없으면 빈 값).
 ExecStart=@KLID_PREFIX@/runtime/jre/bin/java $JAVA_OPTS -jar @KLID_PREFIX@/app/klid-backend.jar
 SuccessExitStatus=143
 Restart=on-failure
 RestartSec=10
-# 기동/종료 여유(대용량 컨텍스트·Flyway 마이그레이션)
-#  - 첫 노드가 Flyway 마이그레이션 중 systemd 에 강제 종료되면 DB 트랜잭션/락이
-#    orphan 으로 남아 두 번째 노드가 무한 대기한다. 이중화 첫 기동(73개 마이그레이션
-#    + QRTZ_LOCKS 락 조율) 여유를 위해 600s 로 상향.
+# 기동 여유(대용량 컨텍스트 로딩 · 이중화 첫 기동의 QRTZ_LOCKS 락 조율)
+#  ⚠ 구 서술 폐기(2026-08-30) — "첫 노드가 Flyway 마이그레이션 중 강제 종료되면 …
+#    이중화 첫 기동(73개 마이그레이션 + QRTZ_LOCKS 락 조율) 여유를 위해". 두 겹으로 틀렸다:
+#      ① 온프렘은 Flyway 를 쓰지 않는다 — 스키마는 설치 시 db/schema.sql 을 1회 로드해
+#         이미 만들어져 있고, 앱은 spring.flyway.enabled=false 다. 기동 경로에 마이그레이션이
+#         <없다>. (ddl-auto=validate 도 선언만 있고 이 앱의 EMF 구성에 도달하지 않는다.)
+#      ② "73개 마이그레이션" 은 마이그레이션 수가 아니다 — 실제 마이그레이션은 21개이고,
+#         73 은 schema.sql 의 CREATE TABLE 수(LS_* 62 + QRTZ_* 11)와 우연히 같은 값이다.
+#  ★ 값 600s 는 그대로 둔다. 근거만 낡았고 여유 자체는 여전히 필요하다 — 스프링 컨텍스트
+#    로딩 + 이중화 2노드 동시 기동 시 QRTZ_LOCKS 락 조율 시간이 든다.
 TimeoutStartSec=600
 # 종료 유예 예산 — 애플리케이션의 graceful shutdown 총합보다 커야 한다.
 #  - server.shutdown=graceful + spring.lifecycle.timeout-per-shutdown-phase=30s (진행 중 요청 대기)

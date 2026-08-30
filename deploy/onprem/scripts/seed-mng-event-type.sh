@@ -13,9 +13,22 @@
 #   독립 DB 면 위 두 테이블이 비어 있어 화면 이벤트 타입 필터/라벨이 안 뜬다.
 #   (공유 klid_system 에 직접 붙는 배포면 이미 적재돼 있으므로 이 스크립트 불필요.)
 #
+# ⚠⚠⚠ 온프렘에서는 <쓸모가 없다 — 실행이 막혀 있다> (2026-08-30 판정).
+#     세 겹으로 전제가 깨졌다. 하나만 어긋난 것이 아니라 원본·대상·경로가 모두 없다:
+#       ① 대상 테이블 없음 — MNG_EX_EVNT_TYPE / MNG_EX_EVNT_TYPE_MAP 은 db/schema.sql 에
+#          <존재하지 않는다>(그 파일의 MNG_* 는 0건). 온프렘은 Flyway 를 쓰지 않으므로 앱이
+#          기동해도 생기지 않는다.
+#       ② 원본 없음 — 관제 서버는 PostgreSQL 로 전환됐고 MNG_* 공유 테이블은 전면 정리로
+#          제거됐다. 아래 코드가 전제하는 "관제 MariaDB/MySQL klid_system" 은 더 이상 없다.
+#       ③ 목적 소멸 — 현행 이벤트 타입 마스터는 klid_at.ls_evnt_type / ls_evnt_ctgry 이고,
+#          그 시드(유형 16행 · 카테고리 11행)는 이미 db/schema.sql 의 COPY 블록에 들어 있다.
+#          설치가 16 단계에서 그 파일을 로드하면 <이 스크립트 없이도> 화면 필터·라벨이 뜬다.
+#     → 그래서 아래에 fail-closed 가드를 두어 <기본적으로 실행을 거부>한다. 삭제하지 않고
+#       남겨 두는 이유는 관제 MariaDB 가 아직 살아 있는 다른 환경(구 배포·이관 작업)에서
+#       참고·재사용될 수 있기 때문이다. 그 경우에만 SEED_MNG_FORCE=1 로 연다.
+#
 # 전제:
-#   1) 대상 PostgreSQL 에 두 테이블이 이미 생성돼 있어야 한다.
-#      → 백엔드를 1회 기동(Flyway V2+V71 적용)했거나, 마이그레이션을 먼저 돌린 상태.
+#   1) 대상 PostgreSQL 에 두 테이블이 이미 생성돼 있어야 한다(위 경고 참고 — 현행 매체는 만들지 않는다).
 #   2) 빌드/관리 머신에 mysql(또는 mariadb) 클라이언트 + psql 클라이언트가 설치돼 있어야 한다.
 #      - RHEL/Rocky:  dnf install -y mysql postgresql
 #   3) 두 DB 에 네트워크로 접근 가능해야 한다.
@@ -60,6 +73,29 @@ OUT_SQL="${WORK}/seed-mng-event-type.generated.sql"
 log()  { printf '\033[36m[seed]\033[0m %s\n' "$*"; }
 err()  { printf '\033[31m[seed][ERR]\033[0m %s\n' "$*" >&2; }
 die()  { err "$*"; exit 1; }
+
+# ----------------------------------------------------------------------------
+# 폐기 가드 (fail-closed) — 위 헤더 「온프렘에서는 쓸모가 없다」 참조.
+#   그냥 두면 이 스크립트는 없는 원본에 붙으려다, 혹은 없는 대상 테이블에 INSERT 하려다
+#   <원인을 알기 어려운 접속/SQL 오류>로 죽는다. 사유를 먼저 말하고 멈추는 편이 낫다.
+# ----------------------------------------------------------------------------
+if [[ "${SEED_MNG_FORCE:-0}" != "1" ]]; then
+  err "이 스크립트는 현행 온프렘 매체에서 쓰지 않습니다(대상 테이블·원본 DB·목적이 모두 없어졌습니다)."
+  err ""
+  err "  이벤트 타입 마스터는 이미 준비됩니다 — 별도 적재가 필요 없습니다:"
+  err "    · 현행 테이블 : klid_at.ls_evnt_type / klid_at.ls_evnt_ctgry"
+  err "    · 시드 반입   : deploy/onprem/db/schema.sql 의 COPY 블록(유형 16행 · 카테고리 11행)"
+  err "    · 적재 시점   : 설치 16 단계(16-load-schema.sh)가 그 파일을 1회 로드할 때"
+  err ""
+  err "  확인 방법(대상 DB 에서):"
+  err "    SELECT COUNT(*) FROM klid_at.ls_evnt_type;"
+  err "  0 이면 스키마 로드가 안 된 것입니다 — 이 스크립트가 아니라 16 단계를 확인하세요."
+  err ""
+  err "  관제 MariaDB 가 아직 살아 있는 구 환경에서 <의도적으로> 쓰려면: SEED_MNG_FORCE=1"
+  exit 1
+fi
+warn_forced() { printf '\033[33m[seed][WARN]\033[0m %s\n' "$*" >&2; }
+warn_forced "SEED_MNG_FORCE=1 — 폐기 가드를 껐습니다. 대상에 MNG_EX_* 테이블이 실재하는지 먼저 확인하세요."
 
 command -v mysql >/dev/null 2>&1 || command -v mariadb >/dev/null 2>&1 \
   || die "mysql/mariadb 클라이언트가 없습니다. (dnf install -y mysql)"
@@ -135,7 +171,7 @@ log "대상 PostgreSQL ${PG_HOST}:${PG_PORT}/${PG_DB}(schema=${PG_SCHEMA}) 에 �
 PGPASSWORD="${PG_PASS}" psql \
   -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d "${PG_DB}" \
   -v ON_ERROR_STOP=1 -q -f "${OUT_SQL}" \
-  || die "적재 실패 — 대상 접속/테이블 존재(백엔드 1회 기동으로 Flyway 적용) 확인."
+  || die "적재 실패 — 대상 접속/테이블 존재 확인(현행 db/schema.sql 에는 MNG_EX_* 가 없다)."
 
 # ----------------------------------------------------------------------------
 # 3) 검증 — 적재 결과 카운트

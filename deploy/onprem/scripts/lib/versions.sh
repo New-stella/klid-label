@@ -154,9 +154,10 @@ FFPROBE_BIN_PATH="/usr/bin/ffprobe"
 
 # ---- PostgreSQL 16 (PGDG, RHEL 8.9 / el8 오프라인 번들) ----
 #   ★ 번들 PG 는 "옵션"이다(USE_BUNDLED_POSTGRES=1 기본). 타깃에 이미 PG 가 있으면 끈다(=0).
-#   ★ DB 스키마는 backend Flyway 가 자동 부트스트랩한다(V2__phase3_video_queue_quartz.sql 가
-#     LS_*·MNG_*·QRTZ_* 를 CREATE TABLE IF NOT EXISTS 로 생성, flyway.enabled=true). 따라서
-#     PG 사전요건은 "빈 DB 2개(control/portal) + 접속 사용자"뿐이다(관제 스키마 사전 적재 불필요).
+#   ★ DB 스키마는 db/schema.sql(전체 통합 DDL)을 1회 로드해 만든다 — 온프렘은 Flyway 를 쓰지
+#     않는다(flyway.enabled=false). 따라서 PG 사전요건은
+#     "빈 DB 2개(control/portal) + 접속 사용자"뿐이고, 그 로드는 설치 단계(16-load-schema.sh)나
+#     DBA 가 <사람 손으로> 수행한다(자동으로 만들어지지 않는다).
 #   수집(55-collect-postgresql.sh)은 dnf/yum 환경에서만 수행되며, 비-RHEL(mac)은 graceful SKIP 한다.
 #   설치(10-install-postgresql.sh)는 syspkgs/postgresql/*.rpm 을 오프라인(--disablerepo='*')으로 설치한다.
 #

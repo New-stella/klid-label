@@ -77,6 +77,35 @@ ONPREM_ROOT="$(cd "${SCRIPTS_DIR}/.." && pwd)"                    # deploy/onpre
 
 onprem_root() { printf '%s\n' "${ONPREM_ROOT}"; }
 
+# ----------------------------------------------------------------------------
+# 설치 공통 변수 기본값 — ★ 단계 스크립트를 <단독으로> 돌릴 수 있게 하는 자리
+# ----------------------------------------------------------------------------
+# 종전에는 이 값들을 install.sh 만 export 했다. 그래서 install/1x-*.sh 를 직접 실행하면
+# set -u 에 걸려 "KLID_PREFIX: unbound variable" 로 즉시 죽었다 — 즉 <단계별 수동 진행이
+# 구조적으로 불가능>했다. 폐쇄망에서 한 단계가 막혔을 때 그 단계부터 이어서 돌릴 수 없다는
+# 뜻이라, 일괄 스크립트가 유일한 경로였다.
+#
+# ★ 이미 설정된 값은 덮지 않는다(`:=`). install.sh 는 이 파일을 source 한 뒤 같은 값을
+#   `${VAR:-기본}` 으로 다시 export 하므로 동작이 달라지지 않고, 환경변수 재정의도 그대로 이긴다.
+# ⚠ 기본값은 install.sh 의 것과 <같아야 한다>. 달라지면 일괄 설치와 단계별 설치가 서로
+#   다른 경로에 설치하게 된다.
+: "${KLID_PREFIX:=/opt/klid}"
+: "${KLID_ETC:=/etc/klid}"
+: "${KLID_DATA:=/var/lib/klid}"
+: "${KLID_LOG:=/var/log/klid}"
+: "${KLID_USER:=klid}"
+: "${KLID_GROUP:=klid}"
+: "${SYSTEMD_DIR:=/etc/systemd/system}"
+: "${STORAGE_RAW_PATH:=/nas-storage}"
+: "${STORAGE_DEIDENTIFIED_PATH:=/nas-storage}"
+: "${USE_BUNDLED_POSTGRES:=1}"
+: "${INSTALL_BACKEND_SYSTEMD_UNIT:=0}"
+: "${KLID_ROLE:=all}"
+# 단계 스크립트가 서브셸/자식 프로세스를 띄워도 값이 이어지도록 export 한다.
+export KLID_PREFIX KLID_ETC KLID_DATA KLID_LOG KLID_USER KLID_GROUP SYSTEMD_DIR
+export STORAGE_RAW_PATH STORAGE_DEIDENTIFIED_PATH USE_BUNDLED_POSTGRES
+export INSTALL_BACKEND_SYSTEMD_UNIT KLID_ROLE
+
 # repo 루트(모노레포 루트) — 빌드머신 패키징 단계에서만 의미가 있다.
 # deploy/onprem/scripts/lib 에서 3단계 위. .git 또는 settings.gradle 존재로 검증.
 repo_root() {

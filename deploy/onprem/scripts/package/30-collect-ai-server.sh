@@ -2,6 +2,7 @@
 set -euo pipefail
 # ============================================================================
 # 30-collect-ai-server.sh — [빌드머신] ai-server 소스 + pip wheel + sam2 + 모델 수집
+# @step 인터넷=필요 | 소요=수 분 | 선행=없음 | 재실행=안전(el8/x86_64 전용 — 다른 플랫폼은 착수 전에 가드가 막는다)
 #
 #   ai-server 는 사전 빌드 산출물이 아니라 "소스 + 오프라인 wheel" 로 번들한다.
 #   대상 서버(폐쇄망)에서 번들 python 으로 venv 를 만들고
@@ -24,6 +25,21 @@ set -euo pipefail
 #     - sam-2 는 git+ VCS 의존성 → git clone 후 소스 디렉토리로 vendor.
 #     - requirements.txt(lock) 에는 --hash 가 없어 무결성 검증 불가 → vendor 후
 #       SHA256SUMS 를 우리가 생성(전송 무결성 보장용).
+#
+#   ⚠⚠ 이 단계는 빌드머신 OS 가 타깃과 같을 때만 안전하다 (2026-08-30 실측).
+#     `pip download` 가 "이미 받은 파일은 건너뛴다"는 성질은 <같은 플랫폼일 때만> 성립한다.
+#     이미 manylinux wheel 이 들어 있는 매체 위에서 맥(darwin/arm64)으로 이 단계를 돌리면,
+#     pip 는 그 wheel 들이 자기 플랫폼에 안 맞는다고 보고 <맥용 wheel 을 새로 받아 나란히 쌓는다>.
+#     실측: 21개 · +197MB 가 vendor/wheels 에 섞였고, 그중 torch 가 CPU 판이 아닌 기본 판이라
+#     아래 3-c 의존성 폐포 검사가 CUDA 의존을 요구하며 die 했다(검사는 제 일을 했다 —
+#     다만 <오염이 먼저 일어나고> 나서 죽었다).
+#   ★ 그래서 아래 0) 에 <플랫폼 가드>를 두어 다운로드 <앞에서> 막는다(2026-08-30 신설).
+#     이제 맥에서 돌리면 vendor/wheels 에 손도 대지 않고 사유·올바른 실행법과 함께 죽는다.
+#     폐포 검사는 그대로 남는다 — 가드는 "어디서 돌리는가", 폐포 검사는 "무엇을 받았는가"라
+#     서로 다른 것을 본다. 하나가 다른 하나를 대신하지 않는다.
+#     → 올바른 실행: el8/x86_64 컨테이너·머신에서 돌린다(02-build-package.md).
+#     → 가드 이전 판으로 이미 섞였다면 `vendor/wheels/*macosx*.whl` 을 지우면 원상복구된다
+#       (없어지는 파일은 없고 새로 생기기만 하므로 되돌릴 수 있다). 0-b 가 그 사실을 알린다.
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +62,54 @@ HF_OUT="${ONPREM}/models/hf-cache"
 [[ -d "${AI_SRC}" ]] || die "ai-server 디렉토리를 찾을 수 없습니다: ${AI_SRC}"
 require_cmd git
 ensure_dir "${OUT}" "${WHEELS}" "${SAM2_OUT}" "${WEIGHTS_OUT}" "${HF_OUT}"
+
+# ---- 0) 플랫폼 가드 — <오염이 일어나기 전에> 막는다 (2026-08-30 신설) ----
+#   왜 필요한가: 이 단계의 `pip download` 는 <돌고 있는 머신의 플랫폼>으로 의존성을 해석한다.
+#   맥(darwin/arm64)에서 돌리면 manylinux wheel 이 이미 있어도 "내 플랫폼에 안 맞는다"고 보고
+#   맥용 wheel 을 새로 받아 나란히 쌓는다(실측: 21개 · +197MB). 3-c 의 의존성 폐포 검사가
+#   그걸 잡아 die 하지만 <오염이 먼저 일어나고 나서> 죽는다 — 사람이 손으로 되돌려야 한다.
+#   그래서 다운로드 <앞>에서 판정한다. 여기서 막으면 vendor/wheels 는 손도 대지 않는다.
+#
+#   ★ 수집 로직(인덱스 URL · 버전 핀 · --no-deps · 폐포 검사)은 <아무것도 바꾸지 않는다>.
+#     이 가드는 "어디서 돌리는가"만 본다.
+#   ⚠ 이 가드가 없어도 맥에서는 어차피 이 단계가 성공할 수 없다(폐포 검사에서 죽는다).
+#     달라지는 것은 <매체가 더럽혀지느냐 아니냐>다.
+if [[ "${ALLOW_FOREIGN_PLATFORM_WHEELS:-0}" != "1" ]]; then
+  _bs="$(uname -s)"; _bm="$(uname -m)"
+  if [[ "${_bs}" != "Linux" || "${_bm}" != "x86_64" ]]; then
+    _deploy_dir="$(cd "${ONPREM}/.." && pwd)"
+    die "[ai-server] 이 단계는 타깃과 같은 플랫폼에서만 돌립니다 — 현재: ${_bs} ${_bm} / 타깃: Linux x86_64 (RHEL 8.9, glibc 2.28).
+     여기서 그대로 진행하면 ${_bs}/${_bm} 용 wheel 이 vendor/wheels 에 <섞여 쌓입니다>
+     (실측: 21개 · +197MB). 뒤의 의존성 폐포 검사가 잡아내지만 그때는 이미 오염된 뒤입니다.
+
+     올바른 실행(02-build-package.md):
+       el8 / x86_64 컨테이너나 머신에서 이 단계를 돌리세요. 예)
+         docker run --rm --platform ${EL8_BUILDER_PLATFORM:-linux/amd64} \\
+           -v ${_deploy_dir}:/w -w /w/onprem ${EL8_BUILDER_IMAGE:-rockylinux/rockylinux:8} \\
+           bash -lc './scripts/package-step.sh 30'
+
+     이미 섞였다면(되돌리는 명령):
+       rm -f ${WHEELS}/*macosx*.whl ${WHEELS}/*win32*.whl ${WHEELS}/*win_amd64*.whl
+       (없어지는 정상 파일은 없습니다 — 맥/윈도우 태그는 타깃에서 쓰이지 않습니다.)
+
+     그래도 강행하려면: ALLOW_FOREIGN_PLATFORM_WHEELS=1 (오염을 감수한다는 뜻입니다)"
+  fi
+  unset _bs _bm _deploy_dir
+else
+  warn "[ai-server] ALLOW_FOREIGN_PLATFORM_WHEELS=1 — 플랫폼 가드를 껐습니다."
+  warn "            타깃과 다른 플랫폼의 wheel 이 vendor/wheels 에 섞일 수 있습니다."
+fi
+
+# ---- 0-b) 이미 섞여 있는 외래 플랫폼 wheel 보고 ----
+#   가드는 <앞으로의 오염>만 막는다. 가드 이전 판으로 돌려 이미 섞인 매체가 있을 수 있어
+#   여기서 세어 알린다(자동 삭제하지 않는다 — 지우는 판단은 사람이 한다).
+_foreign_whl="$(find "${WHEELS}" -maxdepth 1 -type f -name '*.whl' \
+  \( -name '*macosx*' -o -name '*win32*' -o -name '*win_amd64*' \) 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "${_foreign_whl}" != "0" ]]; then
+  warn "[ai-server] vendor/wheels 에 타깃과 다른 플랫폼의 wheel ${_foreign_whl}개가 이미 섞여 있습니다."
+  warn "            되돌리기: rm -f ${WHEELS}/*macosx*.whl ${WHEELS}/*win32*.whl ${WHEELS}/*win_amd64*.whl"
+fi
+unset _foreign_whl
 
 # 대상과 동일한 python 3.11 을 사용해야 wheel 태그(cp311)가 맞다.
 PYBIN="${PYTHON_BIN:-python3.11}"

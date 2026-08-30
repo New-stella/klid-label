@@ -15,9 +15,12 @@ set -euo pipefail
 #
 #   ★★ 이 산출물은 자동으로 따라오지 않는다. 마이그레이션을 추가한 PR 이 main 에 들어가면
 #     메인 워크트리에서 이 스크립트를 1회 돌려야 한다(워크트리에서 먼저 돌리면 남의 미머지
-#     마이그레이션이 섞이거나 반쪽만 해소된다). 빠뜨리면 온프렘은 Flyway 비활성 +
-#     ddl-auto=validate 라 <기동이 실패>하고, 그 축은 로컬·dev·FULL 회귀로 절대 안 잡힌다
-#     — 그쪽은 Flyway 로 돌기 때문이다(2026-08-27 V20 실측).
+#     마이그레이션이 섞이거나 반쪽만 해소된다). 빠뜨리면 온프렘은 Flyway 비활성이라 그 테이블이
+#     <아예 만들어지지 않고>, 그 축은 로컬·dev·FULL 회귀로 절대 안 잡힌다 — 그쪽은 Flyway 로
+#     돌기 때문이다(2026-08-27 V20 실측).
+#     ⚠ 구 서술 폐기(2026-08-30): "ddl-auto=validate 라 기동이 실패한다". 그 설정은 선언만
+#       있고 앱의 EMF 구성에 도달하지 않아, 테이블이 없어도 <기동은 성공한다> — 즉 이 누락은
+#       기동 시점에 드러나지 않고 런타임에 조용히 터진다. 더 위험하지 덜 위험하지 않다.
 #
 #   ★ 대상 스키마는 앱과 같은 축(${DB_SCHEMA:-klid_at})이다.
 #     앱은 커넥션 currentSchema / Flyway schemas·default-schema / Quartz tablePrefix /
@@ -83,7 +86,8 @@ docker run --rm -v "${MIG_DIR}:/flyway/sql:ro" "${FWVER}" \
   migrate
 
 # 유출 가드: 마이그레이션이 대상 스키마 밖(public)에 객체를 만들면 -n 덤프에서 조용히 빠진다.
-#   → 설치 후 ddl-auto=validate 가 "없는 테이블"로 실패한다. 여기서 먼저 크게 실패시킨다.
+#   → 설치본에 그 객체가 없어 런타임에 "없는 테이블"로 터진다(기동 시점에는 드러나지 않는다).
+#     여기서 먼저 크게 실패시킨다.
 leaked="$(PGPASSWORD="${DBPW}" psql -tAX -h 127.0.0.1 -p "${PORT}" -U "${DBUSER}" -d "${DBNAME}" \
   -c "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relkind IN ('r','v','m','S');")"
@@ -98,7 +102,7 @@ ensure_dir "$(dirname "${OUT}")"
 -- schema.sql — 저작도구 전체 스키마 단일 생성본 (Flyway V1~Vn 적용 결과 스냅샷)
 --
 -- ★ 생성물(수기 편집 금지). gen-schema-sql.sh 가 Flyway 로 적용한 스키마를 덤프한다.
---   → Flyway 가 실제 적용/검증한 스키마와 100% 동일하므로 ddl-auto=validate 통과 보장.
+--   → Flyway 가 실제 적용한 스키마와 100% 동일하다(마이그레이션 전량 적용 후의 덤프).
 --
 -- ★ 대상 스키마 = ${DB_SCHEMA} (앱의 \${DB_SCHEMA:klid_at} 와 같은 축).
 --   덤프는 CREATE SCHEMA 를 포함하고 모든 객체가 스키마 한정이므로, 로더의 search_path 와
@@ -107,7 +111,9 @@ ensure_dir "$(dirname "${OUT}")"
 -- 용도(온프렘/이중화): Flyway 를 부팅 경로에서 제외(SPRING_FLYWAY_ENABLED=false)하고,
 --   설치 시 이 파일을 빈 DB 에 1회 로드. 두 노드 모두 검증만 → advisory lock 경합 없음.
 --
--- flyway_schema_history 제외(Flyway 미사용). 시드(ls_system_config/qrtz_locks) 포함.
+-- flyway_schema_history 제외(Flyway 미사용). 마이그레이션이 넣은 시드 행은 COPY 블록으로
+--   그대로 포함된다(ls_system_config·qrtz_locks 만이 아니라 이벤트유형·라벨 마스터 등도 들어간다.
+--   실제 목록은 이 파일의 COPY 블록이 정본이며, 여기에 표를 복제하면 마이그레이션이 늘 때 낡는다).
 -- 재생성: deploy/onprem/scripts/gen-schema-sql.sh (빌드머신, docker 필요)
 -- ============================================================================
 

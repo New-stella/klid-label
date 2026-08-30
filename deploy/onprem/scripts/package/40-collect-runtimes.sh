@@ -2,6 +2,7 @@
 set -euo pipefail
 # ============================================================================
 # 40-collect-runtimes.sh — [빌드머신] 대상 서버 런타임 바이너리 수집
+# @step 인터넷=필요 | 소요=약 5초(tarball 보유 시) | 선행=없음 | 재실행=안전(tarball 은 재사용, 고지용 71MB 는 매번 받는다)
 #
 #   대상 서버(폐쇄망)에 Python 이 없다고 가정하고 번들한다.
 #   ★ 웹 서버는 여기서 받지 않는다 — httpd 를 배포판 RPM(syspkgs)으로 설치한다(2026-08-19 전환).
@@ -112,7 +113,19 @@ fi
 # 자바 런타임(runtimes/jdk)은 수집하지 않는다 — 위 헤더 「자바를 반입하지 않는 이유」 참조.
 # 이전 판으로 만든 패키지에 남아 있을 수 있어 안내만 남긴다(자동 삭제하지 않는다 — 오래된
 # 매체를 그대로 재사용하는 현장에서 우리가 지울 판단 근거가 없다).
-if [[ -d "${ONPREM}/runtimes/jdk" ]] && [[ -n "$(ls -A "${ONPREM}/runtimes/jdk" 2>/dev/null || true)" ]]; then
-  warn "[runtimes] runtimes/jdk 에 이전 판의 JRE tarball 이 남아 있습니다 — WAR 반입 형상에서는 쓰이지 않습니다."
-  warn "           매체 용량을 줄이려면 반출 전에 수동으로 비우세요: rm -rf ${ONPREM}/runtimes/jdk"
+#
+# ★ 판정은 <실제 tarball 이 있는가>로 한다 (2026-08-30 수정).
+#   ⚠ 구 판정 폐기 — `ls -A` 로 "디렉터리가 비어 있지 않으면 경고". 이 디렉터리에는 git 이
+#     빈 디렉터리를 추적하려고 둔 .gitkeep 이 <항상> 있어, JRE 가 한 건도 없는 정상 매체에서
+#     경고가 매번 떴다. 늘 뜨는 경고는 읽히지 않게 되어 진짜 잔재를 가린다.
+_jdk_leftover=0
+if [[ -d "${ONPREM}/runtimes/jdk" ]]; then
+  _jdk_leftover="$(find "${ONPREM}/runtimes/jdk" -type f \
+    \( -name '*.tar.gz' -o -name '*.tgz' -o -name '*.tar.zst' -o -name '*.tar.xz' -o -name '*.zip' \) \
+    2>/dev/null | wc -l | tr -d ' ')"
 fi
+if [[ "${_jdk_leftover}" != "0" ]]; then
+  warn "[runtimes] runtimes/jdk 에 이전 판의 JRE tarball ${_jdk_leftover}개가 남아 있습니다 — WAR 반입 형상에서는 쓰이지 않습니다."
+  warn "           매체 용량을 줄이려면 반출 전에 수동으로 비우세요: rm -f ${ONPREM}/runtimes/jdk/*.tar.*"
+fi
+unset _jdk_leftover

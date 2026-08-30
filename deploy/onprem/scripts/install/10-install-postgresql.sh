@@ -12,7 +12,8 @@ set -euo pipefail
 #   ★ 역할 분담(중복 생성 금지):
 #       10(이 스크립트) = PG16 RPM 설치 + initdb + postgresql.conf/pg_hba.conf + 서비스 기동.
 #       15-init-db.sh   = control/portal DB · 앱 유저 생성(DB_INIT_RUN=1 시).
-#     이 스크립트는 DB·유저를 만들지 않는다(15 의 책임). 테이블은 backend Flyway 가 자동 생성한다.
+#     이 스크립트는 DB·유저를 만들지 않는다(15 의 책임). 테이블은 16-load-schema.sh 의
+#     db/schema.sql 로드가 만든다 — 온프렘은 Flyway 를 쓰지 않으므로 앱이 만들어 주지 않는다.
 #
 #   외부 네트워크 호출 없음. 모든 RPM 은 syspkgs/postgresql/ 번들에서 오프라인 설치한다.
 # ============================================================================
@@ -194,4 +195,4 @@ else
   warn "[postgres] systemctl 이 없어 기동순서 drop-in 을 생성하지 못했습니다 — backend 전 PG 기동을 수동 보장하세요."
 fi
 
-ok "[postgres] 번들 PG${PG_MAJOR} 설치 완료. DB/유저 생성은 15-init-db.sh 가 담당합니다(테이블은 backend Flyway)."
+ok "[postgres] 번들 PG${PG_MAJOR} 설치 완료. DB/유저 생성은 15-init-db.sh, 테이블은 16-load-schema.sh 가 담당합니다."

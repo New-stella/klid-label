@@ -189,11 +189,12 @@ klid_role_has app && STEPS+=("14-install-frontend.sh")     # dist 배치 + httpd
 
 if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
   STEPS+=("15-init-db.sh")
-  # 16: db/schema.sql 로드 (SPRING_FLYWAY_ENABLED=false 운영). SCHEMA_LOAD_RUN=1 일 때만
-  #     실제 로드, 아니면 수동 안내만. Flyway 부트스트랩 구성이면 SKIP_SCHEMA_LOAD=1 로 생략.
+  # 16: db/schema.sql 로드 — 온프렘은 Flyway 를 쓰지 않으므로 <테이블을 만드는 유일한 경로>다.
+  #     SCHEMA_LOAD_RUN=1 일 때만 실제 로드, 아니면 수동 안내만. 이미 준비된 DB 면
+  #     SKIP_SCHEMA_LOAD=1 로 생략(= "다른 사람이 이미 넣었다"는 선언).
   STEPS+=("16-load-schema.sh")
-  # 17: 포털 DB(PORTAL_DB_*) 복제본 스키마 로드. Flyway 는 control 에만 붙으므로 포털 스키마는
-  #     설치가 책임진다 — 빠뜨리면 메타 복제가 조용히 0건으로 유지된다(로그·헬스로 안 드러남).
+  # 17: 포털 DB(PORTAL_DB_*) 복제본 스키마 로드. 포털 DB 는 어떤 자동 마이그레이션도 받지
+  #     않으므로 설치가 책임진다 — 빠뜨리면 메타 복제가 조용히 0건으로 유지된다(로그·헬스로 안 드러남).
   STEPS+=("17-load-portal-schema.sh")
 fi
 
@@ -210,6 +211,10 @@ klid_role_has app && STEPS+=("19-verify-ffmpeg.sh")
 # 20: 프론트엔드 런타임 설정(상위 시스템 로그인 URL) 최종 게이트.
 #     ⚠ 값이 비면 화면은 뜨는데 세션 만료 시 이동할 곳이 없다 — 조용히 완료로 끝내지 않는다.
 klid_role_has app && STEPS+=("20-verify-frontend-config.sh")
+# 21: AI 추론 서버 주소 확인. ai-server 를 별도 장비에 두는 2대 구성에서 기본값(loopback)이
+#     남아 있으면 <기동도 헬스체크도 정상인데> 오토라벨링만 실패한다 — 그 침묵을 깬다.
+#     ★ 설치를 실패시키지 않는다(경고만). 이 시점은 운영자가 설정을 편집하기 <전>이다.
+klid_role_has app && STEPS+=("21-verify-ai-server-url.sh")
 
 [[ "${#STEPS[@]}" -gt 0 ]] || die "실행할 단계가 없습니다(KLID_ROLE=${KLID_ROLE}) — 역할 지정을 확인하세요."
 
@@ -230,6 +235,12 @@ if klid_role_has app; then
   info "   1) 환경설정 편집:"
   info "        sudo \$EDITOR ${KLID_ETC}/application.properties   # ★ WAR 형상에서 WAS 가 읽는 파일"
   info "        (${KLID_ETC}/backend.env 는 베어메탈 형상용 — WAS 는 읽지 않는다)"
+  info "      ★ 주소 항목을 먼저 맞춘다(04-configuration.md 「주소 한 표」):"
+  info "          AI_SERVER_URL       ← ai-server 장비(서버 B). 기본값 loopback 은 2대 구성에서 틀리다"
+  info "          CONTROL_DB_* / PORTAL_DB_*  ← 외부 DB 를 쓰면 그 주소"
+  info "          KPST_DEID_BASE_URL  ← 동거 비식별 서버"
+  info "          CONTROL_NOTIFY_URL  ← 관제 통지 수신처(CONTROL_NOTIFY_ENABLED=true 일 때)"
+  info "        고친 뒤 주소만 다시 확인:  sudo KLID_ROLE=app ${SELF_DIR}/install/21-verify-ai-server-url.sh"
   info "   2) ★ WAS 설정 이관 — 건너뛰면 대용량 업로드만 조용히 깨진다:"
   info "        docs/10-was-settings.md 의 점검 체크리스트를 끝까지 수행"
   info "        (기동·일반 요청은 정상이라 이 단계를 빠뜨려도 배포 시점에는 아무 신호가 없다)"

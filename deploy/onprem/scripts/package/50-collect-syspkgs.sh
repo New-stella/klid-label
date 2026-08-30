@@ -2,6 +2,7 @@
 set -euo pipefail
 # ============================================================================
 # 50-collect-syspkgs.sh — [빌드머신] 런타임 시스템 의존성 수집 (RHEL 8.9 / el8)
+# @step 인터넷=필요 | 소요=약 80초(RPM 보유 시) | 선행=dnf 또는 docker | 재실행=안전(받은 RPM 은 건너뜀)
 #
 #   타깃 OS = 레드햇 엔터프라이즈 리눅스 8.9 (RHEL 8 계열, x86_64, glibc 2.28, dnf/rpm).
 #   ⚠ 구 서술 폐기(2026-08-28) — "타깃 OS = Rocky Linux 9 (RHEL 9 계열, glibc 2.34)".
@@ -123,7 +124,10 @@ RPM_PKGS=(mesa-libGL libglvnd-glx glib2 httpd policycoreutils-python-utils)
 #     · 반대로 --alldeps 로 받은 세트를 `dnf install <파일들>` 로 직접 넘기면 glibc·coreutils·rpm
 #       같은 기반 패키지가 이미 설치된 버전과 충돌해 <설치가 통째로 실패>한다(실측).
 #     · 해법은 createrepo_c 로 <로컬 yum 저장소>를 만들어 주는 것이다. 그러면 dnf 가 스스로
-#       의존성을 해소해 "필요한 것만" 설치한다 — 실측: 261개 반입 → 105개만 설치, glibc 무변경.
+#       의존성을 해소해 "필요한 것만" 설치한다 — 실측: RPM 261개 반입 → 105개만 설치, glibc 무변경.
+#       ⚠ 여기서 세는 단위는 <*.rpm 파일 수>다. 디렉터리의 전체 파일 수는 그보다 많다 —
+#         createrepo_c 가 만드는 repodata/ 7개와 SHA256SUMS 가 더 있기 때문이다(ffmpeg 기준
+#         RPM 261 + 9 = 파일 270). 매체 파일 수를 세는 쪽과 이 수치가 다른 것은 정상이다.
 #   ⚠ 구 방침 폐기(2026-08-30): "--alldeps 는 쓰지 않는다"(충돌을 피하려 완전성을 버린 것이라
 #     폐쇄망 전제에서 오히려 위험했다. 되돌리지 말 것).
 # ★ --archlist=x86_64,noarch 로 i686 멀티리브를 제외한다(미지정 시 35개/15MB 가 헛되이 붙는다).
@@ -188,7 +192,7 @@ dnf download --resolve --alldeps --archlist=x86_64,noarch --downloaddir "${RPM_O
 # 로컬 yum 저장소 메타데이터 생성 — 타깃은 이 repodata 로 <의존성을 스스로 해소>한다.
 #   ★ 이것이 --alldeps 를 안전하게 만드는 핵심이다. RPM 파일을 dnf 에 직접 넘기면
 #     이미 설치된 기반 패키지(glibc·coreutils·rpm)와 버전이 충돌해 설치가 통째로 실패하지만,
-#     저장소로 주면 dnf 가 <실제로 필요한 것만> 골라 설치한다(2026-08-30 실측: 261개 반입 → 105개 설치).
+#     저장소로 주면 dnf 가 <실제로 필요한 것만> 골라 설치한다(2026-08-30 실측: RPM 261개 반입 → 105개 설치).
 echo "[collect] 로컬 저장소 메타데이터 생성(createrepo_c)"
 if [ "${COLLECT_FFMPEG}" = "1" ]; then createrepo_c --quiet "${FF_OUT}"; fi
 createrepo_c --quiet "${RPM_OUT}"
@@ -331,11 +335,15 @@ if [[ "${_collected}" -eq 1 ]]; then
     if [[ "${COLLECT_FFMPEG}" -eq 1 ]]; then
       sha256_write "${FFMPEG_OUT}"
       sha256_write "${FFMPEG_SRC_OUT}"
-      ok "[syspkgs] 수집 완료 — ffmpeg $(ls -1 "${FFMPEG_OUT}"/*.rpm 2>/dev/null | wc -l | tr -d ' ') 개 / 시스템 RPM $(ls -1 "${RPM_OUT}"/*.rpm 2>/dev/null | wc -l | tr -d ' ') 개 / GPL 대응 소스 $(ls -1 "${FFMPEG_SRC_OUT}"/*.src.rpm 2>/dev/null | wc -l | tr -d ' ') 개($(du -sh "${FFMPEG_SRC_OUT}" 2>/dev/null | cut -f1))"
+      # ★ 세는 단위는 <*.rpm 파일 수>다 — repodata/ 와 SHA256SUMS 는 제외된다. 매체 전체
+      #   파일 수를 세는 쪽(반입요청서 등)과 값이 다른 것은 정상이며, 그래서 단위를 밝혀 적는다.
+      ok "[syspkgs] 수집 완료 — ffmpeg RPM $(ls -1 "${FFMPEG_OUT}"/*.rpm 2>/dev/null | wc -l | tr -d ' ') 개 / 시스템 RPM $(ls -1 "${RPM_OUT}"/*.rpm 2>/dev/null | wc -l | tr -d ' ') 개 / GPL 대응 소스 $(ls -1 "${FFMPEG_SRC_OUT}"/*.src.rpm 2>/dev/null | wc -l | tr -d ' ') 개($(du -sh "${FFMPEG_SRC_OUT}" 2>/dev/null | cut -f1))"
+      info "[syspkgs] (위 개수는 *.rpm 파일만 센 것이다 — 각 디렉터리에는 repodata/ 와 SHA256SUMS 가 더 있다.)"
       info "[syspkgs] ★ ffmpeg 는 <자동 설치되지 않는다> — 관제 설치본을 덮어쓰지 않기 위해서다."
       info "          필요할 때만: sudo ./scripts/install/install-ffmpeg.sh"
     else
       ok "[syspkgs] 수집 완료 — 시스템 RPM $(ls -1 "${RPM_OUT}"/*.rpm 2>/dev/null | wc -l | tr -d ' ') 개 (SKIP_FFMPEG=1 — ffmpeg 미포함)"
+      info "[syspkgs] (위 개수는 *.rpm 파일만 센 것이다 — 디렉터리에는 repodata/ 와 SHA256SUMS 가 더 있다.)"
     fi
     exit 0
   fi
