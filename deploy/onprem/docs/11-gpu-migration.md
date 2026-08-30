@@ -133,7 +133,7 @@ GPU 전환의 실패는 **조용하다.** 아래를 실제로 확인하지 않�
 
 ```bash
 # ai 서버에서
-sudo -u klid /opt/klid/ai/.venv/bin/python - <<'PY'
+sudo -u klid /opt/klid/ai/venv/bin/python - <<'PY'
 import onnxruntime as ort, torch
 print("ort providers:", ort.get_available_providers())   # CUDAExecutionProvider 가 있어야 한다
 print("torch.cuda.is_available():", torch.cuda.is_available())

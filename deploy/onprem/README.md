@@ -27,6 +27,9 @@
 >   **그대로 반입한다.** 자바를 뺐다고 함께 빠지지 않는다.
 > - **오프라인 빌드 키트(buildtools/·src/)는 반입하지 않는다** — 현장 재빌드 요구가 없음을 확인했다.
 >   필요하면 `WITH_BUILDTOOLS=1 ./scripts/package.sh` 로 켠다.
+> - **실행 가능 jar(`klid-backend.jar`)도 반입하지 않는다**(2026-08-30) — 개발 환경 전용이라
+>   설치가 배치하지 않는데 수집만 되고 있었다(83.6 MiB). 베어메탈 형상으로 갈 때만
+>   `WITH_BACKEND_JAR=1 ./scripts/package.sh` 로 켠다.
 >
 > ⚠ 구 서술 폐기(2026-08-30) — "**Docker 없이 베어메탈 + systemd**로 설치". backend 를 systemd 유닛으로
 >   기동하는 베어메탈 형상은 **정본이 아니다**(토글로만 남는다 — `INSTALL_BACKEND_SYSTEMD_UNIT=1`).
@@ -59,8 +62,12 @@
 
 [서버 A — 폐쇄망, RHEL 8.9 x86_64. 프론트 + 백엔드]
   3) sudo ./scripts/install.sh --role=app
-       └ (옵션)PG → api.war 배치 → frontend/httpd → DB 초기화 → ffmpeg 전제조건 검증
+       └ (옵션)PG → api.war 배치 → frontend/httpd → DB 초기화·스키마 로드
+         → ffmpeg 전제조건 검증 → 프론트 런타임 설정 게이트 → AI 서버 주소 확인
           ★ ffmpeg 가 없으면 여기서 멈춘다(관제팀 설치 요청 또는 install/install-ffmpeg.sh)
+          ★ 상위 로그인 주소가 비어 있어도 멈춘다(프론트 설정 게이트 — docs/04-configuration.md)
+          ★ DB 스키마 로드는 <옵트인>이다(SCHEMA_LOAD_RUN=1). 넣지 않아도 설치·기동은 성공하고
+            화면·배치가 DB 를 처음 쓸 때 깨진다 — docs/03-install.md 「테이블을 만드는 주체」
 
   4) sudo $EDITOR /etc/klid/application.properties   # DB 비밀번호·JWT 시크릿 등 필수 입력
                                                      # (backend.env 는 베어메탈 형상용)
@@ -170,29 +177,40 @@ curl -fsS http://127.0.0.1/                                      # frontend(http
 ```
 deploy/onprem/
 ├── README.md  VERSION  .gitignore
-├── docs/        00~11 단계별 가이드 (11=GPU 전환)
+├── docs/        00~11 단계별 가이드 13편 (10 이 둘 — was-settings · backup-dr, 11=GPU 전환)
+├── db/{schema.sql, portal-schema.sql}    # ★ 전체 스키마 SQL(온프렘은 Flyway 미사용 — 1회 로드)
 ├── scripts/
 │   ├── lib/{common.sh, versions.sh}
 │   ├── lib/{licenses.sh, backend_licenses.py}   # 라이선스 고지 수집 공용
 │   ├── package.sh + package/{10..70}     # [빌드머신] 수집(55=PG16, 60=오프라인 빌드 키트 — 기본 제외,
 │   │                                     #  65=(L)GPL 대응 소스, 70=고지 집합 생성)
-│   ├── install.sh + install/{10..19}     # [대상 서버] 설치(10=번들 PG16 옵션, 19=ffmpeg 전제조건 검증)
+│   │                                     #  목록·순서의 단일 진실원은 package/steps.sh
+│   ├── package-step.sh                   # [빌드머신] 단계별 수집(list / <번호> / from <번호>)
+│   ├── install.sh + install/{10..21}     # [대상 서버] 설치(10=번들 PG16 옵션, 16·17=스키마 로드,
+│   │                                     #  19=ffmpeg 전제조건 검증, 20=프론트 설정 게이트,
+│   │                                     #  21=AI 서버 주소 확인)
+│   ├── install-step.sh                   # [대상 서버] 단계별 설치(list / <번호>)
 │   ├── install/install-ffmpeg.sh         # [대상 서버 A] ★ 수동 전용 — install.sh 가 호출하지 않는다
+│   ├── install/render-frontend-config.sh # [대상 서버 A] 프론트 런타임 설정(klid-config.js) 생성
 │   ├── install/build-from-source.sh      # [대상 서버] 소스 오프라인 재빌드
+│   ├── gen-schema-sql.sh                 # [빌드머신] db/schema.sql 재생성
 │   └── uninstall.sh
 ├── config/
 │   ├── backend/{application.properties.template, env.template, was.env.template}
 │   ├── ai-server/env.template
-│   ├── frontend/{httpd-klid.conf.template, nginx.conf.template}
+│   ├── frontend/{frontend.env.template, httpd-klid.conf.template, nginx.conf.template}
 │   ├── was/                              # ★ WAS 설정 예시(setenv.sh · context.xml · server.xml 커넥터)
 │   └── systemd/{klid-backend,klid-ai-server}.service   # 웹서버는 배포판 httpd.service
-├── artifacts/{backend,frontend,ai-server}/   # package.sh 가 채움(backend=api.war 반입 정본
-│                                             #  + klid-backend.jar 는 개발 전용·반입 대상 아님)
+├── artifacts/{backend,frontend,ai-server}/   # package.sh 가 채움(backend=api.war 반입 정본.
+│                                             #  klid-backend.jar 는 개발 전용이라 반입 대상이
+│                                             #  아니고 기본 미수집 — WITH_BACKEND_JAR=1 로만)
 ├── licenses/                                 # ★ 제3자 라이선스 고지 — 대부분 자동 생성.
 │   ├── README.md  NOTICE.header.txt          #   사람이 쓰는 것(git 추적)
 │   ├── manual/{OVERRIDES.tsv, LGPL-SOURCES.tsv, LGPL-SOURCE-OFFER.md, fonts/, texts/}
 │   └── (backend|frontend|python-*|copyleft-sources)/  # 수집 시 채워짐(git 제외)
-├── runtimes/python/                          # 자바 런타임은 반입하지 않는다(WAS 가 제공)
+├── runtimes/python/                          # 자바 런타임은 반입하지 않는다(WAS 가 제공 —
+│                                             #  runtimes/jdk/ 는 빈 골격만 남아 있다.
+│                                             #  runtimes/caddy/ 는 2026-08-30 삭제 — httpd 전환으로 폐기)
 ├── buildtools/{jdk,node,gradle,gradle-home}/ # 오프라인 빌드 키트 — **기본 미반입**(WITH_BUILDTOOLS=1)
 ├── src/{backend,frontend,ai-server}/         # 빌드용 소스(60단계가 채움 — 기본 미반입)
 ├── vendor/{wheels,sam2}/

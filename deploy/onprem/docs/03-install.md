@@ -84,17 +84,66 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 | 4 | **ai** | `install/13-install-ai-server.sh` | venv + `pip --no-index` 설치 + 모델 배치 + 유닛(`klid-ai-server`) |
 | 5 | app | `install/14-install-frontend.sh` | dist 배치 + **런타임 설정 정본(`/etc/klid/frontend.env`) 배치 + `klid-config.js` 생성**(★ 상위 로그인 주소가 비면 **여기서 설치가 멈춘다**) + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
 | 6 | app | `install/15-init-db.sh` | (옵션) control/portal **DB·유저** 생성 안내 또는 수행 (테이블 생성 아님) |
+| 7 | app | `install/16-load-schema.sh` | (옵션) control DB 에 `db/schema.sql` 로드. `SCHEMA_LOAD_RUN=1` 일 때만 실제 로드, 아니면 수동 안내만. 테이블이 이미 있으면 **로드 생략**(멱등 가드) |
+| 8 | app | `install/17-load-portal-schema.sh` | (옵션) portal DB 에 `db/portal-schema.sql` 로드. 조건·가드는 7 과 같다. 빠뜨리면 메타 복제가 **조용히 0건**으로 유지된다 |
 | 9 | app | `install/19-verify-ffmpeg.sh` | **ffmpeg·ffprobe 전제조건 검증**. 없으면 **설치를 중단한다**(아래 「ffmpeg」 절) |
+| 10 | app | `install/20-verify-frontend-config.sh` | 프론트 런타임 설정 최종 게이트. 상위 로그인 주소가 비면 **설치를 실패로 종결한다** |
+| 11 | app | `install/21-verify-ai-server-url.sh` | **AI 추론 서버 주소 확인.** 2대 구성인데 기본값(loopback)이 남아 있으면 경고한다. ★ **설치를 실패시키지 않는다**(경고만) — 04 「주소 한 표」 ① 참고 |
 
 > **`install/install-ffmpeg.sh` 는 이 표에 없다** — 번호 접두가 없는 것이 그 표식이며,
 > `install.sh` 가 **호출하지 않는다**. 사람이 명시적으로 부를 때만 도는 수동 명령이다.
 
 > **PG vs DB/유저 vs 테이블 — 역할 분담**: 단계 1(`10`)은 **PG 엔진 설치+기동**, 단계 6(`15`)은
-> **control/portal DB·앱 유저 생성**, **테이블/스키마는 backend 가 기동 시 Flyway 로 자동 생성**한다
-> (LS_*·MNG_*·QRTZ_* `CREATE TABLE IF NOT EXISTS`). 셋은 중복 없이 연계된다.
+> **control/portal DB·앱 유저 생성**, 단계 7·8(`16`·`17`)은 **테이블/스키마 준비**다.
+> 셋은 중복 없이 연계된다.
 >
-> **Flyway 를 끄는 구성(`SPRING_FLYWAY_ENABLED=false`, 2노드 이중화 권장)** 이면 테이블을 앱이 만들지
-> 않으므로 `16-load-schema.sh`(control) · `17-load-portal-schema.sh`(portal)가 사전 로드를 담당한다.
+> **★ 테이블은 전체 스키마 SQL 로드가 만든다 — 온프렘은 Flyway 를 쓰지 않는다.**
+> 경로는 **하나뿐이다.** 설치 단계 `16`·`17` 이 `db/schema.sql`·`db/portal-schema.sql` 을 **1회 로드**하고,
+> 앱은 마이그레이션을 **수행하지 않는다**. 이것은 **의도적 결정**이며, 전체 스키마 SQL 을 따로
+> 만들어 둔 이유가 그것이다(반입 명세 `DEPLOY-001` — DBA 가 배포 전에 스키마 정의 파일을 1회 적용하고
+> 애플리케이션은 마이그레이션을 수행하지 않는다). 2노드 동시 기동 시의 Flyway 락 경합·최초 부팅 지연도
+> 함께 사라진다.
+>
+> ⚠ **앱 코드 자체의 기본값은 켬(`true`)이다.** 꺼진 상태는 **매체가 만든다** — `config/backend/` 의 두
+> 템플릿이 끄는 줄을 갖고 있고 설치(`12-install-backend.sh`)가 그대로 `/etc/klid/` 에 복사한다
+> (WAR 형상은 `application.properties` 의 `spring.flyway.enabled=false`, 베어메탈 형상은 `backend.env` 의
+> `SPRING_FLYWAY_ENABLED=false`). **그 한 줄을 지우면 앱 기본값이 되살아나 켜진다 — 지우지 말 것.**
+> 형상마다 키 이름이 다르고 한쪽에서는 조용히 무시되는 함정은
+> [04-configuration.md 「키 이름 변환 규칙」](04-configuration.md) 이 정본이다(여기서 되풀이하지 않는다).
+>
+> **★ 그런데 그 유일한 경로가 옵트인 플래그 뒤에 있다 — 누가 언제 만드는지 확인할 것.**
+>
+> | 구성 | 테이블을 만드는 주체 | 언제·무엇으로 |
+> |---|---|---|
+> | 외부 기존 PG (`USE_BUNDLED_POSTGRES=0`) | **DBA**(설치 전) | `psql -f db/schema.sql` 을 사람이 1회 실행. `16` 단계는 그 절차를 **안내만** 한다 |
+> | 번들 PG16 (`USE_BUNDLED_POSTGRES=1`, 기본) | **설치 실행자**(설치 중 또는 직후) | 같은 파일을 `16` 단계가 로드한다 — 단 **`SCHEMA_LOAD_RUN=1` 을 줄 때만**. 안 주면 안내만 출력하고 넘어간다 |
+>
+> ⚠ **번들 PG 를 써도 자동으로 로드되지 않는다.** `15`(DB·유저 생성)도 `16`·`17`(스키마 로드)도 전부
+> 옵트인이다(`DB_INIT_RUN=1` / `SCHEMA_LOAD_RUN=1`, 그리고 `psql` 이 있을 때만). 기본 실행은 **수동 절차를
+> 출력하고 성공으로 끝난다.** 그래서 "설치는 끝났는데 테이블이 하나도 없는" 상태가 조용히 만들어질 수
+> 있고, **Flyway 가 없으므로 뒤에서 대신 만들어 주는 것이 없다.** 그대로 WAR 를 올리면 앱은
+> **기동에는 성공한다** — 그리고 화면·배치가 DB 를 처음 건드릴 때 전부 깨진다.
+> `SKIP_DB_INIT=1` 로 설치하면 `15`~`17` 이 **실행되지도 않으므로**(안내 출력조차 없다)
+> 더 조용하다 — 어느 경우든 아래 확인이 유일한 신호다.
+>
+> ⚠⚠ **`ddl-auto=validate` 가 대신 막아 주지 않는다.** `application.yml` 에 `validate` 가
+> 선언돼 있지만 이 저장소에서는 **실동작하지 않는다**(듀얼 데이터소스라 `JpaBuilderConfig` 가
+> `EntityManagerFactory` 를 직접 만들고 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
+> 전달되지 않는다). 그래서 **기동 로그가 깨끗해도 스키마가 비어 있을 수 있다.**
+> 근거·상세는 [09-operations-runbook.md](09-operations-runbook.md) §2-5-2 「왜 조용히 실패하나」.
+> ⚠ 구 서술 폐기(2026-08-30) — *"그대로 WAR 를 올리면 앱은 `ddl-auto=validate` 에서 기동에
+> 실패한다"*. 그 기대에 기대면 빈 스키마인 채로 운영에 넘어간다.
+>
+> ```bash
+> psql -h <HOST> -p <PORT> -U <APP_USER> -d klid_system \
+>      -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+> # 0 이면 로드가 안 된 것이다 — WAR 를 올리기 전에 db/schema.sql 을 먼저 넣는다.
+> ```
+>
+> `db/schema.sql` 은 `LS_*` 62개 · `QRTZ_*` 11개 · 뷰 4개 와 시드 66행(7 테이블)을 담은 통합 DDL 이다
+> (`MNG_*` 는 들어 있지 않고, `CREATE TABLE IF NOT EXISTS` 도 쓰지 않는다 — 빈 스키마 전제다).
+> 로드는 **멱등**이다 — 대상 스키마에 테이블이 이미 있으면 로드하지 않고 기존 스키마를 유지한다
+> (그래서 DBA 가 선적용한 DB 에 `16` 을 다시 돌려도 덮어쓰지 않는다).
 
 > **★ 스키마**: 저작도구 객체는 **`klid_at`**(`DB_SCHEMA`, 기본값)에 만들어진다. portal DB 는 대상이
 > 아니며 `public` 을 그대로 쓴다(별개 물리 DB) — **두 DB 가 다른 것이 정상**이다.
@@ -104,6 +153,79 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 
 설치는 **멱등**하다(재실행 안전). 이미 존재하는 `*.env` 는 덮어쓰지 않아 사용자 편집을 보존한다.
 번들 PG 단계도 멱등하다(이미 설치/initdb 된 경우 해당 작업을 건너뛴다).
+
+## ★ 단계별 수동 실행 — 막힌 지점부터 이어서 돌리기
+
+`install.sh` 일괄 실행은 **그대로 남아 있다.** 값을 다 아는 현장에서는 그쪽이 빠르다.
+아래는 **중간에 막혔을 때** 원인을 고치고 그 단계부터 이어가기 위한 경로다.
+
+### 되는 것과 전제
+
+- **모든 단계는 단독으로 실행할 수 있다.** 각 스크립트가 스스로 `lib/common.sh` 를 읽고,
+  거기서 설치 공통 변수(`KLID_PREFIX`·`KLID_ETC`·`KLID_USER` …)의 기본값을 받는다.
+- **모든 단계는 재실행이 안전하다(멱등).** 이미 끝난 작업은 건너뛰고, 이미 있는 설정 파일은 덮지 않는다.
+- **역할을 반드시 함께 준다.** 단독 실행에서는 `KLID_ROLE` 이 `all` 로 잡히므로, 2대 구성이라면
+  `KLID_ROLE=app` 또는 `KLID_ROLE=ai` 를 명시한다. 그러지 않으면 그 장비에서 돌면 안 되는 단계가 돈다.
+
+```bash
+cd /매체를_푼_경로/deploy/onprem
+
+# 단계 목록 보기(권한 불필요)
+./scripts/install-step.sh list
+
+# 한 단계만 실행 — 번호로 부른다
+sudo KLID_ROLE=app ./scripts/install-step.sh 14
+
+# 스크립트를 직접 불러도 결과는 같다(러너는 얇은 껍데기다)
+sudo KLID_ROLE=app ./scripts/install/14-install-frontend.sh
+```
+
+> `install-step.sh` 는 **단계 목록을 자기가 들고 있지 않다.** `install/` 디렉터리에서 그때그때
+> 찾고 설명도 각 스크립트 머리말에서 읽는다 — 목록을 한 번 더 적으면 `install.sh` 와 어긋나는
+> 두 번째 진실원이 되기 때문이다. 따라서 **러너를 거치든 스크립트를 직접 부르든 동작이 같다.**
+
+### 막혔을 때의 동선
+
+```
+install.sh 가 N 단계에서 실패
+  → 로그에서 원인 확인 (06-troubleshooting.md)
+  → 원인 조치
+  → sudo KLID_ROLE=<역할> ./scripts/install/<N 단계 스크립트>   # N 단계만 다시
+  → 성공하면 그 다음 단계부터 순서대로 이어서 실행
+```
+
+앞 단계로 되돌아갈 필요는 없다. 앞 단계는 이미 끝나 있고 멱등이라 다시 돌려도 무해하다.
+
+### 단계 목록 (단독 실행 기준)
+
+`sudo KLID_ROLE=<역할> ./scripts/install/<스크립트>` 형태로 실행한다.
+
+| 순서 | 스크립트 | 역할 | 하는 일 | 선행 조건 | 재실행 |
+|:--:|---|:--:|---|---|:--:|
+| 0 | `install.sh` (앞부분) | 공통 | `klid` 사용자·그룹, `/opt/klid`·`/etc/klid`·`/var/lib/klid`·`/var/log/klid` 생성, 무결성 검증 | 없음 | 안전 |
+| 1 | `10-install-postgresql.sh` | app | 번들 PG16 설치 + initdb + 기동 | 0 | 안전(설치·initdb 각각 가드) |
+| 2 | `11-install-runtimes.sh` | ai | Python 런타임 + RPM 의존성. `runtime/runtime.env` 기록 | 0 | 안전(대상 디렉터리 교체) |
+| 3 | `12-install-backend.sh` | app | `api.war` 배치 + 설정 템플릿 3종 | 0 | 안전(설정 파일 보존) |
+| 4 | `13-install-ai-server.sh` | ai | venv + 오프라인 휠 + 모델 + 유닛 | **2**(`runtime.env` 필요) | 안전(설정 보존, 앱 소스 교체) |
+| 5 | `14-install-frontend.sh` | app | dist 배치 + httpd + 드롭인 + 설정 생성 | 0 | 안전. ⚠ **httpd 드롭인은 매번 재생성**(손편집 소실) |
+| 6 | `15-init-db.sh` | app | control/portal DB·유저 생성 | 1 또는 외부 PG 접속 가능 | 안전(존재 시 생략) |
+| 7 | `16-load-schema.sh` | app | control 스키마 로드 | 6 · `SCHEMA_LOAD_RUN=1` | 안전(테이블 있으면 생략) |
+| 8 | `17-load-portal-schema.sh` | app | portal 스키마 로드 | 6 · `SCHEMA_LOAD_RUN=1` | 안전(테이블 있으면 생략) |
+| 9 | `19-verify-ffmpeg.sh` | app | ffmpeg 전제조건 검증 | 없음 | 안전(검증만) |
+| 10 | `20-verify-frontend-config.sh` | app | 프론트 설정 게이트 | **5** | 안전(검증·생성) |
+| 11 | `21-verify-ai-server-url.sh` | app | AI 서버 주소 확인 | **3** | 안전(검증만) |
+
+> **0 단계는 스크립트가 따로 없다** — `install.sh` 의 앞부분에 인라인으로 들어 있다.
+> 그래서 **완전 수동으로 처음부터 갈 때는 `install.sh` 를 한 번 돌려 두는 것이 가장 확실하다.**
+> (한 번 돌면 사용자·디렉터리가 만들어지고, 이후에는 개별 단계만 다시 돌리면 된다.)
+> 정직하게 적자면 **이 한 가지는 단계로 분리돼 있지 않다.**
+
+> **4 단계는 2 단계에 의존한다.** `11` 이 기록한 `/opt/klid/runtime/runtime.env` 에서 파이썬 경로를
+> 읽기 때문이다. 값은 **디스크 파일로 넘어가므로** 두 단계를 다른 시점에 따로 돌려도 된다
+> (같은 셸에서 연달아 돌릴 필요가 없다). `11` 이 안 돌았으면 `13` 이 그 사실을 명시하며 멈춘다.
+
+> **`install/install-ffmpeg.sh` 와 `install/build-from-source.sh` 는 이 표에 없다** —
+> 번호 접두가 없는 것이 그 표식이며 `install.sh` 가 호출하지 않는다. 사람이 명시적으로 부르는 명령이다.
 
 ## 오프라인 설치 보장
 
@@ -173,7 +295,18 @@ sudo ./scripts/install/install-ffmpeg.sh --force
    `spring.flyway.enabled=false` 처럼 **점 표기**로 적어야 한다(실측: `SPRING_FLYWAY_ENABLED=false`
    는 조용히 무시되어 DBA 가 선적용한 스키마 위에서 마이그레이션이 그대로 돌았다).
    같은 위치의 `/etc/klid/backend.env` 는 **베어메탈 형상용**이라 WAS 는 읽지 않는다(값은 서로 같게 유지).
+1-1. **★ 주소 항목을 먼저 맞춘다** — 전체 목록은 [04-configuration.md 「주소 한 표」](04-configuration.md) 참고.
+   특히 **`AI_SERVER_URL`** 은 기본값이 loopback 이라 **2대 구성에서 반드시 틀리다.** 틀려도
+   기동·헬스체크는 정상이고 **오토라벨링만 조용히 실패**한다. 고친 뒤 주소만 다시 확인:
+
+   ```bash
+   sudo KLID_ROLE=app ./scripts/install/21-verify-ai-server-url.sh
+   ```
+
+   ⚠ `VLM_SERVICE_URL`(외부 시계열 분석)은 **비워 두는 것이 정상**이다. 미리 채우면 기동이 막힌다.
 2. `/etc/klid/ai-server.env` 편집 — 보통 기본값으로 충분(yolox CPU).
+   ★ **2대 구성이면 `AI_BIND_HOST` 를 서버 B 주소로 바꾸고 방화벽 9300/tcp 을 연다.**
+   기본값 `127.0.0.1` 로는 서버 A 에서 닿지 않는다(연결 거부).
 3. **★ WAS 설정 이관 — [10-was-settings.md](10-was-settings.md) 의 점검 체크리스트를 끝까지 수행한다.**
 
    **설정 예시 파일은 [`../config/was/`](../config/was/) 에 있다** — 그대로 베껴 쓰지 말고 현장값에 맞춰 조정한다:

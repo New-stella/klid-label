@@ -68,6 +68,140 @@ diff <(keys env.template) <(keys application.properties.template)
 
 ---
 
+---
+
+## ★ 주소 한 표 — 이 시스템이 가리키는 모든 주소 (장비 2대 기준)
+
+대상 장비는 2대다 — **서버 A(app)** = 프론트(httpd) + 백엔드(WAR) + DB, **서버 B(ai)** = ai-server.
+
+「어디에」 칸의 파일은 **그 값을 읽는 장비**에 있는 파일이다. 다른 장비에서 같은 이름의 파일을
+고쳐도 아무 일도 일어나지 않는다 — 2대 구성에서 가장 흔한 착오다.
+
+| 가리키는 대상 | 키 | 어디에 (장비 · 파일) | 기본값 | 2대 구성에서 |
+|---|---|---|---|---|
+| **AI 추론 서버** | `AI_SERVER_URL` | **A** · `/etc/klid/application.properties` | `http://127.0.0.1:9300` | ★ **반드시 서버 B 주소로 바꾼다** |
+| **AI 서버가 받을 주소** | `AI_BIND_HOST` | **B** · `/etc/klid/ai-server.env` | `127.0.0.1` | ★ **반드시 바꾼다** (+ 방화벽 9300/tcp) |
+| control DB | `CONTROL_DB_HOST` · `CONTROL_DB_PORT` | A · `application.properties` | `127.0.0.1` · `5432` | 외부 DB 를 쓰면 그 주소 |
+| portal DB | `PORTAL_DB_HOST` · `PORTAL_DB_PORT` | A · `application.properties` | `127.0.0.1` · `5432` | 외부 DB 를 쓰면 그 주소 |
+| 비식별(KPST) 서버 | `KPST_DEID_BASE_URL` | A · `application.properties` | `https://127.0.0.1:9201` | ★ 동거 KPST 주소로 교체(스킴에 따라 CA 필요) |
+| 비식별 헬스 핑 | `DEIDENTIFY_API_URL` | A · `application.properties` | `http://127.0.0.1:9200` | 헬스 인디케이터 전용 — 실 비식별 호출에는 쓰이지 않는다 |
+| 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | `CONTROL_NOTIFY_ENABLED=true` 일 때만 의미가 있다 |
+| 외부 시계열 분석 벤더 | `VLM_SERVICE_URL` | A · `application.properties` | **(빈 값)** | ⚠ **비워 두는 것이 정상** — 아래 ② |
+| 외부 생성형 AI 증강 벤더 | `AUGMENT_API_BASE_URL` | A · `application.properties` | (빈 값 · `AUGMENT_EXTERNAL_MODE=noop`) | 연동할 때만 **mode 와 함께** 바꾼다 |
+| 증강 콜백이 되돌아올 우리 주소 | `WEBHOOK_CALLBACK_BASE_URL` | A · `application.properties` | `http://127.0.0.1:8080/api` | 외부가 <우리를> 부를 수 있는 주소여야 한다 |
+| httpd → 백엔드(WAS) 프록시 대상 | `BACKEND_ORIGIN` (설치 시 환경변수) | A · `/etc/httpd/conf.d/klid-frontend.conf` | `http://127.0.0.1:8080` | WAS 가 같은 장비면 그대로 |
+| 백엔드 주소(운영 런북용 메모) | `WAS_BACKEND_ORIGIN` | A · `/etc/klid/was.env` | `http://127.0.0.1:8080` | 앱 설정이 아니다 — 런북 명령이 읽는 기록값 |
+| 프론트 → API | `VITE_API_BASE_URL` | A · `/etc/klid/frontend.env` | `/api/v1` | 동일 origin 프록시면 그대로 |
+| 상위 시스템 로그인 2종 | `VITE_CONTROL_LOGIN_URL` · `VITE_PORTAL_LOGIN_URL` | A · `/etc/klid/frontend.env` | **(빈 값)** | ★ 비면 **설치가 멈춘다**(20 단계) |
+| ai-server CORS allowlist | `CORS_ALLOW_ORIGINS` | **B** · `/etc/klid/ai-server.env` | `http://127.0.0.1:8080` | ⚠ **바꿀 필요 없다** — 아래 ③ |
+
+> 베어메탈 형상(`INSTALL_BACKEND_SYSTEMD_UNIT=1`)에서는 위 「A · `application.properties`」를
+> 전부 `/etc/klid/backend.env` 로 읽는다. **키 이름은 같다**(위 「키 이름 변환 규칙」의 넷만 예외).
+
+### 반드시 짚고 갈 세 가지
+
+**① `AI_SERVER_URL` 이 틀려도 아무 신호가 없다.**
+백엔드는 정상 기동하고 헬스체크도 통과한다. 실패하는 것은 **오토라벨링(YOLO 탐지 · SAM2 분할/추적)뿐**이고,
+그것도 사용자가 그 기능을 부를 때 비로소 드러난다. 기본값이 loopback 이라 **2대 구성에서는 반드시 틀리다.**
+그래서 설치 끝에 전용 검사(`install/21-verify-ai-server-url.sh`)를 두어 역할이 `app` 일 때 경고한다.
+고친 뒤 다시 확인하려면 그 스크립트만 단독으로 돌리면 된다:
+
+```bash
+sudo KLID_ROLE=app /경로/deploy/onprem/scripts/install/21-verify-ai-server-url.sh
+```
+
+⚠ **이 검사는 설치를 실패시키지 않는다.** 이 시점은 운영자가 설정을 편집하기 **전**이라
+DB 비밀번호조차 비어 있기 때문이다 — 주소 하나만 골라 기동을 막으면 일관성이 없다.
+**차단이 아니라 드러내기**가 이 검사의 역할이다.
+
+⚠ **주소를 바꾸는 것만으로는 부족하다.** ai-server 는 기본이 loopback 바인드라 서버 A 에서 닿지 않는다.
+서버 B 에서 `AI_BIND_HOST` 를 바꾸고 방화벽 9300/tcp 을 **서버 A 에서만** 오도록 여는 두 가지를 함께 해야 한다.
+(ai-server 에는 인증이 없다 — 넓게 열면 누구나 추론을 호출할 수 있다.)
+
+**② `VLM_SERVICE_URL` 은 비워 두는 것이 정상이다 — 미리 채우지 마라.**
+이 연동에는 on/off 토글이 없다. **주소가 있느냐 없느냐**가 곧 연동 여부 판정이다.
+비어 있으면 URL 검증을 건너뛰어 기동이 정상이고, 위탁은 조용히 넘어가지 않고 실패로 기록된다.
+반대로 `http://127.0.0.1:...` 같은 값을 미리 채우면 "주소가 있다"로 판정되어 운영 정책
+(HTTPS 전용 + 사설망 차단)에 걸려 **기동이 막힌다.** 벤더 연동이 확정될 때 실제 주소를 넣는다.
+
+**③ ai-server 의 `CORS_ALLOW_ORIGINS` 는 2대 구성이라고 바꿀 필요가 없다.**
+그 값은 **브라우저가 ai-server 를 직접 호출할 때만** 쓰인다. 백엔드 → ai-server 는 서버 간 호출이라
+`Origin` 헤더가 없고 CORS 심사 대상이 아니다. 2대로 나눌 때 실제로 바꿔야 하는 것은
+**`AI_BIND_HOST`(+방화벽)와 `AI_SERVER_URL`** 둘뿐이다.
+
+---
+
+## ★ 값을 바꾼 뒤 무엇을 다시 해야 반영되나
+
+값마다 반영 방법이 다르다. **재기동이 필요 없는 값에 재기동을 하면 불필요한 중단**이고,
+**필요한 값에 안 하면 고쳤는데 그대로**다.
+
+| 고친 파일 | 반영에 필요한 것 | 서비스 중단 |
+|---|---|---|
+| `/etc/klid/frontend.env` (프론트 런타임 설정) | `sudo /opt/klid/bin/klid-frontend-config` **한 줄** | **없음** — 웹 서버 재기동도 불필요 |
+| `/etc/klid/application.properties` (WAR 형상 백엔드) | **WAS 재기동** — `sudo systemctl restart "${WAS_UNIT}"` | 있음(백엔드) |
+| `/etc/klid/backend.env` (베어메탈 형상 백엔드) | `sudo systemctl restart klid-backend` | 있음(백엔드) |
+| `/etc/klid/ai-server.env` (`AI_BIND_HOST` 포함) | `sudo systemctl restart klid-ai-server` | 있음(추론만) |
+| `config/systemd/*.service` 를 다시 설치한 경우 | `sudo systemctl daemon-reload` **후** 해당 서비스 재기동 | 있음 |
+| `/etc/httpd/conf.d/klid-frontend.conf` (웹 서버) | `sudo systemctl reload httpd` | 없음(무중단 재적재) |
+| `/etc/klid/was.env` | **없음** — 앱이 읽지 않는다. 다음 런북 명령부터 적용된다 | 없음 |
+
+> `WAS_UNIT` 은 `/etc/klid/was.env` 에 적어 둔 현장값이다. 명령을 그대로 복붙하려면
+> `source /etc/klid/was.env` 를 먼저 실행한다(`09-operations-runbook.md` 와 같은 관례).
+
+> ⚠ **일부 값은 재기동만으로 반영되지 않는다** — 애플리케이션 <설정 화면>에서 연동 주소를 덮어쓴
+> 이력이 있으면 그 override 가 배포 기본값보다 우선한다. 파일을 고쳤는데 동작이 그대로면
+> 설정 화면의 override 를 먼저 확인한다.
+
+---
+
+## ★ 설치 <전>에 값을 미리 넣어 두기 (사전 주입)
+
+값을 이미 아는 현장이라면, 설정을 먼저 놓아 두고 설치를 **한 번에 완주**시킬 수 있다.
+**설치 스크립트는 이미 있는 설정 파일을 덮어쓰지 않는다** — 이건 이 패키지의 확정 규칙이고
+아래 파일 전부에 적용된다(재설치가 현장값을 날리지 않게 하기 위함).
+
+| 미리 놓을 파일 | 이 파일을 놓는 단계 | 이미 있으면 |
+|---|---|---|
+| `/etc/klid/application.properties` | 12 | **보존**(덮지 않음) |
+| `/etc/klid/backend.env` | 12 | **보존** |
+| `/etc/klid/was.env` | 12 | **보존** |
+| `/etc/klid/ai-server.env` | 13 | **보존** |
+| `/etc/klid/frontend.env` | 14 | **보존** |
+
+### 방법 1 — 대상 서버에 파일을 미리 놓는다
+
+```bash
+# 설치 전에 (매체를 풀어 둔 디렉터리에서)
+sudo install -d -m 750 /etc/klid
+sudo install -m 640 config/backend/application.properties.template /etc/klid/application.properties
+sudo install -m 640 config/ai-server/env.template                  /etc/klid/ai-server.env
+sudo install -m 644 config/frontend/frontend.env.template          /etc/klid/frontend.env
+sudo $EDITOR /etc/klid/application.properties     # 주소·비밀번호를 채운다
+sudo $EDITOR /etc/klid/frontend.env               # 상위 로그인 주소 2종을 채운다
+# 그 다음 설치 — 놓아 둔 파일을 그대로 쓰고 멈추지 않는다
+sudo ./scripts/install.sh --role=app
+```
+
+### 방법 2 — 매체에서 채운 채로 반입한다
+
+빌드머신에서 `config/**` 템플릿을 채운 상태로 매체에 담으면, 설치가 그 값을 그대로 배치한다.
+⚠ **비밀값을 채운 매체는 그 자체가 비밀이다** — 반출·보관 규정을 따르고, 형상관리에 커밋하지 않는다.
+⚠ 두 백엔드 템플릿(`env.template` · `application.properties.template`)을 채울 때는 **키 이름 변환 규칙**
+(위 절)을 지킨다. `spring.` 으로 시작하는 값을 대문자로 적으면 조용히 무시된다.
+
+### 방법 3 — 설치 명령에 환경변수로 준다 (프론트 로그인 주소 전용)
+
+```bash
+sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
+     VITE_PORTAL_LOGIN_URL=https://<포털 로그인 주소> \
+     ./scripts/install.sh --role=app
+```
+
+> ⚠ **httpd 드롭인(`/etc/httpd/conf.d/klid-frontend.conf`)만은 매번 다시 생성된다**(보존 대상이 아니다).
+> 프록시 대상을 바꾸려면 설치할 때 `BACKEND_ORIGIN` 을 환경변수로 주거나, 설치 후 파일을 고치고
+> `systemctl reload httpd` 한다. **설치를 다시 돌리면 손으로 고친 내용이 사라진다.**
+
 ## A. 백엔드 설정 항목표 (두 형상 공통)
 
 **WAR 형상은 `/etc/klid/application.properties`, 베어메탈 토글은 `/etc/klid/backend.env` 에 적는다** —
@@ -83,16 +217,16 @@ diff <(keys env.template) <(keys application.properties.template)
 |------|:----:|-------------|
 | `SPRING_PROFILES_ACTIVE` | ★ | 운영 권장 `prd`. local 은 LocalProfileGuard 가 비-local 호스트에서 거부 |
 | `ENV` | ★(stg·prd) | **배포 환경 표식**(`stg`/`prd`) — 프로파일과 독립된 축. 서버 잔존 `.env`·셸 환경이 `SPRING_PROFILES_ACTIVE` 를 `dev` 로 덮어도 이 값이 배포 표식이면 dev 편의 엔드포인트(`DevProfileGuard`)·Quartz 단일노드 허용(`QuartzClusteringGuard`)이 모두 **거부**된다. **배포 서버에서 비우면 이 방어축이 통째로 무력해진다** |
-| `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 Flyway 자동 생성(D 절) |
+| `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 `db/schema.sql` 1회 로드로 준비(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
-| `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Flyway `schemas`·`default-schema` / Quartz `tablePrefix` / JPA `default_schema` 네 지점이 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. **portal DB 는 대상 아님**(별개 물리 DB, `public` 유지) |
+| `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Quartz `tablePrefix` / JPA `default_schema`(그리고 Flyway 를 켠 개발 환경이면 `schemas`·`default-schema`)가 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. **portal DB 는 대상 아님**(별개 물리 DB, `public` 유지) |
 | `PORTAL_DB_HOST/PORT/NAME` | ★ | portal DB |
 | `PORTAL_DB_USERNAME/PASSWORD` | ★ | portal DB 자격 |
 | `JWT_SECRET` | ★ | HS256 검증 시크릿(≥32B). 미설정 시 부팅 실패 |
 | `JWT_ISSUER` / `JWT_ALLOWED_ISSUERS` | · | 기본 `klid-auth` / `klid-auth,klid,klid-portal` |
 | `STREAM_SIGN_SECRET` | ★ | 영상 스트림 서명 시크릿(JWT_SECRET 과 다른 ≥32B). 미설정 시 스트리밍 fail-closed |
 | `STREAM_URL_TTL_SECONDS` | · | 기본 60 (5~600) |
-| `STREAM_COOKIE_SECURE` | · | 스트림 nonce 쿠키(`klid_stream_nonce`)에 `Secure` 를 붙일지. **기본 `false`** 이고 이 배포는 프런트가 평문 HTTP(`:80`)라 그대로 두는 것이 맞다 — `true` 면 브라우저가 쿠키를 저장하지 않아 스트림이 **전건 401**(영상 재생 불가)이 된다. 앞단에 사내 TLS 종단을 두어 HTTPS 로 서비스하면 `true`. ⚠ **빈 값 금지** — 비우면 기동 실패(`Invalid boolean value []`). `true`|`false` 만 사용 |
+| `STREAM_COOKIE_SECURE` | · | 스트림 nonce 쿠키(`klid_stream_nonce`)에 `Secure` 를 붙일지. **기본 `false`** 이고 이 배포는 프런트가 평문 HTTP(`:80`)라 그대로 두는 것이 맞다 — `true` 면 브라우저가 쿠키를 저장하지 않아 스트림이 **전건 401**(영상 재생 불가)이 된다. 앞단에 사내 TLS 종단을 두어 HTTPS 로 서비스하면 `true`. ⚠ **빈 값 금지** — 비우면 기동 실패(`Invalid boolean value []`). `true` 또는 `false` 만 사용 |
 | `ADMIN_CLAIM_PASSWORD_HASH` | ★ | 관리자 공유 패스워드 BCrypt 해시(cost≥12). 평문 금지. ⚠ **최초 판정에만 쓰인다** — 운영 중 화면에서 패스워드를 한 번 바꾸면 그 값이 `klid_at.ls_mngr_pswd` 로 저장되고, 그 뒤로는 이 변수를 고쳐도 반영되지 않는다(저장소 우선). 되돌리는 절차는 [09-operations-runbook.md](09-operations-runbook.md) §4-2 |
 
 ### prd·stg 필수 webhook 콜백 보안 (★ 부팅 차단 주의)
@@ -142,11 +276,11 @@ export sweep 600s). `@DisallowConcurrentExecution` 은 **스케줄러 인스턴�
 - [ ] 시계 오차 **1초 이내**: `chronyc tracking` → `System time` offset 확인
 - [ ] 두 노드 타임존 동일(`Asia/Seoul` — `JAVA_OPTS` 의 `-Duser.timezone` 과 일치)
 - [ ] 두 노드 `QUARTZ_CLUSTERED=true` 동일 설정 + 동일 DB(`CONTROL_DB_*`) 를 바라봄
-- [ ] 첫 기동은 **한 노드만** 먼저 올려 Flyway 마이그레이션 완료 확인 후 두 번째 노드 기동
+- [ ] 기동 **전에** 스키마가 로드돼 있음(`db/schema.sql` 1회) — Flyway 를 쓰지 않으므로 노드 기동 순서를 가릴 필요는 없다. ⚠ 스키마가 없어도 **두 노드 모두 기동에는 성공하므로**(`ddl-auto=validate` 실동작 안 함 — 아래 D 절) 기동 성공을 로드 완료의 근거로 쓰지 말 것
 - [ ] 기동 후 등록 노드 수 확인: `SELECT instance_name, last_checkin_time FROM qrtz_scheduler_state;` → 노드 수만큼 행
 
-> QRTZ_* 테이블은 Flyway(V2)가 생성하고 클러스터 락 행은 V76 이 시딩한다(`SCHED_NAME='KlidAuthoringScheduler'`).
-> 별도 사전 적재는 불필요하다.
+> `QRTZ_*` 테이블(11개)과 클러스터 락 행(`SCHED_NAME='KlidAuthoringScheduler'`)은 **`db/schema.sql` 안에
+> 함께 들어 있다** — 그 파일을 로드하면 준비되며 별도 사전 적재는 불필요하다.
 
 ### 저장소 / ai-server / CORS / FFmpeg
 
@@ -250,15 +384,20 @@ backend 는 외부 시스템과 연동한다. **비식별(KPST)은 폐쇄망 동
 
 ## C. ai-server.env 항목표
 
-출처: `ai-server/app/config.py`.
+출처: `ai-server/app/config.py`. ⚠ **전부 거기서 오는 것은 아니다** — `AI_BIND_HOST` 는
+systemd 유닛(`config/systemd/klid-ai-server.service`)이 `uvicorn --host` 로 읽고,
+`HF_HOME`·`HF_HUB_OFFLINE`·`TRANSFORMERS_OFFLINE` 은 HuggingFace 라이브러리가 직접 읽는다.
+셋 다 `config.py` 에는 없으므로 그 파일만 보고 "없는 설정"이라 판단하지 말 것.
 
 | 변수 | 필수 | 의미 / 기본 |
 |------|:----:|-------------|
-| `AI_MOCK_MODE` | · | 기본 false(실제 추론). true=고정 mock |
-| `AI_DEVICE` | ★ | `cpu` (GPU 없음) |
+| `AI_BIND_HOST` | ★ | 기본 `127.0.0.1`. systemd 유닛의 uvicorn `--host` 로 들어간다. **2대 구성이면 반드시 서버 B 의 내부망 IP(또는 `0.0.0.0`)로 바꾸고 방화벽 9300/tcp 을 서버 A 에서만 열어야 한다** — loopback 이면 서버 A 가 원격에서 닿지 못한다(A 절) |
+| `AI_MOCK_MODE` | · | 기본 false(실제 추론). true=고정 mock. ⚠ `ENV` 가 `stg` 또는 `prd` 일 때 true 면 **기동이 실패한다**(`app/startup_guard.py`) |
+| `ENV` | ★ | 배포 환경 표식(`local` / `dev` / `stg` / `prd`). backend 의 `ENV` 와 같은 신호이며 위험한 설정 조합을 기동 시점에 차단하는 fail-closed 가드의 판정 축이다. 운영 설치는 `prd` |
+| `AI_DEVICE` | ★ | `cpu` — **이번 반입이 CPU 전용**이기 때문이다(torch CPU 휠 + onnxruntime CPU). ⚠ 구 서술 폐기(2026-08-30): *"`cpu` (GPU 없음)"* — **장비에는 GPU 가 있을 수 있다.** CPU 인 것은 장비가 아니라 반입한 휠이라, 여기만 `cuda` 로 바꾸면 아무 일도 안 일어나거나 조용히 CPU 로 돈다 → [11-gpu-migration.md](11-gpu-migration.md) |
 | `YOLOX_WEIGHTS_PATH` | · | 기본 `/opt/klid/ai/weights/yolox_s.onnx` (탐지 YOLOX 단일 백엔드, ONNX Runtime) |
 | `SAM2_MODEL_ID` | · | 기본 `facebook/sam2-hiera-tiny`(SAM2 사용 시 HF 캐시 필요) |
-| `VLM_MODEL_NAME` | · | 기본 `openai/clip-vit-base-patch32` |
+| `VLM_MODEL_NAME` | · | 기본 `openai/clip-vit-base-patch32`. ⚠ **이 이름의 모델을 적재하지 않는다** — 시계열 추론 본체는 외부 서비스이고 이 서버의 vlm 라우터는 어댑터라, 로더는 목 응답으로 떨어지며 이 값을 **로그에만** 남긴다. "실제로 쓰는 모델"로 읽지 말 것 |
 | `HF_HOME` | · | 오프라인 HF 캐시(기본 `/opt/klid/ai/.hf-cache`) |
 | `HF_HUB_OFFLINE`/`TRANSFORMERS_OFFLINE` | · | 폐쇄망 권장 1 (SAM2 캐시 완비 시) |
 | `MAX_IMAGE_SIZE_MB` | · | 기본 10 (1~100) |
@@ -354,17 +493,37 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 > 번들 PG 를 다른 대역에서 접속시키려면 `PG_HBA_EXTRA_CIDR=10.0.0.0/8 PG_LISTEN_ADDRESSES='*'` 등으로
 > `10-install-postgresql.sh` 에 주입한다.
 
-### 스키마는 Flyway 가 자동 부트스트랩 — 관제 스키마 사전 적재 불필요
+### ★ 스키마는 `db/schema.sql` 1회 로드로 만든다 — 온프렘은 Flyway 를 쓰지 않는다
 
-- **테이블/스키마는 backend 가 기동 시 Flyway 로 자동 생성**한다(`spring.flyway.enabled=true`, prd 포함).
-  V2 마이그레이션이 LS_*·**MNG_***·**QRTZ_*** 전 스키마를 `CREATE TABLE IF NOT EXISTS` 로 만든다.
-  `ddl-auto=validate` 는 Flyway 가 만든 스키마를 검증만 한다. **별도 DDL 실행 불필요.**
-- 따라서 **관제 없는 폐쇄망의 신규 빈 DB 면 저작도구가 MNG_*/QRTZ_* 까지 전부 자동 생성**한다 —
-  관제 스키마를 사전 적재할 필요가 없다. 관제가 이미 채운 공유 테이블이 있는 경우에만 `IF NOT EXISTS`
-  로 그대로 공유한다.
+- **테이블/스키마를 만드는 경로는 하나뿐이다** — `db/schema.sql`(전체 통합 DDL)을 빈 control DB 에
+  **1회 로드**한다. 앱은 마이그레이션을 돌리지 않는다
+  (`spring.flyway.enabled=false` — 설정 템플릿이 그렇게 배포된다). **의도적 결정**이며, 전체 스키마
+  SQL 을 따로 만들어 둔 이유가 그것이다(반입 명세 `DEPLOY-001`).
+- **앱 코드 자체의 기본값은 켬(`true`)이다.** 꺼진 상태는 매체의 설정 템플릿이 만든다 —
+  **그 한 줄을 지우면 되살아나 켜진다**(형상별 키 표기는 위 「키 이름 변환 규칙」).
+- `db/schema.sql` 은 `LS_*` 62개 · `QRTZ_*` 11개 · 뷰 4개 + 시드 66행이다. **`MNG_*` 는 들어 있지
+  않고** `CREATE TABLE IF NOT EXISTS` 도 쓰지 않는다(빈 스키마 전제). 구 서술 "Flyway V2 가
+  `MNG_*` 까지 `IF NOT EXISTS` 로 자동 생성한다" 는 **폐기** — `MNG_*` 공유 테이블 자체가 이미 제거됐다.
 - DBA(또는 `15-init-db.sh`)가 준비할 것은 **빈 DB 2개 + 앱 유저·비밀번호**뿐(backend.env 와 일치):
-  control(`klid_system`) / portal(`portal`). **스키마는 미리 만들지 않아도 된다** — Flyway
-  (`create-schemas: true`) 또는 `db/schema.sql`(`CREATE SCHEMA` 포함)이 만든다. 앱 유저가 DB OWNER 면 충분.
+  control(`klid_system`) / portal(`portal`). **`klid_at` 스키마는 미리 만들지 않아도 된다** —
+  `db/schema.sql` 이 `CREATE SCHEMA` 를 포함한다. 앱 유저가 DB OWNER 면 충분.
+- ⚠ **로드는 자동이 아니다.** `16-load-schema.sh` 는 `SCHEMA_LOAD_RUN=1` 이고 `psql` 이 있을 때만
+  실제로 넣고, 평시엔 수동 절차만 출력한다. **아무도 넣지 않으면 대신 만들어 주는 것이 없다.**
+  구성별 담당은 `03-install.md` 의 표가 정본이다.
+- ⚠⚠ **★ 그래도 기동은 성공한다 — `ddl-auto=validate` 가 대신 막아 주지 않는다.**
+  `application.yml` 에 `validate` 가 선언돼 있지만 이 저장소에서는 **실동작하지 않는다**:
+  듀얼 데이터소스라 `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만드는데, 거기에 넘기는
+  것은 `spring.jpa.properties.*` 뿐이라 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
+  전달되지 않는다. 그래서 **테이블이 하나도 없어도 기동 로그는 깨끗하고**, 실패는 그 테이블을
+  처음 건드리는 요청·배치에서 `relation ... does not exist` 로 나타난다.
+  ⇒ **"기동됐으니 됐다"로 넘어가지 말 것.** 로드 여부는 아래 카운트 쿼리로만 판정한다.
+  근거·상세는 `09-operations-runbook.md` §2-5-2 「왜 조용히 실패하나」.
+  ⚠ 구 서술 폐기(2026-08-30) — *"아무도 넣지 않으면 앱이 `ddl-auto=validate` 에서 기동에 실패한다"*.
+  ```bash
+  psql -h <HOST> -p <PORT> -U <APP_USER> -d klid_system \
+       -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+  # 0 이면 로드가 안 된 것이다.
+  ```
 - **★ 저작도구 객체는 `klid_at` 스키마에 생성된다**(`DB_SCHEMA`, 위 표). portal DB 는 대상이 아니며
   복제본 스키마는 `17-load-portal-schema.sh` 가 `public` 에 로드한다 — **두 DB 가 서로 다른 것이 정상**이다.
   psql 로 조회할 때는 `klid_at.` 로 한정하거나 `set search_path to klid_at;` 를 먼저 실행한다.
@@ -372,7 +531,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
   `09-operations-runbook.md` §2-5-1. 이관하지 않으면 앱이 빈 `klid_at` 을 보고 데이터는 `public` 에 남는다
   (오류가 아니라 조용한 분기). `16-load-schema.sh` 는 이 상태를 감지하면 로드를 거부한다.
 - DB·유저 자동 생성 보조: `sudo DB_INIT_RUN=1 PGUSER=postgres PGPASSWORD=... DB_APP_PASSWORD=... ./scripts/install/15-init-db.sh`
-  (번들 PG 를 같은 호스트에 설치했다면 `PGHOST=127.0.0.1`. 테이블은 만들지 않음 — backend Flyway 담당.)
+  (번들 PG 를 같은 호스트에 설치했다면 `PGHOST=127.0.0.1`. 테이블은 만들지 않음 — `16-load-schema.sh` 담당.)
 
 ## E. 시크릿 생성 치트시트
 

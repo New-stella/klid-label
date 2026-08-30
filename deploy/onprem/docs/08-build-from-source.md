@@ -25,8 +25,11 @@
 | 용량 | 작음 | 큼(JDK full·gradle-home·node_modules) |
 | 언제 | **대부분의 경우 권장** | 납품처가 "소스에서 직접 빌드" 요구 / 아티팩트 신뢰 검증 / 소스 패치 후 재빌드 |
 
-> 둘 다 결국 동일한 **`artifacts/backend/api.war`**(반입 정본) + `artifacts/backend/klid-backend.jar`
-> (개발/베어메탈용) + `artifacts/frontend/dist` 를 만들고, 그 다음 `install.sh` 가 이를 배치한다.
+> 둘 다 결국 동일한 **`artifacts/backend/api.war`**(반입 정본) + `artifacts/frontend/dist` 를
+> 만들고, 그 다음 `install.sh` 가 이를 배치한다.
+> ⚠ **`artifacts/backend/klid-backend.jar` 는 두 경로의 기본 산출물이 아니다** — 빌드머신 수집은
+> `WITH_BACKEND_JAR=1` 일 때만 담고(2026-08-30 반입 제외), **타깃 재빌드는 베어메탈 복귀 경로를
+> 위해 계속 만든다.** 타깃에서 만든 것은 매체가 아니라 설치 장비에 생기는 것이라 반입물이 아니다.
 > 차이는 "아티팩트를 빌드머신에서 받았나, 타깃에서 만들었나" 뿐이다.
 > ⚠ backend 는 배치까지만이다 — **WAS 배포와 WAS 설정 이관은 사람이** 한다(03·10 문서).
 
@@ -69,14 +72,23 @@ sudo ./scripts/install/build-from-source.sh
      (각 tarball/zip 을 `versions.sh` 의 공식 SHA256 과 대조 — fail-closed).
    - `buildtools/gradle-home` 캐시를 `--offline` 빌드의 `GRADLE_USER_HOME` 으로 사용.
 2. **backend** — `gradle --offline --gradle-user-home /opt/klid/buildtools/gradle-home -p src/backend bootJar bootWar -x test`
-   → `artifacts/backend/api.war`(**반입 정본**) + `artifacts/backend/klid-backend.jar`(개발/베어메탈용)
+   → `artifacts/backend/api.war`(**반입 정본**) + `artifacts/backend/klid-backend.jar`(베어메탈용)
    배치(+SHA256SUMS는 WAR 배치 뒤에 기록 — 정본이 목록에서 빠지지 않도록).
+   ★ 이 경로가 jar 를 계속 만드는 것은 **의도**다. 빌드머신 수집은 jar 를 반입에서 제외했지만
+   (2026-08-30), 타깃 재빌드는 베어메탈 형상(`INSTALL_BACKEND_SYSTEMD_UNIT=1`)으로 복귀할 때
+   그 산출물이 필요한 자리이고, 여기서 만든 파일은 **매체가 아니라 설치 장비에** 생긴다.
    ⚠ 구 절차 폐기(2026-08-30) — `bootJar` 만 돌려 jar 만 만들던 것. 그러면 **배포할 수 없는 산출물**만 나온다.
 3. **frontend** — node_modules 복원(tarball → `src/frontend/node_modules`) 후
    `npm run build`(오프라인) → `artifacts/frontend/dist` 배치(+SHA256SUMS).
    - Vite 빌드 인자는 빌드머신과 동일 기본값: `VITE_API_BASE_URL=/api/v1`,
      `VITE_TOKEN_INGRESS=localStorage`, `VITE_DEV_LOGIN_ENABLED=true`, `VITE_DEV_UPLOAD_ENABLED=true`.
      필요 시 환경변수로 override.
+   - ★ **상위 로그인 주소(`VITE_CONTROL_LOGIN_URL`·`VITE_PORTAL_LOGIN_URL`)는 빌드에 필요 없다.**
+     그 값들은 **런타임 설정**(`/etc/klid/frontend.env` → `klid-config.js`)에서 읽고, 빌드에 주는
+     값은 런타임 설정이 없을 때의 폴백일 뿐이다. 값이 비었는지 막는 fail-closed 가드는 **설치
+     시점**으로 옮겨졌다(`install/render-frontend-config.sh` · `install/20-verify-frontend-config.sh`).
+     ⚠ 구 서술 폐기(2026-08-30) — *"frontend 재빌드 시 두 값이 **필수**이며 미설정이면 빌드가
+     중단된다"*. 그 형상으로 되돌리면 **대상 서버에서 재빌드해야만 주소를 바꿀 수 있게 된다.**
    - ★ `VITE_TOKEN_INGRESS` 는 `localStorage` 를 유지할 것 — `url`/`both`/`all` 은 JWT 를 URL
      쿼리로 받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598).
 4. **ai-server** — 별도 컴파일 없음. `install.sh` 의 `13-install-ai-server.sh` 가
@@ -107,8 +119,10 @@ sudo ./scripts/install.sh
 ```
 
 `build-from-source.sh` 가 `artifacts/{backend,frontend}` 를 채워두므로, 이후 `install.sh` 는
-사전 빌드 아티팩트를 쓸 때와 **완전히 동일하게** 동작한다(python 런타임 → backend 산출물 배치 →
-ai-server → frontend → DB 초기화). 이어지는 설정·기동·검증은 [docs/03-install.md](03-install.md),
+사전 빌드 아티팩트를 쓸 때와 **완전히 동일하게** 동작한다((옵션)번들 PG → python 런타임 →
+backend 산출물 배치 → ai-server → frontend → DB 초기화·스키마 로드 → ffmpeg·프론트 설정·AI 서버
+주소 검증). 단계 표는 [docs/03-install.md](03-install.md) 가 정본이다.
+이어지는 설정·기동·검증은 [docs/03-install.md](03-install.md),
 [docs/05-run-verify.md](05-run-verify.md) 를 따르며, **WAS 설정 이관**은
 [docs/10-was-settings.md](10-was-settings.md) 가 정본이다.
 

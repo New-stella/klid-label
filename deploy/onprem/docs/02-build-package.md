@@ -19,6 +19,9 @@ cd deploy/onprem
 ./scripts/package.sh
 ```
 
+> 중간에 막히면 **처음부터 다시 돌리지 않아도 된다** — 아래 「단계별 실행」의
+> `./scripts/package-step.sh from <번호>` 로 그 단계부터 이어간다.
+
 옵션:
 
 ```bash
@@ -34,6 +37,9 @@ SKIP_POSTGRES=1 ./scripts/package.sh
 # HF 모델(SAM2)도 사전 다운로드(SAM2 사용 시 — 탐지 YOLOX 는 동봉 ONNX 라 불필요)
 PREFETCH_HF=1 ./scripts/package.sh
 
+# 베어메탈 형상용 실행 가능 jar(klid-backend.jar)도 빌드·수집(기본 OFF — 반입 대상 아님)
+WITH_BACKEND_JAR=1 ./scripts/package.sh
+
 # frontend 빌드 시점 변수 override (기본 /api/v1, localStorage)
 # ★ VITE_TOKEN_INGRESS 는 localStorage 를 유지할 것 — 'url'/'both'/'all' 은 JWT 를 URL 쿼리로
 #   받는 채널을 열어 접근 로그·리퍼러 헤더·브라우저 히스토리에 토큰이 잔존한다(CWE-598).
@@ -43,11 +49,116 @@ VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage ./scripts/package.sh
 PYTHON_BIN=python3.11 ./scripts/package.sh
 ```
 
+## ★ 단계별 실행 — 막힌 지점부터 이어서 돌리기
+
+`package.sh` 일괄 실행은 **그대로 남아 있다.** 처음부터 끝까지 갈 때는 그쪽이 맞다.
+아래는 **중간에 막혔을 때** 원인을 고치고 그 단계부터 이어가기 위한 경로다.
+
+일괄 실행은 한 단계가 깨지면 `set -e` 로 그 자리에서 죽고 **뒤 단계가 통째로 실행되지 않는다.**
+실제로 그 일이 났다 — torch 다운로드가 실패해 런타임·시스템 패키지·데이터베이스 수집이 한 번도
+돌지 않았고, 사람이 손으로 나눠 다시 돌려야 했다. 매체 생성은 수 시간짜리라 처음부터 다시
+돌리는 비용이 크다.
+
+### 되는 것과 전제
+
+- **모든 단계는 단독으로 실행할 수 있다.** 각 스크립트가 스스로 `lib/common.sh`·`lib/versions.sh` 를
+  읽고 경로를 자기가 계산한다. `package.sh` 는 아무 변수도 export 하지 않으므로(단계를 `bash <파일>`
+  로 새 프로세스에서 부른다) 넘겨받을 값 자체가 없다.
+- **모든 단계는 재실행이 안전하다(멱등).** 이미 받은 파일은 건너뛰고, 빌드 단계는 다시 빌드한다.
+  ⚠ 단 30 단계에는 **플랫폼 조건**이 붙는다(아래 표의 주석).
+- **환경변수 토글은 그대로 먹는다.** `SKIP_POSTGRES=1 ./scripts/package-step.sh from 40` 처럼 쓴다.
+
+```bash
+cd deploy/onprem
+
+# 단계 목록 보기 — 하는 일·인터넷 필요 여부·선행 조건·소요·재실행 안전 여부가 함께 나온다
+./scripts/package-step.sh list
+
+# 한 단계만 실행
+./scripts/package-step.sh 30
+
+# ★ 40 단계부터 끝까지 이어서 실행 — 막혔을 때의 주 동선
+./scripts/package-step.sh from 40
+
+# 스크립트를 직접 불러도 결과는 같다(러너는 얇은 껍데기다)
+bash ./scripts/package/40-collect-runtimes.sh
+```
+
+> `package-step.sh` 는 **단계 목록을 자기가 들고 있지 않다.** 순서·토글 규칙은
+> `scripts/package/steps.sh` 가 단일 진실원이고 `package.sh` 도 **같은 파일을 읽는다.**
+> 각 단계의 설명·소요·선행조건은 각 스크립트 머리말의 `# @step` 줄에서 읽는다.
+> 그래서 **일괄로 돌리든 단계별로 돌리든 목록과 순서가 어긋날 수 없다.**
+
+### 막혔을 때의 동선
+
+```
+package.sh 가 N 단계에서 실패
+  → 로그에서 원인 확인 (06-troubleshooting.md)
+  → 원인 조치
+  → ./scripts/package-step.sh N          # N 단계만 다시 돌려 고쳐졌는지 확인
+  → ./scripts/package-step.sh from N     # 고쳐졌으면 N 부터 끝까지 이어서
+```
+
+앞 단계로 되돌아갈 필요는 없다. 앞 단계는 이미 끝나 있고 멱등이라 다시 돌려도 무해하다.
+실패하면 러너가 **그 자리에서 이어 돌리는 명령을 출력**하므로 번호를 외울 필요가 없다.
+
+### 단계 목록 (단독 실행 기준)
+
+소요는 **2026-08-30 실측**이며, **이미 채워진 매체 위에서 다시 돌렸을 때**의 값이다
+(빈 상태에서 처음 받는 시간이 아니다 — 그쪽은 네트워크에 따라 수십 분 ~ 수 시간이다).
+
+| 순서 | 스크립트 | 하는 일 | 인터넷 | 선행 | 소요(재실행 실측) | 재실행 |
+|:--:|---|---|:--:|---|--:|---|
+| 1 | `10-build-backend.sh` | `api.war` 빌드·수집 + 백엔드 고지 | 필요 | 없음 | 17초 | 안전. 매번 재빌드(콜드 캐시면 수 분) |
+| 2 | `20-build-frontend.sh` | `dist` 빌드·수집 + 프론트 고지 | 필요 | 없음 | 미측정(수 분) | 안전. 빌드가 **성공한 뒤에만** dist 를 교체한다 |
+| 3 | `30-collect-ai-server.sh` | wheel·sam2·모델 수집(35 를 안에서 부른다) | 필요 | 없음 | 미측정 | ⚠ **빌드머신이 `Linux x86_64` 일 때만 실행된다** — 아니면 아무것도 받기 전에 die(아래 ⚠) |
+| — | `35-collect-python-licenses.sh` | 파이썬 반입물 고지 스테이징 | 불필요 | 3 | 3초 | 안전. **일괄 목록 밖**(30 이 부른다) |
+| 4 | `40-collect-runtimes.sh` | CPython 3.11 + 파이썬 제3자 고지 | 필요 | 없음 | 5초 | 안전. tarball 은 재사용, 고지용 71MB 는 매번 받는다 |
+| 5 | `50-collect-syspkgs.sh` | ffmpeg·el8 RPM·GPG 키·GPL 대응 SRPM | 필요 | `dnf` 또는 `docker` | 82초 | 안전. 받은 RPM 은 건너뛴다 |
+| 5.5 | `55-collect-postgresql.sh` | PGDG PostgreSQL 16 RPM | 필요 | `dnf` 또는 `docker` | 44~50초 | 안전. 받은 RPM 은 건너뛴다 |
+| 6 | `60-collect-buildtools.sh` | 오프라인 빌드 키트 | 필요 | `WITH_BUILDTOOLS=1` | 미측정(GB 급) | 안전. **기본 제외**라 일괄 목록 밖 |
+| 7 | `65-collect-copyleft-sources.sh` | 카피레프트 대응 소스 | 필요 | 3·5 | 4~5초 | 안전. 받은 소스는 건너뛴다 |
+| 8 | `70-generate-notices.sh` | NOTICE·INVENTORY·UNRESOLVED 집계 | 불필요 | 1·2·3·4 | 1초 | 안전. 집계만 다시 한다 |
+| 9 | `90-finalize-media.sh` | **마무리** — 반입물 위생 스윕 + `VERSION.built` 기록 | 불필요 | 앞 단계 전부 | 수 초 | 안전(멱등). **일괄·단계별 어느 쪽으로 돌려도 실행된다** |
+
+> ⚠ **30 단계에는 플랫폼 조건이 붙는다** (2026-08-30 실측).
+> `pip download` 가 "이미 받은 파일은 건너뛴다"는 성질은 **빌드머신과 매체의 플랫폼이 같을 때만**
+> 성립한다. manylinux wheel 이 이미 들어 있는 매체 위에서 **맥에서** 30 을 다시 돌리면 pip 가
+> 그 wheel 들을 자기 플랫폼에 안 맞는다고 보고 **맥용 wheel 을 새로 받아 나란히 쌓는다**
+> (실측: 21개 · +197MB). 그러면 뒤이은 의존성 폐포 검사가 CPU 판이 아닌 torch 의 CUDA 의존을
+> 보고 실패한다 — **검사는 제 일을 했지만 오염이 먼저 일어난 뒤다.**
+>
+> **그래서 이제는 단계 진입 시점에 막는다(2026-08-30 추가).** 빌드머신이 `Linux x86_64` 가
+> 아니면 30 단계가 **아무것도 받기 전에 die** 한다 — 오염 자체가 일어나지 않는다.
+> → 정상 경로는 **el8/x86_64 컨테이너·머신**에서 돌리는 것이다(아래 「el8 컨테이너 수집」).
+> → 사정이 있어 강행하려면 `ALLOW_FOREIGN_PLATFORM_WHEELS=1` 로 가드를 끌 수 있다.
+>   **오염을 감수한다는 뜻**이며, 그렇게 오염됐다면 `rm -f vendor/wheels/*macosx*.whl` 로
+>   되돌린다(없어지는 파일은 없고 새로 생기기만 하므로 복구된다).
+> ⚠ 구 서술 폐기(2026-08-30) — *"맥에서 실수로 돌렸다면 … 되돌린다"* 만 안내하던 것.
+> 지금은 실수 자체가 차단되므로, 되돌리기는 **가드를 명시로 끈 경우**에만 필요하다.
+
+> **마무리(위생 스윕 + `VERSION.built`)는 이제 단계다** — `90-finalize-media.sh` 가 `steps.sh`
+> 목록의 **맨 끝**에 등재돼 있어 `package.sh`(일괄)와 `package-step.sh from N`(이어 돌리기)이
+> **같은 마무리**를 돈다. `70` 이 고지 파일을 더 떨구므로 그보다 앞에 두면 그 뒤 잔재를 놓치고
+> 빌드 메타도 실제 내용보다 이르게 찍힌다 — 그래서 맨 끝이다. 끄는 토글은 없다.
+>
+> ⚠ **단일 단계 실행(`package-step.sh 30` 처럼 번호 하나)만은 90 에 도달하지 않는다.** 그 경로에서는
+> 러너가 `./scripts/package-step.sh 90` 을 안내한다. 반출 전에 그 한 줄을 돌리면 되고,
+> **`package.sh` 를 통째로 다시 돌릴 필요는 없다**(10·20 재빌드 비용을 물지 않는다).
+>
+> ⚠ 구 서술 폐기(2026-08-30) — *"마무리 2가지는 `package-step.sh` 가 하지 않는다 … 반출 전에
+> `./scripts/package.sh` 를 한 번 돌려 마무리한다"*. 그 형상에서는 단계별 러너로 돌린 매체가
+> **위생 스윕과 빌드 메타 없이** 나갈 수 있었다.
+
+> **`35` 와 `60` 은 `from` 으로 이어 돌릴 수 없다.** 일괄 목록 밖이라 "그 뒤"가 정의되지 않기
+> 때문이다. `35` 는 번호로 단독 실행하고(`./scripts/package-step.sh 35`), `60` 은
+> `WITH_BUILDTOOLS=1` 을 주면 목록 안으로 들어와 `from` 대상이 된다.
+
 ## 단계별 수집물
 
 | 단계 | 스크립트 | 수집 |
 |------|----------|------|
-| 1 | `package/10-build-backend.sh` | `./gradlew bootJar bootWar` → **`artifacts/backend/api.war`(반입 정본)** + `klid-backend.jar`(개발 전용). WAR 가 없으면 **실패**한다 |
+| 1 | `package/10-build-backend.sh` | `./gradlew bootWar` → **`artifacts/backend/api.war`(반입 정본)**. WAR 가 없으면 **실패**한다. `klid-backend.jar`(개발 전용)는 **기본으로 만들지도 담지도 않는다** — `WITH_BACKEND_JAR=1` 일 때만 `bootJar` 를 함께 돌려 수집 |
 | 2 | `package/20-build-frontend.sh` | `npm ci && npm run build` → `artifacts/frontend/dist` (VITE_* 빌드 주입) |
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
 | 4 | `package/40-collect-runtimes.sh` | CPython 3.11 standalone (tar.gz) — ai-server 용. **자바 런타임은 수집하지 않는다**(WAS 가 제공). 웹 서버는 `50-collect-syspkgs.sh` 가 httpd RPM 으로 수집 |
@@ -276,7 +387,7 @@ EPEL 은 배포판 기본 리포가 아니므로 **법무 확인이 필요한 �
 | 무엇 | 어디서 수집 | 번들 위치 | 대략 용량 |
 |------|-------------|-----------|:---------:|
 | **WAR(반입 정본)** | `backend/build/libs/api.war` (bootWar) | `artifacts/backend/api.war` | ~60–90MB |
-| 실행 jar(개발 전용) | `backend/build/libs/*.jar` (bootJar) | `artifacts/backend/klid-backend.jar` | ~60–90MB |
+| 실행 jar(개발 전용 — **기본 미수집**) | `backend/build/libs/*.jar` (bootJar, `WITH_BACKEND_JAR=1` 일 때만) | `artifacts/backend/klid-backend.jar` | ~60–90MB |
 
 > **두 산출물의 지위가 다르다** (@design DEPLOY-001 의 `build_artifacts`):
 > - `api.war` = **반입 정본**. 대상 장비의 외부 WAS(Tomcat 10.1.x + Java 17)에 올린다.
@@ -284,8 +395,16 @@ EPEL 은 배포판 기본 리포가 아니므로 **법무 확인이 필요한 �
 >   WAR 에는 톰캣이 들어가지 않는다(`providedRuntime` → `WEB-INF/lib-provided`).
 > - `klid-backend.jar` = **개발 환경 전용이라 반입 대상이 아니다.** 설치 스크립트는 WAR 형상에서
 >   이 jar 를 배치하지 않는다(베어메탈 토글 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 일 때만 쓴다).
->   빌드머신이 계속 만들어 두는 이유는 개발 형상과 베어메탈 복귀 경로가 그 산출물을 쓰기 때문이고,
->   둘은 같은 소스에서 나오므로 내용이 갈릴 일이 없다.
+>   ⚠ **구 동작 폐기(2026-08-30)** — *"빌드머신이 계속 만들어 둔다"*. 배치하지 않는 파일을 수집만
+>   하고 있어 매체에 83.6 MiB 가 실려 있었다. 이제 **기본으로 만들지도 담지도 않는다.**
+>   베어메탈 형상으로 갈 때만 `WITH_BACKEND_JAR=1 ./scripts/package.sh` 로 켠다 — 두 산출물은
+>   같은 소스에서 나오므로 그때 다시 만들어도 내용이 갈릴 일이 없다.
+>   ★ `bootJar` 를 **빌드 자체에서** 뺀다(복사만 거르는 것이 아니다). `bootWar` 는 `bootJar` 에
+>   의존하지 않아(태스크 그래프: `compileJava → processResources → classes → resolveMainClassName
+>   → bootWar`) WAR 경로가 그대로 성립하고, `clean` 빌드마다 87 MiB 아카이브를 한 벌 더 조립하지
+>   않아도 된다.
+>   ★ 그 jar 없이 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 로 설치하면 `12-install-backend.sh` 가 사유와
+>   재수집 명령을 출력하고 **중단**한다(설치만 끝나고 기동이 안 되는 상태를 만들지 않는다).
 >
 > 런타임 의존(ffmpeg·curl)은 syspkgs/ 에서 별도 수집. **자바는 수집하지 않는다** — WAS 가 제공한다.
 
@@ -321,7 +440,7 @@ EPEL 은 배포판 기본 리포가 아니므로 **법무 확인이 필요한 �
 > `versions.sh` 의 `TEMURIN_JRE_*` 핀은 베어메탈 복귀용으로 **남겨 두되 아무도 읽지 않는다**.
 
 | httpd | 배포판 저장소(RPM) | `syspkgs/rpm/httpd*.rpm` | ~2MB(+의존성) |
-| **ffmpeg RPM (4.4.8-1.el8)** — **예비물, 자동 설치 안 함** | RPM Fusion free el8 (+EPEL, PowerTools) | `syspkgs/ffmpeg/*.rpm` + `repodata/` | ~144MB(261개, 전이 의존 전량) |
+| **ffmpeg RPM (4.4.8-1.el8)** — **예비물, 자동 설치 안 함** | RPM Fusion free el8 (+EPEL, PowerTools) | `syspkgs/ffmpeg/*.rpm` + `repodata/` | ~143MiB(**`*.rpm` 261개** · 전이 의존 전량. 디렉터리 전체 파일 수는 `repodata/`·`SHA256SUMS` 를 더해 **270**) |
 | **GPL 대응 소스(SRPM) 3건** | RPM Fusion free el8 (`dnf download --source`) | `syspkgs/ffmpeg-src/*.src.rpm` | **~11.4MB**(ffmpeg 9.2MB + x265 1.4MB + x264 0.77MB) |
 | **RPM: mesa-libGL/libglvnd-glx/glib2/httpd** | `dnf download`(el8) | `syspkgs/rpm/*.rpm` + `repodata/` | 수~수십 MB |
 | **(옵션) PostgreSQL 16 RPM** | PGDG **EL-8** repo + `dnf download`(el8) | `syspkgs/postgresql/*.rpm` + `repodata/` | 수십 MB |

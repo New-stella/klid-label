@@ -56,8 +56,9 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
   적용되지 않으므로 **`api.war` 라는 이름을 바꾸지 않는다**. 같은 이유로 `server.tomcat.*`(업로드
   본문 한도·스레드 예산·비동기 타임아웃)도 적용되지 않아 **WAS 설정으로 옮겨야 한다**
   ([10-was-settings.md](10-was-settings.md) — 빠뜨리면 대용량 업로드만 조용히 깨진다).
-  control DB(klid_system) + portal DB 2개 DataSource. Flyway 로 LS_*·MNG_*·QRTZ_* 스키마 자동
-  부트스트랩(`CREATE TABLE IF NOT EXISTS`) — 빈 DB 면 관제 스키마 사전 적재 불필요.
+  control DB(klid_system) + portal DB 2개 DataSource. **스키마는 `db/schema.sql` 1회 로드로 준비**하고
+  **온프렘은 Flyway 를 쓰지 않는다**(사전요건은 빈 DB 2개). ⚠ `ddl-auto=validate` 가 선언돼 있으나
+  **실동작하지 않아** 스키마가 비어도 기동은 막히지 않는다 — 01-prerequisites.md 「스키마/테이블」.
 - **ai-server (FastAPI)**: YOLOX(onnxruntime CPU, 탐지 단일 백엔드)/SAM2 추론만. 상태·인증·DB 없음. 포트 9300.
   **서버 B 에 단독 설치**하며 httpd 는 필요 없다. 장비에 파이썬이 없어 런타임까지 전부 반입한다.
   **장비에 GPU 가 있으나 이번 반입은 CPU 전용**이다(torch CPU 휠 + onnxruntime CPU).
@@ -91,7 +92,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
 
 | 디렉토리 | 채우는 주체 | 내용 |
 |----------|-------------|------|
-| `artifacts/backend` | package.sh | **`api.war`**(반입 정본 — WAS 에 올린다) + `klid-backend.jar`(**개발 환경 전용, 반입 대상 아님** — 설치가 배치하지 않는다) |
+| `artifacts/backend` | package.sh | **`api.war`**(반입 정본 — WAS 에 올린다). `klid-backend.jar` 는 **개발 환경 전용이라 담지 않는다** — 수집이 기본으로 만들지도 복사하지도 않고(`WITH_BACKEND_JAR=1` 로만 켠다), 설치도 배치하지 않는다 |
 | `artifacts/frontend/dist` | package.sh | 정적 빌드 결과 |
 | `artifacts/ai-server` | package.sh | `app/` 소스 + `requirements.txt` |
 | `vendor/wheels` | package.sh | 모든 pip 의존성 wheel(torch CPU 포함) |

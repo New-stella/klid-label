@@ -51,16 +51,32 @@ sudo PURGE=1 ./scripts/uninstall.sh
 > (베어메탈 형상). WAR 형상에서 `install.sh` 는 `/opt/klid/app/api.war` 를 갱신할 뿐이고,
 > **WAS 에 올라간 것은 사람이 바꾸기 전까지 그대로다.**
 
-> DB 스키마는 Flyway 가 관리한다. **하위 버전으로 내릴 때 마이그레이션 호환성**(이전 jar 가 최신 스키마를
-> validate 통과하는지)을 반드시 확인하라. 비호환이면 DB 백업 복원이 필요할 수 있다.
+> **DB 스키마는 온프렘에서 Flyway 가 관리하지 않는다** — 설치 시 `db/schema.sql` 을 1회 로드한 그 상태가
+> 전부다. 따라서 **하위 버전으로 내릴 때 스키마를 되돌리는 것도 사람의 일이다**(자동으로 내려가지
+> 않는다). 이전 WAR 가 현재 스키마와 맞는지 반드시 확인하고, 비호환이면 아래 절의 수동 SQL 또는
+> DB 백업 복원이 필요하다.
+>
+> ⚠⚠ **기동 성공은 확인이 아니다.** `ddl-auto=validate` 가 선언돼 있으나 **실동작하지 않아**
+> (`09-operations-runbook.md` §2-5-2 「왜 조용히 실패하나」) 스키마가 어긋나도 기동은 된다.
+> 아래 각 절의 「실패 경로」 표대로 **런타임에 가서야** 드러난다.
+>
+> ⚠ **아래 절들의 `flyway_schema_history` 조작 단계는 온프렘 기본 형상에서 건너뛴다** — 그 테이블 자체가
+> 없다(덤프에서 의도적으로 제외). **DDL 역적용(역개명·재생성)만 수행**하면 된다. 이력 행 삭제가 필요한
+> 것은 Flyway 를 켠 개발·검증 DB 뿐이다.
 
 ### 알려진 비호환 — V162(`MNG_CLIP_SCHEDULE_QUE` → `LS_CLIP_SCHEDULE_QUE` 개명) 이후 버전에서 롤백
 
 V162 가 적용된 DB 에 **V162 이전 jar** 를 올리면 구버전 엔티티(`@Table(name="MNG_CLIP_SCHEDULE_QUE")`)가
-`ddl-auto=validate` 검증에서 "테이블 없음"으로 걸려 **2노드 모두 기동에 실패**한다. 재설치(2단계) **전에**
+없는 테이블을 가리키게 되어 **그 큐를 쓰는 경로(배치 큐 폴링·인입)가 전부 실패**한다. 재설치(2단계) **전에**
 `backend/src/test/resources/db-archive/migration/V162__rename_mng_clip_schedule_que_to_ls.sql` 상단 주석의
 **rename-back SQL(FK DROP → 부속객체·테이블 역개명 → `flyway_schema_history` 에서 version='162' 삭제)** 을
 DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
+
+> ⚠ **온프렘에서는 rename-back 중 `flyway_schema_history` 삭제 단계만 건너뛴다** — 그 테이블이
+> 없다. **FK DROP 과 역개명(DDL)은 그대로 수행**한다. 이력 행 삭제가 필요한 것은 Flyway 를 켠
+> 개발·검증 DB 뿐이다.
+> ⚠ 구 서술 폐기(2026-08-30) — *"`ddl-auto=validate` 검증에서 「테이블 없음」으로 걸려 2노드 모두
+> **기동에 실패**한다"*. 그 검증은 실동작하지 않아 기동은 성공하고 런타임에 터진다.
 
 > **경로 주의(2026-08-13 스쿼시)** — V162 를 포함한 구 마이그레이션 180개는 `db/migration` 에서
 > `src/test/resources/db-archive/migration/` 으로 **옮겨져 원문 그대로 보존**된다(Flyway 는 이 경로를
@@ -69,7 +85,7 @@ DBA 가 수동 적용하라. 데이터 유실은 없다(RENAME 만 수행).
 ### 알려진 비호환 — V2(`CM_CODE` → `LS_COM_CD` 개명)·V4(그 테이블 제거) 이후 버전에서 롤백
 
 `V2` 가 적용된 DB 에 스쿼시 이전 jar 를 올리면 구 마이그레이션이 `CM_CODE` 를 참조한다.
-`ddl-auto=validate` 기동은 깨지지 않지만(이 테이블에 JPA 매핑이 없다) 이력·마이그레이션 정합을 위해 되돌린다.
+기동도 런타임도 깨지지 않지만(이 테이블에 JPA 매핑이 없다) 이력·마이그레이션 정합을 위해 되돌린다.
 
 > **⚠ `V4` 까지 적용된 DB 에서는 아래 RENAME 이 통하지 않는다** — `V4` 가 `LS_COM_CD` 를 **DROP** 했으므로
 > 역개명할 대상 테이블 자체가 없다(`relation "klid_at.ls_com_cd" does not exist`). 그 경우에는 **테이블을
@@ -91,6 +107,10 @@ ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
 이어서 `flyway_schema_history` 를 구 배포본 기준으로 되돌린다(구 180행 이력이 필요하다 — 스쿼시 이관
 직전에 뜬 백업 덤프에서 복원한다. 절차는 `09-operations-runbook.md` §2-5-2).
 
+> ⚠ **이 이력 복원 단계는 온프렘 기본 형상에서 건너뛴다** — `flyway_schema_history` 가 없다.
+> 위 테이블 재생성·역개명(DDL)까지만 수행한다. 이력 복원이 필요한 것은 Flyway 를 켠
+> 개발·검증 DB 뿐이다.
+
 > **가장 안전한 경로는 위 조각 맞추기가 아니라 백업 덤프 복원이다** — 스쿼시 이관 직전 덤프를 빈 DB 에
 > 복원하고 구버전 jar 로 되돌리면 위 재생성·역개명이 모두 불필요하다.
 
@@ -99,7 +119,8 @@ ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
 **V5 는 비하위호환 개명이다.** V5 가 적용된 DB 에 **V5 이전 jar** 를 올리면 구버전 엔티티가 옛 컬럼명
 (`PAYLOAD`·`STATUS`·`RETRY_CNT`·`PROC_DT` / `JOB_TYPE`·`STATUS`·`RETRY_COUNT`·`REGISTERED_AT`·
 `STARTED_AT`·`COMPLETED_AT`·`LAST_ERROR`)으로 매핑하므로 **두 테이블의 읽기·쓰기가 전부 깨진다.**
-기동 자체는 되므로(이 환경은 `ddl-auto=validate` 가 실동작하지 않는다) **런타임에 가서야 드러난다.**
+기동 자체는 되므로(이 환경은 `ddl-auto=validate` 가 실동작하지 않는다 —
+`09-operations-runbook.md` §2-5-2 「왜 조용히 실패하나」) **런타임에 가서야 드러난다.**
 
 | 실패 경로 | 증상 |
 |---|---|
@@ -117,8 +138,11 @@ ALTER TABLE klid_at.cm_code RENAME CONSTRAINT ls_com_cd_pkey TO cm_code_pkey;
    그 순서대로 실행한다. **데이터 유실은 없다**(RENAME 과 폭 확대만 수행).
 2. 이어서 Flyway 이력 행을 지운다 — 지우지 않으면 구버전 jar 가 **알 수 없는 버전 5 행**을 보고
    검증에서 걸린다.
+   ⚠ **온프렘 기본 형상에서는 이 2번을 건너뛴다** — `flyway_schema_history` 가 없다. 1번(역개명
+   SQL)만 수행하면 롤백이 끝난다. 아래 `DELETE` 가 필요한 것은 Flyway 를 켠 개발·검증 DB 뿐이다.
 
 ```sql
+-- ⚠ Flyway 를 켠 개발·검증 DB 전용. 온프렘에는 이 테이블이 없다.
 DELETE FROM klid_at.flyway_schema_history WHERE version = '5';
 ```
 

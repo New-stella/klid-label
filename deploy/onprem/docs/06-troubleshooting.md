@@ -235,23 +235,38 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
 - **서비스 미기동**: `systemctl status postgresql-16` / `journalctl -u postgresql-16`. 기동 후
   `sudo systemctl enable --now postgresql-16`.
 
-## backend 부팅 실패 — DB validate
+## 스키마 미로드 — 기동은 되는데 DB 를 쓰는 순간 전부 깨진다
 
-증상: Hibernate `ddl-auto=validate` 가 `MNG_*`/`QRTZ_*`(또는 LS_*) 테이블/컬럼 부재로 실패.
+증상: 기동 로그는 깨끗한데 화면·배치가 `relation "klid_at.ls_..." does not exist` ·
+`column ... does not exist` 로 실패한다.
+
+> ⚠⚠ **`ddl-auto=validate` 가 기동을 막아 줄 것으로 기대하지 마라.** `application.yml` 에
+> `validate` 가 선언돼 있지만 이 저장소에서는 **실동작하지 않는다** — 듀얼 데이터소스라
+> `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만들고, 거기에 넘기는 것은
+> `spring.jpa.properties.*` 뿐이라 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
+> 전달되지 않는다. **스키마가 통째로 비어 있어도 부팅은 성공한다.**
+> 근거·상세는 `09-operations-runbook.md` §2-5-2 「왜 조용히 실패하나」.
+>
+> ⚠ 구 증상 서술 폐기(2026-08-30) — *"Hibernate `ddl-auto=validate` 가 `LS_*`/`QRTZ_*`
+> 테이블/컬럼 부재로 **부팅 실패**"*. 그런 부팅 실패는 일어나지 않으므로, 그 로그를 기다리면
+> 결함을 **운영 중에** 만나게 된다.
 
 원인/해결:
-- **정상 흐름에선 거의 발생하지 않는다.** backend 는 기동 시 Flyway(`spring.flyway.enabled=true`,
-  prd 포함)로 V2 마이그레이션을 먼저 적용해 LS_*·MNG_*·QRTZ_* 를 `CREATE TABLE IF NOT EXISTS` 로 만든 뒤
-  validate 한다. 즉 **빈 DB 면 저작도구가 전 스키마를 자동 부트스트랩**하므로 관제 스키마를 사전
-  적재할 필요가 없다(04-configuration.md D 절).
-- 그래도 validate 가 실패하면 Flyway 가 **꺼졌거나 마이그레이션이 적용되지 않은** 경우다:
-  - **WAS 로그**(WAR 형상) 또는 `journalctl -u klid-backend`(베어메탈 형상)에서 Flyway 로그
-    (`Migrating schema ... to version 2`)가 보이는지 확인.
-  - 안 보이면 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있는지 확인 —
-    `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
-  - 관제가 이미 채운 공유 테이블과 **컬럼 스키마가 다르면** validate 가 불일치로 실패할 수 있다.
-    이 경우 관제 인프라/DBA 와 스키마 정합을 협의한다(이는 "사전 적재 필요"가 아니라 "정합 충돌").
-- **★ 테이블이 분명히 있는데 validate 가 "없다"고 하면 스키마를 확인한다.** 저작도구는
+- **★ 가장 흔한 원인은 "스키마를 아무도 로드하지 않은 것"이다.** 온프렘은 **Flyway 를 쓰지 않으므로**
+  (`spring.flyway.enabled=false`) backend 가 테이블을 만들어 주지 않는다. `db/schema.sql` 을 빈 control
+  DB 에 1회 로드하는 것이 **유일한 경로**이고, 그 로드는 자동이 아니다(`16-load-schema.sh` 는
+  `SCHEMA_LOAD_RUN=1` 일 때만 실제로 넣고 평시엔 안내만 출력한다 — 04-configuration.md D 절).
+  ```bash
+  psql ... -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+  # 0 이면 로드가 안 된 것이다 → db/schema.sql 을 먼저 넣고 WAS 를 다시 올린다.
+  ```
+- 로드 시 오류가 났었는지 확인한다 — 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있어야 한다.
+  `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
+- 테이블은 있는데 **컬럼이 다르다**면 매체의 `db/schema.sql` 판과 배포된 WAR 판이 어긋난 것이다
+  (구 스키마 위에 새 WAR 를 올린 경우). 두 산출물의 `VERSION` 을 맞춘다.
+- ⚠ 구 서술 "backend 가 Flyway 로 `MNG_*` 까지 자동 부트스트랩하므로 사전 적재 불필요" 는 **폐기**다 —
+  마이그레이션이 돌지 않고, `MNG_*` 공유 테이블 자체가 제거됐다.
+- **★ 테이블이 분명히 있는데 런타임이 "없다"고 하면 스키마를 확인한다.** 저작도구는
   `klid_at`(`DB_SCHEMA`)만 본다. `public` 에 테이블이 있고 `klid_at` 이 비어 있으면 **구 형상 DB**다 —
   `09-operations-runbook.md` §2-5-1 로 이관한다(복사가 아니라 `ALTER ... SET SCHEMA` 로 **이동**).
   ```bash
@@ -259,7 +274,8 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
                where table_schema in ('klid_at','public') group by 1;"
   ```
 - **기동 거부 — Flyway 체크섬 불일치**(`Migration checksum mismatch for migration version 62/63/71`):
-  스키마 중립화로 세 파일이 바뀌었다. 이관 절차 ③(체크섬 재정렬) 또는 `flyway repair` 를 1회 수행한다.
+  ⚠ 온프렘 기본 형상에서는 **발생하지 않는다**(마이그레이션을 돌리지 않는다). 개발 환경 등 Flyway 를
+  켠 DB 를 이관할 때만 해당한다 — 이관 절차 ③(체크섬 재정렬) 또는 `flyway repair` 를 1회 수행한다.
   → `09-operations-runbook.md` §2-5-1 ③.
 
 ## 비식별 설정오류 / KPST 연동

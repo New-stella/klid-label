@@ -46,8 +46,10 @@ sudo systemctl enable --now httpd
 > 순서를 거는 것은 WAS 설정 소관**이다(우리 drop-in 은 만들어지지 않는다 — 유닛 자체가 없다).
 >
 > backend 유닛은 `Requires=klid-ai-server` + `After=postgresql.service klid-ai-server.service` 라
-> ai-server 준비 후 기동된다. backend 첫 기동 시 Flyway 가 LS_*·MNG_*·QRTZ_* 스키마를 자동
-> 부트스트랩(`CREATE TABLE IF NOT EXISTS`)하므로 시작이 다소 길 수 있다(TimeoutStartSec=180).
+> ai-server 준비 후 기동된다. ⚠ **기동 전에 스키마가 이미 로드돼 있어야 한다** — 온프렘은 Flyway 를
+> 쓰지 않으므로 backend 가 테이블을 만들지 않는다. ⚠⚠ 비어 있어도 **기동은 성공한다**
+> (`ddl-auto=validate` 가 실동작하지 않는다 — 04-configuration.md D 절). 화면·배치가 DB 를 처음
+> 건드릴 때 깨지므로, 로드 여부는 아래 「스키마 확인」의 카운트 쿼리로 판정한다.
 >
 > ℹ **번들 PG 의 유닛명은 `postgresql-16.service`** 라 backend 유닛의 `After=postgresql.service`
 > (이름 불일치)만으로는 부팅 순서 보장이 안 된다. 이를 위해 **번들 PG 사용 시
@@ -86,23 +88,25 @@ systemctl is-active postgresql-16
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system -c '\conninfo'
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d portal      -c '\conninfo'
 
-# (backend 기동 후) Flyway 가 스키마를 자동 생성했는지 — LS_*/MNG_*/QRTZ_* 테이블 확인
+# ★ WAR 를 올리기 <전에> 스키마가 로드됐는지 확인한다 — 비어 있으면 backend 가 기동에 실패한다.
 #   ★ 저작도구 객체는 klid_at 스키마에 있다. psql 기본 search_path("$user", public)로는 보이지 않으므로
 #     스키마를 명시한다(아래 모든 조회 동일).
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "\dt klid_at.*" | grep -iE 'ls_data_raw|ls_marking|qrtz_'
-# flyway_schema_history 도 생성된다(마이그레이션 이력)
+  -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+#   → 0 이면 db/schema.sql 이 로드되지 않은 것이다(16-load-schema.sh 또는 DBA 수동 로드).
+#     정상이면 77 — information_schema.tables 는 뷰를 포함한다(테이블 73 = LS_* 62 + QRTZ_* 11, 뷰 4).
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
-  -c "select version, description, success from klid_at.flyway_schema_history order by installed_rank;"
+  -c "\dt klid_at.*" | grep -iE 'ls_data_raw|ls_marking|qrtz_'
 ```
 
-> **스키마 = `klid_at`** (`DB_SCHEMA` 로 변경 가능). 앱은 커넥션 `currentSchema` / Flyway `schemas` /
-> Quartz `tablePrefix` / JPA `default_schema` 네 지점이 모두 이 값 하나를 읽는다.
-> 온프렘(`SPRING_FLYWAY_ENABLED=false`)은 설치 시 `db/schema.sql` 로드로 이 스키마가 만들어지며,
-> 그 경우 `flyway_schema_history` 는 생성되지 않는다(덤프에서 의도적으로 제외 — Flyway 미사용).
+> **스키마 = `klid_at`** (`DB_SCHEMA` 로 변경 가능). 앱은 커넥션 `currentSchema` /
+> Quartz `tablePrefix` / JPA `default_schema` 가 모두 이 값 하나를 읽는다.
+> 온프렘은 **Flyway 를 쓰지 않으므로**(`SPRING_FLYWAY_ENABLED=false`) 이 스키마는 설치 시
+> `db/schema.sql` 로드로 만들어지고, **`flyway_schema_history` 는 생성되지 않는다**
+> (덤프에서 의도적으로 제외). 그 테이블이 없는 것은 정상이며 결함이 아니다.
 
-> backend 로그(**WAR 형상이면 WAS 로그**, 베어메탈이면 `journalctl -u klid-backend`)에 Flyway `Migrating schema ... to version 2`,
-> `Successfully applied N migration(s)` 가 보이면 스키마 자동 부트스트랩이 성공한 것이다.
+> ⚠ 따라서 backend 로그에서 **Flyway 마이그레이션 로그를 찾지 말 것** — 나오지 않는 것이 정상이다.
+> 스키마가 준비됐다는 증거는 위 `information_schema.tables` 카운트다.
 
 ## 헬스체크 (스모크)
 

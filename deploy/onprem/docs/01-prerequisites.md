@@ -126,10 +126,28 @@ PG 는 **두 경로** 중 하나로 운영한다(설치 토글 `USE_BUNDLED_POST
 어느 경로든 사전요건은 동일하다:
 
 - **빈 DB 2개** — control DB(`klid_system`)와 portal DB(`portal`), 앱 유저(`klid_user` 등)와 비밀번호.
-- **스키마/테이블은 backend 가 기동 시 Flyway 로 자동 부트스트랩**한다(추가 작업 불필요).
-  V2 마이그레이션이 LS_*·**MNG_***·**QRTZ_*** 전 스키마를 `CREATE TABLE IF NOT EXISTS` 로 생성하며
-  (`spring.flyway.enabled=true`, prd 포함), `ddl-auto=validate` 는 Flyway 가 만든 스키마를 검증만 한다.
-- 즉 **관제 없는 폐쇄망의 신규 빈 DB 면 저작도구가 MNG_*/QRTZ_* 까지 전부 자동 생성**한다 —
-  관제 스키마를 사전 적재할 필요가 없다. 관제가 이미 채운 공유 테이블이 있는 경우에만
-  `IF NOT EXISTS` 로 그대로 공유한다.
+- **스키마/테이블은 `db/schema.sql` 을 빈 control DB 에 1회 로드해 만든다** — **온프렘은 Flyway 를
+  쓰지 않는다**(`spring.flyway.enabled=false`). 그 파일에
+  `LS_*` 62개 · `QRTZ_*` 11개 · 뷰 4개 + 시드 66행이 들어 있고 `CREATE SCHEMA` 도 포함하므로,
+  **사전요건은 빈 DB 와 앱 유저(DB OWNER)뿐**이고 `klid_at` 스키마를 미리 만들 필요는 없다.
+- ⚠ **그 로드는 사람이 해야 한다** — 설치 단계 `16-load-schema.sh` 는 `SCHEMA_LOAD_RUN=1` 일 때만
+  실제로 넣고 평시엔 수동 절차만 안내한다. **아무도 넣지 않으면 대신 만들어 주는 것이 없다.**
+  구성별로 누가 언제 넣는지는 `03-install.md` 의 표가 정본이다.
+- ⚠⚠ **★ 그런데 기동은 실패하지 않는다 — `ddl-auto=validate` 가 대신 막아 주지 않는다.**
+  `application.yml` 에 `validate` 가 선언돼 있지만 이 저장소에서는 **실동작하지 않는다**:
+  듀얼 데이터소스라 `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만드는데, 거기에 넘기는
+  것은 `spring.jpa.properties.*` 뿐이라 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
+  전달되지 않는다. 결과적으로 **테이블이 하나도 없어도 기동 로그는 깨끗하고**, 화면·배치가 그
+  테이블을 처음 건드릴 때 `relation ... does not exist` 로 터진다.
+  ⇒ **"기동됐으니 됐다"가 근거가 되지 않는다.** 아래 카운트 확인이 유일한 방어선이다.
+  근거·상세는 `09-operations-runbook.md` §2-5-2 「왜 조용히 실패하나」.
+  ```bash
+  psql -h <HOST> -p <PORT> -U <APP_USER> -d klid_system \
+       -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+  # 0 이면 로드가 안 된 것이다 — WAR 를 올리기 전에 db/schema.sql 을 먼저 넣는다.
+  ```
+- ⚠ 구 서술 폐기(2026-08-30) — *"아무도 넣지 않으면 backend 가 기동에 실패한다"*.
+  기동은 성공한다. 그 기대에 기대면 **빈 스키마인 채로 운영에 넘어간다.**
+- ⚠ 구 서술 "빈 DB 면 저작도구가 `MNG_*` 까지 전부 자동 생성" 은 **폐기**다 — `MNG_*` 공유 테이블은
+  제거됐고 `db/schema.sql` 에 존재하지 않는다.
   → 03-install.md / 04-configuration.md DB 절 / 05-run-verify.md 참고.
