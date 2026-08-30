@@ -10,6 +10,8 @@
  *    그것을 인계받아 sessionStorage 로 이전한다 — XSS 표면 확대 없음.)
  */
 
+import { resolveConfig } from '@/lib/runtimeConfig';
+
 const MAX_JWT_LEN = 4096;
 // base64url 문자셋: A-Za-z0-9-_= (= 패딩 허용)
 const JWT_PART_RE = /^[A-Za-z0-9_-]+={0,2}$/;
@@ -94,7 +96,9 @@ export type IngressStrategy = (typeof TOKEN_INGRESS_STRATEGIES)[number];
 export const DEFAULT_INGRESS_STRATEGY: IngressStrategy = 'localStorage';
 
 function getStrategy(): IngressStrategy {
-  const v = import.meta.env.VITE_TOKEN_INGRESS as string | undefined;
+  // 런타임 설정 우선(`lib/runtimeConfig`) — 채널마다 인계 수단이 갈리므로 산출물 하나로
+  // 두 현장을 덮을 수 있어야 한다. 미설정·오타는 종전대로 안전한 기본값으로 떨어진다.
+  const v = resolveConfig('VITE_TOKEN_INGRESS');
   if (v && (TOKEN_INGRESS_STRATEGIES as readonly string[]).includes(v)) {
     return v as IngressStrategy;
   }

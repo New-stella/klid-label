@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+// ★ 이 선언들은 <빌드 시점> 값이다. 배포 형상에서는 같은 이름의 값이 런타임 설정
+//   (`lib/runtimeConfig` — 문서 루트의 klid-config.js)으로 덮인다. 앱 코드는 `import.meta.env`
+//   를 직접 읽지 말고 `resolveConfig()` 를 쓴다 — 직접 읽는 곳은 그 값만 조용히 재빌드가
+//   필요한 상태로 남는다.
+
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;
   // 토큰 인계 채널 전략. 값 집합의 단일 진실원은 `features/auth/tokenIngress` 의

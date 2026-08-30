@@ -25,6 +25,9 @@ WEB_DIR="${KLID_PREFIX}/web"
 ensure_dir "${WEB_DIR}"
 
 BACKEND_ORIGIN="${BACKEND_ORIGIN:-http://127.0.0.1:8080}"
+BIN_DIR="${KLID_PREFIX}/bin"
+FE_CONFIG_DST="${KLID_ETC}/frontend.env"
+FE_CONFIG_RENDERER="${BIN_DIR}/klid-frontend-config"
 
 DIST_SRC="${ONPREM}/artifacts/frontend/dist"
 [[ -d "${DIST_SRC}" ]] || die "frontend dist 없음: ${DIST_SRC} (빌드머신에서 package.sh 를 실행했나요?)"
@@ -34,6 +37,37 @@ info "[frontend] 정적 자산 배치..."
 rm -rf "${WEB_DIR}/dist"
 cp -R "${DIST_SRC}" "${WEB_DIR}/dist"
 ok "[frontend] dist: ${WEB_DIR}/dist"
+
+# ---- 1-1) 런타임 설정 정본 배치 + 생성기 설치 ----
+#   ★ 값의 정본은 산출물이 아니라 ${KLID_ETC}/frontend.env 다(백엔드가 DB 접속정보를 /etc/klid
+#     에서 읽는 것과 같은 관례). 예전에는 상위 로그인 주소·개발용 화면 토글이 <빌드 시점>에
+#     dist 안으로 구워져, 환경마다 다시 빌드해야 했고 배포 후에는 고칠 수 없었다.
+#   ★ 기존 파일은 덮지 않는다 — 재설치가 현장값을 날리면 안 된다(backend 설정과 같은 규칙).
+info "[frontend] 런타임 설정 정본 배치..."
+if [[ -f "${FE_CONFIG_DST}" ]]; then
+  info "[frontend] 설정 정본 이미 존재(보존): ${FE_CONFIG_DST}"
+else
+  FE_CONFIG_SRC="${ONPREM}/config/frontend/frontend.env.template"
+  [[ -f "${FE_CONFIG_SRC}" ]] || die "[frontend] 설정 템플릿 없음: ${FE_CONFIG_SRC}"
+  # 설치 시 환경변수로 주면 첫 실행부터 완성된 파일이 놓인다(종전 빌드 인자와 같은 사용감):
+  #   sudo VITE_CONTROL_LOGIN_URL=https://... VITE_PORTAL_LOGIN_URL=https://... ./scripts/install.sh
+  #   ★ 치환값은 반드시 이스케이프한다. 로그인 주소에 쿼리(`?a=1&b=2`)가 붙는 것은 흔한데,
+  #     sed 의 치환문에서 `&` 는 <매치 전체>를 뜻해 값이 조용히 뒤틀린다. `#`(구분자)·`\`도 같다.
+  _sed_repl_escape() { printf '%s' "$1" | sed -e 's/[\\&#]/\\&/g'; }
+  sed -e "s#@CONTROL_LOGIN_URL@#$(_sed_repl_escape "${VITE_CONTROL_LOGIN_URL:-}")#g" \
+      -e "s#@PORTAL_LOGIN_URL@#$(_sed_repl_escape "${VITE_PORTAL_LOGIN_URL:-}")#g" \
+      "${FE_CONFIG_SRC}" > "${FE_CONFIG_DST}"
+  # 비밀값을 담지 않는 파일이라 조이지 않는다(was.env 와 같은 판단). 반대로 <여기에 비밀값을
+  # 넣으면 안 된다> — 이 파일의 내용은 브라우저로 내려간다. 템플릿 머리말이 그 구분을 설명한다.
+  chmod 0644 "${FE_CONFIG_DST}"
+  chown root:"${KLID_GROUP}" "${FE_CONFIG_DST}" 2>/dev/null || true
+  ok "[frontend] 설정 정본 배치: ${FE_CONFIG_DST}  (★ 설치 후 필수 편집)"
+fi
+
+# 반영 명령을 대상 서버에 남긴다 — 매체가 없어도 값 변경이 한 줄로 끝나야 한다.
+ensure_dir "${BIN_DIR}"
+install -m 0755 "${SELF_DIR}/render-frontend-config.sh" "${FE_CONFIG_RENDERER}"
+ok "[frontend] 설정 반영 명령 설치: ${FE_CONFIG_RENDERER}"
 
 # ---- 2) httpd 오프라인 설치 ----
 if command -v httpd >/dev/null 2>&1; then
@@ -70,6 +104,31 @@ if [[ -f /etc/httpd/conf.d/welcome.conf ]]; then
   ok "[frontend] 기본 welcome.conf 비활성화"
 fi
 
+# ---- 3-1) 런타임 설정 생성 (값이 없어도 설치는 계속한다) ----
+#   ★★ 이 자리는 <되돌리기 어려운 것을 먼저 끝낸 뒤>다 (2026-08-30 순서 정정, 구속).
+#     종전에는 이 생성이 <1-2 단계>, 즉 httpd 설치보다 앞에 있으면서 fail-closed 로 die 했다.
+#     그런데 이 단계가 읽는 ${KLID_ETC}/frontend.env 는 <바로 위에서 이 단계가 방금 놓은>
+#     빈 템플릿이다 — 그래서 <첫 설치는 구조적으로 반드시 실패>했다. set -e 라 httpd 설치·
+#     SELinux 문맥·15·16·17·19 단계가 통째로 날아갔고, 현장에서는 "설치했는데 웹 서버가
+#     없다"로 보였다.
+#   ★ 방어를 없앤 것이 아니라 <자리를 옮겼다> — 값 누락은 맨 마지막 20 단계가 설치 전체를
+#     실패로 종결시킨다(20-verify-frontend-config.sh). 여기서 조용히 넘어가면 지금보다
+#     나빠지므로, 실패 사실은 아래에서 <크게> 남긴다.
+#   ★ SELinux 문맥 부여(4단계)보다 <앞>에 둔다 — 여기서 만든 klid-config.js 도 restorecon
+#     대상에 포함되게 하기 위해서다.
+info "[frontend] 런타임 설정 생성..."
+if KLID_ETC="${KLID_ETC}" KLID_PREFIX="${KLID_PREFIX}" WEB_ROOT="${WEB_DIR}/dist" \
+     "${FE_CONFIG_RENDERER}"; then
+  ok "[frontend] 런타임 설정 생성 완료: ${WEB_DIR}/dist/klid-config.js"
+else
+  FE_CONFIG_PENDING=1
+  warn "----------------------------------------------------------------"
+  warn "[frontend] ★런타임 설정을 아직 만들지 못했습니다 — 설치는 계속하지만 <미완성>입니다."
+  warn "  ${FE_CONFIG_DST} 의 필수 값(상위 시스템 로그인 URL)이 비어 있습니다."
+  warn "  설치 마지막 단계(20-verify-frontend-config.sh)가 이 상태를 <실패로 종결>합니다."
+  warn "----------------------------------------------------------------"
+fi
+
 # ---- 4) SELinux ----
 #   ★ 이 단계를 빠뜨리면 <설정이 맞는데도> 화면이 403 이 되고 API 프록시가 실패한다.
 #     Enforcing 이 아니면 조용히 지나가므로, 끄고 검증했다가 켠 장비에서만 터진다.
@@ -97,6 +156,15 @@ httpd -t || die "[frontend] httpd 설정 검사 실패 — ${CONF_DST} 를 확�
 systemctl enable httpd >/dev/null 2>&1 || true
 systemctl restart httpd || die "[frontend] httpd 기동 실패 — journalctl -u httpd 를 확인하세요."
 ok "[frontend] httpd 기동 완료 (systemctl status httpd)"
+
+info "[frontend] ★ 설정을 바꿀 때는 재빌드·재설치가 아니라 아래 한 줄이면 됩니다:"
+info "            ${FE_CONFIG_DST} 편집 → sudo ${FE_CONFIG_RENDERER}"
+
+if [[ "${FE_CONFIG_PENDING:-0}" == "1" ]]; then
+  warn "[frontend] ★위 런타임 설정이 아직 비어 있습니다. 아래 두 줄을 끝내야 설치가 완료됩니다:"
+  warn "     sudo \$EDITOR ${FE_CONFIG_DST}"
+  warn "     sudo ${FE_CONFIG_RENDERER}"
+fi
 
 warn "[frontend] ★확인 항목 — 기동 성공만으로는 검증되지 않습니다."
 warn "  · 화면 딥링크 새로고침이 404 가 아닌지"

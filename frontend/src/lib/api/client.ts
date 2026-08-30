@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 
 
 import { detectChannel, redirectToUpstream } from '@/features/auth/redirectToUpstream';
+import { resolveConfig } from '@/lib/runtimeConfig';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 import { ApiError } from './errors';
@@ -32,8 +33,10 @@ declare module 'axios' {
   /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 }
 
-// 보안: VITE_API_BASE_URL은 환경변수에서만 로드 (사용자 입력 금지)
-const baseURL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
+// 보안: API base 는 설정에서만 로드 (사용자 입력 금지).
+//   해석 순서는 런타임(`klid-config.js`) → 빌드 → 기본값이다. 런타임 파일은 번들보다 먼저
+//   로드되므로 이 모듈이 평가될 때 이미 값이 심겨 있다.
+const baseURL = resolveConfig('VITE_API_BASE_URL') ?? '/api/v1';
 
 export const apiClient = axios.create({
   baseURL,

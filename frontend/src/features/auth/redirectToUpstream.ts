@@ -1,4 +1,5 @@
 import type { Channel } from '@/lib/api/types';
+import { resolveConfig, type RuntimeConfigKey } from '@/lib/runtimeConfig';
 
 /**
  * `next=` 로 상위 서버에 넘기기 전에 제거할 인증 쿼리 파라미터.
@@ -29,19 +30,41 @@ function buildNextUrl(href: string): string | null {
 }
 
 /**
+ * 그 채널의 로그인 주소를 담는 설정 키.
+ *
+ * 값이 없을 때 화면이 <b>무엇을 설정해야 하는지</b> 알리기 위해 밖으로 낸다 — 이름을 화면 쪽에
+ * 다시 적으면 사본이 두 번째 진실원이 되어 키를 바꿀 때 한쪽만 갱신된다.
+ */
+export function upstreamLoginConfigKey(channel?: Channel): RuntimeConfigKey {
+  return channel === 'PORTAL' ? 'VITE_PORTAL_LOGIN_URL' : 'VITE_CONTROL_LOGIN_URL';
+}
+
+/**
+ * 그 채널의 로그인 주소가 설정돼 있는지.
+ *
+ * 해석 순서는 `resolveConfig`(런타임 → 빌드)를 그대로 따른다 — 판정을 여기서 다시 만들면
+ * "리다이렉트는 되는데 화면은 미설정이라고 말하는" 식의 어긋남이 생긴다.
+ */
+export function isUpstreamLoginConfigured(channel?: Channel): boolean {
+  return resolveConfig(upstreamLoginConfigKey(channel)) !== undefined;
+}
+
+/**
  * 채널별 상위 시스템 로그인 URL로 redirect.
  *
  * 보안 (CWE-601 Open Redirect 방어):
- * - redirect 대상 URL은 환경변수에서만 사용 (사용자 입력 금지)
+ * - redirect 대상 URL은 설정에서만 사용 (사용자 입력 금지)
  * - `?next=` 파라미터로 현재 URL 보존 — 인증 파라미터 제거 후 인코딩해 전달
- * - 환경변수 미설정 시 redirect 안 함 (안전 가드)
+ * - 설정 미지정 시 redirect 안 함 (안전 가드 — 호출부가 안내 화면을 그린다)
  *
- * @returns redirect가 실제로 발생했으면 `true`, 환경변수 미설정 등으로 redirect 불가 시 `false`
+ * ★ 주소의 출처는 <b>런타임 설정 우선</b>이다(`lib/runtimeConfig`). 빌드 시점 값만 보던 구
+ *   동작에서는 환경마다 다시 빌드해야 했고, 실제로 예시 주소가 구워진 산출물이 반입 대상으로
+ *   놓여 있었다. 지금은 대상 서버의 `/etc/klid/frontend.env` 가 정본이다.
+ *
+ * @returns redirect가 실제로 발생했으면 `true`, 주소 미설정 등으로 redirect 불가 시 `false`
  */
 export function redirectToUpstream(channel?: Channel): boolean {
-  const portalUrl = import.meta.env.VITE_PORTAL_LOGIN_URL as string | undefined;
-  const controlUrl = import.meta.env.VITE_CONTROL_LOGIN_URL as string | undefined;
-  const target = channel === 'PORTAL' ? portalUrl : controlUrl;
+  const target = resolveConfig(upstreamLoginConfigKey(channel));
   if (!target) return false;
   if (typeof window === 'undefined' || typeof window.location?.assign !== 'function') return false;
 

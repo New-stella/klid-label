@@ -57,6 +57,21 @@ ServerSignature Off
         FallbackResource /index.html
     </Directory>
 
+    # ---- 런타임 설정 파일은 캐시하지 않는다 ----
+    #   ★ klid-config.js 는 환경마다 다른 값(상위 로그인 주소 등)을 담은 <생성물>이다.
+    #     파일명이 고정이라 해시 기반 캐시 무효화가 걸리지 않는다 — 캐시되면 운영자가 값을
+    #     고치고 반영 명령까지 돌렸는데도 브라우저가 옛 값을 계속 써서, <고친 줄 알고 넘어가는>
+    #     실패가 된다. 그 실패는 화면에 아무 신호도 남기지 않는다.
+    #   ★ index.html 은 대상이 아니다 — 설정은 <별도 파일>이라 문서가 캐시돼도 그 파일은
+    #     no-store 로 새로 받는다. 번들 자산은 파일명 해시가 있어 애초에 무관하다.
+    #     (nginx 형상도 같은 범위다 — 두 형상을 어긋나게 두지 않는다.)
+    <IfModule mod_headers.c>
+        <FilesMatch "^klid-config\.js$">
+            Header always set Cache-Control "no-store, no-cache, must-revalidate"
+            Header always set Pragma "no-cache"
+        </FilesMatch>
+    </IfModule>
+
     # ---- 압축 (정적 자원만) ----
     <IfModule mod_deflate.c>
         AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript \

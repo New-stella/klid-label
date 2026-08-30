@@ -1,3 +1,5 @@
+import { readRuntimeConfig } from '@/lib/runtimeConfig';
+
 /**
  * [개발/검수 전용] dev 업로드(파일 업로드) 경로 노출 여부 단일 판정 헬퍼.
  *
@@ -13,5 +15,8 @@
  * 화면과 API 중 하나만 사라져 운영자가 원인을 찾지 못한다.
  */
 export function isDevUploadEnabled(): boolean {
+  // 판정 순서는 `isDevLoginEnabled`(devLogin.ts)와 대칭이다 — 런타임 명시값이 최우선.
+  const explicit = readRuntimeConfig('VITE_DEV_UPLOAD_ENABLED');
+  if (explicit !== undefined) return explicit === 'true';
   return import.meta.env.DEV || import.meta.env.VITE_DEV_UPLOAD_ENABLED === 'true';
 }

@@ -52,6 +52,14 @@ server {
         proxy_send_timeout 300s;
     }
 
+    # 런타임 설정 파일 — 캐시 금지(근거는 httpd-klid.conf.template 의 같은 항목).
+    #   ⚠ nginx 의 add_header 는 <상속을 끊는다> — 이 location 에서 보안 헤더를 다시 적는다.
+    location = /klid-config.js {
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
     # SPA fallback
     location / {
         try_files $uri $uri/ /index.html;

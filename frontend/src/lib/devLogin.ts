@@ -1,3 +1,5 @@
+import { readRuntimeConfig } from '@/lib/runtimeConfig';
+
 /**
  * [개발/검수 전용] dev 로그인 경로 노출 여부 단일 판정 헬퍼.
  *
@@ -14,5 +16,10 @@
  * ⚠ 업로드 축(`devUpload.ts`)은 운영 상시 기능이 됐지만 **이쪽은 아니다** — 결론을 옮겨 적지 말 것.
  */
 export function isDevLoginEnabled(): boolean {
+  // 운영자가 런타임 설정(`/etc/klid/frontend.env`)에서 <명시 지정>했으면 그것이 이긴다 —
+  // DEV 빌드보다도 우선한다. "명시적으로 껐다"가 가장 강한 신호이고, 그 신호를 존중하지
+  // 않으면 재빌드 없이 끌 수 있어야 한다는 요구가 성립하지 않는다.
+  const explicit = readRuntimeConfig('VITE_DEV_LOGIN_ENABLED');
+  if (explicit !== undefined) return explicit === 'true';
   return import.meta.env.DEV || import.meta.env.VITE_DEV_LOGIN_ENABLED === 'true';
 }
