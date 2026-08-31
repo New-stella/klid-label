@@ -92,8 +92,8 @@ describe('포털 채널 빌드 — 가드는 이동 대신 그 자리에 안내�
       expect(screen.queryByText('CATCHALL_PAGE')).toBeNull();
     });
 
-    it('기본채널_internal_에서는_지금처럼_이동한다_회귀없음', () => {
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+    it('기본채널_control_에서는_지금처럼_이동한다_회귀없음', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
       renderGuardedRoute(
         '/target',
         <RoleGuard allow={[Role.PORTAL_USER]}>
@@ -141,8 +141,8 @@ describe('포털 채널 빌드 — 가드는 이동 대신 그 자리에 안내�
       expect(screen.queryByText('CATCHALL_PAGE')).toBeNull();
     });
 
-    it('기본채널_internal_채널불일치_지금처럼_forbidden으로_이동_회귀없음', () => {
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+    it('기본채널_control_채널불일치_지금처럼_forbidden으로_이동_회귀없음', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
       useAuthStore.setState({
         token: 'tok',
         claims: { sub: 'u', role: 'WORKER', channel: 'INTERNAL', exp: 9999999999 },
@@ -175,8 +175,8 @@ describe('포털 채널 빌드 — 가드는 이동 대신 그 자리에 안내�
       expect(screen.queryByText('CATCHALL_PAGE')).toBeNull();
     });
 
-    it('기본채널_internal_claims_없음_지금처럼_ingress로_이동_회귀없음', () => {
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+    it('기본채널_control_claims_없음_지금처럼_ingress로_이동_회귀없음', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
       renderGuardedRoute(
         '/target',
         <AuthenticatedGuard>

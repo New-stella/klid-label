@@ -2,6 +2,7 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 
 
 import { detectChannel, redirectToUpstream } from '@/features/auth/redirectToUpstream';
+import { getAccessToken } from '@/features/auth/tokenHandoff';
 import { resolveConfig } from '@/lib/runtimeConfig';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -44,8 +45,17 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
+// [@design INT-013]
+// 토큰은 **인계 창구(`features/auth/tokenHandoff`)에 묻는다** — 스토어를 직접 읽지 않는다.
+//
+// 내부(관제) 채널에서는 창구가 그대로 스토어를 읽으므로 **동작이 바뀌지 않는다.** 포털 채널에서는
+// 창구가 Host 에 매번 다시 물어, Host 가 세션을 갱신한 뒤에도 죽은 토큰을 붙잡지 않는다.
+// 여기서 다시 스토어를 읽으면 포털 채널에서 그 파손이 되살아난다 — 근거 전문은 창구 파일 상단.
+//
+// ⚠ 헤더 스킴은 이번 슬라이스에서 `Authorization: Bearer` 그대로다. 포털 계약의 전용 헤더로
+//   바꾸는 것은 백엔드가 그 헤더를 inbound 로 수용하는 것과 **함께** 가야 한다(현재 수용 0건).
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = useAuthStore.getState().token;
+  const token = getAccessToken();
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
@@ -68,11 +78,11 @@ apiClient.interceptors.response.use(
 
     if (status === 401 && !err.config?.skipAuthRedirect) {
       // Race 방어: 토큰 적재 직전에 발사된 요청은 Authorization 헤더가 비어 있어 401 을 받는다.
-      // 이 경우 (현재 store 에 토큰이 있고, 1차 시도에서 헤더 없이 보냈다면) 한 번만 재시도.
+      // 이 경우 (지금 창구에 토큰이 있고, 1차 시도에서 헤더 없이 보냈다면) 한 번만 재시도.
       const config = err.config as (InternalAxiosRequestConfig & {
         _retriedWithToken?: boolean;
       }) | undefined;
-      const currentToken = useAuthStore.getState().token;
+      const currentToken = getAccessToken();
       const sentAuth = config?.headers?.get?.('Authorization') ?? config?.headers?.Authorization;
       if (
         config &&
@@ -85,6 +95,19 @@ apiClient.interceptors.response.use(
         return apiClient.request(config);
       }
       // 정상 401 — 토큰 제거 + 상위 시스템 로그인 페이지로 이동
+      //
+      // [@design INT-013] ★이 이동은 **포털 채널에서도 그대로 둔다.** 설계가 명시한다 —
+      //   「토큰 만료로 상위 시스템 로그인 화면에 보내는 것은 그대로 둔다. 그건 Host 도 해야 할
+      //   일이고, 저작도구는 복귀 주소에 현재 위치를 실어 보내므로 임베드된 상태에서 오히려
+      //   정확하다. **이것까지 막으면 만료된 세션에 갇힌다**」.
+      //
+      //   같은 설계의 「Host 화면을 벗어나지 않는다」는 **다른 층**이다. 그쪽이 말하는 것은
+      //   라우트 가드의 인증·권한 분기(`router/guards.tsx`)이고 이미 제자리 안내로 처리돼
+      //   있다(`PortalEmbedNotice`). 여기는 **토큰 만료** 축이라 그 규칙의 대상이 아니다.
+      //
+      // ⚠ 포털 계약의 `onUnauthorized`(인증 끊김을 Host 에 알림) 창구는 열려 있으나 **여기에
+      //   배선하지 않았다.** Host 가 그 통지를 받아 스스로 재로그인을 시작하면 우리 이동과
+      //   경쟁해 어느 쪽이 이기는지 정해지지 않는다. 순서 규약을 포털과 확정한 뒤 배선한다.
       useAuthStore.getState().clear();
       redirectToUpstreamLogin();
     }

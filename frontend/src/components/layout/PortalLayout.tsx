@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 //   렌더하면 한 화면에 머리 영역이 두 벌 겹친다. **`<header>` 마크업은 삭제하지 않는다** —
 //   이 채널 분리 결정은 뒤집힐 수 있고, 되돌릴 때 포커스 표시(`KRDS_FOCUS`)·링크 접근성
 //   처리까지 그대로 재현돼야 한다. 위 Footer 주석과 같은 관례("삭제 대신 조건부 렌더")를
-//   따른다. 기본값(`internal`, 환경변수 미설정)에서는 지금처럼 렌더된다 — 지금 동작 불변.
+//   따른다. 기본값(`control`, 환경변수 미설정)에서는 지금처럼 렌더된다 — 지금 동작 불변.
 export function PortalLayout() {
   const claims = useAuthStore((s) => s.claims);
   const hideHeader = isPortalEmbedChannel();

@@ -95,7 +95,7 @@ slowBuild: true
 - 인코딩 UTF-8, 표준 SQL DDL (PostgreSQL 문법)
 - `klid_at` 스키마 운영 — **저작도구 전용(LS_*) 테이블은 자체 소유·구성**, 관제서버 재사용 8개(MNG_*)는 `ddl-auto=validate`로 읽기 위주 참조
 - Quartz 스케줄러 `QRTZ_*` 테이블은 PostgreSQL JobStore(`PostgreSQLDelegate`, BYTEA)로 운영
-- 외부 채널은 포털 DB 공유
+- **★저작도구와 포털은 서로의 DB 에 접근하지 않는다 (2026-08-31 사용자 확정, 구속)** — 데이터 교환은 **API** 로 설계한다. ⚠ 구 서술 *"외부 채널은 포털 DB 공유"* 는 **폐기**. 상세·현황·철거 상태는 「포털 (외부 채널)」 절이 정본이다(여기에 복제하지 않는다).
 - **관제 인프라 정합**: 관제서버도 PostgreSQL로 전환되며, 저작도구는 자신이 소유한 LS_* 테이블만 PostgreSQL용으로 구성한다. 공유 MNG_*/QRTZ_* 스키마는 인프라가 제공하고 저작도구는 validate/연동만 한다.
 
 ## 아키텍처 원칙
@@ -112,7 +112,7 @@ slowBuild: true
 - `common.exception.ErrorCode` enum + `CustomException` + `@RestControllerAdvice GlobalExceptionHandler`
 - `common.security.JwtAuthenticationFilter` — 관제/포털 JWT 디코드 → `TokenClaims` → `SecurityContext`
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
-- `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
+- `common.datasource.ControlDataSourceConfig` — control EntityManager/TransactionManager (`@ControlRepo`). ⚠ **듀얼 데이터소스는 철거됐다 (2026-08-31)** — 상호 DB 미접근 확정으로 `PortalDataSourceConfig`·`@PortalRepo`·복제 워커·발신함·Quartz 잡·메트릭이 **코드에서 제거**됐다. **되살리지 말 것.** ⚠ `LS_META_REPL_OUTBOX` **테이블 정의는 남아 있다** — 드롭 마이그레이션을 분리했고(되돌릴 수 없는 작업) 읽는 코드가 0건이라 무해하다
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
 - `common.client.*` — DeidentifyClient / AiServerClient / VlmClient / ControlNotifyClient / ExternalAugmentClient (Resilience4j 적용). 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
 
@@ -137,12 +137,13 @@ slowBuild: true
 |--------|------|:---------:|
 | `SPRING_PROFILES_ACTIVE` | local/dev/stg/prd | 전체 |
 | `CONTROL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | klid_system(PostgreSQL) 접속 | dev/stg/prd |
-| `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB(PostgreSQL) 접속 | dev/stg/prd |
 | `JWT_SECRET` / `JWT_ISSUER` | JWT 검증 | dev/stg/prd |
 | `DEIDENTIFY_API_URL` | 비식별 서버 | dev/stg/prd |
 | `AI_SERVER_URL` | ai-server 내부 주소 | 전체 |
 | `STORAGE_RAW_PATH` / `STORAGE_DEIDENTIFIED_PATH` | 저장 경로 | 전체 |
 | `VITE_API_BASE_URL` | FE API 주소 | FE 전체 |
+
+⚠ **`PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` 와 `META_REPLICATION_ENABLED` 는 2026-08-31 에 제거됐다** — 상호 DB 미접근 확정으로 읽는 코드가 없다. 옛 반입물에 남아 있어도 **되살리지 말 것**(반입 설정 템플릿에도 같은 경고가 있다).
 
 ### 환경별 접속 정보
 | 환경 | BE | ai-server | FE | DB | 비고 |
@@ -462,8 +463,64 @@ slowBuild: true
   - **배치는 원자 클레임(조건부 UPDATE)** 으로 중복 실행을 막고, **최종 DELETE 에도 조건을 다시 건다**(클레임 이후 복구가 끼어들 수 있다). Quartz 클러스터링은 트리거 중복만 막고 잡 내부 레이스는 막지 않는다.
 
 ### 포털 (외부 채널)
-- **데이터 소스**: 관제서버 → 데이터마트 → 포털 적재 (관제서버 책임). ★**관제서버와 포털은 API 연동으로 적재한다 — 둘 사이에 DB 공유는 없다** (2026-08-27 사용자 확정, 구속). ⚠ 구 서술 *"포털 **DB** 적재"* 는 **폐기** — 그 문장대로 이해하면 관제가 포털 DB 에 직접 쓰는 구조를 전제하게 된다. ⚠ **저작도구 → 포털 DB 단방향 복제(메타 복제 배치)는 별개 축이라 그대로다** — 제약은 관제↔포털 쌍에 대한 것이고, DB 축에만 걸린다(HTTP 연동·토큰 인계 등 다른 축은 무관).
-  - ⚠ **구 서술 폐기(2026-08-16 코드 실측)** — *"저작도구는 포털 DB에서 Load"* 는 **사실과 다르다.** 포털 라벨 경로(`PortalLabelService`)는 `controlTransactionManager` 로 묶이고 그것이 쓰는 리포지토리는 **전부 control(저작도구) 데이터소스**다. `@PortalRepo` 를 쓰는 것은 **메타 복제 축 하나뿐**이고(`PortalDatasetVideoMetaRepository`·`PortalMetaReplicaWriter`·`MetaReplicationWorker`) 그 방향은 **저작도구 → 포털 DB 쓰기**(단방향 at-least-once)다. 즉 **포털 DB 는 우리가 읽는 곳이 아니라 내보내는 곳**이다. 그 서술대로 이해하면 포털 화면의 조회 경로를 엉뚱한 데이터소스에서 찾게 된다. ⚠ 같은 오기가 **LogiCraft ITEM 여럿과 승인된 통합시험 시나리오에도 복제**돼 있다(별도 정합 대상)
+- **데이터 소스**: 관제서버 → 데이터마트 → 포털 적재 (관제서버 책임). ★**관제서버와 포털은 API 연동으로 적재한다 — 둘 사이에 DB 공유는 없다** (2026-08-27 사용자 확정, 구속). ⚠ 구 서술 *"포털 **DB** 적재"* 는 **폐기** — 그 문장대로 이해하면 관제가 포털 DB 에 직접 쓰는 구조를 전제하게 된다. ⚠ **구 예외 폐기(2026-08-31)** — *"저작도구 → 포털 DB 단방향 복제(메타 복제 배치)는 별개 축이라 그대로다"* 는 **더 이상 사실이 아니다.** 바로 아래 ★ 절이 그 예외를 닫았다.
+
+> ### ★저작도구와 포털은 서로의 DB 에 접근하지 않는다 (2026-08-31 사용자 확정, 구속)
+>
+> 데이터 교환은 **API** 로 설계한다. **양방향 약속**이다 — 저작도구가 포털 DB 에 쓰지 않고, 포털도 저작도구 DB 를
+> 참조하지 않는다(포털 측은 이미 「포털은 저작도구 내부 테이블을 참조하지 않는다」로 선언해 둔 상태이며 우리가 그것을 확인했다).
+>
+> - **닫힌 것 = 검수 승인 영상의 동결 메타 단방향 복제 1축.** `@PortalRepo` 사용처가 이 축 하나뿐이라
+>   (`PortalDatasetVideoMetaRepository` ← `PortalMetaReplicaWriter` ← `MetaReplicationWorker` ← 발신함)
+>   **저작도구가 포털 DB 를 무는 경로는 이것이 전부**다.
+> - ✅ **철거 완료 (2026-08-31)** — 듀얼 데이터소스(`PortalDataSourceConfig`·`@PortalRepo`)·복제 워커·발신함·
+>   Quartz 잡·메트릭이 **코드에서 제거**됐고, 반입 산출물의 포털 DB 생성·스키마 로드 단계와 `PORTAL_DB_*`·
+>   `META_REPLICATION_ENABLED` 설정도 함께 사라졌다. **되살리지 말 것.**
+>   ⚠ **`LS_META_REPL_OUTBOX` 테이블 정의는 남겼다** — 드롭 마이그레이션은 **분리**했다(되돌릴 수 없는 작업을
+>   한 묶음에 넣지 않는다). 읽는 코드가 0건이라 무해하며, 드롭 시점은 별도 판단이다.
+>   ⚠ **승인 트랜잭션에서 발신함 적재만 걷어냈고 동결 스냅샷은 그대로다** — 해시·동결 적재는 그보다 앞에서
+>   끝나고 발신함 직렬화는 그 어느 쪽의 입력도 아니었다. `V_COMPLETED_VIDEO` 계약면 무변경을 뷰 대조 시험
+>   3종(출력컬럼 이름·순서 일치 · `ACTIVE_Y`만 노출 · 승인영상당 1행)으로 확인했다.
+> - **대체 API 가 필요한지는 미확정** — 이 복제는 **쓰기 전용**이라 저작도구에 복제본을 읽는 경로가 **0건**이고, 포털
+>   설계에도 받는 테이블이 없다(양측 실측). 즉 **실 소비처가 어느 쪽에서도 확인되지 않는다.** 포털 회신으로 소비처가
+>   드러나면 REST 대체 경로를 설계하고, 없으면 대체 없이 철거한다. ⚠ 특히 **이벤트 어노테이션 동결 원문**은 이 복제
+>   말고 포털로 나가는 경로가 없다.
+> - **철거 순서** — 포털에 「철거 완료」를 통보하기 전에는 포털이 대상 테이블·계정을 지우지 않기로 했다(먼저 지우면
+>   워커가 실패해 발신함에 실패가 쌓인다). ⚠ 코드 철거는 끝났으므로 **이제 그 통보를 보낼 수 있다** — 보낸 뒤에야
+>   포털이 정리한다.
+> - 회신 근거: 저작도구 프로젝트 아티팩트 「[회신] 포털 DB 직접 쓰기 폐기」(2026-08-31).
+>
+> ### ★★배포가 채널마다 갈린다 — 저작도구는 두 벌이다 (2026-08-31 사용자 확정, 구속 · `ADR-012`)
+>
+> ⚠ **가장 자주 틀리는 지점이다.** 저작도구 서비스 **하나가 포털·관제 양쪽에 붙는 구조가 아니다.**
+> **포털에 붙는 저작도구**와 **관제에 붙는 저작도구**가 **각각 별도로 배포**되고, 각 배포본은
+> **자기 별도 PostgreSQL DB 에만 연결**한다. 포털향 DB 는 포털 채널에 맞춰 별도로 구성한다.
+> **두 배포본끼리도 직접 이어지지 않는다** — 서로의 DB 를 읽지 않고 서로를 직접 호출하지도 않는다.
+>
+> **자산 전달 경로 — 중계자는 관제다.**
+> ① **관제 채널 배포본**에서 검수 **승인** → **관제로 완료 통지**
+> ② **관제가 그 자산을 포털로 전달**(**압축 파일** 형태 예정 — 포털 측 수신은 재개 가능 업로드 +
+>    배포 등재·상태 폴링 규격)
+> ③ 이후 **포털이 포털 채널 배포본에 자산 수신을 API 로 알린다** — 그 배포본이 포털이 보유한
+>    자산을 조회해 작업 소재로 삼는다
+>
+> ⚠ **포털향 배포본이 관제향 배포본의 DB 나 API 를 직접 물어 승인 자산을 가져오는 그림은 틀렸다.**
+> 승인 자산이 포털 쪽으로 흐르는 경로는 위 3단계뿐이다.
+>
+>
+> **두 배포본은 인프라 소유 주체가 갈린다.**
+> - **관제 채널 배포본** — DB·NAS 모두 **관제지원 소유**(공유 NAS)
+> - **포털 채널 배포본** — **PostgreSQL 은 별도 서버이고 저작도구가 직접 관리**하며,
+>   **NAS 는 포털이 관리하는 별도 NAS**다(공유 NAS 아님)
+>
+> **포털 채널 배포본에는 `ai-server`(YOLO·SAM2 추론)가 붙지 않는다** — 오토라벨링·인터랙티브 분할이 없다.
+> AI 파이프라인(추론·외부 시계열 위탁·비식별·배치)은 **관제 채널 배포본에만** 있다.
+> ⚠ **외부 증강은 별개 축이다** — `ai-server` 가 아니라 외부 생성형 AI 위탁이며, 포털 업로드 영상 대상
+> 제공이 2026-08-26 에 확정됐다(`ADR-013` v10). 「ai-server 미연결」을 「포털에 AI 가 전혀 없다」로 읽지 말 것.
+> ⚠ **현재 코드는 단일 배포 시절 형상이다** — 포털 라벨 화면(`PortalLabelService`)이
+> `controlTransactionManager` 로 control DB 의 승인 자산을 **직접 읽는다**. 배포가 갈리면 그대로
+> 성립하지 않으므로, **이 코드를 근거로 「포털향도 control DB 를 읽으면 된다」고 추론하지 말 것.**
+  - ⚠ **구 서술 폐기(2026-08-16 코드 실측)** — *"저작도구는 포털 DB에서 Load"* 는 **사실과 다르다.** 포털 라벨 경로(`PortalLabelService`)는 `controlTransactionManager` 로 묶이고 그것이 쓰는 리포지토리는 **전부 control(저작도구) 데이터소스**다. `@PortalRepo` 를 쓰는 것은 **메타 복제 축 하나뿐**이고(`PortalDatasetVideoMetaRepository`·`PortalMetaReplicaWriter`·`MetaReplicationWorker`) 그 방향은 **저작도구 → 포털 DB 쓰기**(단방향 at-least-once)다. 즉 **포털 DB 는 우리가 읽는 곳이 아니라 내보내는 곳**이다. 그 서술대로 이해하면 포털 화면의 조회 경로를 엉뚱한 데이터소스에서 찾게 된다. ⚠ 같은 오기가 **LogiCraft ITEM 여럿과 승인된 통합시험 시나리오에도 복제**돼 있다(별도 정합 대상). ⚠ **2026-08-31 보정** — 「내보내는 곳」이라는 방향 서술은 여전히 맞으나 **그 내보내기 축 자체가 폐기 확정**이다(위 ★ 절). **2026-08-31 철거 완료** — 지금 실측하면 그 경로가 없다(위 ★ 절).
 - 관제서버가 제공한 데이터마트를 포털에 등록 → 포털 사용자가 영상 선택 → 기존 저장 라벨/메타 Load → 라벨링 화면에 표시
 - **저장 시 원본·데이터마트 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 별도 적재, **데이터마트에 정합/반영 안 됨(단방향)**
 - 다운로드는 사용자 작업 데이터 기준
@@ -477,8 +534,8 @@ slowBuild: true
 
 ### DB 정책
 - `klid_at` 스키마(PostgreSQL)에 저작도구 전용 테이블(LS_*) 운영 — 저작도구가 직접 소유·구성
-- **★전 환경·전 채널 PostgreSQL 이다 — 포털향을 다른 RDB 로 가르지 않는다 (2026-08-28 사용자 확정, 구속)**: 관제향(control)과 **포털향(portal) DB 가 모두 PostgreSQL** 이며, *"포털향은 MariaDB 로 전환될 수 있다"* 는 검토는 **기각**됐다(관제향 PostgreSQL / 포털향 MariaDB 두 벌로 가르는 **분리 빌드 미채택**).
-  - **귀결 — 이기종 대응을 미리 넣지 않는다.** 포털 복제 upsert 의 `CAST(... AS jsonb)` · `ON CONFLICT ... DO NOTHING` 은 잠정 선택이 아니라 **확정 전제**이므로, 방언 중립(dialect-neutral)으로 되돌리거나 그것을 제약으로 새로 세우지 말 것. 복제본은 원본(control)과 **같은 문법으로 동형**을 유지한다. 판정 진실원은 `INT-009`.
+- **★전 환경·전 채널 PostgreSQL 이다 — 포털향을 다른 RDB 로 가르지 않는다 (2026-08-28 사용자 확정, 구속)**: 관제향(control)과 **포털향(portal) DB 가 모두 PostgreSQL** 이며, *"포털향은 MariaDB 로 전환될 수 있다"* 는 검토는 **기각**됐다(관제향 PostgreSQL / 포털향 MariaDB 로 **DBMS 를 이기종으로 가르는** 안 미채택). ⚠ **기각된 축은 DBMS 이기종화이지 배포 분리가 아니다** — 저작도구는 **채널별로 별도 배포되고 각 배포본이 자기 별도 PostgreSQL DB 를 갖는다**(2026-08-31 확정 · 위 「포털 (외부 채널)」 절의 ★★ 블록 · `ADR-012`). 이 문장을 근거로 그 형상을 금지된 것으로 읽지 말 것.
+  - **귀결 — 이기종 대응을 미리 넣지 않는다.** 포털 복제 upsert 의 `CAST(... AS jsonb)` · `ON CONFLICT ... DO NOTHING` 은 잠정 선택이 아니라 **확정 전제**이므로, 방언 중립(dialect-neutral)으로 되돌리거나 그것을 제약으로 새로 세우지 말 것. 복제본은 원본(control)과 **같은 문법으로 동형**을 유지한다. 판정 진실원은 `INT-009`. ⚠ **2026-08-31 보정** — 이 지침의 대상인 **포털 복제 자체가 폐기 확정**이라 철거와 함께 소멸한다(「포털 (외부 채널)」 절). **2026-08-31 철거 완료로 이 지침은 소멸**했다(대상 코드가 없다). **PostgreSQL 단일 형상 확정은 복제와 무관하게 유지**된다.
   - ⚠ **낡은 근거를 되살리지 말 것** — 코드 주석의 *"TO_CHAR 가 MariaDB 미지원이라"*(통계 일별·월별 그룹화) · *"H2(local) / MariaDB(dev/stg/prd) 모두 지원"*(배치 큐 잠금)은 **1차 MariaDB 시절 서술**이고 전부 폐기됐다. **local 도 Testcontainers PostgreSQL** 이다. 단 그 서술이 낳은 **동작(Java 측 키 생성 · 비관적 잠금 no-wait)은 그대로 둔다** — 근거만 무효이고 바꿔서 얻는 것이 없다.
   - ⚠ **v1(1차) 관련 MariaDB 기록은 정정 대상이 아니다** — `ADR-010`(MariaDB→PostgreSQL 전환 결정) · LogiCraft `legacy_artifact` 30건의 `legacy_dbms: MariaDB` · ERD 의 `legacy_source.legacy_dbms` 는 **v1 사실의 기록**이라 그대로 둔다.
 - **★스키마 `klid_at` 은 이제 설정으로 실제 배선돼 있다 (2026-08-13 — 전 환경, 구속)**: 그 전까지 이 서술은 **설계 문서에만 있고 코드에는 없었다**(어디에도 스키마 지정이 없어 PostgreSQL 기본값 `public` 으로 떨어져 있었다 — 주석·javadoc 에만 존재하던 드리프트).
@@ -527,7 +584,7 @@ slowBuild: true
 - `klid_at` 스키마에 **View 4종이 실재**한다 — 검수 완료(`LS_RAW_DATA_STATUS.DATA_STTS_CD='APPROVED'`) 영상만 노출
   - **★관제 연동 규격이 규정하는 조회 채널은 `V_COMPLETED_VIDEO` 하나다 (2026-08-19 정합)**: 정본 `docs/관제-저작도구-데이터연동-규격서-20260805.md` §1 이 전달 수단을 **「①인입 ②통지 ③조회」 3개 채널로 전수 열거**하고 그 ③이 이 뷰 하나이며, §2 흐름도·§5 뷰 명세도 동일하다. **나머지 3종은 규격서에 언급 0건**이다.
   - ⚠ **그렇다고 3종을 지우거나 「미사용」으로 단정하지 말 것 — 미합의 상태이지 폐기가 아니다.** 코드·위키 여러 곳이 이 뷰들을 관제 노출면으로 **전제**하고 그 위에 판단을 세워 뒀다: 비식별 신고 절이 `V_COMPLETED_FRAME.DEIDENTIFIED_PATH` **노출**을 근거로 프레임 복구를 막고 · R12 가 `vlm.accuracy` 의 `V_COMPLETED_META` **미도달**을 의도된 설계로 못박고 · 라벨 이력 추가가 `V_COMPLETED_LABEL_CHANGE` 에 미치는 영향 때문에 별건으로 미뤄져 있다. 뷰를 없애면 이 논거들이 함께 무너진다. **좁히려면 관제 계약 협의가 선행**돼야 한다(관제 pull API `TaskQueryService.getMeta` 를 임의로 좁히지 않는 것과 같은 축).
-  - `V_COMPLETED_VIDEO` : **V174 재작성 — 30컬럼**(정본 `docs/관제-저작도구-데이터연동-규격서-20260805.md` §5-1). 관제가 `datasets`·`dataset_versions` 를 SELECT 1회로 채우고 산출물을 픽업하는 계약면이다. 영상 메타 + 원본 영상 경로(`ORGNL_VDO_PATH_NM`) + 검수 완료 일시(`RVW_CMPTN_DT`) + **산출 폴더 경로(`OUTPUT_PATH_NM`)·프레임수(`FRME_CNT`)·산출 용량(`DATA_ETBL_CPCT`)** — 최신 SUCCEEDED/PARTIAL export(`LS_DATASET_EXPORT`) 조인. LATERAL 4개(산출 원장·비식별 이력·인입·라벨 집계)가 모두 최대 1행이라 **영상 1건=1row** 불변.
+  - `V_COMPLETED_VIDEO` : **규격서 §5-1 의 31컬럼**(정본 `docs/관제-저작도구-데이터연동-규격서-20260805.md`). ⚠ **V174 시점은 30컬럼이었고 그 뒤 `V16`·`V17` 이 지나 31 이 됐다** — 판정 진실원은 회귀 가드 `DatamartViewRebuildIT(뷰_출력컬럼이_규격서_31개와_이름_순서까지_일치)` 다. 관제가 `datasets`·`dataset_versions` 를 SELECT 1회로 채우고 산출물을 픽업하는 계약면이다. 영상 메타 + 원본 영상 경로(`ORGNL_VDO_PATH_NM`) + 검수 완료 일시(`RVW_CMPTN_DT`) + **산출 폴더 경로(`OUTPUT_PATH_NM`)·프레임수(`FRME_CNT`)·산출 용량(`DATA_ETBL_CPCT`)** — 최신 SUCCEEDED/PARTIAL export(`LS_DATASET_EXPORT`) 조인. LATERAL 4개(산출 원장·비식별 이력·인입·라벨 집계)가 모두 최대 1행이라 **영상 1건=1row** 불변.
     - ⚠ **미export 영상의 두 값은 대칭이 아니다** — `FRME_CNT` 는 **0**(규격서가 NOT NULL 로 공표, 관제 `datasets.img_nocs` 공급)이고 `OUTPUT_PATH_NM`·`DATA_ETBL_CPCT` 는 **NULL** 이다. 구 서술 "미export 영상은 두 값 null" 은 **폐기**(V174).
     - ⚠ **출력명 6건이 V174 에서 표준 물리명으로 바뀌었다** — `DURATION_SEC`→`VDO_LEN_SEC` · `FRAME_CNT`→`FRME_CNT` · `REVIEW_COMPLETED_AT`→`RVW_CMPTN_DT` · `ORIGINAL_VIDEO_PATH`→`ORGNL_VDO_PATH_NM` · `EXPORT_PATH_NM`→`OUTPUT_PATH_NM` · `EXPORT_STTS_CD`→`OUTPUT_STTS_CD`. **V173 의 원장 rename 은 뷰 출력명을 바꾸지 않았다**(PostgreSQL 은 `RENAME COLUMN` 시 뷰 *본문*만 추종하고 출력명은 자동 별칭으로 보존한다) — 관제 계약면을 실제로 바꾼 것은 **V174** 다.
     - ⚠ 인입(`LS_DATA_INGEST`) 유래 컬럼(`EVNT_CLSF_CD`·`EVNT_CTGRY_CD`·`LCLGV_NM`·`SRC_*_INCL_YN`)은 **동결 스냅샷에 넣지 않고 LATERAL 조인**한다(설계 D1) — 인입은 관제 수신 원장이라 불변이므로 동결과 라이브 조인의 결과가 같다. 조인 규칙은 앱의 단일 진실원 `IngestSourceLink` 와 동일. **파생영상은 대응 인입 행이 없어 `SRC_*_INCL_YN` 이 NULL** 이다.
