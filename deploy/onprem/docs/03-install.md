@@ -288,7 +288,13 @@ sudo ./scripts/install/install-ffmpeg.sh --force
 ## 설치 후 필수 단계 (사람이 한다 — 건너뛸 수 없다)
 
 1. **`/etc/klid/application.properties` 편집** — DB 비밀번호, JWT_SECRET, STREAM_SIGN_SECRET,
-   webhook HMAC 등 (키 목록은 04 참고). **WAR 형상에서 WAS 가 읽는 파일은 이것이다.**
+   webhook HMAC, **`ADMIN_CLAIM_PASSWORD_HASH`** 등 (키 목록은 04 참고).
+   **WAR 형상에서 WAS 가 읽는 파일은 이것이다.**
+   ⚠ **`ADMIN_CLAIM_PASSWORD_HASH` 는 빠뜨려도 아무 신호가 없다.** 다른 비밀값은 비면 해당
+   기능이 곧바로 실패하거나(스트림 서명) 부팅이 막히는데(prd 의 webhook HMAC), 이것만은 기동도
+   헬스체크도 스모크도 전부 통과하고 **관리자 권한 부여 창구만 항상 401** 이라 아무도 관리자가
+   되지 못한다. BCrypt 해시(cost 12 이상)만 넣는다 — 평문을 넣으면 기동이 실패한다.
+   생성은 04 의 치트시트: `htpasswd -bnBC 12 "" '평문' | tr -d ':\n'`
    WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` 와
    `-Dspring.profiles.active=prd` 를 넣고, JVM 옵션(MaxRAMPercentage·G1GC·egd)은 `CATALINA_OPTS` 로 옮긴다.
    ⚠ **`SPRING_` 으로 시작하는 스프링 자체 설정은 이 파일에서 이름 변환이 일어나지 않는다** —

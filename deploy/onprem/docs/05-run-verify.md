@@ -180,6 +180,16 @@ sudo -u postgres psql -d klid_system -tAc \
 절차는 [04-configuration.md](04-configuration.md) 의 「G. 최초 관리자(ADMIN) 만들기」 절이 정본이다. 자가부여 창구는
 **관리자가 0명일 때만** 열리고 한 명이라도 생기면 닫히므로, 최초 1회는 그 창이 열려 있는 동안 끝낸다.
 
+> ⚠ **그 절차는 `ADMIN_CLAIM_PASSWORD_HASH` 가 채워져 있어야만 성립한다.** 비어 있으면 창구가
+> **항상 401** 이라 창이 열려 있어도 아무도 통과하지 못하는데, 여기까지의 헬스·스모크는 전부
+> 정상이라 화면에는 "패스워드가 틀렸다"로만 보인다. 아래로 먼저 확인한다 — 값이 안 나오면
+> 03 의 「설치 후 필수 단계」 1번으로 돌아간다.
+>
+> ```bash
+> sudo grep -c '^ADMIN_CLAIM_PASSWORD_HASH=\$2[aby]\$' /etc/klid/application.properties
+> # 1 이면 설정됨. 0 이면 미설정이거나 평문(평문이면 애초에 기동이 실패한다)
+> ```
+
 ## 추가 스모크(선택)
 
 ```bash
