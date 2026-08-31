@@ -358,7 +358,7 @@
           }
         }
       ],
-      "description": "소규모 서브시스템 3종 그룹.\n\n(1) 작업배정: AssignmentController(/v1/assignments) → AssignmentService 가 REVIEWER→WORKER 배정·재배정·이력을 처리. 목록은 시간축 단일 정렬이고 필터·집계는 BE 에서 전체 기준으로 처리하며 정렬키는 allowlist 로만 해석한다. ⚠ 미등록 정렬키 응답은 작업목록 strict(400) / 검수목록 lenient(200 폴백) 로 다르며 이는 하위호환 근거에 따른 의도된 비대칭이다.\n\n(2) 포털: ★로드·저장 / 자산 업로드 / 내려받기 축으로 갈린다. PortalLabelController(/v1/portal)→PortalLabelService 가 데이터마트 영상 라벨 Load·사용자별 적재(원본 미수정)를 맡는다 — 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르고 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다(편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치이며, 트랙 번호 변경·병합은 포털에 두지 않는다). PortalUploadController/PortalTusUploadController/PortalUploadLabelController(/v1/portal/uploads)가 본인 자산 업로드·프레임 추출·수동 라벨링을 맡는다(ADR-013 예외, LS_PORTAL_* 전용·내부 파이프라인과 분리). 업로드 영상은 PortalVideoUploadedEvent(EVT-012) → PortalFrameExtractBridge 로 프레임을 뽑는다. PortalDatamartDownloadController(/v1/portal/datamart)는 본인 작업 데이터 묶음 내려받기를 맡고, 조회 단계(PortalDatamartDownloadTxService)와 산출 단계(PortalDatamartDownloadService)가 트랜잭션 경계로 갈린다 — 산출물은 검수 승인 학습데이터 산출물과 같은 구조라 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 내며, 영상 단위로 라벨을 모아 담던 단일 문서는 두지 않는다. 이미지와 문서가 가리키는 경로는 비식별 기준이고 원본 폴백이 없다.\n\n(3) 관제 통지: ★export 직렬화가 끼어 있다. ReviewApprovedEvent(EVT-006) → DatasetExportBridge 가 export 전량 재생성 → DatasetExportCompletedEvent(EVT-009) → ControlNotifyEventListener 가 받아 Debouncer→ControlNotifyService→ControlNotifyClient 로 outbound 통지, 실패 시 Fallback 재등록. TaskModifiedEvent 는 TaskModifiedAccumulateListener 가 윈도우에 축적하고, 같은 이벤트가 ReviewRecheckMarkListener 를 통해 재검토 표시(REVLT_YN)를 세워 만료 flush 를 보류시킨다 — 재생성과 수정 통지는 검수자가 그 수정을 다시 승인해 표시가 해제된 뒤 디바운서가 낸다. TaskQueryController(/v1/tasks)는 관제 inbound 조회 API 로, 신고 구간에는 라벨 본문 조회가 412 로 차단된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
+      "description": "소규모 서브시스템 3종 그룹.\n\n(1) 작업배정: AssignmentController(/v1/assignments) → AssignmentService 가 REVIEWER→WORKER 배정·재배정·이력을 처리. 목록은 시간축 단일 정렬이고 필터·집계는 BE 에서 전체 기준으로 처리하며 정렬키는 allowlist 로만 해석한다. ⚠ 미등록 정렬키 응답은 작업목록 strict(400) / 검수목록 lenient(200 폴백) 로 다르며 이는 하위호환 근거에 따른 의도된 비대칭이다.\n\n(2) 포털: ★로드·저장 / 자산 업로드 / 내려받기 축으로 갈린다. PortalLabelController(/v1/portal)→PortalLabelService 가 데이터마트 영상 라벨 Load·사용자별 적재(원본 미수정)를 맡는다 — 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르고 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다(편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치이며, 트랙 번호 변경·병합은 포털에 두지 않는다). PortalUploadController/PortalTusUploadController/PortalUploadLabelController(/v1/portal/uploads)가 본인 자산 업로드·프레임 추출·수동 라벨링을 맡는다(ADR-013 예외, LS_PORTAL_* 전용·내부 파이프라인과 분리). 업로드 영상은 PortalVideoUploadedEvent(EVT-012) → PortalFrameExtractBridge 로 프레임을 뽑는다. PortalDatamartDownloadController(/v1/portal/datamart)는 본인 작업 데이터 묶음 내려받기를 맡고, 조회 단계(PortalDatamartDownloadTxService)와 산출 단계(PortalDatamartDownloadService)가 트랜잭션 경계로 갈린다 — 산출물은 검수 승인 학습데이터 산출물과 같은 구조라 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 내며, 영상 단위로 라벨을 모아 담던 단일 문서는 두지 않는다. 이미지와 문서가 가리키는 경로는 비식별 기준이고 원본 폴백이 없다.\n\n(3) 관제 통지: ★export 직렬화가 끼어 있다. ReviewApprovedEvent(EVT-006) → DatasetExportBridge 가 export 전량 재생성 → DatasetExportCompletedEvent(EVT-009) → ControlNotifyEventListener 가 받아 ControlNotifyService.sendCompleted→ControlNotifyClient 로 outbound 통지(완료 통지는 디바운스를 거치지 않는다), 실패 시 Fallback 재등록. TaskModifiedEvent 는 TaskModifiedAccumulateListener 가 윈도우에 축적하고, 같은 이벤트가 ReviewRecheckMarkListener 를 통해 재검토 표시(REVLT_YN)를 세워 만료 flush 를 보류시킨다 — 재생성과 수정 통지는 검수자가 그 수정을 다시 승인해 표시가 해제된 뒤 디바운서가 낸다. TaskQueryController(/v1/tasks)는 관제 inbound 조회 API 로, 신고 구간에는 라벨 본문 조회가 412 로 차단된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
       "module_name": "assignment + portal + controlnotify",
       "relationships": [
         {
@@ -422,9 +422,9 @@
           "description": "영상·프레임·라벨·메타 조회"
         },
         {
-          "to": "ControlNotifyDebouncer",
+          "to": "ControlNotifyService",
           "from": "ControlNotifyEventListener",
-          "description": "통지 디바운스"
+          "description": "export 완료 수신 → sendCompleted 직접 호출 (완료 통지는 디바운스 미경유)"
         },
         {
           "to": "ControlNotifyService",
@@ -532,6 +532,7 @@
           "description": "산출 구조·파일명 규칙 공유"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-006",
         "DFEAT-043",
@@ -614,12 +615,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 14,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "포털 축의 본문을 현행 사양과 전면 대조해 현행화한다. 첫째, 내려받기 축이 이 도해에 통째로 빠져 있었다 — 이 도해가 그리기로 선언한 기능의 실현 엔드포인트에 묶음 내려받기가 들어 있는데 그 경로를 맡는 진입점과 조회·산출 두 단계가 컴포넌트에도 관계에도 없어, 도해만 보면 포털이 로드·저장과 자산 업로드만 하는 것으로 읽혔다. 진입점과 두 단계를 넣고 사람에서 시작해 저장소와 산출 규칙까지 닿는 경로를 관계로 이었다. 산출물이 검수 승인 학습데이터 산출물과 같은 구조라는 점, 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 내고 영상 단위로 라벨을 모아 담던 단일 문서를 두지 않는다는 점, 이미지와 문서가 가리키는 경로가 비식별 기준이고 원본 폴백이 없다는 점을 함께 적었다. 조회 단계와 산출 단계가 트랜잭션 경계로 갈리는 이유와 접근 판정 순서가 상태 오라클 차단 장치라는 점도 남겼다. 둘째, 원본 연결 보존 축이 반영돼 있지 않았다 — 포털 라벨 서비스와 저장소 서술이 라벨 유형·라벨명·좌표만 다루던 시점에 머물러, 저장소가 라벨 마스터 참조와 트랙 식별자를 보유하고 조회·저장 응답과 저장 요청이 그 값을 함께 나른다는 사실이 어디에도 없었다. 두 서술에 그 보유와 왕복을 적고, 화면이 표시하지 않은 채 되돌려 보낸다는 점과 이것이 편집 수단이 아니라 저장 왕복에서 끊기던 연결을 지키는 장치라는 점, 트랙 번호 변경·병합을 포털에 두지 않는다는 결정이 그대로라는 점을 명시했다. 아울러 포털 절 첫머리가 갈래를 숫자로 못박고 있어 축이 하나 늘 때마다 틀리던 표기를 축 이름을 나열하는 방식으로 바꿨다. 배정 축과 관제 통지 축, 자산 업로드 축의 서술은 대조 결과 어긋난 곳이 없어 그대로 두었고, 기존 컴포넌트는 전건이 실재해 제거 대상이 없었다.",
+    "current_version": 15,
+    "stale": true,
+    "stale_reason": "API-081의 2개 필드 변경이 depicts로 2-hop 전파",
+    "change_summary": "정합(코드 진실원): 완료 통지 경로 정정 — ControlNotifyEventListener.onExportCompleted 는 ControlNotifyService.sendCompleted 를 직접 호출하며 ControlNotifyDebouncer 를 경유하지 않는다(디바운서는 TASK_MODIFIED 축 전용). 관계 간선 EventListener→Debouncer 를 EventListener→ControlNotifyService 로, 본문 Debouncer→ControlNotifyService 서술을 sendCompleted 직접호출로 정정",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T04:54:44.087Z",
+    "last_updated_at": "2026-08-31T04:25:40.724Z",
     "created_at": "2026-06-02T13:17:00.252Z"
   }
 }

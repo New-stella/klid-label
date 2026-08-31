@@ -1,19 +1,19 @@
 ---
 logicraft_item: CDIAG-013
 type: class_diagram
-version: 7
+version: 8
 domain: DOMAIN-016
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.374Z
-status: NEW
-prev_version: null
-content_hash: e0d9f0539fa7996949a7be4a7b3b573fe42ac824b554339e34fcef529109bbe9
+synced_at: 2026-08-31T11:08:50.282Z
+status: CHANGED
+prev_version: 7
+content_hash: a9eed62699a20adb9367deca086ff056b90caf2417e97504452f3d47bb21f431
 stale: false
 raw: ./_raw/CDIAG-013.json
 links:
   belongs_to_domain: ["[[DOMAIN-016]]"]
   depicts: ["[[DFEAT-046]]", "[[DFEAT-047]]"]
-  references: ["[[DFEAT-046]]", "[[DFEAT-047]]"]
+  references: ["[[DFEAT-046]]", "[[DFEAT-047]]", "[[ERD-021]]", "[[ERD-027]]"]
 ---
 
 # 관제 통지 도메인 모델
@@ -98,6 +98,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### idmpKey
 
 - **type**: String
@@ -124,6 +128,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -156,6 +164,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rawSn
 
 - **type**: Long
@@ -182,6 +194,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -214,6 +230,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rtryCnt
 
 - **type**: Integer
@@ -240,6 +260,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -272,6 +296,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### sttsCd
 
 - **type**: NotifyQueueStatus
@@ -298,6 +326,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -330,6 +362,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### nextRtryDt
 
 - **type**: LocalDateTime
@@ -356,6 +392,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -388,6 +428,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -414,6 +458,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -446,6 +494,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### sendRsltCd
 
 - **type**: String
@@ -473,6 +525,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -545,6 +601,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### chnlCd
 
 - **type**: WebhookChannel
@@ -571,6 +631,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -603,6 +667,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### otsdJobId
 
 - **type**: String
@@ -629,6 +697,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -662,6 +734,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### aplcnDt
 
 - **type**: LocalDateTime
@@ -688,6 +764,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -720,6 +800,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -746,6 +830,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -825,7 +913,7 @@ _(empty)_
 
 - DEIDENTIFY
 - VLM
-- AUGMENT
+- VLM_SUB
 
 **stereotypes**:
 
@@ -915,6 +1003,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rawSn
 
 - **type**: Long
@@ -942,6 +1034,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -975,6 +1071,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### exportRprcsYn
 
 - **type**: String
@@ -1002,6 +1102,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1035,6 +1139,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -1065,6 +1173,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -1092,6 +1204,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1168,6 +1284,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### eventTypeCd
 
 - **type**: String
@@ -1195,6 +1315,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1228,6 +1352,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### evntCtgryCd
 
 - **type**: String
@@ -1255,6 +1383,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1288,6 +1420,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lclgvNm
 
 - **type**: String
@@ -1315,6 +1451,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1348,6 +1488,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### imageCount
 
 - **type**: int
@@ -1375,6 +1519,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1408,6 +1556,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### outputVerNo
 
 - **type**: Integer
@@ -1435,6 +1587,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1488,6 +1644,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### changedItems
 
 - **type**: ChangedItems
@@ -1515,6 +1675,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1548,6 +1712,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### outputVerNo
 
 - **type**: Integer
@@ -1575,6 +1743,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1628,6 +1800,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### jsons
 
 - **type**: List<String>
@@ -1655,6 +1831,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1756,10 +1936,40 @@ ControlNotify
 - **to_multiplicity**: 1
 - **from_multiplicity**: 1
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-046
 - DFEAT-047
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

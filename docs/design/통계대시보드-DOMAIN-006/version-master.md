@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-08-29T01:27:30.140Z |
-| Mode | SYNC — NEW 0 / CHANGED 10 / UNCHANGED 35 |
-| 출력 루트 | docs/design/통계대시보드-DOMAIN-006/ |
+| Last sync | 2026-08-31T11:12:45.353Z |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 46 |
+| 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-006 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 10건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 11건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -24,12 +24,11 @@
   🚨 erd: 이번 키트 0건 / 프로젝트 전역 23건 — 전량 누락
   🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 26건 (그중 domain_id 없음 14건) — 전량 누락
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 34건
-  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 29건 (그중 domain_id 없음 2건)
+  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 33건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 121건 (그중 domain_id 없음 41건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 70건
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
   ℹ️  adr: 이번 키트 4건 / 스코프 밖 44건 (그중 domain_id 없음 7건)
-  ℹ️  nfr: 이번 키트 14건 / 스코프 밖 1건 (그중 domain_id 없음 1건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -42,45 +41,36 @@
 
 ## Changelog (this run)
 
-- CHANGED [[API-001]] (prev v6)
-- CHANGED [[API-055]] (prev v6)
-- CHANGED [[API-057]] (prev v6)
-- CHANGED [[API-058]] (prev v3)
-- CHANGED [[API-072]] (prev v10)
-- CHANGED [[DFEAT-026]] (prev v3)
-- CHANGED [[DFEAT-027]] (prev v4)
-- CHANGED [[DFEAT-028]] (prev v4)
-- CHANGED [[SCREEN-011]] (prev v21)
-- CHANGED [[SCREEN-021]] (prev v28)
+- (변경 없음)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-029]] | acceptance | 3 | UNCHANGED |
-| [[AC-030]] | acceptance | 2 | UNCHANGED |
-| [[AC-031]] | acceptance | 2 | UNCHANGED |
+| [[AC-1043]] | acceptance | 3 | UNCHANGED |
+| [[AC-1084]] | acceptance | 1 | UNCHANGED |
+| [[AC-1085]] | acceptance | 2 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-019]] | adr | 8 | UNCHANGED |
 | [[ADR-038]] | adr | 4 | UNCHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
-| [[API-001]] | api_endpoint | 6 | CHANGED |
+| [[API-001]] | api_endpoint | 6 | UNCHANGED |
 | [[API-042]] | api_endpoint | 8 | UNCHANGED |
-| [[API-055]] | api_endpoint | 6 | CHANGED |
+| [[API-055]] | api_endpoint | 6 | UNCHANGED |
 | [[API-056]] | api_endpoint | 7 | UNCHANGED |
-| [[API-057]] | api_endpoint | 6 | CHANGED |
-| [[API-058]] | api_endpoint | 3 | CHANGED |
-| [[API-072]] | api_endpoint | 10 | CHANGED |
+| [[API-057]] | api_endpoint | 6 | UNCHANGED |
+| [[API-058]] | api_endpoint | 4 | UNCHANGED |
+| [[API-072]] | api_endpoint | 10 | UNCHANGED |
 | [[CDIAG-009]] | class_diagram | 4 | UNCHANGED |
-| [[DFEAT-026]] | domain_feature | 3 | CHANGED |
-| [[DFEAT-027]] | domain_feature | 4 | CHANGED |
-| [[DFEAT-028]] | domain_feature | 4 | CHANGED |
+| [[DFEAT-026]] | domain_feature | 3 | UNCHANGED |
+| [[DFEAT-027]] | domain_feature | 4 | UNCHANGED |
+| [[DFEAT-028]] | domain_feature | 4 | UNCHANGED |
 | [[DOMAIN-006]] | domain | 8 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
 | [[NFR-011]] | nfr | 5 | UNCHANGED |
-| [[NFR-012]] | nfr | 4 | UNCHANGED |
+| [[NFR-012]] | nfr | 5 | UNCHANGED |
 | [[NFR-013]] | nfr | 9 | UNCHANGED |
 | [[NFR-014]] | nfr | 3 | UNCHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
@@ -90,15 +80,16 @@
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
 | [[NFR-020]] | nfr | 8 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
+| [[NFR-022]] | nfr | 2 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
-| [[SCREEN-011]] | screen_spec | 21 | CHANGED |
+| [[SCREEN-011]] | screen_spec | 21 | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 32 | UNCHANGED |
-| [[SCREEN-021]] | screen_spec | 28 | CHANGED |
+| [[SCREEN-021]] | screen_spec | 29 | UNCHANGED |
 | [[SD-014]] | screen_design | 5 | UNCHANGED |
 | [[SD-030]] | screen_design | 5 | UNCHANGED |
 | [[SD-031]] | screen_design | 2 | UNCHANGED |
 | [[TEST-006]] | test_scenario | 2 | UNCHANGED |
-| [[UC-033]] | use_case | 3 | UNCHANGED |
+| [[UC-033]] | use_case | 4 | UNCHANGED |

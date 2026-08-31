@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-011
 type: class_diagram
-version: 11
+version: 12
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:37:03.064Z
+synced_at: 2026-08-31T11:08:59.710Z
 status: CHANGED
-prev_version: 10
-content_hash: 90abd4bc8f301c0647f8f68ed1e72fc335883940ce4bb3cfc241a099f4524fcf
+prev_version: 11
+content_hash: 73c75ba1294702bfc7454f473dc88b4095b1d254390930521a33eebed646a8a9
 stale: false
 raw: ./_raw/CDIAG-011.json
 links:
@@ -466,7 +466,8 @@ _(empty)_
 [★경로 B — 본인 자산 업로드 (ADR-013 예외, 2026-07-17 — 이전에 미등재)] 포털 사용자가 직접 올린 이미지·영상은 전용 테이블군으로 관리된다 — LS_PORTAL_ULD(업로드 마스터) · LS_PORTAL_ULD_FRME(추출 프레임) · LS_PORTAL_ULD_LBL(수동 라벨, BBOX/POLYGON 만) · LS_PORTAL_TUS_ULD(재개 업로드 세션). 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View 와 완전 분리된다. 업로드 상태는 UPLOADED→PROCESSING→READY|FAILED.
 
 [경계] 두 경로는 서로 참조하지 않는다.
-★오토라벨링(YOLO/SAM2)·SAM2 분할·SAM2 추적·키포인트·VLM·검수·버전관리는 두 경로 모두 제공하지 않는다(ADR-013). 구 서술은 이 목록을 경로 B 에만 걸어 경로 A 에는 SAM2 가 있는 것처럼 읽혔으나 폐기한다 — 부분 override 는 존재하지 않는다.
+★두 경로 모두 제공하지 않는 것 — 오토라벨링(YOLO)·SAM2 인터랙티브 분할·SAM2 자동추적·키포인트·트랙 번호 변경/병합·검수·버전관리, 그리고 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)이다(ADR-013). SAM2·키포인트 미제공은 2026-08-03 보안 판정으로 서버에서 제거된 축이라 그대로다.
+[★제공 범위 확대 (ADR-013 v10, 2026-08-26 확정·구속)] 「미제공」의 축은 외부 서버 연동이지 화면 표시·사용자 수정까지 막는 것이 아니다. 데이터마트 로드분의 메타(촬영환경·프레임 설명·개인정보 판정·시계열 메타)와 이벤트 어노테이션은 포털 작업 화면에 표시하고 포털 사용자가 직접 수정·추가할 수 있으며, 그 결과는 포털 전용 저장소에만 적재되고 데이터마트·원본 동결본을 수정하지 않는다(단방향). 업로드 영상(경로 B)에 한해 이벤트구간 마킹과 AI 증강 연동을 제공한다(증강 요청 계약·파생물 적재 위치 미확정). ⚠ 구 서술 폐기 — 「VLM·메타 포함 전면 미제공」은 VLM 축을 너무 넓게 적은 것이라 폐기한다(그 서술을 근거로 화면 기능을 막지 말 것). 현재 코드에는 포털 메타·어노테이션 API 가 아직 없다(화면 미구현).
 라벨 편집은 두 경로 모두 수동 라벨링(BBOX/POLYGON)만이며, 서버 allowlist(경로 A = PortalLabelService.validateAndNormalizeType, 경로 B = PortalUploadLabelService)가 그 외 도형을 400 으로 거부한다.
 경로 B 는 추가로 비식별을 적용하지 않고 고정 간격 프레임 추출만 한다.
 
@@ -484,6 +485,10 @@ Portal
 - **label**: 라벨유형
 - **to_multiplicity**: 1
 - **from_multiplicity**: 1
+
+## attached_files
+
+_(empty)_
 
 ## depicts_dfeats
 

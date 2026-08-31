@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-002
 type: class_diagram
-version: 6
+version: 7
 domain: DOMAIN-011
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:10.952Z
+synced_at: 2026-08-31T11:08:57.207Z
 status: CHANGED
-prev_version: 5
-content_hash: be533104302344233479890ed393fbcda0d969bc48dc426c8e27eaec912b57cb
-stale: true
+prev_version: 6
+content_hash: e3f84fb3a431e733255a7b98e184c9b96dd111642eda896669f1782da6d74fdb
+stale: false
 raw: ./_raw/CDIAG-002.json
 links:
   belongs_to_domain: ["[[DOMAIN-011]]"]
@@ -419,6 +419,40 @@ _(empty)_
 
 _(empty)_
 
+#### vrfcEvntQstnSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **description**: VLM 시계열 위탁 시 실을 검증 이벤트 질문(LS_VRFC_EVNT_QSTN) 참조 SN — 마킹에서 고른 질문이 event.question 축으로 조달된다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
 #### sttsCd
 
 - **type**: MarkingStatus
@@ -714,6 +748,10 @@ Marking
 - **label**: status
 - **to_multiplicity**: 1
 - **from_multiplicity**: 0..*
+
+## attached_files
+
+_(empty)_
 
 ## depicts_dfeats
 

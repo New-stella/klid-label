@@ -48,12 +48,14 @@
       "preconditions": [
         "인증되어 있고(REVIEWER/WORKER, WORKER는 본인 배정 프레임) 대상 프레임(SRC_SN)과 초기 시드(클릭/박스)가 존재한다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "객체 외곽선에 밀착된 폴리곤/마스크 좌표가 반환된다"
@@ -91,17 +93,25 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-005"
+        "AC-005",
+        "AC-559",
+        "AC-560",
+        "AC-561",
+        "AC-562",
+        "AC-563",
+        "AC-564",
+        "AC-565",
+        "AC-566"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": true,
-    "stale_reason": "SCREEN-005의 data.consumes_apis 변경 — references",
-    "change_summary": "UC-005.brownfield.decided_by 가 ADR-001(작업 단위를 프로젝트→영상 1건으로 전환)로 잘못 연결돼 있었다(감사 지적 — 주제 무관 오귀속). ADR-001 은 이 UC(SAM2 외곽 경계 자동 밀착)와 무관한 결정이라 제거한다. 올바른 근거 ADR 은 확인되지 않아 비워 둔다(추정 금지) — 사용자 판단 필요.",
+    "stale_reason": "AC-566의 2개 필드 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 축마다 인수기준이 한두 건뿐이라 좌표 검증·동시성·멱등·매핑 판정이 시험 케이스로 덮이지 않았다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T08:36:26.615Z",
+    "last_updated_at": "2026-08-30T15:42:37.042Z",
     "created_at": "2026-06-01T06:23:51.452Z"
   }
 }

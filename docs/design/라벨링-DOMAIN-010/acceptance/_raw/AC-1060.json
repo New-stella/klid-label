@@ -1,0 +1,70 @@
+{
+  "item": {
+    "id": "AC-1060",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-028 라벨 관리 예외 — 미연결 코드 '미연결' 표시·WORKER 403 (negative)",
+    "slug": "uc-028-라벨-관리-예외-미연결-코드-미연결-표시worker-403-negative",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [라벨 관리 /manage/labels] 1) 미연결 코드 → 오류 없이 '미연결' 표시 2) WORKER 로 관리 API 호출 → 403",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "미연결 코드는 오류 없이 '미연결'로 표시된다(자동 생성/삭제 없음)",
+          "WORKER의 관리 API 호출은 403으로 거부된다"
+        ],
+        "when": [
+          "프리셋을 표시하거나 관리 API를 호출한다"
+        ],
+        "given": [
+          "미연결 레거시 코드가 있거나 WORKER가 관리 API를 호출한다"
+        ]
+      },
+      "statement": "마스터에 매칭되지 않는(labelId null/비활성) 프리셋 코드는 오류 없이 '미연결' 상태로 표시하고 자동 생성/삭제하지 않는다. WORKER가 관리 API를 호출하면 403으로 거부한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-010"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-028"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "증빙 재작성 — 실제 화면 시나리오 + 확인 SQL(dev 246 실측 쿼리·결과). 가드 테스트 참조 제거(사용자 지시).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T03:34:22.257Z",
+    "created_at": "2026-08-31T02:18:46.716Z"
+  }
+}

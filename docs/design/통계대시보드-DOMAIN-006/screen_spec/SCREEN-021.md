@@ -1,18 +1,20 @@
 ---
 logicraft_item: SCREEN-021
 type: screen_spec
-version: 28
+version: 29
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:30.119Z
+synced_at: 2026-08-31T11:08:53.540Z
 status: CHANGED
 prev_version: 28
-content_hash: 2796de1c03875684174bcb81beb4cb9f93853e55b565f4ccd9db7cf06fd47c6b
-stale: true
+content_hash: 993cc1256e1acf5adee0ee619dc6f8e7ed48358192ed084d41b8f52e29c6cbc6
+stale: false
 raw: ./_raw/SCREEN-021.json
 links:
   belongs_to_domain: ["[[DOMAIN-006]]"]
   consumes: ["[[API-057]]", "[[API-058]]"]
+  covered_by: ["[[AC-1084]]", "[[AC-1085]]"]
+  implements: ["[[IMPREC-335]]"]
   references: ["[[API-057]]", "[[API-058]]"]
   requires: ["[[ROLE-001]]"]
   applies_to_backward: ["[[SHELL-001]]"]
@@ -416,6 +418,10 @@ web
 - API-057
 - API-058
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -441,6 +447,10 @@ _(empty)_
 ### last_updated
 
 2026-08-29T01:25:14.120Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 
@@ -473,6 +483,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -483,4 +497,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-1084
+- AC-1085

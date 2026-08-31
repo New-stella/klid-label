@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-015
 type: class_diagram
-version: 7
+version: 8
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:54.242Z
-status: NEW
-prev_version: null
-content_hash: 53315b1bceace41a052d49ee1a23fb0536792141ce0178c15d2d18eaeac2a1e8
+synced_at: 2026-08-31T11:08:56.073Z
+status: CHANGED
+prev_version: 7
+content_hash: 21336f6c952ace450b321b7e0b2ba2f85a601dd0b441bcd8bfd18af4a7c9c9c0
 stale: false
 raw: ./_raw/CDIAG-015.json
 links:
@@ -355,6 +355,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataRawSn
 
 - **type**: Long
@@ -381,6 +385,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -413,6 +421,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### versionHash
 
 - **type**: String
@@ -439,6 +451,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -471,6 +487,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### versionNo
 
 - **type**: int
@@ -497,6 +517,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -529,6 +553,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### activeYn
 
 - **type**: String
@@ -555,6 +583,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -587,6 +619,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -613,6 +649,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -650,36 +690,8 @@ _(empty)_
 
 - **type**: Long
 - **is_static**: false
-- **visibility**: private
-- **is_readonly**: true
-
-**implementation**:
-
-##### status
-
-planned
-
-##### modules
-
-_(empty)_
-
-##### records
-
-_(empty)_
-
-##### progress
-
-0
-
-##### subtasks
-
-_(empty)_
-
-#### lblSn
-
-- **type**: Long
-- **is_static**: false
-- **visibility**: private
+- **visibility**: public
+- **description**: PK (LBL_HSTRY_SN)
 - **is_readonly**: false
 
 **implementation**:
@@ -701,6 +713,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -708,7 +724,8 @@ _(empty)_
 
 - **type**: Long
 - **is_static**: false
-- **visibility**: private
+- **visibility**: public
+- **description**: 프레임 식별자 (SRC_SN)
 - **is_readonly**: false
 
 **implementation**:
@@ -733,11 +750,50 @@ _(empty)_
 
 _(empty)_
 
-#### registeredAt
+##### module_paths
+
+_(empty)_
+
+#### regId
+
+- **type**: String
+- **is_static**: false
+- **visibility**: public
+- **description**: 행위자 (REG_ID)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
 
 - **type**: LocalDateTime
 - **is_static**: false
-- **visibility**: private
+- **visibility**: public
+- **description**: 저장 이벤트 시각 (REG_DT)
 - **is_readonly**: false
 
 **implementation**:
@@ -762,7 +818,147 @@ _(empty)_
 
 _(empty)_
 
-- **description**: LS_DATA_LBL_HSTRY — 라벨 이력(LBL_SN/SRC_SN/REGISTERED_AT). 라벨 저장 이벤트와 롤백 행위(누가·언제·어느 버전으로)를 기록한다. PII 미저장. 구 서술 '비식별 신고 시 라벨 삭제 이력 기록'은 폐기 — 신고는 라벨을 삭제하지 않는다(2026-07-27).
+##### module_paths
+
+_(empty)_
+
+#### addCnt
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: public
+- **description**: 추가 라벨 건수 (ADD_CNT)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### mdfcnCnt
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: public
+- **description**: 수정 라벨 건수 (MDFCN_CNT)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### delCnt
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: public
+- **description**: 삭제 라벨 건수 (DEL_CNT)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### chgDtlCn
+
+- **type**: String
+- **is_static**: false
+- **visibility**: public
+- **description**: diff 페이로드 JSON (CHG_DTL_CN) — 롤백/개인정보 리셋 이벤트도 이 봉투에 담김
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 라벨 변경 이력 — 구 "라벨 1건=1행(LBL_SN/CHG_KIND_CD)" 에서 "저장 이벤트=1행 + diff 카운트/페이로드" 로 재구조화됨. 버전 롤백 행위 이력(누가·언제·어느 버전으로)도 이 테이블에 기록.
 
 **enum_values**:
 
@@ -1057,6 +1253,274 @@ _(empty)_
 
 _(empty)_
 
+### LsOutputVerSnpsh
+
+- **kind**: entity
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### outputVerSnpshSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: public
+- **description**: PK (OUTPUT_VER_SNPSH_SN)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### dataRawSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: public
+- **description**: 영상 (DATA_RAW_SN)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### dataSrcSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: public
+- **description**: 프레임 (DATA_SRC_SN)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### outputVerNo
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: public
+- **description**: 산출 회차 번호 (OUTPUT_VER_NO)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### lblVerSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: public
+- **description**: 해당 회차 프레임 내용인 라벨 버전 스냅샷 FK (LBL_VER_SN)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: public
+- **description**: 기록 시각 (REG_DT)
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 산출 회차 ↔ 라벨 버전 스냅샷 매핑(V183). LS_LABEL_VERSION.VER_NO 는 값이 하나뿐이라 한 스냅샷이 여러 회차 내용일 수 있음(1:N)을 표현 못 하므로 별도 테이블로 둔다. 롤백(복구) 대상 스냅샷 판정의 단일 진실원(StartVersionService.resolveTargets). 네이티브 INSERT…SELECT 로만 적재(읽기 전용 매핑, 생성 팩토리 없음).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### LsOutputVerSnpshRepository
+
+- **kind**: repository
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 산출 회차↔스냅샷 매핑 리포지토리 (네이티브 INSERT…SELECT 적재).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### StartVersionService
+
+- **kind**: service
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+_(empty)_
+
+- **description**: 시작/복구 버전 대상 스냅샷 판정(resolveTargets) — 회차 번호가 아니라 LS_OUTPUT_VER_SNPSH 매핑으로 판정해 조용한 오복원을 막는다.
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
 ## description
 
 UC-007(버전 저장·이력)/UC-008(비교·복구) 서비스 레이어 전용 클래스도. DB 스냅샷 기반 버전관리(외부 VCS 미사용). 엔티티 LsLabelVersion/LsDataLblHstry 는 version 패키지이며, CDIAG-004 가 애그리거트 구조를 도식하는 데 비해 본 도식은 서비스/컨트롤러/리포지토리/DTO 흐름을 보강한다.
@@ -1170,7 +1634,57 @@ version
 - **to_multiplicity**: 1
 - **from_multiplicity**: 0..*
 
+### [15]
+
+- **to**: LsOutputVerSnpshRepository
+- **from**: StartVersionService
+- **kind**: dependency
+- **label**: 복구 대상 판정
+
+### [16]
+
+- **to**: LsOutputVerSnpsh
+- **from**: LsOutputVerSnpshRepository
+- **kind**: dependency
+
+### [17]
+
+- **to**: LsLabelVersion
+- **from**: LsOutputVerSnpsh
+- **kind**: association
+- **label**: 회차 내용 스냅샷(LBL_VER_SN)
+
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
+
+_(empty)_
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

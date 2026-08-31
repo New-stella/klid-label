@@ -267,7 +267,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -281,7 +282,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -295,7 +297,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -309,7 +312,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -323,7 +327,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -337,7 +342,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -351,7 +357,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -365,7 +372,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -379,7 +387,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -393,7 +402,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -422,60 +432,132 @@
               "name": "lblHstrySn",
               "type": "Long",
               "is_static": false,
-              "visibility": "private",
-              "is_readonly": true,
-              "implementation": {
-                "status": "planned",
-                "modules": [],
-                "records": [],
-                "progress": 0,
-                "subtasks": []
-              }
-            },
-            {
-              "name": "lblSn",
-              "type": "Long",
-              "is_static": false,
-              "visibility": "private",
+              "visibility": "public",
+              "description": "PK (LBL_HSTRY_SN)",
               "is_readonly": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
               "name": "srcSn",
               "type": "Long",
               "is_static": false,
-              "visibility": "private",
+              "visibility": "public",
+              "description": "프레임 식별자 (SRC_SN)",
               "is_readonly": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
-              "name": "registeredAt",
-              "type": "LocalDateTime",
+              "name": "regId",
+              "type": "String",
               "is_static": false,
-              "visibility": "private",
+              "visibility": "public",
+              "description": "행위자 (REG_ID)",
               "is_readonly": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "public",
+              "description": "저장 이벤트 시각 (REG_DT)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "addCnt",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "public",
+              "description": "추가 라벨 건수 (ADD_CNT)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "mdfcnCnt",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "public",
+              "description": "수정 라벨 건수 (MDFCN_CNT)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "delCnt",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "public",
+              "description": "삭제 라벨 건수 (DEL_CNT)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "chgDtlCn",
+              "type": "String",
+              "is_static": false,
+              "visibility": "public",
+              "description": "diff 페이로드 JSON (CHG_DTL_CN) — 롤백/개인정보 리셋 이벤트도 이 봉투에 담김",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
-          "description": "LS_DATA_LBL_HSTRY — 라벨 이력(LBL_SN/SRC_SN/REGISTERED_AT). 라벨 저장 이벤트와 롤백 행위(누가·언제·어느 버전으로)를 기록한다. PII 미저장. 구 서술 '비식별 신고 시 라벨 삭제 이력 기록'은 폐기 — 신고는 라벨을 삭제하지 않는다(2026-07-27).",
+          "description": "라벨 변경 이력 — 구 \"라벨 1건=1행(LBL_SN/CHG_KIND_CD)\" 에서 \"저장 이벤트=1행 + diff 카운트/페이로드\" 로 재구조화됨. 버전 롤백 행위 이력(누가·언제·어느 버전으로)도 이 테이블에 기록.",
           "enum_values": [],
           "stereotypes": []
         },
@@ -676,6 +758,130 @@
             "DEIDENT_REPORT"
           ],
           "stereotypes": []
+        },
+        {
+          "kind": "entity",
+          "name": "LsOutputVerSnpsh",
+          "methods": [],
+          "attributes": [
+            {
+              "name": "outputVerSnpshSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "public",
+              "description": "PK (OUTPUT_VER_SNPSH_SN)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "dataRawSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "public",
+              "description": "영상 (DATA_RAW_SN)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "dataSrcSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "public",
+              "description": "프레임 (DATA_SRC_SN)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "outputVerNo",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "public",
+              "description": "산출 회차 번호 (OUTPUT_VER_NO)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "lblVerSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "public",
+              "description": "해당 회차 프레임 내용인 라벨 버전 스냅샷 FK (LBL_VER_SN)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "public",
+              "description": "기록 시각 (REG_DT)",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            }
+          ],
+          "description": "산출 회차 ↔ 라벨 버전 스냅샷 매핑(V183). LS_LABEL_VERSION.VER_NO 는 값이 하나뿐이라 한 스냅샷이 여러 회차 내용일 수 있음(1:N)을 표현 못 하므로 별도 테이블로 둔다. 롤백(복구) 대상 스냅샷 판정의 단일 진실원(StartVersionService.resolveTargets). 네이티브 INSERT…SELECT 로만 적재(읽기 전용 매핑, 생성 팩토리 없음).",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "repository",
+          "name": "LsOutputVerSnpshRepository",
+          "methods": [],
+          "attributes": [],
+          "description": "산출 회차↔스냅샷 매핑 리포지토리 (네이티브 INSERT…SELECT 적재).",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "service",
+          "name": "StartVersionService",
+          "methods": [],
+          "attributes": [],
+          "description": "시작/복구 버전 대상 스냅샷 판정(resolveTargets) — 회차 번호가 아니라 LS_OUTPUT_VER_SNPSH 매핑으로 판정해 조용한 오복원을 막는다.",
+          "enum_values": [],
+          "stereotypes": []
         }
       ],
       "description": "UC-007(버전 저장·이력)/UC-008(비교·복구) 서비스 레이어 전용 클래스도. DB 스냅샷 기반 버전관리(외부 VCS 미사용). 엔티티 LsLabelVersion/LsDataLblHstry 는 version 패키지이며, CDIAG-004 가 애그리거트 구조를 도식하는 데 비해 본 도식은 서비스/컨트롤러/리포지토리/DTO 흐름을 보강한다.\n\n[생성] 검수 승인(APPROVED) 시점에 영상 전체 라벨 JSON 스냅샷을 LS_LABEL_VERSION 에 VERSION_HASH(SHA-256)로 멱등 저장한다(commitApproved). 라벨 저장 시점에는 만들지 않는다.\n\n[★비교는 두 축이다 (2026-08-05 사용자 확정)] ①두 버전 스냅샷 비교(diff) ②버전 스냅샷 대 현재 작업본 비교(diffWithWorking). ②를 신설한 이유는 승인 버전이 1건뿐인 프레임에서 ①은 비교 대상이 없어 변경 내역을 아예 볼 수 없었기 때문이다. 별도 하위 리소스로 둔 것은 같은 URL 에 쿼리 파라미터로 행위를 분기하지 않는다는 원칙을 따른 것이며 기존 ①의 요청 계약은 무변경이다. 작업본 페이로드는 승인 스냅샷과 동일한 구성 인자·정렬·직렬화 경로로 만들어야 오탐이 나지 않는다. 손상된 스냅샷은 ②에서만 400 으로 거부하고 ①의 장애격리(파싱 실패 시 빈 목록)는 기존 계약이라 유지한다.\n\n[★비교축(R7)] 라벨 식별자·라벨 형태·라벨명·라벨 마스터 식별자·좌표·트랙 식별자. 구 비교축(형태/라벨명/좌표 3개)에서는 트랙 병합처럼 시스템 자신이 수정 통지를 발행하고 학습데이터 산출물을 새 버전으로 재생성한 변경이 변경 없음으로 보였다. 판정 축은 라벨 내용 해시의 입력과 합동으로 맞춘다(프레임 식별자만 제외). 비교기를 ①②가 공유하므로 ①의 판정 결과도 함께 바뀐다(계약은 무변경).\n\n[★롤백 시맨틱] 새 버전 행을 적층하지 않고 대상 스냅샷 행을 재활성화한다 — 롤백 결과 페이로드가 대상 스냅샷 그 자체라 재계산 해시가 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능하기 때문이다. 따라서 SAVE_REASON_CD='ROLLBACK' 코드는 폐기됐고 롤백 행위는 LS_DATA_LBL_HSTRY 에 기록한다(누가·언제·어느 VERSION_HASH 로). 본문 복원 시 LBL_SN·AI 메타·TRCK_ID 를 보존하며, 현재 active 가 이미 대상 스냅샷이면 no-op 이다(이력·통지도 발행하지 않는다).\n\n[★snapshotDeidentReport 폐기 (2026-07-27 확정)] 비식별 신고 시 삭제 전 복원용 비활성 스냅샷(SAVE_REASON_CD=DEIDENT_REPORT)을 남기는 경로는 두지 않는다. 신고는 비식별이 잘못됐다는 신호일 뿐 라벨 작업 결과를 폐기할 근거가 아니므로 라벨을 삭제하지 않고 보존한다. 그런 스냅샷을 만들었다면 DATA_SRC_SN=NULL(영상 스코프)이라 srcSn 스코프 조회·롤백 진입점이 없는 write-only 이력이 됐을 것이다. 대신 신고 구간 동안 라벨 조회·이력·버전 비교/롤백을 412 로 차단하고, resolve 로 F에서 Y 로 복원되면 게이트가 자동 해제돼 보존된 기존 라벨을 그대로 재사용한다(별도 복원 API 없음).",
@@ -759,9 +965,35 @@
           "label": "저장 사유",
           "to_multiplicity": "1",
           "from_multiplicity": "0..*"
+        },
+        {
+          "to": "LsOutputVerSnpshRepository",
+          "from": "StartVersionService",
+          "kind": "dependency",
+          "label": "복구 대상 판정"
+        },
+        {
+          "to": "LsOutputVerSnpsh",
+          "from": "LsOutputVerSnpshRepository",
+          "kind": "dependency"
+        },
+        {
+          "to": "LsLabelVersion",
+          "from": "LsOutputVerSnpsh",
+          "kind": "association",
+          "label": "회차 내용 스냅샷(LBL_VER_SN)"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "realizes_features": [
         "FEAT-002"
@@ -769,12 +1001,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "D010 P1(D010-CNT-006·CNT-010): 구현상태 서술(\"메서드도 코드에서 제거됐다\")과 finding 코드(\"D-ISSUE-25\") 제거 — ITEM 본문은 사양만 담는다는 원칙에 맞춰 설계 결정(\"경로를 두지 않는다\")으로 재서술.",
+    "change_summary": "정합(코드 진실원): LsDataLblHstry 를 실제 컬럼으로 정정(구 LBL_SN/registeredAt 모델 → 저장이벤트=1행 + REG_ID·ADD/MDFCN/DEL_CNT·CHG_DTL_CN). 신규 엔티티 LsOutputVerSnpsh(V183, 산출회차↔스냅샷 매핑·롤백 대상 판정 진실원)+리포지토리+StartVersionService 추가.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:28:16.681Z",
+    "last_updated_at": "2026-08-31T05:08:39.394Z",
     "created_at": "2026-06-11T01:15:54.701Z"
   }
 }

@@ -1,13 +1,13 @@
 ---
 logicraft_item: TEST-005
 type: test_scenario
-version: 11
+version: 12
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:56.609Z
-status: NEW
-prev_version: null
-content_hash: 6f7eb212af26bcccbf785ac43b08a85c462273aa1b99bfa48d28c694ad24bcfd
+synced_at: 2026-08-31T11:08:59.717Z
+status: CHANGED
+prev_version: 11
+content_hash: 0dacd1a70f4ddd93487a25ea3f2ff0e16af98c56e473ec67aa35761cd41f1677
 stale: false
 raw: ./_raw/TEST-005.json
 links:
@@ -24,7 +24,7 @@ integration
 
 시험시나리오 KLID-AT-IT-TS-005. 대외 연동 경계: 포털 DB(외부 채널) 읽기 Load(KLID-AT-II-008 inbound DB READ). 관련 요구사항 RQ-SFR-19(R2 미수록). 핵심 테이블 LS_PORTAL_USER_LABEL. 정상 흐름(happy path)만 수록.
 
-[검증 대상 대응] 본 시험이 검증하는 포털 DB 읽기 Load 흐름은 UC-024(포털 라벨 작업)의 본문—관제→데이터마트→포털 DB 적재 후 저작도구가 Load—와 직접 대응하므로 covers_use_cases 에 UC-024 를 포함한다. 다만 UC-024 자신이 R1 기능요구사항 대응 없음을 명시하므로, 이 시나리오의 검증 대상 자체가 적절한지는 관제 협의가 필요한 별도 판단 사항이다.
+[검증 대상 대응] 본 시험이 검증하는 포털 DB 읽기 Load 흐름은 UC-024(포털 라벨 작업)의 본문—관제→데이터마트→포털 DB 적재 후 저작도구가 Load—와 직접 대응하므로 covers_use_cases 에 UC-024 를 포함한다. 다만 UC-024 자신이 R1 기능요구사항 대응 없음을 명시하므로, 이 시나리오의 검증 대상 자체가 적절한지는 관제 협의가 필요한 별도 판단 사항이다. ⚠ **[재검토 대상 — 검증 대상 자체가 성립하지 않는다]** 이 시나리오는 「포털 DB 에서 영상·라벨·메타를 조회」를 검증하는데 **두 겹으로 성립하지 않는다.** ①저작도구는 그 방향으로 읽은 적이 없다 — 포털 라벨 경로는 저작도구(control) DB 를 쓰며, 포털 DB 는 반대로 내보내던 곳이었다. ②2026-08-31 확정으로 **저작도구와 포털은 서로의 DB 에 접근하지 않는다**(ADR-012). 승인된 산출물이라 본문·단계는 고치지 않고 표기만 남긴다 — **폐기할지, 「배포물을 자기 DB 에 적재한 뒤 조회」로 재작성할지는 별도 판단이 필요**하며 그 방향의 조회 창구도 포털 회신 대기다.
 
 ## steps
 
@@ -78,6 +78,10 @@ _(empty)_
 - 대상 영상은 검수 승인(APPROVED) 상태다 — 데이터마트에 노출된 미승인 영상은 이 흐름의 대상이 아니다(쿼리 게이트로 미포함/403).
 
 ## verifies_nfrs
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

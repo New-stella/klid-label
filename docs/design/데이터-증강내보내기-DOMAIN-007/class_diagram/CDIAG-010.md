@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-010
 type: class_diagram
-version: 11
+version: 12
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T04:11:45.435Z
+synced_at: 2026-08-31T11:08:46.780Z
 status: CHANGED
-prev_version: 9
-content_hash: b3cab474a46957487b0bc24ed7f6ad4a5bb29b2dbff2e49d0351e66acb043bcf
-stale: true
+prev_version: 11
+content_hash: cc86bc235df3716f170a627307f98c54877ae4be76aac3c0c0a459c77c6fd404
+stale: false
 raw: ./_raw/CDIAG-010.json
 links:
   belongs_to_domain: ["[[DOMAIN-007]]"]
@@ -2161,6 +2161,640 @@ _(empty)_
 
 _(empty)_
 
+### DataAugmentationJob
+
+- **kind**: entity
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### augJobSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### dataAugSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### jobSeq
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### idmpKey
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### otsdJobId
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### jobSttsCd
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### totalCount
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### errorCode
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### errorMessage
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### mdfcnDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 외부 증강 위탁 잡. 프레임 청크 단위 위탁의 멱등키·외부 잡ID·상태·건수·오류를 추적한다. (LS_DATA_AUG_JOB)
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
+### DataAugmentationJobFile
+
+- **kind**: entity
+
+**methods**:
+
+_(empty)_
+
+**attributes**:
+
+#### augJobFileSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### augJobSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### fileSeq
+
+- **type**: Integer
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### srcSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### resultFilePathNm
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### mdfcnDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 위탁 잡의 개별 결과 파일. 프레임 순번(FILE_SEQ)·소스 프레임(SRC_SN)·결과 파일 경로를 담는다. (LS_DATA_AUG_JOB_FILE)
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
 ## description
 
 외부 SFR-07 시스템이 생성한 3종(WINTER/NIGHT/RAIN) 증강 결과와 저작도구 내부 해상도 파생 3종(RESL_1080P/720P/480P, SFR-06-03)을 관리하고, 검수와 라벨 매핑을 분리해 다루는 도메인 모델. 해상도 변경을 증강 파생영상으로 통합(ADR-018) — AugType 판별자 RESL_* · LS_DATA_AUG_LBL_MAP 좌표 배율 재사용. ERD-011 기반(1차 데이터셋 테이블 LS_DATA_SET 기반 내보내기 기능이 폐기되어 제외 — 검수 승인 학습데이터 export 산출은 ADR-020 으로 저작도구 범위 안이나 검수 승인 경로가 담당해 이 도메인 모델에 속하지 않는다).
@@ -2223,6 +2857,28 @@ DataAugmentation
 - **label**: 검수상태
 - **to_multiplicity**: 1
 - **from_multiplicity**: 1
+
+### [6]
+
+- **to**: DataAugmentation
+- **from**: DataAugmentationJob
+- **kind**: association
+- **label**: 증강 결과의 위탁 잡(DATA_AUG_SN)
+- **to_multiplicity**: 1
+- **from_multiplicity**: *
+
+### [7]
+
+- **to**: DataAugmentationJob
+- **from**: DataAugmentationJobFile
+- **kind**: composition
+- **label**: 위탁 잡의 결과 파일(AUG_JOB_SN)
+- **to_multiplicity**: 1
+- **from_multiplicity**: *
+
+## attached_files
+
+_(empty)_
 
 ## depicts_dfeats
 

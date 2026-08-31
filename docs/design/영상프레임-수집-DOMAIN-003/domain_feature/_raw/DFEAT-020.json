@@ -1,0 +1,65 @@
+{
+  "item": {
+    "id": "DFEAT-020",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "domain_feature",
+    "title": "트랙 모드 (선형보간 연속 프레임 추적)",
+    "slug": "트랙-모드-선형보간-연속-프레임-추적",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "트랙 모드 (선형보간 연속 프레임 추적)",
+      "status": "designed",
+      "consumes": [],
+      "priority": "must",
+      "triggers": [],
+      "brownfield": {
+        "status": "preserved",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-05-08",
+          "legacy_artifact_id": "LEGACY-096"
+        }
+      },
+      "user_story": {
+        "as": "라벨링 작업자",
+        "i_want": "객체를 연속 프레임에서 자동 추적하기를",
+        "so_that": "프레임마다 수작업 라벨링하지 않아도 된다"
+      },
+      "description": "선형보간(Linear Interpolation) 기반으로 객체의 프레임 간 이동 경로를 자동 계산해 연속 프레임을 추적한다. 트랙 고유번호로 식별. (1차 baseline, 화면 SKKLID-UI-02-05-08, 인터페이스 II-007)",
+      "invokes_apis": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-356"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:20.444Z"
+      },
+      "uses_constants": [],
+      "acceptance_rules": [],
+      "persists_in_tables": [],
+      "related_acceptances": [],
+      "specializes_feature": "FEAT-001",
+      "implemented_by_endpoints": [
+        "API-125",
+        "API-126",
+        "API-127"
+      ],
+      "implemented_by_module_apis": [],
+      "implemented_by_service_interfaces": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "REQ-023의 domain_id 변경이 specializes로 2-hop 전파",
+    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 도메인 기능에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:20.444Z",
+    "created_at": "2026-05-29T06:30:44.048Z"
+  }
+}

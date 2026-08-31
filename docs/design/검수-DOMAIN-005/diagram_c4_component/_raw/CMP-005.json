@@ -21,7 +21,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -33,7 +34,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -45,7 +47,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -57,7 +60,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -69,7 +73,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -81,7 +86,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -93,7 +99,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -105,7 +112,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -117,7 +125,21 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "repository",
+          "name": "ReviewQueryRepository",
+          "description": "검수 목록·상세 검색(QueryDSL) — ReviewSearchCondition 기반, 미등록 정렬키 lenient 200 폴백",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
@@ -208,12 +230,51 @@
           "to": "ControlNotifyEventListener",
           "from": "DatasetExportCompletedEvent",
           "description": "export 완료 수신 → TASK_COMPLETED 발송"
+        },
+        {
+          "to": "ReviewQueryRepository",
+          "from": "ReviewService",
+          "description": "검수 목록 검색(QueryDSL)"
+        },
+        {
+          "to": "EvntAnnoReviewService",
+          "from": "ReviewService",
+          "description": "승인 시 이벤트 어노테이션 재동결(materialize)"
+        },
+        {
+          "to": "DatasetVideoMetaSnapshotService",
+          "from": "ReviewService",
+          "description": "승인 시 영상 메타 동결 스냅샷"
+        },
+        {
+          "to": "MetaService",
+          "from": "ReviewService",
+          "description": "메타 조회·검증"
+        },
+        {
+          "to": "LabelAccessGuard",
+          "from": "ReviewService",
+          "description": "프레임·라벨 접근 권한 검증"
+        },
+        {
+          "to": "ControlNotifyDebounceStore",
+          "from": "ReviewService",
+          "description": "재승인 시 재검토 표식(REVLT_YN) 해제·통지 축적 창"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-021",
         "DFEAT-024"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [
         "EVT-006",
         "EVT-009"
@@ -258,17 +319,42 @@
           "kind": "container",
           "name": "DatasetExportCompletedEvent",
           "description": "export 산출이 성공한 뒤 발행되는 도메인 이벤트 (EVT-009, dataset.export 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "EvntAnnoReviewService",
+          "description": "승인 시 이벤트 어노테이션 재동결(materialize) — 같은 승인 트랜잭션에서 EVNT_ANNO_CN 갱신"
+        },
+        {
+          "kind": "container",
+          "name": "DatasetVideoMetaSnapshotService",
+          "description": "승인 시 영상 메타 동결 스냅샷(LS_DATASET_VIDEO_META)"
+        },
+        {
+          "kind": "container",
+          "name": "MetaService",
+          "description": "메타 조회·검증"
+        },
+        {
+          "kind": "container",
+          "name": "LabelAccessGuard",
+          "description": "프레임·라벨 접근 권한 검증(본인 배정/역할)"
+        },
+        {
+          "kind": "container",
+          "name": "ControlNotifyDebounceStore",
+          "description": "재승인 시 재검토 표식(REVLT_YN) 해제·통지 축적 창(디바운스)"
         }
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "API-008의 data.responses 변경이 depicts로 2-hop 전파",
-    "change_summary": "검수 승인의 전제조건을 이 다이어그램에 반영한다. 승인 담당 서술이 가드 없는 옛 승인 연쇄를 그대로 그리고 있어, 검수 워크플로 상태의 비식별화완료여부가 미완료이면 승인 요청이 상태 전이 이전에 거부되어 라벨 버전 스냅샷도 학습데이터 산출물 재생성도 관제 통지도 시작되지 않는다는 점이 구조에서 읽히지 않았다. 승인 요청을 받는 컴포넌트, 승인을 수행하는 컴포넌트, 상태 전이를 검증하는 컴포넌트, 승인 이벤트 네 곳의 서술을 함께 현행화해 판정이 상태 전이보다 앞선다는 순서가 어느 지점에서 읽어도 같게 했다. 막는 범위가 검수 승인 하나라는 경계도 함께 적었다 — 라벨 조회·프레임 이미지·영상 스트리밍·학습데이터 산출물 생성 경로는 이 값으로 닫지 않으며, 그 통로들을 함께 닫는 것은 비식별 누락 신고라는 별개 축이다. 아울러 비어 있던 그리는 도메인 기능 목록을 검수 워크플로와 승인·반려로 채웠다 — 그 목록이 비어 있어 이 다이어그램이 영향 분석에 한 번도 나타나지 않았고, 그래서 이번 변경도 자동 후보로 뜨지 않았다. 컴포넌트·관계·외부 의존·참조 원소는 하나도 삭제하지 않았고 서술 갱신과 목록 보강뿐이다.",
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정합: ReviewService 실제 생성자 협력자 중 누락됐던 승인시점 6종 추가 — 이벤트 어노테이션 재동결(EvntAnnoReviewService)·메타 동결(DatasetVideoMetaSnapshotService)·재검토 REVLT_YN 축적창(ControlNotifyDebounceStore)·MetaService·LabelAccessGuard·ReviewQueryRepository(코드 대조)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:52:08.596Z",
+    "last_updated_at": "2026-08-31T04:48:26.300Z",
     "created_at": "2026-06-02T13:13:40.254Z"
   }
 }

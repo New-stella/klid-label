@@ -1,0 +1,154 @@
+{
+  "item": {
+    "id": "UC-039",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "온라인 AI 객체 탐지",
+    "slug": "온라인-ai-객체-탐지",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "goal": "라벨링 화면에서 현재 프레임에 대해 AI 탐지를 실행해 객체 후보 좌표를 받아 캔버스에 반영하고, 사람이 확인·수정한 뒤 저장한다.",
+      "actor": "라벨링 작업자(WORKER)",
+      "title": "온라인 AI 객체 탐지",
+      "status": "draft",
+      "priority": "should",
+      "frequency": "이벤트성",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "라벨링 화면에서 탐지 대상 분류를 고르거나 고르지 않고 AI 탐지를 실행한다"
+        },
+        {
+          "step": 2,
+          "actor": "시스템",
+          "action": "작업락과 배정을 확인한다 — 잠긴 영상이면 막고 외부 추론을 부르지 않는다"
+        },
+        {
+          "step": 3,
+          "actor": "시스템",
+          "action": "화면이 보낸 대상 분류와 라벨 마스터에 매핑된 분류의 교집합으로 탐지 대상을 정한다"
+        },
+        {
+          "step": 4,
+          "actor": "시스템",
+          "action": "신뢰도 문턱을 요청값·시스템 설정·코드 기본값 순으로 정해 외부 추론을 호출한다 — 이 동안 저장소 연결을 붙잡지 않는다"
+        },
+        {
+          "step": 5,
+          "actor": "시스템",
+          "action": "돌려받은 좌표를 이미지 경계로 좁히고 형식을 검증해 저장 없이 좌표만 응답한다"
+        },
+        {
+          "step": 6,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "캔버스에 반영된 후보를 확인·수정한 뒤 저장한다 — 저장은 라벨 편집 흐름이 담당한다"
+        }
+      ],
+      "brownfield": {
+        "status": "preserved",
+        "change_kind": [
+          "behavior-change"
+        ],
+        "diff_summary": "1차 오토 라벨링 화면 기능을 계승하되 저장 없이 좌표만 돌려주는 방식으로 바뀜",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-02-06",
+          "legacy_artifact_id": "LEGACY-067"
+        }
+      },
+      "description": "라벨링 화면에서 사람이 눌러 실행하는 탐지다. 배치가 자동으로 도는 탐지와 달리 사람이 그 자리에서 부르며, 결과를 저장하지 않고 좌표만 돌려주어 작업본 편집에 쓰인다 — 저장은 라벨 편집 흐름이 소유한다.\n\n[무엇을 탐지할지는 서버가 정한다] 화면이 보낸 대상 분류를 그대로 믿지 않고 라벨 마스터에 매핑된 분류와의 교집합으로 정한다. 매핑되지 않은 분류만 요청되면 외부를 부르지 않고 빈 결과와 안내를 돌려준다.\n\n[좌표는 경계로 좁히되 형식 위반은 전부 거른다] 음수와 이미지 초과는 경계로 좁혀 돌려주고, 이미지 밖 퇴화 상자는 그 검출만 빼며, 수가 아닌 좌표가 섞이면 그 응답의 검출을 하나도 돌려주지 않는다.\n\n[외곽 밀착·추적과는 다른 흐름이다] 클릭으로 외곽을 따는 것과 객체를 따라가는 것은 각각 별도 흐름이 소유한다.",
+      "stakeholders": [],
+      "preconditions": [
+        "영상이 본인에게 배정되어 있거나 검수자 이상이다",
+        "프레임이 추출되어 있다",
+        "라벨 마스터에 검출 클래스 매핑이 하나 이상 등록돼 있다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "postconditions": [
+        "검출 좌표가 화면에 반영되어 있고 저장소에는 아무것도 쓰이지 않았다",
+        "기존 라벨이 지워지지 않았다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "매핑된 대상이 없음",
+          "steps": [
+            "외부 추론을 부르지 않는다",
+            "빈 결과와 안내 문구를 돌려준다"
+          ],
+          "trigger": "요청한 분류가 전부 미매핑이거나 매핑된 라벨이 하나도 없다"
+        },
+        {
+          "name": "외부 추론 실패 또는 목 응답",
+          "steps": [
+            "실패는 외부 오류로 알리고 진행 표식을 푼다",
+            "목 응답은 자동 적용하지 않고 빈 결과와 안내만 돌려준다"
+          ],
+          "trigger": "외부 추론이 실패했거나 목 응답을 돌려줬다"
+        },
+        {
+          "name": "추론 뒤에 작업락이 걸림",
+          "steps": [
+            "좌표를 돌려주지 않고 충돌로 막는다",
+            "진행 표식을 풀어 다시 요청할 수 있게 한다"
+          ],
+          "trigger": "외부 호출이 끝난 사이에 그 영상이 잠겼다"
+        }
+      ],
+      "realizes_dfeats": [
+        "DFEAT-019"
+      ],
+      "related_screens": [
+        "SCREEN-005"
+      ],
+      "extension_points": [],
+      "secondary_actors": [
+        "검수자(REVIEWER)",
+        "AI 추론 서버"
+      ],
+      "extends_use_cases": [],
+      "realizes_features": [],
+      "includes_use_cases": [],
+      "tech_considerations": [
+        "동시 요청이 상한을 넘으면 요청이 너무 많다로 거부해 추론 자원 경합을 막는다",
+        "같은 프레임의 동시 탐지는 하나만 통과시켜 라벨이 겹쳐 만들어지지 않게 한다",
+        "신뢰도 문턱과 단순화 정밀도는 그 요청에만 적용하고 저장하지 않는다"
+      ],
+      "covered_by_acceptances": [
+        "AC-532",
+        "AC-533",
+        "AC-534",
+        "AC-535",
+        "AC-536",
+        "AC-537",
+        "AC-538",
+        "AC-539",
+        "AC-540",
+        "AC-541",
+        "AC-542",
+        "AC-543",
+        "AC-544",
+        "AC-545"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "AC-545의 2개 필드 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 이 흐름이 신설되기 전까지 그 기준들은 파생 출처 없이 떠 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-30T23:09:23.111Z",
+    "created_at": "2026-08-30T23:08:13.909Z"
+  }
+}

@@ -43,12 +43,14 @@
       "preconditions": [
         "REVIEWER 로 인증되어 있다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "화면에 검수완료 기준 수치와 전체 수치가 함께 표시된다",
@@ -71,17 +73,51 @@
       "covered_by_acceptances": [
         "AC-029",
         "AC-030",
-        "AC-031"
+        "AC-031",
+        "AC-276",
+        "AC-277",
+        "AC-278",
+        "AC-279",
+        "AC-280",
+        "AC-281",
+        "AC-282",
+        "AC-283",
+        "AC-284",
+        "AC-285",
+        "AC-286",
+        "AC-287",
+        "AC-288",
+        "AC-289",
+        "AC-290",
+        "AC-291",
+        "AC-292",
+        "AC-293",
+        "AC-294",
+        "AC-295",
+        "AC-296",
+        "AC-297",
+        "AC-298",
+        "AC-299",
+        "AC-300",
+        "AC-301",
+        "AC-302",
+        "AC-303",
+        "AC-304",
+        "AC-305",
+        "AC-306",
+        "AC-307",
+        "AC-308",
+        "AC-309"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "확정 기준 이미지 건수와 프레임 단위 분포가 폐기된 프레임을 세지 않는다는 서술을 더했다. 기존 본문은 확정 기준을 «검수완료 영상만 집계» 로만 규정해 이미지 축에서는 범위가 덜 정해져 있었다 — 폐기된 프레임은 산출물과 데이터마트 노출에서 빠지므로 확정 분량에도 들어가지 않는다. 전체 누적 수치는 수집한 전체 분량이라는 다른 축이라 걸러내지 않음도 함께 적고, 사후조건에 같은 취지를 한 항목 더했다. 흐름 단계와 기존 사후조건은 그대로 둔다.",
+    "current_version": 4,
+    "stale": true,
+    "stale_reason": "SCREEN-021의 4개 필드 변경 — references",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 인수기준이 세 건뿐이라 집계 축·권한 축·화면 표시 축이 시험 케이스로 덮이지 않았다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T12:42:34.641Z",
+    "last_updated_at": "2026-08-30T15:19:33.303Z",
     "created_at": "2026-08-17T00:23:52.324Z"
   }
 }

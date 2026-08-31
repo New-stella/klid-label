@@ -1,19 +1,19 @@
 ---
 logicraft_item: CDIAG-005
 type: class_diagram
-version: 5
+version: 6
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T15:39:18.674Z
+synced_at: 2026-08-31T11:09:00.876Z
 status: CHANGED
-prev_version: 4
-content_hash: 6e1ea7f26723af4a177e72e5b0b0a1c09dbc0e4c9c417ab75155530c5b259109
+prev_version: 5
+content_hash: 5be9e2e4766016adca5363ec8fbb49fc4c2854dae430d7225e6a0632d347b6ae
 stale: false
 raw: ./_raw/CDIAG-005.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
   depicts: ["[[DFEAT-018]]", "[[DFEAT-019]]", "[[DFEAT-020]]"]
-  references: ["[[DFEAT-019]]", "[[DFEAT-020]]"]
+  references: ["[[ADR-019]]", "[[CONST-002]]", "[[DFEAT-019]]", "[[DFEAT-020]]"]
 ---
 
 # AI 보조 라벨링 도메인 모델
@@ -34,58 +34,97 @@ AI 보조 라벨링 도메인 모델
 
 **methods**:
 
-#### isInterpolated
+#### createAutoBbox
 
 **params**:
 
-_(empty)_
+- srcSn: Long
+- labelId: Long
+- label: String
+- pointsJson: String
+- confScore: BigDecimal
+- trackId: String
 
-- **is_static**: false
+- **is_static**: true
 - **visibility**: public
 - **is_abstract**: false
-- **return_type**: boolean
+- **return_type**: DataLabel
 
-#### updateConfidence
+#### createAutoPolygon
 
 **params**:
 
+- srcSn: Long
+- labelId: Long
+- label: String
+- pointsJson: String
 - confScore: BigDecimal
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: DataLabel
+
+#### createAutoInterpolatedBbox
+
+**params**:
+
+- srcSn: Long
+- labelId: Long
+- label: String
+- pointsJson: String
+- confScore: BigDecimal
+- trackId: String
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: DataLabel
+
+#### createAutoInterpolatedPolygon
+
+**params**:
+
+- srcSn: Long
+- labelId: Long
+- label: String
+- pointsJson: String
+- confScore: BigDecimal
+- trackId: String
+
+- **is_static**: true
+- **visibility**: public
+- **is_abstract**: false
+- **return_type**: DataLabel
+
+#### applyAiSource
+
+**params**:
+
+- lblSrcCd: String
+- score: BigDecimal
 
 - **is_static**: false
 - **visibility**: public
 - **is_abstract**: false
 - **return_type**: void
 
-#### markDetected
+#### updateConfScore
 
 **params**:
 
-- modelNm: String
-- mdlVer: String
-- confScore: BigDecimal
+- newScore: BigDecimal
 
 - **is_static**: false
 - **visibility**: public
 - **is_abstract**: false
 - **return_type**: void
 
-#### markSegmented
+#### reassignTrack
 
 **params**:
 
-- modelNm: String
-- confScore: BigDecimal
-
-- **is_static**: false
-- **visibility**: public
-- **is_abstract**: false
-- **return_type**: void
-
-#### markInterpolated
-
-**params**:
-
-_(empty)_
+- newTrackId: String
 
 - **is_static**: false
 - **visibility**: public
@@ -123,6 +162,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### srcSn
 
 - **type**: Long
@@ -152,6 +195,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lblTypeCd
 
 - **type**: String
@@ -178,6 +225,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -211,6 +262,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### pointCn
 
 - **type**: String
@@ -237,6 +292,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -269,6 +328,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lblSrcCd
 
 - **type**: LabelSource
@@ -298,7 +361,11 @@ _(empty)_
 
 _(empty)_
 
-#### modelNm
+##### module_paths
+
+_(empty)_
+
+#### mdlNm
 
 - **type**: String
 - **is_static**: false
@@ -324,6 +391,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -356,6 +427,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### confScore
 
 - **type**: BigDecimal
@@ -385,6 +460,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### autoLblYn
 
 - **type**: String
@@ -411,6 +490,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -480,6 +563,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -578,11 +665,41 @@ AiAssistedLabeling
 - **to_multiplicity**: 0..1
 - **from_multiplicity**: 1
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-018
 - DFEAT-019
 - DFEAT-020
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 
