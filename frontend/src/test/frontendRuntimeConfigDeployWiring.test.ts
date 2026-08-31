@@ -13,6 +13,17 @@
 //   ④ 필수 값이 비면 생성을 거부하는가 (빌드에서 옮겨 온 fail-closed)
 //   ⑤ 설치가 생성기를 부르고 현장값을 덮어쓰지 않는가
 //   ⑥ 웹 서버가 생성물을 캐시하지 않는가 (캐시되면 "고친 줄 알고 넘어간다")
+//   ⑦ 값이 비었을 때 <어디서> 설치가 종결되는가 (표식 단계와 종결 단계가 갈려 있다)
+//
+// ⚠⚠ <이 시험은 `deploy/onprem/` 아래 셸 스크립트와 템플릿을 여럿 읽는다.> 그래서 프론트 코드를 한 줄도
+//    건드리지 않은 배포 스크립트 편집이 이 파일을 red 로 만들 수 있다. 실제로 그런 일이
+//    있었다(온프렘 편집이 33줄을 끼워 넣자 거리 기반 정규식이 깨졌다). 여기가 red 면 먼저
+//    `git diff deploy/onprem/scripts/install/` 부터 볼 것 — 원인이 프론트에 없을 수 있다.
+//
+// ⚠ 그리고 <셸 본문에 거리 기반 정규식(`A[\s\S]{0,N}B`)을 쓰지 마라.> 주석 한 문단만 늘어도
+//   깨지고, 더 나쁘게는 <무관한 토큰>을 붙잡아 공허하게 통과한다. 아래 `⑦` 절의 실패가 정확히
+//   그것이었다 — 변수 정의 한 줄과 93행 떨어진 무관한 `die` 를 이어 붙여 놓고, 정작 그 시험이
+//   지킨다고 적은 동작은 이미 다른 파일로 옮겨간 뒤였다. 구조(if 덩어리)로 앵커할 것.
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -281,10 +292,12 @@ describe('⑥ 템플릿과 설치 배선', () => {
     expect(['url', 'both', 'all']).not.toContain(value);
   });
 
-  it('설치가_생성기를_호출한다', () => {
+  it('설치가_생성기를_설치하고_호출한다', () => {
+    // ⚠ 「생성 실패가 여기서 설치를 멈춘다」는 <이 단계의 계약이 아니다> — 아래 ⑦ 절 참조.
+    //   그 단언은 2026-08-30 결정 이후 공허했고, 거리 기반 정규식이라 무관한 `die` 를 잡고 있었다.
     const install = read('deploy/onprem/scripts/install/14-install-frontend.sh');
     expect(install).toContain('render-frontend-config.sh');
-    expect(install, '생성 실패가 설치를 멈춰야 한다').toMatch(/klid-frontend-config[\s\S]{0,400}die/);
+    expect(install, '생성기를 실제로 실행해야 한다').toContain('"${FE_CONFIG_RENDERER}"');
   });
 
   it('설치가_기존_정본을_덮어쓰지_않는다', () => {
@@ -363,5 +376,150 @@ describe('⑧ 빌드는 환경 무관이다', () => {
     for (const key of RUNTIME_CONFIG_KEYS) {
       expect(script, `BUILD-INFO 에 ${key} 미기록`).toContain(`${key}=%s`);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⑦ 값이 비었을 때 어디서 종결되는가 — 표식 단계와 종결 단계는 갈려 있다
+//
+// ## 왜 갈렸나 (2026-08-30 결정, 구속 — 「완화」로 오인하지 말 것)
+// 이 fail-closed 는 원래 <빌드>에 있었고, 빌드를 환경 무관으로 바꾸면서 <설치>로 옮겼다.
+// 그런데 처음 옮긴 자리가 `14-install-frontend.sh` 안, 그것도 **자기가 방금 놓은 빈 템플릿을
+// 즉시 읽는** 자리였다. 그래서 첫 설치는 <구조적으로 반드시> 거기서 죽었고, `set -e` 라
+// httpd 설치·SELinux 문맥·DB 초기화가 통째로 실행되지 않아 현장에서는 "설치는 돌았는데 웹
+// 서버가 없다"로 보였다.
+//
+// ⇒ 되돌리기 어렵고 값과 무관한 것을 먼저 끝내고, 값 누락은 <맨 마지막 20 단계>가 막는다.
+//   · 3-1 단계(`14-install-frontend.sh`) = **표식을 세우고 넘긴다** (`FE_CONFIG_PENDING=1` + warn)
+//   · 20 단계(`20-verify-frontend-config.sh`) = **설치를 실패로 종결한다** (`die`)
+//
+// ★ **방어가 사라진 것이 아니라 자리가 옮겨간 것이다.** 3-1 에 `die` 가 없다는 사실만 보고
+//   「완화됐다」고 판단해 되돌리면, 위의 「첫 설치가 반드시 죽는」 상태로 정확히 회귀한다.
+//
+// ★ 세 축을 **함께** 본다 — 하나만 보면 조용히 무너진다:
+//   ① 3-1 이 표식을 세우는가  ② 20 이 종결하는가  ③ **20 이 설치 순서에 실제로 등록돼 있는가**
+//   ③ 이 빠지면 종결 코드가 파일에 실재하는데 한 번도 실행되지 않는다(죽은 게이트).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** `if … ; then … else … fi` 한 덩어리를 <구조로> 잘라 낸다. */
+function ifBlockContaining(
+  source: string,
+  needle: string,
+): { thenPart: string; elsePart: string; tail: string } {
+  const lines = source.split(/\r?\n/);
+  const hit = lines.findIndex((l) => l.includes(needle));
+  if (hit === -1) throw new Error(`앵커를 찾지 못했다: ${needle}`);
+
+  // `if` 는 여러 줄로 이어질 수 있다(줄 끝 `\`) — 앵커에서 뒤로 걸어 블록 머리를 찾는다.
+  let head = hit;
+  while (head >= 0 && !/^\s*if\s/.test(lines[head])) head -= 1;
+  if (head < 0) throw new Error(`if 블록 머리를 찾지 못했다: ${needle}`);
+
+  let depth = 0;
+  let elseAt = -1;
+  let end = -1;
+  for (let i = head; i < lines.length; i += 1) {
+    if (/^\s*if\s/.test(lines[i])) depth += 1;
+    if (/^\s*fi\b/.test(lines[i])) {
+      depth -= 1;
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    if (depth === 1 && /^\s*else\s*$/.test(lines[i]) && elseAt === -1) elseAt = i;
+  }
+  if (end === -1) throw new Error(`fi 를 찾지 못했다: ${needle}`);
+
+  const thenEnd = elseAt === -1 ? end : elseAt;
+  return {
+    thenPart: lines.slice(head, thenEnd).join('\n'),
+    elsePart: elseAt === -1 ? '' : lines.slice(elseAt + 1, end).join('\n'),
+    tail: lines.slice(end + 1).join('\n'),
+  };
+}
+
+describe('⑦ 설정 미충족의 종결 지점 — 표식(3-1)과 종결(20)', () => {
+  const INSTALL = 'deploy/onprem/scripts/install/14-install-frontend.sh';
+  const VERIFY = 'deploy/onprem/scripts/install/20-verify-frontend-config.sh';
+
+  // 스캐너 자신에 대한 가드가 먼저다 — 잘라내기가 조용히 눈이 멀면 아래 단언이 전부 공짜다.
+  it('스캐너가_if_덩어리를_then과_else로_실제로_잘라낸다', () => {
+    const sample = [
+      'echo before',
+      'if run_it; then',
+      '  ok "성공"',
+      'else',
+      '  FLAG=1',
+      '  warn "실패"',
+      'fi',
+      'die "끝"',
+    ].join('\n');
+
+    const block = ifBlockContaining(sample, 'run_it; then');
+
+    expect(block.thenPart).toContain('ok "성공"');
+    expect(block.thenPart).not.toContain('FLAG=1');
+    expect(block.elsePart).toContain('FLAG=1');
+    expect(block.elsePart).not.toContain('ok "성공"');
+    expect(block.tail).toContain('die "끝"');
+  });
+
+  it('앵커가_없으면_조용히_통과하지_않고_실패한다', () => {
+    // 스크립트가 개편돼 앵커가 사라지면 「위반 0건」이 아니라 <에러>로 드러나야 한다.
+    expect(() => ifBlockContaining('echo hi', 'nope; then')).toThrow(/앵커를 찾지 못했다/);
+  });
+
+  it('★3-1단계는_생성에_실패해도_설치를_멈추지_않고_표식을_세운다', () => {
+    const block = ifBlockContaining(read(INSTALL), '"${FE_CONFIG_RENDERER}"; then');
+
+    // 실패 경로의 참인 계약 — 표식 + 큰 경고. 「멈춘다」가 아니다.
+    expect(block.elsePart, '실패 표식을 세워야 20 단계가 판정할 수 있다').toContain(
+      'FE_CONFIG_PENDING=1',
+    );
+    expect(block.elsePart, '조용히 넘어가면 지금보다 나쁘다').toContain('warn');
+    // ★ 여기서 die 하면 2026-08-30 이전으로 회귀한다(첫 설치가 구조적으로 반드시 죽는다).
+    expect(block.elsePart, '이 단계에서 종결하면 첫 설치가 반드시 죽는다 — 종결은 20 단계 몫이다')
+      .not.toContain('die');
+    // 성공 경로도 함께 본다(실패 축만 보면 성공 안내가 사라져도 통과한다).
+    expect(block.thenPart).toContain('ok');
+  });
+
+  it('3-1단계가_세운_표식을_같은_스크립트가_읽어_다시_안내한다', () => {
+    // 세우기만 하고 아무도 읽지 않으면 표식이 죽은 변수가 된다.
+    const install = read(INSTALL);
+    expect(install).toMatch(/\[\[\s*"\$\{FE_CONFIG_PENDING:-0\}"\s*==\s*"1"\s*\]\]/);
+  });
+
+  it('★종결은_20단계가_한다_필수값이_비면_설치가_실패로_끝난다', () => {
+    const verify = read(VERIFY);
+    const block = ifBlockContaining(verify, '"${RENDERER}"; then');
+
+    // 생성기를 <다시 실행>해 성패를 읽는다 — 조건을 재유도하지 않는다(생산자/소비자 규칙).
+    expect(verify, '판정을 재유도하지 말고 생성기를 실행해야 한다').toContain('"${RENDERER}"');
+    // 성공 경로는 여기서 끝난다.
+    expect(block.thenPart).toContain('exit 0');
+    // 실패 경로 = if 덩어리 <뒤>. 여기에 종결이 있어야 한다.
+    expect(block.tail, '필수 설정이 비면 설치를 실패로 종결해야 한다').toMatch(/^die /m);
+    expect(block.tail, '실패 경로가 성공으로 빠져나가면 안 된다').not.toContain('exit 0');
+  });
+
+  it('★생성기가_성공했는데_산출물이_비면_그것도_실패로_막는다', () => {
+    // "생성은 됐다"만 보면 빈 파일이 그대로 배포된다 — 화면은 뜨고 설정만 없다.
+    const block = ifBlockContaining(read(VERIFY), '"${RENDERER}"; then');
+
+    expect(block.thenPart).toMatch(/\[\[\s*-s\s*"\$\{OUT_FILE\}"\s*\]\]/);
+    expect(block.thenPart).toContain('die');
+  });
+
+  it('★그_종결_게이트가_설치_순서에_등록돼_있고_14단계보다_뒤에_온다', () => {
+    // 파일에 die 가 있어도 실행되지 않으면 죽은 게이트다. 순서까지 함께 본다 —
+    // 14 보다 앞서면 생성기·정본이 아직 없어 「14 가 안 돌았다」로 오진단한다.
+    const orchestrator = read('deploy/onprem/scripts/install.sh');
+    const at = (step: string): number => orchestrator.indexOf(`STEPS+=("${step}")`);
+
+    expect(at('20-verify-frontend-config.sh'), '종결 단계가 설치 순서에 없다').toBeGreaterThan(-1);
+    expect(at('14-install-frontend.sh')).toBeGreaterThan(-1);
+    expect(at('20-verify-frontend-config.sh')).toBeGreaterThan(at('14-install-frontend.sh'));
   });
 });

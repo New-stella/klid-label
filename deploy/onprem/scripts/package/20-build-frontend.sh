@@ -22,16 +22,36 @@ set -euo pipefail
 #       VITE_TOKEN_INGRESS: 토큰 인계 채널 기본값(localStorage).
 #                           'url'/'both'/'all' 은 JWT 를 URL 쿼리에 싣는 채널을 열어
 #                           접근 로그·리퍼러·히스토리에 토큰이 잔존한다(CWE-598).
-#   결과: frontend/dist → artifacts/frontend/dist
+#   ★★ 화면 산출물은 <배포 향마다 따로> 만든다 (2026-08-31 신설).
+#     라우트 채널 값(VITE_BUILD_CHANNEL)은 <빌드 시점>에 굳어 반대 향 화면 코드를 산출물에서
+#     통째로 걷어낸다 — 관제 산출물에는 /portal 라우트가 0건이고, 포털 산출물에는 내부
+#     화면(/dashboard·/admin/*·/manage/*)이 0건이다. 그래서 <한 번만 빌드하면> 포털향 설치에
+#     포털 화면이 하나도 없는 산출물이 올라간다. 빌드도 설치도 성공하고 오류도 없어
+#     <조용히> 어긋난다(04-configuration.md D-4 가 이 증상을 못 박았다: "머리 영역이 겹치고
+#     화면이 뜨지 않는다"). 설계 근거는 INT-013.
+#     ⚠ 채널을 <명시하지 않은> 빌드는 기본값인 관제로 접힌다. 그래서 포털 산출물은 반드시
+#       `npm run build:portal` 로 만든다 — `npm run build` 로는 절대 나오지 않는다.
+#
+#   ★ 매체에는 두 벌을 <함께> 싣고, 어느 것을 까는지는 <설치>가 KLID_DEPLOY_FLAVOR 로 고른다.
+#     향마다 매체를 따로 뜨는 안은 택하지 않았다 — 매체는 이미 수 GB 규모라 화면 산출물
+#     증분이 무시할 수준인 반면, 매체가 두 종류가 되면 반입·검수·자료실 분할 절차가 통째로
+#     두 배가 된다(3GB 파일 제한 때문에 이미 분할돼 있다).
+#     ⚠ 대가: 프론트엔드 빌드 시간이 <약 2배>가 된다(채널당 1회). 백엔드·수집 단계는 그대로다.
+#
+#   결과: artifacts/frontend/dist/control/   ← 관제 연동 배포용 (npm run build:control)
+#         artifacts/frontend/dist/portal/    ← 포털 연동 배포용 (npm run build:portal)
 #         artifacts/frontend/BUILD-INFO.txt (이 빌드에 실제로 들어간 값 — dist 만 보고는
 #         무엇으로 구워졌는지 알 수 없어, 확인하려면 번들 JS 를 grep 해야 했다)
+#     ★ 무결성 단위는 종전대로 <artifacts/frontend/dist> 하나다 — SHA256SUMS 가 그 아래를
+#       재귀로 훑으므로 install.sh 의 검증 목록(VERIFY_DIRS)은 바뀌지 않는다.
 #
 #   ★ 제3자 라이선스 고지도 여기서 함께 수집한다 (2026-08-30 신설).
 #     dist 에는 <폰트 바이너리 2,166개>(Pretendard·D2Coding)와 번들된 npm 패키지 코드가
 #     실린다. 둘 다 재배포이므로 고지가 따라가야 하는데, 2026-08-30 이전까지 dist 안에
 #     라이선스 파일이 <0건>이었다.
 #     산출: licenses/frontend/…              (매체 루트의 고지 모음)
-#           artifacts/frontend/dist/licenses/ (웹으로도 열람 가능하도록 산출물 안에 동봉)
+#           artifacts/frontend/dist/{control,portal}/licenses/ (웹으로도 열람 가능하도록
+#                                              향마다 산출물 안에 동봉)
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,14 +87,34 @@ info "[frontend] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LO
 info "[frontend] 의존성 설치 (npm ci)..."
 ( cd "${FE_SRC}" && npm ci )
 
-info "[frontend] 프로덕션 빌드 (npm run build)..."
-( cd "${FE_SRC}" && npm run build )
+# ---- 배포 향별 빌드 ---------------------------------------------------------
+#   ★ 먼저 <스테이징>에 두 벌을 모두 만들고, 둘 다 성공한 뒤에 기존 dist 를 교체한다.
+#     앞서 지워 두면 두 번째 빌드가 실패했을 때 <아무 산출물도 없는> 상태가 남는다
+#     (이 단계의 재실행 안전성은 "빌드 성공 뒤에만 dist 를 교체한다"에 기대고 있다).
+BUILD_FLAVORS=(control portal)
+STAGE="${OUT}/.dist.staging"
+rm -rf "${STAGE}"
+ensure_dir "${STAGE}"
 
-[[ -d "${FE_SRC}/dist" ]] || die "빌드 결과(dist)를 찾을 수 없습니다: ${FE_SRC}/dist"
+for _flavor in "${BUILD_FLAVORS[@]}"; do
+  info "[frontend] 프로덕션 빌드 [${_flavor}] (npm run build:${_flavor})..."
+  # 앞 채널의 산출물이 섞이지 않게 매번 비우고 시작한다. vite 가 outDir 를 비우기는 하지만,
+  # 그 기본 동작에 기대면 설정 한 줄로 조용히 깨진다(채널이 섞인 산출물은 눈으로 안 보인다).
+  rm -rf "${FE_SRC}/dist"
+  ( cd "${FE_SRC}" && npm run "build:${_flavor}" ) \
+    || die "[frontend] ${_flavor} 채널 빌드 실패 — 위 오류를 확인하세요."
+  [[ -d "${FE_SRC}/dist" ]] || die "빌드 결과(dist)를 찾을 수 없습니다: ${FE_SRC}/dist (${_flavor})"
+  [[ -f "${FE_SRC}/dist/index.html" ]] || die "[frontend] ${_flavor} 산출물에 index.html 이 없습니다 — 빌드가 반쪽입니다."
+  cp -R "${FE_SRC}/dist" "${STAGE}/${_flavor}"
+  ok "[frontend] 빌드 [${_flavor}]: $(du -sh "${STAGE}/${_flavor}" | cut -f1)"
+done
 
 rm -rf "${OUT}/dist"
-cp -R "${FE_SRC}/dist" "${OUT}/dist"
+mv "${STAGE}" "${OUT}/dist"
 ok "[frontend] 수집: ${OUT}/dist  ($(du -sh "${OUT}/dist" | cut -f1))"
+for _flavor in "${BUILD_FLAVORS[@]}"; do
+  info "[frontend]   · ${_flavor} → ${OUT}/dist/${_flavor}"
+done
 
 # ---- 이 빌드에 실제로 들어간 값 기록 ----------------------------------------
 #   ★ 로그로만 찍으면 매체를 받은 사람은 <dist 만 보고는 무엇으로 구워졌는지 알 수 없다>.
@@ -88,6 +128,9 @@ ok "[frontend] 수집: ${OUT}/dist  ($(du -sh "${OUT}/dist" | cut -f1))"
   printf 'built_at=%s\n' "$(date '+%Y-%m-%d %H:%M:%S%z')"
   printf 'git_commit=%s\n' "$(cd "${REPO}" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   printf 'node=%s\n' "$(node -v 2>/dev/null || echo unknown)"
+  # ★ 어느 향들이 들어 있는지 — dist 하위 디렉터리를 열어 보지 않고도 알 수 있어야 한다.
+  #   설치는 이 목록 중 KLID_DEPLOY_FLAVOR 가 가리키는 하나만 배치한다.
+  printf 'build_flavors=%s\n' "${BUILD_FLAVORS[*]}"
   printf 'VITE_API_BASE_URL=%s\n' "${VITE_API_BASE_URL}"
   printf 'VITE_TOKEN_INGRESS=%s\n' "${VITE_TOKEN_INGRESS}"
   printf 'VITE_DEV_LOGIN_ENABLED=%s\n' "${VITE_DEV_LOGIN_ENABLED}"
@@ -171,10 +214,14 @@ ok "[frontend] 라이선스 고지 수집: ${FE_LIC_DIR} (패키지 ${_fe_n} / �
 # ---- 산출물(dist) 안에도 고지를 동봉한다 ------------------------------------
 #   ★ dist 는 웹 서버가 그대로 서빙하는 디렉터리다. 매체 루트의 licenses/ 는 설치 담당자만
 #     보지만, 여기 넣으면 운영 중에도 확인할 수 있다(폰트 재배포 고지의 실질적 접근성).
-rm -rf "${OUT}/dist/licenses"
-mkdir -p "${OUT}/dist/licenses"
-cp -R "${FE_LIC_DIR}/." "${OUT}/dist/licenses/" 2>/dev/null || true
-ok "[frontend] 산출물 동봉: ${OUT}/dist/licenses ($(du -sh "${OUT}/dist/licenses" 2>/dev/null | cut -f1))"
+#   ★ 향마다 동봉한다 — 설치가 배치하는 것은 <한 향의 dist 하나>이고 그것이 곧 웹 문서
+#     루트가 된다. 상위(dist/)에 한 벌만 두면 웹에서는 아무 향에서도 열리지 않는다.
+for _flavor in "${BUILD_FLAVORS[@]}"; do
+  rm -rf "${OUT}/dist/${_flavor}/licenses"
+  mkdir -p "${OUT}/dist/${_flavor}/licenses"
+  cp -R "${FE_LIC_DIR}/." "${OUT}/dist/${_flavor}/licenses/" 2>/dev/null || true
+  ok "[frontend] 산출물 동봉: ${OUT}/dist/${_flavor}/licenses ($(du -sh "${OUT}/dist/${_flavor}/licenses" 2>/dev/null | cut -f1))"
+done
 
 # ★ SHA256SUMS 는 licenses/ 를 동봉한 <뒤에> 써야 한다. 앞에서 쓰면 목록에서 빠져
 #   install.sh 의 무결성 검증이 고지 파일만 검증 없이 통과시킨다(10-build-backend.sh 의

@@ -9,6 +9,7 @@ import { RadioCard } from '@/components/common/RadioCard';
 import { apiClient } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { Channel, Role } from '@/lib/api/types';
+import { isPortalEmbedChannel } from '@/lib/buildChannel';
 
 import { LOCAL_STORAGE_TOKEN_KEY } from './tokenIngress';
 
@@ -41,8 +42,16 @@ interface RolePreset {
   readonly description: string;
 }
 
-// DevTokenService 기본값과 1:1 매핑 (사양 명시값)
-const ROLE_PRESETS: readonly RolePreset[] = [
+// [@design SCREEN-004]
+/**
+ * 관제 채널 산출물의 역할 선택지 — DevTokenService 기본값과 1:1 매핑 (사양 명시값).
+ *
+ * 포털 사용자는 여기 없다. **없앤 것이 아니라 포털 채널 산출물로 옮긴 것**이다(아래
+ * `PORTAL_ROLE_PRESETS`). 두 산출물은 서로 다른 서버에 배포되고 각 배포는 자기 채널 사용자만
+ * 받으므로, 그 배포에서 쓸 수 없는 역할을 선택지에 두면 **고르는 순간 채널이 맞지 않아 진입이
+ * 막히는 선택지**가 화면에 남는다(BE 의 role-channel 정합 검사가 400 으로 거른다).
+ */
+const CONTROL_ROLE_PRESETS: readonly RolePreset[] = [
   {
     role: Role.ADMIN,
     channel: Channel.INTERNAL,
@@ -67,6 +76,16 @@ const ROLE_PRESETS: readonly RolePreset[] = [
     label: 'WORKER (2001, 최라벨)',
     description: '영상에 라벨을 만들고 수정해 검수를 요청하는 역할입니다.',
   },
+];
+
+// [@design SCREEN-004] [@design INT-013]
+/**
+ * 포털 채널 산출물의 역할 선택지 — **이것이 그 산출물의 유일한 진입 수단이다.**
+ *
+ * ⚠ 목록을 비우거나 이 항목을 지우면 포털 채널 단독 구동에서 토큰을 얻을 길이 사라진다.
+ *   채널로 **가르는** 것이지 지우는 것이 아니다.
+ */
+const PORTAL_ROLE_PRESETS: readonly RolePreset[] = [
   {
     role: Role.PORTAL_USER,
     channel: Channel.PORTAL,
@@ -76,6 +95,27 @@ const ROLE_PRESETS: readonly RolePreset[] = [
     description: '포털에서 들어오는 외부 사용자 역할입니다.',
   },
 ];
+
+/**
+ * 이 산출물이 보여 줄 선택지.
+ *
+ * 판정은 `isPortalEmbedChannel()` 을 **재사용**한다 — `import.meta.env` 를 여기서 다시 읽으면
+ * 채널 판정이 두 벌이 되어(오타 처리·기본값 정책 포함) 한쪽만 갱신될 때 조용히 갈린다
+ * (`lib/remoteMount.resolveRouterBasename` 과 같은 관례).
+ */
+function activeRolePresets(): readonly RolePreset[] {
+  return isPortalEmbedChannel() ? PORTAL_ROLE_PRESETS : CONTROL_ROLE_PRESETS;
+}
+
+/**
+ * 기본 선택 역할 — **각 채널에서 유효한 값이어야 한다**(사양 명시).
+ *
+ * 관제 채널의 검수자는 종전 그대로다. 관리자를 선택지에 더하는 것과 기본값을 옮기는 것은 다른
+ * 축이고, 개발자가 가장 자주 쓰는 역할이 바뀌면 기존 동선이 흔들린다.
+ */
+function defaultRole(): DevRole {
+  return isPortalEmbedChannel() ? Role.PORTAL_USER : Role.REVIEWER;
+}
 
 interface DevTokenRequest {
   readonly role: DevRole;
@@ -118,9 +158,9 @@ const ERROR_TITLE_ISSUE = '토큰을 발급하지 못했습니다';
 /** 발급은 됐으나 브라우저 저장에서 막힌 경우 — 발급 실패로 뭉뚱그리면 원인 추적이 어긋난다. */
 const ERROR_TITLE_PERSIST = '토큰을 저장하지 못했습니다';
 
-function presetFor(role: DevRole): RolePreset {
-  const found = ROLE_PRESETS.find((p) => p.role === role);
-  // ROLE_PRESETS 는 모든 DevRole 을 포함 — 타입상 unreachable
+function presetFor(role: DevRole, presets: readonly RolePreset[]): RolePreset {
+  const found = presets.find((p) => p.role === role);
+  // 선택 상태는 이 목록에서만 나오므로 타입상 unreachable
   if (!found) {
     throw new Error(`unknown role: ${role as string}`);
   }
@@ -148,9 +188,40 @@ function persistControlServerStub(claims: DevTokenClaims | undefined): void {
   }
 }
 
+// [@design SCREEN-004] [@design INT-013]
+/**
+ * 발급된 토큰을 **채널에 맞는 자리**에 보관한다.
+ *
+ * | 채널 | 보관 자리 | 근거 |
+ * |---|---|---|
+ * | 관제 | 같은 출처 브라우저 저장소(`klid-jwt-token`) | 운영에서 관제서버가 두는 자리와 같다 |
+ * | 포털(단독 구동) | Host 를 대신하는 임시 창구가 자기 몫으로 | 본체는 포털 채널에서 저장소를 쓰지 않는다 |
+ *
+ * ★ 포털 채널에서 저장소에 쓰면 안 된다. 본체(`stores/useAuthStore`)가 그 채널에서 저장소를
+ *   쓰지 않기로 한 불변식이 흐려지고, 무엇보다 **본체가 그 값을 읽지 않으므로 아무 소용이 없다** —
+ *   인계 창구가 조달처이기 때문이다(`features/auth/tokenHandoff`).
+ *
+ * ★★ `import.meta.env.DEV` 를 **먼저** 본다. 산출 시점에 굳는 값이라 운영 빌드에서는 이 분기가
+ *    통째로 지워져 대역 모듈이 청크로 방출되지 않는다. 개발용 로그인 노출 값만으로 가르면
+ *    폐쇄망 반입 산출물에 인증 우회 표면이 들어간다(`lib/devLogin` 주석 참조).
+ */
+async function persistIssuedToken(token: string): Promise<boolean> {
+  if (import.meta.env.DEV && isPortalEmbedChannel()) {
+    const { seedDevHostToken } = await import('./devHostStub');
+    return seedDevHostToken(token);
+  }
+  try {
+    localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function DevLoginPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<DevRole>(Role.REVIEWER);
+  const presets = activeRolePresets();
+  const [role, setRole] = useState<DevRole>(defaultRole);
   const [userNo, setUserNo] = useState<string>('');
   // 사양(SCREEN-004): expSeconds 는 선택 입력이며 placeholder=3600 — 값을 미리 채워두면
   // 사용자가 손대지 않아도 매 요청에 expSeconds=3600 이 명시 전송돼 "비워두면 BE 기본값"이라는
@@ -159,7 +230,7 @@ export function DevLoginPage() {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<DevLoginErrorNotice | null>(null);
 
-  const preset = presetFor(role);
+  const preset = presetFor(role, presets);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -178,6 +249,7 @@ export function DevLoginPage() {
     };
 
     try {
+      // [@design API-153] 개발용 토큰 발급 — 역할·채널 정합은 서버가 최종 판정한다.
       const res = await apiClient.post<DevTokenResponse>('/dev/tokens', body);
       const data = res.data;
       if (!data || typeof data.token !== 'string' || data.token.length === 0) {
@@ -185,13 +257,11 @@ export function DevLoginPage() {
         return;
       }
 
-      // 운영 시나리오와 동일 경로: 같은 origin 의 localStorage 에 저장
-      try {
-        localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, data.token);
-      } catch {
+      // 운영 시나리오와 동일 경로: 채널에 맞는 자리에 보관한다(`persistIssuedToken` 주석).
+      if (!(await persistIssuedToken(data.token))) {
         setError({
           title: ERROR_TITLE_PERSIST,
-          description: 'localStorage 에 토큰을 저장할 수 없습니다.',
+          description: '브라우저에 토큰을 보관할 수 없습니다.',
         });
         return;
       }
@@ -253,7 +323,7 @@ export function DevLoginPage() {
             RadioCard 는 SCREEN-002(역할 클레임)와 공유하는 골격이다.
           */}
           <div className="flex flex-col gap-2">
-            {ROLE_PRESETS.map((p) => (
+            {presets.map((p) => (
               <RadioCard
                 key={p.role}
                 id={`dev-login-role-${p.role}`}

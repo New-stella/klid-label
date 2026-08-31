@@ -76,7 +76,7 @@ sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh --role=app
 | 구성 | httpd(정적 서빙 + `/api` 프록시) · 외부 WAS 에 `api.war` · (옵션)PostgreSQL·DB 초기화 | ai-server(번들 파이썬 + 오프라인 휠 + YOLOX/SAM2 모델) |
 | 도는 단계 | 10 · 12 · 14 · 15 · 16 · 17 · 19 | 11 · 13 |
 | systemd 유닛 | `httpd` — **백엔드는 유닛이 아니다**(외부 WAS 가 기동 주체) | `klid-ai-server` |
-| 쓰는 반입물 | `artifacts/backend` · `artifacts/frontend/dist` · `syspkgs/{rpm,gpg,postgresql,ffmpeg,ffmpeg-src}` | `vendor/wheels` · `models/weights` · `runtimes/python` · `syspkgs/{rpm,gpg}` |
+| 쓰는 반입물 | `artifacts/backend` · `artifacts/frontend/dist/{control,portal}`(**향 하나만 배치**) · `syspkgs/{rpm,gpg,postgresql,ffmpeg,ffmpeg-src}` | `vendor/wheels` · `models/weights` · `runtimes/python` · `syspkgs/{rpm,gpg}` |
 | ffmpeg | **전제조건** — 관제지원시스템 팀이 설치한다. 우리는 **검증만** 한다(19단계) | 쓰지 않는다(ai-server 에 `ffmpeg`/`ffprobe` 호출 0건) |
 | GPU | 해당 없음 | **장비에 GPU 가 있으나 이번 반입은 CPU 전용**이다(torch CPU 휠) |
 
@@ -85,6 +85,12 @@ sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh --role=app
 >
 > ⚠ **역할을 주지 않으면 종전대로 전체가 설치된다**(`--role=all` 이 기본). 기존 단일 서버 절차는
 > 그대로 유효하며, 이 분리로 깨지지 않는다.
+
+> ★★ **화면 산출물은 배포 향(`KLID_DEPLOY_FLAVOR`)이 고른다** — 매체에는 관제향·포털향 두 벌이
+> 실리고 서버 A 설치가 **그중 하나만** `/opt/klid/web/dist` 에 배치한다. 관제 연동 배포는
+> **기본값이라 아무것도 주지 않아도 된다**; 포털 연동 배포만 `sudo KLID_DEPLOY_FLAVOR=portal
+> ./scripts/install.sh` 로 넘긴다. 향에 맞는 산출물이 매체에 없으면 **다른 향을 대신 깔지 않고
+> 즉시 실패**한다. 자세히는 [04-configuration.md](04-configuration.md) D-4.
 
 ## 실행
 
