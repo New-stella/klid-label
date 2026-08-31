@@ -1,0 +1,4 @@
+# 휠은 반입물이라 git 에 담지 않는다(약 3.6GiB). CPU 매체의 vendor/ 와 같은 규칙이다.
+#   조달 방법은 README.md §1 의 판 표와 아래 명령이 정본이다.
+wheels/
+VERSION.built
