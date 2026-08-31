@@ -101,7 +101,7 @@ describe('PortalLayout', () => {
    * 로 빌드된 산출물에서는 `PortalLayout` 자체 헤더를 렌더하지 않는다(Host 가 이미 자기
    * 헤더를 갖고 있어, 그대로 두면 한 화면에 머리 영역이 두 벌 겹친다).
    *
-   * 기본값(환경변수 미설정 = `internal` 채널)에서는 지금처럼 헤더가 렌더된다 — 이 사실은
+   * 기본값(환경변수 미설정 = `control` 채널)에서는 지금처럼 헤더가 렌더된다 — 이 사실은
    * 이 파일의 다른 테스트들(예: `포털_레이아웃_GNB_단순화_LNB_없음`)이 이미 지키고 있고,
    * 여기서는 "채널을 명시하지 않으면 지금과 같다"는 것을 한 번 더 직접 단언한다.
    */
@@ -119,8 +119,8 @@ describe('PortalLayout', () => {
       expect(screen.getByText('AI 학습데이터 포털')).toBeInTheDocument();
     });
 
-    it('internal_채널이면_헤더가_렌더된다', () => {
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+    it('control_채널이면_헤더가_렌더된다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
 
       renderLayout();
 

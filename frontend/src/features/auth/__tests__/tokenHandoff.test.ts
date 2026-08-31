@@ -76,7 +76,7 @@ describe('tokenHandoff — 토큰 인계 창구 어댑터', () => {
 
   describe('내부(관제) 채널 — 지금 동작 그대로', () => {
     it('스토어_값을_그대로_돌려준다', () => {
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
       useAuthStore.setState({ token: CONTROL_JWT, claims: null });
 
       expect(resolveTokenHandoff()).toBe(internalTokenHandoff);
@@ -94,7 +94,7 @@ describe('tokenHandoff — 토큰 인계 창구 어댑터', () => {
 
     it('Host_창구가_주입돼_있어도_내부_채널은_그것을_쓰지_않는다', () => {
       // 내부 채널의 진실원은 스토어다. Host 창구가 어쩌다 등록돼도 조달처가 바뀌면 안 된다.
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
       const { gateway } = makeHostGateway(HOST_JWT);
       registerHostTokenHandoff(gateway);
       useAuthStore.setState({ token: CONTROL_JWT, claims: null });

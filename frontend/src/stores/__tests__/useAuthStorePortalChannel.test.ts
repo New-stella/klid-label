@@ -96,7 +96,7 @@ describe('useAuthStore — 채널별 브라우저 저장소 보관', () => {
 
   describe('내부(관제) 채널 — 지금 동작 그대로 (무변경 가드)', () => {
     beforeEach(() => {
-      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
     });
 
     it('setToken이_sessionStorage에_토큰을_보관한다', () => {

@@ -16,7 +16,7 @@ describe('resolveRouterBasename — 포털 Host 마운트 경로 판정', () => 
   });
 
   it('채널_미설정이면_라우터_basename이_없다', () => {
-    // given: VITE_BUILD_CHANNEL 미설정 — 기존 내부(관제) 채널 빌드와 동일한 상태
+    // given: VITE_BUILD_CHANNEL 미설정 — 기존 관제 채널 빌드와 동일한 상태
     vi.stubEnv('VITE_BUILD_CHANNEL', '');
 
     // when / then: 여기서 basename 이 새면 내부 채널의 **모든** 라우트가 포털 마운트 경로
@@ -24,9 +24,9 @@ describe('resolveRouterBasename — 포털 Host 마운트 경로 판정', () => 
     expect(resolveRouterBasename()).toBeUndefined();
   });
 
-  it('채널이_internal이면_라우터_basename이_없다', () => {
+  it('채널이_control이면_라우터_basename이_없다', () => {
     // given
-    vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+    vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
     // when / then
     expect(resolveRouterBasename()).toBeUndefined();
   });

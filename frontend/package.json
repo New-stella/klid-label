@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:internal": "tsc -b && VITE_BUILD_CHANNEL=internal vite build",
+    "build:control": "tsc -b && VITE_BUILD_CHANNEL=control vite build",
     "build:portal": "tsc -b && VITE_BUILD_CHANNEL=portal vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx",
