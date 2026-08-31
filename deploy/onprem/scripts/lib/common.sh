@@ -443,9 +443,56 @@ GPGSNIPPET
 # klid_dnf_install_from_bundle <repo_id> <rpm_dir> <pkg...>
 #   번들 디렉토리를 로컬 저장소로 등록하고 지정 패키지를 오프라인 설치한다.
 #   repodata 가 없으면(구 번들) RPM 파일 직접 설치로 폴백한다.
+# ---- 이미 설치된 시스템 패키지는 건드리지 않는다 (반입 약속 이행) ------------
+#
+#   ★ 왜 필요한가 — `dnf install <pkg>` 는 <이미 설치돼 있어도> 저장소에 더 신 버전이 있으면
+#     그것으로 <업그레이드>한다. 우리 번들은 특정 배포판 판 기준으로 모여 있으므로, 그보다 낮은
+#     판의 장비에서 그대로 돌리면 기반 라이브러리까지 올라간다. 그것이 반입 확인 요청서에서
+#     "가장 피하려는 일"로 적어 상대에게 약속한 바다.
+#
+#   그래서 두 겹으로 막는다:
+#     1) 이미 설치된 것은 <설치 목록에서 뺀다>. 전부 있으면 이 단계를 통째로 건너뛴다.
+#     2) 남은 것을 설치하기 전에 <미리보기>를 돌려, 기존 패키지를 올리거나 내리려 하면
+#        설치하지 않고 <중단>한다.
+#
+#   ⚠ 우회 토글 KLID_ALLOW_PKG_CHANGE=1 은 <의도적으로 기본이 아니다>. 켜면 위 약속이 깨진다.
+
+# 인자로 받은 패키지 중 <설치돼 있지 않은 것>만 공백 구분으로 출력한다.
+klid_rpm_missing() {
+  local p out=""
+  for p in "$@"; do
+    rpm -q "${p}" >/dev/null 2>&1 || out+="${p} "
+  done
+  printf '%s' "${out% }"
+}
+
+# 설치 미리보기에서 기존 패키지 변경(업그레이드/다운그레이드)이 잡히면 1 을 반환한다.
+#   dnf 는 --assumeno 로 트랜잭션 요약만 찍고 중단하므로(종료코드 1) 출력만 본다.
+klid_dnf_would_change_existing() {
+  local repo_id="$1"; shift
+  local preview
+  preview="$(dnf install --assumeno --disablerepo='*' --enablerepo="klid-${repo_id}" "$@" 2>&1 || true)"
+  printf '%s' "${preview}" | grep -Eq '^(Upgrading|Downgrading|업그레이드|다운그레이드)'
+}
+
 klid_dnf_install_from_bundle() {
   local repo_id="$1" rpm_dir="$2"; shift 2
   local pkgs=("$@")
+
+  # ---- 1겹: 이미 설치된 것은 제외한다 ----
+  if command -v rpm >/dev/null 2>&1 && [[ "${#pkgs[@]}" -gt 0 ]]; then
+    local _missing
+    _missing="$(klid_rpm_missing "${pkgs[@]}")"
+    if [[ -z "${_missing}" ]]; then
+      ok "[rpm] 이미 전부 설치돼 있어 건너뜁니다(장비 무변경): ${pkgs[*]}"
+      return 0
+    fi
+    if [[ "${_missing}" != "${pkgs[*]}" ]]; then
+      info "[rpm] 이미 설치된 것은 제외합니다 — 설치 대상: ${_missing}"
+    fi
+    # shellcheck disable=SC2206
+    pkgs=(${_missing})
+  fi
 
   [[ -d "${rpm_dir}" ]] || { warn "[rpm] 번들 디렉토리 없음: ${rpm_dir}"; return 1; }
   command -v dnf >/dev/null 2>&1 || { warn "[rpm] dnf 가 없어 로컬 저장소 설치를 쓸 수 없습니다."; return 1; }
@@ -482,6 +529,20 @@ gpgcheck=${gpgcheck}
 repo_gpgcheck=0
 module_hotfixes=1
 REPO
+
+  # ---- 2겹: 기존 패키지를 바꾸려 하면 설치하지 않고 중단한다 ----
+  if [[ "${KLID_ALLOW_PKG_CHANGE:-0}" != "1" ]] \
+     && klid_dnf_would_change_existing "${repo_id}" "${pkgs[@]}"; then
+    rm -f "${repo_file}"
+    warn "[rpm] 이 설치는 <이미 설치된 패키지를 변경>하려 합니다 — 중단합니다."
+    warn "      대상: ${pkgs[*]}"
+    warn "      원인: 번들이 이 장비보다 높은 배포판 판으로 모여 있어, 의존성을 맞추느라"
+    warn "            기반 라이브러리까지 올리려는 상태입니다."
+    warn "      조치: 이 장비의 배포판 판을 알려 주시면 그 판으로 다시 수집해 넣겠습니다."
+    warn "            (판 확인:  cat /etc/redhat-release)"
+    warn "      ⚠ 그대로 진행하려면 KLID_ALLOW_PKG_CHANGE=1 — 기존 환경이 바뀝니다."
+    return 1
+  fi
 
   local rc=0
   # --disablerepo='*' 로 외부 네트워크 미접근을 강제하고, 방금 만든 로컬 저장소만 켠다.

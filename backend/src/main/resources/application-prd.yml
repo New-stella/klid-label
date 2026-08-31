@@ -1,6 +1,6 @@
 spring:
-  # 풀 설정은 prefix 직하(평면)에 둔다. Control/PortalDataSourceConfig 가 HikariDataSource 인스턴스에
-  #   @ConfigurationProperties(prefix="spring.datasource.{control|portal}") 로 직접 바인딩하므로
+  # 풀 설정은 prefix 직하(평면)에 둔다. ControlDataSourceConfig 가 HikariDataSource 인스턴스에
+  #   @ConfigurationProperties(prefix="spring.datasource.control") 로 직접 바인딩하므로
   #   Boot 오토컨피그 규약인 `hikari:` 중첩 키는 unknown field 로 조용히 무시된다(= 기본 풀 10 으로 동작).
   #   회귀 방지: DataSourcePoolBindingTest 가 본 파일을 실제로 바인딩해 20/5 를 검증한다.
   # 이중화(HA) — Quartz 클러스터링 **필수**(B-ISSUE-81). 배포 토폴로지가 주 서버 2노드 Active-Active 라

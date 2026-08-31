@@ -14,6 +14,15 @@ set -euo pipefail
 #     sudo SKIP_DB_INIT=1 ./scripts/install.sh    # DB 생성 단계 생략(이미 준비됨)
 #     sudo INSTALL_BACKEND_SYSTEMD_UNIT=1 ./scripts/install.sh  # 베어메탈 형상(jar + systemd) — 아래 ★
 #
+#   단계 선택(부분 실행 — 재실행은 멱등이라 안전하다):
+#     ./scripts/install.sh --list                 # 이 역할에서 도는 단계만 보고 끝낸다(root 불요·무변경)
+#     sudo ./scripts/install.sh --only=13         # 그 단계만 실행(여러 개면 --only=12,14)
+#     sudo ./scripts/install.sh --skip=10,11      # 그 단계만 빼고 실행
+#     ★ 번호(10)·번호접두(13-)·전체 파일명 아무거나 받는다. --only 와 --skip 은 함께 쓸 수 없다.
+#     ★ 이미 끝난 단계를 빼고 <실패한 단계만> 다시 돌릴 때 쓴다. 각 단계는 앞 단계의 실행
+#       <여부>가 아니라 <결과물 존재>를 확인하므로, 건너뛰어 빠진 것이 있으면 그 자리에서
+#       "무엇이 없다"고 말하며 멈춘다(조용히 잘못된 상태로 끝나지 않는다).
+#
 #   ★★ 대상 장비는 2대다 (2026-08-30 확정):
 #       A) app : httpd(정적 서빙 + /api 프록시) + 외부 WAS 에 api.war + (옵션)PostgreSQL·DB 초기화
 #                ffmpeg·ffprobe 는 <이 서버의 전제조건>이며 관제지원시스템 팀이 설치한다.
@@ -48,18 +57,78 @@ source "${SELF_DIR}/lib/common.sh"
 # ---- 인자 파싱(역할) ----
 #   환경변수 KLID_ROLE 로도 줄 수 있다. 인자가 있으면 인자가 이긴다.
 _role_arg=""
+_only_arg=""
+_skip_arg=""
+_list_only=0
 for _a in "$@"; do
   case "${_a}" in
     --role=*) _role_arg="${_a#--role=}" ;;
+    --only=*) _only_arg="${_a#--only=}" ;;
+    --skip=*) _skip_arg="${_a#--skip=}" ;;
+    --list)   _list_only=1 ;;
     -h|--help)
-      sed -n '1,45p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '1,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
-    *) die "알 수 없는 인자: ${_a} (허용: --role=app|ai|all)" ;;
+    *) die "알 수 없는 인자: ${_a} (허용: --role=app|ai|all · --only=N[,N] · --skip=N[,N] · --list)" ;;
   esac
 done
 
-require_root
-require_cmd tar id useradd install
+[[ -z "${_only_arg}" || -z "${_skip_arg}" ]] \
+  || die "--only 와 --skip 은 함께 쓸 수 없습니다(무엇이 도는지 모호해진다)."
+
+# 「10」·「13-」·「13-install-ai-server.sh」 아무 표기나 받아 단계 파일명과 맞춘다.
+_step_matches() {
+  local step="$1" spec="$2" tok
+  local _toks
+  IFS=',' read -r -a _toks <<< "${spec}"
+  for tok in "${_toks[@]}"; do
+    tok="${tok// /}"
+    [[ -n "${tok}" ]] || continue
+    [[ "${step}" == "${tok}" || "${step}" == "${tok}-"* || "${step}" == "${tok}"*".sh" ]] && return 0
+  done
+  return 1
+}
+
+# 이 역할에서 도는 단계 목록을 만든다(부작용 없음 — --list 가 root 없이 쓸 수 있어야 한다).
+_build_steps() {
+  STEPS=()
+  klid_role_has app && STEPS+=("10-install-postgresql.sh")
+  klid_role_has ai  && STEPS+=("11-install-runtimes.sh")
+  klid_role_has app && STEPS+=("12-install-backend.sh")
+  klid_role_has ai  && STEPS+=("13-install-ai-server.sh")
+  klid_role_has app && STEPS+=("14-install-frontend.sh")
+  if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
+    STEPS+=("15-init-db.sh")
+    STEPS+=("16-load-schema.sh")
+  fi
+  klid_role_has app && STEPS+=("19-verify-ffmpeg.sh")
+  klid_role_has app && STEPS+=("20-verify-frontend-config.sh")
+  klid_role_has app && STEPS+=("21-verify-ai-server-url.sh")
+
+  if [[ -n "${_only_arg}" || -n "${_skip_arg}" ]]; then
+    local _sel=() step
+    for step in "${STEPS[@]}"; do
+      if [[ -n "${_only_arg}" ]]; then
+        _step_matches "${step}" "${_only_arg}" && _sel+=("${step}")
+      else
+        _step_matches "${step}" "${_skip_arg}" || _sel+=("${step}")
+      fi
+    done
+    if [[ -n "${_only_arg}" && "${#_sel[@]}" -eq 0 ]]; then
+      warn "[step] --only=${_only_arg} 에 맞는 단계가 이 역할(${KLID_ROLE})에 없습니다."
+      warn "       이 역할에서 도는 단계: ${STEPS[*]}"
+      die  "[step] 실행할 단계가 없습니다 — 역할(--role)과 단계 번호를 확인하세요."
+    fi
+    STEPS=("${_sel[@]}")
+  fi
+}
+
+# ★ --list 는 아무것도 바꾸지 않으므로 root·도구 요구를 걸지 않는다 — 걸면 "실행 전에
+#   무엇이 도는지 확인한다"는 목적 자체가 성립하지 않는다. 실제 설치 경로는 그대로 요구한다.
+if [[ "${_list_only}" -ne 1 ]]; then
+  require_root
+  require_cmd tar id useradd install
+fi
 
 # 설치 역할 — all(기본) | app | ai. 잘못된 값은 여기서 die(조용히 all 로 흘리지 않는다).
 export KLID_ROLE
@@ -94,6 +163,16 @@ info "  ETC    : ${KLID_ETC}"
 info "  USER   : ${KLID_USER}"
 info "  패키지 : ${ONPREM_ROOT}"
 info "================================================================"
+
+# ---- --list: 여기서 끝낸다 ----
+#   ★ 아래부터는 <장비를 바꾸는> 구간이다(사용자·그룹·디렉터리 생성). 목록만 보려는 사람이
+#     그 부작용을 겪으면 안 되고, 실행 전에 확인하려는 것이므로 root 도 요구하지 않는다.
+if [[ "${_list_only}" -eq 1 ]]; then
+  _build_steps
+  info "[step] 역할 ${KLID_ROLE} 에서 실행될 단계(${#STEPS[@]}개):"
+  for step in "${STEPS[@]}"; do info "         ${step}"; done
+  exit 0
+fi
 
 # ---- 서비스 사용자/그룹 + 기본 디렉토리 생성 ----
 if ! getent group "${KLID_GROUP}" >/dev/null 2>&1; then
@@ -180,38 +259,12 @@ done
 #   ★ 단계 스크립트 자신도 역할 게이트를 갖는다(11·19). 여기서 목록을 추리는 것은
 #     "안 도는 단계의 로그를 아예 안 남기기" 위한 것이고, 스크립트 쪽 게이트는
 #     <직접 실행>했을 때의 안전망이다. 두 겹 중 하나만 두지 말 것.
-STEPS=()
-klid_role_has app && STEPS+=("10-install-postgresql.sh")   # 번들 PG(옵션) — DB 는 app 축
-klid_role_has ai  && STEPS+=("11-install-runtimes.sh")     # 파이썬 + opencv 런타임 의존
-klid_role_has app && STEPS+=("12-install-backend.sh")      # api.war 배치 + 설정 템플릿
-klid_role_has ai  && STEPS+=("13-install-ai-server.sh")    # venv + 오프라인 휠 + 모델
-klid_role_has app && STEPS+=("14-install-frontend.sh")     # dist 배치 + httpd
+_build_steps
 
-if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
-  STEPS+=("15-init-db.sh")
-  # 16: db/schema.sql 로드 — 온프렘은 Flyway 를 쓰지 않으므로 <테이블을 만드는 유일한 경로>다.
-  #     SCHEMA_LOAD_RUN=1 일 때만 실제 로드, 아니면 수동 안내만. 이미 준비된 DB 면
-  #     SKIP_SCHEMA_LOAD=1 로 생략(= "다른 사람이 이미 넣었다"는 선언).
-  STEPS+=("16-load-schema.sh")
+if [[ -n "${_only_arg}" || -n "${_skip_arg}" ]]; then
+  warn "[step] 부분 실행입니다 — 실행 대상: ${STEPS[*]}"
+  warn "       건너뛴 단계의 결과물이 없으면 그 자리에서 멈춥니다(조용히 넘어가지 않는다)."
 fi
-
-# ---- 끝단 검증 단계(app 전용) ----
-#   ★ <맨 마지막>에 모아 둔다. 여기서 die 해도 앞 단계(WAR 배치·httpd·정적 자산·DB)는 이미
-#     끝나 있어, 미충족 항목을 마련한 뒤 재실행하면 이어진다(멱등).
-#   ★ 이 자리의 규칙: "되돌리기 어렵고 값과 무관한 설치"를 먼저 끝내고, <미충족 상태로
-#     설치 완료가 나오는 것>만 여기서 막는다. 검증을 설치 앞으로 끌어오면 첫 실행이
-#     구조적으로 실패해 뒤 단계가 통째로 날아간다(2026-08-30 14 단계 사고).
-#
-# 19: ffmpeg·ffprobe 전제조건 검증. ⚠ 설치가 아니라 검증이다 — ffmpeg 설치는
-#     install/install-ffmpeg.sh 를 <사람이> 부른다(관제 설치본을 덮어쓰지 않기 위해).
-klid_role_has app && STEPS+=("19-verify-ffmpeg.sh")
-# 20: 프론트엔드 런타임 설정(상위 시스템 로그인 URL) 최종 게이트.
-#     ⚠ 값이 비면 화면은 뜨는데 세션 만료 시 이동할 곳이 없다 — 조용히 완료로 끝내지 않는다.
-klid_role_has app && STEPS+=("20-verify-frontend-config.sh")
-# 21: AI 추론 서버 주소 확인. ai-server 를 별도 장비에 두는 2대 구성에서 기본값(loopback)이
-#     남아 있으면 <기동도 헬스체크도 정상인데> 오토라벨링만 실패한다 — 그 침묵을 깬다.
-#     ★ 설치를 실패시키지 않는다(경고만). 이 시점은 운영자가 설정을 편집하기 <전>이다.
-klid_role_has app && STEPS+=("21-verify-ai-server-url.sh")
 
 [[ "${#STEPS[@]}" -gt 0 ]] || die "실행할 단계가 없습니다(KLID_ROLE=${KLID_ROLE}) — 역할 지정을 확인하세요."
 
