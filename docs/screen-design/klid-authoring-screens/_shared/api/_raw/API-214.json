@@ -238,7 +238,7 @@
     "schema_version": 1,
     "current_version": 4,
     "stale": true,
-    "stale_reason": "AC-050의 3개 필드 변경 — verifies",
+    "stale_reason": "AC-050의 2개 필드 변경 — verifies",
     "change_summary": "일괄 재수행도 건너뛴 상태를 직접 수락하도록 넓혀 단건과 판정을 맞춘다. 벤더 연동이 끝난 뒤 쌓인 건너뜀을 회수할 때 해제와 재수행을 두 번 도는 일이 없어진다. 지목할 수 있는 묶음을 그 영상에서 건너뛴 적이 있는 것으로 한정하는 규칙은 그대로다.",
     "last_updated_by": "sync",
     "last_updated_at": "2026-08-21T04:27:30.576Z",

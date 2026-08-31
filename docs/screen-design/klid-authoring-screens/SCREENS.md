@@ -1,4 +1,4 @@
-# 저작도구 화면 화면 키트 — SCREENS.md
+#  화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,11 +7,11 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-000 저작도구 화면 |
-| last sync | 2026-08-29T01:27:56.588Z (session 37) |
+| Domain | -  |
+| last sync | 2026-08-31T11:40:26.809Z (session 1) |
 | 화면 수 | 37개 |
 | ui_component 카탈로그 | populated 144건 |
-| 출력 루트 | docs/screen-design/klid-authoring-screens/ |
+| 출력 루트 | docs/screen-design/klid-authoring-screens |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
 ## 화면 목록
@@ -27,12 +27,12 @@
 | [[SCREEN-008]] | 영상 처리 현황 화면 | UNCHANGED | ✅ | [[API-042]], [[API-047]], [[API-068]], [[API-070]], [[API-071]], [[API-181]], [[API-212]], [[API-214]] | [[ROLE-001]] |
 | [[SCREEN-009]] | 영상 상세 화면 | UNCHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
 | [[SCREEN-010]] | 로드 버전 선택 | UNCHANGED | ✅ | [[API-197]], [[API-182]], [[API-195]], [[API-034]], [[API-035]], [[API-036]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-011]] | 대시보드 화면 | CHANGED | ✅ | [[API-042]], [[API-055]], [[API-072]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-012]] | 작업 목록 화면 | CHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-018]] | 검수 목록 화면 | CHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
+| [[SCREEN-011]] | 대시보드 화면 | UNCHANGED | ✅ | [[API-042]], [[API-055]], [[API-072]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-012]] | 작업 목록 화면 | UNCHANGED | ✅ | [[API-001]], [[API-002]], [[API-070]], [[API-071]], [[API-072]], [[API-073]], [[API-136]], [[API-137]], [[API-116]], [[API-187]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
 | [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
 | [[SCREEN-020]] | 작업자 통계 화면 | UNCHANGED | ✅ | [[API-001]], [[API-056]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-021]] | 전체 구축 현황 화면 | CHANGED | ✅ | [[API-057]], [[API-058]] | [[ROLE-001]] |
+| [[SCREEN-021]] | 전체 구축 현황 화면 | UNCHANGED | ✅ | [[API-057]], [[API-058]] | [[ROLE-001]] |
 | [[SCREEN-022]] | 증강 요청 화면 | UNCHANGED | ✅ | [[API-042]], [[API-059]], [[API-060]], [[API-092]], [[API-179]] | [[ROLE-001]] |
 | [[SCREEN-023]] | 증강 결과 화면 | UNCHANGED | ✅ | [[API-061]], [[API-062]], [[API-063]], [[API-188]], [[API-189]], [[API-190]], [[API-175]] | [[ROLE-001]] |
 | [[SCREEN-024]] | 사용자 관리 화면 | UNCHANGED | ✅ | [[API-001]], [[API-004]], [[API-194]] | [[ROLE-004]] |
@@ -43,7 +43,7 @@
 | [[SCREEN-029]] | 포털 라벨링 화면 | UNCHANGED | ✅ | [[API-024]], [[API-082]], [[API-110]], [[API-111]] | [[ROLE-003]] |
 | [[SCREEN-030]] | 공지 목록 화면 | UNCHANGED | ✅ | [[API-095]] | [[ROLE-001]], [[ROLE-002]] |
 | [[SCREEN-031]] | 공지 상세 화면 | UNCHANGED | ✅ | [[API-096]], [[API-099]], [[API-100]], [[API-101]], [[API-107]] | [[ROLE-001]], [[ROLE-002]] |
-| [[SCREEN-032]] | 비식별 신고 관리 화면 | CHANGED | ✅ | [[API-094]], [[API-109]], [[API-202]] | [[ROLE-001]] |
+| [[SCREEN-032]] | 비식별 신고 관리 화면 | UNCHANGED | ✅ | [[API-094]], [[API-109]], [[API-202]] | [[ROLE-001]] |
 | [[SCREEN-033]] | 포털 업로드 화면 | UNCHANGED | ✅ | [[API-139]], [[API-142]], [[API-151]], [[API-163]], [[API-166]], [[API-169]], [[API-171]], [[API-161]] | [[ROLE-003]] |
 | [[SCREEN-034]] | 포털 업로드 라벨링 화면 | UNCHANGED | ✅ | [[API-140]], [[API-149]], [[API-154]], [[API-155]], [[API-157]], [[API-159]] | [[ROLE-003]] |
 | [[SCREEN-035]] | 라벨 관리 화면 | UNCHANGED | ✅ | [[API-024]], [[API-025]], [[API-026]], [[API-027]], [[API-028]], [[API-029]], [[API-030]], [[API-031]] | [[ROLE-001]] |
@@ -120,142 +120,13 @@
 | 36 | [[SCREEN-042]] — 연동 서버 주소 관리 화면 | screens/SCREEN-042/SCREEN-042.md | wireframe.html | uc/ | ac/ |
 | 37 | [[SCREEN-043]] — 위험 작업 화면 | screens/SCREEN-043/SCREEN-043.md | wireframe.html | uc/ | ac/ |
 
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-001]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-002]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-003]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-005]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-006]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-008]] | api_endpoint | CHANGED (v12→v12) |
-| [[API-009]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-010]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-011]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-012]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-013]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-014]] | api_endpoint | CHANGED (v12→v12) |
-| [[API-015]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-016]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-017]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-019]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-020]] | api_endpoint | CHANGED (v14→v14) |
-| [[API-022]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-023]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-025]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-026]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-027]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-029]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-030]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-031]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-032]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-034]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-035]] | api_endpoint | CHANGED (v11→v11) |
-| [[API-036]] | api_endpoint | CHANGED (v11→v11) |
-| [[API-045]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-055]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-057]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-058]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-061]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-062]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-063]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-065]] | api_endpoint | CHANGED (v21→v21) |
-| [[API-067]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-070]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-071]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-072]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-073]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-074]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-075]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-076]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-081]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-090]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-091]] | api_endpoint | CHANGED (v12→v12) |
-| [[API-093]] | api_endpoint | CHANGED (v14→v14) |
-| [[API-094]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-095]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-096]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-097]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-098]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-099]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-100]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-101]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-105]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-106]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-107]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-108]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-111]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-112]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-113]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-116]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-117]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-118]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-119]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-120]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-121]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-122]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-124]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-125]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-126]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-127]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-128]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-129]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-136]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-137]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-138]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-139]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-141]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-143]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-144]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-145]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-146]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-147]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-148]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-149]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-150]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-151]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-153]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-154]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-155]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-156]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-157]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-159]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-160]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-161]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-162]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-163]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-164]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-165]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-166]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-168]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-169]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-170]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-171]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-172]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-173]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-174]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-175]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-176]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-178]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-181]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-182]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-187]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-193]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-202]] | api_endpoint | CHANGED (v2→v2) |
-| [[SCREEN-011]] | screen_spec | CHANGED (v21→v21) |
-| [[SCREEN-012]] | screen_spec | CHANGED (v47→v47) |
-| [[SCREEN-018]] | screen_spec | CHANGED (v29→v29) |
-| [[SCREEN-021]] | screen_spec | CHANGED (v28→v28) |
-| [[SCREEN-032]] | screen_spec | CHANGED (v23→v23) |
-
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 53건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 8건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
@@ -265,51 +136,6 @@
 > - UC-024 — SCREEN-028, SCREEN-029
 > - UC-027 — SCREEN-033, SCREEN-034
 > - UC-032 — SCREEN-026, SCREEN-038
-> - AC-006 — SCREEN-005, SCREEN-025
-> - AC-008 — SCREEN-005, SCREEN-010
-> - AC-011 — SCREEN-008, SCREEN-009
-> - AC-016 — SCREEN-009, SCREEN-032
-> - AC-018 — SCREEN-022, SCREEN-023
-> - AC-019 — SCREEN-008, SCREEN-009, SCREEN-009, SCREEN-032
-> - AC-021 — SCREEN-005, SCREEN-023
-> - AC-022 — SCREEN-018, SCREEN-019
-> - AC-023 — SCREEN-005, SCREEN-008, SCREEN-009
-> - AC-024 — SCREEN-005, SCREEN-005
-> - AC-032 — SCREEN-028, SCREEN-029
-> - AC-033 — SCREEN-028, SCREEN-029
-> - AC-034 — SCREEN-028, SCREEN-029
-> - AC-035 — SCREEN-028, SCREEN-029
-> - AC-036 — SCREEN-028, SCREEN-029
-> - AC-037 — SCREEN-028, SCREEN-029
-> - AC-041 — SCREEN-039, SCREEN-039
-> - AC-042 — SCREEN-039, SCREEN-039
-> - AC-043 — SCREEN-039, SCREEN-039
-> - AC-044 — SCREEN-039, SCREEN-039
-> - AC-045 — SCREEN-039, SCREEN-039
-> - AC-046 — SCREEN-039, SCREEN-039
-> - AC-047 — SCREEN-039, SCREEN-039
-> - AC-092 — SCREEN-026, SCREEN-038
-> - AC-093 — SCREEN-026, SCREEN-038
-> - AC-094 — SCREEN-026, SCREEN-038
-> - AC-095 — SCREEN-033, SCREEN-034
-> - AC-096 — SCREEN-033, SCREEN-034
-> - AC-097 — SCREEN-033, SCREEN-034
-> - AC-098 — SCREEN-033, SCREEN-034
-> - AC-099 — SCREEN-027, SCREEN-027
-> - AC-100 — SCREEN-027, SCREEN-027
-> - AC-101 — SCREEN-027, SCREEN-027
-> - AC-102 — SCREEN-027, SCREEN-027
-> - AC-103 — SCREEN-027, SCREEN-027
-> - AC-104 — SCREEN-027, SCREEN-027
-> - AC-105 — SCREEN-027, SCREEN-027
-> - AC-106 — SCREEN-027, SCREEN-027
-> - AC-107 — SCREEN-026, SCREEN-038
-> - AC-108 — SCREEN-026, SCREEN-038
-> - AC-109 — SCREEN-026, SCREEN-038
-> - AC-110 — SCREEN-026, SCREEN-038
-> - AC-111 — SCREEN-026, SCREEN-038
-> - AC-112 — SCREEN-026, SCREEN-038
-> - AC-120 — SCREEN-039, SCREEN-039
 
 ## git 권장
 

@@ -27,10 +27,10 @@
           "schema": {
             "type": "string",
             "format": "binary",
-            "description": "CSV 텍스트. 첫 행: month,labeled,reviewed,approvalRate (UTF-8 BOM 선행)"
+            "description": "UTF-8 BOM 이 선행하는 CSV 텍스트. 섹션 블록 5개를 빈 줄로 구분해 순서대로 담는다 — 누적 학습데이터(구분/검수완료/전체) · 처리현황(구분/건수) · 일별 작업량(일자/검수완료건수) · 이벤트 유형 분포(유형/검수완료/전체) · 작업자별 현황(작업자/라벨/진행/검수/오토라벨(%)/반려율(%)). 각 블록은 대괄호로 감싼 제목 행으로 시작하고, 그 다음 행이 컬럼 이름 행이다. 파일 첫 행에는 생성 기준 일시를 담는다. 처리현황은 완료·처리중·대기·실패 네 구간으로 접어 담으며 처리중은 진행중과 검수대기를 합산한 값이다. 일별 작업량은 작업이 없던 날도 0 으로 채워 날짜가 끊기지 않는다. 이벤트 유형 분포는 데이터가 없는 유형도 0 으로 포함한다. 작업자별 현황의 오토라벨과 반려율은 0 부터 100 까지의 백분율이다."
           },
-          "example": "﻿month,labeled,reviewed,approvalRate\n",
-          "description": "다운로드 성공. ApiResponse 래퍼를 쓰지 않고 CSV 원문을 그대로 반환한다. Content-Disposition: attachment; filename=\"stats_report_{period}.csv\". 현재 응답 본문은 BOM + 헤더 행(month,labeled,reviewed,approvalRate)만 포함하며 집계 데이터 행은 아직 채워지지 않는다.",
+          "example": "﻿전체 구축 현황,2026-08-31 14:02 기준\n\n[누적 학습데이터]\n구분,검수완료,전체\n이미지(장),86210,120340\n영상(건),3110,4820\n\n[처리현황]\n구분,건수\n완료,3110\n처리중,420\n대기,120\n실패,55\n\n[일별 작업량]\n일자,검수완료건수\n2026-08-02,14\n2026-08-03,0\n\n[이벤트 유형 분포]\n유형,검수완료,전체\n화재,820,1200\n쓰러짐,310,540\n\n[작업자별 현황]\n작업자,라벨,진행,검수,오토라벨(%),반려율(%)\n홍길동,320,12,300,71.2,3.3\n",
+          "description": "다운로드 성공. ApiResponse 래퍼를 쓰지 않고 CSV 원문을 그대로 반환한다. Content-Disposition: attachment; filename=\"stats_report_{period}.csv\".",
           "content_type": "text/csv; charset=UTF-8"
         },
         "400": {
@@ -151,10 +151,11 @@
           },
           "example": "MONTH",
           "required": false,
-          "description": "집계 기간. WEEK|MONTH|QUARTER|YEAR 중 하나(allowlist 위반은 400). 미지정 시 WEEK."
+          "description": "집계 기간. WEEK|MONTH|QUARTER|YEAR 중 하나(allowlist 위반은 400). 미지정 시 WEEK. 이 값은 일별 작업량 블록의 집계 창을 정한다 — WEEK 7일, MONTH 30일, QUARTER 90일, YEAR 365일. 나머지 블록은 기간과 무관한 누적 또는 현재 시점 집계다."
         }
       ],
       "description": "통계 리포트를 조회한다. REVIEWER 전용.",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -164,7 +165,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:40.613Z"
+        "last_updated": "2026-08-29T01:23:40.613Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -172,12 +174,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "P1 반영: 실재하는 period 쿼리 파라미터 선언 추가(400 응답이 이미 전제하던 값), 200/400 설명에서 ResponseEntity<String>·@Pattern 등 Java 구현 타입/어노테이션 노출 및 \"placeholder\" 구현상태 어휘 제거 — 현재 응답 내용(헤더 행만 포함)은 사실로 유지.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:40.613Z",
+    "change_summary": "응답 본문 사양을 확정한다. 종전에는 첫 행이 month,labeled,reviewed,approvalRate 인 헤더 한 줄만 규정하고 집계 데이터 행이 없다는 미완 상태를 응답 설명에 적어 두었다. 이제 본문을 섹션 블록 5개(누적 학습데이터·처리현황·일별 작업량·이벤트 유형 분포·작업자별 현황)로 규정하고, 미완 상태 서술을 제거한다. 집계 기간 파라미터가 일별 작업량 블록의 창을 정한다는 사실을 파라미터 설명에 명시했다. 응답 형식(CSV·문자셋·BOM·첨부 파일명 규칙)과 오류 응답은 바꾸지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T08:58:04.863Z",
     "created_at": "2026-05-30T07:25:20.135Z"
   }
 }

@@ -1,4 +1,4 @@
-# 영상·프레임 수집 화면 키트 — SCREENS.md
+# DOMAIN-003 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,8 +7,8 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-29T01:27:50.763Z (session 20) |
+| Domain | DOMAIN-003 DOMAIN-003 |
+| last sync | 2026-08-31T11:40:35.634Z (session 1) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003/ |
@@ -48,21 +48,11 @@
 |---|---|---|---|---|---|
 | 1 | [[SCREEN-009]] — 영상 상세 화면 | screens/SCREEN-009/SCREEN-009.md | wireframe.html | uc/ | ac/ |
 
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-112]] | api_endpoint | CHANGED (v5→v5) |
-
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
-
-> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
-> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
-> - AC-019 — SCREEN-009, SCREEN-009
 
 ## git 권장
 

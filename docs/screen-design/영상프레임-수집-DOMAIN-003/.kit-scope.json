@@ -6,11 +6,6 @@
   "decided_at": "2026-08-28T14:42:38.613110Z",
   "rule": "직전 커밋의 version-master.md 표를 모집단으로 삼는다 — .staging 글롭에서 뽑으면 gitignore 로 사라진 항목이 조용히 빠져 스코프가 줄어든다(과거 526→469 축소 사고의 원인). 2026-08-28 승격: ROLE-004(관리자 역할). ADR·NFR 은 화면 키트 스코프에 없는 타입이라 넣지 않는다.",
   "items": [
-    "AC-011",
-    "AC-016",
-    "AC-019",
-    "AC-023",
-    "AC-051",
     "API-021",
     "API-043",
     "API-044",
@@ -174,11 +169,10 @@
     "UI-144"
   ],
   "pending": [
-    "AC-025",
-    "AC-026",
-    "AC-049",
-    "AC-050",
-    "AC-055",
+    "AC-1020",
+    "AC-1021",
+    "AC-1022",
+    "AC-1023",
     "ADR-001",
     "ADR-010",
     "ADR-018",
@@ -248,8 +242,10 @@
     "DFEAT-009",
     "DFEAT-010",
     "DFEAT-011",
+    "DFEAT-018",
+    "DFEAT-019",
+    "DFEAT-020",
     "DFEAT-029",
-    "DFEAT-045",
     "DFEAT-051",
     "ERD-012",
     "ERD-020",
@@ -282,7 +278,6 @@
     "IMPREC-050",
     "IMPREC-052",
     "IMPREC-053",
-    "IMPREC-070",
     "IMPREC-081",
     "IMPREC-083",
     "IMPREC-086",
@@ -321,6 +316,7 @@
     "NFR-020",
     "NFR-021",
     "NFR-022",
+    "OSS-102",
     "ROLE-003",
     "SD-013",
     "SD-023",
@@ -330,13 +326,14 @@
     "SCREEN-011",
     "SCREEN-019",
     "SCREEN-022",
-    "SCREEN-025",
     "SCREEN-026",
     "SCREEN-027",
     "SCREEN-038",
     "TEST-001",
     "UC-018",
-    "UC-032"
+    "UC-032",
+    "UC-038"
   ],
-  "last_sync_at": "2026-08-29T01:27:50.642Z"
+  "last_sync_at": "2026-08-31T11:39:04.149Z",
+  "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 수용기준 ID 를 pin 에서 제거(전수 status 조회 근거 126건). 파일은 _retired/ 에 보존된다."
 }

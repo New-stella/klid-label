@@ -1,4 +1,4 @@
-# 라벨링 화면 키트 — SCREENS.md
+# DOMAIN-010 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,8 +7,8 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-010 라벨링 |
-| last sync | 2026-08-29T01:27:55.342Z (session 17) |
+| Domain | DOMAIN-010 DOMAIN-010 |
+| last sync | 2026-08-31T11:40:36.292Z (session 1) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/라벨링-DOMAIN-010/ |
@@ -50,46 +50,11 @@
 | 1 | [[SCREEN-005]] — 라벨링 캔버스 화면 | screens/SCREEN-005/SCREEN-005.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-026]] — 프리셋 관리 화면 | screens/SCREEN-026/SCREEN-026.md | wireframe.html | uc/ | ac/ |
 
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-012]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-019]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-020]] | api_endpoint | CHANGED (v14→v14) |
-| [[API-022]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-023]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-032]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-034]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-035]] | api_endpoint | CHANGED (v11→v11) |
-| [[API-036]] | api_endpoint | CHANGED (v11→v11) |
-| [[API-067]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-093]] | api_endpoint | CHANGED (v14→v14) |
-| [[API-105]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-117]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-124]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-125]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-126]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-127]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-128]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-129]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-168]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-170]] | api_endpoint | CHANGED (v3→v3) |
-| [[API-172]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-173]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-178]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-182]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-193]] | api_endpoint | CHANGED (v5→v5) |
-
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
-
-> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
-> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
-> - AC-024 — SCREEN-005, SCREEN-005
 
 ## git 권장
 

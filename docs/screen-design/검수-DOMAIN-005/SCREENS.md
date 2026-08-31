@@ -1,4 +1,4 @@
-# 검수 화면 키트 — SCREENS.md
+# DOMAIN-005 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,8 +7,8 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-005 검수 |
-| last sync | 2026-08-29T01:27:53.515Z (session 17) |
+| Domain | DOMAIN-005 DOMAIN-005 |
+| last sync | 2026-08-31T11:40:36.010Z (session 1) |
 | 화면 수 | 2개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/검수-DOMAIN-005/ |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-018]] | 검수 목록 화면 | CHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
+| [[SCREEN-018]] | 검수 목록 화면 | UNCHANGED | ✅ | [[API-008]], [[API-138]] | [[ROLE-001]] |
 | [[SCREEN-019]] | 검수 상세 화면 | UNCHANGED | ✅ | [[API-009]], [[API-010]], [[API-011]], [[API-013]], [[API-014]], [[API-015]], [[API-021]], [[API-132]], [[API-066]], [[API-102]], [[API-103]], [[API-104]], [[API-105]], [[API-168]], [[API-183]], [[API-128]], [[API-172]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
@@ -50,31 +50,15 @@
 | 1 | [[SCREEN-018]] — 검수 목록 화면 | screens/SCREEN-018/SCREEN-018.md | wireframe.html | uc/ | ac/ |
 | 2 | [[SCREEN-019]] — 검수 상세 화면 | screens/SCREEN-019/SCREEN-019.md | wireframe.html | uc/ | ac/ |
 
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-008]] | api_endpoint | CHANGED (v12→v12) |
-| [[API-009]] | api_endpoint | CHANGED (v9→v9) |
-| [[API-010]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-011]] | api_endpoint | CHANGED (v4→v4) |
-| [[API-013]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-014]] | api_endpoint | CHANGED (v12→v12) |
-| [[API-015]] | api_endpoint | CHANGED (v8→v8) |
-| [[API-105]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-138]] | api_endpoint | CHANGED (v4→v4) |
-| [[SCREEN-018]] | screen_spec | CHANGED (v29→v29) |
-
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 2건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-023 — SCREEN-018, SCREEN-019
-> - AC-022 — SCREEN-018, SCREEN-019
 
 ## git 권장
 

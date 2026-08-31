@@ -1,25 +1,22 @@
 ---
 logicraft_item: SCREEN-021
 type: screen_spec
-version: 28
-last_updated_at: 2026-08-29T01:25:14.120Z
-domain: DOMAIN-000
+version: 29
+last_updated_at: 2026-08-31T09:47:51.251Z
+domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:56.417Z
-sync_session: 37
-stale: true
-status: CHANGED
-prev_version: 28
+synced_at: 2026-08-31T11:40:26.649Z
+sync_session: 1
+stale: false
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-021.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-057]]", "[[API-058]]"]
   required_roles: ["[[ROLE-001]]"]
+  acceptance: ["[[AC-1084]]", "[[AC-1085]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v28 → v28**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (14.1KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 전체 구축 현황 화면
 
@@ -414,6 +411,10 @@ web
 - API-057
 - API-058
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -439,6 +440,10 @@ _(empty)_
 ### last_updated
 
 2026-08-29T01:25:14.120Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 
@@ -471,6 +476,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -481,4 +490,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-1084
+- AC-1085

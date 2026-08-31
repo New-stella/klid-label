@@ -1,37 +1,37 @@
-# Version Master — 작업 배정 (DOMAIN-015) — 화면 키트
+# Version Master — DOMAIN-015 (DOMAIN-015) — 화면 키트
 
 | 항목 | 값 |
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
-| Domain | DOMAIN-015 작업 배정 |
+| Domain | DOMAIN-015 DOMAIN-015 |
 | 다운로드 화면 | SCREEN-012 |
-| Last sync | 2026-08-29T01:27:51.685Z (session 17) |
-| Mode | SYNC — NEW 0 / CHANGED 11 / UNCHANGED 152 |
+| Last sync | 2026-08-31T11:40:35.762Z (session 1) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 163 |
 | 출력 루트 | docs/screen-design/작업-배정-DOMAIN-015/ |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | CHANGED |
-| [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | CHANGED |
-| [[API-070]] | api_endpoint | POST /v1/assignments | 8 | false | CHANGED |
-| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | CHANGED |
-| [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | CHANGED |
-| [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | CHANGED |
-| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | CHANGED |
-| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | CHANGED |
-| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | CHANGED |
-| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 3 | false | CHANGED |
+| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | UNCHANGED |
+| [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
+| [[API-070]] | api_endpoint | POST /v1/assignments | 8 | false | UNCHANGED |
+| [[API-071]] | api_endpoint | PATCH /v1/assignments/{assignmentId} | 7 | false | UNCHANGED |
+| [[API-072]] | api_endpoint | GET /v1/assignments | 10 | false | UNCHANGED |
+| [[API-073]] | api_endpoint | GET /v1/tasks/board | 9 | false | UNCHANGED |
+| [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | UNCHANGED |
+| [[API-136]] | api_endpoint | GET /v1/tasks/board/summary | 4 | false | UNCHANGED |
+| [[API-137]] | api_endpoint | GET /v1/tasks/board/event-types | 6 | false | UNCHANGED |
+| [[API-187]] | api_endpoint | GET /v1/assignments/event-types | 3 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
-| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 47 | true | CHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | true | UNCHANGED |
+| [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 47 | true | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | UNCHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 11 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | true | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 12 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

@@ -1149,7 +1149,7 @@
     "schema_version": 1,
     "current_version": 33,
     "stale": true,
-    "stale_reason": "API-211의 data.implementation 변경 — consumes",
+    "stale_reason": "AC-120의 2개 필드 변경 — covered_by",
     "change_summary": "ADR-055 — 관리자 역할 신설에 따라 이 화면을 관리자 전용으로. required_roles ROLE-001 → ROLE-004 + 주소를 /admin/imports 로 이동",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-28T04:16:56.016Z",
