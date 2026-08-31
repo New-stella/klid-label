@@ -345,11 +345,28 @@ public class StatsService {
     }
 
     /**
-     * SCR-STAT-002 전체 구축 현황 placeholder (REVIEWER 전용).
+     * SCR-STAT-002 전체 구축 현황 (REVIEWER 전용) — 화면 경로.
      *
-     * <p>누적 카운트만 실제 집계 사용, 처리 현황/작업자별 표는 0 / 빈 배열.
+     * <p>일별 작업량 창은 화면 고정값 {@link #DAILY_WINDOW_DAYS}(30일)다. 이 경로의 응답은
+     * 리포트 기능 도입 전과 <b>1 비트도 다르지 않다</b>.
      */
     public OverallStatSummaryResponse getOverallSummary() {
+        return getOverallSummary(DAILY_WINDOW_DAYS);
+    }
+
+    /**
+     * SCR-STAT-002 전체 구축 현황 — 일별 작업량 창을 호출자가 정하는 오버로드.
+     *
+     * <p>리포트 다운로드({@code GET /v1/stats/report})가 기간 파라미터에 따라
+     * 7/30/90/365일 창을 쓰기 위한 진입점이다. <b>일별 작업량 블록 외의 값은 창과 무관</b>하며
+     * 화면 경로와 완전히 같은 계산을 거친다 — 리포트 전용 집계를 따로 유도하면 화면과 리포트가
+     * 다른 수치를 말하게 된다.
+     *
+     * @param dailyWindowDays 일별 작업량 0-fill 창 길이(일). 반환되는 {@code dailyCounts} 의
+     *                        길이가 곧 이 값이다.
+     * @design API-058
+     */
+    public OverallStatSummaryResponse getOverallSummary(int dailyWindowDays) {
         long cumulativeImageCount = statsQueryRepository.countCumulativeFrames();
         long cumulativeVideoCount = videoRepository.count();
         Map<String, Long> sttsCounts = toMap(statsQueryRepository.countByDataSttsCd());
@@ -379,33 +396,43 @@ public class StatsService {
                 approvedImageCount,
                 approvedVideoCount,
                 approvedDistribution,
-                buildOverallDailyCounts()
+                buildOverallDailyCounts(dailyWindowDays)
         );
     }
 
     /**
-     * SCR-STAT-002 "일별 작업량(최근 30일)" — 전체(모든 작업자) 일별 검수 완료 건수.
+     * SCR-STAT-002 "일별 작업량" — 전체(모든 작업자) 일별 검수 완료 건수.
      *
-     * <p><b>0-fill</b>: 오늘 포함 30일치 날짜 키를 먼저 0 으로 깔고 조회 결과를 그 위에 더한다.
-     * 따라서 반환 길이는 <b>항상 30</b>이고 날짜는 오름차순이다 — 막대차트 X축이 날짜 연속으로
-     * 그려지려면 작업이 없던 날도 항목이 있어야 한다. 스켈레톤에 없는 키(윈도우 밖·미래 일자)는
-     * 무시되므로 경계 밖 행이 섞여도 길이가 흔들리지 않는다.
+     * <p><b>0-fill</b>: 오늘 포함 {@code windowDays} 일치 날짜 키를 먼저 0 으로 깔고 조회 결과를
+     * 그 위에 더한다. 따라서 반환 길이는 <b>항상 {@code windowDays}</b> 이고 날짜는 오름차순이다 —
+     * 막대차트 X축이 날짜 연속으로 그려지려면 작업이 없던 날도 항목이 있어야 한다. 스켈레톤에
+     * 없는 키(윈도우 밖·미래 일자)는 무시되므로 경계 밖 행이 섞여도 길이가 흔들리지 않는다.
+     *
+     * <p>창 길이를 인자로 받는 이유는 리포트 다운로드가 기간(WEEK/MONTH/QUARTER/YEAR)에 따라
+     * 다른 창을 쓰기 때문이다. 화면 경로는 {@link #DAILY_WINDOW_DAYS} 를 그대로 넘겨
+     * <b>동작이 바뀌지 않는다</b>. 리포지토리 쿼리는 이미 {@code since} 를 파라미터로 받으므로
+     * JPQL 변경이 필요 없다.
      *
      * <p>작업자 통계({@link #getWorkerSummary})의 일별 데이터는 <b>sparse 로 유지</b>한다 —
      * 그쪽 응답 형태를 바꾸면 SCR-STAT-001 FE 계약 변경이 된다.
+     *
+     * @param windowDays 0-fill 창 길이(일). 1 미만이면 빈 목록.
      */
-    private List<WorkerStatSummaryResponse.DailyCompletion> buildOverallDailyCounts() {
-        LocalDate from = LocalDate.now().minusDays(DAILY_WINDOW_DAYS - 1L);
+    private List<WorkerStatSummaryResponse.DailyCompletion> buildOverallDailyCounts(int windowDays) {
+        if (windowDays < 1) {
+            return List.of();
+        }
+        LocalDate from = LocalDate.now().minusDays(windowDays - 1L);
 
         // 날짜 오름차순 0-fill 스켈레톤 (LinkedHashMap = 삽입 순서 = 날짜 ASC).
-        Map<String, Long> byDate = new LinkedHashMap<>(DAILY_WINDOW_DAYS * 2);
-        for (int i = 0; i < DAILY_WINDOW_DAYS; i++) {
+        Map<String, Long> byDate = new LinkedHashMap<>(windowDays * 2);
+        for (int i = 0; i < windowDays; i++) {
             byDate.put(from.plusDays(i).format(DAILY_KEY_FMT), 0L);
         }
 
         for (DailyRawRow r : statsQueryRepository.findDailyCompletionAll(from.atStartOfDay())) {
             if (r.getUpdDt() == null) continue;
-            // 윈도우 밖 키는 스켈레톤에 없으므로 자동 제외 (항상 30건 보장).
+            // 윈도우 밖 키는 스켈레톤에 없으므로 자동 제외 (항상 windowDays 건 보장).
             byDate.computeIfPresent(r.getUpdDt().toLocalDate().format(DAILY_KEY_FMT), (k, v) -> v + 1L);
         }
 

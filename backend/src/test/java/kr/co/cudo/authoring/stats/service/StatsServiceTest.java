@@ -686,4 +686,64 @@ class StatsServiceTest {
         assertThat(worker.approvedLabelCount()).isZero();
         assertThat(worker.completionRate()).isEqualTo(0.0);
     }
+
+    // ------------------------------------------------------------------
+    // API-058 리포트 — 일별 작업량 창을 호출자가 정하는 오버로드.
+    //   화면 경로(무인자)는 30일 고정이고, 리포트 경로만 기간에 따라 창이 바뀐다.
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("리포트_창_오버로드는_요청한_일수만큼_0fill_한다_7_30_90_365")
+    void overallSummaryWindowOverloadHonorsRequestedDays() {
+        // given
+        stubFilterOptions();
+        stubVideoEventCounts();
+
+        // when / then — WEEK 7 / MONTH 30 / QUARTER 90 / YEAR 365
+        for (int days : new int[]{7, 30, 90, 365}) {
+            List<WorkerStatSummaryResponse.DailyCompletion> daily =
+                    service.getOverallSummary(days).dailyCounts();
+
+            assertThat(daily).as("창 %d 일", days).hasSize(days);
+            // 작업이 없던 날도 0 행으로 남는다(날짜 연속성).
+            assertThat(daily).extracting(WorkerStatSummaryResponse.DailyCompletion::count)
+                    .containsOnly(0L);
+            assertThat(daily.get(days - 1).date()).isEqualTo(LocalDate.now().toString());
+            assertThat(daily.get(0).date())
+                    .isEqualTo(LocalDate.now().minusDays(days - 1L).toString());
+        }
+    }
+
+    @Test
+    @DisplayName("리포트_창은_since_파라미터로만_반영된다_쿼리는_그대로_1회다")
+    void overallSummaryWindowOverloadOnlyMovesSinceParameter() {
+        // given
+        stubFilterOptions();
+        stubVideoEventCounts();
+
+        // when — 90일 창
+        service.getOverallSummary(90);
+
+        // then — JPQL 변경 없이 since 만 이동한다(N+1 금지: 단일 쿼리).
+        ArgumentCaptor<LocalDateTime> since = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(statsQueryRepository, times(1)).findDailyCompletionAll(since.capture());
+        assertThat(since.getValue()).isEqualTo(LocalDate.now().minusDays(89).atStartOfDay());
+    }
+
+    @Test
+    @DisplayName("무인자_getOverallSummary는_여전히_30일_창이다_화면_경로_무변경")
+    void noArgOverallSummaryStillUsesThirtyDayWindow() {
+        // given
+        stubFilterOptions();
+        stubVideoEventCounts();
+
+        // when
+        OverallStatSummaryResponse screen = service.getOverallSummary();
+        OverallStatSummaryResponse explicitThirty = service.getOverallSummary(30);
+
+        // then — 리포트 도입으로 화면 경로 동작이 바뀌지 않는다.
+        assertThat(screen.dailyCounts()).hasSize(30);
+        assertThat(screen.dailyCounts()).isEqualTo(explicitThirty.dailyCounts());
+        assertThat(screen).usingRecursiveComparison().isEqualTo(explicitThirty);
+    }
 }

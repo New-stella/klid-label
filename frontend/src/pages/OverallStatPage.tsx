@@ -209,8 +209,11 @@ export function OverallStatPage() {
             >
               리포트 다운로드
             </Button>
+            {/* 캡션은 받는 내용의 범위를 정확히 말해야 한다 — 리포트는 누적 학습데이터·처리현황·
+                이벤트 유형 분포·작업자별 현황(기간 무관)과 일별 작업량(period='MONTH' → 30일 창)을
+                함께 담는다. "최근 1개월"만 적으면 일별 작업량 한 블록의 범위를 전체로 오해시킨다. */}
             <p className="text-caption text-gray-600" data-testid="download-report-note">
-              최근 1개월 집계를 CSV 파일로 내려받습니다.
+              전체 구축 현황을 CSV 파일로 내려받습니다 (일별 작업량은 최근 1개월).
             </p>
           </div>
         }
