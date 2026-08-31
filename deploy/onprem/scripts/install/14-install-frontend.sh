@@ -54,8 +54,12 @@ else
   #   ★ 치환값은 반드시 이스케이프한다. 로그인 주소에 쿼리(`?a=1&b=2`)가 붙는 것은 흔한데,
   #     sed 의 치환문에서 `&` 는 <매치 전체>를 뜻해 값이 조용히 뒤틀린다. `#`(구분자)·`\`도 같다.
   _sed_repl_escape() { printf '%s' "$1" | sed -e 's/[\\&#]/\\&/g'; }
+  # ★ 배포 향 기본값은 control 이다 — 이 매체가 관제 연동 배포용으로 만들어지기 때문이다.
+  #   포털 연동 배포는 설치 시 KLID_DEPLOY_FLAVOR=portal 을 준다. 빈 값을 기본으로 두면
+  #   두 로그인 주소를 모두 요구해 관제 연동 설치가 20 단계에서 막힌다(안 쓰는 값을 요구).
   sed -e "s#@CONTROL_LOGIN_URL@#$(_sed_repl_escape "${VITE_CONTROL_LOGIN_URL:-}")#g" \
       -e "s#@PORTAL_LOGIN_URL@#$(_sed_repl_escape "${VITE_PORTAL_LOGIN_URL:-}")#g" \
+      -e "s#@DEPLOY_FLAVOR@#$(_sed_repl_escape "${KLID_DEPLOY_FLAVOR:-control}")#g" \
       "${FE_CONFIG_SRC}" > "${FE_CONFIG_DST}"
   # 비밀값을 담지 않는 파일이라 조이지 않는다(was.env 와 같은 판단). 반대로 <여기에 비밀값을
   # 넣으면 안 된다> — 이 파일의 내용은 브라우저로 내려간다. 템플릿 머리말이 그 구분을 설명한다.

@@ -53,10 +53,37 @@ ALLOWED_KEYS=(
   VITE_DEV_UPLOAD_ENABLED
 )
 
+# ---- 설치 전용 키 — 생성물에 싣지 않는다 ----
+#   allowlist(=브라우저로 나갈 키)와 <다른 축>이다. 여기 있는 키는 설치·생성 시점 판정에만
+#   쓰이므로 내보내지 않으며, 그래서 "허용 목록 밖" 경고 대상에서도 뺀다(경고를 매번 띄우면
+#   진짜 오타 키가 그 소음에 묻힌다).
+CONTROL_ONLY_KEYS=(KLID_DEPLOY_FLAVOR)
+
 # ---- 필수 키 — 없거나 스킴이 빠지면 생성하지 않는다 ----
 #   저작도구는 자체 로그인 UI 가 없어 이 값이 비면 세션 만료 시 이동할 곳이 없다.
 #   스킴이 없으면 브라우저가 상대경로로 해석해 저작도구 자기 자신으로 되돌아온다.
-REQUIRED_URL_KEYS=(VITE_CONTROL_LOGIN_URL VITE_PORTAL_LOGIN_URL)
+#
+#   ★ 무엇이 필수인지는 <배포 향>이 정한다 — 같은 산출물이 관제 연동·포털 연동 두 벌로
+#     배포되고 두 배포는 서로 다른 인프라에 놓인다(CNT-001·DEPLOY-001). 관제 연동 배포에
+#     들어오는 사용자는 내부 사용자뿐이라 포털 로그인 주소가 <한 번도 쓰이지 않고>, 포털 연동
+#     배포는 그 반대다. 안 쓰는 값을 억지로 채우게 하면 아무 의미 없는 주소가 형상에 남는다.
+#   ⚠ 선언이 없으면 <둘 다> 요구한다 — 종전 동작이며, 모르는 형상을 느슨하게 통과시키지
+#     않기 위한 기본값이다(fail-closed). 값을 잘못 적으면 통과시키지 않고 즉시 실패한다.
+DEPLOY_FLAVOR="$(grep -E '^[[:space:]]*KLID_DEPLOY_FLAVOR[[:space:]]*=' "${CONFIG_FILE}" 2>/dev/null \
+  | tail -n 1 | sed -e 's/^[^=]*=//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+                -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" || true)"
+
+case "${DEPLOY_FLAVOR}" in
+  control) REQUIRED_URL_KEYS=(VITE_CONTROL_LOGIN_URL) ;;
+  portal)  REQUIRED_URL_KEYS=(VITE_PORTAL_LOGIN_URL) ;;
+  "")      REQUIRED_URL_KEYS=(VITE_CONTROL_LOGIN_URL VITE_PORTAL_LOGIN_URL) ;;
+  *)
+    printf '[frontend-config] 실패: %s\n' \
+      "KLID_DEPLOY_FLAVOR 값을 알 수 없습니다: '${DEPLOY_FLAVOR}' — control 또는 portal 만 씁니다.
+     (배포 향을 안 정했으면 이 줄을 비워 두세요. 그러면 두 로그인 주소를 모두 요구합니다.)" >&2
+    exit 1
+    ;;
+esac
 
 _info() { printf '[frontend-config] %s\n' "$*"; }
 _warn() { printf '[frontend-config] 경고: %s\n' "$*" >&2; }
@@ -92,12 +119,20 @@ is_allowed() {
   return 1
 }
 
+# 설치 전용 키인가(= 내보내지 않는 것이 정상이라 경고할 일이 아니다).
+is_control_only() {
+  local k
+  for k in "${CONTROL_ONLY_KEYS[@]}"; do [[ "${k}" == "$1" ]] && return 0; done
+  return 1
+}
+
 # ---- allowlist 밖 키 안내 ----
 #   조용히 버리면 "왜 값이 안 나오지"를 아무도 모른다. 반대로 <값은 절대 찍지 않는다> —
 #   여기 걸리는 키가 곧 비밀값일 수 있다(그래서 걸러내는 것이다). 키 이름만 남긴다.
 while IFS= read -r _k; do
   [[ -n "${_k}" ]] || continue
-  is_allowed "${_k}" || _warn "허용 목록 밖 키라 내보내지 않습니다(무시): ${_k}"
+  is_allowed "${_k}" || is_control_only "${_k}" \
+    || _warn "허용 목록 밖 키라 내보내지 않습니다(무시): ${_k}"
 done < <(grep -E '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "${CONFIG_FILE}" \
            | sed -e 's/[[:space:]]*=.*$//' -e 's/^[[:space:]]*//' | sort -u)
 
@@ -113,10 +148,13 @@ for _k in "${REQUIRED_URL_KEYS[@]}"; do
     _missing=1
   fi
 done
-[[ "${_missing}" -eq 0 ]] || _die "상위 시스템 로그인 URL 이 필요합니다. ${CONFIG_FILE} 에 채우세요. 예:
-       VITE_CONTROL_LOGIN_URL=https://control.example.local/login
-       VITE_PORTAL_LOGIN_URL=https://portal.example.local/login
-     (deploy/onprem/docs/04-configuration.md 'frontend 런타임 설정' 참고)"
+[[ "${_missing}" -eq 0 ]] || _die "상위 시스템 로그인 URL 이 필요합니다(배포 향: ${DEPLOY_FLAVOR:-미선언 — 둘 다 필요}).
+     ${CONFIG_FILE} 에 아래 중 <이 배포 향에 해당하는 것>을 채우세요:
+       VITE_CONTROL_LOGIN_URL=https://control.example.local/login    (관제 연동 배포)
+       VITE_PORTAL_LOGIN_URL=https://portal.example.local/login      (포털 연동 배포)
+     배포 향을 아직 선언하지 않았다면 KLID_DEPLOY_FLAVOR=control 또는 portal 을 함께 적으세요 —
+     그러면 해당하지 않는 쪽은 요구하지 않습니다.
+     (deploy/onprem/docs/04-configuration.md D-4 절 참고)"
 
 # ---- JS 문자열 이스케이프 ----
 #   값은 URL·플래그라 한 줄이지만, 역슬래시·따옴표가 섞이면 생성물이 문법 오류가 되어

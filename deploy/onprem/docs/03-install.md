@@ -85,7 +85,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 | 5 | app | `install/14-install-frontend.sh` | dist 배치 + **런타임 설정 정본(`/etc/klid/frontend.env`) 배치 + `klid-config.js` 생성**(★ 상위 로그인 주소가 비면 **여기서 설치가 멈춘다**) + httpd RPM 설치 + `conf.d` 드롭인 + SELinux 문맥·불리언 + `httpd` 기동 |
 | 6 | app | `install/15-init-db.sh` | (옵션) control/portal **DB·유저** 생성 안내 또는 수행 (테이블 생성 아님) |
 | 7 | app | `install/16-load-schema.sh` | (옵션) control DB 에 `db/schema.sql` 로드. `SCHEMA_LOAD_RUN=1` 일 때만 실제 로드, 아니면 수동 안내만. 테이블이 이미 있으면 **로드 생략**(멱등 가드) |
-| 8 | app | `install/17-load-portal-schema.sh` | (옵션) portal DB 에 `db/portal-schema.sql` 로드. 조건·가드는 7 과 같다. 빠뜨리면 메타 복제가 **조용히 0건**으로 유지된다 |
+| 8 | app | `install/17-load-portal-schema.sh` | (옵션) portal DB 에 `db/portal-schema.sql` 로드. 조건·가드는 7 과 같다. 빠뜨리면 메타 복제가 **조용히 0건**으로 유지된다. ⚠ **포털을 반입하지 않아 portal DB 가 없으면 이 단계가 접속 실패로 설치를 중단시킨다** — `SKIP_PORTAL_SCHEMA_LOAD=1` 로 생략하고 `META_REPLICATION_ENABLED=false` 를 둔다([04-configuration.md](04-configuration.md) D-4) |
 | 9 | app | `install/19-verify-ffmpeg.sh` | **ffmpeg·ffprobe 전제조건 검증**. 없으면 **설치를 중단한다**(아래 「ffmpeg」 절) |
 | 10 | app | `install/20-verify-frontend-config.sh` | 프론트 런타임 설정 최종 게이트. 상위 로그인 주소가 비면 **설치를 실패로 종결한다** |
 | 11 | app | `install/21-verify-ai-server-url.sh` | **AI 추론 서버 주소 확인.** 2대 구성인데 기본값(loopback)이 남아 있으면 경고한다. ★ **설치를 실패시키지 않는다**(경고만) — 04 「주소 한 표」 ① 참고 |
@@ -210,7 +210,7 @@ install.sh 가 N 단계에서 실패
 | 5 | `14-install-frontend.sh` | app | dist 배치 + httpd + 드롭인 + 설정 생성 | 0 | 안전. ⚠ **httpd 드롭인은 매번 재생성**(손편집 소실) |
 | 6 | `15-init-db.sh` | app | control/portal DB·유저 생성 | 1 또는 외부 PG 접속 가능 | 안전(존재 시 생략) |
 | 7 | `16-load-schema.sh` | app | control 스키마 로드 | 6 · `SCHEMA_LOAD_RUN=1` | 안전(테이블 있으면 생략) |
-| 8 | `17-load-portal-schema.sh` | app | portal 스키마 로드 | 6 · `SCHEMA_LOAD_RUN=1` | 안전(테이블 있으면 생략) |
+| 8 | `17-load-portal-schema.sh` | app | portal 스키마 로드 | 6 · `SCHEMA_LOAD_RUN=1` | 안전(테이블 있으면 생략). **portal DB 자체가 없으면 중단** → `SKIP_PORTAL_SCHEMA_LOAD=1` |
 | 9 | `19-verify-ffmpeg.sh` | app | ffmpeg 전제조건 검증 | 없음 | 안전(검증만) |
 | 10 | `20-verify-frontend-config.sh` | app | 프론트 설정 게이트 | **5** | 안전(검증·생성) |
 | 11 | `21-verify-ai-server-url.sh` | app | AI 서버 주소 확인 | **3** | 안전(검증만) |

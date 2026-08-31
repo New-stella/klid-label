@@ -57,7 +57,12 @@ existing="$(psql -tAX -U "${PORTAL_USER}" -d "${PORTAL_DB_NAME}" \
   2>/dev/null || echo "ERR")"
 
 if [[ "${existing}" == "ERR" ]]; then
-  die "[portal-schema] 포털 DB 접속 실패 — host=${PGHOST}:${PGPORT} user=${PORTAL_USER} db=${PORTAL_DB_NAME}"
+  # ★ 여기서 멈추는 것은 의도다 — 포털 복제를 <쓸 계획인데> 스키마가 안 들어가면 복제가
+  #   조용히 0건으로 유지되기 때문이다(이 단계의 존재 이유). 다만 포털을 아예 반입하지 않는
+  #   구성에서는 정상 상황이므로, 막다른 실패로 두지 않고 빠져나갈 길을 함께 알려 준다.
+  warn "[portal-schema] 포털 DB 접속 실패 — host=${PGHOST}:${PGPORT} user=${PORTAL_USER} db=${PORTAL_DB_NAME}"
+  warn "[portal-schema] 포털 DB 가 <있어야 하는> 구성이면: 그 DB·계정을 만든 뒤 이 설치를 다시 실행하세요."
+  die  "[portal-schema] 포털을 <반입하지 않는> 구성이면: SKIP_PORTAL_SCHEMA_LOAD=1 로 이 단계를 생략하고, backend 설정에 META_REPLICATION_ENABLED=false 를 두세요(반입 템플릿의 출고 기본값)."
 fi
 if [[ "${existing}" != "0" ]]; then
   info "[portal-schema] 이미 테이블 ${existing}개 존재 — 로드 생략(멱등 가드)."
@@ -68,4 +73,8 @@ info "[portal-schema] portal-schema.sql 로드: host=${PGHOST}:${PGPORT} user=${
 psql -v ON_ERROR_STOP=1 -U "${PORTAL_USER}" -d "${PORTAL_DB_NAME}" -f "${PORTAL_SCHEMA_SQL}" >/dev/null
 loaded="$(psql -tAX -U "${PORTAL_USER}" -d "${PORTAL_DB_NAME}" \
   -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
-ok "[portal-schema] 로드 완료 — 포털 public 테이블 ${loaded}개. 메타 복제 워커가 다음 tick 부터 복제합니다."
+ok "[portal-schema] 로드 완료 — 포털 public 테이블 ${loaded}개."
+# ⚠ 스키마를 넣어도 복제는 돌지 않는다 — 메타 복제 자체가 폐기 확정이다(2026-08-31).
+#   반입 설정의 META_REPLICATION_ENABLED 는 false 로 고정이며 되돌리지 않는다.
+#   이 단계는 <포털향 배포본이 자기 DB 스키마를 갖추는> 용도로만 남는다.
+warn "[portal-schema] 스키마만 넣었을 뿐 메타 복제는 돌지 않습니다(폐기 확정) — META_REPLICATION_ENABLED 는 false 로 둡니다."
