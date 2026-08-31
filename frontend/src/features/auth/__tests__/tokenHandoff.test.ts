@@ -1,0 +1,216 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  HOST_HANDOFF_METHOD_NAMES,
+  clearHostTokenHandoff,
+  getAccessToken,
+  internalTokenHandoff,
+  registerHostTokenHandoff,
+  resolveTokenHandoff,
+  portalTokenHandoff,
+  type TokenHandoffGateway,
+} from '@/features/auth/tokenHandoff';
+import { useAuthStore } from '@/stores/useAuthStore';
+
+const CONTROL_JWT = 'control-jwt-1';
+const LEGACY_JWT = 'legacy-jwt-1';
+const HOST_JWT = 'host-jwt-1';
+const HOST_JWT_RENEWED = 'host-jwt-2';
+const STALE_STORE_JWT = 'stale-store-jwt';
+
+/** Host 가 주입할 창구의 최소 구현 — 토큰 값을 바깥에서 갈아끼울 수 있게 둔다. */
+function makeHostGateway(initial: string | null) {
+  const state = { value: initial };
+  const gateway: TokenHandoffGateway = {
+    getAccessToken: () => state.value,
+    refresh: async () => state.value,
+    onUnauthorized: vi.fn(),
+    notifyActivity: vi.fn(),
+  };
+  return { gateway, state };
+}
+
+describe('tokenHandoff — 토큰 인계 창구 어댑터', () => {
+  beforeEach(() => {
+    clearHostTokenHandoff();
+    useAuthStore.setState({ token: null, claims: null });
+  });
+
+  afterEach(() => {
+    clearHostTokenHandoff();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  describe('계약 이름 — 값 축으로 고정한다', () => {
+    /**
+     * ★ 형식 검사(「함수가 네 개 있다」)로는 이 축을 지키지 못한다. 이름 자체가 Host 가 주입하는
+     *   객체의 키라, 이름이 바뀌면 **실행 시점에** 창구를 못 찾는다(빌드는 통과한다).
+     *   그래서 순서까지 포함해 값으로 못박는다.
+     */
+    it('창구_이름_4종이_포털이_제시한_계약_그대로다', () => {
+      expect([...HOST_HANDOFF_METHOD_NAMES]).toEqual([
+        'getAccessToken',
+        'refresh',
+        'onUnauthorized',
+        'notifyActivity',
+      ]);
+    });
+
+    it('내부_채널_창구가_계약_이름_4종을_빠짐없이_구현한다', () => {
+      for (const name of HOST_HANDOFF_METHOD_NAMES) {
+        expect(typeof (internalTokenHandoff as unknown as Record<string, unknown>)[name]).toBe(
+          'function',
+        );
+      }
+      // 계약 밖의 키를 덧붙이지 않는다 — 덧붙이면 Host 가 그것을 계약으로 오해한다.
+      expect(Object.keys(internalTokenHandoff).sort()).toEqual(
+        [...HOST_HANDOFF_METHOD_NAMES].sort(),
+      );
+    });
+
+    it('포털_채널_창구도_같은_이름_4종을_구현한다', () => {
+      expect(Object.keys(portalTokenHandoff).sort()).toEqual([...HOST_HANDOFF_METHOD_NAMES].sort());
+    });
+  });
+
+  describe('내부(관제) 채널 — 지금 동작 그대로', () => {
+    it('스토어_값을_그대로_돌려준다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+      useAuthStore.setState({ token: CONTROL_JWT, claims: null });
+
+      expect(resolveTokenHandoff()).toBe(internalTokenHandoff);
+      expect(getAccessToken()).toBe(CONTROL_JWT);
+    });
+
+    it('채널_미설정이면_내부_채널로_떨어진다', () => {
+      // 기존 빌드(`VITE_BUILD_CHANNEL` 미설정)가 지금과 똑같이 동작해야 한다.
+      vi.stubEnv('VITE_BUILD_CHANNEL', '');
+      useAuthStore.setState({ token: LEGACY_JWT, claims: null });
+
+      expect(resolveTokenHandoff()).toBe(internalTokenHandoff);
+      expect(getAccessToken()).toBe(LEGACY_JWT);
+    });
+
+    it('Host_창구가_주입돼_있어도_내부_채널은_그것을_쓰지_않는다', () => {
+      // 내부 채널의 진실원은 스토어다. Host 창구가 어쩌다 등록돼도 조달처가 바뀌면 안 된다.
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'internal');
+      const { gateway } = makeHostGateway(HOST_JWT);
+      registerHostTokenHandoff(gateway);
+      useAuthStore.setState({ token: CONTROL_JWT, claims: null });
+
+      expect(getAccessToken()).toBe(CONTROL_JWT);
+    });
+  });
+
+  describe('포털 채널 — Host 에 매번 다시 묻는다', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+    });
+
+    it('Host_창구에서_토큰을_얻는다', () => {
+      const { gateway } = makeHostGateway(HOST_JWT);
+      expect(registerHostTokenHandoff(gateway)).toBe(true);
+
+      expect(resolveTokenHandoff()).toBe(portalTokenHandoff);
+      expect(getAccessToken()).toBe(HOST_JWT);
+    });
+
+    /**
+     * ★★ 이 어댑터의 존재 이유 그 자체다.
+     *
+     * Host 가 세션을 갱신하면 우리가 앞서 본 값은 **죽은 토큰**이 된다. 값을 스냅샷으로
+     * 잡아 두면(모듈 상수·메모이제이션·스토어 복사) 갱신 이후 전 API 가 401 로 떨어지고,
+     * 그 파손은 **갱신이 일어날 만큼 오래 머문 뒤에만** 드러나 개발 중에는 조용하다.
+     */
+    it('★Host가_갱신하면_다음_조회부터_새_값이_나온다_스냅샷을_잡지_않는다', () => {
+      const { gateway, state } = makeHostGateway(HOST_JWT);
+      registerHostTokenHandoff(gateway);
+      expect(getAccessToken()).toBe(HOST_JWT);
+
+      state.value = HOST_JWT_RENEWED;
+
+      expect(getAccessToken()).toBe(HOST_JWT_RENEWED);
+    });
+
+    /**
+     * ★ 폴백을 두면 「창구가 아직 없다」가 「옛 값으로 조용히 돌아간다」가 되어, 막으려던
+     *   결함이 장애 상황에서만 되살아난다. 없으면 없는 것이다(fail-closed).
+     */
+    it('★Host_창구가_없으면_null이며_스토어_값으로_폴백하지_않는다', () => {
+      useAuthStore.setState({ token: STALE_STORE_JWT, claims: null });
+
+      expect(getAccessToken()).toBeNull();
+    });
+
+    it('창구를_해제하면_다시_null로_돌아간다', () => {
+      const { gateway } = makeHostGateway(HOST_JWT);
+      registerHostTokenHandoff(gateway);
+      expect(getAccessToken()).toBe(HOST_JWT);
+
+      clearHostTokenHandoff();
+
+      expect(getAccessToken()).toBeNull();
+    });
+
+    it('갱신_요청은_Host_창구로_위임된다', async () => {
+      const { gateway, state } = makeHostGateway(HOST_JWT);
+      registerHostTokenHandoff(gateway);
+      state.value = HOST_JWT_RENEWED;
+
+      await expect(portalTokenHandoff.refresh()).resolves.toBe(HOST_JWT_RENEWED);
+    });
+
+    it('창구가_없을_때_통지_호출은_조용히_무시된다_예외를_던지지_않는다', async () => {
+      // 통지는 부가 채널이라, 창구가 없다는 이유로 화면 동작을 깨뜨리면 안 된다.
+      expect(() => portalTokenHandoff.onUnauthorized()).not.toThrow();
+      expect(() => portalTokenHandoff.notifyActivity()).not.toThrow();
+      await expect(portalTokenHandoff.refresh()).resolves.toBeNull();
+    });
+
+    it('통지_창구는_Host로_위임된다', () => {
+      const { gateway } = makeHostGateway(HOST_JWT);
+      registerHostTokenHandoff(gateway);
+
+      portalTokenHandoff.onUnauthorized();
+      portalTokenHandoff.notifyActivity();
+
+      expect(gateway.onUnauthorized).toHaveBeenCalledTimes(1);
+      expect(gateway.notifyActivity).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('등록 시 모양 검사 — 어긋난 창구는 받지 않는다', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    it.each([...HOST_HANDOFF_METHOD_NAMES])('%s_가_빠진_창구는_거부한다', (missing) => {
+      const { gateway } = makeHostGateway(HOST_JWT);
+      const broken = { ...gateway } as Record<string, unknown>;
+      delete broken[missing];
+
+      expect(registerHostTokenHandoff(broken)).toBe(false);
+      // 거부했으면 반쯤 등록된 상태로 남지 않는다.
+      expect(getAccessToken()).toBeNull();
+    });
+
+    it('이름이_다른_창구는_거부한다_개념만_맞추고_새로_지으면_안_된다', () => {
+      // 개념은 같지만 이름을 새로 지은 경우 — 실행 시점에 창구를 못 찾는 바로 그 상황.
+      const renamed = {
+        getJwt: () => HOST_JWT,
+        renew: async () => HOST_JWT,
+        onAuthFailure: () => {},
+        touch: () => {},
+      };
+
+      expect(registerHostTokenHandoff(renamed)).toBe(false);
+      expect(getAccessToken()).toBeNull();
+    });
+
+    it.each([null, undefined, 'a-string', 42])('객체가_아닌_값(%s)은_거부한다', (value) => {
+      expect(registerHostTokenHandoff(value)).toBe(false);
+    });
+  });
+});

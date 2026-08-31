@@ -1,9 +1,47 @@
 import { create } from 'zustand';
 
 import { isKnownRole } from '@/lib/authz';
+import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { Channel, type Role, type TokenClaims } from '@/lib/api/types';
 
 const SESSION_KEY = 'klid_jwt';
+
+// [@design INT-013]
+/**
+ * 브라우저 저장소 보관은 **내부(관제) 채널 전용**이다.
+ *
+ * 포털 채널에서 저작도구는 Host 화면 안에서 실행되는 Remote 이고, access token 은
+ * **Host 메모리에만** 둔다는 것이 포털이 제시한 비협상 조건이다(`INT-013`). 그 채널에서
+ * 우리가 토큰을 저장소에 복사해 두면 두 가지가 함께 깨진다:
+ *
+ *   1. **보안** — Host 가 저장소에 두지 않기로 한 값을 우리가 저장소에 눕힌다. Host 는
+ *      세션을 끝낼 때 자기 메모리만 비우므로, 우리가 흘려 둔 사본은 그 뒤에도 남는다.
+ *   2. **정합** — 저장소에 남은 값은 Host 가 갱신한 순간 **죽은 토큰**이 된다. 그것을 읽는
+ *      경로가 하나라도 생기면 어댑터(`features/auth/tokenHandoff`)를 도입한 이유가 사라진다.
+ *
+ * 그래서 저장소 접근을 세 함수로 좁히고 채널로 가른다. 판정은 `isPortalEmbedChannel()` 을
+ * 재사용한다 — `import.meta.env` 를 다시 읽으면 채널 판정이 두 벌이 된다.
+ *
+ * ⚠ **메모리 보관(zustand `set`)은 두 채널 모두 그대로다.** 화면이 읽는 `claims`(역할·채널)가
+ *   거기서 나오므로 이것까지 끄면 포털 채널에서 권한 판정이 통째로 빈다. 끄는 것은
+ *   「브라우저 저장소에 눕히는 것」 하나뿐이다.
+ *
+ * 회귀 가드: `stores/__tests__/useAuthStorePortalChannel.test.ts`
+ */
+function persistToken(token: string): void {
+  if (isPortalEmbedChannel()) return;
+  sessionStorage.setItem(SESSION_KEY, token);
+}
+
+function forgetPersistedToken(): void {
+  if (isPortalEmbedChannel()) return;
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
+function readPersistedToken(): string | null {
+  if (isPortalEmbedChannel()) return null;
+  return sessionStorage.getItem(SESSION_KEY);
+}
 
 interface AuthState {
   token: string | null;
@@ -77,21 +115,23 @@ export const useAuthStore = create<AuthState>((set) => ({
   setToken: (token: string) => {
     const claims = decodeJwtPayload(token);
     if (!claims) return; // 유효하지 않은 토큰은 저장하지 않음
-    sessionStorage.setItem(SESSION_KEY, token);
+    persistToken(token);
     set({ token, claims });
   },
   setTokenAndClaims: (token: string) => {
     const claims = decodeJwtPayload(token);
     if (!claims) return;
-    sessionStorage.setItem(SESSION_KEY, token);
+    persistToken(token);
     set({ token, claims });
   },
   clear: () => {
-    sessionStorage.removeItem(SESSION_KEY);
+    forgetPersistedToken();
     set({ token: null, claims: null });
   },
   hydrate: () => {
-    const stored = sessionStorage.getItem(SESSION_KEY);
+    // 포털 채널은 저장소에 보관하지 않으므로 복원할 것이 없다 — 곧바로 hydration 완료로 넘어간다.
+    // (Host 가 창구로 토큰을 내주므로 새로고침 복원은 Host 의 몫이다.)
+    const stored = readPersistedToken();
     if (stored) {
       const claims = decodeJwtPayload(stored);
       // 만료된 토큰은 무시
@@ -100,7 +140,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
       // 만료됐으면 스토리지에서도 제거
-      sessionStorage.removeItem(SESSION_KEY);
+      forgetPersistedToken();
     }
     set({ isHydrated: true });
   },
