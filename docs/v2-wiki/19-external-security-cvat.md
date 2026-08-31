@@ -10,7 +10,7 @@
 | 외부 시스템 | 연동 | 코드 |
 |------------|------|------|
 | **관제서버** | JWT 발급, TASK_COMPLETED/MODIFIED 통지 수신, 조회 API + View SELECT [폐기 표기 — 아래 참조] | `ControlNotifyClient`, `controlnotify/` → [15](15-control-notify.md) |
-| **포털 서버** | ⚠ **[폐기]** 포털 DB 공유 — 저작도구가 메타를 내보내는 단방향 복제. **2026-08-31 상호 DB 미접근 확정(구속)으로 폐기**됐고 데이터 교환은 API 로 설계한다(코드는 철거 전, 판정 정본 `INT-009`). 포털 라벨 화면의 조회가 저작도구 DB 를 쓴다는 것은 원래부터 사실이며 그대로 유효 | `PortalDataSourceConfig`(복제 축), `portal/` → [16](16-portal.md) |
+| **포털 서버** | ⚠ **[폐기]** 포털 DB 공유 — 저작도구가 메타를 내보내는 단방향 복제. **2026-08-31 상호 DB 미접근 확정(구속)으로 폐기**됐고 **같은 날 코드에서 철거**됐다. 데이터 교환은 API 로 설계한다(판정 정본 `INT-009`). **되살리지 말 것.** 포털 라벨 화면의 조회가 저작도구 DB 를 쓴다는 것은 원래부터 사실이며 그대로 유효 | `PortalDataSourceConfig`(복제 축), `portal/` → [16](16-portal.md) |
 | **비식별화 서버** | 영상 비식별 위탁 + **완료 감지 폴링**(콜백 아님) [폐기 표기 — 아래 참조] | `KpstDeidentifyClient`, `batch/scheduler/KpstDeidentPollJob` → [08](08-deidentification.md) |
 | **외부 VLM 서비스** | 시계열 메타 호출 + 콜백 | `VlmClient`, `VlmTimeseriesStep`, `webhook/VlmResultController` → [09](09-vlm-timeseries.md) |
 | **외부 증강/생성 시스템** | 증강 위탁 + 콜백 [폐기 표기 — 아래 참조] | `augment/integration/ExternalAugmentClient`, `webhook/GenAiCallbackController`(+`webhook/service/AugmentResultService`) → [14](14-augmentation.md) |
