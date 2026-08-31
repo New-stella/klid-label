@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -81,7 +82,7 @@ class UserServiceTest {
         UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("REVIEWER"));
 
         // then — LS_USER_ROLE 원자 upsert 1회, 응답 역할 REVIEWER
-        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"));
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), isNull());
         assertThat(res.role()).isEqualTo("REVIEWER");
         // userRepository 에는 어떤 쓰기도 발생하지 않는다 (조회만).
         verify(userRepository, times(1)).findByUserNo(userNo);
@@ -101,7 +102,7 @@ class UserServiceTest {
 
         assertThat(res.role()).isEqualTo("WORKER");
         verify(lsUserRoleRepository, never()).upsertRole(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString());
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -117,7 +118,7 @@ class UserServiceTest {
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
 
         verify(lsUserRoleRepository, never()).upsertRole(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString());
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -133,7 +134,7 @@ class UserServiceTest {
         UserProfileResponse res = userService.update(userNo, new UserUpdateRequest("WORKER"));
 
         // then — upsert 1회 호출 + 응답 role 반영
-        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("WORKER"));
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("WORKER"), isNull());
         assertThat(res.role()).isEqualTo("WORKER");
     }
 
@@ -153,7 +154,7 @@ class UserServiceTest {
         // then — 불필요한 UPD_DT 갱신 방지: upsert 미호출, 응답은 기존 역할 유지
         assertThat(res.role()).isEqualTo("WORKER");
         verify(lsUserRoleRepository, never()).upsertRole(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString());
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -163,7 +164,7 @@ class UserServiceTest {
         long userNo = 5001L;
         Pageable pageable = PageRequest.of(0, 20);
         Page<LsAcntUser> page = new PageImpl<>(List.of(user(userNo)), pageable, 1);
-        when(userRepository.searchByKeyword(eq(null), eq(pageable))).thenReturn(page);
+        when(userRepository.searchByKeywordAndRole(eq(null), eq(null), eq(pageable))).thenReturn(page);
         when(lsUserRoleRepository.findByUserNoIn(anyCollection())).thenReturn(List.of());
 
         // when — 역할 필터 없이 검색
@@ -175,20 +176,57 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("role_필터_지정시_미배정_사용자는_제외된다")
-    void roleFilterExcludesUnassigned() {
+    @DisplayName("★role_필터는_조회로_내려간다 — 서비스가_페이지_안에서_거르지_않는다")
+    void roleFilterIsDelegatedToQuery() {
+        // 구 구현은 페이지를 먼저 가져온 뒤 인메모리로 걸러, 1페이지 밖의 해당 역할 사용자에게
+        //   도달할 수 없었다. 이제 필터 값이 그대로 조회로 내려가야 한다.
         Pageable pageable = PageRequest.of(0, 20);
-        LsAcntUser worker = user(100L);
-        LsAcntUser unassigned = user(101L);
-        Page<LsAcntUser> page = new PageImpl<>(List.of(worker, unassigned), pageable, 2);
-        when(userRepository.searchByKeyword(eq(null), eq(pageable))).thenReturn(page);
+        Page<LsAcntUser> page = new PageImpl<>(List.of(user(100L)), pageable, 1);
+        when(userRepository.searchByKeywordAndRole(eq("kw"), eq("WORKER"), eq(pageable))).thenReturn(page);
         when(lsUserRoleRepository.findByUserNoIn(anyCollection()))
                 .thenReturn(List.of(LsUserRole.of(100L, "WORKER")));
 
-        Page<UserSummaryResponse> result = userService.searchUsers(null, "WORKER", pageable);
+        Page<UserSummaryResponse> result = userService.searchUsers("kw", "WORKER", pageable);
 
+        // 조회에 role 이 실려 나갔다 — 이 verify 가 인메모리 필터 회귀를 막는다.
+        verify(userRepository, times(1)).searchByKeywordAndRole(eq("kw"), eq("WORKER"), eq(pageable));
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).userNo()).isEqualTo(100L);
+        assertThat(result.getContent().get(0).role()).isEqualTo("WORKER");
+    }
+
+    @Test
+    @DisplayName("★totalElements는_조회_결과_그대로다 — 필터_이전_합계로_되돌리지_않는다")
+    void totalElementsComesFromQuery() {
+        // 구 구현은 「필터 적용 후 목록 + 필터 이전 합계」를 섞어 "1건 표시 / 총 87건" 을 만들었다.
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<LsAcntUser> page = new PageImpl<>(List.of(user(100L)), pageable, 1);
+        when(userRepository.searchByKeywordAndRole(eq(null), eq("REVIEWER"), eq(pageable))).thenReturn(page);
+        when(lsUserRoleRepository.findByUserNoIn(anyCollection()))
+                .thenReturn(List.of(LsUserRole.of(100L, "REVIEWER")));
+
+        Page<UserSummaryResponse> result = userService.searchUsers(null, "REVIEWER", pageable);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("역할_조회는_페이지당_1회다 — N+1_방지가_유지된다")
+    void roleLookupIsOnePerPage() {
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<LsAcntUser> page = new PageImpl<>(List.of(user(100L), user(101L), user(102L)), pageable, 3);
+        when(userRepository.searchByKeywordAndRole(eq(null), eq(null), eq(pageable))).thenReturn(page);
+        when(lsUserRoleRepository.findByUserNoIn(anyCollection()))
+                .thenReturn(List.of(LsUserRole.of(100L, "WORKER"), LsUserRole.of(101L, "REVIEWER")));
+
+        Page<UserSummaryResponse> result = userService.searchUsers(null, null, pageable);
+
+        verify(lsUserRoleRepository, times(1)).findByUserNoIn(anyCollection());
+        verify(lsUserRoleRepository, never()).findByUserNo(org.mockito.ArgumentMatchers.anyLong());
+        // 역할 행이 없는 102 는 미배정(null) — 기본 역할을 지어내지 않는다.
+        assertThat(result.getContent()).extracting(UserSummaryResponse::role)
+                .containsExactly("WORKER", "REVIEWER", null);
     }
 
     @Test
@@ -244,6 +282,71 @@ class UserServiceTest {
 
         // then — 인가 역할 캐시 무효화 1회
         verify(userRoleResolver, times(1)).evict(userNo);
+    }
+
+    // ------------------------------------------------------------------------
+    // 역할 변경 주체(MDFR_ID) — @design AC-1018
+    // ------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("★역할_변경시_바꾼_사람이_upsert에_실린다")
+    void roleChangeCarriesActor() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);   // 목 생성을 when(...) 인자 안에서 하면 stubbing 이 겹친다
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        userService.update(userNo, new UserUpdateRequest("REVIEWER"), "969600001");
+
+        // 역할과 주체가 <같은 문장>에서 쓰인다 — 따로 쓰면 그 사이 실패가 「주체 없는 변경」을 남긴다.
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), eq("969600001"));
+    }
+
+    @Test
+    @DisplayName("★주체_문자열의_제어문자는_제거된다 — 로그_위조_차단(CWE-117)")
+    void actorControlCharactersAreStripped() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);   // 목 생성을 when(...) 인자 안에서 하면 stubbing 이 겹친다
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        userService.update(userNo, new UserUpdateRequest("REVIEWER"), "12\r\n[User] forged=1");
+
+        verify(lsUserRoleRepository, times(1))
+                .upsertRole(eq(userNo), eq("REVIEWER"), eq("12[User] forged=1"));
+    }
+
+    @Test
+    @DisplayName("★주체가_컬럼_폭을_넘으면_잘린다 — DB오류(500)로_새지_않는다")
+    void actorIsTruncatedToColumnWidth() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);   // 목 생성을 when(...) 인자 안에서 하면 stubbing 이 겹친다
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+        String tooLong = "9".repeat(40);
+
+        userService.update(userNo, new UserUpdateRequest("REVIEWER"), tooLong);
+
+        // MDFR_ID 는 표준도메인 식별자V30 = varchar(30)
+        verify(lsUserRoleRepository, times(1))
+                .upsertRole(eq(userNo), eq("REVIEWER"), eq("9".repeat(30)));
+    }
+
+    @Test
+    @DisplayName("주체를_모르면_null이_남는다 — 지어내지_않는다")
+    void unknownActorStaysNull() {
+        long userNo = 1001L;
+        LsAcntUser u = user(userNo);   // 목 생성을 when(...) 인자 안에서 하면 stubbing 이 겹친다
+        when(userRepository.findByUserNo(userNo)).thenReturn(Optional.of(u));
+        when(lsUserRoleRepository.findByUserNo(userNo))
+                .thenReturn(Optional.of(LsUserRole.of(userNo, "WORKER")));
+
+        userService.update(userNo, new UserUpdateRequest("REVIEWER"), "   ");
+
+        verify(lsUserRoleRepository, times(1)).upsertRole(eq(userNo), eq("REVIEWER"), isNull());
     }
 
     @Test

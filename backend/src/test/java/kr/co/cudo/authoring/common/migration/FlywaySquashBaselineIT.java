@@ -97,6 +97,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       폴백하므로, 이 변경 이후에도 기존 배포는 아무것도 달라지지 않는다. 세대·판수 컬럼을 두지
  *       않는 것도 결정이다(교체 시 기존 유효창 무효화는 서명이 현재 자격에 의존하게 해서 이룬다).
  *       신규 테이블 생성뿐이라 하위호환이고 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V22} — {@code LS_USER_ROLE.MDFR_ID}(수정자아이디) 신설. 역할 변경 기록에 <b>대상만
+ *       있고 주체가 없어</b>, 누가 누구를 관리자로 올렸는지 알려면 별도 유효창 발급 로그와 시각으로
+ *       이어 붙여야 했다. 권한 상승은 감사에서 가장 중요한 사건이라 그 자리를 데이터로 남긴다.
+ *       값의 출처는 인계 토큰 subject 하나이며 <b>요청 바디에서 오지 않는다</b>(바디 값은 위조 가능).
+ *       <b>nullable 이고 백필하지 않는다</b> — 과거 변경의 주체를 알 방법이 없고, NOT NULL + 기본값은
+ *       사실이 아닌 주체를 박는다. null 이 곧 "이 컬럼이 생기기 전에 바뀐 행" 이라는 정보다.
+ *       변경 <b>이력 표</b>는 만들지 않는다(보존 주기·조회 창구·정리 배치를 함께 정해야 하는 별개
+ *       결정이라, 추정으로 대신하지 않는다). 기본값 없는 nullable 컬럼 추가라 표를 다시 쓰지 않고
+ *       하위호환이며 롤링 재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -135,7 +144,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "9001", "9002");
     }
 
     @Test
@@ -164,6 +173,7 @@ class FlywaySquashBaselineIT {
                         "V1__baseline.sql",
                         "V20__add_portal_user_label_master_and_track.sql",
                         "V21__add_ls_mngr_pswd.sql",
+                        "V22__add_ls_user_role_mdfr_id.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

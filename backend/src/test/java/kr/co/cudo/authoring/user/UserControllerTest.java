@@ -22,6 +22,9 @@ import org.springframework.http.MediaType;
 
 import javax.sql.DataSource;
 
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -292,6 +295,103 @@ class UserControllerTest {
         mockMvc.perform(get("/v1/users/100")
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk());
+    }
+
+    // ------------------------------------------------------------------------
+    // 역할 변경 주체(MDFR_ID) — 인증 주체에서만 온다  [@design AC-1018]
+    // ------------------------------------------------------------------------
+
+    /** 그 사용자의 역할 행에 남은 마지막 수정자. 행이 없으면 null. */
+    private String mdfrIdOf(long userNo) {
+        List<String> rows = jdbc.queryForList(
+                "SELECT MDFR_ID FROM LS_USER_ROLE WHERE USER_NO = ?", String.class, userNo);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    @Test
+    @DisplayName("★역할을_바꾸면_바꾼_사람이_MDFR_ID로_남는다")
+    void roleChangeRecordsWhoChangedIt() throws Exception {
+        // 시드 행에는 주체가 없다 — 이 컬럼이 생기기 전에 만들어진 행과 같은 상태다(AC 7).
+        assertThat(mdfrIdOf(100L)).isNull();
+
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"REVIEWER\"}"))
+                .andExpect(status().isOk());
+
+        // 인계 토큰 subject 가 그대로 남는다 — 권한 상승의 주체를 시각으로 이어 붙이지 않아도 된다.
+        assertThat(mdfrIdOf(100L))
+                .isEqualTo(String.valueOf(ADMIN_NO));
+    }
+
+    @Test
+    @DisplayName("★요청_바디로_주체를_주입해도_무시된다 — 바디_값은_위조_가능하다")
+    void actorInRequestBodyIsIgnored() throws Exception {
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        // 주체를 사칭하려는 바디 — 어떤 이름으로 넣어도 채택되지 않아야 한다.
+                        .content("{\"role\":\"REVIEWER\",\"mdfrId\":\"999999\","
+                                + "\"actor\":\"999999\",\"modifier\":\"999999\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(mdfrIdOf(100L))
+                .as("바디가 주장한 주체가 아니라 인증 주체가 남아야 한다")
+                .isEqualTo(String.valueOf(ADMIN_NO))
+                .isNotEqualTo("999999");
+    }
+
+    @Test
+    @DisplayName("주체가_없던_기존_행도_조회·갱신에서_깨지지_않는다")
+    void legacyRowWithoutModifierStillWorks() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        // MDFR_ID 가 null 인 상태에서 목록·단건 조회가 그대로 200 이다.
+        mockMvc.perform(get("/v1/users").header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(4));
+        mockMvc.perform(get("/v1/users/100").header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("WORKER"));
+
+        // 그 행을 갱신하면 그때부터 주체가 채워진다(백필하지 않는다).
+        mockMvc.perform(patch("/v1/users/100")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .header(AdminSessionGate.HEADER, adminSessionForAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"REVIEWER\"}"))
+                .andExpect(status().isOk());
+        assertThat(mdfrIdOf(100L)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("★역할_필터가_서버_전체_기준으로_걸리고_총건수가_실제_매칭_수다")
+    void roleFilterIsServerWideWithMatchingTotal() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        // 시드: 1=REVIEWER, 100·101=WORKER, 200=WORKER(비활성) — 목록은 활성/비활성 모두 포함한다.
+        mockMvc.perform(get("/v1/users")
+                        .param("role", "REVIEWER")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].userNo").value(1));
+
+        mockMvc.perform(get("/v1/users")
+                        .param("role", "WORKER")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(3));
+
+        // 화이트리스트 밖 값은 400 — 필터가 조회로 내려가도 입구 검증은 그대로다.
+        mockMvc.perform(get("/v1/users")
+                        .param("role", "SUPERUSER")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
