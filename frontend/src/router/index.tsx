@@ -228,10 +228,35 @@ function AdminRoute({ allow, children }: { allow: readonly Role[]; children: Rea
   );
 }
 
-// DEV 빌드 또는 빌드타임 플래그 VITE_DEV_LOGIN_ENABLED=true 일 때만 `/dev/login` 라우트를 노출.
-// 관제서버 미기동 폐쇄망 bring-up 시 prod 빌드에서도 켤 수 있다 (기본 OFF, fail-closed).
-// 플래그가 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevLoginPage 청크
-// 자체가 산출물에 포함되지 않는다.
+// [@design SCREEN-004]
+// DEV 빌드 또는 런타임 설정 `VITE_DEV_LOGIN_ENABLED=true` 일 때만 `/dev/login` 라우트를 노출.
+// 관제서버 미기동 폐쇄망 bring-up 시 운영 빌드에서도 켤 수 있다 (기본 OFF, fail-closed).
+//
+// ★★ **화면 코드는 산출물에 실려 나간다 — 접히지 않는다.** 구 주석은 *"플래그가 false/미설정인
+//    prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevLoginPage 청크 자체가 산출물에
+//    포함되지 않는다"* 라고 적고 있었는데 **사실이 아니다.** 네 형상(기본 · 토글 ON · control ·
+//    portal) **전부에서 `DevLoginPage-*.js` 청크가 1건**으로 실측됐다. 그 주장을 아무도 산출물로
+//    확인하지 않아 오래 살아남았다.
+//
+// ★ **왜 안 접히나 — 판정의 *형태* 때문이다.** `isDevLoginEnabled()` 는 런타임 설정
+//   (`/etc/klid/frontend.env` → `klid-config.js`)까지 읽는 **함수 호출**이라 번들러가 정적으로
+//   접을 수 없다. 산출 시점에 굳는 값(`import.meta.env.DEV` 같은)만 접힌다.
+//   ⚠ **접히게 하려고 이 판정을 산출 시점 상수로 바꾸지 말 것.** 이 토글의 존재 이유가
+//     「재빌드 없이 현장에서 끌 수 있어야 한다」이고, 상수로 바꾸면 그 요구가 통째로 사라진다
+//     (근거 전문은 `lib/devLogin.ts` — *"명시적으로 껐다가 가장 강한 신호"*).
+//     **접히지 않는 것은 그 요구의 대가이지 결함이 아니다.**
+//
+// ★ **그래서 실려 나가도 안전한 이유 — 도달이 3중으로 막혀 있다**(`SCREEN-004` 가 규정한 구조):
+//     ① 프론트 — 이 판정이 거짓이면 아래 블록이 라우트를 **등록하지 않는다**(청크는 있어도
+//        그 주소로 갈 수 없다).
+//     ② 백엔드 — `authoring.dev.login.enabled` 기본값이 `false` 이고 `DevTokenController` 가
+//        `@ConditionalOnProperty(havingValue = "true")` 라, 꺼져 있으면 `/v1/dev/tokens` 가 **404**.
+//     ③ 운영 계열 — `DevToggleProfileGuard` 가 `prd`·`stg` 에서 그 토글이 켜져 있으면
+//        `@PostConstruct` 에서 `IllegalStateException` 으로 **기동 자체를 거부**한다.
+//
+// ⚠ **`features/auth/devHostStub` 의 게이트와 혼동하지 말 것 — 그쪽은 실제로 접힌다.** 거기는
+//   `import.meta.env.DEV`(산출 시점에 굳는 값)를 **먼저** 보므로 네 형상 모두 **0건**이다.
+//   두 게이트가 다르게 동작하는 이유는 「dev 전용이냐」가 아니라 **판정이 무엇을 읽느냐**다.
 const devOnlyRoutes: Array<{ path: string; element: ReactNode }> = [];
 if (isDevLoginEnabled()) {
   const DevLoginPage = /* @__PURE__ */ lazyWithRetry(() =>
@@ -245,8 +270,15 @@ if (isDevLoginEnabled()) {
 
 // 파일 업로드 페이지(`/admin/uploads`) — 관리자 페이지 소속. [@design SCREEN-027] [@design NAV-001]
 // DEV 빌드 또는 빌드타임 플래그 VITE_DEV_UPLOAD_ENABLED=true 일 때만 라우트를 노출 (isDevLoginEnabled 와 대칭).
-// 플래그 false/미설정인 prod 빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevAutolabelTestPage 청크
-// 자체가 산출물에 포함되지 않는다. 실제 게이팅은 BE DEV_UPLOAD_ENABLED 런타임 토글이 결정(라우트만 존재,
+// ★★ **여기도 마찬가지로 화면 코드는 실려 나간다.** 구 주석은 *"플래그 false/미설정인 prod
+//    빌드에서는 if 블록 전체가 dead-code 로 제거되어 DevAutolabelTestPage 청크 자체가 산출물에
+//    포함되지 않는다"* 라고 적고 있었으나 **사실이 아니다** — 기본 · 토글 ON · control 세 형상
+//    모두에서 청크가 **1건**으로 실측됐다. 이유는 위 dev 로그인 블록과 같다
+//    (`isDevUploadEnabled()` 도 런타임 설정을 읽는 함수라 접히지 않는다).
+// ⚠ **포털 산출물에서만 0건인데, 그것은 이 플래그 덕이 아니다** — 아래 조건 **앞**에 놓인
+//    채널 축(`IS_PORTAL_CHANNEL_BUILD`, 산출 시점에 굳는 값)이 접히기 때문이다. 그 축을 빼면
+//    관리자 화면 청크가 포털 산출물에 그대로 실린다(실측으로 확인한 실제 누출이다).
+// 실제 게이팅은 BE DEV_UPLOAD_ENABLED 런타임 토글이 결정(라우트만 존재,
 // BE off 면 /v1/dev/upload 호출 시 차단). UI 노출은 REVIEWER + 관리자 유효창으로 제한한다.
 //
 // ⚠ **화면 주소만 옮겼고 BE API 경로(`/v1/dev/upload`)는 그대로다** — 이 변경의 축은 화면 배치이지
