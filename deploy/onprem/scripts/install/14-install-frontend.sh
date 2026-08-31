@@ -12,6 +12,12 @@ set -euo pipefail
 #   ★ 시스템 httpd 를 쓰는 이유: RPM httpd 는 모듈 적재(conf.modules.d)와 SELinux 문맥이
 #     이미 갖춰져 있다. 전용 인스턴스를 손으로 구성하면 LoadModule 목록을 우리가 관리해야
 #     하고, 그건 <고객 장비에서만 깨지고 우리가 재현할 수 없는> 종류의 실패를 만든다.
+#
+#   ★★ 화면 산출물은 <배포 향마다 다른 벌>이다 (2026-08-31). 매체에는 두 벌이 실리고
+#     (artifacts/frontend/dist/{control,portal}) 이 스크립트가 KLID_DEPLOY_FLAVOR 로 하나를 고른다.
+#     ⚠ 고른 향이 매체에 없으면 <다른 향을 대신 깔지 않고 즉시 실패>한다(fail-closed).
+#       잘못 깔아도 빌드·설치·httpd 가 모두 성공해 조용히 어긋나기 때문이다 —
+#       설정만 바꿔서는 되돌릴 수 없다(채널이 빌드 시점에 굳는다. 04-configuration.md D-4).
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,14 +35,45 @@ BIN_DIR="${KLID_PREFIX}/bin"
 FE_CONFIG_DST="${KLID_ETC}/frontend.env"
 FE_CONFIG_RENDERER="${BIN_DIR}/klid-frontend-config"
 
-DIST_SRC="${ONPREM}/artifacts/frontend/dist"
-[[ -d "${DIST_SRC}" ]] || die "frontend dist 없음: ${DIST_SRC} (빌드머신에서 package.sh 를 실행했나요?)"
+# ---- 0) 배포 향 판정 → 배치할 화면 산출물 선택 ----
+#   ★★ 매체에는 화면 산출물이 <두 벌> 실린다(artifacts/frontend/dist/{control,portal}).
+#     라우트 채널이 빌드 시점에 굳어 반대 향 화면이 산출물에서 통째로 빠지기 때문이다 —
+#     관제 산출물에는 /portal 이 0건, 포털 산출물에는 내부 화면이 0건이다.
+#     그래서 <어느 것을 까느냐>가 여기서 정해지고, 잘못 깔면 오류 없이 조용히 어긋난다.
+#   ★ 판정은 klid_deploy_flavor 한 곳이 한다(설정 정본 > 환경변수 > control).
+#     그 함수가 설정 생성기(render-frontend-config.sh)와 같은 값을 보도록 되어 있다.
+FE_FLAVOR="$(klid_deploy_flavor)"
+DIST_ROOT="${ONPREM}/artifacts/frontend/dist"
+DIST_SRC="${DIST_ROOT}/${FE_FLAVOR}"
+
+[[ -d "${DIST_ROOT}" ]] || die "frontend dist 없음: ${DIST_ROOT} (빌드머신에서 package.sh 를 실행했나요?)"
+
+# 구 배치(향 구분 없는 단일 dist)를 조용히 깔지 않는다 — 그 산출물이 어느 채널로 구워졌는지
+# 알 수 없고, 포털 장비에 관제 화면을 올려 놓고도 설치는 성공으로 끝난다.
+if [[ ! -d "${DIST_SRC}" && -f "${DIST_ROOT}/index.html" ]]; then
+  die "[frontend] 매체의 화면 산출물이 <구 배치>입니다(향 구분 없는 단일 dist): ${DIST_ROOT}
+     이 판의 설치 스크립트는 향별 산출물(${DIST_ROOT}/{control,portal})을 요구합니다.
+     빌드머신에서 package.sh 를 다시 실행해 매체를 새로 뜨세요."
+fi
+
+# ★ fail-closed — 이 향의 산출물이 없으면 <다른 향을 대신 깔지 않는다>.
+#   잘못된 향을 까는 것은 오류 없이 조용히 어긋나는 실패다(머리 영역이 겹치고 화면이 뜨지
+#   않거나, 있어야 할 메뉴가 통째로 없다). 현장에서 원인 추적이 가장 어려운 형태라 즉시 멈춘다.
+if [[ ! -d "${DIST_SRC}" ]]; then
+  _avail="$(cd "${DIST_ROOT}" 2>/dev/null && find . -maxdepth 1 -mindepth 1 -type d -exec basename {} \; 2>/dev/null | sort | tr '\n' ' ' || true)"
+  die "[frontend] 배포 향 '${FE_FLAVOR}' 의 화면 산출물이 없습니다: ${DIST_SRC}
+     매체에 있는 향: ${_avail:-(없음)}
+     · 향이 틀렸다면 ${FE_CONFIG_DST} 의 KLID_DEPLOY_FLAVOR 를 고치세요(첫 설치면 KLID_DEPLOY_FLAVOR=... 로 주면 됩니다).
+     · 매체에 그 향이 없다면 빌드머신에서 package.sh 를 다시 실행해 두 향을 모두 담으세요.
+     ※ 다른 향의 산출물로 대신하지 않습니다 — 화면 채널은 빌드 시점에 굳어 있어
+       설정만 바꿔서는 되돌릴 수 없습니다(04-configuration.md D-4)."
+fi
 
 # ---- 1) 정적 자산 배치 ----
-info "[frontend] 정적 자산 배치..."
+info "[frontend] 정적 자산 배치 (배포 향: ${FE_FLAVOR})..."
 rm -rf "${WEB_DIR}/dist"
 cp -R "${DIST_SRC}" "${WEB_DIR}/dist"
-ok "[frontend] dist: ${WEB_DIR}/dist"
+ok "[frontend] dist: ${WEB_DIR}/dist  (원본 ${DIST_SRC})"
 
 # ---- 1-1) 런타임 설정 정본 배치 + 생성기 설치 ----
 #   ★ 값의 정본은 산출물이 아니라 ${KLID_ETC}/frontend.env 다(백엔드가 DB 접속정보를 /etc/klid
@@ -57,9 +94,12 @@ else
   # ★ 배포 향 기본값은 control 이다 — 이 매체가 관제 연동 배포용으로 만들어지기 때문이다.
   #   포털 연동 배포는 설치 시 KLID_DEPLOY_FLAVOR=portal 을 준다. 빈 값을 기본으로 두면
   #   두 로그인 주소를 모두 요구해 관제 연동 설치가 20 단계에서 막힌다(안 쓰는 값을 요구).
+  #   ★ 여기 적히는 값은 <방금 배치한 dist 와 같은 향>이어야 한다 — 그래서 위 0 단계가 이미
+  #     판정한 ${FE_FLAVOR} 를 그대로 쓴다. 여기서 다시 판정하면 두 값이 갈릴 수 있고,
+  #     그러면 "관제 화면을 깔아 놓고 포털 로그인 주소를 요구하는" 상태가 만들어진다.
   sed -e "s#@CONTROL_LOGIN_URL@#$(_sed_repl_escape "${VITE_CONTROL_LOGIN_URL:-}")#g" \
       -e "s#@PORTAL_LOGIN_URL@#$(_sed_repl_escape "${VITE_PORTAL_LOGIN_URL:-}")#g" \
-      -e "s#@DEPLOY_FLAVOR@#$(_sed_repl_escape "${KLID_DEPLOY_FLAVOR:-control}")#g" \
+      -e "s#@DEPLOY_FLAVOR@#$(_sed_repl_escape "${FE_FLAVOR}")#g" \
       "${FE_CONFIG_SRC}" > "${FE_CONFIG_DST}"
   # 비밀값을 담지 않는 파일이라 조이지 않는다(was.env 와 같은 판단). 반대로 <여기에 비밀값을
   # 넣으면 안 된다> — 이 파일의 내용은 브라우저로 내려간다. 템플릿 머리말이 그 구분을 설명한다.

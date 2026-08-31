@@ -159,7 +159,7 @@ package.sh 가 N 단계에서 실패
 | 단계 | 스크립트 | 수집 |
 |------|----------|------|
 | 1 | `package/10-build-backend.sh` | `./gradlew bootWar` → **`artifacts/backend/api.war`(반입 정본)**. WAR 가 없으면 **실패**한다. `klid-backend.jar`(개발 전용)는 **기본으로 만들지도 담지도 않는다** — `WITH_BACKEND_JAR=1` 일 때만 `bootJar` 를 함께 돌려 수집 |
-| 2 | `package/20-build-frontend.sh` | `npm ci && npm run build` → `artifacts/frontend/dist` (VITE_* 빌드 주입) |
+| 2 | `package/20-build-frontend.sh` | `npm ci` → **배포 향마다 한 번씩** `npm run build:control` · `npm run build:portal` → `artifacts/frontend/dist/{control,portal}` (VITE_* 빌드 주입). **★ 이 단계만 소요가 약 2배**다 — 화면 채널이 빌드 시점에 굳어 한 벌로는 두 향을 못 덮는다(아래 ★) |
 | 3 | `package/30-collect-ai-server.sh` | `app/` 소스 + pip wheel(torch CPU) + sam2 소스 + yolox 가중치 (+옵션 HF) |
 | 4 | `package/40-collect-runtimes.sh` | CPython 3.11 standalone (tar.gz) — ai-server 용. **자바 런타임은 수집하지 않는다**(WAS 가 제공). 웹 서버는 `50-collect-syspkgs.sh` 가 httpd RPM 으로 수집 |
 | 5 | `package/50-collect-syspkgs.sh` | **ffmpeg RPM**(`syspkgs/ffmpeg/` — **예비물**, 아래 ★) + **el8 RPM**(`mesa-libGL`/`libglvnd-glx`/`glib2`/`httpd`/`policycoreutils-python-utils` → `syspkgs/rpm/`) + **GPG 공개키**(`syspkgs/gpg/`) + **GPL 대응 소스 SRPM**(`syspkgs/ffmpeg-src/`). 각 디렉토리에 `repodata/`(로컬 yum 저장소) 생성 — 단 `ffmpeg-src/` 는 설치 대상이 아니라 색인하지 않는다 |
@@ -167,6 +167,29 @@ package.sh 가 N 단계에서 실패
 | 6 | `package/60-collect-buildtools.sh` | **(옵션·기본 OFF)** 오프라인 빌드 키트: JDK17 full + Node20 + Gradle 8.8 + **populated gradle-home** + **frontend node_modules** + `src/` 소스 (소스 재빌드용). `WITH_BUILDTOOLS=1` 일 때만 실행 |
 
 각 디렉토리에 `SHA256SUMS` 가 생성되어 전송 무결성을 검증한다.
+
+## ★ 화면 산출물은 배포 향마다 두 벌 만든다 (2026-08-31 신설)
+
+라우트 채널 값(`VITE_BUILD_CHANNEL`)은 **빌드 시점에 굳어** 반대 향의 화면 코드를 산출물에서
+**통째로 걷어낸다.** 그래서 한 벌만 만들면 반드시 한쪽이 깨진다.
+
+| 산출물 | 만드는 명령 | 안에 없는 것 |
+|---|---|---|
+| `artifacts/frontend/dist/control/` | `npm run build:control` | `/portal` 라우트 **0건** |
+| `artifacts/frontend/dist/portal/` | `npm run build:portal` | 내부 화면(`/dashboard`·`/admin/*`·`/manage/*`) **0건** |
+
+- ⚠ **채널을 넘기지 않은 `npm run build` 는 관제로 접힌다.** 그래서 포털 산출물은
+  `build:portal` 로만 나오고, 안 넘기면 **포털에 관제 산출물이 올라간다** — 빌드도 설치도
+  성공하고 오류도 없어 **조용히** 어긋난다.
+- **매체는 한 종류다.** 두 벌을 함께 싣고 **설치가 `KLID_DEPLOY_FLAVOR` 로 하나를 고른다**
+  (04-configuration.md D-4). 향마다 매체를 따로 뜨는 안은 택하지 않았다 — 화면 산출물 증분은
+  수십 MB 라 수 GB 매체에서 무시할 수준인 반면, 매체가 두 종류가 되면 반입·검수·자료실 분할
+  절차가 통째로 두 배가 된다(3GB 파일 제한 때문에 이미 분할돼 있다).
+- **무결성 단위는 종전대로 `artifacts/frontend/dist` 하나**다 — `SHA256SUMS` 가 그 아래를
+  재귀로 훑어 두 향을 모두 담으므로 `install.sh` 의 검증 목록은 바뀌지 않는다.
+- 라이선스 고지는 **향마다** 동봉한다(`dist/{control,portal}/licenses/`). 설치가 배치하는 것은
+  한 향의 dist 하나이고 그것이 곧 웹 문서 루트라, 상위에 한 벌만 두면 웹에서 열리지 않는다.
+- 매체에 어느 향이 들어 있는지는 `artifacts/frontend/BUILD-INFO.txt` 의 `build_flavors=` 줄에 적힌다.
 
 ## ★ ffmpeg 는 담되 자동 설치되지 않는다 (2026-08-30 사용자 확정, 구속)
 
@@ -191,7 +214,7 @@ package.sh 가 N 단계에서 실패
 | 반입물 | 서버 A(`app`) | 서버 B(`ai`) |
 |---|:---:|:---:|
 | `artifacts/backend`(api.war) | ○ | |
-| `artifacts/frontend/dist` | ○ | |
+| `artifacts/frontend/dist`(향별 `control`·`portal`) | ○ | |
 | `syspkgs/rpm`(httpd·semanage / mesa-libGL·glib2) | ○ | ○ |
 | `syspkgs/gpg` | ○ | ○ |
 | `syspkgs/postgresql`(옵션) | ○ | |
@@ -330,7 +353,7 @@ docker run --rm --platform linux/amd64 -v "$PWD/../..:/work" -w /work/deploy/onp
 | 산출물 | 위치 | OS 종속? | 어디서 수집 |
 |--------|------|:--------:|-------------|
 | backend jar | `artifacts/backend/` | 무관 | mac/Linux 어디서나(JDK17) |
-| frontend dist | `artifacts/frontend/dist/` | 무관 | mac/Linux 어디서나(Node20) |
+| frontend dist(향 2벌) | `artifacts/frontend/dist/{control,portal}/` | 무관 | mac/Linux 어디서나(Node20) |
 | 런타임 Python | `runtimes/python/` | 무관(linux tarball) | mac/Linux 어디서나(curl) |
 | ~~런타임 JRE~~ | — | — | **수집하지 않는다**(2026-08-30 — 대상 WAS 가 Java 17 제공) |
 | **ffmpeg RPM**(예비물) | `syspkgs/ffmpeg/` | **el8 정합** | **el8 컨테이너/머신**(`dnf download`). ⚠ 구: 정적 tarball·OS 무관. ⚠ **설치는 수동**(`install/install-ffmpeg.sh`) |
@@ -412,10 +435,15 @@ EPEL 은 배포판 기본 리포가 아니므로 **법무 확인이 필요한 �
 
 | 무엇 | 어디서 수집 | 번들 위치 | 대략 용량 |
 |------|-------------|-----------|:---------:|
-| 정적 dist | `frontend/dist` (vite build) | `artifacts/frontend/dist` | ~수 MB |
+| 정적 dist(관제 향) | `frontend/dist` (`npm run build:control`) | `artifacts/frontend/dist/control` | 글꼴 포함 ~수십 MB |
+| 정적 dist(포털 향) | `frontend/dist` (`npm run build:portal`) | `artifacts/frontend/dist/portal` | 글꼴 포함 ~수십 MB |
 
 > VITE_API_BASE_URL=/api/v1, VITE_TOKEN_INGRESS=localStorage 가 **빌드 시점에 정적 치환**됨.
 > (토큰 인계 기본값이 localStorage 인 이유는 위 override 예시 주석 참고 — URL 쿼리 JWT 잔존 방지)
+>
+> ★ **두 벌을 만든다** — `VITE_BUILD_CHANNEL` 이 빌드 시점에 굳어 반대 향 화면을 산출물에서
+> 걷어내기 때문이다. 그래서 **이 단계의 소요가 약 2배**이고, 대부분의 용량은 두 벌 다 안고 가는
+> 글꼴 바이너리(Pretendard·D2Coding)다. 상세는 위 「화면 산출물은 배포 향마다 두 벌 만든다」.
 
 ### ai-server
 

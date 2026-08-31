@@ -9,6 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { PortalLayout } from '@/components/layout/PortalLayout';
 import { SessionIngressPage } from '@/features/auth/SessionIngressPage';
 import { Role } from '@/lib/api/types';
+import { IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 import { isDevUploadEnabled } from '@/lib/devUpload';
 import { resolveRouterBasename } from '@/lib/remoteMount';
@@ -19,142 +20,142 @@ import { AuthenticatedGuard, ChannelGuard, RoleGuard } from './guards';
 import { lazyWithRetry } from './lazyWithRetry';
 
 // Phase 3 — 영상 도메인 + 대시보드 lazy 로드 (코드 스플리팅)
-const VideoListPage = lazyWithRetry(() =>
+const VideoListPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/VideoListPage').then((m) => ({ default: m.VideoListPage })),
 );
-const VideoDetailPage = lazyWithRetry(() =>
+const VideoDetailPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/VideoDetailPage').then((m) => ({ default: m.VideoDetailPage })),
 );
-const DashboardPage = lazyWithRetry(() =>
+const DashboardPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
 
 // Phase 4 — 작업 배정 + 사용자 관리 + 시스템 설정 lazy 로드
-const TaskListPage = lazyWithRetry(() =>
+const TaskListPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/TaskListPage').then((m) => ({ default: m.TaskListPage })),
 );
-const UserManagePage = lazyWithRetry(() =>
+const UserManagePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/UserManagePage').then((m) => ({ default: m.UserManagePage })),
 );
 
 // 관리자 페이지 — 진입 게이트 + 관리 기능 화면. [@design SCREEN-040~043] [@design NAV-001]
-const AdminGatePage = lazyWithRetry(() =>
+const AdminGatePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/admin/AdminGatePage').then((m) => ({ default: m.AdminGatePage })),
 );
-const AdminPasswordPage = lazyWithRetry(() =>
+const AdminPasswordPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/admin/AdminPasswordPage').then((m) => ({ default: m.AdminPasswordPage })),
 );
-const AdminEndpointsPage = lazyWithRetry(() =>
+const AdminEndpointsPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/admin/AdminEndpointsPage').then((m) => ({ default: m.AdminEndpointsPage })),
 );
-const AdminMaintenancePage = lazyWithRetry(() =>
+const AdminMaintenancePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/admin/AdminMaintenancePage').then((m) => ({
     default: m.AdminMaintenancePage,
   })),
 );
-const SystemSettingsPage = lazyWithRetry(() =>
+const SystemSettingsPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })),
 );
 
 // Phase 5 — 라벨링 캔버스 lazy 로드 (konva 분리)
-const LabelingPage = lazyWithRetry(() =>
+const LabelingPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/label/LabelingPage').then((m) => ({ default: m.LabelingPage })),
 );
 
 // Phase 9 — 검수 워크플로우 lazy 로드
-const ReviewListPage = lazyWithRetry(() =>
+const ReviewListPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/ReviewListPage').then((m) => ({ default: m.ReviewListPage })),
 );
-const ReviewPage = lazyWithRetry(() =>
+const ReviewPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/ReviewPage').then((m) => ({ default: m.ReviewPage })),
 );
 // Phase 10 — 데이터 증강 lazy 로드
-const AugmentRequestPage = lazyWithRetry(() =>
+const AugmentRequestPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/AugmentRequestPage').then((m) => ({
     default: m.AugmentRequestPage,
   })),
 );
-const AugmentResultPage = lazyWithRetry(() =>
+const AugmentResultPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/AugmentResultPage').then((m) => ({
     default: m.AugmentResultPage,
   })),
 );
 
 // Phase 11 — 포털 채널 (데이터마트 영상 선택 + 간편 라벨링, ADR-013) lazy 로드
-const PortalHomePage = lazyWithRetry(() =>
+const PortalHomePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
 );
-const PortalLabelingPage = lazyWithRetry(() =>
+const PortalLabelingPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalLabelingPage').then((m) => ({ default: m.PortalLabelingPage })),
 );
 // Phase 5 — 포털 업로드 화면 (이미지 다중 업로드 + 영상 TUS + 자산 목록/삭제) lazy 로드
-const PortalUploadPage = lazyWithRetry(() =>
+const PortalUploadPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalUploadPage').then((m) => ({ default: m.PortalUploadPage })),
 );
 // Phase 6 — 포털 업로드 자산 라벨링 화면 (CanvasShell 조립 + export/원본 다운로드) lazy 로드
-const PortalUploadLabelingPage = lazyWithRetry(() =>
+const PortalUploadLabelingPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalUploadLabelingPage').then((m) => ({
     default: m.PortalUploadLabelingPage,
   })),
 );
 
 // Phase 12 — 통계 + 프리셋 lazy 로드 (recharts 별도 청크)
-const WorkerStatPage = lazyWithRetry(() =>
+const WorkerStatPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/WorkerStatPage').then((m) => ({ default: m.WorkerStatPage })),
 );
-const OverallStatPage = lazyWithRetry(() =>
+const OverallStatPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/OverallStatPage').then((m) => ({ default: m.OverallStatPage })),
 );
-const PresetListPage = lazyWithRetry(() =>
+const PresetListPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/PresetListPage').then((m) => ({ default: m.PresetListPage })),
 );
 // Phase 3 — 라벨 마스터(클래스) 관리 (REVIEWER 전용) lazy 로드
-const LabelMasterManagePage = lazyWithRetry(() =>
+const LabelMasterManagePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/LabelMasterManagePage').then((m) => ({
     default: m.LabelMasterManagePage,
   })),
 );
 // 이벤트유형 관리 (REVIEWER 전용) lazy 로드 — 관제 인입 자동등록분의 표시명·수집여부 정정.
-const EventTypeManagePage = lazyWithRetry(() =>
+const EventTypeManagePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/EventTypeManagePage').then((m) => ({
     default: m.EventTypeManagePage,
   })),
 );
 // G-1 — 비식별 신고 관리 (REVIEWER 전용) lazy 로드
-const DeidentReportListPage = lazyWithRetry(() =>
+const DeidentReportListPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/DeidentReportListPage').then((m) => ({
     default: m.DeidentReportListPage,
   })),
 );
 // 산출물 가져오기 (REVIEWER 전용) lazy 로드 — 검사·적재·분류 대응·이관 이력을 한 화면에서 밟는다.
-const ImportPage = lazyWithRetry(() =>
+const ImportPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/manage/ImportPage').then((m) => ({
     default: m.ImportPage,
   })),
 );
 
 // V2.0 Phase 7 — 마킹 화면 lazy 로드
-const MarkingPage = lazyWithRetry(() =>
+const MarkingPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/MarkingPage').then((m) => ({ default: m.MarkingPage })),
 );
 
 // Phase 3 — 게시판(공지) 목록/상세 lazy 로드
-const NoticeListPage = lazyWithRetry(() =>
+const NoticeListPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/NoticeListPage').then((m) => ({ default: m.NoticeListPage })),
 );
-const NoticeDetailPage = lazyWithRetry(() =>
+const NoticeDetailPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/NoticeDetailPage').then((m) => ({ default: m.NoticeDetailPage })),
 );
 // 공지 작성/수정 — 모달이 아니라 전용 화면이라 각각 직접 진입 가능한 URL 을 갖는다.
-const NoticeCreatePage = lazyWithRetry(() =>
+const NoticeCreatePage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/NoticeCreatePage').then((m) => ({ default: m.NoticeCreatePage })),
 );
-const NoticeEditPage = lazyWithRetry(() =>
+const NoticeEditPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/NoticeEditPage').then((m) => ({ default: m.NoticeEditPage })),
 );
 
 // Phase 2 — 권한 자가 부여 화면 (role 미부여 사용자 진입점) lazy 로드
-const RoleClaimPage = lazyWithRetry(() =>
+const RoleClaimPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/RoleClaimPage').then((m) => ({ default: m.RoleClaimPage })),
 );
 
@@ -233,7 +234,7 @@ function AdminRoute({ allow, children }: { allow: readonly Role[]; children: Rea
 // 자체가 산출물에 포함되지 않는다.
 const devOnlyRoutes: Array<{ path: string; element: ReactNode }> = [];
 if (isDevLoginEnabled()) {
-  const DevLoginPage = lazyWithRetry(() =>
+  const DevLoginPage = /* @__PURE__ */ lazyWithRetry(() =>
     import('@/features/auth/DevLoginPage').then((m) => ({ default: m.DevLoginPage })),
   );
   devOnlyRoutes.push({
@@ -251,8 +252,12 @@ if (isDevLoginEnabled()) {
 // ⚠ **화면 주소만 옮겼고 BE API 경로(`/v1/dev/upload`)는 그대로다** — 이 변경의 축은 화면 배치이지
 //    창구 개명이 아니다.
 const devUploadRoutes: Array<{ path: string; element: ReactNode }> = [];
-if (isDevUploadEnabled()) {
-  const DevAutolabelTestPage = lazyWithRetry(() =>
+// ★ 채널 축을 **앞에** 둔다 — 이 화면은 관리자 페이지(내부 채널) 소속이라 포털 채널 산출물에
+//   들어갈 이유가 없다. `isDevUploadEnabled()` 는 실행 중에 판정하는 함수라 접히지 않으므로,
+//   산출 시점에 접히는 `IS_PORTAL_CHANNEL_BUILD` 를 앞에 두어야 포털 빌드에서 이 블록이 통째로
+//   사라진다(안 그러면 화면 청크가 반대 채널 산출물에 그대로 실린다 — 실측으로 확인했다).
+if (!IS_PORTAL_CHANNEL_BUILD && isDevUploadEnabled()) {
+  const DevAutolabelTestPage = /* @__PURE__ */ lazyWithRetry(() =>
     import('@/pages/dev/DevAutolabelTestPage').then((m) => ({
       default: m.DevAutolabelTestPage,
     })),
@@ -267,386 +272,428 @@ if (isDevUploadEnabled()) {
   });
 }
 
+// [@design INT-013]
+/**
+ * 내부(관제) 채널 라우트 — **포털 채널 산출물에는 들어가지 않는다.**
+ *
+ * 설계가 「공통 소스는 한 벌로 두고 산출만 채널별로 가른다 … 반대 채널 화면이 산출물에 섞이지
+ * 않는다」고 규정한 그 갈림이 여기다. 조건이 `IS_PORTAL_CHANNEL_BUILD`(산출 시점에 접히는 형태)
+ * 인 것이 핵심이다 — 실행 중에 판정하는 함수(`isPortalEmbedChannel()`)를 쓰면 이동은 막히지만
+ * 화면 코드는 번들에 그대로 남아 요구가 절반만 달성된다(근거 전문은 그 상수 주석).
+ *
+ * ⚠ `/role-claim` 이 여기 있는 근거: 그 화면으로 보내는 유일한 지점이 `router/guards.tsx` 의
+ *   `if (!claims.role && claims.channel === 'INTERNAL')` 이고, 포털 채널 빌드는 그 자리에서
+ *   이동 대신 제자리 안내를 그린다. 포털 사용자는 발급 시점에 역할이 있어 이 흐름을 타지 않는다.
+ *
+ * ⚠ 공용 진입 경로(`/ingress` · 개발용 로그인 · 오류 화면)는 여기 넣지 않는다 — 아래 `routes` 에
+ *   그대로 남아 두 채널 모두에 실린다. 특히 `/ingress` 는 채널 클레임으로 갈라 보내는 자리라
+ *   포털 채널에서도 반드시 있어야 한다.
+ */
+const internalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
+  ? []
+  : [
+      // Phase 2 — 권한 자가 부여 화면. 인증만 통과하면 진입 가능 (role 무관, RoleGuard 미사용).
+      {
+        path: '/role-claim',
+        element: <AuthenticatedGuard>{withSuspense(<RoleClaimPage />)}</AuthenticatedGuard>,
+      },
+
+      // 라벨링 화면은 풀스크린 다크 UI — AppLayout(LNB/GNB) 밖에서 직접 매칭
+      // 인증 가드(InternalRoute)는 그대로 유지
+      {
+        path: '/label/:id',
+        element: (
+          <InternalRoute allow={allowFor('/label/:id')}>{withSuspense(<LabelingPage />)}</InternalRoute>
+        ),
+        errorElement: <AppErrorPage status={500} />,
+      },
+
+      // INTERNAL 채널 (저작도구 내부)
+      {
+        path: '/',
+        element: <AppLayout />,
+        errorElement: <AppErrorPage status={500} />,
+        children: [
+          // 루트 → /dashboard redirect (mock 정합)
+          { index: true, element: <Navigate to="/dashboard" replace /> },
+          {
+            path: 'video',
+            children: [
+              // 부모 경로 직접 진입(북마크·주소 입력·뒤로가기) 시 빈 화면이 뜨지 않도록 대표 하위로 보낸다.
+              // index 라우트가 없으면 pathless 부모가 leaf 로 매칭되어 <Outlet/> 이 null 을 그린다.
+              { index: true, element: <Navigate to="/video/status" replace /> },
+              // [@design NAV-001] [@design SCREEN-008] [@design SCREEN-009]
+              // 영상 처리 현황·영상 상세는 재시도·건너뛰기·재수행 같은 **운영 조치**를 제공하는
+              // 자리라 REVIEWER 전용이다(라벨 수정·검수 제출을 맡는 WORKER 의 역할 축이 아니다).
+              // ★LNB 와 이 가드는 `@/lib/routeAccess` 의 **같은 선언**을 읽는다 — 두 곳에 조건을
+              //   적어 두고 「같아야 한다」고 주석으로만 당부하던 구조를 없앴다.
+              // ⚠ 같은 「영상」 개념에 속하는 마킹(`marking/:rawSn`)은 이 제한 대상이 **아니다** —
+              //   WORKER 가 들어가는 화면이라 internalAllRoles 그대로 둔다.
+              {
+                path: 'status',
+                element: (
+                  <InternalRoute allow={allowFor('/video/status')}>
+                    {withSuspense(<VideoListPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: ':id',
+                element: (
+                  <InternalRoute allow={allowFor('/video/:id')}>
+                    {withSuspense(<VideoDetailPage />)}
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            path: 'dashboard',
+            element: (
+              <InternalRoute allow={allowFor('/dashboard')}>
+                {withSuspense(<DashboardPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'task',
+            children: [
+              {
+                index: true,
+                element: (
+                  <InternalRoute allow={allowFor('/task')}>
+                    {withSuspense(<TaskListPage />)}
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            path: 'marking/:rawSn',
+            element: (
+              <InternalRoute allow={allowFor('/marking/:rawSn')}>
+                {withSuspense(<MarkingPage />)}
+              </InternalRoute>
+            ),
+          },
+          {
+            path: 'review',
+            children: [
+              {
+                index: true,
+                element: (
+                  <InternalRoute allow={allowFor('/review')}>
+                    {withSuspense(<ReviewListPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                // mock 정합 alias — /review/pending == /review
+                path: 'pending',
+                element: (
+                  <InternalRoute allow={allowFor('/review/pending')}>
+                    {withSuspense(<ReviewListPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: ':id',
+                element: (
+                  <InternalRoute allow={allowFor('/review/:id')}>
+                    {withSuspense(<ReviewPage />)}
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            path: 'stat',
+            children: [
+              {
+                index: true,
+                element: (
+                  <InternalRoute allow={allowFor('/stat')}>
+                    {withSuspense(<WorkerStatPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                // mock 정합 alias — /stat/worker == /stat
+                path: 'worker',
+                element: (
+                  <InternalRoute allow={allowFor('/stat/worker')}>
+                    {withSuspense(<WorkerStatPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'overall',
+                element: (
+                  <InternalRoute allow={allowFor('/stat/overall')}>
+                    {withSuspense(<OverallStatPage />)}
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            path: 'augment',
+            children: [
+              {
+                index: true,
+                element: (
+                  <InternalRoute allow={allowFor('/augment')}>
+                    {withSuspense(<AugmentRequestPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                // mock 정합 alias — /augment/request == /augment
+                path: 'request',
+                element: (
+                  <InternalRoute allow={allowFor('/augment/request')}>
+                    {withSuspense(<AugmentRequestPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'result/:rawSn',
+                element: (
+                  <InternalRoute allow={allowFor('/augment/result/:rawSn')}>
+                    {withSuspense(<AugmentResultPage />)}
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            path: 'manage',
+            children: [
+              // `path: '*'` 는 남은 경로가 빈 문자열일 때 매칭되지 않아 `/manage` 를 못 받는다
+              // (실측: leaf 가 pathless 'manage' 로 잡혀 빈 화면). LNB 첫 항목으로 보낸다.
+              // ⚠ 첫 항목이 「사용자 관리」에서 「시스템 설정」으로 바뀌었다 — 사용자 관리는 관리자
+              //   페이지(`/admin/users`)로 옮겨갔고, 여기로 보내면 곧바로 진입 게이트로 튄다.
+              { index: true, element: <Navigate to="/manage/settings" replace /> },
+              {
+                path: 'settings',
+                element: (
+                  <InternalRoute allow={allowFor('/manage/settings')}>
+                    {withSuspense(<SystemSettingsPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'presets',
+                element: (
+                  <InternalRoute allow={allowFor('/manage/presets')}>
+                    {withSuspense(<PresetListPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'labels',
+                element: (
+                  <InternalRoute allow={allowFor('/manage/labels')}>
+                    {withSuspense(<LabelMasterManagePage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'event-types',
+                element: (
+                  <InternalRoute allow={allowFor('/manage/event-types')}>
+                    {withSuspense(<EventTypeManagePage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'deident-reports',
+                element: (
+                  <InternalRoute allow={allowFor('/manage/deident-reports')}>
+                    {withSuspense(<DeidentReportListPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                // 구 주소 — 북마크·공유 링크를 새 자리로 잇는다. 화면은 「관리자」 소속
+                // (`/admin/imports`)으로 옮겨갔고 여기서 그리지 않는다. [@design SCREEN-039]
+                // ⚠ 여기에 역할 가드를 걸지 않는다 — 이동만 하는 자리이고, 인가 판정은 목적지
+                //   라우트가 한다. 여기서 막으면 검수자가 「접근 거부」 대신 빈 화면을 본다.
+                path: 'imports',
+                element: <Navigate to="/admin/imports" replace />,
+              },
+              {
+                path: '*',
+                element: (
+                  <InternalRoute allow={allowFor('/manage/*')}>
+                    <PlaceholderPage title="관리" />
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            path: 'notice',
+            children: [
+              {
+                index: true,
+                element: (
+                  <InternalRoute allow={allowFor('/notice')}>
+                    {withSuspense(<NoticeListPage />)}
+                  </InternalRoute>
+                ),
+              },
+              // 작성/수정은 REVIEWER 전용이다. ':id' 보다 먼저 두어 'new' 가 게시글 id 로
+              // 해석되지 않게 한다(정적 세그먼트 우선 매칭에 더해 선언 순서로도 못 박는다).
+              {
+                path: 'new',
+                element: (
+                  <InternalRoute allow={allowFor('/notice/new')}>
+                    {withSuspense(<NoticeCreatePage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: ':id',
+                element: (
+                  <InternalRoute allow={allowFor('/notice/:id')}>
+                    {withSuspense(<NoticeDetailPage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: ':id/edit',
+                element: (
+                  <InternalRoute allow={allowFor('/notice/:id/edit')}>
+                    {withSuspense(<NoticeEditPage />)}
+                  </InternalRoute>
+                ),
+              },
+            ],
+          },
+          {
+            // 관리자 페이지 — 관리자 역할에게만 열리고, 그 위에 관리자 패스워드로 연 단기 유효창을
+            // 함께 요구한다. [@design NAV-001] [@design ADR-046] [@design ROLE-004]
+            path: 'admin',
+            children: [
+              {
+                // 진입(게이트) 화면. ★여기에는 AdminSessionGuard 를 걸지 않는다 — 유효창이 없을 때
+                //   자기 자신으로 무한히 되돌아간다. 역할 가드는 그대로 필요하다.
+                index: true,
+                element: (
+                  <InternalRoute allow={allowFor('/admin')}>
+                    {withSuspense(<AdminGatePage />)}
+                  </InternalRoute>
+                ),
+              },
+              {
+                path: 'users',
+                element: (
+                  <AdminRoute allow={allowFor('/admin/users')}>
+                    {withSuspense(<UserManagePage />)}
+                  </AdminRoute>
+                ),
+              },
+              {
+                path: 'endpoints',
+                element: (
+                  <AdminRoute allow={allowFor('/admin/endpoints')}>
+                    {withSuspense(<AdminEndpointsPage />)}
+                  </AdminRoute>
+                ),
+              },
+              {
+                // 산출물 가져오기 — 구 주소 `/manage/imports` 에서 옮겨왔다. [@design SCREEN-039]
+                // 서버가 적재 실행(`POST /v1/imports`)과 대응 저장·삭제(`/v1/import-mappings`)를
+                // 관리자 전용으로 좁혔는데 화면이 검수자에게 열려 있어, 폴더 탐색·검사까지 정상
+                // 진행한 뒤 **마지막 단계에서만 403** 을 받는 상태였다(그 화면에는 역할 참조가
+                // 한 줄도 없어 사유 안내조차 없었다). 진입 자체를 관리자로 좁혀 해소한다.
+                // ★좌측 메뉴와 이 가드는 `@/lib/routeAccess` 의 같은 선언을 읽는다.
+                path: 'imports',
+                element: (
+                  <AdminRoute allow={allowFor('/admin/imports')}>
+                    {withSuspense(<ImportPage />)}
+                  </AdminRoute>
+                ),
+              },
+              {
+                path: 'password',
+                element: (
+                  <AdminRoute allow={allowFor('/admin/password')}>
+                    {withSuspense(<AdminPasswordPage />)}
+                  </AdminRoute>
+                ),
+              },
+              {
+                path: 'maintenance',
+                element: (
+                  <AdminRoute allow={allowFor('/admin/maintenance')}>
+                    {withSuspense(<AdminMaintenancePage />)}
+                  </AdminRoute>
+                ),
+              },
+              // 파일 업로드(`/admin/uploads`) — DEV_UPLOAD_ENABLED 토글로 빌드 포함 여부가 갈린다.
+              ...devUploadRoutes,
+            ],
+          },
+
+          { path: '*', element: <AppErrorPage status={404} /> },
+        ],
+      },
+    ];
+
+// [@design INT-013]
+/**
+ * 포털 채널 라우트 — **관제 채널 산출물에는 들어가지 않는다.**
+ *
+ * 위 내부 라우트와 대칭이며 같은 상수로 갈린다.
+ */
+const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
+  ? [
+
+      // PORTAL 채널 — 별도 PortalLayout (LNB 없음, 모바일 친화)
+      {
+        path: '/portal',
+        element: <PortalLayout />,
+        errorElement: <AppErrorPage status={500} />,
+        children: [
+          {
+            index: true,
+            element: <PortalRoute>{withSuspense(<PortalHomePage />)}</PortalRoute>,
+          },
+          {
+            path: 'label/:id',
+            element: <PortalRoute>{withSuspense(<PortalLabelingPage />)}</PortalRoute>,
+          },
+          {
+            path: 'uploads',
+            element: <PortalRoute>{withSuspense(<PortalUploadPage />)}</PortalRoute>,
+          },
+          {
+            path: 'uploads/:uldSn/label',
+            element: <PortalRoute>{withSuspense(<PortalUploadLabelingPage />)}</PortalRoute>,
+          },
+        ],
+      },
+      // 마운트 경로의 뿌리(`/`) — Host 는 우리를 이 자리에 얹으므로 포털 홈으로 보낸다.
+      // 관제 채널의 뿌리는 대시보드로 보내는 내부 라우트가 갖고 있고, 그 트리가 이 산출물에는
+      // 없으므로 여기서 대신 받는다(없으면 뿌리 진입이 어느 라우트에도 걸리지 않는다).
+      { path: '/', element: <Navigate to="/portal" replace /> },
+      // 못 찾은 주소 — 관제 채널은 내부 트리 안의 `*` 가 받지만 그 트리가 없으므로 여기 둔다.
+      { path: '*', element: <AppErrorPage status={404} /> },
+    ]
+  : [];
+
 // 라우트 트리 — 아래 `createBrowserRouter` 의 유일한 소비처다.
 // 별도 상수로 뽑은 것은 basename 옵션을 붙이면서 **배열 본문을 한 글자도 건드리지 않기** 위해서다.
 const routes: RouteObject[] = [
   // 진입/공통 — Layout 없이 직접 매칭
   { path: '/ingress', element: <SessionIngressPage /> },
   { path: '/forbidden', element: <ForbiddenPage /> },
-  // Phase 2 — 권한 자가 부여 화면. 인증만 통과하면 진입 가능 (role 무관, RoleGuard 미사용).
-  {
-    path: '/role-claim',
-    element: <AuthenticatedGuard>{withSuspense(<RoleClaimPage />)}</AuthenticatedGuard>,
-  },
   ...devOnlyRoutes,
-
-  // 라벨링 화면은 풀스크린 다크 UI — AppLayout(LNB/GNB) 밖에서 직접 매칭
-  // 인증 가드(InternalRoute)는 그대로 유지
-  {
-    path: '/label/:id',
-    element: (
-      <InternalRoute allow={allowFor('/label/:id')}>{withSuspense(<LabelingPage />)}</InternalRoute>
-    ),
-    errorElement: <AppErrorPage status={500} />,
-  },
-
-  // INTERNAL 채널 (저작도구 내부)
-  {
-    path: '/',
-    element: <AppLayout />,
-    errorElement: <AppErrorPage status={500} />,
-    children: [
-      // 루트 → /dashboard redirect (mock 정합)
-      { index: true, element: <Navigate to="/dashboard" replace /> },
-      {
-        path: 'video',
-        children: [
-          // 부모 경로 직접 진입(북마크·주소 입력·뒤로가기) 시 빈 화면이 뜨지 않도록 대표 하위로 보낸다.
-          // index 라우트가 없으면 pathless 부모가 leaf 로 매칭되어 <Outlet/> 이 null 을 그린다.
-          { index: true, element: <Navigate to="/video/status" replace /> },
-          // [@design NAV-001] [@design SCREEN-008] [@design SCREEN-009]
-          // 영상 처리 현황·영상 상세는 재시도·건너뛰기·재수행 같은 **운영 조치**를 제공하는
-          // 자리라 REVIEWER 전용이다(라벨 수정·검수 제출을 맡는 WORKER 의 역할 축이 아니다).
-          // ★LNB 와 이 가드는 `@/lib/routeAccess` 의 **같은 선언**을 읽는다 — 두 곳에 조건을
-          //   적어 두고 「같아야 한다」고 주석으로만 당부하던 구조를 없앴다.
-          // ⚠ 같은 「영상」 개념에 속하는 마킹(`marking/:rawSn`)은 이 제한 대상이 **아니다** —
-          //   WORKER 가 들어가는 화면이라 internalAllRoles 그대로 둔다.
-          {
-            path: 'status',
-            element: (
-              <InternalRoute allow={allowFor('/video/status')}>
-                {withSuspense(<VideoListPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: ':id',
-            element: (
-              <InternalRoute allow={allowFor('/video/:id')}>
-                {withSuspense(<VideoDetailPage />)}
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        path: 'dashboard',
-        element: (
-          <InternalRoute allow={allowFor('/dashboard')}>
-            {withSuspense(<DashboardPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'task',
-        children: [
-          {
-            index: true,
-            element: (
-              <InternalRoute allow={allowFor('/task')}>
-                {withSuspense(<TaskListPage />)}
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        path: 'marking/:rawSn',
-        element: (
-          <InternalRoute allow={allowFor('/marking/:rawSn')}>
-            {withSuspense(<MarkingPage />)}
-          </InternalRoute>
-        ),
-      },
-      {
-        path: 'review',
-        children: [
-          {
-            index: true,
-            element: (
-              <InternalRoute allow={allowFor('/review')}>
-                {withSuspense(<ReviewListPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            // mock 정합 alias — /review/pending == /review
-            path: 'pending',
-            element: (
-              <InternalRoute allow={allowFor('/review/pending')}>
-                {withSuspense(<ReviewListPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: ':id',
-            element: (
-              <InternalRoute allow={allowFor('/review/:id')}>
-                {withSuspense(<ReviewPage />)}
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        path: 'stat',
-        children: [
-          {
-            index: true,
-            element: (
-              <InternalRoute allow={allowFor('/stat')}>
-                {withSuspense(<WorkerStatPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            // mock 정합 alias — /stat/worker == /stat
-            path: 'worker',
-            element: (
-              <InternalRoute allow={allowFor('/stat/worker')}>
-                {withSuspense(<WorkerStatPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'overall',
-            element: (
-              <InternalRoute allow={allowFor('/stat/overall')}>
-                {withSuspense(<OverallStatPage />)}
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        path: 'augment',
-        children: [
-          {
-            index: true,
-            element: (
-              <InternalRoute allow={allowFor('/augment')}>
-                {withSuspense(<AugmentRequestPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            // mock 정합 alias — /augment/request == /augment
-            path: 'request',
-            element: (
-              <InternalRoute allow={allowFor('/augment/request')}>
-                {withSuspense(<AugmentRequestPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'result/:rawSn',
-            element: (
-              <InternalRoute allow={allowFor('/augment/result/:rawSn')}>
-                {withSuspense(<AugmentResultPage />)}
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        path: 'manage',
-        children: [
-          // `path: '*'` 는 남은 경로가 빈 문자열일 때 매칭되지 않아 `/manage` 를 못 받는다
-          // (실측: leaf 가 pathless 'manage' 로 잡혀 빈 화면). LNB 첫 항목으로 보낸다.
-          // ⚠ 첫 항목이 「사용자 관리」에서 「시스템 설정」으로 바뀌었다 — 사용자 관리는 관리자
-          //   페이지(`/admin/users`)로 옮겨갔고, 여기로 보내면 곧바로 진입 게이트로 튄다.
-          { index: true, element: <Navigate to="/manage/settings" replace /> },
-          {
-            path: 'settings',
-            element: (
-              <InternalRoute allow={allowFor('/manage/settings')}>
-                {withSuspense(<SystemSettingsPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'presets',
-            element: (
-              <InternalRoute allow={allowFor('/manage/presets')}>
-                {withSuspense(<PresetListPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'labels',
-            element: (
-              <InternalRoute allow={allowFor('/manage/labels')}>
-                {withSuspense(<LabelMasterManagePage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'event-types',
-            element: (
-              <InternalRoute allow={allowFor('/manage/event-types')}>
-                {withSuspense(<EventTypeManagePage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'deident-reports',
-            element: (
-              <InternalRoute allow={allowFor('/manage/deident-reports')}>
-                {withSuspense(<DeidentReportListPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            // 구 주소 — 북마크·공유 링크를 새 자리로 잇는다. 화면은 「관리자」 소속
-            // (`/admin/imports`)으로 옮겨갔고 여기서 그리지 않는다. [@design SCREEN-039]
-            // ⚠ 여기에 역할 가드를 걸지 않는다 — 이동만 하는 자리이고, 인가 판정은 목적지
-            //   라우트가 한다. 여기서 막으면 검수자가 「접근 거부」 대신 빈 화면을 본다.
-            path: 'imports',
-            element: <Navigate to="/admin/imports" replace />,
-          },
-          {
-            path: '*',
-            element: (
-              <InternalRoute allow={allowFor('/manage/*')}>
-                <PlaceholderPage title="관리" />
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        path: 'notice',
-        children: [
-          {
-            index: true,
-            element: (
-              <InternalRoute allow={allowFor('/notice')}>
-                {withSuspense(<NoticeListPage />)}
-              </InternalRoute>
-            ),
-          },
-          // 작성/수정은 REVIEWER 전용이다. ':id' 보다 먼저 두어 'new' 가 게시글 id 로
-          // 해석되지 않게 한다(정적 세그먼트 우선 매칭에 더해 선언 순서로도 못 박는다).
-          {
-            path: 'new',
-            element: (
-              <InternalRoute allow={allowFor('/notice/new')}>
-                {withSuspense(<NoticeCreatePage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: ':id',
-            element: (
-              <InternalRoute allow={allowFor('/notice/:id')}>
-                {withSuspense(<NoticeDetailPage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: ':id/edit',
-            element: (
-              <InternalRoute allow={allowFor('/notice/:id/edit')}>
-                {withSuspense(<NoticeEditPage />)}
-              </InternalRoute>
-            ),
-          },
-        ],
-      },
-      {
-        // 관리자 페이지 — 관리자 역할에게만 열리고, 그 위에 관리자 패스워드로 연 단기 유효창을
-        // 함께 요구한다. [@design NAV-001] [@design ADR-046] [@design ROLE-004]
-        path: 'admin',
-        children: [
-          {
-            // 진입(게이트) 화면. ★여기에는 AdminSessionGuard 를 걸지 않는다 — 유효창이 없을 때
-            //   자기 자신으로 무한히 되돌아간다. 역할 가드는 그대로 필요하다.
-            index: true,
-            element: (
-              <InternalRoute allow={allowFor('/admin')}>
-                {withSuspense(<AdminGatePage />)}
-              </InternalRoute>
-            ),
-          },
-          {
-            path: 'users',
-            element: (
-              <AdminRoute allow={allowFor('/admin/users')}>
-                {withSuspense(<UserManagePage />)}
-              </AdminRoute>
-            ),
-          },
-          {
-            path: 'endpoints',
-            element: (
-              <AdminRoute allow={allowFor('/admin/endpoints')}>
-                {withSuspense(<AdminEndpointsPage />)}
-              </AdminRoute>
-            ),
-          },
-          {
-            // 산출물 가져오기 — 구 주소 `/manage/imports` 에서 옮겨왔다. [@design SCREEN-039]
-            // 서버가 적재 실행(`POST /v1/imports`)과 대응 저장·삭제(`/v1/import-mappings`)를
-            // 관리자 전용으로 좁혔는데 화면이 검수자에게 열려 있어, 폴더 탐색·검사까지 정상
-            // 진행한 뒤 **마지막 단계에서만 403** 을 받는 상태였다(그 화면에는 역할 참조가
-            // 한 줄도 없어 사유 안내조차 없었다). 진입 자체를 관리자로 좁혀 해소한다.
-            // ★좌측 메뉴와 이 가드는 `@/lib/routeAccess` 의 같은 선언을 읽는다.
-            path: 'imports',
-            element: (
-              <AdminRoute allow={allowFor('/admin/imports')}>
-                {withSuspense(<ImportPage />)}
-              </AdminRoute>
-            ),
-          },
-          {
-            path: 'password',
-            element: (
-              <AdminRoute allow={allowFor('/admin/password')}>
-                {withSuspense(<AdminPasswordPage />)}
-              </AdminRoute>
-            ),
-          },
-          {
-            path: 'maintenance',
-            element: (
-              <AdminRoute allow={allowFor('/admin/maintenance')}>
-                {withSuspense(<AdminMaintenancePage />)}
-              </AdminRoute>
-            ),
-          },
-          // 파일 업로드(`/admin/uploads`) — DEV_UPLOAD_ENABLED 토글로 빌드 포함 여부가 갈린다.
-          ...devUploadRoutes,
-        ],
-      },
-
-      { path: '*', element: <AppErrorPage status={404} /> },
-    ],
-  },
-
-  // PORTAL 채널 — 별도 PortalLayout (LNB 없음, 모바일 친화)
-  {
-    path: '/portal',
-    element: <PortalLayout />,
-    errorElement: <AppErrorPage status={500} />,
-    children: [
-      {
-        index: true,
-        element: <PortalRoute>{withSuspense(<PortalHomePage />)}</PortalRoute>,
-      },
-      {
-        path: 'label/:id',
-        element: <PortalRoute>{withSuspense(<PortalLabelingPage />)}</PortalRoute>,
-      },
-      {
-        path: 'uploads',
-        element: <PortalRoute>{withSuspense(<PortalUploadPage />)}</PortalRoute>,
-      },
-      {
-        path: 'uploads/:uldSn/label',
-        element: <PortalRoute>{withSuspense(<PortalUploadLabelingPage />)}</PortalRoute>,
-      },
-    ],
-  },
+  // 채널별 라우트 — 둘 중 한쪽만 이 산출물에 실린다(위 두 상수).
+  ...internalRoutes,
+  ...portalRoutes,
 ];
 
 // [@design INT-013]

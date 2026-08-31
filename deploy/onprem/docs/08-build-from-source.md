@@ -25,8 +25,8 @@
 | 용량 | 작음 | 큼(JDK full·gradle-home·node_modules) |
 | 언제 | **대부분의 경우 권장** | 납품처가 "소스에서 직접 빌드" 요구 / 아티팩트 신뢰 검증 / 소스 패치 후 재빌드 |
 
-> 둘 다 결국 동일한 **`artifacts/backend/api.war`**(반입 정본) + `artifacts/frontend/dist` 를
-> 만들고, 그 다음 `install.sh` 가 이를 배치한다.
+> 둘 다 결국 동일한 **`artifacts/backend/api.war`**(반입 정본) + `artifacts/frontend/dist/{control,portal}`
+> 를 만들고, 그 다음 `install.sh` 가 이를 배치한다(화면은 배포 향에 해당하는 한 벌만).
 > ⚠ **`artifacts/backend/klid-backend.jar` 는 두 경로의 기본 산출물이 아니다** — 빌드머신 수집은
 > `WITH_BACKEND_JAR=1` 일 때만 담고(2026-08-30 반입 제외), **타깃 재빌드는 베어메탈 복귀 경로를
 > 위해 계속 만든다.** 타깃에서 만든 것은 매체가 아니라 설치 장비에 생기는 것이라 반입물이 아니다.
@@ -79,7 +79,15 @@ sudo ./scripts/install/build-from-source.sh
    그 산출물이 필요한 자리이고, 여기서 만든 파일은 **매체가 아니라 설치 장비에** 생긴다.
    ⚠ 구 절차 폐기(2026-08-30) — `bootJar` 만 돌려 jar 만 만들던 것. 그러면 **배포할 수 없는 산출물**만 나온다.
 3. **frontend** — node_modules 복원(tarball → `src/frontend/node_modules`) 후
-   `npm run build`(오프라인) → `artifacts/frontend/dist` 배치(+SHA256SUMS).
+   **배포 향마다 한 번씩** `npm run build:control` · `npm run build:portal`(오프라인) →
+   `artifacts/frontend/dist/{control,portal}` 배치(+SHA256SUMS).
+   - ★★ **두 벌을 만드는 것이 기본이다.** 라우트 채널(`VITE_BUILD_CHANNEL`)이 **빌드 시점에 굳어**
+     반대 향 화면을 산출물에서 통째로 걷어내기 때문이다 — 관제 산출물에 `/portal` **0건**,
+     포털 산출물에 내부 화면(`/dashboard`·`/admin/*`·`/manage/*`) **0건**. 한 벌만 만들면 반드시
+     한쪽이 깨지는데, 빌드도 설치도 성공해 **조용히** 어긋난다.
+     ⚠ 그래서 **frontend 재빌드 시간이 약 2배**다(backend 는 그대로).
+   - 한 향만 다시 만들려면 `BUILD_FLAVORS="control"` 처럼 준다. **기본값을 좁히지 말 것** —
+     좁히는 쪽이 기본이면 "포털 장비인데 관제 산출물만 있는" 조용한 어긋남이 되돌아온다.
    - Vite 빌드 인자는 빌드머신과 동일 기본값: `VITE_API_BASE_URL=/api/v1`,
      `VITE_TOKEN_INGRESS=localStorage`, `VITE_DEV_LOGIN_ENABLED=true`, `VITE_DEV_UPLOAD_ENABLED=true`.
      필요 시 환경변수로 override.

@@ -21,7 +21,12 @@ set -euo pipefail
 #       ★ 빌드머신 수집(package/10-build-backend.sh)은 2026-08-30 부터 이 jar 를 <담지 않는다>
 #         (WITH_BACKEND_JAR=1 일 때만). 여기서는 계속 만든다 — 이 스크립트는 <타깃 장비>에서
 #         돌고 그 결과물은 매체가 아니라 설치 장비에 생기며, 베어메탈 복귀 경로가 그것을 쓴다.
-#     artifacts/frontend/dist
+#     artifacts/frontend/dist/{control,portal}
+#       ★★ 화면 산출물은 <배포 향마다 따로> 만든다 — 빌드머신 경로(package/20-build-frontend.sh)와
+#         같은 규칙이다. 라우트 채널이 빌드 시점에 굳어 반대 향 화면이 산출물에서 통째로
+#         빠지므로(관제 산출물에 /portal 0건 · 포털 산출물에 내부 화면 0건), 한 번만 빌드하면
+#         포털향 설치에 포털 화면이 하나도 없는 산출물이 올라간다. 오류가 없어 조용히 어긋난다.
+#         ⚠ 대가: frontend 재빌드 시간이 <약 2배>다(채널당 1회). backend 는 그대로다.
 #
 #   ★ 빌드 키트는 2026-08-30 부터 <기본 반입 대상이 아니다>(현장 재빌드 요구 없음 확인).
 #     따라서 이 스크립트는 <빌드 키트를 명시적으로 함께 반입한 패키지>에서만 동작한다.
@@ -31,6 +36,7 @@ set -euo pipefail
 #     sudo ./scripts/install/build-from-source.sh          # backend + frontend 재빌드
 #     SKIP_BACKEND=1 ./scripts/install/build-from-source.sh
 #     SKIP_FRONTEND=1 ./scripts/install/build-from-source.sh
+#     BUILD_FLAVORS="control" ./scripts/install/build-from-source.sh   # 한 향만 재빌드
 #     VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage ... 빌드 인자 override 가능
 #
 #   ★ 상위 로그인 주소(VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL)는 <빌드에 필요 없다>.
@@ -213,7 +219,7 @@ else
 fi
 
 # ----------------------------------------------------------------------------
-# frontend — node_modules 복원 → npm run build(오프라인) → artifacts/frontend/dist
+# frontend — node_modules 복원 → 향별 오프라인 빌드 → artifacts/frontend/dist/{control,portal}
 # ----------------------------------------------------------------------------
 if [[ "${SKIP_FRONTEND:-0}" == "1" ]]; then
   warn "[build-src] frontend 재빌드 SKIP (SKIP_FRONTEND=1)"
@@ -256,24 +262,52 @@ else
   info "[build-src] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
   info "[build-src] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 
-  info "[build-src] frontend 오프라인 빌드(npm run build)..."
-  # node_modules 가 이미 있으므로 npm run build 는 네트워크 없이 동작한다.
-  ( cd "${FE_SRC}" \
-    && PATH="${NODE_DIR}/bin:${PATH}" npm run build --offline ) \
-    || die "[build-src] frontend 오프라인 빌드 실패(npm run build) — node_modules 무결성 확인"
+  # ---- 배포 향별 빌드 ------------------------------------------------------
+  #   ★ 두 벌을 <스테이징>에 모두 만든 뒤에 교체한다. 앞서 지우면 두 번째 빌드가 실패했을 때
+  #     아무 산출물도 없는 상태가 남고, 설치가 그 자리에서 멈춘다.
+  #   ★ 어느 향만 만들지 좁히려면 BUILD_FLAVORS="control" 처럼 준다. 기본은 둘 다다 —
+  #     좁히는 것이 기본이면 "포털향인데 관제 산출물만 있는" 조용한 어긋남이 되돌아온다.
+  read -r -a _fe_flavors <<< "${BUILD_FLAVORS:-control portal}"
+  for _f in "${_fe_flavors[@]}"; do
+    case "${_f}" in
+      control|portal) ;;
+      *) die "[build-src] 알 수 없는 배포 향: '${_f}' (허용: control | portal)" ;;
+    esac
+  done
 
-  [[ -d "${FE_SRC}/dist" ]] || die "[build-src] 빌드 결과(dist) 없음: ${FE_SRC}/dist"
+  FE_STAGE="${FE_OUT}/.dist.staging"
+  rm -rf "${FE_STAGE}"
+  ensure_dir "${FE_STAGE}"
+
+  for _f in "${_fe_flavors[@]}"; do
+    info "[build-src] frontend 오프라인 빌드 [${_f}] (npm run build:${_f})..."
+    # node_modules 가 이미 있으므로 npm run build 는 네트워크 없이 동작한다.
+    # 앞 채널 산출물이 섞이지 않게 매번 비우고 시작한다.
+    rm -rf "${FE_SRC}/dist"
+    ( cd "${FE_SRC}" \
+      && PATH="${NODE_DIR}/bin:${PATH}" npm run "build:${_f}" --offline ) \
+      || die "[build-src] frontend 오프라인 빌드 실패(npm run build:${_f}) — node_modules 무결성 확인"
+
+    [[ -d "${FE_SRC}/dist" ]] || die "[build-src] 빌드 결과(dist) 없음: ${FE_SRC}/dist (${_f})"
+    [[ -f "${FE_SRC}/dist/index.html" ]] || die "[build-src] ${_f} 산출물에 index.html 이 없습니다 — 빌드가 반쪽입니다."
+    cp -R "${FE_SRC}/dist" "${FE_STAGE}/${_f}"
+    ok "[build-src] frontend [${_f}]: $(du -sh "${FE_STAGE}/${_f}" | cut -f1)"
+  done
+
   rm -rf "${FE_OUT}/dist"
-  cp -R "${FE_SRC}/dist" "${FE_OUT}/dist"
+  mv "${FE_STAGE}" "${FE_OUT}/dist"
   sha256_write "${FE_OUT}/dist"
   ok "[build-src] frontend dist: ${FE_OUT}/dist  ($(du -sh "${FE_OUT}/dist" | cut -f1))"
+  for _f in "${_fe_flavors[@]}"; do
+    info "[build-src]   · ${_f} → ${FE_OUT}/dist/${_f}"
+  done
 fi
 
 info "================================================================"
 ok "[build-src] 소스 재빌드 완료."
 info "  - backend WAR  → ${ONPREM}/artifacts/backend/api.war        (반입 정본 — WAS 에 올린다)"
 info "  - backend jar  → ${ONPREM}/artifacts/backend/klid-backend.jar (개발/베어메탈용)"
-info "  - frontend dist → ${ONPREM}/artifacts/frontend/dist"
+info "  - frontend dist → ${ONPREM}/artifacts/frontend/dist/{control,portal}  (설치가 배포 향으로 하나를 고른다)"
 info ""
 info "  다음 단계: sudo ./scripts/install.sh 를 실행하면 위 산출물이 설치됩니다."
 info "  (ai-server 는 별도 컴파일 없음 — install.sh 의 13-install-ai-server.sh 가"

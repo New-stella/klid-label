@@ -724,3 +724,65 @@ klid_verify_ffmpeg_runtime() {
   rm -rf "${tmp}"
   ok "[ffmpeg] 실동작 확인 통과 — 1프레임 jpg 생성 후 ffprobe 판독(${out})"
 }
+
+# ----------------------------------------------------------------------------
+# 배포 향(flavor) — 관제 연동(control) / 포털 연동(portal) (2026-08-31 신설)
+#
+#   ★★ 화면 산출물(dist)은 <향마다 따로 만들어> 매체에 두 벌 싣는다. 라우트 채널 값
+#     (VITE_BUILD_CHANNEL)은 <빌드 시점>에 굳어 반대 향의 화면 코드를 산출물에서 통째로
+#     걷어내기 때문이다. 관제 산출물에는 /portal 라우트가 0건이고 포털 산출물에는 내부
+#     화면(/dashboard·/admin/*·/manage/*)이 0건이다. 그래서 <어느 dist 를 까느냐>가
+#     설치 시점 판정이 되고, 그 판정의 단일 진입점이 이 함수다.
+#     ⚠ 잘못 깔면 <오류 없이 조용히> 어긋난다 — 빌드도 설치도 성공하고 httpd 도 뜬다.
+#       그래서 호출부는 반드시 fail-closed 로 다룬다(없으면 다른 향을 깔지 말고 즉시 실패).
+#
+#   ★ 우선순위 — <설정 정본이 환경변수를 이긴다>. 그 이유는 이 값의 소비자가 둘이고
+#     그 둘이 반드시 같은 답을 봐야 하기 때문이다:
+#       ① 이 함수      → 어느 dist 를 배치할지
+#       ② render-frontend-config.sh → 어느 상위 로그인 URL 을 필수로 요구할지
+#     ②는 언제나 ${KLID_ETC}/frontend.env 를 읽고, 그 파일은 재설치 때 <덮이지 않는다>.
+#     그러니 여기서 환경변수를 우선하면 "포털 장비에 관제 dist 를 깔아 놓고 포털 URL 을
+#     요구하는" 어긋난 상태가 만들어진다. 정본이 이미 선언돼 있으면 그것을 따르고,
+#     환경변수와 다르면 <조용히 넘어가지 않고> 경고한다.
+#
+#   ★ 판정 자체는 render-frontend-config.sh 와 어긋나지 않게 맞춘다 — 허용값은 control|portal
+#     둘뿐이고 대소문자를 가리며, 그 밖의 값은 즉시 실패다(오타를 통과시키지 않는다).
+#     ⚠ 단 <미선언>의 뜻은 축마다 다르며 그것이 의도다:
+#        · 이 함수(배치할 dist)      → control (설치 템플릿의 출고 기본값과 같다)
+#        · 생성기(필수 URL)          → 둘 다 요구 (모르는 형상을 느슨히 통과시키지 않는다)
+#       두 기본값을 "일관성"을 이유로 통일하지 말 것 — 전자는 무엇을 복사할지라 반드시
+#       하나를 골라야 하고, 후자는 무엇을 요구할지라 넓게 잡는 쪽이 안전하다.
+# ----------------------------------------------------------------------------
+
+# klid_deploy_flavor — 이 장비의 배포 향을 stdout 으로 (control | portal).
+#   읽는 순서: ${KLID_ETC}/frontend.env 선언 → 환경변수 KLID_DEPLOY_FLAVOR → control
+#   알 수 없는 값이면 die.
+klid_deploy_flavor() {
+  local cfg="${FE_CONFIG_FILE:-${KLID_ETC:-/etc/klid}/frontend.env}"
+  local declared env_v v
+  declared="$(klid_config_value "${cfg}" KLID_DEPLOY_FLAVOR)"
+  env_v="${KLID_DEPLOY_FLAVOR:-}"
+
+  if [[ -n "${declared}" ]]; then
+    v="${declared}"
+    if [[ -n "${env_v}" && "${env_v}" != "${declared}" ]]; then
+      warn "배포 향이 엇갈립니다 — 설정 정본을 따릅니다: ${cfg} 의 '${declared}' (환경변수는 '${env_v}')"
+      warn "  재설치는 이 파일을 덮지 않습니다. 향을 바꾸려면 파일의 KLID_DEPLOY_FLAVOR 를 직접 고치세요."
+    fi
+  else
+    v="${env_v}"
+  fi
+  [[ -n "${v}" ]] || v="control"
+
+  # 허용 값은 여기 한 곳에만 적는다 — 목록 상수를 따로 두면 그것이 두 번째 진실원이 되어
+  # 한쪽만 갱신된다. 값 자체는 frontend/src/lib/buildChannel.ts 의 BUILD_CHANNELS 와 같아야
+  # 하며(셸이라 import 할 수 없다), 바꿀 때는 양쪽을 함께 본다.
+  case "${v}" in
+    control|portal) printf '%s' "${v}" ;;
+    *)
+      die "KLID_DEPLOY_FLAVOR 값을 알 수 없습니다: '${v}' — control 또는 portal 만 씁니다.
+     (배포 향을 안 정했으면 ${cfg} 의 그 줄을 비워 두세요. 그러면 화면 산출물은 control 을
+      배치하고, 설정 생성기는 두 로그인 주소를 모두 요구합니다.)"
+      ;;
+  esac
+}

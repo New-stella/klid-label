@@ -1,0 +1,174 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import MockAdapter from 'axios-mock-adapter';
+
+import { apiClient } from '@/lib/api/client';
+import { useAuthStore } from '@/stores/useAuthStore';
+
+import { SessionIngressPage } from '../SessionIngressPage';
+import { clearDevHostToken, installDevHostTokenHandoff, seedDevHostToken } from '../devHostStub';
+import { clearHostTokenHandoff } from '../tokenHandoff';
+import { LOCAL_STORAGE_TOKEN_KEY } from '../tokenIngress';
+
+// [@design INT-013] [@design SCREEN-004]
+/**
+ * 포털 채널을 **Host 없이 단독으로** 띄웠을 때의 진입 흐름 회귀 가드.
+ *
+ * 이 파일이 지키는 것은 「대역이 등록됐다」가 아니라 **「등록된 대역이 실제로 화면과 요청까지
+ * 이어진다」**이다. 앞의 것만 보면 창구는 멀쩡한데 진입 페이지가 여전히 저장소를 뒤져
+ * 개발용 로그인으로 되튕기는 상태를 통과시킨다(실제로 그 형상이 결함이었다).
+ */
+
+function b64url(obj: Record<string, unknown>): string {
+  const json = JSON.stringify(obj);
+  const utf8 = unescape(encodeURIComponent(json));
+  return btoa(utf8).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function buildJwt(payload: Record<string, unknown>): string {
+  return `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}.signature`;
+}
+
+const PORTAL_JWT = buildJwt({
+  sub: '3001',
+  role: 'PORTAL_USER',
+  channel: 'PORTAL',
+  exp: 9999999999,
+  name: '홍길동',
+});
+
+const INTERNAL_JWT = buildJwt({
+  sub: '1001',
+  role: 'REVIEWER',
+  channel: 'INTERNAL',
+  exp: 9999999999,
+  name: '김검수',
+});
+
+function renderIngress() {
+  return render(
+    <MemoryRouter initialEntries={['/ingress']}>
+      <Routes>
+        <Route path="/ingress" element={<SessionIngressPage />} />
+        <Route path="/portal" element={<div>PORTAL_HOME</div>} />
+        <Route path="/dashboard" element={<div>DASHBOARD_HOME</div>} />
+        <Route path="/dev/login" element={<div>DEV_LOGIN</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe('포털 채널 단독 구동 — 진입 흐름', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    useAuthStore.getState().clear();
+    localStorage.clear();
+    sessionStorage.clear();
+    clearHostTokenHandoff();
+    clearDevHostToken();
+    mock = new MockAdapter(apiClient);
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    mock.restore();
+    clearDevHostToken();
+    clearHostTokenHandoff();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  describe('포털 채널', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+    });
+
+    it('★대역이_들고_있는_토큰으로_포털_홈까지_들어간다', async () => {
+      installDevHostTokenHandoff();
+      seedDevHostToken(PORTAL_JWT);
+
+      renderIngress();
+
+      await waitFor(() => {
+        expect(screen.getByText('PORTAL_HOME')).toBeInTheDocument();
+      });
+      expect(useAuthStore.getState().claims?.channel).toBe('PORTAL');
+    });
+
+    /**
+     * ★★ 이 채널의 조달처는 **인계 창구**다. 저장소를 읽으면 ①아무것도 없거나 ②앞 채널이
+     *    남긴 죽은 토큰을 줍는다 — 뒤쪽이 더 나쁘다(다른 사람의 세션으로 들어간다).
+     */
+    it('★저장소에_남은_앞_채널_토큰을_줍지_않는다', async () => {
+      localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, INTERNAL_JWT);
+      vi.stubEnv('VITE_TOKEN_INGRESS', 'localStorage');
+
+      renderIngress();
+
+      // 창구가 비어 있으므로 인증 실패로 떨어져 개발용 로그인으로 간다.
+      await waitFor(() => {
+        expect(screen.getByText('DEV_LOGIN')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('DASHBOARD_HOME')).not.toBeInTheDocument();
+      expect(useAuthStore.getState().claims).toBeNull();
+    });
+
+    it('★요청에_Authorization_헤더가_실린다_401이_아니다', async () => {
+      installDevHostTokenHandoff();
+      seedDevHostToken(PORTAL_JWT);
+
+      const seen: { auth?: unknown } = {};
+      mock.onGet('/portal/videos').reply((config) => {
+        seen.auth = config.headers?.Authorization;
+        return [200, { success: true, data: [], message: null, errorCode: null }];
+      });
+
+      await apiClient.get('/portal/videos');
+
+      expect(seen.auth).toBe(`Bearer ${PORTAL_JWT}`);
+    });
+
+    it('대역이_없으면_요청에_헤더가_붙지_않는다_스토어로_폴백하지_않는다', async () => {
+      // 본체의 fail-closed 성질은 그대로다 — 대역은 창구를 <제공>할 뿐 폴백을 열지 않는다.
+      useAuthStore.getState().setTokenAndClaims(PORTAL_JWT);
+
+      const seen: { auth?: unknown } = {};
+      mock.onGet('/portal/videos').reply((config) => {
+        seen.auth = config.headers?.Authorization;
+        return [200, { success: true, data: [], message: null, errorCode: null }];
+      });
+
+      await apiClient.get('/portal/videos');
+
+      expect(seen.auth).toBeUndefined();
+    });
+  });
+
+  describe('관제 채널 — 진입 경로가 한 글자도 바뀌지 않는다', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
+      vi.stubEnv('VITE_TOKEN_INGRESS', 'localStorage');
+    });
+
+    it('★같은_출처_저장소에서_인계받아_대시보드로_들어간다', async () => {
+      localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, INTERNAL_JWT);
+
+      renderIngress();
+
+      await waitFor(() => {
+        expect(screen.getByText('DASHBOARD_HOME')).toBeInTheDocument();
+      });
+      expect(useAuthStore.getState().claims?.role).toBe('REVIEWER');
+    });
+
+    it('★대역이_어쩌다_등록돼_있어도_관제_채널의_조달처는_저장소다', () => {
+      // 대역은 포털 채널에서만 켜지므로 여기서는 등록 자체가 거부된다.
+      expect(installDevHostTokenHandoff()).toBe(false);
+      expect(seedDevHostToken(PORTAL_JWT)).toBe(false);
+    });
+  });
+});
