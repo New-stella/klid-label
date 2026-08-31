@@ -750,7 +750,8 @@ portal:
 #    킬스위치로 필드는 유지. ★자체 채움(mock) 비식별 경로는 폐지됐다(2026-08-19) — local 도 목 서버로 실 위탁한다.
 #    KPST_DEID_ENABLED=false 로 내리면 위탁이 비활성화되며, mock 도 아니면 DeidentifyStep 이 설정 오류로 거부한다.
 #  - base-url: KPST 테스트/운영 서버 주소(http/https 자동 분기 — 내부망은 http, 외부는 https+사설CA). 평문 커밋 금지 → 환경변수 사용.
-#  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. enabled=true 시 필수(미설정 → 기동 실패 fail-closed, CWE-295).
+#  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. ★https 일 때만 필수다(스키마로 조건부 강제) — https 인데
+#    미설정이면 기동 실패 fail-closed(CWE-295). http 배포는 비워 두고 그대로 부팅된다.
 #  - creator-id / req-user-id: /project, /retrieve_progress 호출 시 기본값.
 kpst:
   deid:
