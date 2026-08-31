@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -8,6 +8,8 @@ import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 import { DevLoginPage } from '../DevLoginPage';
+import { DEV_HOST_TOKEN_STORAGE_KEY, clearDevHostToken } from '../devHostStub';
+import { clearHostTokenHandoff, getAccessToken } from '../tokenHandoff';
 import { LOCAL_STORAGE_TOKEN_KEY } from '../tokenIngress';
 
 // helper: base64url 인코딩으로 가짜 JWT 생성 (SessionIngressPage.test 패턴 재사용)
@@ -51,12 +53,18 @@ describe('DevLoginPage', () => {
   beforeEach(() => {
     useAuthStore.getState().clear();
     localStorage.clear();
+    sessionStorage.clear();
+    clearHostTokenHandoff();
     mock = new MockAdapter(apiClient);
   });
 
   afterEach(() => {
     mock.restore();
+    clearDevHostToken();
+    clearHostTokenHandoff();
+    vi.unstubAllEnvs();
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   it('WORKER_역할_선택_후_토큰_발급_버튼_클릭하면_BE_POST_호출_+_localStorage_저장_+_ingress_navigate', async () => {
@@ -106,51 +114,6 @@ describe('DevLoginPage', () => {
     expect(captured.value).not.toBeNull();
     expect(captured.value?.role).toBe('WORKER');
     expect(captured.value?.channel).toBe('INTERNAL');
-  });
-
-  it('PORTAL_USER_선택_시_channel_PORTAL_로_전송', async () => {
-    const user = userEvent.setup();
-    const token = buildJwt(
-      { alg: 'HS256', typ: 'JWT' },
-      { sub: '3001', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999, name: '홍길동' },
-    );
-
-    const captured: BodyHolder = { value: null };
-    mock.onPost('/dev/tokens').reply((config) => {
-      captured.value = JSON.parse(config.data as string) as Record<string, unknown>;
-      return [
-        200,
-        {
-          success: true,
-          data: {
-            token,
-            tokenType: 'Bearer',
-            expiresAt: '2099-01-01T00:00:00Z',
-            claims: {
-              sub: '3001',
-              role: 'PORTAL_USER',
-              channel: 'PORTAL',
-              name: '홍길동',
-              exp: 9999999999,
-            },
-            authorizationHeader: `Bearer ${token}`,
-          },
-          message: null,
-          errorCode: null,
-        },
-      ];
-    });
-
-    renderPage();
-
-    await user.click(screen.getByLabelText(/PORTAL_USER/));
-    await user.click(screen.getByRole('button', { name: /토큰 발급/ }));
-
-    await waitFor(() => {
-      expect(captured.value).not.toBeNull();
-    });
-    expect(captured.value?.role).toBe('PORTAL_USER');
-    expect(captured.value?.channel).toBe('PORTAL');
   });
 
   it('BE_400_응답_시_에러_메시지_표시', async () => {
@@ -277,10 +240,12 @@ describe('DevLoginPage', () => {
     expect(captured.value).not.toHaveProperty('expSeconds');
   });
 
-  it('역할_선택지는_사양이_정한_넷이며_순서까지_같다', () => {
-    // @design SCREEN-004 — 선택지는 넷이고 관리자가 첫 번째다. 재현할 수 없는 역할이 남으면
-    // 관리자 전용 화면을 사람이 눌러 확인할 수단이 없어진다(사양이 밝힌 이유).
-    // 구 구현은 셋뿐이라 시드·토큰 창구가 관리자를 지원해도 들어갈 길이 없었다.
+  it('★관제_채널_선택지는_내부_역할_셋이며_순서까지_같다', () => {
+    // @design SCREEN-004 — 관리자가 첫 번째다. 재현할 수 없는 역할이 남으면 관리자 전용
+    // 화면을 사람이 눌러 확인할 수단이 없어진다(사양이 밝힌 이유).
+    //
+    // ★ 포털 사용자는 여기 **없다.** 이 산출물은 관제 서버에 배포되어 내부 채널 사용자만
+    //   받으므로, 그 선택지를 두면 고르는 순간 채널이 맞지 않아 진입이 막힌다.
     renderPage();
 
     const radios = screen.getAllByRole('radio');
@@ -288,7 +253,6 @@ describe('DevLoginPage', () => {
       ['ADMIN (9001, 박관리)', 'INTERNAL'],
       ['REVIEWER (1001, 김검수)', 'INTERNAL'],
       ['WORKER (2001, 최라벨)', 'INTERNAL'],
-      ['PORTAL_USER (3001, 홍길동)', 'PORTAL'],
     ] as const;
 
     expect(radios).toHaveLength(expected.length);
@@ -299,6 +263,8 @@ describe('DevLoginPage', () => {
       // 채널 칩은 카드의 후행 슬롯이라 접근 이름에 들어오지 않는다 → 카드 본문에서 확인한다.
       expect(radio.closest('label')).toHaveTextContent(channel);
     });
+    // ⚠ 「셋뿐이다」만 보면 다른 이름으로 넷째가 들어와도 통과한다 — 값으로 못 박는다.
+    expect(screen.queryByLabelText(/PORTAL_USER/)).not.toBeInTheDocument();
   });
 
   it('기본_선택은_검수자_그대로다', () => {
@@ -373,5 +339,75 @@ describe('DevLoginPage', () => {
     expect(userNoInput.placeholder).toBe('9001');
     // 카드 제목에도 같은 값이 들어 있으므로 안내 문구 쪽만 집는다.
     expect(screen.getByText(/비워두면 BE 기본값\(9001, 박관리\)/)).toBeInTheDocument();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 포털 채널 산출물 — 선택지·보관 자리가 함께 갈린다 (@design SCREEN-004 · INT-013)
+  // ───────────────────────────────────────────────────────────────────────────
+  describe('포털 채널 산출물', () => {
+    beforeEach(() => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+    });
+
+    it('★선택지는_포털_사용자_하나이며_그것이_기본_선택이다', () => {
+      // 이 산출물에서 그것이 **유일한 진입 수단**이다. 기본 선택도 그 채널에서 유효한 값이어야
+      // 한다 — 관제 채널 기본값(검수자)이 남으면 첫 화면부터 고를 수 없는 값이 선택돼 있다.
+      renderPage();
+
+      const radios = screen.getAllByRole('radio');
+      expect(radios).toHaveLength(1);
+      expect(radios[0]).toHaveAccessibleName('PORTAL_USER (3001, 홍길동)');
+      expect(radios[0]).toBeChecked();
+      expect(radios[0].closest('label')).toHaveTextContent('PORTAL');
+
+      // 반대 채널 역할이 섞여 있지 않다 — 고르는 순간 채널 불일치로 막히는 선택지가 남으면 안 된다.
+      for (const name of [/ADMIN/, /REVIEWER/, /WORKER/]) {
+        expect(screen.queryByLabelText(name)).not.toBeInTheDocument();
+      }
+    });
+
+    it('★발급_토큰은_Host_대역이_보관하고_본체_인계_키에는_쓰지_않는다', async () => {
+      const user = userEvent.setup();
+      const token = buildJwt(
+        { alg: 'HS256', typ: 'JWT' },
+        { sub: '3001', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999, name: '홍길동' },
+      );
+
+      const captured: BodyHolder = { value: null };
+      mock.onPost('/dev/tokens').reply((config) => {
+        captured.value = JSON.parse(config.data as string) as Record<string, unknown>;
+        return [
+          200,
+          {
+            success: true,
+            data: {
+              token,
+              tokenType: 'Bearer',
+              expiresAt: '2099-01-01T00:00:00Z',
+              claims: { sub: '3001', role: 'PORTAL_USER', channel: 'PORTAL', name: '홍길동' },
+              authorizationHeader: `Bearer ${token}`,
+            },
+            message: null,
+            errorCode: null,
+          },
+        ];
+      });
+
+      renderPage();
+      await user.click(screen.getByRole('button', { name: /토큰 발급/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText('INGRESS_STUB')).toBeInTheDocument();
+      });
+
+      expect(captured.value?.role).toBe('PORTAL_USER');
+      expect(captured.value?.channel).toBe('PORTAL');
+      // ★ 본체는 포털 채널에서 브라우저 저장소를 쓰지 않는다 — 인계 키에 쓰면 그 불변식이
+      //   흐려지고, 무엇보다 본체가 그 값을 읽지 않으므로 아무 소용이 없다.
+      expect(localStorage.getItem(LOCAL_STORAGE_TOKEN_KEY)).toBeNull();
+      // 대역이 자기 자리에 들고 있고, 본체의 조달 지점이 그것을 받는다.
+      expect(sessionStorage.getItem(DEV_HOST_TOKEN_STORAGE_KEY)).toBe(token);
+      expect(getAccessToken()).toBe(token);
+    });
   });
 });

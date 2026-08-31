@@ -93,7 +93,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
 | 디렉토리 | 채우는 주체 | 내용 |
 |----------|-------------|------|
 | `artifacts/backend` | package.sh | **`api.war`**(반입 정본 — WAS 에 올린다). `klid-backend.jar` 는 **개발 환경 전용이라 담지 않는다** — 수집이 기본으로 만들지도 복사하지도 않고(`WITH_BACKEND_JAR=1` 로만 켠다), 설치도 배치하지 않는다 |
-| `artifacts/frontend/dist` | package.sh | 정적 빌드 결과 |
+| `artifacts/frontend/dist` | package.sh | 정적 빌드 결과 — **배포 향마다 한 벌씩**(`control/`·`portal/`). 설치가 `KLID_DEPLOY_FLAVOR` 로 하나를 골라 배치한다(04-configuration.md D-4) |
 | `artifacts/ai-server` | package.sh | `app/` 소스 + `requirements.txt` |
 | `vendor/wheels` | package.sh | 모든 pip 의존성 wheel(torch CPU 포함) |
 | `vendor/sam2/sam2-src` | package.sh | sam2 git 소스(VCS 의존성 오프라인화) |
