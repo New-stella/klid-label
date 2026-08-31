@@ -17,11 +17,6 @@ spring:
       username: ${CONTROL_DB_USERNAME}
       password: ${CONTROL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-    portal:
-      jdbc-url: jdbc:postgresql://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}
-      username: ${PORTAL_DB_USERNAME}
-      password: ${PORTAL_DB_PASSWORD}
-      driver-class-name: org.postgresql.Driver
 
 # 스테이징(stg) webhook 설정 — 미설정 시 부팅 차단(fail-closed, REDESIGN R-3).
 #

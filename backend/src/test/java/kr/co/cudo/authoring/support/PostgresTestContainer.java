@@ -3,11 +3,6 @@ package kr.co.cudo.authoring.support;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
-
 /**
  * 전체 테스트가 공유하는 싱글톤 PostgreSQL Testcontainer.
  *
@@ -19,9 +14,6 @@ import java.sql.Statement;
  * <p>컨테이너는 JVM 당 1개만 기동(싱글톤)하고, JUnit 종료 시 Ryuk(Testcontainers reaper)가
  * 자동 정리하므로 {@code @Container} 라이프사이클이나 명시적 stop() 을 두지 않는다.
  *
- * <p>듀얼 데이터소스(control/portal) 는 동일 컨테이너의 동일 DB 를 가리킨다 —
- * 현재 {@code @PortalRepo} 리포지토리가 없어 portal EMF 는 엔티티 validate 용도로만
- * 사용되며, control 데이터소스에 Flyway 로 생성한 동일 스키마를 그대로 검증하면 된다.
  */
 public final class PostgresTestContainer {
 
@@ -32,45 +24,13 @@ public final class PostgresTestContainer {
             .withDatabaseName("klid_system")
             .withUsername("klid_test")
             .withPassword("klid_test")
-            // 다수의 @SpringBootTest 컨텍스트가 캐시되며 각각 control/portal HikariCP 풀을 유지하므로
+            // 다수의 @SpringBootTest 컨텍스트가 캐시되며 각각 HikariCP 풀을 유지하므로
             // 기본 max_connections=100 이 고갈("too many clients")된다. 충분히 높여 안전 마진 확보.
             .withCommand("postgres", "-c", "max_connections=300")
             .withReuse(true);
 
-    /** 복제본 테이블이 없는 빈 포털 DB 이름 — {@link UnprovisionedPortalReplica} 전용. */
-    private static final String UNPROVISIONED_PORTAL_DB = "portal_unprovisioned";
-
-    /** PostgreSQL {@code duplicate_database} SQLSTATE — 컨테이너 재사용 시 정상 상황. */
-    private static final String SQLSTATE_DUPLICATE_DATABASE = "42P04";
-
     static {
         INSTANCE.start();
-    }
-
-    /**
-     * 복제본 테이블이 <b>없는</b> 빈 DB 의 JDBC URL 을 반환한다(없으면 생성).
-     *
-     * <p>Flyway 는 control 데이터소스에만 붙으므로 이 DB 는 계속 비어 있고, 포털 미프로비저닝 환경을
-     * 그대로 재현한다. 컨테이너 재사용({@code withReuse}) 시 이미 존재할 수 있어 duplicate 는 정상 처리한다.
-     */
-    public static synchronized String unprovisionedPortalJdbcUrl() {
-        createUnprovisionedDatabaseIfAbsent();
-        return "jdbc:postgresql://" + INSTANCE.getHost()
-                + ":" + INSTANCE.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT)
-                + "/" + UNPROVISIONED_PORTAL_DB;
-    }
-
-    private static void createUnprovisionedDatabaseIfAbsent() {
-        try (Connection conn = DriverManager.getConnection(
-                INSTANCE.getJdbcUrl(), INSTANCE.getUsername(), INSTANCE.getPassword());
-             Statement stmt = conn.createStatement()) {
-            // 식별자는 이 클래스의 상수(사용자 입력 아님) — CREATE DATABASE 는 파라미터 바인딩 불가.
-            stmt.execute("CREATE DATABASE " + UNPROVISIONED_PORTAL_DB);
-        } catch (SQLException e) {
-            if (!SQLSTATE_DUPLICATE_DATABASE.equals(e.getSQLState())) {
-                throw new IllegalStateException("미프로비저닝 포털 테스트 DB 생성 실패", e);
-            }
-        }
     }
 
     private PostgresTestContainer() {

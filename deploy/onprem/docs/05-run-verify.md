@@ -195,26 +195,8 @@ sudo -u postgres psql -d klid_system -tAc \
 ```bash
 # ai-server 추론 헬스(백엔드별 mock/실모델 동작 확인은 운영 시나리오에 맞춰 별도 수행)
 # backend actuator(노출 토글에 따라 readiness/info 등)
-curl -sS http://127.0.0.1:8080/api/actuator/health | head -c 400; echo
+curl -fsS http://127.0.0.1:8080/api/actuator/health
 ```
-
-> ### ⚠ 포털 미반입 구성에서는 이 전체 조회가 `DOWN`(503)이다 — **정상이다**
->
-> Spring Boot 는 **DataSource 마다** 상태 기여자를 만든다. 포털을 함께 반입하지 않으면
-> `db/portalDataSource` 가 닿을 곳이 없어 `DOWN` 이 되고, 합성 결과인 전체 상태도 `DOWN` 이 된다.
-> (실측 기여자 목록: `aiServerHealth · deidentifyHealth · livenessState · readinessState ·
-> diskSpace · ping · db/controlDataSource · db/portalDataSource`)
->
-> - **노드 생사 판정에는 영향이 없다.** `liveness` 그룹 구성원은 `livenessState` **하나뿐**이라
->   DB 가 섞이지 않는다(실측). 그래서 이 문서·설치 안내·런북이 쓰는
->   `/api/actuator/health/liveness` 는 계속 `UP` 이고, **노드가 서비스에서 빠지지 않는다.**
-> - 위 명령에서 `-f` 를 뺀 이유가 이것이다 — `-f` 는 503 을 실패로 만들어, 정상 상황에서
->   검증 절차가 멈춘다. 상태 코드가 아니라 **`components` 내용을 보고 판단한다.**
-> - **판단 기준**: `db.components.controlDataSource` 가 `UP` 이면 우리 DB 는 정상이다.
->   `portalDataSource` 만 `DOWN` 이면 포털 미반입 구성에서 **예상된 상태**다.
-> - 이 항목은 **포털 메타 복제 철거와 함께 사라진다**(그때 포털 데이터소스 자체가 없어진다).
->
-> 회귀 고정: `PortalDataSourceHealthContributionTest`(liveness 에 DB 가 섞이면 실패한다).
 
 ## 비식별(KPST) 연동 스모크
 

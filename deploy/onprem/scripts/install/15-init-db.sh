@@ -9,7 +9,7 @@ set -euo pipefail
 #       EMF 구성에 도달하지 않는다. 기동 성공을 스키마 준비의 근거로 삼지 말 것.
 #     따라서 이 단계는 "DB·유저·접속권한 준비"까지만 담당하고, 테이블 생성은 하지 않는다.
 #
-#   - psql 이 있고 DB_INIT_RUN=1 이면 control/portal DB·유저를 생성한다.
+#   - psql 이 있고 DB_INIT_RUN=1 이면 control DB·유저를 생성한다.
 #   - 그 외에는 수동 준비 안내만 출력한다(폐쇄망 DBA 가 직접 수행하는 경우가 많음).
 #
 #   ★ 역할 분담: 번들 PG 엔진 설치·기동은 10-install-postgresql.sh, 이 스크립트는 DB·유저만 만든다
@@ -24,7 +24,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SELF_DIR}/../lib/common.sh"
 
 CONTROL_DB_NAME="${CONTROL_DB_NAME:-klid_system}"
-PORTAL_DB_NAME="${PORTAL_DB_NAME:-portal}"
 DB_APP_USER="${DB_APP_USER:-klid_user}"
 
 if [[ "${DB_INIT_RUN:-0}" != "1" ]] || ! command -v psql >/dev/null 2>&1; then
@@ -34,9 +33,8 @@ if [[ "${DB_INIT_RUN:-0}" != "1" ]] || ! command -v psql >/dev/null 2>&1; then
   # 1) 애플리케이션 DB 유저 생성(비밀번호는 backend.env 의 *_DB_PASSWORD 와 일치)
   CREATE ROLE ${DB_APP_USER} LOGIN PASSWORD '<강력한_비밀번호>';
 
-  # 2) control / portal DB 생성
+  # 2) control DB 생성
   CREATE DATABASE ${CONTROL_DB_NAME} OWNER ${DB_APP_USER} ENCODING 'UTF8';
-  CREATE DATABASE ${PORTAL_DB_NAME}  OWNER ${DB_APP_USER} ENCODING 'UTF8';
 
   # 3) 스키마/테이블은 16-load-schema.sh 가 db/schema.sql 로드로 생성합니다(빈 DB + OWNER 권한).
   #    LS_* 62개·QRTZ_* 11개·뷰 4개 + 시드 66행이 한 번에 로드됩니다(온프렘은 Flyway 미사용 —
@@ -66,7 +64,6 @@ validate_ident() {
 }
 validate_ident DB_APP_USER     "${DB_APP_USER}"
 validate_ident CONTROL_DB_NAME "${CONTROL_DB_NAME}"
-validate_ident PORTAL_DB_NAME  "${PORTAL_DB_NAME}"
 
 info "[db] DB 초기화: host=${PGHOST}:${PGPORT} superuser=${PGUSER} appuser=${DB_APP_USER}"
 
@@ -80,7 +77,7 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'approle')
 \gexec
 SQL
 
-for dbn in "${CONTROL_DB_NAME}" "${PORTAL_DB_NAME}"; do
+for dbn in "${CONTROL_DB_NAME}"; do
   if ! psql -tAc "SELECT 1 FROM pg_database WHERE datname='${dbn}'" -U "${PGUSER}" -d postgres | grep -q 1; then
     psql -v ON_ERROR_STOP=1 -U "${PGUSER}" -d postgres \
       -c "CREATE DATABASE ${dbn} OWNER ${DB_APP_USER} ENCODING 'UTF8';"

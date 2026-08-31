@@ -82,7 +82,6 @@ diff <(keys env.template) <(keys application.properties.template)
 | **AI 추론 서버** | `AI_SERVER_URL` | **A** · `/etc/klid/application.properties` | `http://127.0.0.1:9300` | ★ **반드시 서버 B 주소로 바꾼다** |
 | **AI 서버가 받을 주소** | `AI_BIND_HOST` | **B** · `/etc/klid/ai-server.env` | `127.0.0.1` | ★ **반드시 바꾼다** (+ 방화벽 9300/tcp) |
 | control DB | `CONTROL_DB_HOST` · `CONTROL_DB_PORT` | A · `application.properties` | `127.0.0.1` · `5432` | 외부 DB 를 쓰면 그 주소 |
-| portal DB | `PORTAL_DB_HOST` · `PORTAL_DB_PORT` | A · `application.properties` | `127.0.0.1` · `5432` | 외부 DB 를 쓰면 그 주소 |
 | 비식별(KPST) 서버 | `KPST_DEID_BASE_URL` | A · `application.properties` | `https://127.0.0.1:9201` | ★ 동거 KPST 주소로 교체(스킴에 따라 CA 필요) |
 | 비식별 헬스 핑 | `DEIDENTIFY_API_URL` | A · `application.properties` | `http://127.0.0.1:9200` | 헬스 인디케이터 전용 — 실 비식별 호출에는 쓰이지 않는다 |
 | 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | `CONTROL_NOTIFY_ENABLED=true` 일 때만 의미가 있다 |
@@ -220,9 +219,6 @@ sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
 | `CONTROL_DB_HOST/PORT/NAME` | ★ | control DB(klid_system). prd 가 jdbc-url 조립. 스키마는 `db/schema.sql` 1회 로드로 준비(D 절) |
 | `CONTROL_DB_USERNAME/PASSWORD` | ★ | control DB 자격 |
 | `DB_SCHEMA` | · | **저작도구 스키마. 기본 `klid_at`** — 보통 바꾸지 않는다. 커넥션 `currentSchema` / Quartz `tablePrefix` / JPA `default_schema`(그리고 Flyway 를 켠 개발 환경이면 `schemas`·`default-schema`)가 **이 값 하나**를 함께 읽는다. 설치 스크립트(`gen-schema-sql.sh`·`16-load-schema.sh`)도 **같은 변수명**을 쓴다 — 앱과 설치가 갈리면 "설치는 됐는데 앱이 빈 스키마를 본다"가 된다. **portal DB 는 대상 아님**(별개 물리 DB, `public` 유지) |
-| `PORTAL_DB_HOST/PORT/NAME` | ★ | portal DB(메타 복제본 전용, 저작도구는 **쓰기만** 한다). ⚠ **포털을 함께 반입하지 않아도 이 키를 지우지 말 것** — prd 가 기본값 없는 자리표시자로 jdbc-url 을 조립하므로 키가 없으면 기동이 막힌다. 값은 템플릿 그대로 두고 `META_REPLICATION_ENABLED=false` 로 끈다(D-4 절) |
-| `PORTAL_DB_USERNAME/PASSWORD` | ★ | portal DB 자격 |
-| `META_REPLICATION_ENABLED` | · | 포털 메타 복제 스위치. **앱 기본값 `true` · 반입 템플릿 출고값 `false`**(포털 미반입 구성을 기본으로 잡았다). 포털 DB 를 붙이면 `true` 로 되돌린다 — 상세는 D-4 절 |
 | `JWT_SECRET` | ★ | HS256 검증 시크릿(≥32B). 미설정 시 부팅 실패 |
 | `JWT_ISSUER` / `JWT_ALLOWED_ISSUERS` | · | 기본 `klid-auth` / `klid-auth,klid,klid-portal` |
 | `STREAM_SIGN_SECRET` | ★ | 영상 스트림 서명 시크릿(JWT_SECRET 과 다른 ≥32B). 미설정 시 스트리밍 fail-closed |
@@ -489,7 +485,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 | 토글(install.sh 인자) | 의미 |
 |-----------------------|------|
 | `USE_BUNDLED_POSTGRES=1` (기본) | 번들 PG16 을 오프라인 설치(`10-install-postgresql.sh`): RPM 설치 + initdb + `postgresql.conf`(`listen_addresses`/port) + `pg_hba.conf`(127.0.0.1/::1 scram-sha-256) + `postgresql-16` 기동 |
-| `USE_BUNDLED_POSTGRES=0` | 외부(기존) PG 사용 — 번들 PG 설치 생략. `CONTROL_DB_*`/`PORTAL_DB_*` 가 그 PG 를 가리키게 둠 |
+| `USE_BUNDLED_POSTGRES=0` | 외부(기존) PG 사용 — 번들 PG 설치 생략. `CONTROL_DB_*` 가 그 PG 를 가리키게 둠 |
 
 > 동일 호스트가 아닌 외부 PG 면 `pg_hba.conf`/`listen_addresses` 는 그 PG 운영 주체가 관리한다.
 > 번들 PG 를 다른 대역에서 접속시키려면 `PG_HBA_EXTRA_CIDR=10.0.0.0/8 PG_LISTEN_ADDRESSES='*'` 등으로
@@ -526,8 +522,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
        -c "select count(*) from information_schema.tables where table_schema='klid_at';"
   # 0 이면 로드가 안 된 것이다.
   ```
-- **★ 저작도구 객체는 `klid_at` 스키마에 생성된다**(`DB_SCHEMA`, 위 표). portal DB 는 대상이 아니며
-  복제본 스키마는 `17-load-portal-schema.sh` 가 `public` 에 로드한다 — **두 DB 가 서로 다른 것이 정상**이다.
+- **★ 저작도구 객체는 `klid_at` 스키마에 생성된다**(`DB_SCHEMA`, 위 표).
   psql 로 조회할 때는 `klid_at.` 로 한정하거나 `set search_path to klid_at;` 를 먼저 실행한다.
 - **기존 DB(저작도구 객체가 `public` 에 있는 DB)는 배포 전에 스키마 이관이 필요**하다 →
   `09-operations-runbook.md` §2-5-1. 이관하지 않으면 앱이 빈 `klid_at` 을 보고 데이터는 `public` 에 남는다
@@ -535,79 +530,47 @@ sudo VITE_CONTROL_LOGIN_URL=https://control.example.local/login \
 - DB·유저 자동 생성 보조: `sudo DB_INIT_RUN=1 PGUSER=postgres PGPASSWORD=... DB_APP_PASSWORD=... ./scripts/install/15-init-db.sh`
   (번들 PG 를 같은 호스트에 설치했다면 `PGHOST=127.0.0.1`. 테이블은 만들지 않음 — `16-load-schema.sh` 담당.)
 
-### ★ D-4. 포털을 함께 반입하지 않는 구성 — 포털 DB 가 없을 때
+### ★ D-4. 배포 향 — 이 매체는 「관제 연동 배포」다
 
-포털 채널을 이번 반입에 포함하지 않으면 **포털 DB(`PORTAL_DB_*`)가 아예 만들어지지 않는다.**
-그 구성에서 손대야 하는 것은 아래 셋뿐이고, **셋 다 이미 반입물의 출고 기본값**이다.
+같은 산출물이 **관제 연동 배포**와 **포털 연동 배포** 두 벌로 나가고, 두 배포는
+**웹·WAS·DB 가 전부 다른 별개 인프라**에 놓인다. 서로의 DB 에 접근하지 않으며 서로를 직접
+호출하지도 않는다 — 검수 완료 자산은 **관제가 중계**한다.
 
-> **먼저 — 이 배포는 「관제 연동 배포」다.** 같은 산출물이 관제 연동·포털 연동 **두 벌**로
-> 배포되고 두 배포는 **웹·WAS·DB 가 전부 다른 별개 인프라**에 놓인다(`CNT-001`·`DEPLOY-001`).
-> 관제 연동 배포는 control DB·공유 NAS·ai-server 에 붙고, 포털 연동 배포는 포털 DB·포털 NAS
-> 에만 붙는다. 아래는 그중 **관제 연동 배포**를 세우는 절차다.
+| | 관제 연동 배포 *(이 매체)* | 포털 연동 배포 |
+|---|---|---|
+| DB | control PostgreSQL(관제지원 소유·이중화) | 포털 PostgreSQL(별도 서버) |
+| NAS | 공유 NAS(관제지원 소유) | 포털 NAS |
+| ai-server | 있음 | 없음 |
 
-| # | 무엇을 | 어디에 | 출고 기본값 |
-|:-:|--------|--------|-------------|
-| 1 | `META_REPLICATION_ENABLED=false` | backend 설정(`backend.env` 또는 `application.properties`) | **이미 `false`** |
-| 2 | `SKIP_PORTAL_SCHEMA_LOAD=1` | `install.sh` 실행 시 환경변수 | 지정 필요(아래) |
-| 3 | `PORTAL_DB_*` 다섯 키 | backend 설정 | **값을 그대로 둔다**(지우지 않는다) |
-| 4 | `KLID_DEPLOY_FLAVOR=control` | frontend 설정(`/etc/klid/frontend.env`) | **이미 `control`** |
+#### 설정에서 할 일은 하나뿐이다
 
-**1 — 복제 스위치를 끈다.** 앱 코드의 기본값은 `true` 라, 이 줄이 설정에 없으면 켜진 채로 나간다.
-그 상태에서 포털 DB 가 없으면 복제 워커가 60초마다 접속에 실패하는데, 그 실패는 *"복제본 테이블
-없음"*(조용한 skip)이 아니라 **연결 불가**로 분류되어 **ERROR 등급 + 메트릭으로 승격**된다.
-기동을 막지는 않지만 **운영 첫날부터 가짜 장애 알람**이 쌓인다.
+`/etc/klid/frontend.env` 의 **`KLID_DEPLOY_FLAVOR`** — 출고 기본값이 이미 **`control`** 이라
+보통은 손댈 것이 없다.
 
-**2 — 설치 17 단계를 생략한다.** `SCHEMA_LOAD_RUN=1` 로 control 스키마를 자동 로드하면
-`17-load-portal-schema.sh` 도 함께 돌고, 포털 DB 가 없으면 접속 실패로 **설치가 중단된다.**
-멈추는 것 자체는 의도다(포털을 쓸 계획인데 스키마를 빠뜨리면 복제가 조용히 0건이 된다).
-포털을 반입하지 않는다면 다음처럼 명시적으로 생략한다:
-
-```bash
-sudo SCHEMA_LOAD_RUN=1 SKIP_PORTAL_SCHEMA_LOAD=1 ./scripts/install.sh
-```
-
-> `SCHEMA_LOAD_RUN` 을 주지 않으면(기본) 16·17 단계는 안내만 출력하고 넘어가므로
-> 2번을 지정하지 않아도 설치가 멈추지는 않는다. 그래도 **의도를 남기기 위해 함께 준다.**
-
-**3 — `PORTAL_DB_*` 는 지우지 않는다.** prd 프로파일이 이 값들로 jdbc-url 을 조립하는데
-자리표시자에 기본값이 없어서, **키가 없으면 기동 시점에 자리표시자 해소 실패로 앱이 뜨지 않는다.**
-포털을 쓰지 않는 것과 값의 *존재*는 별개다 — 템플릿 값을 그대로 두고 1번으로 끈다.
-
-> **주소가 죽어 있어도 기동은 된다.** 포털 EMF 에 방언(dialect)을 명시해 두어, Hibernate 가
-> 부트스트랩에서 포털 DB 에 접속하지 않는다. 이것이 없으면 포털 DB 가 없을 때
-> `Unable to determine Dialect without JDBC metadata` 로 **앱이 아예 뜨지 않고**, 포털 DB 를
-> 붙인 뒤에도 그 DB 순단 중에는 **재기동이 불가능**하다. 회귀 고정: `PortalEmfBootWithoutPortalDbTest`.
-
-**4 — 배포 향을 `control` 로 선언한다.** 프론트엔드 런타임 설정의 `KLID_DEPLOY_FLAVOR` 가
-**어느 상위 로그인 주소가 필수인지**를 정한다. 관제 연동 배포에 들어오는 사용자는 내부
-사용자(관리자·검수자·작업자)뿐이고 포털 회원은 **별도 배포의 임베딩 화면**으로 들어가므로,
-`VITE_PORTAL_LOGIN_URL` 은 이 배포에서 **한 번도 쓰이지 않는다.** 선언하지 않으면 설치 20 단계가
-그 값을 계속 요구해, 쓰이지도 않는 주소를 채워 넣어야 설치가 끝난다.
+이 값이 정하는 것은 **어느 상위 로그인 주소가 필수인가**다. 관제 연동 배포에 들어오는 사용자는
+내부 사용자(관리자·검수자·작업자)뿐이고 **포털 회원은 별도 배포의 임베딩 화면으로 들어가므로**,
+`VITE_PORTAL_LOGIN_URL` 은 이 배포에서 **한 번도 쓰이지 않는다.** 선언이 없으면 설치 20 단계가
+그 값을 계속 요구해, 쓰이지도 않는 주소를 채워야 설치가 끝난다.
 
 - 값은 `control` 또는 `portal` 뿐이고, 그 밖의 값은 생성기가 **즉시 실패**시킨다(오타 방치 금지).
 - **비워 두면 종전대로 둘 다 요구한다** — 모르는 형상을 느슨하게 통과시키지 않기 위한 기본값이다.
 - 이 값은 **브라우저로 내려가지 않는다**(생성물 allowlist 밖, 설치 시점 판정 전용).
-- 포털 연동 배포 매체를 만들 때는 설치 시 `KLID_DEPLOY_FLAVOR=portal ./scripts/install.sh` 로 준다.
 
-#### ★ 되돌리지 않는다 — 메타 복제는 폐기 확정이다
+> ⚠ **화면 산출물(dist)도 향마다 따로 만든다.** 화면 쪽 채널 값은 **빌드 시점에 굳어** 껍데기
+> 억제·마운트 경로·인증 실패 시 이동처를 정한다. 다른 향으로 만든 dist 에 이 선언만 바꾸면
+> **머리 영역이 겹치고 화면이 뜨지 않는다.** 즉 `KLID_DEPLOY_FLAVOR` 는 **서버 배선만** 가른다.
 
-**"나중에 포털이 생기면 `META_REPLICATION_ENABLED` 를 `true` 로 되돌린다"는 절차는 없다.**
-2026-08-31 확정으로 **저작도구 → 포털 DB 메타 단방향 복제 자체가 폐기**됐다(`INT-009` v9 ·
-`CNT-001` v9 · `ADR-012`). 근거는 채널별 별도 배포다 — 두 배포는 서로 다른 인프라에 있고
-**서로의 DB 에 접근하지 않는다.**
+#### 포털 DB 설정은 더 이상 없다
 
-포털향 배포본이 자기 DB 를 채우는 경로는 복제가 아니라 **관제 중계**다:
+옛 반입물에는 `PORTAL_DB_*` 다섯 키와 `META_REPLICATION_ENABLED`, 그리고 포털 스키마를 넣는
+설치 단계가 있었다. **전부 사라졌다** — 저작도구 → 포털 DB 메타 단방향 복제가 폐기되면서
+듀얼 데이터소스·복제 워커·발신함이 함께 철거됐기 때문이다.
 
-1. 관제 연동 배포에서 검수 승인 → 관제로 완료 통지
-2. 관제가 그 자산을 포털로 전달(압축 파일 — 우리 밖)
-3. 포털이 **포털 연동 배포본**에 자산 수신을 API 로 알림 *(planned·미구현)*
+- 포털향 배포본은 **복제가 아니라 관제가 중계한 자산**으로 자기 DB 를 채운다.
+- ⚠ **옛 값을 되살리지 말 것** — 읽는 코드가 없다. 되살리면 설정만 늘고 아무 동작도 하지 않는다.
+- 이 철거로 함께 사라진 증상: 포털 DB 가 없으면 **기동이 막히던 것**, 설치가 **중단되던 것**,
+  전체 상태 조회가 **DOWN(503)** 이던 것.
 
-> ⚠ **코드는 아직 철거 전이다** — 듀얼 데이터소스와 복제 워커가 남아 있어 스위치도 남아 있을 뿐이다.
-> 철거되면 `PORTAL_DB_*` · `META_REPLICATION_ENABLED` · 설치 17 단계가 **함께 사라진다.**
-> 그때까지는 위 1~4 를 그대로 두고, **켜지 말 것.**
-
-> ⚠ 설치 17 단계는 그 뒤에도 **포털향 배포본이 자기 DB 스키마를 갖추는 용도**로 남을 수 있다.
-> 다만 그것은 포털향 매체의 일이며, 관제향 반입에서는 계속 생략한다.
 
 ## E. 시크릿 생성 치트시트
 

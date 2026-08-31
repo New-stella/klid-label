@@ -103,7 +103,6 @@ spring:
       #   Flyway 는 @Primary(=control) 데이터소스에서만 실행되고(ControlDataSourceConfig),
       #   portal 은 포털 DB 에 메타를 단방향으로 써 넣을 뿐(DML upsert) 저작도구가 DDL 을 걸지 않는다.
       #   ⚠ 구 주석 "읽기 위주로 참조" 는 방향이 반대라 폐기한다 — 저작도구는 포털 DB 를 읽지 않는다
-      #     (@PortalRepo 사용처는 메타 복제 축 하나뿐이고 방향은 저작도구 → 포털 DB 쓰기다).
       #   즉 portal 쪽에는 방어할 DDL 락 경합 자체가 없으므로 세션 lock_timeout 을 강제하지 않는다.
       connection-init-sql: SET lock_timeout = '30000'
       # ★ 저작도구 전용 스키마(klid_at) — 이 커넥션 풀에서 나가는 <모든> SQL 의 search_path 다.
@@ -589,15 +588,6 @@ authoring:
     retry:
       interval-ms: ${CONTROL_NOTIFY_RETRY_INTERVAL_MS:300000}
       initial-delay-ms: ${CONTROL_NOTIFY_RETRY_INITIAL_DELAY_MS:60000}
-  # 포털향 통합 메타 outbox → 포털 DB 단방향 복제 워커(MetaReplicationJobConfig/Worker).
-  #   - enabled: Quartz 잡 등록 여부. 기본 true(운영 활성). local/test 는 프로파일에서 false override.
-  #   - interval-sec: 복제 트리거 주기(초). batch-size: 1회 tick 당 처리 건수(부하 조절).
-  #   - max-retry: 건별 재시도 상한 — 초과분은 더 이상 재시도하지 않고 실패로 남긴다.
-  meta-replication:
-    enabled: ${META_REPLICATION_ENABLED:true}
-    interval-sec: ${META_REPLICATION_INTERVAL_SEC:60}
-    batch-size: ${META_REPLICATION_BATCH_SIZE:100}
-    max-retry: ${META_REPLICATION_MAX_RETRY:5}
   # 해상도 파생영상 생성(리스케일) 동시 실행 게이트(ResizeConcurrencyGate).
   #   - resize-max-concurrent: 동시 리스케일 허용 수(ffmpeg/디스크 자원 보호).
   #   - resize-acquire-timeout-sec: permit 대기 상한(초). 초과 시 즉시 거부(무한 대기 방지).

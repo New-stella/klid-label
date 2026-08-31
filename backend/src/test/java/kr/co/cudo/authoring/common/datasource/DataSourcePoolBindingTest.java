@@ -18,9 +18,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 듀얼 DataSource(control/portal) 의 <b>HikariCP 풀 설정 바인딩 형식</b> 검증.
+ * control DataSource 의 <b>HikariCP 풀 설정 바인딩 형식</b> 검증.
  *
- * <p>{@link ControlDataSourceConfig}/{@link PortalDataSourceConfig} 는
+ * <p>{@link ControlDataSourceConfig} 는
  * {@code DataSourceBuilder.create().type(HikariDataSource.class).build()} 로 만든
  * <b>HikariDataSource 인스턴스에 직접</b> {@code @ConfigurationProperties} 를 바인딩한다.
  * 따라서 Spring Boot 오토컨피그의 {@code spring.datasource.hikari.*} 중첩 규약이 적용되지 않고,
@@ -35,7 +35,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DataSourcePoolBindingTest {
 
     private static final String CONTROL_PREFIX = prefixOf(ControlDataSourceConfig.class, "controlDataSource");
-    private static final String PORTAL_PREFIX = prefixOf(PortalDataSourceConfig.class, "portalDataSource");
 
     @Test
     @DisplayName("hikari_중첩없는_형식이_실제_풀크기에_바인딩된다")
@@ -80,22 +79,14 @@ class DataSourcePoolBindingTest {
 
         // when
         HikariDataSource control = bind(newControlDataSource(), CONTROL_PREFIX, env);
-        HikariDataSource portal = bind(newPortalDataSource(), PORTAL_PREFIX, env);
 
         // then: prd 가 의도한 20/5 가 실제 풀 인스턴스에 반영돼야 한다
         assertThat(control.getMaximumPoolSize()).as("control 최대 풀 크기").isEqualTo(20);
         assertThat(control.getMinimumIdle()).as("control 최소 유휴").isEqualTo(5);
-        assertThat(portal.getMaximumPoolSize()).as("portal 최대 풀 크기").isEqualTo(20);
-        assertThat(portal.getMinimumIdle()).as("portal 최소 유휴").isEqualTo(5);
     }
 
     private static HikariDataSource newControlDataSource() {
         DataSource ds = new ControlDataSourceConfig().controlDataSource();
-        return (HikariDataSource) ds;
-    }
-
-    private static HikariDataSource newPortalDataSource() {
-        DataSource ds = new PortalDataSourceConfig().portalDataSource();
         return (HikariDataSource) ds;
     }
 

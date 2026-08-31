@@ -193,9 +193,6 @@ if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
   #     SCHEMA_LOAD_RUN=1 일 때만 실제 로드, 아니면 수동 안내만. 이미 준비된 DB 면
   #     SKIP_SCHEMA_LOAD=1 로 생략(= "다른 사람이 이미 넣었다"는 선언).
   STEPS+=("16-load-schema.sh")
-  # 17: 포털 DB(PORTAL_DB_*) 복제본 스키마 로드. 포털 DB 는 어떤 자동 마이그레이션도 받지
-  #     않으므로 설치가 책임진다 — 빠뜨리면 메타 복제가 조용히 0건으로 유지된다(로그·헬스로 안 드러남).
-  STEPS+=("17-load-portal-schema.sh")
 fi
 
 # ---- 끝단 검증 단계(app 전용) ----
@@ -237,7 +234,7 @@ if klid_role_has app; then
   info "        (${KLID_ETC}/backend.env 는 베어메탈 형상용 — WAS 는 읽지 않는다)"
   info "      ★ 주소 항목을 먼저 맞춘다(04-configuration.md 「주소 한 표」):"
   info "          AI_SERVER_URL       ← ai-server 장비(서버 B). 기본값 loopback 은 2대 구성에서 틀리다"
-  info "          CONTROL_DB_* / PORTAL_DB_*  ← 외부 DB 를 쓰면 그 주소"
+  info "          CONTROL_DB_*  ← 외부 DB 를 쓰면 그 주소"
   info "          KPST_DEID_BASE_URL  ← 동거 비식별 서버"
   info "          CONTROL_NOTIFY_URL  ← 관제 통지 수신처(CONTROL_NOTIFY_ENABLED=true 일 때)"
   info "        고친 뒤 주소만 다시 확인:  sudo KLID_ROLE=app ${SELF_DIR}/install/21-verify-ai-server-url.sh"

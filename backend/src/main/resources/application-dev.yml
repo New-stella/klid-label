@@ -13,11 +13,6 @@ spring:
       username: ${CONTROL_DB_USERNAME}
       password: ${CONTROL_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
-    portal:
-      jdbc-url: jdbc:postgresql://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}
-      username: ${PORTAL_DB_USERNAME}
-      password: ${PORTAL_DB_PASSWORD}
-      driver-class-name: org.postgresql.Driver
 
 # [개발/검수 전용] dev 로그인/업로드 토글 — dev 는 기본 ON(기존 @Profile("!prd") 동작 유지)이되,
 #   환경변수로 끌 수 있어야 한다. 리터럴 true 로 박으면 내릴 수단이 없다.

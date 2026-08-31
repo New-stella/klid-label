@@ -19,13 +19,6 @@ spring:
       driver-class-name: org.postgresql.Driver
       maximum-pool-size: 20
       minimum-idle: 5
-    portal:
-      jdbc-url: jdbc:postgresql://${PORTAL_DB_HOST}:${PORTAL_DB_PORT}/${PORTAL_DB_NAME}
-      username: ${PORTAL_DB_USERNAME}
-      password: ${PORTAL_DB_PASSWORD}
-      driver-class-name: org.postgresql.Driver
-      maximum-pool-size: 20
-      minimum-idle: 5
   # 운영(prd) multipart 한도 — 요청 총량만 공통(1200MB)보다 좁게 조인다.
   #   ★ 2026-08-24 변경: 개당 한도 21MB → 500MB (CO-008).
   #     구 근거는 "prd 에는 dev 업로드 경로 자체가 없다" 였는데, 그 전제가 무너졌다 —

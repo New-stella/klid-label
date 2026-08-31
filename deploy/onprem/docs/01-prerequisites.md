@@ -121,7 +121,7 @@ PG 는 **두 경로** 중 하나로 운영한다(설치 토글 `USE_BUNDLED_POST
    번들하고 `10-install-postgresql.sh` 가 오프라인 설치(initdb + `postgresql.conf`/`pg_hba.conf` +
    `postgresql-16` 서비스 기동)한다. 별도 PG 준비 불필요. (수집: `55-collect-postgresql.sh`)
 2. **② 외부 기존 PG 사용(`USE_BUNDLED_POSTGRES=0`)** — 타깃에 이미 PostgreSQL 이 있으면 번들 PG 설치를
-   건너뛰고, `backend.env` 의 `CONTROL_DB_*`/`PORTAL_DB_*` 가 그 PG 를 가리키게 둔다.
+   건너뛰고, `backend.env` 의 `CONTROL_DB_*` 가 그 PG 를 가리키게 둔다.
 
 어느 경로든 사전요건은 동일하다:
 

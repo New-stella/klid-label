@@ -2,11 +2,9 @@ package kr.co.cudo.authoring.dataset.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
-import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRepository;
 import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRow;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
-import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoReviewRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
@@ -32,13 +30,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 2 materialize 어댑터 단위 검증 — 락·순서(deactivate-then-insert)·멱등·MNG 동결·outbox.
+ * Phase 2 materialize 어댑터 단위 검증 — 락·순서(deactivate-then-insert)·멱등·MNG 동결.
  */
 class DatasetVideoMetaSnapshotServiceTest {
 
     private DatasetMetaSourceRepository sourceRepository;
     private LsDatasetVideoMetaRepository metaRepository;
-    private LsMetaReplOutboxRepository outboxRepository;
     private LsEvntAnnoRepository evntAnnoRepository;
     private LsEvntAnnoReviewRepository evntAnnoReviewRepository;
     private DatasetVideoMetaSnapshotService service;
@@ -47,11 +44,10 @@ class DatasetVideoMetaSnapshotServiceTest {
     void setUp() {
         sourceRepository = mock(DatasetMetaSourceRepository.class);
         metaRepository = mock(LsDatasetVideoMetaRepository.class);
-        outboxRepository = mock(LsMetaReplOutboxRepository.class);
         evntAnnoRepository = mock(LsEvntAnnoRepository.class);
         evntAnnoReviewRepository = mock(LsEvntAnnoReviewRepository.class);
         service = new DatasetVideoMetaSnapshotService(
-                sourceRepository, metaRepository, outboxRepository,
+                sourceRepository, metaRepository,
                 evntAnnoRepository, evntAnnoReviewRepository,
                 new SnapshotHasher(), new ObjectMapper());
         // 기본: 신규 삽입(1행).
@@ -91,7 +87,7 @@ class DatasetVideoMetaSnapshotServiceTest {
 
     @Test
     @DisplayName("승인시_통합메타_동결_적재_및_ACTIVE_전환")
-    void materialize_locksDeactivatesInsertsAndOutbox() {
+    void materialize_locksDeactivatesAndInserts() {
         // given
         long rawSn = 100L;
         DatasetMetaSourceRow row = sourceRow(rawSn);
@@ -100,12 +96,11 @@ class DatasetVideoMetaSnapshotServiceTest {
         // when
         service.materialize(rawSn);
 
-        // then — 락 → deactivatePrevious → upsertSnapshot 순서(deactivate-then-insert) + outbox 저장.
-        InOrder ordered = inOrder(metaRepository, outboxRepository);
+        // then — 락 → deactivatePrevious → upsertSnapshot 순서(deactivate-then-insert).
+        InOrder ordered = inOrder(metaRepository);
         ordered.verify(metaRepository).acquireRawLock(rawSn);
         ordered.verify(metaRepository).deactivatePrevious(eq(rawSn), anyString());
         ordered.verify(metaRepository).upsertSnapshot(any(LsDatasetVideoMeta.class));
-        ordered.verify(outboxRepository).save(any(LsMetaReplOutbox.class));
 
         // 삽입 성공(1행)이므로 재활성(activateByHash)은 호출하지 않는다.
         verify(metaRepository, never()).activateByHash(anyLong(), anyString());
@@ -178,8 +173,6 @@ class DatasetVideoMetaSnapshotServiceTest {
         service.materialize(rawSn);
 
         verify(metaRepository).activateByHash(eq(rawSn), anyString());
-        // 재활성 경로에서도 outbox 는 발행된다(포털 복제 재보장).
-        verify(outboxRepository).save(any(LsMetaReplOutbox.class));
     }
 
     @Test
@@ -295,7 +288,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         SnapshotHasher hasher = mock(SnapshotHasher.class);
         when(hasher.hash(any())).thenReturn("e".repeat(64));
         DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
-                sourceRepository, metaRepository, outboxRepository,
+                sourceRepository, metaRepository,
                 evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
         DatasetMetaSourceRow row = sourceRow(rawSn);
         when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
@@ -360,7 +353,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         SnapshotHasher hasher = mock(SnapshotHasher.class);
         when(hasher.hash(any())).thenReturn("a".repeat(64));
         DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
-                sourceRepository, metaRepository, outboxRepository,
+                sourceRepository, metaRepository,
                 evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
         DatasetMetaSourceRow row = sourceRow(rawSn);
         when(row.getWthrNm()).thenReturn(null);
@@ -382,7 +375,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         SnapshotHasher hasher = mock(SnapshotHasher.class);
         when(hasher.hash(any())).thenReturn("b".repeat(64));
         DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
-                sourceRepository, metaRepository, outboxRepository,
+                sourceRepository, metaRepository,
                 evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
         DatasetMetaSourceRow row = sourceRow(rawSn);
         when(row.getWthrNm()).thenReturn("   ");
@@ -406,7 +399,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         SnapshotHasher hasher = mock(SnapshotHasher.class);
         when(hasher.hash(any())).thenReturn("c".repeat(64));
         DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
-                sourceRepository, metaRepository, outboxRepository,
+                sourceRepository, metaRepository,
                 evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
         DatasetMetaSourceRow row = sourceRow(rawSn);
         when(row.getWthrNm()).thenReturn("눈");
@@ -498,7 +491,7 @@ class DatasetVideoMetaSnapshotServiceTest {
             metaRepository = mock(LsDatasetVideoMetaRepository.class);
             when(metaRepository.upsertSnapshot(any())).thenReturn(1);
             service = new DatasetVideoMetaSnapshotService(
-                    sourceRepository, metaRepository, outboxRepository,
+                    sourceRepository, metaRepository,
                     evntAnnoRepository, evntAnnoReviewRepository,
                     new SnapshotHasher(), new ObjectMapper());
 
@@ -544,14 +537,10 @@ class DatasetVideoMetaSnapshotServiceTest {
         // when
         service.materialize(rawSn);
 
-        // then — 동결 엔티티에도, 포털 복제 outbox payload 에도 그 경로가 실리지 않는다(CWE-359).
+        // then — 동결 엔티티에 그 경로가 실리지 않는다(CWE-359).
         ArgumentCaptor<LsDatasetVideoMeta> captor = ArgumentCaptor.forClass(LsDatasetVideoMeta.class);
         verify(metaRepository).upsertSnapshot(captor.capture());
         assertThat(captor.getValue().getRawFilePathNm()).isNull();
-
-        ArgumentCaptor<LsMetaReplOutbox> outboxCaptor = ArgumentCaptor.forClass(LsMetaReplOutbox.class);
-        verify(outboxRepository).save(outboxCaptor.capture());
-        assertThat(outboxCaptor.getValue().getPayloadCn()).doesNotContain(parentOriginalPath);
     }
 
     @Test
@@ -580,7 +569,7 @@ class DatasetVideoMetaSnapshotServiceTest {
         SnapshotHasher hasher = mock(SnapshotHasher.class);
         when(hasher.hash(any())).thenReturn("d".repeat(64));
         DatasetVideoMetaSnapshotService svc = new DatasetVideoMetaSnapshotService(
-                sourceRepository, metaRepository, outboxRepository,
+                sourceRepository, metaRepository,
                 evntAnnoRepository, evntAnnoReviewRepository, hasher, new ObjectMapper());
         DatasetMetaSourceRow row = derivativeSourceRow(rawSn, 100L, "/nas/raw/100.mp4");
         when(sourceRepository.findSnapshotSource(rawSn)).thenReturn(row);
@@ -602,6 +591,5 @@ class DatasetVideoMetaSnapshotServiceTest {
 
         verify(metaRepository).acquireRawLock(rawSn);
         verify(metaRepository, never()).upsertSnapshot(any());
-        verify(outboxRepository, never()).save(any());
     }
 }

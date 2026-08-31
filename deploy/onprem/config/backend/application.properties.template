@@ -80,7 +80,7 @@ spring.flyway.enabled=false
 # ※ [설치 토글] USE_BUNDLED_POSTGRES — 이 파일(런타임 env)이 아니라 install.sh 인자다.
 #     USE_BUNDLED_POSTGRES=1 (기본): 번들 PG16 을 오프라인 설치(10-install-postgresql.sh).
 #     USE_BUNDLED_POSTGRES=0       : 외부(기존) PG 사용 — 번들 PG 설치 생략. 이때 아래
-#       CONTROL_DB_*/PORTAL_DB_* 가 외부 PG 주소/자격을 가리키게 둔다.
+#       CONTROL_DB_* 가 외부 PG 주소/자격을 가리키게 둔다.
 #   예: sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh  (04-configuration.md D 절 참고)
 # ★ DB 스키마 이름 — 앱·Flyway·Quartz·네이티브 쿼리가 모두 이 한 값을 읽는다.
 #   기본값 klid_at 이며, 바꾸면 db/schema.sql 을 로드하는 설치 16 단계도 같은 값을 써야 한다
@@ -97,29 +97,10 @@ CONTROL_DB_PORT=5432
 CONTROL_DB_NAME=klid_system
 CONTROL_DB_USERNAME=klid_user
 CONTROL_DB_PASSWORD=
-# ★ portal DB — 포털 메타 복제본이 사는 DB. 저작도구는 여기에 <쓰기만> 한다(단방향).
-#   ⚠ 포털을 함께 반입하지 않는 구성이라도 아래 다섯 줄을 <지우거나 비우지 말 것>.
-#     prd 프로파일이 이 값들로 jdbc-url 을 조립하는데 자리표시자에 기본값이 없어서,
-#     키가 없으면 기동 시점에 자리표시자 해소 실패로 앱이 뜨지 않는다. 포털을 쓰지 않는
-#     것과 값의 <존재>는 별개다 — 값은 그대로 두고 아래 스위치를 false 로 둔다.
-PORTAL_DB_HOST=127.0.0.1
-PORTAL_DB_PORT=5432
-PORTAL_DB_NAME=portal
-PORTAL_DB_USERNAME=klid_user
-PORTAL_DB_PASSWORD=
-# ★ 포털 메타 복제 스위치 — 포털 DB 가 <없는> 구성이면 반드시 false.
-#   출고 기본값을 false 로 둔 이유: 앱 코드의 기본값은 true 라, 이 줄이 없으면 켜진 채로 나간다.
-#   그 상태에서 포털 DB 가 없으면 복제 워커가 60초마다 접속에 실패하는데, 그 실패는
-#   "복제본 테이블 없음"이 아니라 <연결 불가>로 분류되어 ERROR 등급 + 메트릭으로 승격된다
-#   (테이블 없음만 조용한 skip 이다). 운영 첫날부터 가짜 장애 알람이 쌓인다.
-#   ★ 이 키는 앱 고유 자리표시자라 <이 파일에서도 이름 그대로> 쓴다(위 머리말의 SPRING_ 규칙
-#     대상이 아니다 — 점 표기로 바꾸지 말 것).
-#   ★★ 이 값은 <되돌릴 일이 없다> — 메타 복제 자체가 폐기 확정이다(2026-08-31, INT-009·CNT-001).
-#     관제 연동 배포와 포털 연동 배포는 서로 다른 인프라에 있고 <서로의 DB 에 접근하지 않는다>.
-#     포털향 DB 는 우리가 복제해 채우는 것이 아니라 관제가 중계한 자산을 포털향 배포본이 적재한다.
-#     코드는 아직 철거 전이라 스위치가 남아 있을 뿐이며, 철거되면 이 줄도 함께 사라진다.
-#     ⚠ "포털이 생겼으니 켜자"로 되돌리지 말 것.
-META_REPLICATION_ENABLED=false
+# ※ 포털 DB 접속 정보는 <더 이상 없다> — 저작도구 → 포털 DB 메타 단방향 복제가 폐기됐다
+#   (2026-08-31). 관제 연동 배포와 포털 연동 배포는 서로 다른 인프라에 있고 <서로의 DB 에
+#   접근하지 않는다>. 포털향 배포본은 관제가 중계한 자산으로 자기 DB 를 채운다.
+#   ⚠ 옛 반입물의 PORTAL_DB_* / META_REPLICATION_ENABLED 를 되살리지 말 것 — 읽는 코드가 없다.
 
 # ---- 보안 시크릿 ----------------------------------------------------------
 # ★ JWT 검증 시크릿(HS256, 32바이트 이상). 관제/포털 발급 토큰을 검증한다.

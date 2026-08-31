@@ -2,8 +2,6 @@ package kr.co.cudo.authoring.common.migration;
 
 import kr.co.cudo.authoring.batch.queue.entity.LsClipScheduleQue;
 import kr.co.cudo.authoring.batch.queue.service.LabelingBatchQueueService;
-import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
-import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -53,9 +50,6 @@ class V5StandardColumnRenameIT {
 
     @Autowired
     private LabelingBatchQueueService queueService;
-
-    @Autowired
-    private LsMetaReplOutboxRepository outboxRepository;
 
     private JdbcTemplate jdbc;
     private TransactionTemplate txTemplate;
@@ -132,8 +126,9 @@ class V5StandardColumnRenameIT {
     @Test
     @DisplayName("아웃박스_식별자와_스냅샷_해시_컬럼은_이번에_바뀌지_않는다")
     void outboxIdentifierAndSnapshotHashAreOutOfScope() {
-        // OUTBOX_SN 은 테이블명에서 온 이름이라 테이블명 축과 함께 가고,
-        // SNPSHT_HASH 는 포털 DB 복제본까지 같은 이름을 쓰므로 한쪽만 바꾸면 복제가 깨진다.
+        // OUTBOX_SN 은 테이블명에서 온 이름이라 테이블명 축과 함께 간다.
+        // ⚠ 이 테이블은 포털 메타 복제 철거(2026-08-31) 이후 <읽는 코드가 없다> — 이 시험은
+        //   V5 개명이 컬럼에 실제로 적용됐는지를 DDL 수준에서 고정할 뿐이다.
         assertThat(columnExists(OUTBOX, "outbox_sn")).isTrue();
         assertThat(columnExists(OUTBOX, "snpsht_hash")).isTrue();
         assertThat(columnExists(QUE, "que_sn")).isTrue();
@@ -169,43 +164,12 @@ class V5StandardColumnRenameIT {
                 .isNotNull();
     }
 
-    @Test
-    @DisplayName("개명_후에도_복제_아웃박스가_PENDING을_등록순으로_폴링한다")
-    void outboxPollsPendingInRegistrationOrderAfterRename() {
-        // given — 같은 영상에 PENDING 1건 + DONE 1건
-        long rawSn = newRaw();
-        insertOutbox(rawSn, "hash-pending", "{\"k\":\"v\"}", LsMetaReplOutbox.STATUS_PENDING);
-        insertOutbox(rawSn, "hash-done", "{\"k\":\"v\"}", LsMetaReplOutbox.STATUS_DONE);
-
-        // when — 파생 쿼리 메서드(findBySttsCdOrderByRegDtAsc)가 개명된 필드로 해석돼야 한다
-        List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
-                outboxRepository.findBySttsCdOrderByRegDtAsc(
-                        LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 200)));
-
-        // then — PENDING 만, 그리고 페이로드가 살아 있다
-        assertThat(pending).isNotNull();
-        assertThat(pending)
-                .filteredOn(o -> o.getRawSn().equals(rawSn))
-                .singleElement()
-                .satisfies(o -> {
-                    assertThat(o.getSnpshtHash()).isEqualTo("hash-pending");
-                    assertThat(o.getPayloadCn()).isEqualTo("{\"k\":\"v\"}");
-                    assertThat(o.getRtryNmtm()).isZero();
-                    assertThat(o.getPrcsDt()).isNull();
-                });
-    }
-
     // ------------------------------------------------------------------ 내부
 
     private long newRaw() {
         long rawSn = RawVideoFixture.newRaw(jdbc);
         seededRawSns.add(rawSn);
         return rawSn;
-    }
-
-    private void insertOutbox(long rawSn, String hash, String payload, String status) {
-        jdbc.update("INSERT INTO LS_META_REPL_OUTBOX (RAW_SN, SNPSHT_HASH, PAYLOAD_CN, STTS_CD) VALUES (?, ?, ?, ?)",
-                rawSn, hash, payload, status);
     }
 
     private boolean columnExists(String table, String column) {

@@ -37,7 +37,7 @@ PG_SERVICE="postgresql-${PG_MAJOR}"
 # ---- 가드 ① 외부 PG 사용 시 전체 스킵 ----
 if [[ "${USE_BUNDLED_POSTGRES:-1}" == "0" ]]; then
   info "[postgres] USE_BUNDLED_POSTGRES=0 — 외부(기존) PostgreSQL 사용. 번들 PG 설치를 건너뜁니다."
-  info "           backend.env 의 CONTROL_DB_*/PORTAL_DB_* 가 외부 PG 를 가리키는지 확인하세요."
+  info "           backend.env 의 CONTROL_DB_* 가 외부 PG 를 가리키는지 확인하세요."
   exit 0
 fi
 

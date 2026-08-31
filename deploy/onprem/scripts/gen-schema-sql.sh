@@ -43,9 +43,6 @@ require_cmd psql
 REPO="$(repo_root)"
 MIG_DIR="${REPO}/backend/src/main/resources/db/migration"
 OUT="${REPO}/deploy/onprem/db/schema.sql"
-PORTAL_MIG_DIR="${REPO}/backend/src/main/resources/db/portal"
-PORTAL_OUT="${REPO}/deploy/onprem/db/portal-schema.sql"
-PORTAL_DBNAME="portal"
 
 CTR="klid-schema-gen-$$"
 PORT="${SCHEMA_GEN_PORT:-55432}"
@@ -130,49 +127,3 @@ grep -q "^CREATE SCHEMA ${DB_SCHEMA};" "${OUT}" \
 TBLS="$(grep -c "^CREATE TABLE ${DB_SCHEMA}\." "${OUT}" || true)"
 ok "[schema] 생성 완료: ${OUT} (${DB_SCHEMA} CREATE TABLE ${TBLS}개, $(wc -l < "${OUT}") 라인)"
 
-# ============================================================================
-# 포털 복제본 스키마 — control 과 물리 분리된 포털 DB(PORTAL_DB_*)용.
-#
-#   ★ 이 산출물이 없으면 포털 DB 가 빈 상태로 운영에 들어가고, 메타 복제 워커가 매 tick
-#     graceful skip 만 하며 포털 복제본이 <영구 미갱신>된다(dev cudo_246 실측 결함).
-#     설치 경로에 로드 단계(17-load-portal-schema.sh)를 두기 위해 여기서 함께 생성한다.
-#
-#   ★ 포털은 DB_SCHEMA 대상이 아니다 — public 을 그대로 쓴다(아래 -T 도 public 한정).
-#     별개 물리 DB 이고 앱의 portal 데이터소스도 스키마를 지정하지 않는다. control 과 다른 것이 정상.
-# ============================================================================
-[[ -d "${PORTAL_MIG_DIR}" ]] || die "포털 DDL 디렉토리 없음: ${PORTAL_MIG_DIR}"
-
-info "[portal-schema] 포털 DB 생성 + DDL 적용"
-docker exec "${CTR}" psql -U "${DBUSER}" -d "${DBNAME}" \
-  -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${PORTAL_DBNAME};" >/dev/null
-
-docker run --rm -v "${PORTAL_MIG_DIR}:/flyway/sql:ro" "${FWVER}" \
-  -url="jdbc:postgresql://host.docker.internal:${PORT}/${PORTAL_DBNAME}" \
-  -user="${DBUSER}" -password="${DBPW}" \
-  -locations=filesystem:/flyway/sql \
-  -connectRetries=10 \
-  migrate
-
-info "[portal-schema] pg_dump → ${PORTAL_OUT}"
-{
-  cat <<'HDR'
--- ============================================================================
--- portal-schema.sql — 포털 DB 복제본 스키마 단일 생성본 (db/portal/V1~Vn 통합 스냅샷)
---
--- ★ 생성물(수기 편집 금지). gen-schema-sql.sh 가 db/portal 의 DDL 을 적용한 결과를 덤프한다.
---
--- 용도: control 과 물리 분리된 포털 DB(PORTAL_DB_*)에 1회 로드. 저작도구 Flyway 는 control
---   (@Primary) 데이터소스에만 붙으므로 포털 스키마는 설치 단계가 책임진다
---   (17-load-portal-schema.sh). 로드하지 않으면 메타 복제가 조용히 0건으로 유지된다.
---
--- flyway_schema_history 제외. 재생성: deploy/onprem/scripts/gen-schema-sql.sh
--- ============================================================================
-
-HDR
-  PGPASSWORD="${DBPW}" pg_dump -h 127.0.0.1 -p "${PORT}" -U "${DBUSER}" -d "${PORTAL_DBNAME}" \
-    --no-owner --no-privileges --no-comments \
-    -T public.flyway_schema_history
-} > "${PORTAL_OUT}"
-
-PORTAL_TBLS="$(grep -c '^CREATE TABLE' "${PORTAL_OUT}" || true)"
-ok "[portal-schema] 생성 완료: ${PORTAL_OUT} (CREATE TABLE ${PORTAL_TBLS}개)"

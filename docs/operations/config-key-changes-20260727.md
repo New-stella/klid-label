@@ -203,11 +203,6 @@
 | `CONTROL_DB_NAME` | 〃 (기본값 있음) |
 | `CONTROL_DB_USERNAME` | compose 배포에서는 미차단 — compose 기본값이 공급된다. 다만 **실 DB 계정과 맞아야** 접속 성공 |
 | `CONTROL_DB_PASSWORD` | 〃 |
-| `PORTAL_DB_HOST` | compose 배포에서는 미차단 (위와 동일) |
-| `PORTAL_DB_PORT` | 〃 |
-| `PORTAL_DB_NAME` | 〃 (기본값 있음) |
-| `PORTAL_DB_USERNAME` | compose 배포에서는 미차단 — compose 가 관제 계정 값을 그대로 재사용해 주입한다 |
-| `PORTAL_DB_PASSWORD` | 〃 |
 
 **B. 빈 기본값 = fail-closed** (미주입이어도 기동은 되지만 해당 기능이 죽음)
 
@@ -234,16 +229,16 @@
 | **1. 명령 자체가 실패** | `WEBHOOK_HMAC_SECRET_AUGMENT` | base compose 가 `${WEBHOOK_HMAC_SECRET_AUGMENT:?...}` 로 참조 — 미설정이면 `docker compose build`/`up` 이 컨테이너 기동 전에 에러로 종료한다. **B 표 분류(조용히 죽음)는 오분류였다** |
 | **2. 부팅 실패** | `JWT_SECRET` | compose 가 공급하지 않는 유일한 A 항목 |
 | **3. 기동은 되나 기능 정지** | `STREAM_SIGN_SECRET` / `CORS_ALLOWED_ORIGINS` / `ADMIN_CLAIM_PASSWORD_HASH` | 빈 기본값 fail-closed (B 표대로) |
-| **4. 미차단 (조치 불요)** | DB 계열 9키 | 아래 참조 |
+| **4. 미차단 (조치 불요)** | DB 계열 4키 | 아래 참조 |
 
 **DB 계열이 차단되지 않는 이유** (A 표가 "부팅 실패"로 과장했던 부분):
 
-- `docker-compose.yml` 이 `SPRING_DATASOURCE_CONTROL_JDBC_URL` / `SPRING_DATASOURCE_PORTAL_JDBC_URL` 을
-  **직접 지정**하므로, `application-dev.yml` 의 `${CONTROL_DB_HOST}` 등 조립용 placeholder 는 **해석 자체가 일어나지 않는다**.
-- 계정도 compose 가 공급한다 — `PORTAL_DB_USERNAME: ${CONTROL_DB_USERNAME:-klid_user}` /
-  `PORTAL_DB_PASSWORD: ${CONTROL_DB_PASSWORD:-changeme}` 로 **관제 계정 값을 포털 쪽에 그대로 재사용**한다.
-  따라서 서버 `.env` 에 `PORTAL_DB_USERNAME`·`PORTAL_DB_PASSWORD` 가 없어도 부팅에 실패하지 않는다.
+- `docker-compose.yml` 이 `SPRING_DATASOURCE_CONTROL_JDBC_URL` 을 **직접 지정**하므로,
+  `application-dev.yml` 의 `${CONTROL_DB_HOST}` 등 조립용 placeholder 는 **해석 자체가 일어나지 않는다**.
 - 단 **값이 실 DB 와 맞아야** 접속에 성공하므로, "주입 필수"가 아니라 "값 정합 확인"의 문제다.
+
+> ⚠ **`PORTAL_DB_*` 5키는 이 목록에서 사라졌다**(2026-08-31) — 저작도구 → 포털 DB 메타 단방향 복제가
+> 폐기되면서 듀얼 데이터소스가 철거됐다. **읽는 코드가 없으므로 되살리지 말 것.**
 
 **★ `.env` 에 `$` 포함 값을 넣을 때 (bcrypt 해시 등)**
 

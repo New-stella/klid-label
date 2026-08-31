@@ -30,10 +30,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>yml 만 보고는 바인딩 여부를 판별할 수 없으므로({@link TestDataSourceTimeoutBindingGuardTest}
  * 와 동일한 이유 — 키를 잘못 두면 <b>예외 없이 무시</b>된다) 런타임 값으로 고정한다.
  *
- * <p><b>portal 은 대칭이 아니며 그것이 의도다</b> — 포털은 별개 물리 DB 이고 복제본 스키마는
- * 설치 단계가 {@code public} 에 로드하므로 운영에서 스키마를 바꾸지 않는다. 따라서 control EMF 에만
- * {@code hibernate.default_schema} 가 있어야 하고, 공유 빌더를 쓰는 portal EMF 로 <b>새면 안 된다</b>
- * (새면 포털 DB 에 존재하지 않는 스키마를 한정해 복제가 전부 깨진다).
  */
 @SpringBootTest
 @ActiveProfiles("local")
@@ -45,7 +41,6 @@ class DataSourceSchemaWiringGuardTest {
     private final HikariDataSource controlDataSource;
     private final JdbcTemplate controlJdbc;
     private final EntityManagerFactory controlEmf;
-    private final EntityManagerFactory portalEmf;
     private final QuartzProperties quartzProperties;
     private final Flyway flyway;
 
@@ -54,13 +49,11 @@ class DataSourceSchemaWiringGuardTest {
     DataSourceSchemaWiringGuardTest(
             @Autowired @Qualifier("controlDataSource") DataSource controlDataSource,
             @Autowired @Qualifier("controlEntityManagerFactory") EntityManagerFactory controlEmf,
-            @Autowired @Qualifier("portalEntityManagerFactory") EntityManagerFactory portalEmf,
             @Autowired QuartzProperties quartzProperties,
             @Autowired Flyway flyway) throws SQLException {
         this.controlDataSource = controlDataSource.unwrap(HikariDataSource.class);
         this.controlJdbc = new JdbcTemplate(controlDataSource);
         this.controlEmf = controlEmf;
-        this.portalEmf = portalEmf;
         this.quartzProperties = quartzProperties;
         this.flyway = flyway;
     }
@@ -126,19 +119,15 @@ class DataSourceSchemaWiringGuardTest {
     }
 
     @Test
-    @DisplayName("control_EMF에만_hibernate_default_schema_가_설정되고_portal_로_새지_않는다")
-    void defaultSchemaAppliesToControlEntityManagerFactoryOnly() {
-        // given / when: 두 EMF 가 실제로 들고 있는 Hibernate 설정
+    @DisplayName("control_EMF에_hibernate_default_schema_가_설정된다")
+    void defaultSchemaAppliesToControlEntityManagerFactory() {
+        // given / when: EMF 가 실제로 들고 있는 Hibernate 설정
         Object controlSchema = controlEmf.getProperties().get("hibernate.default_schema");
-        Object portalSchema = portalEmf.getProperties().get("hibernate.default_schema");
 
         // then
         assertThat(controlSchema)
                 .as("control EMF 는 스키마를 명시 한정한다(search_path 가 틀렸을 때 조용히 흘러가지 않게)")
                 .isEqualTo(EXPECTED_SCHEMA);
-        assertThat(portalSchema)
-                .as("portal EMF 로 새면 별개 물리 DB(public 로드)의 복제본을 찾지 못해 메타 복제가 깨진다")
-                .isNull();
     }
 
     @Test

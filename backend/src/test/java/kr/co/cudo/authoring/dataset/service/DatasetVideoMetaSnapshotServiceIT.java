@@ -3,9 +3,7 @@ package kr.co.cudo.authoring.dataset.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
-import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
-import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Phase 2 materialize 어댑터 <b>실 DB(PostgreSQL Testcontainer) 통합 테스트</b>.
  *
  * <p>native 소스 조인(LS_DATA_RAW + LS_DATA_META video.* + LS_DATA_INGEST + LS_EVNT_TYPE)의 별칭 매핑·서브쿼리 피벗과
- * deactivate-then-insert + outbox 커밋 전 과정을 실 DB 로 검증한다(단위 테스트가 mock 으로 못 잡는
+ * deactivate-then-insert 전 과정을 실 DB 로 검증한다(단위 테스트가 mock 으로 못 잡는
  * SQL/컬럼 정합을 커버).
  */
 @SpringBootTest
@@ -46,9 +44,6 @@ class DatasetVideoMetaSnapshotServiceIT {
 
     @Autowired
     private LsDatasetVideoMetaRepository metaRepository;
-
-    @Autowired
-    private LsMetaReplOutboxRepository outboxRepository;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate txTemplate;
@@ -124,16 +119,6 @@ class DatasetVideoMetaSnapshotServiceIT {
         return rawSn;
     }
 
-    /**
-     * 그 회차 동결이 발행한 발신함 행의 payload 원문(@design INT-009 — 복제 경로의 첫 단).
-     * 재승인으로 여러 회차가 쌓이므로 {@code (RAW_SN, SNPSHT_HASH)} 로 그 회차 행을 특정한다.
-     */
-    private String outboxPayload(long rawSn, String snpshtHash) {
-        return jdbc.queryForObject(
-                "SELECT PAYLOAD_CN FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND SNPSHT_HASH = ?",
-                String.class, rawSn, snpshtHash);
-    }
-
     private void seedMeta(Long rawSn, String key, String value) {
         jdbc.update("INSERT INTO LS_DATA_META (RAW_SN, META_KEY, META_VL, RTRY_NMTM, REG_DT) "
                 + "VALUES (?, ?, ?, 0, ?)", rawSn, key, value, LocalDateTime.now());
@@ -205,19 +190,6 @@ class DatasetVideoMetaSnapshotServiceIT {
                 metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getEvntAnnoCn()).isNotNull();
         assertThat(m.getEvntAnnoCn()).contains("assault").contains("caption_text").contains("evidence");
-
-        // then — ★그 동결본이 같은 트랜잭션에서 발행된 발신함 payload 에도 실린다(@design INT-009).
-        //   실사고는 「동결까지는 정상인데 발신함 payload 직렬화 입구에서 끊겼다」였다. 워커 IT 는
-        //   하드코딩 payload 에서 출발하므로 이 <승인 → 동결 → 발신함 적재> 이음매는 여기서만 덮인다.
-        JsonNode payload = MAPPER.readTree(outboxPayload(rawSn, m.getSnpshtHash()));
-        assertThat(payload.hasNonNull("evntAnnoCn"))
-                .as("발신함 payload 가 event_annotation 을 싣지 않으면 포털 복제본에서 영구히 NULL 이 된다"
-                        + "(INT-009 — 복제 범위는 전 컬럼이다). payload=%s", payload)
-                .isTrue();
-        // 값 비교는 바이트가 아니라 JSON 의미 동등으로 한다(jsonb 표기 정규화·키 순서에 묶이지 않게).
-        assertThat(MAPPER.readTree(payload.get("evntAnnoCn").asText()))
-                .as("발신함 payload 의 event_annotation 이 동결본과 의미상 같아야 한다(INT-009)")
-                .isEqualTo(MAPPER.readTree(m.getEvntAnnoCn()));
     }
 
     @Test
@@ -270,12 +242,6 @@ class DatasetVideoMetaSnapshotServiceIT {
         LsDatasetVideoMeta m = txTemplate.execute(s ->
                 metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES)).get(0);
         assertThat(m.getEvntAnnoCn()).isNull();
-
-        // then — 발신함 payload 에도 값이 없다(반대 방향 — 동결이 비었는데 payload 에 값이 생기면
-        //   미승인 어노테이션이 포털로 새는 것이다).
-        assertThat(MAPPER.readTree(outboxPayload(rawSn, m.getSnpshtHash())).hasNonNull("evntAnnoCn"))
-                .as("미승인 event_annotation 은 발신함 payload 에도 실리지 않아야 한다(INT-009)")
-                .isFalse();
     }
 
     @Test
@@ -300,8 +266,8 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
-    @DisplayName("승인시_통합메타_동결_적재_및_MNG조인_동결_및_outbox")
-    void materialize_freezesJoinedMetaAndEmitsOutbox() {
+    @DisplayName("승인시_통합메타_동결_적재_및_MNG조인_동결")
+    void materialize_freezesJoinedMeta() {
         // given
         long rawSn = seedSource();
 
@@ -334,13 +300,6 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(m.getSesnCd()).isNull();             // 수동 미입력 → 미상(1월 파생 추정 안 함)
         assertThat(m.getAiCrtYn()).isEqualTo("N");      // orgnlRawSn null
         assertThat(m.getSnpshtHash()).hasSize(64);
-
-        // outbox PENDING 1건 발행(같은 트랜잭션 커밋).
-        List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
-                outboxRepository.findBySttsCdOrderByRegDtAsc(
-                        LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 50)));
-        assertThat(pending).anyMatch(o -> o.getRawSn().equals(rawSn)
-                && o.getSnpshtHash().equals(m.getSnpshtHash()));
     }
 
     @Test
@@ -366,38 +325,6 @@ class DatasetVideoMetaSnapshotServiceIT {
                         + "JOIN LS_DATA_RAW r ON r.EVNT_TYPE_CD = et.EVNT_TYPE_CD WHERE r.RAW_SN = ?",
                 String.class, rawSn);
         assertThat(seededName).isEqualTo(CATEGORY_LABEL);
-    }
-
-    @Test
-    @DisplayName("수정_재승인시_옛_PENDING_outbox_SUPERSEDED_coalescing")
-    void materialize_supersedesPriorPendingOutbox() {
-        // given — 1차 승인으로 outbox O1(H1) PENDING 발행(아직 워커 미처리)
-        long rawSn = seedSource();
-        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
-        String h1 = txTemplate.execute(s ->
-                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0).getSnpshtHash());
-
-        // 소스 변경(해상도) → 다른 해시 H2 유도 후 2차 승인(수정)
-        jdbc.update("UPDATE LS_DATA_META SET META_VL = '1280x720' "
-                + "WHERE RAW_SN = ? AND META_KEY = 'video.resolution'", rawSn);
-        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
-        String h2 = txTemplate.execute(s ->
-                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0).getSnpshtHash());
-
-        // then — 해시가 실제로 바뀌었고, rawSn 당 PENDING outbox 는 최신(H2) 1건만, 옛(H1)은 SUPERSEDED
-        assertThat(h2).isNotEqualTo(h1);
-        Integer pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'PENDING'",
-                Integer.class, rawSn);
-        Integer superseded = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'SUPERSEDED'",
-                Integer.class, rawSn);
-        assertThat(pending).isEqualTo(1);
-        assertThat(superseded).isEqualTo(1);
-        String pendingHash = jdbc.queryForObject(
-                "SELECT SNPSHT_HASH FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'PENDING'",
-                String.class, rawSn);
-        assertThat(pendingHash).isEqualTo(h2);
     }
 
     @Test

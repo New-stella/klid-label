@@ -1,7 +1,6 @@
 package kr.co.cudo.authoring.dataset.repository;
 
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
-import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +33,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       재upsert 시 중복 차단(예외 없이 0행).</li>
  *   <li>동시 2요청 같은 해시 upsert → 정확히 1행만 삽입(CWE-362 race 안전).</li>
  *   <li>{@code deactivatePrevious} — 신규 해시 적재 후 이전 활성 스냅샷 'N' 전환, 다른 RAW_SN 무영향.</li>
- *   <li>outbox insert 후 PENDING 폴링 조회(등록순).</li>
  * </ol>
  *
  * <p>컨테이너는 {@code PostgresContainerContextCustomizerFactory} 가 자동 주입한다.
@@ -69,9 +67,6 @@ class LsDatasetVideoMetaRepositoryIT {
 
     @Autowired
     private LsDatasetVideoMetaRepository metaRepository;
-
-    @Autowired
-    private LsMetaReplOutboxRepository outboxRepository;
 
     private final TransactionTemplate txTemplate;
 
@@ -290,27 +285,4 @@ class LsDatasetVideoMetaRepositoryIT {
                 .allMatch(r -> r.getSnpshtHash().equals("hash-b"));
     }
 
-    @Test
-    @DisplayName("outbox_insert후_PENDING_폴링_조회")
-    void outbox_pollsPendingByRegDt() {
-        // given — PENDING outbox 2건 insert
-        long rawSn = newVideo();
-        // 2건은 서로 다른 영상 것이어야 하므로 두 번째 영상도 실재하게 시드한다(V146 FK).
-        long otherRawSn = newVideo();
-        txTemplate.executeWithoutResult(s -> {
-            outboxRepository.save(LsMetaReplOutbox.create(rawSn, "hash-1", "{\"rawSn\":" + rawSn + "}"));
-            outboxRepository.save(LsMetaReplOutbox.create(otherRawSn, "hash-2", "{}"));
-        });
-
-        // when — PENDING 폴링(limit=10)
-        List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
-                outboxRepository.findBySttsCdOrderByRegDtAsc(
-                        LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 10)));
-
-        // then — 방금 넣은 PENDING 이 조회되고, 상태/기본값이 올바르다
-        assertThat(pending).extracting(LsMetaReplOutbox::getSnpshtHash).contains("hash-1", "hash-2");
-        assertThat(pending).allMatch(o -> o.getSttsCd().equals("PENDING"));
-        assertThat(pending).allMatch(o -> o.getRtryNmtm() == 0);
-        assertThat(pending).allMatch(o -> o.getPrcsDt() == null);
-    }
 }

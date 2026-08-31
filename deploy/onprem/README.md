@@ -178,7 +178,7 @@ curl -fsS http://127.0.0.1/                                      # frontend(http
 deploy/onprem/
 ├── README.md  VERSION  .gitignore
 ├── docs/        00~11 단계별 가이드 13편 (10 이 둘 — was-settings · backup-dr, 11=GPU 전환)
-├── db/{schema.sql, portal-schema.sql}    # ★ 전체 스키마 SQL(온프렘은 Flyway 미사용 — 1회 로드)
+├── db/schema.sql                         # ★ 전체 스키마 SQL(온프렘은 Flyway 미사용 — 1회 로드)
 ├── scripts/
 │   ├── lib/{common.sh, versions.sh}
 │   ├── lib/{licenses.sh, backend_licenses.py}   # 라이선스 고지 수집 공용
