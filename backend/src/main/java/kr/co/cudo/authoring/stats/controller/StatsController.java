@@ -11,6 +11,8 @@ import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.stats.dto.DashboardSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.OverallStatSummaryResponse;
 import kr.co.cudo.authoring.stats.dto.WorkerStatSummaryResponse;
+import kr.co.cudo.authoring.stats.report.OverallStatReportCsvWriter;
+import kr.co.cudo.authoring.stats.report.StatsReportPeriod;
 import kr.co.cudo.authoring.stats.service.StatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -24,11 +26,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
+
 /**
  * SCR-DASH-001 / SCR-STAT-001 / SCR-STAT-002 통계 API.
  *
- * <p>대시보드 요약 + 작업자 통계 + 전체 구축 현황 + 리포트 다운로드.
- * 분포·작업자별 표는 실제 집계값이며, 리포트 다운로드만 아직 헤더 행 placeholder 다.
+ * <p>대시보드 요약 + 작업자 통계 + 전체 구축 현황 + 리포트 다운로드. 네 경로 모두 실제 집계값이며,
+ * 리포트는 전체 구축 현황과 <b>같은 집계</b>({@code StatsService.getOverallSummary})를 CSV 로 옮긴다.
+ *
+ * @design API-058
  */
 @Tag(name = "Stats", description = "통계·대시보드 — 메인 대시보드 KPI/이벤트 분포/내 작업 요약·작업자 통계·전체 구축 현황·리포트.")
 @RestController
@@ -42,6 +48,7 @@ public class StatsController {
     private static final String PERIOD_REGEX = "^(WEEK|MONTH|QUARTER|YEAR)$";
 
     private final StatsService statsService;
+    private final OverallStatReportCsvWriter reportCsvWriter;
 
     @Operation(
             summary = "대시보드 요약 (REVIEWER/WORKER)",
@@ -98,9 +105,17 @@ public class StatsController {
     }
 
     @Operation(
-            summary = "리포트 다운로드 (REVIEWER 전용) — placeholder CSV",
-            description = "기간별 통계 CSV 다운로드. 현재는 헤더 행만 포함된 placeholder. period: WEEK|MONTH|QUARTER|YEAR."
+            summary = "리포트 다운로드 (REVIEWER 전용)",
+            description = "전체 구축 현황 CSV 다운로드. ApiResponse 래퍼를 쓰지 않고 CSV 원문을 반환하며 UTF-8 BOM 이 선행한다. " +
+                    "본문은 섹션 블록 5개(누적 학습데이터·처리현황·일별 작업량·이벤트 유형 분포·작업자별 현황)를 빈 줄로 구분해 담고, " +
+                    "수치는 GET /v1/stats/overall 과 같은 집계에서 조달한다(처리현황은 완료·처리중·대기·실패 4구간으로 접는다). " +
+                    "period(WEEK|MONTH|QUARTER|YEAR)는 일별 작업량 블록의 창(7/30/90/365일)만 정하며 나머지 블록은 기간과 무관하다."
     )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "다운로드 성공 (text/csv; charset=UTF-8)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "period allowlist 위반 (INVALID_INPUT)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "REVIEWER 권한 없음")
+    })
     @GetMapping(value = "/report", produces = "text/csv; charset=UTF-8")
     @PreAuthorize("hasRole('REVIEWER')")
     public ResponseEntity<String> report(
@@ -109,8 +124,13 @@ public class StatsController {
     ) {
         // CWE-117 Header Injection 방어: period 는 위 @Pattern 으로 allowlist 검증 후만 헤더에 사용.
         String filename = "stats_report_" + period + ".csv";
-        // BOM + 한글 안전 헤더 — Excel 호환.
-        String body = "﻿month,labeled,reviewed,approvalRate\n";
+        StatsReportPeriod window = StatsReportPeriod.from(period);
+        // 수치 조달은 화면(GET /v1/stats/overall)과 같은 단일 진입점 하나뿐이다 — 리포트 전용
+        // 집계를 따로 유도하면 두 화면이 다른 것을 말하게 된다. period 는 일별 창만 바꾼다.
+        String csv = reportCsvWriter.write(
+                statsService.getOverallSummary(window.days()), LocalDateTime.now());
+        // BOM 선행 — Excel 이 UTF-8 CSV 를 BOM 없이 열면 한글이 깨진다.
+        String body = "﻿" + csv;
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
