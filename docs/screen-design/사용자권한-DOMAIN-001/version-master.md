@@ -1,42 +1,42 @@
-# Version Master — 사용자·권한 (DOMAIN-001) — 화면 키트
+# Version Master — DOMAIN-001 (DOMAIN-001) — 화면 키트
 
 | 항목 | 값 |
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
-| Domain | DOMAIN-001 사용자·권한 |
+| Domain | DOMAIN-001 DOMAIN-001 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024 |
-| Last sync | 2026-08-29T01:27:52.582Z (session 17) |
-| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 162 |
+| Last sync | 2026-08-31T11:40:35.894Z (session 1) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 168 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001/ |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | CHANGED |
-| [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | CHANGED |
-| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 5 | false | CHANGED |
+| [[API-001]] | api_endpoint | GET /v1/users | 6 | false | UNCHANGED |
+| [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
+| [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 5 | false | UNCHANGED |
 | [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 8 | false | UNCHANGED |
-| [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | CHANGED |
-| [[API-006]] | api_endpoint | GET /v1/me | 10 | false | CHANGED |
-| [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 14 | false | UNCHANGED |
-| [[API-153]] | api_endpoint | POST /v1/dev/tokens | 4 | false | CHANGED |
+| [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | UNCHANGED |
+| [[API-006]] | api_endpoint | GET /v1/me | 10 | false | UNCHANGED |
+| [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 14 | true | UNCHANGED |
+| [[API-153]] | api_endpoint | POST /v1/dev/tokens | 5 | false | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
-| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | false | UNCHANGED |
+| [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | true | UNCHANGED |
 | [[SCREEN-001]] | screen_spec | 세션 인계 진입 화면 | 16 | false | UNCHANGED |
-| [[SCREEN-002]] | screen_spec | 관리자 등록 화면 | 26 | false | UNCHANGED |
+| [[SCREEN-002]] | screen_spec | 관리자 등록 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-003]] | screen_spec | 접근 거부 화면 | 14 | false | UNCHANGED |
-| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 14 | false | UNCHANGED |
-| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | false | UNCHANGED |
+| [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 16 | true | UNCHANGED |
+| [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | true | UNCHANGED |
 | [[SD-009]] | screen_design | SCREEN-024 사용자 관리 화면 | 12 | true | UNCHANGED |
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 3 | false | UNCHANGED |
 | [[SD-018]] | screen_design | SCREEN-002 관리자 등록 화면 | 8 | false | UNCHANGED |
 | [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 3 | true | UNCHANGED |
 | [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 4 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 13 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | true | UNCHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 14 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |

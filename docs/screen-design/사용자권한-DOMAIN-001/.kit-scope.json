@@ -176,22 +176,10 @@
     "UI-144"
   ],
   "pending": [
-    "AC-056",
-    "AC-057",
-    "AC-058",
-    "AC-059",
-    "AC-060",
-    "AC-061",
-    "AC-086",
-    "AC-087",
-    "AC-088",
-    "AC-121",
-    "AC-122",
-    "AC-123",
-    "AC-124",
-    "AC-125",
-    "AC-126",
-    "AC-127",
+    "AC-1016",
+    "AC-1017",
+    "AC-1018",
+    "AC-1019",
     "ADR-007",
     "ADR-012",
     "ADR-021",
@@ -232,6 +220,8 @@
     "IMPREC-161",
     "IMPREC-162",
     "IMPREC-176",
+    "IMPREC-187",
+    "IMPREC-299",
     "INT-013",
     "LEGACY-001",
     "LEGACY-041",
@@ -258,7 +248,9 @@
     "SCREEN-012",
     "SCREEN-020",
     "SCREEN-040",
-    "SCREEN-041"
+    "SCREEN-041",
+    "UC-041"
   ],
-  "last_sync_at": "2026-08-29T01:27:52.454Z"
+  "last_sync_at": "2026-08-31T11:39:06.859Z",
+  "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 수용기준 ID 를 pin 에서 제거(전수 status 조회 근거 126건). 파일은 _retired/ 에 보존된다."
 }

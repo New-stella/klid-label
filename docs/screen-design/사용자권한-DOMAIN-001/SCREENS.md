@@ -1,4 +1,4 @@
-# 사용자·권한 화면 키트 — SCREENS.md
+# DOMAIN-001 화면 키트 — SCREENS.md
 
 > 이 파일이 화면 구현의 진입점이다. mc-logi-screen-implement 는 이 파일부터 읽는다.
 > 키트는 read-only 산출물 — **직접 수정 금지**. 갱신은 mc-logi-screen-kit 재실행.
@@ -7,8 +7,8 @@
 
 | 항목 | 값 |
 |---|---|
-| Domain | DOMAIN-001 사용자·권한 |
-| last sync | 2026-08-29T01:27:52.577Z (session 17) |
+| Domain | DOMAIN-001 DOMAIN-001 |
+| last sync | 2026-08-31T11:40:35.889Z (session 1) |
 | 화면 수 | 5개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/사용자권한-DOMAIN-001/ |
@@ -55,17 +55,6 @@
 | 3 | [[SCREEN-003]] — 접근 거부 화면 | screens/SCREEN-003/SCREEN-003.md | wireframe.html | uc/ | ac/ |
 | 4 | [[SCREEN-004]] — 개발용 로그인 화면 | screens/SCREEN-004/SCREEN-004.md | wireframe.html | uc/ | ac/ |
 | 5 | [[SCREEN-024]] — 사용자 관리 화면 | screens/SCREEN-024/SCREEN-024.md | wireframe.html | uc/ | ac/ |
-
-## 변경 알림 (코드 재반영 필요)
-
-| ITEM | type | 상태 |
-|---|---|---|
-| [[API-001]] | api_endpoint | CHANGED (v6→v6) |
-| [[API-002]] | api_endpoint | CHANGED (v2→v2) |
-| [[API-003]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-005]] | api_endpoint | CHANGED (v5→v5) |
-| [[API-006]] | api_endpoint | CHANGED (v10→v10) |
-| [[API-153]] | api_endpoint | CHANGED (v4→v4) |
 
 ## Obsidian 볼트로 보기
 

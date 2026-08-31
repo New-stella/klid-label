@@ -3,13 +3,13 @@ logicraft_item: SCREEN-018
 type: screen_spec
 version: 29
 last_updated_at: 2026-08-29T01:25:14.006Z
-domain: DOMAIN-000
+domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:56.414Z
-sync_session: 37
+synced_at: 2026-08-31T11:40:26.646Z
+sync_session: 1
 stale: true
-status: CHANGED
-prev_version: 29
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-018.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-023]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v29 → v29**
-> change_summary: API-008 에 더해진 비식별화 완료 여부 표기가 이 화면에 이미 반영돼 있는지 대조했고, 대조 결과 보강할 것이 없어 본문을 고치지 않는다. 대조한 자리와 결과는 다음과 같다. purpose 의 마지막 문장이 "비식별이 아직 완료되지 않아 승인이 거부되는 영상은 목록에서 미리 구분해 표시한다"와, 그 표시가 승인만 막는다는 뜻이며 검수 착수·라벨 확인·프레임 열람은 그대로 가능하다는 범위까지 이미 담고 있다. sections 에서는 "검수 목록 테이블" 섹션의 컴포넌트 목록 끝에 "승인 불가 (비식별 완료 전)" 배지가 실재하고, 그 note 가 상태 셀에 검수 상태 배지와 나란히 두는 배치, 색상만으로 구분하지 않고 사유를 텍스트로 함께 적는 표기 규칙, 행 액션 버튼을 비활성으로 두지 않는다는 범위, 재검토 필요 배지와 합치지 않는다는 축 구분, 표시 전용이라 필터와 정렬 축을 늘리지 않는다는 제약을 모두 적고 있다. 같은 섹션의 description 도 같은 내용을 서술로 담고 있어, 구현자가 sections 만 보고도 이 표기를 그릴 수 있다. 축 혼동도 확인했다 — 이 화면 본문에는 비식별 누락 신고 축 서술이 없고, 여기 적힌 차단 범위는 승인 하나뿐이라 라벨 조회·프레임 이미지·영상 스트리밍까지 함께 닫는 신고 축과 섞여 있지 않다. 따라서 sections 를 건드리지 않았고, 정적 렌더 미러의 source_hash 가 현재 sections 와 일치해 미러도 현행 그대로다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수 목록 화면
 

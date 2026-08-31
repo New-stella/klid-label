@@ -1,27 +1,22 @@
-# Version Master — 영상·프레임 수집 (DOMAIN-003) — 화면 키트
+# Version Master — DOMAIN-003 (DOMAIN-003) — 화면 키트
 
 | 항목 | 값 |
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
-| Domain | DOMAIN-003 영상·프레임 수집 |
+| Domain | DOMAIN-003 DOMAIN-003 |
 | 다운로드 화면 | SCREEN-009 |
-| Last sync | 2026-08-29T01:27:50.769Z (session 20) |
-| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 165 |
+| Last sync | 2026-08-31T11:40:35.640Z (session 1) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 161 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003/ |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
-| [[AC-011]] | acceptance | 비식별 처리 요청·결과 저장 | 9 | false | UNCHANGED |
-| [[AC-016]] | acceptance | 비식별 처리 상태·이력 화면 확인 | 15 | false | UNCHANGED |
-| [[AC-019]] | acceptance | 개인정보 비식별화 처리·검수·누락 신고 | 7 | true | UNCHANGED |
-| [[AC-023]] | acceptance | 이미지 학습데이터 가공(추출·라벨링·가명·검수) | 6 | true | UNCHANGED |
-| [[AC-051]] | acceptance | 검수가 완료된 영상은 재수행이 묶음별로 갈린다 | 11 | false | UNCHANGED |
 | [[API-021]] | api_endpoint | GET /v1/frames/{srcSn}/image | 9 | false | UNCHANGED |
 | [[API-043]] | api_endpoint | GET /v1/videos/{rawSn} | 25 | false | UNCHANGED |
 | [[API-044]] | api_endpoint | GET /v1/videos/{rawSn}/labels/auto | 9 | false | UNCHANGED |
-| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 5 | false | CHANGED |
+| [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 5 | false | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
 | [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | UNCHANGED |
@@ -29,12 +24,12 @@
 | [[NAV-001]] | navigation_tree | 저작도구 내부 메뉴 (INTERNAL) | 26 | true | UNCHANGED |
 | [[ROLE-001]] | permission_role | 검수자 (REVIEWER) | 13 | true | UNCHANGED |
 | [[ROLE-002]] | permission_role | 라벨링 작업자 (WORKER) | 9 | true | UNCHANGED |
-| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | false | UNCHANGED |
+| [[ROLE-004]] | permission_role | 관리자 (ADMIN) | 4 | true | UNCHANGED |
 | [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 75 | true | UNCHANGED |
 | [[SD-004]] | screen_design | SCREEN-009 영상 상세 화면 | 19 | true | UNCHANGED |
-| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | false | UNCHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 12 | true | UNCHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 24 | false | UNCHANGED |
+| [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | true | UNCHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 13 | true | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 25 | true | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
