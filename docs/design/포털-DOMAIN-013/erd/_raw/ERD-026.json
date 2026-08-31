@@ -122,7 +122,7 @@
         "notes": "고도화 신규 — 동결 메타의 포털 단방향 복제 발신함",
         "status": "new"
       },
-      "description": "동결된 영상 메타 스냅샷(LS_DATASET_VIDEO_META)을 물리 분리된 포털 DB 로 at-least-once 단방향 복제하기 위한 발신함(outbox) 물리 ERD. 검수 승인(APPROVED) 트랜잭션에서 스냅샷과 함께 원자적으로 커밋되고, 별도 워커가 PENDING 행을 폴링해 포털로 push 한 뒤 DONE 으로 마감한다. 멱등키가 (RAW_SN, SNPSHT_HASH) 조합이라 포털 upsert 가 중복돼도 무해하다(재시도 안전).",
+      "description": "★ [폐기] 이 발신함은 폐기 대상이다 — 2026-08-31 「저작도구와 포털은 서로의 DB 에 접근하지 않는다」 확정(구속)으로 이 표가 떠받치던 포털 DB 단방향 복제가 폐기됐고, 데이터 교환은 API 로 설계한다. ⚠ **2026-08-31 워커·발신함 코드는 철거됐고 이 표를 읽고 쓰는 코드는 0건이다.** 그럼에도 **테이블 정의는 남긴다** — 드롭은 되돌릴 수 없어 별도 마이그레이션으로 분리했고 시점은 별도 판단이다(지우지 말 것). 대체 API 필요 여부는 미확정이며 판단 정본은 INT-009 다. 아래는 폐기 전 설계 기록이다.\n\n동결된 영상 메타 스냅샷(LS_DATASET_VIDEO_META)을 물리 분리된 포털 DB 로 at-least-once 단방향 복제하기 위한 발신함(outbox) 물리 ERD. 검수 승인(APPROVED) 트랜잭션에서 스냅샷과 함께 원자적으로 커밋되고, 별도 워커가 PENDING 행을 폴링해 포털로 push 한 뒤 DONE 으로 마감한다. 멱등키가 (RAW_SN, SNPSHT_HASH) 조합이라 포털 upsert 가 중복돼도 무해하다(재시도 안전).",
       "relationships": [
         {
           "label": "복제 대상 원천 영상",
@@ -132,23 +132,25 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "CNT-007: 마이그레이션 버전 인용(V98·V146)·엔티티/서비스 클래스명(LsMetaReplOutbox·MetaReplicationOutboxService 등)·\"온프렘 스키마 정의\" 구현상태 표현을 제거하고 사양 서술로 정리 — FK·멱등키·재시도 동작 사실은 보존.",
+    "change_summary": "철거 완료 반영. 워커·발신함 코드는 제거됐고 이 표를 읽고 쓰는 코드가 0건이나, 드롭 마이그레이션을 분리했으므로 테이블 정의는 남긴다는 점을 명시.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:53:14.795Z",
+    "last_updated_at": "2026-08-31T06:16:54.782Z",
     "created_at": "2026-08-06T02:44:56.122Z"
   }
 }

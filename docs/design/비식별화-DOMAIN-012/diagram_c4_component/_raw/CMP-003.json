@@ -21,7 +21,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -34,7 +35,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -47,7 +49,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -60,7 +63,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -73,7 +77,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -86,7 +91,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -98,7 +104,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -110,7 +117,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -123,20 +131,22 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
           "name": "KpstDeidentPollJob",
           "technology": "quartz.job",
-          "description": "주기 폴링(30초)으로 진행·완료를 회수 — 결과 콜백을 대체하는 유일 경로",
+          "description": "주기 폴링(30초, kpst.deid.poll-interval-sec)으로 WAITING·POLLING 원장을 회수 — 완료 콜백을 대체하는 유일 경로이자 미ACK WAITING(선커밋 후 신호 미도착)의 유일한 회수 경로다(별도 스위퍼 없음, tryClaimPoll 조건부 UPDATE 원자 클레임).",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -149,7 +159,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -162,7 +173,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -175,7 +187,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -188,20 +201,22 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
-          "name": "미결 스위퍼(KpstSubmitPendingSweeper 계열)",
-          "technology": "batch.job",
-          "description": "수락·결과 어느 신호도 오지 않은 위탁을 조건부 UPDATE 원자 클레임으로 회수 — 실패 행이 없으므로 재시도 큐·회수기가 집지 못하는 유일한 회수 경로",
+          "name": "KpstSubmitOutcomeRecorder",
+          "technology": "batch.service (전용 풀)",
+          "description": "제출 ACK/실패 비동기 완료 핸들러 — 전용 풀(kpstSubmitScheduler)에서 조건부 원자 UPDATE(WAITING+prjId null)로만 종결해 지각 신호 강등을 막는다. ACK 가 끝내 오지 않으면 별도 스위퍼 없이 폴링 잡이 ACK 대기 유예 만료로 회수한다(KPST_ACK_MISSING).",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
@@ -269,10 +284,19 @@
           "description": "알림"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-041",
         "DFEAT-048"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "external_dependencies": [
         {
@@ -304,12 +328,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
-    "stale": true,
-    "stale_reason": "AC-019의 data.scenario 변경이 depicts로 2-hop 전파",
-    "change_summary": "이 컴포넌트 다이어그램이 그리는 도메인 기능 연결이 비어 있었다(DIA-002). 위탁·폴링·신고 축을 그리므로 그에 대응하는 두 기능을 채운다.",
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "정합: 실재하지 않는 컴포넌트 「미결 스위퍼(KpstSubmitPendingSweeper 계열)」를 실제 클래스 KpstSubmitOutcomeRecorder(ACK/실패 완료 핸들러)로 교체. 코드(KpstDeidentService: \"별도 스위퍼를 신설하지 않는다 — 폴러가 ACK 대기 유예 만료로 회수\")에 맞춰 KpstDeidentPollJob 이 미ACK WAITING 회수 경로임을 명시.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:22:52.836Z",
+    "last_updated_at": "2026-08-31T04:33:49.991Z",
     "created_at": "2026-06-02T13:12:03.114Z"
   }
 }

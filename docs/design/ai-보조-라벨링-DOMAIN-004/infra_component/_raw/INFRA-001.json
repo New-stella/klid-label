@@ -3,7 +3,7 @@
     "id": "INFRA-001",
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "infra_component",
-    "title": "ai-server (YOLO/SAM2 추론 서버, 내부)",
+    "title": "ai-server (오토라벨링 추론 서버) — GPU 장비에 이중화 배포",
     "slug": "ai-server-yolosam2-추론-서버-내부",
     "sub_id": null,
     "status": "approved",
@@ -16,11 +16,11 @@
       "name": "ai-server (YOLO/SAM2 추론 서버)",
       "tech": {
         "engine": "Python FastAPI · YOLOX(onnxruntime)/SAM2(torch) 추론",
-        "replicas": 1
+        "replicas": 2
       },
-      "owner": "저작도구 운영팀",
+      "owner": "저작도구 운영팀(프로세스) · 협력 파트너(장비)",
       "status": "active",
-      "provider": "저작도구 운영(내부 인프라)",
+      "provider": "협력 파트너 장비에 배포한다 — 장비는 우리 소유가 아니다",
       "brownfield": {
         "status": "new",
         "change_kind": [
@@ -28,7 +28,7 @@
         ],
         "diff_summary": "고도화 신규 — Nuclio 스타일 함수 엔드포인트 분리 추론 서버 (구 EXTSYS-001 external_system 오분류를 infra_component로 재분류)"
       },
-      "description": "저작도구 내부 추론 인프라(외부 시스템 아님). Stateless 경량 추론 서버(Python FastAPI). YOLO 객체탐지/추적·SAM2 세그멘테이션/트랙 추론을 로컬 수행. 인증·DB·상태 없음. 오케스트레이션은 백엔드가 맡으며 단일 HTTP 클라이언트로 호출하고 타임아웃 60초와 서킷브레이커를 적용한다. GPU Worker 다중 인스턴스 수평 확장. ※ VLM 추론 본체는 외부 서비스이며 ai-server의 vlm 라우터는 외부 VLM 호출 어댑터일 뿐(EXTSYS-002 별개).",
+      "description": "저작도구의 오토라벨링 추론을 담당하는 경량 추론 서버. 객체탐지·추적과 분할·트랙 추론을 수행하며 상태·인증·저장소를 갖지 않는다. 오케스트레이션은 백엔드가 맡으며 호출을 한 곳으로 모아 타임아웃과 서킷브레이커를 건다.\n\n## 어디에 배포되는가\n**우리 장비가 아니다** — 협력 파트너가 소유한 GPU 장비 두 대에 **이중화로** 올라간다.\n⚠ 그 장비에는 비식별화 서버가 함께 있고 생성형 AI 와 시계열 분석도 추가될 예정이라, 가속기를 여럿이 나눠 쓰게 된다.\n\n## ★ 이중화인데 부를 수 있는 주소는 하나다 — 미해결\n백엔드가 이 서버를 부를 때 쓰는 설정값은 **주소 하나**라, 두 대를 나눠 쓸 배선이 없다. 셋 중 하나를 정해야 한다.\n1. 앞단에서 분산한다 — 앱 서버의 웹 서버가 두 장비로 중계. 설정만으로 된다\n2. 백엔드가 목록을 갖고 분산한다 — 코드 변경이 필요하다\n3. 한 쪽 고정 · 장애 시 수동 전환 — 지금 형상으로 유일하게 되는 것이며 이중화의 효과는 절반이다\n\n⚠ 부하를 균등하게 나누는 것이 최선이 아닐 수 있다 — 첫 번째 장비는 비식별화까지 함께 돌므로 그쪽이 먼저 포화된다.\n\n## 설정 주의\n주소 기본값이 자기 자신을 가리키므로 **두 장비 구성에서는 반드시 틀린다.** 틀려도 기동과 상태점검은 정상이고 **오토라벨링만 조용히 실패**한다. 설치 직후 주소를 따로 확인해야 한다.\n\n## 범위 밖\n시계열 분석 본체는 외부 서비스이며, 이 서버의 시계열 경로는 그 외부 서비스를 부르는 어댑터일 뿐이다.",
       "environment": "production",
       "deploys_apis": [
         "API-113",
@@ -38,26 +38,30 @@
         "API-122"
       ],
       "persists_erds": [],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
-      "depends_on_infra": [],
+      "depends_on_infra": [
+        "INFRA-003"
+      ],
       "deploys_features": [
         "FEAT-001"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "호출 경로를 구현 클래스명·라이브러리명 없이 적는다. 백엔드가 오케스트레이션을 맡고 호출을 한 곳으로 모으며 타임아웃 60초와 서킷브레이커를 건다는 것이 사양이다.",
+    "change_summary": "추론 서버가 어디에 배포되는지를 바로잡는다. 종전에는 내부 인프라라고만 적혀 있어 우리 장비에서 도는 것처럼 읽혔으나 실제로는 협력 파트너 소유 장비에 이중화로 올라가며, 그 장비에는 비식별화를 비롯한 다른 작업도 함께 돈다. 아울러 부를 수 있는 주소가 하나뿐이라 이중화를 실제로 쓰려면 배선을 정해야 한다는 미해결 사항을 남긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:07.768Z",
+    "last_updated_at": "2026-08-31T02:43:40.574Z",
     "created_at": "2026-06-23T11:31:52.599Z"
   }
 }

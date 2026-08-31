@@ -1,0 +1,70 @@
+{
+  "item": {
+    "id": "AC-1039",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-010 증강 검수 예외 — 재결정 409·사유 누락 400·유예내 복구·해상도 예외·그랜드퍼더링 (negative)",
+    "slug": "uc-010-증강-검수-예외-재결정-409사유-누락-400유예내-복구해상도-예외그랜드퍼더링-negative",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [증강 결과 /augment/result/{rawSn}] 1) 재결정 → 409 2) 사유 누락 반려 → 400 3) 유예내 복구 4) 해상도 파생은 accept/reject 차단 · 기대: 각 규칙대로",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "재결정은 409(불변식, 기준은 AUG_PROC_STTS_CD 아님), 사유 누락은 400",
+          "유예내 복구는 표식 해제+리뷰 PENDING 재오픈·이력 필수, 실삭제 후는 409",
+          "해상도 파생은 accept/reject 차단·등재 게이트 통과 예외 명시",
+          "그랜드퍼더링은 신규부터 게이트 적용·NEW_RAW_SN NULL 실삭제 제외·감사 로그만"
+        ],
+        "when": [
+          "accept/reject/restore를 호출하거나 게이트가 판정한다"
+        ],
+        "given": [
+          "재결정·사유 누락·유예내 복구·해상도 파생·그랜드퍼더링 중 하나다"
+        ]
+      },
+      "statement": "이미 채택/폐기 판단이 끝난 결과에 다시 요청하면 409(리뷰 행 '재결정 금지' 불변식 LsDataAugRvw.ensurePending — 판정 기준은 AUG_PROC_STTS_CD가 아니다). 반려 사유가 비면 400. 유예기간 내 폐기 철회는 restore로 폐기 표식 해제+리뷰 PENDING 재오픈해 다시 채택/반려를 고르게 하고(표식만 지우면 REJECTED로 남는 반쪽 복구) 되돌린 이력을 반드시 남기며 유예 경과 후 실삭제 건은 409. 해상도 파생(AUG_TYPE_CD=RESL_*)은 내부 생성물이라 accept/reject를 차단하고 리뷰 행이 없으므로 등재 게이트에 통과 예외를 명시적으로 박는다. 게이트 도입 이전 그랜드퍼더링 파생(NEW_RAW_SN·리뷰 행 없음)은 신규 파생부터 게이트를 적용하고 NEW_RAW_SN NULL 건은 실삭제 대상에서 완전 제외해 감사 로그에 '수동 정리 필요'만 남긴다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-010"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "증빙 재작성 — 실제 화면 시나리오 + 확인 SQL(dev 246 실측 쿼리·결과). 가드 테스트 참조 제거(사용자 지시).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T03:34:20.441Z",
+    "created_at": "2026-08-31T02:15:28.570Z"
+  }
+}

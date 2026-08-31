@@ -268,7 +268,8 @@
           "description": "페이지 크기"
         }
       ],
-      "description": "저작도구 DB의 검수 승인(APPROVED) 자산에서 사용자가 선택한 영상의 라벨/메타를 Load한다 — 포털 DB를 읽지 않는다. PORTAL_USER 전용.",
+      "description": "저작도구 DB의 검수 승인(APPROVED) 자산에서 사용자가 선택한 영상의 라벨/메타를 Load한다 — 포털 DB를 읽지 않는다. ⚠ **[단일 배포 전제 — 재정합 대상]** 「저작도구 DB 의 검수 승인 자산을 Load 한다」는 저작도구가 **한 벌로 배포되던 전제**다. 2026-08-31 확정(ADR-012)으로 저작도구는 **채널별로 별도 배포**되고 각 배포본이 **자기 별도 DB 에만** 연결하므로 **포털 채널 배포본에는 관제 채널 배포본의 승인 자산이 없다.** 대체 조달은 **관제가 비식별 산출물을 포털로 전달 → 포털이 포털 채널 배포본에 알림 → 그 배포본이 배포물을 자기 DB 에 적재해 서빙**하는 방향이나 **조회 창구가 포털 회신 대기로 미확정**이다. 확정 전까지 이 서술을 새 설계의 근거로 쓰지 말 것. ⚠ **「포털 DB 를 읽지 않는다」는 그대로 유효**하며 상호 미접근 확정으로 오히려 강화된다. PORTAL_USER 전용.",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -278,7 +279,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:42.709Z"
+        "last_updated": "2026-08-29T01:23:42.709Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -286,12 +288,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "parameters 가 빈 배열이었는데 400 설명이 rawSn 파라미터를 참조하는 자기모순이 있었다. 컨트롤러가 실제로 받는 rawSn(필수)/page/size 3개 쿼리 파라미터를 채웠다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:42.709Z",
+    "change_summary": "2026-08-31 채널별 별도 배포 확정(ADR-012)에 따라 「저작도구 DB 의 검수 승인 자산을 Load 한다」가 단일 배포 전제임을 표기했다. 포털 채널 배포본에는 그 자산이 없으며 대체 조달(관제→포털 전달→포털 통지→배포본이 자기 DB 적재)의 조회 창구는 포털 회신 대기로 미확정이다. 기존 서술은 지우지 않고 재정합 대상으로 표시만 했다. 「포털 DB 를 읽지 않는다」는 그대로 유효하다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T05:08:35.209Z",
     "created_at": "2026-05-30T07:27:30.274Z"
   }
 }

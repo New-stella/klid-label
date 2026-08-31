@@ -55,13 +55,15 @@
         "대상 영상에 검수 승인으로 만들어진 산출 버전이 둘 이상 존재한다",
         "인증되어 있다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-06-05T05:06:58.753Z"
+        "last_updated": "2026-06-05T05:06:58.753Z",
+        "module_paths": []
       },
       "postconditions": [
         "고른 버전과 현재 작업본의 차이가 표시된다(차이 0건이면 변경 없음 안내)",
@@ -147,17 +149,50 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-008"
+        "AC-008",
+        "AC-917",
+        "AC-918",
+        "AC-919",
+        "AC-920",
+        "AC-921",
+        "AC-922",
+        "AC-923",
+        "AC-924",
+        "AC-925",
+        "AC-926",
+        "AC-927",
+        "AC-928",
+        "AC-929",
+        "AC-930",
+        "AC-931",
+        "AC-932",
+        "AC-933",
+        "AC-934",
+        "AC-935",
+        "AC-936",
+        "AC-937",
+        "AC-938",
+        "AC-939",
+        "AC-940",
+        "AC-941",
+        "AC-942",
+        "AC-943",
+        "AC-944",
+        "AC-945",
+        "AC-946",
+        "AC-1007",
+        "AC-1008",
+        "AC-1009"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
+    "current_version": 15,
     "stale": true,
-    "stale_reason": "SCREEN-005의 data.consumes_apis 변경 — references",
-    "change_summary": "D010 P1(D010-CNT-004): actor 가 REVIEWER 단독이었으나 본문이 서술하는 라벨링 화면 진입·불러오기·되돌리기 흐름은 REVIEWER·WORKER 둘 다 쓴다(SCREEN-010 purpose \"접근: REVIEWER/WORKER\", API-034/035/036 security 모두 [REVIEWER,WORKER]). WORKER 추가.",
+    "stale_reason": "AC-1009의 data.last_run 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 검증 목적 하나 단위로 연결한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:23:04.601Z",
+    "last_updated_at": "2026-08-30T16:12:56.771Z",
     "created_at": "2026-06-01T06:24:18.970Z"
   }
 }

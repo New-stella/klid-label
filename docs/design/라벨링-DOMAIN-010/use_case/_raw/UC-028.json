@@ -45,12 +45,14 @@
       "preconditions": [
         "REVIEWER로 인증되어 있다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "라벨 마스터·속성 정의 변경이 프리셋·오토라벨 후보 목록에 즉시 반영된다"
@@ -86,17 +88,27 @@
       "covered_by_acceptances": [
         "AC-089",
         "AC-090",
-        "AC-091"
+        "AC-091",
+        "AC-878",
+        "AC-879",
+        "AC-880",
+        "AC-881",
+        "AC-882",
+        "AC-883",
+        "AC-884",
+        "AC-885",
+        "AC-886",
+        "AC-887"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "이 유스케이스를 검증하는 인수기준을 연결한다. 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "AC-887의 2개 필드 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 인수기준 열일곱 건 가운데 다섯이 한 항목으로만 돼 있어 라벨 저장·마스터·속성·트랙 편집·버전·되돌리기·비교·메타·이벤트 어노테이션·프레임 폐기 축 대부분이 덮이지 않았고, 한 건은 사고 단계 파싱 규칙 열셋을 한꺼번에 판정했다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T12:18:38.977Z",
+    "last_updated_at": "2026-08-30T16:08:22.141Z",
     "created_at": "2026-07-30T07:16:48.218Z"
   }
 }

@@ -822,6 +822,13 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★★ **2026-08-31 SYNC — 15 도메인 전량 (오늘 머지된 PR 3건 반영 · AC 전면 재번호 회수).** 전 키트 **`서버 건수 = pin 건수` 15/15 일치**로 스코프 무변동을 확인했다. 반영분: `INT-013` v13 · `SCREEN-004` v16 · `API-153` v5(PR #163) · `API-058` v4 · `SCREEN-021` v29 · **`AC-1084`·`AC-1085` 신설**(PR #162) · `ADR-012` v10 · `INT-009` v12 · **`NFR-012` v5(15개 키트 전부)**(PR #161).
+> ★**이번 SYNC 의 큰 사건은 `acceptance` 전면 재번호다.** 구 AC(3자리) **131건이 서버에서 `deprecated`/`superseded`** 로 바뀌고 신규 AC(4자리) **75건**이 그 자리를 대신한다(`AC-1043` 등으로 통합). 첫 실행에서 다운로더가 **`🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 73건 — 전량 누락`** 을 띄웠는데, **이것은 유실이 아니다** — 126건 전수 `status` 조회로 **폐기 124 + superseded 2 · 폐기가 아닌데 안 내려온 것 0건**을 확인했고, 파일은 **131건 전부 `_retired/` 에 보존**됐다(미보존 0). pin 에서는 그 폐기 ID 를 걷어냈고(근거를 `.kit-scope.json` 의 `note_pruned` 에 기록) 그 결과 pin 이 서버와 정확히 맞는다.
+> ⚠ **「서버 건수 < pin 건수」를 보면 먼저 그 차집합의 `status` 를 전수 조회하라** — 폐기면 정상이고 아니면 진짜 유실이다. 건수만 보고 판단하면 둘을 구분할 수 없다.
+> ⚠ **다운로더가 이 저장소의 MCP 설정을 스스로 찾지 못한다** — `~/.claude.json` **루트**의 `mcpServers` 를 보는데 이 프로젝트 설정은 **`projects[<경로>].mcpServers`** 아래에 있다. 그래서 `LOGICRAFT_API_BASE`/`LOGICRAFT_API_KEY` 를 **직접 넘겨야** 한다(안 그러면 15개 전부 `rc=1` 로 아무것도 쓰지 않고 멈춘다 — 실측).
+> ⚠ **`--domain` 을 반드시 준다** — 빼면 pin 을 무시하고 프로젝트 전량을 받는다.
+> 미판정 판정: **승격 99건**(AC 75 · NFR 15 · UC 6 · DFEAT 3 — Tier 1·2) · **기각 243건**(제외 타입) · **보류 2건**(`OSS-*` — Tier 표에도 제외 목록에도 없는 미분류 타입이라 선례대로 판정을 미뤘다).
+>
 > ★★ **2026-08-29 SYNC — 15 도메인 전량 (역할 축 시안·사양 정합 라운드).** 서버 대비 변경분만 내려왔고 전 키트 **`서버 건수 = pin 건수`** 로 스코프 무변동을 확인했다. 실질 내용 변경은 **전역 타입 둘**이다 — `NFR-020`(v7→v8: *"관리 화면은 검수자 전용"* → **관리자 전용**, 역할 열거에 `ADMIN` 추가)과 `ADR-046`(v7→v8: 「새 관리자 역할을 만들지 않는다」 절이 `ADR-055` 로 **뒤집힌 사실을 표기**). ⚠ **ADR 본문은 고치지 않았다** — 결정 기록이라 기각 근거를 지우면 왜 그때 그렇게 정했는지가 사라진다. 반전 표기만 덧붙였다.
 > ⚠ **`--exclude-types` 를 붙이면 D003·D004·D013·D014 에서 파일이 사라진다** — pin 에 남아 있는 제외 타입(SHELL·NAV·REQ·LEGACY)이 `_retired/` 로 밀려나기 때문이다. 이번에 한 번 그렇게 됐다가 **원상복구**했다. `CLAUDE.md` 가 정한 대로 **pin 이 정본**이라, 빼려면 pin 에서 먼저 지워야 한다. 그 넷은 종전대로 **exclude 없이** 돌린다.
 > ⚠ 미판정은 이번에도 올라왔고(D001 30건 등) 전부 제외 타입이라 기각했다 — 다음 SYNC 에도 다시 올라오며 그것이 정상이다.
@@ -846,21 +853,21 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
-| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 81 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 134 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
-| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 111 | implemented 41 / in_progress 1 / planned 35 / (미기재) 31 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
-| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 104 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
+| DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 69 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 136 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
+| DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 113 | implemented 41 / in_progress 1 / planned 35 / (미기재) 31 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
+| DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 108 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 46 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 76 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
-| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 50 | implemented 18 / planned 23 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 184 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
-| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 55 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |
-| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 84 | implemented 27 / planned 31 / (미기재) 21 | CONST 상수값 |
-| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 85 | implemented 35 / in_progress 1 / verified 4 / planned 31 / (미기재) 11 | CONST 상수값, FEAT 상위 기능 |
-| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 92 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
-| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 53 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 64 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
-| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 68 | implemented 21 / in_progress 1 / verified 6 / planned 27 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, SD 고충실 시안 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 77 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
+| DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 46 | implemented 18 / planned 23 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 170 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
+| DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 56 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |
+| DOMAIN-012 비식별화 | docs/design/비식별화-DOMAIN-012/ | 83 | implemented 27 / planned 31 / (미기재) 21 | CONST 상수값 |
+| DOMAIN-013 포털 | docs/design/포털-DOMAIN-013/ | 79 | implemented 35 / in_progress 1 / verified 4 / planned 31 / (미기재) 11 | CONST 상수값, FEAT 상위 기능 |
+| DOMAIN-014 시스템 설정 | docs/design/시스템-설정-DOMAIN-014/ | 84 | implemented 30 / planned 28 / (미기재) 14 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험 |
+| DOMAIN-015 작업 배정 | docs/design/작업-배정-DOMAIN-015/ | 46 | implemented 16 / planned 28 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, INT 외부 연동, FEAT 상위 기능 |
+| DOMAIN-016 관제 통지 | docs/design/관제-통지-DOMAIN-016/ | 65 | implemented 21 / in_progress 2 / planned 23 / (미기재) 14 | CONST 상수값, SD 고충실 시안 |
+| DOMAIN-017 외부 산출물 이관 | docs/design/외부-산출물-이관-DOMAIN-017/ | 62 | implemented 21 / in_progress 1 / verified 6 / planned 27 / (미기재) 7 | CONST 상수값, CDIAG 클래스 구조, C4 컴포넌트, SD 고충실 시안 |
 
 ## 작업 규칙 (키트 워크플로)
 1. **키트가 설계 진실원** — 도메인 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

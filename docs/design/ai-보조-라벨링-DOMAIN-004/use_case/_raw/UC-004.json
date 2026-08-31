@@ -59,13 +59,15 @@
         "유효한 JWT(REVIEWER 또는 WORKER)로 인증되어 있다",
         "대상 프레임(SRC_SN)과 추적 시작 객체(bbox/seed) 지정이 선행되어 있다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-06-05T05:06:50.438Z"
+        "last_updated": "2026-06-05T05:06:50.438Z",
+        "module_paths": []
       },
       "postconditions": [
         "후속 프레임에 추적된 객체 위치·경계가 갱신·저장된다"
@@ -104,17 +106,23 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-004"
+        "AC-004",
+        "AC-567",
+        "AC-568",
+        "AC-569",
+        "AC-570",
+        "AC-571",
+        "AC-572"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "온디맨드 축 서술을 분리된 유스케이스로 넘기고 이 유스케이스는 선택 객체 추적에 집중시킨다. 온디맨드 실행의 상세 규칙(결과 적용 방식과 그 기본값·실행 단위 적용과 기본값 복귀·수락 입도·작업 목록 반영과 저장 시점·라벨 마스터 식별자 전달·진입점 표기)은 UC-034 온디맨드 AI 자동 추적이 소유하므로 설명과 기술 고려에서 덜어낸다. 같은 내용을 두 곳에 두면 한쪽만 갱신될 때 갈라지기 때문이다. 덜어낸 자리에는 그 흐름을 UC-034 가 담당한다는 한 문장을 남겨 빠진 것으로 보고 되살리지 않게 한다. 두 경로가 같은 출력 형태 원칙을 공유한다는 서술은 이번 라운드 이전부터 있던 것이라 그대로 두었고, 주 흐름·대안 흐름·전제·후행조건·이해관계자·연결은 선택 객체 추적 축이라 손대지 않았다.",
+    "current_version": 16,
+    "stale": true,
+    "stale_reason": "AC-572의 2개 필드 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 축마다 인수기준이 한두 건뿐이라 좌표 검증·동시성·멱등·매핑 판정이 시험 케이스로 덮이지 않았다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T11:32:53.478Z",
+    "last_updated_at": "2026-08-30T15:42:36.699Z",
     "created_at": "2026-06-01T06:23:41.908Z"
   }
 }

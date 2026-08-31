@@ -9,7 +9,7 @@
     "status": "approved",
     "data": {
       "kind": "integration",
-      "notes": "시험시나리오 KLID-AT-IT-TS-005. 대외 연동 경계: 포털 DB(외부 채널) 읽기 Load(KLID-AT-II-008 inbound DB READ). 관련 요구사항 RQ-SFR-19(R2 미수록). 핵심 테이블 LS_PORTAL_USER_LABEL. 정상 흐름(happy path)만 수록.\n\n[검증 대상 대응] 본 시험이 검증하는 포털 DB 읽기 Load 흐름은 UC-024(포털 라벨 작업)의 본문—관제→데이터마트→포털 DB 적재 후 저작도구가 Load—와 직접 대응하므로 covers_use_cases 에 UC-024 를 포함한다. 다만 UC-024 자신이 R1 기능요구사항 대응 없음을 명시하므로, 이 시나리오의 검증 대상 자체가 적절한지는 관제 협의가 필요한 별도 판단 사항이다.",
+      "notes": "시험시나리오 KLID-AT-IT-TS-005. 대외 연동 경계: 포털 DB(외부 채널) 읽기 Load(KLID-AT-II-008 inbound DB READ). 관련 요구사항 RQ-SFR-19(R2 미수록). 핵심 테이블 LS_PORTAL_USER_LABEL. 정상 흐름(happy path)만 수록.\n\n[검증 대상 대응] 본 시험이 검증하는 포털 DB 읽기 Load 흐름은 UC-024(포털 라벨 작업)의 본문—관제→데이터마트→포털 DB 적재 후 저작도구가 Load—와 직접 대응하므로 covers_use_cases 에 UC-024 를 포함한다. 다만 UC-024 자신이 R1 기능요구사항 대응 없음을 명시하므로, 이 시나리오의 검증 대상 자체가 적절한지는 관제 협의가 필요한 별도 판단 사항이다. ⚠ **[재검토 대상 — 검증 대상 자체가 성립하지 않는다]** 이 시나리오는 「포털 DB 에서 영상·라벨·메타를 조회」를 검증하는데 **두 겹으로 성립하지 않는다.** ①저작도구는 그 방향으로 읽은 적이 없다 — 포털 라벨 경로는 저작도구(control) DB 를 쓰며, 포털 DB 는 반대로 내보내던 곳이었다. ②2026-08-31 확정으로 **저작도구와 포털은 서로의 DB 에 접근하지 않는다**(ADR-012). 승인된 산출물이라 본문·단계는 고치지 않고 표기만 남긴다 — **폐기할지, 「배포물을 자기 DB 에 적재한 뒤 조회」로 재작성할지는 별도 판단이 필요**하며 그 방향의 조회 창구도 포털 회신 대기다.",
       "steps": [
         {
           "seq": 1,
@@ -49,6 +49,7 @@
         "대상 영상은 검수 승인(APPROVED) 상태다 — 데이터마트에 노출된 미승인 영상은 이 흐름의 대상이 아니다(쿼리 게이트로 미포함/403)."
       ],
       "verifies_nfrs": [],
+      "attached_files": [],
       "related_domains": [],
       "covers_use_cases": [
         "UC-024"
@@ -60,12 +61,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "TST-003: 시나리오 전체 사전조건(preconditions)이 비어 있어 검수 승인(APPROVED) 게이트가 깨져도 이 시험이 그대로 통과하는 상태였다 — 게이트를 명시. 부수 정정: exercises_screens 가 여전히 공용 SCREEN-005 를 가리키고 있었는데(steps[].screen_ref 는 이미 SCREEN-029 로 정정된 상태) 같은 필드가 갱신에서 누락돼 있었다 — SCREEN-029 로 통일.",
+    "change_summary": "2026-08-31 상호 DB 미접근 확정(ADR-012)과 실측에 비추어 이 시나리오의 검증 대상(포털 DB 읽기 조회)이 두 겹으로 성립하지 않음을 notes 에 표기했다 — 저작도구는 그 방향으로 읽은 적이 없고(포털 라벨 경로는 control DB), 이제는 상호 미접근이 확정이다. 승인 산출물이라 objective·steps 는 무변경이며 폐기할지 「배포물 적재 후 자기 DB 조회」로 재작성할지는 별도 판단이 필요하다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:57:06.991Z",
+    "last_updated_at": "2026-08-31T05:09:01.144Z",
     "created_at": "2026-07-06T03:58:39.551Z"
   }
 }

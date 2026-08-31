@@ -1,0 +1,80 @@
+{
+  "item": {
+    "id": "AC-1020",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-018 영상 적재 — 관제 인입 직접 INSERT→폴링 클레임→파일 검증→LS_DATA_RAW 적재 (happy)",
+    "slug": "uc-018-영상-적재-관제-인입-직접-insert폴링-클레임파일-검증lsdataraw-적재-happy",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [영상 처리 현황 /video/status] 1) 관제가 LS_DATA_INGEST 에 INSERT 후 폴링 배치가 픽업 2) 목록에 적재된 영상이 나타난다 · 기대: LS_DATA_RAW 에 등록·이벤트유형 인입값 우선·비식별 선두 자동 시작",
+          "captured_at": "2026-08-31T03:00:00Z"
+        },
+        {
+          "type": "log",
+          "result": "pass",
+          "reference": "select (select count(*) from klid_at.ls_data_ingest) as ingest, (select count(raw_sn) from klid_at.ls_data_ingest) as processed, (select count(evnt_type_cd) from klid_at.ls_data_raw) as raw_with_evnt, (select count(*) from klid_at.ls_data_raw) as raw_total;\n\n결과 (검증환경 dev · 상용은 동일 쿼리로 확인):\n+--------+-----------+---------------+-----------+\n| ingest | processed | raw_with_evnt | raw_total |\n+--------+-----------+---------------+-----------+\n|      7 |         6 |            21 |        21 |\n+--------+-----------+---------------+-----------+",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "PENDING·재시도 도래 행이 RCPTN_DT·RCPTN_SN 순으로 원자 클레임된다",
+          "영상 파일 NAS 실재가 검증된다(행 존재 ≠ 파일 존재)",
+          "LS_DATA_RAW에 1건 등록·작업 상태 PENDING 초기화(이벤트유형 인입값 우선)",
+          "인입 행 PRCS_STTS_CD 종결·RAW_SN 기록",
+          "VideoIngested AFTER_COMMIT로 비식별 선두 단계가 자동 시작된다"
+        ],
+        "when": [
+          "폴링 배치가 미처리 인입 행을 클레임해 적재한다"
+        ],
+        "given": [
+          "관제서버가 LS_DATA_INGEST에 학습용 영상 메타 1행을 INSERT했다",
+          "해당 영상 파일이 NAS에 실재한다"
+        ]
+      },
+      "statement": "관제서버가 학습용 영상 메타를 LS_DATA_INGEST에 평면 1행으로 직접 INSERT하면(VMS_CLIP_ID 유니크로 중복 방어, 처리상태 미기재 시 DEFAULT 'PENDING'), 저작도구 폴링 배치가 PENDING이면서 재시도 시각이 도래한 행(NXTM_RTRY_DT IS NULL OR <= 현재)을 RCPTN_DT·RCPTN_SN 순서로 조회해 원자 클레임하고, NAS의 영상 파일 실재를 검증한 뒤 LS_DATA_RAW에 1건을 등록하고 작업 상태를 PENDING으로 초기화한다(이벤트유형은 인입 EVNT_TYPE_CD 우선, 인입 PRCS_STTS_CD 종결·RAW_SN 기록). 커밋 후 VideoIngested(AFTER_COMMIT)로 비식별 선두 단계가 자동 진행된다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-003"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-018"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "확인 SQL 상용 이식성 표기 — 결과 환경 1줄 명시, 쿼리는 klid_at 스키마로 상용 재실행 가능",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T03:40:34.525Z",
+    "created_at": "2026-08-31T02:12:04.845Z"
+  }
+}

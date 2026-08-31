@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-006
 type: class_diagram
-version: 11
+version: 12
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T04:17:32.529Z
+synced_at: 2026-08-31T11:08:52.411Z
 status: CHANGED
-prev_version: 10
-content_hash: dbb131092718c0bdbb49d982f6d827491c710ce1adf7dc3c00e306e00bc5f3b1
+prev_version: 11
+content_hash: 46f4195da0a4aa404cd31ee07075aa98faf5c1a508e07fdf4f7941a652bfac63
 stale: false
 raw: ./_raw/CDIAG-006.json
 links:
@@ -177,6 +177,42 @@ _(empty)_
 - **is_abstract**: false
 - **return_type**: boolean
 
+#### markDeidentNotCompleted
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 비식별화 미완료로 표시(DE_IDNTF_CMPTN_YN=N). 외부 산출물을 원본이라고 지정해 이관한 영상의 적재 시점에만 부른다. 이 동안 검수 승인이 거부된다. 멱등.
+- **is_abstract**: false
+- **return_type**: void
+
+#### markDeidentCompleted
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 비식별화 완료로 표시(DE_IDNTF_CMPTN_YN=Y). 승인 보류를 푼다. 산출물 실재를 확인한 뒤에만 부른다 — 확인 없이 부르면 미처리 산출물이 승인을 통과한다(ADR-048). 멱등.
+- **is_abstract**: false
+- **return_type**: void
+
+#### isDeidentCompleted
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 비식별화가 완료돼 검수 승인이 가능한 상태인가(DE_IDNTF_CMPTN_YN=='Y'). 승인 하나만 가른다 — 라벨 조회·프레임 이미지·영상 스트리밍·산출물 생성은 이 값으로 닫지 않는다.
+- **is_abstract**: false
+- **return_type**: boolean
+
 **attributes**:
 
 #### rawDataId
@@ -205,6 +241,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -237,6 +277,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### stpCycl
 
 - **type**: Integer
@@ -263,6 +307,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -295,6 +343,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### updDt
 
 - **type**: LocalDateTime
@@ -321,6 +373,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -353,6 +409,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### revltYn
 
 - **type**: String
@@ -379,6 +439,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -413,6 +477,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 - **description**: 영상별 배치/검수 진행 상태 Aggregate Root (LS_RAW_DATA_STATUS). DATA_STTS_CD 상태 전이의 단일 출처. 영상 1건당 1 row, @Version 낙관적 잠금으로 동시 승인 경합(CWE-362) 방어. APPROVED 전이가 승인 연쇄(스냅샷 → export 전량 재생성 → 산출 성공 후 관제 통지)의 시작점이다. revltYn(재검토여부, 기본 N)은 승인 이후 라벨/메타가 수정되면 Y 로 세워지고, 재승인 시 다시 N 으로 해제되며 그 시점에 축적된 변경 통지가 flush 된다. deIdntfCmptnYn(비식별화완료여부, 기본 Y)은 값이 N 인 동안 검수 승인을 거부하는 전제조건이며, 그 판정이 상태 전이보다 앞서므로 거부 시 승인 연쇄가 시작되지 않는다. 막는 범위는 검수 승인 하나다.
 
 **enum_values**:
@@ -429,29 +497,109 @@ _(empty)_
 
 **methods**:
 
-#### report
+#### create
 
 **params**:
 
 - dataRawSn: Long
-- issueRsn: String
-- reporterNo: String
+- reason: String
+- reportedUserNo: String
 
-- **is_static**: false
+- **is_static**: true
 - **visibility**: public
+- **description**: 검수 반려 사유 등록(정적 팩토리). ISSUE_TYPE_CD=REJECTION, ISSUE_STTS_CD=RESOLVED 고정(상태 전이 비대상). 첫 반려는 UP_DATA_ISSUE_SN=NULL.
 - **is_abstract**: false
 - **return_type**: DataIssue
 
-#### linkPrevious
+#### createWithParent
 
 **params**:
 
+- dataRawSn: Long
+- reason: String
+- reportedUserNo: String
 - upDataIssueSn: Long
+
+- **is_static**: true
+- **visibility**: public
+- **description**: 동일 영상 재반려 시 직전 반려를 UP_DATA_ISSUE_SN 으로 연결한 REJECTION 을 생성(계층형).
+- **is_abstract**: false
+- **return_type**: DataIssue
+
+#### createInquiry
+
+**params**:
+
+- dataRawSn: Long
+- content: String
+- reportedUserNo: String
+- srcSn: Long
+
+- **is_static**: true
+- **visibility**: public
+- **description**: 작업자/검수자 문의 등록(정적 팩토리). ISSUE_TYPE_CD=INQUIRY, ISSUE_STTS_CD=OPEN 으로 시작하는 상태 머신. srcSn 은 프레임 단위 선택 참조(NULL 가능).
+- **is_abstract**: false
+- **return_type**: DataIssue
+
+#### markAnswered
+
+**params**:
+
+_(empty)_
 
 - **is_static**: false
 - **visibility**: public
+- **description**: INQUIRY 답변 시 OPEN→ANSWERED 자동 전이(멱등, 이미 ANSWERED/RESOLVED 면 no-op). REJECTION 은 상태 전이 비대상.
 - **is_abstract**: false
 - **return_type**: void
+
+#### resolve
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 해소 처리(REVIEWER). INQUIRY 의 OPEN/ANSWERED→RESOLVED. 이미 RESOLVED 면 멱등. 역행 없음.
+- **is_abstract**: false
+- **return_type**: void
+
+#### assertCommentable
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: 댓글 작성 가능 여부 검증 — RESOLVED INQUIRY 는 409. REJECTION 은 상태와 무관하게 허용.
+- **is_abstract**: false
+- **return_type**: void
+
+#### isInquiry
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: ISSUE_TYPE_CD 가 INQUIRY 인가.
+- **is_abstract**: false
+- **return_type**: boolean
+
+#### isResolved
+
+**params**:
+
+_(empty)_
+
+- **is_static**: false
+- **visibility**: public
+- **description**: ISSUE_STTS_CD 가 RESOLVED 인가.
+- **is_abstract**: false
+- **return_type**: boolean
 
 **attributes**:
 
@@ -484,6 +632,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### upDataIssueSn
 
 - **type**: Long
@@ -510,6 +662,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -542,6 +698,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### issueRsn
 
 - **type**: String
@@ -568,6 +728,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -600,6 +764,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### issueTypeCd
 
 - **type**: String
@@ -626,6 +794,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -658,6 +830,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### srcSn
 
 - **type**: Long
@@ -684,6 +860,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -716,6 +896,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -742,6 +926,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -809,6 +997,237 @@ _(empty)_
 
 _(empty)_
 
+### IssueComment
+
+- **kind**: entity
+
+**methods**:
+
+#### create
+
+**params**:
+
+- dataIssueSn: Long
+- authorNo: String
+- authorRoleCd: String
+- content: String
+
+- **is_static**: true
+- **visibility**: public
+- **description**: 댓글 생성(정적 팩토리). authorNo/authorRoleCd 는 요청 DTO 가 아니라 인증 토큰(actor)에서 도출한 값만 받는다(CWE-915 Mass Assignment 방어).
+- **is_abstract**: false
+- **return_type**: IssueComment
+
+**attributes**:
+
+#### issueCommentSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### dataIssueSn
+
+- **type**: Long
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### authorNo
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### authorRoleCd
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### cmntCn
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### regDt
+
+- **type**: LocalDateTime
+- **is_static**: false
+- **visibility**: private
+- **is_readonly**: true
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+- **description**: 이슈 댓글 (LS_ISSUE_COMMENT, V57). 검수자↔작업자 양방향 소통의 단위 메시지. 한 이슈(DATA_ISSUE_SN)에 N개 댓글. AUTHOR_NO/AUTHOR_ROLE_CD 는 인증 토큰에서만 도출(CWE-915 방어). 외래키 미정의(klid_system 공유 DB 정책).
+
+**enum_values**:
+
+_(empty)_
+
+**stereotypes**:
+
+_(empty)_
+
 ## description
 
 영상 단위(RAW_SN)로 적재 등록·배치/검수 진행 상태(DATA_STTS_CD)를 추적하고, REVIEWER 의 승인/반려 워크플로우·계층형 반려 사유(자기참조 재반려)·검수 이력을 관리하는 검수 도메인 모델. 낙관적 잠금(VERSION)으로 동시 승인 경합을 방어한다. ERD-015 기반.
@@ -854,12 +1273,51 @@ Review
 - **to_multiplicity**: 1
 - **from_multiplicity**: 0..*
 
+### [4]
+
+- **to**: DataIssue
+- **from**: IssueComment
+- **kind**: association
+- **label**: 이슈 댓글
+- **to_multiplicity**: 1
+- **from_multiplicity**: 0..*
+
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-021
 - DFEAT-023
 - DFEAT-024
 - DFEAT-025
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

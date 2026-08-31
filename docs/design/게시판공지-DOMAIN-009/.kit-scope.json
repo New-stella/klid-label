@@ -6,14 +6,8 @@
   "decided_at": "2026-08-28T11:35:40.574943Z",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 · 이번 승격: 이 도메인 소속으로 신규 등록된 인수기준(도메인 지정 + 유스케이스/비기능요구 링크 보유) | 2026-08-26 pending 판정: 전건 기각(제외 타입 — MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP). 승격 0건 | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다.",
   "items": [
-    "AC-079",
-    "AC-080",
-    "AC-081",
-    "AC-082",
-    "AC-083",
-    "AC-084",
-    "AC-085",
-    "ADR-003",
+    "AC-1050",
+    "AC-1051",
     "ADR-014",
     "ADR-055",
     "API-095",
@@ -44,6 +38,7 @@
     "NFR-019",
     "NFR-020",
     "NFR-021",
+    "NFR-022",
     "ROLE-001",
     "ROLE-002",
     "ROLE-003",
@@ -55,7 +50,8 @@
     "SD-007",
     "SD-008",
     "SD-010",
-    "SD-011"
+    "SD-011",
+    "UC-040"
   ],
   "pending": [
     "SHELL-001",
@@ -75,8 +71,8 @@
     "LEGACY-001",
     "LEGACY-085",
     "LEGACY-127",
-    "NAV-001",
-    "NFR-022"
+    "NAV-001"
   ],
-  "last_sync_at": "2026-08-29T01:27:30.878Z"
+  "last_sync_at": "2026-08-31T11:12:46.409Z",
+  "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

@@ -6,14 +6,11 @@
   "decided_at": "2026-08-28T11:37:53.612055Z",
   "rule": "Phase2 그래프 카탈로그 + core-item-set Tier + 도메인 책임 판정. 2026-08-19 갱신: 신규 ADR-049·API-212~214(도메인 소속) 승격, legacy_artifact 7건은 Tier 미분류라 fail-open 포함, code_module·navigation_tree·app_shell 8건은 core-item-set 명시 제외 타입이라 기각. 2026-08-21 갱신: 신규 ADR-050(belongs_to_domain=DOMAIN-003) 승격, AC-049·AC-050·AC-051(SCREEN-008/SCREEN-009 covered_by + API-201·212·213·214 verifies) 승격, SEQ-001(영상수집 파이프라인 — UC-011·UC-018·UC-019 realizes, domain_id 미설정이나 도메인 책임 판정으로 포함) 승격. pending 의 code_module 6건·navigation_tree 1건·app_shell 1건은 제외 타입이라 재차 기각. 2026-08-21 2차 갱신: 신규 AC-055(belongs_to_domain=DOMAIN-003) 승격. 미판정이던 API-068(GET /v1/manage/configs, DOMAIN-014 소속)은 이 도메인 화면 SCREEN-008 이 consumes 하므로 '이 도메인 화면이 쓰는 계약' 기준으로 승격. 다운로더가 새로 올린 미판정 4건 판정: DFEAT-045(시스템 설정 관리)·SCREEN-025(시스템 설정 화면)는 이 도메인 소속 AC-055 를 각각 verifies·covered_by 로 참조하므로 승격 — 전체 건너뛰기 스위치의 화면·기능 실현 지점이라 이 도메인 구현자가 봐야 한다. SHELL-001(app_shell)·NAV-001(navigation_tree)은 core-item-set 명시 제외 타입이라 기각. | 2026-08-25 pending 판정: CO-009 라운드 신규·연결 ITEM 전건 승격(전부 core 타입, 제외타입 0건) | 2026-08-26 승격: INT-011, ADR-030 — INT-011(관제 학습용 영상 인입 픽업)은 이 도메인의 인입 원장 폴링·원시 적재 그 자체이고, ADR-030(배치 스텝 트랜잭션 경계)은 이 도메인 배치 스텝이 지켜야 할 제약이다 (⚠ 병렬 워크트리 머지가 이 pin 을 승격 이전 판으로 덮어 한 번 유실됐다 — 재복구분) | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
-    "AC-025",
-    "AC-026",
-    "AC-049",
-    "AC-050",
-    "AC-051",
-    "AC-055",
+    "AC-1020",
+    "AC-1021",
+    "AC-1022",
+    "AC-1023",
     "ADR-001",
-    "ADR-003",
     "ADR-004",
     "ADR-006",
     "ADR-010",
@@ -81,6 +78,9 @@
     "DFEAT-009",
     "DFEAT-010",
     "DFEAT-011",
+    "DFEAT-018",
+    "DFEAT-019",
+    "DFEAT-020",
     "DFEAT-029",
     "DFEAT-045",
     "DFEAT-051",
@@ -114,6 +114,7 @@
     "NFR-019",
     "NFR-020",
     "NFR-021",
+    "NFR-022",
     "ROLE-001",
     "ROLE-002",
     "ROLE-003",
@@ -139,7 +140,8 @@
     "UC-011",
     "UC-016",
     "UC-018",
-    "UC-032"
+    "UC-032",
+    "UC-038"
   ],
   "pending": [
     "SHELL-001",
@@ -176,7 +178,6 @@
     "IMPREC-050",
     "IMPREC-052",
     "IMPREC-053",
-    "IMPREC-070",
     "IMPREC-081",
     "IMPREC-083",
     "IMPREC-086",
@@ -194,7 +195,8 @@
     "IMPREC-148",
     "IMPREC-150",
     "NAV-001",
-    "NFR-022"
+    "OSS-102"
   ],
-  "last_sync_at": "2026-08-29T01:27:24.612Z"
+  "last_sync_at": "2026-08-31T11:12:37.448Z",
+  "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

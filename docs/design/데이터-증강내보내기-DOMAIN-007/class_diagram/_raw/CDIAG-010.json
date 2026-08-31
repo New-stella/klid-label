@@ -1065,6 +1065,296 @@
           "description": "폐기(반려) 표식 원장. 반려 시 표식하고 유예 경과 후 배치가 DB 행과 생성 파일까지 실삭제한다(7일 기본, ADR-045) — 삭제 대상은 파생·반려·유예경과 3조건 동시 충족만. 실삭제 후에도 비석(자기 행)으로 존속해 감사 추적 + 파일 삭제 재시도 단서를 남긴다. 복구(restore)는 반려 판단 자체를 되돌리며 이력(actor·사유·시각)을 남긴다. (LS_DATA_AUG_DSCD)",
           "enum_values": [],
           "stereotypes": []
+        },
+        {
+          "kind": "entity",
+          "name": "DataAugmentationJob",
+          "methods": [],
+          "attributes": [
+            {
+              "name": "augJobSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "dataAugSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "jobSeq",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "idmpKey",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "otsdJobId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "jobSttsCd",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "totalCount",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "errorCode",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "errorMessage",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            }
+          ],
+          "description": "외부 증강 위탁 잡. 프레임 청크 단위 위탁의 멱등키·외부 잡ID·상태·건수·오류를 추적한다. (LS_DATA_AUG_JOB)",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "entity",
+          "name": "DataAugmentationJobFile",
+          "methods": [],
+          "attributes": [
+            {
+              "name": "augJobFileSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": true,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "augJobSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "fileSeq",
+              "type": "Integer",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "srcSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "resultFilePathNm",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "regDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "mdfcnDt",
+              "type": "LocalDateTime",
+              "is_static": false,
+              "visibility": "private",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            }
+          ],
+          "description": "위탁 잡의 개별 결과 파일. 프레임 순번(FILE_SEQ)·소스 프레임(SRC_SN)·결과 파일 경로를 담는다. (LS_DATA_AUG_JOB_FILE)",
+          "enum_values": [],
+          "stereotypes": []
         }
       ],
       "description": "외부 SFR-07 시스템이 생성한 3종(WINTER/NIGHT/RAIN) 증강 결과와 저작도구 내부 해상도 파생 3종(RESL_1080P/720P/480P, SFR-06-03)을 관리하고, 검수와 라벨 매핑을 분리해 다루는 도메인 모델. 해상도 변경을 증강 파생영상으로 통합(ADR-018) — AugType 판별자 RESL_* · LS_DATA_AUG_LBL_MAP 좌표 배율 재사용. ERD-011 기반(1차 데이터셋 테이블 LS_DATA_SET 기반 내보내기 기능이 폐기되어 제외 — 검수 승인 학습데이터 export 산출은 ADR-020 으로 저작도구 범위 안이나 검수 승인 경로가 담당해 이 도메인 모델에 속하지 않는다).\n\n[★두 개의 상태축을 합치지 말 것 (ADR-045)] AUG_PROC_STTS_CD 는 생성 결과 전용이고 웹훅이 소유한다(ACCEPTED/REJECTED/CANCELED). REVIEWER 의 사용·폐기 결정은 LS_DATA_AUG_RVW.RVW_STTS_CD 가 단독으로 소유한다. 경위: 외부 증강은 웹훅이 항상 먼저 도착해 aug 행을 ACCEPTED 로 옮기는데, 검수 전이는 PENDING 에서만 허용돼 REVIEWER 의 승인·반려가 영구히 409 로 막혀 있었다(워크플로 자체가 도달 불가). 작업목록 등재 게이트도 리뷰 축으로 판정하며, 해상도 파생은 검수 대상이 아니라 명시적 통과 예외다.\n\n[★중복 요청 허용 (ADR-044)] 같은 (영상 × 종류)를 몇 번이든 다시 요청할 수 있다 — 생성 결과가 매번 달라 동일 조건 재요청이 정당한 운영 동선이기 때문이다. 사전 조회 가드·409 응답·부분 유니크 인덱스(UK_LS_DATA_AUG_ACTVTN)는 모두 제거됐고 연타 방어는 FE 책임이다. 귀결로 같은 (영상 × 종류) 파생이 여러 건 공존하므로 결과물 구분의 유일한 축은 PROMPT_CN(요청 시 생성조건 5필드 원문)이고 파생 식별자는 증강 행 PK(DATA_AUG_SN)로 유일화한다. ⚠ UK_LS_DATA_AUG_RESL(해상도)은 별개 계약이라 유지된다.\n\n[★미사용 파생 폐기 (ADR-045)] 반려된 파생은 등재 게이트로 즉시 작업 대상에서 빠지고, 유예 7일 경과 후 배치가 DB 행과 파일까지 삭제한다. 삭제 대상은 파생·반려·유예경과 3조건 동시 충족만이며 조건을 최종 DELETE SQL 에 리터럴로 박는다. NEW_RAW_SN 이 NULL 인 그랜드퍼더링 증강은 실삭제 대상에서 완전 제외한다.\n\n[파생 깊이] 파생본은 증강 요청 대상이 될 수 없다(깊이 1 고정, ADR-023).",
@@ -1109,8 +1399,25 @@
           "label": "검수상태",
           "to_multiplicity": "1",
           "from_multiplicity": "1"
+        },
+        {
+          "to": "DataAugmentation",
+          "from": "DataAugmentationJob",
+          "kind": "association",
+          "label": "증강 결과의 위탁 잡(DATA_AUG_SN)",
+          "to_multiplicity": "1",
+          "from_multiplicity": "*"
+        },
+        {
+          "to": "DataAugmentationJob",
+          "from": "DataAugmentationJobFile",
+          "kind": "composition",
+          "label": "위탁 잡의 결과 파일(AUG_JOB_SN)",
+          "to_multiplicity": "1",
+          "from_multiplicity": "*"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-029",
         "DFEAT-030"
@@ -1134,12 +1441,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
-    "stale": true,
-    "stale_reason": "API-179의 data.implementation 변경이 depicts로 2-hop 전파",
-    "change_summary": "scaleX·scaleY 를 균일 배율로 산정하도록 계산기·스냅샷 구조 반영",
+    "current_version": 12,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "누락 엔티티 2종 추가: DataAugmentationJob(LS_DATA_AUG_JOB)·DataAugmentationJobFile(LS_DATA_AUG_JOB_FILE) — 외부 증강 위탁 잡·결과파일 추적 엔티티가 코드에 실재하나 다이어그램에 없었다. FK 관계(DATA_AUG_SN·AUG_JOB_SN) 배선.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T02:28:56.480Z",
+    "last_updated_at": "2026-08-31T05:09:31.649Z",
     "created_at": "2026-06-02T08:54:01.247Z"
   }
 }

@@ -71,6 +71,7 @@
         "검수자 권한으로 로그인된 상태다.",
         "산출물을 가져올 때마다 그 사실이 이관 이력에 남는다."
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
@@ -149,17 +150,30 @@
       "covered_by_acceptances": [
         "AC-052",
         "AC-053",
-        "AC-054"
+        "AC-054",
+        "AC-711",
+        "AC-712",
+        "AC-713",
+        "AC-714",
+        "AC-715",
+        "AC-716",
+        "AC-717",
+        "AC-752",
+        "AC-753",
+        "AC-754",
+        "AC-755",
+        "AC-756",
+        "AC-757"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": true,
-    "stale_reason": "SCREEN-039의 data.covered_by_acceptances 변경 — references",
-    "change_summary": "이 흐름이 시작하는 화면의 이름을 산출물 가져오기로 바로잡는다. 옛 이름은 외부 산출물 이관이었고, 화면이 업로드 그룹으로 옮겨가면서 접두가 그룹명과 겹쳐 바뀌었다. 도메인 이름은 그대로 외부 산출물 이관이라 그쪽을 가리키는 서술은 바꾸지 않았다. 흐름 자체는 그대로다.",
+    "stale_reason": "AC-757의 2개 필드 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 인수기준 열두 건이 모두 축 전체를 한 항목에 몰아 담고 있어 — 한 건은 스물여섯 가지를 한꺼번에 판정했다 — 어느 단계가 무엇으로 검증되는지 되짚을 수 없었다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-26T02:54:22.539Z",
+    "last_updated_at": "2026-08-30T15:54:27.659Z",
     "created_at": "2026-08-20T23:24:36.952Z"
   }
 }

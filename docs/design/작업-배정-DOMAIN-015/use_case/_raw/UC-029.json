@@ -69,12 +69,14 @@
         "REVIEWER 또는 WORKER로 인증되어 있다",
         "WORKER는 본인에게 배정된 작업이 1건 이상 존재할 수 있다(0건이어도 조회는 가능하다)"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "목록이 시간축 정렬 + 워크플로 상태·이벤트유형 필터가 적용된 결과로 표시된다",
@@ -129,17 +131,35 @@
         "AC-067",
         "AC-068",
         "AC-069",
-        "AC-070"
+        "AC-070",
+        "AC-641",
+        "AC-642",
+        "AC-643",
+        "AC-644",
+        "AC-645",
+        "AC-646",
+        "AC-647",
+        "AC-648",
+        "AC-649",
+        "AC-650",
+        "AC-651",
+        "AC-652",
+        "AC-653",
+        "AC-654",
+        "AC-655",
+        "AC-656",
+        "AC-657",
+        "AC-658"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "작업 목록 조회와 배정 흐름을 검증하는 인수기준을 이 유스케이스에 연결한다. 이 도메인에는 인수기준이 한 건도 없어 흐름이 검증 기준 없이 남아 있었고, 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
+    "current_version": 12,
+    "stale": true,
+    "stale_reason": "AC-658의 2개 필드 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 더 연결한다. 기존 기준들이 목록의 상태 축과 필터 축을 덮고 있었으나 배정 생성·재배정의 동시성과 인가, 이벤트 유형 옵션의 범위 판정이 덮이지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T09:54:47.338Z",
+    "last_updated_at": "2026-08-30T15:47:28.353Z",
     "created_at": "2026-08-06T16:05:13.891Z"
   }
 }

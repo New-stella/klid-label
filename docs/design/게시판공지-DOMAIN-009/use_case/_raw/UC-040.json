@@ -1,0 +1,176 @@
+{
+  "item": {
+    "id": "UC-040",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "공지·가이드라인 관리와 열람",
+    "slug": "공지가이드라인-관리와-열람",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "goal": "검수자 이상이 공지·가이드라인 게시글을 작성·수정·삭제하고 발행 상태를 제어하며, 작업자는 발행된 글과 첨부를 열람한다.",
+      "actor": "검수자(REVIEWER)",
+      "title": "공지·가이드라인 관리와 열람",
+      "status": "draft",
+      "priority": "should",
+      "frequency": "이벤트성",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "검수자(REVIEWER)",
+          "action": "공지 목록을 조회한다 — 고정한 글이 앞에 오고 그다음은 등록일 내림차순이며 쪽 단위로 돌아온다"
+        },
+        {
+          "step": 2,
+          "actor": "검수자(REVIEWER)",
+          "action": "전용 작성 화면에서 제목과 내용을 넣어 저장한다 — 초안 상태로 만들어지고 등록자가 기록된다"
+        },
+        {
+          "step": 3,
+          "actor": "검수자(REVIEWER)",
+          "action": "전용 수정 화면에서 내용을 고치고 첨부를 올리거나 지운다 — 작성 화면에는 첨부 영역이 없다"
+        },
+        {
+          "step": 4,
+          "actor": "검수자(REVIEWER)",
+          "action": "발행한다 — 발행 상태로 전이하고 발행 일시가 세워진다"
+        },
+        {
+          "step": 5,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "발행된 공지의 상세를 열람하고 첨부를 내려받는다"
+        },
+        {
+          "step": 6,
+          "actor": "검수자(REVIEWER)",
+          "action": "필요하면 발행을 취소하거나 글을 삭제한다 — 삭제 시 첨부 파일도 함께 정리된다"
+        }
+      ],
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-014",
+        "change_kind": [
+          "reintroduced"
+        ],
+        "diff_summary": "1차 게시판을 2차에서 폐기 후 재도입 — 관리 권한이 검수자 이상으로 통합되고 관리자는 계층으로 물려받는다",
+        "legacy_source": {
+          "repo": "KLID-AI-PF-001",
+          "type": "screen",
+          "identifier": "SKKLID-UI-02-03-01",
+          "legacy_artifact_id": "LEGACY-085"
+        }
+      },
+      "description": "작업 안내를 게시하고 읽는 흐름이다. 쓰기는 검수자 이상이 하고 관리자는 역할 계층으로 같은 일을 하며, 작업자는 발행된 글만 읽는다.\n\n[초안은 존재 자체가 드러나지 않는다] 발행하지 않은 글은 작업자의 목록에 담기지 않고 식별자를 직접 지정해 상세를 요청해도 찾을 수 없다는 응답으로 돌아온다 — 권한이 없다는 응답으로 구분되지 않는다.\n\n[발행 일시는 현재 상태의 전이 시점이다] 발행을 취소하면 비워지고 다시 발행하면 새로 기록되며 최초 발행 이력은 보존하지 않는다.\n\n[첨부는 이름을 새로 만들어 보관한다] 사용자가 준 이름을 그대로 쓰지 않고 새로 만든 이름으로 정해진 폴더 안에만 저장하며, 원본 이름은 저장소에만 보관하고 기록에는 남기지 않는다.\n\n[포털 채널은 이 흐름에 닿지 않는다] 채널이 다르기 때문이며 발행 여부와 무관하다.",
+      "stakeholders": [],
+      "preconditions": [
+        "내부 채널로 인증되어 있다",
+        "쓰기에는 검수자 이상의 역할이 필요하다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "postconditions": [
+        "발행된 글과 첨부가 작업자에게 열람 가능하다",
+        "발행하지 않은 글은 작업자에게 존재가 드러나지 않는다",
+        "삭제한 글의 첨부 파일이 남지 않는다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "작업자가 초안에 접근",
+          "steps": [
+            "목록에서 초안이 제외된다",
+            "상세를 직접 요청해도 찾을 수 없음으로 거부된다",
+            "권한 없음으로 구분되지 않아 존재 여부가 드러나지 않는다"
+          ],
+          "trigger": "작업자나 포털 회원이 발행되지 않은 글을 요청한다"
+        },
+        {
+          "name": "허용하지 않은 첨부",
+          "steps": [
+            "업로드가 거부되고 파일이 저장되지 않는다",
+            "그 공지에 첨부 기록이 남지 않는다"
+          ],
+          "trigger": "허용 목록 밖 확장자이거나 크기 상한을 넘는 파일을 올린다"
+        },
+        {
+          "name": "작업자가 쓰기 주소로 직접 진입",
+          "steps": [
+            "권한 없음 화면으로 막힌다",
+            "목록과 상세 열람은 그대로 가능하다"
+          ],
+          "trigger": "작업자가 작성이나 수정 주소로 직접 들어온다"
+        }
+      ],
+      "realizes_dfeats": [
+        "DFEAT-037",
+        "DFEAT-038"
+      ],
+      "related_screens": [
+        "SCREEN-030",
+        "SCREEN-031",
+        "SCREEN-036",
+        "SCREEN-037"
+      ],
+      "extension_points": [],
+      "secondary_actors": [
+        "관리자(ADMIN)",
+        "라벨링 작업자(WORKER)"
+      ],
+      "extends_use_cases": [],
+      "realizes_features": [],
+      "includes_use_cases": [],
+      "tech_considerations": [
+        "첨부 원본 이름을 기록에 남기지 않는다 — 사용자가 정한 문자열이 기록으로 흘러들면 기록이 오염되고 개인정보가 샐 수 있다",
+        "첨부 내려받기에는 일반 요청과 다른 전용 제한 시간을 건다 — 큰 파일 전송에 충분하되 무한정 기다리지 않는다",
+        "목록에 저장소 기본 키가 드러나는 번호 열을 두지 않는다"
+      ],
+      "covered_by_acceptances": [
+        "AC-079",
+        "AC-080",
+        "AC-081",
+        "AC-082",
+        "AC-083",
+        "AC-084",
+        "AC-085",
+        "AC-310",
+        "AC-311",
+        "AC-312",
+        "AC-313",
+        "AC-314",
+        "AC-315",
+        "AC-316",
+        "AC-317",
+        "AC-318",
+        "AC-319",
+        "AC-320",
+        "AC-321",
+        "AC-322",
+        "AC-323",
+        "AC-324",
+        "AC-325",
+        "AC-326",
+        "AC-327",
+        "AC-328",
+        "AC-329",
+        "AC-330",
+        "AC-331",
+        "AC-332"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "AC-326의 data.last_run 변경 — covered_by",
+    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 이 흐름이 신설되기 전까지 그 기준들은 파생 출처 없이 떠 있었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-30T23:09:38.436Z",
+    "created_at": "2026-08-30T23:08:13.972Z"
+  }
+}

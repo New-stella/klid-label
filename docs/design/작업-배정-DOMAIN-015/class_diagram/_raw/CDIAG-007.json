@@ -16,28 +16,41 @@
           "name": "TaskAssignment",
           "methods": [
             {
-              "name": "reassign",
-              "params": [],
-              "is_static": false,
+              "name": "createLabeler",
+              "params": [
+                "rawDataId: Long",
+                "workerNo: Long",
+                "actorNo: Long"
+              ],
+              "is_static": true,
               "visibility": "public",
+              "description": "라벨링 작업자 배정 생성(정적 팩토리). TASK_TYPE_CD=LABELER.",
               "is_abstract": false,
-              "return_type": "TaskEventLog"
+              "return_type": "TaskAssignment"
             },
             {
-              "name": "isLabeler",
-              "params": [],
-              "is_static": false,
+              "name": "createReviewer",
+              "params": [
+                "rawDataId: Long",
+                "reviewerNo: Long",
+                "actorNo: Long"
+              ],
+              "is_static": true,
               "visibility": "public",
+              "description": "검수자 배정 생성(정적 팩토리). TASK_TYPE_CD=REVIEWER.",
               "is_abstract": false,
-              "return_type": "boolean"
+              "return_type": "TaskAssignment"
             },
             {
-              "name": "isReviewer",
-              "params": [],
+              "name": "reassignTo",
+              "params": [
+                "newWorkerNo: Long"
+              ],
               "is_static": false,
               "visibility": "public",
+              "description": "재배정 — 기존 행의 USER_NO 를 새 담당자로 갱신한다(새 행 INSERT 아님, UK 미발화). 이벤트 로그 적재는 호출자(AssignmentService) 책임.",
               "is_abstract": false,
-              "return_type": "boolean"
+              "return_type": "void"
             }
           ],
           "attributes": [
@@ -52,7 +65,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -66,7 +80,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -80,7 +95,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -94,7 +110,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -108,7 +125,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -122,7 +140,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -137,7 +156,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -161,7 +181,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -175,7 +196,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -189,7 +211,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -203,7 +226,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -217,7 +241,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -231,7 +256,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -245,7 +271,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -259,7 +286,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -284,19 +312,25 @@
           "name": "TaskEventType",
           "methods": [],
           "attributes": [],
-          "description": "작업 라이프사이클 이벤트 유형. LS_TASK_EVNT_LOG.EVNT_TYPE_CD (ASSIGN=최초배정, REASSIGN=재배정, SUBMIT=검수제출, APPROVE=검수승인, REJECT=검수반려).",
+          "description": "작업 라이프사이클/감사 이벤트 유형. LS_TASK_EVNT_LOG.EVNT_TYPE_CD. 배정 계열(ASSIGN=최초배정, REASSIGN=재배정), 검수 계열(SUBMIT=검수제출, CANCEL_SUBMIT=제출취소, APPROVE=검수승인, REJECT=검수반려), 감사 계열(PRIVACY_META_UPDATE=영상 개인정보 선언 변경, PRIVACY_META_RESET=(구)비식별 신고 리셋·2026-08-04 폐기·과거행 판독용 존치, FRAME_DISCARD=프레임 폐기, FRAME_RESTORE=폐기 복원, START_VERSION_APPLY=시작 버전 선택 적용). 개인정보 2종·프레임 2종·시작버전은 배정/검수가 아니라 같은 테이블을 쓰는 감사(OWASP A09) 이벤트다.",
           "enum_values": [
             "ASSIGN",
             "REASSIGN",
             "SUBMIT",
+            "CANCEL_SUBMIT",
             "APPROVE",
-            "REJECT"
+            "REJECT",
+            "PRIVACY_META_UPDATE",
+            "PRIVACY_META_RESET",
+            "FRAME_DISCARD",
+            "FRAME_RESTORE",
+            "START_VERSION_APPLY"
           ],
           "stereotypes": []
         },
         {
           "kind": "service",
-          "name": "TaskAssignmentService",
+          "name": "AssignmentService",
           "methods": [
             {
               "name": "assign",
@@ -323,10 +357,11 @@
               "return_type": "List<TaskEventLog>"
             },
             {
-              "name": "findEventTimeline",
+              "name": "getHistory",
               "params": [],
               "is_static": false,
               "visibility": "public",
+              "description": "작업(영상) 단위 라이프사이클 이벤트를 시간순(OCRN_DT ASC)으로 조회 — SCR-TASK-003 작업 이력 화면용. LS_TASK_EVNT_LOG 단일 타임라인.",
               "is_abstract": false,
               "return_type": "List<TaskEventLog>"
             }
@@ -366,7 +401,7 @@
         },
         {
           "to": "TaskAssignment",
-          "from": "TaskAssignmentService",
+          "from": "AssignmentService",
           "kind": "dependency",
           "label": "배정 조작",
           "to_multiplicity": "0..*",
@@ -374,16 +409,25 @@
         },
         {
           "to": "TaskEventLog",
-          "from": "TaskAssignmentService",
+          "from": "AssignmentService",
           "kind": "dependency",
           "label": "이벤트 적재",
           "to_multiplicity": "0..*",
           "from_multiplicity": "1"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-006"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [
         "ERD-014"
       ],
@@ -393,12 +437,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "배정 이력 조회 메서드 둘이 이름만 다르고 시그니처가 같아 구분되지 않았다. 폐기된 재배정 전용 이력 테이블을 읽던 쪽을 폐기 표기한다 — 통합 타임라인 조회 하나만 둔다.",
+    "change_summary": "정합(코드 진실원): TaskEventType enum 을 실제 EVNT_TYPE_CD 11종(CANCEL_SUBMIT·개인정보2·프레임2·START_VERSION_APPLY 추가)으로 확장, TaskAssignment 메서드를 실제 코드(createLabeler/createReviewer/reassignTo)로 정합(존재하지 않던 isLabeler/isReviewer/reassign 제거), 서비스 클래스명 TaskAssignmentService→AssignmentService 개명 및 findEventTimeline→getHistory 정합",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:53:02.830Z",
+    "last_updated_at": "2026-08-31T05:09:49.769Z",
     "created_at": "2026-06-02T08:51:23.635Z"
   }
 }

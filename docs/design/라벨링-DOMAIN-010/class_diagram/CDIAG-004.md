@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-004
 type: class_diagram
-version: 9
+version: 10
 domain: DOMAIN-010
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:54.242Z
-status: NEW
-prev_version: null
-content_hash: 0de0a3b100620496512f0278ebc2b64028b52195ce0ed567b1f91d30d9b0ddca
-stale: true
+synced_at: 2026-08-31T11:08:56.072Z
+status: CHANGED
+prev_version: 9
+content_hash: 786f9a60bc06b6ed75cae7e2443ed2f9e53278909f7617de87f9322a4ba9ba9c
+stale: false
 raw: ./_raw/CDIAG-004.json
 links:
   belongs_to_domain: ["[[DOMAIN-010]]"]
@@ -111,6 +111,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### srcSn
 
 - **type**: Long
@@ -137,6 +141,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -169,6 +177,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### labelId
 
 - **type**: Long
@@ -195,6 +207,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -227,6 +243,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### pointCn
 
 - **type**: String
@@ -253,6 +273,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -285,6 +309,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regUserNo
 
 - **type**: Long
@@ -311,6 +339,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -343,6 +375,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -369,6 +405,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -430,6 +470,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lblSn
 
 - **type**: Long
@@ -456,6 +500,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -488,6 +536,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### attrVl
 
 - **type**: String
@@ -514,6 +566,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -546,6 +602,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -572,6 +632,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -666,6 +730,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### labelNm
 
 - **type**: String
@@ -692,6 +760,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -724,6 +796,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### labelTypeCd
 
 - **type**: LabelMasterType
@@ -750,6 +826,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -782,6 +862,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### useYn
 
 - **type**: String
@@ -808,6 +892,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -880,6 +968,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### labelId
 
 - **type**: Long
@@ -906,6 +998,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -938,6 +1034,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### inputTypeCd
 
 - **type**: AttrInputType
@@ -964,6 +1064,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -996,6 +1100,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dfltVl
 
 - **type**: String
@@ -1022,6 +1130,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1054,6 +1166,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### useYn
 
 - **type**: String
@@ -1080,6 +1196,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1187,6 +1307,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataRawSn
 
 - **type**: Long
@@ -1213,6 +1337,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1245,6 +1373,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### versionHash
 
 - **type**: String
@@ -1271,6 +1403,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1303,6 +1439,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### versionNo
 
 - **type**: Integer
@@ -1329,6 +1469,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1361,6 +1505,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### activeYn
 
 - **type**: String
@@ -1390,6 +1538,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -1416,6 +1568,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1449,6 +1605,7 @@ _(empty)_
 - POLYGON
 - SEGMENT
 - TRACK
+- SKELETON
 
 **stereotypes**:
 
@@ -1473,6 +1630,7 @@ _(empty)_
 - BBOX
 - POLYGON
 - POINT
+- SKELETON
 
 **stereotypes**:
 
@@ -1521,6 +1679,7 @@ _(empty)_
 **enum_values**:
 
 - APPROVED
+- BATCH
 - DEIDENT_REPORT
 - [폐기] ROLLBACK
 
@@ -1625,6 +1784,10 @@ Labeling
 - **to_multiplicity**: 0..*
 - **from_multiplicity**: 0..*
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-012
@@ -1633,6 +1796,32 @@ Labeling
 - DFEAT-017
 - DFEAT-014
 - DFEAT-052
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

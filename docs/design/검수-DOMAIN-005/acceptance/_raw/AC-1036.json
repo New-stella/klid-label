@@ -1,0 +1,76 @@
+{
+  "item": {
+    "id": "AC-1036",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-022 VLM 시계열 메타 검토 — 두 창구 콜백 적재·검수큐 진입·어노 초안 채움·패널 검토·승인 (happy)",
+    "slug": "uc-022-vlm-시계열-메타-검토-두-창구-콜백-적재검수큐-진입어노-초안-채움패널-검토승인-happy",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [라벨링 /label/{id} 메타 패널] 1) 외부 VLM 콜백으로 적재된 시계열 메타를 우측 패널에서 확인·수정 2) 승인/반려 · 기대: 묘사 전문이 vlm.description 적재·검수큐 진입, 이벤트 어노 초안 자기 칸만 채움",
+          "captured_at": "2026-08-31T03:00:00Z"
+        },
+        {
+          "type": "log",
+          "result": "pass",
+          "reference": "select meta_key, count(*) from klid_at.ls_data_meta group by meta_key order by 2 desc limit 6;\n\n결과 (검증환경 dev · 상용은 동일 쿼리로 확인):\n+-------------------+-------+\n|     meta_key      | count |\n+-------------------+-------+\n| video.fps         |    17 |\n| video.codec       |    17 |\n| video.duration_ms |    17 |\n| video.resolution  |    17 |\n| video.bit_rate    |    17 |\n| video.filesize    |    17 |\n+-------------------+-------+",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "묘사 서술 전문이 vlm.description에 적재되고 검수큐에 진입한다(검수큐는 이 전문뿐)",
+          "이벤트 어노 초안의 자기 칸만 채워진다(후보 통째 교체 없음)",
+          "승인 이력·기존 값·종결 시 채우지 않고 중복 콜백은 멱등이며 자동채움은 재검수를 발화하지 않는다",
+          "검수자가 패널에서 검토·수정 후 RVW_STTS_CD를 승인/반려로 전이한다"
+        ],
+        "when": [
+          "콜백을 적재하고 검수자가 패널에서 검토·수정 후 승인/반려한다"
+        ],
+        "given": [
+          "외부 VLM이 두 창구의 시계열 분석을 콜백으로 보낸다"
+        ]
+      },
+      "statement": "외부 VLM이 묘사(describe)·추가 질문(describe-sub) 두 창구의 분석 결과를 창구별 request_id로 각각 콜백(POST /v1/vlm/callback)으로 보내면(요청·도착 순서 불일치), 묘사 결과 서술 전문을 LS_DATA_META(vlm.description)에 적재하고 LS_DATA_META_REVIEW 검수큐에 진입시킨다(검수큐 진입은 이 서술 전문뿐). 같은 결과로 이벤트 어노테이션 초안의 자기 칸만 채우되(「상황」→캡션 후보 c1 CoT 1단계, 추가 질문 답변→같은 후보 캡션 본문, 질문 칸→저작도구 보관 유형별 질문 문구, 후보 통째 교체 없음), 승인 이력이 있거나 칸에 값이 있거나 어노 검토가 종결됐으면 채우지 않고 중복 콜백은 멱등이며 자동채움은 재검수를 발화시키지 않는다. 검수자가 SCREEN-005 우측 시계열 메타 패널에서 검토·수정 후 승인/반려(RVW_STTS_CD 전이)한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "manual_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-022"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "확인 SQL 상용 이식성 표기 — 결과 환경 1줄 명시, 쿼리는 klid_at 스키마로 상용 재실행 가능",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T03:40:35.627Z",
+    "created_at": "2026-08-31T02:15:28.373Z"
+  }
+}

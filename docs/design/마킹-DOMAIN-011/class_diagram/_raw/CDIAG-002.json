@@ -227,6 +227,22 @@
               }
             },
             {
+              "name": "vrfcEvntQstnSn",
+              "type": "Long",
+              "is_static": false,
+              "visibility": "private",
+              "description": "VLM 시계열 위탁 시 실을 검증 이벤트 질문(LS_VRFC_EVNT_QSTN) 참조 SN — 마킹에서 고른 질문이 event.question 축으로 조달된다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
               "name": "sttsCd",
               "type": "MarkingStatus",
               "is_static": false,
@@ -381,6 +397,7 @@
           "from_multiplicity": "0..*"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-039"
       ],
@@ -399,12 +416,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": true,
-    "stale_reason": "API-047의 2개 필드 변경이 depicts로 2-hop 전파",
-    "change_summary": "프레임 선택 정책의 폴백을 사양에 반영한다. 구 서술 '항상 frame_selected 이며 마킹이 없으면 자동 선택된 프레임 리스트를 싣는다' 는 두 곳이 사실과 다르다 — 자동 선택 원천이 따로 있는 것이 아니라 마킹 본문이 유일한 조달처이고, 그 본문에서 인덱스를 하나도 얻지 못하면 빈 목록을 보낼 수 없어(규격 위반) frame_interval 로 내린다. 마킹 모드는 그 인덱스를 누가 골랐는지만 가른다. 같은 문구가 여러 층에 복제돼 있어 함께 정정한다.",
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "Marking 에 vrfcEvntQstnSn(VRFC_EVNT_QSTN_SN) 속성 추가 — 코드 실측 정합. LsMarking 이 VLM 위탁 질문 축(event.question)을 이 FK 로 참조하는데 다이어그램에 누락돼 있었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T11:46:48.233Z",
+    "last_updated_at": "2026-08-31T05:07:05.156Z",
     "created_at": "2026-06-02T08:48:08.331Z"
   }
 }

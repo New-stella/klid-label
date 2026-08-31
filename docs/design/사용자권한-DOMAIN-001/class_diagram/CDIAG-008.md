@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-008
 type: class_diagram
-version: 8
+version: 9
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T00:36:37.546Z
+synced_at: 2026-08-31T11:08:51.320Z
 status: CHANGED
-prev_version: 7
-content_hash: 0e7232357b1069f364f77b28ed4260a20acf504504b84235d672df519742d932
-stale: false
+prev_version: 8
+content_hash: fb92bc8385603e541a678a03dfb372d278128762e073e5c597763c6f987fb287
+stale: true
 raw: ./_raw/CDIAG-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-001]]"]
@@ -501,10 +501,11 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 사용자 역할(2차 3역할 통합). REVIEWER가 ADMIN 권한 흡수(사용자 관리·시스템 설정·배정·검수 승인/반려), WORKER는 라벨 수정·검수 제출, PORTAL_USER는 데이터마트 영상 선택·라벨 확인.
+- **description**: 사용자 역할(2차 4역할, ADR-055). ADMIN·REVIEWER·WORKER·PORTAL_USER 네 종이며 계층은 관리자에서 검수자로 한 단계 이어진다(ADMIN 이 REVIEWER 권한을 물려받는다 — ROLE_ADMIN > ROLE_REVIEWER). ADMIN 은 사용자 관리(역할 부여·변경)·연동 서버 주소·업로드·관리자 자격 교체 등 관리 권한을 소유하고, 계층으로 검수 업무도 그대로 수행한다. REVIEWER 는 시스템 설정·배정·검수 승인/반려와 사용자 목록 조회, WORKER 는 라벨 수정·검수 제출, PORTAL_USER 는 데이터마트 영상 선택·라벨 확인(외부 채널). ⚠ 구 서술 폐기 — «별도 ADMIN 은 없고 관리 권한은 REVIEWER 에 통합»(ADR-003)은 ADR-055 가 대체했다. WORKER·PORTAL_USER 는 계층 상속 대상이 아니다(작업자 전용 자리·채널 격리 보호).
 
 **enum_values**:
 
+- ADMIN
 - REVIEWER
 - WORKER
 - PORTAL_USER
@@ -632,7 +633,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: REVIEWER가 사용자 목록 조회·역할/권한 부여·변경을 수행하는 도메인 서비스(개념). 역할축은 저작도구 소유 테이블 LS_USER_ROLE이 단독 진실원이며, 사용자 마스터 자체도 관제 공유 테이블을 떠나 저작도구 소유 테이블로 upsert 된다. DFEAT-003 구현.
+- **description**: 사용자 목록 조회는 REVIEWER 가, 역할/권한 부여·변경은 ADMIN 이 수행하는 도메인 서비스(개념) — 관리 권한이 별도 역할 ADMIN 으로 분리됐다(ADR-055). 조회(listUsers)는 검수자 권한이 하한이고, 변경(changeRole)은 관리자 전용이다(PATCH = hasRole('ADMIN')). 역할축은 저작도구 소유 테이블 LS_USER_ROLE이 단독 진실원이며, 사용자 마스터 자체도 관제 공유 테이블을 떠나 저작도구 소유 테이블로 upsert 된다. DFEAT-003 구현.
 
 **enum_values**:
 
@@ -727,7 +728,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 관리자 단기 유효창(개념). 관리 기능 쓰기 요청에 더해지는 조건으로, 공유 자격을 확인한 REVIEWER 에게 발급되고 발급받은 사람에게만 유효하다. 저장소를 두지 않는 서명값이라 만료 시각이 서명 대상 안에 들어 있어 클라이언트가 늘릴 수 없고, 서버가 요청마다 서명·만료·발급 대상을 다시 본다. 역할 클레임을 담지 않으므로 권한을 올리지 않고 기존 역할 판정 위에 더해질 뿐이다. 무효화 장부나 세대 값을 두지 않으며, 서명이 현재 자격에 의존하므로 자격이 교체되면 이전 유효창이 자연히 검증에 실패한다.
+- **description**: 관리자 단기 유효창(개념). 관리 기능 쓰기 요청에 더해지는 조건으로, 공유 자격을 확인한 ADMIN 에게 발급되고 발급받은 사람에게만 유효하다. 저장소를 두지 않는 서명값이라 만료 시각이 서명 대상 안에 들어 있어 클라이언트가 늘릴 수 없고, 서버가 요청마다 서명·만료·발급 대상을 다시 본다. 역할 클레임을 담지 않으므로 권한을 올리지 않고 기존 역할 판정 위에 더해질 뿐이다. 무효화 장부나 세대 값을 두지 않으며, 서명이 현재 자격에 의존하므로 자격이 교체되면 이전 유효창이 자연히 검증에 실패한다.
 
 **enum_values**:
 
@@ -985,6 +986,10 @@ UserAccessControl
 - **label**: 서명이 현재 자격에 의존
 - **to_multiplicity**: 1
 - **from_multiplicity**: 0..*
+
+## attached_files
+
+_(empty)_
 
 ## depicts_dfeats
 

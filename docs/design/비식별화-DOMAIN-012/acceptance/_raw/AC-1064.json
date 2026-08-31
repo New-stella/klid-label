@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-1064",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-011 비식별 위탁 예외 — 연동 실패 F·원본 보존·수동 재비식별·응답 유실 스위퍼 회수·신고 구간 보류 (negative)",
+    "slug": "uc-011-비식별-위탁-예외-연동-실패-f원본-보존수동-재비식별응답-유실-스위퍼-회수신고-구간-보류-neg",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [영상 처리 현황 /video/status] 1) 연동 실패 → 'F'·원본 보존·이력, 자동 재큐 없이 수동 재비식별+resolve 2) 응답 유실 → 스위퍼 회수(ACK/콜백 창 구분) 3) 신고 구간 → 위탁 보류",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "연동 실패는 DE_IDNTF_YN='F'·원본 보존·이력 기록, 자동 재큐 없이 수동 재비식별+resolve",
+          "응답 유실은 스위퍼가 회수·재위탁(ACK 창과 콜백 창 구분, 원자 클레임)",
+          "신고 구간은 외부 위탁을 개시하지 않고 보류한다"
+        ],
+        "when": [
+          "비식별을 위탁하거나 제출 후 신호를 기다린다"
+        ],
+        "given": [
+          "연동 실패·응답 유실·신고 구간 중 하나다"
+        ]
+      },
+      "statement": "외부 호출이 실패하면 DE_IDNTF_YN='F'로 마킹하고 원본을 보존하며(원본 절대 삭제 금지) LS_DEIDENT_PROC_LOG에 실패 상태·오류를 기록한다 — 자동 재비식별 큐는 없고 작업자/검수자가 외부 솔루션으로 수동 재비식별한 뒤 resolve로 해소한다(UC-016). 수락 응답도 결과 회신도 관측되지 않은 건은 미결 회수 스위퍼가 주기적으로 다시 집어 재위탁하며(in-memory subscription은 노드가 죽으면 사라져 실패 행조차 없으므로 스위퍼가 유일 회수 경로), 수락 대기 창(ACK)과 결과 대기 창(콜백)을 구분해 정상 위탁을 잘못 회수하지 않고 2노드 Active-Active에서 조건부 UPDATE로 원자 클레임해 두 번 재위탁하지 않는다. 대상 영상이 비식별 재처리 대기(DE_IDNTF_YN='F')면 외부 위탁을 개시하지 않고 보류한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-012"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-011"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "증빙 재작성 — 실제 화면 시나리오 + 확인 SQL(dev 246 실측 쿼리·결과). 가드 테스트 참조 제거(사용자 지시).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T03:34:22.726Z",
+    "created_at": "2026-08-31T02:19:41.064Z"
+  }
+}

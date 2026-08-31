@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-1073",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-031 설정 저장 거부 — 범위 밖 400 공통 토스트·변경 없는 카드 비활성·위험 액션 취소 (negative)",
+    "slug": "uc-031-설정-저장-거부-범위-밖-400-공통-토스트변경-없는-카드-비활성위험-액션-취소-negative",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [시스템 설정 /manage/settings] 1) 범위 밖 값 저장 → 공통 실패 토스트 2) 변경 없는 카드 → 저장 버튼 비활성 3) 위험 액션 취소 → 미실행",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "범위 밖 값은 서버 거부·공통 실패 토스트(필드별 구분 없음)",
+          "변경 없는 카드는 저장 버튼 비활성·요청 미발생",
+          "위험 액션 취소는 아무 실행 없이 다이얼로그만 닫힘"
+        ],
+        "when": [
+          "설정을 저장하거나 위험 액션을 취소한다"
+        ],
+        "given": [
+          "범위 밖 값·변경 없는 카드·위험 액션 취소 중 하나다"
+        ]
+      },
+      "statement": "서버 허용 범위를 벗어난 값으로 저장하면 서버가 거부하고 화면은 필드별로 구분되지 않는 공통 실패 토스트를 노출한다. 카드 내 값이 하나도 바뀌지 않으면 저장 버튼이 비활성화되어 요청 자체가 발생하지 않는다. 위험 액션 확인 다이얼로그에서 취소를 선택하면 아무 액션도 실행되지 않고 다이얼로그만 닫힌다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-014"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-031"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "증빙 재작성 — 실제 화면 시나리오 + 확인 SQL(dev 246 실측 쿼리·결과). 가드 테스트 참조 제거(사용자 지시).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T03:34:23.468Z",
+    "created_at": "2026-08-31T02:21:20.057Z"
+  }
+}

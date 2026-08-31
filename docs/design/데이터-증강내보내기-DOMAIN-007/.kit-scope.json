@@ -6,13 +6,13 @@
   "decided_at": "2026-08-28T11:37:53.611363Z",
   "rule": "kit-export 전수 그래프(1-hop 도메인 확장) + core-item-set Tier/제외 + 전역타입(nfr·implementation_guideline·permission_role) + ADR 필터 ②③ 보강 · 폐기(deprecated/superseded) 제외 | 2026-08-21 pending 판정: INTSPEC-005/006 승격(INT-006·008 참조) / REQ-023·RFP-005 기각(제외 타입) | 2026-08-26 승격: ADR-029 — ADR-029(외부 HTTP 위탁 트랜잭션 무보유)는 이 도메인의 증강 위탁 서비스에서 실측된 결함으로 결정된 제약이라 소유 축에 가장 가깝다 (⚠ 병렬 워크트리 머지가 이 pin 을 승격 이전 판으로 덮어 한 번 유실됐다 — 재복구분) | 2026-08-28 승격: 관리자 역할 신설 라운드(PR #160) — ADR-055(ADR-003·ADR-043 을 supersede 하는 대체 결정)와 ROLE-004(관리자 역할)를 올렸다. ROLE-004 는 전역 타입(permission_role)이라 전 키트 대상이고, ADR-055 는 폐기된 결정을 pin 한 키트가 대체 결정을 못 보는 상태를 막기 위한 것이다. 구 ADR-003·ADR-043 은 pin 에서 빼지 않는다 — 다운로더가 _retired/ 로 옮겨 폐기 이력을 남기게 한다. | 2026-08-28 pending 판정(관리자 역할 라운드 후속): 비제외 타입은 그래프 링크를 근거로 전건 승격했다(스킬 규칙 「애매하면 포함 — 유실이 과포함보다 위험」). 기각: CTX-001(diagram_c4_context 는 제외 타입) 및 제외 타입 전건(MOD·LEGACY·IMPREC·NAV·SHELL·REQ·RFP·DEP) — 이들은 다음 SYNC 에 다시 올라오며 그것이 정상이다.",
   "items": [
-    "AC-001",
-    "AC-002",
-    "AC-003",
-    "AC-018",
-    "AC-021",
+    "AC-1044",
+    "AC-1045",
+    "AC-1046",
+    "AC-1047",
+    "AC-1048",
+    "AC-1049",
     "ADR-001",
-    "ADR-003",
     "ADR-004",
     "ADR-018",
     "ADR-020",
@@ -65,6 +65,7 @@
     "NFR-019",
     "NFR-020",
     "NFR-021",
+    "NFR-022",
     "ROLE-001",
     "ROLE-002",
     "ROLE-003",
@@ -89,11 +90,12 @@
     "MOD-018",
     "IMPREC-001",
     "IMPREC-030",
+    "IMPREC-212",
     "LEGACY-015",
     "NAV-001",
-    "NFR-022",
     "REQ-023",
     "RFP-005"
   ],
-  "last_sync_at": "2026-08-29T01:27:25.364Z"
+  "last_sync_at": "2026-08-31T11:12:38.641Z",
+  "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }
