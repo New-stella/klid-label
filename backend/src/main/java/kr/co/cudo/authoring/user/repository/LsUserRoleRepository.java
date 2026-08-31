@@ -42,16 +42,44 @@ public interface LsUserRoleRepository extends JpaRepository<LsUserRole, Long> {
      *
      * <p>{@code clearAutomatically=true} — upsert 후 동일 트랜잭션 내 재조회 시 stale 1차 캐시
      * 대신 DB 최신 값을 반환하도록 영속성 컨텍스트를 비운다.
+     *
+     * <h3>★ 주체({@code mdfrId})를 함께 쓴다 (V22, @design AC-1018)</h3>
+     * <p>권한 상승은 감사에서 가장 중요한 사건인데 이 표에는 <b>대상만 있고 주체가 없었다</b>.
+     * 그래서 이 문장이 역할과 주체를 <b>같은 문장에서</b> 쓴다 — 역할을 쓰고 주체를 따로 UPDATE
+     * 하면 두 쓰기 사이에서 실패했을 때 "주체 없는 역할 변경" 이 남는다.
+     *
+     * <p>{@code mdfrId} 는 인계 토큰 subject 에서만 온다(요청 바디 금지 — 위조 가능). 값이
+     * {@code null} 이면 그대로 null 을 쓴다 — 인증 주체를 알 수 없는 경로(운영 배치·시험 하네스)의
+     * 사실 그대로이며 지어내지 않는다.
+     *
+     * <p>{@code CAST(... AS varchar)} 는 파라미터 타입 추론 실패 방어다 — null 바인딩에서 PostgreSQL
+     * 이 타입을 정하지 못해 실패하는 자리를 만들지 않는다.
+     *
+     * @param mdfrId 역할을 바꾼 주체(인계 토큰 subject). 알 수 없으면 null
      */
     @Modifying(clearAutomatically = true)
     @Transactional("controlTransactionManager")
     @Query(value = """
-            INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT)
-            VALUES (:userNo, :roleCd, now())
+            INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT, MDFR_ID)
+            VALUES (:userNo, :roleCd, now(), CAST(:mdfrId AS varchar))
             ON CONFLICT (USER_NO) DO UPDATE
-              SET ROLE_CD = :roleCd, UPD_DT = now()
+              SET ROLE_CD = :roleCd, UPD_DT = now(), MDFR_ID = CAST(:mdfrId AS varchar)
             """, nativeQuery = true)
-    int upsertRole(@Param("userNo") Long userNo, @Param("roleCd") String roleCd);
+    int upsertRole(@Param("userNo") Long userNo,
+                   @Param("roleCd") String roleCd,
+                   @Param("mdfrId") String mdfrId);
+
+    /**
+     * 주체를 모르는 호출부용 진입점 — {@link #upsertRole(Long, String, String)} 에 위임한다.
+     *
+     * <p>SQL 을 복제하지 않고 <b>위임</b>하는 것이 핵심이다. 같은 upsert 를 두 문장으로 두면
+     * 한쪽만 고쳐지는 순간 두 번째 진실원이 된다.
+     *
+     * <p>운영 창구(사용자 관리 화면)는 이 진입점을 쓰지 않는다 — 주체를 반드시 실어야 한다.
+     */
+    default int upsertRole(Long userNo, String roleCd) {
+        return upsertRole(userNo, roleCd, null);
+    }
 
     /** 해당 역할 코드를 가진 사용자 수. 관리자 부트스트랩 창구의 개폐 판정에 쓴다. */
     long countByRoleCd(String roleCd);

@@ -138,6 +138,11 @@ public class UserController {
      *
      * <p>거부는 검수자 권한이 없을 때와 유효창이 없을 때가 <b>응답으로 구분되지 않는다</b>(둘 다 403,
      * 같은 문구). 구분하면 응답 자체가 유효창 상태를 알려주는 신호가 된다(CWE-209).
+     *
+     * <p>★ <b>바꾼 사람은 인증 주체에서만 온다</b>(@design AC-1018) — {@code TokenClaims.sub} 를
+     * 서비스로 넘겨 {@code LS_USER_ROLE.MDFR_ID} 에 남긴다. <b>요청 바디에서 받지 않는다</b>:
+     * 바디 값은 위조 가능해서, 그것을 기록하면 감사가 "본인이 주장한 사람" 이 된다.
+     * {@link UserUpdateRequest} 에 주체 필드를 추가하지 말 것.
      */
     @Operation(
             summary = "사용자 역할 변경 (ADMIN + 관리자 유효창)",
@@ -163,8 +168,10 @@ public class UserController {
     @RequiresAdminSession
     public ApiResponse<UserProfileResponse> update(
             @Parameter(description = "사용자 PK", required = true, example = "1001") @PathVariable Long userNo,
-            @Valid @RequestBody UserUpdateRequest request
+            @Valid @RequestBody UserUpdateRequest request,
+            @AuthenticationPrincipal TokenClaims claims
     ) {
-        return ApiResponse.ok(userService.update(userNo, request));
+        // actor 는 인증 주체에서만 — 바디가 아니다(위조 방지). 인증이 없으면 여기 도달하지 않는다.
+        return ApiResponse.ok(userService.update(userNo, request, claims == null ? null : claims.sub()));
     }
 }

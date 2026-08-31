@@ -2,7 +2,7 @@
 -- schema.sql — 저작도구 전체 스키마 단일 생성본 (Flyway V1~Vn 적용 결과 스냅샷)
 --
 -- ★ 생성물(수기 편집 금지). gen-schema-sql.sh 가 Flyway 로 적용한 스키마를 덤프한다.
---   → Flyway 가 실제 적용/검증한 스키마와 100% 동일하므로 ddl-auto=validate 통과 보장.
+--   → Flyway 가 실제 적용한 스키마와 100% 동일하다(마이그레이션 전량 적용 후의 덤프).
 --
 -- ★ 대상 스키마 = klid_at (앱의 ${DB_SCHEMA:klid_at} 와 같은 축).
 --   덤프는 CREATE SCHEMA 를 포함하고 모든 객체가 스키마 한정이므로, 로더의 search_path 와
@@ -21,7 +21,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ljNSSMnuNzcDNU3NeaB2ycBGtJYToXQFY9RDgK073Cb2eoi9TD9fcJhChwwuXo3
+\restrict Zs7txOEeBYcrbhgJwvR53KiArNRKtx2vCeyJOkm4nqIZtYA9XUDNaieFKmNOkkc
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -1812,7 +1812,8 @@ CREATE TABLE klid_at.ls_user_role (
     user_no bigint NOT NULL,
     role_cd character varying(32) NOT NULL,
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    upd_dt timestamp without time zone
+    upd_dt timestamp without time zone,
+    mdfr_id character varying(30)
 );
 
 
@@ -2466,17 +2467,17 @@ COPY klid_at.ls_evnt_anno_review (rvw_sn, evnt_anno_sn, rvw_stts_cd, meta_type_c
 --
 
 COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) FROM stdin;
-01	0001	침수(범람)	2026-08-30 12:02:57.934604
-01	0002	산사태	2026-08-30 12:02:57.934604
-02	0001	화재	2026-08-30 12:02:57.934604
-02	0002	쓰러짐	2026-08-30 12:02:57.934604
-02	0005	파손	2026-08-30 12:02:57.934604
-03	0001	교통사고	2026-08-30 12:02:57.934604
-05	0001	싸움	2026-08-30 12:02:57.934604
-05	0002	흉기소지	2026-08-30 12:02:57.934604
-05	0007	납치(유괴)	2026-08-30 12:02:57.934604
-07	0002	기타 상황	2026-08-30 12:02:57.934604
-08	0001	배회	2026-08-30 12:02:57.934604
+01	0001	침수(범람)	2026-08-31 15:28:28.019354
+01	0002	산사태	2026-08-31 15:28:28.019354
+02	0001	화재	2026-08-31 15:28:28.019354
+02	0002	쓰러짐	2026-08-31 15:28:28.019354
+02	0005	파손	2026-08-31 15:28:28.019354
+03	0001	교통사고	2026-08-31 15:28:28.019354
+05	0001	싸움	2026-08-31 15:28:28.019354
+05	0002	흉기소지	2026-08-31 15:28:28.019354
+05	0007	납치(유괴)	2026-08-31 15:28:28.019354
+07	0002	기타 상황	2026-08-31 15:28:28.019354
+08	0001	배회	2026-08-31 15:28:28.019354
 \.
 
 
@@ -2485,22 +2486,22 @@ COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) 
 --
 
 COPY klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) FROM stdin;
-EV01000101	\N	\N	01	0001	Y	2026-08-30 12:02:57.934604
-EV01000102	\N	\N	01	0001	Y	2026-08-30 12:02:57.934604
-EV01000103	\N	\N	01	0001	Y	2026-08-30 12:02:57.934604
-EV01000201	\N	\N	01	0002	Y	2026-08-30 12:02:57.934604
-EV02000101	\N	\N	02	0001	Y	2026-08-30 12:02:57.934604
-EV02000102	\N	\N	02	0001	Y	2026-08-30 12:02:57.934604
-EV02000201	\N	\N	02	0002	Y	2026-08-30 12:02:57.934604
-EV02000501	\N	\N	02	0005	Y	2026-08-30 12:02:57.934604
-EV03000101	\N	\N	03	0001	Y	2026-08-30 12:02:57.934604
-EV03000102	\N	\N	03	0001	Y	2026-08-30 12:02:57.934604
-EV03000103	\N	\N	03	0001	Y	2026-08-30 12:02:57.934604
-EV05000101	\N	\N	05	0001	Y	2026-08-30 12:02:57.934604
-EV05000201	\N	\N	05	0002	Y	2026-08-30 12:02:57.934604
-EV05000701	\N	\N	05	0007	Y	2026-08-30 12:02:57.934604
-EV08000101	\N	\N	08	0001	Y	2026-08-30 12:02:57.934604
-EV07000201	\N	\N	07	0002	N	2026-08-30 12:02:57.934604
+EV01000101	\N	\N	01	0001	Y	2026-08-31 15:28:28.019354
+EV01000102	\N	\N	01	0001	Y	2026-08-31 15:28:28.019354
+EV01000103	\N	\N	01	0001	Y	2026-08-31 15:28:28.019354
+EV01000201	\N	\N	01	0002	Y	2026-08-31 15:28:28.019354
+EV02000101	\N	\N	02	0001	Y	2026-08-31 15:28:28.019354
+EV02000102	\N	\N	02	0001	Y	2026-08-31 15:28:28.019354
+EV02000201	\N	\N	02	0002	Y	2026-08-31 15:28:28.019354
+EV02000501	\N	\N	02	0005	Y	2026-08-31 15:28:28.019354
+EV03000101	\N	\N	03	0001	Y	2026-08-31 15:28:28.019354
+EV03000102	\N	\N	03	0001	Y	2026-08-31 15:28:28.019354
+EV03000103	\N	\N	03	0001	Y	2026-08-31 15:28:28.019354
+EV05000101	\N	\N	05	0001	Y	2026-08-31 15:28:28.019354
+EV05000201	\N	\N	05	0002	Y	2026-08-31 15:28:28.019354
+EV05000701	\N	\N	05	0007	Y	2026-08-31 15:28:28.019354
+EV08000101	\N	\N	08	0001	Y	2026-08-31 15:28:28.019354
+EV07000201	\N	\N	07	0002	N	2026-08-31 15:28:28.019354
 \.
 
 
@@ -2517,15 +2518,15 @@ COPY klid_at.ls_issue_comment (cmnt_sn, data_issue_sn, author_no, author_role_cd
 --
 
 COPY klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) FROM stdin;
-1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	person
-2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	car
-3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	bicycle
-4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	motorcycle
-5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	bus
-6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	truck
-7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	\N
-8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	\N
-9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-08-30 12:02:57.934604	\N	\N	\N
+1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	person
+2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	car
+3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	bicycle
+4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	motorcycle
+5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	bus
+6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	truck
+7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	\N
+8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	\N
+9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	\N
 \.
 
 
@@ -2686,20 +2687,20 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 --
 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
-BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-30 12:02:57.138727
-BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-30 12:02:57.138727
-YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-30 12:02:57.138727
-YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-30 12:02:57.138727
-POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-30 12:02:57.138727
-portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-30 12:02:57.138727
-autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-30 12:02:57.138727
-eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-30 12:02:57.138727
-kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-30 12:02:57.138727
-kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-30 12:02:57.138727
-kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-30 12:02:57.138727
-portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-30 12:02:57.873952
-portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-30 12:02:57.873952
-portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-30 12:02:57.873952
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-31 15:28:27.203125
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-31 15:28:27.203125
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-31 15:28:27.203125
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-31 15:28:27.203125
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-31 15:28:27.203125
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-31 15:28:27.203125
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-31 15:28:27.203125
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-31 15:28:27.203125
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-31 15:28:27.203125
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-31 15:28:27.203125
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-31 15:28:27.203125
+portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-31 15:28:27.947751
+portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-31 15:28:27.947751
+portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-31 15:28:27.947751
 \.
 
 
@@ -2731,7 +2732,7 @@ COPY klid_at.ls_tus_upload (uld_id, user_no, uld_len, uld_offset, stts_cd, file_
 -- Data for Name: ls_user_role; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_user_role (user_no, role_cd, reg_dt, upd_dt) FROM stdin;
+COPY klid_at.ls_user_role (user_no, role_cd, reg_dt, upd_dt, mdfr_id) FROM stdin;
 \.
 
 
@@ -2740,13 +2741,13 @@ COPY klid_at.ls_user_role (user_no, role_cd, reg_dt, upd_dt) FROM stdin;
 --
 
 COPY klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
-1	fire	1	영상에서 '화염이 보이는 불' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
-2	smoke	1	영상에서 '특정 지점에서 피어올라 확산되는 연기' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
-3	fall	1	영상에서 '사람이 바닥에 쓰러지거나 쓰러져 있음' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
-4	violence	1	영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
-5	flooding	1	영상에서 '평소 물이 없던 공간이 물에 잠기는 침수' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
-6	car_accident	1	영상에서 '차량 충돌을 동반한 교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
-7	kidnapping	1	영상에서 '저항하는 사람을 강제로 데려가는 강제 이동' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-30 12:02:57.980873	\N	\N
+1	fire	1	영상에서 '화염이 보이는 불' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+2	smoke	1	영상에서 '특정 지점에서 피어올라 확산되는 연기' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+3	fall	1	영상에서 '사람이 바닥에 쓰러지거나 쓰러져 있음' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+4	violence	1	영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+5	flooding	1	영상에서 '평소 물이 없던 공간이 물에 잠기는 침수' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+6	car_accident	1	영상에서 '차량 충돌을 동반한 교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+7	kidnapping	1	영상에서 '저항하는 사람을 강제로 데려가는 강제 이동' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
 \.
 
 
@@ -2755,13 +2756,13 @@ COPY klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, 
 --
 
 COPY klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
-fire	화재	불꽃 등 화재 상황	1	\N	2026-08-30 12:02:57.980873	\N	\N
-smoke	연기	연기 등 화재 상황	2	\N	2026-08-30 12:02:57.980873	\N	\N
-fall	쓰러짐	사람이 쓰러지거나 바닥에 누워 있는 상황	3	\N	2026-08-30 12:02:57.980873	\N	\N
-violence	폭력	폭행, 몸싸움, 물리적 충돌 상황	4	\N	2026-08-30 12:02:57.980873	\N	\N
-flooding	침수	물이 차오르거나 공간이 물에 잠긴 상황	5	\N	2026-08-30 12:02:57.980873	\N	\N
-car_accident	교통사고	차량 충돌, 전복, 사고 정황	6	\N	2026-08-30 12:02:57.980873	\N	\N
-kidnapping	납치	강제로 끌고 가거나 납치로 의심되는 상황	7	\N	2026-08-30 12:02:57.980873	\N	\N
+fire	화재	불꽃 등 화재 상황	1	\N	2026-08-31 15:28:28.074199	\N	\N
+smoke	연기	연기 등 화재 상황	2	\N	2026-08-31 15:28:28.074199	\N	\N
+fall	쓰러짐	사람이 쓰러지거나 바닥에 누워 있는 상황	3	\N	2026-08-31 15:28:28.074199	\N	\N
+violence	폭력	폭행, 몸싸움, 물리적 충돌 상황	4	\N	2026-08-31 15:28:28.074199	\N	\N
+flooding	침수	물이 차오르거나 공간이 물에 잠긴 상황	5	\N	2026-08-31 15:28:28.074199	\N	\N
+car_accident	교통사고	차량 충돌, 전복, 사고 정황	6	\N	2026-08-31 15:28:28.074199	\N	\N
+kidnapping	납치	강제로 끌고 가거나 납치로 의심되는 상황	7	\N	2026-08-31 15:28:28.074199	\N	\N
 \.
 
 
@@ -5145,5 +5146,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ljNSSMnuNzcDNU3NeaB2ycBGtJYToXQFY9RDgK073Cb2eoi9TD9fcJhChwwuXo3
+\unrestrict Zs7txOEeBYcrbhgJwvR53KiArNRKtx2vCeyJOkm4nqIZtYA9XUDNaieFKmNOkkc
 

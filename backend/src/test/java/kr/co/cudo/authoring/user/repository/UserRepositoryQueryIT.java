@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <h3>왜 필요한가</h3>
  * <p>이름 표시는 4개 경로({@code findByUserNo} · {@code findByUserNoIn} ·
- * {@code findAllWorkersWithTaskCount} · {@code searchByKeyword})로 갈라져 배정·검수·통계·관리 화면에
+ * {@code findAllWorkersWithTaskCount} · {@code searchByKeywordAndRole})로 갈라져 배정·검수·통계·관리 화면에
  * 각각 쓰인다. 테이블·컬럼 개명(특히 {@code USER_EMAIL} → {@code USER_EML_ADDR})에서 <b>한 경로만
  * 어긋나면</b> 그 화면만 이름이 비거나 500 이 나는데, 서비스 단위 테스트는 리포지토리를 목으로
  * 두므로 이를 잡지 못한다. 여기서 <b>같은 사용자를 네 경로로 조회해 이름이 동일함</b>을 고정한다.
@@ -99,7 +99,7 @@ class UserRepositoryQueryIT {
 
         // ④ 관리 화면 검색 — 이름/아이디/이메일 LIKE 가 모두 같은 행을 찾는다
         for (String keyword : List.of(USER_ID, USER_NM, EMAIL)) {
-            assertThat(userRepository.searchByKeyword(keyword, PageRequest.of(0, 20)).getContent())
+            assertThat(userRepository.searchByKeywordAndRole(keyword, null, PageRequest.of(0, 20)).getContent())
                     .as("키워드 %s 로 검색되어야 한다", keyword)
                     .extracting(LsAcntUser::getUserNo)
                     .contains(USER_NO);
@@ -135,7 +135,7 @@ class UserRepositoryQueryIT {
                 .satisfies(w -> assertThat(w.userNm()).isEmpty());
 
         // null 컬럼이 LIKE 에 걸리지 않을 뿐, 검색 자체는 예외 없이 동작한다
-        assertThat(userRepository.searchByKeyword(USER_ID, PageRequest.of(0, 20)).getContent())
+        assertThat(userRepository.searchByKeywordAndRole(USER_ID, null, PageRequest.of(0, 20)).getContent())
                 .extracting(LsAcntUser::getUserNo)
                 .doesNotContain(USER_NO);
     }
