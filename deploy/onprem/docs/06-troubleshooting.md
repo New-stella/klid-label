@@ -64,6 +64,24 @@
 
 ## sam2 설치 실패
 
+### 먼저 볼 것 — `Read-only file system` (2026-08-31 실측·수정됨)
+
+증상: pip 출력 끝에 다음이 있다.
+
+```
+error: could not create 'SAM_2.egg-info': Read-only file system
+```
+
+원인은 **매체가 읽기전용으로 마운트된 것**이다(DVD·USB·`mount -o ro`). pip 는 로컬 소스를
+설치할 때 그 디렉터리 안에 `SAM_2.egg-info` 를 만드는데, 매체에는 쓸 수 없다.
+
+⚠ **이 실패는 아래 "흔한 원인"(setuptools 판 충돌)과 무관한데도 같은 실패 문구로 떨어져
+현장을 엉뚱한 곳으로 보냈다.** 지금은 설치 스크립트가 소스를 `/opt/klid/ai/.build/sam2-src`
+로 복사한 뒤 빌드하므로 **읽기전용 매체에서도 정상 설치된다**(설치 후 복사본은 지운다).
+이 메시지가 그래도 보이면 `/opt/klid/ai` 의 쓰기 권한·여유 공간(약 70MB)을 확인한다.
+
+### 그 밖의 원인
+
 증상: `pip install vendor/sam2/sam2-src` 실패.
 
 해결:

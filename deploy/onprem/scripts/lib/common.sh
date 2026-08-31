@@ -466,13 +466,46 @@ klid_rpm_missing() {
   printf '%s' "${out% }"
 }
 
-# 설치 미리보기에서 기존 패키지 변경(업그레이드/다운그레이드)이 잡히면 1 을 반환한다.
+# 설치 미리보기에서 기존 패키지 변경(업그레이드/다운그레이드)이 잡히면 0(=참) 을 반환한다.
 #   dnf 는 --assumeno 로 트랜잭션 요약만 찍고 중단하므로(종료코드 1) 출력만 본다.
+#
+#   ★ 바뀌는 패키지 목록을 전역 KLID_PKG_CHANGES 에 담는다 (2026-08-31).
+#     왜 필요한가 — 목록 없이 "중단했다"고만 말하면 운영자가 <무엇이> 바뀌는지 몰라 판단할 수
+#     없고, 남는 선택지가 "우회 토글을 켠다" 뿐이 된다. 실측에서 걸린 것은 PostgreSQL 이
+#     openssl-libs <1개>, httpd 가 audit-libs·libselinux·libsemanage <3개>였다. 그 정도라면
+#     운영자가 보고 결정할 수 있는 크기다. 목록을 숨기면 그 결정을 못 하게 만든다.
+#
+#   ★★ 미리보기가 <돌지 못한 경우>를 "바뀌는 것 없음"과 구분한다 (2026-08-31, 실측 결함).
+#     `dnf install --assumeno` 는 GPG 공개키가 없으면 트랜잭션 요약을 <아예 만들지 않고> 죽는다.
+#     그때 변경 목록이 비므로, 목록이 비었다는 것만 보고 판정하면 <안전장치가 통과시킨다> —
+#     보호 장치가 fail-open 이 되는 것이라 없느니만 못하다. 그래서 요약 표식(Transaction Summary
+#     / Nothing to do)이 실제로 있었는지를 함께 본다. 없으면 <바뀔 수 있다>고 본다(fail-closed).
 klid_dnf_would_change_existing() {
   local repo_id="$1"; shift
   local preview
   preview="$(dnf install --assumeno --disablerepo='*' --enablerepo="klid-${repo_id}" "$@" 2>&1 || true)"
-  printf '%s' "${preview}" | grep -Eq '^(Upgrading|Downgrading|업그레이드|다운그레이드)'
+
+  if ! printf '%s\n' "${preview}" \
+       | grep -Eq '^(Transaction Summary|트랜잭션 요약|Nothing to do|Complete!)'; then
+    KLID_PKG_CHANGES="(미상 — 설치 미리보기가 실행되지 못했습니다)"
+    warn "[rpm] 설치 미리보기를 만들지 못했습니다 — 무엇이 바뀔지 알 수 없어 <바뀐다>고 봅니다."
+    warn "      흔한 원인: 번들 GPG 공개키 미등록(syspkgs/gpg) · 저장소 경로 접근 불가."
+    warn "      dnf 마지막 출력:"
+    printf '%s\n' "${preview}" | grep -vE '^\s*$' | tail -3 | while IFS= read -r _l; do
+      warn "        ${_l}"
+    done
+    return 0
+  fi
+
+  # 요약 블록의 'Upgrading:'/'Downgrading:' 바로 아래 들여쓴 줄이 대상 패키지다.
+  #   ⚠ dnf 는 섹션 사이에 <빈 줄을 넣지 않는다> — 'Upgrading:' 다음 줄이 곧바로
+  #     'Installing dependencies:' 다. 그래서 "빈 줄에서 끝난다"고 보면 뒤따르는 설치
+  #     섹션까지 업그레이드로 집계돼 <1건이 48건으로> 부풀었다(실측). 헤더 줄을 만날 때마다
+  #     플래그를 다시 판정해야 한다.
+  KLID_PKG_CHANGES="$(printf '%s\n' "${preview}" \
+    | awk '/^[^ \t].*:[ \t]*$/{f=/^(Upgrading|Downgrading|업그레이드|다운그레이드):/;hdr=$0;next} /^[ \t]*$/{f=0} f&&/^[ \t]/{sub(/:$/,"",hdr);print hdr": "$1" "$3}' \
+    | sort -u)"
+  [[ -n "${KLID_PKG_CHANGES}" ]]
 }
 
 klid_dnf_install_from_bundle() {
@@ -535,12 +568,18 @@ REPO
      && klid_dnf_would_change_existing "${repo_id}" "${pkgs[@]}"; then
     rm -f "${repo_file}"
     warn "[rpm] 이 설치는 <이미 설치된 패키지를 변경>하려 합니다 — 중단합니다."
-    warn "      대상: ${pkgs[*]}"
-    warn "      원인: 번들이 이 장비보다 높은 배포판 판으로 모여 있어, 의존성을 맞추느라"
-    warn "            기반 라이브러리까지 올리려는 상태입니다."
-    warn "      조치: 이 장비의 배포판 판을 알려 주시면 그 판으로 다시 수집해 넣겠습니다."
-    warn "            (판 확인:  cat /etc/redhat-release)"
-    warn "      ⚠ 그대로 진행하려면 KLID_ALLOW_PKG_CHANGE=1 — 기존 환경이 바뀝니다."
+    warn "      설치하려던 것 : ${pkgs[*]}"
+    warn "      바뀌는 패키지 :"
+    while IFS= read -r _line; do [[ -n "${_line}" ]] && warn "        - ${_line}"; done \
+      <<< "${KLID_PKG_CHANGES}"
+    warn "      원인: 번들이 이 장비보다 <새 보안 패치(erratum)>를 물고 있어, 의존성을 맞추느라"
+    warn "            기반 라이브러리까지 올리려는 상태입니다. 배포판 판이 같아도 일어납니다"
+    warn "            — 반입 매체는 수집 시점의 최신 패치로 모이기 때문입니다."
+    warn "      조치 ①(권장) 위 패키지가 이 장비의 전제조건으로 <이미 설치돼 있어야 하는 것>이면"
+    warn "                   그것을 먼저 설치·갱신한 뒤 다시 실행하세요. 그러면 이 단계는 건너뜁니다."
+    warn "      조치 ②       현재 판을 알려 주시면(rpm -q 결과) 그 판으로 다시 수집해 넣겠습니다."
+    warn "                   (판 확인:  cat /etc/redhat-release  ·  rpm -q <위 패키지명>)"
+    warn "      ⚠ 그대로 진행하려면 KLID_ALLOW_PKG_CHANGE=1 — 위 패키지가 실제로 바뀝니다."
     return 1
   fi
 

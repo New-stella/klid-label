@@ -95,9 +95,25 @@ grep -ivE '(^|[[:space:]])sam-2[[:space:]]*@' "${AI_DIR}/requirements.txt" \
 #     이때는 종전대로 warn 이다(동작 변경 없음).
 #   ★ 모델을 동봉했다는 것은 <이 납품이 SAM2 를 제공한다는 선언>이다. 그 선언과 실제 설치가
 #     어긋나면 그것은 무시해도 되는 경고가 아니라 납품물의 결함이다.
+#   ★★ 매체에서 곧바로 설치하지 않고 <쓰기 가능한 곳으로 복사한 뒤> 설치한다 (2026-08-31).
+#     pip 는 로컬 소스를 설치할 때 그 디렉터리 안에 SAM_2.egg-info 를 만든다(PEP 517 의
+#     "Getting requirements to build wheel" 단계). 반입 매체는 DVD·USB·읽기전용 마운트로
+#     오는 것이 정상이므로 그 자리에서 빌드하면 다음으로 죽는다:
+#         error: could not create 'SAM_2.egg-info': Read-only file system
+#     ⚠ 이 실패는 <아래 die 문구가 지목하는 원인(setuptools 판 충돌)과 무관>한데도 같은
+#       분기로 떨어져 현장을 엉뚱한 곳으로 보낸다. 실측으로 확인된 오진 경로다.
+#     복사본은 설치 후 지운다 — 산출물이 아니라 빌드 임시물이다.
 if [[ -d "${SAM2_SRC}" ]]; then
+  SAM2_BUILD_DIR="${AI_DIR}/.build/sam2-src"
   info "[ai-server] sam2 로컬 소스 설치: ${SAM2_SRC}"
-  if ! "${PIP}" install --no-index --find-links "${WHEELS}" "${SAM2_SRC}"; then
+  info "[ai-server]   빌드 작업본으로 복사: ${SAM2_BUILD_DIR} (매체가 읽기전용일 수 있다)"
+  rm -rf "${SAM2_BUILD_DIR}"
+  mkdir -p "$(dirname "${SAM2_BUILD_DIR}")"
+  cp -R "${SAM2_SRC}" "${SAM2_BUILD_DIR}" \
+    || die "[ai-server] sam2 소스 복사 실패: ${SAM2_SRC} → ${SAM2_BUILD_DIR}
+       디스크 공간·권한을 확인하세요(약 70MB 필요)."
+  if ! "${PIP}" install --no-index --find-links "${WHEELS}" "${SAM2_BUILD_DIR}"; then
+    rm -rf "${SAM2_BUILD_DIR}"
     if [[ "${SAM2_EXPECTED}" == "1" ]]; then
       die "[ai-server] sam2 설치 실패 — 이 납품은 SAM2 모델 캐시를 동봉했으므로 SAM2 를 제공한다는
        뜻입니다. 이대로 두면 서버는 정상 기동하고 헬스체크도 통과하지만, SAM2 분할·Track 은
@@ -112,6 +128,7 @@ if [[ -d "${SAM2_SRC}" ]]; then
     warn "[ai-server] sam2 설치 실패 — 이 납품은 SAM2 모델 캐시를 동봉하지 않았습니다(SAM2 미제공 납품)."
     warn "  SAM2 분할/Track 은 사용할 수 없습니다(06-troubleshooting 참고)."
   fi
+  rm -rf "${SAM2_BUILD_DIR}"
 elif [[ "${SAM2_EXPECTED}" == "1" ]]; then
   die "[ai-server] sam2 소스 미동봉(${SAM2_SRC})인데 SAM2 모델 캐시는 동봉돼 있습니다 — 반입물이 불완전합니다.
        빌드머신에서 30-collect-ai-server.sh 를 다시 수행해 vendor/sam2 를 채우세요."
