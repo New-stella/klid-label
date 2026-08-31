@@ -75,7 +75,13 @@ Controller → Service → Repository (+ QueryDSL 보조)
 ## 2.5 듀얼 데이터소스
 
 - **Control DB** (`klid_at` 스키마, PostgreSQL) — 저작도구 LS_* 소유. `@ControlRepo`
-- **Portal DB** — **저작도구 → 포털 DB 단방향 메타 복제**(쓰기 전용, at-least-once). `@PortalRepo`
+- **Portal DB** — ⚠ **[폐기]** 저작도구 → 포털 DB 단방향 메타 복제(쓰기 전용, at-least-once). `@PortalRepo`.
+  **2026-08-31 「저작도구와 포털은 서로의 DB 에 접근하지 않는다」 확정(구속)으로 폐기**됐고 데이터 교환은 API 로
+  설계한다. ⚠ 코드는 아직 철거 전이라 듀얼 데이터소스가 그대로 있다.
+  ★ **더 근본적으로 저작도구는 채널별로 별도 배포되고 각 배포본이 자기 별도 PostgreSQL DB 에만 연결한다**
+  (2026-08-31 확정, ADR-012) — 한 배포본이 두 채널의 DB 를 함께 무는 **듀얼 데이터소스 구도 자체가 사라진다.**
+  승인 자산이 포털로 흐르는 경로는 **관제 중계**다(승인 → 관제 통지 → 관제가 압축 파일로 포털 전달 → 포털이 API 로 통지).
+  판정 정본은 `INT-009`·`ADR-012` → [16](16-portal.md)
 
 > ⚠ **구 서술 폐기(2026-08-19 코드 실측)** — 두 항목 모두 정정한다.
 > 1. *"Control DB 는 저작도구 LS_* + 관제 MNG_* 참조"* — **관제 공유 테이블 `MNG_*` 는 현재 코드에 하나도 남아 있지 않다.** 관제 2차에서 적재 주체가 반전(ADR-042)돼 관제는 이제 저작도구 소유 `LS_DATA_INGEST` 에 직접 INSERT 하고, 저작도구가 과거 읽던 공유 마스터 4종(`MNG_CLIP_MASTER`·`MNG_CLIP_EVNT_LST`·`MNG_RESOURCE_CCTV`·`MNG_EX_LOCAL_GOV`)은 `V167` 로 DROP 됐다. 회귀 가드 `architecture/MngControlMasterTableRemovalTest`(소스 전수 스캔)가 이 4종의 재등장을 차단하며, 전수 확인 결과 `@Table(name="MNG_...")` 형태의 살아있는 JPA 매핑은 **0건**이다(`main` 소스에 남은 22건의 `MNG_` 문자열은 전부 이 제거 사실을 설명하는 javadoc/주석이다). 근거: `backend/src/test/java/kr/co/cudo/authoring/architecture/MngControlMasterTableRemovalTest.java`.

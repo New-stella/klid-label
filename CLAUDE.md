@@ -95,7 +95,7 @@ slowBuild: true
 - 인코딩 UTF-8, 표준 SQL DDL (PostgreSQL 문법)
 - `klid_at` 스키마 운영 — **저작도구 전용(LS_*) 테이블은 자체 소유·구성**, 관제서버 재사용 8개(MNG_*)는 `ddl-auto=validate`로 읽기 위주 참조
 - Quartz 스케줄러 `QRTZ_*` 테이블은 PostgreSQL JobStore(`PostgreSQLDelegate`, BYTEA)로 운영
-- 외부 채널은 포털 DB 공유
+- **★저작도구와 포털은 서로의 DB 에 접근하지 않는다 (2026-08-31 사용자 확정, 구속)** — 데이터 교환은 **API** 로 설계한다. ⚠ 구 서술 *"외부 채널은 포털 DB 공유"* 는 **폐기**. 상세·현황·철거 상태는 「포털 (외부 채널)」 절이 정본이다(여기에 복제하지 않는다).
 - **관제 인프라 정합**: 관제서버도 PostgreSQL로 전환되며, 저작도구는 자신이 소유한 LS_* 테이블만 PostgreSQL용으로 구성한다. 공유 MNG_*/QRTZ_* 스키마는 인프라가 제공하고 저작도구는 validate/연동만 한다.
 
 ## 아키텍처 원칙
@@ -112,7 +112,7 @@ slowBuild: true
 - `common.exception.ErrorCode` enum + `CustomException` + `@RestControllerAdvice GlobalExceptionHandler`
 - `common.security.JwtAuthenticationFilter` — 관제/포털 JWT 디코드 → `TokenClaims` → `SecurityContext`
 - `common.security.SecurityConfig` — 역할 기반 접근 제어
-- `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리)
+- `common.datasource.{ControlDataSourceConfig, PortalDataSourceConfig}` — 듀얼 EntityManager/TransactionManager (`@ControlRepo`, `@PortalRepo`로 분리). ⚠ **`PortalDataSourceConfig`·`@PortalRepo` 는 철거 예정** — 상호 DB 미접근 확정(2026-08-31)으로 유일 사용처인 메타 복제 축이 닫혔다. 코드는 아직 살아 있다
 - `common.logging.RequestIdFilter` + Logback JSON 인코더 (민감 필드 마스킹)
 - `common.client.*` — DeidentifyClient / AiServerClient / VlmClient / ControlNotifyClient / ExternalAugmentClient (Resilience4j 적용). 관제/포털 양방향 M2M 통합은 deprecated이나 **저작도구 → 관제서버 단방향 outbound 완료/수정 통지(ControlNotifyClient)는 예외로 보유**
 
@@ -137,7 +137,7 @@ slowBuild: true
 |--------|------|:---------:|
 | `SPRING_PROFILES_ACTIVE` | local/dev/stg/prd | 전체 |
 | `CONTROL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | klid_system(PostgreSQL) 접속 | dev/stg/prd |
-| `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB(PostgreSQL) 접속 | dev/stg/prd |
+| `PORTAL_DB_HOST/PORT/NAME/USERNAME/PASSWORD` | 포털 DB(PostgreSQL) 접속 — ⚠ **철거 예정**(상호 DB 미접근 확정 2026-08-31) | dev/stg/prd |
 | `JWT_SECRET` / `JWT_ISSUER` | JWT 검증 | dev/stg/prd |
 | `DEIDENTIFY_API_URL` | 비식별 서버 | dev/stg/prd |
 | `AI_SERVER_URL` | ai-server 내부 주소 | 전체 |
@@ -462,8 +462,46 @@ slowBuild: true
   - **배치는 원자 클레임(조건부 UPDATE)** 으로 중복 실행을 막고, **최종 DELETE 에도 조건을 다시 건다**(클레임 이후 복구가 끼어들 수 있다). Quartz 클러스터링은 트리거 중복만 막고 잡 내부 레이스는 막지 않는다.
 
 ### 포털 (외부 채널)
-- **데이터 소스**: 관제서버 → 데이터마트 → 포털 적재 (관제서버 책임). ★**관제서버와 포털은 API 연동으로 적재한다 — 둘 사이에 DB 공유는 없다** (2026-08-27 사용자 확정, 구속). ⚠ 구 서술 *"포털 **DB** 적재"* 는 **폐기** — 그 문장대로 이해하면 관제가 포털 DB 에 직접 쓰는 구조를 전제하게 된다. ⚠ **저작도구 → 포털 DB 단방향 복제(메타 복제 배치)는 별개 축이라 그대로다** — 제약은 관제↔포털 쌍에 대한 것이고, DB 축에만 걸린다(HTTP 연동·토큰 인계 등 다른 축은 무관).
-  - ⚠ **구 서술 폐기(2026-08-16 코드 실측)** — *"저작도구는 포털 DB에서 Load"* 는 **사실과 다르다.** 포털 라벨 경로(`PortalLabelService`)는 `controlTransactionManager` 로 묶이고 그것이 쓰는 리포지토리는 **전부 control(저작도구) 데이터소스**다. `@PortalRepo` 를 쓰는 것은 **메타 복제 축 하나뿐**이고(`PortalDatasetVideoMetaRepository`·`PortalMetaReplicaWriter`·`MetaReplicationWorker`) 그 방향은 **저작도구 → 포털 DB 쓰기**(단방향 at-least-once)다. 즉 **포털 DB 는 우리가 읽는 곳이 아니라 내보내는 곳**이다. 그 서술대로 이해하면 포털 화면의 조회 경로를 엉뚱한 데이터소스에서 찾게 된다. ⚠ 같은 오기가 **LogiCraft ITEM 여럿과 승인된 통합시험 시나리오에도 복제**돼 있다(별도 정합 대상)
+- **데이터 소스**: 관제서버 → 데이터마트 → 포털 적재 (관제서버 책임). ★**관제서버와 포털은 API 연동으로 적재한다 — 둘 사이에 DB 공유는 없다** (2026-08-27 사용자 확정, 구속). ⚠ 구 서술 *"포털 **DB** 적재"* 는 **폐기** — 그 문장대로 이해하면 관제가 포털 DB 에 직접 쓰는 구조를 전제하게 된다. ⚠ **구 예외 폐기(2026-08-31)** — *"저작도구 → 포털 DB 단방향 복제(메타 복제 배치)는 별개 축이라 그대로다"* 는 **더 이상 사실이 아니다.** 바로 아래 ★ 절이 그 예외를 닫았다.
+
+> ### ★저작도구와 포털은 서로의 DB 에 접근하지 않는다 (2026-08-31 사용자 확정, 구속)
+>
+> 데이터 교환은 **API** 로 설계한다. **양방향 약속**이다 — 저작도구가 포털 DB 에 쓰지 않고, 포털도 저작도구 DB 를
+> 참조하지 않는다(포털 측은 이미 「포털은 저작도구 내부 테이블을 참조하지 않는다」로 선언해 둔 상태이며 우리가 그것을 확인했다).
+>
+> - **닫힌 것 = 검수 승인 영상의 동결 메타 단방향 복제 1축.** `@PortalRepo` 사용처가 이 축 하나뿐이라
+>   (`PortalDatasetVideoMetaRepository` ← `PortalMetaReplicaWriter` ← `MetaReplicationWorker` ← 발신함)
+>   **저작도구가 포털 DB 를 무는 경로는 이것이 전부**다.
+> - ⚠⚠ **정책만 확정됐고 코드는 아직 살아 있다** — 듀얼 데이터소스(`PortalDataSourceConfig`)·복제 워커·발신함·Quartz 잡·
+>   메트릭이 그대로 돌고 있다. **"이미 걷어냈다"고 읽지 말 것.**
+> - **대체 API 가 필요한지는 미확정** — 이 복제는 **쓰기 전용**이라 저작도구에 복제본을 읽는 경로가 **0건**이고, 포털
+>   설계에도 받는 테이블이 없다(양측 실측). 즉 **실 소비처가 어느 쪽에서도 확인되지 않는다.** 포털 회신으로 소비처가
+>   드러나면 REST 대체 경로를 설계하고, 없으면 대체 없이 철거한다. ⚠ 특히 **이벤트 어노테이션 동결 원문**은 이 복제
+>   말고 포털로 나가는 경로가 없다.
+> - **철거 순서** — 포털에 「철거 완료」를 통보하기 전에는 포털이 대상 테이블·계정을 지우지 않기로 했다(먼저 지우면
+>   워커가 실패해 발신함에 실패가 쌓인다).
+> - 회신 근거: 저작도구 프로젝트 아티팩트 「[회신] 포털 DB 직접 쓰기 폐기」(2026-08-31).
+>
+> ### ★★배포가 채널마다 갈린다 — 저작도구는 두 벌이다 (2026-08-31 사용자 확정, 구속 · `ADR-012`)
+>
+> ⚠ **가장 자주 틀리는 지점이다.** 저작도구 서비스 **하나가 포털·관제 양쪽에 붙는 구조가 아니다.**
+> **포털에 붙는 저작도구**와 **관제에 붙는 저작도구**가 **각각 별도로 배포**되고, 각 배포본은
+> **자기 별도 PostgreSQL DB 에만 연결**한다. 포털향 DB 는 포털 채널에 맞춰 별도로 구성한다.
+> **두 배포본끼리도 직접 이어지지 않는다** — 서로의 DB 를 읽지 않고 서로를 직접 호출하지도 않는다.
+>
+> **자산 전달 경로 — 중계자는 관제다.**
+> ① **관제 채널 배포본**에서 검수 **승인** → **관제로 완료 통지**
+> ② **관제가 그 자산을 포털로 전달**(**압축 파일** 형태 예정 — 포털 측 수신은 재개 가능 업로드 +
+>    배포 등재·상태 폴링 규격)
+> ③ 이후 **포털이 관제 채널 배포본에 API 로 알린다**
+>
+> ⚠ **포털향 배포본이 관제향 배포본의 DB 나 API 를 직접 물어 승인 자산을 가져오는 그림은 틀렸다.**
+> 승인 자산이 포털 쪽으로 흐르는 경로는 위 3단계뿐이다.
+>
+> ⚠ **현재 코드는 단일 배포 시절 형상이다** — 포털 라벨 화면(`PortalLabelService`)이
+> `controlTransactionManager` 로 control DB 의 승인 자산을 **직접 읽는다**. 배포가 갈리면 그대로
+> 성립하지 않으므로, **이 코드를 근거로 「포털향도 control DB 를 읽으면 된다」고 추론하지 말 것.**
+  - ⚠ **구 서술 폐기(2026-08-16 코드 실측)** — *"저작도구는 포털 DB에서 Load"* 는 **사실과 다르다.** 포털 라벨 경로(`PortalLabelService`)는 `controlTransactionManager` 로 묶이고 그것이 쓰는 리포지토리는 **전부 control(저작도구) 데이터소스**다. `@PortalRepo` 를 쓰는 것은 **메타 복제 축 하나뿐**이고(`PortalDatasetVideoMetaRepository`·`PortalMetaReplicaWriter`·`MetaReplicationWorker`) 그 방향은 **저작도구 → 포털 DB 쓰기**(단방향 at-least-once)다. 즉 **포털 DB 는 우리가 읽는 곳이 아니라 내보내는 곳**이다. 그 서술대로 이해하면 포털 화면의 조회 경로를 엉뚱한 데이터소스에서 찾게 된다. ⚠ 같은 오기가 **LogiCraft ITEM 여럿과 승인된 통합시험 시나리오에도 복제**돼 있다(별도 정합 대상). ⚠ **2026-08-31 보정** — 「내보내는 곳」이라는 방향 서술은 여전히 맞으나 **그 내보내기 축 자체가 폐기 확정**이다(위 ★ 절). 코드는 미철거라 지금 실측하면 여전히 존재한다.
 - 관제서버가 제공한 데이터마트를 포털에 등록 → 포털 사용자가 영상 선택 → 기존 저장 라벨/메타 Load → 라벨링 화면에 표시
 - **저장 시 원본·데이터마트 미수정** — 사용자별 작업 데이터로 `LS_PORTAL_USER_LABEL`에 별도 적재, **데이터마트에 정합/반영 안 됨(단방향)**
 - 다운로드는 사용자 작업 데이터 기준
@@ -477,8 +515,8 @@ slowBuild: true
 
 ### DB 정책
 - `klid_at` 스키마(PostgreSQL)에 저작도구 전용 테이블(LS_*) 운영 — 저작도구가 직접 소유·구성
-- **★전 환경·전 채널 PostgreSQL 이다 — 포털향을 다른 RDB 로 가르지 않는다 (2026-08-28 사용자 확정, 구속)**: 관제향(control)과 **포털향(portal) DB 가 모두 PostgreSQL** 이며, *"포털향은 MariaDB 로 전환될 수 있다"* 는 검토는 **기각**됐다(관제향 PostgreSQL / 포털향 MariaDB 두 벌로 가르는 **분리 빌드 미채택**).
-  - **귀결 — 이기종 대응을 미리 넣지 않는다.** 포털 복제 upsert 의 `CAST(... AS jsonb)` · `ON CONFLICT ... DO NOTHING` 은 잠정 선택이 아니라 **확정 전제**이므로, 방언 중립(dialect-neutral)으로 되돌리거나 그것을 제약으로 새로 세우지 말 것. 복제본은 원본(control)과 **같은 문법으로 동형**을 유지한다. 판정 진실원은 `INT-009`.
+- **★전 환경·전 채널 PostgreSQL 이다 — 포털향을 다른 RDB 로 가르지 않는다 (2026-08-28 사용자 확정, 구속)**: 관제향(control)과 **포털향(portal) DB 가 모두 PostgreSQL** 이며, *"포털향은 MariaDB 로 전환될 수 있다"* 는 검토는 **기각**됐다(관제향 PostgreSQL / 포털향 MariaDB 로 **DBMS 를 이기종으로 가르는** 안 미채택). ⚠ **기각된 축은 DBMS 이기종화이지 배포 분리가 아니다** — 저작도구는 **채널별로 별도 배포되고 각 배포본이 자기 별도 PostgreSQL DB 를 갖는다**(2026-08-31 확정 · 위 「포털 (외부 채널)」 절의 ★★ 블록 · `ADR-012`). 이 문장을 근거로 그 형상을 금지된 것으로 읽지 말 것.
+  - **귀결 — 이기종 대응을 미리 넣지 않는다.** 포털 복제 upsert 의 `CAST(... AS jsonb)` · `ON CONFLICT ... DO NOTHING` 은 잠정 선택이 아니라 **확정 전제**이므로, 방언 중립(dialect-neutral)으로 되돌리거나 그것을 제약으로 새로 세우지 말 것. 복제본은 원본(control)과 **같은 문법으로 동형**을 유지한다. 판정 진실원은 `INT-009`. ⚠ **2026-08-31 보정** — 이 지침의 대상인 **포털 복제 자체가 폐기 확정**이라 철거와 함께 소멸한다(「포털 (외부 채널)」 절). 철거 전까지는 그대로 유효하다(방언 중립으로 되돌리지 말 것). **PostgreSQL 단일 형상 확정은 복제와 무관하게 유지**된다.
   - ⚠ **낡은 근거를 되살리지 말 것** — 코드 주석의 *"TO_CHAR 가 MariaDB 미지원이라"*(통계 일별·월별 그룹화) · *"H2(local) / MariaDB(dev/stg/prd) 모두 지원"*(배치 큐 잠금)은 **1차 MariaDB 시절 서술**이고 전부 폐기됐다. **local 도 Testcontainers PostgreSQL** 이다. 단 그 서술이 낳은 **동작(Java 측 키 생성 · 비관적 잠금 no-wait)은 그대로 둔다** — 근거만 무효이고 바꿔서 얻는 것이 없다.
   - ⚠ **v1(1차) 관련 MariaDB 기록은 정정 대상이 아니다** — `ADR-010`(MariaDB→PostgreSQL 전환 결정) · LogiCraft `legacy_artifact` 30건의 `legacy_dbms: MariaDB` · ERD 의 `legacy_source.legacy_dbms` 는 **v1 사실의 기록**이라 그대로 둔다.
 - **★스키마 `klid_at` 은 이제 설정으로 실제 배선돼 있다 (2026-08-13 — 전 환경, 구속)**: 그 전까지 이 서술은 **설계 문서에만 있고 코드에는 없었다**(어디에도 스키마 지정이 없어 PostgreSQL 기본값 `public` 으로 떨어져 있었다 — 주석·javadoc 에만 존재하던 드리프트).
