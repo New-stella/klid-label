@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-011
 type: class_diagram
-version: 12
+version: 13
 domain: DOMAIN-013
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:59.710Z
+synced_at: 2026-09-01T12:37:59.557Z
 status: CHANGED
-prev_version: 11
-content_hash: 73c75ba1294702bfc7454f473dc88b4095b1d254390930521a33eebed646a8a9
-stale: false
+prev_version: 12
+content_hash: 3f32d3fd35e3244ca15dfd045df7c3b6a6454945a9b2200cf531fa296b7af1dc
+stale: true
 raw: ./_raw/CDIAG-011.json
 links:
   belongs_to_domain: ["[[DOMAIN-013]]"]
@@ -463,7 +463,8 @@ _(empty)_
 
 [경로 A — 데이터마트 영상 라벨 작업] 포털 회원이 관제 제공 데이터마트 영상을 선택해 기존 라벨을 확인·수정·저장하되 원본(LS_DATA_LBL)을 수정하지 않고 사용자 작업분을 LS_PORTAL_USER_LABEL 에 별도 적재한다. PORTAL_USER_NO 를 IDOR 차단 키로 본인 데이터만 접근한다. ERD-018 기반.
 
-[★경로 B — 본인 자산 업로드 (ADR-013 예외, 2026-07-17 — 이전에 미등재)] 포털 사용자가 직접 올린 이미지·영상은 전용 테이블군으로 관리된다 — LS_PORTAL_ULD(업로드 마스터) · LS_PORTAL_ULD_FRME(추출 프레임) · LS_PORTAL_ULD_LBL(수동 라벨, BBOX/POLYGON 만) · LS_PORTAL_TUS_ULD(재개 업로드 세션). 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View 와 완전 분리된다. 업로드 상태는 UPLOADED→PROCESSING→READY|FAILED.
+[★경로 B — 본인 자산 업로드 (ADR-013 예외, 2026-07-17 — 이전에 미등재)] 포털 사용자가 직접 올린 자산은 전용 테이블군으로 관리된다 — LS_PORTAL_ULD(업로드 마스터) · LS_PORTAL_ULD_FRME(추출 프레임) · LS_PORTAL_ULD_LBL(수동 라벨, BBOX/POLYGON 만) · LS_PORTAL_TUS_ULD(재개 업로드 세션). 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View 와 완전 분리된다. 업로드 상태는 UPLOADED→PROCESSING→READY|FAILED.
+★신규 접수는 영상뿐이다 — 이미지 자산의 신규 접수 경로는 닫혔고 이 모델로 새 이미지 자산이 들어오는 입구는 없다(ADR-013). ★자산 종류의 값역에서 이미지 값을 없애지 않는다 — 없애면 이미 적재된 이미지 자산의 행이 판독 불가가 되기 때문이며, 기존 이미지 자산의 조회·다운로드·삭제는 그대로 유지된다. 값역을 소유하는 것은 업로드 마스터 축이라 이 다이어그램에 그 열거를 두지 않으나 같은 이유가 여기에도 적용된다 — 이 모델을 근거로 값역을 정리하지 말 것.
 
 [경계] 두 경로는 서로 참조하지 않는다.
 ★두 경로 모두 제공하지 않는 것 — 오토라벨링(YOLO)·SAM2 인터랙티브 분할·SAM2 자동추적·키포인트·트랙 번호 변경/병합·검수·버전관리, 그리고 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)이다(ADR-013). SAM2·키포인트 미제공은 2026-08-03 보안 판정으로 서버에서 제거된 축이라 그대로다.

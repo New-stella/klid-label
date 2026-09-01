@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-001",
-  "synced_at": "2026-09-01T08:40:05.714Z",
+  "synced_at": "2026-09-01T12:37:26.519Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -81,8 +81,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 9,
-      "content_hash": "5fdcae090d1966aa622f7659c774e2bc69d3874c0acc6338779cf22adf171bab"
+      "version": 10,
+      "content_hash": "b446a2c95014296c982cc542aa9dce5407eed03c090e263f377468ea3e786789"
     },
     "ADR-055": {
       "type": "adr",
@@ -201,8 +201,8 @@
     "INT-013": {
       "type": "integration_point",
       "domain_id": "DOMAIN-013",
-      "version": 13,
-      "content_hash": "254b82040ba6ed4f12937c36cfe96a812e10df2d5c89cf6eb8c55028764e3014"
+      "version": 16,
+      "content_hash": "62bedd6093c442647a70afb243fb38ab7bb48811dfebc3dd0162bac1959fd456"
     },
     "NFR-008": {
       "type": "nfr",
@@ -309,8 +309,8 @@
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "9b373200683b66162b66078ad809a200cbf8c8ac825d9302bbb568a636f207ea"
+      "version": 12,
+      "content_hash": "404254db8c5b1f3d352ee71aac913f8ae319081a7837686b0a5fbea53668b371"
     },
     "ROLE-004": {
       "type": "permission_role",

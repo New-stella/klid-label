@@ -102,6 +102,6 @@
     "NAV-001",
     "UC-036"
   ],
-  "last_sync_at": "2026-09-01T08:40:14.728Z",
+  "last_sync_at": "2026-09-01T12:37:55.655Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

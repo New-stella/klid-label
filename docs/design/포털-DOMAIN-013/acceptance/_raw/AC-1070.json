@@ -30,7 +30,7 @@
       "priority": "high",
       "scenario": {
         "then": [
-          "이미지는 등록 시점 READY+프레임 1건(FRME_NO=0), 영상은 UPLOADED→추출→READY",
+          "영상은 UPLOADED→추출→READY(UPLOADED→PROCESSING→READY|FAILED). [폐기] 이미지의 등록 시점 READY 적재와 프레임 1건(FRME_NO=0) 생성은 두지 않는다",
           "업로드 영상에 한해 이벤트구간 마킹, BBOX/POLYGON만 수동 라벨링(allowlist fail-closed)",
           "라벨은 전체교체 저장(멱등, 빈배열=전체삭제)",
           "업로드 영상 AI 증강 연동은 검수 없이 비동기 위탁, 결과는 본인만(단방향)"
@@ -39,10 +39,10 @@
           "업로드·마킹·수동 라벨링·AI 증강 요청·다운로드를 한다"
         ],
         "given": [
-          "포털 사용자가 본인 이미지/영상을 업로드한다"
+          "포털 사용자가 본인 영상을 업로드한다"
         ]
       },
-      "statement": "포털 사용자가 이미지(jpg/jpeg/png, 20MB/장, 50장/요청) 또는 영상(mp4/mov/avi, 5GB, TUS 재개 업로드)을 올리면 LS_PORTAL_ULD에 자산을 등록한다 — 이미지는 추출 없이 등록 시점 READY로 적재되고 그 파일을 가리키는 프레임 행 1건(FRME_NO=0)이 함께 생기며, 영상만 UPLOADED로 등록 후 고정 간격 프레임 추출을 거친다(UPLOADED→PROCESSING→READY|FAILED). 업로드 라벨링 화면(SCREEN-034)에서 업로드 영상 자산에 한해 이벤트구간 마킹을 하고(이미지 대상 아님), BBOX/POLYGON만 수동 라벨링하며(오토라벨/SAM2/자동추적/키포인트/검수/버전관리 미제공 — BBOX·POLYGON allowlist로 fail-closed 차단) PUT .../labels로 전체교체(멱등, 빈배열=전체삭제) 저장한다. 업로드 목록(SCREEN-033)에서 업로드 영상 자산에 한해 AI 증강 연동을 요청하며(본인 자산·프레임 추출 완료면 가능, 검수 여부 안 물음 — 이 경로엔 검수 없음, 서버가 외부로 보내는 비동기 위탁), 증강 결과는 요청한 본인에게만 제공한다(마트·원본 미수정, 단방향). 본인 자산(JSON export/원본)을 다운로드한다.",
+      "statement": "포털 사용자가 영상(mp4/mov/avi, 5GiB, TUS 재개 업로드, 사용자별 동시 3건)을 올리면 LS_PORTAL_ULD에 자산을 등록한다 — 영상은 UPLOADED로 등록한 뒤 고정 간격 프레임 추출을 거친다(UPLOADED→PROCESSING→READY|FAILED). 업로드 라벨링 화면(SCREEN-034)에서 업로드 영상 자산에 한해 이벤트구간 마킹을 하고, BBOX/POLYGON만 수동 라벨링하며(오토라벨/SAM2/자동추적/키포인트/검수/버전관리 미제공 — BBOX·POLYGON allowlist로 fail-closed 차단) PUT .../labels로 전체교체(멱등, 빈배열=전체삭제) 저장한다. 업로드 목록(SCREEN-033)에서 업로드 영상 자산에 한해 AI 증강 연동을 요청하며(본인 자산·프레임 추출 완료면 가능, 검수 여부 안 물음 — 이 경로엔 검수 없음, 서버가 외부로 보내는 비동기 위탁), 증강 결과는 요청한 본인에게만 제공한다(마트·원본 미수정, 단방향). 본인 자산(JSON export/원본)을 다운로드한다. [폐기] 이미지 접수(jpg/jpeg/png, 장당 20MiB, 요청당 50장)와 그에 딸린 등록 시점 READY 적재·자기 프레임 행 1건(FRME_NO=0) 생성은 두지 않는다 — 닫히는 것은 신규 접수뿐이며 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 그대로 성립한다.",
       "brownfield": {
         "status": "new"
       },
@@ -68,12 +68,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": true,
-    "stale_reason": "UC-027의 data.covered_by_acceptances 변경 — derived_from",
-    "change_summary": "일부만 충족돼 진행 중으로 둔다 — 구현이나 시험 어느 한쪽이 이 기준의 단언을 다 덮지 못한다. 진행률은 지어내지 않는다(근거 없는 숫자는 다음 사람을 속인다). 상세 사유는 판정 회차 보고에 있다.",
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "업로드·등록 검증을 영상 축으로 좁힌다. ADR-013 v12 확정에 따라 포털 사용자의 이미지 신규 접수가 닫혔으므로, 이미지 등록 시점 READY 적재와 그 이미지 파일 자신을 가리키는 프레임 행 1건(FRME_NO=0) 생성을 전제하던 단언을 폐기 표기한다. 영상 축(재개 가능 업로드·UPLOADED→PROCESSING→READY|FAILED 프레임 추출·이벤트구간 마킹·BBOX/POLYGON 수동 라벨링·전체교체 저장·AI 증강 위탁·다운로드)은 그대로 둔다. 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 계속 성립한다는 점을 함께 적었다. 배열 원소를 지우지 않고 폐기 표기로만 남겼다. 형제 반영분(API-139 v4·UC-027 v19·DFEAT-053 v9·SCREEN-033 v24·SEQ-019 v6)과 정합.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:48.456Z",
+    "last_updated_at": "2026-09-01T10:00:02.612Z",
     "created_at": "2026-08-31T02:21:19.042Z"
   }
 }

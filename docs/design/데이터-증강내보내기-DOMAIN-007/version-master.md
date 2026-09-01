@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-007 |
-| Last sync | 2026-09-01T08:40:00.621Z |
-| Mode | SYNC — NEW 0 / CHANGED 15 / UNCHANGED 62 |
+| Last sync | 2026-09-01T12:37:09.346Z |
+| Mode | SYNC — NEW 0 / CHANGED 1 / UNCHANGED 76 |
 | 출력 루트 | 데이터-증강내보내기-DOMAIN-007 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,7 +20,7 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 46건
-  ℹ️  api_endpoint: 이번 키트 13건 / 스코프 밖 190건
+  ℹ️  api_endpoint: 이번 키트 13건 / 스코프 밖 191건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 4건 / 스코프 밖 22건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 35건
@@ -41,32 +41,18 @@
 
 ## Changelog (this run)
 
-- CHANGED [[AC-1044]] (prev v3)
-- CHANGED [[AC-1045]] (prev v3)
-- CHANGED [[AC-1046]] (prev v5)
-- CHANGED [[AC-1047]] (prev v5)
-- CHANGED [[AC-1048]] (prev v5)
-- CHANGED [[AC-1049]] (prev v4)
-- CHANGED [[DFEAT-029]] (prev v16)
-- CHANGED [[NFR-011]] (prev v5)
-- CHANGED [[NFR-013]] (prev v9)
-- CHANGED [[NFR-014]] (prev v3)
-- CHANGED [[NFR-020]] (prev v8)
-- CHANGED [[UC-001]] (prev v14)
-- CHANGED [[UC-002]] (prev v16)
-- CHANGED [[UC-003]] (prev v15)
-- CHANGED [[UC-010]] (prev v14)
+- CHANGED [[ROLE-003]] (prev v10)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1044]] | acceptance | 4 | CHANGED |
-| [[AC-1045]] | acceptance | 4 | CHANGED |
-| [[AC-1046]] | acceptance | 6 | CHANGED |
-| [[AC-1047]] | acceptance | 6 | CHANGED |
-| [[AC-1048]] | acceptance | 6 | CHANGED |
-| [[AC-1049]] | acceptance | 5 | CHANGED |
+| [[AC-1044]] | acceptance | 4 | UNCHANGED |
+| [[AC-1045]] | acceptance | 4 | UNCHANGED |
+| [[AC-1046]] | acceptance | 6 | UNCHANGED |
+| [[AC-1047]] | acceptance | 6 | UNCHANGED |
+| [[AC-1048]] | acceptance | 6 | UNCHANGED |
+| [[AC-1049]] | acceptance | 5 | UNCHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
 | [[ADR-018]] | adr | 5 | UNCHANGED |
@@ -94,7 +80,7 @@
 | [[API-190]] | api_endpoint | 6 | UNCHANGED |
 | [[CDIAG-010]] | class_diagram | 12 | UNCHANGED |
 | [[CMP-007]] | diagram_c4_component | 7 | UNCHANGED |
-| [[DFEAT-029]] | domain_feature | 17 | CHANGED |
+| [[DFEAT-029]] | domain_feature | 17 | UNCHANGED |
 | [[DFEAT-030]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-007]] | domain | 16 | UNCHANGED |
 | [[ERD-011]] | erd | 25 | UNCHANGED |
@@ -109,21 +95,21 @@
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
-| [[NFR-011]] | nfr | 6 | CHANGED |
+| [[NFR-011]] | nfr | 6 | UNCHANGED |
 | [[NFR-012]] | nfr | 5 | UNCHANGED |
-| [[NFR-013]] | nfr | 10 | CHANGED |
-| [[NFR-014]] | nfr | 4 | CHANGED |
+| [[NFR-013]] | nfr | 10 | UNCHANGED |
+| [[NFR-014]] | nfr | 4 | UNCHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 9 | CHANGED |
+| [[NFR-020]] | nfr | 9 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[NFR-022]] | nfr | 2 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 10 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 12 | CHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 46 | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 41 | UNCHANGED |
@@ -134,7 +120,7 @@
 | [[SEQ-004]] | diagram_sequence | 9 | UNCHANGED |
 | [[SEQ-011]] | diagram_sequence | 9 | UNCHANGED |
 | [[TEST-003]] | test_scenario | 15 | UNCHANGED |
-| [[UC-001]] | use_case | 15 | CHANGED |
-| [[UC-002]] | use_case | 17 | CHANGED |
-| [[UC-003]] | use_case | 16 | CHANGED |
-| [[UC-010]] | use_case | 15 | CHANGED |
+| [[UC-001]] | use_case | 15 | UNCHANGED |
+| [[UC-002]] | use_case | 17 | UNCHANGED |
+| [[UC-003]] | use_case | 16 | UNCHANGED |
+| [[UC-010]] | use_case | 15 | UNCHANGED |

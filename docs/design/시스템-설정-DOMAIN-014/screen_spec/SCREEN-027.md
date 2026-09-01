@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 50
+version: 51
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:40:01.803Z
+synced_at: 2026-09-01T12:37:14.210Z
 status: CHANGED
-prev_version: 47
-content_hash: 4ae5b91a5ec1568eb6bcbb6b3fc4b0356afdacbf1fca0c8d2d4095c0d93bcac0
-stale: false
+prev_version: 50
+content_hash: 521687dea462d3bf7619b303d2c3dd1e02f63354cbccb49b4950fc52cdd7139b
+stale: true
 raw: ./_raw/SCREEN-027.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
@@ -618,7 +618,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-27T20:57:54.582Z
+2026-09-01T08:46:28.922Z
 
 ### module_paths
 

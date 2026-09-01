@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-09-01T08:40:14.728Z |
-| Mode | SYNC — NEW 0 / CHANGED 15 / UNCHANGED 68 |
+| Last sync | 2026-09-01T12:37:55.654Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 81 |
 | 출력 루트 | 비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,7 +20,7 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 5건 / 스코프 밖 43건
-  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 194건
+  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 195건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 21건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 6건 / 스코프 밖 31건
@@ -41,21 +41,8 @@
 
 ## Changelog (this run)
 
-- CHANGED [[DFEAT-041]] (prev v12)
-- CHANGED [[DFEAT-042]] (prev v11)
-- CHANGED [[DFEAT-048]] (prev v16)
-- CHANGED [[NFR-011]] (prev v5)
-- CHANGED [[NFR-013]] (prev v9)
-- CHANGED [[NFR-014]] (prev v3)
-- CHANGED [[NFR-020]] (prev v8)
-- CHANGED [[SD-021]] (prev v4)
-- CHANGED [[SCREEN-008]] (prev v47)
-- CHANGED [[SCREEN-009]] (prev v75)
-- CHANGED [[SCREEN-025]] (prev v46)
-- CHANGED [[UC-011]] (prev v13)
-- CHANGED [[UC-013]] (prev v11)
-- CHANGED [[UC-016]] (prev v25)
-- CHANGED [[UC-019]] (prev v24)
+- CHANGED [[ADR-046]] (prev v9)
+- CHANGED [[ROLE-003]] (prev v10)
 
 ## ITEM 표
 
@@ -76,7 +63,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 9 | UNCHANGED |
+| [[ADR-046]] | adr | 10 | CHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
@@ -92,9 +79,9 @@
 | [[API-202]] | api_endpoint | 2 | UNCHANGED |
 | [[CDIAG-003]] | class_diagram | 11 | UNCHANGED |
 | [[CMP-003]] | diagram_c4_component | 11 | UNCHANGED |
-| [[DFEAT-041]] | domain_feature | 13 | CHANGED |
-| [[DFEAT-042]] | domain_feature | 12 | CHANGED |
-| [[DFEAT-048]] | domain_feature | 17 | CHANGED |
+| [[DFEAT-041]] | domain_feature | 13 | UNCHANGED |
+| [[DFEAT-042]] | domain_feature | 12 | UNCHANGED |
+| [[DFEAT-048]] | domain_feature | 17 | UNCHANGED |
 | [[DFEAT-051]] | domain_feature | 5 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-012]] | domain | 8 | UNCHANGED |
@@ -110,29 +97,29 @@
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
-| [[NFR-011]] | nfr | 6 | CHANGED |
+| [[NFR-011]] | nfr | 6 | UNCHANGED |
 | [[NFR-012]] | nfr | 5 | UNCHANGED |
-| [[NFR-013]] | nfr | 10 | CHANGED |
-| [[NFR-014]] | nfr | 4 | CHANGED |
+| [[NFR-013]] | nfr | 10 | UNCHANGED |
+| [[NFR-014]] | nfr | 4 | UNCHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 9 | CHANGED |
+| [[NFR-020]] | nfr | 9 | UNCHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[NFR-022]] | nfr | 2 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 10 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 12 | CHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 102 | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 48 | CHANGED |
-| [[SCREEN-009]] | screen_spec | 76 | CHANGED |
+| [[SCREEN-008]] | screen_spec | 48 | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 76 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 47 | CHANGED |
+| [[SCREEN-025]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-032]] | screen_spec | 26 | UNCHANGED |
-| [[SD-021]] | screen_design | 6 | CHANGED |
+| [[SD-021]] | screen_design | 6 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |
 | [[SEQ-012]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-013]] | diagram_sequence | 7 | UNCHANGED |
@@ -140,7 +127,7 @@
 | [[SEQ-025]] | diagram_sequence | 5 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 10 | UNCHANGED |
 | [[TEST-008]] | test_scenario | 3 | UNCHANGED |
-| [[UC-011]] | use_case | 14 | CHANGED |
-| [[UC-013]] | use_case | 12 | CHANGED |
-| [[UC-016]] | use_case | 26 | CHANGED |
-| [[UC-019]] | use_case | 25 | CHANGED |
+| [[UC-011]] | use_case | 14 | UNCHANGED |
+| [[UC-013]] | use_case | 12 | UNCHANGED |
+| [[UC-016]] | use_case | 26 | UNCHANGED |
+| [[UC-019]] | use_case | 25 | UNCHANGED |

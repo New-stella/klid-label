@@ -320,7 +320,7 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-27T20:57:54.582Z",
+        "last_updated": "2026-09-01T08:46:28.922Z",
         "module_paths": []
       },
       "required_roles": [
@@ -353,12 +353,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 50,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "출처유형을 필수에서 선택으로 내린다(사용자 판정). 어느 경로에서도 서버가 요구하지 않는 값이었다 — 파이프라인 즉시 실행에서는 전달조차 되지 않고 관제 인입 재현에서도 비우면 기본값이 붙는다. 그런데 화면만 별표를 달고 시작 버튼을 막고 있어, 전달되지 않는 묶음을 화면이 알려 준다는 이 화면의 원칙과 정면으로 어긋났다. 입력칸과 인입 재현에서의 전달은 그대로 두고 강제만 걷는다.",
+    "current_version": 51,
+    "stale": true,
+    "stale_reason": "API-158의 data.attached_files 변경 — consumes",
+    "change_summary": "v50 필수값 정합 반영 — 출처유형 강제 해제, 촬영일시·이벤트유형 필수 표기를 경로 판정에 맞춤",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:34:45.256Z",
+    "last_updated_at": "2026-09-01T08:46:28.922Z",
     "created_at": "2026-05-30T07:55:52.978Z"
   }
 }

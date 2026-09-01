@@ -320,7 +320,7 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-09-01T08:40:00.111Z",
+        "last_updated": "2026-09-01T10:41:57.189Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -329,12 +329,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "400 응답·작업 설명 문구를 실제 판정에 맞춤(cctvId 등록검증 없음). 검증 로직 무변경.",
+    "change_summary": "dev 업로드 시작 창구의 역할 표기를 ADMIN 으로 맞춤(실효 게이트와 일치).",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:40:00.111Z",
+    "last_updated_at": "2026-09-01T10:41:57.190Z",
     "created_at": "2026-07-30T07:05:56.454Z"
   }
 }

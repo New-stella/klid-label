@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-017",
-  "synced_at": "2026-09-01T08:39:58.179Z",
+  "synced_at": "2026-09-01T12:36:59.098Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -339,8 +339,8 @@
     "ROLE-003": {
       "type": "permission_role",
       "domain_id": null,
-      "version": 10,
-      "content_hash": "9b373200683b66162b66078ad809a200cbf8c8ac825d9302bbb568a636f207ea"
+      "version": 12,
+      "content_hash": "404254db8c5b1f3d352ee71aac913f8ae319081a7837686b0a5fbea53668b371"
     },
     "ROLE-004": {
       "type": "permission_role",
@@ -351,8 +351,8 @@
     "SCREEN-039": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-017",
-      "version": 41,
-      "content_hash": "4848251d97c09f64feb1ff1862604f8a07cdcd2803e137887ad55ae40526e799"
+      "version": 42,
+      "content_hash": "e726f4dcbe532295d42ac4dda043a992043fbbc7dc92b425b462afab260da531"
     },
     "TEST-007": {
       "type": "test_scenario",
