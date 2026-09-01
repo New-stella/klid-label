@@ -251,6 +251,104 @@
   </div>
 
   
+  <div class="card section-gap">
+    <div class="card-header">
+      <h2 class="t-title-sm card-title">이관으로 들어온 승인 보류 영상</h2>
+      <span class="card-count t-body-sm">2건 · 페이지당 20건</span>
+    </div>
+
+    <p class="section-note t-body-sm text-muted">외부 산출물을 원본으로 지정해 가져오면 승인 보류가 섭니다. 보류는 검수 승인만 막고 검수 착수·라벨 조회·프레임 이미지 열람은 그대로 열려 있습니다. 외부에서 비식별한 산출물을 받아 여기서 기록하면 풀립니다.</p>
+
+    <div class="table-scroll">
+      <table class="data-table t-body-sm">
+        <caption class="sr-only">이관으로 들어와 승인 보류가 선 영상 목록입니다. 각 행의 비식별 완료 기록 버튼으로 외부 비식별 산출물을 등록해 보류를 풉니다.</caption>
+        <thead>
+          <tr>
+            <th class="col-no">영상 번호</th>
+            <th class="col-video">폴더명</th>
+            <th class="col-when">가져온 시각</th>
+            <th class="col-frame">프레임 수</th>
+            <th class="col-status">보류 사유</th>
+            <th class="col-act">처리</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-open="true">
+            <td class="cell-no t-mono">10493</td>
+            <td class="cell-video">/nas/import/20260901/cam-0417</td>
+            <td class="cell-when">2026-09-01 17:42</td>
+            <td class="cell-frame num">248</td>
+            <td>
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>프레임만 들어옴</span>
+              <span class="cell-reason t-caption">원본 영상이 함께 오지 않아 저작도구가 비식별을 태울 수 없습니다. 외부 산출물을 받아 기록해야 풀립니다.</span>
+            </td>
+            <td class="cell-act"><a class="btn btn-primary btn-sm" href="#dialog-record-deid">비식별 완료 기록</a></td>
+          </tr>
+          <tr data-open="true">
+            <td class="cell-no t-mono">10489</td>
+            <td class="cell-video">/nas/import/20260831/cam-0208</td>
+            <td class="cell-when">2026-08-31 11:06</td>
+            <td class="cell-frame num">176</td>
+            <td>
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>프레임만 들어옴</span>
+              <span class="cell-reason t-caption">원본 영상이 함께 오지 않아 저작도구가 비식별을 태울 수 없습니다. 외부 산출물을 받아 기록해야 풀립니다.</span>
+            </td>
+            <td class="cell-act"><a class="btn btn-primary btn-sm" href="#dialog-record-deid">비식별 완료 기록</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="pagination" aria-label="이관 보류 영상 목록 페이지">
+      <button type="button" class="page-btn" disabled aria-label="이전 페이지">
+        <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+      </button>
+      <button type="button" class="page-btn" aria-current="page">1</button>
+      <button type="button" class="page-btn" disabled aria-label="다음 페이지">
+        <svg width="16" height="16" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+      </button>
+    </nav>
+  </div>
+
+  
+  <div id="dialog-record-deid" class="overlay" role="dialog" aria-modal="true" aria-labelledby="rec-title">
+    <a href="#panel-open" class="overlay-backdrop" aria-hidden="true"></a>
+    <div class="dialog">
+      <div class="dialog-head">
+        <div class="dialog-title-group">
+          <h2 id="rec-title" class="t-title-md dialog-title">비식별 완료 기록</h2>
+          <p class="dialog-sub t-body-sm">영상 번호 <span class="t-mono">10493</span> · 프레임 248건 — 외부에서 비식별한 산출물이 놓인 폴더를 적어 주세요.</p>
+        </div>
+        <a href="#panel-open" class="dialog-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </a>
+      </div>
+
+      <div class="field">
+        <label class="field-label t-label" for="rec-path">비식별 산출물 폴더 경로 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+        <input class="input t-mono" id="rec-path" type="text" placeholder="/nas/deid/20260901/cam-0417" aria-describedby="rec-path-help" />
+        <p id="rec-path-help" class="field-help t-caption">허용된 저장소 범위 밖이거나 그 자리에 산출물이 실재하지 않으면 거부됩니다. 이름이 맞는 파일이 한 건도 없으면 아무것도 기록하지 않고 거부하며 승인 보류는 그대로 남습니다.</p>
+      </div>
+
+      <div class="alert alert-warn" role="alert">
+        <svg class="alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
+        </svg>
+        <div class="alert-body">
+          <p class="t-title-sm">이름이 맞는 파일이 없는 프레임은 비워 둡니다</p>
+          <p class="t-body-sm">비워 둔 프레임이 남으면 그만큼의 프레임이 비식별 이미지 없이 남아 이 영상의 학습데이터 산출물에 빠진 채로 나갑니다. 기록 결과에서 그 수를 함께 알려 드립니다.</p>
+        </div>
+      </div>
+
+      <div class="dialog-foot">
+        <p class="foot-note t-caption">기록이 성공하면 승인 보류가 풀립니다.</p>
+        <a class="btn btn-secondary" href="#panel-open">취소</a>
+        <button type="button" class="btn btn-primary">기록</button>
+      </div>
+    </div>
+  </div>
+
+  
   <div id="dialog-resolve" class="overlay" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
     <a href="#panel-open" class="overlay-backdrop" aria-hidden="true"></a>
     <div class="dialog">

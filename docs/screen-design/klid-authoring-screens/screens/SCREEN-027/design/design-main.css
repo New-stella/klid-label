@@ -717,99 +717,6 @@ a.btn, a.btn:hover { text-decoration: none; }
 .icon-sm { width: 16px; height: 16px; flex-shrink: 0; }
 .icon-lg { width: 32px; height: 32px; flex-shrink: 0; }
 
-/* ── 19. 표 (UI-007 DataTable) — 섹션 ③ 짝 목록 ────────────────────── */
-.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); }
-.data-table { width: 100%; min-width: 880px; }
-.data-table thead th {
-  background: var(--s-0);          /* do_rule: 표 헤더 배경은 secondary 가장 옅은 단계 */
-  color: var(--s-7);
-  text-align: left;
-  padding: var(--sp-sm) var(--sp-md);
-  font-size: 14px;                 /* 사다리 밖(14px/600/1.6) */
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-.data-table tbody td {
-  padding: var(--sp-sm) var(--sp-md);
-  border-bottom: 1px solid var(--n-1);
-  color: var(--n-10);
-  vertical-align: top;
-}
-.data-table tbody tr:last-child td { border-bottom: none; }
-.data-table tbody tr:hover { background: var(--row-hover); }
-
-.batch-table .col-check { width: 48px; }
-.batch-table .col-doc   { width: auto; min-width: 260px; }
-.batch-table .col-video { width: 240px; }
-.batch-table .col-mark  { width: 88px; }
-.batch-table .col-fps   { width: 220px; }
-.batch-table .col-state { width: 132px; }
-.data-table .cell-num, .data-table th.col-mark { text-align: right; }
-.doc-name { word-break: break-all; color: var(--n-10); }
-.cell-dim { color: var(--n-6); }
-/* 사유는 값 아래 줄에 붙인다 — 별도 열로 빼면 사유 없는 행이 대부분이라 빈 열이 넓게 남는다. */
-.cell-reason { display: block; margin-top: 2px; color: var(--n-6); word-break: keep-all; }
-
-/* 확인이 필요한 행 — 역산 속도와 실측 속도가 어긋난 줄. 색만으로 알리지 않도록 배지·사유와 함께 쓴다. */
-.data-table tbody tr.row-warn { background: var(--w-0); }
-.data-table tbody tr.row-warn:hover { background: var(--w-1); }
-.fps-gap { color: var(--w-7); font-weight: 600; }
-/* 적재할 수 없는 행 — 글자를 흐리게 하지 않고 표면만 한 단 낮춘다(흐리면 사유를 읽을 수 없다). */
-.data-table tbody tr.row-blocked { background: var(--n-0); }
-
-/* 선택 상자 — 20px 상자만으로는 hit area 가 모자라 라벨로 44px 를 만든다. */
-.check {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 44px; min-height: 44px; margin: -10px 0;
-}
-.check input { width: 20px; height: 20px; accent-color: var(--p-5); }
-.check input:disabled { cursor: not-allowed; }
-
-.table-note { color: var(--n-6); word-break: keep-all; }
-
-/* ── 20. 일괄 적재 진행 패널 (섹션 ④) ──────────────────────────────── */
-.now-item { color: var(--n-6); }
-/* 파일 이름은 제 줄에서 시작한다 — 안내 문구 끝에 붙으면 확장자만 다음 줄로 떨어져 읽힌다. */
-.now-item .t-mono { display: block; word-break: break-all; }
-/* 집계 — 성공·실패·건너뜀 셋을 나란히 둔다. 셋을 한 줄로 합치면 무엇이 몇 건인지 세어야 한다. */
-.tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-sm); }
-.tally-item {
-  display: flex; flex-direction: column; gap: 2px; align-items: center;
-  padding: var(--sp-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-page);
-}
-.tally-item[data-kind="ok"]   { border-color: var(--su-2); background: var(--su-0); }
-.tally-item[data-kind="fail"] { border-color: var(--e-2);  background: var(--e-0); }
-.tally-key { color: var(--n-7); }
-.tally-val { font-size: 22px; font-weight: 700; line-height: 1.4; color: var(--n-10); }  /* 사다리 title-lg */
-.tally-item[data-kind="ok"] .tally-val   { color: var(--su-7); }
-.tally-item[data-kind="fail"] .tally-val { color: var(--e-7); }
-.tally-note { color: var(--n-6); word-break: keep-all; }
-
-.job-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); }
-.job-head h3 { color: var(--n-9); }
-.select-sm { min-height: 36px; padding: 0 var(--sp-sm); font-size: 15px; }  /* 사다리 밖(15px/400/1.6) */
-.job-filter { min-width: 0; }
-/* 보조 열(320px)에 담기는 표라 두 칸으로 접는다 — 사유는 상태 아래 줄로 흐른다. */
-.job-table { width: 100%; }
-.job-table thead th {
-  text-align: left; padding: var(--sp-xs) 0;
-  font-size: 14px; font-weight: 600; color: var(--n-7);
-  border-bottom: 1px solid var(--border);
-}
-.job-table tbody td { padding: var(--sp-sm) 0; border-bottom: 1px solid var(--n-1); vertical-align: top; }
-.job-table tbody tr:last-child td { border-bottom: none; }
-.job-table thead th:last-child, .job-table tbody td:last-child { width: 128px; }
-.job-doc { color: var(--n-10); word-break: break-all; }
-
-/* 폴더 위치 — 입력과 검사 버튼이 한 줄에 붙는다. */
-.path-row { display: flex; gap: var(--sp-sm); align-items: stretch; }
-.path-row .input { flex: 1 1 auto; min-width: 0; }
-.path-row .btn { flex: 0 0 auto; }
-
 /* ── 18. 반응형 ───────────────────────────────────────────────────── */
 @media (max-width: 1279px) {
   .screen-root { padding: var(--sp-lg) var(--sp-lg) var(--sp-2xl); }
@@ -819,8 +726,6 @@ a.btn, a.btn:hover { text-decoration: none; }
 @media (max-width: 1023px) {
   /* 결과 패널을 폼 아래로 내린다 — 320px 열을 유지하면 폼이 짓눌린다 */
   .work-layout { grid-template-columns: minmax(0, 1fr); }
-  /* 보조 열이 본문 폭으로 펴지면 건별 결과 표의 상태 칸도 함께 넓힌다 */
-  .job-table thead th:last-child, .job-table tbody td:last-child { width: 220px; }
 }
 @media (max-width: 767px) {
   .screen-root { padding: var(--sp-md) var(--sp-md) var(--sp-xl); }
@@ -828,9 +733,6 @@ a.btn, a.btn:hover { text-decoration: none; }
   .reference-panel { padding: var(--sp-md); }
   .reference-grid, .reference-grid.cols-2 { grid-template-columns: minmax(0, 1fr); }
   .form-grid, .form-grid.cols-3 { grid-template-columns: minmax(0, 1fr); }
-  .path-row { flex-direction: column; }
-  .tally { grid-template-columns: minmax(0, 1fr); }
-  .tally-item { flex-direction: row; justify-content: space-between; }
   .page-head { align-items: flex-start; }
 }
 @media (max-width: 479px) {

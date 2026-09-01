@@ -106,7 +106,7 @@
     "schema_version": 1,
     "current_version": 4,
     "stale": true,
-    "stale_reason": "SCREEN-024의 data.sections 변경 — granted_on",
+    "stale_reason": "SCREEN-039의 data.covered_by_acceptances 변경 — granted_on",
     "change_summary": "계층의 적용 범위와 유일한 예외를 본문에 명시한다. 계층이 권한 검사에만 걸리고 그 뒤의 역할 비교에는 안 걸리면 관리자가 관리 기능은 쓰되 검수자가 하는 일에서 거부되어 계층이 반쪽만 성립하므로, 역할로 갈리는 모든 인가 판정에 함께 적용됨을 적는다. 원본(비-비식별) 프레임 이미지 열람은 물려받지 않는 유일한 예외임을 함께 박는다 — 예외가 기록되지 않으면 다음 사람이 빠뜨린 곳으로 보고 열어 버린다. 개별 창구의 「검수자 전용」 표기를 「검수자 이상」으로 읽는다는 해석 규칙도 더한다. 기존 서술과 권한 목록은 하나도 지우지 않는다.",
     "last_updated_by": "sync",
     "last_updated_at": "2026-08-28T14:05:37.931Z",

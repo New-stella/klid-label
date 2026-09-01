@@ -3,10 +3,10 @@ logicraft_item: SCREEN-019
 type: screen_spec
 version: 43
 last_updated_at: 2026-08-27T09:25:32.550Z
-domain: null
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:40:26.647Z
-sync_session: 1
+synced_at: 2026-09-01T08:09:59.453Z
+sync_session: 36
 stale: true
 status: UNCHANGED
 prev_version: null
