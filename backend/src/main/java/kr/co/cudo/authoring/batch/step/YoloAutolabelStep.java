@@ -14,6 +14,7 @@ import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
@@ -387,9 +388,12 @@ public class YoloAutolabelStep implements BatchStep {
             String imageB64 = readImageAsBase64(relPath);
             YoloResponse resp;
             try {
+                // [design: ADR-056] 용도를 배치로 명시한다 — ai-server 의 배치 전용 실행 슬롯으로 가고 서킷도 배치 축을
+                // 쓴다(ADR-056). 명시하지 않으면 화면 슬롯으로 떨어져 작업자 요청과 한 줄에 선다.
                 resp = aiServerClient.predictYoloTrack(
                                 new YoloTrackRequest(imageB64, clipId, frameIndex,
-                                        confThreshold, imgsz, iou))
+                                        confThreshold, imgsz, iou),
+                                AiWorkload.BATCH)
                         .block(Duration.ofSeconds(70));
             } catch (RuntimeException e) {
                 log.error("[Batch][Yolo] failed srcSn={} frameIndex={} err={}",

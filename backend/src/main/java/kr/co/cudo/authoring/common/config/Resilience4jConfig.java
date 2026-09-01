@@ -4,6 +4,7 @@ import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,6 +16,34 @@ public class Resilience4jConfig {
         return registry.circuitBreaker("deid");
     }
 
+    /**
+     * ai-server 추론 호출 CircuitBreaker — <b>용도별로 갈린다</b> (배치 / 저작도구 화면).
+     *
+     * <p>구 형상은 인스턴스 하나({@code "ai"})를 다섯 호출이 공유했다. 그러면 <b>배치가 연달아
+     * 실패해 서킷이 열릴 때 화면 요청까지 함께 30초 막힌다</b> — ai-server 안에서 실행 슬롯을 아무리
+     * 잘 나눠도 이 차단은 호출하는 쪽에서 일어나므로 막히지 않는다. 슬롯 분리와 서킷 분리는
+     * <b>짝이며 하나만 하면 반쪽</b>이다({@code ADR-056}).
+     *
+     * <p>인스턴스 이름은 {@link AiWorkload#circuitName()} 하나가 만든다 — 여기에 문자열을 다시 적지
+     * 않는다. 이중화가 들어오면 노드 축이 그 메서드에 인자로 추가된다.
+     */
+    @Bean(name = "aiBatchCircuitBreaker")
+    public CircuitBreaker aiBatchCircuitBreaker(CircuitBreakerRegistry registry) {
+        return registry.circuitBreaker(AiWorkload.BATCH.circuitName());
+    }
+
+    /** ai-server 추론 호출 CircuitBreaker — 저작도구 화면 경로. 근거는 {@link #aiBatchCircuitBreaker}. */
+    @Bean(name = "aiInteractiveCircuitBreaker")
+    public CircuitBreaker aiInteractiveCircuitBreaker(CircuitBreakerRegistry registry) {
+        return registry.circuitBreaker(AiWorkload.INTERACTIVE.circuitName());
+    }
+
+    /**
+     * ai-server 객체 검증 경로 전용 CircuitBreaker — 용도 축에 넣지 않는다.
+     *
+     * <p>그 경로는 추론 모델을 올리지 않고 정해진 형태의 응답만 돌려주므로 가속기 부하가 없다.
+     * 배치·화면 어느 쪽에 묶어도 의미가 없고, 오히려 그쪽 실패율 계산에 <b>잡음</b>만 넣는다.
+     */
     @Bean(name = "aiCircuitBreaker")
     public CircuitBreaker aiCircuitBreaker(CircuitBreakerRegistry registry) {
         return registry.circuitBreaker("ai");

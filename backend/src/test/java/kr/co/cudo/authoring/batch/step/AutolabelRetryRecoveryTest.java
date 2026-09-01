@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -141,11 +143,11 @@ class AutolabelRetryRecoveryTest {
                 rawDir.toString(), devEnv);
 
         when(srcRepository.findByRawSnOrderByFrameNoAsc(RAW_SN)).thenReturn(List.of(newSrc(SRC_SN)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(10.0, 20.0, 30.0, 40.0), 0.92),
                         new YoloResponse.Detection("car", List.of(50.0, 60.0, 70.0, 80.0), 0.81)))));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(
                         List.of(List.of(1.0, 2.0), List.of(3.0, 4.0), List.of(5.0, 6.0)), 0.9)));
     }
@@ -253,9 +255,9 @@ class AutolabelRetryRecoveryTest {
         assertThat(savedPolygons).isZero();
         assertThat(persisted).isEmpty();
         verify(lblRepository, never()).saveAll(any());
-        verify(aiServerClient, never()).segment(any(Sam2Request.class));
+        verify(aiServerClient, never()).segment(any(Sam2Request.class), any(AiWorkload.class));
         // YOLO 추론은 도는 것이 정상이다 — 그 대가로 조용한 손실을 없앴다(인지·수용).
-        verify(aiServerClient, times(1)).predictYoloTrack(any(YoloTrackRequest.class));
+        verify(aiServerClient, times(1)).predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
         verify(srcRepository, never()).bumpLabelVersionIn(any());
     }
 }

@@ -771,17 +771,33 @@ kpst:
 
 resilience4j:
   circuitbreaker:
+    configs:
+      # ai-server 추론 호출 공통값 — 용도별(그리고 나중에 노드별) 인스턴스가 이 값을 물려받는다.
+      # 인스턴스가 늘어날 때 값을 복제하지 않기 위한 자리다.
+      aiShared:
+        failure-rate-threshold: 50
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        wait-duration-in-open-state: 30s
     instances:
       deid:
         failure-rate-threshold: 50
         sliding-window-size: 10
         minimum-number-of-calls: 5
         wait-duration-in-open-state: 30s
+      # ai-server 추론 — 용도별로 가른다(ADR-056). 구 형상은 인스턴스 하나를 다섯 호출이 공유해서,
+      # 배치가 연달아 실패해 서킷이 열리면 화면 요청까지 함께 막혔다. 그 차단은 호출하는 쪽에서
+      # 일어나므로 ai-server 안에서 실행 슬롯을 나눠도 막히지 않는다 — 슬롯 분리와 짝이다.
+      # ⚠ 이름은 AiWorkload.circuitName() 이 만든다. 여기 값을 고칠 때 그 열거형과 어긋나면
+      #   설정이 안 붙은 채 기본값으로 조용히 동작한다(오류가 나지 않는다).
+      ai-batch:
+        base-config: aiShared
+      ai-interactive:
+        base-config: aiShared
+      # 객체 검증 경로 전용 — 용도 축 밖이다. 추론 모델을 올리지 않아 가속기 부하가 없고,
+      # 배치·화면 어느 쪽에 묶어도 그쪽 실패율에 잡음만 넣는다.
       ai:
-        failure-rate-threshold: 50
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        wait-duration-in-open-state: 30s
+        base-config: aiShared
       # Phase 1 — 외부 VLM 시계열 위탁 클라이언트
       vlmClient:
         failure-rate-threshold: 50
