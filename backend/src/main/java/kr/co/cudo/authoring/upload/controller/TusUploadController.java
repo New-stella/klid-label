@@ -33,7 +33,7 @@ import java.io.InputStream;
 import java.util.UUID;
 
 /**
- * TUS 1.0 재개 가능 업로드 endpoint (관리 화면 대용량 영상 적재 — REVIEWER/INTERNAL 전용).
+ * TUS 1.0 재개 가능 업로드 endpoint (관리 화면 대용량 영상 적재 — INTERNAL 채널 전용).
  *
  * <p><b>응답 형식 결정 (근거)</b>: 본 컨트롤러는 표준 {@code ApiResponse<T>} 래퍼를 사용하지
  * 않고 <b>TUS 1.0 프로토콜 규약(헤더 기반)</b>을 따른다. tus-js-client 등 표준 클라이언트는
@@ -46,11 +46,14 @@ import java.util.UUID;
  * {@code CustomException} → {@code GlobalExceptionHandler} 가 {@code ApiResponse.error} JSON 으로
  * 응답하되 상태코드(409/410/412/413/429/403)는 TUS 의미를 그대로 유지한다.
  *
- * <p>인증/인가: SecurityConfig {@code /v1/**}(INTERNAL 채널) + {@code @PreAuthorize("hasRole('REVIEWER')")}.
+ * <p>인증/인가: SecurityConfig {@code /v1/**}(INTERNAL 채널) + 메서드 {@code @PreAuthorize}.
+ * <b>역할은 창구마다 갈린다</b> — 세션 생성({@code POST})은 {@code hasRole('ADMIN')} 이고, 이어
+ * 올리기({@code PATCH})·취소({@code DELETE})·진행 위치 조회({@code HEAD})·능력 광고({@code OPTIONS})는
+ * {@code hasRole('REVIEWER')} 다. 그 비대칭의 근거는 아래 유효창 문단에 있다.
  * 세션 소유자 검증(HIGH-8)은 서비스에서 USER_NO(토큰 sub) 기준 수행.
  *
  * <h3>관리자 단기 유효창은 <b>세션 생성 한 곳</b>에만 요구한다 [@design ADR-046 · API-158]</h3>
- * <p>업로드 시작({@link #create})은 운영·관리 성격의 쓰기라 검수자 권한만으로 열리지 않고
+ * <p>업로드 시작({@link #create})은 운영·관리 성격의 쓰기라 <b>관리자 권한</b>을 요구하고 그 위에
  * {@link RequiresAdminSession} 이 붙는다. 반면 {@code PATCH}(이어 올리기)·{@code DELETE}(취소)·
  * {@code HEAD}(진행 위치)·{@code OPTIONS}(능력 광고)에는 <b>요구하지 않는다</b> — 대용량 영상은
  * 유효창(기본 10분)보다 오래 걸려, 조각마다 요구하면 큰 파일은 <b>구조적으로 올릴 수 없다</b>.
@@ -60,6 +63,15 @@ import java.util.UUID;
  * 넘겨 {@code LS_TUS_UPLOAD.USER_NO}(NOT NULL)와 대조하므로, 식별자를 알아도 소유자가 아니면 이어
  * 쓸 수 없다. 그리고 그 소유자는 <b>유효창을 연 바로 그 사람</b>이다 — 두 판정이 같은 자격 주체
  * ({@code sub})를 기준으로 하기 때문이며, 이 소유자 규칙은 이번에 신설한 것이 아니다.
+ *
+ * <p>⚠ <b>이어 올리기·취소·진행 위치 조회의 역할을 관리자로 함께 올리지 말 것</b> — 유효창을 넓히지
+ * 않은 것과 같은 이유다. 그 자리를 지키는 것은 역할이 아니라 <b>소유자 판정</b>이며(바로 위 문단),
+ * 그 소유자는 시작 창구에서 관리자 권한과 유효창을 함께 통과한 바로 그 사람이다. 이 비대칭은
+ * 의도된 것이다. [@design API-158 · AC-1087]
+ *
+ * <p>시작 창구의 역할이 <b>관리자</b>인 이유: 유효창을 발급하는 창구({@code POST /v1/manage/admin-session})가
+ * 관리자 전용이고 그 판정이 <b>역할 계층을 타지 않는 enum 동등 비교</b>라, 검수자는 유효창 자체를
+ * 얻을 수 없다. 실효 게이트는 이전부터 관리자였고 표기만 검수자로 남아 있었다. [@design ROLE-004 · ADR-055]
  *
  * <p>⚠ 포털 채널 이용자의 자기 자산 업로드({@code /v1/portal/uploads/**})는 <b>이 요구의 대상이
  * 아니다</b> — 관리 행위가 아니라 그 이용자 본인의 데이터이며, 함께 묶으면 그 기능이 성립하지 않는다.
@@ -133,7 +145,7 @@ public class TusUploadController {
      * (폴링이 꺼진 형상에서 "업로드는 됐는데 영영 적재 안 됨"이 화면에 드러나게 한다).
      *
      * <h3>★ 관리자 단기 유효창을 요구하는 <b>유일한</b> 업로드 창구다 [@design ADR-046 · API-158]</h3>
-     * <p>검수자 권한에 <b>가산</b>되며 대체하지 않는다 — 유효창은 역할을 승격시키지 않는다. 토큰은
+     * <p>관리자 권한에 <b>가산</b>되며 대체하지 않는다 — 유효창은 역할을 승격시키지 않는다. 토큰은
      * {@code X-Admin-Session} 헤더로 싣고, 없거나 만료·위조·타인 토큰이면 <b>모두 같은 403·같은
      * 문구</b>다(권한 부족과도 구분하지 않는다 — 응답이 유효창 보유 여부의 오라클이 되면 안 된다,
      * CWE-209).
@@ -142,9 +154,9 @@ public class TusUploadController {
      * 레벨로 올리지 말 것 — 그 순간 대용량 업로드가 유효창 만료 시점에 끊긴다(이 라운드의 최악 회귀).
      * 근거는 클래스 javadoc 의 소유자 판정 문단에 있다.
      */
-    @Operation(summary = "TUS 업로드 세션 생성 (REVIEWER + 관리자 단기 유효창) — 인입 메타는 JSON 바디")
+    @Operation(summary = "TUS 업로드 세션 생성 (ADMIN + 관리자 단기 유효창) — 인입 메타는 JSON 바디")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasRole('REVIEWER')")
+    @PreAuthorize("hasRole('ADMIN')")
     @RequiresAdminSession
     public ResponseEntity<Void> create(
             @RequestHeader(value = H_RESUMABLE, required = false) String tusResumable,
