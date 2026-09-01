@@ -245,6 +245,16 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+      # ★인증 없이 열려 있는 /actuator/health 한 번이 <노드 수만큼의 순차 블로킹 핑>을 낸다
+      #   (AiServerHealthIndicator — 각 상한 2초). TTL 이 없으면 매 요청 재실행이라 익명 요청이
+      #   서블릿 스레드를 노드 수 x 2초씩 점유하고, 동시 요청이 스레드 상한을 채우면 앱 전체가
+      #   무응답이 된다(CWE-770). 캐시를 고른 이유는 <증폭 자체를 없애기> 때문이다 — 병렬 핑은
+      #   한 번의 소요만 줄이고 요청 수만큼의 증폭은 그대로 둔다. 익명 호출은 캐시 키가 같아
+      #   전부 한 항목을 공유한다.
+      #   TTL 은 노드 관측 주기(poll-interval-seconds 기본 5초)와 같다 — 그보다 짧게 잡아도
+      #   원장·핑이 더 새로운 값을 내주지 않는다.
+      cache:
+        time-to-live: ${ACTUATOR_HEALTH_CACHE_TTL:5s}
 
 # Springdoc OpenAPI / Swagger UI — FE 개발 DX.
 #   - swagger-ui.persist-authorization: 브라우저 새로고침 후에도 Authorize 토큰 유지 (핵심 DX).
@@ -475,6 +485,37 @@ authoring:
     ai-server:
       base-url: ${AI_SERVER_URL:http://localhost:9300}
       # 타임아웃은 resilience4j.timelimiter.instances.ai(60s) 가 단일 출처다.
+      #
+      # --- 노드 관측(상태점검·부하) — ADR-057 -------------------------------------------------
+      # base-url 은 원장이 비어 있을 때의 <씨앗>이고, 그 뒤로는 LS_AI_SRVR 원장이 이긴다.
+      # 아래 값들은 그 원장을 주기적으로 갱신하는 배치의 설정이다.
+      #
+      # ★ poll-enabled 기본값이 false 인 것은 미완성이라서가 아니라 <의도된 배포 형상>이다.
+      #   상태 점검과 부하 조회는 둘 다 추론 서버가 요청을 받아 응답할 여유가 있어야 성립하는데,
+      #   추론 서버가 실행을 용도별로 나누기 전에는 추론이 처리 흐름을 통째로 붙잡아 상태 점검조차
+      #   늦어진다. 그 시기에 켜면 <바쁜 장비를 죽은 장비로 오판>하고, 장비가 둘 이상이면 먼저
+      #   판정된 하나는 「마지막 가용 노드 보호」에 걸리지 않아 <멀쩡한 장비를 하나 잃는다>.
+      #   그래서 부하 축만이 아니라 상태 점검 축까지 함께 끄고 들어가며, 실행이 용도별로 나뉜 뒤에 켠다.
+      #   켜짐/꺼짐은 잡 <등록 여부> 자체를 가른다(꺼져 있으면 이 관측 배치는 외부 호출을 한 건도
+      #   내지 않는다). ⚠ 시스템 전체로 확대해 읽지 말 것 — /actuator/health 의 ai-server 인디케이터는
+      #   이 설정과 무관하게 호출될 때마다 노드를 직접 핑한다(배치가 꺼져 있어 원장 값이 갱신되지
+      #   않으므로 그것이 의도다).
+      #   ⚠ 이 값은 잡 등록 조건 @ConditionalOnProperty(havingValue="true") 가 읽는다 — "true" 만
+      #   참이며 1/on/yes 는 <꺼짐>이다(폴러도 같은 규칙으로 읽는다).
+      poll-enabled: ${AI_SERVER_POLL_ENABLED:false}
+      # 상태점검 주기(초). ⚠ 노드 수 x 핑 상한(2초)이 이 값을 넘으면 틱이 뒤로 밀린다.
+      poll-interval-seconds: ${AI_SERVER_POLL_INTERVAL_SECONDS:5}
+      # 부하 조회(GET /internal/load) 상한(ms). ★ 이 상한을 넘긴 것을 「포화」로 읽지 않는다 —
+      #   그 경로는 슬롯을 거치지 않으므로 느린 것은 부하 신호가 아니라 배선·프로세스 이상 신호다.
+      #   부하를 미상으로 두고 직전 값을 유지하며, 연속 실패 판정은 상태점검 축이 따로 한다.
+      load-timeout-ms: ${AI_SERVER_LOAD_TIMEOUT_MS:500}
+      # 평활 표본 수 — 최근 N회 관측의 <최대값>을 쓴다(평균이 아니다). 과소평가는 이미 밀린 노드에
+      #   요청을 더 얹지만, 과대평가는 요청을 옆 노드로 보낼 뿐이라 손해가 작은 쪽을 골랐다.
+      smoothing-window: ${AI_SERVER_SMOOTHING_WINDOW:3}
+      # 연속 실패 N회 -> 이용불가 / 연속 성공 N회 -> 복귀. 한 번의 네트워크 흔들림으로 장비를
+      #   잃지 않으려고 연속을 센다(둘 다 하한 1로 클램프).
+      fail-threshold: ${AI_SERVER_FAIL_THRESHOLD:3}
+      recover-threshold: ${AI_SERVER_RECOVER_THRESHOLD:3}
   batch:
     # Phase 5 배치 파이프라인
     enabled: ${BATCH_ENABLED:true}

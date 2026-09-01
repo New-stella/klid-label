@@ -69,16 +69,22 @@ public class LsAiSrvr {
     @Column(name = "SRVR_STTS_CD", nullable = false, length = 20)
     private AiSrvrStatus srvrSttsCd;
 
-    /** 대기건수(큐 길이) — 「부하」는 표준용어에 없어 실제로 재는 값으로 적었다. */
-    @Column(name = "WTNG_NOCS", nullable = false)
-    private Integer wtngNocs;
-
     @Column(name = "CHCK_DT")
     private LocalDateTime chckDt;
 
     /** 상태점검 <b>연속</b> 실패 횟수 — 한 번의 네트워크 흔들림으로 노드를 내리지 않기 위한 축이다. */
     @Column(name = "CHCK_FAIL_NOCS", nullable = false)
     private Integer chckFailNocs;
+
+    /**
+     * 상태점검 <b>연속</b> 성공 횟수 — 이용불가 노드의 복귀 판정 축이다.
+     *
+     * <p>실패 카운터를 부호 있는 값으로 겸용하지 않고 컬럼을 따로 둔 이유는, 한 컬럼에 두 축을 담으면
+     * 읽는 쪽마다 해석이 갈리기 때문이다. 폴링 노드의 메모리에 두지 않는 이유는 2노드가 틱을 나눠 갖고
+     * (클러스터링이 틱마다 한 노드에서만 발화시킨다) 재기동으로도 사라지기 때문이다.
+     */
+    @Column(name = "CHCK_SCS_NOCS", nullable = false)
+    private Integer chckScsNocs;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -96,8 +102,8 @@ public class LsAiSrvr {
         this.srvrAddr = srvrAddr;
         this.srvrTypeCd = srvrTypeCd;
         this.srvrSttsCd = AiSrvrStatus.AVAILABLE;
-        this.wtngNocs = 0;
         this.chckFailNocs = 0;
+        this.chckScsNocs = 0;
         this.regDt = regDt;
     }
 
@@ -113,5 +119,39 @@ public class LsAiSrvr {
     public static LsAiSrvr register(String srvrId, String srvrNm, String srvrAddr,
                                     SrvrType srvrTypeCd, LocalDateTime regDt) {
         return new LsAiSrvr(srvrId, srvrNm, srvrAddr, srvrTypeCd, regDt);
+    }
+
+    /**
+     * 상태점검이 성공했다 — 연속 실패를 끊고 연속 성공을 쌓는다.
+     *
+     * <p><b>상태를 바꾸지 않는다.</b> 복귀 판정(연속 N회 성공)은 두 카운터만으로 결정되지 않고
+     * 현재 상태에 따라 달라지므로, 그 전이는 저장소의 조건부 UPDATE 가 원자적으로 수행한다.
+     *
+     * @return 갱신된 연속 성공 횟수
+     */
+    public int recordCheckSuccess(LocalDateTime checkedAt) {
+        this.chckDt = checkedAt;
+        this.chckFailNocs = 0;
+        this.chckScsNocs = safe(this.chckScsNocs) + 1;
+        return this.chckScsNocs;
+    }
+
+    /**
+     * 상태점검이 실패했다 — 연속 성공을 끊고 연속 실패를 쌓는다.
+     *
+     * <p>연속 성공을 <b>0으로 되돌리는</b> 것이 핵심이다. 이어서 세면 "연속"이 아니게 되어, 흔들리는
+     * 노드가 성공을 띄엄띄엄 모아 복귀했다가 다시 내려가는 왕복을 반복한다.
+     *
+     * @return 갱신된 연속 실패 횟수
+     */
+    public int recordCheckFailure(LocalDateTime checkedAt) {
+        this.chckDt = checkedAt;
+        this.chckScsNocs = 0;
+        this.chckFailNocs = safe(this.chckFailNocs) + 1;
+        return this.chckFailNocs;
+    }
+
+    private static int safe(Integer value) {
+        return value == null ? 0 : value;
     }
 }

@@ -49,4 +49,29 @@ public interface LsAiSrvrRepository extends JpaRepository<LsAiSrvr, String> {
                AND (SELECT count(*) FROM available) > 1
             """, nativeQuery = true)
     int demoteIfNotLastAvailable(@Param("srvrId") String srvrId, @Param("next") String next);
+
+    /**
+     * 이용불가 노드를 <b>가용으로 되돌린다</b> — 연속 성공이 복귀 임계에 닿았을 때만 호출한다.
+     *
+     * <h3>왜 여기에 두는가</h3>
+     * <p>강등과 달리 복귀는 가용 노드를 <b>줄이지 않으므로</b> 마지막 노드 보호와 무관하다. 그래도
+     * 엔티티 필드를 직접 바꾸지 않고 조건부 UPDATE 로 두는 이유는 두 가지다 — (1)출발 상태를
+     * {@code UNAVAILABLE} 로 못 박아 <b>금지 전이</b>(정비중→가용을 배치가 임의로 하는 것)를 SQL
+     * 한 줄이 막고, (2)두 WAS 가 같은 틱에 겹쳐도 한쪽만 실제로 갱신한다.
+     *
+     * <p>연속 카운터 둘을 <b>같은 문장에서</b> 0으로 되돌린다. 복귀 직후 카운터가 남아 있으면 다음
+     * 실패 한 번에 임계를 넘겨 곧바로 다시 내려간다.
+     *
+     * @return 영향 행수. 0 이면 이미 다른 노드가 되돌렸거나 그 사이 상태가 바뀐 것이다(정상)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE LS_AI_SRVR
+               SET SRVR_STTS_CD = 'AVAILABLE',
+                   CHCK_FAIL_NOCS = 0,
+                   CHCK_SCS_NOCS = 0
+             WHERE SRVR_ID = :srvrId
+               AND SRVR_STTS_CD = 'UNAVAILABLE'
+            """, nativeQuery = true)
+    int promoteIfUnavailable(@Param("srvrId") String srvrId);
 }

@@ -92,8 +92,8 @@ class AiSrvrLedgerIT {
         // given · when · then — 상태 축은 네 값뿐이다. 오타 상태가 들어가면 전이 판정이 통째로 무너진다.
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO ls_ai_srvr (srvr_id, srvr_addr, srvr_type_cd, srvr_stts_cd,
-                                        wtng_nocs, chck_fail_nocs, reg_dt)
-                VALUES ('gpu09', 'http://ai.internal:9300', 'INFERENCE', 'ZOMBIE', 0, 0, now())
+                                        chck_fail_nocs, reg_dt)
+                VALUES ('gpu09', 'http://ai.internal:9300', 'INFERENCE', 'ZOMBIE', 0, now())
                 """))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }

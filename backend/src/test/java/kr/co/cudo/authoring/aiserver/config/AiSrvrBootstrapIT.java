@@ -164,9 +164,9 @@ class AiSrvrBootstrapIT {
                     "ALTER TABLE ls_ai_srvr DROP CONSTRAINT ck_ls_ai_srvr_srvr_id_format");
             jdbcTemplate.update("""
                     INSERT INTO ls_ai_srvr (srvr_id, srvr_addr, srvr_type_cd, srvr_stts_cd,
-                                            wtng_nocs, chck_fail_nocs, reg_dt)
+                                            chck_fail_nocs, reg_dt)
                     VALUES ('klid-ai-gpu-01', 'http://10.0.0.11:9300', 'INFERENCE', 'AVAILABLE',
-                            0, 0, now())
+                            0, now())
                     """);
 
             // when · then — 경고가 아니라 기동 차단이다. 지금 막지 않으면 어긋남이 한참 뒤
