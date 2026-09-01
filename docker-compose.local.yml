@@ -75,11 +75,9 @@ services:
       # Phase 7-B 실동작 설정 — VLM describe 위탁도 목 서버로 실제 POST 한다(내부 목모드 우회 금지).
       #   목의 POST /v1/videovlm/describe 가 즉시 accepted 를 돌려주고, 이후 콜백
       #   (POST /v1/vlm/callback)으로 구간별 결과를 push 하므로 위탁↔콜백 왕복이 실동작으로 검증된다.
-      #   ★ 목은 TLS 미지원 평문 http + docker 브리지 사설 IP 라 완화 플래그가 함께 필요하다.
-      #     이 완화는 local/dev 프로파일에서만 인정되며, 그 밖의 프로파일에서 켜면 기동이 실패한다
-      #     (VlmUrlPolicy fail-closed — 운영으로 새지 않는다).
+      #   ★ 목은 TLS 미지원 평문 http + docker 브리지 사설 IP 인데, 그 형태가 전 프로파일에서
+      #     그대로 통과한다(2026-08-10 확정). 구 완화 플래그 VLM_ALLOW_INSECURE_URL 은 제거됐다.
       VLM_SERVICE_URL: "http://klid-mock-server:9400"
-      VLM_ALLOW_INSECURE_URL: "true"
       # 목이 발사하는 웹훅이 컨테이너 네트워크에서 BE 에 실제로 닿으려면 콜백 base 가 서비스명이어야 한다
       #   (기본값 localhost:8080 은 목 컨테이너 자신을 가리킨다). klid-backend:8080 은 목의 SSRF
       #   allowlist 기본값에 포함돼 있다. 수신 컨트롤러는 GenAiCallbackController(/v1/genai/callback).

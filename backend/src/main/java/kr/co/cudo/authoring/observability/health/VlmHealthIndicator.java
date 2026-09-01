@@ -1,7 +1,10 @@
 package kr.co.cudo.authoring.observability.health;
 
+import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrRegistry;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmServerStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.context.annotation.Conditional;
@@ -11,6 +14,8 @@ import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * 외부 시계열 분석(VLM) 서버 헬스 체크.
@@ -46,11 +51,27 @@ import java.time.Duration;
  * 그래서 문자열 파싱이 없는 {@link VlmUrlPresentCondition} 으로 판정한다(그 클래스 javadoc 이 근거의
  * 단일 지점이다). 판정 축은 "키 존재"가 아니라 <b>"값이 비지 않음"</b>이다.
  *
+ * <h3>원장 노드는 <b>세어서 보여만</b> 준다 (ADR-057)</h3>
+ * <p>노드 원장에는 시계열 축({@link LsAiSrvr.SrvrType#TIMESERIES})도 담을 수 있어, 이 인디케이터도
+ * 「노드별 집계」로 바꾸는 것이 형제(ai-server)와 대칭이다. 다만 <b>판정은 여전히 연동 클라이언트가
+ * 한다</b> — 이유는 셋이다.
+ * <ul>
+ *   <li>이 채널의 상태 창구는 규격이 정한 전용 경로이지 {@code /health} 가 아니다. 노드마다 그 경로를
+ *       부르려면 주소·인증 헤더·TLS 구성을 노드별로 갈라야 하는데, 그 배선은 아직 없다.</li>
+ *   <li>원장에 시계열 노드를 넣는 운영이 아직 시작되지 않았다. 지금 판정을 원장으로 옮기면 <b>노드 0건</b>
+ *       이 되어 상시 DOWN 이 된다 — 관제 인디케이터가 겪은 사고와 정확히 같은 형태다.</li>
+ *   <li>위탁은 실제로 이 클라이언트로 나간다. 헬스가 다른 경로를 보면 <b>실행 경로와 갈라진다</b>.</li>
+ * </ul>
+ * <p>그래서 원장에 등록된 시계열 노드는 <b>상세에만</b> 싣는다(등록 사실과 원장 상태). 등록이 시작되면
+ * 그 목록이 드러나고, 노드별 위탁 배선이 생기는 시점에 판정 축을 옮긴다.
+ *
  * <h3>보안</h3>
  * <ul>
  *   <li>CWE-209: 예외는 <b>클래스명만</b> 노출한다. 스택트레이스·주소·토큰·응답 본문을 싣지 않는다.</li>
+ *   <li>CWE-497: 원장 노드는 <b>식별자만</b> 싣는다. 주소는 내부 토폴로지다.</li>
  * </ul>
  */
+@Slf4j
 @Component("vlmHealth")
 @Conditional(VlmUrlPresentCondition.class)
 public class VlmHealthIndicator implements HealthIndicator {
@@ -76,9 +97,38 @@ public class VlmHealthIndicator implements HealthIndicator {
     private static final String DECODED = "decoded";
 
     private final VlmClient vlmClient;
+    private final AiSrvrRegistry registry;
 
-    public VlmHealthIndicator(VlmClient vlmClient) {
+    public VlmHealthIndicator(VlmClient vlmClient, AiSrvrRegistry registry) {
         this.vlmClient = vlmClient;
+        this.registry = registry;
+    }
+
+    /**
+     * 원장에 등록된 시계열 노드를 상세에 싣는다 — <b>식별자와 원장 상태만</b>.
+     *
+     * <p>원장 조회가 실패해도 헬스 판정을 바꾸지 않는다. 이것은 부가 정보이고, 여기서 DOWN 을 내면
+     * 우리 DB 문제로 외부 시스템이 죽은 것처럼 보인다.
+     */
+    private Health.Builder withLedgerNodes(Health.Builder builder) {
+        try {
+            Map<String, String> byNode = new LinkedHashMap<>();
+            registry.findAll().stream()
+                    .filter(node -> node.getSrvrTypeCd() == LsAiSrvr.SrvrType.TIMESERIES)
+                    .forEach(node -> byNode.put(node.getSrvrId(), node.getSrvrSttsCd().name()));
+            builder.withDetail("nodes", byNode.size());
+            if (!byNode.isEmpty()) {
+                builder.withDetail("byNode", byNode);
+            }
+        } catch (Exception ledgerUnavailable) {
+            // 원장을 못 읽은 것은 이 외부 시스템의 상태와 무관하다 — 축을 빼고 넘어간다.
+            // ★다만 <완전 침묵>은 두지 않는다. 판정에 반영하지 않는 것과 흔적조차 남기지 않는 것은
+            //   다르다 — 로그가 없으면 부가 축이 조용히 사라진 것을 아무도 알아채지 못한다.
+            //   ⚠ 예외 메시지·스택트레이스는 싣지 않는다(CWE-209). 클래스명만 남긴다.
+            log.debug("[Vlm] 헬스 상세의 원장 노드 축을 생략합니다(판정에는 영향 없음). 원인={}",
+                    ledgerUnavailable.getClass().getSimpleName());
+        }
+        return builder;
     }
 
     @Override
@@ -101,7 +151,7 @@ public class VlmHealthIndicator implements HealthIndicator {
                     up.withDetail("pending", status.pending());
                 }
             }
-            return up.build();
+            return withLedgerNodes(up).build();
         } catch (WebClientResponseException e) {
             // 응답이 온 경우 — 서버는 살아 있다. 상태코드만 싣고 본문은 싣지 않는다(CWE-209).
             //   ① 4xx·5xx: retrieve() 의 기본 상태 핸들러가 던진다.
@@ -113,22 +163,22 @@ public class VlmHealthIndicator implements HealthIndicator {
             if (e.getCause() instanceof UnsupportedMediaTypeException) {
                 up.withDetail(DECODED, false);
             }
-            return up.build();
+            return withLedgerNodes(up).build();
         } catch (DecodingException e) {
             // 응답은 도달했는데(2xx) 본문이 우리가 기대한 JSON 이 아니라 디코딩에 실패한 경우.
             //   리버스 프록시·LB 가 "200 + HTML 오류 페이지" 를 돌려주는 형상이 대표적이다.
             //   응답이 온 이상 서버는 살아 있으므로 UP 이며, 이것을 DOWN 으로 내리면 위 관제 사고와
             //   똑같이 집계 헬스가 상시 DOWN 이 된다. 해석 실패 사실만 축으로 싣는다.
             //   ⚠ 예외 메시지에는 본문 조각이 섞일 수 있으므로 절대 싣지 않는다(CWE-209).
-            return Health.up()
+            return withLedgerNodes(Health.up()
                     .withDetail("service", SERVICE)
-                    .withDetail(DECODED, false)
+                    .withDetail(DECODED, false))
                     .build();
         } catch (Exception e) {
             // 연결 자체가 성립하지 않은 경우(타임아웃·커넥션 거부·DNS 실패 등).
-            return Health.down()
+            return withLedgerNodes(Health.down()
                     .withDetail("service", SERVICE)
-                    .withDetail("error", e.getClass().getSimpleName())
+                    .withDetail("error", e.getClass().getSimpleName()))
                     .build();
         }
     }

@@ -20,8 +20,9 @@ import org.springframework.stereotype.Component;
  * {@code LS_DATA_AUG} 가 <b>PENDING 으로 영구 고착</b>된다(만료 스윕 없음). 기동·헬스체크·로그가 모두
  * 정상으로 보이는 실패라 사람이 job 테이블을 뒤지기 전엔 드러나지 않는다.
  *
- * <p>그래서 <b>VLM 의 {@code enabled} ↔ {@code allow-insecure-url} 짝 assert 와 동일한 강도</b>로
- * 기동을 실패시킨다({@link ProfileGatedUrlPolicy}). 경고만 남기면 배포 로그에 묻히고, 이 결함의
+ * <p>그래서 <b>기동 자체를 실패</b>시킨다({@link ProfileGatedUrlPolicy} 의 완화 플래그 assert 와 동일한
+ * 강도 — ⚠ VLM 은 2026-08-10 확정 정합으로 그 골격에서 빠졌으므로 지금 그 assert 를 쓰는 연동은
+ * 증강 하나다). 경고만 남기면 배포 로그에 묻히고, 이 결함의
  * 실패 모드가 "조용한 무증상 중단" 이라 경고로는 막을 수 없다. 차단 해제 수단은 두 가지 모두 명시적이다
  * — 미연동이면 {@code mode=noop}, 연동이면 대역(또는 전면 허용 의도를 남기는 {@code 0.0.0.0/0}) 명시.
  *

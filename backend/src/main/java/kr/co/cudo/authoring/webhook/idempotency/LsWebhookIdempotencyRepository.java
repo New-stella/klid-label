@@ -155,4 +155,54 @@ public interface LsWebhookIdempotencyRepository extends JpaRepository<LsWebhookI
      * 스윕 주기마다 영원히 반복되므로(CWE-770), 회수 이력이 예산을 넘으면 재개하지 않고 기록만 남긴다.
      */
     long countByRawSnAndChnlCdAndSttsCd(Long rawSn, String chnlCd, String sttsCd);
+
+    /**
+     * <b>장비별 부하 집계</b> — 그 장비가 결과를 기다리고 있는 위탁 건수. [@design ERD-021] [@design ADR-057]
+     *
+     * <p>노드 선택기가 「어느 장비가 한가한가」를 판정하는 값이다. 시계열 축은 논블로킹 제출 + 콜백이라
+     * 상태점검 폴러가 관측하지 않으므로({@code AiSrvrHealthPoller} 가 추론 노드만 훑는다) 부하를 알 수
+     * 있는 자리가 이 원장뿐이다.
+     *
+     * <p>★ <b>{@code ACCEPTED} 만 센다 — 상태를 <u>인자로 받지 않는다</b></u>. 인터페이스 메서드는
+     * 암묵적으로 public 이라 상태 파라미터를 남겨 두면 어느 호출부든 {@code ISSUED} 를 넘길 수 있고,
+     * 그러면 이 불변식이 <b>구조가 아니라 관례</b>에 머문다("통로를 하나로 제한했다"는 것은 사실이
+     * 아니게 된다). 그래서 상태를 쿼리 문자열에 상수로 박아 <b>넘길 자리 자체를 없앤다</b>
+     * ({@link #claimAckReceived} 가 같은 이유로 쓰는 기법이다). {@code ISSUED} 는 우리가 상관키를 선커밋한 것일 뿐 벤더가 아직
+     * 받지 않은 상태라 그 장비의 부하가 0이다 — 세면 방금 제출이 몰린 장비를 과대평가해 다음 요청이
+     * 반대편으로 쏠리고, 그 반대편도 곧 같은 이유로 과대평가돼 값이 실제 부하가 아니라 <b>직전 배분의
+     * 메아리</b>가 된다. {@code PROCESSED}(끝난 것)·{@code FAILED}(회수 표식)도 부하가 아니다.
+     *
+     * <p><b>결과에 없는 장비는 0건</b>이다 — {@code GROUP BY} 는 행이 없는 장비를 돌려주지 않으므로
+     * 호출측이 0으로 채운다(없는 것을 「모름」으로 다루면 한가한 새 장비가 후보에서 빠진다).
+     *
+     * <p>파라미터 바인딩만 사용(CWE-89). 채널로 좁히지 않는 이유는 이 컬럼을 채우는 경로가 시계열 위탁
+     * 뿐이라 다른 채널 행은 장비 미상({@code null})으로 남아 {@code IN} 조건에서 자연히 빠지기 때문이다.
+     *
+     * @param srvrIds 셀 대상 장비 — <b>현재 가용한 장비 목록</b>. 원장에서 사라진 장비의 식별자가 이 표에
+     *                남아 있을 수 있으나(외래키를 걸지 않는다) 이 조건에서 자연히 빠진다.
+     *                <b>비어 있으면 호출하지 말 것</b> — {@code IN ()} 은 DB 방언에 따라 문법 오류다
+     */
+    @Query("select e.srvrId as srvrId, count(e) as loadCount from LsWebhookIdempotency e "
+            + "where e.srvrId in :srvrIds and e.sttsCd = '" + LsWebhookIdempotency.STATE_ACCEPTED
+            + "' group by e.srvrId")
+    List<ServerLoadCount> countAcceptedBySrvrIdIn(@Param("srvrIds") Collection<String> srvrIds);
+
+    /**
+     * 장비별 <b>수락된(ACCEPTED)</b> 위탁 건수 — 부하 판정의 유일한 통로.
+     *
+     * <p>빈 목록을 먼저 걸러 낸다 — {@code IN ()} 은 DB 방언에 따라 문법 오류다.
+     */
+    default List<ServerLoadCount> countAcceptedBySrvrId(Collection<String> srvrIds) {
+        if (srvrIds == null || srvrIds.isEmpty()) {
+            return List.of();
+        }
+        return countAcceptedBySrvrIdIn(srvrIds);
+    }
+
+    /** 장비별 집계 한 줄 — 엔티티를 통째로 싣지 않기 위한 투영. */
+    interface ServerLoadCount {
+        String getSrvrId();
+
+        long getLoadCount();
+    }
 }

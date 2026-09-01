@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.batch.status;
 
+import kr.co.cudo.authoring.batch.step.VlmSubmitAssertions;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStage;
 import kr.co.cudo.authoring.batch.orchestrator.BatchStageBundle;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
@@ -91,14 +92,14 @@ class VlmDefaultSkipMarkerVisibilityIT {
         // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
         // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
         // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
         rawSn = RawVideoFixture.newRaw(jdbc);
         // 위탁이 벤더까지 도달할 수 있는 상태로 준비한다 — 비식별 경로가 없으면 게이트가 새더라도
         //   그 앞에서 예외로 멈춰 「벤더 0회」가 가시성을 증명하지 못한다.
         seedDeidentSuccess(rawSn);
         // 신호 없는 Mono — 완료 핸들러(비동기 DB 쓰기)가 돌지 않아 정리가 결정적이다.
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(reactor.core.publisher.Mono.never());
         setSkipSwitch(null, null);
     }
@@ -138,7 +139,7 @@ class VlmDefaultSkipMarkerVisibilityIT {
 
         // then ② 그 표식을 <b>직후 게이트가 보았다</b> — 못 봤다면 실행이 아래로 흘러 벤더를 불렀을 것이다.
         //   즉 이 단언이 곧 가시성의 증거다.
-        verify(vlmClient, never()).submitDescribe(any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
         assertThat(response.status()).isEqualTo("skipped");
 
         // then ③ 선커밋(상관키)도 일어나지 않았다 — 게이트가 그보다 앞에서 끊었다는 뜻.
@@ -159,7 +160,7 @@ class VlmDefaultSkipMarkerVisibilityIT {
         VlmTimeseriesResponse response = step.run(rawSn);
 
         // then — 「항상 건너뛴다」로 앞 테스트를 만족시키는 구현을 배제한다.
-        verify(vlmClient, times(1)).submitDescribe(any(VlmTimeseriesRequest.class));
+        verify(vlmClient, times(1)).submitDescribe(any(VlmTimeseriesRequest.class), any());
         assertThat(response.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
         assertThat(countMarkers(BatchStageBundle.VLM)).isZero();
         assertThat(statusService.isStageManuallySkipped(rawSn, BatchStage.VLM)).isFalse();
@@ -183,7 +184,7 @@ class VlmDefaultSkipMarkerVisibilityIT {
                          WHERE DATA_RAW_SN = ? ORDER BY BATCH_PROC_LOG_SN DESC LIMIT 1
                         """, String.class, rawSn))
                 .startsWith(ManualStageSkip.REASON_PREFIX);
-        verify(vlmClient, never()).submitDescribe(any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
     }
 
     @Test
@@ -204,7 +205,7 @@ class VlmDefaultSkipMarkerVisibilityIT {
         assertThat(countMarkers(BatchStageBundle.VLM)).isEqualTo(2);
         assertThat(statusService.isStageManuallySkipped(rawSn, BatchStage.VLM)).isFalse();
         // 되살린 결정이 살아 있으므로 위탁은 그대로 나간다.
-        verify(vlmClient, times(1)).submitDescribe(any(VlmTimeseriesRequest.class));
+        verify(vlmClient, times(1)).submitDescribe(any(VlmTimeseriesRequest.class), any());
     }
 
     // ------------------------------------------------------------------ 지원

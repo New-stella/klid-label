@@ -21,7 +21,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Zs7txOEeBYcrbhgJwvR53KiArNRKtx2vCeyJOkm4nqIZtYA9XUDNaieFKmNOkkc
+\restrict vSZPOlpR8KTgK9K8cf96b7nnzDo4Ncv2LEMWkSsr0iset1v6vKuzylEUmfUPAmd
 
 -- Dumped from database version 16.13
 -- Dumped by pg_dump version 16.13 (Homebrew)
@@ -61,6 +61,72 @@ CREATE TABLE klid_at.ls_acnt_user (
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mdfcn_dt timestamp without time zone,
     last_lgn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_ai_srvr; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_ai_srvr (
+    srvr_id character varying(20) NOT NULL,
+    srvr_nm character varying(100),
+    srvr_addr character varying(200) NOT NULL,
+    srvr_type_cd character varying(20) NOT NULL,
+    srvr_stts_cd character varying(20) NOT NULL,
+    chck_dt timestamp without time zone,
+    chck_fail_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    chck_scs_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_ls_ai_srvr_nocs_nonneg CHECK (((chck_fail_nocs >= (0)::numeric) AND (chck_scs_nocs >= (0)::numeric))),
+    CONSTRAINT ck_ls_ai_srvr_srvr_id_format CHECK (((srvr_id)::text ~ '^[a-z0-9]{1,20}$'::text)),
+    CONSTRAINT ck_ls_ai_srvr_stts_cd CHECK (((srvr_stts_cd)::text = ANY ((ARRAY['AVAILABLE'::character varying, 'UNAVAILABLE'::character varying, 'DRAINING'::character varying, 'DISABLED'::character varying])::text[]))),
+    CONSTRAINT ck_ls_ai_srvr_type_cd CHECK (((srvr_type_cd)::text = ANY ((ARRAY['INFERENCE'::character varying, 'TIMESERIES'::character varying])::text[])))
+);
+
+
+--
+-- Name: ls_ai_srvr_altmnt; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_ai_srvr_altmnt (
+    altmnt_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    srvr_id character varying(20) NOT NULL,
+    altmnt_dt timestamp without time zone NOT NULL,
+    altmnt_rsn character varying(4000)
+);
+
+
+--
+-- Name: ls_ai_srvr_altmnt_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+CREATE SEQUENCE klid_at.ls_ai_srvr_altmnt_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ls_ai_srvr_usg; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_ai_srvr_usg (
+    srvr_id character varying(20) NOT NULL,
+    usg_type_cd character varying(20) NOT NULL,
+    wtng_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    prcs_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    chck_dt timestamp without time zone,
+    reg_dt timestamp without time zone NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    CONSTRAINT ck_ls_ai_srvr_usg_nocs_nonneg CHECK (((wtng_nocs >= (0)::numeric) AND (prcs_nocs >= (0)::numeric))),
+    CONSTRAINT ck_ls_ai_srvr_usg_type_cd CHECK (((usg_type_cd)::text = ANY ((ARRAY['BATCH'::character varying, 'INTERACTIVE'::character varying])::text[])))
 );
 
 
@@ -1875,7 +1941,8 @@ CREATE TABLE klid_at.ls_webhook_idempotency (
     aplcn_dt timestamp without time zone,
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    raw_sn bigint
+    raw_sn bigint,
+    srvr_id character varying(20)
 );
 
 
@@ -2239,6 +2306,30 @@ COPY klid_at.ls_acnt_user (user_no, user_id, user_nm, user_eml_addr, use_yn, reg
 
 
 --
+-- Data for Name: ls_ai_srvr; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_ai_srvr (srvr_id, srvr_nm, srvr_addr, srvr_type_cd, srvr_stts_cd, chck_dt, chck_fail_nocs, reg_dt, mdfr_id, mdfcn_dt, chck_scs_nocs) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_ai_srvr_altmnt; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_ai_srvr_altmnt (altmnt_sn, raw_sn, srvr_id, altmnt_dt, altmnt_rsn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_ai_srvr_usg; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_ai_srvr_usg (srvr_id, usg_type_cd, wtng_nocs, prcs_nocs, chck_dt, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
 -- Data for Name: ls_auth_work_lock; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
@@ -2467,17 +2558,17 @@ COPY klid_at.ls_evnt_anno_review (rvw_sn, evnt_anno_sn, rvw_stts_cd, meta_type_c
 --
 
 COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) FROM stdin;
-01	0001	침수(범람)	2026-08-31 15:28:28.019354
-01	0002	산사태	2026-08-31 15:28:28.019354
-02	0001	화재	2026-08-31 15:28:28.019354
-02	0002	쓰러짐	2026-08-31 15:28:28.019354
-02	0005	파손	2026-08-31 15:28:28.019354
-03	0001	교통사고	2026-08-31 15:28:28.019354
-05	0001	싸움	2026-08-31 15:28:28.019354
-05	0002	흉기소지	2026-08-31 15:28:28.019354
-05	0007	납치(유괴)	2026-08-31 15:28:28.019354
-07	0002	기타 상황	2026-08-31 15:28:28.019354
-08	0001	배회	2026-08-31 15:28:28.019354
+01	0001	침수(범람)	2026-09-01 07:59:27.846457
+01	0002	산사태	2026-09-01 07:59:27.846457
+02	0001	화재	2026-09-01 07:59:27.846457
+02	0002	쓰러짐	2026-09-01 07:59:27.846457
+02	0005	파손	2026-09-01 07:59:27.846457
+03	0001	교통사고	2026-09-01 07:59:27.846457
+05	0001	싸움	2026-09-01 07:59:27.846457
+05	0002	흉기소지	2026-09-01 07:59:27.846457
+05	0007	납치(유괴)	2026-09-01 07:59:27.846457
+07	0002	기타 상황	2026-09-01 07:59:27.846457
+08	0001	배회	2026-09-01 07:59:27.846457
 \.
 
 
@@ -2486,22 +2577,22 @@ COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) 
 --
 
 COPY klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) FROM stdin;
-EV01000101	\N	\N	01	0001	Y	2026-08-31 15:28:28.019354
-EV01000102	\N	\N	01	0001	Y	2026-08-31 15:28:28.019354
-EV01000103	\N	\N	01	0001	Y	2026-08-31 15:28:28.019354
-EV01000201	\N	\N	01	0002	Y	2026-08-31 15:28:28.019354
-EV02000101	\N	\N	02	0001	Y	2026-08-31 15:28:28.019354
-EV02000102	\N	\N	02	0001	Y	2026-08-31 15:28:28.019354
-EV02000201	\N	\N	02	0002	Y	2026-08-31 15:28:28.019354
-EV02000501	\N	\N	02	0005	Y	2026-08-31 15:28:28.019354
-EV03000101	\N	\N	03	0001	Y	2026-08-31 15:28:28.019354
-EV03000102	\N	\N	03	0001	Y	2026-08-31 15:28:28.019354
-EV03000103	\N	\N	03	0001	Y	2026-08-31 15:28:28.019354
-EV05000101	\N	\N	05	0001	Y	2026-08-31 15:28:28.019354
-EV05000201	\N	\N	05	0002	Y	2026-08-31 15:28:28.019354
-EV05000701	\N	\N	05	0007	Y	2026-08-31 15:28:28.019354
-EV08000101	\N	\N	08	0001	Y	2026-08-31 15:28:28.019354
-EV07000201	\N	\N	07	0002	N	2026-08-31 15:28:28.019354
+EV01000101	\N	\N	01	0001	Y	2026-09-01 07:59:27.846457
+EV01000102	\N	\N	01	0001	Y	2026-09-01 07:59:27.846457
+EV01000103	\N	\N	01	0001	Y	2026-09-01 07:59:27.846457
+EV01000201	\N	\N	01	0002	Y	2026-09-01 07:59:27.846457
+EV02000101	\N	\N	02	0001	Y	2026-09-01 07:59:27.846457
+EV02000102	\N	\N	02	0001	Y	2026-09-01 07:59:27.846457
+EV02000201	\N	\N	02	0002	Y	2026-09-01 07:59:27.846457
+EV02000501	\N	\N	02	0005	Y	2026-09-01 07:59:27.846457
+EV03000101	\N	\N	03	0001	Y	2026-09-01 07:59:27.846457
+EV03000102	\N	\N	03	0001	Y	2026-09-01 07:59:27.846457
+EV03000103	\N	\N	03	0001	Y	2026-09-01 07:59:27.846457
+EV05000101	\N	\N	05	0001	Y	2026-09-01 07:59:27.846457
+EV05000201	\N	\N	05	0002	Y	2026-09-01 07:59:27.846457
+EV05000701	\N	\N	05	0007	Y	2026-09-01 07:59:27.846457
+EV08000101	\N	\N	08	0001	Y	2026-09-01 07:59:27.846457
+EV07000201	\N	\N	07	0002	N	2026-09-01 07:59:27.846457
 \.
 
 
@@ -2518,15 +2609,15 @@ COPY klid_at.ls_issue_comment (cmnt_sn, data_issue_sn, author_no, author_role_cd
 --
 
 COPY klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) FROM stdin;
-1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	person
-2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	car
-3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	bicycle
-4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	motorcycle
-5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	bus
-6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	truck
-7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	\N
-8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	\N
-9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-08-31 15:28:28.019354	\N	\N	\N
+1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	person
+2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	car
+3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	bicycle
+4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	motorcycle
+5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	bus
+6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	truck
+7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	\N
+8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	\N
+9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-09-01 07:59:27.846457	\N	\N	\N
 \.
 
 
@@ -2687,20 +2778,20 @@ COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, 
 --
 
 COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
-BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-08-31 15:28:27.203125
-BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-08-31 15:28:27.203125
-YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-08-31 15:28:27.203125
-YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-08-31 15:28:27.203125
-POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-08-31 15:28:27.203125
-portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-08-31 15:28:27.203125
-autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-08-31 15:28:27.203125
-eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-08-31 15:28:27.203125
-kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-08-31 15:28:27.203125
-kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-08-31 15:28:27.203125
-kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-08-31 15:28:27.203125
-portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-08-31 15:28:27.947751
-portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-08-31 15:28:27.947751
-portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-08-31 15:28:27.947751
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-09-01 07:59:26.979338
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-09-01 07:59:26.979338
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-09-01 07:59:26.979338
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-09-01 07:59:26.979338
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-09-01 07:59:26.979338
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-09-01 07:59:26.979338
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-09-01 07:59:26.979338
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-09-01 07:59:26.979338
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-09-01 07:59:26.979338
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-09-01 07:59:26.979338
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-09-01 07:59:26.979338
+portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-09-01 07:59:27.774596
+portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-09-01 07:59:27.774596
+portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-09-01 07:59:27.774596
 \.
 
 
@@ -2741,13 +2832,13 @@ COPY klid_at.ls_user_role (user_no, role_cd, reg_dt, upd_dt, mdfr_id) FROM stdin
 --
 
 COPY klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
-1	fire	1	영상에서 '화염이 보이는 불' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
-2	smoke	1	영상에서 '특정 지점에서 피어올라 확산되는 연기' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
-3	fall	1	영상에서 '사람이 바닥에 쓰러지거나 쓰러져 있음' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
-4	violence	1	영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
-5	flooding	1	영상에서 '평소 물이 없던 공간이 물에 잠기는 침수' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
-6	car_accident	1	영상에서 '차량 충돌을 동반한 교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
-7	kidnapping	1	영상에서 '저항하는 사람을 강제로 데려가는 강제 이동' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-08-31 15:28:28.074199	\N	\N
+1	fire	1	영상에서 '화염이 보이는 불' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
+2	smoke	1	영상에서 '특정 지점에서 피어올라 확산되는 연기' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
+3	fall	1	영상에서 '사람이 바닥에 쓰러지거나 쓰러져 있음' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
+4	violence	1	영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
+5	flooding	1	영상에서 '평소 물이 없던 공간이 물에 잠기는 침수' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
+6	car_accident	1	영상에서 '차량 충돌을 동반한 교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
+7	kidnapping	1	영상에서 '저항하는 사람을 강제로 데려가는 강제 이동' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-01 07:59:27.904617	\N	\N
 \.
 
 
@@ -2756,13 +2847,13 @@ COPY klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, 
 --
 
 COPY klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
-fire	화재	불꽃 등 화재 상황	1	\N	2026-08-31 15:28:28.074199	\N	\N
-smoke	연기	연기 등 화재 상황	2	\N	2026-08-31 15:28:28.074199	\N	\N
-fall	쓰러짐	사람이 쓰러지거나 바닥에 누워 있는 상황	3	\N	2026-08-31 15:28:28.074199	\N	\N
-violence	폭력	폭행, 몸싸움, 물리적 충돌 상황	4	\N	2026-08-31 15:28:28.074199	\N	\N
-flooding	침수	물이 차오르거나 공간이 물에 잠긴 상황	5	\N	2026-08-31 15:28:28.074199	\N	\N
-car_accident	교통사고	차량 충돌, 전복, 사고 정황	6	\N	2026-08-31 15:28:28.074199	\N	\N
-kidnapping	납치	강제로 끌고 가거나 납치로 의심되는 상황	7	\N	2026-08-31 15:28:28.074199	\N	\N
+fire	화재	불꽃 등 화재 상황	1	\N	2026-09-01 07:59:27.904617	\N	\N
+smoke	연기	연기 등 화재 상황	2	\N	2026-09-01 07:59:27.904617	\N	\N
+fall	쓰러짐	사람이 쓰러지거나 바닥에 누워 있는 상황	3	\N	2026-09-01 07:59:27.904617	\N	\N
+violence	폭력	폭행, 몸싸움, 물리적 충돌 상황	4	\N	2026-09-01 07:59:27.904617	\N	\N
+flooding	침수	물이 차오르거나 공간이 물에 잠긴 상황	5	\N	2026-09-01 07:59:27.904617	\N	\N
+car_accident	교통사고	차량 충돌, 전복, 사고 정황	6	\N	2026-09-01 07:59:27.904617	\N	\N
+kidnapping	납치	강제로 끌고 가거나 납치로 의심되는 상황	7	\N	2026-09-01 07:59:27.904617	\N	\N
 \.
 
 
@@ -2770,7 +2861,7 @@ kidnapping	납치	강제로 끌고 가거나 납치로 의심되는 상황	7	\N	
 -- Data for Name: ls_webhook_idempotency; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_webhook_idempotency (idmp_key, chnl_cd, stts_cd, otsd_job_id, aplcn_dt, reg_dt, mdfcn_dt, raw_sn) FROM stdin;
+COPY klid_at.ls_webhook_idempotency (idmp_key, chnl_cd, stts_cd, otsd_job_id, aplcn_dt, reg_dt, mdfcn_dt, raw_sn, srvr_id) FROM stdin;
 \.
 
 
@@ -2878,6 +2969,13 @@ COPY klid_at.qrtz_simprop_triggers (sched_name, trigger_name, trigger_group, str
 
 COPY klid_at.qrtz_triggers (sched_name, trigger_name, trigger_group, job_name, job_group, description, next_fire_time, prev_fire_time, priority, trigger_state, trigger_type, start_time, end_time, calendar_name, misfire_instr, job_data) FROM stdin;
 \.
+
+
+--
+-- Name: ls_ai_srvr_altmnt_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_ai_srvr_altmnt_seq', 1, false);
 
 
 --
@@ -3222,6 +3320,30 @@ SELECT pg_catalog.setval('klid_at.ls_vrfc_evnt_qstn_vrfc_evnt_qstn_sn_seq', 7, t
 
 ALTER TABLE ONLY klid_at.ls_acnt_user
     ADD CONSTRAINT ls_acnt_user_pkey PRIMARY KEY (user_no);
+
+
+--
+-- Name: ls_ai_srvr_altmnt ls_ai_srvr_altmnt_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_altmnt
+    ADD CONSTRAINT ls_ai_srvr_altmnt_pkey PRIMARY KEY (altmnt_sn);
+
+
+--
+-- Name: ls_ai_srvr ls_ai_srvr_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr
+    ADD CONSTRAINT ls_ai_srvr_pkey PRIMARY KEY (srvr_id);
+
+
+--
+-- Name: ls_ai_srvr_usg ls_ai_srvr_usg_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_usg
+    ADD CONSTRAINT ls_ai_srvr_usg_pkey PRIMARY KEY (srvr_id, usg_type_cd);
 
 
 --
@@ -3849,6 +3971,14 @@ ALTER TABLE ONLY klid_at.ls_data_aug_job_file
 
 
 --
+-- Name: ls_ai_srvr_altmnt uk_ls_ai_srvr_altmnt_raw_sn; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_altmnt
+    ADD CONSTRAINT uk_ls_ai_srvr_altmnt_raw_sn UNIQUE (raw_sn);
+
+
+--
 -- Name: ls_auth_work_lock uk_ls_auth_work_lock_id; Type: CONSTRAINT; Schema: klid_at; Owner: -
 --
 
@@ -4414,6 +4544,13 @@ CREATE INDEX idx_ls_webhook_idempotency_ext_job ON klid_at.ls_webhook_idempotenc
 
 
 --
+-- Name: idx_ls_webhook_idempotency_srvr_state; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_webhook_idempotency_srvr_state ON klid_at.ls_webhook_idempotency USING btree (srvr_id, stts_cd);
+
+
+--
 -- Name: idx_ls_whk_fail_nmtm_expd; Type: INDEX; Schema: klid_at; Owner: -
 --
 
@@ -4446,6 +4583,13 @@ CREATE INDEX idx_ltu_user_status ON klid_at.ls_tus_upload USING btree (user_no, 
 --
 
 CREATE INDEX ix_ldpl_poll_stts ON klid_at.ls_deident_proc_log USING btree (poll_stts_cd);
+
+
+--
+-- Name: ix_ls_ai_srvr_altmnt_srvr_id; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_ai_srvr_altmnt_srvr_id ON klid_at.ls_ai_srvr_altmnt USING btree (srvr_id);
 
 
 --
@@ -4764,6 +4908,22 @@ ALTER TABLE ONLY klid_at.ls_data_aug_job_file
 
 ALTER TABLE ONLY klid_at.ls_notice_attach
     ADD CONSTRAINT fk_lnta_notice FOREIGN KEY (notice_sn) REFERENCES klid_at.ls_notice(notice_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_ai_srvr_altmnt fk_ls_ai_srvr_altmnt_srvr; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_altmnt
+    ADD CONSTRAINT fk_ls_ai_srvr_altmnt_srvr FOREIGN KEY (srvr_id) REFERENCES klid_at.ls_ai_srvr(srvr_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ls_ai_srvr_usg fk_ls_ai_srvr_usg_srvr; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_usg
+    ADD CONSTRAINT fk_ls_ai_srvr_usg_srvr FOREIGN KEY (srvr_id) REFERENCES klid_at.ls_ai_srvr(srvr_id) ON DELETE CASCADE;
 
 
 --
@@ -5146,5 +5306,5 @@ ALTER TABLE ONLY klid_at.qrtz_triggers
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Zs7txOEeBYcrbhgJwvR53KiArNRKtx2vCeyJOkm4nqIZtYA9XUDNaieFKmNOkkc
+\unrestrict vSZPOlpR8KTgK9K8cf96b7nnzDo4Ncv2LEMWkSsr0iset1v6vKuzylEUmfUPAmd
 

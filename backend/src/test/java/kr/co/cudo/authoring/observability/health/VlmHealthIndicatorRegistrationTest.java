@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.observability.health;
 
+import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrRepository;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrRegistry;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,6 +77,15 @@ class VlmHealthIndicatorRegistrationTest {
 
     @Configuration(proxyBeanMethods = false)
     static class StubVlmClientConfig {
+
+        /**
+         * 원장 캐시 스텁 — 이 인디케이터는 등록된 시계열 노드를 <b>상세에만</b> 싣는다(판정 축은
+         * 여전히 연동 클라이언트다). 등록 조건 검증에는 쓰이지 않으므로 빈 원장이면 충분하다.
+         */
+        @Bean
+        AiSrvrRegistry aiSrvrRegistry() {
+            return new AiSrvrRegistry(mock(LsAiSrvrRepository.class));
+        }
         /** 등록 조건만 검증하므로 호출되지 않는다 — 실제 핑 동작은 VlmHealthIndicatorTest 가 본다. */
         @Bean
         VlmClient vlmClient() {

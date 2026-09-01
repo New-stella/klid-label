@@ -11,7 +11,11 @@ import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker;
 import kr.co.cudo.authoring.batch.status.VlmMarkingTxService;
+import kr.co.cudo.authoring.aiserver.entity.AiSrvrUsageType;
+import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrSelector;
 import kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence;
+import kr.co.cudo.authoring.common.client.PinnedTarget;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmServerStatus;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
@@ -42,6 +46,7 @@ import reactor.core.scheduler.Scheduler;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * 시계열 분석 위탁 단계 — 확정 계약(KLID 연동 API v1.1.0) 정합.
@@ -274,6 +279,14 @@ public class VlmTimeseriesStep implements BatchStep {
      * [@design ADR-050]. 판정·사람 표식 보호·멱등은 전부 그 컴포넌트가 소유하며 여기서 재유도하지 않는다.
      */
     private final VlmDefaultSkipMarker vlmDefaultSkipMarker;
+    /**
+     * 위탁을 보낼 <b>장비</b>를 고른다 — 외부 시계열 분석 서버 이중화. [@design ADR-057] [@design ERD-021]
+     *
+     * <p>고르는 시점은 <b>선커밋보다 앞</b>이다. 원장에 「어느 장비로 보냈는가」를 남기려면 그 값이
+     * 상관키를 적을 때 이미 있어야 한다 — 나중에 채우면 그 사이 제출이 실패하거나 노드가 죽었을 때
+     * <b>어디로 보냈는지 모르는 미결</b>이 되고, 부하 집계에서도 빠져 배분이 한쪽으로 기운다.
+     */
+    private final AiSrvrSelector aiSrvrSelector;
 
     /** 콜백 base URL — 외부 시스템이 verify 결과를 push 할 엔드포인트 prefix(고정, 사용자 입력 미반영). */
     @Value(WebhookCallbackDefaults.VALUE_EXPRESSION)
@@ -295,7 +308,8 @@ public class VlmTimeseriesStep implements BatchStep {
                              VlmTimeseriesMetaPresence timeseriesMetaPresence,
                              ObjectMapper objectMapper,
                              @Qualifier("vlmSubmitScheduler") Scheduler vlmSubmitScheduler,
-                             VlmDefaultSkipMarker vlmDefaultSkipMarker) {
+                             VlmDefaultSkipMarker vlmDefaultSkipMarker,
+                             AiSrvrSelector aiSrvrSelector) {
         this.vlmClient = vlmClient;
         this.videoRepository = videoRepository;
         this.ingestSourceRepository = ingestSourceRepository;
@@ -309,6 +323,7 @@ public class VlmTimeseriesStep implements BatchStep {
         this.objectMapper = objectMapper;
         this.vlmSubmitScheduler = vlmSubmitScheduler;
         this.vlmDefaultSkipMarker = vlmDefaultSkipMarker;
+        this.aiSrvrSelector = aiSrvrSelector;
     }
 
     @Override
@@ -534,6 +549,43 @@ public class VlmTimeseriesStep implements BatchStep {
         VlmTimeseriesRequest subReq = new VlmTimeseriesRequest(
                 subRequestId, req.eventType(), req.media(), req.callbackUrl());
 
+        // ── 장비 선택 (@design ADR-057) — <b>선커밋보다 앞</b>이다.
+        //
+        //  왜 여기인가: 아래 recordIssued 가 「어느 장비로 보냈는가」를 함께 적으므로 그때 값이 이미
+        //  있어야 한다. 뒤로 미루면 제출 실패·노드 사망 시 「어디로 보냈는지 모르는 미결」이 되고,
+        //  그 행은 부하 집계에서 빠져 다음 배분이 한쪽으로 기운다.
+        //
+        //  ★ 두 창구는 <같은 장비>로 보낸다. 창구마다 따로 고르면 한 영상의 위탁이 두 장비의 부하를
+        //    동시에 올린 것처럼 보이고, 원장에도 장비가 창구별로 갈려 남는다.
+        //
+        //  ★ 고르지 못하면(가용 시계열 노드 0건) 예외가 아니라 <배포 기본 주소로 그대로> 나간다.
+        //    원장에 시계열 노드가 한 건도 없는 것이 현재 형상이라(부트스트랩은 추론 노드만 세운다),
+        //    여기서 실패시키면 「분산을 못 한다」가 「연동이 끊긴다」로 격상된다.
+        //
+        //  ★ 영상 고정(같은 영상은 늘 같은 장비로)은 하지 않는다 — 그건 축 A(추론)의 성질이다.
+        //    시계열은 영상 하나에 위탁 한 번이라 고정할 대상이 없고, 고정하면 죽은 장비에 묶인 영상이
+        //    영영 다른 장비로 가지 못한다. 배정 표(LS_AI_SRVR_ALTMNT)에 기록하지 않는 이유다.
+        //
+        //  용도 인자는 이 축에서 읽히지 않는다(시계열 부하의 원천은 우리 위탁 원장이다). 그럼에도
+        //  BATCH 를 넘기는 것은 이 호출이 실제로 배치 파이프라인의 작업이기 때문이다.
+        //  ★ 목적지 해석도 <b>선커밋 이전</b>에 끝낸다. 뒤에서 풀면 상관키만 durable 하게 남고 요청은
+        //    나가지 못하는 「고아 미결」이 되며, 그 예외는 아래 submitOne 의 회수 경로 밖에서 터져
+        //    파이프라인 전체를 FAILED 로 마감시킨다(제출 1건 실패가 배치 전체를 끌어내린다).
+        //    판정은 선택기와 <같은 술어>(PinnedTarget)다 — 여기서 자기 기준을 쓰면 두 번째 진실원이 된다.
+        //    선택기가 이미 걸렀으므로 정상 경로에서는 통과가 보장되고, 이 분기는 그 계약이 깨졌을 때
+        //    「기록과 목적지가 갈리는 것」보다 「분산을 포기하는 것」을 고르는 fail-secure 다.
+        LsAiSrvr node = aiSrvrSelector
+                .select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH)
+                .orElse(null);
+        if (node != null && !PinnedTarget.canPin(node.getSrvrAddr())) {
+            // ★주소 「값」은 싣지 않는다 — 내부 토폴로지다(CWE-497). 식별자만 남긴다.
+            log.warn("[Batch][VlmTimeseries] 고른 장비로 목적지를 만들 수 없어 장비 미상으로 진행합니다 "
+                    + "rawSn={} srvrId={}", rawSn, VlmClient.safeForLog(node.getSrvrId()));
+            node = null;
+        }
+        String srvrId = node == null ? null : node.getSrvrId();
+        String srvrAddr = node == null ? null : node.getSrvrAddr();
+
         // 위탁 전 서버 상태 관측 — 규격 §3.5. <b>게이트가 아니며 기다리지도 않는다</b>(조회 실패·미지의
         // 상태로 정상 위탁을 막지 않고, 관측 하나로 파이프라인 스레드를 붙잡지도 않는다).
         observeServerStatus(rawSn);
@@ -542,9 +594,12 @@ public class VlmTimeseriesStep implements BatchStep {
         //  - 영속 ledger 는 REQUIRES_NEW 독립 커밋 → 위탁 실패/본 tx 롤백과 무관하게 콜백이 역조회 성공.
         //  - 등록 실패 시 외부 호출을 하지 않고 실패 전파(fail-closed) — 매핑 없는 위탁 원천 차단.
         //  - 창구마다 <b>채널을 달리</b> 등록한다 — 콜백 바디에 창구 구분자가 없어 이 값이 유일한 역조회 축이다.
+        //  - 「어느 장비로 보냈는가」도 <같이> 남긴다. 이 값이 장비별 부하 집계의 입력이자 결과 출처를
+        //    되짚는 유일한 축이다. 고르지 못했으면 null(장비 미상) 로 남긴다 — 추측해 채우면 실제로
+        //    나간 곳과 다른 장비의 부하가 늘어 다음 배분이 어긋난다.
         try {
-            ledger.recordIssued(requestId, LsWebhookIdempotency.CHANNEL_VLM, null, rawSn);
-            ledger.recordIssued(subRequestId, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn);
+            ledger.recordIssued(requestId, LsWebhookIdempotency.CHANNEL_VLM, null, rawSn, srvrId);
+            ledger.recordIssued(subRequestId, LsWebhookIdempotency.CHANNEL_VLM_SUB, null, rawSn, srvrId);
         } catch (RuntimeException e) {
             log.error("[Batch][VlmTimeseries] ledger recordIssued failed (abort submit) rawSn={} err={}",
                     rawSn, VlmClient.safeForLog(e.getMessage()));
@@ -568,10 +623,11 @@ public class VlmTimeseriesStep implements BatchStep {
         // 로그에 싣는 외부/DB 유래 문자열은 sanitize 한다(CWE-117). event_type 은 허용목록 통과값이라
         // 이미 안전하지만, 판정 지점과 로그 지점이 분리되면 드리프트가 나므로 동일하게 통과시킨다.
         log.info("[Batch][VlmTimeseries] dual submit rawSn={} describe_request_id={} sub_request_id={} "
-                        + "event_type={} mode={} hasMarking={}",
+                        + "event_type={} mode={} hasMarking={} srvrId={}",
                 rawSn, VlmClient.safeForLog(requestId), VlmClient.safeForLog(subRequestId),
                 VlmClient.safeForLog(eventType),
-                VlmClient.safeForLog(req.media().framePolicy().mode()), marking != null);
+                VlmClient.safeForLog(req.media().framePolicy().mode()), marking != null,
+                VlmClient.safeForLog(srvrId));
 
         // ── 논블로킹 제출 (Phase C-1): ACK 왕복조차 스레드를 점유하지 않는다.
         //
@@ -592,8 +648,17 @@ public class VlmTimeseriesStep implements BatchStep {
         //   검수큐·산출물로 이어지는 주 축이기 때문이다. 추가 질문 축의 실패는 기록만 남기고
         //   마킹을 실패로 내리지 않는다(markingSn 을 넘기지 않는다). 그러지 않으면 주 축이 정상인데도
         //   마킹이 위탁 실패로 종결돼 화면이 사실과 다르게 보인다.
-        submitOne(vlmClient.submitDescribe(req), rawSn, requestId, markingSn, "describe");
-        submitOne(vlmClient.submitDescribeSub(subReq), rawSn, subRequestId, null, "describe-sub");
+        //  ★ 고른 장비의 주소를 <실제로> 넘긴다. 넘기지 않으면 원장에는 「그 장비로 보냈다」가 남고
+        //    요청은 배포 기본 주소로 나가 기록이 거짓말을 한다(오류가 아니라 조용한 어긋남이다).
+        //  ★ 요청 조립을 <b>람다 안</b>에서 한다 — 인자 자리에 두면 submitOne 에 들어가기 <b>전에</b>
+        //    평가되어 그 안의 try/catch 가 조립 실패를 잡지 못한다(메서드 인자 평가는 호출 이전이다).
+        //    그때 예외는 선커밋 뒤에서 process() 밖으로 새어 ①실패 기록이 남지 않고(마킹이
+        //    VLM_REQUESTED 고착) ②추가 질문 축은 시도조차 못 했는데 그 ISSUED 행은 커밋돼 고아가 되며
+        //    ③파이프라인 전체가 FAILED 로 마감된다 — 「예외를 위로 던지지 않는다」는 이 메서드의
+        //    성질이 이 경로에서만 깨져 있었다.
+        submitOne(() -> vlmClient.submitDescribe(req, srvrAddr), rawSn, requestId, markingSn, "describe");
+        submitOne(() -> vlmClient.submitDescribeSub(subReq, srvrAddr), rawSn, subRequestId, null,
+                "describe-sub");
 
         // 스텝이 확정적으로 말할 수 있는 사실은 "제출을 개시했다" 뿐이다. 수락(accepted) 여부는
         // 완료 핸들러가 LS_BATCH_PROC_LOG 에 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다.
@@ -604,13 +669,18 @@ public class VlmTimeseriesStep implements BatchStep {
     /**
      * 창구 하나의 논블로킹 제출 — 구독·완료 신호 디스패치·동기 실패 회수를 한 곳에 모은다.
      *
+     * <p>★ <b>요청 조립까지 이 안에서 한다</b>({@code Supplier} 로 받는 이유). 조립을 호출 인자 자리에
+     * 두면 이 메서드에 들어오기 전에 평가돼 아래 {@code catch} 가 그 실패를 <b>잡지 못하고</b>, 예외가
+     * 선커밋 뒤에서 파이프라인 밖으로 새어 나간다.
+     *
+     * @param assembly  위탁 Mono 를 만드는 조립(목적지 해석 포함). 이 안에서 평가된다.
      * @param markingSn 실패 시 마킹을 위탁 실패로 내릴 대상. 마킹 상태를 좌우하지 않는 창구는 null.
      * @param label     로그용 창구 이름(상수라 sanitize 불필요).
      */
-    private void submitOne(Mono<VlmTimeseriesResponse> submission, Long rawSn, String requestId,
+    private void submitOne(Supplier<Mono<VlmTimeseriesResponse>> assembly, Long rawSn, String requestId,
                            Long markingSn, String label) {
         try {
-            submission
+            assembly.get()
                     // 예외는 지연 생성한다(정상 경로에서 불필요한 스택트레이스 채움 방지).
                     .switchIfEmpty(Mono.error(() -> new CustomException(ErrorCode.EXTERNAL_API_ERROR,
                             "시계열 분석 위탁 응답이 비어있습니다 rawSn=" + rawSn)))
