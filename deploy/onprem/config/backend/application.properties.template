@@ -305,10 +305,11 @@ VLM_SERVICE_TOKEN=
 #         AUGMENT_API_BASE_URL=https://augment.example.internal
 #   ⚠ 둘은 <반드시 함께> 바꾼다. mode 가 http 인데 주소가 비면 위탁 클라이언트를 만들지
 #     못해 기동이 실패한다.
-#   ⚠ 운영은 HTTPS + 공인망만 허용한다(외부 시계열 위탁과 같은 공용 URL 정책). 평문 http·
-#     사설 IP 를 넣으면 기동이 차단된다. 목업용 완화 플래그(AUGMENT_ALLOW_INSECURE_URL)는
-#     local/dev 에서만 인정되고 그 밖의 프로파일에서는 켜는 것 자체로 기동이 실패하므로
-#     이 템플릿에 키로 두지 않는다.
+#   ⚠ 구 서술 폐기(2026-09-01): "운영은 HTTPS + 공인망만 허용하며 평문 http·사설 IP 를 넣으면
+#     기동이 차단된다" 는 더 이상 사실이 아니다. 주소 검증은 스킴(http/https)과 형식만 본다 —
+#     평문 http 도 내부망 주소도 그대로 통과한다(외부 시계열 위탁과 같은 공용 URL 정책).
+#     구 완화 플래그(AUGMENT_ALLOW_INSECURE_URL)는 켜든 끄든 결과가 같아져 제거됐다 — 되살리지 말 것.
+#   ⚠ 계속 차단되는 것: 비허용 스키마 · placeholder 호스트 · 클라우드 메타데이터/링크로컬 등 예약 대역.
 AUGMENT_EXTERNAL_MODE=noop
 AUGMENT_API_BASE_URL=
 

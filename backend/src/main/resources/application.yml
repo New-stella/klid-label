@@ -397,18 +397,20 @@ authoring:
   #       'dev' 를 넣으면 ExternalAugmentClient 빈이 하나도 등록되지 않아 기동이 실패한다.
   #     ★ 기본을 http 로 둔 이유: 과거 noop 이 matchIfMissing=true + @Primary 라 전 환경에서
   #       외부 호출이 한 번도 나가지 않았다(E-ISSUE-03). 실벤더 미연동 환경은 mode 를 명시한다.
-  #   - base-url: 벤더/목 서버 base. 검증은 AugmentUrlPolicy(=VLM 과 동일 공용 정책) — prd/stg 는
-  #     HTTPS + 공인망만 허용하고 사설/link-local/메타데이터 대역·placeholder 호스트·비허용 스키마를 차단한다.
-  #     ★ 기본값에 localhost 를 두지 않는다 — 완화 기본값이 운영 형상에 상주해 환경변수 미설정 배포가
-  #       조용히 기동하는 것을 막는다(DEV_FIX HIGH-1). local 은 application-local.yml/compose 가 명시 주입.
-  #   - allow-insecure-url: 평문 http·사설 IP 목업 허용 완화 플래그(기본 false). local/dev 프로파일에서만
-  #     인정되며 그 밖의 프로파일에서 true 면 기동 자체가 실패한다(fail-closed).
+  #   - base-url: 벤더/목 서버 base. 검증은 AugmentUrlPolicy(=VLM·KPST 와 동일 공용 정책)이며
+  #     <스킴(http/https) + 형식>만 본다 — 대역 차단·HTTPS 강제는 2026-09-01 확정으로 폐기됐다
+  #     (연동 대상이 내부망 별도 장비일 수 있고, 아웃바운드 통제는 인프라 계층의 몫).
+  #     placeholder 호스트·비허용 스키마·클라우드 메타데이터 등 예약 대역 차단은 전 프로파일에서 유지된다.
+  #     ★ 구 완화 플래그 allow-insecure-url(AUGMENT_ALLOW_INSECURE_URL)은 켜든 끄든 결과가 같아져
+  #       <죽은 설정>이 되었으므로 제거했다. 되살리면 운영에서 위탁을 켜는 순간 평문 벤더 주소에서
+  #       기동이 막힌다.
+  #     ★ 기본값에 localhost 를 두지 않는다 — 목업 기본값이 운영 형상에 상주해 환경변수 미설정 배포가
+  #       조용히 목업을 향해 기동하는 것을 막는다. local 은 application-local.yml/compose 가 명시 주입.
   #   - max-input-files: 분할 위탁 청크 크기. 계약 상한 100 을 넘길 수 없다(초과 설정은 100 으로 clamp).
   augment:
     external:
       mode: ${AUGMENT_EXTERNAL_MODE:http}
       base-url: ${AUGMENT_API_BASE_URL:}
-      allow-insecure-url: ${AUGMENT_ALLOW_INSECURE_URL:false}
       timeout-seconds: ${AUGMENT_API_TIMEOUT_SECONDS:10}
       max-input-files: ${AUGMENT_MAX_INPUT_FILES:100}
     # Phase 8-A — 위탁 job 만료 스윕(AugmentJobExpirySweeper). 비종결(RECEIVED/RUNNING)로 떠 있는

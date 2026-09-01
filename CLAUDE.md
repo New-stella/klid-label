@@ -634,7 +634,9 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 #### ★연동 서버 주소는 설정으로 바꾼다 — 대역 차단은 하지 않는다 (2026-08-10 사용자 확정, 구속)
 
-**대상 4종**: 비식별(**`kpst.deid.base-url`**) · AI 추론(`authoring.integration.ai-server.base-url`) · 외부 시계열 분석 벤더(`vlm.client.url`) · 관제 통지(`authoring.control-notify.url`). **DB 접속정보는 대상이 아니다.**
+**대상 5종**: 비식별(**`kpst.deid.base-url`**) · AI 추론(`authoring.integration.ai-server.base-url`) · 외부 시계열 분석 벤더(`vlm.client.url`) · 관제 통지(`authoring.control-notify.url`) · **외부 증강 벤더(`authoring.augment.external.base-url`)**. **DB 접속정보는 대상이 아니다.**
+
+⚠ **증강은 2026-09-01 에 추가됐다 (사용자 확정 · `ADR-046` v10)** — 처음 결정할 때 목록에서 빠져 있었고, 그래서 시계열이 대역 차단을 벗은 뒤에도 **증강만 옛 정책(`ProfileGatedUrlPolicy` — 운영에서 HTTPS 강제 + 사설망 차단)에 남아** 같은 성질의 외부 벤더 위탁인데 한쪽만 평문 주소를 거부했다. `AugmentUrlPolicy` 가 원래 그 비대칭을 없애려고 만들어진 창구라 **방향만 뒤집힌 채 되살아난 것**이다. ⚠ 증강 요청 본문에는 공유 저장소의 비식별 프레임 절대경로가 다수 실려 유출 표면이 시계열보다 넓다 — **인지·수용한 위험**이며, 대역 차단으로는 막히지 않는다는 것이 이 결정의 본래 근거와 같다(공인망 주소로 바꾸면 그만이다).
 
 - **진실원·반영**: 설정에 값이 있으면 설정, 없으면 배포 기본값. **재기동 없이 즉시 다음 호출부터 반영**된다(호출 시점 URL 재작성). 설정 키는 **애플리케이션 속성명 그대로** 쓴다 — 별도 키명을 만들면 그 매핑표가 두 번째 진실원이 된다.
 - ⚠ **비식별 키는 `kpst.deid.base-url` 이다.** 구 후보였던 `authoring.integration.deidentify.base-url` 이 구동하는 `deidentifyWebClient` 는 **주입처가 0건인 죽은 빈**이라 그 키로는 아무것도 바뀌지 않는다(실측 확인 · `DeidentifyHealthIndicator` 주석이 2026-07-28 에 같은 사실로 판정축을 옮긴 기록 있음). **되돌리지 말 것.**
