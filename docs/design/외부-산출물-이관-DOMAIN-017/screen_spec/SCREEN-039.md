@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-039
 type: screen_spec
-version: 40
+version: 41
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T07:14:15.796Z
+synced_at: 2026-09-01T08:39:58.127Z
 status: CHANGED
-prev_version: 33
-content_hash: 7a41224ba061151b8789fd3a27ac0f5fb18cd8fc0f1b711cba28d1fcd374923f
+prev_version: 40
+content_hash: 4848251d97c09f64feb1ff1862604f8a07cdcd2803e137887ad55ae40526e799
 stale: true
 raw: ./_raw/SCREEN-039.json
 links:
@@ -19,6 +19,7 @@ links:
   references: ["[[API-205]]", "[[API-206]]", "[[API-207]]", "[[API-208]]", "[[API-209]]", "[[API-210]]", "[[API-211]]", "[[API-215]]", "[[API-216]]", "[[API-217]]", "[[API-218]]", "[[API-221]]", "[[API-222]]"]
   requires: ["[[ROLE-004]]"]
   applies_to_backward: ["[[SHELL-001]]"]
+  designs_backward: ["[[SD-038]]"]
   granted_on_backward: ["[[ROLE-004]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   references_backward: ["[[TEST-007]]", "[[TEST-008]]", "[[UC-035]]", "[[UC-036]]", "[[UC-037]]"]
@@ -2337,13 +2338,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-041
-- AC-042
-- AC-043
-- AC-044
-- AC-045
-- AC-046
-- AC-047
-- AC-120
 - AC-1032
 - AC-1033

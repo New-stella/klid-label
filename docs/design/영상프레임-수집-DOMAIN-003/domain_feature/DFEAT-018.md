@@ -1,20 +1,21 @@
 ---
 logicraft_item: DFEAT-018
 type: domain_feature
-version: 9
+version: 10
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:11:17.771Z
-status: NEW
-prev_version: null
-content_hash: a28537d87739d87fa2dbb6f4b2fd3669e674b99b35c5a10aa3b77c3385b2841a
-stale: true
+synced_at: 2026-09-01T08:39:59.389Z
+status: CHANGED
+prev_version: 9
+content_hash: 0637088ba902180113e53b9358025a3732185f65263add0563ef6ea401f54360
+stale: false
 raw: ./_raw/DFEAT-018.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
-  implements: ["[[API-093]]"]
+  implements: ["[[API-093]]", "[[IMPREC-354]]"]
   migrated_from: ["[[LEGACY-066]]"]
   specializes: ["[[FEAT-001]]"]
+  verifies: ["[[AC-1026]]", "[[AC-1027]]"]
   depicts_backward: ["[[CDIAG-005]]"]
   realizes_backward: ["[[UC-005]]", "[[UC-038]]"]
 ---
@@ -87,6 +88,10 @@ SAM 방식으로 객체를 클릭하면 외곽을 자동 세그멘테이션하�
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -113,6 +118,10 @@ _(empty)_
 
 2026-08-29T01:26:20.119Z
 
+### module_paths
+
+_(empty)_
+
 ## uses_constants
 
 _(empty)_
@@ -127,7 +136,8 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-005
+- AC-1026
+- AC-1027
 
 ## specializes_feature
 

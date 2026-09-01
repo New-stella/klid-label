@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 47
-last_updated_at: 2026-08-27T09:25:47.894Z
+version: 48
+last_updated_at: 2026-09-01T08:27:10.939Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:09:59.443Z
-sync_session: 36
-stale: true
+synced_at: 2026-09-01T08:39:29.314Z
+sync_session: 37
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-008.json
@@ -16,7 +16,7 @@ links:
   consumes_apis: ["[[API-042]]", "[[API-047]]", "[[API-068]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-212]]", "[[API-214]]"]
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-018]]"]
-  acceptance: ["[[AC-049]]", "[[AC-050]]"]
+  acceptance: ["[[AC-1022]]", "[[AC-1023]]"]
 ---
 
 # 영상 처리 현황 화면
@@ -711,6 +711,10 @@ web
 - API-212
 - API-214
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -774,6 +778,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -784,5 +792,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-049
-- AC-050
+- AC-1022
+- AC-1023

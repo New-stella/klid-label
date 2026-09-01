@@ -1,19 +1,19 @@
 ---
 logicraft_item: SCREEN-008
 type: screen_spec
-version: 47
+version: 48
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-27T20:54:27.708Z
+synced_at: 2026-09-01T08:40:01.742Z
 status: CHANGED
-prev_version: 45
-content_hash: 621f7c61871a4a79b4c8de9f84c252344bae38ca6f8af68f1b257d982c9e28f6
+prev_version: 47
+content_hash: a5a05de26b31e8092aff97f410dce823a3434d00f01e7c3cc577806143a5dc72
 stale: false
 raw: ./_raw/SCREEN-008.json
 links:
   belongs_to_domain: ["[[DOMAIN-003]]"]
-  consumes: ["[[API-042]]", "[[API-047]]", "[[API-068]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-212]]", "[[API-214]]"]
-  covered_by: ["[[AC-049]]", "[[AC-050]]"]
+  consumes: ["[[API-042]]", "[[API-047]]", "[[API-068]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-199]]", "[[API-212]]", "[[API-214]]"]
+  covered_by: ["[[AC-1022]]", "[[AC-1023]]"]
   implements: ["[[IMPREC-037]]", "[[IMPREC-039]]", "[[IMPREC-052]]"]
   realizes: ["[[UC-018]]"]
   references: ["[[API-042]]", "[[API-047]]", "[[API-068]]", "[[API-070]]", "[[API-071]]", "[[API-181]]", "[[API-199]]", "[[API-212]]", "[[API-214]]"]
@@ -23,7 +23,7 @@ links:
   granted_on_backward: ["[[ROLE-001]]", "[[ROLE-002]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-003]]"]
-  references_backward: ["[[TEST-001]]", "[[UC-011]]", "[[UC-018]]"]
+  references_backward: ["[[TEST-001]]", "[[UC-011]]", "[[UC-018]]", "[[UC-038]]"]
 ---
 
 # 영상 처리 현황 화면
@@ -718,6 +718,10 @@ web
 - API-212
 - API-214
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -781,6 +785,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -791,5 +799,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-049
-- AC-050
+- AC-1022
+- AC-1023

@@ -1,21 +1,22 @@
 ---
 logicraft_item: DFEAT-048
 type: domain_feature
-version: 16
+version: 17
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:09.978Z
+synced_at: 2026-09-01T08:40:11.492Z
 status: CHANGED
 prev_version: 16
-content_hash: 63ad0d6f622446bf9ea6525cfb91ce0b6763f810d6b5e6a589bf67e29b7b72b6
-stale: true
+content_hash: 3345cec4c77f71918d86c77e8955c26494aafde63e06d2190cf4b33892800f2f
+stale: false
 raw: ./_raw/DFEAT-048.json
 links:
+  based_on: ["[[ADR-022]]"]
   belongs_to_domain: ["[[DOMAIN-012]]"]
-  implements: ["[[API-032]]", "[[API-091]]", "[[API-094]]", "[[API-109]]", "[[API-202]]"]
+  implements: ["[[API-032]]", "[[API-091]]", "[[API-094]]", "[[API-109]]", "[[API-202]]", "[[IMPREC-095]]"]
   specializes: ["[[FEAT-005]]"]
   triggers: ["[[EVT-007]]"]
-  verifies: ["[[AC-016]]", "[[AC-019]]"]
+  verifies: ["[[AC-1063]]", "[[AC-1064]]", "[[AC-1066]]", "[[AC-1067]]"]
   depicts_backward: ["[[CDIAG-003]]", "[[CMP-003]]"]
   realizes_backward: ["[[MOD-049]]", "[[UC-016]]"]
 ---
@@ -74,6 +75,10 @@ ADR-022
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -100,6 +105,10 @@ _(empty)_
 
 2026-08-25T01:21:30.495Z
 
+### module_paths
+
+_(empty)_
+
 ## uses_constants
 
 _(empty)_
@@ -114,8 +123,10 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-016
-- AC-019
+- AC-1063
+- AC-1064
+- AC-1066
+- AC-1067
 
 ## specializes_feature
 

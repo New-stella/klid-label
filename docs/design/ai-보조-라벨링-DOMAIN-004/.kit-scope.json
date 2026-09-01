@@ -132,6 +132,7 @@
     "MOD-023",
     "MOD-041",
     "MOD-048",
+    "DFEAT-045",
     "IMPREC-079",
     "IMPREC-080",
     "IMPREC-082",
@@ -141,10 +142,12 @@
     "IMPREC-328",
     "IMPREC-329",
     "IMPREC-330",
+    "IMPREC-354",
     "INFRA-003",
     "NAV-001",
-    "SCREEN-039"
+    "SCREEN-039",
+    "UC-042"
   ],
-  "last_sync_at": "2026-09-01T07:14:17.586Z",
+  "last_sync_at": "2026-09-01T08:40:17.988Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

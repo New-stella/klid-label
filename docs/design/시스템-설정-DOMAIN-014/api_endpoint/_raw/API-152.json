@@ -320,7 +320,7 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-28T11:32:55.520Z",
+        "last_updated": "2026-09-01T08:40:00.111Z",
         "module_paths": []
       },
       "uses_constants": [],
@@ -329,12 +329,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이 창구의 소유 역할을 검수자에서 관리자로 좁힌다. 관리자 단기 유효창을 요구하는 창구인데 소유 역할이 검수자로 남아 있어 어긋나 있었다 — 유효창은 관리자에게만 발급되므로 검수자는 실제로 통과하지 못했고, 계약이 그 사실과 달랐다. 운영 토글과 유효창 요구는 그대로이며 셋은 서로를 대체하지 않고 가산된다. 요청 형식(멀티파트)과 응답 스키마는 무변경이다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-28T11:32:55.520Z",
+    "change_summary": "400 응답·작업 설명 문구를 실제 판정에 맞춤(cctvId 등록검증 없음). 검증 로직 무변경.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:40:00.111Z",
     "created_at": "2026-07-30T07:05:56.454Z"
   }
 }

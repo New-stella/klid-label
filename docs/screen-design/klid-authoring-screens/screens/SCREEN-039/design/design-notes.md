@@ -41,7 +41,7 @@
 | 분류 대응 · 짝 목록 · 이관 이력 | UI-007 DataTable | `.table-scroll` + `.data-table` |
 | 쪽 이동 | UI-008 Pagination | SCREEN-032 의 40×40 규격 계승 |
 | 다이얼로그 | UI-004 Modal · UI-005 ConfirmDialog | `:target` · SCREEN-032 계승. 대응 해제 확인은 ConfirmDialog 축 |
-| 경로 목록 | ⚠️ 미정 `PathPicker` | **카탈로그에 없는 유일한 신규**. 빵부스러기(UI-013)와 목록을 묶어 서버 저장소를 한 단계씩 훑는 창구 |
+| 경로 목록 | **UI-145 PathPicker** · UI-013 Breadcrumb | 이번에 카탈로그에 등록한 신규. 빵부스러기와 목록을 묶어 서버 저장소를 한 단계씩 훑는 창구이며 folder·file 두 변형을 갖는다 |
 | 진행률 | UI-019 ProgressBar | `.pw-*` 폭 클래스 |
 | 상태 배지 | UI-014 StatusBadge | |
 
@@ -75,4 +75,4 @@
 ## 6. 알려진 한계
 
 - **CSS 없이 이름만 있는 클래스 6종**(`alert-desc` · `cell-check` · `cell-doc` · `cell-fps` · `cell-state` · `cell-video`)이 있다. 전부 SCREEN-027 에서 옮겨온 블록의 것이고 **그 원본에도 규칙이 없었다** — 시각 규칙 없이 의미만 다는 자리라 회귀가 아니다.
-- 카탈로그 대조 결과 **신규는 `PathPicker` 한 종뿐**이다. 처음에 신규로 본 나머지 셋은 전부 이미 등록돼 있었다 — 갈래 카드는 UI-071 ProcessKindCard, 집계 상자는 UI-010 KpiCard, 오버레이는 UI-004 Modal · UI-005 ConfirmDialog. **이름이 다르다고 신규로 세지 않는다.** `PathPicker` 등록은 사용자 동의 후 별도로 한다.
+- 카탈로그 대조 결과 **신규는 `PathPicker` 한 종뿐**이었다. 처음에 신규로 본 나머지 셋은 전부 이미 등록돼 있었다 — 갈래 카드는 UI-071 ProcessKindCard, 집계 상자는 UI-010 KpiCard, 오버레이는 UI-004 Modal · UI-005 ConfirmDialog. **이름이 다르다고 신규로 세지 않는다.** `PathPicker` 는 사용자 동의를 받아 **UI-145** 로 등록했다.

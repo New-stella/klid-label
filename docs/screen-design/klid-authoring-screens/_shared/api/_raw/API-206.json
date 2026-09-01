@@ -331,21 +331,19 @@
         "FEAT-010"
       ],
       "verifies_acceptance": [
-        "AC-044",
-        "AC-045",
-        "AC-046",
-        "AC-047",
-        "AC-048"
+        "AC-1079",
+        "AC-1080",
+        "AC-1081"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 13,
-    "stale": true,
-    "stale_reason": "UC-035의 data.secondary_actors 변경이 verifies로 2-hop 전파",
-    "change_summary": "403 사유 문구를 자기 계약에 맞춘다. 이 창구는 관리자 전용인데 거부 사유가 검수자 권한을 들고 있어 계약과 정반대였다. 구현자가 이 문구대로 권한을 짜면 관리자 전용 창구가 검수자에게 열린다. 같은 관리자 전용 창구인 API-211 의 표현에 맞춰 사유 서술과 응답 예시 문구를 관리자 기준으로 고친다. 인가 자체와 그 밖의 상태코드·요청·응답 스키마는 바꾸지 않았다.",
+    "current_version": 14,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검증한다고 선언한 수용기준 목록을 살아 있는 것으로 다시 세운다. 5건 중 5건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1079, AC-1080, AC-1081). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T06:22:40.652Z",
+    "last_updated_at": "2026-09-01T08:27:05.450Z",
     "created_at": "2026-08-19T07:52:19.993Z"
   }
 }

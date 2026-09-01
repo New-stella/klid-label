@@ -1288,26 +1288,18 @@
         "UC-037"
       ],
       "covered_by_acceptances": [
-        "AC-041",
-        "AC-042",
-        "AC-043",
-        "AC-044",
-        "AC-045",
-        "AC-046",
-        "AC-047",
-        "AC-120",
         "AC-1032",
         "AC-1033"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 40,
+    "current_version": 41,
     "stale": true,
-    "stale_reason": "UC-036의 data.related_screens 변경 — realizes",
-    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (34.0KB)",
+    "stale_reason": "DFEAT-059의 3개 필드 변경이 realizes로 2-hop 전파",
+    "change_summary": "이 화면을 검증한다고 걸려 있던 인수기준 가운데 폐기된 여덟 건을 걷어낸다. 그 여덟은 수용기준을 흐름 단위로 다시 세운 라운드에서 폐기됐고 그 자리를 대신하는 것이 지금 남는 두 건이다. 폐기된 것을 걸어 두면 이 화면이 무엇으로 검증되는지 물었을 때 이미 버린 기준이 돌아오고, 그래프에서도 그 여덟은 순회에 잡히지 않아 실제로는 검증 축이 둘뿐인데 열 건인 것처럼 보인다. 같은 사유로 파일 업로드 화면에서도 같은 성격의 링크를 앞서 걷어냈다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T07:06:44.193Z",
+    "last_updated_at": "2026-09-01T07:28:50.391Z",
     "created_at": "2026-08-19T09:31:39.948Z"
   }
 }

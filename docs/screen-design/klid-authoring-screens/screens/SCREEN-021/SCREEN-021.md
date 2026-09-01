@@ -5,9 +5,9 @@ version: 29
 last_updated_at: 2026-08-31T12:49:51.348Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:09:59.456Z
-sync_session: 36
-stale: false
+synced_at: 2026-09-01T08:39:29.342Z
+sync_session: 37
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-021.json

@@ -4,9 +4,9 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-016 |
-| Last sync | 2026-08-31T11:12:42.106Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 65 |
-| 출력 루트 | docs/design/관제-통지-DOMAIN-016 |
+| Last sync | 2026-09-01T08:40:04.295Z |
+| Mode | SYNC — NEW 0 / CHANGED 13 / UNCHANGED 52 |
+| 출력 루트 | 관제-통지-DOMAIN-016 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-016 — .kit-scope.json (스킬 LLM 판정) |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 7건 / 스코프 밖 41건
-  ℹ️  api_endpoint: 이번 키트 3건 / 스코프 밖 199건
+  ℹ️  api_endpoint: 이번 키트 3건 / 스코프 밖 200건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 21건 (그중 domain_id 없음 13건)
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 36건
-  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 33건 (그중 domain_id 없음 2건)
+  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건 (그중 domain_id 없음 3건)
   ℹ️  domain_event: 이번 키트 5건 / 스코프 밖 7건
-  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 71건
+  ℹ️  acceptance: 이번 키트 2건 / 스코프 밖 73건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 10건 / 스코프 밖 38건 (그중 domain_id 없음 6건)
+  ℹ️  adr: 이번 키트 10건 / 스코프 밖 40건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -41,14 +41,26 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1077]] (prev v5)
+- CHANGED [[AC-1078]] (prev v7)
+- CHANGED [[ADR-046]] (prev v8)
+- CHANGED [[CDIAG-013]] (prev v8)
+- CHANGED [[SEQ-020]] (prev v1)
+- CHANGED [[SEQ-023]] (prev v8)
+- CHANGED [[DFEAT-046]] (prev v10)
+- CHANGED [[ERD-021]] (prev v14)
+- CHANGED [[NFR-011]] (prev v5)
+- CHANGED [[NFR-013]] (prev v9)
+- CHANGED [[NFR-014]] (prev v3)
+- CHANGED [[NFR-020]] (prev v8)
+- CHANGED [[UC-009]] (prev v21)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1077]] | acceptance | 5 | UNCHANGED |
-| [[AC-1078]] | acceptance | 7 | UNCHANGED |
+| [[AC-1077]] | acceptance | 6 | CHANGED |
+| [[AC-1078]] | acceptance | 8 | CHANGED |
 | [[ADR-002]] | adr | 2 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-012]] | adr | 10 | UNCHANGED |
@@ -57,22 +69,22 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-033]] | adr | 3 | UNCHANGED |
 | [[ADR-037]] | adr | 3 | UNCHANGED |
-| [[ADR-046]] | adr | 8 | UNCHANGED |
+| [[ADR-046]] | adr | 9 | CHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
 | [[API-074]] | api_endpoint | 7 | UNCHANGED |
 | [[API-075]] | api_endpoint | 8 | UNCHANGED |
 | [[API-076]] | api_endpoint | 9 | UNCHANGED |
-| [[CDIAG-013]] | class_diagram | 8 | UNCHANGED |
+| [[CDIAG-013]] | class_diagram | 9 | CHANGED |
 | [[CMP-009]] | diagram_c4_component | 15 | UNCHANGED |
 | [[DFEAT-006]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-043]] | domain_feature | 15 | UNCHANGED |
 | [[DFEAT-044]] | domain_feature | 12 | UNCHANGED |
-| [[DFEAT-046]] | domain_feature | 10 | UNCHANGED |
+| [[DFEAT-046]] | domain_feature | 11 | CHANGED |
 | [[DFEAT-047]] | domain_feature | 7 | UNCHANGED |
 | [[DFEAT-053]] | domain_feature | 8 | UNCHANGED |
 | [[DFEAT-054]] | domain_feature | 3 | UNCHANGED |
 | [[DOMAIN-016]] | domain | 12 | UNCHANGED |
-| [[ERD-021]] | erd | 14 | UNCHANGED |
+| [[ERD-021]] | erd | 15 | CHANGED |
 | [[ERD-027]] | erd | 6 | UNCHANGED |
 | [[EVT-003]] | domain_event | 6 | UNCHANGED |
 | [[EVT-004]] | domain_event | 10 | UNCHANGED |
@@ -88,16 +100,16 @@
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
-| [[NFR-011]] | nfr | 5 | UNCHANGED |
+| [[NFR-011]] | nfr | 6 | CHANGED |
 | [[NFR-012]] | nfr | 5 | UNCHANGED |
-| [[NFR-013]] | nfr | 9 | UNCHANGED |
-| [[NFR-014]] | nfr | 3 | UNCHANGED |
+| [[NFR-013]] | nfr | 10 | CHANGED |
+| [[NFR-014]] | nfr | 4 | CHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | UNCHANGED |
+| [[NFR-020]] | nfr | 9 | CHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[NFR-022]] | nfr | 2 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
@@ -107,8 +119,8 @@
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SEQ-010]] | diagram_sequence | 15 | UNCHANGED |
 | [[SEQ-015]] | diagram_sequence | 4 | UNCHANGED |
-| [[SEQ-020]] | diagram_sequence | 1 | UNCHANGED |
-| [[SEQ-023]] | diagram_sequence | 8 | UNCHANGED |
+| [[SEQ-020]] | diagram_sequence | 2 | CHANGED |
+| [[SEQ-023]] | diagram_sequence | 9 | CHANGED |
 | [[SEQ-025]] | diagram_sequence | 5 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
-| [[UC-009]] | use_case | 21 | UNCHANGED |
+| [[UC-009]] | use_case | 22 | CHANGED |

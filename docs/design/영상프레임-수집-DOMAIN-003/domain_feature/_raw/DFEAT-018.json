@@ -29,6 +29,7 @@
       },
       "description": "SAM 방식으로 객체를 클릭하면 외곽을 자동 세그멘테이션하여 라벨링을 보조한다. (1차 baseline, 화면 SKKLID-UI-02-02-05)",
       "invokes_apis": [],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -37,13 +38,15 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:20.119Z"
+        "last_updated": "2026-08-29T01:26:20.119Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "acceptance_rules": [],
       "persists_in_tables": [],
       "related_acceptances": [
-        "AC-005"
+        "AC-1026",
+        "AC-1027"
       ],
       "specializes_feature": "FEAT-001",
       "implemented_by_endpoints": [
@@ -54,12 +57,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
-    "stale": true,
-    "stale_reason": "AC-005의 5개 필드 변경 — verifies",
-    "change_summary": "전파 확인만 기록한다 — 원천 API-093 v14 의 변경은 취소로 끝난 추론의 응답 코드를 취소 전용으로 확정한 것이다. 이 기능은 클릭 시드로 외곽을 자동 분할한다는 범위만 서술하고 응답 코드 계약은 담지 않으므로 고칠 내용이 없다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:20.119Z",
+    "current_version": 10,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "관련 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1026, AC-1027). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:27:07.194Z",
     "created_at": "2026-05-29T06:30:20.680Z"
   }
 }

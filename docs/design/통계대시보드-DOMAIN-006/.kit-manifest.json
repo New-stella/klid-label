@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-006",
-  "synced_at": "2026-08-31T11:12:45.353Z",
+  "synced_at": "2026-09-01T08:40:08.642Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -15,20 +15,20 @@
     "AC-1043": {
       "type": "acceptance",
       "domain_id": "DOMAIN-006",
-      "version": 3,
-      "content_hash": "95db8ba3b327616304d3cda15bd47a8fbcc934f2e73f8720e5d847172ae77d1c"
+      "version": 4,
+      "content_hash": "0d69b341443c54592b44d888ac70411d3074b84fd3c44b0557ac54a1ef857b40"
     },
     "AC-1084": {
       "type": "acceptance",
       "domain_id": "DOMAIN-006",
-      "version": 1,
-      "content_hash": "5953b868fee65e4de409626d07367a3a2e29f72d2c9e0092bf78cadf02ad543d"
+      "version": 3,
+      "content_hash": "01ca3c04a76636beb4c3a0ef96160dc6092643616d5218697258e99367dad88e"
     },
     "AC-1085": {
       "type": "acceptance",
       "domain_id": "DOMAIN-006",
-      "version": 2,
-      "content_hash": "927382e91e03ff42cfb633ff157da230df22edefc0f5f760799f1c20376ca9c0"
+      "version": 4,
+      "content_hash": "e775066817a37c97862d292335a28b13406005a5e8b3a2cf9f6e3c7172c1685f"
     },
     "ADR-001": {
       "type": "adr",
@@ -88,7 +88,7 @@
       "type": "api_endpoint",
       "domain_id": "DOMAIN-006",
       "version": 4,
-      "content_hash": "29d04a4bf9f482c2c5b3aff3c26d3fa8a67c6d1c48ebf96913c4d961de1c5cab"
+      "content_hash": "8e9d2b71d5f40ceb918b253319bbaeee71cf6adf5c31da88a61e8435d3e54b95"
     },
     "API-072": {
       "type": "api_endpoint",
@@ -147,8 +147,8 @@
     "NFR-011": {
       "type": "nfr",
       "domain_id": null,
-      "version": 5,
-      "content_hash": "661e62fecd84ee6545264c47943b5fdd3555ccffd37ad16bf31864a632ba4808"
+      "version": 6,
+      "content_hash": "c35551f1bcc5a4fdc280b792d35df1a37bbd1c6e08215ee5210aea12d531b2b8"
     },
     "NFR-012": {
       "type": "nfr",
@@ -159,14 +159,14 @@
     "NFR-013": {
       "type": "nfr",
       "domain_id": null,
-      "version": 9,
-      "content_hash": "0e9d0a8611d569c118a72bf4525de1393113a26433c2736d841f1fc393dbb67e"
+      "version": 10,
+      "content_hash": "3dc7969a0b4ff575ec112b8551779f6a1b1fc7a80368170de6b6d92d795ea361"
     },
     "NFR-014": {
       "type": "nfr",
       "domain_id": null,
-      "version": 3,
-      "content_hash": "639499bb54b73174bfb66b573aee9c90b60f87b453516f2106e9b21dada897ef"
+      "version": 4,
+      "content_hash": "18abdca4e11876496695c45df3321d7fc3864843dc247f9869a45de81d4a96d3"
     },
     "NFR-015": {
       "type": "nfr",
@@ -201,8 +201,8 @@
     "NFR-020": {
       "type": "nfr",
       "domain_id": null,
-      "version": 8,
-      "content_hash": "7a128a841562c8a3428c0519a6a5b6e6e57057b28b7fdee25913fb7d8f5ee657"
+      "version": 9,
+      "content_hash": "a9b684d1deb61d7fc39a056cbfdf8097a4aaf28668960ce648195e44d685460b"
     },
     "NFR-021": {
       "type": "nfr",
@@ -255,8 +255,8 @@
     "SD-031": {
       "type": "screen_design",
       "domain_id": null,
-      "version": 2,
-      "content_hash": "4c66d6dedcb7adc9522be5da220a883b199ee8ad0e8ea389f4ad2c550c2ca5b6"
+      "version": 3,
+      "content_hash": "adda74aefba5800998040871d6a967af2b5d29c4646a629bb3c3aef862ee649d"
     },
     "SCREEN-011": {
       "type": "screen_spec",
@@ -274,7 +274,7 @@
       "type": "screen_spec",
       "domain_id": "DOMAIN-006",
       "version": 29,
-      "content_hash": "993cc1256e1acf5adee0ee619dc6f8e7ed48358192ed084d41b8f52e29c6cbc6"
+      "content_hash": "4cbff7824109ff4919e2501f043b009d36df3e5e8450cc1519e0e761e9dbbffc"
     },
     "TEST-006": {
       "type": "test_scenario",
@@ -285,8 +285,8 @@
     "UC-033": {
       "type": "use_case",
       "domain_id": "DOMAIN-006",
-      "version": 4,
-      "content_hash": "82f65196ab943378b7985fb31f15a20b09eb836b81c5a83ca0a4975face187ad"
+      "version": 6,
+      "content_hash": "f590b81f9d7383735606d5f86981cc223df52dbd083a4c74c3b374ed143a1268"
     }
   }
 }

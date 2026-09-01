@@ -100,22 +100,18 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-024",
-        "AC-269",
-        "AC-270",
-        "AC-271",
-        "AC-272",
-        "AC-273"
+        "AC-1036",
+        "AC-1037"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 23,
-    "stale": true,
-    "stale_reason": "AC-273의 2개 필드 변경 — covered_by",
-    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 흐름 전체를 한 항목에 몰아 담은 인수기준 한 건뿐이라 어느 단계가 무엇으로 검증되는지 되짚을 수 없었다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
+    "current_version": 24,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 6건이 있었는데 그중 6건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1036, AC-1037)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-30T15:16:21.918Z",
+    "last_updated_at": "2026-09-01T08:25:55.845Z",
     "created_at": "2026-06-05T09:45:54.023Z"
   }
 }

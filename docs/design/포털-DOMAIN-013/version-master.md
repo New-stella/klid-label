@@ -4,9 +4,9 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-013 |
-| Last sync | 2026-08-31T11:12:50.675Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 79 |
-| 출력 루트 | docs/design/포털-DOMAIN-013 |
+| Last sync | 2026-09-01T08:40:16.340Z |
+| Mode | SYNC — NEW 0 / CHANGED 10 / UNCHANGED 69 |
+| 출력 루트 | 포털-DOMAIN-013 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-013 — .kit-scope.json (스킬 LLM 판정) |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 4건 / 스코프 밖 44건
-  ℹ️  api_endpoint: 이번 키트 23건 / 스코프 밖 179건
+  ℹ️  api_endpoint: 이번 키트 23건 / 스코프 밖 180건
   ℹ️  erd: 이번 키트 3건 / 스코프 밖 20건
   ℹ️  diagram_sequence: 이번 키트 2건 / 스코프 밖 24건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 4건 / 스코프 밖 33건
-  ℹ️  use_case: 이번 키트 2건 / 스코프 밖 32건 (그중 domain_id 없음 2건)
+  ℹ️  use_case: 이번 키트 2건 / 스코프 밖 33건 (그중 domain_id 없음 3건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 4건 / 스코프 밖 69건
+  ℹ️  acceptance: 이번 키트 4건 / 스코프 밖 71건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 4건 / 스코프 밖 44건 (그중 domain_id 없음 8건)
+  ℹ️  adr: 이번 키트 4건 / 스코프 밖 46건 (그중 domain_id 없음 8건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -41,16 +41,25 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1068]] (prev v5)
+- CHANGED [[AC-1069]] (prev v7)
+- CHANGED [[AC-1070]] (prev v5)
+- CHANGED [[AC-1071]] (prev v4)
+- CHANGED [[NFR-011]] (prev v5)
+- CHANGED [[NFR-013]] (prev v9)
+- CHANGED [[NFR-014]] (prev v3)
+- CHANGED [[NFR-020]] (prev v8)
+- CHANGED [[UC-024]] (prev v21)
+- CHANGED [[UC-027]] (prev v17)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1068]] | acceptance | 5 | UNCHANGED |
-| [[AC-1069]] | acceptance | 7 | UNCHANGED |
-| [[AC-1070]] | acceptance | 5 | UNCHANGED |
-| [[AC-1071]] | acceptance | 4 | UNCHANGED |
+| [[AC-1068]] | acceptance | 6 | CHANGED |
+| [[AC-1069]] | acceptance | 8 | CHANGED |
+| [[AC-1070]] | acceptance | 6 | CHANGED |
+| [[AC-1071]] | acceptance | 5 | CHANGED |
 | [[ADR-012]] | adr | 10 | UNCHANGED |
 | [[ADR-013]] | adr | 11 | UNCHANGED |
 | [[ADR-026]] | adr | 5 | UNCHANGED |
@@ -96,16 +105,16 @@
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 4 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
-| [[NFR-011]] | nfr | 5 | UNCHANGED |
+| [[NFR-011]] | nfr | 6 | CHANGED |
 | [[NFR-012]] | nfr | 5 | UNCHANGED |
-| [[NFR-013]] | nfr | 9 | UNCHANGED |
-| [[NFR-014]] | nfr | 3 | UNCHANGED |
+| [[NFR-013]] | nfr | 10 | CHANGED |
+| [[NFR-014]] | nfr | 4 | CHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 9 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 8 | UNCHANGED |
+| [[NFR-020]] | nfr | 9 | CHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[NFR-022]] | nfr | 2 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 13 | UNCHANGED |
@@ -124,5 +133,5 @@
 | [[SEQ-019]] | diagram_sequence | 5 | UNCHANGED |
 | [[SHELL-002]] | app_shell | 5 | UNCHANGED |
 | [[TEST-005]] | test_scenario | 12 | UNCHANGED |
-| [[UC-024]] | use_case | 21 | UNCHANGED |
-| [[UC-027]] | use_case | 17 | UNCHANGED |
+| [[UC-024]] | use_case | 22 | CHANGED |
+| [[UC-027]] | use_case | 18 | CHANGED |

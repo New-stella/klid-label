@@ -1,22 +1,22 @@
 ---
 logicraft_item: DFEAT-021
 type: domain_feature
-version: 8
+version: 9
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:29.301Z
+synced_at: 2026-09-01T08:40:07.180Z
 status: CHANGED
 prev_version: 8
-content_hash: b8e3efc1ee3f31b2876b702c353fefe28b66e67a19e7434845f0390e82351c01
-stale: true
+content_hash: 92949d2cd7bd570f931f389bf3d2e34e5c3b581f8011a8792c5dba6665cb6da2
+stale: false
 raw: ./_raw/DFEAT-021.json
 links:
   based_on: ["[[ADR-002]]"]
   belongs_to_domain: ["[[DOMAIN-005]]"]
-  implements: ["[[API-008]]", "[[API-009]]", "[[API-010]]", "[[API-012]]", "[[API-013]]", "[[API-138]]", "[[API-178]]"]
+  implements: ["[[API-008]]", "[[API-009]]", "[[API-010]]", "[[API-012]]", "[[API-013]]", "[[API-138]]", "[[API-178]]", "[[IMPREC-357]]"]
   migrated_from: ["[[LEGACY-077]]"]
   specializes: ["[[FEAT-008]]"]
-  verifies: ["[[AC-022]]"]
+  verifies: ["[[AC-1040]]", "[[AC-1041]]", "[[AC-1042]]"]
   depicts_backward: ["[[CDIAG-006]]", "[[CMP-005]]"]
   realizes_backward: ["[[UC-023]]"]
   references_backward: ["[[ADR-002]]"]
@@ -103,6 +103,10 @@ LEGACY-077
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -129,6 +133,10 @@ _(empty)_
 
 2026-08-29T01:26:20.543Z
 
+### module_paths
+
+_(empty)_
+
 ## uses_constants
 
 _(empty)_
@@ -143,7 +151,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-022
+- AC-1040
+- AC-1041
+- AC-1042
 
 ## specializes_feature
 

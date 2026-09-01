@@ -24,12 +24,14 @@
         "diff_summary": "2차 RFP 공통 개발보안 요구를 저작도구 소스 전체에 적용"
       },
       "description": "'행정기관 및 공공기관 정보시스템 구축·운영 지침' 제50조에 의거한 SW 개발보안(시큐어코딩) 절차를 준수하여 개발하고, 정적 보안 분석(Fortify/CodeQL 등)으로 소스를 상시 점검한다.",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "applies_to_apis": [],
       "applies_to_domains": [],
@@ -37,19 +39,18 @@
       "applies_to_features": [],
       "applies_to_pipelines": [],
       "verified_by_acceptance": [
-        "AC-082",
-        "AC-083",
-        "AC-084"
+        "AC-1050",
+        "AC-1051"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "공지 기능에서 이 비기능 요구를 검증하는 인수기준을 연결한다. 인수기준 쪽에는 비기능 요구를 가리키는 자리가 없어 이쪽에서 잇는다.",
+    "change_summary": "이 요건을 검증하는 수용기준 목록을 살아 있는 것으로 다시 세운다. 3건 중 3건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1050, AC-1051). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T10:32:31.411Z",
+    "last_updated_at": "2026-09-01T08:27:10.624Z",
     "created_at": "2026-06-04T09:30:17.836Z"
   }
 }

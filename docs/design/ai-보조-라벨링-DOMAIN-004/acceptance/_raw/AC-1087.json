@@ -46,16 +46,18 @@
       "derived_domain_ids": [],
       "verification_method": "manual_test",
       "verification_status": "unverified",
-      "derived_from_use_cases": []
+      "derived_from_use_cases": [
+        "UC-042"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "파일 업로드 화면에서 막혀야 할 것이 막히는지를 검증하는 인수기준을 신설한다. 이 화면을 검증하는 기준이 하나도 없어 업로드 시작에 관리자 단기 유효창을 요구하는 것, 허용하지 않는 형식과 용량을 서버가 거부하는 것, 필수 항목 누락과 중복 식별자를 거부하는 것이 어느 기준으로도 확인되지 않았다. 이어 올리기와 취소에는 유효창을 요구하지 않는 의도된 비대칭도 함께 담는다.",
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-042의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "같은 흐름에 매단다. 유효창 요구와 형식·용량·중복 거부는 그 흐름의 시작 자리에서만 생기는 제약이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T06:25:38.244Z",
+    "last_updated_at": "2026-09-01T08:25:05.899Z",
     "created_at": "2026-09-01T06:25:38.244Z"
   }
 }

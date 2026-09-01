@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-000 DOMAIN-000 |
-| last sync | 2026-09-01T08:09:59.809Z (session 36) |
+| last sync | 2026-09-01T08:39:29.926Z (session 37) |
 | 화면 수 | 37개 |
-| ui_component 카탈로그 | populated 144건 |
+| ui_component 카탈로그 | populated 145건 |
 | 출력 루트 | . |
 | 생성 | download-kit.mjs + arrange-screen-kit.mjs (결정적, LLM 0) |
 
@@ -61,7 +61,7 @@
 | type | 파일 | 건수 |
 |---|---|---|
 | design_system | _shared/design-system.md | 1 |
-| ui_component | _shared/ui-catalog.md | 144 |
+| ui_component | _shared/ui-catalog.md | 145 |
 | app_shell + nav | _shared/shell-nav.md | 4 |
 | api_endpoint | _shared/api/ | 202 |
 | constant | _shared/constant/ | 2 |
@@ -126,7 +126,7 @@
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
 
-> ⚠️ 여러 화면이 공유하는 UC/AC 11건은 화면 폴더마다 같은 파일명으로
+> ⚠️ 여러 화면이 공유하는 UC/AC 13건은 화면 폴더마다 같은 파일명으로
 > 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
 > - UC-006 — SCREEN-005, SCREEN-025
 > - UC-008 — SCREEN-005, SCREEN-010
@@ -139,6 +139,8 @@
 > - UC-036 — SCREEN-032, SCREEN-039
 > - AC-1032 — SCREEN-039, SCREEN-039
 > - AC-1033 — SCREEN-039, SCREEN-039
+> - AC-1086 — SCREEN-027, SCREEN-027
+> - AC-1087 — SCREEN-027, SCREEN-027
 
 ## git 권장
 

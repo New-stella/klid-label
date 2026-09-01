@@ -49,11 +49,12 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "in_progress",
         "modules": [],
         "records": [],
         "progress": 0,
         "subtasks": [],
+        "last_updated": "2026-08-31T14:39:48.299Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -67,12 +68,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": true,
-    "stale_reason": "DFEAT-043의 data.attached_files 변경이 derived_from로 2-hop 전파",
-    "change_summary": "확인 SQL 상용 이식성 표기 — 결과 환경 1줄 명시, 쿼리는 klid_at 스키마로 상용 재실행 가능",
+    "stale_reason": "UC-024의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "일부만 충족돼 진행 중으로 둔다 — 구현이나 시험 어느 한쪽이 이 기준의 단언을 다 덮지 못한다. 진행률은 지어내지 않는다(근거 없는 숫자는 다음 사람을 속인다). 상세 사유는 판정 회차 보고에 있다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T03:40:38.174Z",
+    "last_updated_at": "2026-08-31T14:39:48.300Z",
     "created_at": "2026-08-31T02:21:18.864Z"
   }
 }

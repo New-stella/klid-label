@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 46
+version: 47
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:19:27.852Z
+synced_at: 2026-09-01T08:40:14.705Z
 status: CHANGED
-prev_version: 44
-content_hash: 5bae329f7a0c446e4f12e2e2fd2b04dcad531e363badc5836f2b58d3b44c7f6b
+prev_version: 46
+content_hash: c161f2051d34c6bdce5b049781ccbe4c53acf23b9ab5acf314730d3053666d7b
 stale: false
 raw: ./_raw/SCREEN-025.json
 links:
   based_on: ["[[ADR-046]]"]
   belongs_to_domain: ["[[DOMAIN-014]]"]
   consumes: ["[[API-068]]", "[[API-069]]", "[[API-090]]"]
-  covered_by: ["[[AC-055]]"]
+  covered_by: ["[[AC-1022]]", "[[AC-1023]]"]
   implements: ["[[IMPREC-054]]", "[[IMPREC-163]]"]
   realizes: ["[[UC-006]]", "[[UC-013]]", "[[UC-031]]"]
   references: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[FEAT-007]]"]
@@ -470,6 +470,10 @@ web
 - API-069
 - API-090
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -532,6 +536,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -544,4 +552,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-055
+- AC-1022
+- AC-1023

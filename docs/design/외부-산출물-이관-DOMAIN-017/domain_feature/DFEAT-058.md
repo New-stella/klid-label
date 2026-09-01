@@ -1,13 +1,13 @@
 ---
 logicraft_item: DFEAT-058
 type: domain_feature
-version: 4
+version: 5
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T07:14:15.794Z
+synced_at: 2026-09-01T08:39:58.123Z
 status: CHANGED
-prev_version: 3
-content_hash: dd1c692076fcc7c4d8517d5205d986062c6d55ed9fc043be88da5008862e1695
+prev_version: 4
+content_hash: 894c1c88e841d536121ef5e0b716e9fb50980bc242ff2c62fbf0c812334dd103
 stale: false
 raw: ./_raw/DFEAT-058.json
 links:
@@ -15,6 +15,7 @@ links:
   belongs_to_domain: ["[[DOMAIN-017]]"]
   implements: ["[[API-209]]", "[[API-210]]", "[[API-211]]"]
   specializes: ["[[FEAT-010]]"]
+  verifies: ["[[AC-1079]]", "[[AC-1080]]", "[[AC-1081]]"]
   realizes_backward: ["[[UC-035]]"]
 ---
 
@@ -152,8 +153,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-042
-- AC-043
+- AC-1079
+- AC-1080
+- AC-1081
 
 ## specializes_feature
 

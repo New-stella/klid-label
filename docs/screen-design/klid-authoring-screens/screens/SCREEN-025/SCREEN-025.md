@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 46
-last_updated_at: 2026-08-29T00:22:50.595Z
+version: 47
+last_updated_at: 2026-09-01T08:27:11.309Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:09:59.462Z
-sync_session: 36
-stale: true
+synced_at: 2026-09-01T08:39:29.407Z
+sync_session: 37
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-025.json
@@ -16,7 +16,7 @@ links:
   consumes_apis: ["[[API-068]]", "[[API-069]]", "[[API-090]]"]
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-031]]", "[[UC-006]]", "[[UC-013]]"]
-  acceptance: ["[[AC-055]]"]
+  acceptance: ["[[AC-1022]]", "[[AC-1023]]"]
 ---
 
 # 시스템 설정 화면
@@ -462,6 +462,10 @@ web
 - API-069
 - API-090
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -524,6 +528,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -536,4 +544,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-055
+- AC-1022
+- AC-1023

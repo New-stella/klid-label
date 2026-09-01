@@ -1,23 +1,23 @@
 ---
 logicraft_item: DFEAT-029
 type: domain_feature
-version: 16
+version: 17
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:24.569Z
+synced_at: 2026-09-01T08:39:59.389Z
 status: CHANGED
 prev_version: 16
-content_hash: 58ba9bb4704426c0a63ba523fd0d5fcfddaf1f1b57f1cdfac7b28f7073410ce9
-stale: true
+content_hash: 369e31471666d7539d86cda24ca3a09f87b07657f5ebe7b575715ccc463530e7
+stale: false
 raw: ./_raw/DFEAT-029.json
 links:
   based_on: ["[[ADR-018]]"]
   belongs_to_domain: ["[[DOMAIN-007]]"]
-  implements: ["[[API-059]]", "[[API-060]]", "[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-092]]", "[[API-179]]", "[[API-188]]", "[[API-189]]", "[[API-190]]"]
+  implements: ["[[API-059]]", "[[API-060]]", "[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-092]]", "[[API-179]]", "[[API-188]]", "[[API-189]]", "[[API-190]]", "[[IMPREC-363]]"]
   migrated_from: ["[[LEGACY-015]]"]
   specializes: ["[[FEAT-004]]"]
   triggers: ["[[EVT-011]]"]
-  verifies: ["[[AC-001]]", "[[AC-002]]", "[[AC-003]]", "[[AC-018]]"]
+  verifies: ["[[AC-1044]]", "[[AC-1045]]", "[[AC-1046]]", "[[AC-1047]]", "[[AC-1048]]", "[[AC-1049]]"]
   depicts_backward: ["[[CDIAG-010]]", "[[CMP-007]]"]
   realizes_backward: ["[[UC-001]]", "[[UC-002]]", "[[UC-003]]"]
   references_backward: ["[[CDIAG-010]]"]
@@ -95,6 +95,10 @@ LEGACY-015
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -144,10 +148,12 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-001
-- AC-002
-- AC-003
-- AC-018
+- AC-1044
+- AC-1045
+- AC-1046
+- AC-1047
+- AC-1048
+- AC-1049
 
 ## specializes_feature
 

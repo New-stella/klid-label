@@ -44,16 +44,18 @@
       "derived_domain_ids": [],
       "verification_method": "manual_test",
       "verification_status": "unverified",
-      "derived_from_use_cases": []
+      "derived_from_use_cases": [
+        "UC-042"
+      ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "파일 업로드 화면을 검증하는 인수기준이 하나도 없어 정상 동선 축을 신설한다. 이 화면에 연결돼 있던 기준들은 마킹 일괄 반입 축을 검증하던 것이라 그 축이 다른 화면으로 옮겨가면서 폐기됐고, 한 건씩 올리는 이 화면의 축을 검증하는 기준은 애초에 없었다. 적재 경로 선택과 그에 따라 갈리는 전달 묶음, 비워 둔 기술메타의 자동 채움, 결과 패널의 상태 추적까지를 담는다.",
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-042의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "단건 투입 흐름을 사용 사례로 세워 이 기준을 그 흐름에 매단다. 종전에는 파생시킬 상위 흐름이 없어 어느 사용 사례에도 매달리지 않은 채 떠 있었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T06:25:02.978Z",
+    "last_updated_at": "2026-09-01T08:25:05.695Z",
     "created_at": "2026-09-01T06:25:02.978Z"
   }
 }
