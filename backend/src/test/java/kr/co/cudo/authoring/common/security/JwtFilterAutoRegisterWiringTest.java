@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 진입 시 작업자 자동 등록의 <b>호출 조건</b>을 고정한다 (@design AC-126).
+ * 진입 시 작업자 자동 등록의 <b>호출 조건</b>을 고정한다 (@design AC-1016).
  *
  * <h3>왜 이 시험이 따로 필요한가</h3>
  * <p>"매 요청 쓰기가 아니다" 를 DB 로만 확인하면 놓친다 — 등록기가 매 요청 호출돼도 문장이

@@ -10,6 +10,7 @@ import kr.co.cudo.authoring.dev.dto.DevTokenRequest;
 import kr.co.cudo.authoring.dev.dto.DevTokenResponse;
 import kr.co.cudo.authoring.user.entity.LsAcntUser;
 import kr.co.cudo.authoring.user.repository.UserRepository;
+import kr.co.cudo.authoring.user.service.DevStandardAccounts;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -44,14 +45,9 @@ public class DevTokenService {
     private static final int DEFAULT_EXP_SECONDS = 3600;
     private static final int MIN_EXP_SECONDS = 60;
     private static final int MAX_EXP_SECONDS = 86400;
-    // 기본 USER_NO 는 dev-seed.sql 과 1:1 매칭되어야 한다.
-    //   1001=REVIEWER(김검수) · 2001=WORKER(최라벨) · 3001=PORTAL_USER(홍길동) · 9001=ADMIN(박관리)
-    // 과거 1002(WORKER)·2001(PORTAL) 매핑은 시드와 어긋나 WORKER 토큰의 sub 가
-    // 실제 REVIEWER 사용자를 가리켜 LABELER 배정 0건이 반환되는 버그가 있었다.
-    private static final String DEFAULT_USER_NO_REVIEWER = "1001";
-    private static final String DEFAULT_USER_NO_WORKER = "2001";
-    private static final String DEFAULT_USER_NO_PORTAL = "3001";
-    private static final String DEFAULT_USER_NO_ADMIN = "9001";
+    // ★기본 USER_NO 는 이 클래스가 갖지 않는다 — 진입 시 작업자 자동 등록의 <제외 판정>이 같은
+    //   번호를 알아야 하고, 두 곳에 적으면 dev 계정이 늘 때 한쪽만 갱신돼 조용히 어긋난다.
+    //   단일 진실원: DevStandardAccounts (dev-seed.sql 과의 1:1 정합도 그 클래스 주석 참조).
     private static final String DEFAULT_NAME_REVIEWER = "검수자";
     private static final String DEFAULT_NAME_WORKER = "라벨러";
     private static final String DEFAULT_NAME_PORTAL = "포털사용자";
@@ -64,8 +60,9 @@ public class DevTokenService {
      *
      * <p>⚠ 그 서술이 경계하던 위험 자체는 <b>그대로 유효하다</b> — 시드에 없는 번호를 지어내면
      * 그 토큰의 {@code sub} 가 <b>다른 사람의 행</b>을 가리킨다(과거 1002/2001 오매핑이 정확히
-     * 그 사고였다). 그러므로 {@link #DEFAULT_USER_NO_ADMIN} 은 {@code dev-seed.sql} 의 관리자
-     * 행과 <b>1:1 로 맞아야 하며</b>, 한쪽만 바꾸면 그 사고가 재현된다.
+     * 그 사고였다). 그러므로 {@link DevStandardAccounts#DEFAULT_USER_NO_ADMIN} 은
+     * {@code dev-seed.sql} 의 관리자 행과 <b>1:1 로 맞아야 하며</b>, 한쪽만 바꾸면 그 사고가
+     * 재현된다.
      */
     private static final String DEFAULT_NAME_ADMIN = "관리자";
 
@@ -168,13 +165,8 @@ public class DevTokenService {
         if (userNo != null && !userNo.isBlank()) {
             return userNo.trim();
         }
-        return switch (role) {
-            case REVIEWER -> DEFAULT_USER_NO_REVIEWER;
-            case WORKER -> DEFAULT_USER_NO_WORKER;
-            case PORTAL_USER -> DEFAULT_USER_NO_PORTAL;
-            // 관리자도 이제 시드에 행이 있다(9001) — 다른 역할과 같은 방식이다(위 상수 주석 참조).
-            case ADMIN -> DEFAULT_USER_NO_ADMIN;
-        };
+        // 관리자도 이제 시드에 행이 있다(9001) — 다른 역할과 같은 방식이다.
+        return DevStandardAccounts.userNoOf(role);
     }
 
     private String resolveName(String name, Role role, String userNo) {

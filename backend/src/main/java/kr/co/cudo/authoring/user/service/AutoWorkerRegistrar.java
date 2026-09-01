@@ -40,11 +40,18 @@ import org.springframework.stereotype.Component;
  * <p>★ 포털 채널은 대상이 아니다 — 호출자가 내부 채널에서만 부른다. 포털 토큰의 주체는 이
  * 마스터의 사용자번호와 매핑이 확인되지 않아 등록하면 남의 행을 만들 수 있다.
  *
+ * <h3>★ 개발용 로그인 표준 계정은 대상이 아니다 (@design AC-1016)</h3>
+ * <p>그 계정들은 역할이 <b>시드로 주어지는 것이 전제</b>라, 시드가 도달하지 않는 환경에서 자동
+ * 등록이 빈자리를 작업자로 메우면 화면에서 고른 역할과 실제 인가가 어긋난 채 굳는다. 판정은
+ * {@link DevStandardAccounts} 가 소유하며 <b>개발용 로그인이 켜진 형상에서만</b> 동작한다 — 그
+ * 조건이 없으면 운영에서 같은 번호를 쓰는 실제 사용자가 조용히 제외된다.
+ *
  * <p>보안: 로그에는 {@code userNo}(Long)와 역할 코드만 남긴다 — 토큰·PII 를 남기지 않으므로
  * 개행 주입 표면도 없다(CWE-359/117).
  *
  * @design ADR-055
- * @design AC-126
+ * @design AC-1016
+ * @design UC-041
  */
 @Slf4j
 @Component
@@ -54,6 +61,7 @@ public class AutoWorkerRegistrar {
     private final AutoWorkerRegisterTxService txService;
     private final UserRoleResolver userRoleResolver;
     private final LsUserRoleRepository lsUserRoleRepository;
+    private final DevStandardAccounts devStandardAccounts;
 
     /**
      * 역할이 없는 내부 채널 사용자를 작업자로 등록한다.
@@ -67,6 +75,13 @@ public class AutoWorkerRegistrar {
      */
     public Role registerAsWorker(Long userNo, String userNm) {
         if (userNo == null) {
+            return null;
+        }
+        // 개발용 로그인 표준 계정 — 역할 없는 상태로 남긴다(클래스 javadoc 참조).
+        //   DB 를 보기 <전>에 판정한다. 그 계정은 역할이 해석되지 않아 매 요청 여기에 오므로,
+        //   뒤로 미루면 제외 대상인데도 요청마다 존재 확인 질의가 돈다.
+        if (devStandardAccounts.isAutoRegisterExcluded(userNo)) {
+            log.debug("[Auth] dev standard account is excluded from auto registration userNo={}", userNo);
             return null;
         }
         try {
