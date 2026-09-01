@@ -142,6 +142,32 @@
 | `LS_PORTAL_ULD_LBL` (V107) | 업로드 자산 수동 라벨 (BBOX/POLYGON만, 좌표 JSON). 오토라벨 미적용 | [16](16-portal.md) |
 | `LS_PORTAL_TUS_ULD` (V108) | 포털 영상 TUS 1.0 재개 가능 업로드 세션 (소유자·오프셋·만료 등, 내부 `LS_TUS_UPLOAD`와 분리) | [16](16-portal.md) |
 
+> ### ★위 4벌은 공용 원장으로 흡수하기로 확정됐다 — 다만 **아직 스키마에 그대로 있다** (2026-09-02 · `ADR-058`)
+>
+> **설계는 확정, DDL 이관은 미착수**다. 위 4행은 **현재 배포 스키마의 사실**이므로 지우지 않는다.
+> 이관이 끝나면 그때 이 표에서 뺀다.
+>
+> | 흡수 전 | 흡수처 | 신설 |
+> |---|---|---|
+> | `LS_PORTAL_ULD` | `LS_DATA_RAW` | `PORTAL_USER_NO varchar(100) nullable` |
+> | `LS_PORTAL_ULD_FRME` | `LS_DATA_SRC` | 신설 컬럼 0 (원장이 상위집합) |
+> | `LS_PORTAL_ULD_LBL` | `LS_DATA_LBL` | 기존 `REG_USER_NO` 를 `bigint`→`varchar(100)` |
+> | `LS_PORTAL_TUS_ULD` | `LS_TUS_UPLOAD` | 사용자 식별자 폭 64→100 |
+> | **`LS_PORTAL_USER_LABEL`** | **흡수하지 않는다 — 존치** | — |
+>
+> - 채널 구분은 **`SRC_TYPE='PORTAL_ULD'`**(축 신설이 아니라 값 1개 추가) + **`PORTAL_USER_NO`** 다.
+> - **`LS_PORTAL_USER_LABEL` 만 남기는 이유** — 존재 이유가 「저장해도 원본을 수정하지 않는다」인
+>   단방향 오버레이라 라벨 원장에 합치면 **원본을 덮어쓴다.** 소유자 구분으로 섞으면 구분을 한 번만
+>   잊는 순간 **남의 오버레이가 정본 라벨로 읽히는 fail-open** 이 된다. 「일관성」을 이유로 함께
+>   흡수하지 말 것.
+> - ⚠ **착지처가 아직 없는 컬럼 4** — MIME 유형 · 원본 파일명 · 업로드 상태 · 실패 사유. 「업로드
+>   상태」는 영상 원장 상태 컬럼과 **값역이 달라** 단순 이관이 안 되고 「실패 사유」는 대응이 없다.
+>   (프레임률·파일 크기는 `LS_DATA_META` 의 `video.fps`·`video.filesize` 로 이미 있고, 프레임 수는
+>   프레임 원장 행을 세면 나온다.)
+> - ⚠ **연쇄 삭제 표면이 넓어진다** — 지금은 `LS_PORTAL_ULD` 삭제가 2개 표만 딸고 가지만, 이관 후
+>   `LS_DATA_RAW` 를 참조하는 표는 **약 24개**다. 그중 `LS_DATA_LBL_HSTRY`·`LS_DATA_AUG`·
+>   `LS_DATA_AUG_LBL_MAP` 은 **부모 외래키가 없어 연쇄로 정리되지 않아** 조용히 고아가 남는다.
+
 > 신규 API `/v1/portal/uploads/**` (images·목록·상세·frames·image·삭제·tus·labels·export·file). 영상은 비식별 미적용(본인 데이터), 다운로드는 본인 데이터(JSON export/원본) 기준.
 
 ## 18.3 데이터마트 적재용 View (V52)
