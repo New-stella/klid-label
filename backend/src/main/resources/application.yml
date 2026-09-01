@@ -1015,10 +1015,11 @@ vlm:
   client:
     url: ${VLM_SERVICE_URL:}
     token: ${VLM_SERVICE_TOKEN:}
-    # 평문 http + 사설 IP URL 허용 완화 — local/dev 목업(klid-mock-server:9400) 실배선 전용.
-    #   ★ local/dev 프로파일 밖에서 true 면 기동이 실패한다(VlmUrlPolicy fail-closed assert).
-    #     stg/prd 는 이 값을 절대 설정하지 않는다 — 미설정(false)이면 HTTPS 전용 + 사설망 차단이 강제된다.
-    allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:false}
+    #  - url 검증은 <스킴(http/https) + 형식>만 본다 — 대역 차단·HTTPS 강제는 2026-08-10 확정으로
+    #    폐기됐다(연동 대상이 내부망 별도 장비일 수 있고, 아웃바운드 통제는 인프라 계층의 몫).
+    #    placeholder 호스트·비허용 스키마·클라우드 메타데이터 대역 차단은 전 프로파일에서 유지된다.
+    #    ★ 구 완화 플래그 allow-insecure-url(VLM_ALLOW_INSECURE_URL)은 켜든 끄든 결과가 같아져
+    #      <죽은 설정>이 되었으므로 제거했다. 되살리면 운영에 평문 http 주소를 넣는 순간 기동이 막힌다.
     timeout-seconds: 10
 
 # 외부 시스템 결과 수신 webhook 인증 — VLM·생성형 AI(증강) 둘 다 계약상 무서명 가드다.

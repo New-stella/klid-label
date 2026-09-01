@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -73,6 +74,30 @@ public class AiSrvrLoadSmoother {
         }
     }
 
+
+    /**
+     * 창 안의 최대값을 <b>표본을 넣지 않고</b> 읽는다 — 노드 선택기의 조회 창구.
+     *
+     * <p>{@link #smooth} 를 읽기에 재사용하면 관측하지도 않은 값이 표본으로 들어가 창이 오염된다
+     * (선택할 때마다 직전 값이 한 번 더 쌓여 혼잡 기억이 실제보다 오래 남는다).
+     *
+     * <p>★ <b>표본이 없으면 {@code empty} 다 — 0 이 아니다.</b> 이 창은 WAS 프로세스의 메모리에 있고
+     * 폴링 틱이 2노드로 나뉘므로 각 노드의 창은 <b>부분 표본</b>이며, 방금 기동한 노드는 비어 있다.
+     * 그때 0을 돌려주면 <b>모르는 노드가 가장 한가한 노드가 되어</b> 요청을 전부 빨아들인다. 폴백
+     * (원장의 마지막 관측값)은 호출자가 정한다 — 여기서는 「모른다」를 그대로 말한다.
+     */
+    public OptionalInt peek(String srvrId, AiSrvrUsageType usage) {
+        if (srvrId == null || usage == null) {
+            return OptionalInt.empty();
+        }
+        Deque<Integer> window0 = samples.get(key(srvrId, usage));
+        if (window0 == null) {
+            return OptionalInt.empty();
+        }
+        synchronized (window0) {
+            return window0.stream().mapToInt(Integer::intValue).max();
+        }
+    }
 
     /**
      * 원장에 없는 노드의 표본을 버린다.

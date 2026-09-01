@@ -131,14 +131,11 @@ kpst:
 #      있으면 환경변수가 이겨 엉뚱한 대상으로 나가므로 .env 를 함께 확인할 것)
 #   - 네이티브(bootRun): 컨테이너명이 해석되지 않는다 — mock-server 를 호스트에서 띄우고
 #     VLM_SERVICE_URL=http://localhost:9400 을 주입할 것(위 KPST_DEID_BASE_URL 과 동일 관례).
-#   - allow-insecure-url: 목업이 평문 http + 컨테이너 내부/사설 호스트라, 운영 표준(HTTPS + 공인망)을
-#     그대로 적용하면 VlmUrlPolicy 가 빈 생성을 실패시켜 **기동 자체가 막힌다**. 완화는 이 전용 플래그로만
-#     열리고 local/dev 프로파일에서만 인정된다(그 밖에서 true 면 기동 실패 — ProfileGatedUrlPolicy).
-#     ★ 목 주소와 이 플래그는 짝이다. 플래그 없이 목 주소만 넣으면 부팅이 깨진다.
+#   - 평문 http + 컨테이너 내부/사설 호스트는 **전 프로파일에서 그대로 통과**한다(2026-08-10 확정).
+#     ★ 구 완화 플래그(VLM_ALLOW_INSECURE_URL)는 제거됐다 — 목 주소만 넣으면 그대로 기동한다.
 vlm:
   client:
     url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}
-    allow-insecure-url: ${VLM_ALLOW_INSECURE_URL:true}
 
 # 콜백 충실 플로우 Phase 2 — local 전용 webhook HMAC 시크릿(dev placeholder, 32B 이상).
 #   - Phase 7-A2 이후 서명 필수 경로는 0개다(VLM·생성형 AI 콜백 모두 벤더 규격상 무서명). 이 값은

@@ -82,6 +82,25 @@ public class LsWebhookIdempotency {
     private Long rawSn;
 
     /**
+     * 이 위탁을 <b>어느 AI 서버(장비)로 보냈는가</b>. [@design ERD-021] [@design ADR-057]
+     *
+     * <p>외부 시계열 분석 서버가 장비 두 대로 이중화되면서, 위탁을 나눠 보내려면 <b>장비별 부하</b>를
+     * 셀 수 있어야 하고 결과가 도착했을 때 어느 장비의 산출인지 되짚을 수 있어야 한다.
+     *
+     * <p>★ <b>부하로 세는 것은 {@link #STATE_ACCEPTED} 행뿐이다.</b> {@link #STATE_ISSUED} 는 우리가
+     * 상관키를 선커밋한 것일 뿐 벤더가 아직 받지 않은 상태라 그 장비의 부하가 0이다 — 세면 방금 제출이
+     * 몰린 장비를 과대평가해 다음 요청이 반대편으로 쏠리고, 값이 실제 부하가 아니라 직전 배분의
+     * 메아리가 되어 진자운동한다.
+     *
+     * <p>★ <b>{@code null} 은 「장비 미상」이다.</b> 이 컬럼 도입 전 행과, 장비를 고르지 못한 위탁
+     * (원장에 시계열 노드가 없어 배포 기본 주소로 나간 구성)이 여기 해당한다. 그래서
+     * <b>미결 회수 스윕의 조회·클레임 조건에 이 값을 걸지 않는다</b> — 걸면 미상 행과 죽은 장비의 몫이
+     * 영영 회수되지 않는데, 그 스윕이 시계열 메타의 무증상 영구 결손을 막는 유일한 경로다.
+     */
+    @Column(name = "SRVR_ID", length = 20)
+    private String srvrId;
+
+    /**
      * <b>적용일시</b> — 콜백 처리 완료({@code PROCESSED})를 원장에 반영한 시각. 미처리 행은 null 이다.
      *
      * <p><b>물리명은 {@code APLCN_DT} 다</b>(V8 개명 — 구 {@code APLY_DT}). 행안부 공통표준용어에
@@ -102,6 +121,17 @@ public class LsWebhookIdempotency {
     }
 
     public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
+        return issue(idempotencyKey, channel, externalJobId, rawSn, null);
+    }
+
+    /**
+     * 발급 — 보낸 장비까지 남긴다. [@design ERD-021]
+     *
+     * @param srvrId 위탁을 보낸 AI 서버 식별자. 고르지 못했으면 {@code null}(장비 미상 — 추측해 채우지
+     *               않는다. 채우면 실제로 나간 곳과 다른 장비의 부하가 늘어 배분이 어긋난다)
+     */
+    public static LsWebhookIdempotency issue(String idempotencyKey, String channel, String externalJobId,
+                                             Long rawSn, String srvrId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("idempotencyKey 는 필수입니다.");
         }
@@ -114,6 +144,7 @@ public class LsWebhookIdempotency {
         entity.sttsCd = STATE_ISSUED;
         entity.otsdJobId = externalJobId;
         entity.rawSn = rawSn;
+        entity.srvrId = srvrId;
         LocalDateTime now = LocalDateTime.now();
         entity.regDt = now;
         entity.mdfcnDt = now;

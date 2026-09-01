@@ -46,6 +46,26 @@ public final class IntegrationEndpointTransportGuards {
      * <p>경고에는 <b>토큰 값도 주소 원문도 싣지 않는다</b>(CWE-532) — 대상 이름과 "자격증명을 붙이지
      * 않았다"는 사실만 남긴다. 로그 폭주를 막기 위해 1회만 출력한다.
      *
+     * <h3>★ 예외 — 원장에서 고른 장비로 <b>핀된</b> 요청은 자격증명을 유지한다 (HIGH · PM 결정)</h3>
+     * <p>위 판정은 <b>수신처가 하나</b>라는 전제 위에 있다. 그런데 한 벤더가 <b>여러 장비로 이중화</b>되면
+     * 배포 기본값과 같은 호스트는 <b>최대 하나</b>라, 나머지 장비로 가는 <b>정상 요청이 전부</b>
+     * 자격증명을 잃는다 — 벤더는 401 로 거부하고 그 실패는 <b>비재시도 확정 실패</b>라 그 영상은 결과를
+     * 영영 얻지 못한다. 「운영자가 <b>다른 시스템</b>으로 주소를 바꿨다」에는 맞는 전제가
+     * 「<b>같은 벤더의 두 번째 장비</b>」에는 맞지 않는다.
+     *
+     * <p>그래서 {@link IntegrationEndpointExchangeFilter#EXPLICIT_TARGET_ATTRIBUTE} 표식이 붙은 요청은
+     * <b>의도된 수신처</b>로 보고 헤더를 그대로 둔다. 표식은 <b>노드 원장에서 고른 절대 목적지</b>에만
+     * 붙는다(그 불변식을 무는 시험이 있다 — {@code ExplicitTargetMarkerCallSiteGuardTest}). 표식이 없는
+     * <b>임의의</b> 호스트 변경에는 종전대로 헤더를 뗀다.
+     *
+     * <p>⚠⚠ <b>이 필터를 다른 연동으로 복사할 때 이 예외까지 함께 가져가라</b> — 지금 이 사슬을 갖지
+     * 않은 연동이 실재하고(예: 추론 축 클라이언트는 주소 재작성만 있다), 그쪽에 나중에 인증이 붙으면
+     * 이 코드를 참조할 가능성이 높다. <b>예외 없는 형태(배포 기본값 하나와만 비교)를 복사하면 같은
+     * 결함이 그대로 옮겨붙는다</b> — 장비가 둘 이상인 순간 절반의 요청이 무인증으로 나간다.
+     *
+     * <p>⚠ <b>미해결(별건)</b>: 벤더가 <b>장비마다 다른 토큰</b>을 발급한다면 이 예외로는 부족하다 —
+     * A 장비의 토큰이 B 장비로 간다. 장비별 자격증명은 원장 스키마·설계 변경이 필요한 별개 축이다.
+     *
      * @param endpoint    대상 연동(로그 표기용)
      * @param bootDefault 배포 기본값 — 자격증명이 발급된 원 수신처
      * @param headerName  떼어낼 자격증명 헤더명
@@ -55,6 +75,10 @@ public final class IntegrationEndpointTransportGuards {
                                                                     String headerName) {
         AtomicBoolean warned = new AtomicBoolean(false);
         return (request, next) -> {
+            // 원장에서 고른 장비로 핀된 요청 — 의도된 수신처이므로 자격증명을 유지한다(위 §예외).
+            if (request.attribute(IntegrationEndpointExchangeFilter.EXPLICIT_TARGET_ATTRIBUTE).isPresent()) {
+                return next.exchange(request);
+            }
             if (SafeUrl.sameHost(request.url().toString(), bootDefault)) {
                 return next.exchange(request);
             }

@@ -166,7 +166,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "23", "24", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "9001", "9002");
     }
 
     @Test
@@ -198,6 +198,7 @@ class FlywaySquashBaselineIT {
                         "V22__add_ls_user_role_mdfr_id.sql",
                         "V23__add_ls_ai_srvr.sql",
                         "V24__split_ai_srvr_load_by_usage.sql",
+                        "V25__add_webhook_idempotency_srvr_id.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

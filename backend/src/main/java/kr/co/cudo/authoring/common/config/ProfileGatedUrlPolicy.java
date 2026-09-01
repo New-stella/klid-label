@@ -7,7 +7,6 @@ import org.springframework.core.env.Environment;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -38,6 +37,12 @@ import java.util.Set;
  * </ol>
  * {@link #check(String)} 는 기동 assert 와 독립적으로 다시 프로파일을 확인해 엄격/완화 정책을 고르므로,
  * assert 를 우회하더라도 검증 자체가 완화되지 않는다(이중 방어).
+ *
+ * <h3>⚠ 현재 이 골격을 쓰는 연동은 <b>증강 하나뿐</b>이다 (2026-09-01)</h3>
+ * <p>시계열 위탁({@code VlmUrlPolicy})은 이 골격에서 <b>빠졌다</b> — 「연동 주소는 대역·전송을 강제하지
+ * 않고 스킴·형식만 본다」는 확정 정책(2026-08-10)이 그 연동을 대상으로 명시하기 때문이다. 위 서술의
+ * "연동마다 검증 강도가 갈라지지 않는다" 는 <b>이 골격을 쓰는 연동들 사이</b>에서만 유효하며, 강도가
+ * 갈린 것이 곧 결함이라는 뜻이 아니다(무엇이 확정 정책인지가 판정한다).
  */
 @Slf4j
 public abstract class ProfileGatedUrlPolicy {
@@ -97,23 +102,11 @@ public abstract class ProfileGatedUrlPolicy {
     /**
      * 평문(http) 엔드포인트에 인증 토큰이 설정된 경우 경고를 남긴다 (CWE-319).
      *
-     * <p>완화 경로는 TLS 가 없으므로 {@code Authorization: Bearer ...} 헤더가 네트워크에 평문으로 흐른다.
-     * 개발 목 서버 연동에서 토큰이 필요할 수 있어 거부하지 않고 경고만 남기며, <b>토큰 값은 절대 출력하지
-     * 않는다</b>(존재/길이만 — CWE-532).
-     *
-     * <p>공용 골격에 두어 <b>모든 연동이 동일하게 적용</b>받는다. 증강({@code AugmentUrlPolicy})은 현재
-     * 인증 헤더를 붙이지 않는 것이 확정 계약(명세서 v1.1 — 인증 없음)이라 호출 지점이 없지만, 토큰이
-     * 도입되는 순간 같은 경고가 자동으로 따라붙는다.
+     * <p>판정·문구는 {@link ExternalUrlPolicy#warnIfTokenOnCleartext} 가 단독 소유한다 — 여기서 다시
+     * 쓰면 그것이 두 번째 진실원이 되어 한쪽만 고쳐진다. 이 메서드는 로그 태그만 채워 넘긴다.
      */
     public void warnIfTokenOnCleartext(String baseUrl, String token) {
-        if (token == null || token.isBlank() || baseUrl == null) {
-            return;
-        }
-        if (!baseUrl.trim().toLowerCase(Locale.ROOT).startsWith("http://")) {
-            return;
-        }
-        log.warn("[{}] 평문 http 엔드포인트에 인증 토큰이 설정되어 있습니다 — 토큰이 네트워크에 평문 노출됩니다"
-                + " (CWE-319). 운영에서는 HTTPS 필수. tokenLength={}", logTag, token.trim().length());
+        ExternalUrlPolicy.warnIfTokenOnCleartext(logTag, baseUrl, token);
     }
 
     /**

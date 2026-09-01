@@ -84,11 +84,12 @@ class VlmTimeseriesStepTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder, timeseriesMetaPresence,
                 new ObjectMapper(), Schedulers.immediate(),
-                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class),
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
             // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
         // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
         // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
 }
 
@@ -113,7 +114,7 @@ class VlmTimeseriesStepTest {
     }
 
     private void stubAccepted() {
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenAnswer(inv -> {
                     VlmTimeseriesRequest r = inv.getArgument(0);
                     return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
@@ -212,9 +213,9 @@ class VlmTimeseriesStepTest {
         // then
         assertThat(withheld.status()).isEqualTo("skipped");
         assertThat(submitted.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
-        verify(vlmClient, times(1)).submitDescribe(any());
+        verify(vlmClient, times(1)).submitDescribe(any(), any());
         verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
-                isNull(), eq(310L));
+                isNull(), eq(310L), any());
     }
 
     @Test
@@ -226,7 +227,7 @@ class VlmTimeseriesStepTest {
         step.run(200L);
 
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient, times(1)).submitDescribe(captor.capture());
+        verify(vlmClient, times(1)).submitDescribe(captor.capture(), any());
         VlmTimeseriesRequest req = captor.getValue();
         assertThat(req.requestId()).isNotBlank();
         assertThat(req.media()).isNotNull();
@@ -249,12 +250,12 @@ class VlmTimeseriesStepTest {
         step.run(210L);
 
         ArgumentCaptor<VlmTimeseriesRequest> reqCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitDescribe(reqCap.capture());
+        verify(vlmClient).submitDescribe(reqCap.capture(), any());
         String sentRequestId = reqCap.getValue().requestId();
 
         ArgumentCaptor<String> keyCap = ArgumentCaptor.forClass(String.class);
         verify(ledger).recordIssued(keyCap.capture(), eq(LsWebhookIdempotency.CHANNEL_VLM),
-                isNull(), eq(210L));
+                isNull(), eq(210L), any());
         assertThat(keyCap.getValue()).isEqualTo(sentRequestId);
     }
 
@@ -263,12 +264,12 @@ class VlmTimeseriesStepTest {
     void recordIssuedFailureAbortsSubmit() {
         seed(211L, "/data/deid/211.mp4");
         doThrow(new RuntimeException("ledger down"))
-                .when(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM), isNull(), eq(211L));
+                .when(ledger).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM), isNull(), eq(211L), any());
 
         assertThatThrownBy(() -> step.run(211L))
                 .isInstanceOf(CustomException.class);
         // 매핑 없는 위탁 방지 — 외부 호출 미수행
-        verify(vlmClient, never()).submitDescribe(any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
     }
 
     @Test
@@ -280,7 +281,7 @@ class VlmTimeseriesStepTest {
         step.run(220L);
 
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitDescribe(captor.capture());
+        verify(vlmClient).submitDescribe(captor.capture(), any());
         VlmTimeseriesRequest req = captor.getValue();
         assertThat(req.media().framePolicy().selectedFrames()).isNull();
         assertThat(req.callbackUrl()).doesNotContain("event");
@@ -291,8 +292,8 @@ class VlmTimeseriesStepTest {
     void nullRawSnRejected() {
         assertThatThrownBy(() -> step.run(null))
                 .isInstanceOf(CustomException.class);
-        verify(vlmClient, never()).submitDescribe(any());
-        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
+        VlmSubmitAssertions.neverIssued(ledger);
     }
 
     @Test
@@ -303,8 +304,8 @@ class VlmTimeseriesStepTest {
         assertThatThrownBy(() -> step.run(202L))
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining("영상");
-        verify(vlmClient, never()).submitDescribe(any());
-        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
+        VlmSubmitAssertions.neverIssued(ledger);
     }
 
     @Test
@@ -317,8 +318,8 @@ class VlmTimeseriesStepTest {
         assertThatThrownBy(() -> step.run(230L))
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining("비식별");
-        verify(vlmClient, never()).submitDescribe(any());
-        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
+        VlmSubmitAssertions.neverIssued(ledger);
     }
 
     /**
@@ -333,7 +334,7 @@ class VlmTimeseriesStepTest {
     void clientFailureDelegatedToOutcomeRecorder() {
         seed(201L, "/data/deid/201.mp4");
         RuntimeException boom = new RuntimeException("vlm down");
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.error(boom));
 
         VlmTimeseriesResponse resp = step.run(201L);
@@ -352,7 +353,7 @@ class VlmTimeseriesStepTest {
     @DisplayName("빈_응답도_무흔적_유실되지_않고_제출실패로_기록된다")
     void emptyResponseRoutedToFailureHandler() {
         seed(203L, "/data/deid/203.mp4");
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenReturn(Mono.empty());
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any())).thenReturn(Mono.empty());
 
         VlmTimeseriesResponse resp = step.run(203L);
 
@@ -367,7 +368,7 @@ class VlmTimeseriesStepTest {
     @DisplayName("ACK_수신시_완료핸들러가_수락응답을_넘겨받는다")
     void ackDelegatedToOutcomeRecorder() {
         seed(300L, "/data/deid/300.mp4");
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.just(new VlmTimeseriesResponse("REQ-300", "accepted")));
 
         step.run(300L);
@@ -424,8 +425,8 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(400L);
 
         // then — 외부 호출·상관키 발급·마킹 선커밋 전부 0건.
-        verify(vlmClient, never()).submitDescribe(any());
-        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
+        VlmSubmitAssertions.neverIssued(ledger);
         verifyNoInteractions(markingTxService);
         assertThat(resp.status()).isEqualTo("skipped");
         // ★ SKIPPED 축을 오염시키지 않는다 — 그 축은 "재개가 필요한 보류" 전용이며, 여기에 사유를 남기면
@@ -450,8 +451,8 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(401L);
 
         // then
-        verify(vlmClient, never()).submitDescribe(any());
-        verify(ledger, never()).recordIssued(any(), any(), any(), any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
+        VlmSubmitAssertions.neverIssued(ledger);
         verifyNoInteractions(markingTxService);
         assertThat(resp.status()).isEqualTo("skipped");
     }
@@ -471,9 +472,9 @@ class VlmTimeseriesStepTest {
         VlmTimeseriesResponse resp = step.run(402L);
 
         assertThat(resp.status()).isEqualTo(VlmTimeseriesResponse.STATUS_SUBMITTED);
-        verify(vlmClient, times(1)).submitDescribe(any());
+        verify(vlmClient, times(1)).submitDescribe(any(), any());
         verify(ledger, times(1)).recordIssued(any(), eq(LsWebhookIdempotency.CHANNEL_VLM),
-                isNull(), eq(402L));
+                isNull(), eq(402L), any());
     }
 
     /**
@@ -491,7 +492,7 @@ class VlmTimeseriesStepTest {
         step.run(403L);
 
         verify(batchStatusService).recordVlmSkipped(403L, VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
-        verify(vlmClient, never()).submitDescribe(any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
     }
 
     @Test

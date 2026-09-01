@@ -36,6 +36,37 @@ import java.net.URI;
 @Slf4j
 public final class IntegrationEndpointExchangeFilter {
 
+    /**
+     * ★ <b>호출자가 대상을 이미 정한 요청</b>이라는 표식 — 이 속성이 붙은 요청은 재작성하지 않는다.
+     *
+     * <h3>왜 필요한가 (같은 연동에 주소 원천이 둘이 되는 지점)</h3>
+     * <p>이 필터가 읽는 override 는 <b>연동 하나당 주소 하나</b>다. 그런데 AI 서버는 장비 여럿으로
+     * 이중화되고 그 목록·주소의 진실원은 <b>노드 원장</b>({@code LS_AI_SRVR})이다 — 설정값은 원장이
+     * 비었을 때의 씨앗일 뿐이고 그 뒤로는 원장이 이긴다. 원장에서 고른 장비로 보내는 요청까지 여기서
+     * 다시 써 버리면 <b>고른 장비와 실제로 나간 곳이 어긋나고</b>, 그 사실이 아무 데도 드러나지 않은
+     * 채(오류가 아니다) 위탁 원장에는 「A 로 보냈다」가 남는다 — 기록이 거짓말을 하게 된다.
+     *
+     * <p>재작성을 건너뛰는 것은 <b>이 표식이 붙은 요청뿐</b>이다. 나머지 모든 연동·모든 요청의 동작은
+     * 그대로이며, 「설정을 바꾸면 다음 호출이 새 주소로 나간다」(R11)는 성질도 그대로다.
+     *
+     * <h3>★ 이 표식은 자격증명 가드에도 쓰인다 (구 서술 폐기)</h3>
+     * <p>{@code IntegrationEndpointTransportGuards#stripCredentialOnHostChange} 는 이 표식이 붙은
+     * 요청의 인증 헤더를 <b>떼지 않는다</b>. 그 가드는 「수신처가 하나」를 전제로 배포 기본값과 호스트를
+     * 비교하는데, 장비가 둘이면 기본값과 같은 호스트는 최대 하나라 <b>나머지 장비로 가는 정상 위탁이
+     * 전부 무인증</b>이 되기 때문이다(벤더 401 → 비재시도 확정 실패 → 그 영상은 결과를 영영 못 받는다).
+     *
+     * <p>⚠ 구 서술 <i>"이 표식은 자격증명 가드에는 영향을 주지 않는다 — 호스트가 다르면 인증 헤더는
+     * 여전히 떨어진다"</i> 는 <b>폐기</b>다. 되살리면 이중화 배포에서 절반의 위탁이 인증 없이 나간다.
+     *
+     * <p>그 예외가 안전한 근거는 <b>「표식이 붙는다 ⟺ 노드 원장에서 고른 절대 목적지다」</b> 라는
+     * 불변식이다. 이것은 타입이 강제하지 않는 <b>코드 불변식</b>이라 별도 시험이 문다
+     * ({@code ExplicitTargetMarkerCallSiteGuardTest}) — 원장을 거치지 않고 표식만 다는 경로가 생기면
+     * 가드가 <b>조용히</b> 약해지고, 그 약해짐은 동작으로 드러나지 않는다(요청은 정상적으로 나가고
+     * 자격증명도 붙는다).
+     */
+    public static final String EXPLICIT_TARGET_ATTRIBUTE =
+            IntegrationEndpointExchangeFilter.class.getName() + ".explicitTarget";
+
     private IntegrationEndpointExchangeFilter() {
     }
 
@@ -48,6 +79,10 @@ public final class IntegrationEndpointExchangeFilter {
                                             String bootDefault,
                                             IntegrationEndpointResolver resolver) {
         return (request, next) -> {
+            // 호출자가 대상을 이미 정했으면(노드 원장에서 고른 장비) 그 결정을 덮지 않는다.
+            if (request.attribute(EXPLICIT_TARGET_ATTRIBUTE).isPresent()) {
+                return next.exchange(request);
+            }
             // 리졸버는 예외를 던지지 않는다(값 판정은 저장 시점에 끝났다) — 전송을 막는 경로가 없다.
             String effective = resolver == null ? null : resolver.resolve(endpoint, bootDefault);
             if (effective == null || effective.isBlank() || sameBase(effective, bootDefault)) {

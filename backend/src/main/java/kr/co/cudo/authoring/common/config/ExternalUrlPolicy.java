@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -144,6 +145,29 @@ public final class ExternalUrlPolicy {
                     propertyName, host, uri.getPort());
         }
         return https;
+    }
+
+    /**
+     * 평문(http) 엔드포인트에 인증 토큰이 설정된 경우 경고를 남긴다 (CWE-319).
+     *
+     * <p>평문 구간에서는 {@code Authorization: Bearer ...} 헤더가 네트워크에 그대로 흐른다. 내부망
+     * 격리를 전제로 하는 연동에서는 평문이 정상 형상이라 <b>거부하지 않고 경고만</b> 남기며,
+     * <b>토큰 값은 절대 출력하지 않는다</b>(존재/길이만 — CWE-532).
+     *
+     * <p>여기(판정 원천)에 두어 <b>모든 연동이 같은 문구·같은 조건</b>으로 경고하게 한다 — 연동마다
+     * 복제하면 한쪽만 고쳐지는 비대칭이 다시 생긴다({@link ProfileGatedUrlPolicy} 도 이 구현을 부른다).
+     *
+     * @param logTag 연동 식별용 로그 태그(주소·토큰이 아니다)
+     */
+    public static void warnIfTokenOnCleartext(String logTag, String baseUrl, String token) {
+        if (token == null || token.isBlank() || baseUrl == null) {
+            return;
+        }
+        if (!baseUrl.trim().toLowerCase(Locale.ROOT).startsWith("http://")) {
+            return;
+        }
+        log.warn("[{}] 평문 http 엔드포인트에 인증 토큰이 설정되어 있습니다 — 토큰이 네트워크에 평문 노출됩니다"
+                + " (CWE-319). tokenLength={}", logTag, token.trim().length());
     }
 
     /**

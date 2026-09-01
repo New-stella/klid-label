@@ -75,12 +75,17 @@ public class WebClientConfig {
     }
 
     /**
-     * 외부 VLM 시계열 분석 위탁 클라이언트용 WebClient — Phase 1 신설.
+     * 외부 시계열 분석 위탁 클라이언트용 WebClient.
      *
      * <p>baseUrl 이 <b>주입돼 있을 때만</b> {@link VlmUrlPolicy} 로 검증한다(위반 시 IllegalStateException
-     * → 빈 생성 실패 → 기동 차단). 정책은 운영 엄격(HTTPS 전용 + 사설망 차단) / 개발 완화(평문 http +
-     * 사설 IP 허용)로 갈리며, <b>완화는 전용 프로퍼티 + 프로파일 allowlist + 기동 assert 로 격리</b>되어
-     * 설정만으로 운영에 새지 않는다. 상세 근거는 {@link VlmUrlPolicy} 참조.
+     * → 빈 생성 실패 → 기동 차단). 그 정책이 보는 것은 <b>스킴({@code http}/{@code https})과 형식</b>
+     * 이며 전송·대역을 강제하지 않는다 — 연동 주소 정책의 확정 규칙(2026-08-10)이다. 상세·폐기된
+     * 조항은 {@link VlmUrlPolicy} 참조.
+     *
+     * <p>⚠ <b>구 서술 폐기</b>: <i>"정책은 운영 엄격(HTTPS 전용 + 사설망 차단) / 개발 완화로 갈리며 완화는
+     * 전용 프로퍼티 + 프로파일 allowlist + 기동 assert 로 격리된다"</i>. 그 갈림과 완화 플래그
+     * ({@code vlm.client.allow-insecure-url})는 <b>함께 폐기</b>됐다. 되살리면 운영 프로파일에서
+     * <b>평문 http 주소를 채우는 순간 기동이 막힌다</b>(실 연동은 양쪽 모두 평문 http 다).
      *
      * <p><b>주소가 비어 있으면 검증을 생략하고 빈을 만든다 — 미연동 환경의 기동을 보장한다.</b>
      * 구 동작은 별도 설정 토글이 꺼져 있을 때 검증을 생략하는 것이었으나,
@@ -92,11 +97,10 @@ public class WebClientConfig {
      * 안이다(벤더 연동 확정 전 배포 불가 + 시계열 외 전 기능 동반 차단). 회귀 가드는
      * {@code VlmBlankUrlBootTest} 다.
      *
-     * <p><b>local/dev 완화의 배경</b>: 이 두 프로파일의 VLM 위탁 대상은 목업 벤더 서버(mock-server)다 —
-     * TLS 미지원 평문 http 이고 호스트도 컨테이너 내부 이름({@code klid-mock-server})이라, 운영용 강제를
-     * 그대로 적용하면 <b>빈 생성 실패로 애플리케이션이 기동조차 못 한다</b>(2026-07-25 로컬 배선 시도 시
-     * 실측·원복). 설정 누락(빈 값)·placeholder 호스트·링크로컬/메타데이터 대역 차단은 완화 대상이 아니다.
-     * stg/prd·<b>프로파일 미지정</b>·<b>{@code ENV=stg|prd} 표식</b>은 기존 강제를 유지한다(fail-closed).
+     * <p><b>local/dev 목업 배선</b>: 두 프로파일의 위탁 대상은 목업 벤더 서버(mock-server)로 TLS 미지원
+     * 평문 http 이고 호스트도 컨테이너 내부 이름({@code klid-mock-server})이다. 이제는 <b>모든 프로파일이
+     * 같은 정책</b>이라 별도 완화 배선 없이 그대로 기동한다. 설정 누락(빈 값)·placeholder 호스트·
+     * 링크로컬/메타데이터 대역 차단은 어느 프로파일에서도 그대로다(fail-closed).
      *
      * @design ADR-049
      */
