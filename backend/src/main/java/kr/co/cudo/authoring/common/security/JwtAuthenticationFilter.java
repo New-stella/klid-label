@@ -33,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
     private final LastLoginRecorder lastLoginRecorder;
-    /** 진입 시 작업자 자동 등록기 — 역할이 없는 INTERNAL 사용자에게만 돈다(@design AC-126). */
+    /** 진입 시 작업자 자동 등록기 — 역할이 없는 INTERNAL 사용자에게만 돈다(@design AC-1016). */
     private final AutoWorkerRegistrar autoWorkerRegistrar;
 
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
@@ -121,7 +121,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (channel == Channel.INTERNAL) {
                     Long userNo = parseUserNo(body.getSubject());
                     role = userNo == null ? null : userRoleResolver.resolve(userNo);
-                    // 진입 시 작업자 자동 등록 (ADR-055 · @design AC-126) — 역할 자가부여 창구가
+                    // 진입 시 작업자 자동 등록 (ADR-055 · @design AC-1016) — 역할 자가부여 창구가
                     //   관리자 부트스트랩 전용으로 좁혀지면서 일반 사용자가 등록될 통로가 사라졌다.
                     //   그래서 <진입 자체>가 등록 시점이 된다.
                     //   * 조건부다 — 역할이 이미 해석되면 호출조차 하지 않으므로 사용자당 사실상 1회다
