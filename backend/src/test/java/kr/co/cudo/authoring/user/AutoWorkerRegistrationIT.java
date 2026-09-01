@@ -6,6 +6,7 @@ import kr.co.cudo.authoring.common.security.Role;
 import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import kr.co.cudo.authoring.user.dto.WorkerSummaryResponse;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
+import kr.co.cudo.authoring.user.service.DevStandardAccounts;
 import kr.co.cudo.authoring.user.service.UserService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +32,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 진입 시 작업자 자동 등록 실동작 검증 (@design ADR-055 · @design AC-126, Testcontainers PostgreSQL).
+ * 진입 시 작업자 자동 등록 실동작 검증 (@design ADR-055 · @design AC-1016, Testcontainers PostgreSQL).
  *
  * <h3>왜 단위 시험으로 충분하지 않은가</h3>
  * <p>핵심 성질 셋이 전부 <b>DB 문장의 성질</b>이라 목으로는 증명되지 않는다 — ① 행이 실제로
@@ -49,10 +50,19 @@ class AutoWorkerRegistrationIT {
     private static final long NEW_USER_NO = 969_400_001L;
     private static final long PROMOTED_USER_NO = 969_400_002L;
 
+    /**
+     * 개발용 로그인 표준 계정(관리자) 번호 — 리터럴을 새로 박지 않고 단일 진실원에서 가져온다.
+     * 여기에 숫자를 다시 적으면 그것이 두 번째 진실원이 되어, 번호가 바뀔 때 이 시험만 옛 번호를
+     * 보고 <조용히 다른 것을 검사>하게 된다.
+     */
+    private static final long DEV_ADMIN_USER_NO =
+            Long.parseLong(DevStandardAccounts.DEFAULT_USER_NO_ADMIN);
+
     @Autowired private MockMvc mockMvc;
     @Autowired private LsUserRoleRepository lsUserRoleRepository;
     @Autowired private UserRoleResolver userRoleResolver;
     @Autowired private UserService userService;
+    @Autowired private DevStandardAccounts devStandardAccounts;
 
     @Autowired
     @Qualifier("controlDataSource")
@@ -75,7 +85,7 @@ class AutoWorkerRegistrationIT {
     }
 
     private void cleanup() {
-        for (long userNo : new long[]{NEW_USER_NO, PROMOTED_USER_NO}) {
+        for (long userNo : new long[]{NEW_USER_NO, PROMOTED_USER_NO, DEV_ADMIN_USER_NO}) {
             jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", userNo);
             jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", userNo);
             userRoleResolver.evict(userNo);
@@ -212,6 +222,57 @@ class AutoWorkerRegistrationIT {
         assertThat(roleOf(NEW_USER_NO)).as("포털 채널은 등록 대상이 아니다").isNull();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM LS_ACNT_USER WHERE USER_NO = ?",
                 Long.class, NEW_USER_NO)).isZero();
+    }
+
+    @Test
+    @DisplayName("★개발용_로그인_토글이_실제로_배선돼_제외_판정이_동작한다")
+    void devStandardAccountExclusionIsWired() {
+        // 이 프로파일은 개발용 로그인이 켜진 형상이다. 프로퍼티 키가 어긋나면(오타·경로 변경)
+        //   제외가 조용히 꺼지고 원래 사고가 그대로 재현되는데, 목을 쓰는 단위 시험은 그
+        //   <배선>을 보지 못한다 — 실컨텍스트에서 그 한 축만 확인한다.
+        for (String userNo : new String[]{
+                DevStandardAccounts.DEFAULT_USER_NO_REVIEWER,
+                DevStandardAccounts.DEFAULT_USER_NO_WORKER,
+                DevStandardAccounts.DEFAULT_USER_NO_PORTAL,
+                DevStandardAccounts.DEFAULT_USER_NO_ADMIN}) {
+            assertThat(devStandardAccounts.isAutoRegisterExcluded(Long.parseLong(userNo)))
+                    .as("개발용 로그인이 켜진 형상인데 표준 계정 %s 가 제외되지 않는다 — "
+                            + "authoring.dev.login.enabled 배선을 확인할 것", userNo)
+                    .isTrue();
+        }
+        assertThat(devStandardAccounts.isAutoRegisterExcluded(NEW_USER_NO))
+                .as("표준 계정이 아닌 진입자까지 제외되면 자동 등록 정책 자체가 죽는다")
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("★개발용_로그인_표준_계정은_진입해도_역할이_생기지_않는다_고른_역할로_굳지_않는다")
+    void devStandardAccountIsNotAutoRegistered() throws Exception {
+        // ★이 시험이 실효인 전제 — 이 사용자번호에 역할 시드가 <없다>.
+        //   테스트 컨텍스트는 authoring.dev.seed.enabled=false 라 dev-seed.sql 이 돌지 않고,
+        //   그 자리를 대신하는 V9001__test_seed_user_roles.sql 도 이 번호를 심지 않는다.
+        //   ⚠ 나중에 V9001 이 이 번호를 심게 되면 아래 단언이 <조용히 공허해진다> — 제외 게이트를
+        //     지워도 기존 행 때문에 통과하기 때문이다. 그 시드를 손댈 때 이 시험을 함께 확인할 것.
+        //   (setUp 의 cleanup 이 다른 시험이 남긴 행까지 걷어내 전제를 명시적으로 세운다 —
+        //    공유 컨테이너라 dev 시드를 켜는 시험이 먼저 돌면 이 번호에 관리자 행이 남는다.)
+        assertThat(roleOf(DEV_ADMIN_USER_NO)).isNull();
+
+        // when: 그 계정으로 진입한다 (역할이 없으니 인가는 403 — 등록은 인가와 무관하다)
+        callAnyApi(DEV_ADMIN_USER_NO, 403);
+
+        // then: 자동 등록이 빈자리를 작업자로 메우지 않는다.
+        //   메웠다면 역할 삽입이 DO NOTHING 이라 그 뒤로 <영구히> 작업자로 굳고, 프론트는 토큰
+        //   클레임(화면에서 고른 역할)으로 메뉴를 그리는데 서버는 저장된 역할로 인가해
+        //   "메뉴는 전부 보이는데 그 창구가 모두 거부"되는 상태가 된다.
+        //   역할 없음으로 남아야 최초 관리자 등록 창구로 유도된다.
+        assertThat(roleOf(DEV_ADMIN_USER_NO))
+                .as("개발용 로그인 표준 계정은 자동 등록 대상이 아니다 — 역할 행이 생기면 안 된다")
+                .isNull();
+        assertThat(userRoleResolver.resolve(DEV_ADMIN_USER_NO)).isNull();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM LS_ACNT_USER WHERE USER_NO = ?",
+                Long.class, DEV_ADMIN_USER_NO))
+                .as("제외 판정이 DB 를 보기 전에 나므로 사용자 마스터 행도 만들어지지 않는다")
+                .isZero();
     }
 
     @Test

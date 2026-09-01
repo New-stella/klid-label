@@ -95,7 +95,7 @@ public interface LsUserRoleRepository extends JpaRepository<LsUserRole, Long> {
      * 트랜잭션 abort). 여기서는 abort 가 <b>인증 요청 경로</b>에서 나므로 더 나쁘다.
      *
      * @return 실제로 부여했으면 1, 이미 역할이 있으면 0
-     * @design AC-126
+     * @design AC-1016
      */
     @Modifying(clearAutomatically = true)
     @Query(value = """

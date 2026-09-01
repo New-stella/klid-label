@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       <b>바깥</b>(등록기)에 둔다.</li>
  * </ol>
  *
- * @design AC-126
+ * @design AC-1016
  */
 @Component
 @RequiredArgsConstructor

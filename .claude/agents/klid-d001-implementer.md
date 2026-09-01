@@ -109,7 +109,48 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+
+- **다른 워크트리가 회귀를 점유해 `./gradlew` 가 금지된 상황에서도 컴파일 확신은 얻을 수 있다 — `javac` 직접 호출.**
+  `~/.gradle/caches/modules-2/files-2.1` 의 jar 전량을 `-cp` 로, lombok jar 를 `-processorpath` 로 주면
+  **Lombok 이 생성하는 생성자까지 포함해** 실제로 검증된다. Gradle 데몬을 쓰지 않고 `build/` 에 쓰지도
+  않으므로 **슬롯 경합이 없다.**
+  ```
+  /opt/homebrew/opt/openjdk@17/bin/javac --release 17 -encoding UTF-8 \
+    -cp "build/classes/java/{main,test}:<~/.gradle/caches 전체 jar>" \
+    -processorpath lombok-<ver>.jar -implicit:none -d $(mktemp -d) <대상 파일들>
+  ```
+  `-cp` 에 `build/classes/java/{main,test}` 를 넣으면 미변경 프로젝트 클래스를 재사용한다.
+  생성자 시그니처가 바뀌는 변경(예: `@RequiredArgsConstructor` 필드 추가)에서 **인접 소비자 파일까지
+  함께 컴파일**하면 깨진 참조를 그 자리에서 잡는다.
+  - **근거**: 2026-09-01 `CO-20260901-dev로그인-계정-자동등록-제외` — 옆 워크트리가 12분짜리 전체 회귀를
+    점유해 gradle 이 금지된 상태에서 이 방법으로 rc=0·진단 0줄을 확인했고, 이후 메인이 돌린 전체 회귀가
+    **8,155 tests 실패 0** 으로 그 판단을 뒷받침했다.
+  - ⚠️ **이것은 컴파일 검증일 뿐 시험 실행이 아니다.** 결과 XML 이 0건이므로 **통과로 보고하면 안 된다.**
+    `verification` 에는 "미실행"으로 적고, 무엇을 확인했고 무엇을 확인하지 못했는지 갈라서 쓴다.
+  - **또 밟는 때**: 병렬 워크트리 세션에서 오케스트레이터가 gradle 실행을 금지시킬 때.
+
+- **★빌드 슬롯 점검 패턴을 `GradleWrapperMain` 만으로 잡지 마라 — 이 환경에서 항상 0건이다.**
+  실제 wrapper 프로세스의 args 는 `java -jar .../gradle-wrapper.jar cleanTest test` 라 그 문자열이
+  **없다.** 오케스트레이터가 내려주는 점검 명령이 그 패턴을 포함하고 있어도 의심할 것.
+  ```
+  ps -eo pid,etime,args | grep -E "GradleWrapperMain|gradlew|gradle-wrapper\.jar" | grep -v grep
+  ```
+  - **근거**: 2026-09-01 — `grep -E "GradleWrapperMain"` 단독은 0건인데, 같은 시각 `|gradlew` 를 더하니
+    호출 셸 + wrapper java 2건이 잡혔다. 이 오판으로 「슬롯 비었음」이라 한 번 판단했다가 대기 루프가
+    계속 도는 것을 보고 재확인해 잡았다.
+  - ⚠️ **`grep -c` 자기 매칭만 조심하고 패턴 자체는 의심하지 않는 것이 함정이다.** `grep -v grep` 을
+    제대로 붙였는데도 **패턴이 좁아서** 틀렸다. 두 결함은 별개다.
+  - **또 밟는 때**: 빌드 슬롯 경합을 확인하는 모든 작업.
+
+- **★「local 시드가 그 번호를 심으니 이 IT 는 공허하다」는 판단은 운영 시드와 테스트 시드를 같은 것으로
+  셀 때 틀린다.**
+  테스트 컨텍스트는 `src/test/resources/application-local.yml` 의 **`authoring.dev.seed.enabled: false`**
+  로 `dev-seed.sql` 을 통째로 끄고, `src/test/resources/db/migration/V9001__test_seed_user_roles.sql` 이
+  그 자리를 대신한다. **두 시드의 사용자 집합이 다르다** — V9001 에는 3001·9001 이 없다.
+  - **근거**: 2026-09-01 — 이 근거로 AC1 end-to-end 시험을 생략했다가 독립 QA 가 실측으로 뒤집었다.
+    이후 추가한 그 시험은 제외 게이트를 지우면 **정확히 그 하나만 RED** 가 되는 실효 가드였다.
+  - **또 밟는 때**: local 프로파일 IT 를 설계·판정할 때. **생략하기 전에 반드시 `src/test/resources`
+    쪽 시드를 열어 대조할 것.** 운영 시드(`src/main/resources/db/seed/`)를 근거로 삼지 마라.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.dev;
 
+import kr.co.cudo.authoring.user.service.DevStandardAccounts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,21 +25,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 「userNo 를 명시하라」로 막혔고, 그래서 관리자 화면을 dev 에서 <b>사람이 눌러 볼 수단이
  * 없었다.</b>
  *
- * <p>⚠ 이 시험은 상수를 <b>소스 파일에서 읽는다</b> — 상수가 {@code private} 이라 참조할 수 없고,
- * 가시성을 시험 때문에 넓히면 프로덕션 계약이 시험 편의로 바뀐다.
+ * <p>⚠ 상수는 2026-09-01 에 {@code DevTokenService} 에서 {@link DevStandardAccounts} 로 옮겨졌다 —
+ * 진입 시 작업자 자동 등록의 <b>제외 판정</b>이 같은 번호를 알아야 해서다. 그 클래스가 상수를
+ * 공개하므로 여기서는 소스 파싱 대신 <b>상수를 직접 참조</b>한다(정규식이 표기 변화에 깨지지 않는다).
  *
  * @design ADR-055
+ * @design AC-1016
  */
 class DevSeedDefaultUserNoContractTest {
 
-    private static final Path SERVICE = Path.of(
-            "src/main/java/kr/co/cudo/authoring/dev/service/DevTokenService.java");
     private static final Path SEED = Path.of("src/main/resources/db/seed/dev-seed.sql");
 
     @Test
     @DisplayName("dev_토큰_기본_USER_NO_는_전부_시드에_실재하고_역할도_일치한다")
     void defaultUserNosExistInSeedWithMatchingRole() throws IOException {
-        String service = read(SERVICE);
         String seed = read(SEED);
 
         // ★두 INSERT 블록을 먼저 <분리>한다 — 파일 전체를 상대로 찾으면 사용자 표의 단언이
@@ -49,19 +49,16 @@ class DevSeedDefaultUserNoContractTest {
         String roleBlock = insertBlock(seed, "LS_USER_ROLE");
 
         // given: 상수 4종 — 이 목록이 곧 「기본값을 가진 역할」이다.
-        record Pair(String constant, String roleCd) {}
+        record Pair(String constant, String userNo, String roleCd) {}
         var pairs = new Pair[]{
-                new Pair("DEFAULT_USER_NO_REVIEWER", "REVIEWER"),
-                new Pair("DEFAULT_USER_NO_WORKER", "WORKER"),
-                new Pair("DEFAULT_USER_NO_PORTAL", "PORTAL_USER"),
-                new Pair("DEFAULT_USER_NO_ADMIN", "ADMIN"),
+                new Pair("DEFAULT_USER_NO_REVIEWER", DevStandardAccounts.DEFAULT_USER_NO_REVIEWER, "REVIEWER"),
+                new Pair("DEFAULT_USER_NO_WORKER", DevStandardAccounts.DEFAULT_USER_NO_WORKER, "WORKER"),
+                new Pair("DEFAULT_USER_NO_PORTAL", DevStandardAccounts.DEFAULT_USER_NO_PORTAL, "PORTAL_USER"),
+                new Pair("DEFAULT_USER_NO_ADMIN", DevStandardAccounts.DEFAULT_USER_NO_ADMIN, "ADMIN"),
         };
 
         for (Pair pair : pairs) {
-            String userNo = constantValue(service, pair.constant());
-            assertThat(userNo)
-                    .as("%s 상수를 찾지 못했다 — 이름이 바뀌었으면 이 시험도 함께 고친다", pair.constant())
-                    .isNotNull();
+            String userNo = pair.userNo();
 
             // then: 사용자 표(LS_ACNT_USER INSERT 블록 <안>)에 그 번호가 있다.
             assertThat(userBlock)
@@ -99,22 +96,18 @@ class DevSeedDefaultUserNoContractTest {
 
     @Test
     @DisplayName("관리자_기본_USER_NO_는_다른_역할과_겹치지_않는다")
-    void adminDefaultUserNoIsDistinct() throws IOException {
-        String service = read(SERVICE);
-        String admin = constantValue(service, "DEFAULT_USER_NO_ADMIN");
+    void adminDefaultUserNoIsDistinct() {
+        String admin = DevStandardAccounts.DEFAULT_USER_NO_ADMIN;
 
         for (String other : new String[]{
-                "DEFAULT_USER_NO_REVIEWER", "DEFAULT_USER_NO_WORKER", "DEFAULT_USER_NO_PORTAL"}) {
+                DevStandardAccounts.DEFAULT_USER_NO_REVIEWER,
+                DevStandardAccounts.DEFAULT_USER_NO_WORKER,
+                DevStandardAccounts.DEFAULT_USER_NO_PORTAL}) {
             assertThat(admin)
                     .as("관리자 기본 번호가 %s 와 같다 — 관리자 토큰의 sub 가 다른 사람의 행을 "
                             + "가리키게 되며, 과거 1002/2001 오매핑과 같은 사고다", other)
-                    .isNotEqualTo(constantValue(service, other));
+                    .isNotEqualTo(other);
         }
-    }
-
-    private static String constantValue(String source, String name) {
-        Matcher m = Pattern.compile(name + "\\s*=\\s*\"(\\d+)\"").matcher(source);
-        return m.find() ? m.group(1) : null;
     }
 
     private static String read(Path relative) throws IOException {
