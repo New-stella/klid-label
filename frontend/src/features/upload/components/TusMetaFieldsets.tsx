@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/common/Select';
 import { Textarea } from '@/components/common/Textarea';
+import { UploadRoute } from '@/features/dev/components/unifiedUploadForm';
 import {
   SRC_TYPES,
   VRFC_EVNT_TYPES,
@@ -140,8 +141,29 @@ function VrfcEvntTypeField({
   );
 }
 
-/** 식별 정보 — 필수 4종 + 촬영일시. */
-export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetProps) {
+/**
+ * 식별 정보 — **두 경로 공통 필수 3종 + 경로에 따라 갈리는 2종**. [@design SCREEN-027]
+ *
+ * <p>공통 필수는 영상 클립 ID · CCTV ID · 지자체코드다. 나머지 둘은 경로가 정한다:
+ * <ul>
+ *   <li><b>촬영일시</b> — 파이프라인 즉시 실행에서만 필수(그 경로의 BE 계약이 `@NotNull`).
+ *       그래서 이 묶음이 `route` 를 받는다. 표기를 조건과 같은 축으로 두지 않으면 별표 없는
+ *       항목 때문에 시작 버튼이 잠기고 화면 어디에도 사유가 없다.</li>
+ *   <li><b>출처유형</b> — 어느 경로에서도 <b>선택</b>이다. 즉시 실행에서는 전송조차 되지 않고
+ *       (바로 아래 「전송되지 않습니다」 안내가 그 사실을 알린다) 인입 재현에서는 비우면 서버가
+ *       기본값을 붙인다. ⚠ 별표를 되살리지 말 것 — 같은 자리에서 「전송되지 않는다」와
+ *       「반드시 채워야 한다」를 동시에 말하게 된다.</li>
+ * </ul>
+ */
+export function IdentityFieldset({
+  form,
+  onField,
+  onValue,
+  disabled,
+  route,
+}: FieldsetProps & { route: UploadRoute }) {
+  // 필수 표기의 판정은 `canStartUpload` 의 경로 분기와 같은 축이다(둘이 갈리면 사유 없는 잠금).
+  const shtDtRequired = route === UploadRoute.IMMEDIATE;
   return (
     <fieldset className={FIELDSET_CLASS}>
       <legend className={LEGEND_CLASS}>식별 정보</legend>
@@ -162,7 +184,7 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
           autoComplete="off"
         />
         <Field>
-          <FieldLabel>출처유형 *</FieldLabel>
+          <FieldLabel>출처유형</FieldLabel>
           <Select
             value={form.srcType}
             onValueChange={(v) => onValue('srcType', v)}
@@ -190,7 +212,7 @@ export function IdentityFieldset({ form, onField, onValue, disabled }: FieldsetP
           autoComplete="off"
         />
         <TextField
-          label="촬영일시"
+          label={shtDtRequired ? '촬영일시 *' : '촬영일시'}
           type="datetime-local"
           value={form.shtDtLocal}
           onChange={onField('shtDtLocal')}
