@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationTogg
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -49,6 +50,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -199,7 +201,7 @@ class YoloAutolabelStepTest {
     void detectionsSavedAsAutoBbox() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
@@ -224,7 +226,7 @@ class YoloAutolabelStepTest {
     void autoBboxPointCnIsNested() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -246,7 +248,7 @@ class YoloAutolabelStepTest {
         //         LS_DATA_LBL 에 음수 좌표가 그대로 적재됐다(온라인만 400 인 정책 비대칭).
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("bus",
                                 List.of(-1.5731448368773044, 2.5, 1261.5, 707.5), 0.92)
@@ -264,7 +266,7 @@ class YoloAutolabelStepTest {
     void batchClampsAboveUpperBound() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(10.0, 10.0, 1300.0, 721.3), 0.92)
                 ))));
@@ -283,7 +285,7 @@ class YoloAutolabelStepTest {
         // 날아간다 — 해당 검출만 스킵한다(온라인 경로와 동일 정책).
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.92),
                         new YoloResponse.Detection("car", List.of(300.0, 300.0, 400.0, 400.0), 0.81)
@@ -307,7 +309,7 @@ class YoloAutolabelStepTest {
         //   — 정책 자기모순).
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0), 0.92),
                         new YoloResponse.Detection("car", List.of(300.0, 300.0, 400.0, 400.0), 0.81)
@@ -333,7 +335,7 @@ class YoloAutolabelStepTest {
         //   isFinite 가드가 잡고, 배치는 그 검출만 드롭한다.
         when(srcRepository.findByRawSnOrderByFrameNoAsc(1L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person",
                                 List.of(Double.NaN, 2.0, 3.0, 4.0), 0.92)
@@ -361,7 +363,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(14L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.92)
                 ))));
@@ -383,7 +385,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(15L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person",
                                 List.of(-1.5731448368773044, 10.0, 1300.0, 721.3), 0.92)
@@ -407,7 +409,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(16L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(-40.0, 10.0, -5.0, 60.0), 0.92)
                 ))));
@@ -423,7 +425,7 @@ class YoloAutolabelStepTest {
     void noDetectionsNoSaves() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(2L))
                 .thenReturn(List.of(newSrc(20L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of())));
 
         List<BbHint> hints = step.run(2L);
@@ -446,7 +448,7 @@ class YoloAutolabelStepTest {
     void externalErrorWrapped() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
                 .thenReturn(List.of(newSrc(30L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.error(new RuntimeException("ai-server down")));
 
         assertThatThrownBy(() -> step.run(3L))
@@ -465,7 +467,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(4L))
                 .thenReturn(List.of(newSrc(40L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81),
@@ -496,7 +498,7 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.resolve("EVT_ACCIDENT")).thenReturn(PresetResolution.resolved(allowed));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(5L))
                 .thenReturn(List.of(newSrc(50L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("car", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
                         new YoloResponse.Detection("motorcycle", List.of(5.0, 6.0, 7.0, 8.0), 0.81),
@@ -522,7 +524,7 @@ class YoloAutolabelStepTest {
                 "mock",
                 "env_mock"
         );
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(mockResp));
 
         List<BbHint> hints = step.run(7L);
@@ -550,7 +552,7 @@ class YoloAutolabelStepTest {
                 "model",
                 null
         );
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(realResp));
 
         step.run(8L);
@@ -576,7 +578,7 @@ class YoloAutolabelStepTest {
         // 구 동작: 전 검출을 BOTH 로 저장(hint 3건). 지금: 추론조차 시작하지 않는다.
         assertThat(hints).isEmpty();
         org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.never())
-                .predictYoloTrack(any(YoloTrackRequest.class));
+                .predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any());
     }
 
@@ -592,7 +594,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(10L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -615,7 +617,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(11L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -640,7 +642,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, false))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(12L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -662,7 +664,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(13L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -681,7 +683,7 @@ class YoloAutolabelStepTest {
         when(systemConfigService.getInt(ConfigKeys.YOLO_IOU)).thenReturn(60);
         when(srcRepository.findByRawSnOrderByFrameNoAsc(20L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -689,7 +691,7 @@ class YoloAutolabelStepTest {
         step.run(20L);
 
         ArgumentCaptor<YoloTrackRequest> captor = ArgumentCaptor.forClass(YoloTrackRequest.class);
-        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture());
+        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture(), eq(AiWorkload.BATCH));
         YoloTrackRequest sent = captor.getValue();
         // 55/100=0.55, 60/100=0.60
         assertThat(sent.confThreshold()).isEqualTo(0.55);
@@ -706,7 +708,7 @@ class YoloAutolabelStepTest {
         // setUp 의 기본값(getInt -> null) 유지 — fallback 경로 검증
         when(srcRepository.findByRawSnOrderByFrameNoAsc(21L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -714,7 +716,7 @@ class YoloAutolabelStepTest {
         step.run(21L);
 
         ArgumentCaptor<YoloTrackRequest> captor = ArgumentCaptor.forClass(YoloTrackRequest.class);
-        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture());
+        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture(), eq(AiWorkload.BATCH));
         YoloTrackRequest sent = captor.getValue();
         assertThat(sent.confThreshold()).isEqualTo(0.4);
         assertThat(sent.imgsz()).isEqualTo(1280);
@@ -728,7 +730,7 @@ class YoloAutolabelStepTest {
                 .thenThrow(new RuntimeException("DB down"));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(22L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -736,7 +738,7 @@ class YoloAutolabelStepTest {
         step.run(22L);
 
         ArgumentCaptor<YoloTrackRequest> captor = ArgumentCaptor.forClass(YoloTrackRequest.class);
-        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture());
+        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture(), eq(AiWorkload.BATCH));
         YoloTrackRequest sent = captor.getValue();
         assertThat(sent.confThreshold()).isEqualTo(0.4);
         assertThat(sent.imgsz()).isEqualTo(1280);
@@ -754,7 +756,7 @@ class YoloAutolabelStepTest {
         YoloResponse resp = new YoloResponse(List.of(
                 new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 7)
         ));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(resp));
 
         List<BbHint> hints = step.run(30L);
@@ -774,14 +776,14 @@ class YoloAutolabelStepTest {
         // 같은 영상의 3프레임 — clipId="40", frameIndex 는 0,1,2 순서로 전달되어야 함
         when(srcRepository.findByRawSnOrderByFrameNoAsc(40L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L), newSrc(20L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of())));
 
         step.run(40L);
 
         ArgumentCaptor<YoloTrackRequest> captor = ArgumentCaptor.forClass(YoloTrackRequest.class);
         org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(3))
-                .predictYoloTrack(captor.capture());
+                .predictYoloTrack(captor.capture(), eq(AiWorkload.BATCH));
         List<YoloTrackRequest> calls = captor.getAllValues();
         // clipId 는 rawSn 문자열, frameIndex 는 0,1,2 순차
         assertThat(calls).hasSize(3);
@@ -799,7 +801,7 @@ class YoloAutolabelStepTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(50L))
                 .thenReturn(List.of(newSrc(10L)));
         // 4-arg Detection — trackId=null (저신뢰 fallback)
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -820,7 +822,7 @@ class YoloAutolabelStepTest {
     void aiInfoPersistedAlongsideBbox() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(60L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -844,7 +846,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(61L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -867,7 +869,7 @@ class YoloAutolabelStepTest {
                 Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(14L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("car", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -885,7 +887,7 @@ class YoloAutolabelStepTest {
     void yoloLabelIdMappedFromMaster() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(100L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -903,7 +905,7 @@ class YoloAutolabelStepTest {
     void yoloUnknownLabelIdRemainsNull() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(101L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("rare_label_unknown", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -941,7 +943,7 @@ class YoloAutolabelStepTest {
 
         when(srcRepository.findByRawSnOrderByFrameNoAsc(70L))
                 .thenReturn(List.of(srcWithDeid));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -950,7 +952,7 @@ class YoloAutolabelStepTest {
 
         // ai-server 에 전달된 이미지가 원본(rawContent) 인지 검증
         ArgumentCaptor<YoloTrackRequest> captor = ArgumentCaptor.forClass(YoloTrackRequest.class);
-        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture());
+        org.mockito.Mockito.verify(aiServerClient).predictYoloTrack(captor.capture(), eq(AiWorkload.BATCH));
         String sentB64 = captor.getValue().imageB64();
         byte[] decoded = java.util.Base64.getDecoder().decode(sentB64);
         // 원본 프레임 내용과 동일해야 함 (비식별 아님)
@@ -968,7 +970,7 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.resolve("EVT_FALL"))
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, false))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(200L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -989,7 +991,7 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.resolve("EVT_FALL"))
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(201L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -1011,7 +1013,7 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.resolve("EVT_FALL"))
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, false))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(202L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -1032,7 +1034,7 @@ class YoloAutolabelStepTest {
         when(presetLabelLookup.resolve("EVT_FALL"))
                 .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, false))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(203L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("Person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -1077,7 +1079,7 @@ class YoloAutolabelStepTest {
         LsDataRaw rawMock = rawWithEvent(evCode);
         when(videoRepository.findById(300L)).thenReturn(Optional.of(rawMock));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(300L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
@@ -1105,7 +1107,7 @@ class YoloAutolabelStepTest {
     void yoloMappingLogged() {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(102L))
                 .thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -1129,7 +1131,7 @@ class YoloAutolabelStepTest {
     void detectionsOfOneFramePersistedWithSingleSaveAll() {
         // given — 프레임 1개 × 검출 3건
         when(srcRepository.findByRawSnOrderByFrameNoAsc(700L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92),
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81),
@@ -1150,7 +1152,7 @@ class YoloAutolabelStepTest {
     void aiInfoRowsMatchTheirOwnLabelPk() {
         // given — 신뢰도가 서로 다른 검출 3건(순서가 뒤섞이면 매칭이 깨지는 것을 관측 가능하게)
         when(srcRepository.findByRawSnOrderByFrameNoAsc(701L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.11),
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.55),
@@ -1185,7 +1187,7 @@ class YoloAutolabelStepTest {
         // given — 프레임 2개 × 검출 1건
         when(srcRepository.findByRawSnOrderByFrameNoAsc(702L))
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)
                 ))));
@@ -1203,7 +1205,7 @@ class YoloAutolabelStepTest {
     void emptyFrameDoesNotCallSaveAll() {
         // given — 검출 0건
         when(srcRepository.findByRawSnOrderByFrameNoAsc(703L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of())));
 
         // when
@@ -1220,7 +1222,7 @@ class YoloAutolabelStepTest {
         // given — 이미지(1280x720) 완전 밖 검출 1건 + 정상 검출 1건.
         //   B-ISSUE-42 리팩터링 후에도 "퇴화·형식위반은 스킵하고 나머지는 저장" 시맨틱이 유지돼야 한다.
         when(srcRepository.findByRawSnOrderByFrameNoAsc(704L)).thenReturn(List.of(newSrc(10L)));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(-50.0, -40.0, -10.0, -5.0), 0.92),
                         new YoloResponse.Detection("car", List.of(5.0, 6.0, 7.0, 8.0), 0.81)
@@ -1258,7 +1260,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
         when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(10L));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
 
@@ -1267,7 +1269,7 @@ class YoloAutolabelStepTest {
 
         // then — 추론은 두 프레임 모두 수행(다음 단계 입력 재현), 적재는 프레임 11 것 1건만.
         org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(2))
-                .predictYoloTrack(any(YoloTrackRequest.class));
+                .predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(1)).save(any(LsDataLbl.class));
         assertThat(hints).extracting(BbHint::srcSn).containsExactly(10L, 11L);
         // ★ 사람의 수정 보호 — 기존 자동 라벨을 삭제하는 경로가 없어야 한다(보간 스텝과 다른 축).
@@ -1299,7 +1301,7 @@ class YoloAutolabelStepTest {
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
         when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(10L, 11L));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
 
@@ -1327,7 +1329,7 @@ class YoloAutolabelStepTest {
         when(srcRepository.findByRawSnOrderByFrameNoAsc(804L)).thenReturn(List.of(newSrc(10L)));
         when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(804L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of(10L));
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
 
@@ -1336,7 +1338,7 @@ class YoloAutolabelStepTest {
 
         // then — ①추론 ≥1회 ②적재 0건 ③힌트 >0
         org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.atLeastOnce())
-                .predictYoloTrack(any(YoloTrackRequest.class));
+                .predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH));
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).save(any(LsDataLbl.class));
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.never()).saveAll(any());
         assertThat(hints).isNotEmpty();
@@ -1356,14 +1358,14 @@ class YoloAutolabelStepTest {
                 .thenReturn(List.of(newSrc(10L), newSrc(11L)));
         when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(803L, LsDataLbl.SRC_YOLO))
                 .thenReturn(List.of());
-        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class)))
+        when(aiServerClient.predictYoloTrack(any(YoloTrackRequest.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new YoloResponse(List.of(
                         new YoloResponse.Detection("person", List.of(1.0, 2.0, 3.0, 4.0), 0.92)))));
 
         List<BbHint> hints = step.run(803L);
 
         assertThat(hints).hasSize(2);
-        org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(2)).predictYoloTrack(any());
+        org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(2)).predictYoloTrack(any(), eq(AiWorkload.BATCH));
         org.mockito.Mockito.verify(lblRepository, org.mockito.Mockito.times(2)).save(any(LsDataLbl.class));
     }
 }

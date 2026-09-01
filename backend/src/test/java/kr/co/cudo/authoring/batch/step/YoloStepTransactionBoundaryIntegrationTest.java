@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.eventtype.service.EventTypeCacheEvictor;
 import kr.co.cudo.authoring.label.entity.LsLabel;
@@ -37,6 +38,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -169,7 +171,7 @@ class YoloStepTransactionBoundaryIntegrationTest {
         Long srcSn = frame.getSrcSn();
         assertThat(srcRepository.findById(srcSn).orElseThrow().getLblVer()).isZero();
 
-        when(aiServerClient.predictYoloTrack(any())).thenReturn(Mono.just(new YoloResponse(
+        when(aiServerClient.predictYoloTrack(any(), eq(AiWorkload.BATCH))).thenReturn(Mono.just(new YoloResponse(
                 List.of(new YoloResponse.Detection(DTCT_TYPE_CD, List.of(10.0, 10.0, 50.0, 50.0), 0.9, 7)))));
 
         // when — 오케스트레이터와 동일하게 빈(프록시)의 execute 를 무-트랜잭션 컨텍스트에서 호출.

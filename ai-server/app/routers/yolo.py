@@ -19,10 +19,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 
 from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
+from app.slots import WORKLOAD_HEADER, run_in_slot
 from app.startup_guard import refuse_mock_in_deployed_env
 from app.models import yolox_loader
 from app.models.detector_backend import DetectionResult, InferenceParams
@@ -59,9 +60,19 @@ def _apply_class_filter(
 
 
 @router.post("/predict", response_model=YoloResponse)
-async def predict(req: YoloRequest) -> YoloResponse:
-    """객체 감지 — YOLOX (ONNX Runtime) 단일 백엔드."""
-    resp = _predict_yolox(req)
+async def predict(
+    req: YoloRequest,
+    x_workload: str | None = Header(default=None, alias=WORKLOAD_HEADER),
+) -> YoloResponse:
+    """객체 감지 — YOLOX (ONNX Runtime) 단일 백엔드.
+
+    추론은 블로킹이므로 **용도별 실행 슬롯으로 오프로드**한다(``ADR-056``). 그대로 두면
+    이벤트 루프가 잡혀 배치와 화면 요청이 한 줄로 서고, 배치가 밀려 있는 동안 화면이 멈춘다.
+    슬롯은 ``X-Workload`` 가 **정확히 ``batch``** 일 때만 배치이고 그 밖은 전부 화면이다.
+
+    @design API-113 @design ADR-056
+    """
+    resp = await run_in_slot(x_workload, _predict_yolox, req)
     resp.detections = _apply_class_filter(resp.detections, req.classes)
     return resp
 
@@ -212,12 +223,22 @@ def _track_yolox(req: YoloTrackRequest) -> YoloTrackResponse:
 # ────────────────────────────────────────────────────────────────────
 
 @router.post("/track", response_model=YoloTrackResponse)
-async def track(req: YoloTrackRequest) -> YoloTrackResponse:
+async def track(
+    req: YoloTrackRequest,
+    x_workload: str | None = Header(default=None, alias=WORKLOAD_HEADER),
+) -> YoloTrackResponse:
     """clip_id 단위로 트래커 상태를 격리하며 같은 객체에 같은 track_id 부여.
 
-    YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드.
+    YOLOX (ONNX Runtime) + ByteTrack 단일 백엔드. 추론은 용도별 실행 슬롯으로 오프로드한다
+    (``ADR-056``).
+
+    ⚠ **트래커 상태를 가르는 축은 슬롯이 아니라 ``clip_id`` 다.** 배치는 영상 단위
+    (``rawSn``), 화면은 요청 단위(``rawSn:UUID``)를 쓰므로 두 경로가 같은 트래커 핸들을
+    잡지 않는다. "같은 영상이니 통일하자"는 최적화를 하는 순간 track_id 가 어긋난다.
+
+    @design API-119 @design ADR-056
     """
-    resp = _track_yolox(req)
+    resp = await run_in_slot(x_workload, _track_yolox, req)
     resp.detections = _apply_class_filter(resp.detections, req.classes)
     return resp
 
