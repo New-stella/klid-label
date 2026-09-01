@@ -106,6 +106,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       변경 <b>이력 표</b>는 만들지 않는다(보존 주기·조회 창구·정리 배치를 함께 정해야 하는 별개
  *       결정이라, 추정으로 대신하지 않는다). 기본값 없는 nullable 컬럼 추가라 표를 다시 쓰지 않고
  *       하위호환이며 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V23} — {@code LS_AI_SRVR}(AI서버) · {@code LS_AI_SRVR_ALTMNT}(AI서버배정) 신설.
+ *       추론 서버가 장비 두 대에 이중화로 올라가는데 저작도구가 부르는 주소는 <b>설정값 하나뿐</b>이라
+ *       두 대를 나눠 쓸 배선이 없었다. 이 두 표가 그 목록과 「어느 영상을 어느 노드로 보냈는가」를
+ *       데이터로 옮긴다. <b>원장만 세우고 분산 자체는 아직 하지 않는다</b>. 배정은
+ *       {@code raw_sn} 유니크다 — 추적기가 노드 프로세스의 로컬 메모리에 있어 한 영상의 프레임이
+ *       두 노드로 흩어지면 추적이 끊기므로, 「영상당 배정 한 건」이 그 보장의 전부다.
+ *       <b>시드하지 않는다</b> — 환경마다 추론 서버 주소가 다른데 마이그레이션은 애플리케이션
+ *       설정을 읽지 못한다. 대신 기동 시 원장이 비어 있으면 애플리케이션이 기존 설정값으로 노드
+ *       하나를 세우므로, 이 변경 이후에도 기존 배포는 <b>설정값 그대로</b> 동작한다.
+ *       신규 테이블 생성뿐이라 하위호환이고(구 jar 는 이 표를 모른다) 롤링 재기동으로 배포할 수 있다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -144,7 +154,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "9001", "9002");
     }
 
     @Test
@@ -174,6 +184,7 @@ class FlywaySquashBaselineIT {
                         "V20__add_portal_user_label_master_and_track.sql",
                         "V21__add_ls_mngr_pswd.sql",
                         "V22__add_ls_user_role_mdfr_id.sql",
+                        "V23__add_ls_ai_srvr.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
