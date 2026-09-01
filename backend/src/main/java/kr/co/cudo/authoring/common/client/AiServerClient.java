@@ -31,26 +31,61 @@ import reactor.core.publisher.Mono;
 public class AiServerClient {
 
     private final WebClient webClient;
-    private final CircuitBreaker circuitBreaker;
+    private final CircuitBreaker batchCircuitBreaker;
+    private final CircuitBreaker interactiveCircuitBreaker;
+    private final CircuitBreaker vlmVerifyCircuitBreaker;
     private final Retry retry;
 
     public AiServerClient(@Qualifier("aiServerWebClient") WebClient webClient,
-                          @Qualifier("aiCircuitBreaker") CircuitBreaker circuitBreaker,
+                          @Qualifier("aiBatchCircuitBreaker") CircuitBreaker batchCircuitBreaker,
+                          @Qualifier("aiInteractiveCircuitBreaker") CircuitBreaker interactiveCircuitBreaker,
+                          @Qualifier("aiCircuitBreaker") CircuitBreaker vlmVerifyCircuitBreaker,
                           RetryRegistry retryRegistry) {
         this.webClient = webClient;
-        this.circuitBreaker = circuitBreaker;
+        this.batchCircuitBreaker = batchCircuitBreaker;
+        this.interactiveCircuitBreaker = interactiveCircuitBreaker;
+        this.vlmVerifyCircuitBreaker = vlmVerifyCircuitBreaker;
+        // 재시도는 용도로 가르지 않는다 — 호출마다 독립 판정이라 상태를 공유해도 서로 막지 않는다.
         this.retry = retryRegistry.retry("ai");
     }
 
-    public Mono<YoloResponse> predictYolo(YoloRequest request) {
-        return webClient.post()
-                .uri("/infer/yolo/predict")
-                .bodyValue(request)
+    private CircuitBreaker circuitFor(AiWorkload workload) {
+        return workload == AiWorkload.BATCH ? batchCircuitBreaker : interactiveCircuitBreaker;
+    }
+
+    /**
+     * 공통 호출 골격 — 용도에 따라 <b>헤더와 서킷</b>이 갈린다.
+     *
+     * <p>배치일 때만 {@link AiWorkload#HEADER_NAME} 을 싣는다. 화면은 값을 붙이지 않는다 —
+     * ai-server 판정이 「정확히 batch」 하나로 유지돼야 오타·대소문자 차이가 조용히 배치로 새지 않는다.
+     */
+    private <T> Mono<T> call(String uri, Object request, Class<T> responseType, AiWorkload workload) {
+        WebClient.RequestBodySpec spec = webClient.post().uri(uri);
+        String headerValue = workload.headerValue();
+        if (headerValue != null) {
+            spec = spec.header(AiWorkload.HEADER_NAME, headerValue);
+        }
+        return spec.bodyValue(request)
                 .retrieve()
-                .bodyToMono(YoloResponse.class)
+                .bodyToMono(responseType)
                 .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+                .transformDeferred(CircuitBreakerOperator.of(circuitFor(workload)));
+    }
+
+    /**
+     * 용도를 명시하지 않은 호출 — <b>저작도구 화면</b>으로 처리한다.
+     * <p>배치 파이프라인만 {@link #predictYolo(YoloRequest, AiWorkload)} 로 용도를 명시한다.
+     * 기본값을 화면으로 둔 이유는 표시를 빠뜨려도 사람이 쓰는 쪽이 보호되는 방향으로
+     * 틀리기 때문이다({@code ADR-056}).
+     */
+    public Mono<YoloResponse> predictYolo(YoloRequest request) {
+        return predictYolo(request, AiWorkload.defaultWorkload());
+    }
+
+    /** 용도를 명시하는 호출 — 실행 슬롯과 서킷이 {@code workload} 로 갈린다. */
+    public Mono<YoloResponse> predictYolo(YoloRequest request, AiWorkload workload) {
+        return call("/infer/yolo/predict", request, YoloResponse.class, workload);
     }
 
     /**
@@ -59,37 +94,49 @@ public class AiServerClient {
      * Phase 4 에서 {@link kr.co.cudo.authoring.batch.step.YoloAutolabelStep} 가 {@link #predictYolo}
      * 대신 본 메서드를 호출하도록 전환된다.
      */
+    /**
+     * 용도를 명시하지 않은 호출 — <b>저작도구 화면</b>으로 처리한다.
+     * <p>배치 파이프라인만 {@link #predictYoloTrack(YoloTrackRequest, AiWorkload)} 로 용도를 명시한다.
+     * 기본값을 화면으로 둔 이유는 표시를 빠뜨려도 사람이 쓰는 쪽이 보호되는 방향으로
+     * 틀리기 때문이다({@code ADR-056}).
+     */
     public Mono<YoloResponse> predictYoloTrack(YoloTrackRequest request) {
-        return webClient.post()
-                .uri("/infer/yolo/track")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(YoloResponse.class)
-                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
-                .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+        return predictYoloTrack(request, AiWorkload.defaultWorkload());
     }
 
+    /** 용도를 명시하는 호출 — 실행 슬롯과 서킷이 {@code workload} 로 갈린다. */
+    public Mono<YoloResponse> predictYoloTrack(YoloTrackRequest request, AiWorkload workload) {
+        return call("/infer/yolo/track", request, YoloResponse.class, workload);
+    }
+
+    /**
+     * 용도를 명시하지 않은 호출 — <b>저작도구 화면</b>으로 처리한다.
+     * <p>배치 파이프라인만 {@link #segment(Sam2Request, AiWorkload)} 로 용도를 명시한다.
+     * 기본값을 화면으로 둔 이유는 표시를 빠뜨려도 사람이 쓰는 쪽이 보호되는 방향으로
+     * 틀리기 때문이다({@code ADR-056}).
+     */
     public Mono<Sam2Response> segment(Sam2Request request) {
-        return webClient.post()
-                .uri("/infer/sam2/segment")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(Sam2Response.class)
-                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
-                .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+        return segment(request, AiWorkload.defaultWorkload());
     }
 
+    /** 용도를 명시하는 호출 — 실행 슬롯과 서킷이 {@code workload} 로 갈린다. */
+    public Mono<Sam2Response> segment(Sam2Request request, AiWorkload workload) {
+        return call("/infer/sam2/segment", request, Sam2Response.class, workload);
+    }
+
+    /**
+     * 용도를 명시하지 않은 호출 — <b>저작도구 화면</b>으로 처리한다.
+     * <p>배치 파이프라인만 {@link #track(Sam2TrackRequest, AiWorkload)} 로 용도를 명시한다.
+     * 기본값을 화면으로 둔 이유는 표시를 빠뜨려도 사람이 쓰는 쪽이 보호되는 방향으로
+     * 틀리기 때문이다({@code ADR-056}).
+     */
     public Mono<Sam2TrackResponse> track(Sam2TrackRequest request) {
-        return webClient.post()
-                .uri("/infer/sam2/track")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(Sam2TrackResponse.class)
-                .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
-                .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+        return track(request, AiWorkload.defaultWorkload());
+    }
+
+    /** 용도를 명시하는 호출 — 실행 슬롯과 서킷이 {@code workload} 로 갈린다. */
+    public Mono<Sam2TrackResponse> track(Sam2TrackRequest request, AiWorkload workload) {
+        return call("/infer/sam2/track", request, Sam2TrackResponse.class, workload);
     }
 
     public Mono<VlmVerifyResponse> verifyObjects(VlmVerifyRequest request) {
@@ -100,7 +147,7 @@ public class AiServerClient {
                 .bodyToMono(VlmVerifyResponse.class)
                 .timeout(AiWaitBudgetPolicy.PER_CALL_TIMEOUT)
                 .transformDeferred(RetryOperator.of(retry))
-                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+                .transformDeferred(CircuitBreakerOperator.of(vlmVerifyCircuitBreaker));
     }
 
     // Phase 1 (2026-05-19): extractVideoMeta(VlmMetaRequest) 메서드 제거.
