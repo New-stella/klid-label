@@ -1,20 +1,20 @@
 ---
 logicraft_item: DFEAT-057
 type: domain_feature
-version: 11
+version: 12
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-25T10:52:16.664Z
+synced_at: 2026-09-01T07:14:15.793Z
 status: CHANGED
 prev_version: 11
-content_hash: 68f68d8c294d877b22d80851174bf9a6b6d4d771b513f51334420bacdb3372ed
-stale: true
+content_hash: ba73341a65bdb415304f8ab25f8cdd016b56795c77b4257769872f17ef9aaef7
+stale: false
 raw: ./_raw/DFEAT-057.json
 links:
+  based_on: ["[[ADR-048]]"]
   belongs_to_domain: ["[[DOMAIN-017]]"]
-  implements: ["[[API-206]]", "[[API-215]]"]
+  implements: ["[[API-206]]", "[[API-215]]", "[[IMPREC-096]]"]
   specializes: ["[[FEAT-010]]"]
-  verifies: ["[[AC-044]]", "[[AC-045]]", "[[AC-046]]", "[[AC-047]]", "[[AC-048]]"]
   realizes_backward: ["[[UC-035]]"]
 ---
 
@@ -54,7 +54,7 @@ ADR-048
 
 ### as
 
-검수자
+관리자
 
 ### i_want
 
@@ -97,6 +97,10 @@ ADR-048
 같은 산출물을 다시 가져오려 하면 앞서 만들어진 영상을 알려주며 거부한다. 검수 중이거나 이미 승인된 내용이 조용히 덮여 쓰이는 것을 막기 위해서다.
 
 ## invokes_apis
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 
@@ -163,6 +167,10 @@ _(empty)_
 ### last_updated
 
 2026-08-25T01:21:30.727Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 

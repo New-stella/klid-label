@@ -42,11 +42,12 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-31T14:39:45.341Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -60,12 +61,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "증빙 재작성 — 실제 화면 시나리오 + 확인 SQL(dev 246 실측 쿼리·결과). 가드 테스트 참조 제거(사용자 지시).",
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T03:34:19.910Z",
+    "last_updated_at": "2026-08-31T14:39:45.341Z",
     "created_at": "2026-08-31T02:13:43.700Z"
   }
 }

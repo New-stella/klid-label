@@ -25,8 +25,8 @@
       "scenario": {
         "then": [
           "ai-server(SAM2)가 후속 프레임에 BBox·폴리곤을 전파·반환한다",
-          "자동 라벨로 저장된다(AUTO_LBL_YN='Y', 좌표 실측 상한 검증)",
-          "트랙 보간으로 빈 프레임이 채워진다",
+          "좌표만 반환하며 이 호출은 저장하지 않는다 — 작업자가 확인·보정 후 저장하면 그 저장 경로가 자동 라벨로 적재한다(AUTO_LBL_YN='Y'). 요청·응답 좌표는 실측 상한으로 검증한다",
+          "트랙 보간은 이 호출이 수행하지 않는다 — 빈 프레임 채우기는 배치 단계 소관이다",
           "path/body srcSn 불일치는 400, 본인 미배정 프레임은 IDOR로 차단된다"
         ],
         "when": [
@@ -37,18 +37,19 @@
           "본인 배정 프레임이다"
         ]
       },
-      "statement": "작업자가 시작 프레임에서 추적할 객체를 박스(시드)로 지정하고 POST /v1/frames/{srcSn}/sam2-track으로 Sam2TrackRequest를 보내면(path/body srcSn 불일치 400, 본인 미배정 프레임 IDOR 차단), AI 추론 서버 연동(Resilience4j)으로 ai-server(SAM2)가 후속 프레임에 위치(BBox)·경계(폴리곤)를 전파·반환하고, 자동 라벨로 저장하며(AUTO_LBL_YN='Y', 좌표 실측 상한 검증 CWE-20) 트랙 보간으로 빈 프레임을 채운 뒤 작업자가 키프레임을 확인·보정해 저장한다.",
+      "statement": "작업자가 시작 프레임에서 추적할 객체를 박스(시드)로 지정하고 POST /v1/frames/{srcSn}/sam2-track으로 Sam2TrackRequest를 보내면(path/body srcSn 불일치 400, 본인 미배정 프레임 IDOR 차단), AI 추론 서버 연동(Resilience4j)으로 ai-server(SAM2)가 후속 프레임에 위치(BBox)·경계(폴리곤)를 전파·반환하고, 좌표만 돌려준다(좌표 실측 상한 검증 CWE-20 — 추적 호출 자체는 저장하지 않는다). 작업자가 결과를 확인·보정한 뒤 저장하면 그 저장 경로가 자동 라벨로 적재한다(AUTO_LBL_YN='Y')해 저장한다.",
       "brownfield": {
         "status": "new"
       },
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-31T14:39:47.952Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -62,12 +63,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "증빙 재작성 — 실제 화면 시나리오 + 확인 SQL(dev 246 실측 쿼리·결과). 가드 테스트 참조 제거(사용자 지시).",
+    "change_summary": "문언 정정 후 코드 대조로 전 절 충족을 확인해 구현 상태를 올린다. 직전 판정에서 부분 충족이던 사유는 문언이 코드와 달랐던 것 하나뿐이었고 그 절을 코드에 맞춰 고쳤으며, 나머지 절도 전수 재대조했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T03:34:19.330Z",
+    "last_updated_at": "2026-08-31T15:12:48.718Z",
     "created_at": "2026-08-31T02:13:43.049Z"
   }
 }

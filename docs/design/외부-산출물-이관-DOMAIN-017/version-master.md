@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-017 |
-| Last sync | 2026-08-31T11:12:36.233Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 62 |
+| Last sync | 2026-09-01T07:14:15.851Z |
+| Mode | SYNC — NEW 0 / CHANGED 19 / UNCHANGED 43 |
 | 출력 루트 | docs/design/외부-산출물-이관-DOMAIN-017 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-017 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 15건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 26건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 4건 / 스코프 밖 44건
-  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 192건
+  ℹ️  api_endpoint: 이번 키트 10건 / 스코프 밖 193건
   ℹ️  erd: 이번 키트 6건 / 스코프 밖 17건
   ℹ️  diagram_sequence: 이번 키트 1건 / 스코프 밖 25건 (그중 domain_id 없음 14건)
   ℹ️  screen_spec: 이번 키트 1건 / 스코프 밖 36건
   ℹ️  use_case: 이번 키트 3건 / 스코프 밖 31건 (그중 domain_id 없음 1건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 68건
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 70건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 6건 / 스코프 밖 42건 (그중 domain_id 없음 8건)
+  ℹ️  adr: 이번 키트 6건 / 스코프 밖 44건 (그중 domain_id 없음 8건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 9건)
 ```
 
@@ -41,36 +41,54 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1079]] (prev v6)
+- CHANGED [[AC-1080]] (prev v4)
+- CHANGED [[AC-1081]] (prev v5)
+- CHANGED [[AC-1082]] (prev v6)
+- CHANGED [[AC-1083]] (prev v4)
+- CHANGED [[ADR-052]] (prev v2)
+- CHANGED [[ADR-053]] (prev v1)
+- CHANGED [[API-206]] (prev v12)
+- CHANGED [[API-210]] (prev v9)
+- CHANGED [[API-221]] (prev v15)
+- CHANGED [[API-222]] (prev v10)
+- CHANGED [[SEQ-026]] (prev v13)
+- CHANGED [[DFEAT-057]] (prev v11)
+- CHANGED [[DFEAT-058]] (prev v3)
+- CHANGED [[SCREEN-039]] (prev v33)
+- CHANGED [[TEST-007]] (prev v1)
+- CHANGED [[TEST-008]] (prev v1)
+- CHANGED [[UC-035]] (prev v16)
+- CHANGED [[UC-036]] (prev v4)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1079]] | acceptance | 6 | UNCHANGED |
-| [[AC-1080]] | acceptance | 4 | UNCHANGED |
-| [[AC-1081]] | acceptance | 5 | UNCHANGED |
-| [[AC-1082]] | acceptance | 6 | UNCHANGED |
-| [[AC-1083]] | acceptance | 4 | UNCHANGED |
+| [[AC-1079]] | acceptance | 7 | CHANGED |
+| [[AC-1080]] | acceptance | 5 | CHANGED |
+| [[AC-1081]] | acceptance | 7 | CHANGED |
+| [[AC-1082]] | acceptance | 7 | CHANGED |
+| [[AC-1083]] | acceptance | 5 | CHANGED |
 | [[ADR-023]] | adr | 7 | UNCHANGED |
 | [[ADR-042]] | adr | 6 | UNCHANGED |
 | [[ADR-048]] | adr | 5 | UNCHANGED |
-| [[ADR-052]] | adr | 2 | UNCHANGED |
-| [[ADR-053]] | adr | 1 | UNCHANGED |
+| [[ADR-052]] | adr | 3 | CHANGED |
+| [[ADR-053]] | adr | 3 | CHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
 | [[API-205]] | api_endpoint | 8 | UNCHANGED |
-| [[API-206]] | api_endpoint | 12 | UNCHANGED |
+| [[API-206]] | api_endpoint | 13 | CHANGED |
 | [[API-207]] | api_endpoint | 7 | UNCHANGED |
 | [[API-208]] | api_endpoint | 5 | UNCHANGED |
 | [[API-209]] | api_endpoint | 6 | UNCHANGED |
-| [[API-210]] | api_endpoint | 9 | UNCHANGED |
+| [[API-210]] | api_endpoint | 10 | CHANGED |
 | [[API-211]] | api_endpoint | 8 | UNCHANGED |
 | [[API-215]] | api_endpoint | 4 | UNCHANGED |
-| [[API-221]] | api_endpoint | 15 | UNCHANGED |
-| [[API-222]] | api_endpoint | 10 | UNCHANGED |
+| [[API-221]] | api_endpoint | 16 | CHANGED |
+| [[API-222]] | api_endpoint | 11 | CHANGED |
 | [[DFEAT-056]] | domain_feature | 3 | UNCHANGED |
-| [[DFEAT-057]] | domain_feature | 11 | UNCHANGED |
-| [[DFEAT-058]] | domain_feature | 3 | UNCHANGED |
+| [[DFEAT-057]] | domain_feature | 12 | CHANGED |
+| [[DFEAT-058]] | domain_feature | 4 | CHANGED |
 | [[DFEAT-059]] | domain_feature | 5 | UNCHANGED |
 | [[DOMAIN-017]] | domain | 1 | UNCHANGED |
 | [[ERD-010]] | erd | 28 | UNCHANGED |
@@ -102,10 +120,10 @@
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 10 | UNCHANGED |
 | [[ROLE-004]] | permission_role | 4 | UNCHANGED |
-| [[SCREEN-039]] | screen_spec | 33 | UNCHANGED |
-| [[SEQ-026]] | diagram_sequence | 13 | UNCHANGED |
-| [[TEST-007]] | test_scenario | 1 | UNCHANGED |
-| [[TEST-008]] | test_scenario | 1 | UNCHANGED |
+| [[SCREEN-039]] | screen_spec | 40 | CHANGED |
+| [[SEQ-026]] | diagram_sequence | 14 | CHANGED |
+| [[TEST-007]] | test_scenario | 3 | CHANGED |
+| [[TEST-008]] | test_scenario | 3 | CHANGED |
 | [[UC-018]] | use_case | 19 | UNCHANGED |
-| [[UC-035]] | use_case | 16 | UNCHANGED |
-| [[UC-036]] | use_case | 4 | UNCHANGED |
+| [[UC-035]] | use_case | 17 | CHANGED |
+| [[UC-036]] | use_case | 6 | CHANGED |

@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-014",
-  "synced_at": "2026-08-31T11:12:39.821Z",
+  "synced_at": "2026-09-01T07:14:21.247Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -15,20 +15,20 @@
     "AC-1072": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 5,
-      "content_hash": "c4ce396b8c854acaebfbcdd6e2d907ae0c53e7723a1f236f77e889630f178ef6"
+      "version": 9,
+      "content_hash": "f5e2af71f3cd900fdad50e02fd423ac0a49a26bc24c29d91f3463c617a965b56"
     },
     "AC-1073": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 4,
-      "content_hash": "66ec4f4ef0ff714d8b8f5acaffb323dc22d29af660489d148b90ffefecf17b95"
+      "version": 5,
+      "content_hash": "4e6e889ee9da708441f40d37e75db17b0866548ae3707bf6290e5bf1c34c6179"
     },
     "AC-1074": {
       "type": "acceptance",
       "domain_id": "DOMAIN-014",
-      "version": 4,
-      "content_hash": "225c507353aae173dab285b0bc749e274deca969f5a72f443e546d5e352a32fb"
+      "version": 5,
+      "content_hash": "118a3fb9f929f17b4ec03e3ad1fb733958b7f9cf699aac8422674af97df06f5e"
     },
     "ADR-006": {
       "type": "adr",
@@ -51,8 +51,8 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 8,
-      "content_hash": "b8d9ba460c59b033ca150616df731f53741a1b8b96eb6859a8df79998475bd62"
+      "version": 9,
+      "content_hash": "5fdcae090d1966aa622f7659c774e2bc69d3874c0acc6338779cf22adf171bab"
     },
     "ADR-051": {
       "type": "adr",
@@ -63,8 +63,8 @@
     "ADR-053": {
       "type": "adr",
       "domain_id": "DOMAIN-004",
-      "version": 1,
-      "content_hash": "dc4c2140b8a98b544fa64b4e474f15c4a7d6a6801a47c8aad8b4c70ffe1a9275"
+      "version": 3,
+      "content_hash": "beee309e0fb87f8f0d99f82449c9d3770ab7b66a7dcc3f8e9cf0188ef9f89055"
     },
     "ADR-055": {
       "type": "adr",
@@ -459,8 +459,8 @@
     "SCREEN-027": {
       "type": "screen_spec",
       "domain_id": "DOMAIN-004",
-      "version": 42,
-      "content_hash": "4fcd6e0cebbf1d7955deaf4877821ea29b690fe5657755b3dd4039211e838b54"
+      "version": 47,
+      "content_hash": "cca398c94f12fee436c54e00bf27f26690335600e59c24648e7541b5188e9c26"
     },
     "SCREEN-038": {
       "type": "screen_spec",

@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-014 |
-| Last sync | 2026-08-31T11:12:39.821Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 84 |
+| Last sync | 2026-09-01T07:14:21.247Z |
+| Mode | SYNC — NEW 0 / CHANGED 6 / UNCHANGED 78 |
 | 출력 루트 | docs/design/시스템-설정-DOMAIN-014 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-014 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 10건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 11건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 1건 / 스코프 밖 47건
-  ℹ️  api_endpoint: 이번 키트 14건 / 스코프 밖 188건
+  ℹ️  api_endpoint: 이번 키트 14건 / 스코프 밖 189건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 21건 (그중 domain_id 없음 12건)
   ℹ️  screen_spec: 이번 키트 10건 / 스코프 밖 27건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 30건 (그중 domain_id 없음 2건)
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 70건
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 72건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 7건 / 스코프 밖 41건 (그중 domain_id 없음 7건)
+  ℹ️  adr: 이번 키트 7건 / 스코프 밖 43건 (그중 domain_id 없음 7건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
@@ -41,21 +41,26 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1072]] (prev v5)
+- CHANGED [[AC-1073]] (prev v4)
+- CHANGED [[AC-1074]] (prev v4)
+- CHANGED [[ADR-046]] (prev v8)
+- CHANGED [[ADR-053]] (prev v1)
+- CHANGED [[SCREEN-027]] (prev v42)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1072]] | acceptance | 5 | UNCHANGED |
-| [[AC-1073]] | acceptance | 4 | UNCHANGED |
-| [[AC-1074]] | acceptance | 4 | UNCHANGED |
+| [[AC-1072]] | acceptance | 9 | CHANGED |
+| [[AC-1073]] | acceptance | 5 | CHANGED |
+| [[AC-1074]] | acceptance | 5 | CHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-007]] | adr | 3 | UNCHANGED |
 | [[ADR-039]] | adr | 6 | UNCHANGED |
-| [[ADR-046]] | adr | 8 | UNCHANGED |
+| [[ADR-046]] | adr | 9 | CHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
-| [[ADR-053]] | adr | 1 | UNCHANGED |
+| [[ADR-053]] | adr | 3 | CHANGED |
 | [[ADR-055]] | adr | 3 | UNCHANGED |
 | [[API-004]] | api_endpoint | 8 | UNCHANGED |
 | [[API-068]] | api_endpoint | 4 | UNCHANGED |
@@ -110,7 +115,7 @@
 | [[SCREEN-008]] | screen_spec | 47 | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 32 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 46 | UNCHANGED |
-| [[SCREEN-027]] | screen_spec | 42 | UNCHANGED |
+| [[SCREEN-027]] | screen_spec | 47 | CHANGED |
 | [[SCREEN-038]] | screen_spec | 14 | UNCHANGED |
 | [[SCREEN-040]] | screen_spec | 9 | UNCHANGED |
 | [[SCREEN-041]] | screen_spec | 10 | UNCHANGED |

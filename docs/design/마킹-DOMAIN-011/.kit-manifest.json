@@ -1,7 +1,7 @@
 {
   "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
   "domain": "DOMAIN-011",
-  "synced_at": "2026-08-31T11:12:48.532Z",
+  "synced_at": "2026-09-01T07:14:27.485Z",
   "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
   "link_format": "wikilink-v1",
   "global_types": [
@@ -15,20 +15,20 @@
     "AC-1013": {
       "type": "acceptance",
       "domain_id": "DOMAIN-011",
-      "version": 5,
-      "content_hash": "1c2f01a1daba52ffc17880670bb08b2caf5a9cadc655bf1f85b830a81dd36c6f"
+      "version": 6,
+      "content_hash": "f7df6bf840611abb3e7b821d57f04891ef9cc95e0cd9545beacc2f20b25bcf02"
     },
     "AC-1014": {
       "type": "acceptance",
       "domain_id": "DOMAIN-011",
-      "version": 3,
-      "content_hash": "0db7bb150a218af774f5065b402f434d4d27f67de4bacd2cb43fe3ceb16b7150"
+      "version": 4,
+      "content_hash": "41141c91ff04239e46a71a551ad737e44f12f9e5fc58c03d1fa17cbc91c77e8a"
     },
     "AC-1015": {
       "type": "acceptance",
       "domain_id": "DOMAIN-011",
-      "version": 5,
-      "content_hash": "e27c7f132a427b508c55815ac29590766c6bfe4d0ea156373d871e8a0dfc7481"
+      "version": 6,
+      "content_hash": "22de12ca99e8323adbb34b50cf5267a42f76ea6c7510e0760885f8dc135ce4d1"
     },
     "ADR-001": {
       "type": "adr",
@@ -69,13 +69,13 @@
     "ADR-046": {
       "type": "adr",
       "domain_id": "DOMAIN-014",
-      "version": 8,
-      "content_hash": "b8d9ba460c59b033ca150616df731f53741a1b8b96eb6859a8df79998475bd62"
+      "version": 9,
+      "content_hash": "5fdcae090d1966aa622f7659c774e2bc69d3874c0acc6338779cf22adf171bab"
     },
     "ADR-052": {
       "type": "adr",
       "domain_id": "DOMAIN-004",
-      "version": 2,
+      "version": 3,
       "content_hash": "0b231ef29084646e4b20b5ef6c98c031d5a6eb833379908cd0856dec8ce8a15d"
     },
     "ADR-055": {

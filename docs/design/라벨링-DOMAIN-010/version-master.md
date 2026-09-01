@@ -4,8 +4,8 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-08-31T11:12:47.457Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 170 |
+| Last sync | 2026-09-01T07:14:25.282Z |
+| Mode | SYNC — NEW 0 / CHANGED 12 / UNCHANGED 158 |
 | 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
@@ -20,14 +20,14 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 10건 / 스코프 밖 38건
-  ℹ️  api_endpoint: 이번 키트 61건 / 스코프 밖 141건
+  ℹ️  api_endpoint: 이번 키트 61건 / 스코프 밖 142건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
   ℹ️  diagram_sequence: 이번 키트 8건 / 스코프 밖 18건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 28건
   ℹ️  use_case: 이번 키트 12건 / 스코프 밖 22건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
-  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 62건
-  ℹ️  adr: 이번 키트 19건 / 스코프 밖 29건 (그중 domain_id 없음 3건)
+  ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 64건 (그중 domain_id 없음 2건)
+  ℹ️  adr: 이번 키트 19건 / 스코프 밖 31건 (그중 domain_id 없음 3건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
 ```
 
@@ -40,23 +40,34 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1052]] (prev v5)
+- CHANGED [[AC-1053]] (prev v6)
+- CHANGED [[AC-1054]] (prev v5)
+- CHANGED [[AC-1055]] (prev v4)
+- CHANGED [[AC-1056]] (prev v4)
+- CHANGED [[AC-1057]] (prev v5)
+- CHANGED [[AC-1058]] (prev v7)
+- CHANGED [[AC-1059]] (prev v5)
+- CHANGED [[AC-1060]] (prev v3)
+- CHANGED [[AC-1061]] (prev v5)
+- CHANGED [[AC-1062]] (prev v4)
+- CHANGED [[TEST-007]] (prev v1)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1052]] | acceptance | 5 | UNCHANGED |
-| [[AC-1053]] | acceptance | 6 | UNCHANGED |
-| [[AC-1054]] | acceptance | 5 | UNCHANGED |
-| [[AC-1055]] | acceptance | 4 | UNCHANGED |
-| [[AC-1056]] | acceptance | 4 | UNCHANGED |
-| [[AC-1057]] | acceptance | 5 | UNCHANGED |
-| [[AC-1058]] | acceptance | 7 | UNCHANGED |
-| [[AC-1059]] | acceptance | 5 | UNCHANGED |
-| [[AC-1060]] | acceptance | 3 | UNCHANGED |
-| [[AC-1061]] | acceptance | 5 | UNCHANGED |
-| [[AC-1062]] | acceptance | 4 | UNCHANGED |
+| [[AC-1052]] | acceptance | 9 | CHANGED |
+| [[AC-1053]] | acceptance | 7 | CHANGED |
+| [[AC-1054]] | acceptance | 6 | CHANGED |
+| [[AC-1055]] | acceptance | 5 | CHANGED |
+| [[AC-1056]] | acceptance | 5 | CHANGED |
+| [[AC-1057]] | acceptance | 6 | CHANGED |
+| [[AC-1058]] | acceptance | 10 | CHANGED |
+| [[AC-1059]] | acceptance | 6 | CHANGED |
+| [[AC-1060]] | acceptance | 4 | CHANGED |
+| [[AC-1061]] | acceptance | 6 | CHANGED |
+| [[AC-1062]] | acceptance | 5 | CHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-002]] | adr | 2 | UNCHANGED |
 | [[ADR-004]] | adr | 4 | UNCHANGED |
@@ -203,7 +214,7 @@
 | [[SEQ-023]] | diagram_sequence | 8 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 15 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
-| [[TEST-007]] | test_scenario | 1 | UNCHANGED |
+| [[TEST-007]] | test_scenario | 3 | CHANGED |
 | [[UC-004]] | use_case | 16 | UNCHANGED |
 | [[UC-005]] | use_case | 11 | UNCHANGED |
 | [[UC-006]] | use_case | 10 | UNCHANGED |

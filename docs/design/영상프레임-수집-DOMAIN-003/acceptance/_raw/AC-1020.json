@@ -44,18 +44,19 @@
           "해당 영상 파일이 NAS에 실재한다"
         ]
       },
-      "statement": "관제서버가 학습용 영상 메타를 LS_DATA_INGEST에 평면 1행으로 직접 INSERT하면(VMS_CLIP_ID 유니크로 중복 방어, 처리상태 미기재 시 DEFAULT 'PENDING'), 저작도구 폴링 배치가 PENDING이면서 재시도 시각이 도래한 행(NXTM_RTRY_DT IS NULL OR <= 현재)을 RCPTN_DT·RCPTN_SN 순서로 조회해 원자 클레임하고, NAS의 영상 파일 실재를 검증한 뒤 LS_DATA_RAW에 1건을 등록하고 작업 상태를 PENDING으로 초기화한다(이벤트유형은 인입 EVNT_TYPE_CD 우선, 인입 PRCS_STTS_CD 종결·RAW_SN 기록). 커밋 후 VideoIngested(AFTER_COMMIT)로 비식별 선두 단계가 자동 진행된다.",
+      "statement": "관제서버가 학습용 영상 메타를 LS_DATA_INGEST에 평면 1행으로 직접 INSERT하면(VMS_CLIP_ID 유니크로 중복 방어, 처리상태 미기재 시 DEFAULT 'PENDING'), 저작도구 폴링 배치가 PENDING이면서 재시도 시각이 도래한 행(NXTM_RTRY_DT IS NULL OR <= 현재)을 RCPTN_DT·RCPTN_SN 순서로 조회해 원자 클레임하고, NAS의 영상 파일 실재를 검증한 뒤 LS_DATA_RAW에 1건을 등록한다(작업 상태 행은 이 시점에 만들지 않는다 — 배정 시점에 생성되며 그전까지 조회는 PENDING으로 표시된다)(이벤트유형은 인입 EVNT_TYPE_CD 우선, 인입 PRCS_STTS_CD 종결·RAW_SN 기록). 커밋 후 VideoIngested(AFTER_COMMIT)로 비식별 선두 단계가 자동 진행된다.",
       "brownfield": {
         "status": "new"
       },
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-31T14:39:47.852Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -69,12 +70,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "확인 SQL 상용 이식성 표기 — 결과 환경 1줄 명시, 쿼리는 klid_at 스키마로 상용 재실행 가능",
+    "change_summary": "문언 정정 후 코드 대조로 전 절 충족을 확인해 구현 상태를 올린다. 직전 판정에서 부분 충족이던 사유는 문언이 코드와 달랐던 것 하나뿐이었고 그 절을 코드에 맞춰 고쳤으며, 나머지 절도 전수 재대조했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T03:40:34.525Z",
+    "last_updated_at": "2026-08-31T15:12:48.567Z",
     "created_at": "2026-08-31T02:12:04.845Z"
   }
 }

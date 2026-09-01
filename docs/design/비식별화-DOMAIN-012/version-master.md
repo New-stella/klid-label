@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-012 |
-| Last sync | 2026-08-31T11:12:49.591Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 83 |
+| Last sync | 2026-09-01T07:14:29.022Z |
+| Mode | SYNC — NEW 0 / CHANGED 8 / UNCHANGED 75 |
 | 출력 루트 | docs/design/비식별화-DOMAIN-012 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-012 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 6건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 10건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 5건 / 스코프 밖 43건
-  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 193건
+  ℹ️  api_endpoint: 이번 키트 9건 / 스코프 밖 194건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 5건 / 스코프 밖 21건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 6건 / 스코프 밖 31건
   ℹ️  use_case: 이번 키트 4건 / 스코프 밖 30건 (그중 domain_id 없음 1건)
   ℹ️  domain_event: 이번 키트 2건 / 스코프 밖 10건
-  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 68건
+  ℹ️  acceptance: 이번 키트 5건 / 스코프 밖 70건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 15건 / 스코프 밖 33건 (그중 domain_id 없음 2건)
+  ℹ️  adr: 이번 키트 15건 / 스코프 밖 35건 (그중 domain_id 없음 2건)
   ℹ️  feature: 이번 키트 2건 / 스코프 밖 8건 (그중 domain_id 없음 7건)
 ```
 
@@ -41,17 +41,24 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[AC-1063]] (prev v5)
+- CHANGED [[AC-1064]] (prev v3)
+- CHANGED [[AC-1065]] (prev v3)
+- CHANGED [[AC-1066]] (prev v6)
+- CHANGED [[AC-1067]] (prev v4)
+- CHANGED [[ADR-046]] (prev v8)
+- CHANGED [[SCREEN-032]] (prev v23)
+- CHANGED [[TEST-008]] (prev v1)
 
 ## ITEM 표
 
 | ID | type | version | status |
 |---|---|---|---|
-| [[AC-1063]] | acceptance | 5 | UNCHANGED |
-| [[AC-1064]] | acceptance | 3 | UNCHANGED |
-| [[AC-1065]] | acceptance | 3 | UNCHANGED |
-| [[AC-1066]] | acceptance | 6 | UNCHANGED |
-| [[AC-1067]] | acceptance | 4 | UNCHANGED |
+| [[AC-1063]] | acceptance | 6 | CHANGED |
+| [[AC-1064]] | acceptance | 6 | CHANGED |
+| [[AC-1065]] | acceptance | 4 | CHANGED |
+| [[AC-1066]] | acceptance | 7 | CHANGED |
+| [[AC-1067]] | acceptance | 5 | CHANGED |
 | [[ADR-001]] | adr | 2 | UNCHANGED |
 | [[ADR-006]] | adr | 4 | UNCHANGED |
 | [[ADR-020]] | adr | 10 | UNCHANGED |
@@ -62,7 +69,7 @@
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
 | [[ADR-032]] | adr | 7 | UNCHANGED |
-| [[ADR-046]] | adr | 8 | UNCHANGED |
+| [[ADR-046]] | adr | 9 | CHANGED |
 | [[ADR-049]] | adr | 4 | UNCHANGED |
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
@@ -117,7 +124,7 @@
 | [[SCREEN-009]] | screen_spec | 75 | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 43 | UNCHANGED |
 | [[SCREEN-025]] | screen_spec | 46 | UNCHANGED |
-| [[SCREEN-032]] | screen_spec | 23 | UNCHANGED |
+| [[SCREEN-032]] | screen_spec | 26 | CHANGED |
 | [[SD-021]] | screen_design | 4 | UNCHANGED |
 | [[SEQ-001]] | diagram_sequence | 20 | UNCHANGED |
 | [[SEQ-012]] | diagram_sequence | 13 | UNCHANGED |
@@ -125,7 +132,7 @@
 | [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
 | [[SEQ-025]] | diagram_sequence | 5 | UNCHANGED |
 | [[TEST-001]] | test_scenario | 10 | UNCHANGED |
-| [[TEST-008]] | test_scenario | 1 | UNCHANGED |
+| [[TEST-008]] | test_scenario | 3 | CHANGED |
 | [[UC-011]] | use_case | 13 | UNCHANGED |
 | [[UC-013]] | use_case | 11 | UNCHANGED |
 | [[UC-016]] | use_case | 25 | UNCHANGED |

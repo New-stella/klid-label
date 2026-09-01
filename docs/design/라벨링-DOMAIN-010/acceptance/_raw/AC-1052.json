@@ -32,7 +32,7 @@
         "then": [
           "승인 시점에 라벨 전체 스냅샷이 LABEL_PAYLOAD에 적재된다(SAVE_REASON_CD='APPROVED')",
           "payload SHA-256(VERSION_HASH)로 버전이 식별된다(동일 payload는 동일 해시)",
-          "LS_DATA_LBL_HSTRY에 변경이력이 기록된다"
+          "승인 자체의 흔적은 작업 이벤트 기록에 남는다 — 라벨 변경이력(LS_DATA_LBL_HSTRY)은 승인이 아니라 라벨 저장·트랙 편집·되돌리기 세 경로가 소유한다"
         ],
         "when": [
           "검수 승인이 이뤄진다"
@@ -42,18 +42,19 @@
           "대상 영상의 비식별화가 완료됐다"
         ]
       },
-      "statement": "영상 단위 검수를 승인(APPROVED) 처리하면 시스템이 승인 시점에 라벨 전체 스냅샷(JSON)을 LS_LABEL_VERSION.LABEL_PAYLOAD에 적재하고(SAVE_REASON_CD='APPROVED') payload SHA-256(VERSION_HASH)로 버전을 식별하며(동일 payload는 동일 해시로 중복 식별) LS_DATA_LBL_HSTRY에 변경이력을 기록한다.",
+      "statement": "영상 단위 검수를 승인(APPROVED) 처리하면 시스템이 승인 시점에 라벨 전체 스냅샷(JSON)을 LS_LABEL_VERSION.LABEL_PAYLOAD에 적재하고(SAVE_REASON_CD='APPROVED') payload SHA-256(VERSION_HASH)로 버전을 식별하며(동일 payload는 동일 해시로 중복 식별) 승인 자체의 흔적은 작업 이벤트 기록에 남긴다. 라벨 변경이력(LS_DATA_LBL_HSTRY)은 승인이 아니라 라벨 저장·트랙 편집·되돌리기 세 경로가 소유한다 — 승인 경로는 그 표에 쓰지 않는다.",
       "brownfield": {
         "status": "new"
       },
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
+        "progress": 100,
         "subtasks": [],
+        "last_updated": "2026-08-31T14:39:48.114Z",
         "module_paths": []
       },
       "derived_domain_ids": [],
@@ -65,12 +66,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "확인 SQL 상용 이식성 표기 — 결과 환경 1줄 명시, 쿼리는 klid_at 스키마로 상용 재실행 가능",
+    "change_summary": "문언 정정 후 코드 대조로 전 절 충족을 확인해 구현 상태를 올린다. 직전 판정에서 부분 충족이던 사유는 문언이 코드와 달랐던 것 하나뿐이었고 그 절을 코드에 맞춰 고쳤으며, 나머지 절도 전수 재대조했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T03:40:36.881Z",
+    "last_updated_at": "2026-08-31T15:12:48.900Z",
     "created_at": "2026-08-31T02:18:46.105Z"
   }
 }

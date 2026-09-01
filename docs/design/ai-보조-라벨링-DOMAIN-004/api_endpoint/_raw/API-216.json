@@ -4,14 +4,13 @@
     "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
     "type": "api_endpoint",
     "title": "마킹 산출물 폴더 검사",
-    "slug": "post-v1devuploadscan",
+    "slug": "마킹-산출물-폴더-검사",
     "sub_id": null,
     "status": "draft",
     "data": {
-      "path": "/v1/dev/upload/scan",
+      "path": "/v1/imports/markings/scan",
       "tags": [
-        "dev",
-        "마킹 업로드"
+        "외부 산출물 이관"
       ],
       "title": "마킹 산출물 폴더 검사",
       "method": "POST",
@@ -326,7 +325,7 @@
             "success": false,
             "errorCode": "NOT_FOUND"
           },
-          "description": "사람이 영상을 직접 적재하는 경로가 켜져 있지 않아 이 기능 자체가 노출되지 않는다. 또는 가리킨 대상이 없다. ErrorCode=NOT_FOUND",
+          "description": "가리킨 대상이 없다. ErrorCode=NOT_FOUND",
           "content_type": "application/json"
         }
       },
@@ -340,8 +339,8 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "주어진 폴더와 그 아래를 재귀로 훑어 마킹 문서와 영상의 짝을 찾고, 무엇이 몇 건 들어오는지와 건별 검사 결과를 돌려준다. 이 단계에서는 아무것도 저장하지 않는다. 같은 요청을 여러 번 보내도 결과가 같다.\n\n짝짓기 기준은 폴더 구조가 아니라 마킹 문서가 스스로 적어 둔 영상 파일 이름이다. 문서와 영상이 서로 다른 자리에 놓여 있어도 같은 이름을 찾으면 짝이 된다. 같은 이름의 영상이 둘 이상이면 어느 쪽인지 정할 수 없으므로 그 항목은 짝을 찾지 못한 것으로 다룬다.\n\n훑는 깊이와 항목 수에는 상한이 있다. 상한에 걸리면 조용히 자르지 않고 일부만 훑었다는 사실을 함께 알린다. 폴더 안의 바로가기는 따라가지 않고 건너뛴다. 따라가면 허용된 저장소 범위 밖을 읽게 되기 때문이다.\n\n이 기능은 사람이 영상을 직접 적재하는 경로가 켜져 있을 때만 노출된다. 꺼져 있으면 이 계약 자체가 없다.",
-      "operation_id": "scanMarkingUploadFolder",
+      "description": "주어진 폴더와 그 아래를 재귀로 훑어 마킹 문서와 영상의 짝을 찾고, 무엇이 몇 건 들어오는지와 건별 검사 결과를 돌려준다. 이 단계에서는 아무것도 저장하지 않는다. 같은 요청을 여러 번 보내도 결과가 같다.\n\n짝짓기 기준은 폴더 구조가 아니라 마킹 문서가 스스로 적어 둔 영상 파일 이름이다. 문서와 영상이 서로 다른 자리에 놓여 있어도 같은 이름을 찾으면 짝이 된다. 같은 이름의 영상이 둘 이상이면 어느 쪽인지 정할 수 없으므로 그 항목은 짝을 찾지 못한 것으로 다룬다.\n\n훑는 깊이와 항목 수에는 상한이 있다. 상한에 걸리면 조용히 자르지 않고 일부만 훑었다는 사실을 함께 알린다. 폴더 안의 바로가기는 따라가지 않고 건너뛴다. 따라가면 허용된 저장소 범위 밖을 읽게 되기 때문이다.\n\n이 창구는 외부 산출물을 가져오는 화면에서 받아들일 산출물의 종류로 이벤트 마킹을 골랐을 때 부른다. 화면에서 종류를 고를 뿐이며 창구는 종류마다 그대로 나뉘어 있다.",
+      "operation_id": "scanMarkingImport",
       "request_body": {
         "schema": {
           "type": "object",
@@ -360,6 +359,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "planned",
@@ -375,12 +375,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "제목을 경로 표기에서 무슨 일을 하는지 알 수 있는 이름으로 바꾼다. 같은 산출물 세트의 다른 계약이 쓰는 표기와 맞춘다.",
+    "change_summary": "창구의 이름만 가져오기 축으로 맞춘다. 이 창구를 부르는 화면이 파일을 올리는 자리에서 외부 산출물을 가져오는 자리로 옮겨졌는데 창구 이름만 파일을 올리던 시절 그대로 남아 있었다. 개발용 이름 자리에 두면 운영 기능이 개발용으로 보이고 그 자리는 설정으로 여닫는 곳이라 오해를 부른다. 아직 코드가 없어 깨질 호출부가 없는 지금이 가장 싼 시점이다. 경로와 태그와 이름표를 이미 있는 가져오기 창구들의 관례에 맞추고 마킹 갈래임이 경로에서 드러나게 한다. 권한과 요청·응답 스키마와 동작 서술은 하나도 바뀌지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-24T10:32:36.102Z",
+    "last_updated_at": "2026-09-01T06:13:33.184Z",
     "created_at": "2026-08-24T10:32:21.904Z"
   }
 }
