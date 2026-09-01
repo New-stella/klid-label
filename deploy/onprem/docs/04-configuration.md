@@ -231,7 +231,7 @@ sudo VITE_CONTROL_LOGIN_URL=https://<관제 로그인 주소> \
 | `STREAM_SIGN_SECRET` | ★ | 영상 스트림 서명 시크릿(JWT_SECRET 과 다른 ≥32B). 미설정 시 스트리밍 fail-closed |
 | `STREAM_URL_TTL_SECONDS` | · | 기본 60 (5~600) |
 | `STREAM_COOKIE_SECURE` | · | 스트림 nonce 쿠키(`klid_stream_nonce`)에 `Secure` 를 붙일지. **기본 `false`** 이고 이 배포는 프런트가 평문 HTTP(`:80`)라 그대로 두는 것이 맞다 — `true` 면 브라우저가 쿠키를 저장하지 않아 스트림이 **전건 401**(영상 재생 불가)이 된다. 앞단에 사내 TLS 종단을 두어 HTTPS 로 서비스하면 `true`. ⚠ **빈 값 금지** — 비우면 기동 실패(`Invalid boolean value []`). `true` 또는 `false` 만 사용 |
-| `ADMIN_CLAIM_PASSWORD_HASH` | ★ | 관리자 공유 패스워드 BCrypt 해시(cost≥12). 평문 금지. ⚠ **최초 판정에만 쓰인다** — 운영 중 화면에서 패스워드를 한 번 바꾸면 그 값이 `klid_at.ls_mngr_pswd` 로 저장되고, 그 뒤로는 이 변수를 고쳐도 반영되지 않는다(저장소 우선). 되돌리는 절차는 [09-operations-runbook.md](09-operations-runbook.md) §4-2 |
+| `ADMIN_CLAIM_PASSWORD_HASH` | · | 관리자 공유 패스워드 BCrypt 해시(cost≥12). 평문 금지. ★**기본값은 평문 `admin` 의 해시**(2026-09-01) — 비워 두면 아무도 관리자가 되지 못하는데 그 상태에 신호가 없어서다. ⚠⚠ **널리 알려진 값이라 첫 진입 직후 화면에서 반드시 교체한다.** ⚠ **최초 판정에만 쓰인다** — 운영 중 화면에서 패스워드를 한 번 바꾸면 그 값이 `klid_at.ls_mngr_pswd` 로 저장되고, 그 뒤로는 이 변수를 고쳐도 반영되지 않는다(저장소 우선). 되돌리는 절차는 [09-operations-runbook.md](09-operations-runbook.md) §4-2 |
 
 ### prd·stg 필수 webhook 콜백 보안 (★ 부팅 차단 주의)
 

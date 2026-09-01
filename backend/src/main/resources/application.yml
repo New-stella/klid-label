@@ -277,7 +277,11 @@ authoring:
   #   - 운영(dev/stg/prd)에서는 환경변수 ADMIN_CLAIM_PASSWORD_HASH 로 override 필수.
   #   - 로컬 기본값은 application-local.yml 에 명시.
   auth:
-    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:}
+    # ★기본값은 평문 `admin` 의 BCrypt(cost 12) 해시다 (2026-09-01 사용자 확정).
+    #   빈 값이면 어떤 패스워드도 통과하지 않아 최초 배포에서 관리자 기능에 손댈 수 없다.
+    #   ⚠ 이것은 <널리 알려진 값>이다 — 운영 배포는 첫 진입 직후 화면에서 반드시 교체한다.
+    #   교체하면 그 값이 저장소로 옮겨가고 이 설정값은 더 이상 판정에 쓰이지 않는다.
+    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2y$12$kOprWBcIE8WODqbSHpsaQ.f..9NWLVFSk47Hw2.NN3lopX3MMkHo.}
   user:
     last-login:
       # 최종로그인일시(LS_ACNT_USER.LAST_LGN_DT) 기록 최소 간격(분).
@@ -492,7 +496,17 @@ authoring:
       # base-url 은 원장이 비어 있을 때의 <씨앗>이고, 그 뒤로는 LS_AI_SRVR 원장이 이긴다.
       # 아래 값들은 그 원장을 주기적으로 갱신하는 배치의 설정이다.
       #
-      # ★ poll-enabled 기본값이 false 인 것은 미완성이라서가 아니라 <의도된 배포 형상>이다.
+      # ★ poll-enabled 기본값을 true 로 켠다 (2026-09-01). 아래 <꺼둔 이유>는 이제 해소됐다 —
+      #   그 조건이 「실행이 용도별로 나뉜 뒤에 켠다」였고, 추론 서버의 실행이 용도별 슬롯으로
+      #   갈리면서 배치 포화 중에도 인터랙티브 응답이 유지되는 것이 실측으로 확인됐다.
+      #   ⚠ 꺼둔 채로 두면 <분산이 도입됐는데 동작하지 않는> 상태가 조용히 유지된다: 관측값이
+      #     전부 0 으로 동률이 되고 동률의 결정 규칙이 식별자 순서라 요청이 항상 한 대로만 간다.
+      #     장비를 여러 대 등록해도 소용이 없고 아무 신호도 나지 않는다.
+      #   ⚠ 시계열 축은 이 설정과 무관하다 — 그 축의 부하 원천은 폴러가 아니라 <우리 원장의 미결
+      #     위탁 수>라 외부를 찌르지 않는다(꺼져 있어도 분산된다).
+      #
+      # --- 아래는 <왜 처음에 꺼두고 들어갔는지>의 기록이다. 되살릴 동작이 아니라 근거다. ---
+      # ★ poll-enabled 기본값이 false 였던 것은 미완성이라서가 아니라 <의도된 배포 형상>이었다.
       #   상태 점검과 부하 조회는 둘 다 추론 서버가 요청을 받아 응답할 여유가 있어야 성립하는데,
       #   추론 서버가 실행을 용도별로 나누기 전에는 추론이 처리 흐름을 통째로 붙잡아 상태 점검조차
       #   늦어진다. 그 시기에 켜면 <바쁜 장비를 죽은 장비로 오판>하고, 장비가 둘 이상이면 먼저
@@ -504,7 +518,7 @@ authoring:
       #   않으므로 그것이 의도다).
       #   ⚠ 이 값은 잡 등록 조건 @ConditionalOnProperty(havingValue="true") 가 읽는다 — "true" 만
       #   참이며 1/on/yes 는 <꺼짐>이다(폴러도 같은 규칙으로 읽는다).
-      poll-enabled: ${AI_SERVER_POLL_ENABLED:false}
+      poll-enabled: ${AI_SERVER_POLL_ENABLED:true}
       # 상태점검 주기(초). ⚠ 노드 수 x 핑 상한(2초)이 이 값을 넘으면 틱이 뒤로 밀린다.
       poll-interval-seconds: ${AI_SERVER_POLL_INTERVAL_SECONDS:5}
       # 부하 조회(GET /internal/load) 상한(ms). ★ 이 상한을 넘긴 것을 「포화」로 읽지 않는다 —

@@ -1,6 +1,7 @@
 import { ErrorState } from '@/components/common/ErrorState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Spinner } from '@/components/common/Spinner';
+import { AiServerListCard } from '@/features/aiServer/components/AiServerListCard';
 import { IntegrationEndpointsCard } from '@/features/sysconfig/components/IntegrationEndpointsCard';
 import { useConfigStrings } from '@/features/sysconfig/hooks/useConfigStrings';
 
@@ -18,6 +19,11 @@ import { useConfigStrings } from '@/features/sysconfig/hooks/useConfigStrings';
  *
  * <p>⚠ 데이터베이스 접속정보는 이 화면의 대상이 아니다. 여기서 찾다가 없다고 판단하는 일이
  * 없도록 화면에서 그 사실을 밝힌다.
+ *
+ * <h3>주소 한 칸인 것과 장비 목록인 것이 한 화면에 있다</h3>
+ * 비식별 서버·관제 통지 수신처는 <b>한 칸 그대로</b>다. 반면 AI 추론과 외부 시계열 분석은 장비를
+ * 여러 대 두고 부하에 따라 나눠 보내는 축이라 <b>목록</b>으로 다룬다(ADR-046). 위 카드의 그 두 칸은
+ * 사라지지 않는다 — 원장이 비어 있을 때 최초 1회 씨앗으로 쓰이기 때문이다.
  */
 export function AdminEndpointsPage() {
   // 연동 주소는 문자열이라 숫자 변환 맵(`useConfigs`)에서 걸러진다 — 문자열 select 를 쓴다.
@@ -45,6 +51,14 @@ export function AdminEndpointsPage() {
           <IntegrationEndpointsCard configs={stringConfigs} />
         )}
       </div>
+
+      {/*
+        AI 장비는 «한 칸»이 아니라 «목록»이다 — 유형마다 여러 대를 두고 부하에 따라 나눠 보내는
+        축이라, 주소 칸 하나로는 두 번째 장비를 넣을 방법이 없다(ADR-046 · ADR-057).
+        ⚠ 위 카드의 AI 추론 서버·외부 시계열 분석 벤더 칸은 **씨앗**으로 계속 쓰이므로 지우지 말 것 —
+          원장이 비어 있을 때 최초 1회만 반영된다.
+      */}
+      <AiServerListCard />
     </section>
   );
 }

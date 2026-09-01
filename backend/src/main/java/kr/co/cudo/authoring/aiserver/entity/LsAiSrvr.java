@@ -151,6 +151,40 @@ public class LsAiSrvr {
         return this.chckFailNocs;
     }
 
+    /**
+     * 등록한 사람을 남긴다 — 표에 등록자 전용 컬럼이 없어 수정자 자리를 함께 쓴다. [@design API-227]
+     *
+     * <p><b>수정일시는 건드리지 않는다.</b> 등록 시각은 {@link #regDt} 가 이미 갖고 있고, 여기에 같은
+     * 값을 한 번 더 적으면 「한 번도 손대지 않은 행」과 「등록 직후 수정된 행」이 구분되지 않는다.
+     */
+    public void assignRegistrar(String actorId) {
+        this.mdfrId = actorId;
+    }
+
+    /**
+     * 표시 이름·주소를 고친다 — <b>{@code null} 은 「그대로 둔다」</b>는 뜻이다. [@design API-228]
+     *
+     * <p>부분 수정 창구라 요청에 없는 항목을 지우지 않는다. 특히 주소는 {@code NOT NULL} 이라
+     * 「비운다」가 애초에 성립하지 않고, 이름도 이 통로로는 지울 수 없다 — 빈 문자열로 지우는 우회를
+     * 열면 표시 축에서 「빈 이름」과 「모름」이 구분되지 않는다.
+     *
+     * <p><b>주소 형식 판정을 여기서 하지 않는다.</b> 어떤 주소를 허용할지는 외부 연동 정책이 소유하며,
+     * 그 규칙을 엔티티에 복제하면 두 번째 진실원이 된다.
+     *
+     * <p>⚠ 상태는 여기서 바꾸지 않는다 — 가용 노드가 0이 되는 것을 막으려면 <b>원장 전체</b>를 봐야
+     * 하는데 엔티티 하나는 자기 행만 안다(클래스 주석 참조).
+     */
+    public void applyProfileChange(String srvrNm, String srvrAddr, String actorId, LocalDateTime now) {
+        if (srvrNm != null) {
+            this.srvrNm = srvrNm;
+        }
+        if (srvrAddr != null) {
+            this.srvrAddr = srvrAddr;
+        }
+        this.mdfrId = actorId;
+        this.mdfcnDt = now;
+    }
+
     private static int safe(Integer value) {
         return value == null ? 0 : value;
     }

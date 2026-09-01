@@ -179,11 +179,18 @@ class AiSrvrAssignmentIT {
     }
 
     @Test
-    @DisplayName("원장에_없는_노드로는_배정할_수_없다")
+    @DisplayName("★원장에_없는_노드로는_배정할_수_없다")
     void 원장에_없는_노드로는_배정할_수_없다() {
-        // given · when · then — 외래키가 유령 노드 배정을 막는다(그 배정은 영원히 호출되지 않는다)
+        // 유령 노드에 묶인 영상은 <영원히 호출되지 않는다> — 영상당 한 건이라 다른 노드로 갈아탈
+        // 수도 없다. 종전에는 외래키가 이것을 막았는데 그 외래키를 없앴으므로(V26) 보호가
+        // INSERT 조건(WHERE EXISTS)으로 옮겨갔다. 거부 방식이 예외에서 <행이 안 생김>으로 바뀐다.
+        // ⚠ 스프링이 저장소 계층의 IllegalStateException 을 자기 예외로 감싼다 — 종류가 아니라
+        //   <메시지>로 무는 이유다. 감싸는 종류가 바뀌어도 이 단언은 살아남는다.
         assertThatThrownBy(() -> assign(RAW_SN, "nosuch01"))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .hasMessageContaining("원장에 없는 장비였을 수 있습니다");
+
+        // ★행이 실제로 생기지 않았는지까지 본다 — 예외 종류만 보면 다른 이유로 터져도 통과한다.
+        assertThat(countAssignments()).isZero();
     }
 
     private LsAiSrvrAltmnt assign(long rawSn, String srvrId) {

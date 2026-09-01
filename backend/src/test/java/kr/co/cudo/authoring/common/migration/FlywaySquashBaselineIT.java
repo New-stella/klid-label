@@ -128,6 +128,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       다시 합치기 때문이다. ⚠ <b>하위호환이 아니다</b> — 구 jar 는 그 컬럼을 엔티티에 매핑하고 있어
  *       기동 검증에서 실패하므로 롤링이 아니라 전 노드 교체 후 적용해야 한다(관측이 꺼진 채 나가므로
  *       기능 영향은 없다)</li>
+ *   <li>{@code V26} — {@code LS_AI_SRVR_ALTMNT.SRVR_ID} 의 외래키({@code ON DELETE RESTRICT}) 제거.
+ *       그 배정은 <b>처리가 도는 동안</b> 프레임을 한 노드에 묶어 두는 자리이고, 처리가 끝나면 그
+ *       묶음은 의미가 없다(추적기 상태가 그 프로세스 메모리에 있었고 이미 사라졌다). 끝난 이력까지
+ *       삭제를 막으면 <b>한 번이라도 영상을 처리한 장비는 영구히 교체 불가</b>가 된다. 같은 이유로
+ *       {@code LS_WEBHOOK_IDEMPOTENCY.SRVR_ID} 는 처음부터 외래키를 걸지 않았고 그 축에 맞춘 것이다.
+ *       ⚠ <b>제약만</b> 없앤다 — 표·컬럼·행은 그대로이고 배정 이력은 남는다. 유령 장비로의 신규
+ *       배정 차단은 INSERT 조건({@code WHERE EXISTS})으로 옮겼다. 순수 완화라 <b>구 jar 에 무해</b>하다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -166,7 +173,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "9001", "9002");
     }
 
     @Test
@@ -199,6 +206,7 @@ class FlywaySquashBaselineIT {
                         "V23__add_ls_ai_srvr.sql",
                         "V24__split_ai_srvr_load_by_usage.sql",
                         "V25__add_webhook_idempotency_srvr_id.sql",
+                        "V26__drop_ls_ai_srvr_altmnt_fk.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

@@ -30,4 +30,15 @@ public interface LsAiSrvrUsgRepository extends JpaRepository<LsAiSrvrUsg, LsAiSr
      * 「모름」으로 다룰지 0으로 다룰지 정한다.
      */
     List<LsAiSrvrUsg> findBySrvrIdInAndUsgTypeCd(Collection<String> srvrIds, AiSrvrUsageType usgTypeCd);
+
+    /**
+     * 여러 노드의 <b>전 용도</b> 부하 — 관리 목록 화면이 한 번에 읽는다. [@design API-226]
+     *
+     * <p>노드마다 {@link #findBySrvrId(String)} 를 부르면 목록 한 번이 노드 수만큼의 DB 왕복이 된다.
+     * 용도가 둘뿐이라 결과 크기는 노드 수의 두 배를 넘지 않아 상한을 따로 두지 않는다.
+     *
+     * <p><b>행이 없는 노드는 결과에 없다</b> — 아직 한 번도 관측되지 않은 노드다(부하 0이 아니라
+     * 「모름」이다). 호출측이 그 사실을 어떻게 보일지 정한다.
+     */
+    List<LsAiSrvrUsg> findBySrvrIdIn(Collection<String> srvrIds);
 }
