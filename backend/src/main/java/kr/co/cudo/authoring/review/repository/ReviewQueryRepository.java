@@ -261,6 +261,12 @@ public class ReviewQueryRepository {
      * <p>"CCTV 명이 비었는가"는 표시측({@code ReviewService.lookupCctvNames} 의 {@code isBlank()})과
      * <b>같은 의미</b>여야 한다 — 어긋나면 탭/개행만 있는 CCTV 명처럼 "화면에 보이는 값으로 검색해도
      * 안 나오는" 영상이 생긴다({@link #blankAsJava} 참조).
+     *
+     * <p><b>채널 술어({@code InternalWorkScope.internal})를 붙이지 않는다 — 의도된 것이다</b>(ADR-058).
+     * 이 상관 서브쿼리의 바깥 조회는 검수 상태 표({@code LS_RAW_DATA_STATUS})에서 출발하는데, 그 행은
+     * 배정 시점에 생기고 포털에는 배정·검수가 없어 <b>영영 생기지 않는다</b> — 포털 자산은 구조적으로
+     * 도달하지 못한다. 이미 걸러지는 자리에 술어를 더하면 저 조인이 하는 일이 가려진다.
+     * 「일관성」을 이유로 붙이지 말 것.
      */
     private BooleanExpression videoNameLike(QLsRawDataStatus status, String pattern) {
         QLsDataRaw raw = QLsDataRaw.lsDataRaw;

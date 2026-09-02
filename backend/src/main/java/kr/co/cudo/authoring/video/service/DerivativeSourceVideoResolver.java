@@ -112,7 +112,10 @@ public class DerivativeSourceVideoResolver {
      * 판별을 놓쳐도 여기로 떨어진다 — 그래야 관제 원본이 새지 않는다.
      */
     public Source sourceOf(LsDataRaw parent) {
-        return parent != null && LsDataRaw.SRC_TYPE_PORTAL_ULD.equals(parent.getSrcType())
+        // 판정은 엔티티의 단일 헬퍼에 위임한다 — 판별자 상수를 여기서 다시 비교하면 채널 판정이
+        // 두 곳이 된다. null 검사는 여기 남는다: 부모가 없으면 판별 자체가 불가능하므로 기본값으로
+        // 떨어져야 하고, 그 기본값이 DEIDENTIFIED 라 관제 원본이 새지 않는다(fail-closed).
+        return parent != null && parent.isPortalUpload()
                 ? Source.PORTAL_ORIGINAL
                 : Source.DEIDENTIFIED;
     }

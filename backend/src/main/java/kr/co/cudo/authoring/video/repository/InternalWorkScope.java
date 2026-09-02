@@ -42,6 +42,25 @@ public final class InternalWorkScope {
     }
 
     /**
+     * <b>JPQL 조각</b> — {@code @Query} 문자열에 그대로 이어 붙이는 형태. QueryDSL 두 형태만 있던 동안
+     * JPQL 로 쓴 조회는 <b>갈 곳이 없어 판별자를 쿼리 안에 직접 박았다</b>. 그 자리를 없앤다.
+     *
+     * <p>모양은 폐기 프레임 제외 술어({@code LsDataSrcRepository.NOT_DISCARDED})를 그대로 따른다 —
+     * 새 방식을 만들지 않는다. 컴파일 타임 상수라 {@code @Query} 애너테이션에 이어 붙일 수 있다.
+     *
+     * <p><b>별칭은 {@code r} 로 고정</b>한다 — 이 조각을 붙이는 모든 쿼리가 {@code LS_DATA_RAW} 를
+     * {@code r} 로 부른다. 별칭이 다른 쿼리는 이 조각을 쓸 수 없다(쓰면 JPQL 파싱이 깨져 즉시 드러난다).
+     *
+     * <p>앞뒤 공백은 <b>의도된 것</b>이다. 호출부가 텍스트 블록을 쓰면 각 줄의 후행 공백이 제거되므로,
+     * 조각이 스스로 공백을 보장하지 않으면 이어 붙인 자리에서 토큰이 붙어버린다.
+     *
+     * <p>판정을 <b>「포털이 아니다」</b>로 적는 이유는 {@link #internal(QLsDataRaw)} 와 같다 — 과거 행은
+     * 출처 유형이 비어 있어({@code null}) 「관제다」로 적으면 정상 영상이 통째로 사라진다.
+     */
+    public static final String INTERNAL_JPQL =
+            " and (r.srcType is null or r.srcType <> '" + LsDataRaw.SRC_TYPE_PORTAL_ULD + "') ";
+
+    /**
      * {@code FROM LS_DATA_RAW} 인 경로(작업목록)용 — 그 영상이 내부 채널 자산인가.
      *
      * @param raw 조회 루트로 쓰인 영상 원장 별칭

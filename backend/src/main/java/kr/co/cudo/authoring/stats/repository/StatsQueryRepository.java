@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.stats.repository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.InternalWorkScope;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -70,11 +71,20 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     String IN_PROGRESS_PREDICATE = """
             \ss.dataSttsCd <> 'APPROVED'\s""";
 
-    /** 영상(LS_DATA_RAW) 의 EVNT_TYPE_CD 별 건수. NULL 코드는 제외. */
+    /**
+     * 영상(LS_DATA_RAW) 의 EVNT_TYPE_CD 별 건수. NULL 코드는 제외.
+     *
+     * <p><b>채널 축을 명시한다</b>(ADR-058) — 지금까지 이 집계가 포털 업로드 자산을 집지 않은 것은
+     * 막아서가 아니라 <b>포털 자산에 이벤트 유형이 채워지지 않는다는 우연</b> 때문이었다. 그 값이 채워지는
+     * 순간 관제 대시보드 분포에 남의 자산이 섞이는데, 오류가 아니라 <b>건수만 늘어</b> 조용히 틀린다.
+     * 판정은 채널 판별의 단일 소유자 {@link InternalWorkScope#INTERNAL_JPQL} 로만 한다
+     * (별칭 규약 {@code LsDataRaw = r}).
+     */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
               FROM LsDataRaw r
              WHERE r.evntTypeCd IS NOT NULL
+            """ + InternalWorkScope.INTERNAL_JPQL + """
              GROUP BY r.evntTypeCd
             """)
     List<CountRow> countVideoByEventType();
@@ -87,12 +97,17 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *
      * <p>LsDataSrc 와 LsDataRaw 간 관계는 객체 참조가 아닌 ID 참조(rawSn)이므로
      * JPQL 의 명시적 ON 절을 사용한다 (Hibernate 5.1+ ad-hoc JOIN).
+     *
+     * <p><b>채널 축을 명시한다</b> — 근거는 {@link #countVideoByEventType()} 주석과 같다(같은 우연에
+     * 기대고 있었다). 폐기 프레임 술어는 여기 붙이지 않는다 — 이 집계는 <b>전체 기준</b> 축이라 폐기를
+     * 빼면 수집 상황을 알 수 없어진다(위 섹션 주석의 R4 규칙).
      */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
               FROM LsDataSrc s
               JOIN LsDataRaw r ON s.rawSn = r.rawSn
              WHERE r.evntTypeCd IS NOT NULL
+            """ + InternalWorkScope.INTERNAL_JPQL + """
              GROUP BY r.evntTypeCd
             """)
     List<CountRow> countFrameByEventType();
@@ -167,6 +182,11 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * <p><b>폐기 프레임 술어를 붙이지 않는다</b> — 폐기는 프레임 축이라 영상 건수를 바꾸지 않는다
      * (프레임 일부가 폐기돼도 그 영상은 여전히 승인된 영상 1건이다). 이 쿼리에는 {@code LsDataSrc}
      * 조인 자체가 없다.
+     *
+     * <p><b>채널 술어({@link InternalWorkScope#INTERNAL_JPQL})도 붙이지 않는다 — 의도된 것이다</b>(ADR-058).
+     * {@code LsRawDataStatus} 조인이 <b>구조적으로</b> 배제한다: 그 행은 배정 시점에 생기는데 포털에는
+     * 배정·검수가 없어 <b>영영 생기지 않는다</b>. 이미 걸러지는 자리에 술어를 더하면 읽는 사람이 저 조인이
+     * 하는 일을 못 읽게 되고 조회 계획만 무거워진다. 「일관성」을 이유로 붙이지 말 것.
      */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
@@ -187,6 +207,10 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *
      * <p><b>술어 위치</b>: {@code GROUP BY} <b>앞</b>에 붙인다 — 뒤에 붙이면 문법 오류다. 그래서 이
      * 쿼리만 텍스트 블록을 둘로 나눠 사이에 조각을 끼운다.
+     *
+     * <p><b>채널 술어({@link InternalWorkScope#INTERNAL_JPQL})는 붙이지 않는다 — 의도된 것이다</b>(ADR-058).
+     * 근거는 {@link #countVideoByEventTypeAndStatus(String)} 주석과 같다({@code LsRawDataStatus} 조인의
+     * 구조적 배제).
      */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
