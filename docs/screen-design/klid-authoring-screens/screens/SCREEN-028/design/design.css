@@ -134,36 +134,59 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 
 /* ── 4. 본문 상단 이동 탭 (SHELL-002 nav_regions · NAV-002 1단) ───────
  * 저작도구 목적지 셋(내 작업 · 내 업로드 · 증강)을 오가는 자리.
+ *
+ * ★ 모양은 외부 채널이 실제로 쓰는 KRDS line 탭 규격을 그대로 따랐다(그 채널의 워크스페이스
+ *   화면이 같은 부품으로 두 갈래를 가른다). 실측값 — 높이 48 · 최소너비 64 · 좌우 패딩 4 ·
+ *   항목 간격 8 · 15px/600 · 비활성 글자 neutral-6 · 활성 글자 primary-6 ·
+ *   활성 밑줄 4px primary-5 가 가운데에서 양옆으로 펴진다 · 배경은 항상 투명 ·
+ *   ★바 전체에 구분선을 두지 않는다(활성 항목의 밑줄만 있다).
+ *   색 토큰이 우리 것과 같은 값이라(그 채널 primary-50 = 우리 primary-5) 그대로 옮겨진다.
+ *
  * ⚠ 경로가 갈리는 이동이라 tablist 가 아니라 nav + 링크 + aria-current 로 짠다 —
  *   tablist 는 같은 화면 안의 패널을 바꿀 때 쓰는 역할이라 여기에 맞지 않는다.
- * 활성 항목은 밑줄 2px 로만 가른다. 왼쪽 레일(Host 소유)과 색·모양이 겹치지 않게
- * 채움 필을 쓰지 않는다 — 겹치면 두 내비가 서로를 흉내 내는 것으로 읽힌다.
+ *   모양만 같고 의미 구조는 내비게이션이다.
  */
 .ctabs {
   display: flex;
-  align-items: stretch;
-  gap: var(--sp-md);
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-sm);              /* 8 */
   padding: 0 var(--sp-xl);
   background: var(--bg-page);
-  border-bottom: 1px solid var(--border);
   overflow-x: auto;
 }
 .ctab {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 48px;              /* 44px 터치 타깃 상회 */
-  padding: 0 var(--sp-xs);
-  border-bottom: 2px solid transparent;
+  justify-content: center;
+  height: 48px;
+  min-width: 64px;
+  padding: 0 var(--sp-xs);        /* 4 */
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--n-6);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-  transition: color var(--duration-fast) var(--ease-standard),
-              border-color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+/* 활성 밑줄 — 가운데에서 양옆으로 펴진다(비활성은 폭 0) */
+.ctab::before {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  content: "";
+  width: 0;
+  height: 4px;
+  background: var(--p-5);
+  transition: width var(--duration-base) var(--ease-standard),
+              left var(--duration-base) var(--ease-standard);
 }
 .ctab:hover { color: var(--n-9); }
-.ctab[aria-current="page"] { color: var(--p-6); font-weight: 600; border-bottom-color: var(--p-5); }
+.ctab[aria-current="page"] { color: var(--p-6); }
+.ctab[aria-current="page"]::before { left: 0; width: 100%; }
 
 /* ── 5. 버튼 (UI-001 Button) ──────────────────────────────────────── */
 .btn {
@@ -364,7 +387,7 @@ a.btn, a.btn:hover { text-decoration: none; }
   .section-stack { padding: var(--sp-lg) var(--sp-lg) var(--sp-2xl); }
 }
 @media (max-width: 767px) {
-  .ctabs { padding: 0 var(--sp-md); gap: var(--sp-sm); }
+  .ctabs { padding: 0 var(--sp-md); }
   .section-stack { padding: var(--sp-lg) var(--sp-md) var(--sp-xl); gap: var(--sp-lg); }
   .reference-grid { grid-template-columns: minmax(0, 1fr); }
   .reference-panel { padding: var(--sp-md); }
