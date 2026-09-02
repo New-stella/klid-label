@@ -637,6 +637,17 @@ a.btn, a.btn:hover { text-decoration: none; }
   .form-actions .action-note { flex: 1 1 100%; }
 }
 
+/* ── 목록 머리 우측 묶음 · 만료 예정일 열 (DS-002 전환 후 사양 정합에서 추가) ────
+ * ★ '증강 요청 현황·결과' 는 자산별 액션이 아니라 목록에 한 번 두는 이동 수단이라
+ *   행이 아니라 카드 머리에 둔다.
+ * ★ 만료 예정일은 값이 있을 때만 그린다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라
+ *   서버가 값을 내리지 않는다. 없으면 '없음'·'-' 를 지어내지 않고 칸을 비운다.
+ *   지어내면 만료가 정해졌는데 표기만 빠진 것으로 읽힌다.
+ */
+.card-head-right { display: flex; align-items: center; gap: var(--sp-comp); flex-wrap: wrap; }
+.col-exp { width: 132px; }
+.cell-exp { color: var(--n-6); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
 /* ── 게시 렌더 보정 — SVG 획 굵기 ────────────────────────────────────
  * ★ 게시 렌더는 HTML 의 `stroke-width` 속성을 지운다. 알려진 '표현 정규화' 와 달리
  *   이건 속성을 **삭제**하는 축이라, 속성이 사라지면 SVG 기본값 1 로 그려져 아이콘이 얇아진다.
