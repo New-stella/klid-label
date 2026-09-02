@@ -109,8 +109,7 @@ class BatchOrchestratorTest {
     }
 
     private LsMarking newMarking() {
-        return LsMarking.createAuto(1L, "fire", 5,
-                "raw/path.mp4", "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", 1L);
+        return LsMarking.createAuto(1L, 5, "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", "1");
     }
 
     private static void setField(Object target, String name, Object value) {

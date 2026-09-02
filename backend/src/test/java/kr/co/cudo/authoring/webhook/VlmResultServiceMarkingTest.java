@@ -96,8 +96,7 @@ class VlmResultServiceMarkingTest {
     }
 
     private LsMarking createMarkingWithStatus(Long rawSn, String status) {
-        LsMarking m = LsMarking.createAuto(rawSn, "fire", 5,
-                "raw/path.mp4", "[{\"frameIndex\":0}]", 1L);
+        LsMarking m = LsMarking.createAuto(rawSn, 5, "[{\"frameIndex\":0}]", "1");
         if (LsMarking.STATUS_VLM_REQUESTED.equals(status)) {
             m.markVlmRequested();
         } else if (LsMarking.STATUS_VLM_COMPLETED.equals(status)) {

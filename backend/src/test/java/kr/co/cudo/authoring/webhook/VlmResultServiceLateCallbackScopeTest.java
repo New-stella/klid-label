@@ -108,8 +108,8 @@ class VlmResultServiceLateCallbackScopeTest {
 
     /** 지정한 생성시각을 가진 PENDING 마킹(작업자가 그 시각에 마킹을 만든 상황). */
     private LsMarking pendingMarkingCreatedAt(Long rawSn, LocalDateTime createdAt) {
-        LsMarking m = LsMarking.createAuto(rawSn, "fire", 5, "/deid/clip.mp4",
-                "[{\"frameIndex\":0}]", 1L);
+        LsMarking m = LsMarking.createAuto(rawSn, 5,
+                "[{\"frameIndex\":0}]", "1");
         setField(m, LsMarking.class, "regDt", createdAt);
         return m;
     }

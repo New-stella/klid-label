@@ -34,6 +34,16 @@ import java.util.List;
  * <p>{@code VLM_FAILED} 는 {@code VLM_REQUESTED} 고착(dead-lock)을 해제하는 <b>종결 실패 상태</b>다.
  * 실패 콜백을 받고도 {@code VLM_REQUESTED} 에 방치하면 마킹이 영구 고착된다.
  * 이 상태를 소비해 자동 재요청/복구하는 잡은 아직 <b>미구현</b>이며, 수동/후속 재처리 대상이다(DEV_FIX 2차 #3).
+ *
+ * <h3>★ 이 원장은 이벤트 유형 코드·영상 파일 경로를 보관하지 않는다 (V27) [design: ERD-013]</h3>
+ * <p>두 값은 영상 행({@code LS_DATA_RAW.EVNT_TYPE_CD} · {@code RAW_FILE_PATH_NM})에 이미 있는 것을
+ * 마킹 행에 <b>베껴 두던 중복</b>이라, 영상 쪽이 바뀌면 두 값이 어긋나고 어느 쪽이 맞는지 판정할 축이
+ * 없었다. 마킹 응답의 두 값은 사라지지 않고 <b>영상 행에서 조달</b>한다
+ * ({@code MarkingResponse.from} 이 그 둘을 인자로 받는다) — 화면·외부 계약은 무변경이다.
+ *
+ * <p>없앤 계기는 포털 업로드 영상 마킹이다. 그 경로에는 관제 인입 이벤트 유형이 애초에 오지 않고
+ * 본인 데이터라 비식별도 하지 않아 <b>둘 다 채울 값이 없는데</b> 두 칸이 NOT NULL 이라 저장 자체가
+ * 막혀 있었다. 두 값을 지어내 채우지 않고 칸을 없애는 쪽을 골랐다.
  */
 @Entity
 @Table(name = "LS_MARKING")
@@ -87,17 +97,11 @@ public class LsMarking {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "EVNT_NM", nullable = false, length = 200)
-    private String evntNm;
-
     @Column(name = "MARK_MODE_CD", nullable = false, length = 16)
     private String markModeCd;
 
     @Column(name = "FRME_INTV_NOCS")
     private Integer frmeIntvNocs;
-
-    @Column(name = "VIDEO_FILE_PATH_NM", nullable = false, length = 500)
-    private String videoFilePathNm;
 
     @Column(name = "MARK_CN", nullable = false, columnDefinition = "TEXT")
     private String markCn;
@@ -135,8 +139,17 @@ public class LsMarking {
     @Column(name = "STTS_CD", nullable = false, length = 16)
     private String sttsCd;
 
-    @Column(name = "REG_USER_NO")
-    private Long createdBy;
+    /**
+     * 마킹을 만든 사용자 — 내부 채널에서는 작업자이고, 포털 채널에서는 그 마킹의 <b>소유자이자 인가
+     * 판정의 키</b>다. [design: ERD-013]
+     *
+     * <p><b>자료형이 숫자가 아니라 문자인 이유(V27)</b>: 포털이 발급한 토큰의 주체 식별자를 담아야 한다.
+     * 숫자로 두면 포털 주체를 담지 못해 파싱 실패로 <b>조용히 null</b> 이 되고, 소유자 없는 마킹이
+     * 저장된다. 폭은 공통표준도메인 번호V100(문자 100자)을 따른다 — 더 좁히면 서로 다른 사용자가 같은
+     * 값으로 잘려 인가가 조용히 어긋난다.
+     */
+    @Column(name = "REG_USER_NO", length = 100)
+    private String createdBy;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -148,15 +161,12 @@ public class LsMarking {
      * 자동 모드 마킹 생성.
      *
      * @param rawSn          영상 PK
-     * @param eventName      이벤트명
      * @param intervalFrames 프레임 간격(프레임 수) — 1 이상 필수
-     * @param videoPath      NAS 경로
      * @param marksJson      JSON 문자열
-     * @param createdBy      생성자 사용자 번호
+     * @param createdBy      생성자 사용자 식별자 (nullable)
      */
-    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
-                                        String videoPath, String marksJson, Long createdBy) {
-        return createAuto(rawSn, eventName, intervalFrames, videoPath, marksJson, createdBy, null);
+    public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy) {
+        return createAuto(rawSn, intervalFrames, marksJson, createdBy, null);
     }
 
     /**
@@ -168,9 +178,9 @@ public class LsMarking {
      *
      * @param fps 마킹 시점 고정 프레임레이트 (nullable — null 이면 추출이 resolveFps 폴백)
      */
-    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
-                                        String videoPath, String marksJson, Long createdBy, Double fps) {
-        return createAuto(rawSn, eventName, intervalFrames, videoPath, marksJson, createdBy, fps, null);
+    public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy,
+                                        Double fps) {
+        return createAuto(rawSn, intervalFrames, marksJson, createdBy, fps, null);
     }
 
     /**
@@ -182,28 +192,19 @@ public class LsMarking {
      *
      * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable — 검증 이벤트 유형 미수신·질문 0건이면 null)
      */
-    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
-                                        String videoPath, String marksJson, Long createdBy, Double fps,
-                                        Long vrfcEvntQstnSn) {
+    public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy,
+                                        Double fps, Long vrfcEvntQstnSn) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
-        }
-        if (eventName == null || eventName.isBlank()) {
-            throw new IllegalArgumentException("eventName 은 필수입니다.");
         }
         if (intervalFrames <= 0) {
             throw new IllegalArgumentException("intervalFrames 는 1 이상이어야 합니다.");
         }
-        if (videoPath == null || videoPath.isBlank()) {
-            throw new IllegalArgumentException("videoPath 는 필수입니다.");
-        }
 
         LsMarking m = new LsMarking();
         m.rawSn = rawSn;
-        m.evntNm = eventName;
         m.markModeCd = MODE_AUTO;
         m.frmeIntvNocs = intervalFrames;
-        m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
         m.fps = fps;
         m.vrfcEvntQstnSn = vrfcEvntQstnSn;
@@ -219,14 +220,11 @@ public class LsMarking {
      * 수동 모드 마킹 생성.
      *
      * @param rawSn      영상 PK
-     * @param eventName  이벤트명
-     * @param videoPath  NAS 경로
      * @param marksJson  JSON 문자열
-     * @param createdBy  생성자 사용자 번호
+     * @param createdBy  생성자 사용자 식별자 (nullable)
      */
-    public static LsMarking createManual(Long rawSn, String eventName,
-                                          String videoPath, String marksJson, Long createdBy) {
-        return createManual(rawSn, eventName, videoPath, marksJson, createdBy, null);
+    public static LsMarking createManual(Long rawSn, String marksJson, String createdBy) {
+        return createManual(rawSn, marksJson, createdBy, null);
     }
 
     /**
@@ -238,38 +236,28 @@ public class LsMarking {
      *
      * @param fps 마킹 시점 고정 프레임레이트 (nullable — null 이면 추출이 resolveFps 폴백)
      */
-    public static LsMarking createManual(Long rawSn, String eventName,
-                                          String videoPath, String marksJson, Long createdBy, Double fps) {
-        return createManual(rawSn, eventName, videoPath, marksJson, createdBy, fps, null);
+    public static LsMarking createManual(Long rawSn, String marksJson, String createdBy, Double fps) {
+        return createManual(rawSn, marksJson, createdBy, fps, null);
     }
 
     /**
      * 수동 모드 마킹 생성 (fps pin + 질문 선택값 포함).
      *
-     * <p>{@code vrfcEvntQstnSn} 의 계약은 {@link #createAuto(Long, String, int, String, String, Long, Double, Long)}
+     * <p>{@code vrfcEvntQstnSn} 의 계약은 {@link #createAuto(Long, int, String, String, Double, Long)}
      * 과 같다 — <b>해석이 끝난</b> 값만 받는다.
      *
      * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable)
      */
-    public static LsMarking createManual(Long rawSn, String eventName,
-                                          String videoPath, String marksJson, Long createdBy, Double fps,
+    public static LsMarking createManual(Long rawSn, String marksJson, String createdBy, Double fps,
                                           Long vrfcEvntQstnSn) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
         }
-        if (eventName == null || eventName.isBlank()) {
-            throw new IllegalArgumentException("eventName 은 필수입니다.");
-        }
-        if (videoPath == null || videoPath.isBlank()) {
-            throw new IllegalArgumentException("videoPath 는 필수입니다.");
-        }
 
         LsMarking m = new LsMarking();
         m.rawSn = rawSn;
-        m.evntNm = eventName;
         m.markModeCd = MODE_MANUAL;
         m.frmeIntvNocs = null;
-        m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
         m.fps = fps;
         m.vrfcEvntQstnSn = vrfcEvntQstnSn;

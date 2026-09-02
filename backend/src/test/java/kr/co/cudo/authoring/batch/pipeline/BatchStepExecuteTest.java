@@ -75,7 +75,7 @@ class BatchStepExecuteTest {
         VlmTimeseriesStep real = mock(VlmTimeseriesStep.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         doReturn(null).when(real).runWithMarking(any(), any());
 
-        LsMarking marking = LsMarking.createAuto(1L, "fire", 5, "p.mp4", "[]", 1L);
+        LsMarking marking = LsMarking.createAuto(1L, 5, "[]", "1");
         BatchContext ctx = new BatchContext(1L, rawWith(1L));
         ctx.setMarkings(List.of(marking));
 
@@ -113,7 +113,7 @@ class BatchStepExecuteTest {
         BatchContext ctx = new BatchContext(3L, raw);
         ctx.setMarks(List.of(mark(0)));
         // 마킹이 pin 한 fps(25.0)를 execute 가 3-인자로 그대로 넘기는지 검증.
-        LsMarking pinned = LsMarking.createAuto(3L, "fire", 5, "p.mp4", "[]", 1L, 25.0);
+        LsMarking pinned = LsMarking.createAuto(3L, 5, "[]", "1", 25.0);
         ctx.setMarkings(List.of(pinned));
 
         real.execute(ctx);

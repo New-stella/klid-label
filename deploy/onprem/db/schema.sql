@@ -1355,13 +1355,11 @@ ALTER TABLE klid_at.ls_label_version ALTER COLUMN lbl_version_sn ADD GENERATED B
 CREATE TABLE klid_at.ls_marking (
     marking_sn bigint NOT NULL,
     raw_sn bigint NOT NULL,
-    evnt_nm character varying(200) NOT NULL,
     mark_mode_cd character varying(16) NOT NULL,
     frme_intv_nocs integer,
-    video_file_path_nm character varying(500) NOT NULL,
     mark_cn text NOT NULL,
     stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
-    reg_user_no bigint,
+    reg_user_no character varying(100),
     reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     fps double precision,
@@ -2657,7 +2655,7 @@ COPY klid_at.ls_label_version (lbl_version_sn, data_raw_sn, data_src_sn, ver_no,
 -- Data for Name: ls_marking; Type: TABLE DATA; Schema: klid_at; Owner: -
 --
 
-COPY klid_at.ls_marking (marking_sn, raw_sn, evnt_nm, mark_mode_cd, frme_intv_nocs, video_file_path_nm, mark_cn, stts_cd, reg_user_no, reg_dt, mdfcn_dt, fps, vrfc_evnt_qstn_sn) FROM stdin;
+COPY klid_at.ls_marking (marking_sn, raw_sn, mark_mode_cd, frme_intv_nocs, mark_cn, stts_cd, reg_user_no, reg_dt, mdfcn_dt, fps, vrfc_evnt_qstn_sn) FROM stdin;
 \.
 
 

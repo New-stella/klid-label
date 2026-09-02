@@ -801,9 +801,9 @@ class FfmpegFrameExtractorTest {
         LsDataRaw raw = newRaw(60);
 
         // 마킹은 과거 30 폴백으로 생성됐다고 가정 → fps=30 pin. marks 는 그 30fps 기준 frameIndex.
-        LsMarking marking = LsMarking.createAuto(9001L, "EVT", 150, sourceVideo.toString(),
+        LsMarking marking = LsMarking.createAuto(9001L, 150,
                 "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]",
-                1L, 30.0);
+                "1", 30.0);
         BatchContext ctx = new BatchContext(9001L, raw);
         ctx.setMarkings(List.of(marking));
         ctx.setMarks(List.of(new MarkItem(0, "00:00"), new MarkItem(150, "00:05")));

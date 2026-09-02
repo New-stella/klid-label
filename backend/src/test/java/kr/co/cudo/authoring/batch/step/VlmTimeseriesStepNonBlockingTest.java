@@ -138,8 +138,8 @@ class VlmTimeseriesStepNonBlockingTest {
     void preCommitHappensBeforeSubmit() {
         // given
         seed(501L);
-        LsMarking marking = LsMarking.createAuto(501L, "fire", 5, "/raw/501.mp4",
-                "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L);
+        LsMarking marking = LsMarking.createAuto(501L, 5,
+                "[{\"frameIndex\":0,\"timestamp\":0.0}]", "1");
         when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any())).thenReturn(Mono.never());
 
         // when

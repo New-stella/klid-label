@@ -135,6 +135,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       {@code LS_WEBHOOK_IDEMPOTENCY.SRVR_ID} 는 처음부터 외래키를 걸지 않았고 그 축에 맞춘 것이다.
  *       ⚠ <b>제약만</b> 없앤다 — 표·컬럼·행은 그대로이고 배정 이력은 남는다. 유령 장비로의 신규
  *       배정 차단은 INSERT 조건({@code WHERE EXISTS})으로 옮겼다. 순수 완화라 <b>구 jar 에 무해</b>하다</li>
+ *   <li>{@code V27} — {@code LS_MARKING} 에서 {@code EVNT_NM} · {@code VIDEO_FILE_PATH_NM} 제거 +
+ *       {@code REG_USER_NO} 를 {@code bigint} → {@code varchar(100)} 로 확대. 두 칸은 영상 행
+ *       ({@code LS_DATA_RAW.EVNT_TYPE_CD} · {@code RAW_FILE_PATH_NM})에 있는 값을 마킹 행에 <b>베껴
+ *       두던 중복</b>이라 영상 쪽이 바뀌면 어긋났고, 포털 업로드 경로에는 둘 다 채울 값이 없는데
+ *       NOT NULL 이라 <b>저장 자체가 막혀</b> 있었다. 응답의 두 값은 영상 행에서 조달하므로 계약은
+ *       무변경이다. 폭 확대는 포털 토큰 주체가 숫자가 아니어서다 — 숫자로 두면 파싱 실패로 조용히
+ *       null 이 되어 소유자 없는 마킹이 저장된다. ⚠ <b>컬럼 제거는 되돌릴 수 없다</b>(값이 함께
+ *       사라진다. 되살리려면 영상 행 조인으로 백필한다)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -173,7 +181,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "9001", "9002");
     }
 
     @Test
@@ -207,6 +215,7 @@ class FlywaySquashBaselineIT {
                         "V24__split_ai_srvr_load_by_usage.sql",
                         "V25__add_webhook_idempotency_srvr_id.sql",
                         "V26__drop_ls_ai_srvr_altmnt_fk.sql",
+                        "V27__drop_marking_denormalized_columns_and_widen_reg_user_no.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

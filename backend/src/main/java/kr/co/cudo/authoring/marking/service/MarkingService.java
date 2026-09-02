@@ -195,8 +195,9 @@ public class MarkingService {
         //       거부되고, 동시 요청은 아래 flush 시점의 DB 부분 유니크 인덱스(V142)가 잡는다.
         MarkingGuards.requireNoActiveMarking(rawSn, markingRepository);
 
-        // 1-3. 이벤트명 자동 소싱 (API-047 계약 변경) — 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용
-        //       (존재 검증은 requirePreconditions 가 이미 수행).
+        // 1-3. 이벤트 유형 코드 조달 — 영상의 EVNT_TYPE_CD 를 그대로 쓴다(존재 검증은 requirePreconditions
+        //       가 이미 수행). ★ 이 값은 마킹 행에 저장하지 않고 <응답에만> 실린다(V27) — 마킹 행에
+        //       베껴 두면 영상 쪽이 바뀔 때 두 값이 어긋난다. [design: ERD-013]
         String eventName = raw.getEvntTypeCd();
 
         // 2. 마킹 시점에 실 fps 를 확정(pin) — TOCTOU 제거의 핵심.
@@ -236,10 +237,14 @@ public class MarkingService {
         Long questionSn = resolveVerificationQuestionSn(rawSn, req.vrfcEvntQstnSn());
 
         // 4. Entity 생성 + 저장 — 해석한 fps 를 마킹에 pin 하여 추출단계가 재조회 없이 동일 값을 사용하게 한다.
-        Long actorNo = MarkingGuards.parseUserNo(actor.sub());
+        //    ★ 생성자 식별자는 토큰 주체를 <문자 그대로> 담는다(V27). 숫자로 파싱해 담던 구 방식은
+        //      포털 채널의 비숫자 주체를 조용히 null 로 떨어뜨려 소유자 없는 마킹을 만든다.
+        //    ★ 이벤트 유형 코드·영상 경로는 더 이상 마킹 행에 베끼지 않는다(V27) — 응답에서 영상 행의
+        //      값을 그대로 실어 계약을 유지한다(아래 5).
+        String actorNo = MarkingGuards.creatorId(actor.sub());
         LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps, questionSn)
-                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps, questionSn);
+                ? LsMarking.createAuto(rawSn, req.intervalFrames(), marksJson, actorNo, fps, questionSn)
+                : LsMarking.createManual(rawSn, marksJson, actorNo, fps, questionSn);
         // 동시성 최종 방어(B-ISSUE-22 / CWE-362) — 부분 유니크 인덱스(V142) 위반을 <b>이 메서드 안에서</b>
         //   표면화해 409 로 변환한다. save/flush 를 함께 감싸는 이유:
         //   - MARKING_SN 이 IDENTITY 라 {@code save} 시점에 INSERT 가 즉시 실행된다(위반이 여기서 터진다).
@@ -260,8 +265,9 @@ public class MarkingService {
 
         eventPublisher.publishEvent(new MarkingCompletedEvent(rawSn, marking.getMarkingSn()));
 
-        // 5. 응답
-        return MarkingResponse.from(marking, objectMapper);
+        // 5. 응답 — 이벤트 유형 코드·영상 경로는 이미 읽어 둔 영상 행에서 조달한다(마킹 행에 없다).
+        //    영상 행을 다시 조회하지 않으므로 추가 질의가 없다.
+        return MarkingResponse.from(marking, objectMapper, eventName, raw.getRawFilePathNm());
     }
 
     /**

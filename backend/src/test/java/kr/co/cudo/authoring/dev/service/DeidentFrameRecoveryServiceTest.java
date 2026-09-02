@@ -618,8 +618,7 @@ class DeidentFrameRecoveryServiceTest {
             json.append("{\"frameIndex\":").append(frameIndexes[i]).append(",\"timestamp\":\"00:00\"}");
         }
         json.append(']');
-        LsMarking marking = LsMarking.createAuto(RAW_SN, "화재", 30,
-                storage.resolve("orgnl.mp4").toString(), json.toString(), 1L, 30.0);
+        LsMarking marking = LsMarking.createAuto(RAW_SN, 30, json.toString(), "1", 30.0);
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(RAW_SN)).thenReturn(List.of(marking));
     }
 

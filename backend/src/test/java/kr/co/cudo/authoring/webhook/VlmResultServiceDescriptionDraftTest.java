@@ -97,8 +97,7 @@ class VlmResultServiceDescriptionDraftTest {
     }
 
     private LsMarking requestedMarking(Long rawSn) {
-        LsMarking m = LsMarking.createAuto(rawSn, "fire", 5,
-                "raw/path.mp4", "[{\"frameIndex\":0}]", 1L);
+        LsMarking m = LsMarking.createAuto(rawSn, 5, "[{\"frameIndex\":0}]", "1");
         m.markVlmRequested();
         return m;
     }

@@ -105,8 +105,8 @@ class DeidentStageResumeServiceTest {
         // given — 활성 마킹(PENDING / VLM_REQUESTED)이 남으면 재마킹이 409(V142 부분 유니크)로 막힌다.
         LsDataRaw r = raw(9902L, LsDataRaw.DATA_STTS_MARKING_READY);
         when(videoRepository.findById(9902L)).thenReturn(Optional.of(r));
-        LsMarking pending = LsMarking.createManual(9902L, "EVT", "/v.mp4", "[]", 1L);
-        LsMarking requested = LsMarking.createManual(9902L, "EVT", "/v.mp4", "[]", 1L);
+        LsMarking pending = LsMarking.createManual(9902L, "[]", "1");
+        LsMarking requested = LsMarking.createManual(9902L, "[]", "1");
         requested.markVlmRequested();
         when(markingRepository.findByRawSnAndSttsCdIn(eq(9902L), any()))
                 .thenReturn(List.of(pending, requested));
