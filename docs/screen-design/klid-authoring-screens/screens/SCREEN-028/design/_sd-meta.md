@@ -2,10 +2,11 @@
 
 | 항목 | 값 |
 |---|---|
-| SD | SD-024 v9 |
+| SD | SD-024 v11 |
 | status | draft |
 | designer | claude-screen-design |
 | designs_screen | SCREEN-028 |
+| 디자인 시스템 | DS-002 (외부 채널 축) |
 
 ## renders
 
