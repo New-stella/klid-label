@@ -34,18 +34,20 @@
 
 | INT 코드 | 명세 | 방향 | 상태 | 구현 코드 |
 |------|------|:---:|:---:|------|
-| INT-001 | §4.1 생성·증강 작업 요청(`POST /api/genai/jobs`) | 저작도구→외부 | ✅ 구현 | `AugmentJobSubmitService`/`ExternalAugmentClient.requestAugment` |
-| INT-019 | §4.5 최종 상태 Webhook | 외부→저작도구 | ✅ 구현 | `GenAiCallbackController`(`POST /v1/genai/callback`)/`GenAiCallbackService` |
-| INT-020 | §4.2 작업 상태 조회(`GET /api/genai/jobs/{job_id}`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobStatus`, §14.4.1 진행상태 조회 |
-| INT-029 | §2 API 리스트 No.3 작업 상태 동기화(status-sync) — v1.3 에 상세 절(§4.x) 없음 | 외부→저작도구 | ⛔ **미구현** | 수신 엔드포인트·클라이언트 모두 없음(백엔드 전수 검색 0건) |
-| INT-030 | §4.3 작업 결과 조회(`GET /api/genai/jobs/{job_id}/results`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobResults`, 웹훅 유실 회수(§14.4.1) |
-| INT-031 | §4.4 작업 취소(`POST /api/genai/jobs/{job_id}/cancel`) | 저작도구→외부 | ✅ 구현 | `AugmentCancelService`, §14.4.1 취소 |
+| INT-008 | §4.1 생성·증강 작업 요청(`POST /api/genai/jobs`) | 저작도구→외부 | ✅ 구현 | `AugmentJobSubmitService`/`ExternalAugmentClient.requestAugment` |
+| INT-006 | §4.5 최종 상태 Webhook | 외부→저작도구 | ✅ 구현 | `GenAiCallbackController`(`POST /v1/genai/callback`)/`GenAiCallbackService` |
+| **ITEM 없음** | §4.2 작업 상태 조회(`GET /api/genai/jobs/{job_id}`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobStatus`, §14.4.1 진행상태 조회 |
+| **ITEM 없음** | §2 API 리스트 No.3 작업 상태 동기화(status-sync) — v1.3 에 상세 절(§4.x) 없음 | 외부→저작도구 | ⛔ **미구현** | 수신 엔드포인트·클라이언트 모두 없음(백엔드 전수 검색 0건) |
+| **ITEM 없음** | §4.3 작업 결과 조회(`GET /api/genai/jobs/{job_id}/results`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobResults`, 웹훅 유실 회수(§14.4.1) |
+| **ITEM 없음** | §4.4 작업 취소(`POST /api/genai/jobs/{job_id}/cancel`) | 저작도구→외부 | ✅ 구현 | `AugmentCancelService`, §14.4.1 취소 |
 
-> **INT-029(상태 동기화)만 미구현**이다. 명세서상 이 경로는 **수신측(저작도구)이 제공**해야 하는데(외부가 진행 중 상태를 능동적으로 밀어 넣는 보조 채널), 저작도구 쪽에 이 요청을 받는 엔드포인트가 없다(`status-sync` 문자열로 백엔드 전수 검색해도 0건). mock-server 는 이 갭을 알고 있어 자동 발신하지 않고, `MOCK_GENAI_STATUS_SYNC_URL` 을 **명시했을 때만** 테스트용으로 수동 발신한다(mock-server/README.md §상태 동기화). 진행 상태는 §4.5 최종 상태 Webhook(INT-019, 자동)과 §4.2 작업 상태 조회(INT-020, 폴링)만으로도 갱신되므로 기능 공백은 아니다.
+> **상태 동기화(§2 API 리스트 No.3)만 미구현**이다. 명세서상 이 경로는 **수신측(저작도구)이 제공**해야 하는데(외부가 진행 중 상태를 능동적으로 밀어 넣는 보조 채널), 저작도구 쪽에 이 요청을 받는 엔드포인트가 없다(`status-sync` 문자열로 백엔드 전수 검색해도 0건). mock-server 는 이 갭을 알고 있어 자동 발신하지 않고, `MOCK_GENAI_STATUS_SYNC_URL` 을 **명시했을 때만** 테스트용으로 수동 발신한다(mock-server/README.md §상태 동기화). 진행 상태는 §4.5 최종 상태 Webhook(INT-006, 자동)과 §4.2 작업 상태 조회(대응 ITEM 없음, 폴링)만으로도 갱신되므로 기능 공백은 아니다.
 >
 > ⚠ **구 서술 폐기(2026-09-02 · v1.3 실측)** — *"명세 6종 완전 정합은 아니다"* 는 사실과 다르다. **v1.3 §2 API 리스트가 이 경로(No.3)의 상태를 「미구현, V0 범위 밖」으로 스스로 적고 있다** — 벤더 쪽도 만들지 않았고 V0 계약 범위 밖이다. 그래서 이 경로에는 §4.x 상세 절 자체가 없고, 저작도구가 수신 엔드포인트를 두지 않은 것은 **정합 결손이 아니라 계약 범위와 일치하는 상태**다. 나머지 다섯은 §4.1~§4.5 로 전부 상세 절을 가진다.
 >
-> ⚠ **구 절 번호 폐기(2026-09-02)** — *"§4.2 결과 웹훅 · §4.3 상태 동기화 · §4.4 상태 조회 · §4.5 결과 조회 · §4.6 취소"* 는 **v1.1 판본의 절 번호**이며 v1.3 에 그런 배열은 없다. v1.3 §4 는 **§4.1 생성·증강 작업 요청 · §4.2 작업 상태 조회 · §4.3 작업 결과 조회 · §4.4 작업 취소 · §4.5 최종 상태 Webhook** 다(§4.6 없음). 특히 웹훅이 §4.2 에서 **§4.5 로**, 취소가 §4.6 에서 **§4.4 로** 옮겨 갔으므로 구 번호로 명세를 찾으면 다른 API 를 읽게 된다. ⚠ **표 제목의 「6종」은 그대로 참이다** — v1.3 §2 API 리스트도 여섯 건이다(상세 절이 다섯인 것과 별개 축).
+> ⚠ **구 절 번호 폐기(2026-09-02)** — *"§4.2 결과 웹훅 · §4.3 상태 동기화 · §4.4 상태 조회 · §4.5 결과 조회 · §4.6 취소"* 는 **v1.1 판본의 절 번호**이며 v1.3 에 그런 배열은 없다. v1.3 §4 는 **§4.1 생성·증강 작업 요청 · §4.2 작업 상태 조회 · §4.3 작업 결과 조회 · §4.4 작업 취소 · §4.5 최종 상태 Webhook** 다(§4.6 없음). 특히 웹훅이 §4.2 에서 **§4.5 로**, 취소가 §4.6 에서 **§4.4 로** 옮겨 갔으므로 구 번호로 명세를 찾으면 다른 API 를 읽게 된다. ⚠ **표 제목의 「6종」은 그대로 참이다** — v1.3 §2 API 리스트도 여섯 건이다(상세 절이 다섯인 것과 별개 축). ★ **이 폐기는 이 표에 국한되지 않고 문서 전체에 적용된다** — `§14.4.1` 도 `§4.4`(외부 상태조회)·`§4.6`(취소)라는 **v1.1 번호를 그대로 쓰고 있어** 이 폐기 블록이 스스로를 반증하는 상태였다. 2026-09-02 에 각각 **`§4.2`·`§4.4`** 로 정합했고, 이제 **사양을 주장하는 자리에 남은 v1.1 절 번호는 없다**(폐기 블록 안과, 「명세서 v1.1 §4.1」처럼 **판본을 명시해 인용한 자리**는 제외 — 그 둘은 틀렸다고 적거나 옛 판본임을 밝히는 자리다).
+>
+> ⚠ **구 `INT` 코드 전량 폐기(2026-09-02 · LogiCraft 실측)** — 위 표의 `INT 코드` 열은 **여섯 값이 전부 틀려 있었다**(`INT-001`·`INT-019`·`INT-020`·`INT-029`·`INT-030`·`INT-031`). 틀린 방식이 둘이라 구분이 필요하다 — **`INT-019`·`INT-020`·`INT-029`·`INT-030`·`INT-031` 다섯은 이 프로젝트에 실재하지 않는 ID** 이고, **`INT-001` 은 실재하지만 전혀 다른 연동을 가리킨다 — 실제 `INT-001` 은 「ai-server 추론 호출(YOLO/SAM2)」다.** ★ 뒤쪽이 훨씬 위험하다 — **조회하면 나오므로 오류로 보이지 않고**, 본문을 열어보기 전까지 증강 위탁 연동으로 읽힌다. ⚠ 게다가 이 표는 **머리에 「LogiCraft EXTSYS-002」라고 출처를 밝히고 있어** 더 신뢰돼 왔다 — **출처 표기가 그 안의 ID 가 실재한다는 보증은 아니다.** 실측: 이 프로젝트의 `integration_point` 는 전부 **12건**이고 **생성형 AI(증강) 축은 `INT-008`(증강 생성 위탁 요청)과 `INT-006`(증강 결과 콜백 수신) 둘뿐**이다(둘 다 approved). 나머지 네 행(§4.2 상태 조회 · §4.3 결과 조회 · §4.4 취소 · 상태 동기화)에 대응하는 ITEM 은 **없으므로 ID 를 지어내지 않고 「ITEM 없음」으로 둔다** — 없는 ID 를 채우면 다음 사람이 조회하다 헛돌고, 그 과정에서 `INT-001` 처럼 남의 연동을 자기 것으로 오독하게 된다.
 
 ### 위탁 → 웹훅 → 새 영상 적재 (생성형 AI API 연동명세서 v1.3, 2026-07-27 계약 교체)
 
@@ -200,15 +202,17 @@ REVIEWER 가 accept(사용 채택)하기 전까지 파생영상은 **작업목�
 
 ### 14.4.1 진행상태 조회 · 취소 · 웹훅 유실 회수 (FE 내부 API)
 
+> ⚠ **이 절의 외부 명세 참조는 v1.3 기준으로 정합됐다(2026-09-02)** — 구 `§4.4`(외부 상태조회) → **`§4.2`**, 구 `§4.6`(취소) → **`§4.4`**(v1.3 에 `§4.6` 은 없다). 함께 쓰이던 `INT-030` 은 **실재하지 않는 ID** 라 제거했다 — 경위와 근거는 §14.1 「외부연동 6종 구현 상태」 아래 폐기 블록에 있다.
+
 - **`GET /v1/augments/{id}/progress`** (REVIEWER/WORKER) — `id` = `LS_DATA_AUG.DATA_AUG_SN`(accept/reject 와 동일 식별자, 별도 job PK 개념 없음).
-  - **진행률 = 청크 job 의 파일 수 가중 평균**: `round(Σ(weight×p)/Σweight)`, `weight = max(1, LS_DATA_AUG_JOB.TOT_NOCS)`, `p` = 종결 청크 100 / 비종결 청크는 외부 상태조회(§4.4) `progress`(미제공 0). **min 이 아니다** — min 이면 청크 3개 중 2개가 100%여도 전체가 0%로 보인다. `weight` 최솟값 1 은 위탁 거부 기록(`TOT_NOCS=0`)이 분모에서 사라지는 것을 막는다.
+  - **진행률 = 청크 job 의 파일 수 가중 평균**: `round(Σ(weight×p)/Σweight)`, `weight = max(1, LS_DATA_AUG_JOB.TOT_NOCS)`, `p` = 종결 청크 100 / 비종결 청크는 외부 상태조회(§4.2) `progress`(미제공 0). **min 이 아니다** — min 이면 청크 3개 중 2개가 100%여도 전체가 0%로 보인다. `weight` 최솟값 1 은 위탁 거부 기록(`TOT_NOCS=0`)이 분모에서 사라지는 것을 막는다.
   - **외부 장애는 200 으로 degrade** — `progress:null` + `unavailableReason` **4값**(`AugmentProgressUnavailableReason`): `NOOP`(외부 미연동 `mode=noop` — **오류 아님**, 진행률 바를 숨기고 안내만) / `TRANSIENT_ERROR`(서킷 open·타임아웃·계약 위반 — **진짜 장애**, 서버 WARN + 재시도 안내) / `AWAITING_ACK`(비종결 청크 중 `OTSD_JOB_ID` 미보유 — "접수 확인 중", 오류로 표시 금지) / `QUERY_LIMIT_EXCEEDED`(**우리 쪽** 자체 상한 — 청크 수·요청 시간 예산 소진, 벤더 장애 아님. `TRANSIENT_ERROR` 와 분리하지 않으면 우리 자체 상한이 벤더 장애로 위장된다). dev/stg/prd 기본이 `noop` 이라 대부분 `NOOP` 이 나온다.
   - `nextPollAfterMs` 는 **권고** 폴링 간격(0=종결). 속도 제한(RateLimiter)은 두지 않기로 확정돼 폴링 증폭을 줄이는 수단은 이 힌트뿐이다.
   - 진행률이 0 보다 크면 표시 상태는 `RUNNING` 이다(“접수됨 99%” 자기모순 방지). DB `JOB_STTS_CD` 를 덮어쓰지는 않는다.
-  - **웹훅 유실 회수(INT-030)** — 외부 상태조회가 종결(SUCCEEDED/FAILED/CANCELED)인데 로컬이 비종결이면 이 조회 시점에 결과조회(`GET /api/genai/jobs/{job_id}/results`)로 산출물을 회수해 인계한다. 산출 경로 검증은 웹훅과 **같은 코드**(`AugmentJobSuccessApplier.verifyOutputPaths` → `verifyExternalReadablePath`)를 쓰며, 허용 루트 밖이면 회수하지 않고 job 을 비종결로 둔다(만료 스윕이 회수). 멱등은 증강 행 `FOR UPDATE` + `job.isTerminal()` 재확인 + `uk_aug_external_job_id` UNIQUE 3겹이라 **파생 영상이 중복 생성되지 않는다**.
+  - **웹훅 유실 회수(§4.3 작업 결과 조회 — 대응 ITEM 없음)** — 외부 상태조회가 종결(SUCCEEDED/FAILED/CANCELED)인데 로컬이 비종결이면 이 조회 시점에 결과조회(`GET /api/genai/jobs/{job_id}/results`)로 산출물을 회수해 인계한다. 산출 경로 검증은 웹훅과 **같은 코드**(`AugmentJobSuccessApplier.verifyOutputPaths` → `verifyExternalReadablePath`)를 쓰며, 허용 루트 밖이면 회수하지 않고 job 을 비종결로 둔다(만료 스윕이 회수). 멱등은 증강 행 `FOR UPDATE` + `job.isTerminal()` 재확인 + `uk_aug_external_job_id` UNIQUE 3겹이라 **파생 영상이 중복 생성되지 않는다**.
 - **`POST /v1/augments/{id}/cancel`** (REVIEWER 전용) — 요청 바디는 선택이며 **`reason` 필드 하나만** 받는다(Mass Assignment 방어 — 종결 판정을 요청으로 조작할 수 있는 필드를 두지 않는다).
   - 계약상 취소는 **웹훅을 발사하지 않으므로**(동기 응답이 유일한 통보) 같은 요청에서 `LS_DATA_AUG` 를 `CANCELED` 로 확정한다. 확정하지 않으면 그 증강은 영구 `PENDING` 이고, 고아 회수기(`findOrphanPendingAugSns`)는 "job 0건" 만 집으므로 만료 스윕도 건지지 못한다.
-  - **비종결 청크 전부**에 §4.6 취소를 보낸다. 일부만 성립하면 `fullyCanceled=false` + `failedJobSeqs` 로 **부분 실패를 드러낸다**(재시도 멱등). 재시도하지 않아도 남은 청크는 만료 스윕이 회수하므로 영구 대기는 없다.
+  - **비종결 청크 전부**에 §4.4 취소를 보낸다. 일부만 성립하면 `fullyCanceled=false` + `failedJobSeqs` 로 **부분 실패를 드러낸다**(재시도 멱등). 재시도하지 않아도 남은 청크는 만료 스윕이 회수하므로 영구 대기는 없다.
   - **동시 취소·이미 종결은 409 가 아니라 200 + `canceled=false`** — 증강 행 `FOR UPDATE` 안에서 `PENDING→CANCELED` 전이가 곧 클레임이라 외부 호출은 정확히 한 번만 나간다.
   - 취소 직후 도착한 SUCCEEDED 결과는 non-PENDING 앵커에 흡수되어 폐기된다(WARN — 의도된 동작).
 - **해상도 파생(`RESL_*`)은 두 API 모두 400** — 외부 위탁 job 이 없어 조회·취소 대상 자체가 없다(`AugmentReviewService.loadOrThrow` 의 accept/reject 차단과 같은 패턴).

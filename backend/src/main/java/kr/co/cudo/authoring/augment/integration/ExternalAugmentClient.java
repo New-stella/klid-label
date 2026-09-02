@@ -8,7 +8,7 @@ import reactor.core.publisher.Mono;
 /**
  * 외부 SFR-07 증강(생성형 AI) 시스템 연동 클라이언트.
  *
- * <p>Phase 7-A1 에서 「생성형 AI API 연동명세서 v1.1」 계약으로 전면 정합했다. 핵심 변경:
+ * <p>Phase 7-A1 에서 「생성형 AI API 연동명세서 v1.3」 계약으로 전면 정합했다. 핵심 변경:
  * <ul>
  *   <li><b>job_id 발급 주체 반전</b> — 우리는 {@code request_id}(멱등 키)만 발급하고,
  *       {@code job_id} 는 외부가 202 응답으로 발급한다. 그래서 반환 타입이 boolean 이 아니라
@@ -70,7 +70,7 @@ public interface ExternalAugmentClient {
     Mono<AugmentSubmitResult> requestAugment(AugmentSubmitCommand command);
 
     /**
-     * 외부 작업 상태를 조회한다 — 명세서 §4.4 {@code GET /api/genai/jobs/{job_id}} (INT-020).
+     * 외부 작업 상태를 조회한다 — 명세서 §4.2 {@code GET /api/genai/jobs/{job_id}} (INT-020).
      *
      * <p>진행 상태의 진실원은 DB 이며 본 조회는 보조 신호다(클래스 Javadoc 참조). 응답은 계약 검증을
      * 통과한 것만 돌려준다 — 미지 {@code status}, job_id echo 불일치, 범위 밖 {@code progress} 는
@@ -83,7 +83,7 @@ public interface ExternalAugmentClient {
     Mono<AugmentQueryResult<GenAiJobStatusResponse>> fetchJobStatus(String externalJobId);
 
     /**
-     * 외부 작업 결과를 조회한다 — 명세서 §4.5 {@code GET /api/genai/jobs/{job_id}/results} (INT-030).
+     * 외부 작업 결과를 조회한다 — 명세서 §4.3 {@code GET /api/genai/jobs/{job_id}/results} (INT-030).
      *
      * <p>계약상 {@code SUCCEEDED} 에서만 200 이고 그 외는 409 {@code STATE_CONFLICT} 다(비재시도).
      * {@code SUCCEEDED} 인데 {@code results} 가 비면 계약 위반으로 실패시킨다 — 웹훅 경로와 동일 규칙.
@@ -105,7 +105,7 @@ public interface ExternalAugmentClient {
     Mono<AugmentQueryResult<GenAiJobResultsResponse>> fetchJobResults(String externalJobId);
 
     /**
-     * 외부 작업을 취소한다 — 명세서 §4.6 {@code POST /api/genai/jobs/{job_id}/cancel} (INT-031).
+     * 외부 작업을 취소한다 — 명세서 §4.4 {@code POST /api/genai/jobs/{job_id}/cancel} (INT-031).
      *
      * <p>{@code RECEIVED}·{@code RUNNING} 에서만 성립하며 종결 상태는 409 {@code STATE_CONFLICT} 다.
      * 계약상 취소는 <b>웹훅을 발사하지 않으므로</b> 이 동기 응답이 유일한 통보다. 취소 성공을 DB 에

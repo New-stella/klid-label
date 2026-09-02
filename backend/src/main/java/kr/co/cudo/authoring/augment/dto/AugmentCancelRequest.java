@@ -18,7 +18,7 @@ import jakarta.validation.constraints.Size;
  *
  * <p>본문 자체가 optional 이다({@code required = false}) — 사유 없는 취소가 정상 동선이다.
  *
- * @param reason 취소 사유(선택, ≤500 — 외부 계약 §4.6 {@code reason} 상한과 동일).
+ * @param reason 취소 사유(선택, ≤500 — 외부 계약 §4.4 {@code reason} 상한과 동일).
  *               원문은 외부로 중계되고 로그에는 <b>길이만</b> 남는다(CWE-117/209).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -25,7 +25,7 @@ import java.util.List;
  * <ol>
  *   <li><b>클레임</b>({@link AugmentCancelTxService#claim}) — 증강 행 {@code FOR UPDATE} 안에서
  *       {@code PENDING → CANCELED} 전이 + 취소 대상 청크 확정. 동시 요청은 여기서 직렬화된다(S4).</li>
- *   <li><b>외부 취소</b>(트랜잭션 밖) — 청크마다 §4.6 {@code POST /jobs/{job_id}/cancel}.
+ *   <li><b>외부 취소</b>(트랜잭션 밖) — 청크마다 §4.4 {@code POST /jobs/{job_id}/cancel}.
  *       <b>모든</b> 비종결 청크를 순회한다(S2 — 한 건만 보내면 나머지가 계속 처리된다).</li>
  *   <li><b>확정</b>({@link AugmentCancelTxService#markJobsCanceled}) — 성립한 청크만 로컬 종결(S12).</li>
  * </ol>

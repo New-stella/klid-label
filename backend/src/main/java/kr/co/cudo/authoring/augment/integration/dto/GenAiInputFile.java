@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」 §4.1 {@code input_files[]} 항목.
+ * 「생성형 AI API 연동명세서 v1.3」 §4.1 {@code input_files[]} 항목.
  *
  * <p>파일 본문이 아니라 NAS 절대경로만 주고받는다(§5.3). 경로는 <b>비식별 프레임</b>만 허용한다.
  *

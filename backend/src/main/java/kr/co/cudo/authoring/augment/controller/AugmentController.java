@@ -58,9 +58,9 @@ public class AugmentController {
     private final AugmentRequestService requestService;
     /** 결과 본문(해상도 파생 프레임 쌍) 구성 — 검수 서비스와 책임 분리. */
     private final AugmentResultViewService resultViewService;
-    /** 진행상태 조회(외부 §4.4 폴링 + 웹훅 유실분 회수) — 트랜잭션을 열지 않는 오케스트레이터. */
+    /** 진행상태 조회(외부 §4.2 폴링 + 웹훅 유실분 회수) — 트랜잭션을 열지 않는 오케스트레이터. */
     private final AugmentProgressService progressService;
-    /** 취소(클레임 → 외부 §4.6 → 확정) — 부분 실패를 응답으로 드러낸다. */
+    /** 취소(클레임 → 외부 §4.4 → 확정) — 부분 실패를 응답으로 드러낸다. */
     private final AugmentCancelService cancelService;
     /** Phase 7 — 폐기(반려) 복구. 표식 해제 + 검수 재오픈을 함께 수행한다. */
     private final AugmentDiscardService discardService;
@@ -197,7 +197,7 @@ public class AugmentController {
      * <pre>
      *   progress = round( Σ(weight_i × p_i) / Σ(weight_i) )
      *     weight_i = max(1, 그 청크가 위탁한 입력 파일 수)
-     *     p_i      = 종결 청크 → 100 / 비종결 청크 → 외부 상태조회(§4.4) progress (미제공 0)
+     *     p_i      = 종결 청크 → 100 / 비종결 청크 → 외부 상태조회(§4.2) progress (미제공 0)
      * </pre>
      * <p><b>최솟값(min)이 아니다</b> — min 을 쓰면 청크 3개 중 2개가 100%여도 전체가 0%로 보인다.
      *
@@ -247,7 +247,7 @@ public class AugmentController {
     /**
      * 증강 요청 취소 (REVIEWER 만).
      *
-     * <p>증강 1건이 여러 청크 job 으로 분할 위탁되므로 <b>비종결 청크 전부</b>에 외부 취소(§4.6)를
+     * <p>증강 1건이 여러 청크 job 으로 분할 위탁되므로 <b>비종결 청크 전부</b>에 외부 취소(§4.4)를
      * 보낸다(요청 단위 시간 예산 안에서). 일부만 성립하면 {@code fullyCanceled=false} +
      * {@code failedJobSeqs} 로 <b>부분 실패를 드러낸다</b> — 단 <b>재시도를 권하지 않는다</b>(증강이
      * 이미 종결이라 재요청하면 멱등 200 + "이미 종결" 만 나온다, DEV_FIX MED-7).

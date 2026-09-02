@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」 §4.4 작업 상태 조회 응답(200) — INT-020.
+ * 「생성형 AI API 연동명세서 v1.3」 §4.2 작업 상태 조회 응답(200) — INT-020.
  *
  * <p>{@code GET /api/genai/jobs/{job_id}} 의 본문이다. 상태·오류코드는 <b>enum 이 아니라 String</b>
  * 으로 받고 {@link GenAiContract} 화이트리스트로 판정한다(미지 값에 파싱이 깨지지 않게).
