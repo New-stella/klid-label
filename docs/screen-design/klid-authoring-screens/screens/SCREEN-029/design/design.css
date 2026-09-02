@@ -714,6 +714,29 @@ a.btn, a.btn:hover { text-decoration: none; }
 .handle-bl { left: -5px; bottom: -5px; }
 .handle-br { right: -5px; bottom: -5px; }
 
+/* ── 15. 우측 객체·속성·메타 패널 (섹션⑤ — UI-049 / UI-050) ─────────
+ * 우측 패널은 '객체 / 메타' 2탭이다. 내부 라벨링 화면이 같은 문제를 이미 탭으로 풀고 있어
+ * 그 어휘를 따랐다 — 캔버스 옆에 고정 패널이 둘 서면 작도 폭을 뺏는다.
+ * ⚠ 여기는 같은 화면 안에서 패널을 바꾸는 자리라 tablist 가 맞다.
+ *   본문 상단 이동 탭(경로가 갈리는 이동)과 역할이 다르며, 그래서 모양도 다르게 뒀다 —
+ *   그쪽은 밑줄형이고 이쪽은 패널 안에 앉는 얕은 채움형이다.
+ */
+.panel-tabs {
+  display: flex; align-items: stretch; gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--n-0);
+  flex: 0 0 auto;
+}
+.panel-tab {
+  flex: 1 1 0; min-width: 0; height: 40px; padding: 0 var(--sp-sm);
+  background: transparent; border: 0; border-bottom: 2px solid transparent;
+  color: var(--n-6); font-size: 14px; font-weight: 500; white-space: nowrap;
+}
+.panel-tab:hover { color: var(--n-8); }
+.panel-tab[aria-selected="true"] {
+  background: var(--bg-page); color: var(--p-6); font-weight: 600;
+  border-bottom-color: var(--p-5);
+}
 /* ── 15. 우측 객체·속성 패널 (섹션⑤ — UI-049 / UI-050) ────────────── */
 .side-panel {
   display: flex; flex-direction: column;
@@ -911,6 +934,10 @@ a.btn, a.btn:hover { text-decoration: none; }
  * 포털은 외부 이용자가 개인 기기로 들어온다. 캔버스형 화면이라 좁은 폭에서
  * 열을 줄여 세로로 접되, 글자 크기는 낮추지 않는다(DS iteration_guide).
  */
+@media (max-width: 1023px) {
+  .meta-layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-lg); }
+}
+
 @media (max-width: 1279px) {
   .screen-root { padding: var(--sp-lg) var(--sp-lg) var(--sp-2xl); }
   .work-body {
@@ -971,6 +998,76 @@ a.btn, a.btn:hover { text-decoration: none; }
   .panel-section, .filmstrip { padding-left: var(--sp-sm); padding-right: var(--sp-sm); }
   .tool-list, .label-list { grid-template-columns: minmax(0, 1fr); }
   .xywh-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ── 메타 탭 (우측 패널 '메타') ────────────────────────────────────
+ * 여섯 패널을 세로로 나열한다 — 촬영환경 → 영상축 개인정보 → 프레임 설명 →
+ * 프레임축 개인정보 → 시계열 메타 → 이벤트 어노테이션. 순서는 내부 라벨링 화면과 같다.
+ * ★개인정보는 영상 축과 프레임 축이 별개라 두 값이 달라도 모순이 아니다 — 그래서
+ *   패널마다 어느 축인지 칩으로 못박는다. 축을 안 보이면 두 값을 오류로 읽는다.
+ * ★출처 칩(원본/수정/추가)은 객체 목록의 것을 그대로 쓴다 — 무엇이 원본이고 무엇이
+ *   내 손을 탄 것인지 가르는 축이 같기 때문이다. 새 어휘를 만들지 않는다.
+ */
+/* 참고 패널 안에서 실제 폭 탭과 설명을 나란히 둔다 — 남는 폭을 여백으로 두지 않고
+   이 탭을 읽는 규칙(축·출처·읽기 전용·프리필 없음)을 그 자리에 적는다. */
+.meta-layout { display: grid; grid-template-columns: 304px minmax(0, 1fr); gap: var(--sp-xl); align-items: start; }
+.meta-aside { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-sm); }
+.meta-rules { display: flex; flex-direction: column; gap: var(--sp-sm); margin: 0; }
+.meta-rules dt { color: var(--n-9); }
+.meta-rules dd { margin: 2px 0 0; color: var(--n-7); word-break: keep-all; }
+.meta-rules dd .origin-chip, .meta-rules dd .axis-chip { vertical-align: middle; }
+
+/* ★실제 폭으로 그린다 — 이 탭은 우측 패널(304px) 안에 서므로 참고 패널에서 전폭으로 펴면
+   메타 격자가 3열로 보여 사실과 달라진다. 실제로는 1열로 접힌다. */
+.meta-tab { display: flex; flex-direction: column; gap: var(--sp-md); width: 304px; max-width: 100%; }
+.meta-block {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-md);
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+}
+.meta-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); }
+.meta-title { color: var(--n-10); }
+/* 축 칩 — 같은 이름의 패널이 둘(개인정보) 있으므로 이것이 유일한 구분 수단이다 */
+.axis-chip {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: var(--radius-full); border: 1px solid transparent;
+  font-size: 14px; font-weight: 600; white-space: nowrap; flex: 0 0 auto;
+}
+.axis-video { background: var(--s-0); color: var(--s-7); border-color: var(--s-2); }
+.axis-frame { background: var(--i-0); color: var(--i-7); border-color: var(--i-2); }
+
+.meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-sm); }
+.meta-field { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
+.meta-label { color: var(--n-7); }
+.meta-input, .meta-textarea {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  min-height: 44px; padding: var(--sp-sm) 14px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--bg-page); color: var(--n-9);
+}
+.meta-textarea { align-items: flex-start; min-height: 64px; }
+.meta-input .origin-chip, .meta-textarea .origin-chip { margin-left: auto; }
+/* 아직 채우지 않은 칸 — 값이 없다는 것을 지어낸 값으로 채우지 않고 그대로 알린다 */
+.meta-empty { color: var(--n-6); }
+
+/* 읽기 전용 줄 — 고칠 수 없는 값은 입력 모양을 주지 않는다.
+   입력처럼 보이면 눌러 보고 나서야 못 고치는 걸 알게 된다. */
+.meta-ro { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.meta-ro-key { color: var(--n-6); }
+.ro-chip {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: var(--radius-full); background: var(--n-1); color: var(--n-7);
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+}
+.meta-note { color: var(--n-6); word-break: keep-all; }
+
+.meta-foot {
+  display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap;
+  width: 304px; max-width: 100%;
+  margin-top: var(--sp-md); padding-top: var(--sp-md);
+  border-top: 1px solid var(--border);
 }
 
 /* ── 게시 렌더 보정 — SVG 획 굵기 ────────────────────────────────────

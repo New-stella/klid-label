@@ -275,7 +275,12 @@
       </main>
 
       
-      <aside class="side-panel" aria-label="객체 목록과 속성">
+      <aside class="side-panel" aria-label="객체 목록과 메타">
+        
+        <div class="panel-tabs" role="tablist" aria-label="우측 패널">
+          <button type="button" class="panel-tab" role="tab" aria-selected="true">객체</button>
+          <button type="button" class="panel-tab" role="tab" aria-selected="false">메타</button>
+        </div>
         <section class="panel-section">
           <div class="panel-section-head">
             <h2 class="panel-section-title t-title-sm">객체 목록</h2>
@@ -499,6 +504,135 @@
         <p class="ref-caption t-caption">불러온 원본 라벨도 0건일 때만 나타난다. 로딩 중과는 다른 화면이다.</p>
       </div>
 
+    </div>
+  </section>
+
+  
+  <section class="reference-panel" aria-label="메타 탭 정적 미리보기">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="flag-text t-body-sm">우측 패널의 '메타' 탭입니다 — 위 화면에서 탭을 바꾸면 객체 목록 자리에 이것이 대신 섭니다. 여섯 패널을 세로로 나열하며 순서는 내부 라벨링 화면과 같습니다.</span>
+    </div>
+
+    <div class="meta-layout">
+    <div class="meta-tab">
+
+      
+      <section class="meta-block">
+        <div class="meta-head">
+          <h3 class="meta-title t-title-sm">촬영환경</h3>
+          <span class="axis-chip axis-video">영상</span>
+        </div>
+        <div class="meta-grid">
+          <label class="meta-field"><span class="meta-label t-label">날씨</span>
+            <span class="meta-input t-body-sm">맑음<span class="origin-chip origin-loaded">원본</span></span></label>
+          <label class="meta-field"><span class="meta-label t-label">시간대</span>
+            <span class="meta-input t-body-sm">주간<span class="origin-chip origin-edited">수정</span></span></label>
+          <label class="meta-field"><span class="meta-label t-label">계절</span>
+            <span class="meta-input t-body-sm">가을<span class="origin-chip origin-loaded">원본</span></span></label>
+        </div>
+      </section>
+
+      
+      <section class="meta-block">
+        <div class="meta-head">
+          <h3 class="meta-title t-title-sm">개인정보 판정</h3>
+          <span class="axis-chip axis-video">영상</span>
+        </div>
+        <div class="meta-grid">
+          <label class="meta-field"><span class="meta-label t-label">인물 포함</span>
+            <span class="meta-input t-body-sm">있음<span class="origin-chip origin-loaded">원본</span></span></label>
+          <label class="meta-field"><span class="meta-label t-label">차량번호 포함</span>
+            <span class="meta-input t-body-sm">있음<span class="origin-chip origin-loaded">원본</span></span></label>
+        </div>
+        <p class="meta-note t-caption">영상 축과 프레임 축은 입도가 다른 별개 축입니다 — 두 값이 달라도 모순이 아닙니다(영상 어딘가엔 있지만 이 프레임엔 없다).</p>
+      </section>
+
+      
+      <section class="meta-block">
+        <div class="meta-head">
+          <h3 class="meta-title t-title-sm">프레임 설명</h3>
+          <span class="axis-chip axis-frame">프레임</span>
+        </div>
+        <span class="meta-textarea t-body-sm">교차로 진입부에 보행자 2명과 승용차 1대가 함께 있는 장면.<span class="origin-chip origin-added">추가</span></span>
+      </section>
+
+      
+      <section class="meta-block">
+        <div class="meta-head">
+          <h3 class="meta-title t-title-sm">개인정보 판정</h3>
+          <span class="axis-chip axis-frame">프레임</span>
+        </div>
+        <div class="meta-grid">
+          <label class="meta-field"><span class="meta-label t-label">인물 포함</span>
+            <span class="meta-input t-body-sm">있음<span class="origin-chip origin-loaded">원본</span></span></label>
+          <label class="meta-field"><span class="meta-label t-label">차량번호 포함</span>
+            <span class="meta-input t-body-sm">없음<span class="origin-chip origin-edited">수정</span></span></label>
+        </div>
+      </section>
+
+      
+      <section class="meta-block">
+        <div class="meta-head">
+          <h3 class="meta-title t-title-sm">시계열 메타</h3>
+          <span class="axis-chip axis-video">영상</span>
+        </div>
+        <span class="meta-textarea t-body-sm">교차로 신호 대기 중인 차량 사이로 보행자가 무단횡단하는 상황이 이어진다.<span class="origin-chip origin-loaded">원본</span></span>
+        <div class="meta-ro">
+          <span class="meta-ro-key t-caption">일치도</span>
+          <span class="t-body-sm">0.82</span>
+          <span class="ro-chip">읽기 전용</span>
+        </div>
+        <p class="meta-note t-caption">서술은 확인·수정·추가할 수 있습니다. 읽기 전용 메타와 영상 기술 메타는 표시만 하며 고치려 하면 창구가 거부합니다.</p>
+      </section>
+
+      
+      <section class="meta-block">
+        <div class="meta-head">
+          <h3 class="meta-title t-title-sm">이벤트 어노테이션</h3>
+          <span class="axis-chip axis-video">영상</span>
+        </div>
+        <div class="meta-grid">
+          <label class="meta-field"><span class="meta-label t-label">이벤트 분류</span>
+            <span class="meta-input t-body-sm">무단횡단<span class="origin-chip origin-loaded">원본</span></span></label>
+        </div>
+        <label class="meta-field"><span class="meta-label t-label">질의</span>
+          <span class="meta-input t-body-sm">보행자가 횡단보도가 아닌 곳으로 건넜습니까?<span class="origin-chip origin-loaded">원본</span></span></label>
+        <label class="meta-field"><span class="meta-label t-label">답변</span>
+          <span class="meta-input t-body-sm meta-empty">비어 있음 — 사람이 확정합니다</span></label>
+        <p class="meta-note t-caption">영상 단위라 프레임을 옮겨도 같은 값이 섭니다. ⚠ 내부 화면과 달리 자동 생성값 프리필을 두지 않습니다 — 그 원천인 외부 시계열 분석 위탁 연동이 이 채널에 없습니다.</p>
+      </section>
+
+    </div>
+
+    <div class="meta-aside">
+      <h3 class="ref-title t-title-sm">이 탭을 읽는 법</h3>
+      <dl class="meta-rules">
+        <dt class="t-label">폭은 실제 그대로다</dt>
+        <dd class="t-body-sm">이 탭은 우측 패널(304px) 안에 서므로 여기서도 그 폭으로 그렸다. 전폭으로 펴면 메타 격자가 여러 열로 보여 사실과 달라진다.</dd>
+
+        <dt class="t-label">축 칩이 유일한 구분 수단이다</dt>
+        <dd class="t-body-sm">개인정보 패널이 <span class="axis-chip axis-video">영상</span>과 <span class="axis-chip axis-frame">프레임</span> 둘로 선다. 이름이 같아 축을 빼면 같은 것이 두 번 나온 것처럼 읽힌다. 두 값이 달라도 모순이 아니다 — 영상 어딘가엔 있지만 이 프레임엔 없을 수 있다.</dd>
+
+        <dt class="t-label">출처 칩은 객체 목록의 것을 그대로 쓴다</dt>
+        <dd class="t-body-sm"><span class="origin-chip origin-loaded">원본</span> 불러온 값 · <span class="origin-chip origin-edited">수정</span> 내가 고친 값 · <span class="origin-chip origin-added">추가</span> 내가 새로 쓴 값. 가르는 축이 라벨과 같아 새 어휘를 만들지 않았다.</dd>
+
+        <dt class="t-label">고칠 수 없는 값은 입력 모양을 주지 않는다</dt>
+        <dd class="t-body-sm">읽기 전용 메타와 영상 기술 메타가 그렇다. 입력처럼 보이면 눌러 보고 나서야 못 고치는 걸 알게 된다.</dd>
+
+        <dt class="t-label">빈 칸을 지어내지 않는다</dt>
+        <dd class="t-body-sm">사람이 확정할 자리는 값을 채우지 않고 비어 있다고 알린다. 채우면 이미 정해진 값으로 읽힌다.</dd>
+
+        <dt class="t-label">프리필이 없다</dt>
+        <dd class="t-body-sm">내부 라벨링 화면은 자동 생성값을 1회 프리필하지만 포털에는 두지 않는다 — 그 원천인 외부 시계열 분석 위탁 연동이 이 채널에 없다. 값은 불러온 것과 사람이 쓴 것뿐이다.</dd>
+      </dl>
+    </div>
+    </div>
+
+    <div class="meta-foot">
+      <button type="button" class="btn btn-primary btn-sm">메타 저장</button>
+      <button type="button" class="btn btn-primary btn-sm">이벤트 어노테이션 저장</button>
+      <span class="t-caption text-muted">저장은 포털 전용 오버레이에만 쌓입니다 — 원본과 데이터마트는 수정되지 않습니다(단방향).</span>
     </div>
   </section>
 
