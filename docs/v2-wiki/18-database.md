@@ -137,7 +137,7 @@
 
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_PORTAL_ULD` (V107) | 포털 업로드 자산 (소유자 USER_NO, 자산유형 IMAGE/VIDEO, 원본 파일명·경로, `STTS_CD`: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED` — **이 전이는 영상 전용이고 이미지는 적재 시점에 곧바로 `READY`** 다). 이미지 20MB/장·50장/요청(⚠ **이미지 신규 접수는 폐기** — 기존 자산 조회·라벨링·삭제만 유지), 영상 5GB(mp4/mov/avi) | [16](16-portal.md) |
+| `LS_PORTAL_ULD` (V107) | 포털 업로드 자산 (소유자 USER_NO, 자산유형 IMAGE/VIDEO, 원본 파일명·경로, `STTS_CD`: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED` — **이 전이는 영상 전용이고 이미지는 적재 시점에 곧바로 `READY`** 다). 이미지 20MB/장·50장/요청(⚠ **신규 접수는 영상만** — 기존 이미지 자산의 조회·라벨링·삭제는 유지되고 값역에 이미지 값이 남는다), 영상 5GB(mp4/mov/avi) | [16](16-portal.md) |
 | `LS_PORTAL_ULD_FRME` (V107) | 업로드 자산 프레임 (SEQUENCE PK, 프레임 경로). 영상은 고정 간격 추출(`LS_SYSTEM_CONFIG` `portal.upload.frame-interval-sec` 기본 5초, 상한 maxFrames 2000), 이미지는 1프레임 | [16](16-portal.md) |
 | `LS_PORTAL_ULD_LBL` (V107) | 업로드 자산 수동 라벨 (BBOX/POLYGON만, 좌표 JSON). 오토라벨 미적용 | [16](16-portal.md) |
 | `LS_PORTAL_TUS_ULD` (V108) | 포털 영상 TUS 1.0 재개 가능 업로드 세션 (소유자·오프셋·만료 등, 내부 `LS_TUS_UPLOAD`와 분리) | [16](16-portal.md) |
