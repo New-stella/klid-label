@@ -2,7 +2,7 @@ package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
@@ -85,11 +85,11 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
 
         // when / then: 라벨이 늦을 때 / 등록일이 늦을 때 / 라벨이 없을 때
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_READY, REG_DT, REG_DT, REG_DT.plusDays(3)))
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_READY, REG_DT, REG_DT, REG_DT.plusDays(3)))
                 .isEqualTo(REG_DT.plusDays(3).plusDays(7));
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_READY, REG_DT, REG_DT, REG_DT.minusDays(3)))
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_READY, REG_DT, REG_DT, REG_DT.minusDays(3)))
                 .isEqualTo(REG_DT.plusDays(7));
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_READY, REG_DT, REG_DT, null))
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_READY, REG_DT, REG_DT, null))
                 .isEqualTo(REG_DT.plusDays(7));
     }
 
@@ -103,7 +103,7 @@ class PortalRetentionPolicyTest {
 
         // when / then: 라벨이 훨씬 뒤에 있어도 FAILED 축은 전이 시각만 본다
         assertThat(policy.uploadExpiry()
-                .expiresAt(LsPortalUld.STTS_FAILED, REG_DT, failedAt, REG_DT.plusDays(10)))
+                .expiresAt(PortalUploadLedger.STATUS_FAILED, REG_DT, failedAt, REG_DT.plusDays(10)))
                 .isEqualTo(failedAt.plusDays(1));
     }
 
@@ -116,9 +116,9 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
 
         // when / then
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_READY, REG_DT, REG_DT, null))
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_READY, REG_DT, REG_DT, null))
                 .isEqualTo(REG_DT.plusDays(7));
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_FAILED, REG_DT, REG_DT, null))
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_FAILED, REG_DT, REG_DT, null))
                 .isEqualTo(REG_DT.plusDays(1));
     }
 
@@ -131,8 +131,8 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
 
         // when / then
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_PROCESSING, REG_DT, REG_DT, REG_DT)).isNull();
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_UPLOADED, REG_DT, REG_DT, REG_DT)).isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_PROCESSING, REG_DT, REG_DT, REG_DT)).isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT, REG_DT)).isNull();
     }
 
     @Test
@@ -145,9 +145,9 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
 
         // when / then
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_READY, REG_DT, REG_DT, null))
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_READY, REG_DT, REG_DT, null))
                 .isEqualTo(REG_DT.plusDays(7));
-        assertThat(expiry.expiresAt(LsPortalUld.STTS_FAILED, REG_DT, REG_DT, null)).isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_FAILED, REG_DT, REG_DT, null)).isNull();
     }
 
     // ======================== 파생값 성질 (AC-033) ========================

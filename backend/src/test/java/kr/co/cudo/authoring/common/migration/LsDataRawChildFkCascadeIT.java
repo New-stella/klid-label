@@ -117,8 +117,10 @@ class LsDataRawChildFkCascadeIT {
     void deletingRawCascadesToChildren() {
         // given — 영상 + 대표 자식 3종(마킹/프레임/작업상태)
         long rawSn = insertRaw();
-        jdbc.update("INSERT INTO LS_MARKING (RAW_SN, EVNT_NM, VIDEO_FILE_PATH_NM, MARK_MODE_CD, STTS_CD, MARK_CN, REG_DT) "
-                + "VALUES (?, 'FK-TEST', '/nas/fk.mp4', 'AUTO', 'PENDING', '[]', ?)", rawSn, LocalDateTime.now());
+        // ⚠ EVNT_NM·VIDEO_FILE_PATH_NM 은 V27 이 제거했다(영상 행에 있는 값을 베껴 두던 중복).
+        //   그 뒤에도 이 픽스처가 두 칸을 INSERT 해 문법 오류로 실패하고 있었다 — 함께 정정한다.
+        jdbc.update("INSERT INTO LS_MARKING (RAW_SN, MARK_MODE_CD, STTS_CD, MARK_CN, REG_DT) "
+                + "VALUES (?, 'AUTO', 'PENDING', '[]', ?)", rawSn, LocalDateTime.now());
         jdbc.update("INSERT INTO LS_DATA_SRC (RAW_SN, FRM_NO, SRC_FILE_PATH_NM) VALUES (?, 0, ?)",
                 rawSn, "/nas/frames/raw/" + rawSn + "/0.jpg");
         jdbc.update("INSERT INTO LS_RAW_DATA_STATUS (RAW_DATA_ID, DATA_STTS_CD, STP_CYCL, IGI_CYCL, UPD_DT) "
@@ -142,8 +144,8 @@ class LsDataRawChildFkCascadeIT {
 
         // when / then — FK 위반으로 애초에 고아를 만들 수 없다
         assertThatThrownBy(() -> jdbc.update(
-                "INSERT INTO LS_MARKING (RAW_SN, EVNT_NM, VIDEO_FILE_PATH_NM, MARK_MODE_CD, STTS_CD, MARK_CN, REG_DT) "
-                        + "VALUES (?, 'FK-TEST', '/nas/fk.mp4', 'AUTO', 'PENDING', '[]', ?)", ghostRawSn, LocalDateTime.now()))
+                "INSERT INTO LS_MARKING (RAW_SN, MARK_MODE_CD, STTS_CD, MARK_CN, REG_DT) "
+                        + "VALUES (?, 'AUTO', 'PENDING', '[]', ?)", ghostRawSn, LocalDateTime.now()))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

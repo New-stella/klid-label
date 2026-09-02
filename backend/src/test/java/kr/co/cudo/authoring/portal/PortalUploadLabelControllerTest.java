@@ -3,7 +3,8 @@ package kr.co.cudo.authoring.portal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,7 +59,7 @@ class PortalUploadLabelControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
-    @Autowired private LsPortalUldRepository uldRepository;
+    @Autowired private PortalUploadAssetRepository assetRepository;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -88,8 +89,9 @@ class PortalUploadLabelControllerTest {
     }
 
     private void deleteOwned(String user) {
-        uldRepository.findAllByPortalUserNo(user, PageRequest.of(0, 1000))
-                .forEach(u -> uldRepository.deleteById(u.getUldSn()));
+        // 흡수 뒤 삭제는 <소유자 조건이 걸린 실행문>이며 외래키가 닿지 않는 자식 표까지 함께 지운다.
+        assetRepository.findPageByOwner(user, null, PageRequest.of(0, 1000)).getContent()
+                .forEach(u -> assetRepository.deleteOwned(u.uldSn(), user));
     }
 
     @AfterAll

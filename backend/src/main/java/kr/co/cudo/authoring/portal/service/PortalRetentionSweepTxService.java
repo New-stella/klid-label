@@ -1,10 +1,7 @@
 package kr.co.cudo.authoring.portal.service;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,8 +41,7 @@ import java.util.Set;
 public class PortalRetentionSweepTxService {
 
     private final LsPortalUserLabelRepository userLabelRepository;
-    private final LsPortalUldRepository uldRepository;
-    private final LsPortalUldFrmeRepository frmeRepository;
+    private final PortalUploadAssetRepository assetRepository;
     private final PortalRetentionPolicy retentionPolicy;
 
     // ======================== 축 A — 데이터마트 라벨 ========================
@@ -106,8 +102,9 @@ public class PortalRetentionSweepTxService {
                     + " key=portal.upload.retention-days");
         } else {
             LocalDateTime cutoff = now.minusDays(readyDays.getAsInt());
-            for (LsPortalUld uld : uldRepository.findExpiredReady(cutoff)) {
-                candidates.add(toCandidate(uld, Axis.READY, cutoff));
+            for (Long uldSn : assetRepository.findExpired(
+                    PortalUploadAssetRepository.RetentionAxis.READY, cutoff)) {
+                candidates.add(toCandidate(uldSn, Axis.READY, cutoff));
             }
         }
 
@@ -117,8 +114,9 @@ public class PortalRetentionSweepTxService {
                     + " key=portal.upload.failed-retention-days");
         } else {
             LocalDateTime cutoff = now.minusDays(failedDays.getAsInt());
-            for (LsPortalUld uld : uldRepository.findExpiredFailed(cutoff)) {
-                candidates.add(toCandidate(uld, Axis.FAILED, cutoff));
+            for (Long uldSn : assetRepository.findExpired(
+                    PortalUploadAssetRepository.RetentionAxis.FAILED, cutoff)) {
+                candidates.add(toCandidate(uldSn, Axis.FAILED, cutoff));
             }
         }
         return candidates;
@@ -128,17 +126,20 @@ public class PortalRetentionSweepTxService {
      * 만료 업로드 자산 1건의 DB 행을 <b>조건부</b> 삭제한다 — 잡이 파일을 먼저 지운 뒤에만 호출한다.
      * @design AC-036, AC-037
      *
-     * <p>{@code LS_PORTAL_ULD_FRME}·{@code LS_PORTAL_ULD_LBL} 은 DB FK 가
-     * {@code ON DELETE CASCADE} 라 이 한 문장으로 함께 정리된다(수기 삭제 순서표를 두지 않는다 —
-     * CASCADE 가 없는 축의 관례를 여기에 복제하면 실제와 어긋난 이중 진실원이 된다).
+     * <p>★ <b>흡수 뒤에는 한 문장으로 끝나지 않는다</b>(ADR-058). 프레임·메타는 여전히 외래키 연쇄로
+     * 정리되지만 라벨·라벨 속성값·라벨 이력·증강·증강라벨매핑은 <b>부모 외래키가 없거나 연쇄가 아니라</b>
+     * 명시적으로 지우지 않으면 오류 없이 조용히 고아가 된다. 순서표는
+     * {@link PortalUploadAssetRepository#deleteExpired} 한 곳이 소유하며, 그 실행문마다
+     * <b>출처 판별자 + 소유자 보유 + 보존기간 경과</b> 셋이 다시 걸린다 — 하나만 빠지면 관제 영상을 지운다.
      *
      * @return 삭제된 행 수(0 이면 타 노드 선점 또는 조건 해제)
      */
     @Transactional("controlTransactionManager")
     public int deleteExpiredUpload(ExpiredUpload target) {
-        return target.axis() == Axis.READY
-                ? uldRepository.deleteExpiredReady(target.uldSn(), target.cutoff())
-                : uldRepository.deleteExpiredFailed(target.uldSn(), target.cutoff());
+        PortalUploadAssetRepository.RetentionAxis axis = target.axis() == Axis.READY
+                ? PortalUploadAssetRepository.RetentionAxis.READY
+                : PortalUploadAssetRepository.RetentionAxis.FAILED;
+        return assetRepository.deleteExpired(axis, target.uldSn(), target.cutoff());
     }
 
     /**
@@ -149,21 +150,13 @@ public class PortalRetentionSweepTxService {
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public boolean exists(Long uldSn) {
-        return uldRepository.existsById(uldSn);
+        return assetRepository.exists(uldSn);
     }
 
     /** 자산 1건의 삭제 대상 파일 경로를 모은다(프레임 + 원본, 중복 제거·순서 보존). */
-    private ExpiredUpload toCandidate(LsPortalUld uld, Axis axis, LocalDateTime cutoff) {
-        Set<String> paths = new LinkedHashSet<>();
-        for (LsPortalUldFrme frme : frmeRepository.findAllByUldSnOrderByFrmeNo(uld.getUldSn())) {
-            if (frme.getFilePathNm() != null && !frme.getFilePathNm().isBlank()) {
-                paths.add(frme.getFilePathNm());
-            }
-        }
-        if (uld.getFilePathNm() != null && !uld.getFilePathNm().isBlank()) {
-            paths.add(uld.getFilePathNm());
-        }
-        return new ExpiredUpload(uld.getUldSn(), axis, cutoff, List.copyOf(paths));
+    private ExpiredUpload toCandidate(Long uldSn, Axis axis, LocalDateTime cutoff) {
+        Set<String> paths = new LinkedHashSet<>(assetRepository.findFilePaths(uldSn));
+        return new ExpiredUpload(uldSn, axis, cutoff, List.copyOf(paths));
     }
 
     /** 업로드 보존기간 축 — 기준점과 설정 키가 서로 다르며 독립 판정된다. @design AC-037 */

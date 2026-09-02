@@ -635,7 +635,7 @@ CREATE TABLE klid_at.ls_data_lbl (
     lbl_sn bigint NOT NULL,
     src_sn bigint NOT NULL,
     lbl_type_cd character varying(16) NOT NULL,
-    lbl_nm character varying(80) NOT NULL,
+    lbl_nm character varying(80),
     point_cn text,
     trck_id character varying(30),
     reg_user_no character varying(100),

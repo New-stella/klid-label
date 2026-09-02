@@ -1,9 +1,9 @@
 package kr.co.cudo.authoring.portal.service;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalTusUpload;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.repository.LsPortalTusUploadRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.portal.upload.PortalTusSessionRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
+import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,27 +29,27 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PortalUploadSweepTxService {
 
-    private final LsPortalTusUploadRepository tusRepository;
-    private final LsPortalUldRepository uldRepository;
+    private final PortalTusSessionRepository tusRepository;
+    private final PortalUploadAssetRepository assetRepository;
 
     /**
      * #13 + database 🔴1 / security M-4: 만료된 진행 중 TUS 세션 행을 조건부 벌크 삭제하고,
      * 이 노드가 삭제 책임을 획득(1행)한 세션의 임시파일 경로를 반환한다.
      *
      * <p>2노드 Active-Active 에서 중복 실행돼도 안전하도록 조건부 벌크 삭제
-     * ({@link LsPortalTusUploadRepository#deleteExpiredInProgress})로 멱등화한다 — 한 노드가 먼저
+     * ({@link PortalTusSessionRepository#deleteExpiredInProgress})로 멱등화한다 — 한 노드가 먼저
      * 삭제하면 다른 노드는 0행이 되어 반환 목록에서 제외되므로 파일 삭제도 소유 노드만 수행한다.
      *
      * @return 이 노드가 행 삭제에 성공한 세션의 임시파일 경로 목록(스윕 잡이 트랜잭션 밖에서 정리)
      */
     @Transactional("controlTransactionManager")
     public List<String> claimExpiredSessions() {
-        List<LsPortalTusUpload> expired = tusRepository.findExpired(LocalDateTime.now());
+        List<LsTusUpload> expired = tusRepository.findExpired(LocalDateTime.now());
         List<String> claimedFilePaths = new ArrayList<>();
-        for (LsPortalTusUpload session : expired) {
-            int removed = tusRepository.deleteExpiredInProgress(session.getUldId());
+        for (LsTusUpload session : expired) {
+            int removed = tusRepository.deleteExpiredInProgress(session.getUploadId());
             if (removed == 1) {
-                claimedFilePaths.add(session.getFilePathNm());
+                claimedFilePaths.add(session.getFilePath());
             }
         }
         return claimedFilePaths;
@@ -59,25 +59,25 @@ public class PortalUploadSweepTxService {
      * #4/#5 + adversarial #3: N분 이상 고착된 UPLOADED/PROCESSING 자산을 조건부 UPDATE 로 FAILED
      * 전이하고, 이 노드가 전이에 성공(1행)한 자산의 uldSn 목록을 반환한다.
      *
-     * <p>조건부 UPDATE({@link LsPortalUldRepository#failIfInStatus})로 2노드 중복 실행에도 멱등하다
-     * (한쪽만 1행, 다른 쪽 0행). READY 로 이미 완료된 자산은 상태 집합에 없어 덮지 않는다.
+     * <p>조건부 갱신({@link PortalUploadAssetRepository#failStuck})으로 2노드 중복 실행에도 멱등하다
+     * (한쪽만 1행, 다른 쪽 0행). 라벨링 가능으로 이미 완료된 자산은 출발 상태 집합에 없어 덮지 않는다.
      *
      * @return FAILED 전이에 성공한 자산의 uldSn 목록(스윕 잡이 프레임 디렉토리를 트랜잭션 밖에서 정리)
      */
     @Transactional("controlTransactionManager")
     public List<Long> failStuckUploads(long stuckTimeoutMinutes) {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(stuckTimeoutMinutes);
-        List<LsPortalUld> stuck = uldRepository.findStuck(
-                List.of(LsPortalUld.STTS_UPLOADED, LsPortalUld.STTS_PROCESSING), cutoff);
+        // 후보 조회가 「상태 행이 없거나 값이 업로드됨·후처리 중」 형태다 — 부재를 업로드됨으로 읽는
+        // 확정이 여기서 조회 모양을 정한다. 부재를 빼면 상태를 기록하기 전 자산이 영영 방치로 남는다.
+        List<Long> stuck = assetRepository.findStuck(cutoff);
+        String reason = "처리 시간 초과(" + stuckTimeoutMinutes + "분) — 스윕 잡 강제 실패 전이";
         List<Long> failedUldSns = new ArrayList<>();
-        for (LsPortalUld uld : stuck) {
-            int n = uldRepository.failIfInStatus(
-                    uld.getUldSn(),
-                    "처리 시간 초과(" + stuckTimeoutMinutes + "분) — 스윕 잡 강제 실패 전이",
-                    List.of(LsPortalUld.STTS_UPLOADED, LsPortalUld.STTS_PROCESSING),
-                    LocalDateTime.now());
-            if (n == 1) {
-                failedUldSns.add(uld.getUldSn());
+        for (Long uldSn : stuck) {
+            // 출발 상태 집합에 <부재>가 들어 있어 삽입 겸 조건부 갱신이다(단순 UPDATE 로는 0행).
+            if (assetRepository.failStuck(uldSn) == 1) {
+                assetRepository.upsertMeta(uldSn, PortalUploadLedger.KEY_FAIL_REASON,
+                        PortalUploadLedger.truncateFailReason(reason));
+                failedUldSns.add(uldSn);
             }
         }
         return failedUldSns;

@@ -2,8 +2,8 @@ package kr.co.cudo.authoring.portal.service;
 
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
@@ -142,13 +142,13 @@ public class PortalFrameExtractRunner {
     /** 동기 추출 본체 — 단위 테스트가 직접 호출 가능. */
     void extract(Long uldSn) {
         // #4: UPLOADED → PROCESSING 원자 전이. 실패면 삭제/중복 → 즉시 중단.
-        Optional<LsPortalUld> begun = txService.beginProcessing(uldSn);
+        Optional<PortalUploadAsset> begun = txService.beginProcessing(uldSn);
         if (begun.isEmpty()) {
             log.info("[PortalFrame] skip — not UPLOADED or deleted uldSn={}", uldSn);
             return;
         }
-        LsPortalUld uld = begun.get();
-        Path source = Paths.get(uld.getFilePathNm());
+        PortalUploadAsset uld = begun.get();
+        Path source = Paths.get(uld.filePathNm());
         Path outputDir = resolveSafeFramesDir(uldSn);
         List<Path> written = new ArrayList<>();
         try {
@@ -166,7 +166,7 @@ public class PortalFrameExtractRunner {
             List<Integer> frameNumbers = computeFrameNumbers(duration, fps, intervalSec, properties.maxFrames());
 
             Files.createDirectories(outputDir);
-            List<LsPortalUldFrme> frames = new ArrayList<>(frameNumbers.size());
+            List<LsDataSrc> frames = new ArrayList<>(frameNumbers.size());
             long lastBeatNanos = 0L;
             boolean beatenOnce = false;
             for (int i = 0; i < frameNumbers.size(); i++) {
@@ -189,7 +189,10 @@ public class PortalFrameExtractRunner {
                 Path frameFile = outputDir.resolve("frame-" + i + ".jpg");
                 frameWriter.writeFrameByNumber(source, frameFile, frameNumbers.get(i));
                 written.add(frameFile);
-                frames.add(LsPortalUldFrme.create(uldSn, i, frameFile.toString()));
+                // 공용 프레임 원장 행 — 추출 순번(i)과 영상 내 실제 위치를 <구분해> 담는다.
+                // 둘을 바꿔 담으면 재추출이 영상 맨 앞을 뽑아 붙인다(이 저장소에서 실제로 있었던 사고).
+                frames.add(LsDataSrc.create(uldSn, i, frameNumbers.get(i).longValue(),
+                        frameFile.toString(), null));
             }
 
             // #5: 전체 추출 성공 후 원자 커밋(READY).

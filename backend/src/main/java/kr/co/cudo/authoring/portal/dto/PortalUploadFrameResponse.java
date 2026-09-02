@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.portal.dto;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 
 import java.time.LocalDateTime;
 
@@ -17,11 +17,18 @@ public record PortalUploadFrameResponse(
         LocalDateTime regDt
 ) {
 
-    public static PortalUploadFrameResponse from(LsPortalUldFrme frme) {
+    /**
+     * 공용 프레임 원장 행 → 포털 응답. 창구·화면의 이름({@code uldFrmeSn}·{@code uldSn})은 흡수 뒤에도
+     * 그대로 둔다 — 개명하면 창구·화면·이벤트 계약이 동시에 깨지는데 얻는 동작이 없다.
+     *
+     * <p>프레임 순번은 원장이 더 넓은 자료형을 쓴다. 포털 응답 계약이 정수라 <b>좁혀서</b> 싣는다 —
+     * 포털 영상 1건의 프레임 수는 상한(수천)이 있어 넘칠 수 없다.
+     */
+    public static PortalUploadFrameResponse from(LsDataSrc frme) {
         return new PortalUploadFrameResponse(
-                frme.getUldFrmeSn(),
-                frme.getUldSn(),
-                frme.getFrmeNo(),
+                frme.getSrcSn(),
+                frme.getRawSn(),
+                frme.getFrameNo() == null ? null : frme.getFrameNo().intValue(),
                 frme.getRegDt());
     }
 }

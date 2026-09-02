@@ -5,8 +5,8 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.LogSanitizer;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalTusCreateCommand;
-import kr.co.cudo.authoring.portal.entity.LsPortalTusUpload;
-import kr.co.cudo.authoring.portal.repository.LsPortalTusUploadRepository;
+import kr.co.cudo.authoring.portal.upload.PortalTusSessionRepository;
+import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.service.TusChunkStore;
 import kr.co.cudo.authoring.upload.service.VideoMagicByteValidator;
 import lombok.extern.slf4j.Slf4j;
@@ -24,14 +24,14 @@ import java.util.UUID;
 /**
  * 포털 전용 TUS 영상 업로드 서비스 (PORTAL_USER).
  *
- * <p>관제 {@code TusUploadService} 와 <b>동일한 파일 I/O 코어({@link TusChunkStore})</b>를 공유하되,
- * 세션 저장소(LS_PORTAL_TUS_ULD)·완료 합류처(LS_PORTAL_ULD)·완료 이벤트
- * ({@code PortalVideoUploadedEvent})는 <b>포털 전용으로 완전 분리</b>한다(관제 비식별 파이프라인
- * 미연결 — 시나리오 #18).
+ * <p>관제 {@code TusUploadService} 와 <b>파일 I/O 코어({@link TusChunkStore})와 세션 원장을 함께
+ * 쓴다</b>(ADR-058 흡수). 갈리는 것은 <b>처리</b>다 — 세션 판별은 클립 식별자의 부재, 완료 합류처는
+ * 포털 자산(공용 영상 원장의 포털 출처 행), 완료 이벤트는 포털 전용
+ * ({@code PortalVideoUploadedEvent})이라 관제 비식별 파이프라인에 연결되지 않는다.
  *
  * <p>시나리오 방어:
  * <ol>
- *   <li>#3 IDOR — {@link LsPortalTusUpload#isOwnedBy(String)} 로 소유자만 HEAD/PATCH/DELETE.
+ *   <li>#3 IDOR — {@link LsTusUpload#isOwnedBy(String)} 로 소유자만 HEAD/PATCH/DELETE.
  *       소유자 불일치는 <b>미존재와 같은 404</b>다(존재 오라클 차단 —
  *       {@link PortalVideoUploadTxService#sessionNotFound()}).</li>
  *   <li>#6 완료 검증 — 매직바이트 + ffprobe 비디오 스트림 존재. 검증은 <b>락/트랜잭션 밖</b>에서
@@ -60,13 +60,13 @@ public class PortalVideoUploadService {
             "webm", "video/webm",
             "mkv", "video/x-matroska");
 
-    private final LsPortalTusUploadRepository tusRepository;
+    private final PortalTusSessionRepository tusRepository;
     private final PortalUploadProperties properties;
     private final PortalVideoProbe videoProbe;
     private final PortalVideoUploadTxService txService;
     private final Path storageRoot;
 
-    public PortalVideoUploadService(LsPortalTusUploadRepository tusRepository,
+    public PortalVideoUploadService(PortalTusSessionRepository tusRepository,
                                     PortalUploadProperties properties,
                                     PortalVideoProbe videoProbe,
                                     PortalVideoUploadTxService txService) {
@@ -96,8 +96,7 @@ public class PortalVideoUploadService {
                     "허용되지 않는 확장자입니다. 허용: " + properties.allowedExtensions());
         }
         // 동시 진행 세션 상한 → 429.
-        long inProgress = tusRepository.countByPortalUserNoAndSttsCd(
-                portalUserNo, LsPortalTusUpload.STTS_IN_PROGRESS);
+        long inProgress = tusRepository.countInProgressByOwner(portalUserNo);
         if (inProgress >= MAX_CONCURRENT_IN_PROGRESS) {
             throw new CustomException(ErrorCode.TOO_MANY_REQUESTS,
                     "동시 진행 가능한 업로드 세션 수(" + MAX_CONCURRENT_IN_PROGRESS + ") 를 초과했습니다.");
@@ -115,7 +114,7 @@ public class PortalVideoUploadService {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "업로드 임시 파일 생성에 실패했습니다.");
         }
 
-        LsPortalTusUpload session = LsPortalTusUpload.create(
+        LsTusUpload session = LsTusUpload.createPortalSession(
                 uldId, portalUserNo, cmd.uploadLength(), absolutePath.toString(), truncate(cmd.fileName()));
         tusRepository.save(session);
         log.info("[PortalTus] session created uldId={} user={} length={} ext={}",
@@ -132,14 +131,15 @@ public class PortalVideoUploadService {
      * 404</b>다(존재 오라클 차단 — 근거는 그 팩토리의 javadoc). 인증 401·역할 403 은 그대로다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public LsPortalTusUpload getForOwner(UUID uldId, String portalUserNo) {
-        LsPortalTusUpload session = tusRepository.findById(uldId)
+    public LsTusUpload getForOwner(UUID uldId, String portalUserNo) {
+        LsTusUpload session = tusRepository.findPortalSession(uldId)
                 .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
         // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단).
         if (!session.isOwnedBy(portalUserNo)) {
             throw PortalVideoUploadTxService.sessionNotFound();
         }
-        if (session.isExpired(java.time.LocalDateTime.now())) {
+        // ★ 포털 축 만료 판정 — 취소된 세션을 만료로 읽지 않는다(취소는 409, 만료는 410).
+        if (session.isPortalExpired(java.time.LocalDateTime.now())) {
             throw new CustomException(ErrorCode.GONE, "업로드 세션이 만료되었습니다.");
         }
         return session;
@@ -206,17 +206,17 @@ public class PortalVideoUploadService {
     @Transactional("controlTransactionManager")
     public void cancel(UUID uldId, String portalUserNo) {
         // #11: cancel 도 행 잠금 — PATCH 와 락 경로 통일.
-        LsPortalTusUpload session = tusRepository.findByUldIdForUpdate(uldId)
+        LsTusUpload session = tusRepository.findPortalSessionForUpdate(uldId)
                 .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
         // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(portalUserNo)) {
             throw PortalVideoUploadTxService.sessionNotFound();
         }
-        // 이미 완료된 세션: 임시 파일은 LS_PORTAL_ULD 의 영구 영상이므로 삭제하지 않고 no-op.
+        // 이미 완료된 세션: 임시 파일은 자산의 영구 영상이므로 삭제하지 않고 no-op.
         if (session.isCompleted()) {
             return;
         }
-        TusChunkStore.deleteQuietly(session.getFilePathNm(), storageRoot);
+        TusChunkStore.deleteQuietly(session.getFilePath(), storageRoot);
         session.markCancelled();
         tusRepository.save(session);
         log.info("[PortalTus] session cancelled uldId={}", uldId);

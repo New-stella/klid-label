@@ -104,6 +104,20 @@ class PortalAbsorptionSchemaMigrationIT {
     }
 
     @Test
+    @DisplayName("★라벨_원장의_라벨명이_비어_있을_수_있다 — 포털_라벨은_이름_없이_도형만_그린다(V29)")
+    void 라벨_원장의_라벨명이_비어_있을_수_있다() {
+        Map<String, Object> col = column("ls_data_lbl", "lbl_nm");
+
+        // 포털 업로드 자산의 수동 라벨은 마스터를 참조하지 않는 자유 입력이라 이름이 없을 수 있다.
+        // NOT NULL 로 되돌리면 그 저장이 전건 실패한다(기본값을 지어 채우는 안은 기각됐다 — 지어낸
+        // 값이 쌓이면 나중에 진짜 라벨명과 구분되지 않는다).
+        assertThat(col.get("is_nullable")).isEqualTo("YES");
+        // 폭은 그대로다 — 이번 변경은 제약 완화뿐이고 자료형·길이를 건드리지 않는다.
+        assertThat(col.get("data_type")).isEqualTo("character varying");
+        assertThat(width(col)).isEqualTo(80);
+    }
+
+    @Test
     @DisplayName("★재개_업로드_세션의_사용자_식별자_폭이_100_이상이다 — 좁히면_인가가_조용히_어긋난다")
     void 재개_업로드_세션_사용자_식별자_폭() {
         Map<String, Object> col = column("ls_tus_upload", "user_no");

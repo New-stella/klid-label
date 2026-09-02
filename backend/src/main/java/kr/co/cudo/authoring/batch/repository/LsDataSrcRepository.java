@@ -333,7 +333,7 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
      * <p>라벨 full-replace 저장(PUT)이 "기존 라벨 read → 델타 계산 → 삭제/삽입" 을 수행하는 동안 다른
      * 저장이 끼어들지 못하도록 프레임 행으로 직렬화한다. 앱은 2노드 Active-Active 이므로 JVM 락
      * ({@code synchronized}/{@code ReentrantLock})은 방어가 되지 않아 DB 락으로만 해결한다
-     * ({@code LsPortalUldFrmeRepository#findByUldFrmeSnAndOwnerForUpdate} 와 동일 패턴).
+     * ({@code PortalUploadFrameRepository#findByOwnerForUpdate} 와 동일 패턴).
      *
      * <h3>왜 엔티티 조회({@code @Lock} + {@code select s from LsDataSrc s})로는 안 되는가 — 1차 캐시 함정</h3>
      * 진입부 인가 검사({@code LabelAccessGuard.verifyAndGet} → {@code findById})가 이미 같은 {@code LsDataSrc}

@@ -3,11 +3,10 @@ package kr.co.cudo.authoring.portal.service;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
-import kr.co.cudo.authoring.portal.entity.LsPortalTusUpload;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
 import kr.co.cudo.authoring.portal.event.PortalVideoUploadedEvent;
-import kr.co.cudo.authoring.portal.repository.LsPortalTusUploadRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.portal.upload.PortalTusSessionRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.upload.service.TusChunkStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -33,8 +32,9 @@ import java.util.UUID;
  * <ul>
  *   <li>{@link #appendChunkTx} — 행 잠금(PESSIMISTIC_WRITE) 구간에서 offset 검증 + 파일 write +
  *       offset 전진만. 완료 후보 감지 시 스냅샷을 반환하되 검증은 하지 않는다(락 해제 후 수행).</li>
- *   <li>{@link #finalizeCompleted} — 검증 통과 후 짧은 tx: 조건부 완료 전이 + LS_PORTAL_ULD 생성 +
- *       이벤트. 동시 cancel 경합은 조건부 UPDATE 가 최종 심판.</li>
+ *   <li>{@link #finalizeCompleted} — 검증 통과 후 짧은 tx: <b>조건부 완료 전이가 먼저</b>이고, 그
+ *       전이에 성공한 호출만 자산을 적재한 뒤 이벤트를 발행한다. 동시 cancel 경합은 그 조건부
+ *       UPDATE 가 최종 심판이다.</li>
  *   <li>{@link #finalizeRejected} — 검증 거부 시 독립 tx(REQUIRES_NEW): CANCELLED 영속 커밋 +
  *       파일 삭제. 이후 호출자가 400 을 던져도 취소가 롤백되지 않아 세션 고착을 예방.</li>
  * </ul>
@@ -43,18 +43,18 @@ import java.util.UUID;
 @Service
 public class PortalVideoUploadTxService {
 
-    private final LsPortalTusUploadRepository tusRepository;
-    private final LsPortalUldRepository uldRepository;
+    private final PortalTusSessionRepository tusRepository;
+    private final PortalUploadAssetRepository assetRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Path storageRoot;
     private final long maxChunkBytes;
 
-    public PortalVideoUploadTxService(LsPortalTusUploadRepository tusRepository,
-                                      LsPortalUldRepository uldRepository,
+    public PortalVideoUploadTxService(PortalTusSessionRepository tusRepository,
+                                      PortalUploadAssetRepository assetRepository,
                                       PortalUploadProperties properties,
                                       ApplicationEventPublisher eventPublisher) {
         this.tusRepository = tusRepository;
-        this.uldRepository = uldRepository;
+        this.assetRepository = assetRepository;
         this.eventPublisher = eventPublisher;
         this.storageRoot = Paths.get(properties.storagePath()).toAbsolutePath().normalize();
         long maxChunkBytes = properties.maxChunkBytes();
@@ -91,13 +91,14 @@ public class PortalVideoUploadTxService {
     public AppendOutcome appendChunkTx(UUID uldId, String portalUserNo, long expectedOffset,
                                        InputStream chunk, long contentLength) {
         // #11: PESSIMISTIC_WRITE 로 세션 잠금 — 동일 세션의 동시 PATCH·cancel 직렬화.
-        LsPortalTusUpload session = tusRepository.findByUldIdForUpdate(uldId)
+        LsTusUpload session = tusRepository.findPortalSessionForUpdate(uldId)
                 .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
         // 소유자 불일치 = 미존재와 동일한 404 (존재 오라클 차단, 위 javadoc).
         if (!session.isOwnedBy(portalUserNo)) {
             throw sessionNotFound();
         }
-        if (session.isExpired(LocalDateTime.now())) {
+        // ★ 포털 축 만료 판정 — 취소된 세션은 만료가 아니라 충돌(409)로 답한다(바로 아래 분기).
+        if (session.isPortalExpired(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.GONE, "업로드 세션이 만료되었습니다.");
         }
         // 취소된 세션에 PATCH → 거부(409). 완료보다 먼저 평가.
@@ -106,7 +107,7 @@ public class PortalVideoUploadTxService {
         }
         // #10: 이미 완료된 세션에 마지막 청크 재전송 → 멱등 응답.
         if (session.isCompleted()) {
-            return AppendOutcome.alreadyCompleted(session.getLengthBytes(), session.getUldSn());
+            return AppendOutcome.alreadyCompleted(session.getUploadLength(), session.getRawSn());
         }
         if (contentLength <= 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "청크 본문이 비어 있습니다.");
@@ -115,24 +116,24 @@ public class PortalVideoUploadTxService {
             throw new CustomException(ErrorCode.PAYLOAD_TOO_LARGE,
                     "청크 크기가 허용 한도(" + maxChunkBytes + " bytes) 를 초과했습니다.");
         }
-        if (expectedOffset < 0 || expectedOffset > session.getLengthBytes()) {
+        if (expectedOffset < 0 || expectedOffset > session.getUploadLength()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "Upload-Offset 값이 범위를 벗어났습니다.");
         }
-        if (expectedOffset != session.getOffsetBytes()) {
+        if (expectedOffset != session.getUploadOffset()) {
             throw new CustomException(ErrorCode.CONFLICT, "Upload-Offset 이 서버 상태와 일치하지 않습니다.");
         }
-        if (expectedOffset + contentLength > session.getLengthBytes()) {
+        if (expectedOffset + contentLength > session.getUploadLength()) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "청크 길이가 잔여 용량을 초과합니다.");
         }
 
         long newOffset = TusChunkStore.writeChunkAtomically(
-                Paths.get(session.getFilePathNm()), expectedOffset, chunk, contentLength, maxChunkBytes);
+                Paths.get(session.getFilePath()), expectedOffset, chunk, contentLength, maxChunkBytes);
         session.advanceOffset(newOffset);
 
         try {
             tusRepository.saveAndFlush(session);
         } catch (OptimisticLockingFailureException e) {
-            TusChunkStore.truncateTo(session.getFilePathNm(), expectedOffset);
+            TusChunkStore.truncateTo(session.getFilePath(), expectedOffset);
             log.warn("[PortalTus] concurrent PATCH conflict uldId={}", uldId);
             throw new CustomException(ErrorCode.CONFLICT, "동시 업로드 요청이 충돌했습니다. 재시도하세요.");
         }
@@ -140,35 +141,36 @@ public class PortalVideoUploadTxService {
         if (session.isFullyUploaded()) {
             // 완료 후보 — 검증은 락 해제(tx 종료) 후 오케스트레이터가 수행.
             return AppendOutcome.completionCandidate(newOffset,
-                    session.getPortalUserNo(), session.getOrgnlFileNm(),
-                    session.getFilePathNm(), session.getLengthBytes());
+                    session.getUserNo(), session.getFileName(),
+                    session.getFilePath(), session.getUploadLength());
         }
         return AppendOutcome.inProgress(newOffset);
     }
 
     /**
-     * 완료 확정 — LS_PORTAL_ULD 생성 + 조건부 완료 전이 + 이벤트(짧은 tx). 동시 cancel 등으로 세션이
-     * 더 이상 IN_PROGRESS 가 아니면(조건부 UPDATE 0행) 방금 만든 ULD 를 보상 삭제한다.
+     * 완료 확정 — 포털 자산 적재 + 조건부 완료 전이 + 이벤트(짧은 tx). 동시 취소 등으로 세션이 더 이상
+     * 진행 중이 아니면(조건부 UPDATE 0행) 방금 만든 자산을 보상 삭제한다.
      *
-     * @return 완료된 LS_PORTAL_ULD.ULD_SN
+     * @return 완료된 자산 식별자({@code RAW_SN}) — 창구·이벤트의 이름은 {@code uldSn} 그대로다
      */
     @Transactional("controlTransactionManager")
     public Long finalizeCompleted(UUID uldId, String portalUserNo, String orgnlFileNm,
                                   String filePath, long lengthBytes, String mime) {
-        LsPortalUld uld = LsPortalUld.createVideo(portalUserNo, orgnlFileNm, filePath, lengthBytes, mime);
-        LsPortalUld saved = uldRepository.save(uld);
-        Long uldSn = saved.getUldSn();
+        // 자산을 먼저 만들고 전이에 실패하면 되돌린다 — 순서를 뒤집으면(전이 먼저) 완료로 표시된
+        // 세션이 자산 없이 남는 창이 생긴다. 되돌리기는 소유자 조건이 걸린 삭제라 남의 행을 못 지운다.
+        Long uldSn = assetRepository.insertUploaded(
+                portalUserNo, filePath, orgnlFileNm, mime, lengthBytes);
 
-        // #10: 완료 전이를 DB 조건부 UPDATE 로 강제. affectedRows==1 만 ULD 를 보존하고 이벤트 발행.
+        // #10: 완료 전이를 DB 조건부 UPDATE 로 강제. affectedRows==1 만 자산을 보존하고 이벤트를 발행.
         int transitioned = tusRepository.markCompletedIfInProgress(uldId, uldSn, LocalDateTime.now());
         if (transitioned != 1) {
-            uldRepository.delete(saved);
-            LsPortalTusUpload current = tusRepository.findById(uldId)
+            assetRepository.deleteOwned(uldSn, portalUserNo);
+            LsTusUpload current = tusRepository.findPortalSession(uldId)
                     .orElseThrow(PortalVideoUploadTxService::sessionNotFound);
             if (current.isCompleted()) {
                 log.info("[PortalTus] completion already claimed uldId={} existingUldSn={}",
-                        uldId, current.getUldSn());
-                return current.getUldSn();
+                        uldId, current.getRawSn());
+                return current.getRawSn();
             }
             // 검증 도중 취소된 세션 — 완료 불가(409).
             throw new CustomException(ErrorCode.CONFLICT, "업로드가 취소되어 완료할 수 없습니다.");
@@ -186,15 +188,15 @@ public class PortalVideoUploadTxService {
      */
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void finalizeRejected(UUID uldId, String reason) {
-        LsPortalTusUpload session = tusRepository.findByUldIdForUpdate(uldId).orElse(null);
+        LsTusUpload session = tusRepository.findPortalSessionForUpdate(uldId).orElse(null);
         if (session == null || session.isCancelled()) {
             return;
         }
         if (session.isCompleted()) {
-            // 이미 완료된 세션의 파일은 LS_PORTAL_ULD 영구 영상 — 삭제 금지.
+            // 이미 완료된 세션의 파일은 자산의 영구 영상 — 삭제 금지.
             return;
         }
-        TusChunkStore.deleteQuietly(session.getFilePathNm(), storageRoot);
+        TusChunkStore.deleteQuietly(session.getFilePath(), storageRoot);
         session.markCancelled();
         tusRepository.save(session);
         log.warn("[PortalTus] completion rejected uldId={} reason={}", uldId, reason);

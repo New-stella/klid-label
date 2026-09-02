@@ -2,8 +2,9 @@ package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.portal.service.PortalFrameExtractRunner;
 import kr.co.cudo.authoring.portal.service.PortalFrameExtractTxService;
 import kr.co.cudo.authoring.portal.service.PortalVideoProbe;
@@ -15,9 +16,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -66,12 +67,13 @@ class PortalFrameExtractRunnerTest {
         runner = new PortalFrameExtractRunner(txService, probe, frameWriter, systemConfigService, props);
     }
 
-    private LsPortalUld processingUld() throws Exception {
+    /** 후처리 중으로 전이된 자산 스냅샷 — 상태는 이제 엔티티가 아니라 메타 원장이 소유한다. */
+    private PortalUploadAsset processingUld() throws Exception {
         Path video = Files.createFile(storageDir.resolve("video.mp4"));
-        LsPortalUld uld = LsPortalUld.createVideo("u1", "v.mp4", video.toString(), 1024L, "video/mp4");
-        setField(uld, "uldSn", ULD_SN);
-        uld.markProcessing();
-        return uld;
+        return new PortalUploadAsset(ULD_SN, "u1", PortalUploadLedger.TYPE_VIDEO,
+                "v.mp4", video.toString(), 1024L, "video/mp4",
+                PortalUploadLedger.STATUS_PROCESSING, null, null, 0, null,
+                LocalDateTime.now(), LocalDateTime.now());
     }
 
     @Test
@@ -92,7 +94,7 @@ class PortalFrameExtractRunnerTest {
         runner.runAsync(ULD_SN);
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<LsPortalUldFrme>> cap = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<LsDataSrc>> cap = ArgumentCaptor.forClass(List.class);
         verify(txService).completeReady(eq(ULD_SN), cap.capture(), any(), any());
         assertThat(cap.getValue()).isNotEmpty();
         verify(txService, never()).markFailed(anyLong(), anyString());
@@ -218,11 +220,5 @@ class PortalFrameExtractRunnerTest {
         // duration 2s, interval 5s → 후보 0개 위험이지만 최소 1프레임(0번) 보장.
         List<Integer> frames = PortalFrameExtractRunner.computeFrameNumbers(2.0, 30.0, 5, 2000);
         assertThat(frames).containsExactly(0);
-    }
-
-    private static void setField(Object target, String name, Object value) throws Exception {
-        Field f = target.getClass().getDeclaredField(name);
-        f.setAccessible(true);
-        f.set(target, value);
     }
 }

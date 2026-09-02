@@ -4,11 +4,10 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalTusCreateCommand;
-import kr.co.cudo.authoring.portal.entity.LsPortalTusUpload;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
 import kr.co.cudo.authoring.portal.event.PortalVideoUploadedEvent;
-import kr.co.cudo.authoring.portal.repository.LsPortalTusUploadRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.portal.upload.PortalTusSessionRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.portal.service.PortalVideoProbe;
 import kr.co.cudo.authoring.portal.service.PortalVideoUploadService;
 import kr.co.cudo.authoring.portal.service.PortalVideoUploadTxService;
@@ -19,7 +18,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.io.ByteArrayInputStream;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -57,7 +55,7 @@ class PortalVideoUploadServiceTest {
     Path storageDir;
 
     private InMemoryTusRepo tusRepository;
-    private LsPortalUldRepository uldRepository;
+    private PortalUploadAssetRepository assetRepository;
     private ApplicationEventPublisher eventPublisher;
     private PortalVideoUploadService service;
     private final AtomicLong uldSnSeq = new AtomicLong(500);
@@ -65,15 +63,11 @@ class PortalVideoUploadServiceTest {
     @BeforeEach
     void setUp() {
         tusRepository = new InMemoryTusRepo();
-        uldRepository = mock(LsPortalUldRepository.class);
+        assetRepository = mock(PortalUploadAssetRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        when(uldRepository.save(any(LsPortalUld.class))).thenAnswer(inv -> {
-            LsPortalUld uld = inv.getArgument(0);
-            if (uld.getUldSn() == null) {
-                setUldSn(uld, uldSnSeq.incrementAndGet());
-            }
-            return uld;
-        });
+        // 흡수 뒤 완료 합류처는 <포털 자산 적재>다 — 영상 원장 행 + 메타 몇 칸을 한 번에 만든다.
+        when(assetRepository.insertUploaded(any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> uldSnSeq.incrementAndGet());
         // 비디오 스트림 존재 + 60초 + 30fps 반환 stub.
         PortalVideoProbe probe = path -> new PortalVideoProbe.Result(true, 60.0, 30.0);
         service = build(probe);
@@ -85,7 +79,7 @@ class PortalVideoUploadServiceTest {
                 List.of("jpg", "jpeg", "png"), 20_971_520L, 50, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
         PortalVideoUploadTxService txService = new PortalVideoUploadTxService(
-                tusRepository, uldRepository, props, eventPublisher);
+                tusRepository, assetRepository, props, eventPublisher);
         return new PortalVideoUploadService(tusRepository, props, probe, txService);
     }
 
@@ -105,8 +99,8 @@ class PortalVideoUploadServiceTest {
 
         assertThat(r.completed()).isTrue();
         assertThat(r.uldSn()).isNotNull();
-        // LS_PORTAL_ULD 은 VIDEO + UPLOADED 로 생성됨 (createVideo 팩토리).
-        verify(uldRepository).save(any(LsPortalUld.class));
+        // 자산은 영상 원장의 포털 출처 행으로 적재된다(업로드됨 상태를 함께 기록).
+        verify(assetRepository).insertUploaded(eq(OWNER), any(), eq("myvideo.mp4"), eq("video/mp4"), eq(16L));
         verify(eventPublisher).publishEvent(eq(new PortalVideoUploadedEvent(r.uldSn())));
         assertThat(tusRepository.findById(id).orElseThrow().isCompleted()).isTrue();
     }
@@ -140,7 +134,7 @@ class PortalVideoUploadServiceTest {
     void nonOwnerPatchNotFound() throws Exception {
         byte[] full = mp4(16);
         UUID id = service.createSession(OWNER, cmd(16));
-        Path temp = Path.of(tusRepository.findById(id).orElseThrow().getFilePathNm());
+        Path temp = Path.of(tusRepository.findById(id).orElseThrow().getFilePath());
 
         assertThatThrownBy(() -> service.appendChunk(id, "intruder", 0,
                 new ByteArrayInputStream(full), 16))
@@ -149,7 +143,7 @@ class PortalVideoUploadServiceTest {
                 .isEqualTo(ErrorCode.NOT_FOUND);
 
         // 응답만 막고 바이트가 들어가면 IDOR 이 성립한다 — 오프셋·파일 둘 다 그대로여야 한다.
-        assertThat(tusRepository.findById(id).orElseThrow().getOffsetBytes()).isZero();
+        assertThat(tusRepository.findById(id).orElseThrow().getUploadOffset()).isZero();
         assertThat(Files.size(temp)).isZero();
     }
 
@@ -257,7 +251,7 @@ class PortalVideoUploadServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        String filePath = tusRepository.findById(id).orElseThrow().getFilePathNm();
+        String filePath = tusRepository.findById(id).orElseThrow().getFilePath();
         assertThat(Files.exists(Path.of(filePath))).isFalse();
     }
 
@@ -276,7 +270,7 @@ class PortalVideoUploadServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
-        String filePath = tusRepository.findById(id).orElseThrow().getFilePathNm();
+        String filePath = tusRepository.findById(id).orElseThrow().getFilePath();
         assertThat(Files.exists(Path.of(filePath))).isFalse();
     }
 
@@ -293,10 +287,10 @@ class PortalVideoUploadServiceTest {
                 new ByteArrayInputStream(full), 16))
                 .isInstanceOf(CustomException.class);
 
-        LsPortalTusUpload session = tusRepository.findById(id).orElseThrow();
+        LsTusUpload session = tusRepository.findById(id).orElseThrow();
         assertThat(session.isCancelled()).isTrue();
         assertThat(session.isCompleted()).isFalse();
-        assertThat(Files.exists(Path.of(session.getFilePathNm()))).isFalse();
+        assertThat(Files.exists(Path.of(session.getFilePath()))).isFalse();
     }
 
     // ======================== 경계/상한 ========================
@@ -323,7 +317,7 @@ class PortalVideoUploadServiceTest {
     @DisplayName("경로순회_파일명이어도_저장은_UUID강제_storage내부")
     void pathTraversalForcedUuid() {
         UUID id = service.createSession(OWNER, new PortalTusCreateCommand(16, "../../../etc/passwd.mp4"));
-        String filePath = tusRepository.findById(id).orElseThrow().getFilePathNm();
+        String filePath = tusRepository.findById(id).orElseThrow().getFilePath();
         assertThat(filePath).contains(id.toString());
         assertThat(filePath).doesNotContain("etc/passwd");
         assertThat(Path.of(filePath).normalize().startsWith(storageDir.toAbsolutePath().normalize())).isTrue();
@@ -337,108 +331,104 @@ class PortalVideoUploadServiceTest {
         return out;
     }
 
-    private static void setUldSn(LsPortalUld uld, long val) {
-        try {
-            Field f = LsPortalUld.class.getDeclaredField("uldSn");
-            f.setAccessible(true);
-            f.set(uld, val);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /** 최소 in-memory JpaRepository 구현 — 테스트에 필요한 메서드만. */
-    static class InMemoryTusRepo implements LsPortalTusUploadRepository {
-        final Map<UUID, LsPortalTusUpload> store = new HashMap<>();
+    /** 최소 in-memory 구현 — 테스트에 필요한 메서드만. 세션 원장은 이제 공용({@code LS_TUS_UPLOAD})이다. */
+    static class InMemoryTusRepo implements PortalTusSessionRepository {
+        final Map<UUID, LsTusUpload> store = new HashMap<>();
 
         @Override
-        public long countByPortalUserNoAndSttsCd(String portalUserNo, String sttsCd) {
+        public long countInProgressByOwner(String portalUserNo) {
             return store.values().stream()
-                    .filter(u -> portalUserNo.equals(u.getPortalUserNo()) && sttsCd.equals(u.getSttsCd()))
+                    .filter(u -> portalUserNo.equals(u.getUserNo())
+                            && LsTusUpload.STATUS_IN_PROGRESS.equals(u.getStatus()))
                     .count();
         }
 
         @Override
-        public Optional<LsPortalTusUpload> findByUldIdForUpdate(UUID uldId) {
-            return Optional.ofNullable(store.get(uldId));
+        public Optional<LsTusUpload> findPortalSession(UUID uploadId) {
+            return Optional.ofNullable(store.get(uploadId));
         }
 
         @Override
-        public int markCompletedIfInProgress(UUID uldId, Long uldSn, LocalDateTime now) {
-            LsPortalTusUpload u = store.get(uldId);
-            if (u == null || !LsPortalTusUpload.STTS_IN_PROGRESS.equals(u.getSttsCd())) {
+        public Optional<LsTusUpload> findPortalSessionForUpdate(UUID uploadId) {
+            return Optional.ofNullable(store.get(uploadId));
+        }
+
+        @Override
+        public int markCompletedIfInProgress(UUID uploadId, Long rawSn, LocalDateTime now) {
+            LsTusUpload u = store.get(uploadId);
+            if (u == null || !LsTusUpload.STATUS_IN_PROGRESS.equals(u.getStatus())) {
                 return 0;
             }
-            u.markCompleted(uldSn);
+            u.markCompleted(rawSn);
             return 1;
         }
 
         @Override
-        public int deleteExpiredInProgress(UUID uldId) {
-            LsPortalTusUpload u = store.get(uldId);
-            if (u == null || !LsPortalTusUpload.STTS_IN_PROGRESS.equals(u.getSttsCd())) {
+        public int deleteExpiredInProgress(UUID uploadId) {
+            LsTusUpload u = store.get(uploadId);
+            if (u == null || !LsTusUpload.STATUS_IN_PROGRESS.equals(u.getStatus())) {
                 return 0;
             }
-            store.remove(uldId);
+            store.remove(uploadId);
             return 1;
         }
 
         @Override
-        public List<LsPortalTusUpload> findExpired(LocalDateTime now) {
+        public List<LsTusUpload> findExpired(LocalDateTime now) {
             return store.values().stream()
-                    .filter(u -> LsPortalTusUpload.STTS_IN_PROGRESS.equals(u.getSttsCd())
+                    .filter(u -> LsTusUpload.STATUS_IN_PROGRESS.equals(u.getStatus())
                             && u.getExpiresAt().isBefore(now))
                     .toList();
         }
 
         @Override
-        public <S extends LsPortalTusUpload> S save(S entity) {
-            store.put(entity.getUldId(), entity);
+        public <S extends LsTusUpload> S save(S entity) {
+            store.put(entity.getUploadId(), entity);
             return entity;
         }
 
         @Override
-        public <S extends LsPortalTusUpload> S saveAndFlush(S entity) {
-            store.put(entity.getUldId(), entity);
+        public <S extends LsTusUpload> S saveAndFlush(S entity) {
+            store.put(entity.getUploadId(), entity);
             return entity;
         }
 
         @Override
-        public Optional<LsPortalTusUpload> findById(UUID id) {
+        public Optional<LsTusUpload> findById(UUID id) {
             return Optional.ofNullable(store.get(id));
         }
 
         @Override
-        public void delete(LsPortalTusUpload entity) {
-            store.remove(entity.getUldId());
+        public void delete(LsTusUpload entity) {
+            store.remove(entity.getUploadId());
         }
 
         // ----- 미사용 JpaRepository 메서드 -----
-        @Override public List<LsPortalTusUpload> findAll() { throw new UnsupportedOperationException(); }
-        @Override public List<LsPortalTusUpload> findAll(org.springframework.data.domain.Sort sort) { throw new UnsupportedOperationException(); }
-        @Override public List<LsPortalTusUpload> findAllById(Iterable<UUID> ids) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> List<S> saveAll(Iterable<S> entities) { throw new UnsupportedOperationException(); }
+        @Override public List<LsTusUpload> findAll() { throw new UnsupportedOperationException(); }
+        @Override public List<LsTusUpload> findAll(org.springframework.data.domain.Sort sort) { throw new UnsupportedOperationException(); }
+        @Override public List<LsTusUpload> findAllById(Iterable<UUID> ids) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> List<S> saveAll(Iterable<S> entities) { throw new UnsupportedOperationException(); }
         @Override public void flush() { }
-        @Override public <S extends LsPortalTusUpload> List<S> saveAllAndFlush(Iterable<S> entities) { throw new UnsupportedOperationException(); }
-        @Override public void deleteAllInBatch(Iterable<LsPortalTusUpload> entities) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> List<S> saveAllAndFlush(Iterable<S> entities) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAllInBatch(Iterable<LsTusUpload> entities) { throw new UnsupportedOperationException(); }
         @Override public void deleteAllByIdInBatch(Iterable<UUID> ids) { throw new UnsupportedOperationException(); }
         @Override public void deleteAllInBatch() { throw new UnsupportedOperationException(); }
-        @Override public LsPortalTusUpload getOne(UUID id) { throw new UnsupportedOperationException(); }
-        @Override public LsPortalTusUpload getById(UUID id) { throw new UnsupportedOperationException(); }
-        @Override public LsPortalTusUpload getReferenceById(UUID id) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> Optional<S> findOne(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> List<S> findAll(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> List<S> findAll(org.springframework.data.domain.Example<S> example, org.springframework.data.domain.Sort sort) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> org.springframework.data.domain.Page<S> findAll(org.springframework.data.domain.Example<S> example, org.springframework.data.domain.Pageable pageable) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> long count(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload> boolean exists(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
-        @Override public <S extends LsPortalTusUpload, R> R findBy(org.springframework.data.domain.Example<S> example, java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) { throw new UnsupportedOperationException(); }
-        @Override public org.springframework.data.domain.Page<LsPortalTusUpload> findAll(org.springframework.data.domain.Pageable pageable) { throw new UnsupportedOperationException(); }
+        @Override public LsTusUpload getOne(UUID id) { throw new UnsupportedOperationException(); }
+        @Override public LsTusUpload getById(UUID id) { throw new UnsupportedOperationException(); }
+        @Override public LsTusUpload getReferenceById(UUID id) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> Optional<S> findOne(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> List<S> findAll(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> List<S> findAll(org.springframework.data.domain.Example<S> example, org.springframework.data.domain.Sort sort) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> org.springframework.data.domain.Page<S> findAll(org.springframework.data.domain.Example<S> example, org.springframework.data.domain.Pageable pageable) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> long count(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload> boolean exists(org.springframework.data.domain.Example<S> example) { throw new UnsupportedOperationException(); }
+        @Override public <S extends LsTusUpload, R> R findBy(org.springframework.data.domain.Example<S> example, java.util.function.Function<org.springframework.data.repository.query.FluentQuery.FetchableFluentQuery<S>, R> queryFunction) { throw new UnsupportedOperationException(); }
+        @Override public org.springframework.data.domain.Page<LsTusUpload> findAll(org.springframework.data.domain.Pageable pageable) { throw new UnsupportedOperationException(); }
         @Override public boolean existsById(UUID id) { return store.containsKey(id); }
         @Override public long count() { return store.size(); }
         @Override public void deleteById(UUID id) { store.remove(id); }
         @Override public void deleteAllById(Iterable<? extends UUID> ids) { throw new UnsupportedOperationException(); }
-        @Override public void deleteAll(Iterable<? extends LsPortalTusUpload> entities) { throw new UnsupportedOperationException(); }
+        @Override public void deleteAll(Iterable<? extends LsTusUpload> entities) { throw new UnsupportedOperationException(); }
         @Override public void deleteAll() { store.clear(); }
     }
 }

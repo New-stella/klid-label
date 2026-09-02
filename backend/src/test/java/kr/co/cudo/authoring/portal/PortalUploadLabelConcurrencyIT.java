@@ -1,13 +1,13 @@
 package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.portal.dto.PortalUploadLabelRequest;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldLbl;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.service.PortalUploadLabelService;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLabelRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,9 +39,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PortalUploadLabelConcurrencyIT {
 
     @Autowired private PortalUploadLabelService service;
-    @Autowired private LsPortalUldRepository uldRepository;
-    @Autowired private LsPortalUldFrmeRepository frmeRepository;
-    @Autowired private LsPortalUldLblRepository lblRepository;
+    @Autowired private PortalUploadAssetRepository assetRepository;
+    @Autowired private PortalUploadFrameRepository frmeRepository;
+    @Autowired private PortalUploadLabelRepository lblRepository;
 
     private final TransactionTemplate txTemplate;
 
@@ -57,14 +57,14 @@ class PortalUploadLabelConcurrencyIT {
 
         // given — READY 이미지 자산 + 프레임 1건 커밋 저장
         long uldSn = txTemplate.execute(s -> {
-            LsPortalUld uld = LsPortalUld.createImage(owner, "a.png", "a.png", 100L, "image/png");
-            uld.markReady(null, null, 1);
-            return uldRepository.save(uld).getUldSn();
+            Long sn = assetRepository.insertUploaded(owner, "a.png", "a.png", "image/png", 100L);
+            // 이미지는 업로드 즉시 라벨링 가능이다.
+            assetRepository.upsertMeta(sn, PortalUploadLedger.KEY_UPLOAD_STATUS,
+                    PortalUploadLedger.STATUS_READY);
+            return sn;
         });
-        long frmeSn = txTemplate.execute(s -> {
-            LsPortalUldFrme frame = LsPortalUldFrme.create(uldSn, 0, "f0.png");
-            return frmeRepository.save(frame).getUldFrmeSn();
-        });
+        long frmeSn = txTemplate.execute(s ->
+                frmeRepository.save(LsDataSrc.create(uldSn, 0L, "f0.png", null)).getSrcSn());
 
         // 서로 다른 라벨 집합 — A={car,person}(2건), B={dog}(1건). 최종은 정확히 한쪽이어야 한다.
         List<PortalUploadLabelRequest> setA = List.of(
@@ -90,9 +90,10 @@ class PortalUploadLabelConcurrencyIT {
         assertThat(err.get()).isNull();
 
         // then — 최종 라벨명 집합이 정확히 A 또는 B (혼합/중복/유실 없음)
-        List<LsPortalUldLbl> finalLabels = txTemplate.execute(
-                s -> lblRepository.findAllByUldFrmeSnAndPortalUserNo(frmeSn, owner));
-        List<String> names = finalLabels.stream().map(LsPortalUldLbl::getLblNm).sorted().collect(Collectors.toList());
+        List<LsDataLbl> finalLabels = txTemplate.execute(s ->
+                lblRepository.findAllByFrameAndOwner(frmeSn, owner, PortalUploadLedger.SRC_TYPE));
+        List<String> names = finalLabels.stream()
+                .map(LsDataLbl::getLabelNm).sorted().collect(Collectors.toList());
         Set<String> distinct = Set.copyOf(names);
         // 중복 없음(집합 크기 == 리스트 크기)
         assertThat(names).hasSize(distinct.size());
@@ -100,7 +101,7 @@ class PortalUploadLabelConcurrencyIT {
                 .isIn(Set.of("car", "person"), Set.of("dog"));
 
         // cleanup
-        txTemplate.executeWithoutResult(s -> uldRepository.deleteById(uldSn));
+        txTemplate.executeWithoutResult(s -> assetRepository.deleteOwned(uldSn, owner));
     }
 
     private Runnable putTask(long frmeSn, String owner, List<PortalUploadLabelRequest> body,

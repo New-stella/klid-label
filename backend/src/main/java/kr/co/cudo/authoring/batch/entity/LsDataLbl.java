@@ -101,8 +101,19 @@ public class LsDataLbl {
     /**
      * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
      * 호환 위해 유지. 응답에서는 LS_LABEL.LABEL_NM (labelName) 을 우선 노출.
+     *
+     * <p>★ <b>{@code null} 을 허용한다</b>(V29). 포털 업로드 자산의 수동 라벨은 라벨 마스터를 참조하지
+     * 않는 자유 입력이라 <b>이름 없이 도형만</b> 그리는 것이 정상 동선인데, 흡수(ADR-058)로 그 라벨이
+     * 이 원장에 앉으면서 NOT NULL 이 저장을 통째로 막았다. 포털이 기본값을 지어 채우는 안은 기각했다 —
+     * 지어낸 값이 쌓이면 나중에 진짜 라벨명과 구분되지 않는다.
+     *
+     * <p>⚠ <b>내부 채널에 {@code null} 이 새로 생기지는 않는다</b> — 오토라벨·수동 라벨·롤백 복원 세
+     * 통로가 전부 이 값을 채운다. 제약만 풀렸고 값은 그대로다.
+     *
+     * @design ADR-058
+     * @design ERD-028
      */
-    @Column(name = "LBL_NM", nullable = false, length = 80)
+    @Column(name = "LBL_NM", length = 80)
     private String labelNm;
 
     // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어

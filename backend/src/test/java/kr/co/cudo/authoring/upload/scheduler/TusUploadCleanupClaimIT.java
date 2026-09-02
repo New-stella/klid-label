@@ -106,8 +106,19 @@ class TusUploadCleanupClaimIT {
         createdClipIds.clear();
     }
 
-    /** 만료된 미완료 세션 1건 + 실제 임시 파일을 커밋 저장한다. */
+    /**
+     * 만료된 미완료 <b>관제</b> 세션 1건 + 실제 임시 파일을 커밋 저장한다.
+     *
+     * <p>★ 클립 식별자를 반드시 준다(ADR-058) — 흡수로 이 원장을 <b>두 채널이 함께 쓰게</b> 되면서
+     * 이 잡의 후보 조회가 「클립 식별자를 가진 세션」으로 좁혀졌다. 그 값이 관제 세션의 구조적 표식이며
+     * (요청 검증이 강제한다), 비운 세션은 포털 채널로 읽혀 이 잡이 집지 않는다.
+     */
     private LsTusUpload persistExpired() {
+        return persistExpired("CLEANUP-" + System.nanoTime());
+    }
+
+    /** 만료된 미완료 <b>포털</b> 세션 — 클립 식별자가 없는 것이 곧 채널 판별자다(ADR-058). */
+    private LsTusUpload persistExpiredPortalSession() {
         return persistExpired(null);
     }
 
@@ -227,6 +238,22 @@ class TusUploadCleanupClaimIT {
     }
 
     @Test
+    @DisplayName("★만료된_포털_세션은_이_잡이_집지_않는다 — 집으면_행만_지우고_파일이_고아로_남는다")
+    void expiredPortalSessionIsLeftToPortalSweep() {
+        // given — 클립 식별자가 없는 만료 세션(포털 채널)
+        drainPreexistingExpired();
+        LsTusUpload portalSession = persistExpiredPortalSession();
+
+        // when
+        int cleaned = job.cleanupExpired();
+
+        // then — 이 잡은 포털 세션을 처리할 수단이 없다: 종결할 인입 행이 없고(클립 식별자 부재)
+        //   임시 파일도 관제 저장 루트 밖이라 경로 가드에 막힌다. 집으면 <행만> 사라진다.
+        assertThat(cleaned).isZero();
+        assertThat(uploadRepository.findById(portalSession.getUploadId())).isPresent();
+    }
+
+    @Test
     @DisplayName("단일노드에서도_기존_동작이_유지된다 — 만료세션은_정리되고_미만료는_보존된다")
     void singleNodeBehaviourPreserved() {
         // given — 만료 1건 + 미만료 1건
@@ -235,7 +262,7 @@ class TusUploadCleanupClaimIT {
         UUID aliveId = UUID.randomUUID();
         txTemplate.executeWithoutResult(s -> uploadRepository.saveAndFlush(LsTusUpload.create(
                 aliveId, "user-1", 100L, STORAGE_ROOT.resolve(aliveId + ".part").toString(),
-                "alive.mp4", null, null, null, null)));
+                "alive.mp4", "CLEANUP-ALIVE-" + System.nanoTime(), null, null, null)));
         createdIds.add(aliveId);
 
         // when

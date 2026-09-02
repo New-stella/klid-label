@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.portal.dto;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
 
 import java.time.LocalDateTime;
 
@@ -34,8 +34,8 @@ public record PortalUploadResponse(
         LocalDateTime expiresAt
 ) {
 
-    /** 목록용 — 프레임 식별자·만료 예정 시각 없이 마스터 필드만. */
-    public static PortalUploadResponse from(LsPortalUld uld) {
+    /** 목록용 — 프레임 식별자·만료 예정 시각 없이 자산 필드만. */
+    public static PortalUploadResponse from(PortalUploadAsset uld) {
         return of(uld, null);
     }
 
@@ -45,23 +45,23 @@ public record PortalUploadResponse(
      * <p>업로드 <b>직후</b> 응답이라 만료 예정 시각은 싣지 않는다({@code null}) — 방금 등록한 자산의
      * 만료는 목록·상세 조회에서 고지한다(응답 하나 만들자고 설정 조회를 끼워 넣지 않는다).
      */
-    public static PortalUploadResponse of(LsPortalUld uld, Long frmeSn) {
+    public static PortalUploadResponse of(PortalUploadAsset uld, Long frmeSn) {
         return of(uld, frmeSn, null);
     }
 
     /** 목록용 — 만료 예정 시각 포함({@code PortalRetentionPolicy} 판정 결과). */
-    public static PortalUploadResponse of(LsPortalUld uld, Long frmeSn, LocalDateTime expiresAt) {
+    public static PortalUploadResponse of(PortalUploadAsset uld, Long frmeSn, LocalDateTime expiresAt) {
         return new PortalUploadResponse(
-                uld.getUldSn(),
-                uld.getUldTypeCd(),
-                uld.getOrgnlFileNm(),
-                uld.getFileSz(),
-                uld.getMimeTypeNm(),
-                uld.getUldSttsCd(),
-                uld.getFrmeCnt(),
+                uld.uldSn(),
+                uld.uldTypeCd(),
+                uld.orgnlFileNm(),
+                uld.fileSz(),
+                uld.mimeTypeNm(),
+                uld.uldSttsCd(),
+                uld.frmeCnt(),
                 frmeSn,
-                uld.getRegDt(),
-                uld.getFailRsnCn(),
+                uld.regDt(),
+                uld.failRsnCn(),
                 expiresAt);
     }
 }
