@@ -380,30 +380,28 @@ public class PortalUploadAssetRepository {
     }
 
     /**
-     * <b>방치 판정 → 처리 실패</b> 조건부 전이(스윕 경로). 출발 상태 집합이 {업로드됨, 후처리 중}이라
-     * <b>상태 행 부재도 출발점</b>이다 — 그래서 삽입 겸 조건부 갱신이다.
+     * <b>방치 판정 → 처리 실패</b> 조건부 전이(스윕 경로). 출발 상태는 <b>후처리 중</b> 하나다.
+     *
+     * <h3>★ 삽입 겸 갱신이 아니라 단순 UPDATE 다 (2026-09-02 순서 반전)</h3>
+     * <p>구 형태는 「상태 행 부재(= 업로드됨)」도 출발점으로 삼아 삽입 겸 갱신이었다. 이제 업로드됨은
+     * <b>마킹 대기</b>라 방치가 아니므로 출발점에서 뺐고, 그러면 남는 출발점이 실재하는 행 하나뿐이라
+     * 단순 UPDATE 로 충분하다. 삽입 겸 갱신을 남겨 두면 상태 행이 없는 정상 대기 자산까지 실패로
+     * 만들 수 있다.
      *
      * <p>라벨링 가능·이미 실패인 자산은 갱신 조건에 걸려 0행이 된다(역방향 전이 차단).
      *
      * @return 전이한 행 수(2노드 동시 실행에서 한쪽만 1)
+     * @design DFEAT-055
      */
     public int failStuck(Long uldSn) {
         return em.createNativeQuery("""
-                INSERT INTO ls_data_meta (raw_sn, meta_key, meta_vl, reg_dt, mdfcn_dt)
-                SELECT r.raw_sn, :statusKey, :toStatus, now(), now()
-                  FROM ls_data_raw r
-                 WHERE r.raw_sn = :rawSn
-                   AND r.src_type = :srcType
-                   AND r.portal_user_no IS NOT NULL
-                ON CONFLICT (raw_sn, meta_key)
-                DO UPDATE SET meta_vl = EXCLUDED.meta_vl, mdfcn_dt = now()
-                 WHERE ls_data_meta.meta_vl IN (:fromStatuses)
+                UPDATE ls_data_meta
+                   SET meta_vl = :toStatus, mdfcn_dt = now()
+                 WHERE raw_sn = :rawSn AND meta_key = :statusKey AND meta_vl = :fromStatus
                 """)
                 .setParameter("statusKey", PortalUploadLedger.KEY_UPLOAD_STATUS)
                 .setParameter("toStatus", PortalUploadLedger.STATUS_FAILED)
-                .setParameter("fromStatuses",
-                        List.of(PortalUploadLedger.STATUS_UPLOADED, PortalUploadLedger.STATUS_PROCESSING))
-                .setParameter("srcType", PortalUploadLedger.SRC_TYPE)
+                .setParameter("fromStatus", PortalUploadLedger.STATUS_PROCESSING)
                 .setParameter("rawSn", uldSn)
                 .executeUpdate();
     }
@@ -429,22 +427,35 @@ public class PortalUploadAssetRepository {
     }
 
     /**
-     * 방치 후보 — 커트라인 이전부터 상태 갱신이 멈춘 포털 자산.
+     * 방치 후보 — 커트라인 이전부터 상태 갱신이 멈춘 <b>후처리 중</b> 자산.
      *
-     * <p>조건이 「상태 행이 없거나 값이 업로드됨·후처리 중」 형태다 — <b>부재를 업로드됨과 같게
-     * 다루라</b>는 확정이 여기서 조회 모양을 정한다.
+     * <h3>★ 「업로드됨」은 더 이상 방치 후보가 아니다 (2026-09-02 순서 반전)</h3>
+     * <p>그 상태의 뜻이 <b>「추출 대기」에서 「마킹 대기」로</b> 바뀌었다. 추출 대기는 서버가 곧
+     * 처리할 상태라 오래 머무르면 방치가 맞지만, 마킹 대기는 <b>사람이 화면에 들어와 지점을 고를
+     * 때까지</b>의 상태라 며칠이 걸려도 정상이다. 그대로 두면 올려 둔 영상이 커트라인(기본 30분)마다
+     * 실패로 마감되고 실패 보존기간 뒤 <b>비가역 삭제</b>된다 — 사용자가 아무것도 잘못하지 않았는데
+     * 데이터가 사라진다.
+     *
+     * <p>그래서 후보를 후처리 중 하나로 좁힌다. 후처리 중은 러너가 하트비트로 갱신 시각을 밀어내므로
+     * 「무갱신 경과」 판정이 여전히 성립한다.
+     *
+     * <p>⚠ 그 대가로 <b>마킹하지 않은 자산은 어느 스윕에도 걸리지 않는다</b> — 보존기간 축도
+     * 라벨링 가능·처리 실패 둘뿐이라 영원히 남는다. 그 공백을 어떻게 닫을지는 별도 판단이며,
+     * 여기서 임의로 삭제 경로를 넓히지 않는다(비가역 삭제의 판정 지점을 늘리지 않는다).
+     *
+     * @design DFEAT-055
+     * @design API-140
      */
     @SuppressWarnings("unchecked")
     public List<Long> findStuck(LocalDateTime cutoff) {
         Query q = em.createNativeQuery("SELECT r.raw_sn FROM ls_data_raw r"
                 + PORTAL_SCOPE
-                + " AND " + STATUS_EXPR + " IN (:statuses)"
+                + " AND " + STATUS_EXPR + " = :status"
                 + " AND " + STATUS_CHANGED_EXPR + " < :cutoff"
                 + " ORDER BY r.raw_sn");
         q.setParameter("statusKey", PortalUploadLedger.KEY_UPLOAD_STATUS);
         q.setParameter("srcType", PortalUploadLedger.SRC_TYPE);
-        q.setParameter("statuses",
-                List.of(PortalUploadLedger.STATUS_UPLOADED, PortalUploadLedger.STATUS_PROCESSING));
+        q.setParameter("status", PortalUploadLedger.STATUS_PROCESSING);
         q.setParameter("cutoff", cutoff);
         return ((List<Object>) q.getResultList()).stream().map(v -> ((Number) v).longValue()).toList();
     }

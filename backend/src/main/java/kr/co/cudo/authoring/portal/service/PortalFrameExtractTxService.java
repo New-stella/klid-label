@@ -1,6 +1,11 @@
 package kr.co.cudo.authoring.portal.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.marking.dto.MarkItem;
+import kr.co.cudo.authoring.marking.entity.LsMarking;
+import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
@@ -10,8 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 포털 프레임 추출의 <b>트랜잭션 경계 전용</b> 서비스.
@@ -31,21 +39,73 @@ public class PortalFrameExtractTxService {
      */
     private static final int SAVE_CHUNK = 200;
 
+
+    /** 마킹 본문 역직렬화 타입 — 저장 창구가 쓴 것과 같은 모양이다. */
+    private static final TypeReference<List<MarkItem>> MARK_LIST_TYPE = new TypeReference<>() {};
+
     private final PortalUploadAssetRepository assetRepository;
     private final PortalUploadFrameRepository frmeRepository;
+    private final LsMarkingRepository markingRepository;
+    private final ObjectMapper objectMapper;
 
     /**
-     * 러너 진입 — UPLOADED → PROCESSING 원자 전이(시나리오 #4). 전이 성공 시 자산 스냅샷 반환,
-     * 이미 삭제됐거나 UPLOADED 가 아니면 empty(러너가 즉시 중단).
+     * 러너 진입 — 추출 계획을 확정한다(자산 스냅샷 + 마킹이 정한 프레임 번호).
+     *
+     * <h3>★ 여기서 상태를 전이하지 않는다 (2026-09-02 순서 반전)</h3>
+     * <p>「마킹 대기 → 추출 중」 전이는 <b>마킹 저장 트랜잭션</b>이 이미 원자적으로 수행했다. 여기서
+     * 다시 전이시키려 하면 이미 추출 중이라 0행이 되어 <b>정상 추출이 통째로 중단</b>된다. 그래서 이
+     * 자리의 책임은 「지금도 추출 중인가」 확인으로 바뀐다 — 그 사이 삭제·실패 마감된 자산이면
+     * 중단한다.
+     *
+     * <h3>마킹이 없으면 추출하지 않는다</h3>
+     * <p>지점을 모르면 뽑을 곳이 없다. 고정 간격으로 대신 채우지 않는다 — 그러면 사용자가 고르지
+     * 않은 지점이 뽑혀 「마킹 지점으로만 뽑는다」가 깨진다.
+     *
+     * @return 추출 계획. 자산이 추출 중이 아니거나 뽑을 지점이 없으면 empty(러너가 즉시 중단)
      */
-    @Transactional("controlTransactionManager")
-    public Optional<PortalUploadAsset> beginProcessing(Long uldSn) {
-        // 상태 행이 아직 없을 수 있어(부재 = 업로드됨) 단순 UPDATE 가 아니라 삽입 겸 조건부 갱신이다.
-        int transitioned = assetRepository.transitionToProcessing(uldSn);
-        if (transitioned != 1) {
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public Optional<PortalExtractionPlan> beginExtraction(Long uldSn) {
+        Optional<PortalUploadAsset> found = assetRepository.findPortalAsset(uldSn);
+        if (found.isEmpty() || !found.get().isProcessing()) {
             return Optional.empty();
         }
-        return assetRepository.findPortalAsset(uldSn);
+        List<Integer> frameNumbers = markedFrameNumbers(uldSn);
+        if (frameNumbers.isEmpty()) {
+            log.warn("[PortalFrame] no marked frames uldSn={} — nothing to extract", uldSn);
+            return Optional.empty();
+        }
+        return Optional.of(new PortalExtractionPlan(found.get(), frameNumbers));
+    }
+
+    /**
+     * 그 자산의 <b>가장 최근 마킹</b>이 담은 프레임 번호 — 오름차순·중복 제거·음수 제외.
+     *
+     * <p>정렬 기준은 마킹 원장의 소비 순서 조회를 그대로 쓴다(비교자를 복제하지 않는다). 본문이
+     * 깨져 있으면 빈 목록이며, 그 경우 러너가 추출을 시작하지 않는다 — 조용히 0장을 뽑고 완료로
+     * 넘기면 사용자는 마킹이 반영된 줄 안다.
+     */
+    private List<Integer> markedFrameNumbers(Long uldSn) {
+        List<LsMarking> rows = markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(uldSn);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<MarkItem> marks;
+        try {
+            marks = objectMapper.readValue(rows.get(0).getMarkCn(), MARK_LIST_TYPE);
+        } catch (Exception e) {
+            log.warn("[PortalFrame] marking body unreadable uldSn={} cause={}",
+                    uldSn, e.getClass().getSimpleName());
+            return List.of();
+        }
+        Set<Integer> distinct = new LinkedHashSet<>();
+        for (MarkItem mark : marks) {
+            if (mark.frameIndex() != null && mark.frameIndex() >= 0) {
+                distinct.add(mark.frameIndex());
+            }
+        }
+        List<Integer> ordered = new ArrayList<>(distinct);
+        ordered.sort(Integer::compareTo);
+        return List.copyOf(ordered);
     }
 
     /**

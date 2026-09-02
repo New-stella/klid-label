@@ -56,8 +56,12 @@ public class PortalUploadSweepTxService {
     }
 
     /**
-     * #4/#5 + adversarial #3: N분 이상 고착된 UPLOADED/PROCESSING 자산을 조건부 UPDATE 로 FAILED
+     * #4/#5 + adversarial #3: N분 이상 고착된 <b>후처리 중</b> 자산을 조건부 UPDATE 로 FAILED
      * 전이하고, 이 노드가 전이에 성공(1행)한 자산의 uldSn 목록을 반환한다.
+     *
+     * <p>★ <b>「업로드됨」은 대상이 아니다</b>(2026-09-02 순서 반전) — 그 상태는 이제 「마킹 대기」라
+     * 사람이 들어올 때까지 며칠이 걸려도 정상이다. 대상에 남기면 올려 둔 영상이 커트라인마다 실패로
+     * 마감되고 실패 보존기간 뒤 비가역 삭제된다.
      *
      * <p>조건부 갱신({@link PortalUploadAssetRepository#failStuck})으로 2노드 중복 실행에도 멱등하다
      * (한쪽만 1행, 다른 쪽 0행). 라벨링 가능으로 이미 완료된 자산은 출발 상태 집합에 없어 덮지 않는다.
@@ -67,13 +71,13 @@ public class PortalUploadSweepTxService {
     @Transactional("controlTransactionManager")
     public List<Long> failStuckUploads(long stuckTimeoutMinutes) {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(stuckTimeoutMinutes);
-        // 후보 조회가 「상태 행이 없거나 값이 업로드됨·후처리 중」 형태다 — 부재를 업로드됨으로 읽는
-        // 확정이 여기서 조회 모양을 정한다. 부재를 빼면 상태를 기록하기 전 자산이 영영 방치로 남는다.
+        // 후보는 후처리 중 하나다 — 러너가 하트비트로 갱신 시각을 밀어내므로 「무갱신 경과」 판정이
+        // 그 상태에서만 의미를 갖는다. 마킹 대기는 사람을 기다리는 상태라 경과 시간이 방치의 근거가 아니다.
         List<Long> stuck = assetRepository.findStuck(cutoff);
         String reason = "처리 시간 초과(" + stuckTimeoutMinutes + "분) — 스윕 잡 강제 실패 전이";
         List<Long> failedUldSns = new ArrayList<>();
         for (Long uldSn : stuck) {
-            // 출발 상태 집합에 <부재>가 들어 있어 삽입 겸 조건부 갱신이다(단순 UPDATE 로는 0행).
+            // 출발 상태가 실재하는 「후처리 중」 행 하나라 단순 조건부 UPDATE 다.
             if (assetRepository.failStuck(uldSn) == 1) {
                 assetRepository.upsertMeta(uldSn, PortalUploadLedger.KEY_FAIL_REASON,
                         PortalUploadLedger.truncateFailReason(reason));

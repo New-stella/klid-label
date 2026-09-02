@@ -26,8 +26,9 @@ import java.util.UUID;
  *
  * <p>관제 {@code TusUploadService} 와 <b>파일 I/O 코어({@link TusChunkStore})와 세션 원장을 함께
  * 쓴다</b>(ADR-058 흡수). 갈리는 것은 <b>처리</b>다 — 세션 판별은 클립 식별자의 부재, 완료 합류처는
- * 포털 자산(공용 영상 원장의 포털 출처 행), 완료 이벤트는 포털 전용
- * ({@code PortalVideoUploadedEvent})이라 관제 비식별 파이프라인에 연결되지 않는다.
+ * 포털 자산(공용 영상 원장의 포털 출처 행)이며 관제 비식별 파이프라인에
+ * 연결되지 않는다. ★ <b>완료가 어떤 후속 처리도 깨우지 않는다</b>(2026-09-02 순서 반전) — 자산은
+ * 「마킹 대기」로 남고 프레임 추출은 마킹 저장이 연다.
  *
  * <p>시나리오 방어:
  * <ol>
@@ -189,8 +190,11 @@ public class PortalVideoUploadService {
 
         String extension = resolveExtension(outcome.orgnlFileNm());
         String mime = EXT_TO_MIME.getOrDefault(extension, "video/mp4");
+        // ★ 완료 검증에 이미 쓴 프로브 결과를 그대로 넘겨 길이·프레임률을 <b>업로드 확정 시점</b>에
+        //   적재한다(순서 반전). 마킹이 추출보다 앞서므로 그 두 값이 마킹 시점에 이미 있어야 한다.
         Long uldSn = txService.finalizeCompleted(uldId, outcome.portalUserNo(), outcome.orgnlFileNm(),
-                outcome.filePathNm(), outcome.lengthBytes(), mime);
+                outcome.filePathNm(), outcome.lengthBytes(), mime,
+                probe.durationSec(), probe.fps());
         return new PortalTusPatchResult(outcome.newOffset(), true, uldSn);
     }
 

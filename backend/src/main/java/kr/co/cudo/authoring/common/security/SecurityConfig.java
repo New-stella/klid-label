@@ -47,6 +47,11 @@ public class SecurityConfig {
     private final Environment environment;
     private final HmacWebhookFilter hmacWebhookFilter;
     private final StreamSignatureFilter streamSignatureFilter;
+    /**
+     * 포털 업로드 영상 스트림의 단기 서명 인증 필터 — 재생 요소가 인증 헤더를 싣지 못하는 제약
+     * 때문에 채널을 가리지 않고 필요하다(@design API-239).
+     */
+    private final kr.co.cudo.authoring.portal.config.PortalStreamSignatureFilter portalStreamSignatureFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -156,9 +161,19 @@ public class SecurityConfig {
                             // 쓰기 핸들러는 메서드 @PreAuthorize 로 REVIEWER 강제.
                             .requestMatchers("/v1/notices", "/v1/notices/**").hasAnyRole(Role.REVIEWER.name(), Role.WORKER.name())
                             // R5-1: 채널 격리 — 포털 API 는 PORTAL 채널 토큰만 (CHANNEL_PORTAL + PORTAL_USER role).
+                            //
+                            // PORTAL_STREAM_SIGNED 는 예외로 함께 허용한다 — 재생 요소가 인증 헤더를 싣지
+                            // 못해 단기 서명으로 들어오는 경로이며, 그 컨텍스트에는 역할 권한을 부여하지
+                            // 않는다(권한 확대 방지). 이 권한을 받아들이는 자리는 스트림 창구 한 곳뿐이고
+                            // (@PreAuthorize), 나머지 포털 창구는 여전히 ROLE_PORTAL_USER 를 요구한다.
+                            // 소유자 판정은 창구가 소유자 스코프 조회로 별도 강제한다.
                             .requestMatchers("/v1/portal/**")
-                                .access(allOf(roleHierarchy,
-                                        "ROLE_" + Role.PORTAL_USER.name(), "CHANNEL_" + Channel.PORTAL.name()))
+                                .access(allOf(
+                                        hasAuthority(roleHierarchy, "CHANNEL_" + Channel.PORTAL.name()),
+                                        anyOf(roleHierarchy,
+                                              "ROLE_" + Role.PORTAL_USER.name(),
+                                              kr.co.cudo.authoring.portal.config.PortalStreamSignatureFilter
+                                                      .AUTHORITY_PORTAL_STREAM_SIGNED)))
                             // R5-1: 그 외 모든 내부 /v1/** API 는 INTERNAL 채널 토큰만.
                             // channel 클레임 없는 토큰은 JwtAuthenticationFilter 에서 INTERNAL 로 기본값 처리되므로
                             // 기존 내부 사용자 토큰 호환(fail-closed: 무클레임=INTERNAL → 내부 허용, 외부 노출 없음).
@@ -190,7 +205,9 @@ public class SecurityConfig {
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 // 영상 스트림 단기 서명 URL 인증 — JWT 필터 뒤에 두어, Authorization 헤더 경로가 우선되고
                 // 헤더가 없을 때만 서명 쿼리(exp/sig)를 검증한다 (fail-closed).
-                .addFilterAfter(streamSignatureFilter, JwtAuthenticationFilter.class);
+                .addFilterAfter(streamSignatureFilter, JwtAuthenticationFilter.class)
+                // 포털 업로드 영상 스트림 단기 서명 인증 — 같은 이유로 JWT 필터 뒤에 둔다(헤더 경로 우선).
+                .addFilterAfter(portalStreamSignatureFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 

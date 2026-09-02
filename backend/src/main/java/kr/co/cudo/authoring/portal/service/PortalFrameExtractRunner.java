@@ -4,8 +4,6 @@ import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
-import kr.co.cudo.authoring.sysconfig.ConfigKeys;
-import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -31,12 +29,18 @@ import java.util.stream.Stream;
  * <p>트랜잭션 경계는 {@link PortalFrameExtractTxService} 로 위임하고, ffmpeg 루프(장시간 I/O)는
  * 트랜잭션 밖에서 수행한다.
  * <ol>
- *   <li>#4 러너 진입 시 UPLOADED→PROCESSING 원자 전이(전이 실패=삭제/중복이면 즉시 중단).</li>
+ *   <li>#4 러너 진입 시 추출 계획 확정 — 자산이 여전히 추출 중인지 확인하고 <b>마킹이 정한 프레임
+ *       번호</b>를 받는다(상태 전이는 마킹 저장이 이미 했다). 아니면 즉시 중단.</li>
  *   <li>#6 ffprobe 길이/fps(타임아웃은 probe 구현), fps 미상 시 30 폴백.</li>
- *   <li>#8 프레임 간격은 시작 시 sysconfig 스냅샷 1회. #9 상한(maxFrames) 초과 시 균등 샘플링, 최소 1.</li>
  *   <li>#5 프레임 전체 추출 후 원자 커밋(READY). 진행 중 자산 삭제 감지 시 즉시 중단 + 파일 정리.</li>
  *   <li>#7 ffmpeg 실패 시 부분 파일 정리 + markFailed.</li>
  * </ol>
+ *
+ * <h3>★ 프레임 번호를 이 러너가 계산하지 않는다 (2026-09-02 순서 반전)</h3>
+ * <p>구 동작은 업로드 직후 <b>고정 간격</b>으로 뽑는 것이었고 간격은 운영 설정에서 왔다. 지금은
+ * 사용자가 저장한 마킹이 지점을 정하며, 추출 장수 상한 반영도 저장 시점에 이미 끝나 있다. 그
+ * 고정 간격 동작은 폐지된 것이 아니라 <b>자동 마킹의 기본값으로 흡수</b>됐다 — 간격을 그대로 두고
+ * 저장하면 같은 결과가 나온다.
  *
  * <h3>★ 하트비트 — 「무갱신 경과」 판정을 살리는 쪽 계약</h3>
  * <p>고착 스윕({@code PortalUploadSweepJob#failStuckUploads})은 <b>최종 변경 일시가 갱신되지 않은 채
@@ -59,8 +63,6 @@ import java.util.stream.Stream;
 public class PortalFrameExtractRunner {
 
     private static final String FRAMES_SUBDIR = "frames";
-    /** sysconfig 미설정 시 프레임 간격 폴백(초). */
-    private static final int DEFAULT_INTERVAL_SEC = 5;
     /** fps 미상 시 폴백. */
     private static final double DEFAULT_FPS = 30.0;
 
@@ -78,7 +80,6 @@ public class PortalFrameExtractRunner {
     private final PortalFrameExtractTxService txService;
     private final PortalVideoProbe videoProbe;
     private final FfmpegFrameExtractor.FrameWriter frameWriter;
-    private final SystemConfigService systemConfigService;
     private final PortalUploadProperties properties;
     private final Path storageRoot;
     /** 단조 시각 원천(ns) — 하트비트 간격 판정용. 테스트가 가짜 시계를 주입한다. */
@@ -90,22 +91,19 @@ public class PortalFrameExtractRunner {
     public PortalFrameExtractRunner(PortalFrameExtractTxService txService,
                                     PortalVideoProbe videoProbe,
                                     FfmpegFrameExtractor.FrameWriter frameWriter,
-                                    SystemConfigService systemConfigService,
                                     PortalUploadProperties properties) {
-        this(txService, videoProbe, frameWriter, systemConfigService, properties, System::nanoTime);
+        this(txService, videoProbe, frameWriter, properties, System::nanoTime);
     }
 
     /** 시각 원천 주입 생성자 — 하트비트 간격 검증(회귀 가드) 전용. */
     public PortalFrameExtractRunner(PortalFrameExtractTxService txService,
                                     PortalVideoProbe videoProbe,
                                     FfmpegFrameExtractor.FrameWriter frameWriter,
-                                    SystemConfigService systemConfigService,
                                     PortalUploadProperties properties,
                                     LongSupplier nanoTime) {
         this.txService = txService;
         this.videoProbe = videoProbe;
         this.frameWriter = frameWriter;
-        this.systemConfigService = systemConfigService;
         this.properties = properties;
         this.storageRoot = Paths.get(properties.storagePath()).toAbsolutePath().normalize();
         this.nanoTime = nanoTime;
@@ -141,13 +139,16 @@ public class PortalFrameExtractRunner {
 
     /** 동기 추출 본체 — 단위 테스트가 직접 호출 가능. */
     void extract(Long uldSn) {
-        // #4: UPLOADED → PROCESSING 원자 전이. 실패면 삭제/중복 → 즉시 중단.
-        Optional<PortalUploadAsset> begun = txService.beginProcessing(uldSn);
-        if (begun.isEmpty()) {
-            log.info("[PortalFrame] skip — not UPLOADED or deleted uldSn={}", uldSn);
+        // #4: 추출 계획 확정 — 자산이 여전히 추출 중인지 확인하고 <마킹이 정한> 프레임 번호를 받는다.
+        //     상태 전이는 마킹 저장이 이미 했다(순서 반전) — 여기서 다시 전이시키면 0행이 되어
+        //     정상 추출이 통째로 중단된다.
+        Optional<PortalExtractionPlan> planned = txService.beginExtraction(uldSn);
+        if (planned.isEmpty()) {
+            log.info("[PortalFrame] skip — not PROCESSING, deleted, or no marked frames uldSn={}", uldSn);
             return;
         }
-        PortalUploadAsset uld = begun.get();
+        PortalUploadAsset uld = planned.get().asset();
+        List<Integer> frameNumbers = planned.get().frameNumbers();
         Path source = Paths.get(uld.filePathNm());
         Path outputDir = resolveSafeFramesDir(uldSn);
         List<Path> written = new ArrayList<>();
@@ -156,14 +157,12 @@ public class PortalFrameExtractRunner {
                 throw new IllegalStateException("영상 파일이 존재하지 않습니다.");
             }
             // #6: 길이/fps 프로브(타임아웃은 구현 내부). fps 미상 시 폴백.
+            //     ★ 프레임 번호는 여기서 계산하지 않는다 — 마킹이 이미 정했고 추출 장수 상한도
+            //       저장 시점에 반영됐다. 프로브는 길이·프레임률을 <최신 값으로 다시 확정>하기 위한 것이며,
+            //       업로드 확정 시점에 적재한 값과 같은 값이 다시 쓰인다(무해한 재확정).
             PortalVideoProbe.Result probe = videoProbe.probe(source);
             double fps = probe.fps() > 0 ? probe.fps() : DEFAULT_FPS;
             double duration = probe.durationSec();
-            // #8: 프레임 간격 sysconfig 스냅샷 1회.
-            int intervalSec = snapshotIntervalSec();
-
-            // #9: 간격 × 상한 → 프레임 번호 목록(균등 샘플링, 최소 1).
-            List<Integer> frameNumbers = computeFrameNumbers(duration, fps, intervalSec, properties.maxFrames());
 
             Files.createDirectories(outputDir);
             List<LsDataSrc> frames = new ArrayList<>(frameNumbers.size());
@@ -207,60 +206,6 @@ public class PortalFrameExtractRunner {
             cleanup(written, outputDir);
             txService.markFailed(uldSn, "프레임 추출 실패: " + e.getClass().getSimpleName());
             log.warn("[PortalFrame] extract failed uldSn={} cause={}", uldSn, e.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * 프레임 번호 목록 계산(순수 로직 — #8/#9 검증 대상).
-     *
-     * <p>간격(초)×fps 로 후보 프레임 번호를 만들고, 개수가 {@code maxFrames} 를 넘으면 전체 구간을
-     * 균등 샘플링하여 상한 이내로 재계산한다. 영상 길이가 간격보다 짧아도 최소 1프레임(0번)을 보장한다.
-     */
-    public static List<Integer> computeFrameNumbers(double durationSec, double fps, int intervalSec, int maxFrames) {
-        double effFps = fps > 0 ? fps : DEFAULT_FPS;
-        int effInterval = intervalSec > 0 ? intervalSec : DEFAULT_INTERVAL_SEC;
-        int cap = Math.max(1, maxFrames);
-        long totalFrames = Math.max(1L, Math.round(durationSec * effFps));
-        long step = Math.max(1L, Math.round(effInterval * effFps));
-
-        List<Integer> candidates = new ArrayList<>();
-        for (long n = 0; n < totalFrames; n += step) {
-            candidates.add((int) n);
-        }
-        if (candidates.isEmpty()) {
-            candidates.add(0); // #9: 최소 1프레임.
-        }
-        if (candidates.size() <= cap) {
-            return candidates;
-        }
-        // #9: 상한 초과 → [0, totalFrames) 를 cap 개로 균등 재샘플링(중복 제거·단조 증가).
-        List<Integer> sampled = new ArrayList<>(cap);
-        double stride = (double) totalFrames / cap;
-        int last = -1;
-        for (int i = 0; i < cap; i++) {
-            int frameNo = (int) Math.floor(i * stride);
-            if (frameNo <= last) {
-                frameNo = last + 1;
-            }
-            if (frameNo >= totalFrames) {
-                break;
-            }
-            sampled.add(frameNo);
-            last = frameNo;
-        }
-        if (sampled.isEmpty()) {
-            sampled.add(0);
-        }
-        return sampled;
-    }
-
-    private int snapshotIntervalSec() {
-        try {
-            Integer v = systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FRAME_INTERVAL_SEC);
-            return v != null && v > 0 ? v : DEFAULT_INTERVAL_SEC;
-        } catch (RuntimeException e) {
-            log.warn("[PortalFrame] interval config unavailable — fallback {}", DEFAULT_INTERVAL_SEC);
-            return DEFAULT_INTERVAL_SEC;
         }
     }
 

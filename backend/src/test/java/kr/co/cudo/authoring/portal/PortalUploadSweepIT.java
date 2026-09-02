@@ -77,7 +77,7 @@ class PortalUploadSweepIT {
 
         // 사전 조건 확인 — 스윕 전 두 행 모두 존재
         assertThat(sessionExists(sessionId)).isTrue();
-        assertThat(uldStatus(stuckUldSn)).isEqualTo(PortalUploadLedger.STATUS_UPLOADED);
+        assertThat(uldStatus(stuckUldSn)).isEqualTo(PortalUploadLedger.STATUS_PROCESSING);
 
         // when — 스윕 오케스트레이션 실행(벌크 갱신·삭제는 별 tx 빈에 위임되어 실 트랜잭션에서 실행)
         assertThatCode(sweepJob::run).doesNotThrowAnyException();
@@ -87,9 +87,34 @@ class PortalUploadSweepIT {
         assertThat(uldStatus(stuckUldSn)).isEqualTo(PortalUploadLedger.STATUS_FAILED);
     }
 
+    /**
+     * ★ 되돌림 실증 — <b>마킹 대기 자산은 방치가 아니다</b>(2026-09-02 순서 반전).
+     *
+     * <p>「업로드됨」의 뜻이 「추출 대기」에서 <b>「마킹 대기」</b>로 바뀌었다. 사람이 화면에 들어와
+     * 지점을 고를 때까지의 상태라 며칠이 걸려도 정상인데, 구 규칙대로 두면 커트라인(기본 30분)마다
+     * 실패로 마감되고 실패 보존기간 뒤 <b>비가역 삭제</b>된다. 되살리면 이 시험이 빨개진다.
+     */
     @Test
-    @DisplayName("★상태_행이_아예_없는_자산도_방치_전이가_된다 — 부재는_업로드됨이다")
-    void assetWithoutStatusRowIsStillSwept() {
+    @DisplayName("★마킹_대기_자산은_방치_전이_대상이_아니다 — 구_업로드됨_스윕_폐지")
+    void awaitingMarkingAssetIsNotSwept() {
+        String owner = "portal-sweep-awaiting-" + System.nanoTime();
+        long uldSn = saveStuckUpload(owner, LocalDateTime.now().minusHours(1));
+        // 마킹 대기로 되돌린다(저장 창구가 넘기기 전 상태).
+        jdbc.update("UPDATE ls_data_meta SET meta_vl = ? WHERE raw_sn = ? AND meta_key = ?",
+                PortalUploadLedger.STATUS_UPLOADED, uldSn, PortalUploadLedger.KEY_UPLOAD_STATUS);
+
+        sweepJob.failStuckUploads();
+
+        assertThat(uldStatus(uldSn)).isEqualTo(PortalUploadLedger.STATUS_UPLOADED);
+    }
+
+    /**
+     * ★ 상태 행이 아예 없는 자산(= 마킹 대기)도 같은 이유로 대상이 아니다. 삽입 겸 갱신을 되살리면
+     * 상태를 기록하기 전 정상 자산이 곧바로 실패가 된다.
+     */
+    @Test
+    @DisplayName("★상태_행이_없는_자산도_방치_전이_대상이_아니다 — 부재는_마킹_대기다")
+    void assetWithoutStatusRowIsNotSwept() {
         String owner = "portal-sweep-nostatus-" + System.nanoTime();
         long uldSn = saveStuckUpload(owner, LocalDateTime.now().minusHours(1));
         // 상태 행을 통째로 지워 「아직 기록되지 않은」 상태를 만든다.
@@ -98,8 +123,7 @@ class PortalUploadSweepIT {
 
         sweepJob.failStuckUploads();
 
-        // 단순 UPDATE 로 되돌리면 대상 행이 없어 0행이 되고, 이 자산은 영영 방치로 남는다.
-        assertThat(uldStatus(uldSn)).isEqualTo(PortalUploadLedger.STATUS_FAILED);
+        assertThat(uldStatus(uldSn)).isEqualTo(PortalUploadLedger.STATUS_UPLOADED);
     }
 
     @Test
@@ -153,9 +177,18 @@ class PortalUploadSweepIT {
     }
 
     /** 방치 판정 대상 자산 — 상태 변경 시각을 과거로 밀어 둔다. */
+    /**
+     * 방치 후보 — <b>후처리 중</b>으로 두고 갱신 시각을 과거로 민다. 마킹 대기 상태는 사람을
+     * 기다리는 상태라 더 이상 방치 후보가 아니다(순서 반전).
+     */
     private long saveStuckUpload(String owner, LocalDateTime lastTouchedAt) {
         Long uldSn = txTemplate.execute(s -> assetRepository.insertUploaded(
                 owner, "/p/v.mp4", "v.mp4", "video/mp4", 1024L));
+        txTemplate.execute(s -> {
+            assetRepository.upsertMeta(uldSn, PortalUploadLedger.KEY_UPLOAD_STATUS,
+                    PortalUploadLedger.STATUS_PROCESSING);
+            return null;
+        });
         jdbc.update("UPDATE ls_data_raw SET mdfcn_dt = ? WHERE raw_sn = ?",
                 Timestamp.valueOf(lastTouchedAt), uldSn);
         jdbc.update("UPDATE ls_data_meta SET reg_dt = ?, mdfcn_dt = ?"

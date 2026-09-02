@@ -103,7 +103,11 @@ class PortalFrameExtractHeartbeatTest {
     void heartbeatGapStaysUnderStuckCutline() throws Exception {
         // given — 60초 영상(간격 5초 → 12프레임). 프레임 1장을 뽑는 데 5분이 걸린다고 가정하면
         //   전체는 60분으로 커트라인(30분)의 2배다. 그래도 «무갱신» 경과는 커트라인 밑이어야 한다.
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
+        // 마킹이 12지점(간격 5초 상당)을 정했다고 둔다 — 러너는 그것을 그대로 뽑는다.
+        java.util.List<Integer> marked =
+                java.util.stream.IntStream.range(0, 12).map(i -> i * 150).boxed().toList();
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.of(
+                new kr.co.cudo.authoring.portal.service.PortalExtractionPlan(processingUld(), marked)));
         doAnswer(inv -> {
             Path out = inv.getArgument(1);
             Files.createDirectories(out.getParent());
@@ -114,7 +118,7 @@ class PortalFrameExtractHeartbeatTest {
 
         PortalFrameExtractRunner runner = new PortalFrameExtractRunner(
                 txService, path -> new PortalVideoProbe.Result(true, 60.0, 30.0),
-                frameWriter, systemConfigService, props(), fakeNanos::get);
+                frameWriter, props(), fakeNanos::get);
 
         // when
         runner.runAsync(ULD_SN);

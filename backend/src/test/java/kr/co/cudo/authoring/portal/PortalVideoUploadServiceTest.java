@@ -4,9 +4,9 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalTusCreateCommand;
-import kr.co.cudo.authoring.portal.event.PortalVideoUploadedEvent;
 import kr.co.cudo.authoring.portal.upload.PortalTusSessionRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.portal.service.PortalVideoProbe;
 import kr.co.cudo.authoring.portal.service.PortalVideoUploadService;
@@ -31,10 +31,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -79,7 +81,7 @@ class PortalVideoUploadServiceTest {
                 List.of("jpg", "jpeg", "png"), 20_971_520L, 50, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
         PortalVideoUploadTxService txService = new PortalVideoUploadTxService(
-                tusRepository, assetRepository, props, eventPublisher);
+                tusRepository, assetRepository, props);
         return new PortalVideoUploadService(tusRepository, props, probe, txService);
     }
 
@@ -90,8 +92,8 @@ class PortalVideoUploadServiceTest {
     // ======================== 완료 + 이벤트 ========================
 
     @Test
-    @DisplayName("TUS_업로드_완료시_UPLOADED_상태와_이벤트_발행")
-    void completesToUploadedAndPublishesEvent() {
+    @DisplayName("TUS_업로드_완료시_UPLOADED_상태와_길이·프레임률_적재")
+    void completesToUploadedAndPersistsProbeResult() {
         byte[] full = mp4(16);
         UUID id = service.createSession(OWNER, cmd(16));
 
@@ -101,24 +103,47 @@ class PortalVideoUploadServiceTest {
         assertThat(r.uldSn()).isNotNull();
         // 자산은 영상 원장의 포털 출처 행으로 적재된다(업로드됨 상태를 함께 기록).
         verify(assetRepository).insertUploaded(eq(OWNER), any(), eq("myvideo.mp4"), eq("video/mp4"), eq(16L));
-        verify(eventPublisher).publishEvent(eq(new PortalVideoUploadedEvent(r.uldSn())));
+        // ★ 순서 반전 — 길이·프레임률은 추출이 아니라 <업로드 확정 시점>에 적재된다. 마킹이 추출보다
+        //   앞서므로 그때 이미 있어야 자동 마킹이 지점을 산출할 수 있다.
+        verify(assetRepository).applyVideoDuration(eq(r.uldSn()), eq(60.0));
+        verify(assetRepository).upsertMeta(eq(r.uldSn()),
+                eq(PortalUploadLedger.KEY_FPS), eq("30.0"));
         assertThat(tusRepository.findById(id).orElseThrow().isCompleted()).isTrue();
     }
 
+    /**
+     * ★ 되돌림 실증 — 업로드 완료가 <b>어떤 이벤트도</b> 발행하지 않는다(2026-09-02 순서 반전).
+     *
+     * <p>구 동작은 완료 직후 프레임 추출 이벤트를 발행해 고정 간격으로 뽑는 것이었다. 되살아나면
+     * 마킹하지 않은 자산이 프레임을 갖게 되고, 사용자가 고른 지점으로 다시 뽑을 수단이 없다.
+     */
     @Test
-    @DisplayName("완료_PATCH_중복시_이벤트_1회만_발행")
-    void duplicateCompletionPublishesEventOnce() {
+    @DisplayName("업로드_완료는_어떤_이벤트도_발행하지_않는다_구_자동추출_폐지")
+    void completionPublishesNoEvent() {
+        byte[] full = mp4(16);
+        UUID id = service.createSession(OWNER, cmd(16));
+
+        var r = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full), 16);
+
+        assertThat(r.completed()).isTrue();
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("완료_PATCH_중복시_자산_적재도_1회만")
+    void duplicateCompletionInsertsOnce() {
         byte[] full = mp4(16);
         UUID id = service.createSession(OWNER, cmd(16));
         var first = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full), 16);
         assertThat(first.completed()).isTrue();
 
-        // 마지막 청크 재전송 — 이미 COMPLETED → 멱등 응답, 이벤트 재발행 없음.
+        // 마지막 청크 재전송 — 이미 COMPLETED → 멱등 응답, 자산 재적재 없음.
         var again = service.appendChunk(id, OWNER, 0, new ByteArrayInputStream(full), 16);
 
         assertThat(again.completed()).isTrue();
         assertThat(again.uldSn()).isEqualTo(first.uldSn());
-        verify(eventPublisher, times(1)).publishEvent(any(PortalVideoUploadedEvent.class));
+        verify(assetRepository, times(1))
+                .insertUploaded(any(), any(), any(), any(), anyLong());
     }
 
     // ======================== IDOR (#3) ========================
