@@ -1259,3 +1259,49 @@ MIME 유형 · 원본 파일명 · 업로드 상태 · 실패 사유. 「업로�
 2. **이벤트구간 마킹 저장 모델** — 이번에 **의도적으로 미확정 유지**(3곳에서 갈라 남김)
 3. `ADR-013` 의 `brownfield.decided_by`·`legacy_source` 부재 경고 2건(선재) — 채울지 무시할지
 4. 메인 워크트리 몫 — pin 밖 6건 · 키트 SYNC · 정적 렌더 · IMPREC
+
+### 10-27. 압축 전 인계 — 도구 사실과 작업 자산 (2026-09-02)
+
+#### ★필드 길이 상한 (지침에 없어 매번 거부당하고 나서야 안다)
+실제로 이번 라운드에서 **두 번 거부**됐다 — 시퀀스 메시지 라벨 234자(상한 200)와
+ERD 테이블 서술 2029자(상한 2000). 둘 다 쓰기가 통째로 실패하고 버전이 오르지 않는다.
+
+| 자리 | 상한 |
+|---|---|
+| `diagram_sequence.messages[].label` | **200** |
+| `erd.tables[].description` | **2000** |
+| `erd.tables[].columns[].description` | 500 |
+| `use_case.tech_considerations[]` 원소 | 500 |
+| `use_case.description` | 4000 |
+| `domain.description` | 10000 |
+| `domain.ubiquitous_language[].meaning` | 500 |
+
+⚠ **`ERD-010` 의 `LS_DATA_META.description` 은 1983/2000 이라 여백이 17자다.** 다음에 그 표에
+사실을 더하려면 **압축·재구성이 선행**돼야 한다. 근거 3축을 메시지 라벨에 다 싣는 것도 대개 불가능하니
+**전문은 설명·본문이 지고 라벨은 압축본**을 두는 배분을 쓴다.
+
+#### 도구 사실 (모르면 헛돈다)
+- **`list_items` 는 `type` 이 필수**다. 도메인만 주면 enum 오류가 난다. 도메인 전량을 훑으려면
+  로컬 키트의 `.kit-scope.json` `items` 배열을 모집단으로 쓴다.
+- **`change_kind` 값역은 `editorial`·`semantic`·`contract` 셋뿐**이다(`metadata` 는 없다).
+- **`domain_id` 는 이 프로젝트에서 안 쓴다** — 이번에 확인한 것만 해도 `AC-1070`·`ERD-028` 처럼
+  **pin 안에 있는 ITEM 도 `domain_id` 가 비어 있다.** 스코프의 정본은 **pin** 이다.
+  ⇒ pin 밖 ITEM 을 `domain_id` 로 끌어들이려 하지 말 것. **pin 편집은 메인 워크트리 몫.**
+- **`list_revisions`·`get_revision_diff` 는 이 서버에 없다.** REST `/versions` 는 API 키로 401
+  (세션 전용)이다. ⇒ **「어느 필드가 언제 왜 바뀌었는지」를 이력으로 확인할 수단이 없다.**
+  대신 **「하류 본문 ↔ 상류 현재 결정」 대조**로 실질 갭을 판정한다(이번에 `DFEAT-044` 를 그렇게 잡았다).
+
+#### 작업 자산 (다음 라운드에서 재사용)
+스크래치패드 `.../50e4175a-.../scratchpad/`:
+- `r3.py` — MCP over HTTP 호출기. `from r3 import call, get, PROJ` 로 쓴다(`get(id)` 가 ITEM 반환)
+- `fetch.py`·`mycall.sh`·`patch2.py` — 구 라운드 호출기(§10-23). 병행 사용 가능
+- `SHARED-ADR058.md` · `SHARED-LANDING.md` · `SHARED-AUG.md` — **위임용 확정 블록 3종.**
+  다음 위임에도 그대로 쓰거나 같은 골격으로 새로 쓴다(확정·근거·함정·쓰기 규율 네 절)
+- `kit.json` — **프로젝트 전량 2,641 ITEM 덤프**(2026-09-01T15:23Z). 전량 본문 스캔의 모집단.
+  ⚠ 그 뒤 이 세션이 30건 넘게 고쳤으니 **대상 탐색에만 쓰고 판정은 재조회로** 한다
+- `r3/` — 이번 라운드 baseline·expected·after 스냅샷
+
+#### ★에이전트 severity 를 작업으로 받지 말 것 (이번에 두 번)
+- `SEQ-019` 수정을 **두 담당이 high 로** 올렸으나 그 시퀀스는 증강을 **의도적으로 스코프 아웃**했다.
+- 「API 11건이 옛 테이블을 이름 부를 **개연이 크다**」로 high 가 올라왔으나 실측 **0건**이었다.
+⇒ 담당이 근거로 「개연」·「가능성」을 쓰면 **실측으로 닫고 나서** 작업 목록에 넣는다.
