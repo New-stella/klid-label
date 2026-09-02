@@ -19,7 +19,7 @@
 | 00 | [로컬 자족 실행 (외부 0개 테스트)](00-local-setup.md) | docker/native 기동, dev 토큰 인증, 시나리오별 검증 경로, 외부0개 토글 (ai-server CPU 실추론·YOLOX) |
 | 01 | [시스템 개요](01-system-overview.md) | 목적·범위·범위 외·역할·기술스택·핵심 파이프라인 |
 | 02 | [아키텍처](02-architecture.md) | 모노레포·레이어·공통 인프라·ai-server 분리·단일 데이터소스(구 듀얼 — 2026-08-31 철거) |
-| 03 | [인증 · 권한 · 역할](03-auth-roles.md) | JWT 인계, REVIEWER/WORKER/PORTAL_USER, 진입 |
+| 03 | [인증 · 권한 · 역할](03-auth-roles.md) | JWT 인계, ADMIN/REVIEWER/WORKER/PORTAL_USER, 진입 |
 | 04 | [화면 · IA](04-screens-ia.md) | `SCREEN-NNN`(32개, 축약 `SC-NNN` — 2026-08-19 코드 실측, 구 `KLID-AT-SC-NNN` 서술 폐기) 화면, 내부/포털 채널, 라우트 |
 | 05 | [영상 관리 · 업로드](05-video-management.md) | LS_DATA_RAW, TUS 업로드, 스트리밍, 등록 |
 | 06 | [마킹](06-marking.md) | 자동/수동 마킹, 스트리밍, 배치 트리거 |
