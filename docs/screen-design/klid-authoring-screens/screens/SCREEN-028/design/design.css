@@ -379,6 +379,23 @@ a.btn, a.btn:hover { text-decoration: none; }
   .video-foot { width: 100%; justify-content: flex-start; }
 }
 
+/* ── 목록 페이저 (UI-008 Pagination) ──────────────────────────────
+ * 소비 창구가 페이지 단위로 내려주므로 쪽을 옮길 수단이 없으면 첫 쪽에 있는 작업에만
+ * 도달하고 그 뒤의 작업은 이어서 하거나 내려받을 길이 없어진다.
+ * 내부 목록 화면이 쓰는 관례를 그대로 가져왔다.
+ */
+.pagination { display: flex; align-items: center; justify-content: center; gap: var(--sp-xs); margin-top: var(--sp-lg); }
+.page-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 40px; padding: 0 var(--sp-sm);
+  border-radius: var(--radius-md); border: 1px solid transparent;
+  background: transparent; color: var(--n-7);
+  font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+}
+.page-btn:hover { background: var(--n-0); }
+.page-btn[aria-current="page"] { background: var(--p-5); color: var(--bg-page); font-weight: 600; }
+.page-btn[aria-disabled="true"] { color: var(--n-3); cursor: not-allowed; pointer-events: none; }
+
 /* ── 게시 렌더 보정 — SVG 획 굵기 ────────────────────────────────────
  * ★ 게시 렌더는 HTML 의 `stroke-width` 속성을 지운다. 알려진 '표현 정규화' 와 달리
  *   이건 속성을 **삭제**하는 축이라, 속성이 사라지면 SVG 기본값 1 로 그려져 아이콘이 얇아진다.
