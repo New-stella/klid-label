@@ -23,10 +23,10 @@ describe('augment api', () => {
     mock.restore();
   });
 
-  // BE 계약(v1.3, 2026-08-27): videoIds·types 는 각각 길이 1, `evntType` 과 `mtdt` 는 **필수**.
+  // BE 계약(v1.3 + ADR-059): videoIds·types 는 각각 길이 1이고 types 는 단일값 `AUGMENT` 다.
   // `mtdt` 는 최상위 객체이고 `prompt` 는 **자유 지시문 문자열**이다(구 5필드 객체 prompt 는 400).
-  // `evntSubtype` 은 침수일 때만 싣는다 — 산불과 함께 보내면 BE 가 400 이다.
-  it('requestAugment_POST_augments_request_요청_바디_mtdt_evntType_prompt_전달', async () => {
+  // ⚠ `evntType`·`evntSubtype` 은 요청 본문에서 **사라졌다** — 서버가 중립값을 고정 송신한다.
+  it('requestAugment_POST_augments_request_요청_바디_types_mtdt_prompt_전달', async () => {
     let body: unknown;
     mock.onPost('/augments/request').reply((config) => {
       body = JSON.parse(config.data ?? '{}');
@@ -48,9 +48,7 @@ describe('augment api', () => {
 
     const res = await requestAugment({
       videoIds: [1],
-      types: ['WINTER'],
-      evntType: 'FLOOD',
-      evntSubtype: 'ROAD_FLOOD',
+      types: ['AUGMENT'],
       mtdt: {
         time: 'NIGHT',
         season: 'WINTER',
@@ -62,9 +60,7 @@ describe('augment api', () => {
     });
     expect(body).toMatchObject({
       videoIds: [1],
-      types: ['WINTER'],
-      evntType: 'FLOOD',
-      evntSubtype: 'ROAD_FLOOD',
+      types: ['AUGMENT'],
       mtdt: {
         time: 'NIGHT',
         season: 'WINTER',
@@ -76,6 +72,10 @@ describe('augment api', () => {
     });
     // 구 계약(5필드 객체 prompt)으로 되돌아가지 않는다 — prompt 는 문자열이다.
     expect(typeof (body as { prompt: unknown }).prompt).toBe('string');
+    // ⚠ BE 는 모르는 필드를 400 이 아니라 조용히 무시한다 — 값 축으로 고정하지 않으면
+    //   이벤트 유형이 되살아나도 아무 신호가 오지 않는다(ADR-059).
+    expect(body).not.toHaveProperty('evntType');
+    expect(body).not.toHaveProperty('evntSubtype');
     expect(res.jobId).toBe(100);
     expect(res.videoCount).toBe(1);
     expect(res.typeCount).toBe(1);

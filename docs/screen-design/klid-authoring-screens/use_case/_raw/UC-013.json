@@ -1,0 +1,79 @@
+{
+  "item": {
+    "id": "UC-013",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "비식별 옵션 설정",
+    "slug": "비식별-옵션-설정",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "외부 비식별 솔루션이 제공하는 옵션을 관리 화면에서 설정·저장한다.",
+      "actor": "검수자(REVIEWER)",
+      "title": "비식별 옵션 설정",
+      "status": "approved",
+      "priority": "should",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "검수자(REVIEWER)",
+          "action": "관리 화면에서 비식별 옵션을 설정한다"
+        },
+        {
+          "step": 2,
+          "action": "시스템이 옵션을 저장하고 이후 비식별 요청에 적용한다"
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-006",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "외부 비식별 솔루션 옵션 설정 신규"
+      },
+      "description": "외부 비식별 솔루션이 제공하는 옵션을 관리(/manage/*) 화면에서 REVIEWER가 설정·저장한다. (R2 UC-013, RQ-SFR-09-04)",
+      "stakeholders": [],
+      "preconditions": [
+        "REVIEWER로 인증되어 있다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "postconditions": [
+        "비식별 옵션이 저장되어 이후 요청에 반영된다"
+      ],
+      "alternate_flows": [],
+      "realizes_dfeats": [
+        "DFEAT-042"
+      ],
+      "related_screens": [
+        "SCREEN-025"
+      ],
+      "extension_points": [],
+      "secondary_actors": [],
+      "extends_use_cases": [],
+      "realizes_features": [],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-1065"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 12,
+    "stale": true,
+    "stale_reason": "SCREEN-025의 3개 필드 변경 — references",
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 7건이 있었는데 그중 7건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 1건(AC-1065)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:25:51.824Z",
+    "created_at": "2026-06-01T06:26:42.837Z"
+  }
+}

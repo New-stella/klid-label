@@ -2,13 +2,11 @@ package kr.co.cudo.authoring.augment.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
-import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
 
 import java.util.List;
 
@@ -19,22 +17,29 @@ import java.util.List;
  * 본 검증은 Service 레이어에서 수행한다. DTO 단계에서는 형식·허용 코드만 검증한다.
  *
  * <p>해상도 변경(RESOLUTION)은 저작도구가 직접 수행하므로(RQ-SFR-06-03) 외부 증강 위탁
- * 유형에서 제외한다. 외부 증강은 날씨·계절·시간 3종(WINTER/NIGHT/RAIN)만 위탁한다.
+ * 유형에서 제외한다. 외부 증강 종류는 단일값 {@code AUGMENT} 다.
  *
  * <p>단일 선택 계약(2026-06): 한 요청은 <b>영상 1건 + 종류 1개</b>만 처리한다. FE 가
  * 영상 1건·종류 1개만 전송하는 단일 선택 UI 와 정렬하기 위해 배열 모양은 유지하되
  * 정확히 길이 1 만 허용한다(@NotEmpty + @Size(max=1)). 2건 이상이면 400 으로 거부한다.
  *
- * <h3>★ 세 축은 서로를 유추하지 않는다 (2026-08-27 사용자 지적)</h3>
+ * <h3>★ 이벤트 유형은 요청자가 고르지 않는다 (2026-09-02 · ADR-059)</h3>
+ * <p>구 계약은 벤더 필수 필드 {@code evnt_type}(FLOOD/WILDFIRE)과 침수 세부 유형을 <b>요청 본문에서
+ * 받았다</b>. 그 값은 <b>배경 이미지에 무슨 장면을 만들어 넣을지</b>를 정하는 벤더 축인데, 우리 증강은
+ * 이미 이벤트가 담긴 프레임을 변환할 뿐이라 지정할 자리가 없다. 게다가 우리 이벤트 체계는 넓은데
+ * 벤더 허용값은 둘뿐이라 대응되지 않는 영상은 <b>사실과 다른 값</b>을 고를 수밖에 없었다.
+ * 이제 <b>서버가 위탁 시점에 중립값을 고정 송신</b>하고 세부 유형은 아예 보내지 않는다
+ * ({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC}). <b>요청 본문에 그 필드를 되살리지 말 것.</b>
+ *
+ * <h3>★ 두 축은 서로를 유추하지 않는다 (2026-08-27 사용자 지적)</h3>
  * <table>
  *   <tr><th>축</th><th>필드</th><th>값</th></tr>
- *   <tr><td>증강 종류(저작도구 내부 식별자)</td><td>{@link #types}</td><td>WINTER / NIGHT / RAIN</td></tr>
- *   <tr><td>이벤트 유형(벤더 계약값)</td><td>{@link #evntType}</td><td>FLOOD / WILDFIRE</td></tr>
+ *   <tr><td>증강 종류(저작도구 내부 식별자)</td><td>{@link #types}</td><td>{@code AUGMENT} 단일값</td></tr>
  *   <tr><td>생성 조건(벤더 계약값)</td><td>{@link #mtdt}</td><td>다섯 축의 허용 코드</td></tr>
  * </table>
  * <p>이름이 비슷해 섞이기 쉬우나 <b>전혀 다른 값이고 조달처도 다르다</b>.
  * {@link #types} 는 파생 산출물의 저장 경로({@code .../{augTypeCd}.mp4})와 해상도 파생 네임스페이스
- * ({@code RESL_} 접두) 판별에 쓰이므로 <b>반드시 enum 3종으로 닫혀 있어야</b> 하고, 다른 두 축에서
+ * ({@code RESL_} 접두) 판별에 쓰이므로 <b>반드시 enum 으로 닫혀 있어야</b> 하고, 생성 조건에서
  * <b>파생하지 않는다</b> — 흘러들면 경로 순회(CWE-22)와 {@code RESL_} 침범(검수 우회)이 동시에 열린다.
  *
  * <h3>v1.3 — 생성 조건은 {@code mtdt}, 자유 지시문은 {@code prompt}(문자열)</h3>
@@ -42,12 +47,11 @@ import java.util.List;
  * 허용 코드이며 그 단일 원천은 {@link AugmentPrompts} 다(여기에 사본을 만들지 않는다).
  *
  * @param videoIds    검수 완료된 영상 ID — 정확히 1건(양수)
- * @param types       요청 증강 유형 — WINTER / NIGHT / RAIN 중 정확히 1개
- * @param evntType    외부 이벤트 유형 — FLOOD / WILDFIRE (필수)
- * @param evntSubtype 침수 세부 유형 — 선택. {@code evntType=FLOOD} 일 때만 허용
+ * @param types       요청 증강 유형 — {@code AUGMENT} 정확히 1개
  * @param mtdt        구조화 생성 조건 — 다섯 항목 전부 필수(우리 규칙)
  * @param prompt      자유 지시문 — 선택, 1000자 이내
  * @design API-060
+ * @design ADR-059
  */
 public record AugmentRequestRequest(
         @NotEmpty(message = "videoIds 는 필수이며 비어있을 수 없습니다.")
@@ -57,16 +61,6 @@ public record AugmentRequestRequest(
         @NotEmpty(message = "types 는 필수이며 비어있을 수 없습니다.")
         @Size(max = 1, message = "증강 종류는 한 번에 1개만 선택할 수 있습니다.")
         List<@NotNull AugmentTypeCode> types,
-
-        @Schema(description = "외부 생성형 AI 이벤트 유형. 영상의 관제 이벤트 코드에서 서버가 변환하지 "
-                + "않고 요청자가 고른 값을 그대로 싣는다(두 분류 축이 달라 자동 변환은 추정이 된다).",
-                example = "FLOOD", requiredMode = Schema.RequiredMode.REQUIRED)
-        @NotNull(message = "evntType 은 필수입니다.")
-        GenAiContract.EventType evntType,
-
-        @Schema(description = "침수 세부 유형. 선택이며 evntType=FLOOD 일 때만 허용한다"
-                + "(계약에 산불 세부 코드가 정의돼 있지 않다).", example = "ROAD_FLOOD")
-        GenAiContract.FloodSubtype evntSubtype,
 
         @NotNull(message = "mtdt 는 필수입니다.")
         @Valid
@@ -82,21 +76,14 @@ public record AugmentRequestRequest(
     /**
      * 증강 유형 enum — DTO 바인딩 단계에서 잘못된 값 차단 (CWE-20 Input Validation).
      * Jackson 이 enum 매칭 실패 시 400 응답이 자동 반환된다.
+     *
+     * <p><b>단일값이다</b>(ADR-059). 구 3종(WINTER/NIGHT/RAIN)은 생성 조건의
+     * 부분집합이라 종류 카드와 조건이 어긋날 수 있었고, 무엇으로 바꿀지는 이제 {@link Mtdt} 가
+     * 단독으로 정한다. <b>구 3종을 여기에 되살리지 말 것</b> — 그 값들은 이미 만들어진 파생본에만
+     * 남아 있고({@code LsDataAug.AUG_WINTER} 등) 신규 요청 입구의 계약값이 아니다.
      */
     public enum AugmentTypeCode {
-        WINTER, NIGHT, RAIN
-    }
-
-    /**
-     * 침수 세부 유형은 침수일 때만 — 산불과 함께 오면 400 (계약에 산불 세부 코드가 없다).
-     *
-     * <p>DTO 단계에서 끊는 이유는 이 조합이 <b>순수 입력 형식</b> 문제라서다. 서비스도 같은 규칙을
-     * fail-closed 로 재확인한다(서비스를 직접 부르는 경로가 우회하지 못하게).
-     */
-    @AssertTrue(message = "evntSubtype 은 evntType=FLOOD 일 때만 지정할 수 있습니다.")
-    @Schema(hidden = true)
-    public boolean isEvntSubtypeAllowed() {
-        return evntSubtype == null || evntType == GenAiContract.EventType.FLOOD;
+        AUGMENT
     }
 
     /**

@@ -1,18 +1,18 @@
 ---
 logicraft_item: CDIAG-006
 type: class_diagram
-version: 12
+version: 13
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:52.411Z
+synced_at: 2026-09-02T10:52:16.782Z
 status: CHANGED
-prev_version: 11
-content_hash: 46f4195da0a4aa404cd31ee07075aa98faf5c1a508e07fdf4f7941a652bfac63
+prev_version: 12
+content_hash: c4b87b8ebb6a9b871cd6a27e177dee8f4529163e812687d6924fb2601bf5aa18
 stale: false
 raw: ./_raw/CDIAG-006.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]
-  depicts: ["[[DFEAT-021]]", "[[DFEAT-023]]", "[[DFEAT-024]]", "[[DFEAT-025]]"]
+  depicts: ["[[DFEAT-021]]", "[[DFEAT-023]]", "[[DFEAT-024]]", "[[DFEAT-025]]", "[[DFEAT-049]]"]
 ---
 
 # 검수 도메인 모델
@@ -1232,7 +1232,7 @@ _(empty)_
 
 영상 단위(RAW_SN)로 적재 등록·배치/검수 진행 상태(DATA_STTS_CD)를 추적하고, REVIEWER 의 승인/반려 워크플로우·계층형 반려 사유(자기참조 재반려)·검수 이력을 관리하는 검수 도메인 모델. 낙관적 잠금(VERSION)으로 동시 승인 경합을 방어한다. ERD-015 기반.
 
-[★관리자확인요청 폐기] 구 본문의 '승인/반려/관리자확인요청' 3진 워크플로우는 폐기됐다 — 별도 ADMIN 역할이 없고 모든 관리 권한이 REVIEWER 에 통합됐기 때문이다(ADR-003). 검수자↔작업자 소통은 반려·문의 통합 이슈 스레드가 대신한다. 1차/2차 단계 구분도 없는 단일 검수다(ADR-002).
+[★관리자확인요청 폐기] 구 본문의 '승인/반려/관리자확인요청' 3진 워크플로우는 폐기됐다 — 검수는 검수자 1인의 판단으로 종결한다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없고 모든 관리 권한이 REVIEWER 에 통합됐다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받는다. 전제가 무효가 된 것과 기능을 되살리는 것은 다른 축이라 3진 워크플로우를 두지 않는다는 결론은 그대로 유지하며, 재도입 여부는 별도 결정이 필요하다. 검수자↔작업자 소통은 반려·문의를 통합한 이슈 스레드(DFEAT-049)가 대신한다. 1차/2차 단계 구분도 없는 단일 검수다(ADR-002).
 
 [★승인 이후 순서 정정] 구 본문은 'APPROVED 전이 시 관제 TASK_COMPLETED 통지를 트리거'라고 적었으나 통지는 export 가 SUCCEEDED 된 뒤에만 나간다. 실제 체인은 ReviewApproved(EVT-006) → 라벨 전체 스냅샷 + export 전량 재생성 → DatasetExportCompleted(EVT-009) → TaskCompleted(EVT-003) 이다. 통지가 먼저 나가면 관제가 구 버전 폴더를 픽업한다.
 
@@ -1292,6 +1292,7 @@ _(empty)_
 - DFEAT-023
 - DFEAT-024
 - DFEAT-025
+- DFEAT-049
 
 ## implementation
 

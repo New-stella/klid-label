@@ -1,19 +1,20 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 47
+version: 49
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:26.917Z
+synced_at: 2026-09-02T10:52:41.429Z
 status: CHANGED
 prev_version: 47
-content_hash: 8cc23ebfe24b5625a7b124be2945b311a621ef659077bd89b2a857e4d424919a
-stale: true
+content_hash: 828bef1a1f4266c7b68b4bda346e0020de3cfa7b154842855e0603c443eddbb7
+stale: false
 raw: ./_raw/SCREEN-012.json
 links:
   based_on: ["[[ADR-001]]"]
   belongs_to_domain: ["[[DOMAIN-015]]"]
   consumes: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-116]]", "[[API-136]]", "[[API-137]]", "[[API-187]]"]
+  implements: ["[[IMPREC-333]]"]
   migrated_from: ["[[LEGACY-112]]"]
   realizes: ["[[UC-029]]"]
   references: ["[[API-001]]", "[[API-002]]", "[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-073]]", "[[API-116]]", "[[API-136]]", "[[API-137]]"]
@@ -372,7 +373,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(WINTER/NIGHT/RAIN 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다).
+- **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(증강 축 단일값(AUGMENT) 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다). 이미 만들어진 파생본에 남아 있는 WINTER/NIGHT/RAIN 값도 배지에 그대로 표시된다.
 - **type**: Table
 - **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/검수자/액션
 
@@ -820,6 +821,10 @@ web
 - API-116
 - API-187
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -846,6 +851,10 @@ _(empty)_
 
 2026-08-29T01:25:13.851Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-001
@@ -865,8 +874,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: e67d28231829cdbfaaa160e10eaebd9ef3af3c75fdf796eccbdfabd83213d832
-- **generated_at**: 2026-08-26T01:08:05.956Z
+- **source_hash**: b95cdb3e416d39478e2d47c79d69aa8cfe66f4a4c396e5c1877839b6a7b05137
+- **generated_at**: 2026-09-02T08:54:03.125Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -874,6 +883,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 

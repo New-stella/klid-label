@@ -175,6 +175,7 @@
     "AC-1076",
     "ADR-001",
     "ADR-038",
+    "ADR-055",
     "CDIAG-007",
     "MOD-014",
     "CMP-009",
@@ -182,6 +183,9 @@
     "STATE-001",
     "DFEAT-006",
     "ERD-014",
+    "IMPREC-251",
+    "IMPREC-333",
+    "IMPREC-350",
     "LEGACY-112",
     "NFR-008",
     "NFR-009",
@@ -202,6 +206,6 @@
     "SCREEN-008",
     "SCREEN-011"
   ],
-  "last_sync_at": "2026-08-31T11:39:05.384Z",
+  "last_sync_at": "2026-09-02T10:54:14.504Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 수용기준 ID 를 pin 에서 제거(전수 status 조회 근거 126건). 파일은 _retired/ 에 보존된다."
 }

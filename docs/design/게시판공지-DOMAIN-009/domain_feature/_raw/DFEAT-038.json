@@ -14,7 +14,7 @@
       "priority": "could",
       "triggers": [],
       "brownfield": {
-        "notes": "v1 폐기(ADR-011, superseded) → ADR-014로 재도입 정형화. ADMIN→REVIEWER 권한 이관(ADR-003 정합).",
+        "notes": "v1 폐기(ADR-011, superseded) → ADR-014로 재도입 정형화. ADMIN→REVIEWER 권한 이관(당시 근거 ADR-003 은 superseded — ADR-055 가 관리자 역할을 신설했으나 게시판 권한 소유는 검수자로 유지하며, 관리자는 검수자 권한을 계층으로 물려받는다).",
         "status": "modified",
         "decided_by": "ADR-014",
         "change_kind": [
@@ -34,8 +34,9 @@
         "i_want": "공지·가이드라인을 작성하고 발행 상태를 제어하기를",
         "so_that": "작업자에게 작업 규칙·공지를 시의적절한 시점에 전달한다"
       },
-      "description": "REVIEWER 가 공지·가이드라인 게시글을 작성·수정·삭제하고 DRAFT→PUBLISHED 발행/발행취소로 노출을 제어한다. v2 재구현 (R1 외 추가) — 첨부파일은 UUID 안전 파일명 저장 + 원본명 DB 보관. 발행일시(PBLCN_DT)는 현재 발행 상태의 전이 시점만 가리켜 발행 취소 시 비워지고 재발행 시 다시 기록된다(최초 발행 이력 미보존). v2 는 ADMIN 없이 REVIEWER 가 관리 권한 통합 보유. 화면: 작성(/notice/new, SCREEN-036)·수정(/notice/:id/edit, SCREEN-037). (1차 baseline: SKKLID-UI-03-06-01~04, 관리자 작성)",
+      "description": "REVIEWER 가 공지·가이드라인 게시글을 작성·수정·삭제하고 DRAFT→PUBLISHED 발행/발행취소로 노출을 제어한다. v2 재구현 (R1 외 추가) — 첨부파일은 UUID 안전 파일명 저장 + 원본명 DB 보관. 발행일시(PBLCN_DT)는 현재 발행 상태의 전이 시점만 가리켜 발행 취소 시 비워지고 재발행 시 다시 기록된다(최초 발행 이력 미보존). 게시판 관리 권한은 검수자(REVIEWER) 소유다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없어 검수자가 관리 권한을 통합 보유한다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받아 이 기능에서 배제되지 않는다. 권한 소유를 검수자로 두는 결론은 그대로 유지한다. 화면: 작성(/notice/new, SCREEN-036)·수정(/notice/:id/edit, SCREEN-037). (1차 baseline: SKKLID-UI-03-06-01~04, 관리자 작성)",
       "invokes_apis": [],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -44,7 +45,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:26:21.703Z"
+        "last_updated": "2026-08-29T01:26:21.703Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -67,12 +69,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
-    "stale": true,
-    "stale_reason": "API-108의 data.brownfield 변경 — implements",
-    "change_summary": "비고에 남아 있던 점검 회차 작업 로그를 걷어낸다. 설계 산출물 본문은 이 저장소의 작업 이력을 모르는 사람도 그대로 읽을 수 있어야 하고, 어느 회차에 무엇을 재확인했는지는 리비전 이력이 이미 담고 있다. 남길 사실(1차 폐기와 재도입 계보, 권한 이관)은 그대로 둔다. 아울러 제목·설명·사용자 스토리에는 반영된 관리자에서 검수자로의 권한 이관이 식별 문자열에만 남아 있어 현재 제목에 맞춰 맞춘다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:21.703Z",
+    "current_version": 16,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "폐기된 역할 결정을 현행 근거로 인용하던 자리를 정정한다. 본문이 게시판 관리 권한을 검수자가 갖는 근거로 들던 '별도 ADMIN 역할이 없다'는 전제는 superseded 결정의 것이고, 그 뒤 관리자 역할이 신설되면서 무효가 됐다 — 그 사실과 관리자가 검수자 권한을 계층으로 물려받아 이 기능에서 배제되지 않는다는 점이 드러나게 고쳤다. ★권한 소유를 검수자로 두는 결론과 제목의 역할 표기는 그대로 유지한다. 비고의 권한 이관 기록에도 같은 정정을 적용했다. 문형은 같은 축을 먼저 정리한 형제 산출물에 맞췄다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-02T01:54:27.543Z",
     "created_at": "2026-05-29T06:33:42.930Z"
   }
 }

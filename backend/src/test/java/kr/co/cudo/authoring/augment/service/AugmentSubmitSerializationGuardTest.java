@@ -95,7 +95,7 @@ class AugmentSubmitSerializationGuardTest {
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, "WINTER", MTDT, null, "FLOOD", null, "AUG-guard",
+                7L, 700L, "AUGMENT", MTDT, null, "AUG-guard",
                 "http://localhost:8080/api/v1/genai/callback", "1");
     }
 

@@ -313,13 +313,14 @@ public class AugmentJobSubmitService {
             }
             int jobSeq = index + 1;
             Long augJobSn = augJobSns.get(index);
-            // 이벤트 유형·생성 조건·자유 지시문은 모두 <요청 시점에 확정된 값>을 그대로 나른다 —
-            // 여기서 영상을 다시 읽어 재조립하면 적재 원문과 나간 값이 두 벌이 되어 갈라진다.
-            // [design: INT-008]
+            // 생성 조건·자유 지시문은 <요청 시점에 확정된 값>을 그대로 나른다 — 여기서 영상을 다시
+            // 읽어 재조립하면 적재 원문과 나간 값이 두 벌이 되어 갈라진다.
+            // 이벤트 유형은 나르지 않는다 — 요청자가 고르지 않고 클라이언트가 위탁 바디를 만들 때
+            // 서버 중립값(GenAiJobSubmitRequest.EVENT_TYPE_ETC)을 고정으로 채운다.
+            // [design: INT-008] [design: ADR-059]
             AugmentSubmitCommand command = new AugmentSubmitCommand(
                     event.originAugSn(), event.augType(), event.mtdt(), event.promptText(),
                     chunkRequestId(event.idempotencyKey(), jobSeq),
-                    event.evntType(), event.evntSubtype(),
                     event.requestUserNo(), event.callbackUrl(),
                     chunk.stream().map(FrameInput::toInputFile).toList(), jobSeq, jobCount);
             return externalClient.requestAugment(command)

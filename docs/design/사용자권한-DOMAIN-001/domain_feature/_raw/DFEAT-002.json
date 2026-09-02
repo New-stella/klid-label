@@ -15,12 +15,12 @@
       "triggers": [],
       "brownfield": {
         "status": "modified",
-        "decided_by": "ADR-003",
+        "decided_by": "ADR-055",
         "change_kind": [
           "role-merge",
           "actor-change"
         ],
-        "diff_summary": "1차 6역할(작업자·검수자1/2차·업로더·슈퍼관리자·프로젝트담당자) → 2차 3역할(REVIEWER·WORKER·PORTAL_USER), ADMIN 권한 REVIEWER 흡수 (V1.3)",
+        "diff_summary": "1차 6역할(작업자·검수자1/2차·업로더·슈퍼관리자·프로젝트담당자) → 2차 ADMIN(관리자)·REVIEWER(검수자)·WORKER(라벨링 작업자)·PORTAL_USER(포털 회원) 로 재편, 계층은 ROLE_ADMIN > ROLE_REVIEWER 한 단계뿐 (V1.3)",
         "legacy_source": {
           "type": "table",
           "identifier": "LS_USER_MENU",
@@ -32,8 +32,9 @@
         "i_want": "사용자 역할에 따라 접근 가능한 메뉴·기능을 제한하기를",
         "so_that": "권한 없는 기능 접근을 차단한다"
       },
-      "description": "사용자 역할에 따라 노출 메뉴와 기능 접근 권한을 분기하고 메뉴/역할 매핑을 관리한다.\n\n[★2차 역할 3종] REVIEWER(검수자) · WORKER(라벨링 작업자) · PORTAL_USER(포털 회원). 1차의 6역할(작업자·검수자 1·2차·업로더·관리자·프로젝트담당자·슈퍼관리자)는 통합·폐기됐다 — 검수 1·2차 단계 통합(ADR-002), ADMIN 권한의 REVIEWER 흡수(ADR-003), 업로더·프로젝트 개념 폐기(ADR-001/004). UI 호칭은 '검수자'로 통일하고 관리 화면은 두 경로로 갈린다 — 라벨 마스터·프리셋·이벤트유형·비식별 신고 관리와 배치·추론·정밀도·비식별 설정은 /manage/* 에, 사용자 관리·연동 서버 주소·업로드·위험 액션·관리자 패스워드 교체는 /admin/* 에 있다.\n\n[권한 판정 축] 역할은 저작도구 소유 테이블 LS_USER_ROLE(V75)이 단독으로 갖는다. 관제 공유 계정권한 테이블 2종은 런타임 참조 0 인 죽은 테이블이어서 V165 로 삭제됐다. 접근 제어는 인계 JWT 의 role + channel 클레임으로 분기하고 메서드 단위 권한 검증으로 강제한다(내부 채널 vs 포털 채널). 관리 성격의 쓰기에는 그 위에 관리자 단기 유효창이 가산된다 — 인가는 대체되지 않고 더해지므로 유효창이 열려 있어도 원래 필요한 역할은 그대로 요구된다.\n\n(1차 baseline 역할 목록은 brownfield 맥락으로만 유효하며 현행 권한 모델이 아니다.)",
+      "description": "사용자 역할에 따라 노출 메뉴와 기능 접근 권한을 분기하고 메뉴/역할 매핑을 관리한다.\n\n[★2차 역할] ADMIN(관리자) · REVIEWER(검수자) · WORKER(라벨링 작업자) · PORTAL_USER(포털 회원). 계층은 ROLE_ADMIN > ROLE_REVIEWER 한 단계뿐이다 — WORKER 를 계층에 넣으면 작업자 전용으로 열린 자리에 관리자·검수자가 흘러들고, PORTAL_USER 를 넣으면 채널이 달라 외부 채널 사용자가 내부 권한을 얻는다. 관리자는 이 계층으로 검수자 권한을 물려받으므로 검수·배정 업무를 겸하려고 계정을 둘 가질 필요가 없다. 1차의 6역할(작업자·검수자 1·2차·업로더·관리자·프로젝트담당자·슈퍼관리자)는 통합·폐기됐다 — 검수 1·2차 단계 통합(ADR-002), 업로더·프로젝트 개념 폐기(ADR-001/004), 관리자 역할 분리 확정(ADR-055). UI 호칭은 '검수자'로 통일하고 관리 화면은 소유 역할에 따라 두 경로로 갈린다 — 라벨 마스터·프리셋·이벤트유형·비식별 신고 관리와 배치·추론·정밀도·비식별 설정은 검수자 소유의 /manage/* 에, 사용자 관리·연동 서버 주소·업로드·위험 액션·관리자 패스워드 교체는 관리자 소유의 /admin/* 에 있다.\n\n[권한 판정 축] 역할은 저작도구 소유 테이블 LS_USER_ROLE(V75)이 단독으로 갖는다. 관제 공유 계정권한 테이블 2종은 런타임 참조 0 인 죽은 테이블이어서 V165 로 삭제됐다. 접근 제어는 인계 JWT 의 role + channel 클레임으로 분기하고 메서드 단위 권한 검증으로 강제한다(내부 채널 vs 포털 채널). 관리 성격의 쓰기에는 그 위에 관리자 단기 유효창이 가산된다 — 인가는 대체되지 않고 더해지므로 유효창이 열려 있어도 원래 필요한 역할은 그대로 요구된다.\n\n(1차 baseline 역할 목록은 brownfield 맥락으로만 유효하며 현행 권한 모델이 아니다.)",
       "invokes_apis": [],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -55,12 +56,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "관리 화면이 한 경로에 있다는 서술을 두 경로로 갈린 실제 구성으로 고치고, 권한 판정 축에 관리 성격의 쓰기에 대한 가산 요건을 더한다. 역할 체계는 무변경이다 — 별도 관리자 역할을 두지 않는다는 결정은 그대로다.",
+    "change_summary": "역할 열거를 ADMIN·REVIEWER·WORKER·PORTAL_USER 로 고치고 계층이 ROLE_ADMIN > ROLE_REVIEWER 한 단계뿐임을 명시한다. 관리 화면 두 경로를 소유 역할(관리자 /admin/*, 검수자 /manage/*)로 귀속시키고, 변경 근거를 ADR-055 로 옮긴다. 직전 판이 재확인했던 '별도 관리자 역할을 두지 않는다'는 서술은 폐기다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T09:17:23.773Z",
+    "last_updated_at": "2026-09-02T01:41:36.386Z",
     "created_at": "2026-05-29T06:26:51.929Z"
   }
 }

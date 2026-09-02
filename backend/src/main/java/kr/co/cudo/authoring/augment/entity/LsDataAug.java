@@ -20,7 +20,9 @@ import java.time.LocalDateTime;
 /**
  * Phase 9 — 데이터 증강 결과 (LS_DATA_AUG).
  *
- * <p>외부 SFR-07 시스템이 생성한 3종 증강 결과(WINTER/NIGHT/RAIN)를 적재한다.
+ * <p>외부 SFR-07 시스템이 생성한 증강 결과({@link #AUG_AUGMENT})를 적재한다. 구 3종
+ * (WINTER/NIGHT/RAIN)은 이미 만들어진 파생본에 그대로 남아 있으므로(백필하지 않는다) 조회·표시
+ * 경로는 옛 값과 새 값을 <b>모두</b> 견뎌야 한다(ADR-059).
  * 해상도 변경(SFR-06-03)도 저작도구 내부 수행 파생영상으로서 이 테이블에 통합 적재한다 —
  * {@link #AUG_RESL_1080P}/{@link #AUG_RESL_720P}/{@link #AUG_RESL_480P}({@link #RESL_PREFIX} 접두)
  * 판별자로 구분하며, 원본↔파생 라벨 배율 매핑은 {@code LS_DATA_AUG_LBL_MAP}
@@ -28,6 +30,9 @@ import java.time.LocalDateTime;
  * (LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP)은 폐기됐다(V126 백필 후 DROP).
  * {@link #AUG_RESOLUTION} 상수는 통합 이전 레거시 단일 코드 데이터 호환용으로만 유지한다.
  * 검수 상태/반려 사유/정합률은 LS_DATA_AUG_RVW 에 분리 저장한다.
+ *
+ * @design ERD-011
+ * @design ADR-059
  */
 @Entity
 @Table(name = "LS_DATA_AUG")
@@ -73,8 +78,29 @@ public class LsDataAug {
     // 되살리려면 V153 주석의 롤백 절차(활성 중복 선정리 → 인덱스 재생성)를 먼저 수행할 것.
     // ────────────────────────────────────────────────────────────────────────
 
+    /**
+     * 외부 위탁 증강의 <b>단일 종류 코드</b> — 2026-09-02 신설(ADR-059).
+     *
+     * <p>구 3종(WINTER/NIGHT/RAIN)은 <b>생성 조건의 부분집합</b>이었다 — 겨울은 {@code season},
+     * 야간은 {@code time}, 우천은 {@code weather} 라 카드와 생성 조건이 서로 어긋날 수 있었다.
+     * 무엇으로 바꿀지는 이제 생성 조건 다섯 항목이 단독으로 정하고, 종류 코드는 이 단일값으로 고정한다.
+     *
+     * <p><b>생성 조건에서 파생하지 않는다</b> — 이 값이 조건에서 유도되면 산출물 경로
+     * ({@code .../{augTypeCd}.mp4}) 순회(CWE-22)와 {@link #RESL_PREFIX} 네임스페이스 침범이 열린다.
+     * 단일 <b>상수</b>로 고정하는 것이지 유도하는 것이 아니다.
+     */
+    public static final String AUG_AUGMENT    = "AUGMENT";
+
+    /**
+     * 구 외부 증강 3종 — <b>레거시 데이터 호환 전용</b>(ADR-059).
+     *
+     * <p>신규 요청은 {@link #AUG_AUGMENT} 만 만든다. 이미 적재된 파생본은 <b>백필하지 않으므로</b>
+     * 이 값들이 계속 조회·표시·정렬 경로를 통과한다 — 상수를 지우면 그 파생본이 화면에서 사라진다.
+     */
     public static final String AUG_WINTER     = "WINTER";
+    /** @see #AUG_WINTER */
     public static final String AUG_NIGHT      = "NIGHT";
+    /** @see #AUG_WINTER */
     public static final String AUG_RAIN       = "RAIN";
 
     /**
@@ -92,7 +118,10 @@ public class LsDataAug {
     public static final String AUG_RESL_480P  = "RESL_480P";
 
     /**
-     * 화면(FE)에 노출하는 증강종류 계약값 6종 — 목록 응답의 {@code augType} 이 가질 수 있는 값 전부다.
+     * 화면(FE)에 노출하는 증강종류 계약값 — 목록 응답의 {@code augType} 이 가질 수 있는 값 전부다.
+     *
+     * <p>구 3종(WINTER/NIGHT/RAIN)은 <b>확장이지 교체가 아니다</b>(ADR-059) — 빼면
+     * 이미 있는 파생본이 목록·작업판에서 계약 밖 값으로 걸러져 사라진다.
      *
      * <p>{@code LS_DATA_RAW.AUG_TYPE_CD} 는 자유 문자열 컬럼이라 계약 밖 값이 들어올 수 있다 —
      * 레거시 단일 코드 {@link #AUG_RESOLUTION}(통합 이전 데이터), 수기 정정분, 미지의 신규 코드 등.
@@ -101,9 +130,10 @@ public class LsDataAug {
      * (CWE-20 — 미지의 값이 FE 분기축·표시 라벨로 유입되는 것을 막는 fail-safe).
      */
     public static final java.util.Set<String> CONTRACT_AUG_TYPES = java.util.Set.of(
-            AUG_WINTER, AUG_NIGHT, AUG_RAIN, AUG_RESL_1080P, AUG_RESL_720P, AUG_RESL_480P);
+            AUG_AUGMENT, AUG_WINTER, AUG_NIGHT, AUG_RAIN,
+            AUG_RESL_1080P, AUG_RESL_720P, AUG_RESL_480P);
 
-    /** {@code augTypeCd} 가 FE 계약값 6종({@link #CONTRACT_AUG_TYPES}) 중 하나인가. null 은 false. */
+    /** {@code augTypeCd} 가 FE 계약값({@link #CONTRACT_AUG_TYPES}) 중 하나인가. null 은 false. */
     public static boolean isContractAugType(String augTypeCd) {
         return augTypeCd != null && CONTRACT_AUG_TYPES.contains(augTypeCd);
     }

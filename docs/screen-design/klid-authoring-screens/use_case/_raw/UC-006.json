@@ -1,0 +1,109 @@
+{
+  "item": {
+    "id": "UC-006",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "라벨링 정밀도 조절",
+    "slug": "라벨링-정밀도-조절",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "폴리곤 단순화 정밀도(epsilon)를 조절하여 밀착/세그멘테이션 결과의 경계 세밀함(점 수)을 제어한다.",
+      "actor": "검수자(REVIEWER)",
+      "title": "라벨링 정밀도 조절",
+      "status": "draft",
+      "priority": "should",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "검수자(REVIEWER)",
+          "action": "PUT /v1/manage/configs/{key}로 POLYGON_SIMPLIFY_TOLERANCE를 조절한다(영속 기본값)"
+        },
+        {
+          "step": 2,
+          "action": "시스템이 설정값을 저장하고 캐시(TTL 60s)에 반영한다"
+        },
+        {
+          "step": 3,
+          "action": "이후 SAM2 track/밀착 시 설정 epsilon으로 폴리곤 점 수를 단순화한다"
+        },
+        {
+          "step": 4,
+          "actor": "라벨링 작업자(WORKER)",
+          "action": "라벨링 화면 AI Tool 모달에서 confThreshold/simplifyTolerance를 요청 단위 1회성으로 override한다(비영속)"
+        },
+        {
+          "step": 5,
+          "action": "설정 조회 실패 시 기본값(1.0px)으로 fail-safe 폴백한다"
+        }
+      ],
+      "brownfield": {
+        "notes": "2026-07-30: AI Tool 모달의 1회성(비영속) confThreshold/simplifyTolerance 조절 반영 — 영속 시스템 설정(POLYGON_SIMPLIFY_TOLERANCE)과는 별개 메커니즘",
+        "status": "new",
+        "change_kind": [
+          "capability-add"
+        ],
+        "diff_summary": "폴리곤 단순화 정밀도(epsilon) 설정 기반 제어 신규"
+      },
+      "description": "REVIEWER가 시스템 설정에서 POLYGON_SIMPLIFY_TOLERANCE(Douglas-Peucker epsilon)를 조절하면 이후 SAM2 track/밀착 시 폴리곤 점 수가 단순화된다(영속 설정, Caffeine 캐시 TTL 60s, 조회 실패 시 기본값 1.0px fail-safe). ★1회성 조절 확장(2026-07-30) — 이와 별개로 라벨링 화면 AI Tool 모달에서 confThreshold(YOLO conf/iou)·simplifyTolerance를 요청마다 1회성(비영속)으로 override할 수 있다(WORKER·REVIEWER 공통, 시스템 설정 변경 없이 해당 요청에만 적용). 두 메커니즘은 별개다 — 시스템 설정은 REVIEWER 전용 영속 기본값, AI Tool 모달 조절은 요청 단위 임시값이다. (R2 UC-006, RQ-SFR-08-03)",
+      "stakeholders": [],
+      "preconditions": [
+        "REVIEWER로 인증되어 있고 폴리곤 단순화 설정 키가 존재한다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "postconditions": [
+        "조절된 정밀도가 적용된 라벨 결과가 반환된다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "값 범위 초과",
+          "steps": [
+            "요청 값 검증으로 400 반환·안내"
+          ],
+          "trigger": "허용 형식/범위 초과"
+        },
+        {
+          "name": "권한 부족",
+          "steps": [
+            "설정 변경은 REVIEWER 전용이므로 403 반환"
+          ],
+          "trigger": "WORKER 호출"
+        }
+      ],
+      "realizes_dfeats": [],
+      "related_screens": [
+        "SCREEN-025",
+        "SCREEN-005"
+      ],
+      "extension_points": [],
+      "secondary_actors": [],
+      "extends_use_cases": [],
+      "realizes_features": [
+        "FEAT-001"
+      ],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-1028",
+        "AC-1029"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 11,
+    "stale": true,
+    "stale_reason": "SCREEN-025의 3개 필드 변경 — references",
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 3건이 있었는데 그중 3건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1028, AC-1029)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:25:53.828Z",
+    "created_at": "2026-06-01T06:24:00.858Z"
+  }
+}

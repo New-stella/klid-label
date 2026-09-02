@@ -27,7 +27,7 @@
       },
       "consequences": {
         "risks": [
-          "실삭제 조건 3개 중 하나라도 빠지면 원본이 지워진다 — 조건을 최종 DELETE SQL 에 리터럴로 박고 배치는 원자 클레임 후에도 조건을 다시 건다(클레임 이후 복구가 끼어들 수 있음)",
+          "실삭제 조건(파생 영상 · 반려 · 유예 경과 · 검수 승인 이력 없음) 중 하나라도 빠지면 원본이 지워진다 — 조건을 최종 DELETE SQL 에 리터럴로 박고 배치는 원자 클레임 후에도 조건을 다시 건다(클레임 이후 복구가 끼어들 수 있음)",
           "LS_DATA_LBL·LS_DATA_AUG_LBL_MAP·LS_DATA_LBL_HSTRY·LS_DATA_AUG_RVW 는 FK 가 없거나 부모를 가리켜 CASCADE 로 정리되지 않는다 — 명시적으로 지우지 않으면 FK 위반 없이 조용히 고아가 남는다",
           "⚠ LS_LABEL_ATTR 은 삭제 대상이 아니다 — 라벨 마스터의 속성 '정의'이고 FK 는 LABEL_ID→LS_LABEL(V33)이다. 데이터 라벨을 참조하는 것은 LS_DATA_LBL_ATTR_VAL 이다. 폐기 배치가 이를 지우면 프로젝트 전체의 라벨 속성 정의가 사라진다(회귀 가드 존재)",
           "Quartz 클러스터링은 트리거 중복만 막고 잡 내부 레이스는 막지 않는다 — 원자 클레임(조건부 UPDATE) 별도 필요"
@@ -44,6 +44,7 @@
         ]
       },
       "decision_date": "2026-07-31",
+      "attached_files": [],
       "decision_drivers": [
         "생성 결과(외부 웹훅이 알려주는 사실)와 사람의 사용/폐기 판단은 서로 다른 축",
         "증강 검수 워크플로가 실제로 도달 가능해야 함",
@@ -93,12 +94,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "삭제 대상 조건 서술에서 개수 표기('3조건 동시 충족만')를 제거하고 성질 서술로 교체 — 파생 영상·반려·유예 경과를 모두 충족해야 하며 검수 승인 이력이 있으면 제외한다는 네 번째 조건(관제 접근 보장 정책)을 함께 명시했다. 결정 내용은 불변이며, 조건을 개수로 세면 목록이 늘어날 때마다 여러 문서가 서로 다른 숫자로 갈리는 문제를 피하기 위함이다.",
+    "change_summary": "consequences.risks[0]: count notation '3개 중' replaced with the property list '파생 영상 · 반려 · 유예 경과 · 검수 승인 이력 없음'. Wording and intent unchanged.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T23:39:05.278Z",
+    "last_updated_at": "2026-09-02T02:10:16.312Z",
     "created_at": "2026-08-04T08:29:30.636Z"
   }
 }

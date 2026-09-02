@@ -800,6 +800,32 @@ class AugmentReviewServiceTest {
         assertThat(job.resolutionTypes()).containsExactly("RESL_1080P", "RESL_720P", "RESL_480P");
     }
 
+    /**
+     * ★ 현행 대표값 {@code AUGMENT} 가 <b>맨 앞</b>이다({@code @design API-059} · {@code ADR-059}).
+     *
+     * <p>2026-09-02 실측 결함 회귀 가드다 — {@code AUG_ORDER} 에 이 항목이 빠져 있으면
+     * {@code getOrDefault(t, 99)} 로 떨어져 <b>현행 값이 구 3종과 해상도 프리셋 전부보다 뒤로</b>
+     * 밀린다. 백필하지 않은 구 값과 혼재하는 상황을 그대로 재현해 순서를 고정한다.
+     */
+    @Test
+    @DisplayName("이력_정렬에서_AUGMENT가_구3종보다_앞에_온다")
+    void augmentTypeSortsFirst() {
+        Long srcSn = 966L;
+        // 입력 순서를 뒤섞어 저장 — 저장 순서가 아니라 AUG_ORDER 가 정렬 축임을 드러낸다.
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_RAIN, new BigDecimal("70.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_AUGMENT, new BigDecimal("95.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        assertThat(job.types())
+                .as("현행 대표값이 미등록이면 99 로 떨어져 구 값들 뒤로 밀린다")
+                .containsExactly("AUGMENT", "WINTER", "NIGHT", "RAIN");
+        assertThat(job.resolutionTypes()).containsExactly("RESL_720P");
+    }
+
     @Test
     @DisplayName("기존_증강3종_이력_표시가_변하지_않는다")
     void existingThreeAugmentTypesUnchanged() {

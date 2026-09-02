@@ -11,9 +11,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
 /**
  * SCR-AUG-001 통합 단일 선택 UI (Phase 1) — 선택 상태/렌더링 검증.
  *
- * - 처리 종류 카드 4개(WINTER/NIGHT/RAIN/RESOLUTION) 단일 선택(라디오)
+ * - 처리 종류 카드 **2개**(AUGMENT/RESOLUTION) 단일 선택(라디오) — ADR-059
  * - 영상 1건 단일 선택
- * - RESOLUTION 선택 시에만 타겟 해상도 UI 노출, 증강 종류 시 숨김
+ * - RESOLUTION 선택 시에만 타겟 해상도 UI 노출, 증강 AI 선택 시 숨김
  * - 종류 변경 시 preset 초기화
  */
 describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
@@ -67,17 +67,17 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    const winter = await screen.findByTestId('process-kind-WINTER');
-    const night = screen.getByTestId('process-kind-NIGHT');
+    const augment = await screen.findByTestId('process-kind-AUGMENT');
+    const resolution = screen.getByTestId('process-kind-RESOLUTION');
 
-    await user.click(winter);
-    expect(winter).toHaveAttribute('aria-checked', 'true');
-    expect(night).toHaveAttribute('aria-checked', 'false');
+    await user.click(augment);
+    expect(augment).toHaveAttribute('aria-checked', 'true');
+    expect(resolution).toHaveAttribute('aria-checked', 'false');
 
     // 다른 카드 선택 시 이전 선택 자동 해제 (단일 선택)
-    await user.click(night);
-    expect(night).toHaveAttribute('aria-checked', 'true');
-    expect(winter).toHaveAttribute('aria-checked', 'false');
+    await user.click(resolution);
+    expect(resolution).toHaveAttribute('aria-checked', 'true');
+    expect(augment).toHaveAttribute('aria-checked', 'false');
   });
 
   it('영상은_한_건만_선택할_수_있다', async () => {
@@ -116,8 +116,8 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    const winter = await screen.findByTestId('process-kind-WINTER');
-    await user.click(winter);
+    const augment = await screen.findByTestId('process-kind-AUGMENT');
+    await user.click(augment);
 
     expect(screen.queryByTestId('target-resolution-block')).not.toBeInTheDocument();
   });
@@ -136,8 +136,8 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     expect(p480).not.toBeChecked();
 
     // 증강 카드로 전환 → 해상도 UI 숨김 + 선택 초기화
-    const winter = screen.getByTestId('process-kind-WINTER');
-    await user.click(winter);
+    const augment = screen.getByTestId('process-kind-AUGMENT');
+    await user.click(augment);
     expect(screen.queryByTestId('target-resolution-block')).not.toBeInTheDocument();
 
     // 다시 해상도 카드로 돌아오면 기본값(전체 선택)으로 복귀 — 480P 재체크됨
@@ -146,7 +146,7 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     expect(p480Again).toBeChecked();
   });
 
-  it('처리종류_카드_4개가_radiogroup으로_렌더된다', async () => {
+  it('처리종류_카드_2개가_radiogroup으로_렌더된다', async () => {
     replyVideos(0);
     renderWithProviders(<AugmentRequestPage />);
 
@@ -154,7 +154,12 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
       name: /처리 종류/,
     });
     const radios = within(group).getAllByRole('radio');
-    expect(radios).toHaveLength(4);
+    // 증강 AI · 해상도 변경 두 장(ADR-059 — 구 4장에서 줄었다).
+    expect(radios).toHaveLength(2);
+    expect(radios.map((r) => r.getAttribute('data-testid'))).toEqual([
+      'process-kind-AUGMENT',
+      'process-kind-RESOLUTION',
+    ]);
   });
 
   it('선택된_카드만_탭포커스를_받는다(tabindex)', async () => {
@@ -162,23 +167,17 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    const winter = await screen.findByTestId('process-kind-WINTER');
-    const night = screen.getByTestId('process-kind-NIGHT');
-    const rain = screen.getByTestId('process-kind-RAIN');
+    const augment = await screen.findByTestId('process-kind-AUGMENT');
     const resolution = screen.getByTestId('process-kind-RESOLUTION');
 
     // 미선택 상태: 첫 카드만 tab 진입(0), 나머지는 -1 (로빙 tabindex 진입점)
-    expect(winter).toHaveAttribute('tabindex', '0');
-    expect(night).toHaveAttribute('tabindex', '-1');
-    expect(rain).toHaveAttribute('tabindex', '-1');
+    expect(augment).toHaveAttribute('tabindex', '0');
     expect(resolution).toHaveAttribute('tabindex', '-1');
 
     // 선택 후: 선택된 카드만 0, 나머지는 -1
-    await user.click(night);
-    expect(night).toHaveAttribute('tabindex', '0');
-    expect(winter).toHaveAttribute('tabindex', '-1');
-    expect(rain).toHaveAttribute('tabindex', '-1');
-    expect(resolution).toHaveAttribute('tabindex', '-1');
+    await user.click(resolution);
+    expect(resolution).toHaveAttribute('tabindex', '0');
+    expect(augment).toHaveAttribute('tabindex', '-1');
   });
 
   it('종류_카드는_화살표키로_이동_선택된다', async () => {
@@ -186,29 +185,28 @@ describe('AugmentRequestPage 통합 단일 선택 (Phase 1)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    const winter = await screen.findByTestId('process-kind-WINTER');
-    const night = screen.getByTestId('process-kind-NIGHT');
-    const rain = screen.getByTestId('process-kind-RAIN');
+    const augment = await screen.findByTestId('process-kind-AUGMENT');
+    const resolution = screen.getByTestId('process-kind-RESOLUTION');
 
-    // 첫 카드 포커스 → ArrowRight → 다음(NIGHT) 선택 + 포커스 이동
-    winter.focus();
+    // 첫 카드 포커스 → ArrowRight → 다음(해상도 변경) 선택 + 포커스 이동
+    augment.focus();
     await user.keyboard('{ArrowRight}');
-    expect(night).toHaveAttribute('aria-checked', 'true');
-    expect(night).toHaveFocus();
+    expect(resolution).toHaveAttribute('aria-checked', 'true');
+    expect(resolution).toHaveFocus();
 
-    // ArrowDown 도 다음으로 이동(RAIN)
+    // ArrowDown 은 순환해 다시 첫 카드로 돌아온다(카드가 둘뿐이다).
     await user.keyboard('{ArrowDown}');
-    expect(rain).toHaveAttribute('aria-checked', 'true');
-    expect(rain).toHaveFocus();
+    expect(augment).toHaveAttribute('aria-checked', 'true');
+    expect(augment).toHaveFocus();
 
-    // ArrowLeft 는 이전(NIGHT)으로 이동
+    // ArrowLeft 는 이전(=순환해서 해상도 변경)으로 이동
     await user.keyboard('{ArrowLeft}');
-    expect(night).toHaveAttribute('aria-checked', 'true');
-    expect(night).toHaveFocus();
+    expect(resolution).toHaveAttribute('aria-checked', 'true');
+    expect(resolution).toHaveFocus();
 
-    // ArrowUp 은 이전(WINTER)으로 이동
+    // ArrowUp 은 이전(증강 AI)으로 이동
     await user.keyboard('{ArrowUp}');
-    expect(winter).toHaveAttribute('aria-checked', 'true');
-    expect(winter).toHaveFocus();
+    expect(augment).toHaveAttribute('aria-checked', 'true');
+    expect(augment).toHaveFocus();
   });
 });

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /></head>
+<body>
+<main class="screen-root">
+
+  <div class="sheet-head">
+    <div class="sheet-route t-caption">
+      <span class="chip t-mono">/ingress</span>
+      <span>공개 · 상단 메뉴와 좌측 메뉴가 없는 진입 화면</span>
+    </div>
+    <h1 class="t-title-lg">세션 인계 진입 화면</h1>
+    <p class="t-body-sm text-muted">저작도구에는 자체 로그인 화면이 없습니다. 관제서버(내부) 또는 포털(외부)이 발급한 인증 토큰을 인계받아 진입하며, 이 화면은 그 인계를 처리하는 동안만 보입니다.</p>
+  </div>
+
+
+  <section class="state-frame" aria-label="세션 확인 상태">
+    <p class="state-caption t-label"><span class="state-no">1</span>세션 확인 — 진입 직후 기본 상태</p>
+    <div class="state-stage">
+      <div class="auth-card">
+        <div class="spinner-block" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="auth-title t-body-lg">세션을 확인하는 중</p>
+        </div>
+        <p class="auth-desc t-body-sm">관제서버 또는 포털에서 전달한 인증 정보를 확인하고 있습니다. 확인이 끝나면 자동으로 이동합니다.</p>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="state-frame" aria-label="인증 실패 안내 상태">
+    <p class="state-caption t-label"><span class="state-no">2</span>인증 실패 안내 — 이동할 로그인 화면이 없을 때만 표시</p>
+    <div class="state-stage">
+      <div class="auth-card">
+        <div class="alert alert-error" role="alert" aria-live="assertive">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+          </svg>
+          <div class="alert-body">
+            <p class="alert-title t-title-sm">로그인 서버에 연결할 수 없습니다</p>
+            <p class="alert-text t-body-sm">관제서버 또는 포털에서 다시 접근해주세요.</p>
+          </div>
+        </div>
+        <p class="auth-desc t-caption">인증 정보가 없거나 만료된 경우에는 원래 접근하려던 위치를 기억한 채 로그인 화면으로 자동 이동합니다. 이 안내는 이동할 로그인 화면 주소가 설정돼 있지 않은 경우에만 보입니다.</p>
+      </div>
+    </div>
+  </section>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">인증 실패 안내에 들어가는 문구는 실패 사유에 따라 두 가지입니다 — 실제 화면에서는 이 중 하나만 위 자리에 표시됩니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 인증 정보가 없거나 읽을 수 없는 경우</p>
+        <div class="alert alert-error" role="region" aria-label="인증 정보 없음 문구">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+          </svg>
+          <div class="alert-body">
+            <p class="alert-title t-title-sm">로그인 서버에 연결할 수 없습니다</p>
+            <p class="alert-text t-body-sm">관제서버 또는 포털에서 다시 접근해주세요.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 세션이 만료된 경우</p>
+        <div class="alert alert-error" role="region" aria-label="세션 만료 문구">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+          </svg>
+          <div class="alert-body">
+            <p class="alert-title t-title-sm">세션이 만료되었습니다</p>
+            <p class="alert-text t-body-sm">관제서버 또는 포털에서 다시 접근해주세요.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">이 화면이 진입 직후 한 번만 수행하는 처리 순서입니다. 화면에 보이는 요소는 아니며, 어느 단계에서 멈추면 위 2번 상태가 되는지를 나타냅니다.</span>
+    </div>
+    <ol class="flow-list t-body-sm">
+      <li>
+        <span>브라우저 저장소 또는 쿠키에서 인증 토큰을 인계받습니다.
+          <span class="flow-branch t-caption">주소창 질의 문자열로는 토큰을 받지 않습니다. 개발 환경에 한해, 두 경로에 토큰이 없으면 미리 설정해 둔 개발용 대체 토큰을 사용합니다.</span>
+        </span>
+      </li>
+      <li>
+        <span>받은 토큰의 내용을 화면에서 해석해 만료 여부를 확인합니다.
+          <span class="flow-branch t-caption">서명 검증은 이 화면에서 하지 않고 이후 서버 요청에서 처리합니다.</span>
+        </span>
+      </li>
+      <li>
+        <span>확인에 성공하면 채널에 따라 이동합니다 — 포털이면 포털 홈, 그 외에는 대시보드.
+          <span class="flow-branch t-caption">뒤로가기로 이 화면에 다시 남지 않도록 현재 화면을 교체하며 이동합니다.</span>
+        </span>
+      </li>
+      <li>
+        <span>실패하면 로그인 화면으로 이동합니다 — 개발 환경이면 개발용 로그인 화면, 운영이면 채널별 로그인 화면.
+          <span class="flow-branch t-caption">원래 접근하려던 위치를 함께 넘겨 로그인 후 그 자리로 돌아오게 하며, 허용된 주소로만 이동합니다. 이동할 주소가 없을 때만 2번 상태를 표시합니다.</span>
+        </span>
+      </li>
+    </ol>
+  </div>
+
+</main>
+</body>
+</html>

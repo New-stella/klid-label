@@ -491,16 +491,21 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     /**
      * 커맨드 → 명세서 v1.3 §4.1 요청 바디. 채널/작업유형/생성모드는 저작도구 증강 고정값이다.
      *
-     * <p><b>여기는 매핑만 한다</b>. {@code mtdt}·{@code prompt}·{@code evnt_type} 은 모두 <b>요청 시점에
-     * 확정된 값</b>({@code AugmentRequestService} → {@code AugmentPrompts.mtdt})을 그대로 중계한다.
-     * 클라이언트가 자체 조립하거나 DB 를 다시 읽어 재구성하면 적재 원문
-     * ({@code LS_DATA_AUG.PROMPT_CN})과 실제로 나간 값이 갈라진다.
+     * <p><b>여기는 매핑만 한다</b>. {@code mtdt}·{@code prompt} 는 <b>요청 시점에 확정된 값</b>
+     * ({@code AugmentRequestService} → {@code AugmentPrompts.mtdt})을 그대로 중계한다. 클라이언트가
+     * 자체 조립하거나 DB 를 다시 읽어 재구성하면 적재 원문({@code LS_DATA_AUG.PROMPT_CN})과 실제로
+     * 나간 값이 갈라진다.
+     *
+     * <p><b>{@code evnt_type} 만은 예외로 여기서 채운다</b> — 요청자가 고르지 않고 서버가 중립값
+     * {@link GenAiJobSubmitRequest#EVENT_TYPE_ETC} 로 고정 송신하는 값이기 때문이다
+     * (ADR-059). 커맨드가 그 값을 나르지 않으므로 <b>요청자 입력이 이 자리로 흘러들
+     * 경로 자체가 없다</b>. {@code evnt_subtype} 은 바디 레코드에 필드가 없어 키가 실리지 않는다.
      *
      * <p>{@code mtdt} 는 계약상 <b>최소 1항목</b>이 필요하므로 비어 있으면 fail-closed 로 끊는다. 빈
      * 객체를 그대로 보내면 벤더가 임의 기본값으로 채워 "요청한 조건과 다른 결과" 가 조용히 돌아온다.
      *
      * <p>{@code prompt} 는 <b>선택 문자열</b>이라 없으면 {@code null} 로 두고 {@code @JsonInclude}
-     * (NON_NULL)가 키 자체를 생략한다. {@code evnt_subtype} 도 같다(침수가 아니면 미전송).
+     * (NON_NULL)가 키 자체를 생략한다.
      */
     private GenAiJobSubmitRequest toRequestBody(AugmentSubmitCommand command) {
         List<GenAiInputFile> files = command.inputFiles().stream()
@@ -514,8 +519,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
                 command.requestId(),
                 GenAiJobSubmitRequest.CHANNEL_AUTHORING,
                 command.requestUserId(),
-                command.evntType(),
-                command.evntSubtype(),
+                GenAiJobSubmitRequest.EVENT_TYPE_ETC,
                 GenAiJobSubmitRequest.OPERATION_AUGMENT,
                 GenAiJobSubmitRequest.MODE_I2I,
                 files,

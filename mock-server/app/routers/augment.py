@@ -30,7 +30,8 @@ v1.3 요청 본문 계약(§4.1) — 이 목이 강제하는 것:
 - ``prompt`` 는 **문자열(최대 1000자) 선택**. 객체·배열이면 400 INVALID_PARAMETER.
 - **구 형태 거부** — 최상위 ``condition`` 과 객체형 ``prompt``(v1.2 의 prompt.condition /
   prompt.text)는 v1.3 표준에서 제외됐으므로 접수하지 않는다.
-- ``evnt_type`` 은 FLOOD | WILDFIRE(§4.1). 목록 밖은 400 UNSUPPORTED_EVENT_TYPE.
+- ``evnt_type`` 은 FLOOD | WILDFIRE(§4.1) + 협의된 중립값 ``ETC``. 목록 밖은
+  400 UNSUPPORTED_EVENT_TYPE. ``ETC`` 를 받는 근거는 ``_check_event_type`` 주석 참조.
 - ``evnt_subtype`` 은 FLOOD 세부 유형 5종(선택)이며 evnt_type=FLOOD 일 때만 전달한다.
 
 보안:
@@ -228,11 +229,24 @@ def _reject_retired_fields(payload: dict[str, Any]) -> None:
 
 
 def _check_event_type(evnt_type: str, settings: Settings) -> None:
-    """evnt_type 화이트리스트(§4.1 FLOOD | WILDFIRE)를 강제한다(§3.3).
+    """evnt_type 화이트리스트(FLOOD | WILDFIRE | ETC)를 강제한다(§3.3).
 
-    기본 허용 목록은 설정(``MOCK_GENAI_EVENT_TYPES``)이 정하며 그 기본값이 곧 v1.3 계약이다.
-    설정을 빈값으로 두면 검증을 끄지 않고 **계약 목록으로 fail-closed** 한다 — 목이 계약 밖
-    값을 받아 주면 이 목을 쓰는 로컬 검증이 무의미해진다.
+    기본 허용 목록은 설정(``MOCK_GENAI_EVENT_TYPES``)이 정한다. 설정을 빈값으로 두면 검증을
+    끄지 않고 **``SUPPORTED_EVNT_TYPES`` 로 fail-closed** 한다 — 목이 아무 값이나 받아 주면
+    이 목을 쓰는 로컬 검증이 무의미해진다.
+
+    ★ ``ETC`` 를 받는 이유 — 저작도구는 증강 위탁 바디의 evnt_type 을 **서버 고정 ``ETC``**
+    로 보낸다(2026-09-02 사용자 확정 · ADR-059, **벤더와 협의가 끝난 값**). 이 목이 그 값을
+    거부하면 ``authoring.augment.external.mode`` 공통 기본값이 ``http`` 인 **local 에서 증강
+    요청이 한 건도 완주하지 못한다**(dev/stg/prd 는 ``noop`` 이라 무영향).
+
+    ⚠ **우리가 보유한 규격서 판본에는 이 값이 아직 없다** — 「생성형 AI API 연동명세서 v1.3」
+    (갱신일 2026-08-12) §4.1 허용값은 FLOOD | WILDFIRE 뿐이고 오류표에
+    ``UNSUPPORTED_EVENT_TYPE``(400)이 있다. **그 문서만 보고 "계약에 없는 값" 이라며 되돌리지
+    말 것** — 개정판을 받으면 값과 오류 코드를 대조한다.
+
+    ⚠ 이건 **목서버 한정 완화이며 실벤더가 관대하다는 근거가 아니다.** 목의 목적은 벤더 규격
+    재현이 아니라 그 앞뒤 배선을 돌려 보는 것이다("목이 받아줬으니 실연동도 된다" 금지).
     """
     allowed = settings.genai_event_types_set() or SUPPORTED_EVNT_TYPES
     if evnt_type not in allowed:

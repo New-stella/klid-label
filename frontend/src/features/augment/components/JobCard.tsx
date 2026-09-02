@@ -4,11 +4,18 @@ import { StatusBadge, type BadgeStatus } from '@/components/common/StatusBadge';
 import { resolutionDerivativeLabel } from '@/features/video/types';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 
-import { type AugmentJob, type AugmentJobStatus, type AugmentType } from '../types';
+import {
+  type AugmentJob,
+  type AugmentJobStatus,
+  type AugmentTypeDisplay,
+} from '../types';
 
-// 현재 증강 유형은 3종(WINTER/NIGHT/RAIN). 과거 잡 이력에 RESOLUTION 이 남아 있을 수 있어
-// 레거시 라벨도 표시하되, 유형 union 에는 포함하지 않는다(신규 요청 경로에서 제외 — SFR-06-03).
-const typeLabelMap: Record<AugmentType | 'RESOLUTION', string> = {
+// 신규 요청이 만드는 증강 종류는 단일값 AUGMENT 다(ADR-059). 다만 BE 가 기존 행을 백필하지
+// 않았으므로 이력에는 구 3종(WINTER/NIGHT/RAIN)이 그대로 남아 있고, 더 오래된 잡에는
+// RESOLUTION 도 있을 수 있다 — **표시 축은 이 셋을 모두 견뎌야 한다**.
+// 유형 union(요청 축)에는 포함하지 않는다(신규 요청 경로에서 제외 — SFR-06-03).
+const typeLabelMap: Record<AugmentTypeDisplay | 'RESOLUTION', string> = {
+  AUGMENT: '증강 AI',
   WINTER: '겨울',
   NIGHT: '야간',
   RAIN: '비',
@@ -75,7 +82,7 @@ export function JobCard({ job }: JobCardProps) {
             data-testid={`job-card-type-${job.jobId}-${t}`}
             className="rounded bg-bgLight px-2 py-0.5 text-sub text-neutral"
           >
-            {typeLabelMap[t]}
+            {typeLabelMap[t] ?? '증강'}
           </span>
         ))}
         {resolutionTypes.map((code) => (

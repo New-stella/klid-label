@@ -69,7 +69,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -83,7 +84,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -97,7 +99,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -111,7 +114,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -125,7 +129,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -158,7 +163,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -172,7 +178,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -186,7 +193,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -200,7 +208,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -224,7 +233,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -238,7 +248,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -262,7 +273,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -276,7 +288,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -290,7 +303,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -304,7 +318,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -343,7 +358,7 @@
           "stereotypes": []
         }
       ],
-      "description": "작업자/검수자 개인 통계(월별·일별)와 검수자 운영 통계(전체·권한별·상태별·일일 진행률)를 집계해 대시보드로 제공하는 개념 모델. 전용 활성 ERD가 없어(1차 ERD-003 폐기) 물리 테이블이 아닌 집계 결과 VO와 집계 서비스 중심으로 구성했으며, 데이터 소스는 영상·프레임·작업 상태 원장에 대한 집계 조회다.",
+      "description": "작업자/검수자 개인 통계(월별·일별)와 검수자 운영 통계(전체·권한별·상태별·일일 진행률)를 집계해 대시보드로 제공하는 개념 모델. 전용 활성 ERD가 없어(1차 ERD-003 폐기) 물리 테이블이 아닌 집계 결과 VO와 집계 서비스 중심으로 구성했으며, 데이터 소스는 영상·프레임·작업 상태 원장에 대한 집계 조회다.\n\n[★운영 통계 액터 표기] 이 모델은 운영 통계의 대상을 검수자로 적는다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없고 모든 관리 권한이 REVIEWER 에 통합됐다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받는다. 다만 그 계층 상속 덕분에 관리자도 같은 운영 통계에 그대로 접근하므로 검수자 표기는 하한으로서 지금도 참이다 — 표기와 집계 차원은 그대로 유지하고, 관리자 전용 집계 축을 새로 두는 것은 별도 결정이 필요하다.",
       "module_name": "StatisticsDashboard",
       "relationships": [
         {
@@ -395,11 +410,20 @@
           "from_multiplicity": "1"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-026",
         "DFEAT-027",
         "DFEAT-028"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "realizes_features": [
         "DFEAT-026",
@@ -409,12 +433,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
-    "stale": true,
-    "stale_reason": "API-056의 2개 필드 변경이 depicts로 2-hop 전파",
-    "change_summary": "폐기된 액터 표기를 걷어낸다. 이 시스템에 별도 관리자 역할은 없고 관리 권한이 검수자에 통합돼 있어, 운영 통계의 대상을 검수자로만 적는다. 개념 모델 설명과 집계 서비스·운영 통계 VO 설명 세 곳에 같은 표기가 남아 있어 함께 정리했다. 통계 축·데이터 소스 서술은 그대로 둔다.",
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "운영 통계 액터를 검수자로 좁힌 근거만 정정한다 — 폐기된 역할 결정(ADR-003, superseded)의 'ADMIN 역할 부재·관리 권한 REVIEWER 통합' 전제가 ADR-055(관리자 역할 신설·검수자 권한 계층 상속)로 뒤집혔다는 사실을 본문에 드러냈다. ★검수자 표기는 관리자가 그 권한을 계층으로 물려받는 하한 표기로서 지금도 참이므로 그대로 유지했고, 관리자 전용 집계 축은 새로 두지 않는다. 형제 DOMAIN-005·CDIAG-006 의 같은 축 정정과 문형을 맞췄다. 클래스·관계 구조와 집계 차원·데이터 소스는 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T02:46:19.619Z",
+    "last_updated_at": "2026-09-02T02:56:44.500Z",
     "created_at": "2026-06-02T08:53:14.850Z"
   }
 }

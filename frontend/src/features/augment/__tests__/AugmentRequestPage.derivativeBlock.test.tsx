@@ -92,11 +92,11 @@ describe('AugmentRequestPage 파생영상 차단 배선 (UI-071)', () => {
     // when: 영상 선택
     await user.click(await screen.findByLabelText('CCTV-1 선택'));
 
-    // then: 4종 카드 전부 비활성 + 사유 툴팁(title) + 화면 안내
+    // then: 카드 전부 비활성 + 사유 툴팁(title) + 화면 안내
     await waitFor(() => {
-      expect(screen.getByTestId('process-kind-WINTER')).toBeDisabled();
+      expect(screen.getByTestId('process-kind-AUGMENT')).toBeDisabled();
     });
-    for (const kind of ['WINTER', 'NIGHT', 'RAIN', 'RESOLUTION']) {
+    for (const kind of ['AUGMENT', 'RESOLUTION']) {
       const card = screen.getByTestId(`process-kind-${kind}`);
       expect(card).toBeDisabled();
       expect(card).toHaveAttribute('title', expect.stringContaining('파생영상'));
@@ -130,7 +130,7 @@ describe('AugmentRequestPage 파생영상 차단 배선 (UI-071)', () => {
 
     // then: 정상 영상까지 막지 않는다(과차단 방지)
     await waitFor(() => {
-      expect(screen.getByTestId('process-kind-WINTER')).not.toBeDisabled();
+      expect(screen.getByTestId('process-kind-AUGMENT')).not.toBeDisabled();
     });
     expect(screen.queryByTestId('derivative-block-notice')).not.toBeInTheDocument();
   });

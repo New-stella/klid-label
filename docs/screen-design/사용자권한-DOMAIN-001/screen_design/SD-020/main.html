@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
+<body>
+<main class="screen-root">
+
+  <div class="sheet-head">
+    <div class="sheet-route t-caption">
+      <span class="chip t-mono">/dev/login</span>
+      <span>개발 환경 전용 · 상단 메뉴와 좌측 메뉴가 없는 진입 화면</span>
+    </div>
+    <h1 class="t-title-lg">개발용 로그인 화면</h1>
+    <p class="t-body-sm text-muted">운영에서는 관제서버·포털이 발급한 인증 토큰을 인계받습니다. 이 화면은 관제서버가 없는 환경에서 그 흐름을 그대로 재현하기 위해 토큰을 직접 발급하는 개발용 화면이며 운영 배포에는 포함되지 않습니다.</p>
+  </div>
+
+
+  <section class="state-frame" aria-label="개발용 로그인 기본 화면">
+    <p class="state-caption t-label"><span class="state-no">1</span>기본 화면 — 역할을 고른 상태(선택 입력은 비워 둠)</p>
+    <div class="state-stage">
+      <div class="auth-card">
+
+        <div class="dev-head">
+          <div class="dev-title-row">
+            <h2 class="t-title-lg">Dev Login</h2>
+            <span class="badge badge-warn">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+              </svg>
+              DEV 빌드 전용
+            </span>
+          </div>
+          <div class="dev-note">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v5M12 16h.01"></path>
+            </svg>
+            <p class="dev-note-text t-body-sm">로컬·개발 환경에서 관제서버 없이 토큰을 발급합니다. 운영 배포에는 포함되지 않습니다.</p>
+          </div>
+        </div>
+
+        <hr class="auth-divider" />
+
+        <form class="auth-form">
+
+          <fieldset class="radio-group">
+            <legend class="t-label">역할 선택</legend>
+            <label class="radio-card">
+              <input type="radio" name="role" value="ADMIN" />
+              <span class="radio-text">
+                <span class="radio-name t-body-md">ADMIN (9001, 박관리)</span>
+                <span class="radio-desc t-caption">사용자 관리 등 관리자 전용 화면을 사람이 직접 눌러 확인하기 위한 역할입니다.</span>
+              </span>
+              <span class="channel-chip">INTERNAL</span>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="role" value="REVIEWER" checked />
+              <span class="radio-text">
+                <span class="radio-name t-body-md">REVIEWER (1001, 김검수)</span>
+                <span class="radio-desc t-caption">배정·검수 승인과 관리 화면을 담당하는 역할입니다.</span>
+              </span>
+              <span class="channel-chip">INTERNAL</span>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="role" value="WORKER" />
+              <span class="radio-text">
+                <span class="radio-name t-body-md">WORKER (2001, 최라벨)</span>
+                <span class="radio-desc t-caption">영상에 라벨을 만들고 수정해 검수를 요청하는 역할입니다.</span>
+              </span>
+              <span class="channel-chip">INTERNAL</span>
+            </label>
+          </fieldset>
+
+          <div class="dev-note channel-note">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h10"></path>
+            </svg>
+            <div class="dev-note-text">
+              <p class="t-body-sm"><span class="text-strong">이 화면은 산출물마다 다르게 뜹니다.</span> 위 세 가지는 <span class="channel-chip">관제 채널</span> 산출물의 선택지이고, <span class="channel-chip is-portal">포털 채널</span> 산출물은 <span class="t-mono">PORTAL_USER (3001, 홍길동)</span> 하나만 두며 그것이 기본 선택입니다.</p>
+              <p class="t-caption text-muted">두 산출물은 서로 다른 서버에 배포되고 각 배포는 자기 채널 사용자만 받습니다. 그 배포에서 쓸 수 없는 역할을 선택지에 두면, 고르는 순간 채널이 맞지 않아 진입이 막히는 자리가 화면에 남습니다.</p>
+              <p class="t-caption text-muted">발급한 토큰을 두는 자리도 갈립니다 — 관제 채널은 같은 출처 브라우저 저장소에 두고, 포털 채널은 화면 본체가 저장소를 쓰지 않으므로 상위 시스템을 대신하는 임시 창구가 자기 몫으로 보관합니다.</p>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label t-label" for="user-no">userNo (선택)</label>
+              <input class="input input-mono" id="user-no" type="text" placeholder="역할별 기본값(예 1001)" aria-describedby="user-no-help" />
+              <p class="field-help t-caption" id="user-no-help">사용자 번호. 비우면 위에서 고른 역할의 기본값을 씁니다.</p>
+            </div>
+            <div class="field">
+              <label class="field-label t-label" for="exp-seconds">expSeconds (선택)</label>
+              <input class="input input-mono" id="exp-seconds" type="number" placeholder="3600" aria-describedby="exp-seconds-help" />
+              <p class="field-help t-caption" id="exp-seconds-help">토큰 유효 시간(초). 비우면 3600 을 씁니다.</p>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">토큰 발급 + 진입</button>
+
+        </form>
+
+      </div>
+    </div>
+  </section>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">제출 영역이 상황에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 위 카드의 제출 버튼 자리에 표시됩니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">① 발급 대기</p>
+        <div class="ref-surface">
+          <button type="button" class="btn btn-primary btn-block">토큰 발급 + 진입</button>
+          <span class="ref-note t-caption">역할은 항상 하나가 선택돼 있으므로 곧바로 제출할 수 있습니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">② 발급 진행 중</p>
+        <div class="ref-surface">
+          <button type="button" class="btn btn-primary btn-block" disabled>
+            <span class="spinner-sm" aria-hidden="true"></span>발급 중…
+          </button>
+          <span class="ref-note t-caption">응답을 기다리는 동안 버튼 문구가 바뀌고 다시 누를 수 없습니다.</span>
+        </div>
+      </div>
+
+      <div class="ref-variant">
+        <p class="t-label ref-variant-title">③ 실패 — 안내가 폼 위에 표시된 상태</p>
+        <div class="ref-surface">
+          <div class="alert alert-error" role="alert">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18.3A2 2 0 0 0 3.5 21.3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+            </svg>
+            <div class="alert-body">
+              <p class="alert-title t-title-sm">토큰을 발급하지 못했습니다</p>
+              <p class="alert-text t-body-sm">개발용 발급 기능이 서버에서 꺼져 있는지 확인해주세요.</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-block">토큰 발급 + 진입</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">이 화면이 운영에 노출되지 않도록 막는 3중 통제입니다. 화면에 보이는 요소는 아니며, 어느 단계가 막으면 무엇이 실패하는지를 나타냅니다.</span>
+    </div>
+    <ol class="guard-list t-body-sm">
+      <li>
+        <span>
+          <span class="guard-title">화면 자체가 빌드에 담기지 않는다</span>
+          로컬 개발 빌드이거나, 운영 빌드라도 별도 플래그를 켠 경우에만 이 화면과 발급 경로가 포함됩니다. 폐쇄망처럼 관제서버가 없는 환경을 위한 예외이며 기본값은 꺼짐입니다.
+        </span>
+      </li>
+      <li>
+        <span>
+          <span class="guard-title">서버가 발급 기능을 등록하지 않는다</span>
+          토큰 발급 기능은 서버 설정이 켜져 있을 때만 등록되고 기본값은 꺼짐입니다. 1번을 통과해 화면이 열려도 발급 요청이 실패합니다.
+        </span>
+      </li>
+      <li>
+        <span>
+          <span class="guard-title">운영 계열에서는 기동 자체가 막힌다</span>
+          스테이징·운영 환경에서 2번 설정을 켠 채 서버를 띄우면 기동을 실패시켜 배포 시점에 곧바로 드러나게 합니다. 이 기능은 인증 없이 임의 권한의 토큰을 발급하므로 운영에서 켜지면 인증 체계 전체가 우회되기 때문입니다.
+        </span>
+      </li>
+    </ol>
+  </div>
+
+
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">발급에 성공하면 운영 진입 흐름을 그대로 재현합니다 — 이 화면에 머무르지 않습니다.</span>
+    </div>
+    <ol class="guard-list t-body-sm">
+      <li>
+        <span>
+          <span class="guard-title">발급받은 토큰을 브라우저 저장소에 넣는다</span>
+          운영에서 관제서버가 넣어 주는 자리와 같은 위치이며, 표시용 사용자 정보도 함께 저장합니다.
+        </span>
+      </li>
+      <li>
+        <span>
+          <span class="guard-title">세션 인계 진입 화면으로 이동한다</span>
+          이후 처리는 운영과 완전히 같은 경로를 탑니다 — 토큰을 읽어 확인하고 채널에 따라 포털 홈 또는 대시보드로 이동합니다.
+        </span>
+      </li>
+    </ol>
+  </div>
+
+</main>
+</body>
+</html>

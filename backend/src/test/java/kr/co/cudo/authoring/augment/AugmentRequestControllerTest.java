@@ -125,8 +125,7 @@ class AugmentRequestControllerTest {
     void workerForbidden() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(9001L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -146,8 +145,7 @@ class AugmentRequestControllerTest {
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -170,8 +168,7 @@ class AugmentRequestControllerTest {
         // 단일 선택 계약 위반: 영상 2건 → @Size(max=1) 로 400
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L, 8002L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -189,8 +186,7 @@ class AugmentRequestControllerTest {
         // 단일 선택 계약 위반: 종류 2개 → @Size(max=1) 로 400
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L),
-                "types", List.of("WINTER", "NIGHT"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT", "AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -207,8 +203,7 @@ class AugmentRequestControllerTest {
     void emptyVideoIdsReturns400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -226,7 +221,6 @@ class AugmentRequestControllerTest {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8101L),
                 "types", List.of("INVALID_TYPE"),
-                "evntType", "FLOOD",
                 "mtdt", MTDT
         ));
 
@@ -238,13 +232,12 @@ class AugmentRequestControllerTest {
     }
 
     @Test
-    @DisplayName("증강요청_RESOLUTION_타입_400_거부_allowlist_WINTER_NIGHT_RAIN")
+    @DisplayName("증강요청_RESOLUTION_타입_400_거부_allowlist는_AUGMENT_단일값")
     void resolutionTypeRejected400() throws Exception {
-        // 해상도(RESOLUTION)는 외부 증강 위탁 대상이 아님(저작도구 직접 수행) — allowlist 밖이므로 400.
+        // 해상도(RESOLUTION)는 외부 증강 위탁 대상이 아님(저작도구 직접 수행) — enum 밖이므로 400.
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8301L),
                 "types", List.of("RESOLUTION"),
-                "evntType", "FLOOD",
                 "mtdt", MTDT
         ));
 
@@ -256,15 +249,14 @@ class AugmentRequestControllerTest {
     }
 
     @Test
-    @DisplayName("증강요청_WINTER_단일_정상_200")
-    void winterOnlyReturns200() throws Exception {
+    @DisplayName("증강요청_AUGMENT_단일_정상_200")
+    void augmentOnlyReturns200() throws Exception {
         seedStatus(8401L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8401L);
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8401L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -284,8 +276,7 @@ class AugmentRequestControllerTest {
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8202L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -314,8 +305,7 @@ class AugmentRequestControllerTest {
                 "time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD");
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8501L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", missingSeverity
         ));
 
@@ -333,8 +323,7 @@ class AugmentRequestControllerTest {
     void missingMtdtObjectReturns400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8502L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD"
+                "types", List.of("AUGMENT")
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -376,8 +365,7 @@ class AugmentRequestControllerTest {
         for (Map<String, String> bad : invalid) {
             String body = objectMapper.writeValueAsString(Map.of(
                     "videoIds", List.of(8503L),
-                    "types", List.of("WINTER"),
-                    "evntType", "FLOOD",
+                    "types", List.of("AUGMENT"),
                     "mtdt", bad));
 
             mockMvc.perform(post("/v1/augments/request")
@@ -403,7 +391,7 @@ class AugmentRequestControllerTest {
     @Test
     @DisplayName("구계약_객체형_prompt는_400")
     void objectPromptReturns400() throws Exception {
-        String body = "{\"videoIds\":[8504],\"types\":[\"WINTER\"],\"evntType\":\"FLOOD\","
+        String body = "{\"videoIds\":[8504],\"types\":[\"AUGMENT\"],"
                 + "\"mtdt\":{\"time\":\"NIGHT\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
                 + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"},"
                 + "\"prompt\":{\"condition\":\"눈\",\"text\":\"겨울로\"}}";
@@ -421,8 +409,7 @@ class AugmentRequestControllerTest {
     void oversizedPromptTextReturns400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8505L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT,
                 "prompt", "X".repeat(AugmentPrompts.MAX_PROMPT_LENGTH + 1)
         ));
@@ -435,64 +422,31 @@ class AugmentRequestControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 
-    // ─── 이벤트 유형 계약 (2026-08-27 · v1.3) ─────────────────────────────
+    // ─── 이벤트 유형 계약 (2026-09-02 · @design ADR-059) ──────────────────
 
     /**
-     * 이벤트 유형은 <b>요청 본문 필수</b>다. 구 구현은 이 값을 영상의 관제 이벤트 코드에서 조달했는데,
-     * 계약 허용값은 {@code FLOOD}/{@code WILDFIRE} 둘뿐이라 관제 코드는 벤더가 전부 거부한다.
-     */
-    @Test
-    @DisplayName("이벤트유형이_없으면_400")
-    void missingEventTypeReturns400() throws Exception {
-        String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8511L),
-                "types", List.of("WINTER"),
-                "mtdt", MTDT
-        ));
-
-        mockMvc.perform(post("/v1/augments/request")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
-    }
-
-    /**
-     * 관제 이벤트 코드(예: {@code EV01000101}·{@code ETC})는 계약값이 아니라 400 이다.
+     * ★ 이벤트 유형과 침수 세부 유형은 <b>요청 본문 계약에서 사라졌다</b>. 요청자가 실어 보내도
+     * 바인딩될 자리가 없어 <b>조용히 무시</b>되고 요청은 정상 접수된다.
      *
-     * <p>영상을 접수 가능한 상태로 시드하는 이유는 위 {@code mtdtOutsideAllowedCodesReturns400} 과
-     * 같다 — 시드하지 않으면 {@code ETC} 가 허용값이 되어도 미검수 400 에 가려 GREEN 이 된다.
+     * <p>구 계약은 두 값을 요청자에게 물었고 허용 코드 밖이면 400 이었다. 그 값은 벤더 창구가
+     * <b>배경에 무슨 장면을 만들지</b> 정하는 축인데 우리 증강은 이미 이벤트가 담긴 프레임을 변환할
+     * 뿐이라 지정할 자리가 없다. 지금은 위탁 시점에 서버가 중립값
+     * ({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC})을 고정 송신하고 세부 유형은 보내지 않는다.
+     *
+     * <p>구 값 {@code FLOOD}·{@code WILDFIRE}·{@code ROAD_FLOOD} 를 그대로 실어 보내는 것이
+     * 핵심이다 — 400 이 나면 계약이 되살아난 것이고, 200 이면 요청자 입력이 위탁에 닿지 못한다는
+     * 뜻이다(위탁 바디가 실제로 {@code ETC} 를 싣는지는 {@code HttpExternalAugmentClientTest} 가
+     * 고정한다).
      */
     @Test
-    @DisplayName("이벤트유형이_허용코드_밖이면_400")
-    void unknownEventTypeReturns400() throws Exception {
+    @DisplayName("이벤트유형을_실어보내도_무시되고_요청은_접수된다")
+    void requesterSuppliedEventTypeIsIgnored() throws Exception {
         seedStatus(8512L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8512L);
 
-        for (String bad : List.of("ETC", "EV01000101", "FIRE", "flood")) {
-            String body = objectMapper.writeValueAsString(Map.of(
-                    "videoIds", List.of(8512L),
-                    "types", List.of("WINTER"),
-                    "evntType", bad,
-                    "mtdt", MTDT));
-
-            mockMvc.perform(post("/v1/augments/request")
-                            .header("Authorization", "Bearer " + reviewerToken)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(body))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
-        }
-    }
-
-    /** 침수 세부 유형은 침수일 때만 — 계약에 산불 세부 코드가 없어 함께 보내면 벤더가 400 이다. */
-    @Test
-    @DisplayName("침수_세부유형을_산불과_함께_보내면_400")
-    void floodSubtypeWithWildfireReturns400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8513L),
-                "types", List.of("WINTER"),
+                "videoIds", List.of(8512L),
+                "types", List.of("AUGMENT"),
                 "evntType", "WILDFIRE",
                 "evntSubtype", "ROAD_FLOOD",
                 "mtdt", MTDT
@@ -502,22 +456,20 @@ class AugmentRequestControllerTest {
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdCount").value(1));
     }
 
-    /** 침수 세부 유형이 침수와 함께 오면 정상 접수된다(위 거부의 대칭 — 과잉 차단 회귀 가드). */
+    /** 이벤트 유형 없이도 접수된다 — 구 계약의 필수 검증이 남아 있으면 400 이 되어 깨진다. */
     @Test
-    @DisplayName("침수_세부유형은_침수와_함께면_200")
-    void floodSubtypeWithFloodIsAccepted() throws Exception {
-        seedStatus(8514L, LsRawDataStatus.STTS_APPROVED);
-        seedFrame(8514L);
+    @DisplayName("이벤트유형_없이_증강요청이_접수된다")
+    void requestWithoutEventTypeIsAccepted() throws Exception {
+        seedStatus(8511L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8511L);
 
         String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8514L),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
-                "evntSubtype", "UNDERPASS_FLOOD",
+                "videoIds", List.of(8511L),
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 
@@ -531,11 +483,11 @@ class AugmentRequestControllerTest {
 
     /**
      * 생성 조건이 허용 코드가 됐다고 해서 <b>증강 종류까지 그 축에서 오는 것은 아니다</b>. types 는
-     * 여전히 enum 3종이며, 임의 문자열은 400 이다 — 이 경계가 무너지면 AUG_TYPE_CD 가 파생 산출물
+     * 여전히 enum(현행 단일값 {@code AUGMENT})이며, 임의 문자열은 400 이다 — 이 경계가 무너지면 AUG_TYPE_CD 가 파생 산출물
      * 경로({@code .../{augTypeCd}.mp4})로 흘러 경로 순회(CWE-22)와 RESL_ 네임스페이스 침범이 열린다.
      */
     @Test
-    @DisplayName("증강종류는_여전히_enum_3종만_허용되고_임의_문자열은_400")
+    @DisplayName("증강종류는_여전히_enum만_허용되고_임의_문자열은_400")
     void arbitraryTypeStillRejected() throws Exception {
         // ★ 이 시험이 지키는 것은 CWE-22(산출물 경로 순회)와 RESL_ 네임스페이스 침범이라, 가드가
         //    조용히 무력화되면 안 된다. 미시드 영상을 쓰면 types enum 이 열려도 미검수 400 에 가려
@@ -543,11 +495,10 @@ class AugmentRequestControllerTest {
         seedStatus(8506L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8506L);
 
-        for (String bad : List.of("RESL_1080P", "../../etc/passwd", "WINTER2")) {
+        for (String bad : List.of("RESL_1080P", "../../etc/passwd", "WINTER", "AUGMENT2")) {
             String body = objectMapper.writeValueAsString(Map.of(
                     "videoIds", List.of(8506L),
                     "types", List.of(bad),
-                    "evntType", "FLOOD",
                     "mtdt", MTDT
             ));
 
@@ -578,7 +529,7 @@ class AugmentRequestControllerTest {
         seedFrame(8507L);
 
         // NBSP · ZWSP · BOM · WORD JOINER — 화면에는 아무것도 보이지 않는다.
-        String body = "{\"videoIds\":[8507],\"types\":[\"WINTER\"],\"evntType\":\"FLOOD\","
+        String body = "{\"videoIds\":[8507],\"types\":[\"AUGMENT\"],"
                 + "\"mtdt\":{\"time\":\"NIGHT\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
                 + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"},"
                 + "\"prompt\":\"\\u00A0\\u200B\\uFEFF\\u2060\"}";
@@ -601,7 +552,7 @@ class AugmentRequestControllerTest {
         seedStatus(8508L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8508L);
 
-        String body = "{\"videoIds\":[8508],\"types\":[\"WINTER\"],\"evntType\":\"FLOOD\","
+        String body = "{\"videoIds\":[8508],\"types\":[\"AUGMENT\"],"
                 + "\"mtdt\":{\"time\":\"NIGHT\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
                 + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"},"
                 + "\"prompt\":\"\\u200B도로\\u00A0구조 유지\"}";
@@ -643,7 +594,7 @@ class AugmentRequestControllerTest {
                 .andExpect(status().isOk())
                 // 같은 종류 2건이 각각의 항목으로 분리된다(항목 구분 축은 type 이 아니라 id + prompt).
                 .andExpect(jsonPath("$.data.results.length()").value(2))
-                .andExpect(jsonPath("$.data.results[0].type").value("WINTER"))
+                .andExpect(jsonPath("$.data.results[0].type").value("AUGMENT"))
                 .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"))
                 // 방금 요청한 건이라 <생성이 진행 중>이다 → 아직 결정 대상이 아니다(2026-07-31 DEV_FIX).
                 // 그래도 항목과 prompt 는 실린다 — R9 역추적(조건 확인)은 결정 가능 여부와 별개 축이고,
@@ -681,8 +632,7 @@ class AugmentRequestControllerTest {
     private void requestWithMtdt(Long rawSn, Map<String, String> mtdt) throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(rawSn),
-                "types", List.of("WINTER"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", mtdt));
         mockMvc.perform(post("/v1/augments/request")
                         .header("Authorization", "Bearer " + reviewerToken)
@@ -703,8 +653,7 @@ class AugmentRequestControllerTest {
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8506L),
-                "types", List.of("NIGHT"),
-                "evntType", "FLOOD",
+                "types", List.of("AUGMENT"),
                 "mtdt", MTDT
         ));
 

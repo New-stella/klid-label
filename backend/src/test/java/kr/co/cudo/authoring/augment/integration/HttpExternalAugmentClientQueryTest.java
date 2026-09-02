@@ -484,7 +484,7 @@ class HttpExternalAugmentClientQueryTest {
         HttpExternalAugmentClient client = client(singleAttempt());
 
         AugmentSubmitResult submitted = client.requestAugment(new AugmentSubmitCommand(
-                10L, "WINTER", MTDT, null, "AUG-40", "FLOOD", null, "1",
+                10L, "AUGMENT", MTDT, null, "AUG-40", "1",
                 "http://localhost:8080/api/v1/genai/callback",
                 List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg")),
                 1, 1)).block();

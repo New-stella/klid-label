@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-009
 type: class_diagram
-version: 4
+version: 5
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:56.608Z
-status: NEW
-prev_version: null
-content_hash: 68ccf19085d7b022090523115de833aec54aacaeff9e911f29bea895e30b2edd
-stale: true
+synced_at: 2026-09-02T10:52:17.815Z
+status: CHANGED
+prev_version: 4
+content_hash: 9bf6a8a0895bf56aa1bb46ecd1f6dddd48b43609e2dc3c387dc2273b8688ca90
+stale: false
 raw: ./_raw/CDIAG-009.json
 links:
   belongs_to_domain: ["[[DOMAIN-006]]"]
@@ -131,6 +131,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### period
 
 - **type**: StatPeriod
@@ -157,6 +161,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -189,6 +197,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### completedCount
 
 - **type**: long
@@ -218,6 +230,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rejectedCount
 
 - **type**: long
@@ -244,6 +260,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -305,6 +325,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### byRole
 
 - **type**: Map<Role,Long>
@@ -331,6 +355,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -363,6 +391,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dailyProgress
 
 - **type**: List<DailyProgress>
@@ -389,6 +421,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -441,6 +477,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### count
 
 - **type**: long
@@ -467,6 +507,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -519,6 +563,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### completed
 
 - **type**: long
@@ -545,6 +593,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -577,6 +629,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rate
 
 - **type**: double
@@ -603,6 +659,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -672,6 +732,8 @@ _(empty)_
 
 작업자/검수자 개인 통계(월별·일별)와 검수자 운영 통계(전체·권한별·상태별·일일 진행률)를 집계해 대시보드로 제공하는 개념 모델. 전용 활성 ERD가 없어(1차 ERD-003 폐기) 물리 테이블이 아닌 집계 결과 VO와 집계 서비스 중심으로 구성했으며, 데이터 소스는 영상·프레임·작업 상태 원장에 대한 집계 조회다.
 
+[★운영 통계 액터 표기] 이 모델은 운영 통계의 대상을 검수자로 적는다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없고 모든 관리 권한이 REVIEWER 에 통합됐다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받는다. 다만 그 계층 상속 덕분에 관리자도 같은 운영 통계에 그대로 접근하므로 검수자 표기는 하한으로서 지금도 참이다 — 표기와 집계 차원은 그대로 유지하고, 관리자 전용 집계 축을 새로 두는 것은 별도 결정이 필요하다.
+
 ## module_name
 
 StatisticsDashboard
@@ -732,11 +794,41 @@ StatisticsDashboard
 - **to_multiplicity**: 1
 - **from_multiplicity**: 1
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-026
 - DFEAT-027
 - DFEAT-028
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

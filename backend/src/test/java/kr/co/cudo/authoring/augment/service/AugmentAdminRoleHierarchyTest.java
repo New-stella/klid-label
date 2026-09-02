@@ -178,8 +178,7 @@ class AugmentAdminRoleHierarchyTest {
 
         private AugmentRequestRequest request() {
             return new AugmentRequestRequest(
-                    List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                    GenAiContract.EventType.FLOOD, null,
+                    List.of(RAW_SN), List.of(AugmentTypeCode.AUGMENT),
                     new AugmentRequestRequest.Mtdt(
                             AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER,
                             AugmentPrompts.Weather.RAIN, AugmentPrompts.Terrain.ROAD,
