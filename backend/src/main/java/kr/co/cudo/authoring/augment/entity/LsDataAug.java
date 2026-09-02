@@ -48,7 +48,7 @@ public class LsDataAug {
      * <b>사용자 취소로 종결</b> — 2026-07-31 신설(FE 취소 API {@code POST /v1/augments/{id}/cancel}).
      *
      * <h3>왜 새 상태가 필요한가 (S1)</h3>
-     * <p>「생성형 AI API 연동명세서 v1.1」 §4.6 은 취소에 <b>웹훅을 발사하지 않는다</b> — 동기 취소
+     * <p>「생성형 AI API 연동명세서 v1.3」 §4.4 은 취소에 <b>웹훅을 발사하지 않는다</b> — 동기 취소
      * 응답이 유일한 통보다. 그 시점에 상태를 확정하지 않으면 다시 알 방법이 없고, 그 증강은 영원히
      * {@link #STTS_PENDING} 에 남는다. 고아 회수기({@code findOrphanPendingAugSns})는 "job 0건" 만
      * 집으므로(취소된 증강은 job 이 1건 이상 존재한다) <b>만료 스윕도 건지지 못한다</b>.

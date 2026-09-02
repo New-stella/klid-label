@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」 §4.1 응답(202).
+ * 「생성형 AI API 연동명세서 v1.3」 §4.1 응답(202).
  *
  * <p>외부는 신뢰 영역 밖이므로 {@code request_id} echo 일치 · {@code status=RECEIVED} ·
  * {@code job_id} 존재를 호출부에서 검증한다.

@@ -38,7 +38,7 @@ import java.util.regex.Pattern;
  * 외부 증강(생성형 AI) 위탁 클라이언트 — 「생성형 AI API 연동명세서」 정합 (Phase 7-A1).
  *
  * <p>위탁 요청(§4.1) 본문은 <b>v1.3</b> 형태다 — 생성 조건은 최상위 {@code mtdt}, 자유 지시문은
- * 별개 {@code prompt} 문자열이다({@code @design INT-008}). 조회·취소(§4.4~§4.6)는 이번 정합에서
+ * 별개 {@code prompt} 문자열이다({@code @design INT-008}). 조회·취소(§4.2~§4.4)는 이번 정합에서
  * 바뀌지 않았고 각 DTO 주석이 자기 절의 판을 적는다.
  *
  * <p>{@code POST /api/genai/jobs} 로 증강을 <b>비동기 위탁</b>하고 202 응답에서 외부가 발급한
@@ -56,6 +56,8 @@ import java.util.regex.Pattern;
  *       하나라도 어긋나면 {@link ErrorCode#EXTERNAL_API_ERROR}.</li>
  *   <li><b>로그</b>: 파일 절대경로를 남기지 않는다(개수·식별자 수준). CR/LF sanitize(CWE-117).</li>
  * </ul>
+ *
+ * @design INTSPEC-005
  */
 @Slf4j
 @Component
@@ -66,13 +68,13 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     /** 명세서 §4.1 위탁 엔드포인트. */
     static final String JOBS_PATH = "/api/genai/jobs";
 
-    /** 명세서 §4.4 상태 조회. 경로 변수는 URI 템플릿으로 넘겨 인코딩을 위임한다. */
+    /** 명세서 §4.2 상태 조회. 경로 변수는 URI 템플릿으로 넘겨 인코딩을 위임한다. */
     static final String JOB_STATUS_PATH = JOBS_PATH + "/{jobId}";
 
-    /** 명세서 §4.5 결과 조회. */
+    /** 명세서 §4.3 결과 조회. */
     static final String JOB_RESULTS_PATH = JOBS_PATH + "/{jobId}/results";
 
-    /** 명세서 §4.6 취소. */
+    /** 명세서 §4.4 취소. */
     static final String JOB_CANCEL_PATH = JOBS_PATH + "/{jobId}/cancel";
 
     /** 위탁 경로의 Resilience4j 인스턴스명. */
@@ -199,7 +201,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     }
 
     /**
-     * 상태 조회 — §4.4. 위탁과 <b>다른 서킷/재시도 인스턴스</b>({@link #QUERY_RESILIENCE_NAME})를 탄다.
+     * 상태 조회 — §4.2. 위탁과 <b>다른 서킷/재시도 인스턴스</b>({@link #QUERY_RESILIENCE_NAME})를 탄다.
      *
      * <p>연산자 순서는 위탁과 같은 이유로 의미가 있다: 계약 검증({@link #validateStatus})은 재시도/서킷
      * <b>뒤</b>에 둔다. 앞에 두면 계약 위반 응답이 재시도 대상이 되어 무의미한 왕복만 늘어난다.
@@ -225,7 +227,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     }
 
     /**
-     * 결과 조회 — §4.5. {@code SUCCEEDED} 에서만 200 이며 그 외는 409 {@code STATE_CONFLICT}(비재시도)다.
+     * 결과 조회 — §4.3. {@code SUCCEEDED} 에서만 200 이며 그 외는 409 {@code STATE_CONFLICT}(비재시도)다.
      *
      * <p>반환 경로({@code output_file_path})는 <b>파싱만</b> 한다. 파일시스템에 넘기기 전 허용 루트
      * 검증은 소비 계층의 책임이다(인터페이스 Javadoc 경고 참조 — CWE-22).
@@ -251,7 +253,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     }
 
     /**
-     * 취소 — §4.6. 로컬 DB 가 이미 종결이면 외부 호출을 <b>개시하지 않는다</b>(확정적 409 왕복 제거).
+     * 취소 — §4.4. 로컬 DB 가 이미 종결이면 외부 호출을 <b>개시하지 않는다</b>(확정적 409 왕복 제거).
      *
      * <p>{@code requested_by} 는 커맨드가 인증 주체에서 파생시킨 값만 실린다(호출부 자유 문자열 불가).
      *
@@ -306,7 +308,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
     }
 
     /**
-     * §4.4 응답 계약 검증 — fail-closed.
+     * §4.2 응답 계약 검증 — fail-closed.
      *
      * <p>미지 {@code status} 를 통과시키면 소비 계층이 성공/실패를 오판한다(영구 대기 또는 성공 누락).
      * {@code error_code} 는 판정 축이 아니므로 <b>미등록 값</b>이어도 실패시키지 않고 WARN 으로 드러낸다.
@@ -354,7 +356,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
         }
     }
 
-    /** §4.5 응답 계약 검증 — {@code SUCCEEDED} + 비어 있지 않은 {@code results} 가 계약이다. */
+    /** §4.3 응답 계약 검증 — {@code SUCCEEDED} + 비어 있지 않은 {@code results} 가 계약이다. */
     private GenAiJobResultsResponse validateResults(GenAiJobResultsResponse response, String expectedJobId) {
         validateEcho(response.requestId(), response.jobId(), expectedJobId, "결과조회");
         if (!GenAiContract.STATUS_SUCCEEDED.equals(response.status())) {
@@ -393,7 +395,7 @@ public class HttpExternalAugmentClient implements ExternalAugmentClient {
         }
     }
 
-    /** §4.6 응답 계약 검증 — 취소는 웹훅이 없어 이 동기 응답이 유일한 통보다(오접수 금지). */
+    /** §4.4 응답 계약 검증 — 취소는 웹훅이 없어 이 동기 응답이 유일한 통보다(오접수 금지). */
     private GenAiCancelResponse validateCancel(GenAiCancelResponse response, String expectedJobId) {
         validateEcho(response.requestId(), response.jobId(), expectedJobId, "취소");
         if (!GenAiContract.STATUS_CANCELED.equals(response.status())) {

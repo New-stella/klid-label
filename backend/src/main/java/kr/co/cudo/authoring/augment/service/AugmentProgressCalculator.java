@@ -43,7 +43,7 @@ public final class AugmentProgressCalculator {
      * @param jobSeq           청크 순번
      * @param jobSttsCd        {@code LS_DATA_AUG_JOB.JOB_STTS_CD}
      * @param totalCount       그 청크가 위탁한 입력 파일 수({@code TOT_NOCS})
-     * @param externalProgress 외부 상태조회(§4.4)가 준 진행률(0~100). 미조회/미제공이면 null
+     * @param externalProgress 외부 상태조회(§4.2)가 준 진행률(0~100). 미조회/미제공이면 null
      */
     public record JobView(int jobSeq, String jobSttsCd, int totalCount, Integer externalProgress) {
 

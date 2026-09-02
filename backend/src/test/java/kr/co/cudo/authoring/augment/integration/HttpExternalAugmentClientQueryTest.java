@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * {@link HttpExternalAugmentClient} 조회/취소 3종 — 「생성형 AI API 연동명세서 v1.1」 §4.4/§4.5/§4.6
+ * {@link HttpExternalAugmentClient} 조회/취소 3종 — 「생성형 AI API 연동명세서 v1.3」 §4.2/§4.3/§4.4
  * (INT-020 / INT-030 / INT-031) 계약 정합 테스트.
  *
  * <p>목 서버(mock-server/app/routers/augment.py)가 계약 정본이므로 그 경로·상태 규칙·오류 코드를
@@ -102,7 +102,7 @@ class HttpExternalAugmentClientQueryTest {
         return new AugmentCancelCommand(jobId, actor, reason, localTerminal);
     }
 
-    // ── §4.4 상태 조회 (INT-020) ────────────────────────────────────────────
+    // ── §4.2 상태 조회 (INT-020) ────────────────────────────────────────────
 
     @Test
     @DisplayName("상태조회는_progress_와_current_step_을_파싱한다")
@@ -265,7 +265,7 @@ class HttpExternalAugmentClientQueryTest {
                 .isTrue();
     }
 
-    // ── §4.5 결과 조회 (INT-030) ────────────────────────────────────────────
+    // ── §4.3 결과 조회 (INT-030) ────────────────────────────────────────────
 
     @Test
     @DisplayName("결과조회는_results_배열_다건을_파싱한다")
@@ -344,7 +344,7 @@ class HttpExternalAugmentClientQueryTest {
                 .isInstanceOf(CustomException.class);
     }
 
-    // ── §4.6 취소 (INT-031) ─────────────────────────────────────────────────
+    // ── §4.4 취소 (INT-031) ─────────────────────────────────────────────────
 
     @Test
     @DisplayName("취소요청_본문에_requested_by_가_포함된다")

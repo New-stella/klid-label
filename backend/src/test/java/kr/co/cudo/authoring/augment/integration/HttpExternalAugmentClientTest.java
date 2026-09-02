@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * HttpExternalAugmentClient 단위 테스트 — 「생성형 AI API 연동명세서 v1.1」 §4.1 계약 정합.
+ * HttpExternalAugmentClient 단위 테스트 — 「생성형 AI API 연동명세서 v1.3」 §4.1 계약 정합.
  *
  * <p>목 서버(mock-server/app/routers/augment.py)가 계약 정본이므로, 그 스키마·헤더·응답 규약을
  * 그대로 단언한다.

@@ -130,7 +130,7 @@ public class AugmentRequestService {
      * 콜백 경로 — 단일 진실원
      * ({@link kr.co.cudo.authoring.common.security.webhook.WebhookProtectedPaths#PATH_GENAI_CALLBACK}) 참조.
      *
-     * <p>Phase 7-A1: 「생성형 AI API 연동명세서 v1.1」 웹훅 경로로 교체했다. 수신 컨트롤러는 A2 에서
+     * <p>Phase 7-A1: 「생성형 AI API 연동명세서 v1.3」 웹훅 경로로 교체했다. 수신 컨트롤러는 A2 에서
      * 같은 상수를 참조해 추가한다(구 {@code /v1/aug/callback} 는 A2 에서 정리).
      */
     public static final String CALLBACK_PATH = AugmentCallbackUrlResolver.CALLBACK_PATH;

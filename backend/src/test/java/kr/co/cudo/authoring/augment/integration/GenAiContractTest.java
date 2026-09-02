@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」 §3.2/§3.3 코드 공간 가드.
+ * 「생성형 AI API 연동명세서 v1.3」 §3.2/§3.3 코드 공간 가드.
  *
  * <p>상태 화이트리스트가 {@link LsDataAugJob} 의 저장 코드와 갈라지면, 조회는 통과했는데 DB 에는
  * 못 넣거나(또는 그 반대) 하는 조용한 불일치가 생긴다. 두 곳이 같은 코드 공간임을 테스트로 못박는다.

@@ -5,7 +5,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 
 /**
- * 외부 증강 작업 취소 요청 컨텍스트 — 「생성형 AI API 연동명세서 v1.1」 §4.6 (INT-031).
+ * 외부 증강 작업 취소 요청 컨텍스트 — 「생성형 AI API 연동명세서 v1.3」 §4.4 (INT-031).
  *
  * <h3>{@code requested_by} 는 자유 문자열로 받지 않는다 — <b>관례적 방어</b>다</h3>
  * <p>취소는 감사 대상 행위라 "누가 눌렀는가" 가 호출부의 임의 문자열이면 안 된다. 그래서 이 커맨드는
@@ -38,9 +38,9 @@ public record AugmentCancelCommand(
         String reason,
         boolean localTerminal) {
 
-    /** §4.6 {@code reason} 상한. */
+    /** §4.4 {@code reason} 상한. */
     public static final int REASON_MAX = 500;
-    /** §4.6 {@code requested_by} 상한. */
+    /** §4.4 {@code requested_by} 상한. */
     public static final int REQUESTED_BY_MAX = 64;
 
     public AugmentCancelCommand {
@@ -57,7 +57,7 @@ public record AugmentCancelCommand(
         reason = (reason == null || reason.isBlank()) ? null : reason.strip();
     }
 
-    /** §4.6 {@code requested_by} — 인증 주체에서만 파생된다. */
+    /** §4.4 {@code requested_by} — 인증 주체에서만 파생된다. */
     public String requestedBy() {
         return actor.sub();
     }

@@ -33,9 +33,9 @@ public final class GenAiContract {
     private static final Set<String> KNOWN_STATUSES = Set.of(
             STATUS_RECEIVED, STATUS_RUNNING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELED);
 
-    /** §4.2/§4.5 {@code media_type}. */
+    /** §4.3/§4.5 {@code media_type}. */
     public static final String MEDIA_TYPE_IMAGE = "IMAGE";
-    /** §4.2/§4.5 {@code media_type}. */
+    /** §4.3/§4.5 {@code media_type}. */
     public static final String MEDIA_TYPE_VIDEO = "VIDEO";
 
     private static final Set<String> KNOWN_MEDIA_TYPES = Set.of(MEDIA_TYPE_IMAGE, MEDIA_TYPE_VIDEO);

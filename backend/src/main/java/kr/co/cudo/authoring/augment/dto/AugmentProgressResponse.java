@@ -13,7 +13,7 @@ package kr.co.cudo.authoring.augment.dto;
  *   progress = round( Σ(weight_i × p_i) / Σ(weight_i) )
  *     weight_i = max(1, LS_DATA_AUG_JOB.TOT_NOCS)   // 그 청크가 위탁한 입력 파일 수
  *     p_i      = 종결 job → 100
- *                비종결 job → 외부 상태조회(§4.4)의 progress (미제공이면 0)
+ *                비종결 job → 외부 상태조회(§4.2)의 progress (미제공이면 0)
  * </pre>
  * <p><b>최솟값(min) 이 아니다.</b> min 을 쓰면 청크 3개 중 2개가 100% 여도 전체가 0% 로 보여
  * 진행이 멈춘 것처럼 표시된다. 반대로 단순 평균(가중 없음)은 1장짜리 꼬리 청크가 100장짜리 청크와

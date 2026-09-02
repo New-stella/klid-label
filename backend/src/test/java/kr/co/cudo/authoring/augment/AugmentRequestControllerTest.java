@@ -42,9 +42,9 @@ class AugmentRequestControllerTest {
 
     /**
      * 생성 조건 5필드 — 프롬프트가 관심사가 아닌 케이스에서 계약(필수)을 채우는 고정값.
-     * 자유 문자열이므로 enum 이 아니다(연동명세서 v1.1 §4.1 이 허용값을 정의하지 않는다).
+     *
+     * <p>v1.3 생성 조건 — 다섯 축 모두 <b>허용 코드</b>다(자유 문자열 아님).
      */
-    /** v1.3 생성 조건 — 다섯 축 모두 <b>허용 코드</b>다(자유 문자열 아님). */
     private static final Map<String, String> MTDT = Map.of(
             "time", "NIGHT", "season", "WINTER", "weather", "RAIN",
             "terrain", "ROAD", "severity", "HIGH");
