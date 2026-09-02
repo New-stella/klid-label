@@ -58,6 +58,8 @@ class GenAiCallbackRollupConcurrencyIT {
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugJobRepository augJobRepository;
     @Autowired private LsDataAugJobFileRepository augJobFileRepository;
+    @Autowired private kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository
+            deidentProcLogRepositoryForFixture;
 
     private record Seed(Long parentRawSn, Long dataAugSn, String key1, String key2) { }
 
@@ -69,6 +71,7 @@ class GenAiCallbackRollupConcurrencyIT {
                 LocalDateTime.now(), 30));
         parent.markDeidentified("Y");
         parent = videoRepository.save(parent);
+        seedParentDeidVideo(parent.getRawSn(), parent.getRawFilePathNm());
         LsDataSrc frame0 = srcRepository.save(
                 LsDataSrc.create(parent.getRawSn(), 0, parent.getRawSn() + "/f0.jpg", null));
         LsDataSrc frame1 = srcRepository.save(
@@ -87,6 +90,21 @@ class GenAiCallbackRollupConcurrencyIT {
         augJobFileRepository.save(LsDataAugJobFile.issued(job1.getAugJobSn(), 1, frame0.getSrcSn()));
         augJobFileRepository.save(LsDataAugJobFile.issued(job2.getAugJobSn(), 2, frame1.getSrcSn()));
         return new Seed(parent.getRawSn(), aug.getDataAugSn(), key1, key2);
+    }
+
+    /**
+     * 부모 <b>비식별 영상 산출물</b> 처리 이력 — 파생 복사 원본 경로의 진실원(ADR-058).
+     *
+     * <p>부모 게이트가 플래그가 아니라 <b>경로를 직접 조달</b>하도록 바뀌어(「비식별이 끝났나」는 조건이
+     * 아니라 결과였다) 플래그만 세운 부모로는 통과하지 않는다. 운영에서는 {@code DE_IDENT_YN='Y'} 전이와
+     * 성공 처리 이력 적재가 <b>같은 트랜잭션</b>이라 이 조합이 실재하지 않는다 — 구 픽스처가 실제보다
+     * 느슨했던 것이다.
+     */
+    private void seedParentDeidVideo(Long parentRawSn, String orgnlFilePath) {
+        var procLog = kr.co.cudo.authoring.batch.entity.LsDeidentProcLog.request(
+                parentRawSn, null, orgnlFilePath, "test");
+        procLog.succeed("videos/" + parentRawSn + "/deidentified.mp4");
+        deidentProcLogRepositoryForFixture.saveAndFlush(procLog);
     }
 
     private static LsDataAugJob acceptedJob(Long dataAugSn, int seq, String requestId) {

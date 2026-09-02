@@ -85,6 +85,8 @@ class WebhookPathBypassSecurityIT {
     @Autowired private LsDataAugRepository augRepository;
     @Autowired private LsDataAugJobRepository augJobRepository;
     @Autowired private LsDataAugJobFileRepository augJobFileRepository;
+    @Autowired private kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository
+            deidentProcLogRepositoryForFixture;
     @Autowired private WebhookIdempotencyLedger ledger;
     @Autowired private WebhookRateLimitStore rateLimitStore;
 
@@ -114,6 +116,7 @@ class WebhookPathBypassSecurityIT {
                 LocalDateTime.now(), 30));
         parent.markDeidentified("Y");
         parent = videoRepository.save(parent);
+        seedParentDeidVideo(parent.getRawSn(), parent.getRawFilePathNm());
         LsDataSrc frame0 = srcRepository.save(
                 LsDataSrc.create(parent.getRawSn(), 0, 0L, parent.getRawSn() + "/f0.jpg", null));
 
@@ -129,6 +132,23 @@ class WebhookPathBypassSecurityIT {
         augJobFileRepository.save(LsDataAugJobFile.issued(job.getAugJobSn(), 1, frame0.getSrcSn()));
         // 구 LS_WEBHOOK_IDEMPOTENCY(AUGMENT) 선기록은 발급 게이트가 아니므로 시드하지 않는다.
         return new Seed(parent.getRawSn(), aug.getDataAugSn(), jobId, key);
+    }
+
+    /**
+     * 부모 <b>비식별 영상 산출물</b> 처리 이력 — 파생 복사 원본 경로의 진실원(ADR-058).
+     *
+     * <p>흡수 이전 부모 게이트는 {@code DE_IDENT_YN} <b>플래그</b>만 봤고 실제 경로는 비동기 Phase A 에서야
+     * 확인했다. 지금은 게이트가 <b>경로를 직접 조달</b>하므로(「비식별이 끝났나」는 조건이 아니라 결과였다)
+     * 플래그만 세운 부모로는 통과하지 않는다 — 관제 경로가 <b>더 엄격해진</b> 지점이며, 운영에서는
+     * {@code DE_IDENT_YN='Y'} 전이와 성공 처리 이력 적재가 <b>같은 트랜잭션</b>이라 이 조합이 실재하지
+     * 않는다(구 픽스처가 실제보다 느슨했다). 경로는 상대값으로 둔다 — co-locate 디렉터리와 비식별 저장소
+     * 서브트리({@code videos/**}) 양쪽에서 해석된다.
+     */
+    private void seedParentDeidVideo(Long parentRawSn, String orgnlFilePath) {
+        var procLog = kr.co.cudo.authoring.batch.entity.LsDeidentProcLog.request(
+                parentRawSn, null, orgnlFilePath, "test");
+        procLog.succeed("videos/" + parentRawSn + "/deidentified.mp4");
+        deidentProcLogRepositoryForFixture.saveAndFlush(procLog);
     }
 
     /** 발급된 request_id 를 실은 정상 SUCCEEDED 본문. */
