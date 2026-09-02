@@ -165,7 +165,25 @@ export function PortalUploadPage() {
 
       {/* 자산 목록 */}
       <section aria-label="업로드 자산 목록" className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">업로드 자산</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
+            업로드 자산
+          </h2>
+          {/*
+            증강 요청 현황·결과로 가는 진입 — **목록 상단에 한 번만** 둔다(자산별 액션이 아니다).
+            요청 이후의 현황·결과 확인·후속 작업·내려받기는 전부 그 화면이 담당하고, 이 화면은
+            그리로 가는 링크만 갖는다. [@design SCREEN-033] [@design SCREEN-044]
+          */}
+          <Link
+            to="/portal/augment"
+            className={cn(
+              'inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50',
+              KRDS_FOCUS,
+            )}
+          >
+            증강 요청 현황·결과
+          </Link>
+        </div>
         {deleteUpload.error != null && (
           <p role="alert" className="text-sub text-danger">
             {deleteErrorMessage(deleteUpload.error)}

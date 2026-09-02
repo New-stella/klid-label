@@ -113,6 +113,10 @@ const TABLES: TableCase[] = [
     label: 'AiServerListCard(연동 서버 주소 — AI 장비 목록)',
     file: 'src/features/aiServer/components/AiServerListCard.tsx',
   },
+  {
+    label: 'PortalAugmentPage(포털 증강 — 요청 현황)',
+    file: 'src/pages/portal/PortalAugmentPage.tsx',
+  },
 ];
 
 /**

@@ -99,6 +99,11 @@ const PortalUploadMarkingPage = /* @__PURE__ */ lazyWithRetry(() =>
     default: m.PortalUploadMarkingPage,
   })),
 );
+// 포털 증강 화면 — 요청 현황·결과 확인·후속 진입·결과물 내려받기. [@design SCREEN-044]
+// 요청을 거는 자리는 여기가 아니라 포털 업로드 화면의 자산별 액션이다.
+const PortalAugmentPage = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/pages/portal/PortalAugmentPage').then((m) => ({ default: m.PortalAugmentPage })),
+);
 // 폐기된 업로드 자산 라벨링 주소를 통합 라벨링 화면으로 넘기는 갈아타기 lazy 로드.
 // 화면이 아니라 **이미 나가 있는 주소**를 위한 호환 조각이다(어디서도 그리로 보내지 않는다).
 const PortalUploadLabelingRedirect = /* @__PURE__ */ lazyWithRetry(() =>
@@ -708,6 +713,15 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
           {
             path: 'uploads',
             element: <PortalRoute>{withSuspense(<PortalUploadPage />)}</PortalRoute>,
+          },
+          {
+            // 증강 — 본문 상단 이동 탭의 목적지 셋 가운데 하나다. 탭이 이 주소를 가리키므로
+            // 여기가 비면 탭을 누른 사용자가 «못 찾은 주소» 로 떨어진다.
+            // ⚠ 경로를 상수로 빼 오지 않는다 — 이 파일은 **두 채널 산출물의 공통 입구**라, 포털
+            //   전용 모듈을 여기서 import 하면 죽은 가지에 있어도 모듈 순서가 밀려 관제 산출물의
+            //   압축 결과가 바뀐다(형제 경로들이 같은 이유로 문자열이다).
+            path: 'augment',
+            element: <PortalRoute>{withSuspense(<PortalAugmentPage />)}</PortalRoute>,
           },
           {
             // 마킹 화면 — 업로드 자산 아래 자기 자리다(마킹의 대상이 프레임이 아니라 자산이다).
