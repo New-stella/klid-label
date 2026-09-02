@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.augment.integration;
 
 /**
- * 외부 증강 위탁 202 응답 — 「생성형 AI API 연동명세서 v1.1」 §4.1.
+ * 외부 증강 위탁 202 응답 — 「생성형 AI API 연동명세서 v1.3」 §4.1.
  *
  * <p><b>job_id 발급 주체는 외부</b>다. 본 도구는 {@code request_id} 만 발급하고, 외부가 202 로
  * 돌려준 {@code job_id} 를 {@code LS_DATA_AUG_JOB.OTSD_JOB_ID} 에 적재한다.

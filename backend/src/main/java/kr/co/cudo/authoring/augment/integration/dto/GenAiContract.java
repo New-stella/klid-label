@@ -33,9 +33,9 @@ public final class GenAiContract {
     private static final Set<String> KNOWN_STATUSES = Set.of(
             STATUS_RECEIVED, STATUS_RUNNING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELED);
 
-    /** §4.2/§4.5 {@code media_type}. */
+    /** §4.3/§4.5 {@code media_type}. */
     public static final String MEDIA_TYPE_IMAGE = "IMAGE";
-    /** §4.2/§4.5 {@code media_type}. */
+    /** §4.3/§4.5 {@code media_type}. */
     public static final String MEDIA_TYPE_VIDEO = "VIDEO";
 
     private static final Set<String> KNOWN_MEDIA_TYPES = Set.of(MEDIA_TYPE_IMAGE, MEDIA_TYPE_VIDEO);
@@ -96,31 +96,17 @@ public final class GenAiContract {
         return jobId != null && JOB_ID.matcher(jobId).matches();
     }
 
-    /**
-     * §4.1 {@code evnt_type} 허용 코드 — <b>우리가 보내는 값</b>이라 enum 으로 닫는다.
-     *
-     * <p>위쪽 상태·오류 코드 공간이 String + 화이트리스트인 것과 <b>방향이 반대</b>다: 그쪽은 벤더가
-     * 보내오는 값이라 미지의 값에 파싱이 깨지면 응답 전체를 잃지만, 이쪽은 우리가 조립하는 값이라
-     * 계약 밖 값을 만들 수 있는 것 자체가 결함이다(요청이 {@code 400} 으로 되돌아온다).
-     *
-     * <p><b>영상의 관제 이벤트 코드에서 변환하지 않는다</b>: 두 분류 축이 서로 다른 체계라 자동 변환은
-     * 추정이 되고, 추정한 값이 그대로 위탁에 실린다. 요청자가 화면에서 고른 값을 그대로 중계한다.
-     *
-     * @design INT-008
-     */
-    public enum EventType {
-        FLOOD, WILDFIRE
-    }
-
-    /**
-     * §4.1 {@code evnt_subtype} 허용 코드 — <b>침수 전용</b>(선택).
-     *
-     * <p>계약에 산불 세부 코드가 정의돼 있지 않으므로 {@link EventType#WILDFIRE} 와 함께 보내면
-     * {@code 400} 이다. 그 조합은 우리 접수 단계에서 먼저 끊는다.
-     *
-     * @design INT-008
-     */
-    public enum FloodSubtype {
-        ROAD_FLOOD, RIVER_OVERFLOW, UNDERPASS_FLOOD, URBAN_INUNDATION, OTHER
-    }
+    // ────────────────────────────────────────────────────────────────────────
+    // 폐기 이력 — 구 {@code EventType}(FLOOD/WILDFIRE)·{@code FloodSubtype} enum 은 제거됐다
+    // (2026-09-02 · @design ADR-059).
+    //
+    // 그 두 enum 은 "요청자가 화면에서 고른 이벤트 유형" 을 담는 자리였다. 벤더의 이미지 증강은
+    // 배경 이미지에 <이벤트 장면을 만들어 넣는> 작업이라 그 값이 무엇을 만들지 정하는 축인데,
+    // 우리 증강은 이미 이벤트가 담긴 프레임을 변환할 뿐이라 지정할 자리가 없다. 이제 evnt_type 은
+    // 서버가 중립값으로 고정 송신하고(GenAiJobSubmitRequest.EVENT_TYPE_ETC) 세부 유형은 아예
+    // 보내지 않으므로, 요청 본문에도 코드 공간에도 이 enum 이 설 자리가 없다.
+    //
+    // ⚠ KNOWN_ERROR_CODES 의 UNSUPPORTED_EVENT_TYPE 은 <벤더가 보내오는> 오류 코드라 그대로 둔다.
+    //   그 값은 우리 요청 코드 공간이 아니라 벤더 응답 코드 공간의 멤버다.
+    // ────────────────────────────────────────────────────────────────────────
 }

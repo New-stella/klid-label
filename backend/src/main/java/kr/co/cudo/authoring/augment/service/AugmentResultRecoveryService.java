@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * <b>웹훅 유실 회수</b> — 외부 상태조회(§4.4)가 종결을 알려주면 결과조회(§4.5, INT-030)로 산출물을
+ * <b>웹훅 유실 회수</b> — 외부 상태조회(§4.2)가 종결을 알려주면 결과조회(§4.3, INT-030)로 산출물을
  * 회수해 로컬을 종결시킨다.
  *
  * <h3>왜 필요한가</h3>
@@ -52,8 +52,8 @@ public class AugmentResultRecoveryService {
      *
      * @param dataAugSn 증강 PK
      * @param job       비종결 로컬 job
-     * @param status    외부 상태조회 응답(§4.4) — 종결 상태여야 한다
-     * @param budget    요청 1회의 외부 호출 시간 예산 — 결과조회(§4.5)도 이 예산을 쓴다(HIGH-1)
+     * @param status    외부 상태조회 응답(§4.2) — 종결 상태여야 한다
+     * @param budget    요청 1회의 외부 호출 시간 예산 — 결과조회(§4.3)도 이 예산을 쓴다(HIGH-1)
      * @return true = 이번 호출이 회수함
      */
     boolean recover(Long dataAugSn, LsDataAugJob job, GenAiJobStatusResponse status,
@@ -71,7 +71,7 @@ public class AugmentResultRecoveryService {
     }
 
     /**
-     * 성공 회수 — 결과조회(§4.5)로 산출 경로를 받아 <b>허용루트 검증을 통과시킨 뒤에만</b> 반영한다.
+     * 성공 회수 — 결과조회(§4.3)로 산출 경로를 받아 <b>허용루트 검증을 통과시킨 뒤에만</b> 반영한다.
      *
      * <p>검증은 {@link AugmentJobSuccessApplier#verifyOutputPaths} 하나만 쓴다. 새 검증 로직을 여기서
      * 만들면 정적 가드({@code ExternalAugmentClientContractGuardTest})가 초록인 채 경로 순회(CWE-22)가
@@ -100,7 +100,7 @@ public class AugmentResultRecoveryService {
                 LsDataAugJob.STTS_SUCCEEDED, outputs, status.errorCode(), status.errorMessage());
     }
 
-    /** §4.5 {@code results[]} → 산출 경로 목록(순서 보존). 검증은 applier 가 수행한다. */
+    /** §4.3 {@code results[]} → 산출 경로 목록(순서 보존). 검증은 applier 가 수행한다. */
     private static List<String> outputFilePathsOf(GenAiJobResultsResponse response) {
         return response.results().stream()
                 .map(GenAiJobResultsResponse.ResultItem::outputFilePath)

@@ -1,0 +1,153 @@
+---
+logicraft_item: SHELL-001
+type: app_shell
+version: 11
+domain: null
+project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
+synced_at: 2026-09-02T10:53:45.574Z
+status: NEW
+prev_version: null
+content_hash: e8bd9633b2ab4d4ce148fc0da6ec3980b9bb16a3da4f72bee48aa3f052a24005
+stale: true
+raw: ./_raw/SHELL-001.json
+links:
+  applies_to: ["[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-027]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]", "[[SCREEN-039]]"]
+  references: ["[[NAV-001]]"]
+---
+
+# 저작도구 내부 채널 셸
+
+## title
+
+저작도구 내부 채널 셸
+
+## device
+
+desktop
+
+## footer
+
+### enabled
+
+false
+
+### components
+
+_(empty)_
+
+## header
+
+### sticky
+
+true
+
+### enabled
+
+true
+
+### components
+
+#### [1]
+
+- **type**: Logo
+- **align**: start
+- **label**: 학습데이터 저작도구
+
+#### [2]
+
+- **type**: Badge
+- **align**: end
+- **label**: 역할 배지 — 관리자/검수자/작업자/포털, 역할이 아직 없으면 미배정(경고 아이콘 병기)으로 보이며 네 값 중 하나로 임의로 채우지 않는다. 모르는 값은 비우지 않고 받은 값을 그대로 중립 색으로 노출한다. 역할별 색상 구분, 읽기 전용
+
+#### [3]
+
+- **type**: Avatar
+- **align**: end
+- **label**: 사용자 아바타 — 이름 첫 글자 원형 이니셜
+
+#### [4]
+
+- **type**: Text
+- **align**: end
+- **label**: 사용자 이름
+
+## status
+
+draft
+
+## sidenav
+
+### enabled
+
+true
+
+### position
+
+left
+
+### collapsible
+
+false
+
+### top_components
+
+_(empty)_
+
+### bottom_components
+
+_(empty)_
+
+## description
+
+관제서버와 동일 도메인으로 진입하는 내부 채널(검수자·작업자)의 공통 셸. 상단 고정 헤더(높이 56px) + 좌측 고정 주 메뉴(폭 240px) + 본문으로 구성한다. 주 메뉴는 접거나 숨기는 기능을 두지 않는다 — 항상 같은 폭으로 노출된다. 이 셸은 데스크톱·태블릿을 전제하며 좁은 폭에서 메뉴를 서랍으로 바꾸는 분기를 두지 않는다(내부 작업자용 도구이고 라벨링·검수가 넓은 화면을 요구한다).
+
+메뉴 항목의 구성은 이 셸이 정하지 않는다 — 내부 채널 내비게이션 정의를 그대로 따른다. 셸과 메뉴 정의 두 곳에 같은 목록을 적으면 한쪽만 갱신돼 어긋난다.
+
+브레드크럼은 이 셸의 구성 요소가 아니다 — 본문 상단 페이지 헤더가 선택적으로 노출하며 셸이 모든 화면에 강제하지 않는다.
+
+이 셸을 쓰지 않는 화면이 있다. 라벨링 캔버스는 화면 전체를 작업 영역으로 쓰는 풀스크린이라 셸 밖에서 자체 헤더를 둔다. 로드 버전 선택도 이 셸이 감싸지 않는다 — 독립 페이지가 아니라 라벨링 캔버스에 들어올 때 그 위에 열리는 모달이라, 이미 셸 밖에 있는 캔버스의 화면 영역을 그대로 쓰기 때문이다. 세션 인계·역할 클레임·접근 거부·개발용 로그인은 인증이 끝나기 전이거나 메뉴로 이동할 대상이 없어 셸을 두지 않는다. 반면 마킹 화면과 검수 상세 화면은 자체 상단 헤더를 갖지만 이 셸 안에서 렌더한다 — 셸 밖으로 빼지 않는다.
+
+하단 푸터는 두지 않는다 — 노출 여부와 문안(근거법령·운영기관·문의처)이 아직 확정되지 않았고, 확정 전에 임시 문구를 내보내면 그 자리표시 값이 실제 정보인 것처럼 읽힌다. 확정되면 이 항목을 다시 켠다. 푸터가 없는 것은 결손이 아니라 이 결정의 결과이므로 정합 점검에서 누락으로 보고하지 않는다.
+
+## nav_regions
+
+### [1]
+
+- **key**: lnb
+- **slot**: left
+- **label**: 주 메뉴
+- **style**: persistent
+- **width**: 240px
+- **device**: desktop
+- **orientation**: vertical
+- **source_nav_id**: NAV-001
+
+## applies_to_screens
+
+- SCREEN-006
+- SCREEN-008
+- SCREEN-009
+- SCREEN-011
+- SCREEN-012
+- SCREEN-018
+- SCREEN-019
+- SCREEN-020
+- SCREEN-021
+- SCREEN-022
+- SCREEN-023
+- SCREEN-024
+- SCREEN-025
+- SCREEN-026
+- SCREEN-027
+- SCREEN-030
+- SCREEN-031
+- SCREEN-032
+- SCREEN-035
+- SCREEN-036
+- SCREEN-037
+- SCREEN-038
+- SCREEN-039
+
+## default_navigation_id
+
+NAV-001

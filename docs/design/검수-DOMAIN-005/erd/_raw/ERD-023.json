@@ -216,10 +216,11 @@
               "unique": false,
               "nullable": false,
               "code_values": {
+                "ADMIN": "관리자",
                 "WORKER": "라벨링 작업자",
                 "REVIEWER": "검수자"
               },
-              "description": "작성 시점 역할 — 표시·상태전이 판정용",
+              "description": "작성 시점 역할 — 표시·상태전이 판정용. 관리자는 검수자 권한을 물려받아 이 창구에 그대로 들어오므로 작성자 역할로 관리자도 저장된다.",
               "primary_key": false,
               "logical_column_name": "작성자역할"
             },
@@ -263,7 +264,7 @@
             "status": "new",
             "diff_summary": "V57 신규 — 양방향 댓글"
           },
-          "description": "이슈 스레드 양방향 댓글 — WORKER/REVIEWER 작성, REVIEWER 댓글 시 INQUIRY OPEN→ANSWERED 자동 전이",
+          "description": "이슈 스레드 양방향 댓글 — WORKER/REVIEWER/ADMIN 작성, 검수자 이상(관리자 포함) 댓글 시 INQUIRY OPEN→ANSWERED 자동 전이",
           "related_classes": [
             {
               "name": "LsIssueComment",
@@ -304,26 +305,29 @@
           "cardinality": "1:N"
         }
       ],
+      "attached_files": [],
       "implementation": {
-        "status": "implemented",
+        "status": "verified",
         "modules": [],
         "records": [
-          "IMPREC-207"
+          "IMPREC-207",
+          "IMPREC-388"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:18:02.419Z"
+        "last_updated": "2026-09-02T04:33:29.276Z",
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "brownfield.notes 에서 저장소 경로·커밋 식별자·점검 회차 표기를 걷어낸다. 설계 근거 서술은 그대로 두었다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:18:02.419Z",
+    "change_summary": "LS_ISSUE_COMMENT table description: ADMIN added to author roles (WORKER/REVIEWER/ADMIN) and transition actor widened to 검수자 이상(관리자 포함) [API-104]. Column level was already aligned in v11.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-02T04:47:21.161Z",
     "created_at": "2026-06-05T05:01:26.176Z"
   }
 }

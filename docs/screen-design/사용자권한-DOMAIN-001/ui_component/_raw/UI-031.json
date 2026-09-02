@@ -1,0 +1,66 @@
+{
+  "item": {
+    "id": "UI-031",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "overlay: Popover",
+    "slug": "overlay-popover",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "Popover",
+      "tags": [
+        "common",
+        "overlay",
+        "popover"
+      ],
+      "category": "overlay",
+      "description": "팝오버. trigger 콘텐츠를 내부 button 으로 감싸 aria-haspopup=dialog·aria-expanded 를 부여한다(trigger 로 이미 상호작용 가능한 요소를 넘기면 중첩 button 이 된다는 점에 유의). 절대배치 콘텐츠, placement(bottom/top × start/end), 외부 클릭/ESC 닫기. open/onOpenChange 를 지정하면 열림 상태를 외부에서 제어하는 controlled 모드로 전환된다(미지정 시 내부 상태로 자동 관리).",
+      "props_schema": [
+        {
+          "name": "trigger",
+          "type": "ReactNode",
+          "required": true
+        },
+        {
+          "name": "children",
+          "type": "ReactNode",
+          "required": true
+        },
+        {
+          "name": "placement",
+          "type": "'bottom-start'|'bottom-end'|'top-start'|'top-end'",
+          "default": "bottom-start",
+          "required": false
+        },
+        {
+          "name": "open",
+          "type": "boolean",
+          "required": false,
+          "description": "지정 시 controlled 모드 — 외부에서 열림 상태를 직접 제어한다(미지정 시 내부 state로 자동 관리)."
+        },
+        {
+          "name": "onOpenChange",
+          "type": "(open: boolean) => void",
+          "required": false,
+          "description": "controlled 모드에서 열림 상태가 바뀔 때 호출된다. open 과 함께 사용."
+        }
+      ],
+      "usage_example": "라벨링 툴바의 회전 각도 선택, 날짜 선택기 등 트리거 버튼 아래에 소규모 옵션·컨트롤을 띄울 때 사용. 값 선택 즉시 닫기처럼 액션 완료 후 자동으로 닫아야 하면 open/onOpenChange 로 controlled 모드를 사용한다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "aria-haspopup=dialog, aria-expanded, ESC/외부클릭 닫기. trigger 콘텐츠는 내부 button 으로 감싸지므로 trigger 에 이미 상호작용 가능한 요소(버튼 등)를 전달하면 중첩 button 이 된다 — 아이콘·텍스트 등 비상호작용 콘텐츠를 넘기는 것을 권장. controlled 모드(open/onOpenChange)에서도 aria-expanded 는 실제 열림 상태를 그대로 반영한다.",
+      "referenced_by_screen_ids": [
+        "SCREEN-005"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "props_schema 에 open·onOpenChange(baseline 합집합 — controlled 모드, 값 선택 즉시 닫기 등에 필요) 추가. description·accessibility_notes 에 trigger 를 내부 button 으로 감싸는 동작(중첩 button 유의) 명시. usage_example 신설. referenced_by_screen_ids 채움(SCREEN-005 1개 화면에서 사용 확인).",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:35:59.439Z",
+    "created_at": "2026-06-02T13:12:01.499Z"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "item": {
+    "id": "UC-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "use_case",
+    "title": "라벨 클래스·속성 정의 관리",
+    "slug": "라벨-클래스속성-정의-관리",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "goal": "라벨 마스터(LS_LABEL)와 속성 정의(LS_LABEL_ATTR)를 CRUD하여 프리셋·오토라벨·라벨링 화면 전체가 참조하는 단일 진실원을 유지한다",
+      "actor": "검수자(REVIEWER)",
+      "title": "라벨 클래스·속성 정의 관리",
+      "status": "approved",
+      "priority": "should",
+      "main_flow": [
+        {
+          "step": 1,
+          "actor": "검수자(REVIEWER)",
+          "action": "관리 화면(/manage/labels, SCREEN-035)에서 라벨 마스터 목록을 조회한다(GET /v1/manage/labels = API-024)"
+        },
+        {
+          "step": 2,
+          "actor": "검수자(REVIEWER)",
+          "action": "라벨을 신규 등록한다(라벨명·형태 LBL_TYPE_CD·COCO 검출클래스 매핑 DTCT_TYPE_CD, POST /v1/manage/labels = API-025)"
+        },
+        {
+          "step": 3,
+          "actor": "검수자(REVIEWER)",
+          "action": "기존 라벨을 수정한다(PUT /v1/manage/labels/{id} = API-026) — 형태·매핑 변경은 프리셋에 즉시 반영(LBL_ID FK join)"
+        },
+        {
+          "step": 4,
+          "actor": "검수자(REVIEWER)",
+          "action": "속성 정의를 CRUD한다(GET/POST/PUT/DELETE /v1/manage/labels/{labelId}/attrs = API-028~031)"
+        },
+        {
+          "step": 5,
+          "actor": "검수자(REVIEWER)",
+          "action": "라벨을 삭제한다(DELETE /v1/manage/labels/{id} = API-027) — 미연결 프리셋은 오류 없이 '미연결' 표시"
+        }
+      ],
+      "description": "REVIEWER가 라벨 마스터(LS_LABEL: 라벨명·형태 LBL_TYPE_CD·COCO 검출클래스 매핑 DTCT_TYPE_CD)와 속성 정의(LS_LABEL_ATTR)를 CRUD한다. 라벨 프리셋(LS_LABEL_PRESET_CODE)은 라벨명·형태를 스냅샷 저장하지 않고 LBL_ID FK로 마스터를 실시간 join하므로(ADR-034) 여기서 라벨명·형태를 바꾸면 신규·기존 프리셋에 즉시 반영된다. 형태는 마스터 LBL_TYPE_CD가 소유하며 프리셋에서 개별 토글할 수 없다. AI 탐지 후보는 이 마스터 목록 기준으로 노출하되 DTCT_TYPE_CD가 매핑된 라벨만 실제 검출 가능(미매핑은 표시만, 선택 불가). 마스터에 매칭 안 되는 기존 코드(labelId null/비활성)는 오류 없이 '미연결'로 표시한다(자동 생성/삭제 없음). 1차 관리자매뉴얼 §4.1.3/§4.1.4 갭을 해소하는 관리 화면(SCREEN-035, /manage/labels, REVIEWER 전용)이다.",
+      "stakeholders": [],
+      "preconditions": [
+        "REVIEWER로 인증되어 있다"
+      ],
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "postconditions": [
+        "라벨 마스터·속성 정의 변경이 프리셋·오토라벨 후보 목록에 즉시 반영된다"
+      ],
+      "alternate_flows": [
+        {
+          "name": "매칭 안되는 기존 코드",
+          "steps": [
+            "오류 없이 '미연결' 상태로 표시(자동 생성/삭제 없음)"
+          ],
+          "trigger": "마스터에 매칭되지 않는 labelId null/비활성 프리셋 코드"
+        },
+        {
+          "name": "권한 부족",
+          "steps": [
+            "403 거부"
+          ],
+          "trigger": "WORKER가 관리 API 호출 시도"
+        }
+      ],
+      "realizes_dfeats": [
+        "DFEAT-052"
+      ],
+      "related_screens": [
+        "SCREEN-035"
+      ],
+      "extension_points": [],
+      "secondary_actors": [],
+      "extends_use_cases": [],
+      "realizes_features": [],
+      "includes_use_cases": [],
+      "tech_considerations": [],
+      "covered_by_acceptances": [
+        "AC-1059",
+        "AC-1060"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 13건이 있었는데 그중 13건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1059, AC-1060)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:25:51.968Z",
+    "created_at": "2026-07-30T07:16:48.218Z"
+  }
+}

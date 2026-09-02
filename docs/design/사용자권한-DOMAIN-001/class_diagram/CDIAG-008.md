@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-008
 type: class_diagram
-version: 9
+version: 10
 domain: DOMAIN-001
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:51.320Z
+synced_at: 2026-09-02T10:52:13.477Z
 status: CHANGED
-prev_version: 8
-content_hash: fb92bc8385603e541a678a03dfb372d278128762e073e5c597763c6f987fb287
+prev_version: 9
+content_hash: 70e792cb6b6dc4c96d9008acc7cdbb0cd3efdb9438a2e8cabcbf40158072d9b6
 stale: true
 raw: ./_raw/CDIAG-008.json
 links:
@@ -157,7 +157,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 저작도구 사용자(개념). 마스터 데이터는 저작도구 소유 테이블에 있으며, 관제가 브라우저 localStorage 에 넣어주는 userId·userNm 을 받아 역할 클레임 시점에 우리 사용자 테이블로 upsert 한다. userNo 는 JWT sub 에서 오므로 위조 불가하고, userId/userNm 은 FE 가 보내는 표시용 값이라 위조해도 자기 행 이름만 바뀐다.
+- **description**: 저작도구 사용자(개념). 마스터 데이터는 저작도구 소유 테이블에 있으며, 관제가 브라우저 localStorage 에 넣어주는 userId·userNm 을 받아 인증을 통과한 내부 채널 진입 시점에 우리 사용자 테이블로 등록한다. 역할이 없는 진입자는 작업자로 자동 등록되며 이미 부여된 역할은 덮어쓰지 않는다. userNo 는 JWT sub 에서 오므로 위조 불가하고, userId/userNm 은 FE 가 보내는 표시용 값이라 위조해도 자기 행 이름만 바뀐다.
 
 **enum_values**:
 
@@ -479,7 +479,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 역할↔메뉴/기능 접근 매핑 규칙(개념). 역할별 노출 메뉴·기능 접근 권한을 분기한다. DFEAT-002 (1차 LS_USER_MENU 계보, 6역할→3역할 통합).
+- **description**: 역할↔메뉴/기능 접근 매핑 규칙(개념). 역할별 노출 메뉴·기능 접근 권한을 분기한다. DFEAT-002 (1차 LS_USER_MENU 계보, 1차 6역할 → 2차 4역할 재편). 관리자 메뉴는 ADMIN 에게만 노출되며 계층으로 검수 업무를 물려받는 것과 별개로 검수자에게는 보이지 않는다.
 
 **enum_values**:
 
@@ -872,11 +872,11 @@ _(empty)_
 
 [★소유 구조 정정 (구 서술 폐기)] 이전 본문은 '사용자 마스터는 관제 공유 MNG_ACCT_*/MNG_AUTHRT_* + LS_AUTHRT_MPNG 매핑에 위임된다'고 적었으나 두 단계로 무효화됐다.
 · 역할축은 이미 저작도구 소유 테이블 LS_USER_ROLE(V75)이 단독으로 갖고 있었고, 관제 공유 계정권한 테이블 2종은 런타임 참조 0 인 죽은 테이블이어서 V165 로 삭제됐다.
-· 사용자 마스터 자체도 관제 공유 테이블을 떠난다(ADR-042/043). 관제가 브라우저 localStorage 에 넣어주는 userId·userNm 을 받아 역할 클레임 시점에 우리 사용자 테이블로 upsert 한다. 근거: 그 공유 테이블을 채우는 코드가 양쪽 어느 곳에도 없어 사실상 비어 있었다(실측).
+· 사용자 마스터 자체도 관제 공유 테이블을 떠난다(ADR-042/043). 관제가 브라우저 localStorage 에 넣어주는 userId·userNm 을 받아 인증을 통과한 내부 채널 진입 시점에 우리 사용자 테이블로 등록한다 — 역할이 없으면 작업자로 자동 등록하고 이미 부여된 역할은 덮어쓰지 않는다. ⚠ 구 서술 폐기 — «역할 클레임 시점 upsert» 는 자가부여가 관리자 부트스트랩 전용으로 좁혀진 뒤로는 성립하지 않는다(그 창구를 거치지 않는 사용자가 영영 등록되지 않는다). 근거: 그 공유 테이블을 채우는 코드가 양쪽 어느 곳에도 없어 사실상 비어 있었다(실측).
 
 [식별자 신뢰 경계] userNo 는 JWT sub 에서 오므로 위조 불가하고, userId/userNm 은 FE 가 보내는 표시용 값이라 위조해도 자기 행 이름만 바뀐다.
 
-[역할 4종] ADMIN · REVIEWER · WORKER · PORTAL_USER. 관리 권한은 별도 역할인 ADMIN 이 소유하고 계층이 관리자에서 검수자로 한 단계 이어져 관리자가 검수자 일을 그대로 한다(ADR-055). 자가부여 화이트리스트는 ADMIN 하나뿐이고 그 창구는 관리자가 0명일 때만 열린다. ⚠ 구 서술 폐기 — «별도 ADMIN 은 없고 관리 권한은 REVIEWER 에 통합»(ADR-003)과 «자가부여 화이트리스트에 WORKER 와 REVIEWER»(ADR-043)는 ADR-055 가 대체했다. 관리자 비밀번호의 관리 수준이 시스템 전체 권한 경계라는 사실은 그대로다(인지·수용된 잔여 위험).
+[역할 4종] ADMIN · REVIEWER · WORKER · PORTAL_USER. 관리 권한은 별도 역할인 ADMIN 이 소유하고 계층이 관리자에서 검수자로 한 단계 이어져 관리자가 검수자 일을 그대로 한다(ADR-055). 자가부여는 관리자 부트스트랩 전용이라 부여 역할이 ADMIN 으로 고정되고 그 창구는 관리자가 0명일 때만 열린다 — 요청이 다른 역할을 실어도 결과가 바뀌지 않는다. ⚠ 구 서술 폐기 — «별도 ADMIN 은 없고 관리 권한은 REVIEWER 에 통합»(ADR-003)과 «자가부여 화이트리스트에 WORKER 와 REVIEWER»(ADR-043)는 ADR-055 가 대체했다. 관리자 비밀번호의 관리 수준이 시스템 전체 권한 경계라는 사실은 그대로다(인지·수용된 잔여 위험).
 
 전용 활성 ERD 가 없어(1차 ERD-001 폐기) 물리 컬럼이 아닌 도메인 개념 속성으로 구성한다.
 

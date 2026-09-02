@@ -18,7 +18,7 @@
 | 테이블 | 내용 |
 |--------|------|
 | `LS_DATA_ISSUE` (확장) | +`ISSUE_TYPE_CD`(REJECTION/INQUIRY) +`ISSUE_STTS_CD`(OPEN/ANSWERED/RESOLVED) +`SRC_SN`(프레임 단위 문의, nullable, partial index) +`VERSION`(낙관적 잠금). 기존 반려 행은 backfill로 REJECTION/RESOLVED. 코드값 CHECK 제약 |
-| `LS_ISSUE_COMMENT` (신규) | CMNT_SN(PK, V90 rename 구 ISSUE_COMMENT_SN), DATA_ISSUE_SN, AUTHOR_NO, AUTHOR_ROLE_CD(WORKER/REVIEWER, CHECK), CMNT_CN(1000자), REG_DT. INDEX(DATA_ISSUE_SN, AUTHOR_NO) |
+| `LS_ISSUE_COMMENT` (신규) | CMNT_SN(PK, V90 rename 구 ISSUE_COMMENT_SN), DATA_ISSUE_SN, AUTHOR_NO, AUTHOR_ROLE_CD(ADMIN/WORKER/REVIEWER, CHECK — **V27 에서 ADMIN 추가**: 관리자가 검수자 권한을 계층으로 물려받아 이 창구에 그대로 들어오므로 작성자 역할로 저장된다), CMNT_CN(1000자), REG_DT. INDEX(DATA_ISSUE_SN, AUTHOR_NO) |
 
 - 마이그레이션은 **3단계**(nullable ADD → backfill → NOT NULL+DEFAULT)로 롤링 중 기존 reject 경로 무중단
 - `작성자(AUTHOR_NO/REPORTED_USER_NO)·역할은 요청 바디가 아닌 JWT 클레임에서만 도출` (CWE-915 Mass Assignment 방어)
@@ -43,6 +43,9 @@ REJECTION: 생성 시점부터 RESOLVED 고정 (이력 성격 — 상태 전이 
 | 댓글 | 해당 영상 현재 배정 **또는** 이슈 작성자 본인 | 허용 (INQUIRY OPEN이면 ANSWERED 자동 전이) |
 | 해소(resolve) | 불가 (403) | 전용 |
 
+- **관리자(ADMIN)는 이 표의 `REVIEWER` 열을 그대로 따른다** — 계층(`ROLE_ADMIN > ROLE_REVIEWER`)으로 검수자 권한을 물려받으므로,
+  이 표의 「REVIEWER」는 **「검수자 이상」**으로 읽는다. 댓글 작성도 `ANSWERED` 자동 전이도 관리자에게 동일하게 적용된다
+  (관리자를 빼면 관리자가 답변해도 이슈가 대기 상태에 남는다). 작성자 역할 컬럼에는 `ADMIN` 이 저장된다 — 위 §21.2 CHECK 참조
 - **생성=배정 기반 / 조회·댓글=배정 OR 작성자 소유** — 재배정 후에도 이전 작업자는 본인 문의를 계속 열람·문답 가능, 새 배정 작업자는 기존 반려 스레드에 질문 가능 (명문화된 정책)
 - `issueSn`만 받는 API(댓글/해소)는 이슈→`DATA_RAW_SN` 역참조 후 권한 재검증 (CWE-639 IDOR 방어)
 - 프레임 단위 문의의 `srcSn`은 대상 영상 소속 검증 (타 영상 프레임 400, 부존재 404)
@@ -72,7 +75,7 @@ REJECTION: 생성 시점부터 RESOLVED 고정 (이력 성격 — 상태 전이 
 - 구조: `features/review/` — `useIssueThreads` 훅(쿼리+mutation 3종, 409 시 훅 레벨 invalidate), `IssueThreadPanel`(모드 분기), `issueLabels`/`formatDateTime` 공용
 - 상태 전이는 클라 계산 없이 **서버 응답 신뢰**(mutation 후 invalidate)
 - 본문 렌더는 텍스트 노드만(`whitespace-pre-wrap`) — `dangerouslySetInnerHTML` 금지, `<script>` 입력 무해화 테스트 보유
-- 작성자 표기는 **`{이름} ({역할})`** (`issueAuthorLabel`) — 역할은 한글(`WORKER`→작업자, `REVIEWER`→검수자, 미매핑 코드는 원문 폴백)이며 **코드값을 화면에 그대로 노출하지 않는다**. 이름이 없으면 **사번으로 폴백**(빈칸 금지). 스레드 헤더에도 작성자를 같은 폴백 규칙으로 표시
+- 작성자 표기는 **`{이름} ({역할})`** (`issueAuthorLabel`) — 역할은 한글(`ADMIN`→관리자, `WORKER`→작업자, `REVIEWER`→검수자, 미매핑 코드는 원문 폴백)이며 **코드값을 화면에 그대로 노출하지 않는다**. 이름이 없으면 **사번으로 폴백**(빈칸 금지). 스레드 헤더에도 작성자를 같은 폴백 규칙으로 표시
 
 ## 21.7 v1 대비
 

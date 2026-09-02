@@ -1,0 +1,36 @@
+{
+  "item": {
+    "id": "UI-015",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "[폐기] display: PrivacyBadge",
+    "slug": "display-privacybadge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "PrivacyBadge",
+      "tags": [
+        "common",
+        "display",
+        "badge",
+        "privacy",
+        "deprecated"
+      ],
+      "category": "display",
+      "description": "[폐기] 영상 목록·상세에는 개인정보 처리 등급(PRVC/PSDO/ANONY)을 배지로 표시하지 않기로 한다. 이 판정값을 공급하는 외부 원천이 없어 화면에 표시할 근거가 없기 때문이다 — 개인정보 처리 등급 판정을 신뢰성 있게 공급하는 원천이 확보되기 전까지는 이 배지를 두지 않는다.",
+      "props_schema": [],
+      "usage_example": "개인정보 표시가 필요한 화면은 이 배지를 참조하지 않는다. 라벨링 화면의 개인정보 메타 입력(사람이 직접 입력하는 값)은 이 결정과 무관한 별개 축이며 계속 유지된다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": ""
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "개인정보 처리 등급을 판정해 내려줄 원천이 없어 영상 목록·상세에 표시하지 않기로 한 설계 결정을 반영해 폐기 표기로 전환. props_schema·accessibility_notes 를 비우고, 라벨링 화면의 개인정보 메타 입력값(사람이 직접 입력)은 이 결정과 무관한 별개 축임을 usage_example 에 명시. status 필드는 변경하지 않음.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:40:03.472Z",
+    "created_at": "2026-06-02T13:10:46.706Z"
+  }
+}

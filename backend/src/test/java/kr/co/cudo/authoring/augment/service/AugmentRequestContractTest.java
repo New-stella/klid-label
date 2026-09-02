@@ -5,7 +5,6 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
-import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
@@ -127,8 +126,7 @@ class AugmentRequestContractTest {
 
     /** v1.3 요청 본문 — 이벤트 유형은 요청자가 고른 값(관제 코드 변환 아님). */
     private static AugmentRequestRequest request(AugmentRequestRequest.Mtdt mtdt, String promptText) {
-        return new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                GenAiContract.EventType.FLOOD, null, mtdt, promptText);
+        return new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.AUGMENT), mtdt, promptText);
     }
 
     @SuppressWarnings("unchecked")
@@ -267,16 +265,14 @@ class AugmentRequestContractTest {
         withFrame();
 
         assertThatThrownBy(() -> service.request(
-                new AugmentRequestRequest(List.of(RAW_SN, 4002L), List.of(AugmentTypeCode.WINTER),
-                        GenAiContract.EventType.FLOOD, null, MTDT, null), reviewer))
+                new AugmentRequestRequest(List.of(RAW_SN, 4002L), List.of(AugmentTypeCode.AUGMENT), MTDT, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
 
         assertThatThrownBy(() -> service.request(
                 new AugmentRequestRequest(List.of(RAW_SN),
-                        List.of(AugmentTypeCode.WINTER, AugmentTypeCode.NIGHT),
-                        GenAiContract.EventType.FLOOD, null, MTDT, null), reviewer))
+                        List.of(AugmentTypeCode.AUGMENT, AugmentTypeCode.AUGMENT), MTDT, null), reviewer))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
@@ -467,60 +463,50 @@ class AugmentRequestContractTest {
     }
 
     /**
-     * 이벤트 유형은 요청 본문에서 온다 — 영상의 관제 이벤트 코드에서 변환하지 않는다.
+     * ★ 이벤트 유형·침수 세부 유형은 <b>요청 본문 계약에서 사라졌다</b>({@code @design ADR-059}).
      *
-     * <p>구 구현은 위탁 시점에 {@code LS_DATA_RAW.EVNT_TYPE_CD} 를 읽어 실었는데, 계약 허용값은
-     * {@code FLOOD}/{@code WILDFIRE} 둘뿐이라 관제 코드를 그대로 보내면 벤더가 400 으로 거부한다.
-     * 시드 영상의 관제 코드는 {@code "EVT"} 이므로 그 값이 새어 나오면 이 가드가 깨진다.
+     * <p>구 계약은 두 값을 요청자에게 필수로 물었다. 그 값은 벤더 창구가 <b>배경에 무슨 장면을
+     * 만들지</b> 정하는 축인데 우리 증강은 이미 이벤트가 담긴 프레임을 변환할 뿐이라 지정할 자리가
+     * 없고, 우리 이벤트 체계가 벤더 허용값보다 넓어 대응되지 않는 영상은 요청자가 <b>사실과 다른
+     * 값</b>을 고를 수밖에 없었다. 지금은 위탁 시점에 서버가 중립값
+     * ({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC})을 고정 송신하고 세부 유형은 보내지 않는다.
+     *
+     * <p>구조로 고정하는 이유: 필드가 없으면 <b>요청자 입력이 위탁으로 흘러들 경로 자체가 없다</b>.
+     * 이 시험이 그 되살림을 막는다.
      */
     @Test
-    @DisplayName("이벤트유형은_요청본문에서_오고_관제코드로_대체되지_않는다")
-    void eventTypeComesFromRequestNotControlCode() {
-        withFrame();
-        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
+    @DisplayName("요청본문_계약에_이벤트유형과_세부유형_필드가_없다")
+    void requestContractHasNoEventTypeFields() {
+        List<String> components = java.util.Arrays.stream(
+                        AugmentRequestRequest.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName)
+                .toList();
 
-        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                GenAiContract.EventType.WILDFIRE, null, MTDT, null), reviewer);
-
-        ArgumentCaptor<AugmentRequestedItemEvent> captor =
-                ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().evntType()).isEqualTo("WILDFIRE");
-        assertThat(captor.getValue().evntSubtype()).isNull();
+        assertThat(components)
+                .as("이벤트 유형·세부 유형을 요청 본문으로 되살리지 말 것(ADR-059)")
+                .doesNotContain("evntType", "evntSubtype")
+                .containsExactly("videoIds", "types", "mtdt", "prompt");
     }
 
-    /** 침수 세부 유형은 침수일 때만 — 계약에 산불 세부 코드가 없어 함께 보내면 벤더가 400 이다. */
+    /**
+     * 증강 종류 계약값은 <b>단일값</b>이다 — 구 3종(WINTER/NIGHT/RAIN)은 생성 조건의 부분집합이라
+     * 종류 카드와 조건이 어긋날 수 있었고, 무엇으로 바꿀지는 이제 {@code mtdt} 가 단독으로 정한다.
+     * 이미 만들어진 파생본에는 구 값이 남아 있으나 그것은 <b>조회·표시 축</b>이지 요청 입구가 아니다.
+     */
     @Test
-    @DisplayName("침수_세부유형을_산불과_함께_보내면_400")
-    void floodSubtypeRejectedForWildfire() {
-        withFrame();
-
-        assertThatThrownBy(() -> service.request(new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                GenAiContract.EventType.WILDFIRE, GenAiContract.FloodSubtype.ROAD_FLOOD,
-                MTDT, null), reviewer))
-                .isInstanceOf(CustomException.class)
-                .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_INPUT);
-
-        verify(augRepository, never()).save(any(LsDataAug.class));
-    }
-
-    /** 침수면 세부 유형이 그대로 중계된다. */
-    @Test
-    @DisplayName("침수_세부유형은_침수일때_그대로_전달된다")
-    void floodSubtypeCarriedForFlood() {
-        withFrame();
-        when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                GenAiContract.EventType.FLOOD, GenAiContract.FloodSubtype.UNDERPASS_FLOOD,
-                MTDT, null), reviewer);
-
-        ArgumentCaptor<AugmentRequestedItemEvent> captor =
-                ArgumentCaptor.forClass(AugmentRequestedItemEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().evntSubtype()).isEqualTo("UNDERPASS_FLOOD");
+    @DisplayName("요청_증강종류_enum은_AUGMENT_단일값이다")
+    void augmentTypeCodeIsSingleValue() {
+        assertThat(AugmentTypeCode.values())
+                .as("구 3종을 요청 입구 계약으로 되살리지 말 것(ADR-059)")
+                .containsExactly(AugmentTypeCode.AUGMENT);
+        assertThat(AugmentTypeCode.AUGMENT.name()).isEqualTo(LsDataAug.AUG_AUGMENT);
+        assertThat(LsDataAug.isContractAugType(LsDataAug.AUG_AUGMENT))
+                .as("현행 값이 FE 계약 화이트리스트에서 빠지면 작업목록·배정목록의 augType 이 "
+                        + "조용히 null 로 떨어져 종류 배지가 사라진다(오류가 아니라 값 실종이다)")
+                .isTrue();
+        assertThat(LsDataAug.CONTRACT_AUG_TYPES)
+                .as("구 3종은 확장이지 교체가 아니다 — 빼면 기존 파생본이 목록에서 사라진다")
+                .contains(LsDataAug.AUG_WINTER, LsDataAug.AUG_NIGHT, LsDataAug.AUG_RAIN);
     }
 
     /**
@@ -560,12 +546,13 @@ class AugmentRequestContractTest {
     }
 
     /**
-     * 증강 유형은 <b>생성 조건에서도 이벤트 유형에서도 파생하지 않는다</b>. 그 값이 AUG_TYPE_CD 로
-     * 흘러가면 파생 산출물 경로({@code .../{augTypeCd}.mp4}) 순회(CWE-22)와 RESL_ 네임스페이스
-     * 침범(검수 우회)이 열린다.
+     * 증강 유형은 <b>생성 조건에서 파생하지 않는다</b>. 그 값이 AUG_TYPE_CD 로 흘러가면 파생
+     * 산출물 경로({@code .../{augTypeCd}.mp4}) 순회(CWE-22)와 RESL_ 네임스페이스 침범(검수 우회)이
+     * 열린다.
      *
-     * <p>허용 코드로 닫힌 뒤에도 유효한 가드다 — 코드 공간이 겹치기 때문이다
-     * ({@code Season.WINTER} ↔ {@code AUG_WINTER}).
+     * <p>단일값 {@code AUGMENT} 로 합쳐진 뒤에도 유효한 가드다 — <b>상수로 고정</b>하는 것이지
+     * 조건에서 유도하는 것이 아니며, 코드 공간도 여전히 겹친다
+     * ({@code Season.WINTER} ↔ 구 {@code AUG_WINTER}).
      */
     @Test
     @DisplayName("증강종류는_생성조건이_아니라_types_enum에서만_결정된다")
@@ -575,8 +562,7 @@ class AugmentRequestContractTest {
         ArgumentCaptor<LsDataAug> saved = ArgumentCaptor.forClass(LsDataAug.class);
 
         // 조건·지시문에 무엇을 넣어도 유형은 types[] enum 값 그대로여야 한다.
-        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.NIGHT),
-                GenAiContract.EventType.FLOOD, null,
+        service.request(new AugmentRequestRequest(List.of(RAW_SN), List.of(AugmentTypeCode.AUGMENT),
                 new AugmentRequestRequest.Mtdt(
                         AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER,
                         AugmentPrompts.Weather.RAIN, AugmentPrompts.Terrain.ROAD,
@@ -584,7 +570,7 @@ class AugmentRequestContractTest {
                 "../../etc RESL_1080P"), reviewer);
 
         verify(augRepository).save(saved.capture());
-        assertThat(saved.getValue().getAugTypeCd()).isEqualTo(LsDataAug.AUG_NIGHT);
+        assertThat(saved.getValue().getAugTypeCd()).isEqualTo(LsDataAug.AUG_AUGMENT);
     }
 
     @Test

@@ -24,11 +24,12 @@
         "notes": "무서명(명세서 v1.3 규격 — 웹훅에 서명·인증 헤더 자체가 없다. v1.1 이래 이 축은 바뀌지 않았다). 대체 3계층: ① IP allowlist `webhook.genai.allowed-ip-cidrs` — VLM(INT-003)과 달리 **미설정이면 전면 차단**(fail-closed, 기동 시 배선 검증) ② rate limit + 본문 size cap(1MB — 웹훅 게이트 필터의 무서명 가드 경로) ③ request_id 발급 게이트(`LS_DATA_AUG_JOB.IDMP_KEY` 에 있는 키만 처리, 최종 방어선). 게이트 필터 통과 증거 없이 수신 엔드포인트에 도달하면 401."
       },
       "data_format": "json",
-      "description": "`POST /v1/genai/callback` 이 외부 증강 결과(WINTER/NIGHT/RAIN)를 웹훅으로 수신 → 새 영상(RAW_SN, **`ORGNL_RAW_SN`** 으로 원본 참조 — V82/V95 표준용어) 등록·원본 라벨 verbatim 복사·PENDING 시작.\n\n## ★★ 경로·인증·페이로드 전면 교체 완료 (구 /v1/aug/callback+HMAC 폐기)\n구 경로 `POST /v1/aug/callback`(HMAC 서명 필수, secret `webhook.hmac.secret.augment`) + 내부 자체 채움(self-fill) 콜백 시뮬레이터는 **폐기**되었다. 신 경로 `POST /v1/genai/callback` — 「생성형 AI API 연동명세서 v1.3」§4.2/§4.3 그대로 준수, **무서명**(명세서상 웹훅에 서명·인증 헤더 자체가 없음).\n\n## 페이로드 (GenAiCallbackRequest, snake_case)\n`request_id`(≤128, `^[A-Za-z0-9_-]+$`, 우리가 발급한 job 단위 멱등키 = `LS_DATA_AUG_JOB.IDMP_KEY` 의 echo) · `job_id`(≤200, 외부가 202 응답으로 발급) · `status`(RUNNING|SUCCEEDED|FAILED) · `progress`(0~100) · `current_step`(≤20) · `updated_at`(≤64) · `results[]`(SUCCEEDED 시, 최대 100건: `generated_data_id`·`media_type`(IMAGE|VIDEO)·`output_file_path`(≤500)·`checksum`) · `error_code`(≤50, FAILED 시)·`error_message`(≤1000, FAILED 시).\n- 계약이 보장하는 발사는 **작업이 SUCCEEDED 또는 FAILED 로 처음 종료되는 시점 1회**이며, 전송이 실패해도 **재시도하지 않는다**(상대 서버 로그에만 남는다). `CANCELED` 발사 여부와 본문의 `results[]` 포함 여부는 계약이 보장하지 않는다.\n- 그래서 **콜백은 유일한 회수 수단이 아니다** — 종결은 상태 조회(INT-008)로도 회수할 수 있어야 하고, 실제로 진행률 표시는 콜백이 아니라 폴링이 조달한다.\n- 수신부는 **더 자주 와도 견딘다** — 진행 중 상태(`RUNNING`)나 동일 페이로드 중복 도착을 오류로 보지 않고 멱등 흡수한다. 계약이 요구하는 최소 집합보다 관대한 것은 위반이 아니며, 상대 배포본이 진행 알림을 함께 보내는 경우를 견디기 위한 것이다.\n- 미지 필드는 무시한다(외부 필드 추가에 강건).\n\n## 응답·멱등\n`applied`(실제 반영 여부) 필드로 회신 — 멱등 흡수(DUPLICATE)·롤업 보류(DEFERRED)는 `applied:false`(구 구현은 이 경우도 true 를 반환해 외부가 정상 인계로 오해하던 결함 수정). **정책 보류(WITHHELD_*)는 2026-07-29 폐기** — 부모가 비식별 신고('F') 구간이어도 파생 생성은 진행하며, 부모를 물리적으로 쓸 수 없는 경우(비식별 미완료·부모/프레임 부재)는 보류가 아니라 REJECTED 로 즉시 실패 확정한다.\n\n## 상태 전이\nSUCCEEDED→ACCEPTED, FAILED→REJECTED(PENDING 가드 — 종결 상태에서는 되돌리지 않음).\n\n## RESOLUTION(해상도)은 대상 아님\n해상도 변경은 외부 콜백 대상이 아니다(저작도구 내부 기능, ADR-018).",
+      "description": "`POST /v1/genai/callback` 이 외부 증강 결과를 웹훅으로 수신 → 새 영상(RAW_SN, **`ORGNL_RAW_SN`** 으로 원본 참조 — V82/V95 표준용어) 등록·원본 라벨 verbatim 복사·PENDING 시작.\n\n수신 대상은 증강 축 단일값(AUGMENT)이다. 구 WINTER/NIGHT/RAIN 은 이미 만들어진 파생본에 남아 있어 보존한다(백필하지 않는다) — 조회·표시 경로는 옛 값과 새 값을 모두 견뎌야 한다(ADR-059).\n\n## ★★ 경로·인증·페이로드 전면 교체 완료 (구 /v1/aug/callback+HMAC 폐기)\n구 경로 `POST /v1/aug/callback`(HMAC 서명 필수, secret `webhook.hmac.secret.augment`) + 내부 자체 채움(self-fill) 콜백 시뮬레이터는 **폐기**되었다. 신 경로 `POST /v1/genai/callback` — 「생성형 AI API 연동명세서 v1.3」§4.2/§4.3 그대로 준수, **무서명**(명세서상 웹훅에 서명·인증 헤더 자체가 없음).\n\n## 페이로드 (GenAiCallbackRequest, snake_case)\n`request_id`(≤128, `^[A-Za-z0-9_-]+$`, 우리가 발급한 job 단위 멱등키 = `LS_DATA_AUG_JOB.IDMP_KEY` 의 echo) · `job_id`(≤200, 외부가 202 응답으로 발급) · `status`(RUNNING|SUCCEEDED|FAILED) · `progress`(0~100) · `current_step`(≤20) · `updated_at`(≤64) · `results[]`(SUCCEEDED 시, 최대 100건: `generated_data_id`·`media_type`(IMAGE|VIDEO)·`output_file_path`(≤500)·`checksum`) · `error_code`(≤50, FAILED 시)·`error_message`(≤1000, FAILED 시).\n- 계약이 보장하는 발사는 **작업이 SUCCEEDED 또는 FAILED 로 처음 종료되는 시점 1회**이며, 전송이 실패해도 **재시도하지 않는다**(상대 서버 로그에만 남는다). `CANCELED` 발사 여부와 본문의 `results[]` 포함 여부는 계약이 보장하지 않는다.\n- 그래서 **콜백은 유일한 회수 수단이 아니다** — 종결은 상태 조회(INT-008)로도 회수할 수 있어야 하고, 실제로 진행률 표시는 콜백이 아니라 폴링이 조달한다.\n- 수신부는 **더 자주 와도 견딘다** — 진행 중 상태(`RUNNING`)나 동일 페이로드 중복 도착을 오류로 보지 않고 멱등 흡수한다. 계약이 요구하는 최소 집합보다 관대한 것은 위반이 아니며, 상대 배포본이 진행 알림을 함께 보내는 경우를 견디기 위한 것이다.\n- 미지 필드는 무시한다(외부 필드 추가에 강건).\n\n## 응답·멱등\n`applied`(실제 반영 여부) 필드로 회신 — 멱등 흡수(DUPLICATE)·롤업 보류(DEFERRED)는 `applied:false`(구 구현은 이 경우도 true 를 반환해 외부가 정상 인계로 오해하던 결함 수정). **정책 보류(WITHHELD_*)는 2026-07-29 폐기** — 부모가 비식별 신고('F') 구간이어도 파생 생성은 진행하며, 부모를 물리적으로 쓸 수 없는 경우(비식별 미완료·부모/프레임 부재)는 보류가 아니라 REJECTED 로 즉시 실패 확정한다.\n\n## 상태 전이\nSUCCEEDED→ACCEPTED, FAILED→REJECTED(PENDING 가드 — 종결 상태에서는 되돌리지 않음).\n\n## RESOLUTION(해상도)은 대상 아님\n해상도 변경은 외부 콜백 대상이 아니다(저작도구 내부 기능, ADR-018).",
       "idempotency": true,
       "triggers_apis": [
         "API-165"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -59,12 +60,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 12,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "콜백 계약의 명세서 버전 표기를 정본에 맞춘다. 이 문서는 직전 리비전에서 콜백 발사 계약을 정본 버전에 맞췄다고 적었는데, 정작 본문과 인증 상세와 전송 메타 세 곳의 버전 표기는 옛 버전으로 남아 있어 문서 안에서 서로 어긋났다. 세 곳의 표기만 옮긴다 — 무서명이라는 사실도 준수하는 절 번호도 정본에서 그대로라 내용은 바꾸지 않았다. 인증 상세에는 이 축이 옛 버전 이래 바뀌지 않았다는 점을 함께 적어, 다음에 읽는 사람이 버전이 올라갔으니 인증이 생겼겠거니 오해하지 않게 했다. 쓰기 직전 이 문서에 stale 표식은 없었다.",
+    "change_summary": "수신 대상 서술을 증강 축 단일값으로 맞춘다. 첫 문장이 수신 대상을 옛 세 코드로 적고 있어, 지금 나가는 위탁이 싣는 값의 결과가 이 문서의 수신 대상 밖으로 읽힌다. 괄호 안 열거를 걷어내고 수신 대상이 단일값이라는 문장을 따로 세웠으며, 이미 만들어진 파생본에 남아 있는 옛 값을 보존하고 조회·표시 경로가 옛 값과 새 값을 모두 견뎌야 한다는 단서를 함께 적었다. 위탁 짝 문서는 이미 같은 축으로 맞춰져 있다. 경로·인증·페이로드 절과 원본 참조·라벨 복사 축은 손대지 않았다. 쓰기 직전 이 문서에 stale 표식은 없었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T12:20:44.197Z",
+    "last_updated_at": "2026-09-02T08:28:24.648Z",
     "created_at": "2026-06-01T06:34:16.988Z"
   }
 }

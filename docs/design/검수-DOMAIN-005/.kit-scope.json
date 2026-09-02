@@ -127,14 +127,16 @@
     "IMPREC-099",
     "IMPREC-108",
     "IMPREC-114",
+    "IMPREC-207",
     "IMPREC-357",
     "IMPREC-358",
+    "IMPREC-388",
     "LEGACY-077",
     "LEGACY-078",
     "LEGACY-079",
     "NAV-001",
     "REQ-026"
   ],
-  "last_sync_at": "2026-09-01T12:37:31.630Z",
+  "last_sync_at": "2026-09-02T10:52:16.869Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

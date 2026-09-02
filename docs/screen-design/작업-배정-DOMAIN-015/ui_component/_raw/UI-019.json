@@ -1,0 +1,68 @@
+{
+  "item": {
+    "id": "UI-019",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "feedback: ProgressBar",
+    "slug": "feedback-progressbar",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "ProgressBar",
+      "tags": [
+        "common",
+        "feedback",
+        "progress"
+      ],
+      "category": "feedback",
+      "description": "진행률 바. value(0-100 자동 클램핑, 숫자가 아니거나 무한대면 0으로 처리), tone(primary/success/warning/danger), size(sm/md), showLabel(% 표기). role=progressbar aria-valuenow. 진행률(%)이 명확한 결정론적 작업(라벨링/검수 진행률, 증강 재처리 진행률, 대시보드 KPI)에 사용한다 — 진행률을 알 수 없는 대기는 Spinner, 콘텐츠 도착 전 자리표시는 Skeleton을 사용한다.",
+      "props_schema": [
+        {
+          "name": "value",
+          "type": "number",
+          "required": true,
+          "description": "0-100"
+        },
+        {
+          "name": "tone",
+          "type": "'primary'|'success'|'warning'|'danger'",
+          "default": "primary",
+          "required": false
+        },
+        {
+          "name": "size",
+          "type": "'sm'|'md'",
+          "default": "md",
+          "required": false
+        },
+        {
+          "name": "showLabel",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "required": false,
+          "description": "외곽 컨테이너에 추가할 CSS 클래스"
+        }
+      ],
+      "usage_example": "AugmentProgressPanel 은 재처리 실패 시 tone=danger, 그 외에는 tone=primary(기본값)로 상태에 따라 tone 을 바꿔 쓰는 식으로 사용한다. success/warning 은 타입에는 존재하나 현재 실사용이 확인되지 않는다.",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "role=progressbar, aria-valuenow/min/max.",
+      "referenced_by_screen_ids": [
+        "SCREEN-011",
+        "SCREEN-023"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한글 오탈자 정정(컴테이너→컨테이너, 바꿀 쓰는→바꿔 쓰는) — 직전 갱신에서 발생한 오타, 의미 변경 없음",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-06T19:43:05.382Z",
+    "created_at": "2026-06-02T13:11:02.002Z"
+  }
+}

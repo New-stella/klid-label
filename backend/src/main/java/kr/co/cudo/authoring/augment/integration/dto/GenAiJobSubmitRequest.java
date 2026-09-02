@@ -23,8 +23,7 @@ import java.util.Map;
  * @param requestId      우리가 발급한 멱등 키(1~64)
  * @param requestChannel 요청 채널 — 저작도구는 {@code AUTHORING}
  * @param requestUserId  요청자(≤64, 선택)
- * @param evntType       이벤트 유형 — {@code FLOOD}/{@code WILDFIRE}({@link GenAiContract.EventType})
- * @param evntSubtype    침수 세부 유형 — 선택. 침수가 아니면 키 자체를 보내지 않는다
+ * @param evntType       이벤트 유형 — 서버 고정 {@link #EVENT_TYPE_ETC}(요청자가 고르지 않는다)
  * @param operationType  작업 유형 — 증강은 {@code AUGMENT}
  * @param generationMode 생성 모드 — 이미지→이미지 증강이므로 {@code I2I}
  * @param inputFiles     입력 파일(I2I 는 1건 이상 필수, 최대 100)
@@ -32,6 +31,7 @@ import java.util.Map;
  * @param prompt         자유 지시문 문자열(≤1000, 선택). <b>객체가 아니다</b>
  * @param callbackUrl    결과 회신 URL(≤500, 선택)
  * @design INT-008
+ * @design ADR-059
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record GenAiJobSubmitRequest(
@@ -39,7 +39,6 @@ public record GenAiJobSubmitRequest(
         @JsonProperty("request_channel") String requestChannel,
         @JsonProperty("request_user_id") String requestUserId,
         @JsonProperty("evnt_type") String evntType,
-        @JsonProperty("evnt_subtype") String evntSubtype,
         @JsonProperty("operation_type") String operationType,
         @JsonProperty("generation_mode") String generationMode,
         @JsonProperty("input_files") List<GenAiInputFile> inputFiles,
@@ -47,8 +46,37 @@ public record GenAiJobSubmitRequest(
         @JsonProperty("prompt") String prompt,
         @JsonProperty("callback_url") String callbackUrl) {
 
-    /** 요청 채널 — 저작도구 고정. */
+    /**
+     * 요청 채널 — 저작도구 고정.
+     *
+     * <p>포털 증강 경로가 나중에 붙어도 이 값은 그대로다(2026-09-02 사용자 확정) — 이 값은
+     * "어느 채널에 배포됐는가" 가 아니라 "누가 요청을 보내는가" 를 가리키며 그것은 언제나 저작도구다.
+     * {@code PORTAL} 로 바꾸지 말 것.
+     */
     public static final String CHANNEL_AUTHORING = "AUTHORING";
+
+    /**
+     * 이벤트 유형 — <b>서버가 고정 송신하는 중립값</b>(ADR-059 · INT-008).
+     *
+     * <h3>왜 요청자가 고르지 않는가</h3>
+     * <p>벤더의 이미지 증강(I2I)은 <b>배경 이미지에 이벤트 장면을 만들어 넣는</b> 작업이라 이 값이
+     * "무엇을 만들지" 를 정한다. 우리 증강은 <b>이미 이벤트가 담긴 프레임</b>을 겨울·야간·우천 등으로
+     * 변환할 뿐이라 만들 장면을 정할 자리가 없다. 게다가 우리 이벤트 체계는 넓은데 벤더 허용값은
+     * 좁아, 대응되지 않는 영상은 요청자가 <b>사실과 다른 값</b>을 고를 수밖에 없었다.
+     *
+     * <h3>★ 규격서 판본에는 아직 이 값이 없다 — 되돌리지 말 것</h3>
+     * <p>{@code ETC} 는 <b>벤더와 협의가 끝난 값</b>이다(2026-09-02 사용자 확정). 다만 우리가 보유한
+     * 「생성형 AI API 연동정의서 v1.3」(갱신일 2026-08-12) §4.1 의 {@code evnt_type} 허용값은
+     * {@code FLOOD | WILDFIRE} 뿐이고 오류표에 {@code UNSUPPORTED_EVENT_TYPE}(400)이 있다.
+     * <b>그 문서만 보고 "계약에 없는 값" 이라며 되돌리지 말 것</b> — 그때까지는 문서가 아니라 합의가
+     * 근거다. 규격서 개정판을 받으면 값과 오류 코드를 대조한다.
+     *
+     * <p>참고: dev/stg/prd 는 {@code authoring.augment.external.mode=noop} 기본이라 실호출이 없다.
+     *
+     * <p>세부 유형({@code evnt_subtype})은 <b>레코드 컴포넌트 자체를 두지 않는다</b> — 침수 전용 축이라
+     * 중립값에서는 성립하지 않고, 필드가 없으면 키가 실릴 경로도 구조적으로 존재하지 않는다.
+     */
+    public static final String EVENT_TYPE_ETC = "ETC";
     /** 작업 유형 — 증강 고정. */
     public static final String OPERATION_AUGMENT = "AUGMENT";
     /** 생성 모드 — 증강 AI 는 이미지-to-이미지(프레임 이미지만 변환)라 I2I 고정. */

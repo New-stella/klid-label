@@ -3,7 +3,7 @@ package kr.co.cudo.authoring.augment.dto;
 /**
  * FE 진행상태 화면({@code GET /v1/augments/{id}/progress})이 표시하는 <b>외부 처리 축</b> 상태.
  *
- * <p>「생성형 AI API 연동명세서 v1.1」 §3.2 상태머신({@code LS_DATA_AUG_JOB.JOB_STTS_CD})과 같은
+ * <p>「생성형 AI API 연동명세서 v1.3」 §3.2 상태머신({@code LS_DATA_AUG_JOB.JOB_STTS_CD})과 같은
  * 코드 공간이며, 증강 1건이 여러 청크 job 으로 나뉘므로 <b>청크 집계 결과</b>를 담는다.
  *
  * <h3>★ {@link AugmentJobStatus} 를 확장하지 않는 이유 (S7 — E-06 재발 방지)</h3>

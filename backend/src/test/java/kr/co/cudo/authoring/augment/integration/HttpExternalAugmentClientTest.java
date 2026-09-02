@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * HttpExternalAugmentClient 단위 테스트 — 「생성형 AI API 연동명세서 v1.1」 §4.1 계약 정합.
+ * HttpExternalAugmentClient 단위 테스트 — 「생성형 AI API 연동명세서 v1.3」 §4.1 계약 정합.
  *
  * <p>목 서버(mock-server/app/routers/augment.py)가 계약 정본이므로, 그 스키마·헤더·응답 규약을
  * 그대로 단언한다.
@@ -79,7 +79,7 @@ class HttpExternalAugmentClientTest {
 
     private AugmentSubmitCommand command(String requestId) {
         return new AugmentSubmitCommand(
-                10L, "WINTER", MTDT, null, requestId, "FLOOD", null, "1",
+                10L, "AUGMENT", MTDT, null, requestId, "1",
                 "http://localhost:8080/api/v1/genai/callback",
                 List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg"),
                         new AugmentInputFile(2, "/app/storage/deidentified/frames/2.jpg")),
@@ -97,17 +97,19 @@ class HttpExternalAugmentClientTest {
     }
 
     /**
-     * 자유 지시문과 침수 세부 유형이 있으면 <b>각각 자기 자리</b>로 나간다 — 지시문은 문자열,
-     * 세부 유형은 {@code evnt_subtype} 이다. 어느 것도 {@code mtdt} 안으로 접히지 않는다.
+     * 자유 지시문은 <b>최상위 문자열</b>로 나가며 {@code mtdt} 안으로 접히지 않는다.
+     *
+     * <p>구 시험은 침수 세부 유형({@code evnt_subtype})이 함께 나가는 것도 고정했으나, 그 값은
+     * 2026-09-02 이후 <b>어떤 경우에도 전송하지 않는다</b>({@code @design ADR-059}) — 요청 바디
+     * 레코드에 필드 자체가 없다.
      */
     @Test
-    @DisplayName("자유지시문과_침수세부유형은_각자_최상위_필드로_나간다")
+    @DisplayName("자유지시문은_최상위_문자열_필드로_나가고_세부유형은_전송되지_않는다")
     void optionalFieldsAreSentAtTopLevel() throws Exception {
         enqueueAccepted("AUG-3", "job-3");
 
         client(singleAttempt()).requestAugment(new AugmentSubmitCommand(
-                10L, "WINTER", MTDT, "도로 구조를 유지해줘", "AUG-3",
-                "FLOOD", "UNDERPASS_FLOOD", "1",
+                10L, "AUGMENT", MTDT, "도로 구조를 유지해줘", "AUG-3", "1",
                 "http://localhost:8080/api/v1/genai/callback",
                 List.of(new AugmentInputFile(1, "/app/storage/deidentified/frames/1.jpg")),
                 1, 1)).block();
@@ -117,7 +119,9 @@ class HttpExternalAugmentClientTest {
                 .as("자유 지시문은 문자열이다 — 객체면 벤더가 400 INVALID_PARAMETER 로 거부한다")
                 .isTrue();
         assertThat(body.get("prompt").asText()).isEqualTo("도로 구조를 유지해줘");
-        assertThat(body.get("evnt_subtype").asText()).isEqualTo("UNDERPASS_FLOOD");
+        assertThat(body.has("evnt_subtype"))
+                .as("세부 유형은 어떤 경우에도 전송하지 않는다(ADR-059)")
+                .isFalse();
         assertThat(body.get("mtdt").has("prompt")).isFalse();
     }
 
@@ -154,8 +158,11 @@ class HttpExternalAugmentClientTest {
         assertThat(body.get("request_channel").asText()).isEqualTo("AUTHORING");
         assertThat(body.get("operation_type").asText()).isEqualTo("AUGMENT");
         assertThat(body.get("generation_mode").asText()).isEqualTo("I2I");
-        // 이벤트 유형은 요청자가 고른 계약값이다(관제 이벤트 코드가 아니다).
-        assertThat(body.get("evnt_type").asText()).isEqualTo("FLOOD");
+        // ★ 이벤트 유형은 <서버가 고정 송신하는 중립값>이다 (@design ADR-059).
+        //   요청자도 커맨드도 이 값을 정하지 않는다 — 커맨드에 그 필드가 아예 없다.
+        //   ⚠ 보유 규격서 판본(v1.3)의 허용값은 FLOOD | WILDFIRE 라 이 값이 문서에는 없다.
+        //     벤더와 협의가 끝난 값이므로 그 문서만 보고 되돌리지 말 것(개정판 수령 시 대조).
+        assertThat(body.get("evnt_type").asText()).isEqualTo("ETC");
         assertThat(body.get("request_user_id").asText()).isEqualTo("1");
         assertThat(body.get("callback_url").asText()).endsWith("/v1/genai/callback");
 
@@ -169,10 +176,11 @@ class HttpExternalAugmentClientTest {
         assertThat(mtdt.has("style")).as("서버 고정 문구 시절 키가 남아 있으면 안 된다").isFalse();
         assertThat(mtdt.has("instruction")).isFalse();
 
-        // 자유 지시문·침수 세부 유형은 <선택>이라 없으면 키 자체가 나가지 않는다.
+        // 자유 지시문은 <선택>이라 없으면 키 자체가 나가지 않는다.
         assertThat(body.has("prompt"))
                 .as("prompt 를 객체로 되돌리는 회귀 차단 — 없을 때는 키 자체가 없어야 한다")
                 .isFalse();
+        // 침수 세부 유형은 <선택>이 아니라 <항상 미전송>이다 (@design ADR-059).
         assertThat(body.has("evnt_subtype")).isFalse();
         assertThat(body.has("condition")).as("구 계약의 최상위 condition 은 제외됐다").isFalse();
 

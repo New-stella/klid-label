@@ -127,6 +127,16 @@
     "UC-039"
   ],
   "pending": [
+    "AC-1088",
+    "AC-1089",
+    "AC-1090",
+    "AC-1091",
+    "AC-1092",
+    "API-226",
+    "API-227",
+    "API-228",
+    "API-229",
+    "API-230",
     "MOD-006",
     "MOD-018",
     "MOD-020",
@@ -139,6 +149,7 @@
     "IMPREC-082",
     "IMPREC-109",
     "IMPREC-164",
+    "IMPREC-182",
     "IMPREC-327",
     "IMPREC-328",
     "IMPREC-329",
@@ -146,8 +157,9 @@
     "IMPREC-354",
     "NAV-001",
     "SCREEN-039",
+    "SCREEN-042",
     "UC-042"
   ],
-  "last_sync_at": "2026-09-01T12:38:04.065Z",
+  "last_sync_at": "2026-09-02T10:52:15.847Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

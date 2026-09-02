@@ -23,17 +23,18 @@ package kr.co.cudo.authoring.augment.event;
  * 다시 읽어 재조립하면 두 벌이 되어 어긋날 수 있다).
  *
  * <p>2026-08-27 변경(v1.3): 생성 조건이 {@code prompt}(객체) → {@link #mtdt}(객체) 로 옮겨가고
- * {@link #promptText}(자유 지시문 문자열)가 분리됐다. 같은 이유로 <b>{@link #evntType}·
- * {@link #evntSubtype} 도 여기에 싣는다</b> — 구 구현은 위탁 시점에 영상에서 관제 이벤트 코드를 다시
- * 읽었는데, 그건 계약 허용값({@code FLOOD}/{@code WILDFIRE})이 아닌 다른 분류 축이었다.
+ * {@link #promptText}(자유 지시문 문자열)가 분리됐다.
+ *
+ * <p>2026-09-02 변경(ADR-059): 구 {@code evntType}·{@code evntSubtype} 필드를
+ * <b>제거</b>했다. 이벤트 유형은 요청자가 고르지 않고 위탁 바디를 만들 때 서버가 중립값을 고정으로
+ * 채우며({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC}) 세부 유형은 아예 보내지 않는다. 이 이벤트가
+ * 그 값을 나를 이유가 없어졌다 — 되살려 요청자 입력을 위탁으로 흘리지 말 것.
  *
  * @param originAugSn    PENDING 으로 커밋된 LS_DATA_AUG.DATA_AUG_SN (결과 매칭 키)
  * @param rawSn          증강 대상 영상 식별자 (비식별 프레임 경로 조회용)
- * @param augType        증강 유형 (WINTER/NIGHT/RAIN)
+ * @param augType        증강 유형 ({@code AUGMENT})
  * @param mtdt           외부로 전송할 구조화 생성 조건(허용 코드 5항목)
  * @param promptText     외부로 전송할 자유 지시문(≤1000, 선택 — 없으면 {@code null})
- * @param evntType       외부 이벤트 유형 (FLOOD/WILDFIRE) — 요청자가 고른 값
- * @param evntSubtype    침수 세부 유형(선택). 침수가 아니면 {@code null}
  * @param idempotencyKey 본 도구가 발급한 aug 단위 멱등 키 (^[A-Za-z0-9_-]+$, ≤64)
  * @param callbackUrl    결과 회신 URL
  * @param requestUserNo  요청자 토큰 sub (외부 요청의 request_user_id)
@@ -45,8 +46,6 @@ public record AugmentRequestedItemEvent(
         String augType,
         java.util.Map<String, Object> mtdt,
         String promptText,
-        String evntType,
-        String evntSubtype,
         String idempotencyKey,
         String callbackUrl,
         String requestUserNo) {

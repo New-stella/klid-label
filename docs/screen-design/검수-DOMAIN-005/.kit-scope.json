@@ -185,10 +185,13 @@
     "AC-1040",
     "AC-1041",
     "AC-1042",
+    "AC-1057",
+    "AC-1058",
     "ADR-002",
     "ADR-004",
     "ADR-015",
     "ADR-020",
+    "ADR-055",
     "API-012",
     "API-016",
     "API-017",
@@ -233,6 +236,10 @@
     "IMPREC-099",
     "IMPREC-108",
     "IMPREC-114",
+    "IMPREC-207",
+    "IMPREC-357",
+    "IMPREC-358",
+    "IMPREC-388",
     "INT-003",
     "LEGACY-077",
     "LEGACY-078",
@@ -267,6 +274,6 @@
     "UC-010",
     "UC-022"
   ],
-  "last_sync_at": "2026-08-31T11:39:08.202Z",
+  "last_sync_at": "2026-09-02T10:54:12.099Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 수용기준 ID 를 pin 에서 제거(전수 status 조회 근거 126건). 파일은 _retired/ 에 보존된다."
 }

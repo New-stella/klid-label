@@ -40,55 +40,23 @@
             <h2 id="step1-title" class="t-title-md step-title">처리 종류 선택</h2>
             <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>하나만 선택</span>
             <span class="step-spacer">
-              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>선택한 종류 · 겨울</span>
+              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>선택한 종류 · 증강 AI</span>
             </span>
           </div>
 
           <fieldset role="radiogroup" aria-labelledby="kind-legend">
-            <legend id="kind-legend" class="sr-only">처리 종류 — 겨울 · 야간 · 우천 · 해상도 변경 중 하나</legend>
+            <legend id="kind-legend" class="sr-only">처리 종류 — 증강 AI · 해상도 변경 중 하나</legend>
             <div class="kind-grid">
 
               <label class="kind-card">
-                <input type="radio" name="process-kind" value="winter" checked>
+                <input type="radio" name="process-kind" value="augment" checked>
                 <span class="kind-inner">
                   <span class="kind-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="m4.2 7.5 15.6 9"></path><path d="m4.2 16.5 15.6-9"></path><path d="M9 5.5 12 3l3 2.5"></path><path d="M9 18.5 12 21l3-2.5"></path></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>
                   </span>
                   <span class="kind-text">
-                    <span class="kind-title t-title-sm">겨울</span>
-                    <span class="kind-desc t-caption">눈과 결빙이 있는 겨울 장면으로 다시 만듭니다.</span>
-                  </span>
-                  <span class="kind-check" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
-                  </span>
-                </span>
-              </label>
-
-              <label class="kind-card">
-                <input type="radio" name="process-kind" value="night">
-                <span class="kind-inner">
-                  <span class="kind-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7.5 7.5 0 1 0 10.5 10.5Z"></path></svg>
-                  </span>
-                  <span class="kind-text">
-                    <span class="kind-title t-title-sm">야간</span>
-                    <span class="kind-desc t-caption">조도가 낮은 밤 장면으로 다시 만듭니다.</span>
-                  </span>
-                  <span class="kind-check" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
-                  </span>
-                </span>
-              </label>
-
-              <label class="kind-card">
-                <input type="radio" name="process-kind" value="rain">
-                <span class="kind-inner">
-                  <span class="kind-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15a4.5 4.5 0 0 1 .5-9 5.5 5.5 0 0 1 10.4 1.6A3.7 3.7 0 0 1 17.5 15Z"></path><path d="M8 18.5 7 21"></path><path d="M12 18.5 11 21"></path><path d="M16 18.5 15 21"></path></svg>
-                  </span>
-                  <span class="kind-text">
-                    <span class="kind-title t-title-sm">우천</span>
-                    <span class="kind-desc t-caption">비가 내리는 장면으로 다시 만듭니다.</span>
+                    <span class="kind-title t-title-sm">증강 AI</span>
+                    <span class="kind-desc t-caption">생성 조건이 정한 장면으로 다시 만듭니다.</span>
                   </span>
                   <span class="kind-check" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
@@ -115,11 +83,11 @@
             </div>
           </fieldset>
 
-          <!-- 생성 조건 5필드 (증강 3종 선택 시에만 노출) -->
+          <!-- 생성 조건 5필드 (증강 AI 선택 시에만 노출) -->
           <div class="prompt-block">
             <div class="prompt-legend">
               <h3 class="t-title-sm">생성 조건</h3>
-              <span class="legend-sub t-body-sm">다섯 항목 중 최소 한 개는 고릅니다 · 보기는 외부 연동 계약이 정한 값입니다</span>
+              <span class="legend-sub t-body-sm">다섯 항목을 모두 골라야 하며 하나라도 비어 있으면 요청 단추가 잠기고 사유를 안내합니다 · 보기는 외부 연동 계약이 정한 값입니다 · 계약 자체는 최소 한 항목만 요구하지만 이 화면은 더 엄격하게 받습니다 — 의도된 선택. 하나라도 비우면 외부가 어떤 기본값으로 채울지 이쪽에서 알 수 없어 같은 요청의 결과가 비결정적이 됩니다.</span>
             </div>
 
             <div class="alert alert-outline alert-outline--caution">
@@ -132,35 +100,14 @@
               </div>
             </div>
 
-            <div class="prompt-grid prompt-grid--pair">
-
-              <div class="field">
-                <label class="field-label t-label" for="p-evt">이벤트 유형 <span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                <div class="select-wrap">
-                  <select class="select-trigger" id="p-evt">
-                  <option selected>침수</option>
-                  <option>산불</option>
-                  </select>
-                  <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-                </div>
-                <span class="field-help t-caption">외부 연동이 이 두 유형만 받습니다. 영상의 관제 이벤트 코드에서 자동으로 옮기지 않고 검수자가 고릅니다 — 분류 축이 달라 자동 변환은 추정이 됩니다.</span>
+            <div class="field">
+              <span class="field-label t-label" id="preset-label">생성 조건 프리셋</span>
+              <div class="filter-actions" role="group" aria-labelledby="preset-label">
+                <button type="button" class="btn btn-primary btn-sm" aria-pressed="true">겨울</button>
+                <button type="button" class="btn btn-secondary btn-sm" aria-pressed="false">야간</button>
+                <button type="button" class="btn btn-secondary btn-sm" aria-pressed="false">우천</button>
               </div>
-
-              <div class="field">
-                <label class="field-label t-label" for="p-evt-sub">침수 세부 유형</label>
-                <div class="select-wrap">
-                  <select class="select-trigger" id="p-evt-sub">
-                  <option selected>도로 침수</option>
-                  <option>하천 범람</option>
-                  <option>지하차도 침수</option>
-                  <option>도심 침수</option>
-                  <option>기타</option>
-                  </select>
-                  <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-                </div>
-                <span class="field-help t-caption">이벤트 유형이 침수일 때만 나타납니다. 산불에는 계약상 정의된 세부 유형이 없어 보내지 않습니다 — 산불의 세부 조건은 생성 조건과 자유 지시문으로 전달합니다.</span>
-              </div>
-
+              <span class="field-help t-caption">프리셋을 고르면 생성 조건 다섯 항목에 그에 맞는 값이 채워집니다. 겨울은 계절과 날씨, 야간은 시간대, 우천은 날씨. 채워진 값은 고칠 수 있고, 이미 입력한 항목은 프리셋을 바꿔도 덮어쓰지 않습니다.</span>
             </div>
 
             <div class="prompt-grid">
@@ -191,7 +138,7 @@
                   </select>
                   <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <span class="field-help t-caption">고른 종류에 맞춰 채워 뒀습니다. 고칠 수 있습니다.</span>
+                <span class="field-help t-caption">겨울 프리셋으로 채워 뒀습니다. 고칠 수 있습니다.</span>
               </div>
 
               <div class="field">
@@ -208,7 +155,7 @@
                   </select>
                   <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <span class="field-help t-caption">고른 종류에 맞춰 채워 뒀습니다. 고칠 수 있습니다.</span>
+                <span class="field-help t-caption">겨울 프리셋으로 채워 뒀습니다. 고칠 수 있습니다.</span>
               </div>
 
               <div class="field">
@@ -476,7 +423,7 @@
                 <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>요청됨</span>
               </span>
               <span class="job-kinds">
-                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>겨울</span>
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>증강</span>
               </span>
               <span class="job-meta t-caption">
                 <span>영상 1건</span>
@@ -543,7 +490,7 @@
       <div class="action-summary">
         <div class="sel-summary">
           <span class="sel-label t-caption">선택</span>
-          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>겨울</span>
+          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>증강 AI</span>
           <span class="sel-x" aria-hidden="true">×</span>
           <span class="sel-video t-body-md">영상 #3187</span>
         </div>
@@ -723,17 +670,19 @@
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">② 이벤트 유형을 고르지 않았을 때 — 요청 단추가 잠기고 사유를 적는다</p>
+        <p class="t-label ref-variant-title">② 생성 조건을 고르지 않았을 때 — 요청 단추가 잠기고 사유를 적는다</p>
         <div class="ref-box">
           <div class="prompt-grid prompt-grid--pair">
 
               <div class="field">
-                <label class="field-label t-label" for="p-evt-ok">이벤트 유형 <span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+                <label class="field-label t-label" for="p-time-ok">시간대</label>
                 <div class="select-wrap">
-                  <select class="select-trigger" id="p-evt-ok">
-                  <option selected>고르세요</option>
-                  <option>침수</option>
-                  <option>산불</option>
+                  <select class="select-trigger" id="p-time-ok">
+                  <option selected>고르지 않음</option>
+                  <option>새벽</option>
+                  <option>낮</option>
+                  <option>황혼</option>
+                  <option>밤</option>
                   </select>
                   <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
@@ -762,13 +711,13 @@
             <div class="action-summary">
               <div class="sel-summary">
                 <span class="sel-label t-caption">선택</span>
-                <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>겨울</span>
+                <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>증강 AI</span>
                 <span class="sel-x" aria-hidden="true">×</span>
                 <span class="sel-video t-body-md">영상 #3187</span>
               </div>
               <p class="submit-hint t-caption">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
-                <span>이벤트 유형을 고르지 않아 요청할 수 없습니다. 무엇이 모자란지 알려 주지 않으면 단추가 왜 안 눌리는지 찾지 못합니다.</span>
+                <span>생성 조건을 고르지 않아 요청할 수 없습니다. 무엇이 모자란지 알려 주지 않으면 단추가 왜 안 눌리는지 찾지 못합니다.</span>
               </p>
             </div>
             <div class="action-buttons">
@@ -861,7 +810,7 @@
             <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
             <div class="toast-body">
               <span class="toast-title t-body-sm">증강 요청 등록됨</span>
-              <span class="toast-desc t-caption">영상 #3187 · 겨울 — 결과 화면으로 이동합니다.</span>
+              <span class="toast-desc t-caption">영상 #3187 · 증강 AI — 결과 화면으로 이동합니다.</span>
             </div>
           </div>
         </div>

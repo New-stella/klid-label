@@ -21,7 +21,7 @@
   >
   > ⚠ **코드 미반영 (2026-08-27 실측)** — `features/auth/tokenIngress.ts` 가 `localStorage` 를 직접 읽고 기본 전략도 `localStorage` 이며, 요청 헤더는 전 경로 `Authorization: Bearer` 다. `x-access-token` 은 레포에 있으나 **방향이 반대**(저작도구 → 관제 outbound 통지 헤더 + 로그 마스킹)이고 inbound 수용은 **0건**이다. Module Federation 설정(`vite.config.ts` 의 `federation`·`exposes`·`remoteEntry`) 자체가 **0건**이다.
 - 두 채널 모두 **동일 JWT 발급 서버** → 단일 검증 로직(`JwtAuthenticationFilter`).
-- 토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기. **저작도구 인가 역할(REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
+- 토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기. **저작도구 인가 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
   - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트.
 
@@ -159,7 +159,7 @@
 
 | 액터 | 유형 |
 |------|------|
-| REVIEWER, WORKER, PORTAL_USER | 주요 |
+| ADMIN, REVIEWER, WORKER, PORTAL_USER | 주요 |
 | 배치시스템(Quartz), ai-server(YOLO/SAM2) | 보조(내부) |
 | 생성형AI서비스, 관제서버, 비식별솔루션, 외부 비식별 SW | 보조(외부) |
 

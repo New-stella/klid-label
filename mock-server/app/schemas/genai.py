@@ -9,7 +9,8 @@ v1.2 → v1.3 요청 본문 구조 변경 (§1 · §4.1 「v1.3 Request Body 구
 - 생성 조건은 **최상위 ``mtdt`` 객체**(필수)로 전달한다. 구 ``prompt.condition`` 은 폐기.
 - ``prompt`` 는 **최상위 문자열(최대 1000자, 선택)**. 객체·배열이면 400 INVALID_PARAMETER.
 - **최상위 ``condition``** 은 v1.3 표준에서 제외됐다 — 라우터가 명시적으로 거부한다.
-- ``evnt_type`` 은 FLOOD | WILDFIRE 2종, ``evnt_subtype`` 은 FLOOD 세부 유형 5종(선택).
+- ``evnt_type`` 은 FLOOD | WILDFIRE + 협의된 중립값 ``ETC``(아래 SUPPORTED_EVNT_TYPES 주석),
+  ``evnt_subtype`` 은 FLOOD 세부 유형 5종(선택).
 - V0 지원 조합은 GENERATE×T2I / AUGMENT×I2I / GENERATE×T2V 이며 I2V·V2V 는 미지원.
 
 인증(§ 401 UNAUTHENTICATED / 403 FORBIDDEN)은 **이번 스코프에서 의도적으로 미구현**이며
@@ -108,9 +109,20 @@ SUPPORTED_REQUEST_COMBINATIONS: frozenset[tuple[str, str]] = frozenset(
 )
 
 
-#: §4.1 evnt_type 허용 코드 — V0 는 FLOOD | WILDFIRE 2종.
+#: §4.1 evnt_type 허용 코드 — 규격서 V0 의 FLOOD | WILDFIRE 에 중립값 ``ETC`` 를 더한 3종.
 #: 목록 밖 값은 400 UNSUPPORTED_EVENT_TYPE(§3.3) 이라 pydantic enum 이 아니라 라우터가 판정한다.
-SUPPORTED_EVNT_TYPES: frozenset[str] = frozenset({"FLOOD", "WILDFIRE"})
+#:
+#: ★ ``ETC`` 는 **벤더와 협의가 끝난 값**이다(2026-09-02 사용자 확정 · ADR-059). 저작도구는 증강
+#:   위탁 바디의 evnt_type 을 요청자가 고르게 하지 않고 **서버가 ETC 로 고정 송신**한다 — 우리
+#:   증강은 이미 이벤트가 담긴 프레임을 변환할 뿐이라 "무엇을 만들지" 를 정할 자리가 없기 때문이다.
+#: ⚠ **다만 우리가 보유한 규격서 판본에는 이 값이 아직 없다** — 「생성형 AI API 연동명세서 v1.3」
+#:   (갱신일 2026-08-12) §4.1 허용값은 FLOOD | WILDFIRE 뿐이고 오류표에 UNSUPPORTED_EVENT_TYPE
+#:   (400)이 있다. **그 문서만 보고 "계약에 없는 값" 이라며 ETC 를 빼지 말 것** — 그때까지는
+#:   문서가 아니라 합의가 근거다. 규격서 개정판을 받으면 값과 오류 코드를 대조한다.
+#: ⚠ 성격이 VLM 목의 event_type 완화(2026-08-06)와 다르다 — 그건 관제 값이 **아직 안 채워져서**
+#:   무엇이든 받아 준 목 한정 완화였고, 이건 **합의된 단일 값의 선반영**이다. 그래도 공통점은
+#:   같다: **목이 받아 준다는 사실이 실벤더도 관대하다는 근거는 아니다.** 판정은 벤더 응답이 한다.
+SUPPORTED_EVNT_TYPES: frozenset[str] = frozenset({"FLOOD", "WILDFIRE", "ETC"})
 
 #: evnt_subtype 이 적용되는 evnt_type — WILDFIRE 는 정의된 세부 코드가 없다(§4.1).
 EVNT_SUBTYPE_APPLICABLE_TYPE = "FLOOD"

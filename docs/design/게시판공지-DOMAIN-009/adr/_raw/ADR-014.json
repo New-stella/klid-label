@@ -48,6 +48,10 @@
         {
           "title": "게시판 API 대표 (095~101, 106~108)",
           "item_id": "API-095"
+        },
+        {
+          "title": "관리자 역할 신설과 역할 계층 — 이 결정이 인용한 ADR-003 권한 모델을 대체",
+          "item_id": "ADR-055"
         }
       ],
       "supersedes": [
@@ -69,9 +73,10 @@
         ]
       },
       "decision_date": "2026-06-05",
+      "attached_files": [],
       "decision_drivers": [
         "작업자 가이드라인 전달 채널 부재 (도구 밖 전달은 작업 맥락 단절)",
-        "v2 권한 모델(ADMIN 없이 REVIEWER 통합, ADR-003)과의 정합",
+        "v2 권한 모델(ADMIN 없이 REVIEWER 통합, ADR-003)과의 정합. ⚠ 이 드라이버가 인용한 권한 모델은 뒤집혔다 — ADR-055 가 ADR-003 을 대체해 관리자 역할(ADMIN)을 신설했고, 역할은 ADMIN·REVIEWER·WORKER·PORTAL_USER 네 종에 관리자 → 검수자 한 단계 계층이다. 결정 당시의 판단으로 남겨 두되 현재 권한 모델이 아니다.",
         "PostgreSQL 표준·v2 컬럼 컨벤션 준수"
       ],
       "considered_options": [
@@ -88,7 +93,7 @@
         },
         {
           "cons": [
-            "v1 스키마가 ADMIN 권한 모델 기반 — v2 REVIEWER 통합(ADR-003)과 충돌",
+            "v1 스키마가 ADMIN 권한 모델 기반 — v2 REVIEWER 통합(ADR-003)과 충돌. ⚠ 이 비교 근거가 인용한 v2 권한 모델은 뒤집혔다 — ADR-055 가 ADR-003 을 대체해 관리자 역할(ADMIN)을 다시 두었으므로 이 충돌 사유는 현재 성립하지 않는다. 당시 비교 근거로 남겨 둔다.",
             "MariaDB 원형 컬럼 컨벤션 불일치(ADR-010)"
           ],
           "name": "v1 게시판 복원 (LS_NTC_BBS 재사용)",
@@ -113,12 +118,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "본문에서 저장소 내부 표기를 걷어내고 설계 서술만 남긴다. 제거 축: 커밋 해시, 작업 진행 서술.",
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "DFEAT-038의 2개 필드 변경 — references",
+    "change_summary": "폐기된 역할 결정(ADR-003)을 현행 정합 기준으로 인용하던 두 자리에 반전 표기를 덧붙인다. 결정 당시의 판단·비교 근거는 그대로 두고 표기만 더했으며, 추적을 위해 대체 결정(ADR-055)을 references 에 추가한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:20:43.716Z",
+    "last_updated_at": "2026-09-02T01:28:37.208Z",
     "created_at": "2026-06-05T05:21:12.568Z"
   }
 }

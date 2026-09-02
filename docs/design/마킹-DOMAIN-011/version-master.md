@@ -4,9 +4,9 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-011 |
-| Last sync | 2026-09-01T12:37:51.009Z |
-| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 54 |
-| 출력 루트 | 마킹-DOMAIN-011 |
+| Last sync | 2026-09-02T10:52:36.641Z |
+| Mode | SYNC — NEW 0 / CHANGED 10 / UNCHANGED 46 |
+| 출력 루트 | docs/design/마킹-DOMAIN-011 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-011 — .kit-scope.json (스킬 LLM 판정) |
@@ -20,15 +20,15 @@
 
 ```
   ℹ️  domain_feature: 이번 키트 2건 / 스코프 밖 46건
-  ℹ️  api_endpoint: 이번 키트 5건 / 스코프 밖 199건
+  ℹ️  api_endpoint: 이번 키트 5건 / 스코프 밖 215건
   ℹ️  erd: 이번 키트 1건 / 스코프 밖 22건
   ℹ️  diagram_sequence: 이번 키트 2건 / 스코프 밖 24건 (그중 domain_id 없음 12건)
-  ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 35건
+  ℹ️  screen_spec: 이번 키트 2건 / 스코프 밖 36건
   ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건 (그중 domain_id 없음 2건)
   ℹ️  domain_event: 이번 키트 3건 / 스코프 밖 9건
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 72건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 77건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 9건 / 스코프 밖 41건 (그중 domain_id 없음 5건)
+  ℹ️  adr: 이번 키트 9건 / 스코프 밖 43건 (그중 domain_id 없음 6건)
   ℹ️  feature: 이번 키트 1건 / 스코프 밖 9건 (그중 domain_id 없음 8건)
 ```
 
@@ -41,8 +41,16 @@
 
 ## Changelog (this run)
 
-- CHANGED [[ADR-046]] (prev v9)
-- CHANGED [[ROLE-003]] (prev v10)
+- CHANGED [[ADR-046]] (prev v10)
+- CHANGED [[ADR-055]] (prev v3)
+- CHANGED [[DFEAT-048]] (prev v17)
+- CHANGED [[ERD-013]] (prev v12)
+- CHANGED [[NFR-009]] (prev v4)
+- CHANGED [[NFR-017]] (prev v9)
+- CHANGED [[NFR-020]] (prev v9)
+- CHANGED [[ROLE-001]] (prev v13)
+- CHANGED [[ROLE-003]] (prev v12)
+- CHANGED [[ROLE-004]] (prev v4)
 
 ## ITEM 표
 
@@ -57,9 +65,9 @@
 | [[ADR-022]] | adr | 5 | UNCHANGED |
 | [[ADR-029]] | adr | 2 | UNCHANGED |
 | [[ADR-030]] | adr | 4 | UNCHANGED |
-| [[ADR-046]] | adr | 10 | CHANGED |
+| [[ADR-046]] | adr | 13 | CHANGED |
 | [[ADR-052]] | adr | 3 | UNCHANGED |
-| [[ADR-055]] | adr | 3 | UNCHANGED |
+| [[ADR-055]] | adr | 5 | CHANGED |
 | [[API-043]] | api_endpoint | 25 | UNCHANGED |
 | [[API-047]] | api_endpoint | 12 | UNCHANGED |
 | [[API-084]] | api_endpoint | 8 | UNCHANGED |
@@ -68,9 +76,9 @@
 | [[CDIAG-002]] | class_diagram | 7 | UNCHANGED |
 | [[CMP-002]] | diagram_c4_component | 3 | UNCHANGED |
 | [[DFEAT-039]] | domain_feature | 12 | UNCHANGED |
-| [[DFEAT-048]] | domain_feature | 17 | UNCHANGED |
+| [[DFEAT-048]] | domain_feature | 18 | CHANGED |
 | [[DOMAIN-011]] | domain | 8 | UNCHANGED |
-| [[ERD-013]] | erd | 12 | UNCHANGED |
+| [[ERD-013]] | erd | 15 | CHANGED |
 | [[EVT-001]] | domain_event | 5 | UNCHANGED |
 | [[EVT-002]] | domain_event | 6 | UNCHANGED |
 | [[EVT-005]] | domain_event | 5 | UNCHANGED |
@@ -78,7 +86,7 @@
 | [[INT-002]] | integration_point | 18 | UNCHANGED |
 | [[INTSPEC-003]] | integration_spec | 12 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
-| [[NFR-009]] | nfr | 4 | UNCHANGED |
+| [[NFR-009]] | nfr | 6 | CHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
 | [[NFR-011]] | nfr | 6 | UNCHANGED |
 | [[NFR-012]] | nfr | 5 | UNCHANGED |
@@ -86,16 +94,16 @@
 | [[NFR-014]] | nfr | 4 | UNCHANGED |
 | [[NFR-015]] | nfr | 5 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
-| [[NFR-017]] | nfr | 9 | UNCHANGED |
+| [[NFR-017]] | nfr | 10 | CHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
 | [[NFR-019]] | nfr | 2 | UNCHANGED |
-| [[NFR-020]] | nfr | 9 | UNCHANGED |
+| [[NFR-020]] | nfr | 10 | CHANGED |
 | [[NFR-021]] | nfr | 1 | UNCHANGED |
 | [[NFR-022]] | nfr | 2 | UNCHANGED |
-| [[ROLE-001]] | permission_role | 13 | UNCHANGED |
+| [[ROLE-001]] | permission_role | 14 | CHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
-| [[ROLE-003]] | permission_role | 12 | CHANGED |
-| [[ROLE-004]] | permission_role | 4 | UNCHANGED |
+| [[ROLE-003]] | permission_role | 14 | CHANGED |
+| [[ROLE-004]] | permission_role | 5 | CHANGED |
 | [[SCREEN-006]] | screen_spec | 49 | UNCHANGED |
 | [[SCREEN-008]] | screen_spec | 48 | UNCHANGED |
 | [[SD-012]] | screen_design | 11 | UNCHANGED |

@@ -944,6 +944,19 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 설계 기반으로 구현한다. **코드 작업 전 아래 키트의 IMPLEMENTATION.md 를 먼저 읽을 것.**
 
+> ★★★★ **2026-09-02 SYNC — 구현 15 + 화면 7 = 22 키트 전량 (증강 종류 단일화 라운드 · `ADR-059`).**
+> 전 키트 **유실 0**(직전 커밋 `version-master.md` 대비 ID 집합 대조). 건수가 는 둘은 **`ADR-059` 승격분**이다 —
+> `DOMAIN-007`(소속 도메인) 77→78 · `DOMAIN-003`(`SCREEN-022`·`DFEAT-029`·`ERD-012` 를 pin 해 영향권) 136→137.
+> ⚠ **`NFR-009` 가 전역 타입이라 구현 키트 15개 전부**, `UI-*` 카탈로그가 화면 키트 7개 전부에 걸려
+> **22 키트가 모두 영향권**이었다 — 한 도메인 변경이라고 그 키트만 돌리면 나머지가 조용히 뒤처진다.
+> ⚠ **화면 키트 6종이 첫 실행에서 `변경 N · 유지 0`(전건 재기록)으로 찍혔다** — `.kit-manifest.json`
+> 델타 기준선이 없을 때 나는 현상이고 **재동기화 1회로 `유지 N` 으로 정착**한다. 진짜 델타는
+> git 의 이전 `version-master.md` 와 대조해 얻는다(그렇게 해서 유실 0을 확인했다).
+> ⚠ **`SCREEN-034`(포털 업로드 라벨링)가 `_retired/` 로 이동**했다 — 서버에서 `deprecated`(포털 라벨링
+> 화면이 `SCREEN-029` 로 통합)이며 **이번 라운드와 무관한 다른 세션의 변경**이다. 물리 삭제가 아니라 이동이다.
+> ⚠ 자격증명 함정은 그대로다 — 이 저장소 설정은 `~/.claude.json` 의 **`projects[<경로>].mcpServers`**
+> 아래라 다운로더가 못 찾는다. `LOGICRAFT_API_BASE`/`LOGICRAFT_API_KEY` 를 **직접 넘겨야** 한다.
+>
 > ★★★ **2026-08-31 SYNC — 15 도메인 전량 (오늘 머지된 PR 3건 반영 · AC 전면 재번호 회수).** 전 키트 **`서버 건수 = pin 건수` 15/15 일치**로 스코프 무변동을 확인했다. 반영분: `INT-013` v13 · `SCREEN-004` v16 · `API-153` v5(PR #163) · `API-058` v4 · `SCREEN-021` v29 · **`AC-1084`·`AC-1085` 신설**(PR #162) · `ADR-012` v10 · `INT-009` v12 · **`NFR-012` v5(15개 키트 전부)**(PR #161).
 > ★**이번 SYNC 의 큰 사건은 `acceptance` 전면 재번호다.** 구 AC(3자리) **131건이 서버에서 `deprecated`/`superseded`** 로 바뀌고 신규 AC(4자리) **75건**이 그 자리를 대신한다(`AC-1043` 등으로 통합). 첫 실행에서 다운로더가 **`🚨 acceptance: 이번 키트 0건 / 프로젝트 전역 73건 — 전량 누락`** 을 띄웠는데, **이것은 유실이 아니다** — 126건 전수 `status` 조회로 **폐기 124 + superseded 2 · 폐기가 아닌데 안 내려온 것 0건**을 확인했고, 파일은 **131건 전부 `_retired/` 에 보존**됐다(미보존 0). pin 에서는 그 폐기 ID 를 걷어냈고(근거를 `.kit-scope.json` 의 `note_pruned` 에 기록) 그 결과 pin 이 서버와 정확히 맞는다.
 > ⚠ **「서버 건수 < pin 건수」를 보면 먼저 그 차집합의 `status` 를 전수 조회하라** — 폐기면 정상이고 아니면 진짜 유실이다. 건수만 보고 판단하면 둘을 구분할 수 없다.
@@ -976,11 +989,11 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 | 도메인 | 키트 경로 | ITEM | 구현 현황 (설계 쪽 주장) | 설계 0건 단계 |
 |---|---|---|---|---|
 | DOMAIN-001 사용자·권한 | docs/design/사용자권한-DOMAIN-001/ | 69 | implemented 19 / planned 28 / (미기재) 15 | CONST 상수값, EVT 이벤트 계약, TEST 통합시험, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 136 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
+| DOMAIN-003 영상·프레임 수집 | docs/design/영상프레임-수집-DOMAIN-003/ | 137 | implemented 70 / verified 1 / planned 28 / (미기재) 28 | CONST 상수값 |
 | DOMAIN-004 AI 보조 라벨링 | docs/design/ai-보조-라벨링-DOMAIN-004/ | 113 | implemented 41 / in_progress 1 / planned 35 / (미기재) 31 | EVT 이벤트 계약, TEST 통합시험, INT 외부 연동 |
 | DOMAIN-005 검수 | docs/design/검수-DOMAIN-005/ | 108 | implemented 50 / in_progress 1 / planned 24 / (미기재) 22 | CONST 상수값 |
 | DOMAIN-006 통계·대시보드 | docs/design/통계대시보드-DOMAIN-006/ | 46 | implemented 14 / planned 20 / (미기재) 10 | CONST 상수값, ERD 데이터 계층, EVT 이벤트 계약, SEQ 흐름 배선, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
-| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 77 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
+| DOMAIN-007 데이터 증강 | docs/design/데이터-증강내보내기-DOMAIN-007/ | 78 | implemented 28 / planned 26 / (미기재) 19 | CONST 상수값 |
 | DOMAIN-009 게시판·공지 | docs/design/게시판공지-DOMAIN-009/ | 46 | implemented 18 / planned 23 / (미기재) 7 | CONST 상수값, EVT 이벤트 계약, SEQ 흐름 배선, UC 검증, TEST 통합시험, CDIAG 클래스 구조, C4 컴포넌트, INT 외부 연동, FEAT 상위 기능 |
 | DOMAIN-010 라벨링 | docs/design/라벨링-DOMAIN-010/ | 170 | implemented 100 / in_progress 2 / planned 47 / (미기재) 32 | INT 외부 연동 |
 | DOMAIN-011 마킹 | docs/design/마킹-DOMAIN-011/ | 56 | implemented 16 / planned 20 / (미기재) 15 | CONST 상수값 |

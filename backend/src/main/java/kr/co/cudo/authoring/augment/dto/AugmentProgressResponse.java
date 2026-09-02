@@ -13,7 +13,7 @@ package kr.co.cudo.authoring.augment.dto;
  *   progress = round( Σ(weight_i × p_i) / Σ(weight_i) )
  *     weight_i = max(1, LS_DATA_AUG_JOB.TOT_NOCS)   // 그 청크가 위탁한 입력 파일 수
  *     p_i      = 종결 job → 100
- *                비종결 job → 외부 상태조회(§4.4)의 progress (미제공이면 0)
+ *                비종결 job → 외부 상태조회(§4.2)의 progress (미제공이면 0)
  * </pre>
  * <p><b>최솟값(min) 이 아니다.</b> min 을 쓰면 청크 3개 중 2개가 100% 여도 전체가 0% 로 보여
  * 진행이 멈춘 것처럼 표시된다. 반대로 단순 평균(가중 없음)은 1장짜리 꼬리 청크가 100장짜리 청크와
@@ -23,7 +23,8 @@ package kr.co.cudo.authoring.augment.dto;
  * {@code TOT_NOCS=0} 이라 가중치가 0 이 되면 분모에서 사라져 "실패한 청크가 없는 것처럼" 보인다.
  *
  * @param id                 증강 결과 PK({@code LS_DATA_AUG.DATA_AUG_SN})
- * @param augTypeCd          증강 종류(WINTER/NIGHT/RAIN)
+ * @param augTypeCd          증강 종류 — 현행 {@code AUGMENT}. 백필하지 않은 구 값
+ *                           (WINTER/NIGHT/RAIN)도 그대로 실려 올 수 있다(ADR-059)
  * @param status             {@link AugmentProgressStatus} 이름
  * @param progress           0~100. <b>{@code null} 이면 산출 불가</b>이며 사유는 {@code unavailableReason}
  * @param unavailableReason  {@link AugmentProgressUnavailableReason} 이름 또는 null

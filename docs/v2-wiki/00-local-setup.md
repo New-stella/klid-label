@@ -95,7 +95,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 
 저작도구는 독립 로그인 UI 가 없고 관제/포털 발급 JWT 를 인계받는다. 로컬은 **자체 발급**으로 대체한다.
 
-- **FE**: `/dev/login` → 역할(REVIEWER/WORKER/PORTAL_USER) 선택 → 토큰 발급 → `localStorage` 저장(운영 인계 흐름 1:1 재현)
+- **FE**: `/dev/login` → 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER) 선택 → 토큰 발급 → `localStorage` 저장(운영 인계 흐름 1:1 재현)
 - **API/Swagger**: `POST /api/v1/dev/tokens` (body `{"role":"REVIEWER","channel":"INTERNAL"}`) → `data.token` 을 Swagger **Authorize** 또는 `Authorization: Bearer` 헤더로 사용
 
 > **주의**: `/api/v1/dev/batch/**`(scan/trigger 등)는 **REVIEWER 토큰 필수**(무인증 차단). `/api/v1/dev/tokens` 만 무인증 진입.

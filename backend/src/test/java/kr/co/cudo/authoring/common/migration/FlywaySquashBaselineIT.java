@@ -195,7 +195,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "9001", "9002");
     }
 
     @Test
@@ -229,9 +229,10 @@ class FlywaySquashBaselineIT {
                         "V24__split_ai_srvr_load_by_usage.sql",
                         "V25__add_webhook_idempotency_srvr_id.sql",
                         "V26__drop_ls_ai_srvr_altmnt_fk.sql",
-                        "V27__drop_marking_denormalized_columns_and_widen_reg_user_no.sql",
-                        "V28__absorb_portal_upload_into_common_ledgers.sql",
-                        "V29__relax_ls_data_lbl_label_name_not_null.sql",
+                        "V27__widen_ls_issue_comment_role_admin.sql",
+                        "V28__drop_marking_denormalized_columns_and_widen_reg_user_no.sql",
+                        "V29__absorb_portal_upload_into_common_ledgers.sql",
+                        "V30__relax_ls_data_lbl_label_name_not_null.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

@@ -101,7 +101,7 @@ class AugmentJobSubmitServiceTest {
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, "WINTER", MTDT, null, "FLOOD", null, "AUG-key",
+                7L, 700L, "AUGMENT", MTDT, null, "AUG-key",
                 "http://localhost:8080/api/v1/genai/callback", "1");
     }
 
@@ -266,16 +266,18 @@ class AugmentJobSubmitServiceTest {
     }
 
     /**
-     * 이벤트 유형은 <b>요청 이벤트가 실어 온 값</b>을 그대로 중계한다 (v1.3 · {@code @design INT-008}).
+     * 위탁 커맨드는 <b>요청 이벤트가 실어 온 값</b>만 나른다 — 위탁 서비스가 영상을 다시 읽지 않는다
+     * ({@code @design INT-008}). 다시 읽으면 적재 원문과 나간 값이 두 벌이 되어 갈라진다.
      *
-     * <p>구 구현은 여기서 영상의 관제 이벤트 코드({@code LS_DATA_RAW.EVNT_TYPE_CD})를 조회해 싣고,
-     * 없으면 {@code "ETC"} 로 대체했다. 계약 허용값은 {@code FLOOD}/{@code WILDFIRE} 둘뿐이라 그 값들은
-     * 모두 벤더에서 {@code 400} 이 된다 — 그래서 조회도 대체값도 <b>폐기</b>됐다. 위탁 서비스가
-     * 영상을 다시 읽지 않는다는 것까지 함께 고정한다(다시 읽으면 두 벌이 되어 갈라진다).
+     * <p>구 구현은 여기서 영상의 관제 이벤트 코드({@code LS_DATA_RAW.EVNT_TYPE_CD})를 조회해 이벤트
+     * 유형으로 실었고, 그 뒤 요청자가 고른 값을 중계하는 형태로 바뀌었다. 지금은 <b>커맨드가 이벤트
+     * 유형을 나르지 않는다</b>({@code @design ADR-059}) — 위탁 바디를 만들 때 클라이언트가 서버
+     * 중립값을 고정으로 채운다. 그 값이 실제로 {@code ETC} 인지는
+     * {@code HttpExternalAugmentClientTest} 가 고정한다.
      */
     @Test
-    @DisplayName("이벤트유형은_요청에서_받은_값을_그대로_중계한다")
-    void relaysEventTypeFromRequest() {
+    @DisplayName("위탁커맨드는_요청에서_받은_생성조건을_그대로_중계한다")
+    void relaysRequestPayloadWithoutRereadingVideo() {
         seedFrames(1);
 
         service.submit(event());
@@ -283,8 +285,10 @@ class AugmentJobSubmitServiceTest {
         ArgumentCaptor<AugmentSubmitCommand> captor =
                 ArgumentCaptor.forClass(AugmentSubmitCommand.class);
         verify(externalClient).requestAugment(captor.capture());
-        assertThat(captor.getValue().evntType()).isEqualTo("FLOOD");
         assertThat(captor.getValue().mtdt()).containsEntry("time", "NIGHT");
+        assertThat(captor.getValue().augType())
+                .as("증강 종류도 요청이 실어 온 값 그대로다(단일값 AUGMENT)")
+                .isEqualTo("AUGMENT");
     }
 
     @Test

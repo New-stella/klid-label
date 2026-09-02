@@ -1,0 +1,67 @@
+{
+  "item": {
+    "id": "UI-091",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "overlay: PresetEditModal",
+    "slug": "overlay-preseteditmodal",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "PresetEditModal",
+      "tags": [
+        "feature:preset",
+        "overlay",
+        "form",
+        "composed-from:Modal"
+      ],
+      "category": "overlay",
+      "description": "프리셋 생성/편집 모달. 신규('새 프리셋 만들기')/수정('프리셋 편집') 공용이며 프리셋 이름(필수, 1~64자) + 설명(선택, 0~500자, textarea) + 매핑 이벤트 타입 select(서버 동적 조회, 값=이벤트유형코드의 그룹 대표코드, 빈값=미매핑, 동일 이벤트는 1개 프리셋에만 매핑 가능해 중복 시 거부) + 라벨 항목 선택(필수, 1~20개)으로 구성된다. 라벨은 라벨 마스터 단일 진실원에서 고른다 — 활성 마스터를 체크박스 다중선택 목록으로 보여주고 제출 시 labelId 배열만 전송한다(라벨명·형태 스냅샷 저장 없음). 형태(bbox/폴리곤 등)는 라벨 마스터가 소유하므로 목록에 읽기 전용으로만 함께 표시되며 프리셋에서 개별 토글할 수 없다(코드칩별 BBOX/POLYGON 체크박스 토글은 폐기됐다). 편집 대상에 라벨 마스터와 더 이상 매칭되지 않는 레거시 코드가 있으면 경고 배너로 알리고(오류로 올리지 않고 '미연결'로 표시하며 자동 생성·삭제는 하지 않는다), 저장 시 이 항목은 자동 제외된다. 라벨 0개 선택 시 저장 버튼이 비활성화된다. 저장 요청 자체는 이 모달이 수행하지 않는다 — 입력 수집과 검증까지만 맡고 제출 시 폼 값을 호출 화면에 넘긴다. 생성/수정 요청, 중복(이벤트 중복/이름 중복) 응답의 안내 문구 노출, 성공 후 닫기는 호출 화면이 처리하며 처리 중 여부도 호출 화면이 내려준다. 프리셋 관리 화면.",
+      "props_schema": [
+        {
+          "name": "open",
+          "type": "boolean",
+          "required": true,
+          "description": "모달 표시 여부."
+        },
+        {
+          "name": "onClose",
+          "type": "() => void",
+          "required": true,
+          "description": "취소/성공 시 호출."
+        },
+        {
+          "name": "initial",
+          "type": "Preset|undefined",
+          "required": false,
+          "description": "편집 대상 프리셋. 미지정이면 신규 생성 모드이며 입력값은 빈 폼으로 시작한다."
+        },
+        {
+          "name": "onSubmit",
+          "type": "(form: PresetForm) => void",
+          "required": true,
+          "description": "제출 콜백 — 검증을 통과한 폼 값을 호출 화면에 넘긴다. 생성/수정 요청과 중복 응답 안내는 호출 화면이 수행한다."
+        },
+        {
+          "name": "submitting",
+          "type": "boolean",
+          "required": false,
+          "description": "호출 화면이 저장 요청을 처리하는 중임을 알린다. 참이면 저장 버튼이 진행 상태로 바뀌고 저장·취소 버튼이 비활성화되어 중복 제출을 막는다."
+        }
+      ],
+      "design_system_id": "DS-001",
+      "referenced_by_screen_ids": [
+        "SCREEN-026"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "props 계약을 실제 동작에 맞게 재작성했다. 이 모달은 스스로 저장 요청을 보내는 자기완결형이 아니라 입력 수집·검증만 맡고 저장은 호출 화면이 수행하는 구조인데, 사양은 반대로 적혀 있어 이 항목만 읽고 만들면 저장 경로가 둘이 된다. 개명·교체 내역은 preset → initial(편집 대상, 선택), onSuccess(저장 성공 콜백) → onSubmit(검증 통과한 폼 값을 호출 화면에 넘기는 제출 콜백, 필수)이고 submitting(호출 화면의 저장 진행 여부)을 새로 넣었다. 함께 description 의 마지막 저장 서술도 바꿨다 — 생성/수정 요청·중복 응답 안내·성공 후 닫기·처리 중 표시가 모두 호출 화면 책임임을 명시했다. props 표만 고치고 본문을 두면 같은 항목 안에서 저장 주체가 서로 달라진다. open·onClose 두 항목은 그대로다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-08T10:42:45.355Z",
+    "created_at": "2026-06-02T13:17:37.583Z"
+  }
+}

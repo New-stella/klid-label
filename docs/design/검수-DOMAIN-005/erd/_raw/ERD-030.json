@@ -548,7 +548,7 @@
             }
           ],
           "brownfield": {
-            "notes": "검수 승인 학습데이터 산출 기능과 함께 도입된 신규 테이블. 이전 단계의 대응 테이블이 없다.",
+            "notes": "검수 승인 학습데이터 산출 기능과 함께 도입된 신규 테이블. 이전 단계의 대응 테이블이 없다. UK_LS_DATASET_VIDEO_META_RAW_ACTIVE 는 활성 스냅샷에만 걸리는 부분 유니크 인덱스(WHERE ACTIVE_YN = 'Y')이나 술어는 메타 미지원이라 컬럼만 표기했다 — 전체 유니크로 읽지 말 것. 조건 없는 유일 제약으로 읽으면 영상당 1행이 되어 이 테이블이 규정한 append-only 이력 적층이 성립하지 않고, 같은 표의 UK_LS_DATASET_VIDEO_META(RAW_SN, SNPSHT_HASH)도 도달할 수 없어 두 번째 승인부터 적재가 실패한다. 술어 없이 DDL 을 재생성하면 그 차단이 되살아난다.",
             "status": "new"
           },
           "description": "검수 승인 시점에 영상 메타를 1영상=1행 컬럼형으로 동결한 스냅샷. 원시 영상 정보·비식별/개인정보 판정·기술 메타·촬영환경·동결된 이벤트 어노테이션을 한 행에 담는다. 재검수 후 재승인되면 새 행이 추가되고 이전 행은 비활성으로 바뀌는 append-only 이력이다.",
@@ -576,23 +576,25 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
+    "current_version": 2,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검수 승인 시 학습데이터 파일을 산출하는 기능(도메인 소속 기능이 LS_DATASET_EXPORT·LS_DATASET_VIDEO_META 두 테이블을 함께 소유한다고 명시)이 정의돼 있는데도 그 테이블들을 정의하는 ERD 가 어디에도 없어 신규 등록한다. 다른 ERD 들은 이 두 테이블을 설명문에서 언급만 할 뿐 정의하지 않는다. 소유 도메인은 검수(DOMAIN-005) — 해당 기능의 소속 링크로 확인했고, 데이터 증강 도메인은 자기 서술에서 이 산출 책임을 검수 승인 경로 소관이라고 명시적으로 부인한다.",
+    "change_summary": "메타 스냅샷 원장의 부분 유니크 인덱스에 빠져 있던 술어 사실을 기재한다. UK_LS_DATASET_VIDEO_META_RAW_ACTIVE 는 활성 스냅샷에만 걸리는 부분 유니크인데 인덱스 항목이 술어 없이 컬럼 하나의 전체 유니크로만 적혀 있었다. 그대로 읽으면 영상당 1행이라 이 테이블이 본문에서 규정한 재승인 이력 적층(append-only)이 성립하지 않고 같은 표의 다른 유일 제약도 도달할 수 없어, 두 번째 승인부터 적재가 실패하는 것으로 읽힌다. 인덱스 항목 스키마에 술어 필드가 없으므로 같은 프로젝트의 증강 원장 ERD 가 이미 쓰고 있는 방식대로 테이블 부기에 술어와 그 이유를 남겼다. 인덱스 이름과 컬럼 구성은 손대지 않았고 빠진 술어만 보탰다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T00:25:45.194Z",
+    "last_updated_at": "2026-09-02T02:05:34.899Z",
     "created_at": "2026-08-17T00:25:45.194Z"
   }
 }

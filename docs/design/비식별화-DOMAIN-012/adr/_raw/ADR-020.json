@@ -19,7 +19,6 @@
       "brownfield": {
         "notes": "2026-07-27 확정으로 재생성 정책 확대(그 시점 기준 7경로)·co-locate 단일 루트 복구·통지 지연 정책 반영.",
         "status": "modified",
-        "decided_by": "ADR-005",
         "change_kind": [
           "decision-record",
           "scope-inclusion",
@@ -68,6 +67,7 @@
         ]
       },
       "decision_date": "2026-07-27",
+      "attached_files": [],
       "decision_drivers": [
         "검수 승인 시점 학습데이터 파일 자동 산출이 이미 구현됨",
         "관제/데이터마트가 export 폴더 경로(OUTPUT_PATH_NM)를 픽업",
@@ -116,12 +116,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문에서 구현 내부 심볼(서비스 클래스 11종·실패 회수 클래스·승인 메서드·재동결 메서드)을 걷어내고 같은 뜻의 사양 어휘로 바꾼다. 대상 경로 열거에는 전수 목록이 아니라 예시임을 명시해 개수·목록이 두 번째 진실원이 되는 것을 막는다. 결정 내용·판정 기준·제외 넷은 그대로다.",
+    "change_summary": "근거 링크 방향 모순 해소 — 이 결정이 대체한 ADR-005 가 brownfield.decided_by 로 잡혀 있어 based_on 엣지가 supersedes 와 반대로 섰다. 대체 관계는 supersedes 가 이미 갖고 있다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:53:06.394Z",
+    "last_updated_at": "2026-09-02T01:25:45.321Z",
     "created_at": "2026-07-24T01:19:15.964Z"
   }
 }

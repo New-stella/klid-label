@@ -583,6 +583,46 @@ def test_WILDFIRE도_접수되고_evnt_subtype은_FLOOD전용(
     assert bad.status_code == 400 and bad.json()["code"] == "INVALID_PARAMETER"
 
 
+def test_중립값_ETC도_접수된다_저작도구_고정송신값(client: TestClient, tmp_path) -> None:
+    """저작도구가 증강 위탁에 고정 송신하는 ``ETC`` 를 목이 받아야 한다.
+
+    ★ ETC 는 **벤더와 협의가 끝난 값**이다(2026-09-02 사용자 확정 · ADR-059).
+    ⚠ 다만 우리가 보유한 「생성형 AI API 연동명세서 v1.3」(갱신일 2026-08-12) §4.1 허용값은
+    FLOOD | WILDFIRE 뿐이라 **문서만 보면 계약 밖 값처럼 보인다** — 그 이유로 이 테스트를
+    지우거나 ETC 를 허용목록에서 빼지 말 것(규격서 개정판을 받으면 대조한다).
+    이 목이 거부하면 ``authoring.augment.external.mode`` 기본값이 ``http`` 인 **local 에서
+    증강 요청이 한 건도 완주하지 못한다**.
+    """
+    # given — 중립값이라 침수 전용 세부 유형은 함께 보내지 않는다(BE 도 필드 자체가 없다)
+    body = _body(tmp_path, evnt_type="ETC")
+    body.pop("evnt_subtype")
+    # when
+    res = client.post(JOBS_URL, json=body)
+    # then
+    assert res.status_code == 202
+
+
+def test_ETC는_허용목록을_비운_fail_closed_경로에서도_접수된다(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """설정을 비우면 계약 목록(SUPPORTED_EVNT_TYPES)으로 fail-closed 하는데 거기에도 ETC 가 있어야 한다.
+
+    설정 기본값만 고치고 계약 목록을 안 고치면 이 경로에서만 400 이 나 **local 구성에 따라
+    증강이 되기도 안 되기도** 한다.
+    """
+    # given
+    from app.config import reload_settings
+
+    monkeypatch.setenv("MOCK_GENAI_EVENT_TYPES", "")
+    reload_settings()
+    body = _body(tmp_path, evnt_type="ETC")
+    body.pop("evnt_subtype")
+    # when
+    res = client.post(JOBS_URL, json=body)
+    # then
+    assert res.status_code == 202
+
+
 def test_허용코드_밖_evnt_subtype은_400(client: TestClient, tmp_path) -> None:
     # given / when
     res = client.post(JOBS_URL, json=_body(tmp_path, evnt_subtype="SEA_FLOOD"))

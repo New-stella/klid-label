@@ -1,19 +1,20 @@
 ---
 logicraft_item: SCREEN-023
 type: screen_spec
-version: 41
+version: 47
 domain: DOMAIN-007
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:19:20.269Z
+synced_at: 2026-09-02T10:51:57.245Z
 status: CHANGED
 prev_version: 41
-content_hash: e7fa73b1f7c843cbd5698372f13253ca17330e7cf6d2f5a5f615bfdf4794ead9
-stale: true
+content_hash: 4d4476512a6ea6d92415fe1208c4a293eaa85587e795779fc4a5af0d82c2db04
+stale: false
 raw: ./_raw/SCREEN-023.json
 links:
   based_on: ["[[ADR-004]]"]
   belongs_to_domain: ["[[DOMAIN-007]]"]
   consumes: ["[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-175]]", "[[API-188]]", "[[API-189]]", "[[API-190]]"]
+  implements: ["[[IMPREC-210]]"]
   realizes: ["[[UC-002]]", "[[UC-010]]"]
   references: ["[[API-061]]", "[[API-062]]", "[[API-063]]", "[[API-188]]", "[[API-189]]", "[[API-190]]", "[[FEAT-004]]"]
   requires: ["[[ROLE-001]]"]
@@ -266,7 +267,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 탭 하나 = 결과 항목 하나다. 같은 (영상 × 종류) 요청이 여러 건일 수 있어 종류만으로는 항목을 구분할 수 없다 — 종류당 항목이 1건이면 종류명만, 2건 이상이면 종류명 뒤에 순번(잡 전체 기준)과 결정 상태를 덧붙인다(예: '겨울 #2 · 반려').
+- **note**: 탭 하나 = 결과 항목 하나다. 같은 (영상 × 종류) 요청이 여러 건일 수 있어 종류만으로는 항목을 구분할 수 없다 — 종류당 항목이 1건이면 종류명만, 2건 이상이면 종류명 뒤에 순번(잡 전체 기준)과 결정 상태를 덧붙인다(예: '증강 #2 · 반려'). 증강 축의 코드값은 단일 상수 AUGMENT 로 고정하며 생성 조건에서 파생하지 않는다(ADR-059). 증강 종류 코드가 단일값이라 코드만으로는 파생본을 서로 구분할 수 없다 — 구분 축은 생성 조건 원문이다(생성 조건 요약 참조). 구 WINTER/NIGHT/RAIN 은 이미 만들어진 파생본에 남아 있어 보존한다(백필하지 않는다) — 조회·표시 경로는 옛 값과 새 값을 모두 견뎌야 한다.
 - **type**: Tabs
 - **label**: 항목 탭 (유형 + 순번·결정 상태로 구분)
 
@@ -276,9 +277,11 @@ _(empty)_
 
 **options**:
 
+- AUGMENT
 - WINTER
 - NIGHT
 - RAIN
+- RESOLUTION
 - RESL_1080P
 - RESL_720P
 - RESL_480P
@@ -385,7 +388,7 @@ _(empty)_
 
 #### [1]
 
-- **note**: 위탁 증강 3종에서 생성이 진행 중인 항목에만 노출한다(해상도 파생은 외부 위탁이 없어 대상이 아니다). 완료/전체 건수와 진행률(0~100%, 산출 불가 시 사유)을 함께 표시하고, 취소 가능한 상태일 때만 '요청 취소' 버튼을 노출한다. GET /v1/augments/{id}/progress 로 진행 상태를 주기 조회하며, 조회 간격은 서버가 알려준다(0 이면 더 조회하지 않는다). 조회에 실패하면 자동 조회를 멈추고 수동 재시도를 제공한다.
+- **note**: 위탁 증강에서 생성이 진행 중인 항목에만 노출한다(해상도 파생은 외부 위탁이 없어 대상이 아니다). 완료/전체 건수와 진행률(0~100%, 산출 불가 시 사유)을 함께 표시하고, 취소 가능한 상태일 때만 '요청 취소' 버튼을 노출한다. GET /v1/augments/{id}/progress 로 진행 상태를 주기 조회하며, 조회 간격은 서버가 알려준다(0 이면 더 조회하지 않는다). 조회에 실패하면 자동 조회를 멈추고 수동 재시도를 제공한다.
 - **type**: Custom
 - **label**: 생성 진행 패널 (완료/전체 건수, 진행률 %)
 
@@ -464,7 +467,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 결과 항목별 진행 상태 — 위탁 증강 3종에서 생성이 진행 중인 항목에 표시한다(해상도 파생은 대상이 아니다). 진행률(완료/전체 건수, 0~100% 또는 산출 불가 사유)과 취소 가능 시 취소 버튼을 함께 보여준다. 취소는 REVIEWER 전용이며 사유는 선택 입력이고, 하나의 요청이 여러 건으로 나뉘어 위탁되므로 일부만 취소되는 결과도 정상이다.
+- **description**: 결과 항목별 진행 상태 — 위탁 증강에서 생성이 진행 중인 항목에 표시한다(해상도 파생은 대상이 아니다). 진행률(완료/전체 건수, 0~100% 또는 산출 불가 사유)과 취소 가능 시 취소 버튼을 함께 보여준다. 취소는 REVIEWER 전용이며 사유는 선택 입력이고, 하나의 요청이 여러 건으로 나뉘어 위탁되므로 일부만 취소되는 결과도 정상이다.
 
 **references_apis**:
 
@@ -679,6 +682,10 @@ web
 - API-190
 - API-175
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -705,6 +712,10 @@ _(empty)_
 
 2026-08-29T01:18:02.915Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-001
@@ -724,8 +735,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: d80449525978f07f8c149bfdba43c25a2008575f97401a4f98663d2c0bc79ff8
-- **generated_at**: 2026-08-18T03:19:11.756Z
+- **source_hash**: 0872ab0ec132a6842802a0a0816ad16b6959c2536e09d66787fa7dc9447975a7
+- **generated_at**: 2026-09-02T10:15:11.325Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -733,6 +744,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 

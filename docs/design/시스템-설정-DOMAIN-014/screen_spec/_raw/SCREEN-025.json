@@ -287,12 +287,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 47,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "이 화면을 덮는 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1022, AC-1023). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "current_version": 49,
+    "stale": true,
+    "stale_reason": "ROLE-001의 2개 필드 변경 — requires",
+    "change_summary": "AI 장비 목록을 이 화면에서 뺀다 — 배치가 틀렸다. 연동 서버 주소는 관리자 페이지가 소유하고 그 화면에 이미 AI 추론 서버·외부 시계열 분석 벤더 주소 칸이 있다. 장비 목록은 그 칸이 목록으로 바뀌는 것이므로 같은 화면에 있어야 하며, 여기에 두면 주소를 고치는 자리가 두 화면으로 갈린다. SCREEN-042 로 옮긴다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:27:11.309Z",
+    "last_updated_at": "2026-09-01T14:35:14.780Z",
     "created_at": "2026-05-30T07:55:42.105Z"
   }
 }

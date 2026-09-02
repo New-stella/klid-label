@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 47
+version: 49
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:40:01.785Z
+synced_at: 2026-09-02T10:52:40.402Z
 status: CHANGED
-prev_version: 46
+prev_version: 47
 content_hash: c161f2051d34c6bdce5b049781ccbe4c53acf23b9ab5acf314730d3053666d7b
-stale: false
+stale: true
 raw: ./_raw/SCREEN-025.json
 links:
   based_on: ["[[ADR-046]]"]

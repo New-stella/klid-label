@@ -1,13 +1,13 @@
 ---
 logicraft_item: FEAT-004
 type: feature
-version: 10
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-26T04:11:45.439Z
+synced_at: 2026-09-02T10:51:57.082Z
 status: CHANGED
-prev_version: 9
-content_hash: 1abbab3cbf31711e01e3d9cf2ff1e97a3c632bde568cbb1c644361216b5a46af
+prev_version: 10
+content_hash: da1313f17d91186f8a0b5ef007860718a7d5c3ce5232521c6091356613da9c1f
 stale: true
 raw: ./_raw/FEAT-004.json
 links:
@@ -32,7 +32,7 @@ should
 ### [1]
 
 - **step**: 1
-- **action**: 외부 증강 영상(WINTER/NIGHT/RAIN)을 원본과 연결된 새 영상으로 수신·등록한다
+- **action**: 외부 증강 영상을 원본과 연결된 새 영상으로 수신·등록한다 — 증강 축의 코드값은 단일 상수 AUGMENT 로 고정하며 구 WINTER/NIGHT/RAIN 은 이미 만들어진 파생본에 남아 있어 보존한다(ADR-059)
 
 ### [2]
 
@@ -113,6 +113,10 @@ complex
 ## based_on_adrs
 
 - ADR-018
+
+## attached_files
+
+_(empty)_
 
 ## business_rules
 
