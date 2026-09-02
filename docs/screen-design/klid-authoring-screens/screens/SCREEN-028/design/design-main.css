@@ -78,7 +78,10 @@
   --bg-canvas: #f4f6fa;
   --bg-subtle: var(--n-0);
   --border: var(--n-2);
-  --border-input: var(--n-3);
+  /* ★경계가 유일한 식별 수단인 컨트롤에 쓰는 값이라 slate-500 이다.
+     이 시스템은 입력 보더를 slate-300 으로 두지만 그 값은 흰 면 위 1.47:1 이라
+     WCAG 1.4.11(3:1) 에 미달한다. slate-500 은 4.76:1 로 통과한다. */
+  --border-input: var(--n-5);
 
   /* spacing — DS-002 명명 사다리 (base 4)
      관계가 멀수록 커진다: 조각 4~8 → 컴포넌트 안 10~16 → 블록 20 → 컬럼 24 →
@@ -290,8 +293,8 @@ a.btn, a.btn:hover { text-decoration: none; }
 /* 비활성 주버튼은 흐림(opacity)이 아니라 채도를 뺀 면으로 표현한다 — 흐리면 글자 대비가 함께 무너진다.
    slate-200 면 위 slate-700 은 7.4:1 로 AA 통과. */
 .btn-primary:disabled, .btn-primary[aria-disabled="true"] { background: var(--n-2); border-color: var(--n-2); color: var(--n-7); }
-/* 경계가 유일한 식별 수단인 컨트롤은 입력 보더(slate-300)를 쓴다 — 이 시스템이 입력 경계로
-   지정한 자리이고, 흰 면 위 3.0:1 로 WCAG 1.4.11 을 넘긴다. */
+/* 경계가 유일한 식별 수단인 컨트롤은 --border-input(slate-500)을 쓴다 — 위 토큰 주석 참조.
+   ⚠ 이 시스템이 명시한 입력 보더 slate-300 을 그대로 쓰면 1.47:1 로 1.4.11 에 미달한다. */
 .btn-secondary { background: var(--bg-page); border-color: var(--border-input); color: var(--n-7); }
 .btn-secondary:hover:not(:disabled) { background: var(--n-0); border-color: var(--n-5); }
 /* 잠긴 보조 버튼 — 다른 영상을 내려받는 중이라 함께 잠긴 상태(한 번에 하나만 받는다).

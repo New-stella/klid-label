@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
 <body>
+
 <main class="screen-root">
 
   
   <div class="page-head">
     <h1 class="t-title-lg">포털 라벨링</h1>
-    <p class="page-desc t-body-md">데이터마트에서 고른 영상의 프레임에 바운딩 박스와 폴리곤을 직접 그려 저장합니다. 저장한 결과는 내 작업 데이터로만 보관됩니다.</p>
+    <p class="page-desc t-body-md">데이터마트에서 고른 영상의 프레임에 바운딩박스와 폴리곤을 직접 그려 저장합니다. 저장한 결과는 내 작업 데이터로만 보관됩니다.</p>
   </div>
 
   
@@ -65,7 +66,7 @@
             </button>
             <button type="button" class="tool-btn" aria-pressed="false">
               <svg class="icon tool-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"></rect></svg>
-              <span>바운딩 박스</span>
+              <span>바운딩박스</span>
               <span class="tool-key">B</span>
             </button>
             <button type="button" class="tool-btn" aria-pressed="false">
@@ -112,14 +113,14 @@
             <span class="shortcut-group" style="display:block">
               <h4 class="t-label">도구</h4>
               <span class="shortcut-row t-caption"><span>선택</span><span class="kbd">S</span></span>
-              <span class="shortcut-row t-caption"><span>바운딩 박스</span><span class="kbd">B</span></span>
+              <span class="shortcut-row t-caption"><span>바운딩박스</span><span class="kbd">B</span></span>
               <span class="shortcut-row t-caption"><span>폴리곤</span><span class="kbd">P</span></span>
             </span>
             <span class="shortcut-group" style="display:block">
               <h4 class="t-label">편집</h4>
               <span class="shortcut-row t-caption"><span>선택 객체 삭제</span><span class="kbd">Del</span></span>
-              <span class="shortcut-row t-caption"><span>실행 취소</span><span class="kbd">Ctrl + Z</span></span>
-              <span class="shortcut-row t-caption"><span>다시 실행</span><span class="kbd">Ctrl + Shift + Z</span></span>
+              <span class="shortcut-row t-caption"><span>실행취소</span><span class="kbd">Ctrl + Z</span></span>
+              <span class="shortcut-row t-caption"><span>다시실행</span><span class="kbd">Ctrl + Shift + Z</span></span>
               <span class="shortcut-row t-caption"><span>저장</span><span class="kbd">Ctrl + S</span></span>
             </span>
             <span class="shortcut-group" style="display:block">
@@ -199,11 +200,11 @@
             </button>
             <button type="button" class="btn btn-ghost btn-sm">
               <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h11a5 5 0 0 1 0 10h-4"></path></svg>
-              실행 취소
+              실행취소
             </button>
             <button type="button" class="btn btn-ghost btn-sm" disabled aria-describedby="redo-off-reason">
               <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M15 14l5-5-5-5"></path><path d="M20 9H9a5 5 0 0 0 0 10h4"></path></svg>
-              다시 실행
+              다시실행
             </button>
             <span class="hint-note t-caption" id="redo-off-reason">되돌린 작업이 없습니다</span>
           </div>
@@ -301,7 +302,7 @@
 
               <div class="otree-row t-body-sm" data-state="selected">
                 <span class="row-name">사람 #1</span>
-                <span class="shape-chip">바운딩 박스</span>
+                <span class="shape-chip">바운딩박스</span>
                 <span class="origin-chip origin-edited">수정</span>
                 <span class="row-actions">
                   <button type="button" class="icon-btn" aria-label="사람 #1 표시 · 숨김">
@@ -336,7 +337,7 @@
 
               <div class="otree-row t-body-sm">
                 <span class="row-name">사람 #2</span>
-                <span class="shape-chip">바운딩 박스</span>
+                <span class="shape-chip">바운딩박스</span>
                 <span class="origin-chip origin-loaded">원본</span>
                 <span class="row-actions">
                   <button type="button" class="icon-btn" aria-label="사람 #2 표시 · 숨김">
@@ -358,7 +359,7 @@
               </button>
               <div class="otree-row t-body-sm">
                 <span class="row-name">차량 #1</span>
-                <span class="shape-chip">바운딩 박스</span>
+                <span class="shape-chip">바운딩박스</span>
                 <span class="origin-chip origin-loaded">원본</span>
                 <span class="row-actions">
                   <button type="button" class="icon-btn" aria-label="차량 #1 표시 · 숨김">
@@ -493,7 +494,7 @@
             <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M8 12h8"></path>
           </svg>
           <span class="empty-title t-body-md">아직 그린 객체가 없습니다</span>
-          <span class="t-body-sm">왼쪽에서 라벨을 고르고 바운딩 박스 또는 폴리곤 도구로 그려 보세요.</span>
+          <span class="t-body-sm">왼쪽에서 라벨을 고르고 바운딩박스 또는 폴리곤 도구로 그려 보세요.</span>
         </div>
         <p class="ref-caption t-caption">불러온 원본 라벨도 0건일 때만 나타난다. 로딩 중과는 다른 화면이다.</p>
       </div>
