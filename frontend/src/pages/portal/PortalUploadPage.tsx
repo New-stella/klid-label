@@ -23,15 +23,23 @@ import { ApiError } from '@/lib/api/errors';
 import { ErrorCode } from '@/lib/api/types';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
 import { buildPortalUploadLabelPath } from '@/features/portal/labelingEntry';
+import { buildPortalUploadMarkingPath } from '@/features/portal/uploads/markingPath';
 import { formatExpiryDate } from '@/features/portal/expiry';
 import { downloadUploadExport, downloadUploadFile } from '@/features/portal/uploads/api';
 import { useUiStore } from '@/stores/useUiStore';
 import { usePortalUploads } from '@/features/portal/uploads/hooks/usePortalUploads';
 import { useDeleteUpload } from '@/features/portal/uploads/hooks/useDeleteUpload';
-import { PortalUploadStatus, type PortalUpload } from '@/features/portal/uploads/types';
+import {
+  PortalUploadStatus,
+  PortalUploadType,
+  type PortalUpload,
+} from '@/features/portal/uploads/types';
 
 const STATUS_LABELS: Record<string, string> = {
-  UPLOADED: '업로드됨',
+  // ★「업로드됨」이 아니라 「마킹 대기」다 — 마킹을 마쳐야 프레임이 추출되므로, 이 자리에서
+  //   알려야 할 것은 업로드가 끝났다는 사실이 아니라 다음에 무엇을 해야 하는가이다.
+  //   표기만 그렇게 하고 상태값 자체는 바뀌지 않는다. [@design SCREEN-033]
+  UPLOADED: '마킹 대기',
   PROCESSING: '처리중',
   READY: '준비 완료',
   FAILED: '실패',
@@ -264,6 +272,18 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
     useUploadDownloads(upload);
   const isReady = upload.uldSttsCd === PortalUploadStatus.READY;
   const isFailed = upload.uldSttsCd === PortalUploadStatus.FAILED;
+  /*
+   * 마킹 진입 — 마킹 대기 상태인 **영상** 자산 행에만 둔다. [@design SCREEN-033] [@design SCREEN-045]
+   *
+   * ★ 노출 규칙은 라벨링 링크와 같다: 그 자산에서 할 수 없는 액션은 비활성으로 두지 않고 아예
+   *   노출하지 않는다. 처리중·준비 완료·실패 행에 두면 눌러 봐야 거절되는 자리가 되어 회복
+   *   경로를 잘못 안내한다 — 이미 마킹한 자산의 재마킹은 제공하지 않고, 다시 마킹하려면 지우고
+   *   다시 올려야 한다(그 안내는 마킹 화면이 담당한다).
+   * ★ 영상이 아닌 자산에는 두지 않는다 — 이벤트 구간이라는 개념이 없다.
+   */
+  const canMark =
+    upload.uldSttsCd === PortalUploadStatus.UPLOADED &&
+    upload.uldTypeCd === PortalUploadType.VIDEO;
   // 처리 중 자산은 BE 가 삭제를 409 로 거부하므로 버튼 자체를 비활성화(무반응 방지).
   const isProcessing = upload.uldSttsCd === PortalUploadStatus.PROCESSING;
   const expiresOn = formatExpiryDate(upload.expiresAt);
@@ -357,6 +377,20 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
               </button>
             )}
           </>
+        )}
+        {canMark && (
+          <Link
+            /* 마킹 화면으로 들어가는 자리는 이 목록뿐이다 — 라벨링 화면에는 두지 않는다.
+               주소 조립은 `markingPath` 한 곳이 한다(문자열을 여기 흩지 않는다). */
+            to={buildPortalUploadMarkingPath(upload.uldSn)}
+            aria-label={`${upload.orgnlFileNm} 마킹`}
+            className={cn(
+              'inline-flex items-center rounded-lg bg-primary-600 px-3 py-1.5 text-sub font-medium text-white transition-colors hover:bg-primary-700',
+              KRDS_FOCUS,
+            )}
+          >
+            마킹
+          </Link>
         )}
         {isReady && (
           <Link

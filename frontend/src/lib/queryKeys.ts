@@ -137,6 +137,15 @@ export const PORTAL_KEYS = {
     [...PORTAL_KEYS.all, 'upload-frame-labels', uldFrmeSn] as const,
   datamartVideos: (params: Record<string, unknown>) =>
     [...PORTAL_KEYS.all, 'datamart-videos', params] as const,
+  /**
+   * 업로드 영상 재생용 단기 서명 주소(API-239).
+   *
+   * `all` 하위에 두어 자산 축 무효화가 함께 걷어 가게 한다. 서명은 짧게 살고 재발급이 정상
+   * 동선이므로 `staleTime` 은 훅이 정한다(여기서는 자리만 나눈다).
+   */
+  uploadStreamUrl: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-stream-url', uldSn] as const,
+  /** 업로드 영상에 저장된 마킹(API-241) — 재진입 시 저장된 지점을 그리는 데 쓴다. */
+  uploadMarkings: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-markings', uldSn] as const,
 };
 
 export const SYSCONFIG_KEYS = {

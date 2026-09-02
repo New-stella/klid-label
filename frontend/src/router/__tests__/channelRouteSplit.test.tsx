@@ -61,6 +61,9 @@ const PORTAL_SCREENS = [
   '/portal',
   '/portal/label/:id',
   '/portal/uploads',
+  // 업로드 영상 마킹 — 목적지가 아니라 목록 행에서 들어가는 화면이지만, 주소로 직접 들어올 수
+  // 있어야 하므로 산출물에 반드시 있어야 한다(이동 탭에 없는 것과는 다른 축이다).
+  '/portal/uploads/:uldSn/marking',
   '/portal/uploads/:uldSn/label',
 ];
 
