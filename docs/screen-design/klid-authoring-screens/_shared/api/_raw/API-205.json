@@ -319,6 +319,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -328,26 +329,27 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:28.532Z"
+        "last_updated": "2026-08-25T01:21:28.532Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
         "FEAT-010"
       ],
       "verifies_acceptance": [
-        "AC-041",
-        "AC-047",
-        "AC-048"
+        "AC-1079",
+        "AC-1080",
+        "AC-1081"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
-    "stale": true,
-    "stale_reason": "AC-048의 2개 필드 변경 — verifies",
-    "change_summary": "경고 필드의 설명을 실제로 규정된 동작에 맞게 넓혔다. 구 서술 \"적재를 막지는 않지만 알려야 하는 사항\"은 사실과 달라 폐기한다 — 경고 가운데 훑기 상한 초과·식별자 생성 불가·프레임 0건은 적재를 막는다. 적재 가능 여부의 판정은 응답의 적재 가능 여부 필드 하나로만 하고 별도의 차단 표시를 두지 않는다(판정 지점을 둘로 두면 두 값이 어긋날 때 어느 쪽이 진실인지 알 수 없다). 또 \"폴더 안의 바로가기를 따라가지 않고 건너뛰며 그 사실을 반드시 알린다\"를 경고에 더했다. 근거는 산출물 문서를 믿을 수 없다는 전제이며, 폴더 경로를 한 번 검사하는 것만으로는 폴더 안의 항목이 허용 범위 밖을 가리키는 것을 막지 못한다. 이 경고는 적재를 막지 않는다. 기존 경고 코드값 문자열과 그 밖의 요청·응답 필드·상태코드·인가는 바꾸지 않았다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:28.532Z",
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검증한다고 선언한 수용기준 목록을 살아 있는 것으로 다시 세운다. 3건 중 3건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1079, AC-1080, AC-1081). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:27:05.238Z",
     "created_at": "2026-08-19T07:51:27.654Z"
   }
 }

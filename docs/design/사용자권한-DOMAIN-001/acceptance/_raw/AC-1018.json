@@ -52,11 +52,41 @@
       "is_negative": false,
       "attached_files": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
         "records": [],
-        "progress": 0,
-        "subtasks": [],
+        "progress": 100,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "역할 필터를 조회 계층(EXISTS 서브쿼리)으로 내려 서버 전체 기준으로 걸리게 한다"
+          },
+          {
+            "done": true,
+            "description": "필터 적용 시 총건수가 실제 매칭 수와 같다(구 「필터 후 목록 + 필터 이전 합계」 폐기)"
+          },
+          {
+            "done": true,
+            "description": "역할 미지정이면 전체·등록순으로 기존 동선 그대로 반환한다"
+          },
+          {
+            "done": true,
+            "description": "미배정 사용자는 어떤 역할 필터에도 걸리지 않는다"
+          },
+          {
+            "done": true,
+            "description": "역할 변경 주체를 LS_USER_ROLE.MDFR_ID 에 남기고 감사 로그에도 싣는다"
+          },
+          {
+            "done": true,
+            "description": "주체는 인증 주체에서만 취한다 — 요청 바디 주입은 무시된다"
+          },
+          {
+            "done": true,
+            "description": "주체가 비어 있던 기존 행이 조회·갱신에서 깨지지 않는다(백필 없음)"
+          }
+        ],
+        "last_updated": "2026-08-31T15:24:41.442Z",
         "module_paths": []
       },
       "derived_domain_ids": [
@@ -70,12 +100,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "확인 SQL 상용 이식성 표기 — 결과 환경 1줄 명시, 쿼리는 klid_at 스키마로 상용 재실행 가능",
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "UC-030의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "역할 필터를 조회 계층으로 내리고 역할 변경에 주체를 남긴다",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T03:40:34.352Z",
+    "last_updated_at": "2026-08-31T15:24:41.442Z",
     "created_at": "2026-08-31T02:10:30.974Z"
   }
 }

@@ -2,12 +2,12 @@
 logicraft_item: SCREEN-021
 type: screen_spec
 version: 29
-last_updated_at: 2026-08-31T09:47:51.251Z
-domain: null
+last_updated_at: 2026-08-31T12:49:51.348Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:40:26.649Z
-sync_session: 1
-stale: false
+synced_at: 2026-09-01T08:39:29.342Z
+sync_session: 37
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-021.json
@@ -428,6 +428,7 @@ _(empty)_
 ### records
 
 - IMPREC-335
+- IMPREC-387
 
 ### progress
 
@@ -439,7 +440,7 @@ _(empty)_
 
 ### last_updated
 
-2026-08-29T01:25:14.120Z
+2026-08-31T12:49:51.348Z
 
 ### module_paths
 

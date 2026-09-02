@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
 import kr.co.cudo.authoring.label.service.FrameBoundsResolver;
@@ -118,7 +119,7 @@ class YoloAutolabelStepPresetGateTest {
         assertThat(ctx.getWithheldStage()).isEqualTo(BatchStage.YOLO);
         assertThat(ctx.getWithheldReason()).isEqualTo(YoloAutolabelStep.SKIP_REASON_PRESET_ABSENT);
         assertThat(ctx.getHints()).isEmpty();
-        verify(aiServerClient, never()).predictYoloTrack(any(YoloTrackRequest.class));
+        verify(aiServerClient, never()).predictYoloTrack(any(YoloTrackRequest.class), any(AiWorkload.class));
         verify(lblRepository, never()).save(any());
         verify(lblRepository, never()).saveAll(any());
         // 프레임 조회조차 하지 않는다 — 게이트가 본체보다 앞이다.
@@ -186,7 +187,7 @@ class YoloAutolabelStepPresetGateTest {
         assertThat(ctx.getWithheldStage()).isNull();
         // 그럼에도 오토라벨 라벨은 만들지 않는다.
         assertThat(ctx.getHints()).isEmpty();
-        verify(aiServerClient, never()).predictYoloTrack(any(YoloTrackRequest.class));
+        verify(aiServerClient, never()).predictYoloTrack(any(YoloTrackRequest.class), any(AiWorkload.class));
         verify(lblRepository, never()).save(any());
     }
 

@@ -26,7 +26,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "큐일련번호"
             },
@@ -42,7 +43,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "멱등키"
             },
@@ -62,7 +64,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이벤트유형코드"
             },
@@ -78,7 +81,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원시영상일련번호"
             },
@@ -94,7 +98,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "페이로드내용"
             },
@@ -111,7 +116,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "재시도횟수"
             },
@@ -128,7 +134,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "최대재시도횟수"
             },
@@ -151,7 +158,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "상태"
             },
@@ -167,7 +175,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "마지막오류메시지내용"
             },
@@ -183,7 +192,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "다음재시도일시"
             },
@@ -199,7 +209,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "사장큐진입일시"
             },
@@ -216,7 +227,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -233,7 +245,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -290,7 +303,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "멱등키"
             },
@@ -302,16 +316,18 @@
               "code_values": {
                 "VLM": "VLM 시계열",
                 "AUGMENT": "증강",
+                "VLM_SUB": "VLM 추가 질문",
                 "DEIDENTIFY": "비식별 SW"
               },
-              "description": "외부 위탁 채널 코드. DEIDENTIFY(비식별)/VLM/AUGMENT(증강).",
+              "description": "외부 위탁 채널 코드. DEIDENTIFY(비식별)/VLM/VLM_SUB(추가 질문)/AUGMENT(증강). 시계열 위탁은 묘사와 추가 질문 두 창구로 나뉘고 통지 바디에 창구 구분자가 없어, 창구마다 별개 멱등키를 발급하고 이 채널로 역조회한다. 같은 키로 둘을 부르면 결과가 유실된다.",
               "primary_key": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "채널"
             },
@@ -323,16 +339,18 @@
               "code_values": {
                 "FAILED": "실패",
                 "ISSUED": "발급",
+                "ACCEPTED": "수락",
                 "PROCESSED": "처리 완료"
               },
-              "description": "멱등 처리 상태 코드. ISSUED(발급)→PROCESSED(처리 완료) 또는 FAILED(실패).",
+              "description": "멱등 처리 상태 코드. ISSUED(발급)→ACCEPTED(수락)→PROCESSED(처리 완료) 또는 FAILED(실패). ACCEPTED 는 외부가 요청을 받아들였고 결과 통지만 남은 상태로, 수락 응답조차 관측하지 못한 ISSUED 와 성질이 달라 미결 판정 임계를 각각 둔다 — 하나로 덮으면 진행 중인 정상 위탁을 뺏는다.",
               "primary_key": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "상태"
             },
@@ -348,7 +366,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "외부작업아이디"
             },
@@ -364,7 +383,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "적용일시"
             },
@@ -381,7 +401,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -398,7 +419,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -410,6 +432,15 @@
               "description": "위탁 대상 영상 일련번호(V78 신설). 벤더 확정 계약(IntelliVIX Video VLM API v2.0.1)의 이벤트 검증 콜백은 바디에 request_id 만 담기고 rawSn 이 없다 — 위탁 시 발급한 request_id(=IDMP_KEY)에 대상 영상을 함께 영속해 결과 수신부가 역조회한다. 매핑 없으면 NULL. V146 으로 LS_DATA_RAW 자식 FK 보유(ON DELETE SET NULL — 멱등 원장은 영상 삭제 후에도 보존한다).",
               "primary_key": false,
               "logical_column_name": "원시영상일련번호"
+            },
+            {
+              "name": "SRVR_ID",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": true,
+              "description": "위탁을 보낸 AI 서버(장비) 식별자. 외부 시계열 분석 서버가 장비 두 대에 이중화되면서 장비별 부하를 세고 결과 출처를 되짚을 자리가 필요해졌다. ★부하로 세는 것은 ACCEPTED 행뿐이다 — ISSUED 는 벤더가 아직 받지 않아 장비 부하가 0이고, 세면 제출 직후 몰린 장비를 과대평가해 요청이 반대편으로 쏠린다. ★nullable 이라 도입 전 행은 장비 미상인데, 미결 회수 경로에 장비 조건을 걸면 그 행들과 죽은 장비의 몫이 영영 회수되지 않는다 — 그 스윕이 무증상 영구 결손을 막는 유일한 경로다.",
+              "primary_key": false,
+              "logical_column_name": "AI서버아이디"
             }
           ],
           "indexes": [
@@ -462,6 +493,7 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -470,18 +502,19 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T01:21:31.604Z"
+        "last_updated": "2026-08-25T01:21:31.604Z",
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 14,
+    "current_version": 15,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "변경 성격과 요약을 채운다. 상태와 메모만 있고 두 값이 비어 있어 1차 대비 무엇이 늘었는지가 구조화 축에 없었다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-25T01:21:31.605Z",
+    "change_summary": "외부 위탁 멱등 원장에 위탁을 보낸 AI 서버 식별 컬럼을 더한다. 외부 시계열 분석 서버가 장비 두 대에 이중화되면서 장비별 부하를 세고 결과 출처를 되짚을 자리가 필요해졌다. 함께, 상태 코드값에 빠져 있던 수락 상태와 채널 코드값에 빠져 있던 추가 질문 창구를 보정한다 — 둘 다 실제로 쓰이는데 설계에 없었다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T07:33:23.886Z",
     "created_at": "2026-06-01T02:47:35.456Z"
   }
 }

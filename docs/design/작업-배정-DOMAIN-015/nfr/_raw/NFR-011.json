@@ -25,12 +25,14 @@
         "diff_summary": "2차 RFP 공통 성능 요구를 저작도구 화면 기준으로 수용"
       },
       "description": "라벨링·검수·마킹·목록 등 저작도구 전 화면의 페이지 응답속도 3초 이하 (초과 불가피 시 발주기관 협의). 페이지 용량·요청을 최적화해 응답시간 기준을 만족한다.",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "applies_to_apis": [],
       "applies_to_domains": [
@@ -44,17 +46,18 @@
       "applies_to_features": [],
       "applies_to_pipelines": [],
       "verified_by_acceptance": [
-        "AC-085"
+        "AC-1050",
+        "AC-1051"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "공지 기능에서 이 비기능 요구를 검증하는 인수기준을 연결한다. 인수기준 쪽에는 비기능 요구를 가리키는 자리가 없어 이쪽에서 잇는다.",
+    "change_summary": "이 요건을 검증하는 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1050, AC-1051). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T10:32:31.564Z",
+    "last_updated_at": "2026-09-01T08:27:10.269Z",
     "created_at": "2026-06-04T09:28:23.731Z"
   }
 }

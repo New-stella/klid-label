@@ -65,13 +65,28 @@ public class PersistentWebhookIdempotencyLedger implements WebhookIdempotencyLed
     @Override
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn) {
+        recordIssued(idempotencyKey, channel, externalJobId, rawSn, null);
+    }
+
+    /**
+     * 노드 분산 — 보낸 장비까지 영속한다. [@design ERD-021]
+     *
+     * <p>이 값이 장비별 부하 집계({@code countAcceptedBySrvrId})와 사후 출처 추적의 유일한 근거다.
+     * {@code srvrId} 가 {@code null} 이면 「장비 미상」으로 남으며, 그 행도 미결 회수 대상에서 빠지지
+     * 않는다(회수 경로는 장비 축을 보지 않는다).
+     */
+    @Override
+    @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
+    public void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
+                             String srvrId) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return;
         String safeChannel = (channel == null || channel.isBlank()) ? CHANNEL_UNKNOWN : channel;
         try {
             if (repository.existsById(idempotencyKey)) {
                 return; // 불변 보장 — 이미 발급된 키는 다시 기록하지 않음
             }
-            repository.save(LsWebhookIdempotency.issue(idempotencyKey, safeChannel, externalJobId, rawSn));
+            repository.save(
+                    LsWebhookIdempotency.issue(idempotencyKey, safeChannel, externalJobId, rawSn, srvrId));
         } catch (DataIntegrityViolationException e) {
             // 동시 발급 — 멱등 반환
             log.debug("[WebhookLedger] recordIssued unique violation (idempotent)");

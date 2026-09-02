@@ -48,6 +48,17 @@ conventions: ".claude/conventions.md"
 | DOMAIN-017 | 외부 산출물 이관 | (신설 — 코드 미착수) | `klid-d017-implementer` | `docs/design/외부-산출물-이관-DOMAIN-017/` |
 | — | 프론트엔드 전 화면 | `frontend/` | `klid-web-implementer` | `docs/screen-design/{도메인}/` (7 도메인) |
 
+> ★ `dev/` 는 **한 도메인이 아니다** — 개발/검수 전용 창구를 모아 둔 자리이고 그 안이 네 축으로 갈린다. 패키지가 아니라 **클래스 접두로 라우팅**한다.
+>
+> | `dev/` 안의 축 | 클래스 | 보내는 곳 |
+> |---|---|---|
+> | 수동 업로드 + 파이프라인 트리거 | `DevAutolabelTest*` · `dto/AutolabelTest*` | **DOMAIN-003** (`klid-d003-implementer`) |
+> | 레거시 비식별 프레임 복구 | `DeidentFrameRecovery*` · `DeidentFrameNoBackfillTxService` · `dto/DeidentFrameRecovery*` | **DOMAIN-012** (`klid-d012-implementer`) |
+> | 테스트 JWT 발급 | `DevToken*` · `dto/DevToken*` | **DOMAIN-001** (`klid-d001-implementer`) |
+> | 기동 토글 가드 · 시드 러너 | `DevToggleProfileGuard` · `DevToggleStartupWarner` · `DevSeedRunner` · `SeedImageRunner` | **공유 기반 — 메인 직접**(Phase 3.5). 앱 기동 축이라 도메인 소속이 아니다 |
+>
+> ⚠ 이 넷은 화면·창구가 dev 전용일 뿐 **뒤에서 부르는 것은 프로덕션 코드**다. `dev` 라는 이름 때문에 「어차피 개발용」으로 검증을 낮추지 말 것 — 실제 파이프라인·실제 토큰·실제 데이터를 건드린다.
+>
 > ※ `dataset/` 은 DOMAIN-007(증강 산출)과 DOMAIN-010(라벨링 export)에 **걸친다.** 여기를 건드리는 CO 는 두 도메인 에이전트에 `cross_domain` 을 명시하고, 어느 쪽이 주 담당인지 게이트에서 확정한다.
 > - 매핑표에 없는 대상이 나오면 **임의 진행 말고 사용자에게 code_root·에이전트 확인**.
 > - 백엔드 변경이 화면까지 미치면 백엔드 도메인 에이전트 + `klid-web-implementer` **둘 다** fan-out. 프론트는 백엔드 응답 계약 소비만 → **백엔드 먼저, 프론트 뒤**.

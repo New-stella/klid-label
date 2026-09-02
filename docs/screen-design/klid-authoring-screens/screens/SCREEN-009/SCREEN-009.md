@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 75
-last_updated_at: 2026-08-27T09:26:35.639Z
-domain: null
+version: 76
+last_updated_at: 2026-09-01T08:27:11.143Z
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:40:26.641Z
-sync_session: 1
-stale: true
+synced_at: 2026-09-01T08:39:29.318Z
+sync_session: 37
+stale: false
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-009.json
@@ -15,7 +15,7 @@ wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-021]]", "[[API-043]]", "[[API-044]]", "[[API-167]]", "[[API-198]]", "[[API-201]]"]
   required_roles: ["[[ROLE-001]]"]
-  acceptance: ["[[AC-051]]"]
+  acceptance: ["[[AC-1022]]", "[[AC-1023]]"]
 ---
 
 # 영상 상세 화면
@@ -560,6 +560,10 @@ web
 - API-198
 - API-201
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -649,6 +653,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -659,4 +667,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-051
+- AC-1022
+- AC-1023

@@ -12,11 +12,12 @@ import math
 import re
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 
 from app.config import get_settings
 from app.image_utils import decode_image_b64, decode_image_b64_pil
 from app.models.sam2_loader import get_sam2_model
+from app.slots import WORKLOAD_HEADER, resolve_slot_name, run_in_slot
 from app.startup_guard import refuse_mock_in_deployed_env
 from app.schemas import (
     MAX_TRACK_ID_LENGTH,
@@ -119,31 +120,63 @@ def _echo_polygon(polygon: Any) -> list[list[float]]:
 
 
 @router.post("/segment", response_model=Sam2SegmentResponse)
-async def segment(req: Sam2SegmentRequest) -> Sam2SegmentResponse:
-    """클릭 포인트 또는 박스를 받아 폴리곤 마스크 반환."""
+async def segment(
+    req: Sam2SegmentRequest,
+    x_workload: str | None = Header(default=None, alias=WORKLOAD_HEADER),
+) -> Sam2SegmentResponse:
+    """클릭 포인트 또는 박스를 받아 폴리곤 마스크 반환.
+
+    추론은 블로킹이므로 **용도별 실행 슬롯으로 오프로드**한다(``ADR-056``). 슬롯은
+    ``X-Workload`` 가 **정확히 ``batch``** 일 때만 배치이고 그 밖은 전부 화면이다.
+
+    @design API-120 @design ADR-056
+    """
+    return await run_in_slot(x_workload, _segment_sync, req, resolve_slot_name(x_workload))
+
+
+@router.post("/track", response_model=Sam2TrackResponse)
+async def track(
+    req: Sam2TrackRequest,
+    x_workload: str | None = Header(default=None, alias=WORKLOAD_HEADER),
+) -> Sam2TrackResponse:
+    """이전 프레임 폴리곤을 다음 프레임으로 전파. 동일 track_id 유지.
+
+    추론은 용도별 실행 슬롯으로 오프로드한다(``ADR-056``).
+
+    @design API-121 @design ADR-056
+    """
+    return await run_in_slot(x_workload, _track_sync, req, resolve_slot_name(x_workload))
+
+
+def _segment_sync(req: Sam2SegmentRequest, slot: str) -> Sam2SegmentResponse:
+    """segment 의 블로킹 본체 — 슬롯 워커 스레드에서 돈다.
+
+    ⚠ predictor 는 **이 슬롯 전용 인스턴스**를 쓴다. 슬롯끼리 나눠 쓰면 이미지 임베딩이
+    서로 덮여 마스크가 어긋나고 스레드가 죽는다(``app/models/sam2_loader`` 근거 참조).
+    """
     width, height = decode_image_b64(req.image_b64)
     logger.info(
-        "[SAM2] segment received image_size=%dx%d points=%s box=%s",
+        "[SAM2] segment received slot=%s image_size=%dx%d points=%s box=%s",
+        slot,
         width,
         height,
         bool(req.points),
         bool(req.box),
     )
 
-    if _should_mock():
-        reason = _mock_reason()
+    if _should_mock(slot):
+        reason = _mock_reason(slot)
         # 배포 환경에서는 가짜 라벨을 내보내지 않는다 — 실패가 오염보다 낫다.
         refuse_mock_in_deployed_env("SAM2 분할", reason)
         _warn_mock_once("segment", reason)
         return _mock_segment(width, height, req, reason)
-    return _real_segment(get_sam2_model(), req)
+    return _real_segment(get_sam2_model(slot), req)
 
 
-@router.post("/track", response_model=Sam2TrackResponse)
-async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
-    """이전 프레임 폴리곤을 다음 프레임으로 전파. 동일 track_id 유지."""
-    if _should_mock():
-        reason = _mock_reason()
+def _track_sync(req: Sam2TrackRequest, slot: str) -> Sam2TrackResponse:
+    """track 의 블로킹 본체 — 슬롯 워커 스레드에서 돈다."""
+    if _should_mock(slot):
+        reason = _mock_reason(slot)
         refuse_mock_in_deployed_env("SAM2 추적", reason)
         _warn_mock_once("track", reason)
         logger.info(
@@ -157,7 +190,8 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
     pw, ph = decode_image_b64(req.prev_image_b64)
     nw, nh = decode_image_b64(req.next_image_b64)
     logger.info(
-        "[SAM2] track received track_id=%s prev=%dx%d next=%dx%d points=%d",
+        "[SAM2] track received slot=%s track_id=%s prev=%dx%d next=%dx%d points=%d",
+        slot,
         _safe(req.track_id),
         pw,
         ph,
@@ -165,7 +199,7 @@ async def track(req: Sam2TrackRequest) -> Sam2TrackResponse:
         nh,
         _polygon_len(req.prev_polygon),
     )
-    return _real_track(get_sam2_model(), req)
+    return _real_track(get_sam2_model(slot), req)
 
 
 def _polygon_len(polygon: Any) -> int:
@@ -176,12 +210,12 @@ def _polygon_len(polygon: Any) -> int:
         return 0
 
 
-def _should_mock() -> bool:
-    """mock 모드이거나 모델이 로드되지 않은 경우 True."""
-    return get_settings().ai_mock_mode or get_sam2_model() is None
+def _should_mock(slot: str) -> bool:
+    """mock 모드이거나 **그 슬롯의** 모델이 로드되지 않은 경우 True."""
+    return get_settings().ai_mock_mode or get_sam2_model(slot) is None
 
 
-def _mock_reason() -> str:
+def _mock_reason(slot: str) -> str:
     """mock 응답 사유를 결정한다.
 
     이슈2 fix: loader 가 추적한 실제 사유(``get_sam2_mock_reason()``)를 우선 위임한다.
@@ -193,7 +227,7 @@ def _mock_reason() -> str:
     """
     from app.models.sam2_loader import get_sam2_mock_reason
 
-    reason = get_sam2_mock_reason()
+    reason = get_sam2_mock_reason(slot)
     if reason is not None:
         return reason
     if get_settings().ai_mock_mode:

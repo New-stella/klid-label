@@ -41,7 +41,7 @@ public class SecurityConfig {
     private final UserRoleResolver userRoleResolver;
     /** 최종로그인일시 기록기 — JWT 필터가 INTERNAL 요청마다 호출한다(@design SCREEN-024). */
     private final LastLoginRecorder lastLoginRecorder;
-    /** 진입 시 작업자 자동 등록기 — JWT 필터가 역할 없는 INTERNAL 요청에만 호출한다(@design AC-126). */
+    /** 진입 시 작업자 자동 등록기 — JWT 필터가 역할 없는 INTERNAL 요청에만 호출한다(@design AC-1016). */
     private final AutoWorkerRegistrar autoWorkerRegistrar;
     private final ObjectMapper objectMapper;
     private final Environment environment;

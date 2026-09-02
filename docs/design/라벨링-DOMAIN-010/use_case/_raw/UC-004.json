@@ -106,23 +106,18 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-004",
-        "AC-567",
-        "AC-568",
-        "AC-569",
-        "AC-570",
-        "AC-571",
-        "AC-572"
+        "AC-1024",
+        "AC-1025"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 16,
-    "stale": true,
-    "stale_reason": "AC-572의 2개 필드 변경 — covered_by",
-    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 축마다 인수기준이 한두 건뿐이라 좌표 검증·동시성·멱등·매핑 판정이 시험 케이스로 덮이지 않았다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
+    "current_version": 17,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 7건이 있었는데 그중 7건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1024, AC-1025)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-30T15:42:36.699Z",
+    "last_updated_at": "2026-09-01T08:25:54.156Z",
     "created_at": "2026-06-01T06:23:41.908Z"
   }
 }

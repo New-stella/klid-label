@@ -1,20 +1,20 @@
 ---
 logicraft_item: DFEAT-045
 type: domain_feature
-version: 19
+version: 20
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T00:36:35.928Z
+synced_at: 2026-09-01T08:39:59.390Z
 status: CHANGED
-prev_version: 18
-content_hash: bff15b3e7bd64794168575758f7f0ff9d10edb7af438ca346fc3a72c84b87820
+prev_version: 19
+content_hash: 71a09288c7c468988d0992b185d39f5e050c20a12dd4aff177c411c1a7eaba33
 stale: false
 raw: ./_raw/DFEAT-045.json
 links:
   based_on: ["[[ADR-046]]"]
   belongs_to_domain: ["[[DOMAIN-014]]"]
   implements: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-193]]", "[[API-194]]", "[[API-219]]", "[[API-220]]", "[[IMPREC-051]]"]
-  verifies: ["[[AC-006]]", "[[AC-055]]"]
+  verifies: ["[[AC-1022]]", "[[AC-1023]]", "[[AC-1028]]", "[[AC-1029]]"]
   depicts_backward: ["[[CDIAG-012]]", "[[CMP-011]]"]
   realizes_backward: ["[[MOD-016]]", "[[MOD-050]]", "[[UC-031]]"]
   references_backward: ["[[ADR-046]]", "[[CDIAG-012]]"]
@@ -80,6 +80,10 @@ ADR-046
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -126,8 +130,10 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-006
-- AC-055
+- AC-1022
+- AC-1023
+- AC-1028
+- AC-1029
 
 ## implemented_by_endpoints
 

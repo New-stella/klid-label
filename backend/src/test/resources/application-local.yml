@@ -103,11 +103,11 @@ authoring:
       initial-delay-ms: 86400000
   # 외부 증강 위탁 WebClient — mode 기본값(http)이라 테스트 컨텍스트에서도 빈이 생성되며 base-url 이
   #   AugmentUrlPolicy 검증을 통과해야 한다. 본 파일은 main 의 application-local.yml 을 통째로 대체하므로
-  #   여기에도 명시한다. 목업 주소(평문 http + loopback)는 완화 플래그가 켜진 local/dev 에서만 통과한다.
+  #   여기에도 명시한다. 목업 주소(평문 http + loopback)는 전 프로파일에서 그대로 통과한다
+  #   (2026-09-01 확정 — 구 완화 플래그 allow-insecure-url 은 제거됐다).
   augment:
     external:
       base-url: ${AUGMENT_API_BASE_URL:http://localhost:9400}
-      allow-insecure-url: true
     # 증강 고아 PENDING 만료 스윕 / 폐기 파생 실삭제 스윕 — 전용 executor 발화만 격리(위 batch 주석 참조).
     #   로직 검증은 AugmentJobExpiryIT/AugmentDiscardPurgeIT 가 스윕 빈을 주입받아 직접 호출한다.
     job-expiry:

@@ -1,13 +1,13 @@
 ---
 logicraft_item: DFEAT-046
 type: domain_feature
-version: 10
+version: 11
 domain: DOMAIN-016
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:19:22.545Z
+synced_at: 2026-09-01T08:40:04.290Z
 status: CHANGED
-prev_version: 9
-content_hash: 72b0556b146f56432cae34b39faf3b45fa30a33dda98ee0b08e1aa70caa7d906
+prev_version: 10
+content_hash: f792716fbd581dbd13c31134a56e91dcf68af55323d1f6a886531fe9e77cb66b
 stale: false
 raw: ./_raw/DFEAT-046.json
 links:
@@ -16,7 +16,7 @@ links:
   consumes: ["[[EVT-009]]"]
   specializes: ["[[FEAT-003]]"]
   triggers: ["[[EVT-003]]", "[[EVT-004]]"]
-  verifies: ["[[AC-009]]"]
+  verifies: ["[[AC-1077]]", "[[AC-1078]]"]
   depicts_backward: ["[[CDIAG-013]]", "[[CMP-009]]"]
   realizes_backward: ["[[MOD-015]]", "[[UC-009]]"]
   references_backward: ["[[CDIAG-013]]"]
@@ -77,6 +77,10 @@ ADR-007
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -118,7 +122,8 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-009
+- AC-1077
+- AC-1078
 
 ## specializes_feature
 

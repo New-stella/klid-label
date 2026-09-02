@@ -109,6 +109,10 @@ const TABLES: TableCase[] = [
     label: 'ImportHistorySection(산출물 가져오기 — 가져온 내역)',
     file: 'src/features/import/components/ImportHistorySection.tsx',
   },
+  {
+    label: 'AiServerListCard(연동 서버 주소 — AI 장비 목록)',
+    file: 'src/features/aiServer/components/AiServerListCard.tsx',
+  },
 ];
 
 /**

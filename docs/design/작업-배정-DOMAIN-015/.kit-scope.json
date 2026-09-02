@@ -59,6 +59,6 @@
     "LEGACY-112",
     "NAV-001"
   ],
-  "last_sync_at": "2026-08-31T11:12:41.027Z",
+  "last_sync_at": "2026-09-01T12:37:18.788Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

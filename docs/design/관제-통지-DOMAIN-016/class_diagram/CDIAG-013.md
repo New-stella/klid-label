@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-013
 type: class_diagram
-version: 8
+version: 9
 domain: DOMAIN-016
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:08:50.282Z
+synced_at: 2026-09-01T08:40:04.286Z
 status: CHANGED
-prev_version: 7
-content_hash: a9eed62699a20adb9367deca086ff056b90caf2417e97504452f3d47bb21f431
-stale: false
+prev_version: 8
+content_hash: 2d524d0db4c199fc62bd7deeb2b7ade513dbb9f379695875a570e8568bedd9c6
+stale: true
 raw: ./_raw/CDIAG-013.json
 links:
   belongs_to_domain: ["[[DOMAIN-016]]"]
@@ -837,6 +837,40 @@ _(empty)_
 
 _(empty)_
 
+#### srvrId
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 위탁을 보낸 AI 서버(장비) 식별자. 장비별 부하 집계와 결과 출처 추적에 쓴다. 도입 전 행은 미상이며, 미결 회수 경로에는 장비 조건을 걸지 않는다 — 걸면 죽은 장비의 몫이 영영 회수되지 않는다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
 - **description**: 외부 위탁(비식별/VLM/증강) 시 발급 멱등키 영속 원장. 재시작·멀티 인스턴스 중복 적재 차단. (LS_WEBHOOK_IDEMPOTENCY)
 
 **enum_values**:
@@ -931,11 +965,12 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 멱등 처리 상태 코드.
+- **description**: 멱등 처리 상태 코드. ACCEPTED 는 외부가 요청을 받아들였고 결과 통지만 남은 상태로, 수락 응답조차 관측하지 못한 ISSUED 와 미결 판정 임계가 다르다.
 
 **enum_values**:
 
 - ISSUED
+- ACCEPTED
 - PROCESSED
 - FAILED
 

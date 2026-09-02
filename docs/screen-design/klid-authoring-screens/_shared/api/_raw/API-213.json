@@ -214,6 +214,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -225,22 +226,24 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-20T03:15:53.616Z"
+        "last_updated": "2026-08-20T03:15:53.616Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": [
-        "AC-050"
+        "AC-1022",
+        "AC-1023"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": true,
-    "stale_reason": "AC-050의 2개 필드 변경 — verifies",
-    "change_summary": "벤더 연동 시점의 통상 경로가 이 요청이 아니라 일괄 재수행이라는 사실을 적는다. 재수행이 건너뛴 상태를 직접 수락하고 해제 표식까지 함께 남기므로 해제와 재수행을 두 번 돌 필요가 없으며, 이 요청은 다시 수행하지는 않으면서 건너뜀 판단만 물리려는 자리에 남는다.",
+    "current_version": 7,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검증한다고 선언한 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1022, AC-1023). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-21T00:00:23.758Z",
+    "last_updated_at": "2026-09-01T08:27:06.331Z",
     "created_at": "2026-08-19T13:34:23.780Z"
   }
 }

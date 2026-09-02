@@ -19,17 +19,21 @@ import java.time.Duration;
  * 외부 증강(생성형 AI) API 연동용 WebClient — Phase 7-A1 신설 / DEV_FIX HIGH-1 정책 정합.
  *
  * <h3>base-url 검증은 공용 정책에 위임한다</h3>
- * <p>과거에는 이 클래스가 <b>스키마만</b> 보는 자체 검증을 갖고 있었다. 그래서 운영에서
- * {@code http://10.0.0.5:9400}(사설망 평문) · {@code http://169.254.169.254/}(클라우드 메타데이터) ·
- * {@code http://your-service.example.com}(미설정 placeholder) 이 모두 <b>기동에 성공</b>했고, 같은 값을
- * VLM 은 차단하는 <b>정책 비대칭</b>이 생겼다. 이제 {@link AugmentUrlPolicy}(→ {@code ProfileGatedUrlPolicy}
- * → {@code ExternalUrlPolicy}) 라는 <b>VLM 과 동일한 판정 원천</b>을 쓴다: prd/stg 는 HTTPS + 공인망 강제,
- * local/dev 는 전용 완화 플래그가 켜졌을 때만 목업(평문/사설) 허용.
+ * <p>과거에는 이 클래스가 <b>스키마만</b> 보는 자체 검증을 갖고 있었다. 그래서 미설정 placeholder
+ * ({@code http://your-service.example.com})나 클라우드 메타데이터 주소({@code http://169.254.169.254/})가
+ * 그대로 기동에 성공했고, 같은 값을 VLM 은 차단하는 <b>정책 비대칭</b>이 생겼다. 이제
+ * {@link AugmentUrlPolicy}(→ {@code ExternalUrlPolicy}) 라는 <b>VLM·KPST 와 동일한 판정 원천</b>을 쓴다.
+ *
+ * <p>★ 그 판정이 보는 것은 <b>스킴({@code http}/{@code https})과 URL 형식뿐</b>이다
+ * (2026-09-01 확정 — [@design ADR-046]).
+ * <b>HTTPS 강제·사설망 차단·프로파일 게이팅·완화 플래그는 폐기</b>됐으므로 평문 http + 내부망 주소는
+ * 전 프로파일에서 그대로 통과한다. 계속 차단되는 것은 비허용 스킴·빈값·placeholder 호스트와
+ * 예약 대역(메타데이터·링크로컬·ULA·CGNAT·멀티캐스트)이다. 상세와 근거는 {@link AugmentUrlPolicy} 참조.
  *
  * <h3>기본값에 localhost 를 두지 않는다</h3>
- * <p>{@code base-url} 기본값이 {@code http://localhost:9400} 이면 <b>완화 기본값이 운영 형상에 상주</b>한다
- * (환경변수 미설정 배포가 조용히 기동). 기본값을 빈 문자열로 두고 정책의 "빈값 거부" 로 부팅을 막는다 —
- * local 은 {@code application-local.yml}/compose 가 명시 주입한다.
+ * <p>{@code base-url} 기본값이 {@code http://localhost:9400} 이면 <b>목업 주소가 운영 형상에 상주</b>한다
+ * (환경변수 미설정 배포가 조용히 목업을 향해 기동). 기본값을 빈 문자열로 두고 정책의 "빈값 거부" 로
+ * 부팅을 막는다 — local 은 {@code application-local.yml}/compose 가 명시 주입한다.
  *
  * <h3>{@code mode=noop} 이면 빈을 만들지 않는다</h3>
  * <p>본 WebClient 의 유일한 소비자는 {@link HttpExternalAugmentClient} 이고 그 빈은 {@code mode=http}

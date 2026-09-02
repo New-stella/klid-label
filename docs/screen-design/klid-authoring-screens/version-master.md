@@ -1,22 +1,26 @@
-# Version Master —  (-) — 화면 키트
+# Version Master — DOMAIN-000 (DOMAIN-000) — 화면 키트
 
 | 항목 | 값 |
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
-| Domain | -  |
+| Domain | DOMAIN-000 DOMAIN-000 |
 | 다운로드 화면 | SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-005, SCREEN-006, SCREEN-008, SCREEN-009, SCREEN-010, SCREEN-011, SCREEN-012, SCREEN-018, SCREEN-019, SCREEN-020, SCREEN-021, SCREEN-022, SCREEN-023, SCREEN-024, SCREEN-025, SCREEN-026, SCREEN-027, SCREEN-028, SCREEN-029, SCREEN-030, SCREEN-031, SCREEN-032, SCREEN-033, SCREEN-034, SCREEN-035, SCREEN-036, SCREEN-037, SCREEN-038, SCREEN-039, SCREEN-040, SCREEN-041, SCREEN-042, SCREEN-043 |
-| Last sync | 2026-08-31T11:40:26.815Z (session 1) |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 461 |
-| 출력 루트 | docs/screen-design/klid-authoring-screens |
+| Last sync | 2026-09-01T08:39:29.935Z (session 37) |
+| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 468 |
+| 출력 루트 | . |
 
 ## ITEM 버전 표
 
 | ITEM ID | type | title | version | stale | status |
 |---|---|---|---|---|---|
+| [[AC-1032]] | acceptance | UC-037 마킹 끝난 영상 일괄 올리기 — 폴더 재귀 짝짓기·판정·비동기 적재·비식별 후 마킹 활성 (happy) | 4 | true | UNCHANGED |
+| [[AC-1033]] | acceptance | UC-037 일괄 적재 예외 — 짝 못찾음 건너뜀·FPS 어긋남 중단·중복 식별자 건너뜀·비식별 실패 마감·재기동 복구 (negative) | 5 | true | UNCHANGED |
+| [[AC-1086]] | acceptance | SCREEN-027 파일 업로드 — 적재 경로 선택·단건 전송·기술메타 자동 채움·결과 상태 추적 (happy) | 2 | true | UNCHANGED |
+| [[AC-1087]] | acceptance | SCREEN-027 파일 업로드 — 유효창 없는 시작·허용 밖 형식과 용량·필수값 누락·중복 식별자 거부 (negative) | 2 | true | UNCHANGED |
 | [[API-001]] | api_endpoint | GET /v1/users | 6 | false | UNCHANGED |
 | [[API-002]] | api_endpoint | GET /v1/users/workers | 2 | false | UNCHANGED |
 | [[API-003]] | api_endpoint | GET /v1/users/{userNo} | 5 | false | UNCHANGED |
-| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 8 | false | UNCHANGED |
+| [[API-004]] | api_endpoint | PATCH /v1/users/{userNo} | 8 | true | UNCHANGED |
 | [[API-005]] | api_endpoint | GET /v1/users/me | 5 | false | UNCHANGED |
 | [[API-006]] | api_endpoint | GET /v1/me | 10 | false | UNCHANGED |
 | [[API-007]] | api_endpoint | POST /v1/auth/role-claim | 14 | true | UNCHANGED |
@@ -107,15 +111,15 @@
 | [[API-110]] | api_endpoint | GET /v1/portal/frames/{srcSn}/labels | 4 | false | UNCHANGED |
 | [[API-111]] | api_endpoint | GET /v1/portal/frames/{srcSn}/image | 3 | false | UNCHANGED |
 | [[API-112]] | api_endpoint | POST /v1/videos/{rawSn}/redeident | 5 | false | UNCHANGED |
-| [[API-113]] | api_endpoint | POST /infer/yolo/predict | 3 | false | UNCHANGED |
+| [[API-113]] | api_endpoint | POST /infer/yolo/predict | 4 | false | UNCHANGED |
 | [[API-114]] | api_endpoint | GET /v1/videos/{rawSn}/stream-url | 2 | false | UNCHANGED |
 | [[API-115]] | api_endpoint | GET /v1/portal/datamart/videos | 3 | false | UNCHANGED |
 | [[API-116]] | api_endpoint | GET /v1/assignments/{assignmentId}/history | 8 | false | UNCHANGED |
 | [[API-117]] | api_endpoint | GET /v1/event-types/labels | 5 | false | UNCHANGED |
 | [[API-118]] | api_endpoint | GET /v1/system/scheduler/health | 2 | false | UNCHANGED |
-| [[API-119]] | api_endpoint | POST /infer/yolo/track | 3 | false | UNCHANGED |
-| [[API-120]] | api_endpoint | POST /infer/sam2/segment | 3 | false | UNCHANGED |
-| [[API-121]] | api_endpoint | POST /infer/sam2/track | 3 | true | UNCHANGED |
+| [[API-119]] | api_endpoint | POST /infer/yolo/track | 4 | false | UNCHANGED |
+| [[API-120]] | api_endpoint | POST /infer/sam2/segment | 4 | false | UNCHANGED |
+| [[API-121]] | api_endpoint | POST /infer/sam2/track | 4 | false | UNCHANGED |
 | [[API-122]] | api_endpoint | POST /infer/vlm/verify-objects | 2 | false | UNCHANGED |
 | [[API-123]] | api_endpoint | POST /v1/frames/{srcSn}/yolo-track | 13 | false | UNCHANGED |
 | [[API-124]] | api_endpoint | POST /v1/frames/{srcSn}/autolabel | 10 | false | UNCHANGED |
@@ -185,36 +189,36 @@
 | [[API-191]] | api_endpoint | POST /v1/control-ingests/{rcptnSn}/requeue | 2 | false | UNCHANGED |
 | [[API-192]] | api_endpoint | POST /v1/control-ingests/requeue | 4 | false | UNCHANGED |
 | [[API-193]] | api_endpoint | GET /v1/ai-defaults | 5 | false | UNCHANGED |
-| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 9 | true | UNCHANGED |
+| [[API-194]] | api_endpoint | POST /v1/manage/admin-session | 11 | false | UNCHANGED |
 | [[API-195]] | api_endpoint | GET /v1/videos/{rawSn}/versions/{version}/labels | 7 | false | UNCHANGED |
 | [[API-196]] | api_endpoint | PUT /v1/videos/{rawSn}/labels | 9 | false | UNCHANGED |
 | [[API-197]] | api_endpoint | GET /v1/videos/{rawSn}/versions | 5 | false | UNCHANGED |
 | [[API-198]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
 | [[API-199]] | api_endpoint | POST /v1/videos/batch/retry | 2 | false | UNCHANGED |
 | [[API-200]] | api_endpoint | DELETE /v1/videos/{rawSn}/batch/stages/{stage}/skip | 4 | false | UNCHANGED |
-| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 8 | true | UNCHANGED |
+| [[API-201]] | api_endpoint | POST /v1/videos/{rawSn}/batch/stages/{stage}/rerun | 9 | false | UNCHANGED |
 | [[API-202]] | api_endpoint | GET /v1/deident-reports/{rprtSn}/deident-candidates | 2 | false | UNCHANGED |
 | [[API-203]] | api_endpoint | 포털 사용자 작업 데이터 ZIP 다운로드 | 6 | false | UNCHANGED |
 | [[API-204]] | api_endpoint | POST /v1/ai-requests/{requestId}/cancel | 1 | false | UNCHANGED |
-| [[API-205]] | api_endpoint | 외부 산출물 폴더 검사 | 8 | true | UNCHANGED |
-| [[API-206]] | api_endpoint | 외부 산출물 적재 | 12 | true | UNCHANGED |
+| [[API-205]] | api_endpoint | 외부 산출물 폴더 검사 | 9 | false | UNCHANGED |
+| [[API-206]] | api_endpoint | 외부 산출물 적재 | 14 | false | UNCHANGED |
 | [[API-207]] | api_endpoint | 이관 이력 목록 조회 | 7 | false | UNCHANGED |
 | [[API-208]] | api_endpoint | 이관 이력 상세 조회 | 5 | false | UNCHANGED |
-| [[API-209]] | api_endpoint | 분류 대응 목록 조회 | 6 | true | UNCHANGED |
-| [[API-210]] | api_endpoint | 분류 대응 확정 | 9 | true | UNCHANGED |
+| [[API-209]] | api_endpoint | 분류 대응 목록 조회 | 7 | false | UNCHANGED |
+| [[API-210]] | api_endpoint | 분류 대응 확정 | 11 | false | UNCHANGED |
 | [[API-211]] | api_endpoint | 분류 대응 해제 | 8 | false | UNCHANGED |
-| [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 5 | true | UNCHANGED |
-| [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 6 | true | UNCHANGED |
-| [[API-214]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/rerun | 4 | true | UNCHANGED |
-| [[API-215]] | api_endpoint | 비식별 완료 기록 | 4 | true | UNCHANGED |
-| [[API-216]] | api_endpoint | 마킹 산출물 폴더 검사 | 2 | false | UNCHANGED |
-| [[API-217]] | api_endpoint | 마킹 산출물 일괄 적재 | 2 | false | UNCHANGED |
-| [[API-218]] | api_endpoint | 일괄 적재 진행 조회 | 2 | false | UNCHANGED |
+| [[API-212]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/skip | 6 | false | UNCHANGED |
+| [[API-213]] | api_endpoint | DELETE /v1/videos/batch/stages/{stage}/skip | 7 | false | UNCHANGED |
+| [[API-214]] | api_endpoint | POST /v1/videos/batch/stages/{stage}/rerun | 5 | false | UNCHANGED |
+| [[API-215]] | api_endpoint | 비식별 완료 기록 | 5 | false | UNCHANGED |
+| [[API-216]] | api_endpoint | 마킹 산출물 폴더 검사 | 4 | false | UNCHANGED |
+| [[API-217]] | api_endpoint | 마킹 산출물 일괄 적재 | 5 | false | UNCHANGED |
+| [[API-218]] | api_endpoint | 일괄 적재 진행 조회 | 4 | false | UNCHANGED |
 | [[API-219]] | api_endpoint | GET /v1/manage/verification-event-types | 3 | false | UNCHANGED |
 | [[API-220]] | api_endpoint | PUT /v1/manage/verification-event-types/{vrfcEvntTypeCd}/questions | 3 | false | UNCHANGED |
-| [[API-221]] | api_endpoint | 이관 대상 폴더 탐색 | 15 | true | UNCHANGED |
-| [[API-222]] | api_endpoint | 이관 대상 영상 파일 탐색 | 10 | true | UNCHANGED |
-| [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 5 | true | UNCHANGED |
+| [[API-221]] | api_endpoint | 이관 대상 폴더 탐색 | 17 | false | UNCHANGED |
+| [[API-222]] | api_endpoint | 이관 대상 영상 파일 탐색 | 12 | false | UNCHANGED |
+| [[API-223]] | api_endpoint | PUT /v1/manage/admin-password — 관리자 패스워드 교체 | 6 | false | UNCHANGED |
 | [[CONST-001]] | constant | COCO-17 키포인트 스켈레톤 상수 | 4 | false | UNCHANGED |
 | [[CONST-002]] | constant | CocoClasses — COCO-80 검출 클래스 allowlist | 3 | true | UNCHANGED |
 | [[DS-001]] | design_system | KRDS Public | 9 | false | UNCHANGED |
@@ -230,37 +234,37 @@
 | [[SCREEN-004]] | screen_spec | 개발용 로그인 화면 | 16 | true | UNCHANGED |
 | [[SCREEN-005]] | screen_spec | 라벨링 캔버스 화면 | 102 | true | UNCHANGED |
 | [[SCREEN-006]] | screen_spec | 마킹 화면 | 49 | true | UNCHANGED |
-| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 47 | true | UNCHANGED |
-| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 75 | true | UNCHANGED |
+| [[SCREEN-008]] | screen_spec | 영상 처리 현황 화면 | 48 | false | UNCHANGED |
+| [[SCREEN-009]] | screen_spec | 영상 상세 화면 | 76 | false | UNCHANGED |
 | [[SCREEN-010]] | screen_spec | 로드 버전 선택 | 37 | true | UNCHANGED |
 | [[SCREEN-011]] | screen_spec | 대시보드 화면 | 21 | true | UNCHANGED |
 | [[SCREEN-012]] | screen_spec | 작업 목록 화면 | 47 | true | UNCHANGED |
 | [[SCREEN-018]] | screen_spec | 검수 목록 화면 | 29 | true | UNCHANGED |
 | [[SCREEN-019]] | screen_spec | 검수 상세 화면 | 43 | true | UNCHANGED |
 | [[SCREEN-020]] | screen_spec | 작업자 통계 화면 | 32 | true | UNCHANGED |
-| [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 29 | false | UNCHANGED |
+| [[SCREEN-021]] | screen_spec | 전체 구축 현황 화면 | 29 | true | UNCHANGED |
 | [[SCREEN-022]] | screen_spec | 증강 요청 화면 | 46 | true | UNCHANGED |
 | [[SCREEN-023]] | screen_spec | 증강 결과 화면 | 41 | true | UNCHANGED |
 | [[SCREEN-024]] | screen_spec | 사용자 관리 화면 | 32 | true | UNCHANGED |
-| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 46 | true | UNCHANGED |
+| [[SCREEN-025]] | screen_spec | 시스템 설정 화면 | 47 | false | UNCHANGED |
 | [[SCREEN-026]] | screen_spec | 프리셋 관리 화면 | 35 | true | UNCHANGED |
-| [[SCREEN-027]] | screen_spec | 파일 업로드 | 42 | true | UNCHANGED |
+| [[SCREEN-027]] | screen_spec | 파일 업로드 | 50 | false | UNCHANGED |
 | [[SCREEN-028]] | screen_spec | 포털 홈 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-029]] | screen_spec | 포털 라벨링 화면 | 41 | true | UNCHANGED |
 | [[SCREEN-030]] | screen_spec | 공지 목록 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-031]] | screen_spec | 공지 상세 화면 | 33 | true | UNCHANGED |
-| [[SCREEN-032]] | screen_spec | 비식별 신고 관리 화면 | 23 | true | UNCHANGED |
+| [[SCREEN-032]] | screen_spec | 비식별 신고 관리 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-033]] | screen_spec | 포털 업로드 화면 | 23 | true | UNCHANGED |
 | [[SCREEN-034]] | screen_spec | 포털 업로드 라벨링 화면 | 26 | true | UNCHANGED |
 | [[SCREEN-035]] | screen_spec | 라벨 관리 화면 | 19 | true | UNCHANGED |
 | [[SCREEN-036]] | screen_spec | 공지 작성 화면 | 8 | true | UNCHANGED |
 | [[SCREEN-037]] | screen_spec | 공지 수정 화면 | 8 | true | UNCHANGED |
 | [[SCREEN-038]] | screen_spec | 이벤트유형 관리 화면 | 14 | true | UNCHANGED |
-| [[SCREEN-039]] | screen_spec | 산출물 가져오기 | 33 | true | UNCHANGED |
-| [[SCREEN-040]] | screen_spec | 관리자 페이지 진입 화면 | 9 | false | UNCHANGED |
-| [[SCREEN-041]] | screen_spec | 관리자 패스워드 교체 | 10 | false | UNCHANGED |
-| [[SCREEN-042]] | screen_spec | 연동 서버 주소 관리 화면 | 8 | false | UNCHANGED |
-| [[SCREEN-043]] | screen_spec | 위험 작업 화면 | 7 | false | UNCHANGED |
+| [[SCREEN-039]] | screen_spec | 산출물 가져오기 | 41 | true | UNCHANGED |
+| [[SCREEN-040]] | screen_spec | 관리자 페이지 진입 화면 | 9 | true | UNCHANGED |
+| [[SCREEN-041]] | screen_spec | 관리자 패스워드 교체 | 10 | true | UNCHANGED |
+| [[SCREEN-042]] | screen_spec | 연동 서버 주소 관리 화면 | 8 | true | UNCHANGED |
+| [[SCREEN-043]] | screen_spec | 위험 작업 화면 | 7 | true | UNCHANGED |
 | [[SD-001]] | screen_design | SCREEN-018 검수 목록 화면 | 5 | true | UNCHANGED |
 | [[SD-002]] | screen_design | SCREEN-005 라벨링 캔버스 화면 | 17 | true | UNCHANGED |
 | [[SD-003]] | screen_design | SCREEN-012 작업 목록 화면 | 8 | true | UNCHANGED |
@@ -280,8 +284,8 @@
 | [[SD-017]] | screen_design | SCREEN-001 세션 인계 진입 화면 | 3 | false | UNCHANGED |
 | [[SD-018]] | screen_design | SCREEN-002 관리자 등록 화면 | 8 | false | UNCHANGED |
 | [[SD-019]] | screen_design | SCREEN-003 접근 거부 화면 | 3 | true | UNCHANGED |
-| [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 4 | true | UNCHANGED |
-| [[SD-021]] | screen_design | SCREEN-032 비식별 신고 관리 화면 | 4 | true | UNCHANGED |
+| [[SD-020]] | screen_design | SCREEN-004 개발용 로그인 화면 | 5 | true | UNCHANGED |
+| [[SD-021]] | screen_design | SCREEN-032 비식별 신고 관리 화면 | 6 | true | UNCHANGED |
 | [[SD-022]] | screen_design | SCREEN-035 라벨 관리 화면 | 4 | true | UNCHANGED |
 | [[SD-023]] | screen_design | SCREEN-038 이벤트유형 관리 화면 | 5 | true | UNCHANGED |
 | [[SD-024]] | screen_design | SCREEN-028 포털 홈 화면 | 6 | true | UNCHANGED |
@@ -291,45 +295,47 @@
 | [[SD-028]] | screen_design | SCREEN-022 증강 요청 화면 | 4 | true | UNCHANGED |
 | [[SD-029]] | screen_design | SCREEN-023 증강 결과 화면 | 5 | true | UNCHANGED |
 | [[SD-030]] | screen_design | SCREEN-020 작업자 통계 화면 | 5 | false | UNCHANGED |
-| [[SD-031]] | screen_design | SCREEN-021 전체 구축 현황 화면 | 2 | true | UNCHANGED |
+| [[SD-031]] | screen_design | SCREEN-021 전체 구축 현황 화면 | 3 | true | UNCHANGED |
 | [[SD-032]] | screen_design | SCREEN-010 로드 버전 선택 | 2 | true | UNCHANGED |
-| [[SD-033]] | screen_design | SCREEN-027 영상 업로드 | 11 | true | UNCHANGED |
-| [[SD-034]] | screen_design | SCREEN-040 관리자 페이지 진입 화면 | 6 | false | UNCHANGED |
+| [[SD-033]] | screen_design | SCREEN-027 파일 업로드 | 13 | false | UNCHANGED |
+| [[SD-034]] | screen_design | SCREEN-040 관리자 페이지 진입 화면 | 6 | true | UNCHANGED |
 | [[SD-035]] | screen_design | SCREEN-043 위험 작업 화면 | 4 | true | UNCHANGED |
 | [[SD-036]] | screen_design | SCREEN-042 연동 서버 주소 관리 화면 | 4 | true | UNCHANGED |
 | [[SD-037]] | screen_design | SCREEN-041 관리자 패스워드 교체 화면 | 5 | true | UNCHANGED |
+| [[SD-038]] | screen_design | SCREEN-039 산출물 가져오기 | 2 | true | UNCHANGED |
 | [[SHELL-001]] | app_shell | 저작도구 내부 채널 셸 | 11 | true | UNCHANGED |
 | [[SHELL-002]] | app_shell | 포털 채널 셸 | 5 | true | UNCHANGED |
-| [[UC-001]] | use_case | 증강 영상 생성 요청 | 14 | true | UNCHANGED |
-| [[UC-002]] | use_case | 증강 결과 수신·등록 | 16 | true | UNCHANGED |
-| [[UC-003]] | use_case | 해상도 변경 수행 | 15 | true | UNCHANGED |
-| [[UC-004]] | use_case | 객체 자동 추적 | 16 | true | UNCHANGED |
-| [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 11 | true | UNCHANGED |
-| [[UC-006]] | use_case | 라벨링 정밀도 조절 | 10 | true | UNCHANGED |
-| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 14 | true | UNCHANGED |
-| [[UC-008]] | use_case | 버전 비교·복구 | 15 | true | UNCHANGED |
-| [[UC-009]] | use_case | 검수 완료·수정 통지 | 21 | true | UNCHANGED |
-| [[UC-010]] | use_case | 증강 영상 활용 여부 검수 | 14 | true | UNCHANGED |
-| [[UC-011]] | use_case | 비식별 처리 요청 | 13 | true | UNCHANGED |
-| [[UC-013]] | use_case | 비식별 옵션 설정 | 11 | true | UNCHANGED |
-| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 25 | true | UNCHANGED |
-| [[UC-018]] | use_case | 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재) | 19 | true | UNCHANGED |
-| [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 24 | true | UNCHANGED |
-| [[UC-021]] | use_case | 라벨 편집·임시저장 | 21 | true | UNCHANGED |
-| [[UC-022]] | use_case | VLM 시계열 메타 검토 | 23 | true | UNCHANGED |
-| [[UC-023]] | use_case | 검수 승인·반려 | 27 | true | UNCHANGED |
-| [[UC-024]] | use_case | 포털 라벨 작업 (조회·수정·다운로드) | 21 | false | UNCHANGED |
-| [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 17 | true | UNCHANGED |
-| [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 7 | true | UNCHANGED |
-| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 12 | true | UNCHANGED |
-| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 14 | true | UNCHANGED |
-| [[UC-031]] | use_case | 시스템 운영 설정 관리 | 14 | true | UNCHANGED |
-| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 13 | true | UNCHANGED |
-| [[UC-033]] | use_case | 전체 구축 현황 조회 — 검수완료 기준과 전체 기준 병기 | 4 | true | UNCHANGED |
-| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 6 | true | UNCHANGED |
-| [[UC-035]] | use_case | 외부 산출물 가져오기 | 16 | true | UNCHANGED |
-| [[UC-036]] | use_case | 이관 이력 조회 | 4 | true | UNCHANGED |
-| [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 4 | true | UNCHANGED |
+| [[UC-001]] | use_case | 증강 영상 생성 요청 | 15 | true | UNCHANGED |
+| [[UC-002]] | use_case | 증강 결과 수신·등록 | 17 | true | UNCHANGED |
+| [[UC-003]] | use_case | 해상도 변경 수행 | 16 | true | UNCHANGED |
+| [[UC-004]] | use_case | 객체 자동 추적 | 17 | false | UNCHANGED |
+| [[UC-005]] | use_case | 객체 외곽 경계 자동 밀착 | 12 | true | UNCHANGED |
+| [[UC-006]] | use_case | 라벨링 정밀도 조절 | 11 | true | UNCHANGED |
+| [[UC-007]] | use_case | 라벨 버전 저장·이력 추적 | 15 | false | UNCHANGED |
+| [[UC-008]] | use_case | 버전 비교·복구 | 16 | false | UNCHANGED |
+| [[UC-009]] | use_case | 검수 완료·수정 통지 | 22 | true | UNCHANGED |
+| [[UC-010]] | use_case | 증강 영상 활용 여부 검수 | 15 | false | UNCHANGED |
+| [[UC-011]] | use_case | 비식별 처리 요청 | 14 | true | UNCHANGED |
+| [[UC-013]] | use_case | 비식별 옵션 설정 | 12 | true | UNCHANGED |
+| [[UC-016]] | use_case | 비식별 처리 상태·이력 확인 | 26 | true | UNCHANGED |
+| [[UC-018]] | use_case | 영상 적재 (관제 인입 테이블 직접 INSERT → 폴링 적재) | 20 | true | UNCHANGED |
+| [[UC-019]] | use_case | 이벤트 마킹 (자동/수동) | 25 | true | UNCHANGED |
+| [[UC-021]] | use_case | 라벨 편집·임시저장 | 22 | false | UNCHANGED |
+| [[UC-022]] | use_case | VLM 시계열 메타 검토 | 24 | false | UNCHANGED |
+| [[UC-023]] | use_case | 검수 승인·반려 | 28 | true | UNCHANGED |
+| [[UC-024]] | use_case | 포털 라벨 작업 (조회·수정·다운로드) | 22 | false | UNCHANGED |
+| [[UC-027]] | use_case | 포털 자산 업로드·수동 라벨링 | 18 | false | UNCHANGED |
+| [[UC-028]] | use_case | 라벨 클래스·속성 정의 관리 | 8 | false | UNCHANGED |
+| [[UC-029]] | use_case | 작업 목록 조회·필터링·배정 | 13 | false | UNCHANGED |
+| [[UC-030]] | use_case | 사용자 계정·역할 관리 | 15 | false | UNCHANGED |
+| [[UC-031]] | use_case | 시스템 운영 설정 관리 | 15 | true | UNCHANGED |
+| [[UC-032]] | use_case | 라벨 프리셋 CRUD 관리 | 14 | false | UNCHANGED |
+| [[UC-033]] | use_case | 전체 구축 현황 조회 — 검수완료 기준과 전체 기준 병기 | 6 | false | UNCHANGED |
+| [[UC-034]] | use_case | 온디맨드 AI 자동 추적 | 7 | false | UNCHANGED |
+| [[UC-035]] | use_case | 외부 산출물 가져오기 | 18 | true | UNCHANGED |
+| [[UC-036]] | use_case | 이관 이력 조회 | 7 | true | UNCHANGED |
+| [[UC-037]] | use_case | 마킹이 끝난 영상 일괄 올리기 | 11 | false | UNCHANGED |
+| [[UC-042]] | use_case | 파일 업로드로 영상 한 건 투입 | 2 | false | UNCHANGED |
 | [[UI-001]] | ui_component | action: Button | 3 | false | UNCHANGED |
 | [[UI-002]] | ui_component | input: Input | 6 | false | UNCHANGED |
 | [[UI-003]] | ui_component | input: Select | 5 | false | UNCHANGED |
@@ -474,3 +480,4 @@
 | [[UI-142]] | ui_component | display: WorkerNameSub | 1 | false | UNCHANGED |
 | [[UI-143]] | ui_component | display: RateGaugeCard | 1 | false | UNCHANGED |
 | [[UI-144]] | ui_component | display: ProcessingStackBar | 1 | false | UNCHANGED |
+| [[UI-145]] | ui_component | overlay: PathPicker | 1 | false | UNCHANGED |

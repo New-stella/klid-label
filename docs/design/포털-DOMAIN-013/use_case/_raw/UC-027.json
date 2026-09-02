@@ -8,7 +8,7 @@
     "sub_id": null,
     "status": "approved",
     "data": {
-      "goal": "본인 이미지/영상을 직접 업로드해 BBOX/POLYGON 수동 라벨링을 수행하고 본인 데이터를 다운로드한다",
+      "goal": "본인 영상을 직접 업로드해 추출된 프레임에 BBOX/POLYGON 수동 라벨링을 수행하고 본인 데이터를 다운로드한다",
       "actor": "포털 회원(PORTAL_USER)",
       "title": "포털 자산 업로드·수동 라벨링",
       "status": "approved",
@@ -17,12 +17,12 @@
         {
           "step": 1,
           "actor": "포털 회원(PORTAL_USER)",
-          "action": "이미지(jpg/jpeg/png, 20MB/장, 50장/요청) 또는 영상(mp4/mov/avi, 5GB, TUS 재개가능 업로드)을 업로드한다"
+          "action": "영상(mp4/mov/avi, 5GiB, TUS 재개 가능 업로드, 사용자별 동시 3건)을 업로드한다. [폐기] 이미지 다중 업로드(jpg/jpeg/png, 장당 20MiB, 요청당 50장) 접수는 두지 않는다"
         },
         {
           "step": 2,
           "actor": "시스템",
-          "action": "LS_PORTAL_ULD에 자산을 등록한다 — 이미지는 추출 단계 없이 등록 시점에 READY 로 적재되고 그 이미지 파일 자신을 가리키는 프레임 행 1건(FRME_NO=0)이 함께 생성된다. 영상만 UPLOADED 로 등록한 뒤 고정 간격 프레임 추출을 거친다(UPLOADED→PROCESSING→READY|FAILED)"
+          "action": "LS_PORTAL_ULD에 자산을 등록한다 — 영상을 UPLOADED 로 등록한 뒤 고정 간격 프레임 추출을 거친다(UPLOADED→PROCESSING→READY|FAILED). [폐기] 이미지의 등록 시점 READY 적재와 그 이미지 파일 자신을 가리키는 프레임 행 1건(FRME_NO=0) 생성은 두지 않는다"
         },
         {
           "step": 3,
@@ -56,15 +56,16 @@
         }
       ],
       "brownfield": {
-        "notes": "이 UC 는 포털 자산 업로드 도메인 기능(DFEAT-053)을 실현한다. 전역 FEAT 대응이 없어 realizes_features 는 공란이다.",
+        "notes": "이 UC 는 포털 자산 업로드 도메인 기능(DFEAT-053)을 실현한다. 전역 FEAT 대응이 없어 realizes_features 는 공란이다.\n\n### 2026-09-01 — ADR-013 v12 반영\n- 포털 사용자의 이미지 직접 업로드 축을 폐기 표기했다. 영상 축(재개 가능 업로드·고정 간격 프레임 추출·수동 라벨링·이벤트구간 마킹·AI 증강 연동·본인 데이터 다운로드)은 그대로 둔다.\n- 닫히는 것은 신규 접수뿐이다. 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 계속 성립한다.\n- 배열 원소를 지우지 않고 폐기 표기로만 남겼다 — 주 흐름 1~2단계와 대안 흐름 첫 건이 그 대상이다.",
         "status": "new",
         "decided_by": "ADR-013",
         "change_kind": [
-          "capability-add"
+          "capability-add",
+          "capability-remove"
         ],
-        "diff_summary": "2차 신규 — 포털 본인 자산 직접 업로드 + 수동 라벨링(ADR-013 예외, 2026-07-17). 내부 파이프라인·데이터마트와 분리"
+        "diff_summary": "2차 신규 — 포털 본인 자산 직접 업로드 + 수동 라벨링(ADR-013 예외, 2026-07-17). 내부 파이프라인·데이터마트와 분리. 이미지 직접 업로드 축은 폐기하고 영상 축만 둔다(ADR-013 v12)"
       },
-      "description": "포털 사용자가 본인 이미지(jpg/jpeg/png, 20MB/장, 50장/요청, all-or-nothing)·영상(mp4/mov/avi, 5GB, TUS 1.0 재개 가능 업로드)을 직접 업로드해 수동 라벨링(BBOX/POLYGON만)한 뒤 본인 데이터(JSON export/원본)를 다운로드한다(ADR-013 예외, 2026-07-17). 업로드 자산은 신규 LS_PORTAL_* 테이블(LS_PORTAL_ULD·LS_PORTAL_ULD_FRME·LS_PORTAL_ULD_LBL·LS_PORTAL_TUS_ULD, V107/V108)로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 완전히 분리된다. 영상은 비식별 미적용(본인 데이터)이며 고정 간격 프레임 추출(portal.upload.frame-interval-sec 기본 5초, 상한 maxFrames 2000). 상태 전이는 두 경로가 갈린다 — 영상은 UPLOADED→PROCESSING→READY|FAILED 를 거치고, 이미지는 프레임 추출이 없어 등록 시점에 READY 로 적재된다. 업로드 영상에 한해 이벤트구간 마킹과 AI 증강 연동을 제공한다(본인 자산 업로드 예외의 연장). 미제공은 오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)이다. 제공하는 AI 증강 연동은 서버가 외부로 보내는 비동기 위탁이라, 포털 사용자가 외부 추론 엔드포인트를 직접 호출해 공격면이 되는 SAM2 인터랙티브 분할·자동추적·키포인트와는 축이 다르다 — 후자의 미제공은 그대로 유지된다. 화면: 포털 업로드(/portal/uploads, SCREEN-033)·포털 업로드 라벨링(/portal/uploads/:uldSn/label, SCREEN-034).",
+      "description": "포털 사용자가 본인 영상(mp4/mov/avi, 5GiB, TUS 1.0 재개 가능 업로드, 사용자별 동시 3건)을 직접 업로드해 고정 간격으로 추출된 프레임에 수동 라벨링(BBOX/POLYGON만)한 뒤 본인 데이터(JSON export/원본)를 다운로드한다(ADR-013 예외, 2026-07-17). 업로드 자산은 신규 LS_PORTAL_* 테이블(LS_PORTAL_ULD·LS_PORTAL_ULD_FRME·LS_PORTAL_ULD_LBL·LS_PORTAL_TUS_ULD)로 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 완전히 분리된다. 영상은 비식별 미적용(본인 데이터)이며 고정 간격 프레임 추출(portal.upload.frame-interval-sec 기본 5초, 상한 maxFrames 2000)을 거치고 상태 전이는 UPLOADED→PROCESSING→READY|FAILED 다. 업로드 영상에는 이벤트구간 마킹과 AI 증강 연동을 제공한다(본인 자산 업로드 예외의 연장). 미제공은 오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)이다. 제공하는 AI 증강 연동은 서버가 외부로 보내는 비동기 위탁이라, 포털 사용자가 외부 추론 엔드포인트를 직접 호출해 공격면이 되는 SAM2 인터랙티브 분할·자동추적·키포인트와는 축이 다르다 — 후자의 미제공은 그대로 유지된다. [폐기] 포털 사용자의 이미지 직접 업로드(jpg/jpeg/png, 장당 20MiB, 요청당 50장, all-or-nothing)는 두지 않는다. 그에 딸린 등록 시점 READY 적재와 그 이미지 파일 자신을 가리키는 프레임 행 1건 생성도 두지 않는다. 닫히는 것은 신규 접수뿐이며, 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 그대로 성립한다. 화면: 포털 업로드(/portal/uploads, SCREEN-033)·포털 업로드 라벨링(/portal/uploads/:uldSn/label, SCREEN-034).",
       "stakeholders": [],
       "preconditions": [
         "포털 서버 발급 JWT로 인증되어 있다(channel=PORTAL)",
@@ -84,9 +85,9 @@
       ],
       "alternate_flows": [
         {
-          "name": "이미지 다건 업로드 일부 실패",
+          "name": "[폐기] 이미지 다건 업로드 일부 실패",
           "steps": [
-            "all-or-nothing — 전체 성공 아니면 전체 실패로 처리"
+            "[폐기] 이미지 접수 경로를 두지 않으므로 이 대안 흐름도 두지 않는다. 접수 경로가 있던 동안의 처리 규칙은 all-or-nothing(전체 성공 아니면 전체 실패)이었다"
           ],
           "trigger": "50장 중 일부 파일 검증/저장 실패"
         },
@@ -127,31 +128,18 @@
         "남은 합의 사항은 이벤트 유형 하나다. 외부 명세는 이벤트 유형을 필수로 요구하고 허용 값이 침수와 산불 둘뿐인데, 포털 사용자가 본인 자산으로 올린 영상에는 그 유형이 없다 — 관제 인입에서 받아오는 값이 이 경로에는 애초에 존재하지 않기 때문이다. 이 값을 무엇으로 보낼지가 정해져야 요청을 조립할 수 있다. 정해지기 전에는 값을 지어내지 않는다."
       ],
       "covered_by_acceptances": [
-        "AC-095",
-        "AC-096",
-        "AC-097",
-        "AC-098",
-        "AC-791",
-        "AC-792",
-        "AC-793",
-        "AC-794",
-        "AC-795",
-        "AC-796",
-        "AC-797",
-        "AC-798",
-        "AC-799",
-        "AC-800",
-        "AC-801"
+        "AC-1070",
+        "AC-1071"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 17,
+    "current_version": 19,
     "stale": true,
-    "stale_reason": "AC-801의 2개 필드 변경 — covered_by",
-    "change_summary": "이 흐름을 검증하는 단위시험 케이스를 연결한다. 종전에는 인수기준 열 건이 데이터마트 조회·라벨 저장·다운로드·자산 업로드·프레임 추출·보존기간 여섯 축의 일부만 덮고 있었다. 검증 목적 하나 단위로 나눈 기준들을 연결해 양방향 추적을 잇는다.",
+    "stale_reason": "ADR-013의 data.consequences 변경 — based_on",
+    "change_summary": "포털 사용자의 이미지 직접 업로드 축을 폐기 표기한다. 목표·설명·주 흐름 1~2단계·대안 흐름 첫 건에서 이미지 접수 경로와 그에 딸린 등록 시점 READY 적재·자기 프레임 행 생성을 두지 않는 것으로 적고, 영상 축(재개 가능 업로드·프레임 추출·수동 라벨링·이벤트구간 마킹·증강 연동·다운로드)은 그대로 둔다. 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제가 계속 성립한다는 점을 함께 적었다. 배열 원소를 지우지 않고 폐기 표기로만 남겼다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-30T15:57:24.084Z",
+    "last_updated_at": "2026-09-01T09:47:27.337Z",
     "created_at": "2026-07-30T07:16:09.454Z"
   }
 }

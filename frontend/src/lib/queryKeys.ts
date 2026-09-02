@@ -150,6 +150,20 @@ export const SYSCONFIG_KEYS = {
   aiDefaults: () => [...SYSCONFIG_KEYS.all, 'ai-defaults'] as const,
 };
 
+/**
+ * AI 장비 노드 원장(GET /v1/manage/ai-servers) — 관리자 전용 목록.
+ *
+ * 유형은 **조건 축**이라 키에 넣는다 — 넣지 않으면 추론 탭에서 받은 목록이 시계열 탭에 그대로
+ * 나온다(두 유형은 부하를 세는 축까지 달라 섞이면 수치가 거짓이 된다).
+ *
+ * ⚠ `SYSCONFIG_KEYS` 아래에 두지 않는다 — 설정값 저장이 이 목록을 무효화할 이유가 없고,
+ *   원장은 설정 캐시와 다른 진실원이다(`ADR-046`).
+ */
+export const AI_SERVER_KEYS = {
+  all: ['aiServers'] as const,
+  list: (srvrTypeCd?: string) => [...AI_SERVER_KEYS.all, 'list', srvrTypeCd ?? 'ALL'] as const,
+};
+
 export const NOTICE_KEYS = {
   all: ['notices'] as const,
   lists: () => [...NOTICE_KEYS.all, 'list'] as const,

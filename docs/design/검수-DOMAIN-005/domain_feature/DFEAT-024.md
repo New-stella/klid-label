@@ -1,22 +1,22 @@
 ---
 logicraft_item: DFEAT-024
 type: domain_feature
-version: 10
+version: 11
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-29T01:27:29.301Z
+synced_at: 2026-09-01T08:40:07.180Z
 status: CHANGED
 prev_version: 10
-content_hash: 281eb413b73436d60dcf50869cded036310d17a2edc0f3a96a41479b73c381ba
-stale: true
+content_hash: 39ade129d778cf18f834f59caed6b51ee6566aa03b05da3f8f3abc9eeec57caa
+stale: false
 raw: ./_raw/DFEAT-024.json
 links:
   belongs_to_domain: ["[[DOMAIN-005]]"]
-  implements: ["[[API-014]]", "[[API-015]]"]
+  implements: ["[[API-014]]", "[[API-015]]", "[[IMPREC-358]]"]
   migrated_from: ["[[LEGACY-078]]"]
   specializes: ["[[FEAT-008]]"]
   triggers: ["[[EVT-006]]"]
-  verifies: ["[[AC-022]]"]
+  verifies: ["[[AC-1040]]", "[[AC-1041]]", "[[AC-1042]]"]
   depicts_backward: ["[[CDIAG-006]]", "[[CMP-005]]"]
   realizes_backward: ["[[UC-023]]"]
 ---
@@ -103,6 +103,10 @@ LEGACY-078
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -128,6 +132,10 @@ _(empty)_
 ### last_updated
 
 2026-08-29T01:26:20.690Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 
@@ -160,7 +168,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-022
+- AC-1040
+- AC-1041
+- AC-1042
 
 ## specializes_feature
 

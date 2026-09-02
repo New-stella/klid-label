@@ -2,6 +2,8 @@ package kr.co.cudo.authoring.observability.health;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.retry.RetryRegistry;
+import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrRepository;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrRegistry;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.Status;
 import org.springframework.http.HttpHeaders;
@@ -54,7 +57,10 @@ class VlmHealthIndicatorTest {
                 CircuitBreakerRegistry.ofDefaults(),
                 RetryRegistry.ofDefaults(),
                 CLIENT_TIMEOUT_SECONDS);
-        indicator = new VlmHealthIndicator(vlmClient);
+        // 원장은 시계열 노드가 등록되지 않은 상태(현재 운영 형상)를 흉내낸다 — 이 인디케이터의
+        // 판정 축은 원장이 아니라 연동 클라이언트이므로 빈 원장이어도 검증 대상이 달라지지 않는다.
+        indicator = new VlmHealthIndicator(vlmClient,
+                new AiSrvrRegistry(Mockito.mock(LsAiSrvrRepository.class)));
     }
 
     @AfterEach

@@ -112,8 +112,22 @@
         }
       },
       "deprecated": false,
-      "parameters": [],
-      "description": "이전 프레임 폴리곤을 다음 프레임으로 전파하고 동일 track_id를 유지한다. 이전 폴리곤의 bbox를 프롬프트로 다음 프레임을 세그멘테이션하며, 마스크 없음/추론 실패 시 이전 폴리곤을 그대로 반환하는 mock 으로 fallback한다. prev_image_b64/next_image_b64는 mock 모드에서는 미사용이라 기본값 빈 문자열이다. 저작도구 내부 stateless 추론, 인증 없음. (SFR-08-01 VOS 이어붙이기)",
+      "parameters": [
+        {
+          "in": "header",
+          "name": "X-Workload",
+          "schema": {
+            "enum": [
+              "batch"
+            ],
+            "type": "string"
+          },
+          "example": "batch",
+          "required": false,
+          "description": "요청을 처리할 실행 슬롯을 고른다. 값이 정확히 batch 일 때만 배치 전용 슬롯으로 가고, 미지정·빈값·오타·대소문자 불일치를 포함한 그 밖의 모든 경우는 화면 전용 슬롯으로 간다. 배치 파이프라인만 이 값을 실으며 저작도구 화면 경로는 싣지 않는다."
+        }
+      ],
+      "description": "이전 프레임 폴리곤을 다음 프레임으로 전파하고 동일 track_id를 유지한다. 이전 폴리곤의 bbox를 프롬프트로 다음 프레임을 세그멘테이션하며, 마스크 없음/추론 실패 시 이전 폴리곤을 그대로 반환하는 mock 으로 fallback한다. prev_image_b64/next_image_b64는 mock 모드에서는 미사용이라 기본값 빈 문자열이다. 저작도구 내부 stateless 추론, 인증 없음. (SFR-08-01 VOS 이어붙이기) 배치와 저작도구 화면 요청은 서로 다른 실행 슬롯에서 처리되며, 어느 슬롯으로 갈지는 선택 요청 헤더 X-Workload 가 정한다. 헤더가 없으면 저작도구 화면 요청으로 처리한다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -153,6 +167,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -162,7 +177,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:52.800Z"
+        "last_updated": "2026-08-29T01:23:52.800Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -172,12 +188,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
-    "stale": true,
-    "stale_reason": "REQ-023의 domain_id 변경이 implements로 2-hop 전파",
-    "change_summary": "API-121 description 말미에 문서 감사 라운드 표기(\"D4 Rev1.1 목록에서는 제외, 코드는 구현됨\")가 남아 있었다(감사 지적) — ITEM 본문은 이 저장소 작업 이력을 담지 않는다. 요구사항 태그(SFR-08-01)만 남기고 감사 이력 서술을 제거한다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:52.800Z",
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "배치 실행 슬롯 분리(ADR-056)에 따라 선택 요청 헤더 X-Workload 파라미터를 추가하고, description 말미에 슬롯 분기 규칙 한 문장을 덧붙인다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T03:41:23.830Z",
     "created_at": "2026-07-07T07:35:16.845Z"
   }
 }

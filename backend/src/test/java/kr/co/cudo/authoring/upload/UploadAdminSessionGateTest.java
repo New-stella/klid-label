@@ -34,6 +34,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -126,7 +127,10 @@ class UploadAdminSessionGateTest {
     }
 
     private static void authenticate() {
-        TokenClaims claims = new TokenClaims(SUBJECT, Role.REVIEWER, Channel.INTERNAL,
+        // 유효창을 연 사람 = 관리자. 발급 창구의 판정이 역할 계층을 타지 않는 enum 동등 비교라
+        // 검수자는 유효창 자체를 얻을 수 없다(AdminSessionService). 관리자는 계층으로 검수자
+        // 전용 창구(PATCH·DELETE·HEAD·OPTIONS)도 그대로 통과한다.
+        TokenClaims claims = new TokenClaims(SUBJECT, Role.ADMIN, Channel.INTERNAL,
                 Instant.now().plusSeconds(3600));
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(claims, null, List.of()));
@@ -315,6 +319,63 @@ class UploadAdminSessionGateTest {
         }
     }
 
+    // ================================================================ 인가 표기
+
+    /**
+     * 두 <b>시작 창구</b>의 역할 표기가 실효 게이트(관리자)와 같은지, 그리고 <b>이어 올리기 축은
+     * 검수자 그대로</b>인지를 함께 고정한다. [@design API-152 · API-158 · AC-1087]
+     *
+     * <p>표기만 보는 시험이 아니다 — 실효 게이트는 유효창이고 그 발급이 관리자 전용이라 동작은
+     * 이미 관리자였다. 여기서 막는 회귀는 <b>두 방향</b>이다: ①시작 창구가 다시 검수자로 내려가
+     * 「검수자도 되는 창구」로 읽히는 것 ②이어 올리기 축까지 관리자로 함께 올라가는 것. ②는
+     * 유효창을 넓히는 것과 같은 종류의 회귀다(그 자리는 소유자 판정이 지킨다).
+     */
+    @Nested
+    @DisplayName("인가 표기")
+    class Authorization {
+
+        @Test
+        @DisplayName("★두_시작_창구는_ADMIN_이다 — 유효창을 발급받을 수 있는 역할과 같아야 한다")
+        void 시작_창구는_ADMIN() {
+            assertThat(preAuthorizeOf(TusUploadController.class, "create"))
+                    .as("TUS 세션 생성")
+                    .isEqualTo("hasRole('ADMIN')");
+            assertThat(preAuthorizeOf(DevAutolabelTestController.class, "upload"))
+                    .as("dev 업로드")
+                    .isEqualTo("hasRole('ADMIN')");
+        }
+
+        @Test
+        @DisplayName("★★이어올리기·취소·진행조회·능력광고는_REVIEWER_그대로다 — 올리면 대용량 전송이 끊긴다")
+        void 이어올리기_축은_REVIEWER_그대로() {
+            for (String method : List.of("patch", "delete", "head", "options")) {
+                assertThat(preAuthorizeOf(TusUploadController.class, method))
+                        .as("%s 는 유효창을 요구하지 않는 축이라 검수자 그대로여야 한다", method)
+                        .isEqualTo("hasRole('REVIEWER')");
+            }
+        }
+
+        @Test
+        @DisplayName("★이어올리기_축에는_유효창_표식이_없다 — 역할과 유효창은 같은 축을 지킨다")
+        void 이어올리기_축에는_표식이_없다() {
+            assertThat(annotatedMethodNames(TusUploadController.class))
+                    .as("표식은 세션 생성 한 곳에만")
+                    .containsExactly("create");
+        }
+    }
+
+    /** 그 핸들러에 붙은 {@code @PreAuthorize} 표현식(없으면 null). */
+    private static String preAuthorizeOf(Class<?> controller, String methodName) {
+        for (Method m : controller.getDeclaredMethods()) {
+            if (!m.getName().equals(methodName)) {
+                continue;
+            }
+            PreAuthorize annotation = AnnotatedElementUtils.findMergedAnnotation(m, PreAuthorize.class);
+            return annotation == null ? null : annotation.value();
+        }
+        throw new IllegalArgumentException(controller.getSimpleName() + "#" + methodName + " 없음");
+    }
+
     // ================================================================ 포털(대상 아님)
 
     @Test
@@ -378,7 +439,7 @@ class UploadAdminSessionGateTest {
         @Override
         public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
                                       NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-            return new TokenClaims(SUBJECT, Role.REVIEWER, Channel.INTERNAL,
+            return new TokenClaims(SUBJECT, Role.ADMIN, Channel.INTERNAL,
                     Instant.now().plusSeconds(3600));
         }
     }

@@ -372,10 +372,14 @@ sudo ./scripts/install/install-ffmpeg.sh --force
 1. **`/etc/klid/application.properties` 편집** — DB 비밀번호, JWT_SECRET, STREAM_SIGN_SECRET,
    webhook HMAC, **`ADMIN_CLAIM_PASSWORD_HASH`** 등 (키 목록은 04 참고).
    **WAR 형상에서 WAS 가 읽는 파일은 이것이다.**
-   ⚠ **`ADMIN_CLAIM_PASSWORD_HASH` 는 빠뜨려도 아무 신호가 없다.** 다른 비밀값은 비면 해당
-   기능이 곧바로 실패하거나(스트림 서명) 부팅이 막히는데(prd 의 webhook HMAC), 이것만은 기동도
-   헬스체크도 스모크도 전부 통과하고 **관리자 권한 부여 창구만 항상 401** 이라 아무도 관리자가
-   되지 못한다. BCrypt 해시(cost 12 이상)만 넣는다 — 평문을 넣으면 기동이 실패한다.
+   ★ **`ADMIN_CLAIM_PASSWORD_HASH` 에는 이제 기본값이 있다(2026-09-01) — 평문 `admin`.**
+   비워 두면 아무도 관리자가 되지 못해 관리 기능에 손을 댈 수 없었기 때문이며, 그 상태는
+   기동도 헬스체크도 스모크도 전부 통과해 **아무 신호도 나지 않았다**(관리자 권한 부여 창구만
+   항상 401). 그래서 기본값을 두어 첫 진입이 막히지 않게 했다.
+   ⚠⚠ **그 값은 널리 알려진 값이다 — 첫 진입 직후 관리 화면에서 반드시 바꾼다.**
+   바꾸면 새 값이 저장소(`klid_at.ls_mngr_pswd`)로 옮겨가고 이 설정값은 더 이상 판정에 쓰이지
+   않는다(그 전이는 09 운영 런북의 판정 순서 표를 볼 것).
+   다른 값을 쓰려면 BCrypt 해시(cost 12 이상)만 넣는다 — 평문을 넣으면 기동이 실패한다.
    생성은 04 의 치트시트: `htpasswd -bnBC 12 "" '평문' | tr -d ':\n'`
    WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` 와
    `-Dspring.profiles.active=prd` 를 넣고, JVM 옵션(MaxRAMPercentage·G1GC·egd)은 `CATALINA_OPTS` 로 옮긴다.

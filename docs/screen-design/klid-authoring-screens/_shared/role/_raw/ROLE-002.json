@@ -169,7 +169,7 @@
     "schema_version": 1,
     "current_version": 9,
     "stale": true,
-    "stale_reason": "ADR-055의 data.consequences 변경 — based_on",
+    "stale_reason": "SCREEN-009의 3개 필드 변경 — granted_on",
     "change_summary": "ADR-055 — 관리자 역할 신설 반영 + 진입 시 자동 부여되는 기본 역할이 됨.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-28T04:13:54.736Z",

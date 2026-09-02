@@ -1,9 +1,10 @@
 # klid-label frontend 빌드 기록
 #   이 값들은 <런타임 설정이 없을 때의 폴백>이다. 대상 서버의 정본은
 #   /etc/klid/frontend.env 이며 설치 시 klid-config.js 로 생성된다.
-built_at=2026-08-31 15:30:09+0900
-git_commit=65eb6145
+built_at=2026-09-02 07:25:49+0900
+git_commit=6131b890
 node=v24.4.0
+build_flavors=control portal
 VITE_API_BASE_URL=/api/v1
 VITE_TOKEN_INGRESS=localStorage
 VITE_DEV_LOGIN_ENABLED=true

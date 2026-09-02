@@ -16,6 +16,7 @@
     "ADR-051",
     "ADR-053",
     "ADR-055",
+    "ADR-057",
     "API-004",
     "API-068",
     "API-069",
@@ -92,6 +93,11 @@
     "UC-031"
   ],
   "pending": [
+    "AC-1022",
+    "AC-1023",
+    "AC-1028",
+    "AC-1029",
+    "AC-1087",
     "MOD-002",
     "MOD-016",
     "MOD-050",
@@ -103,6 +109,6 @@
     "IMPREC-157",
     "IMPREC-163"
   ],
-  "last_sync_at": "2026-08-31T11:12:39.823Z",
+  "last_sync_at": "2026-09-01T12:37:14.275Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 ID 를 pin 에서 제거(전수 status 조회 근거). 파일은 _retired/ 에 보존된다."
 }

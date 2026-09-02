@@ -10,74 +10,74 @@
     "data": {
       "theme": "neutral",
       "title": "포털 자산 업로드·수동 라벨링 — 업로드부터 본인 데이터 다운로드까지",
-      "source": "sequenceDiagram\n    actor U as 포털 회원(PORTAL_USER)\n    participant UPFE as 포털 업로드 화면\n    participant LBFE as 포털 업로드 라벨링 화면\n    participant UC as PortalUploadController\n    participant US as PortalUploadService\n    participant TC as PortalTusUploadController\n    participant TS as PortalVideoUploadService\n    participant TX as PortalVideoUploadTxService\n    participant PR as PortalVideoProbe(ffprobe)\n    participant BUS as ApplicationEventPublisher\n    participant RUN as PortalFrameExtractRunner\n    participant ETX as PortalFrameExtractTxService\n    participant LS as PortalUploadLabelService\n    participant DB as 저작도구 DB\n\n    rect rgb(245,245,245)\n    Note over U,DB: 1) 이미지 업로드 — 추출 단계가 없어 업로드 확정 시점에 READY\n    U->>UPFE: 이미지 선택(jpg/jpeg/png)\n    UPFE->>UC: POST /v1/portal/uploads/images (multipart)\n    UC->>US: uploadImages(portalUserNo, files)\n    US->>US: 전 파일 선검증(확장자·장당 크기·요청당 장수·매직바이트)\n    Note over US: 한 장이라도 걸리면 그 요청은 전부 거부된다\n    US->>US: 저장 파일명은 서버 발급, 올린 파일명은 표시용만\n    US->>DB: LS_PORTAL_ULD(IMAGE, READY) + LS_PORTAL_ULD_FRME 1행\n    DB-->>US: 적재 결과\n    US-->>UC: 업로드 결과 목록\n    UC-->>UPFE: 200 OK\n    end\n\n    rect rgb(245,245,245)\n    Note over U,DB: 2) 영상 업로드(재개 가능) — 확정 시 UPLOADED\n    U->>UPFE: 영상 선택(mp4/mov/avi)\n    UPFE->>TC: POST /v1/portal/uploads/tus (전체 길이·파일명)\n    TC->>TS: createSession(portalUserNo, cmd)\n    TS->>TS: 길이 상한·확장자·동시 진행 세션 수 검사\n    TS->>DB: LS_PORTAL_TUS_ULD 세션 적재 + 빈 임시 파일\n    DB-->>TS: 세션\n    TS-->>TC: 세션 식별자\n    TC-->>UPFE: 201 Created (Location 마지막 구간 = 세션 식별자)\n    loop 남은 바이트가 없을 때까지(중단 시 HEAD 로 이어쓸 위치 조회 후 재개)\n        UPFE->>TC: PATCH /v1/portal/uploads/tus/{uldId}\n        TC->>TS: appendChunk(...)\n        TS->>TX: 짧은 트랜잭션 — 위치 검증·기록·전진\n        TX->>DB: 진행 위치 갱신\n        DB-->>TX: 갱신\n        TX-->>TS: 새 위치 · 완료 후보 여부\n        TC-->>UPFE: 204 No Content\n    end\n    TS->>PR: 매직바이트 + 비디오 스트림 존재 확인\n    PR-->>TS: 길이 · 초당 프레임 수 · 스트림 보유\n    Note over TS,PR: 잠금을 놓은 뒤 검증한다 — 오래 걸리는 검사가 커넥션·잠금을 붙잡지 않게\n    TS->>TX: finalizeCompleted(...)\n    TX->>DB: LS_PORTAL_ULD(VIDEO, UPLOADED) + 세션 조건부 완료 전이\n    DB-->>TX: 자산 식별자\n    TX->>BUS: publishEvent(PortalVideoUploaded)\n    TX-->>TS: 자산 식별자\n    TS-->>UPFE: 완료 응답\n    end\n\n    rect rgb(245,245,245)\n    Note over BUS,DB: 3) 프레임 추출 — 업로드 완료 트랜잭션 커밋 이후에만 시작(롤백 시 미시작)\n    BUS->>RUN: onPortalVideoUploaded\n    RUN->>ETX: beginProcessing(uldSn) — UPLOADED에서 PROCESSING으로 원자 전이\n    ETX-->>RUN: 전이 성공(아니면 중단)\n    RUN->>PR: 길이·초당 프레임 수 조회\n    PR-->>RUN: 길이 · 초당 프레임 수(미상 시 기본값)\n    RUN->>RUN: 추출 간격을 시작 시점에 한 번 고정 + 프레임 번호 계산\n    Note over RUN: 상한 초과 시 전 구간을 고르게 다시 뽑고, 짧은 영상도 최소 한 장은 남긴다\n    loop 계산된 프레임 번호마다\n        RUN->>RUN: 프레임 이미지 추출 후 포털 전용 경로에 기록\n        RUN->>ETX: 진행 표시 갱신 + 자산 삭제 여부 확인\n        ETX-->>RUN: 계속 진행\n    end\n    RUN->>ETX: completeReady(uldSn, frames, 길이, 초당 프레임 수)\n    ETX->>DB: LS_PORTAL_ULD_FRME 일괄 적재 + 상태 READY 확정\n    DB-->>ETX: 확정\n    ETX-->>RUN: 확정\n    Note over RUN: 전 프레임을 다 뽑은 뒤에야 READY. 중간 실패 시 부분 파일 정리 후 FAILED\n    opt 화면은 진행 중 자산이 있는 동안 목록을 주기적으로 다시 읽는다\n        UPFE->>UC: GET /v1/portal/uploads\n        UC->>US: listUploads(...)\n        US-->>UPFE: 본인 자산 목록(READY|FAILED 로 바뀌면 중단)\n    end\n    end\n\n    rect rgb(245,245,245)\n    Note over U,DB: 4) 수동 라벨링과 다운로드 — READY 자산만\n    U->>LBFE: READY 자산의 라벨링 화면 진입\n    LBFE->>UC: GET /v1/portal/uploads/{uldSn} · /frames\n    UC-->>LBFE: 자산 상세 · 프레임 목록(본인 자산만)\n    LBFE->>UC: GET /v1/portal/uploads/frames/{uldFrmeSn}/image\n    UC-->>LBFE: 200 프레임 이미지\n    Note over UC,LBFE: 본인이 올린 자산이라 비식별 대상이 아니고 신고 게이트도 걸리지 않는다\n    LBFE->>LS: GET /v1/portal/uploads/frames/{uldFrmeSn}/labels\n    LS-->>LBFE: 200 라벨 목록(소유자 스코프)\n    U->>LBFE: BBOX/POLYGON 수동 라벨링\n    LBFE->>LS: PUT /v1/portal/uploads/frames/{uldFrmeSn}/labels — 전체교체\n    LS->>LS: 삭제 이전에 입력 전량 검증(라벨 수·형태·좌표 개수·유한성·정규형)\n    Note over LS: 빈 목록은 그 프레임의 라벨을 모두 지우는 유효한 요청이다\n    LS->>DB: 프레임 잠금 + 부모 자산 READY 확인 → 기존 라벨 삭제 후 일괄 저장(단일 트랜잭션)\n    DB-->>LS: 교체 결과\n    LS-->>LBFE: 200 OK\n    U->>LBFE: 본인 데이터 다운로드\n    LBFE->>LS: GET /v1/portal/uploads/{uldSn}/export\n    LS-->>LBFE: 자산 메타·프레임·라벨 자기완결 JSON 첨부\n    LBFE->>LS: GET /v1/portal/uploads/{uldSn}/file\n    LS-->>LBFE: 올린 원본 파일 첨부\n    Note over LS,DB: 포털 업로드 전용 테이블에만 쌓이며 내부 배치 파이프라인·데이터마트 뷰로 흘러가지 않는다\n    end\n",
+      "source": "sequenceDiagram\n    actor U as 포털 회원(PORTAL_USER)\n    participant UPFE as 포털 업로드 화면\n    participant LBFE as 포털 업로드 라벨링 화면\n    participant UC as PortalUploadController\n    participant US as PortalUploadService\n    participant TC as PortalTusUploadController\n    participant TS as PortalVideoUploadService\n    participant TX as PortalVideoUploadTxService\n    participant PR as PortalVideoProbe(ffprobe)\n    participant BUS as ApplicationEventPublisher\n    participant RUN as PortalFrameExtractRunner\n    participant ETX as PortalFrameExtractTxService\n    participant LS as PortalUploadLabelService\n    participant DB as 저작도구 DB\n\n    rect rgb(245,245,245)\n    Note over U,DB: [폐기] 1) 이미지 접수 — 이 창구를 두지 않는다. 닫히는 것은 신규 접수뿐이고 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 4) 에 남는다\n    U->>UPFE: [폐기] 이미지 선택(jpg/jpeg/png)\n    UPFE->>UC: [폐기] POST /v1/portal/uploads/images (multipart)\n    UC->>US: [폐기] uploadImages(portalUserNo, files)\n    US->>US: [폐기] 전 파일 선검증(확장자·장당 크기·요청당 장수·매직바이트)\n    Note over US: [폐기] 한 장이라도 걸리면 그 요청은 전부 거부된다\n    US->>US: [폐기] 저장 파일명은 서버 발급, 올린 파일명은 표시용만\n    US->>DB: [폐기] LS_PORTAL_ULD(IMAGE, READY) + LS_PORTAL_ULD_FRME 1행\n    DB-->>US: [폐기] 적재 결과\n    US-->>UC: [폐기] 업로드 결과 목록\n    UC-->>UPFE: [폐기] 200 OK\n    end\n\n    rect rgb(245,245,245)\n    Note over U,DB: 2) 영상 업로드(재개 가능) — 확정 시 UPLOADED\n    U->>UPFE: 영상 선택(mp4/mov/avi)\n    UPFE->>TC: POST /v1/portal/uploads/tus (전체 길이·파일명)\n    TC->>TS: createSession(portalUserNo, cmd)\n    TS->>TS: 길이 상한·확장자·동시 진행 세션 수 검사\n    TS->>DB: LS_PORTAL_TUS_ULD 세션 적재 + 빈 임시 파일\n    DB-->>TS: 세션\n    TS-->>TC: 세션 식별자\n    TC-->>UPFE: 201 Created (Location 마지막 구간 = 세션 식별자)\n    loop 남은 바이트가 없을 때까지(중단 시 HEAD 로 이어쓸 위치 조회 후 재개)\n        UPFE->>TC: PATCH /v1/portal/uploads/tus/{uldId}\n        TC->>TS: appendChunk(...)\n        TS->>TX: 짧은 트랜잭션 — 위치 검증·기록·전진\n        TX->>DB: 진행 위치 갱신\n        DB-->>TX: 갱신\n        TX-->>TS: 새 위치 · 완료 후보 여부\n        TC-->>UPFE: 204 No Content\n    end\n    TS->>PR: 매직바이트 + 비디오 스트림 존재 확인\n    PR-->>TS: 길이 · 초당 프레임 수 · 스트림 보유\n    Note over TS,PR: 잠금을 놓은 뒤 검증한다 — 오래 걸리는 검사가 커넥션·잠금을 붙잡지 않게\n    TS->>TX: finalizeCompleted(...)\n    TX->>DB: LS_PORTAL_ULD(VIDEO, UPLOADED) + 세션 조건부 완료 전이\n    DB-->>TX: 자산 식별자\n    TX->>BUS: publishEvent(PortalVideoUploaded)\n    TX-->>TS: 자산 식별자\n    TS-->>UPFE: 완료 응답\n    end\n\n    rect rgb(245,245,245)\n    Note over BUS,DB: 3) 프레임 추출 — 업로드 완료 트랜잭션 커밋 이후에만 시작(롤백 시 미시작)\n    BUS->>RUN: onPortalVideoUploaded\n    RUN->>ETX: beginProcessing(uldSn) — UPLOADED에서 PROCESSING으로 원자 전이\n    ETX-->>RUN: 전이 성공(아니면 중단)\n    RUN->>PR: 길이·초당 프레임 수 조회\n    PR-->>RUN: 길이 · 초당 프레임 수(미상 시 기본값)\n    RUN->>RUN: 추출 간격을 시작 시점에 한 번 고정 + 프레임 번호 계산\n    Note over RUN: 상한 초과 시 전 구간을 고르게 다시 뽑고, 짧은 영상도 최소 한 장은 남긴다\n    loop 계산된 프레임 번호마다\n        RUN->>RUN: 프레임 이미지 추출 후 포털 전용 경로에 기록\n        RUN->>ETX: 진행 표시 갱신 + 자산 삭제 여부 확인\n        ETX-->>RUN: 계속 진행\n    end\n    RUN->>ETX: completeReady(uldSn, frames, 길이, 초당 프레임 수)\n    ETX->>DB: LS_PORTAL_ULD_FRME 일괄 적재 + 상태 READY 확정\n    DB-->>ETX: 확정\n    ETX-->>RUN: 확정\n    Note over RUN: 전 프레임을 다 뽑은 뒤에야 READY. 중간 실패 시 부분 파일 정리 후 FAILED\n    opt 화면은 진행 중 자산이 있는 동안 목록을 주기적으로 다시 읽는다\n        UPFE->>UC: GET /v1/portal/uploads\n        UC->>US: listUploads(...)\n        US-->>UPFE: 본인 자산 목록(READY|FAILED 로 바뀌면 중단)\n    end\n    end\n\n    rect rgb(245,245,245)\n    Note over U,DB: 4) 수동 라벨링과 다운로드 — READY 자산만\n    U->>LBFE: READY 자산의 라벨링 화면 진입\n    LBFE->>UC: GET /v1/portal/uploads/{uldSn} · /frames\n    UC-->>LBFE: 자산 상세 · 프레임 목록(본인 자산만)\n    LBFE->>UC: GET /v1/portal/uploads/frames/{uldFrmeSn}/image\n    UC-->>LBFE: 200 프레임 이미지\n    Note over UC,LBFE: 영상에서 뽑은 프레임을 내려주는 자리라 이미지 접수 폐기와 무관하다. 본인이 올린 자산이라 비식별 대상이 아니고 신고 게이트도 걸리지 않는다\n    LBFE->>LS: GET /v1/portal/uploads/frames/{uldFrmeSn}/labels\n    LS-->>LBFE: 200 라벨 목록(소유자 스코프)\n    U->>LBFE: BBOX/POLYGON 수동 라벨링\n    LBFE->>LS: PUT /v1/portal/uploads/frames/{uldFrmeSn}/labels — 전체교체\n    LS->>LS: 삭제 이전에 입력 전량 검증(라벨 수·형태·좌표 개수·유한성·정규형)\n    Note over LS: 빈 목록은 그 프레임의 라벨을 모두 지우는 유효한 요청이다\n    LS->>DB: 프레임 잠금 + 부모 자산 READY 확인 → 기존 라벨 삭제 후 일괄 저장(단일 트랜잭션)\n    DB-->>LS: 교체 결과\n    LS-->>LBFE: 200 OK\n    U->>LBFE: 본인 데이터 다운로드\n    LBFE->>LS: GET /v1/portal/uploads/{uldSn}/export\n    LS-->>LBFE: 자산 메타·프레임·라벨 자기완결 JSON 첨부\n    LBFE->>LS: GET /v1/portal/uploads/{uldSn}/file\n    LS-->>LBFE: 올린 원본 파일 첨부\n    Note over LS,DB: 포털 업로드 전용 테이블에만 쌓이며 내부 배치 파이프라인·데이터마트 뷰로 흘러가지 않는다\n    end\n",
       "messages": [
         {
           "to": "upFe",
           "from": "user",
           "kind": "sync",
-          "label": "이미지 선택(jpg/jpeg/png)"
+          "label": "[폐기] 이미지 선택(jpg/jpeg/png) — 이 진입을 두지 않는다"
         },
         {
           "to": "upCtrl",
           "from": "upFe",
           "kind": "sync",
-          "label": "POST /v1/portal/uploads/images (multipart)",
+          "label": "[폐기] POST /v1/portal/uploads/images (multipart) — 이 접수 창구를 두지 않는다",
           "item_ref": "API-139"
         },
         {
           "to": "upSvc",
           "from": "upCtrl",
           "kind": "sync",
-          "label": "uploadImages(portalUserNo, files)"
+          "label": "[폐기] uploadImages(portalUserNo, files) — 이 접수 처리를 두지 않는다"
         },
         {
           "to": "upSvc",
           "from": "upSvc",
           "kind": "self",
-          "label": "전 파일을 먼저 검증한다 — 확장자 허용 목록·장당 크기 상한·요청당 장수 상한·매직바이트"
+          "label": "[폐기] 전 파일을 먼저 검증한다 — 확장자 허용 목록·장당 크기 상한·요청당 장수 상한·매직바이트. 이 검증을 두지 않는다"
         },
         {
           "to": "upSvc",
           "from": "upSvc",
           "kind": "note",
-          "label": "한 장이라도 검증에 걸리면 그 요청은 전부 거부된다 — 일부만 올라가 반쪽 자산이 남지 않게 한다"
+          "label": "[폐기] 한 장이라도 검증에 걸리면 그 요청은 전부 거부된다 — 이 전량 거부 규칙을 두지 않는다"
         },
         {
           "to": "upSvc",
           "from": "upSvc",
           "kind": "self",
-          "label": "저장 파일명은 서버가 발급하고 올린 파일명은 표시용으로만 보관한다(경로 조작 차단)"
+          "label": "[폐기] 저장 파일명은 서버가 발급하고 올린 파일명은 표시용으로만 보관한다 — 이미지 접수 축에는 두지 않는다. 영상 접수 축의 같은 규칙은 그대로다"
         },
         {
           "to": "db",
           "from": "upSvc",
           "kind": "sync",
-          "label": "LS_PORTAL_ULD 적재(자산 종류 IMAGE, 상태 READY) + LS_PORTAL_ULD_FRME 에 프레임 1행"
+          "label": "[폐기] LS_PORTAL_ULD 적재(자산 종류 IMAGE, 상태 READY) + LS_PORTAL_ULD_FRME 에 프레임 1행 — 이 적재를 두지 않는다"
         },
         {
           "to": "upSvc",
           "from": "db",
           "kind": "return",
-          "label": "적재 결과"
+          "label": "[폐기] 적재 결과"
         },
         {
           "to": "upSvc",
           "from": "upSvc",
           "kind": "note",
-          "label": "이미지는 추출할 프레임이 없으므로 업로드 확정 시점에 곧바로 READY 이고, 그 프레임 1행이 올린 이미지 자신을 가리킨다"
+          "label": "[폐기] 이미지는 추출할 프레임이 없으므로 접수 확정 시점에 곧바로 READY 이던 분기 — 두지 않는다. 자산 종류 값역에서 이미지 값을 없애지는 않으며, 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 그대로 성립한다"
         },
         {
           "to": "upCtrl",
           "from": "upSvc",
           "kind": "return",
-          "label": "업로드 결과 목록"
+          "label": "[폐기] 업로드 결과 목록"
         },
         {
           "to": "upFe",
           "from": "upCtrl",
           "kind": "return",
-          "label": "200 OK"
+          "label": "[폐기] 200 OK"
         },
         {
           "to": "upFe",
@@ -497,7 +497,7 @@
         ],
         "diff_summary": "2차 신규 — 포털 회원이 본인 자산을 직접 올려 수동 라벨링하는 흐름을 처음으로 시각화한다."
       },
-      "description": "포털 회원(PORTAL_USER)이 본인 이미지·영상을 직접 올려 수동 라벨링하고 본인 데이터를 내려받는 흐름의 시퀀스 다이어그램. 이미지 다건 업로드, 영상의 재개 가능 업로드와 프레임 추출, 프레임 단위 라벨 전체교체 저장, 라벨 JSON 내보내기와 원본 파일 다운로드를 그린다.\n\n이 경로는 데이터마트 영상 선택 경로와 저장소부터 분리돼 있다. 자산·프레임·라벨은 포털 업로드 전용 테이블(LS_PORTAL_ULD · LS_PORTAL_ULD_FRME · LS_PORTAL_ULD_LBL)과 업로드 세션 테이블(LS_PORTAL_TUS_ULD)에 적재되고 파일도 포털 전용 저장 경로에 기록되며, 내부 배치 파이프라인(비식별·마킹·시계열·오토라벨링)과 데이터마트 적재용 뷰로는 흘러가지 않는다. 회원이 직접 올린 자산이라 비식별 대상이 아니고 비식별 누락 신고 게이트도 적용되지 않는다 — 데이터마트 프레임을 포털로 내보내는 경로와 갈리는 지점이다.\n\n자산 상태는 UPLOADED · PROCESSING · READY · FAILED 로 전이한다. 이미지는 추출할 프레임이 없어 업로드 확정 시점에 곧바로 READY 이며 프레임 한 행이 올린 이미지 자신을 가리킨다. 영상은 업로드 확정 시 UPLOADED 로 적재된 뒤, 업로드 트랜잭션이 커밋된 이후에만 프레임 추출이 시작된다 — 롤백된 업로드가 추출을 깨우지 않게 하기 위해서다. 추출은 시작 시 PROCESSING 으로 원자 전이하고 계산된 프레임을 모두 뽑은 뒤에야 READY 로 확정하며, 중간에 실패하면 부분 파일을 정리하고 FAILED 로 마감한다. 라벨링과 다운로드는 READY 자산에서만 성립한다.\n\n라벨 저장은 프레임 단위 전체교체이고 빈 목록은 그 프레임의 라벨을 모두 지우는 유효한 요청이다. 검증은 삭제보다 먼저 전량 수행해, 일부만 유효한 요청이 기존 라벨을 지운 채 실패하는 일이 없게 한다. 라벨 형태는 BBOX·POLYGON 만 허용하며 오토라벨링·객체 자동 분할과 추적·검수·버전관리는 이 경로에 없다. 시계열 축에서 없는 것은 외부 시계열 분석 서버로 나가는 위탁 연동이다.\n\n업로드한 영상 자산에 한해서는 이벤트구간 마킹과 AI 증강 연동 요청이 제공된다 — 마킹은 업로드 라벨링 화면에서 수행하고, 증강 요청 자리는 업로드 목록의 자산별 액션이다. 그 둘은 이 시퀀스가 그리는 범위 밖이며 별도 흐름으로 그린다. 이 시퀀스의 범위는 업로드와 프레임 추출, 프레임 단위 라벨 저장, 라벨 내보내기와 원본 다운로드다.\n\n조회·수정·삭제·다운로드는 모두 소유자 스코프로만 이뤄지고, 남의 자산이나 남의 업로드 세션을 가리키는 요청은 존재하지 않는 것과 같은 응답을 받아 실재 여부가 응답으로 드러나지 않는다.",
+      "description": "포털 회원(PORTAL_USER)이 본인 영상을 직접 올려 프레임 단위로 수동 라벨링하고 본인 데이터를 내려받는 흐름의 시퀀스 다이어그램. 영상의 재개 가능 업로드와 프레임 추출, 프레임 단위 라벨 전체교체 저장, 라벨 JSON 내보내기와 원본 파일 다운로드를 그린다.\n\n[폐기] 이미지 접수 분기 — 포털 회원이 이미지를 직접 올리는 창구를 두지 않는다. 확장자 허용 목록(jpg·jpeg·png)·장당 크기 상한·요청당 장수 상한으로 규정하던 다중 접수와, 추출할 프레임이 없어 접수 확정 시점에 곧바로 READY 로 두던 분기가 함께 폐기된다. 자산 종류 값역에서 이미지 값 자체를 없애지는 않는다 — 닫히는 것은 신규 접수뿐이고, 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 그대로 성립한다. 흐름도에는 그 분기를 지우지 않고 폐기로 표기해 남긴다. 프레임 이미지 서빙은 영상에서 뽑은 프레임을 내려주는 자리라 이 폐기와 무관하다.\n\n이 경로는 데이터마트 영상 선택 경로와 저장소부터 분리돼 있다. 자산·프레임·라벨은 포털 업로드 전용 테이블(LS_PORTAL_ULD · LS_PORTAL_ULD_FRME · LS_PORTAL_ULD_LBL)과 업로드 세션 테이블(LS_PORTAL_TUS_ULD)에 적재되고 파일도 포털 전용 저장 경로에 기록되며, 내부 배치 파이프라인(비식별·마킹·시계열·오토라벨링)과 데이터마트 적재용 뷰로는 흘러가지 않는다. 회원이 직접 올린 자산이라 비식별 대상이 아니고 비식별 누락 신고 게이트도 적용되지 않는다 — 데이터마트 프레임을 포털로 내보내는 경로와 갈리는 지점이다.\n\n자산 상태는 UPLOADED · PROCESSING · READY · FAILED 로 전이한다. 영상은 업로드 확정 시 UPLOADED 로 적재된 뒤, 업로드 트랜잭션이 커밋된 이후에만 프레임 추출이 시작된다 — 롤백된 업로드가 추출을 깨우지 않게 하기 위해서다. 추출은 시작 시 PROCESSING 으로 원자 전이하고 계산된 프레임을 모두 뽑은 뒤에야 READY 로 확정하며, 중간에 실패하면 부분 파일을 정리하고 FAILED 로 마감한다. 라벨링과 다운로드는 READY 자산에서만 성립한다.\n\n라벨 저장은 프레임 단위 전체교체이고 빈 목록은 그 프레임의 라벨을 모두 지우는 유효한 요청이다. 검증은 삭제보다 먼저 전량 수행해, 일부만 유효한 요청이 기존 라벨을 지운 채 실패하는 일이 없게 한다. 라벨 형태는 BBOX·POLYGON 만 허용하며 오토라벨링·객체 자동 분할과 추적·검수·버전관리는 이 경로에 없다. 시계열 축에서 없는 것은 외부 시계열 분석 서버로 나가는 위탁 연동이다.\n\n업로드한 영상 자산에 한해서는 이벤트구간 마킹과 AI 증강 연동 요청이 제공된다 — 마킹은 업로드 라벨링 화면에서 수행하고, 증강 요청 자리는 업로드 목록의 자산별 액션이다. 그 둘은 이 시퀀스가 그리는 범위 밖이며 별도 흐름으로 그린다. 이 시퀀스의 범위는 업로드와 프레임 추출, 프레임 단위 라벨 저장, 라벨 내보내기와 원본 다운로드다.\n\n조회·수정·삭제·다운로드는 모두 소유자 스코프로만 이뤄지고, 남의 자산이나 남의 업로드 세션을 가리키는 요청은 존재하지 않는 것과 같은 응답을 받아 실재 여부가 응답으로 드러나지 않는다.",
       "invokes_apis": [
         "API-139",
         "API-163",
@@ -590,6 +590,7 @@
         }
       ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
@@ -611,12 +612,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "외부 위탁 창구가 이미 규정돼 있다는 사실과 이벤트 유형 합의가 남았다는 축에 대한 확인만 기록한다. 이 시퀀스가 두 흐름을 그리지 못한 이유가 더 좁혀졌다 — 창구가 없어서가 아니라 요청 본문의 필수 값 하나를 아직 채울 수 없어서다. 참여자와 메시지를 그리려면 그 값이 정해져야 하므로 이번에도 범위 밖으로 둔 서술을 그대로 유지한다.",
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "ADR-013의 data.consequences 변경 — based_on",
+    "change_summary": "포털 이미지 접수 분기를 폐기로 표기한다. 상위 결정이 포털 회원의 이미지 직접 접수 창구를 두지 않기로 정했고 영상 접수는 그대로 유지되므로, 이 시퀀스는 영상 재개 가능 업로드 → 프레임 추출 → 프레임 단위 수동 라벨링 → 본인 데이터 다운로드 단일 흐름으로 읽힌다. 이미지 접수 메시지 11건과 흐름도의 1) 묶음은 지우지 않고 폐기 접두와 「두지 않는다」 서술로 남긴다 — 자산 종류 값역에서 이미지 값을 없애지 않으며, 이미 접수된 이미지 자산의 조회·라벨 확인·다운로드·삭제는 그대로 성립하고 닫히는 것은 신규 접수뿐이기 때문이다. 프레임 이미지 서빙은 영상에서 뽑은 프레임을 내려주는 자리라 폐기 대상이 아님을 본문에 명시했다. 쓰기 직전 이 산출물은 stale 이었고 사유는 「API-139의 4개 필드 변경 — consumes」로, 그 API 가 접수 창구를 두지 않기로 개정된 것과 같은 축이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T10:18:16.457Z",
+    "last_updated_at": "2026-09-01T09:54:51.868Z",
     "created_at": "2026-08-16T04:21:10.573Z"
   }
 }

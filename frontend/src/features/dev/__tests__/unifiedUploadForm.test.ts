@@ -281,9 +281,9 @@ describe('단일 업로드 폼 — 업로드 시작 가능 여부', () => {
     ).toBe(false);
   });
 
-  it('식별_정보_네_항목이_비면_어느_경로에서도_시작할_수_없다', () => {
-    // given — 필수 4항목: 클립 ID · CCTV ID · 출처유형 · 지자체코드
-    const required = ['vmsClipId', 'cctvId', 'srcType', 'lclgvCd'] as const;
+  it('식별_정보_세_항목이_비면_어느_경로에서도_시작할_수_없다', () => {
+    // given — 두 경로 공통 필수 3항목: 클립 ID · CCTV ID · 지자체코드
+    const required = ['vmsClipId', 'cctvId', 'lclgvCd'] as const;
 
     for (const key of required) {
       for (const route of [UploadRoute.IMMEDIATE, UploadRoute.INGEST]) {
@@ -297,6 +297,36 @@ describe('단일 업로드 폼 — 업로드 시작 가능 여부', () => {
         ).toBe(false);
       }
     }
+  });
+
+  /**
+   * ★출처유형은 어느 경로에서도 시작을 막지 않는다 — 서버가 요구하지 않는 값이기 때문이다.
+   *
+   * 즉시 실행은 계약에 그 필드가 아예 없어 전송조차 되지 않고(`UNSENT_GROUPS[IMMEDIATE]` 에
+   * '출처유형' 이 들어 있다), 인입 재현은 비우면 서버가 기본값을 붙인다. 구 동작은 경로를 가리지
+   * 않고 이 값을 요구해, 같은 화면 영역에서 「전송되지 않습니다」 안내와 필수 강제를 동시에
+   * 내보내고 있었다. **이 케이스가 그 강제의 부활을 막는 축이다** — 위 세 항목 케이스는
+   * 출처유형이 다시 필수가 되어도 통과한다(그 검사가 없어도 다른 이유로 false 이므로).
+   */
+  it('★출처유형이_비어도_두_경로_모두_시작할_수_있다 — 서버가_요구하지_않는다', () => {
+    // given — 다른 필수는 모두 채워진 채 출처유형만 비운다
+    const form = { ...initialUnifiedUploadForm(), srcType: '' };
+
+    // then — 즉시 실행: 그 경로에서는 전송조차 되지 않는 값이다
+    expect(
+      canStartUpload({
+        file: file(10),
+        form,
+        route: UploadRoute.IMMEDIATE,
+        eventTypeCd: 'EV03000101',
+      }),
+      'IMMEDIATE',
+    ).toBe(true);
+    // then — 인입 재현: 전송되지만 비우면 서버가 기본값을 붙인다
+    expect(
+      canStartUpload({ file: file(10), form, route: UploadRoute.INGEST, eventTypeCd: '' }),
+      'INGEST',
+    ).toBe(true);
   });
 
   it('선택_묶음이_전부_비어도_시작할_수_있다', () => {

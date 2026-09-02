@@ -167,11 +167,11 @@
           },
           "example": {
             "data": null,
-            "message": "검수자 권한이 필요합니다.",
+            "message": "관리자만 외부 산출물을 적재할 수 있습니다.",
             "success": false,
             "errorCode": "FORBIDDEN"
           },
-          "description": "검수자 권한이 없다. ErrorCode=FORBIDDEN",
+          "description": "관리자 역할이 없다. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "409": {
@@ -283,6 +283,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -330,21 +331,19 @@
         "FEAT-010"
       ],
       "verifies_acceptance": [
-        "AC-044",
-        "AC-045",
-        "AC-046",
-        "AC-047",
-        "AC-048"
+        "AC-1079",
+        "AC-1080",
+        "AC-1081"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 12,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "직전 편집이 남긴 모순 정정 — 구 문장 '검수자만 호출할 수 있다' 를 제거한다(관리자 전용으로 바뀌어 거짓).",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-28T11:32:29.762Z",
+    "change_summary": "검증한다고 선언한 수용기준 목록을 살아 있는 것으로 다시 세운다. 5건 중 5건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1079, AC-1080, AC-1081). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:27:05.450Z",
     "created_at": "2026-08-19T07:52:19.993Z"
   }
 }

@@ -3,11 +3,11 @@ logicraft_item: SCREEN-041
 type: screen_spec
 version: 10
 last_updated_at: 2026-08-28T22:11:36.148Z
-domain: null
+domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-31T11:40:26.671Z
-sync_session: 1
-stale: false
+synced_at: 2026-09-01T08:39:29.460Z
+sync_session: 37
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-041.json

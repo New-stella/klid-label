@@ -120,8 +120,22 @@
         }
       },
       "deprecated": false,
-      "parameters": [],
-      "description": "base64 이미지 + clip_id + frame_index를 받아 트래킹된 detections를 반환한다. clip_id별로 트래커 인스턴스를 격리/캐시하며 frame_index=0이면 트래커를 리셋(새 인스턴스)한다. /predict와 동일 응답 구조이며 detections[*].track_id가 트래커 부여 ID다(저신뢰 detection은 null 가능). 탐지는 YOLOX(ONNX Runtime)이고 track_id 부여는 ByteTrack 이며, 설정으로 백엔드를 고르지 않는 단일 백엔드다. mock 조건 시 mock 응답을 반환한다. 저작도구 내부 stateless 추론, 인증 없음.",
+      "parameters": [
+        {
+          "in": "header",
+          "name": "X-Workload",
+          "schema": {
+            "enum": [
+              "batch"
+            ],
+            "type": "string"
+          },
+          "example": "batch",
+          "required": false,
+          "description": "요청을 처리할 실행 슬롯을 고른다. 값이 정확히 batch 일 때만 배치 전용 슬롯으로 가고, 미지정·빈값·오타·대소문자 불일치를 포함한 그 밖의 모든 경우는 화면 전용 슬롯으로 간다. 배치 파이프라인만 이 값을 실으며 저작도구 화면 경로는 싣지 않는다."
+        }
+      ],
+      "description": "base64 이미지 + clip_id + frame_index를 받아 트래킹된 detections를 반환한다. clip_id별로 트래커 인스턴스를 격리/캐시하며 frame_index=0이면 트래커를 리셋(새 인스턴스)한다. /predict와 동일 응답 구조이며 detections[*].track_id가 트래커 부여 ID다(저신뢰 detection은 null 가능). 탐지는 YOLOX(ONNX Runtime)이고 track_id 부여는 ByteTrack 이며, 설정으로 백엔드를 고르지 않는 단일 백엔드다. mock 조건 시 mock 응답을 반환한다. 저작도구 내부 stateless 추론, 인증 없음. 배치와 저작도구 화면 요청은 서로 다른 실행 슬롯에서 처리되며, 어느 슬롯으로 갈지는 선택 요청 헤더 X-Workload 가 정한다. 헤더가 없으면 저작도구 화면 요청으로 처리한다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -175,6 +189,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -184,7 +199,8 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-29T01:23:52.443Z"
+        "last_updated": "2026-08-29T01:23:52.443Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -194,12 +210,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 4,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "API-119(/infer/yolo/track) 의 implements_features 가 비어 있었다(감사 지적 — 추적성 공백). YOLO 온디맨드 추적을 수행하는 ai-server 추론 primitive 로 FEAT-001(AI 보조 라벨링)을 지지하므로 연결한다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:23:52.443Z",
+    "change_summary": "ADR-056(용도별 실행 슬롯 분리) 반영 — 선택 요청 헤더 X-Workload(enum: batch)를 parameters 에 추가하고, description 끝에 슬롯 분기 규칙 한 문장을 덧붙였다. path/method/request_body/responses/기존 서술은 변경 없음.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T03:40:52.563Z",
     "created_at": "2026-07-07T07:34:07.410Z"
   }
 }

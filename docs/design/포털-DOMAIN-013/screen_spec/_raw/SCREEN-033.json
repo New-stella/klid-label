@@ -12,46 +12,8 @@
       "title": "포털 업로드 화면",
       "device": "responsive",
       "status": "draft",
-      "purpose": "PORTAL_USER가 본인 소유 이미지·영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 이미지는 다중 선택 후 클라이언트 사전검증(jpg/jpeg/png, 20MB/장, 50장/요청)을 거쳐 multipart 업로드하고, 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + 만료 예정일 + READY 자산의 라벨링 진입(/portal/uploads/{uldSn}/label) + 삭제(PROCESSING 중이면 BE가 409로 거부)를 제공한다. 이 경로의 자산은 비식별 처리를 거치지 않아 가공되지 않은 개인정보가 그대로 보관되므로 보존기간을 짧게 두고, 기간이 지나면 저장 행과 파일을 함께 삭제한다. 사용자가 삭제 시점을 예측할 수 있도록 목록의 각 자산에 만료 예정일을 날짜까지 표기한다. 업로드한 영상 자산에 한해 AI 증강 연동을 요청할 수 있으며, 요청 자리는 목록의 자산별 액션이다 — 서버가 외부로 보내는 비동기 위탁이라 포털 사용자가 외부 추론 엔드포인트를 직접 호출하지 않는다. 미제공은 오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)을 뜻한다. 접근: PORTAL_USER.",
+      "purpose": "PORTAL_USER가 본인 소유 영상 자산을 직접 업로드하는 화면. 데이터마트 라벨링과 완전 분리된 별도 파이프라인(LS_PORTAL_* 전용)이며 관제 학습용 배치·오토라벨링·검수·버전관리를 전혀 거치지 않는다. 영상은 기존 TUS 재개 가능 업로드 엔진을 포털 전용 endpoint(/portal/uploads/tus)로 재사용해 mp4/mov/avi, 최대 5GB까지 청크 업로드한다. 업로드 자산은 UPLOADED→PROCESSING→READY|FAILED 상태로 전이하며(영상은 고정 간격 프레임 추출), 목록에서 상태 배지 + 만료 예정일 + READY 자산의 라벨링 진입(/portal/uploads/{uldSn}/label) + 삭제(PROCESSING 중이면 BE가 409로 거부)를 제공한다. 목록에는 이미지 자산과 영상 자산이 함께 표시되며 자산 종류에 따라 행별 액션 노출이 갈린다. 이 경로의 자산은 비식별 처리를 거치지 않아 가공되지 않은 개인정보가 그대로 보관되므로 보존기간을 짧게 두고, 기간이 지나면 저장 행과 파일을 함께 삭제한다. 사용자가 삭제 시점을 예측할 수 있도록 목록의 각 자산에 만료 예정일을 날짜까지 표기한다. 업로드한 영상 자산에 한해 AI 증강 연동을 요청할 수 있으며, 요청 자리는 목록의 자산별 액션이다 — 서버가 외부로 보내는 비동기 위탁이라 포털 사용자가 외부 추론 엔드포인트를 직접 호출하지 않는다. 미제공은 오토라벨링(YOLO)·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)을 뜻한다. 접근: PORTAL_USER.",
       "sections": [
-        {
-          "name": "이미지 업로드",
-          "role": "main",
-          "layout": "form",
-          "components": [
-            {
-              "note": "accept=image/jpeg,image/png,.jpg,.jpeg,.png, multiple",
-              "type": "Input",
-              "label": "이미지 파일 (다중 선택)",
-              "columns": [],
-              "options": []
-            },
-            {
-              "type": "Text",
-              "label": "정책 안내 (20MB/장 · 50장/요청)",
-              "columns": [],
-              "options": []
-            },
-            {
-              "type": "Alert",
-              "label": "검증 오류 목록",
-              "state": "error",
-              "columns": [],
-              "options": []
-            },
-            {
-              "note": "선택 0건 또는 업로드 중이면 disabled",
-              "type": "Button",
-              "label": "이미지 업로드",
-              "columns": [],
-              "options": [],
-              "variant": "primary"
-            }
-          ],
-          "description": "다중 파일 선택(accept image/jpeg,image/png) → 클라이언트 사전검증(validateImageFiles: 확장자·개수 50장·크기 20MB/장) 실패 시 role=alert 에러 목록. 검증 통과분만 '이미지 업로드' 버튼으로 multipart POST(엔드포인트: /portal/uploads/images). 업로드 중 진행률(%) 표시, 성공 시 선택 초기화.",
-          "references_apis": [],
-          "references_features": []
-        },
         {
           "name": "영상 업로드 (TUS)",
           "role": "main",
@@ -156,7 +118,6 @@
       },
       "surface_kind": "web",
       "consumes_apis": [
-        "API-139",
         "API-142",
         "API-151",
         "API-163",
@@ -165,6 +126,7 @@
         "API-171",
         "API-161"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [
@@ -198,6 +160,7 @@
         }
       ],
       "uses_constants": [],
+      "uses_components": [],
       "external_designs": [],
       "realizes_use_cases": [
         "UC-027"
@@ -206,12 +169,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 23,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "외부 위탁 창구가 이미 규정돼 있다는 사실과 이벤트 유형 합의가 남았다는 축에 대한 확인만 기록한다. 이 화면이 담는 것은 요청을 어느 행에서 어떤 조건으로 띄우는지이고, 그 조건(본인 자산·준비 완료)은 직전 리비전에서 이미 반영했다. 요청 본문을 무엇으로 채우는지는 이 화면의 사양이 아니라 위탁 규격의 몫이라 걸리는 항목이 없다.",
+    "current_version": 24,
+    "stale": true,
+    "stale_reason": "ADR-013의 data.consequences 변경 — based_on",
+    "change_summary": "포털 사용자 이미지 업로드 접수를 닫는 상위 확정에 맞춰 이 화면에서 이미지 업로드 진입을 뺀다. 발주처 산출물이라 본문에 폐기 문구를 남기지 않고 원소째 제거했으므로, 없어진 내용을 여기에 적어 보존한다 — ①「이미지 업로드」 섹션 전체(다중 파일 선택 input, 정책 안내 문구, 클라이언트 사전검증 오류 목록, 이미지 업로드 버튼) ②그 섹션이 안내하던 이미지 제약(jpg·jpeg·png · 장당 20MB · 요청당 50장)과 클라이언트 사전검증 규칙(확장자·개수·크기) ③목적문의 이미지 업로드 서술 ④소비 API 에서 이미지 업로드 접수 엔드포인트(API-139). 영상 업로드는 그대로 둔다 — 진입·제약 안내(mp4·mov·avi · 최대 5GB · 재개 가능 업로드)·진행률·TUS 소비 API 가 모두 불변이다. 업로드 자산 목록도 불변이다 — 이미 올라간 이미지 자산이 계속 표시되므로 자산 종류 표시에서 이미지 값을 빼지 않았고, 「AI 증강 요청」이 준비 완료 영상 자산에만 붙는다는 규칙도 그대로다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T10:18:16.290Z",
+    "last_updated_at": "2026-09-01T09:47:03.956Z",
     "created_at": "2026-07-30T07:10:23.712Z"
   }
 }

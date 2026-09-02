@@ -1,20 +1,20 @@
 ---
 logicraft_item: SCREEN-009
 type: screen_spec
-version: 75
+version: 76
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T11:37:02.292Z
+synced_at: 2026-09-01T08:40:14.685Z
 status: CHANGED
-prev_version: 64
-content_hash: a99a781eff95d2b768687480855cb2a91d84622d7a3e7f9eba6de168429922dd
-stale: true
+prev_version: 75
+content_hash: ad0b03e2d150c3605a9d776ae82b52393c139d189fb5c5b299b4dded71d700e4
+stale: false
 raw: ./_raw/SCREEN-009.json
 links:
   based_on: ["[[ADR-001]]"]
   belongs_to_domain: ["[[DOMAIN-003]]"]
   consumes: ["[[API-021]]", "[[API-043]]", "[[API-044]]", "[[API-167]]", "[[API-198]]", "[[API-201]]"]
-  covered_by: ["[[AC-051]]"]
+  covered_by: ["[[AC-1022]]", "[[AC-1023]]"]
   implements: ["[[IMPREC-038]]", "[[IMPREC-040]]", "[[IMPREC-053]]", "[[IMPREC-131]]", "[[IMPREC-148]]", "[[IMPREC-150]]"]
   migrated_from: ["[[LEGACY-003]]"]
   references: ["[[API-021]]", "[[API-043]]", "[[API-044]]", "[[API-167]]", "[[API-198]]", "[[API-201]]"]
@@ -569,6 +569,10 @@ web
 - API-198
 - API-201
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -658,6 +662,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -668,4 +676,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-051
+- AC-1022
+- AC-1023

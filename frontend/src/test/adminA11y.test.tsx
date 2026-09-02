@@ -109,6 +109,56 @@ const CONFIGS = {
   errorCode: null,
 };
 
+/**
+ * AI 장비 목록(SCREEN-042 「AI 장비 목록」 영역) — 연동 서버 주소 화면이 함께 그린다.
+ *
+ * ⚠ 이 응답을 배선하지 않으면 그 영역이 오류 상태로만 렌더되어 <b>표·배지·행 액션이 통째로
+ *   감사 대상에서 빠진다</b>. 감사기가 아무것도 못 보고 초록이 되는 형태라 반드시 채워 둔다.
+ */
+const AI_SERVERS = {
+  success: true,
+  data: [
+    {
+      srvrId: 'gpu01',
+      srvrNm: 'klid-ai-gpu-01',
+      srvrAddr: 'http://10.0.0.11:9300',
+      srvrTypeCd: 'INFERENCE',
+      srvrSttsCd: 'AVAILABLE',
+      chckDt: '2026-09-01T00:00:00Z',
+      chckFailNocs: 0,
+      chckScsNocs: 12,
+      regDt: '2026-08-01T00:00:00Z',
+      mdfrId: '1001',
+      mdfcnDt: null,
+      loads: [
+        {
+          usgTypeCd: 'BATCH',
+          prcsNocs: 1,
+          wtngNocs: 2,
+          effectiveLoad: 3,
+          chckDt: '2026-09-01T00:00:00Z',
+        },
+      ],
+    },
+    {
+      srvrId: 'gpu02',
+      srvrNm: null,
+      srvrAddr: 'http://10.0.0.12:9300',
+      srvrTypeCd: 'INFERENCE',
+      srvrSttsCd: 'UNAVAILABLE',
+      chckDt: null,
+      chckFailNocs: 3,
+      chckScsNocs: 0,
+      regDt: '2026-08-02T00:00:00Z',
+      mdfrId: null,
+      mdfcnDt: null,
+      loads: [],
+    },
+  ],
+  message: null,
+  errorCode: null,
+};
+
 describe('자동 감사기 자체 확인', () => {
   // ★「위반 0」은 감사기가 실제로 무언가를 볼 때만 의미가 있다. 규칙 집합을 좁히거나 도구 배선이
   //   끊기면 아무것도 검사하지 않은 채 초록이 되는데, 그건 통과가 아니라 가드 무력화다.
@@ -142,6 +192,7 @@ describe('관리 영역 화면 접근성 (WCAG 2.1 AA 자동 감사)', () => {
     mock = new MockAdapter(apiClient);
     mock.onGet('/users').reply(200, USERS_PAGE);
     mock.onGet('/manage/configs').reply(200, CONFIGS);
+    mock.onGet('/manage/ai-servers').reply(200, AI_SERVERS);
     signInAsAdmin();
     openAdminWindow();
   });
@@ -166,6 +217,9 @@ describe('관리 영역 화면 접근성 (WCAG 2.1 AA 자동 감사)', () => {
       initialEntries: ['/admin/endpoints'],
     });
     await waitFor(() => expect(screen.getByLabelText('비식별 서버')).toBeInTheDocument());
+    // AI 장비 목록이 실제로 그려진 뒤에 감사한다 — 비어 있는 상태를 감사하면 표·배지·행 액션이
+    // 대상에서 빠진 채 초록이 된다.
+    await waitFor(() => expect(screen.getByTestId('ai-server-table')).toBeInTheDocument());
 
     expect(await axe(container, WCAG_21_AA)).toHaveNoViolations();
   });

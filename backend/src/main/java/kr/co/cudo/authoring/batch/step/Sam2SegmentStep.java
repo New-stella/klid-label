@@ -13,6 +13,7 @@ import kr.co.cudo.authoring.batch.policy.PresetResolution;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
@@ -307,7 +308,9 @@ public class Sam2SegmentStep implements BatchStep {
 
     private Sam2Response callSam2(String imageB64, List<Double> box, Long srcSn) {
         try {
-            return aiServerClient.segment(new Sam2Request(imageB64, null, box))
+            // [design: ADR-056] 용도를 배치로 명시한다 — ai-server 의 배치 전용 실행 슬롯으로 가고 서킷도 배치 축을
+            // 쓴다(ADR-056). 명시하지 않으면 화면 슬롯으로 떨어져 작업자 요청과 한 줄에 선다.
+            return aiServerClient.segment(new Sam2Request(imageB64, null, box), AiWorkload.BATCH)
                     .block(Duration.ofSeconds(70));
         } catch (RuntimeException e) {
             log.error("[Batch][Sam2] failed srcSn={} err={}", srcSn, e.getMessage());

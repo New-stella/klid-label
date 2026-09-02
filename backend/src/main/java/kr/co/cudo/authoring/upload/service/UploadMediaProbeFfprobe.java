@@ -107,6 +107,11 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
     /** 라인 1개 적재 상한(문자). ffprobe {@code key=value} 라인은 수십 자 수준이다. */
     private static final int MAX_LINE_LENGTH = 512;
 
+    /** stdout 임시파일 접두. 이 값으로 파일을 만드는 곳은 이 클래스 하나다. */
+    private static final String TEMP_PREFIX = "upload-ffprobe-";
+    /** stdout 임시파일 확장자. */
+    private static final String TEMP_SUFFIX = ".out";
+
     private static final String SECTION_STREAM = "STREAM";
     private static final String SECTION_FORMAT = "FORMAT";
     private static final double MILLIS_PER_SECOND = 1000.0;
@@ -118,6 +123,8 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
 
     private final String binary;
     private final int probeTimeoutSec;
+    /** stdout 임시파일을 놓을 자리. {@code null} 이면 시스템 기본 임시 디렉터리 — 프로덕션은 항상 null. */
+    private final Path tempDir;
 
     @Autowired
     public UploadMediaProbeFfprobe(@Value("${authoring.ffmpeg.ffprobe-binary:ffprobe}") String binary) {
@@ -129,8 +136,29 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
      * 돌린다). 프로덕션 빈은 위 {@code @Autowired} 생성자로만 생성된다.
      */
     UploadMediaProbeFfprobe(String binary, int probeTimeoutSec) {
+        this(binary, probeTimeoutSec, null);
+    }
+
+    /**
+     * 타임아웃 + <b>임시파일 자리</b> 주입 생성자 — <b>임시파일 정리 회귀 테스트 전용</b>.
+     * 프로덕션 빈은 위 {@code @Autowired} 생성자로만 생성된다.
+     *
+     * <p><b>왜 자리를 주입하나</b> — 정리 가드는 "probe 뒤에 {@value #TEMP_PREFIX} 파일이 남았는가"로
+     * 판정하는데, 그 접두를 만드는 곳이 바로 이 클래스라 <b>같은 JVM 의 다른 경로</b>(캐시된 스프링
+     * 컨텍스트의 비동기 업로드 완료 → 인입 → probe)가 공유 임시 디렉터리에 만든 파일까지 함께 세어
+     * 진다. 실제로 전건 회귀에서만 그 가드 1건이 실패했고 격리 실행에서는 통과했다 — <b>제품 결함이
+     * 아니라 시험의 관측 범위 문제</b>였다. 자리를 주입하면 시험이 자기가 만든 파일만 센다.
+     *
+     * <p>⚠ {@code System.setProperty("java.io.tmpdir", ...)} 로 전역을 바꾸는 방식은 쓰지 않는다 —
+     * 같은 JVM 의 다른 시험을 오염시켜 결함을 옮길 뿐이다.
+     *
+     * @param tempDir stdout 임시파일을 놓을 디렉터리. {@code null} 이면 시스템 기본 임시 디렉터리를
+     *                쓴다(프로덕션 경로와 완전히 동일한 호출).
+     */
+    UploadMediaProbeFfprobe(String binary, int probeTimeoutSec, Path tempDir) {
         this.binary = binary;
         this.probeTimeoutSec = probeTimeoutSec;
+        this.tempDir = tempDir;
     }
 
     /**
@@ -153,7 +181,7 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
         Process process = null;
         Path stdoutFile = null;
         try {
-            stdoutFile = Files.createTempFile("upload-ffprobe-", ".out");
+            stdoutFile = createStdoutFile();
             ProcessBuilder pb = new ProcessBuilder(buildCommand(filePath));
             // stdout=임시파일 / stderr=버림 — 위 "프로세스 I/O 규약" 참조. 파이프로 되돌리면 교착한다.
             pb.redirectOutput(ProcessBuilder.Redirect.to(stdoutFile.toFile()));
@@ -192,6 +220,18 @@ public class UploadMediaProbeFfprobe implements UploadMediaProbe {
             }
             deleteQuietly(stdoutFile);
         }
+    }
+
+    /**
+     * stdout 을 받을 임시파일을 만든다.
+     *
+     * <p>{@link #tempDir} 가 주입되지 않은 <b>프로덕션 경로에서는 시스템 기본 임시 디렉터리</b>를 쓴다 —
+     * 접두·확장자를 포함해 주입 도입 이전과 완전히 동일한 호출이다.
+     */
+    private Path createStdoutFile() throws IOException {
+        return tempDir == null
+                ? Files.createTempFile(TEMP_PREFIX, TEMP_SUFFIX)
+                : Files.createTempFile(tempDir, TEMP_PREFIX, TEMP_SUFFIX);
     }
 
     /**

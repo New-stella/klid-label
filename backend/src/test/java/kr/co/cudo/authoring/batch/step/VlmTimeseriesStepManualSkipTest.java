@@ -60,7 +60,8 @@ class VlmTimeseriesStepManualSkipTest {
                 batchStatusService, ledger, deidentProcLogRepository, deidentReportGate,
                 markingTxService, outcomeRecorder, timeseriesMetaPresence,
                 new ObjectMapper(), Schedulers.immediate(),
-                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class),
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
     }
 
     @Test

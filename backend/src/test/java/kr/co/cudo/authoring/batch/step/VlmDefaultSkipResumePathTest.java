@@ -93,7 +93,8 @@ class VlmDefaultSkipResumePathTest {
         step = new VlmTimeseriesStep(vlmClient, videoRepository, mock(IngestSourceRepository.class),
                 batchStatusService, ledger, deidentProcLogRepository,
                 mock(DeidentReportGate.class), markingTxService, mock(VlmSubmitOutcomeRecorder.class),
-                timeseriesMetaPresence, new ObjectMapper(), Schedulers.immediate(), marker);
+                timeseriesMetaPresence, new ObjectMapper(), Schedulers.immediate(), marker,
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
         resumeRunner = new VlmWithheldResumeRunner(step, batchStatusService,
                 timeseriesMetaPresence, markingRepository);
 
@@ -107,7 +108,7 @@ class VlmDefaultSkipResumePathTest {
             // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
         // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
         // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
 }
 
@@ -213,14 +214,14 @@ class VlmDefaultSkipResumePathTest {
         when(batchStatusService.latestManualSkipMarker(RAW_SN, BatchStageBundle.VLM))
                 .thenReturn(Optional.empty());
         when(batchStatusService.isStageManuallySkipped(RAW_SN, BatchStage.VLM)).thenReturn(false);
-        when(vlmClient.submitDescribe(any()))
+        when(vlmClient.submitDescribe(any(), any()))
                 .thenReturn(reactor.core.publisher.Mono.just(new VlmTimeseriesResponse("req-1", VlmTimeseriesResponse.STATUS_ACCEPTED)));
         // 비식별 경로가 있어야 위탁까지 간다.
         stubDeidentifiedPath();
 
         resumeRunner.resumeAsync(RAW_SN);
 
-        verify(vlmClient).submitDescribe(any());
+        verify(vlmClient).submitDescribe(any(), any());
         verify(batchStatusService, never()).recordManualStageSkipInNewTx(
                 any(), any(), anyString(), anyString());
     }

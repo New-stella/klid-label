@@ -1,0 +1,147 @@
+{
+  "item": {
+    "id": "API-224",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "실행 슬롯별 대기 상태 조회",
+    "slug": "실행-슬롯별-대기-상태-조회",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/internal/load",
+      "tags": [
+        "ai-server",
+        "internal",
+        "observability"
+      ],
+      "method": "GET",
+      "summary": "실행 슬롯별 대기 상태 조회",
+      "security": [],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "slots",
+              "observed_at"
+            ],
+            "properties": {
+              "slots": {
+                "type": "object",
+                "required": [
+                  "batch",
+                  "interactive"
+                ],
+                "properties": {
+                  "batch": {
+                    "type": "object",
+                    "required": [
+                      "running",
+                      "queued",
+                      "oldest_wait_ms"
+                    ],
+                    "properties": {
+                      "queued": {
+                        "type": "integer",
+                        "description": "대기 중인 건수. 잠그지 않고 세므로 근사값이다."
+                      },
+                      "running": {
+                        "type": "integer",
+                        "description": "지금 처리 중인 건수. 슬롯의 동시 처리 수가 하나라 0 또는 1 이다."
+                      },
+                      "oldest_wait_ms": {
+                        "type": "integer",
+                        "description": "가장 오래 기다린 건의 대기 시간(밀리초). 대기가 없으면 0 이다."
+                      }
+                    },
+                    "description": "일괄 처리 전용 슬롯"
+                  },
+                  "interactive": {
+                    "type": "object",
+                    "required": [
+                      "running",
+                      "queued",
+                      "oldest_wait_ms"
+                    ],
+                    "properties": {
+                      "queued": {
+                        "type": "integer",
+                        "description": "대기 중인 건수. 잠그지 않고 세므로 근사값이다."
+                      },
+                      "running": {
+                        "type": "integer",
+                        "description": "지금 처리 중인 건수. 슬롯의 동시 처리 수가 하나라 0 또는 1 이다."
+                      },
+                      "oldest_wait_ms": {
+                        "type": "integer",
+                        "description": "가장 오래 기다린 건의 대기 시간(밀리초). 대기가 없으면 0 이다."
+                      }
+                    },
+                    "description": "저작도구 화면 전용 슬롯"
+                  }
+                },
+                "description": "실행 슬롯별 대기 상태. 키는 슬롯 이름이며 현재 batch·interactive 둘이다."
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "관측 시각. 추론 서버의 시계이므로 부르는 쪽 시계에서 빼서 지연을 계산하면 안 된다."
+              }
+            }
+          },
+          "example": {
+            "slots": {
+              "batch": {
+                "queued": 3,
+                "running": 1,
+                "oldest_wait_ms": 4200
+              },
+              "interactive": {
+                "queued": 0,
+                "running": 0,
+                "oldest_wait_ms": 0
+              }
+            },
+            "observed_at": "2026-09-01T02:15:00Z"
+          },
+          "description": "실행 슬롯별 대기 상태 조회 성공",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-056",
+        "change_kind": [
+          "new-endpoint"
+        ],
+        "diff_summary": "ADR-056 이 신설한 창구 — 부하 분산기가 읽는 실행 슬롯별 대기 상태를 제공한다. 나머지 4창구(API-113·119·120·121)는 선반영됐고 이 하나만 누락돼 있었다."
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "실행 슬롯마다 지금 몇 건을 처리 중이고 몇 건이 기다리는지, 가장 오래 기다린 건이 얼마나 기다렸는지를 돌려준다. 부하를 보고 어느 장비로 보낼지 정하는 쪽이 주기적으로 읽는다.\n\n이 창구는 실행 슬롯을 거치지 않는다. 슬롯 뒤에 두면 대기가 밀렸을 때 이 응답도 함께 늦어져 정확히 필요한 순간에 읽을 수 없다. 따라서 대기가 아무리 밀려 있어도 즉시 답해야 하며, 느린 것은 부하 신호가 아니라 배선이 잘못됐다는 신호다.\n\n값은 잠그지 않고 읽는 근사값이다. 정확한 스냅샷을 만들려고 잠그면 관측이 슬롯의 일을 방해한다. 읽는 쪽은 추세를 보므로 정확한 정수를 요구하지 않는다.\n\n상태 점검 창구와 분리한다. 살아 있는가와 여유가 있는가를 한 값에 섞으면, 대기가 밀렸다는 이유로 상태 점검이 실패해 살아 있는 장비를 대상에서 빼게 되고 남은 장비로 전부 몰린다.\n\n인증이 없다. 추론 서버는 상태와 인증을 갖지 않는 것이 원칙이라 그 예외를 만들지 않았다. 대신 숫자와 시각만 나가며 라벨 내용·파일 경로·개인정보는 일절 싣지 않는다. 실제 접근 차단은 내부망 격리가 담당한다.",
+      "attached_files": [],
+      "calls_external": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "슬롯 두 개와 그 안의 세 값을 필수로 못박는다. 종전에는 속성만 나열하고 필수 여부를 적지 않아, 값 하나가 빠진 응답도 규격을 어기지 않는 것으로 읽혔다. 읽는 쪽이 빠진 값을 0으로 채우면 그 장비가 가장 한가한 것으로 보여 요청을 빨아들이므로, 빠졌을 때 거부할 근거를 규격이 줘야 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T07:02:38.169Z",
+    "created_at": "2026-09-01T06:58:27.770Z"
+  }
+}

@@ -96,8 +96,9 @@ export interface TusUploadPanelProps {
  * 않는다» 고 화면이 알린다({@link UnsentNotice}). 그렇다고 입력칸을 잠그지는 않는다 — 경로에 따라
  * 잠기면 «두 경로가 같은 폼» 이라는 계약이 깨진다.
  *
- * <p>입력 부담을 낮추는 것이 이 폼의 설계 기준이다: 필수는 식별 정보 네 항목뿐이고 나머지 묶음은
- * 처음에 접혀 있으며, 기술메타는 비우면 서버가 파일에서 읽어 채운다. 영상 길이는 입력칸 자체가 없다.
+ * <p>입력 부담을 낮추는 것이 이 폼의 설계 기준이다: 두 경로 공통 필수는 식별 정보 세 항목뿐이고
+ * (경로에 따라 촬영일시·이벤트유형이 더해진다) 나머지 묶음은 처음에 접혀 있으며, 기술메타는 비우면
+ * 서버가 파일에서 읽어 채운다. 영상 길이는 입력칸 자체가 없다.
  *
  * <p>보안: 파일명은 표시용이며 저장명은 서버가 정한다(CWE-22). 오류 문구는 서버가 내려준 텍스트를
  * JSX 자동 이스케이프로 표시한다(XSS 방어).
@@ -251,7 +252,8 @@ export function TusUploadPanel({
           )}
 
           <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-            <IdentityFieldset {...fieldsetProps} />
+            {/* 촬영일시의 필수 표기가 경로에 따라 갈리므로 이 묶음만 `route` 를 함께 받는다. */}
+            <IdentityFieldset {...fieldsetProps} route={route} />
             <UnsentNotice group="출처유형" route={route} />
           </div>
 
@@ -263,6 +265,7 @@ export function TusUploadPanel({
               resolvedCode={eventTypeCd}
               onCategoryChange={handleEventCategoryChange}
               onManualCodeChange={(v) => setValue('evntTypeCd', v)}
+              route={route}
               disabled={isBusy}
             />
             <VideoLengthNotice />

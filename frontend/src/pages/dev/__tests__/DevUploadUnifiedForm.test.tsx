@@ -31,14 +31,29 @@ const EVENT_CATEGORIES = [
   { categoryKey: '050001', label: '싸움', memberCodes: ['EV05000101'] },
 ];
 
-/** 폼의 입력 칸 구성을 «라벨 문구 집합» 으로 지문화한다 — 경로 전환 전후 비교용. */
+/**
+ * 폼의 입력 칸 구성을 «라벨 문구 집합» 으로 지문화한다 — 경로 전환 전후 비교용.
+ *
+ * ★필수 표기(` *`)는 **떼고** 센다. 이 화면의 계약은 «두 경로가 같은 입력 칸을 쓴다» 이지
+ * «표기까지 같다» 가 아니다 — 촬영일시·이벤트유형은 경로에 따라 필수 여부가 실제로 갈리므로
+ * 표기가 달라지는 것이 정상이다(SCREEN-027). 표기 축은 {@link requiredLabels} 가 따로 센다.
+ */
 function formFieldSignature(): string[] {
   const form = document.querySelector('form');
   if (!form) throw new Error('업로드 폼을 찾지 못했습니다.');
   return Array.from(form.querySelectorAll('label'))
-    .map((l) => (l.textContent ?? '').trim())
+    .map((l) => (l.textContent ?? '').trim().replace(/\s*\*$/, ''))
     .filter((t) => t !== '')
     .sort();
+}
+
+/** 지금 필수 표기(` *`)가 붙어 있는 라벨 문구 — 입력 칸 구성과는 별개의 축. */
+function requiredLabels(scope?: HTMLElement): string[] {
+  const root = scope ?? (document.querySelector('form') as HTMLElement | null);
+  if (!root) throw new Error('업로드 폼을 찾지 못했습니다.');
+  return Array.from(root.querySelectorAll('label'))
+    .map((l) => (l.textContent ?? '').trim())
+    .filter((t) => t.endsWith('*'));
 }
 
 /** 접이식 묶음 토글 — 접근성 이름에 묶음 이름이 들어 있다. */
@@ -136,6 +151,29 @@ describe('파일 업로드 — 적재 경로와 단일 입력 폼', () => {
     expect(before.length).toBeGreaterThan(20);
   });
 
+  /**
+   * 위 지문이 필수 표기를 떼고 비교하므로, **떼어낸 축이 실제로 움직인다**는 것을 여기서 따로
+   * 고정한다. 이 케이스가 없으면 정규화가 사각이 되어 「필수 표기가 통째로 사라져도 초록」이 된다.
+   */
+  it('입력_칸은_같지만_필수_표기는_경로에_따라_움직인다', async () => {
+    // given — 즉시 실행(기본)
+    const user = userEvent.setup();
+    renderWithProviders(<DevAutolabelTestPage />);
+    await waitFor(() => expect(screen.getByLabelText('이벤트유형 *')).toBeInTheDocument());
+    const beforeRequired = requiredLabels();
+
+    // when
+    await chooseIngestRoute(user);
+
+    // then — 갈리는 두 항목만 빠지고 나머지는 그대로다
+    const afterRequired = requiredLabels();
+    expect(beforeRequired.filter((l) => !afterRequired.includes(l)).sort()).toEqual([
+      '이벤트유형 *',
+      '촬영일시 *',
+    ]);
+    expect(afterRequired.every((l) => beforeRequired.includes(l))).toBe(true);
+  });
+
   it('경로를_바꿔도_입력한_값이_유지된다', async () => {
     // given — 두 경로 모두 쓰는 필드(클립 ID)와 한쪽만 쓰는 필드(지자체명)를 채운다
     const user = userEvent.setup();
@@ -156,26 +194,54 @@ describe('파일 업로드 — 적재 경로와 단일 입력 폼', () => {
     expect((screen.getByLabelText('지자체명') as HTMLInputElement).value).toBe('강남구');
   });
 
-  it('필수는_식별_정보_네_항목뿐이고_나머지_묶음은_접혀_있다', () => {
+  it('필수_표기는_경로에_따라_갈리고_출처유형에는_어느_경로에서도_붙지_않는다', async () => {
+    // given — 기본 경로(파이프라인 즉시 실행)
+    const user = userEvent.setup();
+    renderWithProviders(<DevAutolabelTestPage />);
+    const identity = screen.getByRole('group', { name: '식별 정보' });
+
+    // then — 즉시 실행은 그 경로의 BE 계약이 촬영일시를 요구하므로 표기가 붙는다
+    expect(requiredLabels(identity)).toEqual([
+      '영상 클립 ID *',
+      'CCTV ID *',
+      '지자체코드 *',
+      '촬영일시 *',
+    ]);
+
+    // when — 인입 재현으로 바꾼다
+    await chooseIngestRoute(user);
+
+    // then — 그 경로에서 촬영일시는 선택이므로 표기가 사라진다(공통 3종만 남는다)
+    expect(requiredLabels(identity)).toEqual(['영상 클립 ID *', 'CCTV ID *', '지자체코드 *']);
+    expect(within(identity).getByLabelText('촬영일시')).toBeInTheDocument();
+
+    // then — ★출처유형은 어느 경로에서도 필수가 아니다. 바로 아래에 「이 값은 전송되지
+    // 않습니다」 안내가 뜨는 자리라, 별표를 달면 한 자리에서 정반대 두 가지를 말하게 된다.
+    expect(within(identity).getByLabelText('출처유형')).toBeInTheDocument();
+  });
+
+  it('★이벤트유형의_필수_표기도_같은_판정을_따른다 — 즉시_실행에서만_붙는다', async () => {
+    // given — 이벤트유형은 식별 정보 묶음이 아니라 폼 상단 공통 영역이 소유한다.
+    const user = userEvent.setup();
+    renderWithProviders(<DevAutolabelTestPage />);
+
+    // then — 즉시 실행(기본)에서는 이 값이 있어야 시작이 열리므로 표기가 붙는다
+    await waitFor(() => expect(screen.getByLabelText('이벤트유형 *')).toBeInTheDocument());
+
+    // when — 인입 재현으로 바꾼다
+    await chooseIngestRoute(user);
+
+    // then — 그 경로에서는 선택이므로 표기가 사라진다(같은 입력칸이 그대로 남는다)
+    expect(screen.getByLabelText('이벤트유형')).toBeInTheDocument();
+    expect(screen.queryByLabelText('이벤트유형 *')).toBeNull();
+  });
+
+  it('선택_묶음_3종은_처음에_접혀_있다', () => {
     // given/when
     renderWithProviders(<DevAutolabelTestPage />);
 
-    // then — 식별 정보 묶음 안의 필수 표시(` *`)는 정확히 4개다
-    const identity = screen.getByRole('group', { name: '식별 정보' });
-    const requiredLabels = Array.from(identity.querySelectorAll('label'))
-      .map((l) => (l.textContent ?? '').trim())
-      .filter((t) => t.endsWith('*'));
-    expect(requiredLabels).toEqual([
-      '영상 클립 ID *',
-      'CCTV ID *',
-      '출처유형 *',
-      '지자체코드 *',
-    ]);
-    // 촬영일시는 같은 묶음에 있지만 선택이다
-    expect(within(identity).getByLabelText('촬영일시')).toBeInTheDocument();
-
-    // then — 나머지 묶음 3종은 처음에 접혀 있다(입력 부담 완화). 클래스가 아니라
-    // aria-expanded + hidden 으로 판정한다(jsdom 은 CSS 로 감춘 것을 걸러내지 못한다).
+    // then — 입력 부담 완화. 클래스가 아니라 aria-expanded + hidden 으로 판정한다
+    // (jsdom 은 CSS 로 감춘 것을 걸러내지 못한다).
     for (const title of ['위치 · CCTV 제원', '이벤트 · 관제일지', '영상 기술메타']) {
       const toggle = groupToggle(title);
       expect(toggle, title).toHaveAttribute('aria-expanded', 'false');
