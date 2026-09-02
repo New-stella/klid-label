@@ -86,8 +86,17 @@ class AugmentJobSubmitServiceTest {
 
     private AugmentJobSubmitService newService(int maxInputFiles) {
         return new AugmentJobSubmitService(
-                srcRepository, jobRecorder, externalClient, metrics,
+                inputFrameSource(), jobRecorder, externalClient, metrics,
                 deidentReportGate, outcomeRecorder, Schedulers.immediate(), maxInputFiles);
+    }
+
+    /**
+     * 조달기는 <b>실물</b>을 쓴다 — 목으로 대체하면 「기본값은 비식별본」이라는 fail-closed 규약이
+     * 이 시험에서 사라진다. 부모 조회가 비어 있으므로(=출처 미상) 조달처는 기본값으로 떨어진다.
+     */
+    private AugmentInputFrameSource inputFrameSource() {
+        return new AugmentInputFrameSource(videoRepository, srcRepository,
+                new kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver(null, null, null));
     }
 
     private AugmentRequestedItemEvent event() {

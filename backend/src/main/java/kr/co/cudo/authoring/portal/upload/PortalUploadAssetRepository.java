@@ -232,6 +232,76 @@ public class PortalUploadAssetRepository {
         return result;
     }
 
+    /**
+     * 자산별 <b>표시용 원본 파일명</b> 일괄 조회 — 목록 한 페이지를 단일 쿼리 1회로 모은다.
+     *
+     * <p>소유자 스코프를 조건에 강제한다. 보관값이 없는 자산은 <b>키 자체가 없다</b>(빈 문자열을
+     * 지어내지 않는다 — 「모른다」와 「빈 이름」은 다르다).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<Long, String> findOriginalFileNames(String portalUserNo, List<Long> rawSns) {
+        Map<Long, String> result = new LinkedHashMap<>();
+        if (rawSns == null || rawSns.isEmpty()) {
+            return result;
+        }
+        Query q = em.createNativeQuery("""
+                SELECT r.raw_sn, m.meta_vl
+                  FROM ls_data_raw r
+                  JOIN ls_data_meta m ON m.raw_sn = r.raw_sn AND m.meta_key = :nameKey
+                 WHERE r.src_type = :srcType
+                   AND r.portal_user_no = :owner
+                   AND r.raw_sn IN (:rawSns)
+                """);
+        q.setParameter("nameKey", PortalUploadLedger.KEY_ORIGINAL_FILENAME);
+        q.setParameter("srcType", PortalUploadLedger.SRC_TYPE);
+        q.setParameter("owner", portalUserNo);
+        q.setParameter("rawSns", rawSns);
+        for (Object row : (List<Object>) q.getResultList()) {
+            Object[] cols = (Object[]) row;
+            if (cols[0] == null || cols[1] == null) {
+                continue;
+            }
+            result.put(((Number) cols[0]).longValue(), (String) cols[1]);
+        }
+        return result;
+    }
+
+    /**
+     * 자산별 <b>등록 일시</b> 일괄 조회 — 증강 결과물이 <b>언제 도착했는가</b>의 조달처.
+     *
+     * <p>★ 소유자 스코프가 곧 <b>결과물 노출 가드</b>다. 여기 없는 식별자는 그 사용자가 열 수 없는
+     * 자산이므로, 조회 결과에 실리지 않는 결과물 식별자를 응답에 담지 않는다(CWE-639). 결과물이
+     * 포털 계보에 앉지 않은 동안에는 이 조회가 비어 있고, 그것이 fail-closed 방향이다.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<Long, LocalDateTime> findRegDtByOwner(String portalUserNo, List<Long> rawSns) {
+        Map<Long, LocalDateTime> result = new LinkedHashMap<>();
+        if (rawSns == null || rawSns.isEmpty()) {
+            return result;
+        }
+        Query q = em.createNativeQuery("""
+                SELECT r.raw_sn, r.reg_dt
+                  FROM ls_data_raw r
+                 WHERE r.src_type = :srcType
+                   AND r.portal_user_no = :owner
+                   AND r.raw_sn IN (:rawSns)
+                """);
+        q.setParameter("srcType", PortalUploadLedger.SRC_TYPE);
+        q.setParameter("owner", portalUserNo);
+        q.setParameter("rawSns", rawSns);
+        for (Object row : (List<Object>) q.getResultList()) {
+            Object[] cols = (Object[]) row;
+            if (cols[0] == null) {
+                continue;
+            }
+            LocalDateTime regDt = toDateTime(cols[1]);
+            if (regDt != null) {
+                result.put(((Number) cols[0]).longValue(), regDt);
+            }
+        }
+        return result;
+    }
+
     // ==================================================================
     // 적재
     // ==================================================================

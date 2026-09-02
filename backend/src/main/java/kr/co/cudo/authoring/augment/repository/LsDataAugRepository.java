@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.augment.repository;
 import jakarta.persistence.LockModeType;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
+import kr.co.cudo.authoring.video.repository.InternalWorkScope;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +17,23 @@ import java.util.Optional;
 
 @ControlRepo
 public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
+
+    /**
+     * 관제 채널 필터 — 이 목록은 <b>검수자의 증강 이력</b>이라 포털 회원이 낸 요청이 섞이면 안 된다.
+     *
+     * <h3>판별을 여기서 재유도하지 않는다</h3>
+     * <p>채널 술어의 소유자는 {@link InternalWorkScope} 하나이고 그 JPQL 조각을 <b>그대로 이어 붙인다</b>
+     * (별칭 {@code r} 규약). 판별자 값을 이 쿼리에 직접 박으면 채널 판정이 한 곳 더 생긴다.
+     *
+     * <h3>부모를 찾을 수 없는 행은 <b>남긴다</b></h3>
+     * <p>증강 행의 대표 프레임에는 외래키가 없어 프레임이 먼저 사라진 잔재가 있을 수 있다. 그런 행까지
+     * 걸러 내면 관제 이력에서 <b>조용히 사라지므로</b>, 「부모를 못 찾으면 통과」로 적는다 — 채널 술어의
+     * 다른 형태({@link InternalWorkScope#internalByRawSn})가 이미 쓰는 판단과 같다.
+     */
+    String INTERNAL_CHANNEL = " (NOT EXISTS (SELECT 1 FROM LsDataSrc cs WHERE cs.srcSn = a.srcSn)"
+            + " OR EXISTS (SELECT 1 FROM LsDataSrc cs2, LsDataRaw r"
+            + " WHERE cs2.srcSn = a.srcSn AND r.rawSn = cs2.rawSn"
+            + InternalWorkScope.INTERNAL_JPQL + ")) ";
 
     /**
      * 증강 4종 묶음 조회 (AUG_TYPE_CD 알파벳 정렬: NIGHT, RAIN, RESOLUTION, WINTER).
@@ -37,8 +55,9 @@ public interface LsDataAugRepository extends JpaRepository<LsDataAug, Long> {
      * 발생해 OFFSET 페이징에서 페이지 경계 중복/누락(REVIEWER 워크리스트 누락)이 생긴다.
      * 그룹 키 {@code srcSn} 을 2차 정렬로 추가해 순서를 결정적(deterministic)으로 고정한다.
      */
-    @Query(value = "SELECT a.srcSn FROM LsDataAug a GROUP BY a.srcSn ORDER BY MIN(a.regDt) DESC, a.srcSn DESC",
-            countQuery = "SELECT COUNT(DISTINCT a.srcSn) FROM LsDataAug a")
+    @Query(value = "SELECT a.srcSn FROM LsDataAug a WHERE " + INTERNAL_CHANNEL
+            + " GROUP BY a.srcSn ORDER BY MIN(a.regDt) DESC, a.srcSn DESC",
+            countQuery = "SELECT COUNT(DISTINCT a.srcSn) FROM LsDataAug a WHERE " + INTERNAL_CHANNEL)
     Page<Long> findDistinctSrcSnGroupsOrderByMinRegDtDesc(Pageable pageable);
 
     /** 그룹 페이징 2차 조회 — 페이지에 포함된 SRC_SN 들의 전체 증강 row 를 일괄 로드(N+1 회피). */

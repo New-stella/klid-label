@@ -5,7 +5,6 @@ import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.integration.AugmentInputFile;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -138,7 +137,11 @@ public class AugmentJobSubmitService {
     /** 명세서 §4.1 input_files 상한. 설정으로 낮출 수는 있어도 계약 상한을 넘길 수 없다. */
     private static final int CONTRACT_MAX_INPUT_FILES = 100;
 
-    private final LsDataSrcRepository srcRepository;
+    /**
+     * 위탁 입력 프레임 경로 조달 — <b>조달처는 출처가 가르고 기본값은 비식별본</b>이다.
+     * 이 서비스는 어느 조달처인지 묻지 않는다(분기가 늘면 또 붙는다).
+     */
+    private final AugmentInputFrameSource inputFrameSource;
     private final AugmentJobRecorder jobRecorder;
     private final ExternalAugmentClient externalClient;
     private final AugmentMetrics metrics;
@@ -150,7 +153,7 @@ public class AugmentJobSubmitService {
     private final Scheduler submitScheduler;
     private final int maxInputFiles;
 
-    public AugmentJobSubmitService(LsDataSrcRepository srcRepository,
+    public AugmentJobSubmitService(AugmentInputFrameSource inputFrameSource,
                                    AugmentJobRecorder jobRecorder,
                                    ExternalAugmentClient externalClient,
                                    AugmentMetrics metrics,
@@ -159,7 +162,7 @@ public class AugmentJobSubmitService {
                                    @Qualifier("augmentSubmitScheduler") Scheduler submitScheduler,
                                    @Value("${authoring.augment.external.max-input-files:100}")
                                    int maxInputFiles) {
-        this.srcRepository = srcRepository;
+        this.inputFrameSource = inputFrameSource;
         this.jobRecorder = jobRecorder;
         this.externalClient = externalClient;
         this.metrics = metrics;
@@ -458,13 +461,20 @@ public class AugmentJobSubmitService {
     }
 
     /**
-     * 대상 영상의 <b>비식별</b> 프레임 경로를 순서대로 만든다. 각 항목은 외부로 나갈 입력 파일과
+     * 대상 영상의 위탁 입력 프레임 경로를 순서대로 만든다. 각 항목은 외부로 나갈 입력 파일과
      * 내부 대응(프레임 {@code srcSn})을 함께 들고 다닌다 — 결과를 정확한 프레임에 되붙이기 위함이다.
      *
-     * @throws DeidPathMissingException 프레임이 없거나 비식별 경로가 빈 프레임이 하나라도 있을 때
+     * <p><b>조달처는 여기서 가르지 않는다</b> — 관제는 비식별본, 포털 업로드 자산은 본인 원본이며
+     * 그 판정은 {@link AugmentInputFrameSource} 한 곳이 갖는다(기본값 비식별본, 서로 폴백 없음).
+     * 이 자리에 「포털이면 건너뛴다」를 두면 관제 자산에서 비식별본이 빠진 경우까지 함께 열린다.
+     *
+     * <p>거부 규약은 조달처와 무관하게 <b>같다</b> — 프레임이 없거나 경로가 빈 프레임이 하나라도
+     * 있으면 위탁을 거부한다. 부분 위탁은 산출물이 프레임 일부에만 대응해 되붙이기가 무너진다.
+     *
+     * @throws DeidPathMissingException 프레임이 없거나 경로가 빈 프레임이 하나라도 있을 때
      */
     private List<FrameInput> resolveDeidInputFiles(Long rawSn) {
-        List<Object[]> rows = srcRepository.findDeidFramePathsByRawSn(rawSn);
+        List<Object[]> rows = inputFrameSource.pathsOf(rawSn);
         if (rows.isEmpty()) {
             throw new DeidPathMissingException("증강 대상 영상에 프레임이 없습니다.", 0);
         }
@@ -473,16 +483,16 @@ public class AugmentJobSubmitService {
         int sequence = 1;
         for (Object[] row : rows) {
             Long srcSn = (Long) row[0];
-            String deidPath = (String) row[1];
-            if (deidPath == null || deidPath.isBlank()) {
+            String framePath = (String) row[1];
+            if (framePath == null || framePath.isBlank()) {
                 missing++;
                 continue;
             }
-            files.add(new FrameInput(sequence++, srcSn, deidPath));
+            files.add(new FrameInput(sequence++, srcSn, framePath));
         }
         if (missing > 0) {
             throw new DeidPathMissingException(
-                    "비식별 프레임 경로가 없는 프레임이 있어 외부 위탁을 거부합니다. missingCount=" + missing,
+                    "위탁 입력 프레임 경로가 없는 프레임이 있어 외부 위탁을 거부합니다. missingCount=" + missing,
                     missing);
         }
         return files;
@@ -514,10 +524,14 @@ public class AugmentJobSubmitService {
      * 위탁 입력 1건 — 외부로 나갈 {@link AugmentInputFile} 과 내부 대응({@code srcSn})을 함께 든다.
      * {@code srcSn} 은 외부 페이로드에 절대 싣지 않는다(내부 식별자 노출 금지).
      */
-    private record FrameInput(int sequence, Long srcSn, String deidPath) {
+    /**
+     * 위탁 입력 1건 — 외부로 나갈 경로와 되붙일 프레임 식별자의 짝.
+     * 경로가 비식별본인지 포털 원본인지는 <b>조달처가 이미 정했고</b> 여기서는 구분하지 않는다.
+     */
+    private record FrameInput(int sequence, Long srcSn, String framePath) {
 
         AugmentInputFile toInputFile() {
-            return new AugmentInputFile(sequence, deidPath);
+            return new AugmentInputFile(sequence, framePath);
         }
 
         AugmentJobFileRef toRef() {

@@ -59,6 +59,15 @@ public interface PortalUploadFrameRepository extends JpaRepository<LsDataSrc, Lo
                                             Pageable pageable);
 
     /**
+     * 자산의 <b>대표(첫) 프레임</b> — 증강 요청이 원장에 남길 기준 프레임이다.
+     *
+     * <p>소유권을 검증하지 않는다 — 부르는 자리가 <b>이미 자산 소유권을 확인한 뒤</b>이고, 프레임을
+     * 전부 읽어 첫 건만 쓰는 낭비를 피하기 위해 한 건만 가져온다. 사용자 요청 진입점에서 소유권 확인
+     * 없이 직접 쓰지 말 것.
+     */
+    Optional<LsDataSrc> findFirstByRawSnOrderByFrameNoAscSrcSnAsc(Long rawSn);
+
+    /**
      * 소유권 미검증 원시 조회 — 프레임 추출 러너·내보내기 등 <b>부모 소유권을 이미 확인한</b> 경로 전용.
      * <b>사용자 요청 진입점에서 직접 쓰지 말 것.</b>
      */

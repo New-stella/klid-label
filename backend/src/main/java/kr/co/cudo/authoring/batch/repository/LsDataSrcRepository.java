@@ -267,6 +267,24 @@ public interface LsDataSrcRepository extends JpaRepository<LsDataSrc, Long> {
     List<Object[]> findDeidFramePathsByRawSn(@Param("rawSn") Long rawSn);
 
     /**
+     * 외부 증강 위탁용 <b>원본</b> 프레임 경로 목록 — 포털 업로드 자산 전용 조달처.
+     *
+     * <p>⚠ <b>비식별본 조회의 대안이 아니다.</b> 어느 쪽을 부를지는 {@code AugmentInputFrameSource} 가
+     * <b>출처 판별자</b> 하나로 가르며 그 <b>기본값은 비식별본</b>이다. 「비식별본이 없으면 이걸 쓴다」
+     * 형태로 폴백을 만들면, 비식별 산출물이 사라졌을 때 관제 영상의 원본이 조용히 외부로 나간다.
+     *
+     * <p>포털 업로드 자산에 비식별 경로가 없는 것은 결손이 아니다 — 본인이 올려 본인만 보는 데이터라
+     * 그 경로에 비식별 단계가 <b>애초에 없다</b>. 그래서 이 자산의 프레임은 원본 한 벌뿐이다.
+     *
+     * <p>경로가 비어 있는 프레임도 <b>포함해</b> 반환한다(호출부가 fail-closed 로 위탁을 거부해야 하므로
+     * 필터링으로 조용히 누락시키지 않는다). 결과는 {@code [srcSn, srcPath]} 이며 정렬은 비식별본
+     * 조회와 <b>같다</b> — 두 조달처의 프레임 순서가 갈리면 산출물 대응이 어긋난다.
+     */
+    @Query("select s.srcSn as srcSn, s.srcFilePathNm as srcPath "
+            + "from LsDataSrc s where s.rawSn = :rawSn order by s.frameNo asc, s.srcSn asc")
+    List<Object[]> findOriginalFramePathsByRawSn(@Param("rawSn") Long rawSn);
+
+    /**
      * 영상별 프레임 개수를 한 번에 조회 (N+1 회피).
      *
      * <p>TaskBoardService.list 의 page.map 람다에서 각 row 마다 countByRawSn(...) 을 호출하면
