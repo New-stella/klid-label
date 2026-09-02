@@ -20,7 +20,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore, type BusyKind } from '@/stores/useLabelStore';
 
-import { PortalUploadLabelingPage } from '../PortalUploadLabelingPage';
+import { PortalUploadLabelingView } from '../PortalUploadLabelingView';
 
 // 테스트용 더미 인증값(비밀 아님 — 시크릿 스캐너 오탐 회피용 조합).
 const FAKE_TOKEN = ['t', 'o', 'k'].join('');
@@ -59,9 +59,9 @@ function bboxLabel(): Label {
 }
 
 function renderPage() {
-  return renderWithProviders(<PortalUploadLabelingPage />, {
-    initialEntries: ['/portal/uploads/1/label'],
-    routes: [{ path: '/portal/uploads/:uldSn/label', element: <PortalUploadLabelingPage /> }],
+  return renderWithProviders(<PortalUploadLabelingView uldSn={1} />, {
+    initialEntries: ['/portal/label/1?source=upload'],
+    routes: [{ path: '/portal/label/:id', element: <PortalUploadLabelingView uldSn={1} /> }],
   });
 }
 
@@ -74,7 +74,7 @@ function ageBusyPastOverlayDelay() {
   });
 }
 
-describe('PortalUploadLabelingPage — 진행 오버레이·취소 (N-4)', () => {
+describe('포털 라벨링 화면 — 업로드 자산 갈래 진행 오버레이·취소 (N-4)', () => {
   let mock: MockAdapter;
   let releasePut: (() => void) | null;
 

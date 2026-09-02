@@ -1,22 +1,29 @@
-// Phase 6 — 포털 업로드 자산 라벨링 화면 (SCR-PORTAL, PORTAL_USER 전용).
+// 포털 라벨링 화면 — **업로드 자산 출처**의 본문. 이 파일은 화면이 아니라 화면의 한 갈래다.
+//
+// 포털의 라벨링 화면은 하나뿐이며(`/portal/label/:id`) 그 화면이 두 출처를 다룬다. 이 파일은
+// 그중 **본인이 올린 자산**의 프레임을 여는 갈래이고, 데이터마트 출처 갈래는 기존 라벨링 화면이
+// 그대로 맡는다. 진입 판정과 주소 규약은 `@/features/portal/labelingEntry` 한 곳이 갖는다.
 //
 // 라벨링 코어(features/label/**)는 수정 없이 CanvasShell 을 props 로만 조립한다.
-// 도구는 SELECT/PAN/BBOX/POLYGON 만 노출(ADR-013 — 포털 업로드는 SAM·키포인트·오토라벨 미제공, R2).
-// 이미지 자산=단일 프레임, 영상 자산=프레임 네비게이션. 저장은 현재 프레임 전체교체 PUT 1회.
+// 도구는 SELECT/PAN/BBOX/POLYGON 만 노출 — 포털에는 AI 보조(분할·추적·오토라벨)와 키포인트가
+// 없다. 저장은 현재 프레임 전체교체 PUT 1회다.
+//
+// ★**라벨 내보내기와 원본 파일 내려받기를 이 화면에 두지 않는다** — 그 둘은 자산 단위 조작이라
+//   자산 목록 화면의 행 액션이 갖는다(확정 사양). 여기에 되살리면 같은 조작의 진입점이 둘이 된다.
+//
+// @design SCREEN-029
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  Download,
   Hand,
   MousePointer2,
   Pentagon,
   Square,
-  X,
 } from 'lucide-react';
 
 import { Button } from '@/components/common/Button';
@@ -32,7 +39,8 @@ import { useLabelMasters } from '@/features/label/hooks/useLabelMasters';
 import { resolveLabelDisplayName } from '@/features/label/utils/labelDisplayName';
 import type { FrameSummary, ToolType } from '@/features/label/types';
 import { ToolType as Tool } from '@/features/label/types';
-import { getUpload, downloadUploadExport, downloadUploadFile } from '@/features/portal/uploads/api';
+import { PORTAL_LABEL_FRAME_PARAM, readPortalLabelFrameSn } from '@/features/portal/labelingEntry';
+import { getUpload } from '@/features/portal/uploads/api';
 import { PortalUploadStatus } from '@/features/portal/uploads/types';
 import { useUploadFrameImage } from '@/features/portal/uploads/hooks/useUploadFrameImage';
 import { useUploadFrameLabels } from '@/features/portal/uploads/hooks/useUploadFrameLabels';
@@ -67,9 +75,12 @@ function useMeasuredSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-export function PortalUploadLabelingPage() {
-  const { uldSn } = useParams<{ uldSn: string }>();
-  const uldSnNum = Number(uldSn);
+export interface PortalUploadLabelingViewProps {
+  /** 자산 PK — 주소의 `:id` 를 화면(디스패처)이 해석해 넘긴다. 잘못된 값도 그대로 받아 이 화면이 안내한다. */
+  uldSn: number;
+}
+
+export function PortalUploadLabelingView({ uldSn: uldSnNum }: PortalUploadLabelingViewProps) {
   const validUldSn = Number.isFinite(uldSnNum) && uldSnNum > 0;
 
   const pushToast = useUiStore((s) => s.pushToast);
@@ -83,12 +94,29 @@ export function PortalUploadLabelingPage() {
   const frames = useMemo(() => detail?.frames ?? [], [detail]);
   const isReady = detail?.uldSttsCd === PortalUploadStatus.READY;
 
-  const [index, setIndex] = useState(0);
-  // 자산이 바뀌거나 프레임 수가 줄면 인덱스를 안전 범위로 클램프.
-  useEffect(() => {
-    setIndex((i) => (i < frames.length ? i : 0));
-  }, [frames.length]);
+  /*
+   * 현재 프레임은 **주소가 나른다**(`?frame=`) — 화면 안의 숫자가 아니다.
+   *
+   * 데이터마트 갈래가 프레임을 옮길 때 주소를 바꾸므로(그쪽은 `:id` 자체가 프레임이다) 같은
+   * 화면의 다른 갈래만 주소를 안 바꾸면, 뒤로가기·새로고침·주소 공유가 갈래에 따라 다르게
+   * 동작한다. 통합의 목적이 «같은 작업을 한 자리에서 배우게 하는 것» 이므로 이 축을 맞춘다.
+   *
+   * ⚠ 화면 안에 인덱스 상태를 따로 두지 않는다 — 두면 주소와 상태 둘이 진실원이 되어 어긋난다.
+   *   주소의 값이 지금 목록에 없으면(프레임이 아직 안 왔거나 값이 잘못됐다) 첫 프레임으로 읽는다.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedFrameSn = readPortalLabelFrameSn(searchParams);
+  const indexFromUrl = frames.findIndex((f) => f.uldFrmeSn === requestedFrameSn);
+  const index = indexFromUrl >= 0 ? indexFromUrl : 0;
   const currentFrame = frames[index];
+  /** 프레임 이동 — 주소만 바꾸고 그 결과로 화면이 따라온다. 이력에 쌓지 않는다(replace). */
+  const goToIndex = (next: number) => {
+    const target = frames[next];
+    if (target === undefined) return;
+    const params = new URLSearchParams(searchParams);
+    params.set(PORTAL_LABEL_FRAME_PARAM, String(target.uldFrmeSn));
+    setSearchParams(params, { replace: true });
+  };
   const uldFrmeSn = currentFrame?.uldFrmeSn;
   // 편집 차단 단일 판정원 — 저장이 도는 동안 캔버스·도구·프레임 이동을 모두 막는다.
   // 이 화면의 저장은 현재 프레임 **전체교체 PUT** 이라, 저장 중에 그린 라벨은 저장에도 담기지
@@ -178,50 +206,6 @@ export function PortalUploadLabelingPage() {
     onError: () => pushToast({ variant: 'error', message: '라벨 저장에 실패했습니다.' }),
   });
 
-  /*
-   * 내려받기 두 갈래. **취소는 원본 파일에만 둔다** — 원본은 최대 5GB 라 한 번 시작하면 오래
-   * 붙잡히지만, 라벨 내보내기(JSON)는 작아서 취소 버튼이 뜨기도 전에 끝난다(사양).
-   *
-   * ★★ **사용자 취소는 오류가 아니라 정상 종료다 — 실패 토스트를 띄우지 않는다.**
-   *   중단하면 응답이 오지 않아 **일반 실패와 같은 모양**으로 올라오므로, 갈라 놓지 않으면 스스로
-   *   멈춘 사용자에게 «원본 다운로드에 실패했습니다» 가 뜬다.
-   *   ⚠ 판정 근거로 오류 객체를 쓰지 않는다 — 공용 클라이언트가 `ApiError` 로 감싸며 취소 표식을
-   *     남기지 않아 오류만 봐서는 취소와 회선 단절이 구분되지 않는다. 반면 화면은 자기가 중단을
-   *     걸었는지 알고 있으므로 그 사실(`controller.signal.aborted`)로 판정한다. 공용 오류 타입을
-   *     넓히지 않으므로 다른 호출부에 영향이 없다.
-   *   ⚠ 취소하지 **않은** 실패는 종전대로 안내한다 — 삼키면 진짜 장애가 아무 표시 없이 사라진다.
-   */
-  const [downloading, setDownloading] = useState<'export' | 'file' | null>(null);
-  // 진행 중인 원본 다운로드의 중단 컨트롤러. 취소 버튼이 이것을 통해 전송을 끊는다.
-  const fileAbortRef = useRef<AbortController | null>(null);
-  const handleExport = () => {
-    if (!validUldSn || downloading) return;
-    setDownloading('export');
-    downloadUploadExport(uldSnNum)
-      .catch(() => pushToast({ variant: 'error', message: '내보내기에 실패했습니다.' }))
-      .finally(() => setDownloading(null));
-  };
-  const handleDownloadFile = () => {
-    if (!validUldSn || downloading) return;
-    const controller = new AbortController();
-    fileAbortRef.current = controller;
-    setDownloading('file');
-    // ref 가 아니라 지역 변수를 닫아 쓴다 — 다음 요청이 ref 를 덮어써도 이 catch 는 자기 요청의
-    // 중단 여부를 본다.
-    downloadUploadFile(uldSnNum, detail?.orgnlFileNm ?? `upload-${uldSnNum}`, controller.signal)
-      .catch(() => {
-        if (controller.signal.aborted) return; // 사용자가 스스로 멈춘 것 — 정상 종료
-        pushToast({ variant: 'error', message: '원본 다운로드에 실패했습니다.' });
-      })
-      .finally(() => {
-        if (fileAbortRef.current === controller) fileAbortRef.current = null;
-        setDownloading(null);
-      });
-  };
-  const handleCancelDownloadFile = () => {
-    fileAbortRef.current?.abort();
-  };
-
   const [containerRef, measured] = useMeasuredSize<HTMLDivElement>();
   const canvasWidth = measured.width || CANVAS_FALLBACK_W;
   const canvasHeight = measured.height || CANVAS_FALLBACK_H;
@@ -295,52 +279,6 @@ export function PortalUploadLabelingPage() {
           <p className="text-body text-gray-600">
             {multiFrame ? `프레임 ${index + 1} / ${totalFrames}` : '이미지 1장'}
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={downloading !== null}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-btn-label text-gray-700 hover:bg-gray-50 disabled:opacity-50',
-              KRDS_FOCUS,
-            )}
-          >
-            {/* 두 버튼 모두 '내려받기'라 같은 아이콘을 쓴다 — 구분은 라벨이 한다. */}
-            <Download className="h-4 w-4" aria-hidden="true" />
-            내보내기(JSON)
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadFile}
-            disabled={downloading !== null}
-            /* 진행 사실은 보조기술에도 전달한다(형제 화면 SCREEN-028 과 같은 관례). 원본은 최대
-               5GB 라 오래 걸릴 수 있어 «눌렸는데 아무 일도 없다» 로 보이면 안 된다. */
-            aria-busy={downloading === 'file' || undefined}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-btn-label text-gray-700 hover:bg-gray-50 disabled:opacity-50',
-              KRDS_FOCUS,
-            )}
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            원본 다운로드
-          </button>
-          {/* 취소는 **원본을 내려받는 동안에만** 나타난다(진행 표시가 일어나는 자리 바로 옆).
-              내보내기(JSON)에는 두지 않는다 — 작아서 이 버튼이 뜨기 전에 끝난다.
-              ⚠ 진행 중 상호 비활성 대상에서 제외된다 — 취소는 눌러야 동작한다. */}
-          {downloading === 'file' && (
-            <button
-              type="button"
-              onClick={handleCancelDownloadFile}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-btn-label text-gray-700 hover:bg-gray-50',
-                KRDS_FOCUS,
-              )}
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-              원본 다운로드 취소
-            </button>
-          )}
         </div>
       </div>
 
@@ -425,7 +363,16 @@ export function PortalUploadLabelingPage() {
             onLabelAdd={(l) => addLabel({ ...l, frameNo: frame.frameNo })}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-body text-gray-600">
+          /*
+           * 프레임 0건은 **오류가 아니다.** 업로드 자산의 프레임은 마킹으로 뽑을 위치를 정한
+           * 뒤에 생기므로, 아직 없는 것이 정상인 구간이 있다. 그래서 실패 안내(alert)가 아니라
+           * 상태 안내(status)로 두고 «불러오지 못했다» 류의 단정을 쓰지 않는다.
+           */
+          <div
+            data-testid="upload-canvas-no-frame"
+            role="status"
+            className="flex h-full items-center justify-center text-body text-gray-600"
+          >
             표시할 프레임이 없습니다.
           </div>
         )}
@@ -450,7 +397,7 @@ export function PortalUploadLabelingPage() {
         <div className="flex items-center justify-center gap-3">
           <button
             type="button"
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            onClick={() => goToIndex(index - 1)}
             disabled={isEditBlocked || index === 0}
             aria-label="이전 프레임"
             className={cn(
@@ -465,7 +412,7 @@ export function PortalUploadLabelingPage() {
           </span>
           <button
             type="button"
-            onClick={() => setIndex((i) => Math.min(totalFrames - 1, i + 1))}
+            onClick={() => goToIndex(index + 1)}
             disabled={isEditBlocked || index >= totalFrames - 1}
             aria-label="다음 프레임"
             className={cn(

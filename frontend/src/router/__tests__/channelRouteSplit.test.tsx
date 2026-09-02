@@ -49,7 +49,14 @@ async function loadRoutes(channel: string): Promise<string[]> {
   return flattenPaths(mod.router.routes);
 }
 
-/** 포털 채널 산출물이 가져야 할 화면. */
+/**
+ * 포털 채널 산출물이 가져야 할 경로.
+ *
+ * ⚠ 맨 아래 것은 **화면이 아니다** — 폐기된 업로드 자산 라벨링 주소이고, 통합 라벨링 화면
+ *   (`/portal/label/:id`)으로 갈아타는 호환 조각이 그 자리를 지킨다. 이미 나가 있는 주소로
+ *   들어온 사용자가 막히지 않게 남긴 것이므로 여기서 **빠지면 안 되지만**, 이 목록에 있다는
+ *   이유로 그 자리에 화면을 되살리지 말 것(포털의 라벨링 화면은 하나뿐이다).
+ */
 const PORTAL_SCREENS = [
   '/portal',
   '/portal/label/:id',

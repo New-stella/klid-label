@@ -121,7 +121,10 @@ describe('PortalUploadPage', () => {
     mockList([up({ uldSn: 5, uldSttsCd: 'READY', orgnlFileNm: 'clip.mp4', uldTypeCd: 'VIDEO' })]);
     rerender(<PortalUploadPage />);
     const link = await screen.findByRole('link', { name: /라벨링/ });
-    expect(link).toHaveAttribute('href', expect.stringContaining('/portal/uploads/5/label'));
+    // 통합 라벨링 화면으로 보낸다 — 업로드 자산 전용 라벨링 화면은 폐기됐다(@design SCREEN-029).
+    // 값을 통째로 고정한다 — 진입 주소를 만드는 함수를 시험이 같이 부르면 그 함수가 어떤 값을
+    // 만들든 항상 초록이라, 「목록이 통합 화면으로 보낸다」를 지키지 못한다.
+    expect(link).toHaveAttribute('href', '/portal/label/5?source=upload');
   });
 
   it('삭제_확인_후_목록에서_제거', async () => {

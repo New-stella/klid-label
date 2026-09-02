@@ -92,10 +92,11 @@ const PortalLabelingPage = /* @__PURE__ */ lazyWithRetry(() =>
 const PortalUploadPage = /* @__PURE__ */ lazyWithRetry(() =>
   import('@/pages/portal/PortalUploadPage').then((m) => ({ default: m.PortalUploadPage })),
 );
-// Phase 6 — 포털 업로드 자산 라벨링 화면 (CanvasShell 조립 + export/원본 다운로드) lazy 로드
-const PortalUploadLabelingPage = /* @__PURE__ */ lazyWithRetry(() =>
-  import('@/pages/portal/PortalUploadLabelingPage').then((m) => ({
-    default: m.PortalUploadLabelingPage,
+// 폐기된 업로드 자산 라벨링 주소를 통합 라벨링 화면으로 넘기는 갈아타기 lazy 로드.
+// 화면이 아니라 **이미 나가 있는 주소**를 위한 호환 조각이다(어디서도 그리로 보내지 않는다).
+const PortalUploadLabelingRedirect = /* @__PURE__ */ lazyWithRetry(() =>
+  import('@/pages/portal/PortalUploadLabelingRedirect').then((m) => ({
+    default: m.PortalUploadLabelingRedirect,
   })),
 );
 
@@ -702,8 +703,10 @@ const portalRoutes: RouteObject[] = IS_PORTAL_CHANNEL_BUILD
             element: <PortalRoute>{withSuspense(<PortalUploadPage />)}</PortalRoute>,
           },
           {
+            // 폐기된 목적지 — 통합 라벨링 화면(`label/:id`)으로 갈아탄다. 목록·메뉴·탭 어디서도
+            // 이 주소로 보내지 않으며, 오래된 주소로 들어온 사용자가 막히지 않게만 남긴다.
             path: 'uploads/:uldSn/label',
-            element: <PortalRoute>{withSuspense(<PortalUploadLabelingPage />)}</PortalRoute>,
+            element: <PortalRoute>{withSuspense(<PortalUploadLabelingRedirect />)}</PortalRoute>,
           },
         ],
       },

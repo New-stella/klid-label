@@ -1,4 +1,4 @@
-// Phase 6 — 포털 업로드 자산 라벨링 화면 동선 검증.
+// 통합 포털 라벨링 화면 — 업로드 자산 갈래 동선 검증. @design SCREEN-029
 // react-konva 는 jsdom 미지원이라 passthrough 로 mock (LabelingPage 테스트 관례와 동일).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -12,7 +12,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useLabelStore } from '@/stores/useLabelStore';
 
-import { PortalUploadLabelingPage } from '../PortalUploadLabelingPage';
+import { PortalUploadLabelingView } from '../PortalUploadLabelingView';
 
 // 테스트용 더미 인증값(비밀 아님 — 시크릿 스캐너 오탐 회피용 조합).
 const FAKE_TOKEN = ['t', 'o', 'k'].join('');
@@ -69,14 +69,18 @@ function bboxLabel(): Label {
   };
 }
 
+/**
+ * 통합 라벨링 화면의 **업로드 자산 갈래**를 그 화면의 주소에서 연다.
+ * 폐기된 전용 주소(`/portal/uploads/:uldSn/label`)가 아니라 통합 주소를 쓴다.
+ */
 function renderPage(uldSn = 1) {
-  return renderWithProviders(<PortalUploadLabelingPage />, {
-    initialEntries: [`/portal/uploads/${uldSn}/label`],
-    routes: [{ path: '/portal/uploads/:uldSn/label', element: <PortalUploadLabelingPage /> }],
+  return renderWithProviders(<PortalUploadLabelingView uldSn={uldSn} />, {
+    initialEntries: [`/portal/label/${uldSn}?source=upload`],
+    routes: [{ path: '/portal/label/:id', element: <PortalUploadLabelingView uldSn={uldSn} /> }],
   });
 }
 
-describe('PortalUploadLabelingPage', () => {
+describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -262,40 +266,24 @@ describe('PortalUploadLabelingPage', () => {
     });
   });
 
-  it('다운로드_버튼이_export_엔드포인트를_호출', async () => {
+  /*
+   * ★ 내려받기 두 갈래(라벨 JSON · 원본 파일)는 **이 화면에 없다** — 자산 단위 조작이라 자산
+   *   목록 화면의 행 액션이 갖는다(확정 사양). 여기에 되살리면 같은 조작의 진입점이 둘이 된다.
+   *   조작 자체가 사라진 것이 아니라 자리를 옮긴 것이며, 그쪽 동작은 목록 화면 시험이 지킨다.
+   */
+  it('내려받기_조작은_라벨링_화면에_두지_않는다_목록_화면이_갖는다', async () => {
+    // given
     mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
     mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
-    mock.onGet('/portal/uploads/1/export').reply(200, '{"ok":true}', {
-      'content-disposition': 'attachment; filename="upload-1.json"',
-    });
 
+    // when
     renderPage();
     await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: '내보내기(JSON)' }));
-
-    await waitFor(() =>
-      expect(mock.history.get.some((r) => r.url === '/portal/uploads/1/export')).toBe(true),
-    );
-  });
-
-  it('원본_다운로드_버튼이_file_엔드포인트를_호출', async () => {
-    mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
-    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
-    mock.onGet('/portal/uploads/1/file').reply(200, new Blob(), {
-      'content-disposition': 'attachment; filename="photo.jpg"',
-    });
-
-    renderPage();
-    await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole('button', { name: '원본 다운로드' }));
-
-    await waitFor(() =>
-      expect(mock.history.get.some((r) => r.url === '/portal/uploads/1/file')).toBe(true),
-    );
-    // export(JSON) 엔드포인트는 호출되지 않는다(원본 파일 경로만).
-    expect(mock.history.get.some((r) => r.url === '/portal/uploads/1/export')).toBe(false);
+    // then
+    expect(screen.queryByRole('button', { name: '내보내기(JSON)' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '원본 다운로드' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '원본 다운로드 취소' })).toBeNull();
   });
 
   it('라벨_전체삭제_후_저장은_빈_배열_PUT', async () => {
@@ -456,6 +444,82 @@ describe('PortalUploadLabelingPage', () => {
     // then: dirty 가 유지되어 미저장 사실이 화면에 남는다.
     await waitFor(() => expect(useLabelStore.getState().busy).toBeNull());
     expect(useLabelStore.getState().dirtyLabels.size).toBeGreaterThan(0);
+  });
+
+  /*
+   * ★ 프레임 0건은 **오류가 아니다.** 업로드 자산의 프레임은 마킹으로 뽑을 위치를 정한 뒤에
+   *   생기므로 아직 없는 것이 정상인 구간이 있다. 실패로 그리면 사용자는 자기 자산이 깨진 줄 안다.
+   */
+  it('프레임이_0건이어도_실패로_그리지_않는다_상태_안내다', async () => {
+    // given: 준비 완료인데 아직 프레임이 없다
+    mock.onGet('/portal/uploads/1').reply(200, ok(detail({ frames: [], frmeCnt: 0 })));
+
+    // when
+    renderPage();
+
+    // then: 상태 안내로 뜬다
+    const notice = await screen.findByTestId('upload-canvas-no-frame');
+    expect(notice).toHaveAttribute('role', 'status');
+    // then: 실패로 단정하지 않는다 — 오류 역할도, 실패 문구도 없다
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/실패|불러올 수 없|오류/)).toBeNull();
+  });
+
+  /*
+   * 프레임 이동이 **주소를 바꾼다** — 데이터마트 갈래는 프레임을 옮길 때 주소가 바뀌는데
+   * 같은 화면의 다른 갈래만 안 바뀌면 뒤로가기·새로고침·주소 공유가 갈래마다 다르게 동작한다.
+   */
+  it('프레임을_옮기면_주소가_그_프레임을_가리킨다', async () => {
+    // given
+    mock.onGet('/portal/uploads/1').reply(
+      200,
+      ok(detail({ uldTypeCd: 'VIDEO', frmeCnt: 2, frames: [frameRow(100, 0), frameRow(101, 1)] })),
+    );
+    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
+    mock.onGet('/portal/uploads/frames/101/labels').reply(200, ok([]));
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
+
+    // when
+    fireEvent.click(screen.getByRole('button', { name: '다음 프레임' }));
+
+    // then: 두 번째 프레임의 라벨을 조회한다(주소가 그 프레임을 가리킨 결과)
+    await waitFor(() =>
+      expect(
+        mock.history.get.some((r) => r.url === '/portal/uploads/frames/101/labels'),
+      ).toBe(true),
+    );
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+  });
+
+  it('주소가_가리키는_프레임으로_바로_열린다', async () => {
+    // given
+    mock.onGet('/portal/uploads/1').reply(
+      200,
+      ok(detail({ uldTypeCd: 'VIDEO', frmeCnt: 2, frames: [frameRow(100, 0), frameRow(101, 1)] })),
+    );
+    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
+    mock.onGet('/portal/uploads/frames/101/labels').reply(200, ok([]));
+
+    // when: 두 번째 프레임을 가리키는 주소로 진입
+    renderWithProviders(<PortalUploadLabelingView uldSn={1} />, {
+      initialEntries: ['/portal/label/1?source=upload&frame=101'],
+      routes: [{ path: '/portal/label/:id', element: <PortalUploadLabelingView uldSn={1} /> }],
+    });
+
+    // then
+    await waitFor(() => expect(screen.getByText('2 / 2')).toBeInTheDocument());
+  });
+
+  it('잘못된_자산_주소는_안내로_막는다', async () => {
+    // given / when
+    renderWithProviders(<PortalUploadLabelingView uldSn={Number.NaN} />, {
+      initialEntries: ['/portal/label/abc?source=upload'],
+      routes: [{ path: '/portal/label/:id', element: <PortalUploadLabelingView uldSn={Number.NaN} /> }],
+    });
+
+    // then
+    expect(await screen.findByText('잘못된 자산 주소입니다.')).toBeInTheDocument();
   });
 
   it('READY_아닌_자산_진입시_안내', async () => {

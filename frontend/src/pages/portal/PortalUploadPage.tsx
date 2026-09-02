@@ -3,13 +3,15 @@
 // - 영상: 기존 TUS 엔진 재사용(포털 endpoint 주입) — 재개 가능 청크 업로드
 // - 목록: 타입/상태 배지 + 페이징, PROCESSING 자산은 폴링, READY 자산에 라벨링 진입
 // - 삭제: 확인 후 요청 (PROCESSING 이면 BE 가 409)
+// - 자산별 내려받기: 라벨 내보내기(JSON) + 원본 파일 — **라벨링 화면이 아니라 여기가 갖는다**
+//   (확정 사양). 자산 단위 조작이라 자산이 늘어놓인 이 자리가 제 위치다.
 // - 보존기간: 각 자산에 만료 예정일 병기(날짜까지만) — 만료가 없는 상태면 자리를 비운다. @design SCREEN-033
 //
 // 보안: 사용자 파일명은 JSX 텍스트 노드로만 렌더(자동 escape, XSS 방어). URL 은 apiClient baseURL.
 
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Upload } from 'lucide-react';
+import { Download, Trash2, Upload, X } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { Pagination } from '@/components/common/Pagination';
@@ -23,7 +25,10 @@ import {
   IMAGE_POLICY_TEXT,
   validateImageFiles,
 } from '@/features/portal/uploads/validation';
+import { buildPortalUploadLabelPath } from '@/features/portal/labelingEntry';
 import { formatExpiryDate } from '@/features/portal/expiry';
+import { downloadUploadExport, downloadUploadFile } from '@/features/portal/uploads/api';
+import { useUiStore } from '@/stores/useUiStore';
 import { usePortalUploads } from '@/features/portal/uploads/hooks/usePortalUploads';
 import { useUploadImages } from '@/features/portal/uploads/hooks/useUploadImages';
 import { useDeleteUpload } from '@/features/portal/uploads/hooks/useDeleteUpload';
@@ -288,7 +293,63 @@ interface UploadItemProps {
   deleting: boolean;
 }
 
+/**
+ * 자산 하나의 내려받기 두 갈래(라벨 JSON · 원본 파일).
+ *
+ * ★**취소는 원본 파일에만 둔다** — 원본은 최대 5GB 라 한 번 시작하면 오래 붙잡히지만, 라벨
+ *   내보내기(JSON)는 작아서 취소 버튼이 뜨기도 전에 끝난다(사양).
+ *
+ * ★★**사용자 취소는 오류가 아니라 정상 종료다 — 실패 안내를 띄우지 않는다.** 중단하면 응답이
+ *   오지 않아 **일반 실패와 같은 모양**으로 올라오므로, 갈라 놓지 않으면 스스로 멈춘 사용자에게
+ *   «원본 다운로드에 실패했습니다» 가 뜬다.
+ *   ⚠ 판정 근거로 오류 객체를 쓰지 않는다 — 공용 클라이언트가 취소 표식을 남기지 않아 오류만
+ *     봐서는 취소와 회선 단절이 구분되지 않는다. 반면 화면은 자기가 중단을 걸었는지 알고 있으므로
+ *     그 사실(`controller.signal.aborted`)로 판정한다.
+ *   ⚠ 취소하지 **않은** 실패는 종전대로 안내한다 — 삼키면 진짜 장애가 아무 표시 없이 사라진다.
+ *
+ * ⚠ 이 조작들은 라벨링 화면에서 이 목록으로 **옮겨 온 것**이다. 라벨링 화면에 되살리면 같은
+ *   조작의 진입점이 둘이 된다.
+ */
+function useUploadDownloads(upload: PortalUpload) {
+  const pushToast = useUiStore((s) => s.pushToast);
+  const [downloading, setDownloading] = useState<'export' | 'file' | null>(null);
+  // 진행 중인 원본 다운로드의 중단 컨트롤러. 취소 버튼이 이것을 통해 전송을 끊는다.
+  const fileAbortRef = useRef<AbortController | null>(null);
+
+  const exportLabels = () => {
+    if (downloading) return;
+    setDownloading('export');
+    downloadUploadExport(upload.uldSn)
+      .catch(() => pushToast({ variant: 'error', message: '내보내기에 실패했습니다.' }))
+      .finally(() => setDownloading(null));
+  };
+
+  const downloadFile = () => {
+    if (downloading) return;
+    const controller = new AbortController();
+    fileAbortRef.current = controller;
+    setDownloading('file');
+    // ref 가 아니라 지역 변수를 닫아 쓴다 — 다음 요청이 ref 를 덮어써도 이 catch 는 자기 요청의
+    // 중단 여부를 본다.
+    downloadUploadFile(upload.uldSn, upload.orgnlFileNm, controller.signal)
+      .catch(() => {
+        if (controller.signal.aborted) return; // 사용자가 스스로 멈춘 것 — 정상 종료
+        pushToast({ variant: 'error', message: '원본 다운로드에 실패했습니다.' });
+      })
+      .finally(() => {
+        if (fileAbortRef.current === controller) fileAbortRef.current = null;
+        setDownloading(null);
+      });
+  };
+
+  const cancelFileDownload = () => fileAbortRef.current?.abort();
+
+  return { downloading, exportLabels, downloadFile, cancelFileDownload };
+}
+
 function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
+  const { downloading, exportLabels, downloadFile, cancelFileDownload } =
+    useUploadDownloads(upload);
   const isReady = upload.uldSttsCd === PortalUploadStatus.READY;
   const isFailed = upload.uldSttsCd === PortalUploadStatus.FAILED;
   // 처리 중 자산은 BE 가 삭제를 409 로 거부하므로 버튼 자체를 비활성화(무반응 방지).
@@ -327,10 +388,69 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {/*
+          자산 단위 내려받기 — 준비 완료 자산에만 둔다. 그 전 상태에는 내보낼 라벨도, 라벨링을
+          거친 결과도 없다(옮겨 오기 전 라벨링 화면도 준비 완료 자산에서만 열렸다).
+          행이 여럿이라 **접근 이름에 파일명을 붙인다** — 이름 없이 «내보내기» 만 두면 같은 이름의
+          버튼이 자산 수만큼 생겨 보조기술 사용자가 어느 자산인지 가릴 수 없다(삭제 버튼과 같은 관례).
+        */}
+        {isReady && (
+          <>
+            <button
+              type="button"
+              onClick={exportLabels}
+              disabled={downloading !== null}
+              aria-label={`${upload.orgnlFileNm} 내보내기(JSON)`}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50',
+                KRDS_FOCUS,
+              )}
+            >
+              {/* 두 버튼 모두 '내려받기'라 같은 아이콘을 쓴다 — 구분은 라벨이 한다. */}
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              내보내기(JSON)
+            </button>
+            <button
+              type="button"
+              onClick={downloadFile}
+              disabled={downloading !== null}
+              aria-label={`${upload.orgnlFileNm} 원본 다운로드`}
+              /* 진행 사실은 보조기술에도 전달한다. 원본은 최대 5GB 라 오래 걸릴 수 있어
+                 «눌렸는데 아무 일도 없다» 로 보이면 안 된다. */
+              aria-busy={downloading === 'file' || undefined}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50',
+                KRDS_FOCUS,
+              )}
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              원본 다운로드
+            </button>
+            {/* 취소는 **원본을 내려받는 동안에만** 나타난다. 내보내기(JSON)에는 두지 않는다 —
+                작아서 이 버튼이 뜨기 전에 끝난다.
+                ⚠ 진행 중 상호 비활성 대상에서 제외된다 — 취소는 눌러야 동작한다. */}
+            {downloading === 'file' && (
+              <button
+                type="button"
+                onClick={cancelFileDownload}
+                aria-label={`${upload.orgnlFileNm} 원본 다운로드 취소`}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50',
+                  KRDS_FOCUS,
+                )}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+                원본 다운로드 취소
+              </button>
+            )}
+          </>
+        )}
         {isReady && (
           <Link
-            to={`/portal/uploads/${upload.uldSn}/label`}
+            /* 통합 라벨링 화면으로 보낸다 — 업로드 자산 전용 라벨링 화면은 폐기됐다.
+               주소 조립은 `labelingEntry` 한 곳이 한다(문자열을 여기 흩지 않는다). */
+            to={buildPortalUploadLabelPath(upload.uldSn)}
             className={cn(
               'inline-flex items-center rounded-lg bg-primary-600 px-3 py-1.5 text-sub font-medium text-white transition-colors hover:bg-primary-700',
               KRDS_FOCUS,
