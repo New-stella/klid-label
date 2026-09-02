@@ -1,10 +1,12 @@
 // PortalLayout — 외부 사용자(포털 채널) 전용 단순 레이아웃.
-// - GNB 단순화: 제목 + 사용자 메뉴만
+// - GNB 단순화: 제목 + 사용자 메뉴만 (포털 채널 빌드에서는 그것마저 숨긴다 — 아래 ★★)
 // - LNB 없음
+// - 본문 상단 이동 탭으로 목적지를 오간다 (아래 ★★★)
 // - 모바일 친화 (Tailwind md:* 분기, WCAG 2.1 AA)
 
 import { Link, Outlet } from 'react-router-dom';
 
+import { PortalContentTabs } from '@/components/layout/PortalContentTabs';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
@@ -24,6 +26,17 @@ import { useAuthStore } from '@/stores/useAuthStore';
 //   이 채널 분리 결정은 뒤집힐 수 있고, 되돌릴 때 포커스 표시(`KRDS_FOCUS`)·링크 접근성
 //   처리까지 그대로 재현돼야 한다. 위 Footer 주석과 같은 관례("삭제 대신 조건부 렌더")를
 //   따른다. 기본값(`control`, 환경변수 미설정)에서는 지금처럼 렌더된다 — 지금 동작 불변.
+//
+// ★★★좌측 주 메뉴를 두지 않는다 — Host 가 머리 영역과 좌측 주 메뉴를 **둘 다** 소유한다
+//   (2026-09-02 사용자 확정, 구속 · 사양 SHELL-002 `sidenav.enabled=false`). 우리가 레일을
+//   그리면 한 화면에 왼쪽 레일이 두 벌이 되어 Host 화면과 부딪힌다. 대신 목적지 셋을 **본문
+//   상단 가로 탭**(`PortalContentTabs`)으로 오간다.
+//   ⚠⚠ **이 축은 두 번 뒤집혔고 지금이 세 번째 확정이다.** 중간에 「저작도구가 좌측 메뉴를
+//   그린다」로 뒤집힌 적이 있으나 그 결정은 설계에만 있었고 코드에 닿은 적이 없다. 지금 상태가
+//   확정 사양과 같으므로 **레일을 만들지 말 것** — 부재는 결손이 아니라 이 결정의 결과다
+//   (회귀 가드: PortalLayout.test.tsx 의 좌측 레일 미노출 단언).
+//   ⚠ 로고·사용자 신원·역할 배지도 두지 않는다 — Host 머리 영역이 이미 보여 준다.
+
 export function PortalLayout() {
   const claims = useAuthStore((s) => s.claims);
   const hideHeader = isPortalEmbedChannel();
@@ -45,6 +58,10 @@ export function PortalLayout() {
         </header>
       )}
       <main className="flex-1 px-4 py-6 md:px-6">
+        {/* 본문 상단 이동 탭 — Host 가 좌측 주 메뉴를 소유하므로 목적지 이동은 여기서 한다.
+            목적지 목록은 이 파일이 갖지 않는다(`@/lib/portalNav` 가 단일 진실원).
+            몰입 편집 화면에서는 컴포넌트가 스스로 아무것도 그리지 않는다. [@design SHELL-002] */}
+        <PortalContentTabs />
         <Outlet />
       </main>
     </div>
