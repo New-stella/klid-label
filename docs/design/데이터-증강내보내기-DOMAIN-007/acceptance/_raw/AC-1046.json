@@ -32,7 +32,7 @@
         "then": [
           "새 RAW_SN 생성·ORGNL_RAW_SN 연결(부모 게이트는 'N'만 막고 'F' 통과)",
           "부모 비식별본을 파생 경로로 실제 복사하고 그 경로를 RAW_FILE_PATH_NM에 기록(경로는 procLog 값 사용)",
-          "라벨/메타 복사로 좌표·속성 보존(3종은 좌표 미변환), 환경·개인정보 메타를 부모 값으로 1회 계승",
+          "라벨/메타 복사로 좌표·속성 보존 — 증강 축(AUGMENT 및 구 WINTER/NIGHT/RAIN)은 좌표 미변환, 환경·개인정보 메타를 부모 값으로 1회 계승",
           "새 영상을 PENDING으로 적재한다"
         ],
         "when": [
@@ -43,7 +43,7 @@
           "부모 비식별본이 존재한다"
         ]
       },
-      "statement": "외부 서비스가 POST /v1/genai/callback로 증강 결과를 보내면(중복 방지 식별자 포함) 시스템이 회신을 검증하고 원본 참조를 확인한 뒤(부모 게이트는 DE_IDNTF_YN='N'만 막고 'F'는 통과) 새 영상(RAW_SN)을 생성해 ORGNL_RAW_SN에 원본을 연결하고, 부모의 비식별 영상 파일을 파생 전용 경로로 실제 복사해 그 경로를 파생 RAW_FILE_PATH_NM으로 기록한다(복사 원본은 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 읽어 정하고 부모 원본 경로로 대체하지 않음). 원본 라벨/메타 JSON을 복사해 좌표·속성을 보존하고(WINTER/NIGHT/RAIN은 해상도 동일이라 좌표 미변환) 촬영환경·개인정보 판정 메타를 생성 시점에 부모 값으로 1회 계승한 뒤(이후 부모 정정 미재전파 스냅샷) 새 영상을 미검수(PENDING)로 적재한다.",
+      "statement": "외부 서비스가 POST /v1/genai/callback로 증강 결과를 보내면(중복 방지 식별자 포함) 시스템이 회신을 검증하고 원본 참조를 확인한 뒤(부모 게이트는 DE_IDNTF_YN='N'만 막고 'F'는 통과) 새 영상(RAW_SN)을 생성해 ORGNL_RAW_SN에 원본을 연결하고, 부모의 비식별 영상 파일을 파생 전용 경로로 실제 복사해 그 경로를 파생 RAW_FILE_PATH_NM으로 기록한다(복사 원본은 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 읽어 정하고 부모 원본 경로로 대체하지 않음). 원본 라벨/메타 JSON을 복사해 좌표·속성을 보존하고, 증강 축(AUGMENT 및 구 WINTER/NIGHT/RAIN)은 해상도 동일이라 좌표 미변환이며(ADR-059), 촬영환경·개인정보 판정 메타를 생성 시점에 부모 값으로 1회 계승한 뒤(이후 부모 정정 미재전파 스냅샷) 새 영상을 미검수(PENDING)로 적재한다.",
       "brownfield": {
         "status": "new"
       },
@@ -62,19 +62,19 @@
         "DOMAIN-007"
       ],
       "verification_method": "automated_test",
-      "verification_status": "passing",
+      "verification_status": "unverified",
       "derived_from_use_cases": [
         "UC-002"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": true,
-    "stale_reason": "DFEAT-029의 2개 필드 변경이 derived_from로 2-hop 전파",
-    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "증강 종류 단일화(ADR-059)로 수용기준 문장이 바뀌었으므로 검증 상태를 unverified 로 되돌린다. 기록된 통과는 문장이 바뀌기 전 실행이라 새 기준을 검증했을 수 없다. 실행 기록(last_run)과 증거(evidence)는 실제로 있었던 일이라 지우지 않고 그대로 둔다 — 재실행 후 다시 올린다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:39:46.051Z",
+    "last_updated_at": "2026-09-02T08:49:55.074Z",
     "created_at": "2026-08-31T02:16:37.397Z"
   }
 }

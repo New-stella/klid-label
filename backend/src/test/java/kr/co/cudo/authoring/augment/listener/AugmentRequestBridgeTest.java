@@ -53,7 +53,7 @@ class AugmentRequestBridgeTest {
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, LsDataAug.AUG_WINTER, MTDT, null, "FLOOD", null, "AUG-key",
+                7L, 700L, LsDataAug.AUG_AUGMENT, MTDT, null, "AUG-key",
                 "http://localhost:8080/api/v1/genai/callback", "1");
     }
 

@@ -10,10 +10,10 @@
     "data": {
       "theme": "neutral",
       "title": "사용자 계정·역할 관리 시퀀스",
-      "source": "sequenceDiagram\n    actor R as 검수자(REVIEWER)\n    actor N as 역할 미부여 사용자\n    participant CTRL as 관제서버\n    participant JF as JwtAuthenticationFilter\n    participant GATE as 관리자 유효창 공통 배선\n    participant RR as UserRoleResolver\n    participant CC as RoleClaimController\n    participant CS as RoleClaimService\n    participant UC as UserController\n    participant US as UserService\n    participant UR as UserRepository\n    participant LR as LsUserRoleRepository\n    participant ACNT as LS_ACNT_USER\n    participant ROLE as LS_USER_ROLE\n    participant ACTL as AdminSessionController\n    participant ASVC as AdminSessionService\n    participant TOK as AdminSessionTokenService\n\n    CTRL-)R: 발급한 JWT 를 인계한다 — 이 시스템에는 자체 로그인 화면도 자체 인증 엔드포인트도 없다\n\n    opt 사용자 행이 아직 없는 경우 — 관리 목록에 사람이 나타나는 유일한 경로다\n        N->>CC: POST /v1/auth/role-claim {role, adminPassword}\n        CC->>CS: claim(req, actor)\n        CS->>CS: 이미 역할을 가졌거나 내부 채널이 아니면 거절하고, 관리자 공유 패스워드를 해시로 대조하며, 시도 횟수를 제한한다\n        CS->>ACNT: USER_NO 충돌 시 갱신하는 원자 upsert — 사용자 행이 여기서 처음 생긴다\n        CS->>ROLE: USER_NO 충돌 시 ROLE_CD 를 갱신하는 원자 upsert(부여 가능 역할은 REVIEWER 와 WORKER 이며 PORTAL_USER 는 거절한다)\n    end\n\n    R->>JF: GET /v1/users?keyword=&role=&page=&size= (Authorization 헤더에 JWT)\n    JF->>JF: 서명·발급자·만료를 검증하고 sub·channel·name 클레임을 읽는다\n    JF->>RR: resolve(userNo) — 인가 역할은 토큰의 역할 클레임에서 읽지 않는다\n    RR->>ROLE: USER_NO 로 ROLE_CD 조회\n    ROLE-->>RR: ROLE_CD\n    RR-->>JF: 역할 — 저작도구가 소유한 값이 인가의 단일 진실원이다\n    JF->>UC: 역할 권한을 실은 인증 컨텍스트로 요청을 넘긴다\n    UC->>UC: hasRole('REVIEWER') — 사용자 관리 API 는 REVIEWER 전용이다\n    UC->>US: searchUsers(keyword, role, pageable) — 정렬은 USER_NO 오름차순 고정이라 호출자가 지정할 수 없다\n    US->>UR: searchByKeyword(keyword, pageable)\n    UR->>ACNT: USER_ID·USER_NM·USER_EML_ADDR 부분일치 조회(서버 페이징)\n    ACNT-->>UR: 사용자 페이지\n    UR-->>US: 사용자 페이지\n    US->>LR: 페이지에 실린 USER_NO 전체의 역할을 한 번에 조회한다\n    LR-->>US: USER_NO 별 ROLE_CD — 역할 행이 없으면 미배정이며 기본값을 부여하지 않는다\n    US->>US: 역할 필터가 지정되면 조회된 페이지 안에서 걸러낸다\n    US-->>UC: 사용자 목록(역할·계정 활성 여부 포함)\n    UC-->>R: 200 OK — 계정 활성 여부는 읽기 전용 표시이며 이 화면의 변경 대상이 아니다\n\n    R->>ACTL: POST /v1/manage/admin-session {adminPassword} — 역할을 바꾸려면 먼저 관리자 패스워드로 유효창을 연다\n    ACTL->>ASVC: open(req, actor)\n    ASVC->>ASVC: 검수자가 아니면 거절하고, 시도 횟수를 제한하며, 관리자 공유 패스워드를 해시로 대조한다\n    ASVC->>TOK: issue(subject, now) — 유효창을 여는 것은 역할 승격이 아니다\n    TOK-->>ASVC: 발급 대상자에게 묶인 단기 토큰과 만료 일시 — 유효기간은 기본 10분이고 상한 30분을 넘길 수 없다\n    ASVC-->>ACTL: 토큰·만료 일시\n    ACTL-->>R: 200 OK — 화면은 남은 유효 시간을 보여주고 패스워드 입력값은 다시 표시하지 않는다\n\n    R->>GATE: PATCH /v1/users/{userNo} {role} + X-Admin-Session 헤더 — 역할 변경은 검수자 권한에 유효창이 가산된다\n    GATE->>GATE: 요청이 닿을 창구에 유효창 요구 표식이 걸려 있는지 읽는다 — 창구는 요구를 선언할 뿐 판정하지 않는다\n    GATE->>TOK: verify(token, subject, now) — 유효 판정은 단일 지점이 소유하고 어느 창구도 그것을 복제하지 않는다\n    TOK-->>GATE: 통과 — 없거나 유효기간이 끝났거나 위조됐거나 타인에게 발급된 토큰이면 거부한다\n    GATE->>UC: 표식 판정을 통과한 요청만 창구 본문에 닿는다\n    UC->>UC: role 값을 REVIEWER·WORKER·PORTAL_USER 화이트리스트로 재검증한다\n    UC->>US: update(userNo, req) — 수행 계층은 요청 헤더도 유효창도 알지 않는다\n    US->>UR: findByUserNo(userNo)\n    UR-->>US: 사용자 — 없으면 404 로 끝난다\n    US->>LR: findByUserNo(userNo) — 현재 역할\n    LR-->>US: 현재 ROLE_CD\n    opt 요청 역할이 현재 역할과 다른 경우에만\n        US->>ROLE: USER_NO 충돌 시 ROLE_CD·UPD_DT 를 갱신하는 원자 upsert\n        US-)RR: 커밋 이후 해당 USER_NO 의 역할 캐시를 무효화한다(커밋 전에 지우면 동시 요청이 옛 값을 다시 담는다)\n    end\n    US-->>UC: 갱신된 역할을 실은 프로필\n    UC-->>R: 200 OK\n\n    alt 화이트리스트 밖 값\n        R->>UC: PATCH /v1/users/{userNo} — 화이트리스트 밖 역할 값(유효창 판정을 통과한 뒤 창구 본문에서 걸린다)\n        UC-->>R: 400 Bad Request\n    else 현재와 같은 역할\n        R->>UC: PATCH /v1/users/{userNo} — 현재와 같은 역할 값(유효창 판정을 통과한 뒤다)\n        UC->>US: update(userNo, req)\n        US->>US: 현재 역할과 같으면 갱신도 캐시 무효화도 건너뛴다\n        UC-->>R: 200 OK — 화면은 이 경우 저장 버튼을 비활성화해 요청이 나가지 않게 한다\n    else 유효창 없음 또는 만료\n        R->>GATE: PATCH /v1/users/{userNo} — 유효창이 없거나 유효기간이 끝난 상태\n        GATE->>TOK: verify(token, subject, now)\n        TOK-->>GATE: 거부 — 창구 본문은 실행되지 않고 역할도 바뀌지 않는다\n        GATE-->>R: 403 Forbidden — 상태코드와 오류 코드로는 검수자 권한이 없을 때와 구분되지 않는다\n        Note over R,GATE: 안내 문구는 다르다 — 유효창 거부는 다시 인증할 자리를 안내하고 그 문구는 실패 사유가 무엇이든 같다. 두 요청을 비교하면 자기 자신의 역할 상태를 짐작할 수 있다는 대가는 인지하고 받아들인다\n        R->>ACTL: 관리자 패스워드 재확인 — 화면은 만료를 알리고 다시 확인을 요구하며, 확인에 성공하면 저장을 이어서 시도한다\n        Note over R,UC: 조회는 이 거부와 무관하다 — 목록·단건 조회는 검수자 권한만으로 되며 유효창을 요구하지 않는다\n    end\n",
+      "source": "sequenceDiagram\n    actor AD as 관리자(ADMIN)\n    actor N as 내부 채널 사용자(최초 관리자 등록)\n    participant CTRL as 관제서버\n    participant JF as JwtAuthenticationFilter\n    participant GATE as 관리자 유효창 공통 배선\n    participant RR as UserRoleResolver\n    participant CC as RoleClaimController\n    participant CS as RoleClaimService\n    participant UC as UserController\n    participant US as UserService\n    participant UR as UserRepository\n    participant LR as LsUserRoleRepository\n    participant ACNT as LS_ACNT_USER\n    participant ROLE as LS_USER_ROLE\n    participant ACTL as AdminSessionController\n    participant ASVC as AdminSessionService\n    participant TOK as AdminSessionTokenService\n\n    CTRL-)AD: 발급한 JWT 를 인계한다 — 이 시스템에는 자체 로그인 화면도 자체 인증 엔드포인트도 없다\n\n    opt 관리자 부트스트랩 — 관리자가 0명인 동안에만 열리고 한 명이라도 생기면 닫힌다\n        N->>CC: POST /v1/auth/role-claim {role, adminPassword}\n        CC->>CS: claim(req, actor)\n        CS->>CS: 관리자가 이미 있거나 내부 채널이 아니면 409 로 거절하고, 관리자 공유 패스워드를 해시로 대조하며, 시도 횟수를 제한한다 — 창이 열려 있는 동안에는 요청자가 이미 역할을 가졌는지 따지지 않는다\n        CS->>CS: 요청의 role 값을 읽어 PORTAL_USER 면 400, 그 밖의 역할이면 403 으로 거절한다 — 통과해도 부여 역할은 ADMIN 고정이라 이 값이 결과를 바꾸지 못한다\n        CS->>ACNT: USER_NO 충돌 시 갱신하는 원자 upsert — 진입 시 자동 등록으로 이미 만들어진 행이면 갱신한다\n        CS->>ROLE: USER_NO 충돌 시 ROLE_CD 를 ADMIN 으로 갱신하는 원자 upsert — 부여 역할은 ADMIN 고정이고 기존 역할이 있으면 관리자로 교체된다\n    end\n\n    AD->>JF: GET /v1/users?keyword=&role=&page=&size= (Authorization 헤더에 JWT)\n    JF->>JF: 서명·발급자·만료를 검증하고 sub·channel·name 클레임을 읽는다\n    JF->>RR: resolve(userNo) — 인가 역할은 토큰의 역할 클레임에서 읽지 않는다\n    RR->>ROLE: USER_NO 로 ROLE_CD 조회\n    ROLE-->>RR: ROLE_CD\n    RR-->>JF: 역할 — 저작도구가 소유한 값이 인가의 단일 진실원이다\n    JF->>UC: 역할 권한을 실은 인증 컨텍스트로 요청을 넘긴다\n    UC->>UC: hasRole('REVIEWER') — 조회 창구는 검수자 권한으로 열리고 관리자는 그것을 계층으로 물려받는다. 역할 변경은 이 축이 아니라 관리자 권한을 요구한다\n    UC->>US: searchUsers(keyword, role, pageable) — 정렬은 USER_NO 오름차순 고정이라 호출자가 지정할 수 없다\n    US->>UR: searchByKeyword(keyword, pageable)\n    UR->>ACNT: USER_ID·USER_NM·USER_EML_ADDR 부분일치 조회(서버 페이징)\n    ACNT-->>UR: 사용자 페이지\n    UR-->>US: 사용자 페이지\n    US->>LR: 페이지에 실린 USER_NO 전체의 역할을 한 번에 조회한다\n    LR-->>US: USER_NO 별 ROLE_CD — 역할 행이 없으면 미배정이며 기본값을 부여하지 않는다\n    US->>US: 역할 필터가 지정되면 조회된 페이지 안에서 걸러낸다\n    US-->>UC: 사용자 목록(역할·계정 활성 여부 포함)\n    UC-->>AD: 200 OK — 계정 활성 여부는 읽기 전용 표시이며 이 화면의 변경 대상이 아니다\n\n    AD->>ACTL: POST /v1/manage/admin-session {adminPassword} — 역할을 바꾸려면 먼저 관리자 패스워드로 유효창을 연다\n    ACTL->>ASVC: open(req, actor)\n    ASVC->>ASVC: 관리자가 아니면 거절하고, 시도 횟수를 제한하며, 관리자 공유 패스워드를 해시로 대조한다 — 판정 순서는 인가·시도 횟수·패스워드 대조다\n    ASVC->>TOK: issue(subject, now) — 유효창을 여는 것은 역할 승격이 아니다\n    TOK-->>ASVC: 발급 대상자에게 묶인 단기 토큰과 만료 일시 — 유효기간은 기본 10분이고 상한 30분을 넘길 수 없다\n    ASVC-->>ACTL: 토큰·만료 일시\n    ACTL-->>AD: 200 OK — 화면은 남은 유효 시간을 보여주고 패스워드 입력값은 다시 표시하지 않는다\n\n    AD->>GATE: PATCH /v1/users/{userNo} {role} + X-Admin-Session 헤더 — 역할 변경은 관리자 권한에 유효창이 가산되며, 검수자는 유효창을 들고 와도 이 창구를 열 수 없다\n    GATE->>GATE: 요청이 닿을 창구에 유효창 요구 표식이 걸려 있는지 읽는다 — 창구는 요구를 선언할 뿐 판정하지 않는다\n    GATE->>TOK: verify(token, subject, now) — 유효 판정은 단일 지점이 소유하고 어느 창구도 그것을 복제하지 않는다\n    TOK-->>GATE: 통과 — 없거나 유효기간이 끝났거나 위조됐거나 타인에게 발급된 토큰이면 거부한다\n    GATE->>UC: 표식 판정을 통과한 요청만 창구 본문에 닿는다\n    UC->>UC: role 값을 ADMIN·REVIEWER·WORKER·PORTAL_USER 화이트리스트로 재검증한다\n    UC->>US: update(userNo, req) — 수행 계층은 요청 헤더도 유효창도 알지 않는다\n    US->>UR: findByUserNo(userNo)\n    UR-->>US: 사용자 — 없으면 404 로 끝난다\n    US->>LR: findByUserNo(userNo) — 현재 역할\n    LR-->>US: 현재 ROLE_CD\n    opt 요청 역할이 현재 역할과 다른 경우에만\n        US->>ROLE: USER_NO 충돌 시 ROLE_CD·UPD_DT 를 갱신하는 원자 upsert\n        US-)RR: 커밋 이후 해당 USER_NO 의 역할 캐시를 무효화한다(커밋 전에 지우면 동시 요청이 옛 값을 다시 담는다)\n    end\n    US-->>UC: 갱신된 역할을 실은 프로필\n    UC-->>AD: 200 OK\n\n    alt 화이트리스트 밖 값\n        AD->>UC: PATCH /v1/users/{userNo} — 화이트리스트 밖 역할 값(유효창 판정을 통과한 뒤 창구 본문에서 걸린다)\n        UC-->>AD: 400 Bad Request\n    else 현재와 같은 역할\n        AD->>UC: PATCH /v1/users/{userNo} — 현재와 같은 역할 값(유효창 판정을 통과한 뒤다)\n        UC->>US: update(userNo, req)\n        US->>US: 현재 역할과 같으면 갱신도 캐시 무효화도 건너뛴다\n        UC-->>AD: 200 OK — 화면은 이 경우 저장 버튼을 비활성화해 요청이 나가지 않게 한다\n    else 유효창 없음 또는 만료\n        AD->>GATE: PATCH /v1/users/{userNo} — 유효창이 없거나 유효기간이 끝난 상태\n        GATE->>TOK: verify(token, subject, now)\n        TOK-->>GATE: 거부 — 창구 본문은 실행되지 않고 역할도 바뀌지 않는다\n        GATE-->>AD: 403 Forbidden — 상태코드와 오류 코드로는 관리자 권한이 없을 때와 구분되지 않는다\n        Note over AD,GATE: 안내 문구는 다르다 — 유효창 거부는 다시 인증할 자리를 안내하고 그 문구는 실패 사유가 무엇이든 같다. 두 요청을 비교하면 자기 자신의 역할 상태를 짐작할 수 있다는 대가는 인지하고 받아들인다\n        AD->>ACTL: 관리자 패스워드 재확인 — 화면은 만료를 알리고 다시 확인을 요구하며, 확인에 성공하면 저장을 이어서 시도한다\n        Note over AD,UC: 조회는 이 거부와 무관하다 — 목록·단건 조회는 검수자 권한만으로 되며 유효창을 요구하지 않는다\n    else 마지막 관리자 강등\n        AD->>UC: PATCH /v1/users/{userNo} — 마지막 남은 관리자를 관리자가 아닌 역할로 내리는 요청(유효창 판정을 통과한 뒤다)\n        UC->>US: update(userNo, req)\n        US->>ROLE: 관리자가 둘 이상 남는지를 갱신 문장 자체가 함께 판정한다 — 조회한 뒤 갱신하면 두 관리자가 서로를 동시에 내릴 때 각자 조회 시점에는 둘 다 통과한다\n        UC-->>AD: 409 Conflict — 관리자가 0명이 되면 부트스트랩 창구가 다시 열리므로 거절한다\n    end\n",
       "messages": [
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "control",
           "kind": "async",
           "label": "발급한 JWT 를 인계한다 — 이 시스템에는 자체 로그인 화면도 자체 인증 엔드포인트도 없다"
@@ -35,23 +35,29 @@
           "to": "claimSvc",
           "from": "claimSvc",
           "kind": "self",
-          "label": "이미 역할을 가졌거나 내부 채널이 아니면 거절하고, 관리자 공유 패스워드를 해시로 대조하며, 시도 횟수를 제한한다"
+          "label": "관리자가 이미 있거나 내부 채널이 아니면 409 로 거절하고, 관리자 공유 패스워드를 해시로 대조하며, 시도 횟수를 제한한다 — 창이 열려 있는 동안에는 요청자가 이미 역할을 가졌는지 따지지 않는다"
+        },
+        {
+          "to": "claimSvc",
+          "from": "claimSvc",
+          "kind": "self",
+          "label": "요청의 role 값을 읽어 PORTAL_USER 면 400, 그 밖의 역할이면 403 으로 거절한다 — 통과해도 부여 역할은 ADMIN 고정이라 이 값이 결과를 바꾸지 못한다"
         },
         {
           "to": "acnt",
           "from": "claimSvc",
           "kind": "sync",
-          "label": "USER_NO 충돌 시 갱신하는 원자 upsert — 사용자 행이 여기서 처음 생긴다"
+          "label": "USER_NO 충돌 시 갱신하는 원자 upsert — 진입 시 자동 등록으로 이미 만들어진 행이면 갱신한다"
         },
         {
           "to": "roleTbl",
           "from": "claimSvc",
           "kind": "sync",
-          "label": "USER_NO 충돌 시 ROLE_CD 를 갱신하는 원자 upsert(부여 가능 역할은 REVIEWER 와 WORKER 이며 PORTAL_USER 는 거절한다)"
+          "label": "USER_NO 충돌 시 ROLE_CD 를 ADMIN 으로 갱신하는 원자 upsert — 부여 역할은 ADMIN 고정이고 기존 역할이 있으면 관리자로 교체된다"
         },
         {
           "to": "jwtFilter",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
           "label": "GET /v1/users?keyword=&role=&page=&size= (Authorization 헤더에 JWT)",
           "item_ref": "API-001"
@@ -96,7 +102,7 @@
           "to": "userCtrl",
           "from": "userCtrl",
           "kind": "self",
-          "label": "hasRole('REVIEWER') — 사용자 관리 API 는 REVIEWER 전용이다"
+          "label": "hasRole('REVIEWER') — 조회 창구는 검수자 권한으로 열리고 관리자는 그것을 계층으로 물려받는다. 역할 변경은 이 축이 아니라 관리자 권한을 요구한다"
         },
         {
           "to": "userSvc",
@@ -153,14 +159,14 @@
           "label": "사용자 목록(역할·계정 활성 여부 포함)"
         },
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "userCtrl",
           "kind": "return",
           "label": "200 OK — 계정 활성 여부는 읽기 전용 표시이며 이 화면의 변경 대상이 아니다"
         },
         {
           "to": "adminCtl",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
           "label": "POST /v1/manage/admin-session {adminPassword} — 역할을 바꾸려면 먼저 관리자 패스워드로 유효창을 연다",
           "item_ref": "API-194"
@@ -175,7 +181,7 @@
           "to": "adminSvc",
           "from": "adminSvc",
           "kind": "self",
-          "label": "검수자가 아니면 거절하고, 시도 횟수를 제한하며, 관리자 공유 패스워드를 해시로 대조한다"
+          "label": "관리자가 아니면 거절하고, 시도 횟수를 제한하며, 관리자 공유 패스워드를 해시로 대조한다 — 판정 순서는 인가·시도 횟수·패스워드 대조다"
         },
         {
           "to": "tokenSvc",
@@ -196,16 +202,16 @@
           "label": "토큰·만료 일시"
         },
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "adminCtl",
           "kind": "return",
           "label": "200 OK — 화면은 남은 유효 시간을 보여주고 패스워드 입력값은 다시 표시하지 않는다"
         },
         {
           "to": "sessionGate",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
-          "label": "PATCH /v1/users/{userNo} {role} + X-Admin-Session 헤더 — 역할 변경은 검수자 권한에 유효창이 가산된다",
+          "label": "PATCH /v1/users/{userNo} {role} + X-Admin-Session 헤더 — 역할 변경은 관리자 권한에 유효창이 가산되며, 검수자는 유효창을 들고 와도 이 창구를 열 수 없다",
           "item_ref": "API-004"
         },
         {
@@ -236,7 +242,7 @@
           "to": "userCtrl",
           "from": "userCtrl",
           "kind": "self",
-          "label": "role 값을 REVIEWER·WORKER·PORTAL_USER 화이트리스트로 재검증한다"
+          "label": "role 값을 ADMIN·REVIEWER·WORKER·PORTAL_USER 화이트리스트로 재검증한다"
         },
         {
           "to": "userSvc",
@@ -287,26 +293,26 @@
           "label": "갱신된 역할을 실은 프로필"
         },
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "userCtrl",
           "kind": "return",
           "label": "200 OK"
         },
         {
           "to": "userCtrl",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
           "label": "PATCH /v1/users/{userNo} — 화이트리스트 밖 역할 값(유효창 판정을 통과한 뒤 창구 본문에서 걸린다)"
         },
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "userCtrl",
           "kind": "return",
           "label": "400 Bad Request"
         },
         {
           "to": "userCtrl",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
           "label": "PATCH /v1/users/{userNo} — 현재와 같은 역할 값(유효창 판정을 통과한 뒤다)"
         },
@@ -323,14 +329,14 @@
           "label": "현재 역할과 같으면 갱신도 캐시 무효화도 건너뛴다"
         },
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "userCtrl",
           "kind": "return",
           "label": "200 OK — 화면은 이 경우 저장 버튼을 비활성화해 요청이 나가지 않게 한다"
         },
         {
           "to": "sessionGate",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
           "label": "PATCH /v1/users/{userNo} — 유효창이 없거나 유효기간이 끝난 상태"
         },
@@ -347,49 +353,73 @@
           "label": "거부 — 창구 본문은 실행되지 않고 역할도 바뀌지 않는다"
         },
         {
-          "to": "reviewer",
+          "to": "admin",
           "from": "sessionGate",
           "kind": "return",
-          "label": "403 Forbidden — 상태코드와 오류 코드로는 검수자 권한이 없을 때와 구분되지 않는다"
+          "label": "403 Forbidden — 상태코드와 오류 코드로는 관리자 권한이 없을 때와 구분되지 않는다"
         },
         {
           "to": "sessionGate",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "note",
           "label": "안내 문구는 다르다 — 유효창 거부는 다시 인증할 자리를 안내하고 그 문구는 실패 사유가 무엇이든 같다. 두 요청을 비교하면 자기 자신의 역할 상태를 짐작할 수 있다는 대가는 인지하고 받아들인다"
         },
         {
           "to": "adminCtl",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "sync",
           "label": "관리자 패스워드 재확인 — 화면은 만료를 알리고 다시 확인을 요구하며, 확인에 성공하면 저장을 이어서 시도한다",
           "item_ref": "API-194"
         },
         {
           "to": "userCtrl",
-          "from": "reviewer",
+          "from": "admin",
           "kind": "note",
           "label": "조회는 이 거부와 무관하다 — 목록·단건 조회는 검수자 권한만으로 되며 유효창을 요구하지 않는다"
+        },
+        {
+          "to": "userCtrl",
+          "from": "admin",
+          "kind": "sync",
+          "label": "PATCH /v1/users/{userNo} — 마지막 남은 관리자를 관리자가 아닌 역할로 내리는 요청(유효창 판정을 통과한 뒤다)"
+        },
+        {
+          "to": "userSvc",
+          "from": "userCtrl",
+          "kind": "sync",
+          "label": "update(userNo, req)"
+        },
+        {
+          "to": "roleTbl",
+          "from": "userSvc",
+          "kind": "sync",
+          "label": "관리자가 둘 이상 남는지를 갱신 문장 자체가 함께 판정한다 — 조회한 뒤 갱신하면 두 관리자가 서로를 동시에 내릴 때 각자 조회 시점에는 둘 다 통과한다"
+        },
+        {
+          "to": "admin",
+          "from": "userCtrl",
+          "kind": "return",
+          "label": "409 Conflict — 관리자가 0명이 되면 부트스트랩 창구가 다시 열리므로 거절한다"
         }
       ],
       "fragments": [
         {
           "kind": "opt",
-          "label": "사용자 행이 아직 없는 경우 — 관리 목록에 사람이 나타나는 유일한 경로다",
-          "end_index": 5,
+          "label": "관리자 부트스트랩 — 관리자가 0명인 동안에만 열리고 한 명이라도 생기면 닫힌다",
+          "end_index": 6,
           "start_index": 1
         },
         {
           "kind": "opt",
           "label": "요청 역할이 현재 역할과 다른 경우에만",
-          "end_index": 43,
-          "start_index": 42
+          "end_index": 44,
+          "start_index": 43
         },
         {
           "kind": "alt",
-          "label": "화이트리스트 밖 값 / 현재와 같은 역할 / 유효창 없음 또는 만료",
-          "end_index": 58,
-          "start_index": 46
+          "label": "화이트리스트 밖 값 / 현재와 같은 역할 / 유효창 없음 또는 만료 / 마지막 관리자 강등",
+          "end_index": 63,
+          "start_index": 47
         }
       ],
       "brownfield": {
@@ -399,9 +429,9 @@
           "component-add",
           "auth-upgrade"
         ],
-        "diff_summary": "2차 신규 — 외부 발급 토큰 검증과 저작도구 소유 역할 조회로 갈라진 인가 경로, 역할 자가부여가 유일한 사용자 행 생성 지점이라는 점, 역할 변경 후 캐시 무효화 시점을 처음으로 시각화한다. 역할 변경에 관리자 단기 유효창이 가산 요건으로 더해진 흐름 — 발급·제시·공통 배선의 유효 판정과 그 거부 뒤의 재확인 — 도 함께 시각화한다. 창구는 요구를 표식으로 선언할 뿐이고 판정은 단일 지점이 소유한다. 조회는 그 요건 밖이다."
+        "diff_summary": "2차 신규 — 외부 발급 토큰 검증과 저작도구 소유 역할 조회로 갈라진 인가 경로, 관리자 부트스트랩 자가부여와 진입 시 작업자 자동 등록이 사용자 행 생성 지점이라는 점, 역할 변경 후 캐시 무효화 시점을 처음으로 시각화한다. 역할 변경에 관리자 단기 유효창이 가산 요건으로 더해진 흐름 — 발급·제시·공통 배선의 유효 판정과 그 거부 뒤의 재확인 — 도 함께 시각화한다. 창구는 요구를 표식으로 선언할 뿐이고 판정은 단일 지점이 소유한다. 조회는 그 요건 밖이다."
       },
-      "description": "사용자 관리 화면에서 REVIEWER 가 사용자를 조회하고 역할을 바꾸는 흐름의 시퀀스 다이어그램. 이 시스템은 자체 로그인 화면이나 자체 인증 엔드포인트를 두지 않는다 — 관제서버가 발급한 JWT 를 인계받아 JwtAuthenticationFilter 가 서명·발급자·만료를 검증하고 주체·채널·이름 클레임만 읽는다. 인가 역할은 토큰의 역할 클레임에서 읽지 않고 저작도구가 소유한 LS_USER_ROLE 에서 다시 조회하며, 그 값이 인가의 단일 진실원이다. 사용자 행은 관리 화면이 만들지 않는다 — 생성 지점은 진입 시 자동 등록(역할 없는 INTERNAL 사용자를 작업자로, 조건부·원자 upsert)과 관리자 부트스트랩 자가부여 둘이다. ⚠ 구 서술 폐기 — «자가부여가 유일한 생성 지점이라 역할을 받은 적 없는 사람은 목록에 나타나지 않는다»는 ADR-055 의 자동 등록으로 성립하지 않는다. 자가부여는 관리자 공유 패스워드로 보호되고 시도 횟수가 제한되며, 부여 역할은 ADMIN 고정이고 창구는 관리자가 0명일 때만 열린다 — 한 명이라도 생기면 닫히고 이후 역할 부여는 관리자가 이 화면에서 한다. PORTAL_USER 는 거절한다. ⚠ 구 서술 폐기 — «REVIEWER 와 WORKER 를 부여할 수 있다»와 «관리자 지위는 별도 역할이 아니라 공유 패스워드를 아는 사람이며 ADMIN 역할은 존재하지 않는다»(ADR-003)는 ADR-055 가 관리자 역할을 신설하며 대체했다. 목록 조회는 이름·아이디·전자우편 부분일치와 역할 필터를 받고 정렬은 사용자 번호 오름차순으로 고정되어 호출자가 바꿀 수 없다. 역할 필터는 조회된 페이지 안에서 적용되므로 필터를 걸면 전체 건수가 실제 일치 건수보다 클 수 있다. 역할 변경은 값을 화이트리스트로 재검증한 뒤 원자 upsert 로 반영하고, 현재 값과 같으면 갱신을 건너뛴다. 바뀐 경우에는 커밋 이후에 역할 캐시를 무효화한다 — 커밋 전에 지우면 동시 요청이 옛 역할을 다시 캐시에 담아 권한 강등이 즉시 반영되지 않는다. 계정 활성 여부는 외부 시스템이 소유한 값이라 이 화면에서는 읽기 전용으로만 보인다. 역할 변경은 운영·관리 성격의 쓰기라 검수자 권한만으로 열리지 않는다 — 관리자 패스워드를 제출해 연 단기 유효창을 함께 요구한다. 유효창은 인가를 대체하지 않고 가산되므로 검수자 권한은 그대로 필요하고, 유효창이 역할을 승격시키지도 않는다. 유효창은 발급받은 사람에게 묶이고 요청은 여전히 본인 자격으로 인증되므로, 공유 패스워드로 여는 방식인데도 누가 역할을 바꿨는지가 개인 단위로 남는다. 유효기간은 기본 10분이고 상한 30분을 넘길 수 없으며, 아직 유효한지는 서버가 판정한다 — 화면이 스스로 정하지 못한다. 유효창을 제시하는 자리는 요청 헤더다. 유효한지 판정하는 일은 단일 지점이 소유하며 어느 창구도 그 판정을 복제하지 않는다 — 판정 규칙이 바뀔 때 고칠 자리가 하나여야 하기 때문이다. 어느 요청에 이 요구가 걸리는지는 창구가 스스로 표식으로 선언하고, 그 선언을 읽어 판정 지점에 넘기는 것은 공통 배선의 몫이다. 창구가 들고 있는 것은 요구가 걸린다는 선언뿐이고 판정 자체가 아니므로 이것은 판정의 복제가 아니다. 역할 변경 창구는 창구 전체에 예외 없이 이 요구가 걸리므로 표식을 쓴다 — 그래서 이 흐름에는 공통 배선이 실제로 개입해 창구 본문이 실행되기 전에 판정이 끝난다. 판정을 수행 계층으로 내리는 안은 채택하지 않는다 — 그러면 수행 계층이 요청 헤더를 알아야 해 계층 규칙과 충돌하고, 결국 창구에서 값을 넘겨주는 배선이 다시 생겨 같은 자리로 돌아온다. 경계해야 할 실패 양식은 역할을 바꾸는 진입점이 새로 생겼는데 표식이 조용히 빠지는 것이다 — 표식은 사람이 붙이는 것이라 빠뜨려도 아무 신호가 나지 않으므로, 그 부재는 사람의 주의력이 아니라 기계가 잡는 정적 검사가 맡는다. 유효창이 없거나 유효기간이 끝난 뒤 역할 변경을 시도하면 거부된다. 상태코드와 오류 코드로는 그 거부가 검수자 권한이 없을 때와 구분되지 않지만 안내 문구는 다르다 — 유효창 거부는 다시 인증할 수 있는 자리를 안내하고, 역할 거부는 권한이 없다고만 말한다. 그러지 않으면 막힌 사람이 왜 막혔는지 알 수 없어 재인증 동선 자체가 성립하지 않는다. 그 대가로 두 요청을 비교하면 자기 자신의 역할 상태를 짐작할 수 있는데, 짐작 대상이 자기 자신의 역할이라 인지하고 받아들인다. 유효창 거부의 문구는 실패 사유가 무엇이든 같다 — 없든, 유효기간이 끝났든, 위조됐든, 다른 사람의 것이든 한 가지 문구이며 남은 시간이나 발급 여부 같은 상태값을 싣지 않는다. 화면은 거부만 알리고 끝내지 않는다 — 만료 사실을 안내하고 관리자 패스워드 재확인을 요구한 뒤 저장을 이어서 시도한다. 반면 목록·단건 조회에는 유효창을 요구하지 않는다 — 조회까지 막으면 작업 배정 흐름이 끊긴다.",
+      "description": "사용자 관리 화면에서 관리자(ADMIN)가 사용자를 조회하고 역할을 바꾸는 흐름의 시퀀스 다이어그램. 이 시스템은 자체 로그인 화면이나 자체 인증 엔드포인트를 두지 않는다 — 관제서버가 발급한 JWT 를 인계받아 JwtAuthenticationFilter 가 서명·발급자·만료를 검증하고 주체·채널·이름 클레임만 읽는다. 인가 역할은 토큰의 역할 클레임에서 읽지 않고 저작도구가 소유한 LS_USER_ROLE 에서 다시 조회하며, 그 값이 인가의 단일 진실원이다. 사용자 행은 관리 화면이 만들지 않는다 — 생성 지점은 진입 시 자동 등록(역할 없는 INTERNAL 사용자를 작업자로, 조건부·원자 upsert)과 관리자 부트스트랩 자가부여 둘이다. ⚠ 구 서술 폐기 — «자가부여가 유일한 생성 지점이라 역할을 받은 적 없는 사람은 목록에 나타나지 않는다»는 ADR-055 의 자동 등록으로 성립하지 않는다. 자가부여는 관리자 공유 패스워드로 보호되고 시도 횟수가 제한되며, 부여 역할은 ADMIN 고정이고 창구는 관리자가 0명일 때만 열린다 — 한 명이라도 생기면 닫히고 이후 역할 부여는 관리자가 이 화면에서 한다. PORTAL_USER 는 거절한다. ⚠ 구 서술 폐기 — «REVIEWER 와 WORKER 를 부여할 수 있다»와 «관리자 지위는 별도 역할이 아니라 공유 패스워드를 아는 사람이며 ADMIN 역할은 존재하지 않는다»(ADR-003)는 ADR-055 가 관리자 역할을 신설하며 대체했다. 목록 조회는 이름·아이디·전자우편 부분일치와 역할 필터를 받고 정렬은 사용자 번호 오름차순으로 고정되어 호출자가 바꿀 수 없다. 역할 필터는 조회된 페이지 안에서 적용되므로 필터를 걸면 전체 건수가 실제 일치 건수보다 클 수 있다. 역할 변경은 값을 ADMIN·REVIEWER·WORKER·PORTAL_USER 화이트리스트로 재검증한 뒤 원자 upsert 로 반영하고, 현재 값과 같으면 갱신을 건너뛴다. 마지막 남은 관리자를 관리자가 아닌 역할로 내리는 요청은 409 로 거절한다 — 관리자가 0명이 되면 부트스트랩 창구가 다시 열리기 때문이며, 그 판정은 조회한 뒤 갱신하는 방식이 아니라 갱신 문장 자체가 조건을 함께 판정해야 한다. 두 관리자가 서로를 동시에 내리면 각자 조회 시점에는 둘 다 통과한다. 바뀐 경우에는 커밋 이후에 역할 캐시를 무효화한다 — 커밋 전에 지우면 동시 요청이 옛 역할을 다시 캐시에 담아 권한 강등이 즉시 반영되지 않는다. 계정 활성 여부는 외부 시스템이 소유한 값이라 이 화면에서는 읽기 전용으로만 보인다. 역할 변경은 운영·관리 성격의 쓰기라 관리자 권한만으로도 열리지 않는다 — 관리자 패스워드를 제출해 연 단기 유효창을 함께 요구한다. 유효창은 인가를 대체하지 않고 가산되므로 관리자 권한은 그대로 필요하고, 유효창이 역할을 승격시키지도 않는다. 검수자는 유효창을 들고 와도 이 창구를 열 수 없다. 유효창은 발급받은 사람에게 묶이고 요청은 여전히 본인 자격으로 인증되므로, 공유 패스워드로 여는 방식인데도 누가 역할을 바꿨는지가 개인 단위로 남는다. 유효기간은 기본 10분이고 상한 30분을 넘길 수 없으며, 아직 유효한지는 서버가 판정한다 — 화면이 스스로 정하지 못한다. 유효창을 제시하는 자리는 요청 헤더다. 유효한지 판정하는 일은 단일 지점이 소유하며 어느 창구도 그 판정을 복제하지 않는다 — 판정 규칙이 바뀔 때 고칠 자리가 하나여야 하기 때문이다. 어느 요청에 이 요구가 걸리는지는 창구가 스스로 표식으로 선언하고, 그 선언을 읽어 판정 지점에 넘기는 것은 공통 배선의 몫이다. 창구가 들고 있는 것은 요구가 걸린다는 선언뿐이고 판정 자체가 아니므로 이것은 판정의 복제가 아니다. 역할 변경 창구는 창구 전체에 예외 없이 이 요구가 걸리므로 표식을 쓴다 — 그래서 이 흐름에는 공통 배선이 실제로 개입해 창구 본문이 실행되기 전에 판정이 끝난다. 판정을 수행 계층으로 내리는 안은 채택하지 않는다 — 그러면 수행 계층이 요청 헤더를 알아야 해 계층 규칙과 충돌하고, 결국 창구에서 값을 넘겨주는 배선이 다시 생겨 같은 자리로 돌아온다. 경계해야 할 실패 양식은 역할을 바꾸는 진입점이 새로 생겼는데 표식이 조용히 빠지는 것이다 — 표식은 사람이 붙이는 것이라 빠뜨려도 아무 신호가 나지 않으므로, 그 부재는 사람의 주의력이 아니라 기계가 잡는 정적 검사가 맡는다. 유효창이 없거나 유효기간이 끝난 뒤 역할 변경을 시도하면 거부된다. 상태코드와 오류 코드로는 그 거부가 관리자 권한이 없을 때와 구분되지 않지만 안내 문구는 다르다 — 유효창 거부는 다시 인증할 수 있는 자리를 안내하고, 역할 거부는 권한이 없다고만 말한다. 그러지 않으면 막힌 사람이 왜 막혔는지 알 수 없어 재인증 동선 자체가 성립하지 않는다. 그 대가로 두 요청을 비교하면 자기 자신의 역할 상태를 짐작할 수 있는데, 짐작 대상이 자기 자신의 역할이라 인지하고 받아들인다. 유효창 거부의 문구는 실패 사유가 무엇이든 같다 — 없든, 유효기간이 끝났든, 위조됐든, 다른 사람의 것이든 한 가지 문구이며 남은 시간이나 발급 여부 같은 상태값을 싣지 않는다. 화면은 거부만 알리고 끝내지 않는다 — 만료 사실을 안내하고 관리자 패스워드 재확인을 요구한 뒤 저장을 이어서 시도한다. 반면 목록·단건 조회에는 유효창을 요구하지 않고 검수자 권한만으로 열린다 — 관리자는 그 권한을 계층으로 물려받는다. 조회까지 막으면 작업 배정 흐름이 끊긴다.",
       "invokes_apis": [
         "API-001",
         "API-004",
@@ -410,14 +440,14 @@
       ],
       "participants": [
         {
-          "id": "reviewer",
+          "id": "admin",
           "kind": "actor",
-          "name": "검수자(REVIEWER)"
+          "name": "관리자(ADMIN)"
         },
         {
           "id": "newcomer",
           "kind": "actor",
-          "name": "역할 미부여 사용자"
+          "name": "내부 채널 사용자(최초 관리자 등록)"
         },
         {
           "id": "control",
@@ -502,6 +532,7 @@
         }
       ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
@@ -521,12 +552,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "ADR-055 로 폐기된 역할 서술을 정정한다. «시스템에 ADMIN 역할은 존재하지 않는다»·«관리 권한은 REVIEWER 에 통합»·«자가부여로 REVIEWER·WORKER 를 부여한다»는 모두 관리자 역할이 없던 시절의 것이다. 구 서술은 지우지 않고 폐기 표기로 남겨 다음 사람이 되살리지 않게 한다. SEQ-018 은 사용자 행 생성 지점도 함께 고친다 — 진입 시 작업자 자동 등록이 생겨 «자가부여가 유일한 생성 지점» 이 아니다(AC-126).",
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "API-007의 data.attached_files 변경 — references",
+    "change_summary": "역할 화이트리스트 열거를 구현과 맞춘다 — 요청 DTO 가 네 값을 받는데 세 값으로 적어 상위 유스케이스와 어긋나 있었다. 도해와 정형 메시지를 함께 고쳤다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-29T00:35:29.137Z",
+    "last_updated_at": "2026-09-02T02:01:33.755Z",
     "created_at": "2026-08-16T04:21:10.300Z"
   }
 }

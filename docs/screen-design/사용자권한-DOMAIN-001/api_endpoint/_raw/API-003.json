@@ -1,0 +1,242 @@
+{
+  "item": {
+    "id": "API-003",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/users/{userNo}",
+    "slug": "get-v1usersuserno",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/users/{userNo}",
+      "tags": [
+        "user"
+      ],
+      "method": "GET",
+      "summary": "사용자 상세 조회",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "REVIEWER",
+                      "WORKER",
+                      "PORTAL_USER"
+                    ],
+                    "type": "string",
+                    "description": "권한 코드"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "description": "로그인 ID"
+                  },
+                  "userNm": {
+                    "type": "string",
+                    "description": "사용자 이름"
+                  },
+                  "userNo": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "사용자 PK"
+                  },
+                  "channel": {
+                    "enum": [
+                      "INTERNAL",
+                      "PORTAL"
+                    ],
+                    "type": "string",
+                    "description": "진입 채널 (관제/포털)"
+                  },
+                  "userEmail": {
+                    "type": "string",
+                    "description": "이메일"
+                  }
+                },
+                "description": "사용자 프로필"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "role": "WORKER",
+              "userId": "worker01",
+              "userNm": "홍길동",
+              "userNo": 1001,
+              "channel": "INTERNAL",
+              "userEmail": "worker01@klid.go.kr"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. ApiResponse 래퍼의 data 에 UserProfileResponse 가 담긴다.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "해당 userNo 사용자 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 사용자·권한 기반 사용자 상세 조회"
+      },
+      "deprecated": false,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "userNo",
+          "schema": {
+            "type": "integer"
+          },
+          "required": true,
+          "description": "사용자 번호(식별자)"
+        }
+      ],
+      "description": "사용자 단건을 조회한다. REVIEWER 전용. 관리자 단기 유효창은 요구하지 않는다 — 검수자 권한만으로 된다. 같은 자원의 역할 변경에는 유효창이 가산되지만 조회는 그 대상이 아니다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-215"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:35.849Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "조회에는 관리자 단기 유효창을 요구하지 않는다는 사실을 창구 설명에 명시한다. 지금 틀린 것을 고치는 것이 아니라, 역할 변경 창구가 유효창을 요구한다는 이유로 뒤에 오는 사람이 일관성을 명목으로 조회에까지 요건을 얹는 것을 막는다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:35.849Z",
+    "created_at": "2026-05-30T06:56:33.197Z"
+  }
+}

@@ -24,8 +24,6 @@ import {
 const MAX = AUGMENT_PROMPT_MAX_LENGTH;
 
 const emptyDraft = (): AugmentConditionDraft => ({
-  evntType: '',
-  evntSubtype: '',
   mtdt: createEmptyAugmentMtdt(),
   prompt: '',
 });
@@ -41,16 +39,9 @@ function Harness() {
       value={value}
       errors={{ mtdt: {} }}
       touched={{ mtdt: {} }}
-      onEventTypeChange={(next) =>
-        setValue((prev) => ({
-          ...prev,
-          evntType: next,
-          evntSubtype: next === 'FLOOD' ? prev.evntSubtype : '',
-        }))
-      }
-      onFloodSubtypeChange={(next) =>
-        setValue((prev) => ({ ...prev, evntSubtype: next }))
-      }
+      selectedPreset={null}
+      onSelectPreset={() => {}}
+      presetFilledFields={{}}
       onMtdtChange={(key, next) =>
         setValue((prev) => ({ ...prev, mtdt: { ...prev.mtdt, [key]: next } }))
       }
@@ -97,8 +88,9 @@ describe('AugmentPromptFieldset — 자유 지시문 글자수 카운터 (사양
         value={{ ...emptyDraft(), prompt: 'A' }}
         errors={{ mtdt: {}, prompt: '1000자 이내로 입력하세요.' }}
         touched={{ mtdt: {}, prompt: true }}
-        onEventTypeChange={() => {}}
-        onFloodSubtypeChange={() => {}}
+        selectedPreset={null}
+        onSelectPreset={() => {}}
+        presetFilledFields={{}}
         onMtdtChange={() => {}}
         onPromptChange={() => {}}
       />,

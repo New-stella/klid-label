@@ -1,0 +1,340 @@
+{
+  "item": {
+    "id": "API-038",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "POST /v1/manage/presets",
+    "slug": "post-v1managepresets",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/presets",
+      "tags": [
+        "label",
+        "preset"
+      ],
+      "method": "POST",
+      "summary": "라벨 프리셋 생성",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "201": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "프리셋 PK (presetId)"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "등록일시 (ISO-8601 UTC)"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "수정일시 (ISO-8601 UTC)"
+                  },
+                  "labelCodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "레거시 호환 — 라벨 코드 문자열 목록"
+                  },
+                  "eventTypeCd": {
+                    "type": "string",
+                    "nullable": false,
+                    "maxLength": 20,
+                    "description": "이벤트유형코드. 프리셋의 유일한 식별 축이며 이벤트 1건에 프리셋 1건이 대응한다."
+                  },
+                  "eventTypeNm": {
+                    "type": "string",
+                    "description": "이벤트유형 표시명. 서버가 표시명 해석 규칙(운영자 표시명 → 관제 수신 유형명 → 카테고리명 → 유형코드 4단 폴백)으로 채운다. 필터 옵션에서 제외된 대분류·비수집 유형이어도 반드시 채워진다 — 화면이 이벤트 목록으로 이름을 역해석하면 그 목록에 없는 코드가 코드 그대로 노출되므로, 표시명 해석을 서버 한 곳에 둔다."
+                  },
+                  "labelCodeOptions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "라벨 코드"
+                        },
+                        "bboxEnabled": {
+                          "type": "boolean",
+                          "description": "BBOX 드로잉 활성 여부"
+                        },
+                        "polygonEnabled": {
+                          "type": "boolean",
+                          "description": "POLYGON 드로잉 활성 여부"
+                        }
+                      }
+                    },
+                    "description": "신규 — 라벨별 BBOX/POLYGON 토글 옵션 목록"
+                  }
+                },
+                "description": "생성된 프리셋"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "id": 6,
+              "createdAt": "2026-06-15T00:00:00Z",
+              "updatedAt": "2026-06-15T00:00:00Z",
+              "labelCodes": [
+                "FIRE",
+                "SMOKE"
+              ],
+              "eventTypeCd": "EV02000101",
+              "eventTypeNm": "화재",
+              "labelCodeOptions": [
+                {
+                  "code": "FIRE",
+                  "bboxEnabled": true,
+                  "polygonEnabled": true
+                },
+                {
+                  "code": "SMOKE",
+                  "bboxEnabled": true,
+                  "polygonEnabled": true
+                }
+              ]
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "생성 성공 (HTTP 201). ApiResponse 래퍼의 data 에 생성된 PresetResponse 가 담긴다. REVIEWER 전용. 담긴 라벨 중 검출 클래스에 매핑된 것이 하나도 없어도 저장은 성공하며, 그 프리셋이 오토라벨링에 적용되지 않는다는 것만 경고한다. 등록 성공은 그 이벤트유형에 보류돼 있던 오토라벨의 재개를 촉발한다 — 재개는 응답을 지연시키지 않고, 재개 실패가 등록을 되돌리지 않는다.",
+          "content_type": "application/json"
+        },
+        "400": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "라벨 코드는 최소 1개 이상이어야 합니다.",
+            "success": false,
+            "errorCode": "INVALID_INPUT"
+          },
+          "description": "입력값 검증 실패 — 이벤트유형코드 미지정 또는 20자 초과, 라벨 1~20개 제약 위반. ErrorCode=INVALID_INPUT",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "REVIEWER 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        },
+        "409": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "이미 프리셋이 등록된 이벤트유형입니다.",
+            "success": false,
+            "errorCode": "CONFLICT"
+          },
+          "description": "이미 프리셋이 있는 이벤트유형이다. 어느 이벤트인지 응답 메시지로 알린다. ErrorCode=CONFLICT",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "modified",
+        "decided_by": "ADR-034",
+        "diff_summary": "1차 라벨링 프리셋 관리 — ADR-034(프리셋-마스터 단일화)로 저장모델·요청 계약이 반전(코드 문자열 스냅샷 → 마스터 PK(labelId) 실시간 join)돼 preserved 로 남을 수 없다."
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "라벨링 프리셋을 생성한다. REVIEWER 전용.\n\n등록이 성공하면 그 이벤트유형에 대해 보류돼 있던 오토라벨의 재개가 촉발된다(ADR-054). 재개는 보류 이력이 있고 지금 그 프리셋이 실효할 때만 일어나며, 뒤 조건이 멱등을 담당한다 — 이미 재개된 영상을 다시 촉발해도 중복 적재되지 않는다. 재개는 응답을 지연시키지 않는다(등록 응답은 재개 완료를 기다리지 않는다). 재개가 실패해도 프리셋 등록은 되돌아가지 않는다. 보류 골격과 보류 사유 구분은 ADR-054 가 정하며 여기서 다시 정의하지 않는다.\n\n담긴 라벨 중 검출 클래스에 매핑된 것이 하나도 없는 프리셋도 저장은 성공한다 — 거부하지 않고, 그 프리셋이 오토라벨링에 적용되지 않는다는 것만 경고한다. 운영자가 나중에 라벨 마스터에 매핑을 지정하면 그때 실효해지므로 그 동선을 닫지 않는다. 라벨을 하나도 담지 않은 프리셋은 그 이벤트 유형을 오토라벨 대상에서 빼겠다는 선언이다. 그 유형의 영상은 보류되지 않고 배치가 완료로 마감되며 오토라벨 묶음만 건너뛴다. 라벨을 골랐으나 전부 AI 검출 클래스 매핑이 없는 경우와는 다르다 — 그쪽은 보류된다.",
+      "request_body": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "eventTypeCd",
+            "labelIds"
+          ],
+          "properties": {
+            "labelIds": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1,
+                "description": "라벨 마스터 PK. 활성 마스터에 없으면 400."
+              },
+              "maxItems": 20,
+              "minItems": 0,
+              "description": "프리셋에 담을 라벨 목록. 라벨명·형태는 스냅샷하지 않고 조회 시점에 마스터에서 파생하므로 PK 만 보낸다. 0~20개. 라벨을 하나도 담지 않은 프리셋은 그 이벤트 유형을 오토라벨 대상에서 빼겠다는 선언이다. 그 유형의 영상은 보류되지 않고 배치가 완료로 마감되며 오토라벨 묶음만 건너뛴다. 라벨을 골랐으나 전부 AI 검출 클래스 매핑이 없는 경우와는 다르다 — 그쪽은 보류된다."
+            },
+            "eventTypeCd": {
+              "type": "string",
+              "nullable": false,
+              "maxLength": 20,
+              "description": "이벤트유형코드. 필수이며 20자 이하(코드값 표준도메인)다. 이미 프리셋이 있는 이벤트면 409. 이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않으므로 두지 않는다."
+            }
+          }
+        },
+        "example": {
+          "labelIds": [
+            12,
+            15
+          ],
+          "eventTypeCd": "EV02000101"
+        },
+        "required": true,
+        "content_type": "application/json"
+      },
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-196"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:01.419Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 14,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "라벨 하한을 없애고 등록 성공 시 오토라벨 재개 트리거를 발행하도록 구현했다",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.419Z",
+    "created_at": "2026-05-30T07:22:21.003Z"
+  }
+}

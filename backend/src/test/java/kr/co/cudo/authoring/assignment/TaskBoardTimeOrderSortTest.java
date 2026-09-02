@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
+import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -194,6 +195,30 @@ class TaskBoardTimeOrderSortTest {
         Map<String, Object> item = boardItem(derived.getRawSn());
         assertThat(item.get("augmented")).isEqualTo(true);
         assertThat(item.get("augType")).as("AUG_TYPE_CD 미채움 파생의 augType 은 null").isNull();
+    }
+
+    /**
+     * ★ 현행 증강 종류 단일값({@code AUGMENT})이 작업목록에 <b>노출</b>된다(ADR-059).
+     *
+     * <p>게이팅 축은 {@code LsDataAug.CONTRACT_AUG_TYPES} 다 — 거기서 현행 값이 빠지면 신규
+     * 파생본의 {@code augType} 이 조용히 {@code null} 로 떨어져 <b>화면의 종류 배지가 사라진다</b>.
+     * 오류가 아니라 «값이 안 보임» 이라 기존 네 케이스(RESL_*·null·레거시 RESOLUTION)가 전부
+     * GREEN 인 채로 지나간다. 아래 레거시 {@code RESOLUTION} 케이스의 정확한 대칭이다.
+     */
+    @Test
+    @DisplayName("작업목록_현행_AUGMENT_값은_FE계약값이므로_그대로_노출된다")
+    void boardCurrentAugmentTypeIsExposed() throws Exception {
+        // given: 외부 위탁 증강 파생 1건(현행 단일값). clipId 마커와 무관하게 컬럼이 조달처다.
+        LsDataRaw origin = seedCompletedVideo("CLIP-AUG-CURRENT-ORIGIN");
+        LsDataRaw derived = seedDerivedCompletedVideo(origin, "RESL_480P");
+        forceAugTypeCd(derived.getRawSn(), LsDataAug.AUG_AUGMENT);
+
+        // when / then
+        Map<String, Object> item = boardItem(derived.getRawSn());
+        assertThat(item.get("augmented")).isEqualTo(true);
+        assertThat(item.get("augType"))
+                .as("CONTRACT_AUG_TYPES 에서 현행 값이 빠지면 여기서 null 로 떨어진다")
+                .isEqualTo("AUGMENT");
     }
 
     @Test

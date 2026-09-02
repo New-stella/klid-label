@@ -456,7 +456,7 @@ LogiCraft EXTSYS-002 / INT-001·019·020·029·030·031)이며, 경로 prefix는
   "request_id": "3f2a5c1e-20260807-0001",   // 필수 string(64)
   "request_channel": "AUTHORING",           // 필수 CONTROL | PORTAL | AUTHORING
   "request_user_id": "worker1",             // 선택
-  "evnt_type": "FLOOD",                     // 필수 FLOOD | WILDFIRE
+  "evnt_type": "FLOOD",                     // 필수 FLOOD | WILDFIRE | ETC
   "evnt_subtype": "ROAD_FLOOD",             // 선택 · evnt_type=FLOOD 에서만
   "operation_type": "AUGMENT",              // 필수 GENERATE | AUGMENT
   "generation_mode": "I2I",                 // 필수 T2I | I2I | T2V
@@ -484,7 +484,7 @@ LogiCraft EXTSYS-002 / INT-001·019·020·029·030·031)이며, 경로 prefix는
 | `mtdt` 가 `{}` 또는 전 필드 `null` | 400 `INVALID_PARAMETER` |
 | `mtdt` 항목값이 허용 코드 밖 | 400 `INVALID_PARAMETER` (메시지에 `mtdt 형식/허용 코드`) |
 | `prompt` 1000자 초과 | 400 `INVALID_PARAMETER` (자르지 않는다) |
-| `evnt_type` 이 FLOOD·WILDFIRE 밖 | 400 `UNSUPPORTED_EVENT_TYPE` |
+| `evnt_type` 이 FLOOD·WILDFIRE·ETC 밖 | 400 `UNSUPPORTED_EVENT_TYPE` |
 | `evnt_subtype` 을 WILDFIRE 와 함께 전달 | 400 `INVALID_PARAMETER` |
 | `operation_type: TRANSFORM`, `generation_mode: I2V`/`V2V` | 400 `INVALID_PARAMETER` |
 | V0 미지원 조합(예 `AUGMENT` × `T2I`) | 400 `INVALID_PARAMETER` |
@@ -591,7 +591,7 @@ v1.2 까지는 선택이었으나 v1.3 부터 ① 작업 요청 한정 **필수*
 | HTTP | code | 발생 조건 |
 |:----:|------|-----------|
 | 400 | `REQUIRED_FIELD_MISSING` | 필수 필드 누락(**`mtdt` 포함**), `Idempotency-Key` 헤더 누락, `I2I` 인데 `input_files` 없음, cancel `requested_by` 누락 |
-| 400 | `UNSUPPORTED_EVENT_TYPE` | `evnt_type` 이 `MOCK_GENAI_EVENT_TYPES`(기본 `FLOOD,WILDFIRE`) 밖 |
+| 400 | `UNSUPPORTED_EVENT_TYPE` | `evnt_type` 이 `MOCK_GENAI_EVENT_TYPES`(기본 `FLOOD,WILDFIRE,ETC`) 밖 |
 | 400 | `INVALID_PARAMETER` | enum/길이 위반, 미지원 조합, `mtdt` 형식/허용 코드 오류·전부 비어 있음, `prompt` 객체·배열 전달·제한 초과, 최상위 `condition`, `evnt_subtype` 오적용, `sequence` 중복, 허용 밖 `file_path`(경로 탈출/상대경로/base 미설정), 차단된 `callback_url`(호스트·포트·경로·자기참조), JSON 파싱 실패(심층 중첩 포함) |
 | 404 | `JOB_NOT_FOUND` | 없는 `job_id` |
 | 404 | `RESULT_NOT_FOUND` | SUCCEEDED 인데 결과 항목이 비어 있음 |
@@ -632,7 +632,7 @@ v1.2 까지는 선택이었으나 v1.3 부터 ① 작업 요청 한정 **필수*
 | `MOCK_GENAI_CALLBACK_PATH_PREFIXES` | (빈값) | 콜백 대상 **경로 접두사** allowlist. 빈값이면 경로 제한 없음(예: `/api/genai/`) |
 | `MOCK_GENAI_SELF_HOST_ALIASES` | (빈값) | 목 자신을 가리키는 추가 호스트 별칭. 루프백/바인드 호스트 + `MOCK_PORT` 조합은 기본으로 차단됨 |
 | `MOCK_GENAI_STATUS_SYNC_URL` | (빈값) | ③ status-sync 대상 **base URL**. 미설정 시 비활성 |
-| `MOCK_GENAI_EVENT_TYPES` | `FLOOD,WILDFIRE` | 허용 `evnt_type` 목록(기본값이 곧 v1.3 §4.1 계약). **빈값으로 둬도 검증이 꺼지지 않고 계약 목록으로 fail-closed** |
+| `MOCK_GENAI_EVENT_TYPES` | `FLOOD,WILDFIRE,ETC` | 허용 `evnt_type` 목록 — v1.3 §4.1(`FLOOD`\|`WILDFIRE`) + 협의된 중립값 `ETC`. **빈값으로 둬도 검증이 꺼지지 않고 계약 목록으로 fail-closed**. ⚠ `ETC` 는 v1.3 문서에 아직 없다(벤더 합의 선반영) — 근거는 `app/schemas/genai.py` 의 `SUPPORTED_EVNT_TYPES` 주석 |
 | `MOCK_GENAI_MAX_INPUT_BYTES` | `5368709120` | 입력 파일 1건 크기 상한(접수 시 + 처리 시 fd 기준 재검증, 초과 시 413/FAILED) |
 | `MOCK_GENAI_MAX_BODY_BYTES` | `1048576` | 요청 본문 크기 상한(초과 시 413 `GA-MEDIA-001`) |
 | `MOCK_GENAI_MAX_PROMPT_BYTES` | `65536` | `prompt` UTF-8 바이트 상한(초과 시 400 `INVALID_PARAMETER`). 계약 길이 제한(1000자)과 별개인 목 자원 보호 축 |

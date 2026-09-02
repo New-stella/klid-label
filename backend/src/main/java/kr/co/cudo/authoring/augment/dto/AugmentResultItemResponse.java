@@ -10,7 +10,8 @@ import java.util.List;
  * 2026-07-31 이후로는 같은 {@code type} 항목이 여러 건 나올 수 있다 — 항목을 구분하는 것은
  * {@code type} 이 아니라 {@code id} 와 {@link #prompt} 다.
  *
- * <p>수록 범위: <b>외부 위탁 증강(WINTER/NIGHT/RAIN)</b> + <b>해상도 파생(RESL_*)</b>. <b>둘 다</b>
+ * <p>수록 범위: <b>외부 위탁 증강({@code AUGMENT} + 백필하지 않은 구 값 WINTER/NIGHT/RAIN)</b> +
+ * <b>해상도 파생(RESL_*)</b>. <b>둘 다</b>
  * {@code framePairs}(원본 비식별 ↔ 파생 프레임)를 채운다 — 구 구현은 외부 위탁 항목만 {@code List.of()}
  * 로 하드코딩해, 정작 <b>검수 대상인 유일한 유형</b>의 비교 이미지가 영구히 0장이었다. 상위 요구가
  * "증강 결과에서 <b>이미지를 비교해 보고</b> 사용 여부를 선택" 이므로 그 상태에서는 등재 게이트가

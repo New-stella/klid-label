@@ -1,0 +1,51 @@
+{
+  "item": {
+    "id": "SD-011",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "screen_design",
+    "title": "SCREEN-037 공지 수정 화면",
+    "slug": "screen-037-공지-수정-화면",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "title": "SCREEN-037 공지 수정 화면",
+      "device": "desktop",
+      "status": "review",
+      "renders": [
+        {
+          "id": "main",
+          "url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-011/main.html",
+          "label": "공지 수정 화면 — 고충실 디자인",
+          "width": 1440,
+          "css_url": "/uploads/designs/4ece2c3f-8e99-46f5-9580-71108a76e578/SD-011/main.css",
+          "surface": "page",
+          "platform": "web",
+          "uploaded_at": "2026-08-13T08:41:17.229Z",
+          "uploaded_by": "claude-screen-design"
+        }
+      ],
+      "designer": "Claude (mc-logi-screen-design)",
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "screen-design-add"
+        ],
+        "diff_summary": "신규 화면(SCREEN-037)에 대한 최초 고충실도 디자인 — 선행 디자인 없음"
+      },
+      "description": "기존 공지·가이드라인 게시글을 수정하는 화면의 고충실도 디자인. 와이어프레임 4섹션(페이지 헤더 · 로딩·오류 상태 · 수정 폼 · 첨부파일 관리) 골격을 그대로 유지했다. 페이지 헤더는 뒤로가기 버튼 + '공지 수정' 제목. 로딩·오류 상태는 실제 화면에서 조회 결과에 따라 폼 영역 대신 택일 렌더되는 과도기 상태이므로, 점선 보더의 컴팩트한 참고 카드에 스켈레톤(입력 44px + 텍스트영역 형태)과 오류 배너(아이콘+제목+설명+다시 시도)를 나란히 배치해 시각적으로 구분했다(색상만으로 구분하지 않음). 수정 폼은 상세 조회 결과로 채워진 제목·내용·중요 공지(체크됨) 값을 실제 문구로 보여주고, 작성 화면과 동일한 필수 검증 규칙을 라벨의 필수 표시(*, aria-hidden + sr-only 병기)로 표현했다. 첨부파일 관리는 이미 id가 발급된 게시글이므로 존재하는 이 화면만의 영역으로, 3건의 실제 첨부 데이터(긴 파일명의 ellipsis 처리 포함)와 행별 삭제 버튼(44x44 아이콘 버튼)을 채웠고, 첨부 0건 상태도 같은 점선 참고 카드 패턴으로 별도 문서화했다. 모든 인터랙티브 요소는 44x44 이상 히트 영역과 focus-visible 3px 링 + 2px 오프셋을 실제로 구현했다. 색상·타이포·간격·radius·shadow는 KRDS 공식 토큰(DS-001)만 사용한다 — 참고 카드 캡션 텍스트는 n-60, 체크박스 미체크 보더는 n-40 토큰을 써서 전 조합 AA 이상의 대비를 만족한다.",
+      "design_source": {
+        "tool": "other"
+      },
+      "designs_screen": "SCREEN-037"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "직전 리비전들의 손 이스케이프 오타(첨부→첲부·채웠고→채월고·인터랙티브→인터렉티브·캡션→칵션) 정정 — 파일에서 생성+왕복검증한 이스케이프로 전체 재작성.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-16T08:39:59.637Z",
+    "created_at": "2026-08-11T07:30:26.136Z"
+  }
+}

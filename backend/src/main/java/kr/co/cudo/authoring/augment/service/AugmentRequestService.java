@@ -10,7 +10,6 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
-import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -80,14 +79,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@code LS_DATA_AUG.PROMPT_CN} 에 <b>같은 분리 형태</b>로 남는다 — 반복 요청이 허용되는 이상 "이
  * 파생본은 어떤 조건으로 만든 것인가" 를 남기지 않으면 결과물을 구분할 수 없다.
  *
- * <p><b>이벤트 유형({@code evntType})도 요청 본문에서 받는다</b>. 구 구현은 위탁 시점에 영상의 관제
- * 이벤트 코드({@code LS_DATA_RAW.EVNT_TYPE_CD})를 읽어 실었는데, 계약 허용값은 {@code FLOOD}/
- * {@code WILDFIRE} 둘뿐이라 그대로 보내면 {@code 400} 이다. 두 분류 축이 다른 체계라 서버가 변환하면
- * 그건 추정이므로 요청자가 고른 값을 그대로 중계한다.
+ * <p><b>이벤트 유형은 요청 본문에서 받지 않는다</b>(2026-09-02 · ADR-059). 그 값은
+ * 벤더 창구가 <b>배경에 무슨 장면을 만들지</b> 정하는 축인데 우리 증강은 이미 이벤트가 담긴 프레임을
+ * 변환할 뿐이라 지정할 자리가 없고, 우리 이벤트 체계가 벤더 허용값보다 넓어 대응되지 않는 영상은
+ * 요청자가 사실과 다른 값을 고를 수밖에 없었다. 이제 위탁 바디를 만들 때 서버가 중립값을 고정으로
+ * 채우며({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC}) 세부 유형은 아예 보내지 않는다. 요청 본문에
+ * {@code evntType} 을 실어 보내도 <b>바인딩되는 자리가 없어</b> 위탁에 반영되지 않는다.
  *
- * <p><b>증강 유형({@code AUG_TYPE_CD})은 생성 조건에서도 이벤트 유형에서도 파생하지 않는다</b> —
- * 그 값이 유형 판정으로 흘러가면 산출물 경로 순회(CWE-22)와 {@code RESL_} 네임스페이스 침범이
- * 열린다({@code AugmentPrompts} 주석). 허용 코드로 닫힌 뒤에도 코드 공간이 겹치므로 유효한 방어다.
+ * <p><b>증강 유형({@code AUG_TYPE_CD})은 생성 조건에서 파생하지 않는다</b> — 그 값이 유형 판정으로
+ * 흘러가면 산출물 경로 순회(CWE-22)와 {@code RESL_} 네임스페이스 침범이 열린다
+ * ({@code AugmentPrompts} 주석). 단일값 {@code AUGMENT} 로 합쳐진 뒤에도 <b>상수로 고정</b>하는
+ * 것이지 조건에서 유도하는 것이 아니다.
  *
  * <h3>외부 미연동이면 접수하지 않는다 (R8 · {@code @design API-060})</h3>
  * <p>{@code authoring.augment.external.mode=noop}(dev/stg/prd 기본)이면 위탁이 나가지 않고 콜백도
@@ -184,8 +186,6 @@ public class AugmentRequestService {
         // 1-1) 생성 조건 조립 + 직렬화 — 외부 전송본과 DB 보관본이 <같은 값> 에서 나오게 한다.
         //      순수 입력 검증이므로 <DB 조회보다 먼저> 한다: 형식이 틀린 요청 하나가 검수상태·신고구간·
         //      프레임 조회 3회를 유발하면 인증 사용자가 반복 호출로 DB 부하를 증폭시킬 수 있다(CWE-770).
-        GenAiContract.EventType evntType = requireEventType(request.evntType());
-        GenAiContract.FloodSubtype evntSubtype = requireSubtypeAllowed(evntType, request.evntSubtype());
         PromptPayload prompt = buildPrompt(request.mtdt(), request.prompt());
 
         // 1-2) 파생 영상 차단 — <b>다른 어떤 사유보다 먼저</b> 판정한다.
@@ -256,8 +256,7 @@ public class AugmentRequestService {
         String regUserNo = actor.sub();
         String callbackUrl = callbackUrlResolver.resolve();
         boolean created = createOneAugmentRequest(
-                rawSn, representativeSrcSn, augType, regUserNo, callbackUrl, prompt,
-                evntType, evntSubtype);
+                rawSn, representativeSrcSn, augType, regUserNo, callbackUrl, prompt);
         if (!created) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR,
                     "증강 요청을 생성하지 못했습니다.", skippedDetails(rawSn));
@@ -339,28 +338,14 @@ public class AugmentRequestService {
         return normalized;
     }
 
-    /** 이벤트 유형 fail-closed 재확인 — DTO {@code @NotNull} 을 우회하는 직접 호출 대비. */
-    private static GenAiContract.EventType requireEventType(GenAiContract.EventType evntType) {
-        if (evntType == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "이벤트 유형(evntType)은 필수입니다.");
-        }
-        return evntType;
-    }
-
-    /**
-     * 침수 세부 유형은 침수일 때만 — DTO {@code @AssertTrue} 와 <b>같은 규칙</b>을 fail-closed 로 재확인.
-     *
-     * <p>계약에 산불 세부 코드가 정의돼 있지 않아 함께 보내면 벤더가 400 으로 거부한다. 조용히 떨어뜨려
-     * 보내지 않는 선택지도 있으나, 그러면 요청자는 자기가 고른 값이 무시된 줄 모른다.
-     */
-    private static GenAiContract.FloodSubtype requireSubtypeAllowed(
-            GenAiContract.EventType evntType, GenAiContract.FloodSubtype evntSubtype) {
-        if (evntSubtype != null && evntType != GenAiContract.EventType.FLOOD) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "evntSubtype 은 evntType=FLOOD 일 때만 지정할 수 있습니다.");
-        }
-        return evntSubtype;
-    }
+    // ────────────────────────────────────────────────────────────────────────
+    // 폐기 이력 — 구 requireEventType / requireSubtypeAllowed 가드는 제거됐다
+    // (2026-09-02 · @design ADR-059).
+    //
+    // 두 가드는 "요청자가 고른 이벤트 유형·침수 세부 유형" 을 fail-closed 로 재확인하는 자리였다.
+    // 이제 그 값을 요청 본문에서 받지 않고 서버가 위탁 시점에 중립값을 고정 송신하므로, 검증할
+    // 요청자 입력 자체가 없다. 되살리면 요청자 입력이 다시 위탁으로 흘러드는 경로가 열린다.
+    // ────────────────────────────────────────────────────────────────────────
 
     /**
      * 보관용 JSON 직렬화 — 외부로 나가는 값과 <b>같은 객체</b>에서 만든다(전송본↔저장본 불일치 차단).
@@ -497,9 +482,7 @@ public class AugmentRequestService {
      */
     private boolean createOneAugmentRequest(Long rawSn, Long srcSn, String augType,
                                             String regUserNo, String callbackUrl,
-                                            PromptPayload prompt,
-                                            GenAiContract.EventType evntType,
-                                            GenAiContract.FloodSubtype evntSubtype) {
+                                            PromptPayload prompt) {
         try {
             // 1) idempotencyKey 를 먼저 발급 (UUID 기반 — dataAugSn 비의존).
             //    externalJobId 는 발급하지 않는다 — 외부가 202 응답으로 발급하는 값이다(Phase 7-A1).
@@ -515,7 +498,6 @@ public class AugmentRequestService {
             // 3) 멱등 키 발급 + 외부 위탁은 요청 트랜잭션 커밋 이후로 위임 (고아 키 방지)
             eventPublisher.publishEvent(new AugmentRequestedItemEvent(
                     originAugSn, rawSn, augType, prompt.mtdt(), prompt.promptText(),
-                    evntType.name(), evntSubtype == null ? null : evntSubtype.name(),
                     idempotencyKey, callbackUrl, regUserNo));
             return true;
         } catch (DataIntegrityViolationException e) {

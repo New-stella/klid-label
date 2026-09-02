@@ -1,0 +1,46 @@
+{
+  "item": {
+    "id": "UI-127",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "ui_component",
+    "title": "display: DetectClassMapChip",
+    "slug": "display-detectclassmapchip",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "name": "DetectClassMapChip",
+      "category": "display",
+      "variants": [
+        {
+          "name": "mapped",
+          "description": "탐지 클래스에 이어져 있다. 값을 함께 보여준다"
+        },
+        {
+          "name": "unmapped",
+          "description": "아직 이어지지 않았다. 중립색으로 표시한다"
+        }
+      ],
+      "description": "라벨이 어느 탐지 클래스에 이어져 있는지, 아직 이어지지 않았는지를 알리는 칩. 이 이음은 자동 라벨과 프리셋이 도는 축이라 어떤 라벨이 아직 비어 있는지가 목록에서 바로 보여야 한다. 열을 늘리지 않고 이름 칸의 보조줄로 붙이며, 이어진 값은 자릿수가 보이도록 고정폭 글꼴로 적는다.",
+      "props_schema": [
+        {
+          "name": "detectClass",
+          "type": "string | null",
+          "required": true,
+          "description": "이어진 탐지 클래스. 없으면 null"
+        }
+      ],
+      "usage_example": "SCREEN-035 라벨 마스터 목록의 라벨명 열",
+      "design_system_id": "DS-001",
+      "accessibility_notes": "색만으로 구분하지 않고 이어짐 여부를 한글로 함께 적는다."
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_ui_component: display: DetectClassMapChip",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-13T17:48:22.847Z",
+    "created_at": "2026-08-13T17:48:22.847Z"
+  }
+}

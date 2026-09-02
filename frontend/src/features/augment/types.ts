@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { CloudRain, Moon, Ratio, Snowflake } from 'lucide-react';
+import { Ratio, Sparkles } from 'lucide-react';
 
 import type { ResolutionPreset } from '@/features/video/types';
 
@@ -10,27 +10,53 @@ import type { ResolutionPreset } from '@/features/video/types';
 // - ACCEPTED: 결정 일시 표시 (변경 불가)
 // - REJECTED: 반려 사유 표시 (변경 불가)
 
-// 외부 증강 위탁 3종(WINTER/NIGHT/RAIN)만 — 해상도(RESOLUTION)는 증강이 아니라
-// 저작도구가 직접 수행하는 별도 기능이므로 증강 유형에서 제외한다(CLAUDE.md SFR-06-03).
-// 해상도 변경은 데이터 증강 화면(/augment)의 해상도 변경 패널에서 별도 섹션으로 제공된다.
+/**
+ * **요청 축** 증강 종류 — 신규 증강 요청이 보낼 수 있는 값. **단일값 `AUGMENT`** 다(ADR-059).
+ *
+ * ⚠ **표시 축과 다르다.** 조회·표시 경로가 만나는 값 집합은 여기보다 넓다
+ * ({@link AugmentTypeDisplay}) — 구 3종이 붙은 기존 파생본이 그대로 남아 있기 때문이다.
+ * 두 축을 한 타입으로 합치면 ①요청 입구가 구 값을 다시 받아들이거나 ②표시 경로가 기존
+ * 파생본에서 깨진다. 어느 쪽이든 조용히 틀린다.
+ *
+ * 해상도(RESOLUTION)는 증강이 아니라 저작도구가 직접 수행하는 별도 기능이므로
+ * 요청 증강 유형에서 제외한다(CLAUDE.md SFR-06-03).
+ *
+ * [@design ADR-059] [@design API-060]
+ */
 export const AugmentType = {
-  WINTER: 'WINTER',
-  NIGHT: 'NIGHT',
-  RAIN: 'RAIN',
+  AUGMENT: 'AUGMENT',
 } as const;
 export type AugmentType = (typeof AugmentType)[keyof typeof AugmentType];
 
-// 통합 처리 종류 — 증강 화면(SCR-AUG-001)의 단일 선택 카드 모델.
-// 증강 3종(WINTER/NIGHT/RAIN)에 더해 해상도 변경(RESOLUTION)을 같은 카드 그리드에서
-// 라디오(단일 선택)로 고른다. RESOLUTION 은 증강 잡 경로가 아닌 저작도구 직접 수행
-// 기능(SFR-06-03)이므로, 실행 분기는 isAugmentKind 타입가드로 좁혀 처리한다(Phase 2).
-export const PROCESS_KINDS = ['WINTER', 'NIGHT', 'RAIN', 'RESOLUTION'] as const;
+/**
+ * **표시 축**에서만 만나는 구 증강 종류 — 그랜드퍼더링된 기존 파생본의 `AUG_TYPE_CD`.
+ *
+ * BE 가 이 값들을 **백필하지 않았다**(ADR-059). 이미 만들어진 파생본·잡 이력·결과 항목에는
+ * 그대로 남아 있으므로 목록·배지·결과 화면이 반드시 견뎌야 한다.
+ * **요청 페이로드에 되살리지 말 것** — 신규 요청 입구의 계약값은 `AUGMENT` 하나다.
+ */
+export const LEGACY_AUGMENT_TYPES = ['WINTER', 'NIGHT', 'RAIN'] as const;
+export type LegacyAugmentType = (typeof LEGACY_AUGMENT_TYPES)[number];
+
+/** 조회·표시 경로가 견뎌야 하는 증강 종류 — 신규 단일값 + 그랜드퍼더링된 구 3종. */
+export type AugmentTypeDisplay = AugmentType | LegacyAugmentType;
+
+/**
+ * 통합 처리 종류 — 증강 화면(SCR-AUG-001)의 단일 선택 카드 모델. **카드는 두 장**이다.
+ *
+ * 증강 AI(`AUGMENT`)와 해상도 변경(`RESOLUTION`)을 같은 카드 그리드에서 라디오(단일 선택)로
+ * 고른다. RESOLUTION 은 증강 잡 경로가 아닌 저작도구 직접 수행 기능(SFR-06-03)이므로,
+ * 실행 분기는 isAugmentKind 타입가드로 좁혀 처리한다.
+ *
+ * ⚠ 구 4장(겨울·야간·우천·해상도)은 폐기됐다 — 앞의 셋은 생성 조건의 부분집합이라 카드와
+ * 조건이 어긋날 수 있었다. 지금 그 셋은 카드가 아니라 **생성 조건 프리셋**이다
+ * ({@link AUGMENT_CONDITION_PRESET_IDS}).
+ */
+export const PROCESS_KINDS = ['AUGMENT', 'RESOLUTION'] as const;
 export type ProcessKind = (typeof PROCESS_KINDS)[number];
 
 export const PROCESS_KIND_LABEL: Record<ProcessKind, string> = {
-  WINTER: '겨울',
-  NIGHT: '야간',
-  RAIN: '우천',
+  AUGMENT: '증강 AI',
   RESOLUTION: '해상도 변경',
 };
 
@@ -39,7 +65,6 @@ export const PROCESS_KIND_LABEL: Record<ProcessKind, string> = {
  *
  * 이모지 문자열이 아닌 이유: 이모지는 OS·폰트마다 모양이 달라지고 크기·색 토큰이 먹지 않으며
  * 스크린리더가 문자 이름을 읽는다. 값 타입은 공통 Button 의 `leftIcon` 과 같은 계약이다.
- * 종류와 의미가 맞는 아이콘만 쓴다(겨울=눈송이 / 야간=달 / 우천=비구름 / 해상도 변경=해상도·비율).
  * ⚠ 해상도에 `Scaling`(사각형+대각 화살표)을 쓰면 증강 결과 화면의 `ExternalLink` 와 모양이
  *   겹쳐 "새 창으로 열기"로 오독된다 — 실측 확인 후 `Ratio` 로 골랐다.
  */
@@ -47,17 +72,13 @@ export const PROCESS_KIND_ICON: Record<
   ProcessKind,
   ComponentType<{ className?: string }>
 > = {
-  WINTER: Snowflake,
-  NIGHT: Moon,
-  RAIN: CloudRain,
+  AUGMENT: Sparkles,
   RESOLUTION: Ratio,
 };
 
 export const PROCESS_KIND_DESCRIPTION: Record<ProcessKind, string> = {
-  WINTER: '눈/설경 효과로 영상을 변환합니다.',
-  NIGHT: '저조도 야간 환경으로 영상을 변환합니다.',
-  RAIN: '강우 효과로 영상을 변환합니다.',
-  RESOLUTION: '표준 하위 해상도 이미지셋으로 다운스케일합니다.',
+  AUGMENT: '생성 조건이 정한 장면으로 다시 만듭니다.',
+  RESOLUTION: '표준 해상도로 다시 만듭니다. 생성 조건은 받지 않습니다.',
 };
 
 /**
@@ -110,7 +131,11 @@ export interface AugmentJob {
   jobId: number;
   videoId: number;
   cctvName: string;
-  types: AugmentType[];
+  /**
+   * 요청된 증강 종류 — **표시 축**이라 신규 `AUGMENT` 와 그랜드퍼더링된 구 3종이 섞여 온다.
+   * 요청 축({@link AugmentType})으로 좁히면 기존 잡 이력에서 배지가 비어 버린다.
+   */
+  types: AugmentTypeDisplay[];
   // 해상도 파생(SFR-06-03) 코드 목록 (BE additive 응답 필드 resolutionTypes, RESL_*).
   // 증강 위탁 잡이 아니라 저작도구 직접 수행 결과이므로 types 와 별도로 노출한다.
   // 구 응답에는 없을 수 있어 optional — 없으면 빈 목록으로 취급한다.
@@ -122,12 +147,13 @@ export interface AugmentJob {
 }
 
 /**
- * 결과 화면의 유형 코드 — 외부 위탁 증강 3종 + 해상도 파생 3종(RESL_*, SFR-06-03).
+ * 결과 화면의 유형 코드 — 증강(신규 `AUGMENT` + 그랜드퍼더링된 구 3종) + 해상도 파생 3종
+ * (RESL_*, SFR-06-03).
  *
  * 해상도 파생은 "증강 요청" 대상이 아니므로 `AugmentType`(요청 union)은 넓히지 않는다.
  * 결과 응답에서만 등장하는 코드이므로 결과 전용 union 으로 분리한다.
  */
-export type AugmentResultType = AugmentType | ResolutionPreset;
+export type AugmentResultType = AugmentTypeDisplay | ResolutionPreset;
 
 /** 해상도 파생 코드 접두 — BE `AUG_TYPE_CD` 의 `RESL_*` 규약. */
 export const RESOLUTION_TYPE_PREFIX = 'RESL_';
@@ -407,48 +433,16 @@ export interface CancelAugmentRequest {
 /** BE `AugmentCancelRequest#reason` 과 동일 상한. */
 export const AUGMENT_CANCEL_REASON_MAX_LENGTH = 500;
 
-/**
- * 외부 생성형 AI 이벤트 유형 — 「생성형 AI API 연동명세서 v1.3」 §4.1 `evnt_type`.
+/*
+ * ⚠ **이벤트 유형(FLOOD/WILDFIRE)과 침수 세부 유형은 이 화면에서 걷어냈다** (ADR-059).
  *
- * **영상의 관제 이벤트 코드에서 변환하지 않는다.** 두 분류 축이 서로 다른 체계라 자동 변환은
- * 추정이 되고, 추정한 값이 그대로 외부 위탁에 실린다. 요청자가 화면에서 고른 값을 그대로 중계한다.
+ * 그 값은 「배경 이미지에 무슨 장면을 만들어 넣을지」를 정하는 벤더 축인데, 우리 증강은 이미
+ * 이벤트가 담긴 프레임을 변환할 뿐이라 요청자가 고를 자리가 없었다. 이제 **서버가 위탁 시점에
+ * 중립값을 고정 송신**하고 세부 유형은 아예 보내지 않는다 — 요청 본문에 필드 자체가 없다.
  *
- * ⚠ **증강 종류(`AugmentType`)와 다른 축이다.** 이름이 비슷해 섞이기 쉬우나 값도 조달처도 전혀
- * 다르며, 어느 한쪽을 다른 쪽에서 유추하지 않는다(아래 `AUGMENT_MTDT_CODES` 주석 참조).
- *
- * [@design INT-008] [@design API-060] [@design SCREEN-022]
+ * ⚠ BE 는 모르는 필드를 400 이 아니라 **조용히 무시**한다. 즉 이 상수들을 되살려 다시 보내도
+ * 아무 신호가 오지 않고 화면에만 걷어냈어야 할 입력이 되살아난다. **되살리지 말 것.**
  */
-export const AUGMENT_EVENT_TYPES = ['FLOOD', 'WILDFIRE'] as const;
-export type AugmentEventType = (typeof AUGMENT_EVENT_TYPES)[number];
-
-/** 이벤트 유형의 사용자 노출 문구 — 전송값은 언제나 코드다. */
-export const AUGMENT_EVENT_TYPE_LABEL: Record<AugmentEventType, string> = {
-  FLOOD: '침수',
-  WILDFIRE: '산불',
-};
-
-/**
- * 침수 세부 유형 — v1.3 §4.1 `evnt_subtype`. **선택이며 침수일 때만 허용**한다.
- *
- * 계약에 산불 세부 코드가 정의돼 있지 않아 `WILDFIRE` 와 함께 보내면 BE 가 400 이다.
- * 그래서 화면은 침수일 때만 노출하고, 산불이면 값 자체를 전송하지 않는다.
- */
-export const AUGMENT_FLOOD_SUBTYPES = [
-  'ROAD_FLOOD',
-  'RIVER_OVERFLOW',
-  'UNDERPASS_FLOOD',
-  'URBAN_INUNDATION',
-  'OTHER',
-] as const;
-export type AugmentFloodSubtype = (typeof AUGMENT_FLOOD_SUBTYPES)[number];
-
-export const AUGMENT_FLOOD_SUBTYPE_LABEL: Record<AugmentFloodSubtype, string> = {
-  ROAD_FLOOD: '도로 침수',
-  RIVER_OVERFLOW: '하천 범람',
-  UNDERPASS_FLOOD: '지하차도 침수',
-  URBAN_INUNDATION: '도심 침수',
-  OTHER: '기타',
-};
 
 /**
  * 외부로 나가는 **구조화 생성 조건**(v1.3 §4.1 최상위 `mtdt`)의 항목 키·순서.
@@ -611,23 +605,41 @@ export const createEmptyAugmentMtdt = (): AugmentMtdtDraft => ({
 });
 
 /**
- * 증강 유형별 생성 조건 **기본값**(프리필) — 유형이 실제 요청을 가르게 하는 유일한 통로.
+ * **생성 조건 프리셋** — 겨울·야간·우천. 자주 쓰는 조건 조합에 이름을 붙인 것뿐이다.
  *
- * <b>왜 필요한가</b>: 외부 위탁 요청 바디에는 증강 유형 필드가 없다. 유형에 따라 달라질 수 있는
- * 값은 생성 조건과 자유 지시문뿐이므로, 유형이 반영되지 않으면 겨울·야간·우천이 **완전히 동일한
- * 요청**이 되어 종류를 나눈 의미가 사라진다.
+ * <b>증강 종류에 관여하지 않는다</b>(ADR-059). 프리셋을 무엇으로 고르든 요청의 증강 종류는
+ * `AUGMENT` 하나이며, 프리셋이 바꾸는 것은 오직 생성 조건 다섯 항목의 <b>초기값</b>이다.
+ * 구 동작(카드 3장이 종류이자 프리필이었던 것)은 폐기됐다 — 카드가 조건의 부분집합이라
+ * "겨울을 고른 뒤 계절을 여름으로" 처럼 둘이 어긋날 수 있었다.
  *
  * <b>강제가 아니라 기본값이다</b>: 검수자가 조건을 조절할 수 있어야 한다는 정책을 지키려면
- * ①프리필 값을 바꿀 수 있고 ②이미 사용자가 손댄 항목은 종류를 바꿔도 보존돼야 한다.
+ * ①프리셋이 채운 값을 바꿀 수 있고 ②이미 사용자가 손댄 항목은 프리셋을 바꿔도 보존돼야 한다.
  * 그 판정(무엇을 사용자가 손댔는가)은 입력 화면이 소유한다 — 이 상수는 값만 정한다.
  *
- * <b>서버로 올라가는 파생은 없다</b>: 반대 방향(=생성 조건으로 증강 유형을 유추)은 만들지 않는다.
+ * <b>서버로 올라가는 파생은 없다</b>: 반대 방향(=생성 조건으로 증강 종류를 유추)은 만들지 않는다.
  *
  * 채우지 않는 축(지형·심각도 등)은 <b>비워 둔다</b> — 영상마다 다른 값을 시스템이 지어내면
  * 검수자가 확인하지 않은 조건이 그대로 외부로 나간다.
+ *
+ * ⚠ 프리셋 id 문자열(`WINTER`·`NIGHT`·`RAIN`)이 구 증강 종류 코드와 **철자가 같지만 다른 축이다**.
+ *   이 값은 전송되지 않는다(화면 안에서만 산다).
+ *
+ * [@design SCREEN-022] [@design ADR-059]
  */
-export const AUGMENT_MTDT_PRESET: Record<
-  AugmentType,
+export const AUGMENT_CONDITION_PRESET_IDS = ['WINTER', 'NIGHT', 'RAIN'] as const;
+export type AugmentConditionPresetId = (typeof AUGMENT_CONDITION_PRESET_IDS)[number];
+
+/** 프리셋 버튼의 사용자 노출 문구. */
+export const AUGMENT_CONDITION_PRESET_LABEL: Record<AugmentConditionPresetId, string> =
+  {
+    WINTER: '겨울',
+    NIGHT: '야간',
+    RAIN: '우천',
+  };
+
+/** 프리셋이 채우는 생성 조건 — 겨울은 계절과 날씨, 야간은 시간대, 우천은 날씨. */
+export const AUGMENT_CONDITION_PRESET_VALUES: Record<
+  AugmentConditionPresetId,
   Readonly<Partial<AugmentMtdtDraft>>
 > = {
   WINTER: { season: 'WINTER', weather: 'SNOW' },
@@ -636,28 +648,26 @@ export const AUGMENT_MTDT_PRESET: Record<
 };
 
 /**
- * 처리 종류에 대응하는 생성 조건 기본값을 만든다(매 호출 새 객체 — 불변성).
+ * 프리셋에 대응하는 생성 조건 초안을 만든다(매 호출 새 객체 — 불변성).
  *
- * 해상도 변경(RESOLUTION)은 외부 위탁이 아니라 생성 조건 자체가 없으므로 전부 빈 값이다.
- * 프리필이 없는 항목을 빈 문자열로 **명시**해 반환하는 이유는, 호출부가 "이전 종류의 프리필
+ * 프리셋이 채우지 않는 항목을 빈 문자열로 <b>명시</b>해 반환하는 이유는, 호출부가 "이전 프리셋의
  * 잔재"를 지울 수 있게 하기 위해서다(부분 병합이면 야간을 골라도 계절=겨울이 남는다).
+ * `null`(프리셋 해제)이면 전부 빈 값이다.
  */
-export const createMtdtPresetFor = (kind: ProcessKind): AugmentMtdtDraft => ({
+export const createMtdtPresetFor = (
+  preset: AugmentConditionPresetId | null,
+): AugmentMtdtDraft => ({
   ...createEmptyAugmentMtdt(),
-  ...(isAugmentKind(kind) ? AUGMENT_MTDT_PRESET[kind] : {}),
+  ...(preset === null ? {} : AUGMENT_CONDITION_PRESET_VALUES[preset]),
 });
 
 export interface RequestAugmentRequest {
   videoIds: number[];
   /**
-   * 요청 증강 유형 — 사용자가 카드로 직접 고른 값 그대로다.
-   * 생성 조건·이벤트 유형 어느 쪽에서도 파생하지 않는다.
+   * 요청 증강 유형 — **단일값 `AUGMENT`**(길이 1 배열).
+   * 생성 조건·프리셋 어느 쪽에서도 파생하지 않는다.
    */
   types: AugmentType[];
-  /** 외부 이벤트 유형 — **필수**. 미전송 시 BE 가 400. 관제 이벤트 코드에서 변환하지 않는다. */
-  evntType: AugmentEventType;
-  /** 침수 세부 유형 — 선택. `evntType==='FLOOD'` 일 때만 싣는다(산불과 함께 보내면 400). */
-  evntSubtype?: AugmentFloodSubtype;
   /** 구조화 생성 조건 — **필수**이며 다섯 항목 전부 있어야 한다. */
   mtdt: AugmentMtdt;
   /** 자유 지시문 — 선택. 비어 있으면 키 자체를 싣지 않는다. */

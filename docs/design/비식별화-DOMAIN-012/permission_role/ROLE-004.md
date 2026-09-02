@@ -1,18 +1,19 @@
 ---
 logicraft_item: ROLE-004
 type: permission_role
-version: 4
+version: 5
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T22:51:28.589Z
+synced_at: 2026-09-02T10:52:37.678Z
 status: CHANGED
 prev_version: 4
-content_hash: 69937078736448b8b100421e9c5402e92abefc5a1ed0e1c07fc523b758dccaae
+content_hash: c7dec813a770f5499c762e8ee184f3d896552c93fa70f8b2ec13b8a3b8a8a6b3
 stale: true
 raw: ./_raw/ROLE-004.json
 links:
   based_on: ["[[ADR-055]]"]
   granted_on: ["[[SCREEN-024]]", "[[SCREEN-027]]", "[[SCREEN-039]]", "[[SCREEN-040]]", "[[SCREEN-041]]", "[[SCREEN-042]]", "[[SCREEN-043]]"]
+  implements: ["[[IMPREC-165]]", "[[IMPREC-186]]"]
   inherits_from: ["[[ROLE-001]]"]
   requires_backward: ["[[NAV-001]]", "[[SCREEN-024]]", "[[SCREEN-027]]", "[[SCREEN-039]]", "[[SCREEN-040]]", "[[SCREEN-041]]", "[[SCREEN-042]]", "[[SCREEN-043]]"]
 ---
@@ -82,7 +83,7 @@ ADR-055
 - view
 - update
 
-- **condition**: 사용자 관리 — 목록 조회·검색·역할 지정(관리자·검수자·작업자). 사용자 생성은 두지 않는다(진입 시 작업자로 자동 등록된다). 마지막 관리자의 강등은 거부된다
+- **condition**: 사용자 관리 — 목록 조회·검색·역할 지정(관리자·검수자·작업자·포털). 사용자 생성은 두지 않는다(진입 시 작업자로 자동 등록된다). 마지막 관리자의 강등은 거부된다
 - **target_id**: SCREEN-024
 - **target_kind**: screen_spec
 
@@ -145,6 +146,10 @@ ADR-055
 ## inherits_from
 
 - ROLE-001
+
+## attached_files
+
+_(empty)_
 
 ## implementation
 

@@ -62,7 +62,7 @@
 | 라벨링 정밀도 조절 (YOLO_CONF_THRESHOLD 등) | [11](11-ai-assisted.md#115-정밀도-조절) |
 | 검수 승인/반려, 작업 배정/재배정 | [12](12-review-assignment.md) |
 | 버전 스냅샷 / diff / rollback | [13](13-version-control.md) |
-| 데이터 증강(WINTER/NIGHT/RAIN) / 해상도 변경 | [14](14-augmentation.md) |
+| 데이터 증강(`AUGMENT`) / 해상도 변경 | [14](14-augmentation.md) |
 | 관제 통지 TASK_COMPLETED/MODIFIED | [15](15-control-notify.md) |
 | 포털 (데이터마트 영상 선택) | [16](16-portal.md) |
 | 외부 시스템 연동 / 보안 / CVAT 포팅 | [19](19-external-security-cvat.md) |

@@ -185,6 +185,7 @@
     "ADR-050",
     "ADR-051",
     "ADR-054",
+    "ADR-058",
     "API-042",
     "API-045",
     "API-046",
@@ -246,6 +247,7 @@
     "DFEAT-019",
     "DFEAT-020",
     "DFEAT-029",
+    "DFEAT-045",
     "DFEAT-051",
     "ERD-012",
     "ERD-020",
@@ -294,6 +296,7 @@
     "IMPREC-144",
     "IMPREC-148",
     "IMPREC-150",
+    "IMPREC-202",
     "LEGACY-003",
     "LEGACY-005",
     "LEGACY-021",
@@ -326,6 +329,7 @@
     "SCREEN-011",
     "SCREEN-019",
     "SCREEN-022",
+    "SCREEN-025",
     "SCREEN-026",
     "SCREEN-027",
     "SCREEN-038",
@@ -334,6 +338,6 @@
     "UC-032",
     "UC-038"
   ],
-  "last_sync_at": "2026-08-31T11:39:04.149Z",
+  "last_sync_at": "2026-09-02T10:54:11.299Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 수용기준 ID 를 pin 에서 제거(전수 status 조회 근거 126건). 파일은 _retired/ 에 보존된다."
 }

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="main.css">
+  <meta charset="utf-8" />
+  <title>SCREEN-024 사용자 관리 화면 — 고충실도 디자인</title>
+</head>
+<body class="screen-024">
+  <main class="du-page">
+
+
+    <header class="du-header">
+      <h1 class="t-title-lg">사용자 관리</h1>
+      <p class="t-body-md">시스템 사용자 계정을 관리합니다.</p>
+    </header>
+
+
+    <section class="du-card" aria-labelledby="du-filter-title">
+      <h2 id="du-filter-title" class="du-section-title t-title-md">검색·역할 필터</h2>
+      <form class="du-filter-form">
+        <div class="du-field">
+          <label class="du-label t-label" for="du-search">검색</label>
+          <input class="du-input t-body-md" id="du-search" type="text" placeholder="이름 / 이메일을 입력하세요." aria-describedby="du-search-help" />
+        </div>
+        <p class="du-help t-caption" id="du-search-help">이름 또는 이메일 부분일치로 검색합니다. Enter 또는 검색 버튼으로 확정됩니다.</p>
+        <div class="du-field du-field--select">
+          <label class="du-label t-label" for="du-role-filter">역할</label>
+          <select class="du-select t-body-md" id="du-role-filter">
+            <option>전체 역할</option>
+            <option>관리자</option>
+            <option>검수자</option>
+            <option>작업자</option>
+            <option>포털</option>
+          </select>
+        </div>
+        <div class="du-filter-actions">
+          <button type="button" class="du-btn du-btn--ghost t-button">필터 초기화</button>
+          <button type="submit" class="du-btn du-btn--primary t-button">검색</button>
+        </div>
+      </form>
+    </section>
+
+
+    <section class="du-card" aria-labelledby="du-table-title">
+      <h2 id="du-table-title" class="du-section-title t-title-md">사용자 목록</h2>
+
+      <div class="du-table-scroll">
+        <table class="du-table">
+          <thead>
+            <tr>
+              <th class="t-label">이름</th>
+              <th class="t-label">이메일</th>
+              <th class="t-label">역할</th>
+              <th class="t-label">상태</th>
+              <th class="t-label">등록일</th>
+              <th class="t-label">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">박</span>
+                  <span class="du-cell-name">박지훈</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">jihoon.park@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-admin t-label">관리자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-01-05</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">김</span>
+                  <span class="du-cell-name">김서연</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">seoyeon.kim@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-reviewer t-label">검수자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-03-02</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">이</span>
+                  <span class="du-cell-name">이도현</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">dohyun.lee@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-worker t-label">작업자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-03-04</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">박</span>
+                  <span class="du-cell-name">박지민</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email" title="jimin.park@partner-labeling-agency-external.co.kr">jimin.park@partner-labeling-agency-external.co.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-worker t-label">작업자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-04-11</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">최</span>
+                  <span class="du-cell-name">최윤서</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email du-email--loginid">yoonseo.choi</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-portal t-label">포털</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-05-20</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">정</span>
+                  <span class="du-cell-name">정하은</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">haeun.jung@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-reviewer t-label">검수자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--inactive t-label">비활성</span></td>
+              <td class="t-body-md">2026-01-15</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">오</span>
+                  <span class="du-cell-name">오민준</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">minjun.oh@klid.go.kr</span></td>
+              <td class="t-body-md">
+                <span class="du-badge du-badge--role-unassigned t-label">
+                  <svg viewbox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 1.5 13h13L8 1.5Z" stroke="currentColor" stroke-width="1.3"></path><path d="M8 6v3.2M8 11.4h.01" stroke="currentColor" stroke-width="1.3"></path></svg>
+                  미배정
+                </span>
+              </td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-08-09</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">강</span>
+                  <span class="du-cell-name">강수아</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">sua.kang@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-worker t-label">작업자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-06-18</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">윤</span>
+                  <span class="du-cell-name">윤태양</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">taeyang.yoon@klid.go.kr</span></td>
+              <td class="t-body-md">
+                <span class="du-badge du-badge--role-unassigned t-label">
+                  <svg viewbox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 1.5 13h13L8 1.5Z" stroke="currentColor" stroke-width="1.3"></path><path d="M8 6v3.2M8 11.4h.01" stroke="currentColor" stroke-width="1.3"></path></svg>
+                  미배정
+                </span>
+              </td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-08-10</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="du-pagination" aria-label="페이지네이션">
+        <button type="button" class="du-page-btn" aria-disabled="true">이전</button>
+        <button type="button" class="du-page-btn" aria-current="page">1</button>
+        <button type="button" class="du-page-btn">2</button>
+        <button type="button" class="du-page-btn">3</button>
+        <span class="du-page-ellipsis">…</span>
+        <button type="button" class="du-page-btn">9</button>
+        <button type="button" class="du-page-btn">다음</button>
+      </nav>
+
+
+      <div class="du-state-strip" aria-hidden="true">
+        <p class="du-state-strip-label t-label">상태 참고 — 로딩 · 빈 결과 · 조회 실패 시 표 영역을 대체하는 시각 (평상시 비노출)</p>
+
+        <div class="du-state-swatch">
+          <h4 class="t-label">로딩 스켈레톤</h4>
+          <div class="du-skel-row">
+            <span class="du-skel" style="width:36px;height:36px;border-radius:9999px"></span>
+            <span class="du-skel" style="width:90px;height:14px"></span>
+          </div>
+          <div class="du-skel-row">
+            <span class="du-skel" style="width:36px;height:36px;border-radius:9999px"></span>
+            <span class="du-skel" style="width:120px;height:14px"></span>
+          </div>
+          <div class="du-skel-row">
+            <span class="du-skel" style="width:36px;height:36px;border-radius:9999px"></span>
+            <span class="du-skel" style="width:70px;height:14px"></span>
+          </div>
+        </div>
+
+        <div class="du-state-swatch">
+          <h4 class="t-label">빈 결과</h4>
+          <div class="du-empty">
+            <svg width="28" height="28" viewbox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16l-1.5 12.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7Z" stroke="currentColor" stroke-width="1.4"></path><path d="M4 7l1-3h14l1 3" stroke="currentColor" stroke-width="1.4"></path></svg>
+            <p class="t-body-sm">조건에 맞는 사용자가 없습니다.</p>
+          </div>
+        </div>
+
+        <div class="du-state-swatch">
+          <h4 class="t-label">조회 실패</h4>
+          <div class="du-alert" role="alert">
+            <svg width="18" height="18" viewbox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 16.5h.01" stroke="currentColor" stroke-width="1.8"></path><circle cx="12" cy="12" r="9" stroke="currentColor"></circle></svg>
+            <span class="t-caption">
+              <strong>사용자 목록을 불러올 수 없습니다</strong>
+              <span class="t-caption">잠시 후 다시 시도해주세요.</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <div class="du-overlay-wrap">
+      <span class="du-overlay-tag t-label">오버레이</span>
+      <span class="du-overlay-note t-caption">사용자 목록의 '수정' 클릭 시 화면 위에 겹쳐 뜨는 표면 — 아래는 그 모달의 디자인 프리뷰다.</span>
+
+      <div class="du-overlay-stage">
+        <div class="du-modal" role="dialog" aria-modal="true" aria-labelledby="du-modal-title">
+          <div class="du-modal-head">
+            <h3 id="du-modal-title" class="t-title-md">사용자 정보 수정</h3>
+            <button type="button" class="du-modal-close" aria-label="닫기">×</button>
+          </div>
+          <div class="du-modal-body">
+            <div class="du-field">
+              <label class="du-label t-label" for="du-modal-role">역할</label>
+              <select class="du-select t-body-md" id="du-modal-role">
+                <option disabled>선택하세요</option>
+                <option>관리자</option>
+                <option selected>검수자</option>
+                <option>작업자</option>
+                <option>포털</option>
+              </select>
+              <p class="du-help t-caption">저장하려면 반드시 선택해야 합니다. 서버가 허용값(관리자/검수자/작업자/포털)을 재검증합니다.</p>
+            </div>
+            <div class="du-readonly-row">
+              <span class="du-label t-label" style="margin:0">상태</span>
+              <span class="du-badge du-badge--active t-label">활성</span>
+              <span class="du-help t-caption" style="margin:0">계정 활성 여부는 이 화면에서 변경하지 않습니다.</span>
+            </div>
+
+            <div class="unlock-banner">
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              <span class="lock-text t-body-sm">관리자 확인이 완료되어 역할을 변경할 수 있습니다. 유효 시간이 지나면 다시 확인해야 합니다.</span>
+              <span class="countdown" role="timer" aria-live="off">
+                <span class="t-label">남은 유효 시간</span>
+                <span class="cd-time">09:42</span>
+              </span>
+            </div>
+
+            <p class="du-save-req t-caption">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <span>역할 변경 저장에는 관리자 역할과 함께 유효한 관리자 확인이 필요합니다. 유효 여부는 서버가 판정합니다. 목록·단건 조회에는 요구되지 않습니다.</span>
+            </p>
+          </div>
+          <div class="du-modal-footer">
+            <button type="button" class="du-btn du-btn--secondary t-button">취소</button>
+            <button type="button" class="du-btn du-btn--primary t-button">저장</button>
+          </div>
+
+
+          <div class="du-modal-alt" aria-hidden="true">
+            <h4 class="t-label">참고 — 미배정 사용자를 열었을 때</h4>
+            <p class="t-caption">역할을 아직 선택하지 않아 저장 버튼이 비활성 상태로 유지됩니다.</p>
+            <div class="du-readonly-row">
+              <span class="du-badge du-badge--role-unassigned t-label">
+                <svg viewbox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 1.5 13h13L8 1.5Z" stroke="currentColor" stroke-width="1.3"></path><path d="M8 6v3.2M8 11.4h.01" stroke="currentColor" stroke-width="1.3"></path></svg>
+                미배정
+              </span>
+              <span class="du-help t-caption" style="margin:0">아직 역할이 배정되지 않은 사용자입니다.</span>
+              <button type="button" class="du-btn du-btn--primary t-button" disabled>저장</button>
+            </div>
+          </div>
+
+
+          <div class="du-modal-alt du-modal-alt--expired" aria-hidden="true">
+            <h4 class="t-label">참고 — 유효 시간이 끝난 뒤 저장을 시도했을 때</h4>
+            <p class="t-caption">서버가 저장을 거부하면 만료 사실을 알리고 관리자 패스워드 재확인을 요구합니다. 거부만 하고 조용히 끝내지 않습니다.</p>
+            <div class="du-alert" role="alert">
+              <svg width="18" height="18" viewbox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 16.5h.01" stroke="currentColor" stroke-width="1.8"></path><circle cx="12" cy="12" r="9" stroke="currentColor"></circle></svg>
+              <span class="t-caption">
+                <strong>관리자 확인 시간이 만료되었습니다. 다시 확인해 주세요</strong>
+                <span class="t-caption">재확인에 성공하면 저장을 이어서 시도합니다.</span>
+              </span>
+            </div>
+            <div class="du-readonly-row">
+              <span class="countdown countdown--expired" role="timer" aria-live="off">
+                <span class="t-label">남은 유효 시간</span>
+                <span class="cd-time">00:00</span>
+              </span>
+              <a href="#dlg-admin" class="du-btn du-btn--secondary t-button">관리자 확인</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="du-overlay-wrap">
+      <span class="du-overlay-tag t-label">오버레이</span>
+      <span class="du-overlay-note t-caption">유효창이 없거나 끝난 상태에서 '저장'을 눌렀을 때 수정 모달 위에 겹쳐 뜨는 표면 — 아래는 그 다이얼로그의 참고용 정적 미리보기다.</span>
+
+      <div class="du-overlay-stage">
+        <div class="du-modal du-modal--dialog">
+          <div class="modal-head">
+            <h3 class="t-title-sm">관리자 패스워드 재확인</h3>
+          </div>
+          <p class="t-body-sm modal-desc">역할을 변경하려면 관리자 패스워드가 필요합니다. 확인 후 정해진 시간 동안 재입력 없이 변경할 수 있고, 그 시간이 지나면 다시 확인해야 합니다.</p>
+          <div class="field">
+            <label class="t-label field-label" for="admin-pw-ref">관리자 패스워드</label>
+            <input class="input" id="admin-pw-ref" type="password" aria-describedby="admin-pw-ref-help" />
+            <p class="t-caption field-help" id="admin-pw-ref-help">입력한 값은 화면에 다시 표시되지 않습니다.</p>
+          </div>
+          <div class="modal-footer">
+            <span class="btn btn-secondary">취소</span>
+            <span class="btn btn-primary">확인</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+
+  <div id="dlg-admin" class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-admin-title">
+    <a href="#du-modal-title" class="modal-backdrop" aria-hidden="true"></a>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 class="t-title-sm" id="dlg-admin-title">관리자 패스워드 재확인</h3>
+        <a href="#du-modal-title" class="modal-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <p class="t-body-sm modal-desc">역할을 변경하려면 관리자 패스워드가 필요합니다. 확인 후 정해진 시간 동안 재입력 없이 변경할 수 있고, 그 시간이 지나면 다시 확인해야 합니다. 확인에 성공하면 저장을 이어서 시도합니다.</p>
+      <div class="field">
+        <label class="t-label field-label" for="admin-pw">관리자 패스워드</label>
+        <input class="input" id="admin-pw" type="password" aria-describedby="admin-pw-help" />
+        <p class="t-caption field-help" id="admin-pw-help">입력한 값은 화면에 다시 표시되지 않습니다. 유효 여부는 서버가 판정합니다.</p>
+      </div>
+      <div class="modal-footer">
+        <a href="#du-modal-title" class="btn btn-secondary">취소</a>
+        <a href="#du-modal-title" class="btn btn-primary">확인</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

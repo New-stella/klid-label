@@ -1,0 +1,320 @@
+/*
+ * SCREEN-002 역할 클레임 화면 — 고충실도 디자인 CSS
+ * 디자인 시스템: DS-001 KRDS Public (_shared/design-system.md verbatim 값만 사용)
+ * 무 JS · CSS-only. 셸(GNB/LNB/푸터)은 app_shell 소관이라 이 파일에 없다.
+ *
+ * 셸 밖 인증 게이트 화면이라 기준본(셸 안 페이지)의 page-head/breadcrumb 관례를 쓰지 않고
+ * '상태 프레임'으로 화면 상태를 나열한다 — 근거는 design-notes.md 참조.
+ */
+
+/* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
+:root {
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+
+  /* design-system.md do_rules 명시값 — "표의 행 hover 표면은 #FFFBEB 를 쓴다".
+     정본 팔레트에 없는 값이지만 DS 가 지정한 표 hover 전용 표면이다(known_gaps 기록). */
+  --row-hover: #fffbeb;
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-alt);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p, span, li, button, label, legend { color: inherit; margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 2. 타이포그래피 ladder (typography_use step 그대로) ───────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+.t-button     { font-size: 17px; font-weight: 500; line-height: 1.4; }
+.t-mono       { font-family: var(--font-mono); font-size: 14px; line-height: 1.5; }
+
+.text-muted  { color: var(--n-6); }
+.text-strong { color: var(--n-9); }
+
+/* ── 3. 시안 표지 + 상태 프레임 (셸 밖 화면 공통) ──────────────────── */
+.screen-root {
+  padding: var(--sp-xl);
+  display: flex; flex-direction: column; gap: var(--sp-xl);
+}
+.sheet-head {
+  display: flex; flex-direction: column; gap: var(--sp-xs);
+  padding-bottom: var(--sp-md);
+  border-bottom: 1px solid var(--border);
+}
+.sheet-head .sheet-route { display: inline-flex; align-items: center; gap: var(--sp-sm); color: var(--n-6); }
+.sheet-head .sheet-route .chip {
+  display: inline-flex; align-items: center;
+  padding: 2px var(--sp-sm);
+  border-radius: var(--radius-sm);
+  background: var(--n-1); color: var(--n-7);
+}
+
+.state-frame { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.state-frame > .state-caption { display: flex; align-items: center; gap: var(--sp-sm); color: var(--n-7); }
+.state-frame > .state-caption .state-no {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 24px; padding: 0 var(--sp-xs);
+  border-radius: var(--radius-full);
+  background: var(--s-0); color: var(--s-6);
+  font-size: 14px; font-weight: 600;
+}
+.state-stage {
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-2xl) var(--sp-lg);
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ── 4. 인증 게이트 카드 ──────────────────────────────────────────── */
+.auth-card {
+  width: 100%; max-width: 480px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-xl);
+  display: flex; flex-direction: column; gap: var(--sp-lg);
+}
+.auth-head { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.auth-head .auth-title { color: var(--n-9); }
+.auth-head .auth-sub { color: var(--n-6); }
+.auth-form { display: flex; flex-direction: column; gap: var(--sp-lg); }
+
+/* 섹션 사이 구분선 — 안내 헤더 / 안내 배너 / 패스워드 입력·제출 */
+.auth-divider { height: 1px; background: var(--border); border: 0; margin: 0; }
+
+/* ── 5. 폼 필드 (UI-099 Field / UI-002 Input) ─────────────────────── */
+.field { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.field > .field-label { color: var(--n-8); }
+.field > .field-help { color: var(--n-6); }
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--sp-md);
+  font-family: inherit;
+  font-size: 17px; line-height: 1.6; font-weight: 400;
+  color: var(--n-9);
+  background: var(--bg-page);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+.input::placeholder { color: var(--n-6); }
+.input:hover:not(:disabled) { border-color: var(--n-5); }
+.input:disabled { background: var(--n-0); color: var(--n-6); cursor: not-allowed; } /* n-5 는 회색 표면 위 4.13:1 로 DS do_rule 금지 — 60단 사용 */
+.input[aria-invalid="true"] { border-color: var(--e-5); background: var(--e-0); }
+
+/* ── 6. (비움) — 구 RadioGroup(UI-026)/Radio(UI-025) 카드형 선택지 규칙이 있던 자리.
+   화면이 관리자 부트스트랩으로 바뀌면서 역할 선택지가 사라져(ADR-055) 참조 0건이 됐다.
+   되살릴 일이 있다면 선택지를 되살릴 근거가 먼저 있어야 한다 — 부여 역할이 고정인 한
+   선택지는 화면이 거짓을 말하게 만든다. 번호는 뒤 절 번호를 밀지 않으려 비워 둔다. */
+
+/* ── 7. 버튼 (UI-001) ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-sm);
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 17px; font-weight: 500; line-height: 1.4;
+  transition: background var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+}
+.btn-block { width: 100%; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+
+/* 제출 중 — 버튼 안 작은 스피너 */
+.btn .spinner-sm {
+  width: 18px; height: 18px; flex: none;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--p-2);
+  border-top-color: var(--bg-page);
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn .spinner-sm { animation-duration: 2400ms; } }
+
+/* ── 8. Alert (UI-103 AlertBanner) ────────────────────────────────── */
+.alert {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+}
+.alert .alert-body { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
+.alert-error { background: var(--e-0); border-color: var(--e-2); }
+.alert-error .alert-title { color: var(--e-7); }
+.alert-error .alert-text  { color: var(--n-8); }
+.alert-error > .icon { color: var(--e-6); }
+.alert-info  { background: var(--i-0); border-color: var(--i-2); }
+.alert-info .alert-title { color: var(--i-7); }
+.alert-info .alert-text  { color: var(--n-8); }
+.alert-info > .icon { color: var(--i-6); }
+.alert .icon { flex: none; margin-top: 2px; }
+
+/* ── 9. 배지 (UI-014 StatusBadge) ─────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
+.badge-neutral   { background: var(--n-1); color: var(--n-7); }
+.badge-secondary { background: var(--s-0); color: var(--s-6); }
+.badge-error     { background: var(--e-0); color: var(--e-6); }
+.badge-warn      { background: var(--w-0); color: var(--w-6); }
+
+/* ── 10. 참고 패널 (기준본 관례 — bg n-0 + 4면 2px dashed n-4) ────── */
+.reference-panel {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-alt);
+  padding: var(--sp-lg);
+}
+.reference-panel .reference-flag { display: flex; align-items: flex-start; gap: var(--sp-sm); margin-bottom: var(--sp-md); }
+.reference-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-md); }
+.reference-grid.cols-1 { grid-template-columns: 1fr; }
+.ref-variant { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.ref-variant > .ref-variant-title { color: var(--n-8); }
+.ref-surface {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-md);
+  display: flex; flex-direction: column; gap: var(--sp-sm);
+}
+
+/* ── 11. 응답 상태별 문구 표 (참고 패널 안) ───────────────────────── */
+.msg-table { width: 100%; border-collapse: collapse; background: var(--bg-page); }
+.msg-table caption { text-align: left; color: var(--n-7); padding-bottom: var(--sp-sm); }
+.msg-table th, .msg-table td {
+  padding: 10px var(--sp-md);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.msg-table thead th {
+  background: var(--s-0);
+  color: var(--n-8);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.msg-table tbody td { font-size: 17px; font-weight: 400; line-height: 1.6; color: var(--n-8); }
+.msg-table tbody tr:last-child th, .msg-table tbody tr:last-child td { border-bottom: 0; }
+.msg-table tbody tr:hover { background: var(--row-hover); }
+.msg-table .col-code { width: 96px; }
+.ref-foot { margin-top: var(--sp-md); }
+
+/* ── 12. 아이콘 ───────────────────────────────────────────────────── */
+.icon { width: 20px; height: 20px; stroke-width: 2; }
+
+/* ── 13. 반응형 ───────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .screen-root { padding: var(--sp-md); gap: var(--sp-lg); }
+  .state-stage { padding: var(--sp-lg) var(--sp-md); }
+  .auth-card { padding: var(--sp-lg); }
+  .reference-grid { grid-template-columns: 1fr; }
+  .msg-table { display: block; overflow-x: auto; }
+}
+
+/* 초소형 폭 — 가로 여백을 줄여 폼 입력의 안내 문구가 잘리는 것을 막는다.
+   DS iteration_guide 에 따라 글자 크기는 낮추지 않고 여백만 좁힌다. */
+@media (max-width: 480px) {
+  .screen-root { padding: var(--sp-sm); }
+  .state-stage { padding: var(--sp-md) var(--sp-sm); }
+  .auth-card { padding: var(--sp-md); }
+  .reference-panel { padding: var(--sp-md); }
+}
+
+/* 초소형 폭에서 입력 좌우 여백만 좁힌다 — 글자 크기를 낮추지 않고 안내 문구 폭을 확보(DS iteration_guide). */
+@media (max-width: 400px) {
+  .input { padding: 0 var(--sp-sm); }
+}

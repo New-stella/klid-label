@@ -33,7 +33,7 @@
           "accept는 RVW_STTS_CD='ACCEPTED'를 검수자·검수일시와 기록(AUG_PROC_STTS_CD 미변경)",
           "reject는 사유 필수로 RVW_STTS_CD='REJECTED'+반려사유 기록",
           "채택 파생만 등재(게이트=리뷰 축), 반려 파생은 즉시 제외",
-          "유예 경과 시 폐기 파생 DB 행·파일 정리(3조건을 DELETE SQL에 박음)"
+          "유예 경과 시 폐기 파생 DB 행·파일 정리(삭제 대상은 파생 영상·반려·유예 경과를 모두 충족해야 하며, 검수 승인 이력이 있으면 대상에서 제외한다 — 관제 접근 보장 정책. 조건은 서비스뿐 아니라 최종 DELETE SQL 자체에 리터럴로 박아 검사~삭제 사이 창을 단일 문장으로 폐쇄한다)"
         ],
         "when": [
           "검수자가 조회·확인 후 accept 또는 reject 한다"
@@ -42,7 +42,7 @@
           "미검수(PENDING) 증강 파생영상이 있다"
         ]
       },
-      "statement": "검수자가 GET /v1/augments에서 미판단 증강 결과를 조회하고 GET /v1/augments/{jobId}/result에서 생성 조건(PROMPT_CN)을 확인해(중복 요청 허용 이후 결과물 구분의 유일한 축 — 목록 응답에는 그 값이 없다) 증강 결과(영상·복사 라벨)를 확인해, 활용 가능 시 POST /v1/augments/{id}/accept로 LS_DATA_AUG_RVW.RVW_STTS_CD='ACCEPTED'를 검수자·검수일시와 함께 기록하고(생성 결과 축 AUG_PROC_STTS_CD는 건드리지 않음), 부적합 시 reject(사유 필수)로 RVW_STTS_CD='REJECTED'+반려사유를 기록한다. 시스템은 채택된 파생만 작업목록·배정 대상으로 등재하고(등재 게이트=리뷰 축) 반려 파생은 즉시 제외하며, 유예기간(기본 7일) 경과 시 배치가 폐기 파생의 DB 행·생성 파일을 정리한다(파생·반려·유예경과 3조건을 최종 DELETE SQL 자체에 박음).",
+      "statement": "검수자가 GET /v1/augments에서 미판단 증강 결과를 조회하고 GET /v1/augments/{jobId}/result에서 생성 조건(PROMPT_CN)을 확인해(중복 요청 허용 이후 결과물 구분의 유일한 축 — 목록 응답에는 그 값이 없다) 증강 결과(영상·복사 라벨)를 확인해, 활용 가능 시 POST /v1/augments/{id}/accept로 LS_DATA_AUG_RVW.RVW_STTS_CD='ACCEPTED'를 검수자·검수일시와 함께 기록하고(생성 결과 축 AUG_PROC_STTS_CD는 건드리지 않음), 부적합 시 reject(사유 필수)로 RVW_STTS_CD='REJECTED'+반려사유를 기록한다. 시스템은 채택된 파생만 작업목록·배정 대상으로 등재하고(등재 게이트=리뷰 축) 반려 파생은 즉시 제외하며, 유예기간(기본 7일) 경과 시 배치가 폐기 파생의 DB 행·생성 파일을 정리한다(삭제 대상은 파생 영상·반려·유예 경과를 모두 충족해야 하며, 검수 승인 이력이 있으면 대상에서 제외한다 — 관제 접근 보장 정책. 조건은 서비스뿐 아니라 최종 DELETE SQL 자체에 리터럴로 박아 검사~삭제 사이 창을 단일 문장으로 폐쇄한다).",
       "brownfield": {
         "status": "new"
       },
@@ -66,12 +66,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "생성 조건을 어느 창구가 주는지 바로잡는다 — 목록 응답에는 그 값이 없고 상세 창구가 싣는다. 구 문구대로 읽으면 목록만 부르고 값이 없다고 판단하게 된다. 결과물 구분의 유일한 축이라는 성질은 그대로다.",
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "FEAT-004의 data.attached_files 변경이 derived_from로 2-hop 전파",
+    "change_summary": "실삭제 조건을 열거로 바꾸고 검수 승인 이력 제외를 더한다. 개수 표기로 세 조건만 검증하면 확정된 네 번째 조건(승인 이력이 있으면 대상에서 제외)이 검증 축에서 통째로 빠지고, 층마다 숫자가 갈리는 문제도 생긴다. statement 와 scenario.then 을 같은 문구 축으로 함께 맞춰 한 ITEM 안에서 갈리지 않게 했다. 파생 UC 와 동일한 문구를 사용한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-31T14:54:34.915Z",
+    "last_updated_at": "2026-09-02T02:10:07.515Z",
     "created_at": "2026-08-31T02:15:28.508Z"
   }
 }

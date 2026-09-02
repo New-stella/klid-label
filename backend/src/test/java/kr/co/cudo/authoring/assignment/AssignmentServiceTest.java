@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.assignment;
 
 import kr.co.cudo.authoring.support.IngestFlatValueSeeder;
+import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.assignment.dto.AssignmentCreateRequest;
 import kr.co.cudo.authoring.assignment.dto.AssignmentHistoryResponse;
 import kr.co.cudo.authoring.assignment.dto.AssignmentResponse;
@@ -589,6 +590,31 @@ class AssignmentServiceTest {
         assertThat(item.augType()).isNull();
     }
 
+    /**
+     * ★ 현행 증강 종류 단일값({@code AUGMENT})이 배정목록에 <b>노출</b>된다(ADR-059).
+     *
+     * <p>이 축은 {@code LsDataAug.CONTRACT_AUG_TYPES} 화이트리스트가 게이팅한다 — 거기서 현행
+     * 값이 빠지면 신규 파생본의 {@code augType} 이 조용히 {@code null} 로 떨어져 <b>화면의 종류
+     * 배지가 사라진다</b>. 오류가 아니라 «값이 안 보임» 이라 기존 시험(RESL_*·구 값·null·레거시
+     * RESOLUTION 네 케이스)이 전부 GREEN 인 채로 지나간다 — 그래서 <b>현행 값을 직접 심는
+     * 케이스</b>가 따로 필요하다. 아래 레거시 {@code RESOLUTION} 케이스의 정확한 대칭이다.
+     */
+    @Test
+    @DisplayName("배정목록_현행_AUGMENT_값은_FE계약값이므로_그대로_노출된다")
+    void listAssignmentsCurrentAugmentTypeIsExposed() {
+        // given — 구 3종이 아니라 현행 단일값. clipId 에는 마커가 없어 컬럼이 유일한 조달처다.
+        seedDerivedVideo(3006L, "TEST-3006-no-marker", LsDataAug.AUG_AUGMENT);
+
+        // when
+        AssignmentResponse.Item item = listSingleItem(3006L);
+
+        // then
+        assertThat(item.augmented()).isTrue();
+        assertThat(item.augType())
+                .as("CONTRACT_AUG_TYPES 에서 현행 값이 빠지면 여기서 null 로 떨어진다")
+                .isEqualTo("AUGMENT");
+    }
+
     @Test
     @DisplayName("배정목록_레거시_RESOLUTION_값은_FE계약값이_아니므로_augType_null이다")
     void listAssignmentsLegacyResolutionAugTypeIsNotExposed() {
@@ -599,7 +625,7 @@ class AssignmentServiceTest {
         // when
         AssignmentResponse.Item item = listSingleItem(3005L);
 
-        // then — FE 계약값 6종(WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) 밖이면 노출하지 않는다.
+        // then — FE 계약값(AUGMENT|WINTER|NIGHT|RAIN|RESL_1080P|RESL_720P|RESL_480P) 밖이면 노출하지 않는다.
         assertThat(item.augmented()).isTrue();
         assertThat(item.augType()).isNull();
     }

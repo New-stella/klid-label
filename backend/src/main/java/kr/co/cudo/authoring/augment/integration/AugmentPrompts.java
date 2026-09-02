@@ -32,8 +32,9 @@ import java.util.Map;
  * {@code types[]} enum 이다. 생성 조건 값(예: {@code season=WINTER})으로 유형을 유추하면 그 값이
  * {@code AUG_TYPE_CD} 를 거쳐 파생 산출물 경로({@code .../{augTypeCd}.mp4})와 해상도 네임스페이스
  * ({@code RESL_} 접두) 판별로 흘러 경로 순회(CWE-22)·검수 우회가 열린다. 허용 코드로 닫힌 뒤에도
- * 이 방어는 그대로 유효하다 — 코드 공간이 겹치기 때문이다({@code Season.WINTER} ↔ {@code AUG_WINTER}).
- * 같은 이유로 <b>이벤트 유형({@code evnt_type})에서도 파생하지 않는다</b>.
+ * 이 방어는 그대로 유효하다 — 코드 공간이 겹치기 때문이다({@code Season.WINTER} ↔ 구 {@code AUG_WINTER}).
+ * 종류 코드가 단일값 {@code AUG_AUGMENT} 로 합쳐진 뒤에도(ADR-059) 마찬가지다 —
+ * <b>단일 상수로 고정하는 것이지 조건에서 유도하는 것이 아니다</b>.
  *
  * @design INT-008
  */
@@ -116,15 +117,20 @@ public final class AugmentPrompts {
     }
 
     /**
-     * 외부 위탁 대상(SFR-07 3종) 코드 집합 — <b>단일 원천</b>.
+     * 외부 위탁 대상 코드 집합 — <b>단일 원천</b>.
      *
      * <p>{@link #isExternalAugType} 과 회수 스윕의 후보 SQL(만료 스윕)이 같은 목록을 쓰도록 상수로
      * 노출한다. 두 곳이 각자 코드 목록을 나열하면 증강 유형이 늘 때 한쪽만 고쳐져 드리프트가 난다.
+     *
+     * <p>신규 요청은 {@link LsDataAug#AUG_AUGMENT} 하나만 만들지만(ADR-059),
+     * <b>구 3종은 목록에서 빼지 않는다</b> — 백필하지 않아 미종결 위탁이 그 코드로 남아 있을 수 있고,
+     * 빼면 만료 스윕이 그 건을 후보로 집지 못해 <b>영원히 PENDING 으로 고착</b>한다.
      */
     public static final java.util.List<String> EXTERNAL_AUG_TYPES =
-            java.util.List.of(LsDataAug.AUG_WINTER, LsDataAug.AUG_NIGHT, LsDataAug.AUG_RAIN);
+            java.util.List.of(LsDataAug.AUG_AUGMENT,
+                    LsDataAug.AUG_WINTER, LsDataAug.AUG_NIGHT, LsDataAug.AUG_RAIN);
 
-    /** 외부 위탁 대상(SFR-07 3종)인지 판별한다. */
+    /** 외부 위탁 대상(현행 단일값 + 구 3종)인지 판별한다. */
     public static boolean isExternalAugType(String augType) {
         return EXTERNAL_AUG_TYPES.contains(augType);
     }

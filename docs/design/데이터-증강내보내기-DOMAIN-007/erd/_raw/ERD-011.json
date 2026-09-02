@@ -54,15 +54,16 @@
               "unique": false,
               "nullable": false,
               "code_values": {
-                "RAIN": "강우",
-                "NIGHT": "야간",
-                "WINTER": "겨울",
+                "RAIN": "강우(구 코드값 · 기존 파생본 보존)",
+                "NIGHT": "야간(구 코드값 · 기존 파생본 보존)",
+                "WINTER": "겨울(구 코드값 · 기존 파생본 보존)",
+                "AUGMENT": "증강",
                 "RESL_480P": "해상도 480P 파생",
                 "RESL_720P": "해상도 720P 파생",
                 "RESL_1080P": "해상도 1080P 파생",
                 "RESOLUTION": "해상도(레거시)"
               },
-              "description": "증강유형코드 — 외부 증강 3종(WINTER/NIGHT/RAIN, SFR-07) + 해상도 파생 3종(RESL_1080P/RESL_720P/RESL_480P, SFR-06-03). 해상도 변경(SFR-06-03)을 증강 파생영상으로 통합(ADR-018) — RESL_* 값이 정식 판별자이며 표준 해상도 3종 프리셋마다 새 파생영상(RAW_SN, ORGNL_RAW_SN 원본참조)을 생성한다. 구 RESOLUTION 은 레거시 잔존 표기. 표준단어 RESL=해상도(사업표준), 코드값 표준도메인 varchar(20).",
+              "description": "증강유형코드 — 증강 축 단일값(AUGMENT) + 해상도 파생(RESL_1080P/RESL_720P/RESL_480P, SFR-06-03). 증강 축의 코드값은 단일 상수 AUGMENT 로 고정하며 생성 조건에서 파생하지 않는다 — 생성 조건(시간대·계절·날씨·지형·심각도)이 실제 변환 내용을 정한다. 구 WINTER/NIGHT/RAIN 은 이미 만들어진 파생본에 남아 있어 보존한다(백필하지 않는다) — 조회·표시 경로는 옛 값과 새 값을 모두 견뎌야 한다. 해상도 변경(SFR-06-03)을 증강 파생영상으로 통합(ADR-018) — RESL_* 값이 정식 판별자이며 표준 해상도 3종 프리셋마다 새 파생영상(RAW_SN, ORGNL_RAW_SN 원본참조)을 생성한다. 구 RESOLUTION 은 레거시 잔존 표기. 표준단어 RESL=해상도(사업표준), 코드값 표준도메인 varchar(20).",
               "primary_key": false,
               "implementation": {
                 "status": "planned",
@@ -328,7 +329,7 @@
             }
           ],
           "brownfield": {
-            "notes": "1차 프로젝트(PJT_SN) 단위 → 고도화 영상(SRC_SN) 단위·정합률/검수 분리(LS_DATA_AUG_RVW)·비동기 표준컬럼 4종(V42) 추가로 재설계. 증강유형은 외부 위탁 3종+해상도 파생 3종 총 6종(AUG_TYPE_CD, 레거시 단일 RESOLUTION 은 통합 이전 데이터 호환용으로만 잔존)이다.",
+            "notes": "1차 프로젝트(PJT_SN) 단위 → 고도화 영상(SRC_SN) 단위·정합률/검수 분리(LS_DATA_AUG_RVW)·비동기 표준컬럼 4종(V42) 추가로 재설계. 증강유형은 외부 위탁(AUGMENT)+해상도 파생(RESL_1080P/RESL_720P/RESL_480P)(AUG_TYPE_CD, 레거시 단일 RESOLUTION 은 통합 이전 데이터 호환용으로만 잔존)이다. UK_LS_DATA_AUG_RESL 은 해상도 파생에만 걸리는 부분 유니크 인덱스(WHERE aug_type_cd LIKE 'RESL\\_%')이나 술어는 메타 미지원이라 컬럼만 표기했다 — 전체 유니크로 읽지 말 것. 해상도 파생은 외부 위탁이 없는 내부 결정론적 리스케일이라 같은 프리셋을 두 번 만들 이유가 없어 그 접두에만 유일 제약이 유지되며, 그 밖의 증강 종류는 같은 (영상×증강종류) 재요청을 허용한다(ADR-044). 술어 없이 DDL 을 재생성하면 폐기된 전체 유니크 차단이 되살아난다.",
             "status": "modified",
             "legacy_source": {
               "type": "table",
@@ -336,7 +337,7 @@
               "legacy_dbms": "MariaDB"
             }
           },
-          "description": "외부 SFR-07 시스템에 위탁하는 증강 3종(WINTER/NIGHT/RAIN) + 내부 해상도 파생 3종(RESL_1080P/RESL_720P/RESL_480P) 결과를 관리한다(레거시 단일 코드 RESOLUTION 은 통합 이전 데이터 호환용으로만 잔존). 영상 단위(SRC_SN)로 관리하며, 증강 파일 생성 상태는 본 테이블에, 검수 결과(정합률/반려사유)는 LS_DATA_AUG_RVW 에 분리 저장. ⚠ SRC_SN 은 영상의 대표프레임(LS_DATA_SRC.SRC_SN)이지 영상 식별자(RAW_SN)가 아니다. ⚠ 반려사유 컬럼은 이 테이블에 두지 않는다 — LS_DATA_AUG_RVW.RJCT_RSN 이 소유한다.",
+          "description": "외부 SFR-07 시스템에 위탁하는 증강(AUGMENT) + 내부 해상도 파생 3종(RESL_1080P/RESL_720P/RESL_480P) 결과를 관리한다(레거시 단일 코드 RESOLUTION 은 통합 이전 데이터 호환용으로만 잔존). 영상 단위(SRC_SN)로 관리하며, 증강 파일 생성 상태는 본 테이블에, 검수 결과(정합률/반려사유)는 LS_DATA_AUG_RVW 에 분리 저장. ⚠ SRC_SN 은 영상의 대표프레임(LS_DATA_SRC.SRC_SN)이지 영상 식별자(RAW_SN)가 아니다. ⚠ 반려사유 컬럼은 이 테이블에 두지 않는다 — LS_DATA_AUG_RVW.RJCT_RSN 이 소유한다.",
           "logical_table_name": "데이터증강"
         },
         {
@@ -834,7 +835,7 @@
               "type": "bigint",
               "unique": false,
               "nullable": true,
-              "description": "파생의 부모 영상. 실삭제 3조건 중 '파생임' 판정의 근거.",
+              "description": "파생의 부모 영상. 실삭제 대상 조건(파생 영상·반려·유예 경과를 모두 충족해야 하며, 검수 승인 이력이 있으면 대상에서 제외한다) 중 '파생임' 판정의 근거.",
               "primary_key": false,
               "logical_column_name": "원본원시영상일련번호"
             },
@@ -1041,7 +1042,7 @@
             "notes": "V156 신설·V157 감사·재시도 컬럼·V158 조회 인덱스. 인덱스는 전부 부분 인덱스(유효 행·미삭제·재시도 대상 등 술어 존재)이나 술어는 메타 미지원이라 컬럼만 표기했다. ⚠ LS_LABEL_ATTR 은 삭제 대상이 아니다 — 라벨 마스터의 속성 정의(FK LABEL_ID→LS_LABEL, V33)이며, 데이터 라벨을 참조하는 것은 LS_DATA_LBL_ATTR_VAL 이다.",
             "status": "new"
           },
-          "description": "미사용 파생영상 폐기 원장(V156 신설, V157 감사·재시도 컬럼 추가, V158 조회 인덱스). REVIEWER 가 증강 결과를 반려하면 파생이 즉시 작업 대상에서 빠지고(등재 게이트가 리뷰 축이라 자동), 유예기간(설정값·기본 7일) 경과 후 배치가 DB 행과 생성 파일까지 실삭제한다. 실삭제는 3조건 동시 충족(파생 ORGNL_RAW_SN IS NOT NULL + 반려 + 유예 경과)이며 조건을 최종 DELETE SQL 자체에 리터럴로 박아 검사~삭제 사이 창을 단일 문장으로 폐쇄한다. 복구는 폐기 표식 해제 + 리뷰 재오픈이며 되돌린 이력(누가·언제·왜)을 남긴다. 근거 ADR-045.",
+          "description": "미사용 파생영상 폐기 원장(V156 신설, V157 감사·재시도 컬럼 추가, V158 조회 인덱스). REVIEWER 가 증강 결과를 반려하면 파생이 즉시 작업 대상에서 빠지고(등재 게이트가 리뷰 축이라 자동), 유예기간(설정값·기본 7일) 경과 후 배치가 DB 행과 생성 파일까지 실삭제한다. 실삭제 대상은 파생 영상(ORGNL_RAW_SN IS NOT NULL)·반려·유예 경과를 모두 충족해야 하며, 검수 승인 이력이 있으면 대상에서 제외한다(관제 접근 보장 정책). 조건을 최종 DELETE SQL 자체에 리터럴로 박아 검사~삭제 사이 창을 단일 문장으로 폐쇄한다. 복구는 폐기 표식 해제 + 리뷰 재오픈이며 되돌린 이력(누가·언제·왜)을 남긴다. 근거 ADR-045.",
           "logical_table_name": "증강폐기"
         },
         {
@@ -1316,7 +1317,7 @@
           "legacy_dbms": "MariaDB"
         }
       },
-      "description": "데이터 증강 도메인 고도화(PostgreSQL) 물리 ERD. 증강은 새 영상 단위로 생성·검수(LS_DATA_AUG_RVW)·라벨좌표재계산매핑(LS_DATA_AUG_LBL_MAP)으로 분리된다. 외부 증강 3종(WINTER/NIGHT/RAIN)에 더해 해상도 변경(SFR-06-03)을 본 증강 모델로 통합(ADR-018) — AUG_TYPE_CD=RESL_1080P/RESL_720P/RESL_480P 로 판별하고, 라벨 배율은 LS_DATA_AUG_LBL_MAP.COORD_RECALC_YN/SCALE_X/SCALE_Y 를 재사용한다(신규 배율 컬럼 없음). 구 전용 테이블 LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP 은 폐기됐다. 1차 데이터셋 테이블 LS_DATA_SET 기반 내보내기 기능이 폐기되어 제거 — 검수 승인 학습데이터 export 산출은 ADR-020 으로 저작도구 범위 안이나 검수 승인 경로가 파일로 산출해 이 ERD 에 테이블을 두지 않는다. ★ 중복 요청 허용(ADR-044) — 같은 (영상×증강종류) 재요청을 BE 가 차단하지 않는다. 파생 깊이는 1로 고정한다(파생본에서 파생 요청 불가, ADR-023). 증강 계열 테이블은 6종이다(LS_DATA_AUG·_RVW·_LBL_MAP·_DSCD·_JOB·_JOB_FILE).",
+      "description": "데이터 증강 도메인 고도화(PostgreSQL) 물리 ERD. 증강은 새 영상 단위로 생성·검수(LS_DATA_AUG_RVW)·라벨좌표재계산매핑(LS_DATA_AUG_LBL_MAP)으로 분리된다. 외부 증강(AUGMENT)에 더해 해상도 변경(SFR-06-03)을 본 증강 모델로 통합(ADR-018) — AUG_TYPE_CD=RESL_1080P/RESL_720P/RESL_480P 로 판별하고, 라벨 배율은 LS_DATA_AUG_LBL_MAP.COORD_RECALC_YN/SCALE_X/SCALE_Y 를 재사용한다(신규 배율 컬럼 없음). 구 전용 테이블 LS_RESOLUTION_EXPORT/LS_RESOLUTION_LBL_MAP 은 폐기됐다. 1차 데이터셋 테이블 LS_DATA_SET 기반 내보내기 기능이 폐기되어 제거 — 검수 승인 학습데이터 export 산출은 ADR-020 으로 저작도구 범위 안이나 검수 승인 경로가 파일로 산출해 이 ERD 에 테이블을 두지 않는다. ★ 중복 요청 허용(ADR-044) — 같은 (영상×증강종류) 재요청을 BE 가 차단하지 않는다. 파생 깊이는 1로 고정한다(파생본에서 파생 요청 불가, ADR-023). 증강 계열 테이블은 6종이다(LS_DATA_AUG·_RVW·_LBL_MAP·_DSCD·_JOB·_JOB_FILE).",
       "relationships": [
         {
           "label": "증강 결과의 검수",
@@ -1354,6 +1355,7 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -1367,12 +1369,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 25,
+    "current_version": 29,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "생성조건 보관 컬럼의 서술을 정본 계약에 맞춘다. 구 서술은 다섯 항목을 가공 없이 요청의 자유 지시문 자리로 보내고 그 원문을 보관한다고 적었고, 명세가 허용값을 정의하지 않아 자유 문자열이라고 단정했다. 둘 다 거짓이다 — 정본은 다섯 항목을 요청 본문의 최상위 구조화 조건으로 옮기고 자유 지시문을 별개 문자열로 분리했으며, 다섯 항목의 허용 코드를 닫아 두었다. 보관도 나간 값과 갈라지지 않도록 분리한 형태로 한다. 증강 종류를 이 값에서 파생하지 않는다는 방어와 중복 요청 허용으로 결과물을 구분하는 유일한 축이라는 서술은 그대로 두었고, 그 방어의 근거 문구에서 자유 문자열을 전제한 표현만 값 일반으로 고쳤다. 쓰기 직전 이 문서에 stale 표식은 없었다.",
+    "change_summary": "증강 종류 단일화(AUGMENT) 반영 — 테이블·최상위 서술과 brownfield 비고에 남아 있던 구 3값 열거를 걷어낸다. 컬럼 코드값의 구 값 보존 표기와 해상도 파생 축은 무변경.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-27T12:20:44.049Z",
+    "last_updated_at": "2026-09-02T08:42:04.411Z",
     "created_at": "2026-06-01T02:41:59.688Z"
   }
 }

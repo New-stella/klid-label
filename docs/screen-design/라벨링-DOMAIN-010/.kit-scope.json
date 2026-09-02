@@ -243,6 +243,7 @@
     "ADR-036",
     "ADR-051",
     "ADR-054",
+    "ADR-058",
     "API-025",
     "API-026",
     "API-027",
@@ -346,6 +347,6 @@
     "UC-028",
     "UC-039"
   ],
-  "last_sync_at": "2026-08-31T11:39:10.916Z",
+  "last_sync_at": "2026-09-02T10:54:13.709Z",
   "note_pruned": "2026-08-31: 서버에서 deprecated/superseded 로 확인된 수용기준 ID 를 pin 에서 제거(전수 status 조회 근거 126건). 파일은 _retired/ 에 보존된다."
 }

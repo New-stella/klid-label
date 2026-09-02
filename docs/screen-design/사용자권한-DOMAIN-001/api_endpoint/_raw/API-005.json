@@ -1,0 +1,201 @@
+{
+  "item": {
+    "id": "API-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/users/me",
+    "slug": "get-v1usersme",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/users/me",
+      "tags": [
+        "user",
+        "auth"
+      ],
+      "method": "GET",
+      "summary": "내 정보 조회 (users)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER",
+            "WORKER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "REVIEWER",
+                      "WORKER",
+                      "PORTAL_USER"
+                    ],
+                    "type": "string",
+                    "description": "권한 코드"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "description": "로그인 ID"
+                  },
+                  "userNm": {
+                    "type": "string",
+                    "description": "사용자 이름"
+                  },
+                  "userNo": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "사용자 PK"
+                  },
+                  "channel": {
+                    "enum": [
+                      "INTERNAL",
+                      "PORTAL"
+                    ],
+                    "type": "string",
+                    "description": "진입 채널"
+                  },
+                  "userEmail": {
+                    "type": "string",
+                    "description": "이메일"
+                  }
+                },
+                "description": "본인 프로필 (JWT sub 클레임 기반)"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (성공 시 true)"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": {
+              "role": "WORKER",
+              "userId": "worker01",
+              "userNm": "홍길동",
+              "userNo": 1001,
+              "channel": "INTERNAL",
+              "userEmail": "worker01@klid.go.kr"
+            },
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공. JWT 토큰의 sub 클레임으로 해석한 본인 UserProfileResponse 를 반환.",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패 (토큰 없음/만료). ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "404": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "리소스를 찾을 수 없습니다.",
+            "success": false,
+            "errorCode": "NOT_FOUND"
+          },
+          "description": "JWT sub 에 대응하는 사용자 없음. ErrorCode=NOT_FOUND",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "preserved",
+        "diff_summary": "1차 사용자·권한 기반 본인 정보 조회"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "현재 인증된 사용자 본인 정보를 조회한다. 인증된 사용자 전체.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-216"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:36.070Z"
+      },
+      "uses_constants": [],
+      "implements_features": [],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "channel enum 오표기 수정 — 실재하지 않는 CONTROL 값을 실제 Channel enum(INTERNAL/PORTAL)에 맞춰 INTERNAL 로 정정. 근거: backend Channel.java(INTERNAL,PORTAL) · frontend types.ts(Channel) · CONTROL 리터럴 grep 0건. 대조군 API-153 example 표기(INTERNAL)와 정합.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:36.070Z",
+    "created_at": "2026-05-30T06:56:44.762Z"
+  }
+}

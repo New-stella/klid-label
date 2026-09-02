@@ -23,7 +23,8 @@ package kr.co.cudo.authoring.augment.dto;
  * {@code TOT_NOCS=0} 이라 가중치가 0 이 되면 분모에서 사라져 "실패한 청크가 없는 것처럼" 보인다.
  *
  * @param id                 증강 결과 PK({@code LS_DATA_AUG.DATA_AUG_SN})
- * @param augTypeCd          증강 종류(WINTER/NIGHT/RAIN)
+ * @param augTypeCd          증강 종류 — 현행 {@code AUGMENT}. 백필하지 않은 구 값
+ *                           (WINTER/NIGHT/RAIN)도 그대로 실려 올 수 있다(ADR-059)
  * @param status             {@link AugmentProgressStatus} 이름
  * @param progress           0~100. <b>{@code null} 이면 산출 불가</b>이며 사유는 {@code unavailableReason}
  * @param unavailableReason  {@link AugmentProgressUnavailableReason} 이름 또는 null

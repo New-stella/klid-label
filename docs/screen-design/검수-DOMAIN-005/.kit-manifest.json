@@ -1,0 +1,1036 @@
+{
+  "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+  "domain": "DOMAIN-005",
+  "synced_at": "2026-09-02T10:54:12.097Z",
+  "source": "https://logicraft.cudo.co.kr:10000/api/projects/4ece2c3f-8e99-46f5-9580-71108a76e578/items/export",
+  "link_format": "wikilink-v1",
+  "global_types": [
+    "nfr",
+    "implementation_guideline",
+    "permission_role"
+  ],
+  "scope_mode": "pin",
+  "count": 170,
+  "items": {
+    "API-008": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 12,
+      "content_hash": "115687866cb5e7a945d191bd07e013424ae86a4ce4f9160101b706a749e83b28"
+    },
+    "API-009": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 9,
+      "content_hash": "c2d2f71dda853a1fb04176cd3f207f7ec6e7a7acf9b601f91f55dc0d7f1272f7"
+    },
+    "API-010": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 4,
+      "content_hash": "11b6db307aeab0d1833e2eeced8323325c2b0349cfe6f8c3352c2f40581fe3eb"
+    },
+    "API-011": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 4,
+      "content_hash": "94c82fd3f4d6cdd9c90e4958e8a9c68da00479ba26cff6c2fe788f10c80a64f9"
+    },
+    "API-013": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 6,
+      "content_hash": "d2856f80992caf7c79405c16bb68ca55fc80dcf5993256ac5c5ca204fda2a7d8"
+    },
+    "API-014": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 12,
+      "content_hash": "68d0f766b8fac819c04bbbf01f75bbb42e59cc5dfd85a1f193cf45b9696f8621"
+    },
+    "API-015": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 8,
+      "content_hash": "0d514cc8a27d3b233d7cba549580ab6b94ceb50f85f188e01ee96c48a048939f"
+    },
+    "API-021": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-010",
+      "version": 9,
+      "content_hash": "574151b2fa941f857e70e1acb4b4303fe645a5e5c3b3be3427491e1fd2ae93ae"
+    },
+    "API-066": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-010",
+      "version": 7,
+      "content_hash": "005689db66b64b6c01506def4ad704209b6035281a556b2cb599888ead3785f5"
+    },
+    "API-102": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 14,
+      "content_hash": "c5a92e526adcd647f4216b6e882edcde88694b430407c7def96d779acb81de47"
+    },
+    "API-103": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 11,
+      "content_hash": "dee0ebebc483b7de887e23938ba3d5798b5ef4683274d55cb16d81e36ba4e8ea"
+    },
+    "API-104": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 14,
+      "content_hash": "63dabcabd2739dfc011e9636bb895b3eeabbb6f59554db22947256b8c18d8566"
+    },
+    "API-105": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 7,
+      "content_hash": "fa867a999bd423f2d5c345142295ccce9e986d41a799cae01c33853981155341"
+    },
+    "API-132": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-010",
+      "version": 5,
+      "content_hash": "5cfa2f3e0f5390d32f89c364e3c07183053e9fe5848dfec75e0c8adfd2d9c4a8"
+    },
+    "API-138": {
+      "type": "api_endpoint",
+      "domain_id": "DOMAIN-005",
+      "version": 4,
+      "content_hash": "20f5486de23f2e4edd92e620dc2884e882eae9ddc7b0765bd14f7e55a2357b5e"
+    },
+    "SHELL-001": {
+      "type": "app_shell",
+      "domain_id": null,
+      "version": 11,
+      "content_hash": "e8bd9633b2ab4d4ce148fc0da6ec3980b9bb16a3da4f72bee48aa3f052a24005"
+    },
+    "DS-001": {
+      "type": "design_system",
+      "domain_id": null,
+      "version": 9,
+      "content_hash": "87a9b75506c0b81a22ea2629f6822375a0f56e66ba9f07adf3d9e61b6501010c"
+    },
+    "NAV-001": {
+      "type": "navigation_tree",
+      "domain_id": null,
+      "version": 26,
+      "content_hash": "e98e647605823cafce2b00eac278a121fe4072626d4ecef018d9a7d37ae28ef7"
+    },
+    "ROLE-001": {
+      "type": "permission_role",
+      "domain_id": null,
+      "version": 14,
+      "content_hash": "ea92dc8cf2c3bb2cc3f96593d5937cc90c1ea5d4b4587d9326301e8033331146"
+    },
+    "ROLE-004": {
+      "type": "permission_role",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "c7dec813a770f5499c762e8ee184f3d896552c93fa70f8b2ec13b8a3b8a8a6b3"
+    },
+    "SD-001": {
+      "type": "screen_design",
+      "domain_id": "DOMAIN-005",
+      "version": 5,
+      "content_hash": "89e447064f679e4e81aa0a1967868792b21708f2e0f9c87d1f8579e4b5e615e7"
+    },
+    "SD-005": {
+      "type": "screen_design",
+      "domain_id": "DOMAIN-005",
+      "version": 7,
+      "content_hash": "c6db298e190d8724a757518d2eda88cbe05c86dc3aad350e353226be4ce19bcf"
+    },
+    "SCREEN-018": {
+      "type": "screen_spec",
+      "domain_id": "DOMAIN-005",
+      "version": 29,
+      "content_hash": "279ee2275916ba17fff6b5a8fa3aca69c9bd1fd70e34a41ef5cf7cf35b062e43"
+    },
+    "SCREEN-019": {
+      "type": "screen_spec",
+      "domain_id": "DOMAIN-005",
+      "version": 43,
+      "content_hash": "f732d0ecb8980837015f5a188bb92d845158d150b53908efc7d500b59eb18435"
+    },
+    "UI-001": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "b8dfccafbd928a6a375d7a27c20db48ce816a6e84eb9170a482a1765b99f23b7"
+    },
+    "UI-002": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "4fca8ee314f7400a0fc63fefa3f6cfcc9e59c165b038dc98343d44613b0041c2"
+    },
+    "UI-003": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "c6d0ce5dc3c8726e95241936eb1ab312c1770cb4f357348b910fc12b45d36cf0"
+    },
+    "UI-004": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "8f5406b61c955fdde9209e198a64f701502e697ad479ffee7b18877cdeee23e3"
+    },
+    "UI-005": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "84eeb3385fab2ad91a1db32ac54b95da1f2ae0b5ead461b7e79b5278907ed281"
+    },
+    "UI-006": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "7a92d14fc5d33b7922736091ea8fcea0e3a178c9678718a7bb6c3cd4ff58667b"
+    },
+    "UI-007": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 7,
+      "content_hash": "eef9fe70f236fd8f104cdf0da244006f1394eebfeffafe129f74431b381a4b2b"
+    },
+    "UI-008": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "de6a5f013b447570d2415186bf6cbd8372fbf8d5fe88a55cd457f22d66854f04"
+    },
+    "UI-009": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "64c21e2d44b92e74f9040134232341ad413eda1a306031924694b5dcdc7f9c76"
+    },
+    "UI-010": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "34dfbd41b794fc38655d0686d7a981ca63de9543f62a7e43a66911d670335b8c"
+    },
+    "UI-011": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "14bbacb43ba92008a9f925e28ee1e5a29130497adeb01464527c59e295bb3864"
+    },
+    "UI-012": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "0243d7444141bc040456ddc3d460e944a75d0926c2847c013fc0ea1f4f96292a"
+    },
+    "UI-013": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "23c6fb043593059622bfa3e1b9c70089b89257210b37632330d48ca4c0058142"
+    },
+    "UI-014": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "d0b3daa925ee9d480d0cd039d8b9dd9f5e8becaa5e6727a5667e71ef56328e8c"
+    },
+    "UI-015": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "0d1c0b1ec1c6b9def9e9f375b41ae6351c71a80ac5dc2eb5025f99761b598333"
+    },
+    "UI-016": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "b6506443686efbb3196fe2b71e92fe0495464dd016082fbe05335b58e959ddda"
+    },
+    "UI-017": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 8,
+      "content_hash": "d8fb081928264d7b4d3911a463b8dbe69ba081f09e16a5c7561fc0af653f2925"
+    },
+    "UI-018": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 10,
+      "content_hash": "cdac2a9273d5112f6e9195c33fcfd486c5d64a4bf71b76134bef37265537835c"
+    },
+    "UI-019": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "2714d6547ef5139ebbf1c4e47ef2ddf825f68263a8c1c447de08dcec6ef3ad54"
+    },
+    "UI-020": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "319a5bbf4db04d6089bd665bfcce5012aa37bde9391e96ac6a907f4dfa7cf756"
+    },
+    "UI-021": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "1f834259d1c02d10a0a1dfae9b5383230161937bf38213e800cde1b084521f43"
+    },
+    "UI-022": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "4e68737e72d25d28fc2561a5365da7ee9369e2a6d52ca43d431b3a7b770477ee"
+    },
+    "UI-023": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "8ae2f802fec6f3ab9dd40d9de3c5d9ba93c7783432230cd6707f19a93507b07f"
+    },
+    "UI-024": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "f83903ce70b90d2569fbaea99fc8c0bcd904fa90dfd611c6004ec045badde790"
+    },
+    "UI-025": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "ce510457d65e3d3b7d202f93913e97d5336725888ab002cbfd037c11887d7316"
+    },
+    "UI-026": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "ce63893228f12e261c32f5df644cab80b713260c5ea43c5ddebf97f921c22bd7"
+    },
+    "UI-027": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "824db37e991408a017e5d59526efb5e21a11fcc01298efc457bcb860bb69776b"
+    },
+    "UI-028": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "f7272153f949832b59b2b432631fee5ee61dc00988eb04f0fb7718d7653b2f63"
+    },
+    "UI-029": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "d29830150ae89de3679b30c5c2b3741bed4a0a4477dd0eab8edb0b4514c5414c"
+    },
+    "UI-030": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "e8d00667489e2176ff18db64785a55bde348aac3ae9b9f26f9640d45690de86a"
+    },
+    "UI-031": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "bc933ed69d17d97160b931ccf68bacfac775f9bd0b5d38a9213b9bc5aa7fbb69"
+    },
+    "UI-032": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "b7bca104f9756eeeacf85b0cad0d7452d4fd78b0562eff32570ac0467c205764"
+    },
+    "UI-033": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "e95a4b141ef9b341c1710fea73469bb2b2c57eca9b283e8572244fea2ab1c14c"
+    },
+    "UI-034": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "383e4232cb59979ed19440736fdf1e03bba6e430724097c9c6f0e46b492e1554"
+    },
+    "UI-035": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 7,
+      "content_hash": "a86bd1dbf2e2caa57e79cac7229382ecd98782f999e4b652ba555b48b5e70b47"
+    },
+    "UI-036": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "139b82fdcd8485f13b2a28f1c53a2a85179533ab9b102ed27eb317265aabb24a"
+    },
+    "UI-037": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "9a0b72e6c1fecc3b56f4ee1f033f9ae05c63743b23c15d61731e0cc5194731c1"
+    },
+    "UI-038": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "52e55cf43bd836c3acd147f41194e7e384be67e2161d5a6e11952a09528e9bde"
+    },
+    "UI-039": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "750ccbb876be30edcc1407244fc9855ae2f96432d0f75377b566e4d86287807a"
+    },
+    "UI-040": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "68a49292ee633886aec940549ea6298af668d99a10e9d428c73623c68fe344aa"
+    },
+    "UI-041": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "9ed6bbb8848ae2c47f461bd88a4ef138cfae5ab055e505195d8e9a2240772eb5"
+    },
+    "UI-042": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "955057b23219042065dbaeb64fe5791603e72a3fe892c1c02b7e6626cd235b14"
+    },
+    "UI-043": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "e851ce7349eb80ab5119887fd0c998662d9e2d13d09326fda09914623e0bdd2c"
+    },
+    "UI-044": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "46d11ea649e3a2708a41bb79ca7016dfc06b6252a7013b6939c25a82733f4843"
+    },
+    "UI-045": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "25af5fcaa21053481c6f946ecff137170db2f5471be5f8fff3da44a22d6fa4c3"
+    },
+    "UI-046": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 8,
+      "content_hash": "d862537cea91534c021bcff6e0d8503e52c026bf951de464c66962d427dc6bb5"
+    },
+    "UI-047": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "004aeda601e0b92dc753cfea8b7374d305ab65d5993971303e50759438db1e8b"
+    },
+    "UI-048": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 7,
+      "content_hash": "af6a4816171801aa16b4d333df9dbf9df537204cb37bb92767e43b1b74427af5"
+    },
+    "UI-049": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 7,
+      "content_hash": "2209c0dcad20a756c87f9667e9d76ff0a53707f40e95fb40a3ab0ed2a98f4b4a"
+    },
+    "UI-050": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "8676a637fae963ca69a356b613c258b3a27338d3e6faec3b8fb3387eabd391c4"
+    },
+    "UI-051": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "e998938a3a7b87552599102d4be3f157d07603af44a0b4129afdf6fc8bb858ae"
+    },
+    "UI-052": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 7,
+      "content_hash": "bbaaf2d23f768823a1362705b5dd87f376a0ce86634ee88d860a133e67e69e6f"
+    },
+    "UI-053": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 8,
+      "content_hash": "bdb94bc678d9d8a8e8d07a055ff5c4470c92d5d2ebc6a50acdc932bd64af07a5"
+    },
+    "UI-054": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "e99f0c0ba22d9b15e4bb862ed1fdeb7c3ca60a412fcaf00e2364d1afe71a8d66"
+    },
+    "UI-055": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 11,
+      "content_hash": "0af4c4438afb1f3de807312252a0ce6d023277b76e06db7ff9c5e48367c65d89"
+    },
+    "UI-056": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "168a0c5aa55f68e5d76c515691c060b2eb41a74918692b729f13d1fb60c187ed"
+    },
+    "UI-057": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "712d2a8a902640e8f67adae3475c0f05a5b641ab30db769d8626f3909bebda01"
+    },
+    "UI-058": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "6b396e4c764a34f4539505dda62ecfaa9b71cc9dfc85cecc4966753e01a53c60"
+    },
+    "UI-059": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "665b79db0071f45dce4b7b7c5320f6968624dffe2ce2c25ec0a37194ba9ceccd"
+    },
+    "UI-060": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "f56d94e7cf6b1b789f1cd55e612d922c849b975436bd5e8a6a25e6aa247a54cb"
+    },
+    "UI-061": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "4ef6d60f7b2b9a0790e6de63af377628570edfe16feeb532abc0ec93b2f433fd"
+    },
+    "UI-062": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "d347ddf0f43cf44fc45193e01f678405daa06f3a765046da51a5520f51ae6d33"
+    },
+    "UI-063": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "829e24abc26e7955f126009a6d411baa1d5317b632df489f8472442b2d000760"
+    },
+    "UI-064": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "02884468107f2ee8c69527548fd0cf23bc36388b8e46a023325920e7a5db16c1"
+    },
+    "UI-065": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "c161795e76cd1050cf2d4e2ef47b1ccc8e8dc46a323ad6404a135075040aa10d"
+    },
+    "UI-066": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "48889cf3912113cac3243f05769fdc2d683ad7f2925bb45c355a0f6c3791651c"
+    },
+    "UI-067": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "3b4910e1b70a455b7806e379dea4465608c868eea186089a4156d1c89153bd77"
+    },
+    "UI-068": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "b1f5074cea5b1cda264bf606e183a8247fe0bf121bf47a4ededa23ce6d4e60fe"
+    },
+    "UI-069": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "50436bea8468109becba32385bbf55de66254a79436262b1c89c80b8898f16b0"
+    },
+    "UI-070": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "b0f306066007976e8694b3edab3b2b06b34d39c409c0a1997f174f2a907c4e21"
+    },
+    "UI-071": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "6201df35f99e2d69055b4fa6d04a5b1c7e9fa49d2f3b399d371ccc91057cf6e6"
+    },
+    "UI-072": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "169f62076d4bf9497795609011a72af635df376334f79fa97053ae48a1bf45bf"
+    },
+    "UI-073": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "7bc39ee2fc5ee0d3491c1c2e7851061ee69a64c0d453c15b74ccea2453a48a8b"
+    },
+    "UI-074": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "4d7cdfee20818d4a414f03dda43294f81d428c7f3e6e3efac3ee332300caa243"
+    },
+    "UI-075": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "0d4368f80d594792fccecb2043daa8637c7f32a76d72726918392b0ba11d8627"
+    },
+    "UI-076": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "4387e7402924c110ea04db43cb3e69e92aa7d9155c5dd3bf689a70c9f0fb6f63"
+    },
+    "UI-077": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "179f4f9c1731ff7bed84ff241d308b4de090566b898629b1a448bce8bb67a62a"
+    },
+    "UI-078": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "230582f9321de90faf084dba866b31b2274111e58d915dad5524569bed670a98"
+    },
+    "UI-079": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "52fe0770896135513c767083e0be600de755af11cfa8bc740843e11e4d058279"
+    },
+    "UI-080": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "8d986c4c9c9723f797df07d636c04fa45312b91545777b8bbd5b8119d495d05b"
+    },
+    "UI-081": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "74c7501f572bda19a94d2ec67406b0b7dad2ef3142fa63d2a20e4731760cdd1d"
+    },
+    "UI-082": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "a27c3db1954d050c78b6bfe7a4277b7e3873bac2e1485d3bd56614915f668aad"
+    },
+    "UI-083": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "54e9cf9c39dcd92a24c2ee97ffd25697ec422a2f1621d7a661ae2e67bbe0933f"
+    },
+    "UI-084": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "6466c79cd339b4a3283719aebd7304d275f53614b9710407208c2c1e2a0eb4ba"
+    },
+    "UI-085": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "cfc0d56dc7c351123821828a51dd701a5dc1e6ea86c28321ea74a3d43cee98f1"
+    },
+    "UI-086": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "880b2d6b5f999b2646d01608b5b59900cf31cfa9bc9712d1f990bfc263de515d"
+    },
+    "UI-087": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "d5a6a609942a850cc44919d9d3e5c758fbfeb42744725f58a80faa169ab5d64c"
+    },
+    "UI-088": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "2fb359c5137ec98405672fe5a5d61cc0ba426ecea26fc61c0df89badbd51cb49"
+    },
+    "UI-089": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "8af45fad7617da51b516fc5151618f7b93307dc31c4dcc77dc1b1590539959a6"
+    },
+    "UI-090": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "5b37056550633aff0069a78f3e0df81e4b645af128ee699a38dd3576b5e00c06"
+    },
+    "UI-091": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "cafab7c029ee1b5c93229d6a0368933c58320e24931824f7dbdee0bb913b5565"
+    },
+    "UI-092": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "871b3862e399d49ce5d20583b3cf489244fb02cca7003eda1c6de848aa460d1b"
+    },
+    "UI-093": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "3c3985a80edb09e508aaf13888850e5198aedb8b978af9a65c85c030f10e7e5b"
+    },
+    "UI-094": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "6849e7d1060ff8cddb67ecca1e82d19f801f13f54ae3f7dc0493f33f4f0cc203"
+    },
+    "UI-095": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "5c9adc3fc6e7e68d8c39f8ff60dbb4a82d4eda064c916909cfa5bcdb1a3c04f1"
+    },
+    "UI-096": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 6,
+      "content_hash": "50be85dd2028638411a2bae83c52d3cb29035b32eb09e508fc017bf6e09394f0"
+    },
+    "UI-097": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 5,
+      "content_hash": "2e8ab62c83a6880a4fb12e250bdfa25ea58708204b0b439cfe922ea7ceb48986"
+    },
+    "UI-098": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "5f419e9095a7e39d7c3d160af6f59c4c567b4797fee8fed24f3f2b7f34ebb5be"
+    },
+    "UI-099": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "e085f8ab74a326e5700399eccfe9b5fd0250bd9b641a9424710b475281c89a03"
+    },
+    "UI-100": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "6e468cf71346fa238e5bfea0257e497decc64244b35b18c09dbdd857e3da4193"
+    },
+    "UI-101": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "2a8961079f310f623e0bd8a1dd662bb748e96362392c056740bdc245df6789e2"
+    },
+    "UI-102": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "35f79a591bfd8701cfece8141078dd29d02229af63edfe7e812a5fe9c9468c11"
+    },
+    "UI-103": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "317fb08ef22d9217ba1aa4ee7955b9b0d0c3f45d11a8ce59be17e5ea1eab8093"
+    },
+    "UI-104": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "07a55000a69c87cba669b3320302c0849c4d6fb207afa113ee107e63f7c4c32f"
+    },
+    "UI-105": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "5bd7fe299d1dcdae0c9d80c3b4032d68ec97265ace739f47241801dbb3df712d"
+    },
+    "UI-106": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "3b88531ebc214deb55041965c0754a6bba2e69475b6d1823a70f94bdcc1e259f"
+    },
+    "UI-107": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "14406ccae2e7bee75ff4240361c9e37565f4e533326e114b85c754f12ece4556"
+    },
+    "UI-108": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "0da15a3b73a4edcace7655d00ed1afaf3185c28839c0049ecc2baf329baf8070"
+    },
+    "UI-109": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "7c3015318e831a212b7286d490135ec750fcbd34f35ac65e89cd6b5f2c529df1"
+    },
+    "UI-110": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "fa52fad5a3830eaf78c04445521f20a1232692f9f2524f3098310effe2342fd6"
+    },
+    "UI-111": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "ac2b7c312ff3b9153c6f69a04d501e4dcdeca8f8a330858b25db0aadebe67d58"
+    },
+    "UI-112": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 3,
+      "content_hash": "6fc5b99f4340166131f347c8c605d0d225c26b93fb710e562f36e649af25542c"
+    },
+    "UI-113": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "630ca353cad0427d9b6c1d9265be4ee86c61908e6f00bff9d1d9326d6ae8bbeb"
+    },
+    "UI-114": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "fc015af3f0bafbb00adf99262bf450372d6a384af7e26d5d8f1d7c0962c44794"
+    },
+    "UI-115": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "3b15c08632ae033ea59c40d4c9befcf0d6be0ff1588d466ac478848c832acc11"
+    },
+    "UI-116": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "2c19792d6507ab432f9710cca58f9d63320ffb8d15a86818962b6d4e4b0c97b7"
+    },
+    "UI-117": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "d42dc493d104d8a9235593847ae5d62e5ccc7eefde51b1297a83b1e17ca41cdb"
+    },
+    "UI-118": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "236f9641dd52d0addfcb650dd0e4adeace4a7b28463565e89f52da759c057a40"
+    },
+    "UI-119": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "9a5ff1f66c0fc0bf3d8da5c25b40a31a6ba932e0233e766196dcc629388ad216"
+    },
+    "UI-120": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "76bebd4d883b55a5684738e41e5bd3595a7f5c58908936a6ca06c29d3f0d0d23"
+    },
+    "UI-121": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "2543bd5a2a4f2a897db482bdadcf7626a97dab7c9a93d3cca549f83ec3b141ac"
+    },
+    "UI-122": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "0f4ef7c3f4535ad9c2de0aa57ccc152f8780ba8f30fcbfa1af702588f7c59882"
+    },
+    "UI-123": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "73a12e3dd2146de31be9da7c5b97b4a38644f745092fe60dd0596e75f3fa1fa1"
+    },
+    "UI-124": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "ac18b280b50c4c5cdcb271c5b3e2bda6fadee842b5d282d8d99d40416a8cb266"
+    },
+    "UI-125": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "17d8a833adc9b07652e33d29631cefc88e48e178c4b984173e3b8a1c69146865"
+    },
+    "UI-126": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "0d998aaab4775795d85346dbc5e5b35a468a783370d4d72a880a8ec40f5079e6"
+    },
+    "UI-127": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "e42e15fd22f2242d231305922108c22edf313e60868b262ee0af8dd28d2e8208"
+    },
+    "UI-128": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "999a619f87d427075e8f03bd957a329651626dc6c793b327c6c7ce20abae4f24"
+    },
+    "UI-129": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 4,
+      "content_hash": "f27b2a950b570d4ae005422f6ec268ad588204155e62d8f688c12eabf84ab008"
+    },
+    "UI-130": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "214c49d2a02a8d050359e566ddf8b1c2e7c7a96bd386db883b7b0375f7bf0d53"
+    },
+    "UI-131": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "65ba5ff5f4902245b0b0b90500d1477271090e9367ff76bef72d4138a0ce743b"
+    },
+    "UI-132": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "890a7c340caae16c0afa302f86aaddc6445bf6352a84f5301de651bd33e4d78e"
+    },
+    "UI-133": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "1e311ab6e6304a070c80cc43dd5a5ed65f21a983d2b7e97428bcfd2b7fcca44b"
+    },
+    "UI-134": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "6e992da80472fb96c70af9583f27c800511cf0259fa3911e3b7360a2c9bc2132"
+    },
+    "UI-135": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "e248b9658bb878e0249eba2ef000288393a14aad749933f0547df5a5faca79cc"
+    },
+    "UI-136": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "0baeb6e44db176c3954343e606be2d5b8c5513f65e2bda380ba720daf1868faf"
+    },
+    "UI-137": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "cc2d7ae4d9b1d97169c083e3b4fc01ea0333edeceb9b4dbaa3ade95dd050e4ba"
+    },
+    "UI-138": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "18cbab3b197831de8c3d1523724d0d4d2dda1e825fe2cceea721f9da3f375e65"
+    },
+    "UI-139": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "4e36066a3a0df3f1f6d7ce8f318bcd3028a0a62bc8e7919d9acce86ca7ad8d16"
+    },
+    "UI-140": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 2,
+      "content_hash": "567c270e620ee1d7a34e18c62a6b69c57522a0fe3e3379e5a61176018f06b0d1"
+    },
+    "UI-141": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "2e2a042c3dce8553e87a8b3cc568f6255fdbc99aa14b5257debdc2034e334439"
+    },
+    "UI-142": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "0091c99e36a55f92e15af02b520951b74e76e949857333df0124e46c62aa4007"
+    },
+    "UI-143": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "6c1efd901eac6519beb49cdc0fd506c3d6ab8dc9532d8e7d7fded3362001c85d"
+    },
+    "UI-144": {
+      "type": "ui_component",
+      "domain_id": null,
+      "version": 1,
+      "content_hash": "81b6956f4d240d79675dea34f2a4ebf0668f085aa9f410f848e38c5259ed7c22"
+    },
+    "UC-009": {
+      "type": "use_case",
+      "domain_id": "DOMAIN-016",
+      "version": 22,
+      "content_hash": "12952e552138904e360519260f2829256eb4ae30f43d74301e9d51c9a7450cd9"
+    },
+    "UC-023": {
+      "type": "use_case",
+      "domain_id": "DOMAIN-005",
+      "version": 29,
+      "content_hash": "e8a660b2b8de1b42e84df9677a8e9061ac5eafe5198a9b33c599f5a9f4da719b"
+    }
+  }
+}

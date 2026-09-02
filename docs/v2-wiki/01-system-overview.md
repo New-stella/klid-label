@@ -86,6 +86,8 @@ React 18.3.1 + TypeScript 5.9 + Vite 5.4 · TanStack Query v5 · Zustand 4.5 · 
 |-----|------|
 | NFR-002 | 이미지 학습데이터 **10만장**(`LS_DATA_SRC`) |
 | NFR-003 | 영상 학습데이터 **5,000건**(30초 이상/건, `LS_DATA_RAW`) |
-| 외부 증강 3종 + 내부 파생 1종 | WINTER / NIGHT / RAIN(외부 위탁) + RESOLUTION(저작도구 내부 수행, SFR-06-03 — `AUG_TYPE_CD` 값은 레거시 호환용으로 남아있으나 신규 콜백 대상 아님) |
+| 처리 종류 — 외부 위탁 + 내부 파생 | 증강 AI(`AUGMENT`, 외부 위탁 — 무엇으로 바꿀지는 생성 조건 5항목이 정한다) + 해상도 변경(`RESL_1080P`/`RESL_720P`/`RESL_480P`, 저작도구 내부 수행, SFR-06-03) |
+
+> ⚠ **구 서술 폐기(2026-09-02 · `ADR-059`)** — *"외부 증강 3종 + 내부 파생 1종 | WINTER / NIGHT / RAIN(외부 위탁) + RESOLUTION"* 은 사실과 다르다. 증강 종류 세 값은 단일값 `AUGMENT` 로 합쳐졌고 겨울·야간·우천은 **생성 조건 프리셋**이 됐다 → [14](14-augmentation.md). ⚠ **기존 파생본의 구 코드값(`WINTER`·`NIGHT`·`RAIN`)과 레거시 `RESOLUTION` 은 백필 없이 보존**되므로 조회·표시 경로는 옛 값과 새 값을 모두 견뎌야 한다.
 
 전체 NFR-001~007 → [19](19-external-security-cvat.md#nfr).
