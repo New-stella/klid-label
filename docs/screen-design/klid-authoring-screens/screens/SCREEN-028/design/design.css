@@ -1,15 +1,17 @@
 /*
- * SCREEN-028 포털 홈 화면 — 고충실 디자인 CSS
+ * SCREEN-028 포털 내 작업 화면 — 고충실 디자인 CSS
  * 디자인 시스템: DS-001 KRDS Public (_shared/design-system.md verbatim 값만 사용)
  * 무 JS · CSS-only
- * 셸(헤더/푸터)은 app_shell(SHELL-002 포털 채널 셸) 소관이라 이 파일에 없다 — 화면 본문만.
  *
- * 포털 채널 화면이라 좌측 주 메뉴가 없고 깊이가 1단이다. 그래서 셸 안 내부 화면의
- * breadcrumb 관례를 따르지 않고 hero 밴드가 곧 page-head 역할을 한다(§ 디자인 노트 1).
+ * ★ 셸 경계 (2026-09-02 확정) — 머리 영역과 좌측 주 메뉴는 외부 채널(Host)이 그린다.
+ *   저작도구는 그 아래 본문만 그리므로 이 파일에 머리 영역·좌측 레일·푸터가 없다.
+ *   없는 것이 결손이 아니라 그 확정의 결과다.
+ *
+ * ★ 제목 밴드를 두지 않는다 — 서비스 제목은 Host 머리 영역이 이미 보여 주고, 화면 이름은
+ *   본문 상단 이동 탭의 활성 항목이 이미 말한다. 그래서 hero 밴드를 걷어냈다.
  *
  * ⚠ 웹폰트 소스 미정 — @font-face 없음. family 선언 + 시스템 한글 산세리프 폴백만 둔다.
  */
-
 /* ── 0. 디자인 시스템 토큰 (design-system.md 값 그대로) ───────────────── */
 :root {
   /* color: neutral (base #6d7882) */
@@ -119,7 +121,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 
 /* ── 3. 레이아웃 ──────────────────────────────────────────────────── */
 .screen-root { display: flex; flex-direction: column; }
-/* hero 는 좌우 끝까지 닿는 밴드라 화면 좌우 여백을 hero 와 본문이 각자 갖는다 */
+/* 이동 탭은 좌우 끝까지 닿는 띠라 화면 좌우 여백을 탭과 본문이 각자 갖는다 */
 .section-stack {
   display: flex;
   flex-direction: column;
@@ -130,24 +132,38 @@ a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-vis
 .section-title { color: var(--n-10); }
 .section-count { color: var(--n-6); }
 
-/* ── 4. Hero 밴드 (섹션① · role=hero) ─────────────────────────────────
- * 단색 neutral 배경 — 그라데이션·brand 대면적 금지(DS dont_rules).
- * 페이지 배경(n-0)과 한 단 차이 나는 n-1 을 써 밴드로 읽히게 하고, 아래 경계선으로 끝을 맺는다.
+/* ── 4. 본문 상단 이동 탭 (SHELL-002 nav_regions · NAV-002 1단) ───────
+ * 저작도구 목적지 셋(내 작업 · 내 업로드 · 증강)을 오가는 자리.
+ * ⚠ 경로가 갈리는 이동이라 tablist 가 아니라 nav + 링크 + aria-current 로 짠다 —
+ *   tablist 는 같은 화면 안의 패널을 바꿀 때 쓰는 역할이라 여기에 맞지 않는다.
+ * 활성 항목은 밑줄 2px 로만 가른다. 왼쪽 레일(Host 소유)과 색·모양이 겹치지 않게
+ * 채움 필을 쓰지 않는다 — 겹치면 두 내비가 서로를 흉내 내는 것으로 읽힌다.
  */
-.hero {
-  background: var(--n-1);
-  border-bottom: 1px solid var(--border);
-  padding: var(--sp-2xl) var(--sp-xl);   /* layout.hero_padding_px = 64 */
+.ctabs {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--sp-lg);
-  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--sp-md);
+  padding: 0 var(--sp-xl);
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
 }
-.hero-text { display: flex; flex-direction: column; gap: var(--sp-sm); min-width: 0; }
-.hero h1 { color: var(--n-10); word-break: keep-all; }
-.hero .hero-sub { color: var(--n-6); word-break: keep-all; }
-.hero-actions { display: flex; align-items: center; gap: var(--sp-sm); flex-shrink: 0; }
+.ctab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;              /* 44px 터치 타깃 상회 */
+  padding: 0 var(--sp-xs);
+  border-bottom: 2px solid transparent;
+  color: var(--n-6);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+}
+.ctab:hover { color: var(--n-9); }
+.ctab[aria-current="page"] { color: var(--p-6); font-weight: 600; border-bottom-color: var(--p-5); }
 
 /* ── 5. 버튼 (UI-001 Button) ──────────────────────────────────────── */
 .btn {
@@ -197,95 +213,32 @@ a.btn, a.btn:hover { text-decoration: none; }
   padding: var(--sp-lg);
 }
 
-/* ── 7. 섹션② KPI (UI-010 KpiCard) ───────────────────────────────── */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-md);
-}
-.kpi-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-xs);
-  /* KpiCard 는 장식 아이콘을 두지 않는다(UI-010 폐기 prop) — 지표명과 값이 전부다 */
-}
-.kpi-card .kpi-label { display: block; }
-.kpi-card .kpi-value { color: var(--n-10); display: block; }
-.kpi-card .kpi-unit { font-size: 17px; font-weight: 400; color: var(--n-6); margin-left: var(--sp-xs); }
-/* 값이 0 인 지표는 색이 아니라 굵기로만 눌러 표현한다(색 단독 구분 금지) */
-.kpi-card[data-zero="true"] .kpi-value { color: var(--n-6); }
-.kpi-card .kpi-note { color: var(--n-6); }
-
-/* ── 8. 섹션③ 이용 방법 카드 ──────────────────────────────────────
- * 주행동이 있는 카드라 좌측 강조선으로 다른 카드와 구분한다.
- * 면을 brand 색으로 채우지 않는다(DS dont_rules) — 강조는 면적이 아니라 위계로 만든다.
+/* ── 9. 내 저장 작업 표 (섹션② · layout=list) ────────────────────────
+ * 골격이 Table 을 규정한다 — 대상 영상 / 저장 시각 / 만료 예정일 / 작업 네 열.
+ * 행 제목(대상 영상)은 th scope=row 로 둬 화면낭독기가 각 칸의 소속을 읽게 한다.
  */
-.start-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-lg);
-  flex-wrap: wrap;
-  border-left: 4px solid var(--p-5);
+.table-wrap { overflow-x: auto; }
+.work-table { width: 100%; min-width: 720px; }
+.work-table th, .work-table td {
+  padding: var(--sp-md) var(--sp-lg);
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
 }
-.start-body { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
-.start-body h2 { color: var(--n-10); }
-.start-body .start-desc { color: var(--n-6); word-break: keep-all; }
-.start-actions { display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
-
-/* 건수 칩 (UI-104 CountChip) */
-.count-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-xs);
-  height: 28px;
-  padding: 0 var(--sp-sm);
-  border-radius: var(--radius-full);
-  background: var(--p-0);
-  color: var(--p-7);
-  font-size: 14px;      /* 사다리 밖(14px/600/1.4) */
-  font-weight: 600;
+.work-table thead th {
+  color: var(--n-6);
+  background: var(--n-0);
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
 }
-.count-chip[data-zero="true"] { background: var(--n-1); color: var(--n-8); }
-
-/* ── 9. 섹션④ 데이터마트 영상 카드 그리드 (DatamartVideoCard) ────────
- * 골격 description 이 2열 그리드를 규정한다. 넓은 폭에서 카드가 가로로 길어지므로
- * 카드 안을 세로 스택이 아니라 좌(제목·이벤트) / 우(프레임 건수 + 진입 표시) 로 나눈다.
- */
-.video-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-md);
-}
-.video-grid > li { display: flex; }   /* 같은 줄의 카드 높이를 맞춘다 */
-.video-card {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-md);
-  padding: var(--sp-md) var(--sp-lg);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  text-decoration: none;
-  color: inherit;
-  min-height: 44px;
-  transition: border-color var(--duration-fast) var(--ease-standard),
-              background var(--duration-fast) var(--ease-standard);
-}
-.video-card:hover { background: var(--p-0); }
-.video-card:hover .video-title { color: var(--p-8); }
-.video-card:hover .video-go { color: var(--p-6); }
-.video-main { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
-.video-title { color: var(--n-10); font-weight: 600; word-break: break-all; }
-.video-meta { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
-.video-aside { display: flex; align-items: center; gap: var(--sp-sm); flex-shrink: 0; }
-.video-frames { color: var(--n-8); white-space: nowrap; }
-.video-go { color: var(--n-5); flex-shrink: 0; }
-/* 이벤트명이 없는 영상 — '-' 를 값 자리에 그대로 두고 회색으로 눌러 둔다 */
-.ev-none { color: var(--n-6); }
+.work-table tbody tr:last-child th,
+.work-table tbody tr:last-child td { border-bottom: 0; }
+.work-table tbody tr:hover { background: var(--row-hover); }
+.cell-name { display: table-cell; }
+.work-title { display: block; color: var(--n-10); font-weight: 600; word-break: break-all; }
+.work-id { display: block; margin-top: 2px; }
+.col-act { width: 1%; white-space: nowrap; }
+.work-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-sm); }
 
 /* 목록 하단 고정 안내 */
 .list-note {
@@ -294,31 +247,15 @@ a.btn, a.btn:hover { text-decoration: none; }
   word-break: keep-all;
 }
 
-/* 카드 본체(라벨링 진입)와 다운로드를 **형제**로 둔다 — 한 클릭 영역에 겹치면 ①버튼 안의 버튼이라
-   마크업이 성립하지 않고 ②클릭이 카드로 전파돼 내려받으려던 사용자가 라벨링 화면으로 끌려간다.
-   그래서 면(경계·그림자)을 바깥 항목으로 옮기고 카드는 그 안의 위쪽 영역만 차지한다. */
-.video-item {
-  flex-direction: column;
-  background: var(--bg-page);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  min-width: 0;
-}
-
-/* 만료 표기 + 다운로드 행 (DatamartVideoDownloadAction) */
-.video-foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--sp-sm);
-  padding: 0 var(--sp-lg) var(--sp-md);
-  flex-wrap: wrap;
-}
 /* 만료는 서버가 준 값이 있을 때만 그린다. 없으면 '없음'·'-' 를 지어내지 않고 자리를 비운다 —
-   지어내면 만료가 정해졌는데 표기만 빠진 것으로 읽힌다. 비어도 버튼 자리가 흔들리지 않도록
-   왼쪽 자동 여백으로 밀어 둔다(빈 자리 자체가 "만료 없음"을 말한다). */
-.video-expiry { color: var(--n-6); margin-right: auto; white-space: nowrap; }
+   지어내면 만료가 정해졌는데 표기만 빠진 것으로 읽힌다. 표에서는 빈 칸 자체가 그 뜻이며,
+   열 너비가 고정이라 비어도 아래위 행의 정렬이 흔들리지 않는다. */
+.video-expiry { color: var(--n-6); white-space: nowrap; }
+
+/* 참고 패널의 다운로드 상태 행 */
+.video-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-sm); flex-wrap: wrap; }
+.dl-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); padding: var(--sp-sm) 0; flex-wrap: wrap; }
+.dl-row-title { color: var(--n-9); font-weight: 600; }
 /* 다운로드·취소 아이콘은 본문 15px 에 맞춰 한 단 줄인다(기본 .btn svg 는 18px). */
 .dl-btn svg, .dl-cancel svg { width: 16px; height: 16px; }
 /* 내려받는 중 — 본문만 바뀌고 자리는 그대로다. 별도 진행률 표시는 사양에 없어 두지 않는다. */
@@ -423,30 +360,23 @@ a.btn, a.btn:hover { text-decoration: none; }
 
 /* ── 14. 반응형 ───────────────────────────────────────────────────── */
 @media (max-width: 1279px) {
-  .hero { padding: var(--sp-xl) var(--sp-lg); }
+  .ctabs { padding: 0 var(--sp-lg); }
   .section-stack { padding: var(--sp-lg) var(--sp-lg) var(--sp-2xl); }
 }
 @media (max-width: 767px) {
-  /* 사다리 밖 크기를 만들지 않고 step 만 한 단 내린다 (display-lg → display-sm) */
-  .hero h1 { font-size: 26px; font-weight: 700; line-height: 1.3; }
-  .hero { padding: var(--sp-lg) var(--sp-md); align-items: flex-start; }
-  .hero-actions { width: 100%; }
-  .hero-actions .btn { width: 100%; }
+  .ctabs { padding: 0 var(--sp-md); gap: var(--sp-sm); }
   .section-stack { padding: var(--sp-lg) var(--sp-md) var(--sp-xl); gap: var(--sp-lg); }
-  .video-grid { grid-template-columns: minmax(0, 1fr); }
   .reference-grid { grid-template-columns: minmax(0, 1fr); }
   .reference-panel { padding: var(--sp-md); }
-  .start-card { align-items: flex-start; }
-  .start-actions { width: 100%; }
-  .start-actions .btn { flex: 1 1 auto; }
+  /* 표는 좁은 폭에서 줄이지 않고 가로로 굴린다 — 열을 접으면 만료 빈 칸이 사라져
+     '값 없음'이 '열 없음'으로 읽힌다. */
+  .work-table th, .work-table td { padding: var(--sp-sm) var(--sp-md); }
 }
 @media (max-width: 479px) {
-  .kpi-grid { grid-template-columns: minmax(0, 1fr); }
-  .video-card { align-items: flex-start; flex-direction: column; gap: var(--sp-sm); }
-  .video-foot { padding: 0 var(--sp-md) var(--sp-md); }
   .reason-list > li { flex-direction: column; gap: 2px; }
   .reason-key { flex: 0 0 auto; }
-  .video-aside { width: 100%; justify-content: space-between; }
+  .dl-row { align-items: flex-start; flex-direction: column; }
+  .video-foot { width: 100%; justify-content: flex-start; }
 }
 
 /* ── 게시 렌더 보정 — SVG 획 굵기 ────────────────────────────────────
@@ -459,17 +389,3 @@ a.btn, a.btn:hover { text-decoration: none; }
 svg { stroke-width: 2; }
 .alert-icon { stroke-width: 1.8; }
 .icon-lg { stroke-width: 1.6; }
-
-/* 목록 페이저 — 서버가 페이지로 내려주므로 옮길 수단이 없으면 첫 쪽만 도달한다.
-   내부 목록 화면(검수 목록)이 쓰는 관례를 그대로 가져왔다. */
-.pagination { display: flex; align-items: center; justify-content: center; gap: var(--sp-xs); margin-top: var(--sp-lg); }
-.page-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 40px; height: 40px; padding: 0 var(--sp-sm);
-  border-radius: var(--radius-md); border: 1px solid transparent;
-  background: transparent; color: var(--n-7);
-  font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
-}
-.page-btn:hover { background: var(--n-0); }
-.page-btn[aria-current="page"] { background: var(--p-5); color: var(--bg-page); font-weight: 600; }
-.page-btn[aria-disabled="true"] { color: var(--n-3); cursor: not-allowed; pointer-events: none; }
