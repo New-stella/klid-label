@@ -1948,3 +1948,59 @@ K/V 로 펴면 산출 JSON 과 모양이 갈려 내보낼 때마다 재조립이
 - **코드 0건** — 설계만 섰다. 화면 플래그만 켜도 동작하지 않는다.
 - **`SCREEN-029` 정적 렌더가 이번 변경으로 stale 이 됐다**(직전 확인에선 최신이었다).
 - 위키·테스트케이스 층은 이번에 보지 않았다.
+
+---
+
+## §10-38. 압축 전 인계 — 이번 라운드의 도구 사실과 자산 (2026-09-02)
+
+### ★가장 중요한 것 — `list_items` 는 본문을 돌려주지 않는다
+
+메타만 준다(`id`·`title`·`type`·`status`·`stale`·`change_summary`·`current_version` 등).
+**본문(`data`)이 없다.** 이걸 모르고 전수 스캔을 돌려 **내가 직접 확인해 알고 있던 `NAV-002` 를
+놓쳤다** — 매칭이 `change_summary` 에만 걸려 엉뚱한 ITEM 이 잡혔다.
+
+**본문 전수는 REST `kit-export`** 로 받는다. `GET {API_BASE}/projects/{PROJ}/kit-export?ids=A,B,C`
+— ID 100개씩 끊어 1,392건을 받았다. ID 목록은 `list_items` 를 **타입별로** 돌려 모은다
+(타입 없이 부르면 enum 오류가 난다 — 타입 목록은 그 오류 메시지가 전부 알려 준다).
+
+> ★**검사기가 아는 사실을 잡는지 먼저 단언하라.** 이번엔 그렇게 해서 잡았다.
+
+### 새로 알아낸 도구 사실
+
+| 사실 | 왜 중요한가 |
+|---|---|
+| `update_item` 에 `data` 전체를 주면 **`base_version` 필수** | 없으면 `E_VALIDATION: blind overwrite=lost-update 위험`. `data_mode='patch'/'merge'` 는 base_version 없이 된다 |
+| `create_item`(`api_endpoint`)은 **최상위 `domain_id` 필수** | 없으면 `E_VALIDATION: api_endpoint 타입은 domain_id가 필요합니다`. `data` 안이 아니라 ITEM 최상위 필드다(`items.domain_id`) |
+| `get_design_render` 의 렌더 키는 **`render_id`** | `id` 로 읽으면 `KeyError`. `list_design_renders` 는 `SD-*`, `list_static_renders` 는 `SCREEN-*` (§10-32) |
+| `list_static_renders` 응답의 **`source_hash`** | ITEM `sections` 의 sha256 과 대조하면 **시각 비교 없이** stale 을 확정할 수 있다. 이번에 028·033 stale / 029·034 최신 / 044 0건을 이걸로 갈랐다 |
+| Bash 도구의 cwd 가 호출마다 되돌아갈 때가 있다 | `node shot-design.mjs` 가 엉뚱한 디렉터리에서 돌아 `MODULE_NOT_FOUND`. 절대경로를 쓰거나 실패하면 그냥 다시 부른다 |
+
+### 스크래치패드 자산 (세션 종료 시 사라짐)
+
+| 파일 | 내용 |
+|---|---|
+| `r3.py` | MCP HTTP 호출기 — `from r3 import call, get, PROJ, URL, TOK` |
+| **`edit.py`** | ★**ITEM 편집 규율을 코드로 만든 것** — `baseline()`(kit-export 로 기준선 바이트) · `apply_edits()`(정확일치 + 등장횟수 단언, 배열 원소 drop) · `write()`(base_version 자동) · `verify()`(정렬 JSON 문자 단위 대조). 이번 라운드 편집 전건이 이걸로 IDENTICAL 이 났다 |
+| **`_all.json`** | **ITEM 1,392건 본문 전량**(kit-export 수신). 전수 스캔의 기준선 |
+| `ds002.py` | DS-001→DS-002 공통 변환(필수 16건 단언) |
+| `_ds002.json` · `_sd020.css` | 외부 채널 디자인 시스템 기대본 · 그 채널 실제 스타일시트 266KB |
+
+### 이번 라운드에서 내가 틀린 것 — 형태가 반복된다
+
+1. **`stroke-width` 를 「새 사실」이라 적었다** → 자매 시안 셋에 이미 있었고 `SD-025` 주석은 날짜까지
+   적어 뒀다. **「내가 처음 발견했다」 전에 자매 산출물을 열어 볼 것.**
+2. **`slate-300` 대비를 3.0:1 이라 적었다** → 실제 **1.47:1**, WCAG 1.4.11 미달. **수치는 계산하고 쓸 것.**
+3. **메타를 독립 side 패널로 붙였다** → 내부 화면이 이미 탭으로 풀고 있었다. 되돌렸다.
+4. **`SCREEN-033` 시안의 폐기된 이미지 업로드를 렌더해 보고도 못 짚었다**(사용자 지적).
+
+⇒ 넷 다 **「그 층/자매를 먼저 열지 않았다」** 는 한 가지 형태다.
+
+### 압축 후 이어갈 지점
+
+1. **와이어프레임 재생성 3건** — `SCREEN-028`·`033`·`029`(방금 stale 이 됐다). `044` 는 0건.
+   생성기는 키트 안(`bin/generate-wireframes.py`)이고 결정론적.
+2. **남은 창구 갭 셋** — 업로드 취소 표기 모순(`API-171`) · 재개 진입 없음 · 라벨 분류 창구 없음.
+3. **상태 커버리지** — 오류 표시·실패 사유·로딩·빈 목록.
+4. **증강 축은 보류** — 관제향도 문제가 있어 다른 세션에서 수정 중이다. 나중에 붙인다.
+5. **감사가 안 본 층** — 위키·테스트케이스·AC/UC 아래층·역참조·부품 카탈로그·접근성·`INT-013`.
+6. **워크트리 유예** — 키트 SYNC·IMPREC 는 머지 후 메인에서.
