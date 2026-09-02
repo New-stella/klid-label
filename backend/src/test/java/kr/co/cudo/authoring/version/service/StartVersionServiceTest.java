@@ -302,7 +302,7 @@ class StartVersionServiceTest {
 
     private LsDataLbl workingLabel(Long lblSn, Long srcSn, String label, Long labelId) {
         LsDataLbl lbl = LsDataLbl.createManual(srcSn, "BBOX", labelId, label,
-                "[[1.0,2.0],[3.0,4.0]]", 1L);
+                "[[1.0,2.0],[3.0,4.0]]", "1");
         ReflectionTestUtils.setField(lbl, "lblSn", lblSn);
         return lbl;
     }

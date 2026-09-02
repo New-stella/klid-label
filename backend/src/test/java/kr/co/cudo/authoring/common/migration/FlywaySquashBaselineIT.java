@@ -143,6 +143,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       무변경이다. 폭 확대는 포털 토큰 주체가 숫자가 아니어서다 — 숫자로 두면 파싱 실패로 조용히
  *       null 이 되어 소유자 없는 마킹이 저장된다. ⚠ <b>컬럼 제거는 되돌릴 수 없다</b>(값이 함께
  *       사라진다. 되살리려면 영상 행 조인으로 백필한다)</li>
+ *   <li>{@code V28} — 포털 채널 전용 표를 공용 원장에 흡수하기 위한 스키마 정합(ADR-058):
+ *       {@code LS_DATA_RAW} 에 {@code PORTAL_USER_NO varchar(100)} 신설(+부분 인덱스),
+ *       {@code LS_DATA_LBL.REG_USER_NO} 를 {@code bigint} → {@code varchar(100)},
+ *       {@code LS_TUS_UPLOAD.USER_NO} 를 {@code varchar(64)} → {@code varchar(100)}.
+ *       셋 다 포털이 발급한 토큰 주체가 숫자가 아니라서다 — 숫자로 두면 파싱 실패로 조용히 null 이
+ *       되어 <b>소유자 없는 행</b>이 저장되고 소유자 스코프 인가가 어긋난다. ⚠ <b>구 전용 표는 지우지
+ *       않는다</b> — 드롭은 되돌릴 수 없어 별도 단계이고, 이 파일은 순수 확장이라 중간 상태가 멀쩡하다
+ *       (V27 이 한 파일에 묶은 것은 중간 상태가 고장나는 경우였다)</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -181,7 +189,7 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "9001", "9002");
     }
 
     @Test
@@ -216,6 +224,7 @@ class FlywaySquashBaselineIT {
                         "V25__add_webhook_idempotency_srvr_id.sql",
                         "V26__drop_ls_ai_srvr_altmnt_fk.sql",
                         "V27__drop_marking_denormalized_columns_and_widen_reg_user_no.sql",
+                        "V28__absorb_portal_upload_into_common_ledgers.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",

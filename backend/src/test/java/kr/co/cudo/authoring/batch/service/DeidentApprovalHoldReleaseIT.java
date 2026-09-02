@@ -135,7 +135,7 @@ class DeidentApprovalHoldReleaseIT {
             LsDataSrc frame = srcRepository.save(
                     LsDataSrc.create(rawSn, 0, "/var/raw/f0.jpg", LocalDateTime.now()));
             labelRepository.save(LsDataLbl.createManual(frame.getSrcSn(), "BBOX", null,
-                    "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
+                    "person", "[[1.0,1.0],[2.0,2.0]]", "100"));
 
             LsRawDataStatus workStatus = LsRawDataStatus.initial(rawSn);
             workStatus.transitionTo(LsRawDataStatus.STTS_PENDING);

@@ -247,7 +247,7 @@ class WorkerStatsControllerTest {
 
     private void seedManualLabel(Long srcSn, Long regUserNo) {
         lblRepository.save(LsDataLbl.createManual(srcSn, LsDataLbl.TYPE_BBOX, null, "person",
-                "[[0,0],[10,10]]", regUserNo));
+                "[[0,0],[10,10]]", String.valueOf(regUserNo)));
     }
 
     /**

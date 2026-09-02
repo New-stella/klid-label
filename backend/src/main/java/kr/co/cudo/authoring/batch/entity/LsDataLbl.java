@@ -154,8 +154,20 @@ public class LsDataLbl {
     @Column(name = "LBL_SRC_CD", length = 20)
     private String lblSrcCd;
 
-    @Column(name = "REG_USER_NO")
-    private Long regUserNo;
+    /**
+     * 등록사용자번호 — 이 라벨을 만든 사용자. 내부 채널에서는 작업자이고, 포털 업로드 자산의 라벨에서는
+     * 그 라벨의 <b>소유자이자 인가 판정의 키</b>라 반드시 채워진다.
+     *
+     * <p>★ 자료형이 숫자가 아니라 문자인 이유(V28): 포털이 발급한 토큰의 주체 식별자를 담아야 한다.
+     * 숫자로 두면 파싱 실패로 조용히 {@code null} 이 되어 <b>소유자 없는 라벨</b>이 저장되고, 그 순간
+     * 소유자 스코프 조회가 남의 라벨을 함께 집거나 자기 라벨을 못 집는다. 폭 100 은 공통표준도메인
+     * 번호V100 이며 {@code LS_MARKING.REG_USER_NO}(V27)와 같다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "REG_USER_NO", length = 100)
+    private String regUserNo;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -274,7 +286,7 @@ public class LsDataLbl {
      * 응답이 {@code 'N'} 으로 보이는 것은 종전과 같다 — 치환은 {@code LabelResponse.Item.from} 담당.
      */
     public static LsDataLbl createManual(Long srcSn, String lblTypeCd, Long labelId, String label,
-                                         String pointsJson, Long regUserNo) {
+                                         String pointsJson, String regUserNo) {
         LsDataLbl entity = LsDataLbl.builder()
                 .srcSn(srcSn)
                 .lblTypeCd(lblTypeCd)

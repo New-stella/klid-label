@@ -113,7 +113,7 @@ class StatsAutoLabelRateAxisIT {
     /** 수동 라벨 — 등록자가 있고 AI 정보가 없다(사람이 그린 라벨의 실제 형상). */
     private void addManualLabel(Long srcSn) {
         lblRepository.save(LsDataLbl.createManual(
-                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", userNo));
+                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", String.valueOf(userNo)));
     }
 
     /**
@@ -132,7 +132,7 @@ class StatsAutoLabelRateAxisIT {
     /** 등록자가 있는데 자동 생성 플래그도 있는 라벨 — 플래그가 이겨야 한다(판정 축 단언용). */
     private void addRegisteredAutoLabel(Long rawSn, Long srcSn) {
         LsDataLbl lbl = lblRepository.save(LsDataLbl.createManual(
-                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", userNo));
+                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", String.valueOf(userNo)));
         // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.
         lbl.applyAiSource(LsDataLbl.SRC_YOLO, new BigDecimal("0.80"));
         lblRepository.saveAndFlush(lbl);

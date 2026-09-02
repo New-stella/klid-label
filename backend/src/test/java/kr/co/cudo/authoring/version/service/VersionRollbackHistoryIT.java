@@ -91,7 +91,7 @@ class VersionRollbackHistoryIT {
 
     private LsDataLbl seedLabel(String label, String pointsJson) {
         return labelRepository.save(
-                LsDataLbl.createManual(srcSn, LsDataLbl.TYPE_BBOX, null, label, pointsJson, 100L));
+                LsDataLbl.createManual(srcSn, LsDataLbl.TYPE_BBOX, null, label, pointsJson, "100"));
     }
 
     private LsLabelVersion activeVersion() {

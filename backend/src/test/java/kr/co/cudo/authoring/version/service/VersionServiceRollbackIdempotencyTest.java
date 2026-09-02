@@ -292,7 +292,7 @@ class VersionServiceRollbackIdempotencyTest {
     /** 스냅샷과 동일 내용/동일 LBL_SN 인 기존 라벨 — 델타 0건 상황 재현용. */
     private LsDataLbl restoredLabel() {
         LsDataLbl l = LsDataLbl.createManual(SRC_SN, LsDataLbl.TYPE_BBOX, null, "person",
-                "[[0.0,0.0],[10.0,10.0]]", 1L);
+                "[[0.0,0.0],[10.0,10.0]]", "1");
         ReflectionTestUtils.setField(l, "lblSn", 1L);
         return l;
     }

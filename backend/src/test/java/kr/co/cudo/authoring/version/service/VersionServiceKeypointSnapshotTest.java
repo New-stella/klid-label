@@ -40,7 +40,7 @@ class VersionServiceKeypointSnapshotTest {
             sb.append('[').append(i * 2.0).append(',').append(i * 3.0).append(',').append(i % 3).append(']');
         }
         sb.append(']');
-        LsDataLbl l = LsDataLbl.createManual(srcSn, LsDataLbl.TYPE_SKELETON, null, "person", sb.toString(), 100L);
+        LsDataLbl l = LsDataLbl.createManual(srcSn, LsDataLbl.TYPE_SKELETON, null, "person", sb.toString(), "100");
         setField(l, "lblSn", lblSn);
         return l;
     }

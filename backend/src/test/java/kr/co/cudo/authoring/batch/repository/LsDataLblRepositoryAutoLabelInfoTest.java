@@ -56,7 +56,7 @@ class LsDataLblRepositoryAutoLabelInfoTest {
         LsDataLbl autoLbl = lblRepository.saveAndFlush(LsDataLbl.createAutoBbox(
                 src.getSrcSn(), null, "person", "[[1,1],[2,2]]", BigDecimal.valueOf(0.9), "track-1"));
         LsDataLbl manualLbl = lblRepository.saveAndFlush(LsDataLbl.createManual(
-                src.getSrcSn(), LsDataLbl.TYPE_BBOX, null, "car", "[[3,3],[4,4]]", 7L));
+                src.getSrcSn(), LsDataLbl.TYPE_BBOX, null, "car", "[[3,3],[4,4]]", "7"));
 
         // auto 라벨에만 AI_INFO(auto_lbl_yn='Y', conf_score) 적재
         // V6 — 생산이력이 라벨 행의 컬럼이라 AI 정보 행 대신 그 라벨에 직접 부여한다.

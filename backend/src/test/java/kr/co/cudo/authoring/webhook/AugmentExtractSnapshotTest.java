@@ -56,8 +56,13 @@ class AugmentExtractSnapshotTest {
 
     @BeforeEach
     void setup() {
+        // 복사 원본 경로 조달은 단일 진실원(DerivativeSourceVideoResolver)이 한다 — 이 클래스는
+        //   더 이상 처리 이력을 직접 읽지 않는다(V28/ADR-058). 포털 설정은 이 시나리오에서 타지 않는다.
+        var sourceResolver = new kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver(
+                deidentProcLogRepository, null, null);
+        ReflectionTestUtils.setField(sourceResolver, "storageDeidentifiedPath", "/tmp/klid-deid");
         snapshot = new AugmentExtractSnapshot(videoRepository, augRepository, srcRepository, jobFileRepository,
-                deidentProcLogRepository, null);
+                sourceResolver);
         ReflectionTestUtils.setField(snapshot, "storageDeidentifiedPath", "/tmp/klid-deid");
     }
 
@@ -84,6 +89,9 @@ class AugmentExtractSnapshotTest {
                 "clip-" + parentRawSn, "cctv-1", "EVT", "GOV",
                 LsDataRaw.PRVC_TYPE_ANONY, "/storage/raw/" + parentRawSn + ".mp4", null, 60);
         setField(parent, "rawSn", parentRawSn);
+        // 복사 원본 경로 조달기가 부모 행을 읽는다(출처가 관제인지 포털인지를 그 행이 말한다).
+        //   흡수 이전에는 처리 이력만 읽어 부모 행이 필요 없었다(V28/ADR-058).
+        when(videoRepository.findById(parentRawSn)).thenReturn(Optional.of(parent));
         LsDataRaw aug = LsDataRaw.createFromAugment(parent, filePath, "WINTER", rawSn);
         setField(aug, "rawSn", rawSn);
         return aug;

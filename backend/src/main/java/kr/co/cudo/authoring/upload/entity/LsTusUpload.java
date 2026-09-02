@@ -45,7 +45,17 @@ public class LsTusUpload {
     @Column(name = "ULD_ID", nullable = false, updatable = false)
     private UUID uploadId;
 
-    @Column(name = "USER_NO", nullable = false, length = 64)
+    /**
+     * 사용자번호 — 이 세션의 소유자. 소유자만 진행 상태 조회·이어올리기·취소를 할 수 있다.
+     *
+     * <p>★ 폭이 100 인 이유(V28): 포털 채널 세션이 이 원장을 함께 쓰며(ADR-058 흡수) 포털이 발급한
+     * 토큰의 주체 식별자를 담아야 한다. 좁히면 서로 다른 사용자가 같은 값으로 잘려 세션 인가가
+     * <b>조용히</b> 어긋난다. 공통표준도메인 번호V100.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "USER_NO", nullable = false, length = 100)
     private String userNo;
 
     @Column(name = "ULD_LEN", nullable = false)

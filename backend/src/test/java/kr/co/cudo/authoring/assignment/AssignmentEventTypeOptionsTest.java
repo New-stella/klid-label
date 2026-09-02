@@ -170,7 +170,7 @@ class AssignmentEventTypeOptionsTest {
     private void recordUserLabelSave(Long rawSn) {
         Long srcSn = seedFrame(rawSn);
         LsDataLbl saved = dataLblRepository.save(LsDataLbl.createManual(
-                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[[10,10],[20,20]]", WORKER));
+                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[[10,10],[20,20]]", String.valueOf(WORKER)));
         labelHistoryRepository.save(LsDataLblHstry.recordSaveEvent(
                 srcSn, String.valueOf(WORKER),
                 List.of(LabelChange.added(saved.getLblSn(), "person", null))));

@@ -78,6 +78,27 @@ public class LsDataRaw {
      */
     public static final String SRC_TYPE_IMPORTED = "IMPORTED";
 
+    /**
+     * 출처유형 — <b>포털 사용자가 직접 올린 본인 자산</b>(ADR-058 흡수). 포털 채널 전용 표를 두지 않고
+     * 이 원장에 앉히며, 관제가 만든 것도 저작도구가 만든 것도 아니라 기존 값 어느 쪽에도 넣을 수 없어
+     * 값을 하나 더했다. 판별 <b>축</b>이 새로 생긴 것이 아니라 이미 있던 출처 축에 값이 하나 는 것이다.
+     *
+     * <p>⚠ 이 값은 {@link LsDataIngest#ALLOWED_SRC_TYPES}(적재면)·{@code UPLOAD_SRC_TYPES}(입력면)
+     * <b>어느 쪽에도 넣지 않는다</b> — 포털 업로드는 관제 인입 원장을 거치지 않고 내부 업로드 폼이
+     * 고를 수 있는 값도 아니다({@link #SRC_TYPE_IMPORTED} 와 같은 이유).
+     *
+     * <p>★ <b>포털 증강 파생물도 같은 값을 쓴다</b>(ADR-058) — 파생이라는 사실은 {@code ORGNL_RAW_SN}
+     * 이 말한다. 파생 전용 값을 새로 만들면 포털을 가르는 모든 자리가 두 값을 열거해야 하고, 한 곳만
+     * 잊으면 파생물이 조회·집계·<b>보존기간 만료 삭제</b>에서 조용히 새거나 사라진다.
+     *
+     * <p>★ <b>보존기간 만료 자동 삭제의 판별자 셋 중 하나</b>다(나머지 둘: {@code PORTAL_USER_NO} 보유,
+     * 보존기간 경과). 하나만 빠뜨리면 관제 영상이 함께 지워진다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public static final String SRC_TYPE_PORTAL_ULD = "PORTAL_ULD";
+
     public static final String STATUS_PENDING = "PENDING";
 
     /**
@@ -228,6 +249,25 @@ public class LsDataRaw {
     @Column(name = "PRVC_INCL_YN", length = 1)
     @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcInclYn;
+
+    /**
+     * 포털사용자번호 (V28) — 이 영상이 <b>포털 사용자 본인 업로드 자산</b>일 때만 채워지는 소유자 키.
+     * 관제 인입 영상에는 소유자 개념이 없어 <b>비어 있다</b>(원장 안에서 항상 부분적으로만 채워진
+     * 컬럼 하나가 생기는 것은 ADR-058 이 인지·수용한 대가다).
+     *
+     * <p>포털 경로의 인가는 전적으로 이 값 기반이다 — 본인 자산만 조회·수정·내려받기. 값이 비어 있으면
+     * 그 행은 포털 자산이 아니므로, 소유자 스코프 조회는 이 컬럼의 <b>일치</b>를 조건으로 삼아야 하고
+     * "null 이면 통과" 같은 완화를 두면 관제 영상이 포털 채널로 샌다.
+     *
+     * <p>자료형이 숫자가 아닌 이유는 포털이 발급한 토큰의 주체 식별자가 숫자가 아니기 때문이다.
+     * 폭 100 은 공통표준도메인 번호V100 이며 {@code LS_MARKING.REG_USER_NO}(V27)와 같다.
+     * 물리명은 사업표준용어 등록분({@code 포털사용자번호 / PORTAL_USER_NO})이다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "PORTAL_USER_NO", length = 100)
+    private String portalUserNo;
 
     @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;

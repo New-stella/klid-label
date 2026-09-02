@@ -124,6 +124,13 @@ public class AugmentResultService {
     private final AugmentJobIdOwnerLookup jobIdOwnerLookup;
 
     /**
+     * 복사 원본 경로 조달의 <b>단일 진실원</b> — 관제는 비식별본, 포털은 본인 원본.
+     * 부모 게이트와 Phase A 가 <b>같은 판정기</b>를 쓴다(조달 규칙을 흩지 않는다).
+     */
+    private final kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver
+            derivativeSourceVideoResolver;
+
+    /**
      * 파생영상(비식별 사본) 출력 base — <b>비식별 저장소</b>. 파생영상의 유일한 비디오 산출물은 부모
      * 비식별 영상의 복사본이므로 그 경로도 비식별 저장소 서브트리({@code videos/augment/…})에 있다
      * (해상도 파생 {@code ResolutionReservationPersister} 와 동일 규약).
@@ -372,9 +379,19 @@ public class AugmentResultService {
      * {@code AugmentJobSubmitService}(전송 진입점)가 담당한다. 여기서 보류하면 재개 트리거가 없는
      * PENDING 고착만 남는다(자손 팬아웃 복구 배선은 철회됐다).
      *
-     * <p>따라서 차단 대상은 {@code deIdntfYn=='N'}(비식별 <b>미완료</b>) 하나다 — 부모 비식별 영상
-     * 파일이 아직 없어 파생 비디오 복사가 물리적으로 불가능하다. 이 역시 스스로 재개되지 않으므로
-     * <b>보류가 아니라 실패로 확정</b>한다.
+     * <p>따라서 차단 대상은 <b>복사할 영상 파일이 없는 경우</b> 하나다 — 파생 비디오는 언제나 부모
+     * 영상 파일의 복사본이라(증강 AI 는 이미지-to-이미지라 영상을 재생성하지 않는다) 재료가 없으면
+     * 만들 수 없다. 이 역시 스스로 재개되지 않으므로 <b>보류가 아니라 실패로 확정</b>한다.
+     *
+     * <h3>★ 비식별은 애초에 전제조건이 아니었다 (2026-09-02 사용자 확정, 구속)</h3>
+     * <p>흡수 이전 이 자리는 비식별 플래그를 직접 봤고 그래서 「비식별이 완료된 것만 증강한다」로
+     * 읽혔다. <b>그것은 조건이 아니라 결과였다</b> — 관제 채널의 진짜 전제조건은 <b>검수 완료</b>이고
+     * 비식별은 그 안에 이미 포함된 결과일 뿐이다. 결과로 따라오는 사실을 별도 조건으로 적었더니,
+     * 그 사실이 성립하지 않는 채널(포털 — 전제조건이 <b>본인 자산</b>이고 검수가 없다)이 생기자 막혔다.
+     *
+     * <p>그래서 그 판정을 <b>걷어냈다</b>. 남은 것은 복사 원본 경로 조달뿐이고 경로가 없으면 실패한다.
+     * 판정은 {@link kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver} <b>한 곳</b>이
+     * 하며 되살리면 안 되는 이유(관제에서는 한 번도 걸릴 수 없고 포털만 막는다)는 그 클래스 주석에 있다.
      */
     private ParentGate evaluateParentGate(LsDataAug aug) {
         LsDataSrc originSrc = srcRepository.findById(aug.getSrcSn()).orElse(null);
@@ -385,10 +402,12 @@ public class AugmentResultService {
         if (parentRaw == null) {
             return ParentGate.fail("parent video not found");
         }
-        // 'Y'(완료) · 'F'(신고 구간 — 산출물은 존재) 는 통과. 'N'(미완료)·그 밖의 값은 실패 확정.
-        // 판정 의미는 해상도 파생 경로와 동일 헬퍼({@link LsDataRaw#hasDeidentArtifact()})로 통일한다.
-        if (!parentRaw.hasDeidentArtifact()) {
-            return ParentGate.fail("parent has no deident artifact");
+        // 「복사할 영상 파일 경로를 구한다 — 못 구하면 실패」. 조건이 아니라 <조달 실패>다.
+        //   조달처(관제=비식별본 / 포털=본인 원본)는 판정기가 가르고 여기서 출처를 분기하지 않는다.
+        //   ★ 비식별 플래그를 여기서 다시 보지 마라 — 관제에서는 한 번도 걸릴 수 없고(검수 완료만
+        //     받고, 검수까지 갔으면 비식별은 끝나 있으며, 되돌아가는 경로가 0건이다) 포털만 막는다.
+        if (derivativeSourceVideoResolver.resolveQuietly(parentRaw).isEmpty()) {
+            return ParentGate.fail("parent has no copyable source video");
         }
         // 프레임 존재 가드 — 부모에 프레임이 없으면 라벨링 대상이 없는 빈 증강본이 된다.
         if (srcRepository.findByRawSnOrderByFrameNoAsc(parentRaw.getRawSn()).isEmpty()) {

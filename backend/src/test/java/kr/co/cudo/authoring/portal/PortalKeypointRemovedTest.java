@@ -185,9 +185,9 @@ class PortalKeypointRemovedTest {
     @DisplayName("데이터마트_원본에_SKELETON이_있어도_포털_조회에는_노출되지_않는다")
     void datamartSkeleton_notExposed() {
         LsDataLbl skeleton = LsDataLbl.createManual(
-                SRC_SN, LsDataLbl.TYPE_SKELETON, null, "person", skeletonJson(), 1L);
+                SRC_SN, LsDataLbl.TYPE_SKELETON, null, "person", skeletonJson(), "1");
         LsDataLbl bbox = LsDataLbl.createManual(
-                SRC_SN, LsDataLbl.TYPE_BBOX, null, "car", "[[0,0],[10,10]]", 1L);
+                SRC_SN, LsDataLbl.TYPE_BBOX, null, "car", "[[0,0],[10,10]]", "1");
         when(lblRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(skeleton, bbox));
 
         PortalFrameLabelsResponse res = service.loadFrameLabels(SRC_SN, portalUser());

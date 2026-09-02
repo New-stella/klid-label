@@ -313,7 +313,7 @@ class VideoLabelSaveTxServiceTest {
         when(snapshotReader.readFrame(any(), eq(SRC_A))).thenReturn(Optional.empty());
         when(labelRepository.findBySrcSn(SRC_A))
                 .thenReturn(List.of(kr.co.cudo.authoring.batch.entity.LsDataLbl.createManual(
-                        SRC_A, "BBOX", 33L, "차량", "[[1.0,2.0],[3.0,4.0]]", 1L)));
+                        SRC_A, "BBOX", 33L, "차량", "[[1.0,2.0],[3.0,4.0]]", "1")));
         stubCoreSaves(1L);
 
         save(request(VERSION, frameVer(SRC_A, 1L)));

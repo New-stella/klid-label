@@ -661,7 +661,12 @@ public class LabelService {
                 } else {
                     created = labelRepository.save(
                             LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.labelId(),
-                                    item.label(), pointsJson, actorNo));
+                                    item.label(), pointsJson,
+                                    // V28 — 등록자 컬럼이 문자로 넓어졌다(포털 토큰 주체를 담기 위해).
+                                    //   내부 채널의 숫자 식별자는 그대로 문자로 옮긴다(1001 -> "1001").
+                                    //   ⚠ String.valueOf 를 쓰면 null 이 문자열 "null" 이 되어
+                                    //     소유자 없는 라벨이 <있는 것처럼> 저장된다.
+                                    actorNo == null ? null : actorNo.toString()));
                 }
                 result.add(created);
                 changes.add(LabelChange.added(created.getLblSn(), created.getLabelNm(), snapshotOf(created)));
