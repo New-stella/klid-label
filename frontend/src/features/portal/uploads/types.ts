@@ -2,7 +2,13 @@
 // BE: kr.co.cudo.authoring.portal.dto.PortalUploadResponse / PortalUploadDetailResponse /
 //     PortalUploadFrameResponse. 저장 경로(FILE_PATH_NM) 등 내부 경로는 노출되지 않는다(CWE-209).
 
-/** 자산 종류 — BE LsPortalUld.TYPE_IMAGE/TYPE_VIDEO. */
+/**
+ * 자산 종류 — BE LsPortalUld.TYPE_IMAGE/TYPE_VIDEO.
+ *
+ * ★ **`IMAGE` 를 지우지 말 것.** 신규 접수는 영상뿐이지만, 이 값역은 **이미 적재된 행을 읽기
+ *   위해** 남긴다(지우면 계약이 데이터를 표현하지 못한다). 값이 남아 있다는 것이 이미지 접수
+ *   수단이 있다는 뜻은 아니다 — 접수 자리는 화면에서 폐기됐다.
+ */
 export const PortalUploadType = {
   IMAGE: 'IMAGE',
   VIDEO: 'VIDEO',
@@ -11,7 +17,7 @@ export type PortalUploadType = (typeof PortalUploadType)[keyof typeof PortalUplo
 
 /**
  * 자산 처리 상태 — BE LsPortalUld.STTS_*.
- * UPLOADED → PROCESSING → READY | FAILED. 이미지는 업로드 즉시 READY.
+ * UPLOADED → PROCESSING → READY | FAILED.
  */
 export const PortalUploadStatus = {
   UPLOADED: 'UPLOADED',

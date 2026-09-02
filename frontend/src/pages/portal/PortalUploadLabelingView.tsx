@@ -270,14 +270,19 @@ export function PortalUploadLabelingView({ uldSn: uldSnNum }: PortalUploadLabeli
         뒤로가기
       </Link>
 
-      {/* 헤더 — 파일명/프레임 카운트. 파일명은 텍스트 노드로만 렌더(XSS 무해). */}
+      {/*
+        헤더 — 파일명/프레임 카운트. 파일명은 텍스트 노드로만 렌더(XSS 무해).
+        ★ 프레임이 1건이어도 **프레임 카운트로 적는다.** 구 문구 「이미지 1장」은 이미지 자산이
+          접수되던 시절의 폴백이라, 신규 접수가 영상뿐인 지금은 «프레임 1건짜리 영상» 에 그 문구가
+          붙어 사실과 어긋난다. 되살리지 말 것.
+      */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="truncate text-section-title font-bold text-gray-900">
             {detail.orgnlFileNm}
           </h1>
           <p className="text-body text-gray-600">
-            {multiFrame ? `프레임 ${index + 1} / ${totalFrames}` : '이미지 1장'}
+            {totalFrames > 0 ? `프레임 ${index + 1} / ${totalFrames}` : '프레임 없음'}
           </p>
         </div>
       </div>
@@ -392,7 +397,7 @@ export function PortalUploadLabelingView({ uldSn: uldSnNum }: PortalUploadLabeli
         )}
       </div>
 
-      {/* 프레임 네비게이션 (영상 자산만) */}
+      {/* 프레임 네비게이션 — 프레임이 2건 이상일 때만 그린다. */}
       {multiFrame && (
         <div className="flex items-center justify-center gap-3">
           <button

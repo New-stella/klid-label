@@ -8,10 +8,11 @@ import type { PortalUpload } from '../types';
 function up(uldSttsCd: string): PortalUpload {
   return {
     uldSn: 1,
-    uldTypeCd: 'IMAGE',
-    orgnlFileNm: 'a.jpg',
+    // 신규 접수는 영상뿐이라 픽스처도 영상이다(이 시험의 축은 상태이지 자산 종류가 아니다).
+    uldTypeCd: 'VIDEO',
+    orgnlFileNm: 'a.mp4',
     fileSz: 100,
-    mimeTypeNm: 'image/jpeg',
+    mimeTypeNm: 'video/mp4',
     uldSttsCd,
     frmeCnt: 1,
     frmeSn: 10,

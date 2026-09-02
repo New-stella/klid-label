@@ -1,7 +1,6 @@
 // Phase 5 — 포털 업로드/자산 API 모듈 (PORTAL_USER 전용).
 //
 // BE: kr.co.cudo.authoring.portal.controller.PortalUploadController (/v1/portal/uploads)
-//   POST   /images              → 이미지 다중 업로드(multipart files[]) → 201 List
 //   GET    /?type&page&size     → 본인 자산 목록(Page)
 //   GET    /{uldSn}             → 자산 상세 + 프레임 요약
 //   GET    /{uldSn}/frames      → 프레임 목록(Page)
@@ -21,40 +20,18 @@ import type { PageResponse } from '@/lib/api/types';
 import type { PortalUpload, PortalUploadDetail, PortalUploadFrame } from './types';
 
 export interface ListUploadsParams {
-  /** IMAGE | VIDEO. 미지정 시 전체. */
+  /**
+   * 자산 종류 필터. 미지정 시 전체.
+   *
+   * ★ 신규 접수는 **영상뿐**이라 화면은 이 값을 보내지 않는다. 값역에 이미지가 남아 있는 것은
+   *   **이미 적재된 행을 읽기 위해서**이며, 새 접수 수단이 있다는 뜻이 아니다.
+   */
   type?: string;
   page?: number;
   size?: number;
 }
 
-/** 진행률(0~1) 콜백. */
-export type UploadProgressFn = (ratio: number) => void;
-
-/**
- * 이미지 다중 업로드 — multipart `files` 필드. all-or-nothing(BE 가 전 파일 사전검증 통과 시에만 저장).
- * 저장명은 BE 가 UUID 강제, 원본명은 표시용만 보관한다(CWE-22).
- */
-export function uploadImages(
-  files: File[],
-  onProgress?: UploadProgressFn,
-): Promise<PortalUpload[]> {
-  const form = new FormData();
-  for (const f of files) {
-    form.append('files', f);
-  }
-  return apiClient
-    .post<PortalUpload[]>('/portal/uploads/images', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (e) => {
-        if (onProgress && e.total) {
-          onProgress(Math.min(1, e.loaded / e.total));
-        }
-      },
-    })
-    .then((r) => r.data);
-}
-
-/** 본인 업로드 자산 목록(페이징). type 로 IMAGE/VIDEO 필터. */
+/** 본인 업로드 자산 목록(페이징). */
 export function listUploads(params: ListUploadsParams = {}): Promise<PageResponse<PortalUpload>> {
   return apiClient
     .get<PageResponse<PortalUpload>>('/portal/uploads', { params })

@@ -33,10 +33,11 @@ function ok(data: unknown) {
 function detail() {
   return {
     uldSn: 1,
-    uldTypeCd: 'IMAGE',
-    orgnlFileNm: 'photo.jpg',
+    // 신규 접수는 영상뿐이라 픽스처도 영상이다(프레임 1건).
+    uldTypeCd: 'VIDEO',
+    orgnlFileNm: 'clip.mp4',
     fileSz: 1024,
-    mimeTypeNm: 'image/jpeg',
+    mimeTypeNm: 'video/mp4',
     uldSttsCd: 'READY',
     frmeCnt: 1,
     vdoLenSec: null,

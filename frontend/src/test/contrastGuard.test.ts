@@ -397,11 +397,6 @@ const DANGER_CASES: Case[] = [
     anchor: "d.status === 'CREATED' ? (",
   },
   {
-    label: 'PortalUploadPage 업로드 검증 오류 목록',
-    file: 'src/pages/portal/PortalUploadPage.tsx',
-    anchor: 'flex flex-col gap-1 rounded-md border border-danger/30 bg-danger/10',
-  },
-  {
     label: 'DevAutolabelTestPage 파이프라인 에러',
     file: 'src/pages/dev/DevAutolabelTestPage.tsx',
     anchor: 'autolabel-error',

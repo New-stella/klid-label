@@ -1,6 +1,7 @@
 // Phase 5 — 포털 업로드 화면 (PORTAL_USER, ADR-013 예외 = 포털 자체 업로드 자산).
-// - 이미지: 다중 선택 + 클라이언트 사전검증(확장자/개수/크기) 후 multipart 업로드
 // - 영상: 기존 TUS 엔진 재사용(포털 endpoint 주입) — 재개 가능 청크 업로드
+//   ★ 신규 접수는 **영상뿐**이다. 이미지 접수 자리는 폐기됐다(되살리지 말 것) — 자산 종류 값역에
+//     이미지가 남아 있는 것은 이미 적재된 행을 읽기 위해서이지 접수 수단이 있다는 뜻이 아니다.
 // - 목록: 타입/상태 배지 + 페이징, PROCESSING 자산은 폴링, READY 자산에 라벨링 진입
 // - 삭제: 확인 후 요청 (PROCESSING 이면 BE 가 409)
 // - 자산별 내려받기: 라벨 내보내기(JSON) + 원본 파일 — **라벨링 화면이 아니라 여기가 갖는다**
@@ -9,7 +10,7 @@
 //
 // 보안: 사용자 파일명은 JSX 텍스트 노드로만 렌더(자동 escape, XSS 방어). URL 은 apiClient baseURL.
 
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, Trash2, Upload, X } from 'lucide-react';
 
@@ -21,16 +22,11 @@ import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api/errors';
 import { ErrorCode } from '@/lib/api/types';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
-import {
-  IMAGE_POLICY_TEXT,
-  validateImageFiles,
-} from '@/features/portal/uploads/validation';
 import { buildPortalUploadLabelPath } from '@/features/portal/labelingEntry';
 import { formatExpiryDate } from '@/features/portal/expiry';
 import { downloadUploadExport, downloadUploadFile } from '@/features/portal/uploads/api';
 import { useUiStore } from '@/stores/useUiStore';
 import { usePortalUploads } from '@/features/portal/uploads/hooks/usePortalUploads';
-import { useUploadImages } from '@/features/portal/uploads/hooks/useUploadImages';
 import { useDeleteUpload } from '@/features/portal/uploads/hooks/useDeleteUpload';
 import { PortalUploadStatus, type PortalUpload } from '@/features/portal/uploads/types';
 
@@ -67,7 +63,6 @@ export function PortalUploadPage() {
   // 목록 페이지는 화면 안에서만 쓰인다(이 화면은 주소로 상태를 나르지 않는다 — 검색·필터가 없다).
   const [page, setPage] = useState(0);
   const uploadsQuery = usePortalUploads({ page, size: PAGE_SIZE });
-  const uploadImages = useUploadImages();
   const deleteUpload = useDeleteUpload();
 
   const uploads: PortalUpload[] = useMemo(
@@ -75,30 +70,6 @@ export function PortalUploadPage() {
     [uploadsQuery.data],
   );
   const totalPages = uploadsQuery.data?.totalPages ?? 0;
-
-  // ── 이미지 선택/검증 상태 ──
-  const [selected, setSelected] = useState<File[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-
-  const onImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    const { valid, errors } = validateImageFiles(picked);
-    setSelected(valid);
-    setValidationErrors(errors);
-  };
-
-  const onUploadImages = async () => {
-    if (selected.length === 0) return;
-    try {
-      await uploadImages.uploadAsync(selected);
-      setSelected([]);
-      setValidationErrors([]);
-      if (imageInputRef.current) imageInputRef.current.value = '';
-    } catch {
-      // 서버 검증 실패 등은 하단 mutation 에러 영역으로 노출된다.
-    }
-  };
 
   // ── 영상 TUS 업로드(엔진 재사용, 포털 endpoint 주입) ──
   const tus = useTusUpload({ endpointBase: PORTAL_TUS_ENDPOINT });
@@ -128,67 +99,8 @@ export function PortalUploadPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <header>
         <h1 className="text-page-title text-gray-900">내 업로드</h1>
-        <p className="text-sub text-gray-600">이미지·영상을 업로드하고 라벨링을 진행하세요.</p>
+        <p className="text-sub text-gray-600">영상을 업로드하고 라벨링을 진행하세요.</p>
       </header>
-
-      {/* 이미지 업로드 */}
-      <section
-        aria-label="이미지 업로드"
-        className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
-      >
-        <h2 className="text-section-title text-gray-800">이미지 업로드</h2>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="portal-image-input" className="text-body font-medium text-gray-700">
-            이미지 파일 (다중 선택)
-          </label>
-          <input
-            ref={imageInputRef}
-            id="portal-image-input"
-            type="file"
-            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-            multiple
-            onChange={onImageSelect}
-            className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100"
-          />
-          <span className="text-sub text-gray-600">{IMAGE_POLICY_TEXT}</span>
-        </div>
-
-        {validationErrors.length > 0 && (
-          <ul role="alert" className="flex flex-col gap-1 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger-700">
-            {validationErrors.map((msg, i) => (
-              <li key={i}>{msg}</li>
-            ))}
-          </ul>
-        )}
-
-        {selected.length > 0 && (
-          <p className="text-sub text-gray-600">선택된 이미지 {selected.length}장</p>
-        )}
-
-        {uploadImages.error != null && (
-          <p role="alert" className="text-sub text-danger">
-            업로드에 실패했습니다. 파일 형식·크기를 확인해 주세요.
-          </p>
-        )}
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onUploadImages}
-            disabled={selected.length === 0 || uploadImages.isPending}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sub font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50',
-              KRDS_FOCUS,
-            )}
-          >
-            <Upload className="h-4 w-4" aria-hidden />
-            {uploadImages.isPending ? '업로드 중…' : '이미지 업로드'}
-          </button>
-          {uploadImages.isPending && (
-            <span className="text-sub text-gray-500">{Math.round(uploadImages.progress * 100)}%</span>
-          )}
-        </div>
-      </section>
 
       {/* 영상 업로드 (TUS) */}
       <section

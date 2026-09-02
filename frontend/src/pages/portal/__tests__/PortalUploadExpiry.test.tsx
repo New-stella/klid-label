@@ -15,14 +15,10 @@ import type { PortalUpload } from '@/features/portal/uploads/types';
 import { PortalUploadPage } from '../PortalUploadPage';
 
 const usePortalUploadsMock = vi.fn();
-const useUploadImagesMock = vi.fn();
 const useDeleteUploadMock = vi.fn();
 
 vi.mock('@/features/portal/uploads/hooks/usePortalUploads', () => ({
   usePortalUploads: (params: unknown) => usePortalUploadsMock(params),
-}));
-vi.mock('@/features/portal/uploads/hooks/useUploadImages', () => ({
-  useUploadImages: () => useUploadImagesMock(),
 }));
 vi.mock('@/features/portal/uploads/hooks/useDeleteUpload', () => ({
   useDeleteUpload: () => useDeleteUploadMock(),
@@ -31,10 +27,11 @@ vi.mock('@/features/portal/uploads/hooks/useDeleteUpload', () => ({
 function up(over: Partial<PortalUpload> = {}): PortalUpload {
   return {
     uldSn: 1,
-    uldTypeCd: 'IMAGE',
-    orgnlFileNm: 'a.jpg',
+    // 신규 접수는 영상뿐이라 기본 픽스처도 영상이다.
+    uldTypeCd: 'VIDEO',
+    orgnlFileNm: 'a.mp4',
     fileSz: 1024,
-    mimeTypeNm: 'image/jpeg',
+    mimeTypeNm: 'video/mp4',
     uldSttsCd: 'READY',
     frmeCnt: 1,
     frmeSn: 10,
@@ -50,11 +47,6 @@ function renderList(content: PortalUpload[]) {
     isLoading: false,
     isError: false,
   });
-  useUploadImagesMock.mockReturnValue({
-    uploadAsync: vi.fn().mockResolvedValue([]),
-    isPending: false,
-    progress: 0,
-  });
   useDeleteUploadMock.mockReturnValue({
     deleteAsync: vi.fn().mockResolvedValue(undefined),
     isPending: false,
@@ -65,7 +57,6 @@ function renderList(content: PortalUpload[]) {
 
 afterEach(() => {
   usePortalUploadsMock.mockReset();
-  useUploadImagesMock.mockReset();
   useDeleteUploadMock.mockReset();
 });
 

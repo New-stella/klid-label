@@ -28,10 +28,11 @@ function frameRow(uldFrmeSn: number, frmeNo: number) {
 function detail(over: Record<string, unknown> = {}) {
   return {
     uldSn: 1,
-    uldTypeCd: 'IMAGE',
-    orgnlFileNm: 'photo.jpg',
+    // 신규 접수는 영상뿐이다 — 프레임 1건짜리 영상이 기본 픽스처다(구 픽스처는 이미지 자산이었다).
+    uldTypeCd: 'VIDEO',
+    orgnlFileNm: 'clip.mp4',
     fileSz: 1024,
-    mimeTypeNm: 'image/jpeg',
+    mimeTypeNm: 'video/mp4',
     uldSttsCd: 'READY',
     frmeCnt: 1,
     vdoLenSec: null,
@@ -120,7 +121,7 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
     expect(back).toHaveAttribute('href', '/portal/uploads');
   });
 
-  it('이미지_자산은_단일_프레임으로_렌더되고_bbox_저장_호출', async () => {
+  it('프레임_1건_영상은_단일_프레임으로_렌더되고_bbox_저장_호출', async () => {
     mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
     mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
     let putBody: unknown = null;
@@ -145,6 +146,23 @@ describe('포털 라벨링 화면 — 업로드 자산 갈래', () => {
     await waitFor(() => expect(mock.history.put).toHaveLength(1));
     expect(Array.isArray(putBody)).toBe(true);
     expect((putBody as unknown[])[0]).toMatchObject({ lblTypeCd: 'BBOX', label: 'car' });
+  });
+
+  /*
+   * ★ 헤더 문구가 프레임 축으로만 말한다 — 구 문구 「이미지 1장」은 이미지 자산이 접수되던 시절의
+   *   폴백이라, 신규 접수가 영상뿐인 지금은 «프레임 1건짜리 영상» 에 붙어 사실과 어긋난다.
+   *
+   * ⚠ 값을 통째로 고정한다 — 구 문구의 부재만 단언하면 헤더를 통째로 지워도 통과한다.
+   */
+  it('프레임이_1건이어도_헤더는_프레임_카운트로_적는다', async () => {
+    mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
+    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
+    expect(screen.getByText('프레임 1 / 1')).toBeInTheDocument();
+    expect(screen.queryByText('이미지 1장')).toBeNull();
   });
 
   it('저장은_현재_프레임_라벨_전체교체_PUT_1회_raw배열', async () => {
