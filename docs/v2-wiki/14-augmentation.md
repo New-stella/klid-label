@@ -30,20 +30,24 @@
 - **증강 요청 화면(SCR-AUG-001)은 통합 단일 선택 UI** — 처리 종류 카드(**증강 AI** · **해상도 변경**)를 `radiogroup` 으로 **하나만** 선택하고, 대상 영상도 검수 완료(승인) 1건만 단일 선택한다(§14.6). BE 증강 요청 API 는 `types` enum allowlist(`AUGMENT`)로 강제하며, RESOLUTION 은 증강 잡 경로가 아니라 저작도구 직접 수행 경로(§14.3)로 분기된다.
   > ⚠ **구 서술 폐기(2026-09-02 · `ADR-059`)** — *"처리 종류 카드 4개(겨울/야간/우천/해상도 변경)"* · *"`types` enum allowlist(WINTER/NIGHT/RAIN)"* 는 사실과 다르다. 겨울·야간·우천은 카드에서 내려와 **생성 조건 프리셋**이 됐다(§14.6).
 
-### 외부연동 6종 구현 상태 (「생성형 AI API 연동명세서 v1.1」, LogiCraft EXTSYS-002)
+### 외부연동 6종 구현 상태 (「생성형 AI API 연동명세서 v1.3」, LogiCraft EXTSYS-002)
 
 | INT 코드 | 명세 | 방향 | 상태 | 구현 코드 |
 |------|------|:---:|:---:|------|
-| INT-001 | §4.1 작업 요청(`POST /api/genai/jobs`) | 저작도구→외부 | ✅ 구현 | `AugmentJobSubmitService`/`ExternalAugmentClient.requestAugment` |
-| INT-019 | §4.2 결과 웹훅(진행·결과 콜백) | 외부→저작도구 | ✅ 구현 | `GenAiCallbackController`(`POST /v1/genai/callback`)/`GenAiCallbackService` |
-| INT-020 | §4.4 상태 조회(`GET /api/genai/jobs/{job_id}`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobStatus`, §14.4.1 진행상태 조회 |
-| INT-029 | §4.3 상태 동기화(status-sync) | 외부→저작도구 | ⛔ **미구현** | 수신 엔드포인트·클라이언트 모두 없음(백엔드 전수 검색 0건) |
-| INT-030 | §4.5 결과 조회(`GET /api/genai/jobs/{job_id}/results`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobResults`, 웹훅 유실 회수(§14.4.1) |
-| INT-031 | §4.6 취소(`POST /api/genai/jobs/{job_id}/cancel`) | 저작도구→외부 | ✅ 구현 | `AugmentCancelService`, §14.4.1 취소 |
+| INT-001 | §4.1 생성·증강 작업 요청(`POST /api/genai/jobs`) | 저작도구→외부 | ✅ 구현 | `AugmentJobSubmitService`/`ExternalAugmentClient.requestAugment` |
+| INT-019 | §4.5 최종 상태 Webhook | 외부→저작도구 | ✅ 구현 | `GenAiCallbackController`(`POST /v1/genai/callback`)/`GenAiCallbackService` |
+| INT-020 | §4.2 작업 상태 조회(`GET /api/genai/jobs/{job_id}`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobStatus`, §14.4.1 진행상태 조회 |
+| INT-029 | §2 API 리스트 No.3 작업 상태 동기화(status-sync) — v1.3 에 상세 절(§4.x) 없음 | 외부→저작도구 | ⛔ **미구현** | 수신 엔드포인트·클라이언트 모두 없음(백엔드 전수 검색 0건) |
+| INT-030 | §4.3 작업 결과 조회(`GET /api/genai/jobs/{job_id}/results`) | 저작도구→외부 | ✅ 구현 | `ExternalAugmentClient.fetchJobResults`, 웹훅 유실 회수(§14.4.1) |
+| INT-031 | §4.4 작업 취소(`POST /api/genai/jobs/{job_id}/cancel`) | 저작도구→외부 | ✅ 구현 | `AugmentCancelService`, §14.4.1 취소 |
 
-> **INT-029(상태 동기화)만 미구현**이다. 명세서상 이 경로는 **수신측(저작도구)이 제공**해야 하는데(외부가 진행 중 상태를 능동적으로 밀어 넣는 보조 채널), 저작도구 쪽에 이 요청을 받는 엔드포인트가 없다(`status-sync` 문자열로 백엔드 전수 검색해도 0건). mock-server 는 이 갭을 알고 있어 자동 발신하지 않고, `MOCK_GENAI_STATUS_SYNC_URL` 을 **명시했을 때만** 테스트용으로 수동 발신한다(mock-server/README.md §상태 동기화). 진행 상태는 §4.2 웹훅(INT-019, 자동)과 §4.4 상태 조회(INT-020, 폴링)만으로도 갱신되므로 기능 공백은 아니지만, 명세 6종 완전 정합은 아니다.
+> **INT-029(상태 동기화)만 미구현**이다. 명세서상 이 경로는 **수신측(저작도구)이 제공**해야 하는데(외부가 진행 중 상태를 능동적으로 밀어 넣는 보조 채널), 저작도구 쪽에 이 요청을 받는 엔드포인트가 없다(`status-sync` 문자열로 백엔드 전수 검색해도 0건). mock-server 는 이 갭을 알고 있어 자동 발신하지 않고, `MOCK_GENAI_STATUS_SYNC_URL` 을 **명시했을 때만** 테스트용으로 수동 발신한다(mock-server/README.md §상태 동기화). 진행 상태는 §4.5 최종 상태 Webhook(INT-019, 자동)과 §4.2 작업 상태 조회(INT-020, 폴링)만으로도 갱신되므로 기능 공백은 아니다.
+>
+> ⚠ **구 서술 폐기(2026-09-02 · v1.3 실측)** — *"명세 6종 완전 정합은 아니다"* 는 사실과 다르다. **v1.3 §2 API 리스트가 이 경로(No.3)의 상태를 「미구현, V0 범위 밖」으로 스스로 적고 있다** — 벤더 쪽도 만들지 않았고 V0 계약 범위 밖이다. 그래서 이 경로에는 §4.x 상세 절 자체가 없고, 저작도구가 수신 엔드포인트를 두지 않은 것은 **정합 결손이 아니라 계약 범위와 일치하는 상태**다. 나머지 다섯은 §4.1~§4.5 로 전부 상세 절을 가진다.
+>
+> ⚠ **구 절 번호 폐기(2026-09-02)** — *"§4.2 결과 웹훅 · §4.3 상태 동기화 · §4.4 상태 조회 · §4.5 결과 조회 · §4.6 취소"* 는 **v1.1 판본의 절 번호**이며 v1.3 에 그런 배열은 없다. v1.3 §4 는 **§4.1 생성·증강 작업 요청 · §4.2 작업 상태 조회 · §4.3 작업 결과 조회 · §4.4 작업 취소 · §4.5 최종 상태 Webhook** 다(§4.6 없음). 특히 웹훅이 §4.2 에서 **§4.5 로**, 취소가 §4.6 에서 **§4.4 로** 옮겨 갔으므로 구 번호로 명세를 찾으면 다른 API 를 읽게 된다. ⚠ **표 제목의 「6종」은 그대로 참이다** — v1.3 §2 API 리스트도 여섯 건이다(상세 절이 다섯인 것과 별개 축).
 
-### 위탁 → 웹훅 → 새 영상 적재 (생성형 AI API 연동명세서 v1.1, 2026-07-27 계약 교체)
+### 위탁 → 웹훅 → 새 영상 적재 (생성형 AI API 연동명세서 v1.3, 2026-07-27 계약 교체)
 
 요청 시점에 **웹훅이 성립하도록 선행 상태를 먼저 만든다**. 요청 응답만 주고 끝내지 않고, 외부가 결과를 웹훅으로 push 하면 그 웹훅이 실제 새 영상을 적재하는 끝까지 닫힌 흐름이다.
 
@@ -64,7 +68,7 @@
         · 제출은 <논블로킹 + concatMap 직렬>: 앞 청크 완료 → 비식별 신고 재판정 → 다음 청크
           202 ACK 는 완료 핸들러(AugmentSubmitOutcomeRecorder, 전용 풀)가 받아 OTSD_JOB_ID 적재
         ↓ 비동기
-[웹훅] POST /api/v1/genai/callback  (무서명 — 명세서 v1.1 규격)
+[웹훅] POST /api/v1/genai/callback  (무서명 — 명세서 v1.3 규격)
   수신: {request_id, job_id, status(RUNNING|SUCCEEDED|FAILED), progress, current_step,
          updated_at, results[](SUCCEEDED), error_code/error_message(FAILED)}
   HmacWebhookFilter 무서명 가드 → GenAiCallbackController → GenAiCallbackService.handle()
