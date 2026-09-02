@@ -96,6 +96,16 @@ class BatchDevScanIntegrationTest {
     @Value("${authoring.jwt.issuer}")
     private String issuer;
 
+    /**
+     * 비식별 경로가 <b>구성되어 있는가</b> — {@link #awaitPreMarkingDeidentSettled()} 의 대기 축을 가른다.
+     *
+     * <p>기본값을 운영 기본과 같은 {@code true} 로 두는 것이 의도다: 경로가 살아 있는 환경에서는
+     * 종전대로 {@code DE_IDENT_YN} 종결까지 기다리고, 이 설정을 <b>명시적으로 끈</b> 프로파일에서만
+     * 그 축을 면제한다(테스트 {@code application-local.yml} 이 ca.crt 미보유 환경 보호를 위해 끈다).
+     */
+    @Value("${kpst.deid.enabled:true}")
+    private boolean kpstDeidentEnabled;
+
     private JdbcTemplate jdbc;
 
     /** REVIEWER + INTERNAL 채널 토큰 — /v1/dev/batch/** 는 REVIEWER 인증 필수. */
@@ -168,13 +178,39 @@ class BatchDevScanIntegrationTest {
      * 1회에 성공한다. 종결 판정은 {@code LS_DATA_RAW.DE_IDENT_YN} 이 {@code 'N'}(미수행)을 벗어나는 것
      * ({@code 'Y'}=성공 / {@code 'F'}=실패 — 실패도 별도 커밋 트랜잭션으로 확정된다)이다.
      *
+     * <p><b>★ 왜 조건부인가 — 비식별 경로가 구성되지 않으면 그 종결 조건은 성립할 수 없다.</b>
+     * {@code kpst.deid.enabled=false} 인 프로파일(테스트 {@code application-local.yml} — ca.crt 미보유
+     * 환경 보호)에서는 {@code DE_IDENT_YN} 이 {@code 'N'} 을 벗어날 <b>수단 자체가 없다</b>:
+     * <ol>
+     *   <li>{@code DeidentifyStep.run()} 은 {@code kpstEnabled && kpstDeidentService != null} 이 아니면
+     *       위탁에 닿기 전에 "비식별 경로가 구성되지 않았습니다" 로 <b>throw</b> 한다.</li>
+     *   <li>{@code DeidentifyStep} 은 {@code recordDeidentFailure} 를 호출하지 않는다. {@code 'F'} 를 쓰는
+     *       실질 지점은 {@code KpstDeidentService}(SOURCE_MISSING) 하나뿐인데 1번의 throw 로 <b>도달 불가</b>다.</li>
+     *   <li>그 예외는 {@code AsyncDeidentifyRunner.runAsync} 의 catch 가 WARN 으로 삼킨다.</li>
+     * </ol>
+     * 결과적으로 상태는 {@code 'N'} 에 고착하고, 이 대기는 <b>유계 대기가 아니라 상시 만료 대기</b>가 되어
+     * 매 테스트가 상한을 통째로 소모한다(그런데 {@code failures=0} 이라 아무 시험도 실패하지 않는다).
+     * 그래서 이 프로파일에서는 {@link #countUnsettledDeident()} 축을 <b>요구하지 않는다</b>.
+     *
+     * <p><b>★ 그래도 {@link #batchAsyncIdle()} 은 그대로 남는다 — 이쪽이 교착 방어의 결정적 축이다.</b>
+     * 상태 컬럼이 종결로 보여도 잠금을 쥔 {@code run()} 트랜잭션의 롤백이 아직인 짧은 창이 있고
+     * (실패 기록의 독립 {@code REQUIRES_NEW} 커밋이 먼저, 스레드 반납은 롤백 이후), 그 창을 놓치면
+     * {@code cleanup()} 의 삭제가 {@code 55P03}(lock timeout)으로 확률적으로 실패한다. 실제 사고 이력이다.
+     * 이 축을 없애거나 약화시키지 말 것.
+     *
+     * <p><b>★ 이 조건이 다시 무의미해지는 시점</b>: {@code kpst.deid.enabled} 를 켜거나, 상태를 동기적으로
+     * 종결시키는 경로(과거의 mock 비식별처럼 실패를 {@code 'F'} 로 즉시 커밋하는 경로)가 다시 생기면
+     * 종전의 2축 대기로 그대로 돌아간다 — 분기만 자연히 참이 되므로 코드를 되돌릴 필요가 없다.
+     * (이 대기가 신설될 당시엔 mock 비식별이 시드 파일 부재로 실패해 {@code 'F'} 로 즉시 종결됐고,
+     *  이후 mock 경로가 폐지되면서 KPST 단일 경로만 남아 종결 경로가 사라졌다.)
+     *
      * <p><b>상한 초과 시</b>: 무한 대기하지 않는다. 잔여 행의 상태를 진단 로그로 남기고 정리로 넘어가
      * {@code RawVideoFixture} 의 재시도(2차 방어)가 판정하게 한다 — 여기서 즉시 예외를 던지면 삭제가
      * 아예 수행되지 않아 잔여 행이 재사용 컨테이너에 남고, 이후 실행까지 오염된다.
      */
     private void awaitPreMarkingDeidentSettled() {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(DEIDENT_SETTLE_TIMEOUT_MS);
-        while (!batchAsyncIdle() || countUnsettledDeident() > 0) {
+        while (!preMarkingDeidentSettled()) {
             if (System.nanoTime() - deadline >= 0) {
                 log.warn("[BatchDevScanIT] 선두 비식별이 {}ms 안에 종결되지 않았습니다 — asyncIdle={} 잔여 행={}"
                                 + " (정리는 계속 진행: RawVideoFixture 재시도가 2차 방어)",
@@ -188,6 +224,20 @@ class BatchDevScanIntegrationTest {
                 return;
             }
         }
+    }
+
+    /**
+     * 대기 종료 조건 — 비동기 풀 유휴(항상) + 비식별 종결(경로가 구성된 경우에만).
+     *
+     * <p>{@code kpst.deid.enabled=false} 면 {@code DE_IDENT_YN} 이 {@code 'N'} 을 벗어날 수단이 없으므로
+     * 그 축을 요구하지 않는다(사유는 {@link #awaitPreMarkingDeidentSettled()} javadoc). 유휴 축은
+     * 프로파일과 무관하게 <b>항상</b> 요구한다 — 그것이 삭제 교착을 막는 축이다.
+     */
+    private boolean preMarkingDeidentSettled() {
+        if (!batchAsyncIdle()) {
+            return false;
+        }
+        return !kpstDeidentEnabled || countUnsettledDeident() == 0;
     }
 
     /**
