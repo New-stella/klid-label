@@ -134,13 +134,22 @@ services:
       # 생성형 AI 콜백 허용 출처 — VLM 과 달리 **미설정/none = 전면 차단**(fail-closed).
       #   ★ 여기서 명시하지 않으면 .env 의 빈 값 대입(WEBHOOK_GENAI_ALLOWED_IP_CIDRS=)이 env_file 로
       #     그대로 주입돼(set-but-empty) 프로파일 yml 기본값(${VAR:0.0.0.0/0})까지 빈 값으로 덮인다.
-      #     그 상태에서 증강 위탁이 http 면 GenAiIntegrationWiringGuard 가 기동을 차단한다 —
-      #     즉 "문서대로 띄운 정상 형상이 부팅 불가" 가 된다.
-      #   base(dev) 기본은 VLM 과 같은 'none' — dev 는 증강 위탁이 noop(application-dev.yml)이라
-      #     콜백이 애초에 오지 않으므로 fail-closed 를 유지한다(가드도 noop 은 허용).
-      #   증강을 실제로 위탁하는 형상(docker-compose.local.yml: AUGMENT_EXTERNAL_MODE=http)은 그 파일에서
-      #     0.0.0.0/0 을 <명시>해 짝을 맞춘다(목은 docker 브리지 사설 IP 라 대역 고정 불가).
-      WEBHOOK_GENAI_ALLOWED_IP_CIDRS: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:-none}
+      #     그 상태에서 증강 위탁 주소가 주입돼 있으면 GenAiIntegrationWiringGuard 가 <위탁을> 거부한다
+      #     — 기동은 통과하고 ERROR 로그만 남으며, 거부는 <위탁 시점>에 일어난다(조회·취소는 막지 않는다).
+      #     ★ 구 서술 「기동을 차단한다 / 문서대로 띄운 정상 형상이 부팅 불가」는 폐기다
+      #       (2026-09-03 · ADR-062). 그래도 이 값을 명시하는 이유는 그대로다 — 짝이 어긋나면
+      #       이 스택에서 증강 위탁이 <전건 실패>해 목 서버 왕복 검증이 성립하지 않는다.
+      #   ★ base(dev) 기본이 'none' 에서 '0.0.0.0/0' 으로 바뀌었다 (2026-09-03) — dev 는 이제 증강
+      #     위탁이 <활성>이기 때문이다(application-dev.yml 이 목업 벤더 서버 주소를 주입한다. 구
+      #     형상은 미연동 모드 토글로 꺼져 있었고 그 축은 폐기됐다). 위탁이 활성인데 콜백이 전면
+      #     차단이면 GenAiIntegrationWiringGuard 가 <위탁을> 거부한다 — 그대로 두면 위탁은 나가고
+      #     콜백은 전건 403 이 되어 증강이 PENDING 으로 영구 고착되기 때문이다(기동 시 ERROR 로그).
+      #     ★ 구 서술 「기동을 막는다」는 폐기다(2026-09-03 · ADR-062) — 기동은 통과하고 거부는
+      #       <위탁 시점>에 일어나며 조회·취소는 막지 않는다.
+      #   목 서버의 발신 IP 는 docker 브리지 사설 IP 라 대역을 고정할 수 없어 전면 허용을 <명시>한다
+      #     (docker-compose.local.yml 이 같은 이유로 이미 쓰던 값이다). 이 스택은 local/dev 전용이며
+      #     운영(prd)은 이 파일을 쓰지 않고 벤더 송신 대역을 명시해야 한다.
+      WEBHOOK_GENAI_ALLOWED_IP_CIDRS: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:-0.0.0.0/0}
     volumes:
       - /data/klid/storage:/app/storage
       # 생성형AI 목/벤더 산출물 트리 — **읽기 전용(:ro)**. BE 는 콜백이 준 경로에서 결과 이미지를

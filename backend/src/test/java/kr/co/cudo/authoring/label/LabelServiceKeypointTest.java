@@ -208,7 +208,7 @@ class LabelServiceKeypointTest {
     void skeletonUpdateTripletChanged() {
         // given — 기존 SKELETON 라벨(v 전부 0) 이 DB 에 존재. UPDATE 경로(updateUserContent) 를 탄다.
         LsDataLbl existing = LsDataLbl.createManual(
-                SRC_SN, "SKELETON", null, "person", skeleton17Json(0), 1001L);
+                SRC_SN, "SKELETON", null, "person", skeleton17Json(0), "1001");
         setLblSn(existing, 555L);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
 

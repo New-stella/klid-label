@@ -126,8 +126,8 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
 
     private LsMarking seedMarkingPending(Long rawSn) {
         return markingRepository.save(LsMarking.createAuto(
-                rawSn, "fire", 5, "/var/deid/vlmtx.mp4",
-                "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L));
+                rawSn, 5,
+                "[{\"frameIndex\":0,\"timestamp\":0.0}]", "1"));
     }
 
     /**

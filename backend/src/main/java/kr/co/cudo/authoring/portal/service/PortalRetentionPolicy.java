@@ -1,6 +1,6 @@
 package kr.co.cudo.authoring.portal.service;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import lombok.RequiredArgsConstructor;
@@ -112,11 +112,11 @@ public class PortalRetentionPolicy {
          */
         public LocalDateTime expiresAt(String uldSttsCd, LocalDateTime regDt, LocalDateTime mdfcnDt,
                                        LocalDateTime lastLabelSavedAt) {
-            if (LsPortalUld.STTS_READY.equals(uldSttsCd)) {
+            if (PortalUploadLedger.STATUS_READY.equals(uldSttsCd)) {
                 // 작업 중이면 라벨 저장이 기준점을 계속 밀어낸다 — 그래서 늦은 쪽을 쓴다(DFEAT-055).
                 return plusDays(later(regDt, lastLabelSavedAt), readyRetentionDays);
             }
-            if (LsPortalUld.STTS_FAILED.equals(uldSttsCd)) {
+            if (PortalUploadLedger.STATUS_FAILED.equals(uldSttsCd)) {
                 // 실패 자산은 되찾을 수 없어 더 짧게 정리한다 — READY 축과 독립(AC-037).
                 return plusDays(mdfcnDt, failedRetentionDays);
             }

@@ -6,13 +6,14 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalUploadLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUploadLabelResponse;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldLbl;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.service.PortalUploadLabelService;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLabelRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,48 +58,48 @@ class PortalUploadLabelServiceTest {
 
     @TempDir Path storageDir;
 
-    private LsPortalUldRepository uldRepository;
-    private LsPortalUldFrmeRepository frmeRepository;
-    private LsPortalUldLblRepository lblRepository;
+    private PortalUploadAssetRepository assetRepository;
+    private PortalUploadFrameRepository frmeRepository;
+    private PortalUploadLabelRepository lblRepository;
     private PortalUploadLabelService service;
     // Spring 부트 ObjectMapper 와 동일하게 JavaTime(LocalDateTime) 직렬화 모듈을 등록한다.
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @BeforeEach
     void setUp() {
-        uldRepository = mock(LsPortalUldRepository.class);
-        frmeRepository = mock(LsPortalUldFrmeRepository.class);
-        lblRepository = mock(LsPortalUldLblRepository.class);
+        assetRepository = mock(PortalUploadAssetRepository.class);
+        frmeRepository = mock(PortalUploadFrameRepository.class);
+        lblRepository = mock(PortalUploadLabelRepository.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
                 List.of("jpg", "jpeg", "png"), 1024L, 3, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        service = new PortalUploadLabelService(uldRepository, frmeRepository, lblRepository, props, objectMapper);
+        service = new PortalUploadLabelService(assetRepository, frmeRepository, lblRepository, props, objectMapper);
     }
 
     // ---------------- fixtures ----------------
 
-    private LsPortalUld uld(String status, String mime, String orgnlFileNm, String filePath) {
-        LsPortalUld u = LsPortalUld.createImage(ALICE, orgnlFileNm, filePath, 100L, mime);
-        setField(u, "uldSn", ULD_SN);
-        setField(u, "uldSttsCd", status);
-        return u;
+    /** 자산 스냅샷 — 흡수 뒤 자산은 <읽기 모델>이라 그대로 만든다. */
+    private PortalUploadAsset uld(String status, String mime, String orgnlFileNm, String filePath) {
+        return new PortalUploadAsset(ULD_SN, ALICE, PortalUploadLedger.assetTypeOf(mime),
+                orgnlFileNm, filePath, 100L, mime, status, null, null, 1, null,
+                java.time.LocalDateTime.now(), java.time.LocalDateTime.now());
     }
 
-    private LsPortalUldFrme frame() {
-        LsPortalUldFrme f = LsPortalUldFrme.create(ULD_SN, 0, storageDir.resolve("f0.png").toString());
-        setField(f, "uldFrmeSn", FRME_SN);
+    private LsDataSrc frame() {
+        LsDataSrc f = LsDataSrc.create(ULD_SN, 0L, storageDir.resolve("f0.png").toString(), null);
+        setField(f, "srcSn", FRME_SN);
         return f;
     }
 
     /** frame 락 조회 + READY uld 조회 stub (정상 PUT 경로). saveAll 은 입력 그대로 반환. */
     @SuppressWarnings("unchecked")
     private void stubHappyPutPath() {
-        when(frmeRepository.findByUldFrmeSnAndOwnerForUpdate(FRME_SN, ALICE))
+        when(frmeRepository.findByOwnerForUpdate(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE))
                 .thenReturn(Optional.of(frame()));
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png", "a.png")));
-        when(lblRepository.saveAll(anyList())).thenAnswer(inv -> new ArrayList<>((List<LsPortalUldLbl>) inv.getArgument(0)));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png", "a.png")));
+        when(lblRepository.saveAll(anyList())).thenAnswer(inv -> new ArrayList<>((List<LsDataLbl>) inv.getArgument(0)));
     }
 
     private PortalUploadLabelRequest bbox(double x1, double y1, double x2, double y2) {
@@ -121,7 +122,7 @@ class PortalUploadLabelServiceTest {
         assertThat(first.get(0).lblTypeCd()).isEqualTo("BBOX");
         assertThat(first.get(0).points()).isEqualTo(second.get(0).points());
         // 매 PUT 마다 전체 삭제 후 저장 (전체교체 시맨틱).
-        verify(lblRepository, times(2)).deleteAllByUldFrmeSnAndPortalUserNo(FRME_SN, ALICE);
+        verify(lblRepository, times(2)).deleteAllByFrameAndOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE);
         verify(lblRepository, times(2)).saveAll(anyList());
     }
 
@@ -133,7 +134,7 @@ class PortalUploadLabelServiceTest {
         List<PortalUploadLabelResponse> res = service.replaceLabels(FRME_SN, ALICE, List.of());
 
         assertThat(res).isEmpty();
-        verify(lblRepository).deleteAllByUldFrmeSnAndPortalUserNo(FRME_SN, ALICE);
+        verify(lblRepository).deleteAllByFrameAndOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE);
         verify(lblRepository).saveAll(anyList());
     }
 
@@ -145,8 +146,8 @@ class PortalUploadLabelServiceTest {
         service.replaceLabels(FRME_SN, ALICE, List.of(bbox(1, 2, 3, 4)));
 
         // 락 조회(ForUpdate)를 사용해야 하며, 비-락 조회는 진입점에서 사용하지 않는다.
-        verify(frmeRepository).findByUldFrmeSnAndOwnerForUpdate(FRME_SN, ALICE);
-        verify(frmeRepository, never()).findByUldFrmeSnAndOwner(anyLong(), anyString());
+        verify(frmeRepository).findByOwnerForUpdate(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE);
+        verify(frmeRepository, never()).findByOwner(anyLong(), anyString(), anyString());
     }
 
     // ======================== 입력 검증 400 (DELETE 이전) ========================
@@ -250,7 +251,7 @@ class PortalUploadLabelServiceTest {
                 .isEqualTo(ErrorCode.INVALID_INPUT);
         // 검증은 DELETE 이전 — 리포지토리 접촉 없음(기존 라벨 유지 + 프레임 락 미획득).
         verifyNoInteractions(lblRepository);
-        verify(frmeRepository, never()).findByUldFrmeSnAndOwnerForUpdate(anyLong(), anyString());
+        verify(frmeRepository, never()).findByOwnerForUpdate(anyLong(), anyString(), anyString());
     }
 
     // ======================== IDOR 403 ========================
@@ -258,29 +259,29 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("타사용자_프레임_라벨_PUT시_403")
     void putIdorForbidden() {
-        when(frmeRepository.findByUldFrmeSnAndOwnerForUpdate(FRME_SN, ALICE)).thenReturn(Optional.empty());
+        when(frmeRepository.findByOwnerForUpdate(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.replaceLabels(FRME_SN, ALICE, List.of(bbox(1, 2, 3, 4))));
-        verify(lblRepository, never()).deleteAllByUldFrmeSnAndPortalUserNo(anyLong(), anyString());
+        verify(lblRepository, never()).deleteAllByFrameAndOwner(anyLong(), anyString(), anyString());
     }
 
     @Test
     @DisplayName("타사용자_라벨_GET_403")
     void getIdorForbidden() {
-        when(frmeRepository.findByUldFrmeSnAndOwner(FRME_SN, ALICE)).thenReturn(Optional.empty());
+        when(frmeRepository.findByOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.listLabels(FRME_SN, ALICE));
     }
 
     @Test
     @DisplayName("타사용자_export_403")
     void exportIdorForbidden() {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(Optional.empty());
+        when(assetRepository.findByOwner(ULD_SN, ALICE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.exportLabels(ULD_SN, ALICE));
     }
 
     @Test
     @DisplayName("타사용자_원본_다운로드_403")
     void downloadIdorForbidden() {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(Optional.empty());
+        when(assetRepository.findByOwner(ULD_SN, ALICE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.downloadFile(ULD_SN, ALICE));
     }
 
@@ -289,9 +290,9 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("READY_아닌_자산_라벨링_409")
     void nonReadyAssetConflict() {
-        for (String status : List.of(LsPortalUld.STTS_PROCESSING, LsPortalUld.STTS_FAILED, LsPortalUld.STTS_UPLOADED)) {
-            when(frmeRepository.findByUldFrmeSnAndOwnerForUpdate(FRME_SN, ALICE)).thenReturn(Optional.of(frame()));
-            when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
+        for (String status : List.of(PortalUploadLedger.STATUS_PROCESSING, PortalUploadLedger.STATUS_FAILED, PortalUploadLedger.STATUS_UPLOADED)) {
+            when(frmeRepository.findByOwnerForUpdate(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(Optional.of(frame()));
+            when(assetRepository.findByOwner(ULD_SN, ALICE))
                     .thenReturn(Optional.of(uld(status, "image/png", "a.png", "a.png")));
 
             assertThatThrownBy(() -> service.replaceLabels(FRME_SN, ALICE, List.of(bbox(1, 2, 3, 4))))
@@ -300,7 +301,7 @@ class PortalUploadLabelServiceTest {
                     .isEqualTo(ErrorCode.CONFLICT);
         }
         // 409 는 DELETE 이전 — 어떤 상태에서도 삭제 미실행.
-        verify(lblRepository, never()).deleteAllByUldFrmeSnAndPortalUserNo(anyLong(), anyString());
+        verify(lblRepository, never()).deleteAllByFrameAndOwner(anyLong(), anyString(), anyString());
     }
 
     // ======================== export 구성 ========================
@@ -308,12 +309,12 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("export_JSON에_자산메타_프레임_라벨_모두_포함")
     void exportContainsMetaFramesLabels() throws IOException {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "myphoto.png", "a.png")));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(ULD_SN)).thenReturn(List.of(frame()));
-        LsPortalUldLbl lbl = LsPortalUldLbl.create(ALICE, ULD_SN, FRME_SN, "BBOX", "car", "[[1.0,2.0],[3.0,4.0]]");
-        setField(lbl, "uldLblSn", 9L);
-        when(lblRepository.findAllByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(List.of(lbl));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "myphoto.png", "a.png")));
+        when(frmeRepository.findAllByRawSnOrderByFrameNoAsc(ULD_SN)).thenReturn(List.of(frame()));
+        LsDataLbl lbl = LsDataLbl.createManual(FRME_SN, "BBOX", null, "car", "[[1.0,2.0],[3.0,4.0]]", ALICE);
+        setField(lbl, "lblSn", 9L);
+        when(lblRepository.findAllByAssetAndOwner(ULD_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of(lbl));
 
         ResponseEntity<byte[]> res = service.exportLabels(ULD_SN, ALICE);
 
@@ -332,12 +333,12 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("export_JSON_구조_검증_프레임_라벨_좌표_중첩배열")
     void exportJsonStructure() throws IOException {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "myphoto.png", "a.png")));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(ULD_SN)).thenReturn(List.of(frame()));
-        LsPortalUldLbl lbl = LsPortalUldLbl.create(ALICE, ULD_SN, FRME_SN, "BBOX", "car", "[[1.0,2.0],[3.0,4.0]]");
-        setField(lbl, "uldLblSn", 9L);
-        when(lblRepository.findAllByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(List.of(lbl));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "myphoto.png", "a.png")));
+        when(frmeRepository.findAllByRawSnOrderByFrameNoAsc(ULD_SN)).thenReturn(List.of(frame()));
+        LsDataLbl lbl = LsDataLbl.createManual(FRME_SN, "BBOX", null, "car", "[[1.0,2.0],[3.0,4.0]]", ALICE);
+        setField(lbl, "lblSn", 9L);
+        when(lblRepository.findAllByAssetAndOwner(ULD_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of(lbl));
 
         ResponseEntity<byte[]> res = service.exportLabels(ULD_SN, ALICE);
 
@@ -361,10 +362,10 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("프레임_0건이면_export_frames_빈배열")
     void exportZeroFrames() throws IOException {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png", "a.png")));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(ULD_SN)).thenReturn(List.of());
-        when(lblRepository.findAllByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(List.of());
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png", "a.png")));
+        when(frmeRepository.findAllByRawSnOrderByFrameNoAsc(ULD_SN)).thenReturn(List.of());
+        when(lblRepository.findAllByAssetAndOwner(ULD_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of());
 
         ResponseEntity<byte[]> res = service.exportLabels(ULD_SN, ALICE);
 
@@ -376,11 +377,11 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("손상된_POINT_CN은_export시_빈_좌표배열_fail_secure")
     void exportCorruptPointsFailSecure() throws IOException {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png", "a.png")));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(ULD_SN)).thenReturn(List.of(frame()));
-        LsPortalUldLbl corrupt = LsPortalUldLbl.create(ALICE, ULD_SN, FRME_SN, "BBOX", "car", "{not-json");
-        when(lblRepository.findAllByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(List.of(corrupt));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png", "a.png")));
+        when(frmeRepository.findAllByRawSnOrderByFrameNoAsc(ULD_SN)).thenReturn(List.of(frame()));
+        LsDataLbl corrupt = LsDataLbl.createManual(FRME_SN, "BBOX", null, "car", "{not-json", ALICE);
+        when(lblRepository.findAllByAssetAndOwner(ULD_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of(corrupt));
 
         ResponseEntity<byte[]> res = service.exportLabels(ULD_SN, ALICE);
 
@@ -393,9 +394,9 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("손상된_POINT_CN은_조회시_빈_좌표배열_fail_secure")
     void listCorruptPointsFailSecure() {
-        when(frmeRepository.findByUldFrmeSnAndOwner(FRME_SN, ALICE)).thenReturn(Optional.of(frame()));
-        LsPortalUldLbl corrupt = LsPortalUldLbl.create(ALICE, ULD_SN, FRME_SN, "BBOX", "car", "not-json-at-all");
-        when(lblRepository.findAllByUldFrmeSnAndPortalUserNo(FRME_SN, ALICE)).thenReturn(List.of(corrupt));
+        when(frmeRepository.findByOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(Optional.of(frame()));
+        LsDataLbl corrupt = LsDataLbl.createManual(FRME_SN, "BBOX", null, "car", "not-json-at-all", ALICE);
+        when(lblRepository.findAllByFrameAndOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of(corrupt));
 
         List<PortalUploadLabelResponse> res = service.listLabels(FRME_SN, ALICE);
 
@@ -406,18 +407,18 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("export는_포털_리포지토리만_사용")
     void exportUsesOnlyPortalRepositories() {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png", "a.png")));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(ULD_SN)).thenReturn(List.of(frame()));
-        when(lblRepository.findAllByUldSnAndPortalUserNo(ULD_SN, ALICE)).thenReturn(List.of());
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png", "a.png")));
+        when(frmeRepository.findAllByRawSnOrderByFrameNoAsc(ULD_SN)).thenReturn(List.of(frame()));
+        when(lblRepository.findAllByAssetAndOwner(ULD_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of());
 
         service.exportLabels(ULD_SN, ALICE);
 
         // 포털 3종 리포지토리만 사용 — 라벨은 업로드 단위 1회 일괄 조회(프레임별 N+1 금지).
-        verify(uldRepository).findByUldSnAndPortalUserNo(ULD_SN, ALICE);
-        verify(frmeRepository).findAllByUldSnOrderByFrmeNo(ULD_SN);
-        verify(lblRepository, times(1)).findAllByUldSnAndPortalUserNo(ULD_SN, ALICE);
-        verify(lblRepository, never()).findAllByUldFrmeSnAndPortalUserNo(anyLong(), anyString());
+        verify(assetRepository).findByOwner(ULD_SN, ALICE);
+        verify(frmeRepository).findAllByRawSnOrderByFrameNoAsc(ULD_SN);
+        verify(lblRepository, times(1)).findAllByAssetAndOwner(ULD_SN, ALICE, PortalUploadLedger.SRC_TYPE);
+        verify(lblRepository, never()).findAllByFrameAndOwner(anyLong(), anyString(), anyString());
     }
 
     // ======================== 원본 다운로드 ========================
@@ -428,8 +429,8 @@ class PortalUploadLabelServiceTest {
         Path file = storageDir.resolve("stored.png");
         Files.write(file, new byte[]{1, 2, 3});
         // 원본명에 CRLF 헤더 인젝션 시도 포함.
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png",
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png",
                         "evil\r\nSet-Cookie: x=1.png", file.toString())));
 
         ResponseEntity<Resource> res = service.downloadFile(ULD_SN, ALICE);
@@ -449,8 +450,8 @@ class PortalUploadLabelServiceTest {
     void downloadHasNosniffAndDbMime() throws IOException {
         Path file = storageDir.resolve("stored.png");
         Files.write(file, new byte[]{1, 2, 3});
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png", file.toString())));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png", file.toString())));
 
         ResponseEntity<Resource> res = service.downloadFile(ULD_SN, ALICE);
 
@@ -464,8 +465,8 @@ class PortalUploadLabelServiceTest {
         Path file = storageDir.resolve("stored.bin");
         Files.write(file, new byte[]{1, 2, 3});
         // 확장자 없는 원본명 + image/jpeg → MIME 매핑으로 jpg.
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/jpeg", "photo", file.toString())));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/jpeg", "photo", file.toString())));
 
         ResponseEntity<Resource> res = service.downloadFile(ULD_SN, ALICE);
 
@@ -479,8 +480,8 @@ class PortalUploadLabelServiceTest {
     void downloadUnknownMimeOctetStream() throws IOException {
         Path file = storageDir.resolve("stored2");
         Files.write(file, new byte[]{1, 2, 3});
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/webp", "mystery", file.toString())));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/webp", "mystery", file.toString())));
 
         ResponseEntity<Resource> res = service.downloadFile(ULD_SN, ALICE);
 
@@ -495,8 +496,8 @@ class PortalUploadLabelServiceTest {
         Path file = storageDir.resolve("stored3.png");
         Files.write(file, new byte[]{1, 2, 3});
         // 제어문자만으로 구성된 원본명 → sanitize 후 blank → download.{ext}.
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "\r\n\t ", file.toString())));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "\r\n\t ", file.toString())));
 
         ResponseEntity<Resource> res = service.downloadFile(ULD_SN, ALICE);
 
@@ -508,8 +509,8 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("원본_파일_부재시_404")
     void downloadMissingFileNotFound() {
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png",
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png",
                         storageDir.resolve("nope.png").toString())));
 
         assertThatThrownBy(() -> service.downloadFile(ULD_SN, ALICE))
@@ -522,8 +523,8 @@ class PortalUploadLabelServiceTest {
     @DisplayName("원본_파일경로_없으면_404")
     void downloadNullFilePathNotFound() {
         // 추출 미완료/이상 자산 — FILE_PATH_NM 이 null. Paths.get(null) NPE 없이 404 로 안전 처리되어야 한다.
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png", null)));
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png", null)));
 
         assertThatThrownBy(() -> service.downloadFile(ULD_SN, ALICE))
                 .isInstanceOf(CustomException.class)
@@ -535,8 +536,8 @@ class PortalUploadLabelServiceTest {
     @DisplayName("원본_다운로드_경로탐색_차단")
     void downloadPathTraversalBlocked() {
         // baseDir(storageDir) 밖으로 벗어나는 상대경로가 저장돼 있어도 resolveSafe 가 403 으로 차단해야 한다.
-        when(uldRepository.findByUldSnAndPortalUserNo(ULD_SN, ALICE))
-                .thenReturn(Optional.of(uld(LsPortalUld.STTS_READY, "image/png", "a.png",
+        when(assetRepository.findByOwner(ULD_SN, ALICE))
+                .thenReturn(Optional.of(uld(PortalUploadLedger.STATUS_READY, "image/png", "a.png",
                         "../../../../etc/passwd")));
 
         assertForbidden(() -> service.downloadFile(ULD_SN, ALICE));
@@ -547,10 +548,9 @@ class PortalUploadLabelServiceTest {
     @Test
     @DisplayName("라벨_조회는_소유자_스코프_프레임_검증후_반환")
     void listLabelsOwnerScoped() {
-        when(frmeRepository.findByUldFrmeSnAndOwner(FRME_SN, ALICE)).thenReturn(Optional.of(frame()));
-        LsPortalUldLbl lbl = LsPortalUldLbl.create(ALICE, ULD_SN, FRME_SN, "POLYGON", "person",
-                "[[0.0,0.0],[1.0,0.0],[1.0,1.0]]");
-        when(lblRepository.findAllByUldFrmeSnAndPortalUserNo(FRME_SN, ALICE)).thenReturn(List.of(lbl));
+        when(frmeRepository.findByOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(Optional.of(frame()));
+        LsDataLbl lbl = LsDataLbl.createManual(FRME_SN, "POLYGON", null, "person", "[[0.0,0.0],[1.0,0.0],[1.0,1.0]]", ALICE);
+        when(lblRepository.findAllByFrameAndOwner(FRME_SN, ALICE, PortalUploadLedger.SRC_TYPE)).thenReturn(List.of(lbl));
 
         List<PortalUploadLabelResponse> res = service.listLabels(FRME_SN, ALICE);
 

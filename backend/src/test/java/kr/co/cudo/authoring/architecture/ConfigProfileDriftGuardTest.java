@@ -42,6 +42,19 @@ class ConfigProfileDriftGuardTest {
     /** IPv4 리터럴(내부 IP·벤더 IP 평문 커밋 탐지용). */
     private static final Pattern IPV4 = Pattern.compile("\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b");
 
+    /**
+     * ★ 예외 — <b>전면 허용 와일드카드 CIDR</b>({@code 0.0.0.0/0}) 하나만 허용한다 (2026-09-03).
+     *
+     * <p>이 가드가 막는 것은 <b>주소</b>(내부 DB 호스트·외부 벤더 IP)의 평문 커밋이다. 와일드카드는
+     * 주소가 아니라 "출처를 가리지 않는다" 는 <b>정책 표기</b>라 내부 토폴로지를 유출하지 않고,
+     * 환경변수로 옮겨도 숨길 것이 없다. dev 가 이 값을 갖게 된 것은 증강 위탁이 목업 벤더 서버로
+     * 실제로 나가게 되면서(2026-09-03 — 미연동 모드 토글 폐기) <b>콜백 IP allowlist 를 짝으로
+     * 명시해야</b> 하기 때문이며, 목 서버 발신 IP 는 docker 브리지 사설 IP 라 대역을 고정할 수 없다.
+     *
+     * <p>⚠ <b>이 예외를 넓히지 말 것</b> — 구체 주소는 종전대로 전부 걸린다. 정확히 이 한 값만이다.
+     */
+    private static final String WILDCARD_CIDR = "0.0.0.0/0";
+
     @Test
     @DisplayName("prd_프로파일_multipart_한도는_500MB_1100MB로_유지된다")
     void prdMultipartLimitsStayTight() {
@@ -101,6 +114,10 @@ class ConfigProfileDriftGuardTest {
         List<String> literals = new ArrayList<>();
         Matcher matcher = IPV4.matcher(devYml);
         while (matcher.find()) {
+            // 와일드카드 CIDR 표기(0.0.0.0/0)는 주소가 아니라 정책 표기라 제외한다(위 상수 주석).
+            if (devYml.startsWith(WILDCARD_CIDR, matcher.start())) {
+                continue;
+            }
             literals.add(matcher.group());
         }
 

@@ -3,7 +3,6 @@ package kr.co.cudo.authoring.marking.service;
 import kr.co.cudo.authoring.assignment.repository.LsTaskAssignmentRepository;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -43,9 +42,23 @@ public class MarkingPrecheckReader {
      */
     @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public void precheck(Long rawSn, TokenClaims actor) {
-        MarkingGuards.requireAssignedOrReviewer(rawSn, actor, assignmentRepository);
-        LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
-        MarkingGuards.requirePreconditions(raw);
+        precheck(rawSn, actor, new ControlMarkingGuard(videoRepository, assignmentRepository));
+    }
+
+    /**
+     * 채널 판정기를 받는 사전 확인 — 두 물음(접근·단계)의 답만 채널이 정하고, <b>활성 마킹 중복</b>은
+     * 채널과 무관한 공통 규칙이라 여기서 그대로 적용한다.
+     *
+     * <p>평가 순서는 채널을 바꿔도 변하지 않는다: 접근 → 단계 → 활성 마킹 중복. 접근이 단계보다
+     * 먼저라 접근 권한 없는 요청자는 대상의 실재 여부를 상태코드로 알아낼 수 없다.
+     *
+     * @param channel 채널별 판정기 — 관제/포털이 각자 자기 상태 원천에서 답한다
+     * @design ADR-058
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public void precheck(Long rawSn, TokenClaims actor, MarkingChannelGuard channel) {
+        channel.requireAccess(rawSn, actor);
+        channel.requireMarkable(rawSn, actor);
         MarkingGuards.requireNoActiveMarking(rawSn, markingRepository);
     }
 }

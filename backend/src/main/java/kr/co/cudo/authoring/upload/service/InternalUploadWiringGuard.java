@@ -29,8 +29,13 @@ import java.util.Set;
  * 그런데 마운트 루트를 좁히라는 안내를 그대로 따른 형상이 바로 이 조건에 걸리므로, 업로드 1개 기능의
  * 오설정 때문에 <b>라벨링·검수·배치까지 전부 정지</b>한다. 실패 범위를 유발 기능으로 한정한다 —
  * 기동 시 <b>ERROR</b> 1회(WARN 은 배포 로그에 묻힌다)를 남기고 TUS 엔드포인트만 503 으로 닫는다.
- * ({@code QuartzClusteringGuard}/{@code GenAiIntegrationWiringGuard} 의 기동 차단과 강도가 다른 이유는
- * 그쪽 오설정이 <b>전 기능에 걸친 데이터 정합</b>을 깨는 반면 여기는 업로드 1개 기능이기 때문이다.)
+ * ({@code QuartzClusteringGuard} 의 기동 차단과 강도가 다른 이유는 그쪽 오설정이 <b>전 기능에 걸친
+ * 데이터 정합</b>을 깨는 반면 여기는 업로드 1개 기능이기 때문이다.)
+ *
+ * <p>⚠ <b>구 서술 폐기</b> — 위 괄호가 {@code GenAiIntegrationWiringGuard} 도 기동 차단 사례로 함께
+ * 들고 있었으나, 그 가드는 2026-09-03([@design ADR-062])에 <b>이 클래스와 같은 형태</b>(기동 시
+ * ERROR 1회 + 해당 기능만 거부)로 옮겨졌다 — 대비 사례가 아니라 <b>선례가 같아진 쪽</b>이다.
+ * 반면 {@code QuartzClusteringGuard} 는 그 결정의 대상이 <b>아니라</b> 기동 차단을 유지한다.
  *
  * <h3>allowlist 설계 — "설정만으로 배포 형상을 뚫을 수 없다"</h3>
  * <ol>

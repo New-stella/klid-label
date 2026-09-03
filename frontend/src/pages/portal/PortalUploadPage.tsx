@@ -1,15 +1,18 @@
 // Phase 5 — 포털 업로드 화면 (PORTAL_USER, ADR-013 예외 = 포털 자체 업로드 자산).
-// - 이미지: 다중 선택 + 클라이언트 사전검증(확장자/개수/크기) 후 multipart 업로드
 // - 영상: 기존 TUS 엔진 재사용(포털 endpoint 주입) — 재개 가능 청크 업로드
+//   ★ 신규 접수는 **영상뿐**이다. 이미지 접수 자리는 폐기됐다(되살리지 말 것) — 자산 종류 값역에
+//     이미지가 남아 있는 것은 이미 적재된 행을 읽기 위해서이지 접수 수단이 있다는 뜻이 아니다.
 // - 목록: 타입/상태 배지 + 페이징, PROCESSING 자산은 폴링, READY 자산에 라벨링 진입
 // - 삭제: 확인 후 요청 (PROCESSING 이면 BE 가 409)
+// - 자산별 내려받기: 라벨 내보내기(JSON) + 원본 파일 — **라벨링 화면이 아니라 여기가 갖는다**
+//   (확정 사양). 자산 단위 조작이라 자산이 늘어놓인 이 자리가 제 위치다.
 // - 보존기간: 각 자산에 만료 예정일 병기(날짜까지만) — 만료가 없는 상태면 자리를 비운다. @design SCREEN-033
 //
 // 보안: 사용자 파일명은 JSX 텍스트 노드로만 렌더(자동 escape, XSS 방어). URL 은 apiClient baseURL.
 
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Trash2, Upload } from 'lucide-react';
+import { Download, Trash2, Upload, X } from 'lucide-react';
 
 import { ErrorState } from '@/components/common/ErrorState';
 import { Pagination } from '@/components/common/Pagination';
@@ -19,18 +22,27 @@ import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api/errors';
 import { ErrorCode } from '@/lib/api/types';
 import { useTusUpload } from '@/features/upload/hooks/useTusUpload';
-import {
-  IMAGE_POLICY_TEXT,
-  validateImageFiles,
-} from '@/features/portal/uploads/validation';
+import { buildPortalUploadLabelPath } from '@/features/portal/labelingEntry';
+import { buildPortalUploadMarkingPath } from '@/features/portal/uploads/markingPath';
 import { formatExpiryDate } from '@/features/portal/expiry';
+import { downloadUploadExport, downloadUploadFile } from '@/features/portal/uploads/api';
+import { useUiStore } from '@/stores/useUiStore';
 import { usePortalUploads } from '@/features/portal/uploads/hooks/usePortalUploads';
-import { useUploadImages } from '@/features/portal/uploads/hooks/useUploadImages';
 import { useDeleteUpload } from '@/features/portal/uploads/hooks/useDeleteUpload';
-import { PortalUploadStatus, type PortalUpload } from '@/features/portal/uploads/types';
+import { useRequestUploadAugment } from '@/features/portal/uploads/hooks/useRequestUploadAugment';
+import { AugmentRequestModal } from '@/features/portal/uploads/components/AugmentRequestModal';
+import type { RequestUploadAugmentBody } from '@/features/portal/uploads/api';
+import {
+  PortalUploadStatus,
+  PortalUploadType,
+  type PortalUpload,
+} from '@/features/portal/uploads/types';
 
 const STATUS_LABELS: Record<string, string> = {
-  UPLOADED: '업로드됨',
+  // ★「업로드됨」이 아니라 「마킹 대기」다 — 마킹을 마쳐야 프레임이 추출되므로, 이 자리에서
+  //   알려야 할 것은 업로드가 끝났다는 사실이 아니라 다음에 무엇을 해야 하는가이다.
+  //   표기만 그렇게 하고 상태값 자체는 바뀌지 않는다. [@design SCREEN-033]
+  UPLOADED: '마킹 대기',
   PROCESSING: '처리중',
   READY: '준비 완료',
   FAILED: '실패',
@@ -62,7 +74,6 @@ export function PortalUploadPage() {
   // 목록 페이지는 화면 안에서만 쓰인다(이 화면은 주소로 상태를 나르지 않는다 — 검색·필터가 없다).
   const [page, setPage] = useState(0);
   const uploadsQuery = usePortalUploads({ page, size: PAGE_SIZE });
-  const uploadImages = useUploadImages();
   const deleteUpload = useDeleteUpload();
 
   const uploads: PortalUpload[] = useMemo(
@@ -70,30 +81,6 @@ export function PortalUploadPage() {
     [uploadsQuery.data],
   );
   const totalPages = uploadsQuery.data?.totalPages ?? 0;
-
-  // ── 이미지 선택/검증 상태 ──
-  const [selected, setSelected] = useState<File[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-
-  const onImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    const { valid, errors } = validateImageFiles(picked);
-    setSelected(valid);
-    setValidationErrors(errors);
-  };
-
-  const onUploadImages = async () => {
-    if (selected.length === 0) return;
-    try {
-      await uploadImages.uploadAsync(selected);
-      setSelected([]);
-      setValidationErrors([]);
-      if (imageInputRef.current) imageInputRef.current.value = '';
-    } catch {
-      // 서버 검증 실패 등은 하단 mutation 에러 영역으로 노출된다.
-    }
-  };
 
   // ── 영상 TUS 업로드(엔진 재사용, 포털 endpoint 주입) ──
   const tus = useTusUpload({ endpointBase: PORTAL_TUS_ENDPOINT });
@@ -105,6 +92,43 @@ export function PortalUploadPage() {
     if (!videoFile) return;
     void tus
       .start(videoFile, { filename: videoFile.name })
+      .catch(() => undefined);
+  };
+
+  // ── 증강 요청 ──
+  //
+  // ★ 버튼 하나로 끝나지 않는다 — 누르면 생성 조건을 입력하는 요청 폼이 **화면 안 창**으로
+  //   열리고, 다섯 항목을 모두 고른 뒤에야 요청이 나간다. [@design SCREEN-033] [@design API-231]
+  const pushToast = useUiStore((s) => s.pushToast);
+  const [augmentTarget, setAugmentTarget] = useState<PortalUpload | null>(null);
+  const requestAugment = useRequestUploadAugment();
+
+  const openAugmentForm = (uld: PortalUpload) => {
+    // 앞선 시도의 거부 사유가 다음 창에 남지 않게 한다.
+    requestAugment.reset();
+    setAugmentTarget(uld);
+  };
+
+  const closeAugmentForm = () => {
+    setAugmentTarget(null);
+    requestAugment.reset();
+  };
+
+  const submitAugment = (body: RequestUploadAugmentBody) => {
+    const target = augmentTarget;
+    if (target === null) return;
+    void requestAugment
+      .requestAsync({ uldSn: target.uldSn, body })
+      .then(() => {
+        setAugmentTarget(null);
+        // 응답은 **접수 사실이지 결과가 아니다** — 어디서 결과를 보는지 함께 알린다.
+        pushToast({
+          variant: 'success',
+          message: '증강 요청을 접수했습니다. 진행 상태는 「증강 요청 현황·결과」에서 확인하세요.',
+        });
+      })
+      // 거부 사유는 창 안 안내 자리에 뜬다(mutation error). 창은 닫지 않는다 — 고쳐서 다시
+      // 보낼 수 있어야 하고, 닫으면 무엇이 잘못됐는지와 함께 입력이 통째로 사라진다.
       .catch(() => undefined);
   };
 
@@ -123,67 +147,8 @@ export function PortalUploadPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <header>
         <h1 className="text-page-title text-gray-900">내 업로드</h1>
-        <p className="text-sub text-gray-600">이미지·영상을 업로드하고 라벨링을 진행하세요.</p>
+        <p className="text-sub text-gray-600">영상을 업로드하고 라벨링을 진행하세요.</p>
       </header>
-
-      {/* 이미지 업로드 */}
-      <section
-        aria-label="이미지 업로드"
-        className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
-      >
-        <h2 className="text-section-title text-gray-800">이미지 업로드</h2>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="portal-image-input" className="text-body font-medium text-gray-700">
-            이미지 파일 (다중 선택)
-          </label>
-          <input
-            ref={imageInputRef}
-            id="portal-image-input"
-            type="file"
-            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-            multiple
-            onChange={onImageSelect}
-            className="text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-700 hover:file:bg-primary-100"
-          />
-          <span className="text-sub text-gray-600">{IMAGE_POLICY_TEXT}</span>
-        </div>
-
-        {validationErrors.length > 0 && (
-          <ul role="alert" className="flex flex-col gap-1 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sub text-danger-700">
-            {validationErrors.map((msg, i) => (
-              <li key={i}>{msg}</li>
-            ))}
-          </ul>
-        )}
-
-        {selected.length > 0 && (
-          <p className="text-sub text-gray-600">선택된 이미지 {selected.length}장</p>
-        )}
-
-        {uploadImages.error != null && (
-          <p role="alert" className="text-sub text-danger">
-            업로드에 실패했습니다. 파일 형식·크기를 확인해 주세요.
-          </p>
-        )}
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onUploadImages}
-            disabled={selected.length === 0 || uploadImages.isPending}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sub font-medium text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50',
-              KRDS_FOCUS,
-            )}
-          >
-            <Upload className="h-4 w-4" aria-hidden />
-            {uploadImages.isPending ? '업로드 중…' : '이미지 업로드'}
-          </button>
-          {uploadImages.isPending && (
-            <span className="text-sub text-gray-500">{Math.round(uploadImages.progress * 100)}%</span>
-          )}
-        </div>
-      </section>
 
       {/* 영상 업로드 (TUS) */}
       <section
@@ -240,7 +205,25 @@ export function PortalUploadPage() {
 
       {/* 자산 목록 */}
       <section aria-label="업로드 자산 목록" className="flex flex-col gap-3">
-        <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">업로드 자산</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sub font-semibold uppercase tracking-wide text-gray-600">
+            업로드 자산
+          </h2>
+          {/*
+            증강 요청 현황·결과로 가는 진입 — **목록 상단에 한 번만** 둔다(자산별 액션이 아니다).
+            요청 이후의 현황·결과 확인·후속 작업·내려받기는 전부 그 화면이 담당하고, 이 화면은
+            그리로 가는 링크만 갖는다. [@design SCREEN-033] [@design SCREEN-044]
+          */}
+          <Link
+            to="/portal/augment"
+            className={cn(
+              'inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50',
+              KRDS_FOCUS,
+            )}
+          >
+            증강 요청 현황·결과
+          </Link>
+        </div>
         {deleteUpload.error != null && (
           <p role="alert" className="text-sub text-danger">
             {deleteErrorMessage(deleteUpload.error)}
@@ -268,6 +251,7 @@ export function PortalUploadPage() {
                 key={u.uldSn}
                 upload={u}
                 onDelete={() => onDelete(u)}
+                onRequestAugment={() => openAugmentForm(u)}
                 deleting={deleteUpload.isPending}
               />
             ))}
@@ -278,19 +262,126 @@ export function PortalUploadPage() {
           <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         )}
       </section>
+
+      {augmentTarget !== null && (
+        <AugmentRequestModal
+          open
+          targetName={augmentTarget.orgnlFileNm}
+          errorMessage={augmentRequestErrorMessage(requestAugment.error)}
+          submitting={requestAugment.isPending}
+          onClose={closeAugmentForm}
+          onSubmit={submitAugment}
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * 접수 창구가 돌려보낸 사유를 창 안 안내 문구로 옮긴다.
+ *
+ * 이 창구의 오류 메시지는 계약이 **사용자 메시지**로 규정한 값이라 그대로 보인다(내부 예외
+ * 클래스명·경로가 아니다). 서버 메시지가 없을 때만 일반 문구로 대신한다 — 지어내지 않는다.
+ */
+function augmentRequestErrorMessage(error: unknown): string | null {
+  if (error == null) return null;
+  if (error instanceof ApiError) return error.userMessage;
+  return '증강 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
 interface UploadItemProps {
   upload: PortalUpload;
   onDelete: () => void;
+  /** 「AI 증강 요청」 — 누르면 생성 조건 입력 폼이 열린다(이 버튼이 요청을 보내지 않는다). */
+  onRequestAugment: () => void;
   deleting: boolean;
 }
 
-function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
+/**
+ * 자산 하나의 내려받기 두 갈래(라벨 JSON · 원본 파일).
+ *
+ * ★**취소는 원본 파일에만 둔다** — 원본은 최대 5GB 라 한 번 시작하면 오래 붙잡히지만, 라벨
+ *   내보내기(JSON)는 작아서 취소 버튼이 뜨기도 전에 끝난다(사양).
+ *
+ * ★★**사용자 취소는 오류가 아니라 정상 종료다 — 실패 안내를 띄우지 않는다.** 중단하면 응답이
+ *   오지 않아 **일반 실패와 같은 모양**으로 올라오므로, 갈라 놓지 않으면 스스로 멈춘 사용자에게
+ *   «원본 다운로드에 실패했습니다» 가 뜬다.
+ *   ⚠ 판정 근거로 오류 객체를 쓰지 않는다 — 공용 클라이언트가 취소 표식을 남기지 않아 오류만
+ *     봐서는 취소와 회선 단절이 구분되지 않는다. 반면 화면은 자기가 중단을 걸었는지 알고 있으므로
+ *     그 사실(`controller.signal.aborted`)로 판정한다.
+ *   ⚠ 취소하지 **않은** 실패는 종전대로 안내한다 — 삼키면 진짜 장애가 아무 표시 없이 사라진다.
+ *
+ * ⚠ 이 조작들은 라벨링 화면에서 이 목록으로 **옮겨 온 것**이다. 라벨링 화면에 되살리면 같은
+ *   조작의 진입점이 둘이 된다.
+ */
+function useUploadDownloads(upload: PortalUpload) {
+  const pushToast = useUiStore((s) => s.pushToast);
+  const [downloading, setDownloading] = useState<'export' | 'file' | null>(null);
+  // 진행 중인 원본 다운로드의 중단 컨트롤러. 취소 버튼이 이것을 통해 전송을 끊는다.
+  const fileAbortRef = useRef<AbortController | null>(null);
+
+  const exportLabels = () => {
+    if (downloading) return;
+    setDownloading('export');
+    downloadUploadExport(upload.uldSn)
+      .catch(() => pushToast({ variant: 'error', message: '내보내기에 실패했습니다.' }))
+      .finally(() => setDownloading(null));
+  };
+
+  const downloadFile = () => {
+    if (downloading) return;
+    const controller = new AbortController();
+    fileAbortRef.current = controller;
+    setDownloading('file');
+    // ref 가 아니라 지역 변수를 닫아 쓴다 — 다음 요청이 ref 를 덮어써도 이 catch 는 자기 요청의
+    // 중단 여부를 본다.
+    downloadUploadFile(upload.uldSn, upload.orgnlFileNm, controller.signal)
+      .catch(() => {
+        if (controller.signal.aborted) return; // 사용자가 스스로 멈춘 것 — 정상 종료
+        pushToast({ variant: 'error', message: '원본 다운로드에 실패했습니다.' });
+      })
+      .finally(() => {
+        if (fileAbortRef.current === controller) fileAbortRef.current = null;
+        setDownloading(null);
+      });
+  };
+
+  const cancelFileDownload = () => fileAbortRef.current?.abort();
+
+  return { downloading, exportLabels, downloadFile, cancelFileDownload };
+}
+
+function UploadItem({ upload, onDelete, onRequestAugment, deleting }: UploadItemProps) {
+  const { downloading, exportLabels, downloadFile, cancelFileDownload } =
+    useUploadDownloads(upload);
   const isReady = upload.uldSttsCd === PortalUploadStatus.READY;
   const isFailed = upload.uldSttsCd === PortalUploadStatus.FAILED;
+  /*
+   * 마킹 진입 — 마킹 대기 상태인 **영상** 자산 행에만 둔다. [@design SCREEN-033] [@design SCREEN-045]
+   *
+   * ★ 노출 규칙은 라벨링 링크와 같다: 그 자산에서 할 수 없는 액션은 비활성으로 두지 않고 아예
+   *   노출하지 않는다. 처리중·준비 완료·실패 행에 두면 눌러 봐야 거절되는 자리가 되어 회복
+   *   경로를 잘못 안내한다 — 이미 마킹한 자산의 재마킹은 제공하지 않고, 다시 마킹하려면 지우고
+   *   다시 올려야 한다(그 안내는 마킹 화면이 담당한다).
+   * ★ 영상이 아닌 자산에는 두지 않는다 — 이벤트 구간이라는 개념이 없다.
+   */
+  const canMark =
+    upload.uldSttsCd === PortalUploadStatus.UPLOADED &&
+    upload.uldTypeCd === PortalUploadType.VIDEO;
+  /*
+   * 증강 요청 — **준비 완료된 영상** 자산 행에만 둔다. [@design SCREEN-033] [@design API-231]
+   *
+   * ★ 노출 규칙은 라벨링 링크·마킹 진입과 같다: 그 자산에서 할 수 없는 액션은 비활성으로 두지
+   *   않고 아예 노출하지 않는다. 준비되기 전 영상은 접수 창구가 409 로 거부하고(기다리면 풀리는
+   *   일시 조건), 영상이 아닌 자산은 400 으로 거부한다(기다려도 달라지지 않는 영구 조건).
+   * ⚠ **증강 결과물 행에는 두지 않아야 하는데, 목록 응답에 파생 여부를 가릴 값이 없다.**
+   *   목록 계약이 나르는 것은 자산 종류·상태·파일명·크기·프레임수·만료뿐이라 어느 행이 증강으로
+   *   만들어진 것인지 화면이 알 수 없다. 없는 필드를 지어내지 않고, 그 공백은 보고로 올린다
+   *   (`notes_for_main`). 그동안 잘못 눌린 요청은 서버가 판정한다.
+   */
+  const canRequestAugment =
+    upload.uldSttsCd === PortalUploadStatus.READY &&
+    upload.uldTypeCd === PortalUploadType.VIDEO;
   // 처리 중 자산은 BE 가 삭제를 409 로 거부하므로 버튼 자체를 비활성화(무반응 방지).
   const isProcessing = upload.uldSttsCd === PortalUploadStatus.PROCESSING;
   const expiresOn = formatExpiryDate(upload.expiresAt);
@@ -327,10 +418,83 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {/*
+          자산 단위 내려받기 — 준비 완료 자산에만 둔다. 그 전 상태에는 내보낼 라벨도, 라벨링을
+          거친 결과도 없다(옮겨 오기 전 라벨링 화면도 준비 완료 자산에서만 열렸다).
+          행이 여럿이라 **접근 이름에 파일명을 붙인다** — 이름 없이 «내보내기» 만 두면 같은 이름의
+          버튼이 자산 수만큼 생겨 보조기술 사용자가 어느 자산인지 가릴 수 없다(삭제 버튼과 같은 관례).
+        */}
+        {isReady && (
+          <>
+            <button
+              type="button"
+              onClick={exportLabels}
+              disabled={downloading !== null}
+              aria-label={`${upload.orgnlFileNm} 내보내기(JSON)`}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50',
+                KRDS_FOCUS,
+              )}
+            >
+              {/* 두 버튼 모두 '내려받기'라 같은 아이콘을 쓴다 — 구분은 라벨이 한다. */}
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              내보내기(JSON)
+            </button>
+            <button
+              type="button"
+              onClick={downloadFile}
+              disabled={downloading !== null}
+              aria-label={`${upload.orgnlFileNm} 원본 다운로드`}
+              /* 진행 사실은 보조기술에도 전달한다. 원본은 최대 5GB 라 오래 걸릴 수 있어
+                 «눌렸는데 아무 일도 없다» 로 보이면 안 된다. */
+              aria-busy={downloading === 'file' || undefined}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50',
+                KRDS_FOCUS,
+              )}
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              원본 다운로드
+            </button>
+            {/* 취소는 **원본을 내려받는 동안에만** 나타난다. 내보내기(JSON)에는 두지 않는다 —
+                작아서 이 버튼이 뜨기 전에 끝난다.
+                ⚠ 진행 중 상호 비활성 대상에서 제외된다 — 취소는 눌러야 동작한다. */}
+            {downloading === 'file' && (
+              <button
+                type="button"
+                onClick={cancelFileDownload}
+                aria-label={`${upload.orgnlFileNm} 원본 다운로드 취소`}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50',
+                  KRDS_FOCUS,
+                )}
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+                원본 다운로드 취소
+              </button>
+            )}
+          </>
+        )}
+        {canMark && (
+          <Link
+            /* 마킹 화면으로 들어가는 자리는 이 목록뿐이다 — 라벨링 화면에는 두지 않는다.
+               주소 조립은 `markingPath` 한 곳이 한다(문자열을 여기 흩지 않는다). */
+            to={buildPortalUploadMarkingPath(upload.uldSn)}
+            aria-label={`${upload.orgnlFileNm} 마킹`}
+            className={cn(
+              'inline-flex items-center rounded-lg bg-primary-600 px-3 py-1.5 text-sub font-medium text-white transition-colors hover:bg-primary-700',
+              KRDS_FOCUS,
+            )}
+          >
+            마킹
+          </Link>
+        )}
         {isReady && (
           <Link
-            to={`/portal/uploads/${upload.uldSn}/label`}
+            /* 통합 라벨링 화면으로 보낸다 — 업로드 자산 전용 라벨링 화면은 폐기됐다.
+               주소 조립은 `labelingEntry` 한 곳이 한다(문자열을 여기 흩지 않는다). */
+            to={buildPortalUploadLabelPath(upload.uldSn)}
             className={cn(
               'inline-flex items-center rounded-lg bg-primary-600 px-3 py-1.5 text-sub font-medium text-white transition-colors hover:bg-primary-700',
               KRDS_FOCUS,
@@ -338,6 +502,22 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
           >
             라벨링
           </Link>
+        )}
+        {canRequestAugment && (
+          <button
+            type="button"
+            onClick={onRequestAugment}
+            /* 행이 여럿이라 접근 이름에 파일명을 붙인다 — 이름 없이 두면 같은 이름의 버튼이
+               자산 수만큼 생겨 보조기술 사용자가 어느 자산인지 가릴 수 없다(삭제·내려받기와
+               같은 관례). */
+            aria-label={`${upload.orgnlFileNm} AI 증강 요청`}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50',
+              KRDS_FOCUS,
+            )}
+          >
+            AI 증강 요청
+          </button>
         )}
         <button
           type="button"

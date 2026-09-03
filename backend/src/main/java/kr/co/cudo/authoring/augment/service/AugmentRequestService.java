@@ -8,7 +8,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
-import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalLinkPolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -92,11 +92,16 @@ import java.util.concurrent.atomic.AtomicLong;
  * 것이지 조건에서 유도하는 것이 아니다.
  *
  * <h3>외부 미연동이면 접수하지 않는다 (R8 · {@code @design API-060})</h3>
- * <p>{@code authoring.augment.external.mode=noop}(dev/stg/prd 기본)이면 위탁이 나가지 않고 콜백도
- * 오지 않는데 접수만 성공해, 화면에는 만료 스윕이 돌 때까지 「진행 중」으로 보였다. 이제
- * {@link AugmentExternalModePolicy} 판정으로 <b>요청 접수 자체를 503 으로 거부</b>한다. 게이트는
- * <b>요청 접수 한 곳에만</b> 둔다 — 콜백 수신·조회·검수·취소로 확산시키면 이미 접수된 건이 회수되지
- * 못하고 고착된다.
+ * <p>연동이 설정되지 않았으면 위탁이 나가지 않고 콜백도 오지 않는데 접수만 성공해, 화면에는 만료
+ * 스윕이 돌 때까지 「진행 중」으로 보였다. 그래서 {@link AugmentExternalLinkPolicy} 판정으로
+ * <b>요청 접수 자체를 503 으로 거부</b>한다. 게이트는 <b>요청 접수 한 곳에만</b> 둔다 — 콜백 수신·
+ * 조회·검수·취소로 확산시키면 이미 접수된 건이 회수되지 못하고 고착된다.
+ *
+ * <p>★ <b>판정 근거가 「모드 토글」에서 「위탁 주소 주입 여부」로 바뀌었다</b>(2026-09-03 확정).
+ * 미연동 모드 토글 축 자체가 폐기됐기 때문이며, <b>게이트를 없앤 것이 아니다</b> — 그랬다면 주소가
+ * 없는 배포에서 접수만 성공하고 위탁은 전송 가드에 막혀, 이 게이트가 애초에 없애려던 「되지도 않을
+ * 요청이 접수되는」 상태가 그대로 되살아난다. 계약(API-060)이 규정한 사유도 <b>모드 값이 아니라
+ * 「연동이 설정되지 않았음」</b> 이므로 응답 코드·문구·순서는 그대로다.
  *
  * <p><b>고아 위탁 방지 (DEV_FIX HIGH #1)</b>: 외부 위탁({@code AugmentJobSubmitService.submit})은
  * 요청 트랜잭션 안에서 하지 않고, {@code AugmentRequestBridge} 가
@@ -151,7 +156,7 @@ public class AugmentRequestService {
      * 외부 연동 모드 판정 — 단일 원천(자체 재구현·빈 타입 검사 금지, {@code @design API-060}).
      * 미연동이면 접수 자체를 거부한다({@link #request} 1-3 단계).
      */
-    private final AugmentExternalModePolicy externalModePolicy;
+    private final AugmentExternalLinkPolicy externalLinkPolicy;
 
     /**
      * placeholder jobId 시퀀스 — 외부 SFR-07 연동 전까지 응답 jobId 발급에 사용.
@@ -166,7 +171,7 @@ public class AugmentRequestService {
      * @param actor   호출자 토큰 (REVIEWER 만 허용)
      * @return jobId / 요청 시각 / 요청 수 / <b>실제 생성 수</b>
      * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약·프롬프트 형식 위반·파생 영상),
-     *                         SERVICE_UNAVAILABLE(외부 미연동 — {@code mode=noop}),
+     *                         SERVICE_UNAVAILABLE(외부 미연동 — 위탁 주소 미주입),
      *                         NOT_REVIEWED(미검수), PRECONDITION_FAILED(신고 구간·프레임 미추출),
      *                         CONFLICT(제약 위반 — 멱등 키 충돌·정합 충돌),
      *                         INTERNAL_ERROR(적재 실패 — 생성 0건)
@@ -197,7 +202,7 @@ public class AugmentRequestService {
         //      파생인가" 를 알려주는 오라클이 된다(CWE-209).
         requireNotDerivative(rawSn);
 
-        // 1-3) 외부 미연동(mode=noop) 차단 — 되지도 않을 요청을 접수하지 않는다 (R8 · @design API-060).
+        // 1-3) 외부 미연동(위탁 주소 미주입) 차단 — 되지도 않을 요청을 접수하지 않는다 (R8 · @design API-060).
         //      noop 이면 위탁이 나가지 않고 콜백도 영영 오지 않는데 접수는 성공해, 화면에는 만료 스윕이
         //      돌 때까지 "진행 중" 으로 보인다. 데이터가 오염되지는 않으므로(가짜 산출물 없음) 고치는
         //      것은 접수 하나이고, 이미 접수된 건의 회수 경로(조회·콜백·만료 스윕)는 건드리지 않는다.
@@ -441,19 +446,19 @@ public class AugmentRequestService {
     }
 
     /**
-     * 외부 증강 시스템 미연동({@code authoring.augment.external.mode=noop}) 시 접수를 거부한다 —
+     * 외부 증강 시스템 미연동(= 위탁 주소 미주입) 시 접수를 거부한다 —
      * {@link ErrorCode#SERVICE_UNAVAILABLE}(503), {@code @design API-060}.
      *
      * <p>503 인 이유는 <b>일시 조건</b>이기 때문이다 — 연동이 열리면 같은 요청이 그대로 성립한다.
      * 파생 영상 차단(400)이 <b>영구 조건</b>인 것과 대비되며, 그래서 두 게이트의 순서가 뒤바뀌면
      * 파생 영상 요청자가 "일시 장애" 로 오인하고 재시도를 반복한다.
      *
-     * <p>응답에는 <b>모드 값·프로퍼티 키·클라이언트 구현명</b>을 싣지 않는다. 요청자가 알아야 할 것은
+     * <p>응답에는 <b>주소 값·프로퍼티 키·클라이언트 구현명</b>을 싣지 않는다. 요청자가 알아야 할 것은
      * "지금은 접수되지 않는다" 하나이고, 배선 상세는 운영 정보다(CWE-209). 감사용 사유는 서버 로그에만
      * 남긴다. 어떤 영상이 막혔는지는 다른 게이트와 동일하게 {@code skippedVideoIds} 로 알린다.
      */
     private void requireExternalLinked(Long rawSn, TokenClaims actor) {
-        if (!externalModePolicy.isNotLinked()) {
+        if (!externalLinkPolicy.isNotLinked()) {
             return;
         }
         log.warn("[Augment] request blocked — external augment not linked actor={} rawSn={}",

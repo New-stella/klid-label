@@ -58,8 +58,9 @@ import java.util.Set;
  *    가 전용 풀에서 원장 FAILED + {@code DE_IDNTF_YN='F'}(+재비식별이면 락 해제)를 <b>별도 REQUIRES_NEW
  *    로 커밋</b>하므로 종단 상태는 구 동기 계약과 동일하다. 어느 경로에서도 MARKING_READY 로 전이되지
  *    않으므로 마킹 조기 진입은 발생하지 않는다.
- * 둘 다 아닌 경우(mock 아님 + KPST 서비스 미주입)는 설정 오류로 간주하고 명확한 예외를 던진다
- * (레거시 폴백 없음, 내부 정보 미노출).
+ * 그 경로가 없는 경우(KPST 서비스 미주입)는 설정 오류로 간주하고 명확한 예외를 던진다
+ * (레거시 폴백 없음, 내부 정보 미노출). ⚠ 구 서술 "둘 다 아닌 경우(mock 아님 + …)" 폐기 —
+ * 견줄 mock 경로가 없으므로 경우의 수는 하나다.
  * <p>
  * 공통 정책 (V2):
  *  - 영상 단위로 비식별. 출력은 비식별 영상이며 원본 filePath 는 절대 변경되지 않는다 — 원본 보존 원칙.
@@ -67,20 +68,23 @@ import java.util.Set;
  * <p>
  * 보안:
  *  - SSRF (CWE-918)/경로순회 (CWE-22): URL/CA 신뢰체인·다운로드 경로 검증은 KPST 클라이언트가 방어.
- *    mock 출력 경로는 storage.deidentified-path 기반으로 base 이탈을 차단한다.
- *  - <b>비식별 엔드포인트 신뢰 판정은 여기서 하지 않는다</b>: mock-mode 든 KPST 위탁이든
+ *    ⚠ 구 서술 폐기 — "mock 출력 경로는 storage.deidentified-path 기반으로 base 이탈을
+ *    차단한다". <b>그 출력 경로 자체가 없다</b>(자체 채움 폐지). 이 단계가 직접 쓰는 산출 경로는
+ *    남아 있지 않으며, 다운로드 경로 검증은 위 KPST 클라이언트가 단독으로 진다.
+ *  - <b>비식별 엔드포인트 신뢰 판정은 여기서 하지 않는다</b>: 자체 복사(mock-mode)든 KPST 위탁이든
  *    "위조 비식별(원본이 비식별본으로 서빙됨)" 여부는
- *    {@link kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard} 단일 진입점이
- *    부팅 시점에 판정한다(비신뢰 → dev/stg WARN, prd 부팅 거부). 아래 mock-mode 프로파일
- *    allowlist 게이트는 mock 자체 복사 경로에 대한 별도(더 엄격한) 제약이다.
+ *    {@link kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard} 단일 진입점이 판정한다.
  * <p>
- * Phase 1 — mock 비식별 모드(local/dev/stg 허용, prd 차단):
- *  - {@code authoring.integration.deidentify.mock-mode=true} 일 때, 외부 비식별 서버(localhost:9200)
- *    없이 원본을 비식별 경로로 복사하여 단계를 통과시킨다. KPST 미준비 동안 dev/stg 파이프라인 가동용.
- *  - 보안(HIGH-1): mock-mode=true 인데 prd(운영) 프로파일/ENV 이면 부트 거부 — 운영 노출 차단(fail-closed).
- *    dev/stg 등 비-local 에서 활성 시 시작 WARN 1줄로 추적성 확보.
- *  - 정합성(HIGH-2): 원본 부재 시 'Y' 위장 금지 — 'F' 마킹 + 실패(MARKING_READY 미전이).
- *  - 무결성(HIGH-3): 임시파일 복사 후 atomic move — 부분 복사 손상 방지, 재실행 멱등.
+ * ★ 그 판정이 <b>기동을 막지 않는다</b> (2026-09-03 · {@code ADR-062}):
+ *  - 구 서술 폐기 — <i>"부팅 시점에 판정한다(비신뢰 → dev/stg WARN, prd 부팅 거부)"</i> ·
+ *    <i>"Phase 1 — mock 비식별 모드(local/dev/stg 허용, prd 차단): 외부 서버 없이 원본을 비식별
+ *    경로로 복사하여 단계를 통과시킨다 … mock-mode=true 인데 prd 이면 부트 거부"</i>.
+ *    <b>둘 다 더 이상 사실이 아니다.</b> 자체 복사 경로 자체가 폐지됐고(위 ★ 항목), 남은 mock-mode
+ *    토글도 <b>기동이 아니라 비식별 산출·위탁을 거부</b>하는 축으로 옮겨졌다. 되살리지 말 것.
+ *  - 지금 형상: 운영에서 신뢰할 수 없는 비식별 경로(목/시뮬레이터 주소 <b>또는</b> mock-mode)면
+ *    기동은 성공하고 ERROR 가 남으며, KPST 위탁 주소가 사용 불가로 낮춰져 이 단계의 {@code submit}
+ *    이 전송 가드에서 실패한다 → 'F' 마킹. <b>MARKING_READY 로 전이하지 않으므로</b> 위조 비식별본이
+ *    마킹·산출물·관제 통지로 나가는 것은 그대로 막힌다.
  */
 @Slf4j
 @Component
@@ -102,7 +106,8 @@ public class DeidentifyStep implements BatchStep {
 
     /**
      * UC018 — KPST 폴링 경로 토글(킬스위치). 기본 true(KPST 단일 경로).
-     * false 로 내리면 KPST 위탁이 비활성화되고, mock 도 아니면 설정 오류로 거부된다(레거시 폴백 없음).
+     * false 로 내리면 KPST 위탁이 비활성화되고, <b>다른 경로가 없으므로</b> 설정 오류로 거부된다
+     * (레거시 폴백 없음). ⚠ 구 서술 "mock 도 아니면" 폐기 — 대안 경로가 있는 것처럼 읽힌다.
      */
     @Value("${kpst.deid.enabled:true}")
     private boolean kpstEnabled;
@@ -163,7 +168,8 @@ public class DeidentifyStep implements BatchStep {
             kpstDeidentService.submit(raw);
             return DeidentResult.deferred();
         }
-        // 설정 오류 — mock 도 아니고 KPST 서비스도 주입되지 않았다. 레거시 폴백은 제거되었으므로
+        // 설정 오류 — KPST 서비스가 주입되지 않았다(자체 채움 경로는 폐지돼 대안이 없다).
+        // ⚠ 구 주석 "mock 도 아니고" 폐기. 레거시 폴백도 제거되었으므로
         // 임의 동작 대신 명확히 거부한다(CWE-209: 내부 구현/경로 미노출, 고정 메시지만).
         log.error("[Batch][Deid] no deidentify path available rawSn={} kpstEnabled={} kpstService={}",
                 raw.getRawSn(), kpstEnabled, kpstDeidentService != null);

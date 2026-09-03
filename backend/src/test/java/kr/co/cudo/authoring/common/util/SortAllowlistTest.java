@@ -281,15 +281,39 @@ class SortAllowlistTest {
     @Test
     @DisplayName("포털_프레임_allowlist는_frmeNo_별칭을_같은_엔티티필드로_매핑한다")
     void portalUploadFrameAllowlistMapsAliases() {
+        // 흡수(ADR-058) 뒤 대상 엔티티가 공용 프레임 원장(LsDataSrc)이라 <값>이 frmeNo → frameNo 로 바뀌었다.
+        // 값은 내부 필드명이라 외부 계약이 아니다 — 외부 계약인 <키>는 아래 별도 시험이 고정한다.
         assertThat(SortAllowlist.PORTAL_UPLOAD_FRAME)
-                .containsEntry("frmeNo", "frmeNo")
-                .containsEntry("frameNo", "frmeNo");
+                .containsEntry("frmeNo", "frameNo")
+                .containsEntry("frameNo", "frameNo");
 
         // 같은 엔티티 필드를 가리키는 중복 키는 첫 지정만 살아 ORDER BY 가 부풀지 않는다.
         assertThat(SortAllowlist.resolve(
                 Sort.by(Sort.Order.asc("frameNo"), Sort.Order.desc("frmeNo")),
                 SortAllowlist.PORTAL_UPLOAD_FRAME, FALLBACK))
-                .containsExactly(Sort.Order.asc("frmeNo"));
+                .containsExactly(Sort.Order.asc("frameNo"));
+    }
+
+    @Test
+    @DisplayName("포털_프레임_allowlist는_흡수_이전_외부_정렬키를_계속_받는다_하위호환")
+    void portalUploadFrameAllowlistKeepsLegacyExternalKeys() {
+        // ★ 하위호환 축 — 흡수(ADR-058)로 바뀐 것은 <내부 대상 필드>뿐이고 <외부 키>는 그대로다.
+        //   근거 ①이 엔드포인트는 흡수 이전에도 이 키들을 200 으로 받았다(허용목록 배선 시점부터).
+        //         CLAUDE.md 목록 정렬 정책의 「기존 호출 하위호환 준수」가 그대로 적용된다.
+        //        ②응답 DTO 가 이 이름들을 그대로 노출한다(프레임 PK `uldFrmeSn` · 순번 `frmeNo`) —
+        //         화면이 보이는 필드명으로 정렬을 요청하는 것이 정상 사용이며, 키를 없애면 저장된
+        //         정렬·북마크가 200 → 400 으로 깨진다.
+        //   ⇒ 키를 지우지 말 것. 값(내부 필드명)만 원장을 따라간다.
+        assertThat(SortAllowlist.PORTAL_UPLOAD_FRAME)
+                .containsKeys("frmeNo", "frameNo", "uldFrmeSn", "id", "regDt");
+
+        assertThat(SortAllowlist.resolve(
+                Sort.by(Sort.Order.desc("uldFrmeSn")), SortAllowlist.PORTAL_UPLOAD_FRAME, FALLBACK))
+                .as("구 외부 키 uldFrmeSn 은 공용 원장 PK(srcSn)로 이어져야 한다")
+                .containsExactly(Sort.Order.desc("srcSn"));
+        assertThat(SortAllowlist.resolve(
+                Sort.by(Sort.Order.asc("id")), SortAllowlist.PORTAL_UPLOAD_FRAME, FALLBACK))
+                .containsExactly(Sort.Order.asc("srcSn"));
     }
 
     @Test

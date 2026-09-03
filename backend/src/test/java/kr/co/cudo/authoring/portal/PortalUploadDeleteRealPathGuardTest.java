@@ -2,20 +2,23 @@ package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
+import kr.co.cudo.authoring.portal.service.PortalStoragePathGuard;
 import kr.co.cudo.authoring.portal.service.PortalUploadService;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,7 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,23 +57,20 @@ class PortalUploadDeleteRealPathGuardTest {
     /** 저장 루트 <b>밖</b> — 지워져서는 안 되는 영역(다른 도메인의 원본 프레임 자리). */
     @TempDir Path outsideDir;
 
-    private LsPortalUldRepository uldRepository;
-    private LsPortalUldFrmeRepository frmeRepository;
+    private PortalUploadAssetRepository assetRepository;
     private PortalUploadService service;
 
     @BeforeEach
     void setUp() {
-        uldRepository = mock(LsPortalUldRepository.class);
-        frmeRepository = mock(LsPortalUldFrmeRepository.class);
+        assetRepository = mock(PortalUploadAssetRepository.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4", "mov", "avi"), storageDir.toString(),
                 List.of("jpg", "jpeg", "png"), 1024L, 3, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        service = new PortalUploadService(uldRepository, frmeRepository, props,
-                mock(kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository.class),
-                new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
-                        mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
-                new kr.co.cudo.authoring.portal.service.PortalStoragePathGuard(props));
+        service = new PortalUploadService(assetRepository,
+                mock(PortalUploadFrameRepository.class), props,
+                new PortalRetentionPolicy(mock(SystemConfigService.class)),
+                new PortalStoragePathGuard(props));
     }
 
     // ------------------------------------------------------------------ 중간 디렉터리 심링크
@@ -102,7 +103,7 @@ class PortalUploadDeleteRealPathGuardTest {
                     .as("조용히 넘어가서도 안 된다 — 지우지 못했으면 중단해야 한다")
                     .isInstanceOf(CustomException.class);
         });
-        verify(uldRepository, never()).delete(any());
+        verify(assetRepository, never()).deleteOwned(anyLong(), anyString());
     }
 
     @Test
@@ -117,7 +118,7 @@ class PortalUploadDeleteRealPathGuardTest {
 
         assertThatThrownBy(() -> service.deleteUpload(43L, ALICE))
                 .isInstanceOf(CustomException.class);
-        verify(uldRepository, never()).delete(any());
+        verify(assetRepository, never()).deleteOwned(anyLong(), anyString());
     }
 
     // ------------------------------------------------------------------ 멱등 (toRealPath 함정)
@@ -133,7 +134,7 @@ class PortalUploadDeleteRealPathGuardTest {
 
         // when / then
         assertThatCode(() -> service.deleteUpload(44L, ALICE)).doesNotThrowAnyException();
-        verify(uldRepository).delete(any());
+        verify(assetRepository).deleteOwned(44L, ALICE);
     }
 
     // ------------------------------------------------------------------ 정상 경로 (계약 보존)
@@ -148,28 +149,19 @@ class PortalUploadDeleteRealPathGuardTest {
         service.deleteUpload(45L, ALICE);
 
         assertThat(Files.exists(file)).isFalse();
-        verify(uldRepository).delete(any());
+        verify(assetRepository).deleteOwned(45L, ALICE);
     }
 
     // ------------------------------------------------------------------ 내부
 
-    /** 소유자 자산 1건 + 그 자산의 프레임 1건이 같은 경로를 가리키는 형상(이미지 업로드와 동일). */
+    /** 소유자 자산 1건 + 그 자산의 프레임이 같은 경로를 가리키는 형상(이미지 업로드와 동일). */
     private void seedOwnedUpload(long uldSn, Path filePath) {
-        LsPortalUld uld = LsPortalUld.createImage(
-                ALICE, "x.jpg", filePath.toString(), 4L, "image/jpeg");
-        setField(uld, "uldSn", uldSn);
-        LsPortalUldFrme frme = LsPortalUldFrme.create(uldSn, 0, filePath.toString());
-        when(uldRepository.findByUldSnAndPortalUserNo(uldSn, ALICE)).thenReturn(Optional.of(uld));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(uldSn)).thenReturn(List.of(frme));
-    }
-
-    private static void setField(Object target, String name, Object value) {
-        try {
-            Field f = target.getClass().getDeclaredField(name);
-            f.setAccessible(true);
-            f.set(target, value);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("테스트 픽스처 주입 실패: " + name, e);
-        }
+        PortalUploadAsset asset = new PortalUploadAsset(uldSn, ALICE, PortalUploadLedger.TYPE_IMAGE,
+                "x.jpg", filePath.toString(), 4L, "image/jpeg",
+                PortalUploadLedger.STATUS_READY, null, null, 1, null,
+                LocalDateTime.now(), LocalDateTime.now());
+        when(assetRepository.findByOwner(uldSn, ALICE)).thenReturn(Optional.of(asset));
+        // 경로 수집(프레임 + 원본, 중복 제거)은 리포지토리가 소유한다.
+        when(assetRepository.findFilePaths(uldSn)).thenReturn(List.of(filePath.toString()));
     }
 }

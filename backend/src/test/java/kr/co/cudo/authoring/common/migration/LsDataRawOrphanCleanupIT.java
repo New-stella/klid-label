@@ -173,9 +173,10 @@ class LsDataRawOrphanCleanupIT {
     void orphansInPlainChildTableAreCleanedAndFkCreated() {
         // given — FK 를 잠시 제거하고 고아 마킹 1행을 만든다(실측 결함 재현: rawSn 삭제 후 마킹 잔존)
         dropFk("ls_marking");
+        // ⚠ EVNT_NM·VIDEO_FILE_PATH_NM 은 V27 이 제거했다 — 그 뒤 이 픽스처가 문법 오류로 실패했다.
         jdbc.update("INSERT INTO LS_MARKING "
-                        + "(RAW_SN, EVNT_NM, VIDEO_FILE_PATH_NM, MARK_MODE_CD, STTS_CD, MARK_CN, REG_DT) "
-                        + "VALUES (?, 'ORPHAN', '/nas/o.mp4', 'AUTO', 'PENDING', '[]', ?)",
+                        + "(RAW_SN, MARK_MODE_CD, STTS_CD, MARK_CN, REG_DT) "
+                        + "VALUES (?, 'AUTO', 'PENDING', '[]', ?)",
                 GHOST_RAW_SN, LocalDateTime.now());
         assertThat(countGhost("LS_MARKING", "RAW_SN")).isEqualTo(1L);
 

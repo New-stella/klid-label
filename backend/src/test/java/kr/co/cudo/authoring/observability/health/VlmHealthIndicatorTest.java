@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.observability.health;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.retry.RetryRegistry;
+import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrRepository;
 import kr.co.cudo.authoring.aiserver.service.AiSrvrRegistry;
 import kr.co.cudo.authoring.common.client.VlmClient;
@@ -21,6 +22,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -241,6 +244,84 @@ class VlmHealthIndicatorTest {
         assertThat(health.getDetails())
                 .containsEntry("service", "vlm")
                 .containsKey("error");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+    //  원장 상세 — 「등록돼 있는데 고를 수는 없다」 [@design ADR-062]
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★★ <b>형식을 어긴 노드가 「가용」으로만 보이면 상세가 거짓말을 한다</b>.
+     *
+     * <p>이 축은 <b>지금 당장 도달한다</b> — 시계열 위탁은 실제로 원장에서 장비를 고르므로, 그런
+     * 노드밖에 없으면 <b>위탁은 전건 거부인데 헬스는 UP</b> 이다. 판정 축을 옮기지 않는 대신
+     * (옮기면 「노드 0건 → 상시 DOWN」이 되살아난다) 그 사실을 상세에 드러내는 것이 이 시험의 대상이다.
+     */
+    @Test
+    @DisplayName("★★고를_수_없는_노드는_상세에_가용으로만_보이지_않는다")
+    void 고를_수_없는_노드는_상세에_가용으로만_보이지_않는다() {
+        // given — 응답은 정상이라 판정은 UP 이다(판정 축은 옮기지 않는다).
+        enqueueStatus("{\"status\":\"ready\",\"queue\":0,\"pending\":0}");
+        VlmHealthIndicator withLedger = indicatorWithNodes(
+                node("KLID-VLM-01", LsAiSrvr.SrvrType.TIMESERIES));
+
+        // when
+        Health health = withLedger.health();
+
+        // then — 판정은 UP 이되, 「고를 수 없다」가 상세에 드러나야 한다.
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
+        assertThat(health.getDetails().get("byNode").toString())
+                .as("원장 상태만 적으면 위탁 전건 거부인 노드가 정상으로 읽힌다")
+                .contains("KLID-VLM-01=AVAILABLE" + AiServerHealthIndicator.UNSELECTABLE_MARK);
+        assertThat(health.getDetails()).containsEntry("unselectable", 1);
+    }
+
+    /** ★ 형식을 지킨 노드에는 표식이 붙지 않는다 — 둘이 구분되지 않으면 표식이 무의미하다. */
+    @Test
+    @DisplayName("★형식을_지킨_노드에는_표식이_붙지_않는다")
+    void 형식을_지킨_노드에는_표식이_붙지_않는다() {
+        enqueueStatus("{\"status\":\"ready\",\"queue\":0,\"pending\":0}");
+        VlmHealthIndicator withLedger = indicatorWithNodes(
+                node("vlm01", LsAiSrvr.SrvrType.TIMESERIES));
+
+        Health health = withLedger.health();
+
+        assertThat(health.getDetails().get("byNode").toString())
+                .contains("vlm01=AVAILABLE")
+                .doesNotContain(AiServerHealthIndicator.UNSELECTABLE_MARK);
+        assertThat(health.getDetails()).doesNotContainKey("unselectable");
+    }
+
+    /** ★ 추론 노드는 이 인디케이터의 상세에 들어오지 않는다 — 축이 다르면 섞어 세지 않는다. */
+    @Test
+    @DisplayName("★추론_축의_노드는_시계열_상세에_섞이지_않는다")
+    void 추론_축의_노드는_시계열_상세에_섞이지_않는다() {
+        enqueueStatus("{\"status\":\"ready\",\"queue\":0,\"pending\":0}");
+        VlmHealthIndicator withLedger = indicatorWithNodes(
+                node("KLID-AI-01", LsAiSrvr.SrvrType.INFERENCE));
+
+        Health health = withLedger.health();
+
+        assertThat(health.getDetails()).containsEntry("nodes", 0);
+        assertThat(health.getDetails()).doesNotContainKey("unselectable");
+    }
+
+    /** 실행 경로와 같은 클라이언트를 그대로 쓰되, 원장만 갈아 끼운 인디케이터. */
+    private VlmHealthIndicator indicatorWithNodes(LsAiSrvr... nodes) {
+        LsAiSrvrRepository repository = Mockito.mock(LsAiSrvrRepository.class);
+        Mockito.when(repository.findAll()).thenReturn(List.of(nodes));
+        WebClient webClient = WebClient.builder()
+                .baseUrl(mockServer.url("/").toString())
+                .build();
+        VlmClient client = new VlmClient(webClient, CircuitBreakerRegistry.ofDefaults(),
+                RetryRegistry.ofDefaults(), CLIENT_TIMEOUT_SECONDS);
+        return new VlmHealthIndicator(client, new AiSrvrRegistry(repository));
+    }
+
+    private static LsAiSrvr node(String srvrId, LsAiSrvr.SrvrType type) {
+        // 원장 상태는 기본값(가용)이다 — 이 시험의 축은 「상태가 가용인데 고를 수 없다」이다.
+        return LsAiSrvr.register(srvrId, null, "http://vendor.example:9500", type,
+                LocalDateTime.now());
     }
 
     private void enqueueStatus(String jsonBody) {

@@ -235,8 +235,7 @@ class BatchPipelineReorderFlowTest {
     }
 
     private LsMarking newMarking(Long rawSn) {
-        return LsMarking.createAuto(rawSn, "fire", 5,
-                "raw/path.mp4", "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", 1L);
+        return LsMarking.createAuto(rawSn, 5, "[{\"frameIndex\":0,\"timestamp\":\"00:00\"}]", "1");
     }
 
     private static void setField(Object target, String name, Object value) {

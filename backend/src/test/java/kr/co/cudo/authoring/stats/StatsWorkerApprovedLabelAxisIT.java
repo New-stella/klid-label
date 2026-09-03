@@ -109,7 +109,7 @@ class StatsWorkerApprovedLabelAxisIT {
             // 수동 라벨(autoLblYn=null) — 이 IT 의 관심사는 검수 게이트이지 자동 여부가 아니다.
             lblRepository.save(LsDataLbl.createManual(
                     src.getSrcSn(), LsDataLbl.TYPE_BBOX, null, "person",
-                    "[[10,10],[20,20]]", userNo));
+                    "[[10,10],[20,20]]", String.valueOf(userNo)));
         }
 
         if (workflowStatus != null) {
@@ -161,7 +161,7 @@ class StatsWorkerApprovedLabelAxisIT {
         for (int i = 0; i < count; i++) {
             lblRepository.save(LsDataLbl.createManual(
                     srcSn, LsDataLbl.TYPE_BBOX, null, "person",
-                    "[[10,10],[20,20]]", userNo));
+                    "[[10,10],[20,20]]", String.valueOf(userNo)));
         }
     }
 

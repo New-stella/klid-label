@@ -95,8 +95,7 @@ class VlmTimeseriesStepMarkingTest {
     }
 
     private LsMarking newMarking(Long rawSn) {
-        return LsMarking.createAuto(rawSn, "fire", 5,
-                "raw/path.mp4", "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L);
+        return LsMarking.createAuto(rawSn, 5, "[{\"frameIndex\":0,\"timestamp\":0.0}]", "1");
     }
 
     private void stubAccepted() {

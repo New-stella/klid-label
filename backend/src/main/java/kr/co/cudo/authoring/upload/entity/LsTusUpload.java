@@ -38,6 +38,18 @@ public class LsTusUpload {
     public static final String STATUS_COMPLETED = "COMPLETED";
     public static final String STATUS_EXPIRED = "EXPIRED";
 
+    /**
+     * 사용자가 <b>명시적으로 취소</b>한 세션 — 포털 채널 전용 상태(ADR-058 흡수).
+     *
+     * <p>관제 채널은 취소를 「인입 행 종결 + 세션 만료」로 표현해 이 값을 쓰지 않는다. 포털은 취소된
+     * 세션에 이어올리기가 들어오면 <b>만료(410)가 아니라 충돌(409)</b> 로 답해야 해서 만료와 구분되는
+     * 값이 필요하다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public static final String STATUS_CANCELLED = "CANCELLED";
+
     /** 세션 TTL — 생성 시점 +24h. */
     public static final long TTL_HOURS = 24L;
 
@@ -45,7 +57,17 @@ public class LsTusUpload {
     @Column(name = "ULD_ID", nullable = false, updatable = false)
     private UUID uploadId;
 
-    @Column(name = "USER_NO", nullable = false, length = 64)
+    /**
+     * 사용자번호 — 이 세션의 소유자. 소유자만 진행 상태 조회·이어올리기·취소를 할 수 있다.
+     *
+     * <p>★ 폭이 100 인 이유(V28): 포털 채널 세션이 이 원장을 함께 쓰며(ADR-058 흡수) 포털이 발급한
+     * 토큰의 주체 식별자를 담아야 한다. 좁히면 서로 다른 사용자가 같은 값으로 잘려 세션 인가가
+     * <b>조용히</b> 어긋난다. 공통표준도메인 번호V100.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "USER_NO", nullable = false, length = 100)
     private String userNo;
 
     @Column(name = "ULD_LEN", nullable = false)
@@ -128,6 +150,71 @@ public class LsTusUpload {
         u.mdfcnDt = now;
         u.expiresAt = now.plusHours(TTL_HOURS);
         return u;
+    }
+
+    /**
+     * 포털 채널 세션 생성 — 관제 인입 메타를 갖지 않는다(ADR-058 흡수).
+     *
+     * <h3>★ {@code VMS_CLIP_ID} 가 비어 있는 것이 곧 채널 판별자다</h3>
+     * <p>관제 세션은 이 값이 <b>구조적으로 항상 채워진다</b> — 세션 생성 요청이 그것을
+     * {@code @NotBlank} 로 강제하고, 그 값이 인입 행의 역참조 키이자 저장 파일명이다. 포털에는 관제
+     * 클립 개념이 없어 채울 값 자체가 없으므로 <b>비어 있음 = 포털 세션</b>이 성립한다.
+     *
+     * <p>이 판별이 필요한 이유는 <b>정리 잡이 둘</b>이기 때문이다. 관제 정리 잡은 만료 세션의 인입 행을
+     * 함께 종결시키는데 포털 세션에는 종결할 인입 행이 없고, 임시 파일도 <b>다른 저장 루트</b>에 있어
+     * 그 잡의 경로 가드에 막힌다 — 즉 관제 잡이 포털 세션을 집으면 행만 사라지고 파일이 고아로 남는다.
+     * 두 잡이 서로의 세션을 집지 않도록 이 값으로 가른다.
+     *
+     * <p>⚠ 더 나은 형태는 채널을 <b>양의 값</b>으로 적는 전용 칸이다. 지금은 흡수의 스키마 변경 범위가
+     * 「식별자 폭 확대」로 확정돼 있어 부재를 판별자로 쓴다 — 그 확정이 바뀌면 이 자리를 먼저 고친다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public static LsTusUpload createPortalSession(UUID uploadId, String portalUserNo, long uploadLength,
+                                                  String filePath, String fileName) {
+        LsTusUpload u = new LsTusUpload();
+        u.uploadId = uploadId;
+        u.userNo = portalUserNo;
+        u.uploadLength = uploadLength;
+        u.uploadOffset = 0L;
+        u.status = STATUS_IN_PROGRESS;
+        u.filePath = filePath;
+        u.fileName = fileName;
+        // vmsClipId·cctvId·localGovCd·capturedAt 은 관제 인입 축이라 비운다 — 위 javadoc 참조.
+        LocalDateTime now = LocalDateTime.now();
+        u.regDt = now;
+        u.mdfcnDt = now;
+        u.expiresAt = now.plusHours(TTL_HOURS);
+        return u;
+    }
+
+    /** 이 세션이 포털 채널 세션인가 — 판별 근거는 {@link #createPortalSession} javadoc. @design ADR-058 */
+    public boolean isPortalSession() {
+        return vmsClipId == null || vmsClipId.isBlank();
+    }
+
+    /** 사용자 취소(포털 채널). 완료된 세션은 호출부가 먼저 걸러 낸다. @design ADR-058 */
+    public void markCancelled() {
+        this.status = STATUS_CANCELLED;
+        this.mdfcnDt = LocalDateTime.now();
+    }
+
+    public boolean isCancelled() {
+        return STATUS_CANCELLED.equals(status);
+    }
+
+    /**
+     * 포털 채널의 만료 판정 — <b>진행 중</b>인 세션만 만료로 본다.
+     *
+     * <p>{@link #isExpired(LocalDateTime)}(관제 축)는 «완료가 아니면 만료»라 취소된 세션도 만료로
+     * 읽는다. 포털은 취소를 410 이 아니라 409 로 답해야 하므로 두 판정을 합치지 않는다 — 합치면
+     * 취소한 사용자에게 「세션이 만료됐다」는 다른 사실이 안내된다.
+     *
+     * @design ADR-058
+     */
+    public boolean isPortalExpired(LocalDateTime now) {
+        return STATUS_IN_PROGRESS.equals(status) && now.isAfter(expiresAt);
     }
 
     public boolean isExpired(LocalDateTime now) {

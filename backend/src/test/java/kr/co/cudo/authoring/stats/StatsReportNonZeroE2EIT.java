@@ -281,7 +281,7 @@ class StatsReportNonZeroE2EIT {
         }
         for (int i = 0; i < manualCount; i++) {
             lblRepository.save(LsDataLbl.createManual(
-                    srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", userNo));
+                    srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", String.valueOf(userNo)));
         }
     }
 

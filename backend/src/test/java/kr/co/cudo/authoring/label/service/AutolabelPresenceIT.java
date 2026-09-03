@@ -84,7 +84,7 @@ class AutolabelPresenceIT {
     /** 작업자가 손으로 그린 라벨 — AI 메타 3필드가 전부 null 이다. */
     private void seedManualLabel(long srcSn, String labelNm) {
         txTemplate.execute(s -> lblRepository.save(LsDataLbl.createManual(
-                srcSn, LsDataLbl.TYPE_BBOX, null, labelNm, "[10,20,30,40]", 1L)));
+                srcSn, LsDataLbl.TYPE_BBOX, null, labelNm, "[10,20,30,40]", "1")));
     }
 
     @Test

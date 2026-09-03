@@ -9,7 +9,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
-import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalLinkPolicy;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -69,7 +69,7 @@ class AugmentRequestContractTest {
     @Mock private DeidentReportGate deidentReportGate;
     @Mock private AugmentCallbackUrlResolver callbackUrlResolver;
     @Mock private VideoRepository videoRepository;
-    @Mock private AugmentExternalModePolicy externalModePolicy;
+    @Mock private AugmentExternalLinkPolicy externalLinkPolicy;
 
     private AugmentRequestService service;
     private TokenClaims reviewer;
@@ -86,14 +86,14 @@ class AugmentRequestContractTest {
     void setUp() {
         service = new AugmentRequestService(statusRepository, srcRepository, augRepository,
                 videoRepository, eventPublisher, deidentReportGate, callbackUrlResolver,
-                new ObjectMapper(), externalModePolicy);
+                new ObjectMapper(), externalLinkPolicy);
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         when(callbackUrlResolver.resolve()).thenReturn("http://authoring/v1/genai/callback");
         when(deidentReportGate.isUnderDeidentReport(anyLong())).thenReturn(false);
         // 파생 영상 가드(원본만 증강 요청 가능) — 정상 시드는 ORGNL_RAW_SN 이 null 인 원본이다.
         when(videoRepository.findById(anyLong())).thenReturn(java.util.Optional.of(originalVideo()));
         // 외부 연동 기본 스텁 — 연동됨(http). 미연동 케이스만 개별 테스트에서 뒤집는다.
-        when(externalModePolicy.isNotLinked()).thenReturn(false);
+        when(externalLinkPolicy.isNotLinked()).thenReturn(false);
         approved(RAW_SN);
     }
 
@@ -138,13 +138,13 @@ class AugmentRequestContractTest {
 
     /** 미연동 모드로 뒤집는다 — 이 스텁만이 게이트를 발동시킨다. */
     private void notLinked() {
-        when(externalModePolicy.isNotLinked()).thenReturn(true);
+        when(externalLinkPolicy.isNotLinked()).thenReturn(true);
     }
 
     @Test
     @DisplayName("외부_연동이_미연동이면_요청_접수를_503으로_거부한다")
     void 미연동이면_503() {
-        // given — mode=noop (위탁도 콜백도 없다)
+        // given — 위탁 주소 미주입 (위탁도 콜백도 없다)
         notLinked();
         withFrame();
 
@@ -173,7 +173,7 @@ class AugmentRequestContractTest {
                     String message = e.getMessage();
                     // 모드 값·프로퍼티 키·구현 클래스명은 운영 정보다(CWE-209).
                     assertThat(message).doesNotContain("noop");
-                    assertThat(message).doesNotContain(AugmentExternalModePolicy.KEY_MODE);
+                    assertThat(message).doesNotContain(AugmentExternalLinkPolicy.KEY_BASE_URL);
                     assertThat(message).doesNotContain("Noop");
                     // 어떤 영상이 막혔는지는 다른 게이트와 동일하게 알린다.
                     List<?> skipped = (List<?>) detailsOf(e).get("skippedVideoIds");
@@ -183,9 +183,9 @@ class AugmentRequestContractTest {
     }
 
     @Test
-    @DisplayName("외부_연동이_http면_기존_접수_경로가_그대로_동작한다")
+    @DisplayName("외부_위탁주소가_주입되면_기존_접수_경로가_그대로_동작한다")
     void 연동이면_종전대로_접수된다() {
-        // given — mode=http (기본 스텁: isNotLinked()=false)
+        // given — 위탁 주소 주입 (기본 스텁: isNotLinked()=false)
         withFrame();
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -204,7 +204,7 @@ class AugmentRequestContractTest {
         withFrame();
 
         // 스텁 과정에서 남을 수 있는 호출 기록을 지우고 <실제 호출>만 관측한다.
-        org.mockito.Mockito.clearInvocations(externalModePolicy);
+        org.mockito.Mockito.clearInvocations(externalLinkPolicy);
 
         // WORKER — 연동 상태를 알려주면 그 자체가 정보 노출이다(CWE-209).
         TokenClaims worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL,
@@ -221,7 +221,7 @@ class AugmentRequestContractTest {
                 .isEqualTo(ErrorCode.UNAUTHORIZED);
 
         // 인가 전에는 연동 판정 자체를 하지 않는다.
-        verify(externalModePolicy, never()).isNotLinked();
+        verify(externalLinkPolicy, never()).isNotLinked();
     }
 
     @Test

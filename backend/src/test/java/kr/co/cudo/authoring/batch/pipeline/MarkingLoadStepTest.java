@@ -35,7 +35,7 @@ class MarkingLoadStepTest {
     }
 
     private LsMarking markingWith(String markCn) {
-        return LsMarking.createAuto(7L, "fire", 5, "raw/path.mp4", markCn, 1L);
+        return LsMarking.createAuto(7L, 5, markCn, "1");
     }
 
     @Test

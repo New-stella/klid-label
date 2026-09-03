@@ -2,11 +2,9 @@ package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository.RetentionAxis;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
 import kr.co.cudo.authoring.portal.service.PortalRetentionSweepTxService;
 import kr.co.cudo.authoring.portal.service.PortalRetentionSweepTxService.Axis;
@@ -18,14 +16,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -45,19 +41,17 @@ import static org.mockito.Mockito.when;
 class PortalRetentionSweepTxServiceTest {
 
     private LsPortalUserLabelRepository userLabelRepository;
-    private LsPortalUldRepository uldRepository;
-    private LsPortalUldFrmeRepository frmeRepository;
+    private PortalUploadAssetRepository assetRepository;
     private SystemConfigService systemConfigService;
     private PortalRetentionSweepTxService txService;
 
     @BeforeEach
     void setUp() {
         userLabelRepository = mock(LsPortalUserLabelRepository.class);
-        uldRepository = mock(LsPortalUldRepository.class);
-        frmeRepository = mock(LsPortalUldFrmeRepository.class);
+        assetRepository = mock(PortalUploadAssetRepository.class);
         systemConfigService = mock(SystemConfigService.class);
         txService = new PortalRetentionSweepTxService(
-                userLabelRepository, uldRepository, frmeRepository,
+                userLabelRepository, assetRepository,
                 new PortalRetentionPolicy(systemConfigService));
     }
 
@@ -84,8 +78,7 @@ class PortalRetentionSweepTxServiceTest {
         List<ExpiredUpload> candidates = txService.findExpiredUploads();
 
         assertThat(candidates).isEmpty();
-        verifyNoInteractions(uldRepository);
-        verifyNoInteractions(frmeRepository);
+        verifyNoInteractions(assetRepository);
     }
 
     @Test
@@ -93,9 +86,8 @@ class PortalRetentionSweepTxServiceTest {
     void axesAreGatedIndependentlyBySetting() {
         settingAbsent(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS);
         when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(1);
-        when(uldRepository.findExpiredFailed(any(LocalDateTime.class)))
-                .thenReturn(List.of(uld(7L, LsPortalUld.STTS_FAILED)));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(anyLong())).thenReturn(List.of());
+        when(assetRepository.findExpired(eq(RetentionAxis.FAILED), any(LocalDateTime.class)))
+                .thenReturn(List.of(7L));
 
         List<ExpiredUpload> candidates = txService.findExpiredUploads();
 
@@ -141,18 +133,19 @@ class PortalRetentionSweepTxServiceTest {
     void readyAndFailedAxesUseTheirOwnCutoff() {
         when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(7);
         when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(1);
-        when(uldRepository.findExpiredReady(any(LocalDateTime.class)))
-                .thenReturn(List.of(uld(1L, LsPortalUld.STTS_READY)));
-        when(uldRepository.findExpiredFailed(any(LocalDateTime.class)))
-                .thenReturn(List.of(uld(2L, LsPortalUld.STTS_FAILED)));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(anyLong())).thenReturn(List.of());
+        when(assetRepository.findExpired(eq(RetentionAxis.READY), any(LocalDateTime.class)))
+                .thenReturn(List.of(1L));
+        when(assetRepository.findExpired(eq(RetentionAxis.FAILED), any(LocalDateTime.class)))
+                .thenReturn(List.of(2L));
 
         List<ExpiredUpload> candidates = txService.findExpiredUploads();
 
         ArgumentCaptor<LocalDateTime> ready = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> failed = ArgumentCaptor.forClass(LocalDateTime.class);
-        org.mockito.Mockito.verify(uldRepository).findExpiredReady(ready.capture());
-        org.mockito.Mockito.verify(uldRepository).findExpiredFailed(failed.capture());
+        org.mockito.Mockito.verify(assetRepository)
+                .findExpired(eq(RetentionAxis.READY), ready.capture());
+        org.mockito.Mockito.verify(assetRepository)
+                .findExpired(eq(RetentionAxis.FAILED), failed.capture());
 
         // 7일 vs 1일 — 두 축이 같은 커트라인을 쓰면 한쪽은 반드시 틀린 기간으로 지운다.
         assertThat(Duration.between(ready.getValue(), LocalDateTime.now()).toHours())
@@ -171,14 +164,11 @@ class PortalRetentionSweepTxServiceTest {
     void candidateCollectsFrameAndSourceFilePaths() {
         when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(7);
         settingAbsent(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS);
-        LsPortalUld target = uld(9L, LsPortalUld.STTS_READY);
-        setField(target, "filePathNm", "/store/v.mp4");
-        when(uldRepository.findExpiredReady(any(LocalDateTime.class))).thenReturn(List.of(target));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(9L)).thenReturn(List.of(
-                LsPortalUldFrme.create(9L, 0, "/store/frames/0.jpg"),
-                LsPortalUldFrme.create(9L, 1, "/store/frames/1.jpg"),
-                // 이미지 자산은 원본과 대표 프레임이 같은 파일이라 중복이 들어온다.
-                LsPortalUldFrme.create(9L, 2, "/store/v.mp4")));
+        when(assetRepository.findExpired(eq(RetentionAxis.READY), any(LocalDateTime.class)))
+                .thenReturn(List.of(9L));
+        // 경로 수집·중복 제거는 리포지토리가 소유한다(프레임 + 원본을 한 통로에서 모은다).
+        when(assetRepository.findFilePaths(9L)).thenReturn(
+                List.of("/store/frames/0.jpg", "/store/frames/1.jpg", "/store/v.mp4"));
 
         List<ExpiredUpload> candidates = txService.findExpiredUploads();
 
@@ -188,11 +178,11 @@ class PortalRetentionSweepTxServiceTest {
     }
 
     @Test
-    @DisplayName("축에_맞는_조건부_삭제_쿼리로_위임한다")
+    @DisplayName("축에_맞는_조건부_삭제로_위임한다 — 축이_곧_삭제_조건이다")
     void deleteDelegatesToAxisSpecificQuery() {
         LocalDateTime cutoff = LocalDateTime.of(2026, 8, 10, 0, 0);
-        when(uldRepository.deleteExpiredReady(1L, cutoff)).thenReturn(1);
-        when(uldRepository.deleteExpiredFailed(2L, cutoff)).thenReturn(1);
+        when(assetRepository.deleteExpired(RetentionAxis.READY, 1L, cutoff)).thenReturn(1);
+        when(assetRepository.deleteExpired(RetentionAxis.FAILED, 2L, cutoff)).thenReturn(1);
 
         assertThat(txService.deleteExpiredUpload(
                 new ExpiredUpload(1L, Axis.READY, cutoff, List.of()))).isEqualTo(1);
@@ -208,20 +198,4 @@ class PortalRetentionSweepTxServiceTest {
                 .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 없음"));
     }
 
-    private static LsPortalUld uld(long uldSn, String status) {
-        LsPortalUld uld = LsPortalUld.createVideo("u1", "v.mp4", null, 1024L, "video/mp4");
-        setField(uld, "uldSn", uldSn);
-        setField(uld, "uldSttsCd", status);
-        return uld;
-    }
-
-    private static void setField(Object target, String name, Object value) {
-        try {
-            Field f = target.getClass().getDeclaredField(name);
-            f.setAccessible(true);
-            f.set(target, value);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 }

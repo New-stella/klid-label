@@ -9,7 +9,7 @@ import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.entity.LsDataAugJob;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobRepository;
-import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalLinkPolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
@@ -99,7 +99,7 @@ class AugmentRequestServiceTest {
      * 기본 반환은 {@code false}(=연동됨, local 프로파일의 {@code mode=http} 와 동일)라
      * <b>다른 모든 케이스의 동작은 종전 그대로</b>다 (R8 · {@code @design API-060}).
      */
-    @MockBean private AugmentExternalModePolicy externalModePolicy;
+    @MockBean private AugmentExternalLinkPolicy externalLinkPolicy;
 
     private TransactionTemplate tx;
     private TokenClaims reviewer;
@@ -646,7 +646,7 @@ class AugmentRequestServiceTest {
     // ============================================================
 
     /**
-     * 미연동({@code authoring.augment.external.mode=noop})이면 위탁도 콜백도 없는데 접수만 성공해,
+     * 미연동(위탁 주소 미주입)이면 위탁도 콜백도 없는데 접수만 성공해,
      * 화면에는 만료 스윕이 돌 때까지 「진행 중」으로 보였다. 이제 접수 단계에서 503 으로 끊는다.
      *
      * <p>이 케이스는 <b>배선</b>을 본다 — 실제 스프링 컨텍스트에서 서비스가 판정 컴포넌트를 주입받아
@@ -655,7 +655,7 @@ class AugmentRequestServiceTest {
     @Test
     @DisplayName("외부_연동이_미연동이면_요청_접수를_503으로_거부한다")
     void 미연동이면_503으로_거부된다() {
-        given(externalModePolicy.isNotLinked()).willReturn(true);
+        given(externalLinkPolicy.isNotLinked()).willReturn(true);
         Long r1 = nextRawSn();
         seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(r1, 0);
@@ -671,7 +671,7 @@ class AugmentRequestServiceTest {
                     // 배선 상세(모드 값·프로퍼티 키)는 응답으로 새지 않는다(CWE-209).
                     assertThat(ce.getMessage()).doesNotContain("noop");
                     assertThat(ce.getMessage())
-                            .doesNotContain(AugmentExternalModePolicy.KEY_MODE);
+                            .doesNotContain(AugmentExternalLinkPolicy.KEY_BASE_URL);
                 });
 
         // 고착될 PENDING 행을 만들지 않고, 외부로도 나가지 않는다.
@@ -686,7 +686,7 @@ class AugmentRequestServiceTest {
     @Test
     @DisplayName("외부_연동이_http면_기존_접수_경로가_그대로_동작한다")
     void 연동이면_기존_접수경로가_유지된다() {
-        given(externalModePolicy.isNotLinked()).willReturn(false);
+        given(externalLinkPolicy.isNotLinked()).willReturn(false);
         Long r1 = nextRawSn();
         seedStatus(r1, LsRawDataStatus.STTS_APPROVED);
         Long frame = seedFrame(r1, 0);

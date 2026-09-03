@@ -115,7 +115,7 @@ class StatsWorkerRowAggregationIT {
     /** 수동 라벨 — AI_INFO 를 만들지 않는다(사람이 그린 라벨의 실제 형상). */
     private void addManualLabel(Long srcSn) {
         lblRepository.save(LsDataLbl.createManual(
-                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", userNo));
+                srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[]", String.valueOf(userNo)));
     }
 
     private Optional<OverallStatSummaryResponse.WorkerRow> myRow() {

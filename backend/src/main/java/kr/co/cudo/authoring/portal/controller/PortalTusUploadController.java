@@ -7,7 +7,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.portal.dto.PortalTusCreateCommand;
-import kr.co.cudo.authoring.portal.entity.LsPortalTusUpload;
+import kr.co.cudo.authoring.upload.entity.LsTusUpload;
 import kr.co.cudo.authoring.portal.service.PortalVideoUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -106,11 +106,11 @@ public class PortalTusUploadController {
             @PathVariable UUID uldId,
             @AuthenticationPrincipal TokenClaims actor) {
         requireTusVersion(tusResumable);
-        LsPortalTusUpload session = uploadService.getForOwner(uldId, requireUser(actor));
+        LsTusUpload session = uploadService.getForOwner(uldId, requireUser(actor));
         return ResponseEntity.noContent()
                 .header(H_RESUMABLE, TUS_VERSION)
-                .header(H_UPLOAD_OFFSET, String.valueOf(session.getOffsetBytes()))
-                .header(H_UPLOAD_LENGTH, String.valueOf(session.getLengthBytes()))
+                .header(H_UPLOAD_OFFSET, String.valueOf(session.getUploadOffset()))
+                .header(H_UPLOAD_LENGTH, String.valueOf(session.getUploadLength()))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .build();
     }

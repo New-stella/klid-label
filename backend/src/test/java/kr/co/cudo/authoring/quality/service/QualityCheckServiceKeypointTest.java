@@ -39,12 +39,12 @@ class QualityCheckServiceKeypointTest {
             sb.append('[').append(i).append(',').append(i).append(",2]");
         }
         sb.append(']');
-        return LsDataLbl.createManual(10L, LsDataLbl.TYPE_SKELETON, null, "person", sb.toString(), 1L);
+        return LsDataLbl.createManual(10L, LsDataLbl.TYPE_SKELETON, null, "person", sb.toString(), "1");
     }
 
     private LsDataLbl bbox(String autoYn) {
         LsDataLbl l = LsDataLbl.createManual(10L, LsDataLbl.TYPE_BBOX, null, "car",
-                "[[0,0],[10,10]]", 1L);
+                "[[0,0],[10,10]]", "1");
         // autoLblYn 은 transient — createManual 은 'N'. auto 라벨 재현이 필요 없으면 그대로 사용.
         return l;
     }

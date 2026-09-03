@@ -395,7 +395,9 @@ sudo ./scripts/install/install-ffmpeg.sh --force
    sudo KLID_ROLE=app ./scripts/install/21-verify-ai-server-url.sh
    ```
 
-   ⚠ `VLM_SERVICE_URL`(외부 시계열 분석)은 **비워 두는 것이 정상**이다. 미리 채우면 기동이 막힌다.
+   ⚠ `VLM_SERVICE_URL`(외부 시계열 분석)은 **비워 두는 것이 정상**이다. 미리 채우면 기동은 그대로 되고
+   **위탁만 그 엉뚱한 주소로 나가 실패**한다(구 서술 「기동이 막힌다」는 폐기 — 2026-09-03 · ADR-062).
+   상세는 [04-configuration.md](04-configuration.md) §`VLM_SERVICE_URL` 참조.
 2. `/etc/klid/ai-server.env` 편집 — 보통 기본값으로 충분(yolox CPU).
    ★ **2대 구성이면 `AI_BIND_HOST` 를 서버 B 주소로 바꾸고 방화벽 9300/tcp 을 연다.**
    기본값 `127.0.0.1` 로는 서버 A 에서 닿지 않는다(연결 거부).

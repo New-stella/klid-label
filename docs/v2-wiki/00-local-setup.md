@@ -19,9 +19,15 @@
 
 > **외부 0개 정의**: 관제/포털/**벤더 실서버**(비식별·VLM)가 없다는 뜻. ai-server 와 mock-server 는 compose 스택 내부 서비스로 **실제로 구동**한다(외부 아님). SAM2(Meta) 최초 기동 시에만 HuggingFace 에서 모델을 1회 받는다(이후 캐시로 오프라인). 탐지용 YOLOX 는 동봉 ONNX 가중치를 사용하므로 다운로드가 없다.
 >
-> ★ **구속 원칙 — 내부 self-fill 금지**: 저작도구가 스스로 결과를 채우는 경로(`DEIDENTIFY_MOCK_MODE=true` = 외부 무접촉 원본 복사)는 쓰지 않는다. 그 경로로는 "연동이 실제로 되는지"를 검증할 수 없기 때문이다. **방법 A(Docker Compose)** 는 `docker-compose.yml` 의 `DEIDENTIFY_MOCK_MODE: ${DEIDENTIFY_MOCK_MODE:-false}` 로 이 기본값이 강제돼 있어 별도 조치 없이도 로컬·dev 모두 **목 서버(:9400)에 실제 HTTP 요청**을 보낸다.
+> ★ **구속 원칙 — 내부 self-fill 금지**: 저작도구가 스스로 결과를 채우는 경로는 쓰지 않는다. 그 경로로는 "연동이 실제로 되는지"를 검증할 수 없기 때문이다. **방법 A·B 모두** 로컬·dev 에서 **목 서버(:9400)에 실제 HTTP 요청**을 보낸다.
 >
-> ⚠ **구 서술 폐기(2026-08-19 코드 실측) — 방법 B(Native)는 기본값이 반대다**: *"네이티브(방법 B)로 파이프라인까지 돌리려면 mock-server 를 호스트에서 함께 띄우고 주소만 주입하면 되고, 미기동 시 비식별은 실패 처리된다"* 는 부정확하다. `application-local.yml` 은 `mock-mode: ${DEIDENTIFY_MOCK_MODE:true}` — **env 를 아무것도 안 주면 기본값이 `true`(self-fill)** 다. 위 방법 B 절차(0~4단계)는 `DEIDENTIFY_MOCK_MODE` 를 export 하지 않고 mock-server 도 띄우지 않으므로, 그대로 따라 하면 **비식별이 mock-server 없이 내부 원본 복사로 조용히 "성공"**하고 KPST/VLM/증강/관제통지 연동은 아예 시도되지 않는다(실패 처리가 아니라 self-fill 성공). 근거: `application-local.yml`(`integration.deidentify.mock-mode` 기본값), `docker-compose.yml`(`DEIDENTIFY_MOCK_MODE:-false`).
+> ⚠ **구 서술 폐기(2026-09-03)** — *"(`DEIDENTIFY_MOCK_MODE=true` = 외부 무접촉 원본 복사)"* · *"`docker-compose.yml` 의 `DEIDENTIFY_MOCK_MODE: ${DEIDENTIFY_MOCK_MODE:-false}` 로 이 기본값이 강제돼 있어"*. **둘 다 거짓이다** — ①그 복사 경로는 폐지됐다(그 모드에는 **자체 산출 경로가 없다** — 남은 자리는 **판정뿐**이다) ②그 환경변수는 `docker-compose.yml`·`.env.example` 을 포함해 **레포 어디에도 없다**(설정 0건). 즉 **켜고 끌 손잡이 자체가 없어** 이 원칙은 별도 조치 없이 성립한다.
+>
+> ⚠ **[2026-09-03 재정정됨 — 이 블록 끝을 먼저 읽을 것]** 구 서술 폐기(2026-08-19 코드 실측) — 방법 B(Native)는 기본값이 반대다: *"네이티브(방법 B)로 파이프라인까지 돌리려면 mock-server 를 호스트에서 함께 띄우고 주소만 주입하면 되고, 미기동 시 비식별은 실패 처리된다"* 는 부정확하다. `application-local.yml` 은 `mock-mode: ${DEIDENTIFY_MOCK_MODE:true}` — **env 를 아무것도 안 주면 기본값이 `true`(self-fill)** 다. 위 방법 B 절차(0~4단계)는 `DEIDENTIFY_MOCK_MODE` 를 export 하지 않고 mock-server 도 띄우지 않으므로, 그대로 따라 하면 **비식별이 mock-server 없이 내부 원본 복사로 조용히 "성공"**하고 KPST/VLM/증강/관제통지 연동은 아예 시도되지 않는다(실패 처리가 아니라 self-fill 성공). 근거: `application-local.yml`(`integration.deidentify.mock-mode` 기본값), `docker-compose.yml`(`DEIDENTIFY_MOCK_MODE:-false`).
+>
+> ⚠⚠ **재정정(2026-09-03) — 위 문단의 「기본값이 `true`(self-fill)」는 더 이상 사실이 아니다.** 이 정정은 「무엇이 폐기됐는지」는 고쳤지만 **그 키가 아예 없다**는 데까지 가지 못했다. `integration.deidentify.mock-mode` 는 `application-local.yml` 을 포함해 **어느 설정 파일에도 없고**(회귀 가드가 전 프로파일 부재를 단언한다) `DEIDENTIFY_MOCK_MODE` 도 `docker-compose.yml`·`.env.example` 어디에도 없다. **기본값은 꺼짐**이다. 그리고 그 모드에는 **자체 산출 경로가 없다** — 남은 자리는 **판정뿐**이며, 남은 토글은 **위탁 요청층에서 거부**한다(그 형상에서 비식별은 **전건 실패**하며 기동 기록과 상태로 드러난다).
+>
+> ⇒ **방법 B 를 그대로 따라 해도 「내부 원본 복사로 조용히 성공」하는 일은 없다.** 다만 **아래 절차는 그대로 필요하다** — mock-server 를 띄우고 주소를 주입하지 않으면 위탁이 연결 실패로 끝나 비식별이 `DE_IDENT_YN='F'` 로 남는다(조용한 성공이 아니라 **실패**다).
 >
 > **방법 B로 실제 외부 연동(목 서버 HTTP)까지 검증하려면** 아래를 추가로 한다:
 > 1. mock-server 를 호스트에서 별도 기동한다(`cd mock-server && python -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 9400` — 상세는 [`mock-server/README.md`](../../mock-server/README.md)).
@@ -157,7 +163,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 | 토글 | 로컬 값 | 의미 |
 |------|--------|------|
 | `SPRING_PROFILES_ACTIVE` | local (override 가 고정) | 자립 기동 + 시드/로컬 기본값 게이팅 |
-| `DEIDENTIFY_MOCK_MODE` | **false**(방법 A, compose 주입) / **true**(방법 B 네이티브 기본값 — `application-local.yml` 자체 기본은 true) | 내부 self-fill 금지 — 목 서버로 실 위탁. `true` 면 외부 무접촉 원본 복사로 되돌아간다. 방법 B 로 실 위탁까지 검증하려면 명시적으로 `false` 를 export 해야 한다(위 방법 B 절 참고) |
+| `DEIDENTIFY_MOCK_MODE` | **해당 없음** — 레포 어디에도 설정돼 있지 않다(꺼짐) | **이 키는 더 이상 쓰이지 않는다.** 행을 남겨 두는 것은 과거 설정을 들고 있는 사람이 찾을 자리이기 때문이다. ⚠ **구 서술 폐기(2026-09-03)** — *"**false**(방법 A, compose 주입) / **true**(방법 B 네이티브 기본값 — `application-local.yml` 자체 기본은 true)"* · *"`true` 면 외부 무접촉 원본 복사로 되돌아간다"* · *"방법 B 로 실 위탁까지 검증하려면 명시적으로 `false` 를 export 해야 한다"*. **되돌아갈 경로가 없다** — 그 모드에는 **자체 산출 경로가 없고** 남은 자리는 **판정뿐**이다. 남은 토글은 **위탁 요청층에서 거부**하며, 그 형상에서 비식별은 **전건 실패**하고 기동 기록과 상태로 드러난다. ⚠ **되살아나면 이 배선으로는 막히지 않는다** — 다시 만든다면 **산출 지점에 별도 차단**이 필요하다. (`AI_MOCK_MODE` 는 **다른 축**이다 — ai-server 모델 미로드 대체 동작이며 아래 행 참조) |
 | `KPST_DEID_ENABLED` / `KPST_DEID_BASE_URL` | true / `http://klid-mock-server:9400` | KPST 폴링 경로 + 목 서버 주소(http, ca-cert 불요) |
 | `AI_MOCK_MODE` / `AI_DEVICE` | false / cpu | ai-server 실추론 (GPU 불필요). 탐지는 YOLOX 단일 |
 | `VLM_SERVICE_URL` | `http://klid-mock-server:9400` | VLM 위탁 + 콜백 수신. ⚠ 구 짝 `VLM_ALLOW_INSECURE_URL` 은 **제거**됐다(2026-09-01) — 평문·내부 호스트가 전 프로파일에서 통과하므로 완화 플래그가 필요 없다. ⚠ `VLM_CLIENT_ENABLED` 는 **폐지**됐다(`ADR-049`) — 주소가 비어 있는 것이 곧 미연동이다 |

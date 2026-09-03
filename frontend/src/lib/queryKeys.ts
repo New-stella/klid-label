@@ -137,6 +137,24 @@ export const PORTAL_KEYS = {
     [...PORTAL_KEYS.all, 'upload-frame-labels', uldFrmeSn] as const,
   datamartVideos: (params: Record<string, unknown>) =>
     [...PORTAL_KEYS.all, 'datamart-videos', params] as const,
+  /**
+   * 업로드 영상 재생용 단기 서명 주소(API-239).
+   *
+   * `all` 하위에 두어 자산 축 무효화가 함께 걷어 가게 한다. 서명은 짧게 살고 재발급이 정상
+   * 동선이므로 `staleTime` 은 훅이 정한다(여기서는 자리만 나눈다).
+   */
+  uploadStreamUrl: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-stream-url', uldSn] as const,
+  /** 업로드 영상에 저장된 마킹(API-241) — 재진입 시 저장된 지점을 그리는 데 쓴다. */
+  uploadMarkings: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-markings', uldSn] as const,
+  /**
+   * 포털 증강 요청 현황 목록(API-232).
+   *
+   * 페이징 파라미터는 **조건 축**이라 키에 넣는다 — 넣지 않으면 2쪽으로 옮겨도 1쪽 캐시가
+   * 그대로 나온다. (같은 목록의 이어지는 부분을 붙이는 축이 아니라 쪽을 갈아 끼우는 축이다.)
+   */
+  augments: (params: Record<string, unknown>) => [...PORTAL_KEYS.all, 'augments', params] as const,
+  /** 포털 증강 요청 단건(API-233) — 결과물 위치를 나른다. */
+  augmentDetail: (augSn: number) => [...PORTAL_KEYS.all, 'augment-detail', augSn] as const,
 };
 
 export const SYSCONFIG_KEYS = {

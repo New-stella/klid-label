@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.observability.health;
 
+import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -19,6 +20,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * DeidentifyHealthIndicator 단위 테스트 (Phase 12 + 로컬 외부0개 mock 모드).
@@ -44,7 +47,8 @@ class DeidentifyHealthIndicatorTest {
         webClient = WebClient.builder()
                 .baseUrl(mockServer.url("/").toString())
                 .build();
-        indicator = new DeidentifyHealthIndicator(webClient);
+        // trustGuard=null → 종전 동작(운영 여부를 묻지 않음). 운영 형상은 전용 테스트에서 주입한다.
+        indicator = new DeidentifyHealthIndicator(webClient, null);
         // 실행 경로 기본값과 동일: kpst.deid.enabled 기본 true (KPST 위탁이 비식별 단일 경로).
         ReflectionTestUtils.setField(indicator, "kpstEnabled", true);
     }
@@ -68,6 +72,66 @@ class DeidentifyHealthIndicatorTest {
         assertThat(health.getDetails()).containsEntry("service", "deidentify");
         assertThat(health.getDetails()).containsEntry("mode", "mock");
         assertThat(mockServer.getRequestCount()).isZero();
+    }
+
+    /**
+     * ★ ADR-062 회귀 고정 — <b>조용한 실패 금지</b>, 단 <b>거짓 「비정상」도 금지</b>.
+     *
+     * <p>자체 복사 축의 기동 차단이 산출 시점 거부로 옮겨가면서 "앱은 떴는데 비식별만 실패" 라는
+     * 상태가 새로 생겼다. 그 상태에서 헬스가 {@code UP(mock)} 을 돌려주면 운영자는 배포 로그를 다시
+     * 뒤지기 전까지 정상으로 착각한다 — 이 반전이 인지·수용한 주된 위험이 정확히 그것이다.
+     *
+     * <p>그렇다고 {@code DOWN} 도 아니다 — ①운영 화면에 정상 주소가 저장돼 있으면 비식별이 실제로
+     * 동작할 수 있어 거짓일 수 있고 ②{@code DOWN} 은 집계 503 으로 멀쩡한 노드를 부하분산에서 빼는데
+     * 이 문제는 회전으로 풀리지 않으며 ③형제 {@code AiServerHealthIndicator} 가 같은 성질의 형상에
+     * 이미 {@code UNKNOWN} 을 쓴다. <b>이 시험은 두 방향의 거짓을 동시에 잡는다.</b>
+     */
+    @Test
+    @DisplayName("★운영에서_mock모드는_UP도_DOWN도_아닌_UNKNOWN이다 — 사유로_알린다")
+    void health_unknown_when_self_copy_blocked_in_production() {
+        // given — mock-mode=true 인데 운영: 비식별 산출·위탁이 거부되는 형상.
+        DeidentifyHealthIndicator withGuard = mockModeIndicator(true);
+
+        // when
+        Health health = withGuard.health();
+
+        // then — 외부 핑은 여전히 하지 않지만(대상 없음) 상태는 정직해야 한다.
+        assertThat(health.getStatus())
+                .as("UP 이면 조용한 실패 / DOWN 이면 멀쩡한 노드를 내린다 — 둘 다 아니다")
+                .isEqualTo(Status.UNKNOWN);
+        assertThat(health.getStatus())
+                .as("★거짓 비정상 회귀 가드 — DOWN 으로 되돌리지 말 것(형제 인디케이터와 대칭)")
+                .isNotEqualTo(Status.DOWN);
+        assertThat(health.getDetails()).containsEntry("mode", "mock");
+        assertThat(health.getDetails())
+                .as("사유 문자열은 그대로 유지한다 — 상태를 낮춰도 알림 목적은 유지돼야 한다")
+                .containsEntry("error", "SelfCopyBlockedInProduction");
+        assertThat(mockServer.getRequestCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("비운영에서_mock모드는_종전대로_UP이다 — local_dev_stg_동작_불변")
+    void health_up_mock_when_not_production() {
+        // given — 같은 mock-mode 인데 운영이 아니다(가드가 막지 않는다).
+        DeidentifyHealthIndicator withGuard = mockModeIndicator(false);
+
+        // when / then
+        Health health = withGuard.health();
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
+        assertThat(health.getDetails()).containsEntry("mode", "mock");
+    }
+
+    /**
+     * {@code mock-mode=true} + 신뢰 가드 주입 형상. 가드는 <b>생성자로만</b> 넣는다(final 필드) —
+     * 운영 여부 판정은 가드가 단독 소유하므로 여기서는 그 결과만 흉내 낸다.
+     */
+    private DeidentifyHealthIndicator mockModeIndicator(boolean selfCopyBlocked) {
+        DeidentifyEndpointTrustGuard guard = mock(DeidentifyEndpointTrustGuard.class);
+        when(guard.selfCopyBlocked()).thenReturn(selfCopyBlocked);
+        DeidentifyHealthIndicator withGuard = new DeidentifyHealthIndicator(webClient, guard);
+        ReflectionTestUtils.setField(withGuard, "kpstEnabled", true);
+        ReflectionTestUtils.setField(withGuard, "mockMode", true);
+        return withGuard;
     }
 
     @Test

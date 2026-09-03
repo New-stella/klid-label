@@ -23,25 +23,18 @@ authoring:
       enabled: ${DEV_LOGIN_ENABLED:true}
     upload:
       enabled: ${DEV_UPLOAD_ENABLED:true}
-  # Phase 7-A1 — 외부 증강(생성형 AI)의 기본값을 noop 으로 명시한다.
-  #   공통 기본값(http)이 운영 환경으로 새지 않도록 fail-safe 로 못박는 것이다.
-  #   ★ AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 은 <실벤더 연동>과 <목업 연동> 양쪽에
-  #     쓰이는 같은 스위치다. 값이 http 라는 사실만으로는 어느 쪽인지 알 수 없고, 무엇을 향하는지는
-  #     base-url 이 정한다. 벤더 규격은 아직 확정 전이므로 기본값은 noop 으로 둔다.
+  # 외부 증강(생성형 AI) — dev 는 <목업 벤더 서버>로 실제 왕복한다 (2026-09-03 확정).
+  #   ★ 구 형상은 mode: ${AUGMENT_EXTERNAL_MODE:noop} 로 미연동을 못박았고, 그 우회 때문에 dev 에서
+  #     증강 위탁이 코드 경로로 한 번도 검증되지 않았다. 미연동 모드 토글 축은 폐기됐고, 이제
+  #     <주소가 곧 연동 여부>다. 실벤더 규격 확정 전까지 그 주소를 목업 벤더 서버로 둔다
+  #     (local-must-use-mock-server 원칙과 같은 축 — 비식별·시계열은 이미 그 형상이다).
+  #   ⚠ 여기 적힌 값은 기본값이지 <실행 중인 서버의 상태>가 아니다 — 배포 형상이 덮어쓸 수 있다.
+  #     실벤더 전환은 AUGMENT_API_BASE_URL 주입만으로 끝난다(코드 변경 없음).
+  #   ⚠ 증강 요청이 실제로 파생영상을 만든다. 같은 (영상 × 종류) 중복 요청은 서버가 차단하지 않고
+  #     속도 제한도 두지 않는 확정 정책이라(연타 방어는 화면 단독 책임) 파생이 쌓일 수 있다.
   augment:
     external:
-      # ⚠ 여기 적힌 noop 은 기본값이지 <실행 중인 서버의 상태>가 아니다 — 배포 형상이 덮어쓸 수 있다.
-      #   실제로 cudo_246(dev)은 2026-08-26 부터 compose override 로
-      #   AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL=http://klid-mock-server:9400 을 주입해
-      #   목업 벤더 서버로 실제 왕복한다(요청 → 목 처리 → 콜백 → 파생 생성). 비식별·시계열이 이미
-      #   그 형상이라 증강만 꺼져 있던 비대칭을 없앤 것이다. 실벤더가 아니라 목업이다.
-      #   ★ 현재 상태 판정은 이 파일이 아니라 기동 로그의
-      #     `[Augment] active ExternalAugmentClient=...`(Noop/Http) 로 한다 — 배포 형상은 바뀔 수 있고
-      #     그때 이 주석은 낡는다. 그 로그만이 실행 중인 사실을 말한다.
-      #   ⚠ 켜면 증강 요청이 실제로 파생영상을 만든다. 같은 (영상 × 종류) 중복 요청은 서버가
-      #     차단하지 않고 속도 제한도 두지 않는 확정 정책이라(연타 방어는 화면 단독 책임),
-      #     그 형상에서는 파생이 쌓일 수 있다.
-      mode: ${AUGMENT_EXTERNAL_MODE:noop}
+      base-url: ${AUGMENT_API_BASE_URL:http://klid-mock-server:9400}
 
 # UC018 — dev 비식별은 KPST 폴링 단일 경로다(자체 채움 경로는 폐지됐다). 기본 위탁 대상은 목업 벤더
 #   서버(mock-server, 컨테이너 네트워크 klid-net 의 klid-mock-server:9400)다 — 벤더 실서버 개발
@@ -67,6 +60,18 @@ kpst:
 vlm:
   client:
     url: ${VLM_SERVICE_URL:http://klid-mock-server:9400}
+
+# 생성형 AI 콜백 IP allowlist — 위탁 주소와 <짝>이다 (GenAiIntegrationWiringGuard).
+#   dev 는 위 authoring.augment.external.base-url 이 목업 벤더 서버를 향하므로 콜백이 실제로 들어온다.
+#   그 발신 IP 는 도커 브리지 사설 IP 라 대역을 고정할 수 없어 local 과 동일하게 전면 허용을 <명시>한다
+#   (미설정/none 은 전면 차단이고, 위탁이 활성인데 차단이면 <기동은 통과하되 위탁이 거부>된다 —
+#   그대로 두면 위탁은 나가고 콜백은 전건 403 이 되어 증강이 PENDING 으로 영구 고착되기 때문이다).
+#   ★ 구 서술 「기동이 막힌다」는 폐기다(2026-09-03 · ADR-062) — 기동은 통과하고 ERROR 만 남으며
+#     거부는 <위탁 시점>에 일어난다(조회·취소는 막지 않는다).
+#   ⚠ 운영(prd)은 이 값을 상속하지 않는다 — 자기 프로파일에서 벤더 송신 대역을 명시해야 한다.
+webhook:
+  genai:
+    allowed-ip-cidrs: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:0.0.0.0/0}
 
 logging:
   level:

@@ -333,7 +333,7 @@ class LabelSaveGuardsIT {
         assertThat(disabled.getUseYn()).isEqualTo("N");
 
         LsDataLbl legacy = tx.execute(s -> labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", disabled.getLabelId(), "pose", "[[1.0,1.0],[2.0,2.0]]", WORKER_A)));
+                srcSn, "BBOX", disabled.getLabelId(), "pose", "[[1.0,1.0],[2.0,2.0]]", String.valueOf(WORKER_A))));
 
         // when — full-replace 계약대로 기존 라벨(사용중지 마스터 참조)을 그대로 포함해 재전송 + 신규 1건 추가.
         LabelResponse res = tx.execute(s -> labelService.bulkUpsert(srcSn,
@@ -369,7 +369,7 @@ class LabelSaveGuardsIT {
 
         // (2) 우회 방지 — 기존 라벨 id 를 붙여도 labelId 를 <b>사용중지 마스터로 바꾸는</b> 것은 거부된다.
         LsDataLbl existing = tx.execute(s -> labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", WORKER_A)));
+                srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", String.valueOf(WORKER_A))));
         assertThatThrownBy(() -> tx.executeWithoutResult(s -> labelService.bulkUpsert(srcSn,
                 new LabelBulkUpsertRequest(List.of(new LabelItemDto(existing.getLblSn(), "BBOX",
                         disabled.getLabelId(), "person",

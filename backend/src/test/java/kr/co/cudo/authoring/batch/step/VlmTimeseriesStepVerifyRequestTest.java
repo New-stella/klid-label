@@ -107,7 +107,7 @@ class VlmTimeseriesStepVerifyRequestTest {
     }
 
     private LsMarking manualMarking(Long rawSn, String marksJson) {
-        return LsMarking.createManual(rawSn, "화재", "/raw/" + rawSn + ".mp4", marksJson, 1L);
+        return LsMarking.createManual(rawSn, marksJson, "1");
     }
 
     private static String marks(int... frameIndexes) {
@@ -198,7 +198,7 @@ class VlmTimeseriesStepVerifyRequestTest {
     void autoMarkingSendsSelectedFramesToo() {
         // given — 구 동작은 자동 마킹을 frame_interval 로 강등하고 프레임 목록을 버렸다.
         seed(610L, "flooding");
-        LsMarking marking = LsMarking.createAuto(610L, "침수", 15, "/raw/610.mp4", marks(0, 15), 1L);
+        LsMarking marking = LsMarking.createAuto(610L, 15, marks(0, 15), "1");
 
         // when
         step.runWithMarking(610L, marking);
@@ -245,7 +245,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         // given — 프레임은 모드를 가리지 않고 우리가 골라 목록으로 싣는다. 마킹 모드는 그 인덱스를
         //   <b>누가 골랐는지</b>만 가른다(자동이면 간격으로 자동 선택된 프레임).
         seed(611L, "kidnapping");
-        LsMarking marking = LsMarking.createAuto(611L, "납치", 12, "/raw/611.mp4", marks(0, 12), 1L);
+        LsMarking marking = LsMarking.createAuto(611L, 12, marks(0, 12), "1");
 
         // when
         step.runWithMarking(611L, marking);

@@ -114,7 +114,10 @@ services:
       # 이 스택도 앞단에 프록시가 실제로 없으므로 'none' 이 사실과 일치한다.
       WEBHOOK_TRUSTED_PROXY_CIDRS: ${WEBHOOK_TRUSTED_PROXY_CIDRS:-none}
       WEBHOOK_VLM_ALLOWED_IP_CIDRS: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:-none}
-      WEBHOOK_GENAI_ALLOWED_IP_CIDRS: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:-none}
+      # ★ 'none'(전면 차단)에서 바뀌었다 (2026-09-03) — 이 스택도 dev 프로파일이라 증강 위탁이
+      #   활성이고(목업 벤더 서버 주소 주입), 위탁 활성 + 콜백 전면 차단은 기동이 막힌다.
+      #   발신 IP 가 docker 브리지 사설 IP 라 대역 고정이 불가해 전면 허용을 <명시>한다(local 동일).
+      WEBHOOK_GENAI_ALLOWED_IP_CIDRS: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:-0.0.0.0/0}
       WEBHOOK_HMAC_SECRET_AUGMENT: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 를 .env 에 설정하세요 (openssl rand -hex 32)}
 
       # 포털향 FE(:13005) 오리진 추가. FE 는 Vite 프록시를 거쳐 동일 오리진으로 부르지만,

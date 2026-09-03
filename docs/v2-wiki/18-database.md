@@ -142,13 +142,50 @@
 ### 포털 자산 업로드 (ADR-013 예외, V107~)
 
 > 포털 사용자(PORTAL_USER)가 **본인 이미지·영상을 직접 업로드**해 수동 라벨링(BBOX/POLYGON)하는 별도 경로. 내부 파이프라인(비식별→마킹→배치→검수)·데이터마트 View와 **완전 분리**되며 오토라벨링·SAM2·VLM·검수·버전관리 미적용 → [16](16-portal.md)·[04](04-screens-ia.md).
+>
+> ⚠ **위 「내부 파이프라인(비식별→**마킹**→배치→검수)과 분리」를 「포털에 마킹이 없다」로 읽지 말 것** — 2026-09-02 로 **포털 업로드 영상에는 자체 마킹이 생겼다**(`SC-045`). 분리돼 있는 것은 **내부 파이프라인의 마킹 단계**(위탁·배치 기동·검수 연계를 낀 것)이고, 포털 마킹은 **프레임 추출 위치 지정 하나**이며 **저장만 같은 `LS_MARKING` 원장을 쓴다** → [16 §16.5a](16-portal.md).
 
 | 테이블 | 용도 | 위키 |
 |--------|------|------|
-| `LS_PORTAL_ULD` (V107) | 포털 업로드 자산 (소유자 USER_NO, 자산유형 IMAGE/VIDEO, 원본 파일명·경로, `STTS_CD`: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED` — **이 전이는 영상 전용이고 이미지는 적재 시점에 곧바로 `READY`** 다). 이미지 20MB/장·50장/요청, 영상 5GB(mp4/mov/avi) | [16](16-portal.md) |
-| `LS_PORTAL_ULD_FRME` (V107) | 업로드 자산 프레임 (SEQUENCE PK, 프레임 경로). 영상은 고정 간격 추출(`LS_SYSTEM_CONFIG` `portal.upload.frame-interval-sec` 기본 5초, 상한 maxFrames 2000), 이미지는 1프레임 | [16](16-portal.md) |
+| `LS_PORTAL_ULD` (V107) | 포털 업로드 자산 (소유자 USER_NO, 자산유형 IMAGE/VIDEO, 원본 파일명·경로, `STTS_CD`: `UPLOADED`→`PROCESSING`→`READY`\|`FAILED` — **이 전이는 영상 전용이고 이미지는 적재 시점에 곧바로 `READY`** 다). 이미지 20MB/장·50장/요청(⚠ **신규 접수는 영상만** — 기존 이미지 자산의 조회·라벨링·삭제는 유지되고 값역에 이미지 값이 남는다), 영상 5GB(mp4/mov/avi) | [16](16-portal.md) |
+| `LS_PORTAL_ULD_FRME` (V107) | 업로드 자산 프레임 (SEQUENCE PK, 프레임 경로). 영상은 **마킹 위치 기반 추출**(2026-09-02 확정 — `SC-045` 마킹 화면이 정한 지점, 장수 상한 초과 시 **절단**), 이미지는 1프레임. ⚠ **구 서술 폐기** — *"영상은 고정 간격 추출(`portal.upload.frame-interval-sec` 기본 5초)"* 은 더 이상 사실이 아니다. 그 동작은 **자동 마킹의 기본 동작으로 흡수**됐고 단위가 초에서 **프레임 수(기본 300)** 로 바뀌었다. **장수 상한(maxFrames)은 그대로 유효**하다 | [16 §16.5a](16-portal.md) |
 | `LS_PORTAL_ULD_LBL` (V107) | 업로드 자산 수동 라벨 (BBOX/POLYGON만, 좌표 JSON). 오토라벨 미적용 | [16](16-portal.md) |
 | `LS_PORTAL_TUS_ULD` (V108) | 포털 영상 TUS 1.0 재개 가능 업로드 세션 (소유자·오프셋·만료 등, 내부 `LS_TUS_UPLOAD`와 분리) | [16](16-portal.md) |
+
+> ### ★위 4벌은 공용 원장으로 흡수하기로 확정됐다 — 다만 **아직 스키마에 그대로 있다** (2026-09-02 · `ADR-058`)
+>
+> **설계는 확정, DDL 이관은 미착수**다. 위 4행은 **현재 배포 스키마의 사실**이므로 지우지 않는다.
+> 이관이 끝나면 그때 이 표에서 뺀다.
+>
+> | 흡수 전 | 흡수처 | 신설 |
+> |---|---|---|
+> | `LS_PORTAL_ULD` | `LS_DATA_RAW` | `PORTAL_USER_NO varchar(100) nullable` |
+> | `LS_PORTAL_ULD_FRME` | `LS_DATA_SRC` | 신설 컬럼 0 (원장이 상위집합) |
+> | `LS_PORTAL_ULD_LBL` | `LS_DATA_LBL` | 기존 `REG_USER_NO` 를 `bigint`→`varchar(100)` |
+> | `LS_PORTAL_TUS_ULD` | `LS_TUS_UPLOAD` | 사용자 식별자 폭 64→100 |
+> | **`LS_PORTAL_USER_LABEL`** | **흡수하지 않는다 — 존치** | — |
+>
+> - 채널 구분은 **`SRC_TYPE='PORTAL_ULD'`**(축 신설이 아니라 값 1개 추가) + **`PORTAL_USER_NO`** 다.
+> - **`LS_PORTAL_USER_LABEL` 만 남기는 이유** — 존재 이유가 「저장해도 원본을 수정하지 않는다」인
+>   단방향 오버레이라 라벨 원장에 합치면 **원본을 덮어쓴다.** 소유자 구분으로 섞으면 구분을 한 번만
+>   잊는 순간 **남의 오버레이가 정본 라벨로 읽히는 fail-open** 이 된다. 「일관성」을 이유로 함께
+>   흡수하지 말 것.
+> - **★착지처 확정 (2026-09-02) — 영상 원장에 컬럼을 더 달지 않는다.** 나머지 다섯도 `LS_DATA_META` 로
+>   간다: `ORGNL_FILE_NM`→`video.original_filename` · `MIME_TYPE_NM`→`video.mime` ·
+>   `ULD_STTS_CD`→`portal.upload_status` · `FAIL_RSN_CN`→`portal.fail_reason`.
+>   `ULD_TYPE_CD`(자산 종류)는 **보관하지 않고 MIME 유형에서 판정**한다 — 두 값을 따로 두면 어긋났을 때
+>   어느 쪽이 정본인지 알 수 없는 두 번째 진실원이 된다. 프레임률·파일 크기는 `video.fps`·`video.filesize`
+>   로 이미 있고 프레임 수는 프레임 원장 행을 센다.
+>   ⇒ **신설 컬럼은 `PORTAL_USER_NO` 하나뿐이다.**
+> - ★**마킹은 흡수 대상 4벌 밖의 별개 축이다 (2026-09-02 확정)** — 포털 업로드 영상의 마킹은 **기존
+>   `LS_MARKING` 원장을 그대로 쓴다**(포털 전용 마킹 표를 만들지 않는다). 자동 간격은 그 표의 **프레임
+>   간격 컬럼**이며 **단위가 프레임 수라 시간 단위 설정에서 환산할 필요가 없다.** 여기에도 **사용자 식별자
+>   폭 확대**가 따라붙는다(라벨 원장 `REG_USER_NO` 와 같은 조치). → [16 §16.5a](16-portal.md)
+> - ⚠ `META_VL` 이 `varchar(2000)` 이라 실패 사유가 **좁아진다** — 사유 문장만 담고 넘치면 잘라 저장하되
+>   잘렸다는 사실이 드러나야 한다(조용한 절단 금지).
+> - ⚠ **연쇄 삭제 표면이 넓어진다** — 지금은 `LS_PORTAL_ULD` 삭제가 2개 표만 딸고 가지만, 이관 후
+>   `LS_DATA_RAW` 를 참조하는 표는 **약 24개**다. 그중 `LS_DATA_LBL_HSTRY`·`LS_DATA_AUG`·
+>   `LS_DATA_AUG_LBL_MAP` 은 **부모 외래키가 없어 연쇄로 정리되지 않아** 조용히 고아가 남는다.
 
 > 신규 API `/v1/portal/uploads/**` (images·목록·상세·frames·image·삭제·tus·labels·export·file). 영상은 비식별 미적용(본인 데이터), 다운로드는 본인 데이터(JSON export/원본) 기준.
 

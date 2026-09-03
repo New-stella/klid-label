@@ -47,10 +47,19 @@ spring:
 # (UC018 — 비식별은 KPST 폴링으로 단일화되어 deidentify 콜백 시크릿 키를 제거함.)
 # (VLM describe 콜백은 벤더 v2.0.1 무서명 규격 — HMAC 제거, request_id 발급 게이트로 대체. 증강만 유지.)
 
-# Phase 7-A1 — 외부 증강(생성형 AI) 벤더 실연동 전이라 운영은 noop 을 명시한다.
-#   공통 기본값(http)이 운영으로 새면 base-url 미주입 상태로 위탁 클라이언트를 만들려 하다가
-#   AugmentUrlPolicy 의 "빈값 거부"로 기동이 죽는다(조용한 오연동은 없지만 배포가 깨진다).
-#   fail-safe 로 못박는다. 실연동 시 AUGMENT_EXTERNAL_MODE=http + AUGMENT_API_BASE_URL 로 전환.
+# 외부 증강(생성형 AI) — 벤더 주소를 주입하면 그 순간 연동이다(2026-09-03 확정).
+#   ★ 구 형상은 mode: ${AUGMENT_EXTERNAL_MODE:noop} 로 미연동을 못박았다. 근거는 "base-url 미주입이면
+#     AugmentUrlPolicy 의 빈값 거부로 기동이 죽는다" 였는데, 그 <기동 의존 자체가 제거>됐다 —
+#     빈 주소는 위험한 것이 아니라 아직 안 정해진 것이라 기동을 막지 않고 위탁 시점에 실패한다.
+#     그래서 토글로 못박을 이유가 사라졌고, 그 축은 폐기됐다. 실연동 전환은 AUGMENT_API_BASE_URL
+#     주입만으로 끝난다.
+#   ⚠ 주입하면 콜백 allowlist(WEBHOOK_GENAI_ALLOWED_IP_CIDRS)도 함께 명시해야 한다 — 짝이 안 맞으면
+#     GenAiIntegrationWiringGuard 가 <위탁을> 거부한다(위탁은 나가는데 콜백이 전건 403 이 되는 고착 방지).
+#     ★ 구 서술 「기동을 막는다」는 폐기다(2026-09-03 · ADR-062) — 주소 축과 같은 근거로 판정을 기동에서
+#       위탁 시점으로 옮겼다. 기동은 통과하고 ERROR 만 남는다.
+#     ⚠ 이 파일의 다른 「기동 차단」 서술(HmacWebhookFilter/ClientIpResolver/WebhookIpAllowlist ·
+#       VLM allowlist · trusted-proxy-cidrs)은 ADR-062 <대상이 아니라> 여전히 기동을 막는다 —
+#       낱말로 훑어 함께 고치지 말 것.
 authoring:
   # [운영 노출] 수동 업로드(/v1/dev/upload) — 2026-08-24 CO-008 로 운영에서도 켠다.
   #   왜 기본값을 뒤집나: 외부에서 받은 영상을 운영자가 직접 올려야 하는 동선이 실제로 있고,
@@ -64,9 +73,6 @@ authoring:
   dev:
     upload:
       enabled: ${DEV_UPLOAD_ENABLED:true}
-  augment:
-    external:
-      mode: ${AUGMENT_EXTERNAL_MODE:noop}
 
 webhook:
   hmac:

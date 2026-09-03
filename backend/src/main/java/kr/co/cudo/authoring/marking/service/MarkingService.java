@@ -10,15 +10,10 @@ import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.dto.MarkingRequest;
 import kr.co.cudo.authoring.marking.dto.MarkingResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
-import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import kr.co.cudo.authoring.marking.listener.MarkingBatchTriggerReport;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
-import kr.co.cudo.authoring.sysconfig.dto.VerificationEventQuestionResponse;
 import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
-import kr.co.cudo.authoring.video.entity.LsDataIngest;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
-import kr.co.cudo.authoring.video.repository.IngestSourceRow;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoDurationResolver;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
@@ -121,43 +116,63 @@ public class MarkingService {
      * @return 생성된 마킹 응답
      */
     public MarkingResponse create(Long rawSn, MarkingRequest req, TokenClaims actor) {
+        return createOn(rawSn, req, actor, controlChannel()).response();
+    }
+
+    /**
+     * 마킹 생성 — <b>채널 판정기를 받는 진입점</b>. 위 관제 진입점과 포털 창구가 <b>같은 이 메서드</b>를
+     * 쓴다(마킹 로직 한 벌).
+     *
+     * <p>순서(불변식): ① 사전 접근·단계 확인({@link MarkingPrecheckReader}) → ② 길이 조달(채널이 정한
+     * 방식, 쓰기 트랜잭션 밖) → ③ persist(쓰기 트랜잭션). ①에서 위반이면 <b>고비용 조달 이전에</b>
+     * 거부한다.
+     *
+     * @param channel 채널별 판정기
+     * @design ADR-058
+     * @design API-240
+     */
+    public MarkingOutcome createOn(Long rawSn, MarkingRequest req, TokenClaims actor, MarkingChannel channel) {
         // DEV_FIX H11 — 스레드 로컬 잔여값 제거(스레드 풀 재사용 오염 방지). 배치 트리거 결과는
         //   AFTER_COMMIT 브리지가 같은 스레드에서 기록하고, persist 반환 직후 여기서 소비한다.
         MarkingBatchTriggerReport.begin();
 
-        // 1. 사전 인가·프리컨디션(값싼 readonly read) — 프로브 이전에 확인해 위반 시 즉시 거부.
-        //    이 read 는 짧은 REQUIRES_NEW 로 커넥션을 즉시 반납하므로 프로브 시점에 커넥션을 보유하지 않는다.
-        precheckReader.precheck(rawSn, actor);
+        // 1. 사전 접근·단계 확인(값싼 readonly read) — 조달 이전에 확인해 위반 시 즉시 거부.
+        //    이 read 는 짧은 REQUIRES_NEW 로 커넥션을 즉시 반납하므로 조달 시점에 커넥션을 보유하지 않는다.
+        precheckReader.precheck(rawSn, actor, channel);
 
-        // 2. 영상 길이 해석 — 사전 인가·프리컨디션 통과 이후에만(HIGH), 쓰기 트랜잭션 진입 전에 수행하므로
-        //    ffprobe 폴백이 어떤 DB 커넥션도 보유하지 않는다(MEDIUM-1).
-        //    C-ISSUE-01 — MANUAL 도 길이를 해석한다: 수동 마킹의 <b>상한 검증</b>(frameIndex < 총 프레임 수)에
-        //    필요하기 때문이다. 단 MANUAL 은 <b>프로브 없는 DB 전용 해석</b>을 쓴다 — 대화형 동작에 ffprobe
-        //    서브프로세스를 태우지 않는다는 기존 계약을 그대로 지킨다. 길이를 못 구하면(null) 상한 검증만
-        //    건너뛰고 하한·중복은 그대로 적용한다(전부 스킵 금지).
-        //    잘못된/누락 mode 는 null 로 두고 persist 가 INVALID_INPUT 으로 거부한다(기존 계약 보존).
-        Integer durationSec = null;
-        if (MODE_AUTO.equals(req.mode())) {
-            durationSec = durationResolver.resolveDurationSec(rawSn);
-        } else if (MODE_MANUAL.equals(req.mode())) {
-            durationSec = durationResolver.resolveDurationSecWithoutProbe(rawSn);
-        }
+        // 2. 영상 길이 조달 — 사전 확인 통과 이후에만(HIGH), 쓰기 트랜잭션 진입 전에 수행하므로
+        //    관제 채널의 ffprobe 폴백이 어떤 DB 커넥션도 보유하지 않는다(MEDIUM-1).
+        //    C-ISSUE-01 — MANUAL 도 길이를 조달한다: 수동 마킹의 <b>상한 검증</b>(frameIndex < 총 프레임 수)에
+        //    필요하기 때문이다. 조달 방식(프로브 여부·미상 시 거절 여부)은 채널이 정한다.
+        Integer durationSec = channel.resolveDurationSec(rawSn, req.mode());
 
         // 3. persist(쓰기 트랜잭션) — self 프록시 경유(자기호출 프록시 우회 회피). 단위 테스트는 self=null → this.
         MarkingService target = (self != null) ? self : this;
-        MarkingResponse response = target.create(rawSn, req, actor, durationSec);
+        MarkingOutcome outcome = target.createTx(rawSn, req, actor, durationSec, channel);
 
         // 4. 배치 트리거 결과 반영 (DEV_FIX H11) — persist 트랜잭션이 커밋되면서 AFTER_COMMIT 브리지가
         //    같은 스레드에서 이미 실행됐다. 배치가 시작되지 않았다면 그 사실과 사유를 응답에 실어
         //    "201 인데 아무 일도 안 일어남"을 없앤다. 브리지 미실행(=판정 불가)이면 두 필드는 null.
-        MarkingBatchTriggerReport.Outcome outcome = MarkingBatchTriggerReport.consume();
-        if (outcome == null) {
-            return response;
+        //    ★ 포털 채널에는 배치 브리지 자체가 없으므로 여기서는 언제나 null 이다.
+        MarkingBatchTriggerReport.Outcome report = MarkingBatchTriggerReport.consume();
+        if (report == null) {
+            return outcome;
         }
-        if (!outcome.triggered()) {
-            log.warn("[Marking] batch not triggered rawSn={} markingSn={}", rawSn, response.markingSn());
+        if (!report.triggered()) {
+            log.warn("[Marking] batch not triggered rawSn={} markingSn={}", rawSn, outcome.response().markingSn());
         }
-        return response.withBatchOutcome(outcome.triggered(), outcome.reason());
+        return outcome.withBatchOutcome(report.triggered(), report.reason());
+    }
+
+    /**
+     * 관제(내부) 채널 판정기 — 이 서비스가 이미 보유한 협력자로 조립한다.
+     *
+     * <p>필드로 주입받지 않고 호출마다 얇은 어댑터를 만드는 것은 <b>의도</b>다: 생성자 시그니처를
+     * 바꾸지 않아 기존 배선·시험이 그대로 성립하고, 어댑터 자체는 상태가 없어 생성 비용이 없다.
+     */
+    private MarkingChannel controlChannel() {
+        return new ControlMarkingChannel(videoRepository, assignmentRepository, fpsResolver,
+                durationResolver, ingestSourceRepository, questionResolver);
     }
 
     /**
@@ -184,20 +199,35 @@ public class MarkingService {
      */
     @Transactional("controlTransactionManager")
     public MarkingResponse create(Long rawSn, MarkingRequest req, TokenClaims actor, Integer autoDurationSec) {
-        // 0. 인가 재확인 (CWE-639 수평 권한 상승 차단) — 사전확인과 동일 규칙(방어적 이중화).
-        MarkingGuards.requireAssignedOrReviewer(rawSn, actor, assignmentRepository);
+        return createTx(rawSn, req, actor, autoDurationSec, controlChannel()).response();
+    }
 
-        // 1. 영상 존재 + 프리컨디션 재확인 (비식별 완료·MARKING_READY·이벤트 유형) — 사전확인과 동일 규칙·순서.
-        LsDataRaw raw = videoRepository.findById(rawSn).orElse(null);
-        MarkingGuards.requirePreconditions(raw);
+    /**
+     * 마킹 생성 — <b>채널 판정기를 받는 쓰기 트랜잭션 persist</b>.
+     *
+     * <p>방어적 이중화는 그대로다 — 사전 확인에서 통과했더라도 트랜잭션 원자 source-of-truth 로서
+     * <b>같은 판정기로 같은 순서</b>(접근 → 단계 → 활성 마킹 중복)를 다시 강제한다.
+     *
+     * @param channel 채널별 판정기
+     * @design ADR-058
+     */
+    @Transactional("controlTransactionManager")
+    public MarkingOutcome createTx(Long rawSn, MarkingRequest req, TokenClaims actor,
+                                   Integer autoDurationSec, MarkingChannel channel) {
+        // 0. 접근 재확인 (CWE-639 수평 권한 상승 차단) — 사전확인과 동일 규칙(방어적 이중화).
+        channel.requireAccess(rawSn, actor);
+
+        // 1. 단계 재확인 — 사전확인과 동일 규칙·순서. 통과하면 응답 조달값을 함께 받는다.
+        MarkingTarget targetInfo = channel.requireMarkable(rawSn, actor);
 
         // 1-2. 활성 마킹 중복 재확인 (B-ISSUE-22) — 사전확인과 동일 규칙. 순차 요청은 여기서 409 로
         //       거부되고, 동시 요청은 아래 flush 시점의 DB 부분 유니크 인덱스(V142)가 잡는다.
         MarkingGuards.requireNoActiveMarking(rawSn, markingRepository);
 
-        // 1-3. 이벤트명 자동 소싱 (API-047 계약 변경) — 영상의 이벤트 유형(EVNT_TYPE_CD)을 그대로 사용
-        //       (존재 검증은 requirePreconditions 가 이미 수행).
-        String eventName = raw.getEvntTypeCd();
+        // 1-3. 이벤트 유형 코드 조달 — 채널이 돌려준 값을 그대로 쓴다.
+        //       ★ 이 값은 마킹 행에 저장하지 않고 <응답에만> 실린다(V27) — 마킹 행에 베껴 두면 영상
+        //       쪽이 바뀔 때 두 값이 어긋난다. [design: ERD-013]
+        String eventName = targetInfo.eventTypeCd();
 
         // 2. 마킹 시점에 실 fps 를 확정(pin) — TOCTOU 제거의 핵심.
         //    M-3 이전에는 자동마킹과 프레임추출이 각자 다른 시점에 resolveFps 를 재조회했다. Phase 2 의
@@ -206,40 +236,50 @@ public class MarkingService {
         //    이제 마킹 생성 시 해석한 fps 를 마킹 레코드에 저장하고, FfmpegFrameExtractor 가 재조회 대신
         //    이 pin 값을 읽어 계산하므로 마킹↔추출이 구조적으로 동일 값을 사용한다(정합성 불변식).
         //    미상 시 30.0 폴백이라 기존 동작과 동일(무회귀). AUTO 는 marks 산출에도 이 fps 를 쓴다.
-        double fps = fpsResolver.resolveFps(rawSn);
+        double fps = channel.resolveFps(rawSn);
 
         // 3. 마킹 모드에 따른 처리
-        String marksJson;
-        if ("AUTO".equals(req.mode())) {
+        List<MarkItem> generated;
+        if (MODE_AUTO.equals(req.mode())) {
             if (req.intervalFrames() == null || req.intervalFrames() <= 0) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "자동 모드에서 intervalFrames 는 1 이상이어야 합니다.");
             }
-            // durationSec 은 오케스트레이션이 이 트랜잭션 진입 전에 해석해 주입한다(VDO_LEN_SEC → video.duration_ms
-            // 메타 → 직접 프로브 폴백). FIX A — 적재 시 길이가 비어 자동 마킹만 INVALID_INPUT 으로 실패하던
-            // 결함 제거. MEDIUM-1 — ffprobe 폴백은 이 쓰기 트랜잭션 밖(커넥션 미보유)에서 수행된다(위 Javadoc).
-            marksJson = generateAutoMarks(autoDurationSec, req.intervalFrames(), fps);
+            // durationSec 은 오케스트레이션이 이 트랜잭션 진입 전에 채널을 통해 조달해 주입한다.
+            // FIX A — 적재 시 길이가 비어 자동 마킹만 INVALID_INPUT 으로 실패하던 결함 제거.
+            // MEDIUM-1 — 관제 채널의 ffprobe 폴백은 이 쓰기 트랜잭션 밖(커넥션 미보유)에서 수행된다.
+            generated = autoMarks(autoDurationSec, req.intervalFrames(), fps);
         } else if (MODE_MANUAL.equals(req.mode())) {
             if (req.marks() == null || req.marks().isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT, "수동 모드에서 marks 는 필수입니다.");
             }
             // C-ISSUE-01 — 요청 내 중복 시점 + 영상 길이 기반 상한 검증(하한·형식은 DTO @Valid 가 이미 거름).
             validateManualMarks(req.marks(), autoDurationSec, fps, rawSn);
-            marksJson = serializeMarks(req.marks());
+            generated = req.marks();
         } else {
             throw new CustomException(ErrorCode.INVALID_INPUT, "mode 는 AUTO 또는 MANUAL 이어야 합니다.");
         }
+
+        // 3-1. 채널의 추출 장수 상한 반영 — 상한이 없는 채널은 그대로 통과한다(관제 무변경).
+        //      자른 사실은 버리지 않고 결과에 실어 소비자가 알 수 있게 한다(조용한 절단 금지).
+        MarkPlan plan = channel.capMarks(req.mode(), generated);
+        String marksJson = serializeMarks(plan.marks());
 
         // 3-2. 검증 이벤트 질문 선택값 해석 — 화면 입력을 그대로 신뢰하지 않는다. [design: AC-028]
         //      요청값이 그 영상의 검증 이벤트 유형에 속하면 그대로, 아니면(또는 미선택이면) 그 유형의
         //      첫 번째 질문으로 되돌아간다. 유형이 미수신이거나 질문이 0건이면 null 이며 그래도 마킹은
         //      막지 않는다 — 질문 부재는 거부 사유가 아니다(위탁도 그대로 나간다).
-        Long questionSn = resolveVerificationQuestionSn(rawSn, req.vrfcEvntQstnSn());
+        //      그 축이 아예 없는 채널(포털)은 null 을 돌려준다.
+        Long questionSn = channel.resolveQuestionSn(rawSn, req.vrfcEvntQstnSn());
 
         // 4. Entity 생성 + 저장 — 해석한 fps 를 마킹에 pin 하여 추출단계가 재조회 없이 동일 값을 사용하게 한다.
-        Long actorNo = MarkingGuards.parseUserNo(actor.sub());
-        LsMarking marking = "AUTO".equals(req.mode())
-                ? LsMarking.createAuto(rawSn, eventName, req.intervalFrames(), raw.getRawFilePathNm(), marksJson, actorNo, fps, questionSn)
-                : LsMarking.createManual(rawSn, eventName, raw.getRawFilePathNm(), marksJson, actorNo, fps, questionSn);
+        //    ★ 생성자 식별자는 토큰 주체를 <문자 그대로> 담는다(V27). 숫자로 파싱해 담던 구 방식은
+        //      포털 채널의 비숫자 주체를 조용히 null 로 떨어뜨려 소유자 없는 마킹을 만든다.
+        //    ★ 이벤트 유형 코드·영상 경로는 더 이상 마킹 행에 베끼지 않는다(V27) — 응답에서 영상 행의
+        //      값을 그대로 실어 계약을 유지한다(아래 5).
+        String actorNo = MarkingGuards.creatorId(actor.sub());
+        LsMarking marking = MODE_AUTO.equals(req.mode())
+                ? LsMarking.createAuto(rawSn, req.intervalFrames(), marksJson, actorNo, fps, questionSn)
+                : LsMarking.createManual(rawSn, marksJson, actorNo, fps, questionSn);
         // 동시성 최종 방어(B-ISSUE-22 / CWE-362) — 부분 유니크 인덱스(V142) 위반을 <b>이 메서드 안에서</b>
         //   표면화해 409 로 변환한다. save/flush 를 함께 감싸는 이유:
         //   - MARKING_SN 이 IDENTITY 라 {@code save} 시점에 INSERT 가 즉시 실행된다(위반이 여기서 터진다).
@@ -258,52 +298,19 @@ public class MarkingService {
 
         log.info("[Marking] created rawSn={}, mode={}, markingSn={}", rawSn, req.mode(), marking.getMarkingSn());
 
-        eventPublisher.publishEvent(new MarkingCompletedEvent(rawSn, marking.getMarkingSn()));
+        // 4-2. 채널 후속 처리 — <b>같은 트랜잭션</b>에서 수행한다. 포털은 여기서 자산을
+        //      「마킹 대기 → 추출 중」으로 원자 전이하고, 그 전이가 0행이면 충돌로 거절해 롤백시킨다.
+        channel.onSaved(rawSn, marking.getMarkingSn());
 
-        // 5. 응답
-        return MarkingResponse.from(marking, objectMapper);
-    }
+        // 4-3. 완료 이벤트 — <b>채널이 정한 종류</b>를 낸다. 관제는 배치 브리지가, 포털은 포털 프레임
+        //      추출 브리지가 각자 자기 이벤트만 소비하므로 포털 마킹이 배치를 깨울 경로가 없다.
+        eventPublisher.publishEvent(channel.completionEvent(rawSn, marking.getMarkingSn()));
 
-    /**
-     * 마킹이 보관할 <b>검증 이벤트 질문 일련번호</b>를 해석한다. [design: AC-028 · ERD-013]
-     *
-     * <h3>왜 요청값을 그대로 쓰지 않는가</h3>
-     * <p>{@code LS_MARKING.VRFC_EVNT_QSTN_SN} 에는 <b>물리 FK 가 없다</b>(V17) — 질문 목록이 관리 화면에서
-     * 전체 교체로 저장되어 가리키던 행이 사라지는 것이 정상 동선이기 때문이다. 참조 무결성을 DB 가 아니라
-     * 판정기가 가지므로, 저장 시점에도 <b>그 유형에 속하는 값인지</b> 확인해 어긋나면 첫 번째 질문으로
-     * 되돌린다. 이는 화면 입력 불신뢰(CWE-20) 이기도 하다.
-     *
-     * <h3>★ 어긋난 값은 거부가 아니라 교정이다</h3>
-     * <p>400 으로 되돌려주지 않는다. 목록이 그 사이에 교체됐을 뿐인 정상 동선이 사용자에게는 원인 불명의
-     * 실패로 보이고, 질문 하나 때문에 마킹과 잔여 배치가 막히기 때문이다.
-     *
-     * @param rawSn          영상 PK
-     * @param requestedQstnSn 요청이 실어 온 선택값 (nullable — 미선택)
-     * @return 해석된 질문 일련번호. 검증 이벤트 유형 미수신·그 유형의 질문 0건이면 {@code null}
-     */
-    private Long resolveVerificationQuestionSn(Long rawSn, Long requestedQstnSn) {
-        String vrfcEvntTypeCd = resolveVrfcEvntTypeCd(rawSn);
-        if (vrfcEvntTypeCd == null) {
-            // 유형이 없으면 고를 축이 없다 — 비워 둔다(지어내지 않는다). 마킹은 그대로 진행한다.
-            log.info("[Marking] verification event type missing — question left empty rawSn={}", rawSn);
-            return null;
-        }
-        return questionResolver.resolve(requestedQstnSn, vrfcEvntTypeCd)
-                .map(VerificationEventQuestionResponse::vrfcEvntQstnSn)
-                .orElse(null);
-    }
-
-    /**
-     * 그 영상의 검증 이벤트 유형 코드 조달 — 관제 인입 원장값을 읽는다.
-     *
-     * <p>정규화는 인입 엔티티의 {@link LsDataIngest#normalizeVrfcEvntType(String)} <b>한 함수</b>를
-     * 재사용한다(리터럴 복제 금지 — 규칙이 갈리면 인입이 실어 보낸 표기가 여기서만 조달에 실패한다).
-     * 영상 행이 없거나 인입 행이 없으면 {@code null} 이며 그것이 정상 경로다.
-     */
-    private String resolveVrfcEvntTypeCd(Long rawSn) {
-        IngestSourceRow source = ingestSourceRepository.findSourceMeta(rawSn);
-        String raw = source == null ? null : source.getVrfcEvntTypeCd();
-        return LsDataIngest.normalizeVrfcEvntType(raw);
+        // 5. 응답 — 이벤트 유형 코드·영상 경로는 채널이 돌려준 조달값을 쓴다(마킹 행에 없다).
+        //    영상 행을 다시 조회하지 않으므로 추가 질의가 없다.
+        MarkingResponse response =
+                MarkingResponse.from(marking, objectMapper, eventName, targetInfo.videoPath());
+        return new MarkingOutcome(response, plan.marks(), plan.requestedCount());
     }
 
     /**
@@ -332,6 +339,14 @@ public class MarkingService {
      * @param fps            영상 실 프레임레이트 (미상 시 호출자가 폴백값 30.0 을 전달) — 양수
      */
     public String generateAutoMarks(Integer durationSec, int intervalFrames, double fps) {
+        return serializeMarks(autoMarks(durationSec, intervalFrames, fps));
+    }
+
+    /**
+     * 자동 모드 지점 산출 — 위 {@link #generateAutoMarks} 와 <b>같은 규칙</b>이며 직렬화 전 목록을
+     * 돌려준다. 채널이 상한으로 자르려면 목록이 필요하기 때문에 갈라 둔 것이고, 규칙은 여기 하나뿐이다.
+     */
+    public List<MarkItem> autoMarks(Integer durationSec, int intervalFrames, double fps) {
         if (durationSec == null || durationSec <= 0) {
             // FIX A backstop — durationSec·메타·직접 프로브까지 모두 실패한 진짜 예외 케이스만 여기 도달한다.
             throw new CustomException(ErrorCode.INVALID_INPUT,
@@ -345,7 +360,7 @@ public class MarkingService {
             String timestamp = formatTimestamp((int) sec);
             marks.add(new MarkItem(frameIndex, timestamp));
         }
-        return serializeMarks(marks);
+        return marks;
     }
 
     /**

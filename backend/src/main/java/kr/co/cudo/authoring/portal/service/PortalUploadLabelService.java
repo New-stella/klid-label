@@ -9,12 +9,13 @@ import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalUploadExportResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUploadLabelRequest;
 import kr.co.cudo.authoring.portal.dto.PortalUploadLabelResponse;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldLbl;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLabelRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import kr.co.cudo.authoring.video.service.FrameImageService;
@@ -42,8 +43,9 @@ import java.util.Map;
  * Phase 4 — 포털 업로드 라벨 CRUD + 내보내기/다운로드 서비스 (PORTAL_USER 전용).
  *
  * <p>ADR-013 준수 — 포털 업로드 자산의 프레임별 수동 라벨 전체교체(PUT)/조회/export/원본 다운로드만
- * 담당한다. AC6: 데이터마트/내부 도메인(batch/video/label) 미참조 — 포털 3종 리포지토리
- * (ULD/FRME/LBL)만 의존한다.
+ * 담당한다. 저장소는 흡수(ADR-058)로 공용 원장이 됐지만 <b>처리는 여전히 포털 흐름</b>이다 —
+ * 내부 파이프라인(비식별·마킹·오토라벨·검수)을 타지 않고, 데이터마트 오버레이와도 다른 축이다.
+ * 채널은 출처 판별자와 소유자 둘로 갈리며 모든 조회·저장 통로가 그 둘을 강제한다.
  *
  * <p>HIGH 시나리오 방어:
  * <ol>
@@ -82,9 +84,9 @@ public class PortalUploadLabelService {
     /** 라벨명 최대 길이(LBL_NM 컬럼 길이와 동일 — #3). */
     private static final int MAX_LABEL_LENGTH = 80;
 
-    private final LsPortalUldRepository uldRepository;
-    private final LsPortalUldFrmeRepository frmeRepository;
-    private final LsPortalUldLblRepository lblRepository;
+    private final PortalUploadAssetRepository assetRepository;
+    private final PortalUploadFrameRepository frmeRepository;
+    private final PortalUploadLabelRepository lblRepository;
     private final PortalUploadProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -113,25 +115,29 @@ public class PortalUploadLabelService {
         }
 
         // #1: 프레임 비관적 락 + 소유자 스코프. 부재/타인 = 403(#5).
-        LsPortalUldFrme frame = frmeRepository.findByUldFrmeSnAndOwnerForUpdate(uldFrmeSn, portalUserNo)
+        LsDataSrc frame = frmeRepository
+                .findByOwnerForUpdate(uldFrmeSn, portalUserNo, PortalUploadLedger.SRC_TYPE)
                 .orElseThrow(this::forbidden);
 
         // #6: 부모 자산 상태 READY 외 라벨링 금지(409). 소유자 스코프 재확인(#5).
-        LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(frame.getUldSn(), portalUserNo)
+        PortalUploadAsset uld = assetRepository.findByOwner(frame.getRawSn(), portalUserNo)
                 .orElseThrow(this::forbidden);
-        if (!LsPortalUld.STTS_READY.equals(uld.getUldSttsCd())) {
+        if (!uld.isReady()) {
             throw new CustomException(ErrorCode.CONFLICT,
-                    "라벨링 가능한(READY) 자산이 아닙니다. 현재 상태: " + uld.getUldSttsCd());
+                    "라벨링 가능한(READY) 자산이 아닙니다. 현재 상태: " + uld.uldSttsCd());
         }
 
         // 전체교체 — 소유자 스코프 벌크 DELETE 후 saveAll(동일 tx, 부분 실패 시 전체 롤백 #2).
-        lblRepository.deleteAllByUldFrmeSnAndPortalUserNo(uldFrmeSn, portalUserNo);
-        List<LsPortalUldLbl> toSave = new ArrayList<>(prepared.size());
+        lblRepository.deleteAllByFrameAndOwner(uldFrmeSn, portalUserNo, PortalUploadLedger.SRC_TYPE);
+        List<LsDataLbl> toSave = new ArrayList<>(prepared.size());
         for (PreparedLabel p : prepared) {
-            toSave.add(LsPortalUldLbl.create(portalUserNo, uld.getUldSn(), uldFrmeSn,
-                    p.lblTypeCd(), p.label(), p.pointCn()));
+            // 라벨 마스터 연결({@code labelId})은 <b>비운다</b> — 포털 라벨링은 마스터를 참조하지 않는
+            // 자유 입력이고, 이름으로 마스터를 역추정하면 동명·비활성 마스터에 잘못 붙는다.
+            // 라벨명도 비어 있을 수 있다(V29 가 원장 제약을 푼 이유) — 기본값을 지어 채우지 않는다.
+            toSave.add(LsDataLbl.createManual(uldFrmeSn, p.lblTypeCd(), null,
+                    p.label(), p.pointCn(), portalUserNo));
         }
-        List<LsPortalUldLbl> saved = lblRepository.saveAll(toSave);
+        List<LsDataLbl> saved = lblRepository.saveAll(toSave);
 
         log.info("[PortalUploadLabel] replaced uldFrmeSn={} userNo={} count={}",
                 uldFrmeSn, LogSanitizer.sanitize(portalUserNo), saved.size());
@@ -144,8 +150,10 @@ public class PortalUploadLabelService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<PortalUploadLabelResponse> listLabels(Long uldFrmeSn, String portalUserNo) {
         requireOwner(portalUserNo);
-        frmeRepository.findByUldFrmeSnAndOwner(uldFrmeSn, portalUserNo).orElseThrow(this::forbidden);
-        return lblRepository.findAllByUldFrmeSnAndPortalUserNo(uldFrmeSn, portalUserNo).stream()
+        frmeRepository.findByOwner(uldFrmeSn, portalUserNo, PortalUploadLedger.SRC_TYPE)
+                .orElseThrow(this::forbidden);
+        return lblRepository
+                .findAllByFrameAndOwner(uldFrmeSn, portalUserNo, PortalUploadLedger.SRC_TYPE).stream()
                 .map(this::toResponse).toList();
     }
 
@@ -159,30 +167,32 @@ public class PortalUploadLabelService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public ResponseEntity<byte[]> exportLabels(Long uldSn, String portalUserNo) {
         requireOwner(portalUserNo);
-        LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(uldSn, portalUserNo)
+        PortalUploadAsset uld = assetRepository.findByOwner(uldSn, portalUserNo)
                 .orElseThrow(this::forbidden);
 
-        // 소유 uldSn 하위 프레임(순번 오름차순). uld 소유권 확인 후이므로 하위 프레임은 소유자 것.
-        List<LsPortalUldFrme> frames = frmeRepository.findAllByUldSnOrderByFrmeNo(uldSn);
+        // 소유 자산 하위 프레임(순번 오름차순). 자산 소유권 확인 후이므로 하위 프레임은 소유자 것이다.
+        List<LsDataSrc> frames = frmeRepository.findAllByRawSnOrderByFrameNoAsc(uldSn);
 
-        // #8: 업로드 단위 라벨 일괄 조회 후 프레임별 그룹핑(프레임별 N+1 금지).
+        // #8: 자산 단위 라벨 일괄 조회 후 프레임별 그룹핑(프레임별 N+1 금지).
         Map<Long, List<PortalUploadExportResponse.Label>> labelsByFrame = new LinkedHashMap<>();
-        for (LsPortalUldLbl lbl : lblRepository.findAllByUldSnAndPortalUserNo(uldSn, portalUserNo)) {
-            labelsByFrame.computeIfAbsent(lbl.getUldFrmeSn(), k -> new ArrayList<>())
+        for (LsDataLbl lbl : lblRepository
+                .findAllByAssetAndOwner(uldSn, portalUserNo, PortalUploadLedger.SRC_TYPE)) {
+            labelsByFrame.computeIfAbsent(lbl.getSrcSn(), k -> new ArrayList<>())
                     .add(new PortalUploadExportResponse.Label(
-                            lbl.getUldLblSn(), lbl.getLblTypeCd(), lbl.getLblNm(),
+                            lbl.getLblSn(), lbl.getLblTypeCd(), lbl.getLabelNm(),
                             parsePoints(lbl.getPointCn())));
         }
 
         List<PortalUploadExportResponse.Frame> frameDtos = frames.stream()
                 .map(f -> new PortalUploadExportResponse.Frame(
-                        f.getUldFrmeSn(), f.getFrmeNo(),
-                        labelsByFrame.getOrDefault(f.getUldFrmeSn(), List.of())))
+                        f.getSrcSn(),
+                        f.getFrameNo() == null ? null : f.getFrameNo().intValue(),
+                        labelsByFrame.getOrDefault(f.getSrcSn(), List.of())))
                 .toList();
 
         PortalUploadExportResponse export = new PortalUploadExportResponse(
-                uld.getUldSn(), uld.getUldTypeCd(), uld.getOrgnlFileNm(), uld.getFileSz(),
-                uld.getMimeTypeNm(), uld.getUldSttsCd(), uld.getFrmeCnt(), uld.getRegDt(), frameDtos);
+                uld.uldSn(), uld.uldTypeCd(), uld.orgnlFileNm(), uld.fileSz(),
+                uld.mimeTypeNm(), uld.uldSttsCd(), uld.frmeCnt(), uld.regDt(), frameDtos);
 
         byte[] body;
         try {
@@ -217,11 +227,11 @@ public class PortalUploadLabelService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public ResponseEntity<Resource> downloadFile(Long uldSn, String portalUserNo) {
         requireOwner(portalUserNo);
-        LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(uldSn, portalUserNo)
+        PortalUploadAsset uld = assetRepository.findByOwner(uldSn, portalUserNo)
                 .orElseThrow(this::forbidden);
 
         // 저장 경로 미확정(추출 미완료/이상 자산) — Paths.get(null) NPE 방지, 파일 부재와 동일 취급(404).
-        String filePathNm = uld.getFilePathNm();
+        String filePathNm = uld.filePathNm();
         if (filePathNm == null || filePathNm.isBlank()) {
             log.warn("[PortalUploadLabel] original file path missing uldSn={}", uldSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "원본 파일이 존재하지 않습니다.");
@@ -252,11 +262,11 @@ public class PortalUploadLabelService {
         } catch (IOException e) {
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "파일을 읽을 수 없습니다.");
         }
-        MediaType mediaType = resolveStoredMediaType(uld.getMimeTypeNm());
+        MediaType mediaType = resolveStoredMediaType(uld.mimeTypeNm());
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .contentLength(opened.size())
-                .header(HttpHeaders.CONTENT_DISPOSITION, attachmentDisposition(uld.getOrgnlFileNm(), uld.getMimeTypeNm()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, attachmentDisposition(uld.orgnlFileNm(), uld.mimeTypeNm()))
                 .header("X-Content-Type-Options", "nosniff")
                 .body(new InputStreamResource(opened.stream()));
     }
@@ -270,7 +280,7 @@ public class PortalUploadLabelService {
         }
         String type = req.lblTypeCd() == null ? "" : req.lblTypeCd().toUpperCase(Locale.ROOT);
         // #4 allowlist — BBOX|POLYGON 외 거부(fail-closed).
-        if (!LsPortalUldLbl.TYPE_BBOX.equals(type) && !LsPortalUldLbl.TYPE_POLYGON.equals(type)) {
+        if (!LsDataLbl.TYPE_BBOX.equals(type) && !LsDataLbl.TYPE_POLYGON.equals(type)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "[" + (index + 1) + "] 허용되지 않는 lblTypeCd 입니다. 허용: BBOX, POLYGON");
         }
@@ -284,11 +294,11 @@ public class PortalUploadLabelService {
             throw new CustomException(ErrorCode.INVALID_INPUT, "[" + (index + 1) + "] points 는 필수입니다.");
         }
         // #3 좌표 개수 상한 — 타입별.
-        if (LsPortalUldLbl.TYPE_BBOX.equals(type) && points.size() != BBOX_POINT_COUNT) {
+        if (LsDataLbl.TYPE_BBOX.equals(type) && points.size() != BBOX_POINT_COUNT) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "[" + (index + 1) + "] BBOX 는 정확히 " + BBOX_POINT_COUNT + " 점이어야 합니다.");
         }
-        if (LsPortalUldLbl.TYPE_POLYGON.equals(type)
+        if (LsDataLbl.TYPE_POLYGON.equals(type)
                 && (points.size() < POLYGON_MIN_POINTS || points.size() > POLYGON_MAX_POINTS)) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "[" + (index + 1) + "] POLYGON 은 " + POLYGON_MIN_POINTS + "~"
@@ -318,7 +328,7 @@ public class PortalUploadLabelService {
         return new PreparedLabel(type, req.label(), pointCn);
     }
 
-    private PortalUploadLabelResponse toResponse(LsPortalUldLbl lbl) {
+    private PortalUploadLabelResponse toResponse(LsDataLbl lbl) {
         return PortalUploadLabelResponse.of(lbl, parsePoints(lbl.getPointCn()));
     }
 

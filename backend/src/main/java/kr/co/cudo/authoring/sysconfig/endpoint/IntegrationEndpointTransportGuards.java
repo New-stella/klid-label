@@ -144,18 +144,71 @@ public final class IntegrationEndpointTransportGuards {
      * <p>메시지·로그에 <b>주소도 경로도 토큰도 싣지 않는다</b>(CWE-209/532) — 대상 이름만 남긴다.
      */
     public static ExchangeFilterFunction requireResolvedHost(IntegrationEndpoint endpoint) {
+        return requireUsableAddress(endpoint, null);
+    }
+
+    /**
+     * ★ <b>배포 설정값이 정책을 위반했으면 그 연동으로 나가지 않는다</b> (2026-09-03 확정, 구속).
+     *
+     * <h3>기동이 아니라 여기서 막는다</h3>
+     * <p>연동 주소 검증은 지금까지 <b>빈 생성 시점</b>에 걸려 있어, 한 연동의 설정 실수가
+     * <b>저작 업무 전체를 세웠다</b>. 온프렘 배포에서 그 대가는 실수보다 크다. 그래서 판정
+     * ({@code ExternalUrlPolicy})은 그대로 두고 <b>적용 시점만</b> 여기로 옮겼다 — 무엇을 막는지는
+     * 그대로이고 <b>언제 막는지</b>만 바뀐다.
+     *
+     * <p>거부된 주소는 {@code ExternalEndpointAddress} 가 <b>빈 base-url</b> 로 낮춰 두므로, 여기
+     * 도달한 요청의 URL 에는 호스트가 없다. 즉 이 가드는 <b>「주소 없음」과 「주소 부적합」을 한
+     * 자리에서</b> 처리한다 — 두 사유 모두 결과는 같다(아무 데도 보내지 않는다).
+     *
+     * <h3>운영 화면 override 는 살린다</h3>
+     * <p>이 필터는 URL 재작성 필터 <b>뒤</b>에 온다. 배포 기본값이 거부됐더라도 운영 화면에 정상
+     * 주소가 저장돼 있으면 재작성 결과에 호스트가 있으므로 <b>그대로 통과</b>한다 — 잘못 배포된
+     * 주소를 재기동 없이 되돌릴 수 있다.
+     *
+     * <h3>실패의 성질·노출</h3>
+     * <p>{@link NonRetryableExternalException} 이다 — 설정을 고쳐야 풀리는 <b>결정적</b> 실패라
+     * 재시도·서킷 집계에서 제외된다(두 축의 {@code ignore-exceptions} 에 이미 등록돼 있다).
+     * 메시지에는 <b>대상 이름과 사유 분류만</b> 싣고 주소·호스트·자격증명은 싣지 않는다
+     * (CWE-209/532). 설정 키는 <b>서버 로그에만</b> 남긴다 — 내부 속성명은 응답에 실을 정보가 아니다.
+     *
+     * @param endpoint       대상 연동
+     * @param rejectionLabel 배포 설정값의 거부 사유({@code ExternalEndpointAddress#rejectionLabel()}).
+     *                       {@code null} 이면 "설정되지 않음" 으로 다룬다.
+     * @design ADR-062
+     */
+    public static ExchangeFilterFunction requireUsableAddress(IntegrationEndpoint endpoint,
+                                                              String rejectionLabel) {
         return (request, next) -> {
             URI url = request.url();
             String host = url == null ? null : url.getHost();
             if (host != null && !host.isBlank()) {
                 return next.exchange(request);
             }
-            log.error("[IntegrationEndpoint] {} 연동 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
-                            + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다.",
-                    endpoint.displayName());
-            return Mono.error(new NonRetryableExternalException(
-                    endpoint.displayName() + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다."));
+            return Mono.error(unusableAddress(endpoint, rejectionLabel));
         };
+    }
+
+    /**
+     * 전송 거부 예외를 만든다 — <b>필터를 걸 수 없는 저수준 경로</b>(reactor-netty {@code HttpClient})도
+     * 같은 실패를 내도록 여기서 소유한다. 문구가 갈리면 같은 사유가 경로마다 다르게 기록된다.
+     *
+     * @design ADR-062
+     */
+    public static NonRetryableExternalException unusableAddress(IntegrationEndpoint endpoint,
+                                                                String rejectionLabel) {
+        if (rejectionLabel == null || rejectionLabel.isBlank()) {
+            log.error("[IntegrationEndpoint] {} 연동 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
+                            + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다. 설정키={}",
+                    endpoint.displayName(), endpoint.configKey());
+            return new NonRetryableExternalException(
+                    endpoint.displayName() + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다.");
+        }
+        log.error("[IntegrationEndpoint] {} 연동 주소 설정값이 유효하지 않아 요청을 보내지 않았습니다 — "
+                        + "설정을 고쳐야 풀리는 실패입니다(재시도 대상 아님). 설정키={} 사유={}",
+                endpoint.displayName(), endpoint.configKey(), rejectionLabel);
+        return new NonRetryableExternalException(
+                endpoint.displayName() + " 연동 주소 설정값이 유효하지 않아 요청을 보내지 않았습니다 ("
+                        + rejectionLabel + ").");
     }
 
     private static String schemeOf(String url) {

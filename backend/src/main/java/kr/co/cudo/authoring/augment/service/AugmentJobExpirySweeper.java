@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <h3>토글 독립</h3>
  * <p>이 스윕은 <b>자기 토글</b>({@code authoring.augment.job-expiry.enabled}, 전 프로파일 기본 true)만
- * 본다. 외부 위탁 모드({@code authoring.augment.external.mode})·관제 통지 토글
+ * 본다. 외부 위탁 주소({@code authoring.augment.external.base-url})·관제 통지 토글
  * ({@code authoring.control-notify.enabled}) 같은 남의 스위치에 얹지 않는다 — 과거 이 리포에서
  * 무관한 토글에 종속돼 운영에서만 무증상 중단된 사고가 있었다. 위탁이 noop 인 환경에서는 후보가
  * 0건이라 스윕이 무해하게 돈다.

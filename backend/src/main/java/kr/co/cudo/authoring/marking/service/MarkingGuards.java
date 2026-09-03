@@ -123,7 +123,29 @@ final class MarkingGuards {
     }
 
     /**
+     * 마킹 행에 남길 <b>생성자 식별자</b> — 토큰 주체를 문자 그대로 담는다 (V27). [design: ERD-013]
+     *
+     * <p>{@code REG_USER_NO} 가 문자 100자가 되면서 <b>숫자로 파싱하지 않는다</b>. 내부 채널의 숫자
+     * 주체는 그대로 문자로 남고, 포털 채널의 비숫자 주체도 손실 없이 남는다. 숫자 파싱을 유지하면
+     * 포털 주체가 <b>조용히 null</b> 로 떨어져 소유자 없는 마킹이 저장된다.
+     *
+     * <p>길이 초과는 여기서 자르지 않는다 — 잘라 담으면 서로 다른 사용자가 같은 값이 되어 인가가
+     * 조용히 어긋난다. 컬럼 폭을 넘는 주체는 저장 시점에 실패하는 편이 안전하다(fail-closed).
+     *
+     * @return 주체 문자열. null/blank 면 {@code null}
+     */
+    static String creatorId(String sub) {
+        if (sub == null || sub.isBlank()) {
+            return null;
+        }
+        return sub.trim();
+    }
+
+    /**
      * {@code actor.sub()} 에서 사용자 번호 파싱. 파싱 불가/blank 는 {@code null}.
+     *
+     * <p>배정 조회 키(숫자 {@code USER_NO})를 얻는 용도로만 남는다 — 마킹 행에 남기는 생성자
+     * 식별자는 {@link #creatorId(String)} 를 쓴다.
      */
     static Long parseUserNo(String sub) {
         if (sub == null || sub.isBlank()) {

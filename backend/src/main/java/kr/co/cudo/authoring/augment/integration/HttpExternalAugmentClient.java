@@ -20,7 +20,6 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.codec.CodecException;
 import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.http.HttpStatusCode;
@@ -61,8 +60,6 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "authoring.augment.external.mode", havingValue = "http",
-        matchIfMissing = true)
 public class HttpExternalAugmentClient implements ExternalAugmentClient {
 
     /** 명세서 §4.1 위탁 엔드포인트. */

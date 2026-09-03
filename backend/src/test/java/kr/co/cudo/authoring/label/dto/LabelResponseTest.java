@@ -202,7 +202,7 @@ class LabelResponseTest {
     void manualLabelStillRespondsAutoNo() {
         // DB 축은 NULL 이고 응답 축은 'N' 이다 — 두 축을 각각 보존하는 것이 의도다.
         LsDataLbl manual = LsDataLbl.createManual(
-                1L, LsDataLbl.TYPE_BBOX, null, "person", "[[1,1],[2,2]]", 100L);
+                1L, LsDataLbl.TYPE_BBOX, null, "person", "[[1,1],[2,2]]", "100");
         assertThat(manual.getAutoLblYn()).as("DB 축: 부재는 null 로 표현한다").isNull();
         assertThat(manual.getLblSrcCd()).isNull();
 

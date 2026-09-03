@@ -190,8 +190,8 @@ public class AugmentCancelService {
             return true;
         }
         if (result.reason() == AugmentProgressUnavailableReason.NOOP) {
-            // 외부 미연동(mode=noop) — 보낼 곳이 없다. 로컬 취소는 성립하므로 실패로 세지 않는다.
-            log.info("[Augment][Cancel] 외부 미연동(noop) — 로컬만 취소 종결 dataAugSn={} jobSeq={}",
+            // 외부 미연동 — 보낼 곳이 없다. 로컬 취소는 성립하므로 실패로 세지 않는다.
+            log.info("[Augment][Cancel] 외부 미연동 — 로컬만 취소 종결 dataAugSn={} jobSeq={}",
                     dataAugSn, target.jobSeq());
             return true;
         }

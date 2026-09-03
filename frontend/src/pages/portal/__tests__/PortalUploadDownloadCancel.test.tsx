@@ -1,4 +1,7 @@
-// 포털 업로드 라벨링 — **원본 파일** 다운로드 취소 회귀 가드. @design SCREEN-034
+// 포털 업로드 **자산 목록** — 내려받기 두 갈래와 취소 회귀 가드. @design SCREEN-033
+//
+// ★ 이 조작들은 폐기된 업로드 자산 라벨링 화면에서 **이 목록으로 옮겨 왔다**(확정 사양 —
+//   자산 단위 조작이므로 자산이 늘어놓인 자리가 제 위치다). 옮기면서 아래 계약을 잃지 않는다.
 //
 // 이 파일이 고정하는 계약:
 //  - 취소는 **대용량 경로에만** 둔다. 원본 파일은 최대 5GB 라 대상이고, 라벨 내보내기(JSON)는
@@ -8,22 +11,21 @@
 //    «원본 다운로드에 실패했습니다» 가 뜬다.
 //  - 취소하지 않은 실패는 **여전히** 안내된다(통합을 뒤집지 않는다).
 //  - 취소 후에는 다시 받을 수 있는 상태로 돌아온다.
+//  - 행이 여럿이므로 **접근 이름에 파일명이 붙는다** — 붙지 않으면 같은 이름의 버튼이 자산 수만큼
+//    생겨 보조기술 사용자가 어느 자산인지 가릴 수 없다.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 
-vi.mock('react-konva', async () => (await import('@/test/konvaMock')).createKonvaMock());
-
 import { apiClient } from '@/lib/api/client';
 import { ApiError } from '@/lib/api/errors';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useLabelStore } from '@/stores/useLabelStore';
 import { useUiStore } from '@/stores/useUiStore';
 
-import { PortalUploadLabelingPage } from '../PortalUploadLabelingPage';
+import { PortalUploadPage } from '../PortalUploadPage';
 
 const downloadFileMock = vi.fn();
 vi.mock('@/features/portal/uploads/api', async (importOriginal) => {
@@ -38,24 +40,27 @@ vi.mock('@/features/portal/uploads/api', async (importOriginal) => {
 // 테스트용 더미 인증값(비밀 아님 — 시크릿 스캐너 오탐 회피용 조합).
 const FAKE_TOKEN = ['t', 'o', 'k'].join('');
 
+const FILE_NAME = 'clip.mp4';
+const EXPORT_BTN = `${FILE_NAME} 내보내기(JSON)`;
+const FILE_BTN = `${FILE_NAME} 원본 다운로드`;
+const CANCEL_BTN = `${FILE_NAME} 원본 다운로드 취소`;
+
 function ok(data: unknown) {
   return { success: true, data, message: null, errorCode: null };
 }
 
-function detail() {
+function readyAsset() {
   return {
     uldSn: 1,
-    uldTypeCd: 'IMAGE',
-    orgnlFileNm: 'photo.jpg',
+    uldTypeCd: 'VIDEO',
+    orgnlFileNm: FILE_NAME,
     fileSz: 1024,
-    mimeTypeNm: 'image/jpeg',
+    mimeTypeNm: 'video/mp4',
     uldSttsCd: 'READY',
-    frmeCnt: 1,
-    vdoLenSec: null,
-    fps: null,
+    frmeCnt: 3,
+    frmeSn: null,
     regDt: '2026-07-17T00:00:00',
-    mdfcnDt: null,
-    frames: [{ uldFrmeSn: 100, uldSn: 1, frmeNo: 0, regDt: '2026-07-17T00:00:00' }],
+    expiresAt: null,
   };
 }
 
@@ -69,19 +74,12 @@ function hangUntilAborted() {
   );
 }
 
-function renderPage() {
-  return renderWithProviders(<PortalUploadLabelingPage />, {
-    initialEntries: ['/portal/uploads/1/label'],
-    routes: [{ path: '/portal/uploads/:uldSn/label', element: <PortalUploadLabelingPage /> }],
-  });
+async function renderList() {
+  renderWithProviders(<PortalUploadPage />, { initialEntries: ['/portal/uploads'] });
+  await screen.findByTestId('portal-upload-item-1');
 }
 
-async function renderReady() {
-  renderPage();
-  await waitFor(() => expect(screen.getByTestId('canvas-shell')).toBeInTheDocument());
-}
-
-describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
+describe('포털 업로드 자산 목록 — 내려받기와 취소', () => {
   let mock: MockAdapter;
 
   beforeEach(() => {
@@ -90,14 +88,15 @@ describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
       token: FAKE_TOKEN,
       claims: { sub: '10', role: 'PORTAL_USER', channel: 'PORTAL', exp: 9999999999 },
     });
-    useLabelStore.getState().reset();
     useUiStore.setState({ toasts: [] });
     downloadFileMock.mockReset();
     downloadFileMock.mockResolvedValue(undefined);
-    mock.onGet('/manage/labels').reply(200, ok([]));
-    mock.onGet(/\/portal\/uploads\/frames\/\d+\/image/).reply(200, new Blob());
-    mock.onGet('/portal/uploads/1').reply(200, ok(detail()));
-    mock.onGet('/portal/uploads/frames/100/labels').reply(200, ok([]));
+    mock
+      .onGet('/portal/uploads')
+      .reply(
+        200,
+        ok({ content: [readyAsset()], totalElements: 1, totalPages: 1, number: 0, size: 20 }),
+      );
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn(() => 'blob:x'),
       revokeObjectURL: vi.fn(),
@@ -107,36 +106,41 @@ describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
   afterEach(() => {
     mock.restore();
     useAuthStore.getState().clear();
-    useLabelStore.getState().reset();
     useUiStore.setState({ toasts: [] });
     vi.restoreAllMocks();
   });
 
-  it('내려받기_전에는_취소_조작이_없다', async () => {
+  it('준비_완료_자산에_내려받기_두_갈래가_있다', async () => {
     // given / when
-    await renderReady();
+    await renderList();
 
     // then
-    expect(screen.queryByRole('button', { name: '원본 다운로드 취소' })).toBeNull();
+    expect(screen.getByRole('button', { name: EXPORT_BTN })).toBeEnabled();
+    expect(screen.getByRole('button', { name: FILE_BTN })).toBeEnabled();
+  });
+
+  it('내려받기_전에는_취소_조작이_없다', async () => {
+    // given / when
+    await renderList();
+
+    // then
+    expect(screen.queryByRole('button', { name: CANCEL_BTN })).toBeNull();
   });
 
   it('원본을_내려받는_동안에만_취소_조작이_보인다', async () => {
     // given
     const user = userEvent.setup();
     hangUntilAborted();
-    await renderReady();
+    await renderList();
 
     // when
-    await user.click(screen.getByRole('button', { name: '원본 다운로드' }));
+    await user.click(screen.getByRole('button', { name: FILE_BTN }));
 
     // then: 취소는 눌러야 하므로 진행 중 비활성 대상에서 제외된다
-    const cancel = await screen.findByRole('button', { name: '원본 다운로드 취소' });
+    const cancel = await screen.findByRole('button', { name: CANCEL_BTN });
     expect(cancel).toBeEnabled();
     // then: 진행 사실은 기존 관례(aria-busy)로 전달한다
-    expect(screen.getByRole('button', { name: '원본 다운로드' })).toHaveAttribute(
-      'aria-busy',
-      'true',
-    );
+    expect(screen.getByRole('button', { name: FILE_BTN })).toHaveAttribute('aria-busy', 'true');
   });
 
   /* ★★ 핵심 가드 — 스스로 멈춘 사용자에게 «실패했습니다» 가 뜨면 거짓 안내다. */
@@ -144,16 +148,14 @@ describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
     // given
     const user = userEvent.setup();
     hangUntilAborted();
-    await renderReady();
-    await user.click(screen.getByRole('button', { name: '원본 다운로드' }));
+    await renderList();
+    await user.click(screen.getByRole('button', { name: FILE_BTN }));
 
     // when
-    await user.click(await screen.findByRole('button', { name: '원본 다운로드 취소' }));
+    await user.click(await screen.findByRole('button', { name: CANCEL_BTN }));
 
     // then: 진행 표시가 풀린 뒤에도 오류 토스트가 없다
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: '원본 다운로드' })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole('button', { name: FILE_BTN })).toBeEnabled());
     expect(useUiStore.getState().toasts.filter((t) => t.variant === 'error')).toHaveLength(0);
   });
 
@@ -161,20 +163,18 @@ describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
     // given
     const user = userEvent.setup();
     hangUntilAborted();
-    await renderReady();
-    await user.click(screen.getByRole('button', { name: '원본 다운로드' }));
-    await user.click(await screen.findByRole('button', { name: '원본 다운로드 취소' }));
+    await renderList();
+    await user.click(screen.getByRole('button', { name: FILE_BTN }));
+    await user.click(await screen.findByRole('button', { name: CANCEL_BTN }));
 
     // then: 취소 조작이 걷히고 두 버튼이 원래대로 돌아온다(영구 고착 없음)
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: '원본 다운로드' })).toBeEnabled(),
-    );
-    expect(screen.getByRole('button', { name: '내보내기(JSON)' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: '원본 다운로드 취소' })).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: FILE_BTN })).toBeEnabled());
+    expect(screen.getByRole('button', { name: EXPORT_BTN })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: CANCEL_BTN })).toBeNull();
 
     // when: 다시 누르면 다시 요청이 나간다
     downloadFileMock.mockResolvedValue(undefined);
-    await user.click(screen.getByRole('button', { name: '원본 다운로드' }));
+    await user.click(screen.getByRole('button', { name: FILE_BTN }));
 
     // then
     await waitFor(() => expect(downloadFileMock).toHaveBeenCalledTimes(2));
@@ -184,10 +184,10 @@ describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
     // given: 사용자는 아무것도 누르지 않았는데 실패한다
     const user = userEvent.setup();
     downloadFileMock.mockRejectedValue(ApiError.fromStatus(0, 'Network Error'));
-    await renderReady();
+    await renderList();
 
     // when
-    await user.click(screen.getByRole('button', { name: '원본 다운로드' }));
+    await user.click(screen.getByRole('button', { name: FILE_BTN }));
 
     // then
     await waitFor(() =>
@@ -196,23 +196,62 @@ describe('포털 업로드 라벨링 — 원본 다운로드 취소', () => {
   });
 
   /*
-   * ★ 사양 — 취소는 대용량 두 경로에만 둔다. 라벨 내보내기(JSON)는 작아서 취소 버튼이 뜨기 전에
+   * ★ 사양 — 취소는 대용량 경로에만 둔다. 라벨 내보내기(JSON)는 작아서 취소 버튼이 뜨기 전에
    *   끝나므로 두지 않는다. 여기에 취소를 더하면 «작아서 두지 않는다» 는 판단이 코드에서 지워진다.
    */
   it('라벨_내보내기_JSON_에는_취소를_두지_않는다', async () => {
     // given: export 응답을 붙잡아 둔다
     const user = userEvent.setup();
     mock.onGet('/portal/uploads/1/export').reply(() => new Promise(() => {}));
-    await renderReady();
+    await renderList();
 
     // when
-    await user.click(screen.getByRole('button', { name: '내보내기(JSON)' }));
+    await user.click(screen.getByRole('button', { name: EXPORT_BTN }));
 
     // then: 진행 중이어도 취소 조작이 생기지 않는다
+    await waitFor(() => expect(screen.getByRole('button', { name: FILE_BTN })).toBeDisabled());
+    expect(
+      screen.queryByRole('button', { name: new RegExp(`${FILE_NAME} 내보내기.*취소`) }),
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: CANCEL_BTN })).toBeNull();
+  });
+
+  it('내보내기는_export_엔드포인트를_호출한다', async () => {
+    // given
+    const user = userEvent.setup();
+    mock.onGet('/portal/uploads/1/export').reply(200, '{"ok":true}', {
+      'content-disposition': 'attachment; filename="upload-1.json"',
+    });
+    await renderList();
+
+    // when
+    await user.click(screen.getByRole('button', { name: EXPORT_BTN }));
+
+    // then
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: '원본 다운로드' })).toBeDisabled(),
+      expect(mock.history.get.some((r) => r.url === '/portal/uploads/1/export')).toBe(true),
     );
-    expect(screen.queryByRole('button', { name: /내보내기.*취소/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: '원본 다운로드 취소' })).toBeNull();
+  });
+
+  it('준비_완료가_아닌_자산에는_내려받기를_두지_않는다', async () => {
+    // given: 아직 준비되지 않은 자산 — 내보낼 라벨도 라벨링을 거친 결과도 없다
+    mock.reset();
+    mock.onGet('/portal/uploads').reply(
+      200,
+      ok({
+        content: [{ ...readyAsset(), uldSttsCd: 'UPLOADED' }],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+      }),
+    );
+
+    // when
+    await renderList();
+
+    // then
+    expect(screen.queryByRole('button', { name: EXPORT_BTN })).toBeNull();
+    expect(screen.queryByRole('button', { name: FILE_BTN })).toBeNull();
   });
 });

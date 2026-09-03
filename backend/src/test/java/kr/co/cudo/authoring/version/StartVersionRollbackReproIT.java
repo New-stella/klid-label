@@ -274,7 +274,7 @@ class StartVersionRollbackReproIT {
         labelRepository.deleteAll(labelRepository.findBySrcSn(srcSn));
         labelRepository.flush();
         labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, label, "[[10.0,10.0],[50.0,50.0]]", 1L));
+                srcSn, "BBOX", null, label, "[[10.0,10.0],[50.0,50.0]]", "1"));
         labelRepository.flush();
     }
 

@@ -3,7 +3,8 @@ package kr.co.cudo.authoring.portal;
 import kr.co.cudo.authoring.batch.step.BrampFfmpegFrameWriter;
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.portal.service.PortalFrameExtractRunner;
 import kr.co.cudo.authoring.portal.service.PortalFrameExtractTxService;
 import kr.co.cudo.authoring.portal.service.PortalVideoProbe;
@@ -13,9 +14,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -88,14 +89,13 @@ class PortalFrameExtractHeartbeatTest {
                 16_777_216L, 2_097_152L, 30L, STUCK_TIMEOUT_MINUTES);
     }
 
-    private LsPortalUld processingUld() throws Exception {
+    /** 후처리 중으로 전이된 자산 스냅샷 — 상태는 이제 엔티티가 아니라 메타 원장이 소유한다. */
+    private PortalUploadAsset processingUld() throws Exception {
         Path video = Files.createFile(storageDir.resolve("video.mp4"));
-        LsPortalUld uld = LsPortalUld.createVideo("u1", "v.mp4", video.toString(), 1024L, "video/mp4");
-        Field f = LsPortalUld.class.getDeclaredField("uldSn");
-        f.setAccessible(true);
-        f.set(uld, ULD_SN);
-        uld.markProcessing();
-        return uld;
+        return new PortalUploadAsset(ULD_SN, "u1", PortalUploadLedger.TYPE_VIDEO,
+                "v.mp4", video.toString(), 1024L, "video/mp4",
+                PortalUploadLedger.STATUS_PROCESSING, null, null, 0, null,
+                LocalDateTime.now(), LocalDateTime.now());
     }
 
     @Test
@@ -103,7 +103,11 @@ class PortalFrameExtractHeartbeatTest {
     void heartbeatGapStaysUnderStuckCutline() throws Exception {
         // given — 60초 영상(간격 5초 → 12프레임). 프레임 1장을 뽑는 데 5분이 걸린다고 가정하면
         //   전체는 60분으로 커트라인(30분)의 2배다. 그래도 «무갱신» 경과는 커트라인 밑이어야 한다.
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
+        // 마킹이 12지점(간격 5초 상당)을 정했다고 둔다 — 러너는 그것을 그대로 뽑는다.
+        java.util.List<Integer> marked =
+                java.util.stream.IntStream.range(0, 12).map(i -> i * 150).boxed().toList();
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.of(
+                new kr.co.cudo.authoring.portal.service.PortalExtractionPlan(processingUld(), marked)));
         doAnswer(inv -> {
             Path out = inv.getArgument(1);
             Files.createDirectories(out.getParent());
@@ -114,7 +118,7 @@ class PortalFrameExtractHeartbeatTest {
 
         PortalFrameExtractRunner runner = new PortalFrameExtractRunner(
                 txService, path -> new PortalVideoProbe.Result(true, 60.0, 30.0),
-                frameWriter, systemConfigService, props(), fakeNanos::get);
+                frameWriter, props(), fakeNanos::get);
 
         // when
         runner.runAsync(ULD_SN);

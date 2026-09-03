@@ -124,11 +124,19 @@ public interface VideoRepository extends JpaRepository<LsDataRaw, Long> {
      * 스윕이 조용히 무력화된다. 스윕은 마지막으로 살펴본 지점을 기억했다가 그 뒤부터 이어서 훑고, 끝에
      * 닿으면 처음으로 돌아온다(상한은 그대로 유지 — 자원 보호).
      *
+     * <h3>★ 포털 자산은 후보가 아니다 — 방어를 우연에서 구조로 옮긴다 (ADR-058)</h3>
+     * <p>흡수로 포털 업로드 자산이 이 원장에 함께 앉는다. 지금까지 이 조회가 포털 행을 집지 않은 것은
+     * <b>배치 단계 값이 우연히 겹치지 않았기 때문</b>이지 막아서가 아니었다 — 포털 파이프라인이 이
+     * 컬럼을 건드리는 순간 섞인다. 채널 축을 술어에 박아 그 우연을 구조로 바꾼다.
+     * <p>술어는 여기서 쓰지 않고 채널 판별의 단일 소유자 {@link InternalWorkScope#INTERNAL_JPQL} 을
+     * 붙인다(별칭 규약 {@code LsDataRaw = r}). 「포털이 아니다」로 적는 이유는 그 상수 주석에 있다.
+     *
      * @param cutoff     이 시각 이전에 마지막 갱신된 행만 후보
      * @param afterRawSn 이 값보다 큰 {@code RAW_SN} 만 후보(회전 커서). 처음부터 훑으려면 {@code 0}
      */
     @Query("SELECT r.rawSn FROM LsDataRaw r "
             + "WHERE r.dataSttsCd = :processingStatus "
+            + InternalWorkScope.INTERNAL_JPQL
             + "  AND (r.mdfcnDt IS NULL OR r.mdfcnDt < :cutoff) "
             + "  AND r.rawSn > :afterRawSn "
             + "ORDER BY r.rawSn ASC")

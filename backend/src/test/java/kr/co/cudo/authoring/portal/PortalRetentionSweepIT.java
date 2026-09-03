@@ -1,15 +1,16 @@
 package kr.co.cudo.authoring.portal;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import kr.co.cudo.authoring.portal.repository.LsPortalUserLabelRepository;
 import kr.co.cudo.authoring.portal.scheduler.PortalRetentionSweepJob;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository.RetentionAxis;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLabelRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -24,10 +26,14 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import javax.sql.DataSource;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,8 +43,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>단위 테스트는 리포지토리를 mock 하므로 <b>삭제 SQL 의 조건이 실제로 무엇을 거르는지</b> 확인하지
  * 못한다. 이 배치는 사용자 데이터를 비가역으로 지우므로 그 조건이야말로 유일한 방어선이라 여기서
- * 실행해 고정한다. 특히 두 가지다 — {@code PROCESSING} 이 후보에 <b>절대</b> 들어오지 않는가(AC-036),
- * 그리고 후보를 뽑은 뒤 조건이 풀린 자산·그룹을 <b>삭제문 자체가</b> 다시 걸러내는가.
+ * 실행해 고정한다.
+ *
+ * <h3>★★ 흡수(ADR-058) 뒤 이 시험의 무게가 달라졌다</h3>
+ * <p>흡수 전에는 <b>전용 표가 울타리</b>였다 — 조건을 빠뜨려도 지워지는 것은 포털 자산뿐이었다.
+ * 이제 자산이 관제 영상과 <b>같은 원장</b>에 앉으므로, 삭제 대상은 <b>출처 판별자 + 소유자 보유 +
+ * 보존기간 경과</b> 셋을 동시에 충족해야 하고 <b>하나만 빠지면 관제 영상을 지운다</b>. 그래서 이
+ * 파일에 「관제 영상은 어떤 경로로도 지워지지 않는다」를 명시적으로 세운다.
  *
  * <p>보존일수는 시드({@code V11})가 넣은 값(데이터마트 7 / READY 7 / FAILED 1)을 그대로 쓴다 —
  * 테스트에서 설정을 바꾸면 캐시(TTL 60s)가 다른 컨텍스트로 새므로 <b>픽스처 시각</b>만 조정한다.
@@ -68,16 +79,19 @@ class PortalRetentionSweepIT {
     @Autowired private PortalRetentionSweepJob job;
     @Autowired private PortalRetentionPolicy retentionPolicy;
     @Autowired private LsPortalUserLabelRepository userLabelRepository;
-    @Autowired private LsPortalUldRepository uldRepository;
-    @Autowired private LsPortalUldFrmeRepository frmeRepository;
-    @Autowired private LsPortalUldLblRepository lblRepository;
+    @Autowired private PortalUploadAssetRepository assetRepository;
+    @Autowired private PortalUploadFrameRepository frmeRepository;
+    @Autowired private PortalUploadLabelRepository lblRepository;
     @Autowired private VideoRepository videoRepository;
 
     private final TransactionTemplate txTemplate;
+    private final JdbcTemplate jdbc;
 
     PortalRetentionSweepIT(
-            @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager) {
+            @Qualifier("controlTransactionManager") PlatformTransactionManager controlTxManager,
+            @Qualifier("controlDataSource") DataSource controlDataSource) {
         this.txTemplate = new TransactionTemplate(controlTxManager);
+        this.jdbc = new JdbcTemplate(controlDataSource);
     }
 
     // ==================================================== 축 A — 데이터마트 라벨 (AC-032)
@@ -145,64 +159,122 @@ class PortalRetentionSweepIT {
     // ==================================================== 축 B — 업로드 자산 (AC-036 / AC-037)
 
     @Test
-    @DisplayName("처리중_자산은_등록일로부터_보존기간이_지나도_DB행과_파일이_모두_남는다")
+    @DisplayName("★관제_영상은_아무리_오래돼도_포털_보존기간_배치가_지우지_않는다")
+    void controlVideosAreNeverSweptByPortalRetention() {
+        assumeSeededRetention();
+        // given — 포털 소유자도 없고 출처도 다른 관제 인입 영상. 등록일은 아주 오래됐다.
+        long controlRawSn = newVideoRawSn();
+        jdbc.update("UPDATE ls_data_raw SET reg_dt = ?, mdfcn_dt = ? WHERE raw_sn = ?",
+                Timestamp.valueOf(daysAgo(400)), Timestamp.valueOf(daysAgo(400)), controlRawSn);
+
+        job.sweepExpiredUploads();
+
+        // 판별자 셋 중 하나만 빠져도 이 단언이 깨진다 — 그것이 이 시험의 존재 이유다.
+        assertThat(videoRepository.findById(controlRawSn))
+                .as("★출처 판별자·소유자 조건이 빠지면 관제 영상이 함께 지워진다")
+                .isPresent();
+    }
+
+    @Test
+    @DisplayName("★관제_영상_식별자를_삭제문에_직접_넣어도_0행이다 — 후보_조회를_우회해도_막힌다")
+    void controlVideoCannotBeDeletedEvenByDirectCall() {
+        long controlRawSn = newVideoRawSn();
+        jdbc.update("UPDATE ls_data_raw SET reg_dt = ? WHERE raw_sn = ?",
+                Timestamp.valueOf(daysAgo(400)), controlRawSn);
+
+        int removedReady = txTemplate.execute(s ->
+                assetRepository.deleteExpired(RetentionAxis.READY, controlRawSn, daysAgo(7)));
+        int removedFailed = txTemplate.execute(s ->
+                assetRepository.deleteExpired(RetentionAxis.FAILED, controlRawSn, daysAgo(1)));
+
+        assertThat(removedReady).isZero();
+        assertThat(removedFailed).isZero();
+        assertThat(videoRepository.findById(controlRawSn)).isPresent();
+    }
+
+    @Test
+    @DisplayName("후처리중_자산은_등록일로부터_보존기간이_지나도_DB행과_파일이_모두_남는다")
     void processingAssetIsNeverSwept() {
         assumeSeededRetention();
         String user = "user-" + System.nanoTime();
         Path file = writeFile("processing-" + System.nanoTime() + ".mp4");
-        Long uldSn = saveUpload(user, LsPortalUld.STTS_PROCESSING, daysAgo(30), daysAgo(30), file);
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_PROCESSING,
+                daysAgo(30), daysAgo(30), file);
 
         job.sweepExpiredUploads();
 
-        assertThat(uldRepository.findById(uldSn))
-                .as("PROCESSING 자산을 지우면 프레임 추출 러너와 경쟁해 파일-DB 불일치가 난다")
+        assertThat(assetRepository.findPortalAsset(uldSn))
+                .as("후처리 중 자산을 지우면 프레임 추출 러너와 경쟁해 파일-DB 불일치가 난다")
                 .isPresent();
         assertThat(file).exists();
     }
 
     @Test
-    @DisplayName("같은_시각_등록이어도_FAILED는_1일로_삭제되고_READY는_7일이라_남는다")
+    @DisplayName("★상태_행이_없는_자산도_삭제_대상이_아니다 — 부재는_업로드됨이고_그_축은_삭제하지_않는다")
+    void assetWithoutStatusRowIsNeverSwept() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        Path file = writeFile("nostatus-" + System.nanoTime() + ".mp4");
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_READY, daysAgo(30), daysAgo(30), file);
+        // 상태 행을 통째로 지워 「아직 기록되지 않은」 상태를 만든다.
+        jdbc.update("DELETE FROM ls_data_meta WHERE raw_sn = ? AND meta_key = ?",
+                uldSn, PortalUploadLedger.KEY_UPLOAD_STATUS);
+
+        job.sweepExpiredUploads();
+
+        assertThat(assetRepository.findPortalAsset(uldSn))
+                .as("부재를 업로드됨으로 읽으므로 어느 삭제 축에도 들지 않는다")
+                .isPresent();
+        assertThat(file).exists();
+    }
+
+    @Test
+    @DisplayName("같은_시각_등록이어도_실패축은_1일로_삭제되고_완료축은_7일이라_남는다")
     void failedAndReadyAxesAreJudgedIndependently() {
         assumeSeededRetention();
         String user = "user-" + System.nanoTime();
         Path readyFile = writeFile("ready-" + System.nanoTime() + ".mp4");
         Path failedFile = writeFile("failed-" + System.nanoTime() + ".mp4");
-        // 두 자산 모두 3일 전 — FAILED 축(1일)만 만료다.
-        Long readySn = saveUpload(user, LsPortalUld.STTS_READY, daysAgo(3), daysAgo(3), readyFile);
-        Long failedSn = saveUpload(user, LsPortalUld.STTS_FAILED, daysAgo(3), daysAgo(3), failedFile);
-        Long failedFrmeSn = txTemplate.execute(s -> frmeRepository.save(
-                LsPortalUldFrme.create(failedSn, 0, failedFile.toString())).getUldFrmeSn());
-        txTemplate.executeWithoutResult(s -> lblRepository.save(LsPortalUldLbl.create(
-                user, failedSn, failedFrmeSn, LsPortalUldLbl.TYPE_BBOX, "car", "[[1,1],[2,2]]")));
+        // 두 자산 모두 3일 전 — 실패 축(1일)만 만료다.
+        Long readySn = saveUpload(user, PortalUploadLedger.STATUS_READY,
+                daysAgo(3), daysAgo(3), readyFile);
+        Long failedSn = saveUpload(user, PortalUploadLedger.STATUS_FAILED,
+                daysAgo(3), daysAgo(3), failedFile);
+        Long failedFrmeSn = saveFrame(failedSn, failedFile);
+        saveUploadLabel(user, failedFrmeSn, daysAgo(3));
 
         job.sweepExpiredUploads();
 
-        assertThat(uldRepository.findById(readySn))
-                .as("READY 축은 7일이라 3일 경과로는 삭제되지 않는다").isPresent();
+        assertThat(assetRepository.findPortalAsset(readySn))
+                .as("완료 축은 7일이라 3일 경과로는 삭제되지 않는다").isPresent();
         assertThat(readyFile).exists();
 
-        assertThat(uldRepository.findById(failedSn))
-                .as("FAILED 축은 1일이라 3일 경과면 삭제된다").isEmpty();
+        assertThat(assetRepository.findPortalAsset(failedSn))
+                .as("실패 축은 1일이라 3일 경과면 삭제된다").isEmpty();
         assertThat(failedFile).doesNotExist();
-        // FRME/LBL 은 DB FK ON DELETE CASCADE 로 함께 정리된다(수기 삭제 순서표 불필요).
-        assertThat(frmeRepository.findAllByUldSnOrderByFrmeNo(failedSn)).isEmpty();
-        assertThat(lblRepository.findAllByUldSnAndPortalUserNo(failedSn, user)).isEmpty();
+        // ★ 프레임은 외래키 연쇄로, 라벨은 <명시적 삭제>로 정리된다 — 라벨에는 부모 외래키가 없어
+        //   지우지 않으면 오류 없이 조용히 고아가 남는다.
+        assertThat(frmeRepository.findAllByRawSnOrderByFrameNoAsc(failedSn)).isEmpty();
+        assertThat(lblRepository.findAllByAssetAndOwner(
+                failedSn, user, PortalUploadLedger.SRC_TYPE)).isEmpty();
+        assertThat(countLabelsBySrc(failedFrmeSn))
+                .as("★라벨 원장에 고아가 남으면 안 된다 — 부모 외래키가 없어 연쇄로 지워지지 않는다")
+                .isZero();
     }
 
     @Test
-    @DisplayName("READY_자산은_라벨을_다시_저장하면_기준점이_밀려_삭제되지_않는다")
+    @DisplayName("완료_자산은_라벨을_다시_저장하면_기준점이_밀려_삭제되지_않는다")
     void readyAssetExpiryIsPushedByRecentLabel() {
         assumeSeededRetention();
         String user = "user-" + System.nanoTime();
         Path file = writeFile("worked-" + System.nanoTime() + ".mp4");
-        Long uldSn = saveUpload(user, LsPortalUld.STTS_READY, daysAgo(30), daysAgo(30), file);
-        Long frmeSn = txTemplate.execute(s -> frmeRepository.save(
-                LsPortalUldFrme.create(uldSn, 0, file.toString())).getUldFrmeSn());
-        txTemplate.executeWithoutResult(s -> saveUploadLabel(user, uldSn, frmeSn, daysAgo(1)));
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_READY, daysAgo(30), daysAgo(30), file);
+        Long frmeSn = saveFrame(uldSn, file);
+        saveUploadLabel(user, frmeSn, daysAgo(1));
 
         job.sweepExpiredUploads();
 
-        assertThat(uldRepository.findById(uldSn))
+        assertThat(assetRepository.findPortalAsset(uldSn))
                 .as("기준점은 등록일과 라벨 최종 저장일 중 늦은 쪽이다").isPresent();
         assertThat(file).exists();
     }
@@ -213,33 +285,32 @@ class PortalRetentionSweepIT {
         String user = "user-" + System.nanoTime();
         LocalDateTime cutoff = daysAgo(7);
 
-        // ① PROCESSING — 후보 조회를 우회해 삭제문을 직접 불러도 지워지지 않아야 한다.
-        Long processingSn = saveUpload(user, LsPortalUld.STTS_PROCESSING,
+        // ① 후처리 중 — 후보 조회를 우회해 삭제문을 직접 불러도 지워지지 않아야 한다.
+        Long processingSn = saveUpload(user, PortalUploadLedger.STATUS_PROCESSING,
                 daysAgo(30), daysAgo(30), null);
         int processingRemoved = txTemplate.execute(s ->
-                uldRepository.deleteExpiredReady(processingSn, cutoff));
+                assetRepository.deleteExpired(RetentionAxis.READY, processingSn, cutoff));
 
-        // ② READY 인데 커트라인 이후 라벨이 생긴 자산.
-        Long reworkedSn = saveUpload(user, LsPortalUld.STTS_READY, daysAgo(30), daysAgo(30), null);
-        // FILE_PATH_NM 은 NOT NULL 이라 값이 필요하다. 이 테스트는 삭제문을 직접 부르므로
-        // 파일 삭제 경로를 타지 않는다(실파일을 만들 이유가 없다).
-        Long frmeSn = txTemplate.execute(s -> frmeRepository.save(LsPortalUldFrme.create(
-                reworkedSn, 0, STORAGE_ROOT.resolve("never-swept.jpg").toString())).getUldFrmeSn());
-        txTemplate.executeWithoutResult(s -> saveUploadLabel(user, reworkedSn, frmeSn, daysAgo(1)));
+        // ② 완료인데 커트라인 이후 라벨이 생긴 자산.
+        Long reworkedSn = saveUpload(user, PortalUploadLedger.STATUS_READY,
+                daysAgo(30), daysAgo(30), null);
+        Long frmeSn = saveFrame(reworkedSn, STORAGE_ROOT.resolve("never-swept.jpg"));
+        saveUploadLabel(user, frmeSn, daysAgo(1));
         int reworkedRemoved = txTemplate.execute(s ->
-                uldRepository.deleteExpiredReady(reworkedSn, cutoff));
+                assetRepository.deleteExpired(RetentionAxis.READY, reworkedSn, cutoff));
 
-        // ③ FAILED 인데 최근에 상태가 갱신된 자산.
-        Long touchedSn = saveUpload(user, LsPortalUld.STTS_FAILED, daysAgo(30), daysAgo(1), null);
-        int touchedRemoved = txTemplate.execute(s ->
-                uldRepository.deleteExpiredFailed(touchedSn, daysAgo(1).minusHours(1)));
+        // ③ 실패인데 최근에 상태가 갱신된 자산.
+        Long touchedSn = saveUpload(user, PortalUploadLedger.STATUS_FAILED,
+                daysAgo(30), daysAgo(1), null);
+        int touchedRemoved = txTemplate.execute(s -> assetRepository.deleteExpired(
+                RetentionAxis.FAILED, touchedSn, daysAgo(1).minusHours(1)));
 
-        assertThat(processingRemoved).as("상태 리터럴이 삭제문에 남아 있어야 0행이다").isZero();
+        assertThat(processingRemoved).as("상태 조건이 삭제문에 남아 있어야 0행이다").isZero();
         assertThat(reworkedRemoved).as("만료 조건이 삭제문에 남아 있어야 0행이다").isZero();
         assertThat(touchedRemoved).as("기준점 조건이 삭제문에 남아 있어야 0행이다").isZero();
-        assertThat(uldRepository.findById(processingSn)).isPresent();
-        assertThat(uldRepository.findById(reworkedSn)).isPresent();
-        assertThat(uldRepository.findById(touchedSn)).isPresent();
+        assertThat(assetRepository.findPortalAsset(processingSn)).isPresent();
+        assertThat(assetRepository.findPortalAsset(reworkedSn)).isPresent();
+        assertThat(assetRepository.findPortalAsset(touchedSn)).isPresent();
     }
 
     @Test
@@ -248,7 +319,7 @@ class PortalRetentionSweepIT {
         assumeSeededRetention();
         String user = "user-" + System.nanoTime();
         Path file = writeFile("dup-" + System.nanoTime() + ".mp4");
-        Long uldSn = saveUpload(user, LsPortalUld.STTS_FAILED, daysAgo(30), daysAgo(30), file);
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_FAILED, daysAgo(30), daysAgo(30), file);
         long rawSn = newVideoRawSn();
         txTemplate.executeWithoutResult(s -> saveUserLabel(user, rawSn, daysAgo(30)));
 
@@ -258,7 +329,7 @@ class PortalRetentionSweepIT {
         job.sweepDatamartLabels();
         job.sweepExpiredUploads();
 
-        assertThat(uldRepository.findById(uldSn)).isEmpty();
+        assertThat(assetRepository.findPortalAsset(uldSn)).isEmpty();
         assertThat(file).doesNotExist();
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
                 .isEmpty();
@@ -280,18 +351,31 @@ class PortalRetentionSweepIT {
         return LocalDateTime.now().minusDays(days);
     }
 
+    /**
+     * 포털 자산 1건 적재 후 시나리오 시각·상태로 고정한다.
+     *
+     * <p>상태는 이제 컬럼이 아니라 메타 원장 행이라 <b>그 행의 값과 시각</b>을 직접 세운다 —
+     * 실패 축의 기준점이 곧 그 행의 변경 시각이기 때문이다.
+     */
     private Long saveUpload(String user, String status, LocalDateTime regDt,
-                            LocalDateTime mdfcnDt, Path file) {
-        return txTemplate.execute(s -> {
-            LsPortalUld uld = LsPortalUld.createVideo(
-                    user, "v.mp4", file == null ? null : file.toString(), 4L, "video/mp4");
-            // 팩토리가 상태·시각을 now 로 박으므로 INSERT 전에 시나리오 값으로 고정한다
-            // (@PrePersist 는 null 일 때만 채우고, 최초 INSERT 라 @PreUpdate 도 돌지 않는다).
-            setField(uld, "uldSttsCd", status);
-            setField(uld, "regDt", regDt);
-            setField(uld, "mdfcnDt", mdfcnDt);
-            return uldRepository.save(uld).getUldSn();
-        });
+                            LocalDateTime sttsChgDt, Path file) {
+        // 파일 경로는 원장에서 NOT NULL 이라 값이 필요하다(파일 삭제 경로를 타지 않는 시나리오는
+        // 실파일을 만들지 않고 경로만 준다).
+        String path = (file == null ? STORAGE_ROOT.resolve("no-file.mp4") : file).toString();
+        Long uldSn = txTemplate.execute(s ->
+                assetRepository.insertUploaded(user, path, "v.mp4", "video/mp4", 4L));
+        jdbc.update("UPDATE ls_data_raw SET reg_dt = ?, mdfcn_dt = ? WHERE raw_sn = ?",
+                Timestamp.valueOf(regDt), Timestamp.valueOf(sttsChgDt), uldSn);
+        jdbc.update("UPDATE ls_data_meta SET meta_vl = ?, reg_dt = ?, mdfcn_dt = ?"
+                        + " WHERE raw_sn = ? AND meta_key = ?",
+                status, Timestamp.valueOf(sttsChgDt), Timestamp.valueOf(sttsChgDt),
+                uldSn, PortalUploadLedger.KEY_UPLOAD_STATUS);
+        return uldSn;
+    }
+
+    private Long saveFrame(Long uldSn, Path file) {
+        return txTemplate.execute(s ->
+                frmeRepository.save(LsDataSrc.create(uldSn, 0L, file.toString(), null)).getSrcSn());
     }
 
     private void saveUserLabel(String portalUserNo, long rawSn, LocalDateTime regDt) {
@@ -301,14 +385,20 @@ class PortalRetentionSweepIT {
         userLabelRepository.save(label);
     }
 
-    private void saveUploadLabel(String user, Long uldSn, Long frmeSn, LocalDateTime regDt) {
-        LsPortalUldLbl label = LsPortalUldLbl.create(
-                user, uldSn, frmeSn, LsPortalUldLbl.TYPE_BBOX, "car", "[[1,1],[2,2]]");
-        setField(label, "regDt", regDt);
-        lblRepository.save(label);
+    private void saveUploadLabel(String user, Long srcSn, LocalDateTime regDt) {
+        Long lblSn = txTemplate.execute(s -> lblRepository.save(LsDataLbl.createManual(
+                srcSn, LsDataLbl.TYPE_BBOX, null, "car", "[[1,1],[2,2]]", user)).getLblSn());
+        jdbc.update("UPDATE ls_data_lbl SET reg_dt = ? WHERE lbl_sn = ?",
+                Timestamp.valueOf(regDt), lblSn);
     }
 
-    /** 라벨이 참조할 실 영상 1건 적재 후 그 PK 반환(FK 충족용 최소 픽스처). */
+    private int countLabelsBySrc(Long srcSn) {
+        Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM ls_data_lbl WHERE src_sn = ?", Integer.class, srcSn);
+        return n == null ? 0 : n;
+    }
+
+    /** 라벨이 참조할 실 영상 1건 적재 후 그 PK 반환 — <b>관제 인입 축</b>(포털 소유자 없음). */
     private long newVideoRawSn() {
         return txTemplate.execute(s -> videoRepository.save(LsDataRaw.createFromIngest(
                 "CLIP-" + System.nanoTime(), "cctv-1", "FALL", "lgv",
@@ -333,7 +423,7 @@ class PortalRetentionSweepIT {
 
     private static void setField(Object target, String name, Object value) {
         try {
-            var f = target.getClass().getDeclaredField(name);
+            Field f = target.getClass().getDeclaredField(name);
             f.setAccessible(true);
             f.set(target, value);
         } catch (ReflectiveOperationException e) {

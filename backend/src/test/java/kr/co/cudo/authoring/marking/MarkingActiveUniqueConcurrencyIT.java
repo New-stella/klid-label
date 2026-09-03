@@ -173,8 +173,8 @@ class MarkingActiveUniqueConcurrencyIT {
      */
     private Long saveMarkingAt(Long rawSn, LocalDateTime regDt, String sttsCd) {
         LsMarking marking = LsMarking.createManual(
-                rawSn, "EVT-ORDER", "/storage/deidentified/videos/" + rawSn + "/deidentified.mp4",
-                "[{\"frameIndex\":10,\"timestamp\":\"00:05\"}]", 1L, 30.0);
+                rawSn,
+                "[{\"frameIndex\":10,\"timestamp\":\"00:05\"}]", "1", 30.0);
         if (LsMarking.STATUS_VLM_FAILED.equals(sttsCd)) {
             marking.markVlmFailed();
         }

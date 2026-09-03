@@ -17,12 +17,16 @@ import reactor.core.publisher.Mono;
  *       여러 번 호출한다. 커맨드의 {@code jobSeq}/{@code jobCount} 가 그 순서다.</li>
  * </ul>
  *
- * <h3>구현체</h3>
- * <ul>
- *   <li>{@code HttpExternalAugmentClient} — 기본({@code authoring.augment.external.mode=http}).
- *       실제 {@code POST /api/genai/jobs} 호출.</li>
- *   <li>{@link NoopExternalAugmentClient} — {@code mode=noop} 명시 시에만. 외부 미연동 운영용.</li>
- * </ul>
+ * <h3>구현체 — 하나뿐이다</h3>
+ * <p>{@code HttpExternalAugmentClient} 가 유일한 구현체이며 실제 {@code POST /api/genai/jobs} 를
+ * 호출한다. <b>미연동 전용 no-op 구현체와 그것을 고르던 모드 토글은 폐기</b>됐다(2026-09-03 확정) —
+ * 「나갈지 말지」를 환경설정으로 고르지 않고 <b>연동이 유일한 형상</b>이다. 위탁 주소가 아직 없으면
+ * 기동은 정상이고 <b>위탁 시도 시점에 실패</b>한다({@link AugmentTransportGuard}).
+ *
+ * <p>⚠ 그 폐기로 {@link AugmentSubmitResult#skipped()} 와
+ * {@link AugmentQueryResult.SkipReason#EXTERNAL_DISABLED} 는 <b>본 구현체가 만들지 않는다</b>.
+ * 두 신호와 소비 측 매핑(진행률 미산출 사유)은 <b>그대로 둔다</b> — 폐기한 것은 「나갈지 말지를 고르는
+ * 환경설정 축」이지 그 신호를 읽는 축이 아니다.
  *
  * <h3>★ 이 인터페이스는 순수 HTTP 어댑터다 (Phase 7-A2 구속)</h3>
  * <p>어떤 구현체도 <b>DB 를 쓰지 않고 파일을 만들지 않는다</b>. 응답 DTO 를 돌려주는 것이 전부다.
@@ -100,7 +104,7 @@ public interface ExternalAugmentClient {
      * 교훈이다(2026-07-30 라벨링 캔버스 원본 프레임 서빙).
      *
      * @param externalJobId 외부가 발급한 job_id. null/공백/형식 위반이면 <b>외부 호출 없이</b> 즉시 실패한다.
-     * @return 결과 응답. 외부 미연동(noop)이면 {@link AugmentQueryResult.SkipReason#EXTERNAL_DISABLED}
+     * @return 결과 응답. 외부 미연동이면 {@link AugmentQueryResult.SkipReason#EXTERNAL_DISABLED}
      */
     Mono<AugmentQueryResult<GenAiJobResultsResponse>> fetchJobResults(String externalJobId);
 
@@ -115,7 +119,7 @@ public interface ExternalAugmentClient {
      *                (인증 주체)에서만 파생된다.
      * @return 취소 응답. 로컬 DB 가 이미 종결이면
      *         {@link AugmentQueryResult.SkipReason#LOCAL_TERMINAL} 로 <b>외부 호출 없이</b> 스킵하고,
-     *         외부 미연동(noop)이면 {@link AugmentQueryResult.SkipReason#EXTERNAL_DISABLED}
+     *         외부 미연동이면 {@link AugmentQueryResult.SkipReason#EXTERNAL_DISABLED}
      */
     Mono<AugmentQueryResult<GenAiCancelResponse>> cancelJob(AugmentCancelCommand command);
 }
