@@ -17,6 +17,8 @@ import {
 } from '@/lib/api/download';
 import type { PageResponse } from '@/lib/api/types';
 
+import type { PortalAugmentGenerationCondition } from '../augments/conditionOptions';
+
 import type { PortalUpload, PortalUploadDetail, PortalUploadFrame } from './types';
 
 export interface ListUploadsParams {
@@ -193,4 +195,50 @@ export function downloadUploadFile(
         ) ?? fallbackName;
       triggerBrowserDownload(toBlob(res.data as unknown), fileName);
     });
+}
+
+// ── 증강 요청 접수 (API-231) ────────────────────────────────────────────────
+//   POST /v1/portal/uploads/{uldSn}/augments  → 접수 결과(augSn · uldSn · requestedAt)
+//
+// ★ **이 창구가 이 모듈에 있는 이유**: 경로가 업로드 자산 아래(`/portal/uploads/{uldSn}/augments`)이고
+//   부르는 자리도 업로드 화면의 자산별 액션이다. 요청 **현황·결과** 조회 모듈
+//   (`features/portal/augments/api.ts`)에는 두지 않는다 — 그 화면은 요청을 걸지 않으며, 거기에
+//   접수 함수를 두면 같은 행위의 진입이 둘이 되는 첫 단추가 된다.
+
+/**
+ * 증강 요청 본문.
+ *
+ * ★ **이벤트 유형·세부 유형·증강 종류를 싣지 않는다.** 요청자가 고르지 않고 서버가 위탁 시점에
+ *   중립 값을 고정으로 싣는다. 이 축은 최근에 뒤집혔다 — **되살리지 말 것.**
+ *   ⚠ BE 는 모르는 필드를 400 이 아니라 **조용히 무시**하므로, 되살려 보내도 아무 신호가 오지
+ *     않고 화면에만 걷어냈어야 할 입력이 되살아난다.
+ * ★ `prompt` 는 **최상위 문자열**이다 — 그 자리에 객체를 실으면 400 이다.
+ */
+export interface RequestUploadAugmentBody {
+  generationCondition: PortalAugmentGenerationCondition;
+  /** 자유 지시문 — 선택. 비었으면 보내지 않는다(빈 문자열을 지어 보내지 않는다). */
+  prompt?: string;
+}
+
+/** 접수 결과 — **접수 사실이지 결과가 아니다.** 진행·결과는 증강 화면이 조회한다. */
+export interface UploadAugmentAccepted {
+  augSn: number;
+  uldSn: number;
+  requestedAt: string;
+}
+
+/**
+ * 증강 요청 접수.
+ *
+ * 거부 축은 서버가 셋으로 가른다 — 조건 누락·값역 밖·영상이 아닌 자산은 **400**, 남의 자산·부재는
+ * **403**(존재 여부 비노출), 준비가 끝나지 않은 영상은 **409**(기다리면 풀리는 일시 조건).
+ * 화면은 그 구분을 스스로 만들지 않고 서버 응답을 그대로 안내한다.
+ */
+export function requestUploadAugment(
+  uldSn: number,
+  body: RequestUploadAugmentBody,
+): Promise<UploadAugmentAccepted> {
+  return apiClient
+    .post<UploadAugmentAccepted>(`/portal/uploads/${uldSn}/augments`, body)
+    .then((r) => r.data);
 }

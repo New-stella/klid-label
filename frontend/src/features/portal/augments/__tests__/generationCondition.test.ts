@@ -1,13 +1,17 @@
-// 회귀 가드 — 생성 조건 표기. **항목 이름을 해석하지 않는다**는 것이 이 모듈의 존재 이유다.
+// 회귀 가드 — 생성 조건 표기. **두 축을 동시에** 지킨다.
 //
-// ★ 계약 셋이 모두 *"조건을 이루는 개별 항목과 그 허용 값역은 이 산출물에서 정하지 않는다"* 고
-//   적고, 접수 창구는 *"내부 채널 증강 요청 창구의 조건 항목과 값역을 그대로 옮겨 오지 말 것"*
-//   까지 못박는다. 그래서 한글 라벨 매핑을 두면 안 된다 — 두는 순간 그것이 계약의 사본이 되고,
-//   서버가 항목을 넓히면 화면이 **모르는 항목을 조용히 감춘다**(값이 사라지는 쪽의 실패라
-//   아무도 알아채지 못한다).
+// ① 아는 다섯 항목은 **정해진 차례로 우리말 이름**과 함께 보인다(시간대·계절·날씨·지형·심각도).
+// ② **모르는 항목·모르는 값은 감추지 않는다** — 아는 다섯 뒤에 받은 그대로 이어 붙인다.
 //
-// ⚠ mutation 확인: 키를 한글로 바꾸는 매핑을 넣거나 모르는 키를 걸러 내게 만들면 아래
-//   「원문 그대로」 케이스가 FAIL 해야 한다.
+// ★ ②는 이번 라운드에서도 **그대로 유효하다.** 아는 다섯을 우리말로 옮기는 일과 모르는 항목을
+//   거르는 일은 다른 축인데, ①을 더하면서 ②를 함께 걷어내기 쉽다. 걷어내면 서버가 항목을
+//   넓히는 날 화면이 그 항목을 **조용히 감춘다**(값이 사라지는 쪽의 실패라 아무도 못 본다).
+//
+// ⚠ **구 근거 폐기**: *"조건을 이루는 개별 항목과 그 허용 값역은 정하지 않는다"* 와
+//   *"내부 채널 증강 요청 창구의 조건 항목과 값역을 그대로 옮겨 오지 말 것"* 은 둘 다 폐기됐다.
+//   그 문장을 근거로 우리말 이름을 다시 걷어내지 말 것.
+//
+// ⚠ mutation 확인: 우리말 이름을 지우면 ①이, 모르는 키를 걸러 내면 ②가 FAIL 해야 한다.
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -17,23 +21,49 @@ import {
 } from '../generationCondition';
 
 describe('생성 조건 표기', () => {
-  it('★서버가_준_항목_이름을_번역하지_않고_그대로_보인다', () => {
-    const entries = formatGenerationCondition({ weather: 'RAIN', 처음보는항목: '값' });
+  it('★아는_다섯_항목을_정해진_차례로_우리말_이름과_함께_보인다', () => {
+    // 응답의 키 순서를 일부러 뒤집어 넣는다 — 표기 차례는 응답 순서가 아니라 사양이 정한다.
+    const entries = formatGenerationCondition({
+      severity: 'HIGH',
+      weather: 'SNOW',
+      time: 'NIGHT',
+      terrain: 'ROAD',
+      season: 'WINTER',
+    });
 
     expect(entries).toEqual([
-      { key: 'weather', value: 'RAIN' },
-      { key: '처음보는항목', value: '값' },
+      { key: 'time', label: '시간대', value: '밤' },
+      { key: 'season', label: '계절', value: '겨울' },
+      { key: 'weather', label: '날씨', value: '눈' },
+      { key: 'terrain', label: '지형', value: '도로' },
+      { key: 'severity', label: '심각도', value: '높음' },
     ]);
   });
 
-  it('★모르는_항목을_걸러_내지_않는다_값이_사라지는_실패는_아무도_못_본다', () => {
-    const entries = formatGenerationCondition({ zzzUnknown: 1, aaaUnknown: true });
+  it('★모르는_항목을_걸러_내지_않는다_아는_다섯_뒤에_받은_그대로_이어_붙인다', () => {
+    const entries = formatGenerationCondition({
+      처음보는항목: '값',
+      weather: 'RAIN',
+      zzzUnknown: 1,
+      aaaUnknown: true,
+    });
 
-    expect(entries.map((e) => e.key)).toEqual(['aaaUnknown', 'zzzUnknown']);
-    expect(entries.map((e) => e.value)).toEqual(['true', '1']);
+    expect(entries).toEqual([
+      { key: 'weather', label: '날씨', value: '비' },
+      { key: 'aaaUnknown', label: 'aaaUnknown', value: 'true' },
+      { key: 'zzzUnknown', label: 'zzzUnknown', value: '1' },
+      { key: '처음보는항목', label: '처음보는항목', value: '값' },
+    ]);
   });
 
-  it('키_순서로_정렬한다_응답의_키_순서가_보장되지_않는다', () => {
+  it('★아는_항목의_모르는_코드도_받은_값을_그대로_보인다', () => {
+    // 위탁받는 쪽이 값역을 넓히거나 옛 자유 입력 적재분이 섞여도 값이 사라지지 않아야 한다.
+    expect(formatGenerationCondition({ weather: 'HAIL' })).toEqual([
+      { key: 'weather', label: '날씨', value: 'HAIL' },
+    ]);
+  });
+
+  it('모르는_항목끼리는_키_순서로_정렬한다_응답의_키_순서가_보장되지_않는다', () => {
     const a = summarizeGenerationCondition({ b: '2', a: '1' });
     const b = summarizeGenerationCondition({ a: '1', b: '2' });
 
@@ -41,12 +71,18 @@ describe('생성 조건 표기', () => {
     expect(a).toBe('a: 1 · b: 2');
   });
 
+  it('한_줄_요약은_우리말_이름을_쓴다', () => {
+    expect(
+      summarizeGenerationCondition({ time: 'DAWN', season: 'SPRING', 기타: 'X' }),
+    ).toBe('시간대: 새벽 · 계절: 봄 · 기타: X');
+  });
+
   it('배열과_중첩_객체도_값을_잃지_않는다', () => {
     expect(formatGenerationCondition({ list: ['A', 'B'] })).toEqual([
-      { key: 'list', value: 'A, B' },
+      { key: 'list', label: 'list', value: 'A, B' },
     ]);
     expect(formatGenerationCondition({ nested: { k: 1 } })).toEqual([
-      { key: 'nested', value: '{"k":1}' },
+      { key: 'nested', label: 'nested', value: '{"k":1}' },
     ]);
   });
 

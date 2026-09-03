@@ -147,7 +147,11 @@ export function PortalAugmentPage() {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const badge = PORTAL_AUGMENT_OUTCOME_BADGE[resolvePortalAugmentOutcome(row)];
+                  const outcome = resolvePortalAugmentOutcome(row);
+                  const badge = PORTAL_AUGMENT_OUTCOME_BADGE[outcome];
+                  // 실패 사유는 실패한 행에만 보인다. 빈 값은 「아직 실패하지 않았다」는 뜻이라
+                  // 판정과 표시가 같은 축을 쓴다(사유가 있어야 실패다).
+                  const failReason = outcome === 'failed' ? (row.failRsnCn ?? '') : '';
                   const targetName = row.orgnlFileNm ?? `영상 ${row.uldSn}`;
                   const requestedAt = formatDateTime(row.requestedAt);
                   return (
@@ -162,8 +166,26 @@ export function PortalAugmentPage() {
                       <td className="px-3 py-2 text-gray-700">
                         {summarizeGenerationCondition(row.generationCondition)}
                       </td>
+                      {/* 상태 표시와 실패 사유를 **같은 칸**에 담는다 — 사유 전용 열을 두면
+                          실패가 아닌 대다수 행에 빈 칸이 남아 목록이 넓어지고, 행을 펼치면 아래
+                          행이 밀려 목록을 훑는 흐름이 끊긴다. 한 줄로 두고 넘치면 줄임표라
+                          **어떤 행도 두 줄로 늘어나지 않는다**(행 높이가 모든 행에서 같다). */}
                       <td className="px-3 py-2">
-                        <StatusBadge status={badge.badgeStatus} label={badge.label} />
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={badge.badgeStatus} label={badge.label} />
+                          {failReason !== '' && (
+                            <span
+                              data-testid={`portal-augment-fail-${row.augSn}`}
+                              /* 전문은 가리키면 뜨는 말풍선에 담는다. 가리켜 볼 수 없는
+                                 환경에서는 그 행의 「결과 확인」으로 들어가 전문을 본다. */
+                              title={failReason}
+                              className="min-w-0 max-w-xs truncate text-sub text-danger"
+                            >
+                              {/* 서버 사유 — 텍스트 노드(자동 escape). */}
+                              {failReason}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2">
                         <button

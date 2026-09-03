@@ -46,6 +46,7 @@ function row(over: Partial<PortalAugmentSummary> = {}): PortalAugmentSummary {
     augSn: 9001,
     uldSn: 501,
     augSttsCd: 'ACCEPTED',
+    failRsnCn: null,
     orgnlFileNm: 'street.mp4',
     requestedAt: '2026-09-01T10:00:00',
     resultReady: false,
@@ -121,7 +122,9 @@ describe('포털 증강 화면 — 요청 현황', () => {
 
     const tr = screen.getByTestId('portal-augment-row-9001');
     expect(within(tr).getByText('street.mp4')).toBeInTheDocument();
-    expect(within(tr).getByText('weather: RAIN')).toBeInTheDocument();
+    // 생성 조건은 아는 항목이면 우리말 이름·우리말 값으로 보인다(표기 규칙은
+    // `generationCondition` 이 소유하고 `PortalAugmentListOutcome` 가 그 차례를 지킨다).
+    expect(within(tr).getByText('날씨: 비')).toBeInTheDocument();
     expect(within(tr).getByText(formatDateTime('2026-09-01T10:00:00'))).toBeInTheDocument();
   });
 

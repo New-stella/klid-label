@@ -29,6 +29,9 @@ import { downloadUploadExport, downloadUploadFile } from '@/features/portal/uplo
 import { useUiStore } from '@/stores/useUiStore';
 import { usePortalUploads } from '@/features/portal/uploads/hooks/usePortalUploads';
 import { useDeleteUpload } from '@/features/portal/uploads/hooks/useDeleteUpload';
+import { useRequestUploadAugment } from '@/features/portal/uploads/hooks/useRequestUploadAugment';
+import { AugmentRequestModal } from '@/features/portal/uploads/components/AugmentRequestModal';
+import type { RequestUploadAugmentBody } from '@/features/portal/uploads/api';
 import {
   PortalUploadStatus,
   PortalUploadType,
@@ -89,6 +92,43 @@ export function PortalUploadPage() {
     if (!videoFile) return;
     void tus
       .start(videoFile, { filename: videoFile.name })
+      .catch(() => undefined);
+  };
+
+  // ── 증강 요청 ──
+  //
+  // ★ 버튼 하나로 끝나지 않는다 — 누르면 생성 조건을 입력하는 요청 폼이 **화면 안 창**으로
+  //   열리고, 다섯 항목을 모두 고른 뒤에야 요청이 나간다. [@design SCREEN-033] [@design API-231]
+  const pushToast = useUiStore((s) => s.pushToast);
+  const [augmentTarget, setAugmentTarget] = useState<PortalUpload | null>(null);
+  const requestAugment = useRequestUploadAugment();
+
+  const openAugmentForm = (uld: PortalUpload) => {
+    // 앞선 시도의 거부 사유가 다음 창에 남지 않게 한다.
+    requestAugment.reset();
+    setAugmentTarget(uld);
+  };
+
+  const closeAugmentForm = () => {
+    setAugmentTarget(null);
+    requestAugment.reset();
+  };
+
+  const submitAugment = (body: RequestUploadAugmentBody) => {
+    const target = augmentTarget;
+    if (target === null) return;
+    void requestAugment
+      .requestAsync({ uldSn: target.uldSn, body })
+      .then(() => {
+        setAugmentTarget(null);
+        // 응답은 **접수 사실이지 결과가 아니다** — 어디서 결과를 보는지 함께 알린다.
+        pushToast({
+          variant: 'success',
+          message: '증강 요청을 접수했습니다. 진행 상태는 「증강 요청 현황·결과」에서 확인하세요.',
+        });
+      })
+      // 거부 사유는 창 안 안내 자리에 뜬다(mutation error). 창은 닫지 않는다 — 고쳐서 다시
+      // 보낼 수 있어야 하고, 닫으면 무엇이 잘못됐는지와 함께 입력이 통째로 사라진다.
       .catch(() => undefined);
   };
 
@@ -211,6 +251,7 @@ export function PortalUploadPage() {
                 key={u.uldSn}
                 upload={u}
                 onDelete={() => onDelete(u)}
+                onRequestAugment={() => openAugmentForm(u)}
                 deleting={deleteUpload.isPending}
               />
             ))}
@@ -221,13 +262,38 @@ export function PortalUploadPage() {
           <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         )}
       </section>
+
+      {augmentTarget !== null && (
+        <AugmentRequestModal
+          open
+          targetName={augmentTarget.orgnlFileNm}
+          errorMessage={augmentRequestErrorMessage(requestAugment.error)}
+          submitting={requestAugment.isPending}
+          onClose={closeAugmentForm}
+          onSubmit={submitAugment}
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * 접수 창구가 돌려보낸 사유를 창 안 안내 문구로 옮긴다.
+ *
+ * 이 창구의 오류 메시지는 계약이 **사용자 메시지**로 규정한 값이라 그대로 보인다(내부 예외
+ * 클래스명·경로가 아니다). 서버 메시지가 없을 때만 일반 문구로 대신한다 — 지어내지 않는다.
+ */
+function augmentRequestErrorMessage(error: unknown): string | null {
+  if (error == null) return null;
+  if (error instanceof ApiError) return error.userMessage;
+  return '증강 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
 interface UploadItemProps {
   upload: PortalUpload;
   onDelete: () => void;
+  /** 「AI 증강 요청」 — 누르면 생성 조건 입력 폼이 열린다(이 버튼이 요청을 보내지 않는다). */
+  onRequestAugment: () => void;
   deleting: boolean;
 }
 
@@ -285,7 +351,7 @@ function useUploadDownloads(upload: PortalUpload) {
   return { downloading, exportLabels, downloadFile, cancelFileDownload };
 }
 
-function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
+function UploadItem({ upload, onDelete, onRequestAugment, deleting }: UploadItemProps) {
   const { downloading, exportLabels, downloadFile, cancelFileDownload } =
     useUploadDownloads(upload);
   const isReady = upload.uldSttsCd === PortalUploadStatus.READY;
@@ -301,6 +367,20 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
    */
   const canMark =
     upload.uldSttsCd === PortalUploadStatus.UPLOADED &&
+    upload.uldTypeCd === PortalUploadType.VIDEO;
+  /*
+   * 증강 요청 — **준비 완료된 영상** 자산 행에만 둔다. [@design SCREEN-033] [@design API-231]
+   *
+   * ★ 노출 규칙은 라벨링 링크·마킹 진입과 같다: 그 자산에서 할 수 없는 액션은 비활성으로 두지
+   *   않고 아예 노출하지 않는다. 준비되기 전 영상은 접수 창구가 409 로 거부하고(기다리면 풀리는
+   *   일시 조건), 영상이 아닌 자산은 400 으로 거부한다(기다려도 달라지지 않는 영구 조건).
+   * ⚠ **증강 결과물 행에는 두지 않아야 하는데, 목록 응답에 파생 여부를 가릴 값이 없다.**
+   *   목록 계약이 나르는 것은 자산 종류·상태·파일명·크기·프레임수·만료뿐이라 어느 행이 증강으로
+   *   만들어진 것인지 화면이 알 수 없다. 없는 필드를 지어내지 않고, 그 공백은 보고로 올린다
+   *   (`notes_for_main`). 그동안 잘못 눌린 요청은 서버가 판정한다.
+   */
+  const canRequestAugment =
+    upload.uldSttsCd === PortalUploadStatus.READY &&
     upload.uldTypeCd === PortalUploadType.VIDEO;
   // 처리 중 자산은 BE 가 삭제를 409 로 거부하므로 버튼 자체를 비활성화(무반응 방지).
   const isProcessing = upload.uldSttsCd === PortalUploadStatus.PROCESSING;
@@ -422,6 +502,22 @@ function UploadItem({ upload, onDelete, deleting }: UploadItemProps) {
           >
             라벨링
           </Link>
+        )}
+        {canRequestAugment && (
+          <button
+            type="button"
+            onClick={onRequestAugment}
+            /* 행이 여럿이라 접근 이름에 파일명을 붙인다 — 이름 없이 두면 같은 이름의 버튼이
+               자산 수만큼 생겨 보조기술 사용자가 어느 자산인지 가릴 수 없다(삭제·내려받기와
+               같은 관례). */
+            aria-label={`${upload.orgnlFileNm} AI 증강 요청`}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sub font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50',
+              KRDS_FOCUS,
+            )}
+          >
+            AI 증강 요청
+          </button>
         )}
         <button
           type="button"
