@@ -9,7 +9,7 @@
     "status": "approved",
     "data": {
       "goal": "외부가 생성한 증강 영상을 새 영상(RAW_SN)으로 등록하고 원본 라벨/메타를 복사하여 무결성을 보존한다.",
-      "actor": "시스템",
+      "actor": "생성형 AI 서비스",
       "title": "증강 결과 수신·등록",
       "status": "draft",
       "priority": "must",
@@ -118,7 +118,7 @@
       ],
       "extension_points": [],
       "secondary_actors": [
-        "생성형AI서비스[외부]"
+        "검수자(REVIEWER)"
       ],
       "extends_use_cases": [],
       "realizes_features": [
@@ -133,12 +133,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 18,
-    "stale": true,
-    "stale_reason": "SCREEN-023의 data.sections 변경 — references",
-    "change_summary": "증강 대상 집합 표기 확대 — 라벨 복사 시 좌표 미변환 규칙의 대상을 증강 축(AUGMENT 및 구 WINTER/NIGHT/RAIN)으로 적는다. 규칙 자체(좌표 미변환)는 무변경이고 근거 ADR-059 를 인용했다. 구 표기 '증강 3종 WINTER/NIGHT/RAIN'.",
+    "current_version": 21,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "주요 액터를 시스템 → 생성형 AI 서비스로 바로잡는다. 시스템 자신은 액터가 아니다(유스케이스 경계 안쪽) — 이 유스케이스를 여는 쪽은 증강 결과를 콜백으로 보내는 외부 서비스다. 검수자는 등록된 영상을 다음 유스케이스(UC-010)에서 검수하므로 보조 액터로 둔다",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T08:30:07.650Z",
+    "last_updated_at": "2026-09-03T05:56:53.516Z",
     "created_at": "2026-06-01T06:23:22.957Z"
   }
 }

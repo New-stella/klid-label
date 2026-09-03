@@ -1,0 +1,27 @@
+{
+  "item": {
+    "id": "LEGACY-005",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "legacy_artifact",
+    "title": "[module] 영상분할 (PF-005)",
+    "slug": "module-영상분할-pf-005",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "repo": "KLID-AI-PF-005",
+      "category": "module",
+      "identifier": "KLID-AI-PF-005",
+      "description": "영상분할 — 객체 탐지, 세그멘테이션, 트래킹 (1차 SweetK)",
+      "deprecation_status": "active"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "register_legacy_artifact: [module] 영상분할 (PF-005) (module, active)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-05-29T05:24:11.616Z",
+    "created_at": "2026-05-29T05:24:11.616Z"
+  }
+}

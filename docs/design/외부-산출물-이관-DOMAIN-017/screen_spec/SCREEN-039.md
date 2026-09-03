@@ -1,14 +1,14 @@
 ---
 logicraft_item: SCREEN-039
 type: screen_spec
-version: 42
+version: 43
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T12:36:59.006Z
+synced_at: 2026-09-03T07:39:06.126Z
 status: CHANGED
-prev_version: 41
-content_hash: e726f4dcbe532295d42ac4dda043a992043fbbc7dc92b425b462afab260da531
-stale: false
+prev_version: 42
+content_hash: 832a1b6e00b10296e47aff16bfac7cf9904c64b7a98e95630073f7e71880cc2d
+stale: true
 raw: ./_raw/SCREEN-039.json
 links:
   belongs_to_domain: ["[[DOMAIN-017]]"]
@@ -22,7 +22,7 @@ links:
   designs_backward: ["[[SD-038]]"]
   granted_on_backward: ["[[ROLE-004]]"]
   navigates_to_backward: ["[[NAV-001]]"]
-  references_backward: ["[[TEST-007]]", "[[TEST-008]]", "[[UC-035]]", "[[UC-036]]", "[[UC-037]]"]
+  references_backward: ["[[SEQ-029]]", "[[SEQ-030]]", "[[TEST-007]]", "[[TEST-008]]", "[[UC-035]]", "[[UC-036]]", "[[UC-037]]"]
 ---
 
 # 산출물 가져오기
@@ -2311,8 +2311,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 경로 입력 → 미리보기 → 분류 대응 확정 → 확정된 대응 → 적재 실행 → 폴더에서 일괄 올리기 → 일괄 적재 진행 → 이관 이력의 8단 본문 와이어프레임
-- **source_hash**: e7192de422a948346d0c49e0382365ef203d34b1c7d89f44915bdfe0ca0ff96d
-- **generated_at**: 2026-09-01T07:06:44.193Z
+- **source_hash**: 02402758f9e8038b46541ddee19e29d03d9ae471ef1908a4519e3bd82a72611f
+- **generated_at**: 2026-09-02T11:24:48.012Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

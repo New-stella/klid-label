@@ -1,13 +1,13 @@
 ---
 logicraft_item: INTSPEC-001
 type: integration_spec
-version: 9
+version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.730Z
-status: NEW
-prev_version: null
-content_hash: 6996f2ccc94771e643533c3bf30745555462632f69e9c3aa80031cbe7ef63241
+synced_at: 2026-09-03T07:39:21.621Z
+status: CHANGED
+prev_version: 9
+content_hash: 2aead0203e85a0c5b5b8c43ce035427e85b78bb652cccc529808028fb9b621e0
 stale: false
 raw: ./_raw/INTSPEC-001.json
 links:
@@ -28,6 +28,10 @@ v1.2
 ## spec_kind
 
 markdown
+
+## attached_files
+
+_(empty)_
 
 ## change_summary
 
@@ -62,7 +66,15 @@ markdown
 base-url 스키마로 **http(내부망 IP 평문)/https(자체 CA TLS)** 자동 분기. https만 ca-cert 필수(fail-closed, CWE-295 hostname 검증). 클라이언트 토큰/API키 없음. 운영은 내부망 http://IP:port 유력.
 
 ## 매핑·구성
-`LS_DEIDENT_PROC_LOG`(V64: DE_IDNTF_PJT_ID/DE_IDNTF_DATST_ID/POLL_STTS_CD). 비식별 위탁 연동 + 진행상태 폴링 배치(Quartz 30초 주기). `kpst.deid.enabled` 킬스위치(기본 true). local/dev `mock-mode=true`(원본 복사 mock, KPST 미호출), stg/prd 공유 마운트 실연동. 레거시 동기 SPI 콜백 경로 제거(폴백 없음).
+`LS_DEIDENT_PROC_LOG`(V64: DE_IDNTF_PJT_ID/DE_IDNTF_DATST_ID/POLL_STTS_CD). 비식별 위탁 연동 + 진행상태 폴링 배치(Quartz 30초 주기). `kpst.deid.enabled` 킬스위치(기본 true). ⚠ **[폐기 · 아래 정정]** local/dev `mock-mode=true`(원본 복사 mock, KPST 미호출), stg/prd 공유 마운트 실연동. 레거시 동기 SPI 콜백 경로 제거(폴백 없음).
+
+⚠ **[폐기] 위 「local/dev `mock-mode=true`(원본 복사 mock, KPST 미호출)」** — 한 문장에 두 가지가 함께 사실과 다르다. ① **「원본 복사」 경로가 존재하지 않는다** — 이 모드에는 **자체 산출 경로가 없다**. 그 경로는 폐지됐고, 지금 이 모드에 남은 것은 **판정뿐**이다. ② **활성화 실태도 다르다** — 이 모드는 **어느 프로파일에서도 켜져 있지 않다**(전 프로파일 미설정 = 꺼짐). 따라서 이 모드로 갈리는 환경은 실제로 없으며 **전 환경이 실제 위탁 경로를 탄다**. 구 서술을 지우지 않고 무엇이 사실인지를 함께 남긴다.
+
+⚠ 같은 문장의 **「stg/prd 공유 마운트 실연동」은 그대로 유효**하다 — 폐기 범위는 앞의 local/dev 절뿐이니 함께 지우지 말 것.
+
+**대체 규칙 — 위탁 요청층 거부.** 막을 산출 지점이 실재하지 않으므로, 남은 토글은 **위탁 요청층에서 거부**한다. 그 형상에서 비식별은 **전건 실패**하며 그 사실이 기동 기록과 상태로 드러난다.
+
+★ **되살아날 때를 위한 경고.** 자체 복사 산출 경로가 다시 생기면 **이 배선으로는 막히지 않는다**(그 경로는 외부 요청을 타지 않는다). 그런 경로를 다시 만든다면 **산출 지점에 별도 차단을 함께** 넣어야 한다.
 
 ## effective_date
 

@@ -30,6 +30,7 @@
             <span class="wf-badge">role: main</span>
             <span class="wf-badge">layout: list</span>
             <span class="wf-badge wf-badge-primary">API-140</span>
+            <span class="wf-badge wf-badge-primary">API-231</span>
             <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
           </div>
           <div class="wf-stack wf-mt">
@@ -38,7 +39,7 @@
             <a href="#_" class="wf-btn wf-btn-ghost">라벨링</a><span class="wf-help">준비 완료 자산만 노출 → /portal/label/:id (데이터마트 자산과 같은 라벨링 화면). 그 경로가 받는 값은 자산이 아니라 프레임 식별자다. 목록에서 이동할 때 자산 상세(API-140)를 조회해 프레임 요약 목록의 첫 프레임 식별자를 얻어 그 프레임으로 이동한다 — 목록이…</span>
             <button class="wf-btn wf-btn-outline">삭제</button><span class="wf-help">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</span>
             <span class="wf-muted">만료 예정일 (만료: YYYY-MM-DD)</span><span class="wf-help">상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.</span>
-            <button class="wf-btn">AI 증강 요청</button><span class="wf-help">영상 자산에만 노출한다. 증강으로 만들어진 결과물 행에도 두지 않는다 — 증강한 것을 다시 증강하지 않는다.</span>
+            <button class="wf-btn">AI 증강 요청</button><span class="wf-help">준비 완료 영상 자산 행에만 노출한다. 증강으로 만들어진 결과물 행에는 두지 않는다 — 증강한 것을 다시 증강하지 않는다. 누르면 생성 조건을 입력하는 요청 폼이 화면 안 확인 창으로 열린다 — 이 버튼 자체가 요청을 보내지 않는다.</span>
             <a href="#_" class="wf-btn wf-btn-ghost">증강 요청 현황·결과</a><span class="wf-help">목록 상단에 한 번 둔다 — 자산별 액션이 아니다. 증강 요청 현황·결과 화면으로 이동하며, 결과 확인·후속 작업·내려받기는 그 화면이 담당한다.</span>
             <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div><span class="wf-help">서버가 페이지로 내려주고 페이지 크기에 상한이 걸려 있어, 옮길 수단이 없으면 첫 쪽에 있는 자산에만 도달한다. 그 뒤의 자산은 라벨링·삭제·증강 요청 어느 것도 할 수 없다.</span>
           </div>
@@ -71,6 +72,35 @@
         </div>
       </div>
     </div>
+    <div class="wf-divider"></div>
+    <div class="wf-cluster" style="margin-bottom:8px">
+      <span class="wf-badge wf-badge-warning">오버레이</span>
+      <span class="wf-muted">화면 위에 겹쳐 뜨는 표면 — 본문 흐름에는 자리를 차지하지 않는다</span>
+    </div>
+    <div style="padding:24px;border:2px dashed var(--wf-border-strong);border-radius:var(--wf-radius-lg);background:var(--wf-bg-alt)">
+      <div class="wf-card" style="max-width:560px;margin-left:auto;margin-right:auto">
+        <div class="wf-cluster">
+          <h2 class="wf-card-title">⑤ 증강 요청 폼</h2>
+          <span class="wf-badge">role: modal</span>
+          <span class="wf-badge">layout: form</span>
+          <span class="wf-badge wf-badge-primary">API-231</span>
+          <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+        </div>
+        <div class="wf-stack wf-mt">
+          <span class="wf-bold">AI 증강 요청</span>
+          <div class="wf-stack"><div class="wf-row"><span class="wf-muted">대상 영상</span><span>···</span></div></div><span class="wf-help">목록에서 요청을 누른 그 자산을 보여 준다. 이 창에서 대상을 바꾸지 않는다.</span>
+          <div class="wf-field"><label class="wf-label">시간대</label><select class="wf-select"><option>새벽</option><option>낮</option><option>해질녘</option><option>밤</option></select></div><span class="wf-help">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 새벽=DAWN · 낮=DAY · 해질녘=DUSK · 밤=NIGHT.</span>
+          <div class="wf-field"><label class="wf-label">계절</label><select class="wf-select"><option>봄</option><option>여름</option><option>가을</option><option>겨울</option></select></div><span class="wf-help">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 봄=SPRING · 여름=SUMMER · 가을=AUTUMN · 겨울=WINTER.</span>
+          <div class="wf-field"><label class="wf-label">날씨</label><select class="wf-select"><option>맑음</option><option>흐림</option><option>비</option><option>눈</option><option>안개</option><option>바람</option></select></div><span class="wf-help">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 맑음=CLEAR · 흐림=CLOUDY · 비=RAIN · 눈=SNOW · 안개=FOG · 바람=WINDY.</span>
+          <div class="wf-field"><label class="wf-label">지형</label><select class="wf-select"><option>도로</option><option>지하차도</option><option>하천</option><option>도시</option><option>주거지</option><option>농촌</option><option>산지</option><option>산림</option></select></div><span class="wf-help">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 도로=ROAD · 지하차도=UNDERPASS · 하천=RIVER · 도시=URBAN · 주거지=RESIDENTIAL · 농촌=RURAL · 산지=MOUNTAIN · 산림=FOREST.</span>
+          <div class="wf-field"><label class="wf-label">심각도</label><select class="wf-select"><option>낮음</option><option>보통</option><option>높음</option></select></div><span class="wf-help">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 낮음=LOW · 보통=MEDIUM · 높음=HIGH.</span>
+          <div class="wf-field"><label class="wf-label">자유 지시문 (선택)</label><textarea class="wf-textarea" placeholder="원본 시점과 구조를 유지한 채 바꾸고 싶은 점을 적는다"></textarea></div><span class="wf-help">선택 입력이며 1000자까지 받는다. 비워 두어도 요청할 수 있고, 생성 조건 다섯 항목을 대신하지 않는다.</span>
+          <div class="wf-alert wf-alert-info">다섯 항목을 모두 고르지 않았거나 목록에 없는 값이면 요청이 거부된다</div><span class="wf-help">폼 안에 상시 안내로 둔다. 접수 창구가 입력 오류로 돌려보낸 사유도 이 자리에 띄운다.</span>
+          <button class="wf-btn wf-btn-primary">요청</button><span class="wf-badge wf-badge-primary">API-231</span><span class="wf-help">다섯 항목을 모두 고르기 전에는 비활성. 누르면 접수만 이뤄지고 결과는 증강 요청 현황·결과 화면에서 확인한다.</span>
+          <button class="wf-btn wf-btn-secondary">취소</button><span class="wf-help">창을 닫고 입력한 값을 버린다. 요청을 보내지 않는다.</span>
+        </div>
+      </div>
+    </div>
   </main>
   <div id="wf-sec-1" class="wf-sec-detail-modal">
     <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
@@ -86,9 +116,9 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">② 업로드 자산 목록</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(마킹 대기/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수 + 만료 예정일. READY 자산만 '라벨링' 링크(/portal/label/:id) 노출 — 데이터마트 자산과 같은 화면이다. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청. 만료 예정일은 응답의 expiresAt 을 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). expiresAt 이 없는 자산은 만료 예정일 자리를 비운다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라 값이 내려오지 않는다. 만료 예정일이 내려오는 것은 준비 완료·실패 자산이다. 이 값은 조회 시점의 보존기간 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 매 조회마다 갱신한다. 만료가 가까운 자산을 색·아이콘으로 강조하는 표기는 두지 않는다. 준비 완료 상태인 영상 자산 행에는 「AI 증강 요청」 액션을 함께 둔다 — 아직 준비되지 않은 영상에는 두지 않는다(라벨링 링크와 같은 규칙이라, 그 자산에서 할 수 없는 액션은 비활성으로 두지 않고 아예 노출하지 않는다). 본인이 올린 자산이면 요청할 수 있으며 검수를 통과했는지는 묻지 않는다 — 이 경로에는 검수가 없다. 이 요청은 서버가 외부로 보내는 비동기 위탁이라 누른 즉시 결과가 나오지 않으며, 포털 사용자가 외부 추론 엔드포인트를 직접 호출하지 않는다. 이 증강은 저작도구가 자체 수행한다 — 대상 선택·생성 조건·외부 위탁까지 저작도구가 처리하고, 외부 채널이 제공하는 증강 요청 창구를 호출하지 않는다. 요청 이후의 현황·결과는 목록 상단의 「증강 요청 현황·결과」 진입에서 확인한다 — 증강 결과물의 결과 확인·후속 작업·내려받기는 그 화면이 담당한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(업로드 자산 목록) · binds uploads</li><li>Badge(상태 배지 (마킹 대기/처리중/준비 완료/실패))<p class="wf-help" style="margin:2px 0 0">UPLOADED 는 「마킹 대기」로 표기한다 — 마킹을 마쳐야 프레임이 추출되므로 이 자리에서 알려야 할 것은 업로드가 끝났다는 사실이 아니라 다음에 무엇을 해야 하는가이다. 표기만 그렇게 하고 상태값 자체는 바뀌지 않는다.</p></li><li>Link(라벨링)<p class="wf-help" style="margin:2px 0 0">준비 완료 자산만 노출 → /portal/label/:id (데이터마트 자산과 같은 라벨링 화면). 그 경로가 받는 값은 자산이 아니라 프레임 식별자다. 목록에서 이동할 때 자산 상세(API-140)를 조회해 프레임 요약 목록의 첫 프레임 식별자를 얻어 그 프레임으로 이동한다 — 목록이 가진 자산 식별자로 프레임 식별자를 추측하지 않는다. 그 목록은 프레임 순번 오름차순이라 첫 원소가 그 자산의 첫 프레임이다.</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</p></li><li>Text(만료 예정일 (만료: YYYY-MM-DD)) · binds uploads[].expiresAt<p class="wf-help" style="margin:2px 0 0">상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.</p></li><li>Button(AI 증강 요청)<p class="wf-help" style="margin:2px 0 0">영상 자산에만 노출한다. 증강으로 만들어진 결과물 행에도 두지 않는다 — 증강한 것을 다시 증강하지 않는다.</p></li><li>Link(증강 요청 현황·결과)<p class="wf-help" style="margin:2px 0 0">목록 상단에 한 번 둔다 — 자산별 액션이 아니다. 증강 요청 현황·결과 화면으로 이동하며, 결과 확인·후속 작업·내려받기는 그 화면이 담당한다.</p></li><li>Pagination(업로드 자산 목록 페이지)<p class="wf-help" style="margin:2px 0 0">서버가 페이지로 내려주고 페이지 크기에 상한이 걸려 있어, 옮길 수단이 없으면 첫 쪽에 있는 자산에만 도달한다. 그 뒤의 자산은 라벨링·삭제·증강 요청 어느 것도 할 수 없다.</p></li></ul></div>
-      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-140</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>본인 업로드 자산 목록(GET /portal/uploads). 각 행: 원본 파일명(텍스트 노드, XSS 방어) + 상태 배지(마킹 대기/처리중/준비 완료/실패, PROCESSING은 폴링) + 타입·크기·프레임수 + 만료 예정일. READY 자산만 '라벨링' 링크(/portal/label/:id) 노출 — 데이터마트 자산과 같은 화면이다. 삭제 버튼은 PROCESSING 중이면 title 툴팁과 함께 비활성(BE 409 정합), 확인 후 요청. 만료 예정일은 응답의 expiresAt 을 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). expiresAt 이 없는 자산은 만료 예정일 자리를 비운다 — 업로드됨·처리중 자산은 아직 삭제 대상이 아니라 값이 내려오지 않는다. 만료 예정일이 내려오는 것은 준비 완료·실패 자산이다. 이 값은 조회 시점의 보존기간 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 매 조회마다 갱신한다. 만료가 가까운 자산을 색·아이콘으로 강조하는 표기는 두지 않는다. 준비 완료 상태인 영상 자산 행에는 「AI 증강 요청」 액션을 함께 둔다 — 아직 준비되지 않은 영상에는 두지 않는다(라벨링 링크와 같은 규칙이라, 그 자산에서 할 수 없는 액션은 비활성으로 두지 않고 아예 노출하지 않는다). 본인이 올린 자산이면 요청할 수 있으며 검수를 통과했는지는 묻지 않는다 — 이 경로에는 검수가 없다. 요청 이후의 현황·결과는 목록 상단의 「증강 요청 현황·결과」 진입에서 확인한다 — 증강 결과물의 결과 확인·후속 작업·내려받기는 그 화면이 담당한다. 「AI 증강 요청」을 누르면 곧바로 요청이 나가지 않고 생성 조건을 입력하는 요청 폼이 화면 안 확인 창으로 열린다 — 그 창에서 시간대·계절·날씨·지형·심각도 다섯 항목을 모두 고른 뒤에야 요청을 보낼 수 있다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>List(업로드 자산 목록) · binds uploads</li><li>Badge(상태 배지 (마킹 대기/처리중/준비 완료/실패))<p class="wf-help" style="margin:2px 0 0">UPLOADED 는 「마킹 대기」로 표기한다 — 마킹을 마쳐야 프레임이 추출되므로 이 자리에서 알려야 할 것은 업로드가 끝났다는 사실이 아니라 다음에 무엇을 해야 하는가이다. 표기만 그렇게 하고 상태값 자체는 바뀌지 않는다.</p></li><li>Link(라벨링)<p class="wf-help" style="margin:2px 0 0">준비 완료 자산만 노출 → /portal/label/:id (데이터마트 자산과 같은 라벨링 화면). 그 경로가 받는 값은 자산이 아니라 프레임 식별자다. 목록에서 이동할 때 자산 상세(API-140)를 조회해 프레임 요약 목록의 첫 프레임 식별자를 얻어 그 프레임으로 이동한다 — 목록이 가진 자산 식별자로 프레임 식별자를 추측하지 않는다. 그 목록은 프레임 순번 오름차순이라 첫 원소가 그 자산의 첫 프레임이다.</p></li><li>Button(삭제)<p class="wf-help" style="margin:2px 0 0">PROCESSING이면 비활성 + 툴팁. window.confirm 후 요청, BE 409(처리중)는 안내 문구로 매핑</p></li><li>Text(만료 예정일 (만료: YYYY-MM-DD)) · binds uploads[].expiresAt<p class="wf-help" style="margin:2px 0 0">상태 배지 옆에 행마다 표기. 응답 expiresAt 을 날짜까지만 표기하고 시각은 생략. 값이 없으면 빈칸. 임박 강조 없음. 화면이 보관하지 않고 매 조회 값을 그대로 표시.</p></li><li>Button(AI 증강 요청)<p class="wf-help" style="margin:2px 0 0">준비 완료 영상 자산 행에만 노출한다. 증강으로 만들어진 결과물 행에는 두지 않는다 — 증강한 것을 다시 증강하지 않는다. 누르면 생성 조건을 입력하는 요청 폼이 화면 안 확인 창으로 열린다 — 이 버튼 자체가 요청을 보내지 않는다.</p></li><li>Link(증강 요청 현황·결과)<p class="wf-help" style="margin:2px 0 0">목록 상단에 한 번 둔다 — 자산별 액션이 아니다. 증강 요청 현황·결과 화면으로 이동하며, 결과 확인·후속 작업·내려받기는 그 화면이 담당한다.</p></li><li>Pagination(업로드 자산 목록 페이지)<p class="wf-help" style="margin:2px 0 0">서버가 페이지로 내려주고 페이지 크기에 상한이 걸려 있어, 옮길 수단이 없으면 첫 쪽에 있는 자산에만 도달한다. 그 뒤의 자산은 라벨링·삭제·증강 요청 어느 것도 할 수 없다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-140</li><li>API-231</li></ul></div>
     </div>
   </div>
   <div id="wf-sec-3" class="wf-sec-detail-modal">
@@ -108,6 +138,16 @@
       <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>업로드 자산의 라벨 내보내기와 원본 파일 내려받기를 목록의 자산 행에 둔다 — 라벨링 화면이 아니라 이 목록이 담당한다. 노출 규칙은 라벨링 링크·AI 증강 요청과 같다: 준비 완료 자산 행에만 두고, 그 자산에서 할 수 없는 액션은 비활성으로 두지 않고 아예 노출하지 않는다. 준비되기 전에 두지 않는 근거는 규칙 일치만이 아니다 — 라벨 내보내기는 프레임과 그 프레임의 라벨을 묶어 내보내므로 프레임 추출이 끝나기 전에는 내보낼 알맹이가 없고, 원본 파일 내려받기는 저장 경로가 확정되지 않은 자산에서 없는 파일을 가리켜 실패한다. 증강 결과물 행에는 두지 않는다 — 그 내려받기는 증강 요청 현황·결과 화면이 요청 단위로 이미 담당하므로 같은 행위의 진입이 둘이 된다(증강 요청 액션을 그 행에 두지 않는 것과 같은 규칙이다). 원본 파일 내려받기는 자산 파일을 그대로 받는 경로라 영상이면 매우 커질 수 있다. 요청 제한시간은 그 크기를 끝까지 받아낼 수 있는 값이어야 한다 — 일반 조회와 같은 짧은 제한시간을 쓰면 큰 자산은 받을 방법이 없다. 받는 중에는 같은 자리에서 전송을 멈출 수 있게 하고, 취소하면 전송을 중단해 다시 받을 수 있는 상태로 되돌린다. 받다 만 파일은 남기지 않는다. 사용자가 누른 취소는 오류가 아니라 정상 종료이므로 실패 안내를 띄우지 않는다 — 전송이 끊겨 실패한 경우와 한 갈래로 묶으면 스스로 멈춘 사용자에게 연결을 확인하라고 권하게 된다. 라벨 내보내기에는 취소를 두지 않는다. 두 내려받기는 받는 동안 서로 비활성으로 둔다.</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(라벨 내보내기)<p class="wf-help" style="margin:2px 0 0">준비 완료 자산 행에만 노출한다. 증강 결과물 행에는 두지 않는다. 라벨만 받으므로 곧바로 끝나 취소를 두지 않는다.</p></li><li>Button(원본 파일 내려받기)<p class="wf-help" style="margin:2px 0 0">준비 완료 자산 행에만 노출한다. 증강 결과물 행에는 두지 않는다. 자산 원본을 그대로 받으므로 영상이면 매우 커질 수 있고, 받는 중에는 취소할 수 있어야 한다.</p></li><li>Button(내려받기 취소)<p class="wf-help" style="margin:2px 0 0">원본 파일을 받는 중일 때만 '원본 파일 내려받기' 자리에 나타난다. 누르면 전송을 멈추고 다시 받을 수 있는 상태로 되돌린다. 사용자가 스스로 멈춘 것이므로 실패 안내를 띄우지 않는다.</p></li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-157</li><li>API-159</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 증강 요청 폼</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>목록의 「AI 증강 요청」을 누르면 이 요청 폼이 화면 안 확인 창으로 열린다 — 브라우저가 자체로 띄우는 창을 쓰지 않는다. 폼은 생성 조건 다섯 항목을 전부 필수 선택으로 받는다. 값은 닫힌 목록에서 고르며 자유 입력을 허용하지 않는다: 시간대는 새벽·낮·해질녘·밤, 계절은 봄·여름·가을·겨울, 날씨는 맑음·흐림·비·눈·안개·바람, 지형은 도로·지하차도·하천·도시·주거지·농촌·산지·산림, 심각도는 낮음·보통·높음이다. 다섯을 모두 요구하는 것은 하나라도 비면 위탁받는 쪽이 어떤 기본값으로 채울지 이쪽에서 알 수 없어 같은 요청의 결과가 비결정적이 되기 때문이다. 자유 지시문은 생성 조건과 분리한 별개 입력이며 선택이다 — 1000자까지 받고 비워 두어도 요청할 수 있다. 다섯 항목을 모두 고르기 전에는 요청 버튼을 누를 수 없게 하고, 그럼에도 미입력이거나 목록 밖 값이 실려 나가면 접수 창구가 입력 오류로 거부하므로 그 사유를 이 창 안에서 안내한다. 이벤트 유형과 세부 유형을 고르는 입력칸은 두지 않는다 — 요청자가 고르지 않고 서버가 중립 값으로 고정해 보낸다. 이 증강은 이미 이벤트가 담긴 프레임을 겨울·야간·우천 등으로 바꾸는 것이라 무엇을 만들지 정할 자리가 없고, 우리 이벤트 체계는 넓은 데 비해 위탁받는 쪽의 허용값은 좁아 대응되지 않는 영상에서는 요청자가 사실과 다른 값을 고를 수밖에 없다. 요청자가 이벤트 유형을 고르는 형태로 되돌리지 않는다. 요청 대상은 준비 완료된 본인 업로드 영상이며 증강 결과물에는 이 폼을 열지 않는다. 요청을 보내면 접수 사실만 확인하고 창을 닫으며, 진행 상태와 결과는 증강 요청 현황·결과 화면에서 확인한다. 이 폼은 본문과 한 그림에 그리지 않고 본문 위에 뜨는 별도 표면으로 둔다. 항목별 표시명과 보내는 코드의 대응은 그 선택칸에 적으며, 코드 값역의 정본은 접수 창구(API-231)이고 이 화면은 그것을 인용한다 — 창구가 값을 넓히면 여기에 없는 항목·값도 감추지 않고 그대로 드러낸다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(AI 증강 요청)</li><li>KeyValue(대상 영상)<p class="wf-help" style="margin:2px 0 0">목록에서 요청을 누른 그 자산을 보여 준다. 이 창에서 대상을 바꾸지 않는다.</p></li><li>Select(시간대)<p class="wf-help" style="margin:2px 0 0">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 새벽=DAWN · 낮=DAY · 해질녘=DUSK · 밤=NIGHT.</p></li><li>Select(계절)<p class="wf-help" style="margin:2px 0 0">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 봄=SPRING · 여름=SUMMER · 가을=AUTUMN · 겨울=WINTER.</p></li><li>Select(날씨)<p class="wf-help" style="margin:2px 0 0">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 맑음=CLEAR · 흐림=CLOUDY · 비=RAIN · 눈=SNOW · 안개=FOG · 바람=WINDY.</p></li><li>Select(지형)<p class="wf-help" style="margin:2px 0 0">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 도로=ROAD · 지하차도=UNDERPASS · 하천=RIVER · 도시=URBAN · 주거지=RESIDENTIAL · 농촌=RURAL · 산지=MOUNTAIN · 산림=FOREST.</p></li><li>Select(심각도)<p class="wf-help" style="margin:2px 0 0">필수. 닫힌 목록에서만 고르고 직접 적어 넣을 수 없다. 표시명과 보내는 코드의 대응 — 낮음=LOW · 보통=MEDIUM · 높음=HIGH.</p></li><li>Textarea(자유 지시문 (선택))<p class="wf-help" style="margin:2px 0 0">선택 입력이며 1000자까지 받는다. 비워 두어도 요청할 수 있고, 생성 조건 다섯 항목을 대신하지 않는다.</p></li><li>Alert(다섯 항목을 모두 고르지 않았거나 목록에 없는 값이면 요청이 거부된다)<p class="wf-help" style="margin:2px 0 0">폼 안에 상시 안내로 둔다. 접수 창구가 입력 오류로 돌려보낸 사유도 이 자리에 띄운다.</p></li><li>Button(요청) · → API-231<p class="wf-help" style="margin:2px 0 0">다섯 항목을 모두 고르기 전에는 비활성. 누르면 접수만 이뤄지고 결과는 증강 요청 현황·결과 화면에서 확인한다.</p></li><li>Button(취소)<p class="wf-help" style="margin:2px 0 0">창을 닫고 입력한 값을 버린다. 요청을 보내지 않는다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-231</li></ul></div>
     </div>
   </div>
 </body>

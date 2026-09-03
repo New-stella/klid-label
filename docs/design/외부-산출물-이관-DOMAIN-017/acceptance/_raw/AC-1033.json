@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-1033",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-037 일괄 적재 예외 — 짝 못찾음 건너뜀·FPS 어긋남 중단·중복 식별자 건너뜀·비식별 실패 마감·재기동 복구 (negative)",
+    "slug": "uc-037-일괄-적재-예외-짝-못찾음-건너뜀fps-어긋남-중단중복-식별자-건너뜀비식별-실패-마감재기동-복구",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [산출물 가져오기 화면] 1) 짝 못찾음/FPS 어긋남/중복 식별자/비식별 실패/재기동 · 기대: 각각 건너뜀·중단·마감·재처리, 부분 확정 방지",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "짝 없음/동명 다수는 건너뜀·사유 기록, 미참조 영상 수 함께 안내",
+          "FPS 오차 초과는 마킹 미적용·중단·사유(화면 FPS 포함 셋 갈리면 중단)",
+          "중복 식별자는 그 항목만 건너뜀(덮어쓰기 금지)",
+          "비식별 실패는 예약 마킹 미적용 마감·재마킹 가능·적재 미롤백",
+          "재기동은 진행 중 항목 재집 가능화·이어 처리, 재시도 횟수 초과는 실패 마감"
+        ],
+        "when": [
+          "일괄 적재가 그 항목을 처리한다"
+        ],
+        "given": [
+          "짝 없음/중복·FPS 어긋남·중복 식별자·비식별 실패·처리 중 재기동 중 하나다"
+        ]
+      },
+      "statement": "마킹 문서가 가리키는 이름의 영상이 없거나 같은 이름이 둘 이상이면 그 항목을 건너뛰고 사유를 남기며(둘 이상은 짐작 안 함) 어느 문서도 가리키지 않은 영상 수를 함께 알려 묶음 온전성을 사람이 판단하게 한다. 역산 FPS와 실측값이 허용 오차를 넘어 다르면 그 항목의 마킹을 적용하지 않고 멈춰 사유를 남긴다(프레임→시각 계산이 그 값에 기대므로, 화면이 채운 FPS가 있으면 함께 대조해 셋이 갈리면 중단). 영상 파일 이름의 식별자가 이미 쓰이면 그 항목만 건너뛴다(덮어쓰면 검수 중/승인 내용 소실). 비식별이 끝내 실패하면 예약 마킹을 적용하지 못한 채 마감하되 활성 마킹으로 세지 않아 재마킹 가능하고 적재 자체는 되돌리지 않는다. 처리 도중 서버 재기동 시 진행 중 항목을 다시 집을 수 있게 되돌려 이어 처리하되 정해진 횟수 초과 항목은 실패로 마감한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-037"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "UC-037의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "끊어진 화면 참조를 산출물 가져오기 화면으로 바로잡는다",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T06:20:31.120Z",
+    "created_at": "2026-08-31T02:13:43.907Z"
+  }
+}

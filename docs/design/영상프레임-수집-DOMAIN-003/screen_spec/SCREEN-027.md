@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-027
 type: screen_spec
-version: 51
+version: 52
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T12:37:04.599Z
+synced_at: 2026-09-03T07:39:07.458Z
 status: CHANGED
-prev_version: 50
-content_hash: 521687dea462d3bf7619b303d2c3dd1e02f63354cbccb49b4950fc52cdd7139b
+prev_version: 51
+content_hash: cd0f51f4d6032f484afe787ddd952fa134c87813de4b9ff3b357c562af500699
 stale: true
 raw: ./_raw/SCREEN-027.json
 links:
@@ -22,7 +22,7 @@ links:
   granted_on_backward: ["[[ROLE-004]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-041]]", "[[MOD-048]]"]
-  references_backward: ["[[ADR-046]]", "[[UC-042]]"]
+  references_backward: ["[[ADR-046]]", "[[SEQ-035]]", "[[UC-042]]"]
 ---
 
 # 파일 업로드
@@ -643,8 +643,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 122d5ff48def28f28831d624d38e928f7941a26be68e3e1ac6e315cc8e9608dc
-- **generated_at**: 2026-09-01T07:34:51.075Z
+- **source_hash**: 8bfe4a20bcf8ce55c3be2fae15a53e3e32b54de28c61b0148a7b130b74fd1e5c
+- **generated_at**: 2026-09-02T11:24:47.923Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:

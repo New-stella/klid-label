@@ -336,8 +336,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "122d5ff48def28f28831d624d38e928f7941a26be68e3e1ac6e315cc8e9608dc",
-          "generated_at": "2026-09-01T07:34:51.075Z",
+          "source_hash": "8bfe4a20bcf8ce55c3be2fae15a53e3e32b54de28c61b0148a7b130b74fd1e5c",
+          "generated_at": "2026-09-02T11:24:47.923Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -353,12 +353,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 51,
+    "current_version": 52,
     "stale": true,
-    "stale_reason": "API-158의 data.attached_files 변경 — consumes",
-    "change_summary": "v50 필수값 정합 반영 — 출처유형 강제 해제, 촬영일시·이벤트유형 필수 표기를 경로 판정에 맞춤",
+    "stale_reason": "ROLE-004의 data.attached_files 변경 — requires",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (16.8KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:46:28.922Z",
+    "last_updated_at": "2026-09-02T11:24:47.924Z",
     "created_at": "2026-05-30T07:55:52.978Z"
   }
 }

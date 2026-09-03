@@ -1,19 +1,19 @@
 ---
 logicraft_item: DOMAIN-006
 type: domain
-version: 9
+version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:17.818Z
+synced_at: 2026-09-03T07:39:16.805Z
 status: CHANGED
-prev_version: 8
-content_hash: 9a1c21f5b2dd269b96df945c4407cdf6d2609483960711f710fe0a432e4fcbed
+prev_version: 9
+content_hash: 66ff9c0e3652738b94df9ebed7aa410a779ccad6769f8b5f589436e5dc9c29ef
 stale: false
 raw: ./_raw/DOMAIN-006.json
 links:
   collaborates_with: ["[[DOMAIN-005]]"]
   applies_to_backward: ["[[NFR-011]]", "[[NFR-018]]", "[[NFR-019]]"]
-  belongs_to_domain_backward: ["[[AC-1043]]", "[[AC-1084]]", "[[AC-1085]]", "[[API-055]]", "[[API-056]]", "[[API-057]]", "[[API-058]]", "[[CDIAG-009]]", "[[DFEAT-026]]", "[[DFEAT-027]]", "[[DFEAT-028]]", "[[SCREEN-011]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SD-014]]", "[[UC-033]]"]
+  belongs_to_domain_backward: ["[[AC-1043]]", "[[AC-1084]]", "[[AC-1085]]", "[[API-055]]", "[[API-056]]", "[[API-057]]", "[[API-058]]", "[[CDIAG-009]]", "[[DFEAT-026]]", "[[DFEAT-027]]", "[[DFEAT-028]]", "[[SCREEN-011]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SD-014]]", "[[SEQ-027]]", "[[UC-033]]"]
   collaborates_with_backward: ["[[DOMAIN-005]]"]
   derived_domain_backward: ["[[AC-1043]]", "[[AC-1084]]", "[[AC-1085]]"]
   implements_in_backward: ["[[MOD-012]]"]
@@ -44,7 +44,7 @@ preserved
 
 [★집계는 BE 에서 전체 기준으로] 필터·집계를 FE 클라이언트 필터로 대체하지 않는다 — 현재 페이지 단위 집계는 오답이다. 목록 정렬은 시간축 단일 기준이고 '지금 처리할 것'은 필터·KPI 카드로 표현한다(ADR-038).
 
-[상태 축] 배정·작업중·완료·반려 기준으로 집계한다. 구 상태 '확인요청'은 관리자 역할 통합(ADR-003)으로 폐기됐다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없고 모든 관리 권한이 REVIEWER 에 통합됐다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받는다. 전제가 무효가 된 것과 기능을 되살리는 것은 다른 축이라 구 상태 '확인요청'을 두지 않는다는 결론은 그대로 유지하며, 재도입 여부는 별도 결정이 필요하다.
+[상태 축] 배정·작업중·완료·반려 기준으로 집계한다. 구 상태 '확인요청'은 관리자 역할 통합(ADR-003)으로 폐기됐다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없고 모든 관리 권한이 REVIEWER 에 통합됐다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받는다. 전제가 무효가 된 것과 기능을 되살리는 것은 다른 축이라 구 상태 '확인요청'을 두지 않는다는 결론은 그대로 유지한다. 재도입 여부는 ADR-060 이 결정했다 — 관리자 역할이 신설된 뒤에도 「관리자 확인 요청」 창구를 두지 않는다. 그 창구가 없으므로 이 상태값도 생기지 않는다.
 
 [포함 범위] 증강·해상도 파생영상도 집계에 포함된다.
 

@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-006 |
-| Last sync | 2026-09-02T10:52:34.653Z |
-| Mode | SYNC — NEW 0 / CHANGED 0 / UNCHANGED 46 |
-| 출력 루트 | docs/design/통계대시보드-DOMAIN-006 |
+| Last sync | 2026-09-03T07:39:16.808Z |
+| Mode | SYNC — NEW 0 / CHANGED 2 / UNCHANGED 44 |
+| 출력 루트 | docs/design/통계대시보드-DOMAIN-006/ |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-006 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 11건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 1건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -22,13 +22,13 @@
   ℹ️  domain_feature: 이번 키트 3건 / 스코프 밖 45건
   ℹ️  api_endpoint: 이번 키트 7건 / 스코프 밖 213건
   🚨 erd: 이번 키트 0건 / 프로젝트 전역 23건 — 전량 누락
-  🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 26건 (그중 domain_id 없음 14건) — 전량 누락
+  🚨 diagram_sequence: 이번 키트 0건 / 프로젝트 전역 35건 (그중 domain_id 없음 14건) — 전량 누락
   ℹ️  screen_spec: 이번 키트 3건 / 스코프 밖 35건
-  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건 (그중 domain_id 없음 3건)
+  ℹ️  use_case: 이번 키트 1건 / 스코프 밖 34건
   🚨 domain_event: 이번 키트 0건 / 프로젝트 전역 12건 — 전량 누락
-  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 77건 (그중 domain_id 없음 2건)
+  ℹ️  acceptance: 이번 키트 3건 / 스코프 밖 79건 (그중 domain_id 없음 2건)
   🚨 constant: 이번 키트 0건 / 프로젝트 전역 2건 (그중 domain_id 없음 2건) — 전량 누락
-  ℹ️  adr: 이번 키트 4건 / 스코프 밖 48건 (그중 domain_id 없음 8건)
+  ℹ️  adr: 이번 키트 4건 / 스코프 밖 51건 (그중 domain_id 없음 10건)
   🚨 feature: 이번 키트 0건 / 프로젝트 전역 10건 (그중 domain_id 없음 9건) — 전량 누락
 ```
 
@@ -41,7 +41,8 @@
 
 ## Changelog (this run)
 
-- (변경 없음)
+- CHANGED [[DOMAIN-006]] (prev v9)
+- CHANGED [[UC-033]] (prev v6)
 
 ## ITEM 표
 
@@ -65,7 +66,7 @@
 | [[DFEAT-026]] | domain_feature | 3 | UNCHANGED |
 | [[DFEAT-027]] | domain_feature | 4 | UNCHANGED |
 | [[DFEAT-028]] | domain_feature | 4 | UNCHANGED |
-| [[DOMAIN-006]] | domain | 9 | UNCHANGED |
+| [[DOMAIN-006]] | domain | 10 | CHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
 | [[NFR-010]] | nfr | 3 | UNCHANGED |
@@ -92,4 +93,4 @@
 | [[SD-030]] | screen_design | 5 | UNCHANGED |
 | [[SD-031]] | screen_design | 3 | UNCHANGED |
 | [[TEST-006]] | test_scenario | 2 | UNCHANGED |
-| [[UC-033]] | use_case | 6 | UNCHANGED |
+| [[UC-033]] | use_case | 7 | CHANGED |

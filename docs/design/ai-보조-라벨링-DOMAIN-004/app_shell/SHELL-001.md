@@ -4,7 +4,7 @@ type: app_shell
 version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-28T22:52:20.532Z
+synced_at: 2026-09-03T07:41:29.082Z
 status: NEW
 prev_version: null
 content_hash: e8bd9633b2ab4d4ce148fc0da6ec3980b9bb16a3da4f72bee48aa3f052a24005

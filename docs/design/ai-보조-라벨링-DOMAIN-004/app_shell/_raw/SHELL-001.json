@@ -92,7 +92,7 @@
     "schema_version": 2,
     "current_version": 11,
     "stale": true,
-    "stale_reason": "SCREEN-024의 data.sections 변경 — applies_to",
+    "stale_reason": "SCREEN-023의 data.sections 변경 — applies_to",
     "change_summary": "역할 배지가 나타내는 값에 관리자를 더하고, 역할이 아직 없을 때 무엇을 보일지를 정한다. 관리자 역할이 신설되며 배지에 실리는 값이 늘었는데 이 서술이 따라오지 않아 셋만 적혀 있었고, 역할 미부여자에게 보일 표시는 어디에도 없었다. 그 공백 때문에 구현이 임의로 작업자를 채워 사실과 다른 역할을 보여주고 있다. 미배정에 경고 아이콘을 병기하는 것은 역할 없음이 정상 상태가 아니라 조치가 필요한 상태이고 색만으로는 그 차이가 전달되지 않기 때문이다. 모르는 값과 역할 없음을 같은 표시로 합치지 않는 것도 함께 못박는다. 나머지 서술은 건드리지 않았다.",
     "last_updated_by": "claude",
     "last_updated_at": "2026-08-28T13:08:19.486Z",

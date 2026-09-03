@@ -4,9 +4,9 @@ type: app_shell
 version: 8
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:52:38.884Z
-status: CHANGED
-prev_version: 5
+synced_at: 2026-09-03T07:41:30.838Z
+status: NEW
+prev_version: null
 content_hash: d02de90932afb3aecce0118dd23c29b1f4d61bf34e002425b9af7cd9460619d8
 stale: true
 raw: ./_raw/SHELL-002.json

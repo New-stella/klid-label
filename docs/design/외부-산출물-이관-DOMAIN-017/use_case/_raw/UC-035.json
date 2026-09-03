@@ -9,7 +9,7 @@
     "status": "draft",
     "data": {
       "goal": "외부에서 이미 라벨링이 끝난 산출물을 저작도구로 가져와 검수할 수 있는 상태로 만든다.",
-      "actor": "관리자",
+      "actor": "관리자(ADMIN)",
       "title": "외부 산출물 가져오기",
       "status": "draft",
       "priority": "should",
@@ -141,8 +141,8 @@
       ],
       "extension_points": [],
       "secondary_actors": [
-        "검수자",
-        "작업자"
+        "검수자(REVIEWER)",
+        "라벨링 작업자(WORKER)"
       ],
       "extends_use_cases": [],
       "realizes_features": [
@@ -163,12 +163,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 18,
-    "stale": true,
-    "stale_reason": "DFEAT-059의 3개 필드 변경 — realizes",
-    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 94건이 있었는데 그중 94건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 3건(AC-1079, AC-1080, AC-1081)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
+    "current_version": 19,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "액터 표기 통일 — 관리자 → 관리자(ADMIN), 검수자 → 검수자(REVIEWER), 작업자 → 라벨링 작업자(WORKER)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:25:47.728Z",
+    "last_updated_at": "2026-09-03T05:36:31.921Z",
     "created_at": "2026-08-19T07:59:28.951Z"
   }
 }

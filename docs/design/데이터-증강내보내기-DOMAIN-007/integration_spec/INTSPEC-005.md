@@ -1,13 +1,13 @@
 ---
 logicraft_item: INTSPEC-005
 type: integration_spec
-version: 2
+version: 3
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-02T10:51:57.085Z
+synced_at: 2026-09-03T07:39:09.021Z
 status: CHANGED
-prev_version: 1
-content_hash: 0ecc8774ee43e89562aa78ca2c11ffd03dca0dbdda22559f99b067a694847362
+prev_version: 2
+content_hash: 93cd199289c2af8c10dcb94e3be515ee79dc1737f66704a98c8d36531c5d2f16
 stale: false
 raw: ./_raw/INTSPEC-005.json
 links:
@@ -135,7 +135,7 @@ _(empty)_
 | terrain | string | N | Y | `ROAD` 도로 \| `UNDERPASS` 지하차도 \| `RIVER` 하천 \| `URBAN` 도심 \| `RESIDENTIAL` 주거지역 \| `RURAL` 시골 \| `MOUNTAIN` 산지 \| `FOREST` 숲 |
 | severity | string | N | Y | `LOW` 낮음 \| `MEDIUM` 보통 \| `HIGH` 높음 |
 
-`mtdt` 객체 자체는 반드시 전달한다. 다만 빈 객체 또는 모든 하위 필드가 `null` 인 요청을 서버가 허용하는지는 계약에서 확정되지 않았으므로, 호출 측은 **최소 1개 이상의 유효한 조건값을 전달하는 것을 원칙**으로 한다.
+`mtdt` 객체 자체는 반드시 전달한다. 다만 빈 객체 또는 모든 하위 필드가 `null` 인 요청을 서버가 허용하는지는 계약에서 확정되지 않았으므로, 호출 측은 **최소 1개 이상의 유효한 조건값을 전달하는 것을 원칙**으로 한다. ⚠ 우리 창구는 다섯 항목을 전부 필수로 받으며 하나라도 비면 400 이다. 외부 계약 자체는 최소 한 항목만 요구하므로 이 창구가 더 엄격하다 — 의도된 선택이다. 이 문단을 계약이 그렇다고 오독해 좁히거나, 반대로 이 창구의 규칙을 계약 탓으로 돌리지 말 것.
 
 ## 8. `prompt` 적용 규칙
 
