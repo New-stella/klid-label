@@ -164,7 +164,9 @@ class ConfigPropertyKeyGuardTest {
     @DisplayName("stg_프로파일에_KPST_비식별_연동이_명시적으로_배선돼있다")
     void stgProfileWiresKpstDeidExplicitly() {
         // given: 공통 기본 base-url 은 https://localhost:9201 이고, https 인데 ca-cert 가 비면
-        //        KpstWebClientConfig 가 fail-closed 로 빈 생성에 실패한다(CWE-295) → 부팅 차단.
+        //        KpstWebClientConfig 가 fail-closed 로 <비식별 위탁을 거부>한다(CWE-295).
+        //        ⚠ 구 서술 폐기(2026-09-03) — "부팅 차단". 연동 주소로는 기동을 막지 않는다.
+        //        그래도 stg 명시 배선은 필요하다: 상속하면 비식별이 <조용히> 전건 실패한다.
         Object baseUrl = MainResourceYaml.rawValue("application-stg.yml", "kpst.deid.base-url");
 
         // then: stg 는 환경변수 주입을 강제하는 형태로 base-url 을 명시해야 한다

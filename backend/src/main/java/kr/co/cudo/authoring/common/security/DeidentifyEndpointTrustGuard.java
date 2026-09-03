@@ -81,6 +81,9 @@ public class DeidentifyEndpointTrustGuard {
     /** 호스트명에 이 토큰이 포함되면(예: kpst-mock-01) 목으로 간주한다. */
     private static final String MOCK_HOST_TOKEN = "mock";
 
+    /** 자체 복사(self-fill) 사유 문구 — 기동 차단 메시지와 경고가 같은 말을 쓰게 한다. */
+    static final String MOCK_MODE_REASON = "deidentify mock-mode (자체 복사, 외부 무접촉)";
+
     private final Environment environment;
 
     /** UC018 — KPST 위탁 경로 토글. false 면 위탁 엔드포인트 자체가 없다. */
@@ -99,21 +102,60 @@ public class DeidentifyEndpointTrustGuard {
         this.environment = environment;
     }
 
+    /**
+     * 기동 시점 판정.
+     *
+     * <h3>★ 주소 축은 더 이상 기동을 막지 않는다 (2026-09-03 사용자 확정, 구속)</h3>
+     * <p>구 동작은 운영에서 목/시뮬레이터 주소면 <b>기동을 거부</b>했다. 그런데 그 주소는
+     * <b>배포 설정 한 줄</b>이라, 실수 하나로 저작 업무 전체가 멈춘다 — 온프렘에서는 그 대가가
+     * 실수보다 크다. 그래서 <b>차단을 없애지 않고 자리를 옮겼다</b>: 기동은 정상이고
+     * <b>비식별로 위탁하려는 순간 거부</b>된다({@link #commissionBlockReason(String)} →
+     * {@code KpstWebClientConfig}). 위탁이 거부되면 파이프라인이 진행되지 않으므로
+     * <b>위조 비식별본이 산출물·통지로 나가는 것은 그대로 막힌다</b>.
+     *
+     * <p>⚠ <b>자체 복사(mock-mode)는 그대로 기동을 막는다</b> — 그것은 주소가 아니라
+     * <b>개발 편의 토글</b>이고(외부 무접촉으로 원본을 비식별본으로 둔갑시킨다), 「개발 기능의 운영
+     * 노출 차단」은 이번 반전의 대상이 아니다. 두 축을 섞지 말 것.
+     */
     @PostConstruct
     void verify() {
+        if (mockMode && isProduction()) {
+            throw new IllegalStateException(
+                    "신뢰할 수 없는 비식별 경로로는 운영(prd) 기동을 허용하지 않습니다(fail-closed): "
+                            + MOCK_MODE_REASON);
+        }
         String reason = untrustedReason();
         if (reason == null) {
             return;
         }
         if (isProduction()) {
-            throw new IllegalStateException(
-                    "신뢰할 수 없는 비식별 경로로는 운영(prd) 기동을 허용하지 않습니다(fail-closed): " + reason);
+            // 기동은 계속하되 <조용히> 넘기지 않는다 — 위탁은 아래 판정으로 실제로 막힌다.
+            log.error("[Deid][Trust] 운영에서 신뢰할 수 없는 비식별 경로입니다 — 기동은 계속되고 "
+                    + "비식별 위탁만 거부됩니다(위조 비식별본 유출 차단): {}", LogSanitizer.sanitize(reason));
+            return;
         }
         if (isLocal()) {
             return; // 로컬 자족/목 연동은 정상 구성 — 매 기동 경고 소음 방지
         }
         log.warn("[Deid][Trust] untrusted deidentification endpoint — 원본이 비식별본으로 서빙될 수 있음: {} activeProfiles={}",
                 reason, Arrays.toString(environment.getActiveProfiles()));
+    }
+
+    /**
+     * <b>위탁 시점 판정</b> — 이 주소로 비식별을 맡기면 안 되는 사유(없으면 {@code null}).
+     *
+     * <p>강도는 기동 시·저장 시와 같다: <b>운영에서만</b> 막고 그 외 프로파일은 막지 않는다
+     * (dev/stg 의 목 서버 연동이 정상 경로다). 판정 자체는 {@link #untrustedReason(String)}
+     * <b>한 함수</b>를 쓴다 — 복제하면 한쪽만 갱신돼 갈린다.
+     *
+     * <p>⚠ 이 메서드는 <b>주소 축만</b> 본다. 자체 복사(mock-mode)는 기동 차단 축이라 여기서 보지
+     * 않는다 — 그 형상에서는 KPST 위탁 자체가 일어나지 않는다.
+     */
+    public String commissionBlockReason(String baseUrl) {
+        if (!isProduction()) {
+            return null;
+        }
+        return untrustedReason(baseUrl);
     }
 
     /**
@@ -160,7 +202,7 @@ public class DeidentifyEndpointTrustGuard {
      */
     String untrustedReason() {
         if (mockMode) {
-            return "deidentify mock-mode (자체 복사, 외부 무접촉)";
+            return MOCK_MODE_REASON;
         }
         if (!kpstEnabled) {
             return null; // 위탁 엔드포인트 없음 — 판정 대상 아님

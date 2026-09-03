@@ -13,8 +13,10 @@ import kr.co.cudo.authoring.common.client.dto.KpstProjectRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstProjectResponse;
 import kr.co.cudo.authoring.common.client.dto.KpstReportRequest;
 import kr.co.cudo.authoring.common.client.dto.KpstReportResponse;
+import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointTransportGuards;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -81,8 +83,13 @@ public class KpstDeidentifyClient {
      */
     private final kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver endpointResolver;
 
-    /** 진행조회 base-url 의 배포 기본값 — override 가 없을 때 쓰인다. */
-    private final String progressBootBaseUrl;
+    /**
+     * 진행조회 base-url 의 <b>기동 시점 판정 결과</b> — override 가 없을 때 쓰인다.
+     *
+     * <p>{@code null} 이면 구 배선(4-인자 생성자)이라 저수준 클라이언트의 기동 시점 base-url 을
+     * 그대로 쓴다. 운영 컨테이너에서는 항상 주입된다.
+     */
+    private final ExternalEndpointAddress endpointAddress;
 
     /**
      * 구 시그니처 — 진행조회가 <b>기동 시점 주소</b>를 그대로 쓴다.
@@ -115,13 +122,14 @@ public class KpstDeidentifyClient {
                                 @Qualifier("kpstDeidCircuitBreaker") CircuitBreaker circuitBreaker,
                                 RetryRegistry retryRegistry,
                                 kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver endpointResolver,
-                                @org.springframework.beans.factory.annotation.Value("${kpst.deid.base-url:}") String progressBootBaseUrl) {
+                                @Qualifier("kpstDeidEndpointAddress")
+                                ExternalEndpointAddress endpointAddress) {
         this.webClient = webClient;
         this.progressHttpClient = progressHttpClient;
         this.circuitBreaker = circuitBreaker;
         this.retry = retryRegistry.retry("kpstDeid");
         this.endpointResolver = endpointResolver;
-        this.progressBootBaseUrl = progressBootBaseUrl;
+        this.endpointAddress = endpointAddress;
     }
 
     /**
@@ -139,13 +147,16 @@ public class KpstDeidentifyClient {
      * 갈리면 프로젝트는 새 서버에 있는데 조회만 옛 서버로 나간다(부분 반영이 미반영보다 위험).
      */
     private String lowLevelUri(String path) {
-        if (endpointResolver == null || progressBootBaseUrl == null || progressBootBaseUrl.isBlank()) {
-            return path;
+        if (endpointResolver == null || endpointAddress == null) {
+            return path; // 구 배선 — 저수준 클라이언트의 기동 시점 base-url 을 쓴다
         }
         String effective = endpointResolver.resolve(
-                kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint.DEIDENTIFY, progressBootBaseUrl);
+                kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint.DEIDENTIFY,
+                endpointAddress.baseUrl());
         if (effective == null || effective.isBlank()) {
-            return path;
+            // ★ 보낼 수 있는 주소가 없다 — 상대 경로로 내려보내면 저수준 클라이언트가
+            //   loopback:80 으로 실제 연결을 낸다(base 가 비어 있으므로). 아예 보내지 않는다.
+            return null;
         }
         String base = effective.trim();
         while (base.endsWith("/")) {
@@ -262,6 +273,14 @@ public class KpstDeidentifyClient {
      * @param label 오류 메시지용 내부 상수 문자열(사용자 입력 아님 — 로그 인젝션 표면 없음)
      */
     private <T> T getWithJsonBody(String uri, Object request, Class<T> responseType, String label) {
+        if (uri == null) {
+            // ★ 저수준 경로에는 필터 훅이 없어 여기서 막는다 — WebClient 경로의
+            //   requireUsableAddress 와 <같은 판정·같은 문구>다. 한쪽만 막으면 위탁은 새 서버로
+            //   가는데 조회만 옛 서버로 나가 그 작업이 영원히 완료되지 않는다.
+            throw IntegrationEndpointTransportGuards.unusableAddress(
+                    kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint.DEIDENTIFY,
+                    endpointAddress == null ? null : endpointAddress.rejectionLabel());
+        }
         byte[] payload = serializeRequest(request, label);
         return progressHttpClient
                 .headers(h -> {

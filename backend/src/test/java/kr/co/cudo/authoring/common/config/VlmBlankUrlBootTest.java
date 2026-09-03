@@ -59,23 +59,33 @@ class VlmBlankUrlBootTest {
     }
 
     @Test
-    @DisplayName("주소가_채워져_있으면_종전대로_검증하고_위반이면_기동을_차단한다")
-    void filledUrlIsStillValidated() {
+    @DisplayName("★주소가_잘못돼도_기동은_되고_그_주소로_나가려_할_때_실패한다_2026_09_03_확정")
+    void filledButInvalidUrlBootsAndBlocksTransport() {
         // given: 검증 정책
         VlmUrlPolicy policy = strictPolicy();
 
-        // when / then: 남은 검증축(비허용 스킴 · placeholder · 예약 대역)은 종전대로 거부된다.
-        //   ⚠ 구 기대값이던 「HTTPS 강제」·「사설 대역 차단」은 2026-08-10 확정으로 폐기됐다 —
-        //     그 둘로 이 축을 검증하면 폐기된 조항을 되살리는 압력이 된다.
-        assertThatThrownBy(() -> cfg.vlmWebClient("ftp://vlm.vendor.io", "", policy, null))
-                .as("주소가 있으면 비허용 스킴 차단이 살아 있어야 한다")
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("http://169.254.169.254", "", policy, null))
-                .as("주소가 있으면 메타데이터 대역 차단이 살아 있어야 한다")
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://example.com", "", policy, null))
-                .as("주소가 있으면 placeholder fail-closed 가 살아 있어야 한다")
-                .isInstanceOf(IllegalStateException.class);
+        // when / then: 남은 검증축(비허용 스킴 · placeholder · 예약 대역)은 <규칙 그대로> 살아 있다.
+        //   ⚠ 구 기대값이던 「빈 생성 실패」는 2026-09-03 확정으로 폐기됐다 — 한 연동의 설정 실수로
+        //     저작 업무 전체가 멈추는 편이 배포 시점에 빨리 아는 것보다 훨씬 비싸다.
+        //   ⚠ 「HTTPS 강제」·「사설 대역 차단」은 2026-08-10 확정으로 이미 폐기됐다.
+        assertThat(cfg.vlmWebClient("ftp://vlm.vendor.io", "", policy, null))
+                .as("비허용 스킴이어도 기동은 막히지 않는다").isNotNull();
+        assertThat(cfg.vlmWebClient("http://169.254.169.254", "", policy, null))
+                .as("메타데이터 대역이어도 기동은 막히지 않는다").isNotNull();
+        assertThat(cfg.vlmWebClient("https://example.com", "", policy, null))
+                .as("placeholder 여도 기동은 막히지 않는다").isNotNull();
+
+        // and: 그러나 그 주소로는 <아무것도 나가지 않는다> — 차단은 사라진 것이 아니라 옮겨졌다.
+        for (String bad : new String[]{"ftp://vlm.vendor.io", "http://169.254.169.254",
+                "https://example.com"}) {
+            org.springframework.web.reactive.function.client.WebClient client =
+                    cfg.vlmWebClient(bad, "", policy, null);
+            assertThatThrownBy(() -> client.post().uri("/v1/videovlm-klid/describe")
+                    .retrieve().bodyToMono(String.class).block(java.time.Duration.ofSeconds(5)))
+                    .as("거부된 주소로 전송이 시도되면 안 된다 — " + bad)
+                    .isInstanceOf(kr.co.cudo.authoring.common.client.NonRetryableExternalException.class)
+                    .hasMessageContaining("설정값이 유효하지 않아");
+        }
 
         // and: 정상 주소(평문 http 포함)는 그대로 통과한다.
         assertThat(cfg.vlmWebClient("https://8.8.8.8/", "", policy, null)).isNotNull();

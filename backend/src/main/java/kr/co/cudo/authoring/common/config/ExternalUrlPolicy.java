@@ -27,6 +27,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 두 축과 무관하게 <b>항상</b> 적용되는 하드 규칙: 빈값 거부, 파싱 가능, {@code http|https} 외 스키마 거부,
  * host 필수, placeholder/예제 호스트 거부(운영 사고 방지 fail-closed).
  *
+ * <h3>★ 이 판정은 더 이상 기동을 막지 않는다 — 전송을 막는다 (2026-09-03 확정, 구속)</h3>
+ * <p>규칙은 그대로이고 <b>적용 시점만 옮겼다</b>. 호출부는 {@link #inspect(String)} 로 판정을 받아
+ * 들고 있다가 <b>그 주소로 나가려는 순간</b> 거부한다({@link ExternalEndpointAddress}). 한 연동의
+ * 설정 실수로 저작 업무 전체가 멈추는 것을 막기 위함이며, <b>막아야 할 것은 잘못된 곳으로 나가는
+ * 것이지 기동이 아니다</b>.
+ *
+ * <p>⚠ {@link #check(String)} 은 <b>남는다</b> — 저장 창구(400 응답)와 후보 장비 걸러내기처럼
+ * <b>기동과 무관한</b> 호출부가 그대로 쓴다. 이 메서드를 다시 빈 생성 경로에 걸지 말 것.
+ *
  * <h3>보안 메모</h3>
  * <ul>
  *   <li>예외 메시지에 baseUrl 원문을 싣지 않는다(CWE-209 — userinfo 형태의 자격증명이 섞일 수 있다).
@@ -100,51 +109,180 @@ public final class ExternalUrlPolicy {
      * base-url 을 검증한다.
      *
      * @return https 면 {@code true}, http 면 {@code false} (호출자의 TLS 구성 분기용)
-     * @throws IllegalStateException 정책 위반 시 — 빈 생성 실패 → 애플리케이션 기동 차단(fail-closed)
+     * @throws IllegalStateException 정책 위반 시
      */
     public boolean check(String baseUrl) {
+        Verdict verdict = inspect(baseUrl);
+        if (verdict.rejected()) {
+            throw new IllegalStateException(verdict.detail(), verdict.cause());
+        }
+        return verdict.https();
+    }
+
+    /**
+     * ★ <b>같은 판정을 예외 없이 돌려준다</b> (2026-09-03 확정, 구속).
+     *
+     * <h3>왜 예외 없는 형태가 필요한가</h3>
+     * <p>이 판정은 지금까지 <b>빈 생성 시점</b>에만 쓰였고, 위반하면 예외 → 빈 생성 실패 →
+     * <b>기동 차단</b>이었다. 그런데 「외부 연동 주소가 어떤 상태여도 애플리케이션은 뜬다」가
+     * 확정되면서, 호출부는 <b>판정 결과를 들고 있다가 전송 시점에 쓰는</b> 형태가 필요해졌다.
+     * 예외는 흐름을 끊으므로 그 용도에 맞지 않는다.
+     *
+     * <p><b>규칙은 하나도 바뀌지 않았다</b> — {@link #check(String)} 이 이 메서드를 그대로 부르므로
+     * 두 경로가 갈릴 여지가 없다. 바뀐 것은 <b>언제 막는가</b>이지 <b>무엇을 막는가</b>가 아니다.
+     *
+     * <p>{@link Violation} 은 <b>호스트가 섞이지 않은 사유 분류</b>다 — 전송 실패 메시지·응답에는 이
+     * 분류만 싣고, 호스트가 담긴 {@link Verdict#detail()} 은 서버 로그에만 남긴다(CWE-209).
+     */
+    public Verdict inspect(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
-            throw new IllegalStateException(propertyName + " 가 비어있습니다. 외부 연동 URL 설정 필수.");
+            return Verdict.reject(Violation.BLANK,
+                    propertyName + " 가 비어있습니다. 외부 연동 URL 설정 필수.", null);
         }
         URI uri;
         try {
             uri = URI.create(baseUrl.trim());
         } catch (IllegalArgumentException e) {
             // CWE-209: 원문 미노출(자격증명 포함 가능).
-            throw new IllegalStateException(propertyName + " 형식이 올바르지 않습니다 (설정을 확인하세요).", e);
+            return Verdict.reject(Violation.MALFORMED,
+                    propertyName + " 형식이 올바르지 않습니다 (설정을 확인하세요).", e);
         }
         String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase();
         boolean https = "https".equals(scheme);
         if (!https && !"http".equals(scheme)) {
-            throw new IllegalStateException(
-                    propertyName + " 은 http/https 스키마만 허용됩니다 (현재 scheme=" + scheme + ").");
+            return Verdict.reject(Violation.SCHEME_NOT_ALLOWED,
+                    propertyName + " 은 http/https 스키마만 허용됩니다 (현재 scheme=" + scheme + ").", null);
         }
         if (!https && transport == Transport.HTTPS_ONLY) {
-            throw new IllegalStateException(
+            return Verdict.reject(Violation.CLEARTEXT_NOT_ALLOWED,
                     propertyName + " 은 HTTPS 스키마만 허용됩니다 (현재 scheme=" + scheme
-                            + "). CWE-319 cleartext 차단.");
+                            + "). CWE-319 cleartext 차단.", null);
         }
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
-            throw new IllegalStateException(propertyName + " 의 host 가 비어있습니다.");
+            return Verdict.reject(Violation.NO_HOST, propertyName + " 의 host 가 비어있습니다.", null);
         }
         String hostLower = host.toLowerCase();
         for (String fragment : PLACEHOLDER_HOST_FRAGMENTS) {
             if (hostLower.contains(fragment)) {
-                throw new IllegalStateException(
-                        propertyName + " 호스트가 placeholder/예제입니다: " + host + ". 환경 변수 미설정 의심.");
+                return Verdict.reject(Violation.PLACEHOLDER_HOST,
+                        propertyName + " 호스트가 placeholder/예제입니다: " + host
+                                + ". 환경 변수 미설정 의심.", null);
             }
         }
-        if (blockPrivateNetwork) {
-            requirePublicNetwork(host);
-        } else {
-            rejectReservedRangeIfResolvable(host);
+        Verdict networkVerdict = inspectNetwork(host);
+        if (networkVerdict != null) {
+            return networkVerdict;
         }
         if (!https && plaintextWarned.compareAndSet(false, true)) {
             log.warn("[ExternalUrl] 평문 HTTP 전송 — 내부망 격리 전제. property={} host={}:{}",
                     propertyName, host, uri.getPort());
         }
-        return https;
+        return Verdict.accept(https);
+    }
+
+    /**
+     * 사유 분류 — <b>입력이 섞이지 않는다</b>.
+     *
+     * <p>전송 실패 메시지에 실리는 것은 이 분류의 {@link #label()} 뿐이다. 호스트·스킴·해석 결과가
+     * 담긴 상세 문구는 {@link Verdict#detail()} 로 서버 로그에만 남는다 — 거부 응답이 사유별로
+     * 갈리면 그 차이가 곧 내부망을 훑는 신호가 된다(CWE-209).
+     */
+    public enum Violation {
+        /** 주소가 비어 있다 — <b>위험한 것이 아니라 아직 안 정해진 것</b>이다. */
+        BLANK("주소 미설정"),
+        MALFORMED("주소 형식 오류"),
+        SCHEME_NOT_ALLOWED("허용되지 않는 스킴"),
+        CLEARTEXT_NOT_ALLOWED("평문 http 불허"),
+        NO_HOST("호스트 없음"),
+        PLACEHOLDER_HOST("예시·미설정 호스트"),
+        UNRESOLVABLE_HOST("호스트 해석 실패"),
+        RESERVED_RANGE("예약 대역");
+
+        private final String label;
+
+        Violation(String label) {
+            this.label = label;
+        }
+
+        /** 사람이 읽을 사유 — 주소를 담지 않는다. */
+        public String label() {
+            return label;
+        }
+    }
+
+    /** 판정 결과 — 통과이거나, 사유가 붙은 거부다. */
+    public static final class Verdict {
+
+        private static final Verdict ACCEPT_HTTPS = new Verdict(null, null, null, true);
+        private static final Verdict ACCEPT_HTTP = new Verdict(null, null, null, false);
+
+        private final Violation violation;
+        private final String detail;
+        private final Throwable cause;
+        private final boolean https;
+
+        private Verdict(Violation violation, String detail, Throwable cause, boolean https) {
+            this.violation = violation;
+            this.detail = detail;
+            this.cause = cause;
+            this.https = https;
+        }
+
+        static Verdict accept(boolean https) {
+            return https ? ACCEPT_HTTPS : ACCEPT_HTTP;
+        }
+
+        static Verdict reject(Violation violation, String detail, Throwable cause) {
+            return new Verdict(violation, detail, cause, false);
+        }
+
+        public boolean rejected() {
+            return violation != null;
+        }
+
+        /** 거부 사유 분류 — 통과면 {@code null}. */
+        public Violation violation() {
+            return violation;
+        }
+
+        /** <b>서버 로그 전용</b> 상세 문구(호스트 포함 가능) — 통과면 {@code null}. */
+        public String detail() {
+            return detail;
+        }
+
+        Throwable cause() {
+            return cause;
+        }
+
+        /** https 면 {@code true}. 거부된 판정에서는 의미가 없다. */
+        public boolean https() {
+            return https;
+        }
+    }
+
+    /**
+     * 호스트 해석 + 대역 판정 — 위반이면 거부 판정을, 통과면 {@code null} 을 돌려준다.
+     *
+     * <p>정책 축에 따라 <b>해석 실패의 취급이 갈린다</b>(클래스 주석 §보안 메모): 사설망 차단
+     * 정책은 거부(rebinding 대응), 내부망 허용 정책은 통과(컨테이너 호스트명 기동 보장).
+     */
+    private Verdict inspectNetwork(String host) {
+        InetAddress[] addresses;
+        if (blockPrivateNetwork) {
+            try {
+                addresses = InetAddress.getAllByName(normalizeHost(host));
+            } catch (UnknownHostException e) {
+                return Verdict.reject(Violation.UNRESOLVABLE_HOST,
+                        propertyName + " 호스트를 해석할 수 없습니다: " + host, e);
+            }
+        } else {
+            addresses = resolveQuietly(host);
+            if (addresses == null) {
+                return null; // 해석 불가 = 개발 네트워크 밖 → 통과(기동 보장)
+            }
+        }
+        return inspectResolvedAddresses(host, addresses);
     }
 
     /**
@@ -179,14 +317,6 @@ public final class ExternalUrlPolicy {
      * 도커 밖에서 해석되지 않으므로, 해석 실패를 거부로 처리하면 네이티브 기동이 통째로 막힌다
      * (2026-07-25 로컬 배선 실측). "해석되면 검사, 안 되면 통과" 가 이 경로의 규칙이다.
      */
-    private void rejectReservedRangeIfResolvable(String host) {
-        InetAddress[] resolved = resolveQuietly(host);
-        if (resolved == null) {
-            return;
-        }
-        verifyResolvedAddresses(host, resolved);
-    }
-
     /** 호스트를 해석하되 실패하면 {@code null} 을 돌려준다(예외 없음) — 내부망 정책 전용. */
     private InetAddress[] resolveQuietly(String host) {
         try {
@@ -205,17 +335,6 @@ public final class ExternalUrlPolicy {
         return normalized;
     }
 
-    /** 내부/사설/메타데이터 대역 차단 (CWE-918). 도메인은 해석 후 검증한다(DNS rebinding 대응). */
-    private void requirePublicNetwork(String host) {
-        InetAddress[] addresses;
-        try {
-            addresses = InetAddress.getAllByName(normalizeHost(host));
-        } catch (UnknownHostException e) {
-            throw new IllegalStateException(propertyName + " 호스트를 해석할 수 없습니다: " + host, e);
-        }
-        verifyResolvedAddresses(host, addresses);
-    }
-
     /**
      * <b>해석 결과에 대한 대역 판정 단일 진입점</b> — 해석(DNS)과 판정을 분리해 둔다.
      *
@@ -227,17 +346,26 @@ public final class ExternalUrlPolicy {
      * 보면 실제 커넥션이 향하는 주소(JDK/OS 가 고른다)와 검사 대상이 달라져 판정이 우회된다.
      */
     void verifyResolvedAddresses(String host, InetAddress... addresses) {
+        Verdict verdict = inspectResolvedAddresses(host, addresses);
+        if (verdict != null) {
+            throw new IllegalStateException(verdict.detail());
+        }
+    }
+
+    /** 대역 판정 본체 — 위반이면 거부 판정을, 통과면 {@code null} 을 돌려준다. */
+    private Verdict inspectResolvedAddresses(String host, InetAddress... addresses) {
         for (InetAddress addr : addresses) {
             ReservedRange range = ReservedRange.classify(addr);
             if (range == null || (!blockPrivateNetwork && !range.blockedEvenOnInternalNetwork)) {
                 continue;
             }
-            throw new IllegalStateException(blockPrivateNetwork
+            return Verdict.reject(Violation.RESERVED_RANGE, blockPrivateNetwork
                     ? propertyName + " 이 내부/사설/예약 네트워크를 가리킵니다: " + host + " → "
                             + addr.getHostAddress() + " [" + range.label + "]. CWE-918 SSRF 차단."
                     : propertyName + " 이 " + range.label + " 대역을 가리킵니다: " + host + " → "
-                            + addr.getHostAddress() + ". 내부망(개발) 정책에서도 차단됩니다(CWE-918).");
+                            + addr.getHostAddress() + ". 내부망(개발) 정책에서도 차단됩니다(CWE-918).", null);
         }
+        return null;
     }
 
     /**

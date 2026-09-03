@@ -43,12 +43,16 @@ import java.net.InetAddress;
  * 이었고, 2026-09-03 에 그 모드 축이 폐기되면서 이 정합이 <b>실제로 쓰이기 시작했다</b> —
  * 정상 동작이니 놀라서 되돌리지 말 것.
  *
- * <h3>★ 빈값만은 기동에서 걸리지 않는다 (2026-09-03 확정, 구속)</h3>
- * <p>이 클래스는 종전대로 <b>빈값도 거부</b>하지만, <b>호출부</b>({@code AugmentApiWebClientConfig})가
- * <b>주소가 있을 때만</b> 검증을 태운다. 빈값은 <b>위험한 것이 아니라 아직 안 정해진 것</b>이라
- * 기동이 아니라 <b>연동을 시도하는 시점</b>에 실패해야 하기 때문이다(전송 차단은
- * {@code AugmentTransportGuard}). 비허용 스킴·파싱 불가·placeholder 호스트·예약 대역 <b>네 축은
- * 종전대로 기동에서 막는다</b> — 그건 잘못된 주소라 나가면 안 된다.
+ * <h3>★ 어떤 축도 기동에서 걸리지 않는다 (2026-09-03 확정, 구속)</h3>
+ * <p>이 클래스는 종전대로 <b>다섯 축 전부를 거부</b>하지만, <b>호출부</b>
+ * ({@code AugmentApiWebClientConfig})가 그 판정을 <b>들고 있다가 전송 시점에</b> 쓴다. 빈값은
+ * <b>위험한 것이 아니라 아직 안 정해진 것</b>이고, 잘못된 주소는 <b>나가지만 않으면</b> 되기
+ * 때문이다 — 한 연동의 설정 실수로 저작 업무 전체가 멈추는 편이 훨씬 비싸다. 전송 차단은
+ * {@code AugmentTransportGuard} 가 한다.
+ *
+ * <p>⚠ <b>구 서술 폐기</b> — <i>"비허용 스킴·파싱 불가·placeholder 호스트·예약 대역 네 축은 종전대로
+ * 기동에서 막는다"</i>(2026-09-03 오전). 그 네 축도 <b>같은 날 함께 옮겨졌다</b> — 하나만 고치면
+ * 다음 배포에서 다른 축이 같은 일을 낸다.
  *
  * <p>⚠ <b>인지·수용한 위험</b> — 이 커넥션으로 나가는 본문에는 공유 저장소의 비식별 프레임 절대경로가
  * 다수 실려 유출 표면이 시계열보다 넓다. 그럼에도 대역 차단을 두지 않는 근거는 <b>대역 차단으로 막히는
@@ -74,6 +78,14 @@ public class AugmentUrlPolicy {
      */
     public boolean check(String baseUrl) {
         return policy.check(baseUrl);
+    }
+
+    /**
+     * ★ <b>예외 없는 판정</b> — 기동을 막지 않고 전송 시점에 쓰기 위한 형태(2026-09-03 확정).
+     * 규칙은 {@link #check(String)} 과 <b>같은 객체가 소유</b>하므로 두 경로가 갈릴 여지가 없다.
+     */
+    public ExternalUrlPolicy.Verdict inspect(String baseUrl) {
+        return policy.inspect(baseUrl);
     }
 
     /** {@link #check(String)} 의 반환값이 필요 없는 호출부용 별칭. */

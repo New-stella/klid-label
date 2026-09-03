@@ -46,16 +46,40 @@ public final class AugmentTransportGuard {
 
     /** 최종 URL 에 호스트가 없으면 전송하지 않는다 — "미연동 = 아무 데도 안 보낸다" 를 성립시킨다. */
     public static ExchangeFilterFunction requireResolvedHost() {
+        return requireUsableAddress(null);
+    }
+
+    /**
+     * ★ <b>배포 설정값이 정책을 위반했으면 그 벤더로 나가지 않는다</b> (2026-09-03 확정, 구속).
+     *
+     * <p>구 배선은 비허용 스킴·파싱 불가·예시 호스트·예약 대역 <b>네 축</b>을 {@code AugmentUrlPolicy}
+     * 가 <b>기동에서</b> 막았다. 그 축들도 여기로 옮겼다 — 규칙은 그대로이고 <b>언제 막는지</b>만
+     * 바뀐다. 거부된 주소는 빈 base 로 낮춰지므로 최종 URL 에 호스트가 없고, 그래서 「주소 없음」과
+     * 「주소 부적합」이 <b>한 자리</b>에서 처리된다(결과는 같다 — 아무 데도 보내지 않는다).
+     *
+     * <p>메시지에는 <b>대상 이름과 사유 분류만</b> 싣는다 — 주소·경로·자격증명은 싣지 않는다.
+     *
+     * @param rejectionLabel 배포 설정값의 거부 사유. {@code null} 이면 "설정되지 않음" 으로 다룬다.
+     */
+    public static ExchangeFilterFunction requireUsableAddress(String rejectionLabel) {
         return (request, next) -> {
             URI url = request.url();
             String host = url == null ? null : url.getHost();
             if (host != null && !host.isBlank()) {
                 return next.exchange(request);
             }
-            log.error("[Augment] 위탁 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
-                    + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다.");
+            if (rejectionLabel == null || rejectionLabel.isBlank()) {
+                log.error("[Augment] 위탁 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
+                        + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다.");
+                return Mono.error(new NonRetryableExternalException(
+                        DISPLAY_NAME + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다."));
+            }
+            log.error("[Augment] 위탁 주소 설정값이 유효하지 않아 요청을 보내지 않았습니다 — "
+                    + "설정을 고쳐야 풀리는 실패입니다(재시도 대상 아님). 설정키={} 사유={}",
+                    "authoring.augment.external.base-url", rejectionLabel);
             return Mono.error(new NonRetryableExternalException(
-                    DISPLAY_NAME + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다."));
+                    DISPLAY_NAME + " 연동 주소 설정값이 유효하지 않아 요청을 보내지 않았습니다 ("
+                            + rejectionLabel + ")."));
         };
     }
 }

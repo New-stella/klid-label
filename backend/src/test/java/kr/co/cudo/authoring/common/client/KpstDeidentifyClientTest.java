@@ -599,7 +599,9 @@ class KpstDeidentifyClientTest {
     private KpstDeidentifyClient clientWithEndpointOverride(String override) {
         return new KpstDeidentifyClient(
                 webClient(), progressHttpClient(), circuitBreaker, singleAttempt(),
-                resolverReturning(override), baseUrlOf(progressServer));
+                resolverReturning(override),
+                new kr.co.cudo.authoring.common.config.KpstWebClientConfig()
+                        .kpstDeidEndpointAddress(baseUrlOf(progressServer), "", null));
     }
 
     @Test

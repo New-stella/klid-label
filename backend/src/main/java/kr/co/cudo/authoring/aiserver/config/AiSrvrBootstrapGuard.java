@@ -87,7 +87,9 @@ public class AiSrvrBootstrapGuard implements ApplicationRunner {
 
     public AiSrvrBootstrapGuard(LsAiSrvrRepository repository,
                                 AiSrvrRegistry registry,
-                                @Value("${authoring.integration.ai-server.base-url}")
+                                // 키가 없어도 기동을 막지 않는다 — 씨앗은 값이 있을 때만 심는다.
+                                //   (2026-09-03 확정: 연동 주소로 기동을 막지 않는다)
+                                @Value("${authoring.integration.ai-server.base-url:}")
                                 String configuredSrvrAddr,
                                 // 미연동이 정상인 배포가 있어 <기본값을 빈 값>으로 둔다.
                                 // 여기에 기본 주소를 박으면 연동하지 않는 배포에도 노드가 생긴다.

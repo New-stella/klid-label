@@ -54,11 +54,24 @@ public class VlmUrlPolicy {
     /**
      * base-url 을 검증한다.
      *
+     * <p>⚠ <b>이 메서드는 더 이상 빈 생성 경로에서 쓰이지 않는다</b> — 연동 주소로 기동을 막지
+     * 않기 때문이다(2026-09-03 확정). 빈 생성은 {@link #inspect(String)} 를 쓰고, 예외를 던지는
+     * 이 형태는 <b>후보 장비 걸러내기</b>처럼 기동과 무관한 호출부가 쓴다. 다시 빈 생성 경로에
+     * 걸지 말 것.
+     *
      * @return https 면 {@code true}, http 면 {@code false} (호출자의 TLS 구성 분기용)
      * @throws IllegalStateException 정책 위반 시
      */
     public boolean check(String baseUrl) {
         return policy.check(baseUrl);
+    }
+
+    /**
+     * ★ <b>예외 없는 판정</b> — 기동을 막지 않고 전송 시점에 쓰기 위한 형태(2026-09-03 확정).
+     * 규칙은 {@link #check(String)} 과 <b>같은 객체가 소유</b>하므로 두 경로가 갈릴 여지가 없다.
+     */
+    public ExternalUrlPolicy.Verdict inspect(String baseUrl) {
+        return policy.inspect(baseUrl);
     }
 
     /** {@link #check(String)} 의 반환값이 필요 없는 호출부용 별칭. */

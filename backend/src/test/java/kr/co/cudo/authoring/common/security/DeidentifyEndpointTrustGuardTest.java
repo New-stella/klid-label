@@ -70,36 +70,61 @@ class DeidentifyEndpointTrustGuardTest {
                         .containsIgnoringCase("untrusted"));
     }
 
-    @Test
-    @DisplayName("운영프로파일에서_비신뢰_비식별_엔드포인트는_차단된다")
-    void untrustedEndpointIsBlockedOnProduction() {
-        // given: prd 프로파일 — 위조 비식별본이 학습데이터/외부 통지로 흘러가면 PII 사고
-        DeidentifyEndpointTrustGuard prdProfile = guard(
-                env(new String[]{"prd"}, null, true), true, "http://klid-mock-server:9400", false);
-        // and: 프로파일이 아니라 ENV 표식만 운영인 경우도 동일하게 막는다
-        DeidentifyEndpointTrustGuard prdEnv = guard(
-                env(new String[]{"dev"}, "prd", false), true, "http://mock-server:9400", false);
-
-        // when / then
-        assertThatThrownBy(prdProfile::verify)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("비식별");
-        assertThatThrownBy(prdEnv::verify)
-                .isInstanceOf(IllegalStateException.class);
+    /**
+     * ★ 축이 옮겨졌다 — 구 기대값은 <b>"prd 부팅 거부"</b> 였다(2026-09-03 폐기).
+     *
+     * <p>주소는 <b>배포 설정 한 줄</b>이라 실수 하나로 저작 업무 전체가 멈춘다. 그래서 차단을
+     * 없애지 않고 <b>자리를 옮겼다</b>: 기동은 정상이고 <b>비식별로 위탁하려는 순간</b> 거부된다.
+     * 위탁이 거부되면 파이프라인이 진행되지 않으므로 <b>위조 비식별본이 산출물·통지로 나가는 것은
+     * 그대로 막힌다</b>.
+     */
+    private void assertBootsButBlocksCommission(DeidentifyEndpointTrustGuard guard, String url) {
+        assertThatCode(guard::verify)
+                .as("주소 축은 더 이상 기동을 막지 않는다 — %s", url)
+                .doesNotThrowAnyException();
+        assertThat(guard.commissionBlockReason(url))
+                .as("그러나 그 주소로는 위탁하지 않는다 — %s", url)
+                .isNotNull();
+        assertThat(errorMessages())
+                .as("조용히 넘어가지 않는다 — 운영자가 알아야 한다")
+                .isNotEmpty();
     }
 
     @Test
-    @DisplayName("운영프로파일에서_루프백_비식별_엔드포인트도_차단된다")
-    void loopbackEndpointIsBlockedOnProduction() {
+    @DisplayName("★운영에서_비신뢰_비식별_엔드포인트는_기동을_막지_않고_위탁을_막는다")
+    void untrustedEndpointBlocksCommissionNotBoot() {
+        // given: prd 프로파일 — 위조 비식별본이 학습데이터/외부 통지로 흘러가면 PII 사고
+        assertBootsButBlocksCommission(
+                guard(env(new String[]{"prd"}, null, true), true,
+                        "http://klid-mock-server:9400", false),
+                "http://klid-mock-server:9400");
+        // and: 프로파일이 아니라 ENV 표식만 운영인 경우도 동일하게 막는다
+        assertBootsButBlocksCommission(
+                guard(env(new String[]{"dev"}, "prd", false), true,
+                        "http://mock-server:9400", false),
+                "http://mock-server:9400");
+    }
+
+    @Test
+    @DisplayName("★운영에서_루프백_비식별_엔드포인트도_기동은_되고_위탁만_막힌다")
+    void loopbackEndpointBlocksCommissionNotBoot() {
         for (String url : new String[]{"http://localhost:9201", "https://127.0.0.1:9201"}) {
             // given: 루프백 = 벤더 서버와 시뮬레이터를 구분할 수 없는 주소
-            DeidentifyEndpointTrustGuard guard = guard(
-                    env(new String[]{"prd"}, null, true), true, url, false);
+            assertBootsButBlocksCommission(
+                    guard(env(new String[]{"prd"}, null, true), true, url, false), url);
+        }
+    }
 
-            // when / then
-            assertThatThrownBy(guard::verify)
-                    .as("prd 비식별 위탁 주소가 루프백(%s)이면 부팅을 거부한다", url)
-                    .isInstanceOf(IllegalStateException.class);
+    @Test
+    @DisplayName("★운영이_아니면_위탁을_막지_않는다 — dev_stg_목_연동이_정상_경로다")
+    void nonProductionDoesNotBlockCommission() {
+        for (String[] profile : new String[][]{{"dev", null}, {"stg", "stg"}, {"local", null}}) {
+            DeidentifyEndpointTrustGuard guard = guard(
+                    env(new String[]{profile[0]}, profile[1], false), true,
+                    "http://klid-mock-server:9400", false);
+            assertThat(guard.commissionBlockReason("http://klid-mock-server:9400"))
+                    .as("%s 의 목 서버 연동은 정상 경로다", profile[0])
+                    .isNull();
         }
     }
 
@@ -192,10 +217,8 @@ class DeidentifyEndpointTrustGuardTest {
             DeidentifyEndpointTrustGuard guard = guard(
                     env(new String[]{"prd"}, null, true), true, url, false);
 
-            // when / then
-            assertThatThrownBy(guard::verify)
-                    .as("언더스코어가 섞인 목 호스트(%s)는 여전히 비신뢰여야 한다", url)
-                    .isInstanceOf(IllegalStateException.class);
+            // when / then — 판정은 그대로이고, 막는 자리만 기동 → 위탁으로 옮겼다.
+            assertBootsButBlocksCommission(guard, url);
         }
     }
 
@@ -207,9 +230,7 @@ class DeidentifyEndpointTrustGuardTest {
                 env(new String[]{"prd"}, null, true), true, "http://[::1]:9201", false);
 
         // when / then
-        assertThatThrownBy(guard::verify)
-                .as("IPv6 루프백도 벤더 실서버와 구분할 수 없는 주소다")
-                .isInstanceOf(IllegalStateException.class);
+        assertBootsButBlocksCommission(guard, "http://[::1]:9201");
     }
 
     @Test
@@ -236,8 +257,20 @@ class DeidentifyEndpointTrustGuardTest {
         DeidentifyEndpointTrustGuard guard = guard(
                 env(new String[]{"prd"}, null, true), true, "  ", false);
 
-        // when / then
-        assertThatThrownBy(guard::verify).isInstanceOf(IllegalStateException.class);
+        // when / then — 값 미설정도 "아직 안 정해짐" 이라 기동을 막지 않는다. 위탁은 막힌다.
+        assertBootsButBlocksCommission(guard, "  ");
+    }
+
+    @Test
+    @DisplayName("★자체복사_mock_mode_는_그대로_운영_기동을_막는다 — 주소가_아니라_개발_토글이다")
+    void mockModeStillBlocksProductionBoot() {
+        // 이번 반전의 대상은 <외부 연동 주소>다. 개발 편의 토글의 운영 노출 차단은 별개 축이며
+        //   구속 정책이다 — 함께 걷어내지 말 것.
+        DeidentifyEndpointTrustGuard prd = guard(
+                env(new String[]{"prd"}, null, true), true, "https://kpst.vendor.example:9989", true);
+        assertThatThrownBy(prd::verify)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("mock-mode");
     }
 
     private DeidentifyEndpointTrustGuard guard(Environment environment,
@@ -256,6 +289,13 @@ class DeidentifyEndpointTrustGuardTest {
         when(environment.getProperty("ENV")).thenReturn(envName);
         when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(acceptsPrd);
         return environment;
+    }
+
+    private java.util.List<String> errorMessages() {
+        return appender.list.stream()
+                .filter(e -> e.getLevel() == Level.ERROR)
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
     }
 
     private java.util.List<String> warnMessages() {

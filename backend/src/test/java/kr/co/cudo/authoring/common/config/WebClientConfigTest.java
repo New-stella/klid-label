@@ -81,15 +81,27 @@ class WebClientConfigTest {
         assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", policy(), null)).isNotNull();
     }
 
+    /**
+     * ★ 축이 옮겨졌다 — 구 기대값은 "빈 생성 실패" 였다(2026-09-03 폐기).
+     * 같은 규칙으로 <b>전송</b>을 막는다. 무르게 한 것이 아니라 자리를 옮긴 것이다.
+     */
+    private void assertBootsButNeverSends(String url, String expectedLabel) {
+        WebClient client = cfg.vlmWebClient(url, "", policy(), null);
+        assertThat(client).as("연동 주소가 어떤 상태여도 기동은 막히지 않는다 — " + url).isNotNull();
+        assertThatThrownBy(() -> client.post().uri("/v1/videovlm-klid/describe").bodyValue("{}")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                .as("연결 거부(ConnectException)가 나면 이미 전송을 시도했다는 뜻이다 — " + url)
+                .isInstanceOf(kr.co.cudo.authoring.common.client.NonRetryableExternalException.class)
+                .hasMessageContaining(expectedLabel);
+    }
+
     @Test
-    @DisplayName("WebClientConfig_vlm_url_비허용_스킴_메타데이터대역이면_빈_생성_실패 — 남은 검증축")
+    @DisplayName("★WebClientConfig_vlm_url_비허용_스킴_메타데이터대역은_기동을_막지_않고_전송을_막는다")
     void nonHttpSchemeAndMetadataRangeStillRejected() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("ftp://vlm.vendor.io", "", policy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("file:///etc/passwd", "", policy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("http://169.254.169.254", "", policy(), null))
-                .isInstanceOf(IllegalStateException.class);
+        assertBootsButNeverSends("ftp://vlm.vendor.io", "허용되지 않는 스킴");
+        assertBootsButNeverSends("file:///etc/passwd", "허용되지 않는 스킴");
+        assertBootsButNeverSends("http://169.254.169.254", "예약 대역");
+        assertBootsButNeverSends("http://vlm vendor:9400", "주소 형식 오류");
     }
 
     /**
@@ -98,12 +110,20 @@ class WebClientConfigTest {
      * 여기 남은 것은 <b>사람이 예시 값을 그대로 배포한</b> 형태(fail-closed 대상)뿐이다.
      */
     @Test
-    @DisplayName("WebClientConfig_vlm_url_placeholder_시_빈_생성_실패_fail_closed")
+    @DisplayName("★WebClientConfig_vlm_url_placeholder_는_기동을_막지_않고_전송을_막는다_fail_closed")
     void placeholderRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://example.com", "", policy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://your-vlm-service", "", policy(), null))
-                .isInstanceOf(IllegalStateException.class);
+        assertBootsButNeverSends("https://example.com", "예시·미설정 호스트");
+        assertBootsButNeverSends("https://your-vlm-service", "예시·미설정 호스트");
+    }
+
+    @Test
+    @DisplayName("★거부_사유에는_주소도_설정키도_실리지_않는다_CWE209")
+    void rejectionMessageCarriesNoInput() {
+        WebClient client = cfg.vlmWebClient("https://your-vlm-service", "", policy(), null);
+        assertThatThrownBy(() -> client.post().uri("/v1/videovlm-klid/describe")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                .hasMessageNotContaining("your-vlm-service")
+                .hasMessageNotContaining("vlm.client.url");
     }
 
     @Test

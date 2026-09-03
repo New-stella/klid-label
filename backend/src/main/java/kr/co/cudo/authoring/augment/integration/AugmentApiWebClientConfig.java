@@ -2,13 +2,13 @@ package kr.co.cudo.authoring.augment.integration;
 
 import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
+import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.codec.ClientCodecConfigurer;
-import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
@@ -41,14 +41,17 @@ import java.time.Duration;
  * <b>전송 자체를 막는다</b>(시계열 위탁 클라이언트와 같은 형태 — 그쪽이 선례다). 네 축이 어디서
  * 걸리는지는 아래 표가 정본이다.
  *
+ * <p>★ <b>2026-09-03 재확정 — 네 축도 기동에서 걷어냈다.</b> 빈값 하나만 옮겼던 것을 <b>전 축</b>으로
+ * 넓혔다. 하나만 고치면 다음 배포에서 다른 축·다른 연동이 같은 일을 낸다.
+ *
  * <table border="1">
  *   <caption>주소 판정 축과 걸리는 지점</caption>
  *   <tr><th>축</th><th>걸리는 지점</th></tr>
- *   <tr><td>{@code http}/{@code https} 외 스킴</td><td><b>기동 차단</b></td></tr>
- *   <tr><td>파싱 불가</td><td><b>기동 차단</b></td></tr>
- *   <tr><td>placeholder/예제 호스트</td><td><b>기동 차단</b></td></tr>
- *   <tr><td>예약 대역(메타데이터·링크로컬·ULA·CGNAT·멀티캐스트)</td><td><b>기동 차단</b></td></tr>
- *   <tr><td><b>빈값(미주입)</b></td><td><b>기동은 정상 · 위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>{@code http}/{@code https} 외 스킴</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>파싱 불가</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>placeholder/예제 호스트</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>예약 대역(메타데이터·링크로컬·ULA·CGNAT·멀티캐스트)</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td><b>빈값(미주입)</b></td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
  * </table>
  *
  * <h3>기본값에 localhost 를 두지 않는다</h3>
@@ -89,14 +92,12 @@ public class AugmentApiWebClientConfig {
     public WebClient augmentApiWebClient(
             @Value("${authoring.augment.external.base-url:}") String baseUrl,
             AugmentUrlPolicy urlPolicy) {
-        // 주소가 <있을 때만> 검증한다 — 정책 위반이면 IllegalStateException → 빈 생성 실패 →
-        //   기동 차단(fail-closed). 미주입은 위반이 아니라 "아직 안 정해짐" 이므로 기동을 막지 않고
-        //   아래 전송 가드가 위탁 시점에 막는다.
-        if (StringUtils.hasText(baseUrl)) {
-            urlPolicy.validate(baseUrl);
-        }
-        // 미주입은 빈 문자열로 정규화한다 — null 을 그대로 넘기면 실패가 NPE 로 나와 원인 판독이 어렵다.
-        String base = StringUtils.hasText(baseUrl) ? baseUrl.trim() : "";
+        // ★ 주소가 어떤 상태여도 기동한다 — 판정은 그대로 태우되 결과를 <들고 있다가> 전송 시점에 쓴다.
+        //   구 배선은 여기서 예외를 던져(빈 생성 실패) 기동을 막았다. 규칙은 그대로이고 시점만 옮겼다.
+        ExternalEndpointAddress address = ExternalEndpointAddress.of(
+                AugmentExternalLinkPolicy.KEY_BASE_URL, baseUrl, urlPolicy.inspect(baseUrl));
+        // 거부·미주입은 빈 문자열로 정규화된다 — null 을 그대로 넘기면 실패가 NPE 로 나와 판독이 어렵다.
+        String base = address.baseUrl();
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
                 .responseTimeout(RESPONSE_TIMEOUT);
@@ -110,7 +111,7 @@ public class AugmentApiWebClientConfig {
                 // ★ 미연동(주소 미주입)이면 <전송 자체>를 막는다 — 빈 base-url 은 상대 URI 가 되어
                 //   loopback:80 으로 실제 연결이 나가고, 그 요청 바디에는 비식별 프레임 절대경로와
                 //   콜백 주소가 실린다(온프렘은 같은 호스트에 웹서버가 있어 접근 로그에 남는다).
-                .filter(AugmentTransportGuard.requireResolvedHost())
+                .filter(AugmentTransportGuard.requireUsableAddress(address.rejectionLabel()))
                 .build();
     }
 }

@@ -47,19 +47,42 @@ public class GenAiIntegrationWiringGuard {
 
     private final String baseUrl;
     private final String allowedCidrs;
+    /** 위탁이 <b>실제로 나갈 수 있는 주소인가</b>의 판정 원천 — 여기서 규칙을 다시 쓰지 않는다. */
+    private final AugmentUrlPolicy urlPolicy;
 
     public GenAiIntegrationWiringGuard(
             // 미주입(빈 값)이 곧 "아직 연동 안 됨" 이다 — AugmentExternalLinkPolicy 와 같은 축·같은 기본값.
             @Value("${authoring.augment.external.base-url:}") String baseUrl,
-            @Value("${webhook.genai.allowed-ip-cidrs:}") String allowedCidrs) {
+            @Value("${webhook.genai.allowed-ip-cidrs:}") String allowedCidrs,
+            AugmentUrlPolicy urlPolicy) {
         this.baseUrl = baseUrl;
         this.allowedCidrs = allowedCidrs;
+        this.urlPolicy = urlPolicy;
+    }
+
+    /**
+     * ★ <b>「연동됐다」는 「위탁이 실제로 나갈 수 있다」다</b> (2026-09-03 확정).
+     *
+     * <h3>왜 주소가 있다는 것만으로는 부족한가</h3>
+     * <p>연동 주소 검증이 <b>기동에서 전송 시점으로 옮겨지면서</b>, 정책을 위반한 주소도 이제
+     * <b>설정값으로는 남는다</b>. 그 값을 「연동됨」으로 읽으면 <b>위탁이 한 건도 나갈 수 없는
+     * 배포</b>가 콜백 allowlist 미설정만으로 기동을 거부당한다 — 이번에 걷어낸 <b>기동 의존이 다른
+     * 이름으로 되살아나는</b> 형태다.
+     *
+     * <p>위탁이 나갈 수 없으면 콜백도 오지 않는다. 따라서 allowlist 를 요구할 이유도 없다.
+     */
+    private String commissionableBaseUrl() {
+        if (!isLinked(baseUrl) || urlPolicy.inspect(baseUrl).rejected()) {
+            return "";
+        }
+        return baseUrl;
     }
 
     @PostConstruct
     void check() {
-        verify(baseUrl, allowedCidrs);
-        if (isLinked(baseUrl)) {
+        String effective = commissionableBaseUrl();
+        verify(effective, allowedCidrs);
+        if (isLinked(effective)) {
             log.info("[GenAi] 위탁(주소 주입) ↔ 콜백 IP allowlist 짝 확인 완료");
         }
     }

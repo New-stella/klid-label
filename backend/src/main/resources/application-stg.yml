@@ -63,15 +63,18 @@ authoring:
     deidentify:
 
 # UC018 — ㈜KPST 비식별 솔루션 연동. 자체 채움 경로가 없으므로 주소 배선이 <필수>다 — 없으면 비식별이 거부된다.
-#   base-url 은 기본값 없이 환경변수로만 주입한다(미주입 시 기동 단계에서 즉시 실패 — 조용한 오연동 방지).
-#   공통 기본값(https://localhost:9201)을 상속하면 https 인데 ca-cert 가 비어 KpstWebClientConfig 가
-#   fail-closed(CWE-295)로 빈 생성에 실패하므로, stg 에 명시 배선이 없으면 부팅이 차단된다.
+#   ★ 구 형상은 base-url: ${KPST_DEID_BASE_URL} (기본값 없음)이라 <환경변수 미주입 시 기동이 통째로
+#     막혔다>. 2026-09-03 확정으로 그 기동 의존을 걷어낸다 — 주소가 어떤 상태여도 애플리케이션은 뜨고,
+#     비식별로 <나가려는 순간> 실패한다(KpstWebClientConfig / DeidentifyEndpointTrustGuard).
+#     ⚠ 여기에 기본값 없는 placeholder 를 되돌려 놓으면 그 기동 의존이 그대로 되살아난다 — Spring 은
+#       yml 값 안의 미해결 placeholder 를 <프로퍼티 바인딩 단계>에서 실패시키므로 코드로 막을 수 없다.
 #   ★ https 주소를 주입하는 경우 KPST 자체 CA 인증서 경로(KPST_DEID_CA_CERT_PATH)도 반드시 함께 주입할 것.
+#     빠지면 기동은 되지만 비식별 위탁이 전건 거부된다(CWE-295 — 검증 없이 보내지 않는다).
 #     내부망 평문 http://IP:port 주소면 ca-cert 는 불요다.
 #   계정(creator-id/req-user-id)·폴링 주기는 application.yml 기본값 사용.
 kpst:
   deid:
-    base-url: ${KPST_DEID_BASE_URL}
+    base-url: ${KPST_DEID_BASE_URL:}
 
 # 로깅 레벨 — 프로파일별 의도를 명시한다(stg 만 애플리케이션 레벨이 비어 있어 root 로 떨어지고 있었다).
 #   local/dev: DEBUG — 개발 중 흐름 추적(+ hibernate.SQL DEBUG)

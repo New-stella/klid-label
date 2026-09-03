@@ -802,15 +802,18 @@ portal:
 #    KPST_DEID_ENABLED=false 로 내리면 위탁이 비활성화되며, mock 도 아니면 DeidentifyStep 이 설정 오류로 거부한다.
 #  - base-url: KPST 테스트/운영 서버 주소(http/https 자동 분기 — 내부망은 http, 외부는 https+사설CA). 평문 커밋 금지 → 환경변수 사용.
 #  - ca-cert-path: KPST 자체 CA(ca.crt) 경로. ★https 일 때만 필수다(스키마로 조건부 강제) — https 인데
-#    미설정이면 기동 실패 fail-closed(CWE-295). http 배포는 비워 두고 그대로 부팅된다.
+#    미설정이면 <위탁 거부> fail-closed(CWE-295: 검증할 수 없으면 보내지 않는다). http 배포는 비워 둔다.
+#    ⚠ 구 서술 폐기(2026-09-03) — "기동 실패". 연동 주소·TLS 자료로는 기동을 막지 않는다.
 #  - creator-id / req-user-id: /project, /retrieve_progress 호출 시 기본값.
 kpst:
   deid:
     enabled: ${KPST_DEID_ENABLED:true}
     # 전송은 base-url 스키마로 자동 분기한다 — 내부망 http://IP:port(평문, 격리 전제) 또는 https+사설CA 둘 다 지원.
+    # ★ 이 기본값(https+loopback)을 그대로 상속하면 <기동은 정상>이고 비식별 위탁만 거부된다
+    #   (자체 CA 미설정 + 운영에서는 루프백이 목/시뮬레이터로 판정). 구 동작은 기동 차단이었다.
     base-url: ${KPST_DEID_BASE_URL:https://localhost:9201}
     # ca-cert 는 https 일 때만 필요하다(KpstWebClientConfig 가 스키마로 조건부 강제). https 인데 비었거나 못
-    #   읽으면 부팅 시점에 fail-closed(CWE-295). http 배포는 cert 없이 부팅돼야 하므로 선택값(빈 기본)으로 둔다.
+    #   읽으면 <비식별 위탁이 거부>된다(CWE-295 — 기동은 정상이다). http 배포는 선택값(빈 기본)으로 둔다.
     ca-cert-path: ${KPST_DEID_CA_CERT_PATH:}
     creator-id: ${KPST_DEID_CREATOR_ID:authoring}
     req-user-id: ${KPST_DEID_REQ_USER_ID:authoring}

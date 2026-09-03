@@ -41,46 +41,73 @@ class AugmentApiWebClientConfigTest {
                 .run(ctx -> assertThat(ctx).hasNotFailed().hasBean("augmentApiWebClient"));
     }
 
-    @Test
-    @DisplayName("prd_프로파일에서_증강_base_url_이_메타데이터_대역이면_컨텍스트_기동이_실패한다")
-    void prdMetadataRangeFailsContextStartup() {
-        // 대역 차단 폐지 이후에도 예약 대역(IMDS)은 계속 막힌다 — 판정이 빈 생성 경로에 실제로
-        //   걸려 있는지를 여기서 고정한다(호출을 지우면 이 시험이 죽는다).
+    /**
+     * ★ 거부 축의 <b>두 벌</b>을 한 번에 고정한다 — ①그 상태로 기동한다 ②그 주소로 나가려 하면 실패한다.
+     *
+     * <p>구 기대값은 <b>"컨텍스트 기동 실패"</b> 하나였다(2026-09-03 폐기). 규칙은 그대로이고
+     * <b>언제 막는지</b>만 옮겼으므로, 무르게 하지 않고 <b>단언을 옮긴다</b>.
+     */
+    private void assertBootsButNeverSends(String url, String expectedLabel) {
         runner.withPropertyValues(
                         "spring.profiles.active=prd",
-                        "authoring.augment.external.base-url=http://169.254.169.254")
-                .run(ctx -> assertThat(ctx).hasFailed()
-                        .getFailure().hasStackTraceContaining("CWE-918"));
+                        "authoring.augment.external.base-url=" + url)
+                .run(ctx -> {
+                    assertThat(ctx).as(url).hasNotFailed().hasBean("augmentApiWebClient");
+                    WebClient client = (WebClient) ctx.getBean("augmentApiWebClient");
+                    StepVerifier.create(client.post().uri("/api/genai/jobs")
+                                    .retrieve().bodyToMono(String.class))
+                            .expectErrorSatisfies(e -> assertThat(e)
+                                    .isInstanceOf(NonRetryableExternalException.class)
+                                    .hasMessageContaining("설정값이 유효하지 않아")
+                                    .hasMessageContaining(expectedLabel))
+                            .verify();
+                });
     }
 
     @Test
-    @DisplayName("★비허용_스킴은_여전히_기동을_막는다 — 빈값만 예외지 잘못된 주소는 아니다")
-    void disallowedSchemeStillFailsContextStartup() {
+    @DisplayName("★메타데이터_대역이어도_기동은_되고_위탁만_거부된다")
+    void prdMetadataRangeBlocksTransportNotBoot() {
+        // 대역 차단 폐지 이후에도 예약 대역(IMDS)은 계속 막힌다 — 다만 그 차단이 기동이 아니라
+        //   전송에서 일어난다. 판정이 배선돼 있지 않으면 이 단언이 깨진다.
+        assertBootsButNeverSends("http://169.254.169.254", "예약 대역");
+    }
+
+    @Test
+    @DisplayName("★비허용_스킴도_기동을_막지_않고_전송을_막는다")
+    void disallowedSchemeBlocksTransportNotBoot() {
         for (String url : new String[]{"file:///tmp/x", "ftp://vendor.io", "ws://vendor.io:9400"}) {
-            runner.withPropertyValues(
-                            "spring.profiles.active=prd",
-                            "authoring.augment.external.base-url=" + url)
-                    .run(ctx -> assertThat(ctx).hasFailed());
+            assertBootsButNeverSends(url, "허용되지 않는 스킴");
         }
     }
 
     @Test
-    @DisplayName("★호스트를_알_수_없는_주소도_기동을_막는다")
-    void unparsableUrlStillFailsContextStartup() {
-        runner.withPropertyValues(
-                        "spring.profiles.active=prd",
-                        "authoring.augment.external.base-url=not-a-url")
-                .run(ctx -> assertThat(ctx).hasFailed());
+    @DisplayName("★호스트를_알_수_없는_주소도_기동을_막지_않고_전송을_막는다")
+    void unparsableUrlBlocksTransportNotBoot() {
+        assertBootsButNeverSends("not-a-url", "허용되지 않는 스킴");
+        assertBootsButNeverSends("http://vendor io:9400", "주소 형식 오류");
     }
 
     @Test
-    @DisplayName("prd_프로파일에서_증강_base_url_이_placeholder_면_컨텍스트_기동이_실패한다")
-    void prdPlaceholderFailsContextStartup() {
+    @DisplayName("★placeholder_주소도_기동을_막지_않고_전송을_막는다")
+    void prdPlaceholderBlocksTransportNotBoot() {
+        assertBootsButNeverSends("https://your-service.example.com", "예시·미설정 호스트");
+    }
+
+    @Test
+    @DisplayName("★거부_사유에는_주소도_설정키도_실리지_않는다_CWE209")
+    void rejectionMessageCarriesNoInput() {
         runner.withPropertyValues(
                         "spring.profiles.active=prd",
                         "authoring.augment.external.base-url=https://your-service.example.com")
-                .run(ctx -> assertThat(ctx).hasFailed()
-                        .getFailure().hasStackTraceContaining("placeholder"));
+                .run(ctx -> {
+                    WebClient client = (WebClient) ctx.getBean("augmentApiWebClient");
+                    StepVerifier.create(client.post().uri("/api/genai/jobs")
+                                    .retrieve().bodyToMono(String.class))
+                            .expectErrorSatisfies(e -> assertThat(e.getMessage())
+                                    .doesNotContain("your-service")
+                                    .doesNotContain("authoring.augment.external.base-url"))
+                            .verify();
+                });
     }
 
     @Test
