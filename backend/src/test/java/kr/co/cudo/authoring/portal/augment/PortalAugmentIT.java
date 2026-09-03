@@ -50,7 +50,10 @@ class PortalAugmentIT {
 
     private static final String ALICE = "augment-alice";
     private static final String BOB = "augment-bob";
-    private static final String BODY = "{\"generationCondition\":{\"season\":\"WINTER\"}}";
+    /** 생성 조건 다섯 항목 — 전부 필수다(ADR-061). 하나라도 빼면 접수가 서지 않는다. */
+    private static final String CONDITION = "{\"time\":\"NIGHT\",\"season\":\"WINTER\","
+            + "\"weather\":\"SNOW\",\"terrain\":\"ROAD\",\"severity\":\"HIGH\"}";
+    private static final String BODY = "{\"generationCondition\":" + CONDITION + "}";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private PortalUploadAssetRepository assetRepository;
@@ -132,6 +135,8 @@ class PortalAugmentIT {
                 .andExpect(jsonPath("$.data.content[0].uldSn").value(readyUldSn))
                 .andExpect(jsonPath("$.data.content[0].orgnlFileNm").value("street.mp4"))
                 .andExpect(jsonPath("$.data.content[0].generationCondition.season").value("WINTER"))
+                .andExpect(jsonPath("$.data.content[0].generationCondition.time").value("NIGHT"))
+                .andExpect(jsonPath("$.data.content[0].generationCondition.severity").value("HIGH"))
                 .andExpect(jsonPath("$.data.content[0].resultReady").value(false));
 
         mockMvc.perform(get("/v1/portal/augments/" + augSn)
@@ -188,10 +193,44 @@ class PortalAugmentIT {
     @Test
     @DisplayName("생성_조건이_없으면_400이다")
     void missingConditionIsBadRequest() throws Exception {
+        post400("{}");
+    }
+
+    /**
+     * ★ 가드 — 다섯 항목 <b>전부 필수</b>다. 하나라도 비면 위탁받는 쪽이 그 자리를 어떤 기본값으로
+     * 채울지 이쪽에서 알 수 없어 같은 요청의 결과가 비결정적이 된다(ADR-061). 외부 계약 자체는
+     * 최소 한 항목만 요구하므로 <b>이 창구가 더 엄격한 쪽이며 의도된 선택</b>이다 — 완화하지 말 것.
+     */
+    @Test
+    @DisplayName("★생성_조건_항목이_하나라도_빠지면_400이다 — 부분_입력을_허용하지_않는다")
+    void partialConditionIsBadRequest() throws Exception {
+        post400("{\"generationCondition\":{\"time\":\"NIGHT\",\"season\":\"WINTER\","
+                + "\"weather\":\"SNOW\",\"terrain\":\"ROAD\"}}");
+    }
+
+    /** ★ 가드 — 값역은 허용 코드로 닫혀 있다. 코드 밖 값은 바인딩 단계에서 거부된다. */
+    @Test
+    @DisplayName("★값역_밖의_생성_조건은_400이다")
+    void outOfRangeConditionIsBadRequest() throws Exception {
+        post400("{\"generationCondition\":{\"time\":\"MIDNIGHT\",\"season\":\"WINTER\","
+                + "\"weather\":\"SNOW\",\"terrain\":\"ROAD\",\"severity\":\"HIGH\"}}");
+    }
+
+    /**
+     * ★ 가드 — 자유 지시문은 조건과 분리한 <b>문자열</b>이다. 그 자리에 객체를 실으면 400 이며
+     * 조용히 받아 위탁으로 중계하지 않는다.
+     */
+    @Test
+    @DisplayName("★자유_지시문_자리에_객체를_실으면_400이다")
+    void objectPromptIsBadRequest() throws Exception {
+        post400("{\"generationCondition\":" + CONDITION + ",\"prompt\":{\"text\":\"x\"}}");
+    }
+
+    private void post400(String body) throws Exception {
         mockMvc.perform(post("/v1/portal/uploads/" + readyUldSn + "/augments")
                         .header("Authorization", "Bearer " + aliceToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content(body))
                 .andExpect(status().isBadRequest());
     }
 
