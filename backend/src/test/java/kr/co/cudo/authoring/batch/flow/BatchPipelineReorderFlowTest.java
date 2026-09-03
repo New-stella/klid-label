@@ -114,7 +114,9 @@ class BatchPipelineReorderFlowTest {
 
         // pre-marking 파이프라인: 실제 step 어댑터로 DeidentifyStep.run(raw) 호출 재현(execute → raw.markDeidentified).
         BatchPipeline preMarkingPipeline = new BatchPipeline(List.of(deidStepAdapter()));
-        deidentifyRunner = new AsyncDeidentifyRunner(preMarkingPipeline, transitionService, videoRepository);
+        deidentifyRunner = new AsyncDeidentifyRunner(preMarkingPipeline, transitionService, videoRepository,
+                new kr.co.cudo.authoring.batch.service.DeidentReservationHook(
+                        mock(kr.co.cudo.authoring.marking.service.MarkingActivationTxService.class)));
 
         // post-marking 파이프라인: 실제 단계 순서(MARKING→VLM→FRAME_EXTRACT→YOLO→SAM2→INTERPOLATE).
         BatchPipeline postMarkingPipeline = postPipeline();

@@ -540,6 +540,68 @@ public class LsDataRaw {
     }
 
     /**
+     * <b>외부 마킹 산출물 일괄 가져오기</b> 적재 — 외부가 이벤트 시점까지만 찍어 준 영상(ADR-053).
+     *
+     * <h3>{@link #createFromImport} 와 무엇이 다른가</h3>
+     * <p>같은 이관 화면의 <b>다른 갈래</b>다. 그쪽은 라벨링이 끝난 결과를 받아 검수만 하지만 이쪽은
+     * 시작점만 받아 비식별부터 라벨링까지 앞 단계를 전부 밟는다. 계약을 합치지 않는 이유는 ADR-053 에
+     * 있고, 팩토리를 나누는 이유는 <b>인자가 다르기</b> 때문이다.
+     * <ul>
+     *   <li><b>{@code vmsCctvId} 를 받는다</b> — 이 갈래는 사람이 화면에서 카메라 식별자를 지정해
+     *       항목마다 같은 값으로 붙인다. 라벨링 완료 갈래에는 그 입력이 없다.</li>
+     *   <li><b>비식별 여부가 분기하지 않는다</b> — 받은 영상은 <b>언제나 비식별되지 않은 원본</b>이라
+     *       {@code DE_IDENT_YN} 은 {@code 'N'} 으로 고정이고, 적재 뒤 저작도구가 비식별 선두 단계를
+     *       태운다(EVT-005 의 "원본이라고 지정하고 영상 파일을 함께 가져온 산출물" 예외).
+     *       그래서 {@code deidentified} 인자 자체를 두지 않는다 — 있으면 {@code true} 를 넘길 길이
+     *       생기고, 그 순간 비식별되지 않은 원본이 비식별 완료로 적재된다(CWE-359).</li>
+     *   <li><b>{@code durationSec} 를 받지 않는다</b> — 이 경로는 영상 파일을 실제로 갖고 있어
+     *       적재 직후 발행하는 {@code VideoIngestedEvent} 가 기술메타 추출을 태우고, 그 결과가
+     *       {@code VDO_LEN_SEC} 를 back-fill 한다({@code VideoMetaService}). 사람이 지정하지 않는
+     *       값을 인자로 두면 호출부가 무엇이든 채워 넣게 되고 실측값과 갈린다.</li>
+     * </ul>
+     *
+     * <h3>{@code rawFilePathNm} 은 <b>이미 저작도구 저장소로 복사된</b> 위치다</h3>
+     * <p>복사는 이관 쪽이 하고 이 팩토리는 그 결과 위치만 받는다. 외부 폴더를 그대로 가리키면 비식별본과
+     * 프레임과 학습데이터 산출물이 남의 폴더 옆에 쌓이고 그 폴더가 치워지면 영상이 깨진다(ADR-053).
+     * 비울 수 없는 이유는 {@link #createFromImport} 와 같다.
+     *
+     * <h3>출처유형은 {@link #SRC_TYPE_IMPORTED} 다 — 값을 새로 만들지 않는다</h3>
+     * <p>두 갈래 모두 "외부에서 가져왔다"는 같은 사실을 말한다. 갈래를 가르는 값을 하나 더 만들면
+     * 이관을 판별하는 모든 자리가 두 값을 열거해야 하고, 한 곳만 잊으면 이 갈래의 영상이 조회·집계에서
+     * 조용히 샌다({@link #SRC_TYPE_PORTAL_ULD} 가 파생물에 같은 값을 쓰는 것과 같은 이유).
+     *
+     * @param vmsClipId  영상 파일 이름에서 확장자를 뗀 값 — {@code UK_LS_DATA_RAW_VMS_CLIP} 로 중복
+     *                   반입을 막는 실제 근거다
+     * @param vmsCctvId  사람이 화면에서 지정한 카메라 식별자(선택)
+     * @param evntTypeCd 사람이 화면에서 지정한 이벤트 유형 코드
+     * @param lclgvCd    사람이 화면에서 지정한 지자체 코드
+     * @param prvcTypeCd 사람이 화면에서 지정한 개인정보 유형({@code ANONY}|{@code PRVC}|{@code PSDO})
+     * @param shtDt      사람이 화면에서 지정한 촬영일시(선택 — 미지정이면 {@code null}, 대용값 금지)
+     * @design ADR-053
+     * @design DFEAT-060
+     * @design EVT-005
+     */
+    public static LsDataRaw createFromMarkingImport(String vmsClipId, String vmsCctvId,
+                                                    String evntTypeCd, String lclgvCd,
+                                                    String prvcTypeCd, String rawFilePathNm,
+                                                    LocalDateTime shtDt) {
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            throw new IllegalArgumentException("마킹 이관 영상 파일 경로는 비울 수 없습니다.");
+        }
+        return LsDataRaw.builder()
+                .vmsClipId(vmsClipId)
+                .vmsCctvId(vmsCctvId)
+                .evntTypeCd(evntTypeCd)
+                .lclgvCd(lclgvCd)
+                .prvcTypeCd(prvcTypeCd)
+                .rawFilePathNm(rawFilePathNm)
+                .shtDt(shtDt)
+                .srcType(SRC_TYPE_IMPORTED)
+                // DE_IDENT_YN 은 빌더 생성자가 'N'(미수행)으로 고정한다 — 이 경로는 언제나 원본이다.
+                .build();
+    }
+
+    /**
      * 파생영상 {@code VMS_CLIP_ID} 조립 — {@code {부모}_{마커}{종류}_{유일접미}} 이며 결과는 항상
      * {@value #VMS_CLIP_ID_MAX}자 이하다.
      *

@@ -283,4 +283,15 @@ export const IMPORT_KEYS = {
    * 쪽들이 그대로 남아, 창을 다시 열었는데 이미 여러 번 이어받은 상태로 열린다.
    */
   browses: () => [...IMPORT_KEYS.all, 'browse'] as const,
+  /**
+   * 마킹 산출물 일괄 적재 진행(API-218) — 작업 식별번호와 <b>상태 거르기</b>로 캐시를 나눈다.
+   *
+   * ★상태는 <b>조건 축</b>이라 키에 들어간다. 같은 작업이어도 무엇으로 걸렀는지에 따라 담기는
+   * 목록이 다르므로, 키에 넣지 않으면 앞서 거른 결과가 다음 조회에 그대로 돌아온다.
+   * ⚠ 이어받기 축(위 탐색 커서)과 방향이 반대다 — 그쪽은 <b>같은 목록의 이어지는 부분</b>이라
+   *   키에 넣으면 이어붙이기가 깨진다. 두 축을 같은 규칙으로 다루지 말 것.
+   */
+  markingJobs: () => [...IMPORT_KEYS.all, 'marking'] as const,
+  markingProgress: (jobSn: number, status: string | null) =>
+    [...IMPORT_KEYS.markingJobs(), 'progress', jobSn, status] as const,
 };

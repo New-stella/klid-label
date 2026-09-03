@@ -204,4 +204,63 @@ class LsMarkingEntityTest {
         assertThat(LsMarking.createManual(1L, "[]", "portal-user-abc").getCreatedBy())
                 .isEqualTo("portal-user-abc");
     }
+
+    @Test
+    @DisplayName("createReserved_예약_생성 — 시작상태_RESERVED_모드는_MANUAL_간격은_null (ADR-052)")
+    void createReservedNormal() {
+        // given — 외부에서 이벤트 마킹까지 끝난 영상을 적재하는 경로
+        String marksJson = "[{\"frameIndex\":120,\"timestamp\":\"00:04\"}]";
+
+        // when
+        LsMarking marking = LsMarking.createReserved(77L, marksJson, "admin-1", 29.97);
+
+        // then
+        assertThat(marking.getRawSn()).isEqualTo(77L);
+        assertThat(marking.getSttsCd()).isEqualTo(LsMarking.STATUS_RESERVED);
+        // 외부가 준 시점 배열의 구조가 사람이 찍은 마킹과 같아 MANUAL 을 쓴다(ADR-052).
+        assertThat(marking.getMarkModeCd()).isEqualTo(LsMarking.MODE_MANUAL);
+        // 간격으로 생성한 값이 아니므로 프레임 간격은 비어 있어야 한다.
+        assertThat(marking.getFrmeIntvNocs()).isNull();
+        assertThat(marking.getMarkCn()).isEqualTo(marksJson);
+        assertThat(marking.getFps()).isEqualTo(29.97);
+        assertThat(marking.getCreatedBy()).isEqualTo("admin-1");
+        assertThat(marking.getVrfcEvntQstnSn()).isNull();
+    }
+
+    @Test
+    @DisplayName("★예약은_활성_마킹으로_세지_않는다 — 예약이_있어도_사람이_다시_마킹할_수_있다 (ADR-052)")
+    void 예약은_활성집합에_들어가지_않는다() {
+        // 활성 부분 유니크(UK_LS_MARKING_RAW_ACTVTN)가 보는 값은 PENDING·VLM_REQUESTED 뿐이다.
+        // 여기에 RESERVED 를 더하면 예약이 영상당 활성 마킹 1건 제약을 점유해, 비식별이 실패했을 때
+        // 그 영상을 다시 마킹할 수 없게 된다 — ADR-052 가 「업로드 시점 즉시 활성화」를 기각한 근거다.
+        assertThat(LsMarking.ACTIVE_STATUSES)
+                .containsExactly(LsMarking.STATUS_PENDING, LsMarking.STATUS_VLM_REQUESTED)
+                .doesNotContain(LsMarking.STATUS_RESERVED);
+    }
+
+    @Test
+    @DisplayName("★RESERVED_PENDING_전이_메서드를_엔티티에_두지_않는다 — 원자_클레임_우회로_방지")
+    void 예약_활성화_전이는_엔티티에_없다() {
+        // 그 전이는 2노드 중 한쪽만 집어 가야 하는 원자 클레임이라 조건부 UPDATE(리포지토리)로만 한다.
+        // 엔티티에 전이 메서드를 두면 조회 후 변경 경로가 열려 두 노드가 둘 다 통과한다(CWE-362).
+        assertThat(java.util.Arrays.stream(LsMarking.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName))
+                .doesNotContain("activate", "activateReservation", "markPendingFromReserved");
+    }
+
+    @Test
+    @DisplayName("createReserved_필수값_누락_예외 — rawSn_marksJson")
+    void createReservedRequiresValues() {
+        assertThatThrownBy(() -> LsMarking.createReserved(null, "[]", "1", 30.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("rawSn");
+
+        // 담을 시점 배열이 없으면 예약할 내용이 없다(MARK_CN 은 NOT NULL 이라 DB 오류로 새면 안 된다).
+        assertThatThrownBy(() -> LsMarking.createReserved(1L, "  ", "1", 30.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("marksJson");
+        assertThatThrownBy(() -> LsMarking.createReserved(1L, null, "1", 30.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("marksJson");
+    }
 }

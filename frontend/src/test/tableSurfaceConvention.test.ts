@@ -110,6 +110,14 @@ const TABLES: TableCase[] = [
     file: 'src/features/import/components/ImportHistorySection.tsx',
   },
   {
+    label: 'MarkingScanResultPanel(산출물 가져오기 — 이벤트 마킹 짝 목록)',
+    file: 'src/features/import/components/MarkingScanResultPanel.tsx',
+  },
+  {
+    label: 'MarkingImportProgressPanel(산출물 가져오기 — 일괄 적재 건별 결과)',
+    file: 'src/features/import/components/MarkingImportProgressPanel.tsx',
+  },
+  {
     label: 'AiServerListCard(연동 서버 주소 — AI 장비 목록)',
     file: 'src/features/aiServer/components/AiServerListCard.tsx',
   },
