@@ -86,7 +86,7 @@ diff <(keys env.template) <(keys application.properties.template)
 | 비식별 헬스 핑 | `DEIDENTIFY_API_URL` | A · `application.properties` | `http://127.0.0.1:9200` | 헬스 인디케이터 전용 — 실 비식별 호출에는 쓰이지 않는다 |
 | 관제 통지 수신처 | `CONTROL_NOTIFY_URL` | A · `application.properties` | `http://127.0.0.1:8090` | `CONTROL_NOTIFY_ENABLED=true` 일 때만 의미가 있다 |
 | 외부 시계열 분석 벤더 | `VLM_SERVICE_URL` | A · `application.properties` | **(빈 값)** | ⚠ **비워 두는 것이 정상** — 아래 ② |
-| 외부 생성형 AI 증강 벤더 | `AUGMENT_API_BASE_URL` | A · `application.properties` | (빈 값 · `AUGMENT_EXTERNAL_MODE=noop`) | 연동할 때만 **mode 와 함께** 바꾼다 |
+| 외부 생성형 AI 증강 벤더 | `AUGMENT_API_BASE_URL` | A · `application.properties` | (빈 값 = 미연동) | 주소가 곧 연동 여부다. 채우면 `WEBHOOK_GENAI_ALLOWED_IP_CIDRS` 도 **함께** 채운다 |
 | 증강 콜백이 되돌아올 우리 주소 | `WEBHOOK_CALLBACK_BASE_URL` | A · `application.properties` | `http://127.0.0.1:8080/api` | 외부가 <우리를> 부를 수 있는 주소여야 한다 |
 | httpd → 백엔드(WAS) 프록시 대상 | `BACKEND_ORIGIN` (설치 시 환경변수) | A · `/etc/httpd/conf.d/klid-frontend.conf` | `http://127.0.0.1:8080` | WAS 가 같은 장비면 그대로 |
 | 백엔드 주소(운영 런북용 메모) | `WAS_BACKEND_ORIGIN` | A · `/etc/klid/was.env` | `http://127.0.0.1:8080` | 앱 설정이 아니다 — 런북 명령이 읽는 기록값 |

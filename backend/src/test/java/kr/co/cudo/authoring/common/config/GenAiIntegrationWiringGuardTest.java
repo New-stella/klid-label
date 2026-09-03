@@ -33,8 +33,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>{@link GenAiIntegrationWiringGuard#verify} 단위 검증은 <b>정책</b>만 고정하고 <b>배선</b>은 고정하지
  * 못했다. 실제로는 {@code .env.example} 이 {@code WEBHOOK_GENAI_ALLOWED_IP_CIDRS=} 로 <b>빈 값을
  * 대입</b>하고 base compose 가 그 값을 {@code env_file} 로 주입해(set-but-empty) 프로파일 yml 기본값
- * ({@code ${VAR:0.0.0.0/0}})이 무력화됐고, local override 가 {@code AUGMENT_EXTERNAL_MODE=http} 를
- * 고정하고 있었으므로 <b>문서대로 띄운 정상 로컬 형상이 이 가드에 걸려 기동 불가</b>였다. 테스트가
+ * ({@code ${VAR:0.0.0.0/0}})이 무력화됐고, local override 가 위탁을 켜고 있었으므로
+ * <b>문서대로 띄운 정상 로컬 형상이 이 가드에 걸려 기동 불가</b>였다. 테스트가
  * 이를 못 잡은 이유는 {@code src/test/resources/application-local.yml} 이 allowlist 를
  * {@code 0.0.0.0/0} 으로 하드코딩해 모든 Spring 컨텍스트가 통과했기 때문이다.
  *
@@ -57,7 +57,7 @@ class GenAiIntegrationWiringGuardTest {
     private static final String DEV_YML = "application-dev.yml";
 
     private static final String BACKEND_ENV_PREFIX = "services.klid-backend.environment.";
-    private static final String ENV_MODE = "AUGMENT_EXTERNAL_MODE";
+    private static final String ENV_BASE_URL = "AUGMENT_API_BASE_URL";
     private static final String ENV_ALLOWLIST = "WEBHOOK_GENAI_ALLOWED_IP_CIDRS";
 
     /** compose 보간 형태 — {@code ${VAR}}, {@code ${VAR:-default}}, {@code ${VAR:?err}}. */
@@ -65,43 +65,40 @@ class GenAiIntegrationWiringGuardTest {
             Pattern.compile("^\\$\\{([A-Z][A-Z0-9_]*)(?::-(.*)|:\\?.*)?}$");
 
     @Test
-    @DisplayName("mode_http_인데_genai_allowlist_가_비면_기동이_실패한다")
-    void httpModeWithoutAllowlist_failsStartup() {
+    @DisplayName("위탁주소_주입인데_genai_allowlist_가_비면_기동이_실패한다")
+    void linkedWithoutAllowlist_failsStartup() {
         // given / when / then — 미설정과 명시적 none 둘 다 "허용 IP 없음" 이다.
         for (String allowlist : new String[]{null, "", "   ", "none", "NONE"}) {
-            assertThatThrownBy(() -> GenAiIntegrationWiringGuard.verify("http", allowlist))
+            assertThatThrownBy(() ->
+                    GenAiIntegrationWiringGuard.verify("http://genai.vendor.io:9400", allowlist))
                     .as("allowlist=%s", allowlist)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining(GenAiIntegrationWiringGuard.KEY_ALLOWLIST)
-                    .hasMessageContaining("noop");
+                    .hasMessageContaining("AUGMENT_API_BASE_URL");
         }
     }
 
     @Test
-    @DisplayName("mode_미설정도_http_로_보고_같은_짝을_요구한다")
-    void missingModeIsTreatedAsHttp() {
-        // given — @ConditionalOnProperty(matchIfMissing = true) 라 미설정 기본은 http 다.
-        assertThatThrownBy(() -> GenAiIntegrationWiringGuard.verify(null, "none"))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> GenAiIntegrationWiringGuard.verify("", "none"))
-                .isInstanceOf(IllegalStateException.class);
+    @DisplayName("★위탁주소_미주입이면_allowlist_가_비어도_기동한다 — 콜백이 애초에 오지 않는다")
+    void unlinkedAllowsEmptyAllowlist() {
+        // ★ 판정 축이 「모드 토글」에서 「위탁 주소 주입 여부」로 바뀌었다(2026-09-03).
+        //   모드 키를 계속 읽으면 기본값이 http 라 <주소도 없는 미연동 배포>가 전부 위탁 활성으로
+        //   판정되어, 이번에 걷어낸 기동 의존이 다른 이름으로 되살아난다.
+        for (String baseUrl : new String[]{null, "", "   "}) {
+            assertThatCode(() -> GenAiIntegrationWiringGuard.verify(baseUrl, ""))
+                    .as("baseUrl=[%s]", baseUrl).doesNotThrowAnyException();
+            assertThatCode(() -> GenAiIntegrationWiringGuard.verify(baseUrl, "none"))
+                    .as("baseUrl=[%s]", baseUrl).doesNotThrowAnyException();
+        }
     }
 
     @Test
-    @DisplayName("noop_이면_allowlist_가_비어도_기동한다")
-    void noopModeAllowsEmptyAllowlist() {
-        // given — 미연동(noop)은 콜백이 애초에 오지 않으므로 allowlist 를 요구하지 않는다(dev/prd 기본).
-        assertThatCode(() -> GenAiIntegrationWiringGuard.verify("noop", "")).doesNotThrowAnyException();
-        assertThatCode(() -> GenAiIntegrationWiringGuard.verify("noop", "none")).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("http_와_allowlist_명시가_짝이면_기동한다")
-    void httpModeWithAllowlist_boots() {
-        assertThatCode(() -> GenAiIntegrationWiringGuard.verify("http", "203.0.113.0/24"))
-                .doesNotThrowAnyException();
-        assertThatCode(() -> GenAiIntegrationWiringGuard.verify("http", "0.0.0.0/0"))
-                .doesNotThrowAnyException();
+    @DisplayName("위탁주소와_allowlist_명시가_짝이면_기동한다")
+    void linkedWithAllowlist_boots() {
+        assertThatCode(() -> GenAiIntegrationWiringGuard.verify(
+                "http://genai.vendor.io:9400", "203.0.113.0/24")).doesNotThrowAnyException();
+        assertThatCode(() -> GenAiIntegrationWiringGuard.verify(
+                "http://klid-mock-server:9400", "0.0.0.0/0")).doesNotThrowAnyException();
     }
 
     @Test
@@ -111,36 +108,40 @@ class GenAiIntegrationWiringGuardTest {
         Map<String, String> dotenv = readDotEnv(ROOT_ENV_EXAMPLE);
 
         // when: 컨테이너 환경변수(env_file → environment 우선) → 없으면 프로파일 yml 기본값
-        String localMode = effective(
-                containerValue(dotenv, ENV_MODE, BASE_COMPOSE, LOCAL_COMPOSE), LOCAL_YML,
-                GenAiIntegrationWiringGuard.KEY_MODE);
+        String localBaseUrl = effective(
+                containerValue(dotenv, ENV_BASE_URL, BASE_COMPOSE, LOCAL_COMPOSE), LOCAL_YML,
+                GenAiIntegrationWiringGuard.KEY_BASE_URL);
         String localAllowlist = effective(
                 containerValue(dotenv, ENV_ALLOWLIST, BASE_COMPOSE, LOCAL_COMPOSE), LOCAL_YML,
                 GenAiIntegrationWiringGuard.KEY_ALLOWLIST);
-        String devMode = effective(
-                containerValue(dotenv, ENV_MODE, BASE_COMPOSE), DEV_YML,
-                GenAiIntegrationWiringGuard.KEY_MODE);
+        String devBaseUrl = effective(
+                containerValue(dotenv, ENV_BASE_URL, BASE_COMPOSE), DEV_YML,
+                GenAiIntegrationWiringGuard.KEY_BASE_URL);
         String devAllowlist = effective(
                 containerValue(dotenv, ENV_ALLOWLIST, BASE_COMPOSE), DEV_YML,
                 GenAiIntegrationWiringGuard.KEY_ALLOWLIST);
 
-        // then: 로컬은 목 서버로 <실제 위탁>하는 형상이어야 한다 — noop 이면 아래 검증이 공허해진다
-        assertThat(localMode)
+        // then: 로컬은 목 서버로 <실제 위탁>하는 형상이어야 한다 — 주소가 비면 아래 검증이 공허해진다
+        assertThat(localBaseUrl)
                 .as("로컬은 목 서버로 실제 위탁한다(local-must-use-mock-server 원칙)")
-                .isEqualTo(GenAiIntegrationWiringGuard.MODE_HTTP);
+                .isNotBlank();
         // and: 그 형상이 <프로덕션 판정 함수> 를 그대로 통과해야 한다(정책 완화 아님 — 배선 검증)
-        assertThatCode(() -> GenAiIntegrationWiringGuard.verify(localMode, localAllowlist))
+        assertThatCode(() -> GenAiIntegrationWiringGuard.verify(localBaseUrl, localAllowlist))
                 .as("정상 로컬 형상(.env.example + compose 2종)이 기동 가드에 걸린다 — allowlist=[%s]",
                         localAllowlist)
                 .doesNotThrowAnyException();
-        // and: base 단독(dev) 형상도 기동 가능하되, 미연동이므로 콜백 allowlist 는 열지 않는다
-        assertThatCode(() -> GenAiIntegrationWiringGuard.verify(devMode, devAllowlist))
-                .as("dev 형상(base compose 단독)이 기동 가드에 걸린다 — mode=%s allowlist=[%s]",
-                        devMode, devAllowlist)
+        // and: base 단독(dev) 형상도 위탁이 활성이며(2026-09-03 — 미연동 토글 폐기) 짝이 맞아야 한다
+        assertThat(devBaseUrl)
+                .as("dev 도 목 서버로 실제 위탁한다 — 구 형상은 미연동 토글로 꺼져 있었고 그 축은 폐기됐다")
+                .isNotBlank();
+        assertThatCode(() -> GenAiIntegrationWiringGuard.verify(devBaseUrl, devAllowlist))
+                .as("dev 형상(base compose 단독)이 기동 가드에 걸린다 — allowlist=[%s]", devAllowlist)
                 .doesNotThrowAnyException();
         assertThat(devAllowlist)
-                .as("dev 는 증강 위탁이 noop 이다 — 콜백 allowlist 를 전면 개방하지 않는다(fail-closed 유지)")
-                .isIn("none", "");
+                .as("dev 는 위탁이 활성이므로 콜백 allowlist 를 <명시>해 짝을 맞춘다(목 발신 IP 는 "
+                        + "docker 브리지 사설 IP 라 대역 고정 불가)")
+                .isNotBlank()
+                .isNotEqualTo("none");
     }
 
     @Test

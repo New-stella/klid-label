@@ -39,7 +39,7 @@ public class AugmentSubmitOutcomeRecorder {
     /**
      * 202 수락(ACK) 수신 — 외부가 발급한 job_id 를 적재해 콜백 오배송 검증의 기준을 세운다.
      *
-     * <p>{@code externalJobId} 가 비어 있는 구현체(noop)는 적재할 값이 없으므로 job 이 선기록 상태로
+     * <p>{@code externalJobId} 가 비어 있으면 적재할 값이 없으므로 job 이 선기록 상태로
      * 남는다 — 콜백이 오지 않는 환경이므로 만료 스윕이 회수한다(기존 동작 유지).
      */
     public void onAccepted(Long dataAugSn, Long augJobSn, String externalJobId,

@@ -413,15 +413,19 @@ authoring:
   #   - max-input-files: 분할 위탁 청크 크기. 계약 상한 100 을 넘길 수 없다(초과 설정은 100 으로 clamp).
   augment:
     external:
-      mode: ${AUGMENT_EXTERNAL_MODE:http}
+      # ★ 미연동 모드 토글(AUGMENT_EXTERNAL_MODE)은 2026-09-03 확정으로 <축 자체가 폐기>됐다.
+      #   「나갈지 말지」를 환경설정으로 고르지 않는다 — 연동이 유일한 형상이다. 되살리지 말 것:
+      #   그 우회 때문에 dev/stg/prd 가 전부 미연동으로 도망가 위탁이 한 번도 나간 적이 없었다.
+      #   「아직 연동 안 됨」의 유일한 표현은 <base-url 이 비어 있는 것>이며, 그때 기동은 정상이고
+      #   위탁 시도 시점에 실패한다(AugmentTransportGuard).
       base-url: ${AUGMENT_API_BASE_URL:}
       timeout-seconds: ${AUGMENT_API_TIMEOUT_SECONDS:10}
       max-input-files: ${AUGMENT_MAX_INPUT_FILES:100}
     # Phase 8-A — 위탁 job 만료 스윕(AugmentJobExpirySweeper). 비종결(RECEIVED/RUNNING)로 떠 있는
     #   LS_DATA_AUG_JOB 을 회수해 종결을 보장한다. 회수되지 않으면 롤업이 무기한 보류돼 증강 1건이
     #   PENDING 에 영구 고착된다(취소 통보 미수신·콜백 400 거부·외부 무응답).
-    #   ★ 이 스윕은 자기 토글만 본다 — 위탁 모드(external.mode)·관제 통지 토글에 얹지 않는다.
-    #     위탁이 noop 인 환경은 후보가 0건이라 무해하게 돈다.
+    #   ★ 이 스윕은 자기 토글만 본다 — 위탁 주소(external.base-url)·관제 통지 토글에 얹지 않는다.
+    #     위탁 주소가 없는 환경은 후보가 0건이라 무해하게 돈다.
     #   ★ 전용 데몬 executor 로 기동한다(@Scheduled 미사용) — 무조건적 @EnableScheduling 은 게이팅
     #     없는 남의 @Scheduled 잡까지 전 환경에서 깨운다.
     #   - idle-timeout-minutes: 마지막 갱신(MDFCN_DT) 이후 이 시간이 지나면 만료 종결한다. RUNNING

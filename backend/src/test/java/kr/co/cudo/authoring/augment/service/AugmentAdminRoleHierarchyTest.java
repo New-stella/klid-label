@@ -10,7 +10,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
-import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalLinkPolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
 import kr.co.cudo.authoring.augment.integration.dto.GenAiContract;
@@ -104,7 +104,7 @@ class AugmentAdminRoleHierarchyTest {
             DeidentReportGate deidentReportGate = mock(DeidentReportGate.class);
             AugmentCallbackUrlResolver callbackUrlResolver = mock(AugmentCallbackUrlResolver.class);
             VideoRepository videoRepository = mock(VideoRepository.class);
-            AugmentExternalModePolicy externalModePolicy = mock(AugmentExternalModePolicy.class);
+            AugmentExternalLinkPolicy externalLinkPolicy = mock(AugmentExternalLinkPolicy.class);
 
             LsRawDataStatus approved = LsRawDataStatus.initial(RAW_SN);
             approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
@@ -122,7 +122,7 @@ class AugmentAdminRoleHierarchyTest {
 
             service = new AugmentRequestService(statusRepository, srcRepository, augRepository,
                     videoRepository, eventPublisher, deidentReportGate, callbackUrlResolver,
-                    new ObjectMapper(), externalModePolicy);
+                    new ObjectMapper(), externalLinkPolicy);
         }
 
         @Test

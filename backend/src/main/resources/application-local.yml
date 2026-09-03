@@ -36,21 +36,20 @@ authoring:
   # 운영(dev/stg/prd)은 STREAM_SIGN_SECRET 환경변수로 override 필수.
   stream:
     sign-secret: ${STREAM_SIGN_SECRET:local-stream-sign-secret-change-me-32bytes-min}
-  # 콜백 충실 플로우 Phase 2 / Phase 7-A1 — local 외부 증강 연동 모드.
-  #   ★ 이 블록은 원래 kpst: 하위에 잘못 중첩(kpst.augment.external.mode)돼 있어 실제 프로퍼티
-  #     키(authoring.augment.external.mode)에 전혀 반영되지 않았다(ENV-ISSUE-01).
-  #     최상위 authoring: 아래로 바로잡는다. 아래 cors:/dev: 와 <b>같은 오배치 계열</b>이며(동일 원인,
-  #     동일 교정) 코드가 authoring.* 를 읽으므로 반드시 authoring 하위여야 한다 — 오배치 시 조건부
-  #     빈 선택이 기본값(matchIfMissing)으로 떨어져 의도한 클라이언트가 로드되지 않는다.
-  #   - mode 기본 http → mock-server(:9400) 에 실제 위탁한다. Phase 7-A2 에서 자족 시뮬레이터
+  # 콜백 충실 플로우 Phase 2 / Phase 7-A1 — local 외부 증강 연동 주소.
+  #   ★ 이 블록은 원래 kpst: 하위에 잘못 중첩돼 있어 실제 프로퍼티 키(authoring.augment.external.*)에
+  #     전혀 반영되지 않았다(ENV-ISSUE-01). 최상위 authoring: 아래로 바로잡는다. 아래 cors:/dev: 와
+  #     <b>같은 오배치 계열</b>이며(동일 원인, 동일 교정) 코드가 authoring.* 를 읽으므로 반드시
+  #     authoring 하위여야 한다 — 오배치 시 base-url 이 비어 위탁이 전송 단계에서 전건 실패한다.
+  #   - base-url → mock-server(:9400) 에 실제 위탁한다. Phase 7-A2 에서 자족 시뮬레이터
   #     (DevAugmentCallbackSimulator)를 제거했다 — 본 프로그램이 스스로 성공 결과를 만들어내면
   #     외부 연동이 실제로 성립하는지 검증할 수 없다(local-must-use-mock-server 원칙).
   #   - 콜백 URL = authoring.webhook.callback-base-url + /v1/genai/callback
   #   - 목업은 평문 http + 사설/loopback IP 인데, 그 형태가 전 프로파일에서 그대로 통과한다
   #     (2026-09-01 확정). 구 완화 플래그 AUGMENT_ALLOW_INSECURE_URL 은 제거됐다.
+  #   - ⚠ 구 미연동 모드 토글(mode: ${AUGMENT_EXTERNAL_MODE:...})은 2026-09-03 확정으로 폐기됐다.
   augment:
     external:
-      mode: ${AUGMENT_EXTERNAL_MODE:http}
       base-url: ${AUGMENT_API_BASE_URL:http://localhost:9400}
   # Phase 5 — local 환경에서는 자동 트리거 비활성화 (Quartz 잡 미등록).
   # Step/Orchestrator/Service 빈은 그대로 등록되어 단위 테스트 가능.

@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 그 환경에서만 증강이 PENDING 에 영구 고착된다 — 그래서 <b>전 프로파일 실값</b>을 못박는다.
  *
  * <p>추가로 이 스윕은 자기 토글({@code authoring.augment.job-expiry.enabled})만 본다.
- * 외부 위탁 모드({@code authoring.augment.external.mode})·관제 통지 토글
+ * 외부 위탁 주소({@code authoring.augment.external.base-url})·관제 통지 토글
  * ({@code authoring.control-notify.enabled}) 같은 <b>남의 스위치</b>에 얹히지 않는다.
  */
 class AugmentJobExpiryConfigGuardTest {

@@ -17,48 +17,34 @@ import org.springframework.web.reactive.function.client.WebClient;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link ExternalAugmentClient} 구현체 활성 조건 + 기동 로깅 가드 — Phase 7-A1 (E-ISSUE-03).
+ * {@link ExternalAugmentClient} 구현체 활성 조건 + 기동 로깅 가드.
  *
- * <p>과거 {@code NoopExternalAugmentClient} 가 {@code @Primary} + {@code matchIfMissing=true} 라
- * 전 환경에서 외부 호출이 나가지 않았다. 이제 <b>기본은 http</b>, noop 은 명시 전용이다.
+ * <h3>★ 지금 고정하는 것은 「구현체가 하나뿐이고 조건이 없다」는 사실이다 (2026-09-03)</h3>
+ * <p>구 형태는 {@code authoring.augment.external.mode} 값으로 http/noop 구현체를 <b>골랐다</b>.
+ * 그 <b>미연동 모드 토글 축이 폐기</b>되면서 no-op 구현체와 조건부 활성이 함께 사라졌고, 이제
+ * <b>연동이 유일한 형상</b>이다. 「아직 연동 안 됨」은 위탁 주소 미주입으로만 표현된다.
+ *
+ * <p>⚠ <b>키 자체의 부재</b>(yml 선언 · 코드 참조)는 {@code architecture/ConfigPropertyKeyGuardTest}
+ * 의 제거 키 목록이 고정한다 — 여기서 다시 훑지 않는다(두 곳에서 세면 한쪽만 갱신된다). 조건부
+ * 애노테이션이 다시 붙으면 그쪽이 먼저 빨개진다.
  */
 class ExternalAugmentClientBeanConditionTest {
+
+    /** 폐기된 미연동 모드 토글 키 — 넣어도 빈 배선이 달라지지 않아야 한다. */
+    private static final String RETIRED_MODE_KEY = "authoring.augment.external.mode";
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(TestBeans.class);
 
     @Test
-    @DisplayName("mode_미설정_기본에서는_HttpExternalAugmentClient_가_활성이다")
-    void httpIsDefault() {
-        runner.run(ctx -> {
-            assertThat(ctx).hasSingleBean(HttpExternalAugmentClient.class);
-            assertThat(ctx).doesNotHaveBean(NoopExternalAugmentClient.class);
-        });
-    }
-
-    @Test
-    @DisplayName("mode_http_에서는_HttpExternalAugmentClient_가_활성이다")
-    void httpWhenExplicit() {
-        runner.withPropertyValues("authoring.augment.external.mode=http")
+    @DisplayName("★설정과_무관하게_HttpExternalAugmentClient_가_유일한_구현체로_활성이다")
+    void httpIsTheOnlyImplementation() {
+        runner.run(ctx -> assertThat(ctx).hasSingleBean(HttpExternalAugmentClient.class));
+        // 폐기된 키를 넣어도 아무 일도 일어나지 않는다 — 읽는 자리가 없다.
+        runner.withPropertyValues(RETIRED_MODE_KEY + "=noop")
                 .run(ctx -> assertThat(ctx).hasSingleBean(HttpExternalAugmentClient.class));
-    }
-
-    @Test
-    @DisplayName("mode_noop_에서는_Noop_만_활성이고_Http_는_비활성이다")
-    void noopWhenExplicit() {
-        runner.withPropertyValues("authoring.augment.external.mode=noop").run(ctx -> {
-            assertThat(ctx).hasSingleBean(NoopExternalAugmentClient.class);
-            assertThat(ctx).doesNotHaveBean(HttpExternalAugmentClient.class);
-        });
-    }
-
-    @Test
-    @DisplayName("mode_dev_는_더_이상_지원되지_않아_Http_도_Noop_도_활성되지_않는다")
-    void neitherWhenDev() {
-        runner.withPropertyValues("authoring.augment.external.mode=dev").run(ctx -> {
-            assertThat(ctx).doesNotHaveBean(HttpExternalAugmentClient.class);
-            assertThat(ctx).doesNotHaveBean(NoopExternalAugmentClient.class);
-        });
+        runner.withPropertyValues(RETIRED_MODE_KEY + "=dev")
+                .run(ctx -> assertThat(ctx).hasSingleBean(HttpExternalAugmentClient.class));
     }
 
     @Test
@@ -69,7 +55,7 @@ class ExternalAugmentClientBeanConditionTest {
         appender.start();
         logger.addAppender(appender);
         try {
-            new ActiveAugmentClientLogger(new NoopExternalAugmentClient()).logActiveClient();
+            runner.run(ctx -> ctx.getBean(ActiveAugmentClientLogger.class).logActiveClient());
         } finally {
             logger.detachAppender(appender);
         }
@@ -78,13 +64,13 @@ class ExternalAugmentClientBeanConditionTest {
             assertThat(event.getLevel().toString()).isEqualTo("INFO");
             assertThat(event.getFormattedMessage())
                     .contains("active ExternalAugmentClient")
-                    .contains("NoopExternalAugmentClient");
+                    .contains("HttpExternalAugmentClient");
         });
     }
 
     /** 클라이언트 빈이 필요로 하는 협력자만 스텁으로 제공한다. */
     @Configuration(proxyBeanMethods = false)
-    @Import({HttpExternalAugmentClient.class, NoopExternalAugmentClient.class})
+    @Import({HttpExternalAugmentClient.class, ActiveAugmentClientLogger.class})
     static class TestBeans {
 
         @Bean(name = "augmentApiWebClient")

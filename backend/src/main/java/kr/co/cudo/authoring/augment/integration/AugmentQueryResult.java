@@ -6,7 +6,7 @@ import java.util.Objects;
  * 외부 증강 <b>조회/취소</b> 호출의 결과 — 외부 호출을 하지 않은 경우를 값으로 표현한다 (Phase 7-A2).
  *
  * <p>{@link AugmentSubmitResult#skipped()} 와 같은 계열의 장치다. <b>가짜 데이터를 조립하지 않기 위한
- * 타입</b>이며, 이유는 dev/stg/prd 기본이 {@code mode=noop} 이기 때문이다 — noop 이 그럴듯한
+ * 타입</b>이며, 이유는 외부 연동이 없는 형상이 실재하기 때문이다 — 그때 그럴듯한
  * {@code SUCCEEDED}/{@code RUNNING} 을 지어내면 존재하지 않는 job 을 <b>성공 확정</b>하게 되어 폴링·화면이
  * 통째로 오작동한다. 그래서 미연동은 payload 를 만들지 않고 {@link SkipReason} 만 돌려준다.
  *
@@ -35,7 +35,7 @@ public record AugmentQueryResult<T>(T payload, SkipReason skipReason) {
 
     /** 외부 호출을 개시하지 않은 사유. */
     public enum SkipReason {
-        /** 외부 연동 자체가 꺼져 있음({@code authoring.augment.external.mode=noop}). */
+        /** 외부 연동 자체가 없음. ⚠ 이 값을 만드는 구현체는 2026-09-03 이후 없다(모드 토글 폐기). */
         EXTERNAL_DISABLED,
         /** 로컬 DB 기준 이미 종결된 job — 결과가 바뀌지 않으므로 왕복(409)을 생략했다. */
         LOCAL_TERMINAL

@@ -51,10 +51,12 @@ authoring:
       enabled: false
     upload:
       enabled: ${DEV_UPLOAD_ENABLED:true}
-  # Phase 7-A1 — 외부 증강(생성형 AI) 벤더 실연동 전이라 noop 을 명시한다(기본값 http 유출 차단).
-  augment:
-    external:
-      mode: ${AUGMENT_EXTERNAL_MODE:noop}
+  # 외부 증강(생성형 AI) — 벤더 주소를 주입하면 그 순간 연동이다(2026-09-03 확정).
+  #   ★ 구 형상은 mode: ${AUGMENT_EXTERNAL_MODE:noop} 로 미연동을 못박았다. 그 토글 축은 폐기됐고
+  #     「아직 연동 안 됨」은 <공통 기본값인 빈 base-url> 로만 표현된다 — 그 상태에서 기동은 정상이고
+  #     위탁 시도 시점에 실패하며, 요청 접수는 503 으로 즉시 거부된다(API-060).
+  #   ⚠ AUGMENT_API_BASE_URL 을 주입하면 콜백 allowlist(WEBHOOK_GENAI_ALLOWED_IP_CIDRS)도 함께
+  #     명시해야 한다 — 짝이 안 맞으면 GenAiIntegrationWiringGuard 가 기동을 막는다(고착 방지).
   # stg 비식별 — 공통 기본값(false)과 동일하나 의도를 명시한다: mock 이 아니라 실제 KPST 위탁 경로로 동작한다.
   #   (자체 채움 우회 경로는 없다 — 비식별 서버가 없으면 파이프라인이 진행되지 않는다)
   integration:

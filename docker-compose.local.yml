@@ -64,7 +64,6 @@ services:
       #   돌려주므로 job_id 발급 주체 반전·분할 위탁이 HTTP 왕복으로 검증된다.
       #   application-local.yml 기본도 http 지만, 컨테이너 경로에서는 base-url 이 서비스명이어야 하므로
       #   두 값을 짝으로 명시한다(mode 만 상속하고 base-url 을 빼면 localhost 를 향해 위탁이 실패한다).
-      AUGMENT_EXTERNAL_MODE: "http"
       AUGMENT_API_BASE_URL: "http://klid-mock-server:9400"
       #   ★ 위탁(http)과 콜백 수신은 <짝>이다 — genai 콜백 IP allowlist 는 미설정/none 이면 전면 차단이라
       #     열지 않으면 결과 콜백이 전건 403 이 되어 증강이 PENDING 에 영구 고착된다(그래서

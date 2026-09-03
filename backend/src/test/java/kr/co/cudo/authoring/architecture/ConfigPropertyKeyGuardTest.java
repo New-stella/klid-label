@@ -74,7 +74,12 @@ class ConfigPropertyKeyGuardTest {
             "authoring.batch.frame-interval-sec",
             "authoring.integration.deidentify.timeout-ms",
             "authoring.integration.ai-server.timeout-ms",
-            "kpst.augment.external.mode");
+            "kpst.augment.external.mode",
+            // ★ 2026-09-03 확정 — 외부 증강 <미연동 모드 토글> 축 폐기. 「나갈지 말지」를 환경설정으로
+            //   고르지 않는다(연동이 유일한 형상). 그 우회 때문에 dev/stg/prd 가 전부 미연동으로
+            //   도망가 위탁이 한 번도 나간 적이 없었다. 「아직 연동 안 됨」은 위탁 주소가 비어 있는
+            //   것으로만 표현되며, 그때 기동은 정상이고 위탁 시도 시점에 실패한다.
+            "authoring.augment.external.mode");
 
     @Test
     @DisplayName("ffprobe_경로_설정이_모든_사용처에_동일_키로_주입된다")
