@@ -22,6 +22,8 @@ import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,7 @@ import static org.mockito.Mockito.when;
  *   <li><b>요청자가 이벤트 유형·세부 유형·증강 종류를 고르지 않는다</b> — 본문에 자리가 없고
  *       위탁 이벤트도 그 값을 나르지 않는다.</li>
  *   <li><b>실패 사유는 사용자에게 보여 줄 수 있는 문장</b>이며 내부 표현이 섞이지 않는다.</li>
+ *   <li><b>파생 깊이는 1 이다</b> — 증강 결과물에 다시 증강을 걸 수 없다(채널 무관 구속 정책).</li>
  *   <li>데이터마트 로드분은 요청 대상에 뜨지 않고, 채택·반려 결정 단계가 없으며,
  *       결과물 식별자는 본인 포털 자산으로 확인된 것만 실린다.</li>
  * </ol>
@@ -77,6 +80,7 @@ class PortalAugmentServiceTest {
     private PortalUploadFrameRepository frameRepository;
     private PortalAugmentRepository augmentRepository;
     private ApplicationEventPublisher eventPublisher;
+    private VideoRepository videoRepository;
     private PortalAugmentService service;
 
     @BeforeEach
@@ -85,10 +89,14 @@ class PortalAugmentServiceTest {
         frameRepository = mock(PortalUploadFrameRepository.class);
         augmentRepository = mock(PortalAugmentRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        videoRepository = mock(VideoRepository.class);
         AugmentCallbackUrlResolver callbackUrlResolver = mock(AugmentCallbackUrlResolver.class);
         when(callbackUrlResolver.resolve()).thenReturn(CALLBACK_URL);
         service = new PortalAugmentService(assetRepository, frameRepository, augmentRepository,
-                new ObjectMapper(), eventPublisher, callbackUrlResolver);
+                new ObjectMapper(), eventPublisher, callbackUrlResolver, videoRepository);
+
+        // 기본은 <원본> 이다 — 파생 게이트가 정상 요청을 막지 않는지도 이 스텁이 함께 고정한다.
+        when(videoRepository.findById(ULD_SN)).thenReturn(Optional.of(video(null)));
 
         givenAsset(PortalUploadLedger.STATUS_READY, PortalUploadLedger.TYPE_VIDEO);
         when(frameRepository.findFirstByRawSnOrderByFrameNoAscSrcSnAsc(ULD_SN))
@@ -121,6 +129,14 @@ class PortalAugmentServiceTest {
             a.assignDerivativeRawSn(newRawSn);
         }
         return a;
+    }
+
+    /** 부모 참조가 {@code null} 이면 원본, 값이 있으면 파생본이다. */
+    private static LsDataRaw video(Long orgnlRawSn) {
+        LsDataRaw v = LsDataRaw.createPortalUpload(OWNER, "/p/street.mp4");
+        ReflectionTestUtils.setField(v, "rawSn", ULD_SN);
+        ReflectionTestUtils.setField(v, "orgnlRawSn", orgnlRawSn);
+        return v;
     }
 
     private TokenClaims owner() {
@@ -472,6 +488,56 @@ class PortalAugmentServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    // ======================== 파생 깊이 1 고정 ========================
+
+    /**
+     * ★★ 가드 — <b>파생 깊이는 1 로 고정</b>(2026-07-31 구속, 채널 무관). 증강 결과물은 부모 참조를
+     * 가진 공용 영상 원장의 새 행이라 그 행에 다시 증강을 걸면 <b>파생의 파생</b>이 된다.
+     * 화면은 이것을 막지 못한다 — 업로드 목록 응답에 파생 여부를 가릴 값이 하나도 없어 결과물 행에도
+     * 요청 버튼이 뜬다. <b>서버 판정이 유일한 방어다.</b>
+     */
+    @Test
+    @DisplayName("★★증강_결과물에는_다시_증강을_요청할_수_없다 — 파생_깊이는_1이다")
+    void derivativeVideoCannotBeAugmentedAgain() {
+        when(videoRepository.findById(ULD_SN)).thenReturn(Optional.of(video(400L)));
+
+        assertThatThrownBy(() -> service.request(ULD_SN, body(), owner()))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        verify(augmentRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    /**
+     * ★ 가드 — 거부는 <b>영구 조건</b>이라 400 이다. 비식별 신고의 412(「해소되면 된다」)와 성질이
+     * 다르며, 관제가 같은 조건에 이미 400 을 쓴다 — 같은 사유에 다른 코드를 주면 화면이 두 갈래로
+     * 분기해야 한다. 또 안내는 <b>원본으로 유도하지 않고 부모 식별자도 담지 않는다</b>.
+     */
+    @Test
+    @DisplayName("★파생_거부_안내는_부모_식별자를_담지_않고_원본으로_유도하지_않는다")
+    void derivativeRejectionLeaksNoParent() {
+        when(videoRepository.findById(ULD_SN)).thenReturn(Optional.of(video(400L)));
+
+        String message = ((CustomException) org.assertj.core.api.Assertions.catchThrowable(
+                () -> service.request(ULD_SN, body(), owner()))).getMessage();
+
+        assertThat(message).doesNotContain("400", "원본", String.valueOf(ULD_SN));
+    }
+
+    /**
+     * ★ 가드 — 이미 있는 <b>깊이 2+ 잔존 데이터</b>와 동시 삭제 경합을 견뎌야 한다. 이 판정의 책임은
+     * "파생인가" 하나이며, 행을 못 찾았다고 예외를 던지면 그 사정이 <b>다른 사유의 오류로 둔갑</b>한다.
+     * 신규 생성만 막고 기존 데이터는 정리하지 않는다.
+     */
+    @Test
+    @DisplayName("★영상_행을_찾지_못해도_파생_판정에서_예외를_던지지_않는다")
+    void missingVideoRowDoesNotBreakTheDerivativeGate() {
+        when(videoRepository.findById(ULD_SN)).thenReturn(Optional.empty());
+
+        assertThat(service.request(ULD_SN, body(), owner()).uldSn()).isEqualTo(ULD_SN);
     }
 
     // ======================== 실패 축 (3구분) ========================

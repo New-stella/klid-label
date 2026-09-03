@@ -20,6 +20,8 @@ import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
 import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
 import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -78,6 +80,24 @@ import java.util.UUID;
  * <p>⚠ <b>포털 전용 위탁 경로를 새로 만들지 않는다.</b> 만들면 벤더 계약 조립·멱등 키·분할 위탁·
  * 신고 재판정·회수 스윕이 두 벌이 되어 한쪽만 고쳐진다.
  *
+ * <h2>★ 파생 깊이는 1 로 고정한다 — 파생본에서는 어떤 파생도 만들지 않는다</h2>
+ * <p>2026-07-31 사용자 확정(구속)이며 <b>채널을 가리지 않는다</b>. 관제 요청 창구는 이미 그 규칙을
+ * 지키고 있었고({@code AugmentRequestService.requireNotDerivative} → 400) 이 창구만 비어 있었다 —
+ * <b>신규 정책 도입이 아니라 드리프트 정정</b>이다(해상도 변경 경로가 같은 조건에 이미 400 을 쓰는
+ * 것과 같은 형태).
+ *
+ * <p><b>왜 이 창구에서도 필요한가</b>: 증강 결과물은 <b>부모 참조를 가진 공용 영상 원장의 새 행</b>
+ * 이다(ADR-058). 그 행에 다시 증강을 걸면 변환이 중첩되고(예: 겨울로 바꾼 것을 다시 야간으로) 라벨도
+ * 복사본의 복사본이라 출처 추적이 흐려진다. 깊이를 1 로 고정하면 <b>모든 파생의 부모가 항상 원본</b>
+ * 이라 그 문제 자체가 소멸한다.
+ *
+ * <p>⚠ <b>화면이 막아 줄 것으로 기대하지 말 것</b> — 업로드 목록 응답에는 파생 여부를 가릴 값이
+ * <b>하나도 없어</b> 결과물 행에도 요청 버튼이 뜬다. <b>서버 판정이 유일한 방어다.</b>
+ *
+ * <p>거부는 <b>400</b> 이다 — 기다려도 달라지지 않는 <b>영구</b> 조건이라 재시도 여지가 없다. 비식별
+ * 신고 구간의 412(「지금은 안 되지만 해소되면 된다」)와 <b>성질이 다르다</b>. 관제가 같은 조건에 이미
+ * 400 을 쓰므로 같은 사유에 다른 코드를 주지 않는다(주면 화면이 두 갈래로 분기해야 한다).
+
  * <h3>입력 프레임의 조달처는 이 서비스가 정하지 않는다</h3>
  * <p>관제는 비식별본, 포털 업로드 자산은 본인 원본이며 <b>서로 폴백하지 않는다</b>. 그 판정은
  * {@code AugmentInputFrameSource} 하나가 하고 <b>기본값이 비식별본</b>이라, 여기서 출처를 다시
@@ -145,6 +165,12 @@ public class PortalAugmentService {
     private final ApplicationEventPublisher eventPublisher;
     /** 콜백 URL 조립 — 단일 원천(자체 문자열 조립 금지). */
     private final AugmentCallbackUrlResolver callbackUrlResolver;
+    /**
+     * 파생 여부 판정 — 관제 경로와 <b>같은 원천</b>({@code LS_DATA_RAW.ORGNL_RAW_SN})을 읽는다.
+     * 포털 읽기 모델에 파생 축을 새로 달지 않는다 — 그 모델은 응답 조립에 쓰여 축이 하나 늘면
+     * 계약면으로 새어 나갈 표면이 생긴다.
+     */
+    private final VideoRepository videoRepository;
 
     // ==================================================================
     // 접수
@@ -153,10 +179,11 @@ public class PortalAugmentService {
     /**
      * 본인이 올린 준비 완료 영상 한 건에 증강을 요청하고 <b>외부 위탁을 개시</b>한다.
      *
-     * <h3>거부 축을 셋으로 가른다</h3>
+     * <h3>거부 축을 넷으로 가른다</h3>
      * <ul>
      *   <li><b>403</b> — 남의 자산이거나 없는 자산. 두 경우를 가르면 존재 여부가 응답으로 드러난다.
      *       데이터마트에서 불러온 영상도 여기로 떨어진다(포털 업로드 자산이 아니다).</li>
+     *   <li><b>400</b> — <b>파생 영상</b>(증강 결과물)이다. 파생 깊이는 1 로 고정된다.</li>
      *   <li><b>400</b> — 생성 조건 항목 누락·값역 밖, 지시문 길이 초과, 또는 자산 종류가 영상이
      *       아니다. 기다려도 달라지지 않는 <b>영구</b> 조건이다.</li>
      *   <li><b>409</b> — 준비가 끝나지 않았다. 기다리면 풀리는 <b>일시</b> 조건이라 재시도가 정상 동선이다.</li>
@@ -180,6 +207,8 @@ public class PortalAugmentService {
         PortalUploadAsset asset = assetRepository.findByOwner(uldSn, owner)
                 .orElseThrow(() -> new CustomException(ErrorCode.FORBIDDEN,
                         "본인 자산이 아니거나 존재하지 않습니다."));
+
+        requireNotDerivative(uldSn);
 
         if (!PortalUploadLedger.TYPE_VIDEO.equals(asset.uldTypeCd())) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "영상 자산만 증강을 요청할 수 있습니다.");
@@ -334,6 +363,38 @@ public class PortalAugmentService {
                 .toList();
         Map<Long, LocalDateTime> arrivedAt = assetRepository.findRegDtByOwner(owner, resultRawSns);
         return new View(uldSnBySrcSn, fileNames, arrivedAt);
+    }
+
+    /**
+     * 파생 영상(증강 결과물)에서의 증강 요청을 거부한다 — <b>파생 깊이 1 고정</b>(2026-07-31 구속).
+     *
+     * <p>관제 경로와 <b>같은 판정</b>이다: 부모 참조 컬럼 하나만 본다. 조상 체인을 순회하지 않는다
+     * (그 방식은 2026-07-29 에 철회됐고, 깊이를 1 로 고정하면 순회할 이유 자체가 없다).
+     *
+     * <h3>평가 위치가 계약이다</h3>
+     * <p><b>인가(소유자 조회) 뒤</b>여야 한다 — 앞서면 응답이 "그 식별자가 존재하는가/파생인가" 를
+     * 알려주는 오라클이 된다(CWE-209). 동시에 <b>상태 판정(409) 앞</b>이어야 한다 — 뒤에 두면
+     * 영구 조건인데 "준비가 끝나면 됩니다" 라는 <b>엉뚱한 사유</b>가 먼저 떠서 요청자가 진짜 사유에
+     * 영원히 도달하지 못한다.
+     *
+     * <h3>원본으로 유도하지 않고 부모 식별자도 내려주지 않는다</h3>
+     * <p>안내에 부모를 실어 주면 접근 권한이 없을 수 있는 자원의 존재를 알려 주는 셈이 된다
+     * (CWE-209/639). 관제 경로의 규칙과 같다.
+     *
+     * <h3>★ 영상 행을 못 찾으면 <b>여기서 판단하지 않는다</b></h3>
+     * <p>이 가드의 책임은 "파생인가" 하나다. 행이 없으면 파생도 아니므로 그대로 통과시키고 뒤 단계가
+     * 자기 축으로 거절하게 둔다 — 여기서 예외를 던지면 이미 있는 깊이 2+ 잔존 데이터나 동시 삭제
+     * 경합이 <b>다른 사유의 오류로 둔갑</b>한다. <b>신규 생성만 막고 기존 데이터는 정리하지 않는다.</b>
+     */
+    private void requireNotDerivative(Long uldSn) {
+        LsDataRaw video = videoRepository.findById(uldSn).orElse(null);
+        if (video == null || video.getOrgnlRawSn() == null) {
+            return;
+        }
+        // 남기는 것은 요청 대상 식별자뿐이다 — 부모 식별자는 로그에도 응답에도 싣지 않는다.
+        log.info("[PortalAugment] request blocked — derivative video uldSn={}", uldSn);
+        throw new CustomException(ErrorCode.INVALID_INPUT,
+                "증강으로 만들어진 영상에는 다시 증강을 요청할 수 없습니다.");
     }
 
     // ==================================================================

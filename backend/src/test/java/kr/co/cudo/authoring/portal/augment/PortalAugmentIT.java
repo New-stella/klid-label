@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -59,6 +60,7 @@ class PortalAugmentIT {
     @Autowired private PortalUploadAssetRepository assetRepository;
     @Autowired private PortalUploadFrameRepository frameRepository;
     @Autowired private PortalUploadProperties uploadProperties;
+    @Autowired private JdbcTemplate jdbc;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -244,6 +246,33 @@ class PortalAugmentIT {
                         .header("Authorization", "Bearer " + aliceToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.size").value(100));
+    }
+
+    /**
+     * ★★ 가드 — <b>파생 깊이는 1 로 고정</b>이며 채널을 가리지 않는다(2026-07-31 구속). 관제 요청
+     * 창구는 이미 같은 조건에 400 을 쓴다. 화면은 이것을 막지 못한다 — 업로드 목록 응답에 파생 여부를
+     * 가릴 값이 없어 결과물 행에도 요청 버튼이 뜨므로 <b>서버 판정이 유일한 방어</b>다.
+     *
+     * <p>준비 완료 자산으로 만들어 두고 부모 참조만 채운다 — 그래야 400 이 <b>준비 상태(409)가 아니라
+     * 파생 판정</b>에서 나온 것임이 분명해진다.
+     */
+    @Test
+    @DisplayName("★★증강_결과물에는_다시_증강을_요청할_수_없다 — 준비완료여도_400이다")
+    void derivativeAssetCannotBeAugmentedAgain() throws Exception {
+        Long derivedUldSn = assetRepository.insertUploaded(
+                ALICE, createdVideo.toString(), "street-winter.mp4", "video/mp4", 1024L);
+        assetRepository.transitionToProcessing(derivedUldSn);
+        frameRepository.save(LsDataSrc.create(derivedUldSn, 0L, 0L,
+                createdVideo.getParent().resolve("frame-0.jpg").toString(), null));
+        assetRepository.transitionToReady(derivedUldSn);
+        // 증강 결과물이 부모를 가리키는 형태를 만든다(ADR-058 — 부모 참조를 가진 공용 원장의 새 행).
+        jdbc.update("UPDATE ls_data_raw SET orgnl_raw_sn = ? WHERE raw_sn = ?", readyUldSn, derivedUldSn);
+
+        mockMvc.perform(post("/v1/portal/uploads/" + derivedUldSn + "/augments")
+                        .header("Authorization", "Bearer " + aliceToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isBadRequest());
     }
 
     /**
