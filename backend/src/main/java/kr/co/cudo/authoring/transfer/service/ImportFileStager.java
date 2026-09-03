@@ -64,6 +64,17 @@ public class ImportFileStager {
     private static final String PARTIAL_SUFFIX = ".importpart";
 
     /**
+     * 진행 신호를 흘릴 때의 덩어리 크기 — 신호 간격이 <b>시간</b>으로 환산됐을 때 너무 뜸하지 않을
+     * 만큼만 잡는다. 너무 작으면 신호가 잦아 호출부가 매번 걸러 내야 하고, 너무 크면 느린 저장소에서
+     * 덩어리 하나가 오래 걸려 그 사이에 신호가 끊긴다.
+     *
+     * <p>공개해 두는 것은 시험이 <b>이 경계를 확실히 넘는</b> 표본을 만들기 위해서다. 시험이 크기를
+     * 따로 적으면 이 값을 바꿨을 때 표본이 경계 안으로 들어와, 여러 덩어리를 도는 경로가
+     * <b>한 번도 밟히지 않은 채</b> 초록으로 남는다. VisibleForTesting.
+     */
+    public static final int PROGRESS_CHUNK_BYTES = 1 << 16;
+
+    /**
      * 파일 한 건을 목적지로 복사한다. 목적지 디렉터리는 없으면 만든다.
      *
      * <p>같은 디렉터리에 임시 이름으로 먼저 쓰고 마지막에 이름만 바꾼다 — 목적지에 <b>덜 쓴 내용이
@@ -74,6 +85,24 @@ public class ImportFileStager {
      * @throws CustomException 원본이 일반 파일이 아니거나(링크 포함) 복사에 실패했을 때
      */
     public void copy(Path source, String target) {
+        copy(source, target, null);
+    }
+
+    /**
+     * 파일 한 건을 복사하면서 <b>진행 신호</b>를 흘려준다 — 오래 걸리는 복사를 위한 갈래.
+     *
+     * <p>영상 한 건이 수백 MB~수 GB 라 복사 하나가 분 단위로 걸린다. 그 동안 아무 신호도 남지 않으면
+     * 그 항목은 <b>멈춘 것으로 오인</b>되어 회수 대상이 되고, 다른 일꾼이 같은 영상을 다시 집는다.
+     * 호출부가 이 신호를 받아 「아직 처리 중」임을 원장에 적어 그 오인을 막는다.
+     *
+     * <p>⚠ 신호를 받지 않는 {@link #copy(Path, String)} 는 <b>옮기는 방식이 그대로다</b>
+     * ({@code transferTo}). 이 갈래를 더하면서 기존 호출부의 바이트 경로를 바꾸지 않았다 —
+     * 오래 걸리지 않는 복사에까지 다른 방식을 강요할 이유가 없고, 바꾸면 그 갈래가 이 변경의
+     * 영향권에 들어온다.
+     *
+     * @param progress 옮긴 누적 바이트 수를 받는다. {@code null} 이면 신호 없이 옮긴다
+     */
+    public void copy(Path source, String target, CopyProgress progress) {
         Path destination = Paths.get(target).toAbsolutePath().normalize();
         Path partial = destination.resolveSibling(
                 destination.getFileName() + PARTIAL_SUFFIX + "." + UUID.randomUUID());
@@ -90,7 +119,11 @@ public class ImportFileStager {
                  OutputStream out = Files.newOutputStream(partial,
                          // CREATE_NEW — 그 자리에 무엇이 있으면(바로가기 포함) 따라가지 않고 실패한다.
                          StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-                in.transferTo(out);
+                if (progress == null) {
+                    in.transferTo(out);
+                } else {
+                    transferWithProgress(in, out, progress);
+                }
             }
             publish(partial, destination);
         } catch (IOException e) {
@@ -102,6 +135,43 @@ public class ImportFileStager {
             deleteQuietly(partial);
             throw e;
         }
+    }
+
+    /**
+     * 진행 신호를 흘리며 옮긴다 — 덩어리를 하나 옮길 때마다 누적 바이트 수를 알린다.
+     *
+     * <p>맨 앞에서 <b>0 으로 한 번 먼저</b> 알린다. 그래야 파일이 작아 덩어리가 한 번에 끝나는
+     * 경우에도 신호가 최소 한 번은 나가고, 호출부의 「아직 처리 중」 기록이 복사 <b>시작</b> 시점에
+     * 갱신된다. 이 한 번이 없으면 작은 파일에서는 신호가 아예 관측되지 않아 그 배선이 도는지
+     * 아무도 확인할 수 없다.
+     */
+    private static void transferWithProgress(InputStream in, OutputStream out, CopyProgress progress)
+            throws IOException {
+        byte[] buffer = new byte[PROGRESS_CHUNK_BYTES];
+        long copied = 0L;
+        progress.onCopied(0L);
+        int read;
+        while ((read = in.read(buffer)) >= 0) {
+            out.write(buffer, 0, read);
+            copied += read;
+            progress.onCopied(copied);
+        }
+    }
+
+    /**
+     * 복사 진행 신호.
+     *
+     * <p>받는 쪽은 <b>예외를 밖으로 내지 않아야 한다</b>. 여기서 던지면 신호를 적지 못한 것 때문에
+     * 멀쩡한 복사가 통째로 실패한다 — 신호는 복사를 돕는 것이지 복사의 조건이 아니다.
+     *
+     * <p>받는 쪽은 <b>얼마나 자주 실제로 일할지</b>도 스스로 정한다. 이 인터페이스는 덩어리마다
+     * 부르므로, 부를 때마다 원장에 쓰면 큰 파일 하나가 수천 번의 쓰기를 만든다.
+     */
+    @FunctionalInterface
+    public interface CopyProgress {
+
+        /** @param copiedBytes 지금까지 옮긴 누적 바이트 수 */
+        void onCopied(long copiedBytes);
     }
 
     /** 다 쓴 임시 파일을 목적지 이름으로 옮긴다 — 가능하면 한 동작으로. */

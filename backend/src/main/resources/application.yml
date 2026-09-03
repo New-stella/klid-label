@@ -713,6 +713,31 @@ authoring:
     browse:
       page-size: ${IMPORT_BROWSE_PAGE_SIZE:200}
       scan-limit: ${IMPORT_BROWSE_SCAN_LIMIT:2000}
+    # 마킹 산출물 일괄 가져오기(ADR-053) — 위 scan/browse 와는 <별개 갈래>다.
+    #   그쪽은 라벨링이 끝난 결과를 폴더 하나 단위로 받고, 이쪽은 폴더 안의 N 쌍을 재귀로 훑어
+    #   비동기로 건별 적재한다. 값을 공유하지 않는다.
+    marking:
+      max-depth: ${IMPORT_MARKING_MAX_DEPTH:8}          # 훑을 폴더 깊이 상한(시작 폴더가 0)
+      max-entries: ${IMPORT_MARKING_MAX_ENTRIES:20000}  # 훑을 파일 수 상한 (CWE-770)
+      max-items: ${IMPORT_MARKING_MAX_ITEMS:2000}       # 한 번에 다룰 마킹 문서 수 상한
+      max-unmatched-names: ${IMPORT_MARKING_MAX_UNMATCHED_NAMES:100}
+      max-progress-items: ${IMPORT_MARKING_MAX_PROGRESS_ITEMS:500}
+      video-extensions: ${IMPORT_MARKING_VIDEO_EXT:mp4,mov,avi,mkv,m4v,wmv}
+      concurrency: ${IMPORT_MARKING_CONCURRENCY:2}      # 한 노드가 동시에 처리할 항목 수 상한
+      max-retry: ${IMPORT_MARKING_MAX_RETRY:3}          # 같은 항목을 다시 집을 수 있는 횟수
+      # 역산 프레임 재생 속도와 실측값의 허용 오차. 넘으면 그 항목의 마킹을 적용하지 않고 멈춘다.
+      #   ⚠ 0 으로 내리지 말 것 — 역산은 나눗셈이라 실측값과 정확히 같을 수 없어 전건 실패한다.
+      fps-tolerance: ${IMPORT_MARKING_FPS_TOLERANCE:0.5}
+      # 처리 중인 채로 이만큼 갱신이 멈춘 항목을 다시 집을 수 있게 되돌린다.
+      #   ⚠ 짧게 잡으면 <지금 돌고 있는 처리>를 빼앗는다. 코드가 5분 하한으로 보정한다.
+      stale-timeout-minutes: ${IMPORT_MARKING_STALE_TIMEOUT_MINUTES:30}
+      recovery:
+        # 멈춘 작업 회수 잡. 잡 빈과 @EnableScheduling 이 <같은 키>를 본다(한쪽만 걸면
+        # 남의 기능이 켜 둔 스케줄링 위에서 이 잡이 자기 토글과 무관하게 돈다).
+        enabled: ${IMPORT_MARKING_RECOVERY_ENABLED:true}
+        # 아래 둘은 @Scheduled 속성이라 상수 표현식만 허용돼 설정 record 로 옮기지 못한다.
+        interval-ms: ${IMPORT_MARKING_RECOVERY_INTERVAL_MS:120000}
+        initial-delay-ms: ${IMPORT_MARKING_RECOVERY_INITIAL_DELAY_MS:60000}
   # HIGH-5 fix (OWASP A06): CORS allowlist — 환경별로 명시 필수.
   # 기본값 빈 문자열 → 외부 origin 전부 차단 (same-origin only).
   # 운영(dev/stg/prd): 환경변수 CORS_ALLOWED_ORIGINS=https://fe.example.com,...

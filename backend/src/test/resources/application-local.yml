@@ -41,6 +41,11 @@ spring:
     locations: classpath:db/migration
 
 authoring:
+  import:
+    marking:
+      recovery:
+        enabled: false
+        initial-delay-ms: 86400000
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-me-please-32bytes-minimum}
   batch:
@@ -201,6 +206,12 @@ portal:
       enabled: false
       initial-delay-ms: 86400000
 
+# 마킹 일괄 적재 복구 잡 — 테스트 기본 <비활성>(운영 기본은 application.yml 의 true).
+#   위 포털 스윕과 같은 이유다. 켜 두면 이 잡이 자기 @EnableScheduling 을 등록해 <모든 테스트
+#   컨텍스트>에 스케줄링이 켜지고, 게이팅 없는 남의 @Scheduled 잡까지 함께 깨어난다.
+#   복구 논리 검증은 잡 메서드를 직접 부른다(스케줄 발화에 기대지 않는다).
+#   ★ initial-delay 를 24시간으로 밀어 두는 것은 토글을 켜는 컨텍스트에서 실제 발화만 막기 위한
+#     2중 안전장치다(등록은 되고 실행은 안 된다).
 logging:
   level:
     root: INFO

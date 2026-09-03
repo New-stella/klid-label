@@ -8,7 +8,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +26,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>목적지가 바로가기여도 <b>따라가 쓰지 않는다</b> — 따라가면 저장소 밖 파일이 덮인다
  *       (CWE-59/367).</li>
  *   <li>다 쓰지 못한 임시 파일을 남기지 않는다.</li>
+ *   <li><b>덩어리 경계를 넘는 파일도 바이트가 한 치도 달라지지 않는다</b> — 진행 신호를 흘리는
+ *       갈래는 손수 만든 읽기·쓰기 루프라, 그 경로가 시험에서 밟히지 않으면 덩어리 누락·중복·
+ *       뒤바뀜이 있어도 전부 초록으로 남는다. 이 기능이 다루는 것은 수백 MB~수 GB 영상이다.</li>
  * </ul>
  *
  * @design DOMAIN-017
@@ -90,5 +95,30 @@ class ImportFileStagerTest {
             assertThat(entries.map(p -> p.getFileName().toString()))
                     .containsExactly("frame.jpg");
         }
+    }
+
+    @Test
+    @DisplayName("★덩어리_경계를_넘는_파일도_바이트가_한_치도_다르지_않게_옮겨진다")
+    void 덩어리_경계를_넘는_파일도_바이트가_한_치도_다르지_않게_옮겨진다(@TempDir Path temp) throws IOException {
+        // ★표본은 덩어리 크기에서 <파생>한다. 크기를 따로 적으면 그 값을 바꿨을 때 표본이 경계
+        //   안으로 들어와, 여러 덩어리를 도는 경로가 한 번도 밟히지 않은 채 초록으로 남는다.
+        byte[] payload = new byte[ImportFileStager.PROGRESS_CHUNK_BYTES * 3 + 1_234];
+        // ★같은 값으로 채우지 않는다. 0 으로 채우면 덩어리가 뒤바뀌거나 중복돼도 결과가 같아
+        //   이 시험이 통째로 공회전한다. 자리마다 값이 다른 바이트를 쓴다(씨앗 고정 — 재현 가능).
+        new Random(20260903L).nextBytes(payload);
+        Path source = Files.write(temp.resolve("big.mp4"), payload);
+        Path destination = temp.resolve("dest").resolve("big.mp4");
+        List<Long> beats = new ArrayList<>();
+
+        stager.copy(source, destination.toString(), beats::add);
+
+        // ① 옮긴 결과가 원본과 <바이트 단위로> 같다.
+        assertThat(Files.readAllBytes(destination)).isEqualTo(payload);
+        // ② 덩어리가 실제로 여러 번 돌았다 — 한 번이면 경계를 넘지 않은 것이라 ①이 아무것도 지키지 못한다.
+        assertThat(beats).hasSizeGreaterThan(2);
+        // ③ 맨 앞의 신호는 0 이다. 이 한 번이 있어야 작은 파일에서도 신호가 최소 한 번은 나간다.
+        assertThat(beats.get(0)).isZero();
+        // ④ 누적값이 실제로 전량을 셌다 — 덜 세면 호출부가 진행을 잘못 읽는다.
+        assertThat(beats.get(beats.size() - 1)).isEqualTo((long) payload.length);
     }
 }

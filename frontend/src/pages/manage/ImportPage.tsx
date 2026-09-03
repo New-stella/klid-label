@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
+import { Field, FieldLabel } from '@/components/common/Field';
 import { PageHeader } from '@/components/common/PageHeader';
+import { RadioGroup } from '@/components/common/RadioGroup';
 import { ConfirmedMappingSection } from '@/features/import/components/ConfirmedMappingSection';
 import { ImportExecuteSection } from '@/features/import/components/ImportExecuteSection';
 import { ImportHistorySection } from '@/features/import/components/ImportHistorySection';
@@ -10,7 +12,13 @@ import {
   SOURCE_DEIDENTIFIED,
   SOURCE_ORIGINAL,
 } from '@/features/import/components/ImportScanForm';
+import { MarkingImportSection } from '@/features/import/components/MarkingImportSection';
 import { UnmappedCategorySection } from '@/features/import/components/UnmappedCategorySection';
+import {
+  DEFAULT_IMPORT_KIND,
+  ImportKind,
+  IMPORT_KIND_LABEL,
+} from '@/features/import/importKind';
 import { useCreateImportMappings } from '@/features/import/hooks/useImportMappings';
 import { useCreateImport, useImportScan } from '@/features/import/hooks/useImportScan';
 import type { ImportCreateResult, ImportScanResult } from '@/features/import/types';
@@ -47,11 +55,31 @@ function messageOf(e: unknown, fallback: string): string {
  * 보안: REVIEWER 검증은 라우터 가드 + BE `@PreAuthorize` 이중이며 1차 원천은 서버다.
  * 사용자가 입력한 경로의 허용 저장소 범위 판정도 서버가 소유한다.
  *
+ * <h3>산출물 종류 — 화면 맨 위에서 갈래를 고른다</h3>
+ * <p>받는 산출물은 두 종류다. <b>라벨링 완료</b>는 이미 라벨이 끝난 산출물을 받아 검수 대기로
+ * 보내고(API-205·API-206), <b>이벤트 마킹</b>은 마킹만 끝난 영상 묶음을 받아 비식별부터 앞
+ * 단계를 전부 밟는다(API-216·API-217·API-218). 두 갈래는 방향이 반대라 계약을 합치지 않으며
+ * <b>화면에서만</b> 갈래를 고른다(ADR-053). 기본값은 라벨링 완료이므로 기존 사용자에게는
+ * 아무것도 달라지지 않는다.
+ *
+ * <p>★<b>가져온 내역은 산출물 종류 바깥에 두어 항상 보인다.</b> 두 갈래 모두의 결과가 남는
+ * 자리라, 갈래를 바꿨다고 방금 가져온 내역이 사라지면 안 된다(SCREEN-039).
+ *
  * @design SCREEN-039
+ * @design ADR-053
  * @design API-205 API-206 API-207 API-208 API-209 API-210 API-211 API-215
+ * @design API-216 API-217 API-218
  */
 export function ImportPage() {
   const pushToast = useUiStore((s) => s.pushToast);
+
+  /**
+   * 산출물 종류 — 화면 맨 위에서 고르는 갈래. 기본값은 라벨링 완료다.
+   *
+   * ★두 갈래는 **상태를 나눠 갖는다**. 아래 라벨링 완료 갈래의 입력·검사 결과와 이벤트 마킹
+   * 갈래의 것이 서로 섞이지 않아야 하므로, 마킹 갈래의 상태는 그 구획이 스스로 들고 있다.
+   */
+  const [kind, setKind] = useState<ImportKind>(DEFAULT_IMPORT_KIND);
 
   const [folderPath, setFolderPath] = useState('');
   const [videoPath, setVideoPath] = useState('');
@@ -113,6 +141,27 @@ export function ImportPage() {
         description="외부에서 받은 산출물 폴더를 검사하고 저작도구로 가져옵니다. 가져온 영상은 곧바로 검수 대기가 됩니다."
       />
 
+      <Field className="gap-1.5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <FieldLabel className="text-label font-semibold text-gray-900">산출물 종류</FieldLabel>
+        <RadioGroup
+          name="import-kind"
+          value={kind}
+          onChange={(v) => setKind(v as ImportKind)}
+          options={[
+            { value: ImportKind.LABELED, label: IMPORT_KIND_LABEL[ImportKind.LABELED] },
+            { value: ImportKind.MARKING, label: IMPORT_KIND_LABEL[ImportKind.MARKING] },
+          ]}
+        />
+        <p className="text-caption text-gray-600">
+          라벨링 완료는 이미 라벨이 끝난 산출물을 받아 검수 대기로 보내고, 이벤트 마킹은 마킹만
+          끝난 영상 묶음을 받아 비식별부터 앞 단계를 전부 밟습니다.
+        </p>
+      </Field>
+
+      {kind === ImportKind.MARKING && <MarkingImportSection />}
+
+      {kind === ImportKind.LABELED && (
+        <>
       <ImportScanForm
         folderPath={folderPath}
         videoPath={videoPath}
@@ -162,8 +211,13 @@ export function ImportPage() {
         </>
       )}
 
-      <ConfirmedMappingSection />
+          {/* 분류 대응은 라벨링 완료 갈래에만 있는 축이다 — 마킹 문서에는 분류가 없다. */}
+          <ConfirmedMappingSection />
+        </>
+      )}
 
+      {/* ★두 갈래 모두의 결과가 남는 자리라 산출물 종류 **바깥**에 두어 항상 보인다 — 갈래를
+          바꿨다고 방금 가져온 내역이 사라지면 안 된다(SCREEN-039). */}
       <ImportHistorySection />
     </section>
   );

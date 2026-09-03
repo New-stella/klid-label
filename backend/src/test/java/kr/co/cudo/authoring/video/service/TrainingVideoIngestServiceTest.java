@@ -51,11 +51,18 @@ class TrainingVideoIngestServiceTest {
     @Mock
     private TrainingVideoIngestTx ingestTx;
 
+    @Mock
+    private MarkingImportIngestTx markingImportIngestTx;
+
+    @Mock
+    private kr.co.cudo.authoring.video.repository.VideoRepository videoRepository;
+
     private TrainingVideoIngestService service;
 
     @BeforeEach
     void setUp() {
-        service = new TrainingVideoIngestService(ingestRepository, ingestTx, STALE_TIMEOUT_MINUTES);
+        service = new TrainingVideoIngestService(ingestRepository, ingestTx,
+                markingImportIngestTx, videoRepository, STALE_TIMEOUT_MINUTES);
     }
 
     /** 좀비 회수 임계값(분) — 하한(10) 위의 값이라 clamp 되지 않는다. */
@@ -87,7 +94,8 @@ class TrainingVideoIngestServiceTest {
     void 좀비회수_임계값_하한보정() {
         // given — 0 분(또는 음수) 설정이 그대로 먹히면 매 tick 이 방금 클레임한 행을 되돌린다
         TrainingVideoIngestService misconfigured =
-                new TrainingVideoIngestService(ingestRepository, ingestTx, 0L);
+                new TrainingVideoIngestService(ingestRepository, ingestTx,
+                        markingImportIngestTx, videoRepository, 0L);
         when(ingestRepository.reclaimStaleProcessing(any(LocalDateTime.class), anyInt())).thenReturn(0);
         LocalDateTime before = LocalDateTime.now();
 

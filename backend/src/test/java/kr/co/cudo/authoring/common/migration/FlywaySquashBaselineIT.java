@@ -157,6 +157,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       채우는 안은 기각했다(지어낸 값이 쌓이면 진짜 라벨명과 구분되지 않는다). 내부 채널의 라벨
  *       생성 통로는 전부 이름을 채우므로 <b>관제 라벨에 NULL 이 새로 생기지 않는다</b> — 제약만 풀고
  *       값은 그대로다. 순수 완화라 구 jar 에 무해하다</li>
+ *   <li>{@code V31} — 마킹 산출물 일괄 가져오기의 작업 원장 두 표 신설(ADR-053):
+ *       {@code LS_EBLC_ULD_JOB}(일괄업로드작업) + {@code LS_EBLC_ULD_JOB_ARTCL}(작업 항목).
+ *       적재 요청이 곧바로 반환하고 실제 적재는 뒤에서 항목별로 진행하므로 <b>어디까지 되었는지와
+ *       무엇이 왜 실패했는지</b>를 담아 둘 자리가 필요하다. ⚠ <b>{@code LS_MARKING} 은 건드리지
+ *       않는다</b> — 외부 마킹이 쓰는 예약 상태는 그 컬럼에 CHECK 제약이 없고 활성 부분 유니크
+ *       ({@code WHERE stts_cd IN ('PENDING','VLM_REQUESTED')})가 이미 그 값을 배제해, 상태값 추가가
+ *       애플리케이션 상수만으로 성립한다(제약을 새로 걸면 오히려 그 성질이 깨진다). 순수 신설이라
+ *       구 jar 에 무해하다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
  *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
  *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
@@ -195,7 +203,8 @@ class FlywaySquashBaselineIT {
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
                 .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "9001", "9002");
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "9001",
+                        "9002");
     }
 
     @Test
@@ -234,6 +243,7 @@ class FlywaySquashBaselineIT {
                         "V29__absorb_portal_upload_into_common_ledgers.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
                         "V30__relax_ls_data_lbl_label_name_not_null.sql",
+                        "V31__add_ls_eblc_uld_job.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",

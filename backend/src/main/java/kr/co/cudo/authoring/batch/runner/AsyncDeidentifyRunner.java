@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.batch.runner;
 import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchPipeline;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
+import kr.co.cudo.authoring.batch.service.DeidentReservationHook;
 import kr.co.cudo.authoring.batch.status.BatchTransitionService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -63,16 +64,31 @@ public class AsyncDeidentifyRunner {
     private final BatchPipeline preMarkingPipeline;
     private final BatchTransitionService batchTransitionService;
     private final VideoRepository videoRepository;
+    /**
+     * 예약 마킹 활성화·마감 배선 (ADR-052). 이 러너는 <b>mock 동기 완료</b> 경로를 담당하며, KPST
+     * 위탁(지연) 경로의 같은 배선은 폴링 완료 지점({@code KpstDeidentTxService})에 따로 있다 —
+     * 한쪽만 붙이면 dev 는 초록인데 운영에서 예약이 영영 깨어나지 않는다.
+     */
+    private final DeidentReservationHook reservationHook;
 
     public AsyncDeidentifyRunner(
             @Qualifier("preMarkingPipeline") BatchPipeline preMarkingPipeline,
             BatchTransitionService batchTransitionService,
-            VideoRepository videoRepository) {
+            VideoRepository videoRepository,
+            DeidentReservationHook reservationHook) {
         this.preMarkingPipeline = preMarkingPipeline;
         this.batchTransitionService = batchTransitionService;
         this.videoRepository = videoRepository;
+        this.reservationHook = reservationHook;
     }
 
+    /**
+     * 선두 비식별을 비동기로 수행한다. mock 동기 완료면 {@code MARKING_READY} 로 전이한 뒤
+     * 예약 마킹을 깨우고, 끝내 실패하면 예약 마킹을 마감한다(적재는 되돌리지 않는다).
+     *
+     * @design ADR-052
+     * @design SEQ-030
+     */
     @Async("batchAsyncExecutor")
     public void runAsync(Long rawSn) {
         log.info("[AsyncDeidentifyRunner] starting deidentify rawSn={}", rawSn);
@@ -92,6 +108,12 @@ public class AsyncDeidentifyRunner {
             if (ctx.isDeidentCompleted()) {
                 batchTransitionService.markRawDataMarkingReady(rawSn);
                 log.info("[AsyncDeidentifyRunner] deidentify completed rawSn={}", rawSn);
+                // ADR-052 — 외부 마킹 적재 경로가 담아 둔 예약 마킹을 여기서 깨운다. 위 전이는
+                // REQUIRES_NEW 라 이 줄에 도달한 시점에 이미 커밋돼 있고(이 메서드에는 ambient
+                // 트랜잭션이 없다), 브리지가 다시 읽을 DE_IDENT_YN='Y' + MARKING_READY 가 둘 다
+                // 관측 가능하다 — 순서를 앞당기면 브리지가 skip 으로 판정해 방금 깨운 마킹을
+                // 종결시킨다. 예약이 없는 통상 영상에서는 no-op 이다.
+                reservationHook.activateAfterCommit(rawSn);
             } else {
                 log.info("[AsyncDeidentifyRunner] deidentify submitted (deferred) rawSn={} — MARKING_READY 는 폴링 완료 시 전이",
                         rawSn);
@@ -103,6 +125,11 @@ public class AsyncDeidentifyRunner {
             // 수동 재비식별 후 기존 resolve 경로로 복구한다. @Async 이므로 예외는 삼킨다.
             log.warn("[AsyncDeidentifyRunner] deidentify failed rawSn={} cause={}",
                     rawSn, e.getClass().getSimpleName());
+            // ADR-052 / AC-1033 — 여기까지 예외가 온 실패는 <b>제출 이전</b> 실패라 이 경로에서 종결이다
+            // (제출 이후 실패는 예외가 이 스레드로 오지 않고 KpstDeidentTxService 가 종결한다). 예약
+            // 마킹을 적용하지 못한 채 마감한다. <b>적재 자체는 되돌리지 않는다</b> — 영상 행·프레임을
+            // 지우지 않으며, 마감된 예약은 활성으로 세지 않아 사람이 그 영상을 다시 마킹할 수 있다.
+            reservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
         }
     }
 
