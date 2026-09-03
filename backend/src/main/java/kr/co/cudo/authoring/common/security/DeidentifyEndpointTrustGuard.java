@@ -26,8 +26,12 @@ import java.util.Set;
  *
  * <p>따라서 판정 축을 <b>mock-mode 단일 → "신뢰할 수 없는 비식별 엔드포인트"</b> 로 확장하고,
  * 그 판정을 <b>이 클래스 한 곳</b>에서만 수행한다(설정을 읽는 지점 단일화 — 호출처마다 배선하면
- * 반드시 샌다). 차단은 부팅 시점 fail-closed 한 곳에서 이뤄지므로 이후의 모든 산출·전송 경로
+ * 반드시 샌다). 차단이 <b>비식별 산출의 입구 한 곳</b>에서 이뤄지므로 이후의 모든 산출·전송 경로
  * (비식별 영상 서빙/프레임 추출/export/관제 통지)가 자동으로 함께 막힌다.
+ *
+ * <p>⚠ <b>구 서술 폐기(2026-09-03 · {@code ADR-062})</b> — "차단은 <b>부팅 시점</b> fail-closed
+ * 한 곳에서 이뤄진다". 지금은 <b>부팅이 아니라 위탁 시점</b>이다. 막는 것과 그 강도는 그대로이고
+ * <b>언제 막는가</b>만 옮겼다. 되살리지 말 것.
  *
  * <h3>판정 정책 — deny-known-mock (allowlist 아님)</h3>
  * <p>"이 URL 만 허용"하는 allowlist 는 채택하지 않는다. 리포지토리는 stg/prd 의 실제 KPST 주소를
@@ -40,22 +44,33 @@ import java.util.Set;
  *   <tr><td>local</td><td>무음</td><td>목 연동이 정상 구성 — 매 기동 경고는 소음</td></tr>
  *   <tr><td>dev</td><td>WARN</td><td>목 서버 실연동이 dev 의 목적 — 차단하면 파이프라인이 죽는다</td></tr>
  *   <tr><td>stg</td><td>WARN</td><td>기존 mock-mode 게이트(local/dev/stg 허용, prd 차단)와 동일 강도</td></tr>
- *   <tr><td>prd</td><td>부팅 거부</td><td>위조 비식별본이 학습데이터·외부 통지로 유출되는 것을 fail-closed 차단</td></tr>
+ *   <tr><td>prd</td><td>기동 ERROR + <b>비식별 산출 거부</b></td>
+ *       <td>위조 비식별본이 학습데이터·외부 통지로 유출되는 것을 fail-closed 차단.
+ *           <b>앱은 뜬다</b> — 설정 한 줄로 저작 업무 전체가 멈추지 않게({@code ADR-062})</td></tr>
  * </table>
  *
  * <p>운영 판정은 prd 프로파일 또는 {@code ENV=prd} 표식 둘 다를 본다({@code DeidentifyStep} 선례).
  * 로그·예외 메시지에는 호스트/프로파일만 노출한다(PII·원본경로 미노출, CWE-209).
  *
- * <h3>★ 판정 시점이 둘이다 — 기동 시 + 저장 시 (R11 이후 필수)</h3>
+ * <h3>★ 판정 시점이 셋이다 — 기동 시(알림) + 위탁 시(차단) + 저장 시(차단)</h3>
+ * <p>실제로 <b>막는</b> 것은 뒤의 둘이다. 기동 시 판정은 남겨 두되 <b>ERROR 로그로만</b> 알린다 —
+ * 운영자가 배포 직후에 알아야 하기 때문이고, 그 자리에서 기동을 죽이지는 않기 때문이다.
+ *
+ * <h3>[구 표제 · 폐기] ★ 판정 시점이 둘이다 — 기동 시 + 저장 시 (R11 이후 필수)</h3>
+ * <p>⚠ <b>표제는 폐기됐다(2026-09-03 · {@code ADR-062}) — 지우지 않고 남긴다.</b> 아래 R11 의
+ * 문제의식과 저장 시 판정의 근거는 <b>그대로 유효</b>하므로 본문을 보존하고, 개수(둘 → 셋)와
+ * 기동 시 판정의 성질만 바로 위 표제가 대체한다.
  * <p>R11 로 비식별 주소가 <b>운영 화면에서 바뀔 수 있게</b> 되면서, 이 가드가 보는 {@code @Value}
  * 배포값과 실제 호출 주소가 갈린다. 기동 시 1회 판정만 남겨두면 <b>prd 에서도 화면에서 목 서버 주소를
  * 저장해 게이트를 통째로 우회</b>할 수 있다(저장 시 재평가도 WARN 도 없었다).
  * <ul>
- *   <li>{@link #verify()} — 기동 시 배포값 판정(기존 동작 유지).</li>
- *   <li>{@link #verifyForSave(String)} — 저장 시 입력값 판정. <b>강도는 기동 시와 같다</b>
+ *   <li>{@link #verify()} — 기동 시 배포값 판정. ⚠ 구 서술 <i>"(기존 동작 유지)"</i> 폐기 —
+ *       이제 <b>기동을 막지 않고 기록(ERROR 로그)으로만 알린다</b>. 실제 차단은 아래 둘이 한다.</li>
+ *   <li>{@link #commissionBlockReason(String)} — <b>위탁 시</b> 판정(차단). 주소 축 + 자체 복사 축.</li>
+ *   <li>{@link #verifyForSave(String)} — 저장 시 입력값 판정. <b>강도는 같다</b>
  *       (운영이면 거부, 그 외는 WARN).</li>
  * </ul>
- * 두 경로 모두 {@link #untrustedReason(String)} <b>한 함수</b>를 쓴다 — 판정을 복제하면 한쪽만
+ * 모든 경로가 {@link #untrustedReason(String)} <b>한 함수</b>를 쓴다 — 판정을 복제하면 한쪽만
  * 갱신돼 갈린다.
  *
  * <p>⚠ 이 가드의 축은 <b>알려진 목/시뮬레이터 호스트명</b>이지 IP 대역이 아니다. 대역 차단은
@@ -103,7 +118,7 @@ public class DeidentifyEndpointTrustGuard {
     }
 
     /**
-     * 기동 시점 판정.
+     * 기동 시점 판정 — <b>어떤 축으로도 기동을 막지 않는다</b>.
      *
      * <h3>★ 주소 축은 더 이상 기동을 막지 않는다 (2026-09-03 사용자 확정, 구속)</h3>
      * <p>구 동작은 운영에서 목/시뮬레이터 주소면 <b>기동을 거부</b>했다. 그런데 그 주소는
@@ -113,25 +128,33 @@ public class DeidentifyEndpointTrustGuard {
      * {@code KpstWebClientConfig}). 위탁이 거부되면 파이프라인이 진행되지 않으므로
      * <b>위조 비식별본이 산출물·통지로 나가는 것은 그대로 막힌다</b>.
      *
-     * <p>⚠ <b>자체 복사(mock-mode)는 그대로 기동을 막는다</b> — 그것은 주소가 아니라
-     * <b>개발 편의 토글</b>이고(외부 무접촉으로 원본을 비식별본으로 둔갑시킨다), 「개발 기능의 운영
-     * 노출 차단」은 이번 반전의 대상이 아니다. 두 축을 섞지 말 것.
+     * <h3>★ 자체 복사(mock-mode) 축도 같은 창구로 옮겼다 (2026-09-03 · {@code ADR-062})</h3>
+     * <p>구 동작은 {@code mock-mode=true} + 운영이면 <b>기동을 거부</b>했다. 그것도 결국
+     * <b>배포 설정 한 줄</b>이고, 온프렘에서는 「앱이 안 뜬다」가 「비식별만 안 된다」보다 큰 대가다.
+     * 이제 <b>기동은 되고 비식별 산출 시도만 거부</b>된다 — 판정은 {@link #commissionBlockReason(String)}
+     * <b>한 창구</b>가 주소 축과 함께 소유한다(비식별 위탁 경로가 한 곳만 물어보면 되는 상태 유지).
+     *
+     * <p>⚠ <b>대가(인지·수용)</b>: 운영에서 mock-mode 가 켜져 있으면 앱은 뜨고 <b>비식별이 전건
+     * 실패</b>한다. 그래서 이 자리에서 <b>ERROR 로 남긴다</b> — 조용한 실패를 만들지 않기 위해서다.
+     * 사유 문구는 {@link #MOCK_MODE_REASON} 을 그대로 재사용해 기동 로그와 거부 사유가 같은 말을 쓴다.
+     *
+     * <p>⚠ {@link #verifyForSave(String)} 는 이 반전의 대상이 <b>아니다</b> — 운영 화면에서 목 주소를
+     * 저장하려는 순간을 막는 별개 축이고 기동과 무관하다.
+     *
+     * @design ADR-062
      */
     @PostConstruct
     void verify() {
-        if (mockMode && isProduction()) {
-            throw new IllegalStateException(
-                    "신뢰할 수 없는 비식별 경로로는 운영(prd) 기동을 허용하지 않습니다(fail-closed): "
-                            + MOCK_MODE_REASON);
-        }
         String reason = untrustedReason();
         if (reason == null) {
             return;
         }
         if (isProduction()) {
-            // 기동은 계속하되 <조용히> 넘기지 않는다 — 위탁은 아래 판정으로 실제로 막힌다.
+            // 기동은 계속하되 <조용히> 넘기지 않는다 — 산출·위탁은 commissionBlockReason 이 실제로 막는다.
+            // ADR-062: 여기서 죽지 않는 대신 <비식별이 전건 실패한다>는 사실이 반드시 드러나야 한다.
             log.error("[Deid][Trust] 운영에서 신뢰할 수 없는 비식별 경로입니다 — 기동은 계속되고 "
-                    + "비식별 위탁만 거부됩니다(위조 비식별본 유출 차단): {}", LogSanitizer.sanitize(reason));
+                    + "비식별 산출·위탁이 전건 거부됩니다(위조 비식별본 유출 차단): {}",
+                    LogSanitizer.sanitize(reason));
             return;
         }
         if (isLocal()) {
@@ -148,14 +171,45 @@ public class DeidentifyEndpointTrustGuard {
      * (dev/stg 의 목 서버 연동이 정상 경로다). 판정 자체는 {@link #untrustedReason(String)}
      * <b>한 함수</b>를 쓴다 — 복제하면 한쪽만 갱신돼 갈린다.
      *
-     * <p>⚠ 이 메서드는 <b>주소 축만</b> 본다. 자체 복사(mock-mode)는 기동 차단 축이라 여기서 보지
-     * 않는다 — 그 형상에서는 KPST 위탁 자체가 일어나지 않는다.
+     * <h3>★ 두 축이 여기로 모인다 — 주소 + 자체 복사 ({@code ADR-062})</h3>
+     * <p>구 주석은 "이 메서드는 <b>주소 축만</b> 본다"였다(2026-09-03 폐기). 자체 복사(mock-mode)가
+     * 기동을 막던 자리에서 내려오면서 <b>같은 창구</b>로 합류했다 — 그래야 비식별 위탁 경로가
+     * <b>한 곳만 물어보면 되는</b> 상태가 유지된다(판정 지점이 둘이면 반드시 한쪽이 샌다).
+     *
+     * <p>⚠ 자체 복사는 <b>주소와 무관하게</b> 막는다. 그 형상은 「외부에 무엇을 맡기느냐」가 아니라
+     * 「외부에 <b>맡기지 않고</b> 원본을 비식별본으로 둔갑시키느냐」의 문제라, 벤더 실주소가 멀쩡해도
+     * 위조 비식별본이 나갈 수 있는지는 달라지지 않는다.
+     *
+     * @design ADR-062
+     * @design INT-004
      */
     public String commissionBlockReason(String baseUrl) {
         if (!isProduction()) {
             return null;
         }
+        if (mockMode) {
+            return MOCK_MODE_REASON;
+        }
         return untrustedReason(baseUrl);
+    }
+
+    /**
+     * 자체 복사(mock-mode) 형상이 <b>운영에서 비식별 산출을 통째로 막고 있는가</b>.
+     *
+     * <h3>왜 별도 창구인가 — 조용한 실패를 막기 위해서다 ({@code ADR-062})</h3>
+     * <p>{@code ADR-062} 가 기동 차단을 걷어내면서 <b>"앱은 뜨는데 비식별만 전건 실패"</b> 라는
+     * 상태가 새로 생겼다. 그 사실이 <b>로그에만</b> 남고 헬스는 여전히 {@code UP(mock)} 이면,
+     * 운영자는 배포 로그를 다시 뒤지기 전까지 <b>정상으로 착각</b>한다 — 이 반전이 인지·수용한
+     * 주된 위험이 정확히 그것이므로, 상태 창구도 같은 사실을 말해야 한다.
+     *
+     * <p>{@link #commissionBlockReason(String)} 로 대신할 수 <b>없다</b> — 그쪽은 주소를 받아
+     * 판정하므로, 주소가 멀쩡한 형상에서 {@code null} 을 넘기면 "호스트 파싱 불가"로 떨어져
+     * <b>정상 배포까지 DOWN</b> 이 된다. 판정 자체는 이 클래스가 그대로 단독 소유한다(복제 금지).
+     *
+     * @design ADR-062
+     */
+    public boolean selfCopyBlocked() {
+        return mockMode && isProduction();
     }
 
     /**

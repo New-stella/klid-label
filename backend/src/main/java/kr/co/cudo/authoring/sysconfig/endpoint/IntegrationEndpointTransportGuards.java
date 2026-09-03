@@ -174,6 +174,7 @@ public final class IntegrationEndpointTransportGuards {
      * @param endpoint       대상 연동
      * @param rejectionLabel 배포 설정값의 거부 사유({@code ExternalEndpointAddress#rejectionLabel()}).
      *                       {@code null} 이면 "설정되지 않음" 으로 다룬다.
+     * @design ADR-062
      */
     public static ExchangeFilterFunction requireUsableAddress(IntegrationEndpoint endpoint,
                                                               String rejectionLabel) {
@@ -190,6 +191,8 @@ public final class IntegrationEndpointTransportGuards {
     /**
      * 전송 거부 예외를 만든다 — <b>필터를 걸 수 없는 저수준 경로</b>(reactor-netty {@code HttpClient})도
      * 같은 실패를 내도록 여기서 소유한다. 문구가 갈리면 같은 사유가 경로마다 다르게 기록된다.
+     *
+     * @design ADR-062
      */
     public static NonRetryableExternalException unusableAddress(IntegrationEndpoint endpoint,
                                                                 String rejectionLabel) {

@@ -187,6 +187,97 @@ class AiServerHealthIndicatorTest {
                 .doesNotContain("http://").contains("gpu01");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+    //  원장 식별자 형식 — 「원장 상태는 가용인데 고를 수는 없다」 [@design ADR-062]
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ★★ <b>형식을 어긴 노드만 있으면 초록이 남으면 안 된다</b> — 이 시험이 이 축의 핵심 가드다.
+     *
+     * <p>그 판정이 기동 차단에서 <b>장비를 고르는 시점</b>으로 옮겨진 뒤, 그런 원장 행을 가진 앱이
+     * <b>떠 있는 채로</b> 관측된다. 상태 컬럼만 세면 노드가 응답하는 순간 {@code UP} 이 나오는데
+     * 실제로는 그 축의 위탁이 <b>전건 거부</b>다 — 이 클래스가 지키기로 한 「실제 가용량이 0인데
+     * 초록이 남는다」의 새로운 형태다.
+     */
+    @Test
+    @DisplayName("★★식별자_형식을_위반한_가용노드는_응답해도_UP_이_아니다")
+    void 식별자_형식을_위반한_가용노드는_UP_이_아니다() {
+        // given — 원장 상태는 가용이고 프로세스도 살아 응답한다. 그런데 고를 수 없는 노드다.
+        given(registry.findAll()).willReturn(List.of(
+                node("KLID-AI-01", AiSrvrStatus.AVAILABLE)));
+        given(healthProbe.ping(any())).willReturn(true);
+
+        // when
+        Health health = indicator().health();
+
+        // then — 상태 컬럼만 세면 여기서 UP 이 난다.
+        assertThat(health.getStatus())
+                .as("고를 수 없는 노드만 있는데 초록이 남으면 위탁 전건 거부가 관측되지 않는다")
+                .isNotEqualTo(Status.UP);
+        assertThat(health.getDetails()).containsEntry("usable", 0).containsEntry("unselectable", 1);
+    }
+
+    /**
+     * ★ 인스턴스를 내려도 원장은 고쳐지지 않는다 — 그래서 {@code DOWN} 이 아니라 {@code UNKNOWN} 이다.
+     *
+     * <p>다만 조치가 완전히 다르므로(상태를 올리는 것이 아니라 <b>원장의 식별자를 고쳐야 한다</b>)
+     * 「전부 내려 둔 상태」와 사유를 갈라 알린다.
+     */
+    @Test
+    @DisplayName("★고를_수_없는_노드뿐이면_DOWN_이_아니라_사유를_가른_UNKNOWN_이다")
+    void 고를_수_없는_노드뿐이면_사유를_가른_UNKNOWN_이다() {
+        given(registry.findAll()).willReturn(List.of(
+                node("KLID-AI-01", AiSrvrStatus.AVAILABLE)));
+        given(healthProbe.ping(any())).willReturn(true);
+
+        Health health = indicator().health();
+
+        assertThat(health.getStatus()).isEqualTo(Status.UNKNOWN);
+        assertThat(health.getDetails())
+                .as("「전부 내려 둔 상태」와 조치가 다르다 — 한 사유로 뭉개면 운영자가 상태만 올린다")
+                .containsEntry("reason", "no-selectable-node-id-format");
+    }
+
+    /** ★ 위반 행이 섞여 있어도 <b>정상 노드로는 그대로 UP</b> 이다 — 하나가 잘못되면 전부 못 쓰는 것이 아니다. */
+    @Test
+    @DisplayName("★형식_위반_노드가_섞여도_정상_노드가_응답하면_UP_이다")
+    void 형식_위반이_섞여도_정상_노드로는_UP_이다() {
+        given(registry.findAll()).willReturn(List.of(
+                node("gpu01", AiSrvrStatus.AVAILABLE),
+                node("KLID-AI-01", AiSrvrStatus.AVAILABLE)));
+        given(healthProbe.ping(any())).willReturn(true);
+
+        Health health = indicator().health();
+
+        assertThat(health.getStatus()).isEqualTo(Status.UP);
+        assertThat(health.getDetails())
+                .containsEntry("usable", 1)
+                .containsEntry("reachable", 1)
+                .containsEntry("unselectable", 1);
+    }
+
+    /**
+     * ★ 「어느 노드가 고를 수 없는지」가 상세에 드러난다.
+     *
+     * <p>원장 상태를 그대로만 적으면 <b>「가용인데 아무 데도 못 쓰는 노드」가 정상으로 보인다</b>.
+     * 표식이 없으면 운영자가 상태를 올리거나 내리는 조치를 시도하다 헛돈다.
+     */
+    @Test
+    @DisplayName("★고를_수_없는_노드는_원장상태_상세에_표식이_붙는다")
+    void 고를_수_없는_노드는_원장상태_상세에_표식이_붙는다() {
+        given(registry.findAll()).willReturn(List.of(
+                node("gpu01", AiSrvrStatus.AVAILABLE),
+                node("KLID-AI-01", AiSrvrStatus.AVAILABLE)));
+        given(healthProbe.ping(any())).willReturn(true);
+
+        String ledgerStatus = indicator().health().getDetails().get("ledgerStatus").toString();
+
+        assertThat(ledgerStatus).contains("KLID-AI-01=AVAILABLE" + AiServerHealthIndicator.UNSELECTABLE_MARK);
+        assertThat(ledgerStatus)
+                .as("정상 노드에는 표식이 붙지 않아야 둘이 구분된다")
+                .contains("gpu01=AVAILABLE,");
+    }
+
     // --- fixtures ----------------------------------------------------------------------------
 
     private static LsAiSrvr node(String srvrId, AiSrvrStatus status) {

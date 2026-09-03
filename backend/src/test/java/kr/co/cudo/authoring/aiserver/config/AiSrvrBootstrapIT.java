@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * 기동 시 원장 부트스트랩·검증의 실동작 검증 (Testcontainers PostgreSQL). [@design ADR-057]
@@ -234,30 +234,52 @@ class AiSrvrBootstrapIT {
         assertThat(repository.count()).isEqualTo(afterFirst);
     }
 
+    /**
+     * ★ <b>원장 데이터 한 행이 앱 전체를 못 뜨게 하지 않는다</b>. [@design ADR-062] [@design AC-1074]
+     *
+     * <p>구 동작은 여기서 {@code IllegalStateException} 을 던져 <b>기동을 중단</b>시켰다. 판정은
+     * 그대로 두고 걸리는 자리만 장비 선택 시점으로 옮겼으므로, 이제 이 자리는 <b>알리기만</b> 한다 —
+     * 그리고 그 기록이 없으면 「막지 않는다」가 「알리지 않는다」가 된다.
+     */
     @Test
-    @DisplayName("원장의_서버ID가_형식을_위반하면_기동이_실패한다")
-    void 원장의_서버ID가_형식을_위반하면_기동이_실패한다() {
+    @DisplayName("★원장의_서버ID가_형식을_위반해도_기동은_통과하고_위반이_전부_ERROR로_남는다")
+    void 원장의_서버ID가_형식을_위반해도_기동은_통과한다() {
         // given — 체크 제약을 우회해 들어온 행(운영 SQL·제약 이전 데이터)을 재현한다.
         //         DDL 까지 트랜잭션에 넣고 롤백하므로 공유 컨테이너 상태가 남지 않는다.
-        new TransactionTemplate(txManager).execute(status -> {
-            jdbcTemplate.execute(
-                    "ALTER TABLE ls_ai_srvr DROP CONSTRAINT ck_ls_ai_srvr_srvr_id_format");
-            jdbcTemplate.update("""
-                    INSERT INTO ls_ai_srvr (srvr_id, srvr_addr, srvr_type_cd, srvr_stts_cd,
-                                            chck_fail_nocs, reg_dt)
-                    VALUES ('klid-ai-gpu-01', 'http://10.0.0.11:9300', 'INFERENCE', 'AVAILABLE',
-                            0, now())
-                    """);
+        Logger guardLogger = (Logger) LoggerFactory.getLogger(AiSrvrBootstrapGuard.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        guardLogger.addAppender(appender);
 
-            // when · then — 경고가 아니라 기동 차단이다. 지금 막지 않으면 어긋남이 한참 뒤
-            //               메트릭 라벨에서 드러난다.
-            assertThatThrownBy(() -> guard.verifyLedger())
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("klid-ai-gpu-01");
+        try {
+            new TransactionTemplate(txManager).execute(status -> {
+                jdbcTemplate.execute(
+                        "ALTER TABLE ls_ai_srvr DROP CONSTRAINT ck_ls_ai_srvr_srvr_id_format");
+                jdbcTemplate.update("""
+                        INSERT INTO ls_ai_srvr (srvr_id, srvr_addr, srvr_type_cd, srvr_stts_cd,
+                                                chck_fail_nocs, reg_dt)
+                        VALUES ('klid-ai-gpu-01', 'http://10.0.0.11:9300', 'INFERENCE', 'AVAILABLE',
+                                0, now()),
+                               ('GPU02', 'http://10.0.0.12:9300', 'INFERENCE', 'AVAILABLE',
+                                0, now())
+                        """);
 
-            status.setRollbackOnly();
-            return null;
-        });
+                // when — 던지지 않는다. 던지면 그 자체로 기동 차단이 되살아난 것이다.
+                assertThatCode(() -> guard.verifyLedger()).doesNotThrowAnyException();
+
+                status.setRollbackOnly();
+                return null;
+            });
+
+            // then — 위반은 <전부> ERROR 로 남는다(하나씩 알려주면 고치고 다시 보기를 반복한다).
+            assertThat(appender.list)
+                    .as("기동을 막지 않는 대신 오류 수준 기록이 유일한 단서가 된다")
+                    .anyMatch(event -> event.getLevel() == Level.ERROR
+                            && event.getFormattedMessage().contains("klid-ai-gpu-01")
+                            && event.getFormattedMessage().contains("GPU02"));
+        } finally {
+            guardLogger.detachAppender(appender);
+        }
 
         // 제약이 되살아났는지 확인 — 여기서 새면 뒤따르는 시험이 조용히 통과한다
         assertThat(constraintExists("ck_ls_ai_srvr_srvr_id_format")).isTrue();

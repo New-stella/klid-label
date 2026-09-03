@@ -50,7 +50,7 @@
 
 | 시퀀스 | 단계 | Step 클래스 | 동작 |
 |--------|------|------------|------|
-| pre-marking | 비식별화 | `DeidentifyStep` | **전체 영상 무조건**(ANONY 포함) 외부 비식별 호출, `LS_DEIDENT_PROC_LOG` 저장, 성공 시 `MARKING_READY` 전이 (`kpst.deid.enabled=true` 시 **KPST 공유 마운트 폴링** — `DeidentifyStep` 위탁[project만, input_path=원본 디렉터리/export_path=우리 base, upload 없음] + `KpstDeidentPollJob`[Quartz] 완료감지 후 응답 `fileName` 으로 no-copy 회수 → `MARKING_READY`; local/dev 는 mock 복사) → [08](08-deidentification.md) / [22](22-deid-solution-api.md) |
+| pre-marking | 비식별화 | `DeidentifyStep` | **전체 영상 무조건**(ANONY 포함) 외부 비식별 호출, `LS_DEIDENT_PROC_LOG` 저장, 성공 시 `MARKING_READY` 전이 (`kpst.deid.enabled=true` 시 **KPST 공유 마운트 폴링** — `DeidentifyStep` 위탁[project만, input_path=원본 디렉터리/export_path=우리 base, upload 없음] + `KpstDeidentPollJob`[Quartz] 완료감지 후 응답 `fileName` 으로 no-copy 회수 → `MARKING_READY`; **local/dev 도 같은 경로이며 위탁 대상만 목 서버다** — 구 서술 "local/dev 는 mock 복사" 는 폐기[2026-09-03, 자체 채움 경로 없음]) → [08](08-deidentification.md) / [22](22-deid-solution-api.md) |
 | post-marking | 마킹 로드 | `MarkingLoadStep` | 마킹 결과(`LS_MARKING`)를 컨텍스트에 적재 |
 | post-marking | VLM 시계열 | `VlmTimeseriesStep` | 외부 VLM **논블로킹 제출**(선커밋 → subscribe 후 즉시 반환 — ACK 도 기다리지 않는다), ACK/실패는 완료 핸들러가 전용 풀에서 기록, 결과 상세는 콜백 → [09 §9.2-3](09-vlm-timeseries.md) |
 | post-marking | 프레임 추출 | `FfmpegFrameExtractor` | 마킹 위치 기반 **원본+비식별 2벌** 추출. 비식별 경로는 `LsDeidentProcLog` 에서 self-lookup(호출자 인자 미전달) |

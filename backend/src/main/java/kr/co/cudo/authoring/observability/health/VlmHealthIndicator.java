@@ -1,6 +1,7 @@
 package kr.co.cudo.authoring.observability.health;
 
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
+import kr.co.cudo.authoring.aiserver.service.AiSrvrIdPolicy;
 import kr.co.cudo.authoring.aiserver.service.AiSrvrRegistry;
 import kr.co.cudo.authoring.common.client.VlmClient;
 import kr.co.cudo.authoring.common.client.dto.VlmServerStatus;
@@ -65,6 +66,19 @@ import java.util.Map;
  * <p>그래서 원장에 등록된 시계열 노드는 <b>상세에만</b> 싣는다(등록 사실과 원장 상태). 등록이 시작되면
  * 그 목록이 드러나고, 노드별 위탁 배선이 생기는 시점에 판정 축을 옮긴다.
  *
+ * <h3>★ 상세에는 <b>고를 수 있는지</b>까지 적는다 [@design ADR-062]</h3>
+ * <p>원장 상태를 <b>그대로만</b> 적으면 식별자 형식({@link AiSrvrIdPolicy})을 어긴 노드가 「가용」으로
+ * 보인다. 그런데 그 노드는 위탁 후보에서 빠지고, <b>그런 노드밖에 없으면 이 축의 위탁이 전건 거부</b>다
+ * — 그 판정이 기동 차단에서 <b>장비를 고르는 시점</b>으로 옮겨졌기 때문이다(전에는 그런 행이 있으면
+ * 앱이 뜨지 못해 이 자리에서 만날 수 없었다).
+ *
+ * <p>★ 이 축은 <b>지금 당장 도달한다</b> — 형제(추론)와 달리 시계열 위탁은 실제로 원장에서 장비를
+ * 고른다. 즉 상세를 고치지 않으면 <b>위탁은 전건 거부인데 헬스는 UP</b> 인 창이 열린다.
+ *
+ * <p>⚠ <b>판정 축은 여전히 옮기지 않는다.</b> 여기서 DOWN 을 내면 위 §미연동 절이 막으려던 「상시
+ * DOWN」이 되살아난다 — 원장을 고쳐야 풀리는 상태는 인스턴스를 내려서 해결되지 않는다. 드러내되
+ * 판정하지 않는 것이 이 인디케이터의 성질이다.
+ *
  * <h3>보안</h3>
  * <ul>
  *   <li>CWE-209: 예외는 <b>클래스명만</b> 노출한다. 스택트레이스·주소·토큰·응답 본문을 싣지 않는다.</li>
@@ -113,12 +127,30 @@ public class VlmHealthIndicator implements HealthIndicator {
     private Health.Builder withLedgerNodes(Health.Builder builder) {
         try {
             Map<String, String> byNode = new LinkedHashMap<>();
-            registry.findAll().stream()
-                    .filter(node -> node.getSrvrTypeCd() == LsAiSrvr.SrvrType.TIMESERIES)
-                    .forEach(node -> byNode.put(node.getSrvrId(), node.getSrvrSttsCd().name()));
+            int unselectable = 0;
+            for (LsAiSrvr node : registry.findAll()) {
+                if (node.getSrvrTypeCd() != LsAiSrvr.SrvrType.TIMESERIES) {
+                    continue;
+                }
+                // ★원장 상태 + <고를 수 있는지>. 상태만 적으면 형식을 어긴 노드가 「가용」으로 보이고,
+                //   그런 노드밖에 없으면 위탁은 전건 거부인데 상세는 정상으로 읽힌다.
+                //   판정은 AiSrvrIdPolicy 를 <그대로> 부른다 — 규칙을 여기 옮겨 적지 않는다.
+                boolean idOk = AiSrvrIdPolicy.isValid(node.getSrvrId());
+                byNode.put(node.getSrvrId(),
+                        idOk ? node.getSrvrSttsCd().name()
+                             : node.getSrvrSttsCd().name()
+                                     + AiServerHealthIndicator.UNSELECTABLE_MARK);
+                if (!idOk) {
+                    unselectable++;
+                }
+            }
             builder.withDetail("nodes", byNode.size());
             if (!byNode.isEmpty()) {
                 builder.withDetail("byNode", byNode);
+            }
+            if (unselectable > 0) {
+                // 등록돼 있는데 고를 수 없는 노드 수 — 이 값이 등록 수와 같으면 위탁은 전건 거부다.
+                builder.withDetail("unselectable", unselectable);
             }
         } catch (Exception ledgerUnavailable) {
             // 원장을 못 읽은 것은 이 외부 시스템의 상태와 무관하다 — 축을 빼고 넘어간다.

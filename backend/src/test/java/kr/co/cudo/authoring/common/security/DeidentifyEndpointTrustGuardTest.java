@@ -4,6 +4,9 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
+import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
+import kr.co.cudo.authoring.common.config.KpstWebClientConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +15,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -166,7 +172,9 @@ class DeidentifyEndpointTrustGuardTest {
         // when / then: 판정은 한 곳에서 두 신호를 모두 본다
         assertThatCode(dev::verify).doesNotThrowAnyException();
         assertThat(warnMessages()).anySatisfy(msg -> assertThat(msg).contains("mock-mode"));
-        assertThatThrownBy(prd::verify).isInstanceOf(IllegalStateException.class);
+        // 운영은 더 이상 기동을 막지 않는다(ADR-062) — 대신 ERROR 로 남고 산출·위탁이 막힌다.
+        assertThatCode(prd::verify).doesNotThrowAnyException();
+        assertThat(errorMessages()).anySatisfy(msg -> assertThat(msg).contains("mock-mode"));
     }
 
     @Test
@@ -261,16 +269,108 @@ class DeidentifyEndpointTrustGuardTest {
         assertBootsButBlocksCommission(guard, "  ");
     }
 
+    /**
+     * ★ 축이 옮겨졌다 — 구 기대값은 <b>"자체복사 mock-mode 는 그대로 운영 기동을 막는다"</b>
+     * 였다(2026-09-03 폐기 · {@code ADR-062}).
+     *
+     * <p>그것도 결국 <b>배포 설정 한 줄</b>이라, 온프렘에서는 「앱이 안 뜬다」가 「비식별만 안 된다」
+     * 보다 큰 대가다. <b>막는 것과 그 강도는 그대로이고 자리만 옮겼다</b> — 기동은 되고
+     * <b>비식별 산출·위탁이 전건 거부</b>된다. 되돌리지 말 것.
+     */
     @Test
-    @DisplayName("★자체복사_mock_mode_는_그대로_운영_기동을_막는다 — 주소가_아니라_개발_토글이다")
-    void mockModeStillBlocksProductionBoot() {
-        // 이번 반전의 대상은 <외부 연동 주소>다. 개발 편의 토글의 운영 노출 차단은 별개 축이며
-        //   구속 정책이다 — 함께 걷어내지 말 것.
+    @DisplayName("★자체복사_mock_mode_는_기동을_막지_않고_비식별_산출을_막는다")
+    void mockModeBlocksCommissionNotBoot() {
+        // given: 벤더 실주소라 <주소 축은 멀쩡한> 형상 — 그래도 자체 복사면 막혀야 한다.
+        String vendorUrl = "https://kpst.vendor.example:9989";
         DeidentifyEndpointTrustGuard prd = guard(
-                env(new String[]{"prd"}, null, true), true, "https://kpst.vendor.example:9989", true);
-        assertThatThrownBy(prd::verify)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("mock-mode");
+                env(new String[]{"prd"}, null, true), true, vendorUrl, true);
+
+        // when / then
+        assertThatCode(prd::verify)
+                .as("설정 한 줄로 저작 업무 전체가 멈추지 않는다")
+                .doesNotThrowAnyException();
+        assertThat(prd.commissionBlockReason(vendorUrl))
+                .as("주소가 멀쩡해도 자체 복사면 위조 비식별본이 나갈 수 있다 — 산출을 막아야 한다")
+                .isEqualTo(DeidentifyEndpointTrustGuard.MOCK_MODE_REASON);
+        assertThat(prd.selfCopyBlocked())
+                .as("상태 창구(헬스)가 UP 으로 가리지 않도록 같은 사실을 노출한다")
+                .isTrue();
+        assertThat(errorMessages())
+                .as("조용한 실패 금지 — 비식별이 전건 실패한다는 사실이 기동 로그에 남아야 한다")
+                .anySatisfy(msg -> assertThat(msg).contains("mock-mode"));
+    }
+
+    @Test
+    @DisplayName("★비운영에서는_자체복사가_산출을_막지_않는다 — local_dev_stg_동작_불변")
+    void mockModeDoesNotBlockCommissionOutsideProduction() {
+        for (String[] profile : new String[][]{{"local", null}, {"dev", null}, {"stg", "stg"}}) {
+            DeidentifyEndpointTrustGuard guard = guard(
+                    env(new String[]{profile[0]}, profile[1], false), true,
+                    "http://klid-mock-server:9400", true);
+            assertThat(guard.commissionBlockReason("http://klid-mock-server:9400"))
+                    .as("%s 의 자체 복사는 종전대로 허용된다", profile[0])
+                    .isNull();
+            assertThat(guard.selfCopyBlocked())
+                    .as("%s 는 운영이 아니므로 산출이 막히지 않는다", profile[0])
+                    .isFalse();
+        }
+    }
+
+    /**
+     * ★★ <b>거부가 실제로 전송을 막는가</b> — 사슬 전체를 잇는 유일한 시험.
+     *
+     * <h3>왜 이 시험이 필요한가 (독립 QA 실측)</h3>
+     * <p>이 파일의 다른 시험들은 {@link DeidentifyEndpointTrustGuard#commissionBlockReason(String)}
+     * 의 <b>반환값</b>만 본다. 그래서 <b>그 반환값을 아무도 쓰지 않게 배선을 통째로 지워도 죽는 시험이
+     * 0건</b>이었다 — 가드는 초록인데 전송은 그대로 나가는 상태를 아무도 잡지 못한다. 자체 복사 축뿐
+     * 아니라 직전 라운드의 주소 축도 같은 갭이었다.
+     *
+     * <h3>무엇을 잇는가</h3>
+     * <ol>
+     *   <li>가드 판정 → {@code KpstWebClientConfig.kpstDeidEndpointAddress} 가 주소를
+     *       <b>쓸 수 없는 상태</b>로 낮춘다.</li>
+     *   <li>그 주소로 만든 클라이언트가 <b>소켓을 열지 않고</b> 전송 차단 예외로 끝난다.</li>
+     * </ol>
+     *
+     * <p>주소는 <b>운영 확정값(사설 IP)</b>을 쓴다 — 주소 정책을 통과하는 값이라야 "자체 복사 축이
+     * 막았다"가 성립한다. 목/예시 호스트를 쓰면 주소 축이 먼저 걸려 <b>이 시험이 무의미</b>해진다
+     * ({@code ExternalEndpointAddress#rejectedBecause} 는 이미 거부된 주소에 덧입히지 않는다).
+     */
+    @Test
+    @DisplayName("★★자체복사_거부가_주소빈을_거쳐_실제_전송까지_막는다 — 반환값이_아니라_사슬을_본다")
+    void selfCopyRejectionActuallyBlocksTransport() {
+        // given — 운영 + mock-mode 인 <실제> 가드(목 객체 아님). 주소는 정책을 통과하는 확정값.
+        String vendorUrl = "http://10.177.33.162:9989";
+        DeidentifyEndpointTrustGuard prd = guard(
+                env(new String[]{"prd"}, null, true), true, vendorUrl, true);
+        KpstWebClientConfig cfg = new KpstWebClientConfig();
+
+        // when — 운영 배선 그대로 주소 빈을 만든다.
+        ExternalEndpointAddress address = cfg.kpstDeidEndpointAddress(vendorUrl, "", prd);
+
+        // then ① 사슬 1단 — 주소가 쓸 수 없는 상태로 낮춰진다.
+        assertThat(address.usable())
+                .as("가드가 막았다고 말했는데 주소가 그대로면 사슬이 여기서 끊긴다")
+                .isFalse();
+        assertThat(address.baseUrl())
+                .as("거부된 주소는 빈 문자열로 낮춰져야 한다 — 그래야 나쁜 주소로 실제로 나가지 않는다")
+                .isEmpty();
+
+        // then ② 사슬 2단 — 그 주소로 만든 클라이언트가 전송을 시도조차 하지 않는다.
+        WebClient client = cfg.kpstDeidWebClient(address, "", null);
+        assertThatThrownBy(() -> client.post().uri("/create_project").bodyValue("{}")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                .as("연결 거부(ConnectException)가 나면 이미 전송을 시도했다는 뜻이다")
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    @Test
+    @DisplayName("★저장시점_판정은_이번_반전의_대상이_아니다 — 운영에서_목주소_저장은_여전히_거부")
+    void saveTimeGuardIsUnchanged() {
+        DeidentifyEndpointTrustGuard prd = guard(
+                env(new String[]{"prd"}, null, true), true, "https://kpst.vendor.example:9989", false);
+        assertThatThrownBy(() -> prd.verifyForSave("http://klid-mock-server:9400"))
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class);
     }
 
     private DeidentifyEndpointTrustGuard guard(Environment environment,

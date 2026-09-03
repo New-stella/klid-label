@@ -56,6 +56,12 @@ import static org.mockito.Mockito.when;
  *   <tr><td>예약 대역</td><td>전송 차단</td><td><b>판정 없음</b>(구 동작 그대로)</td></tr>
  * </table>
  *
+ * <h3>★ 주소가 아닌 축도 같은 자리로 옮겼다 — <b>짝 맞춤</b></h3>
+ * <p>증강은 위탁 주소가 <b>정상이어도</b> 결과를 되받을 콜백 IP allowlist 가 비어 있으면 그 증강이
+ * 영구 고착된다. 그 판정도 기동 차단에서 <b>위탁 시점 거부</b>로 옮겼다 — 주소 축과 다른 축이지만
+ * 「보호가 필요한 순간은 기동이 아니다」라는 근거가 같다. ⚠ <b>기동만 통과시키고 위탁 거부를 넣지
+ * 않으면 그 가드는 없어진 것</b>이므로, 아래 시험은 <b>두 벌을 함께</b> 본다.
+ *
  * <p>⚠ 오른쪽 열의 <b>「판정 없음」은 이번 변경이 만든 구멍이 아니다</b> — 그 두 축에는 원래
  * 주소 정책이 없었고(그 사실은 {@code AiSrvrSelector} 주석이 이미 못 박고 있다), 이번 변경은
  * <b>무엇을 막는지를 바꾸지 않는다</b>. 여기에 정책을 새로 걸려면 별도 결정이 필요하다.
@@ -108,8 +114,13 @@ class ExternalEndpointBootAndTransportTest {
         return kpstCfg.kpstDeidWebClient(kpstCfg.kpstDeidEndpointAddress(url, "", null), "", null);
     }
 
+    /**
+     * 주소 축 표본 — 콜백 allowlist 는 <b>명시</b>해 둔다. 비워 두면 짝 맞춤 가드가 먼저 걸려
+     * 거부 사유가 「짝 불일치」로 바뀌고 <b>주소 축 단언이 통째로 무의미</b>해진다.
+     */
     private WebClient augment(String url) {
-        return augmentCfg.augmentApiWebClient(url, new AugmentUrlPolicy());
+        return augmentCfg.augmentApiWebClient(url, new AugmentUrlPolicy(),
+                new GenAiIntegrationWiringGuard(url, "0.0.0.0/0", new AugmentUrlPolicy()));
     }
 
     @Test
@@ -170,6 +181,50 @@ class ExternalEndpointBootAndTransportTest {
         for (String url : new String[]{BAD_SCHEME, PLACEHOLDER, RESERVED_RANGE}) {
             assertBoots("AI 추론", url, this::aiServer);
             assertBoots("관제 통지", url, this::controlNotify);
+        }
+    }
+
+    // ── 주소가 아닌 축: 짝 맞춤(위탁 ↔ 콜백 수신) ───────────────────────────────────
+
+    @Test
+    @DisplayName("★★증강_짝맞춤 — 주소가_정상이어도_콜백_allowlist_가_비면_기동은_되고_위탁만_거부된다")
+    void augmentPairingBlocksCommissionNotBoot() {
+        // given — 주소는 정상(루프백, 내부망 정책 통과)인데 콜백 수신이 전면 차단인 조합.
+        String usableUrl = "http://127.0.0.1:1";
+        for (String allowlist : new String[]{"", "none"}) {
+            WebClient client = assertBoots("증강 짝맞춤", usableUrl, url ->
+                    augmentCfg.augmentApiWebClient(url, new AugmentUrlPolicy(),
+                            new GenAiIntegrationWiringGuard(url, allowlist, new AugmentUrlPolicy())));
+
+            // when / then — 위탁(job 생성)만 소켓을 열지 않고 거부된다.
+            assertThatThrownBy(() -> client.post().uri("/api/genai/jobs").bodyValue("{}")
+                    .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                    .as("allowlist=[%s] — 연결 거부가 나면 되받지 못할 위탁이 실제로 나갔다는 뜻이다",
+                            allowlist)
+                    .isInstanceOf(NonRetryableExternalException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("★증강_짝맞춤 — 짝이_맞으면_위탁이_그대로_나간다")
+    void augmentPairingLetsCommissionThrough() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            server.enqueue(new MockResponse().setResponseCode(202).setBody("{}"));
+            String base = server.url("/").toString();
+
+            WebClient client = augmentCfg.augmentApiWebClient(base, new AugmentUrlPolicy(),
+                    new GenAiIntegrationWiringGuard(base, "0.0.0.0/0", new AugmentUrlPolicy()));
+            try {
+                client.post().uri("/api/genai/jobs").bodyValue("{}").retrieve()
+                        .bodyToMono(String.class).block(Duration.ofSeconds(5));
+            } catch (RuntimeException ignored) {
+                // 전송 여부는 소켓 관측으로만 판정한다.
+            }
+
+            RecordedRequest received = server.takeRequest(5, TimeUnit.SECONDS);
+            assertThat(received).as("짝이 맞으면 위탁이 그대로 나가야 한다").isNotNull();
+            assertThat(received.getPath()).isEqualTo("/api/genai/jobs");
         }
     }
 

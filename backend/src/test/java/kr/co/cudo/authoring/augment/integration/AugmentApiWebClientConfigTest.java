@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.augment.integration;
 
 import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
+import kr.co.cudo.authoring.common.config.GenAiIntegrationWiringGuard;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -23,8 +24,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AugmentApiWebClientConfigTest {
 
+    /**
+     * ⚠ <b>콜백 allowlist 기본값을 명시</b>한다 — 미지정이면 짝 맞춤 가드가 <b>모든</b> 위탁을 막아
+     * 주소 축 단언이 통째로 무의미해진다(사유가 「짝 불일치」로 바뀐다). 짝 축은 아래 전용 시험이
+     * <b>비운 값</b>으로 따로 고정한다.
+     */
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(AugmentApiWebClientConfig.class, AugmentUrlPolicy.class);
+            .withUserConfiguration(AugmentApiWebClientConfig.class, AugmentUrlPolicy.class,
+                    GenAiIntegrationWiringGuard.class)
+            .withPropertyValues("webhook.genai.allowed-ip-cidrs=0.0.0.0/0");
 
     @Test
     @DisplayName("★prd_프로파일에서도_평문_http_사설대역_base_url_로_빈이_생성된다 — 이 축이 깨지면 운영 기동이 막힌다")
@@ -177,6 +185,97 @@ class AugmentApiWebClientConfigTest {
                         "authoring.augment.external.mode=noop",
                         "authoring.augment.external.base-url=http://genai.vendor.io:9400")
                 .run(ctx -> assertThat(ctx).hasNotFailed().hasBean("augmentApiWebClient"));
+    }
+
+    // ── 짝 맞춤 축(위탁 ↔ 콜백 수신) — 주소 축과 다른 축이며 같은 날 함께 옮겨졌다 ────────────
+
+    /**
+     * 짝 축 전용 러너 — <b>기본 러너를 덮어쓰지 않고 새로 만든다</b>. 같은 키를 두 번 주고 나중 값이
+     * 이긴다는 <b>주입 순서 가정</b>에 시험이 기대면, 그 가정이 깨지는 날 <b>조용히 반대 축을
+     * 검증</b>하게 된다.
+     *
+     * @param allowlist 콜백 수신 대역. 빈 값/{@code none} 이 「허용 IP 없음」이다.
+     */
+    private ApplicationContextRunner pairingRunner(String allowlist) {
+        return new ApplicationContextRunner()
+                .withUserConfiguration(AugmentApiWebClientConfig.class, AugmentUrlPolicy.class,
+                        GenAiIntegrationWiringGuard.class)
+                .withPropertyValues(
+                        "spring.profiles.active=prd",
+                        // 주소는 <해석이 필요 없는 루프백> — 짝 축만 남기려고 주소 축을 통과시킨다.
+                        "authoring.augment.external.base-url=http://127.0.0.1:1",
+                        "webhook.genai.allowed-ip-cidrs=" + allowlist);
+    }
+
+    @Test
+    @DisplayName("★★주소가_정상이어도_콜백_allowlist_가_비면_기동은_되고_위탁만_거부된다")
+    void unpairedCallbackIntakeBlocksCommissionNotBoot() {
+        // 구 동작은 <기동 실패> 였다(2026-09-03 폐기) — 주소를 제대로 넣은 정상 배포가 다른 설정
+        //   한 줄이 비었다는 이유로 뜨지 못했다. 규칙은 그대로이고 걸리는 자리만 옮겼다.
+        //   ★ 짝 맞춤 필터를 떼면 이 단언이 깨진다(연결 시도 오류로 바뀐다) — 그때가 곧
+        //     「되받지 못할 위탁이 실제로 나가는」 상태다.
+        for (String allowlist : new String[]{"", "none", "NONE"}) {
+            pairingRunner(allowlist).run(ctx -> {
+                assertThat(ctx).as("allowlist=[%s]", allowlist)
+                        .hasNotFailed().hasBean("augmentApiWebClient");
+                WebClient client = (WebClient) ctx.getBean("augmentApiWebClient");
+                StepVerifier.create(client.post().uri(HttpExternalAugmentClient.JOBS_PATH)
+                                .retrieve().bodyToMono(String.class))
+                        .expectErrorSatisfies(e -> assertThat(e)
+                                .isInstanceOf(NonRetryableExternalException.class)
+                                .hasMessageContaining("짝이 맞지 않아")
+                                .hasMessageContaining(GenAiIntegrationWiringGuard.REJECTION_LABEL))
+                        .verify();
+            });
+        }
+    }
+
+    @Test
+    @DisplayName("★★짝이_안_맞아도_조회·취소는_막지_않는다 — 고착된 job 을 정리할 경로다")
+    void unpairedCallbackIntakeStillAllowsQueryAndCancel() {
+        // 조회·취소는 <새 수신구를 열지 않는다>. 함께 막으면 짝이 어긋난 배포에서 이미 걸린 위탁을
+        //   회수·정리할 수단까지 잃는다. 여기서 나는 오류는 가드가 아니라 <실제 연결 실패> 여야 한다.
+        pairingRunner("").run(ctx -> {
+            WebClient client = (WebClient) ctx.getBean("augmentApiWebClient");
+            StepVerifier.create(client.get().uri(HttpExternalAugmentClient.JOBS_PATH + "/j-1")
+                            .retrieve().bodyToMono(String.class))
+                    .expectErrorSatisfies(e -> assertThat(e)
+                            .isNotInstanceOf(NonRetryableExternalException.class))
+                    .verify();
+            StepVerifier.create(client.post().uri(HttpExternalAugmentClient.JOBS_PATH + "/j-1/cancel")
+                            .retrieve().bodyToMono(String.class))
+                    .expectErrorSatisfies(e -> assertThat(e)
+                            .isNotInstanceOf(NonRetryableExternalException.class))
+                    .verify();
+        });
+    }
+
+    @Test
+    @DisplayName("★짝_거부_사유에는_대역도_주소도_설정키도_실리지_않는다_CWE209")
+    void pairingRejectionMessageCarriesNoConfigValue() {
+        pairingRunner("").run(ctx -> {
+            WebClient client = (WebClient) ctx.getBean("augmentApiWebClient");
+            StepVerifier.create(client.post().uri(HttpExternalAugmentClient.JOBS_PATH)
+                            .retrieve().bodyToMono(String.class))
+                    .expectErrorSatisfies(e -> assertThat(e.getMessage())
+                            .doesNotContain("127.0.0.1")
+                            .doesNotContain(GenAiIntegrationWiringGuard.KEY_ALLOWLIST)
+                            .doesNotContain("authoring.augment.external.base-url"))
+                    .verify();
+        });
+    }
+
+    @Test
+    @DisplayName("★짝이_맞으면_위탁이_그대로_나간다 — 가드가 정상 연동을 막지 않는다")
+    void pairedCallbackIntakeLetsCommissionThrough() {
+        pairingRunner("203.0.113.0/24").run(ctx -> {
+            WebClient client = (WebClient) ctx.getBean("augmentApiWebClient");
+            StepVerifier.create(client.post().uri(HttpExternalAugmentClient.JOBS_PATH)
+                            .retrieve().bodyToMono(String.class))
+                    .expectErrorSatisfies(e -> assertThat(e)
+                            .isNotInstanceOf(NonRetryableExternalException.class))
+                    .verify();
+        });
     }
 
     @Test

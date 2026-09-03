@@ -4,6 +4,7 @@ import kr.co.cudo.authoring.aiserver.entity.AiSrvrUsageType;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvr;
 import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrAltmntRepository;
 import kr.co.cudo.authoring.aiserver.repository.LsAiSrvrUsgRepository;
+import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.client.PinnedTarget;
 import kr.co.cudo.authoring.aiserver.entity.LsAiSrvrUsg;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.lenient;
@@ -41,6 +43,9 @@ import static org.mockito.Mockito.when;
  *       바쁜 장비가 가장 한가한 장비로 보여 요청을 통째로 빨아들인다).</li>
  *   <li>시계열 축의 부하 원천은 <b>우리 위탁 원장</b>이다(그 축은 폴러가 관측하지 않는다).</li>
  *   <li>영상 고정은 <b>이 축의 성질이 아니다</b>(고정하면 죽은 장비에 묶인 영상이 영영 못 옮겨간다).</li>
+ *   <li><b>원장 식별자 형식</b>을 어긴 장비는 후보에서 빠지고, 그래서 쓸 수 있는 장비가 하나도 남지
+ *       않으면 <b>폴백이 아니라 거부</b>다(폴백하면 이 판정이 막으려던 일이 그대로 일어난다).
+ *       그리고 그 판정은 <b>고를 때마다</b> 새로 한다 — 원장은 런타임에 바뀐다. [@design ADR-062]</li>
  * </ol>
  */
 class AiSrvrSelectorTest {
@@ -313,6 +318,10 @@ class AiSrvrSelectorTest {
      * 즉 앞 단계 필터로는 걸리지 않으며, 정책을 부르지 않으면 그대로 위탁 목적지가 된다 — 그 목적지로
      * 나가는 요청에는 표식이 붙어 자격증명 가드의 호스트 비교까지 면제되므로 <b>배포 기본값보다 느슨한
      * 경로</b>가 열린다.
+     *
+     * <p>⚠ <b>식별자에 하이픈을 쓰지 말 것</b> — 고정값이 형식({@code ^[a-z0-9]{1,20}$})을 어기면
+     * <b>앞선 형식 필터에서 먼저 빠져</b> 이 시험이 검증하려던 주소 정책 축에 도달하지 못한다(그리고
+     * 후보가 전부 비어 위탁 거부로 끝난다). 하이픈은 <b>주소</b> 쪽에만 남겨 둔다. [@design ADR-062]
      */
     @Test
     @DisplayName("★연동_주소_정책을_통과하지_못하는_장비는_후보에서_빠진다")
@@ -321,18 +330,18 @@ class AiSrvrSelectorTest {
         assertThat(PinnedTarget.canPin("ftp://ts-ftp:9500")).isTrue();
         assertThat(PinnedTarget.canPin("http://your-vlm-service:9500")).isTrue();
         assertThat(PinnedTarget.canPin("http://169.254.169.254")).isTrue();
-        available(nodeWithAddr("a-ftp", "ftp://ts-ftp:9500"),
-                nodeWithAddr("b-placeholder", "http://your-vlm-service:9500"),
-                nodeWithAddr("c-imds", "http://169.254.169.254"),
-                nodeWithAddr("d-ok", "http://ts-ok:9500"));
+        available(nodeWithAddr("aftp", "ftp://ts-ftp:9500"),
+                nodeWithAddr("bplaceholder", "http://your-vlm-service:9500"),
+                nodeWithAddr("cimds", "http://169.254.169.254"),
+                nodeWithAddr("dok", "http://ts-ok:9500"));
         // 식별자 순으로는 정책 위반 장비들이 앞이라, 거르지 않으면 그중 하나가 뽑힌다.
-        acceptedCounts(Map.of("a-ftp", 0L, "b-placeholder", 0L, "c-imds", 0L, "d-ok", 0L));
+        acceptedCounts(Map.of("aftp", 0L, "bplaceholder", 0L, "cimds", 0L, "dok", 0L));
 
         // when / then
         assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
                 .map(LsAiSrvr::getSrvrId)
                 .as("정책이 거부하는 주소로는 위탁이 나가면 안 된다")
-                .contains("d-ok");
+                .contains("dok");
     }
 
     /**
@@ -344,12 +353,12 @@ class AiSrvrSelectorTest {
     @Test
     @DisplayName("★평문_http_와_사설대역_장비는_계속_후보다 — 좁히면 분산이 조용히 멈춘다")
     void 평문_http_와_사설대역_장비는_계속_후보다() {
-        available(nodeWithAddr("ts-a", "http://10.0.0.11:9500"),
-                nodeWithAddr("ts-b", "http://192.168.0.12:9500"));
-        acceptedCounts(Map.of("ts-a", 3L, "ts-b", 1L));
+        available(nodeWithAddr("tsa", "http://10.0.0.11:9500"),
+                nodeWithAddr("tsb", "http://192.168.0.12:9500"));
+        acceptedCounts(Map.of("tsa", 3L, "tsb", 1L));
 
         assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
-                .map(LsAiSrvr::getSrvrId).contains("ts-b");
+                .map(LsAiSrvr::getSrvrId).contains("tsb");
     }
 
     /**
@@ -365,6 +374,165 @@ class AiSrvrSelectorTest {
         available(nodeWithAddr("x", "ftp://ts-ftp:9500"), nodeWithAddr("y", "http://changeme:9500"));
 
         assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH)).isEmpty();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    //  원장 식별자 형식 — 기동에서 <선택 시점>으로 옮겨 온 판정 [@design ADR-062] [@design AC-1074]
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /** 형식({@code ^[a-z0-9]{1,20}$})을 어긴 식별자의 장비 — 체크 제약을 우회해 들어온 행을 재현한다. */
+    private LsAiSrvr malformed(String srvrId, LsAiSrvr.SrvrType type) {
+        return LsAiSrvr.register(srvrId, null, "http://ts-ok:9500", type, NOW);
+    }
+
+    /**
+     * ★ <b>위반 행만 빠지고 나머지는 정상 사용된다</b> — 「하나가 잘못되면 전부 못 쓴다」가 아니다.
+     *
+     * <p>이 값은 서킷브레이커 이름·메트릭 라벨로 <b>조립</b>되므로 그 장비를 고르는 순간부터 라벨이
+     * 조용히 어긋난다. 고르는 자리에서 빼면 잘못된 식별자가 나갈 길이 구조적으로 사라진다.
+     */
+    @Test
+    @DisplayName("★식별자_형식을_위반한_장비는_후보에서_빠지고_정상_장비로_간다")
+    void 식별자_형식을_위반한_장비는_후보에서_빠진다() {
+        // given — 부하로는 위반 장비가 더 한가하고 식별자 순으로도 앞이라, 거르지 않으면 그쪽이 뽑힌다.
+        available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES),
+                malformed("ts-02", LsAiSrvr.SrvrType.TIMESERIES),
+                node("ok", LsAiSrvr.SrvrType.TIMESERIES));
+        acceptedCounts(Map.of("KLID-AI-01", 0L, "ts-02", 0L, "ok", 7L));
+
+        // when / then
+        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .as("형식을 어긴 식별자로 위탁이 나가면 서킷·메트릭 라벨이 조용히 어긋난다")
+                .map(LsAiSrvr::getSrvrId).contains("ok");
+    }
+
+    /**
+     * ★★ <b>전부 위반이면 폴백이 아니라 거부다</b> — 이 시험이 이 라운드의 핵심이다.
+     *
+     * <p>여기서 {@code empty} 를 돌려주면 호출자는 「분산을 못 했다」로 읽고 <b>배포 기본 주소로 그대로
+     * 위탁</b>한다. 즉 「쓰면 안 되는 장비만 있는 원장」을 만난 요청이 아무 일도 없었다는 듯 나가고,
+     * 이 판정이 막으려던 바로 그 일이 벌어진다.
+     *
+     * <p>이 시험은 <b>거부를 try 블록 안에서 던지는 회귀도 함께 잡는다</b> — 안에서 던지면 조회 실패
+     * catch 가 그것을 삼켜 {@code empty} 가 되고, 이 단언이 죽는다.
+     */
+    @Test
+    @DisplayName("★★쓸_수_있는_장비가_하나도_없으면_폴백하지_않고_위탁을_거부한다")
+    void 쓸_수_있는_장비가_없으면_위탁을_거부한다() {
+        available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES),
+                malformed("ts-02", LsAiSrvr.SrvrType.TIMESERIES));
+
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .as("empty 를 돌려주면 호출자가 배포 기본 주소로 폴백해 fail-closed 가 조용히 열린다")
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    /**
+     * ★ 다른 사유로 빠진 장비가 섞여 있어도, <b>위반이 하나라도 있었으면</b> 거부다.
+     *
+     * <p>남은 후보가 0이라는 사실은 같은데 원인이 다르다 — 「없다」면 폴백이 맞고 「있는데 못 쓴다」면
+     * 폴백이 곧 사고다. 둘을 같은 값으로 뭉개면 그 구분이 사라진다.
+     */
+    @Test
+    @DisplayName("★형식_위반과_보낼_수_없는_주소가_섞여_전부_빠져도_거부한다")
+    void 형식_위반이_섞여_전부_빠지면_거부한다() {
+        available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES),
+                nodeWithAddr("blank", "   "));
+
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    /**
+     * ★ <b>거부 사유에는 어느 연동인지와 사유 분류만 싣는다</b>(AC-1074).
+     *
+     * <p>식별자 원문·주소·형식 규칙은 <b>서버 기록에만</b> 남긴다 — 거부 응답이 내부망을 더듬는 수단이
+     * 되면 안 된다(CWE-209/497).
+     */
+    @Test
+    @DisplayName("★거부_사유에_식별자_원문과_주소가_실리지_않는다")
+    void 거부_사유에_식별자와_주소가_실리지_않는다() {
+        available(LsAiSrvr.register("KLID-AI-01", null, "http://10.9.9.9:9500",
+                LsAiSrvr.SrvrType.TIMESERIES, NOW));
+
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .isInstanceOf(NonRetryableExternalException.class)
+                .hasMessageContaining("외부 시계열 분석 벤더")
+                .hasMessageNotContaining("KLID-AI-01")
+                .hasMessageNotContaining("10.9.9.9")
+                .hasMessageNotContaining("[a-z0-9]");
+    }
+
+    /** ★ 추론 축도 같은 규칙이며, 거부 문구는 <b>그 축의 연동 이름</b>을 쓴다. */
+    @Test
+    @DisplayName("★추론_축도_같은_규칙이고_거부_문구는_그_축의_연동_이름을_쓴다")
+    void 추론_축도_같은_규칙이다() {
+        available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.INFERENCE));
+
+        assertThatThrownBy(() ->
+                selector.select(LsAiSrvr.SrvrType.INFERENCE, AiSrvrUsageType.INTERACTIVE))
+                .isInstanceOf(NonRetryableExternalException.class)
+                .hasMessageContaining("AI 추론 서버");
+    }
+
+    /**
+     * ★★ <b>고를 때마다 다시 판정한다</b> — 기동 시 1회 판정을 캐시하면 안 되는 이유.
+     *
+     * <p>원장은 운영 화면에서 <b>런타임에</b> 바뀐다(장비 등록·수정). 판정을 들고 있으면 뒤에 등록한
+     * 정상 장비가 <b>영영 제외</b>되거나, 이미 고친 장비가 계속 제외된다. 재기동 없이 반영돼야 한다.
+     */
+    @Test
+    @DisplayName("★★기동_뒤_정상_장비를_추가하면_재기동_없이_선택된다 — 판정을 캐시하지 않는다")
+    void 나중에_추가한_정상_장비가_재기동_없이_선택된다() {
+        // given — 처음에는 위반 행뿐이라 거부된다.
+        available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES));
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .isInstanceOf(NonRetryableExternalException.class);
+
+        // when — 운영자가 관리 화면에서 정상 장비를 등록했다(원장 스냅샷이 바뀐다).
+        available(malformed("KLID-AI-01", LsAiSrvr.SrvrType.TIMESERIES),
+                node("ok", LsAiSrvr.SrvrType.TIMESERIES));
+
+        // then — 재기동 없이 곧바로 후보가 된다.
+        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .as("판정을 캐시하면 뒤에 등록한 정상 장비가 영영 제외된다")
+                .map(LsAiSrvr::getSrvrId).contains("ok");
+    }
+
+    /**
+     * ★ 반대 방향도 재기동 없이 반영된다 — 정상이던 장비가 <b>어긋난 값으로 수정</b>되면 곧 빠진다.
+     *
+     * <p>캐시가 있으면 이미 통과한 장비는 계속 통과한다. 그 방향의 누수가 더 위험하다.
+     */
+    @Test
+    @DisplayName("★정상이던_장비가_어긋난_값으로_바뀌면_다음_선택부터_빠진다")
+    void 정상이던_장비가_바뀌면_다음_선택부터_빠진다() {
+        available(node("ok", LsAiSrvr.SrvrType.TIMESERIES));
+        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .map(LsAiSrvr::getSrvrId).contains("ok");
+
+        // when — 같은 장비가 형식을 어긴 식별자로 다시 등록됐다.
+        available(malformed("OK", LsAiSrvr.SrvrType.TIMESERIES));
+
+        assertThatThrownBy(() -> selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .isInstanceOf(NonRetryableExternalException.class);
+    }
+
+    /**
+     * ★ <b>조회 실패는 거부로 격상되지 않는다</b> — DB 가 흔들렸을 뿐 원장이 잘못된 것이 아니다.
+     *
+     * <p>이 둘을 같은 실패로 다루면, 커넥션 풀이 마르는 순간 시계열 위탁이 <b>전량 확정 실패</b>로
+     * 마감된다(노드 분산 도입 전에는 없던 실패 모드다).
+     */
+    @Test
+    @DisplayName("★조회_실패는_거부가_아니라_고르지_못했다로_남는다")
+    void 조회_실패는_거부로_격상되지_않는다() {
+        when(registry.findAvailable())
+                .thenThrow(new org.springframework.dao.QueryTimeoutException("pool exhausted"));
+
+        assertThat(selector.select(LsAiSrvr.SrvrType.TIMESERIES, AiSrvrUsageType.BATCH))
+                .as("DB 순단을 원장 오류로 격상시키면 위탁이 전량 확정 실패로 마감된다")
+                .isEmpty();
     }
 
     private boolean dependsOnAssignmentLedger(Class<?> type) {

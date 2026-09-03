@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.augment.integration;
 import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
 import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
+import kr.co.cudo.authoring.common.config.GenAiIntegrationWiringGuard;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -64,8 +65,16 @@ import java.time.Duration;
  * <b>미연동 모드 토글 축은 폐기</b>됐다(설정 키·판정기·전용 클라이언트 구현까지). 이제 이 빈은 항상
  * 만들어지고, 「연동됐는가」는 {@link AugmentExternalLinkPolicy}(= 주소 주입 여부)가 판정한다.
  *
+ * <h3>★ 주소 축 말고 <b>짝 맞춤 축</b>도 여기서 막는다 (2026-09-03 확정, 구속)</h3>
+ * <p>위탁 주소가 정상이어도 <b>콜백 IP allowlist 가 비어 있으면</b> 결과를 되받을 수 없어 그 증강이
+ * 영구 고착된다. 그 판정({@code GenAiIntegrationWiringGuard})도 <b>기동을 막던 것을 위탁 시점으로</b>
+ * 옮겼다 — 주소 축과 <b>다른 축</b>이지만 「보호가 필요한 순간은 기동이 아니다」라는 근거가 같다.
+ * ⚠ 이 필터를 떼면 <b>되받지 못할 위탁이 실제로 나간다</b>(= 그 가드가 없어진 것과 같다).
+ *
  * <p>base-url 은 <b>서버 설정값</b>만 사용하며 사용자 입력으로 호스트를 구성하지 않는다. 인증 헤더는
  * 붙이지 않는다 — 명세서·목 서버 모두 인증 미구현이 확정 계약이다.
+ *
+ * @design ADR-062
  */
 @Slf4j
 @Configuration
@@ -91,7 +100,8 @@ public class AugmentApiWebClientConfig {
     @Bean(name = "augmentApiWebClient")
     public WebClient augmentApiWebClient(
             @Value("${authoring.augment.external.base-url:}") String baseUrl,
-            AugmentUrlPolicy urlPolicy) {
+            AugmentUrlPolicy urlPolicy,
+            GenAiIntegrationWiringGuard wiringGuard) {
         // ★ 주소가 어떤 상태여도 기동한다 — 판정은 그대로 태우되 결과를 <들고 있다가> 전송 시점에 쓴다.
         //   구 배선은 여기서 예외를 던져(빈 생성 실패) 기동을 막았다. 규칙은 그대로이고 시점만 옮겼다.
         ExternalEndpointAddress address = ExternalEndpointAddress.of(
@@ -112,6 +122,11 @@ public class AugmentApiWebClientConfig {
                 //   loopback:80 으로 실제 연결이 나가고, 그 요청 바디에는 비식별 프레임 절대경로와
                 //   콜백 주소가 실린다(온프렘은 같은 호스트에 웹서버가 있어 접근 로그에 남는다).
                 .filter(AugmentTransportGuard.requireUsableAddress(address.rejectionLabel()))
+                // ★ 주소가 멀쩡해도 <결과를 되받을 수 없으면> 위탁을 걸지 않는다 — 위탁은 202 로
+                //   나가는데 콜백이 전건 403 이면 그 증강이 PENDING 으로 영구 고착된다(만료 스윕 없음).
+                //   조회·취소는 대상이 아니다(고착된 job 을 정리할 경로까지 막으면 안 된다).
+                .filter(AugmentTransportGuard.requirePairedCallbackIntake(
+                        wiringGuard.commissionRejectionLabel()))
                 .build();
     }
 }

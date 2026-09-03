@@ -67,7 +67,9 @@ services:
       AUGMENT_API_BASE_URL: "http://klid-mock-server:9400"
       #   ★ 위탁(http)과 콜백 수신은 <짝>이다 — genai 콜백 IP allowlist 는 미설정/none 이면 전면 차단이라
       #     열지 않으면 결과 콜백이 전건 403 이 되어 증강이 PENDING 에 영구 고착된다(그래서
-      #     GenAiIntegrationWiringGuard 가 이 조합을 기동 시점에 차단한다). 목은 docker 브리지 사설 IP 로
+      #     GenAiIntegrationWiringGuard 가 이 조합에서 <위탁을> 거부한다 — 기동은 통과하고 ERROR
+      #     로그만 남으며 조회·취소는 막지 않는다. 구 서술 「기동 시점에 차단한다」는 폐기 —
+      #     2026-09-03 · ADR-062). 목은 docker 브리지 사설 IP 로
       #     접속해 대역을 고정할 수 없으므로 <로컬만> 0.0.0.0/0 을 명시한다(base 는 fail-closed 'none' 유지).
       #     .env 의 빈 값 대입에 좌우되지 않도록 리터럴로 못박는다(env_file < environment 우선순위).
       WEBHOOK_GENAI_ALLOWED_IP_CIDRS: "0.0.0.0/0"

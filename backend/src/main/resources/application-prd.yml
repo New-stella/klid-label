@@ -54,7 +54,12 @@ spring:
 #     그래서 토글로 못박을 이유가 사라졌고, 그 축은 폐기됐다. 실연동 전환은 AUGMENT_API_BASE_URL
 #     주입만으로 끝난다.
 #   ⚠ 주입하면 콜백 allowlist(WEBHOOK_GENAI_ALLOWED_IP_CIDRS)도 함께 명시해야 한다 — 짝이 안 맞으면
-#     GenAiIntegrationWiringGuard 가 기동을 막는다(위탁은 나가는데 콜백이 전건 403 이 되는 고착 방지).
+#     GenAiIntegrationWiringGuard 가 <위탁을> 거부한다(위탁은 나가는데 콜백이 전건 403 이 되는 고착 방지).
+#     ★ 구 서술 「기동을 막는다」는 폐기다(2026-09-03 · ADR-062) — 주소 축과 같은 근거로 판정을 기동에서
+#       위탁 시점으로 옮겼다. 기동은 통과하고 ERROR 만 남는다.
+#     ⚠ 이 파일의 다른 「기동 차단」 서술(HmacWebhookFilter/ClientIpResolver/WebhookIpAllowlist ·
+#       VLM allowlist · trusted-proxy-cidrs)은 ADR-062 <대상이 아니라> 여전히 기동을 막는다 —
+#       낱말로 훑어 함께 고치지 말 것.
 authoring:
   # [운영 노출] 수동 업로드(/v1/dev/upload) — 2026-08-24 CO-008 로 운영에서도 켠다.
   #   왜 기본값을 뒤집나: 외부에서 받은 영상을 운영자가 직접 올려야 하는 동선이 실제로 있고,

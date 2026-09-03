@@ -40,18 +40,30 @@ import java.util.List;
  * 가리켜, 장비를 나눈 구성에서는 반드시 틀린다. 그리고 <b>틀려도 기동과 상태점검은 정상이고
  * 오토라벨링만 조용히 실패한다</b> — 그래서 최초 등록에 경고를 남긴다. 이 경고가 유일한 단서다.
  *
- * <h3>2. 검증 — 경고가 아니라 기동 차단인 이유</h3>
- * <p>식별자가 형식을 어기면 서킷브레이커 이름과 메트릭 라벨이 조용히 어긋나고, 그 어긋남은
- * <b>한참 뒤 대시보드에서야</b> 드러난다. 운영 로그의 경고는 배포 로그에 묻히므로 경고로는 막을 수
- * 없다. {@code QuartzClusteringGuard} 와 <b>같은 강도·구조</b>로 기동 자체를 실패시킨다.
+ * <h3>2. 검증 — 기동을 막지 않는다. 판정은 <b>장비를 고르는 시점</b>에 걸린다 [@design ADR-062]</h3>
+ * <p>식별자가 형식을 어기면 서킷브레이커 이름과 메트릭 라벨이 조용히 어긋난다. 그러나 그 어긋남이
+ * <b>실제로 일어나는 순간</b>은 기동이 아니라 <b>그 장비를 골라 위탁하는 순간</b>이다 — 고르는
+ * 자리에서 위반 행을 빼면 잘못된 식별자가 나갈 길이 구조적으로 없다. 그래서 판정을 <b>없애지 않고
+ * 자리만 옮겼다</b>({@link kr.co.cudo.authoring.aiserver.service.AiSrvrSelector}).
+ *
+ * <p>여기서는 막는 대신 위반을 <b>전부</b> ERROR 로 남긴다 — 「막지 않는다」가 「알리지 않는다」가
+ * 되면 안 된다. 하나씩 알려주면 고치고 다시 보기를 반복하게 되므로 한 번에 전부 싣는다.
+ *
+ * <p>⚠ <b>구 동작 폐기(2026-09-03 확정)</b> — 원장에 형식 위반 행이 하나라도 있으면
+ * {@code QuartzClusteringGuard} 와 같은 강도로 <b>기동 자체를 실패</b>시켰다. 설정 한 줄도 아니고
+ * <b>운영 데이터 한 행</b>이 앱 전체를 못 뜨게 했다. 되살리지 말 것.
  *
  * <p>DB 체크 제약이 이미 같은 규칙을 거는데도 여기 한 겹을 더 두는 이유는, 제약을 <b>우회해 들어온
- * 행</b>(운영 SQL · 제약 도입 이전 데이터)을 읽는 쪽이 막아야 하기 때문이다. 어느 한 겹도 다른
+ * 행</b>(운영 SQL · 제약 도입 이전 데이터)을 읽는 쪽이 알려야 하기 때문이다. 어느 한 겹도 다른
  * 겹을 대체하지 않는다.
  *
+ * <p>★ <b>여기서 낸 판정을 들고 있지 않는다</b> — 원장은 운영 화면에서 <b>런타임에</b> 바뀐다.
+ * 기동 시 1회 판정을 캐시하면 뒤에 등록한 정상 장비가 영영 제외되거나 그 반대가 된다. 선택기는
+ * <b>고를 때마다</b> 다시 판정한다.
+ *
  * <h3>왜 {@code ApplicationRunner} 인가</h3>
- * <p>DB 를 읽어야 하므로 데이터소스·JPA 가 모두 준비된 뒤여야 한다. 이 지점의 예외는 기동을
- * 중단시킨다(fail-closed).
+ * <p>DB 를 읽어야 하므로 데이터소스·JPA 가 모두 준비된 뒤여야 한다. ⚠ <b>연동 설정·원장 데이터를
+ * 이유로는 이 지점에서 기동을 중단시키지 않는다</b>(위 §2).
  */
 @Slf4j
 @Component
@@ -88,7 +100,7 @@ public class AiSrvrBootstrapGuard implements ApplicationRunner {
     public AiSrvrBootstrapGuard(LsAiSrvrRepository repository,
                                 AiSrvrRegistry registry,
                                 // 키가 없어도 기동을 막지 않는다 — 씨앗은 값이 있을 때만 심는다.
-                                //   (2026-09-03 확정: 연동 주소로 기동을 막지 않는다)
+                                //   [design: ADR-062] 연동 주소로 기동을 막지 않는다(2026-09-03 확정).
                                 @Value("${authoring.integration.ai-server.base-url:}")
                                 String configuredSrvrAddr,
                                 // 미연동이 정상인 배포가 있어 <기본값을 빈 값>으로 둔다.
@@ -105,6 +117,7 @@ public class AiSrvrBootstrapGuard implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         bootstrapIfEmpty();
         // 우리가 방금 세운 노드까지 함께 검증한다 — 스스로 만든 값이 제약에 걸리는 일이 없도록.
+        // ★ 이 호출은 기동을 막지 않는다(알리기만 한다). 실제 차단은 장비를 고르는 시점이다.
         verifyLedger();
     }
 
@@ -169,34 +182,53 @@ public class AiSrvrBootstrapGuard implements ApplicationRunner {
                 srvrTypeCd, srvrId, configKey);
     }
 
-    /** 원장 전 행의 식별자 형식을 확인한다 — 하나라도 어긋나면 기동을 중단시킨다. */
-    void verifyLedger() {
-        verifySrvrIds(repository.findAll().stream().map(LsAiSrvr::getSrvrId).toList());
-    }
-
     /**
-     * 순수 판정 — 컨테이너 없이도 단위 검증할 수 있도록 분리했다.
+     * 원장 전 행의 식별자 형식을 확인해 <b>위반을 전부 ERROR 로 알린다</b>. [@design ADR-062]
      *
-     * <p>빈 원장은 위반이 아니다(부트스트랩이 채운다). 위반은 <b>전부</b> 알려준다 — 하나씩
-     * 알려주면 고치고 다시 기동하기를 반복하게 된다.
+     * <p>⚠ <b>이름이 남았을 뿐 더 이상 「검증 실패 = 기동 실패」가 아니다</b> — 던지지 않는다.
      *
-     * @throws IllegalStateException 형식을 어긴 식별자가 하나라도 있을 때
+     * <p><b>기동을 막지 않는다.</b> 막아야 할 것은 잘못된 식별자로 <b>위탁이 나가는 것</b>이고 그
+     * 순간은 기동이 아니라 선택 시점이라, 판정은 {@code AiSrvrSelector} 가 <b>고를 때마다</b>
+     * 다시 건다. 여기 남는 기록은 「막지 않는다」가 「알리지 않는다」가 되지 않게 하는 유일한 장치다.
+     *
+     * <p>⚠ 이 메서드의 결과를 <b>어디에도 저장하지 않는다</b> — 원장은 런타임에 바뀌므로 기동
+     * 시점의 판정을 들고 있으면 곧 사실과 어긋난다.
+     *
+     * <p>조회가 실패하면 예외가 그대로 올라간다 — 그건 연동 설정이 아니라 <b>DB 를 못 읽는 상태</b>라
+     * 이 결정의 사정거리 밖이다.
      */
-    static void verifySrvrIds(Collection<String> srvrIds) {
-        List<String> violations = srvrIds.stream()
-                .filter(srvrId -> !AiSrvrIdPolicy.isValid(srvrId))
-                .map(AiSrvrBootstrapGuard::sanitizeForMessage)
-                .toList();
+    void verifyLedger() {
+        List<String> violations =
+                srvrIdViolations(repository.findAll().stream().map(LsAiSrvr::getSrvrId).toList());
         if (violations.isEmpty()) {
             return;
         }
-        throw new IllegalStateException(
-                "AI 서버 식별자가 형식(" + AiSrvrIdPolicy.SRVR_ID_REGEX + ")을 위반했습니다: "
-                        + violations + "."
+        // 위반은 <전부> 싣는다 — 하나씩 알려주면 고치고 다시 보기를 반복하게 된다.
+        log.error("[AiSrvr] 원장의 AI 서버 식별자가 형식({})을 위반했습니다: {}."
                         + " 이 값은 서킷브레이커 이름과 메트릭 라벨로 조립되므로 하이픈·대문자가 섞이면"
                         + " 라벨이 조용히 어긋납니다. 실제 장비 호스트명은 SRVR_NM 에 두고,"
-                        + " SRVR_ID 는 소문자·숫자 " + AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH
-                        + "자 이내로 바꾸세요.");
+                        + " SRVR_ID 는 소문자·숫자 {}자 이내로 바꾸세요."
+                        + " ★기동은 통과하지만 이 장비들은 위탁 후보에서 제외되며,"
+                        + " 그 축에 쓸 수 있는 장비가 하나도 남지 않으면 위탁이 거부됩니다.",
+                AiSrvrIdPolicy.SRVR_ID_REGEX, violations, AiSrvrIdPolicy.SRVR_ID_MAX_LENGTH);
+    }
+
+    /**
+     * 순수 판정 — <b>예외를 던지지 않는다</b>. 컨테이너 없이도 단위 검증할 수 있도록 분리했다.
+     *
+     * <p>빈 원장은 위반이 아니다(부트스트랩이 채운다). 규칙 자체는 {@link AiSrvrIdPolicy} 가
+     * 소유하며 여기서 다시 쓰지 않는다 — 옮겨 적으면 그 사본이 두 번째 진실원이 된다.
+     *
+     * <p>⚠ <b>구 형태 폐기</b> — 위반이 하나라도 있으면 {@code IllegalStateException} 을 던져
+     * 기동을 중단시키던 {@code verifySrvrIds} 가 이 자리에 있었다. 되살리지 말 것([@design ADR-062]).
+     *
+     * @return 형식을 어긴 식별자의 <b>안전한 표기</b> 목록(위반이 없으면 빈 목록)
+     */
+    static List<String> srvrIdViolations(Collection<String> srvrIds) {
+        return srvrIds.stream()
+                .filter(srvrId -> !AiSrvrIdPolicy.isValid(srvrId))
+                .map(AiSrvrBootstrapGuard::sanitizeForMessage)
+                .toList();
     }
 
     /**

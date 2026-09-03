@@ -99,9 +99,10 @@ class AugmentExternalConfigTest {
     }
 
     @Test
-    @DisplayName("★dev_는_위탁_주소와_콜백_allowlist_의_짝이_맞는다 — 한쪽만_열면_기동이_막힌다")
+    @DisplayName("★dev_는_위탁_주소와_콜백_allowlist_의_짝이_맞는다 — 한쪽만_열면_위탁이_막힌다")
     void devPairsBaseUrlWithCallbackAllowlist() throws IOException {
-        // 위탁이 활성인데 콜백 allowlist 가 비면 GenAiIntegrationWiringGuard 가 기동을 막는다.
+        // 위탁이 활성인데 콜백 allowlist 가 비면 GenAiIntegrationWiringGuard 가 <위탁을> 막는다
+        //   (2026-09-03 — 구 동작은 기동 차단이었고 그 자리가 옮겨졌다. ADR-062).
         //   dev 는 위탁 주소를 갖게 됐으므로 allowlist 도 함께 명시해야 한다.
         assertThat(defaultOf(property("application-dev.yml", "webhook.genai.allowed-ip-cidrs")))
                 .as("dev 위탁 주소를 넣었으면 콜백 allowlist 도 명시해야 한다")
