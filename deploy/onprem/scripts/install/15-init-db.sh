@@ -39,7 +39,8 @@ if [[ "${DB_INIT_RUN:-0}" != "1" ]] || ! command -v psql >/dev/null 2>&1; then
   # 3) 스키마/테이블은 16-load-schema.sh 가 db/schema.sql 로드로 생성합니다(빈 DB + OWNER 권한).
   #    LS_* 62개·QRTZ_* 11개·뷰 4개 + 시드 66행이 한 번에 로드됩니다(온프렘은 Flyway 미사용 —
   #    아무도 로드하지 않으면 테이블이 생기지 않습니다). ⚠ 그래도 backend 는 기동에 성공하므로
-  #    반드시 테이블 개수를 세어 확인하세요(정상값 73).
+  #    반드시 테이블 개수를 세어 확인하세요. 기대값은 매체에서 셉니다(하드코딩하지 않는다):
+#      grep -c '^CREATE TABLE klid_at\.' db/schema.sql   +   grep -c '^CREATE VIEW klid_at\.' db/schema.sql
 
   # 자동 생성을 원하면(psql 접속 가능 시):
   #   sudo DB_INIT_RUN=1 PGHOST=... PGPORT=5432 PGUSER=postgres PGPASSWORD=... \\

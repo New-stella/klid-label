@@ -413,9 +413,12 @@ EPEL 은 배포판 기본 리포가 아니므로 **법무 확인이 필요한 �
 | 실행 jar(개발 전용 — **기본 미수집**) | `backend/build/libs/*.jar` (bootJar, `WITH_BACKEND_JAR=1` 일 때만) | `artifacts/backend/klid-backend.jar` | ~60–90MB |
 
 > **두 산출물의 지위가 다르다** (@design DEPLOY-001 의 `build_artifacts`):
-> - `api.war` = **반입 정본**. 대상 장비의 외부 WAS(Tomcat 10.1.x + Java 17)에 올린다.
->   **파일 이름이 곧 웹 컨텍스트(`/api`)** 이므로 rename 금지.
->   WAR 에는 톰캣이 들어가지 않는다(`providedRuntime` → `WEB-INF/lib-provided`).
+> - `api.war` = **반입 정본**. 대상 장비의 외부 WAS(JBoss EAP 8.1 + Java 17)에 올린다.
+>   컨테이너에 톰캣이 실리지 않는다(`providedRuntime` → `WEB-INF/lib-provided`) — 그래서 컨테이너 중립이다.
+>   웹 컨텍스트는 **`WEB-INF/jboss-web.xml` 이 `/api` 로 고정**한다(2026-09-04 신설 — 현장에서 파일명이
+>   `klid-at-api.war` 로 바뀐 채 배포돼 컨텍스트가 어긋난 사례가 있었다). EAP 밖의 컨테이너에서는
+>   여전히 **파일명이 컨텍스트를 정하므로** 그때는 `api.war` 이름을 유지한다.
+>   `WEB-INF/jboss-deployment-structure.xml` 도 함께 들어간다 — **로그 마스킹을 지키는 필수 파일**이다.
 > - `klid-backend.jar` = **개발 환경 전용이라 반입 대상이 아니다.** 설치 스크립트는 WAR 형상에서
 >   이 jar 를 배치하지 않는다(베어메탈 토글 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 일 때만 쓴다).
 >   ⚠ **구 동작 폐기(2026-08-30)** — *"빌드머신이 계속 만들어 둔다"*. 배치하지 않는 파일을 수집만
@@ -464,7 +467,7 @@ EPEL 은 배포판 기본 리포가 아니므로 **법무 확인이 필요한 �
 | CPython 3.11 standalone (3.11.15) | python-build-standalone (태그 20260623) | `runtimes/python/*.tar.gz` | ~30MB |
 
 > ⚠ 구 행 폐기(2026-08-30) — `Temurin JRE 17 (17.0.19+10)` → `runtimes/jdk/*.tar.gz` (~45MB).
-> 자바 런타임은 반입 대상이 아니다(대상 장비 WAS 가 Tomcat 10.1.x + Java 17 로 이미 돌고 있다).
+> 자바 런타임은 반입 대상이 아니다(대상 장비 WAS 가 JBoss EAP 8.1 + Java 17 로 이미 돌고 있다).
 > `versions.sh` 의 `TEMURIN_JRE_*` 핀은 베어메탈 복귀용으로 **남겨 두되 아무도 읽지 않는다**.
 
 | httpd | 배포판 저장소(RPM) | `syspkgs/rpm/httpd*.rpm` | ~2MB(+의존성) |
@@ -541,7 +544,7 @@ docker run --rm --network none --platform linux/amd64 \
 | 7 | httpd | `httpd -v` 동작 |
 | 8 | 자바 미반입 확인 | `runtimes/jdk` 가 비어 있어도 설치가 완주한다(자바는 WAS 소유) |
 
-> ⚠ **이 리허설은 WAS 를 재현하지 않는다.** 컨테이너에 Tomcat 이 없으므로 `api.war` 실제 기동과
+> ⚠ **이 리허설은 WAS 를 재현하지 않는다.** 컨테이너에 WAS(JBoss EAP)가 없으므로 `api.war` 실제 기동과
 > WAS 설정 이관(docs/10-was-settings.md) 효과는 **여기서 검증되지 않는다.**
 > 그 두 가지는 대상 장비의 WAS 에서만 확인할 수 있고, 특히 **대용량 업로드 설정은 사람이 1회 수행**해야 한다.
 > ⚠ 그 1회를 **빠뜨려도 설치는 성공하고 화면도 뜬다** — 아무 신호가 없다가 큰 파일 업로드에서만 실패한다.
@@ -569,7 +572,7 @@ docker run --rm --network none --platform linux/amd64 \
 
 통과했다고 해서 아래가 검증된 것은 **아니다**. 이 경계가 이 절의 값어치다.
 
-- **WAS 기동·`api.war` 실행** — 컨테이너에 Tomcat 이 없다. 설치 스크립트가 WAR 를 배치하는
+- **WAS 기동·`api.war` 실행** — 컨테이너에 WAS(JBoss EAP)가 없다. 설치 스크립트가 WAR 를 배치하는
   데까지만 확인됐고 그것이 뜨는지는 보지 않았다.
 - **WAS 설정 이관 효과**(docs/10-was-settings.md) — 대상 장비의 WAS 에서만 확인된다.
   ★ **대용량 업로드 설정은 대상 장비에서 사람이 1회 수행해야 하고, 빠뜨려도 아무 신호가 없다.**

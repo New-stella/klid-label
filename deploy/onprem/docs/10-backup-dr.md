@@ -169,7 +169,7 @@ sudo tar -C /etc -xzpf /backup/klid/<날짜>/etc-klid.tgz   # /etc/klid/ 복원(
 4. **DB 복원**: **외부 DB 는 DB 운영 주체가 복구**하며 저작도구는 접속 정보만 설정한다. (번들 PG 단독 구성이면 3-1 로 `klid_system`·`portal` 복원, 필요 시 `globals.sql` 선복원.)
 5. **저장소 복원**: `/nas-storage` 를 백업/스냅샷에서 복원(스토리지 운영 주체 정책, 마운트가 살아 있으면 재마운트만).
 6. **★ WAS 재구성**: 새 장비의 WAS 에 `api.war` 를 배포하고 기동 옵션
-   (`-Dspring.config.additional-location=file:/etc/klid/` · `-Dspring.profiles.active=prd` · `CATALINA_OPTS`)과
+   (`-Dspring.config.additional-location=file:/etc/klid/` · `-Dspring.profiles.active=prd` · **`JAVA_OPTS`**)과
    **WAS 설정 이관**([10-was-settings.md](10-was-settings.md))을 다시 수행한다. 예시 파일은
    `config/was/` 에 있다. **이 단계는 설치 스크립트가 대신하지 못한다** — 빠뜨리면 기동은 되는데
    대용량 업로드만 조용히 깨진다. 확정한 현장값은 `/etc/klid/was.env` 에 다시 적는다.

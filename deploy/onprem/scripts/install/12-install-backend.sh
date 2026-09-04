@@ -5,7 +5,7 @@ set -euo pipefail
 #
 #   ★ 확정 배포 형상 = <외부 WAS 에 api.war 반입> (@design DEPLOY-001 · RUNBOOK-001,
 #     2026-08-30 사용자 확정). 대상 장비에는 관제지원시스템 WAS 와 동일 사양인
-#     Tomcat 10.1.x + Java 17 이 이미 돌고 있고, 백엔드 프로세스의 수명주기는 그 WAS 가 갖는다.
+#     JBoss EAP 8.1 + Java 17 이 이미 돌고 있고, 백엔드 프로세스의 수명주기는 그 WAS 가 갖는다.
 #     따라서 이 스크립트는 <배치까지만> 하고 기동하지 않는다. WAS 배포 디렉터리로의 복사와
 #     WAS 설정 이관(docs/10-was-settings.md)은 <사람이> 한다.
 #
@@ -153,13 +153,16 @@ fi
 # ---- 사람이 해야 하는 남은 단계 (건너뛰면 조용히 깨진다) ----
 info "----------------------------------------------------------------"
 info "[backend] ★ 남은 필수 단계 — 이 스크립트가 대신 할 수 없다:"
-info "  1) ${APP_DIR}/api.war 를 WAS 배포 디렉터리로 복사 (파일명 변경 금지 — 이름이 컨텍스트 /api 다)"
+info "  1) ${APP_DIR}/api.war 를 WAS 배포 디렉터리로 복사"
+info "     · JBoss EAP: <JBOSS_HOME>/standalone/deployments/ 로 복사 후 api.war.dodeploy 마커 생성"
+info "     · 컨텍스트 /api 는 WAR 안 WEB-INF/jboss-web.xml 이 고정한다(EAP). 그 밖 컨테이너는 파일명이 정한다"
 info "  2) WAS 기동 옵션 배선: -Dspring.config.additional-location=file:${KLID_ETC}/ · -Dspring.profiles.active=prd"
-info "     · JVM 옵션(MaxRAMPercentage·G1GC·egd)도 WAS 의 CATALINA_OPTS 로 옮긴다"
+info "     · JVM 옵션(MaxRAMPercentage·G1GC·egd)도 WAS 의 JAVA_OPTS 로 옮긴다(EAP: bin/standalone.conf)"
 info "  3) WAS 설정 이관: docs/10-was-settings.md 의 점검 체크리스트를 끝까지 수행"
-info "     · 설정 예시 파일: ${ONPREM}/config/was/ (README.md · setenv.sh.example ·"
-info "       context-api.xml.example · server-connector.xml.example)"
-info "     · 업로드 본문 한도 2종 · 요청 스레드 예산 · 비동기 타임아웃 · 프록시 IP 치환 밸브 부재"
+info "     · 설정 예시 파일: ${ONPREM}/config/was/ (README.md · standalone.conf.example ·"
+info "       standalone-undertow.xml.example)"
+info "     · undertow max-post-size · io worker task-max-threads · proxy-address-forwarding=false"
+info "       (⚠ 톰캣의 RemoteIpValve 에 해당하는 것이 proxy-address-forwarding 이다 — 이름이 다르다)"
 info "     · 빠뜨려도 기동과 일반 요청은 정상이라 배포 시점에는 아무 신호가 없다"
 info "       (대용량 업로드에서만 실패한다 — 실제로 1회 올려서 확인할 것)"
 info "  4) ${WAS_ENV_DST} 에 WAS 현장값(유닛명·WAS_HOME·로그 경로·실행 계정)을 적는다"

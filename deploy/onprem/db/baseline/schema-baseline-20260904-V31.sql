@@ -1,0 +1,5466 @@
+-- ============================================================================
+-- schema.sql — 저작도구 전체 스키마 단일 생성본 (Flyway V1~Vn 적용 결과 스냅샷)
+--
+-- ★ 생성물(수기 편집 금지). gen-schema-sql.sh 가 Flyway 로 적용한 스키마를 덤프한다.
+--   → Flyway 가 실제 적용한 스키마와 100% 동일하다(마이그레이션 전량 적용 후의 덤프).
+--
+-- ★ 대상 스키마 = klid_at (앱의 ${DB_SCHEMA:klid_at} 와 같은 축).
+--   덤프는 CREATE SCHEMA 를 포함하고 모든 객체가 스키마 한정이므로, 로더의 search_path 와
+--   무관하게 항상 이 스키마에 만들어진다.
+--
+-- 용도(온프렘/이중화): Flyway 를 부팅 경로에서 제외(SPRING_FLYWAY_ENABLED=false)하고,
+--   설치 시 이 파일을 빈 DB 에 1회 로드. 두 노드 모두 검증만 → advisory lock 경합 없음.
+--
+-- flyway_schema_history 제외(Flyway 미사용). 마이그레이션이 넣은 시드 행은 COPY 블록으로
+--   그대로 포함된다(ls_system_config·qrtz_locks 만이 아니라 이벤트유형·라벨 마스터 등도 들어간다.
+--   실제 목록은 이 파일의 COPY 블록이 정본이며, 여기에 표를 복제하면 마이그레이션이 늘 때 낡는다).
+-- 재생성: deploy/onprem/scripts/gen-schema-sql.sh (빌드머신, docker 필요)
+-- ============================================================================
+
+--
+-- PostgreSQL database dump
+--
+
+\restrict PAPxGaRwpYDGgm6fhbaGhOAAUE7djr8LpudQRcAu5uqtefEtQe8q8SS8sbKxVbQ
+
+-- Dumped from database version 16.14
+-- Dumped by pg_dump version 16.14 (Homebrew)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: klid_at; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA klid_at;
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: ls_acnt_user; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_acnt_user (
+    user_no bigint NOT NULL,
+    user_id character varying(20),
+    user_nm character varying(100) DEFAULT ''::character varying NOT NULL,
+    user_eml_addr character varying(320),
+    use_yn character(1) DEFAULT 'Y'::bpchar NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone,
+    last_lgn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_ai_srvr; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_ai_srvr (
+    srvr_id character varying(20) NOT NULL,
+    srvr_nm character varying(100),
+    srvr_addr character varying(200) NOT NULL,
+    srvr_type_cd character varying(20) NOT NULL,
+    srvr_stts_cd character varying(20) NOT NULL,
+    chck_dt timestamp without time zone,
+    chck_fail_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    chck_scs_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_ls_ai_srvr_nocs_nonneg CHECK (((chck_fail_nocs >= (0)::numeric) AND (chck_scs_nocs >= (0)::numeric))),
+    CONSTRAINT ck_ls_ai_srvr_srvr_id_format CHECK (((srvr_id)::text ~ '^[a-z0-9]{1,20}$'::text)),
+    CONSTRAINT ck_ls_ai_srvr_stts_cd CHECK (((srvr_stts_cd)::text = ANY ((ARRAY['AVAILABLE'::character varying, 'UNAVAILABLE'::character varying, 'DRAINING'::character varying, 'DISABLED'::character varying])::text[]))),
+    CONSTRAINT ck_ls_ai_srvr_type_cd CHECK (((srvr_type_cd)::text = ANY ((ARRAY['INFERENCE'::character varying, 'TIMESERIES'::character varying])::text[])))
+);
+
+
+--
+-- Name: ls_ai_srvr_altmnt; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_ai_srvr_altmnt (
+    altmnt_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    srvr_id character varying(20) NOT NULL,
+    altmnt_dt timestamp without time zone NOT NULL,
+    altmnt_rsn character varying(4000)
+);
+
+
+--
+-- Name: ls_ai_srvr_altmnt_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+CREATE SEQUENCE klid_at.ls_ai_srvr_altmnt_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ls_ai_srvr_usg; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_ai_srvr_usg (
+    srvr_id character varying(20) NOT NULL,
+    usg_type_cd character varying(20) NOT NULL,
+    wtng_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    prcs_nocs numeric(10,0) DEFAULT 0 NOT NULL,
+    chck_dt timestamp without time zone,
+    reg_dt timestamp without time zone NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    CONSTRAINT ck_ls_ai_srvr_usg_nocs_nonneg CHECK (((wtng_nocs >= (0)::numeric) AND (prcs_nocs >= (0)::numeric))),
+    CONSTRAINT ck_ls_ai_srvr_usg_type_cd CHECK (((usg_type_cd)::text = ANY ((ARRAY['BATCH'::character varying, 'INTERACTIVE'::character varying])::text[])))
+);
+
+
+--
+-- Name: ls_auth_work_lock; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_auth_work_lock (
+    work_lock_sn bigint NOT NULL,
+    lck_target_cd character varying(20) NOT NULL,
+    data_raw_sn bigint,
+    data_src_sn bigint,
+    lck_stts_cd character varying(20) NOT NULL,
+    lck_id character varying(64) NOT NULL,
+    lock_owner_id character varying(30),
+    lck_dt timestamp without time zone NOT NULL,
+    expry_dt timestamp without time zone,
+    rmv_dt timestamp without time zone,
+    rmv_rsn character varying(4000),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_auth_work_lock_work_lock_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_auth_work_lock ALTER COLUMN work_lock_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_auth_work_lock_work_lock_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_authrt_grant_atmpt; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_authrt_grant_atmpt (
+    atmpt_se_cd character varying(20) NOT NULL,
+    atmpt_idntfr character varying(36) NOT NULL,
+    bgng_dt timestamp without time zone NOT NULL,
+    atmpt_nmtm integer DEFAULT 0 NOT NULL,
+    expd_dt timestamp without time zone NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_bat_rty_wtng; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_bat_rty_wtng (
+    bat_rty_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    rty_nmtm integer DEFAULT 0 NOT NULL,
+    max_rty_nmtm integer DEFAULT 3 NOT NULL,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    rty_prnmnt_dt timestamp without time zone,
+    last_err_msg_cn character varying(2000),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_bat_rty_wtng_bat_rty_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_bat_rty_wtng ALTER COLUMN bat_rty_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_bat_rty_wtng_bat_rty_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_batch_proc_log; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_batch_proc_log (
+    batch_proc_log_sn bigint NOT NULL,
+    job_id character varying(64) NOT NULL,
+    data_raw_sn bigint,
+    data_src_sn bigint,
+    proc_step_cd character varying(30) NOT NULL,
+    proc_stts_cd character varying(20) NOT NULL,
+    bgng_dt timestamp without time zone,
+    end_dt timestamp without time zone,
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    err_cd character varying(50),
+    err_msg_cn character varying(4000),
+    req_payload_cn text,
+    resp_payload_cn text,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_batch_proc_log_batch_proc_log_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_batch_proc_log ALTER COLUMN batch_proc_log_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_batch_proc_log_batch_proc_log_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_clip_schedule_que; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_clip_schedule_que (
+    que_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    job_type_cd character varying(20) NOT NULL,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    bgng_dt timestamp without time zone,
+    cmptn_dt timestamp without time zone,
+    last_err_msg_cn character varying(2000)
+);
+
+
+--
+-- Name: ls_clip_schedule_que_que_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_clip_schedule_que ALTER COLUMN que_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_clip_schedule_que_que_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_control_notify_fallback; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_control_notify_fallback (
+    queue_sn bigint NOT NULL,
+    idmp_key character varying(128) NOT NULL,
+    evnt_type_cd character varying(20) NOT NULL,
+    raw_sn bigint NOT NULL,
+    payload_cn text NOT NULL,
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    max_rtry_nmtm integer DEFAULT 5 NOT NULL,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    last_err_msg_cn character varying(2000),
+    next_rtry_dt timestamp without time zone,
+    dlq_dt timestamp without time zone,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    send_rslt_cd character varying(16)
+);
+
+
+--
+-- Name: ls_control_notify_fallback_queue_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_control_notify_fallback ALTER COLUMN queue_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_control_notify_fallback_queue_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_aug; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_aug (
+    data_aug_sn bigint NOT NULL,
+    src_sn bigint NOT NULL,
+    aug_type_cd character varying(20) NOT NULL,
+    aug_proc_stts_cd character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
+    lbl_intgrt_pct numeric(5,2),
+    dcsn_user_no character varying(50),
+    dcsn_dt timestamp without time zone,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    reg_user_no character varying(50),
+    idmp_key character varying(128),
+    otsd_job_id character varying(200),
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    dead_letter_at timestamp without time zone,
+    prompt_cn character varying(4000),
+    new_raw_sn bigint
+);
+
+
+--
+-- Name: ls_data_aug_data_aug_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_aug ALTER COLUMN data_aug_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_aug_data_aug_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_aug_dscd; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_aug_dscd (
+    data_aug_dscd_sn bigint NOT NULL,
+    data_aug_sn bigint NOT NULL,
+    new_raw_sn bigint NOT NULL,
+    orgnl_raw_sn bigint,
+    dscd_dt timestamp without time zone NOT NULL,
+    dscd_rsn character varying(4000),
+    rstr_dt timestamp without time zone,
+    rstr_rsn character varying(4000),
+    del_prcs_dt timestamp without time zone,
+    del_dt timestamp without time zone,
+    file_del_dt timestamp without time zone,
+    vdo_file_path character varying(1000),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    aug_type_cd character varying(20),
+    prompt_cn character varying(4000),
+    file_del_rtry_nmtm integer DEFAULT 0 NOT NULL,
+    file_del_fail_dt timestamp without time zone,
+    file_del_fail_rsn character varying(4000)
+);
+
+
+--
+-- Name: ls_data_aug_dscd_data_aug_dscd_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_aug_dscd ALTER COLUMN data_aug_dscd_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_aug_dscd_data_aug_dscd_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_aug_job; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_aug_job (
+    aug_job_sn bigint NOT NULL,
+    data_aug_sn bigint NOT NULL,
+    job_seq integer NOT NULL,
+    idmp_key character varying(128) NOT NULL,
+    otsd_job_id character varying(200),
+    job_stts_cd character varying(20) NOT NULL,
+    tot_nocs integer DEFAULT 0 NOT NULL,
+    err_cd character varying(50),
+    err_msg_cn character varying(1000),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_data_aug_job_aug_job_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_aug_job ALTER COLUMN aug_job_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_aug_job_aug_job_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_aug_job_file; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_aug_job_file (
+    aug_job_file_sn bigint NOT NULL,
+    aug_job_sn bigint NOT NULL,
+    file_seq integer NOT NULL,
+    src_sn bigint NOT NULL,
+    rslt_file_path_nm character varying(500),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_data_aug_job_file_aug_job_file_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_aug_job_file ALTER COLUMN aug_job_file_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_aug_job_file_aug_job_file_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_aug_lbl_map; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_aug_lbl_map (
+    data_aug_lbl_map_sn bigint NOT NULL,
+    data_aug_sn bigint NOT NULL,
+    orgnl_data_lbl_sn bigint,
+    data_lbl_sn bigint NOT NULL,
+    coord_recalc_yn character(1) DEFAULT 'N'::character varying NOT NULL,
+    scale_x numeric(10,6),
+    scale_y numeric(10,6),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_data_aug_lbl_map_data_aug_lbl_map_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_aug_lbl_map ALTER COLUMN data_aug_lbl_map_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_aug_lbl_map_data_aug_lbl_map_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_aug_rvw; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_aug_rvw (
+    data_aug_rvw_sn bigint NOT NULL,
+    data_aug_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    data_src_sn bigint NOT NULL,
+    rvw_stts_cd character varying(20) NOT NULL,
+    lbl_intgrt_pct numeric(5,2),
+    rjct_rsn character varying(4000),
+    rvw_id character varying(30),
+    rvw_dt timestamp without time zone,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_data_aug_rvw_data_aug_rvw_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_aug_rvw ALTER COLUMN data_aug_rvw_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_aug_rvw_data_aug_rvw_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_ingest; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_ingest (
+    rcptn_sn bigint NOT NULL,
+    rcptn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    prcs_stts_cd character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
+    raw_sn bigint,
+    rty_cnt integer DEFAULT 0 NOT NULL,
+    prcs_dt timestamp without time zone,
+    nxtm_rtry_dt timestamp without time zone,
+    err_msg character varying(4000),
+    vms_clip_id character varying(128) NOT NULL,
+    vms_cctv_id character varying(64),
+    vdo_file_nm character varying(300) NOT NULL,
+    raw_file_path_nm character varying(500) NOT NULL,
+    src_type character varying(20) NOT NULL,
+    sht_dt timestamp without time zone,
+    file_fmt character varying(20),
+    vdo_cdc character varying(20),
+    file_sz bigint,
+    lclgv_nm character varying(100),
+    vdo_len_sec numeric(10,0),
+    fps character varying(10),
+    frme_cnt numeric(10,0),
+    asprt_rt character varying(20),
+    wdth numeric(10,0),
+    vrtc numeric(10,0),
+    resl character varying(20),
+    "bit" character varying(20),
+    pxl character varying(20),
+    wgs84_lat numeric(10,7),
+    wgs84_lot numeric(10,7),
+    cctv_nm character varying(300),
+    cctv_hgt numeric(4,1),
+    main_surv_pan_ang integer,
+    evnt_id character varying(50),
+    evnt_nm character varying(200),
+    mntr_cn character varying(4000),
+    lclgv_cd character varying(20),
+    evnt_type_cd character varying(20),
+    anony_incl_yn character(1) DEFAULT 'N'::bpchar,
+    psdo_incl_yn character(1) DEFAULT 'N'::bpchar,
+    prvc_incl_yn character(1) DEFAULT 'Y'::bpchar,
+    evnt_clsf_cd character(2),
+    evnt_ctgry_cd character(4),
+    vrfc_evnt_type_cd character varying(20),
+    og_cd character varying(20)
+);
+
+
+--
+-- Name: ls_data_ingest_rcptn_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_ingest ALTER COLUMN rcptn_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_ingest_rcptn_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_issue; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_issue (
+    data_issue_sn bigint NOT NULL,
+    up_data_issue_sn bigint,
+    data_raw_sn bigint NOT NULL,
+    issue_rsn character varying(1000),
+    reported_user_no character varying(50),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    issue_type_cd character varying(20) DEFAULT 'REJECTION'::character varying NOT NULL,
+    issue_stts_cd character varying(20) DEFAULT 'OPEN'::character varying NOT NULL,
+    src_sn bigint,
+    ver bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_ls_data_issue_stts CHECK (((issue_stts_cd)::text = ANY ((ARRAY['OPEN'::character varying, 'ANSWERED'::character varying, 'RESOLVED'::character varying])::text[]))),
+    CONSTRAINT ck_ls_data_issue_type CHECK (((issue_type_cd)::text = ANY ((ARRAY['REJECTION'::character varying, 'INQUIRY'::character varying])::text[])))
+);
+
+
+--
+-- Name: ls_data_issue_data_issue_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_issue ALTER COLUMN data_issue_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_issue_data_issue_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_lbl; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_lbl (
+    lbl_sn bigint NOT NULL,
+    src_sn bigint NOT NULL,
+    lbl_type_cd character varying(16) NOT NULL,
+    lbl_nm character varying(80),
+    point_cn text,
+    trck_id character varying(30),
+    reg_user_no character varying(100),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone,
+    lbl_id bigint,
+    lbl_src_cd character varying(20),
+    mdl_nm character varying(100),
+    mdl_ver character varying(50),
+    conf_score numeric(6,5),
+    auto_lbl_yn character(1)
+);
+
+
+--
+-- Name: ls_data_lbl_attr_val; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_lbl_attr_val (
+    atrb_vl_id bigint NOT NULL,
+    lbl_sn bigint NOT NULL,
+    atrb_id bigint NOT NULL,
+    atrb_vl character varying(1000),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_data_lbl_attr_val_attr_val_id_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_lbl_attr_val ALTER COLUMN atrb_vl_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_lbl_attr_val_attr_val_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_lbl_hstry; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_lbl_hstry (
+    lbl_hstry_sn bigint NOT NULL,
+    src_sn bigint NOT NULL,
+    reg_dt timestamp without time zone NOT NULL,
+    reg_id character varying(30),
+    add_cnt integer DEFAULT 0 NOT NULL,
+    mdfcn_cnt integer DEFAULT 0 NOT NULL,
+    del_cnt integer DEFAULT 0 NOT NULL,
+    chg_dtl_cn text
+);
+
+
+--
+-- Name: ls_data_lbl_hstry_lbl_hstry_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_lbl_hstry ALTER COLUMN lbl_hstry_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_lbl_hstry_lbl_hstry_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_lbl_lbl_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_lbl ALTER COLUMN lbl_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_lbl_lbl_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_meta; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_meta (
+    meta_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    meta_key character varying(64) NOT NULL,
+    meta_vl character varying(2000),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone,
+    idmp_key character varying(128),
+    otsd_job_id character varying(200),
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    dead_letter_at timestamp without time zone
+);
+
+
+--
+-- Name: ls_data_meta_meta_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_meta ALTER COLUMN meta_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_meta_meta_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_meta_review; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_meta_review (
+    data_meta_review_sn bigint NOT NULL,
+    data_meta_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    data_src_sn bigint,
+    meta_type_cd character varying(20) NOT NULL,
+    src_sys_cd character varying(20),
+    rvw_stts_cd character varying(20) NOT NULL,
+    rvw_id character varying(30),
+    rvw_dt timestamp without time zone,
+    rjct_rsn character varying(4000),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_data_meta_review_data_meta_review_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_meta_review ALTER COLUMN data_meta_review_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_meta_review_data_meta_review_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_raw; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_raw (
+    raw_sn bigint NOT NULL,
+    vms_clip_id character varying(128) NOT NULL,
+    vms_cctv_id character varying(64),
+    evnt_type_cd character varying(20),
+    lclgv_cd character varying(20),
+    prvc_type_cd character varying(16) NOT NULL,
+    prvc_yn character(1) DEFAULT 'N'::character varying NOT NULL,
+    de_ident_yn character(1) DEFAULT 'N'::character varying NOT NULL,
+    raw_file_path_nm character varying(500) NOT NULL,
+    sht_dt timestamp without time zone,
+    vdo_len_sec integer,
+    data_stts_cd character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone,
+    orgnl_raw_sn bigint,
+    vdo_len_ms bigint,
+    wthr_nm character varying(20),
+    day_ngt_cd character varying(20),
+    sesn_cd character varying(20),
+    src_type character varying(20),
+    aug_type_cd character varying(20),
+    anony_incl_yn character(1),
+    psdo_incl_yn character(1),
+    prvc_incl_yn character(1),
+    portal_user_no character varying(100)
+);
+
+
+--
+-- Name: ls_data_raw_raw_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_raw ALTER COLUMN raw_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_raw_raw_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_src; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_src (
+    src_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    frm_no bigint NOT NULL,
+    src_file_path_nm character varying(500),
+    de_idntf_src_file_path_nm character varying(1000),
+    sht_dt timestamp without time zone,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    upd_dt timestamp without time zone,
+    vdo_frm_no bigint,
+    frm_expln character varying(1000),
+    anony_incl_yn character(1),
+    psdo_incl_yn character(1),
+    prvc_incl_yn character(1),
+    lbl_ver bigint DEFAULT 0 NOT NULL,
+    dscd_yn character(1) DEFAULT 'N'::bpchar NOT NULL
+);
+
+
+--
+-- Name: ls_data_src_hstry; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_data_src_hstry (
+    hstry_seq bigint NOT NULL,
+    src_sn bigint NOT NULL,
+    chg_type_cd character varying(16) NOT NULL,
+    chg_user_no bigint,
+    chg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_data_src_hstry_hstry_seq_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_src_hstry ALTER COLUMN hstry_seq ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_src_hstry_hstry_seq_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_data_src_src_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_data_src ALTER COLUMN src_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_data_src_src_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_dataset_export; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_dataset_export (
+    output_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    output_ver_no integer NOT NULL,
+    output_path_nm character varying(500),
+    output_stts_cd character varying(20) NOT NULL,
+    frme_cnt integer,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    content_hash character varying(64),
+    rty_nmtm integer DEFAULT 0 NOT NULL,
+    rty_dt timestamp without time zone,
+    data_etbl_cpct bigint
+);
+
+
+--
+-- Name: ls_dataset_export_output_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_dataset_export ALTER COLUMN output_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_dataset_export_output_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_dataset_video_meta; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_dataset_video_meta (
+    meta_snpsht_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    snpsht_hash character varying(64) NOT NULL,
+    active_yn character(1) DEFAULT 'Y'::bpchar NOT NULL,
+    orgnl_raw_sn bigint,
+    vms_clip_id character varying(128),
+    vms_cctv_id character varying(64),
+    raw_file_path_nm character varying(500),
+    sht_dt timestamp without time zone,
+    vdo_len_sec integer,
+    lclgv_cd character varying(20),
+    prvc_yn character(1),
+    prvc_type_cd character varying(16),
+    de_ident_yn character(1),
+    ai_crt_yn character(1),
+    evnt_type_cd character varying(20),
+    cctv_nm character varying(255),
+    wgs84_lat numeric(10,7),
+    wgs84_lot numeric(10,7),
+    sido_nm character varying(100),
+    sgg_nm character varying(100),
+    file_fmt character varying(32),
+    evnt_nm character varying(255),
+    vdo_cdc character varying(20),
+    fps numeric,
+    bit_rt bigint,
+    asprt_rt numeric,
+    resl character varying(32),
+    vdo_wdth integer,
+    vdo_hgt integer,
+    file_sz bigint,
+    day_ngt_cd character varying(8),
+    sesn_cd character varying(20),
+    wthr_nm character varying(32),
+    rvw_cmpl_dt timestamp without time zone,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    reg_id character varying(30),
+    evnt_anno_cn jsonb
+);
+
+
+--
+-- Name: ls_dataset_video_meta_meta_snpsht_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_dataset_video_meta ALTER COLUMN meta_snpsht_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_dataset_video_meta_meta_snpsht_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_deident_proc_log; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_deident_proc_log (
+    proc_log_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    req_id character varying(64),
+    orgnl_file_path_nm character varying(1000) NOT NULL,
+    de_idntf_file_path_nm character varying(1000),
+    proc_stts_cd character varying(20) NOT NULL,
+    req_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    rspns_dt timestamp without time zone,
+    err_cd character varying(50),
+    err_msg_cn character varying(4000),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    otsd_job_id character varying(200),
+    de_idntf_pjt_id bigint,
+    de_idntf_datst_id bigint,
+    poll_stts_cd character varying(20),
+    poll_last_dt timestamp without time zone,
+    poll_atmpt_cnt integer DEFAULT 0,
+    req_knd_cd character varying(20),
+    face_dtct_cnt numeric(10,0),
+    noplt_dtct_cnt numeric(10,0),
+    frme_cnt numeric(10,0),
+    prcs_bgng_dt timestamp without time zone,
+    prcs_end_dt timestamp without time zone,
+    rpt_file_path_nm character varying(1000)
+);
+
+
+--
+-- Name: ls_deident_proc_log_proc_log_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_deident_proc_log ALTER COLUMN proc_log_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_deident_proc_log_proc_log_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_deident_report; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_deident_report (
+    deident_report_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    reporter_no bigint,
+    rsn character varying(1000),
+    report_stts_cd character varying(16),
+    dclr_dt timestamp without time zone,
+    resolved_dt timestamp without time zone,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    dclr_stp_cd character varying(20)
+);
+
+
+--
+-- Name: ls_deident_report_deident_report_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_deident_report ALTER COLUMN deident_report_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_deident_report_deident_report_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_eblc_uld_job; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_eblc_uld_job (
+    eblc_uld_job_sn bigint NOT NULL,
+    orgnl_fldr_path_nm character varying(300) NOT NULL,
+    job_stts_cd character varying(20) DEFAULT 'RUNNING'::character varying NOT NULL,
+    trgt_nocs integer DEFAULT 0 NOT NULL,
+    scs_nocs integer DEFAULT 0 NOT NULL,
+    fail_nocs integer DEFAULT 0 NOT NULL,
+    dmnd_cn text,
+    bgng_dt timestamp without time zone,
+    cmptn_dt timestamp without time zone,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_eblc_uld_job_artcl; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_eblc_uld_job_artcl (
+    eblc_uld_job_artcl_sn bigint NOT NULL,
+    eblc_uld_job_sn bigint NOT NULL,
+    mark_file_path_nm character varying(300) NOT NULL,
+    vdo_file_path_nm character varying(300),
+    artcl_stts_cd character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
+    raw_sn bigint,
+    fail_rsn character varying(4000),
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    bgng_dt timestamp without time zone,
+    cmptn_dt timestamp without time zone,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_eblc_uld_job_artcl_eblc_uld_job_artcl_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_eblc_uld_job_artcl ALTER COLUMN eblc_uld_job_artcl_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_eblc_uld_job_artcl_eblc_uld_job_artcl_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_eblc_uld_job_eblc_uld_job_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_eblc_uld_job ALTER COLUMN eblc_uld_job_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_eblc_uld_job_eblc_uld_job_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_evnt_anno; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_evnt_anno (
+    evnt_anno_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    anno_cn jsonb NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_evnt_anno_evnt_anno_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_evnt_anno ALTER COLUMN evnt_anno_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_evnt_anno_evnt_anno_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_evnt_anno_review; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_evnt_anno_review (
+    rvw_sn bigint NOT NULL,
+    evnt_anno_sn bigint NOT NULL,
+    rvw_stts_cd character varying(20) NOT NULL,
+    meta_type_cd character varying(20),
+    rvw_id character varying(30),
+    rvw_dt timestamp without time zone,
+    rjct_rsn character varying(4000),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    ver bigint DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: ls_evnt_anno_review_rvw_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_evnt_anno_review ALTER COLUMN rvw_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_evnt_anno_review_rvw_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_evnt_ctgry; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_evnt_ctgry (
+    evnt_clsf_cd character varying(20) NOT NULL,
+    evnt_ctgry_cd character varying(20) NOT NULL,
+    evnt_ctgry_nm character varying(200),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_evnt_type; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_evnt_type (
+    evnt_type_cd character varying(20) NOT NULL,
+    evnt_nm character varying(200),
+    optr_indct_nm character varying(200),
+    evnt_clsf_cd character varying(20),
+    evnt_ctgry_cd character varying(20),
+    clct_yn character(1) DEFAULT 'Y'::bpchar NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_issue_comment; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_issue_comment (
+    cmnt_sn bigint NOT NULL,
+    data_issue_sn bigint NOT NULL,
+    author_no character varying(50) NOT NULL,
+    author_role_cd character varying(20) NOT NULL,
+    cmnt_cn character varying(4000) NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT ck_ls_issue_comment_role CHECK (((author_role_cd)::text = ANY ((ARRAY['ADMIN'::character varying, 'WORKER'::character varying, 'REVIEWER'::character varying])::text[])))
+);
+
+
+--
+-- Name: ls_issue_comment_issue_comment_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_issue_comment ALTER COLUMN cmnt_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_issue_comment_issue_comment_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_label; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_label (
+    lbl_id bigint NOT NULL,
+    lbl_nm character varying(80) NOT NULL,
+    colr_vl character varying(7) NOT NULL,
+    lbl_type_cd character varying(16) NOT NULL,
+    sort_seq integer DEFAULT 0 NOT NULL,
+    use_yn character(1) DEFAULT 'Y'::character varying NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone,
+    dtct_type_cd character varying(20)
+);
+
+
+--
+-- Name: ls_label_attr; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_label_attr (
+    atrb_id bigint NOT NULL,
+    lbl_id bigint NOT NULL,
+    atrb_nm character varying(100) NOT NULL,
+    input_type_cd character varying(16) NOT NULL,
+    values_cn character varying(1000),
+    dflt_vl character varying(255),
+    mutable_yn character(1) DEFAULT 'Y'::character varying NOT NULL,
+    sort_seq integer DEFAULT 0 NOT NULL,
+    use_yn character(1) DEFAULT 'Y'::character varying NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_label_attr_attr_id_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_label_attr ALTER COLUMN atrb_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_label_attr_attr_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_label_label_id_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_label ALTER COLUMN lbl_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_label_label_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_label_preset; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_label_preset (
+    preset_id bigint NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    evnt_type_cd character varying(20) NOT NULL
+);
+
+
+--
+-- Name: ls_label_preset_code; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_label_preset_code (
+    cd_sn bigint NOT NULL,
+    preset_id bigint NOT NULL,
+    lbl_cd character varying(32),
+    sort_seq integer DEFAULT 0 NOT NULL,
+    lbl_id bigint
+);
+
+
+--
+-- Name: ls_label_preset_code_code_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_label_preset_code ALTER COLUMN cd_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_label_preset_code_code_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_label_preset_preset_id_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_label_preset ALTER COLUMN preset_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_label_preset_preset_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_label_version; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_label_version (
+    lbl_version_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    data_src_sn bigint,
+    ver_no integer,
+    save_reason_cd character varying(20),
+    actvtn_yn character(1) DEFAULT 'Y'::character varying NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    lbl_payload text,
+    version_hash character varying(64)
+);
+
+
+--
+-- Name: ls_label_version_label_version_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_label_version ALTER COLUMN lbl_version_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_label_version_label_version_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_marking; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_marking (
+    marking_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    mark_mode_cd character varying(16) NOT NULL,
+    frme_intv_nocs integer,
+    mark_cn text NOT NULL,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    reg_user_no character varying(100),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    fps double precision,
+    vrfc_evnt_qstn_sn bigint
+);
+
+
+--
+-- Name: ls_marking_marking_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_marking ALTER COLUMN marking_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_marking_marking_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_meta_repl_outbox; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_meta_repl_outbox (
+    outbox_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    snpsht_hash character varying(64) NOT NULL,
+    payload_cn text,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    rtry_nmtm integer DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    prcs_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_meta_repl_outbox_outbox_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_meta_repl_outbox ALTER COLUMN outbox_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_meta_repl_outbox_outbox_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_mngr_pswd; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_mngr_pswd (
+    mngr_pswd_sn bigint NOT NULL,
+    pswd_hash character varying(100) NOT NULL,
+    mdfr_id character varying(30),
+    pswd_mdfcn_dt timestamp without time zone,
+    CONSTRAINT ck_ls_mngr_pswd_single_row CHECK ((mngr_pswd_sn = 1))
+);
+
+
+--
+-- Name: ls_mon_noti_acml; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_mon_noti_acml (
+    noti_acml_sn bigint NOT NULL,
+    raw_sn bigint NOT NULL,
+    stts_cd character varying(16) DEFAULT 'PENDING'::character varying NOT NULL,
+    export_rprcs_yn character(1) DEFAULT 'N'::bpchar NOT NULL,
+    chg_dtl_cn text DEFAULT '{}'::text NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_mon_noti_acml_noti_acml_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_mon_noti_acml ALTER COLUMN noti_acml_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_mon_noti_acml_noti_acml_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_notice; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_notice (
+    notice_sn bigint NOT NULL,
+    notice_title character varying(200) NOT NULL,
+    notice_cn text NOT NULL,
+    upend_fix_yn character(1) DEFAULT 'N'::character varying NOT NULL,
+    pblcn_stts_cd character varying(16) DEFAULT 'DRAFT'::character varying NOT NULL,
+    pblcn_dt timestamp without time zone,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_notice_attach; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_notice_attach (
+    atch_file_sn bigint NOT NULL,
+    notice_sn bigint NOT NULL,
+    orgnl_file_nm character varying(300) NOT NULL,
+    strg_file_nm character varying(300) NOT NULL,
+    file_path character varying(1000) NOT NULL,
+    file_sz bigint NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_notice_attach_attach_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_notice_attach ALTER COLUMN atch_file_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_notice_attach_attach_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_notice_notice_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_notice ALTER COLUMN notice_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_notice_notice_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_otsd_ctgry_mpng; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_otsd_ctgry_mpng (
+    mpng_sn bigint NOT NULL,
+    mpng_knd_cd character varying(20) NOT NULL,
+    otsd_ctgry_cd character varying(20) NOT NULL,
+    otsd_ctgry_nm character varying(200),
+    lbl_id bigint,
+    evnt_type_cd character varying(20),
+    use_yn character(1) DEFAULT 'Y'::bpchar NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_otsd_ctgry_mpng_mpng_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_otsd_ctgry_mpng ALTER COLUMN mpng_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_otsd_ctgry_mpng_mpng_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_otsd_datst_trnsf_hstry; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_otsd_datst_trnsf_hstry (
+    trnsf_sn bigint NOT NULL,
+    orgnl_fldr_path_nm character varying(300) NOT NULL,
+    orgnl_fldr_nm character varying(300),
+    otsd_datst_id character varying(50),
+    raw_sn bigint,
+    trnsf_stts_cd character varying(20) NOT NULL,
+    frme_cnt integer,
+    lbl_cnt integer,
+    fail_rsn character varying(1000),
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_otsd_datst_trnsf_hstry_trnsf_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_otsd_datst_trnsf_hstry ALTER COLUMN trnsf_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_otsd_datst_trnsf_hstry_trnsf_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_output_ver_snpsh; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_output_ver_snpsh (
+    output_ver_snpsh_sn bigint NOT NULL,
+    data_raw_sn bigint NOT NULL,
+    data_src_sn bigint NOT NULL,
+    output_ver_no integer NOT NULL,
+    lbl_ver_sn bigint NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_output_ver_snpsh_output_ver_snpsh_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_output_ver_snpsh ALTER COLUMN output_ver_snpsh_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_output_ver_snpsh_output_ver_snpsh_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_portal_tus_uld; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_portal_tus_uld (
+    uld_id uuid NOT NULL,
+    portal_user_no character varying(100) NOT NULL,
+    uld_len bigint NOT NULL,
+    uld_offset bigint NOT NULL,
+    stts_cd character varying(16) NOT NULL,
+    file_path_nm character varying(500) NOT NULL,
+    orgnl_file_nm character varying(255),
+    uld_sn bigint,
+    expry_dt timestamp without time zone NOT NULL,
+    ver bigint DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_portal_uld; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_portal_uld (
+    uld_sn bigint NOT NULL,
+    portal_user_no character varying(100) NOT NULL,
+    uld_type_cd character varying(16) NOT NULL,
+    orgnl_file_nm character varying(255),
+    file_path_nm character varying(500),
+    file_sz bigint,
+    mime_type_nm character varying(100),
+    uld_stts_cd character varying(16) NOT NULL,
+    vdo_len_sec double precision,
+    fps double precision,
+    frme_cnt integer,
+    fail_rsn_cn text,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_portal_uld_frme_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+CREATE SEQUENCE klid_at.ls_portal_uld_frme_seq
+    START WITH 1
+    INCREMENT BY 50
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: ls_portal_uld_frme; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_portal_uld_frme (
+    uld_frme_sn bigint DEFAULT nextval('klid_at.ls_portal_uld_frme_seq'::regclass) NOT NULL,
+    uld_sn bigint NOT NULL,
+    frme_no integer NOT NULL,
+    file_path_nm character varying(500) NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_portal_uld_lbl; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_portal_uld_lbl (
+    uld_lbl_sn bigint NOT NULL,
+    portal_user_no character varying(100) NOT NULL,
+    uld_sn bigint NOT NULL,
+    uld_frme_sn bigint NOT NULL,
+    lbl_type_cd character varying(16) NOT NULL,
+    lbl_nm character varying(80),
+    point_cn text,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_portal_uld_lbl_uld_lbl_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_portal_uld_lbl ALTER COLUMN uld_lbl_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_portal_uld_lbl_uld_lbl_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_portal_uld_uld_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_portal_uld ALTER COLUMN uld_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_portal_uld_uld_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_portal_user_label; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_portal_user_label (
+    user_lbl_sn bigint NOT NULL,
+    portal_user_no character varying(100) NOT NULL,
+    src_raw_sn bigint NOT NULL,
+    src_data_src_sn bigint NOT NULL,
+    lbl_type_cd character varying(16) NOT NULL,
+    lbl_nm character varying(80),
+    point_cn text,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    lbl_id bigint,
+    trck_id character varying(30)
+);
+
+
+--
+-- Name: ls_portal_user_label_user_lbl_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_portal_user_label ALTER COLUMN user_lbl_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_portal_user_label_user_lbl_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_raw_data_status; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_raw_data_status (
+    raw_data_id bigint NOT NULL,
+    data_stts_cd character varying(20) DEFAULT 'PENDING'::character varying NOT NULL,
+    stp_cycl integer DEFAULT 0 NOT NULL,
+    igi_cycl integer DEFAULT 0 NOT NULL,
+    upd_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    ver bigint DEFAULT 0 NOT NULL,
+    revlt_yn character(1) DEFAULT 'N'::bpchar NOT NULL,
+    de_idntf_cmptn_yn character(1) DEFAULT 'Y'::bpchar NOT NULL
+);
+
+
+--
+-- Name: ls_system_config; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_system_config (
+    stng_key character varying(100) NOT NULL,
+    stng_value character varying(4000),
+    stng_type_cd character varying(20) NOT NULL,
+    expln character varying(500),
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_task_altmnt; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_task_altmnt (
+    assignment_id bigint NOT NULL,
+    user_no bigint NOT NULL,
+    raw_data_id bigint NOT NULL,
+    task_type_cd character varying(20) NOT NULL,
+    reg_user_no bigint NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    ver bigint DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: ls_task_altmnt_assignment_id_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_task_altmnt ALTER COLUMN assignment_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_task_altmnt_assignment_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_task_evnt_log; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_task_evnt_log (
+    evnt_id bigint NOT NULL,
+    raw_data_id bigint NOT NULL,
+    evnt_type_cd character varying(20) NOT NULL,
+    actor_user_no bigint NOT NULL,
+    subject_user_no bigint,
+    prev_user_no bigint,
+    rsn character varying(500),
+    ocrn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_task_evnt_log_evnt_id_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_task_evnt_log ALTER COLUMN evnt_id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_task_evnt_log_evnt_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_tus_upload; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_tus_upload (
+    uld_id uuid NOT NULL,
+    user_no character varying(100) NOT NULL,
+    uld_len bigint NOT NULL,
+    uld_offset bigint DEFAULT 0 NOT NULL,
+    stts_cd character varying(16) DEFAULT 'IN_PROGRESS'::character varying NOT NULL,
+    file_path character varying(500) NOT NULL,
+    file_nm character varying(255),
+    vms_clip_id character varying(128),
+    cctv_id character varying(64),
+    evnt_type_cd character varying(20),
+    lclgv_cd character varying(20),
+    prvc_type_cd character varying(8),
+    sht_dt timestamp without time zone,
+    raw_sn bigint,
+    expry_dt timestamp without time zone NOT NULL,
+    ver bigint DEFAULT 0 NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_user_role; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_user_role (
+    user_no bigint NOT NULL,
+    role_cd character varying(32) NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    upd_dt timestamp without time zone,
+    mdfr_id character varying(30)
+);
+
+
+--
+-- Name: ls_vrfc_evnt_qstn; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_vrfc_evnt_qstn (
+    vrfc_evnt_qstn_sn bigint NOT NULL,
+    vrfc_evnt_type_cd character varying(20) NOT NULL,
+    sort_seq numeric(10,0) NOT NULL,
+    qstn_cn character varying(4000) NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_vrfc_evnt_qstn_vrfc_evnt_qstn_sn_seq; Type: SEQUENCE; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE klid_at.ls_vrfc_evnt_qstn ALTER COLUMN vrfc_evnt_qstn_sn ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME klid_at.ls_vrfc_evnt_qstn_vrfc_evnt_qstn_sn_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: ls_vrfc_evnt_type; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_vrfc_evnt_type (
+    vrfc_evnt_type_cd character varying(20) NOT NULL,
+    vrfc_evnt_type_nm character varying(300) NOT NULL,
+    vrfc_evnt_type_expln character varying(4000),
+    sort_seq numeric(10,0) DEFAULT 0 NOT NULL,
+    reg_id character varying(30),
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfr_id character varying(30),
+    mdfcn_dt timestamp without time zone
+);
+
+
+--
+-- Name: ls_webhook_idempotency; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_webhook_idempotency (
+    idmp_key character varying(128) NOT NULL,
+    chnl_cd character varying(32) NOT NULL,
+    stts_cd character varying(16) NOT NULL,
+    otsd_job_id character varying(200),
+    aplcn_dt timestamp without time zone,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    raw_sn bigint,
+    srvr_id character varying(20)
+);
+
+
+--
+-- Name: ls_whk_fail_nmtm; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_whk_fail_nmtm (
+    call_ip_addr character varying(45) NOT NULL,
+    bgng_dt timestamp without time zone NOT NULL,
+    fail_nmtm integer DEFAULT 0 NOT NULL,
+    expd_dt timestamp without time zone NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    mdfcn_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: ls_whk_sign_use; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.ls_whk_sign_use (
+    sign_hash character varying(64) NOT NULL,
+    whk_path_nm character varying(200) NOT NULL,
+    expd_dt timestamp without time zone NOT NULL,
+    reg_dt timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: qrtz_blob_triggers; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_blob_triggers (
+    sched_name character varying(120) NOT NULL,
+    trigger_name character varying(200) NOT NULL,
+    trigger_group character varying(200) NOT NULL,
+    blob_data bytea
+);
+
+
+--
+-- Name: qrtz_calendars; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_calendars (
+    sched_name character varying(120) NOT NULL,
+    calendar_name character varying(200) NOT NULL,
+    calendar bytea NOT NULL
+);
+
+
+--
+-- Name: qrtz_cron_triggers; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_cron_triggers (
+    sched_name character varying(120) NOT NULL,
+    trigger_name character varying(200) NOT NULL,
+    trigger_group character varying(200) NOT NULL,
+    cron_expression character varying(120) NOT NULL,
+    time_zone_id character varying(80)
+);
+
+
+--
+-- Name: qrtz_fired_triggers; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_fired_triggers (
+    sched_name character varying(120) NOT NULL,
+    entry_id character varying(140) NOT NULL,
+    trigger_name character varying(200) NOT NULL,
+    trigger_group character varying(200) NOT NULL,
+    instance_name character varying(200) NOT NULL,
+    fired_time bigint NOT NULL,
+    sched_time bigint NOT NULL,
+    priority integer NOT NULL,
+    state character varying(16) NOT NULL,
+    job_name character varying(200),
+    job_group character varying(200),
+    is_nonconcurrent boolean,
+    requests_recovery boolean
+);
+
+
+--
+-- Name: qrtz_job_details; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_job_details (
+    sched_name character varying(120) NOT NULL,
+    job_name character varying(200) NOT NULL,
+    job_group character varying(200) NOT NULL,
+    description character varying(250),
+    job_class_name character varying(250) NOT NULL,
+    is_durable boolean NOT NULL,
+    is_nonconcurrent boolean NOT NULL,
+    is_update_data boolean NOT NULL,
+    requests_recovery boolean NOT NULL,
+    job_data bytea
+);
+
+
+--
+-- Name: qrtz_locks; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_locks (
+    sched_name character varying(120) NOT NULL,
+    lock_name character varying(40) NOT NULL
+);
+
+
+--
+-- Name: qrtz_paused_trigger_grps; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_paused_trigger_grps (
+    sched_name character varying(120) NOT NULL,
+    trigger_group character varying(200) NOT NULL
+);
+
+
+--
+-- Name: qrtz_scheduler_state; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_scheduler_state (
+    sched_name character varying(120) NOT NULL,
+    instance_name character varying(200) NOT NULL,
+    last_checkin_time bigint NOT NULL,
+    checkin_interval bigint NOT NULL
+);
+
+
+--
+-- Name: qrtz_simple_triggers; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_simple_triggers (
+    sched_name character varying(120) NOT NULL,
+    trigger_name character varying(200) NOT NULL,
+    trigger_group character varying(200) NOT NULL,
+    repeat_count bigint NOT NULL,
+    repeat_interval bigint NOT NULL,
+    times_triggered bigint NOT NULL
+);
+
+
+--
+-- Name: qrtz_simprop_triggers; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_simprop_triggers (
+    sched_name character varying(120) NOT NULL,
+    trigger_name character varying(200) NOT NULL,
+    trigger_group character varying(200) NOT NULL,
+    str_prop_1 character varying(512),
+    str_prop_2 character varying(512),
+    str_prop_3 character varying(512),
+    int_prop_1 integer,
+    int_prop_2 integer,
+    long_prop_1 bigint,
+    long_prop_2 bigint,
+    dec_prop_1 numeric(13,4),
+    dec_prop_2 numeric(13,4),
+    bool_prop_1 boolean,
+    bool_prop_2 boolean
+);
+
+
+--
+-- Name: qrtz_triggers; Type: TABLE; Schema: klid_at; Owner: -
+--
+
+CREATE TABLE klid_at.qrtz_triggers (
+    sched_name character varying(120) NOT NULL,
+    trigger_name character varying(200) NOT NULL,
+    trigger_group character varying(200) NOT NULL,
+    job_name character varying(200) NOT NULL,
+    job_group character varying(200) NOT NULL,
+    description character varying(250),
+    next_fire_time bigint,
+    prev_fire_time bigint,
+    priority integer,
+    trigger_state character varying(16) NOT NULL,
+    trigger_type character varying(8) NOT NULL,
+    start_time bigint NOT NULL,
+    end_time bigint,
+    calendar_name character varying(200),
+    misfire_instr smallint,
+    job_data bytea
+);
+
+
+--
+-- Name: v_completed_frame; Type: VIEW; Schema: klid_at; Owner: -
+--
+
+CREATE VIEW klid_at.v_completed_frame AS
+ SELECT src_sn,
+    raw_sn,
+    frm_no AS frame_no,
+    src_file_path_nm AS original_path,
+    de_idntf_src_file_path_nm AS deidentified_path,
+    sht_dt AS captured_at,
+    reg_dt,
+    upd_dt,
+    frm_expln AS description
+   FROM klid_at.ls_data_src src
+  WHERE ((EXISTS ( SELECT 1
+           FROM klid_at.ls_raw_data_status s
+          WHERE ((s.raw_data_id = src.raw_sn) AND ((s.data_stts_cd)::text = 'APPROVED'::text)))) AND (NOT ((src_file_path_nm IS NOT NULL) AND (TRIM(BOTH FROM src_file_path_nm) <> ''::text) AND (de_idntf_src_file_path_nm IS NOT NULL) AND (TRIM(BOTH FROM de_idntf_src_file_path_nm) <> ''::text) AND ((de_idntf_src_file_path_nm)::text = (src_file_path_nm)::text))) AND (COALESCE(dscd_yn, 'N'::bpchar) <> 'Y'::bpchar));
+
+
+--
+-- Name: v_completed_label_change; Type: VIEW; Schema: klid_at; Owner: -
+--
+
+CREATE VIEW klid_at.v_completed_label_change AS
+ SELECT h.lbl_hstry_sn,
+    src.raw_sn,
+    h.src_sn,
+    h.add_cnt,
+    h.mdfcn_cnt,
+    h.del_cnt,
+    h.reg_id,
+    h.reg_dt
+   FROM (klid_at.ls_data_lbl_hstry h
+     JOIN klid_at.ls_data_src src ON ((src.src_sn = h.src_sn)))
+  WHERE ((((COALESCE(h.add_cnt, 0) + COALESCE(h.mdfcn_cnt, 0)) + COALESCE(h.del_cnt, 0)) > 0) AND (COALESCE(src.dscd_yn, 'N'::bpchar) <> 'Y'::bpchar) AND (EXISTS ( SELECT 1
+           FROM klid_at.ls_raw_data_status s
+          WHERE ((s.raw_data_id = src.raw_sn) AND ((s.data_stts_cd)::text = 'APPROVED'::text)))));
+
+
+--
+-- Name: v_completed_meta; Type: VIEW; Schema: klid_at; Owner: -
+--
+
+CREATE VIEW klid_at.v_completed_meta AS
+ SELECT meta.meta_sn,
+    meta.raw_sn,
+    meta.meta_key,
+    meta.meta_vl,
+    meta.otsd_job_id AS external_job_id,
+    mrev.data_meta_review_sn,
+    mrev.meta_type_cd,
+    mrev.src_sys_cd,
+    mrev.rvw_stts_cd,
+    mrev.rvw_id,
+    mrev.rvw_dt AS reviewed_at
+   FROM (klid_at.ls_data_meta meta
+     JOIN klid_at.ls_data_meta_review mrev ON ((mrev.data_meta_sn = meta.meta_sn)))
+  WHERE (((mrev.rvw_stts_cd)::text = 'APPROVED'::text) AND ((meta.meta_key)::text !~~ 'video.%'::text) AND (EXISTS ( SELECT 1
+           FROM klid_at.ls_raw_data_status s
+          WHERE ((s.raw_data_id = meta.raw_sn) AND ((s.data_stts_cd)::text = 'APPROVED'::text)))));
+
+
+--
+-- Name: v_completed_video; Type: VIEW; Schema: klid_at; Owner: -
+--
+
+CREATE VIEW klid_at.v_completed_video AS
+ SELECT m.raw_sn,
+    m.orgnl_raw_sn,
+    m.evnt_type_cd,
+    i.evnt_clsf_cd,
+    i.evnt_ctgry_cd,
+    m.lclgv_cd,
+    i.lclgv_nm,
+    (
+        CASE
+            WHEN ((r.src_type)::text = ANY ((ARRAY['GENERATED'::character varying, 'AUGMENTED'::character varying])::text[])) THEN 'Y'::text
+            ELSE 'N'::text
+        END)::character(1) AS gen_ai_yn,
+    (((m.evnt_nm)::text || ' 데이터셋 구축'::text))::character varying(200) AS datst_nm,
+    (((m.evnt_nm)::text || ' 데이터셋 구축'::text))::character varying(4000) AS datst_expln,
+    m.vdo_len_sec,
+    COALESCE(e.frme_cnt, 0) AS frme_cnt,
+    m.rvw_cmpl_dt AS rvw_cmptn_dt,
+    (
+        CASE
+            WHEN (COALESCE(e.frme_cnt, 0) > 0) THEN 'Y'::text
+            ELSE 'N'::text
+        END)::character(1) AS img_yn,
+    (
+        CASE
+            WHEN (d.de_idntf_file_path_nm IS NOT NULL) THEN 'Y'::text
+            ELSE 'N'::text
+        END)::character(1) AS vdo_yn,
+    (COALESCE(NULLIF(btrim((r.anony_incl_yn)::text), ''::text), 'Y'::text))::character(1) AS anony_incl_yn,
+    (COALESCE(NULLIF(btrim((r.psdo_incl_yn)::text), ''::text), 'N'::text))::character(1) AS psdo_incl_yn,
+    (COALESCE(NULLIF(btrim((r.prvc_incl_yn)::text), ''::text), 'N'::text))::character(1) AS prvc_incl_yn,
+        CASE
+            WHEN (r.orgnl_raw_sn IS NULL) THEN i.anony_incl_yn
+            ELSE NULL::bpchar
+        END AS src_anony_incl_yn,
+        CASE
+            WHEN (r.orgnl_raw_sn IS NULL) THEN i.psdo_incl_yn
+            ELSE NULL::bpchar
+        END AS src_psdo_incl_yn,
+        CASE
+            WHEN (r.orgnl_raw_sn IS NULL) THEN i.prvc_incl_yn
+            ELSE NULL::bpchar
+        END AS src_prvc_incl_yn,
+    to_char(m.rvw_cmpl_dt, 'YYYY'::text) AS data_etbl_yr,
+    e.data_etbl_cpct,
+    (l.lbl_type)::character varying(256) AS lbl_type,
+    'NIA-COCO-JSON'::character varying(256) AS lbl_fmt,
+    e.output_path_nm,
+    e.output_stts_cd,
+    d.de_idntf_file_path_nm,
+    m.raw_file_path_nm AS orgnl_vdo_path_nm,
+    m.de_ident_yn AS de_idntf_yn,
+    t.thmb_file_path_nm
+   FROM (((((((klid_at.ls_dataset_video_meta m
+     JOIN klid_at.ls_data_raw r ON ((r.raw_sn = m.raw_sn)))
+     JOIN klid_at.ls_raw_data_status s ON ((s.raw_data_id = m.raw_sn)))
+     LEFT JOIN LATERAL ( SELECT ex.output_path_nm,
+            ex.output_stts_cd,
+            ex.frme_cnt,
+            ex.data_etbl_cpct
+           FROM klid_at.ls_dataset_export ex
+          WHERE ((ex.data_raw_sn = m.raw_sn) AND ((ex.output_stts_cd)::text = ANY ((ARRAY['SUCCEEDED'::character varying, 'PARTIAL'::character varying])::text[])))
+          ORDER BY ex.output_ver_no DESC
+         LIMIT 1) e ON (true))
+     LEFT JOIN LATERAL ( SELECT pl.de_idntf_file_path_nm
+           FROM klid_at.ls_deident_proc_log pl
+          WHERE ((pl.data_raw_sn = m.raw_sn) AND ((pl.proc_stts_cd)::text = 'SUCCEEDED'::text) AND (pl.de_idntf_file_path_nm IS NOT NULL))
+          ORDER BY pl.req_dt DESC, pl.proc_log_sn DESC
+         LIMIT 1) d ON (true))
+     LEFT JOIN LATERAL ( SELECT ig.evnt_clsf_cd,
+            ig.evnt_ctgry_cd,
+            ig.lclgv_nm,
+            ig.anony_incl_yn,
+            ig.psdo_incl_yn,
+            ig.prvc_incl_yn
+           FROM klid_at.ls_data_ingest ig
+          WHERE (ig.raw_sn = COALESCE(r.orgnl_raw_sn, r.raw_sn))
+          ORDER BY ig.rcptn_sn DESC
+         LIMIT 1) i ON (true))
+     LEFT JOIN LATERAL ( SELECT string_agg(DISTINCT (lb.lbl_type_cd)::text, ','::text ORDER BY (lb.lbl_type_cd)::text) AS lbl_type
+           FROM (klid_at.ls_data_lbl lb
+             JOIN klid_at.ls_data_src sc ON ((sc.src_sn = lb.src_sn)))
+          WHERE (sc.raw_sn = m.raw_sn)) l ON (true))
+     LEFT JOIN LATERAL ( SELECT fr.de_idntf_src_file_path_nm AS thmb_file_path_nm
+           FROM klid_at.ls_data_src fr
+          WHERE ((fr.raw_sn = m.raw_sn) AND (fr.de_idntf_src_file_path_nm IS NOT NULL) AND (btrim((fr.de_idntf_src_file_path_nm)::text) <> ''::text) AND (NOT ((fr.src_file_path_nm IS NOT NULL) AND (btrim((fr.src_file_path_nm)::text) <> ''::text) AND (btrim((fr.de_idntf_src_file_path_nm)::text) <> ''::text) AND ((fr.de_idntf_src_file_path_nm)::text = (fr.src_file_path_nm)::text))) AND (COALESCE(fr.dscd_yn, 'N'::bpchar) <> 'Y'::bpchar))
+          ORDER BY fr.frm_no
+         LIMIT 1) t ON (true))
+  WHERE ((m.active_yn = 'Y'::bpchar) AND ((s.data_stts_cd)::text = 'APPROVED'::text));
+
+
+--
+-- Data for Name: ls_acnt_user; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_acnt_user (user_no, user_id, user_nm, user_eml_addr, use_yn, reg_dt, mdfcn_dt, last_lgn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_ai_srvr; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_ai_srvr (srvr_id, srvr_nm, srvr_addr, srvr_type_cd, srvr_stts_cd, chck_dt, chck_fail_nocs, reg_dt, mdfr_id, mdfcn_dt, chck_scs_nocs) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_ai_srvr_altmnt; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_ai_srvr_altmnt (altmnt_sn, raw_sn, srvr_id, altmnt_dt, altmnt_rsn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_ai_srvr_usg; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_ai_srvr_usg (srvr_id, usg_type_cd, wtng_nocs, prcs_nocs, chck_dt, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_auth_work_lock; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_auth_work_lock (work_lock_sn, lck_target_cd, data_raw_sn, data_src_sn, lck_stts_cd, lck_id, lock_owner_id, lck_dt, expry_dt, rmv_dt, rmv_rsn, reg_id, reg_dt, mdfcn_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_authrt_grant_atmpt; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_authrt_grant_atmpt (atmpt_se_cd, atmpt_idntfr, bgng_dt, atmpt_nmtm, expd_dt, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_bat_rty_wtng; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_bat_rty_wtng (bat_rty_sn, raw_sn, rty_nmtm, max_rty_nmtm, stts_cd, rty_prnmnt_dt, last_err_msg_cn, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_batch_proc_log; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_batch_proc_log (batch_proc_log_sn, job_id, data_raw_sn, data_src_sn, proc_step_cd, proc_stts_cd, bgng_dt, end_dt, rtry_nmtm, err_cd, err_msg_cn, req_payload_cn, resp_payload_cn, reg_id, reg_dt, mdfcn_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_clip_schedule_que; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_clip_schedule_que (que_sn, raw_sn, job_type_cd, stts_cd, rtry_nmtm, reg_dt, bgng_dt, cmptn_dt, last_err_msg_cn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_control_notify_fallback; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_control_notify_fallback (queue_sn, idmp_key, evnt_type_cd, raw_sn, payload_cn, rtry_nmtm, max_rtry_nmtm, stts_cd, last_err_msg_cn, next_rtry_dt, dlq_dt, reg_dt, mdfcn_dt, send_rslt_cd) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_aug; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_aug (data_aug_sn, src_sn, aug_type_cd, aug_proc_stts_cd, lbl_intgrt_pct, dcsn_user_no, dcsn_dt, reg_dt, reg_user_no, idmp_key, otsd_job_id, rtry_nmtm, dead_letter_at, prompt_cn, new_raw_sn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_aug_dscd; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_aug_dscd (data_aug_dscd_sn, data_aug_sn, new_raw_sn, orgnl_raw_sn, dscd_dt, dscd_rsn, rstr_dt, rstr_rsn, del_prcs_dt, del_dt, file_del_dt, vdo_file_path, reg_id, reg_dt, mdfcn_id, mdfcn_dt, aug_type_cd, prompt_cn, file_del_rtry_nmtm, file_del_fail_dt, file_del_fail_rsn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_aug_job; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_aug_job (aug_job_sn, data_aug_sn, job_seq, idmp_key, otsd_job_id, job_stts_cd, tot_nocs, err_cd, err_msg_cn, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_aug_job_file; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_aug_job_file (aug_job_file_sn, aug_job_sn, file_seq, src_sn, rslt_file_path_nm, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_aug_lbl_map; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_aug_lbl_map (data_aug_lbl_map_sn, data_aug_sn, orgnl_data_lbl_sn, data_lbl_sn, coord_recalc_yn, scale_x, scale_y, reg_id, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_aug_rvw; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_aug_rvw (data_aug_rvw_sn, data_aug_sn, data_raw_sn, data_src_sn, rvw_stts_cd, lbl_intgrt_pct, rjct_rsn, rvw_id, rvw_dt, reg_id, reg_dt, mdfcn_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_ingest; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_ingest (rcptn_sn, rcptn_dt, prcs_stts_cd, raw_sn, rty_cnt, prcs_dt, nxtm_rtry_dt, err_msg, vms_clip_id, vms_cctv_id, vdo_file_nm, raw_file_path_nm, src_type, sht_dt, file_fmt, vdo_cdc, file_sz, lclgv_nm, vdo_len_sec, fps, frme_cnt, asprt_rt, wdth, vrtc, resl, "bit", pxl, wgs84_lat, wgs84_lot, cctv_nm, cctv_hgt, main_surv_pan_ang, evnt_id, evnt_nm, mntr_cn, lclgv_cd, evnt_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, evnt_clsf_cd, evnt_ctgry_cd, vrfc_evnt_type_cd, og_cd) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_issue; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_issue (data_issue_sn, up_data_issue_sn, data_raw_sn, issue_rsn, reported_user_no, reg_dt, issue_type_cd, issue_stts_cd, src_sn, ver) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_lbl; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_lbl (lbl_sn, src_sn, lbl_type_cd, lbl_nm, point_cn, trck_id, reg_user_no, reg_dt, mdfcn_dt, lbl_id, lbl_src_cd, mdl_nm, mdl_ver, conf_score, auto_lbl_yn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_lbl_attr_val; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_lbl_attr_val (atrb_vl_id, lbl_sn, atrb_id, atrb_vl, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_lbl_hstry; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_lbl_hstry (lbl_hstry_sn, src_sn, reg_dt, reg_id, add_cnt, mdfcn_cnt, del_cnt, chg_dtl_cn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_meta; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_meta (meta_sn, raw_sn, meta_key, meta_vl, reg_dt, mdfcn_dt, idmp_key, otsd_job_id, rtry_nmtm, dead_letter_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_meta_review; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_meta_review (data_meta_review_sn, data_meta_sn, data_raw_sn, data_src_sn, meta_type_cd, src_sys_cd, rvw_stts_cd, rvw_id, rvw_dt, rjct_rsn, reg_id, reg_dt, mdfcn_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_raw; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_raw (raw_sn, vms_clip_id, vms_cctv_id, evnt_type_cd, lclgv_cd, prvc_type_cd, prvc_yn, de_ident_yn, raw_file_path_nm, sht_dt, vdo_len_sec, data_stts_cd, reg_dt, mdfcn_dt, orgnl_raw_sn, vdo_len_ms, wthr_nm, day_ngt_cd, sesn_cd, src_type, aug_type_cd, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, portal_user_no) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_src; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_src (src_sn, raw_sn, frm_no, src_file_path_nm, de_idntf_src_file_path_nm, sht_dt, reg_dt, upd_dt, vdo_frm_no, frm_expln, anony_incl_yn, psdo_incl_yn, prvc_incl_yn, lbl_ver, dscd_yn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_data_src_hstry; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_data_src_hstry (hstry_seq, src_sn, chg_type_cd, chg_user_no, chg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_dataset_export; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_dataset_export (output_sn, data_raw_sn, output_ver_no, output_path_nm, output_stts_cd, frme_cnt, reg_dt, content_hash, rty_nmtm, rty_dt, data_etbl_cpct) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_dataset_video_meta; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_dataset_video_meta (meta_snpsht_sn, raw_sn, snpsht_hash, active_yn, orgnl_raw_sn, vms_clip_id, vms_cctv_id, raw_file_path_nm, sht_dt, vdo_len_sec, lclgv_cd, prvc_yn, prvc_type_cd, de_ident_yn, ai_crt_yn, evnt_type_cd, cctv_nm, wgs84_lat, wgs84_lot, sido_nm, sgg_nm, file_fmt, evnt_nm, vdo_cdc, fps, bit_rt, asprt_rt, resl, vdo_wdth, vdo_hgt, file_sz, day_ngt_cd, sesn_cd, wthr_nm, rvw_cmpl_dt, reg_dt, reg_id, evnt_anno_cn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_deident_proc_log; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_deident_proc_log (proc_log_sn, data_raw_sn, req_id, orgnl_file_path_nm, de_idntf_file_path_nm, proc_stts_cd, req_dt, rspns_dt, err_cd, err_msg_cn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, otsd_job_id, de_idntf_pjt_id, de_idntf_datst_id, poll_stts_cd, poll_last_dt, poll_atmpt_cnt, req_knd_cd, face_dtct_cnt, noplt_dtct_cnt, frme_cnt, prcs_bgng_dt, prcs_end_dt, rpt_file_path_nm) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_deident_report; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_deident_report (deident_report_sn, data_raw_sn, reporter_no, rsn, report_stts_cd, dclr_dt, resolved_dt, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dclr_stp_cd) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_eblc_uld_job; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_eblc_uld_job (eblc_uld_job_sn, orgnl_fldr_path_nm, job_stts_cd, trgt_nocs, scs_nocs, fail_nocs, dmnd_cn, bgng_dt, cmptn_dt, reg_id, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_eblc_uld_job_artcl; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_eblc_uld_job_artcl (eblc_uld_job_artcl_sn, eblc_uld_job_sn, mark_file_path_nm, vdo_file_path_nm, artcl_stts_cd, raw_sn, fail_rsn, rtry_nmtm, bgng_dt, cmptn_dt, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_evnt_anno; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_evnt_anno (evnt_anno_sn, raw_sn, anno_cn, reg_id, reg_dt, mdfcn_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_evnt_anno_review; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_evnt_anno_review (rvw_sn, evnt_anno_sn, rvw_stts_cd, meta_type_cd, rvw_id, rvw_dt, rjct_rsn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, ver) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_evnt_ctgry; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_evnt_ctgry (evnt_clsf_cd, evnt_ctgry_cd, evnt_ctgry_nm, reg_dt) FROM stdin;
+01	0001	침수(범람)	2026-09-03 14:09:55.894744
+01	0002	산사태	2026-09-03 14:09:55.894744
+02	0001	화재	2026-09-03 14:09:55.894744
+02	0002	쓰러짐	2026-09-03 14:09:55.894744
+02	0005	파손	2026-09-03 14:09:55.894744
+03	0001	교통사고	2026-09-03 14:09:55.894744
+05	0001	싸움	2026-09-03 14:09:55.894744
+05	0002	흉기소지	2026-09-03 14:09:55.894744
+05	0007	납치(유괴)	2026-09-03 14:09:55.894744
+07	0002	기타 상황	2026-09-03 14:09:55.894744
+08	0001	배회	2026-09-03 14:09:55.894744
+\.
+
+
+--
+-- Data for Name: ls_evnt_type; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_evnt_type (evnt_type_cd, evnt_nm, optr_indct_nm, evnt_clsf_cd, evnt_ctgry_cd, clct_yn, reg_dt) FROM stdin;
+EV01000101	\N	\N	01	0001	Y	2026-09-03 14:09:55.894744
+EV01000102	\N	\N	01	0001	Y	2026-09-03 14:09:55.894744
+EV01000103	\N	\N	01	0001	Y	2026-09-03 14:09:55.894744
+EV01000201	\N	\N	01	0002	Y	2026-09-03 14:09:55.894744
+EV02000101	\N	\N	02	0001	Y	2026-09-03 14:09:55.894744
+EV02000102	\N	\N	02	0001	Y	2026-09-03 14:09:55.894744
+EV02000201	\N	\N	02	0002	Y	2026-09-03 14:09:55.894744
+EV02000501	\N	\N	02	0005	Y	2026-09-03 14:09:55.894744
+EV03000101	\N	\N	03	0001	Y	2026-09-03 14:09:55.894744
+EV03000102	\N	\N	03	0001	Y	2026-09-03 14:09:55.894744
+EV03000103	\N	\N	03	0001	Y	2026-09-03 14:09:55.894744
+EV05000101	\N	\N	05	0001	Y	2026-09-03 14:09:55.894744
+EV05000201	\N	\N	05	0002	Y	2026-09-03 14:09:55.894744
+EV05000701	\N	\N	05	0007	Y	2026-09-03 14:09:55.894744
+EV08000101	\N	\N	08	0001	Y	2026-09-03 14:09:55.894744
+EV07000201	\N	\N	07	0002	N	2026-09-03 14:09:55.894744
+\.
+
+
+--
+-- Data for Name: ls_issue_comment; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_issue_comment (cmnt_sn, data_issue_sn, author_no, author_role_cd, cmnt_cn, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_label; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_label (lbl_id, lbl_nm, colr_vl, lbl_type_cd, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt, dtct_type_cd) FROM stdin;
+1	사람	#E74C3C	BBOX	1	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	person
+2	자동차	#3498DB	BBOX	2	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	car
+3	자전거	#9B59B6	BBOX	3	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	bicycle
+4	오토바이	#1ABC9C	BBOX	4	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	motorcycle
+5	버스	#F39C12	BBOX	5	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	bus
+6	트럭	#34495E	BBOX	6	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	truck
+7	화재	#FF5733	POLYGON	8	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	\N
+8	연기	#7F8C8D	POLYGON	9	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	\N
+9	침수	#2980B9	POLYGON	10	Y	SYSTEM	2026-09-03 14:09:55.894744	\N	\N	\N
+\.
+
+
+--
+-- Data for Name: ls_label_attr; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_label_attr (atrb_id, lbl_id, atrb_nm, input_type_cd, values_cn, dflt_vl, mutable_yn, sort_seq, use_yn, reg_id, reg_dt, mdfcn_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_label_preset; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_label_preset (preset_id, reg_dt, mdfcn_dt, evnt_type_cd) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_label_preset_code; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_label_preset_code (cd_sn, preset_id, lbl_cd, sort_seq, lbl_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_label_version; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_label_version (lbl_version_sn, data_raw_sn, data_src_sn, ver_no, save_reason_cd, actvtn_yn, reg_id, reg_dt, lbl_payload, version_hash) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_marking; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_marking (marking_sn, raw_sn, mark_mode_cd, frme_intv_nocs, mark_cn, stts_cd, reg_user_no, reg_dt, mdfcn_dt, fps, vrfc_evnt_qstn_sn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_meta_repl_outbox; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_meta_repl_outbox (outbox_sn, raw_sn, snpsht_hash, payload_cn, stts_cd, rtry_nmtm, reg_dt, prcs_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_mngr_pswd; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_mngr_pswd (mngr_pswd_sn, pswd_hash, mdfr_id, pswd_mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_mon_noti_acml; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_mon_noti_acml (noti_acml_sn, raw_sn, stts_cd, export_rprcs_yn, chg_dtl_cn, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_notice; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_notice (notice_sn, notice_title, notice_cn, upend_fix_yn, pblcn_stts_cd, pblcn_dt, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_notice_attach; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_notice_attach (atch_file_sn, notice_sn, orgnl_file_nm, strg_file_nm, file_path, file_sz, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_otsd_ctgry_mpng; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_otsd_ctgry_mpng (mpng_sn, mpng_knd_cd, otsd_ctgry_cd, otsd_ctgry_nm, lbl_id, evnt_type_cd, use_yn, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_otsd_datst_trnsf_hstry; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_otsd_datst_trnsf_hstry (trnsf_sn, orgnl_fldr_path_nm, orgnl_fldr_nm, otsd_datst_id, raw_sn, trnsf_stts_cd, frme_cnt, lbl_cnt, fail_rsn, reg_id, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_output_ver_snpsh; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_output_ver_snpsh (output_ver_snpsh_sn, data_raw_sn, data_src_sn, output_ver_no, lbl_ver_sn, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_portal_tus_uld; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_portal_tus_uld (uld_id, portal_user_no, uld_len, uld_offset, stts_cd, file_path_nm, orgnl_file_nm, uld_sn, expry_dt, ver, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_portal_uld; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_portal_uld (uld_sn, portal_user_no, uld_type_cd, orgnl_file_nm, file_path_nm, file_sz, mime_type_nm, uld_stts_cd, vdo_len_sec, fps, frme_cnt, fail_rsn_cn, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_portal_uld_frme; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_portal_uld_frme (uld_frme_sn, uld_sn, frme_no, file_path_nm, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_portal_uld_lbl; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_portal_uld_lbl (uld_lbl_sn, portal_user_no, uld_sn, uld_frme_sn, lbl_type_cd, lbl_nm, point_cn, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_portal_user_label; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_portal_user_label (user_lbl_sn, portal_user_no, src_raw_sn, src_data_src_sn, lbl_type_cd, lbl_nm, point_cn, reg_dt, mdfcn_dt, lbl_id, trck_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_raw_data_status; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_raw_data_status (raw_data_id, data_stts_cd, stp_cycl, igi_cycl, upd_dt, ver, revlt_yn, de_idntf_cmptn_yn) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_system_config; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_system_config (stng_key, stng_value, stng_type_cd, expln, mdfr_id, mdfcn_dt) FROM stdin;
+BATCH_INTERVAL_SEC	60	NUMBER	배치 트리거 간격 (초, 10~3600)	SYSTEM	2026-09-03 14:09:55.09931
+BATCH_CONCURRENCY	1	NUMBER	동시 배치 잡 수 (1=직렬, 1~10)	SYSTEM	2026-09-03 14:09:55.09931
+YOLO_IOU	50	NUMBER	YOLO NMS IoU 임계값 백분율 (30~80, 사용 시 /100)	SYSTEM	2026-09-03 14:09:55.09931
+YOLO_CONF_THRESHOLD	25	NUMBER	YOLO 신뢰도 임계값 백분율 (25~80, 사용 시 /100)	SYSTEM	2026-09-03 14:09:55.09931
+POLYGON_SIMPLIFY_TOLERANCE	1.0	DECIMAL	폴리곤 경계 단순화 epsilon px (0.0~50.0, Douglas-Peucker)	SYSTEM	2026-09-03 14:09:55.09931
+portal.upload.frame-interval-sec	5	NUMBER	포털 업로드 영상 프레임 추출 간격(초, 1~600)	SYSTEM	2026-09-03 14:09:55.09931
+autolabel.polygon.max-boxes	20	NUMBER	폴리곤 오토라벨 SAM 분할 박스 상한 (1~100)	SYSTEM	2026-09-03 14:09:55.09931
+eventtype.excluded-class-codes	["08"]	JSON	이벤트 필터 옵션에서 제외할 대분류 코드 목록(기본 08=배회)	SYSTEM	2026-09-03 14:09:55.09931
+kpst.deid.masking-type	0	NUMBER	비식별 마스킹 방식 (0 색상 / 2 모자이크 / 3 블러)	SYSTEM	2026-09-03 14:09:55.09931
+kpst.deid.masking-range	1.0	DECIMAL	비식별 마스킹 영역 배율 (0.5~2.0)	SYSTEM	2026-09-03 14:09:55.09931
+kpst.deid.db-save	0	NUMBER	비식별 처리 프레임 저장 여부 (0 저장 안 함 / 1 저장)	SYSTEM	2026-09-03 14:09:55.09931
+portal.datamart.retention-days	7	NUMBER	포털 데이터마트 라벨 보존일수 (1~3650)	SYSTEM	2026-09-03 14:09:55.823367
+portal.upload.retention-days	7	NUMBER	포털 업로드 자산 보존일수 (1~3650)	SYSTEM	2026-09-03 14:09:55.823367
+portal.upload.failed-retention-days	1	NUMBER	포털 업로드 실패 자산 보존일수 (1~3650)	SYSTEM	2026-09-03 14:09:55.823367
+\.
+
+
+--
+-- Data for Name: ls_task_altmnt; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_task_altmnt (assignment_id, user_no, raw_data_id, task_type_cd, reg_user_no, reg_dt, ver) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_task_evnt_log; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_task_evnt_log (evnt_id, raw_data_id, evnt_type_cd, actor_user_no, subject_user_no, prev_user_no, rsn, ocrn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_tus_upload; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_tus_upload (uld_id, user_no, uld_len, uld_offset, stts_cd, file_path, file_nm, vms_clip_id, cctv_id, evnt_type_cd, lclgv_cd, prvc_type_cd, sht_dt, raw_sn, expry_dt, ver, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_user_role; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_user_role (user_no, role_cd, reg_dt, upd_dt, mdfr_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_vrfc_evnt_qstn; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_vrfc_evnt_qstn (vrfc_evnt_qstn_sn, vrfc_evnt_type_cd, sort_seq, qstn_cn, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
+1	fire	1	영상에서 '화염이 보이는 불' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+2	smoke	1	영상에서 '특정 지점에서 피어올라 확산되는 연기' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+3	fall	1	영상에서 '사람이 바닥에 쓰러지거나 쓰러져 있음' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+4	violence	1	영상에서 '신체적 충돌을 동반한 싸움' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+5	flooding	1	영상에서 '평소 물이 없던 공간이 물에 잠기는 침수' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+6	car_accident	1	영상에서 '차량 충돌을 동반한 교통사고' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+7	kidnapping	1	영상에서 '저항하는 사람을 강제로 데려가는 강제 이동' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?	\N	2026-09-03 14:09:55.953222	\N	\N
+\.
+
+
+--
+-- Data for Name: ls_vrfc_evnt_type; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_vrfc_evnt_type (vrfc_evnt_type_cd, vrfc_evnt_type_nm, vrfc_evnt_type_expln, sort_seq, reg_id, reg_dt, mdfr_id, mdfcn_dt) FROM stdin;
+fire	화재	불꽃 등 화재 상황	1	\N	2026-09-03 14:09:55.953222	\N	\N
+smoke	연기	연기 등 화재 상황	2	\N	2026-09-03 14:09:55.953222	\N	\N
+fall	쓰러짐	사람이 쓰러지거나 바닥에 누워 있는 상황	3	\N	2026-09-03 14:09:55.953222	\N	\N
+violence	폭력	폭행, 몸싸움, 물리적 충돌 상황	4	\N	2026-09-03 14:09:55.953222	\N	\N
+flooding	침수	물이 차오르거나 공간이 물에 잠긴 상황	5	\N	2026-09-03 14:09:55.953222	\N	\N
+car_accident	교통사고	차량 충돌, 전복, 사고 정황	6	\N	2026-09-03 14:09:55.953222	\N	\N
+kidnapping	납치	강제로 끌고 가거나 납치로 의심되는 상황	7	\N	2026-09-03 14:09:55.953222	\N	\N
+\.
+
+
+--
+-- Data for Name: ls_webhook_idempotency; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_webhook_idempotency (idmp_key, chnl_cd, stts_cd, otsd_job_id, aplcn_dt, reg_dt, mdfcn_dt, raw_sn, srvr_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_whk_fail_nmtm; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_whk_fail_nmtm (call_ip_addr, bgng_dt, fail_nmtm, expd_dt, reg_dt, mdfcn_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: ls_whk_sign_use; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.ls_whk_sign_use (sign_hash, whk_path_nm, expd_dt, reg_dt) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_blob_triggers; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_blob_triggers (sched_name, trigger_name, trigger_group, blob_data) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_calendars; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_calendars (sched_name, calendar_name, calendar) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_cron_triggers; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_cron_triggers (sched_name, trigger_name, trigger_group, cron_expression, time_zone_id) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_fired_triggers; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_fired_triggers (sched_name, entry_id, trigger_name, trigger_group, instance_name, fired_time, sched_time, priority, state, job_name, job_group, is_nonconcurrent, requests_recovery) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_job_details; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_job_details (sched_name, job_name, job_group, description, job_class_name, is_durable, is_nonconcurrent, is_update_data, requests_recovery, job_data) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_locks; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_locks (sched_name, lock_name) FROM stdin;
+KlidAuthoringScheduler	TRIGGER_ACCESS
+KlidAuthoringScheduler	STATE_ACCESS
+\.
+
+
+--
+-- Data for Name: qrtz_paused_trigger_grps; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_paused_trigger_grps (sched_name, trigger_group) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_scheduler_state; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_scheduler_state (sched_name, instance_name, last_checkin_time, checkin_interval) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_simple_triggers; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_simple_triggers (sched_name, trigger_name, trigger_group, repeat_count, repeat_interval, times_triggered) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_simprop_triggers; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_simprop_triggers (sched_name, trigger_name, trigger_group, str_prop_1, str_prop_2, str_prop_3, int_prop_1, int_prop_2, long_prop_1, long_prop_2, dec_prop_1, dec_prop_2, bool_prop_1, bool_prop_2) FROM stdin;
+\.
+
+
+--
+-- Data for Name: qrtz_triggers; Type: TABLE DATA; Schema: klid_at; Owner: -
+--
+
+COPY klid_at.qrtz_triggers (sched_name, trigger_name, trigger_group, job_name, job_group, description, next_fire_time, prev_fire_time, priority, trigger_state, trigger_type, start_time, end_time, calendar_name, misfire_instr, job_data) FROM stdin;
+\.
+
+
+--
+-- Name: ls_ai_srvr_altmnt_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_ai_srvr_altmnt_seq', 1, false);
+
+
+--
+-- Name: ls_auth_work_lock_work_lock_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_auth_work_lock_work_lock_sn_seq', 1, false);
+
+
+--
+-- Name: ls_bat_rty_wtng_bat_rty_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_bat_rty_wtng_bat_rty_sn_seq', 1, false);
+
+
+--
+-- Name: ls_batch_proc_log_batch_proc_log_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_batch_proc_log_batch_proc_log_sn_seq', 1, false);
+
+
+--
+-- Name: ls_clip_schedule_que_que_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_clip_schedule_que_que_sn_seq', 1, false);
+
+
+--
+-- Name: ls_control_notify_fallback_queue_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_control_notify_fallback_queue_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_aug_data_aug_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_aug_data_aug_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_aug_dscd_data_aug_dscd_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_aug_dscd_data_aug_dscd_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_aug_job_aug_job_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_aug_job_aug_job_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_aug_job_file_aug_job_file_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_aug_job_file_aug_job_file_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_aug_lbl_map_data_aug_lbl_map_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_aug_lbl_map_data_aug_lbl_map_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_aug_rvw_data_aug_rvw_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_aug_rvw_data_aug_rvw_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_ingest_rcptn_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_ingest_rcptn_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_issue_data_issue_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_issue_data_issue_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_lbl_attr_val_attr_val_id_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_lbl_attr_val_attr_val_id_seq', 1, false);
+
+
+--
+-- Name: ls_data_lbl_hstry_lbl_hstry_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_lbl_hstry_lbl_hstry_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_lbl_lbl_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_lbl_lbl_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_meta_meta_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_meta_meta_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_meta_review_data_meta_review_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_meta_review_data_meta_review_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_raw_raw_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_raw_raw_sn_seq', 1, false);
+
+
+--
+-- Name: ls_data_src_hstry_hstry_seq_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_src_hstry_hstry_seq_seq', 1, false);
+
+
+--
+-- Name: ls_data_src_src_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_data_src_src_sn_seq', 1, false);
+
+
+--
+-- Name: ls_dataset_export_output_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_dataset_export_output_sn_seq', 1, false);
+
+
+--
+-- Name: ls_dataset_video_meta_meta_snpsht_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_dataset_video_meta_meta_snpsht_sn_seq', 1, false);
+
+
+--
+-- Name: ls_deident_proc_log_proc_log_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_deident_proc_log_proc_log_sn_seq', 1, false);
+
+
+--
+-- Name: ls_deident_report_deident_report_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_deident_report_deident_report_sn_seq', 1, false);
+
+
+--
+-- Name: ls_eblc_uld_job_artcl_eblc_uld_job_artcl_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_eblc_uld_job_artcl_eblc_uld_job_artcl_sn_seq', 1, false);
+
+
+--
+-- Name: ls_eblc_uld_job_eblc_uld_job_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_eblc_uld_job_eblc_uld_job_sn_seq', 1, false);
+
+
+--
+-- Name: ls_evnt_anno_evnt_anno_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_evnt_anno_evnt_anno_sn_seq', 1, false);
+
+
+--
+-- Name: ls_evnt_anno_review_rvw_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_evnt_anno_review_rvw_sn_seq', 1, false);
+
+
+--
+-- Name: ls_issue_comment_issue_comment_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_issue_comment_issue_comment_sn_seq', 1, false);
+
+
+--
+-- Name: ls_label_attr_attr_id_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_label_attr_attr_id_seq', 1, false);
+
+
+--
+-- Name: ls_label_label_id_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_label_label_id_seq', 9, true);
+
+
+--
+-- Name: ls_label_preset_code_code_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_label_preset_code_code_sn_seq', 1, false);
+
+
+--
+-- Name: ls_label_preset_preset_id_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_label_preset_preset_id_seq', 1, false);
+
+
+--
+-- Name: ls_label_version_label_version_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_label_version_label_version_sn_seq', 1, false);
+
+
+--
+-- Name: ls_marking_marking_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_marking_marking_sn_seq', 1, false);
+
+
+--
+-- Name: ls_meta_repl_outbox_outbox_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_meta_repl_outbox_outbox_sn_seq', 1, false);
+
+
+--
+-- Name: ls_mon_noti_acml_noti_acml_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_mon_noti_acml_noti_acml_sn_seq', 1, false);
+
+
+--
+-- Name: ls_notice_attach_attach_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_notice_attach_attach_sn_seq', 1, false);
+
+
+--
+-- Name: ls_notice_notice_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_notice_notice_sn_seq', 1, false);
+
+
+--
+-- Name: ls_otsd_ctgry_mpng_mpng_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_otsd_ctgry_mpng_mpng_sn_seq', 1, false);
+
+
+--
+-- Name: ls_otsd_datst_trnsf_hstry_trnsf_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_otsd_datst_trnsf_hstry_trnsf_sn_seq', 1, false);
+
+
+--
+-- Name: ls_output_ver_snpsh_output_ver_snpsh_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_output_ver_snpsh_output_ver_snpsh_sn_seq', 1, false);
+
+
+--
+-- Name: ls_portal_uld_frme_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_portal_uld_frme_seq', 1, false);
+
+
+--
+-- Name: ls_portal_uld_lbl_uld_lbl_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_portal_uld_lbl_uld_lbl_sn_seq', 1, false);
+
+
+--
+-- Name: ls_portal_uld_uld_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_portal_uld_uld_sn_seq', 1, false);
+
+
+--
+-- Name: ls_portal_user_label_user_lbl_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_portal_user_label_user_lbl_sn_seq', 1, false);
+
+
+--
+-- Name: ls_task_altmnt_assignment_id_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_task_altmnt_assignment_id_seq', 1, false);
+
+
+--
+-- Name: ls_task_evnt_log_evnt_id_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_task_evnt_log_evnt_id_seq', 1, false);
+
+
+--
+-- Name: ls_vrfc_evnt_qstn_vrfc_evnt_qstn_sn_seq; Type: SEQUENCE SET; Schema: klid_at; Owner: -
+--
+
+SELECT pg_catalog.setval('klid_at.ls_vrfc_evnt_qstn_vrfc_evnt_qstn_sn_seq', 7, true);
+
+
+--
+-- Name: ls_acnt_user ls_acnt_user_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_acnt_user
+    ADD CONSTRAINT ls_acnt_user_pkey PRIMARY KEY (user_no);
+
+
+--
+-- Name: ls_ai_srvr_altmnt ls_ai_srvr_altmnt_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_altmnt
+    ADD CONSTRAINT ls_ai_srvr_altmnt_pkey PRIMARY KEY (altmnt_sn);
+
+
+--
+-- Name: ls_ai_srvr ls_ai_srvr_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr
+    ADD CONSTRAINT ls_ai_srvr_pkey PRIMARY KEY (srvr_id);
+
+
+--
+-- Name: ls_ai_srvr_usg ls_ai_srvr_usg_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_usg
+    ADD CONSTRAINT ls_ai_srvr_usg_pkey PRIMARY KEY (srvr_id, usg_type_cd);
+
+
+--
+-- Name: ls_auth_work_lock ls_auth_work_lock_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_auth_work_lock
+    ADD CONSTRAINT ls_auth_work_lock_pkey PRIMARY KEY (work_lock_sn);
+
+
+--
+-- Name: ls_bat_rty_wtng ls_bat_rty_wtng_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_bat_rty_wtng
+    ADD CONSTRAINT ls_bat_rty_wtng_pkey PRIMARY KEY (bat_rty_sn);
+
+
+--
+-- Name: ls_batch_proc_log ls_batch_proc_log_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_batch_proc_log
+    ADD CONSTRAINT ls_batch_proc_log_pkey PRIMARY KEY (batch_proc_log_sn);
+
+
+--
+-- Name: ls_clip_schedule_que ls_clip_schedule_que_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_clip_schedule_que
+    ADD CONSTRAINT ls_clip_schedule_que_pkey PRIMARY KEY (que_sn);
+
+
+--
+-- Name: ls_control_notify_fallback ls_control_notify_fallback_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_control_notify_fallback
+    ADD CONSTRAINT ls_control_notify_fallback_pkey PRIMARY KEY (queue_sn);
+
+
+--
+-- Name: ls_data_aug_dscd ls_data_aug_dscd_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_dscd
+    ADD CONSTRAINT ls_data_aug_dscd_pkey PRIMARY KEY (data_aug_dscd_sn);
+
+
+--
+-- Name: ls_data_aug_job_file ls_data_aug_job_file_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_job_file
+    ADD CONSTRAINT ls_data_aug_job_file_pkey PRIMARY KEY (aug_job_file_sn);
+
+
+--
+-- Name: ls_data_aug_job ls_data_aug_job_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_job
+    ADD CONSTRAINT ls_data_aug_job_pkey PRIMARY KEY (aug_job_sn);
+
+
+--
+-- Name: ls_data_aug_lbl_map ls_data_aug_lbl_map_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_lbl_map
+    ADD CONSTRAINT ls_data_aug_lbl_map_pkey PRIMARY KEY (data_aug_lbl_map_sn);
+
+
+--
+-- Name: ls_data_aug ls_data_aug_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug
+    ADD CONSTRAINT ls_data_aug_pkey PRIMARY KEY (data_aug_sn);
+
+
+--
+-- Name: ls_data_aug_rvw ls_data_aug_rvw_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_rvw
+    ADD CONSTRAINT ls_data_aug_rvw_pkey PRIMARY KEY (data_aug_rvw_sn);
+
+
+--
+-- Name: ls_data_issue ls_data_issue_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_issue
+    ADD CONSTRAINT ls_data_issue_pkey PRIMARY KEY (data_issue_sn);
+
+
+--
+-- Name: ls_data_lbl_attr_val ls_data_lbl_attr_val_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl_attr_val
+    ADD CONSTRAINT ls_data_lbl_attr_val_pkey PRIMARY KEY (atrb_vl_id);
+
+
+--
+-- Name: ls_data_lbl_hstry ls_data_lbl_hstry_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl_hstry
+    ADD CONSTRAINT ls_data_lbl_hstry_pkey PRIMARY KEY (lbl_hstry_sn);
+
+
+--
+-- Name: ls_data_lbl ls_data_lbl_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl
+    ADD CONSTRAINT ls_data_lbl_pkey PRIMARY KEY (lbl_sn);
+
+
+--
+-- Name: ls_data_meta ls_data_meta_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta
+    ADD CONSTRAINT ls_data_meta_pkey PRIMARY KEY (meta_sn);
+
+
+--
+-- Name: ls_data_meta_review ls_data_meta_review_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta_review
+    ADD CONSTRAINT ls_data_meta_review_pkey PRIMARY KEY (data_meta_review_sn);
+
+
+--
+-- Name: ls_data_raw ls_data_raw_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_raw
+    ADD CONSTRAINT ls_data_raw_pkey PRIMARY KEY (raw_sn);
+
+
+--
+-- Name: ls_data_src_hstry ls_data_src_hstry_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_src_hstry
+    ADD CONSTRAINT ls_data_src_hstry_pkey PRIMARY KEY (hstry_seq);
+
+
+--
+-- Name: ls_data_src ls_data_src_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_src
+    ADD CONSTRAINT ls_data_src_pkey PRIMARY KEY (src_sn);
+
+
+--
+-- Name: ls_dataset_export ls_dataset_export_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_dataset_export
+    ADD CONSTRAINT ls_dataset_export_pkey PRIMARY KEY (output_sn);
+
+
+--
+-- Name: ls_dataset_video_meta ls_dataset_video_meta_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_dataset_video_meta
+    ADD CONSTRAINT ls_dataset_video_meta_pkey PRIMARY KEY (meta_snpsht_sn);
+
+
+--
+-- Name: ls_deident_proc_log ls_deident_proc_log_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_deident_proc_log
+    ADD CONSTRAINT ls_deident_proc_log_pkey PRIMARY KEY (proc_log_sn);
+
+
+--
+-- Name: ls_deident_report ls_deident_report_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_deident_report
+    ADD CONSTRAINT ls_deident_report_pkey PRIMARY KEY (deident_report_sn);
+
+
+--
+-- Name: ls_eblc_uld_job_artcl ls_eblc_uld_job_artcl_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_eblc_uld_job_artcl
+    ADD CONSTRAINT ls_eblc_uld_job_artcl_pkey PRIMARY KEY (eblc_uld_job_artcl_sn);
+
+
+--
+-- Name: ls_eblc_uld_job ls_eblc_uld_job_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_eblc_uld_job
+    ADD CONSTRAINT ls_eblc_uld_job_pkey PRIMARY KEY (eblc_uld_job_sn);
+
+
+--
+-- Name: ls_evnt_anno ls_evnt_anno_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_anno
+    ADD CONSTRAINT ls_evnt_anno_pkey PRIMARY KEY (evnt_anno_sn);
+
+
+--
+-- Name: ls_evnt_anno_review ls_evnt_anno_review_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_anno_review
+    ADD CONSTRAINT ls_evnt_anno_review_pkey PRIMARY KEY (rvw_sn);
+
+
+--
+-- Name: ls_evnt_ctgry ls_evnt_ctgry_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_ctgry
+    ADD CONSTRAINT ls_evnt_ctgry_pkey PRIMARY KEY (evnt_clsf_cd, evnt_ctgry_cd);
+
+
+--
+-- Name: ls_evnt_type ls_evnt_type_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_type
+    ADD CONSTRAINT ls_evnt_type_pkey PRIMARY KEY (evnt_type_cd);
+
+
+--
+-- Name: ls_issue_comment ls_issue_comment_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_issue_comment
+    ADD CONSTRAINT ls_issue_comment_pkey PRIMARY KEY (cmnt_sn);
+
+
+--
+-- Name: ls_label_attr ls_label_attr_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_attr
+    ADD CONSTRAINT ls_label_attr_pkey PRIMARY KEY (atrb_id);
+
+
+--
+-- Name: ls_label ls_label_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label
+    ADD CONSTRAINT ls_label_pkey PRIMARY KEY (lbl_id);
+
+
+--
+-- Name: ls_label_preset_code ls_label_preset_code_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_preset_code
+    ADD CONSTRAINT ls_label_preset_code_pkey PRIMARY KEY (cd_sn);
+
+
+--
+-- Name: ls_label_preset ls_label_preset_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_preset
+    ADD CONSTRAINT ls_label_preset_pkey PRIMARY KEY (preset_id);
+
+
+--
+-- Name: ls_label_version ls_label_version_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_version
+    ADD CONSTRAINT ls_label_version_pkey PRIMARY KEY (lbl_version_sn);
+
+
+--
+-- Name: ls_marking ls_marking_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_marking
+    ADD CONSTRAINT ls_marking_pkey PRIMARY KEY (marking_sn);
+
+
+--
+-- Name: ls_meta_repl_outbox ls_meta_repl_outbox_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_meta_repl_outbox
+    ADD CONSTRAINT ls_meta_repl_outbox_pkey PRIMARY KEY (outbox_sn);
+
+
+--
+-- Name: ls_mngr_pswd ls_mngr_pswd_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_mngr_pswd
+    ADD CONSTRAINT ls_mngr_pswd_pkey PRIMARY KEY (mngr_pswd_sn);
+
+
+--
+-- Name: ls_mon_noti_acml ls_mon_noti_acml_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_mon_noti_acml
+    ADD CONSTRAINT ls_mon_noti_acml_pkey PRIMARY KEY (noti_acml_sn);
+
+
+--
+-- Name: ls_notice_attach ls_notice_attach_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_notice_attach
+    ADD CONSTRAINT ls_notice_attach_pkey PRIMARY KEY (atch_file_sn);
+
+
+--
+-- Name: ls_notice ls_notice_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_notice
+    ADD CONSTRAINT ls_notice_pkey PRIMARY KEY (notice_sn);
+
+
+--
+-- Name: ls_otsd_ctgry_mpng ls_otsd_ctgry_mpng_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_otsd_ctgry_mpng
+    ADD CONSTRAINT ls_otsd_ctgry_mpng_pkey PRIMARY KEY (mpng_sn);
+
+
+--
+-- Name: ls_otsd_datst_trnsf_hstry ls_otsd_datst_trnsf_hstry_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_otsd_datst_trnsf_hstry
+    ADD CONSTRAINT ls_otsd_datst_trnsf_hstry_pkey PRIMARY KEY (trnsf_sn);
+
+
+--
+-- Name: ls_output_ver_snpsh ls_output_ver_snpsh_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_output_ver_snpsh
+    ADD CONSTRAINT ls_output_ver_snpsh_pkey PRIMARY KEY (output_ver_snpsh_sn);
+
+
+--
+-- Name: ls_portal_tus_uld ls_portal_tus_uld_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_tus_uld
+    ADD CONSTRAINT ls_portal_tus_uld_pkey PRIMARY KEY (uld_id);
+
+
+--
+-- Name: ls_portal_uld_frme ls_portal_uld_frme_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld_frme
+    ADD CONSTRAINT ls_portal_uld_frme_pkey PRIMARY KEY (uld_frme_sn);
+
+
+--
+-- Name: ls_portal_uld_lbl ls_portal_uld_lbl_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld_lbl
+    ADD CONSTRAINT ls_portal_uld_lbl_pkey PRIMARY KEY (uld_lbl_sn);
+
+
+--
+-- Name: ls_portal_uld ls_portal_uld_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld
+    ADD CONSTRAINT ls_portal_uld_pkey PRIMARY KEY (uld_sn);
+
+
+--
+-- Name: ls_portal_user_label ls_portal_user_label_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_user_label
+    ADD CONSTRAINT ls_portal_user_label_pkey PRIMARY KEY (user_lbl_sn);
+
+
+--
+-- Name: ls_raw_data_status ls_raw_data_status_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_raw_data_status
+    ADD CONSTRAINT ls_raw_data_status_pkey PRIMARY KEY (raw_data_id);
+
+
+--
+-- Name: ls_system_config ls_system_config_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_system_config
+    ADD CONSTRAINT ls_system_config_pkey PRIMARY KEY (stng_key);
+
+
+--
+-- Name: ls_task_altmnt ls_task_altmnt_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_task_altmnt
+    ADD CONSTRAINT ls_task_altmnt_pkey PRIMARY KEY (assignment_id);
+
+
+--
+-- Name: ls_task_evnt_log ls_task_evnt_log_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_task_evnt_log
+    ADD CONSTRAINT ls_task_evnt_log_pkey PRIMARY KEY (evnt_id);
+
+
+--
+-- Name: ls_tus_upload ls_tus_upload_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_tus_upload
+    ADD CONSTRAINT ls_tus_upload_pkey PRIMARY KEY (uld_id);
+
+
+--
+-- Name: ls_user_role ls_user_role_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_user_role
+    ADD CONSTRAINT ls_user_role_pkey PRIMARY KEY (user_no);
+
+
+--
+-- Name: ls_vrfc_evnt_qstn ls_vrfc_evnt_qstn_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_vrfc_evnt_qstn
+    ADD CONSTRAINT ls_vrfc_evnt_qstn_pkey PRIMARY KEY (vrfc_evnt_qstn_sn);
+
+
+--
+-- Name: ls_vrfc_evnt_type ls_vrfc_evnt_type_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_vrfc_evnt_type
+    ADD CONSTRAINT ls_vrfc_evnt_type_pkey PRIMARY KEY (vrfc_evnt_type_cd);
+
+
+--
+-- Name: ls_webhook_idempotency ls_webhook_idempotency_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_webhook_idempotency
+    ADD CONSTRAINT ls_webhook_idempotency_pkey PRIMARY KEY (idmp_key);
+
+
+--
+-- Name: ls_authrt_grant_atmpt pk_ls_authrt_grant_atmpt; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_authrt_grant_atmpt
+    ADD CONSTRAINT pk_ls_authrt_grant_atmpt PRIMARY KEY (atmpt_se_cd, atmpt_idntfr, bgng_dt);
+
+
+--
+-- Name: ls_data_ingest pk_ls_data_ingest; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_ingest
+    ADD CONSTRAINT pk_ls_data_ingest PRIMARY KEY (rcptn_sn);
+
+
+--
+-- Name: ls_whk_fail_nmtm pk_ls_whk_fail_nmtm; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_whk_fail_nmtm
+    ADD CONSTRAINT pk_ls_whk_fail_nmtm PRIMARY KEY (call_ip_addr, bgng_dt);
+
+
+--
+-- Name: ls_whk_sign_use pk_ls_whk_sign_use; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_whk_sign_use
+    ADD CONSTRAINT pk_ls_whk_sign_use PRIMARY KEY (sign_hash);
+
+
+--
+-- Name: qrtz_blob_triggers qrtz_blob_triggers_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_blob_triggers
+    ADD CONSTRAINT qrtz_blob_triggers_pkey PRIMARY KEY (sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_calendars qrtz_calendars_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_calendars
+    ADD CONSTRAINT qrtz_calendars_pkey PRIMARY KEY (sched_name, calendar_name);
+
+
+--
+-- Name: qrtz_cron_triggers qrtz_cron_triggers_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_cron_triggers
+    ADD CONSTRAINT qrtz_cron_triggers_pkey PRIMARY KEY (sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_fired_triggers qrtz_fired_triggers_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_fired_triggers
+    ADD CONSTRAINT qrtz_fired_triggers_pkey PRIMARY KEY (sched_name, entry_id);
+
+
+--
+-- Name: qrtz_job_details qrtz_job_details_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_job_details
+    ADD CONSTRAINT qrtz_job_details_pkey PRIMARY KEY (sched_name, job_name, job_group);
+
+
+--
+-- Name: qrtz_locks qrtz_locks_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_locks
+    ADD CONSTRAINT qrtz_locks_pkey PRIMARY KEY (sched_name, lock_name);
+
+
+--
+-- Name: qrtz_paused_trigger_grps qrtz_paused_trigger_grps_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_paused_trigger_grps
+    ADD CONSTRAINT qrtz_paused_trigger_grps_pkey PRIMARY KEY (sched_name, trigger_group);
+
+
+--
+-- Name: qrtz_scheduler_state qrtz_scheduler_state_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_scheduler_state
+    ADD CONSTRAINT qrtz_scheduler_state_pkey PRIMARY KEY (sched_name, instance_name);
+
+
+--
+-- Name: qrtz_simple_triggers qrtz_simple_triggers_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_simple_triggers
+    ADD CONSTRAINT qrtz_simple_triggers_pkey PRIMARY KEY (sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_simprop_triggers qrtz_simprop_triggers_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_simprop_triggers
+    ADD CONSTRAINT qrtz_simprop_triggers_pkey PRIMARY KEY (sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_triggers qrtz_triggers_pkey; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_triggers
+    ADD CONSTRAINT qrtz_triggers_pkey PRIMARY KEY (sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: ls_data_aug uk_aug_external_job_id; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug
+    ADD CONSTRAINT uk_aug_external_job_id UNIQUE (otsd_job_id);
+
+
+--
+-- Name: ls_data_aug uk_aug_idempotency_key; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug
+    ADD CONSTRAINT uk_aug_idempotency_key UNIQUE (idmp_key);
+
+
+--
+-- Name: ls_bat_rty_wtng uk_lbrw_raw_sn; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_bat_rty_wtng
+    ADD CONSTRAINT uk_lbrw_raw_sn UNIQUE (raw_sn);
+
+
+--
+-- Name: ls_control_notify_fallback uk_lcnf_idempotency; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_control_notify_fallback
+    ADD CONSTRAINT uk_lcnf_idempotency UNIQUE (idmp_key);
+
+
+--
+-- Name: ls_data_aug_job uk_ldaj_idmp_key; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_job
+    ADD CONSTRAINT uk_ldaj_idmp_key UNIQUE (idmp_key);
+
+
+--
+-- Name: ls_data_aug_job_file uk_ldajf_job_file_seq; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_job_file
+    ADD CONSTRAINT uk_ldajf_job_file_seq UNIQUE (aug_job_sn, file_seq);
+
+
+--
+-- Name: ls_ai_srvr_altmnt uk_ls_ai_srvr_altmnt_raw_sn; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_altmnt
+    ADD CONSTRAINT uk_ls_ai_srvr_altmnt_raw_sn UNIQUE (raw_sn);
+
+
+--
+-- Name: ls_auth_work_lock uk_ls_auth_work_lock_id; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_auth_work_lock
+    ADD CONSTRAINT uk_ls_auth_work_lock_id UNIQUE (lck_id);
+
+
+--
+-- Name: ls_data_ingest uk_ls_data_ingest_clip; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_ingest
+    ADD CONSTRAINT uk_ls_data_ingest_clip UNIQUE (vms_clip_id);
+
+
+--
+-- Name: ls_data_lbl_attr_val uk_ls_data_lbl_attr_val; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl_attr_val
+    ADD CONSTRAINT uk_ls_data_lbl_attr_val UNIQUE (lbl_sn, atrb_id);
+
+
+--
+-- Name: ls_data_meta uk_ls_data_meta_raw_key; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta
+    ADD CONSTRAINT uk_ls_data_meta_raw_key UNIQUE (raw_sn, meta_key);
+
+
+--
+-- Name: ls_data_raw uk_ls_data_raw_vms_clip; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_raw
+    ADD CONSTRAINT uk_ls_data_raw_vms_clip UNIQUE (vms_clip_id);
+
+
+--
+-- Name: ls_data_src uk_ls_data_src_raw_frame; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_src
+    ADD CONSTRAINT uk_ls_data_src_raw_frame UNIQUE (raw_sn, frm_no);
+
+
+--
+-- Name: ls_dataset_export uk_ls_dataset_export; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_dataset_export
+    ADD CONSTRAINT uk_ls_dataset_export UNIQUE (data_raw_sn, output_ver_no);
+
+
+--
+-- Name: ls_dataset_video_meta uk_ls_dataset_video_meta; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_dataset_video_meta
+    ADD CONSTRAINT uk_ls_dataset_video_meta UNIQUE (raw_sn, snpsht_hash);
+
+
+--
+-- Name: ls_evnt_anno uk_ls_evnt_anno_raw; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_anno
+    ADD CONSTRAINT uk_ls_evnt_anno_raw UNIQUE (raw_sn);
+
+
+--
+-- Name: ls_label_attr uk_ls_label_attr_name; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_attr
+    ADD CONSTRAINT uk_ls_label_attr_name UNIQUE (lbl_id, atrb_nm);
+
+
+--
+-- Name: ls_label_preset_code uk_ls_label_preset_code; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_preset_code
+    ADD CONSTRAINT uk_ls_label_preset_code UNIQUE (preset_id, lbl_cd);
+
+
+--
+-- Name: ls_label_preset uk_ls_label_preset_evnt; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_preset
+    ADD CONSTRAINT uk_ls_label_preset_evnt UNIQUE (evnt_type_cd);
+
+
+--
+-- Name: ls_label_version uk_ls_label_version_src_hash; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_version
+    ADD CONSTRAINT uk_ls_label_version_src_hash UNIQUE (data_src_sn, version_hash);
+
+
+--
+-- Name: ls_output_ver_snpsh uk_ls_output_ver_snpsh; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_output_ver_snpsh
+    ADD CONSTRAINT uk_ls_output_ver_snpsh UNIQUE (data_raw_sn, data_src_sn, output_ver_no);
+
+
+--
+-- Name: ls_portal_uld_frme uk_ls_portal_uld_frme; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld_frme
+    ADD CONSTRAINT uk_ls_portal_uld_frme UNIQUE (uld_sn, frme_no);
+
+
+--
+-- Name: ls_task_altmnt uk_ls_task_altmnt; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_task_altmnt
+    ADD CONSTRAINT uk_ls_task_altmnt UNIQUE (raw_data_id, user_no, task_type_cd);
+
+
+--
+-- Name: ls_data_meta uk_meta_external_job_id; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta
+    ADD CONSTRAINT uk_meta_external_job_id UNIQUE (otsd_job_id);
+
+
+--
+-- Name: ls_data_meta uk_meta_idempotency_key; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta
+    ADD CONSTRAINT uk_meta_idempotency_key UNIQUE (idmp_key);
+
+
+--
+-- Name: ls_data_meta_review uq_ls_data_meta_review_meta_type; Type: CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta_review
+    ADD CONSTRAINT uq_ls_data_meta_review_meta_type UNIQUE (data_meta_sn, meta_type_cd);
+
+
+--
+-- Name: idx_lbrw_status; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lbrw_status ON klid_at.ls_bat_rty_wtng USING btree (stts_cd, rty_prnmnt_dt);
+
+
+--
+-- Name: idx_lcnf_status; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lcnf_status ON klid_at.ls_control_notify_fallback USING btree (stts_cd, next_rtry_dt);
+
+
+--
+-- Name: idx_ldaj_aug_seq; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ldaj_aug_seq ON klid_at.ls_data_aug_job USING btree (data_aug_sn, job_seq);
+
+
+--
+-- Name: idx_ldaj_otsd_job_id; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ldaj_otsd_job_id ON klid_at.ls_data_aug_job USING btree (otsd_job_id);
+
+
+--
+-- Name: idx_ldajf_src_sn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ldajf_src_sn ON klid_at.ls_data_aug_job_file USING btree (src_sn);
+
+
+--
+-- Name: idx_ldlh_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ldlh_src ON klid_at.ls_data_lbl_hstry USING btree (src_sn, reg_dt DESC);
+
+
+--
+-- Name: idx_ldr_orgnl; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ldr_orgnl ON klid_at.ls_data_raw USING btree (orgnl_raw_sn);
+
+
+--
+-- Name: idx_ldr_portal_user_reg; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ldr_portal_user_reg ON klid_at.ls_data_raw USING btree (portal_user_no, reg_dt) WHERE (portal_user_no IS NOT NULL);
+
+
+--
+-- Name: idx_leuj_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_leuj_stts ON klid_at.ls_eblc_uld_job USING btree (job_stts_cd);
+
+
+--
+-- Name: idx_leuja_job; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_leuja_job ON klid_at.ls_eblc_uld_job_artcl USING btree (eblc_uld_job_sn);
+
+
+--
+-- Name: idx_leuja_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_leuja_stts ON klid_at.ls_eblc_uld_job_artcl USING btree (artcl_stts_cd, eblc_uld_job_artcl_sn);
+
+
+--
+-- Name: idx_lm_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lm_raw ON klid_at.ls_marking USING btree (raw_sn);
+
+
+--
+-- Name: idx_lmna_stts_mdfcn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lmna_stts_mdfcn ON klid_at.ls_mon_noti_acml USING btree (stts_cd, mdfcn_dt);
+
+
+--
+-- Name: idx_lmna_stts_reg; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lmna_stts_reg ON klid_at.ls_mon_noti_acml USING btree (stts_cd, reg_dt);
+
+
+--
+-- Name: idx_lnt_pub; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lnt_pub ON klid_at.ls_notice USING btree (pblcn_stts_cd, upend_fix_yn, reg_dt DESC);
+
+
+--
+-- Name: idx_lnta_notice; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lnta_notice ON klid_at.ls_notice_attach USING btree (notice_sn);
+
+
+--
+-- Name: idx_lptu_expry; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lptu_expry ON klid_at.ls_portal_tus_uld USING btree (expry_dt) WHERE ((stts_cd)::text = 'IN_PROGRESS'::text);
+
+
+--
+-- Name: idx_lptu_user_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lptu_user_stts ON klid_at.ls_portal_tus_uld USING btree (portal_user_no) WHERE ((stts_cd)::text = 'IN_PROGRESS'::text);
+
+
+--
+-- Name: idx_lpul_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lpul_src ON klid_at.ls_portal_user_label USING btree (portal_user_no, src_data_src_sn);
+
+
+--
+-- Name: idx_lpul_user; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_lpul_user ON klid_at.ls_portal_user_label USING btree (portal_user_no, src_raw_sn);
+
+
+--
+-- Name: idx_ls_auth_work_lock_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_auth_work_lock_stts ON klid_at.ls_auth_work_lock USING btree (lck_stts_cd, expry_dt);
+
+
+--
+-- Name: idx_ls_auth_work_lock_target; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_auth_work_lock_target ON klid_at.ls_auth_work_lock USING btree (lck_target_cd, data_raw_sn, data_src_sn);
+
+
+--
+-- Name: idx_ls_authrt_grant_atmpt_expd; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_authrt_grant_atmpt_expd ON klid_at.ls_authrt_grant_atmpt USING btree (expd_dt);
+
+
+--
+-- Name: idx_ls_batch_proc_log_job; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_batch_proc_log_job ON klid_at.ls_batch_proc_log USING btree (job_id);
+
+
+--
+-- Name: idx_ls_batch_proc_log_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_batch_proc_log_raw ON klid_at.ls_batch_proc_log USING btree (data_raw_sn);
+
+
+--
+-- Name: idx_ls_batch_proc_log_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_batch_proc_log_src ON klid_at.ls_batch_proc_log USING btree (data_src_sn);
+
+
+--
+-- Name: idx_ls_batch_proc_log_step_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_batch_proc_log_step_stts ON klid_at.ls_batch_proc_log USING btree (proc_step_cd, proc_stts_cd);
+
+
+--
+-- Name: idx_ls_data_aug_lbl_map_aug; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_lbl_map_aug ON klid_at.ls_data_aug_lbl_map USING btree (data_aug_sn);
+
+
+--
+-- Name: idx_ls_data_aug_lbl_map_lbl; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_lbl_map_lbl ON klid_at.ls_data_aug_lbl_map USING btree (data_lbl_sn);
+
+
+--
+-- Name: idx_ls_data_aug_lbl_map_orgnl; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_lbl_map_orgnl ON klid_at.ls_data_aug_lbl_map USING btree (orgnl_data_lbl_sn);
+
+
+--
+-- Name: idx_ls_data_aug_rvw_aug; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_rvw_aug ON klid_at.ls_data_aug_rvw USING btree (data_aug_sn);
+
+
+--
+-- Name: idx_ls_data_aug_rvw_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_rvw_stts ON klid_at.ls_data_aug_rvw USING btree (rvw_stts_cd);
+
+
+--
+-- Name: idx_ls_data_aug_rvw_target; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_rvw_target ON klid_at.ls_data_aug_rvw USING btree (data_raw_sn, data_src_sn);
+
+
+--
+-- Name: idx_ls_data_aug_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_src ON klid_at.ls_data_aug USING btree (src_sn, aug_type_cd);
+
+
+--
+-- Name: idx_ls_data_aug_src_regdt; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_src_regdt ON klid_at.ls_data_aug USING btree (src_sn, reg_dt);
+
+
+--
+-- Name: idx_ls_data_aug_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_aug_stts ON klid_at.ls_data_aug USING btree (aug_proc_stts_cd, reg_dt);
+
+
+--
+-- Name: idx_ls_data_lbl_attr_val_lbl; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_lbl_attr_val_lbl ON klid_at.ls_data_lbl_attr_val USING btree (lbl_sn);
+
+
+--
+-- Name: idx_ls_data_lbl_label_id; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_lbl_label_id ON klid_at.ls_data_lbl USING btree (lbl_id);
+
+
+--
+-- Name: idx_ls_data_meta_review_meta; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_meta_review_meta ON klid_at.ls_data_meta_review USING btree (data_meta_sn);
+
+
+--
+-- Name: idx_ls_data_meta_review_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_meta_review_stts ON klid_at.ls_data_meta_review USING btree (meta_type_cd, rvw_stts_cd);
+
+
+--
+-- Name: idx_ls_data_meta_review_target; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_data_meta_review_target ON klid_at.ls_data_meta_review USING btree (data_raw_sn, data_src_sn);
+
+
+--
+-- Name: idx_ls_dataset_video_meta_raw_active; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_dataset_video_meta_raw_active ON klid_at.ls_dataset_video_meta USING btree (raw_sn, active_yn);
+
+
+--
+-- Name: idx_ls_dataset_video_meta_rvw_cmpl; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_dataset_video_meta_rvw_cmpl ON klid_at.ls_dataset_video_meta USING btree (rvw_cmpl_dt);
+
+
+--
+-- Name: idx_ls_deident_proc_log_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_deident_proc_log_raw ON klid_at.ls_deident_proc_log USING btree (data_raw_sn);
+
+
+--
+-- Name: idx_ls_deident_proc_log_raw_log; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_deident_proc_log_raw_log ON klid_at.ls_deident_proc_log USING btree (data_raw_sn, proc_log_sn);
+
+
+--
+-- Name: idx_ls_deident_proc_log_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_deident_proc_log_stts ON klid_at.ls_deident_proc_log USING btree (proc_stts_cd);
+
+
+--
+-- Name: idx_ls_deident_report_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_deident_report_raw ON klid_at.ls_deident_report USING btree (data_raw_sn);
+
+
+--
+-- Name: idx_ls_deident_report_report; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_deident_report_report ON klid_at.ls_deident_report USING btree (report_stts_cd, dclr_dt);
+
+
+--
+-- Name: idx_ls_evnt_anno_review_anno; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_evnt_anno_review_anno ON klid_at.ls_evnt_anno_review USING btree (evnt_anno_sn);
+
+
+--
+-- Name: idx_ls_evnt_anno_review_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_evnt_anno_review_stts ON klid_at.ls_evnt_anno_review USING btree (meta_type_cd, rvw_stts_cd);
+
+
+--
+-- Name: idx_ls_label_attr; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_label_attr ON klid_at.ls_label_attr USING btree (lbl_id, use_yn, sort_seq);
+
+
+--
+-- Name: idx_ls_label_preset_code_label; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_label_preset_code_label ON klid_at.ls_label_preset_code USING btree (lbl_id);
+
+
+--
+-- Name: idx_ls_label_preset_code_preset; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_label_preset_code_preset ON klid_at.ls_label_preset_code USING btree (preset_id);
+
+
+--
+-- Name: idx_ls_label_use; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_label_use ON klid_at.ls_label USING btree (use_yn, sort_seq);
+
+
+--
+-- Name: idx_ls_label_version_target; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_label_version_target ON klid_at.ls_label_version USING btree (data_raw_sn, data_src_sn, actvtn_yn);
+
+
+--
+-- Name: idx_ls_meta_repl_outbox_status; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_meta_repl_outbox_status ON klid_at.ls_meta_repl_outbox USING btree (stts_cd, reg_dt);
+
+
+--
+-- Name: idx_ls_output_ver_snpsh_lbl_ver; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_output_ver_snpsh_lbl_ver ON klid_at.ls_output_ver_snpsh USING btree (lbl_ver_sn);
+
+
+--
+-- Name: idx_ls_portal_uld_lbl_frme; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_portal_uld_lbl_frme ON klid_at.ls_portal_uld_lbl USING btree (uld_frme_sn, portal_user_no);
+
+
+--
+-- Name: idx_ls_portal_uld_lbl_user_uld; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_portal_uld_lbl_user_uld ON klid_at.ls_portal_uld_lbl USING btree (portal_user_no, uld_sn);
+
+
+--
+-- Name: idx_ls_portal_uld_stts_mdfcn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_portal_uld_stts_mdfcn ON klid_at.ls_portal_uld USING btree (uld_stts_cd, mdfcn_dt);
+
+
+--
+-- Name: idx_ls_portal_uld_user_reg; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_portal_uld_user_reg ON klid_at.ls_portal_uld USING btree (portal_user_no, reg_dt);
+
+
+--
+-- Name: idx_ls_webhook_idempotency_ch_state; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_webhook_idempotency_ch_state ON klid_at.ls_webhook_idempotency USING btree (chnl_cd, stts_cd);
+
+
+--
+-- Name: idx_ls_webhook_idempotency_ext_job; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_webhook_idempotency_ext_job ON klid_at.ls_webhook_idempotency USING btree (otsd_job_id);
+
+
+--
+-- Name: idx_ls_webhook_idempotency_srvr_state; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_webhook_idempotency_srvr_state ON klid_at.ls_webhook_idempotency USING btree (srvr_id, stts_cd);
+
+
+--
+-- Name: idx_ls_whk_fail_nmtm_expd; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_whk_fail_nmtm_expd ON klid_at.ls_whk_fail_nmtm USING btree (expd_dt);
+
+
+--
+-- Name: idx_ls_whk_sign_use_expd; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ls_whk_sign_use_expd ON klid_at.ls_whk_sign_use USING btree (expd_dt);
+
+
+--
+-- Name: idx_ltu_expires; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ltu_expires ON klid_at.ls_tus_upload USING btree (stts_cd, expry_dt);
+
+
+--
+-- Name: idx_ltu_user_status; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX idx_ltu_user_status ON klid_at.ls_tus_upload USING btree (user_no, stts_cd);
+
+
+--
+-- Name: ix_ldpl_poll_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ldpl_poll_stts ON klid_at.ls_deident_proc_log USING btree (poll_stts_cd);
+
+
+--
+-- Name: ix_ls_ai_srvr_altmnt_srvr_id; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_ai_srvr_altmnt_srvr_id ON klid_at.ls_ai_srvr_altmnt USING btree (srvr_id);
+
+
+--
+-- Name: ix_ls_clip_schedule_que_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_clip_schedule_que_raw ON klid_at.ls_clip_schedule_que USING btree (raw_sn);
+
+
+--
+-- Name: ix_ls_clip_schedule_que_status; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_clip_schedule_que_status ON klid_at.ls_clip_schedule_que USING btree (stts_cd, job_type_cd);
+
+
+--
+-- Name: ix_ls_data_aug_dscd_file_rty; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_aug_dscd_file_rty ON klid_at.ls_data_aug_dscd USING btree (del_dt) WHERE ((del_dt IS NOT NULL) AND (file_del_dt IS NULL) AND (file_del_fail_dt IS NULL));
+
+
+--
+-- Name: ix_ls_data_aug_dscd_lookup; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_aug_dscd_lookup ON klid_at.ls_data_aug_dscd USING btree (data_aug_sn, data_aug_dscd_sn DESC);
+
+
+--
+-- Name: ix_ls_data_aug_dscd_new_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_aug_dscd_new_raw ON klid_at.ls_data_aug_dscd USING btree (new_raw_sn);
+
+
+--
+-- Name: ix_ls_data_aug_dscd_sweep; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_aug_dscd_sweep ON klid_at.ls_data_aug_dscd USING btree (dscd_dt) WHERE ((rstr_dt IS NULL) AND (del_dt IS NULL));
+
+
+--
+-- Name: ix_ls_data_aug_new_raw_sn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_aug_new_raw_sn ON klid_at.ls_data_aug USING btree (new_raw_sn) WHERE (new_raw_sn IS NOT NULL);
+
+
+--
+-- Name: ix_ls_data_ingest_poll; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_ingest_poll ON klid_at.ls_data_ingest USING btree (rcptn_dt, rcptn_sn) INCLUDE (nxtm_rtry_dt) WHERE ((prcs_stts_cd)::text = 'PENDING'::text);
+
+
+--
+-- Name: ix_ls_data_ingest_raw_sn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_ingest_raw_sn ON klid_at.ls_data_ingest USING btree (raw_sn, rcptn_sn DESC);
+
+
+--
+-- Name: ix_ls_data_issue_reporter; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_issue_reporter ON klid_at.ls_data_issue USING btree (reported_user_no);
+
+
+--
+-- Name: ix_ls_data_issue_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_issue_src ON klid_at.ls_data_issue USING btree (src_sn) WHERE (src_sn IS NOT NULL);
+
+
+--
+-- Name: ix_ls_data_issue_up; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_issue_up ON klid_at.ls_data_issue USING btree (up_data_issue_sn);
+
+
+--
+-- Name: ix_ls_data_issue_video; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_issue_video ON klid_at.ls_data_issue USING btree (data_raw_sn);
+
+
+--
+-- Name: ix_ls_data_lbl_lbl_src_cd; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_lbl_lbl_src_cd ON klid_at.ls_data_lbl USING btree (lbl_src_cd);
+
+
+--
+-- Name: ix_ls_data_lbl_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_lbl_src ON klid_at.ls_data_lbl USING btree (src_sn);
+
+
+--
+-- Name: ix_ls_data_lbl_trck_id; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_lbl_trck_id ON klid_at.ls_data_lbl USING btree (trck_id);
+
+
+--
+-- Name: ix_ls_data_meta_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_meta_raw ON klid_at.ls_data_meta USING btree (raw_sn);
+
+
+--
+-- Name: ix_ls_data_raw_cctv; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_raw_cctv ON klid_at.ls_data_raw USING btree (vms_cctv_id);
+
+
+--
+-- Name: ix_ls_data_raw_stts; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_raw_stts ON klid_at.ls_data_raw USING btree (data_stts_cd);
+
+
+--
+-- Name: ix_ls_data_src_hstry_src; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_src_hstry_src ON klid_at.ls_data_src_hstry USING btree (src_sn);
+
+
+--
+-- Name: ix_ls_data_src_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_data_src_raw ON klid_at.ls_data_src USING btree (raw_sn);
+
+
+--
+-- Name: ix_ls_issue_comment_author; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_issue_comment_author ON klid_at.ls_issue_comment USING btree (author_no);
+
+
+--
+-- Name: ix_ls_issue_comment_issue; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_issue_comment_issue ON klid_at.ls_issue_comment USING btree (data_issue_sn);
+
+
+--
+-- Name: ix_ls_otsd_datst_trnsf_hstry_fldr; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_otsd_datst_trnsf_hstry_fldr ON klid_at.ls_otsd_datst_trnsf_hstry USING btree (orgnl_fldr_nm, otsd_datst_id);
+
+
+--
+-- Name: ix_ls_otsd_datst_trnsf_hstry_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_otsd_datst_trnsf_hstry_raw ON klid_at.ls_otsd_datst_trnsf_hstry USING btree (raw_sn);
+
+
+--
+-- Name: ix_ls_raw_data_status_stts_upd; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_raw_data_status_stts_upd ON klid_at.ls_raw_data_status USING btree (data_stts_cd, upd_dt DESC);
+
+
+--
+-- Name: ix_ls_task_altmnt_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_task_altmnt_raw ON klid_at.ls_task_altmnt USING btree (raw_data_id);
+
+
+--
+-- Name: ix_ls_task_altmnt_user; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_task_altmnt_user ON klid_at.ls_task_altmnt USING btree (user_no, task_type_cd);
+
+
+--
+-- Name: ix_ls_task_evnt_log_actor; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_task_evnt_log_actor ON klid_at.ls_task_evnt_log USING btree (actor_user_no);
+
+
+--
+-- Name: ix_ls_task_evnt_log_raw; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE INDEX ix_ls_task_evnt_log_raw ON klid_at.ls_task_evnt_log USING btree (raw_data_id, ocrn_dt);
+
+
+--
+-- Name: uk_leuja_job_mark; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_leuja_job_mark ON klid_at.ls_eblc_uld_job_artcl USING btree (eblc_uld_job_sn, mark_file_path_nm);
+
+
+--
+-- Name: uk_lmna_raw_pending; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_lmna_raw_pending ON klid_at.ls_mon_noti_acml USING btree (raw_sn) WHERE ((stts_cd)::text = 'PENDING'::text);
+
+
+--
+-- Name: uk_ls_data_aug_dscd_actvtn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_data_aug_dscd_actvtn ON klid_at.ls_data_aug_dscd USING btree (data_aug_sn) WHERE ((rstr_dt IS NULL) AND (del_dt IS NULL));
+
+
+--
+-- Name: uk_ls_data_aug_resl; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_data_aug_resl ON klid_at.ls_data_aug USING btree (src_sn, aug_type_cd) WHERE ((aug_type_cd)::text ~~ 'RESL\_%'::text);
+
+
+--
+-- Name: uk_ls_dataset_video_meta_raw_active; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_dataset_video_meta_raw_active ON klid_at.ls_dataset_video_meta USING btree (raw_sn) WHERE (active_yn = 'Y'::bpchar);
+
+
+--
+-- Name: uk_ls_deident_proc_log_ext_job; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_deident_proc_log_ext_job ON klid_at.ls_deident_proc_log USING btree (otsd_job_id);
+
+
+--
+-- Name: uk_ls_label_dtct_type; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_label_dtct_type ON klid_at.ls_label USING btree (dtct_type_cd) WHERE ((use_yn = 'Y'::bpchar) AND (dtct_type_cd IS NOT NULL));
+
+
+--
+-- Name: uk_ls_label_nm_ci; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_label_nm_ci ON klid_at.ls_label USING btree (lower(TRIM(BOTH FROM lbl_nm))) WHERE (use_yn = 'Y'::bpchar);
+
+
+--
+-- Name: uk_ls_label_preset_code_lblid; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_label_preset_code_lblid ON klid_at.ls_label_preset_code USING btree (preset_id, lbl_id) WHERE (lbl_id IS NOT NULL);
+
+
+--
+-- Name: uk_ls_marking_raw_actvtn; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_marking_raw_actvtn ON klid_at.ls_marking USING btree (raw_sn) WHERE ((stts_cd)::text = ANY ((ARRAY['PENDING'::character varying, 'VLM_REQUESTED'::character varying])::text[]));
+
+
+--
+-- Name: uk_ls_otsd_ctgry_mpng; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_otsd_ctgry_mpng ON klid_at.ls_otsd_ctgry_mpng USING btree (mpng_knd_cd, otsd_ctgry_cd);
+
+
+--
+-- Name: uk_ls_vrfc_evnt_qstn_type_sort; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX uk_ls_vrfc_evnt_qstn_type_sort ON klid_at.ls_vrfc_evnt_qstn USING btree (vrfc_evnt_type_cd, sort_seq);
+
+
+--
+-- Name: ux_ls_auth_work_lock_raw_active; Type: INDEX; Schema: klid_at; Owner: -
+--
+
+CREATE UNIQUE INDEX ux_ls_auth_work_lock_raw_active ON klid_at.ls_auth_work_lock USING btree (data_raw_sn) WHERE (((lck_target_cd)::text = 'RAW'::text) AND ((lck_stts_cd)::text = 'LOCKED'::text));
+
+
+--
+-- Name: ls_data_aug_job fk_ldaj_data_aug; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_job
+    ADD CONSTRAINT fk_ldaj_data_aug FOREIGN KEY (data_aug_sn) REFERENCES klid_at.ls_data_aug(data_aug_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_data_aug_job_file fk_ldajf_aug_job; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_job_file
+    ADD CONSTRAINT fk_ldajf_aug_job FOREIGN KEY (aug_job_sn) REFERENCES klid_at.ls_data_aug_job(aug_job_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_eblc_uld_job_artcl fk_leuja_job; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_eblc_uld_job_artcl
+    ADD CONSTRAINT fk_leuja_job FOREIGN KEY (eblc_uld_job_sn) REFERENCES klid_at.ls_eblc_uld_job(eblc_uld_job_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_eblc_uld_job_artcl fk_leuja_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_eblc_uld_job_artcl
+    ADD CONSTRAINT fk_leuja_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE SET NULL;
+
+
+--
+-- Name: ls_notice_attach fk_lnta_notice; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_notice_attach
+    ADD CONSTRAINT fk_lnta_notice FOREIGN KEY (notice_sn) REFERENCES klid_at.ls_notice(notice_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_ai_srvr_usg fk_ls_ai_srvr_usg_srvr; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_ai_srvr_usg
+    ADD CONSTRAINT fk_ls_ai_srvr_usg_srvr FOREIGN KEY (srvr_id) REFERENCES klid_at.ls_ai_srvr(srvr_id) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_auth_work_lock fk_ls_auth_work_lock_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_auth_work_lock
+    ADD CONSTRAINT fk_ls_auth_work_lock_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_bat_rty_wtng fk_ls_bat_rty_wtng_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_bat_rty_wtng
+    ADD CONSTRAINT fk_ls_bat_rty_wtng_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_batch_proc_log fk_ls_batch_proc_log_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_batch_proc_log
+    ADD CONSTRAINT fk_ls_batch_proc_log_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_clip_schedule_que fk_ls_clip_schedule_que_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_clip_schedule_que
+    ADD CONSTRAINT fk_ls_clip_schedule_que_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_control_notify_fallback fk_ls_control_notify_fallback_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_control_notify_fallback
+    ADD CONSTRAINT fk_ls_control_notify_fallback_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_data_aug_rvw fk_ls_data_aug_rvw_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_aug_rvw
+    ADD CONSTRAINT fk_ls_data_aug_rvw_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_data_issue fk_ls_data_issue_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_issue
+    ADD CONSTRAINT fk_ls_data_issue_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_data_lbl_attr_val fk_ls_data_lbl_attr_attr; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl_attr_val
+    ADD CONSTRAINT fk_ls_data_lbl_attr_attr FOREIGN KEY (atrb_id) REFERENCES klid_at.ls_label_attr(atrb_id);
+
+
+--
+-- Name: ls_data_lbl_attr_val fk_ls_data_lbl_attr_lbl; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl_attr_val
+    ADD CONSTRAINT fk_ls_data_lbl_attr_lbl FOREIGN KEY (lbl_sn) REFERENCES klid_at.ls_data_lbl(lbl_sn);
+
+
+--
+-- Name: ls_data_lbl fk_ls_data_lbl_label; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_lbl
+    ADD CONSTRAINT fk_ls_data_lbl_label FOREIGN KEY (lbl_id) REFERENCES klid_at.ls_label(lbl_id);
+
+
+--
+-- Name: ls_data_meta fk_ls_data_meta_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta
+    ADD CONSTRAINT fk_ls_data_meta_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_data_meta_review fk_ls_data_meta_review_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_meta_review
+    ADD CONSTRAINT fk_ls_data_meta_review_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_data_src fk_ls_data_src_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_data_src
+    ADD CONSTRAINT fk_ls_data_src_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_dataset_export fk_ls_dataset_export_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_dataset_export
+    ADD CONSTRAINT fk_ls_dataset_export_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_dataset_video_meta fk_ls_dataset_video_meta_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_dataset_video_meta
+    ADD CONSTRAINT fk_ls_dataset_video_meta_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_deident_proc_log fk_ls_deident_proc_log_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_deident_proc_log
+    ADD CONSTRAINT fk_ls_deident_proc_log_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_deident_report fk_ls_deident_report_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_deident_report
+    ADD CONSTRAINT fk_ls_deident_report_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_evnt_anno fk_ls_evnt_anno_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_anno
+    ADD CONSTRAINT fk_ls_evnt_anno_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_evnt_anno_review fk_ls_evnt_anno_review_anno; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_evnt_anno_review
+    ADD CONSTRAINT fk_ls_evnt_anno_review_anno FOREIGN KEY (evnt_anno_sn) REFERENCES klid_at.ls_evnt_anno(evnt_anno_sn);
+
+
+--
+-- Name: ls_issue_comment fk_ls_issue_comment_issue; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_issue_comment
+    ADD CONSTRAINT fk_ls_issue_comment_issue FOREIGN KEY (data_issue_sn) REFERENCES klid_at.ls_data_issue(data_issue_sn) ON DELETE RESTRICT;
+
+
+--
+-- Name: ls_label_attr fk_ls_label_attr_label; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_attr
+    ADD CONSTRAINT fk_ls_label_attr_label FOREIGN KEY (lbl_id) REFERENCES klid_at.ls_label(lbl_id);
+
+
+--
+-- Name: ls_label_preset_code fk_ls_label_preset_code_label; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_preset_code
+    ADD CONSTRAINT fk_ls_label_preset_code_label FOREIGN KEY (lbl_id) REFERENCES klid_at.ls_label(lbl_id);
+
+
+--
+-- Name: ls_label_preset_code fk_ls_label_preset_code_preset; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_preset_code
+    ADD CONSTRAINT fk_ls_label_preset_code_preset FOREIGN KEY (preset_id) REFERENCES klid_at.ls_label_preset(preset_id) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_label_version fk_ls_label_version_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_label_version
+    ADD CONSTRAINT fk_ls_label_version_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_marking fk_ls_marking_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_marking
+    ADD CONSTRAINT fk_ls_marking_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_meta_repl_outbox fk_ls_meta_repl_outbox_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_meta_repl_outbox
+    ADD CONSTRAINT fk_ls_meta_repl_outbox_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_mon_noti_acml fk_ls_mon_noti_acml_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_mon_noti_acml
+    ADD CONSTRAINT fk_ls_mon_noti_acml_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_otsd_ctgry_mpng fk_ls_otsd_ctgry_mpng_evnt_type; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_otsd_ctgry_mpng
+    ADD CONSTRAINT fk_ls_otsd_ctgry_mpng_evnt_type FOREIGN KEY (evnt_type_cd) REFERENCES klid_at.ls_evnt_type(evnt_type_cd) ON DELETE RESTRICT;
+
+
+--
+-- Name: ls_otsd_ctgry_mpng fk_ls_otsd_ctgry_mpng_lbl; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_otsd_ctgry_mpng
+    ADD CONSTRAINT fk_ls_otsd_ctgry_mpng_lbl FOREIGN KEY (lbl_id) REFERENCES klid_at.ls_label(lbl_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: ls_otsd_datst_trnsf_hstry fk_ls_otsd_datst_trnsf_hstry_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_otsd_datst_trnsf_hstry
+    ADD CONSTRAINT fk_ls_otsd_datst_trnsf_hstry_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE SET NULL;
+
+
+--
+-- Name: ls_output_ver_snpsh fk_ls_output_ver_snpsh_lbl_ver; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_output_ver_snpsh
+    ADD CONSTRAINT fk_ls_output_ver_snpsh_lbl_ver FOREIGN KEY (lbl_ver_sn) REFERENCES klid_at.ls_label_version(lbl_version_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_output_ver_snpsh fk_ls_output_ver_snpsh_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_output_ver_snpsh
+    ADD CONSTRAINT fk_ls_output_ver_snpsh_raw FOREIGN KEY (data_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_portal_uld_frme fk_ls_portal_uld_frme_uld; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld_frme
+    ADD CONSTRAINT fk_ls_portal_uld_frme_uld FOREIGN KEY (uld_sn) REFERENCES klid_at.ls_portal_uld(uld_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_portal_uld_lbl fk_ls_portal_uld_lbl_frme; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld_lbl
+    ADD CONSTRAINT fk_ls_portal_uld_lbl_frme FOREIGN KEY (uld_frme_sn) REFERENCES klid_at.ls_portal_uld_frme(uld_frme_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_portal_uld_lbl fk_ls_portal_uld_lbl_uld; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_uld_lbl
+    ADD CONSTRAINT fk_ls_portal_uld_lbl_uld FOREIGN KEY (uld_sn) REFERENCES klid_at.ls_portal_uld(uld_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_portal_user_label fk_ls_portal_user_label_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_portal_user_label
+    ADD CONSTRAINT fk_ls_portal_user_label_raw FOREIGN KEY (src_raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_raw_data_status fk_ls_raw_data_status_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_raw_data_status
+    ADD CONSTRAINT fk_ls_raw_data_status_raw FOREIGN KEY (raw_data_id) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_task_altmnt fk_ls_task_altmnt_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_task_altmnt
+    ADD CONSTRAINT fk_ls_task_altmnt_raw FOREIGN KEY (raw_data_id) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_task_evnt_log fk_ls_task_evnt_log_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_task_evnt_log
+    ADD CONSTRAINT fk_ls_task_evnt_log_raw FOREIGN KEY (raw_data_id) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE CASCADE;
+
+
+--
+-- Name: ls_tus_upload fk_ls_tus_upload_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_tus_upload
+    ADD CONSTRAINT fk_ls_tus_upload_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE SET NULL;
+
+
+--
+-- Name: ls_vrfc_evnt_qstn fk_ls_vrfc_evnt_qstn_type; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_vrfc_evnt_qstn
+    ADD CONSTRAINT fk_ls_vrfc_evnt_qstn_type FOREIGN KEY (vrfc_evnt_type_cd) REFERENCES klid_at.ls_vrfc_evnt_type(vrfc_evnt_type_cd) ON DELETE RESTRICT;
+
+
+--
+-- Name: ls_webhook_idempotency fk_ls_webhook_idempotency_raw; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.ls_webhook_idempotency
+    ADD CONSTRAINT fk_ls_webhook_idempotency_raw FOREIGN KEY (raw_sn) REFERENCES klid_at.ls_data_raw(raw_sn) ON DELETE SET NULL;
+
+
+--
+-- Name: qrtz_blob_triggers fk_qrtz_blob_triggers; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_blob_triggers
+    ADD CONSTRAINT fk_qrtz_blob_triggers FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES klid_at.qrtz_triggers(sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_cron_triggers fk_qrtz_cron_triggers; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_cron_triggers
+    ADD CONSTRAINT fk_qrtz_cron_triggers FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES klid_at.qrtz_triggers(sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_simple_triggers fk_qrtz_simple_triggers; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_simple_triggers
+    ADD CONSTRAINT fk_qrtz_simple_triggers FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES klid_at.qrtz_triggers(sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_simprop_triggers fk_qrtz_simprop_triggers; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_simprop_triggers
+    ADD CONSTRAINT fk_qrtz_simprop_triggers FOREIGN KEY (sched_name, trigger_name, trigger_group) REFERENCES klid_at.qrtz_triggers(sched_name, trigger_name, trigger_group);
+
+
+--
+-- Name: qrtz_triggers fk_qrtz_triggers_job_details; Type: FK CONSTRAINT; Schema: klid_at; Owner: -
+--
+
+ALTER TABLE ONLY klid_at.qrtz_triggers
+    ADD CONSTRAINT fk_qrtz_triggers_job_details FOREIGN KEY (sched_name, job_name, job_group) REFERENCES klid_at.qrtz_job_details(sched_name, job_name, job_group);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict PAPxGaRwpYDGgm6fhbaGhOAAUE7djr8LpudQRcAu5uqtefEtQe8q8SS8sbKxVbQ
+

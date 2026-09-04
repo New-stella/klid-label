@@ -92,6 +92,59 @@ sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh --role=app
 > ./scripts/install.sh` 로 넘긴다. 향에 맞는 산출물이 매체에 없으면 **다른 향을 대신 깔지 않고
 > 즉시 실패**한다. 자세히는 [04-configuration.md](04-configuration.md) D-4.
 
+## ★★ 실행 계정 — 기본값(`klid`)을 그대로 쓰면 앱이 기동하지 못한다 (2026-09-04 현장 확정)
+
+현장의 실제 실행 계정은 **`jboss`**(WAS)와 **`apache`**(httpd)다. 그런데 설치 스크립트의 기본값은
+`KLID_USER=klid` / `KLID_GROUP=klid` 라, 그대로 돌리면 설정·데이터·로그가 전부 `klid` 소유가 되고
+**WAS 계정 `jboss` 가 그것들을 읽거나 쓰지 못한다.**
+
+⚠ **이 실패는 조용하다** — WAS 는 정상으로 뜨고 배포도 성공하며, **애플리케이션만** 설정을 못 읽어
+기동에 실패한다. "WAS 는 살아 있는데 `/api` 가 응답하지 않는다"로만 나타난다.
+
+### 서버 A — 설치 시 계정을 넘긴다
+
+```bash
+sudo KLID_USER=jboss KLID_GROUP=jboss ./scripts/install.sh --role=app
+```
+
+그러면 이렇게 잡힌다.
+
+| 대상 | 소유·권한 | 왜 |
+|---|---|---|
+| `/etc/klid/application.properties` | `root:jboss` `0640` | WAS(`jboss`)가 읽어야 한다. **여기가 제일 자주 걸린다** |
+| `/etc/klid/*.env` · `was.env` | `root:jboss` | 〃 |
+| `/var/lib/klid` · `/var/log/klid` | `jboss:jboss` | 백엔드가 쓴다 |
+| `/opt/klid/app/api.war` | `jboss:jboss` | 배포 원본 |
+
+**`apache` 는 따로 넘길 것이 없다.** httpd 가 읽는 것은 정적 dist(`/opt/klid/web/dist`)와
+`klid-config.js` 인데 둘 다 **world-readable(`0644`/`0755`)** 이고, 14단계가 SELinux 문맥
+(`httpd_sys_content_t`)까지 부여한다. 그래서 소유자를 바꿀 필요가 없다.
+
+### 이미 기본값으로 설치했다면 — 사후 교정
+
+```bash
+sudo chgrp -R jboss /etc/klid && sudo chmod 640 /etc/klid/*.properties /etc/klid/*.env
+sudo chown -R jboss:jboss /var/lib/klid /var/log/klid /opt/klid/app
+
+# 확인 — jboss 가 실제로 읽히는지 (권한 표만 보지 말고 직접 읽어 본다)
+sudo -u jboss cat /etc/klid/application.properties > /dev/null && echo "읽기 OK"
+sudo -u jboss test -w /var/lib/klid && echo "쓰기 OK"
+```
+
+### ⚠ NAS 저장소는 별도다
+
+영상·프레임은 로컬이 아니라 **NAS 마운트**(`STORAGE_RAW_PATH`, 기본 `/nas-storage`)에 쌓인다.
+그 경로의 소유·권한은 **스토리지 운영 주체가 정하므로 설치 스크립트가 손대지 못한다.**
+`jboss` 가 그 아래에 **쓸 수 있는지** 반드시 별도로 확인한다.
+
+```bash
+sudo -u jboss test -w /nas-storage && echo "NAS 쓰기 OK" || echo "★ NAS 쓰기 불가 — 스토리지 담당 협의 필요"
+```
+
+못 쓰면 비식별·프레임 추출·export 가 전부 실패하는데, **기동과 조회는 정상이라** 한참 뒤에야 드러난다.
+
+---
+
 ## 실행
 
 ```bash
@@ -382,7 +435,8 @@ sudo ./scripts/install/install-ffmpeg.sh --force
    다른 값을 쓰려면 BCrypt 해시(cost 12 이상)만 넣는다 — 평문을 넣으면 기동이 실패한다.
    생성은 04 의 치트시트: `htpasswd -bnBC 12 "" '평문' | tr -d ':\n'`
    WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` 와
-   `-Dspring.profiles.active=prd` 를 넣고, JVM 옵션(MaxRAMPercentage·G1GC·egd)은 `CATALINA_OPTS` 로 옮긴다.
+   `-Dspring.profiles.active=prd` 를 넣고, JVM 옵션(MaxRAMPercentage·G1GC·egd)은 **`JAVA_OPTS`**(EAP `bin/standalone.conf`)로 옮긴다.
+   ⚠ 톰캣의 `CATALINA_OPTS` 가 아니다 — EAP 에는 그 변수가 없다(2026-09-04 정정).
    ⚠ **`SPRING_` 으로 시작하는 스프링 자체 설정은 이 파일에서 이름 변환이 일어나지 않는다** —
    `spring.flyway.enabled=false` 처럼 **점 표기**로 적어야 한다(실측: `SPRING_FLYWAY_ENABLED=false`
    는 조용히 무시되어 DBA 가 선적용한 스키마 위에서 마이그레이션이 그대로 돌았다).
@@ -405,16 +459,15 @@ sudo ./scripts/install/install-ffmpeg.sh --force
 
    **설정 예시 파일은 [`../config/was/`](../config/was/) 에 있다** — 그대로 베껴 쓰지 말고 현장값에 맞춰 조정한다:
    [`README.md`](../config/was/README.md) ·
-   [`setenv.sh.example`](../config/was/setenv.sh.example) ·
-   [`context-api.xml.example`](../config/was/context-api.xml.example) ·
-   [`server-connector.xml.example`](../config/was/server-connector.xml.example)
+   [`standalone.conf.example`](../config/was/standalone.conf.example) ·
+   [`standalone-undertow.xml.example`](../config/was/standalone-undertow.xml.example)
 
    | 옮길 것 | 안 옮기면 |
    |---|---|
    | 업로드 본문 한도 2종(`max-swallow-size`·`max-http-form-post-size`) | **대용량 업로드만** 실패 |
    | 요청 스레드 예산(`threads.max`) | 동시 요청 상한이 어디에도 적혀 있지 않음 |
    | 비동기 요청 타임아웃 | 긴 스트리밍이 중간에 끊김 |
-   | 프록시 IP 치환 밸브(`RemoteIpValve`) **부재 확인** | 신뢰 프록시 대조·시도 횟수 제한이 헤더 한 줄로 우회됨 |
+   | 프록시 IP 치환(`proxy-address-forwarding=false`) **확인** — ⚠ 톰캣의 `RemoteIpValve` 와 이름이 다르다 | 신뢰 프록시 대조·시도 횟수 제한이 헤더 한 줄로 우회됨 |
 
    ⚠ **이 단계는 기동 성공으로 검증되지 않는다.** `server.*` 는 내장 서버 전용이라 WAR 배포에서는
    적용되지 않는데, **적용되지 않아도 기동과 일반 요청은 정상**이다. 배포 시점에 아무 신호가 없고

@@ -11,7 +11,7 @@
 |---|---|---|---|---|
 | `postgresql-16` | 데이터베이스(번들 PG16) | 5432 | `systemctl is-active postgresql-16` | `journalctl -u postgresql-16` |
 | `klid-ai-server` | 내부 추론 서버(YOLO/SAM2) | 9300 | `curl http://127.0.0.1:9300/health` | `journalctl -u klid-ai-server` |
-| **`<WAS 유닛명>`** | **애플리케이션(backend)·배치 스케줄러 — 외부 WAS 가 `api.war` 를 기동** | 8080(`/api`) | `curl http://127.0.0.1:8080/api/actuator/health/liveness` | **WAS 로그**(`journalctl -u <WAS 유닛명>` + `<WAS_LOG_DIR>/catalina.*`) |
+| **`<WAS 유닛명>`** | **애플리케이션(backend)·배치 스케줄러 — 외부 WAS 가 `api.war` 를 기동** | 8080(`/api`) | `curl http://127.0.0.1:8080/api/actuator/health/liveness` | **WAS 로그**(`journalctl -u <WAS 유닛명>` + `<WAS_LOG_DIR>/server.log`) |
 | `httpd` | 웹서버(Apache httpd·정적 서빙 + `/api` 프록시) | 80 | `curl -o /dev/null -w '%{http_code}' http://127.0.0.1/` | `journalctl -u httpd` |
 
 - 기동 의존 순서: **PostgreSQL → ai-server → backend(WAS) → frontend(httpd)**.
@@ -22,7 +22,9 @@
 
 ## 0. 이 문서를 읽기 전에 — 백엔드만 조작 방식이 다르다
 
-확정 배포 형상은 **외부 WAS(Tomcat 10.1) 에 `api.war` 반입**이다(@design DEPLOY-001 · RUNBOOK-001).
+확정 배포 형상은 **외부 WAS(JBoss EAP 8.1, standalone) 에 `api.war` 반입**이다(@design DEPLOY-001 · RUNBOOK-001).
+⚠ 구 서술 폐기(2026-09-04): *"Tomcat 10.1"* — 현장 실측으로 정정. 톰캣 전용 개념(`CATALINA_*`·
+`server.log`·`localhost.*.log`·`webapps/`·`conf/server.xml`)은 EAP 에 **없다**.
 **백엔드에는 `klid-backend.service` 가 없다.** 나머지(PostgreSQL·ai-server·httpd)는 종전대로 systemd 다.
 
 | 구성요소 | 기동 주체 | 재기동 | 로그 |
@@ -44,10 +46,13 @@
 ```bash
 # 설치 담당이 1회 작성한다. 이후 이 문서의 명령은 이 값을 읽어 쓴다.
 sudo tee /etc/klid/was.env >/dev/null <<'EOF'
-WAS_UNIT=<WAS 유닛명>          # systemctl 로 다루는 WAS 서비스 유닛명 (예: tomcat)
-WAS_HOME=<WAS_HOME>            # CATALINA_HOME — bin/setenv.sh 가 놓이는 곳
-WAS_BASE=<WAS_BASE>            # CATALINA_BASE — webapps/·conf/·logs/ 가 있는 곳(분리 안 했으면 WAS_HOME 과 동일)
-WAS_LOG_DIR=<WAS_LOG_DIR>      # 보통 <WAS_BASE>/logs
+WAS_UNIT=<WAS 유닛명>          # systemctl 로 다루는 WAS 서비스 유닛명
+WAS_HOME=<JBOSS_HOME>          # EAP 설치 루트 (실측 예: /GCLOUD/JBOSS/jboss-eap-8.1)
+WAS_BASE=<JBOSS_HOME>/standalone   # 서버 베이스 — deployments/·configuration/·log/ 가 있는 곳
+WAS_LOG_DIR=<JBOSS_HOME>/standalone/log   # server.log 가 있는 곳
+WAS_DEPLOY_DIR=<JBOSS_HOME>/standalone/deployments   # api.war 를 놓는 곳
+WAS_USER=jboss                 # WAS 실행 계정 (2026-09-04 현장 확정)
+WEB_USER=apache                # httpd 실행 계정 (2026-09-04 현장 확정)
 EOF
 sudo chmod 0644 /etc/klid/was.env      # 비밀값 아님 — 경로·유닛명만 적는다. 시크릿을 넣지 말 것
 ```
@@ -67,12 +72,14 @@ sudo systemctl restart "$WAS_UNIT"
 
 | 무엇 | 어디 |
 |---|---|
-| WAS 자신의 기동·배포·컨텍스트 오류 | `<WAS_LOG_DIR>/catalina.out` · `catalina.<날짜>.log` · `localhost.<날짜>.log` |
+| WAS 자신의 기동·배포 오류 · 애플리케이션 기동 실패 | `<WAS_LOG_DIR>/server.log` (EAP 는 한 파일에 함께 남는다) |
+| 배포 실패 사유 요약 | `<WAS_DEPLOY_DIR>/api.war.failed` — **먼저 볼 것.** 실패 원인이 한 줄로 요약돼 있다 |
 | WAS 유닛이 표준출력을 journald 로 넘기는 구성이면 그쪽에도 | `journalctl -u <WAS 유닛명>` |
 | 애플리케이션 파일 로그(파일 로깅 활성 시) | `/var/log/klid` |
 
-**애플리케이션 기동 실패(설정 누락·DB 접속 실패)는 대개 `catalina.*` 가 아니라 `localhost.*` 에 남는다** —
-컨텍스트 초기화 실패이기 때문이다. `catalina.*` 만 보고 "로그에 아무것도 없다"고 판단하지 말 것.
+**EAP 는 톰캣과 달리 로그가 한 파일(`server.log`)에 모인다** — 톰캣의 `server.log`/`localhost.*.log`
+분리는 없다. 대신 **배포 실패는 `deployments/api.war.failed` 에 사유가 요약**되므로 그것을 먼저 본다.
+⚠ 구 서술 폐기(2026-09-04): *"기동 실패는 `catalina.*` 가 아니라 `localhost.*` 에 남는다"*.
 
 ### 0-3. 베어메탈 토글(`java -jar` + systemd)로 운영하는 경우
 
@@ -231,7 +238,7 @@ nvidia-smi                                                          # GPU 사용
 source /etc/klid/was.env 2>/dev/null || { WAS_UNIT='<WAS 유닛명>'; WAS_LOG_DIR='<WAS_LOG_DIR>'; }
 
 # 1) 최근 로그로 원인 확인 — backend 는 WAS 로그다(0-2). 두 군데를 다 본다.
-sudo tail -n 200 "$WAS_LOG_DIR"/catalina.out                     # WAS 자신의 기동/배포
+sudo tail -n 200 "$WAS_LOG_DIR"/server.log                     # WAS 자신의 기동/배포
 sudo tail -n 200 "$WAS_LOG_DIR"/localhost.$(date +%F).log        # ★ 애플리케이션 컨텍스트 초기화 실패는 이쪽
 journalctl -u "$WAS_UNIT" -n 200 --no-pager                      # WAS 유닛이 journald 로 넘기는 구성일 때
 
@@ -271,7 +278,7 @@ cat /etc/klid/application.properties               # DB 접속·JWT 시크릿·�
 
 ```bash
 source /etc/klid/was.env 2>/dev/null || WAS_LOG_DIR='<WAS_LOG_DIR>'
-sudo grep -iE 'batch|schedul|retry|pipeline' "$WAS_LOG_DIR"/catalina.out | tail -50
+sudo grep -iE 'batch|schedul|retry|pipeline' "$WAS_LOG_DIR"/server.log | tail -50
 # (베어메탈 토글일 때: journalctl -u klid-backend --no-pager | grep -iE '...' | tail -50)
 ```
 
@@ -287,7 +294,7 @@ sudo grep -iE 'batch|schedul|retry|pipeline' "$WAS_LOG_DIR"/catalina.out | tail 
 # 연동 대상 도달 확인(설치값 IP/PORT 로 치환)
 curl -fsS http://<대상_IP>:<PORT>/        # 또는 대상 제공 헬스 경로
 source /etc/klid/was.env 2>/dev/null || WAS_LOG_DIR='<WAS_LOG_DIR>'
-sudo grep -iE 'circuit|timeout|resilience|controlnotify|vlm|kpst' "$WAS_LOG_DIR"/catalina.out | tail -50
+sudo grep -iE 'circuit|timeout|resilience|controlnotify|vlm|kpst' "$WAS_LOG_DIR"/server.log | tail -50
 # (베어메탈 토글일 때: journalctl -u klid-backend --no-pager | grep -iE '...' | tail -50)
 ```
 
@@ -381,7 +388,7 @@ ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
 ```
 
 > **실측 확인(PostgreSQL 16)**: 구 형상(마이그레이션 180건을 `public` 에 전량 적용)에 위 SQL 을 실행하면
-> 테이블 77(= 저작도구 76 + `flyway_schema_history`) · 뷰 4 · 시퀀스 49 · 인덱스 212 가 전부 `klid_at`
+> 테이블 78(+ Flyway 를 쓰는 형상이면 `flyway_schema_history` 1) · 뷰 4 가 전부 `klid_at`
 > 으로 이동하고 `public` 은 0 이 된다. 제약도 함께 이동한다(FK 49 · PK 77 · UNIQUE 26 · CHECK 3,
 > `public` 잔존 0). 위 수치는 **스쿼시 이전 형상 기준**이며 이동 자체는 개수를 바꾸지 않는다.
 >
@@ -394,7 +401,7 @@ ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
 >
 > ⚠ **중간까지만 적용하고 멈추면 수렴하지 않는다.** `V3`·`V4` 이후로도 테이블을 만드는
 > 마이그레이션이 계속 들어왔다(`V14`·`V18`·`V20`·`V21` 등). **현재 `db/schema.sql` 의 실측값은
-> 테이블 73개(`LS_*` 62 + `QRTZ_*` 11) · 뷰 4개**(2026-08-30)이며, 구 서술의 *"저작도구 **69**개"*
+> 테이블 78개(`LS_*` 67 + `QRTZ_*` 11) · 뷰 4개**(2026-09-04 V31 실측)이며, 구 수치(73·69)는
 > 는 그 시점 값이라 **폐기**한다. 개수를 인용하기 전에 매체에서 다시 세라 —
 > `grep -c '^CREATE TABLE' db/schema.sql`.
 
@@ -440,7 +447,7 @@ sudo -u postgres psql -d klid_system -c \
 # klid_at 에 테이블이 모이고 public_left 가 0 이어야 한다(사본이 남으면 위 ★★ 결함이 발생).
 
 sudo systemctl start "$WAS_UNIT"
-sudo grep -iE 'flyway|schema|validat' "$WAS_LOG_DIR"/catalina.out | tail -100
+sudo grep -iE 'flyway|schema|validat' "$WAS_LOG_DIR"/server.log | tail -100
 # (베어메탈 토글일 때: sudo systemctl start klid-backend
 #                     journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat')
 ```
@@ -588,7 +595,7 @@ COMMIT;
 ```bash
 source /etc/klid/was.env 2>/dev/null || { WAS_UNIT='<WAS 유닛명>'; WAS_LOG_DIR='<WAS_LOG_DIR>'; }
 sudo systemctl start "$WAS_UNIT"
-sudo grep -iE 'flyway|migrating|baseline' "$WAS_LOG_DIR"/catalina.out | tail -200
+sudo grep -iE 'flyway|migrating|baseline' "$WAS_LOG_DIR"/server.log | tail -200
 # (베어메탈 토글일 때: sudo systemctl start klid-backend
 #                     journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseline')
 # 기대: Current version of schema "klid_at": 1
@@ -738,10 +745,11 @@ source /etc/klid/was.env 2>/dev/null || WAS_LOG_DIR='<WAS_LOG_DIR>'
 sudo du -sh "$WAS_LOG_DIR" && sudo ls -lhS "$WAS_LOG_DIR" | head
 ```
 
-> ⚠ **`catalina.out` 은 WAS 기본 설정에서 회전되지 않고 무한히 커진다.** 디스크 부족의 원인이
+> ⚠ **`server.log` 는 WAS 설정에 따라 회전 정책이 다르다.** EAP 기본은 일 단위 회전(`server.log.YYYY-MM-DD`)이나
+> 현장 설정이 다를 수 있으므로 `standalone/configuration/logging.properties` 를 확인한다. 디스크 부족의 원인이
 > 저장소가 아니라 이 파일인 경우가 있다. logrotate 또는 WAS 자체 회전 설정이 걸려 있는지
 > WAS 운영 주체와 함께 확인한다. **가동 중 파일을 그냥 지우면 공간이 돌아오지 않는다**(WAS 가 열어
-> 둔 상태라 inode 가 살아 있다) — 비우려면 `: > catalina.out` 처럼 truncate 하거나 WAS 를 재기동한다.
+> 둔 상태라 inode 가 살아 있다) — 비우려면 `: > server.log` 처럼 truncate 하거나 WAS 를 재기동한다.
 
 - 영상/프레임 저장소(`STORAGE_RAW_PATH`·`STORAGE_DEIDENTIFIED_PATH` 설정값, 기본 `/nas-storage` 또는 마운트 NAS)는 용량 산정(이미지 10만 장·영상 5,000건 기준)을 초과하지 않도록 주기 점검한다. 앱 런타임 데이터 `/var/lib/klid`, DB 데이터 `/var/lib/pgsql/16/data` 는 별도 경로다.
 
@@ -755,7 +763,7 @@ sudo du -sh "$WAS_LOG_DIR" && sudo ls -lhS "$WAS_LOG_DIR" | head
 source /etc/klid/was.env 2>/dev/null || { WAS_UNIT='<WAS 유닛명>'; WAS_LOG_DIR='<WAS_LOG_DIR>'; }
 
 # 실시간 추적
-sudo tail -f "$WAS_LOG_DIR"/catalina.out                    # backend(WAS)
+sudo tail -f "$WAS_LOG_DIR"/server.log                    # backend(WAS)
 sudo tail -f "$WAS_LOG_DIR"/localhost.$(date +%F).log       # backend 컨텍스트(기동 실패는 이쪽)
 journalctl -u klid-ai-server -f                             # ai-server (systemd 그대로)
 journalctl -u httpd -f                                      # httpd     (systemd 그대로)
@@ -765,7 +773,7 @@ journalctl -u "$WAS_UNIT" -f
 journalctl -u "$WAS_UNIT" --since '1 hour ago' -p err --no-pager
 
 # 특정 시간대 / 에러만 — 파일 로그에서는 시간 문자열로 좁힌다
-sudo grep -E "$(date '+%Y-%m-%d %H')" "$WAS_LOG_DIR"/catalina.out | grep -iE 'error|warn' | tail -50
+sudo grep -E "$(date '+%Y-%m-%d %H')" "$WAS_LOG_DIR"/server.log | grep -iE 'error|warn' | tail -50
 
 # 앱 파일 로그(파일 로깅 활성 시)
 ls -al /var/log/klid
@@ -775,7 +783,7 @@ ls -al /var/log/klid
 > `journalctl -u klid-backend --since '1 hour ago' -p err --no-pager` 가 그대로 유효하다.
 >
 > ⚠ **WAS 로그는 journald 가 아니라 파일이라 회전 정책이 다르다.** `journalctl --vacuum-time` 은
-> 이 파일들을 줄이지 못한다 — `catalina.out` 은 WAS 기본 설정에서 무한히 커질 수 있으므로
+> 이 파일들을 줄이지 못한다 — `server.log` 은 WAS 기본 설정에서 무한히 커질 수 있으므로
 > logrotate 또는 WAS 자체 회전 설정을 확인한다(→ 2-6).
 
 > 로그에는 민감정보 마스킹이 적용된다(개인정보·토큰·JWT 평문 미출력). 로그를 외부로 반출할 때도
@@ -809,7 +817,7 @@ sudo systemctl restart "$WAS_UNIT"
 > ⚠ **WAS 를 통째로 재기동하면 같은 WAS 의 다른 애플리케이션도 함께 내려간다.** 설정 반영만
 > 필요하다면 `api.war` **컨텍스트 단위 재기동**으로 좁힐 수 있는지 WAS 운영 주체와 확인한다
 > (스프링 설정 파일은 컨텍스트 기동 시점에 읽히므로 컨텍스트 재기동으로 충분하다).
-> 단 **`CATALINA_OPTS`(JVM 옵션·`-Dspring.config.additional-location`·`-Dspring.profiles.active`)를
+> 단 **`JAVA_OPTS`(JVM 옵션·`-Dspring.config.additional-location`·`-Dspring.profiles.active`)를
 > 바꿨다면 컨텍스트 재기동으로는 반영되지 않는다** — JVM 기동 옵션이라 WAS 프로세스를 다시 띄워야 한다.
 >
 > **베어메탈 토글일 때**: `sudo systemctl restart klid-backend` /
