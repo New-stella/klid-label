@@ -20,6 +20,36 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
     Optional<LsAcntUser> findByUserNo(Long userNo);
 
     /**
+     * <b>관제 인계 토큰의 {@code userId} 클레임으로 사용자번호를 찾는다 — 단건 매칭일 때만</b>
+     * (@design ADR-063).
+     *
+     * <p>{@code LS_ACNT_USER.USER_ID} 에는 <b>유일 제약이 없다</b>(PK 는 {@code USER_NO} 뿐).
+     * 그래서 조회가 다중 매칭될 수 있고, 어느 행으로 잇는지가 추측이 되면 남의 계정으로 인가될 수
+     * 있다(CWE-639). 따라서 <b>정확히 1건일 때만</b> 그 {@code USER_NO} 를 돌려주고, 0건이거나
+     * 2건 이상이면 {@code empty} 를 돌려 fail-closed(무권한)로 흐르게 한다.
+     *
+     * <p>유일 인덱스로 입구를 좁히는 대신 <b>조회에서 닫는다</b> — 관제 ID 유일성이 보장되지 않은
+     * 상태에서 인덱스를 걸면 기존 중복 때문에 기동이 실패하고, fail-closed 는 되돌릴 것이 없다.
+     *
+     * <p>{@code null}/공백 {@code userId} 는 방어적으로 여기서도 {@code empty} 를 돌린다(빈 조회로
+     * 전 행을 훑지 않는다). {@code userId} 는 파라미터 바인딩만 쓴다(CWE-89).
+     */
+    default Optional<Long> findUserNoByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Optional.empty();
+        }
+        List<Long> matches = findUserNosByUserId(userId);
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
+    }
+
+    /**
+     * {@code USER_ID} 로 매칭되는 {@code USER_NO} 전부를 반환한다(다중/0건 판정용 — 단건 축약은
+     * {@link #findUserNoByUserId(String)} 가 한다). 유일 제약이 없어 2건 이상일 수 있다.
+     */
+    @Query("SELECT u.userNo FROM LsAcntUser u WHERE u.userId = :userId")
+    List<Long> findUserNosByUserId(@Param("userId") String userId);
+
+    /**
      * 주어진 userNo 목록에 해당하는 사용자 마스터를 한 번에 조회 (N+1 방지).
      * 빈 컬렉션 호출 시 빈 리스트 반환.
      */

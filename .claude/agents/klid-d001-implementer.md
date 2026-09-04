@@ -152,6 +152,16 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
   - **또 밟는 때**: local 프로파일 IT 를 설계·판정할 때. **생략하기 전에 반드시 `src/test/resources`
     쪽 시드를 열어 대조할 것.** 운영 시드(`src/main/resources/db/seed/`)를 근거로 삼지 마라.
 
+- **JWT 문자열 클레임의 empty vs absent 는 jjwt 빌더로 통합 재현이 안 된다 (2026-09-04, 관제 JWT 인계).**
+  jjwt 0.12 `Jwts.builder().issuer("")` 는 라운드트립에서 iss 를 **null 로 정규화**한다 — 파싱 후
+  `getIssuer()==null`. 그래서 「blank iss」 토큰은 빌더로 만들 수 없고, 통합 테스트에서 blank 거부를
+  검증하려 하면 실제로는 null(부재) 경로가 되어 게이트를 통과한다(오검). `aud` 등 다른 표준 문자열
+  클레임도 같은 정규화 대상일 수 있다.
+  - **근거**: javac 프로브 `Jwts.builder().issuer("")...parseSignedClaims → getIssuer()=null`. 최초
+    blank 통합 테스트가 200 을 받아 RED → blank 거부는 **검증기 단위**(`isAllowed("")==false`)로만 커버.
+  - **또 밟는 때**: JWT 표준 문자열 클레임(iss·aud·sub 등)의 empty-vs-absent 구분을 **통합 레벨**에서
+    빌더로 재현하려 할 때. empty 케이스는 **검증기 단위 테스트**에서 확인하고, 통합은 absent(null)만 다룬다.
+
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
 ## 출력 (YAML 한 블록만)

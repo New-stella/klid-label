@@ -23,6 +23,11 @@
 - 두 채널 모두 **동일 JWT 발급 서버** → 단일 검증 로직(`JwtAuthenticationFilter`).
 - 토큰 `channel` 클레임으로 채널(INTERNAL/PORTAL) 분기. **저작도구 인가 역할(ADMIN/REVIEWER/WORKER/PORTAL_USER)은 JWT `role` 클레임이 아니라 저작도구 소유 `LS_USER_ROLE`(USER_NO→역할)에서 조회**한다 — JWT는 식별·인증(sub·channel·exp·서명) 전담, 인가 역할은 LS 전담(`@PreAuthorize("hasRole('REVIEWER')")`). INTERNAL 채널은 `UserRoleResolver`(Caffeine 캐시 TTL 60s)로 LS 조회, PORTAL 채널은 `PORTAL_USER` 고정.
   - (역할 분리 리팩토링 2026-06) 실제 관제 JWT의 `role` 클레임은 관제 역할(SYSTEM_ADMIN/LEARN_MANAGER 등)이라 저작도구 역할과 무관하므로, 저작도구 인가는 LS 기준으로 일원화했다. 역할 변경 시 캐시는 트랜잭션 커밋 후(AFTER_COMMIT) evict.
+- **관제 발급 JWT 인계 수용 규격 (2026-09-04 · `ADR-063`)** — 관제서버가 발급한 실토큰을 우리 시크릿으로 검증해 그대로 인계받는다(관제는 발급 형식을 바꾸지 않는다). 관제 토큰은 `iss`·`channel`·`name` 이 없고 이름을 `userNm`, 로그인 ID 를 `userId` 에 싣는다. 세 지점을 저작도구가 흡수한다:
+  - **발급처(iss) 게이트**: `iss` 클레임이 **없으면(null) 통과**시킨다(관제 토큰 수용). `iss` 가 **있는데 허용목록 밖이면 여전히 거부**하고, **빈 문자열(blank)도 거부**한다(부재와 구분). ⚠ 시크릿 서명검증·`exp`(만료) 필수는 그대로다 — 게이트만 여는 것이지 서명·만료 방어를 푸는 게 아니다. 서명검증이 issuer 게이트보다 **먼저** 실행돼 위조 토큰은 iss 완화와 무관하게 차단된다.
+  - **식별 축**: `sub` 가 **숫자면 USER_NO**(내부·포털, 기존), **비숫자면 `userId` 클레임으로 `LS_ACNT_USER.USER_ID` 를 조회**해 `userNo` 를 얻는다(`UserRepository.findUserNoByUserId`). ⚠ `USER_ID` 에 유일 제약이 없어 **다중/0건 매칭이면 조회 단에서 fail-closed**(추측 매칭 금지, CWE-639) → 무권한. 관제 사용자가 우리 마스터에 없으면 진입은 되나 무권한이다.
+  - **이름 폴백**: 표시명은 `name` 우선, **없으면 `userNm`** 을 읽는다(표시용, 인가 무관).
+  - **principal 신원 정규화 (F-1, `ADR-063` ④)**: 비숫자 `sub` 를 `userId` 로 **유일 해석**했을 때 principal 의 주체 식별자(`TokenClaims.sub`)를 **해석된 `userNo`(문자열)로 치환**한다. 그러면 관제 토큰이 내부/포털 토큰(숫자 sub)과 동형이 되어, 다운스트림의 per-user 스코핑·소유권·감사·work-lock 이 raw 로그인 ID("admin")가 아니라 **실제 `userNo`** 를 일관되게 본다(감사 무결성 CWE-778 방어). 해석 실패 시 raw 유지 → fail-closed 불변. 숫자 sub(내부·포털)은 정규화 전후 값이 같아 무변경. **권한(authority→Role) 매핑은 하지 않는다** — 신원 축만 통일하고 역할은 여전히 `LS_USER_ROLE`(userNo 기준).
 - 세션 만료 시 각 상위 시스템 로그인 페이지로 리다이렉트.
 
 화면: `SC-001`(세션 인계 진입 `/ingress`) → channel 클레임으로 `/portal` 또는 `/dashboard` 라우팅. `SC-002`(관리자 등록 `/role-claim`) — role 미부여 시 진입. 화면 이름이 「역할 클레임」이던 것은 역할을 고르던 시절의 것이고, 지금은 부여 역할이 관리자 고정이라 고를 자리가 없다(`ADR-055`). 경로·엔드포인트 이름(`role-claim`)은 그대로다.

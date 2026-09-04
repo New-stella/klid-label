@@ -3,19 +3,25 @@ package kr.co.cudo.authoring.common.security;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import kr.co.cudo.authoring.auth.StubControllers;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import javax.crypto.SecretKey;
+import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Date;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,6 +42,60 @@ class JwtAuthenticationFilterTest {
 
     @Value("${authoring.jwt.issuer}")
     private String issuer;
+
+    @Autowired
+    private UserRoleResolver userRoleResolver;
+
+    @Autowired
+    @Qualifier("controlDataSource")
+    private DataSource controlDataSource;
+
+    private JdbcTemplate jdbc;
+
+    /** 이 테스트 전용 사용자 번호 구간 — 시드·다른 테스트와 충돌 회피. */
+    private static final long CTRL_USER_NO = 969_200_001L;
+    private static final long DUP_USER_NO_A = 969_200_002L;
+    private static final long DUP_USER_NO_B = 969_200_003L;
+    private static final String CTRL_USER_ID = "ctrl-admin-969200001";
+    private static final String DUP_USER_ID = "ctrl-dup-969200002";
+
+    @BeforeEach
+    void seedControlIngressRows() {
+        jdbc = new JdbcTemplate(controlDataSource);
+        cleanupControlIngressRows();
+        // AC4: userId 유일 매칭 표본 — REVIEWER 역할(관리자 아님, 공유 DB 부트스트랩 오염 방지).
+        insertUser(CTRL_USER_NO, CTRL_USER_ID);
+        insertRole(CTRL_USER_NO, "REVIEWER");
+        // AC5: 같은 USER_ID 를 가진 두 행 — 유일 제약이 없어 다중 매칭이 되는 상황.
+        insertUser(DUP_USER_NO_A, DUP_USER_ID);
+        insertUser(DUP_USER_NO_B, DUP_USER_ID);
+        insertRole(DUP_USER_NO_A, "REVIEWER");
+        insertRole(DUP_USER_NO_B, "REVIEWER");
+    }
+
+    @AfterEach
+    void teardownControlIngressRows() {
+        cleanupControlIngressRows();
+    }
+
+    private void insertUser(long userNo, String userId) {
+        jdbc.update("INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USE_YN, REG_DT) "
+                        + "VALUES (?, ?, ?, 'Y', ?)",
+                userNo, userId, "ingress-" + userNo, LocalDateTime.now());
+    }
+
+    private void insertRole(long userNo, String roleCd) {
+        jdbc.update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, ?, ?)",
+                userNo, roleCd, LocalDateTime.now());
+    }
+
+    private void cleanupControlIngressRows() {
+        for (long userNo : new long[]{CTRL_USER_NO, DUP_USER_NO_A, DUP_USER_NO_B}) {
+            jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", userNo);
+            jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", userNo);
+            userRoleResolver.evict(userNo);
+        }
+    }
 
     private SecretKey key() {
         byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
@@ -206,5 +266,102 @@ class JwtAuthenticationFilterTest {
 
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("iss_클레임이_없는_토큰은_게이트를_통과한다_관제_인계")
+    void tokenWithoutIssuerPassesGate() throws Exception {
+        // @design ADR-063 · UC-041 — 관제 인계 JWT 는 iss 가 없다. iss 를 아예 실지 않은 토큰이
+        //   게이트를 통과하고(시크릿·exp 유지), sub=1 → REVIEWER 로 해석돼 보호 엔드포인트 200.
+        Instant now = Instant.now();
+        String token = Jwts.builder()
+                .subject("1")
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().string("manage-ok"));
+    }
+
+    @Test
+    @DisplayName("iss가_있고_허용목록_밖이면_여전히_거부된다_회귀0")
+    void tokenWithUnknownIssuerStillRejected() throws Exception {
+        // 「iss 없음 허용」과 「아무 iss 허용」은 다르다 — 값이 있는데 허용목록 밖이면 거부.
+        Instant now = Instant.now();
+        String token = Jwts.builder()
+                .subject("1")
+                .issuer("evil-issuer")
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // 참고: blank iss("") 거부는 JwtIssuerValidatorTest(단위)가 고정한다 — jjwt 빌더는
+    //   .issuer("") 를 라운드트립에서 null 로 정규화해(getIssuer()==null) 통합 레벨에서 blank
+    //   토큰을 만들 수 없다. 실제 blank 는 검증기 단위 경로(isAllowed("")==false)로 닫힌다.
+
+    @Test
+    @DisplayName("관제_토큰_비숫자sub는_userId로_USER_ID조회되어_역할해석_200")
+    void controlTokenNonNumericSubResolvesViaUserId() throws Exception {
+        // @design ADR-063 · UC-041 — 실제 관제 토큰 모양: iss 없음 · sub 비숫자 · userId 클레임 보유.
+        //   userId 가 LS_ACNT_USER.USER_ID 에 유일 매칭되면 그 사용자(REVIEWER)로 인가된다.
+        Instant now = Instant.now();
+        String token = Jwts.builder()
+                .subject("admin")
+                .claim("userId", CTRL_USER_ID)
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().string("manage-ok"));
+    }
+
+    @Test
+    @DisplayName("관제_토큰_userId가_다중매칭이면_fail_closed_403")
+    void controlTokenAmbiguousUserIdFailsClosed() throws Exception {
+        // USER_ID 에 유일 제약이 없어 같은 값이 두 행에 있다 → 어느 행인지 추측 금지(CWE-639) →
+        //   무권한. 인증은 성립하되 역할이 없어 보호 엔드포인트 403.
+        Instant now = Instant.now();
+        String token = Jwts.builder()
+                .subject("admin")
+                .claim("userId", DUP_USER_ID)
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("관제_토큰_userId가_0건매칭이면_fail_closed_403")
+    void controlTokenUnknownUserIdFailsClosed() throws Exception {
+        Instant now = Instant.now();
+        String token = Jwts.builder()
+                .subject("admin")
+                .claim("userId", "no-such-user-id-969299999")
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 }
