@@ -12,7 +12,11 @@ set -euo pipefail
 #            --storage=/nas-storage1/klid \
 #            --db-hosts=10.177.199.148:19999,10.177.199.149:19999 \
 #            --db-name=klid_system_pg_prod --db-user=postgres \
-#            --trusted-proxies=<웹01 IP>,<웹02 IP>
+#            --trusted-proxies=none --retire-legacy
+#
+#   ★ --retire-legacy : 1차 저작도구 WAR(label-studio.war)을 내린다.
+#     <지우지 않고> label-studio.war_<YYMMDD> 로 옮긴다(현장에서 쓰던 이름 규칙).
+#     1번 서버는 이미 사람이 해 뒀으므로 그 서버에서는 "이미 백업본이 있습니다"로 건너뛴다.
 #
 #     [2~4번 서버]  위와 같고 --node=more 만 바꾼다
 #

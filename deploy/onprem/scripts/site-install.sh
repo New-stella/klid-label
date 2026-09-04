@@ -46,6 +46,7 @@ set -euo pipefail
 #     --skip-db            DB 설정을 건너뛴다(이미 맞춰 뒀을 때)
 #     --skip-install       10~16 설치 단계를 건너뛴다(재실행·부분 수정 시)
 #     --node=first|more    ★ WAS 가 여러 대일 때. 2번째 서버부터 --node=more (기본 first)
+#     --retire-legacy      1차 저작도구 WAR(label-studio.war)을 이름을 바꿔 내린다(지우지 않음)
 #     --restart            마지막에 WAS 를 재기동한다
 #     --check              아무것도 바꾸지 않고 <무엇을 할지>만 보여 준다
 #
@@ -70,9 +71,13 @@ require_root
 
 ONPREM="$(onprem_root)"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
+# ★ 웹 컨텍스트 — WAR 안 jboss-web.xml 이 정하는 값과 같아야 한다(현장: /label-studio).
+#   여기서 갈리면 헬스체크가 404 를 받고 <설치가 실패한 것처럼> 보인다.
+APP_CONTEXT="${APP_CONTEXT:-/label-studio}"
+
 
 ROLE=""; STORAGE=""; DB_HOSTS=""; DB_NAME=""; DB_USER=""
-SKIP_DB=0; SKIP_INSTALL=0; DO_RESTART=0; CHECK_ONLY=0; DB_SCHEMA_ARG=""
+SKIP_DB=0; SKIP_INSTALL=0; DO_RESTART=0; CHECK_ONLY=0; DB_SCHEMA_ARG=""; RETIRE_LEGACY=0
 BACKEND=""          # (선택) --with-httpd-conf 를 줄 때만 쓰는 /api 프록시 대상
 WEB_ROOT=""         # --role=web 에서 정적 dist 를 놓을 경로 (현장 DocumentRoot)
 WITH_HTTPD_CONF=0   # 현장 httpd 설정을 <우리가 만들> 때만 1
@@ -95,6 +100,7 @@ for arg in "$@"; do
     --skip-db)      SKIP_DB=1 ;;
     --skip-install) SKIP_INSTALL=1 ;;
     --restart)      DO_RESTART=1 ;;
+    --retire-legacy) RETIRE_LEGACY=1 ;;
     --check)        CHECK_ONLY=1 ;;
     --help|-h)    sed -n '3,45p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "알 수 없는 옵션: ${arg} (--help 로 사용법)" ;;
@@ -325,7 +331,7 @@ if [[ "${IS_WAS}" -eq 0 ]]; then
   banner "검증 (web)"
   _c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ 2>/dev/null || echo 000)"
   [[ "${_c}" == "200" ]] && ok "  / → 200" || warn "  ★ / → ${_c} (httpd 기동·설정 확인)"
-  _a="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1/api/actuator/health/liveness 2>/dev/null || echo 000)"
+  _a="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1${APP_CONTEXT}/api/actuator/health/liveness 2>/dev/null || echo 000)"
   if [[ "${_a}" == "200" ]]; then ok "  /api → 200 (WAS 까지 통했습니다)"
   else
     warn "  ★ /api → ${_a}"
@@ -524,6 +530,7 @@ fi
 # ---------------------------------------------------------------------------
 banner "5. JBoss 배포"
 _jargs=(); [[ "${DO_RESTART}" -eq 1 ]] && _jargs+=(--restart)
+[[ "${RETIRE_LEGACY}" -eq 1 ]] && _jargs+=(--retire-legacy)
 KLID_ETC="${KLID_ETC}" STORAGE_RAW_PATH="${STORAGE}" \
   "${ONPREM}/scripts/install/17-deploy-jboss.sh" "${_jargs[@]}" || warn "[jboss] 배포 단계에서 문제가 있었습니다 — 위 출력을 보세요."
 
@@ -546,7 +553,7 @@ chk() {  # chk <라벨> <성공조건 명령>
 chk "설정 파일을 ${RUN_USER} 가 읽는다"      "sudo -u ${RUN_USER} test -r ${PROPS}"
 chk "저장소에 ${RUN_USER} 가 쓴다"            "sudo -u ${RUN_USER} test -w ${STORAGE}"
 chk "JAVA_OPTS 가 실제로 걸렸다"              "ps -eo args= | tr ' ' '\n' | grep -q spring.config.additional-location"
-chk "백엔드 liveness 200"                     "[ \"\$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:8080/api/actuator/health/liveness)\" = 200 ]"
+chk "백엔드 liveness 200"                     "[ \"\$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:8080${APP_CONTEXT}/api/actuator/health/liveness)\" = 200 ]"
 chk "ffmpeg/ffprobe 존재"                     "command -v ffmpeg && command -v ffprobe"
 # ★ 여러 대가 같은 DB 를 볼 때 이것이 꺼져 있으면 배치가 <대수만큼 중복 실행>된다.
 chk "Quartz 클러스터링 켜짐"                  "grep -qE '^[[:space:]]*QUARTZ_CLUSTERED=true' ${PROPS}"
