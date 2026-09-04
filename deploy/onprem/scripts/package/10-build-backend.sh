@@ -7,7 +7,7 @@ set -euo pipefail
 #   ./gradlew bootWar 로 반입 정본을 만들어 artifacts/backend/ 로 복사한다.
 #
 #   ★ 반입 정본은 api.war 다 (@design DEPLOY-001 · RUNBOOK-001, 2026-08-30 사용자 확정).
-#     대상 장비의 외부 WAS(Tomcat 10.1.x + Java 17)에 이 WAR 를 올린다.
+#     대상 장비의 외부 WAS(JBoss EAP 8.1 + Java 17)에 이 WAR 를 올린다.
 #     WAR 가 없으면 <실패>다 — 형상이 성립하지 않는 반입물을 만들어 내보내지 않는다.
 #   ★ klid-backend.jar 는 <반입 대상이 아니므로 기본으로 만들지도 담지도 않는다>
 #     (2026-08-30 사용자 확정 — 매체에서 제외). DEPLOY-001 의 build_artifacts 가 그 jar 를

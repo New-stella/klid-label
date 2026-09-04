@@ -22,7 +22,8 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
 > onnxruntime-gpu 로 재수집해야 하며 이번 범위가 아니다.
 
 > **배포 형상 (2026-08-30 사용자 확정, 구속 · @design DEPLOY-001 · RUNBOOK-001)**
-> backend 는 `api.war` 로 **대상 장비에 이미 돌고 있는 WAS(Tomcat 10.1.x + Java 17)** 에 올린다.
+> backend 는 `api.war` 로 **대상 장비에 이미 돌고 있는 WAS(JBoss EAP 8.1 + Java 17, standalone)** 에 올린다
+> (2026-09-04 현장 실측 · 호스트 `klid-ai-gen-was-01` · `JBOSS_HOME=/GCLOUD/JBOSS/jboss-eap-8.1`).
 > 그래서 이 패키지는 **자바 런타임을 반입하지 않는다.**
 > ⚠ 구 서술 폐기(2026-08-30) — "3개 런타임을 폐쇄망 단일 서버에 **모두 베어메탈 설치**한다"
 >   (backend 를 systemd 가 `java -jar` 로 띄우던 형상).
@@ -47,7 +48,7 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
 > 서버 A 의 `AI_SERVER_URL` 이 **서버 B** 를 가리켜야 한다. 기본값 `http://127.0.0.1:9300` 은
 > 단일 서버 구성 기준이라, 2대로 나누면 **반드시 바꿔야 한다**(04-configuration.md).
 
-> 위 그림의 `Spring Boot :8080` 은 **외부 WAS(Tomcat 10.1.x + Java 17)에 올린 `api.war`** 다.
+> 위 그림의 `Spring Boot :8080` 은 **외부 WAS(JBoss EAP 8.1 + Java 17)에 올린 `api.war`** 다.
 > 별도 프로세스로 띄우는 것이 아니라 WAS 가 기동한다(2026-08-30 형상 확정).
 
 - **frontend (httpd)**: React+Vite 정적 빌드(`dist`)를 80포트로 서빙하고, `/api/*` 를 backend 로 리버스프록시. 관제지원시스템 웹 서버와 동일 사양(Apache httpd)이다.

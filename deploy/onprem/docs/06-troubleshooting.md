@@ -205,19 +205,80 @@ error: could not create 'SAM_2.egg-info': Read-only file system
 (`mountpoint /nas-storage`) ② `klid` 쓰기 가능 확인(`sudo runuser -u klid -- test -w /nas-storage`).
 **NAS 전체에 `chown -R` 금지**(기존 v1 대용량 파일 소유권 훼손) — v2 가 쓰는 하위 디렉터리만 권한 부여.
 
-## backend 가 안 보인다 — WAR 반입 형상 (2026-08-30 형상 확정)
+## ★ 배포 실패 — `LoggerFactory is not a Logback LoggerContext` (JBoss EAP)
 
-배포 형상이 **외부 WAS 에 `api.war` 반입**이라(@design DEPLOY-001 · RUNBOOK-001), 베어메탈 시절의
-`systemctl status klid-backend` 는 **유닛이 없어서** 실패한다. 그건 장애가 아니라 형상이다.
+증상: `deployments/api.war.failed` 에 아래가 남고 배포가 실패한다.
+
+```
+WFLYCTL0080: Failed services => jboss.deployment.unit."api.war".undertow-deployment
+  java.lang.IllegalArgumentException: LoggerFactory is not a Logback LoggerContext
+  but Logback is on the classpath. Either remove Logback or the competing implementation
+  (class org.slf4j.impl.Slf4jLoggerFactory loaded from
+   …/modules/system/layers/base/org/slf4j/impl/main/slf4j-jboss-logmanager-…jar)
+```
+
+원인: EAP 로깅 서브시스템이 배포물에 자기 `org.slf4j.impl` 모듈(`slf4j-jboss-logmanager`)을 얹어
+WAR 안의 logback 과 충돌한다. **WAR 에 `WEB-INF/jboss-deployment-structure.xml` 이 없을 때 난다.**
+
+해결: 그 서술자가 포함된 WAR 로 교체한다(빌드 산출물에 이미 들어 있다). 재빌드 없이 현장에서 넣으려면:
+
+```bash
+mkdir -p /tmp/fix/WEB-INF && cd /tmp/fix
+cat > WEB-INF/jboss-deployment-structure.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+  <deployment>
+    <exclude-subsystems>
+      <subsystem name="logging"/>
+      <subsystem name="jpa"/>
+    </exclude-subsystems>
+    <exclusions>
+      <module name="org.jboss.logging"/>
+      <module name="org.slf4j"/>
+      <module name="org.slf4j.impl"/>
+      <module name="org.apache.commons.logging"/>
+      <module name="org.apache.log4j"/>
+      <module name="org.jboss.logmanager"/>
+    </exclusions>
+  </deployment>
+</jboss-deployment-structure>
+EOF
+cp $JBOSS_HOME/standalone/deployments/api.war /tmp/fix/
+zip -g api.war WEB-INF/jboss-deployment-structure.xml     # 또는: jar uf api.war WEB-INF/…
+
+# 재배포
+rm -f $JBOSS_HOME/standalone/deployments/api.war.failed
+cp api.war $JBOSS_HOME/standalone/deployments/
+touch $JBOSS_HOME/standalone/deployments/api.war.dodeploy
+```
+
+⚠ 이 방법은 **매체의 SHA256 과 어긋난다** — 현장 응급 조치이며, 정본은 서술자가 포함된 채로
+빌드된 WAR 다. 응급 조치를 했으면 그 사실을 배포 기록에 남길 것.
+
+⚠ **서버 전역 설정(`/subsystem=logging:write-attribute(name=add-logging-api-dependencies,value=false)`)
+으로도 풀리지만 쓰지 말 것** — 같은 WAS 의 다른 애플리케이션에도 영향이 간다.
+
+⚠ 이 오류가 안 나도 안심하지 말 것 — **서술자가 없는데 배포는 성공하는 경우**가 있고, 그때는
+logback 설정이 무시된 채 돌아 **민감정보 마스킹이 사라진다**(CWE-359). 상세: 10-was-settings.md 0절.
+
+---
+
+## backend 가 안 보인다 — WAR 반입 형상 (2026-09-04 WAS 정정)
+
+배포 형상이 **외부 WAS(JBoss EAP 8.1, standalone) 에 `api.war` 반입**이라
+(@design DEPLOY-001 · RUNBOOK-001), 베어메탈 시절의 `systemctl status klid-backend` 는
+**유닛이 없어서** 실패한다. 그건 장애가 아니라 형상이다.
+⚠ 구 서술 폐기(2026-09-04): 대상 WAS 는 톰캣이 아니다. `catalina.out`·`localhost.*.log`·
+`webapps/`·`CATALINA_OPTS` 는 EAP 에 **없다** — `server.log`·`standalone/deployments/`·`JAVA_OPTS` 다.
 
 | 증상 | 원인 | 조치 |
 |------|------|------|
 | `Unit klid-backend.service could not be found` | WAR 형상에는 그 유닛이 없다(기동 주체는 WAS) | WAS 유닛 상태와 `curl /api/actuator/health/liveness` 로 확인 |
-| 모든 요청이 **404**(WAR 는 배포됐는데 로그도 없음) | 컨텍스트 경로 불일치 — WAR 배포에서 `server.servlet.context-path` 는 **적용되지 않고** 컨텍스트는 **파일명**이 정한다 | 배포 파일명이 `api.war` 인지 확인(rename 금지). 이미 `webapps/xxx/` 로 풀린 이전 배포가 남았으면 함께 정리 |
-| 기동 실패 — DB 접속/시크릿 없음 | WAS 가 설정 파일을 못 읽었다. `/etc/klid/backend.env` 는 **베어메탈 유닛의 `EnvironmentFile`** 이라 WAS 에 자동 전달되지 않는다 | WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` (읽히는 파일은 `/etc/klid/application.properties`) + `-Dspring.profiles.active=prd` 를 넣는다. 환경변수로 주고 싶으면 WAS 유닛의 `EnvironmentFile=`/`setenv.sh` 로 배선 |
+| 모든 요청이 **404**(WAR 는 배포됐는데 로그도 없음) | 컨텍스트 경로 불일치. `server.servlet.context-path` 는 내장 서버 전용이라 적용되지 않는다 | EAP 는 `WEB-INF/jboss-web.xml` 의 `<context-root>/api</context-root>` 가 **파일명과 무관하게** 고정한다(2026-09-04 신설). 그 파일이 없는 구 WAR 라면 **파일명이 컨텍스트**이므로 `api.war` 여야 한다 — 현장에서 `klid-at-api.war` 로 바꿔 배포해 `/klid-at-api` 가 된 사례가 있다. `standalone/deployments/` 에 남은 이전 배포 마커(`*.failed`·`*.undeployed`)도 정리 |
+| 기동 실패 — DB 접속/시크릿 없음 | WAS 가 설정 파일을 못 읽었다. `/etc/klid/backend.env` 는 **베어메탈 유닛의 `EnvironmentFile`** 이라 WAS 에 자동 전달되지 않는다 | WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` (읽히는 파일은 `/etc/klid/application.properties`) + `-Dspring.profiles.active=prd` 를 **`JAVA_OPTS`**(EAP `bin/standalone.conf`)로 넣는다. systemd 유닛이 `EnvironmentFile` 로 `JAVA_OPTS` 를 주고 있으면 그쪽에 넣어야 반영된다. ⚠ 실행 계정(`jboss`)이 그 파일을 읽을 수 있어야 한다 — 못 읽으면 WAS 는 뜨고 앱만 실패한다 |
 | `SPRING_*` 설정이 무시됨(예 Flyway 가 그대로 돌음) | 그 파일은 **환경변수가 아니라 스프링 설정 파일**이라 `SPRING_FLYWAY_ENABLED` 같은 이름 변환이 일어나지 않는다 | **점 표기**로 적는다 — `spring.flyway.enabled=false`. 실측으로 확인된 함정이다(DBA 선적용 스키마 위에서 마이그레이션이 또 돈다) |
-| **대용량 업로드만** 실패(그 외 전부 정상) | `server.tomcat.*`(본문 한도·스레드·비동기 타임아웃)는 내장 서버 전용이라 WAR 배포에서 무시된다 | [10-was-settings.md](10-was-settings.md) 의 WAS 설정 이관을 수행. **기동 성공은 이 단계의 완료 근거가 아니다** |
-| 앞단은 통과했는데 본문이 잘림 | 앞단 httpd 본문 한도와 WAS 커넥터 한도 중 **작은 쪽**이 실제 상한 | 두 값을 함께 본다(`httpd-klid.conf.template` + WAS 커넥터) |
+| **대용량 업로드만** 실패(그 외 전부 정상) | `server.tomcat.*`(본문 한도·스레드)는 내장 서버 전용이라 WAR 배포에서 무시된다. EAP 에서는 undertow `max-post-size` 가 그 자리다 | [10-was-settings.md](10-was-settings.md) 의 WAS 설정 이관을 수행. **기동 성공은 이 단계의 완료 근거가 아니다** |
+| 앞단은 통과했는데 본문이 잘림 | 앞단 httpd 본문 한도와 undertow `max-post-size` 중 **작은 쪽**이 실제 상한 | 두 값을 함께 본다(`httpd-klid.conf.template` + `standalone.xml`) |
 | `java` 를 못 찾음(베어메탈로 되돌린 경우) | 패키지가 **JRE 를 반입하지 않는다**(2026-08-30) — `klid-backend.service` 의 `/opt/klid/runtime/jre` 는 없는 경로다 | 그 형상이 필요하면 `40-collect-runtimes.sh`/`11-install-runtimes.sh` 의 JRE 배선을 되살리거나 `ExecStart` 를 장비의 자바로 바꾼다 |
 
 ## backend 부팅 실패 — webhook HMAC

@@ -79,8 +79,8 @@ RPM 수집(50·55)과 node_modules populate 는 `dnf`/`npm` 이 없으면 **dock
 | OS/arch | **레드햇 엔터프라이즈 리눅스 8.9** (RHEL 8 계열, x86_64, glibc 2.28) — **서버 2대 모두** |
 | init | **systemd**. 유닛은 `httpd`·`postgresql-16`[A] / `klid-ai-server`[B] 뿐이다 — **백엔드는 유닛이 아니다**(외부 WAS 가 기동 주체) |
 | **ffmpeg / ffprobe** | **[A] 전제조건 — 관제지원시스템 팀이 설치한다.** 우리는 설치하지 않고 검증만 하며, 없으면 **설치가 중단된다**. [B] 에는 필요 없다(ai-server 가 쓰지 않는다). 상세: [03-install.md](03-install.md) 「ffmpeg — 세 경로」 |
-| **WAS** | **[A]** **Tomcat 10.1.x + Java 17 이 이미 설치·구동 중**이어야 한다(관제지원시스템 WAS 와 동일 사양, 실측 17.0.19). backend 는 `api.war` 로 이 WAS 에 반입한다 — **패키지는 자바 런타임을 반입하지 않는다**(@design DEPLOY-001 · RUNBOOK-001). WAS 설정 이관은 [10-was-settings.md](10-was-settings.md) |
-| 권한 | 설치는 **root/sudo**. WAS 배포 디렉터리 쓰기 권한도 필요(사람이 복사) |
+| **WAS** | **[A]** **JBoss EAP 8.1(standalone) + Java 17 이 이미 설치·구동 중**이어야 한다(2026-09-04 현장 실측 — 호스트 `klid-ai-gen-was-01`, `JBOSS_HOME=/GCLOUD/JBOSS/jboss-eap-8.1`, 실행 계정 `jboss`). backend 는 `api.war` 로 이 WAS 에 반입한다 — **패키지는 자바 런타임을 반입하지 않는다**(@design DEPLOY-001 · RUNBOOK-001).<br>⚠ **판이 8.x 이상이어야 한다.** EAP 7.x 는 Jakarta EE 8(`javax.*`)이라 Spring Boot 3.3 WAR 가 **배포되지 않는다**. 판정: `ls -d $JBOSS_HOME/modules/system/layers/base/jakarta/servlet/api/main` 이 있으면 가능.<br>⚠ 구 서술 폐기(2026-09-04): *"Tomcat 10.1.x"*. WAS 설정 이관은 [10-was-settings.md](10-was-settings.md) |
+| 권한 | 설치는 **root/sudo**. WAS 배포 디렉터리 쓰기 권한도 필요(사람이 복사).<br>★ **실행 계정은 `jboss`(WAS)·`apache`(httpd)** 다(2026-09-04 현장 확정). 설치 시 `KLID_USER=jboss KLID_GROUP=jboss` 를 넘겨야 한다 — 기본값 `klid` 로 두면 WAS 가 `/etc/klid/application.properties` 를 못 읽어 **앱만 조용히 기동 실패**한다([03-install.md](03-install.md) 「실행 계정」) |
 | CPU/GPU | **이번 반입은 CPU 전용이며 GPU 는 사용하지 않는다** (torch CPU 휠 + onnxruntime CPU). ⚠ **[B] 장비에는 GPU 가 있다** — "GPU 가 없다"가 아니라 "이번 반입이 GPU 를 쓰지 않는다"이다. 쓰려면 CUDA 휠·드라이버·`onnxruntime-gpu` 로 **재수집**해야 하며 이번 범위가 아니다. 적어 두지 않으면 나중에 "GPU 서버인데 왜 느린가"라는 형태로만 드러난다. ⚠ 구 서술 폐기(2026-08-30): "CPU only (GPU/CUDA **불필요**)" — 장비에 GPU 가 있는 것이 사실이므로 "불필요"는 틀린 서술이 됐다 |
 | 메모리 | backend(JVM, MaxRAMPercentage 75%) + ai-server(torch CPU) 고려해 충분히(권장 ≥ 8GB) |
 | 디스크 | 앱·런타임·모델 + 영상 저장소. 영상 규모에 비례(저장소 별도 산정) |

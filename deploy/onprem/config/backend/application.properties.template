@@ -356,7 +356,7 @@ QUARTZ_CHECKIN_MS=20000
 
 # ---- JVM 옵션 — ★ 이 파일에 적어도 <아무 효과가 없다> ----------------------
 #   JVM 옵션은 프로세스 기동 시점에 정해지는데, WAR 반입 형상에서 그 프로세스는 WAS 다.
-#   아래 값은 <WAS 의 JVM 기동 옵션>(예 Tomcat setenv.sh 의 CATALINA_OPTS)으로 옮겨야 한다.
+#   아래 값은 <WAS 의 JVM 기동 옵션>(JBoss EAP: bin/standalone.conf 의 JAVA_OPTS)으로 옮겨야 한다.
 #   그래서 여기서는 키=값으로 두지 않고 <옮길 내용>만 주석으로 남긴다.
 #
 #     -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul \

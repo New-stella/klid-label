@@ -94,7 +94,9 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d portal      -c
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
   -c "select count(*) from information_schema.tables where table_schema='klid_at';"
 #   → 0 이면 db/schema.sql 이 로드되지 않은 것이다(16-load-schema.sh 또는 DBA 수동 로드).
-#     정상이면 77 — information_schema.tables 는 뷰를 포함한다(테이블 73 = LS_* 62 + QRTZ_* 11, 뷰 4).
+#     정상이면 82 — information_schema.tables 는 뷰를 포함한다(테이블 78 = LS_* 67 + QRTZ_* 11, 뷰 4).
+#     ⚠ 이 숫자는 마이그레이션이 늘면 바뀐다. 외우지 말고 매체에서 다시 세라:
+#        grep -c '^CREATE TABLE klid_at\.' db/schema.sql   +   grep -c '^CREATE VIEW klid_at\.' db/schema.sql
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
   -c "\dt klid_at.*" | grep -iE 'ls_data_raw|ls_marking|qrtz_'
 ```
@@ -239,5 +241,5 @@ sudo systemctl restart klid-ai-server
 
 > ⚠ `/etc/klid/backend.env` 는 **베어메탈 유닛의 `EnvironmentFile`** 로 주입되던 파일이다.
 > WAR 형상에서는 그 유닛이 없으므로 **WAS 프로세스에 같은 환경변수가 전달되도록 WAS 쪽에서
-> 배선**해야 한다(WAS 서비스 유닛의 `EnvironmentFile` 또는 `setenv.sh`). 배선하지 않으면
+> 배선**해야 한다(EAP: `bin/standalone.conf` 의 `JAVA_OPTS`, 또는 WAS 유닛의 `EnvironmentFile`). 배선하지 않으면
 > DB 접속·시크릿이 비어 기동이 실패한다.

@@ -47,7 +47,7 @@ if [[ "${SKIP_SCHEMA_LOAD:-0}" == "1" ]]; then
   info "[schema] SKIP_SCHEMA_LOAD=1 — 스키마 로드 생략(스키마가 이미 준비된 것으로 간주)."
   warn "[schema] 실제로 준비돼 있는지 <반드시 세어서> 확인하세요 — 비어 있어도 backend 는 기동에 성공합니다."
   warn "[schema]   psql -tAX -d <DB> -c \"SELECT count(*) FROM information_schema.tables WHERE table_schema='${DB_SCHEMA}' AND table_type='BASE TABLE';\""
-  warn "[schema]   0 이 아니어야 합니다(정상값 73). 기동 성공은 스키마 정합의 근거가 아닙니다."
+  warn "[schema]   0 이 아니어야 합니다. 기동 성공은 스키마 정합의 근거가 아닙니다."
   exit 0
 fi
 
@@ -119,4 +119,11 @@ loaded="$(psql -tAX -U "${DB_APP_USER}" -d "${CONTROL_DB_NAME}" \
   -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='${DB_SCHEMA}' AND table_type='BASE TABLE';")"
 [[ "${loaded}" != "0" ]] \
   || die "[schema] 로드 후에도 ${DB_SCHEMA} 에 테이블이 없습니다 — schema.sql 의 대상 스키마와 DB_SCHEMA 가 다릅니다."
-ok "[schema] 로드 완료 — ${DB_SCHEMA} 테이블 ${loaded}개(정상값 73)."
+# ★ 기대값을 하드코딩하지 않는다 — 마이그레이션이 늘면 낡는다. 방금 로드한 파일에서 센다.
+_want_t="$(grep -c '^CREATE TABLE klid_at\.' "${SCHEMA_SQL}" 2>/dev/null || echo 0)"
+_want_v="$(grep -c '^CREATE VIEW klid_at\.'  "${SCHEMA_SQL}" 2>/dev/null || echo 0)"
+if [[ "${_want_t}" -gt 0 ]]; then
+  ok "[schema] 로드 완료 — ${DB_SCHEMA} 테이블 ${loaded}개 (이 매체 기대: 테이블 ${_want_t} + 뷰 ${_want_v})"
+else
+  ok "[schema] 로드 완료 — ${DB_SCHEMA} 테이블 ${loaded}개."
+fi

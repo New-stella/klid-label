@@ -34,7 +34,7 @@ set -euo pipefail
 #
 #   ★ 배포 형상 = <외부 WAS 에 api.war 반입> (@design DEPLOY-001 · RUNBOOK-001, 2026-08-30 확정).
 #     이 스크립트는 backend 를 <배치까지만> 하고 기동하지 않으며, 자바 런타임도 설치하지 않는다
-#     (대상 장비의 WAS 가 Tomcat 10.1.x + Java 17 로 이미 돌고 있다).
+#     (대상 장비의 WAS 가 JBoss EAP 8.1 + Java 17 로 이미 돌고 있다).
 #     WAS 배포와 WAS 설정 이관(docs/10-was-settings.md)은 설치 후 <사람이> 수행한다.
 #
 #   설치 레이아웃(고정):
@@ -100,6 +100,12 @@ _build_steps() {
   if klid_role_has app && [[ "${SKIP_DB_INIT:-0}" != "1" ]]; then
     STEPS+=("15-init-db.sh")
     STEPS+=("16-load-schema.sh")
+  fi
+  # ★ JBoss EAP 자동 배포 — 손으로 하던 구간(WAR 복사·JAVA_OPTS 배선·권한)을 대신한다.
+  #   기본은 켜져 있다. 베어메탈 토글이나 다른 WAS 를 쓰면 SKIP_JBOSS_DEPLOY=1 로 끈다.
+  #   ⚠ 재기동은 하지 않는다(같은 WAS 에 다른 앱이 있을 수 있다) — 스크립트가 명령을 찍는다.
+  if klid_role_has app && [[ "${SKIP_JBOSS_DEPLOY:-0}" != "1" ]]; then
+    STEPS+=("17-deploy-jboss.sh")
   fi
   klid_role_has app && STEPS+=("19-verify-ffmpeg.sh")
   klid_role_has app && STEPS+=("20-verify-frontend-config.sh")
