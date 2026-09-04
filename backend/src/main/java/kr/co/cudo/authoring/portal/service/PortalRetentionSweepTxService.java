@@ -15,7 +15,7 @@ import java.util.OptionalInt;
 import java.util.Set;
 
 /**
- * 포털 보존기간 만료 자동 삭제의 <b>트랜잭션 경계 전용</b> 서비스. @design DFEAT-055, AC-032, AC-036, AC-037
+ * 포털 보존기간 만료 자동 삭제의 <b>트랜잭션 경계 전용</b> 서비스. @design DFEAT-055, AC-1068, AC-032, AC-036, AC-037
  *
  * <p>{@link kr.co.cudo.authoring.portal.scheduler.PortalRetentionSweepJob}(스케줄 오케스트레이션)이
  * 조건부 벌크 DELETE 를 별 빈의 실 트랜잭션으로 위임하도록 분리했다. 스윕 잡과 같은 클래스에 두면
@@ -47,7 +47,12 @@ public class PortalRetentionSweepTxService {
     // ======================== 축 A — 데이터마트 라벨 ========================
 
     /**
-     * 데이터마트 저장 라벨 축 스윕. @design AC-032
+     * 데이터마트 저장 라벨 축 스윕. @design DFEAT-055, AC-1068, AC-032
+     *
+     * <p>커트라인은 「그룹의 <b>최초</b> 저장 시각 + 보존일수」다(DFEAT-055 — 포털 확정 회신
+     * 2026-09-03). 후보 조회와 조건부 삭제가 <b>같은 축</b>({@code MIN(REG_DT)})을 쓰며, 그 축은
+     * 조회 경로가 화면에 고지하는 만료 예정 시각과도 같다 — 갈리면 고지한 날과 실제 삭제일이
+     * 어긋난다. ⚠ 업로드 축(아래)은 여전히 「늦은 쪽」이라 <b>두 축을 통일하지 않는다</b>.
      *
      * <p>파일이 없으므로 클레임 단계가 필요 없다 — (사용자, 영상) 그룹마다 <b>조건부 DELETE 1회</b>로
      * 끝난다. 2노드 Active-Active 에서 중복 실행돼도 두 번째 노드는 0행이 되어 멱등하다.

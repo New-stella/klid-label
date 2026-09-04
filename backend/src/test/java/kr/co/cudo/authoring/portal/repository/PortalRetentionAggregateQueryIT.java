@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @design AC-033, DFEAT-055
  *
  * <p>서비스 단위 테스트는 리포지토리를 mock 하므로 이 쿼리가 <b>실제로 도는지</b>도,
- * {@code max(regDt)} 투영이 무슨 타입으로 오는지도 확인하지 못한다. 서비스가 결과를
+ * 집계 투영이 무슨 타입으로 오는지도 확인하지 못한다. 서비스가 결과를
  * {@code (LocalDateTime) row[1]} 로 캐스팅하므로 드라이버가 {@code Timestamp} 를 돌려주면
  * 런타임 {@code ClassCastException}(500)이 된다 — 그 캐스팅 가정을 여기서 고정한다.
  *
@@ -61,8 +61,8 @@ class PortalRetentionAggregateQueryIT {
     }
 
     @Test
-    @DisplayName("데이터마트_영상별_본인_라벨_마지막저장일_집계가_실DB에서_LocalDateTime으로_돌아온다")
-    void datamartMaxRegDtAggregate() {
+    @DisplayName("데이터마트_영상별_본인_라벨_최초저장일_집계가_실DB에서_LocalDateTime으로_돌아온다")
+    void datamartMinRegDtAggregate() {
         String user = "user-" + System.nanoTime();
         String other = user + "-other";
 
@@ -78,13 +78,16 @@ class PortalRetentionAggregateQueryIT {
             save(other, rawSn, late.plusDays(5));
         });
 
-        List<Object[]> rows = userLabelRepository.findMaxRegDtGroupedBySrcRawSn(user, List.of(rawSn));
+        List<Object[]> rows = userLabelRepository.findMinRegDtGroupedBySrcRawSn(user, List.of(rawSn));
 
         assertThat(rows).hasSize(1);
         assertThat(((Number) rows.get(0)[0]).longValue()).isEqualTo(rawSn);
         // 캐스팅 가정 고정 — 서비스가 (LocalDateTime) 으로 받는다.
         assertThat(rows.get(0)[1]).isInstanceOf(LocalDateTime.class);
-        assertThat((LocalDateTime) rows.get(0)[1]).isEqualTo(late);
+        // ★ 기산점은 최초 저장이다(DFEAT-055) — 뒤에 다시 저장(late)해도 기준점이 밀리지 않는다.
+        assertThat((LocalDateTime) rows.get(0)[1])
+                .as("마지막 저장(MAX)으로 되돌아가면 저장할 때마다 만료가 밀려 만료가 영영 오지 않는다")
+                .isEqualTo(early);
     }
 
     @Test
@@ -97,7 +100,7 @@ class PortalRetentionAggregateQueryIT {
         txTemplate.executeWithoutResult(s ->
                 save(user, rawSnWithLabel, LocalDateTime.of(2026, 8, 1, 9, 0)));
 
-        List<Object[]> rows = userLabelRepository.findMaxRegDtGroupedBySrcRawSn(
+        List<Object[]> rows = userLabelRepository.findMinRegDtGroupedBySrcRawSn(
                 user, List.of(rawSnWithLabel, rawSnWithout));
 
         // 라벨 없는 영상은 행이 없어 서비스에서 null 로 읽히고 만료 예정도 null 이 된다.
@@ -105,20 +108,33 @@ class PortalRetentionAggregateQueryIT {
         assertThat(((Number) rows.get(0)[0]).longValue()).isEqualTo(rawSnWithLabel);
     }
 
+    /**
+     * ★ 업로드 축은 <b>여전히 마지막 저장</b>이다 — 데이터마트 축의 {@code MIN} 확정이 여기로
+     * 옮겨오지 않았음을 고정한다(DFEAT-055 — 두 채널의 기산점이 같은지는 확정 회신에 언급이 없다).
+     */
     @Test
-    @DisplayName("업로드_자산별_라벨_마지막저장일_집계가_실DB에서_LocalDateTime으로_돌아온다")
+    @DisplayName("★업로드_자산별_라벨_집계는_마지막저장일이다_데이터마트_MIN_확정이_옮겨오지_않았다")
     void uploadMaxRegDtAggregate() {
         String user = "user-" + System.nanoTime();
 
+        LocalDateTime early = LocalDateTime.of(2026, 8, 1, 9, 0);
+        LocalDateTime late = LocalDateTime.of(2026, 8, 3, 18, 30);
+
         Long uldSn = txTemplate.execute(s -> assetRepository.insertUploaded(
-                user, "/portal/a.jpg", "a.jpg", "image/jpeg", 100L));
-        txTemplate.executeWithoutResult(s -> {
+                user, "/portal/a.mp4", "a.mp4", "video/mp4", 100L));
+        List<Long> lblSns = txTemplate.execute(s -> {
             Long srcSn = frmeRepository.save(
                     LsDataSrc.create(uldSn, 0L, "/portal/frames/0.jpg", null)).getSrcSn();
-            lblRepository.save(LsDataLbl.createManual(
-                    srcSn, LsDataLbl.TYPE_BBOX, null, "car", "[[1,1],[2,2]]", user));
-            lblRepository.save(LsDataLbl.createManual(
-                    srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[[3,3],[4,4]]", user));
+            Long a = lblRepository.save(LsDataLbl.createManual(
+                    srcSn, LsDataLbl.TYPE_BBOX, null, "car", "[[1,1],[2,2]]", user)).getLblSn();
+            Long b = lblRepository.save(LsDataLbl.createManual(
+                    srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[[3,3],[4,4]]", user)).getLblSn();
+            return List.of(a, b);
+        });
+        // 팩토리가 REG_DT 를 now 로 박으므로 집계 검증용 시각으로 고정한다.
+        txTemplate.executeWithoutResult(s -> {
+            setLabelRegDt(lblSns.get(0), early);
+            setLabelRegDt(lblSns.get(1), late);
         });
 
         // 흡수 뒤에는 자산 조립 통로가 이 집계를 함께 소유한다(프레임을 거쳐 라벨에 닿는다).
@@ -126,6 +142,17 @@ class PortalRetentionAggregateQueryIT {
 
         assertThat(map).containsKey(uldSn);
         assertThat(map.get(uldSn)).isInstanceOf(LocalDateTime.class);
+        assertThat(map.get(uldSn))
+                .as("★업로드 축의 기준점 한쪽은 마지막 저장이다 — 데이터마트 축을 따라 MIN 으로 바꾸면 안 된다")
+                .isEqualTo(late);
+    }
+
+    /** 업로드 라벨의 REG_DT 를 검증용 시각으로 고정(팩토리가 now 로 박는다). */
+    private void setLabelRegDt(Long lblSn, LocalDateTime regDt) {
+        lblRepository.findById(lblSn).ifPresent(l -> {
+            setField(l, "regDt", regDt);
+            lblRepository.save(l);
+        });
     }
 
     /** 라벨이 참조할 실 영상 1건 적재 후 그 PK 반환(FK 충족용 최소 픽스처). */

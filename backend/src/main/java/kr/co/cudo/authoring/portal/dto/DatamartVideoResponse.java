@@ -20,6 +20,9 @@ import java.time.LocalDateTime;
  * 재계산된다 — 설정이 바뀌면 다음 조회부터 값이 달라지므로 <b>클라이언트는 캐시하지 말 것</b>.
  * 본인 저장 라벨이 없거나 보존기간 설정이 없으면 {@code null}. 판정은
  * {@code PortalRetentionPolicy} 한 곳에서만 한다(재유도 금지).
+ *
+ * <p>기산점은 그 사용자의 저작 <b>최초</b> 저장 시각이다(DFEAT-055) — 마지막 저장이 아니므로 저장을
+ * 반복해도 이 값이 뒤로 밀리지 않는다. 필드명·타입은 무변경(계약면 그대로).
  */
 public record DatamartVideoResponse(
         Long rawSn,

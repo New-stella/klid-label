@@ -13,11 +13,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 /**
- * 포털 보존기간 만료 자동 삭제 잡 (2축). @design DFEAT-055, AC-032, AC-036, AC-037
+ * 포털 보존기간 만료 자동 삭제 잡 (2축). @design DFEAT-055, AC-1068, AC-032, AC-036, AC-037
  *
  * <ul>
- *   <li><b>축 A — 데이터마트 라벨</b>: 그 (사용자, 영상) 그룹 저장 라벨의 {@code MAX(REG_DT)} 가
- *       커트라인보다 이르면 그 그룹의 라벨을 삭제한다. 파일이 없어 DB 한 문장으로 끝난다.</li>
+ *   <li><b>축 A — 데이터마트 라벨</b>: 그 (사용자, 영상) 그룹 저장 라벨의 {@code MIN(REG_DT)}
+ *       (= 그 사용자의 저작 <b>최초</b> 저장 시각)가 커트라인보다 이르면 그 그룹의 라벨을 삭제한다.
+ *       파일이 없어 DB 한 문장으로 끝난다. ★재작업으로 다시 저장해도 만료가 밀리지 않으므로
+ *       <b>작업 중이라도</b> 삭제 대상이 된다(DFEAT-055 — 포털 확정 회신 2026-09-03).</li>
  *   <li><b>축 B — 업로드 자산</b>: {@code READY}(등록일·라벨 최종 저장일 중 늦은 쪽 기준) 와
  *       {@code FAILED}({@code MDFCN_DT} 기준) 를 각자의 보존기간으로 판정해 <b>파일 → DB</b> 순으로
  *       삭제한다.</li>
@@ -81,7 +83,7 @@ public class PortalRetentionSweepJob {
         }
     }
 
-    /** 축 A — 데이터마트 저장 라벨 만료 삭제. @design AC-032 */
+    /** 축 A — 데이터마트 저장 라벨 만료 삭제. @design DFEAT-055, AC-1068, AC-032 */
     public int sweepDatamartLabels() {
         return txService.sweepDatamartLabels();
     }

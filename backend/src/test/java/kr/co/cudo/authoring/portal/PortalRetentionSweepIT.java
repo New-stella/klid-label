@@ -111,49 +111,98 @@ class PortalRetentionSweepIT {
         job.sweepDatamartLabels();
 
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, expiredRawSn))
-                .as("마지막 저장일이 보존기간을 넘긴 그룹은 삭제된다")
+                .as("최초 저장일이 보존기간을 넘긴 그룹은 삭제된다")
                 .isEmpty();
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, freshRawSn))
                 .as("보존기간 안의 그룹은 그대로 남는다")
                 .hasSize(1);
     }
 
+    /**
+     * ★ 이번 결함의 <b>핵심 재현 조건</b>이다 — 최초 저장은 오래됐고 마지막 저장은 최근인 그룹.
+     *
+     * <p>구 {@code MAX} 축에서는 이 그룹이 후보에서 빠져 <b>사용자가 저장을 이어 가는 한 만료가 영영
+     * 오지 않았다</b>(= 데이터마트 채널의 자동 삭제가 사실상 실행되지 않았다). 기산점을 최초 저장으로
+     * 고정하면 <b>작업 중이라도</b> 삭제 대상이 된다(DFEAT-055 — 포털 확정 회신 2026-09-03).
+     */
     @Test
-    @DisplayName("재작업으로_라벨을_다시_저장하면_만료가_밀려_예전_라벨까지_함께_보존된다")
-    void reworkPushesExpiryAndKeepsWholeGroup() {
+    @DisplayName("★재작업으로_다시_저장해도_만료가_밀리지_않아_그룹_전체가_삭제된다_최초저장_기산")
+    void reworkDoesNotPushExpiryAndWholeGroupIsDeleted() {
         assumeSeededRetention();
         String user = "user-" + System.nanoTime();
         long rawSn = newVideoRawSn();
         txTemplate.executeWithoutResult(s -> {
-            saveUserLabel(user, rawSn, daysAgo(30));   // 오래된 작업분
-            saveUserLabel(user, rawSn, daysAgo(1));    // 재작업으로 다시 저장
+            saveUserLabel(user, rawSn, daysAgo(30));   // 최초 저장 — 보존기간을 넘겼다
+            saveUserLabel(user, rawSn, daysAgo(1));    // 재작업으로 방금 다시 저장
         });
 
         job.sweepDatamartLabels();
 
-        // 기준점은 MAX(REG_DT) 라 그룹 전체가 살아남는다(AC-032 and_examples[1]).
+        // 기준점은 MIN(REG_DT) 라 재저장이 만료를 밀지 못한다. MAX 로 되돌리면 이 단언이 깨진다.
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
-                .hasSize(2);
+                .as("★최초 저장이 보존기간을 넘긴 그룹은 작업 중이라도 삭제 대상이다")
+                .isEmpty();
     }
 
     @Test
-    @DisplayName("후보를_뽑은_뒤_라벨이_새로_저장되면_삭제문_자체가_0행으로_걸러낸다")
+    @DisplayName("보존기간_안에_최초저장한_그룹은_삭제문을_직접_불러도_0행이다_후보조회_우회해도_막힌다")
     void datamartDeleteStatementRechecksExpiry() {
         String user = "user-" + System.nanoTime();
         long rawSn = newVideoRawSn();
         LocalDateTime cutoff = daysAgo(7);
         txTemplate.executeWithoutResult(s -> {
-            saveUserLabel(user, rawSn, daysAgo(30));
-            // 스캔~삭제 사이에 사용자가 재작업으로 저장한 상황.
+            // 최초 저장이 커트라인 이후 — 아직 만료가 아니다.
+            saveUserLabel(user, rawSn, daysAgo(3));
             saveUserLabel(user, rawSn, daysAgo(1));
         });
 
         int removed = txTemplate.execute(s ->
                 userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
 
-        assertThat(removed).as("삭제문에 만료 조건이 남아 있어야 0행이다").isZero();
+        assertThat(removed).as("삭제문 자체에 만료 조건이 걸려 있어야 0행이다").isZero();
         assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
                 .hasSize(2);
+    }
+
+    /**
+     * ★ 삭제 <b>실행문 자체</b>의 판정 축을 고정한다 — 후보 조회만 {@code MIN} 으로 고치고 삭제문을
+     * 구 조건({@code not exists(regDt >= cutoff)})으로 두면 후보에는 들어오는데 실제로는 0행이라
+     * <b>매 회차 후보로 잡히기만 하고 영영 지워지지 않는다</b>. 두 곳이 갈리는 것을 여기서 막는다.
+     */
+    @Test
+    @DisplayName("★최초저장이_오래된_그룹은_최근에_다시_저장했어도_삭제문이_행을_지운다_삭제문_판정축")
+    void datamartDeleteStatementUsesFirstSavedAxis() {
+        String user = "user-" + System.nanoTime();
+        long rawSn = newVideoRawSn();
+        LocalDateTime cutoff = daysAgo(7);
+        txTemplate.executeWithoutResult(s -> {
+            saveUserLabel(user, rawSn, daysAgo(30));   // 최초 저장 — 커트라인 이전
+            saveUserLabel(user, rawSn, daysAgo(1));    // 재작업 — 커트라인 이후
+        });
+
+        int removed = txTemplate.execute(s ->
+                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+
+        assertThat(removed).as("구 MAX 축 조건으로 되돌리면 0행이 되어 영영 지워지지 않는다").isEqualTo(2);
+        assertThat(userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(user, rawSn))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("이미_지워진_그룹에_삭제문을_다시_불러도_0행이다_2노드_멱등")
+    void datamartDeleteIsIdempotentAcrossNodes() {
+        String user = "user-" + System.nanoTime();
+        long rawSn = newVideoRawSn();
+        LocalDateTime cutoff = daysAgo(7);
+        txTemplate.executeWithoutResult(s -> saveUserLabel(user, rawSn, daysAgo(30)));
+
+        int first = txTemplate.execute(s ->
+                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+        int second = txTemplate.execute(s ->
+                userLabelRepository.deleteExpiredLabelGroup(user, rawSn, cutoff));
+
+        assertThat(first).isPositive();
+        assertThat(second).as("남은 행이 없으면 조건이 거짓이 되어 두 번째 노드는 0행이다").isZero();
     }
 
     // ==================================================== 축 B — 업로드 자산 (AC-036 / AC-037)

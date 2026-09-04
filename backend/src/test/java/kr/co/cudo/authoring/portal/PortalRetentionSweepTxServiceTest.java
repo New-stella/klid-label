@@ -95,6 +95,48 @@ class PortalRetentionSweepTxServiceTest {
         assertThat(candidates).extracting(ExpiredUpload::axis).containsExactly(Axis.FAILED);
     }
 
+    // --------------------------------------------- 보존일수 0·음수 = 아무것도 지우지 않는다 (fail-closed)
+
+    @Test
+    @DisplayName("★데이터마트_보존일수가_0이면_설정부재와_같이_한_건도_지우지_않는다_커트라인이_현재시각이_되지_않는다")
+    void datamartSweepSkippedWhenRetentionDaysIsZero() {
+        // given: 0 을 그대로 적용하면 커트라인 = now 라 «방금 저장한 라벨까지» 전량이 삭제 대상이 된다.
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(0);
+
+        int deleted = txService.sweepDatamartLabels();
+
+        assertThat(deleted).isZero();
+        // 후보 조회조차 하지 않는다 — 가드가 사라지면 여기서 findExpiredLabelGroups 가 호출된다.
+        verifyNoInteractions(userLabelRepository);
+    }
+
+    @Test
+    @DisplayName("★데이터마트_보존일수가_음수여도_한_건도_지우지_않는다_커트라인이_미래가_되지_않는다")
+    void datamartSweepSkippedWhenRetentionDaysIsNegative() {
+        // given: 음수면 커트라인이 «미래»가 되어 0 보다도 넓게 전량이 걸린다.
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(-1);
+
+        assertThat(txService.sweepDatamartLabels()).isZero();
+        verifyNoInteractions(userLabelRepository);
+    }
+
+    @Test
+    @DisplayName("★업로드_보존일수가_0이하면_그_축만_후보를_찾지_않고_다른_축은_그대로_동작한다")
+    void uploadAxisSkippedWhenRetentionDaysIsNotPositive() {
+        // given: READY 는 0(비정상), FAILED 는 정상 1일 — 가드는 두 축 공통 헬퍼에 있으나 판정은 축별이다.
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(0);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(1);
+        when(assetRepository.findExpired(eq(RetentionAxis.FAILED), any(LocalDateTime.class)))
+                .thenReturn(List.of(7L));
+
+        List<ExpiredUpload> candidates = txService.findExpiredUploads();
+
+        // READY 축은 조회조차 하지 않고, FAILED 축은 평소대로 후보를 낸다.
+        org.mockito.Mockito.verify(assetRepository, org.mockito.Mockito.never())
+                .findExpired(eq(RetentionAxis.READY), any(LocalDateTime.class));
+        assertThat(candidates).extracting(ExpiredUpload::axis).containsExactly(Axis.FAILED);
+    }
+
     // ------------------------------------------------------------- 데이터마트 축
 
     @Test
