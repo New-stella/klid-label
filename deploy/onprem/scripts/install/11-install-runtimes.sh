@@ -17,7 +17,7 @@ set -euo pipefail
 #     ⚠ 구 동작 폐기(2026-08-30) — "syspkgs/ffmpeg 로컬 저장소에서 ffmpeg 를 자동 설치하고
 #       설치 여부를 warn 으로만 알린다". 되살리지 말 것(자동 설치가 관제를 깬다).
 #   ★ 자바 런타임은 여기서 설치하지 않는다(2026-08-30 전환) — 백엔드는 <외부 WAS 에 WAR 반입>
-#     형상이고(@design DEPLOY-001), 대상 장비의 WAS(Tomcat 10.1.x)가 이미 Java 17 로 돌고 있다.
+#     형상이고(@design DEPLOY-001), 대상 장비의 WAS(JBoss EAP 8.1)가 이미 Java 17 로 돌고 있다.
 #     ⚠ 구 동작 폐기(2026-08-30) — "runtimes/jdk 의 Temurin JRE tarball 을 /opt/klid/runtime/jre
 #       로 풀고 runtime.env 에 KLID_JAVA 를 기록한다".
 #     ⚠ Python 은 ai-server 전용이라 그대로 설치한다 — 함께 걷어내지 말 것.

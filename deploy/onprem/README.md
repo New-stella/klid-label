@@ -19,8 +19,10 @@
 >   **반드시 서버 B 주소로 바꿔야 한다.**
 
 > **배포 형상 (2026-08-30 사용자 확정, 구속 · @design DEPLOY-001 · RUNBOOK-001)**
-> - **backend = 외부 WAS 에 `api.war` 반입.** 대상 장비에는 관제지원시스템 WAS 와 동일 사양인
->   **Tomcat 10.1.x + Java 17** 이 이미 돌고 있다(실측 17.0.19). 그래서 **자바 런타임을 반입하지 않는다.**
+> - **backend = 외부 WAS 에 `api.war` 반입.** 대상 장비(`klid-ai-gen-was-01`)에는
+>   **JBoss EAP 8.1 + Java 17** 이 이미 돌고 있다(2026-09-04 현장 실측). 그래서 **자바 런타임을 반입하지 않는다.**
+>   ⚠ 구 서술 폐기(2026-09-04): *"Tomcat 10.1.x"*. 톰캣 전용 개념(`server.xml` 커넥터·`CATALINA_OPTS`·
+>   `RemoteIpValve`·`catalina.out`)은 EAP 에 **없다**. 상세: [docs/10-was-settings.md](docs/10-was-settings.md)
 >   백엔드 프로세스의 수명주기는 WAS 가 소유한다 — systemd 가 `java -jar` 로 띄우지 않는다.
 > - **frontend = Apache httpd** 가 정적 dist 서빙 + `/api` 리버스프록시(배포판 RPM).
 > - **ai-server = WAR 와 무관한 별도 파이썬 프로세스**(systemd). 파이썬 런타임·오프라인 휠·모델은
@@ -75,11 +77,12 @@
                                                      #   운영 런북의 명령이 이 값을 읽는다
 
   5) ★ WAS 설정 이관 — docs/10-was-settings.md 체크리스트를 끝까지 수행
-       └ 예시 파일: config/was/  (README.md · setenv.sh.example · context-api.xml.example
-                                   · server-connector.xml.example)
+       └ 예시 파일: config/was/  (README.md · standalone.conf.example · standalone-undertow.xml.example)
        └ 건너뛰면 기동·일반 요청은 정상이고 <대용량 업로드만 조용히 깨진다>
 
-  6) ★ WAR 배포 — /opt/klid/app/api.war 를 WAS 배포 디렉터리로 <사람이> 복사(파일명 변경 금지)
+  6) ★ WAR 배포 — /opt/klid/app/api.war 를 WAS 배포 디렉터리로 <사람이> 복사
+       └ JBoss EAP: <JBOSS_HOME>/standalone/deployments/ + api.war.dodeploy 마커
+       └ 컨텍스트 /api 는 WAR 안 WEB-INF/jboss-web.xml 이 고정한다(파일명 무관)
 
   7) sudo systemctl enable --now httpd
 
@@ -199,7 +202,7 @@ deploy/onprem/
 │   ├── backend/{application.properties.template, env.template, was.env.template}
 │   ├── ai-server/env.template
 │   ├── frontend/{frontend.env.template, httpd-klid.conf.template, nginx.conf.template}
-│   ├── was/                              # ★ WAS 설정 예시(setenv.sh · context.xml · server.xml 커넥터)
+│   ├── was/                              # ★ WAS 설정 예시(JBoss EAP: standalone.conf · standalone.xml)
 │   └── systemd/{klid-backend,klid-ai-server}.service   # 웹서버는 배포판 httpd.service
 ├── artifacts/{backend,frontend,ai-server}/   # package.sh 가 채움(backend=api.war 반입 정본.
 │                                             #  klid-backend.jar 는 개발 전용이라 반입 대상이

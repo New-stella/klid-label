@@ -2,7 +2,8 @@
 
 ## ★ 어느 파일이 정본인가 — 배포 형상마다 다르다 (먼저 읽을 것)
 
-확정 배포 형상은 **외부 WAS(Tomcat 10.1) 에 `api.war` 반입**이다(@design DEPLOY-001 · RUNBOOK-001).
+확정 배포 형상은 **외부 WAS(JBoss EAP 8.1, standalone) 에 `api.war` 반입**이다(@design DEPLOY-001 · RUNBOOK-001).
+⚠ 구 서술 폐기(2026-09-04): *"Tomcat 10.1"* — 현장 실측으로 정정.
 그 형상에서 **백엔드가 실제로 읽는 파일은 `backend.env` 가 아니다.**
 
 | 형상 | 백엔드 설정 정본 | 템플릿 | 읽는 주체 |
@@ -29,7 +30,7 @@
 | **앱 고유 키** (`CONTROL_DB_HOST` · `JWT_SECRET` · `KPST_*` · `STORAGE_*` · `ENV` …) | `CONTROL_DB_HOST=...` | **그대로** `CONTROL_DB_HOST=...` | 프로파일 yml 의 자리표시자가 이 이름으로 찾으므로 정상 해석 |
 | **스프링 자체 설정** (`SPRING_` 접두) | `SPRING_FLYWAY_ENABLED=false` | **점 표기** `spring.flyway.enabled=false` | 대문자·밑줄로 적으면 **조용히 무시된다** |
 | **활성 프로파일** | `SPRING_PROFILES_ACTIVE=prd` | **파일에 적지 않는다** → WAS 기동 옵션 `-Dspring.profiles.active=prd` | 설정 파일이 로드되는 시점을 프로파일이 정하므로 |
-| **JVM 옵션** | `JAVA_OPTS=...`(systemd 가 `ExecStart` 에 전개) | **파일에 적지 않는다** → WAS 의 `CATALINA_OPTS` | JVM 기동 옵션이라 스프링이 읽지 않는다 |
+| **JVM 옵션** | `JAVA_OPTS=...`(systemd 가 `ExecStart` 에 전개) | **파일에 적지 않는다** → WAS 의 **`JAVA_OPTS`**(EAP `bin/standalone.conf`) | JVM 기동 옵션이라 스프링이 읽지 않는다. ⚠ 톰캣의 `CATALINA_OPTS` 가 아니다 |
 
 > ⚠ **`SPRING_FLYWAY_ENABLED=false` 를 `application.properties` 에 적은 사고가 실제로 있었다** —
 > 조용히 무시되어 DBA 가 선적용한 스키마 위에서 마이그레이션이 그대로 돌았다.
@@ -57,7 +58,7 @@ diff <(keys env.template) <(keys application.properties.template)
 # 나오는 것이 정상인 <의도된 차이>는 아래 넷뿐이다:
 #   < SPRING_PROFILES_ACTIVE   (properties 쪽은 WAS 기동 옵션으로 준다)
 #   < SPRING_FLYWAY_ENABLED    (properties 쪽은 spring.flyway.enabled 로 표기)
-#   < JAVA_OPTS                (properties 쪽은 CATALINA_OPTS 로 옮긴다)
+#   < JAVA_OPTS                (properties 쪽은 WAS 의 JAVA_OPTS 로 옮긴다 — EAP bin/standalone.conf)
 #   > spring.flyway.enabled    (위 SPRING_FLYWAY_ENABLED 의 점 표기 짝)
 # 그 밖의 줄이 나오면 한쪽에만 추가된 키다 — 반드시 양쪽을 맞춘다.
 ```

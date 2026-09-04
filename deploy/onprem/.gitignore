@@ -17,7 +17,7 @@ artifacts/ai-server/requirements.in
 
 # 런타임 바이너리
 #   ⚠ runtimes/jdk 는 <더 이상 채워지지 않지만> 골격을 남긴다 — 자바 런타임 미반입
-#     (2026-08-30 — 대상 WAS 가 Tomcat 10.1.x + Java 17 로 이미 구동). 수집 단계
+#     (2026-09-04 — 대상 WAS 가 JBoss EAP 8.1 + Java 17 로 이미 구동). 수집 단계
 #     (40-collect-runtimes.sh)가 이전 판의 JRE tarball 잔재를 여기서 검사하므로 자리가 필요하다.
 #   ⚠ runtimes/caddy 는 <삭제했다>(2026-08-30). 웹 서버가 배포판 httpd RPM 으로 전환되며
 #     Caddy 가 폐기됐고(2026-08-19), 그 뒤 이 디렉터리를 채우거나 검사하는 스크립트가 0건이라

@@ -35,7 +35,7 @@ BUILD_PYTHON_MINOR="3.11"   # ai-server pip download 용 (대상과 동일 마�
 # ---- 대상 서버 런타임(번들 대상) ----
 # ★★ 아래 TEMURIN_JRE_* 는 <더 이상 수집되지 않는다> (2026-08-30 사용자 확정, 구속).
 #   배포 형상이 <외부 WAS 에 WAR 반입>으로 확정됐고(@design DEPLOY-001), 대상 장비의 WAS
-#   (Tomcat 10.1.x)가 이미 Java 17 로 돌고 있어 자바 런타임을 한 벌 더 반입하지 않는다.
+#   (JBoss EAP 8.1)가 이미 Java 17 로 돌고 있어 자바 런타임을 한 벌 더 반입하지 않는다.
 #   40-collect-runtimes.sh 도 11-install-runtimes.sh 도 이 값을 읽지 않는다.
 #   ⚠ 핀을 지우지 않고 남기는 이유: 베어메탈 형상(java -jar)으로 되돌려야 할 때 재조달의
 #     기준값이 여기 말고는 없다. 되살리려면 위 두 스크립트에 수집·설치를 다시 배선해야 한다.
