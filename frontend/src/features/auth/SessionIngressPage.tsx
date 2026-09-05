@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert } from '@/components/common/Alert';
 import { Spinner } from '@/components/common/Spinner';
 import type { Channel, Role } from '@/lib/api/types';
-import { isPortalEmbedChannel } from '@/lib/buildChannel';
+import { isPortalEmbedChannel, IS_PORTAL_CHANNEL_BUILD } from '@/lib/buildChannel';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 
@@ -15,6 +15,9 @@ import { UpstreamLoginConfigHint } from './UpstreamLoginConfigHint';
 import { resolveToken } from './tokenIngress';
 
 const COOKIE_NAME = 'klid_jwt';
+// ★배포는 채널마다 갈린다(@design ADR-012) — 관제향 빌드는 '관제서버', 포털향 빌드는 '포털'
+//   한 가지만 쓴다. '관제 또는 포털' 병기는 배포 향과 맞지 않아 쓰지 않는다.
+const UPSTREAM_LABEL = IS_PORTAL_CHANNEL_BUILD ? '포털' : '관제서버';
 
 /**
  * 진입 직후 기본 상태의 문구(SCREEN-001 ①).
@@ -25,7 +28,7 @@ const COOKIE_NAME = 'klid_jwt';
  */
 const LOADING_TITLE = '세션을 확인하는 중';
 const LOADING_DESC =
-  '관제서버 또는 포털에서 전달한 인증 정보를 확인하고 있습니다. 확인이 끝나면 자동으로 이동합니다.';
+  `${UPSTREAM_LABEL}에서 전달한 인증 정보를 확인하고 있습니다. 확인이 끝나면 자동으로 이동합니다.`;
 
 /**
  * 인증 실패 안내(SCREEN-001 ②) — 분류(제목) + 상세(본문).
@@ -37,7 +40,7 @@ interface IngressError {
 }
 
 /** 두 실패 사유가 공유하는 상세 — 사용자가 할 수 있는 행동은 같다. */
-const REENTER_DESC = '관제서버 또는 포털에서 다시 접근해주세요.';
+const REENTER_DESC = `${UPSTREAM_LABEL}에서 다시 접근해주세요.`;
 
 const ERROR_NO_TOKEN: IngressError = {
   title: '로그인 서버에 연결할 수 없습니다',

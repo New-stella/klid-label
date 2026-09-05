@@ -107,10 +107,22 @@ describe('useAuthStore', () => {
     expect(useAuthStore.getState().claims?.role).toBeNull();
   });
 
-  it('채널이_없는_토큰은_여전히_통째로_거절한다', () => {
-    // ★역할을 관대하게 읽는 것이 「아무거나 받는다」는 뜻이 아니다. 필수 클레임이 없으면
-    //   그대로 무효 토큰이다 — 이 대조가 없으면 위 완화가 어디까지인지 알 수 없다.
+  it('채널이_없는_토큰은_INTERNAL_로_수용한다', () => {
+    // @design ADR-063 — 관제 인계 토큰은 channel 클레임을 싣지 않는다. BE 가 부재를 INTERNAL 로
+    //   기본 처리하므로 FE 도 동일하게 수용한다. 거부하면 관제 토큰이 디코드에서 탈락해
+    //   claims=null → 로그인 무한루프가 된다(실측 2026-09-05).
     const token = `header.${b64url({ sub: 'u-3', role: 'ADMIN', exp: 9999999999 })}.sig`;
+
+    useAuthStore.getState().setToken(token);
+
+    expect(useAuthStore.getState().claims?.channel).toBe('INTERNAL');
+    expect(useAuthStore.getState().token).toBe(token);
+  });
+
+  it('채널값이_있는데_모르는_값이면_여전히_거절한다', () => {
+    // 부재는 INTERNAL 로 낮추지만, 값이 <있는데> 우리가 모르는 채널이면 무효다(BE valueOf 대칭).
+    //   이 대조가 완화가 어디까지인지를 고정한다.
+    const token = `header.${b64url({ sub: 'u-3', channel: 'BOGUS', exp: 9999999999 })}.sig`;
 
     useAuthStore.getState().setToken(token);
 

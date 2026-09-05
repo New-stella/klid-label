@@ -94,7 +94,7 @@ describe('SessionIngressPage — 보이는 안내(SCREEN-001)', () => {
     // then: 구 구현은 이 두 줄이 아예 없거나(설명) sr-only 안에만(제목) 있었다.
     expectVisibleText('세션을 확인하는 중');
     expectVisibleText(
-      '관제서버 또는 포털에서 전달한 인증 정보를 확인하고 있습니다. 확인이 끝나면 자동으로 이동합니다.',
+      '관제서버에서 전달한 인증 정보를 확인하고 있습니다. 확인이 끝나면 자동으로 이동합니다.',
     );
   });
 
@@ -102,7 +102,7 @@ describe('SessionIngressPage — 보이는 안내(SCREEN-001)', () => {
     renderIngress(['/ingress']);
 
     await waitFor(() => {
-      expectAlert('로그인 서버에 연결할 수 없습니다', '관제서버 또는 포털에서 다시 접근해주세요.');
+      expectAlert('로그인 서버에 연결할 수 없습니다', '관제서버에서 다시 접근해주세요.');
     });
   });
 
@@ -110,7 +110,7 @@ describe('SessionIngressPage — 보이는 안내(SCREEN-001)', () => {
     renderIngress([`/ingress?token=${buildJwt({ sub: 'u1', role: 'REVIEWER', channel: 'INTERNAL', exp: 1 })}`]);
 
     await waitFor(() => {
-      expectAlert('세션이 만료되었습니다', '관제서버 또는 포털에서 다시 접근해주세요.');
+      expectAlert('세션이 만료되었습니다', '관제서버에서 다시 접근해주세요.');
     });
   });
 });
