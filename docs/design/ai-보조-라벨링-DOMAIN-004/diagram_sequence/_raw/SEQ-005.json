@@ -10,16 +10,217 @@
     "data": {
       "theme": "neutral",
       "title": "객체 자동 추적 — SAM2 시드부터 트랙 전파·보간까지",
-      "source": "sequenceDiagram\n    autonumber\n    actor WK as 라벨링 작업자(WORKER)\n    participant LC as LabelController\n    participant STS as Sam2TrackService (비트랜잭션)\n    participant AG as LabelAccessGuard\n    participant FIE as FrameImageEncoder (+ DeidentReportGate)\n    participant AI as ai-server (SAM2 track)\n    participant FE as 라벨링 캔버스(FE)\n\n    WK->>LC: POST /v1/frames/{srcSn}/sam2-track {trackId, prevPolygon, label, nextSrcSns[≤1..50], shape?}\n    LC->>LC: path/body srcSn 불일치 → 400 (CWE-345) · nextSrcSns 50 초과 → 400 (CWE-770)\n    LC->>STS: track(req, actor)\n    STS->>AG: verifyAccess(srcSn) — 시작 프레임 IDOR (AI 호출 전)\n    STS->>STS: validatePolygon(prevPolygon) — 음수/형식 차단(400)\n    STS->>FIE: 시작 프레임 이미지 인코딩 → base64\n\n    loop nextSrcSns 프레임별 (순서대로 전파)\n        STS->>AG: verifyAccess(nextSrcSn)\n        STS->>FIE: 후속 프레임 이미지 인코딩\n        Note over STS,FIE: 비식별 신고 게이트는 <프레임마다> 평가된다 — 추적 도중 신고가 들어오면 그 이후 픽셀은 나가지 않는다(412)\n        STS->>AI: track(trackId, prev/next img, currentPolygon)\n        AI-->>STS: polygon + score (+ mock 메타)\n        alt 응답 비어있음 / 최소 정점 수 미달\n            STS-->>LC: 502 EXTERNAL_API_ERROR (외부 시스템이 잘못 준 것 — 요청 축 400 과 섞지 않는다)\n        else mock 응답 (긍정 증명 기반 판정)\n            STS->>STS: 해당 프레임을 결과에서 <제외> (전파만 이어감) — 시드 복제가 \"추적\"으로 둔갑하는 오염 방지\n        else 정상\n            STS->>STS: validatePolygon + Douglas-Peucker 단순화(epsilon = POLYGON_SIMPLIFY_TOLERANCE)\n            alt shape=BBOX\n                STS->>STS: 외접 bbox 산출 — 퇴화(폭/높이 < 1px)면 그 프레임만 스킵(전체 추적 미중단)\n            else shape=POLYGON (기본)\n                STS->>STS: 폴리곤 그대로\n            end\n            STS->>STS: currentPolygon ← 응답 (다음 prev 로 전파)\n        end\n    end\n\n    STS-->>LC: Sam2TrackOutcome(tracked[], mock 포함 여부)\n    LC-->>WK: 200 OK (mock 포함 시 안내 message 동반 — FE 자동적용 차단 신호)\n    Note over STS,FE: ★DB 저장하지 않는다(no persist) — 좌표(draft)만 반환하고 확정은 FE 가 작업본에 병합 후 PUT /v1/frames/{srcSn}/labels 로 수행\n    Note over STS,FE: write 가 없어 @Transactional 도 제거됐다 — AI 블로킹 구간이 control HikariCP 커넥션을 점유하지 않는다",
-      "messages": [],
-      "fragments": [],
+      "source": "sequenceDiagram\n    actor worker as 라벨링 작업자(WORKER)\n    participant labelCtrl as LabelController\n    participant sam2TrackSvc as Sam2TrackService\n    participant accessGuard as LabelAccessGuard\n    participant frameEncoder as FrameImageEncoder\n    participant aiServer as ai-server (SAM2 track)\n    participant canvas as 라벨링 캔버스(FE)\n\n    worker->>labelCtrl: POST /v1/frames/{srcSn}/sam2-track {trackId, prevPolygon, label, nextSrcSns[≤1..50], shape?}\n    labelCtrl->>labelCtrl: path/body srcSn 불일치 → 400 (CWE-345) · nextSrcSns 50 초과 → 400 (CWE-770)\n    labelCtrl->>sam2TrackSvc: track(req, actor)\n    sam2TrackSvc->>accessGuard: verifyAccess(srcSn) — 시작 프레임 IDOR (AI 호출 전)\n    sam2TrackSvc->>sam2TrackSvc: validatePolygon(prevPolygon) — 음수/형식 차단(400)\n    sam2TrackSvc->>frameEncoder: 시작 프레임 이미지 인코딩 → base64\n    loop nextSrcSns 프레임별 (순서대로 전파)\n        sam2TrackSvc->>accessGuard: verifyAccess(nextSrcSn)\n        sam2TrackSvc->>frameEncoder: 후속 프레임 이미지 인코딩\n        Note over sam2TrackSvc: 비식별 신고 게이트는 <프레임마다> 평가된다 — 추적 도중 신고가 들어오면 그 이후 픽셀은 나가지 않는다(412)\n        sam2TrackSvc->>aiServer: track(trackId, prev/next img, currentPolygon)\n        aiServer-->>sam2TrackSvc: polygon + score (+ mock 메타)\n        alt 응답 비어있음 / 최소 정점 수 미달\n            sam2TrackSvc-->>labelCtrl: 502 EXTERNAL_API_ERROR (외부 시스템이 잘못 준 것 — 요청 축 400 과 섞지 않는다)\n        end\n        alt mock 응답 (긍정 증명 기반 판정)\n            sam2TrackSvc->>sam2TrackSvc: 해당 프레임을 결과에서 <제외> (전파만 이어감) — 시드 복제가 \"추적\"으로 둔갑하는 오염 방지\n        end\n        alt 정상\n            sam2TrackSvc->>sam2TrackSvc: validatePolygon + Douglas-Peucker 단순화(epsilon = POLYGON_SIMPLIFY_TOLERANCE)\n            alt shape=BBOX\n                sam2TrackSvc->>sam2TrackSvc: 외접 bbox 산출 — 퇴화(폭/높이 < 1px)면 그 프레임만 스킵(전체 추적 미중단)\n            end\n            alt shape=POLYGON (기본)\n                sam2TrackSvc->>sam2TrackSvc: 폴리곤 그대로\n            end\n            sam2TrackSvc->>sam2TrackSvc: currentPolygon ← 응답 (다음 prev 로 전파)\n        end\n    end\n    sam2TrackSvc-->>labelCtrl: Sam2TrackOutcome(tracked[], mock 포함 여부)\n    labelCtrl-->>worker: 200 OK (mock 포함 시 안내 message 동반 — FE 자동적용 차단 신호)\n    Note over sam2TrackSvc: ★DB 저장하지 않는다(no persist) — 좌표(draft)만 반환하고 확정은 FE 가 작업본에 병합 후 PUT /v1/frames/{srcSn}/labels 로 수행\n    Note over sam2TrackSvc: write 가 없어 @Transactional 도 제거됐다 — AI 블로킹 구간이 control HikariCP 커넥션을 점유하지 않는다\n",
+      "messages": [
+        {
+          "to": "labelCtrl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "POST /v1/frames/{srcSn}/sam2-track {trackId, prevPolygon, label, nextSrcSns[≤1..50], shape?}"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "labelCtrl",
+          "kind": "self",
+          "label": "path/body srcSn 불일치 → 400 (CWE-345) · nextSrcSns 50 초과 → 400 (CWE-770)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "labelCtrl",
+          "kind": "sync",
+          "label": "track(req, actor)"
+        },
+        {
+          "to": "accessGuard",
+          "from": "sam2TrackSvc",
+          "kind": "sync",
+          "label": "verifyAccess(srcSn) — 시작 프레임 IDOR (AI 호출 전)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "validatePolygon(prevPolygon) — 음수/형식 차단(400)"
+        },
+        {
+          "to": "frameEncoder",
+          "from": "sam2TrackSvc",
+          "kind": "sync",
+          "label": "시작 프레임 이미지 인코딩 → base64"
+        },
+        {
+          "to": "accessGuard",
+          "from": "sam2TrackSvc",
+          "kind": "sync",
+          "label": "verifyAccess(nextSrcSn)"
+        },
+        {
+          "to": "frameEncoder",
+          "from": "sam2TrackSvc",
+          "kind": "sync",
+          "label": "후속 프레임 이미지 인코딩"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "note",
+          "label": "비식별 신고 게이트는 <프레임마다> 평가된다 — 추적 도중 신고가 들어오면 그 이후 픽셀은 나가지 않는다(412)"
+        },
+        {
+          "to": "aiServer",
+          "from": "sam2TrackSvc",
+          "kind": "sync",
+          "label": "track(trackId, prev/next img, currentPolygon)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "aiServer",
+          "kind": "return",
+          "label": "polygon + score (+ mock 메타)"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "sam2TrackSvc",
+          "kind": "return",
+          "label": "502 EXTERNAL_API_ERROR (외부 시스템이 잘못 준 것 — 요청 축 400 과 섞지 않는다)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "해당 프레임을 결과에서 <제외> (전파만 이어감) — 시드 복제가 \"추적\"으로 둔갑하는 오염 방지"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "validatePolygon + Douglas-Peucker 단순화(epsilon = POLYGON_SIMPLIFY_TOLERANCE)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "외접 bbox 산출 — 퇴화(폭/높이 < 1px)면 그 프레임만 스킵(전체 추적 미중단)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "폴리곤 그대로"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "self",
+          "label": "currentPolygon ← 응답 (다음 prev 로 전파)"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "sam2TrackSvc",
+          "kind": "return",
+          "label": "Sam2TrackOutcome(tracked[], mock 포함 여부)"
+        },
+        {
+          "to": "worker",
+          "from": "labelCtrl",
+          "kind": "return",
+          "label": "200 OK (mock 포함 시 안내 message 동반 — FE 자동적용 차단 신호)"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "note",
+          "label": "★DB 저장하지 않는다(no persist) — 좌표(draft)만 반환하고 확정은 FE 가 작업본에 병합 후 PUT /v1/frames/{srcSn}/labels 로 수행"
+        },
+        {
+          "to": "sam2TrackSvc",
+          "from": "sam2TrackSvc",
+          "kind": "note",
+          "label": "write 가 없어 @Transactional 도 제거됐다 — AI 블로킹 구간이 control HikariCP 커넥션을 점유하지 않는다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "loop",
+          "label": "nextSrcSns 프레임별 (순서대로 전파)",
+          "end_index": 16,
+          "start_index": 6
+        },
+        {
+          "kind": "alt",
+          "label": "응답 비어있음 / 최소 정점 수 미달",
+          "end_index": 11,
+          "start_index": 11
+        },
+        {
+          "kind": "alt",
+          "label": "mock 응답 (긍정 증명 기반 판정)",
+          "end_index": 12,
+          "start_index": 12
+        },
+        {
+          "kind": "alt",
+          "label": "정상",
+          "end_index": 16,
+          "start_index": 13
+        },
+        {
+          "kind": "alt",
+          "label": "shape=BBOX",
+          "end_index": 14,
+          "start_index": 14
+        },
+        {
+          "kind": "alt",
+          "label": "shape=POLYGON (기본)",
+          "end_index": 15,
+          "start_index": 15
+        }
+      ],
       "description": "작업자가 시작 프레임의 객체를 지정하면 SAM2 기반 비디오 객체 추적·분할(VOS)로 후속 프레임의 위치를 추론해 전파한다(LabelController.sam2Track → Sam2TrackService.track). 요청 검증은 path/body srcSn 불일치 400(CWE-345), nextSrcSns <최대 50>(CWE-770), prevPolygon 정점 3~1000 · 음수/형식 차단(400)이다. IDOR(CWE-639)은 시작 프레임과 <모든 후속 프레임>에 대해 AI 호출 전에 검증하고, 프레임 이미지 인코딩은 FrameImageEncoder 단일 진입점을 거치므로 비식별 누락 신고 게이트가 <프레임마다> 평가된다 — 추적 도중 신고가 들어와도 그 이후 프레임 픽셀은 나가지 않는다(412). ★결과를 DB 에 저장하지 않는다 — 구 구현은 프레임마다 createAutoPolygon(AUTO_LBL_YN='Y')로 즉시 저장했으나, AI 탐지(AutolabelOnlineService)와 동일하게 <좌표(draft)만 반환>하도록 통일됐고 클라이언트가 작업본에 병합한 뒤 PUT /v1/frames/{srcSn}/labels 로 확정한다. DB write 가 없어 @Transactional 도 제거되어 AI 블로킹 호출 구간이 control HikariCP 커넥션을 점유하지 않는다(F-1 커넥션풀 고갈 방지). 트랙 병합(TrackMergeService)·보간(TrackInterpolator)은 이미 저장된 라벨을 대상으로 하므로 본 미저장 전환과 무관하다(회귀 없음). 출력 형태(R12)는 선택 객체의 형태를 따른다 — shape=POLYGON(기본)이면 폴리곤을 그대로, shape=BBOX 면 폴리곤의 외접 bbox([[minX,minY],[maxX,maxY]])를 산출하며 퇴화 폴리곤(폭/높이 1px 미만)은 해당 프레임만 스킵하고 전체 추적은 중단하지 않는다. 단순화 epsilon 은 시스템 설정 POLYGON_SIMPLIFY_TOLERANCE 를 조회해 쓰고 실패 시 1.0px 로 fail-safe 폴백한다(UC-006). 데이터 진정성(CWE-345) — ai-server mock 응답 프레임은 결과에서 <제외>한다. mock track 은 시드 폴리곤 복사본을 score=0.9 로 돌려주므로 걸러내지 않으면 \"N 프레임 추적\"이 \"시드 N개 복제\"로 둔갑해 학습데이터가 오염된다. 판정은 긍정 증명 기반(mock 메타 생략 응답도 신뢰하지 않음)이고, 제외 사실은 Sam2TrackOutcome 으로 컨트롤러에 전달돼 안내 메시지(FE 자동적용 차단 신호)가 된다 — SAM2 세그·YOLO 오토라벨과 동일 규약이다. 응답 폴리곤의 최소 정점 수 위반은 502(외부 시스템이 잘못 준 것)이며 요청 축의 400 과 섞지 않는다. 그 안내 자리는 제외된 프레임을 알리는 용도 전용이며 상한 절단 안내는 싣지 않는다 — 같은 자리에 다른 안내를 얹으면 두 사실이 섞인다.",
       "invokes_apis": [
         "API-020",
         "API-121"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "labelCtrl",
+          "kind": "service",
+          "name": "LabelController"
+        },
+        {
+          "id": "sam2TrackSvc",
+          "kind": "service",
+          "name": "Sam2TrackService"
+        },
+        {
+          "id": "accessGuard",
+          "kind": "service",
+          "name": "LabelAccessGuard"
+        },
+        {
+          "id": "frameEncoder",
+          "kind": "service",
+          "name": "FrameImageEncoder"
+        },
+        {
+          "id": "aiServer",
+          "kind": "system",
+          "name": "ai-server (SAM2 track)"
+        },
+        {
+          "id": "canvas",
+          "kind": "system",
+          "name": "라벨링 캔버스(FE)"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -42,12 +243,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 12,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:56.034Z",
+    "change_summary": "참가자 이름을 클래스 하나로 좁힌다. 이름 뒤에 붙은 괄호 주석과 화살표 때문에 설계 클래스 목록에서 그 클래스가 개별로 잡히지 않았고, 일괄로 풀면 주석에서 딸려 나온 낱말(스케줄러 이름·트랜잭션 전파 속성·SQL 낱말)이 설계 클래스로 올라간다. 클래스명만 남기고 주석은 뗀다. 우리가 만들지 않은 도구와 별도 프로세스는 종류를 시스템으로 바로잡는다. 메시지와 조각은 하나도 바꾸지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T22:42:05.588Z",
     "created_at": "2026-06-02T13:11:37.996Z"
   }
 }

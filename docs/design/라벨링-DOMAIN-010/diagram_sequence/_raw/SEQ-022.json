@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "라벨 프리셋 CRUD 관리 시퀀스",
-      "source": "sequenceDiagram\n    actor R as 검수자(REVIEWER)\n    participant PC as PresetController\n    participant PS as PresetService\n    participant EC as EventTypeController\n    participant ES as EventTypeService\n    participant MC as LabelMasterController\n    participant MS as LabelMasterService\n    participant AG as 오토라벨 보류·재개 판정\n    participant DB as 저작도구 스키마\n\n    R->>PC: GET /v1/manage/presets\n    PC->>PS: list()\n    PS->>DB: 프리셋과 코드 목록을 함께 조회\n    DB-->>PS: 프리셋·코드\n    PS->>MS: findActiveByIds(코드들이 참조하는 LBL_ID 전체)\n    MS-->>PS: 활성 라벨 마스터(라벨명·형태)\n    PS->>AG: 프리셋마다 실효 여부를 묻는다 (담긴 라벨 중 AI 검출 클래스 매핑이 하나라도 있는가)\n    AG-->>PS: 프리셋별 실효 여부·라벨별 검출 클래스 매핑 여부\n    Note over PS,AG: 실효 여부는 오토라벨 보류 판정을 재사용해 조달한다 — 이 조회가 다시 판정하지 않는다\n    PS->>PS: 코드마다 마스터를 붙여 라벨명·형태를 파생(스냅샷 저장 없음)\n    Note over PS: 마스터에 연결되지 않은 코드는 오류가 아니라 미연결 표시로 내려간다\n    PS-->>PC: 프리셋 목록(코드별 라벨명·형태·연결 여부·실효 여부)\n    PC-->>R: 200 OK\n\n    R->>MC: GET /v1/manage/labels (라벨 선택지)\n    MC-->>R: 활성 라벨 마스터 목록\n    R->>EC: 이벤트유형 선택지 조회 (등록된 전체 유형)\n    EC->>ES: 옵션 조회\n    ES-->>EC: 등록된 전체 유형 목록 (필터 옵션 축이 아니다 — 제외 대분류도 포함)\n    EC-->>R: 200 OK\n\n    R->>PC: POST /v1/manage/presets\n    PC->>PS: create(eventTypeCd, labelIds)\n    PS->>ES: 등록된 전체 이벤트유형인지 확인\n    ES-->>PS: 등록됨 (미등록 400 / 빈값도 400 — 이벤트는 필수)\n    PS->>DB: 그 이벤트유형에 이미 프리셋이 있는지 확인\n    DB-->>PS: 없음 (있으면 409 — 어느 이벤트인지 알린다)\n    PS->>MS: findActiveByIds(labelIds)\n    MS-->>PS: 활성 마스터 (미존재·비활성이면 400)\n    PS->>DB: 프리셋·코드 저장 후 즉시 반영 (이벤트 유일 제약 위반은 409)\n    Note over PS: 담긴 라벨이 전부 AI 검출 클래스에 미매핑이어도 저장은 성공한다 — 거부하지 않고 오토라벨링에 적용되지 않는다는 것만 경고한다\n    PS-->>PC: 생성된 프리셋\n    PC-->>R: 201 Created\n    PS-)AG: 등록 성공 — 그 이벤트 유형에 보류돼 있던 오토라벨 묶음의 재개를 촉발한다\n    Note over PS,AG: 재개는 보류 이력이 있고 지금 프리셋이 실효할 때만 일어난다 (뒤 조건이 멱등) — 응답을 지연시키지 않고, 실패해도 저장을 되돌리지 않는다\n    Note over PS: 코드에는 LBL_ID 만 저장한다 (라벨명·형태를 함께 적으면 마스터와 갈린다). 프리셋 자체는 이름을 갖지 않는다\n\n    R->>PC: PUT /v1/manage/presets/{id}\n    PC->>PS: update(id, eventTypeCd, labelIds)\n    PS->>DB: 대상 프리셋 조회 (없으면 404)\n    DB-->>PS: 프리셋\n    alt 매핑 이벤트유형이 실제로 바뀐 경우\n        PS->>ES: 등록된 전체 이벤트유형인지 확인\n        ES-->>PS: 등록됨 (미등록 400)\n    else 매핑을 그대로 둔 편집\n        PS->>PS: 매핑 검증을 다시 하지 않는다\n    end\n    PS->>DB: 자기 자신을 뺀 다른 프리셋이 그 이벤트를 쓰는지 확인\n    DB-->>PS: 없음 (있으면 409)\n    PS->>MS: findActiveByIds(labelIds)\n    MS-->>PS: 활성 마스터 (미존재·비활성이면 400)\n    PS->>DB: 코드 목록 전체 교체 + 매핑 재지정 (유일 제약 위반 409)\n    PS-->>PC: 수정된 프리셋\n    PC-->>R: 200 OK\n    PS-)AG: 수정 성공 — 그 이벤트 유형에 보류돼 있던 오토라벨 묶음의 재개를 촉발한다\n    Note over PS,AG: 매핑된 라벨이 없던 무효 프리셋에 매핑된 라벨을 넣는 동선이라 재개가 실제로 일어나는 주요 경로다\n\n    opt 프리셋을 삭제할 때\n        R->>PC: DELETE /v1/manage/presets/{id}\n        PC->>PS: delete(id)\n        PS->>DB: 존재하면 삭제, 없으면 무동작 (멱등 — 404 없음)\n        PC-->>R: 204 No Content\n        Note over PS,AG: 삭제는 재개를 촉발하지 않는다 — 프리셋이 사라지면 오히려 보류 조건이 성립한다\n    end",
+      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    participant presetCtl as PresetController\n    participant presetSvc as PresetService\n    participant eventTypeCtl as EventTypeController\n    participant eventTypeSvc as EventTypeService\n    participant masterCtl as LabelMasterController\n    participant masterSvc as LabelMasterService\n    participant autolabelGate as PresetLabelLookupService\n    participant db as 저작도구 스키마(LS_LABEL_PRESET·LS_LABEL_PRESET_CODE·LS_LABEL)\n\n    reviewer->>presetCtl: GET /v1/manage/presets\n    presetCtl->>presetSvc: list()\n    presetSvc->>db: 프리셋과 그 코드 목록을 함께 조회\n    db-->>presetSvc: 프리셋·코드\n    presetSvc->>masterSvc: findActiveByIds(코드들이 참조하는 LBL_ID 전체) — 목록 전체를 한 번에 조회한다\n    masterSvc-->>presetSvc: 활성 라벨 마스터(라벨명·형태)\n    presetSvc->>autolabelGate: 프리셋마다 실효 여부를 묻는다 — 담긴 라벨 중 AI 검출 클래스에 매핑된 것이 하나라도 있는가\n    autolabelGate-->>presetSvc: 프리셋별 실효 여부와 라벨별 검출 클래스 매핑 여부\n    Note over presetSvc: 실효 여부는 오토라벨 보류 판정을 재사용해 조달한다 — 이 조회가 다시 판정하지 않는다. 매핑을 소유하는 것은 프리셋이 아니라 라벨 마스터라서, 마스터에 매핑을 지정하면 그 라벨을 담은 기존 프리셋들이 함께 실효해진다\n    presetSvc->>presetSvc: 코드마다 마스터를 붙여 라벨명·형태·형태 토글을 파생한다 — 프리셋은 이 값들을 스냅샷으로 저장하지 않는다\n    Note over presetSvc: 마스터에 연결되지 않은 코드(LBL_ID 가 비었거나 마스터가 없거나 비활성)는 오류가 아니라 미연결 표시로 내려간다\n    presetSvc-->>presetCtl: 프리셋 목록(코드별 라벨명·형태·연결 여부·형태 토글·실효 여부)\n    presetCtl-->>reviewer: 200 OK\n    reviewer->>masterCtl: GET /v1/manage/labels — 라벨 선택지(활성 마스터)\n    masterCtl-->>reviewer: 활성 라벨 마스터 목록\n    reviewer->>eventTypeCtl: 이벤트유형 선택지 조회 (등록된 전체 유형)\n    eventTypeCtl->>eventTypeSvc: 옵션 조회\n    eventTypeSvc-->>eventTypeCtl: 등록된 전체 유형 목록 — 필터 옵션 축이 아니다(제외 대분류도 포함)\n    eventTypeCtl-->>reviewer: 200 OK\n    reviewer->>presetCtl: POST /v1/manage/presets — 매핑 이벤트유형 코드·labelIds\n    presetCtl->>presetSvc: create(eventTypeCd, labelIds)\n    presetSvc->>eventTypeSvc: 등록된 전체 이벤트유형인지 확인 — 필터 옵션 축이 아니라 등록 여부로 판정한다\n    eventTypeSvc-->>presetSvc: 등록됨 — 미등록이면 400, 빈값도 400(이벤트는 필수다)\n    presetSvc->>db: 그 이벤트유형에 이미 프리셋이 있는지 확인\n    db-->>presetSvc: 없음 — 있으면 409 로 어느 이벤트인지 알린다\n    presetSvc->>masterSvc: findActiveByIds(labelIds) — 입력 순서를 보존하고 중복은 제거한다\n    masterSvc-->>presetSvc: 활성 마스터 — 미존재·비활성 labelId 가 하나라도 있으면 400\n    presetSvc->>db: 프리셋과 코드 행 저장 후 즉시 반영 — 이벤트 매핑 유일 제약 위반은 409 로 바꾼다\n    Note over presetSvc: 담긴 라벨이 전부 AI 검출 클래스에 미매핑이어도 저장은 성공한다 — 거부하지 않고 그 프리셋이 오토라벨링에 적용되지 않는다는 것만 경고한다. 나중에 라벨 마스터에 매핑을 지정하면 그때 실효해지므로 그 동선을 닫지 않는다\n    presetSvc-->>presetCtl: 생성된 프리셋(마스터를 붙인 코드 목록 포함)\n    presetCtl-->>reviewer: 201 Created\n    presetSvc-)autolabelGate: 등록 성공 — 그 이벤트 유형에 보류돼 있던 오토라벨 묶음의 재개를 촉발한다\n    Note over presetSvc: 재개는 보류 이력이 있고 지금은 프리셋이 실효한다는 두 조건을 모두 만족할 때만 일어나며, 뒤 조건이 멱등을 담당한다 — 이미 재개된 영상을 다시 촉발해도 중복 적재되지 않는다. 재개는 응답을 지연시키지 않고, 재개가 실패해도 프리셋 저장은 되돌아가지 않는다\n    Note over presetSvc: 코드에는 LBL_ID 만 저장한다 — 라벨명·형태를 함께 적어 두면 마스터가 바뀔 때 두 값이 갈린다. 프리셋 자체는 이름을 갖지 않는다\n    reviewer->>presetCtl: PUT /v1/manage/presets/{id} — 매핑 이벤트유형 코드·labelIds\n    presetCtl->>presetSvc: update(id, eventTypeCd, labelIds)\n    presetSvc->>db: 대상 프리셋 조회 — 없으면 404\n    db-->>presetSvc: 프리셋\n    presetSvc->>eventTypeSvc: 매핑값이 실제로 바뀐 경우에만 등록된 전체 이벤트유형인지 다시 확인한다\n    eventTypeSvc-->>presetSvc: 등록됨 — 미등록이면 400\n    Note over presetSvc: 매핑을 그대로 둔 편집은 검증을 다시 하지 않는다 — 나중에 제외된 이벤트유형에 이미 매핑된 프리셋이 라벨만 고치려 해도 통째로 편집 불가가 되기 때문이다\n    presetSvc->>db: 자기 자신을 뺀 다른 프리셋이 그 이벤트유형을 쓰고 있는지 확인\n    db-->>presetSvc: 없음 — 있으면 409\n    presetSvc->>masterSvc: findActiveByIds(labelIds)\n    masterSvc-->>presetSvc: 활성 마스터 — 미존재·비활성이면 400\n    presetSvc->>db: 코드 목록 전체 교체, 이벤트 매핑 재지정 후 즉시 반영 — 유일 제약 위반은 409\n    presetSvc-->>presetCtl: 수정된 프리셋\n    presetCtl-->>reviewer: 200 OK\n    presetSvc-)autolabelGate: 수정 성공 — 그 이벤트 유형에 보류돼 있던 오토라벨 묶음의 재개를 촉발한다\n    Note over presetSvc: 매핑된 라벨이 없던 무효 프리셋에 매핑된 라벨을 넣는 동선이라 재개가 실제로 일어나는 주요 경로다. 재개 조건·멱등·응답 비지연·실패 시 저장 비되돌림, 그리고 미매핑이어도 저장이 성공하는 것은 등록과 같다\n    opt 프리셋을 삭제할 때\n        reviewer->>presetCtl: DELETE /v1/manage/presets/{id}\n        presetCtl->>presetSvc: delete(id)\n        presetSvc->>db: 존재하면 삭제하고 없으면 아무것도 하지 않는다 — 멱등이며 404 를 내지 않는다\n        presetCtl-->>reviewer: 204 No Content\n        Note over presetSvc: 삭제는 재개를 촉발하지 않는다 — 프리셋이 사라지면 오히려 보류 조건이 성립한다\n    end\n",
       "messages": [
         {
           "to": "presetCtl",
@@ -412,7 +412,7 @@
         {
           "id": "autolabelGate",
           "kind": "service",
-          "name": "오토라벨 보류·재개 판정",
+          "name": "PresetLabelLookupService",
           "description": "프리셋을 특정하지 못하거나 그 프리셋이 실효하지 않으면 오토라벨 묶음을 보류하고, 프리셋이 실효해지면 보류분을 재개한다. 배치와 관리 화면이 이 판정을 공유하며 다른 곳에서 다시 유도하지 않는다."
         },
         {
@@ -422,6 +422,7 @@
         }
       ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -444,12 +445,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "API-037의 data.responses 변경 — consumes",
-    "change_summary": "프리셋 등록·수정이 성공하면 그 이벤트 유형에 보류돼 있던 오토라벨 묶음의 재개가 촉발된다는 것과, 담긴 라벨이 전부 AI 검출 클래스에 미매핑이어도 저장은 성공하고 경고만 한다는 것을 흐름에 반영한다. 보류만 두고 되살리는 경로가 없으면 그 영상이 영구히 고착되므로 프리셋을 고치는 행위 자체를 재개 트리거로 삼는다. 재개는 응답을 지연시키지 않고, 재개가 실패해도 저장이 되돌아가지 않으며, 지금 프리셋이 실효한다는 조건이 멱등을 담당한다. 삭제는 재개를 촉발하지 않는다는 것도 함께 못박는다 — 프리셋이 사라지면 오히려 보류 조건이 성립하므로 그 단계를 넣지 않는다. 목록 조회가 내려주는 실효 여부도 오토라벨 보류 판정을 재사용해 조달하며 이 흐름이 다시 판정하지 않는다는 것을 드러낸다. CRUD 단계 자체는 바꾸지 않았고 성립하지 않게 된 메시지가 없어 제거한 원소도 없다. 렌더 원문도 메시지와 같은 사양으로 함께 고쳤다 — 한쪽만 고쳐 도해가 옛 사양을 계속 그리던 일을 되풀이하지 않기 위해서다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:18:02.997Z",
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이름만 있고 클래스가 아니던 참가자에 실제 클래스명을 준다. 코드에서 그 역할을 맡는 클래스를 찾아 확인한 것만 바꿨고, 찾지 못한 자리는 그대로 두었다. 메시지와 조각은 하나도 바꾸지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T22:44:24.370Z",
     "created_at": "2026-08-16T04:22:30.294Z"
   }
 }

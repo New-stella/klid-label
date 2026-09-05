@@ -11,14 +11,115 @@
       "theme": "neutral",
       "title": "비식별 옵션 설정 — 관리 화면 설정 저장",
       "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant SCC as SystemConfigController\n    participant SCS as SystemConfigService\n    participant DB as PostgreSQL (설정)\n    participant CA as Caffeine 캐시 (TTL 60s)\n\n    RV->>SCC: PUT /v1/manage/configs/{key} (비식별 옵션 value)\n    alt WORKER 호출\n        SCC-->>RV: 403 (REVIEWER 전용)\n    else 값 범위 초과\n        SCC-->>RV: 400 (@Valid)\n    else 정상\n        SCC->>SCS: update(key, value, claims)\n        SCS->>DB: 설정값 저장\n        SCS->>CA: 캐시 전체 무효화\n        SCS-->>SCC: ConfigResponse\n        SCC-->>RV: 200 OK\n    end\n    Note over SCS,CA: 이후 비식별 요청 시 저장된 옵션 적용",
-      "messages": [],
-      "fragments": [],
+      "messages": [
+        {
+          "to": "configCtrl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "PUT /v1/manage/configs/{key} (비식별 옵션 value)"
+        },
+        {
+          "to": "reviewer",
+          "from": "configCtrl",
+          "kind": "return",
+          "label": "403 (REVIEWER 전용)"
+        },
+        {
+          "to": "reviewer",
+          "from": "configCtrl",
+          "kind": "return",
+          "label": "400 (@Valid)"
+        },
+        {
+          "to": "configSvc",
+          "from": "configCtrl",
+          "kind": "sync",
+          "label": "update(key, value, claims)"
+        },
+        {
+          "to": "configDb",
+          "from": "configSvc",
+          "kind": "sync",
+          "label": "설정값 저장"
+        },
+        {
+          "to": "configCache",
+          "from": "configSvc",
+          "kind": "sync",
+          "label": "캐시 전체 무효화"
+        },
+        {
+          "to": "configCtrl",
+          "from": "configSvc",
+          "kind": "return",
+          "label": "ConfigResponse"
+        },
+        {
+          "to": "reviewer",
+          "from": "configCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "configSvc",
+          "from": "configSvc",
+          "kind": "note",
+          "label": "이후 비식별 요청 시 저장된 옵션 적용"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "WORKER 호출",
+          "end_index": 1,
+          "start_index": 1
+        },
+        {
+          "kind": "alt",
+          "label": "값 범위 초과",
+          "end_index": 2,
+          "start_index": 2
+        },
+        {
+          "kind": "alt",
+          "label": "정상",
+          "end_index": 7,
+          "start_index": 3
+        }
+      ],
       "description": "외부 비식별 솔루션 옵션을 관리(/v1/manage/*) 화면에서 REVIEWER 가 설정. SystemConfigController.update(PUT /v1/manage/configs/{key}, REVIEWER 전용, WORKER 403, 범위 초과 400) → SystemConfigService.update 가 비식별 옵션 설정값을 LS 설정 테이블에 저장 + Caffeine 캐시 전체 무효화로 이후 비식별 요청에 새 값 적용. 비식별 옵션 전용 별도 엔드포인트는 없으며 일반 시스템 설정 키-값 관리 경로를 공유한다.",
       "invokes_apis": [
         "API-069"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "configCtrl",
+          "kind": "service",
+          "name": "SystemConfigController"
+        },
+        {
+          "id": "configSvc",
+          "kind": "service",
+          "name": "SystemConfigService"
+        },
+        {
+          "id": "configDb",
+          "kind": "database",
+          "name": "PostgreSQL (설정)"
+        },
+        {
+          "id": "configCache",
+          "kind": "system",
+          "name": "Caffeine 캐시 (TTL 60s)"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
@@ -41,12 +142,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-29T01:26:57.087Z",
+    "change_summary": "원문만 있던 이 시퀀스에 구조화 데이터를 넣는다. 내용은 바꾸지 않았다 — 원문의 메시지 문구와 순서, 조각 범위를 그대로 옮겼고 기계 대조로 완전 일치를 확인했다. 참가자 표시명도 손대지 않았다. 새로 더한 것은 참가자마다의 종류다 — 사람·저장소·외부 시스템·우리 것이지만 설계 클래스가 아닌 것(프레임워크·캐시·스토리지·화면·별도 프로세스)을 갈라 적었다. 이 구분이 없으면 저장소나 캐시 이름이 설계 클래스 목록에 섞여 올라간다. 원문은 그대로 두었고 두 표현의 내용이 같음을 확인했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T07:42:28.132Z",
     "created_at": "2026-06-02T13:14:54.771Z"
   }
 }

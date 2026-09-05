@@ -18,18 +18,20 @@
       },
       "category": "compliance",
       "priority": "must",
-      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-COR-04-01~03·RQ-SIR-05-01 (담당=공통, RFP p36·73~74, 중요도 상) — 전자정부 웹사이트 품질관리 지침 대상 SW로서 저작도구 FE에 동일 적용.",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-COR-04-01~05·RQ-SIR-05-01 (담당=공통, RFP p36·73~74, 중요도 상) — 전자정부 웹사이트 품질관리 지침 대상 SW로서 저작도구 FE에 동일 적용.",
       "brownfield": {
         "status": "new",
         "diff_summary": "2차 RFP 웹표준 제약을 저작도구 FE 기준으로 수용"
       },
-      "description": "저작도구 프론트엔드(React 18 + TypeScript) 웹표준 기준:\n- 액티브X 등 비표준 기술(플러그인) 없이 HTML5 기반으로 전 기능 동작 (라벨링 캔버스는 konva.js 웹표준 Canvas)\n- 3종 이상 브라우저(Chrome·Edge·Firefox 등)에서 JavaScript·레이아웃·콘텐츠 동등 동작\n- 표준 (X)HTML·CSS 문법 준수 — W3C Markup/CSS Validation 통과\n- 포털 화면은 PC/태블릿/모바일 반응형 — 웹 접근성(WCAG 2.1 AA)과는 별개의 웹표준 관점이다",
+      "description": "저작도구 프론트엔드(React 18 + TypeScript) 웹표준 기준:\n- 액티브X 등 비표준 기술(플러그인) 없이 HTML5 기반으로 전 기능 동작 (라벨링 캔버스는 konva.js 웹표준 Canvas)\n- 3종 이상 브라우저(Chrome·Edge·Firefox 등)에서 JavaScript·레이아웃·콘텐츠 동등 동작\n- 표준 (X)HTML·CSS 문법 준수 — W3C Markup/CSS Validation 통과\n- 포털 화면은 PC/태블릿/모바일 반응형 — 웹 접근성(WCAG 2.1 AA)과는 별개의 웹표준 관점이다\n- 이용자가 쉽고 편리하게 이용할 수 있는 UI/UX를 설계·구현하고 공개된 정보에 대한 접근 개방성을 확보한다\n- 웹사이트 품질진단 기준에 따른 진단을 실시하고 그 결과를 제출한다",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "applies_to_apis": [],
       "applies_to_domains": [
@@ -43,12 +45,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
-    "stale": true,
-    "stale_reason": "DOMAIN-013의 2개 필드 변경 — applies_to",
-    "change_summary": "연결 ITEM 갱신에 따른 재확인 — 이 비기능 요구에 바꿀 내용이 없어 내용 변경 없이 확인만 기록한다.",
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "같은 요구사항명(웹 표준 등 준수)의 담당=공통 항목 RQ-COR-04-04·RQ-COR-04-05 를 근거와 본문에 반영한다. 사용편의 UI/UX·접근 개방성과 품질진단 결과 제출이 그 두 항목의 요구다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T06:38:37.212Z",
+    "last_updated_at": "2026-09-05T00:14:45.587Z",
     "created_at": "2026-06-04T09:30:52.827Z"
   }
 }

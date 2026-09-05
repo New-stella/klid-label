@@ -1,0 +1,56 @@
+{
+  "item": {
+    "id": "NFR-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "사이트 구성 및 디자인 설계 기준",
+    "slug": "사이트-구성-및-디자인-설계-기준",
+    "sub_id": "RQ-SIR-03-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "사이트 구성 및 디자인 설계 기준",
+      "metric": "디자인 설계 기준(레이아웃·색상·아이콘·버튼) 정의 및 적용 여부",
+      "status": "approved",
+      "target": {
+        "value": "디자인 가이드 정의 + 화면 구성 적용",
+        "operator": "="
+      },
+      "category": "usability",
+      "priority": "should",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-SIR-03-01·RQ-SIR-03-02 (담당=공통, RFP p35, 중요도 중).",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 사이트 구성·디자인 설계 기준:\n- 사이트 구조와 디자인 방향은 콘텐츠 접근성과 이용 편리성을 기준으로 정한다.\n- 특정 브라우저에 종속되지 않는 플랫폼 독립적 사용자 환경을 지원한다.\n- 레이아웃: 고정 영역과 팝업을 사용자 편의 관점에서 구성하고, 열린 창은 사용자가 선택하여 닫을 수 있도록 설계한다.\n- 색상: 장시간 라벨링·검수 작업의 피로도를 낮추고 가독성을 확보하는 색상 계열로 구성한다.\n- 아이콘·버튼: 기능과 용도를 직관적으로 파악할 수 있게 사용한다.\n※ 지원 단말은 채널에 따라 다르다 — 포털 채널 화면은 PC·태블릿·모바일을 지원하고, 관제 채널의 라벨링·검수 화면은 정밀 편집 작업 특성상 PC 환경을 기준으로 한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-013",
+        "DOMAIN-010"
+      ],
+      "measurement_method": "디자인 가이드 정의와 화면 설계 산출물을 대조해 레이아웃·색상·아이콘·버튼 기준이 적용된 것을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:23.377Z",
+    "created_at": "2026-09-05T00:12:23.377Z"
+  }
+}

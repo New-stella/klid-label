@@ -1,13 +1,13 @@
 ---
 logicraft_item: CDIAG-003
 type: class_diagram
-version: 11
+version: 13
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.719Z
-status: NEW
-prev_version: null
-content_hash: f7aa6ae9317ac24a7073c81f4e27deb7409e3d70c721233c7d1fe35b18890236
+synced_at: 2026-09-05T00:43:42.711Z
+status: CHANGED
+prev_version: 11
+content_hash: ba46642bc0f6b86ca7fe40a6c8b846a1db82daedc1295ec92d96fa2a4ee590e7
 stale: true
 raw: ./_raw/CDIAG-003.json
 links:
@@ -155,6 +155,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataRawSn
 
 - **type**: Long
@@ -181,6 +185,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -213,6 +221,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### externalJobId
 
 - **type**: String
@@ -239,6 +251,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -271,6 +287,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### deIdntfFilePathNm
 
 - **type**: String
@@ -297,6 +317,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -329,6 +353,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### reqDt
 
 - **type**: LocalDateTime
@@ -355,6 +383,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -387,6 +419,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### errCd
 
 - **type**: String
@@ -413,6 +449,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -445,6 +485,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### deIdntfPjtId
 
 - **type**: Long
@@ -471,6 +515,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -503,6 +551,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### pollSttsCd
 
 - **type**: DeidentPollStatus
@@ -529,6 +581,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -561,6 +617,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### pollAtmptCnt
 
 - **type**: Integer
@@ -587,6 +647,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -619,6 +683,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### faceDtctCnt
 
 - **type**: Integer
@@ -645,6 +713,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -677,6 +749,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### frmeCnt
 
 - **type**: Integer
@@ -703,6 +779,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -735,6 +815,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### prcsEndDt
 
 - **type**: LocalDateTime
@@ -761,6 +845,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -793,7 +881,11 @@ _(empty)_
 
 _(empty)_
 
-- **description**: DeidentifyStep 이 영상 단위로 기록하는 외부 KPST 비식별 솔루션 위탁·폴링 이력. OTSD_JOB_ID 유니크로 동일 작업 재인계 시 단일 row upsert(race condition 차단). 제출은 논블로킹이라 POLL_STTS_CD='WAITING' 행을 먼저 선커밋한 뒤 프로젝트 생성을 비동기 디스패치하고, 결과는 별도 콜백 없이 주기 폴링이 회수한다. 결과 파일명은 솔루션이 정하므로 DE_IDNTF_FILE_PATH_NM 에 통보받은 값을 그대로 기록하고 조합·추측하지 않는다. (LS_DEIDENT_PROC_LOG)
+##### module_paths
+
+_(empty)_
+
+- **description**: DeidentifyStep 이 영상 단위로 기록하는 외부 KPST 비식별 솔루션 위탁·폴링 이력. OTSD_JOB_ID 유니크로 동일 작업 재인계 시 단일 row upsert(race 차단). 제출은 논블로킹이라 POLL_STTS_CD='WAITING' 행을 선커밋한 뒤 생성을 비동기 디스패치하고, 결과는 주기 폴링이 회수한다 — 진행 결과 축과 수락 대기 유예 만료 미결 축 두 종류이며, 미결 회수는 재위탁하지 않고 실패 사유로 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다(코드 실측) — 미결 회수도 제출 확정 실패와 같은 종결 경로라 영상 비식별 여부를 실패로 내린다. 예외는 외부로 나간 것이 없는 취소 종결뿐이다. 결과 파일명은 솔루션이 정하므로 DE_IDNTF_FILE_PATH_NM 에 통보받은 값을 그대로 기록하고 조합·추측하지 않는다. (LS_DEIDENT_PROC_LOG)
 
 **enum_values**:
 
@@ -862,6 +954,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dataRawSn
 
 - **type**: Long
@@ -888,6 +984,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -920,6 +1020,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rsn
 
 - **type**: String
@@ -946,6 +1050,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -978,6 +1086,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dclrDt
 
 - **type**: LocalDateTime
@@ -1004,6 +1116,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1036,6 +1152,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### dclrStpCd
 
 - **type**: DeidentReportStage
@@ -1062,6 +1182,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1184,6 +1308,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lockTargetCd
 
 - **type**: String
@@ -1210,6 +1338,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1242,6 +1374,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lockSttsCd
 
 - **type**: String
@@ -1268,6 +1404,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1300,6 +1440,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lockOwnerId
 
 - **type**: String
@@ -1326,6 +1470,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1358,6 +1506,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### expireDt
 
 - **type**: LocalDateTime
@@ -1384,6 +1536,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1416,6 +1572,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### releaseRsn
 
 - **type**: String
@@ -1445,6 +1605,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 - **description**: 비식별 누락 신고 시 WorkLockService가 영상 단위(DATA_RAW_SN)로 선점하는 작업락. UUID lockId·6시간 만료, 수동 비식별 후 resolve 시 해제(LOCKED→RELEASED). (LS_AUTH_WORK_LOCK)
 
 **enum_values**:
@@ -1467,7 +1631,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: KPST 위탁 후 다운로드까지의 폴링 진행 단계. WAITING 은 논블로킹 제출이 먼저 선커밋하는 값이고, FAILED 는 타임아웃·불완전 산출물로 종료 처리된 건의 종료값이라 재폴링·중복 다운로드를 차단한다. null 은 폴링 미사용 경로다. (POLL_STTS_CD)
+- **description**: KPST 위탁 후 다운로드까지의 폴링 진행 단계. WAITING 은 논블로킹 제출이 선커밋하는 값이고, FAILED 는 ①외부가 돌려준 터미널 실패 ②폴링 경과 만료(시도 상한 포함) ③불완전 산출물 ④수락 응답을 관측하지 못한 수락 대기 유예 만료 회수 ⑤제출 확정 실패 ⑥호출자 트랜잭션 롤백에 따른 취소 종결 중 하나로 종료된 건의 종료값이라 재폴링·중복 다운로드를 차단한다. ★ 같은 종료값이라도 뒤따르는 결과는 갈린다 — ⑥만 영상 비식별 여부를 그대로 두고 나머지는 실패로 내린다. 취소 종결은 외부로 나간 것이 없어서다. ④를 따로 두는 까닭은 영상 상태가 아니라 운영 조치다 — 외부에는 프로젝트가 생성돼 있을 수 있어 사람이 확인할 건을 식별한다. ⚠ 구 서술 '수락 대기 유예 만료 회수만 실패로 내리지 않는다' 는 사실과 다르다(코드 실측 재정정). null 은 폴링 미사용 경로다. (POLL_STTS_CD)
 
 **enum_values**:
 
@@ -1505,7 +1669,7 @@ _(empty)_
 
 ## description
 
-영상 단위(DATA_RAW_SN)로 외부 KPST 비식별 솔루션 위탁·폴링·회수 이력을 기록하는 LS_DEIDENT_PROC_LOG 와 라벨러의 비식별 누락 신고를 처리하는 LS_DEIDENT_REPORT 를 표현한 비식별 처리 도메인 클래스 모델이다. 비식별은 게이팅 없이 전체 영상을 대상으로 하며 파이프라인 선두 단계로 적재 직후 자동 시작한다. ★ 시나리오 변경: 비식별 검증·결과 검토는 외부 비식별 솔루션 제공 프로그램으로 이관됨(FEAT-006 폐기). 저작도구는 위탁·결과 저장(DeidentProcLog, DFEAT-041)·라벨링 중 비식별 누락 신고(DeidentReport, DFEAT-048)만 보유한다. ⚠ 구 서술 '외부가 콜백으로 결과를 회신한다' 는 폐기됐다 — 제출은 논블로킹(WAITING 원장 행 선커밋 후 비동기 디스패치)이고 결과는 주기 폴링(KpstDeidentPollJob)이 회수한다.
+영상 단위(DATA_RAW_SN)로 외부 KPST 비식별 솔루션 위탁·폴링·회수 이력을 기록하는 LS_DEIDENT_PROC_LOG 와 라벨러의 비식별 누락 신고를 처리하는 LS_DEIDENT_REPORT 를 표현한 비식별 처리 도메인 클래스 모델이다. 비식별은 게이팅 없이 전체 영상을 대상으로 하며 파이프라인 선두 단계로 적재 직후 자동 시작한다. ★ 시나리오 변경: 비식별 검증·결과 검토는 외부 비식별 솔루션 제공 프로그램으로 이관됨(FEAT-006 폐기). 저작도구는 위탁·결과 저장(DeidentProcLog, DFEAT-041)·라벨링 중 비식별 누락 신고(DeidentReport, DFEAT-048)만 보유한다. ⚠ 구 서술 '외부가 콜백으로 결과를 회신한다' 는 폐기됐다 — 제출은 논블로킹(WAITING 원장 행 선커밋 후 비동기 디스패치)이고 결과는 주기 폴링(KpstDeidentPollJob)이 회수한다. 그 회수는 두 종류다 — 진행 결과를 집는 축과, 수락 응답조차 관측하지 못한 건을 수락 대기 유예 만료로 집는 미결 축이다. 비식별 축에는 전용 미결 스위퍼가 없어 그 미결 회수도 같은 주기 폴링이 맡으며(시계열 위탁과 갈리는 지점은 제출이 아니라 회수다), 재위탁하지 않고 실패 사유를 남겨 원장을 마감한다. ⚠ 구 서술 '미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다' 는 사실과 다르다 — 코드 실측으로 재정정. 미결 회수(KPST_ACK_MISSING)는 제출 확정 실패(KPST_SUBMIT_FAILED)와 같은 종결 경로를 타고 그 경로가 영상 비식별 여부를 실패로 내린다. 영상 상태를 그대로 두는 예외는 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED)뿐이며, 외부로 아무것도 나가지 않았기 때문이다. 수락 대기 유예 만료 회수를 별도 사유로 두는 까닭은 영상 상태가 아니라 운영 조치다 — 우리가 수락 응답을 관측하지 못했다는 뜻이라 외부 쪽에는 프로젝트가 실제로 생성돼 있을 수 있어, 사람이 외부 상태를 확인해야 하는 건을 코드로 식별하려는 분리다.
 
 ## module_name
 
@@ -1558,11 +1722,41 @@ Deidentification
 - **to_multiplicity**: 0..1
 - **from_multiplicity**: 0..*
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-041
 - DFEAT-048
 - DFEAT-042
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

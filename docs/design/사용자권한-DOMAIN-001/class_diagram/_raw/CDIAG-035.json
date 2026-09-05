@@ -1,0 +1,89 @@
+{
+  "item": {
+    "id": "CDIAG-035",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "class_diagram",
+    "title": "사용자·권한 구현 계층 — 서비스·정책·연동 오퍼레이션",
+    "slug": "사용자권한-구현-계층-서비스정책연동-오퍼레이션",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "사용자·권한 구현 계층 — 서비스·정책·연동 오퍼레이션",
+      "classes": [
+        {
+          "kind": "service",
+          "name": "AutoWorkerRegisterTxService",
+          "methods": [
+            {
+              "name": "registerAsWorker",
+              "params": [
+                "사용자 번호",
+                "사용자 이름"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "역할이 없는 내부 진입자를 작업자로 등록한다 — 이미 부여된 역할은 덮지 않으며 조건부 갱신이라 사용자당 한 번만 일어난다",
+              "is_abstract": false,
+              "return_type": "참·거짓"
+            }
+          ],
+          "attributes": [],
+          "description": "역할 없는 내부 진입자를 작업자로 자동 등록하는 서비스",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "class",
+          "name": "RoleHierarchy",
+          "methods": [
+            {
+              "name": "authoringRoleHierarchy",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "관리자가 검수자 자리를 물려받는 한 단계만 세운다 — 작업자나 포털 회원을 넣으면 전용으로 열린 자리가 열린다",
+              "is_abstract": false,
+              "return_type": "역할 계층"
+            }
+          ],
+          "attributes": [],
+          "description": "역할 사이의 상하 관계를 정하는 구성",
+          "enum_values": [],
+          "stereotypes": []
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — 구현 계층 서비스의 오퍼레이션을 설계 산출물에 적는다."
+      },
+      "description": "컨트롤러가 아닌 구현 계층 클래스의 오퍼레이션을 적는다. 이 클래스들은 시퀀스가 받는 메시지에 시그니처가 드러나지 않아 설계 클래스 정의의 칸이 비어 있던 것들이다.\n\n코드에 있는 공개 메서드를 다 싣지 않았다 — 다른 클래스가 실제로 부르는 창구와 프레임워크가 부르는 진입점(사건 수신·주기 실행·구성 생성)만 남기고 내부 보조와 저장소 조회는 뺐다. 그 기준으로 145개에서 63개로 좁혔다.\n\n이름과 파라미터와 반환은 구현에서 실측했고 설명은 그 오퍼레이션이 무엇을 하는지 한 문장으로 적었다. 반환은 표를 읽기 쉽도록 추상 이름으로 적고 돌려줄 것이 없으면 없음이다. 주입 의존은 여기 적지 않는다 — 시퀀스에서 이미 드러난다.",
+      "module_name": "사용자·권한 Service",
+      "relationships": [],
+      "attached_files": [],
+      "depicts_dfeats": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "referenced_items": [],
+      "realizes_features": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 계층 서비스의 오퍼레이션을 적는다. 설계 클래스 정의에서 이 클래스들의 칸이 통째로 비어 있었다. 코드의 공개 메서드를 다 싣지 않고 다른 클래스가 실제로 부르는 창구와 프레임워크 진입점만 남겼다 — 내부 보조와 저장소 조회를 빼 145개에서 63개로 좁혔다. 이름·파라미터·반환은 실측했고 설명은 새로 썼다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T11:25:34.721Z",
+    "created_at": "2026-09-03T11:25:34.721Z"
+  }
+}
