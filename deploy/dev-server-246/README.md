@@ -85,13 +85,17 @@ nt ssh cudo_246 "docker restart klid-authoring-jboss; sleep 20; \
 - **설정 키**(env):
   - `CONTROL_NOTIFY_ENABLED=true`
   - `CONTROL_NOTIFY_URL=http://apache` (JBoss→apache 컨테이너, apache 가 `/api/data-set/` 를 관제로 프록시. 호스트IP `http://192.168.102.246:8088` 도 가능)
-  - `CONTROL_NOTIFY_TOKEN=<장수명 서비스 JWT>` — 아래 토큰 정책.
-- **★토큰 정책 (2026-09-05 사용자 확정)**: **관제팀이 발급한 값을 우선** 쓰되, 없으면 **우리가 동일 규칙으로 발급**한다.
-  - 통지는 **백그라운드(디바운서·재시도 잡·복구기)** 에서 나가므로 **사용자 런타임 토큰(localStorage)을 실을 수 없다**(요청 컨텍스트 없음 + 만료). 따라서 **정적 서비스 토큰**을 쓴다.
-  - 현재 246 은 **우리가 공유 시크릿으로 발급한 장수명 JWT**(HS512, exp 2046)를 `CONTROL_NOTIFY_TOKEN` 에 설정(관제 인증 통과 검증완료 — 422 업무검증 단계 도달). **관제팀 토큰이 오면 그 값으로 교체.**
-  - ⚠ 토큰은 **credential** — 레포/로그 노출 금지. env-file 에만 둔다.
-- ⚠ **env 추가는 컨테이너 재생성 필요**(`docker restart` 는 `--env-file` 재독 안 함). §3.2 절차로 재생성.
-- **검증**: 설정 토큰으로 `POST {url}/api/data-set/v2/jobs/TEST/notify-completed` (x-access-token) → **401 이 아니면 인증 통과**(9필드 업무검증 422 가 정상). 기동 로그에 `[ControlNotifyDebounce] flush scheduler started` 확인.
+  - `CONTROL_NOTIFY_TOKEN=<정적 서비스 JWT>` — **선택(override)**. 아래 토큰 정책 참조.
+  - `CONTROL_NOTIFY_TOKEN_TTL_SECONDS`(선택, 기본 300) · `CONTROL_NOTIFY_TOKEN_ISSUER`(선택, 기본 klid-auth) · `CONTROL_NOTIFY_TOKEN_SUBJECT`(선택, 기본 klid-authoring-notify) — 동적 발급 파라미터.
+  - `JWT_SECRET` — **동적 발급 서명키로 재사용**(인바운드 검증과 동일 시크릿). 이미 설정돼 있으면 동적 발급이 곧바로 성립.
+- **★토큰 정책 (2026-09-05 확정 · CO-20260905 · ADR-063 ⑥ — 발송 시점 동적 발급으로 전환)**: 통지 `x-access-token` 은 **발송 시점에 앱이 동적 발급**한다(정적 장수명 토큰 폐기).
+  - 통지는 **백그라운드(디바운서·재시도 잡·복구기)** 에서 나가 사용자 런타임 토큰(localStorage)을 실을 수 없다(컨텍스트 없음 + 만료) → **서비스 토큰을 앱이 발급**한다.
+  - 발급 규칙 = 관제 규칙 정합: **alg=HS256**(`Jwts.SIG.HS256` 명시 — 91B 시크릿이라 자동선택은 HS512로 샌다) · **iss=klid-auth** · **exp=now+`token-ttl-seconds`**(기본 300s) · **공유 `JWT_SECRET` HMAC 서명** · sub=서비스 식별자. jti 로 발급마다 고유.
+  - **override**: `CONTROL_NOTIFY_TOKEN` 을 설정하면 그 정적 값이 **우선**(관제팀이 별도 토큰을 주는 경우). 미설정이 기본이며 동적 발급이 작동한다. 정적·시크릿 모두 없으면 헤더 미부착 fail-safe.
+  - ⚠ **현재 246 은 정적 `CONTROL_NOTIFY_TOKEN` 을 제거**(백업 `jboss-effective.env.bak-20260905-notoken`)해 동적 발급으로 동작한다. 구 임시 상태(HS512·exp 2046 정적 토큰)는 폐기됐다.
+  - ⚠ 토큰·시크릿은 **credential** — 레포/로그 노출 금지. env-file 에만 둔다(앱도 값 미출력, 존재/길이/exp 만 로깅).
+- ⚠ **env 추가/변경은 컨테이너 재생성 필요**(`docker restart` 는 `--env-file` 재독 안 함). §3.2 절차로 재생성.
+- **검증**(2026-09-05 실측 통과): ① 기동 로그 `[ControlNotifyDebounce] flush scheduler started` + `[ControlNotify] … 동적 x-access-token 이 나갑니다`(동적 경로 배선 확인) ② 실왕복 — 공유 시크릿으로 HS256 테스트 토큰 발급 후 `POST {url}/api/data-set/v2/jobs/SELFTEST/notify-completed`(x-access-token) → **notify-completed=422**(인증 통과·업무검증 정상), 무토큰 대조 → **401**(인증 실제 작동). health `http://localhost:18080/label-studio/actuator/health`=200.
 
 ### 3.2 JBoss 컨테이너 재생성 (env 변경 시)
 
