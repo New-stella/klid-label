@@ -36,14 +36,26 @@ import java.util.OptionalInt;
  *   <tr><th>축</th><th>기준점</th><th>설정 키</th></tr>
  *   <tr><td>데이터마트 라벨</td><td>그 (사용자, 영상) 본인 저장 라벨의 {@code MIN(REG_DT)} — <b>최초</b> 저장 시각</td>
  *       <td>{@code portal.datamart.retention-days}</td></tr>
+ *   <tr><td>업로드 {@code UPLOADED}(마킹 대기)</td><td>자산 {@code REG_DT}(등록일) — 그 상태에는
+ *       프레임이 없어 라벨이 있을 수 없으므로 「늦은 쪽」 조건을 두지 않는다</td>
+ *       <td>{@code portal.upload.retention-days} <b>재사용</b></td></tr>
  *   <tr><td>업로드 {@code READY}</td><td>자산 {@code REG_DT} 와 그 자산 라벨 {@code MAX(REG_DT)} 중 <b>늦은 쪽</b></td>
  *       <td>{@code portal.upload.retention-days}</td></tr>
  *   <tr><td>업로드 {@code FAILED}</td><td>{@code MDFCN_DT}(FAILED 전이 시각)</td>
  *       <td>{@code portal.upload.failed-retention-days}</td></tr>
- *   <tr><td>업로드 {@code PROCESSING}·{@code UPLOADED}</td><td colspan="2">만료 없음 — {@code null}</td></tr>
+ *   <tr><td>업로드 {@code PROCESSING}</td><td colspan="2">만료 없음 — {@code null}</td></tr>
  * </table>
- * <p>업로드 두 축은 <b>독립 판정</b>이다(AC-037 and_examples[1]) — 같은 시각에 등록된 READY 자산과
- * FAILED 자산은 서로 다른 보존기간으로 계산된다.
+ * <p>업로드 축들은 <b>독립 판정</b>이다(AC-1070) — 같은 시각에 등록된 READY 자산과 FAILED 자산은 서로
+ * 다른 보존기간으로 계산된다. 마킹 대기와 준비 완료는 <b>같은 설정을 공유</b>하되(같은 정상 자산 축이라
+ * 새 설정 키를 만들지 않는다) 기산점이 다르다.
+ *
+ * <h3>★ 마킹 대기의 보존기간을 「방치 판정」과 혼동하지 말 것 (2026-09-05 확정)</h3>
+ * <p>2026-09-02 에 <b>닫은</b> 것은 「분 단위 방치 타이머가 마킹 대기 자산을 <b>실패로 마감</b>하던
+ * 것」이고, 여기서 <b>여는</b> 것은 「일 단위 보존기간으로 <b>정상 만료</b>시키는 것」이다. 타이머
+ * 길이도 종착점도 다른 별개 경로다(AC-1070). 마킹 대기는 사람이 아직 마킹하지 않은 <b>정상 상태</b>라
+ * 방치 전이의 출발점이 아니며 그 출발점은 {@code PROCESSING} 하나로 남는다. 이 구분을 모르면
+ * <i>"그거 닫았던 거 아니냐"</i> 며 되돌리게 되므로 근거를 남긴다 — 이 반전 전에는 마킹하지 않은
+ * 자산이 어느 스윕에도 걸리지 않아 <b>파일째 영구히</b> 남았다.
  *
  * <p>★ <b>데이터마트만 「최초」이고 업로드 READY 는 「늦은 쪽」이다 — 통일하지 말 것.</b> 포털 확정
  * 회신(2026-09-03)이 못박은 것은 <b>데이터마트 채널의 기산점뿐</b>이고, 두 채널의 기산점이 같은지는
@@ -125,7 +137,7 @@ public class PortalRetentionPolicy {
     }
 
     /**
-     * 업로드 두 축의 삭제 커트라인 스냅샷 — <b>기준시각 하나</b>를 READY·FAILED 가 공유한다.
+     * 업로드 삭제 커트라인 스냅샷 — <b>기준시각 하나</b>를 마킹 대기·READY·FAILED 세 축이 공유한다.
      * @design DFEAT-055, AC-1070
      *
      * <p>★ 두 축이 각자 {@code now()} 를 뜨면 <b>한 회차 안에서 기준시각이 갈린다</b>. 지금은 그
@@ -140,6 +152,7 @@ public class PortalRetentionPolicy {
     /** 기준시각을 주입하는 변형. @design DFEAT-055, AC-1070 */
     public UploadCutoffs uploadCutoffs(LocalDateTime now) {
         // 읽는 순서는 READY → FAILED 로 고정한다(설정 부재 시 남기는 진단 로그 순서와 맞춘다).
+        // 마킹 대기 축은 READY 설정을 재사용하므로 여기서 설정을 한 번 더 읽지 않는다.
         return new UploadCutoffs(now, uploadRetentionDays(), uploadFailedRetentionDays());
     }
 
@@ -148,12 +161,26 @@ public class PortalRetentionPolicy {
      * @design DFEAT-055, AC-1070
      *
      * @param capturedAt          이 회차의 기준시각 — <b>두 축이 공유한다</b>
-     * @param readyRetentionDays  {@code portal.upload.retention-days}(부재·비정상이면 empty)
+     * @param readyRetentionDays  {@code portal.upload.retention-days}(부재·비정상이면 empty) —
+     *                            <b>마킹 대기 축과 준비 완료 축이 함께 쓴다</b>
      * @param failedRetentionDays {@code portal.upload.failed-retention-days}(부재·비정상이면 empty)
      */
     public record UploadCutoffs(LocalDateTime capturedAt,
                                 OptionalInt readyRetentionDays,
                                 OptionalInt failedRetentionDays) {
+
+        /**
+         * 마킹 대기({@code UPLOADED}) 축 커트라인 — 기산점이 등록일이라 <b>판정 대상이 다르다</b>.
+         * @design AC-1070
+         *
+         * <p>보존일수는 {@link #ready()} 와 <b>같은 설정</b>이라 값도 같다. 그럼에도 창구를 따로 두는
+         * 것은 ①호출부가 어느 축을 판정하는지 드러나고 ②나중에 설정이 갈릴 때 고칠 자리가 여기
+         * 하나이기 때문이다. ★ 무엇보다 <b>같은 {@code capturedAt} 에서 파생</b>되므로 새 축이
+         * 자기 {@code now()} 를 뜨는 일이 구조적으로 생기지 않는다.
+         */
+        public Optional<LocalDateTime> uploaded() {
+            return minusDays(capturedAt, readyRetentionDays);
+        }
 
         /** READY 축 커트라인. 설정이 없으면 {@code empty}(그 축만 건너뛴다). */
         public Optional<LocalDateTime> ready() {
@@ -192,7 +219,8 @@ public class PortalRetentionPolicy {
     /**
      * 업로드 자산 만료 예정 시각 계산기 — 상태별로 기준점과 보존기간이 다르다. @design AC-1070, AC-037
      *
-     * @param readyRetentionDays  {@code portal.upload.retention-days}(부재면 empty)
+     * @param readyRetentionDays  {@code portal.upload.retention-days}(부재면 empty).
+     *                            <b>마킹 대기 축이 이 값을 함께 쓴다</b> — 기산점만 등록일로 다르다
      * @param failedRetentionDays {@code portal.upload.failed-retention-days}(부재면 empty)
      */
     public record UploadExpiry(OptionalInt readyRetentionDays, OptionalInt failedRetentionDays) {
@@ -214,7 +242,14 @@ public class PortalRetentionPolicy {
                 // 실패 자산은 되찾을 수 없어 더 짧게 정리한다 — READY 축과 독립(AC-037).
                 return plusDays(mdfcnDt, failedRetentionDays);
             }
-            // PROCESSING·UPLOADED 는 삭제 대상이 아니므로 고지할 만료도 없다.
+            if (PortalUploadLedger.STATUS_UPLOADED.equals(uldSttsCd)) {
+                // 마킹 대기 — 기산점은 <등록일>이다(AC-1070). 그 상태에는 프레임이 없어 라벨이 있을
+                // 수 없으므로 READY 축의 「라벨 저장이 기준점을 밀어낸다」 조건을 넣지 않는다.
+                // 보존일수는 READY 축 설정을 재사용한다 — 같은 정상 자산 축이라 새 키를 만들지 않는다.
+                return plusDays(regDt, readyRetentionDays);
+            }
+            // PROCESSING 만 삭제 대상이 아니므로 고지할 만료도 없다 — 프레임 추출과 경쟁하면 파일과
+            // 원장이 어긋난다. 그 상태는 방치 판정이 따로 회수한다(AC-1070).
             return null;
         }
     }

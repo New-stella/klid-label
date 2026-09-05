@@ -207,8 +207,21 @@ class PortalRetentionSweepIT {
 
     // ==================================================== 축 B — 업로드 자산 (AC-036 / AC-037)
 
+    /**
+     * 잡 <b>전체 경로</b>(후보 스캔 → 파일 삭제 → DB 삭제)에서 관제 영상이 살아남는지 본다.
+     *
+     * <h3>⚠ 이 시험이 지키지 <b>못하는</b> 것 — 잘못된 안심을 주지 않기 위해 적는다</h3>
+     * <p>구 주석은 <i>"판별자 셋 중 하나만 빠져도 이 단언이 깨진다"</i> 라고 적었으나 <b>거짓이다.</b>
+     * 술어에서 판별자를 <b>셋 다</b> 무력화해도 이 시험은 green 이다 — 관제 영상의 파일 경로가 포털
+     * 저장 루트 밖이라 {@link kr.co.cudo.authoring.portal.service.PortalStoragePathGuard} 가 거부해
+     * <b>DB 삭제까지 도달하지 않기</b> 때문이다. 즉 여기서 관제 영상을 살린 것은 <b>술어가 아니라
+     * 경로 가드</b>다(그 가드도 정당한 방어선이라 이 시험 자체는 유효하다).
+     *
+     * <p>★ <b>술어 자체의 회귀 가드는 아래 두 시험이 진다</b> — 「출처 판별자만…」·「소유자 보유만…」.
+     * 그 둘은 경로 가드를 거치지 않는 삭제문 <b>직접 호출</b>이라 술어가 유일한 방어선이 된다.
+     */
     @Test
-    @DisplayName("★관제_영상은_아무리_오래돼도_포털_보존기간_배치가_지우지_않는다")
+    @DisplayName("관제_영상은_아무리_오래돼도_포털_보존기간_배치_전체_경로에서_지워지지_않는다")
     void controlVideosAreNeverSweptByPortalRetention() {
         assumeSeededRetention();
         // given — 포털 소유자도 없고 출처도 다른 관제 인입 영상. 등록일은 아주 오래됐다.
@@ -218,10 +231,63 @@ class PortalRetentionSweepIT {
 
         job.sweepExpiredUploads();
 
-        // 판별자 셋 중 하나만 빠져도 이 단언이 깨진다 — 그것이 이 시험의 존재 이유다.
         assertThat(videoRepository.findById(controlRawSn))
-                .as("★출처 판별자·소유자 조건이 빠지면 관제 영상이 함께 지워진다")
+                .as("잡을 통째로 돌려도 관제 영상은 남는다(술어 + 경로 가드의 합)")
                 .isPresent();
+    }
+
+    // ------------------- 판별자 두 겹 — 마킹 대기 축은 상태 조건이 관제 행을 걸러 주지 못한다
+
+    /**
+     * ★ <b>{@code src_type} 하나만</b>이 관제 영상을 막는 상황을 만들어 그 조건을 고정한다.
+     *
+     * <p>픽스처는 <b>나머지 조건이 대신 막아 주지 못하도록</b> 짰다 — 소유자를 채우고
+     * ({@code portal_user_no} non-null), 상태 행은 두지 않으며(부재 = 업로드됨이라 마킹 대기 축의
+     * 상태 조건을 <b>통과</b>한다), 등록일도 커트라인보다 이르다. 그래서 이 축에서 관제 영상을 막는
+     * 것은 <b>출처 판별자 하나</b>뿐이고, 그것이 빠지면 곧바로 지워진다.
+     *
+     * <p>삭제문을 <b>직접</b> 부르는 것도 의도다 — 잡 경로로 부르면 저장 루트 밖 경로를 경로 가드가
+     * 먼저 거부해 <b>술어가 검증되지 않는다</b>(위 「잡 전체 경로」 시험의 한계).
+     */
+    @Test
+    @DisplayName("★출처_판별자만_관제_영상을_막는_상황에서도_마킹대기_삭제문이_0행이다")
+    void markingPendingAxisIsBlockedBySrcTypeAlone() {
+        long rawSn = newVideoRawSn();
+        // 소유자를 채워 「소유자 보유」 조건이 대신 막지 못하게 한다. 상태 행은 없다(= 업로드됨).
+        jdbc.update("UPDATE ls_data_raw SET portal_user_no = ?, reg_dt = ? WHERE raw_sn = ?",
+                "impostor-" + System.nanoTime(), Timestamp.valueOf(daysAgo(400)), rawSn);
+
+        int removed = txTemplate.execute(s ->
+                assetRepository.deleteExpired(RetentionAxis.UPLOADED, rawSn, daysAgo(7)));
+
+        assertThat(removed)
+                .as("★출처 판별자가 빠지면 관제 영상이 지워진다 — 이 축에서는 상태 조건이 못 막는다")
+                .isZero();
+        assertThat(videoRepository.findById(rawSn)).isPresent();
+    }
+
+    /**
+     * ★ <b>{@code portal_user_no} 하나만</b>이 남는 상황을 만들어 그 조건을 고정한다.
+     *
+     * <p>출처는 포털 자산 그대로 두고 소유자만 비운다 — 흡수(ADR-058) 뒤 두 채널이 같은 원장에
+     * 앉으므로 「출처는 맞는데 소유자가 없는 행」이 실재할 수 있고, 그때 소유자 조건이 유일한
+     * 방어선이 된다. 상태·등록일은 모두 삭제 쪽으로 기울여 둔다.
+     */
+    @Test
+    @DisplayName("★소유자_보유_조건만_남는_상황에서도_마킹대기_삭제문이_0행이다")
+    void markingPendingAxisIsBlockedByOwnerAlone() {
+        String user = "user-" + System.nanoTime();
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_UPLOADED,
+                daysAgo(30), daysAgo(30), null);
+        jdbc.update("UPDATE ls_data_raw SET portal_user_no = NULL WHERE raw_sn = ?", uldSn);
+
+        int removed = txTemplate.execute(s ->
+                assetRepository.deleteExpired(RetentionAxis.UPLOADED, uldSn, daysAgo(7)));
+
+        assertThat(removed)
+                .as("★소유자 보유 조건이 빠지면 소유자 없는 행이 지워진다 — 남은 겹이 없다")
+                .isZero();
+        assertThat(videoRepository.findById(uldSn)).isPresent();
     }
 
     @Test
@@ -258,9 +324,17 @@ class PortalRetentionSweepIT {
         assertThat(file).exists();
     }
 
+    /**
+     * ★ 2026-09-05 확정 이후 이 시험의 결론이 뒤집혔다 — 「부재 = 업로드됨」이라는 <b>읽기 규약은
+     * 그대로</b>인데, 그 상태가 이제 삭제 축이라 <b>등록일 기산으로 지워진다</b>(AC-1070).
+     *
+     * <p>이 단언이 지키는 것은 {@code STATUS_EXPR} 의 {@code COALESCE} 기본값이다 — 그것이 사라지면
+     * 상태 행이 없는 자산은 <b>어느 축의 상태 조건에도 맞지 않아</b> 후보에서 빠지고, 그대로
+     * 파일째 영구히 남는다(이번에 닫은 바로 그 공백이 조용히 다시 열린다).
+     */
     @Test
-    @DisplayName("★상태_행이_없는_자산도_삭제_대상이_아니다 — 부재는_업로드됨이고_그_축은_삭제하지_않는다")
-    void assetWithoutStatusRowIsNeverSwept() {
+    @DisplayName("★상태_행이_없는_자산도_마킹대기로_읽혀_등록일_기산으로_삭제된다_COALESCE_기본값")
+    void assetWithoutStatusRowIsSweptAsMarkingPending() {
         assumeSeededRetention();
         String user = "user-" + System.nanoTime();
         Path file = writeFile("nostatus-" + System.nanoTime() + ".mp4");
@@ -272,9 +346,117 @@ class PortalRetentionSweepIT {
         job.sweepExpiredUploads();
 
         assertThat(assetRepository.findPortalAsset(uldSn))
-                .as("부재를 업로드됨으로 읽으므로 어느 삭제 축에도 들지 않는다")
-                .isPresent();
+                .as("★부재를 업로드됨으로 읽지 못하면 이 자산은 어느 축에도 걸리지 않아 영구히 남는다")
+                .isEmpty();
+        assertThat(file).doesNotExist();
+    }
+
+    // ---------------------------------------- 마킹 대기 축 (AC-1070, 2026-09-05 확정)
+
+    /**
+     * ★ 이번에 닫은 공백의 재현 시험이다 — 마킹하지 않고 올려만 둔 자산.
+     *
+     * <p>그전에는 후보 상태가 준비 완료·처리 실패 둘뿐이었고 <b>마킹 대기는 어느 쪽으로도 스스로
+     * 전이하지 않아</b>(방치 전이의 출발 상태는 처리 중 하나다) 사람이 마킹하지 않으면 파일째 영구히
+     * 남았다. ⚠ 이 축을 「2026-09-02 에 닫은 방치 판정을 되살린 것」으로 읽지 말 것 — 분 단위로
+     * <b>실패 마감</b>하던 그 경로가 아니라 일 단위 <b>정상 만료</b>다.
+     *
+     * <p>마킹 대기 자산에는 <b>프레임이 없어 원본 파일 1건만</b> 지운다 — 「파일 먼저, DB 나중」
+     * 순서는 프레임 목록이 비어도 그대로 성립한다.
+     */
+    @Test
+    @DisplayName("★마킹대기_자산은_등록일_기산_보존기간이_지나면_원본파일과_DB행이_함께_삭제된다")
+    void markingPendingAssetIsSweptByRegDt() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        Path file = writeFile("pending-" + System.nanoTime() + ".mp4");
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_UPLOADED,
+                daysAgo(30), daysAgo(30), file);
+
+        // 사전 확인 — 마킹을 거치지 않았으므로 프레임이 없다(지울 파일은 원본 1건뿐).
+        assertThat(frmeRepository.findAllByRawSnOrderByFrameNoAsc(uldSn)).isEmpty();
+        assertThat(assetRepository.findFilePaths(uldSn))
+                .as("프레임 목록이 비어도 원본 경로 1건은 수집돼야 파일이 지워진다")
+                .containsExactly(file.toString());
+
+        job.sweepExpiredUploads();
+
+        assertThat(assetRepository.findPortalAsset(uldSn))
+                .as("★이 축이 빠지면 마킹하지 않은 자산이 파일째 영구히 남는다")
+                .isEmpty();
+        assertThat(file).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("마킹대기_자산도_보존기간_안이면_남는다 — 등록일이_기산점이다")
+    void markingPendingAssetInsideRetentionIsKept() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        Path file = writeFile("pending-fresh-" + System.nanoTime() + ".mp4");
+        // 등록 3일 전 — 공유 보존일수 7일 안이다.
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_UPLOADED,
+                daysAgo(3), daysAgo(3), file);
+
+        job.sweepExpiredUploads();
+
+        assertThat(assetRepository.findPortalAsset(uldSn)).isPresent();
         assertThat(file).exists();
+    }
+
+    /**
+     * ★ 기산점이 <b>등록일</b>이라는 사실을 실 SQL 로 고정한다 — 상태 전이 시각(실패 축의 기산점)으로
+     * 바꾸면 이 시험이 깨진다. 등록은 오래됐지만 상태 행은 방금 갱신된 자산을 쓴다.
+     */
+    @Test
+    @DisplayName("★마킹대기_기산점은_등록일이라_상태행이_방금_갱신됐어도_삭제된다")
+    void markingPendingUsesRegDtNotStatusChangedAt() {
+        assumeSeededRetention();
+        String user = "user-" + System.nanoTime();
+        Path file = writeFile("pending-touched-" + System.nanoTime() + ".mp4");
+        Long uldSn = saveUpload(user, PortalUploadLedger.STATUS_UPLOADED,
+                daysAgo(30), daysAgo(1), file);
+
+        job.sweepExpiredUploads();
+
+        assertThat(assetRepository.findPortalAsset(uldSn))
+                .as("★기산점을 상태 변경 시각으로 바꾸면 이 자산이 남아 이 단언이 깨진다")
+                .isEmpty();
+        assertThat(file).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("★마킹대기_삭제문에도_상태_조건이_걸려_후처리중_자산은_0행이다")
+    void markingPendingDeleteStatementRechecksStatus() {
+        String user = "user-" + System.nanoTime();
+        // 후처리 중인데 마킹 대기 축 삭제문을 직접 부른다 — 후보 조회를 우회한 경로.
+        Long processingSn = saveUpload(user, PortalUploadLedger.STATUS_PROCESSING,
+                daysAgo(30), daysAgo(30), null);
+
+        int removed = txTemplate.execute(s ->
+                assetRepository.deleteExpired(RetentionAxis.UPLOADED, processingSn, daysAgo(7)));
+
+        assertThat(removed)
+                .as("★상태 조건을 빼면 처리 중 자산까지 지워져 프레임 추출과 경쟁한다")
+                .isZero();
+        assertThat(assetRepository.findPortalAsset(processingSn)).isPresent();
+    }
+
+    @Test
+    @DisplayName("★관제_영상은_마킹대기_축_삭제문으로도_지워지지_않는다 — 판별자_셋이_함께_걸린다")
+    void controlVideoCannotBeDeletedByMarkingPendingAxis() {
+        long controlRawSn = newVideoRawSn();
+        jdbc.update("UPDATE ls_data_raw SET reg_dt = ? WHERE raw_sn = ?",
+                Timestamp.valueOf(daysAgo(400)), controlRawSn);
+
+        // 관제 영상에는 상태 행이 없어 「부재 = 업로드됨」으로 읽힌다 — 새 축이 그 상태를 노리므로
+        // 출처 판별자·소유자 조건이 빠지면 여기서 관제 영상이 사라진다.
+        int removed = txTemplate.execute(s ->
+                assetRepository.deleteExpired(RetentionAxis.UPLOADED, controlRawSn, daysAgo(7)));
+
+        assertThat(removed).isZero();
+        assertThat(videoRepository.findById(controlRawSn))
+                .as("★새 축이 base(출처+소유자+상태)를 우회하면 관제 영상을 지운다")
+                .isPresent();
     }
 
     @Test

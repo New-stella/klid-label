@@ -153,17 +153,71 @@ class PortalRetentionPolicyTest {
                 .isEqualTo(REG_DT.plusDays(1));
     }
 
+    /**
+     * ★ 2026-09-05 확정으로 <b>마킹 대기에도 만료가 생겼다</b>(AC-1070). 삭제 대상이 아닌 상태는
+     * {@code PROCESSING} 하나로 좁아졌다 — 프레임 추출과 경쟁하면 파일과 원장이 어긋나기 때문이며
+     * 그 상태는 방치 판정이 따로 회수한다. ⚠ 이 변화를 「방치 판정을 되살린 것」으로 읽지 말 것 —
+     * 방치는 분 단위로 <b>실패 마감</b>하는 경로이고 이것은 일 단위 <b>정상 만료</b>다.
+     */
     @Test
-    @DisplayName("업로드_PROCESSING과_UPLOADED는_삭제_대상이_아니므로_만료예정이_null이다")
-    void uploadNonDeletableStatusesHaveNoExpiry() {
+    @DisplayName("★업로드_PROCESSING만_만료예정이_null이다_마킹대기는_이제_값이_실린다")
+    void onlyProcessingHasNoExpiry() {
         // given
         stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
         stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
         PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
 
         // when / then
-        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_PROCESSING, REG_DT, REG_DT, REG_DT)).isNull();
-        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT, REG_DT)).isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_PROCESSING, REG_DT, REG_DT, REG_DT))
+                .as("처리 중은 프레임 추출과 경쟁하므로 삭제 대상이 아니고 고지할 만료도 없다")
+                .isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT, REG_DT))
+                .as("★마킹 대기를 null 로 되돌리면 그 자산은 파일째 영구히 남는다")
+                .isEqualTo(REG_DT.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("★마킹_대기는_등록일_기산이다_라벨_저장일에_밀리지_않는다")
+    void uploadedUsesRegDtOnly() {
+        // given: 준비 완료 축이라면 늦은 쪽(=라벨)이 기준이 되지만 마킹 대기는 등록일 하나다.
+        //        (그 상태에는 프레임이 없어 라벨이 존재할 수 없다 — 인자가 와도 무시한다.)
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
+        stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
+        PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
+
+        // when / then: 상태 변경 시각·라벨 저장일이 훨씬 뒤여도 등록일 + 보존일수다.
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_UPLOADED,
+                REG_DT, REG_DT.plusDays(5), REG_DT.plusDays(9)))
+                .as("★기산점을 등록일이 아닌 것(전이 시각·라벨 저장일)으로 바꾸면 여기서 깨진다")
+                .isEqualTo(REG_DT.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("★마킹_대기는_준비완료_축_설정을_재사용한다_실패축_설정을_쓰지_않는다")
+    void uploadedReusesReadyRetentionSetting() {
+        // given: 두 설정을 다르게 둬 어느 쪽을 읽는지 드러나게 한다(7 vs 1).
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
+        stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
+
+        assertThat(policy.uploadExpiry()
+                .expiresAt(PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT, null))
+                .as("새 설정 키를 만들지 않기로 확정했다(AC-1070) — 준비 완료 축 값을 그대로 쓴다")
+                .isEqualTo(REG_DT.plusDays(7));
+    }
+
+    @Test
+    @DisplayName("★준비완료_설정이_없으면_마킹_대기도_함께_만료예정이_null이다_설정을_공유한다")
+    void uploadedFollowsReadySettingAbsence() {
+        // given: 공유 설정만 없다. 실패 축은 정상이라 그 축은 계속 계산된다.
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 없음"));
+        stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
+        PortalRetentionPolicy.UploadExpiry expiry = policy.uploadExpiry();
+
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT, null)).isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_READY, REG_DT, REG_DT, null)).isNull();
+        assertThat(expiry.expiresAt(PortalUploadLedger.STATUS_FAILED, REG_DT, REG_DT, null))
+                .isEqualTo(REG_DT.plusDays(1));
     }
 
     @Test
@@ -283,8 +337,34 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs(NOW);
 
         assertThat(cutoffs.capturedAt()).isEqualTo(NOW);
+        assertThat(cutoffs.uploaded()).contains(NOW.minusDays(7));
         assertThat(cutoffs.ready()).contains(NOW.minusDays(7));
         assertThat(cutoffs.failed()).contains(NOW.minusDays(1));
+    }
+
+    @Test
+    @DisplayName("★마킹_대기_커트라인은_준비완료와_같은_설정이라_값이_같고_같은_capturedAt_에서_나온다")
+    void uploadedCutoffSharesReadySettingAndCapturedAt() {
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
+        stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
+
+        PortalRetentionCutoffsProbe probe = PortalRetentionCutoffsProbe.of(policy.uploadCutoffs());
+
+        assertThat(probe.uploaded())
+                .as("같은 설정을 공유하므로 값도 같다 — 가르는 것은 기산점이지 보존일수가 아니다")
+                .isEqualTo(probe.ready());
+        assertThat(probe.uploaded().plusDays(7))
+                .as("★새 축이 자기 now() 를 뜨면 한 회차 안에서 판정 기준이 갈린다")
+                .isEqualTo(probe.failed().plusDays(1));
+    }
+
+    /** 세 축 커트라인을 한 번에 꺼내 비교하기 위한 시험 전용 뷰(설정은 모두 있어야 한다). */
+    private record PortalRetentionCutoffsProbe(LocalDateTime uploaded, LocalDateTime ready,
+                                               LocalDateTime failed) {
+        static PortalRetentionCutoffsProbe of(PortalRetentionPolicy.UploadCutoffs c) {
+            return new PortalRetentionCutoffsProbe(
+                    c.uploaded().orElseThrow(), c.ready().orElseThrow(), c.failed().orElseThrow());
+        }
     }
 
     /**
@@ -301,7 +381,10 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs();
 
         assertThat(cutoffs.ready().orElseThrow().plusDays(7))
-                .as("두 축이 각자 now() 를 뜨면 한 회차 안에서 판정 기준이 갈린다")
+                .as("축이 각자 now() 를 뜨면 한 회차 안에서 판정 기준이 갈린다")
+                .isEqualTo(cutoffs.failed().orElseThrow().plusDays(1));
+        assertThat(cutoffs.uploaded().orElseThrow().plusDays(7))
+                .as("★마킹 대기 축도 같은 회차 기준시각에서 파생돼야 한다")
                 .isEqualTo(cutoffs.failed().orElseThrow().plusDays(1));
     }
 
@@ -317,6 +400,7 @@ class PortalRetentionPolicyTest {
         PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs(NOW);
 
         assertThat(policy.datamartCutoff(NOW)).isEmpty();
+        assertThat(cutoffs.uploaded()).as("마킹 대기 축도 fail-closed 다").isEmpty();
         assertThat(cutoffs.ready()).isEmpty();
         assertThat(cutoffs.failed()).isEmpty();
     }
@@ -330,6 +414,7 @@ class PortalRetentionPolicyTest {
 
         PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs(NOW);
 
+        assertThat(cutoffs.uploaded()).contains(NOW.minusDays(7));
         assertThat(cutoffs.ready()).contains(NOW.minusDays(7));
         assertThat(cutoffs.failed()).isEmpty();
     }
