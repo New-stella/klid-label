@@ -91,7 +91,11 @@ MODELS_DIR = Path(
 # 얼굴·번호판·사람은 <b>움직이므로</b> 자주 봐야 하고, 간판은 고정 카메라에서 <b>움직이지
 # 않으므로</b> 드물게 봐도 된다. 간판(PP-OCR)이 검출 비용의 대부분을 차지하는데(실측: 640p 에서
 # 얼굴 237fps · 번호판 74fps · 텍스트 29fps) 그것을 매 프레임 돌리는 것은 낭비다.
-DETECT_EVERY_MOVING = 5
+#: ★ 5 → 2 로 줄였다(2026-09-05). 5프레임 간격은 그 사이 객체가 움직여 마스킹이 벗어났다 —
+#:   실측으로 오토바이가 f+4 에 IoU <b>0.22</b> 까지 떨어져 번호판이 노출됐다. 모션 예측을
+#:   넣어도 오토바이는 0.31 에 그쳐(속도가 빠르고 크기까지 변한다) 간격 단축이 함께 필요했다.
+#:   비용은 프레임당 11.2 → 24.4ms(실시간 2.98x → 1.36x)이며, 개인정보 노출보다 낫다.
+DETECT_EVERY_MOVING = 2
 DETECT_EVERY_STATIC = 60
 
 #: 검출 결과를 유지하는 최대 프레임 수 — 이 값을 넘으면 박스를 버린다(잔상 방지).
@@ -155,6 +159,12 @@ MOSAIC_BLOCKS = 8
 #: 비용은 34.7→54.4ms/회 지만 텍스트는 DETECT_EVERY_STATIC 마다 한 번만 돌아 프레임당
 #: 약 +0.3ms 다(전체의 1% 미만).
 OCR_INPUT_SIZE = 960
+
+#: 검출 전처리 — CLAHE(대비 평활) + 언샤프(윤곽 강조) 계수.
+CLAHE_CLIP = 2.0
+CLAHE_GRID = 8
+UNSHARP_SIGMA = 3.0
+UNSHARP_AMOUNT = 1.0
 
 #: 프레임 1장에서 마스킹할 최대 영역 수 (CWE-400/770).
 #: 텍스트가 빽빽한 화면에서 PP-OCR 후보가 폭주해 처리가 <b>50배</b> 느려지는 것을 실측했다.
@@ -257,6 +267,24 @@ _YOLOX_WANTED = {
 _YOLOX_CONF = 0.35
 
 
+def _enhance_for_detection(cv2: Any, frame: Any) -> Any:
+    """검출 <b>입력용</b>으로만 대비를 올린다 — 산출 영상은 원본 화질 그대로다.
+
+    ★ 실측(720x480 도심 CCTV, 12프레임): 텍스트 검출이 116 → <b>211건(+82%)</b> 으로 늘었고
+      추가로 잡힌 것은 전부 실제 간판·표지였다(오검출 아님). 비용은 54.0 → 54.7ms 로 사실상 0.
+      문헌도 CLAHE·언샤프 마스킹을 검출 전처리로 권한다(옥외 CCTV 의 조도·대비 편차 보정).
+
+    ⚠ 이 결과를 <b>산출물에 쓰지 않는다</b>. 대비를 올린 영상을 그대로 내보내면 원본과 다른
+      화질의 학습데이터가 된다. 어디까지나 "검출기에게 보여줄 그림"이다.
+    """
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    l = cv2.createCLAHE(clipLimit=CLAHE_CLIP, tileGridSize=(CLAHE_GRID, CLAHE_GRID)).apply(l)
+    enhanced = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+    blurred = cv2.GaussianBlur(enhanced, (0, 0), UNSHARP_SIGMA)
+    return cv2.addWeighted(enhanced, 1 + UNSHARP_AMOUNT, blurred, -UNSHARP_AMOUNT, 0)
+
+
 class _Detectors:
     """3종 검출기 묶음. 좌표는 항상 <b>원본 프레임 스케일</b>로 돌려준다."""
 
@@ -332,8 +360,8 @@ class _Detectors:
 
     # -- 검출 ------------------------------------------------------
     def detect_moving(self, frame: Any) -> list[tuple[int, int, int, int, str]]:
-        """움직이는 대상(얼굴·사람)을 검출한다."""
-        small = self._shrink(frame)
+        """움직이는 대상(얼굴·사람·차량)을 검출한다. 입력만 대비 보정한다."""
+        small = self._shrink(_enhance_for_detection(self.cv2, frame))
         out: list[tuple[int, int, int, int, str]] = []
         if self.face is not None:
             try:
@@ -355,7 +383,9 @@ class _Detectors:
             return []
         cv2 = self.cv2
         try:
-            resized = cv2.resize(frame, (OCR_INPUT_SIZE, OCR_INPUT_SIZE))
+            resized = cv2.resize(
+                _enhance_for_detection(cv2, frame), (OCR_INPUT_SIZE, OCR_INPUT_SIZE)
+            )
             sx = self.width / float(OCR_INPUT_SIZE)
             sy = self.height / float(OCR_INPUT_SIZE)
             boxes, _ = self.text.detect(resized)
@@ -439,6 +469,98 @@ class _Detectors:
             kind = _YOLOX_WANTED.get(int(kept_cls[j]), KIND_PERSON)
             res.append((*self._to_origin(x, y, w, h), kind))
         return res
+
+
+# ── 검출 사이 프레임 보정 (모션 예측) ─────────────────────────────
+#
+# ★ <b>검출 주기를 그냥 늘리면 비식별이 프레임 사이에서 풀린다.</b> 실측(720x480 도심 CCTV):
+#   박스를 갱신 없이 유지했을 때 실제 위치와의 IoU 가 오토바이는 f+1 0.63 → f+4 <b>0.22</b>,
+#   사람은 f+2 에 0.52 까지 떨어졌다. 5프레임마다 검출하면 그 사이 4프레임은 낡은 박스를 쓰므로
+#   마스킹이 엉뚱한 곳을 가리고 <b>번호판·얼굴이 노출된다</b>.
+#
+#   매 프레임 검출은 이 파이프라인에서 실시간 미만(0.72x)이라 답이 아니다. 그래서 검출 사이를
+#   <b>선형 외삽</b>으로 메운다(문헌이 권하는 motion prediction). 비용은 사실상 0 이다.
+#
+#   ⚠ 예측은 빗나갈 수 있으므로 경과 프레임에 비례해 박스를 <b>넓힌다</b> — 개인정보 보호는
+#     fail-closed 여야 하고, 조금 더 가리는 것이 덜 가리는 것보다 안전하다.
+
+#: 예측 박스를 경과 프레임당 얼마나 넓힐지(비율). 예측 오차에 대한 안전 여유.
+TRACK_GROWTH_PER_FRAME = 0.08
+
+#: 직전 검출과 같은 객체로 볼 최소 IoU. 낮추면 엉뚱한 객체를 이어 속도가 튄다.
+TRACK_MATCH_MIN_IOU = 0.2
+
+#: 속도 외삽 상한(픽셀/프레임). 검출 튐으로 생긴 비정상 속도가 박스를 날려보내는 것을 막는다.
+TRACK_MAX_SPEED = 40.0
+
+
+def _iou(a: tuple, b: tuple) -> float:
+    ax, ay, aw, ah = a[:4]
+    bx, by, bw, bh = b[:4]
+    x1, y1 = max(ax, bx), max(ay, by)
+    x2, y2 = min(ax + aw, bx + bw), min(ay + ah, by + bh)
+    if x2 <= x1 or y2 <= y1:
+        return 0.0
+    inter = (x2 - x1) * (y2 - y1)
+    union = aw * ah + bw * bh - inter
+    return inter / union if union > 0 else 0.0
+
+
+class _MotionTracker:
+    """직전 두 검출로 속도를 얻어 <b>검출 사이 프레임</b>의 박스를 예측한다.
+
+    추적 알고리즘을 새로 들이지 않는다 — 이 목적에는 IoU 매칭 + 선형 외삽으로 충분하고,
+    무거운 MOT 를 붙이면 이 파이프라인의 비용 구조가 바뀐다.
+    """
+
+    def __init__(self) -> None:
+        self._prev: list = []      # 직전 검출(속도 계산용)
+        self._last: list = []      # 마지막 검출
+        self._vel: list = []       # _last 와 같은 순서의 (vx, vy)
+
+    def update(self, boxes: list) -> list:
+        """새 검출을 반영하고 그대로 돌려준다."""
+        vel = []
+        for b in boxes:
+            best, biou = None, TRACK_MATCH_MIN_IOU
+            for p in self._last:
+                if p[4] != b[4]:
+                    continue
+                v = _iou(b, p)
+                if v >= biou:
+                    best, biou = p, v
+            if best is None:
+                vel.append((0.0, 0.0))
+            else:
+                vx = float(b[0] - best[0])
+                vy = float(b[1] - best[1])
+                mag = (vx * vx + vy * vy) ** 0.5
+                if mag > TRACK_MAX_SPEED:  # 검출 튐 방어
+                    vx = vy = 0.0
+                vel.append((vx, vy))
+        self._prev, self._last, self._vel = self._last, list(boxes), vel
+        return boxes
+
+    def predict(self, elapsed: int) -> list:
+        """마지막 검출로부터 ``elapsed`` 프레임 뒤의 박스를 예측한다.
+
+        속도는 <b>검출 간격</b>에 걸쳐 잰 것이므로 프레임당으로 나눠 쓴다.
+        """
+        if not self._last or elapsed <= 0:
+            return list(self._last)
+        step = float(DETECT_EVERY_MOVING) or 1.0
+        grow = 1.0 + TRACK_GROWTH_PER_FRAME * elapsed
+        out = []
+        for b, (vx, vy) in zip(self._last, self._vel):
+            x, y, w, h = b[:4]
+            nx = int(round(x + vx * elapsed / step))
+            ny = int(round(y + vy * elapsed / step))
+            # 예측 오차 여유 — 중심을 유지한 채 넓힌다
+            nw, nh = int(w * grow), int(h * grow)
+            nx -= (nw - w) // 2
+            ny -= (nh - h) // 2
+            out.append((nx, ny, nw, nh, b[4]))
+        return out
 
 
 # ── 마스킹 적용 ───────────────────────────────────────────────────
@@ -634,7 +756,7 @@ def render_masked(
     *,
     ffmpeg: str,
     ffprobe: str = "ffprobe",
-    masking_type: int = MASK_BLUR,
+    masking_type: int = MASK_MOSAIC,
     masking_range: float = 1.2,
     codec_args: Optional[list[str]] = None,
     threads: int = 2,
@@ -702,6 +824,7 @@ def render_masked(
         moving: list = []
         static: list = []
         moving_age = 0
+        tracker = _MotionTracker()
         idx = 0
         while True:
             if time.monotonic() - started > ENGINE_TIMEOUT_SEC:
@@ -716,7 +839,7 @@ def render_masked(
             frame = np.frombuffer(chunk, dtype=np.uint8).reshape(height, width, 3).copy()
 
             if idx % DETECT_EVERY_MOVING == 0:
-                moving = det.detect_moving(frame)
+                moving = tracker.update(det.detect_moving(frame))
                 moving_age = 0
                 for b in moving:
                     summary.add(b[4])
@@ -724,6 +847,11 @@ def render_masked(
                 moving_age += 1
                 if moving_age > BOX_TTL_FRAMES:
                     moving = []
+                    tracker = _MotionTracker()
+                else:
+                    # ★ 낡은 박스를 그대로 쓰지 않는다 — 그 사이 객체가 움직여 마스킹이
+                    #   벗어나면 번호판·얼굴이 노출된다(실측: 오토바이 IoU 0.22).
+                    moving = tracker.predict(moving_age)
             if idx % DETECT_EVERY_STATIC == 0:
                 static = det.detect_static(frame)
                 for b in static:

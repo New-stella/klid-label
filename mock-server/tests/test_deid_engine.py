@@ -335,3 +335,62 @@ def test_배율을_올려도_차량_전체를_덮지는_않는다() -> None:
     w, h = 100, 60
     _, _, _, nh = E._expand((0, 0, w, h), E.MASK_RANGE_MAX, 500, 500, E.KIND_VEHICLE)
     assert nh < h, "배율 상한에서 차량 높이 전체가 덮인다"
+
+# ── 프레임 사이 마스킹 이탈 (모션 예측) ──────────────────────────
+def test_검출_사이_프레임은_낡은_박스를_그대로_쓰지_않는다() -> None:
+    """★회귀 — 검출 간격 동안 객체가 움직이면 마스킹이 벗어나 <b>번호판·얼굴이 노출</b>된다.
+    실측으로 오토바이가 f+4 에 IoU 0.22 까지 떨어졌다. 예측 박스는 이동 방향으로 따라가야 한다.
+    """
+    t = E._MotionTracker()
+    t.update([(100, 100, 40, 40, E.KIND_VEHICLE)])
+    t.update([(110, 100, 40, 40, E.KIND_VEHICLE)])  # x 로 +10 이동
+    pred = t.predict(1)
+    assert pred, "예측 박스가 비었다"
+    assert pred[0][0] > 110, "예측이 이동 방향을 따라가지 않는다"
+
+
+def test_예측_박스는_경과할수록_넓어진다() -> None:
+    """예측은 빗나갈 수 있다 — 개인정보 보호는 fail-closed 여야 하므로 여유를 준다."""
+    t = E._MotionTracker()
+    t.update([(100, 100, 40, 40, E.KIND_PERSON)])
+    t.update([(105, 100, 40, 40, E.KIND_PERSON)])
+    w1 = t.predict(1)[0][2]
+    w3 = t.predict(3)[0][2]
+    assert w3 > w1 >= 40
+
+
+def test_검출이_튀어도_박스가_날아가지_않는다() -> None:
+    """오검출로 생긴 비정상 속도가 마스킹을 화면 밖으로 보내면 그 프레임은 무방비가 된다."""
+    t = E._MotionTracker()
+    t.update([(100, 100, 40, 40, E.KIND_VEHICLE)])
+    t.update([(600, 400, 40, 40, E.KIND_VEHICLE)])  # 말도 안 되는 이동
+    pred = t.predict(1)
+    assert abs(pred[0][0] - 600) < 50, "속도 상한이 걸리지 않았다"
+
+
+def test_다른_종류는_서로_매칭되지_않는다() -> None:
+    """사람과 차량을 이어 속도를 계산하면 엉뚱한 방향으로 예측한다."""
+    t = E._MotionTracker()
+    t.update([(100, 100, 40, 40, E.KIND_PERSON)])
+    t.update([(200, 100, 40, 40, E.KIND_VEHICLE)])
+    px, _, pw, _, _ = t.predict(1)[0]
+    # 예측 박스는 안전 여유만큼 넓어지므로 <b>중심</b>으로 비교한다(좌상단은 그만큼 밀린다).
+    assert abs((px + pw / 2) - 220) <= 2, "종류가 다른데 속도가 계산됐다"
+
+
+def test_검출_주기는_이탈을_감당할_만큼_짧다() -> None:
+    """★5프레임 간격에서 오토바이 IoU 가 0.22 까지 떨어졌다 — 늘리면 그 상태로 돌아간다."""
+    assert E.DETECT_EVERY_MOVING <= 3
+
+
+# ── 검출 전처리 ───────────────────────────────────────────────────
+def test_전처리는_검출_입력에만_쓰고_산출물은_원본_화질이다() -> None:
+    """대비를 올린 영상을 내보내면 원본과 다른 화질의 학습데이터가 된다."""
+    cv2 = pytest.importorskip("cv2")
+    rng = np.random.default_rng(0)
+    frame = rng.integers(0, 255, (60, 80, 3), dtype=np.uint8)
+    before = frame.copy()
+    out = E._enhance_for_detection(cv2, frame)
+    assert np.array_equal(frame, before), "전처리가 원본 프레임을 바꿨다"
+    assert out.shape == frame.shape
+    assert not np.array_equal(out, frame), "전처리가 아무 일도 하지 않았다"
