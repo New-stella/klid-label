@@ -152,15 +152,35 @@ def test_얼굴_외_대상은_박스를_그대로_쓴다() -> None:
     assert (nx, ny, nw, nh) == (x, y, w, h)
 
 
-def test_YOLOX_대상에_사람과_차량이_모두_있다() -> None:
-    """★한 번의 추론으로 둘 다 뽑는 것이 이 설계의 요점 — 종류별로 따로 돌리면 가장 비싼
-    연산이 두 배가 된다."""
+def test_YOLOX_대상에_사람과_차량과_오토바이가_모두_있다() -> None:
+    """★한 번의 추론으로 셋 다 뽑는 것이 이 설계의 요점 — 종류별로 따로 돌리면 가장 비싼
+    연산이 배로 늘어난다.
+
+    ⚠ 오토바이(3)는 자동차와 <b>번호판 높이가 달라</b> 별도 종류로 뽑는다. 자동차와 같이
+    묶으면 하단 띠가 바퀴 아래 도로를 가리고 번호판은 그대로 남는다(실측).
+    """
     kinds = set(E._YOLOX_WANTED.values())
-    assert kinds == {E.KIND_PERSON, E.KIND_VEHICLE}
+    assert kinds == {E.KIND_PERSON, E.KIND_VEHICLE, E.KIND_MOTORCYCLE}
     # COCO: 0=person, 2=car, 3=motorcycle, 5=bus, 7=truck
     assert E._YOLOX_WANTED[0] == E.KIND_PERSON
-    for c in (2, 3, 5, 7):
+    assert E._YOLOX_WANTED[3] == E.KIND_MOTORCYCLE
+    for c in (2, 5, 7):
         assert E._YOLOX_WANTED[c] == E.KIND_VEHICLE
+
+
+def test_오토바이_띠는_하단이_아니라_차체_중간이다() -> None:
+    """★회귀 — 오토바이 번호판은 뒷면 <b>중간 높이</b>에 달려 있다(실측: 박스 하단 기준
+    52~62% 구간). 자동차용 하단 띠(14%)를 쓰면 바퀴 아래 도로를 가리고 번호판이 남는다.
+    """
+    x, y, w, h = 0, 0, 31, 56
+    _, ny, _, nh = E._expand((x, y, w, h), 1.0, 500, 500, E.KIND_MOTORCYCLE)
+    bottom = y + h
+    low = (bottom - (ny + nh)) / h   # 띠 아래끝의 하단 기준 비율
+    high = (bottom - ny) / h         # 띠 위끝의 하단 기준 비율
+    assert low <= 0.52 and high >= 0.62, (
+        f"번호판 구간(52~62%)을 덮지 못한다: {low:.0%}~{high:.0%}"
+    )
+    assert ny > y, "띠가 오토바이 상단을 넘어섰다"
 
 
 def test_얼굴_임계는_오검출을_줄이는_쪽으로_높게_잡는다() -> None:
@@ -292,11 +312,22 @@ def test_번호판_띠는_차량_하단에_붙는다() -> None:
     assert ny > y + h * 0.6, "띠가 차량 중단까지 올라왔다"
 
 
-def test_머리_영역은_상체까지_덮지_않는다() -> None:
-    """사람 키에서 머리는 약 13% — 상체를 덮으면 행동 라벨링 대상이 훼손된다."""
+def test_머리_영역은_CCTV_각도의_실제_머리를_덮는다() -> None:
+    """★회귀 — <b>교과서값(키의 13%)을 쓰면 안 된다</b>. CCTV 는 위에서 내려다보는 각도라
+    다리가 짧게 찍혀 머리 비율이 커진다(실측: 도심 CCTV 보행자에서 머리가 박스 높이의
+    약 31%). 0.16 으로 줄였더니 마스킹이 머리 위쪽 절반만 덮고 <b>얼굴이 남았다</b>.
+
+    상한도 함께 둔다 — 상체까지 덮으면 행동 라벨링 대상이 훼손된다.
+    """
     w, h = 20, 50
     _, _, _, nh = E._expand((0, 0, w, h), 1.0, 500, 500, E.KIND_PERSON)
-    assert 0.10 <= nh / h <= 0.22, f"머리 비율이 과하다: {nh / h:.0%}"
+    assert 0.22 <= nh / h <= 0.32, f"머리 비율이 부적절하다: {nh / h:.0%}"
+
+
+def test_텍스트_검출_입력은_표준보다_크다() -> None:
+    """★작은 간판을 놓치는 원인은 임계가 아니라 해상도였다 — 임계를 낮춰도 검출이 늘지 않았고
+    입력을 키우자 +29% 늘었다(실측). 되돌리면 그만큼 다시 놓친다."""
+    assert E.OCR_INPUT_SIZE >= 960
 
 
 def test_배율을_올려도_차량_전체를_덮지는_않는다() -> None:
