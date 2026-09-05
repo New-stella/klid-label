@@ -71,9 +71,27 @@ require_root
 
 ONPREM="$(onprem_root)"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
-# ★ 웹 컨텍스트 — WAR 안 jboss-web.xml 이 정하는 값과 같아야 한다(현장: /label-studio).
-#   여기서 갈리면 헬스체크가 404 를 받고 <설치가 실패한 것처럼> 보인다.
-APP_CONTEXT="${APP_CONTEXT:-/label-studio}"
+# ★★ 웹 컨텍스트는 두 축이다 — 섞으면 진단이 거짓이 된다 (2026-09-05)
+#
+#   ① 브라우저가 부르는 주소(WEB_API_BASE) — <두 향에서 같다>. httpd 의 ProxyPass 패턴이 그것이다.
+#   ② WAS 가 실제로 서빙하는 컨텍스트(APP_CONTEXT) — 향에 따라 갈리며 <WAR 에서 읽는다>.
+#
+#     passthrough : httpd 가 /api 를 그대로 넘김 → WAS 컨텍스트 /label-studio/api
+#     strip       : httpd 가 /api 를 걷어냄     → WAS 컨텍스트 /label-studio
+#
+#   ⚠ 틀린 향을 올려도 <아무 신호가 없다> — WAS 는 정상 기동하고 화면도 뜨며 API 만 전건 404 다.
+#     그래서 값을 박아 두지 않고 WAR 에서 읽는다. 웹 장비에는 WAR 이 없으므로 ① 로만 확인한다.
+WEB_API_BASE="${WEB_API_BASE:-/label-studio/api}"
+APP_CONTEXT="${APP_CONTEXT:-}"
+
+# klid_read_war_context <war> — WAR 안 jboss-web.xml 의 context-root 를 출력한다(없으면 빈 문자열).
+klid_read_war_context() {
+  local w="$1"
+  [[ -f "${w}" ]] || return 0
+  unzip -p "${w}" WEB-INF/jboss-web.xml 2>/dev/null \
+    | tr -d '\r' | grep -o '<context-root>[^<]*</context-root>' \
+    | head -n1 | sed 's|.*<context-root>||; s|</context-root>.*||'
+}
 
 
 ROLE=""; STORAGE=""; DB_HOSTS=""; DB_NAME=""; DB_USER=""
@@ -333,7 +351,7 @@ if [[ "${IS_WAS}" -eq 0 ]]; then
   banner "검증 (web)"
   _c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ 2>/dev/null || echo 000)"
   [[ "${_c}" == "200" ]] && ok "  / → 200" || warn "  ★ / → ${_c} (httpd 기동·설정 확인)"
-  _a="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1${APP_CONTEXT}/api/actuator/health/liveness 2>/dev/null || echo 000)"
+  _a="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1${WEB_API_BASE}/actuator/health/liveness" 2>/dev/null || echo 000)"
   if [[ "${_a}" == "200" ]]; then ok "  /api → 200 (WAS 까지 통했습니다)"
   else
     warn "  ★ /api → ${_a}"
@@ -508,6 +526,17 @@ fi
 # ---------------------------------------------------------------------------
 # 5) JBoss 배포
 # ---------------------------------------------------------------------------
+# ★ 배포할 WAR 에서 컨텍스트를 읽어 확정한다 — 아래 검증이 이 값을 쓴다(추측하지 않는다).
+if [[ -z "${APP_CONTEXT}" ]]; then
+  APP_CONTEXT="$(klid_read_war_context "${ONPREM}/artifacts/backend/api.war")"
+  [[ -z "${APP_CONTEXT}" ]] && APP_CONTEXT="/label-studio/api"
+fi
+case "${APP_CONTEXT}" in
+  /label-studio/api) info "[ctx] 웹 컨텍스트 ${APP_CONTEXT} — passthrough(웹이 /api 를 그대로 넘기는 형상)" ;;
+  /label-studio)     info "[ctx] 웹 컨텍스트 ${APP_CONTEXT} — strip(웹이 /api 를 걷어내는 형상)" ;;
+  *)                 warn "[ctx] 웹 컨텍스트 ${APP_CONTEXT} — 아는 두 향 중 어느 쪽도 아닙니다. 의도한 값인지 확인하세요." ;;
+esac
+
 banner "5. JBoss 배포"
 _jargs=(); [[ "${DO_RESTART}" -eq 1 ]] && _jargs+=(--restart)
 [[ "${RETIRE_LEGACY}" -eq 1 ]] && _jargs+=(--retire-legacy)
@@ -533,7 +562,7 @@ chk() {  # chk <라벨> <성공조건 명령>
 chk "설정 파일을 ${RUN_USER} 가 읽는다"      "sudo -u ${RUN_USER} test -r ${PROPS}"
 chk "저장소에 ${RUN_USER} 가 쓴다"            "sudo -u ${RUN_USER} test -w ${STORAGE}"
 chk "JAVA_OPTS 가 실제로 걸렸다"              "ps -eo args= | tr ' ' '\n' | grep -q spring.config.additional-location"
-chk "백엔드 liveness 200"                     "[ \"\$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:8080${APP_CONTEXT}/api/actuator/health/liveness)\" = 200 ]"
+chk "백엔드 liveness 200 (WAS 직접 ${APP_CONTEXT})" "[ \"\$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 http://127.0.0.1:8080${APP_CONTEXT}/actuator/health/liveness)\" = 200 ]"
 chk "ffmpeg/ffprobe 존재"                     "command -v ffmpeg && command -v ffprobe"
 # ★ 여러 대가 같은 DB 를 볼 때 이것이 꺼져 있으면 배치가 <대수만큼 중복 실행>된다.
 chk "Quartz 클러스터링 켜짐"                  "grep -qE '^[[:space:]]*QUARTZ_CLUSTERED=true' ${PROPS}"
