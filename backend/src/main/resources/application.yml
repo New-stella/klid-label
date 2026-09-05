@@ -281,7 +281,7 @@ authoring:
     #   빈 값이면 어떤 패스워드도 통과하지 않아 최초 배포에서 관리자 기능에 손댈 수 없다.
     #   ⚠ 이것은 <널리 알려진 값>이다 — 운영 배포는 첫 진입 직후 화면에서 반드시 교체한다.
     #   교체하면 그 값이 저장소로 옮겨가고 이 설정값은 더 이상 판정에 쓰이지 않는다.
-    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2y$12$kOprWBcIE8WODqbSHpsaQ.f..9NWLVFSk47Hw2.NN3lopX3MMkHo.}
+    admin-claim-password-hash: ${ADMIN_CLAIM_PASSWORD_HASH:$2b$12$iN2qH.urDFs.hh28.bskS.QjnQDVBqZYCq7gSEmzDg54EuOeXRu4W}
   user:
     last-login:
       # 최종로그인일시(LS_ACNT_USER.LAST_LGN_DT) 기록 최소 간격(분).

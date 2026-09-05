@@ -21,7 +21,7 @@ class CorsAllowedHeadersTest {
 
     /** CORS 빈만 확인하므로 나머지 협력자는 필요 없다(이 빈은 그것들을 쓰지 않는다). */
     private final SecurityConfig config =
-            new SecurityConfig(null, null, null, null, null, null, null, null, null, null);
+            new SecurityConfig(null, null, null, null, null, null, null, null, null, null, null);
 
     private CorsConfiguration corsConfig() {
         UrlBasedCorsConfigurationSource source =

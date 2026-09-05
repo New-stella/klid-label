@@ -5,6 +5,7 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
+import kr.co.cudo.authoring.user.service.ControlUserProvisioner;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +48,7 @@ class JwtFilterAutoRegisterWiringTest {
     private SecretKey key;
     private UserRoleResolver userRoleResolver;
     private AutoWorkerRegistrar autoWorkerRegistrar;
+    private ControlUserProvisioner controlUserProvisioner;
     private LastLoginRecorder lastLoginRecorder;
     private JwtAuthenticationFilter filter;
 
@@ -59,12 +61,13 @@ class JwtFilterAutoRegisterWiringTest {
 
         userRoleResolver = mock(UserRoleResolver.class);
         autoWorkerRegistrar = mock(AutoWorkerRegistrar.class);
+        controlUserProvisioner = mock(ControlUserProvisioner.class);
         lastLoginRecorder = mock(LastLoginRecorder.class);
         JwtIssuerValidator issuerValidator = mock(JwtIssuerValidator.class);
         when(issuerValidator.isAllowed(any())).thenReturn(true);
 
         filter = new JwtAuthenticationFilter(() -> key, issuerValidator,
-                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar);
+                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
     }
 
     private void doFilter(String subject, String channel) throws Exception {
@@ -143,7 +146,17 @@ class JwtFilterAutoRegisterWiringTest {
     @DisplayName("등록기_부재는_배선_버그로_즉시_드러난다")
     void missingRegistrarIsWiringBug() {
         assertThatThrownBy(() -> new JwtAuthenticationFilter(
-                () -> key, mock(JwtIssuerValidator.class), userRoleResolver, lastLoginRecorder, null))
+                () -> key, mock(JwtIssuerValidator.class), userRoleResolver, lastLoginRecorder, null,
+                controlUserProvisioner))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("프로비저너_부재는_배선_버그로_즉시_드러난다")
+    void missingProvisionerIsWiringBug() {
+        assertThatThrownBy(() -> new JwtAuthenticationFilter(
+                () -> key, mock(JwtIssuerValidator.class), userRoleResolver, lastLoginRecorder,
+                autoWorkerRegistrar, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

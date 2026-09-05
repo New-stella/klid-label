@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
+import kr.co.cudo.authoring.user.service.ControlUserProvisioner;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -35,12 +36,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final LastLoginRecorder lastLoginRecorder;
     /** 진입 시 작업자 자동 등록기 — 역할이 없는 INTERNAL 사용자에게만 돈다(@design AC-1016). */
     private final AutoWorkerRegistrar autoWorkerRegistrar;
+    /**
+     * 관제 인계 미등록 진입자 로컬 식별 레코드 발급기 — INTERNAL 채널 + 비숫자 sub + userId 조회
+     * 0건일 때만 돈다(@design ADR-063 · UC-041 · AC-1016).
+     */
+    private final ControlUserProvisioner controlUserProvisioner;
 
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
                                    JwtIssuerValidator issuerValidator,
                                    UserRoleResolver userRoleResolver,
                                    LastLoginRecorder lastLoginRecorder,
-                                   AutoWorkerRegistrar autoWorkerRegistrar) {
+                                   AutoWorkerRegistrar autoWorkerRegistrar,
+                                   ControlUserProvisioner controlUserProvisioner) {
         if (keyResolver == null) {
             throw new IllegalArgumentException("keyResolver must not be null (fail-closed)");
         }
@@ -62,11 +69,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (autoWorkerRegistrar == null) {
             throw new IllegalArgumentException("autoWorkerRegistrar must not be null (wiring bug)");
         }
+        // 프로비저너 부재도 <배선 버그>다 — 인증은 계속 되지만 미등록 관제 진입자가 영영 userNo 를
+        // 발급받지 못해 관제 채널이 통째로 무권한으로 잠긴다(부트스트랩 불가). 발급 <실패> 시의
+        // fail-closed 는 프로비저너 내부 책임이고, 프로비저너 <부재> 는 여기서 즉시 드러낸다.
+        if (controlUserProvisioner == null) {
+            throw new IllegalArgumentException("controlUserProvisioner must not be null (wiring bug)");
+        }
         this.keyResolver = keyResolver;
         this.issuerValidator = issuerValidator;
         this.userRoleResolver = userRoleResolver;
         this.lastLoginRecorder = lastLoginRecorder;
         this.autoWorkerRegistrar = autoWorkerRegistrar;
+        this.controlUserProvisioner = controlUserProvisioner;
     }
 
     @Override
@@ -133,10 +147,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     //   비숫자 sub(관제 인계: sub="admin")면 userId 클레임으로 LS_ACNT_USER.USER_ID 를
                     //   조회한다(@design ADR-063 · UC-041). 다중/0건 매칭이면 null(fail-closed, CWE-639).
                     //   ★ 숫자 sub 경로는 그대로다 — resolveUserNoByUserId 는 비숫자 sub 일 때만 탄다.
+                    String userIdClaim = body.get("userId", String.class);
                     Long numericSub = parseUserNo(body.getSubject());
                     Long userNo = numericSub != null
                             ? numericSub
-                            : userRoleResolver.resolveUserNoByUserId(body.get("userId", String.class));
+                            : userRoleResolver.resolveUserNoByUserId(userIdClaim);
+                    // 미등록 관제 진입자 로컬 식별 레코드 자동발급 (@design ADR-063 결정⑤ ·
+                    //   UC-041 step5 · AC-1016) — 비숫자 sub(관제 인계)를 userId 로 조회했는데 0건이면
+                    //   진입 순간 우리 userNo 를 시퀀스로 발급·원자 등록한다(role 미부여). 그래야 아래
+                    //   principal 정규화가 발급 userNo 로 이어져 부트스트랩(role-claim)이 성립한다.
+                    //   * numericSub != null(숫자 sub) 이면 진입하지 않는다 — 기존 경로 무변경.
+                    //   * PORTAL 채널은 이 분기 자체가 INTERNAL 전용이라 닿지 않는다.
+                    //   * 다중 매칭(userNo==null 이지만 0건 아님)은 프로비저너 내부에서 발급 없이
+                    //     닫는다(AC-1017, CWE-639). 발급 실패도 프로비저너가 null 을 돌려 fail-closed 다.
+                    if (userNo == null && numericSub == null) {
+                        userNo = controlUserProvisioner.provision(userIdClaim, name);
+                    }
                     role = userNo == null ? null : userRoleResolver.resolve(userNo);
                     // 진입 시 작업자 자동 등록 (ADR-055 · @design AC-1016) — 역할 자가부여 창구가
                     //   관리자 부트스트랩 전용으로 좁혀지면서 일반 사용자가 등록될 통로가 사라졌다.

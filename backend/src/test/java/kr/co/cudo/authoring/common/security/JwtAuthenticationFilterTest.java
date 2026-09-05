@@ -24,6 +24,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Date;
 
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,23 +57,21 @@ class JwtAuthenticationFilterTest {
 
     /** 이 테스트 전용 사용자 번호 구간 — 시드·다른 테스트와 충돌 회피. */
     private static final long CTRL_USER_NO = 969_200_001L;
-    private static final long DUP_USER_NO_A = 969_200_002L;
-    private static final long DUP_USER_NO_B = 969_200_003L;
     private static final String CTRL_USER_ID = "ctrl-admin-969200001";
-    private static final String DUP_USER_ID = "ctrl-dup-969200002";
+    /** 0건 매칭 프로비저닝 표본의 로그인 ID — 발급 userNo 는 시퀀스라 userId 로 걷어낸다. */
+    private static final String PROV_USER_ID = "ctrl-prov-969299999";
 
     @BeforeEach
     void seedControlIngressRows() {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanupControlIngressRows();
-        // AC4: userId 유일 매칭 표본 — REVIEWER 역할(관리자 아님, 공유 DB 부트스트랩 오염 방지).
+        // userId 유일 매칭 표본 — REVIEWER 역할(관리자 아님, 공유 DB 부트스트랩 오염 방지).
         insertUser(CTRL_USER_NO, CTRL_USER_ID);
         insertRole(CTRL_USER_NO, "REVIEWER");
-        // AC5: 같은 USER_ID 를 가진 두 행 — 유일 제약이 없어 다중 매칭이 되는 상황.
-        insertUser(DUP_USER_NO_A, DUP_USER_ID);
-        insertUser(DUP_USER_NO_B, DUP_USER_ID);
-        insertRole(DUP_USER_NO_A, "REVIEWER");
-        insertRole(DUP_USER_NO_B, "REVIEWER");
+        // ★다중매칭 표본은 더 이상 심지 않는다 — V32 의 부분 유니크 인덱스 uk_ls_acnt_user_user_id
+        //   가 같은 USER_ID 두 행을 금지해 그 상태를 만들 수 없다. 다중매칭 fail-closed 는 이제
+        //   구조적으로 도달 불가(방어 코드)이며, 조회 축약(findUserNoByUserId size!=1 → empty)과
+        //   ControlUserProvisioner 의 size>=2 가드가 단위로 지킨다.
     }
 
     @AfterEach
@@ -90,7 +91,14 @@ class JwtAuthenticationFilterTest {
     }
 
     private void cleanupControlIngressRows() {
-        for (long userNo : new long[]{CTRL_USER_NO, DUP_USER_NO_A, DUP_USER_NO_B}) {
+        for (long userNo : new long[]{CTRL_USER_NO}) {
+            jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", userNo);
+            jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", userNo);
+            userRoleResolver.evict(userNo);
+        }
+        // 프로비저닝 시험이 발급한 행(userNo 는 시퀀스라 예측 불가)은 userId 로 걷어낸다.
+        for (Long userNo : jdbc.queryForList(
+                "SELECT USER_NO FROM LS_ACNT_USER WHERE USER_ID = ?", Long.class, PROV_USER_ID)) {
             jdbc.update("DELETE FROM LS_USER_ROLE WHERE USER_NO = ?", userNo);
             jdbc.update("DELETE FROM LS_ACNT_USER WHERE USER_NO = ?", userNo);
             userRoleResolver.evict(userNo);
@@ -330,14 +338,15 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("관제_토큰_userId가_다중매칭이면_fail_closed_403")
-    void controlTokenAmbiguousUserIdFailsClosed() throws Exception {
-        // USER_ID 에 유일 제약이 없어 같은 값이 두 행에 있다 → 어느 행인지 추측 금지(CWE-639) →
-        //   무권한. 인증은 성립하되 역할이 없어 보호 엔드포인트 403.
+    @DisplayName("관제_토큰_userId가_0건매칭이면_userNo가_발급되되_무역할이라_403")
+    void controlTokenUnknownUserIdProvisionsButStaysUnauthorized() throws Exception {
+        // @design ADR-063 ⑤ · UC-041 step5 — 0건 매칭은 fail-closed 가 아니라 <발급>이다:
+        //   진입 순간 로컬 userNo 를 발급하되 역할은 부여하지 않아(role=null) 보호 엔드포인트는
+        //   여전히 403 이다. 즉 인가는 닫히되 식별 레코드는 생긴다("0건이 곧 아무것도 안 만듦"이 아니다).
         Instant now = Instant.now();
         String token = Jwts.builder()
                 .subject("admin")
-                .claim("userId", DUP_USER_ID)
+                .claim("userId", PROV_USER_ID)
                 .claim("channel", "INTERNAL")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(60)))
@@ -346,22 +355,13 @@ class JwtAuthenticationFilterTest {
 
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
-    }
 
-    @Test
-    @DisplayName("관제_토큰_userId가_0건매칭이면_fail_closed_403")
-    void controlTokenUnknownUserIdFailsClosed() throws Exception {
-        Instant now = Instant.now();
-        String token = Jwts.builder()
-                .subject("admin")
-                .claim("userId", "no-such-user-id-969299999")
-                .claim("channel", "INTERNAL")
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(60)))
-                .signWith(key())
-                .compact();
-
-        mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden());
+        // 발급됐다 — disjoint 상위 시퀀스(≥ 9e9)로 정확히 1행, 역할은 없다.
+        List<Long> nos = jdbc.queryForList(
+                "SELECT USER_NO FROM LS_ACNT_USER WHERE USER_ID = ?", Long.class, PROV_USER_ID);
+        assertThat(nos).hasSize(1);
+        assertThat(nos.get(0)).isGreaterThanOrEqualTo(9_000_000_000L);
+        assertThat(jdbc.queryForList(
+                "SELECT ROLE_CD FROM LS_USER_ROLE WHERE USER_NO = ?", nos.get(0))).isEmpty();
     }
 }
