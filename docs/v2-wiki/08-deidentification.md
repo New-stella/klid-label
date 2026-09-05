@@ -3,7 +3,7 @@
 > 출처: R1 RQ-SFR-09-01~05, R2 KLID-AT-UC-011/016, CLAUDE.md, 코드(`batch/step/DeidentifyStep`, `batch/service/KpstDeidentService`)
 > 관련: [07 배치 파이프라인](07-batch-pipeline.md) · [19 외부 시스템](19-external-security-cvat.md) · [22 비식별 솔루션 API 명세](22-deid-solution-api.md)
 
-> ✅ **KPST 공유 마운트 단일 경로 확정(2026-06-30)**: 비식별 확정은 실제 KPST API([22 명세](22-deid-solution-api.md))의 **공유 마운트 no-copy 모델**(`POST /project`[input_path=원본 디렉터리, export_path=우리 base]→`GET /retrieve_progress` 폴링→완료 응답 `fileName` 으로 경로 회수)로 **단일화**되었다(`KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)). **`POST /upload`·`GET /download` 는 미사용**(공유 마운트로 입력 참조·결과 직접 산출). **레거시 동기 SPI(`DeidentifyClient`)와 결과 콜백 수신 경로(`POST /v1/deidentify/result`)는 제거**되었다(레거시 폴백 없음). `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하며, **local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본**, stg/prd 는 공유 마운트 실연동. 영상 1건=프로젝트 1개. (명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 참조.)
+> ✅ **KPST 공유 마운트 단일 경로 확정(2026-06-30)**: 비식별 확정은 실제 KPST API([22 명세](22-deid-solution-api.md))의 **공유 마운트 no-copy 모델**(`POST /project`[input_path=원본 디렉터리, export_path=우리 base]→`GET /retrieve_progress` 폴링→완료 응답 `fileName` 으로 경로 회수)로 **단일화**되었다(`KpstDeidentifyClient`+`KpstDeidentPollJob`(Quartz)). **`POST /upload`·`GET /download` 는 미사용**(공유 마운트로 입력 참조·결과 직접 산출). **레거시 동기 SPI(`DeidentifyClient`)와 결과 콜백 수신 경로(`POST /v1/deidentify/result`)는 제거**되었다(레거시 폴백 없음). `kpst.deid.enabled` 토글은 킬스위치로 유지(기본 **true**)하며, stg/prd 는 공유 마운트 실연동이며, **local/dev 도 자체 채움이 아니라 목 서버(:9400)로 실제 HTTP 위탁**한다. ⚠ **구 서술 폐기(2026-09-03)** — *"local/dev 는 `authoring.integration.deidentify.mock-mode=true`(원본 복사 mock, KPST 미호출) 기본"*. **두 가지가 동시에 거짓이다** — ①그 복사 경로는 폐지됐다(그 모드에는 **자체 산출 경로가 없다** — 남은 자리는 **판정뿐**이다) ②그 설정 키는 **어느 프로파일에도 설정돼 있지 않다**(꺼짐). 막을 산출 지점이 실재하지 않으므로 남은 토글은 **위탁 요청층에서 거부**한다 — 그 형상에서 비식별은 **전건 실패**하며 기동 기록과 상태로 드러난다. ⚠ **되살아나면 이 배선으로는 막히지 않는다** — 다시 만든다면 **산출 지점에 별도 차단**이 필요하다. 영상 1건=프로젝트 1개. (명세 정본은 [22.1](22-deid-solution-api.md#221-연동-개요) 참조.)
 
 ## 8.1 개요
 
@@ -19,7 +19,9 @@
 
 ## 8.2 연동 흐름
 
-비식별 확정 경로는 **KPST 폴링 단일 경로**다(`kpst.deid.enabled=true`, 기본). local 자족 환경만 mock 복사 경로를 사용한다.
+비식별 확정 경로는 **KPST 폴링 단일 경로**다(`kpst.deid.enabled=true`, 기본). **전 환경이 이 경로 하나뿐이다** — local/dev 는 위탁 대상이 목 서버(:9400)일 뿐 흐름은 같다.
+
+> ⚠ **구 서술 폐기(2026-09-03)** — *"local 자족 환경만 mock 복사 경로를 사용한다"*. 자체 채움 경로가 폐지되어 **견줄 두 번째 경로가 없다**.
 
 **[KPST 폴링 경로]** (`kpst.deid.enabled=true`, 기본)
 ```
@@ -40,15 +42,31 @@ LS_DATA_RAW.DE_IDENT_YN='Y' + dataSttsCd=MARKING_READY + 작업락 해제 + 신�
    타임아웃 시 DE_IDENT_YN='F'
 ```
 
-**[local mock 경로]** (`authoring.integration.deidentify.mock-mode=true`, local 전용)
-```
-[배치] DeidentifyStep.runMock → 원본을 STORAGE_DEIDENTIFIED_PATH 하위로 atomic 복사(원본 보존)
-        ↓ (외부 미접촉)
-LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
-   원본 부재 시 'F' 마킹(성공 위장 금지, REQUIRES_NEW 독립 커밋)
-```
+**[구 「local mock 경로」 — 폐기(2026-09-03 갱신)]**
 
-> ⚠ **레거시 동기 SPI/콜백 경로 제거(UC018)**: 구 `DeidentifyClient`(동기 위탁) + `POST /v1/deidentify/result` 콜백 수신(`DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거되었다. mock 도 아니고 KPST 서비스도 없으면(설정 오류) `DeidentifyStep` 은 레거시 폴백 대신 명확한 설정 오류 예외(내부 정보 미노출)로 처리한다.
+> ⚠ **아래 흐름은 더 이상 존재하지 않는다. 지우지 않고 남겨 둔다 — 되살리려는 시도를 막기 위해서다.**
+>
+> ```
+> [배치] DeidentifyStep.runMock → 원본을 STORAGE_DEIDENTIFIED_PATH 하위로 atomic 복사(원본 보존)
+>         ↓ (외부 미접촉)
+> LS_DATA_RAW.DE_IDENT_YN='Y' + 작업락 해제 + 신고 해소 + 알림
+>    원본 부재 시 'F' 마킹(성공 위장 금지, REQUIRES_NEW 독립 커밋)
+> ```
+>
+> **폐기 사유**: 이 경로는 마스킹되지 않은 **원본을 「비식별 완료」로 통과**시켜 데이터마트 뷰와
+> 산출물로 내보냈다(`DeidentifyStep.runMock` 삭제). 이 프로젝트는 로컬조차 외부 시스템을 **별도 목
+> 서버**로 세워 실제 HTTP 로 호출한다 — 애플리케이션이 스스로 결과를 지어내는 경로를 두지 않기 위해서다.
+>
+> **지금 남은 것은 판정뿐이다** — 그 모드에는 **자체 산출 경로가 없다**. 막을 산출 지점이 실재하지
+> 않으므로 남은 토글(`authoring.integration.deidentify.mock-mode`)은 **위탁 요청층에서 거부**한다.
+> 그 형상에서 비식별은 **전건 실패**하며 기동 기록과 상태로 드러난다.
+>
+> **활성화 실태**: **어느 프로파일에도 설정돼 있지 않다**(꺼짐).
+>
+> ⚠ **되살아나면 이 배선으로는 막히지 않는다** — 위탁 요청층 거부는 HTTP 로 나가는 경로만 덮는데
+> 자체 복사는 HTTP 를 타지 않기 때문이다. 다시 만든다면 **산출 지점에 별도 차단**이 필요하다.
+
+> ⚠ **레거시 동기 SPI/콜백 경로 제거(UC018)**: 구 `DeidentifyClient`(동기 위탁) + `POST /v1/deidentify/result` 콜백 수신(`DeidentifyResultController`/`DeidentifyResultService`/`DeidentifyResultRequest`) 경로는 제거되었다. KPST 서비스가 없으면(설정 오류) `DeidentifyStep` 은 레거시 폴백 대신 명확한 설정 오류 예외(내부 정보 미노출)로 처리한다. ⚠ 구 서술 *"mock 도 아니고"* 는 폐기다 — **견줄 mock 분기가 없어 경우의 수는 하나다**.
 
 - 실패 시 `DE_IDENT_YN='F'`, 원본 보존. 재비식별은 외부 솔루션 수동 처리(자동 재비식별 큐 없음).
 - 코드(폴링 경로): `KpstDeidentifyClient`(`createProject` → `Mono`), `KpstWebClientConfig`(자체CA TLS), `batch/service/KpstDeidentService`/`KpstDeidentTxService`/`KpstSubmitOutcomeRecorder`, `batch/scheduler/KpstDeidentPollJob`
@@ -187,7 +205,7 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - **신고 구간 라벨 조회 차단 게이트 (S7, CWE-359)**: 라벨이 보존되므로 신고~재비식별 완료 사이에 라벨 좌표(=PII 위치 특정 정보)가 계속 노출되는 창이 생긴다. 따라서 `DE_IDENT_YN='F'` 인 동안 해당 영상 프레임의 라벨 조회(`GET /v1/frames/{srcSn}/labels`)를 **412 PRECONDITION_FAILED** 로 차단한다. 인가(WORKER 본인 배정/REVIEWER) 검사를 통과한 **뒤** 평가하는 프리컨디션이며 **REVIEWER 도 동일하게 차단**된다(영상 스트리밍의 비식별 미완료 NOT_FOUND·마킹 진입 게이트와 같은 역할 무관 정책). 라벨 저장/수정(`PUT /v1/frames/{srcSn}/labels`)도 **같은 게이트가 412 로 차단**한다 (2026-08-04, C-ISSUE-22 — 구 서술 *"작업락 409 가 차단한다"* 는 거짓이었다: 작업락은 6h 만료 후 `WorkLockSweepJob` 이 회수하는데 `'F'` 는 resolve 까지 남아 **조회 412 ↔ 저장 200** 비대칭이 열렸고, full-replace 계약상 `items:[]` 저장이 기존 라벨을 전량 삭제했다). 게이트는 **락 검사보다 먼저** 평가해 락 유무와 무관하게 412 로 통일하며, 409 는 **신고와 무관한 락**(트랙 병합 등)에만 남는다. 결과적으로 신고 구간은 읽기·쓰기 모두 봉쇄된다. `resolve` 가 `'F'→'Y'` 를 복원하면 게이트가 자동으로 열려 **보존된 라벨을 그대로** 사용한다(별도 복원 API 없음).
 - **수동 해소 시 `DE_IDENT_YN` 'F'→'Y' 복원(마킹 게이트 재개방)**: `DeidentReportService.resolveManually` 가 신고를 RESOLVED 전이 + 작업락 해제하면서 `LS_DATA_RAW.DE_IDENT_YN` 을 `'F'`→`'Y'` 로 되돌려 비식별 완료를 전제로 하는 마킹 진입 게이트(`deIdntfYn=='Y'`)를 재개방한다. 복원하지 않으면 게이트가 영구 폐쇄되어 재마킹이 불가능해진다. 자동 배치 해소(`resolveOpenReports`)는 `DeidentifyStep` 이 `'Y'` 로 복원하지만 수동 경로에는 복원 주체가 없어 이 서비스가 직접 복원한다.
 - **후기 배치 단계(`LS_DATA_RAW.DATA_STTS_CD`)는 되감지 않음 (정정 2026-08-05)**: `resolveManually` **본체**는 비식별 게이트(`DE_IDENT_YN`)만 재개방하고 배치 단계는 변경하지 않는다(라벨링 단계 신고·레거시 NULL 신고는 이 동작 그대로 — 검수 완료 영상이 마킹 대기로 역행하지 않는다). **예외는 마킹 단계 신고 하나**로, 위 「신고 단계 구분」의 재개 배선(`DeidentStageResumeService.resumeMarking`)이 **의도적으로** `MARKING_READY` 로 되감는다 — 애초에 `MARKING_READY` 에서만 접수되므로 대개 no-op 이며, 접수~해소 사이에 다른 경로가 상태를 옮겼을 때 재마킹 진입이 영구히 닫히지 않게 하는 fail-safe 다.
-- **★신고 접수 대상 = 비파생 영상만 (2026-07-29 사용자 확정, 구속)**: 파생영상(증강 `WINTER/NIGHT/RAIN` · 해상도 `RESL_*`)에서는 신고를 **접수하지 않는다** — `POST /v1/labels/{srcSn}/deident-report` 가 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireReportableVideo`). 파생 프레임은 원본 비식별 산출물의 복사·리스케일 사본인데, 재비식별은 외부 솔루션이 **원본 영상**을 다시 처리하는 방식뿐이라 **파생본 자체를 다시 비식별할 수단이 없다** — 접수해도 해소할 수 없는 신고(작업락 + `'F'` 고착)만 남는다. FE 는 파생영상에서 신고 버튼을 비활성화하므로 이 412 경로는 API 직접 호출·낡은 화면에서만 도달한다. **원본으로 유도하지 않는다**(원본 신고는 아래대로 파생에 아무 영향이 없고, 파생 배정 WORKER 는 원본 접근 권한도 없다).
+- **★신고 접수 대상 = 비파생 영상만 (2026-07-29 사용자 확정, 구속)**: 파생영상(증강 `AUGMENT` — 구 코드값 `WINTER`·`NIGHT`·`RAIN` 파생본 포함 · 해상도 `RESL_*`)에서는 신고를 **접수하지 않는다** — `POST /v1/labels/{srcSn}/deident-report` 가 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireReportableVideo`). 파생 프레임은 원본 비식별 산출물의 복사·리스케일 사본인데, 재비식별은 외부 솔루션이 **원본 영상**을 다시 처리하는 방식뿐이라 **파생본 자체를 다시 비식별할 수단이 없다** — 접수해도 해소할 수 없는 신고(작업락 + `'F'` 고착)만 남는다. FE 는 파생영상에서 신고 버튼을 비활성화하므로 이 412 경로는 API 직접 호출·낡은 화면에서만 도달한다. **원본으로 유도하지 않는다**(원본 신고는 아래대로 파생에 아무 영향이 없고, 파생 배정 WORKER 는 원본 접근 권한도 없다).
 - **★검수가 승인(APPROVED)된 영상은 신고를 접수하지 않는다 (R2, 2026-08-10 사용자 확정, 구속)**: 두 진입점 모두 **412 PRECONDITION_FAILED** 로 거부한다(`DeidentReportService.requireNotApprovedVideo`). 게이트는 두 진입점이 수렴하는 `doReport` **한 곳**에만 배선한다(진입점마다 배선하면 새는 것이 이 저장소의 반복 결함). **역할 무관**(REVIEWER 도 막힌다) — 인가 축이 아니라 대상 리소스의 상태에 대한 프리컨디션이다. 평가는 **작업락 409 검사보다 먼저** 한다: 잠금 여부에 따라 412/409 로 갈리면 응답이 잠금 상태 오라클이 된다(CWE-209). 문구는 *"검수가 완료된 영상은 비식별 누락을 신고할 수 없습니다."* 하나이며 처리 단계를 노출하지 않는다. FE(라벨링 화면)는 영상 상세 `reviewSttsCd` 로 **버튼을 미리 비활성 + 툴팁**으로 사유를 알리고, 412 안내 노출은 화면이 상태를 모를 때의 안전망으로 유지한다.
   - **★판정축 확대 — 지금 상태가 아니라 이력이다 (2026-08-11 사용자 확정, 구속 — 구 `ReviewApprovalGate.isApproved` 판정 폐기)**: `ReviewStateMachine`이 `APPROVED → PENDING`(WORKER 재검수 재제출)을 허용하므로, 지금 상태만 보는 `isApproved`는 재제출로 상태가 내려간 구간에서 그대로 뚫린다. 판정은 `ReviewApprovalGate.hasEverApproved`(승인 동결 스냅샷 존재 **OR** 승인 감사 존재, fail-closed OR)로 확대됐다 — 상세·소비처는 [12 §12.2.2](12-review-assignment.md). FE `reviewSttsCd`는 여전히 **다른 축**(현재 상태)이므로 재검수 재제출 구간에서도 신고 버튼을 계속 비활성화하려면 신설된 `VideoDetailResponse.everApproved`를 봐야 한다.
   - **부수효과 — 신고 시점 `TASK_MODIFIED` 발행 분기 소멸**: 구 동작은 승인 영상 신고 접수 시 `TASK_MODIFIED(META_UPDATED)` 를 발행했으나(사유: `DE_IDENT_YN` 이 `'F'` 로 바뀌니 관제가 재픽업), 접수 자체가 막혀 **도달 불가**가 되어 제거했다.
@@ -279,7 +297,15 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 - **기존 계약은 무변경**: 인가(401/403) · 신고 없음 404 · 이미 처리 409 · 원자 클레임 · 작업락 해제 · `'F'→'Y'` 복원 · 스트림 메타 캐시 무효화 · 재개 이벤트(`DeidentGateReopenedEvent` · `DeidentStageResumeEvent` · 승인 영상 재검토 표시 통지) 모두 그대로다. **바뀐 것은 ①요청 바디가 생겼다 ②"파일이 실재하지 않는다"는 사유의 거부가 409 → 400 이 됐다**(실재하지 않으면 애초에 후보로 열거되지 않으므로 "존재하지 않는 대상을 가리킨 요청"이다. 409 는 "목록에는 있으나 자격 미달"에 남는다). 어느 쪽이든 fail-closed 는 동일하다 — 예외 전파 → 트랜잭션 롤백 → 신고 `OPEN`·작업락·`'F'` 유지.
 - 코드: `label/service/DeidentArtifactCandidateFinder`(열거·수락 공용 단일 지점) · `label/service/DeidentReportService`(`listDeidentCandidates` · `resolveManually` · `selectArtifact` · `recordResolvedArtifact`) · `label/controller/DeidentReportController`(`deidentCandidates` · `resolve`) · `label/dto/DeidentCandidateResponse` · `label/dto/DeidentResolveRequest` · FE `features/deident/components/DeidentResolveDialog` · `features/deident/hooks/useDeidentReports`(`useDeidentCandidates`)
 
-## 8.4-a 외부 산출물 이관 경로의 비식별 축 (설계 확정, 코드 미착수)
+## 8.4-a 외부 산출물 이관 경로의 비식별 축
+
+> ⚠ **구 제목 폐기(2026-09-01 코드 실측)** — *"(설계 확정, 코드 미착수)"* 는 이 절에 대해 **사실이 아니다.**
+> 이 절이 이름을 부르는 그 창구가 **실재한다** — `transfer/controller/ImportDeidentCompleteController`
+> (`POST /v1/videos/{rawSn}/deident-complete`, 클래스 수준 `hasRole('REVIEWER')`)이고, 그것을 부르는
+> 화면도 `features/import/components/DeidentCompleteDialog.tsx` 로 실재한다. 그 제목을 근거로
+> 「아직 만들 것」이라고 판단하면 이미 있는 것을 다시 만들게 된다.
+> ⚠ **확인한 것은 그 두 파일의 실재뿐이다** — 아래 표·규약의 개별 동작을 코드와 대조한 것이 아니다.
+> 이관 도메인 전체의 갈래별 구현 상태는 [25 머리말](25-external-import.md)이 정본이다.
 
 외부에서 라벨링이 끝난 산출물을 가져오는 경로는 **적재가 비식별을 자동으로 시작시키지 않는다**(ADR-048).
 가져올 때 지정한 값과 **영상 파일을 함께 주었는지**의 조합으로 갈린다 → 상세는 [25 §25.4](25-external-import.md).
@@ -295,6 +321,51 @@ KPST 는 원래부터 비동기 프로토콜(결과는 `retrieve_progress` 폴�
 
 ⚠ **누락 신고 동선은 이 경로에 쓸 수 없다** — 신고는 비식별을 한 번이라도 수행한 영상만 접수하고, 그 해소는
 비식별 완료를 단정해 기록하므로 실제로 처리되지 않은 영상에 쓰면 사실과 달라진다.
+
+### 8.4-a-1 이 기록의 진입점이 SC-032 에도 생겼다 (2026-09-01 사용자 확정 · `SCREEN-032` v24)
+
+**그 기록 창구는 「검수자만 호출할 수 있다」인데, 그것을 부르는 유일한 자리가 관리자 전용 화면**
+(SC-039 산출물 가져오기, `/admin/imports`)**에만 있었다.** 역할 계층은 `ROLE_ADMIN > ROLE_REVIEWER`
+한 방향이라 **검수자는 그 화면에 들어가지 못한다** — 검수자가 검수 승인 보류를 만나도 그것을 풀 자리에
+갈 수 없는 모순이었다.
+
+⇒ **진입점을 양쪽에 둔다.** 관리자는 가져오기 화면에서 적재 직후에, **검수자는 이 문서가 다루는
+비식별 신고 관리 화면(SC-032, `/manage/deident-reports`)에서** 보류를 만났을 때 기록한다.
+**두 자리는 서로를 대신하는 것이 아니라 각자의 동선에서 같은 일을 한다** — 가져오기 화면의 자리는
+**걷어내지 않는다**. 창구가 검수자 축이라 **관리자도 역할 계층으로 그대로 호출**되므로, 자리를 늘려도
+창구의 인가는 바뀌지 않는다.
+
+**SC-032 에 더해지는 것은 별도 구획 2개다 — 기존 신고 목록·상태 탭·해소 흐름은 그대로 두고 더하기만 했다.**
+
+| 구획 | 하는 일 |
+|---|---|
+| **이관 보류 영상 목록** | 가져오기로 들어와 승인 보류가 선 영상을 최근순으로 — 가져온 시각·폴더명·영상 번호·승인 보류·프레임 수·실행자. 조달은 **이관 이력 목록 조회 창구**(검수자가 부를 수 있다). 보류가 선 행에만 기록 자리가 열린다 |
+| **비식별 완료 기록 다이얼로그** | 외부에서 이미 비식별한 산출물이 놓인 **폴더 경로를 사람이 적어** 기록. 결과로 승인 보류 해제 여부 · 비식별 이미지를 채운 프레임 수 · **이름이 맞는 파일이 없어 비워 둔 프레임 수**를 알린다 |
+
+- ★ **보류 값은 보류/없음/미상 세 갈래이고, 비어 있는 것을 「보류 아님」으로 단정하지 않는다** — 단정하면
+  그 행의 기록 자리가 감춰져 **그 영상은 승인될 길을 잃는다.** 이 값은 **이관 진행 상태와 다른 축**이라
+  「이관이 성공했는가」로 대신 판단하지 않는다.
+- ★ **기록은 산출물이 실제로 존재하는지 확인한 뒤에만 성립하고, 대응은 파일 이름으로 한다** — 순서나
+  개수로 짐작해 잇지 않는다(짐작으로 이으면 다른 프레임의 비식별 이미지가 붙고 되돌릴 수 없다).
+  **한 건도 잇지 못하면 아무것도 기록하지 않고 거부**하며 **승인 보류는 그대로 남는다.**
+  비워 둔 프레임이 하나라도 있으면 그만큼이 **비식별 이미지 없이 학습데이터 산출물로 나가므로** 알린다.
+- ★★ **두 목록을 한 표로 합치지 않는다.** 근거는 넷이며 어느 하나만으로 정한 것이 아니다.
+
+  | 축 | 신고 목록 | 이관 보류 목록 |
+  |---|---|---|
+  | 한 행의 정체 | 작업자가 접수한 **신고 건** | 외부에서 원본으로 들여온 **영상** |
+  | 기존 상태 탭(미처리/처리완료) | 걸린다 | **걸리지 않는다** |
+  | 해소가 푸는 것 | **작업락** — 마킹·라벨링이 재개된다 | **검수 승인 보류** 하나뿐 |
+  | 입력 방식 | 서버가 열거한 **후보를 고른다** | 사람이 **폴더 경로를 적는다** |
+
+- ⚠ **조회 실패와 「보류가 선 영상이 한 건도 없음」은 다른 안내로 가른다** — 한 문구로 묶으면 *없다*와
+  *못 불러왔다*가 구분되지 않는다(같은 문서 §8.4 의 '미상' 표기 규칙과 같은 취지).
+- ⚠ **이 두 구획은 아직 설계뿐이다 (2026-09-01 실측)** — SC-032 화면 코드
+  (`pages/manage/DeidentReportListPage.tsx`)는 이관 쪽 무엇도 참조하지 않고, 기존 기록 자리를 이루는
+  `features/import/` 를 **소비하는 화면은 `pages/manage/ImportPage.tsx` 하나뿐**이다. 반면 **기록 창구와
+  가져오기 화면 쪽 진입점은 실재한다**(위 절 머리말).
+  **「진입점이 두 자리」는 확정된 사양이지 지금 화면의 상태가 아니다.**
+- 상세·계약은 [25 §25.5 · §25.7 · §25.8](25-external-import.md).
 
 ## 8.5 옵션 설정 (RQ-SFR-09-04)
 

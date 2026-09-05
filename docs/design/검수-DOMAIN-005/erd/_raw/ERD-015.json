@@ -343,11 +343,14 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-099"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:31.400Z"
       },
       "uses_constants": []
     },
@@ -357,8 +360,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "비식별화완료여부 설명에 두 축 관계 추가 — 이 값이 완료로 풀려도 영상 축 비식별 여부는 미수행으로 남을 수 있고 두 축은 별개라 모순이 아님을 명시. 500자 상한 안에 넣기 위해 같은 컬럼의 코드값·기본값이 이미 담고 있는 중복 한 문장을 걷어내고 두 문장을 뜻이 같은 짧은 표현으로 압축.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T10:45:38.049Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:31.400Z",
     "created_at": "2026-06-01T02:46:11.643Z"
   }
 }

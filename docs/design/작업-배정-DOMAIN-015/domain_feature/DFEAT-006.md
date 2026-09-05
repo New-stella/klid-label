@@ -1,18 +1,19 @@
 ---
 logicraft_item: DFEAT-006
 type: domain_feature
-version: 8
+version: 9
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:57.797Z
-status: NEW
-prev_version: null
-content_hash: 021de3f5bacf94b5ce5fcb532e8f276cb8da0361d5fabc1f41b175561275323a
-stale: false
+synced_at: 2026-09-02T10:52:41.419Z
+status: CHANGED
+prev_version: 8
+content_hash: ef882a9936bf86329a73455043618017489eeab4e7f3e7162bf8b4b64c9e1ed4
+stale: true
 raw: ./_raw/DFEAT-006.json
 links:
+  based_on: ["[[ADR-055]]"]
   belongs_to_domain: ["[[DOMAIN-015]]"]
-  implements: ["[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-116]]"]
+  implements: ["[[API-070]]", "[[API-071]]", "[[API-072]]", "[[API-116]]", "[[IMPREC-350]]"]
   migrated_from: ["[[LEGACY-112]]"]
   depicts_backward: ["[[CDIAG-007]]", "[[CMP-009]]"]
   realizes_backward: ["[[MOD-014]]", "[[UC-029]]"]
@@ -49,7 +50,7 @@ modified
 
 ### decided_by
 
-ADR-003
+ADR-055
 
 ### change_kind
 
@@ -57,7 +58,7 @@ ADR-003
 
 ### diff_summary
 
-1차 관리자/담당자 배정 → 2차 REVIEWER가 WORKER에게 배정(역할 단일화), 영상 단위 배정 (V1.3/V1.8)
+1차 관리자/담당자 배정 → 2차 검수자(REVIEWER)가 작업자(WORKER)에게 배정, 영상 단위 배정 (V1.3/V1.8). 관리자(ADMIN)는 역할 계층(ROLE_ADMIN > ROLE_REVIEWER)으로 검수자 권한을 물려받아 배정할 수 있다.
 
 ### legacy_source
 
@@ -99,6 +100,10 @@ LEGACY-112
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -111,7 +116,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-350
 
 ### progress
 
@@ -123,7 +128,11 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T02:33:06.477Z
+2026-08-29T01:26:19.660Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 

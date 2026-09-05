@@ -20,6 +20,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.augment.repository.DerivativeWorkEligibility;
+import kr.co.cudo.authoring.video.repository.InternalWorkScope;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.util.BlankTextPredicate;
@@ -253,6 +254,11 @@ public class TaskBoardQueryRepository {
         // 필터가 아니라 <가시 범위> 이므로 목록·count·KPI 집계·이벤트유형 옵션 <전부>에 걸린다.
         // 그래서 여기(조건 조립 단일 지점)에만 붙인다 — 호출부마다 붙이면 한 곳이 빠져 샌다.
         where.and(DerivativeWorkEligibility.eligible(raw));
+
+        // 채널 축 — 포털 사용자 본인 업로드 자산은 관제 작업 대상이 아니다(ADR-058 흡수).
+        // ★ 위 파생 게이트가 이것을 대신하지 못한다 — 그 술어의 배제 대상은 <파생>뿐이라
+        //   포털 업로드 <원본>(부모 참조가 비어 있다)은 무조건 통과한다.
+        where.and(InternalWorkScope.internal(raw));
 
         String batchStatus = condition.batchStatusFilter();
         if (batchStatus != null) {

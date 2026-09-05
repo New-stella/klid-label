@@ -53,7 +53,7 @@ describe('UserManagePage', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     await waitFor(() => {
       expect(screen.getByText('홍길동')).toBeInTheDocument();
@@ -81,7 +81,7 @@ describe('UserManagePage', () => {
     });
 
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     await waitFor(() => {
       expect(mock.history.get.length).toBeGreaterThan(0);
@@ -122,7 +122,7 @@ describe('UserManagePage', () => {
     // given
     stubEmptyUsers();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     await waitFor(() => {
       expect(mock.history.get.length).toBeGreaterThan(0);
     });
@@ -145,7 +145,7 @@ describe('UserManagePage', () => {
     // given: 확정 진입점은 검색 버튼과 Enter 두 곳이며 결과가 같아야 한다.
     stubEmptyUsers();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     await waitFor(() => {
       expect(mock.history.get.length).toBeGreaterThan(0);
     });
@@ -168,7 +168,7 @@ describe('UserManagePage', () => {
     // 흔들렸다.
     stubEmptyUsers();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     await waitFor(() => {
       expect(mock.history.get.length).toBeGreaterThan(0);
     });
@@ -195,7 +195,7 @@ describe('UserManagePage', () => {
       errorCode: null,
     });
 
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     await waitFor(() => {
       expect(mock.history.get.length).toBeGreaterThan(0);
     });
@@ -237,7 +237,7 @@ describe('UserManagePage', () => {
     stubUnassignedUser();
 
     // when
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     // then
     const badge = await screen.findByTestId('user-role-unassigned-9');
@@ -248,7 +248,7 @@ describe('UserManagePage', () => {
     // given
     stubUnassignedUser();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     await screen.findByTestId('user-role-unassigned-9');
 
     // when: 수정 모달을 연다
@@ -302,7 +302,7 @@ describe('UserManagePage', () => {
     // given: 역할이 이미 WORKER 인 사용자
     stubAssignedUser();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     // when: 아무것도 바꾸지 않고 모달만 연다
     await openEditModal(user);
@@ -318,7 +318,7 @@ describe('UserManagePage', () => {
     // given
     stubAssignedUser();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     const trigger = await openEditModal(user);
 
     // when: WORKER → REVIEWER
@@ -336,7 +336,7 @@ describe('UserManagePage', () => {
     // 같은가"임이 고정된다(dirty 플래그로 구현하면 이 케이스에서 저장이 열린 채 남는다).
     stubAssignedUser();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     const trigger = await openEditModal(user);
 
     await selectRadixOption(user, trigger, '검수자');
@@ -358,7 +358,7 @@ describe('UserManagePage', () => {
     // given: 미배정 사용자 — 두 잠금 사유가 동시에 뜨면 사용자는 무엇을 해야 할지 모른다.
     stubUnassignedUser();
     const user = userEvent.setup();
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     // when
     await openEditModal(user);
@@ -405,7 +405,7 @@ describe('UserManagePage', () => {
     stubUserWithBothDates();
 
     // when
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     // then: 두 헤더가 동시에 존재한다(하나가 다른 하나를 대체하지 않는다)
     expect(await screen.findByRole('columnheader', { name: '등록일' })).toBeInTheDocument();
@@ -443,7 +443,7 @@ describe('UserManagePage', () => {
     });
 
     // when
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     // then: 등록일은 그대로 보이고, 최신 로그인은 **명시적 미접속 표기**다
     expect(await screen.findByTestId('user-created-at-22')).toHaveTextContent('2026. 5. 1.');
@@ -458,7 +458,7 @@ describe('UserManagePage', () => {
     stubUserWithBothDates();
 
     // when
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
 
     // then: 같은 ko-KR 날짜 형식(YYYY. M. D.)
     const KO_DATE = /^\d{4}\. \d{1,2}\. \d{1,2}\.$/;
@@ -472,7 +472,7 @@ describe('UserManagePage', () => {
     stubUnassignedUser();
 
     // when
-    renderWithProviders(<UserManagePage />, { initialEntries: ['/manage/users'] });
+    renderWithProviders(<UserManagePage />, { initialEntries: ['/admin/users'] });
     await screen.findByTestId('user-role-unassigned-9');
 
     // then

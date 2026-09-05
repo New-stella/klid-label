@@ -25,7 +25,7 @@ import java.util.List;
  * <ol>
  *   <li><b>클레임</b>({@link AugmentCancelTxService#claim}) — 증강 행 {@code FOR UPDATE} 안에서
  *       {@code PENDING → CANCELED} 전이 + 취소 대상 청크 확정. 동시 요청은 여기서 직렬화된다(S4).</li>
- *   <li><b>외부 취소</b>(트랜잭션 밖) — 청크마다 §4.6 {@code POST /jobs/{job_id}/cancel}.
+ *   <li><b>외부 취소</b>(트랜잭션 밖) — 청크마다 §4.4 {@code POST /jobs/{job_id}/cancel}.
  *       <b>모든</b> 비종결 청크를 순회한다(S2 — 한 건만 보내면 나머지가 계속 처리된다).</li>
  *   <li><b>확정</b>({@link AugmentCancelTxService#markJobsCanceled}) — 성립한 청크만 로컬 종결(S12).</li>
  * </ol>
@@ -190,8 +190,8 @@ public class AugmentCancelService {
             return true;
         }
         if (result.reason() == AugmentProgressUnavailableReason.NOOP) {
-            // 외부 미연동(mode=noop) — 보낼 곳이 없다. 로컬 취소는 성립하므로 실패로 세지 않는다.
-            log.info("[Augment][Cancel] 외부 미연동(noop) — 로컬만 취소 종결 dataAugSn={} jobSeq={}",
+            // 외부 미연동 — 보낼 곳이 없다. 로컬 취소는 성립하므로 실패로 세지 않는다.
+            log.info("[Augment][Cancel] 외부 미연동 — 로컬만 취소 종결 dataAugSn={} jobSeq={}",
                     dataAugSn, target.jobSeq());
             return true;
         }
@@ -204,7 +204,11 @@ public class AugmentCancelService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // 「검수자 전용」은 「검수자 이상」이다 — 관리자가 계층으로 물려받아 증강 요청 취소에 들어간다.
+        // Spring 의 RoleHierarchy 는 권한(authority) 축에만 걸리므로 여기서 역할을 동등 비교하면
+        // 관리자가 이 창구에서만 403 이 되어 계층이 반쪽만 성립한다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

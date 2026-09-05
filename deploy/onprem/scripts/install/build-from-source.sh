@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# build-from-source.sh — [대상 서버 / 폐쇄망 Rocky 9] 소스 오프라인 재빌드(신규)
+# build-from-source.sh — [대상 서버 / 폐쇄망 RHEL 8.9] 소스 오프라인 재빌드(신규)
+#   ⚠ 구 서술 폐기(2026-08-28) — "Rocky 9".
 #
 #   사전 빌드 아티팩트(jar/dist) 대신, 번들된 소스 + 빌드 키트로 타깃에서
 #   직접 재빌드한다. 외부 네트워크 호출은 전혀 하지 않는다(전부 로컬).
@@ -15,17 +16,36 @@ set -euo pipefail
 #     src/{backend,frontend,ai-server}        빌드용 소스
 #
 #   산출물(install.sh 가 기대하는 위치에 배치 — 이후 install.sh 가 그대로 설치):
-#     artifacts/backend/klid-backend.jar
-#     artifacts/frontend/dist
+#     artifacts/backend/api.war          ← 반입 정본(외부 WAS 반입, @design DEPLOY-001)
+#     artifacts/backend/klid-backend.jar ← 베어메탈 형상용(반입 대상 아님)
+#       ★ 빌드머신 수집(package/10-build-backend.sh)은 2026-08-30 부터 이 jar 를 <담지 않는다>
+#         (WITH_BACKEND_JAR=1 일 때만). 여기서는 계속 만든다 — 이 스크립트는 <타깃 장비>에서
+#         돌고 그 결과물은 매체가 아니라 설치 장비에 생기며, 베어메탈 복귀 경로가 그것을 쓴다.
+#     artifacts/frontend/dist/{control,portal}
+#       ★★ 화면 산출물은 <배포 향마다 따로> 만든다 — 빌드머신 경로(package/20-build-frontend.sh)와
+#         같은 규칙이다. 라우트 채널이 빌드 시점에 굳어 반대 향 화면이 산출물에서 통째로
+#         빠지므로(관제 산출물에 /portal 0건 · 포털 산출물에 내부 화면 0건), 한 번만 빌드하면
+#         포털향 설치에 포털 화면이 하나도 없는 산출물이 올라간다. 오류가 없어 조용히 어긋난다.
+#         ⚠ 대가: frontend 재빌드 시간이 <약 2배>다(채널당 1회). backend 는 그대로다.
+#
+#   ★ 빌드 키트는 2026-08-30 부터 <기본 반입 대상이 아니다>(현장 재빌드 요구 없음 확인).
+#     따라서 이 스크립트는 <빌드 키트를 명시적으로 함께 반입한 패키지>에서만 동작한다.
+#     빌드머신에서 WITH_BUILDTOOLS=1 ./scripts/package.sh 로 수집해야 한다.
 #
 #   사용법:
 #     sudo ./scripts/install/build-from-source.sh          # backend + frontend 재빌드
 #     SKIP_BACKEND=1 ./scripts/install/build-from-source.sh
 #     SKIP_FRONTEND=1 ./scripts/install/build-from-source.sh
+#     BUILD_FLAVORS="control" ./scripts/install/build-from-source.sh   # 한 향만 재빌드
 #     VITE_API_BASE_URL=/api/v1 VITE_TOKEN_INGRESS=localStorage ... 빌드 인자 override 가능
 #
-#   ★ frontend 재빌드 시 VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL 은 필수다
-#     (미설정이면 빌드 중단 — 세션 만료 시 상위 로그인 페이지로 이동 불가).
+#   ★ 상위 로그인 주소(VITE_CONTROL_LOGIN_URL / VITE_PORTAL_LOGIN_URL)는 <빌드에 필요 없다>.
+#     런타임 설정(/etc/klid/frontend.env → klid-config.js)에서 읽으므로 여기 주는 값은
+#     런타임 설정이 없을 때의 폴백일 뿐이다. 필수 값 검사는 설치 시점으로 옮겼다
+#     (install/render-frontend-config.sh 가 비면 생성을 거부한다).
+#     ⚠ 구 서술 폐기(2026-08-30): "재빌드 시 필수다 — 미설정이면 빌드 중단". 그대로 두면
+#       주소를 바꾸려고 대상 서버에서 재빌드하게 만든다(런타임 주입을 도입한 이유가 그것이다).
+#       같은 파일 본문(빌드 인자 조립부)이 이미 반대로 적고 있어 자기모순이었다.
 #
 #   ai-server 는 별도 컴파일이 없다 — 13-install-ai-server.sh 가
 #   pip install --no-index --find-links vendor/wheels 로 소스 설치한다(아래 안내).
@@ -49,6 +69,39 @@ GRADLE_DIR="${BUILD_PREFIX}/gradle"
 GRADLE_HOME="${BUILD_PREFIX}/gradle-home"
 
 require_cmd tar
+
+# ----------------------------------------------------------------------------
+# 사전 확인 — 빌드 키트가 반입되지 않았으면 여기서 <명확히> 끝낸다.
+#   빌드 키트는 기본 제외라(2026-08-30) "패키지가 손상됐다"가 아니라 "이 패키지는 소스 재빌드용이
+#   아니다"가 정상 상태다. 그 구분을 안내하지 않으면 현장이 매체 손상으로 오인한다.
+# ----------------------------------------------------------------------------
+_kit_missing=""
+_kit_need() {  # _kit_need <경로> <설명>
+  if [[ ! -d "$1" ]] || [[ -z "$(ls -A "$1" 2>/dev/null || true)" ]]; then
+    _kit_missing="${_kit_missing}${_kit_missing:+, }$2"
+  fi
+}
+_kit_need "${BT}/jdk"    "buildtools/jdk (Temurin JDK17 full)"
+_kit_need "${BT}/node"   "buildtools/node (Node 20)"
+_kit_need "${BT}/gradle" "buildtools/gradle (Gradle dist)"
+[[ -d "${SRC}/backend" || -d "${SRC}/frontend" ]] \
+  || _kit_missing="${_kit_missing}${_kit_missing:+, }src/{backend,frontend} (빌드용 소스)"
+
+if [[ -n "${_kit_missing}" ]]; then
+  warn "이 패키지에는 오프라인 빌드 키트가 반입되어 있지 않습니다(누락: ${_kit_missing})."
+  warn ""
+  warn "이는 손상이 아니라 <기본 형상>입니다 — 2026-08-30 부터 빌드 키트는 반입 대상에서 빠졌습니다"
+  warn "(현장 재빌드 요구가 없음을 확인. 라이선스 표면·매체 용량·보안 표면이 함께 줄어듭니다)."
+  warn ""
+  warn "  · 소스 재빌드가 <필요 없다면>: 이 스크립트를 쓰지 말고 사전 빌드 아티팩트로 설치하세요."
+  warn "        sudo ./scripts/install.sh"
+  warn "  · 소스 재빌드가 <필요하다면>: 빌드머신(인터넷 O)에서 키트를 포함해 다시 수집한 뒤 반입하세요."
+  warn "        WITH_BUILDTOOLS=1 ./scripts/package.sh"
+  warn ""
+  warn "상세: docs/08-build-from-source.md · docs/02-build-package.md"
+  die "빌드 키트 없음 — 소스 재빌드를 진행할 수 없습니다."
+fi
+
 ensure_dir "${BUILD_PREFIX}" "${JDK_DIR}" "${NODE_DIR}" "${GRADLE_DIR}"
 
 # ----------------------------------------------------------------------------
@@ -129,12 +182,14 @@ else
   [[ -d "${BE_SRC}" ]] || die "backend 소스 없음: ${BE_SRC} (src/ 미동봉?)"
   BE_OUT="${ONPREM}/artifacts/backend"
   ensure_dir "${BE_OUT}"
-  info "[build-src] backend 오프라인 빌드(gradle --offline bootJar -x test)..."
+  # ★ bootWar 도 함께 만든다 — 반입 정본이 api.war 이기 때문이다(@design DEPLOY-001).
+  #   jar 만 만들면 재빌드 결과로는 <배포할 수 없는> 산출물만 나온다.
+  info "[build-src] backend 오프라인 빌드(gradle --offline bootJar bootWar -x test)..."
   JAVA_HOME="${JAVA_HOME}" PATH="${JAVA_HOME}/bin:${PATH}" \
     "${GRADLE_BIN}" --offline --no-daemon \
       --gradle-user-home "${GRADLE_HOME}" \
       -p "${BE_SRC}" \
-      bootJar -x test \
+      bootJar bootWar -x test \
     || die "[build-src] backend 오프라인 빌드 실패 — gradle-home 캐시 누락 가능(08-build-from-source.md 참고)"
 
   # bootJar 결과(-plain.jar 제외)를 고정 이름으로 배치.
@@ -150,12 +205,21 @@ else
   [[ "${#jars[@]}" -ge 1 ]] || die "[build-src] bootJar 결과 없음: ${BE_SRC}/build/libs/*.jar"
   rm -f "${BE_OUT}"/*.jar
   install -m 0644 "${jars[0]}" "${BE_OUT}/klid-backend.jar"
+  ok "[build-src] backend jar(개발/베어메탈용): ${BE_OUT}/klid-backend.jar  ($(du -h "${BE_OUT}/klid-backend.jar" | cut -f1))"
+
+  # WAR(반입 정본) — 이름이 곧 웹 컨텍스트라 rename 금지.
+  war_src="${BE_SRC}/build/libs/api.war"
+  [[ -f "${war_src}" ]] || die "[build-src] WAR 산출물 없음: ${war_src} — src/backend 의 build.gradle 에 bootWar 설정이 있는지 확인"
+  rm -f "${BE_OUT}"/*.war
+  install -m 0644 "${war_src}" "${BE_OUT}/api.war"
+  ok "[build-src] backend WAR(반입 정본): ${BE_OUT}/api.war  ($(du -h "${BE_OUT}/api.war" | cut -f1))"
+
+  # ★ SHA256SUMS 는 WAR 배치 뒤에 쓴다(목록에서 반입 정본이 빠지지 않도록).
   sha256_write "${BE_OUT}"
-  ok "[build-src] backend jar: ${BE_OUT}/klid-backend.jar  ($(du -h "${BE_OUT}/klid-backend.jar" | cut -f1))"
 fi
 
 # ----------------------------------------------------------------------------
-# frontend — node_modules 복원 → npm run build(오프라인) → artifacts/frontend/dist
+# frontend — node_modules 복원 → 향별 오프라인 빌드 → artifacts/frontend/dist/{control,portal}
 # ----------------------------------------------------------------------------
 if [[ "${SKIP_FRONTEND:-0}" == "1" ]]; then
   warn "[build-src] frontend 재빌드 SKIP (SKIP_FRONTEND=1)"
@@ -188,30 +252,62 @@ else
   export VITE_TOKEN_INGRESS="${VITE_TOKEN_INGRESS:-localStorage}"
   export VITE_DEV_LOGIN_ENABLED="${VITE_DEV_LOGIN_ENABLED:-true}"
   export VITE_DEV_UPLOAD_ENABLED="${VITE_DEV_UPLOAD_ENABLED:-true}"
-  # 상위 시스템 로그인 URL(H-ISSUE-02) — 기본값 없이 fail-closed. 비면 세션 만료 시 막다른 화면.
+  # 상위 시스템 로그인 URL — <빌드에 요구하지 않는다>. 이 값들은 런타임 설정
+  # (/etc/klid/frontend.env → klid-config.js)에서 읽으며, 여기 주는 값은 런타임 설정이 없을
+  # 때의 폴백일 뿐이다. fail-closed 가드는 설치 시점으로 옮겼다
+  # (install/render-frontend-config.sh — 필수 값이 비면 생성을 거부한다).
+  # ⚠ 되살리지 말 것: 되살리면 대상 서버에서 재빌드해야만 주소를 바꿀 수 있는 상태로 돌아간다.
   export VITE_CONTROL_LOGIN_URL="${VITE_CONTROL_LOGIN_URL:-}"
   export VITE_PORTAL_LOGIN_URL="${VITE_PORTAL_LOGIN_URL:-}"
-  require_upstream_login_urls
   info "[build-src] VITE_API_BASE_URL=${VITE_API_BASE_URL} VITE_TOKEN_INGRESS=${VITE_TOKEN_INGRESS} VITE_DEV_LOGIN_ENABLED=${VITE_DEV_LOGIN_ENABLED} VITE_DEV_UPLOAD_ENABLED=${VITE_DEV_UPLOAD_ENABLED}"
   info "[build-src] VITE_CONTROL_LOGIN_URL=${VITE_CONTROL_LOGIN_URL} VITE_PORTAL_LOGIN_URL=${VITE_PORTAL_LOGIN_URL}"
 
-  info "[build-src] frontend 오프라인 빌드(npm run build)..."
-  # node_modules 가 이미 있으므로 npm run build 는 네트워크 없이 동작한다.
-  ( cd "${FE_SRC}" \
-    && PATH="${NODE_DIR}/bin:${PATH}" npm run build --offline ) \
-    || die "[build-src] frontend 오프라인 빌드 실패(npm run build) — node_modules 무결성 확인"
+  # ---- 배포 향별 빌드 ------------------------------------------------------
+  #   ★ 두 벌을 <스테이징>에 모두 만든 뒤에 교체한다. 앞서 지우면 두 번째 빌드가 실패했을 때
+  #     아무 산출물도 없는 상태가 남고, 설치가 그 자리에서 멈춘다.
+  #   ★ 어느 향만 만들지 좁히려면 BUILD_FLAVORS="control" 처럼 준다. 기본은 둘 다다 —
+  #     좁히는 것이 기본이면 "포털향인데 관제 산출물만 있는" 조용한 어긋남이 되돌아온다.
+  read -r -a _fe_flavors <<< "${BUILD_FLAVORS:-control portal}"
+  for _f in "${_fe_flavors[@]}"; do
+    case "${_f}" in
+      control|portal) ;;
+      *) die "[build-src] 알 수 없는 배포 향: '${_f}' (허용: control | portal)" ;;
+    esac
+  done
 
-  [[ -d "${FE_SRC}/dist" ]] || die "[build-src] 빌드 결과(dist) 없음: ${FE_SRC}/dist"
+  FE_STAGE="${FE_OUT}/.dist.staging"
+  rm -rf "${FE_STAGE}"
+  ensure_dir "${FE_STAGE}"
+
+  for _f in "${_fe_flavors[@]}"; do
+    info "[build-src] frontend 오프라인 빌드 [${_f}] (npm run build:${_f})..."
+    # node_modules 가 이미 있으므로 npm run build 는 네트워크 없이 동작한다.
+    # 앞 채널 산출물이 섞이지 않게 매번 비우고 시작한다.
+    rm -rf "${FE_SRC}/dist"
+    ( cd "${FE_SRC}" \
+      && PATH="${NODE_DIR}/bin:${PATH}" npm run "build:${_f}" --offline ) \
+      || die "[build-src] frontend 오프라인 빌드 실패(npm run build:${_f}) — node_modules 무결성 확인"
+
+    [[ -d "${FE_SRC}/dist" ]] || die "[build-src] 빌드 결과(dist) 없음: ${FE_SRC}/dist (${_f})"
+    [[ -f "${FE_SRC}/dist/index.html" ]] || die "[build-src] ${_f} 산출물에 index.html 이 없습니다 — 빌드가 반쪽입니다."
+    cp -R "${FE_SRC}/dist" "${FE_STAGE}/${_f}"
+    ok "[build-src] frontend [${_f}]: $(du -sh "${FE_STAGE}/${_f}" | cut -f1)"
+  done
+
   rm -rf "${FE_OUT}/dist"
-  cp -R "${FE_SRC}/dist" "${FE_OUT}/dist"
+  mv "${FE_STAGE}" "${FE_OUT}/dist"
   sha256_write "${FE_OUT}/dist"
   ok "[build-src] frontend dist: ${FE_OUT}/dist  ($(du -sh "${FE_OUT}/dist" | cut -f1))"
+  for _f in "${_fe_flavors[@]}"; do
+    info "[build-src]   · ${_f} → ${FE_OUT}/dist/${_f}"
+  done
 fi
 
 info "================================================================"
 ok "[build-src] 소스 재빌드 완료."
-info "  - backend jar  → ${ONPREM}/artifacts/backend/klid-backend.jar"
-info "  - frontend dist → ${ONPREM}/artifacts/frontend/dist"
+info "  - backend WAR  → ${ONPREM}/artifacts/backend/api.war        (반입 정본 — WAS 에 올린다)"
+info "  - backend jar  → ${ONPREM}/artifacts/backend/klid-backend.jar (개발/베어메탈용)"
+info "  - frontend dist → ${ONPREM}/artifacts/frontend/dist/{control,portal}  (설치가 배포 향으로 하나를 고른다)"
 info ""
 info "  다음 단계: sudo ./scripts/install.sh 를 실행하면 위 산출물이 설치됩니다."
 info "  (ai-server 는 별도 컴파일 없음 — install.sh 의 13-install-ai-server.sh 가"

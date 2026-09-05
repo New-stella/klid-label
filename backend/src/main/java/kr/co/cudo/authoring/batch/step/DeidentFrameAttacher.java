@@ -206,8 +206,9 @@ public class DeidentFrameAttacher {
      * <h3>왜 {@code FRM_NO} 를 쓰면 안 되는가 (선결 결함 수정)</h3>
      * <p>{@code FRM_NO} 는 <b>추출 순번</b>(0,1,2…)이고 {@code VDO_FRM_NO} 가 <b>실제 영상 내 위치</b>다
      * ({@code LsDataSrc} 필드 주석이 이 컬럼을 "재비식별 재추출용"이라 명시한다). 초기 추출
-     * ({@code FfmpegFrameExtractor})은 {@code seekMillis = mark.frameIndex() × 1000 / fps} 로 <b>실제 위치</b>를
-     * 찾아 뽑고 {@code LsDataSrc.create(rawSn, i, mark.frameIndex(), …)} 로 두 값을 각각 적재한다.
+     * ({@code FfmpegFrameExtractor})은 마킹의 frameIndex 를 {@code VideoFrameTimeCalculator.millisAt} 로
+     * seek 위치로 옮겨 <b>실제 위치</b>를 찾아 뽑고 {@code LsDataSrc.create(rawSn, i, mark.frameIndex(), …)}
+     * 로 두 값을 각각 적재한다.
      * 구 구현은 재추출 시 {@code FRM_NO} 를 프레임 번호로 넘겨, 마킹이 영상 1000·2000·3000 번이면
      * 비식별 영상의 <b>0·1·2 번(영상 맨 앞)</b> 을 뽑아 붙였다 — 라벨 좌표는 원래 장면 기준이므로
      * "라벨 좌표 보존"이 성립하지 않았다.

@@ -5,13 +5,10 @@ import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
 import kr.co.cudo.authoring.augment.integration.AugmentInputFile;
 import kr.co.cudo.authoring.augment.integration.AugmentSubmitCommand;
 import kr.co.cudo.authoring.augment.integration.ExternalAugmentClient;
-import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.async.SubmitSignalDispatch;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.observability.metrics.AugmentMetrics;
-import kr.co.cudo.authoring.video.entity.LsDataRaw;
-import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.DeidentReportGate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -140,11 +137,11 @@ public class AugmentJobSubmitService {
     /** 명세서 §4.1 input_files 상한. 설정으로 낮출 수는 있어도 계약 상한을 넘길 수 없다. */
     private static final int CONTRACT_MAX_INPUT_FILES = 100;
 
-    /** 이벤트 유형 미상 영상의 대체값 — {@code evnt_type} 은 외부 계약상 필수(1~20)다. */
-    static final String EVNT_TYPE_FALLBACK = "ETC";
-
-    private final LsDataSrcRepository srcRepository;
-    private final VideoRepository videoRepository;
+    /**
+     * 위탁 입력 프레임 경로 조달 — <b>조달처는 출처가 가르고 기본값은 비식별본</b>이다.
+     * 이 서비스는 어느 조달처인지 묻지 않는다(분기가 늘면 또 붙는다).
+     */
+    private final AugmentInputFrameSource inputFrameSource;
     private final AugmentJobRecorder jobRecorder;
     private final ExternalAugmentClient externalClient;
     private final AugmentMetrics metrics;
@@ -156,8 +153,7 @@ public class AugmentJobSubmitService {
     private final Scheduler submitScheduler;
     private final int maxInputFiles;
 
-    public AugmentJobSubmitService(LsDataSrcRepository srcRepository,
-                                   VideoRepository videoRepository,
+    public AugmentJobSubmitService(AugmentInputFrameSource inputFrameSource,
                                    AugmentJobRecorder jobRecorder,
                                    ExternalAugmentClient externalClient,
                                    AugmentMetrics metrics,
@@ -166,8 +162,7 @@ public class AugmentJobSubmitService {
                                    @Qualifier("augmentSubmitScheduler") Scheduler submitScheduler,
                                    @Value("${authoring.augment.external.max-input-files:100}")
                                    int maxInputFiles) {
-        this.srcRepository = srcRepository;
-        this.videoRepository = videoRepository;
+        this.inputFrameSource = inputFrameSource;
         this.jobRecorder = jobRecorder;
         this.externalClient = externalClient;
         this.metrics = metrics;
@@ -229,7 +224,6 @@ public class AugmentJobSubmitService {
             return SubmitOutcome.of(0);
         }
 
-        String evntType = resolveEventType(event.rawSn());
         List<List<FrameInput>> chunks = partition(inputs);
 
         // 전량 선기록 — <위탁 전에> 기대 job 집합을 완성한다(DEV_FIX 2차 MEDIUM-2).
@@ -240,7 +234,7 @@ public class AugmentJobSubmitService {
         }
         List<Long> augJobSns = issued.get();
 
-        dispatchChunks(event, evntType, chunks, augJobSns);
+        dispatchChunks(event, chunks, augJobSns);
         log.info("[Augment] 위탁 개시 originAugSn={} rawSn={} jobCount={}",
                 event.originAugSn(), event.rawSn(), chunks.size());
         return SubmitOutcome.of(chunks.size());
@@ -265,13 +259,13 @@ public class AugmentJobSubmitService {
      * "{@code accepted==0} 이면 즉시 실패 롤업" 이 여기로 이관됐다 —
      * {@link AugmentSubmitRollupTxService} 주석 참조.
      */
-    private void dispatchChunks(AugmentRequestedItemEvent event, String evntType,
+    private void dispatchChunks(AugmentRequestedItemEvent event,
                                 List<List<FrameInput>> chunks, List<Long> augJobSns) {
         int jobCount = chunks.size();
         try {
             Flux.range(0, jobCount)
                     .concatMap(i -> submitChunkAsync(
-                            event, evntType, chunks.get(i), augJobSns, i, jobCount))
+                            event, chunks.get(i), augJobSns, i, jobCount))
                     .then()
                     // 중단 신호는 오류가 아니다 — 남은 청크 종결 기록은 이미 끝났고 정상 완료로 흡수한다.
                     .onErrorResume(SubmitAbortedException.class, e -> Mono.empty())
@@ -308,7 +302,7 @@ public class AugmentJobSubmitService {
      * <p>실패는 {@code onErrorResume} 으로 흡수해 <b>다음 청크를 계속</b> 위탁한다(건별 격리 —
      * 기존 동기 계약과 동일). 사유는 핸들러가 DB 에 남긴다(조용한 삼킴 금지).
      */
-    private Mono<Void> submitChunkAsync(AugmentRequestedItemEvent event, String evntType,
+    private Mono<Void> submitChunkAsync(AugmentRequestedItemEvent event,
                                         List<FrameInput> chunk, List<Long> augJobSns,
                                         int index, int jobCount) {
         return Mono.defer(() -> {
@@ -322,9 +316,14 @@ public class AugmentJobSubmitService {
             }
             int jobSeq = index + 1;
             Long augJobSn = augJobSns.get(index);
+            // 생성 조건·자유 지시문은 <요청 시점에 확정된 값>을 그대로 나른다 — 여기서 영상을 다시
+            // 읽어 재조립하면 적재 원문과 나간 값이 두 벌이 되어 갈라진다.
+            // 이벤트 유형은 나르지 않는다 — 요청자가 고르지 않고 클라이언트가 위탁 바디를 만들 때
+            // 서버 중립값(GenAiJobSubmitRequest.EVENT_TYPE_ETC)을 고정으로 채운다.
+            // [design: INT-008] [design: ADR-059]
             AugmentSubmitCommand command = new AugmentSubmitCommand(
-                    event.originAugSn(), event.augType(), event.prompt(),
-                    chunkRequestId(event.idempotencyKey(), jobSeq), evntType,
+                    event.originAugSn(), event.augType(), event.mtdt(), event.promptText(),
+                    chunkRequestId(event.idempotencyKey(), jobSeq),
                     event.requestUserNo(), event.callbackUrl(),
                     chunk.stream().map(FrameInput::toInputFile).toList(), jobSeq, jobCount);
             return externalClient.requestAugment(command)
@@ -463,13 +462,20 @@ public class AugmentJobSubmitService {
     }
 
     /**
-     * 대상 영상의 <b>비식별</b> 프레임 경로를 순서대로 만든다. 각 항목은 외부로 나갈 입력 파일과
+     * 대상 영상의 위탁 입력 프레임 경로를 순서대로 만든다. 각 항목은 외부로 나갈 입력 파일과
      * 내부 대응(프레임 {@code srcSn})을 함께 들고 다닌다 — 결과를 정확한 프레임에 되붙이기 위함이다.
      *
-     * @throws DeidPathMissingException 프레임이 없거나 비식별 경로가 빈 프레임이 하나라도 있을 때
+     * <p><b>조달처는 여기서 가르지 않는다</b> — 관제는 비식별본, 포털 업로드 자산은 본인 원본이며
+     * 그 판정은 {@link AugmentInputFrameSource} 한 곳이 갖는다(기본값 비식별본, 서로 폴백 없음).
+     * 이 자리에 「포털이면 건너뛴다」를 두면 관제 자산에서 비식별본이 빠진 경우까지 함께 열린다.
+     *
+     * <p>거부 규약은 조달처와 무관하게 <b>같다</b> — 프레임이 없거나 경로가 빈 프레임이 하나라도
+     * 있으면 위탁을 거부한다. 부분 위탁은 산출물이 프레임 일부에만 대응해 되붙이기가 무너진다.
+     *
+     * @throws DeidPathMissingException 프레임이 없거나 경로가 빈 프레임이 하나라도 있을 때
      */
     private List<FrameInput> resolveDeidInputFiles(Long rawSn) {
-        List<Object[]> rows = srcRepository.findDeidFramePathsByRawSn(rawSn);
+        List<Object[]> rows = inputFrameSource.pathsOf(rawSn);
         if (rows.isEmpty()) {
             throw new DeidPathMissingException("증강 대상 영상에 프레임이 없습니다.", 0);
         }
@@ -478,27 +484,19 @@ public class AugmentJobSubmitService {
         int sequence = 1;
         for (Object[] row : rows) {
             Long srcSn = (Long) row[0];
-            String deidPath = (String) row[1];
-            if (deidPath == null || deidPath.isBlank()) {
+            String framePath = (String) row[1];
+            if (framePath == null || framePath.isBlank()) {
                 missing++;
                 continue;
             }
-            files.add(new FrameInput(sequence++, srcSn, deidPath));
+            files.add(new FrameInput(sequence++, srcSn, framePath));
         }
         if (missing > 0) {
             throw new DeidPathMissingException(
-                    "비식별 프레임 경로가 없는 프레임이 있어 외부 위탁을 거부합니다. missingCount=" + missing,
+                    "위탁 입력 프레임 경로가 없는 프레임이 있어 외부 위탁을 거부합니다. missingCount=" + missing,
                     missing);
         }
         return files;
-    }
-
-    /** 관제 이벤트 유형 코드. 미상이면 계약 필수 필드를 채우기 위해 {@link #EVNT_TYPE_FALLBACK}. */
-    private String resolveEventType(Long rawSn) {
-        return videoRepository.findById(rawSn)
-                .map(LsDataRaw::getEvntTypeCd)
-                .filter(code -> code != null && !code.isBlank())
-                .orElse(EVNT_TYPE_FALLBACK);
     }
 
     private List<List<FrameInput>> partition(List<FrameInput> inputs) {
@@ -527,10 +525,14 @@ public class AugmentJobSubmitService {
      * 위탁 입력 1건 — 외부로 나갈 {@link AugmentInputFile} 과 내부 대응({@code srcSn})을 함께 든다.
      * {@code srcSn} 은 외부 페이로드에 절대 싣지 않는다(내부 식별자 노출 금지).
      */
-    private record FrameInput(int sequence, Long srcSn, String deidPath) {
+    /**
+     * 위탁 입력 1건 — 외부로 나갈 경로와 되붙일 프레임 식별자의 짝.
+     * 경로가 비식별본인지 포털 원본인지는 <b>조달처가 이미 정했고</b> 여기서는 구분하지 않는다.
+     */
+    private record FrameInput(int sequence, Long srcSn, String framePath) {
 
         AugmentInputFile toInputFile() {
-            return new AugmentInputFile(sequence, deidPath);
+            return new AugmentInputFile(sequence, framePath);
         }
 
         AugmentJobFileRef toRef() {

@@ -1,13 +1,13 @@
 ---
 logicraft_item: INTSPEC-004
 type: integration_spec
-version: 8
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:56.127Z
+synced_at: 2026-08-25T10:52:15.709Z
 status: CHANGED
-prev_version: 5
-content_hash: bc11b88ecdb999be08f717bd1c9d19afab9161d0b8364f0cf6e7a91904af63b1
+prev_version: 8
+content_hash: ab53f72de5155db0979fb9502676e35d50deaa1df5547e544addb9d7d37faca6
 stale: false
 raw: ./_raw/INTSPEC-004.json
 links:
@@ -22,7 +22,7 @@ draft
 
 ## version
 
-1.2.0
+1.3.0
 
 ## spec_kind
 
@@ -30,7 +30,7 @@ markdown
 
 ## change_summary
 
-신규 규격 — 검수 승인 export 폴더 JSON 구조 정립 + event_annotation 키 분리 + 구 export 키 정비(ADR-020)
+신규 규격 — 검수 승인 export 폴더 JSON 구조 정립 + event_annotation 키 분리 + 구 export 키 정비(ADR-020) · v1.3.0 — 산출 JSON 의 질문 칸(event.question) 값 출처를 명시: 외부 시계열 위탁 응답이 아니라 저작도구가 보관하는 검증 이벤트 유형별 질문 문구 목록에서 마킹 선택값 → 그 유형의 첫 번째 순으로 조달하고, 유형이나 등록된 질문이 없으면 채우지 않는다. 답변·근거 서술은 자동으로 채우지 않는다는 단서와, 요청 본문에 질문을 실을 자리가 없어 생기는 어긋남을 인지·수용한 사실을 함께 기재했다.
 
 ## content_inline
 
@@ -60,7 +60,10 @@ markdown
 - COCO 표준: `images` / `annotations`(라벨 좌표·속성) / `categories`.
 - **최상위 `event`(구 `event_annotation`) 키**(영상 단위 VQA/CoT/caption)를 **COCO annotations 와 분리**해 보유.
   - `caption`: VLM 생성 + 작업자 수동입력.
-  - `vqa` / `cot`(배열→객체) / `vd_description`: VLM 생성.
+  - `vqa` / `cot`(배열→객체) / `vd_description`: VLM 생성. ⚠ 단 `vqa` 안에서 **질문 칸은 위탁 결과가 아니라 우리 보관 목록에서 조달**하고(아래), **답변·근거 서술은 자동으로 채우지 않는다** — 사람이 확정한다.
+  - **`event.question`(질문 칸) 값 출처** — 외부 시계열 위탁 응답이 아니라 **저작도구가 보관하는 검증 이벤트 유형별 질문 문구 목록**에서 조달한다. 조달 순서는 **① 마킹에서 고른 질문 → ② 그 유형의 첫 번째 질문 → ③ 유형이 없거나 그 유형에 등록된 질문이 없으면 채우지 않는다**(지어내지 않는다).
+    - ⚠ **위탁 응답에는 질문 문장이 실려 오지 않는다** — 질문은 이벤트별로 벤더 서버가 관리하며 연동 시스템이 지정할 수 없다. 그래서 산출 JSON 의 이 칸은 우리 보관 목록이 유일한 출처다.
+    - ⚠ **인지·수용한 잔여 위험** — 지금 위탁 요청 본문에는 우리가 고른 질문을 실을 자리가 없다. 첫 번째가 아닌 질문을 고르면 **산출 JSON 에 기록된 질문과 벤더가 실제로 답한 질문이 달라진다.** 이를 알고 수용했다(되돌리지 말 것). 우리가 고른 질문을 실제로 전송하는 배선은 규격이 그 자리를 열 때 별건으로 다룬다.
 
 ## 구 export 키 정비(ADR-020)
 1. `event_annotation` → **`event`** 로 rename(위치 유지).
@@ -73,6 +76,7 @@ markdown
 - 라벨 본문 뷰는 제거(V114) — export 폴더 JSON 이 라벨 본문의 단일 출처. 변경점/메타는 별도 뷰(V_COMPLETED_LABEL_CHANGE / V_COMPLETED_META).
 - **파생영상(증강·해상도, `ORGNL_RAW_SN` not null)은 `V_COMPLETED_VIDEO.ORGNL_VDO_PATH_NM`(개명 전 `ORIGINAL_VIDEO_PATH`) 가 NULL 로 동결**된다 — 파생영상은 원본영상 자체가 없고 비식별 사본만 있기 때문. 관제는 파생 비디오를 **`DE_IDNTF_FILE_PATH_NM`(V138)** 으로 픽업해야 한다(★BREAKING, 관제 협의 대상 — EXTSYS-005 참조).
 - **프레임만 이관한 원본은 `V_COMPLETED_VIDEO.DE_IDNTF_YN` 이 미수행으로 나가고 `DE_IDNTF_FILE_PATH_NM` 도 빈 값일 수 있다** — 비식별할 영상 자체가 없으므로 그것이 사실이며, 비식별의 실체는 프레임 축에 있다. 승인된 영상이므로 뷰에서 감추거나 비우지 않는다. 관제는 이 조합을 결함으로 보지 말고 프레임 축 산출물로 픽업해야 한다(관제 협의 대상 — EXTSYS-005 참조). 이 예외의 근거 결정은 ADR-023 이 소유한다.
+- **완료 영상 뷰의 썸네일파일경로명은 저작도구 비식별 첫 프레임의 절대경로다** — 프레임 인덱스가 가장 작고 폐기가 아니며 경로가 비어 있지 않고 원본 프레임 경로와 같지 않은 한 건을 고른다(마지막 조건은 프레임 페어 뷰의 비식별 경로 불변식 게이트와 동일하다). 관제 인입값을 그대로 넘기던 구 사양은 폐기됐다(★BREAKING, 관제 협의 대상 — EXTSYS-005 참조). 파생영상도 자기 프레임에서 조달하며, 프레임이 없으면 비우고 원본 프레임 경로로 폴백하지 않는다.
 
 ## ★ 관제 통지 — 2경로 분리 계약
 검수 승인·export 재생성이 완료되면 저작도구는 관제로 outbound 통지한다:

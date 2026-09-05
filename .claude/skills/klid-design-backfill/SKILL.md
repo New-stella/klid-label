@@ -20,7 +20,7 @@ description: KLID-저작도구 설계 부채 회수 스킬. klid-dispatch 는 �
 ## ★ 핵심 원칙
 
 1. **여기서는 코드가 진실원(retro-align)** — 이 시점엔 코드가 이미 구현·커밋·QA 통과 상태다. 설계를 코드에 **맞춘다**.
-   ⚠️ 이건 `klid-dispatch` 의 「설계 먼저」와 모순이 아니다 — **모드가 다르다.** 앞으로 바꿀 것은 dispatch Phase 3.6(설계→코드), 이미 어긋난 것을 사후에 메우는 것은 이 스킬(코드→설계)이다. 이 구분은 `.claude/rules/logicraft-integration.md` §0.5 가 정한 것이다.
+   ⚠️ 이건 `klid-dispatch` 의 「설계 먼저」와 모순이 아니다 — **모드가 다르다.** 앞으로 바꿀 것은 dispatch Phase 3.6(설계→코드), 이미 어긋난 것을 사후에 메우는 것은 이 스킬(코드→설계)이다. 이 구분은 `docs/rules/logicraft-integration.md` §0.5 가 정한 것이다.
    ⚠️ "retro-align"은 개념 이름일 뿐 `mc-logi-update` 의 형식 모드·파라미터가 아니다 — 코드 우선 정합은 **edit_intent/edit_context 문구로** 전달한다.
 2. **실제 수정은 mc-logi-update 위임** — 이 스킬은 LogiCraft ITEM 을 직접 고치지 않는다. cascade·specialist·검증은 그 스킬이 처리한다.
 3. **근거는 CO §6 + 본문 + 실제 코드** — 무엇을 어떻게 고칠지는 CO 파일의 §6·§2~3·§7(커밋)과, 필요하면 그 커밋의 실제 코드에서 확인. **AI 추정 금지**.
@@ -58,9 +58,9 @@ change_orders: ".claude/change-orders/"
 ### Phase 1 — 계획  🚦게이트
 대상별로 **무엇을 어떻게 고칠지** 초안을 제시. 형식:
 ```
-CO-NNN (제목) — 설계반영 대기
+CO-{ID} (제목) — 설계반영 대기
   · API-NNN: 응답 스키마를 flat → envelope 로 정정
-    (근거: CO-NNN §6 + 커밋 abc1234 의 실제 코드. 현 설계 vN 은 코드와 drift)
+    (근거: CO §6 + 커밋 abc1234 의 실제 코드. 현 설계 vN 은 코드와 drift)
 
 [모드 C] DOMAIN-005 — IMPREC 미기록 12건
   · DFEAT-021 → review/service/ReviewService.java (근거: @design DFEAT-021 태그 + 커밋 def5678)
@@ -91,7 +91,7 @@ edit_context: |
 `mc-logi-update` 는 cascade 시 **말단 항목을 종종 빠뜨린다**(AC·SCREEN·SEQ·CDIAG·CMP 등 leaf 는 비가시). 명시할 것:
 - *"cascade 를 **말단까지 완주**하라. 바뀐 상위 ITEM 마다 `analyze_impact` 로 하위 영향을 조회해 **AC·SCREEN·SEQ·CDIAG·CMP 등 leaf 를 빠짐없이 큐에 넣고** 정합하라. leaf 를 '변경 없음'으로 단정 말고 실제 대조 후 판정."*
 - CO §6 에 예상 하위 ITEM 이 있으면 그 ID 를 **명시적 cascade 대상으로 함께** 넘긴다.
-- `.claude/rules/logicraft-integration.md` 의 쓰기 규율을 함께 싣는다: 배열 원소 삭제 금지(폐기는 `[폐기]` 표기 — 단 `screen_spec`·`erd` 팬텀 컬럼·도해 타입은 예외) · `status` 임의 변경 금지 · **한글을 유니코드 이스케이프로 쓰지 말 것** · 전체 교체 전 기준선 길이 확인 · 쓰기 전 `stale`·`stale_reason` 을 읽어 보고에 기록(쓰기가 그것을 자동 해제한다) · 개수 표기(`N종`) 쓰지 말 것.
+- `docs/rules/logicraft-integration.md` 의 쓰기 규율을 함께 싣는다: 배열 원소 삭제 금지(폐기는 `[폐기]` 표기 — 단 `screen_spec`·`erd` 팬텀 컬럼·도해 타입은 예외) · `status` 임의 변경 금지 · **한글을 유니코드 이스케이프로 쓰지 말 것** · 전체 교체 전 기준선 길이 확인 · 쓰기 전 `stale`·`stale_reason` 을 읽어 보고에 기록(쓰기가 그것을 자동 해제한다) · 개수 표기(`N종`) 쓰지 말 것.
 
 회수: 바뀐 ITEM 목록(id·version·요지) 회수. 실패·미처리는 그대로 노출.
 

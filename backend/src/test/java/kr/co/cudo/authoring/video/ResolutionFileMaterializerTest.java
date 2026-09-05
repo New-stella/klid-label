@@ -7,6 +7,7 @@ import kr.co.cudo.authoring.video.service.ResizeConcurrencyGate;
 import kr.co.cudo.authoring.video.service.ResolutionFileMaterializer;
 import kr.co.cudo.authoring.video.service.ResolutionSnapshot;
 import kr.co.cudo.authoring.video.service.port.ImageResizer;
+import kr.co.cudo.authoring.video.service.port.Java2DImageResizer;
 import kr.co.cudo.authoring.video.service.port.VideoFileCopier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,10 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -26,6 +31,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -79,6 +85,93 @@ class ResolutionFileMaterializerTest {
         verify(videoFileCopier).copy(videoSrc, videoDst);
         verify(imageResizer).resize(fSrc, fDst, 1280, 720);
         verify(resizeGate).release();
+    }
+
+    /**
+     * 리사이저에 넘기는 값은 <b>프리셋 상한</b>이지 스냅샷의 산출 크기가 아니다 (@design ADR-018).
+     *
+     * <p>리사이저는 인자를 상한으로 받아 {@code LetterboxTransform} 을 스스로 적용한다. 이미 도출이 끝난
+     * 산출 크기를 넘기면 같은 원본에 변환이 두 번 걸려, 긴 변 상한이 정확히 걸리고 반올림이 올림으로
+     * 떨어지는 구간에서 산출 파일이 스냅샷보다 1px 작아진다(2560x1080+480p → 854 대신 853).
+     * 그러면 라벨 최우측 좌표가 이미지 밖으로 나가고, 응답·DB 가 보고하는 크기와 실제 파일이 갈린다.
+     *
+     * <p>위 {@link #materializeCopiesVideoAndResizesFramesUnderGate} 는 프리셋(1280x720)과 산출
+     * 크기(1280x720)가 <b>우연히 같은</b> 조합이라 이 배선을 구분하지 못한다 — 두 값이 갈리는 조합이
+     * 반드시 필요하다.
+     */
+    @Test
+    @DisplayName("리사이저에는_산출크기가_아니라_프리셋_상한을_넘긴다")
+    void materializePassesPresetLimitNotComputedSize() {
+        Path videoSrc = base.resolve("videos/deid.mp4");
+        Path videoDst = base.resolve("resolution/910/video/RESL_480P.mp4");
+        Path fSrc = base.resolve("frames/deid/f0.jpg");
+        Path fDst = base.resolve("resolution/910/frames/f0.jpg");
+        when(videoFileCopier.exists(videoSrc)).thenReturn(true);
+        // 원본 2560x1080 + 480p → 산출 854x360. 프리셋 수치(854x480)와 산출 크기(854x360)가 갈린다.
+        ResolutionSnapshot s = new ResolutionSnapshot(910L, 200L, 42L, ResolutionPreset.RESL_480P,
+                2560, 1080, 854, 360, 0.33359375, 0.33359375, 0, 0, "rev1", videoSrc, videoDst,
+                java.time.Instant.now(), List.of(
+                new ResolutionSnapshot.FrameSpec(1000L, 0L, 0L, null, fSrc, fDst)));
+
+        materializer.materialize(s);
+
+        verify(imageResizer).resize(fSrc, fDst,
+                ResolutionPreset.RESL_480P.width(), ResolutionPreset.RESL_480P.height());
+        verify(imageResizer, never()).resize(any(), any(), eq(854), eq(360));
+    }
+
+    /**
+     * <b>종단 가드</b> — {@code materialize} → <b>실제</b> {@link Java2DImageResizer} → 산출 파일 치수를
+     * 한 줄로 잇는다 (@design ADR-018 · AC-003 ⑨).
+     *
+     * <p>위 {@link #materializePassesPresetLimitNotComputedSize} 는 Mockito 인자 검증이라 파일을 만들지
+     * 않고, {@code ResolutionLetterboxTest} 는 리사이저를 직접 호출해 materializer 를 경유하지 않으며,
+     * {@code ResolutionDerivativeFlowIntegrationTest} 는 리사이저를 {@code @MockBean} 으로 격리한다 —
+     * 세 층 어디에도 「materializer 가 실제 리사이저에 무엇을 넘겨 어떤 크기의 파일이 나오는가」를
+     * 확인하는 지점이 없었다. 리사이저 구현 교체·인자 의미 변경처럼 인자 층의 시야 밖에서 같은 증상이
+     * 나는 변화를 이 케이스가 잡는다.
+     *
+     * <p><b>비멱등 조합이어야 한다</b>: 2560x1080 + 480p 는 프리셋 상한(854x480)과 산출 크기(854x360)가
+     * 갈리고, 산출 크기를 상한으로 되넘기면 파일이 853x360 으로 1px 작아진다. 멱등 구간(예: 1920x1080
+     * + 720p)만 쓰면 두 배선이 같은 결과를 내 이 결함 클래스를 한 건도 잡지 못한다.
+     */
+    @Test
+    @DisplayName("실제_리사이저로_materialize하면_산출_파일이_스냅샷_산출크기와_같다")
+    void materializeWithRealResizerWritesSnapshotSizedFile() throws Exception {
+        ResolutionFileMaterializer real = new ResolutionFileMaterializer(
+                new Java2DImageResizer(), videoFileCopier, resizeGate);
+        ReflectionTestUtils.setField(real, "storageDeidentifiedPath", base.toString());
+
+        Path videoSrc = base.resolve("videos/deid.mp4");
+        Path videoDst = base.resolve("videos/resolution/200/920/RESL_480P.mp4");
+        when(videoFileCopier.exists(videoSrc)).thenReturn(true);
+
+        // 비식별 원본 프레임을 실제 이미지 파일로 깐다(2560x1080 파노라마).
+        Path fSrc = base.resolve("frames/deid/42/frame-0.png");
+        Files.createDirectories(fSrc.getParent());
+        BufferedImage srcImg = new BufferedImage(2560, 1080, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = srcImg.createGraphics();
+        g.setColor(Color.RED);
+        g.fillRect(0, 0, 2560, 1080);
+        g.dispose();
+        ImageIO.write(srcImg, "png", fSrc.toFile());
+
+        Path fDst = base.resolve("frames/deid/920/frame-0.png");
+        ResolutionSnapshot s = new ResolutionSnapshot(920L, 200L, 42L, ResolutionPreset.RESL_480P,
+                2560, 1080, 854, 360, 0.33359375, 0.33359375, 0, 0, "rev1", videoSrc, videoDst,
+                java.time.Instant.now(), List.of(
+                new ResolutionSnapshot.FrameSpec(1000L, 0L, 0L, null, fSrc, fDst)));
+
+        real.materialize(s);
+
+        // 산출 파일 치수 == 스냅샷이 응답·DB·라벨 배율의 원천으로 확정한 산출 크기.
+        BufferedImage out = ImageIO.read(fDst.toFile());
+        assertThat(out.getWidth()).isEqualTo(s.targetW());
+        assertThat(out.getHeight()).isEqualTo(s.targetH());
+
+        // 라벨 최우측·최하단 좌표(원본 극단 × 스냅샷 배율)가 산출 파일 경계 안에 든다.
+        assertThat(Math.round(s.srcW() * s.scaleX())).isLessThanOrEqualTo(out.getWidth());
+        assertThat(Math.round(s.srcH() * s.scaleY())).isLessThanOrEqualTo(out.getHeight());
     }
 
     @Test

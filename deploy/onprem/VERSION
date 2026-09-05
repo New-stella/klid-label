@@ -4,18 +4,28 @@
 # 실제 수집 시점/커밋은 package.sh 가 VERSION.built 로 별도 기록한다.
 
 package_name=klid-label-onprem
-package_format=baremetal-systemd-offline
-target_platform=linux/x86_64 (glibc, CPU-only)
+package_format=war-on-external-was + systemd-offline (ai-server/httpd)
+target_platform=linux/x86_64 (glibc 2.28 / RHEL 8.9, CPU-only)
 
 # 구성 요소(소스 기준 — 정확한 산출 버전은 빌드 시점 기준)
-backend_runtime=Java 17 (Temurin JRE)
-ai_server_runtime=Python 3.11
+backend_artifact=api.war (파일명 = 웹 컨텍스트 /api — rename 금지)
+backend_runtime=외부 WAS 제공 (JBoss EAP 8.1 standalone + Java 17, 대상 장비 기존 설치분). 반입하지 않음
+ai_server_runtime=Python 3.11 (번들 — WAR 와 무관한 별도 프로세스)
 frontend_build=node 20 / Vite (정적 dist)
-reverse_proxy=Caddy 2.x (대안: nginx)
-database=PostgreSQL 16 (외부/별도 준비)
+reverse_proxy=Apache httpd (배포판 RPM — 정적 dist 서빙 + /api 리버스프록시)
+database=PostgreSQL 16 (번들 RPM 또는 외부/별도 준비)
+buildtools=미반입 (현장 재빌드 요구 없음 — 필요 시 WITH_BUILDTOOLS=1 로 수집)
+
+# ⚠ 구 값 폐기(2026-08-30) — 배포 형상 확정(@design DEPLOY-001 · RUNBOOK-001) 반영
+#   package_format=baremetal-systemd-offline
+#     → 백엔드는 systemd 가 java -jar 로 띄우지 않는다. WAS 가 api.war 를 기동한다.
+#   backend_runtime=Java 17 (Temurin JRE)
+#     → JRE 를 반입하던 값. 대상 WAS 가 이미 Java 17 이라 반입 대상에서 제외.
+#   reverse_proxy=Caddy 2.x (대안: nginx)
+#     → 사실과 달랐다. 2026-08-19 에 httpd RPM 으로 전환됐고 Caddy 는 조달·설치 어디에도 없다.
 
 # 포트맵
-port_backend=8080      # context-path=/api, liveness=/api/actuator/health/liveness
+port_backend=8080      # WAS 커넥터. 컨텍스트=/api, liveness=/api/actuator/health/liveness
 port_ai_server=9300    # /health
-port_frontend=80       # Caddy (SPA + /api 프록시)
+port_frontend=80       # httpd (SPA + /api 프록시)
 port_postgres=5432

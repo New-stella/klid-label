@@ -48,6 +48,7 @@
 
   /* ---- color: semantic success ---- */
   --su-0: #eaf6ec;
+  --su-2: #a9dab4;
   --su-4: #3fa654;
   --su-5: #228738; /* base */
   --su-6: #267337;
@@ -62,6 +63,7 @@
 
   /* ---- color: semantic error ---- */
   --e-0: #fdefec;
+  --e-2: #f7afa1;
   --e-4: #f05f42;
   --e-5: #de3412; /* base */
   --e-6: #bd2c0f;
@@ -371,6 +373,7 @@ select:focus-visible,
 .du-badge--inactive { background: var(--n-0); color: var(--n-7); }
 
 /* 역할 배지 — 카탈로그 외 신규 후보(design-notes §역등록 참고, Phase 6 보강 권고 대상) */
+.du-badge--role-admin { background: var(--p-6); color: var(--bg-page); }
 .du-badge--role-reviewer { background: var(--p-0); color: var(--p-6); }
 .du-badge--role-worker { background: var(--s-0); color: var(--s-7); }
 .du-badge--role-portal { background: var(--n-0); color: var(--n-8); border: 1px solid var(--border); }
@@ -550,6 +553,116 @@ select:focus-visible,
   color: var(--n-6);
 }
 
+/* ── 11.5. 관리자 단기 유효창 표면 (수정 모달 한정) ────────────────
+   시각 언어는 SD-015(시스템 설정) 게시본에서 그대로 옮겨왔다 — 새로 만들지 않았다.
+   .unlock-banner / .countdown / .modal* / .field / .input / .btn 규칙은 그 시안과 동일 값.
+   ⚠ 조회 축(검색·역할 필터·목록 테이블)에는 이 표면을 두지 않는다 — 목록·단건 조회는
+     검수자 권한만으로 되고 유효창을 요구하지 않기 때문이다. 잠금 표현을 그리면 사양과 반대가 된다. */
+
+/* 유효창 배너 + 남은 유효 시간 (SD-015 verbatim) */
+.unlock-banner {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-md);
+  background: var(--su-0);
+  color: var(--su-7);
+}
+.unlock-banner .icon { flex: 0 0 auto; color: var(--su-6); }
+.unlock-banner .lock-text { flex: 1 1 auto; min-width: 0; }
+.countdown {
+  margin-left: auto;
+  display: inline-flex; align-items: baseline; gap: var(--sp-xs);
+  background: var(--bg-page);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  color: var(--su-7);
+}
+.countdown .cd-time { font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 만료 — 색만으로 구분하지 않는다: 시간값 00:00 + 만료 안내 문구가 항상 동반된다 */
+.countdown--expired { border-color: var(--e-2); color: var(--e-7); }
+
+/* 저장 요건 표기 — 저장 버튼이 무엇을 더 요구하는지 모달 안에서 읽히게 한다 */
+.du-save-req {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--n-7);
+}
+.du-save-req .icon-sm { color: var(--n-6); margin-top: 3px; }
+
+/* 만료 참고 패널 — 활성 유효창과 동시에 참이 될 수 없어 별도 참고 면으로 둔다 */
+.du-modal-alt--expired .du-readonly-row { margin-top: var(--sp-md); }
+
+/* 다이얼로그 정적 미리보기 — .du-modal 면을 그대로 쓰고 내부 간격만 준다 */
+.du-modal--dialog { display: flex; flex-direction: column; gap: var(--sp-md); }
+
+/* ── 11.6. 관리자 패스워드 재확인 다이얼로그 (:target · SD-015 verbatim) ──
+   무 JS 제약이므로 상태 토글은 :target 이다. rgba() 스크림 값은 기준본과 동일. */
+.modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+.modal:target { display: block; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(19,20,22,0.6); }
+.modal-box {
+  position: relative; z-index: 1;
+  width: min(520px, calc(100% - var(--sp-lg) * 2));
+  max-height: calc(100vh - var(--sp-2xl) * 2);
+  margin: var(--sp-2xl) auto 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+  display: flex; flex-direction: column; gap: var(--sp-md);
+  overflow-y: auto;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); }
+.modal-head h3 { margin: 0; color: var(--n-10); }
+.modal-close {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md); color: var(--n-6); text-decoration: none; flex: 0 0 auto;
+}
+.modal-close:hover { background: var(--n-0); color: var(--n-9); }
+.modal-desc { margin: 0; color: var(--n-7); }
+.modal-footer { display: flex; justify-content: flex-end; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+
+/* 폼 필드 · 입력 · 버튼 (SD-015 verbatim — 다이얼로그 안에서만 쓴다) */
+.field { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.field-label { color: var(--n-8); }
+.field-help { margin: 0; color: var(--n-6); }
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-9);
+  font-size: 17px;
+  line-height: 1.4;
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+}
+.input::placeholder { color: var(--n-6); }
+.input:hover:not(:disabled) { border-color: var(--n-5); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 17px; font-weight: 500; line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover { background: var(--p-6); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover { background: var(--n-0); }
+
+/* 아이콘 크기 (SD-015 verbatim) */
+.icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; }
+
 /* ── 12. 반응형 ───────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .du-page { padding: var(--sp-lg) var(--sp-md) var(--sp-xl); gap: var(--sp-lg); }
@@ -566,4 +679,7 @@ select:focus-visible,
   .du-filter-form > .du-filter-actions { justify-self: stretch; }
   .du-filter-actions { justify-content: flex-end; }
   .du-state-strip { grid-template-columns: 1fr; }
+  /* 좁은 폭에서는 배너 텍스트와 남은 시간을 두 줄로 접는다 */
+  .unlock-banner { flex-wrap: wrap; }
+  .countdown { margin-left: 0; }
 }

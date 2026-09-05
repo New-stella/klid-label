@@ -23,7 +23,7 @@ import java.util.Map;
  * 증강 진행상태 조회 — {@code GET /v1/augments/{id}/progress} (FE 폴링 대상).
  *
  * <h3>트랜잭션을 열지 않는다 (커넥션 점유 차단)</h3>
- * <p>이 경로는 외부 HTTP 왕복(§4.4 상태조회, 필요 시 §4.5 결과조회)을 동반한다. 여기에
+ * <p>이 경로는 외부 HTTP 왕복(§4.2 상태조회, 필요 시 §4.3 결과조회)을 동반한다. 여기에
  * {@code @Transactional} 을 걸면 커넥션 1개를 외부 왕복 내내 붙잡아, 폴링(화면 수 × 주기)만으로
  * 풀이 마른다. DB 접근은 {@link AugmentSnapshotLoader}(짧은 readOnly 트랜잭션)와
  * {@link AugmentJobRecoveryTxService}(회수 반영)에만 있다.
@@ -167,7 +167,7 @@ public class AugmentProgressService {
     /**
      * 상태조회 결과 묶음.
      *
-     * @param statuses 조회에 성공한 청크의 §4.4 응답 (job PK → 응답)
+     * @param statuses 조회에 성공한 청크의 §4.2 응답 (job PK → 응답)
      * @param reason   진행률을 신뢰할 수 없는 사유(전량 조회에 성공했으면 null)
      */
     private record StatusQuery(Map<Long, GenAiJobStatusResponse> statuses,
@@ -281,7 +281,10 @@ public class AugmentProgressService {
                                         Map<Long, GenAiJobStatusResponse> statuses,
                                         AugmentRequestBudget budget,
                                         TokenClaims actor) {
-        if (statuses.isEmpty() || actor.role() != Role.REVIEWER) {
+        // 역할 항만 계층 판정으로 옮긴다 — 부작용(회수)을 검수자 폴링으로 좁힌다는 규칙은 그대로고,
+        // 그 자리에 관리자가 계층으로 함께 들어간다. statuses.isEmpty() 좌변은 변경 없다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (statuses.isEmpty() || !actor.hasRole(Role.REVIEWER)) {
             return false;
         }
         boolean recovered = false;
@@ -367,7 +370,10 @@ public class AugmentProgressService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER && actor.role() != Role.WORKER) {
+        // 검수자·작업자 둘 다 아니면 거부한다. 관리자는 앞항(검수자 이상)에서 통과한다 —
+        // hasRole(WORKER) 는 작업자만 참이라 뒷항이 작업자 전용 자리를 열지 않는다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER) && !actor.hasRole(Role.WORKER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "증강 진행상태 조회 권한이 없습니다.");
         }
     }

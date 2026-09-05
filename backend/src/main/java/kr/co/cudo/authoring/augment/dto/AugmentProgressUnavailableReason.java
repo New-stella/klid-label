@@ -8,8 +8,8 @@ package kr.co.cudo.authoring.augment.dto;
  * <ul>
  *   <li><b>실제 벤더 장애가 "미연동" 으로 위장</b>된다 — 서킷 open({@code CallNotPermittedException})·
  *       타임아웃을 {@code EXTERNAL_DISABLED} 와 같게 취급하면 운영이 장애를 인지하지 못한다.</li>
- *   <li><b>정상 상태가 "조회 실패" 로 보인다</b> — dev/stg/prd 기본이 {@code mode=noop} 이라 대부분
- *       {@link #NOOP} 이 나온다. 이걸 오류로 렌더링하면 사용자가 영원히 스피너·에러를 본다.</li>
+ *   <li><b>정상 상태가 "조회 실패" 로 보인다</b> — 외부 연동이 없는 형상에서는 {@link #NOOP} 이
+ *       나온다. 이걸 오류로 렌더링하면 사용자가 영원히 스피너·에러를 본다.</li>
  * </ul>
  *
  * <h3>FE 표시 지침 (Phase 5 인계)</h3>
@@ -32,8 +32,11 @@ package kr.co.cudo.authoring.augment.dto;
 public enum AugmentProgressUnavailableReason {
 
     /**
-     * 외부 연동 비활성({@code authoring.augment.external.mode=noop}) —
-     * {@code AugmentQueryResult.SkipReason#EXTERNAL_DISABLED}.
+     * 외부 연동 비활성 — {@code AugmentQueryResult.SkipReason#EXTERNAL_DISABLED} 의 표시값.
+     *
+     * <p>⚠ <b>이 값을 만드는 구현체는 2026-09-03 이후 없다</b> — 그것을 만들던 미연동 모드 토글과
+     * no-op 클라이언트가 폐기됐기 때문이다. <b>값과 매핑은 그대로 둔다</b>: 폐기한 것은 「나갈지
+     * 말지를 고르는 환경설정 축」이지 이 표시 축이 아니고, 이미 내려간 응답을 읽는 소비자가 있다.
      */
     NOOP,
 

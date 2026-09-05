@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.common.security;
 
 import kr.co.cudo.authoring.user.entity.LsUserRole;
 import kr.co.cudo.authoring.user.repository.LsUserRoleRepository;
+import kr.co.cudo.authoring.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -23,12 +27,14 @@ import static org.mockito.Mockito.when;
 class UserRoleResolverTest {
 
     private LsUserRoleRepository repository;
+    private UserRepository userRepository;
     private UserRoleResolver resolver;
 
     @BeforeEach
     void setUp() {
         repository = mock(LsUserRoleRepository.class);
-        resolver = new UserRoleResolver(repository);
+        userRepository = mock(UserRepository.class);
+        resolver = new UserRoleResolver(repository, userRepository);
     }
 
     @Test
@@ -68,5 +74,40 @@ class UserRoleResolverTest {
     @DisplayName("userNo_null이면_무권한_null")
     void nullUserNoReturnsNull() {
         assertThat(resolver.resolve(null)).isNull();
+    }
+
+    // --- 관제 인계: userId 클레임 → USER_ID 조회 (@design ADR-063 · UC-041) ---
+
+    @Test
+    @DisplayName("userId_유일_매칭이면_그_userNo를_돌려준다")
+    void resolvesUserNoByUserIdWhenUnique() {
+        when(userRepository.findUserNoByUserId("admin")).thenReturn(Optional.of(880001L));
+
+        assertThat(resolver.resolveUserNoByUserId("admin")).isEqualTo(880001L);
+    }
+
+    @Test
+    @DisplayName("userId_0건_매칭이면_fail_closed_null")
+    void resolvesNullWhenUserIdNotFound() {
+        when(userRepository.findUserNoByUserId("ghost")).thenReturn(Optional.empty());
+
+        assertThat(resolver.resolveUserNoByUserId("ghost")).isNull();
+    }
+
+    @Test
+    @DisplayName("userId_null_또는_공백이면_조회조차_하지_않고_null")
+    void resolvesNullForNullOrBlankUserId() {
+        assertThat(resolver.resolveUserNoByUserId(null)).isNull();
+        assertThat(resolver.resolveUserNoByUserId("   ")).isNull();
+        verify(userRepository, never()).findUserNoByUserId(anyString());
+    }
+
+    @Test
+    @DisplayName("userId_조회_DB예외시_fail_closed_null")
+    void resolvesNullWhenUserIdLookupThrows() {
+        when(userRepository.findUserNoByUserId(anyString()))
+                .thenThrow(new DataAccessResourceFailureException("db down"));
+
+        assertThat(resolver.resolveUserNoByUserId("admin")).isNull();
     }
 }

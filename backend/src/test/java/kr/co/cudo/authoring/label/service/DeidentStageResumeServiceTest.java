@@ -105,8 +105,8 @@ class DeidentStageResumeServiceTest {
         // given — 활성 마킹(PENDING / VLM_REQUESTED)이 남으면 재마킹이 409(V142 부분 유니크)로 막힌다.
         LsDataRaw r = raw(9902L, LsDataRaw.DATA_STTS_MARKING_READY);
         when(videoRepository.findById(9902L)).thenReturn(Optional.of(r));
-        LsMarking pending = LsMarking.createManual(9902L, "EVT", "/v.mp4", "[]", 1L);
-        LsMarking requested = LsMarking.createManual(9902L, "EVT", "/v.mp4", "[]", 1L);
+        LsMarking pending = LsMarking.createManual(9902L, "[]", "1");
+        LsMarking requested = LsMarking.createManual(9902L, "[]", "1");
         requested.markVlmRequested();
         when(markingRepository.findByRawSnAndSttsCdIn(eq(9902L), any()))
                 .thenReturn(List.of(pending, requested));
@@ -118,6 +118,36 @@ class DeidentStageResumeServiceTest {
         assertThat(changed).isTrue();
         assertThat(pending.getSttsCd()).isEqualTo(LsMarking.STATUS_SKIPPED);
         assertThat(requested.getSttsCd()).isEqualTo(LsMarking.STATUS_SKIPPED);
+    }
+
+    @Test
+    @DisplayName("ADR-052_되감기_경로는_예약마킹을_깨우지_않는다 — 활성 축만 조회하고 RESERVED 는 그대로다")
+    void markingResumeDoesNotActivateReservations() {
+        // 되감기는 사람이 마킹 단계를 되돌리는 경로다. 여기서 예약을 깨우면 외부가 준 마킹이
+        // 신고된 비식별본 기준으로 되살아난다 — 비식별 완료 지점(D012 배선)에서만 깨워야 한다.
+        LsDataRaw r = raw(9911L, LsDataRaw.DATA_STTS_PROCESSING);
+        when(videoRepository.findById(9911L)).thenReturn(Optional.of(r));
+        LsMarking reserved = LsMarking.createReserved(9911L, "[]", "1", 30.0);
+        // 조회 축이 ACTIVE_STATUSES 라 예약은 애초에 잡히지 않는다 — 잡힌다고 가정해도 전이되지 않는다.
+        when(markingRepository.findByRawSnAndSttsCdIn(eq(9911L), any())).thenReturn(List.of(reserved));
+
+        service.resumeMarking(9911L);
+
+        assertThat(reserved.getSttsCd()).isEqualTo(LsMarking.STATUS_RESERVED);
+        ArgumentCaptor<List<String>> statuses = ArgumentCaptor.forClass(List.class);
+        verify(markingRepository).findByRawSnAndSttsCdIn(eq(9911L), statuses.capture());
+        assertThat(statuses.getValue()).doesNotContain(LsMarking.STATUS_RESERVED);
+    }
+
+    @Test
+    @DisplayName("ADR-052_되감기_서비스는_예약_활성화_창구를_의존하지_않는다 — 배선을 붙이면 실패한다")
+    void markingResumeHasNoActivationWiring() {
+        // 구조 가드 — 훅/활성화 서비스를 이 클래스에 주입하는 순간 깨진다(붙이지 말라는 지시의 회귀 가드).
+        for (Field f : DeidentStageResumeService.class.getDeclaredFields()) {
+            assertThat(f.getType().getName())
+                    .doesNotContain("MarkingActivationTxService")
+                    .doesNotContain("DeidentReservationHook");
+        }
     }
 
     @Test

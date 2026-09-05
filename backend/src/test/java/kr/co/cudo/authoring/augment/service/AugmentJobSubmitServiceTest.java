@@ -60,7 +60,7 @@ import static org.mockito.Mockito.verify;
 class AugmentJobSubmitServiceTest {
 
     /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
-    private static final java.util.Map<String, Object> PROMPT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
+    private static final java.util.Map<String, Object> MTDT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
 
 
     @Mock private LsDataSrcRepository srcRepository;
@@ -86,13 +86,22 @@ class AugmentJobSubmitServiceTest {
 
     private AugmentJobSubmitService newService(int maxInputFiles) {
         return new AugmentJobSubmitService(
-                srcRepository, videoRepository, jobRecorder, externalClient, metrics,
+                inputFrameSource(), jobRecorder, externalClient, metrics,
                 deidentReportGate, outcomeRecorder, Schedulers.immediate(), maxInputFiles);
+    }
+
+    /**
+     * 조달기는 <b>실물</b>을 쓴다 — 목으로 대체하면 「기본값은 비식별본」이라는 fail-closed 규약이
+     * 이 시험에서 사라진다. 부모 조회가 비어 있으므로(=출처 미상) 조달처는 기본값으로 떨어진다.
+     */
+    private AugmentInputFrameSource inputFrameSource() {
+        return new AugmentInputFrameSource(videoRepository, srcRepository,
+                new kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver(null, null, null));
     }
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, "WINTER", PROMPT, "AUG-key",
+                7L, 700L, "AUGMENT", MTDT, null, "AUG-key",
                 "http://localhost:8080/api/v1/genai/callback", "1");
     }
 
@@ -256,9 +265,19 @@ class AugmentJobSubmitServiceTest {
         verify(srcRepository, never()).findByRawSnOrderByFrameNoAsc(anyLong());
     }
 
+    /**
+     * 위탁 커맨드는 <b>요청 이벤트가 실어 온 값</b>만 나른다 — 위탁 서비스가 영상을 다시 읽지 않는다
+     * ({@code @design INT-008}). 다시 읽으면 적재 원문과 나간 값이 두 벌이 되어 갈라진다.
+     *
+     * <p>구 구현은 여기서 영상의 관제 이벤트 코드({@code LS_DATA_RAW.EVNT_TYPE_CD})를 조회해 이벤트
+     * 유형으로 실었고, 그 뒤 요청자가 고른 값을 중계하는 형태로 바뀌었다. 지금은 <b>커맨드가 이벤트
+     * 유형을 나르지 않는다</b>({@code @design ADR-059}) — 위탁 바디를 만들 때 클라이언트가 서버
+     * 중립값을 고정으로 채운다. 그 값이 실제로 {@code ETC} 인지는
+     * {@code HttpExternalAugmentClientTest} 가 고정한다.
+     */
     @Test
-    @DisplayName("이벤트유형이_없는_영상은_ETC_로_대체된다")
-    void fallsBackToEtcEventType() {
+    @DisplayName("위탁커맨드는_요청에서_받은_생성조건을_그대로_중계한다")
+    void relaysRequestPayloadWithoutRereadingVideo() {
         seedFrames(1);
 
         service.submit(event());
@@ -266,8 +285,10 @@ class AugmentJobSubmitServiceTest {
         ArgumentCaptor<AugmentSubmitCommand> captor =
                 ArgumentCaptor.forClass(AugmentSubmitCommand.class);
         verify(externalClient).requestAugment(captor.capture());
-        assertThat(captor.getValue().evntType())
-                .isEqualTo(AugmentJobSubmitService.EVNT_TYPE_FALLBACK);
+        assertThat(captor.getValue().mtdt()).containsEntry("time", "NIGHT");
+        assertThat(captor.getValue().augType())
+                .as("증강 종류도 요청이 실어 온 값 그대로다(단일값 AUGMENT)")
+                .isEqualTo("AUGMENT");
     }
 
     @Test

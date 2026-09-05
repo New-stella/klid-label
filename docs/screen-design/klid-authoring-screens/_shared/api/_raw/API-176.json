@@ -393,9 +393,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-320"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:51.397Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -407,8 +410,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "화면에서 호출하는 곳이 없어졌음을 요약에 밝힌다. 저장 단위 변경 이력을 보여주던 탭을 두지 않기로 했기 때문이며, 되돌릴 수 있는 단위는 검수로 확정된 버전뿐이라는 결정에 따른 것이다. 이력 적재 자체는 계속되며 관제가 보는 변경점의 원천으로 남으므로 이 조회도 지우지 않는다. 본문은 손대지 않았다. 분량이 길어 다시 옮겨 적는 과정에서 글자가 어긋날 위험이 있는데, 표기는 요약만으로도 다음 사람에게 충분히 드러나기 때문이다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-10T15:12:05.962Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:51.397Z",
     "created_at": "2026-07-30T07:13:56.599Z"
   }
 }

@@ -64,6 +64,24 @@
 
 ## sam2 설치 실패
 
+### 먼저 볼 것 — `Read-only file system` (2026-08-31 실측·수정됨)
+
+증상: pip 출력 끝에 다음이 있다.
+
+```
+error: could not create 'SAM_2.egg-info': Read-only file system
+```
+
+원인은 **매체가 읽기전용으로 마운트된 것**이다(DVD·USB·`mount -o ro`). pip 는 로컬 소스를
+설치할 때 그 디렉터리 안에 `SAM_2.egg-info` 를 만드는데, 매체에는 쓸 수 없다.
+
+⚠ **이 실패는 아래 "흔한 원인"(setuptools 판 충돌)과 무관한데도 같은 실패 문구로 떨어져
+현장을 엉뚱한 곳으로 보냈다.** 지금은 설치 스크립트가 소스를 `/opt/klid/ai/.build/sam2-src`
+로 복사한 뒤 빌드하므로 **읽기전용 매체에서도 정상 설치된다**(설치 후 복사본은 지운다).
+이 메시지가 그래도 보이면 `/opt/klid/ai` 의 쓰기 권한·여유 공간(약 70MB)을 확인한다.
+
+### 그 밖의 원인
+
 증상: `pip install vendor/sam2/sam2-src` 실패.
 
 해결:
@@ -73,42 +91,96 @@
   `30-collect-ai-server.sh` 는 이 SHA 로 clone 후 `git checkout` 한다(브랜치/태그가 아니므로 `--branch` 불가).
   다른 커밋으로 바꾸려면 이 값만 교체 후 재수집.
 
-## ffmpeg / ffprobe 없음 (Rocky 9: 정적 바이너리)
+## ffmpeg / ffprobe 없음 (RHEL 8.9: 시스템 RPM)
 
 증상: backend 프레임 추출/duration 추출 실패(`ffmpeg`/`ffprobe` not found 또는 Permission denied).
 
-해결(Rocky 9 는 정적 바이너리 번들이 정석 — base/AppStream 에 ffmpeg RPM 이 없음):
-- 번들은 **LGPL 빌드**(BtbN `linux64-lgpl`)다 — 지방정부 납품 GPL 회피용. native H.264/HEVC 디코더를
-  포함하므로 프레임 추출(디코드)·duration 추출에 충분하다(인코딩 미사용 → GPL 코덱 불필요).
-- 설치 확인: `ls -l /opt/klid/runtime/ffmpeg/bin/` → `ffmpeg`/`ffprobe` 가 있고 `chmod +x`(0755) 인지.
-  없으면 `syspkgs/ffmpeg/*.tar.xz` 가 번들됐는지 확인 후 `11-install-runtimes.sh` 재실행.
-- 권한 오류면: `sudo chmod +x /opt/klid/runtime/ffmpeg/bin/ffmpeg /opt/klid/runtime/ffmpeg/bin/ffprobe`.
-- 경로 확인: `backend.env` 의 `FFMPEG_BIN=/opt/klid/runtime/ffmpeg/bin/ffmpeg`(절대경로) 인지.
-  systemd 유닛 PATH 에도 `…/ffmpeg/bin` 이 추가돼 있어 bare 이름으로도 잡힌다.
-- 직접 보강: 정적 바이너리를 `/opt/klid/runtime/ffmpeg/bin/` 에 두고 `chmod +x` 후 재기동.
+> ⚠ 구 절 폐기(2026-08-28) — "Rocky 9 는 **정적 바이너리 번들**이 정석 / 번들은 **LGPL 빌드**(BtbN
+> `linux64-lgpl`)다 — 지방정부 납품 GPL 회피용 / `/opt/klid/runtime/ffmpeg/bin/` 에 배치·`chmod +x`".
+> 타깃이 RHEL 8.9(glibc 2.28)로 확정되어 그 정적 빌드(glibc 2.31 기반)는 `GLIBC_2.31 not found` 로
+> 죽는다. 관제지원시스템과 같은 형상(RPM Fusion RPM)으로 전환했고 라이선스는 **GPLv3+** 다
+> (별도 프로세스 호출이라 코드 전염 우려 낮음).
+
+> ★★ **`install.sh` 는 ffmpeg 을 설치하지 않는다** (2026-08-30 사용자 확정, 구속).
+> ffmpeg 은 **우리 반입물이 아니라 대상 장비(서버 A)의 전제조건**이며, 이 장비는
+> 관제지원시스템과 **공동 배치**라 우리가 자동으로 깔면 **관제가 쓰던 설치본을 덮어써
+> 관제 기능이 깨질 수 있다.** 그래서 설치는 <사람이 명시적으로 부를 때만> 일어난다.
+> 설치 스크립트 중 **번호 접두가 없는 것**(`install-ffmpeg.sh`)이 그 표식이다.
+>
+> - 설치(있으면 아무것도 안 함): `sudo ./scripts/install/install-ffmpeg.sh`
+> - 번들 판으로 교체: `sudo ./scripts/install/install-ffmpeg.sh --force`
+> - 무엇을 할지만 확인: `sudo ./scripts/install/install-ffmpeg.sh --dry-run`
+>
+> 검증 단계 `19-verify-ffmpeg.sh` 는 **없으면 warn 이 아니라 die** 한다. ffmpeg 이 없어도
+> backend 는 정상 기동하고 헬스체크도 통과하며 **배치를 실제로 돌려야 드러나기** 때문이다.
+> 이 단계는 서버 A(`--role=app`) 전용이다 — ai 서버에서 돌리면 정상 설치를 실패시킨다
+> (ai-server 소스에 ffmpeg/ffprobe 호출 0건).
+
+해결(el8 base/AppStream 에 ffmpeg RPM 이 없어 EPEL + RPM Fusion + PowerTools 에서 번들한다):
+- **먼저 위 `install-ffmpeg.sh` 를 쓴다.** 아래 수동 절차는 그 스크립트가 못 도는 상황의 폴백이다.
+- 설치 확인: `rpm -q ffmpeg` → `ffmpeg-4.4.8-1.el8` 류. `command -v ffmpeg ffprobe` → `/usr/bin/…`.
+- 없으면 번들 확인: `ls syspkgs/ffmpeg/*.rpm` 과 `ls syspkgs/ffmpeg/repodata/repomd.xml`.
+  **`repodata/` 가 없으면 설치가 실패한다** — 빌드머신에서 `50-collect-syspkgs.sh` 를 재실행하라.
+- 수동 설치(로컬 저장소 방식 — 폴백):
+  ```bash
+  sudo rpm --import syspkgs/gpg/*GPG-KEY*
+  sudo tee /etc/yum.repos.d/klid-ffmpeg.repo >/dev/null <<'EOF'
+  [klid-ffmpeg]
+  name=KLID offline bundle (ffmpeg)
+  baseurl=file:///<절대경로>/deploy/onprem/syspkgs/ffmpeg
+  enabled=1
+  gpgcheck=1
+  EOF
+  sudo dnf install -y --disablerepo='*' --enablerepo=klid-ffmpeg ffmpeg
+  ```
+  ⚠ `dnf install syspkgs/ffmpeg/*.rpm` 처럼 **파일을 직접 넘기지 말 것** — 번들에는 전이 의존성이
+  전량(261개) 들어 있어 이미 설치된 glibc·coreutils 와 충돌하며 설치가 통째로 실패한다.
+- 경로 확인: `backend.env` 의 `FFMPEG_BIN=/usr/bin/ffmpeg` 인지.
+- 실동작 확인:
+  `ffmpeg -f lavfi -i testsrc=duration=3:size=320x240:rate=10 -y /tmp/t.mp4 && ffprobe -v error -show_entries format=duration -of default=nw=1 /tmp/t.mp4`
+  → `duration=3.000000`
+- ⚠ **라이선스**: 번들 ffmpeg 은 RPM Fusion 의 **GPLv3+** 빌드다. 매체에 담아 반입한 시점에
+  이미 재배포이므로 대응 소스(`syspkgs/ffmpeg-src/*.src.rpm`)가 함께 반입되어 있어야 한다.
+  ⚠ 이것은 **ai-server 의 opencv wheel 안에 번들된 LGPL FFmpeg 과 다른 물건**이다
+  (그쪽 대응 소스는 `licenses/copyleft-sources/`). 어느 한쪽을 중복으로 보고 지우지 말 것 —
+  판도 라이선스도 다르다. 상세는 `licenses/manual/LGPL-SOURCE-OFFER.md`.
 
 ## libGL / opencv (`ImportError: libGL.so.1`)
 
 증상: ai-server 기동 시 opencv import 실패(`libGL.so.1: cannot open shared object file`).
 
-해결(Rocky 9 AppStream RPM):
+해결(el8 AppStream RPM):
 - 번들 RPM 설치 확인: `rpm -q mesa-libGL libglvnd-glx glib2`.
-- 누락 시 오프라인 설치: `sudo dnf install -y --disablerepo='*' --setopt=gpgcheck=0 syspkgs/rpm/*.rpm`
-  (폴백 `sudo rpm -Uvh --replacepkgs syspkgs/rpm/*.rpm`).
-- **`GPG check FAILED` / `public key is not installed` 로 dnf install 실패 시**: 최소 Rocky 9 이미지에
-  GPG 키가 없을 때 발생한다. 무결성은 번들 `SHA256SUMS` 로 이미 검증되므로
-  `--setopt=gpgcheck=0` 을 붙여 설치한다(`11-install-runtimes.sh` 가 이미 이 옵션으로 설치).
+- 누락 시 오프라인 설치(로컬 저장소 방식 — 위 ffmpeg 절의 `.repo` 예시에서 `baseurl` 만
+  `syspkgs/rpm` 으로 바꿔 `dnf install -y --disablerepo='*' --enablerepo=klid-… mesa-libGL libglvnd-glx glib2`).
+  ⚠ 구 명령 폐기(2026-08-30): `dnf install -y --disablerepo='*' --setopt=gpgcheck=0 syspkgs/rpm/*.rpm`
+  (파일 직접 설치). 조달이 `--alldeps` 로 바뀌어 기반 패키지가 섞이면서 그 방식은 충돌로 실패한다.
+- **`GPG check FAILED` / `public key is not installed` 로 dnf install 실패 시**: 폐쇄망 타깃에 EPEL/
+  RPM Fusion 공개키가 없을 때 발생한다. 정석은 **번들 키를 등록**하는 것이다:
+  `sudo rpm --import syspkgs/gpg/*GPG-KEY*` (`11-install-runtimes.sh` 가 이미 수행).
+  키 자체가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 검증을 낮춰 설치할 수 있다(그 경우
+  무결성은 번들 `SHA256SUMS` 에만 의존한다).
+- **`No available modular metadata for modular package 'httpd-…module+el8…'`**: el8 의 httpd 는
+  모듈러 패키지인데 번들 로컬 저장소에는 모듈러 메타데이터가 없어서 나는 오류다. 정석은 저장소
+  정의에 `module_hotfixes=1` 을 넣는 것이다(`common.sh` 의 `klid_dnf_install_from_bundle` 가 이미
+  포함). 수동으로 `.repo` 를 만들 때 이 줄을 빠뜨리면 **httpd·semanage 설치가 실패한다**.
 - **`rpm -Uvh` 폴백은 의존성 자동해소를 못 한다** — 정상 경로는 dnf(로컬 의존 해소)다. 폴백이
   `Failed dependencies` 로 실패하면 번들 RPM 세트가 불완전한 것이니, 빌드머신에서
   `50-collect-syspkgs.sh` 로 전이 의존성까지 포함해 재수집한 RPM 세트를 점검하라.
 - 사내 미러가 있으면: `sudo dnf install -y mesa-libGL libglvnd-glx glib2`.
-- 번들이 비었으면 rockylinux:9 컨테이너에서 `dnf download --resolve mesa-libGL libglvnd-glx glib2` 로
-  받아 `syspkgs/rpm/` 에 채워 재설치(02-build-package.md 참고).
+- 번들이 비었으면 el8 컨테이너에서 `dnf download --resolve --alldeps --archlist=x86_64,noarch mesa-libGL libglvnd-glx glib2`
+  로 받고 `createrepo_c` 로 `repodata/` 까지 만들어 `syspkgs/rpm/` 에 채워 재설치(02-build-package.md 참고).
 
 ## glibc 불일치 (`version 'GLIBC_2.xx' not found`)
 
-원인: 빌드머신 glibc > 대상 서버 glibc.
-해결: **대상 서버와 동일(또는 더 낮은) glibc 빌드머신**에서 재수집. 런타임 바이너리/whl 모두 영향.
+원인: 빌드머신 glibc > 대상 서버 glibc. **대상은 RHEL 8.9 = glibc 2.28** 이다(RHEL 8 은 8.0~8.10 전
+버전이 2.28 고정). 즉 빌드 glibc 는 반드시 **2.28 이하**여야 한다.
+
+해결: **el8 빌드머신/컨테이너**(`rockylinux/rockylinux:8`, glibc 2.28)에서 재수집. 런타임 바이너리·wheel 모두 영향.
+
+실제 사례(2026-08-28 확정): ffmpeg 정적 바이너리(BtbN `linux64-lgpl`)가 glibc **2.31** 기반이라
+타깃에서 `GLIBC_2.31 not found` 로 죽었다 — 이 때문에 ffmpeg 조달을 **정적 번들 → el8 RPM** 으로
+전환했다. 반면 torch wheel 은 `manylinux_2_28` 태그라 **정확히 2.28 기준선**이어서 영향이 없다.
 
 ## HF 모델 못 찾음 (SAM2, 오프라인)
 
@@ -133,6 +205,82 @@
 (`mountpoint /nas-storage`) ② `klid` 쓰기 가능 확인(`sudo runuser -u klid -- test -w /nas-storage`).
 **NAS 전체에 `chown -R` 금지**(기존 v1 대용량 파일 소유권 훼손) — v2 가 쓰는 하위 디렉터리만 권한 부여.
 
+## ★ 배포 실패 — `LoggerFactory is not a Logback LoggerContext` (JBoss EAP)
+
+증상: `deployments/api.war.failed` 에 아래가 남고 배포가 실패한다.
+
+```
+WFLYCTL0080: Failed services => jboss.deployment.unit."api.war".undertow-deployment
+  java.lang.IllegalArgumentException: LoggerFactory is not a Logback LoggerContext
+  but Logback is on the classpath. Either remove Logback or the competing implementation
+  (class org.slf4j.impl.Slf4jLoggerFactory loaded from
+   …/modules/system/layers/base/org/slf4j/impl/main/slf4j-jboss-logmanager-…jar)
+```
+
+원인: EAP 로깅 서브시스템이 배포물에 자기 `org.slf4j.impl` 모듈(`slf4j-jboss-logmanager`)을 얹어
+WAR 안의 logback 과 충돌한다. **WAR 에 `WEB-INF/jboss-deployment-structure.xml` 이 없을 때 난다.**
+
+해결: 그 서술자가 포함된 WAR 로 교체한다(빌드 산출물에 이미 들어 있다). 재빌드 없이 현장에서 넣으려면:
+
+```bash
+mkdir -p /tmp/fix/WEB-INF && cd /tmp/fix
+cat > WEB-INF/jboss-deployment-structure.xml <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+  <deployment>
+    <exclude-subsystems>
+      <subsystem name="logging"/>
+      <subsystem name="jpa"/>
+    </exclude-subsystems>
+    <exclusions>
+      <module name="org.jboss.logging"/>
+      <module name="org.slf4j"/>
+      <module name="org.slf4j.impl"/>
+      <module name="org.apache.commons.logging"/>
+      <module name="org.apache.log4j"/>
+      <module name="org.jboss.logmanager"/>
+    </exclusions>
+  </deployment>
+</jboss-deployment-structure>
+EOF
+cp $JBOSS_HOME/standalone/deployments/api.war /tmp/fix/
+zip -g api.war WEB-INF/jboss-deployment-structure.xml     # 또는: jar uf api.war WEB-INF/…
+
+# 재배포
+rm -f $JBOSS_HOME/standalone/deployments/api.war.failed
+cp api.war $JBOSS_HOME/standalone/deployments/
+touch $JBOSS_HOME/standalone/deployments/api.war.dodeploy
+```
+
+⚠ 이 방법은 **매체의 SHA256 과 어긋난다** — 현장 응급 조치이며, 정본은 서술자가 포함된 채로
+빌드된 WAR 다. 응급 조치를 했으면 그 사실을 배포 기록에 남길 것.
+
+⚠ **서버 전역 설정(`/subsystem=logging:write-attribute(name=add-logging-api-dependencies,value=false)`)
+으로도 풀리지만 쓰지 말 것** — 같은 WAS 의 다른 애플리케이션에도 영향이 간다.
+
+⚠ 이 오류가 안 나도 안심하지 말 것 — **서술자가 없는데 배포는 성공하는 경우**가 있고, 그때는
+logback 설정이 무시된 채 돌아 **민감정보 마스킹이 사라진다**(CWE-359). 상세: 10-was-settings.md 0절.
+
+---
+
+## backend 가 안 보인다 — WAR 반입 형상 (2026-09-04 WAS 정정)
+
+배포 형상이 **외부 WAS(JBoss EAP 8.1, standalone) 에 `api.war` 반입**이라
+(@design DEPLOY-001 · RUNBOOK-001), 베어메탈 시절의 `systemctl status klid-backend` 는
+**유닛이 없어서** 실패한다. 그건 장애가 아니라 형상이다.
+⚠ 구 서술 폐기(2026-09-04): 대상 WAS 는 톰캣이 아니다. `catalina.out`·`localhost.*.log`·
+`webapps/`·`CATALINA_OPTS` 는 EAP 에 **없다** — `server.log`·`standalone/deployments/`·`JAVA_OPTS` 다.
+
+| 증상 | 원인 | 조치 |
+|------|------|------|
+| `Unit klid-backend.service could not be found` | WAR 형상에는 그 유닛이 없다(기동 주체는 WAS) | WAS 유닛 상태와 `curl /api/actuator/health/liveness` 로 확인 |
+| 모든 요청이 **404**(WAR 는 배포됐는데 로그도 없음) | 컨텍스트 경로 불일치. `server.servlet.context-path` 는 내장 서버 전용이라 적용되지 않는다 | EAP 는 `WEB-INF/jboss-web.xml` 의 `<context-root>/api</context-root>` 가 **파일명과 무관하게** 고정한다(2026-09-04 신설). 그 파일이 없는 구 WAR 라면 **파일명이 컨텍스트**이므로 `api.war` 여야 한다 — 현장에서 `klid-at-api.war` 로 바꿔 배포해 `/klid-at-api` 가 된 사례가 있다. `standalone/deployments/` 에 남은 이전 배포 마커(`*.failed`·`*.undeployed`)도 정리 |
+| 기동 실패 — DB 접속/시크릿 없음 | WAS 가 설정 파일을 못 읽었다. `/etc/klid/backend.env` 는 **베어메탈 유닛의 `EnvironmentFile`** 이라 WAS 에 자동 전달되지 않는다 | WAS 기동 옵션에 `-Dspring.config.additional-location=file:/etc/klid/` (읽히는 파일은 `/etc/klid/application.properties`) + `-Dspring.profiles.active=prd` 를 **`JAVA_OPTS`**(EAP `bin/standalone.conf`)로 넣는다. systemd 유닛이 `EnvironmentFile` 로 `JAVA_OPTS` 를 주고 있으면 그쪽에 넣어야 반영된다. ⚠ 실행 계정(`jboss`)이 그 파일을 읽을 수 있어야 한다 — 못 읽으면 WAS 는 뜨고 앱만 실패한다 |
+| `SPRING_*` 설정이 무시됨(예 Flyway 가 그대로 돌음) | 그 파일은 **환경변수가 아니라 스프링 설정 파일**이라 `SPRING_FLYWAY_ENABLED` 같은 이름 변환이 일어나지 않는다 | **점 표기**로 적는다 — `spring.flyway.enabled=false`. 실측으로 확인된 함정이다(DBA 선적용 스키마 위에서 마이그레이션이 또 돈다) |
+| **대용량 업로드만** 실패(그 외 전부 정상) | `server.tomcat.*`(본문 한도·스레드)는 내장 서버 전용이라 WAR 배포에서 무시된다. EAP 에서는 undertow `max-post-size` 가 그 자리다 | [10-was-settings.md](10-was-settings.md) 의 WAS 설정 이관을 수행. **기동 성공은 이 단계의 완료 근거가 아니다** |
+| 앞단은 통과했는데 본문이 잘림 | 앞단 httpd 본문 한도와 undertow `max-post-size` 중 **작은 쪽**이 실제 상한 | 두 값을 함께 본다(`httpd-klid.conf.template` + `standalone.xml`) |
+| `java` 를 못 찾음(베어메탈로 되돌린 경우) | 패키지가 **JRE 를 반입하지 않는다**(2026-08-30) — `klid-backend.service` 의 `/opt/klid/runtime/jre` 는 없는 경로다 | 그 형상이 필요하면 `40-collect-runtimes.sh`/`11-install-runtimes.sh` 의 JRE 배선을 되살리거나 `ExecStart` 를 장비의 자바로 바꾼다 |
+
 ## backend 부팅 실패 — webhook HMAC
 
 증상: prd 부팅 시 `webhook.hmac.secret.augment 이(가) 설정되지 않았습니다`.
@@ -149,10 +297,11 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
 
 - **RPM 누락 / 설치 스킵**: `syspkgs/postgresql/*.rpm` 이 비어 있으면 설치를 건너뛴다(안내 출력).
   타깃에 이미 PG 가 있으면 `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh`. 번들이 필요하면
-  rockylinux:9 컨테이너에서 PG16 RPM 을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
-- **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 Rocky 9 에 PGDG GPG 키가 없을 때.
-  무결성은 번들 `SHA256SUMS` 로 이미 검증되므로 `--setopt=gpgcheck=0` 으로 설치한다
-  (`10-install-postgresql.sh` 가 이미 이 옵션 사용). 수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
+  el8 컨테이너에서 PG16 RPM(+`repodata/`)을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
+- **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 타깃에 PGDG GPG 키가 없을 때.
+  정석은 번들 키 등록이다: `sudo rpm --import syspkgs/gpg/*GPG-KEY*`
+  (`10-install-postgresql.sh` 가 이미 수행). 키가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 낮춘다.
+  수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
 - **initdb 위치/실패**: PGDG PG16 의 데이터 디렉토리는 `/var/lib/pgsql/16/data`,
   초기화는 `/usr/pgsql-16/bin/postgresql-16-setup initdb` 다(base RHEL `postgresql-setup` 과 경로가 다름).
   이미 초기화돼 있으면(`/var/lib/pgsql/16/data/PG_VERSION` 존재) 스크립트가 건너뛴다. 실패 시 데이터
@@ -165,22 +314,38 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
 - **서비스 미기동**: `systemctl status postgresql-16` / `journalctl -u postgresql-16`. 기동 후
   `sudo systemctl enable --now postgresql-16`.
 
-## backend 부팅 실패 — DB validate
+## 스키마 미로드 — 기동은 되는데 DB 를 쓰는 순간 전부 깨진다
 
-증상: Hibernate `ddl-auto=validate` 가 `MNG_*`/`QRTZ_*`(또는 LS_*) 테이블/컬럼 부재로 실패.
+증상: 기동 로그는 깨끗한데 화면·배치가 `relation "klid_at.ls_..." does not exist` ·
+`column ... does not exist` 로 실패한다.
+
+> ⚠⚠ **`ddl-auto=validate` 가 기동을 막아 줄 것으로 기대하지 마라.** `application.yml` 에
+> `validate` 가 선언돼 있지만 이 저장소에서는 **실동작하지 않는다** — 듀얼 데이터소스라
+> `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만들고, 거기에 넘기는 것은
+> `spring.jpa.properties.*` 뿐이라 `spring.jpa.hibernate.ddl-auto` 가 Hibernate 까지
+> 전달되지 않는다. **스키마가 통째로 비어 있어도 부팅은 성공한다.**
+> 근거·상세는 `09-operations-runbook.md` §2-5-2 「왜 조용히 실패하나」.
+>
+> ⚠ 구 증상 서술 폐기(2026-08-30) — *"Hibernate `ddl-auto=validate` 가 `LS_*`/`QRTZ_*`
+> 테이블/컬럼 부재로 **부팅 실패**"*. 그런 부팅 실패는 일어나지 않으므로, 그 로그를 기다리면
+> 결함을 **운영 중에** 만나게 된다.
 
 원인/해결:
-- **정상 흐름에선 거의 발생하지 않는다.** backend 는 기동 시 Flyway(`spring.flyway.enabled=true`,
-  prd 포함)로 V2 마이그레이션을 먼저 적용해 LS_*·MNG_*·QRTZ_* 를 `CREATE TABLE IF NOT EXISTS` 로 만든 뒤
-  validate 한다. 즉 **빈 DB 면 저작도구가 전 스키마를 자동 부트스트랩**하므로 관제 스키마를 사전
-  적재할 필요가 없다(04-configuration.md D 절).
-- 그래도 validate 가 실패하면 Flyway 가 **꺼졌거나 마이그레이션이 적용되지 않은** 경우다:
-  - `journalctl -u klid-backend` 에서 Flyway 로그(`Migrating schema ... to version 2`)가 보이는지 확인.
-  - 안 보이면 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있는지 확인 —
-    `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
-  - 관제가 이미 채운 공유 테이블과 **컬럼 스키마가 다르면** validate 가 불일치로 실패할 수 있다.
-    이 경우 관제 인프라/DBA 와 스키마 정합을 협의한다(이는 "사전 적재 필요"가 아니라 "정합 충돌").
-- **★ 테이블이 분명히 있는데 validate 가 "없다"고 하면 스키마를 확인한다.** 저작도구는
+- **★ 가장 흔한 원인은 "스키마를 아무도 로드하지 않은 것"이다.** 온프렘은 **Flyway 를 쓰지 않으므로**
+  (`spring.flyway.enabled=false`) backend 가 테이블을 만들어 주지 않는다. `db/schema.sql` 을 빈 control
+  DB 에 1회 로드하는 것이 **유일한 경로**이고, 그 로드는 자동이 아니다(`16-load-schema.sh` 는
+  `SCHEMA_LOAD_RUN=1` 일 때만 실제로 넣고 평시엔 안내만 출력한다 — 04-configuration.md D 절).
+  ```bash
+  psql ... -c "select count(*) from information_schema.tables where table_schema='klid_at';"
+  # 0 이면 로드가 안 된 것이다 → db/schema.sql 을 먼저 넣고 WAS 를 다시 올린다.
+  ```
+- 로드 시 오류가 났었는지 확인한다 — 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있어야 한다.
+  `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
+- 테이블은 있는데 **컬럼이 다르다**면 매체의 `db/schema.sql` 판과 배포된 WAR 판이 어긋난 것이다
+  (구 스키마 위에 새 WAR 를 올린 경우). 두 산출물의 `VERSION` 을 맞춘다.
+- ⚠ 구 서술 "backend 가 Flyway 로 `MNG_*` 까지 자동 부트스트랩하므로 사전 적재 불필요" 는 **폐기**다 —
+  마이그레이션이 돌지 않고, `MNG_*` 공유 테이블 자체가 제거됐다.
+- **★ 테이블이 분명히 있는데 런타임이 "없다"고 하면 스키마를 확인한다.** 저작도구는
   `klid_at`(`DB_SCHEMA`)만 본다. `public` 에 테이블이 있고 `klid_at` 이 비어 있으면 **구 형상 DB**다 —
   `09-operations-runbook.md` §2-5-1 로 이관한다(복사가 아니라 `ALTER ... SET SCHEMA` 로 **이동**).
   ```bash
@@ -188,7 +353,8 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
                where table_schema in ('klid_at','public') group by 1;"
   ```
 - **기동 거부 — Flyway 체크섬 불일치**(`Migration checksum mismatch for migration version 62/63/71`):
-  스키마 중립화로 세 파일이 바뀌었다. 이관 절차 ③(체크섬 재정렬) 또는 `flyway repair` 를 1회 수행한다.
+  ⚠ 온프렘 기본 형상에서는 **발생하지 않는다**(마이그레이션을 돌리지 않는다). 개발 환경 등 Flyway 를
+  켠 DB 를 이관할 때만 해당한다 — 이관 절차 ③(체크섬 재정렬) 또는 `flyway repair` 를 1회 수행한다.
   → `09-operations-runbook.md` §2-5-1 ③.
 
 ## 비식별 설정오류 / KPST 연동

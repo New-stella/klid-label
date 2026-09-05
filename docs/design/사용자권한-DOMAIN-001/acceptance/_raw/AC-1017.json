@@ -1,0 +1,72 @@
+{
+  "item": {
+    "id": "AC-1017",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-041 인가 거부 — 역할 미해석·채널 어긋남·토큰 없음/만료 (negative)",
+    "slug": "uc-041-인가-거부-역할-미해석채널-어긋남토큰-없음만료-negative",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [접근 거부 /forbidden] 1) 역할 없는 내부 토큰으로 보호 창구 호출 2) 반대 채널 토큰으로 창구 호출 3) 만료 토큰으로 호출 · 기대: 각각 권한없음/인증실패로 거부되고 자원 존재 여부가 드러나지 않는다",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "역할 미해석 시 보호 창구는 거부되나 자기 정보 조회·관리자 등록 창구에는 도달한다(내부 조회는 거부)",
+          "채널 어긋남은 양쪽 모두 권한 없음으로 거부되고 역할 계층으로도 열리지 않는다",
+          "토큰 없음/만료는 인증 실패로 거부되고 자원 존재 여부가 드러나지 않는다"
+        ],
+        "when": [
+          "보호된 창구를 호출하거나, 반대 채널의 창구를 호출하거나, 토큰 없이/만료 토큰으로 요청한다"
+        ],
+        "given": [
+          "내부 채널에 역할이 없거나 목록 밖 값이거나, 채널이 어긋나거나, 토큰이 없거나 만료됐다"
+        ]
+      },
+      "statement": "내부 채널인데 보관된 역할이 없거나 허용 목록 밖 값이면 보호된 창구에서 거부하되 자기 정보 조회와 관리자 등록 창구에는 도달을 허용한다(라벨 마스터 읽기 같은 내부 조회는 거부). 포털 토큰이 내부 창구를, 내부 토큰이 포털 창구를 부르면 양쪽 모두 권한 없음으로 거부하고 역할 계층으로도 열리지 않는다. 토큰이 없거나 만료되면 인증 실패로 거부하며 자원의 존재 여부가 드러나지 않는다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:44.810Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-001"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-041"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": true,
+    "stale_reason": "UC-041의 data.covered_by_acceptances 변경 — derived_from",
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:44.810Z",
+    "created_at": "2026-08-31T02:10:30.744Z"
+  }
+}

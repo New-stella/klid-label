@@ -37,9 +37,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 역할 클레임 <b>사용자 자동등록</b> 실동작 검증 (V169, Testcontainers PostgreSQL).
+ * 역할 클레임(관리자 부트스트랩) <b>사용자 자동등록</b> 실동작 검증 (V169 · ADR-055,
+ * Testcontainers PostgreSQL).
  *
  * <h3>왜 단위 테스트로 충분하지 않은가</h3>
  * <p>{@code RoleClaimServiceTest} 는 리포지토리를 목으로 두므로 "upsert 를 <b>호출한다</b>"까지만
@@ -83,12 +85,20 @@ class RoleClaimAutoRegisterIT {
     private TransactionTemplate tx;
     private RoleClaimService service;
     private String adminPlaintext;
+    /**
+     * ★이 시험의 전제 — <b>시스템에 관리자가 0명</b>이다. 부트스트랩 게이트가 전역 카운트라
+     * 다른 시험(예: dev 시드를 공유 DB 에 적재하는 {@code DevSeedRunnerTest})이 남긴 관리자 행
+     * 하나로 창구가 닫힌다. 전제를 암묵으로 두지 않고 여기서 세우고 되돌린다.
+     */
+    private AdminBootstrapWindow bootstrapWindow;
 
     @BeforeEach
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         tx = new TransactionTemplate(txManager);
         cleanup();
+        bootstrapWindow = new AdminBootstrapWindow(jdbc, userRoleResolver);
+        bootstrapWindow.park();
 
         byte[] random = new byte[32];
         new SecureRandom().nextBytes(random);
@@ -107,7 +117,9 @@ class RoleClaimAutoRegisterIT {
 
     @AfterEach
     void tearDown() {
+        // 이 시험이 만든 행(창이 닫힌 뒤를 재현하는 관리자 표본 포함)을 먼저 지우고 원래 상태를 되돌린다.
         cleanup();
+        bootstrapWindow.restore();
     }
 
     private void cleanup() {
@@ -198,13 +210,49 @@ class RoleClaimAutoRegisterIT {
     }
 
     @Test
-    @DisplayName("REVIEWER_자가부여가_허용된다")
-    void REVIEWER_자가부여가_허용된다() {
-        // ★2026-08-04 사용자 확정 — 온프렘 신규 설치의 최초 REVIEWER 부트스트랩 경로다.
-        RoleClaimResponse res = claim(NEW_USER_NO, Role.REVIEWER, "rvw1", "검수자");
+    @DisplayName("★관리자가_0명이면_ADMIN_이_부여된다_요청_역할과_무관하다")
+    void 관리자가_0명이면_ADMIN_이_부여된다() {
+        // ADR-055 — 온프렘 신규 설치의 최초 <관리자> 부트스트랩 경로다.
+        //   구 정책(REVIEWER 자가부여 개방)은 폐기됐다 — 요청이 REVIEWER 여도 ADMIN 이 부여된다.
+        RoleClaimResponse res = claim(NEW_USER_NO, Role.REVIEWER, "adm1", "관리자");
 
-        assertThat(res.role()).isEqualTo("REVIEWER");
-        assertThat(userRoleResolver.resolve(NEW_USER_NO)).isEqualTo(Role.REVIEWER);
+        assertThat(res.role()).isEqualTo("ADMIN");
+        assertThat(userRoleResolver.resolve(NEW_USER_NO)).isEqualTo(Role.ADMIN);
+    }
+
+    @Test
+    @DisplayName("★이미_역할이_있는_사용자도_창이_열려_있으면_ADMIN_으로_교체된다_AC_127")
+    void 역할_보유자도_창이_열려_있으면_관리자가_된다() {
+        // ★부트스트랩 도달 가능성 — 이미 운영 중인 시스템에는 역할 없는 사용자가 없고, 신규
+        //   설치에서도 진입 시 자동 등록이 같은 요청 앞단에서 작업자 역할을 부여한다. 여기서
+        //   막히면 최초 관리자를 만들 경로가 0개다.
+        jdbc.update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, 'WORKER', CURRENT_TIMESTAMP)",
+                NEW_USER_NO);
+        userRoleResolver.evict(NEW_USER_NO);
+
+        RoleClaimResponse res = claim(NEW_USER_NO, Role.ADMIN, "adm1", "관리자");
+
+        assertThat(res.role()).isEqualTo("ADMIN");
+        assertThat(userRoleResolver.resolve(NEW_USER_NO))
+                .as("DO NOTHING 계열이면 여기서 WORKER 로 남는다")
+                .isEqualTo(Role.ADMIN);
+    }
+
+    @Test
+    @DisplayName("★관리자가_한_명이라도_있으면_창구가_닫힌다_409")
+    void 관리자가_있으면_창구가_닫힌다() {
+        // given: 다른 사용자가 이미 관리자다
+        jdbc.update("INSERT INTO LS_USER_ROLE (USER_NO, ROLE_CD, REG_DT) VALUES (?, 'ADMIN', CURRENT_TIMESTAMP)",
+                OTHER_USER_NO);
+        userRoleResolver.evict(OTHER_USER_NO);
+
+        // when/then: 패스워드가 맞아도 거절된다 — 이 창구는 최초 1회로 닫힌다.
+        assertThatThrownBy(() -> claim(NEW_USER_NO, Role.ADMIN, "adm2", "두번째"))
+                .isInstanceOf(kr.co.cudo.authoring.common.exception.CustomException.class);
+
+        // then: 행도 역할도 만들어지지 않는다.
+        assertThat(userCount(NEW_USER_NO)).isZero();
+        assertThat(lsUserRoleRepository.findByUserNo(NEW_USER_NO)).isEmpty();
     }
 
     @Test

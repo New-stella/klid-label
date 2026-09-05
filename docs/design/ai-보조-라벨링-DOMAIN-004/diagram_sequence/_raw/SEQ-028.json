@@ -1,0 +1,323 @@
+{
+  "item": {
+    "id": "SEQ-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "diagram_sequence",
+    "title": "온디맨드 AI 자동 추적 — 시작 객체 없이 구간에서 여러 객체를 찾아 따라간다",
+    "slug": "온디맨드-ai-자동-추적-시작-객체-없이-구간에서-여러-객체를-찾아-따라간다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "온디맨드 AI 자동 추적 — 시작 객체 없이 구간에서 여러 객체를 찾아 따라간다",
+      "source": "sequenceDiagram\n    actor worker as 라벨링 작업자(WORKER)\n    participant canvas as 라벨링 캔버스 화면\n    participant ctl as AutolabelController\n    participant guard as LabelAccessGuard\n    participant svc as YoloTrackService\n    participant preset as PresetLabelLookupService\n    participant ai as AiServerClient\n    participant infer as AI 추론 서버\n    participant labelSvc as LabelService\n    participant db as LS_DATA_LBL(작업 라벨)\n\n    worker->>canvas: 「AI 자동 추적」을 실행한다 — 시작 객체를 고르지 않는다\n    worker->>canvas: 결과 적용 방식을 고른다 — 검토 후 수락 또는 자동 반영\n    Note over canvas: 고르지 않으면 검토 후 수락으로 시작한다. 이 선택은 그 실행에만 적용되고 다음 실행은 다시 기본값으로 시작한다\n    canvas->>ctl: POST /v1/frames/{srcSn}/yolo-track — 현재 프레임과 뒤따르는 프레임 구간\n    ctl->>guard: 배정과 작업락을 확인\n    guard-->>ctl: 통과\n    ctl->>svc: track(srcSn, 프레임 구간)\n    svc->>preset: 라벨 마스터에 매핑된 검출 분류 조회\n    preset-->>svc: 매핑된 검출 분류와 라벨 마스터 식별자\n    svc->>ai: 추적 요청 — 시작 객체 없이 구간만 싣는다\n    ai->>infer: POST /infer/yolo/track\n    infer-->>ai: 구간에서 찾은 여러 객체와 각각의 이어진 경로\n    ai-->>svc: 검출 목록\n    svc->>svc: 검출 분류를 라벨 마스터 식별자로 해석한다\n    Note over svc: 해석은 서버가 담당한다. 화면이 검출 클래스명으로 마스터를 다시 찾으면 같은 판정이 두 곳에 생겨 한쪽이 낡는다\n    svc-->>ctl: 객체별로 묶인 경로와 라벨 마스터 식별자\n    ctl-->>canvas: 200 OK — 이 추론은 결과를 보관하지 않는다\n    canvas->>canvas: 같은 객체로 이어진 결과를 묶는다\n    alt 검토 후 수락 / 자동 반영\n        canvas->>worker: 묶음 단위로 수락할지 제외할지 묻는다\n        worker->>canvas: 묶음을 수락하거나 제외한다\n        Note over canvas: [대안] 제외 단위는 묶음이다 — 그 안의 검출을 하나하나 따로 고르지 않는다. 따로 고르게 하면 이어진 경로가 중간에 끊긴 채 반영된다\n        canvas->>canvas: 자동 반영이면 돌아온 결과를 곧바로 다음 단계로 넘긴다\n    end\n    canvas->>canvas: 라벨 마스터 식별자가 비어 있는 검출을 반영 대상에서 뺀다\n    canvas-->>worker: 반영하지 않은 검출이 있다는 사실을 알린다 — 추정해 채우지 않는다\n    canvas->>canvas: 반영 대상을 작업 중인 라벨 목록에 넣되 라벨 마스터 식별자를 그대로 지니게 한다\n    worker->>canvas: 어긋난 곳을 손으로 보정한다\n    worker->>canvas: 저장한다\n    canvas->>labelSvc: PUT /v1/frames/{srcSn}/labels — 라벨 마스터 식별자를 그대로 싣는다\n    labelSvc->>db: 작업 라벨 갱신\n    db-->>labelSvc: 저장 결과\n    labelSvc-->>canvas: 200 OK — 이 시점에 라벨이 확정된다\n    canvas-->>worker: 저장 완료\n    Note over worker: [대안] 결과가 작업 목록에는 들어갔으나 저장하지 않고 벗어나면 그 결과는 확정되지 않는다\n",
+      "messages": [
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "「AI 자동 추적」을 실행한다 — 시작 객체를 고르지 않는다"
+        },
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "결과 적용 방식을 고른다 — 검토 후 수락 또는 자동 반영"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "note",
+          "label": "고르지 않으면 검토 후 수락으로 시작한다. 이 선택은 그 실행에만 적용되고 다음 실행은 다시 기본값으로 시작한다"
+        },
+        {
+          "to": "ctl",
+          "from": "canvas",
+          "kind": "sync",
+          "label": "POST /v1/frames/{srcSn}/yolo-track — 현재 프레임과 뒤따르는 프레임 구간",
+          "item_ref": "API-123"
+        },
+        {
+          "to": "guard",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "배정과 작업락을 확인"
+        },
+        {
+          "to": "ctl",
+          "from": "guard",
+          "kind": "return",
+          "label": "통과"
+        },
+        {
+          "to": "svc",
+          "from": "ctl",
+          "kind": "sync",
+          "label": "track(srcSn, 프레임 구간)"
+        },
+        {
+          "to": "preset",
+          "from": "svc",
+          "kind": "sync",
+          "label": "라벨 마스터에 매핑된 검출 분류 조회"
+        },
+        {
+          "to": "svc",
+          "from": "preset",
+          "kind": "return",
+          "label": "매핑된 검출 분류와 라벨 마스터 식별자"
+        },
+        {
+          "to": "ai",
+          "from": "svc",
+          "kind": "sync",
+          "label": "추적 요청 — 시작 객체 없이 구간만 싣는다"
+        },
+        {
+          "to": "infer",
+          "from": "ai",
+          "kind": "sync",
+          "label": "POST /infer/yolo/track",
+          "item_ref": "API-119"
+        },
+        {
+          "to": "ai",
+          "from": "infer",
+          "kind": "return",
+          "label": "구간에서 찾은 여러 객체와 각각의 이어진 경로"
+        },
+        {
+          "to": "svc",
+          "from": "ai",
+          "kind": "return",
+          "label": "검출 목록"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "self",
+          "label": "검출 분류를 라벨 마스터 식별자로 해석한다"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "해석은 서버가 담당한다. 화면이 검출 클래스명으로 마스터를 다시 찾으면 같은 판정이 두 곳에 생겨 한쪽이 낡는다"
+        },
+        {
+          "to": "ctl",
+          "from": "svc",
+          "kind": "return",
+          "label": "객체별로 묶인 경로와 라벨 마스터 식별자"
+        },
+        {
+          "to": "canvas",
+          "from": "ctl",
+          "kind": "return",
+          "label": "200 OK — 이 추론은 결과를 보관하지 않는다"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "self",
+          "label": "같은 객체로 이어진 결과를 묶는다"
+        },
+        {
+          "to": "worker",
+          "from": "canvas",
+          "kind": "sync",
+          "label": "묶음 단위로 수락할지 제외할지 묻는다"
+        },
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "묶음을 수락하거나 제외한다"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "note",
+          "label": "[대안] 제외 단위는 묶음이다 — 그 안의 검출을 하나하나 따로 고르지 않는다. 따로 고르게 하면 이어진 경로가 중간에 끊긴 채 반영된다"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "self",
+          "label": "자동 반영이면 돌아온 결과를 곧바로 다음 단계로 넘긴다"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "self",
+          "label": "라벨 마스터 식별자가 비어 있는 검출을 반영 대상에서 뺀다"
+        },
+        {
+          "to": "worker",
+          "from": "canvas",
+          "kind": "return",
+          "label": "반영하지 않은 검출이 있다는 사실을 알린다 — 추정해 채우지 않는다"
+        },
+        {
+          "to": "canvas",
+          "from": "canvas",
+          "kind": "self",
+          "label": "반영 대상을 작업 중인 라벨 목록에 넣되 라벨 마스터 식별자를 그대로 지니게 한다"
+        },
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "어긋난 곳을 손으로 보정한다"
+        },
+        {
+          "to": "canvas",
+          "from": "worker",
+          "kind": "sync",
+          "label": "저장한다"
+        },
+        {
+          "to": "labelSvc",
+          "from": "canvas",
+          "kind": "sync",
+          "label": "PUT /v1/frames/{srcSn}/labels — 라벨 마스터 식별자를 그대로 싣는다",
+          "item_ref": "API-019"
+        },
+        {
+          "to": "db",
+          "from": "labelSvc",
+          "kind": "sync",
+          "label": "작업 라벨 갱신"
+        },
+        {
+          "to": "labelSvc",
+          "from": "db",
+          "kind": "return",
+          "label": "저장 결과"
+        },
+        {
+          "to": "canvas",
+          "from": "labelSvc",
+          "kind": "return",
+          "label": "200 OK — 이 시점에 라벨이 확정된다"
+        },
+        {
+          "to": "worker",
+          "from": "canvas",
+          "kind": "return",
+          "label": "저장 완료"
+        },
+        {
+          "to": "worker",
+          "from": "worker",
+          "kind": "note",
+          "label": "[대안] 결과가 작업 목록에는 들어갔으나 저장하지 않고 벗어나면 그 결과는 확정되지 않는다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "검토 후 수락 / 자동 반영",
+          "end_index": 21,
+          "start_index": 18
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — UC-034 의 흐름을 참가자와 메시지로 처음 시각화한다."
+      },
+      "description": "작업자가 라벨링 캔버스에서 「AI 자동 추적」을 실행해, 현재 프레임과 뒤따르는 구간에서 찾아낸 여러 객체와 각각의 이어진 경로를 한 번에 얻는 흐름을 그린다.\n\n선택한 객체 하나를 따라가는 추적과 입력이 다르다 — 시작 객체를 고르지 않는다. 구간만 있으면 실행된다.\n\n결과 적용 방식은 실행할 때 고르며 기본값은 검토 후 수락이다. 그 선택은 그 실행에만 적용되고 다음 실행은 다시 기본값으로 시작한다. 이전 선택이 남아 있으면 검토를 거칠 것으로 알고 실행한 결과가 곧바로 반영되기 때문이다. 검토 후 수락의 입도는 같은 객체로 이어진 결과를 묶은 단위이며, 검출을 하나하나 따로 고르게 하면 이어진 경로가 중간에 끊긴 채 반영된다.\n\n결과로 라벨을 만들 때는 응답에 실려 온 라벨 마스터 식별자를 그대로 저장 요청에 싣는다. 화면이 검출 클래스명으로 마스터를 다시 찾지 않으며 그 해석은 서버가 담당한다. 같은 판정이 두 곳에 생기면 한쪽이 낡기 때문이다. 식별자가 비어 있는 검출은 추정해 채우지 않고 반영하지 않으며 그 사실을 사용자에게 알린다 — 라벨명에는 유일성 제약이 없어 지어낸 값은 다른 분류로 저장된다.\n\n이 추론 자체는 결과를 보관하지 않는다. 확정은 저장 시점이고 결과를 남기는 일은 라벨 저장 경로가 소유한다.",
+      "invokes_apis": [
+        "API-123",
+        "API-119",
+        "API-019"
+      ],
+      "participants": [
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER)"
+        },
+        {
+          "id": "canvas",
+          "kind": "system",
+          "name": "라벨링 캔버스 화면",
+          "item_ref": "SCREEN-005"
+        },
+        {
+          "id": "ctl",
+          "kind": "service",
+          "name": "AutolabelController"
+        },
+        {
+          "id": "guard",
+          "kind": "service",
+          "name": "LabelAccessGuard"
+        },
+        {
+          "id": "svc",
+          "kind": "service",
+          "name": "YoloTrackService"
+        },
+        {
+          "id": "preset",
+          "kind": "service",
+          "name": "PresetLabelLookupService"
+        },
+        {
+          "id": "ai",
+          "kind": "service",
+          "name": "AiServerClient"
+        },
+        {
+          "id": "infer",
+          "kind": "system",
+          "name": "AI 추론 서버"
+        },
+        {
+          "id": "labelSvc",
+          "kind": "service",
+          "name": "LabelService"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "LS_DATA_LBL(작업 라벨)"
+        }
+      ],
+      "scenario_type": "happy_path",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "publishes_events": [],
+      "referenced_items": [],
+      "realizes_use_cases": [
+        "UC-034"
+      ],
+      "related_acceptances": [
+        "AC-1030",
+        "AC-1031"
+      ],
+      "related_requirements": [],
+      "referenced_integrations": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "누락 필드를 근거 있는 값으로 채운다. 도메인은 이 시퀀스가 시각화하는 유스케이스의 소속을 그대로 따랐고, 발행 이벤트와 참조 외부 연동은 이 시퀀스가 실제로 그리는 메시지에 대응하는 것만 걸었다. 함께 참가자 종류를 바로잡는다 — AI 추론 서버는 외부 시스템 목록에 없는 우리 구성요소라 외부에서 시스템으로 내리고, 실제 외부 시스템 네 곳에는 그 시스템 참조를 단다. 본문과 메시지는 바뀌지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T07:01:06.828Z",
+    "created_at": "2026-09-03T06:52:03.867Z"
+  }
+}

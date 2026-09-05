@@ -1,0 +1,78 @@
+{
+  "item": {
+    "id": "AC-1078",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-009 통지 신뢰성 — 전송 실패 dead-letter·재등록 큐·다수 변경 재승인 1건=통지 1건 (edge)",
+    "slug": "uc-009-통지-신뢰성-전송-실패-dead-letter재등록-큐다수-변경-재승인-1건통지-1건-edge",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [검수 /review/{id}] 1) 전송 실패 → dead-letter·재등록 큐 2) 다수 변경 → 재검토 표시 동안 flush 보류, 재승인 후 영상 1건 1회 통지(수정 횟수 무관 재승인 1=통지 1)",
+          "captured_at": "2026-08-31T03:00:00Z"
+        },
+        {
+          "type": "log",
+          "result": "pass",
+          "reference": "select count(*) as meta_repl_outbox from klid_at.ls_meta_repl_outbox;\n\n결과 (검증환경 dev · 상용은 동일 쿼리로 확인):\n+------------------+\n| meta_repl_outbox |\n+------------------+\n|                5 |\n+------------------+\n(1 row)\nLINE 1: select w.reg_id as worker, count(*) as assigned from klid_at...\n               ^\nHINT:  Perhaps you meant to reference the column \"w.reg_dt\".",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "재시도 후 실패는 dead-letter/재등록 큐 적재 후 후속 재시도",
+          "다수 변경은 REVLT_YN='Y' 동안 flush 보류·재승인 후 다음 tick에 영상 1건 1회 통지",
+          "수정 횟수와 무관하게 재승인 1건 = 통지 1건"
+        ],
+        "when": [
+          "통지를 전송하거나 다수 변경을 축적한다"
+        ],
+        "given": [
+          "통지 전송 실패이거나 동일 트랜잭션 다수 변경이다"
+        ]
+      },
+      "statement": "통지 전송이 재시도 후에도 실패하면 dead-letter/재등록 큐에 적재한 뒤 후속 재시도한다. 짧은 시간 내 다수 변경은 재검토 표시(LS_RAW_DATA_STATUS.REVLT_YN='Y')가 서 있는 동안 만료 flush를 보류하고 재승인으로 표시가 해제된 뒤 다음 flush tick에 영상 1건 단위로 1회 통지한다 — 수정 횟수와 무관하게 재승인 1건이 통지 1건에 대응한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:47.443Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-016"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-009"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "DFEAT-046의 2개 필드 변경이 derived_from로 2-hop 전파",
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:47.444Z",
+    "created_at": "2026-08-31T02:23:01.031Z"
+  }
+}

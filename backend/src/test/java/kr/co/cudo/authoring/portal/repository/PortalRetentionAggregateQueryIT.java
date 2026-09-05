@@ -1,9 +1,11 @@
 package kr.co.cudo.authoring.portal.repository;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataLbl;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.entity.LsPortalUserLabel;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLabelRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -40,13 +42,13 @@ class PortalRetentionAggregateQueryIT {
     private LsPortalUserLabelRepository userLabelRepository;
 
     @Autowired
-    private LsPortalUldRepository uldRepository;
+    private PortalUploadAssetRepository assetRepository;
 
     @Autowired
-    private LsPortalUldFrmeRepository frmeRepository;
+    private PortalUploadFrameRepository frmeRepository;
 
     @Autowired
-    private LsPortalUldLblRepository lblRepository;
+    private PortalUploadLabelRepository lblRepository;
 
     @Autowired
     private VideoRepository videoRepository;
@@ -108,23 +110,22 @@ class PortalRetentionAggregateQueryIT {
     void uploadMaxRegDtAggregate() {
         String user = "user-" + System.nanoTime();
 
-        Long uldSn = txTemplate.execute(s -> {
-            LsPortalUld uld = uldRepository.save(LsPortalUld.createImage(
-                    user, "a.jpg", "/portal/a.jpg", 100L, "image/jpeg"));
-            LsPortalUldFrme frme = frmeRepository.save(
-                    LsPortalUldFrme.create(uld.getUldSn(), 0, "/portal/frames/0.jpg"));
-            lblRepository.save(LsPortalUldLbl.create(
-                    user, uld.getUldSn(), frme.getUldFrmeSn(), LsPortalUldLbl.TYPE_BBOX, "car", "[[1,1],[2,2]]"));
-            lblRepository.save(LsPortalUldLbl.create(
-                    user, uld.getUldSn(), frme.getUldFrmeSn(), LsPortalUldLbl.TYPE_BBOX, "person", "[[3,3],[4,4]]"));
-            return uld.getUldSn();
+        Long uldSn = txTemplate.execute(s -> assetRepository.insertUploaded(
+                user, "/portal/a.jpg", "a.jpg", "image/jpeg", 100L));
+        txTemplate.executeWithoutResult(s -> {
+            Long srcSn = frmeRepository.save(
+                    LsDataSrc.create(uldSn, 0L, "/portal/frames/0.jpg", null)).getSrcSn();
+            lblRepository.save(LsDataLbl.createManual(
+                    srcSn, LsDataLbl.TYPE_BBOX, null, "car", "[[1,1],[2,2]]", user));
+            lblRepository.save(LsDataLbl.createManual(
+                    srcSn, LsDataLbl.TYPE_BBOX, null, "person", "[[3,3],[4,4]]", user));
         });
 
-        List<Object[]> rows = lblRepository.findMaxRegDtGroupedByUldSn(user, List.of(uldSn));
+        // 흡수 뒤에는 자산 조립 통로가 이 집계를 함께 소유한다(프레임을 거쳐 라벨에 닿는다).
+        var map = assetRepository.findLastLabelSavedAt(user, List.of(uldSn));
 
-        assertThat(rows).hasSize(1);
-        assertThat(((Number) rows.get(0)[0]).longValue()).isEqualTo(uldSn);
-        assertThat(rows.get(0)[1]).isInstanceOf(LocalDateTime.class);
+        assertThat(map).containsKey(uldSn);
+        assertThat(map.get(uldSn)).isInstanceOf(LocalDateTime.class);
     }
 
     /** 라벨이 참조할 실 영상 1건 적재 후 그 PK 반환(FK 충족용 최소 픽스처). */

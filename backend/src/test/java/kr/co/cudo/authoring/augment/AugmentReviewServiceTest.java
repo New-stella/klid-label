@@ -37,6 +37,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AugmentReviewServiceTest {
 
     @Autowired private AugmentReviewService service;
+    /** 폐기 복구(restore) 도 같은 역할 게이트를 쓴다 — 관리자 통과를 여기서 함께 고정한다. */
+    @Autowired private kr.co.cudo.authoring.augment.service.AugmentDiscardService discardService;
     @Autowired private LsDataAugRepository repository;
     @Autowired private LsDataAugRvwRepository reviewRepository;
     @Autowired private LsDataSrcRepository srcRepository;
@@ -44,6 +46,14 @@ class AugmentReviewServiceTest {
 
     private TokenClaims reviewer;
     private TokenClaims worker;
+    /**
+     * 관리자 — 검수자 권한을 <b>계층으로</b> 물려받는다.
+     *
+     * <p>토큰 객체로만 만든다(역할 저장소에 관리자 행을 심지 않는다). 공용 시드에 관리자를 넣으면
+     * 「시스템에 관리자가 항상 있는」 상태가 되어 관리자 0명일 때만 열리는 부트스트랩 창구 시험이
+     * 통째로 깨진다.
+     */
+    private TokenClaims admin;
 
     /**
      * 증강 대표 프레임(srcSn) — <b>실재하는</b> 영상의 프레임이어야 한다.
@@ -59,6 +69,7 @@ class AugmentReviewServiceTest {
     void setup() {
         reviewer = new TokenClaims("1",   Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
         worker   = new TokenClaims("100", Role.WORKER,   Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        admin    = new TokenClaims("9",   Role.ADMIN,    Channel.INTERNAL, Instant.now().plusSeconds(3600));
         reviewRepository.deleteAll();
         repository.deleteAll();
         srcSn = newFrame();
@@ -391,7 +402,12 @@ class AugmentReviewServiceTest {
     void unresolvableRawSnRejectedWithoutSentinel() {
         // given — LS_DATA_AUG.SRC_SN 에는 프레임 FK 가 없어(V146 범위 밖) 프레임이 사라진 뒤에도
         //         증강 행이 남는다. 그 상태에서는 SRC_SN → RAW_SN 역해석이 실패한다.
-        Long danglingSrcSn = 500L; // LS_DATA_SRC 에 없는 프레임
+        // ⚠ 작은 상수(구 값 500L)를 쓰면 안 된다 — LS_DATA_SRC 의 PK 는 IDENTITY 라 1 부터 순차
+        //    발급되고, 테스트 JVM 하나가 컨테이너 DB 를 공유한다. 즉 <다른 클래스가 프레임을 몇 개
+        //    시드했는가>에 따라 그 id 가 실재하게 되어, 이 클래스를 단독 실행하면 통과하고 넓은
+        //    스코프로 함께 돌리면 실패하는 순서 의존이 된다(실제로 그렇게 깨졌다).
+        //    IDENTITY 가 도달할 수 없는 값을 쓰고, 그럼에도 아래 isEmpty() 가드를 남겨 fail-closed 한다.
+        Long danglingSrcSn = 9_000_000_500L; // LS_DATA_SRC 에 없는 프레임
         assertThat(srcRepository.findById(danglingSrcSn)).isEmpty();
         // 생성은 성공한(결과물 실재) 행이어야 한다 — 그래야 결정 사전조건을 통과해 <rawSn 역해석>
         // 단계까지 도달한다. PENDING 으로 두면 앞단 가드가 먼저 CONFLICT 를 내 이 테스트가 검증하려는
@@ -784,6 +800,32 @@ class AugmentReviewServiceTest {
         assertThat(job.resolutionTypes()).containsExactly("RESL_1080P", "RESL_720P", "RESL_480P");
     }
 
+    /**
+     * ★ 현행 대표값 {@code AUGMENT} 가 <b>맨 앞</b>이다({@code @design API-059} · {@code ADR-059}).
+     *
+     * <p>2026-09-02 실측 결함 회귀 가드다 — {@code AUG_ORDER} 에 이 항목이 빠져 있으면
+     * {@code getOrDefault(t, 99)} 로 떨어져 <b>현행 값이 구 3종과 해상도 프리셋 전부보다 뒤로</b>
+     * 밀린다. 백필하지 않은 구 값과 혼재하는 상황을 그대로 재현해 순서를 고정한다.
+     */
+    @Test
+    @DisplayName("이력_정렬에서_AUGMENT가_구3종보다_앞에_온다")
+    void augmentTypeSortsFirst() {
+        Long srcSn = 966L;
+        // 입력 순서를 뒤섞어 저장 — 저장 순서가 아니라 AUG_ORDER 가 정렬 축임을 드러낸다.
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_RAIN, new BigDecimal("70.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_AUGMENT, new BigDecimal("95.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_WINTER, new BigDecimal("90.00"), "system"));
+        repository.save(LsDataAug.createPending(srcSn, LsDataAug.AUG_NIGHT, new BigDecimal("80.00"), "system"));
+        repository.save(LsDataAug.createResolutionAccepted(srcSn, LsDataAug.AUG_RESL_720P, "system"));
+
+        var job = service.listAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        assertThat(job.types())
+                .as("현행 대표값이 미등록이면 99 로 떨어져 구 값들 뒤로 밀린다")
+                .containsExactly("AUGMENT", "WINTER", "NIGHT", "RAIN");
+        assertThat(job.resolutionTypes()).containsExactly("RESL_720P");
+    }
+
     @Test
     @DisplayName("기존_증강3종_이력_표시가_변하지_않는다")
     void existingThreeAugmentTypesUnchanged() {
@@ -797,5 +839,71 @@ class AugmentReviewServiceTest {
         assertThat(job.types()).containsExactly("WINTER", "NIGHT", "RAIN");
         assertThat(job.resolutionTypes()).isEmpty();
         assertThat(job.status()).isEqualTo(AugmentJobStatus.REQUESTED.name());
+    }
+
+    // ============================================================
+    // 역할 계층 — 관리자가 검수자 자리를 물려받는다 (ADR-055 · ROLE-004 · AC-125)
+    // ============================================================
+
+    /**
+     * <p>픽스처는 {@link #seedGenerated} 다 — 생성이 성공해 결정이 <b>실제로 가능한</b> 상태다.
+     * PENDING 픽스처로 짜면 「관리자도 못 한다」가 역할이 아니라 <b>생성 미완료</b>(409) 때문에
+     * 항상 참이 되어, 역할 판정을 동등 비교로 되돌려도 초록이 된다.
+     */
+    @Test
+    @DisplayName("관리자는_증강_결과를_채택할_수_있다_계층으로_검수자_자리를_물려받는다")
+    void adminCanAccept() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_WINTER);
+
+        var resp = service.accept(seed.getDataAugSn(), admin);
+
+        assertThat(resp.decisionUserNo()).isEqualTo("9");
+        // 상태코드가 아니라 <부수효과> 로도 단언한다 — 검수 행이 실제로 채택으로 기록돼야 한다.
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_ACCEPTED);
+        assertThat(rvw.getRvwId()).isEqualTo("9");
+    }
+
+    @Test
+    @DisplayName("관리자는_증강_결과를_반려할_수_있다")
+    void adminCanReject() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_NIGHT);
+
+        service.reject(seed.getDataAugSn(), "관리자 반려 사유", admin);
+
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd()).isEqualTo(LsDataAugRvw.STTS_REJECTED);
+        assertThat(rvw.getRejectRsn()).isEqualTo("관리자 반려 사유");
+        assertThat(rvw.getRvwId()).isEqualTo("9");
+    }
+
+    @Test
+    @DisplayName("관리자는_반려를_되돌려_검수를_재오픈할_수_있다")
+    void adminCanRestore() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_RAIN);
+        service.reject(seed.getDataAugSn(), "일단 반려", reviewer);
+
+        discardService.restore(seed.getDataAugSn(), "오반려였다", admin);
+
+        LsDataAugRvw rvw = reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow();
+        assertThat(rvw.getRvwSttsCd())
+                .as("복구는 반려 자체를 되돌려 다시 채택/반려를 고를 수 있게 한다")
+                .isEqualTo(LsDataAugRvw.STTS_PENDING);
+    }
+
+    @Test
+    @DisplayName("작업자는_반려를_되돌릴_수_없고_검수_상태도_바뀌지_않는다")
+    void workerCannotRestore() {
+        LsDataAug seed = seedGenerated(LsDataAug.AUG_WINTER);
+        service.reject(seed.getDataAugSn(), "일단 반려", reviewer);
+
+        assertThatThrownBy(() -> discardService.restore(seed.getDataAugSn(), "되돌려줘", worker))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        assertThat(reviewRepository.findLatestByDataAugSn(seed.getDataAugSn()).orElseThrow().getRvwSttsCd())
+                .as("거부는 상태코드뿐 아니라 <아무 일도 일어나지 않음> 으로도 확인한다")
+                .isEqualTo(LsDataAugRvw.STTS_REJECTED);
     }
 }

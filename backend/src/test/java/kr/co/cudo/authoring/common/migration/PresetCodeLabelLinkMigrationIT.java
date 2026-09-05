@@ -64,10 +64,14 @@ class PresetCodeLabelLinkMigrationIT {
                 Long.class, name, "#FF0000", typeCd, 0, useYn, Timestamp.valueOf(LocalDateTime.now()));
     }
 
-    private long insertPreset(String name) {
+    /**
+     * 시드 프리셋 1건. V17 이 PRESET_NM/EXPLN 을 없애고 EVNT_TYPE_CD 를 NOT NULL 로 좁혔으므로
+     * 식별 축은 이벤트유형코드 하나다(VARCHAR(20) · UNIQUE).
+     */
+    private long insertPreset(String eventTypeCd) {
         return jdbc().queryForObject(
-                "INSERT INTO LS_LABEL_PRESET (PRESET_NM) VALUES (?) RETURNING PRESET_ID",
-                Long.class, name);
+                "INSERT INTO LS_LABEL_PRESET (EVNT_TYPE_CD) VALUES (?) RETURNING PRESET_ID",
+                Long.class, eventTypeCd);
     }
 
     private long insertPresetCode(long presetId, String lblCd, int sortSeq) {
@@ -126,7 +130,7 @@ class PresetCodeLabelLinkMigrationIT {
     @DisplayName("이름이_불일치하는_기존_프리셋코드는_LBL_ID가_null로_미연결_상태다")
     void 이름_불일치_프리셋코드는_LBL_ID_null_유지() {
         // given — 어떤 라벨과도 이름이 다른 프리셋 코드 (매칭 대상 없음)
-        long presetId = insertPreset("V117-BACKFILL-NOMATCH");
+        long presetId = insertPreset("V117-BF-NOMATCH");
         long cdSn = insertPresetCode(presetId, "NONEXISTENT_LBL_V117", 0);
 
         // when — V117 backfill replay
@@ -143,7 +147,7 @@ class PresetCodeLabelLinkMigrationIT {
     void 소프트삭제_라벨은_backfill_제외() {
         // given — 동일 이름이지만 USE_YN='N'(soft delete) 라벨만 존재
         insertLabel("DELETEDLBLV117", "BBOX", "N");
-        long presetId = insertPreset("V117-BACKFILL-SOFTDEL");
+        long presetId = insertPreset("V117-BF-SOFTDEL");
         long cdSn = insertPresetCode(presetId, "DELETEDLBLV117", 0);
 
         // when

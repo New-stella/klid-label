@@ -242,9 +242,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-332"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:13.744Z"
       },
       "required_roles": [
         "ROLE-001",
@@ -275,10 +278,10 @@
     "schema_version": 1,
     "current_version": 21,
     "stale": true,
-    "stale_reason": "API-042의 2개 필드 변경 — consumes",
+    "stale_reason": "ROLE-002의 data.brownfield 변경 — requires",
     "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (13.3KB)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T12:44:49.243Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:13.744Z",
     "created_at": "2026-05-30T07:54:27.651Z"
   }
 }

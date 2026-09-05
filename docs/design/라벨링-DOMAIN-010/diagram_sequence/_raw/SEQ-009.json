@@ -10,9 +10,245 @@
     "data": {
       "theme": "neutral",
       "title": "버전 비교·복구 — DB 스냅샷 diff부터 롤백 active 복원까지",
-      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER) / 작업자(WORKER)\n    participant VC as VersionController\n    participant VS as VersionService\n    participant AG as LabelAccessGuard + DeidentReportGate\n    participant DB as PostgreSQL (LS_LABEL_VERSION / LS_DATA_LBL / LS_DATA_LBL_HSTRY)\n\n    Note over RV,DB: ① 버전 목록\n    RV->>VC: GET /v1/frames/{srcSn}/versions\n    VC->>VS: listVersions(srcSn, actor)\n    VS->>AG: verifyAccess(srcSn) (IDOR) + 신고 구간이면 412\n    VS->>DB: 승인(APPROVED) 스냅샷 목록 조회\n    VC-->>RV: VersionItem[]\n\n    Note over RV,DB: ② 비교 — 선택 건수에 따라 경로가 갈린다\n    alt 버전 1건 선택 — 현재 작업본과 비교 (신규 sub-resource)\n        RV->>VC: GET /v1/versions/{versionHash}/diff-with-working\n        VC->>VS: diffWithWorking(versionHash, actor)\n        VS->>AG: 게이트 (400/403/404/412 — 기존 diff 와 동일)\n        VS->>DB: from = 승인 스냅샷 LABEL_PAYLOAD\n        alt items 가 명시적 배열이 아님 (손상)\n            VS-->>VC: 400 — 빈 결과로 내리면 화면에 “변경 없음” 으로 표시돼 거짓말이 된다\n        else 정상\n            VS->>DB: to = 현재 작업본(LS_DATA_LBL) — 승인 스냅샷과 <동일 방식>으로 구성(LBL_SN 오름차순 · 같은 직렬화 경로 · 1MB 초과 단순화도 재현)\n            VS-->>VC: LabelDiffDto[] (읽기 전용 — 저장하지 않음)\n        end\n    else 버전 2건 선택 — 두 스냅샷 비교 (기존 계약 무변경)\n        RV->>VC: GET /v1/versions/{toHash}/diff?compareWith={fromHash}\n        VC->>VS: diff(fromHash, toHash, actor)\n        VS->>DB: 두 LABEL_PAYLOAD 조회 + 게이트\n        VS-->>VC: LabelDiffDto[] (파싱 실패는 장애격리로 빈 리스트 — 신규 경로의 400 과 의도적으로 다르다)\n    end\n    Note over VS,DB: ★비교축(R7) = id · lblTypeCd · label · labelId · points · trackId (구 3축 폐기). 비교기를 두 경로가 공유한다\n    Note over VS,DB: AI 메타(autoLblYn/confScore/lblSrcCd)·labelName·color 는 의도적 제외 (사람의 편집 경로 없음 · 부동소수 잡음 diff)\n\n    Note over RV,DB: ③ 복구(롤백) — 적층이 아니라 <재활성>이다\n    RV->>VC: POST /v1/versions/{versionHash}/rollback {srcSn}\n    VC->>VS: rollback(versionHash, srcSn, actor)\n    VS->>AG: verifyAndGet(srcSn) (IDOR) + 신고 구간이면 412\n    VS->>DB: 대상 스냅샷 조회 + active 행 비관적 잠금\n    alt 현 active 가 이미 대상 스냅샷 이고 작업본도 동일\n        VS-->>VC: 진짜 no-op — 라벨 재작성 · 이력 · 통지 모두 없음 (LBL_SN 불변)\n    else 복원 필요\n        VS->>DB: 작업본 라벨 교체 — 옛 LBL_SN · AI 메타(AUTO_LBL_YN/신뢰도/출처) · TRCK_ID 보존 복원\n        Note over VS,DB: 점유된 PK 만 신규 발급 폴백 (PK 재발급 시 diff 가 “전량 교체”로 오분류된다)\n        VS->>DB: 대상 스냅샷 행 <재활성> + 나머지 active 해제 (새 버전 행 적층 없음)\n        VS->>DB: LS_DATA_LBL_HSTRY 에 롤백 행위 기록 (누가 · 언제 · 어느 VERSION_HASH 로)\n        VS-->>VC: 재활성된 VersionResponse.Item\n    end\n    VC-->>RV: 200 OK\n    Note over VS,DB: 승인 후 롤백은 export 를 v{n+1} 로 전량 재생성하고 SUCCEEDED 이후 TASK_MODIFIED 를 보낸다 (no-op 은 제외)",
-      "messages": [],
-      "fragments": [],
+      "source": "sequenceDiagram\n    actor reviewerWorker as 검수자(REVIEWER) / 작업자(WORKER)\n    participant versionCtrl as VersionController\n    participant versionSvc as VersionService\n    participant accessGuard as LabelAccessGuard\n    participant db as PostgreSQL (LS_LABEL_VERSION / LS_DATA_LBL / LS_DATA_LBL_HSTRY)\n\n    Note over reviewerWorker: ① 버전 목록\n    reviewerWorker->>versionCtrl: GET /v1/frames/{srcSn}/versions\n    versionCtrl->>versionSvc: listVersions(srcSn, actor)\n    versionSvc->>accessGuard: verifyAccess(srcSn) (IDOR) + 신고 구간이면 412\n    versionSvc->>db: 승인(APPROVED) 스냅샷 목록 조회\n    versionCtrl-->>reviewerWorker: VersionItem[]\n    Note over reviewerWorker: ② 비교 — 선택 건수에 따라 경로가 갈린다\n    alt 버전 1건 선택 — 현재 작업본과 비교 (신규 sub-resource)\n        reviewerWorker->>versionCtrl: GET /v1/versions/{versionHash}/diff-with-working\n        versionCtrl->>versionSvc: diffWithWorking(versionHash, actor)\n        versionSvc->>accessGuard: 게이트 (400/403/404/412 — 기존 diff 와 동일)\n        versionSvc->>db: from = 승인 스냅샷 LABEL_PAYLOAD\n        alt items 가 명시적 배열이 아님 (손상)\n            versionSvc-->>versionCtrl: 400 — 빈 결과로 내리면 화면에 “변경 없음” 으로 표시돼 거짓말이 된다\n        end\n        alt 정상\n            versionSvc->>db: to = 현재 작업본(LS_DATA_LBL) — 승인 스냅샷과 <동일 방식>으로 구성(LBL_SN 오름차순 · 같은 직렬화 경로 · 1MB 초과 단순화도 재현)\n            versionSvc-->>versionCtrl: LabelDiffDto[] (읽기 전용 — 저장하지 않음)\n        end\n    end\n    alt 버전 2건 선택 — 두 스냅샷 비교 (기존 계약 무변경)\n        reviewerWorker->>versionCtrl: GET /v1/versions/{toHash}/diff?compareWith={fromHash}\n        versionCtrl->>versionSvc: diff(fromHash, toHash, actor)\n        versionSvc->>db: 두 LABEL_PAYLOAD 조회 + 게이트\n        versionSvc-->>versionCtrl: LabelDiffDto[] (파싱 실패는 장애격리로 빈 리스트 — 신규 경로의 400 과 의도적으로 다르다)\n    end\n    Note over versionSvc: ★비교축(R7) = id · lblTypeCd · label · labelId · points · trackId (구 3축 폐기). 비교기를 두 경로가 공유한다\n    Note over versionSvc: AI 메타(autoLblYn/confScore/lblSrcCd)·labelName·color 는 의도적 제외 (사람의 편집 경로 없음 · 부동소수 잡음 diff)\n    Note over reviewerWorker: ③ 복구(롤백) — 적층이 아니라 <재활성>이다\n    reviewerWorker->>versionCtrl: POST /v1/versions/{versionHash}/rollback {srcSn}\n    versionCtrl->>versionSvc: rollback(versionHash, srcSn, actor)\n    versionSvc->>accessGuard: verifyAndGet(srcSn) (IDOR) + 신고 구간이면 412\n    versionSvc->>db: 대상 스냅샷 조회 + active 행 비관적 잠금\n    alt 현 active 가 이미 대상 스냅샷 이고 작업본도 동일\n        versionSvc-->>versionCtrl: 진짜 no-op — 라벨 재작성 · 이력 · 통지 모두 없음 (LBL_SN 불변)\n    end\n    alt 복원 필요\n        versionSvc->>db: 작업본 라벨 교체 — 옛 LBL_SN · AI 메타(AUTO_LBL_YN/신뢰도/출처) · TRCK_ID 보존 복원\n        Note over versionSvc: 점유된 PK 만 신규 발급 폴백 (PK 재발급 시 diff 가 “전량 교체”로 오분류된다)\n        versionSvc->>db: 대상 스냅샷 행 <재활성> + 나머지 active 해제 (새 버전 행 적층 없음)\n        versionSvc->>db: LS_DATA_LBL_HSTRY 에 롤백 행위 기록 (누가 · 언제 · 어느 VERSION_HASH 로)\n        versionSvc-->>versionCtrl: 재활성된 VersionResponse.Item\n    end\n    versionCtrl-->>reviewerWorker: 200 OK\n    Note over versionSvc: 승인 후 롤백은 export 를 v{n+1} 로 전량 재생성하고 SUCCEEDED 이후 TASK_MODIFIED 를 보낸다 (no-op 은 제외)\n",
+      "messages": [
+        {
+          "to": "reviewerWorker",
+          "from": "reviewerWorker",
+          "kind": "note",
+          "label": "① 버전 목록"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "reviewerWorker",
+          "kind": "sync",
+          "label": "GET /v1/frames/{srcSn}/versions"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionCtrl",
+          "kind": "sync",
+          "label": "listVersions(srcSn, actor)"
+        },
+        {
+          "to": "accessGuard",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "verifyAccess(srcSn) (IDOR) + 신고 구간이면 412"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "승인(APPROVED) 스냅샷 목록 조회"
+        },
+        {
+          "to": "reviewerWorker",
+          "from": "versionCtrl",
+          "kind": "return",
+          "label": "VersionItem[]"
+        },
+        {
+          "to": "reviewerWorker",
+          "from": "reviewerWorker",
+          "kind": "note",
+          "label": "② 비교 — 선택 건수에 따라 경로가 갈린다"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "reviewerWorker",
+          "kind": "sync",
+          "label": "GET /v1/versions/{versionHash}/diff-with-working"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionCtrl",
+          "kind": "sync",
+          "label": "diffWithWorking(versionHash, actor)"
+        },
+        {
+          "to": "accessGuard",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "게이트 (400/403/404/412 — 기존 diff 와 동일)"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "from = 승인 스냅샷 LABEL_PAYLOAD"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "versionSvc",
+          "kind": "return",
+          "label": "400 — 빈 결과로 내리면 화면에 “변경 없음” 으로 표시돼 거짓말이 된다"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "to = 현재 작업본(LS_DATA_LBL) — 승인 스냅샷과 <동일 방식>으로 구성(LBL_SN 오름차순 · 같은 직렬화 경로 · 1MB 초과 단순화도 재현)"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "versionSvc",
+          "kind": "return",
+          "label": "LabelDiffDto[] (읽기 전용 — 저장하지 않음)"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "reviewerWorker",
+          "kind": "sync",
+          "label": "GET /v1/versions/{toHash}/diff?compareWith={fromHash}"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionCtrl",
+          "kind": "sync",
+          "label": "diff(fromHash, toHash, actor)"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "두 LABEL_PAYLOAD 조회 + 게이트"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "versionSvc",
+          "kind": "return",
+          "label": "LabelDiffDto[] (파싱 실패는 장애격리로 빈 리스트 — 신규 경로의 400 과 의도적으로 다르다)"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionSvc",
+          "kind": "note",
+          "label": "★비교축(R7) = id · lblTypeCd · label · labelId · points · trackId (구 3축 폐기). 비교기를 두 경로가 공유한다"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionSvc",
+          "kind": "note",
+          "label": "AI 메타(autoLblYn/confScore/lblSrcCd)·labelName·color 는 의도적 제외 (사람의 편집 경로 없음 · 부동소수 잡음 diff)"
+        },
+        {
+          "to": "reviewerWorker",
+          "from": "reviewerWorker",
+          "kind": "note",
+          "label": "③ 복구(롤백) — 적층이 아니라 <재활성>이다"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "reviewerWorker",
+          "kind": "sync",
+          "label": "POST /v1/versions/{versionHash}/rollback {srcSn}"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionCtrl",
+          "kind": "sync",
+          "label": "rollback(versionHash, srcSn, actor)"
+        },
+        {
+          "to": "accessGuard",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "verifyAndGet(srcSn) (IDOR) + 신고 구간이면 412"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "대상 스냅샷 조회 + active 행 비관적 잠금"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "versionSvc",
+          "kind": "return",
+          "label": "진짜 no-op — 라벨 재작성 · 이력 · 통지 모두 없음 (LBL_SN 불변)"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "작업본 라벨 교체 — 옛 LBL_SN · AI 메타(AUTO_LBL_YN/신뢰도/출처) · TRCK_ID 보존 복원"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionSvc",
+          "kind": "note",
+          "label": "점유된 PK 만 신규 발급 폴백 (PK 재발급 시 diff 가 “전량 교체”로 오분류된다)"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "대상 스냅샷 행 <재활성> + 나머지 active 해제 (새 버전 행 적층 없음)"
+        },
+        {
+          "to": "db",
+          "from": "versionSvc",
+          "kind": "sync",
+          "label": "LS_DATA_LBL_HSTRY 에 롤백 행위 기록 (누가 · 언제 · 어느 VERSION_HASH 로)"
+        },
+        {
+          "to": "versionCtrl",
+          "from": "versionSvc",
+          "kind": "return",
+          "label": "재활성된 VersionResponse.Item"
+        },
+        {
+          "to": "reviewerWorker",
+          "from": "versionCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "versionSvc",
+          "from": "versionSvc",
+          "kind": "note",
+          "label": "승인 후 롤백은 export 를 v{n+1} 로 전량 재생성하고 SUCCEEDED 이후 TASK_MODIFIED 를 보낸다 (no-op 은 제외)"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "버전 1건 선택 — 현재 작업본과 비교 (신규 sub-resource)",
+          "end_index": 13,
+          "start_index": 7
+        },
+        {
+          "kind": "alt",
+          "label": "items 가 명시적 배열이 아님 (손상)",
+          "end_index": 11,
+          "start_index": 11
+        },
+        {
+          "kind": "alt",
+          "label": "정상",
+          "end_index": 13,
+          "start_index": 12
+        },
+        {
+          "kind": "alt",
+          "label": "버전 2건 선택 — 두 스냅샷 비교 (기존 계약 무변경)",
+          "end_index": 17,
+          "start_index": 14
+        },
+        {
+          "kind": "alt",
+          "label": "현 active 가 이미 대상 스냅샷 이고 작업본도 동일",
+          "end_index": 25,
+          "start_index": 25
+        },
+        {
+          "kind": "alt",
+          "label": "복원 필요",
+          "end_index": 30,
+          "start_index": 26
+        }
+      ],
       "description": "버전 비교·복구 흐름(VersionController / VersionService). 버전은 검수 승인(APPROVED) 시점의 영상 단위 라벨 전체 스냅샷이며, 비교는 선택 건수에 따라 두 경로로 갈린다. ★버전 1건 선택 = 현재 작업본과 비교하며 전용 sub-resource GET /v1/versions/{version}/diff-with-working 를 쓴다 — 승인 버전이 1건뿐인 프레임은 기존 /diff?compareWith= 로는 비교 대상이 없어 변경 내역을 아예 볼 수 없었기 때문이고(사용자 신고), 같은 URL 에 쿼리 파라미터로 행위를 분기하지 않는다는 원칙을 따라 별도 경로로 둔 것이다(기존 /diff 의 URL·파라미터·응답 스키마·상태코드는 무변경). 작업본 payload 는 승인 스냅샷과 <동일 방식>으로 구성해야 한다(같은 구성 인자, LBL_SN 오름차순, 같은 직렬화 경로, 1MB 초과 폴리곤 단순화도 양쪽 재현) — 어긋나면 수정이 없는데 diff 가 나오는 오탐이 난다. 손상 스냅샷은 신규 경로에서만 items 가 명시적 배열일 때만 통과하고 아니면 400 이다(빈 결과는 화면에서 “변경 없음” 으로 표시돼 거짓말이 된다). 기존 /diff 의 장애격리(파싱 실패 → 빈 리스트)는 그대로 유지하며 두 경로의 차이는 의도이니 “일관성”을 이유로 통일하지 말 것. ★비교축(R7)은 id·lblTypeCd·label·labelId·points·trackId 이며 구 동작(lblTypeCd·label·points 3개만)은 폐기됐다 — 트랙 병합처럼 시스템 자신이 수정 통지를 발행하고 export 를 새 버전으로 재생성한 변경이 diff 에선 “변경 없음”이었기 때문이고, 판정축은 라벨 내용 해시(LabelContentHasher)의 입력과 srcSn 제외 합동으로 맞춘다. AI 메타(autoLblYn/confScore/lblSrcCd)와 표시용 labelName/color 는 의도적으로 제외한다. 비교기를 /diff 와 공유하므로 그 엔드포인트의 판정 결과도 함께 바뀐다(계약은 무변경). ★롤백은 새 버전 행을 적층하지 않고 <대상 스냅샷 행을 재활성>한다 — 롤백 결과 페이로드가 대상 스냅샷 그 자체라 재계산 해시가 대상 행과 같고 (DATA_SRC_SN, VERSION_HASH) UNIQUE 로 적층이 물리적으로 불가능하기 때문이고, 구 SAVE_REASON_CD='ROLLBACK' 적층 분기는 프로덕션 도달 불가한 죽은 코드라 제거됐다. 롤백은 라벨 본문을 작업본(LS_DATA_LBL)으로 실제 복원하며 LBL_SN·AI 메타(AUTO_LBL_YN/신뢰도/출처)·TRCK_ID 까지 보존 복원하고(점유된 PK 만 신규 발급 폴백 — PK 재발급 시 diff 가 “전량 교체”로 오분류된다), 롤백 행위(누가·언제·어느 VERSION_HASH 로)를 LS_DATA_LBL_HSTRY 에 기록한다. 현재 active 가 이미 대상 스냅샷이고 작업본도 동일하면 진짜 no-op 이다(라벨 재작성·이력·통지 모두 없음). 세 경로 모두 권한은 REVIEWER 전체 / WORKER 본인 배정이고, 비식별 누락 신고 구간(DE_IDNTF_YN='F')에서는 diff·롤백이 412 로 차단된다. 승인 후 롤백은 export 를 v{n+1} 로 전량 재생성하고 SUCCEEDED 이후 TASK_MODIFIED 를 발송한다. 알려진 한계(인지·수용): items[] 원소에 id 가 없으면 조용히 skip 되어 과대보고 / MAX_LABELS=500 절단을 응답이 알리지 않음 / 롤백 PK 충돌 폴백 시 내용이 같아도 REMOVED+ADDED 쌍. ★화면에서 쓰는 복구 동선은 되돌리기 엔드포인트가 아니라 <회차 불러오기 → 확정 저장> 2단계다 — 되돌리기 엔드포인트의 동작 자체는 그대로 남아 있지만 화면 동선이 없다. 불러오기(GET /v1/videos/{rawSn}/versions/{version}/labels)는 고른 회차 시점의 라벨과 프레임 폐기 상태를 영상 전체 범위로 읽어 화면에 올리기만 하고 서버에는 아무것도 쓰지 않는다(감사 이력·상태 전이·재검토 표시·산출 재생성 모두 없음). 확정 저장(PUT /v1/videos/{rawSn}/labels)이 유일한 쓰기 지점이며, 영상 전체를 한 트랜잭션으로 확정하고 프레임별 판번호를 전수 검증해 하나라도 어긋나면 409 로 전량 거부한다(일부만 저장하면 서로 다른 시점의 프레임이 섞인다). ★불러오거나 저장한다고 새 산출 버전이 생기지는 않는다 — 확정 저장은 버전 축을 건드리지 않아 회차와 스냅샷의 매핑도 그대로이며, 새 산출 버전은 검수 승인 시점에만 만들어진다. 구 즉시 적용 경로(고르는 즉시 서버에 반영)는 확정 게이트를 우회하는 두 번째 쓰기 경로가 되어 폐기됐다 — 사용자가 확인하기 전에 라벨이 통째로 과거화되고 되돌릴 창이 없기 때문이다. ★한번이라도 검수가 완료된 영상은 프레임 폐기·복원을 새로 바꿀 수 없어 400 이지만, 불러온 회차의 폐기 상태를 그대로 확정하는 저장은 예외다 — 판정은 프레임 단위 값 비교이며 기준선은 그 회차의 스냅샷 값이고 회차를 알 수 없는 프레임은 라이브 현재 값이다.",
       "invokes_apis": [
         "API-034",
@@ -20,14 +256,45 @@
         "API-035",
         "API-036"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "reviewerWorker",
+          "kind": "actor",
+          "name": "검수자(REVIEWER) / 작업자(WORKER)"
+        },
+        {
+          "id": "versionCtrl",
+          "kind": "service",
+          "name": "VersionController"
+        },
+        {
+          "id": "versionSvc",
+          "kind": "service",
+          "name": "VersionService"
+        },
+        {
+          "id": "accessGuard",
+          "kind": "service",
+          "name": "LabelAccessGuard"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "PostgreSQL (LS_LABEL_VERSION / LS_DATA_LBL / LS_DATA_LBL_HSTRY)"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-380"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:56.557Z",
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -40,12 +307,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다.",
+    "change_summary": "참가자 이름을 클래스 하나로 좁힌다. 이름 뒤에 붙은 괄호 주석과 화살표 때문에 설계 클래스 목록에서 그 클래스가 개별로 잡히지 않았고, 일괄로 풀면 주석에서 딸려 나온 낱말(스케줄러 이름·트랜잭션 전파 속성·SQL 낱말)이 설계 클래스로 올라간다. 클래스명만 남기고 주석은 뗀다. 우리가 만들지 않은 도구와 별도 프로세스는 종류를 시스템으로 바로잡는다. 메시지와 조각은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:14:52.108Z",
+    "last_updated_at": "2026-09-03T22:42:05.839Z",
     "created_at": "2026-06-02T13:13:17.514Z"
   }
 }

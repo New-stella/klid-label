@@ -307,9 +307,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-238"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:39.549Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -323,8 +326,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "D010 P1(D010-SCH-006): request_body 통째 부재 → DeidentReportRequest(코드 실물, reason 1~1000자) 배선.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:26:18.147Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:39.549Z",
     "created_at": "2026-05-30T07:20:53.325Z"
   }
 }

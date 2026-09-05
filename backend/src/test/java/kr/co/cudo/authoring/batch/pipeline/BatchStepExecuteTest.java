@@ -7,13 +7,26 @@ import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.batch.step.Sam2SegmentStep;
 import kr.co.cudo.authoring.batch.step.TrackInterpolationStep;
 import kr.co.cudo.authoring.batch.step.VlmTimeseriesStep;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
+import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.step.YoloAutolabelStep;
+import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
+import kr.co.cudo.authoring.label.service.FrameBoundsResolver;
+import kr.co.cudo.authoring.label.service.LabelMasterService;
+import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.marking.dto.MarkItem;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -62,7 +75,7 @@ class BatchStepExecuteTest {
         VlmTimeseriesStep real = mock(VlmTimeseriesStep.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         doReturn(null).when(real).runWithMarking(any(), any());
 
-        LsMarking marking = LsMarking.createAuto(1L, "fire", 5, "p.mp4", "[]", 1L);
+        LsMarking marking = LsMarking.createAuto(1L, 5, "[]", "1");
         BatchContext ctx = new BatchContext(1L, rawWith(1L));
         ctx.setMarkings(List.of(marking));
 
@@ -100,7 +113,7 @@ class BatchStepExecuteTest {
         BatchContext ctx = new BatchContext(3L, raw);
         ctx.setMarks(List.of(mark(0)));
         // 마킹이 pin 한 fps(25.0)를 execute 가 3-인자로 그대로 넘기는지 검증.
-        LsMarking pinned = LsMarking.createAuto(3L, "fire", 5, "p.mp4", "[]", 1L, 25.0);
+        LsMarking pinned = LsMarking.createAuto(3L, 5, "[]", "1", 25.0);
         ctx.setMarkings(List.of(pinned));
 
         real.execute(ctx);
@@ -154,19 +167,47 @@ class BatchStepExecuteTest {
 
     // --- YOLO ---
 
+    /**
+     * ★위임 형상이 바뀐 지점 — 탐지 단계의 {@code execute} 는 <b>프리셋 게이트를 먼저</b> 통과시킨 뒤
+     * 본체를 돈다. [@design ADR-054]
+     *
+     * <p>그래서 구 형상({@code CALLS_REAL_METHODS} 로 {@code run(Long)} 만 스텁)이 성립하지 않는다 —
+     * {@code execute} 가 본체보다 먼저 영상·프리셋을 조회하기 때문이다. 검증 대상(단계 식별자 ·
+     * {@code ctx.hints} 적재)은 그대로 두고, 게이트를 통과시키기 위해 실물 스텝을 의존성 mock 으로 만든다.
+     */
     @Test
-    @DisplayName("YOLO_execute_run_결과를_ctx_hints_에_적재_stage_YOLO")
-    void yoloExecuteSetsHints() {
-        YoloAutolabelStep real = mock(YoloAutolabelStep.class, org.mockito.Mockito.CALLS_REAL_METHODS);
-        List<BbHint> hints = List.of(new BbHint(1L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.9, null));
-        doReturn(hints).when(real).run(any());
+    @DisplayName("YOLO_execute_는_프리셋_게이트_통과후_결과를_ctx_hints_에_적재_stage_YOLO")
+    void yoloExecuteSetsHints() throws Exception {
+        VideoRepository videoRepository = mock(VideoRepository.class);
+        LsDataSrcRepository srcRepository = mock(LsDataSrcRepository.class);
+        PresetLabelLookupService presetLabelLookup = mock(PresetLabelLookupService.class);
+        SystemConfigService systemConfigService = mock(SystemConfigService.class);
+        FrameBoundsResolver frameBoundsResolver = mock(FrameBoundsResolver.class);
+        LsDataRaw raw = rawWith(6L);
+        org.mockito.Mockito.when(videoRepository.findById(6L)).thenReturn(java.util.Optional.of(raw));
+        org.mockito.Mockito.when(presetLabelLookup.resolve(any())).thenReturn(
+                PresetResolution.resolved(java.util.Map.of("person", new AnnotationToggle(true, true))));
+        // 프레임 0건 — 본체는 즉시 빈 힌트를 돌려준다(외부 추론 호출 없음).
+        org.mockito.Mockito.when(srcRepository.findByRawSnOrderByFrameNoAsc(6L)).thenReturn(List.of());
+        org.mockito.Mockito.when(systemConfigService.getInt(any())).thenReturn(null);
 
-        BatchContext ctx = new BatchContext(6L, rawWith(6L));
+        MockEnvironment env = new MockEnvironment();
+        env.setActiveProfiles("dev");
+        YoloAutolabelStep real = new YoloAutolabelStep(
+                mock(AiServerClient.class), srcRepository, mock(LsDataLblRepository.class),
+                videoRepository, presetLabelLookup, mock(BatchStatusService.class),
+                systemConfigService, mock(LabelMasterService.class), frameBoundsResolver,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                java.nio.file.Files.createTempDirectory("yolo-exec-").toString(),
+                new DeployedEnvironmentDetector(env));
+
+        BatchContext ctx = new BatchContext(6L, raw);
         real.execute(ctx);
 
         assertThat(real.stage()).isEqualTo(BatchStage.YOLO);
-        verify(real).run(6L);
-        assertThat(ctx.getHints()).containsExactlyElementsOf(hints);
+        assertThat(ctx.isWithheld()).isFalse();
+        assertThat(ctx.getHints()).isEmpty();
+        verify(srcRepository).findByRawSnOrderByFrameNoAsc(6L);
     }
 
     // --- SAM2 ---

@@ -10,13 +10,18 @@ Type=simple
 User=@KLID_USER@
 Group=@KLID_GROUP@
 WorkingDirectory=@KLID_PREFIX@/ai
+# ★ 바인드 주소 기본값. 아래 EnvironmentFile 이 <나중에> 읽히므로, ai-server.env 에
+#   AI_BIND_HOST 가 있으면 그 값이 이 기본값을 이긴다. 반대로 구 판 ai-server.env 처럼
+#   그 키가 없어도 여기 기본값이 남아 기동이 깨지지 않는다.
+Environment=AI_BIND_HOST=127.0.0.1
 EnvironmentFile=@KLID_ETC@/ai-server.env
 # venv 의 uvicorn 으로 app.main:app 기동 (포트 9300 고정)
-#   ai-server 는 인증 없는 추론 서버 — 동일 호스트 backend(127.0.0.1)만 호출하면 충분하므로
-#   loopback 에만 바인드해 공격면을 최소화한다.
-#   backend 와 ai-server 가 다른 호스트로 분리되는 경우에만 바인드 주소(0.0.0.0 등)와
-#   방화벽 규칙을 함께 조정한다.
-ExecStart=@KLID_PREFIX@/ai/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 9300
+#   ai-server 는 인증 없는 추론 서버다. 기본은 loopback 바인드로 공격면을 최소화한다 —
+#   backend 가 같은 장비에 있는 단일 서버 구성에서는 이것으로 충분하다.
+#   ★ backend 와 ai-server 가 <다른 장비>로 나뉘면(서버 A/B 2대 구성) loopback 으로는
+#     원격에서 닿지 않는다. /etc/klid/ai-server.env 의 AI_BIND_HOST 를 바꾸고
+#     방화벽에서 9300 을 여는 두 가지를 <함께> 해야 한다.
+ExecStart=@KLID_PREFIX@/ai/venv/bin/uvicorn app.main:app --host ${AI_BIND_HOST} --port 9300
 Restart=on-failure
 RestartSec=10
 # 모델 로드(onnxruntime/torch) 초기화 여유

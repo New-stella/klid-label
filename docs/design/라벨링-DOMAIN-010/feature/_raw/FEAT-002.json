@@ -59,12 +59,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 8,
-    "stale": true,
-    "stale_reason": "REQ-009의 data.constraints 변경 — implements",
-    "change_summary": "버전이 만들어지는 시점을 검수 승인으로 정정한다. 라벨 저장 때마다 버전을 기록한다는 서술은 확정 정책과 달랐다 — 저장은 작업본만 갱신한다. 과거 산출 회차를 불러와 저장으로 확정하는 흐름을 단계로 추가하며 그 흐름은 버전 축을 바꾸지 않는다.",
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 REQ-009 v12 의 변경은 요구사항 본문의 표기를 사양 서술로 바꾼 편집이며 원천이 스스로 내용 변경 없음을 선언한다. 이 문서의 축은 버전관리·비교·복구를 묶는 상위 기능 서술이고, 그 서술은 표기가 아니라 기능 범위를 말하므로 고칠 내용이 없다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-12T02:23:22.893Z",
+    "last_updated_at": "2026-08-26T00:38:53.509Z",
     "created_at": "2026-05-29T04:30:20.375Z"
   }
 }

@@ -5,7 +5,7 @@
 
 - **KPST 비식별화** 솔루션 (프로젝트 생성 → 폴링 진행률 → 리포트/프레임 조회)
 - **IntelliVIX Video VLM** 시계열 (verify/describe, 비동기 콜백)
-- **생성형 AI(증강)** — 「생성형 AI API 연동명세서 v1.1」 정합 (`/api/genai/*`, 작업 접수 →
+- **생성형 AI(증강)** — 「생성형 AI API 연동명세서 v1.3」 정합 (`/api/genai/*`, 작업 접수 →
   단계별 Webhook → 결과 파일 실제 생성 → 상태/결과 조회/취소)
 
 인증/DB 없이 인메모리 상태(`app.state`)만으로 동작한다.
@@ -127,7 +127,7 @@ clamp한다. 1초 미만 영상도 `start == end`인 0 길이 구간 없이 최�
 > ffprobe는 워터마킹용 `ffmpeg`와 같은 패키지라 Dockerfile에 이미 포함돼 있다. 컨테이너 밖에서
 > 맨몸 uvicorn으로 띄우면 ffprobe 부재/루트 미설정으로 폴백(16초)이 될 수 있다.
 
-### 생성형 AI(증강) — 「생성형 AI API 연동명세서 v1.1」 (`/api/genai/*`)
+### 생성형 AI(증강) — 「생성형 AI API 연동명세서 v1.3」 (`/api/genai/*`)
 
 목이 **제공**하는 4종:
 
@@ -443,10 +443,59 @@ docker run --rm -p 127.0.0.1:9400:9400 \
 
 ---
 
-## 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.1」
+## 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.3」
 
-외부 **생성형 AI 시스템**을 연기한다. 계약은 관제가 확정한 명세서 v1.1(LogiCraft EXTSYS-002 /
-INT-001·019·020·029·030·031)이며, 경로 prefix는 `/api/genai`, 본문은 JSON이다.
+외부 **생성형 AI 시스템**을 연기한다. 계약은 관제가 확정한 명세서 v1.3(갱신일 2026-08-12,
+LogiCraft EXTSYS-002 / INT-001·019·020·029·030·031)이며, 경로 prefix는 `/api/genai`,
+본문은 JSON이다.
+
+### ① 작업 요청 본문 (§4.1) — v1.2 대비 구조가 바뀌었다
+
+```jsonc
+{
+  "request_id": "3f2a5c1e-20260807-0001",   // 필수 string(64)
+  "request_channel": "AUTHORING",           // 필수 CONTROL | PORTAL | AUTHORING
+  "request_user_id": "worker1",             // 선택
+  "evnt_type": "FLOOD",                     // 필수 FLOOD | WILDFIRE | ETC
+  "evnt_subtype": "ROAD_FLOOD",             // 선택 · evnt_type=FLOOD 에서만
+  "operation_type": "AUGMENT",              // 필수 GENERATE | AUGMENT
+  "generation_mode": "I2I",                 // 필수 T2I | I2I | T2V
+  "input_files": [ { "sequence": 1, "file_path": "/nas-storage/..." } ],
+  "mtdt": {                                 // ★필수 객체 (구 prompt.condition 대체)
+    "time": "NIGHT",                        // DAWN|DAY|DUSK|NIGHT
+    "season": "WINTER",                     // SPRING|SUMMER|AUTUMN|WINTER
+    "weather": "RAIN",                      // CLEAR|CLOUDY|RAIN|SNOW|FOG|WINDY
+    "terrain": "ROAD",                      // ROAD|UNDERPASS|RIVER|URBAN|RESIDENTIAL|RURAL|MOUNTAIN|FOREST
+    "severity": "HIGH"                      // LOW|MEDIUM|HIGH
+  },
+  "prompt": "자유 지시문",                   // 선택 · **문자열** 최대 1000자
+  "callback_url": "http://localhost:8080/api/genai/jobs/callback"
+}
+```
+
+**v1.3 에서 목이 거부하는 구 형태** — 로컬이 이것들을 계속 받아 주면 실벤더에서만 400 이 나는
+드리프트를 못 잡으므로 목이 먼저 막는다.
+
+| 구 형태 | 응답 |
+|---------|------|
+| 최상위 `condition` | 400 `INVALID_PARAMETER` |
+| 객체·배열형 `prompt`(v1.2 `prompt.condition`/`prompt.text`) | 400 `INVALID_PARAMETER` |
+| `mtdt` 누락 | 400 `REQUIRED_FIELD_MISSING` |
+| `mtdt` 가 `{}` 또는 전 필드 `null` | 400 `INVALID_PARAMETER` |
+| `mtdt` 항목값이 허용 코드 밖 | 400 `INVALID_PARAMETER` (메시지에 `mtdt 형식/허용 코드`) |
+| `prompt` 1000자 초과 | 400 `INVALID_PARAMETER` (자르지 않는다) |
+| `evnt_type` 이 FLOOD·WILDFIRE·ETC 밖 | 400 `UNSUPPORTED_EVENT_TYPE` |
+| `evnt_subtype` 을 WILDFIRE 와 함께 전달 | 400 `INVALID_PARAMETER` |
+| `operation_type: TRANSFORM`, `generation_mode: I2V`/`V2V` | 400 `INVALID_PARAMETER` |
+| V0 미지원 조합(예 `AUGMENT` × `T2I`) | 400 `INVALID_PARAMETER` |
+| `Idempotency-Key` 헤더 누락 | 400 `REQUIRED_FIELD_MISSING` |
+
+> ⚠ **`mtdt` 하위 5필드는 "최소 1개"만 강제한다.** 저작도구(BE)는 5필드를 전부 채워 보내지만
+> 그건 **우리 쪽이 더 엄격한 것**이고, 이 목은 **벤더**를 연기하므로 벤더 계약(§4.1 "최소 1개
+> 이상의 유효한 조건값")만 강제한다. 목을 우리 규칙으로 좁히면 실연동 판정과 어긋난다.
+
+**V0 지원 요청 조합 (§4.1)** — `GENERATE`×`T2I` / `AUGMENT`×`I2I`(입력 1건 이상 필수) /
+`GENERATE`×`T2V`. `I2V`·`V2V` 는 미지원.
 
 ### 상태머신 (§3.2)
 
@@ -514,7 +563,7 @@ POST /jobs ──(즉시 202 RECEIVED)──▶ [FIFO 대기열] ──(슬롯 �
 
 - 출력 위치: **`{MOCK_GENAI_OUTPUT_BASE}/genai/{job_id}/{sequence:03d}_{원본stem}_genai{ext}`**
 - 내용: 입력 파일이 있으면 **그 파일을 복사**, 없으면(T2I/T2V) placeholder 바이트(`MOCK_GENAI_GENERATED\n`).
-- `media_type`: `T2I`·`I2I` → `IMAGE`, `T2V`·`I2V` → `VIDEO`. 확장자는 유형에 맞으면 원본 유지, 아니면 기본값(`.png`/`.mp4`).
+- `media_type`: `T2I`·`I2I` → `IMAGE`, `T2V` → `VIDEO`. 확장자는 유형에 맞으면 원본 유지, 아니면 기본값(`.png`/`.mp4`).
 - 각 결과에 `generated_data_id`(uuid) · `checksum`(SHA-256) · `media_metadata`(mime_type/size_bytes) 포함.
 - **fail-closed:** `MOCK_GENAI_OUTPUT_BASE` 미설정이면 파일을 만들지 않고 작업을 `FAILED(RESULT_SAVE_FAILED)`
   로 종결한다(임의 절대경로 쓰기 차단). e2e에서는 BE와 동일 루트를 반드시 지정할 것.
@@ -527,10 +576,12 @@ POST /jobs ──(즉시 202 RECEIVED)──▶ [FIFO 대기열] ──(슬롯 �
 (VLM 목의 `is_failure_trigger` 관례와 동일. 별도 제어 EP를 만들지 않았다.)
 입력 파일이 실제로 존재하지 않는 경우도 같은 코드로 FAILED 처리된다.
 
-### 멱등성 — `Idempotency-Key`(선택)
+### 멱등성 — `Idempotency-Key`(v1.3 §3.1 **필수**)
 
 동일 키로 재요청하면 **기존 job을 그대로 반환**하며(중복 job 생성 없음) 백그라운드 진행도
-재시작하지 않는다. 헤더가 없으면 매번 새 job이다. 등록(check-then-act)은 락으로 직렬화한다.
+재시작하지 않는다. 등록(check-then-act)은 락으로 직렬화한다.
+v1.2 까지는 선택이었으나 v1.3 부터 ① 작업 요청 한정 **필수**라 **헤더가 없으면
+400 `REQUIRED_FIELD_MISSING`** 이다(나머지 API 에는 불필요).
 
 ### 오류 코드 (§3.3)
 
@@ -539,10 +590,9 @@ POST /jobs ──(즉시 202 RECEIVED)──▶ [FIFO 대기열] ──(슬롯 �
 
 | HTTP | code | 발생 조건 |
 |:----:|------|-----------|
-| 400 | `REQUIRED_FIELD_MISSING` | 필수 필드 누락, `I2I`/`I2V` 인데 `input_files` 없음, cancel `requested_by` 누락 |
-| 400 | `UNSUPPORTED_EVENT_TYPE` | `MOCK_GENAI_EVENT_TYPES` 설정 시 목록 밖 `evnt_type` |
-| 400 | `INVALID_METADATA` | `prompt` 가 객체(JSON object)가 아님, `prompt` 크기 > `MOCK_GENAI_MAX_PROMPT_BYTES` |
-| 400 | `INVALID_PARAMETER` | enum/길이 위반, `sequence` 중복, 허용 밖 `file_path`(경로 탈출/상대경로/base 미설정), 차단된 `callback_url`(호스트·포트·경로·자기참조), JSON 파싱 실패(심층 중첩 포함) |
+| 400 | `REQUIRED_FIELD_MISSING` | 필수 필드 누락(**`mtdt` 포함**), `Idempotency-Key` 헤더 누락, `I2I` 인데 `input_files` 없음, cancel `requested_by` 누락 |
+| 400 | `UNSUPPORTED_EVENT_TYPE` | `evnt_type` 이 `MOCK_GENAI_EVENT_TYPES`(기본 `FLOOD,WILDFIRE,ETC`) 밖 |
+| 400 | `INVALID_PARAMETER` | enum/길이 위반, 미지원 조합, `mtdt` 형식/허용 코드 오류·전부 비어 있음, `prompt` 객체·배열 전달·제한 초과, 최상위 `condition`, `evnt_subtype` 오적용, `sequence` 중복, 허용 밖 `file_path`(경로 탈출/상대경로/base 미설정), 차단된 `callback_url`(호스트·포트·경로·자기참조), JSON 파싱 실패(심층 중첩 포함) |
 | 404 | `JOB_NOT_FOUND` | 없는 `job_id` |
 | 404 | `RESULT_NOT_FOUND` | SUCCEEDED 인데 결과 항목이 비어 있음 |
 | 409 | `STATE_CONFLICT` | SUCCEEDED 아닌 상태의 결과 조회, 종결 상태 취소 |
@@ -550,11 +600,23 @@ POST /jobs ──(즉시 202 RECEIVED)──▶ [FIFO 대기열] ──(슬롯 �
 | 500 | `MODEL_EXECUTION_FAILED` | 실패 트리거, 입력 파일 부재 (FAILED 상태/Webhook으로 전달) |
 | 500 | `RESULT_SAVE_FAILED` | 출력 base 미설정/쓰기 실패 (FAILED 상태/Webhook으로 전달) |
 
+**v1.3 중 아직 반영하지 않은 것 (요청 검증 축만 v1.3 으로 올렸다)**
+
+- **결과 조회 실패 코드** — v1.3 §4.3·§3.3 은 `SUCCEEDED` 이전 결과 조회를
+  **404 `RESULT_NOT_FOUND`** 로 규정하나, 목은 v1.2 동작인 **409 `STATE_CONFLICT`** 를 유지한다.
+- **RUNNING 취소의 백엔드별 차이** — v1.3 §3.2 는 FLUX.2(T2I/I2I) RUNNING 취소를
+  409 `STATE_CONFLICT` 로, VACE(T2V) 는 취소 가능으로 규정하나 목은 모드와 무관하게 취소를 허용한다.
+- **`warnings[]`** — v1.3 은 접수·상태·결과 응답과 Webhook 에 `warnings[]` 를 싣고
+  `mtdt`↔`prompt` 충돌(키워드 휴리스틱)을 기록하나, 목은 응답 형태를 바꾸지 않았다.
+- **`mtdt`/`prompt` 저장·감사 분리 보존**(§5) — 목은 요청 스냅샷에 두 값을 보관하지 않는다.
+
 **의도적으로 구현하지 않은 것**
 
 - `401 UNAUTHENTICATED` / `403 FORBIDDEN` — **인증 전체가 이번 스코프 제외**(차후 개발).
   목 서버는 무인증이며 `x-access-token` 등 인증 헤더를 요구·검증하지 않는다.
 - `REQUEST_NOT_FOUND` — request_id 기준 조회 EP가 명세서에 없어 발생 지점이 없다.
+- `INVALID_METADATA` — v1.2 에서 `prompt` 위반에 쓰던 코드. v1.3 §3.3 이 그 위반을
+  `INVALID_PARAMETER` 로 옮겨 **발생 지점이 없다**(enum 정의만 남겨 둠).
 - `CALLBACK_FAILED` / `INTERNAL_SERVER_ERROR` — 전자는 Webhook 전송 실패라 응답으로 돌려줄
   대상이 없고(로그로만 남김), 후자는 목 공통 핸들러가 `INTERNAL_ERROR`로 처리한다.
 
@@ -570,10 +632,10 @@ POST /jobs ──(즉시 202 RECEIVED)──▶ [FIFO 대기열] ──(슬롯 �
 | `MOCK_GENAI_CALLBACK_PATH_PREFIXES` | (빈값) | 콜백 대상 **경로 접두사** allowlist. 빈값이면 경로 제한 없음(예: `/api/genai/`) |
 | `MOCK_GENAI_SELF_HOST_ALIASES` | (빈값) | 목 자신을 가리키는 추가 호스트 별칭. 루프백/바인드 호스트 + `MOCK_PORT` 조합은 기본으로 차단됨 |
 | `MOCK_GENAI_STATUS_SYNC_URL` | (빈값) | ③ status-sync 대상 **base URL**. 미설정 시 비활성 |
-| `MOCK_GENAI_EVENT_TYPES` | (빈값) | 허용 `evnt_type` 목록. 빈값이면 검증 안 함 |
+| `MOCK_GENAI_EVENT_TYPES` | `FLOOD,WILDFIRE,ETC` | 허용 `evnt_type` 목록 — v1.3 §4.1(`FLOOD`\|`WILDFIRE`) + 협의된 중립값 `ETC`. **빈값으로 둬도 검증이 꺼지지 않고 계약 목록으로 fail-closed**. ⚠ `ETC` 는 v1.3 문서에 아직 없다(벤더 합의 선반영) — 근거는 `app/schemas/genai.py` 의 `SUPPORTED_EVNT_TYPES` 주석 |
 | `MOCK_GENAI_MAX_INPUT_BYTES` | `5368709120` | 입력 파일 1건 크기 상한(접수 시 + 처리 시 fd 기준 재검증, 초과 시 413/FAILED) |
 | `MOCK_GENAI_MAX_BODY_BYTES` | `1048576` | 요청 본문 크기 상한(초과 시 413 `GA-MEDIA-001`) |
-| `MOCK_GENAI_MAX_PROMPT_BYTES` | `65536` | `prompt` 직렬화 크기 상한(초과 시 400 `INVALID_METADATA`) |
+| `MOCK_GENAI_MAX_PROMPT_BYTES` | `65536` | `prompt` UTF-8 바이트 상한(초과 시 400 `INVALID_PARAMETER`). 계약 길이 제한(1000자)과 별개인 목 자원 보호 축 |
 | `MOCK_GENAI_MAX_JOBS` | `1000` | 인메모리 잡 보관 상한. 초과 시 오래된 작업부터 만료(FIFO) |
 | `MOCK_GENAI_WEBHOOK_MAX_ATTEMPTS` | `2` | Webhook 전송 시도 횟수 상한(무한 재시도 금지) |
 | `MOCK_GENAI_WEBHOOK_RETRY_DELAY_SEC` | `0.5` | Webhook 재시도 간 지연(초) |
@@ -648,7 +710,7 @@ curl -X POST http://localhost:9400/api/genai/_mock/jobs/{job_id}/status-sync
 - `app/routers/deid.py` — KPST 비식별 11개 엔드포인트
 - `app/routers/vlm.py` — IntelliVIX VLM verify/describe/status
 - `app/routers/augment.py` — 생성형 AI(증강) `/api/genai/*` + 목 전용 `_mock` EP
-- `app/schemas/genai.py` — 명세서 v1.1 요청/응답 스키마 + 상태·오류코드 enum
+- `app/schemas/genai.py` — 명세서 v1.3 요청/응답 스키마 + 상태·오류코드 enum
 - `app/services/genai_sim.py` — 단계 진행 시뮬레이션 · 결과 파일 생성 · Webhook 발신 · 보안 가드
 - `app/services/vlm_sim.py` — VLM 콜백 페이로드 생성 + 비동기 발사(SSRF 경고 주석) ·
   describe 구간 계획(영상 길이 기반, 폴백 16초)

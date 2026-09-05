@@ -44,7 +44,7 @@ function polyLine(container: HTMLElement): HTMLElement | null {
 // handle 은 매 렌더 재생성되므로(useImperativeHandle) ref 에서 매번 최신 handle 을 읽는다.
 function addPoints(
   stageRef: { current: { getPointerPosition: () => { x: number; y: number } } },
-  ref: React.RefObject<OverlayLayerHandle>,
+  ref: React.RefObject<OverlayLayerHandle | null>,
   pts: Array<{ x: number; y: number }>,
 ) {
   for (const p of pts) {

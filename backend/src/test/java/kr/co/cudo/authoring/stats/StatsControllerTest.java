@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -258,6 +259,160 @@ class StatsControllerTest {
 
         mockMvc.perform(get("/v1/stats/summary")
                         .header("Authorization", "Bearer " + portalToken))
+                .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------------------------------
+    // API-058 리포트 다운로드 — CSV 원문(ApiResponse 미래핑) + BOM + 섹션 블록 5개.
+    // ------------------------------------------------------------------
+
+    /** 응답 본문을 UTF-8 로 읽는다(BOM 보존). */
+    private String fetchCsv(String period, String token) throws Exception {
+        return mockMvc.perform(get("/v1/stats/report")
+                        .param("period", period)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** 블록 제목 다음 컬럼행을 건너뛴 데이터 행들(다음 빈 줄 전까지). */
+    private static java.util.List<String> blockRows(String csv, String title) {
+        java.util.List<String> lines = java.util.List.of(csv.split("\n", -1));
+        int idx = lines.indexOf(title);
+        assertThat(idx).as("블록 %s", title).isNotNegative();
+        java.util.List<String> rows = new java.util.ArrayList<>();
+        for (int i = idx + 2; i < lines.size() && !lines.get(i).isEmpty(); i++) {
+            rows.add(lines.get(i));
+        }
+        return rows;
+    }
+
+    @Test
+    @DisplayName("리포트는_BOM선행_CSV이고_섹션_블록_5개를_담는다")
+    void reportReturnsCsvWithBomAndFiveBlocks() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        var result = mockMvc.perform(get("/v1/stats/report")
+                        .param("period", "MONTH")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"stats_report_MONTH.csv\""))
+                .andReturn();
+
+        assertThat(result.getResponse().getContentType()).contains("text/csv");
+        String csv = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Excel 이 UTF-8 CSV 를 BOM 없이 열면 한글이 깨진다 — BOM 선행은 계약이다.
+        assertThat(csv).startsWith("\uFEFF");
+        assertThat(csv)
+                .contains("[누적 학습데이터]")
+                .contains("[처리현황]")
+                .contains("[일별 작업량]")
+                .contains("[이벤트 유형 분포]")
+                .contains("[작업자별 현황]");
+        // 구 placeholder 헤더(집계 없는 1행)로 되돌아가지 않았는지 고정.
+        assertThat(csv).doesNotContain("month,labeled,reviewed,approvalRate");
+        // ApiResponse 래퍼를 쓰지 않는다.
+        assertThat(csv).doesNotContain("\"success\"");
+    }
+
+    @Test
+    @DisplayName("리포트_일별_작업량_행수는_period창을_따른다_7_30_90_365")
+    void reportDailyRowCountFollowsPeriodWindow() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        assertThat(blockRows(fetchCsv("WEEK", reviewerToken), "[일별 작업량]")).hasSize(7);
+        assertThat(blockRows(fetchCsv("MONTH", reviewerToken), "[일별 작업량]")).hasSize(30);
+        assertThat(blockRows(fetchCsv("QUARTER", reviewerToken), "[일별 작업량]")).hasSize(90);
+
+        java.util.List<String> year = blockRows(fetchCsv("YEAR", reviewerToken), "[일별 작업량]");
+        assertThat(year).hasSize(365);
+        // 작업 없는 날도 0 행으로 남는다(날짜 연속성).
+        assertThat(year).allMatch(r -> r.matches("\\d{4}-\\d{2}-\\d{2},\\d+"));
+        assertThat(year.get(364)).startsWith(java.time.LocalDate.now().toString() + ",");
+    }
+
+    @Test
+    @DisplayName("period_미지정이면_기본값_WEEK가_적용돼_일별_행이_7건이다")
+    void reportWithoutPeriodDefaultsToWeek() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        // param 을 아예 보내지 않는다 — @RequestParam(defaultValue = "WEEK") 경로 검증.
+        var result = mockMvc.perform(get("/v1/stats/report")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"stats_report_WEEK.csv\""))
+                .andReturn();
+
+        String csv = result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(blockRows(csv, "[일별 작업량]")).hasSize(7);
+    }
+
+    @Test
+    @DisplayName("리포트_수치는_같은_시점_stats_overall_응답과_일치한다")
+    void reportNumbersMatchOverallResponse() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        JsonNode data = fetchData("/v1/stats/overall", reviewerToken);
+        String csv = fetchCsv("MONTH", reviewerToken);
+
+        java.util.List<String> cumulative = blockRows(csv, "[누적 학습데이터]");
+        assertThat(cumulative.get(0)).isEqualTo("이미지(장),"
+                + data.path("approvedImageCount").asLong() + ","
+                + data.path("cumulativeImageCount").asLong());
+        assertThat(cumulative.get(1)).isEqualTo("영상(건),"
+                + data.path("approvedVideoCount").asLong() + ","
+                + data.path("cumulativeVideoCount").asLong());
+
+        JsonNode p = data.path("processing");
+        // 화면과 동일한 4구간 접기 — 처리중은 진행중 + 검수대기.
+        assertThat(blockRows(csv, "[처리현황]")).containsExactly(
+                "완료," + p.path("approved").asLong(),
+                "처리중," + (p.path("inProgress").asLong() + p.path("reviewPending").asLong()),
+                "대기," + p.path("pending").asLong(),
+                "실패," + p.path("rejected").asLong());
+
+        // 이벤트 유형 분포 행 수 = 등록 유형 수(0건 유형 포함).
+        assertThat(blockRows(csv, "[이벤트 유형 분포]"))
+                .hasSize(data.path("eventDistribution").size());
+    }
+
+    @Test
+    @DisplayName("작업자_배정이_0건이어도_200이며_헤더행과_안내문구가_남는다")
+    void reportWithNoWorkersStillReturnsHeaderRow() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        String csv = fetchCsv("MONTH", reviewerToken);
+
+        assertThat(csv).contains("작업자,라벨,진행,검수,오토라벨(%),반려율(%)");
+        // 클린 시드 환경 = LABELER 배정 0건. 예외가 아니라 안내 문구다.
+        assertThat(blockRows(csv, "[작업자별 현황]")).containsExactly("작업자 통계가 없습니다");
+    }
+
+    @Test
+    @DisplayName("period_allowlist_위반은_400_INVALID_INPUT")
+    void reportRejectsUnknownPeriod() throws Exception {
+        String reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
+
+        mockMvc.perform(get("/v1/stats/report")
+                        .param("period", "DECADE")
+                        .header("Authorization", "Bearer " + reviewerToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("WORKER는_리포트_다운로드시_403")
+    void workerCannotDownloadReport() throws Exception {
+        String workerToken = JwtTestSupport.token(secret, "100", "WORKER", "INTERNAL", issuer, 60);
+
+        mockMvc.perform(get("/v1/stats/report")
+                        .param("period", "MONTH")
+                        .header("Authorization", "Bearer " + workerToken))
                 .andExpect(status().isForbidden());
     }
 }

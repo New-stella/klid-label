@@ -1,19 +1,20 @@
 ---
 logicraft_item: DFEAT-042
 type: domain_feature
-version: 11
+version: 12
 domain: DOMAIN-012
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.726Z
-status: NEW
-prev_version: null
-content_hash: 92bedffb1e8134ae9ee5fccd8cffb2938b2af03e571aa198157ddd6a3793337d
+synced_at: 2026-09-01T08:40:14.617Z
+status: CHANGED
+prev_version: 11
+content_hash: cfbb85b2f85c842734a111c629d1d571e6691ea3dd7b172e5761d41e9621cff4
 stale: false
 raw: ./_raw/DFEAT-042.json
 links:
+  based_on: ["[[ADR-006]]"]
   belongs_to_domain: ["[[DOMAIN-012]]"]
   specializes: ["[[FEAT-005]]"]
-  verifies: ["[[AC-011]]", "[[AC-013]]", "[[AC-016]]"]
+  verifies: ["[[AC-1063]]", "[[AC-1064]]", "[[AC-1065]]", "[[AC-1066]]", "[[AC-1067]]"]
   depicts_backward: ["[[CDIAG-003]]"]
   realizes_backward: ["[[UC-013]]"]
   references_backward: ["[[CDIAG-003]]"]
@@ -63,6 +64,10 @@ ADR-006
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -85,6 +90,10 @@ _(empty)_
 
 _(empty)_
 
+### module_paths
+
+_(empty)_
+
 ## uses_constants
 
 _(empty)_
@@ -99,9 +108,11 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-016
-- AC-013
-- AC-011
+- AC-1063
+- AC-1064
+- AC-1065
+- AC-1066
+- AC-1067
 
 ## specializes_feature
 

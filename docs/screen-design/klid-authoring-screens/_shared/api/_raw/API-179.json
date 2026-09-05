@@ -52,11 +52,11 @@
                         },
                         "targetH": {
                           "type": "integer",
-                          "description": "목표 세로 해상도(px)"
+                          "description": "산출 프레임의 실제 세로 크기(px). 프리셋의 세로 수치가 아니라, 원본 종횡비에 따라 균일 배율로 계산된 값이다. 예: 원본 1440x1080 을 RESL_720P 로 파생하면 720. ⚠ 원본 첫 프레임의 치수를 실측할 수 없으면 프리셋의 세로 수치를 그대로 내보낸다 — 조회 자체를 실패시키지 않기 위한 폴백이며, 응답만으로는 폴백값인지 실제 산출 크기인지 구분할 수 없다."
                         },
                         "targetW": {
                           "type": "integer",
-                          "description": "목표 가로 해상도(px)"
+                          "description": "산출 프레임의 실제 가로 크기(px). 프리셋의 가로 수치가 아니라, 원본 종횡비에 따라 균일 배율로 계산된 값이다. 예: 원본 1440x1080 을 RESL_720P 로 파생하면 960. ⚠ 원본 첫 프레임의 치수를 실측할 수 없으면 프리셋의 가로 수치를 그대로 내보낸다 — 조회 자체를 실패시키지 않기 위한 폴백이며, 응답만으로는 폴백값인지 실제 산출 크기인지 구분할 수 없다."
                         },
                         "goalResCd": {
                           "enum": [
@@ -69,7 +69,7 @@
                         }
                       }
                     },
-                    "description": "해상도 파생영상 목록(원본과 동일 해상도라 스킵된 프리셋은 미포함)"
+                    "description": "해상도 파생영상 목록(산출 크기가 원본과 같아 건너뛴 프리셋은 미포함)"
                   }
                 },
                 "description": "해상도 파생영상 확정 상태 목록"
@@ -226,9 +226,13 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-203"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:02.029Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -238,12 +242,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 9,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:16.395Z",
+    "change_summary": "산출 크기 필드에 원본 실측 불가 시의 폴백 조항을 명시한다 — 그 경우 프리셋 수치를 그대로 내보내며 응답만으로는 폴백 여부를 구분할 수 없다는 사실을 계약면에 드러낸다",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:02.029Z",
     "created_at": "2026-07-30T07:15:26.113Z"
   }
 }

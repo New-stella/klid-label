@@ -1,0 +1,79 @@
+{
+  "item": {
+    "id": "AC-1077",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-009 검수 완료·수정 통지 — TASK_COMPLETED/TASK_MODIFIED 평면 페이로드 비동기 push·조회 UPSERT (happy)",
+    "slug": "uc-009-검수-완료수정-통지-taskcompletedtaskmodified-평면-페이로드-비동기-push",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [검수 /review/{id} 승인·수정] 1) 승인 시 TASK_COMPLETED(평면 필수9+선택 output_ver_no) 비동기 push 2) 수정 재승인 시 TASK_MODIFIED(changed_items) · 기대: 관제가 조회 API 로 상세 픽업·데이터마트 UPSERT",
+          "captured_at": "2026-08-31T03:00:00Z"
+        },
+        {
+          "type": "log",
+          "result": "pass",
+          "reference": "select (select count(*) from klid_at.ls_meta_repl_outbox) as meta_repl_outbox, (select count(*) from klid_at.ls_webhook_idempotency) as webhook_idmp;\n\n결과 (검증환경 dev · 상용은 동일 쿼리로 확인):\n+------------------+--------------+\n| meta_repl_outbox | webhook_idmp |\n+------------------+--------------+\n|                5 |           14 |\n+------------------+--------------+",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "TASK_COMPLETED는 필수 9필드+선택 output_ver_no의 평면 구조로 비동기 push(멱등키는 폴백 큐 행 키)",
+          "TASK_MODIFIED는 job_id·changed_items(변경 파일명 목록)+선택 필드의 평면 구조",
+          "다수 변경은 재검토 표시 동안 보류·재승인 후 영상 1건 1회 통지",
+          "관제가 조회 API로 상세를 가져가 데이터마트 UPSERT한다"
+        ],
+        "when": [
+          "TASK_COMPLETED/TASK_MODIFIED를 관제로 통지한다"
+        ],
+        "given": [
+          "영상 단위 검수가 승인되거나 완료 영상 수정이 재승인된다"
+        ]
+      },
+      "statement": "영상 단위 검수를 승인(완료)하면 TASK_COMPLETED 페이로드를 구성한다 — 필수 필드(job_id·event_type_cd·evnt_cls_cd·evnt_ctgry_cd·lclgv_cd·lclgv_nm·duration_sec·image_count·gen_ai_yn)에 선택 output_ver_no를 더한 평면 구조다. 관제 통지 연동(멱등키·재등록 큐·Resilience4j — 멱등키는 페이로드가 아니라 폴백 큐 행의 키)이 관제서버 inbound SPI로 비동기 push한다. 수정된 영상이 재검수에서 승인되면 TASK_MODIFIED 페이로드(job_id·changed_items{images[]·jsons[]}에 선택 ver_expln·output_ver_no)를 같은 방식으로 push하고(짧은 시간 다수 변경은 재검토 표시가 서 있는 동안 보류됐다가 재승인 후 다음 flush tick에 영상 1건 단위 1회), 관제가 통지 수신 후 조회 API(GET /v1/tasks/{rawSn}/summary|labels|meta)로 상세를 가져가 데이터마트 UPSERT한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:47.392Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-016"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-009"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "DFEAT-046의 2개 필드 변경이 derived_from로 2-hop 전파",
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:47.393Z",
+    "created_at": "2026-08-31T02:23:00.964Z"
+  }
+}

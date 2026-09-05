@@ -21,7 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p><b>V174 로 계약이 교체됐다.</b> 구 계약(V95 기준 16컬럼 보존 + V101 신규 메타 18컬럼)은 관제가
  * 적재하지 않는 값을 싣고 정작 필요한 값이 없어, 규격서
- * {@code docs/관제-저작도구-데이터연동-규격서-20260805.md} §5-1 의 <b>31컬럼</b>으로 재작성했다(V16 이 THMB_FILE_PATH_NM 을 끝에 추가해 30→31).
+ * {@code docs/관제-저작도구-데이터연동-규격서-20260805.md} §5-1 의 <b>31컬럼</b>으로 재작성했다(V16 이
+ * THMB_FILE_PATH_NM 을 끝에 추가해 30→31. V17 은 그 컬럼의 <b>조달원만</b> 관제 인입값 pass-through
+ * 에서 저작도구 비식별 첫 프레임으로 바꿨고 출력 계약 31컬럼은 그대로다).
  * <ol>
  *   <li>{@code V_COMPLETED_VIDEO} 출력이 규격서 31컬럼과 <b>이름·순서까지</b> 일치(관제 SELECT 계약).</li>
  *   <li>제거 대상 26컬럼이 <b>다시 살아나지 않는다</b>(되돌림 방지 — 없어야 할 것을 없다고 단언).</li>
@@ -41,7 +43,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DatamartViewRebuildIT {
 
     /**
-     * {@code V_COMPLETED_VIDEO} 의 출력 계약 — 규격서 §5-1 의 31컬럼(<b>순서 포함</b>). V174 의 30컬럼에 V16 이 THMB_FILE_PATH_NM 을 끝에 더했다.
+     * {@code V_COMPLETED_VIDEO} 의 출력 계약 — 규격서 §5-1 의 31컬럼(<b>순서 포함</b>). V174 의 30컬럼에
+     * V16 이 THMB_FILE_PATH_NM 을 끝에 더했고, V17 이 그 컬럼의 조달원을 교체했다(이름·순서 불변).
      *
      * <p>(a) 영상 식별·분류 13 → 관제 {@code datasets} / (b) 버전 속성 12 → {@code dataset_versions} /
      * (c) 산출물 픽업 5.
@@ -58,7 +61,10 @@ class DatamartViewRebuildIT {
             // (c) 산출물 픽업 (5)
             "OUTPUT_PATH_NM", "OUTPUT_STTS_CD", "DE_IDNTF_FILE_PATH_NM",
             "ORGNL_VDO_PATH_NM", "DE_IDNTF_YN",
-            // (d) 썸네일 (1) — V16(2026-08-24) 추가. 관제 패키징 조달용 pass-through.
+            // (d) 썸네일 (1) — V16(2026-08-24) 추가. 관제 패키징 조달용.
+            //     V17: 조달원이 관제 인입값(LS_DATA_INGEST.THMB_FILE_PATH_NM, 컬럼째 제거)에서
+            //          저작도구 비식별 첫 프레임(LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM)으로 바뀌었다.
+            //          출력명·순서·자리는 그대로다 — 값 단위 계약은 V174CompletedVideoViewContractIT.
             //     ★ 맨 끝에 '추가만' 한다 — 앞 30개의 이름·순서를 바꾸면 관제 SELECT 계약이 깨진다.
             "THMB_FILE_PATH_NM");
 

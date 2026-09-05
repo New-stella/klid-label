@@ -5,13 +5,10 @@ import kr.co.cudo.authoring.augment.entity.LsDataAugJobFile;
 import kr.co.cudo.authoring.augment.repository.LsDataAugJobFileRepository;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
-import kr.co.cudo.authoring.batch.entity.LsDeidentProcLog;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
-import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.storage.StorageSubtreePolicy;
-import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -72,16 +69,15 @@ public class AugmentExtractSnapshot {
     /** 위탁 시점에 못박은 순서↔프레임 대응 + 콜백이 되붙인 외부 산출 경로. */
     private final LsDataAugJobFileRepository jobFileRepository;
     /**
-     * 부모 <b>비식별 영상</b> 경로의 진실원. 파일명은 고정이 아니므로(mock={@code deidentified.mp4} ·
-     * KPST={@code {원본stem}-mask{ext}}) 조합·추측하지 않고 적재된 값을 읽는다.
+     * 복사 원본 경로 조달의 <b>단일 진실원</b>(ADR-058) — 관제는 비식별본(처리 이력의 값), 포털 업로드
+     * 자산은 본인 원본. 부모 게이트({@code AugmentResultService})와 이 Phase A 가 같은 판정기를 쓴다.
+     *
+     * <p>흡수 이전에는 이 클래스가 처리 이력 조회·co-locate 2-way 검증을 <b>직접</b> 했다. 그 코드는
+     * {@code ParentDeidArtifactGuard} 에도 같은 모양으로 복제돼 있었고, 조달 규칙이 흩어져 있으면 한쪽만
+     * 고쳐져 조용히 어긋난다. 판정기 한 벌로 모았다.
      */
-    private final LsDeidentProcLogRepository deidentProcLogRepository;
-    /**
-     * 부모 비식별 영상이 co-locate 위치({@code dirname(원본)/{rawSn}/deid/})에 있을 수 있어, 소스 검증
-     * base 를 2-way(구 위치=비식별 저장소 서브트리 / 신 위치=co-locate 디렉터리)로 넓히는 데 쓴다
-     * (해상도 파생 {@code ResolutionSnapshotService} 와 동일).
-     */
-    private final VideoArtifactRootResolver artifactRootResolver;
+    private final kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver
+            derivativeSourceVideoResolver;
 
     /** 파생(비식별 계열) 산출물의 출력 base. 원본 base 가 아니다. */
     @Value("${authoring.storage.deidentified-path:./storage/deidentified}")
@@ -157,10 +153,15 @@ public class AugmentExtractSnapshot {
         //    라벨 좌표 그대로 복사 전제가 깨지므로 Phase B 가 fail-closed 로 막는다.
         Path referenceFrame = resolveSafeDeidSource(base, deidFrameSourceStrict(parentFrames.get(0)));
 
-        // 5) 비디오 — 증강 AI 는 영상을 재생성하지 않으므로 <부모 비식별 영상>을 파생 전용 경로로 복사한다
-        //    (해상도 파생 ResolutionSnapshotService 와 동일 규약). 소스 경로는 조합하지 않고 procLog 값을
-        //    읽으며, 없으면 원본(비-비식별)으로 폴백하지 않고 실패시킨다(PII 복제 원천 차단, CWE-359).
-        Path deidVideoSrc = resolveParentDeidVideo(parentRawSn);
+        // 5) 비디오 — 증강 AI 는 영상을 재생성하지 않으므로 <부모 영상 파일>을 파생 전용 경로로 복사한다.
+        //    복사 원본 경로 조달은 단일 진실원(DerivativeSourceVideoResolver)에 위임한다 —
+        //    관제 자산은 비식별본(처리 이력의 값), 포털 업로드 자산은 본인 원본이며 서로 폴백하지 않는다.
+        //    ★ 여기서 출처를 분기하지 않는다. 조달의 기본값이 비식별본이라 판별을 놓쳐도 관제 원본은
+        //      나가지 않는다(자세한 근거·되살리기 금지 사유는 그 클래스 주석).
+        Path deidVideoSrc = derivativeSourceVideoResolver.requireSourceVideo(
+                videoRepository.findById(parentRawSn)
+                        .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
+                                "부모 영상을 찾을 수 없습니다: parentRawSn=" + parentRawSn)));
         Path videoDst = resolveSafeDeidDir(base,
                 StorageSubtreePolicy.augmentVideoFile(parentRawSn, newRawSn, aug.getAugTypeCd()));
 
@@ -239,37 +240,6 @@ public class AugmentExtractSnapshot {
      */
     private static long frameNumberOf(LsDataSrc frame) {
         return frame.getVideoFrameNo() != null ? frame.getVideoFrameNo() : frame.getFrameNo();
-    }
-
-    /**
-     * 복사 소스 = <b>부모 비식별 영상</b> 경로. 최신 SUCCESS {@link LsDeidentProcLog} 의
-     * {@code DE_IDNTF_FILE_PATH_NM} <b>값</b>을 읽는다(파일명 조합·추측 금지 — mock 과 KPST 의 이름이 다르다).
-     * 값이 없으면 원본으로 폴백하지 않고 실패시킨다(PII 복제 차단).
-     *
-     * <p>경로 검증은 해상도 파생과 동일한 <b>2-way</b>다 — ①co-locate 비식별 영상 디렉터리 하위 또는
-     * ②비식별 저장소의 비식별 전용 서브트리({@code videos/**}). 둘 다 아니면 거부한다(fail-secure,
-     * 경로 원문 미노출 CWE-209).
-     */
-    private Path resolveParentDeidVideo(Long parentRawSn) {
-        String deidVideoPath = deidentProcLogRepository.findLatestSuccessByDataRawSn(parentRawSn)
-                .map(LsDeidentProcLog::getDeIdntfFilePathNm)
-                .filter(p -> p != null && !p.isBlank())
-                .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND,
-                        "원본 비식별 영상 경로를 찾을 수 없습니다: parentRawSn=" + parentRawSn));
-        Optional<Path> coLocateDir = (artifactRootResolver == null)
-                ? Optional.empty()
-                : videoRepository.findById(parentRawSn)
-                        .flatMap(p -> artifactRootResolver.deidVideoDirQuietly(parentRawSn, p.getRawFilePathNm()));
-        if (coLocateDir.isPresent()) {
-            Path candidate = Paths.get(deidVideoPath);
-            Path resolved = candidate.isAbsolute()
-                    ? candidate.normalize()
-                    : coLocateDir.get().resolve(candidate).normalize();
-            if (resolved.startsWith(coLocateDir.get())) {
-                return resolved;
-            }
-        }
-        return resolveSafeDeidSource(deidBase(), deidVideoPath);
     }
 
     /** 비식별 저장소 base(정규화 절대경로). */

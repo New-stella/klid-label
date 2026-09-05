@@ -313,9 +313,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-240"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:39.850Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -325,12 +328,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
-    "stale": true,
-    "stale_reason": "REQ-009의 data.constraints 변경이 implements로 2-hop 전파",
-    "change_summary": "D010 P1(D010-STL-004): responses.200 의 MODIFIED 판정 서술이 구 3축(\"shape/label 차이\")을 그대로 담고 있었다 — 자매 API-182 는 이미 \"비교축 차이\"로 정정돼 있어 정합. R7(6축) 확정 정책과 일치시킴.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:23:36.523Z",
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 REQ-009 v12 의 변경은 요구사항 본문의 표기를 사양 서술로 바꾼 편집이며 원천이 스스로 내용 변경 없음을 선언한다. 이 문서의 축은 두 승인 회차 사이의 라벨 diff 조회 계약이고, 비교 대상 파라미터·판정 축·응답 스키마 어디에도 그 편집과 겹치는 항목이 없어 고칠 내용이 없다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:39.850Z",
     "created_at": "2026-05-30T07:22:06.256Z"
   }
 }

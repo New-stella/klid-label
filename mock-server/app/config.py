@@ -42,6 +42,17 @@ class Settings(BaseSettings):
         description="VLM 콜백 전송 지연(초) — Phase 3에서 사용",
     )
 
+    describe_omit_situation: bool = Field(
+        default=False,
+        description=(
+            "묘사(describe) 콜백 서술에서 「상황」 라벨 줄을 통째로 뺄지 여부. "
+            "우리 BE 는 묘사 전문에서 그 줄만 파싱해 이벤트 어노테이션의 사고 단계 1단계를 채우고, "
+            "줄이 없으면 채우지 않는다(빈 값도 넣지 않는다). 그 미채움 분기를 로컬·dev 에서 "
+            "실동작으로 확인하려면 「상황」이 없는 응답을 낼 수 있어야 한다. "
+            "기본값 False — 평소에는 규격 형식대로 「상황」을 포함한다"
+        ),
+    )
+
     # KPST 비식별 더미 출력 파일 생성
     write_output_files: bool = Field(
         default=True,
@@ -95,7 +106,7 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ── 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.1」 ─────────
+    # ── 생성형 AI(증강) 목 — 「생성형 AI API 연동명세서 v1.3」 ─────────
     genai_step_delay_sec: float = Field(
         default=2.0,
         ge=0.0,
@@ -165,10 +176,16 @@ class Settings(BaseSettings):
         ),
     )
     genai_event_types: str = Field(
-        default="",
+        default="FLOOD,WILDFIRE,ETC",
         description=(
-            "허용 evnt_type 목록(콤마 구분). 빈값이면 검증하지 않고 모두 허용한다. "
-            "설정 시 목록 밖 값은 400 UNSUPPORTED_EVENT_TYPE"
+            "허용 evnt_type 목록(콤마 구분). 「생성형 AI API 연동명세서 v1.3」 §4.1 의 "
+            "FLOOD | WILDFIRE 에 협의된 중립값 ETC 를 더한 것이 기본값이며, 목록 밖 값은 "
+            "400 UNSUPPORTED_EVENT_TYPE. 빈값으로 두어도 검증이 꺼지지 않고 "
+            "SUPPORTED_EVNT_TYPES 로 fail-closed 한다. "
+            "★ ETC 는 벤더와 협의가 끝난 값이고(2026-09-02 사용자 확정 · ADR-059) 저작도구가 "
+            "증강 위탁에 고정 송신한다. ⚠ 다만 v1.3(갱신일 2026-08-12) 문서에는 아직 없으므로 "
+            "'규격서에 없다' 는 이유로 빼지 말 것 — 개정판을 받으면 대조한다. "
+            "판정 근거·성격 차이는 schemas/genai.py 의 SUPPORTED_EVNT_TYPES 주석이 정본"
         ),
     )
     genai_max_input_bytes: int = Field(
@@ -275,7 +292,20 @@ class Settings(BaseSettings):
         return aliases
 
     def genai_event_types_set(self) -> set[str]:
-        """허용 evnt_type 집합. 빈 집합이면 '검증 안 함'을 뜻한다."""
+        """허용 evnt_type 집합(설정 문자열 파싱). 빈 집합이면 **'검증 안 함' 이 아니다**.
+
+        설정(``MOCK_GENAI_EVENT_TYPES``)이 비어 있으면 소비자
+        (``routers/augment.py`` 의 ``_check_event_type``)가
+        ``settings.genai_event_types_set() or SUPPORTED_EVNT_TYPES`` 로 **계약 목록으로 되돌아가
+        fail-closed** 한다 — 검증이 꺼져 아무 값이나 통과하는 경로는 없다.
+        회귀 가드: ``tests/test_genai_jobs.py``
+        (``test_evnt_type_허용목록을_비워도_계약목록으로_fail_closed``).
+
+        ⚠ 구 docstring *"빈 집합이면 '검증 안 함' 을 뜻한다"* 는 **사실과 달랐고 실제로 사고를
+        냈다** — 그 서술을 읽은 쪽이 "빈 집합이면 검증하지 않는다" 로 보고해, ETC 허용을
+        설정 기본값만 고치는 반쪽 수정(설정을 비운 구성에서만 400)으로 이어질 뻔했다.
+        같은 파일 ``genai_event_types`` Field description 은 처음부터 정확했다.
+        """
         return {e.strip() for e in self.genai_event_types.split(",") if e.strip()}
 
     def genai_effective_input_base(self) -> str:

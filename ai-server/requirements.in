@@ -23,6 +23,21 @@ trackers>=2.0    # ByteTrackTracker (Apache-2.0) — lazy import, YOLOX 트래�
 supervision>=0.26    # sv.Detections 변환 전용 (trackers 호환) — lazy import. sv.ByteTrack 미사용이므로 <0.30 상한 제거. (trackers 가 supervision>=0.26.1 요구)
 torch>=2.2.0
 torchvision>=0.17.0
+# ★ opencv-python-headless 로 교체하지 않는다 (2026-08-30 실측 판정 — 되돌리지 말 것)
+#   동기: headless wheel 은 Qt5(LGPL-3.0)와 X11 의존 17종을 담지 않아 라이선스 계층이 얕아진다
+#         (72.9MB → 60.4MB). 우리 코드도 GUI API(imshow/waitKey/namedWindow) 사용이 0건이고
+#         cv2 는 app/routers/sam2.py 의 findContours/contourArea 뿐이라 기능상 충분하다.
+#   그런데 교체가 <성립하지 않는다>: supervision 0.28.0 과 trackers 2.4.0 이 둘 다
+#         Requires-Dist 로 "opencv-python" 을 <직접> 요구한다(extra 아님, PyPI 메타데이터 및
+#         로컬 dist-info METADATA 양쪽 확인). 여기만 headless 로 바꾸면 pip 가 GUI 판을
+#         전이의존으로 되끌어와 <둘 다> 설치되고, 라이선스 계층은 그대로인 채 용량만 는다.
+#         (requirements.txt 의 "# via supervision / trackers" 주석이 그 사실을 이미 보여준다.)
+#   ⚠ 라이선스 고지 함정: opencv-python 과 opencv-python-headless 의 LICENSE-3RD-PARTY.txt 는
+#     <바이트 동일>이라 headless 를 쓰더라도 실제로 안 담기는 Qt5 고지가 그 파일에 남는다.
+#     지금은 GUI 판을 싣고 있으므로 <Qt5(LGPL-3.0)가 실제로 포함>되며 그 고지는 정확하다.
+#     장차 headless 로 옮기게 되면, 고지 파일과 실제 반입물이 어긋난다는 사실을 별도로 밝혀야
+#     심의자가 LGPL-3.0 포함으로 오독하지 않는다.
+#   되돌리려면: supervision/trackers 가 opencv 의존을 옵션화하거나 대체 백엔드를 쓸 때.
 opencv-python>=4.9.0
 pillow>=10.2.0
 numpy>=1.26.0

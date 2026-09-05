@@ -1,6 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* Tailwind v3 → v4 최소 이관 — `tailwind.config.js`(theme.extend 전량)는 그대로 두고
+   `@config` 로 연결한다. v4 는 JS config 를 자동 인식하지 않으므로 명시 필수. */
+@config '../../tailwind.config.js';
 
 @layer base {
   html,
@@ -25,6 +27,49 @@
     background-color: var(--krds-color-bg, #f4f5f6);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Tailwind v4 Preflight 변경분 — v3 시각적 동작 보존 (공식 업그레이드 가이드 권장 스니펫)
+ * https://tailwindcss.com/docs/upgrade-guide#preflight-changes
+ *
+ * 코드베이스 전수 스캔 결과, 아래 3항목은 프로젝트 전역에 실제 영향이 있어 v3 동작을
+ * 그대로 보존한다(색상 하드코딩 신설이 아니라 v4 preflight 기본값 회귀 방지용 base 오버라이드).
+ * ───────────────────────────────────────────────────────────────────────── */
+@layer base {
+  /* 1) 기본 border 색: v4 는 gray-200 → currentColor 로 변경됐다. 실사용처는 색을 명시하는
+     클래스로 개별 수정했지만(예: `border` → `border border-gray-200`), 이 규칙을 안전망으로
+     둔다 — 색을 명시한 요소는 유틸리티 레이어가 항상 이 규칙을 덮어써 영향이 없다.
+     ⚠ `var(--color-gray-200)` 을 쓰지 않는다 — `@config` 로 연결한 JS 팔레트(krdsNeutral)는
+     v4 CSS 커스텀 프로퍼티(`--color-*`)로 노출되지 않고 유틸리티에 리터럴 hex 로만 인라인된다
+     (빌드 산출물 실측 확인). 그 상태에서 정의되지 않은 var() 를 참조하면 폴백 currentColor 로
+     조용히 떨어져 이 규칙 자체가 무력화된다 — 그래서 `tailwind.config.js` 의 krdsNeutral[200]
+     리터럴 값을 직접 쓴다(`--krds-color-border` 와 같은 값, 아래 :root 참조는 선언 순서가
+     달라도 무방하나 이 블록은 독립적으로 완결되도록 리터럴을 쓴다). */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: #cdd1d5; /* gray/neutral-200 */
+  }
+
+  /* 2) placeholder 기본색: v4 는 gray-400(고정값) → currentColor 50% 로 변경됐다. 프로젝트에
+     색을 명시하지 않은 <input>/<textarea> placeholder 가 다수 존재해(공통 Input/Textarea 는
+     이미 `placeholder:text-gray-400` 로 명시하므로 영향 없음) v3 기본값을 유지한다.
+     ⚠ 위 1)과 같은 이유로 var(--color-gray-400) 대신 리터럴을 쓴다. */
+  input::placeholder,
+  textarea::placeholder {
+    color: #8a949e; /* gray/neutral-400 */
+  }
+
+  /* 3) 버튼 기본 커서: v4 는 cursor: pointer(v3 preflight 관례) → cursor: default(브라우저
+     기본값)로 되돌아갔다. 공용 Button 컴포넌트를 포함해 프로젝트 전역이 이 v3 관례에
+     의존하고 있어(개별 `cursor-pointer` 미부착) 유지한다. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
   }
 }
 

@@ -1,0 +1,79 @@
+{
+  "item": {
+    "id": "AC-1066",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-016 비식별 상태·이력·누락 신고·해소 — 상태 확인→신고(작업락+F, 라벨 보존)→구간 차단→수동 비식별→resolve 원자 클레임·단계별 재개 (happy)",
+    "slug": "uc-016-비식별-상태이력누락-신고해소-상태-확인신고작업락f-라벨-보존구간-차단수동-비식별resolve-원",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [영상현황 /video/status·비식별신고 /manage/deident-reports] 1) 비식별 상태·단계 확인(개인정보 유무 미표시) 2) 누락 신고(작업락+'F', 라벨 보존) 3) 신고 구간 12종 차단·스트리밍 404 4) 수동 비식별 후 resolve·단계별 재개",
+          "captured_at": "2026-08-31T03:00:00Z"
+        },
+        {
+          "type": "log",
+          "result": "pass",
+          "reference": "select de_ident_yn, count(*) from klid_at.ls_data_raw where de_ident_yn='F' group by de_ident_yn;\n\n결과 (검증환경 dev · 상용은 동일 쿼리로 확인):\n+-------------+-------+\n| de_ident_yn | count |\n+-------------+-------+\n| F           |     2 |\n+-------------+-------+\n(1 row)",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "상태·단계를 확인한다(개인정보 유무 미표시), 신고는 작업락+DE_IDNTF_YN='F'만·라벨·개인정보 3필드 보존",
+          "신고 구간은 저작도구 내부 통로의 라벨 본문 등을 412·스트리밍 404로 차단(인가 이후 프리컨디션, no-store) — 게이트는 관제 경계(데이터마트 뷰·통지·관제 조회 API)에는 걸리지 않는다",
+          "resolve는 OPEN→RESOLVED 원자 클레임·성공자만 락 해제·'F'→'Y'·재개(2노드 중복 방지)",
+          "단계별 재개(MARKING 되감기/LABELING 프레임만 재추출·SRC_SN 보존/NULL 미백필), 배치 완료·실패 시 Y/F 갱신·이력"
+        ],
+        "when": [
+          "신고→수동 비식별→resolve로 해소한다"
+        ],
+        "given": [
+          "비식별 상태를 확인하고 누락을 신고·해소한다"
+        ]
+      },
+      "statement": "영상 상세/처리 현황 화면에서 비식별 상태(DE_IDNTF_YN)와 배치 단계(DEIDENTIFY)를 확인한다(개인정보 유무는 어디에도 미표시). 비식별 누락 발견 시 마킹 단계(MARKING_READY일 때만) 또는 라벨링 단계(단계 무관)에서 신고하고(LS_DEIDENT_REPORT OPEN + DCLR_STP_CD 기록, WORKER는 본인 배정만) 작업락 선점 + DE_IDNTF_YN='F' 마킹만 수행하며 라벨과 개인정보 3필드는 보존한다. 신고 구간 동안 저작도구 내부 통로의 라벨 조회·저장, 속성값, 버전 diff·롤백, 프레임 이미지, 포털 라벨·이미지, 개인정보 메타 PUT, 이벤트 어노 저장·승인·반려, 검수 승인을 412로, 영상 스트리밍을 404로 차단한다(인가 이후 프리컨디션·역할 무관, 미디어 응답은 Cache-Control: no-store). 게이트는 저작도구 내부 통로에만 걸리고 관제 경계(데이터마트 뷰·통지·관제 조회 API)에는 걸리지 않는다. 외부 솔루션으로 수동 비식별 후 resolve(POST .../resolve)로 OPEN→RESOLVED 조건부 UPDATE 원자 클레임해 영향행수 1을 받은 성공자만 작업락 해제·'F'→'Y' 복원·재개를 수행하며(2노드 중복 방지), 신고 단계에 따라 재개 지점을 정한다(MARKING은 MARKING_READY 되감기·활성 마킹 SKIPPED, LABELING은 LS_DATA_SRC dirty-update로 프레임만 재추출·SRC_SN 보존해 라벨 이어감, NULL은 백필·재개 이벤트 없음). 배치 비식별 완료/실패 시 DE_IDNTF_YN을 Y/F로 갱신하고 이력을 기록한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:47.014Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-012"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-016"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "차단 대상 열거에서 관제 조회 라벨 본문을 걷어내고 게이트가 저작도구 내부 통로에만 걸린다는 축을 명시한다 — 검수 완료·통지 건에 대한 관제 접근은 신고 구간에도 보장되므로 그 항목을 검증 대상으로 두면 확정 정책과 정반대를 통과 조건으로 삼게 된다. 내부 통로 412·영상 스트리밍 404 는 그대로 두었고 statement 와 시나리오 then 을 같은 축으로 함께 고쳤다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-02T02:54:38.690Z",
+    "created_at": "2026-08-31T02:19:41.285Z"
+  }
+}

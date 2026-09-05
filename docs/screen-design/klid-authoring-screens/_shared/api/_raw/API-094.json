@@ -118,10 +118,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-262"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-06-05T05:06:15.490Z"
+        "last_updated": "2026-08-29T01:23:43.396Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -135,8 +137,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "해소 요청 본문의 파일명 길이 상한(255자)을 계약에 드러낸다. 서버가 이미 그 상한을 강제하고 초과 입력을 거부하는데 계약에는 적혀 있지 않아, 소비자가 상한을 모른 채 보내면 이유를 알 수 없는 거부를 받는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T10:01:46.913Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:43.396Z",
     "created_at": "2026-06-04T06:41:22.151Z"
   }
 }

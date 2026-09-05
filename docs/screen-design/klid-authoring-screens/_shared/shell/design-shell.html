@@ -8,8 +8,9 @@
 
 <!-- ══════════════════════════════════════════════════════════════════
      주 렌더 — 셸 단독 (헤더 + 좌측 주 메뉴 + 푸터). 본문 자리는 비워 둔다.
-     역할은 REVIEWER — 주 메뉴 14개 항목이 모두 노출되는 상위집합이라
-     셸 단독 시안에서는 이쪽을 주 렌더로 둔다(WORKER 는 아래 참고 패널).
+     역할은 REVIEWER — 주 메뉴 13개 항목이 노출된다. 역할 계층이 관리자 → 검수자
+     한 단계라 상위집합은 관리자(19개)이며, 검수자·작업자와 나란히 아래 참고 패널에서
+     대조한다. 주 렌더를 검수자로 두는 것은 이 시안의 기준 시점이 검수자이기 때문이다.
      ══════════════════════════════════════════════════════════════════ -->
 <div class="app-shell">
 
@@ -37,7 +38,7 @@
     </div>
   </header>
 
-  <!-- ② 좌측 고정 주 메뉴 240px (UI-036 Lnb · NAV-001) — REVIEWER 14항목 -->
+  <!-- ② 좌측 고정 주 메뉴 240px (UI-036 Lnb · NAV-001) — REVIEWER 13항목 -->
   <nav class="lnb" aria-label="주 메뉴">
     <div class="lnb-group">
       <a class="lnb-link t-nav-link" href="#" aria-current="page">
@@ -80,7 +81,6 @@
 
     <div class="lnb-group">
       <span class="lnb-group-label t-label">관리</span>
-      <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
       <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
       <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
       <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
@@ -136,8 +136,68 @@
 
       <div class="role-col">
         <div class="role-col-head">
+          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>관리자</span>
+          <span class="lnb-count t-body-sm">8개 묶음 · 19개 항목</span>
+        </div>
+        <nav class="lnb" aria-label="주 메뉴 — 관리자 노출 기준">
+          <div class="lnb-group">
+            <a class="lnb-link t-nav-link" href="#" aria-current="page">
+              <svg class="icon lnb-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="9" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="5" rx="1"></rect>
+                <rect x="14" y="12" width="7" height="9" rx="1"></rect>
+                <rect x="3" y="16" width="7" height="5" rx="1"></rect>
+              </svg>
+              <span>대시보드</span>
+            </a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">영상</span>
+            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">작업</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업 목록</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>검수 목록</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">데이터</span>
+            <a class="lnb-link t-nav-link" href="#"><span>증강 요청</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">통계</span>
+            <a class="lnb-link t-nav-link" href="#"><span>작업자 통계</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>전체 구축 현황</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">게시판</span>
+            <a class="lnb-link t-nav-link" href="#"><span>게시판</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">관리</span>
+            <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>비식별 신고</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>이벤트유형 관리</span></a>
+          </div>
+          <div class="lnb-group">
+            <span class="lnb-group-label t-label">관리자</span>
+            <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>연동 서버 주소</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>산출물 가져오기</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>파일 업로드</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>패스워드 교체</span></a>
+            <a class="lnb-link t-nav-link" href="#"><span>위험 액션</span></a>
+          </div>
+        </nav>
+        <p class="t-caption text-faint" style="margin:0">‘파일 업로드’는 빌드 설정으로 노출이 갈립니다 — 꺼진 빌드에서는 18개입니다.</p>
+      </div>
+
+      <div class="role-col">
+        <div class="role-col-head">
           <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자</span>
-          <span class="lnb-count t-body-sm">7개 묶음 · 14개 항목 (위 주 렌더와 동일)</span>
+          <span class="lnb-count t-body-sm">7개 묶음 · 13개 항목 (위 주 렌더와 동일)</span>
         </div>
         <nav class="lnb" aria-label="주 메뉴 — 검수자 노출 기준">
           <div class="lnb-group">
@@ -175,7 +235,6 @@
           </div>
           <div class="lnb-group">
             <span class="lnb-group-label t-label">관리</span>
-            <a class="lnb-link t-nav-link" href="#"><span>사용자 관리</span></a>
             <a class="lnb-link t-nav-link" href="#"><span>시스템 설정</span></a>
             <a class="lnb-link t-nav-link" href="#"><span>라벨 관리</span></a>
             <a class="lnb-link t-nav-link" href="#"><span>프리셋 관리</span></a>
@@ -188,7 +247,7 @@
       <div class="role-col">
         <div class="role-col-head">
           <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>작업자</span>
-          <span class="lnb-count t-body-sm">4개 묶음 · 5개 항목 (데이터·관리 묶음은 통째로 사라짐)</span>
+          <span class="lnb-count t-body-sm">4개 묶음 · 4개 항목 (영상·데이터·관리 묶음은 통째로 사라짐)</span>
         </div>
         <nav class="lnb" aria-label="주 메뉴 — 작업자 노출 기준">
           <div class="lnb-group">
@@ -201,10 +260,6 @@
               </svg>
               <span>대시보드</span>
             </a>
-          </div>
-          <div class="lnb-group">
-            <span class="lnb-group-label t-label">영상</span>
-            <a class="lnb-link t-nav-link" href="#"><span>영상 처리 현황</span></a>
           </div>
           <div class="lnb-group">
             <span class="lnb-group-label t-label">작업</span>
@@ -257,8 +312,14 @@
 
       <div class="card">
         <div class="card-content">
-          <p class="ref-caption t-caption text-faint">헤더 우측 — 역할 배지는 읽기 전용이고 이 화면에서 바꿀 수 없습니다</p>
+          <p class="ref-caption t-caption text-faint">헤더 우측 — 역할 배지는 읽기 전용이고 이 화면에서 바꿀 수 없습니다. 역할이 아직 없으면 ‘미배정’으로 보이며, 넷 중 하나로 임의로 채우지 않습니다</p>
           <div class="state-samples">
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">관리자</span>
+              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>관리자</span>
+              <span class="gnb-avatar" aria-hidden="true">사</span>
+              <span class="gnb-username t-body-md">사용자00</span>
+            </div>
             <div class="sample-row">
               <span class="sample-name t-body-sm">검수자</span>
               <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>검수자</span>
@@ -270,6 +331,17 @@
               <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>작업자</span>
               <span class="gnb-avatar" aria-hidden="true">사</span>
               <span class="gnb-username t-body-md">사용자02</span>
+            </div>
+            <div class="sample-row">
+              <span class="sample-name t-body-sm">미배정</span>
+              <span class="badge badge-warn">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" style="width:12px;height:12px;flex:0 0 auto;stroke-width:2" aria-hidden="true">
+                  <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path>
+                  <path d="M12 9v4"></path><path d="M12 17h.01"></path>
+                </svg>미배정
+              </span>
+              <span class="gnb-avatar" aria-hidden="true">사</span>
+              <span class="gnb-username t-body-md">사용자03</span>
             </div>
           </div>
           <p class="ref-caption t-caption text-faint" style="margin-top:var(--sp-md)">사용자 이름은 예시 표기입니다. 아바타는 이름 첫 글자를 원형으로 보여줍니다.</p>

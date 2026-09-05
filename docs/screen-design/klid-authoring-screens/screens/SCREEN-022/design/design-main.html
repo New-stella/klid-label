@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
 <body>
 <main class="screen-root">
 
@@ -40,55 +40,23 @@
             <h2 id="step1-title" class="t-title-md step-title">처리 종류 선택</h2>
             <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>하나만 선택</span>
             <span class="step-spacer">
-              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>선택한 종류 · 겨울</span>
+              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>선택한 종류 · 증강 AI</span>
             </span>
           </div>
 
           <fieldset role="radiogroup" aria-labelledby="kind-legend">
-            <legend id="kind-legend" class="sr-only">처리 종류 — 겨울 · 야간 · 우천 · 해상도 변경 중 하나</legend>
+            <legend id="kind-legend" class="sr-only">처리 종류 — 증강 AI · 해상도 변경 중 하나</legend>
             <div class="kind-grid">
 
               <label class="kind-card">
-                <input type="radio" name="process-kind" value="winter" checked />
+                <input type="radio" name="process-kind" value="augment" checked />
                 <span class="kind-inner">
                   <span class="kind-icon" aria-hidden="true">
-                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18"></path><path d="m4.2 7.5 15.6 9"></path><path d="m4.2 16.5 15.6-9"></path><path d="M9 5.5 12 3l3 2.5"></path><path d="M9 18.5 12 21l3-2.5"></path></svg>
+                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"></path><path d="M5 3v4"></path><path d="M19 17v4"></path><path d="M3 5h4"></path><path d="M17 19h4"></path></svg>
                   </span>
                   <span class="kind-text">
-                    <span class="kind-title t-title-sm">겨울</span>
-                    <span class="kind-desc t-caption">눈과 결빙이 있는 겨울 장면으로 다시 만듭니다.</span>
-                  </span>
-                  <span class="kind-check" aria-hidden="true">
-                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
-                  </span>
-                </span>
-              </label>
-
-              <label class="kind-card">
-                <input type="radio" name="process-kind" value="night" />
-                <span class="kind-inner">
-                  <span class="kind-icon" aria-hidden="true">
-                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7.5 7.5 0 1 0 10.5 10.5Z"></path></svg>
-                  </span>
-                  <span class="kind-text">
-                    <span class="kind-title t-title-sm">야간</span>
-                    <span class="kind-desc t-caption">조도가 낮은 밤 장면으로 다시 만듭니다.</span>
-                  </span>
-                  <span class="kind-check" aria-hidden="true">
-                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
-                  </span>
-                </span>
-              </label>
-
-              <label class="kind-card">
-                <input type="radio" name="process-kind" value="rain" />
-                <span class="kind-inner">
-                  <span class="kind-icon" aria-hidden="true">
-                    <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><path d="M7 15a4.5 4.5 0 0 1 .5-9 5.5 5.5 0 0 1 10.4 1.6A3.7 3.7 0 0 1 17.5 15Z"></path><path d="M8 18.5 7 21"></path><path d="M12 18.5 11 21"></path><path d="M16 18.5 15 21"></path></svg>
-                  </span>
-                  <span class="kind-text">
-                    <span class="kind-title t-title-sm">우천</span>
-                    <span class="kind-desc t-caption">비가 내리는 장면으로 다시 만듭니다.</span>
+                    <span class="kind-title t-title-sm">증강 AI</span>
+                    <span class="kind-desc t-caption">생성 조건이 정한 장면으로 다시 만듭니다.</span>
                   </span>
                   <span class="kind-check" aria-hidden="true">
                     <svg viewbox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
@@ -119,7 +87,7 @@
           <div class="prompt-block">
             <div class="prompt-legend">
               <h3 class="t-title-sm">생성 조건</h3>
-              <span class="legend-sub t-body-sm">5개 항목 모두 필요합니다 · 각 50자 이내</span>
+              <span class="legend-sub t-body-sm">다섯 항목을 모두 골라야 하며 하나라도 비어 있으면 요청 단추가 잠기고 사유를 안내합니다 · 보기는 외부 연동 계약이 정한 값입니다 · 계약 자체는 최소 한 항목만 요구하지만 이 화면은 더 엄격하게 받습니다 — 의도된 선택. 하나라도 비우면 외부가 어떤 기본값으로 채울지 이쪽에서 알 수 없어 같은 요청의 결과가 비결정적이 됩니다.</span>
             </div>
 
             <div class="alert alert-outline alert-outline--caution">
@@ -132,54 +100,104 @@
               </div>
             </div>
 
+            <div class="field">
+              <span class="field-label t-label" id="preset-label">생성 조건 프리셋</span>
+              <div class="filter-actions" role="group" aria-labelledby="preset-label">
+                <button type="button" class="btn btn-primary btn-sm" aria-pressed="true">겨울</button>
+                <button type="button" class="btn btn-secondary btn-sm" aria-pressed="false">야간</button>
+                <button type="button" class="btn btn-secondary btn-sm" aria-pressed="false">우천</button>
+              </div>
+              <span class="field-help t-caption">프리셋을 고르면 생성 조건 다섯 항목에 그에 맞는 값이 채워집니다. 겨울은 계절과 날씨, 야간은 시간대, 우천은 날씨. 채워진 값은 고칠 수 있고, 이미 입력한 항목은 프리셋을 바꿔도 덮어쓰지 않습니다.</span>
+            </div>
+
             <div class="prompt-grid">
 
               <div class="field">
-                <div class="field-head">
-                  <label class="field-label t-label" for="p-time">시간대<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                  <span class="field-counter" aria-hidden="true">2/50</span>
+                <label class="field-label t-label" for="p-time">시간대</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-time">
+                  <option>고르지 않음</option>
+                  <option>새벽</option>
+                  <option selected>낮</option>
+                  <option>황혼</option>
+                  <option>밤</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <input class="input" id="p-time" type="text" value="주간" placeholder="예: 해 질 무렵" />
               </div>
 
               <div class="field">
-                <div class="field-head">
-                  <label class="field-label t-label" for="p-season">계절<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                  <span class="field-counter" aria-hidden="true">2/50</span>
+                <label class="field-label t-label" for="p-season">계절</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-season">
+                  <option>고르지 않음</option>
+                  <option>봄</option>
+                  <option>여름</option>
+                  <option>가을</option>
+                  <option selected>겨울</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <input class="input" id="p-season" type="text" value="겨울" placeholder="예: 늦가을" aria-describedby="p-season-help" />
-                <span class="field-help t-caption" id="p-season-help">고른 종류에 맞춰 채워 뒀습니다. 고칠 수 있습니다.</span>
+                <span class="field-help t-caption">겨울 프리셋으로 채워 뒀습니다. 고칠 수 있습니다.</span>
               </div>
 
               <div class="field">
-                <div class="field-head">
-                  <label class="field-label t-label" for="p-weather">날씨<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                  <span class="field-counter" aria-hidden="true">6/50</span>
+                <label class="field-label t-label" for="p-weather">날씨</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-weather">
+                  <option>고르지 않음</option>
+                  <option>맑음</option>
+                  <option>흐림</option>
+                  <option>비</option>
+                  <option selected>눈</option>
+                  <option>안개</option>
+                  <option>바람</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <input class="input" id="p-weather" type="text" value="눈 내림" placeholder="예: 흐림" aria-describedby="p-weather-help" />
-                <span class="field-help t-caption" id="p-weather-help">고른 종류에 맞춰 채워 뒀습니다. 고칠 수 있습니다.</span>
+                <span class="field-help t-caption">겨울 프리셋으로 채워 뒀습니다. 고칠 수 있습니다.</span>
               </div>
 
               <div class="field">
-                <div class="field-head">
-                  <label class="field-label t-label" for="p-terrain">지형<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                  <span class="field-counter" aria-hidden="true">0/50</span>
+                <label class="field-label t-label" for="p-terrain">지형</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-terrain">
+                  <option selected>고르지 않음</option>
+                  <option>도로</option>
+                  <option>지하차도</option>
+                  <option>하천</option>
+                  <option>도심</option>
+                  <option>주거지역</option>
+                  <option>시골</option>
+                  <option>산지</option>
+                  <option>숲</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <input class="input is-invalid" id="p-terrain" type="text" placeholder="예: 왕복 4차로 교차로" aria-invalid="true" aria-describedby="p-terrain-err" />
-                <span class="field-error t-caption" id="p-terrain-err" role="alert">
-                  <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
-                  필수 입력입니다.
-                </span>
               </div>
 
               <div class="field">
-                <div class="field-head">
-                  <label class="field-label t-label" for="p-severity">강도<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-                  <span class="field-counter" aria-hidden="true">2/50</span>
+                <label class="field-label t-label" for="p-severity">심각도</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-severity">
+                  <option>고르지 않음</option>
+                  <option>낮음</option>
+                  <option selected>보통</option>
+                  <option>높음</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
                 </div>
-                <input class="input" id="p-severity" type="text" value="보통" placeholder="예: 약하게" />
               </div>
 
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label class="field-label t-label" for="p-free">자유 지시문 <span class="field-opt">선택</span></label>
+                <span class="field-counter" aria-hidden="true">0/1000</span>
+              </div>
+              <textarea class="textarea" id="p-free" rows="3" placeholder="예: 노면에 고인 물이 반사되도록" aria-describedby="p-free-help"></textarea>
+              <span class="field-help t-caption" id="p-free-help">1,000자 이내입니다. 넘으면 잘라 보내지 않고 요청을 거부합니다. 생성 조건과 어긋나는 표현은 생성 조건이 이깁니다 — 무시된 표현은 결과 화면에 알려 드립니다.</span>
             </div>
           </div>
         </section>
@@ -405,7 +423,7 @@
                 <span class="badge badge-secondary"><span class="dot" aria-hidden="true"></span>요청됨</span>
               </span>
               <span class="job-kinds">
-                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>겨울</span>
+                <span class="badge badge-info"><span class="dot" aria-hidden="true"></span>증강</span>
               </span>
               <span class="job-meta t-caption">
                 <span>영상 1건</span>
@@ -472,18 +490,14 @@
       <div class="action-summary">
         <div class="sel-summary">
           <span class="sel-label t-caption">선택</span>
-          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>겨울</span>
+          <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>증강 AI</span>
           <span class="sel-x" aria-hidden="true">×</span>
           <span class="sel-video t-body-md">영상 #3187</span>
         </div>
-        <p class="submit-hint t-caption">
-          <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
-          <span>생성 조건에 아직 채우지 않은 항목이 있어 요청할 수 없습니다 — 지형을 입력해 주세요.</span>
-        </p>
       </div>
       <div class="action-buttons">
         <button type="button" class="btn btn-secondary t-button">취소</button>
-        <button type="button" class="btn btn-primary t-button" disabled>처리 요청</button>
+        <button type="button" class="btn btn-primary t-button">처리 요청</button>
       </div>
     </div>
 
@@ -583,6 +597,47 @@
               </tbody>
             </table>
           </div>
+
+          <div class="confirm-status">
+            <div class="confirm-head">
+              <h4 class="t-title-sm">파생 확정 현황</h4>
+              <span class="confirm-tally t-caption">진행 중 1건 · 실패 1건</span>
+            </div>
+            <div class="table-scroll">
+              <table class="data-table result-table t-body-sm">
+                <caption class="sr-only">고른 해상도별 파생 확정 상태입니다.</caption>
+                <thead>
+                  <tr>
+                    <th class="col-size">고른 프리셋</th>
+                    <th class="col-size">실제 산출 크기</th>
+                    <th class="col-num">파생 영상</th>
+                    <th class="col-state">확정 상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1080p</td>
+                    <td class="cell-num">1920 × 1080</td>
+                    <td class="cell-num">#2001</td>
+                    <td><span class="badge badge-success"><span class="dot" aria-hidden="true"></span>검수 대기</span></td>
+                  </tr>
+                  <tr>
+                    <td>720p</td>
+                    <td class="cell-num">1280 × 720</td>
+                    <td class="cell-num">#2002</td>
+                    <td><span class="badge badge-info"><span class="dot" aria-hidden="true"></span>진행 중</span></td>
+                  </tr>
+                  <tr>
+                    <td>480p</td>
+                    <td class="cell-num"><span class="text-muted">—</span></td>
+                    <td class="cell-num"><span class="text-muted">—</span></td>
+                    <td><span class="badge badge-error"><span class="dot" aria-hidden="true"></span>실패</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="confirm-note t-caption">위 생성 응답은 예약된 것까지만 알려 줍니다 — 확정 단계에서 난 실패는 여기에서만 드러납니다. 실패한 해상도만 다시 요청할 수 있습니다.</p>
+          </div>
         </div>
       </div>
 
@@ -598,44 +653,76 @@
     <div class="reference-grid cols-1">
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">① 50자를 넘겼을 때</p>
+        <p class="t-label ref-variant-title">① 자유 지시문이 1,000자를 넘겼을 때</p>
         <div class="ref-box">
           <div class="field">
             <div class="field-head">
-              <label class="field-label t-label" for="p-terrain-long">지형<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-              <span class="field-counter" aria-hidden="true">51/50</span>
+              <label class="field-label t-label" for="p-free-long">자유 지시문 <span class="field-opt">선택</span></label>
+              <span class="field-counter is-over" aria-hidden="true">1,014/1000</span>
             </div>
-            <input class="input is-invalid" id="p-terrain-long" type="text" value="상습 침수 구역의 왕복 4차로 교차로이며 좌측에 하천 제방과 보행자 통행로가 나란히 있는 곳" aria-invalid="true" aria-describedby="p-terrain-long-err" />
-            <span class="field-error t-caption" id="p-terrain-long-err" role="alert">
+            <textarea class="textarea is-invalid" id="p-free-long" rows="2" aria-invalid="true" aria-describedby="p-free-long-err">상습 침수 구역의 왕복 4차로 교차로이며 좌측에 하천 제방과 보행자 통행로가 나란히 있고 …</textarea>
+            <span class="field-error t-caption" id="p-free-long-err" role="alert">
               <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
-              50자 이내로 입력하세요.
+              1,000자를 넘었습니다. 넘은 만큼 잘라 보내지 않고 요청을 거부합니다.
             </span>
           </div>
         </div>
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">② 5개 항목이 모두 채워졌을 때 — 요청 단추가 열린다</p>
+        <p class="t-label ref-variant-title">② 생성 조건을 고르지 않았을 때 — 요청 단추가 잠기고 사유를 적는다</p>
         <div class="ref-box">
-          <div class="field">
-            <div class="field-head">
-              <label class="field-label t-label" for="p-terrain-ok">지형<span class="field-req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
-              <span class="field-counter" aria-hidden="true">11/50</span>
-            </div>
-            <input class="input" id="p-terrain-ok" type="text" value="왕복 4차로 교차로" />
+          <div class="prompt-grid prompt-grid--pair">
+
+              <div class="field">
+                <label class="field-label t-label" for="p-time-ok">시간대</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-time-ok">
+                  <option selected>고르지 않음</option>
+                  <option>새벽</option>
+                  <option>낮</option>
+                  <option>황혼</option>
+                  <option>밤</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field-label t-label" for="p-terrain-ok">지형</label>
+                <div class="select-wrap">
+                  <select class="select-trigger" id="p-terrain-ok">
+                  <option>고르지 않음</option>
+                  <option selected>도로</option>
+                  <option>지하차도</option>
+                  <option>하천</option>
+                  <option>도심</option>
+                  <option>주거지역</option>
+                  <option>시골</option>
+                  <option>산지</option>
+                  <option>숲</option>
+                  </select>
+                  <svg class="chevron" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </div>
+              </div>
+
           </div>
           <div class="action-bar action-bar-static">
             <div class="action-summary">
               <div class="sel-summary">
                 <span class="sel-label t-caption">선택</span>
-                <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>겨울</span>
+                <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>증강 AI</span>
                 <span class="sel-x" aria-hidden="true">×</span>
                 <span class="sel-video t-body-md">영상 #3187</span>
               </div>
+              <p class="submit-hint t-caption">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+                <span>생성 조건을 고르지 않아 요청할 수 없습니다. 무엇이 모자란지 알려 주지 않으면 단추가 왜 안 눌리는지 찾지 못합니다.</span>
+              </p>
             </div>
             <div class="action-buttons">
               <button type="button" class="btn btn-secondary btn-sm">취소</button>
-              <button type="button" class="btn btn-primary btn-sm">처리 요청</button>
+              <button type="button" class="btn btn-primary btn-sm" disabled>처리 요청</button>
             </div>
           </div>
         </div>
@@ -723,7 +810,7 @@
             <svg class="toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
             <div class="toast-body">
               <span class="toast-title t-body-sm">증강 요청 등록됨</span>
-              <span class="toast-desc t-caption">영상 #3187 · 겨울 — 결과 화면으로 이동합니다.</span>
+              <span class="toast-desc t-caption">영상 #3187 · 증강 AI — 결과 화면으로 이동합니다.</span>
             </div>
           </div>
         </div>

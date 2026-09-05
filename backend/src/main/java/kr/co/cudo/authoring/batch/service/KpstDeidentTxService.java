@@ -50,6 +50,13 @@ public class KpstDeidentTxService {
      * 본 서비스의 {@code REQUIRES_NEW} 에 참여한다 — 성공 기록이 롤백되면 보류 해제도 함께 롤백된다.
      */
     private final DeidentApprovalHoldReleaser deidentApprovalHoldReleaser;
+    /**
+     * 예약 마킹 활성화·마감 배선 (ADR-052). <b>KPST 폴링 완료</b> 경로가 이 서비스이며, mock 동기 완료
+     * 경로의 같은 배선은 {@code AsyncDeidentifyRunner} 에 따로 있다 — 두 경로가 각각 배선돼야 한다
+     * (mock 은 local/dev, KPST 가 실환경이라 한쪽만 붙이면 발견이 배포 후로 밀린다).
+     * 이 서비스의 {@code REQUIRES_NEW} 안에서 불리므로 훅이 스스로 {@code afterCommit} 으로 미룬다.
+     */
+    private final DeidentReservationHook deidentReservationHook;
 
     /**
      * 폴링 대상 <b>원자 클레임</b> — 이 호출이 {@code true} 를 받은 노드만 해당 위탁 건을 폴링한다
@@ -184,6 +191,9 @@ public class KpstDeidentTxService {
         if (redeident && workLockService.isRawLocked(rawSn)) {
             workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_SUBMIT_FAILED");
         }
+        // ADR-052 / AC-1033 — 제출이 확정 실패로 종결됐다. 예약 마킹을 적용하지 못한 채 마감한다
+        //   (적재는 되돌리지 않는다 — 재마킹 가능 상태로 남긴다).
+        deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
         log.warn("[KpstDeid] submit terminal-failed rawSn={} errCd={} detail={} redeident={}",
                 rawSn, errorCd, errorDetail, redeident);
         return true;
@@ -262,6 +272,8 @@ public class KpstDeidentTxService {
         procLogRepository.findById(procLogSn)
                 .ifPresent(p -> p.fail("DEIDENT_INCOMPLETE", "deid file invalid"));
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        // ADR-052 / AC-1033 — 폴링이 terminal 실패로 종결됐다. 예약 마킹을 마감한다(적재는 유지).
+        deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
         log.warn("[KpstDeid] poll incomplete download rawSn={}", rawSn);
     }
 
@@ -300,6 +312,9 @@ public class KpstDeidentTxService {
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void markRawDeidentFailed(Long rawSn) {
         videoRepository.findById(rawSn).ifPresent(v -> v.markDeidentified("F"));
+        // ADR-052 / AC-1033 — 산출물 무효로 Y 전이가 막힌 확정 실패의 보정 커밋 지점이다. 예약 마킹을
+        //   함께 마감한다(적재는 유지 — 재마킹 가능).
+        deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
         log.warn("[KpstDeid] mark raw deident F rawSn={}", rawSn);
     }
 
@@ -338,6 +353,9 @@ public class KpstDeidentTxService {
         if (procLog.isRedeident() && workLockService.isRawLocked(rawSn)) {
             workLockService.releaseRaw(rawSn, "batch", "REDEIDENT_TIMEOUT");
         }
+        // ADR-052 / AC-1033 — 타임아웃은 이 위탁 건의 종결이다(자동 재비식별 큐가 없어 스스로 되살아나지
+        //   않는다). 예약 마킹을 마감해 사람이 그 영상을 다시 마킹할 수 있게 한다(적재는 유지).
+        deidentReservationHook.closeAfterCommit(rawSn, DeidentReservationHook.REASON_DEIDENT_FAILED);
         log.warn("[KpstDeid] poll timeout rawSn={} attempts={} redeident={}",
                 rawSn, procLog.getPollAttemptCnt(), procLog.isRedeident());
         return true;
@@ -381,6 +399,8 @@ public class KpstDeidentTxService {
      *
      * @design ADR-048
      * @design AC-046
+     * @design ADR-052
+     * @design SEQ-030
      */
     private void applyBatchCompletion(Long rawSn) {
         LsDataRaw managed = videoRepository.findById(rawSn).orElse(null);
@@ -419,6 +439,13 @@ public class KpstDeidentTxService {
         // 경로가 생겼을 때 무효화 누락(privacy/Range 회귀)이 조용히 재발하는 쪽이 훨씬 비싸다. 반대로
         // "배치 완료는 evict 하지 않는다"를 테스트로 고정하면 그 안전한 동작을 미래에 금지하게 된다.
         streamMetaCacheEvictor.evictAfterCommit(rawSn);
+        // ADR-052 — 외부 마킹 적재 경로가 담아 둔 예약 마킹을 깨운다. 이 메서드는 REQUIRES_NEW 안이라
+        //   아직 커밋 전이므로 훅이 afterCommit 으로 미룬다 — 지금 바로 활성화하면 MarkingBatchBridge 가
+        //   AFTER_COMMIT 으로 영상 행을 다시 읽을 때 위 두 줄(Y + MARKING_READY)이 보이지 않아 skip 으로
+        //   판정하고, 그 skip 이 방금 깨운 마킹을 SKIPPED 로 종결시킨다.
+        //   ★ 재비식별(REDEIDENT) 경로에는 붙이지 않는다 — 그쪽은 APPROVED 유지 경로라 마킹 단계로의
+        //     재진입을 만들지 않으며(R1), 승인된 영상에 예약이 존재할 수 없다.
+        deidentReservationHook.activateAfterCommit(rawSn);
         log.info("[KpstDeid] completed rawSn={}", rawSn);
     }
 

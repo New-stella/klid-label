@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.auth.AdminSessionTestSupport;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.security.Keys;
@@ -70,7 +72,7 @@ class DeidentifyEndpointSaveTrustGuardTest {
         repository = mock(LsSystemConfigRepository.class);
         when(repository.findByConfigKey(anyString())).thenReturn(Optional.empty());
         when(repository.save(any(LsSystemConfig.class))).thenAnswer(inv -> inv.getArgument(0));
-        tokenService = new AdminSessionTokenService(RESOLVER, 10);
+        tokenService = AdminSessionTestSupport.tokenService(RESOLVER, 10);
         reviewer = new TokenClaims("7001", Role.REVIEWER, Channel.INTERNAL,
                 Instant.now().plusSeconds(3600));
     }
@@ -79,7 +81,7 @@ class DeidentifyEndpointSaveTrustGuardTest {
     private SystemConfigService serviceOn(String... activeProfiles) {
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles(activeProfiles);
-        return new SystemConfigService(repository, new ObjectMapper(), tokenService,
+        return new SystemConfigService(repository, new ObjectMapper(), new AdminSessionGate(tokenService),
                 new IntegrationEndpointUrlValidator(),
                 new DeidentifyEndpointTrustGuard(environment),
                 TestAiWaitBudgetPolicies.production());

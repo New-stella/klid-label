@@ -78,6 +78,27 @@ public class LsDataRaw {
      */
     public static final String SRC_TYPE_IMPORTED = "IMPORTED";
 
+    /**
+     * 출처유형 — <b>포털 사용자가 직접 올린 본인 자산</b>(ADR-058 흡수). 포털 채널 전용 표를 두지 않고
+     * 이 원장에 앉히며, 관제가 만든 것도 저작도구가 만든 것도 아니라 기존 값 어느 쪽에도 넣을 수 없어
+     * 값을 하나 더했다. 판별 <b>축</b>이 새로 생긴 것이 아니라 이미 있던 출처 축에 값이 하나 는 것이다.
+     *
+     * <p>⚠ 이 값은 {@link LsDataIngest#ALLOWED_SRC_TYPES}(적재면)·{@code UPLOAD_SRC_TYPES}(입력면)
+     * <b>어느 쪽에도 넣지 않는다</b> — 포털 업로드는 관제 인입 원장을 거치지 않고 내부 업로드 폼이
+     * 고를 수 있는 값도 아니다({@link #SRC_TYPE_IMPORTED} 와 같은 이유).
+     *
+     * <p>★ <b>포털 증강 파생물도 같은 값을 쓴다</b>(ADR-058) — 파생이라는 사실은 {@code ORGNL_RAW_SN}
+     * 이 말한다. 파생 전용 값을 새로 만들면 포털을 가르는 모든 자리가 두 값을 열거해야 하고, 한 곳만
+     * 잊으면 파생물이 조회·집계·<b>보존기간 만료 삭제</b>에서 조용히 새거나 사라진다.
+     *
+     * <p>★ <b>보존기간 만료 자동 삭제의 판별자 셋 중 하나</b>다(나머지 둘: {@code PORTAL_USER_NO} 보유,
+     * 보존기간 경과). 하나만 빠뜨리면 관제 영상이 함께 지워진다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public static final String SRC_TYPE_PORTAL_ULD = "PORTAL_ULD";
+
     public static final String STATUS_PENDING = "PENDING";
 
     /**
@@ -165,6 +186,23 @@ public class LsDataRaw {
     @Column(name = "VDO_LEN_SEC")
     private Integer durationSec;
 
+    /**
+     * 영상길이(밀리초) — {@link #durationSec} 의 정밀도 짝. 초 컬럼이 정수 도메인이라 소수 이하가
+     * 잘리는데, 그 손실을 되찾을 자리가 이 컬럼이다(V1 이 만들어 뒀으나 매핑이 없어 비어 있었다).
+     *
+     * <p>지금 채우는 통로는 <b>포털 업로드 자산</b> 하나다(ADR-058) — 화면이 영상 길이를 소수로
+     * 표시하고 프레임 추출 간격 계산이 그 값을 쓰므로 초 반올림만으로는 부족하다. 관제 인입 축은
+     * 여전히 비어 있고, 그쪽의 밀리초는 기술메타 {@code video.duration_ms} 가 따로 갖는다.
+     *
+     * <p>⚠ 이 컬럼을 관제 축의 두 번째 진실원으로 만들지 말 것 — 읽는 쪽은 <b>포털 자산</b>에서만
+     * 이 값을 보고, 비어 있으면 초 컬럼으로 떨어진다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "VDO_LEN_MS")
+    private Long durationMs;
+
     @Column(name = "ORGNL_RAW_SN")
     private Long orgnlRawSn;
 
@@ -228,6 +266,25 @@ public class LsDataRaw {
     @Column(name = "PRVC_INCL_YN", length = 1)
     @JdbcTypeCode(SqlTypes.CHAR)
     private String prvcInclYn;
+
+    /**
+     * 포털사용자번호 (V28) — 이 영상이 <b>포털 사용자 본인 업로드 자산</b>일 때만 채워지는 소유자 키.
+     * 관제 인입 영상에는 소유자 개념이 없어 <b>비어 있다</b>(원장 안에서 항상 부분적으로만 채워진
+     * 컬럼 하나가 생기는 것은 ADR-058 이 인지·수용한 대가다).
+     *
+     * <p>포털 경로의 인가는 전적으로 이 값 기반이다 — 본인 자산만 조회·수정·내려받기. 값이 비어 있으면
+     * 그 행은 포털 자산이 아니므로, 소유자 스코프 조회는 이 컬럼의 <b>일치</b>를 조건으로 삼아야 하고
+     * "null 이면 통과" 같은 완화를 두면 관제 영상이 포털 채널로 샌다.
+     *
+     * <p>자료형이 숫자가 아닌 이유는 포털이 발급한 토큰의 주체 식별자가 숫자가 아니기 때문이다.
+     * 폭 100 은 공통표준도메인 번호V100 이며 {@code LS_MARKING.REG_USER_NO}(V27)와 같다.
+     * 물리명은 사업표준용어 등록분({@code 포털사용자번호 / PORTAL_USER_NO})이다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "PORTAL_USER_NO", length = 100)
+    private String portalUserNo;
 
     @Column(name = "DATA_STTS_CD", nullable = false, length = 20)
     private String dataSttsCd;
@@ -483,6 +540,68 @@ public class LsDataRaw {
     }
 
     /**
+     * <b>외부 마킹 산출물 일괄 가져오기</b> 적재 — 외부가 이벤트 시점까지만 찍어 준 영상(ADR-053).
+     *
+     * <h3>{@link #createFromImport} 와 무엇이 다른가</h3>
+     * <p>같은 이관 화면의 <b>다른 갈래</b>다. 그쪽은 라벨링이 끝난 결과를 받아 검수만 하지만 이쪽은
+     * 시작점만 받아 비식별부터 라벨링까지 앞 단계를 전부 밟는다. 계약을 합치지 않는 이유는 ADR-053 에
+     * 있고, 팩토리를 나누는 이유는 <b>인자가 다르기</b> 때문이다.
+     * <ul>
+     *   <li><b>{@code vmsCctvId} 를 받는다</b> — 이 갈래는 사람이 화면에서 카메라 식별자를 지정해
+     *       항목마다 같은 값으로 붙인다. 라벨링 완료 갈래에는 그 입력이 없다.</li>
+     *   <li><b>비식별 여부가 분기하지 않는다</b> — 받은 영상은 <b>언제나 비식별되지 않은 원본</b>이라
+     *       {@code DE_IDENT_YN} 은 {@code 'N'} 으로 고정이고, 적재 뒤 저작도구가 비식별 선두 단계를
+     *       태운다(EVT-005 의 "원본이라고 지정하고 영상 파일을 함께 가져온 산출물" 예외).
+     *       그래서 {@code deidentified} 인자 자체를 두지 않는다 — 있으면 {@code true} 를 넘길 길이
+     *       생기고, 그 순간 비식별되지 않은 원본이 비식별 완료로 적재된다(CWE-359).</li>
+     *   <li><b>{@code durationSec} 를 받지 않는다</b> — 이 경로는 영상 파일을 실제로 갖고 있어
+     *       적재 직후 발행하는 {@code VideoIngestedEvent} 가 기술메타 추출을 태우고, 그 결과가
+     *       {@code VDO_LEN_SEC} 를 back-fill 한다({@code VideoMetaService}). 사람이 지정하지 않는
+     *       값을 인자로 두면 호출부가 무엇이든 채워 넣게 되고 실측값과 갈린다.</li>
+     * </ul>
+     *
+     * <h3>{@code rawFilePathNm} 은 <b>이미 저작도구 저장소로 복사된</b> 위치다</h3>
+     * <p>복사는 이관 쪽이 하고 이 팩토리는 그 결과 위치만 받는다. 외부 폴더를 그대로 가리키면 비식별본과
+     * 프레임과 학습데이터 산출물이 남의 폴더 옆에 쌓이고 그 폴더가 치워지면 영상이 깨진다(ADR-053).
+     * 비울 수 없는 이유는 {@link #createFromImport} 와 같다.
+     *
+     * <h3>출처유형은 {@link #SRC_TYPE_IMPORTED} 다 — 값을 새로 만들지 않는다</h3>
+     * <p>두 갈래 모두 "외부에서 가져왔다"는 같은 사실을 말한다. 갈래를 가르는 값을 하나 더 만들면
+     * 이관을 판별하는 모든 자리가 두 값을 열거해야 하고, 한 곳만 잊으면 이 갈래의 영상이 조회·집계에서
+     * 조용히 샌다({@link #SRC_TYPE_PORTAL_ULD} 가 파생물에 같은 값을 쓰는 것과 같은 이유).
+     *
+     * @param vmsClipId  영상 파일 이름에서 확장자를 뗀 값 — {@code UK_LS_DATA_RAW_VMS_CLIP} 로 중복
+     *                   반입을 막는 실제 근거다
+     * @param vmsCctvId  사람이 화면에서 지정한 카메라 식별자(선택)
+     * @param evntTypeCd 사람이 화면에서 지정한 이벤트 유형 코드
+     * @param lclgvCd    사람이 화면에서 지정한 지자체 코드
+     * @param prvcTypeCd 사람이 화면에서 지정한 개인정보 유형({@code ANONY}|{@code PRVC}|{@code PSDO})
+     * @param shtDt      사람이 화면에서 지정한 촬영일시(선택 — 미지정이면 {@code null}, 대용값 금지)
+     * @design ADR-053
+     * @design DFEAT-060
+     * @design EVT-005
+     */
+    public static LsDataRaw createFromMarkingImport(String vmsClipId, String vmsCctvId,
+                                                    String evntTypeCd, String lclgvCd,
+                                                    String prvcTypeCd, String rawFilePathNm,
+                                                    LocalDateTime shtDt) {
+        if (rawFilePathNm == null || rawFilePathNm.isBlank()) {
+            throw new IllegalArgumentException("마킹 이관 영상 파일 경로는 비울 수 없습니다.");
+        }
+        return LsDataRaw.builder()
+                .vmsClipId(vmsClipId)
+                .vmsCctvId(vmsCctvId)
+                .evntTypeCd(evntTypeCd)
+                .lclgvCd(lclgvCd)
+                .prvcTypeCd(prvcTypeCd)
+                .rawFilePathNm(rawFilePathNm)
+                .shtDt(shtDt)
+                .srcType(SRC_TYPE_IMPORTED)
+                // DE_IDENT_YN 은 빌더 생성자가 'N'(미수행)으로 고정한다 — 이 경로는 언제나 원본이다.
+                .build();
+    }
+
+    /**
      * 파생영상 {@code VMS_CLIP_ID} 조립 — {@code {부모}_{마커}{종류}_{유일접미}} 이며 결과는 항상
      * {@value #VMS_CLIP_ID_MAX}자 이하다.
      *
@@ -520,6 +639,115 @@ public class LsDataRaw {
      */
     public boolean isDerivative() {
         return this.orgnlRawSn != null;
+    }
+
+    // ------------------------------------------------------------------
+    // 포털 업로드 자산 (ADR-058 흡수) — 값 규약과 생성/갱신 통로
+    // ------------------------------------------------------------------
+
+    /**
+     * 포털 업로드 자산의 <b>클립 식별자 접두</b>. 최종 형태는 {@code PORTAL_ULD_{RAW_SN}} 이다.
+     *
+     * <p>{@code VMS_CLIP_ID} 는 NOT NULL + UNIQUE 인데 포털 업로드에는 관제 클립 개념이 없다. 그래서
+     * <b>자기 원장 행의 기본키로 유일화</b>하는 선례(ADR-044 파생영상)를 따른다 — 시각 기반으로 만들면
+     * 동시 적재가 같은 밀리초에 충돌해 자산이 유실된다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public static final String PORTAL_ULD_CLIP_ID_PREFIX = "PORTAL_ULD_";
+
+    /**
+     * 포털 업로드 자산 적재 — <b>값 규약 셋</b>을 이 한 곳에서 채운다(ADR-058).
+     *
+     * <ul>
+     *   <li>클립 식별자 — PK 가 확정된 뒤 {@link #assignPortalClipId()} 로 {@code PORTAL_ULD_{RAW_SN}}
+     *       을 배정한다. 여기서는 <b>임시 유일값</b>을 넣어 NOT NULL·UNIQUE 를 통과시킨다.</li>
+     *   <li>개인정보 유형 — {@link #PRVC_TYPE_UNKNOWN}(미상). ⚠ {@code ANONY} 를 쓰지 않는다 —
+     *       그건 「비식별이 불필요하다」는 <b>판정 결과</b>인데 포털 자산에 그 판정을 한 적이 없다.
+     *       하지 않은 처리를 했다고 적지 않는다.</li>
+     *   <li>파일 경로 — 업로드된 파일의 저장 경로를 그대로 채운다.</li>
+     * </ul>
+     *
+     * <p>출처 판별자는 {@link #SRC_TYPE_PORTAL_ULD} 이며 새 축이 아니라 기존 값역에 값 하나를 더한 것이다.
+     * 소유자({@link #portalUserNo})는 <b>반드시</b> 채워진다 — 포털 인가가 전적으로 이 값 기반이고,
+     * 보존기간 만료 자동 삭제의 판별자 셋 중 하나이기도 하다.
+     *
+     * <p>배치 단계({@code DATA_STTS_CD})는 빌더 기본값 {@code PENDING} 그대로 둔다. 포털은 자기
+     * 파이프라인을 가지며 그 진행 상태는 메타 원장의 {@code portal.upload_status} 가 소유한다 —
+     * 이 컬럼의 값역을 넓히는 안은 ADR-058 이 기각했다(두 값역이 {@code PROCESSING}·{@code FAILED} 를
+     * 같은 이름으로 쓰는데 가리키는 파이프라인이 다르다).
+     *
+     * @param portalUserNo 포털 토큰 주체 — 비어 있으면 만들지 않는다(소유자 없는 포털 자산 금지)
+     * @param filePathNm   업로드 파일 저장 경로
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public static LsDataRaw createPortalUpload(String portalUserNo, String filePathNm) {
+        if (portalUserNo == null || portalUserNo.isBlank()) {
+            throw new IllegalArgumentException("포털 업로드 자산은 소유자 없이 만들 수 없습니다.");
+        }
+        LsDataRaw raw = LsDataRaw.builder()
+                // PK 확정 전이라 최종 식별자를 만들 수 없다 — 임시 유일값으로 제약만 통과시키고
+                // assignPortalClipId() 가 곧바로 확정값으로 덮는다(같은 트랜잭션).
+                .vmsClipId(PORTAL_ULD_CLIP_ID_PREFIX + java.util.UUID.randomUUID())
+                .prvcTypeCd(PRVC_TYPE_UNKNOWN)
+                .rawFilePathNm(filePathNm)
+                .srcType(SRC_TYPE_PORTAL_ULD)
+                .build();
+        raw.portalUserNo = portalUserNo;
+        return raw;
+    }
+
+    /**
+     * 포털 업로드 자산의 클립 식별자를 <b>PK 확정 후</b> {@code PORTAL_ULD_{RAW_SN}} 으로 확정한다.
+     * 포털 자산이 아니면 거부한다 — 관제 영상의 클립 식별자는 관제가 준 값이라 덮으면 인입 역참조가 끊긴다.
+     *
+     * @design ADR-058
+     */
+    public void assignPortalClipId() {
+        if (!isPortalUpload()) {
+            throw new IllegalStateException("포털 업로드 자산이 아닌 영상의 클립 식별자는 배정할 수 없습니다.");
+        }
+        if (this.rawSn == null) {
+            throw new IllegalStateException("식별자가 확정되기 전에는 클립 식별자를 배정할 수 없습니다.");
+        }
+        this.vmsClipId = PORTAL_ULD_CLIP_ID_PREFIX + this.rawSn;
+    }
+
+    /**
+     * 이 영상이 <b>포털 사용자 본인 업로드 자산</b>인가 — 채널 판별의 단일 지점.
+     *
+     * <p>판정축은 출처 유형 하나다. 소유자 보유는 <b>따로</b> 확인한다(둘을 한 메서드에 묶으면
+     * 보존기간 삭제가 요구하는 「판별자 셋을 각각 건다」가 흐려진다).
+     *
+     * @design ADR-058
+     */
+    public boolean isPortalUpload() {
+        return SRC_TYPE_PORTAL_ULD.equals(this.srcType);
+    }
+
+    /**
+     * 포털 업로드 영상의 프로브 결과(길이)를 확정한다. 초는 반올림 정수({@code VDO_LEN_SEC}),
+     * 밀리초 정밀도는 {@link #durationMs} 가 보존한다 — 자료형은 바꾸지 않는다(ERD-028).
+     *
+     * <p>포털 자산이 아니면 거부한다. 관제 영상의 길이는 인입·기술메타 축이 소유하며 여기서 덮으면
+     * 두 번째 쓰기 통로가 된다.
+     *
+     * @param durationSeconds 프로브가 읽은 길이(초, 소수 허용). {@code null}·0 이하면 아무것도 하지 않는다
+     * @design ADR-058
+     * @design ERD-028
+     */
+    public void applyPortalVideoDuration(Double durationSeconds) {
+        if (!isPortalUpload()) {
+            throw new IllegalStateException("포털 업로드 자산이 아닌 영상의 길이는 여기서 확정하지 않습니다.");
+        }
+        if (durationSeconds == null || durationSeconds <= 0d || !Double.isFinite(durationSeconds)) {
+            return;
+        }
+        this.durationSec = (int) Math.round(durationSeconds);
+        this.durationMs = Math.round(durationSeconds * 1000d);
+        this.mdfcnDt = LocalDateTime.now();
     }
 
     /**

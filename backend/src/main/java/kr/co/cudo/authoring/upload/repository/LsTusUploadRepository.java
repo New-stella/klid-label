@@ -99,8 +99,17 @@ public interface LsTusUploadRepository extends JpaRepository<LsTusUpload, UUID> 
      * <p>상한({@code Pageable}) 필수 — 만료 세션이 대량으로 쌓여도 한 tick 이 무한정 길어지지 않게 한다
      * (무제한 조회 금지). 실제 삭제는 {@link #deleteExpiredById} 로 <b>원자 클레임에 성공한 건만</b>
      * 수행해야 한다(2노드 중복 삭제 방지).
+     *
+     * <h3>★ 관제 세션만 집는다 — 포털 세션은 자기 스윕이 따로 있다 (ADR-058 흡수)</h3>
+     * <p>흡수로 두 채널이 이 원장을 함께 쓴다. 이 잡이 포털 세션을 집으면 <b>행만 사라지고 임시 파일이
+     * 고아로 남는다</b> — 뒤이은 인입 행 종결은 클립 식별자를 요구하는데 포털 세션에는 그 값이 없고,
+     * 파일 삭제도 <b>관제 저장 루트</b>로 경로를 검증하기 때문이다.
+     * <p>판별은 <b>클립 식별자 보유</b>다. 관제 세션은 요청 검증이 그 값을 강제해 항상 채워지고, 포털은
+     * 그 개념이 없어 비어 있다. 즉 이 조건은 「관제 세션만」을 <b>양의 조건</b>으로 적은 것이며, 이 잡이
+     * 애초에 처리할 수 없는 행을 스스로 제외하는 fail-closed 이기도 하다.
      */
     @Query("SELECT u FROM LsTusUpload u WHERE u.status <> 'COMPLETED' AND u.expiresAt < :now "
+            + "  AND u.vmsClipId IS NOT NULL AND u.vmsClipId <> '' "
             + "ORDER BY u.expiresAt ASC")
     List<LsTusUpload> findExpired(@Param("now") LocalDateTime now,
                                   org.springframework.data.domain.Pageable pageable);
@@ -117,10 +126,14 @@ public interface LsTusUploadRepository extends JpaRepository<LsTusUpload, UUID> 
      * 완료됐거나 만료가 갱신됐으면 삭제하지 않는다(정상 세션·완료 파일 보호). 파라미터 바인딩만
      * 사용(CWE-89 표면 없음).
      *
+     * <p>★ 클립 식별자 보유 조건도 <b>후보 조회와 같은 이유</b>로 여기 다시 건다 — 조회에만 두면
+     * 다른 호출부가 이 삭제를 재사용할 때 포털 세션이 새어 든다.
+     *
      * @return 삭제한 행 수(0 또는 1). 1 인 호출만 임시 파일을 지운다.
      */
     @Modifying
     @Query("DELETE FROM LsTusUpload u WHERE u.uploadId = :uploadId "
-            + "AND u.status <> 'COMPLETED' AND u.expiresAt < :now")
+            + "AND u.status <> 'COMPLETED' AND u.expiresAt < :now "
+            + "AND u.vmsClipId IS NOT NULL AND u.vmsClipId <> ''")
     int deleteExpiredById(@Param("uploadId") UUID uploadId, @Param("now") LocalDateTime now);
 }

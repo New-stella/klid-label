@@ -59,7 +59,7 @@ import static org.mockito.Mockito.verify;
 class AugmentSubmitSerializationGuardTest {
 
     /** 위탁 payload 의 prompt — 이 테스트의 관심사가 아니라 계약(필수 non-empty)을 채우는 고정값. */
-    private static final java.util.Map<String, Object> PROMPT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
+    private static final java.util.Map<String, Object> MTDT = java.util.Map.of("time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD", "severity", "HIGH");
 
 
     @Mock private LsDataSrcRepository srcRepository;
@@ -89,13 +89,22 @@ class AugmentSubmitSerializationGuardTest {
 
     private AugmentJobSubmitService newService(Scheduler s) {
         return new AugmentJobSubmitService(
-                srcRepository, videoRepository, jobRecorder, externalClient, metrics,
+                inputFrameSource(), jobRecorder, externalClient, metrics,
                 deidentReportGate, outcomeRecorder, s, 100);
+    }
+
+    /**
+     * 조달기는 <b>실물</b>을 쓴다 — 목으로 대체하면 「기본값은 비식별본」이라는 fail-closed 규약이
+     * 이 시험에서 사라진다. 부모 조회가 비어 있으므로(=출처 미상) 조달처는 기본값으로 떨어진다.
+     */
+    private AugmentInputFrameSource inputFrameSource() {
+        return new AugmentInputFrameSource(videoRepository, srcRepository,
+                new kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver(null, null, null));
     }
 
     private AugmentRequestedItemEvent event() {
         return new AugmentRequestedItemEvent(
-                7L, 700L, "WINTER", PROMPT, "AUG-guard",
+                7L, 700L, "AUGMENT", MTDT, null, "AUG-guard",
                 "http://localhost:8080/api/v1/genai/callback", "1");
     }
 

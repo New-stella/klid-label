@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-1065",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-013 비식별 옵션 설정 — 관리 화면에서 설정·저장·이후 요청에 적용 (happy)",
+    "slug": "uc-013-비식별-옵션-설정-관리-화면에서-설정저장이후-요청에-적용-happy",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [시스템 설정 /manage/settings] 1) 비식별 옵션 카드에서 마스킹 방식·범위 설정·저장 · 기대: 저장 후 다음 비식별 요청에 적용",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "옵션이 저장된다",
+          "이후 비식별 요청에 저장된 옵션이 적용된다"
+        ],
+        "when": [
+          "관리 화면에서 비식별 옵션을 설정·저장한다"
+        ],
+        "given": [
+          "관리 권한으로 비식별 옵션을 설정한다"
+        ]
+      },
+      "statement": "관리 화면(SCREEN-025)에서 외부 비식별 솔루션이 제공하는 옵션을 설정하면 시스템이 옵션을 저장하고 이후 비식별 요청에 적용한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:46.965Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-012"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-013"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 4,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:46.965Z",
+    "created_at": "2026-08-31T02:19:41.132Z"
+  }
+}

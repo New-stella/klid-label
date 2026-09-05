@@ -1,13 +1,13 @@
 ---
 logicraft_item: SHELL-001
 type: app_shell
-version: 10
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:41.358Z
-status: CHANGED
-prev_version: 9
-content_hash: eaa271a476992c03c6f2a5941f41873180a686594a5bceae94336d7ec76d38a6
+synced_at: 2026-09-03T07:41:29.082Z
+status: NEW
+prev_version: null
+content_hash: e8bd9633b2ab4d4ce148fc0da6ec3980b9bb16a3da4f72bee48aa3f052a24005
 stale: true
 raw: ./_raw/SHELL-001.json
 links:
@@ -57,7 +57,7 @@ true
 
 - **type**: Badge
 - **align**: end
-- **label**: 역할 배지 — 검수자/작업자/포털, 역할별 색상 구분, 읽기 전용
+- **label**: 역할 배지 — 관리자/검수자/작업자/포털, 역할이 아직 없으면 미배정(경고 아이콘 병기)으로 보이며 네 값 중 하나로 임의로 채우지 않는다. 모르는 값은 비우지 않고 받은 값을 그대로 중립 색으로 노출한다. 역할별 색상 구분, 읽기 전용
 
 #### [3]
 

@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
+import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,11 +33,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtIssuerValidator issuerValidator;
     private final UserRoleResolver userRoleResolver;
     private final LastLoginRecorder lastLoginRecorder;
+    /** 진입 시 작업자 자동 등록기 — 역할이 없는 INTERNAL 사용자에게만 돈다(@design AC-1016). */
+    private final AutoWorkerRegistrar autoWorkerRegistrar;
 
     public JwtAuthenticationFilter(JwtKeyResolver keyResolver,
                                    JwtIssuerValidator issuerValidator,
                                    UserRoleResolver userRoleResolver,
-                                   LastLoginRecorder lastLoginRecorder) {
+                                   LastLoginRecorder lastLoginRecorder,
+                                   AutoWorkerRegistrar autoWorkerRegistrar) {
         if (keyResolver == null) {
             throw new IllegalArgumentException("keyResolver must not be null (fail-closed)");
         }
@@ -52,10 +56,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (lastLoginRecorder == null) {
             throw new IllegalArgumentException("lastLoginRecorder must not be null (wiring bug)");
         }
+        // 등록기 부재도 <배선 버그>다 — 인증은 계속 되지만 역할 없는 진입자가 영영 등록되지 않아
+        // 배정 목록에 뜨지 않는다. 등록 <실패> 시의 fail-open 은 등록기 내부 책임이고, 등록기
+        // <부재> 는 여기서 즉시 드러낸다.
+        if (autoWorkerRegistrar == null) {
+            throw new IllegalArgumentException("autoWorkerRegistrar must not be null (wiring bug)");
+        }
         this.keyResolver = keyResolver;
         this.issuerValidator = issuerValidator;
         this.userRoleResolver = userRoleResolver;
         this.lastLoginRecorder = lastLoginRecorder;
+        this.autoWorkerRegistrar = autoWorkerRegistrar;
     }
 
     @Override
@@ -93,6 +104,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                // 이름 클레임은 인가 이전에 읽는다 — 자동 등록이 사용자 마스터의 표시 이름을
+                //   채우는 데 쓰기 때문이다(그 창구가 부트스트랩 전용으로 닫히면서 이름을 채우는
+                //   유일한 경로가 여기로 옮겨왔다). 요청 속성 노출은 종전 위치·의미 그대로다.
+                //   ★ 관제 인계 토큰은 이름을 name 이 아니라 userNm 에 넣는다(@design ADR-063) —
+                //     name 우선, 없으면 userNm 으로 폴백한다. 이름은 표시용이며 인가에 쓰지 않는다.
+                String name = body.get("name", String.class);
+                if (name == null) {
+                    name = body.get("userNm", String.class);
+                }
+
                 String channelStr = body.get("channel", String.class);
                 Channel channel = channelStr == null ? Channel.INTERNAL : Channel.valueOf(channelStr);
 
@@ -101,10 +122,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 //     filter 가 null 로 선처리(캐시키 일관성: resolve/evict 모두 userNo Long 키).
                 //   * PORTAL: LS 미조회, role=PORTAL_USER 고정. 채널 격리는 SecurityConfig 가 강제.
                 // JWT 의 role 클레임(관제 역할 LEARN_MANAGER 등)은 더 이상 인가에 사용하지 않는다.
+                // 주체 식별자(sub) — 기본은 토큰 원문이다. INTERNAL 채널에서 관제 인계
+                //   토큰(비숫자 sub)을 userId 로 유일 해석한 경우에만 아래에서 해석된 userNo 로
+                //   정규화한다(@design ADR-063 · UC-041 · AC-1016). 그 외(숫자 sub·PORTAL·해석
+                //   실패)는 원문을 그대로 둔다 — 회귀 0 이 최우선이며 fail-closed 를 풀지 않는다.
+                String subject = body.getSubject();
                 Role role;
                 if (channel == Channel.INTERNAL) {
-                    Long userNo = parseUserNo(body.getSubject());
+                    // 식별 — 숫자 sub(USER_NO)를 먼저 시도한다(내부·포털 기존 경로, 무변경).
+                    //   비숫자 sub(관제 인계: sub="admin")면 userId 클레임으로 LS_ACNT_USER.USER_ID 를
+                    //   조회한다(@design ADR-063 · UC-041). 다중/0건 매칭이면 null(fail-closed, CWE-639).
+                    //   ★ 숫자 sub 경로는 그대로다 — resolveUserNoByUserId 는 비숫자 sub 일 때만 탄다.
+                    Long numericSub = parseUserNo(body.getSubject());
+                    Long userNo = numericSub != null
+                            ? numericSub
+                            : userRoleResolver.resolveUserNoByUserId(body.get("userId", String.class));
                     role = userNo == null ? null : userRoleResolver.resolve(userNo);
+                    // 진입 시 작업자 자동 등록 (ADR-055 · @design AC-1016) — 역할 자가부여 창구가
+                    //   관리자 부트스트랩 전용으로 좁혀지면서 일반 사용자가 등록될 통로가 사라졌다.
+                    //   그래서 <진입 자체>가 등록 시점이 된다.
+                    //   * 조건부다 — 역할이 이미 해석되면 호출조차 하지 않으므로 사용자당 사실상 1회다
+                    //     (매 요청 쓰기가 아니다).
+                    //   * 이미 부여된 역할은 덮지 않는다 — 관리자가 지정한 역할이 다음 요청에
+                    //     되돌려지면 안 된다. 덮지 않아 삽입이 일어나지 않은 경우는 null 이 돌아와
+                    //     무권한으로 흐른다(fail-closed).
+                    //   * 등록 실패는 요청을 죽이지 않는다(fail-open, 등록기 내부에서 흡수).
+                    //   ★ 숫자 sub 전용이다 (@design AC-1016) — userId 조회 경로(관제)는 대상이 아니다.
+                    //     매칭이 0건이면 삽입할 userNo 자체가 없어 지어낼 수 없고, 신규 USER_NO 를
+                    //     만드는 것은 숫자 sub 뿐이다. 그래서 numericSub 가 있을 때만 돈다.
+                    //   ★ PORTAL 채널은 대상이 아니다 — 이 분기 자체가 INTERNAL 전용이다.
+                    if (role == null && numericSub != null) {
+                        role = autoWorkerRegistrar.registerAsWorker(numericSub, name);
+                    }
                     // 최종로그인일시 기록 (V12 · @design SCREEN-024) — 저작도구엔 독립 로그인 UI 가 없어
                     //   "로그인" 이벤트가 존재하지 않는다. 관측 가능한 가장 가까운 사실이 <검증을 통과한
                     //   요청>이라 여기가 기록 지점이다.
@@ -117,12 +166,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     //     이 마스터의 USER_NO 와의 매핑이 확인되지 않았다. 추측으로 조인하면 남의 행에
                     //     접속 기록을 쓰게 된다(CWE-639).
                     lastLoginRecorder.record(userNo);
+                    // ★ principal 신원 정규화 (@design ADR-063 결정④ · UC-041 step4 · AC-1016) —
+                    //   비숫자 sub(관제 인계)를 userId 클레임으로 LS_ACNT_USER.USER_ID 에서 <유일>
+                    //   해석한 경우에만 principal 의 sub 를 그 userNo(문자열)로 치환한다. 그러면
+                    //   관제 토큰이 내부·포털 토큰(sub 가 이미 숫자 userNo)과 동형이 되어, 다운스트림의
+                    //   숫자 파싱 경로(parseUserNo)와 문자열 직접사용 경로(감사 식별자·작업 잠금 키·
+                    //   소유자 비교)가 모두 실제 userNo 를 일관되게 본다(CWE-807/778 해소).
+                    //   * 숫자 sub 경로(numericSub != null)는 치환하지 않는다 — 원문을 보존해
+                    //     zero-padded("00123") 같은 값이 String.valueOf(123)="123" 으로 바뀌는
+                    //     회귀를 원천 차단한다(내부·포털 동작 무변경, 회귀 0).
+                    //   * 해석 실패(userNo == null, 다중/0건 매칭)면 raw 를 유지한다 → 다운스트림
+                    //     parseUserNo=null → 기존 fail-closed(무권한) 그대로. 정규화가 fail-closed 를
+                    //     풀지 않는다.
+                    if (numericSub == null && userNo != null) {
+                        subject = String.valueOf(userNo);
+                    }
                 } else {
                     role = Role.PORTAL_USER;
                 }
                 // exp 는 위 게이트에서 non-null 이 보장된다(A-ISSUE-01).
                 TokenClaims claims = new TokenClaims(
-                        body.getSubject(),
+                        subject,
                         role,
                         channel,
                         Instant.ofEpochMilli(body.getExpiration().getTime())
@@ -142,7 +206,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(claims, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
 
-                String name = body.get("name", String.class);
                 if (name != null) {
                     request.setAttribute(AUTH_NAME_ATTR, name);
                 }

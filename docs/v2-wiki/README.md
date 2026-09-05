@@ -18,8 +18,8 @@
 |---|--------|------|
 | 00 | [로컬 자족 실행 (외부 0개 테스트)](00-local-setup.md) | docker/native 기동, dev 토큰 인증, 시나리오별 검증 경로, 외부0개 토글 (ai-server CPU 실추론·YOLOX) |
 | 01 | [시스템 개요](01-system-overview.md) | 목적·범위·범위 외·역할·기술스택·핵심 파이프라인 |
-| 02 | [아키텍처](02-architecture.md) | 모노레포·레이어·공통 인프라·ai-server 분리·듀얼 데이터소스 |
-| 03 | [인증 · 권한 · 역할](03-auth-roles.md) | JWT 인계, REVIEWER/WORKER/PORTAL_USER, 진입 |
+| 02 | [아키텍처](02-architecture.md) | 모노레포·레이어·공통 인프라·ai-server 분리·단일 데이터소스(구 듀얼 — 2026-08-31 철거) |
+| 03 | [인증 · 권한 · 역할](03-auth-roles.md) | JWT 인계, ADMIN/REVIEWER/WORKER/PORTAL_USER, 진입 |
 | 04 | [화면 · IA](04-screens-ia.md) | `SCREEN-NNN`(32개, 축약 `SC-NNN` — 2026-08-19 코드 실측, 구 `KLID-AT-SC-NNN` 서술 폐기) 화면, 내부/포털 채널, 라우트 |
 | 05 | [영상 관리 · 업로드](05-video-management.md) | LS_DATA_RAW, TUS 업로드, 스트리밍, 등록 |
 | 06 | [마킹](06-marking.md) | 자동/수동 마킹, 스트리밍, 배치 트리거 |
@@ -32,7 +32,7 @@
 | 13 | [버전관리](13-version-control.md) | 라벨 스냅샷, diff, rollback |
 | 14 | [데이터 증강 · 해상도 변경](14-augmentation.md) | 외부 증강 위탁·검수, 무결성, 해상도 변경 파생영상(업스케일 허용·좌표 배율 재계산) |
 | 15 | [관제서버 통지](15-control-notify.md) | TASK_COMPLETED/MODIFIED, fallback, 조회 API |
-| 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재, SAM2 인터랙티브·자동추적·키포인트(Phase 9, 좌표만·LS_PORTAL_USER_LABEL 단방향) |
+| 16 | [포털](16-portal.md) | 데이터마트 영상 선택, 사용자 라벨 별도 적재(LS_PORTAL_USER_LABEL 단방향), 본인 자산 업로드, 업로드 영상 마킹(SC-045 — 프레임 추출 위치 지정), 라벨링 화면 통합(SC-029) |
 | 17 | [통계 · 대시보드](17-statistics.md) | 작업자/전체 통계, CSV 리포트 |
 | 18 | [데이터베이스](18-database.md) | LS_* 테이블, V_COMPLETED_* View, 마이그레이션 |
 | 19 | [외부 시스템 · 보안 · CVAT 포팅 · 설계문서](19-external-security-cvat.md) | 연동 클라이언트, 보안, CVAT 모듈, R/D 카탈로그 |
@@ -62,7 +62,7 @@
 | 라벨링 정밀도 조절 (YOLO_CONF_THRESHOLD 등) | [11](11-ai-assisted.md#115-정밀도-조절) |
 | 검수 승인/반려, 작업 배정/재배정 | [12](12-review-assignment.md) |
 | 버전 스냅샷 / diff / rollback | [13](13-version-control.md) |
-| 데이터 증강(WINTER/NIGHT/RAIN) / 해상도 변경 | [14](14-augmentation.md) |
+| 데이터 증강(`AUGMENT`) / 해상도 변경 | [14](14-augmentation.md) |
 | 관제 통지 TASK_COMPLETED/MODIFIED | [15](15-control-notify.md) |
 | 포털 (데이터마트 영상 선택) | [16](16-portal.md) |
 | 외부 시스템 연동 / 보안 / CVAT 포팅 | [19](19-external-security-cvat.md) |
@@ -76,7 +76,7 @@
 
 | 화면 ID | 화면 | 페이지 |
 |---------|------|--------|
-| SC-001/002 | 세션 인계 / 역할 클레임 | [03](03-auth-roles.md) |
+| SC-001/002 | 세션 인계 / 관리자 등록 | [03](03-auth-roles.md) |
 | SC-005 | 라벨링 캔버스 | [10](10-labeling.md) |
 | SC-006 | 마킹 | [06](06-marking.md) |
 | SC-008/009 | 영상 목록/상세 | [05](05-video-management.md) |

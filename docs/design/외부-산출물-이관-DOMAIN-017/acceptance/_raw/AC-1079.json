@@ -1,0 +1,79 @@
+{
+  "item": {
+    "id": "AC-1079",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-035 외부 산출물 가져오기 — 폴더 탐색·원본/비식별 지정·판정 단일값·분류 매핑·적재·검수 대기 (happy)",
+    "slug": "uc-035-외부-산출물-가져오기-폴더-탐색원본비식별-지정판정-단일값분류-매핑적재검수-대기-happy",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [산출물 가져오기 /admin/imports] 1) 폴더 위치·원본/비식별 지정 2) 훑어 판정 목록(적재 가능 여부 단일값) 3) 분류 매핑 확정 4) 적재 · 기대: 영상 1건·프레임·라벨 생성·이관 이력 기록, 영상 검수 대기",
+          "captured_at": "2026-08-31T03:00:00Z"
+        },
+        {
+          "type": "log",
+          "result": "pass",
+          "reference": "select trnsf_sn, trnsf_stts_cd, raw_sn, frme_cnt, lbl_cnt from klid_at.ls_otsd_datst_trnsf_hstry order by trnsf_sn;\n\n결과 (검증환경 dev · 상용은 동일 쿼리로 확인):\n+----------+---------------+--------+----------+---------+\n| trnsf_sn | trnsf_stts_cd | raw_sn | frme_cnt | lbl_cnt |\n+----------+---------------+--------+----------+---------+\n|        1 | SUCCESS       |      4 |        4 |       0 |\n|        2 | SUCCESS       |      5 |        4 |       2 |\n|        3 | SUCCESS       |     21 |        3 |       6 |\n|        4 | SUCCESS       |     22 |        3 |       6 |\n+----------+---------------+--------+----------+---------+\n(4 rows)",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "폴더를 훑어 영상·프레임·라벨·알림을 한 목록으로 돌려주고 적재 가능 여부 단일값이 판정한다(미저장)",
+          "바로가기는 건너뛰고 알리며(미차단), 분류는 후보 제시 후 사람이 확정(자동 확정 없음)·이벤트는 최말단만",
+          "확정한 매핑은 다음부터 같은 이름에 자동 적용된다",
+          "적재는 영상 1건·프레임·라벨 생성·이관 이력 기록, 영상은 검수 대기가 된다"
+        ],
+        "when": [
+          "폴더·원본 지정·분류 매핑 후 적재를 실행한다"
+        ],
+        "given": [
+          "외부에서 라벨링이 끝난 산출물 폴더가 있다"
+        ]
+      },
+      "statement": "산출물 가져오기 화면(SCREEN-039)에서 산출물 폴더 위치를 손으로 적거나 허용 저장소 범위를 한 단계씩 훑어 고르고(한 자리 항목이 많으면 나눠 이어 오므로 훑는 길만으로 모든 항목에 닿음), 원본 영상이 따로 있으면 그 위치도 넣고 이 산출물이 비식별 끝난 것인지 원본인지 고른다. 폴더를 훑어 영상 정보·프레임 수·라벨 수와 알림을 한 목록으로 돌려주되 적재를 막는 사유와 막지 않는 사유가 함께 담기고 진행 판정은 함께 오는 적재 가능 여부 값 하나가 한다(이 단계 미저장). 바로가기는 따라가지 않고 건너뛴 사실을 알리며(적재 미차단), 처음 보는 분류는 이름 비슷한 후보를 제시하되 자동 확정하지 않고, 각 분류를 라벨/이벤트 유형에 연결해 확정하면 다음부터 같은 이름에 자동 적용된다(이벤트 축은 최말단 이름 한 건만 연결, 상위 계층은 참고 보관). 미리보기·경고 확인 후 적재하면 영상 1건과 프레임·라벨을 만들고 이관 이력을 남기며 영상이 검수 대기가 된다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:47.494Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-017"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-035"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "DFEAT-058의 2개 필드 변경이 derived_from로 2-hop 전파",
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:47.494Z",
+    "created_at": "2026-08-31T02:23:01.798Z"
+  }
+}

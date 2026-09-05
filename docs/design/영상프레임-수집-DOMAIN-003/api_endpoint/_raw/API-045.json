@@ -324,9 +324,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-242"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:40.118Z"
       },
       "implements_features": [],
       "verifies_acceptance": []
@@ -337,8 +340,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "응답 스키마 백필 — ApiResponse<AutoLabelSummaryResponse> 본문 schema + 401/403/404 (VideoController#autoSummary, REVIEWER 기준)",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-06-15T07:03:32.522Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:40.118Z",
     "created_at": "2026-05-30T07:23:02.187Z"
   }
 }

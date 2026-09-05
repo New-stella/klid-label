@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Lock, Unlock } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { AxiosError } from 'axios';
@@ -23,10 +23,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/common/Select';
+import { AdminSessionDialog } from '@/features/adminSession/components/AdminSessionDialog';
+import {
+  ADMIN_SESSION_TTL_MINUTES_HINT,
+  useAdminSessionWindow,
+} from '@/features/adminSession/hooks/useAdminSessionWindow';
+import { currentAdminSessionToken } from '@/features/adminSession/store';
 import { updateUser, type UserUpdatePayload } from '@/features/user/api';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import type { User, UserListParams } from '@/features/user/types';
+import { ApiError } from '@/lib/api/errors';
 import { Role } from '@/lib/api/types';
+import { ROLE_LABEL } from '@/lib/roleDisplay';
 import { USER_KEYS } from '@/lib/queryKeys';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -36,20 +44,35 @@ import { useUiStore } from '@/stores/useUiStore';
  * 진행 범위: 조회 + 검색/필터 + 역할 수정 (PATCH /v1/users/{userNo}).
  * 활성/비활성(useYn)은 관제서버 책임으로 이관 — 저작도구는 상태를 읽기(배지)로만 표시한다.
  *
+ * <h3>조회와 쓰기의 요건이 다르다 [@design SCREEN-024] [@design API-004]</h3>
+ * 목록·단건 조회는 검수자 권한만으로 되고, <b>역할 변경에만</b> 관리자 단기 유효창이 가산된다.
+ * 유효창은 인가를 대체하지 않고 더해지며 역할을 승격시키지 않는다.
+ * <p>★조회에 유효창을 요구하지 않는 것은 <b>사양</b>이다 — 「일관성」을 이유로 조회에까지 요건을
+ * 얹으면 이 화면뿐 아니라 작업 배정 흐름(`GET /v1/users/workers`)이 함께 끊긴다.
+ * <p>만료를 거부 코드로만 알리고 끝내지 않는다 — 만료 사실을 안내하고 재확인을 받은 뒤
+ * <b>저장을 이어서 시도</b>한다.
+ *
  * 보안:
- * - REVIEWER만 진입 (RoleGuard) / BE @PreAuthorize("hasRole('REVIEWER')") 이중 방어
+ * - 관리자만 진입 (RoleGuard) / BE 권한 검사 이중 방어 — 검수자는 계층의 아래쪽이라 닿지 않는다
  * - 검색어는 axios params로만 (XSS/Injection 방지)
  * - role 은 TypeScript 리터럴 유니온 + BE @Pattern 화이트리스트로 이중 검증
  * - 역할 변경은 Modal 한 단계 거쳐 실수 방지
  */
-const ROLE_LABEL: Record<Role, string> = {
-  [Role.REVIEWER]: '검수자',
-  [Role.WORKER]: '작업자',
-  [Role.PORTAL_USER]: '포털',
-};
+/*
+ * 역할 표시명은 이 화면이 갖지 않는다 — 공용 표시축(`@/lib/roleDisplay`)에서 가져온다.
+ * 구 구현은 같은 표를 여기 한 벌 더 두고 있었고, 관리자 역할이 신설될 때 두 곳을 각각 고쳐야
+ * 했다. 한쪽만 갱신되면 화면마다 다른 이름으로 갈린다.
+ * ⚠ `RoleBadge`(배지 사양)는 여전히 자기 표를 갖는다 — 미배정 variant 와 경고 아이콘을 갖고
+ *   색 축이 달라 별도 사양이다. 셋을 하나로 합치려다 그 사양을 깨뜨리지 말 것.
+ */
 
-/** 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. */
-const ROLE_OPTION_ORDER: Role[] = [Role.REVIEWER, Role.WORKER, Role.PORTAL_USER];
+/**
+ * 역할 select 옵션 표시 순서 — 필터·수정 모달 공용. 권한이 넓은 쪽부터 둔다.
+ *
+ * 관리자를 여기 넣는 것이 이 화면의 존재 이유와 직결된다 — 관리자를 지정할 수 있는 창구가
+ * 여기뿐이라, 빠뜨리면 관리자를 한 명도 늘릴 수 없고 마지막 관리자 보호와 맞물려 교대가 막힌다.
+ */
+const ROLE_OPTION_ORDER: Role[] = [Role.ADMIN, Role.REVIEWER, Role.WORKER, Role.PORTAL_USER];
 
 /**
  * 섹션 제목 — 카드마다 h2 로 둔다.
@@ -147,20 +170,60 @@ export function UserManagePage() {
   const [editRole, setEditRole] = useState<Role | ''>('');
   const pushToast = useUiStore((s) => s.pushToast);
   const queryClient = useQueryClient();
+  const session = useAdminSessionWindow();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  /** 유효창 만료로 거부됐음을 모달에서 알린다 — 거부를 조용히 삼키지 않는다. */
+  const [expiredNotice, setExpiredNotice] = useState(false);
+  /**
+   * 서버가 규칙으로 거부한 사유(409) — 마지막 관리자 강등 등. [@design AC-124]
+   *
+   * 토스트로 흘려보내지 않는 이유는 이 거부가 **다시 고를 수 있는** 종류이기 때문이다. 모달을
+   * 닫아 버리면 사용자가 고르던 값을 잃고, 무엇이 왜 막혔는지도 사라진다.
+   */
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
 
-  // PATCH /v1/users/{userNo} — 역할 변경 mutation.
+  // PATCH /v1/users/{userNo} — 역할 변경 mutation. 관리자 유효창 토큰을 함께 싣는다.
   const updateMutation = useMutation({
-    mutationFn: ({ userNo, payload }: { userNo: number; payload: UserUpdatePayload }) =>
-      updateUser(userNo, payload),
+    mutationFn: ({
+      userNo,
+      payload,
+      adminSessionToken,
+    }: {
+      userNo: number;
+      payload: UserUpdatePayload;
+      adminSessionToken?: string;
+    }) => updateUser(userNo, payload, adminSessionToken),
     onSuccess: () => {
       // 사용자 목록/단건 캐시 무효화 → 자동 재조회.
       queryClient.invalidateQueries({ queryKey: USER_KEYS.all });
       pushToast({ variant: 'success', message: '수정되었습니다.' });
+      setExpiredNotice(false);
+      setConflictNotice(null);
+      setEditUser(null);
     },
     onError: (err: unknown) => {
+      // ⚠ 이 계층에 도달하는 것은 axios 원본이 아니라 인터셉터가 만든 `ApiError` 다 —
+      //   `err.response.status` 로 보면 항상 undefined 라 403 분기가 통째로 죽는다(실측).
+      if (err instanceof ApiError && err.status === 403) {
+        // 403 은 「검수자가 아니다」와 「유효창이 없거나 끝났다」를 서버가 구분해 알리지 않는다.
+        // 이 화면은 검수자만 들어오므로 실질 사유는 유효창이며, 재확인 통로를 그 자리에서 연다.
+        // ⚠ 모달을 닫지 않는다 — 닫으면 방금 띄운 안내를 사용자가 보지 못한다.
+        session.lock();
+        setExpiredNotice(true);
+        setDialogOpen(true);
+        return;
+      }
+      if (err instanceof ApiError && err.status === 409) {
+        // 규칙 위반(마지막 관리자 강등 등) — 다시 고르면 되는 거부다. 모달을 닫지 않고 서버가
+        // 준 사유를 그 자리에 그린다. 사유 문구는 서버가 소유한다(화면이 다시 쓰면 규칙이 바뀔
+        // 때 두 문장이 갈린다).
+        setConflictNotice(err.userMessage);
+        return;
+      }
       const axiosErr = err as AxiosError<{ message?: string }>;
       const reason = axiosErr?.response?.data?.message ?? axiosErr?.message ?? '알 수 없는 오류';
       pushToast({ variant: 'error', message: `수정에 실패했습니다 — ${reason}` });
+      setEditUser(null);
     },
   });
 
@@ -214,6 +277,9 @@ export function UserManagePage() {
     setEditUser(u);
     // 역할 미배정이면 '' 로 열어 선택 전까지 저장을 막는다.
     setEditRole(roleOf(u) ?? '');
+    // 이전 사용자의 거부 사유를 물고 들어오지 않는다 — 다른 사람의 이야기가 남으면 거짓말이 된다.
+    setConflictNotice(null);
+    setExpiredNotice(false);
   };
 
   /**
@@ -231,7 +297,13 @@ export function UserManagePage() {
         ? '변경없음'
         : null;
 
-  const handleEditSave = () => {
+  /**
+   * 저장 실행 — 토큰을 **인자로 받는다**.
+   *
+   * 재확인 직후에는 훅이 돌려주는 `session.token` 이 아직 이전 렌더의 값이라, 그 값을 쓰면 방금
+   * 연 창을 두고도 빈 토큰으로 요청이 나간다. 그래서 호출부가 그 시점의 토큰을 넘긴다.
+   */
+  const runSave = (token?: string) => {
     if (!editUser) return;
     if (editRole === '') return; // 미선택 — 저장 버튼이 이미 비활성이지만 이중 방어.
     // 변경된 필드만 payload 에 포함 (서버 측은 null 필드 무시).
@@ -244,10 +316,33 @@ export function UserManagePage() {
       setEditUser(null);
       return;
     }
-    updateMutation.mutate(
-      { userNo: editUser.id, payload },
-      { onSettled: () => setEditUser(null) },
-    );
+    updateMutation.mutate({ userNo: editUser.id, payload, adminSessionToken: token });
+  };
+
+  const handleEditSave = () => {
+    setExpiredNotice(false);
+    setConflictNotice(null);
+    // 유효창이 없으면 요청을 보내기 전에 확인 창을 먼저 연다 — 보내 봐야 403 이고,
+    // 그 거부는 화면에서 「이유를 알 수 없는 실패」로 보인다.
+    if (!session.unlocked) {
+      setDialogOpen(true);
+      return;
+    }
+    runSave(session.token);
+  };
+
+  /**
+   * 재확인 성공 시 저장을 **이어서 시도**한다(사양 SCREEN-024).
+   *
+   * 갓 발급된 토큰은 스토어에서 직접 읽는다 — 훅의 반환값은 다음 렌더에야 갱신된다.
+   */
+  const handleReauthenticate = async (adminPassword: string) => {
+    const ok = await session.open(adminPassword);
+    if (ok) {
+      setExpiredNotice(false);
+      runSave(currentAdminSessionToken());
+    }
+    return ok;
   };
 
   const rows = data?.content ?? [];
@@ -495,7 +590,10 @@ export function UserManagePage() {
       </Card>
       <Modal
         open={!!editUser}
-        onClose={() => setEditUser(null)}
+        onClose={() => {
+          setConflictNotice(null);
+          setEditUser(null);
+        }}
         title="사용자 정보 수정"
         description={editUser ? `${editUser.name}(${editUser.loginId})` : ''}
         size="md"
@@ -504,7 +602,10 @@ export function UserManagePage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setEditUser(null)}
+              onClick={() => {
+                setConflictNotice(null);
+                setEditUser(null);
+              }}
               disabled={updateMutation.isPending}
             >
               취소
@@ -522,6 +623,58 @@ export function UserManagePage() {
         }
       >
         <div className="flex flex-col gap-4">
+          {/* 관리자 유효창 상태 — 긴 입력을 마치고 저장을 눌렀을 때 비로소 만료를 알게 되는 일을
+              없앤다(사양 SCREEN-024). 판정은 서버가 소유하므로 이 표시는 안내일 뿐이다. */}
+          <div
+            data-testid="edit-user-admin-session"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2"
+          >
+            <span className="flex items-center gap-1.5 text-body-sm text-gray-700">
+              {session.unlocked ? (
+                <>
+                  <Unlock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  관리자 확인됨 — {session.remainingLabel} 남음
+                </>
+              ) : (
+                <>
+                  <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  역할 변경에는 관리자 확인이 필요합니다
+                </>
+              )}
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+            >
+              관리자 확인
+            </Button>
+          </div>
+          {/* 만료 거부를 조용히 삼키지 않는다 — 무슨 일이 있었는지 알린 뒤 재확인을 받는다. */}
+          {expiredNotice && (
+            <p
+              role="alert"
+              data-testid="edit-user-session-expired"
+              className="flex items-start gap-2 rounded-md bg-danger/10 px-3 py-2 text-body-sm text-danger-700"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              관리자 확인이 만료되어 저장하지 못했습니다. 다시 확인하면 이어서 저장합니다.
+            </p>
+          )}
+          {/* 서버가 규칙으로 막은 경우(409) — 마지막 관리자 강등 등. [@design AC-124]
+              관리자가 0명이 되면 자가부여 창이 다시 열리므로 서버가 거부한다. 화면은 그 사유를
+              그대로 보여주고 모달을 열어 둬 다른 역할을 고를 수 있게 한다. */}
+          {conflictNotice && (
+            <p
+              role="alert"
+              data-testid="edit-user-conflict-notice"
+              className="flex items-start gap-2 rounded-md bg-warning-50 px-3 py-2 text-body-sm text-warning-700"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {conflictNotice}
+            </p>
+          )}
           {/* 역할 미배정 사용자 안내 — 왜 저장 버튼이 잠겨 있는지 알려준다(사양 SCREEN-024).
               역할 배지의 미배정 톤(warn tint)과 같은 색축을 써서 목록에서 본 상태와 이어진다. */}
           {editUser && roleOf(editUser) === null && (
@@ -561,7 +714,7 @@ export function UserManagePage() {
               </SelectContent>
             </Select>
             <FieldDescription>
-              저장하려면 반드시 선택해야 합니다. 서버가 허용값(검수자/작업자/포털)을 재검증합니다.
+              저장하려면 반드시 선택해야 합니다. 서버가 허용값(관리자/검수자/작업자/포털)을 재검증합니다.
             </FieldDescription>
           </Field>
           {/* 계정 상태는 읽기 전용이다 — 관제서버 소유값이라 이 화면에 편집 컨트롤을 두지 않고,
@@ -577,6 +730,16 @@ export function UserManagePage() {
           )}
         </div>
       </Modal>
+
+      <AdminSessionDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={handleReauthenticate}
+        isSubmitting={session.isOpening}
+        error={session.error}
+        ttlMinutesHint={ADMIN_SESSION_TTL_MINUTES_HINT}
+        unlockTargetLabel="역할 변경"
+      />
     </section>
   );
 }

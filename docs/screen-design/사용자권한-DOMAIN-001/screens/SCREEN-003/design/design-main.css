@@ -205,7 +205,12 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .badge .dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: currentColor; }
 .badge-neutral { background: var(--n-1); color: var(--n-7); }
 
-/* RoleBadge (UI-110) — 카탈로그가 지정한 4종 매핑 그대로 */
+/* RoleBadge (UI-110) — 검수자·작업자·포털·미배정 4종은 카탈로그가 지정한 매핑 그대로.
+   관리자(.role-admin)·미매핑(.role-unknown) 2종은 카탈로그(UI-110 variants)에 아직 없어 이 시안이 정한다.
+   · 관리자 — 검수자와 같은 primary 계열이되 tint 가 아니라 채움으로 두어 계층 위임(관리자 ⊃ 검수자)을
+     드러내면서 검수자 배지와 한눈에 갈린다. #ffffff × primary[6] = 6.83:1 (AA).
+   · 미매핑 — '미배정'(경고 톤)과 다른 사실이므로 중립으로 둔다. 포털(neutral[0] + 테두리)과도
+     겹치지 않게 테두리 없이 한 단 진한 면을 쓴다. neutral[7] × neutral[1] = 7.07:1 (AAA). */
 .role-badge {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 5px 12px;
@@ -215,10 +220,12 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   white-space: nowrap;
 }
 .role-badge .icon-sm { width: 16px; height: 16px; stroke-width: 2; flex: none; }
+.role-admin      { background: var(--p-6); color: var(--bg-page); }
 .role-reviewer   { background: var(--p-0); color: var(--p-6); }
 .role-worker     { background: var(--s-0); color: var(--s-7); }
 .role-portal     { background: var(--n-0); color: var(--n-8); border-color: var(--border); }
 .role-unassigned { background: var(--w-0); color: var(--w-7); }
+.role-unknown    { background: var(--n-1); color: var(--n-7); }
 
 /* ── 7. 참고 패널 (기준본 관례 — bg n-0 + 4면 2px dashed n-4) ─────── */
 .reference-panel {

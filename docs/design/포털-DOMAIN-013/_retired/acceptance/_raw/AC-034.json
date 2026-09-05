@@ -1,0 +1,101 @@
+{
+  "item": {
+    "id": "AC-034",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "비식별 영상 부재 시 다운로드는 라벨·이미지만 담는다",
+    "slug": "비식별-영상-부재-시-다운로드는-라벨이미지만-담는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "비식별 영상 경로 조달은 영상 재생 경로와 같은 축(비식별 처리 로그 LS_DEIDENT_PROC_LOG 의 최신 성공 이력에 적재된 DE_IDNTF_FILE_PATH_NM)이어야 하며, 원본 폴백 금지는 포털 채널의 구속 정책과 동일하다. 이 금지는 압축 산출물에 담기는 파일뿐 아니라 어노테이션 문서가 가리키는 경로에도 함께 적용된다 — 파일을 담지 않아도 경로가 실리면 원본의 위치가 외부로 나가기 때문이다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalDatamartDownloadServiceTest · 비식별_영상이_없어도_원본_영상은_어떤_경우에도_ZIP에_들어가지_않는다",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "8242f237-f5e8-4e55-aa0b-a7d8c0d3201a",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z",
+        "duration_ms": 2
+      },
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "200 과 함께 ZIP 이 반환된다",
+          "ZIP 안에 영상 파일이 없고 프레임 이미지와 그 짝인 어노테이션 문서만 존재한다",
+          "각 어노테이션 문서의 이미지·영상 블록이 가리키는 경로가 비식별 기준이며 원본 경로를 담지 않는다"
+        ],
+        "when": [
+          "다운로드를 요청한다"
+        ],
+        "given": [
+          "데이터마트 노출 영상에 본인 저장 라벨이 있다",
+          "이 영상은 비식별 처리 로그(LS_DEIDENT_PROC_LOG)에 최신 성공 이력이 없다"
+        ],
+        "and_examples": [
+          {
+            "case": "원본(비식별 이전) 영상으로 대체하려는 시도",
+            "result": "어떤 경우에도 원본 폴백이 일어나지 않아야 한다(비식별 정책 구속력 대상)"
+          },
+          {
+            "case": "어노테이션 문서의 영상 경로 자리를 원본 경로로 채우려는 시도",
+            "result": "비식별 영상이 없으면 그 자리를 비워 두며 원본 경로를 대신 싣지 않는다"
+          }
+        ]
+      },
+      "statement": "다운로드 대상 영상에 비식별 영상 파일이 없으면 ZIP 에 영상 파일 없이 프레임 이미지와 그 짝인 어노테이션 문서만 담기며, 원본 영상으로 대체되지 않는다. 어노테이션 문서의 이미지·영상 블록이 가리키는 경로에도 원본 경로가 실리지 않는다",
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — 다운로드 API(API-203) 상세 사양.",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "capability-add"
+        ]
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "verified",
+        "modules": [],
+        "records": [
+          "IMPREC-011",
+          "IMPREC-136",
+          "IMPREC-141"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-26T07:44:32.313Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadTxService.java"
+        ]
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-024"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이번 라운드에서 이미 검증 범위를 어노테이션 문서의 경로 필드까지 넓혀 재서술했다(원본 비노출 판정은 불변). 그 뒤 실현 엔드포인트 목록이 바뀌어 다시 전파된 것이므로 추가로 고칠 내용이 없다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-26T07:44:32.313Z",
+    "created_at": "2026-08-17T01:10:20.896Z"
+  }
+}

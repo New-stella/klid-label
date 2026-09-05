@@ -4,10 +4,10 @@ type: domain_feature
 version: 4
 domain: DOMAIN-006
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:41:56.610Z
-status: NEW
-prev_version: null
-content_hash: 3d3e68933e85c023fc1f5bd64c0dbc61abc7d580de29c418be1025ee88872162
+synced_at: 2026-08-29T01:27:30.079Z
+status: CHANGED
+prev_version: 4
+content_hash: 087986c3306c2b5167a3316ce9f4f9d16c36ead6095aee514c07a6721bd54011
 stale: false
 raw: ./_raw/DFEAT-028.json
 links:
@@ -15,6 +15,7 @@ links:
   implements: ["[[API-057]]"]
   migrated_from: ["[[LEGACY-114]]"]
   depicts_backward: ["[[CDIAG-009]]"]
+  realizes_backward: ["[[UC-033]]"]
   references_backward: ["[[CDIAG-009]]"]
 ---
 
@@ -98,7 +99,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-362
 
 ### progress
 
@@ -110,7 +111,7 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T02:37:44.109Z
+2026-08-29T01:26:21.256Z
 
 ## uses_constants
 

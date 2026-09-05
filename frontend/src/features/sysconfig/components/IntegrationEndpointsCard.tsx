@@ -4,23 +4,22 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/common/Button';
+import { AdminSessionDialog } from '@/features/adminSession/components/AdminSessionDialog';
+import {
+  ADMIN_SESSION_TTL_MINUTES_HINT,
+  useAdminSessionWindow,
+} from '@/features/adminSession/hooks/useAdminSessionWindow';
 import { ApiError } from '@/lib/api/errors';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useUiStore } from '@/stores/useUiStore';
 
-import { useAdminSession } from '../hooks/useAdminSession';
 import { useUpdateConfig } from '../hooks/useUpdateConfig';
 import { integrationEndpointsSchema, type IntegrationEndpointsForm } from '../schemas';
 import { ConfigKey, type ConfigStringMap } from '../types';
 
-import { AdminSessionDialog } from './AdminSessionDialog';
-
 interface Props {
   configs: ConfigStringMap;
 }
-
-/** 관리자 인증 후 열리는 유효창 길이 안내(분) — BE 기본값과 같다. */
-const TTL_MINUTES_HINT = 10;
 
 /**
  * 화면 필드 ↔ BE 설정 키 매핑.
@@ -67,7 +66,7 @@ const INPUT_CLASS = `w-full rounded-md border border-gray-300 px-3 py-2 text-bod
  *
  * <h3>잠금이 기본이다</h3>
  * 이 값들은 잘못 바꾸면 학습데이터가 통째로 다른 서버로 나갈 수 있다. 그래서 REVIEWER 로 로그인한
- * 것만으로는 열리지 않고, **「관리자 설정」으로 그 순간 패스워드를 다시 확인**한 짧은 창에서만
+ * 것만으로는 열리지 않고, **「관리자 확인」으로 그 순간 패스워드를 다시 확인**한 짧은 창에서만
  * 편집할 수 있다. 새로고침하면 다시 잠긴다(토큰을 브라우저 저장소에 두지 않는다).
  *
  * <h3>실패 사유를 구분해 안내한다</h3>
@@ -84,7 +83,7 @@ const INPUT_CLASS = `w-full rounded-md border border-gray-300 px-3 py-2 text-bod
  */
 export function IntegrationEndpointsCard({ configs }: Props) {
   const pushToast = useUiStore((s) => s.pushToast);
-  const session = useAdminSession();
+  const session = useAdminSessionWindow();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
 
@@ -184,7 +183,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
                   size="sm"
                   onClick={() => setDialogOpen(true)}
                 >
-                  관리자 설정
+                  관리자 확인
                 </Button>
               )}
               <Button
@@ -220,7 +219,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
                 }`}
                 {...register(field.name)}
               />
-              <p className="text-caption text-gray-400">{field.hint}</p>
+              <p className="text-caption text-gray-600">{field.hint}</p>
               {errors[field.name] && (
                 <p className="flex items-center gap-1 text-caption text-danger" role="alert">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -237,7 +236,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
             </p>
           )}
 
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             저장하면 재기동 없이 다음 호출부터 새 주소가 적용됩니다. 서버가 여러 대인 경우 다른
             서버에는 최대 1분 뒤에 반영됩니다.
           </p>
@@ -250,7 +249,8 @@ export function IntegrationEndpointsCard({ configs }: Props) {
         onSubmit={session.open}
         isSubmitting={session.isOpening}
         error={session.error}
-        ttlMinutesHint={TTL_MINUTES_HINT}
+        ttlMinutesHint={ADMIN_SESSION_TTL_MINUTES_HINT}
+        unlockTargetLabel="연동 서버 주소 수정"
       />
     </>
   );
@@ -266,7 +266,7 @@ export function IntegrationEndpointsCard({ configs }: Props) {
 function describeSaveFailure(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) {
-      return '관리자 인증이 만료되었습니다. 「관리자 설정」으로 다시 인증해 주세요.';
+      return '관리자 확인이 만료되었습니다. 「관리자 확인」으로 다시 확인해 주세요.';
     }
     if (error.status === 400) {
       return error.userMessage || '사용할 수 없는 주소입니다. 주소를 다시 확인해 주세요.';

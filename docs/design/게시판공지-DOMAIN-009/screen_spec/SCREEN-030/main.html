@@ -17,7 +17,7 @@
       </div>
       <div class="wf-cluster wf-mt" style="align-items:flex-end">
         <span class="wf-bold">게시판</span><span class="wf-help">부제 '공지사항을 확인합니다.' 와 함께 제목+부제 2단 구성 — 단일 문자열 '게시판 / 공지사항' 이 아니다.</span>
-        <button class="wf-btn wf-btn-primary">새 게시글 작성</button><span class="wf-help">REVIEWER만 노출. Plus 아이콘.</span>
+        <button class="wf-btn wf-btn-primary">새 공지 작성</button><span class="wf-help">REVIEWER만 노출. Plus 아이콘.</span>
       </div>
     </div>
     <div class="wf-card">
@@ -58,8 +58,8 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">① 페이지 헤더</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 게시글 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.</p></div>
-      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(게시판)<p class="wf-help" style="margin:2px 0 0">부제 '공지사항을 확인합니다.' 와 함께 제목+부제 2단 구성 — 단일 문자열 '게시판 / 공지사항' 이 아니다.</p></li><li>Button(새 게시글 작성)<p class="wf-help" style="margin:2px 0 0">REVIEWER만 노출. Plus 아이콘.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목 '게시판' + 부제 '공지사항을 확인합니다.' + REVIEWER 전용 '새 공지 작성' 버튼. 클릭 시 모달이 아니라 전용 작성 화면(공지 작성 화면, route /notice/new)으로 이동한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Heading(게시판)<p class="wf-help" style="margin:2px 0 0">부제 '공지사항을 확인합니다.' 와 함께 제목+부제 2단 구성 — 단일 문자열 '게시판 / 공지사항' 이 아니다.</p></li><li>Button(새 공지 작성)<p class="wf-help" style="margin:2px 0 0">REVIEWER만 노출. Plus 아이콘.</p></li></ul></div>
     </div>
   </div>
   <div id="wf-sec-2" class="wf-sec-detail-modal">
@@ -77,7 +77,7 @@
     <div class="wf-sec-detail-modal-box">
       <a href="#_" class="wf-sec-detail-modal-close">×</a>
       <h3 class="wf-sec-detail-modal-title">③ 게시글 테이블</h3>
-      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목(중요 배지 — Pin 아이콘, amber, 텍스트 '중요' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>제목(고정 배지 — Pin 아이콘, amber, 텍스트 '고정' — pinned 일 때만)/상태(REVIEWER만 — 발행/작성중)/등록일 3컬럼. 고정 글 상단 + 등록일 내림차순. 행 클릭 시 상세(/notice/:id) 이동. 하단 페이지네이션(20건).</p></div>
       <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(제목/상태/등록일) · → API-095<p class="wf-help" style="margin:2px 0 0">번호(순번) 컬럼은 없다 — 3열 구성.</p></li><li>Custom(페이지네이션)</li></ul></div>
       <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-095</li></ul></div>
     </div>

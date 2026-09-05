@@ -18,23 +18,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 가리키면 <b>빈 생성 실패 → 애플리케이션 기동 자체가 실패</b>했다(2026-07-25 로컬 배선 시도 시
  * 실측·원복). 이 테스트는 "VLM 을 켜면 부팅이 깨진다"는 회귀를 막는다.
  *
- * <p>운영(prd/stg)·프로파일 미지정에서의 강제 보존 검증은 {@link WebClientConfigTest} 가 담당한다.
+ * <p>남은 검증축(비허용 스킴·placeholder·예약 대역)의 보존은 {@link WebClientConfigTest} 가 담당한다.
  * (테스트 클래스패스의 {@code src/test/resources/application-local.yml} 이 메인 프로파일 yml 을
  * 가리므로, 실제 배선값은 여기서 명시 주입한다 — 값 정합은 {@code DevProfileWiringGuardTest}.)
  *
- * <p><b>완화 플래그를 함께 주입하는 이유</b>: 평문/내부 호스트 허용은 프로파일만으로 암묵 적용되지
- * 않는다 — 전용 플래그 {@code vlm.client.allow-insecure-url} 가 있어야만 {@link VlmUrlPolicy} 가
- * 완화 정책을 고른다(설정 하나로 운영에 새는 경로 차단). {@code application-local.yml} 실배선도
- * 목 주소와 이 플래그를 짝으로 두므로, 여기서도 같은 짝을 재현한다.
+ * <p><b>완화 플래그는 더 이상 없다</b>(2026-08-10 확정 정합) — 평문/내부 호스트는 전 프로파일에서
+ * 그대로 통과하므로 목 주소만 주입하면 된다. 구 배선이 짝으로 두던 {@code vlm.client.allow-insecure-url}
+ * 은 죽은 설정이 되어 제거됐다.
  *
  * <p>구 배선에 있던 활성/비활성 토글은 폐지됐다(ADR-049) — 주소를 주입하는 것이 곧 연동이다.
  */
 @SpringBootTest
 @ActiveProfiles("local")
-@TestPropertySource(properties = {
-        "vlm.client.url=http://klid-mock-server:9400",
-        "vlm.client.allow-insecure-url=true"
-})
+@TestPropertySource(properties = "vlm.client.url=http://klid-mock-server:9400")
 class VlmMockServerBootIntegrationTest {
 
     @Autowired(required = false)

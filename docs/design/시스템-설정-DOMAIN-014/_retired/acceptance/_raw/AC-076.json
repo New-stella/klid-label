@@ -1,0 +1,54 @@
+{
+  "item": {
+    "id": "AC-076",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "저장한 적 없는 설정 키가 목록에 없는 것은 정상이다",
+    "slug": "저장한-적-없는-설정-키가-목록에-없는-것은-정상이다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "이 부재를 누락으로 읽고 모든 키의 행을 미리 만들어 두면, 저장한 적 없는 값과 기본값과 같게 저장한 값을 구분할 수 없게 된다. 이 기준은 그 부재가 정상 상태임을 기대 결과로 못박는다.",
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "그 키는 목록에 나타나지 않는다",
+          "그 설정이 필요한 동작은 배포 기본값으로 수행된다",
+          "한 번 저장하면 그때부터 목록에 나타난다"
+        ],
+        "when": [
+          "설정 목록을 조회한다"
+        ],
+        "given": [
+          "어떤 설정 키를 한 번도 저장한 적이 없다"
+        ]
+      },
+      "statement": "설정에 값을 저장한 적이 없으면 그 키는 설정 목록에 나타나지 않으며 시스템은 배포 기본값으로 동작한다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-014"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-031"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 변경 없음 — 확인 내역을 기록한다. 상위 흐름이 이번에 더한 두 축은 모두 관리자 자격 축(요구 배선과 거부 문구)이고, 이 기준의 축은 저장한 적 없는 설정 키가 목록에 없는 것이 정상이라는 조회 결과다. 시드 행을 만들지 않고 배포 기본값으로 동작한다는 결론은 상위 결정에도 그대로 남아 있어 충돌이 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T23:15:14.428Z",
+    "created_at": "2026-08-23T10:08:57.384Z"
+  }
+}

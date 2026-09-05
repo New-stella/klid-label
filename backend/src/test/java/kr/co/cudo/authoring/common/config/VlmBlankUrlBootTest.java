@@ -3,7 +3,6 @@ package kr.co.cudo.authoring.common.config;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mock.env.MockEnvironment;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -33,17 +32,18 @@ class VlmBlankUrlBootTest {
 
     private final WebClientConfig cfg = new WebClientConfig();
 
-    /** 운영 등가(엄격) 정책 — 완화 플래그 off + 배포 표식 프로파일. */
+    /**
+     * 검증 정책 — 프로파일에 따라 갈리지 않는다(2026-08-10 확정 정합으로 게이팅이 폐지됐다).
+     * 여기서 확인하는 것은 <b>주소가 비면 정책을 아예 부르지 않는다</b>이므로 인스턴스는 하나면 된다.
+     */
     private static VlmUrlPolicy strictPolicy() {
-        MockEnvironment env = new MockEnvironment();
-        env.setActiveProfiles("prd");
-        return new VlmUrlPolicy(env, false);
+        return new VlmUrlPolicy();
     }
 
     @Test
     @DisplayName("주소가_비어_있으면_검증을_생략하고_기동에_성공한다_ADR049_기각안_회귀차단")
     void blankUrlSkipsValidationAndBoots() {
-        // given: 운영 등가(prd + 완화 플래그 off) — 가장 엄격한 조건에서도 미연동 기동이 막히면 안 된다.
+        // given: 검증 정책 인스턴스(프로파일로 갈리지 않는다) — 미연동 기동이 막히면 안 된다.
         VlmUrlPolicy policy = strictPolicy();
 
         // when / then: 빈 값·공백·null 어느 형태든 빈이 생성된다.
@@ -59,31 +59,44 @@ class VlmBlankUrlBootTest {
     }
 
     @Test
-    @DisplayName("주소가_채워져_있으면_종전대로_검증하고_위반이면_기동을_차단한다")
-    void filledUrlIsStillValidated() {
-        // given: 운영 등가 정책
+    @DisplayName("★주소가_잘못돼도_기동은_되고_그_주소로_나가려_할_때_실패한다_2026_09_03_확정")
+    void filledButInvalidUrlBootsAndBlocksTransport() {
+        // given: 검증 정책
         VlmUrlPolicy policy = strictPolicy();
 
-        // when / then: 평문 http · 내부 대역 · placeholder 는 종전대로 거부된다(검증 약화 금지).
-        assertThatThrownBy(() -> cfg.vlmWebClient("http://vlm.vendor.io", "", policy, null))
-                .as("주소가 있으면 HTTPS 강제가 살아 있어야 한다")
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://10.0.0.5", "", policy, null))
-                .as("주소가 있으면 사설 대역 차단이 살아 있어야 한다")
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://example.com", "", policy, null))
-                .as("주소가 있으면 placeholder fail-closed 가 살아 있어야 한다")
-                .isInstanceOf(IllegalStateException.class);
+        // when / then: 남은 검증축(비허용 스킴 · placeholder · 예약 대역)은 <규칙 그대로> 살아 있다.
+        //   ⚠ 구 기대값이던 「빈 생성 실패」는 2026-09-03 확정으로 폐기됐다 — 한 연동의 설정 실수로
+        //     저작 업무 전체가 멈추는 편이 배포 시점에 빨리 아는 것보다 훨씬 비싸다.
+        //   ⚠ 「HTTPS 강제」·「사설 대역 차단」은 2026-08-10 확정으로 이미 폐기됐다.
+        assertThat(cfg.vlmWebClient("ftp://vlm.vendor.io", "", policy, null))
+                .as("비허용 스킴이어도 기동은 막히지 않는다").isNotNull();
+        assertThat(cfg.vlmWebClient("http://169.254.169.254", "", policy, null))
+                .as("메타데이터 대역이어도 기동은 막히지 않는다").isNotNull();
+        assertThat(cfg.vlmWebClient("https://example.com", "", policy, null))
+                .as("placeholder 여도 기동은 막히지 않는다").isNotNull();
 
-        // and: 정상 주소는 그대로 통과한다.
+        // and: 그러나 그 주소로는 <아무것도 나가지 않는다> — 차단은 사라진 것이 아니라 옮겨졌다.
+        for (String bad : new String[]{"ftp://vlm.vendor.io", "http://169.254.169.254",
+                "https://example.com"}) {
+            org.springframework.web.reactive.function.client.WebClient client =
+                    cfg.vlmWebClient(bad, "", policy, null);
+            assertThatThrownBy(() -> client.post().uri("/v1/videovlm-klid/describe")
+                    .retrieve().bodyToMono(String.class).block(java.time.Duration.ofSeconds(5)))
+                    .as("거부된 주소로 전송이 시도되면 안 된다 — " + bad)
+                    .isInstanceOf(kr.co.cudo.authoring.common.client.NonRetryableExternalException.class)
+                    .hasMessageContaining("설정값이 유효하지 않아");
+        }
+
+        // and: 정상 주소(평문 http 포함)는 그대로 통과한다.
         assertThat(cfg.vlmWebClient("https://8.8.8.8/", "", policy, null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://vlm.vendor.io", "", policy, null)).isNotNull();
     }
 
     /**
      * 배포 기본값 자체가 비어 있어야 위 "미주입 = 빈 값" 전제가 성립한다.
      *
-     * <p>기본값이 {@code http://localhost:9400} 같은 실주소면 stg/prd 는 <b>미연동인데도 주소가 채워진
-     * 것</b>으로 판정되어 엄격 정책에 걸려 기동이 차단된다(=기각안과 동일 결과). 배포 템플릿
+     * <p>기본값이 {@code http://localhost:9400} 같은 실주소면 stg/prd 는 <b>미연동인데도 연동된 것</b>으로
+     * 판정되어, 위탁이 아무도 없는 주소로 나가고 그 실패가 벤더 장애처럼 보인다. 배포 템플릿
      * ({@code deploy/onprem/config/backend/*}) 의 빈 값 배포도 같은 전제 위에 있다.
      */
     @Test

@@ -83,9 +83,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-289"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:47.101Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -97,8 +100,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "요약에서 구현 클래스명과 등록 경위를 걷어내고 이 채널이 무엇인지만 남긴다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:44:40.024Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:47.101Z",
     "created_at": "2026-07-30T07:03:27.605Z"
   }
 }

@@ -1,5 +1,6 @@
 // 사용자 도메인 API — BE: /api/v1/users, /users/workers
 
+import { adminSessionHeaders } from '@/features/adminSession/api';
 import { apiClient } from '@/lib/api/client';
 import type { PageResponse } from '@/lib/api/types';
 
@@ -44,15 +45,32 @@ export function getUser(userNo: number) {
  * 활성/비활성(useYn)은 관제서버 책임으로 이관되어 저작도구에서 변경하지 않는다.
  */
 export interface UserUpdatePayload {
-  role?: 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
+  role?: 'ADMIN' | 'REVIEWER' | 'WORKER' | 'PORTAL_USER';
 }
 
 /**
- * 사용자 역할 변경 (REVIEWER 전용).
- * BE 가 @Pattern 화이트리스트로 role(REVIEWER|WORKER|PORTAL_USER) 검증.
+ * 사용자 역할 변경 (REVIEWER + 관리자 유효창). [@design API-004] [@design ADR-046]
+ *
+ * BE 가 @Pattern 화이트리스트로 role(ADMIN|REVIEWER|WORKER|PORTAL_USER) 검증.
+ *
+ * <p>역할 부여·변경은 운영·관리 성격의 쓰기라 검수자 권한 <b>위에</b> 관리자 단기 유효창이
+ * 가산된다. 유효창이 없거나 끝났으면 서버가 403 으로 거부한다 — 화면은 그 거부를 조용히 삼키지
+ * 말고 만료 사실을 알린 뒤 재확인을 받는다.
+ *
+ * <p>★<b>조회 창구(`listUsers`·`getUser`·`listWorkers`)에는 이 헤더를 붙이지 않는다.</b>
+ * 특히 {@link listWorkers} 는 작업 배정 화면이 읽으므로, 「일관성」을 이유로 조회에까지 요건을
+ * 얹으면 배정 흐름이 통째로 끊긴다.
  */
-export function updateUser(userNo: number, payload: UserUpdatePayload) {
+export function updateUser(
+  userNo: number,
+  payload: UserUpdatePayload,
+  adminSessionToken?: string,
+) {
   // 응답은 갱신된 프로필(`UserProfileResponse`)이다. `channel` 은 이 경로에서 빈 문자열이다
   // (피조회 사용자의 요청 컨텍스트가 없어 BE 가 채우지 않는다).
-  return apiClient.patch<UserProfile>(`/users/${userNo}`, payload).then((r) => r.data);
+  return apiClient
+    .patch<UserProfile>(`/users/${userNo}`, payload, {
+      headers: adminSessionHeaders(adminSessionToken),
+    })
+    .then((r) => r.data);
 }

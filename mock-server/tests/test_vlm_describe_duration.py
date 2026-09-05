@@ -78,14 +78,23 @@ def _windows_of(payload: dict) -> list[tuple[int, int]]:
     """콜백 서술에서 구간 목록을 되읽는다.
 
     ★ 콜백의 ``results`` 는 KLID 규격 §2.8 상 **단일 객체**이고 항목은 ``description`` 하나다.
-    구 규격의 구간 배열은 폐기됐으므로, 목이 만드는 서술("- 0~8초: ...")에서 구간을 파싱해
-    기존 커버리지 단정을 그대로 유지한다. 구간 계획 자체는 ``mock_describe_results`` 를
-    직접 부르는 단위 테스트가 따로 고정한다.
+    구 규격의 구간 배열은 폐기됐으므로, 목이 만드는 서술에서 구간을 파싱해 기존 커버리지 단정을
+    그대로 유지한다. 구간 계획 자체는 ``mock_describe_results`` 를 직접 부르는 단위 테스트가
+    따로 고정한다.
+
+    ⚠ 목의 묘사 전문은 이제 <영상 1건당 한 벌>인 규격 형식(``- 라벨: 값``)이고, 구간 서술은
+    그 안의 **「상황」 한 줄**에 이어 붙는다. 구 형식("- 0~8초: ...")은 구간마다 5항목 블록을
+    반복하며 첫 줄을 뭉갰던 것이라 폐기됐다.
     """
     description = payload["results"]["description"]
+    situation_lines = [
+        line for line in description.splitlines() if line.lstrip().startswith("- 상황:")
+    ]
+    if not situation_lines:
+        return []
     return [
         (int(m.group(1)), int(m.group(2)))
-        for m in re.finditer(r"^- (\d+)~(\d+)초: ", description, re.MULTILINE)
+        for m in re.finditer(r"(\d+)~(\d+)초 구간에서", situation_lines[0])
     ]
 
 

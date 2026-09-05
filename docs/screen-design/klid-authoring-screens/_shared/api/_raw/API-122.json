@@ -167,9 +167,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-331"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:52.918Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -181,8 +184,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "계약과 무관한 진행 상태 서술을 제거하고 응답 의미를 명확히 한다. 이 엔드포인트가 상급 시계열 위탁과 별개라는 경계는 그대로 유지했다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T03:16:58.001Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:52.918Z",
     "created_at": "2026-07-07T07:35:43.589Z"
   }
 }

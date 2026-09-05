@@ -1,0 +1,243 @@
+{
+  "item": {
+    "id": "API-219",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "api_endpoint",
+    "title": "GET /v1/manage/verification-event-types",
+    "slug": "get-v1manageverification-event-types",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "path": "/v1/manage/verification-event-types",
+      "tags": [
+        "manage",
+        "verification-event-type"
+      ],
+      "method": "GET",
+      "summary": "검증 이벤트 유형·질문 목록·관제 유형 짝 조회(관리 화면용)",
+      "security": [
+        {
+          "jwt": [
+            "REVIEWER"
+          ]
+        }
+      ],
+      "triggers": [],
+      "responses": {
+        "200": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sortSeq": {
+                      "type": "integer",
+                      "description": "화면 표시 순서. 응답은 이 값 오름차순으로 정렬된다"
+                    },
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "qstnCn": {
+                            "type": "string",
+                            "maxLength": 4000,
+                            "description": "질문 문구"
+                          },
+                          "sortSeq": {
+                            "type": "integer",
+                            "description": "유형 안에서의 순서. 첫 번째가 그 유형의 기본 질문이다"
+                          },
+                          "vrfcEvntQstnSn": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "검증 이벤트 질문 일련번호 — 마킹에서 고른 질문을 가리키는 값"
+                          }
+                        }
+                      },
+                      "description": "그 유형의 질문 목록 — 정렬순서 오름차순. 질문이 없으면 빈 배열"
+                    },
+                    "evntTypeCds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      "description": "이 검증 유형과 짝지어 수신된 관제 이벤트유형 코드 목록. 인입 원장에서 읽은 값이며 짝이 없으면 빈 배열"
+                    },
+                    "vrfcEvntTypeCd": {
+                      "type": "string",
+                      "maxLength": 20,
+                      "description": "검증 이벤트 유형 코드 — 외부 시계열 위탁 요청에 싣는 값이자 질문 목록의 소유 키"
+                    },
+                    "vrfcEvntTypeNm": {
+                      "type": "string",
+                      "maxLength": 300,
+                      "description": "검증 이벤트 유형명 — 화면 표시용"
+                    },
+                    "vrfcEvntTypeExpln": {
+                      "type": "string",
+                      "nullable": true,
+                      "maxLength": 4000,
+                      "description": "검증 이벤트 유형 설명. 없으면 null"
+                    }
+                  }
+                },
+                "description": "검증 이벤트 유형 목록 — 정렬순서 오름차순"
+              },
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "응답 메시지 (성공 시 null)"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부"
+              },
+              "errorCode": {
+                "type": "string",
+                "nullable": true,
+                "description": "에러 코드 (성공 시 null)"
+              }
+            }
+          },
+          "example": {
+            "data": [
+              {
+                "sortSeq": 1,
+                "questions": [
+                  {
+                    "qstnCn": "영상에서 '화재' 이벤트가 발생하였는지와, 이를 뒷받침하는 근거는 무엇인가?",
+                    "sortSeq": 1,
+                    "vrfcEvntQstnSn": 1
+                  }
+                ],
+                "evntTypeCds": [
+                  "EV02000101",
+                  "EV02000102"
+                ],
+                "vrfcEvntTypeCd": "fire",
+                "vrfcEvntTypeNm": "화재",
+                "vrfcEvntTypeExpln": null
+              },
+              {
+                "sortSeq": 2,
+                "questions": [],
+                "evntTypeCds": [],
+                "vrfcEvntTypeCd": "smoke",
+                "vrfcEvntTypeNm": "연기",
+                "vrfcEvntTypeExpln": null
+              }
+            ],
+            "message": null,
+            "success": true,
+            "errorCode": null
+          },
+          "description": "조회 성공",
+          "content_type": "application/json"
+        },
+        "401": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "인증이 필요합니다.",
+            "success": false,
+            "errorCode": "UNAUTHORIZED"
+          },
+          "description": "인증 실패. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "권한이 없습니다.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "검수자 권한 없음. ErrorCode=FORBIDDEN",
+          "content_type": "application/json"
+        }
+      },
+      "brownfield": {
+        "status": "new",
+        "decided_by": "ADR-051",
+        "diff_summary": "2차 신설 — 저작도구가 보관하게 된 검증 이벤트 유형별 질문 목록의 조회 통로"
+      },
+      "deprecated": false,
+      "parameters": [],
+      "description": "등록된 검증 이벤트 유형을 정렬순서 오름차순으로 반환하고, 각 유형에 그 유형의 질문 목록(정렬순서 오름차순)과 관제 이벤트유형 코드 짝을 함께 싣는다. 검수자 전용이다.\n\n[질문 문구를 저작도구가 보관하는 이유] 외부 시계열 분석의 질문 문장은 사업자 서버가 이벤트별로 관리해 우리가 지정할 수도 없고 결과에 실려 오지도 않는다. 그런데도 이벤트 어노테이션의 질문 칸을 채워야 하므로 문구를 지어내지 않고 저작도구가 유형별 목록을 보관해 거기서 조달한다. 이 조회는 운영자가 그 목록을 확인하는 통로다.\n\n[관제 유형 짝은 인입 원장을 읽어 만든다] 관제는 인입 행 하나에 관제 이벤트유형 코드와 검증 이벤트 유형 코드를 함께 실어 보낸다. 두 코드의 대응은 이미 수신 원장 안에 있으므로 별도 매핑표를 두지 않는다 — 사본을 만들면 두 번째 진실원이 되어 원장과 어긋난다. 한 검증 유형에 관제 코드가 여러 개 붙을 수 있고, 짝지어 수신된 적이 없으면 빈 목록이다.\n\n[두 코드 체계는 다르다] 관제 이벤트유형 코드는 관제가 채번한 코드이고, 검증 이벤트 유형 코드는 외부 시계열 위탁 요청에 싣는 값이다. 이 경로는 이벤트유형 관리 경로와 별개이며 그 경로의 응답에 필드를 더하지 않는다.\n\n[이 목록은 허용목록이 아니다] 여기에 없는 검증 이벤트 유형의 영상도 위탁은 그대로 나가고, 수용 여부는 사업자 응답이 정한다. 목록에 없으면 질문 칸이 비어 있을 뿐이다.\n\n[질문이 없는 유형도 반환한다] 질문 목록이 빈 배열인 유형도 목록에서 빠지지 않는다. 그 유형은 어노테이션 질문 칸을 비운 채로 둔다.",
+      "calls_external": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-204"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:02.095Z",
+        "module_paths": []
+      },
+      "uses_constants": [],
+      "implements_features": [
+        "FEAT-009"
+      ],
+      "verifies_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "검증 이벤트 유형·질문·관제 짝 조회 구현",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:02.095Z",
+    "created_at": "2026-08-25T03:40:41.720Z"
+  }
+}

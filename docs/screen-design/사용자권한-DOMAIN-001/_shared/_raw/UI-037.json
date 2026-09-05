@@ -16,22 +16,23 @@
         "responsive"
       ],
       "category": "layout",
-      "description": "외부 포털 채널 전용 레이아웃 쉘. 상단 sticky 헤더(제목 'AI 학습데이터 포털' + 사용자명, LNB 없음, fixed 가 아니라 sticky라 본문에 별도 오프셋 패딩이 필요 없다) + main(Outlet) + 하단 Footer(AppLayout 과 동일 콘텐츠). 모바일 친화(md:* 분기, WCAG 2.1 AA).",
+      "description": "외부 포털 채널 전용 레이아웃 셸. 이 레이아웃은 자기 머리 영역도 좌측 주 메뉴도 그리지 않는다 — 둘 다 외부 채널(Host)이 제공하며, 제목·사용자명을 여기에 두면 Host 머리 영역과 겹쳐 두 벌이 된다. 구성은 본문(main, Outlet) + 목적지 이동을 위한 본문 상단 탭이다. [폐기] 하단 푸터는 두지 않는다 — 노출 여부와 문안이 확정되지 않아 두 셸 모두 푸터를 내보내지 않기로 했고, 문안이 확정되면 셸 사양을 먼저 되돌린 뒤 다시 마운트한다. 본문 상단 탭은 카탈로그의 Tabs(UI-009)를 그대로 쓰고 새 탭 부품을 만들지 않는다. 목적지 목록은 내비게이션 정의(NAV)가 단일 진실원이라 여기에 나열하지 않는다. 모바일 친화(md:* 분기, WCAG 2.1 AA).",
       "usage_example": "router 의 /portal 루트 element. PORTAL_USER 전용.",
+      "attached_files": [],
       "design_system_id": "DS-001",
-      "accessibility_notes": "사용자명은 역할 배지 없이 일반 텍스트로만 노출된다(Gnb 의 역할 배지는 내부 채널 전용).",
+      "accessibility_notes": "이 레이아웃은 머리 영역을 두지 않으므로 사용자명·역할 배지도 두지 않는다 — 외부 채널(Host)이 그 영역을 제공한다. 접근성 책임은 본문 상단 탭에 있으며, 그 탭은 Tabs(UI-009)의 role=tablist/tab/tabpanel, aria-selected/aria-controls, roving tabindex, 화살표 키 이동, 각 탭 최소 44px 터치 타깃을 그대로 따른다.",
       "referenced_by_screen_ids": [
         "SCREEN-029"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "한글 오탈자 정정(션→셸) — 직전 갱신에서 발생한 오타, 의미 변경 없음",
+    "change_summary": "푸터 서술을 셸 사양과 맞춘다 — 셸이 푸터 미보유로 규정했는데 이 레이아웃만 하단 푸터를 구성으로 적고 있어 같은 채널의 두 산출물이 어긋나 있었다. 부품 자체는 남기고 그리지 않는다는 뜻으로 표기한다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-06T19:45:09.984Z",
+    "last_updated_at": "2026-09-02T04:00:10.960Z",
     "created_at": "2026-06-02T13:12:25.920Z"
   }
 }

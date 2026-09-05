@@ -17,11 +17,19 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
+import kr.co.cudo.authoring.common.util.VideoFrameTimeCalculator;
+import kr.co.cudo.authoring.label.entity.LsLabel;
+import kr.co.cudo.authoring.label.repository.LsLabelRepository;
+import kr.co.cudo.authoring.review.repository.IssueRepository;
 import kr.co.cudo.authoring.video.dto.AutoLabelResultResponse;
+import kr.co.cudo.authoring.sysconfig.repository.LsVrfcEvntQstnRepository;
 import kr.co.cudo.authoring.video.dto.VideoDetailResponse;
 import kr.co.cudo.authoring.video.dto.VideoListFilter;
 import kr.co.cudo.authoring.video.dto.VideoSummaryResponse;
 import kr.co.cudo.authoring.user.service.UserNameResolver;
+import kr.co.cudo.authoring.video.entity.LsDataIngest;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.IngestSourceRow;
@@ -48,7 +56,14 @@ import java.util.stream.Collectors;
 @Transactional(value = "controlTransactionManager", readOnly = true)
 public class VideoQueryService {
 
-    private static final String DEFAULT_LABEL_COLOR = "#3B82F6";
+    /**
+     * 라벨 마스터 조회 시 활성(soft delete 되지 않은) 행만 고르는 값.
+     *
+     * <p>비활성 마스터를 살려 내보내면 삭제한 라벨의 이름·색이 화면에 되살아난다. 확정 정책이
+     * 프리셋 축에서 이미 같은 판정을 한다 — <i>"마스터에 매칭 안 되는 기존 코드(labelId null/비활성)는
+     * 오류 없이 '미연결'로 표시"</i>.
+     */
+    private static final String LABEL_MASTER_ACTIVE = "Y";
 
     /**
      * 영상 상세에 내리는 비식별 이력 최대 건수. [req: R14]
@@ -69,10 +84,27 @@ public class VideoQueryService {
     private final LsDeidentProcLogRepository deidentProcLogRepository;
     private final BatchStatusService batchStatusService;
     /**
+     * 프레임 이슈 점 조달 — 그 영상에서 <b>아직 해소되지 않은 문의</b>가 달린 프레임 집합.
+     * [@design API-043] [@design SCREEN-009]
+     *
+     * <p>판정(해소 여부 축 · 영상 단위 문의 제외)은 저장소 쿼리 단일 지점이 갖는다. 이 서비스가
+     * 이미 여러 도메인 저장소를 가로질러 주입받는 것과 같은 방식이며, 여기서 규칙을 재유도하지
+     * 않는다 — 사본을 두면 화면의 점과 검수 화면의 문의 목록이 조용히 어긋난다.
+     */
+    private final IssueRepository issueRepository;
+    /**
      * DEV_FIX(H10) — 영상 상세에 실 fps 를 실어 FE 마킹 화면이 서버와 동일한 fps 로 frameIndex 를
      * 산출하게 한다(FE 30fps 하드코딩 ↔ 서버 실 fps 상한의 불일치 제거). 마킹 상한 검증과 같은 진실원.
      */
     private final VideoFpsResolver fpsResolver;
+
+    /**
+     * 영상 해상도 표시값 조달 — {@code LS_DATA_META} 의 {@code video.resolution}. [@design API-043]
+     *
+     * <p>{@link VideoFpsResolver} 와 같은 계층·같은 모양이며, 미상 시 <b>폴백 없이 {@code null}</b>
+     * 이다(표시 전용 값이라 지어내면 안 된다 — 그 판정은 조달기 javadoc 참조).
+     */
+    private final VideoResolutionResolver resolutionResolver;
 
     /**
      * 검수 상태 필터 입력 길이 상한 — 정상 enum 값(PENDING/ASSIGNED/IN_REVIEW/APPROVED/REJECTED)은
@@ -131,7 +163,31 @@ public class VideoQueryService {
      */
     private final BatchBundleFailureGate bundleFailureGate;
 
-    /** 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용. */
+    /**
+     * 검증 이벤트 유형별 질문 조회 — 마킹 화면이 고를 목록의 조달처. [@design API-043] [@design ERD-033]
+     *
+     * <p><b>읽기 전용 재사용</b>이다. 정렬 규칙(정렬순서 오름차순)은 저장소 메서드 이름이 갖고 있으므로
+     * 여기서 다시 정렬하지 않는다 — 「첫 번째 질문」의 결정성이 그 정렬에 걸려 있어 사본을 만들면
+     * 그것이 곧 두 번째 진실원이 된다.
+     */
+    private final LsVrfcEvntQstnRepository vrfcEvntQstnRepository;
+
+    /**
+     * 라벨 마스터 조회 — 오토라벨 응답의 표시명·표시색 조달처.
+     *
+     * <p><b>읽기 전용 재사용</b>이며 배치 조회(labelId 집합 → 1쿼리)만 쓴다. 표시명·색을 여기서
+     * 조달하지 않고 저장된 라벨명·상수로 대신하면, AI 가 쓴 COCO 영문 클래스명이 그대로 화면에
+     * 나가고 마스터에서 이름·색을 바꿔도 이 화면만 따라오지 않는다(마스터가 단일 진실원인 이유).
+     */
+    private final LsLabelRepository labelMasterRepository;
+
+    /**
+     * 기존 호출(상태 필터 2종만) 호환 진입점 — 신규 필터는 전부 미적용.
+     *
+     * <p><b>사용자 축 스코핑이 없다</b>(검수자와 같은 전체 범위). 인증 주체를 받지 않으므로 HTTP 진입점이
+     * 이 오버로드를 쓰면 안 된다 — 컨트롤러는 {@link #listForActor(Pageable, VideoListFilter, TokenClaims)} 로만
+     * 들어온다. [@design API-042]
+     */
     public Page<VideoSummaryResponse> list(Pageable pageable, String dataSttsCd, String reviewStatusCd) {
         return list(pageable, VideoListFilter.ofStatus(dataSttsCd, reviewStatusCd));
     }
@@ -143,6 +199,86 @@ public class VideoQueryService {
      * 와 페이지 수가 필터 적용 후 전체 기준이 된다.
      */
     public Page<VideoSummaryResponse> list(Pageable pageable, VideoListFilter filter) {
+        return listScoped(pageable, filter, null);
+    }
+
+    /**
+     * 영상 처리 현황 목록 — <b>호출자 역할에 따라 조회 범위가 갈린다</b>. [@design API-042]
+     *
+     * <p>검수자는 전체 영상을, 라벨링 작업자는 <b>본인에게 배정된 영상만</b> 본다. 범위 제한은 거부가
+     * 아니라 <b>결과 축소</b>이며 배정이 하나도 없으면 403 이 아니라 빈 목록이다 — 목록을 부르는 행위
+     * 자체는 정상이기 때문이다.
+     *
+     * <p>이 창구에는 사용자 축 인가가 아예 없었는데 형제 단건 창구는 배정을 요구해서, 목록에는 남의
+     * 영상이 나오는데 그 영상을 열면 403 인 비대칭이 있었다(CWE-639 IDOR — 촬영지·이벤트·비식별 상태가
+     * 그대로 노출됐다). 단건의 403 은 그대로 둔다 — 직접 URL 입력·외부 클라이언트를 막는 별개 방어선이다.
+     */
+    public Page<VideoSummaryResponse> listForActor(Pageable pageable, VideoListFilter filter, TokenClaims actor) {
+        return listScoped(pageable, filter, scopeUserNoFor(actor));
+    }
+
+    /**
+     * 조회 범위 확정 — 스코핑 대상 사용자 번호를 인증 주체에서만 도출한다. [@design API-042] [@design ROLE-002]
+     *
+     * <p><b>판정 규칙은 {@code AssignmentService.scopeForActor} 와 같다</b>(원본) — 토큰 없음 401 ·
+     * 라벨링 작업자는 토큰 subject 로 고정 · 검수자는 미적용 · 그 외 역할은 403. 배정 존재 판정 축도
+     * 단건 가드({@code LabelAccessGuard.verifyRawAccess})와 같은 {@code TASK_LABELER} 다.
+     *
+     * <p><b>공용 헬퍼로 뽑지 못한 이유</b>: 원본은 {@code assignment} 패키지의 {@code private} 메서드이고
+     * 그 판정 결과를 그 도메인 전용 조건 객체({@code AssignmentSearchCondition.scopedToSelf})에 실어
+     * 돌려준다. 공용화하려면 {@code assignment} 또는 {@code common} 을 함께 고쳐야 해 이 변경의 경계를
+     * 넘는다. 그래서 <b>규칙만 최소 복제</b>했다.
+     *
+     * <p>⚠ <b>두 창구의 동치를 검증하는 가드는 없다.</b> 회귀 가드({@code VideoListAssignmentScopeIT})가
+     * 고정하는 것은 <b>이 창구의 동작</b>이지 원본 규칙과의 동치가 아니다 — 그 가드는 원본을 참조하지
+     * 않으므로 원본이 바뀌어도 실패하지 않는다. 따라서 {@code AssignmentService} 의 역할 스코프 판정을
+     * 고칠 때는 <b>이 메서드를 함께 확인해야 한다</b>(드리프트를 잡아 줄 장치가 없다).
+     *
+     * <p>역할 게이트({@code @PreAuthorize("hasAnyRole('REVIEWER','WORKER')")})와 <b>이중 방어</b>다 —
+     * 그 게이트가 느슨해져도 여기서 다시 막힌다.
+     *
+     * <p><b>역할 판정은 계층을 반영한다</b>({@link TokenClaims#hasRole}) — 동등 비교로 두면
+     * 관리자가 두 분기 중 어디에도 걸리지 않고 마지막 {@code FORBIDDEN} 으로 떨어져 <b>영상 목록이
+     * 통째로 403</b> 이 된다. Spring 의 {@code RoleHierarchy} 는 권한(authority) 축에만 걸리므로
+     * 그 게이트를 통과한 관리자가 여기서 다시 막히는 형태였다.
+     * <ul>
+     *   <li>{@code hasRole(WORKER)} 는 <b>작업자만</b> 참이다 — 관리자·검수자가 본인 배정분으로
+     *       좁혀지지 않는다(계층은 작업자 전용 자리를 열지 않는다).</li>
+     *   <li>{@code hasRole(REVIEWER)} 는 관리자·검수자가 참이다 — 관리자는 <b>검수자와 같은 범위</b>
+     *       (전체 조회)를 본다.</li>
+     * </ul>
+     *
+     * @return 라벨링 작업자면 본인 사용자 번호, 검수자 이상(관리자 포함)이면 {@code null}(스코핑 미적용)
+     * @design ADR-055
+     * @design ROLE-004
+     * @design AC-125
+     */
+    private Long scopeUserNoFor(TokenClaims actor) {
+        if (actor == null) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
+        }
+        if (actor.hasRole(Role.WORKER)) {
+            return parseUserNo(actor.sub());
+        }
+        if (actor.hasRole(Role.REVIEWER)) {
+            return null;
+        }
+        throw new CustomException(ErrorCode.FORBIDDEN, "조회 권한이 없습니다.");
+    }
+
+    /**
+     * 토큰 subject → 사용자 번호. 비숫자 subject 는 {@code AssignmentService.parseUserNo} 와
+     * <b>같게</b> 401 로 다룬다(값을 지어내거나 스코핑을 풀지 않는다 — fail-closed).
+     */
+    private Long parseUserNo(String sub) {
+        try {
+            return Long.parseLong(sub);
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "토큰 subject 형식이 올바르지 않습니다.");
+        }
+    }
+
+    private Page<VideoSummaryResponse> listScoped(Pageable pageable, VideoListFilter filter, Long assignedToUserNo) {
         VideoListFilter cond = filter != null ? filter : VideoListFilter.ofStatus(null, null);
         String normalizedDataStts = trimToNull(cond.dataSttsCd());
         String normalizedReviewStts = normalizeReviewStatusCd(cond.reviewStatusCd());
@@ -177,7 +313,8 @@ public class VideoQueryService {
                 normalizedDataStts, normalizedReviewStts,
                 keywordPattern, keywordRawSn,
                 eventFilterOn, eventCodes != null ? eventCodes : NO_EVENT_MATCH,
-                from, to, skippedBundle, failedBundleStages, vlmFailureReasons, pageable);
+                from, to, skippedBundle, failedBundleStages, vlmFailureReasons,
+                assignedToUserNo, pageable);
         Map<Long, String> cctvNameMap = lookupCctvNames(page.getContent());
         Map<Long, Long> frameCountMap = lookupFrameCounts(page.getContent());
         Map<Long, VideoSummaryResponse.ExportInfo> exportInfoMap = lookupExportInfos(page.getContent());
@@ -528,13 +665,27 @@ public class VideoQueryService {
         IngestSourceRow sourceMeta = ingestSourceRepository.findSourceMeta(entity.getRawSn());
         String cctvName = sourceMeta == null ? null : sourceMeta.getCctvNm();
         long frameCount = srcRepository.countByRawSn(entity.getRawSn());
+        // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
+        //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
+        //   ★ 프레임 미리보기의 timestampMs 도 <b>같은 값</b>을 쓴다 — 여기서 다시 해석하면 화면이
+        //     보는 시각과 마킹이 만드는 frameIndex 가 조용히 어긋난다.
+        double fps = fpsResolver.resolveFps(entity.getRawSn());
+        // [@design API-043] [@design SCREEN-009] 이슈가 달린 프레임 집합 — <b>영상당 한 번</b> 조회한다.
+        //   ★ 프레임마다 부르면 N+1 이다: 미리보기 대상은 그 영상의 프레임 전량이라 프레임 수만큼
+        //     쿼리가 늘어난다. 판정(미해소 문의 · 영상 단위 문의 제외)은 IssueRepository 단일 지점이며
+        //     여기서 재유도하지 않는다.
+        //   ★ HashSet 으로 감싸는 이유는 조회 결과가 List 라 contains 가 선형이기 때문이다.
+        Set<Long> issueFrameSrcSns =
+                new HashSet<>(issueRepository.findUnresolvedSrcSnsByDataRawSn(entity.getRawSn()));
         List<VideoDetailResponse.FramePreviewDto> framePreviews = srcRepository
                 .findByRawSnOrderByFrameNoAsc(entity.getRawSn())
                 .stream()
                 .map(src -> new VideoDetailResponse.FramePreviewDto(
                         src.getSrcSn(),
                         Math.toIntExact(src.getFrameNo()),
-                        "/v1/frames/" + src.getSrcSn() + "/image"
+                        "/v1/frames/" + src.getSrcSn() + "/image",
+                        issueFrameSrcSns.contains(src.getSrcSn()),
+                        frameTimestampMs(src.getVideoFrameNo(), fps)
                 ))
                 .toList();
         // 검수 상태(reviewSttsCd) = LS_RAW_DATA_STATUS.DATA_STTS_CD (진실원).
@@ -553,9 +704,6 @@ public class VideoQueryService {
                 .stream()
                 .map(s -> new VideoDetailResponse.StageStatusDto(s.name(), s.status(), s.progress()))
                 .toList();
-        // DEV_FIX(H10) — 마킹 화면이 frameIndex 를 서버와 동일한 fps 로 산출하도록 실 fps 를 함께 내린다.
-        //   진실원은 MarkingService 상한 검증이 쓰는 것과 같은 VideoFpsResolver(미상 시 30.0 폴백).
-        double fps = fpsResolver.resolveFps(entity.getRawSn());
         // P2b — 화면이 신고·폐기 버튼을 미리 비활성화하도록 <b>승인 이력</b>을 함께 내린다.
         //   reviewSttsCd(현재 상태)와 다른 축이다 — 재검수 재제출로 상태가 내려간 구간에도 true 다.
         //   판정은 ReviewApprovalGate 단일 원천에 위임한다(여기서 재유도하지 않는다).
@@ -569,11 +717,16 @@ public class VideoQueryService {
         //   ★ stages 로 대체 불가: 스킵된 묶음은 markStage 를 타지 않고 표식 행도 진행 조회에서 제외돼
         //     진행 축에 흔적이 없다. 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
         List<String> skippedStages = batchStatusService.manuallySkippedBundles(entity.getRawSn());
-        // [@design API-043] [@design ADR-050] 건너뛰기가 <b>해제된</b> 묶음 목록 — 위 목록의 뒷면이다.
+        // [@design API-043] [@design SCREEN-009] [@design AC-051] [@design ADR-050]
+        //   건너뛰기가 <b>해제됐고 아직 산출물이 없는</b> 묶음 목록 — 「지금 조치가 필요한 것」.
         //   ★ 이 필드가 없으면 한 번 재수행한 영상을 화면에서 다시 재수행할 수 없다: 재수행이 건너뜀
         //     표식을 스스로 풀면서 해제 표식을 남겨 그 묶음이 skippedStages 에서 빠지기 때문이다.
         //     화면은 두 목록의 <b>합집합</b>으로 재수행 버튼 노출을 정한다.
-        List<String> clearedStages = batchStatusService.clearedBundles(entity.getRawSn());
+        //   ★ 감사 축(clearedBundles)이 아니라 화면 축을 싣는다: 표식은 append-only 라 재수행이
+        //     성공해도 해제 표식이 계속 마지막이고, 그대로 실으면 재수행에 성공한 영상마다 배너가
+        //     영구 잔존한다. 산출물이 <없는> 해제 묶음은 그대로 남아 재수행 창구가 보존된다.
+        //   ★ 판정은 BatchStatusService 단일 지점이며 여기서 재유도하지 않는다.
+        List<String> clearedStages = batchStatusService.clearedBundlesNeedingAction(entity.getRawSn());
         // [@design API-043] [@design ADR-050] <b>지금 실패한 상태인</b> 묶음 목록 — 건너뛰기·재수행 입구.
         //   ★ status·stages 로는 대체 불가: 시계열 위탁은 논블로킹이라 실패해도 예외가 위로 올라가지
         //     않아 배치 상태가 완료로 남고 단계 실패 표시도 서지 않는다. 이 필드가 없으면 위탁이 확정
@@ -581,10 +734,77 @@ public class VideoQueryService {
         //   ★ 판정은 건너뛰기 허용을 정하는 서버 판정과 <b>같은 지점</b>(BatchBundleFailureGate)이다 —
         //     여기서 규칙을 재유도하면 화면에 뜬 버튼이 눌렀을 때 412 로 튕긴다.
         List<String> failedStages = bundleFailureGate.failedBundles(entity.getRawSn());
+        // [@design API-043] [@design ERD-033] 검증 이벤트 유형 + 그 유형의 질문 목록.
+        //   ★ 마킹 화면이 고를 목록을 얻을 <b>유일한</b> 통로다 — 질문 카탈로그 관리 조회 경로는
+        //     검수자 전용이라 마킹 작업자에게 403 이다. 경로를 새로 만들지 않고 이 응답에 싣는다.
+        //   ★ 유형·질문이 없으면 예외가 아니라 「비어 있음」이다: 카탈로그는 허용목록이 아니고
+        //     (확정 정책상 목록 밖 유형도 위탁은 그대로 나간다), 인입 행이 없는 영상은 유형 자체가 없다.
+        String vrfcEvntTypeCd = LsDataIngest.normalizeVrfcEvntType(
+                sourceMeta == null ? null : sourceMeta.getVrfcEvntTypeCd());
+        List<VideoDetailResponse.VrfcEvntQuestionDto> vrfcEvntQuestions =
+                verificationEventQuestions(vrfcEvntTypeCd);
+        // [@design API-043] [@design SCREEN-009] 영상 해상도 — LS_DATA_META 의 video.resolution.
+        //   ★ LS_DATA_RAW 에는 해상도 컬럼이 없어 메타 테이블이 유일한 조달원이다. 미상이면 null 이며
+        //     서버가 대체 문자를 지어내지 않는다(표시는 화면의 몫 — fps 와 달리 계산 입력이 아니다).
+        String resolution = resolutionResolver.resolveResolution(entity.getRawSn());
         return VideoDetailResponse.from(entity, cctvName, null, frameCount, framePreviews, reviewSttsCd,
                 stages, fps, deidentHistory(entity.getRawSn()),
                 approvalGate.hasEverApproved(entity.getRawSn()), batchFailureReason,
-                skippedStages, clearedStages, failedStages);
+                skippedStages, clearedStages, failedStages, vrfcEvntTypeCd, vrfcEvntQuestions,
+                resolution);
+    }
+
+    /**
+     * 프레임의 <b>영상 내 시각(밀리초)</b>. [@design API-043] [@design SCREEN-009]
+     *
+     * <p>추출이 그 프레임을 뽑을 때 쓴 seek 위치를 <b>그대로 재현</b>한다 — 계산을
+     * {@link VideoFrameTimeCalculator#millisAt} 에 위임해 추출({@code FfmpegFrameExtractor})과
+     * <b>같은 식</b>을 쓴다. 화면이 보여주는 시각과 실제로 뽑힌 지점이 어긋나지 않아야 하기 때문이다.
+     * 식을 여기에 다시 적지 않는다 — 두 벌이 되면 한쪽만 조용히 바뀐다.
+     *
+     * <p><b>순번이 아니라 위치다.</b> {@code LS_DATA_SRC} 는 추출 순번({@code FRM_NO})과 실제 영상 내
+     * 위치({@code VDO_FRM_NO})를 각각 갖는다. 마킹 기반 추출은 사람이 고른 지점만 뽑으므로 둘은
+     * 전혀 다른 값이고, 순번으로 계산하면 영상 맨 앞 몇 초를 가리키는 엉뚱한 시각이 나온다.
+     *
+     * <p><b>모르면 비운다.</b> 위치가 없는 레거시 행({@code VDO_FRM_NO} NULL — 컬럼 신설 이전 추출)과
+     * 초당 프레임 수가 비정상인 경우는 값을 지어내지 않고 {@code null} 을 돌려준다. {@code 0} 으로
+     * 채우면 "영상 맨 앞"이라는 <i>사실</i>과 구분되지 않는다.
+     *
+     * @param videoFrameNo 실제 영상 내 0-base 프레임 위치({@code VDO_FRM_NO}). null/음수면 미상
+     * @param fps          초당 프레임 수 — 이 응답이 이미 쓰는 {@code VideoFpsResolver} 의 값.
+     *                     0 이하·비유한수는 나눗셈에 넣지 않고 미상으로 본다
+     * @return 영상 내 시각(ms, 0 이상) 또는 미상이면 {@code null}
+     */
+    static Long frameTimestampMs(Long videoFrameNo, double fps) {
+        if (videoFrameNo == null || videoFrameNo < 0) {
+            return null;
+        }
+        if (!Double.isFinite(fps) || fps <= 0) {
+            return null;
+        }
+        return VideoFrameTimeCalculator.millisAt(videoFrameNo, fps);
+    }
+
+    /**
+     * 그 검증 이벤트 유형에 등록된 질문 목록 — <b>정렬순서 오름차순</b>. [@design API-043] [@design ERD-033]
+     *
+     * <p>정렬은 저장소 메서드 이름이 갖는다({@code ...OrderBySortSeqAsc}). 여기서 다시 정렬하거나
+     * 「첫 번째」를 해석하지 않는다 — 그 해석의 단일 진실원은
+     * {@code VerificationEventQuestionResolver} 이며 사본을 두면 화면이 보여준 질문과 산출물에 실린
+     * 질문이 조용히 어긋난다.
+     *
+     * <p>유형이 {@code null}(관제 미송신·인입 행 없는 파생영상)이거나 등록된 질문이 0건이면
+     * <b>빈 목록</b>이다 — 예외를 던지지 않는다.
+     *
+     * @param normalizedTypeCd {@code LsDataIngest.normalizeVrfcEvntType} 를 통과한 유형 코드
+     */
+    private List<VideoDetailResponse.VrfcEvntQuestionDto> verificationEventQuestions(String normalizedTypeCd) {
+        if (normalizedTypeCd == null) {
+            return Collections.emptyList();
+        }
+        return vrfcEvntQstnRepository.findByVrfcEvntTypeCdOrderBySortSeqAsc(normalizedTypeCd).stream()
+                .map(q -> new VideoDetailResponse.VrfcEvntQuestionDto(q.getVrfcEvntQstnSn(), q.getQstnCn()))
+                .toList();
     }
 
     /**
@@ -630,25 +850,61 @@ public class VideoQueryService {
      * <p>auto/manual 구분과 신뢰도는 {@code LS_DATA_LBL} <b>본체 컬럼</b>이다(V6 흡수 — 구
      * {@code LS_DATA_LBL_AI_INFO} 조인 없음). {@code AUTO_LBL_YN='Y'} 인 라벨은
      * createdBy='auto' + 실제 conf_score, 그 외는 'manual' 로 매핑한다(매핑 규칙 자체는 불변).
+     *
+     * <p><b>표시명·표시색은 라벨 마스터에서 조달한다</b>([design: API-044]). 구 동작은 저장된 라벨명을
+     * {@code labelCode}·{@code labelName} 두 필드에 복사하고 색을 상수로 고정했는데, AI 가 쓴 라벨명이
+     * COCO 영문 클래스명이라 화면이 영문만 보여주고 막대가 전부 같은 색이었다. 마스터 조달 규칙은
+     * {@link AutoLabelResultResponse} javadoc 이 정본이다.
+     *
+     * <p>{@code labelCode} 는 <b>무변경</b>이다 — 화면이 이 값으로 분포를 묶으므로 의미를 바꾸면
+     * 그룹핑이 흔들린다.
      */
     public AutoLabelResultResponse getAutoLabels(Long rawSn) {
         videoRepository.findById(rawSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "rawSn=" + rawSn));
         List<AutoLabelInfoProjection> labels = lblRepository.findAutoLabelInfoByRawSn(rawSn);
+        Map<Long, LsLabel> masters = lookupLabelMasters(labels);
         List<AutoLabelResultResponse.LabelObjectDto> objects = labels.stream()
                 .map(l -> {
                     boolean isAuto = LsDataLbl.AUTO_YES.equals(l.getAutoLblYn());
+                    LsLabel master = l.getLabelId() == null ? null : masters.get(l.getLabelId());
                     return new AutoLabelResultResponse.LabelObjectDto(
                             String.valueOf(l.getLblSn()),
                             l.getLabelNm(),
-                            l.getLabelNm(),
-                            DEFAULT_LABEL_COLOR,
+                            master == null ? l.getLabelNm() : master.getLabelNm(),
+                            master == null ? null : master.getColrVl(),
                             l.getConfScore() == null ? null : l.getConfScore().doubleValue(),
                             isAuto ? "auto" : "manual"
                     );
                 })
                 .toList();
         return new AutoLabelResultResponse(rawSn, objects);
+    }
+
+    /**
+     * 오토라벨 응답에 실을 라벨 마스터를 <b>한 번에</b> 조회한다(N+1 회피).
+     *
+     * <p>라벨 행마다 마스터를 조회하면 조회 수가 라벨 수에 비례해 늘어난다. 대신 {@code labelId} 를
+     * 중복 제거해 모은 뒤 배치 조회 한 번으로 끝낸다 — 라벨 종류가 늘어도 조회는 1회다(라벨이 전부
+     * 미연결이면 0회).
+     *
+     * <p>조회는 <b>활성 라벨만</b> 돌려준다. 따라서 반환 Map 에 없는 id 는 ①마스터 미존재 ②soft
+     * delete 중 어느 쪽이든 <b>같은 결과</b>(원문 이름 + 색 없음)로 수렴한다 — 호출부가 두 경우를
+     * 구분할 필요가 없다.
+     */
+    private Map<Long, LsLabel> lookupLabelMasters(List<AutoLabelInfoProjection> labels) {
+        Set<Long> labelIds = labels.stream()
+                .map(AutoLabelInfoProjection::getLabelId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (labelIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, LsLabel> masters = new HashMap<>();
+        for (LsLabel master : labelMasterRepository.findByLabelIdInAndUseYn(labelIds, LABEL_MASTER_ACTIVE)) {
+            masters.put(master.getLabelId(), master);
+        }
+        return masters;
     }
 
     /**

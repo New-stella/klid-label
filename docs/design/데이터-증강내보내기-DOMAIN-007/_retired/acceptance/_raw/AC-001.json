@@ -1,0 +1,106 @@
+{
+  "item": {
+    "id": "AC-001",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "증강 영상 생성 요청 수용",
+    "slug": "증강-영상-생성-요청-수용",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "AugmentRequestServiceTest",
+          "captured_at": "2026-08-24T03:11:00Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66f33cbe-116d-4768-8dc2-eb914e9d1fe0",
+          "captured_at": "2026-08-24T03:11:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-24T03:11:00Z"
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "외부 증강 연동이 외부 생성형 AI 서비스에 증강 생성을 위임 요청한다",
+          "외부 서비스가 요청을 수락하고 결과 콜백 대기 상태가 된다",
+          "요청 시 입력한 생성 조건 5필드(시간·계절·날씨·지형·심각도) 원문이 가공 없이 외부로 전달되고 증강 행에 그대로 보관된다 — 같은 (영상 × 종류) 파생이 여러 건 공존할 때 결과물을 구분하는 유일한 축이다"
+        ],
+        "when": [
+          "증강 대상 원본 영상과 증강 종류(WINTER/NIGHT/RAIN 3종 화이트리스트)를 선택해 생성 요청한다. 해상도 변경(RESOLUTION)은 외부 위탁 대상이 아니며 RQ-SFR-06-03 내부 수행으로 처리되어 외부 증강 종류에서 제외한다"
+        ],
+        "given": [
+          "원본 영상(RAW_SN)이 존재한다",
+          "REVIEWER로 인증되어 있다"
+        ],
+        "and_examples": [
+          {
+            "case": "대상 영상이 파생영상(증강·해상도 파생, ORGNL_RAW_SN non-null)",
+            "result": "400 — 파생 깊이 1 고정(영구 조건이라 재시도 여지 없음), 원본으로 유도하지 않는다"
+          },
+          {
+            "case": "대상 영상이 비식별 재처리 대기(DE_IDNTF_YN='F') 구간",
+            "result": "412 — 외부 위탁 입구 차단(일시 조건, 신고 해소 후 재요청 가능)"
+          },
+          {
+            "case": "생성 조건 5필드 중 하나라도 비었거나 공백만 입력",
+            "result": "400 — 5필드는 전부 필수이며 필드별로 사유를 알린다(길이 상한 초과도 같다)"
+          },
+          {
+            "case": "같은 (영상 × 종류) 를 같은 조건으로 다시 요청",
+            "result": "허용된다 — 409 를 내지 않는다. 생성 결과가 매회 달라 동일 조건 재요청이 정당한 운영 동선이고, 연타 방어는 화면 책임이다"
+          },
+          {
+            "case": "대상 영상이 미검수(검수 승인 전)",
+            "result": "400 — 어느 영상이 막혔는지 응답에 함께 담는다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-003"
+      ],
+      "statement": "REVIEWER가 증강 종류를 선택해 외부 생성형 AI에 증강 생성을 위임 요청할 수 있다",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-055"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:21.424Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/augment/service/AugmentRequestService.java"
+        ]
+      },
+      "derived_domain_ids": [
+        "DOMAIN-007"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-001"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 11,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "구현 모듈을 연결한다. 코드와 통과하는 시험이 있는데 연결이 없어 미착수로 보였다. 상태값은 자동 연결 관례를 따른다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:21.424Z",
+    "created_at": "2026-06-01T07:04:07.064Z"
+  }
+}

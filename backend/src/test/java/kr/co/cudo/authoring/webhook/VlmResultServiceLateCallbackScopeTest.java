@@ -12,7 +12,8 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
-import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
+import kr.co.cudo.authoring.webhook.service.IsolatedTimeseriesDraftApplier;
+import kr.co.cudo.authoring.webhook.service.TimeseriesResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -70,7 +71,8 @@ class VlmResultServiceLateCallbackScopeTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Mock TimeseriesSubResultApplier subResultApplier;
+    @Mock TimeseriesResultApplier resultApplier;
+    @Mock IsolatedTimeseriesDraftApplier isolatedDraftApplier;
 
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
     private VlmResultService service;
@@ -79,7 +81,7 @@ class VlmResultServiceLateCallbackScopeTest {
     void setUp() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher, subResultApplier);
+                approvalGate, eventPublisher, resultApplier, isolatedDraftApplier);
         ledger.clear();
     }
 
@@ -106,8 +108,8 @@ class VlmResultServiceLateCallbackScopeTest {
 
     /** 지정한 생성시각을 가진 PENDING 마킹(작업자가 그 시각에 마킹을 만든 상황). */
     private LsMarking pendingMarkingCreatedAt(Long rawSn, LocalDateTime createdAt) {
-        LsMarking m = LsMarking.createAuto(rawSn, "fire", 5, "/deid/clip.mp4",
-                "[{\"frameIndex\":0}]", 1L);
+        LsMarking m = LsMarking.createAuto(rawSn, 5,
+                "[{\"frameIndex\":0}]", "1");
         setField(m, LsMarking.class, "regDt", createdAt);
         return m;
     }

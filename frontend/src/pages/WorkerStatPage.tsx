@@ -20,6 +20,7 @@ import { DailyCompletionChart } from '@/features/stat/components/DailyCompletion
 import { useWorkerStat } from '@/features/stat/hooks/useWorkerStat';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -48,7 +49,7 @@ const TH_CLASS = 'px-3 py-2 text-left text-table-header uppercase tracking-wide 
 
 export function WorkerStatPage() {
   const claims = useAuthStore((s) => s.claims);
-  const isReviewer = claims?.role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(claims?.role, Role.REVIEWER);
   const myId = claims?.sub;
 
   // REVIEWER만 작업자 목록 로드 (selector) — /users 는 REVIEWER 전용 API 라 enabled 로 호출 자체를 막는다.
@@ -122,7 +123,7 @@ export function WorkerStatPage() {
           <h1 className="text-title-lg font-bold text-gray-900">{pageTitle}</h1>
           <p className="mt-0.5 text-caption text-gray-600">{pageSubtitle}</p>
           {data?.workerName && (
-            <p className="mt-0.5 text-caption text-gray-400">{data.workerName}</p>
+            <p className="mt-0.5 text-caption text-gray-600">{data.workerName}</p>
           )}
         </div>
 
@@ -157,7 +158,7 @@ export function WorkerStatPage() {
         >
           <BarChart2 size={40} className="mx-auto mb-3 text-gray-300" aria-hidden />
           <p className="text-body-md text-gray-500">작업자를 선택하세요</p>
-          <p className="mt-1 text-caption text-gray-400">
+          <p className="mt-1 text-caption text-gray-600">
             상단에서 작업자를 선택하면 해당 작업자의 통계가 표시됩니다.
           </p>
         </div>

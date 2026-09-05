@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" />
+<head><link rel="stylesheet" href="main.css">
+  <meta charset="utf-8" />
   <title>SCREEN-024 사용자 관리 화면 — 고충실도 디자인</title>
 </head>
 <body class="screen-024">
@@ -25,6 +26,7 @@
           <label class="du-label t-label" for="du-role-filter">역할</label>
           <select class="du-select t-body-md" id="du-role-filter">
             <option>전체 역할</option>
+            <option>관리자</option>
             <option>검수자</option>
             <option>작업자</option>
             <option>포털</option>
@@ -54,6 +56,19 @@
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td class="t-body-md">
+                <div class="du-cell-user">
+                  <span class="du-avatar t-label" aria-hidden="true">박</span>
+                  <span class="du-cell-name">박지훈</span>
+                </div>
+              </td>
+              <td class="t-body-md"><span class="du-email">jihoon.park@klid.go.kr</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--role-admin t-label">관리자</span></td>
+              <td class="t-body-md"><span class="du-badge du-badge--active t-label">활성</span></td>
+              <td class="t-body-md">2026-01-05</td>
+              <td class="t-body-md"><button type="button" class="du-btn du-btn--ghost du-btn--sm t-button">수정</button></td>
+            </tr>
             <tr>
               <td class="t-body-md">
                 <div class="du-cell-user">
@@ -239,17 +254,32 @@
               <label class="du-label t-label" for="du-modal-role">역할</label>
               <select class="du-select t-body-md" id="du-modal-role">
                 <option disabled>선택하세요</option>
+                <option>관리자</option>
                 <option selected>검수자</option>
                 <option>작업자</option>
                 <option>포털</option>
               </select>
-              <p class="du-help t-caption">저장하려면 반드시 선택해야 합니다. 서버가 허용값(검수자/작업자/포털)을 재검증합니다.</p>
+              <p class="du-help t-caption">저장하려면 반드시 선택해야 합니다. 서버가 허용값(관리자/검수자/작업자/포털)을 재검증합니다.</p>
             </div>
             <div class="du-readonly-row">
               <span class="du-label t-label" style="margin:0">상태</span>
               <span class="du-badge du-badge--active t-label">활성</span>
               <span class="du-help t-caption" style="margin:0">계정 활성 여부는 이 화면에서 변경하지 않습니다.</span>
             </div>
+
+            <div class="unlock-banner">
+              <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+              <span class="lock-text t-body-sm">관리자 확인이 완료되어 역할을 변경할 수 있습니다. 유효 시간이 지나면 다시 확인해야 합니다.</span>
+              <span class="countdown" role="timer" aria-live="off">
+                <span class="t-label">남은 유효 시간</span>
+                <span class="cd-time">09:42</span>
+              </span>
+            </div>
+
+            <p class="du-save-req t-caption">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              <span>역할 변경 저장에는 관리자 역할과 함께 유효한 관리자 확인이 필요합니다. 유효 여부는 서버가 판정합니다. 목록·단건 조회에는 요구되지 않습니다.</span>
+            </p>
           </div>
           <div class="du-modal-footer">
             <button type="button" class="du-btn du-btn--secondary t-button">취소</button>
@@ -269,10 +299,77 @@
               <button type="button" class="du-btn du-btn--primary t-button" disabled>저장</button>
             </div>
           </div>
+
+
+          <div class="du-modal-alt du-modal-alt--expired" aria-hidden="true">
+            <h4 class="t-label">참고 — 유효 시간이 끝난 뒤 저장을 시도했을 때</h4>
+            <p class="t-caption">서버가 저장을 거부하면 만료 사실을 알리고 관리자 패스워드 재확인을 요구합니다. 거부만 하고 조용히 끝내지 않습니다.</p>
+            <div class="du-alert" role="alert">
+              <svg width="18" height="18" viewbox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 16.5h.01" stroke="currentColor" stroke-width="1.8"></path><circle cx="12" cy="12" r="9" stroke="currentColor"></circle></svg>
+              <span class="t-caption">
+                <strong>관리자 확인 시간이 만료되었습니다. 다시 확인해 주세요</strong>
+                <span class="t-caption">재확인에 성공하면 저장을 이어서 시도합니다.</span>
+              </span>
+            </div>
+            <div class="du-readonly-row">
+              <span class="countdown countdown--expired" role="timer" aria-live="off">
+                <span class="t-label">남은 유효 시간</span>
+                <span class="cd-time">00:00</span>
+              </span>
+              <a href="#dlg-admin" class="du-btn du-btn--secondary t-button">관리자 확인</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="du-overlay-wrap">
+      <span class="du-overlay-tag t-label">오버레이</span>
+      <span class="du-overlay-note t-caption">유효창이 없거나 끝난 상태에서 '저장'을 눌렀을 때 수정 모달 위에 겹쳐 뜨는 표면 — 아래는 그 다이얼로그의 참고용 정적 미리보기다.</span>
+
+      <div class="du-overlay-stage">
+        <div class="du-modal du-modal--dialog">
+          <div class="modal-head">
+            <h3 class="t-title-sm">관리자 패스워드 재확인</h3>
+          </div>
+          <p class="t-body-sm modal-desc">역할을 변경하려면 관리자 패스워드가 필요합니다. 확인 후 정해진 시간 동안 재입력 없이 변경할 수 있고, 그 시간이 지나면 다시 확인해야 합니다.</p>
+          <div class="field">
+            <label class="t-label field-label" for="admin-pw-ref">관리자 패스워드</label>
+            <input class="input" id="admin-pw-ref" type="password" aria-describedby="admin-pw-ref-help" />
+            <p class="t-caption field-help" id="admin-pw-ref-help">입력한 값은 화면에 다시 표시되지 않습니다.</p>
+          </div>
+          <div class="modal-footer">
+            <span class="btn btn-secondary">취소</span>
+            <span class="btn btn-primary">확인</span>
+          </div>
         </div>
       </div>
     </div>
 
   </main>
+
+
+  <div id="dlg-admin" class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-admin-title">
+    <a href="#du-modal-title" class="modal-backdrop" aria-hidden="true"></a>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 class="t-title-sm" id="dlg-admin-title">관리자 패스워드 재확인</h3>
+        <a href="#du-modal-title" class="modal-close" aria-label="닫기">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+        </a>
+      </div>
+      <p class="t-body-sm modal-desc">역할을 변경하려면 관리자 패스워드가 필요합니다. 확인 후 정해진 시간 동안 재입력 없이 변경할 수 있고, 그 시간이 지나면 다시 확인해야 합니다. 확인에 성공하면 저장을 이어서 시도합니다.</p>
+      <div class="field">
+        <label class="t-label field-label" for="admin-pw">관리자 패스워드</label>
+        <input class="input" id="admin-pw" type="password" aria-describedby="admin-pw-help" />
+        <p class="t-caption field-help" id="admin-pw-help">입력한 값은 화면에 다시 표시되지 않습니다. 유효 여부는 서버가 판정합니다.</p>
+      </div>
+      <div class="modal-footer">
+        <a href="#du-modal-title" class="btn btn-secondary">취소</a>
+        <a href="#du-modal-title" class="btn btn-primary">확인</a>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

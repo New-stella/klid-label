@@ -129,11 +129,23 @@ export interface Video {
   assignStatus?: AssignmentStatus;
 }
 
+/**
+ * 프레임 미리보기 1건 — BE `VideoDetailResponse.FramePreviewDto`. [@design API-043] [@design SCREEN-009]
+ *
+ * <p>★`timestampMs` 는 <b>`null` 이 실려 온다</b>(키 부재가 아니다). 이 프로젝트는 JSON 직렬화에서
+ * null 을 생략하지 않으므로, 영상 내 위치를 알 수 없는 예전 프레임은 값 자리에 `null` 이 온다.
+ * 그래서 소비처의 가드는 <b>`undefined` 만 걸러서는 안 된다</b> — `null` 이 그 검사를 통과해
+ * 「null ms」가 그대로 그려진다. 판정은 `typeof … === 'number'` 로 두 값을 함께 거른다.
+ *
+ * <p>⚠ `0` 은 <b>유효한 값</b>이다(영상 첫 프레임). 참/거짓 판정으로 가리면 그 프레임의 시각이 사라진다.
+ */
 export interface FramePreview {
   srcSn: number;
   frameNo: number;
   thumbnailUrl: string;
-  timestampMs?: number;
+  /** 영상 내 시각(ms) — 위치를 알 수 없는 프레임은 `null`. 지어내지 않고 화면이 그 줄을 그리지 않는다. */
+  timestampMs?: number | null;
+  /** 아직 해소되지 않은 문의가 그 프레임에 있는가 — BE 는 원시 boolean 이라 null 이 오지 않는다. */
   hasIssue?: boolean;
 }
 
@@ -387,10 +399,51 @@ export interface DeidentHistoryItem {
   prcsEndDt?: string | null;
 }
 
+/**
+ * 검증 이벤트 질문 1건 — BE `VideoDetailResponse.VrfcEvntQuestionDto` 와 1:1. [@design API-043]
+ *
+ * 외부 시계열 분석의 추가 질문 문장은 사업자 서버가 관리해 우리가 지정할 수도, 응답으로 받을 수도
+ * 없다. 그래서 저작도구가 검증 이벤트 유형별로 문구를 보관하고, 마킹 작업자가 그중 하나를 고른다.
+ *
+ * ★ **정렬순서 첫 번째가 그 유형의 기본 질문**이며 BE 가 이미 그 순서로 내려준다 — 화면이 다시
+ * 정렬하지 않는다(정렬 판정이 두 곳으로 갈리면 화면이 보여준 「기본」과 서버가 고르는 「첫 번째」가
+ * 어긋난다).
+ *
+ * ⚠ 관리 화면 응답(API-219)과 달리 `sortSeq` 가 없다 — 마킹 화면은 순서를 다시 계산할 이유가
+ * 없고, 필요한 것은 배열 순서와 「무엇을 골랐는지」를 가리키는 일련번호뿐이다.
+ */
+export interface VrfcEvntQuestion {
+  /** 검증이벤트질문일련번호 — 마킹 등록 요청에 실어 고른 질문을 가리키는 값. */
+  vrfcEvntQstnSn: number;
+  /** 질문 문구 — 이벤트 어노테이션의 질문 칸에 그대로 들어간다. */
+  qstnCn: string;
+}
+
 export interface VideoDetail extends Video {
   duration: number;
   fileSizeMb: number;
-  resolution: string;
+  /**
+   * 영상 해상도 표시값 — BE `VideoDetailResponse.resolution`. [@design API-043]
+   *
+   * ★ 조달원은 기술메타(`video.resolution`)이며 **적재된 형식(`{가로}x{세로}`) 그대로** 온다.
+   * 화면이 가로·세로로 재조립하지 않는다. 미상이면 `null` 이고 **숫자 폴백을 두지 않는다** —
+   * fps 는 재생 시간을 프레임 번호로 환산하는 <b>계산 입력</b>이라 서버와 같은 값을 써야 하지만,
+   * 해상도는 <b>표시 전용</b>이라 없는 값을 지어내면 그것이 실값처럼 보인다.
+   *
+   * ⚠ 이 필드는 오래도록 <b>BE 에 존재하지 않는데 FE 타입만 선언</b>하고 있었다(계약 드리프트).
+   * 그래서 화면 두 곳이 영구히 `-` 를 표시했고, `|| '-'` 폴백이 그 사실을 완벽히 가렸다.
+   * 타입을 서버 계약(nullable)에 맞춘 이유가 여기 있다 — 값이 없을 수 있음을 타입이 말해야 한다.
+   */
+  resolution: string | null;
+  /**
+   * 영상이 보유한 **실제 CCTV 식별자** — BE `VideoDetailResponse.vmsCctvId`. [@design API-043]
+   *
+   * ★ 화면은 이 값을 그대로 표시하고 <b>일련번호로 문자열을 조립하지 않는다</b>. 조립하던 시절에는
+   * 같은 화면에 상단 제목의 진짜 식별자와 기본정보의 조립값이 <b>서로 다른 두 값</b>으로 떴다.
+   * 값이 없으면 조립값으로 대체하지 말고 빈 표시로 둔다 — 없는 식별자를 지어내면 그것이 실값처럼
+   * 보인다(상단 제목 `cctvName` 은 이 값을 폴백으로 쓰므로 두 자리가 같은 축을 가리킨다).
+   */
+  vmsCctvId?: string | null;
   framePreviews: FramePreview[];
   stages?: BatchStageItem[];
   createdAt?: string;
@@ -477,6 +530,25 @@ export interface VideoDetail extends Video {
    * 값을 못 내리는 구 응답은 빈 배열로 정규화된다(api.getVideo).
    */
   failedStages?: StageBundle[];
+  /**
+   * 그 영상의 **검증 이벤트 유형 코드** — BE `VideoDetailResponse.vrfcEvntTypeCd`. [@design API-043]
+   *
+   * 관제 인입 원장에 실려 온 값이며(`LS_DATA_INGEST.VRFC_EVNT_TYPE_CD`) 관제 이벤트유형 코드
+   * (`eventTypeCd`, `EV…`)와는 <b>다른 코드 체계</b>다. 두 값을 같은 축으로 다루지 말 것.
+   * 미수신이면 null 이고, 그러면 고를 질문도 없다.
+   */
+  vrfcEvntTypeCd?: string | null;
+  /**
+   * 그 유형에 등록된 **검증 이벤트 질문 목록**(정렬순서 오름차순) — BE
+   * `VideoDetailResponse.vrfcEvntQuestions`. [@design API-043] [@design SCREEN-006]
+   *
+   * ★ 마킹 화면의 질문 선택은 <b>이 목록만</b> 본다. 관리 화면 경로(`/v1/manage/…`)는 검수자
+   * 전용이라 작업자에게 403 이며, 그 경로를 부르면 마킹 화면이 작업자에게 통째로 깨진다.
+   *
+   * 유형이 없거나 등록된 질문이 0건이면 빈 배열이다 — 화면은 그때 선택 UI 를 띄우지 않는다.
+   * 값을 못 내리는 구 응답도 빈 배열로 정규화된다(api.getVideo).
+   */
+  vrfcEvntQuestions?: VrfcEvntQuestion[];
 }
 
 /**

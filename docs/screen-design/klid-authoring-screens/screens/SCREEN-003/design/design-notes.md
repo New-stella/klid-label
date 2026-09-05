@@ -54,15 +54,31 @@
 역할 배지를 제목 밑에 그냥 두면 hero 의 일부로 읽혀 "이 화면이 요구하는 역할"로 오해된다.
 회색 표면 한 줄(`.role-row`)로 감싸고 `현재 역할` 라벨을 붙여, 이것이 **내 상태**임을 분명히 했다.
 
-### 4. 역할 배지 4종을 카탈로그 매핑 그대로 그렸다
+### 4. 역할 배지 — 카탈로그에 있는 것은 그대로 쓰고, 없는 2종만 이 시안이 정했다
 
 `UI-110 RoleBadge` 는 variant 별 배경·글자 토큰을 이미 규정한다(reviewer=primary-05×primary-60,
 worker=secondary-05×secondary-70, portal=neutral-05×border×neutral-80, unassigned=warn-05×warn-70 +
-경고 아이콘 병기). 시안은 그 매핑을 그대로 썼고 색을 새로 정하지 않았다. 카탈로그가 명시한
-"색상 단독으로 전달하지 않기 위한 아이콘 병기"도 4종 전부에 적용했다.
+경고 아이콘 병기). 그 넷은 매핑을 그대로 썼고 색을 새로 정하지 않았다. 카탈로그가 명시한
+"색상 단독으로 전달하지 않기 위한 아이콘 병기"는 **모든 variant 에** 적용했다.
 
-`unassigned` variant 는 골격의 **"매핑 없으면 원본 role 코드"** 자리에 대응시켰다 — 카탈로그의
-'미배정' 과 골격의 '미매핑' 은 같은 상황(아는 역할이 아님)이라 별도 variant 를 만들지 않았다.
+카탈로그에 없어 이 시안이 정한 2종:
+
+| variant | 표시 | 토큰 | 근거 |
+|---|---|---|---|
+| `.role-admin` 관리자 | `관리자` + 방패·설정 아이콘 | `primary[6]` 면 × `#ffffff` (6.83:1, AA) | 검수자와 같은 primary 계열이되 tint 가 아니라 **채움**이라, 계층 위임(관리자 ⊃ 검수자)을 드러내면서 검수자 배지와 한눈에 갈린다 |
+| `.role-unknown` 미매핑 | **받은 값 그대로** + 물음표 아이콘 | `neutral[1]` × `neutral[7]` (7.07:1, AAA) | 중립 톤. 포털(`neutral[0]` + 테두리)과 겹치지 않게 테두리 없이 한 단 진한 면을 썼다 |
+
+**★미배정과 미매핑은 다른 사실이라 표시를 나눴다.**
+
+- **미배정**(`.role-unassigned`) = 역할 값이 **없다**. 조치가 필요한 상태라 **경고 톤 + 경고 아이콘**을
+  쓰고, 넷 중 하나로 임의로 채우지 않는다.
+- **미매핑**(`.role-unknown`) = 역할 값은 **있는데 우리가 아는 이름이 아니다**. 이름을 지어내지 않고
+  **받은 값을 원문 그대로** 노출하며, 조치 대상인지 아직 알 수 없으므로 **중립 회색**으로 둔다.
+
+⚠ **구 결정 폐기 — 되살리지 말 것.** 이 절은 *"카탈로그의 '미배정' 과 골격의 '미매핑' 은 같은
+상황(아는 역할이 아님)이라 별도 variant 를 만들지 않았다"* 고 적고 있었다. 둘을 합치면 **값이 없는
+경우와 모르는 값이 온 경우가 화면에서 구분되지 않아**, 받은 값을 원문으로 보여줘야 하는 자리에
+'미배정' 이라는 **사실과 다른 단정**이 표시된다. 경고 톤을 둘 다에 씌우는 것도 과잉이다.
 
 ### 5. 도달 경로 2종을 참고 영역에 남겼다
 
@@ -76,7 +92,7 @@ worker=secondary-05×secondary-70, portal=neutral-05×border×neutral-80, unassi
 
 | 화면 영역 | 컴포넌트 (ui-catalog) | 주요 토큰 (design-system) | 비고 |
 |---|---|---|---|
-| 역할 배지 | **UI-110 RoleBadge** | reviewer `primary[0]×primary[6]` · worker `secondary[0]×secondary[7]` · portal `neutral[0]×neutral[8]`+테두리 · unassigned `warn[0]×warn[7]` | 카탈로그 지정 매핑 그대로 · `radius.full` |
+| 역할 배지 | **UI-110 RoleBadge** (+ 시안 신설 2종) | reviewer `primary[0]×primary[6]` · worker `secondary[0]×secondary[7]` · portal `neutral[0]×neutral[8]`+테두리 · unassigned `warn[0]×warn[7]` · **admin `primary[6]×#ffffff`** · **unknown `neutral[1]×neutral[7]`** | 앞 4종은 카탈로그 지정 매핑 그대로 · admin·unknown 은 카탈로그 미등록이라 이 시안이 정함(신규 컴포넌트 후보) · `radius.full` |
 | 대시보드 이동 | **UI-001 Button** | `primary.scale[5]` → hover `primary.scale[6]` · `button 17/500` | variant=primary · block |
 | 카드 표면 | **UI-011 Card** | `radius.lg` · `shadow.sm` · `neutral.scale[2]` | DS: 카드는 shadow.sm 만 |
 | 잠금 배지 | ⚠️ 미정 (`LockIconBadge` 카탈로그 미등록) | `error.scale[0]`(배경) · `error.scale[2]`(테두리) · `error.scale[6]`(아이콘) · `radius.full` | 골격 `custom_name` 그대로. 신규 컴포넌트 후보 |
@@ -94,7 +110,9 @@ worker=secondary-05×secondary-70, portal=neutral-05×border×neutral-80, unassi
 | 제목 | `neutral[9]` × `#ffffff` | 16.18:1 | AAA |
 | 포털 역할 배지 | `neutral[8]` × `neutral[0]` | 11.08:1 | AAA |
 | 작업자 역할 배지 | `secondary[7]` × `secondary[0]` | 10.01:1 | AAA |
-| 미매핑 역할 배지 | `warn[7]` × `warn[0]` | 8.43:1 | AAA |
+| 미배정 역할 배지 | `warn[7]` × `warn[0]` | 8.43:1 | AAA |
+| 미매핑 역할 배지 | `neutral[7]` × `neutral[1]` | 7.07:1 | AAA |
+| 관리자 역할 배지 | `#ffffff` × `primary[6]` | 6.83:1 | AA |
 | '현재 역할' 라벨 | `neutral[7]` × `neutral[0]` | 7.95:1 | AAA |
 | 검수자 역할 배지 | `primary[6]` × `primary[0]` | 6.09:1 | AA |
 | 상태 번호 배지 | `secondary[6]` × `secondary[0]` | 6.39:1 | AAA |
@@ -105,11 +123,13 @@ worker=secondary-05×secondary-70, portal=neutral-05×border×neutral-80, unassi
 | 주요 버튼 글자 | `#ffffff` × `primary[5]` | 4.55:1 | AA |
 
 **미달 0건.** 카탈로그가 RoleBadge variant 별로 적어 둔 대비 수치(6.09 / 10.01 / 8.43)와 실측이 일치했다.
+시안이 신설한 2종(관리자 6.83 · 미매핑 7.07)은 카탈로그에 대응 수치가 없어 이 시안이 정하고 `design.css` 주석에 근거를 남겼다.
 
 ### 그 밖의 접근성 처리
 
 - 카드에 `role="alert"` (골격 지정 `<main role="alert">` 대응).
-- 역할 배지 4종 전부 **아이콘 + 한글 라벨**을 함께 표기해 색 단독 전달을 피했다(DS dont_rule).
+- 역할 배지 **전 variant** 에 **아이콘 + 라벨**을 함께 표기해 색 단독 전달을 피했다(DS dont_rule).
+  미매핑만 라벨이 한글 호칭이 아니라 **받은 값 원문**이다 — 이름을 지어내지 않기 위해서다.
 - 장식 아이콘·잠금 배지는 `aria-hidden="true"`, 배지 안 아이콘도 동일.
 - 주요 버튼 글자 대비 4.55:1 은 DS `known_gaps` 가 기록한 정본 주조색의 성질이라 수용한다.
 
@@ -142,6 +162,7 @@ worker=secondary-05×secondary-70, portal=neutral-05×border×neutral-80, unassi
 | 이름 | category | 쓰인 자리 | 비고 |
 |---|---|---|---|
 | `LockIconBadge` | display | 접근 거부 hero | 골격 `custom_name` 그대로. 원형 tint 배지 + 아이콘 |
+| `UI-110 RoleBadge` variant 2종 (`admin` · `unknown`) | display | '현재 역할' 표시 | **신규 컴포넌트가 아니라 기존 카탈로그 컴포넌트의 variant 보강**이다. 토큰·근거는 §4 표와 `design.css` 주석 |
 
 ---
 

@@ -124,18 +124,24 @@ class LsDataIngestWriteGuardTest {
      * 그 이유로 여기 있다.
      *
      * <p>★ {@code OG_CD}(기관코드)는 V185 에서 제거됐다가 <b>V16 에서 복원</b>됐다(2026-08-24 관제
-     * 재확인 "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 서로 다른 값이다. {@code THMB_FILE_PATH_NM}
-     * (썸네일파일경로명)도 V16 신설분이다. <b>지금 writer 는 두 컬럼을 쓰지 않지만 목록에는 넣는다</b> —
-     * 이 목록의 존재 이유가 "쓰기 시작하면 잡는" 것이라, 쓰기 시작한 뒤에 넣기로 미루면 그 통로가
-     * 열리는 바로 그 커밋에서 가드가 침묵한다(위 CWE-915 경고와 같은 취지). 관제가 채우는 값이므로
-     * 우리 쓰기 경로가 건드리면 안 되는 축이라는 점도 이미 확정돼 있다.
+     * 재확인 "실보유"). {@code LCLGV_CD}·{@code LCLGV_NM} 과 서로 다른 값이다. <b>지금 writer 는 이
+     * 컬럼을 쓰지 않지만 목록에는 넣는다</b> — 이 목록의 존재 이유가 "쓰기 시작하면 잡는" 것이라,
+     * 쓰기 시작한 뒤에 넣기로 미루면 그 통로가 열리는 바로 그 커밋에서 가드가 침묵한다(위 CWE-915
+     * 경고와 같은 취지). 관제가 채우는 값이므로 우리 쓰기 경로가 건드리면 안 되는 축이라는 점도
+     * 이미 확정돼 있다.
+     *
+     * <p>★ {@code THMB_FILE_PATH_NM}(썸네일파일경로명)은 V16 신설분이었으나 <b>V17 에서 컬럼째
+     * 제거</b>돼 이 목록에서 뺐다 — 대표 이미지 조달원이 관제 인입값 pass-through 에서 저작도구
+     * 비식별 첫 프레임({@code LS_DATA_SRC.DE_IDNTF_SRC_FILE_PATH_NM})으로 바뀌어 인입 축에 그
+     * 컬럼이 더 이상 없다. 존재하지 않는 컬럼을 남겨 두면 이 목록이 "관제 소유 인입 컬럼 전량"이라는
+     * 뜻을 잃는다({@code V_COMPLETED_VIDEO} 의 <b>출력명</b>은 그대로이지만 그것은 인입 축이 아니다).
      */
     private static final List<String> CONTROL_OWNED_COLUMNS = List.of(
             "VMS_CLIP_ID", "VMS_CCTV_ID", "VDO_FILE_NM", "RAW_FILE_PATH_NM", "SRC_TYPE", "SHT_DT",
             "FILE_FMT", "VDO_CDC", "FILE_SZ", "LCLGV_NM", "VDO_LEN_SEC", "FPS", "FRME_CNT", "ASPRT_RT",
             "WDTH", "VRTC", "RESL", "BIT", "PXL", "WGS84_LAT", "WGS84_LOT", "CCTV_NM",
             "CCTV_HGT", "MAIN_SURV_PAN_ANG", "EVNT_ID", "EVNT_NM", "MNTR_CN", "LCLGV_CD",
-            "VRFC_EVNT_TYPE_CD", "OG_CD", "THMB_FILE_PATH_NM");
+            "VRFC_EVNT_TYPE_CD", "OG_CD");
 
     /** 되살리기·back-fill UPDATE 를 호출해도 되는 <b>유일한</b> 파일 — Java 측 신뢰 경계 판정이 여기 있다. */
     private static final String ALLOWED_REVIVE_CALLER = "TusUploadService.java";

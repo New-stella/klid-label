@@ -173,7 +173,7 @@ class StartVersionDeletedLabelPkPreservedIT {
 
     private Long addLabel(Long srcSn, String label) {
         LsDataLbl saved = labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, label, "[[10.0,10.0],[50.0,50.0]]", 1L));
+                srcSn, "BBOX", null, label, "[[10.0,10.0],[50.0,50.0]]", "1"));
         labelRepository.flush();
         return saved.getLblSn();
     }

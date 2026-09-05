@@ -74,11 +74,12 @@ class VlmTimeseriesStepVerifyRequestTest {
                 markingTxService, outcomeRecorder,
                 mock(kr.co.cudo.authoring.batch.vlm.VlmTimeseriesMetaPresence.class),
                 new ObjectMapper(), Schedulers.immediate(),
-                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class));
+                mock(kr.co.cudo.authoring.batch.status.VlmDefaultSkipMarker.class),
+                mock(kr.co.cudo.authoring.aiserver.service.AiSrvrSelector.class));
             // 추가 질문 축은 기본적으로 <b>신호 없음</b>으로 둔다 — 이 클래스의 단정은 묘사 축을
         // 대상으로 하므로, 두 축이 모두 완료 신호를 내면 핸들러 호출 횟수가 두 배가 되어
         // 무엇을 검증하는 테스트인지가 흐려진다. 추가 질문 축은 전용 테스트가 따로 본다.
-        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class)))
+        lenient().when(vlmClient.submitDescribeSub(any(VlmTimeseriesRequest.class), any()))
                 .thenReturn(Mono.never());
 }
 
@@ -92,7 +93,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         IngestSourceRow row = mock(IngestSourceRow.class);
         lenient().when(row.getVrfcEvntTypeCd()).thenReturn(vrfcEvntTypeCd);
         lenient().when(ingestSourceRepository.findSourceMeta(rawSn)).thenReturn(row);
-        lenient().when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class)))
+        lenient().when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any()))
                 .thenAnswer(inv -> {
                     VlmTimeseriesRequest r = inv.getArgument(0);
                     return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
@@ -101,12 +102,12 @@ class VlmTimeseriesStepVerifyRequestTest {
 
     private VlmTimeseriesRequest captureRequest() {
         ArgumentCaptor<VlmTimeseriesRequest> captor = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitDescribe(captor.capture());
+        verify(vlmClient).submitDescribe(captor.capture(), any());
         return captor.getValue();
     }
 
     private LsMarking manualMarking(Long rawSn, String marksJson) {
-        return LsMarking.createManual(rawSn, "화재", "/raw/" + rawSn + ".mp4", marksJson, 1L);
+        return LsMarking.createManual(rawSn, marksJson, "1");
     }
 
     private static String marks(int... frameIndexes) {
@@ -197,7 +198,7 @@ class VlmTimeseriesStepVerifyRequestTest {
     void autoMarkingSendsSelectedFramesToo() {
         // given — 구 동작은 자동 마킹을 frame_interval 로 강등하고 프레임 목록을 버렸다.
         seed(610L, "flooding");
-        LsMarking marking = LsMarking.createAuto(610L, "침수", 15, "/raw/610.mp4", marks(0, 15), 1L);
+        LsMarking marking = LsMarking.createAuto(610L, 15, marks(0, 15), "1");
 
         // when
         step.runWithMarking(610L, marking);
@@ -223,7 +224,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         ArgumentCaptor<String> keyCap = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> chCap = ArgumentCaptor.forClass(String.class);
         verify(ledger, times(2)).recordIssued(keyCap.capture(), chCap.capture(), any(),
-                org.mockito.ArgumentMatchers.eq(650L));
+                org.mockito.ArgumentMatchers.eq(650L), any());
         assertThat(chCap.getAllValues()).containsExactlyInAnyOrder("VLM", "VLM_SUB");
         assertThat(keyCap.getAllValues()).doesNotHaveDuplicates();
 
@@ -231,8 +232,8 @@ class VlmTimeseriesStepVerifyRequestTest {
         // 보내면 콜백이 미발급으로 401 이 된다).
         ArgumentCaptor<VlmTimeseriesRequest> descCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
         ArgumentCaptor<VlmTimeseriesRequest> subCap = ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitDescribe(descCap.capture());
-        verify(vlmClient).submitDescribeSub(subCap.capture());
+        verify(vlmClient).submitDescribe(descCap.capture(), any());
+        verify(vlmClient).submitDescribeSub(subCap.capture(), any());
         assertThat(descCap.getValue().requestId()).isNotEqualTo(subCap.getValue().requestId());
         assertThat(keyCap.getAllValues())
                 .containsExactlyInAnyOrder(descCap.getValue().requestId(), subCap.getValue().requestId());
@@ -244,7 +245,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         // given — 프레임은 모드를 가리지 않고 우리가 골라 목록으로 싣는다. 마킹 모드는 그 인덱스를
         //   <b>누가 골랐는지</b>만 가른다(자동이면 간격으로 자동 선택된 프레임).
         seed(611L, "kidnapping");
-        LsMarking marking = LsMarking.createAuto(611L, "납치", 12, "/raw/611.mp4", marks(0, 12), 1L);
+        LsMarking marking = LsMarking.createAuto(611L, 12, marks(0, 12), "1");
 
         // when
         step.runWithMarking(611L, marking);
@@ -389,11 +390,11 @@ class VlmTimeseriesStepVerifyRequestTest {
         //        ★상관키는 창구마다 하나씩, 즉 <b>두 번</b> 등록된다 — 콜백이 어느 창구의 결과인지
         //         되짚는 축이 채널이므로 한 번만 등록하면 나머지 창구의 콜백이 미발급으로 거부된다.
         verify(ledger, org.mockito.Mockito.times(2))
-                .recordIssued(any(), any(), any(), org.mockito.ArgumentMatchers.eq(623L));
+                .recordIssued(any(), any(), any(), org.mockito.ArgumentMatchers.eq(623L), any());
         verify(ledger).recordIssued(any(), org.mockito.ArgumentMatchers.eq("VLM"), any(),
-                org.mockito.ArgumentMatchers.eq(623L));
+                org.mockito.ArgumentMatchers.eq(623L), any());
         verify(ledger).recordIssued(any(), org.mockito.ArgumentMatchers.eq("VLM_SUB"), any(),
-                org.mockito.ArgumentMatchers.eq(623L));
+                org.mockito.ArgumentMatchers.eq(623L), any());
         verify(markingTxService).persistVlmRequested(any());
     }
 
@@ -410,7 +411,7 @@ class VlmTimeseriesStepVerifyRequestTest {
         // then — 신고 보류는 그대로 유지된다(개인정보 축이라 이번 정책 반전과 무관).
         verify(batchStatusService).recordVlmSkipped(624L,
                 VlmTimeseriesStep.SKIP_REASON_DEIDENT_REPORT);
-        verify(vlmClient, never()).submitDescribe(any());
+        VlmSubmitAssertions.neverSubmitted(vlmClient);
         verify(ingestSourceRepository, never()).findSourceMeta(anyLong());
     }
 

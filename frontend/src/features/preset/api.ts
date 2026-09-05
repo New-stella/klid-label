@@ -1,13 +1,19 @@
 // 프리셋 도메인 API — BE: /api/v1/manage/presets
 //
-// 보안:
-// - 모든 입력은 zod presetSchema로 검증 후 호출 (labelIds: number[], min 1)
-// - name/description/labelIds/eventTypeCd 는 axios JSON body로만 전달 (SQL/Path injection 방지)
-//
-// Phase 4 (마스터 연동):
-// - 요청 body 는 labelIds(number[]) 만 전송 — 형태는 마스터가 소유하므로 미전송.
-// - 응답 코드 항목은 마스터 실시간 join 결과(labelId/labelName/labelType/linked/bbox/polygon)를 담는다.
+// 계약: 프리셋은 <이벤트유형 1건 + 라벨 목록> 둘뿐이다(V17).
+// - 요청 body 는 `{ eventTypeCd, labelIds }` 만. 이름·설명은 없어졌고, 형태는 마스터가
+//   소유하므로 전송하지 않는다.
+// - 응답 코드 항목은 마스터 실시간 join 결과(labelId/labelName/labelType/linked/bbox/polygon)를 담고,
+//   이벤트 표시명(`eventTypeNm`)은 서버가 4단 폴백으로 해석해 실어 준다.
 // - legacy(labelCodes 만 있는) 응답은 미연결 코드로 안전 매핑한다.
+//
+// 보안: 모든 입력은 zod presetSchema 로 검증 후 호출하고, 값은 axios JSON body 로만 전달한다
+// (SQL/Path injection 방지).
+//
+// @design SCREEN-026
+// @design API-037
+// @design API-038
+// @design API-039
 
 import { LABEL_MASTER_TYPES, type LabelMasterType } from '@/features/label/api/labelMaster';
 import { apiClient } from '@/lib/api/client';
@@ -27,14 +33,16 @@ interface LabelCodeOptionResponse {
 
 interface PresetResponse {
   id: number;
-  name: string;
-  description: string | null;
   /** 레거시 호환 — 라벨명 목록. labelCodeOptions 부재 시 fallback. */
   labelCodes?: string[];
   labelCodeOptions?: LabelCodeOptionResponse[];
   eventTypeCd?: string | null;
+  /** 서버 해석 표시명(4단 폴백). 최종 폴백이 유형코드라 항상 채워진다. */
+  eventTypeNm?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** 프리셋 실효 여부 — 담긴 라벨 중 AI 검출 클래스에 매핑된 것이 하나라도 있으면 true. */
+  effective?: boolean;
 }
 
 /** BE 형태 코드를 알려진 카테고리로 정규화. 미지/누락은 null(미연결·형태없음). */
@@ -63,6 +71,10 @@ function toPresetCode(o: LabelCodeOptionResponse): PresetCode {
  * 응답을 Preset 으로 정규화.
  * - labelCodeOptions 가 있으면 마스터 join 결과를 그대로 매핑.
  * - 없고 labelCodes 만 있으면(레거시) 미연결 코드로 매핑.
+ *
+ * ★`eventTypeNm` 이 비어 온 응답(구 서버·부분 응답)은 <b>유형코드로 폴백</b>한다 —
+ *   화면이 이벤트 목록으로 역해석하지 않기 위한 최소 안전망이다. 폴백 규칙(운영자 표시명 →
+ *   관제 수신명 → 카테고리명 → 유형코드)을 여기서 재현하지 않는다. 판정은 서버 한 곳이다.
  */
 function normalizePreset(raw: PresetResponse): Preset {
   const options = raw.labelCodeOptions;
@@ -79,24 +91,25 @@ function normalizePreset(raw: PresetResponse): Preset {
           polygonEnabled: false,
         }));
 
+  const eventTypeCd = raw.eventTypeCd ?? '';
   return {
     id: raw.id,
-    name: raw.name,
-    description: raw.description ?? null,
+    eventTypeCd,
+    eventTypeNm: raw.eventTypeNm ?? eventTypeCd,
     codes,
-    eventTypeCd: raw.eventTypeCd ?? null,
+    // ★값이 없으면 true — 모르는 상태를 "적용되지 않는다"고 단정하면 멀쩡한 프리셋 전건에
+    //   경고 배지가 붙는다. 경고는 서버가 명시적으로 false 라고 했을 때만 낸다.
+    effective: raw.effective !== false,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
 }
 
-/** 폼을 BE 송신용 페이로드로 변환 — labelIds 만 전송(형태는 마스터 소유). */
+/** 폼을 BE 송신용 페이로드로 변환 — 이벤트유형 + labelIds 둘뿐(형태는 마스터 소유). */
 function toPayload(form: PresetForm) {
   return {
-    name: form.name,
-    description: form.description,
-    labelIds: form.labelIds,
     eventTypeCd: form.eventTypeCd,
+    labelIds: form.labelIds,
   };
 }
 
@@ -122,11 +135,4 @@ export function updatePreset(id: number, form: PresetForm) {
 
 export function deletePreset(id: number) {
   return apiClient.delete(`/manage/presets/${id}`).then(() => undefined);
-}
-
-/** 프리셋 복사 — 이름에 ' (복사본)' 접미사 부여, 서버에서 신규 ID 발급. */
-export function clonePreset(id: number) {
-  return apiClient
-    .post<PresetResponse>(`/manage/presets/${id}/clone`)
-    .then((r) => normalizePreset(r.data));
 }

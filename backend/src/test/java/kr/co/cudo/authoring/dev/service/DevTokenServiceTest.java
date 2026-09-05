@@ -157,6 +157,10 @@ class DevTokenServiceTest {
         DevTokenResponse rev = service.issue(new DevTokenRequest(Role.REVIEWER, Channel.INTERNAL, null, null, null));
         DevTokenResponse wrk = service.issue(new DevTokenRequest(Role.WORKER, Channel.INTERNAL, null, null, null));
         DevTokenResponse prt = service.issue(new DevTokenRequest(Role.PORTAL_USER, Channel.PORTAL, null, null, null));
+        // ★관리자도 다른 역할과 <같은 방식>이다 — 구 동작은 여기서 "userNo 를 명시하라" 로 거절해,
+        //   관리자 화면을 dev 에서 사람이 눌러 볼 수단이 없었다(dev-seed.sql 에 9001 을 더해 해소).
+        //   이 단언이 없으면 그 거절로 되돌려도 정적 짝 가드만 남아 <동작>은 아무도 보지 않는다.
+        DevTokenResponse adm = service.issue(new DevTokenRequest(Role.ADMIN, Channel.INTERNAL, null, null, null));
 
         assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(rev.token()).getPayload().getSubject())
                 .isEqualTo("1001");
@@ -164,6 +168,9 @@ class DevTokenServiceTest {
                 .isEqualTo("2001");
         assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(prt.token()).getPayload().getSubject())
                 .isEqualTo("3001");
+        assertThat(Jwts.parser().verifyWith(key).build().parseSignedClaims(adm.token()).getPayload().getSubject())
+                .as("관리자 기본 USER_NO 는 dev-seed.sql 의 관리자 행(9001)과 1:1 로 맞아야 한다")
+                .isEqualTo("9001");
     }
 
     @Test

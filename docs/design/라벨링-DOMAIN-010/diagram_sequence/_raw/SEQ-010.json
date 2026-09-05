@@ -10,22 +10,323 @@
     "data": {
       "theme": "neutral",
       "title": "데이터마트 수정 통지 — 검수완료 후 수정부터 TASK_MODIFIED push까지",
-      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자/작업자\n    participant LC as LabelController\n    participant LS as LabelService\n    participant GATE as DeidentReportGate\n    participant EP as ApplicationEventPublisher\n    participant AL as TaskModifiedAccumulateListener (AFTER_COMMIT, 항상 활성)\n    participant RM as ReviewRecheckMarkListener → ReviewApprovalGate (REVLT_YN)\n    participant RS as ReviewService.approve (재검수 승인)\n    participant EXB as DatasetExportBridge → AsyncDatasetExportRunner (@Async)\n    participant FS as 산출 폴더 v{n+1}\n    participant EL as ControlNotifyEventListener (통지 전용)\n    participant CNS as ControlNotifyService → ControlNotifyClient\n    participant CTL as 관제서버[외부]\n\n    RV->>LC: PUT /v1/frames/{srcSn}/labels (검수완료 후 수정)\n    LC->>LS: bulkUpsert(srcSn, req, actor)\n    LS->>GATE: isUnderDeidentReport(rawSn) — 락 검사보다 <먼저>\n    alt DE_IDNTF_YN='F' (비식별 재처리 대기)\n        GATE-->>LC: 412 — 락 유무와 무관하게 통일(409 로 갈리면 응답이 잠금 상태 오라클)\n    else 정상\n        LS->>LS: 라벨 full-replace upsert\n        alt isReviewApproved(rawSn)=true\n            LS->>EP: TaskModifiedEvent(rawSn, srcSn, LABEL_UPDATED, exportRegenerated=true)\n        else 검수 전\n            LS->>LS: 통지 미발행\n        end\n        LC-->>RV: 200 OK\n    end\n\n    Note over EP,EXB: 트랜잭션 커밋 이후 — 수정 축적은 통지 토글과 무관하게 항상 돌아간다\n    EP->>AL: onTaskModified(event) — 영상 1건 단위 디바운스 축적\n    EP->>RM: onTaskModified(needsRecheck) → 재검토 표시 REVLT_YN='Y'\n    Note over AL,RM: 표시가 서 있는 동안 만료 flush <보류> — flush 후보 조회와 클레임 UPDATE 두 곳에서 축적분 제외\n    RV->>RS: POST /v1/reviews/{videoId}/approve — 그 수정을 다시 검수해 승인\n    RS->>RM: clearNeedsRecheck() — 표시 해제, 축적 윈도우가 풀린다\n    Note over RS,EXB: 재승인은 ReviewApprovedEvent 를 발행하지 않는다(중복 방지) — 재생성·통지는 디바운서가 낸다\n    AL->>EXB: 표시 해제 후 다음 flush tick → export 재산출 요청\n    EXB->>FS: 새 버전 폴더 v{n+1} 으로 <전량 재생성> (이미지 2벌 포함, 승인 경로와 동일 산출)\n    Note over EXB,FS: 버전마다 전체 자기완결 + 전 버전 보존(retention 정리 없음) — \"복구\" 요구 충족\n\n    alt export SUCCEEDED\n        EXB->>EL: DatasetExportCompletedEvent(rawSn)\n        EL->>CNS: sendModified(rawSn, 축적된 프레임 변경 · 영상 단위 변경 종류, exportRegenerated)\n        CNS->>CNS: VersionExplanationPolicy 로 ver_expln 판정 (단일 원천 — 복제 금지)\n        Note over CNS,CTL: ver_expln 은 optional — null 이면 <키를 생략>한다(NON_NULL). 완료 통지의 \"required 는 null 이어도 키를 남긴다\"와 의도적 비대칭\n        CNS->>CTL: TASK_MODIFIED (job_id · changed_items(images·jsons = 산출 폴더 파일명) · ver_expln(선택) · output_ver_no(선택))\n        alt 전송 성공\n            CTL->>CTL: 저작도구 조회 API 호출 → 1행 UPSERT (산출 폴더는 OUTPUT_PATH_NM 으로 픽업)\n        else 전송 실패\n            CNS->>CNS: fallbackService.enqueuePending (dead-letter / 재등록 큐)\n        end\n    else export 실패\n        Note over EXB,CNS: 통지 <보류> — DatasetExportFailureRecoverer 가 재산출 성공 후 재개(유실이 아니라 지연)\n    end\n\n    Note over LS,EXB: 수정 횟수와 무관하게 재승인 1건 = 새 버전 폴더 1개 = 통지 1건\n    Note over LS,EXB: 같은 재-export·재통지 경로를 타는 수정은 사람이 콘텐츠를 고치는 모든 경로다 (예 — 라벨 · 트랙 편집 · 트랙 병합 · 버전 롤백 · 촬영환경 · 프레임 설명 · 개인정보 메타 · 메타 수동 편집 · 이벤트 어노테이션)",
-      "messages": [],
-      "fragments": [],
-      "description": "검수 완료(APPROVED) 영상을 수정했을 때 관제서버로 TASK_MODIFIED 를 push 하는 흐름. LabelService.bulkUpsert 는 먼저 비식별 신고 게이트를 평가해 DE_IDNTF_YN='F' 면 412 로 차단하고(락 검사보다 먼저 — 응답 코드가 잠금 상태 오라클이 되지 않게 409/412 로 갈리지 않게 한다), 정상이면 full-replace upsert 후 isReviewApproved 가 true 일 때만 TaskModifiedEvent(exportRegenerated=true)를 발행한다. ★재생성·통지의 트리거 = 재검수 승인이고 발송 시점 = export 성공 이후다(2026-08-07 확정, 구속) — 수정 이벤트는 항상 활성인 TaskModifiedAccumulateListener(AFTER_COMMIT)가 영상 1건 단위로 디바운스 축적하고, 같은 이벤트가 재검토 표시(LS_RAW_DATA_STATUS.REVLT_YN='Y')를 세워 그 표시가 서 있는 동안 만료 flush 를 보류시킨다(LsMonNotiAcmlRepository 가 flush 후보 조회와 클레임 UPDATE 두 곳에서 축적분을 제외한다). 검수자가 그 수정을 다시 검수해 승인하고 ReviewService.approve 가 표시를 해제하면, 풀린 축적분을 다음 flush tick 이 DatasetExportBridge → AsyncDatasetExportRunner 로 위임해 산출물을 <새 버전 폴더 v{n+1} 으로 전량 재생성>한 뒤, SUCCEEDED 가 되면 DatasetExportCompletedEvent 를 발행해 ControlNotifyEventListener 가 비로소 통지를 보낸다. 재승인은 ReviewApprovedEvent 를 발행하지 않으므로(중복 방지) 재생성과 TASK_MODIFIED 는 디바운서가 내고, 최초 승인만 그 이벤트로 강제 재생성 후 TASK_COMPLETED 를 낸다. 수정 횟수와 무관하게 재승인 1건이 새 버전 폴더 1개와 통지 1건에 대응한다. 수정 후 재승인 전까지 관제는 직전 승인본을 본다 — 학습데이터는 검수를 통과한 것만 확정이므로 인지하고 수용한 선택이다. ⚠ 구 정책 — 디바운스 창이 만료되는 것만으로 재생성·통지가 나간다 — 는 폐기됐다. export 가 @Async 라 통지가 앞서면 관제가 V_COMPLETED_VIDEO.OUTPUT_PATH_NM 을 조회할 때 <구 버전 폴더>를 픽업하게 되기 때문이다. export 가 실패하면 통지를 <보류>하고 DatasetExportFailureRecoverer 가 재산출 성공 후 재개한다(통지 유실이 아니라 성공 시점으로 지연). ⚠ 재-export 트리거(DatasetExportBridge·수정 축적·디바운스 flush)는 authoring.control-notify.enabled 토글과 <무관하게 항상 동작>한다 — 그 토글은 발송(sendCompleted/sendModified)만 게이팅하며, 그래서 수정 이벤트 소비가 ControlNotifyEventListener 에서 분리된 것이다(구 구조에선 토글 off 시 수정 이벤트가 소비자 없이 드롭돼 export 가 재생성되지 않았다). 페이로드는 다음으로 구성된다 — job_id(RAW_SN) + changed_items(images·jsons = 산출 폴더의 실제 파일명 {FRM_NO 4자리 zero-pad}.jpg/.json) + ver_expln(선택) + output_ver_no(선택). changed_items 의 범위는 export 재생성을 동반했는지로 갈린다 — 동반이면 전 프레임 이미지·JSON 을 싣고(비우면 관제가 재픽업을 안 해 보유본이 stale 로 고착된다), 재생성이 없으면 빈 리스트가 정상이며(없는 파일을 실으면 관제가 404 를 맞는다) 어느 경우든 통지 자체는 발송된다. output_ver_no 는 이 통지가 대응하는 산출 폴더 버전 번호이고 ver_expln 과 같은 규약으로 null 이면 키를 생략하며, 관제는 키 없음을 \"산출물 변경 없음 — 재픽업 불요\" 로 읽는다. ★ 마지막 수정 일시 · 변경 종류(LABEL_ADDED|LABEL_UPDATED|LABEL_DELETED|META_UPDATED) · 변경 요약 카운트 · 요청 ID 는 지금은 관제로 보내지 않는다 — 변경 종류는 내부 디바운스 축적 키와 감사 기록으로만 쓰고, 요청 식별자(UUID)는 폴백·재등록 큐의 내부 키다. data_info 도 싣지 않는다(관제 명세에 키 스키마가 없어 추정 스키마로 만들면 422 로 거부되거나 잘못된 값이 적재된다). 라벨/메타 본문 데이터는 포함하지 않으며 관제는 수신 후 저작도구 조회 API 를 호출해 상세를 가져간다. ver_expln 은 관제 dataset_versions.ver_expln(NOT NULL) 조달용이고 판정 단일 원천은 VersionExplanationPolicy 다(복제 금지). optional 이라 null 이면 키를 생략하는데(@JsonInclude NON_NULL) 이는 NOT NULL 컬럼에 명시적 null 을 보내는 것보다 안전하기 때문이며, 완료 통지(TASK_COMPLETED)의 \"required 는 null 이어도 키를 남긴다\"와 정반대인 <의도된 비대칭>이다. 전송 실패 시 fallbackService.enqueuePending 으로 dead-letter·재등록 큐에 쌓는다. 같은 재-export·재통지 경로를 타는 수정은 개수가 아니라 성질로 정해진다 — 사람이 콘텐츠를 고치는 모든 경로가 대상이고 제외는 넷뿐이다(외부 시계열 콜백 · 비식별 누락 신고 접수 · 운영자 정정 배치 · 이벤트 어노테이션 지연 승인). 판정 기준은 사람이 산출물에 들어가는 내용을 바꿨는가 하나다. 예시 — 라벨 수정(LabelService) · 트랙 편집(TrackEditService) · 트랙 병합(TrackMergeService) · 버전 롤백(VersionService) · 촬영환경 수정(EnvironmentMetaService) · 프레임 설명 수정(FrameDescriptionService) · 개인정보 메타 수정(영상 축 VideoPrivacyMetaService · 프레임 축 FramePrivacyMetaService) · 메타 수동 편집(MetaService) · 이벤트 어노테이션 저장(EvntAnnoService). 산출물은 버전마다 전체 자기완결이고 전 버전을 보존한다(retention 정리 로직을 만들지 않는다) — 델타만 두면 사업 요구의 '복구(rollback)' 가 성립하지 않기 때문이며, OUTPUT_PATH_NM 은 버전 루트가 아니라 영상 루트({rawSn})를 가리켜 관제가 v1·v2 를 한 경로 아래에서 보고 고를 수 있게 한다. 경로·필드명은 관제 정본과 정합 완료이며, 인증만 미확정으로 남아 관제 회신 대기 중이다 — 관제 정본은 x-access-token 헤더를 요구하나 아웃바운드 통지는 인증 헤더를 부착하지 않는다.",
+      "source": "sequenceDiagram\n    actor reviewerWorker as 검수자/작업자\n    participant labelCtrl as LabelController\n    participant labelSvc as LabelService\n    participant deidentGate as DeidentReportGate\n    participant eventPublisher as ApplicationEventPublisher\n    participant accumulateListener as TaskModifiedAccumulateListener\n    participant recheckMarkListener as ReviewRecheckMarkListener\n    participant reviewSvc as ReviewService\n    participant notifyDebouncer as ControlNotifyDebouncer\n    participant exportRunner as AsyncDatasetExportRunner\n    participant outputFolder as 산출 폴더 v{n+1}\n    participant notifySvc as ControlNotifyService\n    participant notifyClient as ControlNotifyClient\n    participant controlServer as 관제서버[외부]\n\n    reviewerWorker->>labelCtrl: PUT /v1/frames/{srcSn}/labels (검수완료 후 수정)\n    labelCtrl->>labelSvc: bulkUpsert(srcSn, req, actor)\n    labelSvc->>deidentGate: isUnderDeidentReport(rawSn) — 락 검사보다 <먼저>\n    alt DE_IDNTF_YN='F' (비식별 재처리 대기)\n        deidentGate-->>labelCtrl: 412 — 락 유무와 무관하게 통일(409 로 갈리면 응답이 잠금 상태 오라클)\n    end\n    alt 정상\n        labelSvc->>labelSvc: 라벨 full-replace upsert\n        alt isReviewApproved(rawSn)=true\n            labelSvc->>eventPublisher: TaskModifiedEvent(rawSn, srcSn, LABEL_UPDATED, exportRegenerated=true)\n        end\n        alt 검수 전\n            labelSvc->>labelSvc: 통지 미발행\n        end\n        labelCtrl-->>reviewerWorker: 200 OK\n    end\n    Note over eventPublisher: 트랜잭션 커밋 이후 — 수정 축적은 통지 토글과 무관하게 항상 돌아간다\n    eventPublisher->>accumulateListener: onTaskModified(event) — 영상 1건 단위 디바운스 축적\n    eventPublisher->>recheckMarkListener: onTaskModified(needsRecheck) → 재검토 표시 REVLT_YN='Y'\n    Note over accumulateListener: 표시가 서 있는 동안 만료 flush <보류> — flush 후보 조회와 클레임 UPDATE 두 곳에서 축적분 제외\n    reviewerWorker->>reviewSvc: POST /v1/reviews/{videoId}/approve — 그 수정을 다시 검수해 승인\n    reviewSvc->>recheckMarkListener: clearNeedsRecheck() — 표시 해제, 축적 윈도우가 풀린다\n    Note over reviewSvc: 재승인은 ReviewApprovedEvent 를 발행하지 않는다(중복 방지) — 재생성·통지는 디바운서 flush 가 직접 낸다(승인 경로의 DatasetExportBridge·DatasetExportCompletedEvent·ControlNotifyEventListener 를 거치지 않는다)\n    notifyDebouncer->>notifyDebouncer: 표시 해제 후 다음 flush tick — 풀린 윈도우를 원자 클레임(조건부 UPDATE)\n    notifyDebouncer->>exportRunner: runReExportThenNotify(rawSn, force=true, afterExport=sendModified 콜백) — 재생성 동반 윈도우는 export 를 먼저 마치게 위임\n    exportRunner->>outputFolder: 새 버전 폴더 v{n+1} 으로 <전량 재생성> (이미지 2벌 포함, 승인 경로와 동일 산출)\n    Note over exportRunner: 버전마다 전체 자기완결 + 전 버전 보존(retention 정리 없음) — \"복구\" 요구 충족\n    alt export SUCCEEDED\n        exportRunner->>notifySvc: afterExport.run() = sendModified(rawSn, 축적된 프레임 변경 · 영상 단위 변경 종류, true) — 같은 @Async 스레드에서 export 종결 이후 실행(순서 보장)\n        notifySvc->>notifySvc: VersionExplanationPolicy 로 ver_expln 판정 (단일 원천 — 복제 금지)\n        Note over notifySvc: ver_expln 은 optional — null 이면 <키를 생략>한다(NON_NULL). 완료 통지의 \"required 는 null 이어도 키를 남긴다\"와 의도적 비대칭\n        notifySvc->>notifyClient: sendTaskModified(수정 통지 본문)\n        notifyClient->>controlServer: TASK_MODIFIED (job_id · changed_items(images·jsons = 산출 폴더 파일명) · ver_expln(선택) · output_ver_no(선택))\n        alt 전송 성공\n            controlServer->>controlServer: 저작도구 조회 API 호출 → 1행 UPSERT (산출 폴더는 OUTPUT_PATH_NM 으로 픽업)\n        end\n        alt 전송 실패\n            notifySvc->>notifySvc: fallbackService.enqueuePending (dead-letter / 재등록 큐)\n        end\n    end\n    alt export 실패\n        Note over exportRunner: afterExport 콜백을 실행하지 않아 통지 <보류> — DatasetExportFailureRecoverer 가 재산출 성공 시 runApprovalAsync 로 DatasetExportCompletedEvent 를 재발행해 재개(sendCompleted 409 자기치유로 정합, 유실이 아니라 지연)\n    end\n    Note over labelSvc: 수정 횟수와 무관하게 재승인 1건 = 새 버전 폴더 1개 = 통지 1건\n    Note over labelSvc: 같은 재-export·재통지 경로를 타는 수정은 사람이 콘텐츠를 고치는 모든 경로다 (예 — 라벨 · 트랙 편집 · 트랙 병합 · 버전 롤백 · 촬영환경 · 프레임 설명 · 개인정보 메타 · 메타 수동 편집 · 이벤트 어노테이션)\n",
+      "messages": [
+        {
+          "to": "labelCtrl",
+          "from": "reviewerWorker",
+          "kind": "sync",
+          "label": "PUT /v1/frames/{srcSn}/labels (검수완료 후 수정)"
+        },
+        {
+          "to": "labelSvc",
+          "from": "labelCtrl",
+          "kind": "sync",
+          "label": "bulkUpsert(srcSn, req, actor)"
+        },
+        {
+          "to": "deidentGate",
+          "from": "labelSvc",
+          "kind": "sync",
+          "label": "isUnderDeidentReport(rawSn) — 락 검사보다 <먼저>"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "deidentGate",
+          "kind": "return",
+          "label": "412 — 락 유무와 무관하게 통일(409 로 갈리면 응답이 잠금 상태 오라클)"
+        },
+        {
+          "to": "labelSvc",
+          "from": "labelSvc",
+          "kind": "self",
+          "label": "라벨 full-replace upsert"
+        },
+        {
+          "to": "eventPublisher",
+          "from": "labelSvc",
+          "kind": "sync",
+          "label": "TaskModifiedEvent(rawSn, srcSn, LABEL_UPDATED, exportRegenerated=true)"
+        },
+        {
+          "to": "labelSvc",
+          "from": "labelSvc",
+          "kind": "self",
+          "label": "통지 미발행"
+        },
+        {
+          "to": "reviewerWorker",
+          "from": "labelCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "eventPublisher",
+          "from": "eventPublisher",
+          "kind": "note",
+          "label": "트랜잭션 커밋 이후 — 수정 축적은 통지 토글과 무관하게 항상 돌아간다"
+        },
+        {
+          "to": "accumulateListener",
+          "from": "eventPublisher",
+          "kind": "sync",
+          "label": "onTaskModified(event) — 영상 1건 단위 디바운스 축적"
+        },
+        {
+          "to": "recheckMarkListener",
+          "from": "eventPublisher",
+          "kind": "sync",
+          "label": "onTaskModified(needsRecheck) → 재검토 표시 REVLT_YN='Y'"
+        },
+        {
+          "to": "accumulateListener",
+          "from": "accumulateListener",
+          "kind": "note",
+          "label": "표시가 서 있는 동안 만료 flush <보류> — flush 후보 조회와 클레임 UPDATE 두 곳에서 축적분 제외"
+        },
+        {
+          "to": "reviewSvc",
+          "from": "reviewerWorker",
+          "kind": "sync",
+          "label": "POST /v1/reviews/{videoId}/approve — 그 수정을 다시 검수해 승인"
+        },
+        {
+          "to": "recheckMarkListener",
+          "from": "reviewSvc",
+          "kind": "sync",
+          "label": "clearNeedsRecheck() — 표시 해제, 축적 윈도우가 풀린다"
+        },
+        {
+          "to": "reviewSvc",
+          "from": "reviewSvc",
+          "kind": "note",
+          "label": "재승인은 ReviewApprovedEvent 를 발행하지 않는다(중복 방지) — 재생성·통지는 디바운서 flush 가 직접 낸다(승인 경로의 DatasetExportBridge·DatasetExportCompletedEvent·ControlNotifyEventListener 를 거치지 않는다)"
+        },
+        {
+          "to": "notifyDebouncer",
+          "from": "notifyDebouncer",
+          "kind": "self",
+          "label": "표시 해제 후 다음 flush tick — 풀린 윈도우를 원자 클레임(조건부 UPDATE)"
+        },
+        {
+          "to": "exportRunner",
+          "from": "notifyDebouncer",
+          "kind": "sync",
+          "label": "runReExportThenNotify(rawSn, force=true, afterExport=sendModified 콜백) — 재생성 동반 윈도우는 export 를 먼저 마치게 위임"
+        },
+        {
+          "to": "outputFolder",
+          "from": "exportRunner",
+          "kind": "sync",
+          "label": "새 버전 폴더 v{n+1} 으로 <전량 재생성> (이미지 2벌 포함, 승인 경로와 동일 산출)"
+        },
+        {
+          "to": "exportRunner",
+          "from": "exportRunner",
+          "kind": "note",
+          "label": "버전마다 전체 자기완결 + 전 버전 보존(retention 정리 없음) — \"복구\" 요구 충족"
+        },
+        {
+          "to": "notifySvc",
+          "from": "exportRunner",
+          "kind": "sync",
+          "label": "afterExport.run() = sendModified(rawSn, 축적된 프레임 변경 · 영상 단위 변경 종류, true) — 같은 @Async 스레드에서 export 종결 이후 실행(순서 보장)"
+        },
+        {
+          "to": "notifySvc",
+          "from": "notifySvc",
+          "kind": "self",
+          "label": "VersionExplanationPolicy 로 ver_expln 판정 (단일 원천 — 복제 금지)"
+        },
+        {
+          "to": "notifySvc",
+          "from": "notifySvc",
+          "kind": "note",
+          "label": "ver_expln 은 optional — null 이면 <키를 생략>한다(NON_NULL). 완료 통지의 \"required 는 null 이어도 키를 남긴다\"와 의도적 비대칭"
+        },
+        {
+          "to": "notifyClient",
+          "from": "notifySvc",
+          "kind": "sync",
+          "label": "sendTaskModified(수정 통지 본문)"
+        },
+        {
+          "to": "controlServer",
+          "from": "notifyClient",
+          "kind": "sync",
+          "label": "TASK_MODIFIED (job_id · changed_items(images·jsons = 산출 폴더 파일명) · ver_expln(선택) · output_ver_no(선택))"
+        },
+        {
+          "to": "controlServer",
+          "from": "controlServer",
+          "kind": "self",
+          "label": "저작도구 조회 API 호출 → 1행 UPSERT (산출 폴더는 OUTPUT_PATH_NM 으로 픽업)"
+        },
+        {
+          "to": "notifySvc",
+          "from": "notifySvc",
+          "kind": "self",
+          "label": "fallbackService.enqueuePending (dead-letter / 재등록 큐)"
+        },
+        {
+          "to": "exportRunner",
+          "from": "exportRunner",
+          "kind": "note",
+          "label": "afterExport 콜백을 실행하지 않아 통지 <보류> — DatasetExportFailureRecoverer 가 재산출 성공 시 runApprovalAsync 로 DatasetExportCompletedEvent 를 재발행해 재개(sendCompleted 409 자기치유로 정합, 유실이 아니라 지연)"
+        },
+        {
+          "to": "labelSvc",
+          "from": "labelSvc",
+          "kind": "note",
+          "label": "수정 횟수와 무관하게 재승인 1건 = 새 버전 폴더 1개 = 통지 1건"
+        },
+        {
+          "to": "labelSvc",
+          "from": "labelSvc",
+          "kind": "note",
+          "label": "같은 재-export·재통지 경로를 타는 수정은 사람이 콘텐츠를 고치는 모든 경로다 (예 — 라벨 · 트랙 편집 · 트랙 병합 · 버전 롤백 · 촬영환경 · 프레임 설명 · 개인정보 메타 · 메타 수동 편집 · 이벤트 어노테이션)"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "DE_IDNTF_YN='F' (비식별 재처리 대기)",
+          "end_index": 3,
+          "start_index": 3
+        },
+        {
+          "kind": "alt",
+          "label": "정상",
+          "end_index": 7,
+          "start_index": 4
+        },
+        {
+          "kind": "alt",
+          "label": "isReviewApproved(rawSn)=true",
+          "end_index": 5,
+          "start_index": 5
+        },
+        {
+          "kind": "alt",
+          "label": "검수 전",
+          "end_index": 6,
+          "start_index": 6
+        },
+        {
+          "kind": "alt",
+          "label": "export SUCCEEDED",
+          "end_index": 25,
+          "start_index": 19
+        },
+        {
+          "kind": "alt",
+          "label": "전송 성공",
+          "end_index": 24,
+          "start_index": 24
+        },
+        {
+          "kind": "alt",
+          "label": "전송 실패",
+          "end_index": 25,
+          "start_index": 25
+        },
+        {
+          "kind": "alt",
+          "label": "export 실패",
+          "end_index": 26,
+          "start_index": 26
+        }
+      ],
+      "description": "검수 완료(APPROVED) 영상을 수정했을 때 관제서버로 TASK_MODIFIED 를 push 하는 흐름. LabelService.bulkUpsert 는 먼저 비식별 신고 게이트를 평가해 DE_IDNTF_YN='F' 면 412 로 차단하고(락 검사보다 먼저 — 응답 코드가 잠금 상태 오라클이 되지 않게 409/412 로 갈리지 않게 한다), 정상이면 full-replace upsert 후 isReviewApproved 가 true 일 때만 TaskModifiedEvent(exportRegenerated=true)를 발행한다. ★재생성·통지의 트리거 = 재검수 승인이고 발송 시점 = export 성공 이후다(2026-08-07 확정, 구속) — 수정 이벤트는 항상 활성인 TaskModifiedAccumulateListener(AFTER_COMMIT)가 영상 1건 단위로 디바운스 축적하고, 같은 이벤트가 재검토 표시(LS_RAW_DATA_STATUS.REVLT_YN='Y')를 세워 그 표시가 서 있는 동안 만료 flush 를 보류시킨다(LsMonNotiAcmlRepository 가 flush 후보 조회와 클레임 UPDATE 두 곳에서 축적분을 제외한다). 검수자가 그 수정을 다시 검수해 승인하고 ReviewService.approve 가 표시를 해제하면, 풀린 축적분을 다음 flush tick(ControlNotifyDebouncer)이 AsyncDatasetExportRunner.runReExportThenNotify 로 직접 위임해(승인 경로의 DatasetExportBridge 를 거치지 않는다) 산출물을 <새 버전 폴더 v{n+1} 으로 전량 재생성>한 뒤, SUCCEEDED 가 되면 그 러너가 afterExport 콜백으로 ControlNotifyService.sendModified 를 같은 스레드에서 실행해 비로소 통지를 보낸다(승인 경로처럼 DatasetExportCompletedEvent → ControlNotifyEventListener 를 거치지 않는다). 재승인은 ReviewApprovedEvent 를 발행하지 않으므로(중복 방지) 재생성과 TASK_MODIFIED 는 디바운서가 내고, 최초 승인만 그 이벤트로 강제 재생성 후 TASK_COMPLETED 를 낸다. 수정 횟수와 무관하게 재승인 1건이 새 버전 폴더 1개와 통지 1건에 대응한다. 수정 후 재승인 전까지 관제는 직전 승인본을 본다 — 학습데이터는 검수를 통과한 것만 확정이므로 인지하고 수용한 선택이다. ⚠ 구 정책 — 디바운스 창이 만료되는 것만으로 재생성·통지가 나간다 — 는 폐기됐다. export 가 @Async 라 통지가 앞서면 관제가 V_COMPLETED_VIDEO.OUTPUT_PATH_NM 을 조회할 때 <구 버전 폴더>를 픽업하게 되기 때문이다. export 가 실패하면 통지를 <보류>하고 DatasetExportFailureRecoverer 가 재산출 성공 후 재개한다(통지 유실이 아니라 성공 시점으로 지연). ⚠ 재-export 트리거(DatasetExportBridge·수정 축적·디바운스 flush)는 authoring.control-notify.enabled 토글과 <무관하게 항상 동작>한다 — 그 토글은 발송(sendCompleted/sendModified)만 게이팅하며, 그래서 수정 이벤트 소비가 ControlNotifyEventListener 에서 분리된 것이다(구 구조에선 토글 off 시 수정 이벤트가 소비자 없이 드롭돼 export 가 재생성되지 않았다). 페이로드는 다음으로 구성된다 — job_id(RAW_SN) + changed_items(images·jsons = 산출 폴더의 실제 파일명 {FRM_NO 4자리 zero-pad}.jpg/.json) + ver_expln(선택) + output_ver_no(선택). changed_items 의 범위는 export 재생성을 동반했는지로 갈린다 — 동반이면 전 프레임 이미지·JSON 을 싣고(비우면 관제가 재픽업을 안 해 보유본이 stale 로 고착된다), 재생성이 없으면 빈 리스트가 정상이며(없는 파일을 실으면 관제가 404 를 맞는다) 어느 경우든 통지 자체는 발송된다. output_ver_no 는 이 통지가 대응하는 산출 폴더 버전 번호이고 ver_expln 과 같은 규약으로 null 이면 키를 생략하며, 관제는 키 없음을 \"산출물 변경 없음 — 재픽업 불요\" 로 읽는다. ★ 마지막 수정 일시 · 변경 종류(LABEL_ADDED|LABEL_UPDATED|LABEL_DELETED|META_UPDATED) · 변경 요약 카운트 · 요청 ID 는 지금은 관제로 보내지 않는다 — 변경 종류는 내부 디바운스 축적 키와 감사 기록으로만 쓰고, 요청 식별자(UUID)는 폴백·재등록 큐의 내부 키다. data_info 도 싣지 않는다(관제 명세에 키 스키마가 없어 추정 스키마로 만들면 422 로 거부되거나 잘못된 값이 적재된다). 라벨/메타 본문 데이터는 포함하지 않으며 관제는 수신 후 저작도구 조회 API 를 호출해 상세를 가져간다. ver_expln 은 관제 dataset_versions.ver_expln(NOT NULL) 조달용이고 판정 단일 원천은 VersionExplanationPolicy 다(복제 금지). optional 이라 null 이면 키를 생략하는데(@JsonInclude NON_NULL) 이는 NOT NULL 컬럼에 명시적 null 을 보내는 것보다 안전하기 때문이며, 완료 통지(TASK_COMPLETED)의 \"required 는 null 이어도 키를 남긴다\"와 정반대인 <의도된 비대칭>이다. 전송 실패 시 fallbackService.enqueuePending 으로 dead-letter·재등록 큐에 쌓는다. 같은 재-export·재통지 경로를 타는 수정은 개수가 아니라 성질로 정해진다 — 사람이 콘텐츠를 고치는 모든 경로가 대상이고 제외는 넷뿐이다(외부 시계열 콜백 · 비식별 누락 신고 접수 · 운영자 정정 배치 · 이벤트 어노테이션 지연 승인). 판정 기준은 사람이 산출물에 들어가는 내용을 바꿨는가 하나다. 예시 — 라벨 수정(LabelService) · 트랙 편집(TrackEditService) · 트랙 병합(TrackMergeService) · 버전 롤백(VersionService) · 촬영환경 수정(EnvironmentMetaService) · 프레임 설명 수정(FrameDescriptionService) · 개인정보 메타 수정(영상 축 VideoPrivacyMetaService · 프레임 축 FramePrivacyMetaService) · 메타 수동 편집(MetaService) · 이벤트 어노테이션 저장(EvntAnnoService). 산출물은 버전마다 전체 자기완결이고 전 버전을 보존한다(retention 정리 로직을 만들지 않는다) — 델타만 두면 사업 요구의 '복구(rollback)' 가 성립하지 않기 때문이며, OUTPUT_PATH_NM 은 버전 루트가 아니라 영상 루트({rawSn})를 가리켜 관제가 v1·v2 를 한 경로 아래에서 보고 고를 수 있게 한다. 경로·필드명은 관제 정본과 정합 완료이며, 인증만 미확정으로 남아 관제 회신 대기 중이다 — 관제 정본은 x-access-token 헤더를 요구하나 아웃바운드 통지는 인증 헤더를 부착하지 않는다.",
       "invokes_apis": [
         "API-019",
         "API-014"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "reviewerWorker",
+          "kind": "actor",
+          "name": "검수자/작업자"
+        },
+        {
+          "id": "labelCtrl",
+          "kind": "service",
+          "name": "LabelController"
+        },
+        {
+          "id": "labelSvc",
+          "kind": "service",
+          "name": "LabelService"
+        },
+        {
+          "id": "deidentGate",
+          "kind": "service",
+          "name": "DeidentReportGate"
+        },
+        {
+          "id": "eventPublisher",
+          "kind": "system",
+          "name": "ApplicationEventPublisher"
+        },
+        {
+          "id": "accumulateListener",
+          "kind": "service",
+          "name": "TaskModifiedAccumulateListener"
+        },
+        {
+          "id": "recheckMarkListener",
+          "kind": "service",
+          "name": "ReviewRecheckMarkListener"
+        },
+        {
+          "id": "reviewSvc",
+          "kind": "service",
+          "name": "ReviewService"
+        },
+        {
+          "id": "notifyDebouncer",
+          "kind": "service",
+          "name": "ControlNotifyDebouncer"
+        },
+        {
+          "id": "exportRunner",
+          "kind": "service",
+          "name": "AsyncDatasetExportRunner"
+        },
+        {
+          "id": "outputFolder",
+          "kind": "system",
+          "name": "산출 폴더 v{n+1}"
+        },
+        {
+          "id": "notifySvc",
+          "kind": "service",
+          "name": "ControlNotifyService"
+        },
+        {
+          "id": "notifyClient",
+          "kind": "service",
+          "name": "ControlNotifyClient"
+        },
+        {
+          "id": "controlServer",
+          "kind": "external",
+          "name": "관제서버[외부]",
+          "extsys_ref": "EXTSYS-005"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-381"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:56.700Z",
+        "module_paths": []
       },
       "publishes_events": [
         "EVT-004",
@@ -44,12 +345,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 14,
-    "stale": true,
-    "stale_reason": "API-014의 data.responses 변경 — consumes",
-    "change_summary": "수정 통지 페이로드의 개수 표기를 걷어냈다. 필드가 하나 늘 때마다 그 수를 인용한 모든 곳이 동시에 틀리기 때문이며, 이 페이로드는 실제로 그 사고를 겪었다. 필드명 열거는 그대로 두고 개수만 뺐다. 흐름도와 서술을 함께 고쳐 같은 ITEM 안에 두 진실원이 생기지 않게 했다. 제외 목록의 개수처럼 닫힌 집합의 수는 드리프트하지 않으므로 건드리지 않았다.",
+    "current_version": 18,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "한 세로줄에 묶여 있던 통지 서비스와 통지 창구를 가른다. 둘을 한 이름으로 적어 둬서 통지 창구가 설계 클래스로 잡히지 않았다. 판정과 폴백은 서비스가, 관제로 실제로 밀어내는 것은 창구가 맡으므로 그 경계에서 갈랐고, 서비스가 창구를 부르는 메시지 한 줄을 끼웠다. 기존 메시지의 문구와 순서는 그대로이고 조각 범위는 끼운 만큼 밀었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-20T16:03:39.845Z",
+    "last_updated_at": "2026-09-03T22:44:24.766Z",
     "created_at": "2026-06-02T13:13:42.676Z"
   }
 }

@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-1044",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-001 증강 영상 생성 요청 — 대상·생성 조건 지정→외부 생성형 AI 위임→비동기 수락 (happy)",
+    "slug": "uc-001-증강-영상-생성-요청-대상종류-선택외부-생성형-ai-위임비동기-수락-happy",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [증강 요청 /augment/request 또는 /video/{id}] 1) 원본 영상 선택·생성 조건(시간대·계절·날씨·지형·심각도) 지정 2) 외부 생성형 AI 위임 요청 · 기대: 외부 수락·비동기 수행(결과는 콜백)",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "외부 서비스가 요청을 수락하고 비동기로 증강을 수행한다",
+          "결과는 UC-002 콜백으로 별도 도착한다"
+        ],
+        "when": [
+          "생성 조건(시간대·계절·날씨·지형·심각도)을 지정해 외부 생성형 AI에 생성을 위임 요청한다"
+        ],
+        "given": [
+          "증강 대상 원본 영상이 있다(파생본 아님, 비식별 신고 구간 아님)"
+        ]
+      },
+      "statement": "검수자가 증강 대상 원본 영상과 생성 조건(시간대·계절·날씨·지형·심각도)을 지정해 외부 생성형 AI 서비스에 증강 생성을 위임 요청하면, 외부 서비스가 요청을 수락하고 비동기로 증강을 수행한다(결과는 UC-002 콜백으로 도착). 증강 종류 코드는 단일값 AUGMENT 이며 생성 조건에서 파생하지 않는다. 이벤트 유형과 세부 유형은 요청자가 고르지 않으며 서버가 중립값으로 고정해 싣는다(ADR-059).",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": false,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:45.995Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-007"
+      ],
+      "verification_method": "manual_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-001"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "증강 종류 단일화(ADR-059)로 수용기준 문장이 바뀌었으므로 검증 상태를 unverified 로 되돌린다. 기록된 통과는 문장이 바뀌기 전 실행이라 새 기준을 검증했을 수 없다. 실행 기록(last_run)과 증거(evidence)는 실제로 있었던 일이라 지우지 않고 그대로 둔다 — 재실행 후 다시 올린다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-02T08:49:54.859Z",
+    "created_at": "2026-08-31T02:16:37.221Z"
+  }
+}

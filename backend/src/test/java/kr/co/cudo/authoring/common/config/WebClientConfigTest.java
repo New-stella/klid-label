@@ -13,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
@@ -44,18 +43,12 @@ class WebClientConfigTest {
 
     private final WebClientConfig cfg = new WebClientConfig();
 
-    /** 운영 등가(엄격) 정책 — 완화 플래그 off. */
-    private static VlmUrlPolicy strictPolicy() {
-        MockEnvironment env = new MockEnvironment();
-        env.setActiveProfiles("prd");
-        return new VlmUrlPolicy(env, false);
-    }
-
-    /** local 목업 등가(완화) 정책 — 평문 http + 사설 IP 허용. */
-    private static VlmUrlPolicy relaxedPolicy() {
-        MockEnvironment env = new MockEnvironment();
-        env.setActiveProfiles("local");
-        return new VlmUrlPolicy(env, true);
+    /**
+     * 검증 정책 — <b>프로파일로 갈리지 않는다</b>. 구 도우미 두 개(엄격/완화)는 그 갈림이 폐기되면서
+     * 하나로 합쳐졌다(2026-08-10 확정 정합). 두 이름을 남겨 두면 "지금도 두 정책이 있다"로 읽힌다.
+     */
+    private static VlmUrlPolicy policy() {
+        return new VlmUrlPolicy();
     }
 
     /**
@@ -69,40 +62,46 @@ class WebClientConfigTest {
     @DisplayName("WebClientConfig_vlm_url_이_비어있으면_검증_생략_미연동_기동_보장")
     void blankUrlSkipsValidation() {
         // given / when / then — 주소 미주입이면 어떤 정책에서도 빈 생성 성공(기동 차단 금지)
-        assertThat(cfg.vlmWebClient("", "", strictPolicy(), null)).isNotNull();
-        assertThat(cfg.vlmWebClient("  ", "", strictPolicy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("  ", "", policy(), null)).isNotNull();
+    }
+
+    /**
+     * ★ <b>뒤집힌 단언</b> — 구 기대값은 "평문 http 면 빈 생성 실패(HTTPS 강제)" 였다.
+     * HTTPS 강제·사설망 차단은 2026-08-10 확정으로 폐기됐고, 실 연동은 평문 http 다.
+     */
+    @Test
+    @DisplayName("WebClientConfig_vlm_url_평문http_사설IP_여도_빈이_생성된다 — 확정 정책(2026-08-10)")
+    void plaintextAndPrivateAddressesAccepted() {
+        assertThat(cfg.vlmWebClient("http://vlm.vendor.io", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://localhost:9400", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://10.0.0.5:9400", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://192.168.1.10:9400", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://172.16.0.1:9400", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", policy(), null)).isNotNull();
+    }
+
+    /**
+     * ★ 축이 옮겨졌다 — 구 기대값은 "빈 생성 실패" 였다(2026-09-03 폐기).
+     * 같은 규칙으로 <b>전송</b>을 막는다. 무르게 한 것이 아니라 자리를 옮긴 것이다.
+     */
+    private void assertBootsButNeverSends(String url, String expectedLabel) {
+        WebClient client = cfg.vlmWebClient(url, "", policy(), null);
+        assertThat(client).as("연동 주소가 어떤 상태여도 기동은 막히지 않는다 — " + url).isNotNull();
+        assertThatThrownBy(() -> client.post().uri("/v1/videovlm-klid/describe").bodyValue("{}")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                .as("연결 거부(ConnectException)가 나면 이미 전송을 시도했다는 뜻이다 — " + url)
+                .isInstanceOf(kr.co.cudo.authoring.common.client.NonRetryableExternalException.class)
+                .hasMessageContaining(expectedLabel);
     }
 
     @Test
-    @DisplayName("WebClientConfig_vlm_url_http_시_빈_생성_실패_HTTPS_강제")
-    void httpSchemaRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("http://vlm.vendor.io", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("HTTPS");
-    }
-
-    @Test
-    @DisplayName("WebClientConfig_vlm_url_localhost_면_빈_생성_실패_SSRF_차단")
-    void localhostRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://localhost:9400", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("내부");
-    }
-
-    @Test
-    @DisplayName("WebClientConfig_vlm_url_private_IP_시_빈_생성_실패_SSRF_차단")
-    void privateIpRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://10.0.0.5", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("내부");
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://192.168.1.10", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://172.16.0.1", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://169.254.169.254", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://127.0.0.1", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
+    @DisplayName("★WebClientConfig_vlm_url_비허용_스킴_메타데이터대역은_기동을_막지_않고_전송을_막는다")
+    void nonHttpSchemeAndMetadataRangeStillRejected() {
+        assertBootsButNeverSends("ftp://vlm.vendor.io", "허용되지 않는 스킴");
+        assertBootsButNeverSends("file:///etc/passwd", "허용되지 않는 스킴");
+        assertBootsButNeverSends("http://169.254.169.254", "예약 대역");
+        assertBootsButNeverSends("http://vlm vendor:9400", "주소 형식 오류");
     }
 
     /**
@@ -111,41 +110,49 @@ class WebClientConfigTest {
      * 여기 남은 것은 <b>사람이 예시 값을 그대로 배포한</b> 형태(fail-closed 대상)뿐이다.
      */
     @Test
-    @DisplayName("WebClientConfig_vlm_url_placeholder_시_빈_생성_실패_fail_closed")
+    @DisplayName("★WebClientConfig_vlm_url_placeholder_는_기동을_막지_않고_전송을_막는다_fail_closed")
     void placeholderRejectedWhenEnabled() {
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://example.com", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
-        assertThatThrownBy(() -> cfg.vlmWebClient("https://your-vlm-service", "", strictPolicy(), null))
-                .isInstanceOf(IllegalStateException.class);
+        assertBootsButNeverSends("https://example.com", "예시·미설정 호스트");
+        assertBootsButNeverSends("https://your-vlm-service", "예시·미설정 호스트");
+    }
+
+    @Test
+    @DisplayName("★거부_사유에는_주소도_설정키도_실리지_않는다_CWE209")
+    void rejectionMessageCarriesNoInput() {
+        WebClient client = cfg.vlmWebClient("https://your-vlm-service", "", policy(), null);
+        assertThatThrownBy(() -> client.post().uri("/v1/videovlm-klid/describe")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5)))
+                .hasMessageNotContaining("your-vlm-service")
+                .hasMessageNotContaining("vlm.client.url");
     }
 
     @Test
     @DisplayName("WebClientConfig_vlm_url_정상_HTTPS_공인_IP_시_빈_생성_성공")
     void validHttpsPublicIpAccepted() {
         // 공인 IP(8.8.8.8 — Google DNS) 직접 사용해 DNS 의존성 없이 검증 성공 케이스만 확인.
-        assertThat(cfg.vlmWebClient("https://8.8.8.8/", "", strictPolicy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("https://8.8.8.8/", "", policy(), null)).isNotNull();
     }
 
     @Test
-    @DisplayName("WebClientConfig_vlm_local_완화정책_시_평문_HTTP_사설IP_목업_URL_빈_생성_성공")
-    void relaxedPolicyAcceptsPlaintextMockUrl() {
-        assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "", relaxedPolicy(), null)).isNotNull();
-        assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", relaxedPolicy(), null)).isNotNull();
+    @DisplayName("WebClientConfig_vlm_목업_평문_HTTP_주소로_빈_생성_성공")
+    void mockPlaintextUrlAccepted() {
+        assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "", policy(), null)).isNotNull();
+        assertThat(cfg.vlmWebClient("http://127.0.0.1:9400", "", policy(), null)).isNotNull();
     }
 
     @Test
     @DisplayName("WebClientConfig_vlm_평문구간에_토큰이_설정되면_경고하고_토큰값은_출력하지_않는다")
     void cleartextTokenLogsWarning() {
-        // given: local/dev 완화 경로는 TLS 가 없어 Bearer 토큰이 평문으로 흐른다(CWE-319).
-        //   경고는 공용 골격(ProfileGatedUrlPolicy)이 남기므로 로거도 그 클래스다.
-        Logger logger = (Logger) LoggerFactory.getLogger(ProfileGatedUrlPolicy.class);
+        // given: 평문 구간에는 TLS 가 없어 Bearer 토큰이 그대로 흐른다(CWE-319).
+        //   경고 판정은 공용 원천(ExternalUrlPolicy)이 소유하므로 로거도 그 클래스다.
+        Logger logger = (Logger) LoggerFactory.getLogger(ExternalUrlPolicy.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
         try {
             // when
             assertThat(cfg.vlmWebClient("http://klid-mock-server:9400", "secret-token-value",
-                    relaxedPolicy(), null)).isNotNull();
+                    policy(), null)).isNotNull();
 
             // then: 경고가 남되 토큰 값은 절대 출력되지 않는다(길이만 — CWE-532)
             List<String> warns = appender.list.stream()
@@ -158,7 +165,7 @@ class WebClientConfigTest {
 
             // and: HTTPS 구간에서는 경고하지 않는다
             appender.list.clear();
-            assertThat(cfg.vlmWebClient("https://8.8.8.8/", "secret-token-value", strictPolicy(), null))
+            assertThat(cfg.vlmWebClient("https://8.8.8.8/", "secret-token-value", policy(), null))
                     .isNotNull();
             assertThat(appender.list.stream()
                     .map(ILoggingEvent::getFormattedMessage)
@@ -186,10 +193,14 @@ class WebClientConfigTest {
      * ★ <b>확정된 동작을 고정하는 회귀 가드 — 결함이 아니다. 되돌리지 말 것</b> (2026-08-10 판단).
      *
      * <h3>무엇이 확정됐나</h3>
-     * <p>{@link VlmUrlPolicy} 의 검증(운영 엄격 = HTTPS 전용 + 내부/사설 대역 차단)은
-     * {@code vlmWebClient} 의 <b>{@code @Value} 배포 기본값에만</b> 걸린다. 운영 화면에서 넣는
-     * <b>설정 override 는 그 검증을 거치지 않는다</b> — override 에 남는 검증은
-     * {@code IntegrationEndpointUrlValidator} 의 <b>스킴(http/https) + 형식</b>뿐이다.
+     * <p>{@link VlmUrlPolicy} 의 검증은 {@code vlmWebClient} 의 <b>{@code @Value} 배포 기본값에만</b>
+     * 걸린다. 운영 화면에서 넣는 <b>설정 override 는 그 검증을 거치지 않는다</b> — override 에 남는
+     * 검증은 {@code IntegrationEndpointUrlValidator} 의 <b>스킴(http/https) + 형식</b>뿐이다.
+     *
+     * <p>⚠ <b>두 검증의 차이가 좁아졌다(2026-09-01)</b> — 기동 시점 정책도 이제 스킴·형식만 보므로
+     * (HTTPS 강제·대역 차단은 폐기), 남은 차이는 <b>placeholder 호스트</b>와 <b>예약 대역</b> 거부뿐이다.
+     * 그래서 아래 대조군이 "평문 http 를 막는다" 에서 <b>"placeholder 를 막는다"</b> 로 바뀌었다 —
+     * 폐기된 조항으로 대조군을 세우면 그 시험이 폐기 정책을 되살리는 압력이 된다.
      *
      * <h3>왜 그것이 의도인가</h3>
      * <p>온프렘 내부망 배포이고 연동 4종(비식별·AI 추론·시계열 분석·관제 통지)이 <b>내부 서버일 가능성이
@@ -206,28 +217,31 @@ class WebClientConfigTest {
      * ({@code .filter(IntegrationEndpointExchangeFilter.of(...))})을 지우면 요청이 override 주소로 나가지
      * 않아 이 테스트가 실패한다.
      *
-     * <p><b>운영(stg/prd) 상당 조건</b>: 정책 인스턴스를 {@code prd} 프로파일 + 완화 플래그 off
-     * ({@link #strictPolicy()})로 만들어 실제로 엄격 판정이 걸리는 상태에서 검증한다. 다만 그 조건에서는
-     * 배포 기본값이 <b>https + 공인 대역</b>이어야 빈이 생성되므로 loopback 에 뜨는 {@link MockWebServer}
-     * 를 배포 기본값 자리에 놓을 수 없다 — 그래서 "구 주소는 못 받았다"가 아니라
-     * <b>"정책이 거부하는 주소가 실제로 요청을 받았다"</b>로 판정한다.
+     * <p><b>판정 방식</b>: 소켓으로는 "override 주소가 실제로 요청을 받았다"(= 재작성 필터 배선)를 보고,
+     * 정책 우회 자체는 <b>정책이 거부하는 주소(placeholder)를 override 로 넣어도 빈이 만들어진다</b>로
+     * 본다. placeholder 호스트는 해석되지 않아 소켓으로 관측할 수 없으므로 두 축을 나눈다.
      */
     @Test
-    @DisplayName("★설정_override_는_VlmUrlPolicy_검증을_거치지_않는다 — 운영_등가_조건에서도_평문http_주소로_그대로_나간다(의도된 동작)")
+    @DisplayName("★설정_override_는_VlmUrlPolicy_검증을_거치지_않는다 — 정책이 거부하는 주소도 그대로 나간다(의도된 동작)")
     void configOverrideBypassesVlmUrlPolicy() throws Exception {
         MockWebServer overrideTarget = new MockWebServer();
         overrideTarget.start();
         try {
-            // given — 운영 등가(prd + 완화 플래그 off) 정책. 배포 기본값은 그 정책을 통과하는 https 공인 대역
-            //   (203.0.113.0/24 = TEST-NET-3, 실제로는 아무도 응답하지 않는다 — 여기로 나가면 안 된다는 뜻).
-            VlmUrlPolicy policy = strictPolicy();
+            // given — 배포 기본값은 실제로는 아무도 응답하지 않는 주소(203.0.113.0/24 = TEST-NET-3).
+            //   여기로 나가면 안 된다는 뜻이다.
+            VlmUrlPolicy policy = policy();
             String bootDefault = "https://203.0.113.10:9443";
             String override = overrideTarget.url("/").toString();   // 평문 http + loopback
 
-            // and — 대조군: 같은 정책 인스턴스는 이 override 주소를 기동 시점이라면 거부한다.
-            assertThatThrownBy(() -> policy.validate(override))
-                    .as("기동 시점 정책은 평문 http·loopback 을 막는다 — 아래 전송이 그 정책 밖임을 보이는 대조군")
+            // and — 대조군: 기동 시점 정책이 <거부>하는 주소를 override 에 넣어도 빈이 만들어진다.
+            //   (평문 http·사설 대역은 이제 정책도 통과시키므로 대조군이 될 수 없다 — placeholder 를 쓴다.)
+            String rejectedByBootPolicy = "http://your-vlm-service:9400";
+            assertThatThrownBy(() -> policy.validate(rejectedByBootPolicy))
+                    .as("기동 시점 정책은 placeholder 호스트를 막는다 — override 가 그 정책 밖임을 보이는 대조군")
                     .isInstanceOf(IllegalStateException.class);
+            assertThat(cfg.vlmWebClient(bootDefault, "", policy, resolverReturning(rejectedByBootPolicy)))
+                    .as("정책이 거부하는 주소를 override 로 넣어도 빈 생성은 막히지 않는다(의도된 동작)")
+                    .isNotNull();
 
             WebClient client = cfg.vlmWebClient(bootDefault, "", policy, resolverReturning(override));
             overrideTarget.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));

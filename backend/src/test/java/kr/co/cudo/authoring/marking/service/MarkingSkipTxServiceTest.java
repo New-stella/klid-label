@@ -34,7 +34,7 @@ class MarkingSkipTxServiceTest {
     private MarkingSkipTxService service;
 
     private LsMarking pendingMarking() {
-        return LsMarking.createAuto(9110L, "EVT", 100, "raw/clip.mp4", "[]", 1001L, 30.0);
+        return LsMarking.createAuto(9110L, 100, "[]", "1001", 30.0);
     }
 
     @Test

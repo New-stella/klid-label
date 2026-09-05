@@ -137,6 +137,24 @@ export const PORTAL_KEYS = {
     [...PORTAL_KEYS.all, 'upload-frame-labels', uldFrmeSn] as const,
   datamartVideos: (params: Record<string, unknown>) =>
     [...PORTAL_KEYS.all, 'datamart-videos', params] as const,
+  /**
+   * 업로드 영상 재생용 단기 서명 주소(API-239).
+   *
+   * `all` 하위에 두어 자산 축 무효화가 함께 걷어 가게 한다. 서명은 짧게 살고 재발급이 정상
+   * 동선이므로 `staleTime` 은 훅이 정한다(여기서는 자리만 나눈다).
+   */
+  uploadStreamUrl: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-stream-url', uldSn] as const,
+  /** 업로드 영상에 저장된 마킹(API-241) — 재진입 시 저장된 지점을 그리는 데 쓴다. */
+  uploadMarkings: (uldSn: number) => [...PORTAL_KEYS.all, 'upload-markings', uldSn] as const,
+  /**
+   * 포털 증강 요청 현황 목록(API-232).
+   *
+   * 페이징 파라미터는 **조건 축**이라 키에 넣는다 — 넣지 않으면 2쪽으로 옮겨도 1쪽 캐시가
+   * 그대로 나온다. (같은 목록의 이어지는 부분을 붙이는 축이 아니라 쪽을 갈아 끼우는 축이다.)
+   */
+  augments: (params: Record<string, unknown>) => [...PORTAL_KEYS.all, 'augments', params] as const,
+  /** 포털 증강 요청 단건(API-233) — 결과물 위치를 나른다. */
+  augmentDetail: (augSn: number) => [...PORTAL_KEYS.all, 'augment-detail', augSn] as const,
 };
 
 export const SYSCONFIG_KEYS = {
@@ -148,6 +166,20 @@ export const SYSCONFIG_KEYS = {
    * `all` 하위에 두어 검수자의 설정 수정(useUpdateConfig)이 이 조회도 함께 무효화하게 한다.
    */
   aiDefaults: () => [...SYSCONFIG_KEYS.all, 'ai-defaults'] as const,
+};
+
+/**
+ * AI 장비 노드 원장(GET /v1/manage/ai-servers) — 관리자 전용 목록.
+ *
+ * 유형은 **조건 축**이라 키에 넣는다 — 넣지 않으면 추론 탭에서 받은 목록이 시계열 탭에 그대로
+ * 나온다(두 유형은 부하를 세는 축까지 달라 섞이면 수치가 거짓이 된다).
+ *
+ * ⚠ `SYSCONFIG_KEYS` 아래에 두지 않는다 — 설정값 저장이 이 목록을 무효화할 이유가 없고,
+ *   원장은 설정 캐시와 다른 진실원이다(`ADR-046`).
+ */
+export const AI_SERVER_KEYS = {
+  all: ['aiServers'] as const,
+  list: (srvrTypeCd?: string) => [...AI_SERVER_KEYS.all, 'list', srvrTypeCd ?? 'ALL'] as const,
 };
 
 export const NOTICE_KEYS = {
@@ -198,6 +230,19 @@ export const EVENT_TYPE_KEYS = {
 };
 
 /**
+ * 검증 이벤트 유형·질문(DOMAIN-014) — BE `/v1/manage/verification-event-types`.
+ * [@design API-219] [@design API-220]
+ *
+ * ★ `EVENT_TYPE_KEYS` 하위에 두지 않는다 — 관제 이벤트유형(`EV…`)과 검증 이벤트 유형(`fire`…)은
+ * <b>코드 체계가 다른 별개 축</b>이다. 한 뿌리에 두면 한쪽의 무효화가 접두 일치로 다른 쪽까지
+ * 걸어, 관계없는 재조회가 일어나거나 「응답값으로 갱신하고 재조회하지 않는다」는 계약이 무너진다.
+ */
+export const VERIFICATION_EVENT_TYPE_KEYS = {
+  all: ['verificationEventTypes'] as const,
+  list: () => [...VERIFICATION_EVENT_TYPE_KEYS.all, 'list'] as const,
+};
+
+/**
  * 외부 산출물 이관(DOMAIN-017) — BE `/v1/imports`, `/v1/import-mappings`.
  *
  * 이력·대응 두 축을 한 뿌리(`all`) 아래 둔다 — 적재가 성공하면 이력이 늘고, 대응을 확정하면
@@ -212,4 +257,41 @@ export const IMPORT_KEYS = {
   mappingLists: () => [...IMPORT_KEYS.all, 'mappings'] as const,
   mappingList: (params: Record<string, unknown>) =>
     [...IMPORT_KEYS.mappingLists(), params] as const,
+  /**
+   * 위치 탐색(API-221·API-222) — **자리(`path`)로만** 캐시를 나눈다.
+   *
+   * 루트 목록은 기준 위치가 없어 키에 `null` 을 그대로 쓴다(`undefined` 는 키에서 소실된다).
+   * 폴더 축과 파일 축은 같은 경로여도 담는 것이 달라 키를 분리한다.
+   *
+   * ★<b>이어받을 자리(`cursor`)를 키에 넣지 않는다.</b> 이 두 축은 무한 조회
+   * (`useInfiniteQuery`)로 받으며, 그 규약상 커서는 키가 아니라 **쪽 인자**(`pageParam`)로
+   * 흐르고 받아온 쪽들이 <b>한 키 아래에 쌓인다</b>. 커서를 키에 넣으면 쪽마다 별개의 캐시
+   * 자리가 생겨 <b>이어붙이기가 성립하지 않는다</b> — 「더 보기」를 누를 때마다 앞서 받은
+   * 목록이 사라지고 그 쪽 하나만 남는다.
+   *
+   * ⚠ 이것은 앞선 「찾을 이름」 축과 반대 방향이다. 그때는 이름이 키에 <b>반드시</b> 들어가야
+   *   했다(같은 자리에서 조건만 바뀌면 다른 결과라 캐시를 갈라야 했다). 커서는 조건이 아니라
+   *   <b>같은 목록의 이어지는 부분</b>이라 갈라서는 안 된다. 두 축을 같은 규칙으로 다루지 말 것.
+   */
+  browseFolders: (path: string | null) =>
+    [...IMPORT_KEYS.all, 'browse', 'folders', path] as const,
+  browseFiles: (path: string | null) => [...IMPORT_KEYS.all, 'browse', 'files', path] as const,
+  /**
+   * 탐색 캐시 전체. 창을 다시 열 때 **쌓인 쪽들을 버리는** 데 쓴다.
+   *
+   * 이어받기는 창을 여는 시점부터 다시 시작한다(SCREEN-039). 버리지 않으면 앞 회차에 쌓아 둔
+   * 쪽들이 그대로 남아, 창을 다시 열었는데 이미 여러 번 이어받은 상태로 열린다.
+   */
+  browses: () => [...IMPORT_KEYS.all, 'browse'] as const,
+  /**
+   * 마킹 산출물 일괄 적재 진행(API-218) — 작업 식별번호와 <b>상태 거르기</b>로 캐시를 나눈다.
+   *
+   * ★상태는 <b>조건 축</b>이라 키에 들어간다. 같은 작업이어도 무엇으로 걸렀는지에 따라 담기는
+   * 목록이 다르므로, 키에 넣지 않으면 앞서 거른 결과가 다음 조회에 그대로 돌아온다.
+   * ⚠ 이어받기 축(위 탐색 커서)과 방향이 반대다 — 그쪽은 <b>같은 목록의 이어지는 부분</b>이라
+   *   키에 넣으면 이어붙이기가 깨진다. 두 축을 같은 규칙으로 다루지 말 것.
+   */
+  markingJobs: () => [...IMPORT_KEYS.all, 'marking'] as const,
+  markingProgress: (jobSn: number, status: string | null) =>
+    [...IMPORT_KEYS.markingJobs(), 'progress', jobSn, status] as const,
 };

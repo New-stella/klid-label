@@ -52,7 +52,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -66,7 +67,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -80,7 +82,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -94,7 +97,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -108,7 +112,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -122,7 +127,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -136,7 +142,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -150,7 +157,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -164,7 +172,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -178,7 +187,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -192,7 +202,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -206,7 +217,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -220,7 +232,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -235,7 +248,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -276,7 +290,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -290,7 +305,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -304,7 +320,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -318,7 +335,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -333,7 +351,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -347,7 +366,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -361,7 +381,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -375,7 +396,24 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
+              }
+            },
+            {
+              "name": "srvrId",
+              "type": "String",
+              "is_static": false,
+              "visibility": "private",
+              "description": "위탁을 보낸 AI 서버(장비) 식별자. 장비별 부하 집계와 결과 출처 추적에 쓴다. 도입 전 행은 미상이며, 미결 회수 경로에는 장비 조건을 걸지 않는다 — 걸면 죽은 장비의 몫이 영영 회수되지 않는다.",
+              "is_readonly": false,
+              "implementation": {
+                "status": "planned",
+                "modules": [],
+                "records": [],
+                "progress": 0,
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -418,7 +456,7 @@
           "enum_values": [
             "DEIDENTIFY",
             "VLM",
-            "AUGMENT"
+            "VLM_SUB"
           ],
           "stereotypes": []
         },
@@ -427,9 +465,10 @@
           "name": "IdempotencyStatus",
           "methods": [],
           "attributes": [],
-          "description": "멱등 처리 상태 코드.",
+          "description": "멱등 처리 상태 코드. ACCEPTED 는 외부가 요청을 받아들였고 결과 통지만 남은 상태로, 수락 응답조차 관측하지 못한 ISSUED 와 미결 판정 임계가 다르다.",
           "enum_values": [
             "ISSUED",
+            "ACCEPTED",
             "PROCESSED",
             "FAILED"
           ],
@@ -469,7 +508,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -484,7 +524,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -499,7 +540,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -514,7 +556,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -529,7 +572,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -544,7 +588,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -559,7 +604,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -596,7 +642,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -611,7 +658,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -626,7 +674,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -641,7 +690,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -656,7 +706,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -671,7 +722,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -686,7 +738,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -701,7 +754,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -716,7 +770,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -731,7 +786,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -756,7 +812,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -771,7 +828,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -786,7 +844,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -801,7 +860,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -826,7 +886,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -841,7 +902,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -918,10 +980,19 @@
           "from_multiplicity": "1"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-046",
         "DFEAT-047"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [
         "ERD-021",
         "ERD-027"
@@ -933,12 +1004,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "통지 본문 두 종류와 그 안의 변경 파일 묶음을 값 객체로 모델에 세운다. 그동안 본문이 큐 행의 문자열 한 덩어리로만 표현돼, 어떤 키가 비어도 남고 어떤 키는 없으면 생략되는지가 이 모델 어디에도 없었다.",
+    "current_version": 9,
+    "stale": true,
+    "stale_reason": "DFEAT-046의 2개 필드 변경 — depicts",
+    "change_summary": "멱등 애그리거트에 위탁을 보낸 AI 서버 식별 속성을 더하고, 상태 열거에 빠져 있던 수락 상태와 채널 열거에 빠져 있던 추가 질문 창구를 보정한다. 원장 ERD 변경의 하위 정합이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:35:42.940Z",
+    "last_updated_at": "2026-09-01T07:34:33.670Z",
     "created_at": "2026-06-02T08:55:08.399Z"
   }
 }

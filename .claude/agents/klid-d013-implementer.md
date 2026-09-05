@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-013
 code_root: "backend/src/main/java/kr/co/cudo/authoring/portal/ backend/src/main/java/kr/co/cudo/authoring/dataset/ 의 메타 복제 계열(LsMetaReplOutbox·MetaReplicationWorker·PortalMetaReplicaWriter) frontend/src/pages/portal/ frontend/src/features/portal/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>
@@ -68,7 +68,7 @@ target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐
 - **보존기간 기본값**: 데이터마트 채널 7일(`portal.datamart.retention-days`, 기준=마지막 저장일 `MAX(REG_DT)`) / 업로드 READY 7일(`portal.upload.retention-days`, 기준=자산 등록일과 라벨 마지막 저장일 중 **더 늦은** 시각) / 업로드 FAILED 1일(`portal.upload.failed-retention-days`, 기준=FAILED 전이 시각). 삭제는 **DB 행 + 저장소 파일 동시**이며 **비가역**이다. 근거: `DFEAT-055` · `AC-037`.
 - **프레임 추출은 고정 간격**(`portal.upload.frame-interval-sec` 기본 5초) + 영상당 상한(`portal.upload.maxFrames` 기본 2000, 초과 시 균등 샘플링). 업로드 영상은 **본인 데이터라 비식별을 적용하지 않는다**. 근거: `DFEAT-053`.
 - **업로드 한도**: 이미지 jpg/jpeg/png · 20MB/장 · 50장/요청(multipart) / 영상 mp4·mov·avi · 5GB · TUS 1.0 재개 업로드. 근거: `DFEAT-053` · `ROLE-003`.
-- **인가**: `PORTAL_USER` 는 관리 화면(`/manage/*`)에 접근하지 않는다. **예외 — 라벨 마스터 조회는 허용**된다(라벨링 화면이 분류·표시명·색상을 그리기 위해 읽는 공용 읽기 계약이며 개인정보가 아니다). 마스터의 등록·수정·삭제는 REVIEWER 전용. 근거: `ROLE-003` · `ADR-003`(ADMIN 폐기·REVIEWER 통합).
+- **인가**: `PORTAL_USER` 는 관리 화면(`/manage/*`)에 접근하지 않는다. **예외 — 라벨 마스터 조회는 허용**된다(라벨링 화면이 분류·표시명·색상을 그리기 위해 읽는 공용 읽기 계약이며 개인정보가 아니다). 마스터의 등록·수정·삭제는 **검수자 이상**(관리자가 계층으로 물려받는다). 근거: `ROLE-003` · `ADR-055`(관리자 역할 신설 + 계층 — 구 `ADR-003` 의 「ADMIN 폐기·REVIEWER 통합」은 **supersede 됐다. 되살리지 말 것**).
 - **메타 복제는 outbox 폴링 + 멱등 upsert + 재시도 상한 초과 시 `DEAD`.** 복제본 미구축 환경은 probe 로 **graceful skip**(잡 실패로 번지지 않음). HTTP 가 아니므로 Resilience4j 미적용. 토글 `authoring.meta-replication.enabled`(기본 활성, local 만 비활성). 근거: `INT-009`.
 
 ### 코드 레이아웃

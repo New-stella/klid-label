@@ -1,24 +1,24 @@
 ---
 logicraft_item: DOMAIN-003
 type: domain
-version: 12
+version: 13
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:51.136Z
-status: NEW
-prev_version: null
-content_hash: c5eaf5898b0ef41bc975315725b98a565ae9cc57cec9695d299a12f2a733c6e7
+synced_at: 2026-09-02T10:52:14.636Z
+status: CHANGED
+prev_version: 12
+content_hash: 3d7b6056fd70f03952ff1da78800d94cb25894f507be03d8f3976dcfd9c10fd8
 stale: false
 raw: ./_raw/DOMAIN-003.json
 links:
   collaborates_with: ["[[DOMAIN-010]]"]
   migrated_from: ["[[LEGACY-003]]"]
   applies_to_backward: ["[[NFR-008]]", "[[NFR-012]]"]
-  belongs_to_domain_backward: ["[[ADR-042]]", "[[API-042]]", "[[API-043]]", "[[API-044]]", "[[API-045]]", "[[API-046]]", "[[API-084]]", "[[API-092]]", "[[API-114]]", "[[API-143]]", "[[API-144]]", "[[API-145]]", "[[API-146]]", "[[API-148]]", "[[API-150]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-167]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-174]]", "[[API-181]]", "[[API-185]]", "[[API-186]]", "[[API-191]]", "[[API-192]]", "[[API-198]]", "[[API-199]]", "[[API-200]]", "[[API-201]]", "[[CDIAG-001]]", "[[CMP-001]]", "[[CMP-010]]", "[[DFEAT-007]]", "[[DFEAT-008]]", "[[DFEAT-009]]", "[[DFEAT-010]]", "[[DFEAT-011]]", "[[ERD-012]]", "[[ERD-020]]", "[[ERD-025]]", "[[EVT-002]]", "[[EVT-005]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-038]]", "[[SD-004]]", "[[STATE-002]]"]
-  collaborates_with_backward: ["[[DOMAIN-010]]"]
-  derived_domain_backward: ["[[AC-025]]", "[[AC-026]]"]
+  belongs_to_domain_backward: ["[[AC-1020]]", "[[AC-1021]]", "[[AC-1022]]", "[[AC-1023]]", "[[ADR-042]]", "[[ADR-049]]", "[[ADR-050]]", "[[API-042]]", "[[API-043]]", "[[API-044]]", "[[API-045]]", "[[API-046]]", "[[API-084]]", "[[API-092]]", "[[API-114]]", "[[API-143]]", "[[API-144]]", "[[API-145]]", "[[API-146]]", "[[API-148]]", "[[API-150]]", "[[API-156]]", "[[API-158]]", "[[API-160]]", "[[API-162]]", "[[API-164]]", "[[API-167]]", "[[API-168]]", "[[API-170]]", "[[API-172]]", "[[API-173]]", "[[API-174]]", "[[API-181]]", "[[API-185]]", "[[API-186]]", "[[API-191]]", "[[API-192]]", "[[API-198]]", "[[API-199]]", "[[API-200]]", "[[API-201]]", "[[API-212]]", "[[API-213]]", "[[API-214]]", "[[CDIAG-001]]", "[[CMP-001]]", "[[CMP-010]]", "[[DFEAT-007]]", "[[DFEAT-008]]", "[[DFEAT-009]]", "[[DFEAT-010]]", "[[DFEAT-011]]", "[[ERD-012]]", "[[ERD-020]]", "[[ERD-025]]", "[[EVT-002]]", "[[EVT-005]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-038]]", "[[SD-004]]", "[[STATE-002]]", "[[UC-038]]"]
+  collaborates_with_backward: ["[[DOMAIN-010]]", "[[DOMAIN-017]]"]
+  derived_domain_backward: ["[[AC-1020]]", "[[AC-1021]]", "[[AC-1022]]", "[[AC-1023]]"]
   implements_in_backward: ["[[MOD-003]]", "[[MOD-041]]", "[[MOD-042]]", "[[MOD-045]]", "[[MOD-046]]", "[[MOD-048]]"]
-  references_backward: ["[[TEST-001]]"]
+  references_backward: ["[[OSS-102]]", "[[TEST-001]]"]
 ---
 
 # 영상·프레임 수집
@@ -59,7 +59,7 @@ LEGACY-003
 
 [라벨링 캔버스 서빙] 프레임 이미지는 기본이 비식별본이며 원본은 REVIEWER 가 명시적으로 요청할 때만 나간다. 비식별 프레임을 여는 4경로는 동일 판정기로 검증하고 그 실경로를 NOFOLLOW 로 열어야 한다(심링크 교체로 마스킹 전 픽셀이 새는 것을 막는다).
 
-[범위 밖] 포털 사용자 본인 자산 업로드는 LS_PORTAL_* 전용 경로로 본 도메인·데이터마트와 완전 분리된다. 구 관리화면 TUS 자체 업로드는 1차 적재 경로가 아니며 폐지 예정이다.
+[범위 밖] 포털 사용자 본인 자산 업로드는 본 도메인·데이터마트 범위 밖이다. 그 자산은 공용 원장에 적재되지만(ADR-058) 출처 판별자(SRC_TYPE=PORTAL_ULD)로 갈리며, 관제 인입 폴링이 집어가지 않고 데이터마트 뷰에도 도달하지 않는다 — 근거는 테이블 분리가 아니라 이 축이다. 구 관리화면 TUS 자체 업로드는 1차 적재 경로가 아니며 폐지 예정이다.
 
 ## upstream_of
 
@@ -72,6 +72,10 @@ core
 ## collaborators
 
 - DOMAIN-010
+
+## attached_files
+
+_(empty)_
 
 ## integrates_with
 

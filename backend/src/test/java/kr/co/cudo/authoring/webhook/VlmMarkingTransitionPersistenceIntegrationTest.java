@@ -126,8 +126,8 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
 
     private LsMarking seedMarkingPending(Long rawSn) {
         return markingRepository.save(LsMarking.createAuto(
-                rawSn, "fire", 5, "/var/deid/vlmtx.mp4",
-                "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L));
+                rawSn, 5,
+                "[{\"frameIndex\":0,\"timestamp\":0.0}]", "1"));
     }
 
     /**
@@ -151,7 +151,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         seedDeidentSuccess(rawSn);
         Long markingSn = seedMarkingPending(rawSn).getMarkingSn();
 
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any())).thenAnswer(inv -> {
             VlmTimeseriesRequest r = inv.getArgument(0);
             return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
         });
@@ -171,7 +171,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         // 위탁 시 발급된 request_id 확보(콜백 상관키)
         ArgumentCaptor<VlmTimeseriesRequest> reqCaptor =
                 ArgumentCaptor.forClass(VlmTimeseriesRequest.class);
-        verify(vlmClient).submitDescribe(reqCaptor.capture());
+        verify(vlmClient).submitDescribe(reqCaptor.capture(), any());
         String requestId = reqCaptor.getValue().requestId();
         assertThat(requestId).isNotBlank();
 
@@ -250,7 +250,7 @@ class VlmMarkingTransitionPersistenceIntegrationTest {
         assertThat(markingRepository.findById(markingSn).orElseThrow().getSttsCd())
                 .isEqualTo(LsMarking.STATUS_VLM_COMPLETED);
 
-        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class))).thenAnswer(inv -> {
+        when(vlmClient.submitDescribe(any(VlmTimeseriesRequest.class), any())).thenAnswer(inv -> {
             VlmTimeseriesRequest r = inv.getArgument(0);
             return Mono.just(new VlmTimeseriesResponse(r.requestId(), "accepted"));
         });

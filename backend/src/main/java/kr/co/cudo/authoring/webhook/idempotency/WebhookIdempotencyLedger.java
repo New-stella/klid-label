@@ -87,6 +87,22 @@ public interface WebhookIdempotencyLedger {
     }
 
     /**
+     * 노드 분산 — channel + rawSn + <b>보낸 장비</b> 명시 발급 기록. [@design ERD-021] [@design ADR-057]
+     *
+     * <p>장비 식별자는 <b>외부 호출 전에</b> 함께 남긴다. 나중에 채우면 그 사이 노드가 죽었을 때
+     * 「어디로 보냈는지 모르는 미결」이 되고, 부하 집계에서도 빠져 배분이 한쪽으로 기운다.
+     *
+     * <p>디폴트 구현은 장비를 버리고 4-인자로 위임한다(구 호환 — 장비 개념이 없는 in-memory 구현).
+     *
+     * @param srvrId 위탁을 보낸 AI 서버 식별자. 고르지 못했으면 {@code null}(장비 미상). 추측해 채우지
+     *               말 것 — 실제로 나간 곳과 다른 장비의 부하가 늘어 배분이 어긋난다
+     */
+    default void recordIssued(String idempotencyKey, String channel, String externalJobId, Long rawSn,
+                              String srvrId) {
+        recordIssued(idempotencyKey, channel, externalJobId, rawSn);
+    }
+
+    /**
      * H1 — 위탁 <b>수락(ACK) 수신</b> 사실을 원장에 남긴다(발급 상태에서만 전이).
      *
      * <p>이 기록이 없으면 미결 회수 스윕이 "ACK 조차 못 받은 건"과 "결과 콜백을 기다리는 정상 건"을

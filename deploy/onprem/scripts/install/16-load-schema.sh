@@ -3,9 +3,17 @@ set -euo pipefail
 # ============================================================================
 # 16-load-schema.sh — [대상 서버] (옵션) db/schema.sql 을 빈 control DB 에 1회 로드
 #
-#   ★ SPRING_FLYWAY_ENABLED=false 운영(온프렘/이중화)의 스키마 준비 단계.
-#     backend 는 부팅 시 ddl-auto=validate 로 검증만 하므로, 그 전에 전체 스키마가
-#     존재해야 한다. 이 단계가 db/schema.sql(Flyway V0~Vn 통합 덤프 + 시드)을 로드한다.
+#   ★ 온프렘은 Flyway 를 쓰지 않는다(확정) — 테이블을 만드는 경로는 이 로드 하나뿐이다.
+#     이 단계가 db/schema.sql(전체 통합 DDL + 시드)을 로드한다.
+#     ⚠ 아무도 로드하지 않으면 대신 만들어 주는 것이 없다(마이그레이션이 돌지 않는다).
+#
+#   ★★스키마가 없어도 backend 는 <기동에 성공한다> — 이것이 이 단계의 가장 큰 함정이다.
+#     구 서술 폐기(2026-08-30): "backend 는 ddl-auto=validate 로 검증만 하므로 스키마가 없으면
+#     기동에 실패한다". 그 설정은 <선언만 있고 Hibernate 에 도달하지 않는다> — 이 앱은 EMF 를
+#     직접 만들면서 spring.jpa.properties.* 만 넘기고, ddl-auto 를 병합하는 표준 경로를 우회한다.
+#     ⇒ "기동됐으니 스키마가 들어갔다"는 판단은 <틀리다>. 빈 스키마인 채로 운영에 넘어가고
+#       화면·배치가 처음 DB 를 건드릴 때 비로소 깨진다.
+#     ⇒ 유일한 판정 수단은 <테이블 개수를 세어 보는 것>이다(아래 로드 후 검증과 같은 쿼리).
 #
 #   - psql 이 있고 SCHEMA_LOAD_RUN=1 이면 control DB 에 로드한다(테이블 있으면 skip 가드).
 #   - 그 외에는 수동 로드 안내만 출력한다(폐쇄망 DBA 가 직접 수행하는 경우가 많음).
@@ -14,8 +22,8 @@ set -euo pipefail
 #     객체명을 모두 담고 있으므로 로드하는 psql 세션의 search_path 와 무관하게 그 스키마에 생성된다.
 #     ※ portal DB 는 대상이 아니다 — 별개 물리 DB 이고 복제본 스키마는 17 단계가 public 에 로드한다.
 #
-#   ★ Flyway 로 부트스트랩하는 단일 노드 구성이면(SPRING_FLYWAY_ENABLED=true) 이 단계를
-#     건너뛴다(SKIP_SCHEMA_LOAD=1 또는 SCHEMA_LOAD_RUN 미설정).
+#   ★ SKIP_SCHEMA_LOAD=1 은 "스키마가 이미 준비돼 있다"는 선언이다(DBA 선적용 등).
+#     Flyway 로 대신 만들겠다는 뜻이 아니다 — 그 경로는 온프렘에 없다.
 # ============================================================================
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,12 +44,18 @@ DB_SCHEMA="${DB_SCHEMA:-klid_at}"
   || die "[schema] 부적합한 DB_SCHEMA='${DB_SCHEMA}' — 소문자 시작 + [a-z0-9_], 최대 63자만 허용합니다."
 
 if [[ "${SKIP_SCHEMA_LOAD:-0}" == "1" ]]; then
-  info "[schema] SKIP_SCHEMA_LOAD=1 — 스키마 로드 생략(Flyway 부트스트랩 구성으로 간주)."
+  info "[schema] SKIP_SCHEMA_LOAD=1 — 스키마 로드 생략(스키마가 이미 준비된 것으로 간주)."
+  warn "[schema] 실제로 준비돼 있는지 <반드시 세어서> 확인하세요 — 비어 있어도 backend 는 기동에 성공합니다."
+  warn "[schema]   psql -tAX -d <DB> -c \"SELECT count(*) FROM information_schema.tables WHERE table_schema='${DB_SCHEMA}' AND table_type='BASE TABLE';\""
+  warn "[schema]   0 이 아니어야 합니다. 기동 성공은 스키마 정합의 근거가 아닙니다."
   exit 0
 fi
 
 if [[ "${SCHEMA_LOAD_RUN:-0}" != "1" ]] || ! command -v psql >/dev/null 2>&1; then
   info "[schema] 자동 스키마 로드를 수행하지 않습니다(기본). 아래를 DBA 가 수행하세요:"
+  warn "[schema] ★ 이 로드가 테이블을 만드는 <유일한 경로>입니다(온프렘은 Flyway 미사용)."
+  warn "[schema]   수행하지 않으면 테이블이 생기지 않습니다. ⚠ 그래도 backend 는 <기동에 성공합니다> —"
+  warn "[schema]   기동 성공을 확인으로 삼지 마세요. 화면·배치가 DB 를 건드리는 순간 전부 실패합니다."
   cat <<TXT
 
   # 빈 control DB 에 전체 스키마(+시드)를 1회 로드 (앱 유저=소유자 로 접속 권장)
@@ -105,4 +119,11 @@ loaded="$(psql -tAX -U "${DB_APP_USER}" -d "${CONTROL_DB_NAME}" \
   -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='${DB_SCHEMA}' AND table_type='BASE TABLE';")"
 [[ "${loaded}" != "0" ]] \
   || die "[schema] 로드 후에도 ${DB_SCHEMA} 에 테이블이 없습니다 — schema.sql 의 대상 스키마와 DB_SCHEMA 가 다릅니다."
-ok "[schema] 로드 완료 — ${DB_SCHEMA} 테이블 ${loaded}개. backend 는 ddl-auto=validate 로 검증만 합니다."
+# ★ 기대값을 하드코딩하지 않는다 — 마이그레이션이 늘면 낡는다. 방금 로드한 파일에서 센다.
+_want_t="$(grep -c '^CREATE TABLE klid_at\.' "${SCHEMA_SQL}" 2>/dev/null || echo 0)"
+_want_v="$(grep -c '^CREATE VIEW klid_at\.'  "${SCHEMA_SQL}" 2>/dev/null || echo 0)"
+if [[ "${_want_t}" -gt 0 ]]; then
+  ok "[schema] 로드 완료 — ${DB_SCHEMA} 테이블 ${loaded}개 (이 매체 기대: 테이블 ${_want_t} + 뷰 ${_want_v})"
+else
+  ok "[schema] 로드 완료 — ${DB_SCHEMA} 테이블 ${loaded}개."
+fi

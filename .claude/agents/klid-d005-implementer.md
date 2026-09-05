@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/검수-DOMAIN-005/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 개인정보·비식별 신고 규칙의 정본은 `docs/rules/klid-privacy.md` 다** — 차단 범위·응답 코드(412/404/400)·`no-store` 적용 경로·심링크 방어 규약·승인 이력 판정은 **그 파일을 `Read` 해서 확인한다.** 아래 요약은 이 도메인 관점의 발췌이므로 **개수·목록은 stale 될 수 있다** — 판정 근거로 쓰지 말고 정본을 연다.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
@@ -18,7 +20,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-005
 code_root: "backend/src/main/java/kr/co/cudo/authoring/review/ backend/src/main/java/kr/co/cudo/authoring/meta/ backend/src/main/java/kr/co/cudo/authoring/evntanno/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>
@@ -31,7 +33,7 @@ target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐
 ## 도메인 특화 지침 ← 구현 전 반드시 대조
 
 ### 책임·경계
-- 작업자가 제출한 라벨링 결과를 REVIEWER 가 검토해 승인·반려하는 도메인. 검수자 1인이 승인할 때까지 반려↔재제출을 반복하는 **단일 검수**이며, 1차/2차 단계 구분과 '관리자 확인 요청'은 폐기됐다. 근거: DOMAIN-005 본문 · DFEAT-021 · DFEAT-024 · ADR-002 · ADR-003
+- 작업자가 제출한 라벨링 결과를 REVIEWER 가 검토해 승인·반려하는 도메인. 검수자 1인이 승인할 때까지 반려↔재제출을 반복하는 **단일 검수**이며, 1차/2차 단계 구분과 '관리자 확인 요청'은 폐기됐다. 근거: DOMAIN-005 본문 · DFEAT-021 · DFEAT-024 · ADR-002 · ADR-003(⚠ 그 결정의 **역할 통합 축은 `ADR-055` 가 supersede** 했으나, 검수 단계 구분과 '관리자 확인 요청'을 두지 않는다는 **이 결론은 그대로다** — 관리자는 검수자 권한을 물려받을 뿐 별도 확인 단계를 만들지 않는다)
 - **승인(APPROVED)이 작업 종결점**이고, 그 시점이 라벨 스냅샷 → export 전량 재생성 → 관제 통지 연쇄의 시작이다. 이벤트 체인은 ReviewApproved → DatasetExportCompleted → TaskCompleted. 근거: DOMAIN-005 본문 · EVT-006 · EVT-009 · EVT-003
 - **학습데이터 산출(NIA JSON)은 이 도메인 소관**이다 — 증강 도메인이 아니라 검수 승인 경로가 파일을 만든다. 진입 통로(API)가 없고 승인 커밋 후 비동기로만 시작한다. 근거: DFEAT-054 · ADR-020
 - 검수자↔작업자 소통(반려 사유 재질문·문의)은 별도 화면이 아니라 **이슈 스레드**가 담당한다(R1 요구사항 외 추가 결정). 근거: DFEAT-049 · ADR-015

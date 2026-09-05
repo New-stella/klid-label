@@ -2,12 +2,13 @@ package kr.co.cudo.authoring.portal;
 
 import kr.co.cudo.authoring.batch.step.FfmpegFrameExtractor;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
+import kr.co.cudo.authoring.portal.service.PortalExtractionPlan;
 import kr.co.cudo.authoring.portal.service.PortalFrameExtractRunner;
 import kr.co.cudo.authoring.portal.service.PortalFrameExtractTxService;
 import kr.co.cudo.authoring.portal.service.PortalVideoProbe;
-import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,9 +16,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,37 +48,43 @@ class PortalFrameExtractRunnerTest {
     @TempDir
     Path storageDir;
 
+    /** 마킹이 정한 지점 — 러너는 이 목록을 그대로 뽑는다(스스로 계산하지 않는다). */
+    private static final List<Integer> MARKED_FRAMES = List.of(0, 150);
+
     private PortalFrameExtractTxService txService;
     private FfmpegFrameExtractor.FrameWriter frameWriter;
-    private SystemConfigService systemConfigService;
     private PortalFrameExtractRunner runner;
 
     @BeforeEach
     void setUp() throws Exception {
         txService = mock(PortalFrameExtractTxService.class);
         frameWriter = mock(FfmpegFrameExtractor.FrameWriter.class);
-        systemConfigService = mock(SystemConfigService.class);
-        when(systemConfigService.getInt(anyString())).thenReturn(5);
         PortalVideoProbe probe = path -> new PortalVideoProbe.Result(true, 10.0, 30.0);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
                 List.of("jpg"), 20_971_520L, 50, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        runner = new PortalFrameExtractRunner(txService, probe, frameWriter, systemConfigService, props);
+        runner = new PortalFrameExtractRunner(txService, probe, frameWriter, props);
     }
 
-    private LsPortalUld processingUld() throws Exception {
+    /** 추출 계획 — 자산 스냅샷 + 마킹이 정한 프레임 번호. */
+    private PortalExtractionPlan plan() throws Exception {
+        return new PortalExtractionPlan(processingUld(), MARKED_FRAMES);
+    }
+
+    /** 후처리 중 자산 스냅샷 — 상태는 이제 엔티티가 아니라 메타 원장이 소유한다. */
+    private PortalUploadAsset processingUld() throws Exception {
         Path video = Files.createFile(storageDir.resolve("video.mp4"));
-        LsPortalUld uld = LsPortalUld.createVideo("u1", "v.mp4", video.toString(), 1024L, "video/mp4");
-        setField(uld, "uldSn", ULD_SN);
-        uld.markProcessing();
-        return uld;
+        return new PortalUploadAsset(ULD_SN, "u1", PortalUploadLedger.TYPE_VIDEO,
+                "v.mp4", video.toString(), 1024L, "video/mp4",
+                PortalUploadLedger.STATUS_PROCESSING, null, null, 0, null,
+                LocalDateTime.now(), LocalDateTime.now());
     }
 
     @Test
     @DisplayName("프레임_추출_성공시_READY와_프레임행_생성")
     void successMarksReadyWithFrames() throws Exception {
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.of(plan()));
         when(frameWriter.sourceExists(any())).thenReturn(true);
         // writeFrameByNumber — 더미 프레임 파일 생성.
         doAnswer(inv -> {
@@ -92,7 +99,7 @@ class PortalFrameExtractRunnerTest {
         runner.runAsync(ULD_SN);
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<LsPortalUldFrme>> cap = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<LsDataSrc>> cap = ArgumentCaptor.forClass(List.class);
         verify(txService).completeReady(eq(ULD_SN), cap.capture(), any(), any());
         assertThat(cap.getValue()).isNotEmpty();
         verify(txService, never()).markFailed(anyLong(), anyString());
@@ -101,7 +108,7 @@ class PortalFrameExtractRunnerTest {
     @Test
     @DisplayName("프레임_추출_실패시_FAILED와_부분_파일_정리")
     void failureMarksFailedAndCleansPartialFiles() throws Exception {
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.of(plan()));
         when(frameWriter.sourceExists(any())).thenReturn(true);
         when(txService.touchProcessing(ULD_SN)).thenReturn(true);
         // 첫 프레임에서 IOException → 전체 실패.
@@ -117,10 +124,10 @@ class PortalFrameExtractRunnerTest {
     }
 
     @Test
-    @DisplayName("러너_진입시_PROCESSING_전이_및_삭제된_자산이면_중단")
+    @DisplayName("추출_계획이_없으면_중단 — 삭제·미전이·마킹부재")
     void abortsWhenAssetDeletedAtEntry() throws Exception {
-        // beginProcessing 이 empty → 삭제/중복 → 즉시 중단(프레임 추출·markFailed 없음).
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.empty());
+        // 추출 계획이 empty → 삭제·미전이·마킹 부재 → 즉시 중단(프레임 추출·markFailed 없음).
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.empty());
 
         runner.runAsync(ULD_SN);
 
@@ -134,7 +141,7 @@ class PortalFrameExtractRunnerTest {
     void sweepFailedAssetNotRevivedOnComplete() throws Exception {
         // adversarial #1: 조건부 READY 전이가 0행(이미 FAILED) → completeReady false →
         // 러너는 자신이 쓴 프레임 파일을 정리하고 종료(부활 없음, markFailed 도 하지 않음).
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.of(plan()));
         when(frameWriter.sourceExists(any())).thenReturn(true);
         doAnswer(inv -> {
             Path out = inv.getArgument(1);
@@ -163,7 +170,6 @@ class PortalFrameExtractRunnerTest {
         // ★ 하트비트 주기는 「프레임 개수」가 아니라 「경과 시간」이다(무갱신 경과 판정과 축을 맞춘
         //   것 — PortalFrameExtractHeartbeatTest 참조). 그래서 두 번째 하트비트를 일으키려면
         //   프레임 개수를 늘리는 것이 아니라 «시간을 흐르게» 해야 한다.
-        when(systemConfigService.getInt(anyString())).thenReturn(1); // interval 1s → 100프레임
         PortalVideoProbe longProbe = path -> new PortalVideoProbe.Result(true, 100.0, 30.0);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4"), storageDir.toString(),
@@ -171,9 +177,12 @@ class PortalFrameExtractRunnerTest {
                 16_777_216L, 2_097_152L, 30L, 30L);
         java.util.concurrent.atomic.AtomicLong fakeNanos = new java.util.concurrent.atomic.AtomicLong();
         PortalFrameExtractRunner longRunner = new PortalFrameExtractRunner(
-                txService, longProbe, frameWriter, systemConfigService, props, fakeNanos::get);
+                txService, longProbe, frameWriter, props, fakeNanos::get);
 
-        when(txService.beginProcessing(ULD_SN)).thenReturn(Optional.of(processingUld()));
+        // 마킹이 100지점을 정했다고 두면 하트비트가 여러 번 돌 만큼 긴 추출이 된다.
+        List<Integer> many = java.util.stream.IntStream.range(0, 100).map(i -> i * 30).boxed().toList();
+        when(txService.beginExtraction(ULD_SN))
+                .thenReturn(Optional.of(new PortalExtractionPlan(processingUld(), many)));
         when(frameWriter.sourceExists(any())).thenReturn(true);
         doAnswer(inv -> {
             Path out = inv.getArgument(1);
@@ -197,32 +206,31 @@ class PortalFrameExtractRunnerTest {
         assertThat(Files.exists(framesDir)).isFalse();
     }
 
-    // ======================== computeFrameNumbers 순수 로직 ========================
-
+    /**
+     * ★ 되돌림 실증 — 러너가 <b>마킹이 정한 지점만</b> 뽑는다(스스로 간격으로 계산하지 않는다).
+     *
+     * <p>구 동작은 설정된 고정 간격으로 계산하는 것이었고, 그것이 되살아나면 사용자가 고르지 않은
+     * 지점이 뽑힌다.
+     */
     @Test
-    @DisplayName("프레임_수_상한_초과시_균등_샘플링으로_상한_이내")
-    void frameCountCappedByUniformSampling() {
-        // duration 1000s × 30fps, interval 1s → 후보 ~1000개 > cap 10 → 균등 재샘플링.
-        List<Integer> frames = PortalFrameExtractRunner.computeFrameNumbers(1000.0, 30.0, 1, 10);
-        assertThat(frames).hasSizeLessThanOrEqualTo(10);
-        assertThat(frames).isNotEmpty();
-        // 단조 증가.
-        for (int i = 1; i < frames.size(); i++) {
-            assertThat(frames.get(i)).isGreaterThan(frames.get(i - 1));
-        }
-    }
+    @DisplayName("★마킹이_정한_프레임_번호만_그대로_뽑는다")
+    void extractsExactlyMarkedFrameNumbers() throws Exception {
+        when(txService.beginExtraction(ULD_SN)).thenReturn(Optional.of(plan()));
+        when(frameWriter.sourceExists(any())).thenReturn(true);
+        doAnswer(inv -> {
+            Path out = inv.getArgument(1);
+            Files.createDirectories(out.getParent());
+            Files.writeString(out, "frame");
+            return null;
+        }).when(frameWriter).writeFrameByNumber(any(), any(), anyInt());
+        when(txService.touchProcessing(ULD_SN)).thenReturn(true);
+        when(txService.completeReady(eq(ULD_SN), any(), any(), any())).thenReturn(true);
 
-    @Test
-    @DisplayName("영상길이가_간격보다_짧아도_최소_1프레임")
-    void atLeastOneFrameWhenShorterThanInterval() {
-        // duration 2s, interval 5s → 후보 0개 위험이지만 최소 1프레임(0번) 보장.
-        List<Integer> frames = PortalFrameExtractRunner.computeFrameNumbers(2.0, 30.0, 5, 2000);
-        assertThat(frames).containsExactly(0);
-    }
+        runner.runAsync(ULD_SN);
 
-    private static void setField(Object target, String name, Object value) throws Exception {
-        Field f = target.getClass().getDeclaredField(name);
-        f.setAccessible(true);
-        f.set(target, value);
+        ArgumentCaptor<Integer> frameNos = ArgumentCaptor.forClass(Integer.class);
+        verify(frameWriter, times(MARKED_FRAMES.size()))
+                .writeFrameByNumber(any(), any(), frameNos.capture());
+        assertThat(frameNos.getAllValues()).containsExactlyElementsOf(MARKED_FRAMES);
     }
 }

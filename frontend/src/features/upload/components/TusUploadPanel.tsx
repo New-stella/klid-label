@@ -59,10 +59,30 @@ export interface TusUploadPanelProps {
   errorSlot?: ReactNode;
   /** 초기화 — 폼·파일 외에 호출부가 들고 있는 결과·오류도 함께 비우게 알린다. */
   onReset?: () => void;
+  /**
+   * 관리자 단기 유효창 토큰 — 업로드 **시작**에만 실린다. [@design API-158] [@design ADR-046]
+   *
+   * 이 폼은 관리자 페이지 소속 화면(`/admin/uploads`)이 쓰므로 호출부가 값을 갖고 있다. 청크·취소
+   * 에는 실리지 않아 유효창이 끝나도 진행 중이던 업로드가 끊기지 않는다.
+   */
+  adminSessionToken?: string;
+  /**
+   * 지금 관리자 유효창이 잠겨 있는가 — **판정은 호출부가 소유한다.**
+   *
+   * 이 폼이 남은 시간·만료 시각을 직접 들여다보지 않는 이유는 그러면 유효창 판정이 두 곳에 생겨
+   * 한쪽만 갱신되기 때문이다. 폼은 «잠겼는가» 라는 결과만 받는다.
+   */
+  adminSessionLocked?: boolean;
+  /**
+   * 잠긴 상태에서 업로드를 시작하려 했을 때 — 호출부가 관리자 확인 창을 연다.
+   *
+   * 보내 봐야 403 이고 그 거부는 화면에서 「이유를 알 수 없는 실패」(또는 권한 문제)로 읽힌다.
+   */
+  onAdminSessionRequired?: () => void;
 }
 
 /**
- * 영상 업로드 폼 — **적재 경로 선택 + 두 경로가 공유하는 단일 입력 폼**. [@design SCREEN-027]
+ * 파일 업로드 폼 — **적재 경로 선택 + 두 경로가 공유하는 단일 입력 폼**. [@design SCREEN-027]
  *
  * <p>이 화면의 입력 폼은 한 벌뿐이다. 최상단 라디오로 고른 «적재 경로» 가 **보내는 곳과 그 뒤
  * 흐름만** 바꾸며 입력 필드 구성은 두 경로가 완전히 같다.
@@ -76,8 +96,9 @@ export interface TusUploadPanelProps {
  * 않는다» 고 화면이 알린다({@link UnsentNotice}). 그렇다고 입력칸을 잠그지는 않는다 — 경로에 따라
  * 잠기면 «두 경로가 같은 폼» 이라는 계약이 깨진다.
  *
- * <p>입력 부담을 낮추는 것이 이 폼의 설계 기준이다: 필수는 식별 정보 네 항목뿐이고 나머지 묶음은
- * 처음에 접혀 있으며, 기술메타는 비우면 서버가 파일에서 읽어 채운다. 영상 길이는 입력칸 자체가 없다.
+ * <p>입력 부담을 낮추는 것이 이 폼의 설계 기준이다: 두 경로 공통 필수는 식별 정보 세 항목뿐이고
+ * (경로에 따라 촬영일시·이벤트유형이 더해진다) 나머지 묶음은 처음에 접혀 있으며, 기술메타는 비우면
+ * 서버가 파일에서 읽어 채운다. 영상 길이는 입력칸 자체가 없다.
  *
  * <p>보안: 파일명은 표시용이며 저장명은 서버가 정한다(CWE-22). 오류 문구는 서버가 내려준 텍스트를
  * JSX 자동 이스케이프로 표시한다(XSS 방어).
@@ -90,12 +111,15 @@ export function TusUploadPanel({
   immediatePending = false,
   errorSlot,
   onReset,
+  adminSessionToken,
+  adminSessionLocked = false,
+  onAdminSessionRequired,
 }: TusUploadPanelProps = {}) {
   const [route, setRoute] = useState<UploadRoute>(UploadRoute.IMMEDIATE);
   const [file, setFile] = useState<File | null>(null);
   const [form, setForm] = useState<UnifiedUploadFormState>(initialUnifiedUploadForm);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const upload = useTusUpload();
+  const upload = useTusUpload({ adminSessionToken });
 
   const isUploading = upload.status === 'uploading';
   const isBusy = isUploading || immediatePending;
@@ -115,6 +139,14 @@ export function TusUploadPanel({
   const eventTypeCd = useMemo(() => resolveEventTypeCd(form, eventOptions), [form, eventOptions]);
   const sizeLimitMessage = multipartLimitMessage(file, route);
   const canStart = canStartUpload({ file, form, route, eventTypeCd });
+  /**
+   * 잠김이 시작 버튼을 «비활성» 으로 만드는 경우 — 확인 창을 열 통로가 없을 때뿐이다.
+   *
+   * 통로가 있으면(관리자 페이지가 쓰는 정상 경로) 버튼을 살려 둔다. 눌렀을 때 확인 창이 뜨는 편이
+   * 반응 없는 비활성 버튼보다 «무슨 일인지» 를 훨씬 잘 알린다(사용자 관리 화면의 저장 버튼과 같은
+   * 관례). 반대로 통로가 없으면 눌러도 아무 일도 안 일어나므로 그때는 잠가서 사유를 드러낸다.
+   */
+  const startBlockedByLock = adminSessionLocked && !onAdminSessionRequired;
 
   const setValue = (key: keyof UnifiedUploadFormState, value: string) =>
     setForm((s) => ({ ...s, [key]: value }));
@@ -141,6 +173,17 @@ export function TusUploadPanel({
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!file || !canStart) return;
+    // 업로드 «시작» 은 두 경로 모두 관리자 유효창을 요구한다. 잠겨 있으면 요청을 보내기 전에
+    // 확인 창을 먼저 연다 — 보내 봐야 403 이고, 그 거부는 화면에서 「권한이 없다」로 읽혀
+    // 사용자가 역할 문제로 오인한다. 두 경로가 여기서 갈리면 같은 화면이 다르게 동작한다.
+    //
+    // ⚠ 청크 이어보내기(재개)·취소·진행위치 조회에는 이 요구를 얹지 않는다 — 대용량 영상은
+    //   유효창(기본 10분)을 넘기기 마련이라, 거기까지 요구하면 구조적으로 올릴 수 없게 된다.
+    //   그 비대칭은 `adminSession/__tests__/adminSessionHeaderScope.test.ts` 가 지킨다.
+    if (adminSessionLocked) {
+      onAdminSessionRequired?.();
+      return;
+    }
     if (isIngest) {
       const payload = toIngestPayload(form, { fileName: file.name, eventTypeCd });
       void upload.start(file, { filename: file.name }, payload).catch(() => undefined);
@@ -209,7 +252,8 @@ export function TusUploadPanel({
           )}
 
           <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-            <IdentityFieldset {...fieldsetProps} />
+            {/* 촬영일시의 필수 표기가 경로에 따라 갈리므로 이 묶음만 `route` 를 함께 받는다. */}
+            <IdentityFieldset {...fieldsetProps} route={route} />
             <UnsentNotice group="출처유형" route={route} />
           </div>
 
@@ -221,6 +265,7 @@ export function TusUploadPanel({
               resolvedCode={eventTypeCd}
               onCategoryChange={handleEventCategoryChange}
               onManualCodeChange={(v) => setValue('evntTypeCd', v)}
+              route={route}
               disabled={isBusy}
             />
             <VideoLengthNotice />
@@ -303,7 +348,7 @@ export function TusUploadPanel({
                 type="submit"
                 variant="primary"
                 loading={immediatePending}
-                disabled={!canStart || isBusy}
+                disabled={!canStart || isBusy || startBlockedByLock}
               >
                 업로드 시작
               </Button>

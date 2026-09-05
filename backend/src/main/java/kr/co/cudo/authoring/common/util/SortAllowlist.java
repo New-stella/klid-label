@@ -204,7 +204,11 @@ public final class SortAllowlist {
             "videoId", "dataRawSn");
 
     /**
-     * 포털 업로드 자산 목록(GET /v1/portal/uploads) 정렬 allowlist — 외부 키 → {@code LsPortalUld} 필드.
+     * 포털 업로드 자산 목록(GET /v1/portal/uploads) 정렬 allowlist — 외부 키 → <b>논리 정렬 키</b>.
+     *
+     * <p>흡수(ADR-058) 뒤 이 값들은 엔티티 필드명이 아니라 <b>논리 키</b>다 — 자산이 영상 원장과 메타
+     * 원장에 걸쳐 앉아 하나의 엔티티 속성으로 이어지지 않기 때문이다. 논리 키를 실제 SQL 식에 잇는
+     * 곳은 {@code PortalUploadAssetRepository} 한 곳뿐이며, 그 표에 없는 키는 조용히 무시된다.
      *
      * <p>A-ISSUE-61 — 위 {@link #DEIDENT_REPORT} 와 동일한 미배선 지점이었다(미등록 키 → 500).
      *
@@ -224,18 +228,21 @@ public final class SortAllowlist {
 
     /**
      * 포털 업로드 프레임 목록(GET /v1/portal/uploads/&#123;uldSn&#125;/frames) 정렬 allowlist —
-     * 외부 키 → {@code LsPortalUldFrme} 필드.
+     * 외부 키 → 공용 프레임 원장({@code LsDataSrc}) 필드.
      *
-     * <p>리포지토리 JPQL 이 {@code order by f.frmeNo asc} 를 고정으로 갖고 있어 요청 정렬은 그 뒤에
-     * <b>append</b> 되지만, 미등록 키는 동일하게 {@code PropertyReferenceException} → 500 이 된다.
+     * <p>흡수(ADR-058)로 프레임이 공용 원장에 앉으면서 <b>대상 필드명이 바뀌었다</b>. 값이 실제 필드와
+     * 어긋나면 미등록 키와 같은 결과({@code PropertyReferenceException} → 500)가 되므로 함께 옮긴다.
+     *
+     * <p>리포지토리 JPQL 이 {@code order by f.frameNo asc} 를 고정으로 갖고 있어 요청 정렬은 그 뒤에
+     * <b>append</b> 된다.
      *
      * <p>{@link #resolve(Sort, Map, Sort)}(strict) 와 함께 쓴다.
      */
     public static final Map<String, String> PORTAL_UPLOAD_FRAME = Map.of(
-            "frmeNo", "frmeNo",
-            "frameNo", "frmeNo",
-            "uldFrmeSn", "uldFrmeSn",
-            "id", "uldFrmeSn",
+            "frmeNo", "frameNo",
+            "frameNo", "frameNo",
+            "uldFrmeSn", "srcSn",
+            "id", "srcSn",
             "regDt", "regDt");
 
     private SortAllowlist() {

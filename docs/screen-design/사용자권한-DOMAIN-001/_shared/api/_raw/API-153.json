@@ -126,7 +126,7 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "authoring.dev.login.enabled=true(환경변수 DEV_LOGIN_ENABLED) 일 때만 엔드포인트가 노출된다. 미설정이거나 false 면 프로파일과 무관하게 존재하지 않아 404 가 된다(fail-closed). local/dev 프로파일은 기본값이 true 다. stg/prd(운영 계열)는 기본값이 false 이며, 그 값을 뒤집어 켠 채 기동을 시도하면 부팅 자체를 거부한다(fail-closed) — 인증 없이 임의 권한 토큰을 발급하는 경로라 운영에서 켜지면 인증 체계 전체가 우회되기 때문이다.\n\nHS256 서명된 테스트 용 토큰을 즉시 발급한다(인증 불필요 — 토큰을 얻는 진입점이라 같은 설정 조건 아래에서만 열린다). 역할과 채널 조합은 검수자·작업자는 내부 채널, 포털 회원은 포털 채널만 허용한다. 응답에 서명 비밀값은 포함되지 않는다.",
+      "description": "authoring.dev.login.enabled=true(환경변수 DEV_LOGIN_ENABLED) 일 때만 엔드포인트가 노출된다. 미설정이거나 false 면 프로파일과 무관하게 존재하지 않아 404 가 된다(fail-closed). local/dev 프로파일은 기본값이 true 다. stg/prd(운영 계열)는 기본값이 false 이며, 그 값을 뒤집어 켠 채 기동을 시도하면 부팅 자체를 거부한다(fail-closed) — 인증 없이 임의 권한 토큰을 발급하는 경로라 운영에서 켜지면 인증 체계 전체가 우회되기 때문이다.\n\nHS256 서명된 테스트 용 토큰을 즉시 발급한다(인증 불필요 — 토큰을 얻는 진입점이라 같은 설정 조건 아래에서만 열린다). 역할과 채널 조합은 관리자·검수자·작업자는 내부 채널, 포털 회원은 포털 채널만 허용한다. 응답에 서명 비밀값은 포함되지 않는다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -142,6 +142,7 @@
             },
             "role": {
               "enum": [
+                "ADMIN",
                 "REVIEWER",
                 "WORKER",
                 "PORTAL_USER"
@@ -152,7 +153,7 @@
             "userNo": {
               "type": "string",
               "nullable": true,
-              "description": "사용자 번호(sub 클레임). null 이면 역할별 기본값(REVIEWER=1001, WORKER=2001, PORTAL_USER=3001)"
+              "description": "사용자 번호(sub 클레임). null 이면 역할별 기본값(ADMIN=9001, REVIEWER=1001, WORKER=2001, PORTAL_USER=3001)"
             },
             "channel": {
               "enum": [
@@ -160,7 +161,7 @@
                 "PORTAL"
               ],
               "type": "string",
-              "description": "채널 — REVIEWER/WORKER 는 INTERNAL, PORTAL_USER 는 PORTAL 만 허용(불일치 시 400)"
+              "description": "채널 — ADMIN/REVIEWER/WORKER 는 INTERNAL, PORTAL_USER 는 PORTAL 만 허용(불일치 시 400)"
             },
             "expSeconds": {
               "type": "integer",
@@ -181,13 +182,18 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-299"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:48.506Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -195,12 +201,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 4,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션·레포 경로·커밋 해시·작업 이력 표기를 사양 서술로 대체(내용 변경 없음).",
+    "current_version": 6,
+    "stale": true,
+    "stale_reason": "ADR-039의 2개 필드 변경 — based_on",
+    "change_summary": "역할·채널 조합 서술에 관리자(ADMIN) 를 더해 요청 스키마의 역할 4종과 일치시킨다 (서술만 정정, 스키마·기본값 무변경)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:23:15.134Z",
+    "last_updated_at": "2026-09-02T02:27:42.041Z",
     "created_at": "2026-07-30T07:06:26.013Z"
   }
 }

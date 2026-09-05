@@ -31,6 +31,7 @@ import {
 } from '@/features/review/reviewListParams';
 import type { Review, ReviewStatus } from '@/features/review/types';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { cn } from '@/lib/cn';
 import { KRDS_FOCUS } from '@/lib/focusRing';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -77,7 +78,7 @@ export function ReviewListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const claims = useAuthStore((s) => s.claims);
-  const isReviewer = claims?.role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(claims?.role, Role.REVIEWER);
 
   // ── URL → 상태 (단일 진실원) ──────────────────────────────────────
   const filters = useMemo<ReviewFilterValues>(

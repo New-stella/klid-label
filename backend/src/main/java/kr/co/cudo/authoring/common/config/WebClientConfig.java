@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.codec.ClientCodecConfigurer;
-import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -32,6 +31,13 @@ import org.springframework.web.reactive.function.client.WebClient;
  *
  * <p>비식별(4번째)은 이 클래스가 아니라 {@link KpstWebClientConfig} 에 배선돼 있다 — 실제 위탁이
  * 그쪽 빈으로 나가기 때문이다.
+ *
+ * <h3>★ 연동 주소로 기동을 막지 않는다 (2026-09-03 사용자 확정, 구속)</h3>
+ * <p>아래 <b>모든</b> 빈은 주소가 비었든·형식이 틀렸든·예시 값이든·예약 대역이든 <b>기동에
+ * 성공</b>한다. 거부된 값은 {@link ExternalEndpointAddress} 가 빈 base 로 낮추고, 그 연동으로
+ * 나가려는 순간 {@code IntegrationEndpointTransportGuards#requireUsableAddress} 가 막는다.
+ * <b>검증 규칙은 그대로이고 적용 시점만 옮겼다</b> — 한 연동의 설정 실수로 저작 업무 전체가 멈추는
+ * 편이, 배포 시점에 빨리 아는 것보다 훨씬 비싸기 때문이다.
  */
 @Configuration
 public class WebClientConfig {
@@ -58,29 +64,62 @@ public class WebClientConfig {
      */
     @Bean(name = "deidentifyWebClient")
     public WebClient deidentifyWebClient(
-            @Value("${authoring.integration.deidentify.base-url}") String baseUrl) {
-        return WebClient.builder().baseUrl(baseUrl).build();
+            @Value("${authoring.integration.deidentify.base-url:}") String baseUrl) {
+        // ★ 이 값 때문에 기동이 막히지 않는다 — 미설정·파싱 불가면 빈 base 로 낮춘다(2026-09-03 확정).
+        //   정책을 새로 걸지 않는 이유는 「무엇을 막는지는 그대로」이기 때문이다(이 축엔 정책이 없었다).
+        return WebClient.builder()
+                .baseUrl(ExternalEndpointAddress
+                        .formatOnly("authoring.integration.deidentify.base-url", baseUrl)
+                        .baseUrl())
+                .build();
     }
 
+    /**
+     * AI 추론 서버용 WebClient.
+     *
+     * <h3>★ 주소가 어떤 상태여도 기동한다 (2026-09-03 확정, 구속)</h3>
+     * <p>구 배선은 {@code @Value} 에 기본값이 없어 <b>키가 없으면 기동이 죽었고</b>, 값이 파싱되지
+     * 않으면 {@code WebClient.baseUrl(...)} 이 던져 역시 기동이 죽었다. 이제 그 두 경우 모두
+     * <b>빈 base 로 낮추고</b> 전송 시점에 실패한다.
+     *
+     * <p>⚠ 이 축에는 <b>주소 정책이 없다</b>({@code AiSrvrSelector} 주석 참조) — 그래서 여기서도
+     * 정책을 새로 걸지 않고 <b>형식만</b> 본다. 정책을 새로 걸면 지금까지 통과하던 값을 막게 되어
+     * 「무엇을 막는지는 그대로」를 어긴다.
+     *
+     * <p>노드 원장에서 고른 장비로 <b>핀된</b> 요청은 절대 URI 라 호스트가 있으므로 가드를 그대로
+     * 통과한다 — 이중화 배포의 정상 위탁에 영향이 없다.
+     */
     @Bean(name = "aiServerWebClient")
     public WebClient aiServerWebClient(
-            @Value("${authoring.integration.ai-server.base-url}") String baseUrl,
+            @Value("${authoring.integration.ai-server.base-url:}") String baseUrl,
             IntegrationEndpointResolver endpointResolver) {
+        ExternalEndpointAddress address = ExternalEndpointAddress
+                .formatOnly(IntegrationEndpoint.AI_SERVER.configKey(), baseUrl);
+        String base = address.baseUrl();
         return WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(base)
                 .filter(IntegrationEndpointExchangeFilter.of(
-                        IntegrationEndpoint.AI_SERVER, baseUrl, endpointResolver))
+                        IntegrationEndpoint.AI_SERVER, base, endpointResolver))
+                // 빈 base 는 상대 URI 가 되어 loopback:80 으로 나간다 — 전송 자체를 막는다.
+                .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
+                        IntegrationEndpoint.AI_SERVER, address.rejectionLabel()))
                 .exchangeStrategies(largeBufferStrategies())
                 .build();
     }
 
     /**
-     * 외부 VLM 시계열 분석 위탁 클라이언트용 WebClient — Phase 1 신설.
+     * 외부 시계열 분석 위탁 클라이언트용 WebClient.
      *
-     * <p>baseUrl 이 <b>주입돼 있을 때만</b> {@link VlmUrlPolicy} 로 검증한다(위반 시 IllegalStateException
-     * → 빈 생성 실패 → 기동 차단). 정책은 운영 엄격(HTTPS 전용 + 사설망 차단) / 개발 완화(평문 http +
-     * 사설 IP 허용)로 갈리며, <b>완화는 전용 프로퍼티 + 프로파일 allowlist + 기동 assert 로 격리</b>되어
-     * 설정만으로 운영에 새지 않는다. 상세 근거는 {@link VlmUrlPolicy} 참조.
+     * <p>baseUrl 은 {@link VlmUrlPolicy} 로 판정하되 <b>기동을 막지 않는다</b> — 위반이면 빈 base 로
+     * 낮추고 <b>그 주소로 나가려는 순간</b> 거부한다(2026-09-03 확정). 그 정책이 보는 것은
+     * <b>스킴({@code http}/{@code https})과 형식</b>
+     * 이며 전송·대역을 강제하지 않는다 — 연동 주소 정책의 확정 규칙(2026-08-10)이다. 상세·폐기된
+     * 조항은 {@link VlmUrlPolicy} 참조.
+     *
+     * <p>⚠ <b>구 서술 폐기</b>: <i>"정책은 운영 엄격(HTTPS 전용 + 사설망 차단) / 개발 완화로 갈리며 완화는
+     * 전용 프로퍼티 + 프로파일 allowlist + 기동 assert 로 격리된다"</i>. 그 갈림과 완화 플래그
+     * ({@code vlm.client.allow-insecure-url})는 <b>함께 폐기</b>됐다. 되살리면 운영 프로파일에서
+     * <b>평문 http 주소를 채우는 순간 위탁이 전건 거부된다</b>(실 연동은 양쪽 모두 평문 http 다).
      *
      * <p><b>주소가 비어 있으면 검증을 생략하고 빈을 만든다 — 미연동 환경의 기동을 보장한다.</b>
      * 구 동작은 별도 설정 토글이 꺼져 있을 때 검증을 생략하는 것이었으나,
@@ -92,11 +131,10 @@ public class WebClientConfig {
      * 안이다(벤더 연동 확정 전 배포 불가 + 시계열 외 전 기능 동반 차단). 회귀 가드는
      * {@code VlmBlankUrlBootTest} 다.
      *
-     * <p><b>local/dev 완화의 배경</b>: 이 두 프로파일의 VLM 위탁 대상은 목업 벤더 서버(mock-server)다 —
-     * TLS 미지원 평문 http 이고 호스트도 컨테이너 내부 이름({@code klid-mock-server})이라, 운영용 강제를
-     * 그대로 적용하면 <b>빈 생성 실패로 애플리케이션이 기동조차 못 한다</b>(2026-07-25 로컬 배선 시도 시
-     * 실측·원복). 설정 누락(빈 값)·placeholder 호스트·링크로컬/메타데이터 대역 차단은 완화 대상이 아니다.
-     * stg/prd·<b>프로파일 미지정</b>·<b>{@code ENV=stg|prd} 표식</b>은 기존 강제를 유지한다(fail-closed).
+     * <p><b>local/dev 목업 배선</b>: 두 프로파일의 위탁 대상은 목업 벤더 서버(mock-server)로 TLS 미지원
+     * 평문 http 이고 호스트도 컨테이너 내부 이름({@code klid-mock-server})이다. 이제는 <b>모든 프로파일이
+     * 같은 정책</b>이라 별도 완화 배선 없이 그대로 기동한다. 설정 누락(빈 값)·placeholder 호스트·
+     * 링크로컬/메타데이터 대역 차단은 어느 프로파일에서도 그대로다(fail-closed).
      *
      * @design ADR-049
      */
@@ -106,22 +144,25 @@ public class WebClientConfig {
             @Value("${vlm.client.token:}") String token,
             VlmUrlPolicy urlPolicy,
             IntegrationEndpointResolver endpointResolver) {
-        if (StringUtils.hasText(baseUrl)) {
-            urlPolicy.validate(baseUrl);
-        }
+        // ★ 주소가 어떤 상태여도 기동한다 — 판정은 그대로 태우되 결과를 <들고 있다가> 전송 시점에 쓴다.
+        //   구 배선은 여기서 예외를 던져(빈 생성 실패) 기동을 막았다. 규칙은 그대로이고 시점만 옮겼다.
+        ExternalEndpointAddress address =
+                ExternalEndpointAddress.of(IntegrationEndpoint.VLM.configKey(), baseUrl,
+                        urlPolicy.inspect(baseUrl));
         // 토큰 배선은 그대로 두고 주소만 호출 시점 해석으로 바꾼다 — URL 재작성 필터는 URL 만 건드린다.
         // ★그래서 자격증명·스킴 가드를 그 뒤에 이어 붙인다(재작성된 최종 URL 을 봐야 한다).
-        // 미주입은 빈 문자열로 정규화한다 — null 을 그대로 넘기면 실패가 NPE 로 나와 원인 판독이 어렵다.
-        String base = StringUtils.hasText(baseUrl) ? baseUrl : "";
+        // 거부·미주입은 빈 문자열로 정규화된다 — null 을 그대로 넘기면 실패가 NPE 로 나와 판독이 어렵다.
+        String base = address.baseUrl();
         WebClient.Builder b = WebClient.builder()
                 .baseUrl(base)
                 .filter(IntegrationEndpointExchangeFilter.of(
                         IntegrationEndpoint.VLM, base, endpointResolver))
-                // ★ 미연동(주소 미주입)이면 <전송 자체>를 막는다 — 재작성 필터 뒤라 최종 URL 을 본다.
-                //   주소가 비면 상대 URI 가 되어 loopback:80 으로 실제 TCP 연결이 나가고, 그 요청 바디에는
-                //   비식별 영상 절대경로와 콜백 주소가 실린다(온프렘은 같은 호스트에 웹서버가 있어 접근
-                //   로그에 경로가 남는다). 이 연동만 배포 기본값이 빈 값이라 여기에만 건다.
-                .filter(IntegrationEndpointTransportGuards.requireResolvedHost(IntegrationEndpoint.VLM))
+                // ★ 미연동(주소 미주입)이거나 <설정값이 정책 위반>이면 전송 자체를 막는다 — 재작성 필터
+                //   뒤라 최종 URL 을 본다. 주소가 비면 상대 URI 가 되어 loopback:80 으로 실제 TCP 연결이
+                //   나가고, 그 요청 바디에는 비식별 영상 절대경로와 콜백 주소가 실린다(온프렘은 같은
+                //   호스트에 웹서버가 있어 접근 로그에 경로가 남는다).
+                .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
+                        IntegrationEndpoint.VLM, address.rejectionLabel()))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
                         IntegrationEndpoint.VLM, base));
         if (token != null && !token.isBlank()) {
@@ -168,14 +209,21 @@ public class WebClientConfig {
             @Value("${authoring.control-notify.token:}") String token,
             @Value("${authoring.control-notify.enabled:false}") boolean enabled,
             IntegrationEndpointResolver endpointResolver) {
+        // ★ 주소가 어떤 상태여도 기동한다 — 미설정·파싱 불가면 빈 base 로 낮추고 전송 시점에 실패한다.
+        //   이 축에도 주소 정책은 없으므로 형식만 본다(무엇을 막는지는 그대로).
+        ExternalEndpointAddress address = ExternalEndpointAddress
+                .formatOnly(IntegrationEndpoint.CONTROL_NOTIFY.configKey(), baseUrl);
+        String base = address.baseUrl();
         WebClient.Builder builder = WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(base)
                 .filter(IntegrationEndpointExchangeFilter.of(
-                        IntegrationEndpoint.CONTROL_NOTIFY, baseUrl, endpointResolver))
+                        IntegrationEndpoint.CONTROL_NOTIFY, base, endpointResolver))
+                .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
+                        IntegrationEndpoint.CONTROL_NOTIFY, address.rejectionLabel()))
                 .filter(IntegrationEndpointTransportGuards.warnOnSchemeChange(
-                        IntegrationEndpoint.CONTROL_NOTIFY, baseUrl));
+                        IntegrationEndpoint.CONTROL_NOTIFY, base));
         if (token != null && !token.isBlank()) {
-            if (baseUrl != null && baseUrl.trim().toLowerCase(java.util.Locale.ROOT).startsWith("http://")) {
+            if (base.toLowerCase(java.util.Locale.ROOT).startsWith("http://")) {
                 // 평문 http 에 인증 토큰이 실리면 네트워크에 그대로 노출된다(CWE-319) — 값 미출력.
                 log.warn("[ControlNotify] 평문 http 엔드포인트에 인증 토큰이 설정되어 있습니다 — "
                         + "토큰이 네트워크에 평문 노출됩니다(CWE-319). 운영에서는 HTTPS 필수. tokenLength={}",
@@ -184,7 +232,7 @@ public class WebClientConfig {
             builder.defaultHeader(CONTROL_NOTIFY_TOKEN_HEADER, token.trim());
             // 주소를 바꾸면 이 토큰이 새 호스트로 따라간다 — 호스트가 달라지면 떼어낸다(CWE-522).
             builder.filter(IntegrationEndpointTransportGuards.stripCredentialOnHostChange(
-                    IntegrationEndpoint.CONTROL_NOTIFY, baseUrl, CONTROL_NOTIFY_TOKEN_HEADER));
+                    IntegrationEndpoint.CONTROL_NOTIFY, base, CONTROL_NOTIFY_TOKEN_HEADER));
         } else if (enabled) {
             log.warn("[ControlNotify] 통지가 활성화됐으나 인증 토큰(authoring.control-notify.token)이 "
                     + "비어 있습니다 — 관제 SPI 가 {} 를 요구하면 전 통지가 401 로 거부됩니다.",

@@ -14,7 +14,7 @@
         "review"
       ],
       "method": "POST",
-      "summary": "이슈 댓글 작성 — REVIEWER 댓글 시 INQUIRY OPEN→ANSWERED 자동 전이",
+      "summary": "이슈 댓글 작성 — 검수자 이상(관리자 포함) 댓글 시 INQUIRY OPEN→ANSWERED 자동 전이",
       "security": [
         {
           "jwt": [
@@ -58,7 +58,8 @@
                   "authorRoleCd": {
                     "enum": [
                       "WORKER",
-                      "REVIEWER"
+                      "REVIEWER",
+                      "ADMIN"
                     ],
                     "type": "string",
                     "description": "작성자 역할"
@@ -131,7 +132,8 @@
                   "authorRoleCd": {
                     "enum": [
                       "WORKER",
-                      "REVIEWER"
+                      "REVIEWER",
+                      "ADMIN"
                     ],
                     "type": "string",
                     "description": "작성자 역할"
@@ -168,7 +170,7 @@
             "success": true,
             "errorCode": null
           },
-          "description": "생성 성공. REVIEWER 댓글이 OPEN INQUIRY 에 달릴 경우 해당 이슈가 ANSWERED 로 자동 전이. ApiResponse 래퍼의 data 에 IssueCommentResponse.",
+          "description": "생성 성공. 검수자 이상(관리자 포함)의 댓글이 OPEN INQUIRY 에 달릴 경우 해당 이슈가 ANSWERED 로 자동 전이. ApiResponse 래퍼의 data 에 IssueCommentResponse.",
           "content_type": "application/json"
         },
         "400": {
@@ -352,7 +354,7 @@
           "description": "이슈 식별자 (LS_DATA_ISSUE.DATA_ISSUE_SN)"
         }
       ],
-      "description": "이슈 스레드에 댓글 작성. WORKER 는 해당 영상 현재 배정자 또는 이슈 작성자 본인만 가능. REVIEWER 가 INQUIRY(OPEN)에 댓글 작성 시 상태가 ANSWERED 로 자동 전이. RESOLVED INQUIRY 에는 댓글 차단(409) — 단 REJECTION 은 RESOLVED 여도 댓글 허용(반려 후 후속 질문). 낙관적 잠금으로 resolve 와의 동시 충돌 시 409.",
+      "description": "이슈 스레드에 댓글 작성. WORKER 는 해당 영상 현재 배정자 또는 이슈 작성자 본인만 가능. 검수자 이상(관리자 포함)이 INQUIRY(OPEN)에 댓글 작성 시 상태가 ANSWERED 로 자동 전이 — 관리자는 검수자 권한을 계층으로 물려받으므로 같은 전이를 일으킨다. RESOLVED INQUIRY 에는 댓글 차단(409) — 단 REJECTION 은 RESOLVED 여도 댓글 허용(반려 후 후속 질문). 낙관적 잠금으로 resolve 와의 동시 충돌 시 409.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -374,9 +376,13 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-175"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-28T11:31:57.865Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -386,12 +392,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 12,
+    "current_version": 14,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 오염 정정 — 코드 심볼·어노테이션 표기를 사양 서술로 대체(내용 변경 없음).",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:27:32.063Z",
+    "change_summary": "관리자 역할 신설로 이 필드에 관리자 값이 실릴 수 있게 되어 허용 값에 더한다. 관리자는 검수자 권한을 계층으로 물려받아 문의를 등록하고 댓글을 달 수 있으므로 작성자 역할이 관리자로 기록·반환된다. 값을 넓히기만 하고 기존 두 값의 의미·필드명·나머지 계약은 무변경이다. 소비자는 모르는 값을 받아도 원문을 그대로 표시하도록 이미 폴백을 갖추고 있으나, 계약이 실제로 나가는 값을 담지 않으면 그 표기가 우연에 기대게 된다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-28T11:31:57.865Z",
     "created_at": "2026-06-05T04:59:05.455Z"
   }
 }

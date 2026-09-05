@@ -38,6 +38,15 @@ import java.util.Set;
  * <p>WORKER 는 본인 배정 영상에 문의(INQUIRY)를 등록하고, REVIEWER 가 댓글로 답변·해소한다.
  * 검수 반려(REJECTION) 이력과 문의가 통합 스레드로 조회된다.
  *
+ * <p><b>역할 판정은 동등 비교가 아니라 {@link TokenClaims#hasRole(Role)} 이다.</b>
+ * Spring 의 {@code RoleHierarchy} 는 권한(authority) 축에만 걸리므로, 이 서비스가 역할을 그대로
+ * 동등 비교하면 관리자가 검수자 분기에도 작업자 분기에도 걸리지 않고 {@code FORBIDDEN} 으로 떨어져
+ * 이슈 탭이 통째로 403 이 된다. 창구의 「검수자 전용」은 「검수자 이상」으로 읽는다 —
+ * 관리자는 검수자 권한을 계층으로 물려받는다. [design: ADR-055] [design: ROLE-004] [design: AC-125]
+ *
+ * <p>⚠ {@code hasRole(Role.WORKER)} 는 <b>작업자만</b> 참이다. 작업자 분기를 동등 비교로 남겨 두면
+ * 한 체인 안에서 같은 축을 두 방식으로 적게 되므로 함께 옮겼고, 의미는 그대로다.
+ *
  * <p>보안:
  * <ul>
  *   <li><b>인가 (CWE-285/639 IDOR)</b>: createInquiry/listThreads 는 영상(rawSn) 단위 배정·작성자 소유
@@ -66,14 +75,16 @@ public class IssueThreadService {
     private final LsUserRoleRepository lsUserRoleRepository;
 
     /**
-     * 문의 등록. WORKER 는 본인 배정 영상만(TOCTOU — 검증·저장 동일 트랜잭션), REVIEWER 는 전체 허용.
+     * 문의 등록. WORKER 는 본인 배정 영상만(TOCTOU — 검증·저장 동일 트랜잭션),
+     * <b>REVIEWER 이상(관리자 포함)</b>은 전체 허용. [design: ADR-055]
      */
     @Transactional("controlTransactionManager")
     public IssueThreadResponse createInquiry(Long rawSn, IssueCreateRequest req, TokenClaims actor) {
         requireAuthenticated(actor);
-        if (actor.role() == Role.WORKER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        if (actor.hasRole(Role.WORKER)) {
             verifyAssignedWorker(rawSn, actor);
-        } else if (actor.role() != Role.REVIEWER) {
+        } else if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "문의 등록 권한이 없습니다.");
         }
         // CWE-639 — srcSn 이 지정되면 해당 프레임이 이 영상(rawSn) 소속인지 검증 (교차 영상 PK 주입 차단).
@@ -83,23 +94,25 @@ public class IssueThreadService {
         log.info("[Issue] inquiry created issueSn={} rawSn={} actorRole={}",
                 issue.getDataIssueSn(), rawSn, actor.role());
         // 작성자가 곧 호출자라 역할은 이미 손에 있다 — 방금 쓴 행을 되읽지 않는다.
-        // (actor.role() 은 위 분기에서 WORKER/REVIEWER 로 좁혀져 non-null 이며, 그 출처도
-        //  listThreads 가 배치로 읽는 LS_USER_ROLE 과 같은 매핑이다.)
+        // (actor.role() 은 위 분기에서 WORKER/REVIEWER/ADMIN 으로 좁혀져 non-null 이며, 그 출처도
+        //  listThreads 가 배치로 읽는 LS_USER_ROLE 과 같은 매핑이라 두 경로의 값이 갈리지 않는다.)
         return IssueThreadResponse.from(
                 issue, userNameResolver.resolveOne(actor.sub()), actor.role().name(), List.of());
     }
 
     /**
      * 영상의 이슈 스레드 목록 (반려 + 문의 통합, REG_DT 오름차순). 각 스레드에 댓글(시간순) 포함.
-     * REVIEWER 는 전체, WORKER 는 현재 배정 또는 본인 작성 이슈가 있는 영상만 열람 가능.
+     * REVIEWER 이상(관리자 포함)은 전체, WORKER 는 현재 배정 또는 본인 작성 이슈가 있는 영상만 열람 가능.
+     * [design: ADR-055]
      */
     public List<IssueThreadResponse> listThreads(Long rawSn, TokenClaims actor) {
         requireAuthenticated(actor);
         List<LsDataIssue> issues = issueRepository.findByDataRawSnOrderByRegDtAsc(rawSn);
 
-        if (actor.role() == Role.WORKER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        if (actor.hasRole(Role.WORKER)) {
             verifyWorkerThreadAccess(rawSn, actor, issues);
-        } else if (actor.role() != Role.REVIEWER) {
+        } else if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "스레드 조회 권한이 없습니다.");
         }
 
@@ -133,7 +146,8 @@ public class IssueThreadService {
 
     /**
      * 이슈에 댓글 작성. issueSn → 이슈 조회 → {@code rawSn} 역참조 후 권한 재검증(IDOR 방어).
-     * REVIEWER 댓글은 OPEN 문의를 ANSWERED 로 자동 전이. RESOLVED 문의는 409.
+     * <b>검수자 이상(관리자 포함)</b>의 댓글은 OPEN 문의를 ANSWERED 로 자동 전이. RESOLVED 문의는 409.
+     * [design: ADR-055] [design: API-104]
      */
     @Transactional("controlTransactionManager")
     public IssueCommentResponse addComment(Long issueSn, IssueCommentRequest req, TokenClaims actor) {
@@ -142,9 +156,10 @@ public class IssueThreadService {
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "이슈를 찾을 수 없습니다."));
 
         // IDOR — issueSn 의 영상(rawSn) 기준 재검증. WORKER 는 현재 배정 또는 이슈 작성자 본인만.
-        if (actor.role() == Role.WORKER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        if (actor.hasRole(Role.WORKER)) {
             verifyWorkerIssueAccess(issue, actor);
-        } else if (actor.role() != Role.REVIEWER) {
+        } else if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "댓글 작성 권한이 없습니다.");
         }
 
@@ -154,8 +169,9 @@ public class IssueThreadService {
         LsIssueComment comment = commentRepository.save(
                 LsIssueComment.create(issueSn, actor.sub(), actor.role().name(), req.content()));
 
-        // REVIEWER 답변 시 OPEN → ANSWERED 자동 전이. WORKER 댓글은 전이 없음.
-        if (actor.role() == Role.REVIEWER) {
+        // [design: API-104] 검수자 이상(관리자 포함) 답변 시 OPEN → ANSWERED 자동 전이.
+        //   관리자를 빼면 관리자가 답변해도 이슈가 대기 상태에 남는다. WORKER 댓글은 전이 없음.
+        if (actor.hasRole(Role.REVIEWER)) {
             issue.markAnswered();
         }
 
@@ -171,12 +187,14 @@ public class IssueThreadService {
     }
 
     /**
-     * 이슈 해소 (REVIEWER 전용). OPEN/ANSWERED → RESOLVED. 이미 RESOLVED 면 멱등(예외 없음).
+     * 이슈 해소 (<b>검수자 이상</b> — 창구의 「검수자 전용」은 「검수자 이상」이라 관리자도 해소한다).
+     * OPEN/ANSWERED → RESOLVED. 이미 RESOLVED 면 멱등(예외 없음). [design: ADR-055]
      */
     @Transactional("controlTransactionManager")
     public void resolve(Long issueSn, TokenClaims actor) {
         requireAuthenticated(actor);
-        if (actor.role() != Role.REVIEWER) {
+        // [design: ADR-055] 창구의 「검수자 전용」은 「검수자 이상」으로 읽는다 — 관리자는 물려받는다.
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "해소 권한은 REVIEWER 만 가집니다.");
         }
         LsDataIssue issue = issueRepository.findById(issueSn)

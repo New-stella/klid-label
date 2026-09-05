@@ -24,9 +24,12 @@ import java.util.concurrent.TimeUnit;
  * ({@code AugmentJobRollup})의 pending 집합이 비지 않아 <b>증강 1건이 PENDING 에 영구 고착</b>된다.
  * 비종결로 남는 경로는 셋이다:
  * <ol>
- *   <li><b>취소</b> — 「생성형 AI API 연동명세서 v1.1」의 웹훅은 <b>진행·결과</b> 이벤트
- *       (RUNNING/SUCCEEDED/FAILED)만 발신한다. 취소({@code CANCELED})는 취소 API 응답으로만
- *       통보되므로, 우리가 호출하지 않은 취소(벤더 측 운영 취소)는 우리에게 도달하지 않는다.</li>
+ *   <li><b>취소</b> — 「생성형 AI API 연동명세서 v1.3」 §4.5 웹훅은 작업이 {@code SUCCEEDED} 또는
+ *       {@code FAILED} 로 <b>처음 종료되는 시점에 1회</b> 발사되는 것만 보장한다. {@code CANCELED}
+ *       발송 여부는 <b>계약이 아예 보장하지 않으므로</b> 취소는 취소 API 동기 응답이 유일한 확실한
+ *       통보이고, 우리가 호출하지 않은 취소(벤더 측 운영 취소)는 우리에게 도달하지 않는다.
+ *       ⚠ 로컬 목이 {@code RUNNING} 진행 웹훅을 보내는 것은 <b>목의 동작이지 계약이 아니다</b> —
+ *       v1.3 에 진행 웹훅은 없다. 목이 보낸다는 이유로 이 회수 축을 닫지 말 것.</li>
  *   <li><b>콜백 검증 실패(400)</b> — 재전송 여지를 남기려 상태를 바꾸지 않는데, 외부가 재시도를
  *       포기하면 그대로 비종결로 남는다.</li>
  *   <li><b>외부 무응답</b> — 위탁 후 아무 웹훅도 오지 않는 경우.</li>
@@ -46,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <h3>토글 독립</h3>
  * <p>이 스윕은 <b>자기 토글</b>({@code authoring.augment.job-expiry.enabled}, 전 프로파일 기본 true)만
- * 본다. 외부 위탁 모드({@code authoring.augment.external.mode})·관제 통지 토글
+ * 본다. 외부 위탁 주소({@code authoring.augment.external.base-url})·관제 통지 토글
  * ({@code authoring.control-notify.enabled}) 같은 남의 스위치에 얹지 않는다 — 과거 이 리포에서
  * 무관한 토글에 종속돼 운영에서만 무증상 중단된 사고가 있었다. 위탁이 noop 인 환경에서는 후보가
  * 0건이라 스윕이 무해하게 돈다.

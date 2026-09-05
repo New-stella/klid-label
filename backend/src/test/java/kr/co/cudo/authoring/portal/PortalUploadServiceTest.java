@@ -4,13 +4,13 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.portal.dto.PortalUploadDetailResponse;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
 import kr.co.cudo.authoring.portal.service.PortalRetentionPolicy;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import kr.co.cudo.authoring.portal.service.PortalUploadService;
 import kr.co.cudo.authoring.sysconfig.ConfigKeys;
 import kr.co.cudo.authoring.sysconfig.service.SystemConfigService;
@@ -32,7 +32,9 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -40,6 +42,8 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -63,36 +67,47 @@ class PortalUploadServiceTest {
 
     @TempDir Path storageDir;
 
-    private LsPortalUldRepository uldRepository;
-    private LsPortalUldFrmeRepository frmeRepository;
-    private LsPortalUldLblRepository lblRepository;
+    private PortalUploadAssetRepository assetRepository;
+    private PortalUploadFrameRepository frmeRepository;
     private SystemConfigService systemConfigService;
     private PortalUploadService service;
     private final AtomicLong uldSeq = new AtomicLong(100);
     private final AtomicLong frmeSeq = new AtomicLong(500);
+    /** 적재된 자산 스냅샷 — 흡수 뒤 적재는 식별자만 돌려주므로 조회 stub 이 이 표를 읽는다. */
+    private final Map<Long, PortalUploadAsset> inserted = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        uldRepository = mock(LsPortalUldRepository.class);
-        frmeRepository = mock(LsPortalUldFrmeRepository.class);
-        lblRepository = mock(LsPortalUldLblRepository.class);
+        assetRepository = mock(PortalUploadAssetRepository.class);
+        frmeRepository = mock(PortalUploadFrameRepository.class);
         systemConfigService = mock(SystemConfigService.class);
         PortalUploadProperties props = new PortalUploadProperties(
                 5_368_709_120L, List.of("mp4", "mov", "avi"), storageDir.toString(),
                 List.of("jpg", "jpeg", "png"), 1024L, 3, 2000,
                 16_777_216L, 2_097_152L, 30L, 30L);
-        service = new PortalUploadService(uldRepository, frmeRepository, props, lblRepository,
+        service = new PortalUploadService(assetRepository, frmeRepository, props,
                 new PortalRetentionPolicy(systemConfigService),
                 new kr.co.cudo.authoring.portal.service.PortalStoragePathGuard(props));
 
-        when(uldRepository.save(any(LsPortalUld.class))).thenAnswer(inv -> {
-            LsPortalUld u = inv.getArgument(0);
-            setField(u, "uldSn", uldSeq.incrementAndGet());
-            return u;
+        // 적재는 <식별자>만 돌려준다 — 자산은 영상 원장 + 메타 원장에 흩어져 앉기 때문이다.
+        when(assetRepository.insertUploaded(any(), any(), any(), any(), any())).thenAnswer(inv -> {
+            long sn = uldSeq.incrementAndGet();
+            String owner = inv.getArgument(0);
+            String path = inv.getArgument(1);
+            String orgnlNm = inv.getArgument(2);
+            String mime = inv.getArgument(3);
+            Long size = inv.getArgument(4);
+            inserted.put(sn, new PortalUploadAsset(sn, owner,
+                    PortalUploadLedger.assetTypeOf(mime), orgnlNm, path, size, mime,
+                    PortalUploadLedger.STATUS_READY, null, null, 1, null,
+                    LocalDateTime.now(), LocalDateTime.now()));
+            return sn;
         });
-        when(frmeRepository.save(any(LsPortalUldFrme.class))).thenAnswer(inv -> {
-            LsPortalUldFrme f = inv.getArgument(0);
-            setField(f, "uldFrmeSn", frmeSeq.incrementAndGet());
+        when(assetRepository.findByOwner(anyLong(), eq(ALICE)))
+                .thenAnswer(inv -> Optional.ofNullable(inserted.get((Long) inv.getArgument(0))));
+        when(frmeRepository.save(any(LsDataSrc.class))).thenAnswer(inv -> {
+            LsDataSrc f = inv.getArgument(0);
+            setField(f, "srcSn", frmeSeq.incrementAndGet());
             return f;
         });
     }
@@ -113,8 +128,8 @@ class PortalUploadServiceTest {
 
         assertThat(res).hasSize(2);
         assertThat(res).allSatisfy(r -> {
-            assertThat(r.uldSttsCd()).isEqualTo(LsPortalUld.STTS_READY);
-            assertThat(r.uldTypeCd()).isEqualTo(LsPortalUld.TYPE_IMAGE);
+            assertThat(r.uldSttsCd()).isEqualTo(PortalUploadLedger.STATUS_READY);
+            assertThat(r.uldTypeCd()).isEqualTo(PortalUploadLedger.TYPE_IMAGE);
             assertThat(r.frmeCnt()).isEqualTo(1);
             assertThat(r.frmeSn()).isNotNull();
         });
@@ -185,7 +200,7 @@ class PortalUploadServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
-        verify(uldRepository, never()).save(any());
+        verify(assetRepository, never()).insertUploaded(any(), any(), any(), any(), any());
         verify(frmeRepository, never()).save(any());
         assertThat(regularFilesUnder(storageDir)).isEmpty();
     }
@@ -195,7 +210,7 @@ class PortalUploadServiceTest {
     @Test
     @DisplayName("DB_저장_실패시_기록된_파일이_남지_않음")
     void orphanFileRemovedOnDbFailure() {
-        when(frmeRepository.save(any(LsPortalUldFrme.class)))
+        when(frmeRepository.save(any(LsDataSrc.class)))
                 .thenThrow(new RuntimeException("insert failed"));
         List<MultipartFile> files = List.of(img("a.jpg", JPEG_HEAD));
 
@@ -213,20 +228,19 @@ class PortalUploadServiceTest {
     @Test
     @DisplayName("FAILED_자산_목록응답에_실패사유_노출")
     void listResponseCarriesFailReason() {
-        LsPortalUld uld = LsPortalUld.createVideo(ALICE, "clip.mp4", "/x", 8L, "video/mp4");
-        uld.markFailed("프레임 추출 실패: RuntimeException");
+        PortalUploadAsset uld = assetOf(1L, PortalUploadLedger.STATUS_FAILED, REG_DT, REG_DT,
+                "video/mp4", "프레임 추출 실패: RuntimeException");
 
         PortalUploadResponse res = PortalUploadResponse.from(uld);
 
-        assertThat(res.uldSttsCd()).isEqualTo(LsPortalUld.STTS_FAILED);
+        assertThat(res.uldSttsCd()).isEqualTo(PortalUploadLedger.STATUS_FAILED);
         assertThat(res.failRsnCn()).isEqualTo("프레임 추출 실패: RuntimeException");
     }
 
     @Test
     @DisplayName("READY_자산_응답의_실패사유는_null")
     void readyResponseHasNoFailReason() {
-        LsPortalUld uld = LsPortalUld.createImage(ALICE, "a.jpg", "/x", 8L, "image/jpeg");
-        uld.markReady(null, null, 1);
+        PortalUploadAsset uld = asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT);
 
         assertThat(PortalUploadResponse.from(uld).failRsnCn()).isNull();
     }
@@ -236,23 +250,24 @@ class PortalUploadServiceTest {
     @Test
     @DisplayName("타사용자_자산_상세_조회시_403")
     void detailForbiddenForNonOwner() {
-        when(uldRepository.findByUldSnAndPortalUserNo(9L, ALICE)).thenReturn(Optional.empty());
+        when(assetRepository.findByOwner(9L, ALICE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.getUpload(9L, ALICE));
     }
 
     @Test
     @DisplayName("타사용자_프레임_이미지_조회시_403")
     void frameImageForbiddenForNonOwner() {
-        when(frmeRepository.findByUldFrmeSnAndOwner(9L, ALICE)).thenReturn(Optional.empty());
+        when(frmeRepository.findByOwner(9L, ALICE, PortalUploadLedger.SRC_TYPE))
+                .thenReturn(Optional.empty());
         assertForbidden(() -> service.serveFrameImage(9L, ALICE));
     }
 
     @Test
     @DisplayName("타사용자_삭제시_403")
     void deleteForbiddenForNonOwner() {
-        when(uldRepository.findByUldSnAndPortalUserNo(9L, ALICE)).thenReturn(Optional.empty());
+        when(assetRepository.findByOwner(9L, ALICE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.deleteUpload(9L, ALICE));
-        verify(uldRepository, never()).delete(any());
+        verify(assetRepository, never()).deleteOwned(anyLong(), anyString());
     }
 
     private void assertForbidden(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
@@ -273,18 +288,14 @@ class PortalUploadServiceTest {
         Path file = imagesDir.resolve("del.jpg");
         Files.write(file, JPEG_HEAD);
 
-        LsPortalUld uld = LsPortalUld.createImage(ALICE, "del.jpg", file.toString(), 8L, "image/jpeg");
-        setField(uld, "uldSn", 42L);
-        LsPortalUldFrme frme = LsPortalUldFrme.create(42L, 0, file.toString());
-        when(uldRepository.findByUldSnAndPortalUserNo(42L, ALICE)).thenReturn(Optional.of(uld));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(42L)).thenReturn(List.of(frme));
+        seedOwnedAsset(42L, file, "image/jpeg");
 
         // when
         service.deleteUpload(42L, ALICE);
 
-        // then — 파일 삭제 + DB 행 삭제 호출.
+        // then — 파일 삭제 + 자산·자식 행 삭제 호출(소유자 조건이 실행문에 걸린다).
         assertThat(Files.exists(file)).isFalse();
-        verify(uldRepository).delete(uld);
+        verify(assetRepository).deleteOwned(42L, ALICE);
     }
 
     @Test
@@ -297,18 +308,14 @@ class PortalUploadServiceTest {
         Files.createDirectories(nonEmptyDir);
         Files.write(nonEmptyDir.resolve("child.bin"), new byte[]{1}); // 자식 있어 삭제 불가.
 
-        LsPortalUld uld = LsPortalUld.createImage(ALICE, "x.jpg", nonEmptyDir.toString(), 8L, "image/jpeg");
-        setField(uld, "uldSn", 77L);
-        LsPortalUldFrme frme = LsPortalUldFrme.create(77L, 0, nonEmptyDir.toString());
-        when(uldRepository.findByUldSnAndPortalUserNo(77L, ALICE)).thenReturn(Optional.of(uld));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(77L)).thenReturn(List.of(frme));
+        seedOwnedAsset(77L, nonEmptyDir, "image/jpeg");
 
-        // when/then — 파일 삭제 실패 → 5xx + DB 행 보존(delete 미호출).
+        // when/then — 파일 삭제 실패 → 5xx + DB 행 보존(삭제 미호출).
         assertThatThrownBy(() -> service.deleteUpload(77L, ALICE))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INTERNAL_ERROR);
-        verify(uldRepository, never()).delete(any());
+        verify(assetRepository, never()).deleteOwned(anyLong(), anyString());
     }
 
     // ======================== 서빙 파일 부재 (#6) ========================
@@ -318,12 +325,11 @@ class PortalUploadServiceTest {
     void serveMissingFileReturns404() {
         // given — DB 행은 있으나 물리 파일 없음.
         Path ghost = storageDir.resolve("images").resolve("ghost.png");
-        LsPortalUld uld = LsPortalUld.createImage(ALICE, "g.png", ghost.toString(), 8L, "image/png");
-        setField(uld, "uldSn", 55L);
-        LsPortalUldFrme frme = LsPortalUldFrme.create(55L, 0, ghost.toString());
-        setField(frme, "uldFrmeSn", 555L);
-        when(frmeRepository.findByUldFrmeSnAndOwner(555L, ALICE)).thenReturn(Optional.of(frme));
-        when(uldRepository.findByUldSnAndPortalUserNo(55L, ALICE)).thenReturn(Optional.of(uld));
+        seedOwnedAsset(55L, ghost, "image/png");
+        LsDataSrc frme = LsDataSrc.create(55L, 0L, ghost.toString(), null);
+        setField(frme, "srcSn", 555L);
+        when(frmeRepository.findByOwner(555L, ALICE, PortalUploadLedger.SRC_TYPE))
+                .thenReturn(Optional.of(frme));
 
         // when/then — 500 이 아닌 NOT_FOUND.
         assertThatThrownBy(() -> service.serveFrameImage(555L, ALICE))
@@ -338,15 +344,14 @@ class PortalUploadServiceTest {
     @DisplayName("목록조회_type필터_IMAGE만_반환")
     void listUploadsTypeFilterImage() {
         Pageable pageable = PageRequest.of(0, 20);
-        Page<LsPortalUld> empty = new PageImpl<>(List.of(), pageable, 0);
-        when(uldRepository.findAllByPortalUserNoAndUldTypeCd(eq(ALICE), any(), any())).thenReturn(empty);
+        Page<PortalUploadAsset> empty = new PageImpl<>(List.of(), pageable, 0);
+        when(assetRepository.findPageByOwner(eq(ALICE), any(), any())).thenReturn(empty);
 
         service.listUploads(ALICE, "image", pageable); // 소문자 → 대문자 정규화.
 
         ArgumentCaptor<String> typeCaptor = ArgumentCaptor.forClass(String.class);
-        verify(uldRepository).findAllByPortalUserNoAndUldTypeCd(eq(ALICE), typeCaptor.capture(), eq(pageable));
+        verify(assetRepository).findPageByOwner(eq(ALICE), typeCaptor.capture(), eq(pageable));
         assertThat(typeCaptor.getValue()).isEqualTo("IMAGE");
-        verify(uldRepository, never()).findAllByPortalUserNo(any(), any());
     }
 
     @Test
@@ -357,22 +362,34 @@ class PortalUploadServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT);
-        verify(uldRepository, never()).findAllByPortalUserNoAndUldTypeCd(any(), any(), any());
-        verify(uldRepository, never()).findAllByPortalUserNo(any(), any());
+        verify(assetRepository, never()).findPageByOwner(any(), any(), any());
     }
 
     // ======================== 보존기간 만료 예정 시각 (AC-033 / AC-037 / DFEAT-055) ========================
 
     private static final LocalDateTime REG_DT = LocalDateTime.of(2026, 8, 1, 10, 0);
 
-    /** 상태·시각을 지정한 자산 1건 — 엔티티 팩토리는 시각을 now 로 박으므로 리플렉션으로 고정한다. */
-    private LsPortalUld asset(long uldSn, String status, LocalDateTime regDt, LocalDateTime mdfcnDt) {
-        LsPortalUld uld = LsPortalUld.createImage(ALICE, "a.jpg", "/x", 8L, "image/jpeg");
-        setField(uld, "uldSn", uldSn);
-        setField(uld, "uldSttsCd", status);
-        setField(uld, "regDt", regDt);
-        setField(uld, "mdfcnDt", mdfcnDt);
-        return uld;
+    /** 상태·시각을 지정한 자산 1건. 흡수 뒤 자산은 <읽기 모델>이라 그대로 만들면 된다. */
+    private PortalUploadAsset asset(long uldSn, String status, LocalDateTime regDt,
+                                    LocalDateTime sttsChgDt) {
+        return assetOf(uldSn, status, regDt, sttsChgDt, "image/jpeg", null);
+    }
+
+    private PortalUploadAsset assetOf(long uldSn, String status, LocalDateTime regDt,
+                                      LocalDateTime sttsChgDt, String mime, String failReason) {
+        return new PortalUploadAsset(uldSn, ALICE, PortalUploadLedger.assetTypeOf(mime),
+                "a.jpg", "/x", 8L, mime, status, null, null, 1, failReason, regDt, sttsChgDt);
+    }
+
+    /** 소유 자산 1건 + 그 자산의 파일 경로 — 삭제·서빙 시나리오 공통 픽스처. */
+    private void seedOwnedAsset(long uldSn, Path filePath, String mime) {
+        PortalUploadAsset asset = new PortalUploadAsset(uldSn, ALICE,
+                PortalUploadLedger.assetTypeOf(mime), "x", filePath.toString(), 8L, mime,
+                PortalUploadLedger.STATUS_READY, null, null, 1, null,
+                LocalDateTime.now(), LocalDateTime.now());
+        inserted.put(uldSn, asset);
+        // 경로 수집(프레임 + 원본, 중복 제거)은 리포지토리가 소유한다.
+        when(assetRepository.findFilePaths(uldSn)).thenReturn(List.of(filePath.toString()));
     }
 
     private void stubRetentionDays(Integer ready, Integer failed) {
@@ -382,16 +399,16 @@ class PortalUploadServiceTest {
 
     /** 라벨 마지막 저장일 집계 결과 stub — 인자로 준 자산만 라벨을 가진다. */
     private void stubLastLabelSavedAt(Object... uldSnThenTime) {
-        List<Object[]> rows = new java.util.ArrayList<>();
+        Map<Long, LocalDateTime> rows = new HashMap<>();
         for (int i = 0; i < uldSnThenTime.length; i += 2) {
-            rows.add(new Object[]{uldSnThenTime[i], uldSnThenTime[i + 1]});
+            rows.put((Long) uldSnThenTime[i], (LocalDateTime) uldSnThenTime[i + 1]);
         }
-        when(lblRepository.findMaxRegDtGroupedByUldSn(eq(ALICE), any())).thenReturn(rows);
+        when(assetRepository.findLastLabelSavedAt(eq(ALICE), any())).thenReturn(rows);
     }
 
-    private List<PortalUploadResponse> listAll(LsPortalUld... assets) {
+    private List<PortalUploadResponse> listAll(PortalUploadAsset... assets) {
         Pageable pageable = PageRequest.of(0, 20);
-        when(uldRepository.findAllByPortalUserNo(eq(ALICE), any()))
+        when(assetRepository.findPageByOwner(eq(ALICE), eq(null), any()))
                 .thenReturn(new PageImpl<>(List.of(assets), pageable, assets.length));
         return service.listUploads(ALICE, null, pageable).getContent();
     }
@@ -404,7 +421,7 @@ class PortalUploadServiceTest {
         stubLastLabelSavedAt();
 
         // when
-        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+        List<PortalUploadResponse> res = listAll(asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT));
 
         // then: 등록일 + 7일
         assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
@@ -419,7 +436,7 @@ class PortalUploadServiceTest {
         stubLastLabelSavedAt(1L, labelSavedAt);
 
         // when
-        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+        List<PortalUploadResponse> res = listAll(asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT));
 
         // then: 늦은 쪽(라벨 저장일) + 7일 — 작업 중이면 만료가 계속 밀린다
         assertThat(res.get(0).expiresAt()).isEqualTo(labelSavedAt.plusDays(7));
@@ -433,7 +450,7 @@ class PortalUploadServiceTest {
         stubLastLabelSavedAt(1L, REG_DT.minusDays(2));
 
         // when
-        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+        List<PortalUploadResponse> res = listAll(asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT));
 
         // then
         assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
@@ -449,8 +466,8 @@ class PortalUploadServiceTest {
 
         // when
         List<PortalUploadResponse> res = listAll(
-                asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT),
-                asset(2L, LsPortalUld.STTS_FAILED, REG_DT, failedAt));
+                asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT),
+                asset(2L, PortalUploadLedger.STATUS_FAILED, REG_DT, failedAt));
 
         // then: 두 축이 서로 다른 기준점·기간으로 계산된다
         assertThat(res.get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
@@ -466,8 +483,8 @@ class PortalUploadServiceTest {
 
         // when
         List<PortalUploadResponse> res = listAll(
-                asset(1L, LsPortalUld.STTS_PROCESSING, REG_DT, REG_DT),
-                asset(2L, LsPortalUld.STTS_UPLOADED, REG_DT, REG_DT));
+                asset(1L, PortalUploadLedger.STATUS_PROCESSING, REG_DT, REG_DT),
+                asset(2L, PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT));
 
         // then
         assertThat(res.get(0).expiresAt()).isNull();
@@ -480,7 +497,7 @@ class PortalUploadServiceTest {
         // given: 7일로 한 번 조회
         stubRetentionDays(7, 1);
         stubLastLabelSavedAt();
-        LsPortalUld ready = asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT);
+        PortalUploadAsset ready = asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT);
         assertThat(listAll(ready).get(0).expiresAt()).isEqualTo(REG_DT.plusDays(7));
 
         // when: 설정만 14일로 변경 후 같은 자산을 재조회 (저장된 값이 아니라 파생값이어야 한다)
@@ -500,7 +517,7 @@ class PortalUploadServiceTest {
         stubLastLabelSavedAt();
 
         // when
-        List<PortalUploadResponse> res = listAll(asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT));
+        List<PortalUploadResponse> res = listAll(asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT));
 
         // then: 500 으로 깨지지 않고 그 필드만 비운다
         assertThat(res).hasSize(1);
@@ -517,13 +534,13 @@ class PortalUploadServiceTest {
 
         // when
         List<PortalUploadResponse> res = listAll(
-                asset(1L, LsPortalUld.STTS_READY, REG_DT, REG_DT),
-                asset(2L, LsPortalUld.STTS_READY, REG_DT, REG_DT),
-                asset(3L, LsPortalUld.STTS_FAILED, REG_DT, REG_DT));
+                asset(1L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT),
+                asset(2L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT),
+                asset(3L, PortalUploadLedger.STATUS_FAILED, REG_DT, REG_DT));
 
         // then: 행 수와 무관하게 집계 1회 + 설정 키별 1회
         assertThat(res).hasSize(3);
-        verify(lblRepository, times(1)).findMaxRegDtGroupedByUldSn(eq(ALICE), any());
+        verify(assetRepository, times(1)).findLastLabelSavedAt(eq(ALICE), any());
         verify(systemConfigService, times(1)).getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS);
         verify(systemConfigService, times(1)).getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS);
     }
@@ -536,7 +553,7 @@ class PortalUploadServiceTest {
 
         // then
         assertThat(res).isEmpty();
-        verify(lblRepository, never()).findMaxRegDtGroupedByUldSn(any(), any());
+        verify(assetRepository, never()).findLastLabelSavedAt(any(), any());
         verify(systemConfigService, never()).getInt(any());
     }
 
@@ -547,16 +564,16 @@ class PortalUploadServiceTest {
         stubRetentionDays(7, 1);
         LocalDateTime labelSavedAt = REG_DT.plusDays(2);
         stubLastLabelSavedAt(42L, labelSavedAt);
-        LsPortalUld uld = asset(42L, LsPortalUld.STTS_READY, REG_DT, REG_DT);
-        when(uldRepository.findByUldSnAndPortalUserNo(42L, ALICE)).thenReturn(Optional.of(uld));
-        when(frmeRepository.findAllByUldSnOrderByFrmeNo(42L)).thenReturn(List.of());
+        PortalUploadAsset uld = asset(42L, PortalUploadLedger.STATUS_READY, REG_DT, REG_DT);
+        when(assetRepository.findByOwner(42L, ALICE)).thenReturn(Optional.of(uld));
+        when(frmeRepository.findAllByRawSnOrderByFrameNoAsc(42L)).thenReturn(List.of());
 
         // when
         PortalUploadDetailResponse res = service.getUpload(42L, ALICE);
 
         // then
         assertThat(res.expiresAt()).isEqualTo(labelSavedAt.plusDays(7));
-        verify(lblRepository, times(1)).findMaxRegDtGroupedByUldSn(eq(ALICE), any());
+        verify(assetRepository, times(1)).findLastLabelSavedAt(eq(ALICE), any());
     }
 
     // ======================== 프레임 목록 IDOR (#7) ========================
@@ -565,9 +582,9 @@ class PortalUploadServiceTest {
     @DisplayName("타사용자_프레임목록_조회시_403")
     void listFramesForbiddenForNonOwner() {
         Pageable pageable = PageRequest.of(0, 20);
-        when(uldRepository.findByUldSnAndPortalUserNo(9L, ALICE)).thenReturn(Optional.empty());
+        when(assetRepository.findByOwner(9L, ALICE)).thenReturn(Optional.empty());
         assertForbidden(() -> service.listFrames(9L, ALICE, pageable));
-        verify(frmeRepository, never()).findAllByUldSnAndOwnerOrderByFrmeNo(any(), any(), any());
+        verify(frmeRepository, never()).findPageByAssetAndOwner(any(), any(), any(), any());
     }
 
     // ======================== 다건 롤백 (#4/#5) ========================

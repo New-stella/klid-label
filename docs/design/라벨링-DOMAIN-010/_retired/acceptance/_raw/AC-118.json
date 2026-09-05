@@ -1,0 +1,72 @@
+{
+  "item": {
+    "id": "AC-118",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "매핑된 라벨이 없는 프리셋은 경고와 함께 저장에 성공한다",
+    "slug": "매핑된-라벨이-없는-프리셋은-경고와-함께-저장에-성공한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "라벨별 매핑 여부가 화면에 보인다",
+          "오토라벨링에 적용되지 않는다는 경고가 뜬다",
+          "저장이 거부되지 않고 성공한다"
+        ],
+        "when": [
+          "검수자가 그 라벨만 담아 프리셋을 저장한다"
+        ],
+        "given": [
+          "AI 검출 클래스에 매핑되지 않은 라벨이 있다"
+        ]
+      },
+      "statement": "프리셋 등록 화면에서 라벨별 AI 검출 클래스 매핑 여부가 보이고, 담긴 라벨이 전부 미매핑인 프리셋을 저장하면 오토라벨링에 적용되지 않는다는 경고가 뜨되 저장은 성공한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "in_progress",
+        "modules": [],
+        "records": [],
+        "progress": 75,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "라벨별 검출 클래스 매핑 코드를 응답에 싣는다"
+          },
+          {
+            "done": true,
+            "description": "전부 미매핑이어도 저장을 거부하지 않는다"
+          },
+          {
+            "done": true,
+            "description": "프리셋 실효 여부를 응답에 싣는다"
+          },
+          {
+            "done": false,
+            "description": "화면이 매핑 여부와 미적용 경고를 표시한다"
+          }
+        ],
+        "last_updated": "2026-08-25T12:09:33.440Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "UC-032의 4개 필드 변경 — derived_from",
+    "change_summary": "직전 갱신의 하위작업 표기 오타를 바로잡는다",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T12:09:33.440Z",
+    "created_at": "2026-08-25T10:32:49.363Z"
+  }
+}

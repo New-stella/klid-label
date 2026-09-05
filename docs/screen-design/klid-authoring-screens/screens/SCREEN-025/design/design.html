@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="design.css"></head><body><main class="screen-root">
+
+  
+  <div class="page-head">
+    <nav aria-label="현재 위치">
+      <ol class="breadcrumb">
+        <li><a href="#">관리</a></li>
+        <li class="sep" aria-hidden="true">›</li>
+        <li aria-current="page"><span class="current">시스템 설정</span></li>
+      </ol>
+    </nav>
+    <div class="page-sub">
+      <h1 class="t-title-lg">시스템 설정</h1>
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>검수자 전용</span>
+    </div>
+    <p class="page-desc t-body-sm text-muted">배치 파라미터 · 외부 연동 헬스</p>
+  </div>
+
+  <div class="settings-layout">
+
+    
+    <div class="settings-main">
+
+      
+      <div class="settings-grid">
+
+        
+        <section class="card config-card" aria-labelledby="cfg-batch-title">
+          <header class="card-header">
+            <div class="config-heading">
+              <h2 class="t-title-md" id="cfg-batch-title">배치 처리</h2>
+              <p class="t-caption text-muted">신규 영상을 픽업하는 주기와 동시 처리 수</p>
+            </div>
+            <div class="config-actions">
+              <button type="button" class="btn btn-primary btn-sm" disabled>저장</button>
+            </div>
+          </header>
+          <div class="card-content">
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-interval">처리 주기</label>
+                <span class="field-readout">60<span class="unit">초</span></span>
+              </div>
+              <input type="range" class="slider" id="cfg-interval" value="17" role="slider" aria-valuemin="10" aria-valuemax="300" aria-valuenow="60" aria-valuetext="60초" style="--fill:17%" aria-describedby="cfg-interval-help" />
+              <div class="slider-scale t-caption"><span>10초</span><span>300초</span></div>
+              <p class="t-caption field-help" id="cfg-interval-help">짧을수록 신규 영상이 빨리 처리되지만 서버 부하가 커집니다.</p>
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-concurrency">동시 처리 수</label>
+                <span class="field-readout">3<span class="unit">건</span></span>
+              </div>
+              <input type="range" class="slider" id="cfg-concurrency" value="29" role="slider" aria-valuemin="1" aria-valuemax="8" aria-valuenow="3" aria-valuetext="3건" style="--fill:29%" aria-describedby="cfg-concurrency-help" />
+              <div class="slider-scale t-caption"><span>1건</span><span>8건</span></div>
+              <p class="t-caption field-help" id="cfg-concurrency-help">높일수록 처리량이 늘지만 자원 경합이 커집니다.</p>
+            </div>
+
+            <div class="field skip-field" data-on="true">
+              <label class="t-label field-label" for="cfg-vlm-skip">시계열 위탁 전체 건너뛰기</label>
+              <label class="switch" for="cfg-vlm-skip">
+                <input type="checkbox" id="cfg-vlm-skip" checked aria-describedby="cfg-vlm-skip-on" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text t-body-sm">건너뛰는 중</span>
+              </label>
+              <p class="t-caption skip-on-note" id="cfg-vlm-skip-on" role="status">지금 들어오는 영상은 외부 시계열 분석에 위탁하지 않고 건너뛴 것으로 기록됩니다. 벤더 연동이 끝나면 이 스위치를 꺼 주세요 — 끄지 않으면 이후 영상도 계속 건너뜁니다.</p>
+              <label class="t-label field-label" for="cfg-vlm-skip-reason">건너뛰기 사유 <span class="req" aria-hidden="true">*</span><span class="sr-only">필수</span></label>
+              <input class="input" type="text" id="cfg-vlm-skip-reason" value="외부 시계열 분석 벤더 연동 전" placeholder="예) 외부 시계열 분석 벤더 연동 전" aria-describedby="cfg-vlm-skip-reason-help" />
+              <p class="t-caption field-help" id="cfg-vlm-skip-reason-help">비어 있으면 위 스위치를 켤 수 없습니다. 이 문구가 건너뜀 기록의 사유로 그대로 남아, 나중에 그 영상의 시계열이 왜 비어 있는지 되짚는 근거가 됩니다.</p>
+            </div>
+
+          </div>
+        </section>
+
+        
+        <section class="card config-card" aria-labelledby="cfg-detect-title">
+          <header class="card-header">
+            <div class="config-heading">
+              <h2 class="t-title-md" id="cfg-detect-title">AI 탐지 추론 파라미터</h2>
+              <p class="t-caption text-muted">자동 탐지의 확신도 기준과 겹침 제거 기준</p>
+            </div>
+            <div class="config-actions">
+              <button type="button" class="btn btn-primary btn-sm" disabled>저장</button>
+            </div>
+          </header>
+          <div class="card-content">
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-conf">Confidence Threshold</label>
+                <span class="field-readout">0.45</span>
+              </div>
+              <input type="range" class="slider" id="cfg-conf" value="36" role="slider" aria-valuemin="25" aria-valuemax="80" aria-valuenow="45" aria-valuetext="45" style="--fill:36%" aria-describedby="cfg-conf-help" />
+              <div class="slider-scale t-caption"><span>0.25</span><span>0.80</span></div>
+              <p class="t-caption field-help" id="cfg-conf-help">값이 높을수록 확신도가 높은 객체만 인식합니다.</p>
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-iou">IoU 임계값</label>
+                <span class="field-readout">0.45</span>
+              </div>
+              <input type="range" class="slider" id="cfg-iou" value="36" role="slider" aria-valuemin="25" aria-valuemax="80" aria-valuenow="45" aria-valuetext="45" style="--fill:36%" aria-describedby="cfg-iou-help cfg-iou-guard" />
+              <div class="slider-scale t-caption"><span>0.25</span><span>0.80</span></div>
+              <p class="t-caption slider-guard" id="cfg-iou-guard">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+                <span>0.30 미만 구간은 저장할 수 없습니다.</span>
+              </p>
+              <p class="t-caption field-help" id="cfg-iou-help">겹친 탐지 결과를 하나로 합치는 기준입니다.</p>
+            </div>
+
+          </div>
+        </section>
+
+        
+        <section class="card config-card" aria-labelledby="cfg-precision-title">
+          <header class="card-header">
+            <div class="config-heading">
+              <h2 class="t-title-md" id="cfg-precision-title">라벨링 정밀도</h2>
+              <p class="t-caption text-muted">AI 인식 민감도와 폴리곤 경계의 세밀함</p>
+            </div>
+            <div class="config-actions">
+              <span class="badge badge-primary"><span class="dot" aria-hidden="true"></span>변경됨</span>
+              <button type="button" class="btn btn-primary btn-sm">저장</button>
+            </div>
+          </header>
+          <div class="card-content">
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-sensitivity">인식 민감도</label>
+                <span class="field-readout">0.45</span>
+              </div>
+              <input type="range" class="slider" id="cfg-sensitivity" value="36" role="slider" aria-valuemin="25" aria-valuemax="80" aria-valuenow="45" aria-valuetext="45" style="--fill:36%" aria-describedby="cfg-sensitivity-link" />
+              <div class="slider-scale t-caption"><span>0.25</span><span>0.80</span></div>
+              <p class="t-caption link-note" id="cfg-sensitivity-link">
+                <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                <span>「AI 탐지 추론 파라미터」의 Confidence Threshold 와 같은 값입니다. 한쪽을 바꾸면 다른 쪽에도 반영됩니다.</span>
+              </p>
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-tolerance">경계 세밀함</label>
+                <span class="field-readout">2.5<span class="unit">px</span></span>
+              </div>
+              <input type="range" class="slider" id="cfg-tolerance" value="5" role="slider" aria-valuemin="0" aria-valuemax="50" aria-valuenow="2.5" aria-valuetext="2.5px" style="--fill:5%" aria-describedby="cfg-tolerance-help" />
+              <div class="slider-scale t-caption"><span>0.0px</span><span>50.0px</span></div>
+              <p class="t-caption field-help" id="cfg-tolerance-help">값이 작을수록 경계가 원본에 가깝게 세밀해지고 점 수가 늘어납니다.</p>
+            </div>
+
+          </div>
+        </section>
+
+        
+        <section class="card config-card" aria-labelledby="cfg-deident-title">
+          <header class="card-header">
+            <div class="config-heading">
+              <h2 class="t-title-md" id="cfg-deident-title">비식별 옵션</h2>
+              <p class="t-caption text-muted">비식별 처리 옵션</p>
+            </div>
+            <div class="config-actions">
+              <button type="button" class="btn btn-primary btn-sm" disabled>저장</button>
+            </div>
+          </header>
+          <div class="card-content">
+
+            <div class="field">
+              <label class="t-label field-label" for="cfg-mask-kind">마스킹 방식</label>
+              <select class="select" id="cfg-mask-kind">
+                <option>색상</option>
+                <option selected>모자이크</option>
+                <option>블러</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label class="t-label field-label" for="cfg-mask-scale">마스킹 범위</label>
+                <span class="field-readout">1.0<span class="unit">배</span></span>
+              </div>
+              <input type="range" class="slider" id="cfg-mask-scale" value="33" role="slider" aria-valuemin="0.5" aria-valuemax="2.0" aria-valuenow="1.0" aria-valuetext="1배" style="--fill:33%" aria-describedby="cfg-mask-scale-help" />
+              <div class="slider-scale t-caption"><span>0.5배</span><span>2.0배</span></div>
+              <p class="t-caption field-help" id="cfg-mask-scale-help">감지된 영역을 얼마나 넓게 덮을지 정합니다. 작으면 대상이 드러나고 크면 주변까지 가려집니다.</p>
+            </div>
+
+            <div class="field">
+              <label class="t-label field-label" for="cfg-keep-frame">프레임 저장 여부</label>
+              <label class="switch" for="cfg-keep-frame">
+                <input type="checkbox" id="cfg-keep-frame" aria-describedby="cfg-keep-frame-help" />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text t-body-sm">저장하지 않음</span>
+              </label>
+              <p class="t-caption field-help" id="cfg-keep-frame-help">비식별 서버가 처리한 프레임을 자기 저장소에 남길지 정합니다.</p>
+            </div>
+
+            <p class="t-caption field-help">저장한 값은 그 다음부터 새로 위탁하는 영상에 적용됩니다. 이미 위탁한 건은 바뀌지 않습니다.</p>
+
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+
+    
+    <aside class="settings-side">
+
+      <section class="card health-card" aria-labelledby="health-title">
+        <header class="card-header">
+          <div class="config-heading">
+            <h2 class="t-title-md" id="health-title">외부 연동 상태</h2>
+          </div>
+          <span class="poll-tag t-caption">
+            <span class="pulse" aria-hidden="true"></span>
+            <span>5초마다 갱신</span>
+          </span>
+        </header>
+        <div class="card-content">
+
+          <ul class="health-list">
+            <li class="health-item" data-status="up">
+              <svg class="icon health-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M2 9a15 15 0 0 1 20 0M8.5 16a5 5 0 0 1 7 0"></path><circle cx="12" cy="20" r="1"></circle></svg>
+              <span class="health-name">데이터베이스</span>
+              <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>정상</span>
+              <span class="health-sub"><span class="health-latency">3ms</span></span>
+            </li>
+
+            <li class="health-item" data-status="up">
+              <svg class="icon health-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M2 9a15 15 0 0 1 20 0M8.5 16a5 5 0 0 1 7 0"></path><circle cx="12" cy="20" r="1"></circle></svg>
+              <span class="health-name">디스크</span>
+              <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>정상</span>
+              <span class="health-sub"><span class="health-latency">1ms</span></span>
+            </li>
+
+            <li class="health-item" data-status="up">
+              <svg class="icon health-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M2 9a15 15 0 0 1 20 0M8.5 16a5 5 0 0 1 7 0"></path><circle cx="12" cy="20" r="1"></circle></svg>
+              <span class="health-name">관제서버</span>
+              <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>정상</span>
+              <span class="health-sub">
+                <span class="health-url">control.klid.internal</span>
+                <span class="health-latency">42ms</span>
+              </span>
+            </li>
+
+            <li class="health-item" data-status="up">
+              <svg class="icon health-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M2 9a15 15 0 0 1 20 0M8.5 16a5 5 0 0 1 7 0"></path><circle cx="12" cy="20" r="1"></circle></svg>
+              <span class="health-name">AI서버</span>
+              <span class="badge badge-success"><span class="dot" aria-hidden="true"></span>정상</span>
+              <span class="health-sub">
+                <span class="health-url">ai-server.klid.internal:9300</span>
+                <span class="health-latency">128ms</span>
+              </span>
+            </li>
+
+            <li class="health-item" data-status="out">
+              <svg class="icon health-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4m0 4h.01"></path></svg>
+              <span class="health-name">포털서버</span>
+              <span class="badge badge-warn"><span class="dot" aria-hidden="true"></span>서비스 중단</span>
+              <span class="health-sub">
+                <span class="health-url">portal.klid.internal</span>
+              </span>
+            </li>
+
+            <li class="health-item" data-status="down">
+              <svg class="icon health-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M2 2l20 20M8.5 16a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 5-2.6M2 9a15 15 0 0 1 6-3.8M14 5.6A15 15 0 0 1 22 9"></path><circle cx="12" cy="20" r="1"></circle></svg>
+              <span class="health-name">비식별서버</span>
+              <span class="badge badge-error"><span class="dot" aria-hidden="true"></span>연결 끊김</span>
+              <span class="health-sub">
+                <span class="health-url">deid.klid.internal</span>
+              </span>
+            </li>
+          </ul>
+
+          <div class="health-foot">
+            <p class="t-caption">서버 헬스 엔드포인트에서 실시간으로 조회한 값입니다.</p>
+            <p class="t-caption">이 목록은 편집할 수 없습니다.</p>
+          </div>
+
+        </div>
+      </section>
+    </aside>
+
+  </div>
+
+  
+  <div class="reference-panel">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">조회·저장 결과에 따라 화면이 대신 표시하는 상태입니다 — 실제 화면에는 이 중 하나가 상황에 맞게 나타납니다.</span>
+    </div>
+    <div class="reference-grid">
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">컴포넌트 목록이 비었을 때 — 전체 상태 1행 대체</p>
+          <div class="overall-row">
+            <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+            <span class="t-body-sm">전체 상태</span>
+            <span class="badge badge-success" style="margin-left:auto"><span class="dot" aria-hidden="true"></span>정상</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">설정 조회 중 — 로딩 스켈레톤</p>
+          <div class="skeleton" style="height:18px;width:52%;margin-bottom:12px"></div>
+          <div class="skeleton" style="height:44px;width:100%;margin-bottom:8px"></div>
+          <div class="skeleton" style="height:44px;width:100%"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">설정 조회 실패 — 에러 상태</p>
+          <div class="state-box" data-state="error" role="alert">
+            <svg class="icon-lg state-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"></path></svg>
+            <p class="t-body-sm state-title">설정을 불러올 수 없습니다</p>
+            <p class="t-caption">잠시 후 다시 시도해 주세요</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="reference-grid-2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">저장 성공 — 카드별 토스트</p>
+          <div class="toast toast-success" role="status">
+            <svg class="icon toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.5 11 15l4.5-5"></path></svg>
+            <span class="toast-body">
+              <span class="t-body-sm toast-title">라벨링 정밀도를 저장했습니다</span>
+              <span class="t-caption text-muted">바뀐 항목만 저장되었습니다</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">저장 실패 — 공통 실패 토스트</p>
+          <div class="toast toast-error" role="alert">
+            <svg class="icon toast-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
+            <span class="toast-body">
+              <span class="t-body-sm toast-title">설정을 저장하지 못했습니다</span>
+              <span class="t-caption text-muted">입력한 값을 확인한 뒤 다시 시도해 주세요</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main></body></html>

@@ -1,16 +1,17 @@
 ---
 logicraft_item: DOMAIN-011
 type: domain
-version: 6
+version: 8
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.117Z
-status: NEW
-prev_version: null
-content_hash: e7cffc9e1be8e99131000baf29107dbda2c2d023578f5b1474eba7b4d5ff94ee
-stale: false
+synced_at: 2026-08-25T10:52:10.953Z
+status: CHANGED
+prev_version: 7
+content_hash: d19b8bffd1e9a3ae3142b81b30cff42078a58461c6d338ca1770c941cd3003df
+stale: true
 raw: ./_raw/DOMAIN-011.json
 links:
+  based_on: ["[[ADR-008]]"]
   depends_on: ["[[INT-002]]"]
   applies_to_backward: ["[[NFR-008]]", "[[NFR-011]]", "[[NFR-018]]", "[[NFR-019]]"]
   belongs_to_domain_backward: ["[[ADR-008]]", "[[API-047]]", "[[API-091]]", "[[CDIAG-002]]", "[[CMP-002]]", "[[DFEAT-039]]", "[[ERD-013]]", "[[EVT-001]]", "[[SCREEN-006]]", "[[SD-012]]"]
@@ -53,7 +54,7 @@ ADR-008
 
 [★마킹 중 비식별 누락 발견] 이 단계에서도 신고할 수 있다(rawSn 기준). 라벨링 단계 신고(srcSn 기준)와 2채널이며 둘 다 구현됐다.
 
-[VLM 연계] 마킹 결과는 frame_policy(수동 마킹=frame_selected+선택 프레임 목록 selected_frames, 벤더 상한 8 초과분 절단 / 자동 마킹·마킹 부재·미지 모드=frame_interval)로만 VLM 시계열 위탁(POST /v1/videovlm/verify)에 반영된다 — 이벤트명·영상 경로·마킹 원문 배열은 위탁 규격 밖이라 싣지 않는다. ★위탁은 논블로킹 제출이다 — 파이프라인 스레드를 붙잡지 않고 제출만 개시하며, 결과 상세는 VLM 서버가 별도 콜백으로 보낸다. 신고 구간에는 위탁을 보류하고 해소 시 재위탁한다.
+[VLM 연계] 마킹 결과는 frame_policy(프레임 선택 정책)로만 VLM 시계열 위탁에 반영된다. 마킹 본문에서 프레임 인덱스를 얻으면 frame_selected 모드로 그것을 싣고, 하나도 얻지 못하면 frame_interval 모드로 내린다(빈 목록은 규격 위반이라 거부된다) — 마킹 모드는 그 인덱스를 누가 골랐는지만 가른다(수동이면 작업자가 지정한 프레임, 자동이면 간격으로 자동 선택된 프레임). 인덱스는 정렬·중복제거 후 최대 600건으로 제한하고 초과분은 절단하며 음수 프레임 인덱스는 싣지 않는다. frame_policy 에 framerate 를 두지 않는다 — 추출 간격·장수 세부값은 외부 분석 서버가 관리하고 연동 측은 mode 와 selected_frames 만 지정한다. 위탁은 describe(POST /v1/videovlm-klid/describe)와 describe-sub(POST /v1/videovlm-klid/describe-sub) 두 건으로 제출하며 각 요청에 서로 다른 요청 식별자(request_id)를 부여한다 — 이벤트명·영상 경로·마킹 원문 배열은 위탁 규격 밖이라 싣지 않는다. ★위탁은 논블로킹 제출이다 — 파이프라인 스레드를 붙잡지 않고 제출만 개시하며, 결과 상세는 VLM 서버가 별도 콜백으로 보낸다. 신고 구간에는 위탁을 보류하고 해소 시 재위탁한다.
 
 ## upstream_of
 

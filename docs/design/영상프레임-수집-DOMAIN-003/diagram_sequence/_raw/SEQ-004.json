@@ -10,22 +10,281 @@
     "data": {
       "theme": "neutral",
       "title": "해상도 변경 — 표준 3종 파생영상 생성·라벨 좌표 재계산",
-      "source": "sequenceDiagram\n    autonumber\n    actor RV as 검수자(REVIEWER)\n    participant VC as VideoController\n    participant VRS as VideoResolutionService\n    participant RP as ResolutionReservationPersister (REQUIRES_NEW)\n    participant RN as AsyncResolutionRunner (커밋 후 @Async)\n    participant FS as 스토리지(NAS)\n    participant DB as PostgreSQL (LS_DATA_RAW / LS_DATA_AUG / LS_DATA_AUG_LBL_MAP)\n\n    RV->>VC: POST /v1/videos/{rawSn}/resolution {presets[]?}  (미지정=표준 3종 전체)\n    VC->>VRS: changeResolution(rawSn, request, regId)\n    VRS->>DB: loadAndValidate — 파생본(ORGNL_RAW_SN≠null) 400 / 미검수 409\n    VRS->>DB: 부모 비식별 산출물 실재 확인 (procLog 경로 부재면 404)\n    Note over VRS,DB: 게이트는 DE_IDNTF_YN='N'·null 만 차단 — 'F'(비식별 누락 신고)는 통과한다(내부 ffmpeg 리스케일뿐, 외부 위탁 없음)\n    VRS->>DB: 첫 프레임 실측 해상도 조회 (비식별 프레임 우선)\n\n    loop 표준 프리셋 3종 (RESL_1080P / RESL_720P / RESL_480P)\n        alt 원본과 동일 해상도\n            VRS->>VRS: 스킵 (업스케일 거부 가드는 없다 — 확대도 허용)\n        else 생성 대상\n            VRS->>RP: reserveAndCreate(parent, preset, firstFrameSrcSn, regId)\n            RP->>DB: 부모 잠금 + hasDeidentArtifact() 재검증\n            RP->>DB: LS_DATA_AUG PENDING INSERT (AUG_TYPE_CD='RESL_*', UK_LS_DATA_AUG_RESL 로 동시요청 직렬화)\n            RP->>DB: LS_DATA_RAW 새 파생영상 INSERT (ORGNL_RAW_SN=부모, PENDING)\n            RP-->>VRS: Reservation(newRawSn, dataAugSn)\n        end\n    end\n    alt 대상 프리셋이 전부 스킵(모두 원본과 동일)\n        VRS-->>VC: 400\n    else 한 건도 CREATED 되지 못함\n        VRS-->>VC: 500\n    else 1건 이상 예약 성공\n        VRS-->>VC: {derivatives:[{rawSn, goalResCd, targetW, targetH, status}]}\n        VC-->>RV: 201 Created (“예약 성공” — 확정은 비동기)\n    end\n\n    Note over RN,FS: 커밋 이후 3-Phase 비동기 확정 (프리셋별 부분 실패 격리)\n    RP--)RN: AFTER_COMMIT runAsync(newRawSn, parentRawSn, dataAugSn, preset)\n    RN->>DB: Phase A — 짧은 REQUIRES_NEW + 부모 잠금, 검증·경로 스냅샷(확정본이면 멱등 skip)\n    RN->>FS: Phase B — 잠금·tx 밖 파일 I/O: 부모 비식별 영상 복사(재인코딩 없음) + 프레임 이미지만 목표 해상도로 리스케일\n    RN->>DB: Phase C — 재잠금 + stale 창 게이트(스냅샷 이후 부모 비식별본 교체/mtime 이동 시 abort)\n    RN->>DB: 라벨 좌표 재계산 적재 (x' = x·scale + offset — BBOX·POLYGON·세그·키포인트 전 종류)\n    RN->>DB: LS_DATA_AUG_LBL_MAP (COORD_RECALC_YN='Y', SCALE_X, SCALE_Y)\n    RN->>DB: 확정 불변식(같은 커밋) — 예약 aug PENDING→ACCEPTED, deIdntfYn='Y', LS_DATA_RAW.DATA_STTS_CD=COMPLETED, SUCCESS procLog\n    Note over RN,DB: 작업/검수 상태(LS_RAW_DATA_STATUS)는 미검수로 시작한다 — 검수 승인 시 TASK_COMPLETED 별도 통지\n    Note over RN,FS: 실패 시 Phase B 산출물 cleanup + 잔존 재확인 → 예약행 삭제 · FAILED 전이\n\n    RV->>VC: GET /v1/videos/{rawSn}/resolution (확정 상태 조회)\n    VC-->>RV: 프리셋별 COMPLETED / FAILED / 진행중",
-      "messages": [],
-      "fragments": [],
-      "description": "REVIEWER 가 POST /v1/videos/{rawSn}/resolution (VideoController, @PreAuthorize REVIEWER, 201) 으로 표준 해상도 3종(RESL_1080P/RESL_720P/RESL_480P)을 요청하면, 프리셋마다 <새 파생영상(RAW_SN)>을 만들어 ORGNL_RAW_SN 으로 원본을 참조한다 — 증강과 동일한 파생영상 취급이다. 비디오 파일은 부모의 비식별본을 그대로 복사하고(재인코딩 없음) <프레임 이미지셋만> 목표 해상도로 리스케일하며, 라벨 좌표를 배율(scaleX=targetW/srcW, scaleY=targetH/srcH)로 재계산해 적재한다(BBOX·POLYGON·세그멘테이션·키포인트 전 종류, x' = x·scale + offset). 업스케일(확대)도 허용하며 원본과 동일 해상도인 프리셋만 스킵한다. 저장모델은 증강과 완전 통합된다 — 판별자는 LS_DATA_AUG.AUG_TYPE_CD 값 RESL_1080P/RESL_720P/RESL_480P 이고, 라벨 배율은 기존 LS_DATA_AUG_LBL_MAP.COORD_RECALC_YN='Y'/SCALE_X/SCALE_Y 를 재사용하며, 중복 방지는 부분 유니크 인덱스 UK_LS_DATA_AUG_RESL(SRC_SN, AUG_TYPE_CD WHERE AUG_TYPE_CD LIKE 'RESL_%', V125)가 담당한다(구 전용 테이블 LS_RESOLUTION_EXPORT·LS_RESOLUTION_LBL_MAP 은 V126 백필 후 fail-closed DROP — 해상도 전용 EXPORT 행은 더 이상 만들지 않는다). 검증 순서는 파생본 400(깊이 1 고정) → 미검수 409 → 부모 비식별 산출물 실재 404 이며, 게이트는 LsDataRaw.hasDeidentArtifact()('Y'|'F') 로 판정해 DE_IDNTF_YN='N'·null 만 차단하고 'F'(비식별 누락 신고)는 통과시킨다 — 해상도 파생은 외부 위탁이 전혀 없는 내부 ffmpeg 리스케일뿐이라 신고 구간에 생성해도 외부 유출 경로가 열리지 않는다(증강 경로와 동일 헬퍼 사용). 확정은 3-Phase 비동기다 — Phase A(짧은 REQUIRES_NEW + 부모 잠금, 검증·경로 스냅샷) → Phase B(잠금·트랜잭션 밖 순수 파일 I/O) → Phase C(재잠금 + stale 창 게이트 후 영속). Phase C 의 stale 게이트 판정축은 신고가 아니라 <복사 원자성>이다 — 스냅샷 이후 부모 비식별본 경로가 바뀌었거나 mtime 이 스냅샷 이후면 abort 한다(프레임별로 다른 버전이 섞인 산출물 방지). aug 라이프사이클은 예약 시 PENDING(생성 중) → finalize 성공 시 ACCEPTED(생성 완료), 실패 시 예약행 삭제다. 응답 계약은 {derivatives:[{rawSn, goalResCd, targetW, targetH, status}]} 이고 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400 이며, 201 은 “예약 성공”만 의미하므로 확정 결과는 GET /v1/videos/{rawSn}/resolution 으로 조회한다. 해상도 파생은 증강 이력·집계·통계에는 포함되나 accept/reject(검수 승인·반려)는 차단된다(내부 생성물이라 라벨 검수 대상 아님) — 그래서 등재 게이트에도 RESL_ 예외가 명시적으로 박혀 있다.",
+      "source": "sequenceDiagram\n    actor reviewer as 검수자(REVIEWER)\n    participant videoCtrl as VideoController\n    participant resolutionSvc as VideoResolutionService\n    participant reservationPersister as ResolutionReservationPersister\n    participant resolutionRunner as AsyncResolutionRunner\n    participant storage as 스토리지(NAS)\n    participant db as PostgreSQL (LS_DATA_RAW / LS_DATA_AUG / LS_DATA_AUG_LBL_MAP)\n\n    reviewer->>videoCtrl: POST /v1/videos/{rawSn}/resolution {presets[]?}  (미지정=표준 3종 전체)\n    videoCtrl->>resolutionSvc: changeResolution(rawSn, request, regId)\n    resolutionSvc->>db: loadAndValidate — 파생본(ORGNL_RAW_SN≠null) 400 / 미검수 409\n    resolutionSvc->>db: 부모 비식별 산출물 실재 확인 (procLog 경로 부재면 404)\n    Note over resolutionSvc: 게이트는 DE_IDNTF_YN='N'·null 만 차단 — 'F'(비식별 누락 신고)는 통과한다(내부 ffmpeg 리스케일뿐, 외부 위탁 없음)\n    resolutionSvc->>db: 첫 프레임 실측 해상도 조회 (비식별 프레임 우선)\n    alt 산출 크기가 원본과 같아지는 프리셋\n        loop 표준 프리셋 3종 (RESL_1080P / RESL_720P / RESL_480P)\n            resolutionSvc->>resolutionSvc: 스킵 (업스케일 거부 가드는 없다 — 확대도 허용)\n        end\n        alt 생성 대상\n            resolutionSvc->>resolutionSvc: 배율 산출 — 짧은 변을 프리셋 짧은 값(1080/720/480)에 맞추고, 긴 변이 프리셋 긴 값(1920/1280/854)을 넘을 때만 그에 맞도록 배율을 낮춘다\n            Note over resolutionSvc: 가로·세로 같은 배율(종횡비 보존)이며 패딩을 두지 않는다 — 산출 크기는 원본 종횡비에 따라 달라진다\n            resolutionSvc->>reservationPersister: reserveAndCreate(parent, preset, firstFrameSrcSn, regId)\n            reservationPersister->>db: 부모 잠금 + hasDeidentArtifact() 재검증\n            reservationPersister->>db: LS_DATA_AUG PENDING INSERT (AUG_TYPE_CD='RESL_*', UK_LS_DATA_AUG_RESL 로 동시요청 직렬화)\n            reservationPersister->>db: LS_DATA_RAW 새 파생영상 INSERT (ORGNL_RAW_SN=부모, PENDING)\n            reservationPersister-->>resolutionSvc: Reservation(newRawSn, dataAugSn)\n        end\n    end\n    alt 대상 프리셋이 전부 스킵(산출 크기가 모두 원본과 같음)\n        resolutionSvc-->>videoCtrl: 400\n    end\n    alt 한 건도 CREATED 되지 못함\n        resolutionSvc-->>videoCtrl: 500\n    end\n    alt 1건 이상 예약 성공\n        resolutionSvc-->>videoCtrl: {derivatives:[{rawSn, goalResCd, targetW, targetH, status}]}\n        videoCtrl-->>reviewer: 201 Created (“예약 성공” — 확정은 비동기)\n    end\n    Note over resolutionRunner: 커밋 이후 3-Phase 비동기 확정 (프리셋별 부분 실패 격리)\n    reservationPersister-)resolutionRunner: AFTER_COMMIT runAsync(newRawSn, parentRawSn, dataAugSn, preset)\n    resolutionRunner->>db: Phase A — 짧은 REQUIRES_NEW + 부모 잠금, 검증·경로 스냅샷(확정본이면 멱등 skip)\n    resolutionRunner->>storage: Phase B — 잠금·tx 밖 파일 I/O: 부모 비식별 영상 복사(재인코딩 없음) + 프레임 이미지만 균일 배율로 리스케일(종횡비 보존·패딩 없음)\n    resolutionRunner->>db: Phase C — 재잠금 + stale 창 게이트(스냅샷 이후 부모 비식별본 교체/mtime 이동 시 abort)\n    resolutionRunner->>db: 라벨 좌표 재계산 적재 (균일 배율 곱셈만 — 오프셋 가산 없음, BBOX·POLYGON·세그·키포인트 전 종류)\n    resolutionRunner->>db: LS_DATA_AUG_LBL_MAP (COORD_RECALC_YN='Y', SCALE_X, SCALE_Y — 균일 배율이라 두 값은 항상 같다)\n    resolutionRunner->>db: 확정 불변식(같은 커밋) — 예약 aug PENDING→ACCEPTED, deIdntfYn='Y', LS_DATA_RAW.DATA_STTS_CD=COMPLETED, SUCCESS procLog\n    Note over resolutionRunner: 작업/검수 상태(LS_RAW_DATA_STATUS)는 미검수로 시작한다 — 검수 승인 시 TASK_COMPLETED 별도 통지\n    Note over resolutionRunner: 실패 시 Phase B 산출물 cleanup + 잔존 재확인 → 예약행 삭제 · FAILED 전이\n    reviewer->>videoCtrl: GET /v1/videos/{rawSn}/resolution (확정 상태 조회)\n    videoCtrl-->>reviewer: 프리셋별 COMPLETED / FAILED / 진행중\n",
+      "messages": [
+        {
+          "to": "videoCtrl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "POST /v1/videos/{rawSn}/resolution {presets[]?}  (미지정=표준 3종 전체)"
+        },
+        {
+          "to": "resolutionSvc",
+          "from": "videoCtrl",
+          "kind": "sync",
+          "label": "changeResolution(rawSn, request, regId)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionSvc",
+          "kind": "sync",
+          "label": "loadAndValidate — 파생본(ORGNL_RAW_SN≠null) 400 / 미검수 409"
+        },
+        {
+          "to": "db",
+          "from": "resolutionSvc",
+          "kind": "sync",
+          "label": "부모 비식별 산출물 실재 확인 (procLog 경로 부재면 404)"
+        },
+        {
+          "to": "resolutionSvc",
+          "from": "resolutionSvc",
+          "kind": "note",
+          "label": "게이트는 DE_IDNTF_YN='N'·null 만 차단 — 'F'(비식별 누락 신고)는 통과한다(내부 ffmpeg 리스케일뿐, 외부 위탁 없음)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionSvc",
+          "kind": "sync",
+          "label": "첫 프레임 실측 해상도 조회 (비식별 프레임 우선)"
+        },
+        {
+          "to": "resolutionSvc",
+          "from": "resolutionSvc",
+          "kind": "self",
+          "label": "스킵 (업스케일 거부 가드는 없다 — 확대도 허용)"
+        },
+        {
+          "to": "resolutionSvc",
+          "from": "resolutionSvc",
+          "kind": "self",
+          "label": "배율 산출 — 짧은 변을 프리셋 짧은 값(1080/720/480)에 맞추고, 긴 변이 프리셋 긴 값(1920/1280/854)을 넘을 때만 그에 맞도록 배율을 낮춘다"
+        },
+        {
+          "to": "resolutionSvc",
+          "from": "resolutionSvc",
+          "kind": "note",
+          "label": "가로·세로 같은 배율(종횡비 보존)이며 패딩을 두지 않는다 — 산출 크기는 원본 종횡비에 따라 달라진다"
+        },
+        {
+          "to": "reservationPersister",
+          "from": "resolutionSvc",
+          "kind": "sync",
+          "label": "reserveAndCreate(parent, preset, firstFrameSrcSn, regId)"
+        },
+        {
+          "to": "db",
+          "from": "reservationPersister",
+          "kind": "sync",
+          "label": "부모 잠금 + hasDeidentArtifact() 재검증"
+        },
+        {
+          "to": "db",
+          "from": "reservationPersister",
+          "kind": "sync",
+          "label": "LS_DATA_AUG PENDING INSERT (AUG_TYPE_CD='RESL_*', UK_LS_DATA_AUG_RESL 로 동시요청 직렬화)"
+        },
+        {
+          "to": "db",
+          "from": "reservationPersister",
+          "kind": "sync",
+          "label": "LS_DATA_RAW 새 파생영상 INSERT (ORGNL_RAW_SN=부모, PENDING)"
+        },
+        {
+          "to": "resolutionSvc",
+          "from": "reservationPersister",
+          "kind": "return",
+          "label": "Reservation(newRawSn, dataAugSn)"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "resolutionSvc",
+          "kind": "return",
+          "label": "400"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "resolutionSvc",
+          "kind": "return",
+          "label": "500"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "resolutionSvc",
+          "kind": "return",
+          "label": "{derivatives:[{rawSn, goalResCd, targetW, targetH, status}]}"
+        },
+        {
+          "to": "reviewer",
+          "from": "videoCtrl",
+          "kind": "return",
+          "label": "201 Created (“예약 성공” — 확정은 비동기)"
+        },
+        {
+          "to": "resolutionRunner",
+          "from": "resolutionRunner",
+          "kind": "note",
+          "label": "커밋 이후 3-Phase 비동기 확정 (프리셋별 부분 실패 격리)"
+        },
+        {
+          "to": "resolutionRunner",
+          "from": "reservationPersister",
+          "kind": "async",
+          "label": "AFTER_COMMIT runAsync(newRawSn, parentRawSn, dataAugSn, preset)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionRunner",
+          "kind": "sync",
+          "label": "Phase A — 짧은 REQUIRES_NEW + 부모 잠금, 검증·경로 스냅샷(확정본이면 멱등 skip)"
+        },
+        {
+          "to": "storage",
+          "from": "resolutionRunner",
+          "kind": "sync",
+          "label": "Phase B — 잠금·tx 밖 파일 I/O: 부모 비식별 영상 복사(재인코딩 없음) + 프레임 이미지만 균일 배율로 리스케일(종횡비 보존·패딩 없음)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionRunner",
+          "kind": "sync",
+          "label": "Phase C — 재잠금 + stale 창 게이트(스냅샷 이후 부모 비식별본 교체/mtime 이동 시 abort)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionRunner",
+          "kind": "sync",
+          "label": "라벨 좌표 재계산 적재 (균일 배율 곱셈만 — 오프셋 가산 없음, BBOX·POLYGON·세그·키포인트 전 종류)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionRunner",
+          "kind": "sync",
+          "label": "LS_DATA_AUG_LBL_MAP (COORD_RECALC_YN='Y', SCALE_X, SCALE_Y — 균일 배율이라 두 값은 항상 같다)"
+        },
+        {
+          "to": "db",
+          "from": "resolutionRunner",
+          "kind": "sync",
+          "label": "확정 불변식(같은 커밋) — 예약 aug PENDING→ACCEPTED, deIdntfYn='Y', LS_DATA_RAW.DATA_STTS_CD=COMPLETED, SUCCESS procLog"
+        },
+        {
+          "to": "resolutionRunner",
+          "from": "resolutionRunner",
+          "kind": "note",
+          "label": "작업/검수 상태(LS_RAW_DATA_STATUS)는 미검수로 시작한다 — 검수 승인 시 TASK_COMPLETED 별도 통지"
+        },
+        {
+          "to": "resolutionRunner",
+          "from": "resolutionRunner",
+          "kind": "note",
+          "label": "실패 시 Phase B 산출물 cleanup + 잔존 재확인 → 예약행 삭제 · FAILED 전이"
+        },
+        {
+          "to": "videoCtrl",
+          "from": "reviewer",
+          "kind": "sync",
+          "label": "GET /v1/videos/{rawSn}/resolution (확정 상태 조회)"
+        },
+        {
+          "to": "reviewer",
+          "from": "videoCtrl",
+          "kind": "return",
+          "label": "프리셋별 COMPLETED / FAILED / 진행중"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "산출 크기가 원본과 같아지는 프리셋",
+          "end_index": 6,
+          "start_index": 6
+        },
+        {
+          "kind": "loop",
+          "label": "표준 프리셋 3종 (RESL_1080P / RESL_720P / RESL_480P)",
+          "end_index": 13,
+          "start_index": 6
+        },
+        {
+          "kind": "alt",
+          "label": "생성 대상",
+          "end_index": 13,
+          "start_index": 7
+        },
+        {
+          "kind": "alt",
+          "label": "대상 프리셋이 전부 스킵(산출 크기가 모두 원본과 같음)",
+          "end_index": 14,
+          "start_index": 14
+        },
+        {
+          "kind": "alt",
+          "label": "한 건도 CREATED 되지 못함",
+          "end_index": 15,
+          "start_index": 15
+        },
+        {
+          "kind": "alt",
+          "label": "1건 이상 예약 성공",
+          "end_index": 17,
+          "start_index": 16
+        }
+      ],
+      "description": "REVIEWER 가 POST /v1/videos/{rawSn}/resolution (VideoController, @PreAuthorize REVIEWER, 201) 으로 표준 해상도 3종(RESL_1080P/RESL_720P/RESL_480P)을 요청하면, 프리셋마다 <새 파생영상(RAW_SN)>을 만들어 ORGNL_RAW_SN 으로 원본을 참조한다 — 증강과 동일한 파생영상 취급이다. 비디오 파일은 부모의 비식별본을 그대로 복사하고(재인코딩 없음) <프레임 이미지셋만> 리스케일한다. 프리셋의 두 수치는 산출 프레임의 고정 크기가 아니라 상한이다 — 배율은 원본의 짧은 변을 프리셋의 짧은 값(1080/720/480)에 맞추어 구하고, 그 배율로 계산한 긴 변이 프리셋의 긴 값(1920/1280/854)을 넘을 때만 긴 변이 상한에 맞도록 배율을 낮춘다. 가로·세로에 같은 배율을 적용해 종횡비를 보존하고 남는 영역을 채우는 패딩을 두지 않으므로, 산출 프레임 크기는 그 배율로 계산된 실제 크기이며 원본 종횡비에 따라 달라진다. 라벨 좌표는 그 균일 배율의 곱셈만으로 재계산해 적재한다(BBOX·POLYGON·세그멘테이션·키포인트 전 종류, 오프셋 가산이 없다). 업스케일(확대)도 허용하며 산출 크기가 원본과 같아지는 프리셋만 스킵한다. 저장모델은 증강과 완전 통합된다 — 판별자는 LS_DATA_AUG.AUG_TYPE_CD 값 RESL_1080P/RESL_720P/RESL_480P 이고, 라벨 배율은 기존 LS_DATA_AUG_LBL_MAP.COORD_RECALC_YN='Y'/SCALE_X/SCALE_Y 를 재사용하며(균일 배율이라 두 값은 항상 같고 오프셋이 없어 이 두 값만으로 좌표 변환이 완전히 역산된다), 중복 방지는 부분 유니크 인덱스 UK_LS_DATA_AUG_RESL(SRC_SN, AUG_TYPE_CD WHERE AUG_TYPE_CD LIKE 'RESL_%', V125)가 담당한다(구 전용 테이블 LS_RESOLUTION_EXPORT·LS_RESOLUTION_LBL_MAP 은 V126 백필 후 fail-closed DROP — 해상도 전용 EXPORT 행은 더 이상 만들지 않는다). 검증 순서는 파생본 400(깊이 1 고정) → 미검수 409 → 부모 비식별 산출물 실재 404 이며, 게이트는 LsDataRaw.hasDeidentArtifact()('Y'|'F') 로 판정해 DE_IDNTF_YN='N'·null 만 차단하고 'F'(비식별 누락 신고)는 통과시킨다 — 해상도 파생은 외부 위탁이 전혀 없는 내부 ffmpeg 리스케일뿐이라 신고 구간에 생성해도 외부 유출 경로가 열리지 않는다(증강 경로와 동일 헬퍼 사용). 확정은 3-Phase 비동기다 — Phase A(짧은 REQUIRES_NEW + 부모 잠금, 검증·경로 스냅샷) → Phase B(잠금·트랜잭션 밖 순수 파일 I/O) → Phase C(재잠금 + stale 창 게이트 후 영속). Phase C 의 stale 게이트 판정축은 신고가 아니라 <복사 원자성>이다 — 스냅샷 이후 부모 비식별본 경로가 바뀌었거나 mtime 이 스냅샷 이후면 abort 한다(프레임별로 다른 버전이 섞인 산출물 방지). aug 라이프사이클은 예약 시 PENDING(생성 중) → finalize 성공 시 ACCEPTED(생성 완료), 실패 시 예약행 삭제다. 응답 계약은 {derivatives:[{rawSn, goalResCd, targetW, targetH, status}]} 이고 1건 이상 생성 성공=201 / 전부 실패=500 / 대상 프리셋 전부 스킵=400 이며, 201 은 “예약 성공”만 의미하므로 확정 결과는 GET /v1/videos/{rawSn}/resolution 으로 조회한다. 이 배율 규칙은 신규 생성부터 적용하며 기존에 생성된 파생본은 재생성하지 않는다. 해상도 파생은 증강 이력·집계·통계에는 포함되나 accept/reject(검수 승인·반려)는 차단된다(내부 생성물이라 라벨 검수 대상 아님) — 그래서 등재 게이트에도 RESL_ 예외가 명시적으로 박혀 있다.",
       "invokes_apis": [
         "API-092",
         "API-179"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "reviewer",
+          "kind": "actor",
+          "name": "검수자(REVIEWER)"
+        },
+        {
+          "id": "videoCtrl",
+          "kind": "service",
+          "name": "VideoController"
+        },
+        {
+          "id": "resolutionSvc",
+          "kind": "service",
+          "name": "VideoResolutionService"
+        },
+        {
+          "id": "reservationPersister",
+          "kind": "service",
+          "name": "ResolutionReservationPersister"
+        },
+        {
+          "id": "resolutionRunner",
+          "kind": "service",
+          "name": "AsyncResolutionRunner"
+        },
+        {
+          "id": "storage",
+          "kind": "system",
+          "name": "스토리지(NAS)"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "PostgreSQL (LS_DATA_RAW / LS_DATA_AUG / LS_DATA_AUG_LBL_MAP)"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-375"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:55.907Z",
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -38,12 +297,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 11,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다.",
+    "change_summary": "참가자 이름을 클래스 하나로 좁힌다. 이름 뒤에 붙은 괄호 주석과 화살표 때문에 설계 클래스 목록에서 그 클래스가 개별로 잡히지 않았고, 일괄로 풀면 주석에서 딸려 나온 낱말(스케줄러 이름·트랜잭션 전파 속성·SQL 낱말)이 설계 클래스로 올라간다. 클래스명만 남기고 주석은 뗀다. 우리가 만들지 않은 도구와 별도 프로세스는 종류를 시스템으로 바로잡는다. 메시지와 조각은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:14:51.900Z",
+    "last_updated_at": "2026-09-03T22:42:05.430Z",
     "created_at": "2026-06-02T13:11:04.813Z"
   }
 }

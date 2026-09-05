@@ -15,6 +15,7 @@ import type {
   Video,
   VideoDetail,
   VideoListParams,
+  VrfcEvntQuestion,
 } from './types';
 import { BULK_RETRY_MAX, BULK_STAGE_BUNDLE, isBulkStageBundle, isStageBundle } from './types';
 
@@ -78,6 +79,18 @@ function normalizeVideo(v: RawVideo): Video {
   };
 }
 
+/**
+ * 검증 이벤트 질문 1건이 <b>고를 수 있는 값</b>인지 판정한다. [@design API-043]
+ *
+ * 일련번호가 없으면 마킹 등록 요청에 실을 것이 없고, 문구가 비어 있으면 드롭다운에 빈 줄이
+ * 그려져 무엇을 고르는지 알 수 없다. 둘 다 화면에서 되돌릴 수 없는 상태라 경계에서 걸러낸다.
+ */
+function isVrfcEvntQuestion(q: unknown): q is VrfcEvntQuestion {
+  if (typeof q !== 'object' || q === null) return false;
+  const { vrfcEvntQstnSn, qstnCn } = q as Partial<VrfcEvntQuestion>;
+  return typeof vrfcEvntQstnSn === 'number' && typeof qstnCn === 'string' && qstnCn.trim() !== '';
+}
+
 export function listVideos(params: VideoListParams) {
   return apiClient
     .get<PageResponse<RawVideo>>('/videos', { params })
@@ -105,11 +118,27 @@ export function getVideo(id: number) {
         // deIdntfYn(SC-009 재비식별 노출 조건)은 normalizeVideo 가 매핑하므로 별도 스프레드 제거.
         duration: d.duration ?? d.durationSec ?? 0,
         fileSizeMb: d.fileSizeMb ?? 0,
-        resolution: d.resolution ?? '',
+        // [@design API-043] 해상도 — 기술메타에 적재된 형식 그대로다. **빈 문자열로 접지 않고
+        //   null 을 그대로 남긴다**: 서버가 "미상"을 null 로 말하므로 화면도 같은 축을 본다
+        //   (표시 두 곳의 `|| '-'` 폴백이 null·빈 문자열을 같게 다뤄 표시 결과는 동일하다).
+        resolution: d.resolution ?? null,
+        // [@design API-043] 실제 CCTV 식별자 — 기본정보의 'CCTV ID' 가 이 값을 그대로 쓴다.
+        //   구 화면은 rawSn 으로 `video-0001` 을 조립해, 같은 화면 상단 제목의 진짜 식별자와
+        //   서로 다른 두 값이 동시에 떴다. 없으면 조립값으로 되돌아가지 않고 그대로 비운다.
+        vmsCctvId: d.vmsCctvId ?? null,
+        // [@design API-043] [@design SCREEN-009] 프레임 미리보기 — 기존 세 필드(식별자·번호·썸네일
+        //   주소)의 이름·타입·의미는 불변이고 두 값을 더한다.
+        //   ⚠ `timestampMs` 는 **`null` 이 실려 온다**(키 부재가 아니다 — 이 프로젝트는 직렬화에서
+        //     null 을 생략하지 않는다). 여기서 `?? null` 로 접어 「키 없음(구 응답)」과 「값 없음」을
+        //     한 형태로 만든다 — 두 형태가 섞이면 소비처가 `undefined` 만 거르다 null 을 통과시킨다.
+        //   ⚠ `hasIssue` 는 BE 가 원시 boolean 이라 null 이 오지 않지만, 값을 못 내리는 구 응답을
+        //     위해 `=== true` 로 좁힌다(없으면 「이슈 없음」이지 「미상」이 아니다).
         framePreviews: (d.framePreviews ?? []).map((fp) => ({
           srcSn: fp.srcSn,
           frameNo: fp.frameNo,
           thumbnailUrl: fp.thumbnailUrl,
+          timestampMs: fp.timestampMs ?? null,
+          hasIssue: fp.hasIssue === true,
         })),
         stages: d.stages ?? [],
         createdAt:
@@ -146,6 +175,15 @@ export function getVideo(id: number) {
         //     위탁 실패처럼 **파이프라인을 멈추지 않는 실패**는 이 값으로만 드러난다.
         //   화이트리스트 교집합만 남기는 이유는 위 두 목록과 같다(경로 세그먼트가 된다 — CWE-22).
         failedStages: (d.failedStages ?? []).filter(isStageBundle),
+        // [@design API-043] 그 영상의 검증 이벤트 유형 코드 — 관제 이벤트유형(evntTypeCd)과 다른
+        //   코드 체계다. 미수신이면 null 이고 그러면 고를 질문도 없다.
+        vrfcEvntTypeCd: d.vrfcEvntTypeCd ?? null,
+        // [@design API-043] [@design SCREEN-006] 검증 이벤트 질문 목록 — BE 가 정렬순서 오름차순으로
+        //   내려주므로 **다시 정렬하지 않는다**(첫 번째가 곧 기본 질문이며 서버 교정도 같은 축이다).
+        //   값을 못 내리는 구 응답은 빈 배열로 정규화해 화면 분기를 하나로 유지한다.
+        //   ⚠ 항목 형태 검증을 여기서 한 번만 한다 — 일련번호가 없거나 문구가 빈 항목은 고를 수도
+        //     보낼 수도 없는 값이라 그대로 두면 화면이 빈 옵션을 그리고 요청에 null 이 실린다.
+        vrfcEvntQuestions: (d.vrfcEvntQuestions ?? []).filter(isVrfcEvntQuestion),
       } as VideoDetail;
     });
 }

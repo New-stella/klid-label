@@ -143,6 +143,8 @@ public class FrameImageService {
      *   <li>모든 영상은 기본 DEID 프레임을 서빙 (라벨러는 RAW 못 봄).</li>
      *   <li>REVIEWER 가 명시적으로 {@code allowRaw=true} 요청 시에만 원본(filePath) 서빙.</li>
      *   <li>WORKER 의 {@code allowRaw=true} 는 무시 (강제 DEID).</li>
+     *   <li><b>ADMIN 의 {@code allowRaw=true} 도 무시 (강제 DEID)</b> — 역할 계층이 미치지 않는
+     *       <b>유일한 예외</b>다. 아래 판정 지점 주석 참조.</li>
      *   <li>DEID 경로가 없을 때: PRVC/PSDO 는 NOT_FOUND, ANONY 는 원본 폴백.</li>
      *   <li><b>외부 산출물 이관</b>({@code SRC_TYPE='IMPORTED'})은 위 NOT_FOUND 의 예외 —
      *       가져온 프레임을 역할 구분 없이 그대로 서빙한다(아래 분기 주석 참조).</li>
@@ -159,6 +161,21 @@ public class FrameImageService {
         Long frameNo = spec.frameNo();
 
         // 3) Phase 3 — V2 정책: 기본 DEID, REVIEWER 가 명시적으로 raw=true 요청 시에만 원본 허용
+        //
+        // ★★ 이 동등 비교는 <b>의도된 것이다 — {@code hasRole(Role.REVIEWER)} 로 바꾸지 마라.</b>
+        //    [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        //
+        //    역할 계층(관리자 > 검수자)은 「역할로 갈리는 모든 인가 판정」에 적용되지만, 그 규정에는
+        //    예외가 정확히 하나 있고 <b>그것이 바로 이 자리</b>다 — 원본(비-비식별) 프레임 이미지
+        //    열람은 관리자가 물려받지 않는다. 개인정보 열람은 역할 계층과 <b>별개 축</b>이라 계층을
+        //    이유로 자동으로 열지 않는다는 것이 확정 결정이다(2026-08-28).
+        //
+        //    따라서 {@code hasRole} 로 기계적으로 치환하면 개인정보 노출면이 관리자까지 <b>조용히</b>
+        //    넓어진다(CWE-359). 이 주석을 남기는 이유도 ROLE-004 가 명시한 그대로다 — 예외가
+        //    기록돼 있지 않으면 다음 사람이 이 자리를 「빠뜨린 곳」으로 보고 열어 버린다.
+        //
+        //    관리자가 {@code raw=true} 를 명시해도 요청은 <b>거부되지 않고 무시</b>되며 비식별
+        //    프레임이 나간다(WORKER 와 같은 처리). 회귀 가드: {@code FrameImageAdminRawExceptionTest}.
         boolean reviewerRequestedRaw = allowRaw && actor != null && actor.role() == Role.REVIEWER;
         String relPath;
         // 선택된 경로가 <b>비식별 컬럼</b>에서 왔는지 추적한다 — 경로 검증 base 를 그 출처에 맞춰 고른다.

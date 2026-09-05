@@ -20,6 +20,7 @@ import {
 import { NoticePubStatus, NoticeSearchField } from '@/features/notice/types';
 import { cn } from '@/lib/cn';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 
 const PAGE_SIZE = 20;
@@ -57,8 +58,10 @@ function formatDate(iso: string | null): string {
 
 export function NoticeListPage() {
   const navigate = useNavigate();
-  const role = useAuthStore((s) => s.claims?.role) ?? Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  // 역할이 없으면(토큰 미인계·미부여) 비운 채로 넘긴다 — `roleSatisfies` 가 fail-closed 라
+  // 검수자로 서지 않는다. 여기서 작업자를 채우면 「역할이 없으면 작업자」라는 없는 규칙이 남는다.
+  const role = useAuthStore((s) => s.claims?.role);
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
 
   // 검색 조건·페이지는 URL 쿼리에 반영(뒤로가기 유지·URL 공유) — VideoListPage/ReviewListPage 컨벤션.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -256,8 +259,11 @@ export function NoticeListPage() {
                       // 행 hover 표면은 전용 토큰 하나로 통일한다(DS-001 do_rules) —
                       // 회색 계열은 카드 표면과 겹쳐 짚은 행이 구분되지 않는다.
                       'hover:bg-rowHover',
-                      // KRDS 예외: 고정 pinned amber 는 강조 accent(상태 아님) — 토큰 획일화 제외(의도적 유지).
-                      n.pinned && 'bg-amber-50/40',
+                      // ★고정 행에 배경을 깔지 않는다(2026-08-26 폐지) — 구 amber-50/40 배경은
+                      //  ①같은 파일이 이미 "색만으로 구분하지 않는다: Pin 아이콘+텍스트 병기
+                      //  (UI-111)"를 지키고 있어 중복 신호였고 ②hover 표면 토큰(rowHover)과 같은
+                      //  amber 계열이라 정작 커서를 짚었을 때 구분이 사라졌다. 고정 표시는
+                      //  아래 Badge 가 단독으로 전달한다. ⚠ 되살리지 말 것.
                     )}
                   >
                     <td className="px-4 py-3">

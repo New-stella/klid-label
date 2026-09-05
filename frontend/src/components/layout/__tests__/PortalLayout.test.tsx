@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
@@ -10,6 +10,21 @@ function renderLayout() {
       <Routes>
         <Route path="/portal" element={<PortalLayout />}>
           <Route index element={<div data-testid="portal-content">CHILD</div>} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** 이동 탭 배선 확인용 — 레이아웃 아래의 임의 자식 경로에서 렌더한다. */
+function renderLayoutAt(pathname: string) {
+  return render(
+    <MemoryRouter initialEntries={[pathname]}>
+      <Routes>
+        <Route path="/portal" element={<PortalLayout />}>
+          <Route index element={<div data-testid="portal-content">CHILD</div>} />
+          <Route path="uploads" element={<div data-testid="portal-content">UPLOADS</div>} />
+          <Route path="label/:id" element={<div data-testid="portal-content">LABELING</div>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -92,5 +107,98 @@ describe('PortalLayout', () => {
     const header = document.querySelector('header');
     expect(header).not.toBeNull();
     expect(header?.textContent ?? '').not.toMatch(/다운로드/);
+  });
+
+  /*
+   * ★포털 채널(Module Federation 임베드) 빌드에서의 머리 영역 토글 (2026-08-26 신설).
+   *
+   * 저작도구가 포털 Host 셸 안에 Remote 로 임베드될 예정이라, `VITE_BUILD_CHANNEL=portal`
+   * 로 빌드된 산출물에서는 `PortalLayout` 자체 헤더를 렌더하지 않는다(Host 가 이미 자기
+   * 헤더를 갖고 있어, 그대로 두면 한 화면에 머리 영역이 두 벌 겹친다).
+   *
+   * 기본값(환경변수 미설정 = `control` 채널)에서는 지금처럼 헤더가 렌더된다 — 이 사실은
+   * 이 파일의 다른 테스트들(예: `포털_레이아웃_GNB_단순화_LNB_없음`)이 이미 지키고 있고,
+   * 여기서는 "채널을 명시하지 않으면 지금과 같다"는 것을 한 번 더 직접 단언한다.
+   */
+  describe('빌드 채널에 따른 머리 영역 토글', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('채널_미설정_기본값이면_지금처럼_헤더가_렌더된다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', '');
+
+      renderLayout();
+
+      expect(document.querySelector('header')).not.toBeNull();
+      expect(screen.getByText('AI 학습데이터 포털')).toBeInTheDocument();
+    });
+
+    it('control_채널이면_헤더가_렌더된다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
+
+      renderLayout();
+
+      expect(document.querySelector('header')).not.toBeNull();
+    });
+
+    it('portal_채널이면_자체_헤더를_렌더하지_않는다_Host가_자기헤더를_갖는다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+
+      renderLayout();
+
+      // 자체 헤더(제목·사용자 메뉴)는 없다.
+      expect(document.querySelector('header')).toBeNull();
+      expect(screen.queryByText('AI 학습데이터 포털')).toBeNull();
+      // 그 아래 자식 콘텐츠(Outlet)는 여전히 정상 렌더된다 — 헤더만 빠질 뿐 나머지는 불변.
+      expect(screen.getByTestId('portal-content')).toBeInTheDocument();
+    });
+  });
+
+  /*
+   * ★본문 상단 이동 탭 배선 (2026-09-02 사용자 확정, 구속 — 사양 SHELL-002 `portal-content-tabs`).
+   *
+   * Host 가 머리 영역과 좌측 주 메뉴를 **둘 다** 소유하므로 목적지 이동은 본문 상단 탭이 맡는다.
+   * 탭 자체의 항목·노출 판정은 `PortalContentTabs.test.tsx` 가 지키고, 여기서는 **레이아웃이
+   * 그것을 실제로 마운트하는가**(배선)만 본다 — 컴포넌트만 만들고 붙이지 않으면 화면에서는
+   * 아무 일도 일어나지 않는데 그쪽 시험은 전부 초록이다.
+   */
+  describe('본문 상단 이동 탭', () => {
+    it('목적지_화면의_본문_맨_위에_이동_탭이_붙는다', () => {
+      renderLayoutAt('/portal');
+
+      const nav = screen.getByRole('navigation', { name: '포털 이동 탭' });
+      const main = document.querySelector('main');
+      expect(main).not.toBeNull();
+      // 본문 안에 있고(머리 영역이 아니다) 자식 콘텐츠보다 앞선다.
+      expect(main?.contains(nav)).toBe(true);
+      expect(
+        nav.compareDocumentPosition(screen.getByTestId('portal-content')) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it('몰입_편집_화면에서는_레이아웃이_이동_탭을_그리지_않는다', () => {
+      renderLayoutAt('/portal/label/42');
+
+      expect(screen.queryByRole('navigation', { name: '포털 이동 탭' })).toBeNull();
+      expect(screen.getByTestId('portal-content')).toBeInTheDocument();
+    });
+  });
+
+  /*
+   * ★좌측 레일 미노출 가드 (2026-09-02 사용자 확정, 구속 — 사양 SHELL-002 `sidenav.enabled=false`).
+   *
+   * Host 가 좌측 주 메뉴를 소유한다. 우리가 레일을 그리면 한 화면에 왼쪽 레일이 두 벌이 되어
+   * Host 화면과 부딪힌다. **이 축은 두 번 뒤집혔고 지금이 세 번째 확정이라**, 부재를 결손으로
+   * 오인해 다시 붙이는 것을 막는 것이 이 가드의 목적이다.
+   */
+  it('포털_좌측_레일_미노출', () => {
+    const { container } = renderLayout();
+
+    expect(container.querySelector('aside')).toBeNull();
+    expect(screen.queryByRole('navigation', { name: '좌측 메뉴' })).toBeNull();
+    // 이동 탭은 본문 안의 가로 탭이라 이 가드에 걸리지 않는다(같은 `nav` 요소지만 이름이 다르다).
+    expect(screen.getByRole('navigation', { name: '포털 이동 탭' })).toBeInTheDocument();
   });
 });

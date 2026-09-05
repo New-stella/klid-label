@@ -90,8 +90,7 @@ class BatchOrchestratorMarkingTest {
     }
 
     private LsMarking newMarking(Long rawSn) {
-        return LsMarking.createAuto(rawSn, "fire", 5,
-                "raw/path.mp4", "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L);
+        return LsMarking.createAuto(rawSn, 5, "[{\"frameIndex\":0,\"timestamp\":0.0}]", "1");
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -189,10 +188,9 @@ class BatchOrchestratorMarkingTest {
     void markingMarksJsonParsedToMarkItems() {
         // given
         newRaw(506L);
-        LsMarking marking = LsMarking.createAuto(506L, "fire", 5,
-                "raw/path.mp4",
+        LsMarking marking = LsMarking.createAuto(506L, 5,
                 "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]",
-                1L);
+                "1");
         when(markingRepository.findByRawSnOrderByRegDtDescMarkingSnDesc(506L))
                 .thenReturn(List.of(marking));
 

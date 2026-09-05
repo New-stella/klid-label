@@ -21,7 +21,7 @@ class DatamartLabelResponseTest {
         // given -- DB 가 보장하는 nested 좌표
         String nestedPoints = "[[10,10],[50,50]]";
         LsDataLbl entity = LsDataLbl.createManual(
-                10L, "BBOX", null, "person", nestedPoints, 1L);
+                10L, "BBOX", null, "person", nestedPoints, "1");
         setField(entity, "lblSn", 1L);
 
         // when
@@ -41,7 +41,7 @@ class DatamartLabelResponseTest {
         // given -- 다각형도 nested 좌표 그대로 노출되어야 한다
         String nestedPolygon = "[[1,2],[3,4],[5,6]]";
         LsDataLbl entity = LsDataLbl.createManual(
-                11L, "POLYGON", null, "tree", nestedPolygon, 1L);
+                11L, "POLYGON", null, "tree", nestedPolygon, "1");
 
         // when
         DatamartLabelResponse response = DatamartLabelResponse.from(entity);

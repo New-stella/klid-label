@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "NFR-040",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "업무 모듈화 및 표준",
+    "slug": "업무-모듈화-및-표준",
+    "sub_id": "RQ-QUR-08-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "업무 모듈화 및 표준",
+      "metric": "모듈화 구조 적용 및 정보항목 중복 방지 여부",
+      "status": "approved",
+      "target": {
+        "value": "도메인 단위 모듈화 + 정보항목 중복 정의 없음 + 프로세스 중심 매뉴얼",
+        "operator": "="
+      },
+      "category": "other",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-QUR-08-01·RQ-QUR-08-02·RQ-QUR-08-03 (담당=공통, RFP p48, 중요도 상/중).",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 모듈화·표준 기준:\n- 재사용과 유지관리, 확장을 위해 업무를 도메인 단위로 모듈화하여 개발하고 상호운용성·이식성을 보장한다.\n- 업무 분야별 상호 연계성을 확보하되, 유사 분야 간 정보 항목이 중복 정의·관리되지 않게 한다 — 같은 개념은 한 곳이 소유하고 나머지는 그것을 참조한다.\n- 연계 대상 정보는 표준화된 연계체계로 주고받는다.\n- 사용자가 이해하기 쉽도록 업무 프로세스를 중심으로 매뉴얼을 작성한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [],
+      "measurement_method": "모듈 구조와 도메인 경계, 정보항목 정의의 단일 소유 여부를 설계 산출물로 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:26.256Z",
+    "created_at": "2026-09-05T00:12:26.256Z"
+  }
+}

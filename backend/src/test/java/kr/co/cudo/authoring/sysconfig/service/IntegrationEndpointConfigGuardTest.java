@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.auth.AdminSessionTestSupport;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
@@ -39,6 +41,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -65,9 +69,9 @@ class IntegrationEndpointConfigGuardTest {
     @BeforeEach
     void setUp() {
         repository = mock(LsSystemConfigRepository.class);
-        tokenService = new AdminSessionTokenService(RESOLVER, 10);
+        tokenService = AdminSessionTestSupport.tokenService(RESOLVER, 10);
         service = new SystemConfigService(repository, new ObjectMapper(),
-                tokenService, new IntegrationEndpointUrlValidator(),
+                new AdminSessionGate(tokenService), new IntegrationEndpointUrlValidator(),
                 new DeidentifyEndpointTrustGuard(new MockEnvironment()),
                 TestAiWaitBudgetPolicies.production());
         reviewer = new TokenClaims("1001", Role.REVIEWER, Channel.INTERNAL,
@@ -230,6 +234,44 @@ class IntegrationEndpointConfigGuardTest {
         assertThat(logs).contains(reviewer.sub());
         assertThat(logs).contains(PUBLIC_URL);       // 주소 값은 남긴다(운영 추적)
         assertThat(logs).doesNotContain(token);      // 자격증명은 남기지 않는다
+    }
+
+    // ─────────────────── 역할 계층 × 유효창 (ADR-055 · ROLE-004 · ADR-046) ───────────────────
+
+    /**
+     * ★ 관리자가 자기 소유 화면(연동 서버 주소)의 저장 창구를 통과한다.
+     *
+     * <p>이 창구는 역할 게이트 뒤에 유효창·값 검증이 이어지므로, 유효한 토큰과 통과하는 값을 함께
+     * 주어 <b>뒤따르는 검사를 전부 통과시킨 상태</b>에서 역할 축만 남긴다.
+     */
+    @Test
+    @DisplayName("★관리자가_유효창_토큰과_함께_연동_주소를_저장한다")
+    void adminSavesEndpointWithValidWindow() {
+        endpointRowAbsent();
+        TokenClaims admin = new TokenClaims("2002", Role.ADMIN, Channel.INTERNAL,
+                Instant.now().plusSeconds(3600));
+        String adminWindow = tokenService.issue(admin.sub(), Instant.now()).token();
+
+        assertThatCode(() -> service.update(ENDPOINT_KEY, PUBLIC_URL, admin, adminWindow))
+                .doesNotThrowAnyException();
+    }
+
+    /**
+     * ★ 역할과 유효창은 <b>별개 축이며 서로를 대체하지 않는다</b>. 관리자 역할을 가졌다고 유효창이
+     * 면제되면 이 라운드가 역할만 열면서 다른 축을 무너뜨린 것이 된다.
+     */
+    @Test
+    @DisplayName("★관리자여도_유효창이_없으면_403이고_저장되지_않는다")
+    void adminStillNeedsAdminSessionWindow() {
+        endpointRowAbsent();
+        TokenClaims admin = new TokenClaims("2003", Role.ADMIN, Channel.INTERNAL,
+                Instant.now().plusSeconds(3600));
+
+        assertThatThrownBy(() -> service.update(ENDPOINT_KEY, PUBLIC_URL, admin, null))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.FORBIDDEN));
+        verify(repository, never()).save(any(LsSystemConfig.class));
     }
 
     @Test

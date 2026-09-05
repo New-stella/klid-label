@@ -94,7 +94,8 @@ describe('Select 조합형', () => {
     expect(trigger).toHaveTextContent('상태를 선택하세요');
     expect(trigger).toHaveAttribute('data-placeholder');
     // placeholder 는 data-placeholder 속성을 통해 muted 색으로 처리된다(accessibility_notes).
-    expect(trigger.className).toMatch(/data-\[placeholder\]:text-gray-400/);
+    // 단계는 gray-600 — gray-400(3.08:1) 은 흰 트리거 배경에서 AA(4.5:1) 미달이었다.
+    expect(trigger.className).toMatch(/data-\[placeholder\]:text-gray-600/);
   });
 
   it('SelectTrigger_는_기본(default) 크기에서_44px_KRDS_최소_터치_타깃을_보장한다', () => {
@@ -156,7 +157,13 @@ describe('Select 조합형', () => {
     );
     const trigger = screen.getByRole('combobox', { name: '정상 확인' });
     expect(trigger.className).not.toMatch(/border-danger/);
-    expect(trigger.className).toMatch(/border-gray-300/);
+    // 시안 `--border-strong`(= gray-400). 흰 배경 위 gray-300 은 2.01:1 로 WCAG 1.4.11
+    // (비텍스트 3:1) 미달이고 gray-400 은 3.08:1 이다 — Input·Textarea 와 같은 값이어야
+    // 한 폼 안에서 테두리가 갈리지 않는다.
+    expect(trigger.className).toMatch(/border-gray-400/);
+    expect(trigger.className, '대비 미달인 gray-300 으로 되돌리지 말 것').not.toMatch(
+      /border-gray-300/,
+    );
   });
 
   it('그룹_라벨_구분선을_SelectGroup_SelectLabel_SelectSeparator_로_조립할_수_있다', async () => {

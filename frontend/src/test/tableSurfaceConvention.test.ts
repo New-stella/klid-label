@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import resolveConfig from 'tailwindcss/resolveConfig';
+import resolveConfig from 'tailwindcss-v3-compat/resolveConfig';
 import { describe, expect, it } from 'vitest';
 
 import { cn } from '@/lib/cn';
@@ -81,6 +81,10 @@ const TABLES: TableCase[] = [
     file: 'src/pages/manage/EventTypeManagePage.tsx',
   },
   {
+    label: 'VerificationEventTypeSection(검증 이벤트 유형·질문)',
+    file: 'src/features/eventType/components/VerificationEventTypeSection.tsx',
+  },
+  {
     label: 'LabelMasterManagePage(라벨 마스터 관리)',
     file: 'src/pages/manage/LabelMasterManagePage.tsx',
   },
@@ -94,16 +98,32 @@ const TABLES: TableCase[] = [
     file: 'src/pages/manage/DeidentReportListPage.tsx',
   },
   {
-    label: 'UnmappedCategorySection(외부 산출물 이관 — 처음 보는 분류)',
+    label: 'UnmappedCategorySection(산출물 가져오기 — 처음 보는 분류)',
     file: 'src/features/import/components/UnmappedCategorySection.tsx',
   },
   {
-    label: 'ConfirmedMappingSection(외부 산출물 이관 — 확정된 분류 대응)',
+    label: 'ConfirmedMappingSection(산출물 가져오기 — 확정된 분류 대응)',
     file: 'src/features/import/components/ConfirmedMappingSection.tsx',
   },
   {
-    label: 'ImportHistorySection(외부 산출물 이관 — 가져온 내역)',
+    label: 'ImportHistorySection(산출물 가져오기 — 가져온 내역)',
     file: 'src/features/import/components/ImportHistorySection.tsx',
+  },
+  {
+    label: 'MarkingScanResultPanel(산출물 가져오기 — 이벤트 마킹 짝 목록)',
+    file: 'src/features/import/components/MarkingScanResultPanel.tsx',
+  },
+  {
+    label: 'MarkingImportProgressPanel(산출물 가져오기 — 일괄 적재 건별 결과)',
+    file: 'src/features/import/components/MarkingImportProgressPanel.tsx',
+  },
+  {
+    label: 'AiServerListCard(연동 서버 주소 — AI 장비 목록)',
+    file: 'src/features/aiServer/components/AiServerListCard.tsx',
+  },
+  {
+    label: 'PortalAugmentPage(포털 증강 — 요청 현황)',
+    file: 'src/pages/portal/PortalAugmentPage.tsx',
   },
 ];
 

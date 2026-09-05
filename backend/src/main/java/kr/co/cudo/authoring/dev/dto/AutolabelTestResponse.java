@@ -3,7 +3,7 @@ package kr.co.cudo.authoring.dev.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * [개발/검수 전용] 영상 업로드 + 오토라벨 트리거 응답.
+ * [개발/검수 전용] 수동 업로드 + 오토라벨 트리거 응답.
  *
  * <p>실제 파이프라인은 백그라운드로 실행되며, 본 응답은 즉시(200) 반환된다.
  * 응답에는 저장소 기준 상대 경로만 노출 — 절대 경로 (CWE-209 Information Leak) 미노출.

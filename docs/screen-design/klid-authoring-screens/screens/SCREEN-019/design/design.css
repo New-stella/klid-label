@@ -725,6 +725,50 @@ button { font-family: inherit; }
 /* ═══════════════════════════════ 디자인 검토용 상태 갤러리 (실 화면 아님) ═══════════════════════════════ */
 
 /* 참고 패널 — 기준본(.reference-panel)과 같은 표현: 면 + 2px dashed */
+/* 문의 동시 처리 충돌 — 누른 사람 자리에서 바로 알린다. 목록만 조용히 갱신하면 왜 안 눌렸는지 모른다. */
+.issue-conflict {
+  display: flex; align-items: flex-start; gap: var(--sp-xs);
+  margin-top: var(--sp-xs);
+  padding: var(--sp-xs) var(--sp-sm);
+  border: 1px solid var(--w-2);
+  border-radius: var(--radius-sm);
+  background: var(--w-0);
+  color: var(--w-7);
+}
+.issue-conflict svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; stroke-width: 2; }
+
+/* 프레임 이미지를 못 불러왔을 때 — 캔버스 위에 얹는다. 라벨 오버레이는 그리지 않는다. */
+.ref-canvas {
+  position: relative;
+  min-height: 132px;
+  border: 1px solid var(--n-2);
+  border-radius: var(--radius-md);
+  background: var(--n-1);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: var(--sp-md);
+}
+.canvas-error {
+  max-width: 90%;
+  text-align: center;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--e-2);
+  border-radius: var(--radius-sm);
+  background: var(--e-0);
+  color: var(--e-8);
+}
+.canvas-error-hint { display: block; margin-top: 2px; color: var(--e-7); }
+
+/* 승인만 잠겼다는 사실 — 화면 전체가 잠긴 것으로 오해하지 않게 무엇이 되는지 함께 적는다. */
+.approve-block {
+  display: flex; align-items: flex-start; gap: var(--sp-xs);
+  padding: var(--sp-xs) var(--sp-sm);
+  border: 1px solid var(--w-2);
+  border-radius: var(--radius-sm);
+  background: var(--w-0);
+  color: var(--w-7);
+}
+.approve-block svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; stroke-width: 2; }
+
 .design-ref-gallery {
   /* 좌우 정렬선은 본문 콘텐츠와 동일하게 — 검수 헤더의 안쪽 여백(--sp-lg)을 그대로 받는다.
      위·아래도 같은 값으로 띄워 뷰어 바닥·문서 끝에 붙지 않게 한다 */

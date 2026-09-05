@@ -1,0 +1,55 @@
+{
+  "item": {
+    "id": "AC-1091",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "그 유형의 마지막 가용 장비는 잃지 않는다",
+    "slug": "그-유형의-마지막-가용-장비는-잃지-않는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "마지막 가용 장비의 삭제·활성 이탈은 충돌로 거부된다",
+          "동시 요청에서도 마지막 하나는 남는다",
+          "허용되지 않는 전이와 같은 상태로의 전이는 충돌로 거부된다",
+          "상태점검의 자동 이용불가 전이는 그대로 이뤄진다"
+        ],
+        "when": [
+          "한 유형에 가용 장비가 하나뿐인 상태에서 그것을 삭제하거나 비활성으로 내린다",
+          "두 관리자가 같은 유형의 서로 다른 마지막 장비를 동시에 내린다",
+          "허용되지 않는 전이나 현재와 같은 상태로 바꾸려 한다",
+          "상태점검이 연속 실패해 장비를 이용불가로 내린다"
+        ],
+        "given": [
+          "관리자 권한과 유효한 관리자 단기 유효창을 가진 사람이 관리 화면에 들어와 있다"
+        ]
+      },
+      "statement": "어떤 유형에 가용 장비가 하나만 남았을 때 그것을 삭제하거나 가용에서 내리는 것은 거부한다 — 허용하면 그 유형의 위탁이 통째로 실패한다. 판정은 조회한 뒤 바꾸는 방식이면 안 된다. 두 관리자가 서로 다른 장비를 동시에 내리면 각자 '아직 하나 더 있다'를 보고 둘 다 통과하기 때문이며, 그래서 조건을 건 갱신으로 판정과 변경이 한 번에 일어나야 한다. 또 허용되지 않는 상태 전이와 같은 상태로의 전이도 거부한다 — 상태가 바뀌지 않는 갱신은 전이가 아니라 아무것도 아니고, 통과시키면 무변경 갱신이 감사 경로를 그대로 탄다. ⚠ 상태점검이 자동으로 내리는 이용불가 전이는 이 거부의 대상이 아니다. 그건 사람의 결정이 아니라 관측이며, 막으면 죽은 장비로 계속 보내게 된다.",
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-09-01T14:34:24.531Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "manual_test",
+      "verification_status": "unverified"
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "유형별 마지막 가용 장비 보호 구현 — 조건부 UPDATE/DELETE + 상태점검 경로 제외",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T14:34:24.532Z",
+    "created_at": "2026-09-01T14:07:16.528Z"
+  }
+}

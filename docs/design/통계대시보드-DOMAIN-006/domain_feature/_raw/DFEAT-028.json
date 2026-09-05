@@ -32,10 +32,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-362"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-05-30T02:37:44.109Z"
+        "last_updated": "2026-08-29T01:26:21.256Z"
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -53,8 +55,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "액터를 검수자(REVIEWER)로 바로잡는다 — 관리자(ADMIN) 역할은 두지 않으며 관리 권한은 검수자에 통합돼 있어 관리자·담당자는 존재하지 않는 액터다. 또 작업 단위는 영상 1건이고 프로젝트 단위 개념을 두지 않으므로 설명·사용자 스토리의 프로젝트 서술을 걷어냈다. 구현 종단점(전체 구축 현황 조회)도 연결한다. 제목에는 폐기 액터·폐기 개념이 없어 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T02:36:09.501Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:21.256Z",
     "created_at": "2026-05-29T06:32:04.512Z"
   }
 }

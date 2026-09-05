@@ -27,9 +27,13 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-367"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:21.924Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -46,12 +50,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "경로·필드명이 관제 정본을 따른다는 것만 남기고, 어느 시점 조사에서 무엇이 어긋나 있었고 언제 해소됐는지의 대조 이력은 걷어낸다. 같은 문장이 통지 기능 쪽에도 있어 함께 맞춘다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:24:36.431Z",
+    "change_summary": "진행률 미설정 정정 — status 는 implemented 인데 progress 가 0 이라 ITEM 안에서 앞뒤가 맞지 않았다. 하위작업이 하나도 없어 «부분 완료» 를 나타낼 대상이 없으므로 0 은 값을 넣지 않은 잔재이지 판단이 아니다. 이미 선언된 status 에 맞춰 100 으로 맞춘다. ⚠ status 자체를 새로 판정한 것은 아니다 — 구현 실재는 코드로 표본 확인했고(controlnotify · TaskQueryService · AugmentRequestService · VlmClient), 하위작업이 있어 진행률이 100 미만인 항목(FEAT-006 · NFR-022 · AC-120)은 그 미완이 의도된 것이라 건드리지 않았다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:21.924Z",
     "created_at": "2026-06-01T07:27:02.205Z"
   }
 }

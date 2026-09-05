@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+import uuid
 from collections.abc import Iterator
 
 import pytest
@@ -52,15 +53,40 @@ def _input_file(tmp_path, name: str = "src.mp4") -> str:
     return str(path)
 
 
+@pytest.fixture(autouse=True)
+def _auto_idempotency_key(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """① 작업 요청의 ``Idempotency-Key``(v1.3 §3.1 필수)를 호출마다 자동 부여한다.
+
+    헤더를 **명시한** 호출은 그대로 두므로 멱등·누락 계약은 가려지지 않는다.
+    """
+    original_post = client.post
+
+    def _post(url: str, *args: object, **kwargs: object):  # noqa: ANN202
+        if url == JOBS_URL and "headers" not in kwargs:
+            kwargs["headers"] = {"Idempotency-Key": uuid.uuid4().hex}
+        return original_post(url, *args, **kwargs)
+
+    monkeypatch.setattr(client, "post", _post)
+
+
 def _body(tmp_path, **over: object) -> dict:
+    """v1.3 §4.1 표준 요청 본문(AUGMENT × I2I)."""
     body: dict = {
         "request_id": "req-0001",
         "request_channel": "AUTHORING",
-        "evnt_type": "FIRE",
+        "evnt_type": "FLOOD",
+        "evnt_subtype": "ROAD_FLOOD",
         "operation_type": "AUGMENT",
-        "generation_mode": "I2V",
+        "generation_mode": "I2I",
         "input_files": [{"sequence": 1, "file_path": _input_file(tmp_path)}],
-        "prompt": {"season": "winter"},
+        "mtdt": {
+            "time": "NIGHT",
+            "season": "WINTER",
+            "weather": "RAIN",
+            "terrain": "ROAD",
+            "severity": "HIGH",
+        },
+        "prompt": "야간 도로 침수 장면으로 변경해줘.",
         "callback_url": CALLBACK_URL,
     }
     body.update(over)
@@ -246,7 +272,10 @@ def test_HIGH1_shutdown시_진행중_태스크가_취소_정리된다(
     reload_settings()
     # when
     with TestClient(app) as c:
-        res = c.post(JOBS_URL, json=_body(tmp_path))
+        # 자체 TestClient 라 _auto_idempotency_key 픽스처가 닿지 않는다 — 직접 싣는다.
+        res = c.post(
+            JOBS_URL, json=_body(tmp_path), headers={"Idempotency-Key": uuid.uuid4().hex}
+        )
         assert res.status_code == 202
         # 태스크 참조가 보관되어 GC 되지 않는다
         assert genai_sim.active_task_count() >= 1

@@ -1,5 +1,6 @@
 package kr.co.cudo.authoring.auth.service;
 
+import kr.co.cudo.authoring.auth.AdminSessionTestSupport;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -7,6 +8,7 @@ import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.common.security.JwtKeyResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +34,7 @@ class AdminSessionTokenServiceTest {
     private static final JwtKeyResolver RESOLVER = () -> KEY;
 
     private static AdminSessionTokenService service(long ttlMinutes) {
-        return new AdminSessionTokenService(RESOLVER, ttlMinutes);
+        return new AdminSessionTokenService(RESOLVER, AdminSessionTestSupport.verifier(), ttlMinutes);
     }
 
     @Test
@@ -108,7 +110,7 @@ class AdminSessionTokenServiceTest {
         SecretKey otherKey = Keys.hmacShaKeyFor(
                 "another-signing-key-that-is-long-enough-0123456789".getBytes(StandardCharsets.UTF_8));
         AdminSessionTokenService ours = service(10);
-        AdminSessionTokenService theirs = new AdminSessionTokenService(() -> otherKey, 10);
+        AdminSessionTokenService theirs = new AdminSessionTokenService(() -> otherKey, AdminSessionTestSupport.verifier(), 10);
         Instant now = Instant.now();
 
         String foreign = theirs.issue("1001", now).token();
@@ -185,5 +187,43 @@ class AdminSessionTokenServiceTest {
                     .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                             .isEqualTo(ErrorCode.FORBIDDEN));
         }
+    }
+
+    // ------------------------------------------------------------------------
+    // 서명이 현재 관리자 자격에 매달려 있다 — 무효화 장부를 두지 않기 위한 장치다
+    // ------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("★자격이_바뀌면_그_전_토큰이_무효가_된다 — 세대_컬럼_없이_같은_결과를_얻는다")
+    void tokenDiesWhenCredentialChanges() {
+        AdminPasswordVerifier before = new AdminPasswordVerifier(
+                new BCryptPasswordEncoder(12).encode("credential-before"));
+        AdminPasswordVerifier after = new AdminPasswordVerifier(
+                new BCryptPasswordEncoder(12).encode("credential-after"));
+        Instant now = Instant.parse("2026-08-27T10:00:00Z");
+
+        String token = new AdminSessionTokenService(RESOLVER, before, 10).issue("1001", now).token();
+
+        assertThatCode(() -> new AdminSessionTokenService(RESOLVER, before, 10)
+                .verify(token, "1001", now.plusSeconds(60)))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> new AdminSessionTokenService(RESOLVER, after, 10)
+                .verify(token, "1001", now.plusSeconds(60)))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("★자격이_아예_없으면_발급도_검증도_되지_않는다 (fail-closed)")
+    void noCredentialMeansNoSession() {
+        AdminSessionTokenService none = new AdminSessionTokenService(RESOLVER, new AdminPasswordVerifier(""), 10);
+        Instant now = Instant.parse("2026-08-27T10:00:00Z");
+
+        assertThatThrownBy(() -> none.issue("1001", now))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        assertThatThrownBy(() -> none.verify("anything.anything", "1001", now))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
     }
 }

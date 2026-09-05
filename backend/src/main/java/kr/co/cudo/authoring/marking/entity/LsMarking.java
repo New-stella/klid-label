@@ -24,16 +24,40 @@ import java.util.List;
  *   <li>MANUAL: 사용자가 직접 선택한 marks 배열 저장</li>
  * </ul>
  *
- * <h3>상태 전이</h3>
+ * <h3>상태 전이 [design: ERD-013]</h3>
  * <pre>
- *   PENDING ──┬─▶ VLM_REQUESTED ──┬─▶ VLM_COMPLETED
- *             │                   └─▶ VLM_FAILED (VLM describe 실패 콜백 수신 시)
- *             └─▶ SKIPPED (배치 트리거가 정당하게 skip 되어 소비될 일이 없는 마킹 — B-ISSUE-41)
+ *   RESERVED ─┬─▶ PENDING ──┬─▶ VLM_REQUESTED ──┬─▶ VLM_COMPLETED
+ *             │             │                   └─▶ VLM_FAILED (VLM describe 실패 콜백 수신 시)
+ *             │             └─▶ SKIPPED (배치 트리거가 정당하게 skip 되어 소비될 일이 없는 마킹 — B-ISSUE-41)
+ *             └─▶ SKIPPED (적용하지 못한 예약을 마감 — 비식별이 끝내 실패한 경우)
+ *                          VLM_REQUESTED ─▶ SKIPPED (비식별 신고 해소 후 재마킹 진입을 여는 경로)
  * </pre>
+ *
+ * <p>{@code RESERVED} 는 외부에서 마킹까지 끝난 영상을 받아 적재할 때 쓰는 <b>시작 상태</b>다
+ * (ADR-052). 적재 시점에는 그 영상이 아직 비식별되지 않아 마킹을 곧바로 활성화할 수 없으므로
+ * 예약해 두었다가, 비식별이 끝나 영상이 마킹 가능 상태가 되면 {@code PENDING} 으로 전이시킨다.
+ *
+ * <p><b>★ {@code RESERVED → PENDING} 전이 메서드를 이 엔티티에 두지 않는다.</b> 그 전이는 2노드
+ * Active-Active 에서 <b>둘 중 한쪽만</b> 집어 가야 하는 <b>원자 클레임</b>이라, 조회 후 변경(dirty
+ * checking) 방식이면 두 노드가 <b>둘 다 통과</b>해 잔여 배치가 두 번 기동한다. 따라서 그 전이는
+ * {@code LsMarkingRepository} 의 조건부 UPDATE 를 통해서만 일어나며 진입점은
+ * {@code MarkingActivationTxService} 하나다 — 여기에 전이 메서드를 두면 그것이 곧 레이스를 다시 여는
+ * 우회로가 된다. 예약 마감({@code RESERVED → SKIPPED}) 도 같은 이유로 조건부 UPDATE 다(활성화와
+ * 마감이 동시에 오면 마감이 방금 활성화된 {@code PENDING} 을 덮어써 <b>활성 마킹을 지운다</b>).
  *
  * <p>{@code VLM_FAILED} 는 {@code VLM_REQUESTED} 고착(dead-lock)을 해제하는 <b>종결 실패 상태</b>다.
  * 실패 콜백을 받고도 {@code VLM_REQUESTED} 에 방치하면 마킹이 영구 고착된다.
  * 이 상태를 소비해 자동 재요청/복구하는 잡은 아직 <b>미구현</b>이며, 수동/후속 재처리 대상이다(DEV_FIX 2차 #3).
+ *
+ * <h3>★ 이 원장은 이벤트 유형 코드·영상 파일 경로를 보관하지 않는다 (V27) [design: ERD-013]</h3>
+ * <p>두 값은 영상 행({@code LS_DATA_RAW.EVNT_TYPE_CD} · {@code RAW_FILE_PATH_NM})에 이미 있는 것을
+ * 마킹 행에 <b>베껴 두던 중복</b>이라, 영상 쪽이 바뀌면 두 값이 어긋나고 어느 쪽이 맞는지 판정할 축이
+ * 없었다. 마킹 응답의 두 값은 사라지지 않고 <b>영상 행에서 조달</b>한다
+ * ({@code MarkingResponse.from} 이 그 둘을 인자로 받는다) — 화면·외부 계약은 무변경이다.
+ *
+ * <p>없앤 계기는 포털 업로드 영상 마킹이다. 그 경로에는 관제 인입 이벤트 유형이 애초에 오지 않고
+ * 본인 데이터라 비식별도 하지 않아 <b>둘 다 채울 값이 없는데</b> 두 칸이 NOT NULL 이라 저장 자체가
+ * 막혀 있었다. 두 값을 지어내 채우지 않고 칸을 없애는 쪽을 골랐다.
  */
 @Entity
 @Table(name = "LS_MARKING")
@@ -47,6 +71,34 @@ public class LsMarking {
     public static final String STATUS_VLM_REQUESTED = "VLM_REQUESTED";
     public static final String STATUS_VLM_COMPLETED = "VLM_COMPLETED";
     public static final String STATUS_VLM_FAILED = "VLM_FAILED";
+
+    /**
+     * <b>예약</b> — 외부에서 이벤트 마킹까지 끝난 영상을 받아 적재할 때의 시작 상태 (ADR-052).
+     * [design: ADR-052] [design: ERD-013]
+     *
+     * <p>적재 시점에는 그 영상이 아직 비식별되지 않았다. 마킹은 비식별된 영상을 대상으로 하도록
+     * 정해져 있고 비식별은 적재 뒤 비동기로 수행되므로, 올리는 그 자리에서 활성화할 수 없다.
+     * 그래서 외부가 준 시점 배열을 이 상태로 담아 두었다가 비식별이 끝나 영상이 마킹 가능 상태가
+     * 되면 {@link #STATUS_PENDING} 으로 전이시킨다({@code MarkingActivationTxService}).
+     *
+     * <h3>★ 이 상태는 {@link #ACTIVE_STATUSES} 에 넣지 않는다 — 그것이 이 설계의 요점이다</h3>
+     * <p>활성 마킹을 세는 부분 유니크 인덱스({@code UK_LS_MARKING_RAW_ACTVTN} —
+     * {@code WHERE STTS_CD IN ('PENDING','VLM_REQUESTED')})가 이 값을 보지 않으므로, 예약은 영상당
+     * 활성 마킹 1건 제약을 <b>점유하지 않는다</b>. 따라서 <b>비식별이 끝내 실패해도 사람이 그 영상을
+     * 다시 마킹할 수 있다</b>. ADR-052 가 「업로드 시점 즉시 활성화」를 기각한 근거가 바로 이것이며,
+     * 여기에 이 값을 더하는 순간 그 성질이 사라진다.
+     *
+     * <p>적용하지 못한 채 끝난 예약은 {@link #STATUS_SKIPPED} 로 마감한다 — 적재 자체는 되돌리지
+     * 않는다(영상과 그 파일은 그대로 남고, 사람이 다시 마킹하면 기존 흐름을 탄다).
+     *
+     * <p>DB 제약을 새로 걸지 않는다: {@code STTS_CD} 는 {@code varchar(16)} 이고 CHECK 제약이 없어
+     * 코드 상수 추가만으로 성립한다(V31 주석의 실측 근거). 값 목록을 제약으로 강제하면 위 성질을
+     * 깨뜨릴 위험만 생긴다.
+     *
+     * <p>⚠ 포털 업로드 경로는 위탁 축 상태값과 이 예약 상태를 <b>쓰지 않는다</b>(ERD-013). 그 경로의
+     * 마킹은 프레임을 어느 지점에서 뽑을지 정하는 것이고 비식별 단계 자체가 없다.
+     */
+    public static final String STATUS_RESERVED = "RESERVED";
 
     /**
      * <b>종결</b> — 배치 트리거가 정당하게 skip 되어 이 마킹이 소비될 일이 없음 (B-ISSUE-41).
@@ -87,17 +139,11 @@ public class LsMarking {
     @Column(name = "RAW_SN", nullable = false)
     private Long rawSn;
 
-    @Column(name = "EVNT_NM", nullable = false, length = 200)
-    private String evntNm;
-
     @Column(name = "MARK_MODE_CD", nullable = false, length = 16)
     private String markModeCd;
 
     @Column(name = "FRME_INTV_NOCS")
     private Integer frmeIntvNocs;
-
-    @Column(name = "VIDEO_FILE_PATH_NM", nullable = false, length = 500)
-    private String videoFilePathNm;
 
     @Column(name = "MARK_CN", nullable = false, columnDefinition = "TEXT")
     private String markCn;
@@ -116,11 +162,36 @@ public class LsMarking {
     @Column(name = "FPS")
     private Double fps;
 
+    /**
+     * 마킹 시 작업자가 고른 <b>검증 이벤트 질문</b>의 일련번호 — 이벤트 어노테이션 질문 칸의 1순위 조달값.
+     * [design: ERD-013]
+     *
+     * <p>그 영상의 검증 이벤트 유형에 등록된 질문 가운데 고른 값이다. 미선택이면 그 유형의 <b>첫 번째
+     * 질문</b>이 대신 저장되고, 검증 이벤트 유형이 미수신이면 고를 축이 없으므로 <b>비워 둔다</b>
+     * (지어내지 않는다). 질문이 없다고 마킹·위탁이 막히지는 않는다.
+     *
+     * <p>★ <b>물리 FK 가 없다</b>(V17) — 질문 목록은 관리 화면에서 <b>전체 교체</b>로 저장되어 가리키던
+     * 행이 사라지는 것이 정상 동선이기 때문이다. 참조 무결성은 DB 가 아니라 조달 판정기
+     * ({@code VerificationEventQuestionResolver})가 갖는다. 따라서 <b>읽는 쪽은 이 값을 그대로 믿지 않고</b>
+     * 조달 시점마다 그 판정기로 다시 해석한다.
+     */
+    @Column(name = "VRFC_EVNT_QSTN_SN")
+    private Long vrfcEvntQstnSn;
+
     @Column(name = "STTS_CD", nullable = false, length = 16)
     private String sttsCd;
 
-    @Column(name = "REG_USER_NO")
-    private Long createdBy;
+    /**
+     * 마킹을 만든 사용자 — 내부 채널에서는 작업자이고, 포털 채널에서는 그 마킹의 <b>소유자이자 인가
+     * 판정의 키</b>다. [design: ERD-013]
+     *
+     * <p><b>자료형이 숫자가 아니라 문자인 이유(V27)</b>: 포털이 발급한 토큰의 주체 식별자를 담아야 한다.
+     * 숫자로 두면 포털 주체를 담지 못해 파싱 실패로 <b>조용히 null</b> 이 되고, 소유자 없는 마킹이
+     * 저장된다. 폭은 공통표준도메인 번호V100(문자 100자)을 따른다 — 더 좁히면 서로 다른 사용자가 같은
+     * 값으로 잘려 인가가 조용히 어긋난다.
+     */
+    @Column(name = "REG_USER_NO", length = 100)
+    private String createdBy;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -132,15 +203,12 @@ public class LsMarking {
      * 자동 모드 마킹 생성.
      *
      * @param rawSn          영상 PK
-     * @param eventName      이벤트명
      * @param intervalFrames 프레임 간격(프레임 수) — 1 이상 필수
-     * @param videoPath      NAS 경로
      * @param marksJson      JSON 문자열
-     * @param createdBy      생성자 사용자 번호
+     * @param createdBy      생성자 사용자 식별자 (nullable)
      */
-    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
-                                        String videoPath, String marksJson, Long createdBy) {
-        return createAuto(rawSn, eventName, intervalFrames, videoPath, marksJson, createdBy, null);
+    public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy) {
+        return createAuto(rawSn, intervalFrames, marksJson, createdBy, null);
     }
 
     /**
@@ -152,29 +220,36 @@ public class LsMarking {
      *
      * @param fps 마킹 시점 고정 프레임레이트 (nullable — null 이면 추출이 resolveFps 폴백)
      */
-    public static LsMarking createAuto(Long rawSn, String eventName, int intervalFrames,
-                                        String videoPath, String marksJson, Long createdBy, Double fps) {
+    public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy,
+                                        Double fps) {
+        return createAuto(rawSn, intervalFrames, marksJson, createdBy, fps, null);
+    }
+
+    /**
+     * 자동 모드 마킹 생성 (fps pin + 질문 선택값 포함).
+     *
+     * <p>{@code vrfcEvntQstnSn} 은 <b>이미 해석이 끝난</b> 값이어야 한다 — 요청값을 그대로 넘기지 말고
+     * {@code VerificationEventQuestionResolver} 로 해석한 결과를 넘긴다(그 유형에 속하지 않으면 첫 번째로
+     * 되돌아간 값). 해석 규칙을 여기에 두면 그것이 곧 두 번째 진실원이 된다.
+     *
+     * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable — 검증 이벤트 유형 미수신·질문 0건이면 null)
+     */
+    public static LsMarking createAuto(Long rawSn, int intervalFrames, String marksJson, String createdBy,
+                                        Double fps, Long vrfcEvntQstnSn) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
-        }
-        if (eventName == null || eventName.isBlank()) {
-            throw new IllegalArgumentException("eventName 은 필수입니다.");
         }
         if (intervalFrames <= 0) {
             throw new IllegalArgumentException("intervalFrames 는 1 이상이어야 합니다.");
         }
-        if (videoPath == null || videoPath.isBlank()) {
-            throw new IllegalArgumentException("videoPath 는 필수입니다.");
-        }
 
         LsMarking m = new LsMarking();
         m.rawSn = rawSn;
-        m.evntNm = eventName;
         m.markModeCd = MODE_AUTO;
         m.frmeIntvNocs = intervalFrames;
-        m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
         m.fps = fps;
+        m.vrfcEvntQstnSn = vrfcEvntQstnSn;
         m.sttsCd = STATUS_PENDING;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();
@@ -187,14 +262,11 @@ public class LsMarking {
      * 수동 모드 마킹 생성.
      *
      * @param rawSn      영상 PK
-     * @param eventName  이벤트명
-     * @param videoPath  NAS 경로
      * @param marksJson  JSON 문자열
-     * @param createdBy  생성자 사용자 번호
+     * @param createdBy  생성자 사용자 식별자 (nullable)
      */
-    public static LsMarking createManual(Long rawSn, String eventName,
-                                          String videoPath, String marksJson, Long createdBy) {
-        return createManual(rawSn, eventName, videoPath, marksJson, createdBy, null);
+    public static LsMarking createManual(Long rawSn, String marksJson, String createdBy) {
+        return createManual(rawSn, marksJson, createdBy, null);
     }
 
     /**
@@ -206,27 +278,93 @@ public class LsMarking {
      *
      * @param fps 마킹 시점 고정 프레임레이트 (nullable — null 이면 추출이 resolveFps 폴백)
      */
-    public static LsMarking createManual(Long rawSn, String eventName,
-                                          String videoPath, String marksJson, Long createdBy, Double fps) {
+    public static LsMarking createManual(Long rawSn, String marksJson, String createdBy, Double fps) {
+        return createManual(rawSn, marksJson, createdBy, fps, null);
+    }
+
+    /**
+     * 수동 모드 마킹 생성 (fps pin + 질문 선택값 포함).
+     *
+     * <p>{@code vrfcEvntQstnSn} 의 계약은 {@link #createAuto(Long, int, String, String, Double, Long)}
+     * 과 같다 — <b>해석이 끝난</b> 값만 받는다.
+     *
+     * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable)
+     */
+    public static LsMarking createManual(Long rawSn, String marksJson, String createdBy, Double fps,
+                                          Long vrfcEvntQstnSn) {
         if (rawSn == null) {
             throw new IllegalArgumentException("rawSn 은 필수입니다.");
-        }
-        if (eventName == null || eventName.isBlank()) {
-            throw new IllegalArgumentException("eventName 은 필수입니다.");
-        }
-        if (videoPath == null || videoPath.isBlank()) {
-            throw new IllegalArgumentException("videoPath 는 필수입니다.");
         }
 
         LsMarking m = new LsMarking();
         m.rawSn = rawSn;
-        m.evntNm = eventName;
         m.markModeCd = MODE_MANUAL;
         m.frmeIntvNocs = null;
-        m.videoFilePathNm = videoPath;
         m.markCn = marksJson;
         m.fps = fps;
+        m.vrfcEvntQstnSn = vrfcEvntQstnSn;
         m.sttsCd = STATUS_PENDING;
+        m.createdBy = createdBy;
+        LocalDateTime now = LocalDateTime.now();
+        m.regDt = now;
+        m.mdfcnDt = now;
+        return m;
+    }
+
+    /**
+     * <b>예약 마킹 생성</b> — 외부에서 이벤트 마킹까지 끝난 영상을 적재할 때 쓴다 (ADR-052).
+     * [design: ADR-052]
+     *
+     * <p>시작 상태는 {@link #STATUS_RESERVED} 다. 적재 시점에는 그 영상이 아직 비식별되지 않아
+     * 마킹을 곧바로 활성화할 수 없으므로 예약해 두고, 비식별이 끝나 영상이 마킹 가능 상태가 되면
+     * {@code MarkingActivationTxService} 가 {@link #STATUS_PENDING} 으로 전이시킨다.
+     *
+     * <h3>마킹 방식 코드가 {@link #MODE_MANUAL} 인 이유</h3>
+     * <p>외부가 준 시점 배열의 <b>구조가 사람이 직접 찍은 마킹과 같기</b> 때문이다(ADR-052).
+     * 따라서 {@code frmeIntvNocs}(프레임 간격)는 {@code null} 이다 — 간격으로 생성한 값이 아니다.
+     *
+     * <p>⚠ 그 대가로 <b>사람이 찍은 마킹과 외부가 준 마킹이 마킹 방식 코드로는 구분되지 않는다</b>.
+     * ADR-052 가 인지·수용한 대가이며, 구분하려고 새 코드값을 만들지 않는다.
+     *
+     * <p>⚠ 외부가 함께 준 프레임 이미지는 적재하지 않는다 — <b>시점 위치 정보로만</b> 쓴다. 그 이미지는
+     * 비식별 이전 원본이고, 프레임 추출 단계가 같은 시점에서 원본·비식별본 두 벌을 다시 만든다.
+     *
+     * @param rawSn     영상 PK (필수)
+     * @param marksJson 외부가 준 시점 배열의 JSON 문자열 (필수 — 비면 예약할 내용이 없다)
+     * @param createdBy 적재를 실행한 사용자 식별자 (nullable)
+     * @param fps       적재 시점에 확정한 프레임레이트 pin (nullable — null 이면 추출이 조회 폴백)
+     */
+    public static LsMarking createReserved(Long rawSn, String marksJson, String createdBy, Double fps) {
+        return createReserved(rawSn, marksJson, createdBy, fps, null);
+    }
+
+    /**
+     * 예약 마킹 생성 (질문 선택값 포함) — 계약은 {@link #createReserved(Long, String, String, Double)}
+     * 과 같다.
+     *
+     * <p>{@code vrfcEvntQstnSn} 은 <b>이미 해석이 끝난</b> 값만 받는다({@code createAuto}/{@code createManual}
+     * 과 동일 규약) — 해석 규칙을 여기에 두면 그것이 곧 두 번째 진실원이 된다. 외부 마킹 경로는 사람이
+     * 질문을 고르는 자리가 없으므로 대개 {@code null} 이거나 그 유형의 첫 번째 질문이다.
+     *
+     * @param vrfcEvntQstnSn 해석된 질문 일련번호 (nullable)
+     */
+    public static LsMarking createReserved(Long rawSn, String marksJson, String createdBy, Double fps,
+                                            Long vrfcEvntQstnSn) {
+        if (rawSn == null) {
+            throw new IllegalArgumentException("rawSn 은 필수입니다.");
+        }
+        if (marksJson == null || marksJson.isBlank()) {
+            throw new IllegalArgumentException("marksJson 은 필수입니다.");
+        }
+
+        LsMarking m = new LsMarking();
+        m.rawSn = rawSn;
+        m.markModeCd = MODE_MANUAL;
+        m.frmeIntvNocs = null;
+        m.markCn = marksJson;
+        m.fps = fps;
+        m.vrfcEvntQstnSn = vrfcEvntQstnSn;
+        m.sttsCd = STATUS_RESERVED;
         m.createdBy = createdBy;
         LocalDateTime now = LocalDateTime.now();
         m.regDt = now;

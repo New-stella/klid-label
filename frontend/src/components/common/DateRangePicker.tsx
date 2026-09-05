@@ -70,7 +70,7 @@ export function DateRangePicker({
             onChange={(from) => onChange?.({ from, to: value?.to })}
           />
         </Field>
-        <span aria-hidden="true" className="pb-3 text-gray-400">
+        <span aria-hidden="true" className="pb-3 text-gray-600">
           ~
         </span>
         <Field>

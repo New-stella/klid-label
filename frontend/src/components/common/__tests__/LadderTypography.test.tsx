@@ -72,20 +72,22 @@ describe('공통 컴포넌트 타이포 — DS-001 ladder step 배정', () => {
   });
 
   it('Button_의_size_변형이_ladder_step으로_배정된다', () => {
-    // md/lg = `btn-label`(= ladder `button` 17px) · sm = `label`(14px, 밀집 UI 예외).
+    // md/lg = `btn-label`(= ladder `button` 17px) · sm = `body-sm`(15px, 밀집 UI 예외).
     // sm 을 `button` 으로 올리면 테이블 액션·툴바가 무너지므로 의도적으로 다른 step 이다.
+    // ⚠ sm 의 기대값은 시안(SCREEN-009 `.btn-sm { font-size: 15px }`) 정합으로 `label`(14px)
+    //   에서 옮겨온 것이다 — 가드를 느슨하게 푼 것이 아니라 사양이 바뀐 지점이다.
     const cls = (size: 'sm' | 'md' | 'lg') =>
       (render(<Button size={size}>확인</Button>).container.querySelector('button')?.className ?? '')
         .split(/\s+/)
         .filter(Boolean);
 
-    expect(cls('sm')).toContain('text-label');
+    expect(cls('sm')).toContain('text-body-sm');
     expect(cls('md')).toContain('text-btn-label');
     expect(cls('lg')).toContain('text-btn-label');
 
     // 세 변형 모두 크기 클래스를 정확히 하나만 갖는다(twMerge 삼킴·중복 방지).
     for (const size of ['sm', 'md', 'lg'] as const) {
-      const sizes = cls(size).filter((c) => /^text-(label|btn-label|button)$/.test(c));
+      const sizes = cls(size).filter((c) => /^text-(label|body-sm|btn-label|button)$/.test(c));
       expect(sizes, `Button(size=${size}) 의 크기 토큰`).toHaveLength(1);
     }
   });

@@ -2,12 +2,12 @@
 logicraft_item: SCREEN-018
 type: screen_spec
 version: 29
-last_updated_at: 2026-08-21T00:33:47.061Z
+last_updated_at: 2026-08-29T01:25:14.006Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:05.301Z
-sync_session: 20
-stale: false
+synced_at: 2026-09-05T02:34:48.350Z
+sync_session: 35
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-018.json
@@ -432,7 +432,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-334
 
 ### progress
 
@@ -441,6 +441,10 @@ _(empty)_
 ### subtasks
 
 _(empty)_
+
+### last_updated
+
+2026-08-29T01:25:14.006Z
 
 ## required_roles
 

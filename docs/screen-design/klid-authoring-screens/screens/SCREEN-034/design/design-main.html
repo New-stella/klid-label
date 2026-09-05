@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="stylesheet" href="design-main.css"><meta charset="utf-8" /></head>
+<head><link rel="stylesheet" href="main.css"><meta charset="utf-8" /><link rel="stylesheet" href="design.css" /></head>
 <body>
+
 <main class="screen-root">
 
   
@@ -162,7 +163,7 @@
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">② 다운로드 중 — 두 버튼이 함께 잠긴다</p>
+        <p class="t-label ref-variant-title">② 원본을 내려받는 중 — 두 버튼이 잠기고 취소가 나타난다</p>
         <div class="ref-box">
           <div class="ref-head-strip">
             <div class="head-titles">
@@ -175,9 +176,13 @@
                 <span class="spinner" style="border-color:var(--n-3);border-top-color:var(--n-6)" aria-hidden="true"></span>
                 내려받는 중
               </button>
+              <button type="button" class="btn btn-secondary btn-sm">
+                <svg viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                원본 다운로드 취소
+              </button>
             </div>
           </div>
-          <p class="t-caption text-muted" style="margin-top:16px">한쪽을 누르면 다른 쪽도 함께 잠깁니다. 큰 파일을 두 번 동시에 받으면 어느 쪽이 진행 중인지 알 수 없기 때문입니다.</p>
+          <p class="t-caption text-muted" style="margin-top:16px">한쪽을 누르면 다른 쪽도 함께 잠깁니다. 큰 파일을 두 번 동시에 받으면 어느 쪽이 진행 중인지 알 수 없기 때문입니다. 취소는 원본을 받는 동안에만 나타나며 함께 잠기지 않습니다 — 눌러야 동작하는 버튼이기 때문입니다. 내보내기(JSON)에는 취소를 두지 않습니다. 작아서 이 버튼이 뜨기 전에 끝납니다.</p>
         </div>
       </div>
 

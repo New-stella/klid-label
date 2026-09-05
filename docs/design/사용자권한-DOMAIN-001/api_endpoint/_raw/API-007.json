@@ -13,10 +13,11 @@
         "auth"
       ],
       "method": "POST",
-      "summary": "역할 클레임",
+      "summary": "관리자 부트스트랩 (역할 자가부여)",
       "security": [
         {
           "jwt": [
+            "ADMIN",
             "REVIEWER",
             "WORKER",
             "PORTAL_USER"
@@ -34,11 +35,10 @@
                 "properties": {
                   "role": {
                     "enum": [
-                      "WORKER",
-                      "REVIEWER"
+                      "ADMIN"
                     ],
                     "type": "string",
-                    "description": "부여된 역할 (PORTAL_USER 불가)"
+                    "description": "부여된 역할 — 항상 ADMIN 이다 (부트스트랩 전용)"
                   },
                   "userNo": {
                     "type": "integer",
@@ -74,7 +74,7 @@
           },
           "example": {
             "data": {
-              "role": "WORKER",
+              "role": "ADMIN",
               "userNo": 1001,
               "userName": "검수자A",
               "accessToken": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ3b3JrZXIwMSJ9.signature"
@@ -147,7 +147,39 @@
             "success": false,
             "errorCode": "UNAUTHORIZED"
           },
-          "description": "미인증 또는 관리자 패스워드 불일치. ErrorCode=UNAUTHORIZED",
+          "description": "미인증 또는 관리자 패스워드 불일치. 자격 전용 저장 위치에도 배포 설정에도 패스워드가 없으면 어떤 값도 통과하지 않아 이 응답이 된다. ErrorCode=UNAUTHORIZED",
+          "content_type": "application/json"
+        },
+        "403": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "nullable": true,
+                "description": "에러 시 null"
+              },
+              "message": {
+                "type": "string",
+                "description": "사용자 메시지"
+              },
+              "success": {
+                "type": "boolean",
+                "description": "성공 여부 (에러 시 false)"
+              },
+              "errorCode": {
+                "type": "string",
+                "description": "ErrorCode enum name"
+              }
+            }
+          },
+          "example": {
+            "data": null,
+            "message": "해당 역할은 자가 부여할 수 없습니다. 관리자에게 권한 부여를 요청하세요.",
+            "success": false,
+            "errorCode": "FORBIDDEN"
+          },
+          "description": "자가 부여가 허용되지 않은 역할 요청. ErrorCode=FORBIDDEN",
           "content_type": "application/json"
         },
         "409": {
@@ -179,7 +211,7 @@
             "success": false,
             "errorCode": "CONFLICT"
           },
-          "description": "이미 권한이 부여된 사용자. ErrorCode=CONFLICT",
+          "description": "부트스트랩 창이 닫혀 있다(ADMIN 이 1명 이상) 또는 포털 채널 요청이다. ErrorCode=CONFLICT",
           "content_type": "application/json"
         },
         "429": {
@@ -216,6 +248,7 @@
         }
       },
       "brownfield": {
+        "notes": "### 2026-08-27 — 관리자 공유 패스워드의 원천 이동 (ADR-046)\n- 이 창구가 대조하는 관리자 공유 패스워드의 원천이 배포 설정에서 자격 전용 저장 위치의 해시로 옮겨갔다. 저장 위치에 값이 없으면 배포 설정값으로 되돌아가 판정하고, 둘 다 없으면 어떤 패스워드도 통과하지 않는다.\n- 관리자가 그 패스워드를 교체하면 이 창구가 대조하는 값도 함께 바뀐다. 두 창구가 같은 원천을 보기 때문이다.\n- 자가 부여 가능 역할의 화이트리스트는 이번 변경 대상이 아니다. 이 결정은 새 역할을 만들지 않으므로 목록에 더하거나 뺄 것이 없다.\n- 이미 역할을 보유한 사용자 거절, 속도 제한 축과 판정 순서, 사용자 마스터 자동등록, 응답 스키마와 상태코드 계열도 그대로다.\n\n### 2026-09-02 — 근거 결정 정정 (ADR-055)\n- 요청 본문 userId 설명이 인용하던 결정은 폐기됐다. 이 창구의 전제(관리자가 한 명도 없을 때만 열린다)와 부여 역할 고정, 진입 시 작업자 자동 등록의 근거는 ADR-055 다.\n- 자동 등록 시점은 이 창구 호출이 아니라 인증을 통과한 내부 채널 진입 시점이며, 이미 부여된 역할은 덮어쓰지 않는다.\n- 요청 role 의 enum 과 검사 서술의 관계를 드러냈다 — 서버는 값을 읽고 검사하되(PORTAL_USER 400 / 그 밖 403) 부여 역할은 ADMIN 고정이다. enum·상태코드·응답 스키마 등 계약은 바뀌지 않았다.",
         "status": "new",
         "decided_by": "ADR-012",
         "change_kind": [
@@ -225,7 +258,7 @@
       },
       "deprecated": false,
       "parameters": [],
-      "description": "인증됐으나 role 클레임이 없는 사용자가 관리자 공유 패스워드와 함께 본인에게 WORKER 또는 REVIEWER 역할을 자가 부여하고 새 access token 을 즉시 발급받는 온보딩 API다. '관제/포털 채널 분기'가 아니라 단일 전제(actor.channel==INTERNAL && actor.role==null) 충족 여부로 승인·거절을 가른다 — 요청 role 이 PORTAL_USER 면 400, 그 전제를 벗어나면(PORTAL 채널 사용자 포함, 또는 이미 role 을 보유한 사용자) 409 로 거절한다. 관리자 패스워드는 BCrypt 상수시간 비교로 검증하고, 시도 횟수는 계정 축 + 엔드포인트 전역 축으로 제한한다(429). security 표에 나열된 REVIEWER/WORKER/PORTAL_USER 는 성공 조건이 아니라 정반대다 — 이 중 하나라도 이미 보유한 인증 사용자는 모두 409 로 거절된다. 이 API 를 성공적으로 호출할 수 있는 유일한 대상은 아직 아무 역할도 보유하지 않은(내부 채널, role 미배정) 사용자뿐이다.",
+      "description": "인증됐으나 role 클레임이 없는 사용자가 관리자 공유 패스워드와 함께 본인에게 ADMIN 역할을 자가 부여하고 새 access token 을 즉시 발급받는 온보딩 API다. 이 창구는 관리자 부트스트랩 전용이다 — 전제는 둘이며 둘이 모두 참일 때만 승인한다: 내부 채널일 것, 그리고 **시스템에 ADMIN 이 한 명도 없을 것**. ★**요청자가 이미 역할을 보유했는지는 창이 열려 있는 동안 따지지 않는다.** 검수자·작업자도 이 창구로 관리자가 될 수 있으며, 부여 시 기존 역할이 관리자로 교체된다. 역할 보유를 거절 사유로 삼는 것은 **창이 닫힌 뒤**(ADMIN 이 1명 이상)에만 성립한다 — 창이 열려 있다는 것 자체가 아직 아무도 관리자가 아니라는 뜻이라, 그 구간에서 역할 보유를 막으면 최초 관리자를 만들 수 있는 사람이 아무도 남지 않는다(이미 운영 중인 시스템에는 역할 없는 사용자가 없고, 신규 설치에서도 진입 시 자동 등록이 같은 요청에서 작업자 역할을 부여한다). 요청 role 이 PORTAL_USER 면 400, 나머지 전제를 벗어나면(PORTAL 채널 사용자, 또는 ADMIN 이 이미 존재하는 상태) 409 로 거절한다. 부여되는 역할은 ADMIN 고정이며 요청이 다른 역할을 지정해도 결과를 바꾸지 못한다 — 자가 부여 화이트리스트는 ADMIN 하나로 좁혀졌고, 그 밖의 역할이 요청되면 403 으로 거절한다 — 현재 역할 집합에서는 PORTAL_USER 가 앞선 400 검사에 먼저 걸려 이 분기에 도달하지 않으나, 역할 집합이 넓어질 때 새 역할이 자동으로 자가 부여 대상이 되지 않게 하는 기본 거부 장치다. 관리자 패스워드는 자격 전용 저장 위치에 보관된 BCrypt 해시와 상수시간으로 비교해 검증한다 — 저장 위치에 값이 없으면 배포 설정값으로 되돌아가 판정하고, 둘 다 없으면 어떤 패스워드도 통과하지 않는다. 관리자가 그 패스워드를 교체하면 이 창구가 대조하는 값도 함께 바뀐다. 시도 횟수는 계정 축 + 엔드포인트 전역 축으로 제한한다(429). security 표에 나열된 역할은 성공 조건도 거절 조건도 아니다 — **창이 열려 있는 동안에는 역할 보유 여부가 결과를 가르지 않는다.** 이 API 를 성공적으로 호출할 수 있는 대상은 **내부 채널로 인증한 사용자 전원**이며, 그 조건은 **ADMIN 이 0명인 동안에만** 성립한다. ADMIN 이 한 명이라도 생기면 이 창구는 누구에게도 열리지 않는다 — 역할이 없는 사용자도, 이미 역할을 가진 사용자도, 관리자 패스워드를 알아도 마찬가지이며, 이후 역할 부여는 관리자가 사용자 관리에서 한다.\n\n이 창구의 전제(시스템에 ADMIN 이 한 명도 없을 때만 열린다)와 부여 역할 ADMIN 고정, 그리고 역할이 없는 내부 채널 진입자를 작업자로 자동 등록하는 규칙은 모두 [[ADR-055]] 에서 나온다.\n\n⚠ **구 서술 폐기** — *\"이미 역할을 보유한 인증 사용자는 모두 409 로 거절된다 / 성공 대상은 아직 아무 역할도 보유하지 않은 사용자뿐이다\"*. 그 조건을 **되살리면 이 창구가 도달 불가능해진다** — 진입 시 자동 등록이 같은 요청의 앞단에서 작업자 역할을 부여하고, 이미 운영 중인 시스템에는 역할 없는 사용자가 애초에 존재하지 않는다. 실제로 그 교착이 한 번 발생했다.",
       "request_body": {
         "schema": {
           "type": "object",
@@ -236,31 +269,29 @@
           "properties": {
             "role": {
               "enum": [
-                "REVIEWER",
-                "WORKER",
-                "PORTAL_USER"
+                "ADMIN"
               ],
               "type": "string",
-              "description": "자가부여할 역할. PORTAL_USER 는 형식상 허용되나 항상 400 으로 거절된다(화이트리스트는 WORKER/REVIEWER 뿐)."
+              "description": "부여 요청 역할. enum 에 ADMIN 하나만 있는 것은 검사를 통과하는 값이 그것뿐이기 때문이며, 서버는 이 값을 읽고 검사한다 — PORTAL_USER 면 400, 그 밖의 역할이면 403 이다. 검사를 통과하더라도 부여되는 역할은 ADMIN 고정이라 이 값이 결과를 바꾸지 못한다(부트스트랩 전용)."
             },
             "userId": {
               "type": "string",
               "nullable": true,
-              "description": "표시용 사용자 ID — 상위 시스템(관제서버)이 세션 인계 시 localStorage 로 전달한 값(있는 경우만). 사용자 마스터 자동등록에 쓰인다(ADR-043)."
+              "description": "표시용 사용자 ID — 상위 시스템(관제서버)이 세션 인계 시 localStorage 로 전달한 값(있는 경우만). 선택 필드이므로 값이 없어도 요청은 정상 처리된다. 사용자 마스터에 남는 표시값으로 쓰인다 — 다만 자동 등록이 일어나는 시점은 이 창구 호출이 아니라 인증을 통과한 내부 채널 진입 시점이고, 역할이 없는 진입자만 작업자로 등록되며 이미 부여된 역할은 덮어쓰지 않는다(ADR-055)."
             },
             "userNm": {
               "type": "string",
               "nullable": true,
-              "description": "표시용 사용자 이름 — userId 와 동일 출처·용도"
+              "description": "표시용 사용자 이름 — userId 와 동일 출처·용도. 선택 필드라 값이 없어도 요청은 정상 처리된다."
             },
             "adminPassword": {
               "type": "string",
-              "description": "관리자 공유 패스워드(BCrypt 상수시간 비교로 검증)"
+              "description": "관리자 공유 패스워드 — 자격 전용 저장 위치에 보관된 BCrypt 해시와 상수시간으로 비교해 검증한다. 저장 위치에 값이 없으면 배포 설정값으로 되돌아가 판정한다."
             }
           }
         },
         "example": {
-          "role": "REVIEWER",
+          "role": "ADMIN",
           "userId": "1001",
           "userNm": "김검수",
           "adminPassword": "********"
@@ -268,13 +299,18 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-171"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-28T11:31:37.299Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
@@ -282,12 +318,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 7,
+    "current_version": 16,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "security 값은 그대로 두고(스키마상 \"역할 없음이 성공 조건\"을 표현할 수단이 없음), 본문 말미에 표에 나열된 세 역할이 실제로는 전부 거절 조건이며 성공 조건은 역할 미보유자뿐이라는 반전을 명시적으로 적었다.",
+    "change_summary": "403 예시 문구를 서버가 실제로 내보내는 문자열과 맞춘다 — 역할 부여 주체가 관리자로 옮겨간 뒤에도 예시만 검수자로 남아 있어, 이 계약을 읽는 쪽이 사용자에게 잘못된 다음 행동을 안내하게 된다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T23:41:15.293Z",
+    "last_updated_at": "2026-09-02T02:30:37.641Z",
     "created_at": "2026-05-30T06:57:01.667Z"
   }
 }

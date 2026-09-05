@@ -1,0 +1,59 @@
+{
+  "item": {
+    "id": "AC-119",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "라벨을 담지 않은 프리셋은 보류가 아니라 오토라벨 제외로 다룬다",
+    "slug": "라벨을-담지-않은-프리셋은-보류가-아니라-오토라벨-제외로-다룬다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "라벨을 담지 않은 쪽은 배치가 완료로 마감된다",
+          "그 영상에 오토라벨 라벨이 저장되지 않는다",
+          "그 영상은 보류로 기록되지 않는다",
+          "매핑이 없는 쪽은 종전대로 보류된다"
+        ],
+        "when": [
+          "두 유형의 영상이 각각 배치를 탄다"
+        ],
+        "given": [
+          "이벤트 유형에 라벨을 하나도 담지 않은 프리셋이 있다",
+          "다른 이벤트 유형에는 라벨을 담았으나 전부 AI 검출 클래스 매핑이 없는 프리셋이 있다"
+        ]
+      },
+      "statement": "이벤트 유형에 라벨을 하나도 담지 않은 프리셋이 걸려 있으면 그 유형의 영상은 보류되지 않고 배치가 완료로 마감되며 오토라벨 라벨만 저장되지 않는다. 라벨을 골랐으나 전부 AI 검출 클래스에 매핑되지 않은 경우는 이 경우가 아니며 종전대로 보류된다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-194"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:01.272Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-032의 4개 필드 변경 — derived_from",
+    "change_summary": "라벨 없는 프리셋을 오토라벨 제외로 다루는 갈래를 구현했다",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.272Z",
+    "created_at": "2026-08-25T10:48:57.970Z"
+  }
+}

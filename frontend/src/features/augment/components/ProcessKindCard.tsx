@@ -33,9 +33,12 @@ export interface ProcessKindCardProps {
 /**
  * 처리 종류 카드 — SCR-AUG-001 통합 단일 선택(라디오) UI.
  *
- * 증강 3종(WINTER/NIGHT/RAIN)과 해상도 변경(RESOLUTION)을 동일 그리드에서
- * 하나만 선택한다. 부모 radiogroup 안에서 `role="radio"` + `aria-checked` 로
- * 단일 선택 시맨틱을 표현한다. 라벨/아이콘/설명은 종류 상수 맵에서 도출한다.
+ * 증강 AI(AUGMENT)와 해상도 변경(RESOLUTION) **두 장**을 동일 그리드에서 하나만 선택한다.
+ * 부모 radiogroup 안에서 `role="radio"` + `aria-checked` 로 단일 선택 시맨틱을 표현한다.
+ * 라벨/아이콘/설명은 종류 상수 맵에서 도출한다.
+ *
+ * ⚠ 구 4장(겨울·야간·우천·해상도)은 폐기됐다(ADR-059) — 앞의 셋은 생성 조건의 부분집합이라
+ * 카드와 조건이 어긋날 수 있었고, 지금은 카드가 아니라 **생성 조건 프리셋**이다.
  */
 export const ProcessKindCard = forwardRef<
   HTMLButtonElement,

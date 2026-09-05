@@ -11,6 +11,7 @@ import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesRequest;
 import kr.co.cudo.authoring.common.client.dto.VlmTimeseriesResponse;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,7 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.UUID;
@@ -116,7 +118,19 @@ public class VlmClient {
      * @return 외부 시스템 접수 응답 (request_id echo + status)
      */
     public Mono<VlmTimeseriesResponse> submitDescribe(VlmTimeseriesRequest request) {
-        return submit(DESCRIBE_PATH, "describe", request);
+        return submitDescribe(request, null);
+    }
+
+    /**
+     * 묘사 위탁을 <b>지정한 장비로</b> 보낸다 — 노드 분산. [@design ADR-057]
+     *
+     * @param srvrAddr 보낼 장비의 기준 주소({@code LS_AI_SRVR.SRVR_ADDR}). {@code null}/공백이면 배포
+     *                 기본 주소로 나간다(장비를 고르지 못한 구성 — 이 기능이 없던 때와 같은 동작).
+     *                 값이 있는데 목적지를 만들 수 없으면 <b>조용히 되돌리지 않고 실패</b>한다
+     *                 (자세히는 {@link #absoluteTarget})
+     */
+    public Mono<VlmTimeseriesResponse> submitDescribe(VlmTimeseriesRequest request, String srvrAddr) {
+        return submit(DESCRIBE_PATH, "describe", request, srvrAddr);
     }
 
     /**
@@ -129,7 +143,18 @@ public class VlmClient {
      * <p>{@link #submitDescribe} 와 <b>반드시 다른 request_id</b> 로 호출해야 한다(콜백 역조회 축).
      */
     public Mono<VlmTimeseriesResponse> submitDescribeSub(VlmTimeseriesRequest request) {
-        return submit(DESCRIBE_SUB_PATH, "describe-sub", request);
+        return submitDescribeSub(request, null);
+    }
+
+    /**
+     * 추가 질문 위탁을 <b>지정한 장비로</b> 보낸다 — 노드 분산. [@design ADR-057]
+     *
+     * <p>같은 영상의 두 창구는 <b>같은 장비</b>로 보낸다(호출자가 한 번 고른 값을 두 번 넘긴다). 창구마다
+     * 따로 고르면 위탁 원장에는 장비가 창구별로 갈려 남는데, 그 값은 부하 집계의 입력이라 한 영상의
+     * 위탁이 두 장비의 부하를 동시에 올린 것처럼 보인다.
+     */
+    public Mono<VlmTimeseriesResponse> submitDescribeSub(VlmTimeseriesRequest request, String srvrAddr) {
+        return submit(DESCRIBE_SUB_PATH, "describe-sub", request, srvrAddr);
     }
 
     /**
@@ -153,15 +178,27 @@ public class VlmClient {
      * @param path  창구 경로.
      * @param label 로그용 창구 이름(상수라 sanitize 불필요).
      */
-    private Mono<VlmTimeseriesResponse> submit(String path, String label, VlmTimeseriesRequest request) {
+    private Mono<VlmTimeseriesResponse> submit(String path, String label, VlmTimeseriesRequest request,
+                                               String srvrAddr) {
         Objects.requireNonNull(request, "request must not be null");
         String requestId = resolveRequestId(request.requestId());
         VlmTimeseriesRequest enriched = new VlmTimeseriesRequest(
                 requestId, request.eventType(), request.media(), request.callbackUrl());
 
-        log.info("[Vlm] {} submit request_id={}", label, safeForLog(requestId));
+        // ★ 장비를 골랐으면 그 장비로 <실제로> 나가야 한다. 상대 경로로 두면 빈 생성 시점의 base 나
+        //   설정 override 로 흘러가고, 그러면 위탁 원장에는 「A 로 보냈다」가 남는데 요청은 B 로 간다 —
+        //   오류가 아니라 조용한 어긋남이라 로그에도 남지 않는다. 표식은 URL 재작성 필터에게
+        //   「이 요청의 대상은 이미 정해졌다」를 알린다(설정 override 가 이 결정을 덮지 못하게 한다).
+        URI target = absoluteTarget(srvrAddr, path);
+
+        log.info("[Vlm] {} submit request_id={} pinned={}", label, safeForLog(requestId), target != null);
         return webClient.post()
-                .uri(path)
+                .uri(uriBuilder -> target == null ? uriBuilder.path(path).build() : target)
+                .attributes(attrs -> {
+                    if (target != null) {
+                        attrs.put(IntegrationEndpointExchangeFilter.EXPLICIT_TARGET_ATTRIBUTE, Boolean.TRUE);
+                    }
+                })
                 .bodyValue(enriched)
                 .retrieve()
                 // 4xx 중 429 만 재시도 대상이다(규격 §2.9 — 동시 처리 한도 초과는 잠시 후 재시도).
@@ -178,6 +215,43 @@ public class VlmClient {
                 .map(resp -> validateResponse(resp, requestId))
                 .transformDeferred(RetryOperator.of(retry))
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker));
+    }
+
+    /**
+     * 장비 주소 + 창구 경로 -> <b>절대 URI</b>. 장비를 고르지 못했으면 {@code null}(상대 경로 유지).
+     *
+     * <p>빈을 늘리지 않고 <b>요청 시점</b>에 푸는 이유: 장비마다 {@link WebClient} 를 두면 커넥션 풀이
+     * 장비 수만큼 늘고, 용도 축(어느 연동인가)과 장비 축(그중 어느 대인가)이 빈 정의에서 얽힌다.
+     *
+     * <h3>두 경우를 구분한다 — 이 구분이 원장의 정직함을 지킨다</h3>
+     * <ul>
+     *   <li><b>주소가 없다</b>(null/공백) = 장비를 고르지 못한 구성. 상대 경로로 두어 배포 기본 주소로
+     *       나간다. 호출자도 원장에 <b>장비 미상</b>으로 적으므로 기록과 목적지가 일치한다.</li>
+     *   <li><b>주소는 있는데 목적지를 만들 수 없다</b> = <b>시끄럽게 실패</b>한다. 여기서 조용히
+     *       {@code null} 로 되돌리면 호출자는 원장에 「A 로 보냈다」를 적어 둔 채 요청은 배포 기본
+     *       주소로 나가 <b>기록이 거짓말</b>을 한다(오류가 아니라 조용한 어긋남).</li>
+     * </ul>
+     *
+     * <p>다만 <b>정상 경로에서는 이 실패가 일어나지 않는다</b> — 호출자가 장비를 고를 때 이미 같은
+     * 술어({@link PinnedTarget#canPin})로 걸렀기 때문이다. 이 분기는 그 계약이 깨졌을 때를 위한
+     * fail-secure 이며, 그래서 <b>재시도 대상이 아니다</b>(같은 주소로 다시 보내도 결과가 같다).
+     *
+     * <p>★ 예외 메시지에 <b>주소를 싣지 않는다</b> — 그 메시지는 처리 이력 컬럼에 그대로 영속될 수
+     * 있고, 장비 주소는 내부 토폴로지다(CWE-497). 주소에 개행이 섞이면 로그 위조 통로도 된다(CWE-117).
+     *
+     * <p>⚠ <b>구 서술 정정</b>: 「주소 꼴이 아니면 {@code URI.create} 가 예외를 던진다」는 부정확했다 —
+     * 그 팩토리는 스킴 없는 문자열({@code "ts02:9500"} 등)에 예외를 던지지 않고 <b>상대 URI</b> 를
+     * 만들어 낸다. 그 값을 실제로 막는 주체는 전송 계층의
+     * {@code IntegrationEndpointTransportGuards#requireResolvedHost}(호스트 없는 최종 URL 차단)였고,
+     * 지금은 그보다 앞의 {@link PinnedTarget} 판정이 선택 단계에서 걸러 낸다.
+     */
+    private static URI absoluteTarget(String srvrAddr, String path) {
+        if (srvrAddr == null || srvrAddr.isBlank()) {
+            return null;
+        }
+        return PinnedTarget.resolve(srvrAddr, path).orElseThrow(() ->
+                new NonRetryableExternalException(
+                        "시계열 분석 위탁 대상 장비의 주소로 목적지를 만들 수 없습니다."));
     }
 
     /** 동시 처리 한도 초과인가 — 규격 §2.9. 일시 상태이므로 재시도 대상이다. */

@@ -64,22 +64,21 @@ services:
       #   돌려주므로 job_id 발급 주체 반전·분할 위탁이 HTTP 왕복으로 검증된다.
       #   application-local.yml 기본도 http 지만, 컨테이너 경로에서는 base-url 이 서비스명이어야 하므로
       #   두 값을 짝으로 명시한다(mode 만 상속하고 base-url 을 빼면 localhost 를 향해 위탁이 실패한다).
-      AUGMENT_EXTERNAL_MODE: "http"
       AUGMENT_API_BASE_URL: "http://klid-mock-server:9400"
       #   ★ 위탁(http)과 콜백 수신은 <짝>이다 — genai 콜백 IP allowlist 는 미설정/none 이면 전면 차단이라
       #     열지 않으면 결과 콜백이 전건 403 이 되어 증강이 PENDING 에 영구 고착된다(그래서
-      #     GenAiIntegrationWiringGuard 가 이 조합을 기동 시점에 차단한다). 목은 docker 브리지 사설 IP 로
+      #     GenAiIntegrationWiringGuard 가 이 조합에서 <위탁을> 거부한다 — 기동은 통과하고 ERROR
+      #     로그만 남으며 조회·취소는 막지 않는다. 구 서술 「기동 시점에 차단한다」는 폐기 —
+      #     2026-09-03 · ADR-062). 목은 docker 브리지 사설 IP 로
       #     접속해 대역을 고정할 수 없으므로 <로컬만> 0.0.0.0/0 을 명시한다(base 는 fail-closed 'none' 유지).
       #     .env 의 빈 값 대입에 좌우되지 않도록 리터럴로 못박는다(env_file < environment 우선순위).
       WEBHOOK_GENAI_ALLOWED_IP_CIDRS: "0.0.0.0/0"
       # Phase 7-B 실동작 설정 — VLM describe 위탁도 목 서버로 실제 POST 한다(내부 목모드 우회 금지).
       #   목의 POST /v1/videovlm/describe 가 즉시 accepted 를 돌려주고, 이후 콜백
       #   (POST /v1/vlm/callback)으로 구간별 결과를 push 하므로 위탁↔콜백 왕복이 실동작으로 검증된다.
-      #   ★ 목은 TLS 미지원 평문 http + docker 브리지 사설 IP 라 완화 플래그가 함께 필요하다.
-      #     이 완화는 local/dev 프로파일에서만 인정되며, 그 밖의 프로파일에서 켜면 기동이 실패한다
-      #     (VlmUrlPolicy fail-closed — 운영으로 새지 않는다).
+      #   ★ 목은 TLS 미지원 평문 http + docker 브리지 사설 IP 인데, 그 형태가 전 프로파일에서
+      #     그대로 통과한다(2026-08-10 확정). 구 완화 플래그 VLM_ALLOW_INSECURE_URL 은 제거됐다.
       VLM_SERVICE_URL: "http://klid-mock-server:9400"
-      VLM_ALLOW_INSECURE_URL: "true"
       # 목이 발사하는 웹훅이 컨테이너 네트워크에서 BE 에 실제로 닿으려면 콜백 base 가 서비스명이어야 한다
       #   (기본값 localhost:8080 은 목 컨테이너 자신을 가리킨다). klid-backend:8080 은 목의 SSRF
       #   allowlist 기본값에 포함돼 있다. 수신 컨트롤러는 GenAiCallbackController(/v1/genai/callback).

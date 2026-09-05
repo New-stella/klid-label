@@ -15,7 +15,7 @@
       ],
       "decision": {
         "chosen_option": "단일 검수 채택",
-        "justification": "고도화 역할 모델(REVIEWER 단일)·완료 통지 단위와 정합한다. 2차 검수는 단일 검수(DFEAT-021)로 통합 폐기한다."
+        "justification": "고도화 역할 모델(REVIEWER 단일)·완료 통지 단위와 정합한다. 2차 검수는 단일 검수(DFEAT-021)로 통합 폐기한다.\n\n⚠ **이 문장이 근거로 든 역할 모델은 뒤집혔다 — `ADR-055` 가 관리자 역할(ADMIN)을 신설해 역할은 4종(ADMIN·REVIEWER·WORKER·PORTAL_USER)이고 계층은 관리자 → 검수자 한 단계다.** 「REVIEWER 단일」은 그 시점의 판단으로 남겨 두되 현재 사양이 아니다.\n\n⚠ 그러나 **이 결정의 결론은 그대로 유효하다** — 검수 단계를 하나로 두고 승인 시점을 작업 완료로 삼는다는 결론은 바뀌지 않았다. 관리자가 검수자 권한을 계층으로 물려받아 검수·승인을 그대로 수행하므로 검수 단계가 늘지 않기 때문이다. 이 표기를 근거로 2차 검수를 되살리지 말 것."
       },
       "brownfield": {
         "status": "new",
@@ -36,6 +36,10 @@
         {
           "title": "검수 도메인",
           "item_id": "DOMAIN-005"
+        },
+        {
+          "title": "관리자 역할 신설과 역할 계층 — 이 결정이 인용한 역할 단일화 전제를 대체",
+          "item_id": "ADR-055"
         }
       ],
       "consequences": {
@@ -48,8 +52,9 @@
         ]
       },
       "decision_date": "2026-06-01",
+      "attached_files": [],
       "decision_drivers": [
-        "역할 단일화(REVIEWER 통합)와 정합",
+        "역할 단일화(REVIEWER 통합)와 정합 — ⚠ 이 동인의 전제는 `ADR-055` 로 뒤집혔다(역할 4종 · 관리자 → 검수자 계층 한 단계). 당시 판단으로 남기며, 관리자가 검수자 권한을 물려받아 검수를 수행하므로 단일 검수라는 결론은 유지된다.",
         "검수 완료=작업 완료=통지 발행 시점 단일화",
         "운영 인력·단계 단순화"
       ],
@@ -80,12 +85,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "소속 도메인을 DOMAIN-005(검수)로 지정한다. 이 결정이 규율하는 대상이 검수 워크플로우의 단계 구성이므로 검수 도메인에 귀속시킨다. 본문은 바꾸지 않고 소속만 설정한다.",
+    "current_version": 3,
+    "stale": true,
+    "stale_reason": "DOMAIN-005의 data.attached_files 변경 — references",
+    "change_summary": "이 결정이 근거로 인용한 역할 모델(REVIEWER 단일)이 ADR-055 로 뒤집힌 사실을 결정 근거와 결정 동인에 반전 표기로 덧붙이고, references 에 ADR-055 를 더해 추적을 세운다. 당시 판단과 결론(단일 검수)은 그대로 두며 결정을 재검토하지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-14T23:38:02.774Z",
+    "last_updated_at": "2026-09-02T01:28:08.125Z",
     "created_at": "2026-06-01T06:15:21.395Z"
   }
 }

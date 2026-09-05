@@ -3,10 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Alert } from '@/components/common/Alert';
 import { Spinner } from '@/components/common/Spinner';
+import type { Channel } from '@/lib/api/types';
+import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 
-import { detectChannel, redirectToUpstream } from './redirectToUpstream';
+import { detectChannel, isUpstreamLoginConfigured, redirectToUpstream } from './redirectToUpstream';
+import { getAccessToken } from './tokenHandoff';
+import { UpstreamLoginConfigHint } from './UpstreamLoginConfigHint';
 import { resolveToken } from './tokenIngress';
 
 const COOKIE_NAME = 'klid_jwt';
@@ -58,6 +62,9 @@ export function SessionIngressPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState<IngressError | null>(null);
+  // 이동이 <설정 누락>으로 불가능한 경우의 채널. 세션 문구는 그대로 두고 원인만 덧붙인다
+  // (상위 서버 장애와 구분되지 않던 것이 이 화면의 결함이었다). null 이면 해당 없음.
+  const [configMissingChannel, setConfigMissingChannel] = useState<Channel | null>(null);
   // StrictMode 더블 마운트 보호
   const ranRef = useRef(false);
 
@@ -76,15 +83,27 @@ export function SessionIngressPage() {
         return;
       }
       const redirected = redirectToUpstream(channel);
-      if (!redirected) {
-        setError(failure);
-      }
+      if (redirected) return;
+      // 이동에 실패했다 — 무엇이 일어났는지(failure)는 그대로 알리고, 그 원인이 <설정 누락>이면
+      // 손댈 곳까지 덧붙인다. 예전에는 설정 누락이 상위 서버 장애와 같은 문구로 덮였다.
+      if (!isUpstreamLoginConfigured(channel)) setConfigMissingChannel(channel);
+      setError(failure);
     };
 
-    let token = resolveToken({
-      urlToken: params.get('token'),
-      cookieName: COOKIE_NAME,
-    });
+    // [@design INT-013]
+    // 인계 채널은 **채널마다 다르다.** 관제 채널은 같은 출처 브라우저 저장소가 곧 인계 채널이라
+    // 그대로 읽는다. 포털 채널은 access token 이 **Host 메모리에만** 있고 저장소를 쓰지 않기로
+    // 한 채널이라, 저장소를 읽으면 ①아무것도 없거나 ②앞 채널이 남긴 **죽은 토큰**을 줍는다.
+    // 그래서 그 채널에서는 획득 창구(`features/auth/tokenHandoff`)에 묻는다 — 저장소 직접
+    // 읽기를 창구 뒤로 추상화한다는 설계의 나머지 절반이 이 지점이다.
+    //
+    // ⚠ 관제 채널의 동작은 한 글자도 바뀌지 않는다(URL·쿠키·저장소 전략 그대로).
+    let token = isPortalEmbedChannel()
+      ? getAccessToken()
+      : resolveToken({
+          urlToken: params.get('token'),
+          cookieName: COOKIE_NAME,
+        });
 
     // [개발 전용] VITE_DEV_TOKEN 환경변수로 upstream 없이 개발 가능하게 지원
     if (!token && import.meta.env.DEV) {
@@ -131,6 +150,9 @@ export function SessionIngressPage() {
           className="max-w-sm shadow-sm"
         >
           {error.description}
+          {configMissingChannel !== null && (
+            <UpstreamLoginConfigHint channel={configMissingChannel} />
+          )}
         </Alert>
       </div>
     );

@@ -468,12 +468,14 @@
         }
       ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "publishes_events": [
         "EVT-004"
@@ -483,20 +485,20 @@
         "UC-021"
       ],
       "related_acceptances": [
-        "AC-017",
-        "AC-020"
+        "AC-1057",
+        "AC-1058"
       ],
       "related_requirements": [],
       "referenced_integrations": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "DFEAT-015의 3개 필드 변경이 realizes로 2-hop 전파",
-    "change_summary": "DOMAIN-010(라벨링)의 UC-021(라벨 편집·임시저장)을 시각화하는 시퀀스가 없어 신설한다. 라벨 조회·저장·객체 속성값 저장 경로의 실제 구현을 읽어 그렸다 — 프레임 전체 교체 계약과 요청에 빠진 라벨의 실삭제 순서, 조회 응답이 준 라벨셋 판번호를 되돌려 보내야 하는 낙관적 동시성 대조와 409, 인가→신고 게이트(412)→작업락(409) 평가 순서, 폐기 여부가 실린 저장의 승인 이력 400, 라벨셋이 실제로 바뀐 경우에만 남는 저장 이력·판번호 증가, 승인 이력 영상에서의 수정 이벤트 발행, 그리고 이 저장이 버전 스냅샷을 만들지 않는다는 점을 담았다. 소속 도메인을 명시해 도메인 축 조회에서 빠지지 않게 한다.",
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "관련 수용기준 목록을 살아 있는 것으로 다시 세운다. 2건 중 2건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1057, AC-1058). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T04:22:20.117Z",
+    "last_updated_at": "2026-09-01T08:27:11.479Z",
     "created_at": "2026-08-16T04:22:20.117Z"
   }
 }

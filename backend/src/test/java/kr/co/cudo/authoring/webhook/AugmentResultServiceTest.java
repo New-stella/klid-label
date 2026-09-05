@@ -66,6 +66,13 @@ class AugmentResultServiceTest {
      */
     @Mock kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
 
+    /**
+     * 복사 원본 경로 조달의 진실원(V28/ADR-058). 부모 게이트가 <b>플래그가 아니라 이 경로</b>를 본다 —
+     * 「비식별이 끝났나」는 조건이 아니라 결과였고, 그 판정을 걷어냈다. 되살리기 금지 사유는
+     * {@code DerivativeSourceVideoResolver} 주석 참조.
+     */
+    @Mock kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository deidentProcLogRepository;
+
     /** 파생 비디오(비식별 사본) 출력 base — 산출 경로 기대값 계산에 함께 쓴다. */
     private static final String DEID_BASE = "/storage/deidentified";
 
@@ -92,7 +99,13 @@ class AugmentResultServiceTest {
     @BeforeEach
     void setup() {
         service = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup);
+                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup,
+                derivativeSourceVideoResolver());
+        // 기본값: 부모에 <복사할 비식별 영상 경로>가 적재돼 있다(관제 정상 상태).
+        //   흡수 이전 게이트는 플래그만 봤으므로 이 스텁이 필요 없었다. 지금은 경로를 직접 보므로
+        //   경로가 없으면 게이트가 막는다 — 관제 경로가 <더 엄격해진> 지점이다(의도).
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(anyLong()))
+                .thenAnswer(inv -> Optional.of(deidProcLog(inv.getArgument(0))));
         // 기본값: 해당 job_id 를 선점한 다른 증강이 없다.
         when(augRepository.findByExternalJobId(anyString())).thenReturn(Optional.empty());
         when(jobIdOwnerLookup.findOwnerDataAugSn(anyString())).thenReturn(Optional.empty());
@@ -103,6 +116,26 @@ class AugmentResultServiceTest {
             setField(r, "rawSn", rawSnSeq.incrementAndGet());
             return r;
         });
+    }
+
+    /**
+     * 복사 원본 경로 판정기 — 포털 설정은 이 시나리오에서 <b>타지 않으므로</b> 주입하지 않는다
+     * (포털 자산으로 바꾸면 즉시 드러나야 하므로 조용한 기본값을 넣지 않는다).
+     */
+    private kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver derivativeSourceVideoResolver() {
+        var resolver = new kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver(
+                deidentProcLogRepository, allowedStorageResolver(), null);
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                resolver, "storageDeidentifiedPath", DEID_BASE);
+        return resolver;
+    }
+
+    /** 적재된 비식별 영상 경로 — 파일명은 조합하지 않고 <값>으로 둔다(mock/KPST 이름이 다르다). */
+    private static kr.co.cudo.authoring.batch.entity.LsDeidentProcLog deidProcLog(Long rawSn) {
+        var procLog = kr.co.cudo.authoring.batch.entity.LsDeidentProcLog.request(
+                rawSn, null, "/storage/raw/" + rawSn + ".mp4", "test");
+        procLog.succeed(DEID_BASE + "/videos/" + rawSn + "/deidentified.mp4");
+        return procLog;
     }
 
     private static void setField(Object target, String name, Object value) {
@@ -547,11 +580,16 @@ class AugmentResultServiceTest {
     }
 
     /**
-     * 부모가 <b>비식별 미완료</b>({@code 'N'})면 복사할 비식별 영상 파일이 없어 파생 생성이 물리적으로
-     * 불가능하다. 재개 트리거가 없으므로 보류가 아니라 <b>실패로 확정</b>해 집계에 드러낸다.
+     * ★ 판정 축이 <b>플래그에서 경로 조달로</b> 바뀌었다(2026-09-02 확정 · V28/ADR-058).
+     *
+     * <p>구 이름은 「부모가 비식별 미완료면」이었다. 그 조건은 <b>결과였지 전제가 아니었고</b>,
+     * 비식별을 하지 않는 포털 업로드 자산의 증강을 통째로 막았다. 지금 막는 것은
+     * <b>복사할 영상 파일 경로를 구하지 못했을 때</b>이며, 관제 자산에서는 결과가 같다 —
+     * 비식별 산출물이 없으면 여전히 실패하고 <b>원본 폴백은 없다</b>.
+     * 재개 트리거가 없으므로 보류가 아니라 <b>실패로 확정</b>해 집계에 드러낸다.
      */
     @Test
-    @DisplayName("부모가_비식별_미완료면_보류가_아니라_REJECTED_로_확정된다")
+    @DisplayName("복사할_원본_영상_경로를_못_구하면_보류가_아니라_REJECTED_로_확정된다")
     void notDeidentifiedParent_failsInsteadOfWithholding() throws Exception {
         LsDataRaw parentRaw = newNonDeidentRaw(141L, "N");
         LsDataSrc originSrc = newSrc(711L, 141L, 0);
@@ -561,6 +599,8 @@ class AugmentResultServiceTest {
         when(augRepository.save(any(LsDataAug.class))).thenAnswer(inv -> inv.getArgument(0));
         when(srcRepository.findById(711L)).thenReturn(Optional.of(originSrc));
         when(videoRepository.findByRawSnForUpdate(141L)).thenReturn(Optional.of(parentRaw));
+        // 비식별을 수행하지 않았으니 성공 처리 이력이 없다 = 복사할 파일이 없다.
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(141L)).thenReturn(Optional.empty());
 
         AugmentApplyResult result = service.handle(
                 new AugmentOutcome(79L, "aug_079", true, null));

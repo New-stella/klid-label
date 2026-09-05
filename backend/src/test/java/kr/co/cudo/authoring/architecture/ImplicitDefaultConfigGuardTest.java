@@ -60,12 +60,6 @@ class ImplicitDefaultConfigGuardTest {
         // ControlNotifyFallbackRetryJob — @Scheduled(fixedDelayString/initialDelayString)
         IMPLICIT_DEFAULTS.put("authoring.control-notify.retry.interval-ms", "300000");
         IMPLICIT_DEFAULTS.put("authoring.control-notify.retry.initial-delay-ms", "60000");
-        // MetaReplicationJobConfig — @ConditionalOnProperty(matchIfMissing = true) → 미선언 시 활성
-        IMPLICIT_DEFAULTS.put("authoring.meta-replication.enabled", "true");
-        IMPLICIT_DEFAULTS.put("authoring.meta-replication.interval-sec", "60");
-        // MetaReplicationWorker / MetaReplicationOutboxService
-        IMPLICIT_DEFAULTS.put("authoring.meta-replication.batch-size", "100");
-        IMPLICIT_DEFAULTS.put("authoring.meta-replication.max-retry", "5");
         // ResizeConcurrencyGate
         IMPLICIT_DEFAULTS.put("authoring.resolution.resize-max-concurrent", "2");
         IMPLICIT_DEFAULTS.put("authoring.resolution.resize-acquire-timeout-sec", "5");

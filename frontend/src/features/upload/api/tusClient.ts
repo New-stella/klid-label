@@ -8,6 +8,7 @@
 // - filename 은 base64(Upload-Metadata)로 표시용만 전송 — 저장명은 BE 가 UUID 강제(CWE-22).
 // - apiClient 인터셉터가 인증 토큰을 주입. 세션 소유자 검증은 BE(USER_NO) 가 수행.
 
+import { adminSessionHeaders } from '@/features/adminSession/api';
 import { apiClient } from '@/lib/api/client';
 
 const TUS_VERSION = '1.0.0';
@@ -92,6 +93,19 @@ export interface TusUploadOptions {
   endpointBase?: string;
   /** 내부 업로드 전용 — 세션 생성 JSON 바디(관제 인입 29컬럼). 포털은 미지정(헤더 방식 유지). */
   createPayload?: InternalUploadCreatePayload;
+  /**
+   * 관리자 단기 유효창 토큰 — **세션 생성(POST) 1회에만** 실린다. [@design API-158] [@design ADR-046]
+   *
+   * ★청크(PATCH)·취소(DELETE)·offset(HEAD)에는 싣지 않는다. 대용량 영상 업로드는 유효창(기본
+   * 10분)을 넘기기 마련이라 청크마다 요구하면 <b>업로드가 도중에 끊긴다</b>. 그래도 안전한 이유는
+   * 업로드 세션의 <b>소유자 검증이 이미 완비돼 있기</b> 때문이다 — 서버가 세션의 사용자 번호를
+   * 토큰 주체와 대조하므로 업로드 ID 를 알아도 소유자가 아니면 이어 쓸 수 없고, 그 소유자는
+   * 유효창을 연 바로 그 사람이다.
+   *
+   * ⚠ 포털 업로드(`/portal/uploads/tus`)는 이 값을 넘기지 않는다 — 포털 이용자 본인 자산 업로드라
+   *   대상이 아니며, 묶으면 그 기능이 통째로 죽는다.
+   */
+  adminSessionToken?: string;
 }
 
 export interface TusUploadResult {
@@ -146,11 +160,14 @@ export async function createUpload(
   metadata: TusMetadata,
   endpointBase: string = DEFAULT_TUS_ENDPOINT,
   createPayload?: InternalUploadCreatePayload,
+  adminSessionToken?: string,
 ): Promise<TusCreateResult> {
   const body = createPayload ?? null;
   const headers: Record<string, string> = {
     'Tus-Resumable': TUS_VERSION,
     'Upload-Length': String(file.size),
+    // 관리자 유효창은 **여기(세션 생성)에만** 실린다 — 아래 청크·취소·offset 에는 붙이지 않는다.
+    ...adminSessionHeaders(adminSessionToken),
   };
   if (createPayload) {
     headers['Content-Type'] = 'application/json';
@@ -297,6 +314,7 @@ export async function uploadFile(
     shouldPause,
     endpointBase = DEFAULT_TUS_ENDPOINT,
     createPayload,
+    adminSessionToken,
   } = opts;
 
   let uploadId = opts.resumeUploadId;
@@ -306,7 +324,13 @@ export async function uploadFile(
     // 재개 — 서버 offset 으로 동기화 (네트워크 중단 후 신뢰 가능한 진실).
     offset = await fetchOffset(uploadId, endpointBase);
   } else {
-    const created = await createUpload(file, metadata, endpointBase, createPayload);
+    const created = await createUpload(
+      file,
+      metadata,
+      endpointBase,
+      createPayload,
+      adminSessionToken,
+    );
     uploadId = created.uploadId;
     ingestStatus = created.ingestStatus;
   }

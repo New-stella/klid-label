@@ -9,51 +9,43 @@
       <span class="chip t-mono">/role-claim</span>
       <span>인증됨 · 상단 메뉴와 좌측 메뉴가 없는 진입 화면</span>
     </div>
-    <h1 class="t-title-lg">역할 클레임 화면</h1>
-    <p class="t-body-sm text-muted">인증은 되었으나 역할이 비어 있는 사용자가 관리자에게 받은 패스워드로 역할을 부여받는 화면입니다.</p>
+    <h1 class="t-title-lg">관리자 등록 화면</h1>
+    <p class="t-body-sm text-muted">관리자가 한 명도 없는 시스템에서, 인증은 되었으나 역할이 비어 있는 사용자가 배포 시 설정된 공유 패스워드로 본인을 최초 관리자로 등록하는 화면입니다.</p>
   </div>
 
 
-  <section class="state-frame" aria-label="역할 클레임 기본 화면">
-    <p class="state-caption t-label"><span class="state-no">1</span>기본 화면 — 역할을 고르고 패스워드를 입력한 상태</p>
+  <section class="state-frame" aria-label="관리자 등록 기본 화면">
+    <p class="state-caption t-label"><span class="state-no">1</span>기본 화면 — 패스워드를 입력한 상태</p>
     <div class="state-stage">
       <div class="auth-card">
 
         <div class="auth-head">
-          <h2 class="auth-title t-title-lg">권한 부여 필요</h2>
-          <p class="auth-sub t-body-md">관리자에게 받은 패스워드로 역할을 부여받으세요.</p>
+          <h2 class="auth-title t-title-lg">관리자 등록</h2>
+          <p class="auth-sub t-body-md">이 시스템에는 아직 관리자가 없습니다. 배포 시 설정한 공유 패스워드로 본인을 최초 관리자로 등록하세요.</p>
         </div>
 
         <hr class="auth-divider">
 
-        <form class="auth-form">
-          <fieldset class="radio-group">
-            <legend class="t-label">역할 선택</legend>
-            <label class="radio-card">
-              <input type="radio" name="role" value="WORKER">
-              <span class="radio-text">
-                <span class="radio-name t-body-md">작업자</span>
-                <span class="radio-desc t-caption">영상에 라벨을 만들고 수정해 검수를 요청합니다.</span>
-              </span>
-            </label>
-            <label class="radio-card">
-              <input type="radio" name="role" value="REVIEWER" checked>
-              <span class="radio-text">
-                <span class="radio-name t-body-md">검수자</span>
-                <span class="radio-desc t-caption">작업 배정과 검수 승인·반려, 사용자·시스템 설정을 담당합니다.</span>
-              </span>
-            </label>
-          </fieldset>
+        <div class="alert alert-info" role="status">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v5M12 16h.01"></path>
+          </svg>
+          <div class="alert-body">
+            <p class="alert-title t-title-sm">관리자 권한이 부여됩니다</p>
+            <p class="alert-text t-body-sm">등록을 마치면 이 창구는 닫힙니다. 이후 다른 사용자의 역할은 관리자가 사용자 관리 화면에서 지정합니다.</p>
+          </div>
+        </div>
 
+        <form class="auth-form">
           <div class="field">
             <label class="field-label t-label" for="admin-password">관리자 패스워드</label>
             <input class="input" id="admin-password" type="password" autocomplete="new-password"
                    value="············" aria-describedby="admin-password-help"
-                   placeholder="관리자에게 받은 패스워드를 입력하세요">
-            <p class="field-help t-caption" id="admin-password-help">역할별로 관리자가 따로 안내한 패스워드입니다. 화면에는 표시되지 않습니다.</p>
+                   placeholder="배포 시 설정한 공유 패스워드를 입력하세요">
+            <p class="field-help t-caption" id="admin-password-help">배포 시 설정된 공유 패스워드입니다. 화면에는 표시되지 않습니다.</p>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-block">권한 부여 확인</button>
+          <button type="submit" class="btn btn-primary btn-block">관리자로 등록</button>
         </form>
 
       </div>
@@ -69,10 +61,10 @@
     <div class="reference-grid">
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">① 역할 미선택 또는 패스워드 공백</p>
+        <p class="t-label ref-variant-title">① 패스워드 공백</p>
         <div class="ref-surface">
-          <button type="button" class="btn btn-primary btn-block" disabled>권한 부여 확인</button>
-          <p class="t-caption text-muted">둘 중 하나라도 비어 있으면 제출할 수 없습니다.</p>
+          <button type="button" class="btn btn-primary btn-block" disabled>관리자로 등록</button>
+          <p class="t-caption text-muted">패스워드가 비어 있으면 제출할 수 없습니다.</p>
         </div>
       </div>
 
@@ -80,9 +72,9 @@
         <p class="t-label ref-variant-title">② 제출 진행 중</p>
         <div class="ref-surface">
           <button type="button" class="btn btn-primary btn-block" disabled>
-            <span class="spinner-sm" aria-hidden="true"></span>권한 부여 확인
+            <span class="spinner-sm" aria-hidden="true"></span>관리자로 등록
           </button>
-          <p class="t-caption text-muted">응답을 기다리는 동안 역할 선택·패스워드 입력·제출이 모두 잠깁니다.</p>
+          <p class="t-caption text-muted">응답을 기다리는 동안 패스워드 입력과 제출이 함께 잠깁니다.</p>
         </div>
       </div>
 
@@ -95,10 +87,10 @@
             </svg>
             <div class="alert-body">
               <p class="alert-title t-title-sm">패스워드가 일치하지 않습니다</p>
-              <p class="alert-text t-body-sm">관리자에게 받은 패스워드를 다시 확인해주세요.</p>
+              <p class="alert-text t-body-sm">배포 시 설정된 공유 패스워드를 다시 확인해주세요.</p>
             </div>
           </div>
-          <button type="button" class="btn btn-primary btn-block">권한 부여 확인</button>
+          <button type="button" class="btn btn-primary btn-block">관리자로 등록</button>
         </div>
       </div>
 
@@ -137,15 +129,15 @@
       <tbody>
         <tr>
           <th scope="row" class="t-mono">401</th>
-          <td>패스워드가 일치하지 않습니다. 관리자에게 받은 패스워드를 다시 확인해주세요.</td>
+          <td>패스워드가 일치하지 않습니다. 배포 시 설정된 공유 패스워드를 다시 확인해주세요.</td>
         </tr>
         <tr>
           <th scope="row" class="t-mono">403</th>
-          <td>해당 역할은 직접 부여할 수 없습니다. 검수자에게 권한 부여를 요청해주세요.</td>
+          <td>자가 부여할 수 없는 역할입니다. 관리자에게 권한 부여를 요청하세요.</td>
         </tr>
         <tr>
           <th scope="row" class="t-mono">409</th>
-          <td>이미 역할이 부여된 계정입니다.</td>
+          <td>이미 관리자가 있어 자가부여가 닫혀 있습니다. 관리자에게 역할 부여를 요청하세요.</td>
         </tr>
         <tr>
           <th scope="row" class="t-mono">429</th>
@@ -157,7 +149,7 @@
         </tr>
       </tbody>
     </table>
-    <p class="ref-foot t-caption text-muted">이 화면은 작업자·검수자 두 역할만 제시하므로 정상 동선에서는 403 에 도달하지 않습니다. 서버가 허용하는 역할 정책이 바뀌면 도달할 수 있어 문구를 함께 둡니다.</p>
+    <p class="ref-foot t-caption text-muted">이 화면에는 역할 선택지가 없고 싣는 값이 관리자로 고정이므로 정상 동선에서는 403 에 도달하지 않습니다. 서버가 허용하는 역할 정책이 바뀌면 도달할 수 있어 문구를 함께 둡니다. 409 는 관리자가 이미 등록되어 이 창구가 닫힌 상태를 뜻하며, 사유는 서버가 보낸 문장을 그대로 싣습니다.</p>
   </div>
 
 </main>

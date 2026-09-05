@@ -1,14 +1,14 @@
 ---
 logicraft_item: CDIAG-012
 type: class_diagram
-version: 4
+version: 6
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:57.148Z
-status: NEW
-prev_version: null
-content_hash: 6f4a6231ed0f0deaeb375377e697b4dea2c760f35c4dfc4c180ecc5b11a02703
-stale: true
+synced_at: 2026-09-02T10:52:40.262Z
+status: CHANGED
+prev_version: 5
+content_hash: 3345c745fdc8581d7e04294a96b7e72887fcc52b30b34da65fc5c2e3117bf2c9
+stale: false
 raw: ./_raw/CDIAG-012.json
 links:
   belongs_to_domain: ["[[DOMAIN-014]]"]
@@ -87,6 +87,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### configVl
 
 - **type**: String
@@ -113,6 +117,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -145,6 +153,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### expln
 
 - **type**: String
@@ -171,6 +183,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -203,6 +219,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -229,6 +249,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -270,7 +294,7 @@ _(empty)_
 
 ## description
 
-저작도구 운영 파라미터를 키-값으로 관리하는 도메인 모델. 화이트리스트 키만 등록·갱신하며 STNG_TYPE_CD 유형별 값 검증과 Caffeine 로컬 캐시(TTL 60s)로 조회. ERD-016(LS_SYSTEM_CONFIG) 기반.
+저작도구 운영 파라미터를 키-값으로 관리하는 도메인 모델. 화이트리스트 키만 등록·갱신하며 STNG_TYPE_CD 유형별 값 검증과 Caffeine 로컬 캐시(TTL 60s)로 조회. ERD-016(LS_SYSTEM_CONFIG) 기반. 연동 서버 주소 키를 저장할 때는 관리자 역할에 단기 유효창이 가산되는데, 그 유효창 자체의 발급·검증은 사용자·권한 도메인 모델이 소유하므로 여기서는 소비 측 조건으로만 둔다 — 같은 개념을 두 모델에 그리면 진실원이 둘이 된다. 요구 여부는 창구가 아니라 설정 키 단위로 갈린다.
 
 ## module_name
 
@@ -287,9 +311,39 @@ SystemConfig
 - **to_multiplicity**: 1
 - **from_multiplicity**: 1
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-045
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

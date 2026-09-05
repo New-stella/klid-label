@@ -32,10 +32,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-359"
+        ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-05-30T02:36:39.294Z"
+        "last_updated": "2026-08-29T01:26:20.824Z"
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -56,8 +58,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "추적성 링크가 전건 공란이었다. '검수 이력'은 코드상 GET /v1/reviews/{videoId}/issues(API-011, LS_DATA_ISSUE 조회)로 구현된다. 단 이 DFEAT 를 검증하는 acceptance 는 현재 프로젝트에 없다(AC-022 는 승인·반려·버전확정만 다루고 이력 열람을 검증하지 않는다) — related_acceptances 는 신규 AC 등록이 필요한 갭이라 공란으로 남기고 별도 보고한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:16:42.863Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:20.824Z",
     "created_at": "2026-05-29T06:31:37.911Z"
   }
 }

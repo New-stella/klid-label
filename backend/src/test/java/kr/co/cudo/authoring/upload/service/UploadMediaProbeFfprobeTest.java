@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.upload.service;
 
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.upload.service.UploadMediaProbe.MediaMeta;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -411,8 +412,25 @@ class UploadMediaProbeFfprobeTest {
     @DisplayName("프로세스 실행 — 교착·종료코드 회귀 가드")
     class ProcessExecution {
 
-        /** 가짜 ffprobe 는 즉시 응답하므로 1초면 충분하다(교착 시 이 값이 상한이 되어야 한다). */
-        private static final int PROBE_TIMEOUT_SEC = 1;
+        /**
+         * 테스트 전용 타임아웃 — 프로덕션 기본값(30초)을 좁혀 교착 시 이 값이 상한이 되게 한다.
+         *
+         * <p>⚠ 구 값은 1초였고 근거는 <i>"가짜 ffprobe 는 즉시 응답하므로 1초면 충분하다"</i> 였다.
+         * <b>병렬 실행에서 그 전제가 깨진다.</b> 전체 회귀(다른 Gradle 테스트 워커와 동시 실행)에서만
+         * 이 중첩 클래스가 2회 연속 실패했는데, 실패한 것은 전부 <b>빨리 끝나기를 기대하는</b> 케이스였고
+         * 소요가 하나같이 1.01초대(= 타임아웃 벽)였다. 반대로 타임아웃 발동을 기대하는 케이스는 같은
+         * 실행에서 정상 통과했다. 같은 클래스를 <b>격리 실행하면 3회 연속 전건 통과</b>하고 머신 부하
+         * (load average 7.9~9.5)는 양쪽이 같았다 — 가르는 것은 부하가 아니라 워커 간 자원 경합이며,
+         * 그 구간에서 가짜 스크립트가 1초 안에 응답하지 못한 것이다. 제품 결함이 아니라 하네스 취약성이다.
+         *
+         * <p>그래서 관측된 벽(1.01초)의 5배로 잡는다. 동시에 {@link #NO_HANG_LIMIT}(15초)의 1/3 이라
+         * 교착 시에는 여전히 <b>이 타임아웃이 먼저</b> 발동한다 — 이 값을 매달림 상한 쪽으로 더 올리면
+         * 그 상한에 먼저 걸려, 이 가드가 검증하려던 것(타임아웃 자체)을 못 잡게 된다.
+         *
+         * <p>대가: 타임아웃 발동을 기대하는 2건이 그만큼 느려진다(대기 1회 약 1.0초 → 5초,
+         * 대기 4회 약 4.1초 → 20초). 되돌리기 전에 위 관측을 먼저 재현할 것.
+         */
+        private static final int PROBE_TIMEOUT_SEC = 5;
         /** 매달림을 "실패"로 바꾸기 위한 테스트측 상한. 정상 경로는 수백 ms 안에 끝난다. */
         private static final Duration NO_HANG_LIMIT = Duration.ofSeconds(15);
 
@@ -433,9 +451,30 @@ class UploadMediaProbeFfprobeTest {
         private static final int CODEC_PAD_LENGTH = 500;
         /** 누수를 누적시켜 관측하기 위한 반복 호출 횟수. */
         private static final int CLEANUP_PROBE_COUNT = 4;
+        /** 프로덕션 임시파일 접두·확장자와 <b>같은 값</b> — "남의 파일" 흉내에 쓴다. */
+        private static final String FOREIGN_TEMP_PREFIX = "upload-ffprobe-";
+        private static final String FOREIGN_TEMP_SUFFIX = ".out";
 
         @TempDir
         Path tempDir;
+
+        /**
+         * probe 가 stdout 임시파일을 놓을 <b>이 시험 전용</b> 자리(정리 가드 3건 한정).
+         *
+         * <p>⚠ 여기를 시스템 기본 임시 디렉터리(공유 자리)로 되돌리지 말 것 — 접두
+         * {@code upload-ffprobe-} 를 만드는 곳은 <b>프로덕션</b>
+         * {@link UploadMediaProbeFfprobe} 하나라, 같은 JVM 의 다른 경로(캐시된 스프링 컨텍스트의
+         * 비동기 업로드 완료 → 인입 → probe)가 그 사이에 만든 파일이 그대로 "안 지워진 파일"로
+         * 집힌다. 전건 회귀에서만 {@code leavesNoTempFileOnTimeout} 이 실패하고 격리 실행에서는
+         * 31건 전건 통과한 원인이 이것이다 — <b>타이밍이 아니라 관측 범위</b>였다(타임아웃을
+         * 1초→5초로 늘려 본 시도가 실패한 이유이기도 하다).
+         */
+        Path probeTempDir;
+
+        @BeforeEach
+        void createProbeTempDir() throws IOException {
+            probeTempDir = Files.createDirectory(tempDir.resolve("probe-tmp"));
+        }
 
         @Test
         @DisplayName("ffprobe가_응답하지_않아도_타임아웃_내에_예외로_끝난다")
@@ -448,7 +487,7 @@ class UploadMediaProbeFfprobeTest {
                     """);
             UploadMediaProbeFfprobe probe = new UploadMediaProbeFfprobe(script.toString(), PROBE_TIMEOUT_SEC);
 
-            // when / then: 타임아웃(1초) 후 예외 — 매달리면 15초에 실패로 잡힌다
+            // when / then: 타임아웃(PROBE_TIMEOUT_SEC) 후 예외 — 매달리면 15초에 실패로 잡힌다
             assertTimeoutPreemptively(NO_HANG_LIMIT, () ->
                     assertThatThrownBy(() -> probe.probe(VIDEO))
                             .isInstanceOf(CustomException.class));
@@ -621,7 +660,7 @@ class UploadMediaProbeFfprobeTest {
         @DisplayName("정상_경로에서_stdout_임시파일이_남지_않는다")
         void leavesNoTempFileOnSuccess() throws IOException {
             assumeShellAvailable();
-            UploadMediaProbeFfprobe probe = catProbe("cleanup-ok",
+            UploadMediaProbeFfprobe probe = isolatedCatProbe("cleanup-ok",
                     "[STREAM]\nwidth=1920\nheight=1080\n[/STREAM]\n");
             Set<String> before = probeTempFiles();
 
@@ -643,7 +682,8 @@ class UploadMediaProbeFfprobeTest {
                     #!/bin/sh
                     sleep 30
                     """);
-            UploadMediaProbeFfprobe probe = new UploadMediaProbeFfprobe(script.toString(), PROBE_TIMEOUT_SEC);
+            UploadMediaProbeFfprobe probe =
+                    new UploadMediaProbeFfprobe(script.toString(), PROBE_TIMEOUT_SEC, probeTempDir);
             Set<String> before = probeTempFiles();
 
             // when
@@ -656,6 +696,30 @@ class UploadMediaProbeFfprobeTest {
             assertThat(newTempFilesSince(before)).isEmpty();
         }
 
+        @Test
+        @DisplayName("공유_임시디렉터리에_같은_접두의_남의_파일이_있어도_정리_가드가_흔들리지_않는다")
+        void ignoresForeignTempFilesInSharedTmpDir() throws IOException {
+            // given: 같은 JVM 의 다른 경로(비동기 업로드 완료 → 인입 → probe)가 공유 임시 디렉터리에
+            //        같은 접두로 만든 파일을 흉내낸다. 구 가드는 시스템 기본 임시 디렉터리를 통째로 훑어
+            //        이 파일을 "안 지워진 파일"로 세고 실패했다 — 전건 회귀에서만 재현되던 그 실패다.
+            assumeShellAvailable();
+            UploadMediaProbeFfprobe probe = isolatedCatProbe("cleanup-foreign",
+                    "[STREAM]\nwidth=1920\nheight=1080\n[/STREAM]\n");
+            Set<String> before = probeTempFiles();
+            Path foreign = Files.createTempFile(FOREIGN_TEMP_PREFIX, FOREIGN_TEMP_SUFFIX);
+            try {
+                // when
+                for (int i = 0; i < CLEANUP_PROBE_COUNT; i++) {
+                    assertTimeoutPreemptively(NO_HANG_LIMIT, () -> probe.probe(VIDEO));
+                }
+
+                // then: 남의 파일은 이 가드의 관측 범위 밖이다
+                assertThat(newTempFilesSince(before)).isEmpty();
+            } finally {
+                Files.deleteIfExists(foreign);
+            }
+        }
+
         // ⚠ {@code process.getOutputStream().close()}(자식 stdin EOF + FD 회수)는 회귀 가드를 두지
         //    않았다 — 가짜 ffprobe 든 실제 ffprobe 든 stdin 을 읽지 않으므로 닫히지 않아도 관측 가능한
         //    동작 차이가 없고, FD 는 프로세스 종료 시 어차피 회수된다. "왜 이것만 가드가 없나"로
@@ -664,17 +728,34 @@ class UploadMediaProbeFfprobeTest {
 
         /** {@code cat} 으로 지정 payload 를 그대로 뱉는 가짜 ffprobe — 바이트 경계를 정밀 제어한다. */
         private UploadMediaProbeFfprobe catProbe(String name, String payload) throws IOException {
-            Path payloadFile = tempDir.resolve(name + ".payload");
-            Files.writeString(payloadFile, payload, StandardCharsets.UTF_8);
-            Path script = writeScript(name + ".sh", "#!/bin/sh\ncat '" + payloadFile + "'\n");
-            return new UploadMediaProbeFfprobe(script.toString(), PROBE_TIMEOUT_SEC);
+            return new UploadMediaProbeFfprobe(catScript(name, payload).toString(), PROBE_TIMEOUT_SEC);
         }
 
+        /**
+         * {@link #catProbe} 와 같은 가짜 ffprobe 이되 stdout 임시파일을 {@link #probeTempDir} 에
+         * 놓는다 — 정리 가드 전용.
+         */
+        private UploadMediaProbeFfprobe isolatedCatProbe(String name, String payload) throws IOException {
+            return new UploadMediaProbeFfprobe(
+                    catScript(name, payload).toString(), PROBE_TIMEOUT_SEC, probeTempDir);
+        }
+
+        private Path catScript(String name, String payload) throws IOException {
+            Path payloadFile = tempDir.resolve(name + ".payload");
+            Files.writeString(payloadFile, payload, StandardCharsets.UTF_8);
+            return writeScript(name + ".sh", "#!/bin/sh\ncat '" + payloadFile + "'\n");
+        }
+
+        /**
+         * 이 시험이 만든 stdout 임시파일만 센다.
+         *
+         * <p>⚠ 훑는 자리는 {@link #probeTempDir} 이어야 한다 — 공유 임시 디렉터리를 훑으면 남의
+         * 파일까지 세어 전건 회귀에서만 실패한다(그 필드 javadoc 참조).
+         */
         private Set<String> probeTempFiles() throws IOException {
-            Path tmpRoot = Path.of(System.getProperty("java.io.tmpdir"));
-            try (Stream<Path> files = Files.list(tmpRoot)) {
+            try (Stream<Path> files = Files.list(probeTempDir)) {
                 return files.map(p -> p.getFileName().toString())
-                        .filter(name -> name.startsWith("upload-ffprobe-"))
+                        .filter(name -> name.startsWith(FOREIGN_TEMP_PREFIX))
                         .collect(Collectors.toCollection(HashSet::new));
             }
         }

@@ -70,8 +70,9 @@ class KpstEndpointImmediateEffectTest {
     void kpstClientFollowsConfiguredAddress() throws Exception {
         // given — 배포 기본값(구 주소)으로 만들어진 위탁용 빈
         String bootDefault = oldServer.url("/").toString();
-        WebClient client = new KpstWebClientConfig()
-                .kpstDeidWebClient(bootDefault, "", resolver());
+        KpstWebClientConfig cfg = new KpstWebClientConfig();
+        WebClient client = cfg.kpstDeidWebClient(
+                cfg.kpstDeidEndpointAddress(bootDefault, "", null), "", resolver());
         newServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         // when — 설정이 새 주소로 바뀐 뒤 호출
@@ -91,8 +92,9 @@ class KpstEndpointImmediateEffectTest {
     @DisplayName("설정이 없으면 배포 기본값 그대로 — 기존 형상 영향 0")
     void fallsBackToDeploymentDefault() throws Exception {
         String bootDefault = oldServer.url("/").toString();
-        WebClient client = new KpstWebClientConfig()
-                .kpstDeidWebClient(bootDefault, "", resolver());
+        KpstWebClientConfig cfg = new KpstWebClientConfig();
+        WebClient client = cfg.kpstDeidWebClient(
+                cfg.kpstDeidEndpointAddress(bootDefault, "", null), "", resolver());
         oldServer.enqueue(new MockResponse().setResponseCode(200).setBody("Connect"));
         // 행 없음(=정상 상태) — 리졸버는 부재를 값으로 받는다(예외는 캐시되지 않는다, MED-4).
         when(systemConfigService.findString(anyString())).thenReturn(Optional.empty());

@@ -16,17 +16,69 @@
           "name": "DataLabel",
           "methods": [
             {
-              "name": "isInterpolated",
-              "params": [],
-              "is_static": false,
+              "name": "createAutoBbox",
+              "params": [
+                "srcSn: Long",
+                "labelId: Long",
+                "label: String",
+                "pointsJson: String",
+                "confScore: BigDecimal",
+                "trackId: String"
+              ],
+              "is_static": true,
               "visibility": "public",
               "is_abstract": false,
-              "return_type": "boolean"
+              "return_type": "DataLabel"
             },
             {
-              "name": "updateConfidence",
+              "name": "createAutoPolygon",
               "params": [
+                "srcSn: Long",
+                "labelId: Long",
+                "label: String",
+                "pointsJson: String",
                 "confScore: BigDecimal"
+              ],
+              "is_static": true,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "DataLabel"
+            },
+            {
+              "name": "createAutoInterpolatedBbox",
+              "params": [
+                "srcSn: Long",
+                "labelId: Long",
+                "label: String",
+                "pointsJson: String",
+                "confScore: BigDecimal",
+                "trackId: String"
+              ],
+              "is_static": true,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "DataLabel"
+            },
+            {
+              "name": "createAutoInterpolatedPolygon",
+              "params": [
+                "srcSn: Long",
+                "labelId: Long",
+                "label: String",
+                "pointsJson: String",
+                "confScore: BigDecimal",
+                "trackId: String"
+              ],
+              "is_static": true,
+              "visibility": "public",
+              "is_abstract": false,
+              "return_type": "DataLabel"
+            },
+            {
+              "name": "applyAiSource",
+              "params": [
+                "lblSrcCd: String",
+                "score: BigDecimal"
               ],
               "is_static": false,
               "visibility": "public",
@@ -34,11 +86,9 @@
               "return_type": "void"
             },
             {
-              "name": "markDetected",
+              "name": "updateConfScore",
               "params": [
-                "modelNm: String",
-                "mdlVer: String",
-                "confScore: BigDecimal"
+                "newScore: BigDecimal"
               ],
               "is_static": false,
               "visibility": "public",
@@ -46,19 +96,10 @@
               "return_type": "void"
             },
             {
-              "name": "markSegmented",
+              "name": "reassignTrack",
               "params": [
-                "modelNm: String",
-                "confScore: BigDecimal"
+                "newTrackId: String"
               ],
-              "is_static": false,
-              "visibility": "public",
-              "is_abstract": false,
-              "return_type": "void"
-            },
-            {
-              "name": "markInterpolated",
-              "params": [],
               "is_static": false,
               "visibility": "public",
               "is_abstract": false,
@@ -77,7 +118,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -91,7 +133,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -105,7 +148,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -120,7 +164,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -134,7 +179,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -148,7 +194,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -162,11 +209,12 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
-              "name": "modelNm",
+              "name": "mdlNm",
               "type": "String",
               "is_static": false,
               "visibility": "private",
@@ -176,7 +224,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -190,7 +239,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -204,7 +254,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             },
             {
@@ -218,7 +269,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -263,7 +315,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               }
             }
           ],
@@ -326,11 +379,20 @@
           "from_multiplicity": "1"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-018",
         "DFEAT-019",
         "DFEAT-020"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [
         "ADR-019",
         "CONST-002"
@@ -342,12 +404,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "검출 결과를 표현하는 라벨 Aggregate 에 라벨 마스터 식별자를 명시했다. 검출 결과와 마스터의 대응은 AI 검출 클래스 축으로 일원화돼 있는데, 그 식별자를 담는 속성이 모델에 없어 다이어그램만 보면 마스터 연결이 어디에 얹히는지 알 수 없었다. 속성 labelId 를 lblTypeCd 뒤에 두고, 책임 서술에 그 값을 해석해 채우는 주체가 서버라는 점·검출 결과를 내보내는 경로가 그 식별자를 함께 싣고 화면은 검출 클래스명으로 마스터를 다시 찾지 않는다는 점·대응 마스터가 없거나 매핑이 지정되지 않은 검출은 값을 비워 내보내고 지어내지 않는다는 점을 적었다. 기존 속성·메서드·관계와 다른 클래스는 손대지 않았다.",
+    "change_summary": "DataLabel 메서드 정합: 실재하지 않던 markDetected/markSegmented/markInterpolated/isInterpolated 제거, updateConfidence→updateConfScore 개명, 실제 LsDataLbl 팩토리(createAuto*)·applyAiSource·reassignTrack 반영. 속성 modelNm→mdlNm(실제 필드명, MDL_NM)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T10:56:07.517Z",
+    "last_updated_at": "2026-08-31T05:07:10.534Z",
     "created_at": "2026-06-02T08:49:59.702Z"
   }
 }

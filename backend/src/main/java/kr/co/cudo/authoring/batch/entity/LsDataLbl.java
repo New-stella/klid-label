@@ -101,8 +101,19 @@ public class LsDataLbl {
     /**
      * LS_LABEL FK 도입(V32) 이후 labelId 사용 권장.
      * 호환 위해 유지. 응답에서는 LS_LABEL.LABEL_NM (labelName) 을 우선 노출.
+     *
+     * <p>★ <b>{@code null} 을 허용한다</b>(V29). 포털 업로드 자산의 수동 라벨은 라벨 마스터를 참조하지
+     * 않는 자유 입력이라 <b>이름 없이 도형만</b> 그리는 것이 정상 동선인데, 흡수(ADR-058)로 그 라벨이
+     * 이 원장에 앉으면서 NOT NULL 이 저장을 통째로 막았다. 포털이 기본값을 지어 채우는 안은 기각했다 —
+     * 지어낸 값이 쌓이면 나중에 진짜 라벨명과 구분되지 않는다.
+     *
+     * <p>⚠ <b>내부 채널에 {@code null} 이 새로 생기지는 않는다</b> — 오토라벨·수동 라벨·롤백 복원 세
+     * 통로가 전부 이 값을 채운다. 제약만 풀렸고 값은 그대로다.
+     *
+     * @design ADR-058
+     * @design ERD-028
      */
-    @Column(name = "LBL_NM", nullable = false, length = 80)
+    @Column(name = "LBL_NM", length = 80)
     private String labelNm;
 
     // MariaDB → PostgreSQL: @Lob + String 은 PG 에서 large object(oid/CLOB) 타입으로 매핑되어
@@ -154,8 +165,20 @@ public class LsDataLbl {
     @Column(name = "LBL_SRC_CD", length = 20)
     private String lblSrcCd;
 
-    @Column(name = "REG_USER_NO")
-    private Long regUserNo;
+    /**
+     * 등록사용자번호 — 이 라벨을 만든 사용자. 내부 채널에서는 작업자이고, 포털 업로드 자산의 라벨에서는
+     * 그 라벨의 <b>소유자이자 인가 판정의 키</b>라 반드시 채워진다.
+     *
+     * <p>★ 자료형이 숫자가 아니라 문자인 이유(V28): 포털이 발급한 토큰의 주체 식별자를 담아야 한다.
+     * 숫자로 두면 파싱 실패로 조용히 {@code null} 이 되어 <b>소유자 없는 라벨</b>이 저장되고, 그 순간
+     * 소유자 스코프 조회가 남의 라벨을 함께 집거나 자기 라벨을 못 집는다. 폭 100 은 공통표준도메인
+     * 번호V100 이며 {@code LS_MARKING.REG_USER_NO}(V27)와 같다.
+     *
+     * @design ADR-058
+     * @design ERD-028
+     */
+    @Column(name = "REG_USER_NO", length = 100)
+    private String regUserNo;
 
     @Column(name = "REG_DT", nullable = false)
     private LocalDateTime regDt;
@@ -274,7 +297,7 @@ public class LsDataLbl {
      * 응답이 {@code 'N'} 으로 보이는 것은 종전과 같다 — 치환은 {@code LabelResponse.Item.from} 담당.
      */
     public static LsDataLbl createManual(Long srcSn, String lblTypeCd, Long labelId, String label,
-                                         String pointsJson, Long regUserNo) {
+                                         String pointsJson, String regUserNo) {
         LsDataLbl entity = LsDataLbl.builder()
                 .srcSn(srcSn)
                 .lblTypeCd(lblTypeCd)

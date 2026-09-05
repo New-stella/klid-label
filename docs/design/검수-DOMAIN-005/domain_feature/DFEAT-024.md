@@ -1,24 +1,26 @@
 ---
 logicraft_item: DFEAT-024
 type: domain_feature
-version: 10
+version: 14
 domain: DOMAIN-005
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:02:42.638Z
+synced_at: 2026-09-03T07:39:15.569Z
 status: CHANGED
-prev_version: 9
-content_hash: b202341f62c30fbbd4ac8415bede9784814750eb8142ffb952f58cdd062f6e9e
-stale: true
+prev_version: 12
+content_hash: 40e6530b5e3a9421628064e7f2c8e90d0ba768897938143a64e8f3d2c746af8d
+stale: false
 raw: ./_raw/DFEAT-024.json
 links:
+  based_on: ["[[ADR-060]]"]
   belongs_to_domain: ["[[DOMAIN-005]]"]
-  implements: ["[[API-014]]", "[[API-015]]"]
+  implements: ["[[API-014]]", "[[API-015]]", "[[IMPREC-358]]"]
   migrated_from: ["[[LEGACY-078]]"]
   specializes: ["[[FEAT-008]]"]
   triggers: ["[[EVT-006]]"]
-  verifies: ["[[AC-022]]"]
+  verifies: ["[[AC-1040]]", "[[AC-1041]]", "[[AC-1042]]"]
   depicts_backward: ["[[CDIAG-006]]", "[[CMP-005]]"]
   realizes_backward: ["[[UC-023]]"]
+  references_backward: ["[[ADR-060]]"]
 ---
 
 # 승인·반려
@@ -51,7 +53,7 @@ modified
 
 ### decided_by
 
-ADR-003
+ADR-060
 
 ### change_kind
 
@@ -95,11 +97,15 @@ LEGACY-078
 
 ## description
 
-검수자가 제출된 데이터를 승인 또는 반려한다. 관리자 확인 요청은 이 기능에 두지 않는다 — 관리자 역할이 검수자로 통합되어 확인을 요청할 상대가 없고, 검수자와 작업자 사이의 확인·문의 소통 축은 이슈 스레드(DFEAT-049)가 담당한다. (1차 baseline, 화면 SKKLID-UI-02-02-17)
+검수자가 제출된 데이터를 승인 또는 반려한다. 관리자 확인 요청은 이 기능에 두지 않는다 — 검수는 검수자 1인의 판단으로 종결한다. ⚠ 당초 근거였던 '별도 ADMIN 역할이 없어 확인을 요청할 상대가 없다'(ADR-003)는 전제는 무효다 — ADR-055 가 관리자 역할을 신설해 그 결정을 뒤집었고, 관리자는 검수자 권한을 계층으로 물려받는다. 전제가 무효가 된 것과 기능을 되살리는 것은 다른 축이라 '관리자 확인 요청'을 두지 않는다는 결론은 그대로 유지한다. 재도입 여부는 ADR-060 이 결정했다 — 관리자 역할이 신설된 뒤에도 「관리자 확인 요청」 창구를 두지 않는다. 가장 큰 근거는 겸직이다 — 관리자는 검수자 권한을 계층으로 물려받아 검수·배정을 그대로 수행하므로 검수 판단에 관한 한 올려보낼 위가 없다. 즉 이 창구는 대체된 것이 아니라 성립하지 않는다. 검수자와 작업자 사이의 확인·문의 소통 축은 이슈 스레드(DFEAT-049)가 담당한다. (1차 baseline, 화면 SKKLID-UI-02-02-17)
 
 승인에는 전제조건이 있다 — 검수 워크플로 상태의 비식별화완료여부가 완료여야 한다. 미완료이면 승인 요청은 거부된다. 이 판정은 상태 전이보다 먼저 이뤄지므로, 거부된 요청에서는 상태 전이도 라벨 버전 스냅샷도 학습데이터 산출물 생성도 관제 통지도 일어나지 않는다. 비식별화완료여부는 기본값이 완료다 — 외부 산출물 이관 경로로 원본이라고 지정해 들어온 영상만 미완료로 시작하며, 그 경로와 무관한 기존 영상이 이 전제조건 때문에 막히지 않게 하기 위함이다. 이 전제조건이 막는 것은 검수 승인뿐이다 — 라벨 조회·프레임 이미지·영상 스트리밍은 이 값으로 닫지 않고, 학습데이터 산출물 생성 경로 자체도 이 값으로 닫지 않는다(승인이 거부되면 산출물이 생기지 않는 것은 승인이 그 방아쇠이기 때문이지 산출 경로가 닫혀서가 아니다). 그 통로들을 함께 닫는 것은 비식별 누락 신고 구간의 차단이며, 이 전제조건과는 별개 축이다.
 
 ## invokes_apis
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 
@@ -115,7 +121,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-358
 
 ### progress
 
@@ -127,7 +133,11 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T02:36:23.314Z
+2026-08-29T01:26:20.690Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 
@@ -160,7 +170,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-022
+- AC-1040
+- AC-1041
+- AC-1042
 
 ## specializes_feature
 

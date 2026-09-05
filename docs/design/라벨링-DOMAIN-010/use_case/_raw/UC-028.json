@@ -45,12 +45,14 @@
       "preconditions": [
         "REVIEWER로 인증되어 있다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "라벨 마스터·속성 정의 변경이 프리셋·오토라벨 후보 목록에 즉시 반영된다"
@@ -84,19 +86,18 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-089",
-        "AC-090",
-        "AC-091"
+        "AC-1059",
+        "AC-1060"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 8,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "이 유스케이스를 검증하는 인수기준을 연결한다. 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 13건이 있었는데 그중 13건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1059, AC-1060)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T12:18:38.977Z",
+    "last_updated_at": "2026-09-01T08:25:51.968Z",
     "created_at": "2026-07-30T07:16:48.218Z"
   }
 }

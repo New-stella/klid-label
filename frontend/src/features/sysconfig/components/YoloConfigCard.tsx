@@ -103,11 +103,11 @@ export function YoloConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('YOLO_CONF_THRESHOLD', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>0.25</span>
             <span>0.80</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             객체로 인식할 최소 확신도입니다. 높이면 확실한 객체만 잡아 오탐이 줄지만 놓침(미탐)이
             늘고, 낮추면 더 많이 잡지만 오탐이 늘어납니다. (0.25~0.80)
           </p>
@@ -137,11 +137,11 @@ export function YoloConfigCard({ configs }: Props) {
             className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-primary-600"
             {...register('YOLO_IOU', { valueAsNumber: true })}
           />
-          <div className="flex justify-between text-caption text-gray-400">
+          <div className="flex justify-between text-caption text-gray-600">
             <span>0.25</span>
             <span>0.80</span>
           </div>
-          <p className="text-caption text-gray-400">
+          <p className="text-caption text-gray-600">
             겹치는 박스를 중복으로 제거(NMS)하는 기준입니다. 낮추면 겹친 박스를 더 적극적으로 합쳐
             중복이 줄고, 높이면 인접한 객체를 더 많이 남깁니다. (0.25~0.80)
           </p>

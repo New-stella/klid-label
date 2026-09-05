@@ -570,11 +570,14 @@
       },
       "calls_external": [],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-085"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:28.094Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -588,8 +591,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "폐기 프레임 수(discardedFrameCount) 설명에서 «빼지 않는» 축을 전체 기준으로 좁히고, 학습데이터로 확정된 분량을 뜻하는 검수완료 기준 집계는 이 프레임을 세지 않는다는 문장을 더했다. 기존 서술은 «저작도구 화면의 프레임 총수에서는 빼지 않는다» 라고 무조건으로 읽혀, 산출물·데이터마트와 같은 집합이어야 하는 검수완료 기준 수치와 어긋났다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-17T12:39:38.513Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:28.094Z",
     "created_at": "2026-08-10T14:22:47.710Z"
   }
 }

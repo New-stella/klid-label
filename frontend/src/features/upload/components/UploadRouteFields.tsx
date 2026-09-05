@@ -40,7 +40,7 @@ export function UploadRouteField({
   return (
     <Field>
       {/* `*` 를 붙이지 않는다 — 항상 한쪽이 골라져 있어 사용자가 «채워야 할 것» 이 아니다.
-          필수 표시를 남발하면 정말 채워야 하는 식별 정보 네 항목이 묻힌다. */}
+          필수 표시를 남발하면 정말 채워야 하는 식별 정보 세 항목이 묻힌다. */}
       <FieldLabel>적재 경로</FieldLabel>
       <RadioGroup
         name="uploadRoute"
@@ -118,6 +118,11 @@ export interface UploadEventTypeOption {
  * <p><b>직접 입력을 함께 여는 이유</b> — 관제 이벤트 코드 체계는 우리 소유가 아니고 미등록 코드도
  * 실제로 들어오며, 적재가 처음 보는 코드를 마스터에 자동 등록한다. 조회 목록으로만 좁히면 관제가
  * 코드를 넓힐 때 **우리가 먼저 막는다**. 센티넬(`__manual__`)은 화면 모드 표식이라 전송되지 않는다.
+ *
+ * <p><b>필수 여부는 경로가 정한다</b> — 파이프라인 즉시 실행에서만 필수이고(그 경로의 BE 계약이
+ * `@NotNull`) 관제 인입 재현에서는 선택이다. 그래서 이 입력이 `route` 를 받는다. 표기를 조건과 같은
+ * 축으로 두지 않으면 별표 없는 항목 때문에 시작 버튼이 잠기고 사유가 화면에 없다
+ * (`PrivacyTypeField` 가 `route` 를 받는 것과 같은 관례). [@design SCREEN-027]
  */
 export function EventTypeField({
   categoryKey,
@@ -126,6 +131,7 @@ export function EventTypeField({
   resolvedCode,
   onCategoryChange,
   onManualCodeChange,
+  route,
   disabled,
 }: {
   categoryKey: string;
@@ -134,13 +140,16 @@ export function EventTypeField({
   resolvedCode: string;
   onCategoryChange: (next: string) => void;
   onManualCodeChange: (next: string) => void;
+  route: UploadRoute;
   disabled: boolean;
 }) {
   const manual = categoryKey === EVENT_TYPE_MANUAL_OPTION;
+  // 판정 축은 `canStartUpload` 의 경로 분기와 같다 — 둘이 갈리면 사유 없는 잠금이 된다.
+  const required = route === UploadRoute.IMMEDIATE;
   return (
     <div className="flex flex-col gap-1">
       <Field>
-        <FieldLabel>이벤트유형</FieldLabel>
+        <FieldLabel>{required ? '이벤트유형 *' : '이벤트유형'}</FieldLabel>
         <Select value={categoryKey} onValueChange={onCategoryChange} disabled={disabled}>
           <SelectTrigger id="dev-upload-event">
             <SelectValue />

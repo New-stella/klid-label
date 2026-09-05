@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-014
 code_root: "backend/src/main/java/kr/co/cudo/authoring/sysconfig/ backend/src/main/java/kr/co/cudo/authoring/sysconfig/endpoint/ frontend/src/features/sysconfig/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>
@@ -68,7 +68,7 @@ target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐
 - **비식별 축에만 관문 하나 더** — 운영 배포에서는 **알려진 목·시뮬레이터 호스트명**으로 비식별 주소를 저장할 수 없다(400). **판정 축은 호스트명이지 IP 대역이 아니다.** 루프백이 그 목록에 든 근거도 대역이 아니라 "애플리케이션과 같은 머신은 벤더 실서버일 수 없다"는 배포 형상이다. 결과적으로 운영 배포에서 비식별 주소만은 루프백으로 저장되지 않는다. 근거: `ADR-046`.
 - **반영 시점 = 재기동 없이 다음 호출부터.** 연결 클라이언트의 기준 주소는 생성 시점에 고정되므로 **호출 시점에 저장값을 다시 읽어 요청 주소 앞부분을 갈아끼운다.** 변경한 노드는 즉시, 다른 노드는 **설정 캐시 수명(60s)만큼 지연**된다. 근거: `ADR-046` · `DFEAT-045`.
 - **설정 조회가 실패하면 예외를 던지지 않고 '설정 없음'으로 낮춰 배포 기본값을 쓴다**(fail-safe 폴백). 근거: `ADR-046` · `DFEAT-045`.
-- **노출 경계**: 설정 화면은 **내부 채널 + 검수자 전용**이며 포털 채널에 노출되지 않는다. 관리 화면 URL 은 `/manage/*`, ADMIN 역할은 두지 않고 관리 권한은 REVIEWER 에 통합. 근거: `ADR-046`(노출 경계) · `ADR-003` · `ROLE-001`.
+- **노출 경계**: 설정 화면은 **내부 채널 + 검수자 전용**이며 포털 채널에 노출되지 않는다. 관리 화면 URL 은 관리자 소유가 `/admin/*`, 검수자 소유가 `/manage/*` 로 갈린다. ★**구 서술 폐기** — *"ADMIN 역할은 두지 않고 관리 권한은 REVIEWER 에 통합"* 은 `ADR-055` 가 supersede 했다. **되살리지 말 것.** 연동 서버 주소는 **관리자 소유**이고 저장에는 단기 유효창이 가산되는데, 역할과 유효창은 **별개 축이라 서로를 대체하지 않는다**. 근거: `ADR-046`(노출 경계) · `ADR-055` · `ROLE-004`.
 - **로그 금지**: **패스워드와 토큰은 어떤 로그에도 남기지 않는다.** 주소는 남기되 자격증명 부분은 가린다. 근거: `ADR-046`(감사).
 - **AI 대기 예산의 하한 규칙**: 등록 범위 하한은 **그 작업에서 서버가 정당하게 쓸 수 있는 최악 소요 이상**이어야 한다(하한이 낮으면 마지막 시도에서 성공한 추론까지 실패로 보인다) — **호출당 상한이나 재시도 횟수·대기를 바꿀 때 이 하한도 함께 올린다.** 저장된 값이 하한 아래로 남아 있으면 **읽는 쪽이 하한으로 끌어올려 쓰고 그 사실을 기록한다.** 근거: `DFEAT-045`.
 - **dev 로그인/dev 업로드는 prd 빌드에서도 env 토글로 켜질 수 있다 — 기본 OFF, fail-closed.** 토글 `VITE_DEV_LOGIN_ENABLED`/`VITE_DEV_UPLOAD_ENABLED`. 배포 파이프라인에서 기본값 검증이 전제다. 근거: `ADR-039`.
@@ -115,7 +115,22 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+### 컬렉션 팩토리 인자 안의 스텁 헬퍼도 `UnfinishedStubbingException` 을 낸다 (CO-014)
+이 저장소가 이미 경고하는 `Optional.of(helper())` 트랩은 **`List.of(helper(), helper())` 형태에서도 똑같이 터진다** —
+컬렉션 팩토리의 인자 안에서 헬퍼가 `when` 을 부르면 같은 일이다.
+- 근거: `EventTypeAdminPresetLinkStatusTest` 1차 실행이 **14건 중 5건 실패**했고 전부 `UnfinishedStubbingException` 이었다.
+  스택 최상단이 `LsEvntType.getEvntTypeCd` → mock 헬퍼였고, 원인은 `when(repo.findAll()).thenReturn(List.of(type(a), type(b), type(c)))` 3곳.
+  **헬퍼 호출을 지역변수로 빼자 0 실패.**
+- 재발 조건: mock 엔티티 여러 건을 목록으로 스텁하는 서비스 단위시험을 새로 쓸 때. 엔티티에 공개 팩토리가 없어
+  mock 헬퍼를 쓰는 `eventtype`·`label` 계열에서 특히 잦다.
+
+### 뮤테이션을 동시에 여러 건 주입하면 실패 **개수**로는 귀속되지 않는다 (CO-014)
+"몇 건 실패했다"만 보고 「가드가 물었다」고 보고하면, 실제로는 **한 뮤테이션이 다른 뮤테이션의 시험을 대신
+실패시킨 것**일 수 있다. 결과 XML 의 **testcase 단위 pass/fail 목록**을 떠야 귀속이 성립한다.
+- 근거: 3건 동시 주입 결과가 `14 tests completed, 5 failed` 였는데 testcase 단위로 파싱하니 A→2건·B→1건·C→2건으로
+  정확히 갈렸다. 특히 한 시험의 실패 메시지가 **B·C 둘 다의 영향을 받은 형태**였다.
+- 재발 조건: 가드 여러 개를 한 번에 실증할 때. 시간 절약을 위한 동시 주입 자체는 유효하나 **귀속은 반드시
+  testcase 단위로** 확인한다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

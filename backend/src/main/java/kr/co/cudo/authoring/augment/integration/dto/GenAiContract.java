@@ -4,7 +4,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」의 <b>코드 공간 단일 원천</b> — Phase 7-A2 (INT-020/030/031).
+ * 「생성형 AI API 연동명세서 v1.3」의 <b>코드 공간 단일 원천</b> — Phase 7-A2 (INT-020/030/031).
  *
  * <p>상태·오류코드·미디어유형을 <b>enum 이 아니라 String + 화이트리스트</b>로 다룬다. 이유는 둘이다:
  * <ul>
@@ -33,9 +33,9 @@ public final class GenAiContract {
     private static final Set<String> KNOWN_STATUSES = Set.of(
             STATUS_RECEIVED, STATUS_RUNNING, STATUS_SUCCEEDED, STATUS_FAILED, STATUS_CANCELED);
 
-    /** §4.2/§4.5 {@code media_type}. */
+    /** §4.3/§4.5 {@code media_type}. */
     public static final String MEDIA_TYPE_IMAGE = "IMAGE";
-    /** §4.2/§4.5 {@code media_type}. */
+    /** §4.3/§4.5 {@code media_type}. */
     public static final String MEDIA_TYPE_VIDEO = "VIDEO";
 
     private static final Set<String> KNOWN_MEDIA_TYPES = Set.of(MEDIA_TYPE_IMAGE, MEDIA_TYPE_VIDEO);
@@ -95,4 +95,18 @@ public final class GenAiContract {
     public static boolean isValidJobId(String jobId) {
         return jobId != null && JOB_ID.matcher(jobId).matches();
     }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 폐기 이력 — 구 {@code EventType}(FLOOD/WILDFIRE)·{@code FloodSubtype} enum 은 제거됐다
+    // (2026-09-02 · @design ADR-059).
+    //
+    // 그 두 enum 은 "요청자가 화면에서 고른 이벤트 유형" 을 담는 자리였다. 벤더의 이미지 증강은
+    // 배경 이미지에 <이벤트 장면을 만들어 넣는> 작업이라 그 값이 무엇을 만들지 정하는 축인데,
+    // 우리 증강은 이미 이벤트가 담긴 프레임을 변환할 뿐이라 지정할 자리가 없다. 이제 evnt_type 은
+    // 서버가 중립값으로 고정 송신하고(GenAiJobSubmitRequest.EVENT_TYPE_ETC) 세부 유형은 아예
+    // 보내지 않으므로, 요청 본문에도 코드 공간에도 이 enum 이 설 자리가 없다.
+    //
+    // ⚠ KNOWN_ERROR_CODES 의 UNSUPPORTED_EVENT_TYPE 은 <벤더가 보내오는> 오류 코드라 그대로 둔다.
+    //   그 값은 우리 요청 코드 공간이 아니라 벤더 응답 코드 공간의 멤버다.
+    // ────────────────────────────────────────────────────────────────────────
 }

@@ -35,9 +35,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-338"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:14.479Z"
       },
       "payload_schema": {
         "shape": "flat snake_case object",
@@ -77,8 +80,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "발행처를 구현 클래스 목록이 아니라 사람이 수행하는 작업 이름으로 적는다. 판정 기준은 그 경로가 사람이 산출물에 들어가는 내용을 바꾸는가 하나이므로 작업 이름이 그 기준과 직접 대응하고, 클래스가 나뉘거나 합쳐져도 사양이 낡지 않는다. 소비 쪽도 통지 디바운스 축적이라는 역할로 적는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:21:30.462Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:14.479Z",
     "created_at": "2026-06-01T06:36:29.404Z"
   }
 }

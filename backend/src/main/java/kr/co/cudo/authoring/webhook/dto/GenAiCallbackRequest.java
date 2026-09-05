@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
- * 생성형 AI(증강) 결과 웹훅 페이로드 — 「생성형 AI API 연동명세서 v1.1」 §4.2/§4.3 정합.
+ * 생성형 AI(증강) 결과 웹훅 페이로드 — 「생성형 AI API 연동명세서 v1.3」 §4.5 최종 상태 Webhook 정합.
  *
  * <p>{@code POST /v1/genai/callback} 요청 본문. 외부는 snake_case 로 <b>무서명</b> 송신한다.
  * <pre>
@@ -23,15 +23,42 @@ import java.util.List;
  *              "checksum":"...","media_metadata":{...}}]}
  * </pre>
  *
- * <h3>계약 사실 (수신부 설계 근거)</h3>
+ * <h3>계약이 보장하는 것 (v1.3 §4.5)</h3>
  * <ul>
- *   <li>상태 전이마다 발사된다 — {@code RUNNING}(progress 10/50/90) → {@code SUCCEEDED}
- *       또는 {@code FAILED}. {@code CANCELED} 는 발사되지 않는다.</li>
- *   <li>전송 실패 시 재시도하므로 <b>같은 페이로드가 중복 도착하는 것이 정상</b>이다
- *       (수신부는 멱등이어야 한다).</li>
- *   <li>{@code results} 는 SUCCEEDED, {@code error_code}/{@code error_message} 는 FAILED 에만
- *       실린다. 미지의 필드는 무시한다({@link JsonIgnoreProperties}) — 외부가 필드를 추가해도
- *       수신이 깨지지 않아야 한다.</li>
+ *   <li>{@code callback_url} 이 있으면 작업이 {@code SUCCEEDED} 또는 {@code FAILED} 로
+ *       <b>처음 종료되는 시점에 1회</b> POST 된다. <b>{@code RUNNING} 웹훅은 계약에 없다.</b></li>
+ *   <li>전송이 실패해도 <b>재시도하지 않는다</b>(상대 서버 로그에만 남는다). 즉 콜백 유실이 곧 결과
+ *       유실이라, 콜백은 결과를 회수하는 유일한 수단이 아니다.</li>
+ *   <li>{@code CANCELED} 발사 여부와 <b>본문의 {@code results} 포함 여부는 계약이 보장하지 않는다.</b>
+ *       작업 결과와 미디어 메타데이터는 {@code GET /api/genai/jobs/{job_id}/results}(§4.3 작업 결과 조회)로
+ *       조회하는 것이 v1.3 계약이다.</li>
+ *   <li>{@code error_code}/{@code error_message} 는 실패 사유 자리다(§4.5 Webhook Sample).</li>
+ * </ul>
+ *
+ * <h3>목서버가 실제로 보내는 것 (계약이 아니라 로컬 목의 동작)</h3>
+ * <ul>
+ *   <li>로컬 목({@code mock-server} 의 생성형 AI 시뮬레이터)은 <b>상태 전이마다</b> 발사한다 —
+ *       {@code RUNNING}(progress 10 PREPROCESS / 50 INFERENCE / 90 POSTPROCESS) → {@code SUCCEEDED}
+ *       또는 {@code FAILED}. {@code CANCELED} 는 발사하지 않는다.</li>
+ *   <li>목은 성공 시 본문에 {@code results} 를 <b>실어서</b> 보내고, 전송이 실패하면 상한 안에서
+ *       <b>재시도</b>한다.</li>
+ *   <li>⚠ 이것은 <b>목의 동작이지 벤더 계약이 아니다.</b> 목이 그렇게 보낸다는 이유로 실벤더도 그렇다고
+ *       읽지 말 것 — 위 「계약이 보장하는 것」이 벤더와의 계약면이다.</li>
+ * </ul>
+ *
+ * <h3>그래서 수신부는 이렇게 설계돼 있다</h3>
+ * <ul>
+ *   <li><b>{@code status} 화이트리스트에서 {@code RUNNING} 을 빼지 말 것.</b> 계약이 보장하지 않는 것과
+ *       받아 주면 안 되는 것은 다르다 — 목이 실제로 보내고 상대 배포본이 진행 알림을 함께 보낼 수도 있다.
+ *       계약이 요구하는 최소 집합보다 관대하게 받아 멱등 흡수하는 편이 안전하다.</li>
+ *   <li><b>{@code results} 가 안 와도 기능이 성립한다.</b> 콜백이 유실되거나 본문에 산출물이 없으면
+ *       {@code AugmentResultRecoveryService} 가 {@code ExternalAugmentClient.fetchJobResults}
+ *       ({@code GET /api/genai/jobs/{job_id}/results})로 회수해 종결시킨다. 이 폴백이 있어 계약이
+ *       {@code results} 를 보장하지 않아도 산출물이 유실되지 않는다.</li>
+ *   <li><b>같은 페이로드가 중복 도착하는 것을 정상으로 본다</b>(수신부는 멱등이어야 한다) — 목이 재시도하고,
+ *       상대 배포본이 재시도할 가능성도 배제하지 않는다.</li>
+ *   <li>미지의 필드는 무시한다({@link JsonIgnoreProperties}) — 외부가 필드를 추가해도 수신이 깨지지
+ *       않아야 한다.</li>
  * </ul>
  *
  * <p><b>입력 검증(CWE-20)</b>: 모든 문자열에 길이 상한을, 코드성 필드에 화이트리스트를 건다.
@@ -83,7 +110,10 @@ public record GenAiCallbackRequest(
         @JsonProperty("updated_at")
         String updatedAt,
 
-        /** SUCCEEDED 에만 존재. 계약상 job 1건의 입력 상한이 100장이라 결과도 100건을 넘지 않는다. */
+        /**
+         * SUCCEEDED 일 때만 실릴 수 있고 <b>아예 안 실릴 수도 있다</b>(§4.5 미보장 — 그때는 결과 조회로
+         * 회수한다). 계약상 job 1건의 입력 상한이 100장이라 실릴 경우 결과도 100건을 넘지 않는다.
+         */
         @Valid
         @Size(max = 100, message = "results 는 100건을 초과할 수 없습니다.")
         @JsonProperty("results")
@@ -98,7 +128,7 @@ public record GenAiCallbackRequest(
         String errorMessage
 ) {
 
-    /** 결과 산출물 1건 — §4.2 {@code results[]} 항목. */
+    /** 결과 산출물 1건 — §4.3 작업 결과 조회의 {@code results[]} 항목과 같은 구조다. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ResultItem(
 

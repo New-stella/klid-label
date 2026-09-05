@@ -76,7 +76,7 @@ class PortalKeypointRemovedTest {
                 rawDataStatusRepository, videoRepository, deidentGate,
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
-                new ObjectMapper());
+                new ObjectMapper(), null);
 
         LsDataSrc frame = LsDataSrc.create(RAW_SN, 0, "/f.jpg", null);
         when(srcRepository.findById(SRC_SN)).thenReturn(Optional.of(frame));
@@ -113,7 +113,7 @@ class PortalKeypointRemovedTest {
     @DisplayName("포털_라벨_저장시_lblTypeCd가_SKELETON이면_400을_반환한다")
     void saveSkeleton_rejected() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(
-                RAW_SN, SRC_SN, LsDataLbl.TYPE_SKELETON, "person", skeletonJson());
+                RAW_SN, SRC_SN, LsDataLbl.TYPE_SKELETON, "person", skeletonJson(), null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, portalUser()))
                 .isInstanceOf(CustomException.class)
@@ -128,7 +128,7 @@ class PortalKeypointRemovedTest {
         // allowlist 부재 시 16자 이하 임의 문자열이 그대로 적재됐다(fail-open).
         for (String type : List.of("SEGMENT", "TRACK", "'; DROP TABLE--", "<script>", "bbox ", "")) {
             PortalUserLabelRequest req = new PortalUserLabelRequest(
-                    RAW_SN, SRC_SN, type, "person", "[[0,0],[10,10]]");
+                    RAW_SN, SRC_SN, type, "person", "[[0,0],[10,10]]", null, null);
             assertThatThrownBy(() -> service.saveUserLabel(req, portalUser()))
                     .as("lblTypeCd=%s", type)
                     .isInstanceOf(CustomException.class)
@@ -142,7 +142,7 @@ class PortalKeypointRemovedTest {
     @DisplayName("포털_라벨_저장시_lblTypeCd가_BBOX면_정상_저장된다")
     void saveBbox_ok() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(
-                RAW_SN, SRC_SN, LsDataLbl.TYPE_BBOX, "car", "[[0,0],[10,10]]");
+                RAW_SN, SRC_SN, LsDataLbl.TYPE_BBOX, "car", "[[0,0],[10,10]]", null, null);
 
         assertThat(service.saveUserLabel(req, portalUser()).lblTypeCd()).isEqualTo(LsDataLbl.TYPE_BBOX);
         verify(userLabelRepository).save(any());
@@ -152,7 +152,7 @@ class PortalKeypointRemovedTest {
     @DisplayName("포털_라벨_저장시_lblTypeCd가_POLYGON이면_정상_저장된다")
     void savePolygon_ok() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(
-                RAW_SN, SRC_SN, LsDataLbl.TYPE_POLYGON, "car", "[[0,0],[10,0],[10,10]]");
+                RAW_SN, SRC_SN, LsDataLbl.TYPE_POLYGON, "car", "[[0,0],[10,0],[10,10]]", null, null);
 
         assertThat(service.saveUserLabel(req, portalUser()).lblTypeCd()).isEqualTo(LsDataLbl.TYPE_POLYGON);
         verify(userLabelRepository).save(any());
@@ -185,9 +185,9 @@ class PortalKeypointRemovedTest {
     @DisplayName("데이터마트_원본에_SKELETON이_있어도_포털_조회에는_노출되지_않는다")
     void datamartSkeleton_notExposed() {
         LsDataLbl skeleton = LsDataLbl.createManual(
-                SRC_SN, LsDataLbl.TYPE_SKELETON, null, "person", skeletonJson(), 1L);
+                SRC_SN, LsDataLbl.TYPE_SKELETON, null, "person", skeletonJson(), "1");
         LsDataLbl bbox = LsDataLbl.createManual(
-                SRC_SN, LsDataLbl.TYPE_BBOX, null, "car", "[[0,0],[10,10]]", 1L);
+                SRC_SN, LsDataLbl.TYPE_BBOX, null, "car", "[[0,0],[10,10]]", "1");
         when(lblRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(skeleton, bbox));
 
         PortalFrameLabelsResponse res = service.loadFrameLabels(SRC_SN, portalUser());
@@ -204,7 +204,7 @@ class PortalKeypointRemovedTest {
         Long pendingRaw = 999L;
         when(rawDataStatusRepository.findById(pendingRaw)).thenReturn(Optional.empty());
         PortalUserLabelRequest req = new PortalUserLabelRequest(
-                pendingRaw, SRC_SN, LsDataLbl.TYPE_BBOX, "car", "[[0,0],[10,10]]");
+                pendingRaw, SRC_SN, LsDataLbl.TYPE_BBOX, "car", "[[0,0],[10,10]]", null, null);
 
         assertThatThrownBy(() -> service.saveUserLabel(req, portalUser()))
                 .isInstanceOf(CustomException.class)

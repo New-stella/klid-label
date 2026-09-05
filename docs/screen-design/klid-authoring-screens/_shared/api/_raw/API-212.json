@@ -227,6 +227,7 @@
         "required": true,
         "content_type": "application/json"
       },
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "implemented",
@@ -239,22 +240,24 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-21T04:27:30.459Z"
+        "last_updated": "2026-08-21T04:27:30.459Z",
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [],
       "verifies_acceptance": [
-        "AC-049"
+        "AC-1022",
+        "AC-1023"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 5,
+    "current_version": 6,
     "stale": true,
-    "stale_reason": "AC-049의 data.scenario 변경 — verifies",
-    "change_summary": "일괄 건너뛰기의 대상을 그 묶음이 실패한 영상으로 한정한다. 정상 진행 중인 영상을 미리 골라 건너뛰는 길은 단건과 마찬가지로 두지 않으며, 이 경로가 쓰이는 자리는 벤더 장애로 여러 영상이 한꺼번에 실패했을 때다. 실패 상태가 아닌 영상은 건별 실패로 돌려준다.",
-    "last_updated_by": "sync",
-    "last_updated_at": "2026-08-21T04:27:30.459Z",
+    "stale_reason": "UC-038의 data.alternate_flows 변경이 verifies로 2-hop 전파",
+    "change_summary": "검증한다고 선언한 수용기준 목록을 살아 있는 것으로 다시 세운다. 1건 중 1건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1022, AC-1023). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-01T08:27:06.161Z",
     "created_at": "2026-08-19T13:34:23.626Z"
   }
 }

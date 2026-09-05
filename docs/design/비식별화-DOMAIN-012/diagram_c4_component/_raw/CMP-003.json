@@ -21,7 +21,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -34,7 +35,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -47,7 +49,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -60,7 +63,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -73,7 +77,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -86,7 +91,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -98,7 +104,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -110,7 +117,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -123,20 +131,22 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
           "name": "KpstDeidentPollJob",
           "technology": "quartz.job",
-          "description": "주기 폴링(30초)으로 진행·완료를 회수 — 결과 콜백을 대체하는 유일 경로",
+          "description": "주기 폴링(30초, kpst.deid.poll-interval-sec)으로 WAITING·POLLING 원장을 회수 — 완료 콜백을 대체하는 유일 경로이자 미ACK WAITING(선커밋 후 신호 미도착)의 유일한 회수 경로다(별도 스위퍼 없음, tryClaimPoll 조건부 UPDATE 원자 클레임). 그 미결 회수는 재위탁하지 않고 KPST_ACK_MISSING 으로 원장을 마감하며 영상의 비식별 여부도 'F' 로 내린다(제출 확정 실패와 같은 종결 경로 · 구 서술 「실패로 내리지 않는다」 폐기). 종결 코드를 따로 두는 이유는 영상 상태가 아니라 운영 조치다 — 외부에는 프로젝트가 실제로 생성돼 있을 수 있어 사람이 외부 상태를 확인해야 하는 건을 식별한다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -149,7 +159,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -162,7 +173,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -175,7 +187,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -188,20 +201,22 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
-          "name": "미결 스위퍼(KpstSubmitPendingSweeper 계열)",
-          "technology": "batch.job",
-          "description": "수락·결과 어느 신호도 오지 않은 위탁을 조건부 UPDATE 원자 클레임으로 회수 — 실패 행이 없으므로 재시도 큐·회수기가 집지 못하는 유일한 회수 경로",
+          "name": "KpstSubmitOutcomeRecorder",
+          "technology": "batch.service (전용 풀)",
+          "description": "제출 ACK/실패 비동기 완료 핸들러 — 전용 풀(kpstSubmitScheduler)에서 조건부 원자 UPDATE(WAITING+prjId null)로만 종결해 지각 신호 강등을 막는다. ACK 가 끝내 오지 않으면 별도 스위퍼 없이 폴링 잡이 ACK 대기 유예 만료로 회수한다(KPST_ACK_MISSING). 그 회수는 재위탁하지 않고 원장을 마감하며 영상의 비식별 여부도 'F' 로 내린다(구 서술 「실패로 내리지 않는다」 폐기) — 종결 코드를 따로 두는 이유는 운영 조치 식별이다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
@@ -269,10 +284,19 @@
           "description": "알림"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-041",
         "DFEAT-048"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "external_dependencies": [
         {
@@ -304,12 +328,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 10,
+    "current_version": 13,
     "stale": true,
-    "stale_reason": "AC-019의 data.scenario 변경이 depicts로 2-hop 전파",
-    "change_summary": "이 컴포넌트 다이어그램이 그리는 도메인 기능 연결이 비어 있었다(DIA-002). 위탁·폴링·신고 축을 그리므로 그에 대응하는 두 기능을 채운다.",
+    "stale_reason": "AC-1063의 2개 필드 변경이 depicts로 2-hop 전파",
+    "change_summary": "정정 — 직전 판이 두 컴포넌트 설명에 덧붙인 「미결 회수는 영상의 비식별 상태를 실패로 내리지 않는다」가 코드 실측 결과 거짓으로 판명돼 참인 사실로 바꾼다. 유예 만료 회수(KPST_ACK_MISSING)는 제출 확정 실패와 같은 종결 경로를 타고 그 경로가 영상의 비식별 여부를 'F' 로 내린다. 종결 코드를 따로 두는 이유는 영상 상태가 아니라 운영 조치다 — 그 코드가 남았다는 것은 수락 응답을 관측하지 못했다는 뜻이라 외부에는 프로젝트가 실제로 생성돼 있을 수 있고, 사람이 외부 상태를 확인해야 하는 건을 식별하려는 분리다. 거짓 서술은 지우지 않고 짧은 폐기 표기로 남겼다. 그대로 참인 서술(별도 스위퍼 미신설·전용 풀·조건부 원자 선점·재위탁하지 않음)과 다른 컴포넌트·관계 원소는 손대지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:22:52.836Z",
+    "last_updated_at": "2026-09-03T08:16:44.544Z",
     "created_at": "2026-06-02T13:12:03.114Z"
   }
 }

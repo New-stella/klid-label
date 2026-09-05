@@ -40,9 +40,9 @@ import java.util.Set;
  * <p>외부 SFR-07 시스템이 생성한 증강 결과를 REVIEWER 가 검수(accept/reject)한다.
  * 결과는 외부 시스템에도 best-effort 동기화된다.
  *
- * <p>신규 외부 콜백은 3종(WINTER/NIGHT/RAIN)만 수신한다(RESOLUTION은 RQ-SFR-06-03에 따라
- * 저작도구 내부 기능으로 분리됨). 단, 기존에 적재된 RESOLUTION 데이터의 조회·정렬·검수를 위해
- * {@code AUG_ORDER}는 4종 정렬을 유지한다.
+ * <p>신규 외부 콜백은 단일 종류({@code AUGMENT})로 수신한다(RESOLUTION은 RQ-SFR-06-03에 따라
+ * 저작도구 내부 기능으로 분리됨). 단, 백필하지 않은 기존 데이터(구 3종·레거시 RESOLUTION)의
+ * 조회·정렬·검수를 위해 {@code AUG_ORDER}는 그 값들의 정렬도 함께 유지한다.
  *
  * <p>RBAC: 모든 결정 메서드는 REVIEWER 만 호출 가능 (Service 이중 검증).
  */
@@ -53,17 +53,29 @@ import java.util.Set;
 public class AugmentReviewService {
 
     /**
-     * UI 표시용 정렬 순서. 검수 대상 증강 3종(WINTER/NIGHT/RAIN) 뒤에 해상도 파생 프리셋
-     * (RESL_1080P/720P/480P, 고해상도→저해상도)을 배치한다. 레거시 단일 RESOLUTION 은 기존 데이터 정렬용.
+     * UI 표시용 정렬 순서 — 검수 대상 증강이 앞, 해상도 파생 프리셋(고해상도→저해상도)이 뒤다.
+     *
+     * <p><b>현행 대표값 {@link LsDataAug#AUG_AUGMENT} 가 반드시 맨 앞이다</b>
+     * (API-059 · ADR-059). 이 항목이 빠져 있으면
+     * {@code getOrDefault(t, 99)} 로 떨어져 <b>현행 값이 구 3종과 해상도 프리셋 전부보다 뒤로</b>
+     * 밀린다 — 2026-09-02 실측으로 확인된 결함이며 의도된 동작이 아니었다.
+     *
+     * <p>구 3종(WINTER/NIGHT/RAIN)과 레거시 단일 {@link LsDataAug#AUG_RESOLUTION} 은 <b>백필하지
+     * 않은 기존 데이터의 정렬용</b>으로 남긴다 — 빼면 그 파생본들이 99 로 몰려 뒤섞인다.
+     *
+     * <p>⚠ {@code Map.of} 는 항목 10개가 상한이다. 더 늘리려면 {@code Map.ofEntries} 로 바꿀 것.
+     *
+     * @design API-059
      */
     private static final Map<String, Integer> AUG_ORDER = Map.of(
-            LsDataAug.AUG_WINTER, 1,
-            LsDataAug.AUG_NIGHT, 2,
-            LsDataAug.AUG_RAIN, 3,
-            LsDataAug.AUG_RESOLUTION, 4,
-            LsDataAug.AUG_RESL_1080P, 5,
-            LsDataAug.AUG_RESL_720P, 6,
-            LsDataAug.AUG_RESL_480P, 7
+            LsDataAug.AUG_AUGMENT, 1,
+            LsDataAug.AUG_WINTER, 2,
+            LsDataAug.AUG_NIGHT, 3,
+            LsDataAug.AUG_RAIN, 4,
+            LsDataAug.AUG_RESOLUTION, 5,
+            LsDataAug.AUG_RESL_1080P, 6,
+            LsDataAug.AUG_RESL_720P, 7,
+            LsDataAug.AUG_RESL_480P, 8
     );
 
     private final LsDataAugRepository repository;
@@ -547,7 +559,11 @@ public class AugmentReviewService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // 「검수자 전용」은 「검수자 이상」이다 — 관리자가 계층으로 물려받아 증강 결과 채택/반려에 들어간다.
+        // Spring 의 RoleHierarchy 는 권한(authority) 축에만 걸리므로 여기서 역할을 동등 비교하면
+        // 관리자가 이 창구에서만 403 이 되어 계층이 반쪽만 성립한다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

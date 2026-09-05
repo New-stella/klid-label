@@ -82,7 +82,92 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       0건·이벤트 유형 0건으로 기동해 라벨을 고를 수 없고 이벤트 필터가 빈 채로 뜬다.
  *       전부 {@code ON CONFLICT DO NOTHING} 이라 이미 시드된 DB(로컬·dev)에서는 no-op 이고
  *       운영자가 바꿔 둔 이름·색·형태를 되돌리지 않는다</li>
+ *   <li>{@code V20} — {@code LS_PORTAL_USER_LABEL} 에 {@code LBL_ID}(라벨 마스터 참조) ·
+ *       {@code TRCK_ID}(트랙아이디) 신설. 포털 다운로드 산출을 검수 승인 학습데이터와 같은
+ *       구조로 통일하면서, 산출 어노테이션이 싣는 분류·트랙 식별자를 담을 자리가 포털
+ *       저장소에만 없다는 공백이 드러났다. 둘 다 nullable 이고 <b>기존 행을 백필하지 않는다</b>
+ *       — 라벨명 소급 매칭은 동명이인·비활성 마스터에 다른 분류로 연결될 수 있어 빈 값보다
+ *       나쁘다(재저장하면 자연 복구). FK 를 걸지 않아 마스터 수명과 독립이며, NULL 허용 +
+ *       DEFAULT 없는 ADD COLUMN 이라 하위호환이고 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V21} — {@code LS_MNGR_PSWD}(관리자비밀번호) 신설. 관리자 유효창 발급에 쓰는 공유
+ *       자격이 배포 설정에만 있어 <b>재배포 말고는 바꿀 길이 없었다</b>. 이 표가 그 자격을 데이터로
+ *       옮긴다. <b>행은 최대 1개</b>이며 그것을 기본키 + {@code mngr_pswd_sn = 1} 체크 제약
+ *       <b>두 겹</b>으로 강제한다(기본키만이면 1·2·3 이 나란히 서고, 체크만이면 값이 전부 1 인 행이
+ *       여러 개 들어간다). <b>시드하지 않는다</b> — 행이 없는 것이 정상이고 그때는 배포 설정값으로
+ *       폴백하므로, 이 변경 이후에도 기존 배포는 아무것도 달라지지 않는다. 세대·판수 컬럼을 두지
+ *       않는 것도 결정이다(교체 시 기존 유효창 무효화는 서명이 현재 자격에 의존하게 해서 이룬다).
+ *       신규 테이블 생성뿐이라 하위호환이고 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V22} — {@code LS_USER_ROLE.MDFR_ID}(수정자아이디) 신설. 역할 변경 기록에 <b>대상만
+ *       있고 주체가 없어</b>, 누가 누구를 관리자로 올렸는지 알려면 별도 유효창 발급 로그와 시각으로
+ *       이어 붙여야 했다. 권한 상승은 감사에서 가장 중요한 사건이라 그 자리를 데이터로 남긴다.
+ *       값의 출처는 인계 토큰 subject 하나이며 <b>요청 바디에서 오지 않는다</b>(바디 값은 위조 가능).
+ *       <b>nullable 이고 백필하지 않는다</b> — 과거 변경의 주체를 알 방법이 없고, NOT NULL + 기본값은
+ *       사실이 아닌 주체를 박는다. null 이 곧 "이 컬럼이 생기기 전에 바뀐 행" 이라는 정보다.
+ *       변경 <b>이력 표</b>는 만들지 않는다(보존 주기·조회 창구·정리 배치를 함께 정해야 하는 별개
+ *       결정이라, 추정으로 대신하지 않는다). 기본값 없는 nullable 컬럼 추가라 표를 다시 쓰지 않고
+ *       하위호환이며 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V23} — {@code LS_AI_SRVR}(AI서버) · {@code LS_AI_SRVR_ALTMNT}(AI서버배정) 신설.
+ *       추론 서버가 장비 두 대에 이중화로 올라가는데 저작도구가 부르는 주소는 <b>설정값 하나뿐</b>이라
+ *       두 대를 나눠 쓸 배선이 없었다. 이 두 표가 그 목록과 「어느 영상을 어느 노드로 보냈는가」를
+ *       데이터로 옮긴다. <b>원장만 세우고 분산 자체는 아직 하지 않는다</b>. 배정은
+ *       {@code raw_sn} 유니크다 — 추적기가 노드 프로세스의 로컬 메모리에 있어 한 영상의 프레임이
+ *       두 노드로 흩어지면 추적이 끊기므로, 「영상당 배정 한 건」이 그 보장의 전부다.
+ *       <b>시드하지 않는다</b> — 환경마다 추론 서버 주소가 다른데 마이그레이션은 애플리케이션
+ *       설정을 읽지 못한다. 대신 기동 시 원장이 비어 있으면 애플리케이션이 기존 설정값으로 노드
+ *       하나를 세우므로, 이 변경 이후에도 기존 배포는 <b>설정값 그대로</b> 동작한다.
+ *       신규 테이블 생성뿐이라 하위호환이고(구 jar 는 이 표를 모른다) 롤링 재기동으로 배포할 수 있다</li>
+ *   <li>{@code V24} — {@code LS_AI_SRVR_USG}(AI서버용도) 신설 + {@code LS_AI_SRVR.WTNG_NOCS} 제거
+ *       + {@code CHCK_SCS_NOCS} 추가. V23 은 노드마다 대기건수 <b>하나</b>를 뒀는데, 추론 서버는
+ *       장비 안에서 실행을 <b>용도별로</b>(일괄 처리 / 화면에서 쓰는 요청) 갈라 두었다. 노드를 고를 때
+ *       보는 값은 그 요청 자신의 용도에 해당하는 부하뿐이며, 두 값을 합쳐 보면 장비 안에서 갈라 놓은
+ *       것을 부르는 쪽에서 다시 붙이는 셈이 되어 <b>일괄 처리가 밀린 장비를 화면 요청이 피할 이유가
+ *       없는데도 피하게</b> 된다. 그래서 저장 자리도 장비 x 용도 조합이다. 처리 중 건수를 함께 두는
+ *       이유는 용도마다 동시 처리가 하나여서 <b>대기가 없어도 이미 하나를 잡고 있으면 바쁘기</b>
+ *       때문이다(실효 부하 = 처리중 + 대기). 부모 컬럼을 남기지 않고 지운 것은 읽는 코드가 아직
+ *       하나도 없어 지금이 가장 싸고, 남겨 두면 다음 사람이 그 값을 「노드 전체 부하」로 읽어 두 용도를
+ *       다시 합치기 때문이다. ⚠ <b>하위호환이 아니다</b> — 구 jar 는 그 컬럼을 엔티티에 매핑하고 있어
+ *       기동 검증에서 실패하므로 롤링이 아니라 전 노드 교체 후 적용해야 한다(관측이 꺼진 채 나가므로
+ *       기능 영향은 없다)</li>
+ *   <li>{@code V26} — {@code LS_AI_SRVR_ALTMNT.SRVR_ID} 의 외래키({@code ON DELETE RESTRICT}) 제거.
+ *       그 배정은 <b>처리가 도는 동안</b> 프레임을 한 노드에 묶어 두는 자리이고, 처리가 끝나면 그
+ *       묶음은 의미가 없다(추적기 상태가 그 프로세스 메모리에 있었고 이미 사라졌다). 끝난 이력까지
+ *       삭제를 막으면 <b>한 번이라도 영상을 처리한 장비는 영구히 교체 불가</b>가 된다. 같은 이유로
+ *       {@code LS_WEBHOOK_IDEMPOTENCY.SRVR_ID} 는 처음부터 외래키를 걸지 않았고 그 축에 맞춘 것이다.
+ *       ⚠ <b>제약만</b> 없앤다 — 표·컬럼·행은 그대로이고 배정 이력은 남는다. 유령 장비로의 신규
+ *       배정 차단은 INSERT 조건({@code WHERE EXISTS})으로 옮겼다. 순수 완화라 <b>구 jar 에 무해</b>하다</li>
+ *   <li>{@code V27} — {@code LS_MARKING} 에서 {@code EVNT_NM} · {@code VIDEO_FILE_PATH_NM} 제거 +
+ *       {@code REG_USER_NO} 를 {@code bigint} → {@code varchar(100)} 로 확대. 두 칸은 영상 행
+ *       ({@code LS_DATA_RAW.EVNT_TYPE_CD} · {@code RAW_FILE_PATH_NM})에 있는 값을 마킹 행에 <b>베껴
+ *       두던 중복</b>이라 영상 쪽이 바뀌면 어긋났고, 포털 업로드 경로에는 둘 다 채울 값이 없는데
+ *       NOT NULL 이라 <b>저장 자체가 막혀</b> 있었다. 응답의 두 값은 영상 행에서 조달하므로 계약은
+ *       무변경이다. 폭 확대는 포털 토큰 주체가 숫자가 아니어서다 — 숫자로 두면 파싱 실패로 조용히
+ *       null 이 되어 소유자 없는 마킹이 저장된다. ⚠ <b>컬럼 제거는 되돌릴 수 없다</b>(값이 함께
+ *       사라진다. 되살리려면 영상 행 조인으로 백필한다)</li>
+ *   <li>{@code V28} — 포털 채널 전용 표를 공용 원장에 흡수하기 위한 스키마 정합(ADR-058):
+ *       {@code LS_DATA_RAW} 에 {@code PORTAL_USER_NO varchar(100)} 신설(+부분 인덱스),
+ *       {@code LS_DATA_LBL.REG_USER_NO} 를 {@code bigint} → {@code varchar(100)},
+ *       {@code LS_TUS_UPLOAD.USER_NO} 를 {@code varchar(64)} → {@code varchar(100)}.
+ *       셋 다 포털이 발급한 토큰 주체가 숫자가 아니라서다 — 숫자로 두면 파싱 실패로 조용히 null 이
+ *       되어 <b>소유자 없는 행</b>이 저장되고 소유자 스코프 인가가 어긋난다. ⚠ <b>구 전용 표는 지우지
+ *       않는다</b> — 드롭은 되돌릴 수 없어 별도 단계이고, 이 파일은 순수 확장이라 중간 상태가 멀쩡하다
+ *       (V27 이 한 파일에 묶은 것은 중간 상태가 고장나는 경우였다)</li>
+ *   <li>{@code V29} — {@code LS_DATA_LBL.LBL_NM} 의 NOT NULL 해제(ADR-058 코드 이관 짝). 포털 업로드
+ *       자산의 수동 라벨은 마스터를 참조하지 않는 자유 입력이라 <b>이름 없이 도형만</b> 그리는 것이
+ *       정상 동선인데, 흡수처인 이 원장이 NOT NULL 이라 저장 자체가 막혔다. 포털이 기본값을 지어
+ *       채우는 안은 기각했다(지어낸 값이 쌓이면 진짜 라벨명과 구분되지 않는다). 내부 채널의 라벨
+ *       생성 통로는 전부 이름을 채우므로 <b>관제 라벨에 NULL 이 새로 생기지 않는다</b> — 제약만 풀고
+ *       값은 그대로다. 순수 완화라 구 jar 에 무해하다</li>
+ *   <li>{@code V31} — 마킹 산출물 일괄 가져오기의 작업 원장 두 표 신설(ADR-053):
+ *       {@code LS_EBLC_ULD_JOB}(일괄업로드작업) + {@code LS_EBLC_ULD_JOB_ARTCL}(작업 항목).
+ *       적재 요청이 곧바로 반환하고 실제 적재는 뒤에서 항목별로 진행하므로 <b>어디까지 되었는지와
+ *       무엇이 왜 실패했는지</b>를 담아 둘 자리가 필요하다. ⚠ <b>{@code LS_MARKING} 은 건드리지
+ *       않는다</b> — 외부 마킹이 쓰는 예약 상태는 그 컬럼에 CHECK 제약이 없고 활성 부분 유니크
+ *       ({@code WHERE stts_cd IN ('PENDING','VLM_REQUESTED')})가 이미 그 값을 배제해, 상태값 추가가
+ *       애플리케이션 상수만으로 성립한다(제약을 새로 걸면 오히려 그 성질이 깨진다). 순수 신설이라
+ *       구 jar 에 무해하다</li>
  *   <li>{@code V9001} — 테스트 전용 시드(테스트 클래스패스에만 존재)</li>
+ *   <li>{@code V9002} — 테스트 전용 시드(역할 해석 표본 — 진입 시 자동 등록 이후 "시드에 없는
+ *       숫자 sub" 가 더 이상 무권한을 뜻하지 않게 되어 표본을 명시적으로 심는다)</li>
  * </ul>
  *
  * <p><b>새 마이그레이션을 추가할 때</b>는 위 목록과 아래 두 단언에 <i>한 줄씩 명시적으로</i> 더한다.
@@ -112,12 +197,14 @@ class FlywaySquashBaselineIT {
                 "SELECT version FROM flyway_schema_history WHERE type = 'SQL' ORDER BY installed_rank",
                 String.class);
 
-        // then: 운영 3개 + 테스트 전용 시드 1개. 아카이브가 합류하면 여기가 180+ 로 부푼다.
+        // then: 운영 마이그레이션 + 테스트 전용 시드 1개(9001). 아카이브가 합류하면 여기가 180+ 로 부푼다.
         //   ★ 정상적인 신규 마이그레이션을 추가할 때는 이 목록에 <의도적으로> 한 줄을 더한다.
         //     느슨하게(예: hasSizeGreaterThan) 바꾸지 말 것 — 아카이브 유입 탐지력이 사라진다.
         assertThat(applied)
                 .as("Flyway 가 적용한 SQL 마이그레이션 — 아카이브가 db/migration 으로 새어 들어오면 실패한다")
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "9001");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
+                        "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "9001",
+                        "9002");
     }
 
     @Test
@@ -140,8 +227,23 @@ class FlywaySquashBaselineIT {
                         "V14__add_external_import_tables_and_deident_cmptn_yn.sql",
                         "V15__seed_event_type_and_label_master.sql",
                         "V16__align_control_ingest_bit_thmb_ogcd.sql",
+                        "V17__replace_completed_video_thumbnail_with_deident_frame.sql",
+                        "V18__add_verification_event_question_catalog.sql",
+                        "V19__simplify_label_preset_to_event_and_labels.sql",
                         "V1__baseline.sql",
+                        "V20__add_portal_user_label_master_and_track.sql",
+                        "V21__add_ls_mngr_pswd.sql",
+                        "V22__add_ls_user_role_mdfr_id.sql",
+                        "V23__add_ls_ai_srvr.sql",
+                        "V24__split_ai_srvr_load_by_usage.sql",
+                        "V25__add_webhook_idempotency_srvr_id.sql",
+                        "V26__drop_ls_ai_srvr_altmnt_fk.sql",
+                        "V27__widen_ls_issue_comment_role_admin.sql",
+                        "V28__drop_marking_denormalized_columns_and_widen_reg_user_no.sql",
+                        "V29__absorb_portal_upload_into_common_ledgers.sql",
                         "V2__rename_cm_code_to_ls_com_cd.sql",
+                        "V30__relax_ls_data_lbl_label_name_not_null.sql",
+                        "V31__add_ls_eblc_uld_job.sql",
                         "V3__drop_unused_tables.sql",
                         "V4__drop_unused_tables_round2.sql",
                         "V5__rename_queue_outbox_columns_to_std.sql",

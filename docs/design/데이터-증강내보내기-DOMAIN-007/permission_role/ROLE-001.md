@@ -1,18 +1,20 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 10
+version: 14
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:52.740Z
-status: NEW
-prev_version: null
-content_hash: d50ab58d55e8796b352ecb87f593d0baad9ff8f967261c5bb7d995585c6da918
+synced_at: 2026-09-02T10:51:57.094Z
+status: CHANGED
+prev_version: 13
+content_hash: ea92dc8cf2c3bb2cc3f96593d5937cc90c1ea5d4b4587d9326301e8033331146
 stale: true
 raw: ./_raw/ROLE-001.json
 links:
-  granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-003]]", "[[FEAT-004]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[FEAT-009]]", "[[SCREEN-008]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
-  requires_backward: ["[[NAV-001]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-024]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-027]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
+  based_on: ["[[ADR-055]]"]
+  granted_on: ["[[FEAT-001]]", "[[FEAT-002]]", "[[FEAT-003]]", "[[FEAT-004]]", "[[FEAT-005]]", "[[FEAT-006]]", "[[FEAT-008]]", "[[FEAT-009]]", "[[SCREEN-008]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
+  inherits_from_backward: ["[[ROLE-004]]"]
+  requires_backward: ["[[NAV-001]]", "[[SCREEN-005]]", "[[SCREEN-006]]", "[[SCREEN-008]]", "[[SCREEN-009]]", "[[SCREEN-010]]", "[[SCREEN-011]]", "[[SCREEN-012]]", "[[SCREEN-018]]", "[[SCREEN-019]]", "[[SCREEN-020]]", "[[SCREEN-021]]", "[[SCREEN-022]]", "[[SCREEN-023]]", "[[SCREEN-025]]", "[[SCREEN-026]]", "[[SCREEN-030]]", "[[SCREEN-031]]", "[[SCREEN-032]]", "[[SCREEN-035]]", "[[SCREEN-036]]", "[[SCREEN-037]]", "[[SCREEN-038]]"]
 ---
 
 # 검수자 (REVIEWER)
@@ -29,7 +31,7 @@ modified
 
 ### decided_by
 
-ADR-003
+ADR-055
 
 ### change_kind
 
@@ -37,7 +39,7 @@ ADR-003
 
 ### diff_summary
 
-1차 ADMIN/담당자 → 2차 REVIEWER 통합(관리권한 포함)
+1차 ADMIN/담당자 → 2차 REVIEWER 통합(관리권한 포함)이었으나, 관리 권한을 관리자 역할로 다시 분리했다. 검수자 권한 자체는 관리자가 계층으로 물려받아 그대로 유지된다.
 
 ### legacy_source
 
@@ -51,9 +53,13 @@ ADMIN
 
 ## description
 
-검수자. 시스템 관리자(ADMIN) 역할을 별도로 두지 않으며 모든 관리 권한이 이 역할에 통합돼 있다. 화면 호칭은 '검수자'이고 관리 화면은 /manage/* 경로에 모인다.
+검수자. 화면 호칭은 '검수자'다. 관리 권한은 이 역할에 통합돼 있지 않고 관리자 역할이 소유한다 — 관리자는 이 역할을 계층으로 물려받으므로, 관리자가 검수 업무를 겸하되 검수자는 관리 기능에 닿지 않는다.
 
-**관리** — 사용자 관리 · 시스템 설정 · 라벨 마스터 관리 · 오토라벨 프리셋 관리 · 비식별 누락 신고 관리 · 이벤트유형 관리.
+이 역할이 소유하는 관리 화면은 라벨 마스터 · 오토라벨 프리셋 · 이벤트유형 · 비식별 누락 신고 관리와 배치·추론·정밀도·비식별 설정이다. 사용자 관리 · 연동 서버 주소 · 파일 업로드 · 산출물 가져오기 · 위험 작업 · 관리자 패스워드 교체는 관리자 역할로 옮겨갔다. 그 화면들에 들어오는 것은 관리자뿐이라 조회조차 이 역할 권한만으로는 되지 않는다 — 이것은 화면 축의 서술이다.
+
+창구 축은 화면 축과 갈린다. 사용자 목록·작업자 목록·사용자 단건 조회처럼 창구 자체는 이 역할 권한으로도 응답하는 자리가 있고, 역할 지정처럼 관리자 역할에 유효창까지 요구하는 자리가 있다. 이 역할이 소유하는 관리 창구는 이 역할을 하한으로 연다. 어느 축의 서술인지를 밝히지 않으면 두 축이 서로 어긋난 사양으로 읽힌다.
+
+**관리** — 라벨 마스터 관리 · 오토라벨 프리셋 관리 · 비식별 누락 신고 관리 · 이벤트유형 관리 · 배치·추론·정밀도·비식별 설정. 사용자 관리는 이 역할에 두지 않는다(관리자 역할이 소유한다).
 
 **작업 운영** — 작업자 배정 · 재배정 · 배정 이력 조회. 작업 목록과 통계를 배정 범위 제한 없이 전체 기준으로 조회한다(작업자는 본인 배정분으로 좁혀진다).
 
@@ -169,22 +175,11 @@ ADMIN
 - view
 - update
 
-- **condition**: 사용자 관리 — 목록 조회·검색·역할 수정. 사용자 생성은 두지 않는다(사용자 마스터는 역할 클레임 시 자동등록된다). 계정 활성 여부는 외부 시스템 소유라 읽기 전용이다
-- **target_id**: SCREEN-024
-- **target_kind**: screen_spec
-
-### [10]
-
-**actions**:
-
-- view
-- update
-
 - **condition**: 시스템 설정
 - **target_id**: SCREEN-025
 - **target_kind**: screen_spec
 
-### [11]
+### [10]
 
 **actions**:
 
@@ -197,7 +192,7 @@ ADMIN
 - **target_id**: SCREEN-026
 - **target_kind**: screen_spec
 
-### [12]
+### [11]
 
 **actions**:
 
@@ -210,7 +205,7 @@ ADMIN
 - **target_id**: SCREEN-035
 - **target_kind**: screen_spec
 
-### [13]
+### [12]
 
 **actions**:
 
@@ -221,7 +216,7 @@ ADMIN
 - **target_id**: SCREEN-032
 - **target_kind**: screen_spec
 
-### [14]
+### [13]
 
 **actions**:
 
@@ -231,7 +226,7 @@ ADMIN
 - **target_id**: SCREEN-018
 - **target_kind**: screen_spec
 
-### [15]
+### [14]
 
 **actions**:
 
@@ -243,7 +238,7 @@ ADMIN
 - **target_id**: SCREEN-019
 - **target_kind**: screen_spec
 
-### [16]
+### [15]
 
 **actions**:
 
@@ -253,7 +248,7 @@ ADMIN
 - **target_id**: SCREEN-021
 - **target_kind**: screen_spec
 
-### [17]
+### [16]
 
 **actions**:
 
@@ -263,7 +258,7 @@ ADMIN
 - **target_id**: SCREEN-020
 - **target_kind**: screen_spec
 
-### [18]
+### [17]
 
 **actions**:
 
@@ -274,7 +269,7 @@ ADMIN
 - **target_id**: SCREEN-022
 - **target_kind**: screen_spec
 
-### [19]
+### [18]
 
 **actions**:
 
@@ -285,7 +280,7 @@ ADMIN
 - **target_id**: SCREEN-023
 - **target_kind**: screen_spec
 
-### [20]
+### [19]
 
 **actions**:
 
@@ -296,18 +291,18 @@ ADMIN
 - **target_id**: SCREEN-012
 - **target_kind**: screen_spec
 
-### [21]
+### [20]
 
 **actions**:
 
 - view
 - update
 
-- **condition**: 영상 처리 현황을 전체 기준으로 조회, 마킹 진입·작업자 배정·재배정
+- **condition**: 영상 처리 현황 조회, 마킹 진입·작업자 배정·재배정
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 
-### [22]
+### [21]
 
 **actions**:
 
@@ -317,7 +312,7 @@ ADMIN
 - **target_id**: SCREEN-030
 - **target_kind**: screen_spec
 
-### [23]
+### [22]
 
 **actions**:
 
@@ -329,7 +324,7 @@ ADMIN
 - **target_id**: SCREEN-031
 - **target_kind**: screen_spec
 
-### [24]
+### [23]
 
 **actions**:
 
@@ -340,7 +335,7 @@ ADMIN
 - **target_id**: SCREEN-036
 - **target_kind**: screen_spec
 
-### [25]
+### [24]
 
 **actions**:
 
@@ -352,7 +347,7 @@ ADMIN
 - **target_id**: SCREEN-037
 - **target_kind**: screen_spec
 
-### [26]
+### [25]
 
 **actions**:
 
@@ -364,6 +359,10 @@ ADMIN
 - **target_kind**: screen_spec
 
 ## inherits_from
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 
@@ -386,6 +385,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 

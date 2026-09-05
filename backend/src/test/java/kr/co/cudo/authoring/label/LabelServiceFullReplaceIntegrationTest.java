@@ -140,8 +140,8 @@ class LabelServiceFullReplaceIntegrationTest {
     @DisplayName("저장시_요청에_빠진_라벨은_실제_삭제된다")
     void omittedLabelIsPhysicallyDeleted() {
         // given — 라벨 2건 직접 시드.
-        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
-        LsDataLbl b = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", 100L));
+        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", "100"));
+        LsDataLbl b = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", "100"));
         labelRepository.flush();
 
         // when — a 만 담아 저장(b 누락) → full-replace 로 b 삭제.
@@ -180,7 +180,7 @@ class LabelServiceFullReplaceIntegrationTest {
     @DisplayName("삭제된_라벨의_속성값과_AI정보도_함께_제거된다")
     void deletedLabelChildrenRemovedWithoutFkViolation() {
         // given — 라벨 2건, b 에 속성값(실 FK) + AI 정보 부착.
-        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
+        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", "100"));
         LsDataLbl b = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "car", "[[3.0,3.0],[4.0,4.0]]", new BigDecimal("0.9"), null));
         LsLabel master = labelMasterRepository.findByLabelNmIgnoreCaseAndUseYn("car", "Y")
                 .orElseGet(() -> labelMasterRepository.save(LsLabel.create("car", "#00FF00", "BBOX", 0, "test")));
@@ -207,8 +207,8 @@ class LabelServiceFullReplaceIntegrationTest {
     @Test
     @DisplayName("삭제_라벨은_저장이벤트에_DELETED_before스냅샷으로_기록된다")
     void deletedLabelRecordedWithBeforeSnapshot() {
-        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
-        LsDataLbl b = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", 100L));
+        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", "100"));
+        LsDataLbl b = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", "100"));
         labelRepository.flush();
 
         labelService.bulkUpsert(srcSn,
@@ -249,7 +249,7 @@ class LabelServiceFullReplaceIntegrationTest {
     @Test
     @DisplayName("수정_객체는_이전값과_새값이_모두_기록된다")
     void updatedRecordsBeforeAndAfter() {
-        LsDataLbl seed = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[40.0,40.0]]", 100L));
+        LsDataLbl seed = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[40.0,40.0]]", "100"));
         labelRepository.flush();
 
         // 좌표 + 라벨명 변경.
@@ -312,7 +312,7 @@ class LabelServiceFullReplaceIntegrationTest {
     @Test
     @DisplayName("조회API는_이벤트요약과_before_after_변경상세를_반환한다")
     void historyApiReturnsSummaryAndDiff() throws Exception {
-        LsDataLbl seed = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[40.0,40.0]]", 100L));
+        LsDataLbl seed = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[40.0,40.0]]", "100"));
         labelRepository.flush();
 
         put(new LabelBulkUpsertRequest(List.of(
@@ -344,7 +344,7 @@ class LabelServiceFullReplaceIntegrationTest {
         //   표현차(5 vs 5.0)를 유발한다(정규화 비교가 무변경으로 판정해야 함, R7/HIGH-1).
         approveRaw();
         LsDataLbl seed = labelRepository.save(
-                LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5,5],[15,15]]", 100L));
+                LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5,5],[15,15]]", "100"));
         labelRepository.flush();
 
         // when — 라벨명/타입/labelId 동일 + 좌표 수치 동일(표현만 5 vs 5.0)으로 프레임 전체 세트 재전송.
@@ -367,7 +367,7 @@ class LabelServiceFullReplaceIntegrationTest {
         //   리포지토리 직접 저장으로 시드(정규화 전 brownfield 데이터 시뮬레이션).
         approveRaw();
         LsDataLbl seed = labelRepository.save(
-                LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[3,4,5,6]", 100L));
+                LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[3,4,5,6]", "100"));
         labelRepository.flush();
 
         // when — 동일 좌표를 정규 요청 [[3,4],[5,6]] 으로 재저장(라벨명/타입/labelId 동일).
@@ -389,7 +389,7 @@ class LabelServiceFullReplaceIntegrationTest {
         approveRaw();
         LsDataLbl seed = labelRepository.save(
                 LsDataLbl.createManual(srcSn, "BBOX", null, "car",
-                        "[{\"x\":3,\"y\":4},{\"x\":5,\"y\":6}]", 100L));
+                        "[{\"x\":3,\"y\":4},{\"x\":5,\"y\":6}]", "100"));
         labelRepository.flush();
 
         // when — 동일 좌표를 정규 요청 [[3,4],[5,6]] 으로 재저장.
@@ -408,8 +408,8 @@ class LabelServiceFullReplaceIntegrationTest {
     @DisplayName("기존라벨_전체삭제시_모두_삭제되고_DELETED만_기록되고_delCnt_N")
     void allExistingDeleted() {
         // given — existing 2건.
-        labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
-        labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", 100L));
+        labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", "100"));
+        labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", "100"));
         labelRepository.flush();
 
         // when — 빈 items → 프레임 전체 교체로 전량 삭제.
@@ -430,8 +430,8 @@ class LabelServiceFullReplaceIntegrationTest {
     @DisplayName("추가_수정_삭제가_동시에_발생하면_각_카운트가_정확하다")
     void addUpdateDeleteMixed() {
         // given — existing a(수정 대상) + b(삭제 대상).
-        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[15.0,15.0]]", 100L));
-        labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "dog", "[[3.0,3.0],[4.0,4.0]]", 100L));
+        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[15.0,15.0]]", "100"));
+        labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "dog", "[[3.0,3.0],[4.0,4.0]]", "100"));
         labelRepository.flush();
 
         // when — a 실제수정(좌표+라벨명) + 신규 추가 + b 누락(삭제) 을 1회 저장에 혼합.
@@ -456,7 +456,7 @@ class LabelServiceFullReplaceIntegrationTest {
     @DisplayName("다건_라벨_동시삭제시_delCnt와_DB_고아가_정확하다")
     void multiDeleteNoOrphans() {
         // given — existing 3건, 그중 b/c 에 속성값·AI정보 부착(고아 정리 검증).
-        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "l1", "[[1.0,1.0],[2.0,2.0]]", 100L));
+        LsDataLbl a = labelRepository.save(LsDataLbl.createManual(srcSn, "BBOX", null, "l1", "[[1.0,1.0],[2.0,2.0]]", "100"));
         LsDataLbl b = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "l2", "[[3.0,3.0],[4.0,4.0]]", new BigDecimal("0.9"), null));
         LsDataLbl c = labelRepository.save(LsDataLbl.createAutoBbox(srcSn, null, "l3", "[[5.0,5.0],[6.0,6.0]]", new BigDecimal("0.8"), null));
         LsLabel master = labelMasterRepository.findByLabelNmIgnoreCaseAndUseYn("l2", "Y")
@@ -488,7 +488,7 @@ class LabelServiceFullReplaceIntegrationTest {
     void duplicateIdDeduped() {
         // given — existing 라벨 1건.
         LsDataLbl seed = labelRepository.save(
-                LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[15.0,15.0]]", 100L));
+                LsDataLbl.createManual(srcSn, "BBOX", null, "car", "[[5.0,5.0],[15.0,15.0]]", "100"));
         labelRepository.flush();
 
         // when — 동일 id 를 2회 담아 저장(뒤 항목이 최종값이어야 함).

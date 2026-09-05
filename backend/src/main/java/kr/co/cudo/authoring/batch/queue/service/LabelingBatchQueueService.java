@@ -37,7 +37,8 @@ public class LabelingBatchQueueService {
      * PENDING 상태 1건을 꺼내 IN_PROGRESS 로 전이.
      * - PESSIMISTIC_WRITE + lock.timeout=0 (no-wait) 으로 동시성 갭 방지.
      *   다른 워커가 같은 행을 잠고 있으면 lock 획득 실패 → empty 반환 (다음 tick 에 재시도).
-     * - H2(local) / MariaDB(dev/stg/prd) 모두 지원. SKIP LOCKED 는 향후 최적화 시 도입.
+     * - 전 환경 PostgreSQL 에서 지원(local 도 Testcontainers PostgreSQL). SKIP LOCKED 는 향후 최적화 시 도입.
+     *   ⚠ 구 서술 폐기(2026-08-28) — "H2(local) / MariaDB(dev/stg/prd)".
      */
     @Transactional("controlTransactionManager")
     public Optional<LsClipScheduleQue> dequeueOne() {

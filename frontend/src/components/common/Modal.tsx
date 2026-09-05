@@ -33,6 +33,17 @@ const sizeClass = {
 const FOCUSABLE_SELECTOR =
   'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * 설명 문단의 타이포 — 시안 `.dlg-desc`(`.t-body-md` 17/400 + 색 --n-7).
+ *
+ * ★ 내보내는 이유는 **설명을 이 컴포넌트가 아니라 호출부가 그려야 하는 경우**가 있기 때문이다.
+ *   아래 본문 렌더는 `description` → `children` 순서가 고정이라, 설명보다 **앞에** 놓여야 하는
+ *   조각(예: 대상 칩 행)이 있는 호출부는 설명을 `children` 안에서 직접 그릴 수밖에 없다.
+ *   그때 클래스를 손으로 베끼면 이 자리의 타이포가 **두 곳**이 되어 한쪽만 갱신된다.
+ * ⚠ 이 상수를 복제하지 말고 **참조**할 것.
+ */
+export const MODAL_DESCRIPTION_CLASS = 'mb-4 shrink-0 text-body-md text-gray-700';
+
 export function Modal({
   open,
   onClose,
@@ -130,7 +141,10 @@ export function Modal({
           // 음영은 DS-001 토큰 3단(sm/md/lg) 중 오버레이용 최상단 `lg` 를 쓴다 —
           // 그 위 단계(xl)는 토큰에 없어 Tailwind 기본값(순수 검정 기반)으로 폴백해
           // KRDS 음영색(rgba(14,21,40,…))과 어긋난다.
-          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-xl bg-white p-6 shadow-lg outline-none',
+          // 모서리는 시안 `.lightbox-box` 의 `--radius-lg`(8px) = borderRadius 토큰 `lg`.
+          // 토큰은 sm/md/lg/full 4단뿐이라 그 위 단은 Tailwind 기본값(12px)으로 폴백한다 —
+          // 음영과 같은 성질의 조용한 이탈이라 함께 토큰 안으로 되돌렸다.
+          'relative flex max-h-[calc(100vh-2rem)] w-full flex-col rounded-lg bg-white p-6 shadow-lg outline-hidden',
           sizeClass[size],
         )}
       >
@@ -140,7 +154,10 @@ export function Modal({
             onClick={onClose}
             aria-label="닫기"
             className={cn(
-              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600',
+              // 색 단계는 시안 `.lightbox-close` 를 따른다 — 평상시 중립 600(#58616A),
+              // hover 시 표면 50 + 글자 900. 구 400 은 흰 배경 위 3.08:1 이라 닫기 아이콘이
+              // 흐렸고(600 은 6.30:1), hover 도 한 단 진한 표면이라 시안과 어긋나 있었다.
+              'absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900',
               KRDS_FOCUS,
             )}
           >
@@ -150,7 +167,10 @@ export function Modal({
         {title && (
           <h2 className="mb-2 shrink-0 text-section-title text-gray-900">{title}</h2>
         )}
-        {description && <p className="mb-4 shrink-0 text-sub text-gray-500">{description}</p>}
+        {/* 설명 타이포는 시안 `.dlg-desc` — `.t-body-md`(17/400) + 색 --n-7(gray-700).
+            ⚠ 구 `text-sub`(14/400) + gray-500 로 되돌리지 말 것: DS-001 Do's 가 "본문 17px 이상"을
+              규정하고, 이 자리는 다이얼로그의 본문 문단이라 보조 캡션 크기가 아니다. */}
+        {description && <p className={MODAL_DESCRIPTION_CLASS}>{description}</p>}
         {/* min-h-0 이 없으면 flex 아이템의 자동 최소 크기가 콘텐츠 높이라 overflow 가 발동하지 않는다. */}
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
         {footer && <div className="mt-6 shrink-0 flex justify-end gap-2">{footer}</div>}

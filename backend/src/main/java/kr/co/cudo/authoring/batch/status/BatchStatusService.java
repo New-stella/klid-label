@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 배치 단계별 DB 기반 상태 추적.
@@ -49,7 +48,25 @@ public class BatchStatusService {
      */
     static final String STTS_FAILED = "FAILED";
 
+    /**
+     * 진행 행의 <b>완주</b> 처리상태 — 파이프라인이 <b>성공적으로</b> 끝까지 갔다는 뜻이다.
+     *
+     * <p>{@link #TERMINAL_PROGRESS_STATUSES}(= 완주 ∪ 실패)와 <b>합치지 말 것</b>. 두 집합은 묻는
+     * 질문이 다르다 — 저쪽은 <i>"에피소드가 끝났는가"</i>(회수 스윕: 실패도 끝난 것이다)이고
+     * 이쪽은 <i>"조치가 끝났는가"</i>({@link #progressCompletedAfter}: <b>실패는 끝난 것이 아니다</b>).
+     * 실패를 조치 완료로 세면 재수행이 실패한 영상이 화면에서 사라져 다시 누를 창구를 잃는다.
+     */
+    static final String STTS_COMPLETED = "COMPLETED";
+
     private final LsBatchProcLogRepository repository;
+
+    /**
+     * 묶음별 <b>산출물 보유</b> 판정 — {@link #clearedBundlesNeedingAction} 만 쓴다.
+     *
+     * <p>표식 축(감사)과 화면 축(조치 필요)을 가르는 유일한 의존이다. 이 서비스의 다른 판정
+     * (스킵 게이트·재수행 수락·표식 목록)은 <b>표식만</b> 보며 산출물을 보지 않는다.
+     */
+    private final BundleArtifactPresenceRegistry artifactPresenceRegistry;
 
     /** 파이프라인 진행 행(=SKIPPED 감사 행 제외 최신 행) 조회 — 모든 상태 갱신/조회의 단일 진입점. */
     private Optional<LsBatchProcLog> latestProgressLog(Long rawSn) {
@@ -161,6 +178,26 @@ public class BatchStatusService {
         if (rawSn == null || stage == null || reasons == null || reasons.isEmpty()) return false;
         return repository.existsByDataRawSnAndProcStepCdAndProcSttsCdAndErrorMsgIn(
                 rawSn, stage.name(), STTS_SKIPPED, reasons);
+    }
+
+    /**
+     * 그 단계를 <b>주어진 사유들 중 하나로 건너뛴 적이 있는 영상</b> 식별자 목록. [@design AC-115]
+     *
+     * <p>{@link #isStageSkippedWithAnyReason} 의 역방향 — 영상을 알고 사유를 묻는 대신, 사유를 알고
+     * 영상을 찾는다. 보류 재개 트리거(프리셋 등록·수정)는 어느 영상이 보류됐는지 모르기 때문에 이
+     * 진입점이 필요하다. 재개 여부의 최종 판정(전제가 이제 충족됐는가 · 이미 완료됐는가)은 호출자가 한다.
+     *
+     * <p>{@code PROC_STTS_CD} 리터럴을 호출부로 흘리지 않도록 판정은 여기(로그 축의 소유자)에서 한다.
+     *
+     * @param reasons 기록 시 사용한 사유 문자열 집합(단일 원천은 각 스텝의 상수)
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<Long> stageSkippedRawSns(BatchStage stage, Collection<String> reasons) {
+        if (stage == null || reasons == null || reasons.isEmpty()) {
+            return List.of();
+        }
+        return repository.findDistinctDataRawSnsByStepAndStatusAndReasons(
+                stage.name(), STTS_SKIPPED, reasons);
     }
 
     /**
@@ -292,11 +329,16 @@ public class BatchStatusService {
      * <p>순서는 {@link BatchStageBundle} 선언 순서(VLM → AUTOLABEL) <b>고정</b>이다 — DB 반환 순서를
      * 그대로 쓰면 실행마다 흔들려 화면이 깜빡인다.
      *
+     * <p>★ <b>여기에는 산출물 필터를 걸지 않는다</b>({@link #clearedBundlesNeedingAction} 과의 의도된
+     * 비대칭). 건너뛴 상태는 <b>사람이 그렇게 결정한 상태</b>라, 산출물이 있다는 이유로 시스템이 그
+     * 결정을 지우면 사람의 판단을 시스템이 뒤집는 것이 된다. 해제 축은 반대다 — 해제는 "이제 해야
+     * 한다"는 뜻이므로 이미 해냈다면 남길 이유가 없다.
+     *
      * @return 스킵 중인 묶음 코드 목록. 없으면 <b>빈 리스트</b>({@code null} 아님)
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<String> manuallySkippedBundles(Long rawSn) {
-        return bundlesWithLatestMarker(rawSn, ManualStageSkip.ERR_CD_SKIPPED);
+        return names(bundlesWithLatestMarker(rawSn, ManualStageSkip.ERR_CD_SKIPPED));
     }
 
     /**
@@ -312,33 +354,161 @@ public class BatchStatusService {
      * 버튼 노출을 정한다.
      *
      * <p>순서 규칙·빈 리스트 계약은 {@link #manuallySkippedBundles} 와 같다.
+     *
+     * <p>★ 이것은 <b>감사 축</b>이다 — 표식이 어떻게 서 있는지를 그대로 답한다. 화면이 배너에 쓸
+     * 목록은 {@link #clearedBundlesNeedingAction} 이며, 두 축을 합치면 "표식이 어떻게 서 있나"를
+     * 물을 수단 자체가 사라진다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<String> clearedBundles(Long rawSn) {
-        return bundlesWithLatestMarker(rawSn, ManualStageSkip.ERR_CD_CLEARED);
+        return names(bundlesWithLatestMarker(rawSn, ManualStageSkip.ERR_CD_CLEARED));
     }
 
     /**
-     * (영상 × 묶음) 의 <b>마지막</b> 표식 행이 주어진 {@code ERR_CD} 인 묶음 이름 목록.
+     * 건너뛰기가 해제됐고 <b>아직 조치가 끝나지 않은</b> 묶음 목록 — 「지금 조치가 필요한 것」.
+     * [@design API-043] [@design SCREEN-009] [@design AC-051] [@design ADR-050]
      *
-     * <p>스킵 목록·해제 목록이 이 한 곳을 공유한다 — 규칙을 두 벌로 두면 한쪽만 갱신돼 조용히 갈린다.
-     * 순서는 {@link BatchStageBundle} 선언 순서(VLM → AUTOLABEL) <b>고정</b>이다(DB 반환 순서를 그대로
-     * 쓰면 실행마다 흔들려 화면이 깜빡인다).
+     * <h3>왜 {@link #clearedBundles} 를 그대로 쓰면 안 되는가</h3>
+     * <p>표식은 <b>append-only 감사 행</b>이라 지워지지 않는다. 재수행이 성공해도 재수행 자신이 남긴
+     * 해제 표식이 계속 마지막이므로 그 묶음은 <b>영구히</b> 해제 목록에 남고 배너도 영구히 뜬다.
+     * 정상 운영 경로(위탁 실패 → 건너뛰기 → 재수행)를 타면 <b>재수행에 성공한 영상마다</b> 이 잔존이
+     * 생긴다 — 화면이 "조치가 필요하다"고 말하는데 실제로는 조치가 끝나 있다.
+     *
+     * <h3>「조치가 끝났다」는 두 축의 OR 이다 (둘 다 필요하다)</h3>
+     * <table border="1">
+     *   <caption>제외 판정의 두 축</caption>
+     *   <tr><th>축</th><th>잡는 것</th></tr>
+     *   <tr><td>산출물 보유({@link BundleArtifactPresenceRegistry})</td>
+     *       <td>최초 배치에서 이미 만들어진 경우 — 재수행을 누른 적이 없어도 조치 불요</td></tr>
+     *   <tr><td>해제 이후 <b>완주</b>({@link #progressCompletedAfter})<br>
+     *       — <b>동기 완결 묶음에만</b> 적용</td>
+     *       <td><b>재수행이 완주한 경우 — 검출 0건 포함</b></td></tr>
+     * </table>
+     *
+     * <p>★ <b>두 번째 축이 없으면 「AI 가 정상 수행했는데 아무것도 검출하지 못한 영상」이 영구히 조치
+     * 필요로 남는다</b>. 검출 0건은 정상 결과이지 실패가 아니다 — 산출물 축만으로 판정하면 그 정상
+     * 결과를 실패처럼 취급하게 된다. 반대로 첫 번째 축이 없으면 재수행을 누른 적 없이 최초 배치에서
+     * 이미 산출물을 만든 영상이 남는다. <b>한쪽만 두면 각각 다른 영상이 잘못 남거나 잘못 사라진다.</b>
+     *
+     * <h3>★ 종결 축의 두 가지 한정 (둘 다 반드시 필요하다)</h3>
+     * <ol>
+     *   <li><b>완주(COMPLETED)만 센다 — 실패는 조치 완료가 아니다.</b> 재수행이 실패한 영상은
+     *       사람이 <b>다시 눌러야 하는</b> 상태다. {@link #progressTerminatedAfter}(완주 ∪ 실패)를
+     *       쓰면 그 영상이 목록에서 사라져 재수행 버튼을 띄울 근거를 잃는다. ⚠ 그 영상은
+     *       {@code failedStages} 가 구제하지 <b>못할 수 있다</b> — 실패 단계가 어느 묶음에도 속하지
+     *       않는 단계({@code MARKING} 등)이면 세 목록 어디에도 안 남아 배너 행이 통째로 사라진다.</li>
+     *   <li><b>동기 완결 묶음에만 붙인다</b>({@link BundleArtifactPresence#completionIsSynchronous()}).
+     *       논블로킹으로 외부에 위탁하는 묶음은 파이프라인 완주가 「보냈다」일 뿐이라, 종결 축을
+     *       붙이면 <b>벤더가 답하기 전에 조치 완료를 주장</b>하게 된다. 적용 여부는 묶음이 스스로
+     *       선언하며 여기서 {@code if (bundle == VLM)} 로 분기하지 않는다.</li>
+     * </ol>
+     *
+     * <h3>남는 것 — 이 목록의 존재 이유</h3>
+     * <p>산출물도 없고 해제 이후 종결도 없는 묶음은 <b>그대로 남는다</b>. 재수행을 아직 하지 않았거나
+     * 시작조차 못 한 영상에서 <b>다시 누를 창구가 사라지면 안 된다</b>. 배너를 없애는 방향의 과잉
+     * 수정이 이 축의 가장 큰 리스크다.
+     *
+     * <h3>⚠ 인지·수용한 부정확성 — 결함이 아니다 (되돌리지 말 것)</h3>
+     * <p>진행 행은 <b>영상 단위 1행</b>이라 <b>어느 묶음이 재수행됐는지 구분하지 못한다</b>. 따라서
+     * <b>두 묶음이 동시에 해제된 상태에서 하나만 재수행해 완주하면 나머지도 함께 제외된다.</b>
+     *
+     * <p>이 케이스는 좁다 — 건너뛰기는 실패한 묶음에만 가능하므로 <b>두 묶음이 다 실패 → 둘 다 건너뛰고
+     * → 둘 다 해제 → 하나만 재수행</b> 이라는 경로를 전부 지나야 한다. 그러나 0은 아니다.
+     *
+     * <p><b>묶음별 종결 기록을 새로 만들어 이것을 고치려 하지 말 것</b> — 그건 배치 전반에 걸치는 별도
+     * 과제(단계별 처리 이력 신설)로 이미 분리돼 있고, 여기서 손대면 진행 축의 스키마가 이 화면 하나
+     * 때문에 바뀐다. 함께 제외되는 나머지 묶음은 <b>과소 노출</b>(조치 안내가 일찍 사라짐)이지 데이터
+     * 손실이 아니며, 감사 행({@code LS_BATCH_PROC_LOG})과 {@link #clearedBundles} 에 표식이 그대로
+     * 남아 있어 사후 추적이 가능하다.
+     *
+     * <h3>판정 위임</h3>
+     * <p>묶음별 산출물 판정은 {@link BundleArtifactPresenceRegistry} 한 곳이 소유한다. 여기서
+     * {@code if (bundle == VLM)} 로 분기하지 않는다 — 묶음이 늘 때 그 분기가 조용히 빠진다.
+     * 판정기가 아직 붙지 않은 묶음은 "산출물 없음"으로 취급된다(모르면 감추지 않는다 — 감추는 쪽으로
+     * 틀리면 조치가 필요한 영상이 화면에서 사라진다).
+     *
+     * <p>종결 축의 {@code since} 는 <b>그 묶음의 마지막 해제 표식 시각</b>이다 — 표식 행을 이미 읽고
+     * 있으므로 추가 쿼리 없이 그 행의 시각을 그대로 쓴다.
+     *
+     * <p>순서 규칙·빈 리스트 계약은 {@link #manuallySkippedBundles} 와 같다.
      */
-    private List<String> bundlesWithLatestMarker(Long rawSn, String errorCd) {
-        if (rawSn == null) {
-            return List.of();
-        }
-        Set<String> matched = repository
-                .findLatestManualSkipMarkers(rawSn, STTS_SKIPPED, ManualStageSkip.MARKER_ERR_CDS)
-                .stream()
-                .filter(l -> errorCd.equals(l.getErrorCd()))
-                .map(LsBatchProcLog::getStageCd)
-                .collect(Collectors.toSet());
-        return java.util.Arrays.stream(BatchStageBundle.values())
-                .map(BatchStageBundle::name)
-                .filter(matched::contains)
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public List<String> clearedBundlesNeedingAction(Long rawSn) {
+        return latestMarkersByBundle(rawSn, ManualStageSkip.ERR_CD_CLEARED).entrySet().stream()
+                .filter(entry -> !actionFinished(rawSn, entry.getKey(), entry.getValue()))
+                .map(entry -> entry.getKey().name())
                 .toList();
+    }
+
+    /**
+     * 그 묶음의 조치가 끝났는가 — <b>산출물 보유</b> 또는 <b>해제 이후 배치 종결</b>(OR).
+     *
+     * <p>두 축이 서로 다른 케이스를 잡는다(위 {@link #clearedBundlesNeedingAction} javadoc 의 표).
+     * 산출물 축을 먼저 보는 것은 그쪽이 묶음별로 정확하기 때문이다 — 종결 축은 영상 단위라 부정확한
+     * 폴백이며, 정확한 축으로 먼저 답이 나면 부정확한 축을 물을 필요가 없다.
+     *
+     * @param clearMarker 그 묶음의 마지막 해제 표식 행 — 종결 축의 기준 시각을 여기서 얻는다
+     */
+    private boolean actionFinished(Long rawSn, BatchStageBundle bundle, LsBatchProcLog clearMarker) {
+        if (artifactPresenceRegistry.hasArtifact(rawSn, bundle)) {
+            return true;
+        }
+        if (!artifactPresenceRegistry.completionIsSynchronous(bundle)) {
+            // 논블로킹 위탁 묶음 — 파이프라인 완주는 「보냈다」일 뿐이라 종결 축을 붙이지 않는다.
+            return false;
+        }
+        // 검출 0건으로 <완주>한 재수행 — 산출물이 없지만 조치는 끝났다.
+        //   ★ 완주(COMPLETED)만 본다. 실패(FAILED)는 다시 눌러야 하는 상태이므로 조치 완료가 아니다.
+        return progressCompletedAfter(rawSn, clearMarker.getUpdatedAt());
+    }
+
+    /**
+     * (영상 × 묶음) 의 <b>마지막</b> 표식 행이 주어진 {@code ERR_CD} 인 묶음 목록.
+     *
+     * <p>스킵 목록·해제 목록·조치 필요 목록이 이 한 곳을 공유한다 — 규칙을 두 벌로 두면 한쪽만
+     * 갱신돼 조용히 갈린다. 순서는 {@link BatchStageBundle} 선언 순서(VLM → AUTOLABEL) <b>고정</b>이다
+     * (DB 반환 순서를 그대로 쓰면 실행마다 흔들려 화면이 깜빡인다).
+     *
+     * <p>이름이 아니라 enum 을 돌려주는 이유: 호출부가 산출물 판정을 걸려면 묶음 값이 필요한데,
+     * 이름으로 내렸다가 {@code valueOf} 로 되돌리면 그 왕복이 두 번째 해석 지점이 된다.
+     */
+    private List<BatchStageBundle> bundlesWithLatestMarker(Long rawSn, String errorCd) {
+        return List.copyOf(latestMarkersByBundle(rawSn, errorCd).keySet());
+    }
+
+    /**
+     * (영상 × 묶음) 의 <b>마지막</b> 표식 행이 주어진 {@code ERR_CD} 인 묶음 → <b>그 표식 행</b>.
+     *
+     * <p>행까지 돌려주는 이유: 조치 완료 판정의 종결 축이 <b>해제 표식 시각</b>을 기준으로 삼는데,
+     * 이름만 돌려주면 그 시각을 얻으려고 같은 행을 한 번 더 조회해야 한다(왕복 2회 + 두 조회 사이에
+     * 표식이 바뀌면 서로 다른 행을 보는 창).
+     *
+     * <p>{@link java.util.EnumMap} 이라 순회 순서가 {@link BatchStageBundle} 선언 순서(VLM →
+     * AUTOLABEL)로 <b>고정</b>된다 — DB 반환 순서를 그대로 쓰면 실행마다 흔들려 화면이 깜빡인다.
+     */
+    private java.util.Map<BatchStageBundle, LsBatchProcLog> latestMarkersByBundle(
+            Long rawSn, String errorCd) {
+        java.util.Map<BatchStageBundle, LsBatchProcLog> byBundle =
+                new java.util.EnumMap<>(BatchStageBundle.class);
+        if (rawSn == null) {
+            return byBundle;
+        }
+        for (LsBatchProcLog marker : repository
+                .findLatestManualSkipMarkers(rawSn, STTS_SKIPPED, ManualStageSkip.MARKER_ERR_CDS)) {
+            if (!errorCd.equals(marker.getErrorCd())) {
+                continue;
+            }
+            BatchStageBundle bundle = BatchStageBundle.parse(marker.getStageCd());
+            if (bundle != null) {
+                byBundle.put(bundle, marker);
+            }
+        }
+        return byBundle;
+    }
+
+    /** 응답 계약은 묶음 <b>코드 문자열</b>이다 — 목록 3종이 같은 변환을 쓰게 한 곳에 둔다. */
+    private static List<String> names(List<BatchStageBundle> bundles) {
+        return bundles.stream().map(BatchStageBundle::name).toList();
     }
 
     /**
@@ -523,6 +693,39 @@ public class BatchStatusService {
         if (rawSn == null || since == null) return false;
         return latestProgressLog(rawSn)
                 .filter(l -> TERMINAL_PROGRESS_STATUSES.contains(l.getProcSttsCd()))
+                .map(LsBatchProcLog::getUpdatedAt)
+                .map(updatedAt -> updatedAt.isAfter(since))
+                .orElse(false);
+    }
+
+    /**
+     * 이 영상의 배치가 <b>{@code since} 이후에 완주(성공 종결)했는가</b> — 「조치가 끝났는가」 판정.
+     * [@design API-043] [@design SCREEN-009] [@design AC-051]
+     *
+     * <h3>{@link #progressTerminatedAfter} 와 무엇이 다른가 (합치지 말 것)</h3>
+     * <p>판정 집합이 다르다. 저쪽은 {@link #TERMINAL_PROGRESS_STATUSES}(완주 ∪ <b>실패</b>)를 보고
+     * 이쪽은 {@link #STTS_COMPLETED} <b>하나만</b> 본다. 저쪽이 실패를 포함하는 것은 그 질문이
+     * <i>"에피소드가 끝났는가"</i>(회수 스윕의 결속 판정)이기 때문이며 거기서는 정당하다 —
+     * 실패도 그 에피소드의 끝이다.
+     *
+     * <p>그러나 <b>「조치가 끝났는가」에서 실패는 끝이 아니다.</b> 재수행이 실패한 영상은 사람이
+     * <b>다시 눌러야 하는</b> 상태이고, 그것을 조치 완료로 세면 화면에서 그 묶음이 사라져 재수행
+     * 버튼을 띄울 근거를 잃는다. 실패 복구 경로의 이름 자체가 「묶음 재수행 실패 후 원상 복구」이며,
+     * 원상 복구된 영상이야말로 이 목록이 반드시 남겨야 하는 대상이다.
+     *
+     * <p>★ {@code TERMINAL_PROGRESS_STATUSES} 에서 {@code FAILED} 를 빼서 이 요구를 채우려 하지 말 것 —
+     * 회수 스윕이 그 값을 정당하게 쓰고 있어 함께 망가진다. <b>질문이 둘이면 판정기도 둘이다.</b>
+     *
+     * <p>실행 중({@code 'STARTED'})은 완주가 아니므로 {@code false} 다.
+     *
+     * @param since 기준 시각(조치가 요구된 시점 — 마지막 해제 표식 시각)
+     * @return 그 이후에 완주 기록이 있으면 {@code true}
+     */
+    @Transactional(value = "controlTransactionManager", readOnly = true)
+    public boolean progressCompletedAfter(Long rawSn, java.time.LocalDateTime since) {
+        if (rawSn == null || since == null) return false;
+        return latestProgressLog(rawSn)
+                .filter(l -> STTS_COMPLETED.equals(l.getProcSttsCd()))
                 .map(LsBatchProcLog::getUpdatedAt)
                 .map(updatedAt -> updatedAt.isAfter(since))
                 .orElse(false);

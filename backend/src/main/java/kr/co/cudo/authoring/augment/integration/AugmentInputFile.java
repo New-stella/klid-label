@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.augment.integration;
 
 /**
- * 외부 증강 위탁 입력 파일 1건 — 「생성형 AI API 연동명세서 v1.1」 §4.1 {@code input_files[]}.
+ * 외부 증강 위탁 입력 파일 1건 — 「생성형 AI API 연동명세서 v1.3」 §4.1 {@code input_files[]}.
  *
  * <p><b>보안(PII)</b>: {@code filePath} 는 반드시 <b>비식별 프레임</b> 경로여야 한다. 원본(비-비식별)
  * 경로가 외부로 나가면 개인정보 유출이다. 경로 해석은

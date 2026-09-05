@@ -8,7 +8,7 @@ import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestResponse;
 import kr.co.cudo.authoring.augment.entity.LsDataAug;
 import kr.co.cudo.authoring.augment.event.AugmentRequestedItemEvent;
-import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalLinkPolicy;
 import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
@@ -73,19 +73,35 @@ import java.util.concurrent.atomic.AtomicLong;
  * 영상·같은 종류로 다시 요청하는 것이 정상 운영 동선이기 때문이다. 사전 조회 가드·안내 문구·제약 위반
  * 409 분기·인덱스(V153 DROP)를 모두 제거했다. 오조작(연타) 방어는 <b>FE 단독 책임</b>이다.
  *
- * <h3>요청마다 <b>생성 조건(prompt)</b>을 받는다</h3>
- * <p>REVIEWER 가 5필드(time/season/weather/terrain/severity)를 입력하면 그대로 외부로 나가고
- * ({@code AugmentPrompts}) 동시에 {@code LS_DATA_AUG.PROMPT_CN} 에 원문이 남는다. 반복 요청이 허용되는
- * 이상 "이 파생본은 어떤 조건으로 만든 것인가" 를 남기지 않으면 결과물을 구분할 수 없다.
- * <b>증강 유형({@code AUG_TYPE_CD})은 prompt 에서 파생하지 않는다</b> — 자유 문자열이 유형으로 흘러가면
- * 산출물 경로 순회(CWE-22)와 {@code RESL_} 네임스페이스 침범이 열린다({@code AugmentPrompts} 주석).
+ * <h3>요청마다 <b>생성 조건</b>과 <b>이벤트 유형</b>을 받는다 (v1.3 · {@code @design INT-008})</h3>
+ * <p>REVIEWER 가 고른 5항목(time/season/weather/terrain/severity)이 최상위 {@code mtdt} 로 나가고
+ * ({@code AugmentPrompts}) 자유 지시문은 별개 {@code prompt} 문자열로 나간다. 같은 값이
+ * {@code LS_DATA_AUG.PROMPT_CN} 에 <b>같은 분리 형태</b>로 남는다 — 반복 요청이 허용되는 이상 "이
+ * 파생본은 어떤 조건으로 만든 것인가" 를 남기지 않으면 결과물을 구분할 수 없다.
+ *
+ * <p><b>이벤트 유형은 요청 본문에서 받지 않는다</b>(2026-09-02 · ADR-059). 그 값은
+ * 벤더 창구가 <b>배경에 무슨 장면을 만들지</b> 정하는 축인데 우리 증강은 이미 이벤트가 담긴 프레임을
+ * 변환할 뿐이라 지정할 자리가 없고, 우리 이벤트 체계가 벤더 허용값보다 넓어 대응되지 않는 영상은
+ * 요청자가 사실과 다른 값을 고를 수밖에 없었다. 이제 위탁 바디를 만들 때 서버가 중립값을 고정으로
+ * 채우며({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC}) 세부 유형은 아예 보내지 않는다. 요청 본문에
+ * {@code evntType} 을 실어 보내도 <b>바인딩되는 자리가 없어</b> 위탁에 반영되지 않는다.
+ *
+ * <p><b>증강 유형({@code AUG_TYPE_CD})은 생성 조건에서 파생하지 않는다</b> — 그 값이 유형 판정으로
+ * 흘러가면 산출물 경로 순회(CWE-22)와 {@code RESL_} 네임스페이스 침범이 열린다
+ * ({@code AugmentPrompts} 주석). 단일값 {@code AUGMENT} 로 합쳐진 뒤에도 <b>상수로 고정</b>하는
+ * 것이지 조건에서 유도하는 것이 아니다.
  *
  * <h3>외부 미연동이면 접수하지 않는다 (R8 · {@code @design API-060})</h3>
- * <p>{@code authoring.augment.external.mode=noop}(dev/stg/prd 기본)이면 위탁이 나가지 않고 콜백도
- * 오지 않는데 접수만 성공해, 화면에는 만료 스윕이 돌 때까지 「진행 중」으로 보였다. 이제
- * {@link AugmentExternalModePolicy} 판정으로 <b>요청 접수 자체를 503 으로 거부</b>한다. 게이트는
- * <b>요청 접수 한 곳에만</b> 둔다 — 콜백 수신·조회·검수·취소로 확산시키면 이미 접수된 건이 회수되지
- * 못하고 고착된다.
+ * <p>연동이 설정되지 않았으면 위탁이 나가지 않고 콜백도 오지 않는데 접수만 성공해, 화면에는 만료
+ * 스윕이 돌 때까지 「진행 중」으로 보였다. 그래서 {@link AugmentExternalLinkPolicy} 판정으로
+ * <b>요청 접수 자체를 503 으로 거부</b>한다. 게이트는 <b>요청 접수 한 곳에만</b> 둔다 — 콜백 수신·
+ * 조회·검수·취소로 확산시키면 이미 접수된 건이 회수되지 못하고 고착된다.
+ *
+ * <p>★ <b>판정 근거가 「모드 토글」에서 「위탁 주소 주입 여부」로 바뀌었다</b>(2026-09-03 확정).
+ * 미연동 모드 토글 축 자체가 폐기됐기 때문이며, <b>게이트를 없앤 것이 아니다</b> — 그랬다면 주소가
+ * 없는 배포에서 접수만 성공하고 위탁은 전송 가드에 막혀, 이 게이트가 애초에 없애려던 「되지도 않을
+ * 요청이 접수되는」 상태가 그대로 되살아난다. 계약(API-060)이 규정한 사유도 <b>모드 값이 아니라
+ * 「연동이 설정되지 않았음」</b> 이므로 응답 코드·문구·순서는 그대로다.
  *
  * <p><b>고아 위탁 방지 (DEV_FIX HIGH #1)</b>: 외부 위탁({@code AugmentJobSubmitService.submit})은
  * 요청 트랜잭션 안에서 하지 않고, {@code AugmentRequestBridge} 가
@@ -107,10 +123,19 @@ public class AugmentRequestService {
             java.util.regex.Pattern.compile("^[A-Za-z0-9_-]+$");
     private static final int IDEMPOTENCY_KEY_MAX = 64;
     /**
+     * {@code LS_DATA_AUG.PROMPT_CN} 보관 JSON 의 최상위 키 — 나간 바디와 <b>같은 이름</b>을 쓴다.
+     * 이름이 갈리면 "나간 값과 보관값이 갈라지지 않게 한다" 는 계약이 표기 수준에서 무너진다.
+     */
+    static final String STORED_KEY_MTDT = "mtdt";
+    /** @see #STORED_KEY_MTDT */
+    static final String STORED_KEY_PROMPT = "prompt";
+    /** {@code LS_DATA_AUG.PROMPT_CN} 컬럼 폭(VARCHAR(4000)) — 입구에서 fail-closed 로 확인한다. */
+    static final int PROMPT_CN_MAX = 4000;
+    /**
      * 콜백 경로 — 단일 진실원
      * ({@link kr.co.cudo.authoring.common.security.webhook.WebhookProtectedPaths#PATH_GENAI_CALLBACK}) 참조.
      *
-     * <p>Phase 7-A1: 「생성형 AI API 연동명세서 v1.1」 웹훅 경로로 교체했다. 수신 컨트롤러는 A2 에서
+     * <p>Phase 7-A1: 「생성형 AI API 연동명세서 v1.3」 웹훅 경로로 교체했다. 수신 컨트롤러는 A2 에서
      * 같은 상수를 참조해 추가한다(구 {@code /v1/aug/callback} 는 A2 에서 정리).
      */
     public static final String CALLBACK_PATH = AugmentCallbackUrlResolver.CALLBACK_PATH;
@@ -131,7 +156,7 @@ public class AugmentRequestService {
      * 외부 연동 모드 판정 — 단일 원천(자체 재구현·빈 타입 검사 금지, {@code @design API-060}).
      * 미연동이면 접수 자체를 거부한다({@link #request} 1-3 단계).
      */
-    private final AugmentExternalModePolicy externalModePolicy;
+    private final AugmentExternalLinkPolicy externalLinkPolicy;
 
     /**
      * placeholder jobId 시퀀스 — 외부 SFR-07 연동 전까지 응답 jobId 발급에 사용.
@@ -146,7 +171,7 @@ public class AugmentRequestService {
      * @param actor   호출자 토큰 (REVIEWER 만 허용)
      * @return jobId / 요청 시각 / 요청 수 / <b>실제 생성 수</b>
      * @throws CustomException FORBIDDEN(WORKER 등), INVALID_INPUT(단건 계약·프롬프트 형식 위반·파생 영상),
-     *                         SERVICE_UNAVAILABLE(외부 미연동 — {@code mode=noop}),
+     *                         SERVICE_UNAVAILABLE(외부 미연동 — 위탁 주소 미주입),
      *                         NOT_REVIEWED(미검수), PRECONDITION_FAILED(신고 구간·프레임 미추출),
      *                         CONFLICT(제약 위반 — 멱등 키 충돌·정합 충돌),
      *                         INTERNAL_ERROR(적재 실패 — 생성 0건)
@@ -163,10 +188,10 @@ public class AugmentRequestService {
                 "증강 종류는 한 번에 1개만 선택할 수 있습니다.").name();
         List<Long> videoIds = List.of(rawSn);
 
-        // 1-1) 프롬프트 정규화 + 직렬화 — 외부 전송본과 DB 보관본이 <같은 dict> 에서 나오게 한다.
+        // 1-1) 생성 조건 조립 + 직렬화 — 외부 전송본과 DB 보관본이 <같은 값> 에서 나오게 한다.
         //      순수 입력 검증이므로 <DB 조회보다 먼저> 한다: 형식이 틀린 요청 하나가 검수상태·신고구간·
         //      프레임 조회 3회를 유발하면 인증 사용자가 반복 호출로 DB 부하를 증폭시킬 수 있다(CWE-770).
-        PromptPayload prompt = buildPrompt(request.prompt());
+        PromptPayload prompt = buildPrompt(request.mtdt(), request.prompt());
 
         // 1-2) 파생 영상 차단 — <b>다른 어떤 사유보다 먼저</b> 판정한다.
         //      해상도 변경 경로({@code VideoResolutionService.loadAndValidate})는 이미 같은 가드를
@@ -177,7 +202,7 @@ public class AugmentRequestService {
         //      파생인가" 를 알려주는 오라클이 된다(CWE-209).
         requireNotDerivative(rawSn);
 
-        // 1-3) 외부 미연동(mode=noop) 차단 — 되지도 않을 요청을 접수하지 않는다 (R8 · @design API-060).
+        // 1-3) 외부 미연동(위탁 주소 미주입) 차단 — 되지도 않을 요청을 접수하지 않는다 (R8 · @design API-060).
         //      noop 이면 위탁이 나가지 않고 콜백도 영영 오지 않는데 접수는 성공해, 화면에는 만료 스윕이
         //      돌 때까지 "진행 중" 으로 보인다. 데이터가 오염되지는 않으므로(가짜 산출물 없음) 고치는
         //      것은 접수 하나이고, 이미 접수된 건의 회수 경로(조회·콜백·만료 스윕)는 건드리지 않는다.
@@ -250,79 +275,127 @@ public class AugmentRequestService {
     }
 
     /**
-     * 사용자 입력 5필드 → 외부 전송 dict + DB 보관 JSON.
+     * 요청자가 고른 허용 코드 → 외부 전송 {@code mtdt} + 자유 지시문 + DB 보관 JSON.
      *
-     * <h3>정규화는 {@code VisibleTextNormalizer} 단일 원천을 쓴다</h3>
-     * <p>제어문자(개행·탭·NUL)뿐 아니라 <b>보이지 않는 문자</b>(NBSP·ZWSP·BOM·WJ·RLO·U+2028/2029)까지
+     * <h3>허용 코드라 정규화가 필요 없다 (v1.3)</h3>
+     * <p>다섯 항목은 enum 이므로 코드 밖 값·공백·보이지 않는 문자가 <b>여기 도달할 수 없다</b>
+     * (Jackson 바인딩 단계에서 400). 자유 문자열 시절 필요했던 {@code VisibleTextNormalizer} 정규화와
+     * 길이 검증은 그래서 이 다섯 항목에 대해 사라졌다 — 되살릴 이유가 없다.
+     *
+     * <h3>자유 지시문({@code prompt})에는 그대로 필요하다</h3>
+     * <p>이 값만은 여전히 사용자 자유 입력이라 {@code VisibleTextNormalizer} 단일 원천으로 정규화한다.
+     * 제어문자(개행·탭·NUL)뿐 아니라 <b>보이지 않는 문자</b>(NBSP·ZWSP·BOM·WJ·RLO·U+2028/2029)까지
      * 걷어내고 앞뒤 공백을 다듬는다. 개행이 남으면 ①이 값이 로그에 닿는 순간 로그 위조(CWE-117)가 되고
-     * ②{@code U+0000} 은 PgJDBC 가 거부해 적재가 500 이 된다. 그리고 <b>보이지 않는 문자만 채운 값</b>은
-     * {@code @NotBlank}({@code trim()} 기준)를 그대로 통과하므로, 여기서 걸러내지 않으면 "빈 조건" 이
-     * 벤더까지 나가 결과가 비결정적이 된다(이 DTO 가 막겠다고 선언한 바로 그 상태).
+     * ②{@code U+0000} 은 PgJDBC 가 거부해 적재가 500 이 된다.
      *
-     * <p>공용 {@code ControlCharNormalizer} 를 넓히지 않은 이유는 그 규칙이 <b>SQL 표현식과 등가</b>여야
-     * 하는 제약을 지고 있기 때문이다({@code VisibleTextNormalizer} 주석 참조) — 한쪽만 넓히면 목록 필터
-     * 왕복이 조용히 깨진다.
+     * <p><b>비어 있으면 {@code null} 이다</b> — 자유 지시문은 <b>선택</b>이므로, 보이지 않는 문자만
+     * 채운 값이 남았다고 거부하지 않고 "지시문 없음" 으로 취급한다(그래야 {@code @JsonInclude} 가 키
+     * 자체를 생략해 계약대로 미전송이 된다). 다섯 항목과 태도가 다른 것은 <b>필수/선택 차이</b>다.
      *
      * <h3>DTO 검증을 서비스에서 다시 확인하는 이유 (fail-closed)</h3>
-     * <p>{@code @NotBlank}/{@code @Size} 는 <b>컨트롤러 진입</b>에만 적용된다. 서비스를 직접 부르는 경로
-     * (내부 호출·테스트)가 상한을 우회해 {@code PROMPT_CN}(VARCHAR(4000)) 적재 오류나 무제한 외부 중계로
-     * 이어지지 않도록 같은 규칙을 여기서도 확인한다({@code requireSingleSelection} 과 동일한 태도).
-     * 정규화로 제어문자만 남는 값이 사라지면 "공백만 입력" 과 동치이므로 함께 거부한다.
+     * <p>{@code @NotNull}/{@code @Size} 는 <b>컨트롤러 진입</b>에만 적용된다. 서비스를 직접 부르는 경로
+     * (내부 호출·테스트)가 상한을 우회해 {@code PROMPT_CN}(VARCHAR(4000)) 적재 오류나 무제한 외부
+     * 중계로 이어지지 않도록 같은 규칙을 여기서도 확인한다({@code requireSingleSelection} 과 동일한 태도).
      *
      * <p>오류 메시지에는 <b>필드 이름만</b> 싣고 입력값은 넣지 않는다 — 입력값을 되돌려주면 그 자체가
      * 반사형 노출 경로가 되고, 사용자가 PII 를 적었을 경우 응답·로그로 번진다(CWE-359).
      */
-    private PromptPayload buildPrompt(AugmentRequestRequest.PromptFields fields) {
-        if (fields == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT, "증강 생성 조건(prompt)은 필수입니다.");
+    private PromptPayload buildPrompt(AugmentRequestRequest.Mtdt mtdtFields, String rawPromptText) {
+        if (mtdtFields == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "증강 생성 조건(mtdt)은 필수입니다.");
         }
-        Map<String, Object> prompt = AugmentPrompts.of(
-                requirePromptField(fields.time(), AugmentPrompts.KEY_TIME),
-                requirePromptField(fields.season(), AugmentPrompts.KEY_SEASON),
-                requirePromptField(fields.weather(), AugmentPrompts.KEY_WEATHER),
-                requirePromptField(fields.terrain(), AugmentPrompts.KEY_TERRAIN),
-                requirePromptField(fields.severity(), AugmentPrompts.KEY_SEVERITY));
-        return new PromptPayload(prompt, serializePrompt(prompt));
+        Map<String, Object> mtdt;
+        try {
+            mtdt = AugmentPrompts.mtdt(mtdtFields.time(), mtdtFields.season(),
+                    mtdtFields.weather(), mtdtFields.terrain(), mtdtFields.severity());
+        } catch (IllegalArgumentException e) {
+            // 항목 누락(배선/직접 호출) — 조립기가 키 이름만 담은 메시지를 던진다(값 미포함).
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "증강 생성 조건 항목은 비워둘 수 없습니다: " + missingKeyOf(e));
+        }
+        return new PromptPayload(mtdt, normalizePromptText(rawPromptText));
     }
 
-    /** 프롬프트 1필드 정규화 + 필수/길이 재확인. 실패 시 필드명만 알린다. */
-    private static String requirePromptField(String raw, String key) {
+    /** 조립기 예외에서 <b>키 이름만</b> 되뽑는다 — 예외 원문을 그대로 응답에 실지 않는다(CWE-209). */
+    private static String missingKeyOf(IllegalArgumentException e) {
+        String message = e.getMessage();
+        if (message == null) {
+            return "unknown";
+        }
+        int sep = message.lastIndexOf(": ");
+        String key = sep < 0 ? message : message.substring(sep + 2);
+        return AugmentPrompts.KEY_TIME.equals(key) || AugmentPrompts.KEY_SEASON.equals(key)
+                || AugmentPrompts.KEY_WEATHER.equals(key) || AugmentPrompts.KEY_TERRAIN.equals(key)
+                || AugmentPrompts.KEY_SEVERITY.equals(key) ? key : "unknown";
+    }
+
+    /** 자유 지시문 정규화 + 길이 재확인. 값이 남지 않으면 {@code null}(= 미전송). */
+    private static String normalizePromptText(String raw) {
         String normalized = VisibleTextNormalizer.normalizeOrNull(raw);
         if (normalized == null) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "증강 생성 조건 항목은 비워둘 수 없습니다: " + key);
+            return null;
         }
-        if (normalized.length() > AugmentRequestRequest.PromptFields.MAX_FIELD_LENGTH) {
+        if (normalized.length() > AugmentPrompts.MAX_PROMPT_LENGTH) {
             throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "증강 생성 조건 항목이 너무 깁니다(최대 "
-                            + AugmentRequestRequest.PromptFields.MAX_FIELD_LENGTH + "자): " + key);
+                    "증강 지시문(prompt)이 너무 깁니다(최대 "
+                            + AugmentPrompts.MAX_PROMPT_LENGTH + "자).");
         }
         return normalized;
     }
 
+    // ────────────────────────────────────────────────────────────────────────
+    // 폐기 이력 — 구 requireEventType / requireSubtypeAllowed 가드는 제거됐다
+    // (2026-09-02 · @design ADR-059).
+    //
+    // 두 가드는 "요청자가 고른 이벤트 유형·침수 세부 유형" 을 fail-closed 로 재확인하는 자리였다.
+    // 이제 그 값을 요청 본문에서 받지 않고 서버가 위탁 시점에 중립값을 고정 송신하므로, 검증할
+    // 요청자 입력 자체가 없다. 되살리면 요청자 입력이 다시 위탁으로 흘러드는 경로가 열린다.
+    // ────────────────────────────────────────────────────────────────────────
+
     /**
-     * 보관용 JSON 직렬화 — 외부로 나가는 dict 와 <b>같은 객체</b>에서 만든다(전송본↔저장본 불일치 차단).
-     * 실패 원문은 응답으로 내보내지 않는다(CWE-209).
+     * 보관용 JSON 직렬화 — 외부로 나가는 값과 <b>같은 객체</b>에서 만든다(전송본↔저장본 불일치 차단).
+     *
+     * <p>v1.3 이 생성 조건과 자유 지시문을 최상위에서 분리했으므로 <b>보관도 분리 형태</b>로 남긴다
+     * ({@code {"mtdt":{...},"prompt":"..."}}). 지시문이 없으면 키 자체를 넣지 않아 나간 바디와
+     * 모양이 같아진다({@code @JsonInclude(NON_NULL)} 과 동일 결과).
+     *
+     * <p>⚠ <b>구 형태({@code {"time":...,"season":...}})로 적재된 기존 행은 그대로 둔다</b> — 조회
+     * 경로({@code AugmentResultItemResponse.prompt}·{@code AugmentSummaryResponse})는 이 값을 파싱하지
+     * 않고 문자열 그대로 내려주므로 두 형태가 공존해도 깨지지 않는다. 마이그레이션은 하지 않는다.
+     *
+     * <p>실패 원문은 응답으로 내보내지 않는다(CWE-209).
      */
-    private String serializePrompt(Map<String, Object> prompt) {
+    private String serializePrompt(Map<String, Object> mtdt, String promptText) {
+        Map<String, Object> stored = new LinkedHashMap<>();
+        stored.put(STORED_KEY_MTDT, mtdt);
+        if (promptText != null) {
+            stored.put(STORED_KEY_PROMPT, promptText);
+        }
+        String json;
         try {
-            return objectMapper.writeValueAsString(prompt);
+            json = objectMapper.writeValueAsString(stored);
         } catch (JsonProcessingException e) {
-            log.error("[Augment] prompt 직렬화 실패 keys={}", prompt.keySet());
+            log.error("[Augment] 생성 조건 직렬화 실패 keys={}", stored.keySet());
             throw new CustomException(ErrorCode.INTERNAL_ERROR, "증강 요청을 생성하지 못했습니다.");
         }
+        if (json.length() > PROMPT_CN_MAX) {
+            // 컬럼 폭 초과를 INSERT 시점 500 으로 흘리지 않고 입구에서 끊는다(fail-closed).
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "증강 생성 조건이 너무 깁니다.");
+        }
+        return json;
     }
 
     /**
-     * 프롬프트의 두 표현 — 외부 전송용 dict 와 DB 보관용 JSON 문자열.
+     * 생성 조건의 두 표현 — 외부 전송값과 DB 보관용 JSON 문자열.
      *
      * <p>한 쌍으로 묶어 다니는 이유는 <b>둘이 갈라지지 않게</b> 하기 위함이다. 각각을 따로 만들어
      * 넘기면 위탁된 조건과 적재된 조건이 달라져 사후 역추적이 거짓이 된다.
      *
-     * @param fields 외부 전송 dict(불변)
-     * @param json   위 dict 를 직렬화한 원문 — {@code LS_DATA_AUG.PROMPT_CN} 적재값
+     * @param mtdt       외부 전송 구조화 생성 조건(불변)
+     * @param promptText 외부 전송 자유 지시문(정규화 완료, 없으면 {@code null})
      */
-    private record PromptPayload(Map<String, Object> fields, String json) {
+    private record PromptPayload(Map<String, Object> mtdt, String promptText) {
     }
 
     /**
@@ -373,19 +446,19 @@ public class AugmentRequestService {
     }
 
     /**
-     * 외부 증강 시스템 미연동({@code authoring.augment.external.mode=noop}) 시 접수를 거부한다 —
+     * 외부 증강 시스템 미연동(= 위탁 주소 미주입) 시 접수를 거부한다 —
      * {@link ErrorCode#SERVICE_UNAVAILABLE}(503), {@code @design API-060}.
      *
      * <p>503 인 이유는 <b>일시 조건</b>이기 때문이다 — 연동이 열리면 같은 요청이 그대로 성립한다.
      * 파생 영상 차단(400)이 <b>영구 조건</b>인 것과 대비되며, 그래서 두 게이트의 순서가 뒤바뀌면
      * 파생 영상 요청자가 "일시 장애" 로 오인하고 재시도를 반복한다.
      *
-     * <p>응답에는 <b>모드 값·프로퍼티 키·클라이언트 구현명</b>을 싣지 않는다. 요청자가 알아야 할 것은
+     * <p>응답에는 <b>주소 값·프로퍼티 키·클라이언트 구현명</b>을 싣지 않는다. 요청자가 알아야 할 것은
      * "지금은 접수되지 않는다" 하나이고, 배선 상세는 운영 정보다(CWE-209). 감사용 사유는 서버 로그에만
      * 남긴다. 어떤 영상이 막혔는지는 다른 게이트와 동일하게 {@code skippedVideoIds} 로 알린다.
      */
     private void requireExternalLinked(Long rawSn, TokenClaims actor) {
-        if (!externalModePolicy.isNotLinked()) {
+        if (!externalLinkPolicy.isNotLinked()) {
             return;
         }
         log.warn("[Augment] request blocked — external augment not linked actor={} rawSn={}",
@@ -423,12 +496,13 @@ public class AugmentRequestService {
             // 2) 키를 실은 PENDING 행을 단일 save 로 INSERT (이중 save / IDMP_KEY=null orphan 제거).
             //    전송할 prompt 원문도 같은 INSERT 에 실어 "보낸 조건" 을 파생본과 함께 남긴다(V153).
             LsDataAug aug = augRepository.save(LsDataAug.createRequested(
-                    srcSn, augType, regUserNo, idempotencyKey, null, prompt.json()));
+                    srcSn, augType, regUserNo, idempotencyKey, null,
+                    serializePrompt(prompt.mtdt(), prompt.promptText())));
             Long originAugSn = aug.getDataAugSn();
 
             // 3) 멱등 키 발급 + 외부 위탁은 요청 트랜잭션 커밋 이후로 위임 (고아 키 방지)
             eventPublisher.publishEvent(new AugmentRequestedItemEvent(
-                    originAugSn, rawSn, augType, prompt.fields(),
+                    originAugSn, rawSn, augType, prompt.mtdt(), prompt.promptText(),
                     idempotencyKey, callbackUrl, regUserNo));
             return true;
         } catch (DataIntegrityViolationException e) {
@@ -498,7 +572,11 @@ public class AugmentRequestService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // 「검수자 전용」은 「검수자 이상」이다 — 관리자가 계층으로 물려받아 증강 요청에 들어간다.
+        // Spring 의 RoleHierarchy 는 권한(authority) 축에만 걸리므로 여기서 역할을 동등 비교하면
+        // 관리자가 이 창구에서만 403 이 되어 계층이 반쪽만 성립한다.
+        // [design: ADR-055] [design: ROLE-004] [design: AC-125]
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

@@ -7,7 +7,7 @@ import {
 } from '@/features/upload/components/tusUploadForm';
 
 /**
- * 영상 업로드 화면(`/dev/upload`)의 **단일 폼 상태 + 경로별 전송 변환**. [@design SCREEN-027]
+ * 파일 업로드 화면(`/admin/uploads`)의 **단일 폼 상태 + 경로별 전송 변환**. [@design SCREEN-027]
  *
  * <p>화면은 입력 폼 한 벌만 갖고, 최상단 라디오로 고른 **적재 경로**가 「보내는 곳과 그 뒤 흐름」만
  * 바꾼다. 그래서 폼 상태는 두 경로의 **합집합**이고, 전송 payload 변환기만 경로별로 갈린다 —
@@ -206,10 +206,19 @@ export function toIngestPayload(
 /**
  * 업로드 시작 가능 여부.
  *
- * 화면이 `*` 로 표시하는 필수는 **식별 정보 4항목**뿐이고 나머지 묶음은 전부 선택이다. 다만 즉시
- * 실행 경로의 BE 계약은 이벤트유형·촬영일시를 `@NotNull` 로 요구하므로 그 경로에서만 두 값을
- * 추가로 요구한다 — 둘 다 기본값이 미리 채워져 있어 사용자가 손댈 일은 없고, 비운 채 제출해
- * 서버 400 을 받는 것보다 버튼을 잠그는 편이 낫다.
+ * 두 경로 공통 필수는 **식별 정보 3항목**(영상 클립 ID · CCTV ID · 지자체코드)뿐이다. 즉시 실행
+ * 경로의 BE 계약이 이벤트유형·촬영일시를 `@NotNull` 로 요구하므로 그 경로에서만 두 값을 추가로
+ * 요구한다 — 둘 다 기본값이 미리 채워져 있어 사용자가 손댈 일은 없고, 비운 채 제출해 서버 400 을
+ * 받는 것보다 버튼을 잠그는 편이 낫다.
+ *
+ * <p>★**화면의 `*` 표기가 이 판정과 같은 축이어야 한다** — 그래서 경로에 따라 갈리는 두 항목의
+ * 입력칸(`IdentityFieldset` 의 촬영일시 · `EventTypeField` 의 이벤트유형)이 `route` 를 받아 필수
+ * 표기를 켠다. 표기 없이 잠그면 사용자는 **왜 시작 버튼이 죽었는지 알 길이 없다**.
+ *
+ * <p>⚠ **출처유형은 요구하지 않는다** — 어느 경로에서도 서버가 요구하지 않기 때문이다. 즉시 실행은
+ * 계약에 그 필드가 아예 없어 전송조차 되지 않고({@link UNSENT_GROUPS}), 인입 재현은 비우면 서버가
+ * 기본값을 붙인다. 화면만 막으면 「이 값은 전송되지 않습니다」 안내와 필수 표기를 한 자리에서
+ * 동시에 내보내는 모순이 된다. 입력칸과 인입 재현에서의 전송은 그대로 두고 **강제만 걷었다**.
  */
 export function canStartUpload(args: {
   file: File | null;
@@ -221,7 +230,6 @@ export function canStartUpload(args: {
   if (!file) return false;
   if (!form.vmsClipId.trim()) return false;
   if (!form.cctvId.trim()) return false;
-  if (!form.srcType.trim()) return false;
   if (!form.lclgvCd.trim()) return false;
   if (route === UploadRoute.IMMEDIATE) {
     if (!eventTypeCd) return false;

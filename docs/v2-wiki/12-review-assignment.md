@@ -9,7 +9,7 @@
 
 ## 12.1 작업 배정
 
-- **REVIEWER가 WORKER에게 영상 단위 배정** (ADMIN 권한이 REVIEWER에 통합)
+- **REVIEWER가 WORKER에게 영상 단위 배정** (관리자도 계층으로 검수자 권한을 물려받아 배정할 수 있다). ⚠ 구 서술 폐기: *"ADMIN 권한이 REVIEWER에 통합"* — `ADR-055` 로 관리자 역할이 분리됐다
 - `LS_TASK_ALTMNT` INSERT (`TASK_TYPE_CD='LABELER'`), 재배정 시 **`LS_TASK_EVNT_LOG` 에 `REASSIGN` 기록**(구 `LS_TASK_ASSIGN_HISTORY` 이중 쓰기는 V4 에서 폐지 — 조회 API 가 원래 이벤트 로그만 읽었다)
 - 배정 이력 조회·재배정 권한도 REVIEWER 보유
 - **배정 진입 동선 2곳**: ①**작업 목록(SC-012 `/task`)** — `UNASSIGNED`('미배정') 상태 필터 + 행/일괄 "배정" 버튼 ②**영상 목록(`/video/status`)의 행/일괄 "배정" 버튼**(REVIEWER 전용, 마킹 전 배정 정책 유지). 두 경로 모두 동일 작업자 선택 모달(`AssignModal`)·동일 배정 API(`POST /v1/assignments`) 재사용 → [05](05-video-management.md) §5.5.1. (구 작업 배정 전용 페이지 `/task/assign`는 deprecated)

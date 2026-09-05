@@ -40,20 +40,29 @@ final class MarkingGuards {
     /**
      * ① 영상 단위 접근 가드 (CWE-639 수평 권한 상승 차단).
      *
-     * <p>REVIEWER 는 전체 허용. WORKER 는 본인이 LABELER 로 배정된 rawSn 만 허용한다(배정 존재로 판정).
+     * <p>검수자 이상은 전체 허용. WORKER 는 본인이 LABELER 로 배정된 rawSn 만 허용한다(배정 존재로 판정).
      * 인가는 <b>영상 존재 확인보다 먼저</b> 평가한다 — 미배정 WORKER 는 미존재 rawSn 에도 NOT_FOUND 가
      * 아니라 FORBIDDEN 을 받아 리소스 존재 여부를 노출하지 않는다(기존 계약 보존).
+     *
+     * <p><b>역할 판정은 계층을 반영한다</b> — 창구의 「검수자 전용」은 「검수자 이상」으로 읽으므로
+     * 관리자가 배정 없이 그대로 통과한다. 역할을 동등 비교하면 관리자가 검수자 분기에 걸리지 못하고
+     * 뒤따르는 배정 검사로 떨어져, 배정이 없다는 이유로 403 을 받는다(Spring 의 권한 계층은
+     * authority 축에만 걸려 이 자리를 덮지 못한다). 판정의 단일 진실원은
+     * {@link TokenClaims#hasRole(Role)} 이며 여기서 복제하지 않는다.
      *
      * @param rawSn                영상 PK
      * @param actor                인증된 사용자 (null 이면 UNAUTHORIZED)
      * @param assignmentRepository 배정 조회 리포지토리
+     * @design ADR-055
+     * @design ROLE-004
+     * @design AC-125
      */
     static void requireAssignedOrReviewer(Long rawSn, TokenClaims actor,
                                           LsTaskAssignmentRepository assignmentRepository) {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() == Role.REVIEWER) {
+        if (actor.hasRole(Role.REVIEWER)) {
             return;
         }
         Long userNo = parseUserNo(actor.sub());
@@ -114,7 +123,29 @@ final class MarkingGuards {
     }
 
     /**
+     * 마킹 행에 남길 <b>생성자 식별자</b> — 토큰 주체를 문자 그대로 담는다 (V27). [design: ERD-013]
+     *
+     * <p>{@code REG_USER_NO} 가 문자 100자가 되면서 <b>숫자로 파싱하지 않는다</b>. 내부 채널의 숫자
+     * 주체는 그대로 문자로 남고, 포털 채널의 비숫자 주체도 손실 없이 남는다. 숫자 파싱을 유지하면
+     * 포털 주체가 <b>조용히 null</b> 로 떨어져 소유자 없는 마킹이 저장된다.
+     *
+     * <p>길이 초과는 여기서 자르지 않는다 — 잘라 담으면 서로 다른 사용자가 같은 값이 되어 인가가
+     * 조용히 어긋난다. 컬럼 폭을 넘는 주체는 저장 시점에 실패하는 편이 안전하다(fail-closed).
+     *
+     * @return 주체 문자열. null/blank 면 {@code null}
+     */
+    static String creatorId(String sub) {
+        if (sub == null || sub.isBlank()) {
+            return null;
+        }
+        return sub.trim();
+    }
+
+    /**
      * {@code actor.sub()} 에서 사용자 번호 파싱. 파싱 불가/blank 는 {@code null}.
+     *
+     * <p>배정 조회 키(숫자 {@code USER_NO})를 얻는 용도로만 남는다 — 마킹 행에 남기는 생성자
+     * 식별자는 {@link #creatorId(String)} 를 쓴다.
      */
     static Long parseUserNo(String sub) {
         if (sub == null || sub.isBlank()) {

@@ -140,14 +140,17 @@ class EventTypeCacheIT {
                 type("EV08000101", "배회", "08", "Y"),
                 type("EV09000101", "미아", "09", "Y"));
         when(typeRepository.findAll()).thenReturn(all);
-        assertThat(eventTypeService.filterOptions())
-                .extracting(EventTypeResponse::categoryKey)
-                .containsExactly("EV09000101");
 
-        // when — REVIEWER 가 제외 코드를 ["09"] 로 변경
+        // ⚠ 첫 단언까지 try 안에 둔다 — LS_SYSTEM_CONFIG 는 DB 공유 상태라, 여기서 깨지고 원복을
+        //   건너뛰면 그 오염이 뒤따르는 시험으로 번진다(실제로 그렇게 번진 이력이 있다).
         TokenClaims reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL,
                 java.time.Instant.now().plusSeconds(600));
         try {
+            assertThat(eventTypeService.filterOptions())
+                    .extracting(EventTypeResponse::categoryKey)
+                    .containsExactly("EV09000101");
+
+            // when — REVIEWER 가 제외 코드를 ["09"] 로 변경
             systemConfigService.update(ConfigKeys.EVENT_EXCLUDED_CLASS_CODES, "[\"09\"]", reviewer);
 
             // then — eventType 캐시까지 무효화되어 배포 없이 즉시 반영(08 노출, 09 제외)

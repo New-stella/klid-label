@@ -1,5 +1,7 @@
 package kr.co.cudo.authoring.sysconfig.service;
 
+import kr.co.cudo.authoring.auth.AdminSessionTestSupport;
+import kr.co.cudo.authoring.common.security.adminsession.AdminSessionGate;
 import kr.co.cudo.authoring.support.TestAiWaitBudgetPolicies;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.security.Keys;
@@ -26,7 +28,10 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -52,16 +57,18 @@ class SystemConfigServiceTest {
     void setUp() {
         repository = mock(LsSystemConfigRepository.class);
         service = new SystemConfigService(repository, new ObjectMapper(),
-                new AdminSessionTokenService(() -> TEST_JWT_KEY, 10),
+                new AdminSessionGate(AdminSessionTestSupport.tokenService(() -> TEST_JWT_KEY, 10)),
                 new IntegrationEndpointUrlValidator(),
                 new DeidentifyEndpointTrustGuard(new org.springframework.mock.env.MockEnvironment()),
                 TestAiWaitBudgetPolicies.production());
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(600));
     }
 
-    private void seedExcludedConfig(String value) {
+    /** 제외 대분류 설정 행을 심고 <b>그 행 자체</b>를 돌려준다 — 거부 케이스에서 값이 그대로인지 보려면 필요하다. */
+    private LsSystemConfig seedExcludedConfig(String value) {
         LsSystemConfig cfg = LsSystemConfig.create(KEY, value, "JSON", "제외 대분류", "SYSTEM");
         when(repository.findByConfigKey(KEY)).thenReturn(Optional.of(cfg));
+        return cfg;
     }
 
     @Test
@@ -206,6 +213,57 @@ class SystemConfigServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    // ─────────────────── 역할 계층 (ADR-055 · ROLE-004) ───────────────────
+
+    /**
+     * ★ 관리자가 이 창구를 통과한다 — 계층이 <b>서비스 안의 역할 판정</b>에서 끊기지 않는지 본다.
+     *
+     * <p>구 동작은 역할을 검수자와 그대로 동등 비교해 관리자가 여기서 떨어졌다. 성공을 만들어 내는
+     * 다른 경로가 없으므로(역할 게이트가 닫히면 곧바로 403) 이 단언은 게이트를 되돌리면 RED 가 된다.
+     */
+    @Test
+    @DisplayName("★관리자도_설정을_저장한다_역할_계층이_서비스_판정에서_끊기지_않는다")
+    void updateAcceptsAdminByHierarchy() {
+        // given
+        seedExcludedConfig("[\"08\"]");
+        TokenClaims admin = new TokenClaims("9", Role.ADMIN, Channel.INTERNAL, Instant.now().plusSeconds(600));
+
+        // when
+        var response = service.update(KEY, "[\"08\",\"09\"]", admin);
+
+        // then
+        assertThat(response.configVl()).isEqualTo("[\"08\",\"09\"]");
+    }
+
+    /**
+     * 대조군 — 계층이 열어 주지 않는 쪽은 그대로 닫혀 있다(fail-closed).
+     *
+     * <p>거부는 상태코드만이 아니라 <b>부수효과 부재</b>로도 단언한다. 이 창구는 역할 게이트 뒤에
+     * 키 화이트리스트·타입 검증이 이어져 같은 거부를 낼 수 있는 사유가 둘 이상이므로, 상태코드만
+     * 보면 게이트를 망가뜨려도 통과할 수 있다.
+     */
+    @Test
+    @DisplayName("작업자_포털회원_역할미배정_행위자없음은_거부되고_값이_바뀌지_않는다")
+    void updateRejectsBelowReviewer() {
+        // given
+        LsSystemConfig cfg = seedExcludedConfig("[\"08\"]");
+        TokenClaims worker = new TokenClaims("100", Role.WORKER, Channel.INTERNAL, Instant.now().plusSeconds(600));
+        TokenClaims portal = new TokenClaims("200", Role.PORTAL_USER, Channel.PORTAL, Instant.now().plusSeconds(600));
+        TokenClaims roleless = new TokenClaims("300", null, Channel.INTERNAL, Instant.now().plusSeconds(600));
+
+        // when / then
+        for (TokenClaims denied : new TokenClaims[]{worker, portal, roleless, null}) {
+            assertThatThrownBy(() -> service.update(KEY, "[\"09\"]", denied))
+                    .as("역할=%s 는 설정을 저장할 수 없다", denied == null ? "없음" : denied.roleName())
+                    .isInstanceOf(CustomException.class)
+                    .extracting(e -> ((CustomException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+        // 부수효과 부재 — 저장 값이 그대로다.
+        assertThat(cfg.getConfigVl()).isEqualTo("[\"08\"]");
+        verify(repository, never()).save(any(LsSystemConfig.class));
     }
 
     // ─────────────────── R9 비식별 옵션 3키 검증 ───────────────────

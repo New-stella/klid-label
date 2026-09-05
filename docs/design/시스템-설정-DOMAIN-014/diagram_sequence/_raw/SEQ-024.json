@@ -10,7 +10,7 @@
     "data": {
       "theme": "neutral",
       "title": "시스템 운영 설정 관리 — 설정 카드 조회·수정과 외부 연동 헬스 모니터링",
-      "source": "sequenceDiagram\n    actor R as 검수자(REVIEWER)\n    participant SCR as 시스템 설정 화면\n    participant CTL as SystemConfigController\n    participant SVC as SystemConfigService\n    participant DB as LS_SYSTEM_CONFIG(시스템 설정)\n    participant CACHE as 설정 캐시(프로세스 로컬)\n    participant HCTL as ManageHealthController\n    participant DEP as 비식별 서버 · AI 추론 서버 · 데이터베이스\n\n    R->>SCR: 시스템 설정 화면 진입\n    SCR->>CTL: GET /v1/manage/configs\n    CTL->>SVC: listAll()\n    SVC->>DB: 설정 키-값 전량 조회\n    DB-->>SVC: 키 · 값 · 유형 코드 · 설명 · 최종 수정자 · 최종 수정 일시\n    SVC-->>CTL: 설정 목록\n    CTL-->>SCR: 200 OK\n    Note over SCR: 카드는 각각 독립 폼이며 값이 실제로 바뀐 카드에서만 저장 버튼이 열린다.<br/>일괄 저장 계약이 없으므로 저장은 바뀐 키마다 개별 요청이다\n\n    R->>SCR: 값을 고치고 저장\n    loop 카드 안에서 실제로 바뀐 키마다\n        SCR->>CTL: PUT /v1/manage/configs/{key}\n        CTL->>SVC: update(key, value, actor)\n        SVC->>SVC: 검수자 권한 재확인 — 아니면 403\n        SVC->>SVC: 허용 목록에 없는 키면 400\n        SVC->>DB: 설정 행 로드\n        DB-->>SVC: 현재 값 · 유형 코드\n        SVC->>SVC: 유형별 검증 — 허용 값 집합과 허용 범위를 모두 만족해야 한다\n        SVC->>DB: 값 · 수정자(MDFR_ID) · 수정일시(MDFCN_DT) 갱신\n        SVC->>CACHE: 설정 캐시 전체 무효화\n        SVC-->>CTL: 갱신된 설정\n        CTL-->>SCR: 200 OK\n    end\n    SCR-->>R: 카드별 성공 안내\n    Note over SCR,R: [대안] 서버가 값을 거부하면 화면은 필드별로 구분되지 않는 공통 실패 안내만 노출한다.<br/>화면 표시 범위가 서버 허용 범위보다 넓은 필드가 있어 화면에서 넣을 수 있는데 서버가 거부하는 구간이 있으며 최종 판정은 서버 값이다\n\n    loop 화면이 열려 있는 동안 주기적으로 (배경 탭에서는 멈춘다)\n        SCR->>HCTL: GET /v1/manage/health\n        HCTL->>DEP: 비식별 서버 · AI 추론 서버 점검 + 데이터베이스 연결 유효성 확인\n        DEP-->>HCTL: 구성요소별 상태와 상세\n        HCTL-->>SCR: 전체 상태(UP · DEGRADED)와 구성요소별 상태\n        SCR-->>R: 읽기 전용 표시\n    end\n",
+      "source": "sequenceDiagram\n    actor R as 검수자(REVIEWER)\n    participant SCR as 시스템 설정 화면\n    participant CTL as SystemConfigController\n    participant SVC as SystemConfigService\n    participant DB as LS_SYSTEM_CONFIG(시스템 설정)\n    participant CACHE as 설정 캐시(프로세스 로컬)\n    participant HCTL as ManageHealthController\n    participant DEP as 비식별 서버 · AI 추론 서버 · 데이터베이스\n\n    R->>SCR: 시스템 설정 화면 진입\n    SCR->>CTL: GET /v1/manage/configs\n    CTL->>SVC: listAll()\n    SVC->>DB: 설정 키-값 전량 조회\n    DB-->>SVC: 키 · 값 · 유형 코드 · 설명 · 최종 수정자 · 최종 수정 일시\n    SVC-->>CTL: 설정 목록\n    CTL-->>SCR: 200 OK\n    Note over SCR: 카드는 각각 독립 폼이며 값이 실제로 바뀐 카드에서만 저장 버튼이 열린다.<br/>일괄 저장 계약이 없으므로 저장은 바뀐 키마다 개별 요청이다\n\n    R->>SCR: 값을 고치고 저장\n    loop 카드 안에서 실제로 바뀐 키마다\n        SCR->>CTL: PUT /v1/manage/configs/{key}\n        CTL->>SVC: update(key, value, actor)\n        SVC->>SVC: 검수자 권한 재확인 — 아니면 403\n        Note over SVC: 이 화면의 설정 키는 검수자 권한만으로 저장된다 — 관리자 단기 유효창을 요구하지 않는다.<br/>유효창을 요구하는 것은 같은 창구를 쓰는 연동 서버 주소 키뿐이며 그 축은 별도 시퀀스가 그린다\n        SVC->>SVC: 허용 목록에 없는 키면 400\n        SVC->>DB: 설정 행 로드\n        DB-->>SVC: 현재 값 · 유형 코드\n        SVC->>SVC: 유형별 검증 — 허용 값 집합과 허용 범위를 모두 만족해야 한다\n        SVC->>DB: 값 · 수정자(MDFR_ID) · 수정일시(MDFCN_DT) 갱신\n        SVC->>CACHE: 설정 캐시 전체 무효화\n        SVC-->>CTL: 갱신된 설정\n        CTL-->>SCR: 200 OK\n    end\n    SCR-->>R: 카드별 성공 안내\n    Note over SCR,R: [대안] 서버가 값을 거부하면 화면은 필드별로 구분되지 않는 공통 실패 안내만 노출한다.<br/>화면 표시 범위가 서버 허용 범위보다 넓은 필드가 있어 화면에서 넣을 수 있는데 서버가 거부하는 구간이 있으며 최종 판정은 서버 값이다\n\n    loop 화면이 열려 있는 동안 주기적으로 (배경 탭에서는 멈춘다)\n        SCR->>HCTL: GET /v1/manage/health\n        HCTL->>DEP: 비식별 서버 · AI 추론 서버 점검 + 데이터베이스 연결 유효성 확인\n        DEP-->>HCTL: 구성요소별 상태와 상세\n        HCTL-->>SCR: 전체 상태(UP · DEGRADED)와 구성요소별 상태\n        SCR-->>R: 읽기 전용 표시\n    end\n",
       "messages": [
         {
           "to": "screen",
@@ -85,6 +85,12 @@
           "from": "svc",
           "kind": "self",
           "label": "검수자 권한 재확인 — 아니면 403"
+        },
+        {
+          "to": "svc",
+          "from": "svc",
+          "kind": "note",
+          "label": "이 화면의 설정 키는 검수자 권한만으로 저장된다 — 관리자 단기 유효창을 요구하지 않는다. 유효창을 요구하는 것은 같은 창구를 쓰는 연동 서버 주소 키뿐이며 그 축은 별도 시퀀스가 그린다"
         },
         {
           "to": "svc",
@@ -194,14 +200,14 @@
         {
           "kind": "loop",
           "label": "카드 안에서 실제로 바뀐 키마다",
-          "end_index": 21,
+          "end_index": 22,
           "start_index": 9
         },
         {
           "kind": "loop",
           "label": "화면이 열려 있는 동안 주기적으로 (배경 탭에서는 멈춘다)",
-          "end_index": 28,
-          "start_index": 24
+          "end_index": 29,
+          "start_index": 25
         }
       ],
       "brownfield": {
@@ -211,7 +217,7 @@
         ],
         "diff_summary": "2차 신규 — 운영 파라미터의 키 단위 조회·수정과 외부 연동 헬스 읽기 전용 모니터링 흐름을 처음으로 시각화한다."
       },
-      "description": "검수자가 시스템 설정 화면에서 운영 파라미터를 조회·수정하고, 외부 연동 상태를 읽기 전용으로 지켜보는 흐름을 그린다. 연동 서버 주소를 바꾸는 흐름은 참여자와 분기가 크게 달라 별도 시퀀스로 분리했으며, 두 흐름은 설정 저장 지점 하나에서만 만난다.\n\n저장은 카드 단위가 아니라 키 단위다 — 일괄 저장 계약이 없으므로 화면은 카드 안에서 실제로 값이 바뀐 키마다 개별 요청을 보낸다. 서버는 요청마다 검수자 권한을 다시 확인하고, 허용 목록에 없는 키와 유형별 허용 값·허용 범위를 벗어난 값을 거부한다. 거부 메시지에는 요청한 키를 되비추지 않는다.\n\n저장이 끝나면 설정 캐시를 통째로 비운다. 이 캐시는 프로세스 로컬이라 무효화가 다른 노드로 전파되지 않으며, 값을 바꾼 노드에서는 즉시, 다른 노드에서는 캐시 수명만큼 늦게 반영된다.\n\n헬스 모니터링은 화면이 열려 있는 동안 주기적으로 도는 읽기 전용 조회다. 점검 대상은 비식별 서버·AI 추론 서버·데이터베이스이며, 하나라도 정상이 아니면 전체 상태를 저하로 내린다.",
+      "description": "검수자가 시스템 설정 화면에서 운영 파라미터를 조회·수정하고, 외부 연동 상태를 읽기 전용으로 지켜보는 흐름을 그린다. 대상은 배치 처리·추론 파라미터·라벨링 정밀도·비식별 옵션 설정 카드와 외부 연동 헬스 모니터링이며, 이들은 검수자 권한만으로 조회·수정하고 관리자 단기 유효창을 요구하지 않는다.\n\n연동 서버 주소를 바꾸는 일은 이 흐름에 없다. 그 축은 관리자 패스워드로 진입하는 별도 관리자 화면이 담당하고 별도 시퀀스가 그리므로 여기서 중복해 그리지 않는다. 다만 저장 창구는 두 흐름이 공유하므로, 관리자 유효창을 요구할지는 창구가 아니라 설정 키가 가른다 — 이 흐름의 키들은 그 요구 대상이 아니다. 연동 상태를 읽기 전용으로 지켜보는 일은 그대로 이 화면에 남는다. 옮겨간 것은 주소를 바꾸는 일이지 상태를 보는 일이 아니다.\n\n저장은 카드 단위가 아니라 키 단위다 — 일괄 저장 계약이 없으므로 화면은 카드 안에서 실제로 값이 바뀐 키마다 개별 요청을 보낸다. 서버는 요청마다 검수자 권한을 다시 확인하고, 허용 목록에 없는 키와 유형별 허용 값·허용 범위를 벗어난 값을 거부한다. 거부 메시지에는 요청한 키를 되비추지 않는다.\n\n저장이 끝나면 설정 캐시를 통째로 비운다. 이 캐시는 프로세스 로컬이라 무효화가 다른 노드로 전파되지 않으며, 값을 바꾼 노드에서는 즉시, 다른 노드에서는 캐시 수명만큼 늦게 반영된다.\n\n헬스 모니터링은 화면이 열려 있는 동안 주기적으로 도는 읽기 전용 조회다. 점검 대상은 비식별 서버·AI 추론 서버·데이터베이스이며, 하나라도 정상이 아니면 전체 상태를 저하로 내린다.",
       "invokes_apis": [
         "API-068",
         "API-069",
@@ -267,7 +273,8 @@
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -282,12 +289,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "DFEAT-045의 data.brownfield 변경이 realizes로 2-hop 전파",
-    "change_summary": "UC-031(시스템 운영 설정 관리)을 실현하는 시퀀스 다이어그램이 없어 신설한다. 그 유스케이스는 참여자와 분기가 크게 다른 두 흐름을 함께 담고 있어 하나로 그리면 한쪽이 다른 쪽의 조건 블록에 묻히므로 둘로 나눴고, 이 문서가 설정 조회·수정과 헬스 모니터링 축이다. 저장 단위가 카드가 아니라 키라는 점, 일괄 저장 계약이 없어 바뀐 키마다 개별 요청이 나간다는 점, 설정 캐시가 프로세스 로컬이라 다른 노드는 캐시 수명만큼 늦게 반영된다는 점, 허용 값·허용 범위를 등록하지 않은 숫자 키는 형식만 맞으면 통과한다는 점을 담았다. 소속 도메인을 시스템 설정으로 지정한다.",
+    "current_version": 3,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 변경 없음 — 확인 내역을 기록한다. 상위 흐름이 이번에 더한 두 축은 유효창 요구를 창구가 표식 없이 판정 지점에 직접 묻는다는 배선과 유효창 거부 문구를 사유별로 갈라 안내한다는 것이다. 이 시퀀스는 유효창을 요구하지 않는 설정 키만 그리고, 요구하는 축은 별도 시퀀스가 그린다고 본문이 이미 못박고 있다. 요구 여부가 창구가 아니라 설정 키 단위로 갈린다는 새 서술은 이 시퀀스의 주석과 같은 말이라 충돌하지 않으며, 배선을 그리는 자리는 요구가 걸리는 쪽 시퀀스다. 거부 문구 축도 이 시퀀스가 그리는 거부(허용 목록 밖 키·범위 위반)와 다른 대상이다. 참여자·호출 계약·대안 흐름도 다시 봤고 폐기된 화면이나 창구를 경유하지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T04:23:51.264Z",
+    "last_updated_at": "2026-08-27T23:15:14.576Z",
     "created_at": "2026-08-16T04:23:51.264Z"
   }
 }

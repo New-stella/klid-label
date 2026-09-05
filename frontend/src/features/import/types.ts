@@ -222,3 +222,36 @@ export interface DeidentCompleteResult {
   deidentFrameMatchedCount: number;
   deidentFrameUnmatchedCount: number;
 }
+
+/* ------------------------------------------------------------------ *
+ * API-221 / API-222 이관 대상 위치 탐색
+ * ------------------------------------------------------------------ */
+
+/** 탐색 목록의 한 항목. `path` 를 그대로 다음 탐색·입력칸에 쓴다(문자열을 다시 조립하지 않는다). */
+export interface ImportBrowseEntry {
+  name: string;
+  path: string;
+}
+
+/**
+ * 위치 탐색 결과 — 폴더 탐색(API-221)·영상 파일 탐색(API-222)이 같은 모양을 돌려준다.
+ *
+ * ★`path` 는 요청이 지정한 표기가 아니라 **서버가 판정에 사용한 실제 위치**다. 입력칸에 넣을 때
+ *   반드시 이 값을 쓴다 — 요청 표기를 그대로 되쓰면 검사 창구와 왕복이 어긋난다.
+ * ★`parent` 가 null 인 것은 **지금 자리가 허용 저장소 루트**라는 뜻이다(그 위가 범위 밖이라
+ *   비워서 돌아온다). 부모가 또 다른 허용 루트인 것은 범위 안이므로 비우지 않고 그 위치를 싣는다.
+ *   ⚠ 「상위로」를 어떻게 다룰지는 여기 적지 않는다 — 그 판정의 단일 진실원은
+ *     `components/ImportPathPickerModal` 이다. 두 곳에 적으면 한쪽만 갱신돼 어긋난다.
+ * ★`nextCursor` 는 **이어받을 자리**다. 다음 요청에 그대로 실어 보내면 그 자리 뒤부터 이어 받는다.
+ *   비어 있으면 그 폴더를 끝까지 본 것이다.
+ *   ⚠ **끝났는지는 담긴 개수가 아니라 이 값이 비었는지로 판정한다.** 서버가 살펴보기 상한에 먼저
+ *     걸리면 `entries` 가 비어 있으면서 `nextCursor` 가 있는 응답이 정상적으로 돌아온다 —
+ *     개수로 끝을 판정하면 그 폴더의 나머지가 통째로 사라진다.
+ */
+export interface ImportBrowseResult {
+  /** 허용 저장소 루트 목록을 돌려줄 때는 기준 위치가 하나로 정해지지 않아 null 이다. */
+  path: string | null;
+  parent: string | null;
+  entries: ImportBrowseEntry[];
+  nextCursor: string | null;
+}

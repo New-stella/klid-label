@@ -71,6 +71,8 @@ class AugmentCallbackIdempotencyIT {
     @Autowired private VideoRepository videoRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private LsDataAugRepository augRepository;
+    @Autowired private kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository
+            deidentProcLogRepositoryForFixture;
     @Autowired private PlatformTransactionManager controlTransactionManager;
 
     private record Seed(Long parentRawSn, Long srcSn, Long dataAugSn) { }
@@ -83,6 +85,7 @@ class AugmentCallbackIdempotencyIT {
                 LocalDateTime.now(), 30));
         parent.markDeidentified("Y");
         parent = videoRepository.save(parent);
+        seedParentDeidVideo(parent.getRawSn(), parent.getRawFilePathNm());
         LsDataSrc frame = srcRepository.save(
                 LsDataSrc.create(parent.getRawSn(), 0, parent.getRawSn() + "/f0.jpg", null));
         return new Seed(parent.getRawSn(), frame.getSrcSn(),
@@ -263,4 +266,20 @@ class AugmentCallbackIdempotencyIT {
         }
         return invoke(outcome, new CountDownLatch(1), results, error);
     }
+
+    /**
+     * 부모 <b>비식별 영상 산출물</b> 처리 이력 — 파생 복사 원본 경로의 진실원(V28/ADR-058).
+     *
+     * <p>흡수 이전 부모 게이트는 {@code DE_IDENT_YN} <b>플래그</b>만 봤고 실제 경로는 Phase A 에서야
+     * 확인했다. 지금은 게이트가 <b>경로를 직접 조달</b>하므로(「비식별이 끝났나」는 조건이 아니라
+     * 결과였다) 플래그만 세운 부모로는 통과하지 않는다 — 관제 경로가 <b>더 엄격해진</b> 지점이다.
+     * 경로는 상대값으로 둔다: co-locate 디렉터리와 비식별 저장소 서브트리 <b>양쪽</b>에서 해석된다.
+     */
+    private void seedParentDeidVideo(Long parentRawSn, String orgnlFilePath) {
+        var procLog = kr.co.cudo.authoring.batch.entity.LsDeidentProcLog.request(
+                parentRawSn, null, orgnlFilePath, "test");
+        procLog.succeed("videos/" + parentRawSn + "/deidentified.mp4");
+        deidentProcLogRepositoryForFixture.saveAndFlush(procLog);
+    }
+
 }

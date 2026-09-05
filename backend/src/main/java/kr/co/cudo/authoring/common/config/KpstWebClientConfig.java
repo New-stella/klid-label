@@ -3,10 +3,13 @@ package kr.co.cudo.authoring.common.config;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import kr.co.cudo.authoring.common.security.DeidentifyEndpointTrustGuard;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpoint;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointExchangeFilter;
 import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointResolver;
+import kr.co.cudo.authoring.sysconfig.endpoint.IntegrationEndpointTransportGuards;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -36,9 +39,15 @@ import java.time.Duration;
  *       커스텀 {@link SslContext} 를 주입한다.</li>
  * </ul>
  *
+ * <h3>★ 주소로 기동을 막지 않는다 — 위탁을 막는다 (2026-09-03 사용자 확정, 구속)</h3>
+ * <p>빈값·형식 오류·예시 호스트·예약 대역·비허용 스킴, 그리고 <b>https 인데 자체 CA 가 없는 경우</b>까지
+ * 전부 <b>기동에 성공</b>한다. 거부 사유는 {@code kpstDeidEndpointAddress} 빈이 들고 있다가
+ * <b>비식별로 나가려는 순간</b> 요청을 막는다. 규칙은 그대로이고 적용 시점만 옮겼다.
+ *
  * <h3>보안 (CWE-295 Improper Certificate Validation) — https 경로</h3>
  * <ul>
- *   <li>https 인데 {@code kpst.deid.ca-cert-path} 미설정/파일 없음 → 빈 생성 실패(fail-closed). 신뢰 우회 없음.</li>
+ *   <li>https 인데 {@code kpst.deid.ca-cert-path} 미설정/파일 없음 → <b>위탁 거부</b>(fail-closed).
+ *       검증할 수 없으면 보내지 않는다 — 신뢰 우회 없음. (구 동작은 빈 생성 실패였다.)</li>
  *   <li>인증서 검증을 끄지 않는다(InsecureTrustManager/TrustAll 미사용). ca.crt 기반 검증만 수행.</li>
  *   <li>hostname verification(endpoint identification)은 reactor-netty 기본값으로 활성이며 끄지
  *       않는다 — 인증서 CN/SAN 이 대상 호스트와 불일치하면 handshake 가 실패한다.</li>
@@ -86,15 +95,71 @@ public class KpstWebClientConfig {
      *
      * <p>⚠ <b>주소를 바꿔도 TLS 구성은 따라가지 않는다</b>({@link #warnIfSchemeDiffers} 참조).
      */
+    /**
+     * ★ <b>비식별 주소의 기동 시점 판정 결과</b> — 기동을 막지 않고 <b>위탁을 막기</b> 위해 들고 있다.
+     * (2026-09-03 사용자 확정, 구속)
+     *
+     * <h3>구 동작과 무엇이 달라졌나</h3>
+     * <p>구 배선은 ①{@code @Value} 에 기본값이 없어 <b>키가 없으면 기동 실패</b> ②{@code URL_POLICY.check}
+     * 가 예외를 던져 <b>빈값·형식·예시 호스트·예약 대역에서 기동 실패</b> ③https 인데 자체 CA 가 없으면
+     * <b>기동 실패</b>였다. 세 가지 모두 <b>주소 설정 한 줄이 앱 전체를 못 뜨게</b> 만드는 형태다.
+     * 이제 셋 다 여기서 <b>거부 판정으로 기록</b>되고, 기동은 정상이며 <b>비식별로 나가려는 순간</b>
+     * 실패한다. 판정 규칙 자체는 하나도 바뀌지 않았다.
+     *
+     * <h3>왜 별도 빈인가</h3>
+     * <p>비식별은 <b>WebClient 로 나가는 경로</b>(연결확인·프로젝트 생성·삭제)와 <b>저수준
+     * {@code HttpClient} 로 나가는 경로</b>(진행조회·리포트조회)가 갈린다. 저수준 경로에는 필터 훅이
+     * 없어 같은 판정을 {@code KpstDeidentifyClient} 가 직접 봐야 한다. <b>한쪽만 막으면 위탁은 새
+     * 서버로 가는데 조회만 옛 서버로 나가</b> 그 작업이 영원히 완료되지 않는다 — <b>부분 반영은
+     * 미반영보다 위험</b>하므로 두 경로가 <b>같은 빈</b>을 본다.
+     */
+    @Bean(name = "kpstDeidEndpointAddress")
+    public ExternalEndpointAddress kpstDeidEndpointAddress(
+            @Value("${kpst.deid.base-url:}") String baseUrl,
+            @Value("${kpst.deid.ca-cert-path:}") String caCertPath,
+            DeidentifyEndpointTrustGuard trustGuard) {
+        // trustGuard 가 null 인 것은 단위 시험 구성이다(IntegrationEndpointResolver 와 같은 관례) —
+        //   운영 컨테이너에서는 항상 주입된다.
+        ExternalEndpointAddress address = ExternalEndpointAddress.of(
+                IntegrationEndpoint.DEIDENTIFY.configKey(), baseUrl, URL_POLICY.inspect(baseUrl));
+        if (address.usable() && address.https()) {
+            // CWE-295: 자체 CA 로 검증할 수 없으면 <검증 없이 보내느니 안 보낸다>. 기동은 막지 않는다.
+            try {
+                buildSslContext(caCertPath);
+            } catch (IllegalStateException tlsMaterialMissing) {
+                address = address.rejectedBecause("TLS 인증서 미비", tlsMaterialMissing.getMessage());
+            }
+        }
+        // 운영에서 목/시뮬레이터 주소면 위탁을 막는다 — 위조 비식별본이 산출물·통지로 나가는 것을 차단.
+        //   판정은 신뢰 가드가 단독 소유한다(복제 금지).
+        String untrusted = trustGuard == null ? null : trustGuard.commissionBlockReason(baseUrl);
+        if (untrusted != null) {
+            address = address.rejectedBecause("운영 비신뢰 위탁 대상", untrusted);
+        }
+        return address;
+    }
+
+    /**
+     * ★ <b>운영 화면의 「비식별 서버」 주소가 반영되는 지점</b> (R11).
+     *
+     * <p>{@code baseUrl} 은 빈 생성 시점에 고정되므로, 필터가 <b>매 호출 시점</b>에 설정 override 를
+     * 다시 읽어 요청 URL 을 고쳐 쓴다. override 가 없으면 필터는 아무것도 하지 않는다.
+     *
+     * <p>배포 설정값이 거부됐어도 <b>운영 화면에 정상 주소가 저장돼 있으면 그리로 나간다</b> —
+     * 잘못 배포된 주소를 재기동 없이 되돌릴 수 있다. 저장된 값도 없으면 전송 가드가 막는다.
+     */
     @Bean(name = "kpstDeidWebClient")
     public WebClient kpstDeidWebClient(
-            @Value("${kpst.deid.base-url}") String baseUrl,
+            @Qualifier("kpstDeidEndpointAddress") ExternalEndpointAddress address,
             @Value("${kpst.deid.ca-cert-path:}") String caCertPath,
             IntegrationEndpointResolver endpointResolver) {
-        return buildClient(baseUrl, caCertPath, RESPONSE_TIMEOUT)
+        String baseUrl = address.baseUrl();
+        return buildClient(address, caCertPath, RESPONSE_TIMEOUT)
                 .mutate()
                 .filter(IntegrationEndpointExchangeFilter.of(
                         IntegrationEndpoint.DEIDENTIFY, baseUrl, endpointResolver))
+                .filter(IntegrationEndpointTransportGuards.requireUsableAddress(
+                        IntegrationEndpoint.DEIDENTIFY, address.rejectionLabel()))
                 .filter(warnIfSchemeDiffers(baseUrl))
                 .build();
     }
@@ -153,22 +218,27 @@ public class KpstWebClientConfig {
      */
     @Bean(name = "kpstDeidProgressHttpClient")
     public HttpClient kpstDeidProgressHttpClient(
-            @Value("${kpst.deid.base-url}") String baseUrl,
+            @Qualifier("kpstDeidEndpointAddress") ExternalEndpointAddress address,
             @Value("${kpst.deid.ca-cert-path:}") String caCertPath) {
-        boolean https = isHttps(baseUrl);
         HttpClient client = HttpClient.create()
-                .baseUrl(baseUrl.trim())
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
                 .responseTimeout(RESPONSE_TIMEOUT);
-        if (https) {
+        if (!address.usable()) {
+            // ★ 거부된 주소로는 base 를 걸지 않는다 — 걸면 그 나쁜 주소로 실제 연결이 나간다.
+            //   상대 경로 요청은 호출측(KpstDeidentifyClient)이 같은 판정으로 미리 막는다.
+            return client;
+        }
+        client = client.baseUrl(address.baseUrl());
+        if (address.https()) {
             SslContext sslContext = buildSslContext(caCertPath);
             client = client.secure(spec -> spec.sslContext(sslContext));
         }
         return client;
     }
 
-    private WebClient buildClient(String baseUrl, String caCertPath, Duration responseTimeout) {
-        boolean https = isHttps(baseUrl);
+    private WebClient buildClient(ExternalEndpointAddress address, String caCertPath,
+                                  Duration responseTimeout) {
+        boolean https = address.usable() && address.https();
         // 아래 타임아웃은 방화벽 drop 시 무기한 블록을 막는 Netty 레벨 안전망이다(http/https 공통).
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
@@ -184,7 +254,7 @@ public class KpstWebClientConfig {
                 .codecs((ClientCodecConfigurer c) -> c.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY_BYTES))
                 .build();
         return WebClient.builder()
-                .baseUrl(baseUrl.trim())
+                .baseUrl(address.baseUrl())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
                 .build();
@@ -217,20 +287,4 @@ public class KpstWebClientConfig {
         }
     }
 
-    /**
-     * base-url 스키마를 검증하고 https 여부를 반환한다.
-     *
-     * <p>판정은 {@link ExternalUrlPolicy#internalNetwork(String)}(내부망 전제 정책 — http/https 허용,
-     * 평문 시 1회 WARN, 사설 IP 허용) 로 <b>VLM 과 동일한 공용 로직</b>에 위임한다. 두 연동의 차이는
-     * 이제 코드 복제가 아니라 정책 값 하나(내부망 전제 여부)로 표현된다. 그 외 스키마(file/ftp/gopher 등)·
-     * 스키마 없음·빈값·placeholder 호스트는 거부한다(SSRF/cleartext/미설정 배포 방어).
-     *
-     * <p><b>TLS 신뢰 검증(CWE-295)은 이 위임과 무관하게 그대로다</b> — https 면 {@link #buildSslContext}
-     * 의 자체 CA fail-closed 가 변함없이 적용된다(약화 없음).
-     *
-     * @return https 면 true, http 면 false
-     */
-    private boolean isHttps(String baseUrl) {
-        return URL_POLICY.check(baseUrl);
-    }
 }

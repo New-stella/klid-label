@@ -534,6 +534,41 @@ a.btn, a.btn:hover { text-decoration: none; }
 .icon-sm { width: 16px; height: 16px; flex-shrink: 0; }
 .icon-lg { width: 32px; height: 32px; flex-shrink: 0; }
 
+
+/* ── 16. 이관 보류 영상 목록 + 비식별 완료 기록 (섹션 ⑤ ⑥) ────────────
+ * 신고와 다른 축이라 탭 안이 아니라 아래에 따로 둔다 — 신고는 작업자가 올린 것이고
+ * 이것은 이관이 만든 것이다. 기록 창구의 표현은 산출물 가져오기 화면과 같게 맞춘다.
+ */
+.section-gap { margin-top: var(--sp-xl); }
+.section-note { margin-bottom: var(--sp-md); word-break: keep-all; }
+.data-table .col-frame { width: 108px; text-align: right; }
+.data-table .cell-frame { text-align: right; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* 기록 다이얼로그의 입력 한 벌 (SCREEN-027 폼 어휘 계승 — 같은 DS 토큰) */
+.field { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
+.field-label { display: flex; align-items: baseline; gap: var(--sp-xs); flex-wrap: wrap; color: var(--n-8); }
+.req { color: var(--e-6); }
+.field-help { color: var(--n-6); word-break: keep-all; }
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;              /* hit area 44px */
+  padding: 0 var(--sp-md);
+  font-size: 17px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--n-9);
+  background: var(--bg-page);
+  /* WCAG 1.4.11 non-text UI 3:1 — n-2(1.54:1)·n-3(2.01:1) 은 미달이라 n-4 이상을 쓴다 */
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.input::placeholder { color: var(--n-6); }
+.input:hover { border-color: var(--n-5); }
+.input:focus-visible { outline: 3px solid var(--p-5); outline-offset: 1px; border-color: var(--p-5); }
+
 /* ── 15. 반응형 ───────────────────────────────────────────────────── */
 @media (max-width: 1279px) {
   .screen-root { padding: var(--sp-lg) var(--sp-lg) var(--sp-2xl); }

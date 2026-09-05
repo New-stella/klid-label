@@ -37,9 +37,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-343"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:25:15.209Z"
       },
       "payload_schema": {
         "rawSn": "Long — 승인·재산출된 영상 PK (LS_DATA_RAW.RAW_SN)"
@@ -57,8 +60,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "발행·소비와 전달 계층 설명에서 구현 클래스명을 걷어낸다. 같은 스레드에서 동기 실행되어 순서가 보장된다는 계약이 이 이벤트의 존재 이유이며 그 문장은 그대로 남는다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:21:31.733Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:25:15.209Z",
     "created_at": "2026-08-04T08:54:02.353Z"
   }
 }

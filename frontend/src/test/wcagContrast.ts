@@ -13,13 +13,61 @@ function srgbChannelToLinear(channel8bit: number): number {
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
+function parseHex(hex: string): { r: number; g: number; b: number } {
   const h = hex.replace('#', '');
   return {
     r: parseInt(h.slice(0, 2), 16),
     g: parseInt(h.slice(2, 4), 16),
     b: parseInt(h.slice(4, 6), 16),
   };
+}
+
+/**
+ * `oklch(L% C H)` → sRGB 8bit.
+ *
+ * 왜 필요한가: Tailwind v4 팔레트(`tailwindcss/colors`)는 hex 가 아니라 **oklch 문자열**로
+ * 값을 준다. 범주 구분색 토큰(`category-N`)은 그 팔레트를 그대로 참조하므로(전사 오류 차단),
+ * 대비를 계산하려면 여기서 sRGB 로 내려야 한다. 값을 hex 로 따로 적어 두면 그 표가 곧
+ * 두 번째 진실원이 된다.
+ *
+ * 변환은 Björn Ottosson 의 OKLab 역변환 + sRGB 전달함수다. 색역 밖 성분은 클램프한다
+ * (Tailwind 가 sRGB 화면에서 실제로 그리는 색과 같다).
+ */
+function parseOklch(value: string): { r: number; g: number; b: number } {
+  const m = /^oklch\(\s*([\d.]+)%\s+([\d.]+)\s+([\d.]+)\s*\)$/.exec(value.trim());
+  if (!m) throw new Error(`oklch 로 해석할 수 없는 색 값: ${value}`);
+  const L = parseFloat(m[1]) / 100;
+  const C = parseFloat(m[2]);
+  const hRad = (parseFloat(m[3]) * Math.PI) / 180;
+  const a = C * Math.cos(hRad);
+  const bb = C * Math.sin(hRad);
+
+  const lCube = (L + 0.3963377774 * a + 0.2158037573 * bb) ** 3;
+  const mCube = (L - 0.1055613458 * a - 0.0638541728 * bb) ** 3;
+  const sCube = (L - 0.0894841775 * a - 1.291485548 * bb) ** 3;
+
+  const linear = [
+    4.0767416621 * lCube - 3.3077115913 * mCube + 0.2309699292 * sCube,
+    -1.2684380046 * lCube + 2.6097574011 * mCube - 0.3413193965 * sCube,
+    -0.0041960863 * lCube - 0.7034186147 * mCube + 1.707614701 * sCube,
+  ];
+  const encode = (v: number): number => {
+    const enc = v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055;
+    return Math.round(Math.min(1, Math.max(0, enc)) * 255);
+  };
+  return { r: encode(linear[0]), g: encode(linear[1]), b: encode(linear[2]) };
+}
+
+/** hex(`#RRGGBB`) 또는 `oklch(...)` 문자열을 sRGB 8bit 로 해석한다. */
+function hexToRgb(color: string): { r: number; g: number; b: number } {
+  return color.trim().startsWith('oklch(') ? parseOklch(color) : parseHex(color);
+}
+
+/** 색 값(hex 또는 oklch)을 대문자 `#RRGGBB` 로 정규화한다. */
+export function toHex(color: string): string {
+  const { r, g, b } = hexToRgb(color);
+  const two = (n: number) => n.toString(16).padStart(2, '0').toUpperCase();
+  return `#${two(r)}${two(g)}${two(b)}`;
 }
 
 /** WCAG 상대휘도 (0~1). */

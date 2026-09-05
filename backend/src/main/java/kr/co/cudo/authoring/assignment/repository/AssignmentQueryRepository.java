@@ -19,6 +19,7 @@ import kr.co.cudo.authoring.assignment.entity.LsTaskAssignment;
 import kr.co.cudo.authoring.assignment.entity.QLsRawDataStatus;
 import kr.co.cudo.authoring.assignment.entity.QLsTaskAssignment;
 import kr.co.cudo.authoring.augment.repository.DerivativeWorkEligibility;
+import kr.co.cudo.authoring.video.repository.InternalWorkScope;
 import kr.co.cudo.authoring.batch.entity.QLsDataSrc;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
@@ -191,6 +192,10 @@ public class AssignmentQueryRepository {
         // 상관 EXISTS 한 겹만 추가한다 — 이 리포지토리의 "행 증식 원천 차단"(조인 금지) 제약을 지킨다.
         // 조건 조립 단일 지점에만 붙여 목록·count·이벤트유형 옵션이 같은 가시 범위를 공유하게 한다.
         where.and(DerivativeWorkEligibility.eligibleByRawSn(assignment.rawDataId));
+
+        // 채널 축 — 포털 자산은 관제 배정 대상이 아니다(ADR-058 흡수). 위 파생 게이트는 파생만
+        // 배제하므로 포털 업로드 원본을 막지 못한다. 같은 이유로 상관 EXISTS 한 겹만 더한다.
+        where.and(InternalWorkScope.internalByRawSn(assignment.rawDataId));
 
         if (condition.selfUserNo() != null) {
             // 인가 축 — 이 분기에서는 workerIdFilter 를 참조하지 않는다(CWE-639).

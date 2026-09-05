@@ -1,7 +1,7 @@
 package kr.co.cudo.authoring.portal.dto;
 
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,22 +34,22 @@ public record PortalUploadDetailResponse(
         LocalDateTime expiresAt
 ) {
 
-    public static PortalUploadDetailResponse of(LsPortalUld uld, List<LsPortalUldFrme> frames,
+    public static PortalUploadDetailResponse of(PortalUploadAsset uld, List<LsDataSrc> frames,
                                                 LocalDateTime expiresAt) {
         return new PortalUploadDetailResponse(
-                uld.getUldSn(),
-                uld.getUldTypeCd(),
-                uld.getOrgnlFileNm(),
-                uld.getFileSz(),
-                uld.getMimeTypeNm(),
-                uld.getUldSttsCd(),
-                uld.getFrmeCnt(),
-                uld.getVdoLenSec(),
-                uld.getFps(),
-                uld.getRegDt(),
-                uld.getMdfcnDt(),
+                uld.uldSn(),
+                uld.uldTypeCd(),
+                uld.orgnlFileNm(),
+                uld.fileSz(),
+                uld.mimeTypeNm(),
+                uld.uldSttsCd(),
+                uld.frmeCnt(),
+                uld.vdoLenSec(),
+                uld.fps(),
+                uld.regDt(),
+                uld.sttsChgDt(),
                 frames.stream().map(PortalUploadFrameResponse::from).toList(),
-                uld.getFailRsnCn(),
+                uld.failRsnCn(),
                 expiresAt);
     }
 }

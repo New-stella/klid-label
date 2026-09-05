@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { useUsers } from '@/features/user/hooks/useUsers';
 import { useWorkers } from '@/features/user/hooks/useWorkers';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -80,7 +81,8 @@ export function AssignModal({
   const claims = useAuthStore((s) => s.claims);
   const pushToast = useUiStore((s) => s.pushToast);
   const role = claims?.role;
-  const canChangeReviewer = role === Role.REVIEWER;
+  // 검수자 자리 — 관리자는 계층으로 함께 들어온다.
+  const canChangeReviewer = roleSatisfies(role, Role.REVIEWER);
 
   // 모달이 열려 있고 REVIEWER 일 때만 호출 — /users 와 /users/workers 는 REVIEWER 전용 API.
   // (WORKER 화면에서도 모달이 마운트되어 있어 무조건 호출되면 403 이 발생하므로 enabled 로 막는다.)

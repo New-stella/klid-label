@@ -1,9 +1,14 @@
 package kr.co.cudo.authoring.video.service;
 
+import kr.co.cudo.authoring.video.dto.MarkingImportIngestCommand;
+import kr.co.cudo.authoring.video.dto.MarkingImportIngestResult;
 import kr.co.cudo.authoring.video.entity.LsDataIngest;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.LsDataIngestRepository;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.UnexpectedRollbackException;
@@ -12,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 관제 인입 픽업 적재 서비스.
@@ -44,6 +50,16 @@ import java.util.List;
  * ({@code NXTM_RTRY_DT IS NULL OR NXTM_RTRY_DT <= now}, 설계 §6-0-1-a ㉢). 파일 미도착으로 되돌아온
  * 행은 다음 시도가 뒤로 밀려 <b>그 사이 후보에서 빠지므로</b>, 미도착 행이 tick 상한만큼 쌓여도 뒤의
  * 정상 인입이 굶지 않는다. 기준 시각은 <b>우리 시계</b>이며 관제 수신값을 쓰지 않는다.
+ *
+ * <h3>★ 이 클래스에는 성격이 다른 자리가 하나 더 있다 — 마킹 이관 적재</h3>
+ * <p>{@link #ingestMarkingImport} 는 위 폴링과 <b>아무것도 공유하지 않는</b> 별개 경로다(ADR-053).
+ * 인입 원장을 읽지도 쓰지도 않고 클레임·좀비 회수·미도착 backoff 도 타지 않으며, 사람이 화면에서
+ * 지정한 값으로 영상 한 건을 그 자리에서 만든다. 자리를 여기 둔 것은 SEQ-030 이 이관 쪽 호출 대상을
+ * 이 서비스로 못 박았기 때문이고, 실제 쓰기는 {@link MarkingImportIngestTx} 가 갖는다.
+ * <p><b>두 경로를 한 흐름으로 읽지 말 것</b> — 위 트랜잭션 규약·상태 전이 표는 폴링 경로에만 적용된다.
+ *
+ * @design ADR-053
+ * @design SEQ-030
  */
 @Slf4j
 @Service
@@ -68,6 +84,12 @@ public class TrainingVideoIngestService {
     private final LsDataIngestRepository ingestRepository;
     private final TrainingVideoIngestTx ingestTx;
 
+    /** 마킹 이관 적재 1건의 트랜잭션 경계 — 관제 인입 상태머신과 공유하지 않는다. */
+    private final MarkingImportIngestTx markingImportIngestTx;
+
+    /** 마킹 이관 적재의 <b>중복 식별자 사전 조회</b> 전용 — 쓰기 트랜잭션 밖에서 본다. */
+    private final VideoRepository videoRepository;
+
     /**
      * {@code PROCESSING} 좀비로 판정하는 경과 임계값(기본 2시간, 설계 §6-0-1 ① — 보류에는 끝이 있다).
      *
@@ -79,10 +101,14 @@ public class TrainingVideoIngestService {
     public TrainingVideoIngestService(
             LsDataIngestRepository ingestRepository,
             TrainingVideoIngestTx ingestTx,
+            MarkingImportIngestTx markingImportIngestTx,
+            VideoRepository videoRepository,
             @Value("${authoring.control.training-scan.processing-stale-timeout-minutes:120}")
             long processingStaleTimeoutMinutes) {
         this.ingestRepository = ingestRepository;
         this.ingestTx = ingestTx;
+        this.markingImportIngestTx = markingImportIngestTx;
+        this.videoRepository = videoRepository;
         long minutes = processingStaleTimeoutMinutes;
         if (minutes < MIN_PROCESSING_STALE_MINUTES) {
             log.warn("[TrainingIngest] processing-stale-timeout-minutes={} 는 하한 미만 — {}분으로 보정한다",
@@ -160,5 +186,60 @@ public class TrainingVideoIngestService {
         log.info("[TrainingIngest] scan finished scanned={} ingested={} limit={} carriedOver={}",
                 pending.size(), ingested, INGEST_SCAN_LIMIT, limitReached);
         return ingested;
+    }
+
+    /**
+     * <b>외부 마킹 산출물 일괄 가져오기</b>가 영상 한 건을 적재할 때 부르는 자리(ADR-053 · SEQ-030).
+     *
+     * <h3>위 폴링 경로와 <b>아무것도 공유하지 않는다</b></h3>
+     * <p>{@code LS_DATA_INGEST} 를 읽지도 쓰지도 않는다 — 그 원장은 "관제가 무엇을 보냈는가"의 기록이라
+     * 저작도구가 자기 판단으로 행을 넣으면 관제가 보낸 것과 우리가 넣은 것을 나중에 구분할 수 없다
+     * (ADR-048 이 라벨링 완료 갈래에 정한 규칙과 같다). 클레임·좀비 회수·미도착 backoff 같은 폴링
+     * 상태머신 규약도 이 경로에는 적용되지 않는다. 자리를 이 클래스에 둔 것은 SEQ-030 이 이관 쪽
+     * 호출 대상을 이 서비스로 못 박았기 때문이고, 실제 쓰기는 별도 트랜잭션 빈
+     * ({@link MarkingImportIngestTx})이 갖는다.
+     *
+     * <h3>중복 식별자는 <b>그 항목만 건너뛴다</b> — 덮어쓰지 않는다 (AC-1033)</h3>
+     * <p>이중 방어다. 한쪽만으로는 부족하다.
+     * <ol>
+     *   <li><b>사전 조회</b> — 이미 그 식별자를 쓰는 영상이 있으면 쓰기 트랜잭션을 열지도 않는다.
+     *       일괄 백 건에서 대부분의 중복이 여기서 걸린다.</li>
+     *   <li><b>제약 위반 흡수</b> — 사전 조회와 INSERT 사이에는 창이 있고 2노드 Active-Active 라
+     *       그 창으로 동시 적재가 들어온다(check-then-act, CWE-362). {@code UK_LS_DATA_RAW_VMS_CLIP}
+     *       위반이 실제 방어선이다.</li>
+     * </ol>
+     * <p>제약 위반을 중복으로 <b>단정하지 않고 다시 확인</b>한다 — 다른 제약이 깨진 것을 "이미 있음"으로
+     * 삼키면 적재되지 않은 항목이 성공처럼 집계된다. 재조회로 실제 그 식별자의 영상이 확인될 때만
+     * 중복으로 마감하고, 아니면 예외를 그대로 올린다.
+     *
+     * <p>이 메서드에는 트랜잭션이 없다 — 재조회가 <b>롤백된 뒤의 DB 상태</b>를 봐야 하기 때문이다.
+     *
+     * @return 적재됨 / 중복이라 건너뜀. 그 밖의 실패는 예외로 올라간다
+     * @throws IllegalArgumentException 커맨드가 적재에 필요한 값을 갖추지 못했을 때
+     * @design ADR-053
+     * @design DFEAT-060
+     * @design SEQ-030
+     * @design AC-1032
+     * @design AC-1033
+     */
+    public MarkingImportIngestResult ingestMarkingImport(MarkingImportIngestCommand command) {
+        MarkingImportIngestCommand normalized = MarkingImportIngestValidator.validate(command);
+        Optional<LsDataRaw> existing = videoRepository.findByVmsClipId(normalized.vmsClipId());
+        if (existing.isPresent()) {
+            // 이미 들어와 있다 — 기존 내용을 건드리지 않고 그 항목만 건너뛴다.
+            log.info("[MarkingImport] clip already ingested — skip rawSn={}", existing.get().getRawSn());
+            return MarkingImportIngestResult.duplicate(existing.get().getRawSn());
+        }
+        try {
+            return MarkingImportIngestResult.ingested(markingImportIngestTx.persist(normalized));
+        } catch (DataIntegrityViolationException e) {
+            LsDataRaw raced = videoRepository.findByVmsClipId(normalized.vmsClipId()).orElse(null);
+            if (raced == null) {
+                // 식별자 충돌이 아닌 다른 제약 위반 — 삼키면 적재 안 된 항목이 성공으로 집계된다.
+                throw e;
+            }
+            log.info("[MarkingImport] duplicate clip race — skip rawSn={}", raced.getRawSn());
+            return MarkingImportIngestResult.duplicate(raced.getRawSn());
+        }
     }
 }

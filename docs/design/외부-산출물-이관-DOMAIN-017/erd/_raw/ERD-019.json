@@ -26,7 +26,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨아이디"
             },
@@ -42,7 +43,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨명"
             },
@@ -58,7 +60,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "색상값"
             },
@@ -80,7 +83,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨유형코드"
             },
@@ -97,7 +101,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "정렬순서"
             },
@@ -118,7 +123,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "사용여부"
             },
@@ -134,7 +140,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -151,7 +158,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -167,7 +175,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -183,7 +192,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -199,7 +209,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "검출유형코드"
             }
@@ -250,7 +261,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "속성아이디"
             },
@@ -271,7 +283,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨아이디"
             },
@@ -287,7 +300,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "속성명"
             },
@@ -310,7 +324,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "입력유형코드"
             },
@@ -326,7 +341,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "옵션목록내용"
             },
@@ -342,7 +358,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "기본값"
             },
@@ -363,7 +380,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "가변여부"
             },
@@ -380,7 +398,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "정렬순서"
             },
@@ -401,7 +420,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "사용여부"
             },
@@ -417,7 +437,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -434,7 +455,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -450,7 +472,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -466,7 +489,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
@@ -512,55 +536,25 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "프리셋아이디"
-            },
-            {
-              "name": "PRESET_NM",
-              "type": "varchar(64)",
-              "unique": true,
-              "nullable": false,
-              "description": "프리셋 이름 (1~64자). 전역 UNIQUE(UK_LS_LABEL_PRESET_NAME).",
-              "primary_key": false,
-              "implementation": {
-                "status": "planned",
-                "modules": [],
-                "records": [],
-                "progress": 0,
-                "subtasks": []
-              },
-              "logical_column_name": "프리셋명"
-            },
-            {
-              "name": "EXPLN",
-              "type": "varchar(500)",
-              "unique": false,
-              "nullable": true,
-              "description": "프리셋 설명 (선택).",
-              "primary_key": false,
-              "implementation": {
-                "status": "planned",
-                "modules": [],
-                "records": [],
-                "progress": 0,
-                "subtasks": []
-              },
-              "logical_column_name": "설명"
             },
             {
               "name": "EVNT_TYPE_CD",
               "type": "varchar(20)",
               "unique": true,
-              "nullable": true,
-              "description": "매핑된 이벤트 타입 코드 (예: EVT_FALL). null=미매핑. UNIQUE(UK_LS_LABEL_PRESET_EVNT) — PostgreSQL 은 NULL 다수 허용 + 비-NULL 1개 → 이벤트 1건=프리셋 1건. V15 추가.",
+              "nullable": false,
+              "description": "이벤트유형코드(필수). 프리셋의 유일한 식별 축이며 UNIQUE(UK_LS_LABEL_PRESET_EVNT) 로 이벤트 1건에 프리셋 1건을 보장한다. 영상의 이벤트 코드를 필터 키로 변환한 값과 대조해 오토라벨 대상 라벨을 정한다. 이 값이 없는 프리셋은 어느 영상에도 매칭되지 않으므로 두지 않는다.",
               "primary_key": false,
               "implementation": {
                 "status": "planned",
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "이벤트유형코드"
             },
@@ -577,7 +571,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -594,19 +589,13 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             }
           ],
           "indexes": [
-            {
-              "name": "UK_LS_LABEL_PRESET_NAME",
-              "unique": true,
-              "columns": [
-                "PRESET_NM"
-              ]
-            },
             {
               "name": "UK_LS_LABEL_PRESET_EVNT",
               "unique": true,
@@ -619,7 +608,7 @@
             "notes": "고도화 신규 — 프리셋 + 이벤트 1:1 매핑(V15) + 어노테이션 토글(V16)",
             "status": "new"
           },
-          "description": "라벨링 프리셋 Aggregate Root (SCR-LBL-PRESET-001). 자주 쓰는 라벨 코드 묶음을 프리셋으로 정의하고, 선택적으로 이벤트 타입 1건에 1:1 매핑한다. LS_LABEL_PRESET_CODE 는 본 Aggregate 내부 엔티티 — Root 통해서만 변경.",
+          "description": "라벨링 프리셋 Aggregate Root. 이벤트유형 1건에 대한 오토라벨 대상 라벨 세트를 정의한다. 식별 축은 EVNT_TYPE_CD 하나이며 프리셋 자체는 이름을 갖지 않는다 — 사람이 읽는 이름은 이벤트유형 마스터의 표시명이 제공한다. LS_LABEL_PRESET_CODE 는 본 Aggregate 내부 엔티티 — Root 통해서만 변경.",
           "logical_table_name": "라벨프리셋"
         },
         {
@@ -637,7 +626,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "코드일련번호"
             },
@@ -658,7 +648,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "프리셋아이디"
             },
@@ -674,7 +665,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨코드"
             },
@@ -691,7 +683,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "정렬순서"
             },
@@ -712,7 +705,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨아이디"
             }
@@ -771,7 +765,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨버전일련번호"
             },
@@ -787,7 +782,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -803,7 +799,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "소스프레임일련번호"
             },
@@ -819,7 +816,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "버전해시"
             },
@@ -835,7 +833,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "라벨페이로드"
             },
@@ -851,7 +850,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "버전번호"
             },
@@ -874,7 +874,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "저장사유코드"
             },
@@ -895,7 +896,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "활성여부"
             },
@@ -911,7 +913,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -928,7 +931,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             }
@@ -1084,11 +1088,15 @@
         }
       ],
       "implementation": {
-        "status": "planned",
+        "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-206"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:02.298Z",
+        "module_paths": []
       },
       "uses_constants": [
         "CONST-002"
@@ -1096,12 +1104,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 21,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "기록 시점 서술에서 내부 트랜잭션 클래스·메서드명을 걷어내고 그 메서드가 하던 조건(비식별 신고 구간이면 마감하지 않는다)을 사양 문장으로 옮긴다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T13:22:57.564Z",
+    "current_version": 23,
+    "stale": true,
+    "stale_reason": "ADR-019의 2개 필드 변경 — based_on",
+    "change_summary": "LS_LABEL_PRESET 단순화 반영 — 엔티티에서 PRESET_NM·EXPLN 제거, EVNT_TYPE_CD NOT NULL 매핑",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:02.298Z",
     "created_at": "2026-06-01T02:46:51.335Z"
   }
 }

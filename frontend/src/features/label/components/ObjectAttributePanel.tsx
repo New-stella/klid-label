@@ -496,7 +496,7 @@ function NumberField({
         value={Number.isFinite(value) ? value : ''}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-gray-300 bg-white px-2 py-1 text-sub text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded border border-gray-300 bg-white px-2 py-1 text-sub text-gray-900 focus:border-primary-500 focus:outline-hidden focus:ring-1 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
       />
     </label>
   );

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」 §4.6 작업 취소 요청 본문 — INT-031.
+ * 「생성형 AI API 연동명세서 v1.3」 §4.4 작업 취소 요청 본문 — INT-031.
  *
  * <p>{@code POST /api/genai/jobs/{job_id}/cancel}. {@code RECEIVED}·{@code RUNNING} 에서만 성립하며
  * 종결 상태에서는 409 {@code STATE_CONFLICT} 다.

@@ -1,24 +1,25 @@
 ---
 logicraft_item: SCREEN-028
 type: screen_spec
-version: 20
-last_updated_at: 2026-08-17T22:48:30.526Z
+version: 34
+last_updated_at: 2026-09-02T09:18:37.646Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:05.315Z
-sync_session: 20
+synced_at: 2026-09-05T02:34:48.362Z
+sync_session: 35
 stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-028.json
 wireframe: ./wireframe.html
 links:
-  consumes_apis: ["[[API-115]]", "[[API-203]]"]
+  consumes_apis: ["[[API-225]]", "[[API-203]]"]
   required_roles: ["[[ROLE-003]]"]
   realizes_use_cases: ["[[UC-024]]"]
+  acceptance: ["[[AC-1068]]", "[[AC-1069]]"]
 ---
 
-# 포털 홈 화면
+# 포털 내 작업 화면
 
 ## route
 
@@ -26,7 +27,7 @@ links:
 
 ## title
 
-포털 홈 화면
+포털 내 작업 화면
 
 ## device
 
@@ -38,129 +39,34 @@ draft
 
 ## purpose
 
-PORTAL_USER가 진입하는 포털 메인 화면. 데이터마트에서 검수 완료(APPROVED)되고 프레임 1건 이상 보유한 영상만 노출하며, 영상 카드 또는 '시작하기' 버튼 클릭 시 해당 영상 첫 프레임(firstSrcSn)의 라벨링 화면(/portal/label/{srcSn})으로 진입한다. 헤더에 본인 자산 업로드 관리 화면(/portal/uploads) 진입 링크('내 업로드')를 제공한다. KPI 2종(영상 수/라벨링 완료 — 라벨링 완료는 현재 0 고정 표시)을 노출한다. 오토라벨링·SAM2·VLM·검수·버전관리는 포털 전 구간에서 미제공. 반응형(WCAG 2.1 AA). 접근: PORTAL_USER.
+PORTAL_USER 가 본인이 저장한 작업을 관리하는 화면. 저장한 작업을 목록으로 보여 주고, 각 행에서 대상 영상과 저장 시각·만료 예정일을 확인하고 라벨링 화면으로 이어서 작업하거나 본인 작업 데이터를 내려받는다. 데이터마트에서 영상을 고르는 목록은 포털이 자기 화면에서 제공하며, 거기서 고른 영상은 라벨링 화면으로 바로 진입한다.
+
+이 화면은 포털이 자기 화면 안에서 저작도구 화면을 실행하는 임베딩 환경에 놓인다. 머리 영역과 좌측 주 메뉴는 포털이 그리고, 저작도구는 그 아래 본문만 그린다. 이 화면은 저작도구가 그리는 목적지 가운데 하나이며, 목적지 사이의 이동은 본문 상단 이동 탭으로 한다. 사용자 신원 표시는 두지 않는다 — 포털 머리 영역이 이미 보여 주므로 같은 사람을 두 번 말하게 된다.
+
+저작 저장물 내려받기는 이 화면이 유일한 자리다. 포털이 요약·연계 목적으로 본인 저장 작업 목록을 조회해 갈 수는 있으나, 파일 내려받기는 이 화면에서만 일어난다.
+
+오토라벨링·SAM2·검수·버전관리는 포털 전 구간에서 미제공이며, 시계열 축의 미제공은 외부 시계열 분석 서버로 나가는 위탁 연동(호출·콜백)을 뜻한다. 반응형(WCAG 2.1 AA). 접근: PORTAL_USER.
 
 ## sections
 
-### Hero 배너 + 내 업로드 링크
-
-- **role**: hero
-- **layout**: stack
-
-**components**:
-
-#### [1]
-
-- **type**: Heading
-- **label**: AI 학습데이터 작성 포털
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [2]
-
-- **type**: Text
-- **label**: 데이터마트 영상 선택, 간편 라벨링
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [3]
-
-- **note**: → /portal/uploads
-- **type**: Link
-- **label**: 내 업로드
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **description**: 단색 neutral 배경 hero 섹션(KRDS Don't 준수 — 그라데이션·brand 대면적 금지). 제목 + 부제 + '내 업로드' 링크(/portal/uploads, 포털 업로드 화면 진입).
-
-**references_apis**:
-
-_(empty)_
-
-**references_features**:
-
-_(empty)_
-
-### 요약 KPI
+### 내 저장 작업 목록
 
 - **role**: main
-- **layout**: grid
+- **layout**: list
 
 **components**:
 
 #### [1]
 
-- **type**: Stat
-- **label**: 영상 수
+- **type**: Table
+- **label**: 내 저장 작업 목록
 
 **columns**:
 
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: totalVideos
-- **triggers_api**: API-115
-
-#### [2]
-
-- **note**: 현재 0 고정
-- **type**: Stat
-- **label**: 라벨링 완료
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **description**: KPI 2개 그리드. '영상 수'는 데이터마트 목록(API-115) totalElements, '라벨링 완료'는 현재 0으로 고정 표시(집계 미연동).
-
-**references_apis**:
-
-- API-115
-
-**references_features**:
-
-_(empty)_
-
-### 이용 방법 카드 (라벨링 시작하기)
-
-- **role**: main
-- **layout**: detail
-
-**components**:
-
-#### [1]
-
-- **type**: Heading
-- **label**: 라벨링
-
-**columns**:
-
-_(empty)_
+- 대상 영상
+- 저장 시각
+- 만료 예정일
+- 작업
 
 **options**:
 
@@ -168,37 +74,9 @@ _(empty)_
 
 #### [2]
 
-- **type**: Text
-- **label**: 선택한 영상에 라벨을 추가하세요
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [3]
-
-- **type**: Text
-- **label**: 라벨링 가능 N건
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: totalVideos
-
-#### [4]
-
-- **note**: 영상 0건이면 aria-disabled(포커스는 유지, WCAG 2.1.1). 첫 영상(firstSrcSn)으로 진입
+- **note**: → /portal/label/{srcSn}
 - **type**: Button
-- **label**: 시작하기 ▶
+- **label**: 이어서 작업
 
 **columns**:
 
@@ -210,60 +88,11 @@ _(empty)_
 
 - **variant**: primary
 
-- **description**: 이용 방법 카드. '시작하기' 클릭 시 데이터마트 목록 첫 영상의 firstSrcSn 으로 /portal/label/{srcSn} 이동. 영상이 없으면 버튼이 aria-disabled(네이티브 disabled 는 Tab 순서에서 빠져 접근성상 aria-disabled 채택).
-
-**references_apis**:
-
-- API-115
-
-**references_features**:
-
-_(empty)_
-
-### 데이터마트 영상 목록
-
-- **role**: main
-- **layout**: grid
-
-**components**:
-
-#### [1]
-
-- **type**: List
-- **label**: 데이터마트 영상 카드 목록
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: videos
-- **triggers_api**: API-115
-
-#### [2]
-
-- **note**: 카드 클릭 시 goToLabel(v.firstSrcSn) → /portal/label/{firstSrcSn}
-- **type**: Custom
-- **label**: 영상 카드 (제목 + 이벤트명 + 프레임 N건)
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **custom_name**: DatamartVideoCard
-
 #### [3]
 
-- **note**: onPageChange → URL page 갱신. 전체가 한 페이지면 렌더하지 않는다.
-- **type**: Pagination
-- **label**: 페이지네이션
+- **note**: 누르면 그 작업의 데이터 묶음을 내려받는다. 한 번에 하나만 받으며 받는 동안 다른 행의 내려받기는 잠긴다. 클릭 시 blob 응답을 받아 브라우저 다운로드를 트리거한다(인증이 필요해 직링크를 쓸 수 없다).
+- **type**: Button
+- **label**: 내려받기
 
 **columns**:
 
@@ -272,40 +101,13 @@ _(empty)_
 **options**:
 
 _(empty)_
+
+- **variant**: outline
+- **triggers_api**: API-203
 
 #### [4]
 
-- **type**: Text
-- **label**: 선택 가능한 영상이 없습니다.
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [5]
-
-- **note**: 카드 클릭 영역과 분리된 버튼. myLabelExpiresAt 이 null 이면 비활성 + '저장된 라벨이 없습니다' 툴팁. non-null 이면 '만료: YYYY-MM-DD' 텍스트 병기. 클릭 시 blob 응답을 받아 브라우저 다운로드 트리거(JWT 인증 하 직링크 불가).
-- **type**: Custom
-- **label**: 영상 카드 다운로드 버튼(만료일 표시 포함)
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **custom_name**: DatamartVideoDownloadAction
-- **triggers_api**: API-203
-
-#### [6]
-
-- **note**: 내려받는 중일 때만 다운로드 버튼 자리에 나타난다. 누르면 전송을 멈추고 다시 받을 수 있는 상태로 되돌린다. 사용자가 스스로 멈춘 것이므로 실패 안내를 띄우지 않는다.
+- **note**: 내려받는 중일 때만 내려받기 버튼 자리에 나타난다. 누르면 전송을 멈추고 다시 받을 수 있는 상태로 되돌린다. 사용자가 스스로 멈춘 것이므로 실패 안내를 띄우지 않는다.
 - **type**: Button
 - **label**: 다운로드 취소
 
@@ -319,17 +121,45 @@ _(empty)_
 
 - **variant**: outline
 
+#### [5]
+
+- **type**: Text
+- **label**: 저장한 작업이 없습니다.
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
+#### [6]
+
+- **note**: 서버가 페이지로 내려주므로 옮길 수단이 없으면 첫 쪽에 있는 작업에만 도달한다.
+- **type**: Pagination
+- **label**: 내 저장 작업 목록 페이지
+
+**columns**:
+
+_(empty)_
+
+**options**:
+
+_(empty)_
+
 **description**:
 
-GET /v1/portal/datamart/videos(API-115, PORTAL_USER 전용·검수완료 APPROVED만·프레임 0건 제외·페이징) 목록을 2열 카드 그리드로 표시. 각 카드는 제목 + 이벤트명(없으면 '-') + 프레임 건수 + (본인 저장 라벨이 있는 경우) 만료 예정일 + 다운로드 버튼, 카드 본체 클릭 시 해당 영상 firstSrcSn 으로 라벨링 화면 이동. 로딩 중 안내 텍스트, 빈 목록 시 '선택 가능한 영상이 없습니다.'
+본인이 저장한 작업을 행 단위로 보여 준다. 각 행은 대상 영상 식별자와 이름, 저장 시각, 만료 예정일, 그리고 이어서 작업·내려받기 두 액션으로 이루어진다. '이어서 작업'은 그 작업의 대상 영상 라벨링 화면(/portal/label/{srcSn})으로 이동하며 같은 배포본 안에서의 이동이다.
 
-목록 아래에 페이지네이션을 둔다. 서버가 페이징으로 내려주는데 화면에 페이지를 옮길 수단이 없으면 첫 페이지 영상만 도달할 수 있고 나머지는 존재해도 고를 수 없다. 페이지를 옮기면 주소의 page 값을 갱신해 뒤로가기와 북마크가 동작하게 하며, 이는 내부 목록 화면이 쓰는 방식과 같다. 전체가 한 페이지에 들어오면 페이저를 그리지 않는다.
+만료 예정일은 '만료: YYYY-MM-DD' 형식으로 날짜까지만 표기한다(시각은 표기하지 않는다). 저장한 작업 데이터는 보존기간이 지나면 저장 행과 파일이 함께 삭제되므로, 사용자가 내려받을 시점을 놓치지 않도록 목록에서 바로 보이게 둔다. 조회 시점 설정으로 계산되어 응답에 실려 오므로 화면이 따로 보관하지 않고 받은 값을 그대로 표시하며, 값이 없는 행은 그 자리를 비워 정렬을 유지한다. 만료가 가까운 작업을 색·아이콘으로 강조하는 표기는 두지 않는다. 본인 업로드 자산 목록(SCREEN-033)과 같은 규칙이다.
 
-내려받는 중에는 같은 자리에서 전송을 멈출 수 있게 한다. 산출물에 영상이 포함되면 크기가 커서 한 번 시작하면 끝날 때까지 기다리는 수밖에 없고, 받는 동안에는 다른 영상의 다운로드도 함께 잠기므로 잘못 눌렀거나 지금 받을 상황이 아닐 때 빠져나올 길이 필요하다. 한 번에 하나만 받는다. 취소하면 전송을 중단하고 다시 받을 수 있는 상태로 되돌아가며 받다 만 파일은 남기지 않는다. 사용자가 누른 취소는 오류가 아니라 정상 종료다 — 실패 안내를 띄우지 않으며, 알린다면 취소되었다는 사실만 중립적으로 알린다. 전송이 끊겨 실패한 경우와 한 갈래로 묶지 않는다. 묶으면 스스로 멈춘 사용자에게 연결을 확인하고 다시 시도하라고 권하게 된다.
+내려받기는 프레임 이미지와 라벨 문서, 비식별 영상을 한 묶음으로 받는다. 한 번에 하나만 받으며 받는 동안 다른 행의 내려받기는 잠기므로, 같은 자리에서 전송을 멈출 수 있게 한다. 취소하면 전송을 중단하고 다시 받을 수 있는 상태로 되돌아가며 받다 만 파일은 남기지 않는다. 사용자가 누른 취소는 오류가 아니라 정상 종료다 — 실패 안내를 띄우지 않으며, 전송이 끊겨 실패한 경우와 한 갈래로 묶지 않는다. 저장한 작업이 하나도 없으면 '저장한 작업이 없습니다.'를 표시한다.
+
+목록은 페이지로 나눠 받는다. 창구가 페이지 단위로 내려주므로 쪽을 옮길 수단을 함께 두지 않으면 첫 쪽에 있는 작업에만 도달하고, 그 뒤의 작업은 이어서 하거나 내려받을 길이 없어진다. 기본 정렬은 마지막 저장 시각 내림차순이다.
 
 **references_apis**:
 
-- API-115
 - API-203
 
 **references_features**:
@@ -348,7 +178,7 @@ new
 
 ### diff_summary
 
-2차 포털 메인(홈) 화면 — 데이터마트 검수 완료(APPROVED) 영상 목록 진입점
+2차 포털 본인 저장 작업 관리 화면 — 이어서 작업·내려받기·만료 예정일 확인
 
 ## surface_kind
 
@@ -356,8 +186,12 @@ web
 
 ## consumes_apis
 
-- API-115
+- API-225
 - API-203
+
+## attached_files
+
+_(empty)_
 
 ## implementation
 
@@ -386,6 +220,10 @@ _(empty)_
 
 2026-08-17T22:48:30.526Z
 
+### module_paths
+
+_(empty)_
+
 ## required_roles
 
 - ROLE-003
@@ -395,7 +233,7 @@ _(empty)_
 ### main
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-028/main.html
-- **label**: 포털 홈 화면 — 와이어프레임
+- **label**: 포털 내 작업 화면 — 와이어프레임
 - **width**: 1440
 - **surface**: page
 - **platform**: web
@@ -404,8 +242,9 @@ _(empty)_
 
 _(empty)_
 
-- **source_hash**: 3344129b50d0222b3a3b53e04305001bcd9c79022adf89efadf6ca790ead4174
-- **generated_at**: 2026-08-17T22:21:55.546Z
+- **description**: 저장한 작업 목록에서 이어서 작업하거나 본인 작업 데이터를 내려받는다.
+- **source_hash**: b06d1e9953f1680f05e6c42c1ea44ad7411308b614f0f1c203f3bed31b48ba53
+- **generated_at**: 2026-09-02T09:18:37.645Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -413,6 +252,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 
@@ -426,4 +269,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-1068
+- AC-1069

@@ -173,7 +173,7 @@ class KpstRedeidentCompletionIntegrationTest {
                 for (int j = 0; j < labelsPerFrame; j++) {
                     LsDataLbl lbl = LsDataLbl.createManual(
                             savedSrc.getSrcSn(), LsDataLbl.TYPE_BBOX, null,
-                            "person", "[[1,2],[3,4]]", 100L);
+                            "person", "[[1,2],[3,4]]", "100");
                     lblRepository.saveAndFlush(lbl);
                     labelCount++;
                 }

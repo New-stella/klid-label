@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 「생성형 AI API 연동명세서 v1.1」 §4.5 결과 조회 응답(200) — INT-030.
+ * 「생성형 AI API 연동명세서 v1.3」 §4.3 결과 조회 응답(200) — INT-030.
  *
  * <p>{@code GET /api/genai/jobs/{job_id}/results} 의 본문이며 <b>{@code SUCCEEDED} 에서만</b> 200 이다
  * (그 외는 409 {@code STATE_CONFLICT}). 따라서 {@code status} 는 항상 {@code SUCCEEDED} 여야 하고
@@ -41,7 +41,7 @@ public record GenAiJobResultsResponse(
     }
 
     /**
-     * 산출물 1건 — §4.5 {@code results[]} 항목.
+     * 산출물 1건 — §4.3 {@code results[]} 항목.
      *
      * @param outputFilePath 외부가 준 NAS 절대경로(≤500). <b>검증 전에는 파일시스템에 넘기지 말 것.</b>
      * @param mediaMetadata  벤더 자유 메타(mime_type/size_bytes 등). 값에 null 이 섞일 수 있어
@@ -55,7 +55,7 @@ public record GenAiJobResultsResponse(
             @JsonProperty("checksum") String checksum,
             @JsonProperty("media_metadata") Map<String, Object> mediaMetadata) {
 
-        /** {@code output_file_path} 계약 상한(§4.5). */
+        /** {@code output_file_path} 계약 상한(§4.3). */
         public static final int OUTPUT_PATH_MAX = 500;
 
         public ResultItem {

@@ -5,6 +5,7 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
 import kr.co.cudo.authoring.support.RawVideoFixture;
 import org.awaitility.Awaitility;
@@ -41,9 +42,10 @@ class AugmentRequestControllerTest {
 
     /**
      * 생성 조건 5필드 — 프롬프트가 관심사가 아닌 케이스에서 계약(필수)을 채우는 고정값.
-     * 자유 문자열이므로 enum 이 아니다(연동명세서 v1.1 §4.1 이 허용값을 정의하지 않는다).
+     *
+     * <p>v1.3 생성 조건 — 다섯 축 모두 <b>허용 코드</b>다(자유 문자열 아님).
      */
-    private static final Map<String, String> PROMPT = Map.of(
+    private static final Map<String, String> MTDT = Map.of(
             "time", "NIGHT", "season", "WINTER", "weather", "RAIN",
             "terrain", "ROAD", "severity", "HIGH");
 
@@ -123,8 +125,8 @@ class AugmentRequestControllerTest {
     void workerForbidden() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(9001L),
-                "types", List.of("WINTER"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -143,8 +145,8 @@ class AugmentRequestControllerTest {
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L),
-                "types", List.of("WINTER"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -166,8 +168,8 @@ class AugmentRequestControllerTest {
         // 단일 선택 계약 위반: 영상 2건 → @Size(max=1) 로 400
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L, 8002L),
-                "types", List.of("WINTER"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -184,8 +186,8 @@ class AugmentRequestControllerTest {
         // 단일 선택 계약 위반: 종류 2개 → @Size(max=1) 로 400
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8001L),
-                "types", List.of("WINTER", "NIGHT"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT", "AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -201,8 +203,8 @@ class AugmentRequestControllerTest {
     void emptyVideoIdsReturns400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(),
-                "types", List.of("WINTER"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -219,7 +221,7 @@ class AugmentRequestControllerTest {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8101L),
                 "types", List.of("INVALID_TYPE"),
-                "prompt", PROMPT
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -230,13 +232,13 @@ class AugmentRequestControllerTest {
     }
 
     @Test
-    @DisplayName("증강요청_RESOLUTION_타입_400_거부_allowlist_WINTER_NIGHT_RAIN")
+    @DisplayName("증강요청_RESOLUTION_타입_400_거부_allowlist는_AUGMENT_단일값")
     void resolutionTypeRejected400() throws Exception {
-        // 해상도(RESOLUTION)는 외부 증강 위탁 대상이 아님(저작도구 직접 수행) — allowlist 밖이므로 400.
+        // 해상도(RESOLUTION)는 외부 증강 위탁 대상이 아님(저작도구 직접 수행) — enum 밖이므로 400.
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8301L),
                 "types", List.of("RESOLUTION"),
-                "prompt", PROMPT
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -247,15 +249,15 @@ class AugmentRequestControllerTest {
     }
 
     @Test
-    @DisplayName("증강요청_WINTER_단일_정상_200")
-    void winterOnlyReturns200() throws Exception {
+    @DisplayName("증강요청_AUGMENT_단일_정상_200")
+    void augmentOnlyReturns200() throws Exception {
         seedStatus(8401L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8401L);
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8401L),
-                "types", List.of("WINTER"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -274,8 +276,8 @@ class AugmentRequestControllerTest {
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8202L),
-                "types", List.of("WINTER"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -288,21 +290,23 @@ class AugmentRequestControllerTest {
                 .andExpect(jsonPath("$.data.blockedVideoIds[0]").value(8202));
     }
 
-    // ─── 구조화 프롬프트 계약 (2026-07-31) ─────────────────────────────
+    // ─── 구조화 생성 조건 계약 (2026-07-31 신설 · 2026-08-27 v1.3 정합) ─────────────
 
     /**
-     * 5필드가 전부 필수라는 계약을 <b>컨트롤러 400</b> 축에서 고정한다. 하나라도 비면 벤더가 임의
+     * 다섯 항목이 전부 필수라는 계약을 <b>컨트롤러 400</b> 축에서 고정한다. 하나라도 비면 벤더가 임의
      * 기본값으로 채워 결과가 비결정적이 되므로 부분 입력을 허용하지 않는다.
+     *
+     * <p><b>이것은 우리 규칙</b>이다 — 벤더 계약은 "최소 1개" 지만 완화하지 않는다(2026-07-31 확정).
      */
     @Test
-    @DisplayName("프롬프트_필드가_하나라도_비면_400")
-    void missingPromptFieldReturns400() throws Exception {
+    @DisplayName("생성조건_항목이_하나라도_비면_400")
+    void missingMtdtFieldReturns400() throws Exception {
         Map<String, String> missingSeverity = Map.of(
                 "time", "NIGHT", "season", "WINTER", "weather", "RAIN", "terrain", "ROAD");
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8501L),
-                "types", List.of("WINTER"),
-                "prompt", missingSeverity
+                "types", List.of("AUGMENT"),
+                "mtdt", missingSeverity
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -313,54 +317,13 @@ class AugmentRequestControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
     }
 
-    /** prompt 자체가 없는 <b>구 계약</b> 요청도 거부된다 — 조건 없이 위탁되면 무엇으로 만든 결과인지 알 수 없다. */
+    /** 생성 조건 자체가 없으면 거부된다 — 조건 없이 위탁되면 무엇으로 만든 결과인지 알 수 없다. */
     @Test
-    @DisplayName("프롬프트_객체가_없으면_400")
-    void missingPromptObjectReturns400() throws Exception {
+    @DisplayName("생성조건_객체가_없으면_400")
+    void missingMtdtObjectReturns400() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8502L),
-                "types", List.of("WINTER")
-        ));
-
-        mockMvc.perform(post("/v1/augments/request")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
-    }
-
-    @Test
-    @DisplayName("공백만_입력한_필드는_400")
-    void blankPromptFieldReturns400() throws Exception {
-        Map<String, String> blank = Map.of(
-                "time", "   ", "season", "WINTER", "weather", "RAIN",
-                "terrain", "ROAD", "severity", "HIGH");
-        String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8503L),
-                "types", List.of("WINTER"),
-                "prompt", blank
-        ));
-
-        mockMvc.perform(post("/v1/augments/request")
-                        .header("Authorization", "Bearer " + reviewerToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
-    }
-
-    /** 상한이 없으면 무제한 입력이 저장 컬럼과 외부 위탁으로 그대로 흘러간다(CWE-770). */
-    @Test
-    @DisplayName("프롬프트_필드_길이_상한_초과시_400")
-    void oversizedPromptFieldReturns400() throws Exception {
-        Map<String, String> tooLong = Map.of(
-                "time", "X".repeat(51), "season", "WINTER", "weather", "RAIN",
-                "terrain", "ROAD", "severity", "HIGH");
-        String body = objectMapper.writeValueAsString(Map.of(
-                "videoIds", List.of(8504L),
-                "types", List.of("WINTER"),
-                "prompt", tooLong
+                "types", List.of("AUGMENT")
         ));
 
         mockMvc.perform(post("/v1/augments/request")
@@ -372,45 +335,172 @@ class AugmentRequestControllerTest {
     }
 
     /**
-     * prompt 가 자유 문자열이 됐다고 해서 <b>증강 종류까지 열린 것은 아니다</b>. types 는 여전히
-     * enum 3종이며, 임의 문자열은 400 이다 — 이 경계가 무너지면 AUG_TYPE_CD 가 파생 산출물 경로
-     * ({@code .../{augTypeCd}.mp4})로 흘러 경로 순회(CWE-22)와 RESL_ 네임스페이스 침범이 열린다.
+     * ★ v1.3 핵심 — 생성 조건은 <b>허용 코드로 닫혀 있다</b>. 코드 밖 값은 접수 단계에서 400 이며,
+     * 통과시키면 벤더가 {@code 400 INVALID_PARAMETER} 로 되돌려 위탁 자체가 실패한다.
+     *
+     * <p>구 계약(v1.1)에서는 이 값들이 자유 문자열이었고 "우리가 좁히지 않는다" 가 명시 정책이었다 —
+     * 그 정책은 2026-08-27 폐기됐다. 되살리면 실벤더에서 요청이 전량 거부된다.
      */
     @Test
-    @DisplayName("증강종류는_여전히_enum_3종만_허용되고_임의_문자열은_400")
-    void arbitraryTypeStillRejected() throws Exception {
-        for (String bad : List.of("RESL_1080P", "../../etc/passwd", "WINTER2")) {
+    @DisplayName("생성조건이_허용코드_밖이면_400")
+    void mtdtOutsideAllowedCodesReturns400() throws Exception {
+        // ★ 영상을 <접수 가능한 상태로> 시드하는 것이 이 시험의 핵심이다 (2026-08-27 DEV_FIX).
+        //    시드하지 않으면 허용 코드 방어가 무너져 바인딩이 통과해도 서비스가 미검수로 400 을 내고,
+        //    ErrorCode.NOT_REVIEWED 역시 400 이라 시험이 그대로 GREEN 이 된다(실증됨 — 허용 코드에
+        //    TUNNEL 을 더해도 전건 통과). 시드해 두면 바인딩이 통과하는 순간 <200> 이 되어 RED 다.
+        //    errorCode 단언은 그 위의 두 번째 그물이다(400 이 나더라도 <입력 검증> 400 인지 못박는다).
+        seedStatus(8503L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8503L);
+
+        // 구 테스트가 정상값으로 쓰던 TUNNEL·BRIDGE 는 v1.3 허용 코드가 아니다(UNDERPASS·RIVER 가 코드).
+        List<Map<String, String>> invalid = List.of(
+                mtdtWith("terrain", "TUNNEL"),
+                mtdtWith("terrain", "BRIDGE"),
+                mtdtWith("time", "MIDNIGHT"),
+                mtdtWith("weather", "폭우"),
+                mtdtWith("severity", "CRITICAL"),
+                mtdtWith("season", "RESL_1080P"),
+                mtdtWith("terrain", "../../etc/passwd"));
+
+        for (Map<String, String> bad : invalid) {
             String body = objectMapper.writeValueAsString(Map.of(
-                    "videoIds", List.of(8505L),
-                    "types", List.of(bad),
-                    "prompt", PROMPT
-            ));
+                    "videoIds", List.of(8503L),
+                    "types", List.of("AUGMENT"),
+                    "mtdt", bad));
 
             mockMvc.perform(post("/v1/augments/request")
                             .header("Authorization", "Bearer " + reviewerToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
-                    .andExpect(status().isBadRequest());
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
         }
     }
 
+    /** 허용 코드 한 축을 갈아끼운 생성 조건 — 나머지는 정상값이라 <b>그 축만</b> 검증된다. */
+    private static Map<String, String> mtdtWith(String key, String value) {
+        Map<String, String> mtdt = new java.util.LinkedHashMap<>(MTDT);
+        mtdt.put(key, value);
+        return mtdt;
+    }
+
     /**
-     * 보이지 않는 문자만 채운 필드는 <b>입력이 아니다</b>. {@code @NotBlank} 는 {@code trim()}
-     * ({@code U+0020} 이하)만 보고 {@code Character.isWhitespace} 는 NBSP 를 공백으로 보지 않으므로,
-     * 이 케이스가 통과하면 "빈 조건" 이 그대로 벤더까지 나가 결과가 비결정적이 된다 —
-     * DTO 주석이 막겠다고 선언한 바로 그 상태다.
-     *
-     * <p>본문은 <b>ASCII {@code \\uXXXX} 이스케이프</b>로 만든다 — 문자를 그대로 실으면 인코딩 경로
-     * 어딘가에서 치환됐을 때 "정규화가 걸렀다" 고 오판하게 된다.
+     * ★ v1.3 핵심 — {@code prompt} 는 <b>문자열</b>이다. 구 계약의 5필드 객체를 실으면 400 이며,
+     * 명세가 <i>"prompt 값으로 객체를 전달하지 않습니다"</i> 를 명시한다.
      */
     @Test
-    @DisplayName("보이지_않는_문자만_입력한_프롬프트_필드는_400")
-    void invisibleOnlyPromptFieldReturns400() throws Exception {
-        // NBSP · ZWSP · BOM · WORD JOINER — 화면에는 아무것도 보이지 않는다.
-        for (String escaped : List.of("\\u00A0", "\\u200B", "\\uFEFF", "\\u2060")) {
-            String body = "{\"videoIds\":[8507],\"types\":[\"WINTER\"],\"prompt\":{"
-                    + "\"time\":\"" + escaped + "\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
-                    + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"}}";
+    @DisplayName("구계약_객체형_prompt는_400")
+    void objectPromptReturns400() throws Exception {
+        String body = "{\"videoIds\":[8504],\"types\":[\"AUGMENT\"],"
+                + "\"mtdt\":{\"time\":\"NIGHT\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
+                + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"},"
+                + "\"prompt\":{\"condition\":\"눈\",\"text\":\"겨울로\"}}";
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** 상한이 없으면 무제한 입력이 저장 컬럼과 외부 위탁으로 그대로 흘러간다(CWE-770). */
+    @Test
+    @DisplayName("자유지시문_길이_상한_초과시_400")
+    void oversizedPromptTextReturns400() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8505L),
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT,
+                "prompt", "X".repeat(AugmentPrompts.MAX_PROMPT_LENGTH + 1)
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT"));
+    }
+
+    // ─── 이벤트 유형 계약 (2026-09-02 · @design ADR-059) ──────────────────
+
+    /**
+     * ★ 이벤트 유형과 침수 세부 유형은 <b>요청 본문 계약에서 사라졌다</b>. 요청자가 실어 보내도
+     * 바인딩될 자리가 없어 <b>조용히 무시</b>되고 요청은 정상 접수된다.
+     *
+     * <p>구 계약은 두 값을 요청자에게 물었고 허용 코드 밖이면 400 이었다. 그 값은 벤더 창구가
+     * <b>배경에 무슨 장면을 만들지</b> 정하는 축인데 우리 증강은 이미 이벤트가 담긴 프레임을 변환할
+     * 뿐이라 지정할 자리가 없다. 지금은 위탁 시점에 서버가 중립값
+     * ({@code GenAiJobSubmitRequest.EVENT_TYPE_ETC})을 고정 송신하고 세부 유형은 보내지 않는다.
+     *
+     * <p>구 값 {@code FLOOD}·{@code WILDFIRE}·{@code ROAD_FLOOD} 를 그대로 실어 보내는 것이
+     * 핵심이다 — 400 이 나면 계약이 되살아난 것이고, 200 이면 요청자 입력이 위탁에 닿지 못한다는
+     * 뜻이다(위탁 바디가 실제로 {@code ETC} 를 싣는지는 {@code HttpExternalAugmentClientTest} 가
+     * 고정한다).
+     */
+    @Test
+    @DisplayName("이벤트유형을_실어보내도_무시되고_요청은_접수된다")
+    void requesterSuppliedEventTypeIsIgnored() throws Exception {
+        seedStatus(8512L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8512L);
+
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8512L),
+                "types", List.of("AUGMENT"),
+                "evntType", "WILDFIRE",
+                "evntSubtype", "ROAD_FLOOD",
+                "mtdt", MTDT
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdCount").value(1));
+    }
+
+    /** 이벤트 유형 없이도 접수된다 — 구 계약의 필수 검증이 남아 있으면 400 이 되어 깨진다. */
+    @Test
+    @DisplayName("이벤트유형_없이_증강요청이_접수된다")
+    void requestWithoutEventTypeIsAccepted() throws Exception {
+        seedStatus(8511L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8511L);
+
+        String body = objectMapper.writeValueAsString(Map.of(
+                "videoIds", List.of(8511L),
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
+        ));
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdCount").value(1));
+    }
+
+    /**
+     * 생성 조건이 허용 코드가 됐다고 해서 <b>증강 종류까지 그 축에서 오는 것은 아니다</b>. types 는
+     * 여전히 enum(현행 단일값 {@code AUGMENT})이며, 임의 문자열은 400 이다 — 이 경계가 무너지면 AUG_TYPE_CD 가 파생 산출물
+     * 경로({@code .../{augTypeCd}.mp4})로 흘러 경로 순회(CWE-22)와 RESL_ 네임스페이스 침범이 열린다.
+     */
+    @Test
+    @DisplayName("증강종류는_여전히_enum만_허용되고_임의_문자열은_400")
+    void arbitraryTypeStillRejected() throws Exception {
+        // ★ 이 시험이 지키는 것은 CWE-22(산출물 경로 순회)와 RESL_ 네임스페이스 침범이라, 가드가
+        //    조용히 무력화되면 안 된다. 미시드 영상을 쓰면 types enum 이 열려도 미검수 400 에 가려
+        //    GREEN 이 되므로(다른 두 부정 시험과 동일 취약성) 접수 가능한 상태로 시드한다.
+        seedStatus(8506L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8506L);
+
+        for (String bad : List.of("RESL_1080P", "../../etc/passwd", "WINTER", "AUGMENT2")) {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "videoIds", List.of(8506L),
+                    "types", List.of(bad),
+                    "mtdt", MTDT
+            ));
 
             mockMvc.perform(post("/v1/augments/request")
                             .header("Authorization", "Bearer " + reviewerToken)
@@ -422,18 +512,50 @@ class AugmentRequestControllerTest {
     }
 
     /**
-     * 보이는 내용이 하나라도 있으면 정상 접수된다(위 거부의 대칭 — 과잉 차단 회귀 가드).
+     * 보이지 않는 문자만 채운 <b>자유 지시문</b>은 입력이 아니다 — "지시문 없음" 으로 취급해 접수한다.
+     *
+     * <p>구 계약에서는 이 케이스가 <b>400</b> 이었다(그때는 생성 조건 5필드가 자유 문자열이라 빈 조건이
+     * 벤더로 나가면 결과가 비결정적이 됐다). v1.3 에서 그 다섯 축은 enum 이 되어 이 경로 자체가
+     * 사라졌고, 남은 자유 텍스트는 <b>선택</b> 필드라 비어도 정상이다 — 태도가 갈리는 근거는
+     * <b>필수/선택 차이</b>이지 검증을 느슨하게 한 것이 아니다.
+     *
+     * <p>본문은 <b>ASCII {@code \\uXXXX} 이스케이프</b>로 만든다 — 문자를 그대로 실으면 인코딩 경로
+     * 어딘가에서 치환됐을 때 "정규화가 걸렀다" 고 오판하게 된다.
+     */
+    @Test
+    @DisplayName("보이지_않는_문자만_입력한_자유지시문은_지시문_없음으로_접수된다")
+    void invisibleOnlyPromptTextIsTreatedAsAbsent() throws Exception {
+        seedStatus(8507L, LsRawDataStatus.STTS_APPROVED);
+        seedFrame(8507L);
+
+        // NBSP · ZWSP · BOM · WORD JOINER — 화면에는 아무것도 보이지 않는다.
+        String body = "{\"videoIds\":[8507],\"types\":[\"AUGMENT\"],"
+                + "\"mtdt\":{\"time\":\"NIGHT\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
+                + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"},"
+                + "\"prompt\":\"\\u00A0\\u200B\\uFEFF\\u2060\"}";
+
+        mockMvc.perform(post("/v1/augments/request")
+                        .header("Authorization", "Bearer " + reviewerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.createdCount").value(1));
+    }
+
+    /**
+     * 보이지 않는 문자가 섞여도 내용이 있으면 그 내용이 살아 접수된다(과잉 차단 회귀 가드).
      * NBSP 로 띄어 쓴 값은 일반 공백으로 다듬어 통과한다.
      */
     @Test
     @DisplayName("보이지_않는_문자가_섞여도_내용이_있으면_200")
-    void invisibleMixedButNonEmptyPromptIsAccepted() throws Exception {
+    void invisibleMixedButNonEmptyPromptTextIsAccepted() throws Exception {
         seedStatus(8508L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8508L);
 
-        String body = "{\"videoIds\":[8508],\"types\":[\"WINTER\"],\"prompt\":{"
-                + "\"time\":\"\\u200BNIGHT\",\"season\":\"HEAVY\\u00A0WINTER\",\"weather\":\"RAIN\","
-                + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"}}";
+        String body = "{\"videoIds\":[8508],\"types\":[\"AUGMENT\"],"
+                + "\"mtdt\":{\"time\":\"NIGHT\",\"season\":\"WINTER\",\"weather\":\"RAIN\","
+                + "\"terrain\":\"ROAD\",\"severity\":\"HIGH\"},"
+                + "\"prompt\":\"\\u200B도로\\u00A0구조 유지\"}";
 
         mockMvc.perform(post("/v1/augments/request")
                         .header("Authorization", "Bearer " + reviewerToken)
@@ -456,23 +578,23 @@ class AugmentRequestControllerTest {
      * 자기 조건을 들고 있는지 본다 — 반복 요청이 허용된 이상 이것이 결과물을 구분하는 유일한 축이다.
      */
     @Test
-    @DisplayName("결과조회_응답에_요청별_생성조건_5필드가_실린다")
-    void resultExposesPromptPerRequest() throws Exception {
+    @DisplayName("결과조회_응답에_요청별_생성조건_5항목이_실린다")
+    void resultExposesMtdtPerRequest() throws Exception {
         seedStatus(8509L, LsRawDataStatus.STTS_APPROVED);
         seedFrame(8509L);
-        requestWithPrompt(8509L, Map.of(
+        requestWithMtdt(8509L, Map.of(
                 "time", "DAWN", "season", "SUMMER", "weather", "FOG",
-                "terrain", "TUNNEL", "severity", "LOW"));
-        requestWithPrompt(8509L, Map.of(
+                "terrain", "UNDERPASS", "severity", "LOW"));
+        requestWithMtdt(8509L, Map.of(
                 "time", "DUSK", "season", "SPRING", "weather", "CLEAR",
-                "terrain", "BRIDGE", "severity", "HIGH"));
+                "terrain", "RIVER", "severity", "HIGH"));
 
         mockMvc.perform(get("/v1/augments/{jobId}/result", 8509L)
                         .header("Authorization", "Bearer " + reviewerToken))
                 .andExpect(status().isOk())
                 // 같은 종류 2건이 각각의 항목으로 분리된다(항목 구분 축은 type 이 아니라 id + prompt).
                 .andExpect(jsonPath("$.data.results.length()").value(2))
-                .andExpect(jsonPath("$.data.results[0].type").value("WINTER"))
+                .andExpect(jsonPath("$.data.results[0].type").value("AUGMENT"))
                 .andExpect(jsonPath("$.data.results[0].decision").value("PENDING"))
                 // 방금 요청한 건이라 <생성이 진행 중>이다 → 아직 결정 대상이 아니다(2026-07-31 DEV_FIX).
                 // 그래도 항목과 prompt 는 실린다 — R9 역추적(조건 확인)은 결정 가능 여부와 별개 축이고,
@@ -482,14 +604,16 @@ class AugmentRequestControllerTest {
                 // ★ 정렬은 <최신순>이다(2026-07-31 흡수 항목 MED) — 나중에 요청한 DUSK 건이 맨 앞이다.
                 //   오름차순이면 항목 1페이지에서 잘려나가는 쪽이 <가장 최신 = 유일한 결정 대상>이라,
                 //   항목 페이저가 없는 FE 에서 방금 요청한 결과에 도달할 수단이 없었다.
+                // v1.3 — 보관도 나간 바디와 같은 분리 형태({"mtdt":{...}})다.
+                .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"mtdt\"")))
                 .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"time\":\"DUSK\"")))
                 .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"season\":\"SPRING\"")))
                 .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"weather\":\"CLEAR\"")))
-                .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"terrain\":\"BRIDGE\"")))
+                .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"terrain\":\"RIVER\"")))
                 .andExpect(jsonPath("$.data.results[0].prompt", containsString("\"severity\":\"HIGH\"")))
                 // 먼저 요청한 건: 조건이 섞이지 않는다
                 .andExpect(jsonPath("$.data.results[1].prompt", containsString("\"time\":\"DAWN\"")))
-                .andExpect(jsonPath("$.data.results[1].prompt", containsString("\"terrain\":\"TUNNEL\"")));
+                .andExpect(jsonPath("$.data.results[1].prompt", containsString("\"terrain\":\"UNDERPASS\"")));
     }
 
     /**
@@ -505,11 +629,11 @@ class AugmentRequestControllerTest {
     }
 
     /** 증강 요청 1건 접수(200 확인) — 결과 조회 테스트의 준비 단계. */
-    private void requestWithPrompt(Long rawSn, Map<String, String> prompt) throws Exception {
+    private void requestWithMtdt(Long rawSn, Map<String, String> mtdt) throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(rawSn),
-                "types", List.of("WINTER"),
-                "prompt", prompt));
+                "types", List.of("AUGMENT"),
+                "mtdt", mtdt));
         mockMvc.perform(post("/v1/augments/request")
                         .header("Authorization", "Bearer " + reviewerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -529,8 +653,8 @@ class AugmentRequestControllerTest {
 
         String body = objectMapper.writeValueAsString(Map.of(
                 "videoIds", List.of(8506L),
-                "types", List.of("NIGHT"),
-                "prompt", PROMPT
+                "types", List.of("AUGMENT"),
+                "mtdt", MTDT
         ));
 
         for (int attempt = 1; attempt <= 2; attempt++) {

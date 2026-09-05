@@ -97,7 +97,7 @@
               "id": 1,
               "status": "PROCESSING",
               "progress": 42,
-              "augTypeCd": "WINTER",
+              "augTypeCd": "AUGMENT",
               "cancelable": true,
               "totalJobCount": 4,
               "nextPollAfterMs": 3000,
@@ -228,13 +228,15 @@
         }
       ],
       "description": "증강 결과 1건의 진행상태를 반환한다. 경로변수는 증강 결과 식별자이며 채택·반려와 동일한 식별자다.\n\n[진행률은 파일 수 가중평균이다] 위탁은 청크 단위로 나뉘어 나가므로, 청크마다 입력 파일 수를 가중치로 쓰고 종결된 청크는 100 으로 계산한다. 청크 수로 단순 평균하면 작은 청크 하나가 큰 청크와 같은 비중을 가져 진행률이 실제보다 앞서간다.\n\n[폴링 간격은 서버가 정한다] nextPollAfterMs 는 다음 조회까지 기다릴 시간이다. 화면이 자체 간격을 정하면 외부 상태조회 호출량을 클라이언트가 결정하게 되므로 서버가 내려주는 값을 따른다.\n\n[진행률을 모를 수 있다] 외부가 진행률을 주지 않으면 progress 가 비고 unavailableReason 으로 그 이유를 알린다 — 0% 로 내려서 '시작도 안 했다'고 오인하게 만들지 않기 위함이다.",
+      "attached_files": [],
       "calls_external": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": [],
       "implements_features": [
@@ -244,12 +246,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 2,
+    "current_version": 3,
     "stale": true,
-    "stale_reason": "REQ-023의 domain_id 변경이 implements로 2-hop 전파",
-    "change_summary": "D007-LINK-002: 동일(진행률 조회)",
+    "stale_reason": "REQ-005의 2개 필드 변경이 implements로 2-hop 전파",
+    "change_summary": "증강 종류 단일화(AUGMENT) 반영 — 응답 예시의 증강 종류를 현행값으로 바꾼다. 구 값은 이미 만들어진 파생본에 남아 있어 계속 유효하며 계약에서 빼지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:09:02.424Z",
+    "last_updated_at": "2026-09-02T08:48:21.804Z",
     "created_at": "2026-08-07T03:06:19.382Z"
   }
 }

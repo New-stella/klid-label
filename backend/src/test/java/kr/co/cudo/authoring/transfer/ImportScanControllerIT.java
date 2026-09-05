@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.transfer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.common.security.UserRoleResolver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,8 +69,12 @@ class ImportScanControllerIT {
     /** 이 시험이 만드는 라벨 마스터 행 — 정리 대상을 한 곳에서 가리키려고 상수로 둔다. */
     private static final String MAPPING_LABEL_NAME = "이관대응라벨";
 
+    /** 이 시험 전용 관리자 사용자번호 — 공용 시드·다른 시험과 겹치지 않는 대역. */
+    private static final long ADMIN_NO = 969_300_043L;
+
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private UserRoleResolver userRoleResolver;
 
     @Value("${authoring.jwt.secret}") private String secret;
     @Value("${authoring.jwt.issuer}") private String issuer;
@@ -79,6 +84,8 @@ class ImportScanControllerIT {
     private DataSource controlDataSource;
 
     private JdbcTemplate jdbc;
+    private ImportAdminActor admin;
+    private String adminToken;
     private String reviewerToken;
     private String workerToken;
 
@@ -86,6 +93,10 @@ class ImportScanControllerIT {
     void setUp() {
         jdbc = new JdbcTemplate(controlDataSource);
         cleanup();
+        admin = new ImportAdminActor(jdbc, userRoleResolver, ADMIN_NO);
+        admin.grant();
+        // 검사는 검수자 자리지만 분류 대응 확정은 관리자 자리다 — 준비 단계에만 관리자를 쓴다.
+        adminToken = JwtTestSupport.token(secret, String.valueOf(ADMIN_NO), "ADMIN", "INTERNAL", issuer, 60);
         reviewerToken = JwtTestSupport.token(secret, "1", "REVIEWER", "INTERNAL", issuer, 60);
         workerToken = JwtTestSupport.token(secret, "2", "WORKER", "INTERNAL", issuer, 60);
     }
@@ -93,6 +104,7 @@ class ImportScanControllerIT {
     @AfterEach
     void tearDown() {
         cleanup();
+        admin.clear();
     }
 
     private void cleanup() {
@@ -185,7 +197,7 @@ class ImportScanControllerIT {
                         "externalName", "도로",
                         "labelId", labelId))));
         mockMvc.perform(post(MAPPINGS)
-                        .header("Authorization", "Bearer " + reviewerToken)
+                        .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(confirm))
                 .andExpect(status().isCreated())

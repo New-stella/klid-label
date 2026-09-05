@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-021
 type: screen_spec
-version: 28
-last_updated_at: 2026-08-17T12:44:49.404Z
+version: 29
+last_updated_at: 2026-08-31T12:49:51.348Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:05.306Z
-sync_session: 20
-stale: false
+synced_at: 2026-09-05T02:34:48.354Z
+sync_session: 35
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-021.json
@@ -15,6 +15,7 @@ wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-057]]", "[[API-058]]"]
   required_roles: ["[[ROLE-001]]"]
+  acceptance: ["[[AC-1084]]", "[[AC-1085]]"]
 ---
 
 # 전체 구축 현황 화면
@@ -410,6 +411,10 @@ web
 - API-057
 - API-058
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -422,13 +427,22 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-335
+- IMPREC-387
 
 ### progress
 
 100
 
 ### subtasks
+
+_(empty)_
+
+### last_updated
+
+2026-08-31T12:49:51.348Z
+
+### module_paths
 
 _(empty)_
 
@@ -463,6 +477,10 @@ _(empty)_
 
 _(empty)_
 
+## uses_components
+
+_(empty)_
+
 ## external_designs
 
 _(empty)_
@@ -473,4 +491,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-_(empty)_
+- AC-1084
+- AC-1085

@@ -267,7 +267,9 @@ describe('ReviewPage', () => {
     await user.click(rejectButtons[0]);
 
     // 사유 입력 (RejectModal 의 textarea).
-    const reasonTextarea = await screen.findByLabelText(/반려 사유/);
+    // ⚠ 정확일치로 찾는다 — 부분일치(/반려 사유/)는 검수 메모 패널의 제목
+    //   「반려 사유에 첨부할 지적」까지 집어 «여러 요소» 오류가 난다.
+    const reasonTextarea = await screen.findByLabelText('반려 사유');
     await user.type(reasonTextarea, '재작업 필요');
 
     const submitBtn = screen.getByRole('button', { name: '반려 확정' });

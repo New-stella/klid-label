@@ -1,28 +1,30 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 38
+version: 49
 domain: DOMAIN-014
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:18:44.363Z
+synced_at: 2026-09-02T10:52:15.801Z
 status: CHANGED
-prev_version: 38
-content_hash: a3f8139a94dc6e6aeeb80606afcca93e76c57d753720a8d73925c8a9456790d3
+prev_version: 47
+content_hash: c161f2051d34c6bdce5b049781ccbe4c53acf23b9ab5acf314730d3053666d7b
 stale: true
 raw: ./_raw/SCREEN-025.json
 links:
+  based_on: ["[[ADR-046]]"]
   belongs_to_domain: ["[[DOMAIN-014]]"]
-  consumes: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-194]]"]
-  covered_by: ["[[AC-055]]"]
+  consumes: ["[[API-068]]", "[[API-069]]", "[[API-090]]"]
+  covered_by: ["[[AC-1022]]", "[[AC-1023]]"]
+  implements: ["[[IMPREC-054]]", "[[IMPREC-163]]"]
   realizes: ["[[UC-006]]", "[[UC-013]]", "[[UC-031]]"]
-  references: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[API-194]]", "[[FEAT-007]]"]
+  references: ["[[API-068]]", "[[API-069]]", "[[API-090]]", "[[FEAT-007]]"]
   requires: ["[[ROLE-001]]"]
   applies_to_backward: ["[[SHELL-001]]"]
   designs_backward: ["[[SD-015]]"]
   granted_on_backward: ["[[ROLE-001]]"]
   navigates_to_backward: ["[[NAV-001]]"]
   realizes_backward: ["[[MOD-016]]"]
-  references_backward: ["[[SEQ-024]]", "[[SEQ-025]]", "[[UC-006]]", "[[UC-013]]", "[[UC-031]]"]
+  references_backward: ["[[ADR-046]]", "[[SEQ-024]]", "[[UC-006]]", "[[UC-013]]", "[[UC-031]]"]
 ---
 
 # 시스템 설정 화면
@@ -45,7 +47,7 @@ draft
 
 ## purpose
 
-REVIEWER가 운영 파라미터(배치 처리, AI 탐지 추론, 라벨링 정밀도, 비식별 옵션, 연동 서버 주소)를 조회·수정하고 외부 연동 헬스를 실시간 모니터링하는 화면. 설정값은 서버가 타입별 범위를 검증하며, 화면은 보조적으로 입력을 범위 내로 보정해 전송한다. 사용자에게 노출되는 모든 문구는 기술 모델명을 쓰지 않는다(예: 'AI 탐지 추론 파라미터'). 접근: REVIEWER 전용.
+REVIEWER가 운영 파라미터(배치 처리, AI 탐지 추론, 라벨링 정밀도, 비식별 옵션)를 조회·수정하고 외부 연동 헬스를 실시간 모니터링하는 화면. 설정값은 서버가 타입별 범위를 검증하며, 화면은 보조적으로 입력을 범위 내로 보정해 전송한다. 사용자에게 노출되는 모든 문구는 기술 모델명을 쓰지 않는다(예: 'AI 탐지 추론 파라미터'). 접근: REVIEWER 전용.
 
 ## sections
 
@@ -69,7 +71,7 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 제목 '시스템 설정' + 부제('배치 파라미터 · 외부 연동 헬스 · 위험 구역'). 검수자(REVIEWER) 전용 화면.
+- **description**: 제목 '시스템 설정' + 부제('배치 파라미터 · 외부 연동 헬스'). 검수자(REVIEWER) 전용 화면.
 
 **references_apis**:
 
@@ -138,7 +140,7 @@ _(empty)_
 #### [4]
 
 - **type**: Custom
-- **label**: 시계열 전체 건너뛰기
+- **label**: 시계열 위탁 전체 건너뛰기
 
 **columns**:
 
@@ -350,143 +352,12 @@ _(empty)_
 
 - **binds_to**: configs.kpst.deid.db-save
 
-#### [17]
-
-- **note**: 연동 서버 주소 카드. 기본은 잠금 상태로 읽기 전용이다
-- **type**: Card
-- **label**: 연동 서버 주소
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **triggers_api**: API-069
-
-#### [18]
-
-- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
-- **type**: Input
-- **label**: 비식별 서버 주소
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: configs.kpst.deid.base-url
-- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
-
-#### [19]
-
-- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
-- **type**: Input
-- **label**: AI 추론 서버 주소
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: configs.authoring.integration.ai-server.base-url
-- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
-
-#### [20]
-
-- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
-- **type**: Input
-- **label**: 외부 시계열 분석 벤더 주소
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: configs.vlm.client.url
-- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
-
-#### [21]
-
-- **note**: http 또는 https 만 허용. 도메인도 입력할 수 있다
-- **type**: Input
-- **label**: 관제 통지 수신처 주소
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **binds_to**: configs.authoring.control-notify.url
-- **validation**: 스킴은 http 또는 https 만 허용한다. 주소 대역에 따른 차단은 하지 않는다.
-
-#### [22]
-
-- **note**: 잠금을 푸는 버튼. 관리자 패스워드 입력을 요구한다
-- **type**: Button
-- **label**: 관리자 설정
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **variant**: secondary
-
-#### [23]
-
-- **note**: 입력값은 화면에 다시 표시하지 않는다
-- **type**: Dialog
-- **label**: 관리자 패스워드 입력
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [24]
-
-- **note**: 인증 후 남은 유효 시간. 만료되면 카드가 다시 잠긴다
-- **type**: Custom
-- **label**: 남은 유효 시간
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **custom_name**: AdminSessionCountdown
-
-- **description**: 설정 키-값 목록을 로드해 카드를 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수/시계열 전체 건너뛰기. ②AI 탐지 추론 파라미터: Confidence Threshold/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤연동 서버 주소: 비식별 서버·AI 추론 서버·외부 시계열 분석 벤더·관제 통지 수신처 주소. 기본은 잠금 상태로 읽기 전용이며 「관리자 설정」 버튼으로 관리자 패스워드를 입력해야 열린다. 인증에 성공하면 정해진 짧은 시간 동안 재입력 없이 여러 항목을 수정할 수 있고, 남은 유효 시간을 화면에 보여준다. 만료되면 다시 입력해야 한다. 패스워드 입력값은 화면에 다시 표시하지 않는다. 저장 실패는 주소 형식·스킴 위반 / 인증 만료를 구분해 안내한다. ⑥AI 최대 대기 상한: 라벨링 화면의 AI 보조 작업이 한 실행을 얼마나 기다릴지 정한다. 작업 종류(AI 탐지·AI 분할·AI 추적·AI 자동 추적)별로 고정분과 프레임당 가산분을 두고, 계산값의 절대 상한을 함께 둔다. 각 값의 하한은 서버가 그 작업에 정당하게 쓸 수 있는 최악 소요에서 정해지며 그보다 낮은 값은 저장되지 않는다. 절대 상한의 기본값은 앞단이 응답을 기다려 주는 시간과 같아, 늘리려면 앞단도 함께 늘려야 한다.
+- **description**: 설정 키-값 목록을 로드해 카드를 2열 그리드로 표시한다. 로딩 시 스켈레톤, 에러 시 에러 상태. 각 카드는 독립적인 폼으로 값이 바뀌었을 때만 저장 버튼이 활성화되며, 저장은 카드 안에서 실제로 바뀐 키에 한해서만 개별 요청된다. 서버에 일괄 저장 API 가 없어 키별로 별도 요청한다. ①배치 처리: 처리 주기(초)/동시 처리 수/시계열 위탁 전체 건너뛰기. ②AI 탐지 추론 파라미터: Confidence Threshold/IoU 임계값. ③라벨링 정밀도: 인식 민감도(Confidence Threshold와 같은 설정값을 공유)/경계 세밀함. ④비식별 옵션: 마스킹 방식(색상/모자이크/블러)/마스킹 범위(0.5~2.0)/프레임 저장 여부. 전역 1벌이며 저장한 값은 그 다음부터 새로 위탁하는 영상에 적용된다. 저장 실패 시 서버가 범위·타입 오류를 반환하며 화면은 범용 실패 토스트만 노출한다(서버 에러 메시지는 필드별로 구분되지 않는 공통 문구다). 성공 시 카드별 토스트. ⑤AI 최대 대기 상한 — ⚠**이 화면에 아직 카드가 없다**(값·저장 창구는 서버에 있고 조작 표면만 미구현이라 지금은 설정 API 로만 바꾼다). ①~④ 와 달리 화면 구성이 아니라 **채워지지 않은 요구**이며 그래서 컴포넌트 목록에도 없다 — 어긋나 보이는 것은 누락이 아니라 그 사실을 적어 둔 것이다. 배포 없이 운영자가 조정하라고 연 손잡이라 화면이 있어야 하므로 요구를 지우지 말 것. 규정: 라벨링 화면의 AI 보조 작업이 한 실행을 얼마나 기다릴지 정한다. 작업 종류(AI 탐지·AI 분할·AI 추적·AI 자동 추적)별로 고정분과 프레임당 가산분을 두고, 계산값의 절대 상한을 함께 둔다. 각 값의 하한은 서버가 그 작업에 정당하게 쓸 수 있는 최악 소요에서 정해지며 그보다 낮은 값은 저장되지 않는다. 절대 상한의 기본값은 앞단이 응답을 기다려 주는 시간과 같아, 늘리려면 앞단도 함께 늘려야 한다.
 
 **references_apis**:
 
 - API-068
 - API-069
-- API-194
 
 **references_features**:
 
@@ -571,98 +442,6 @@ _(empty)_
 
 _(empty)_
 
-### 위험 액션
-
-- **role**: main
-- **layout**: stack
-
-**components**:
-
-#### [1]
-
-- **type**: Alert
-- **label**: 위험 액션 운영 도구 이관 예정 안내
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-#### [2]
-
-- **note**: 되돌릴 수 없는 액션이므로 확인 다이얼로그를 거친 뒤에만 실행한다.
-- **type**: Button
-- **label**: 시스템 초기화 (개발 전용)
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **variant**: destructive
-
-#### [3]
-
-- **note**: 대기 중인 배치 작업을 비운다. 확인 다이얼로그를 거친 뒤에만 실행한다.
-- **type**: Button
-- **label**: 배치 큐 초기화
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **variant**: secondary
-
-#### [4]
-
-- **note**: 서버 캐시를 비운다. 확인 다이얼로그를 거친 뒤에만 실행한다.
-- **type**: Button
-- **label**: 캐시 삭제
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **variant**: secondary
-
-#### [5]
-
-- **note**: 위험 구역의 세 액션은 모두 이 다이얼로그를 거친다. 버튼을 누르면 수행할 작업명과 되돌릴 수 없다는 경고를 보이고, 확인을 누른 뒤에만 실행한다. 취소하면 아무 일도 일어나지 않는다.
-- **type**: Dialog
-- **label**: 위험 액션 확인 다이얼로그
-
-**columns**:
-
-_(empty)_
-
-**options**:
-
-_(empty)_
-
-- **description**: 운영 도구 이관 예정 안내 배너와 위험 구역 3종(시스템 초기화·배치 큐 초기화·캐시 삭제). 세 액션 모두 되돌릴 수 없으므로 반드시 확인 다이얼로그를 거친 뒤에만 실행한다. 이 구역은 검수자만 접근한다.
-
-**references_apis**:
-
-_(empty)_
-
-**references_features**:
-
-_(empty)_
-
 ## brownfield
 
 ### status
@@ -690,7 +469,10 @@ web
 - API-068
 - API-069
 - API-090
-- API-194
+
+## attached_files
+
+_(empty)_
 
 ## implementation
 
@@ -705,6 +487,7 @@ _(empty)_
 ### records
 
 - IMPREC-054
+- IMPREC-163
 
 ### progress
 
@@ -716,7 +499,11 @@ _(empty)_
 
 ### last_updated
 
-2026-08-21T04:27:30.854Z
+2026-08-27T20:57:49.711Z
+
+### module_paths
+
+_(empty)_
 
 ## required_roles
 
@@ -737,8 +524,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: 935b766c858c42be036908b46c06c4624e2b2472787a0a03690daf6c861c3064
-- **generated_at**: 2026-08-18T09:11:56.127Z
+- **source_hash**: 6c0d3f84085078e36f61b149e90d98f359d0fa86fa1233db775384e3dd5c5063
+- **generated_at**: 2026-08-29T00:22:50.595Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -746,6 +533,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 
@@ -761,4 +552,5 @@ _(empty)_
 
 ## covered_by_acceptances
 
-- AC-055
+- AC-1022
+- AC-1023

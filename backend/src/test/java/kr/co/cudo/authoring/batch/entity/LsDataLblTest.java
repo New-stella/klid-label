@@ -96,7 +96,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("수동_라벨_(createManual)_은_trackId_null")
     void createManualHasNullTrackId() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", "99");
 
         assertThat(lbl.getTrackId()).isNull();
         // ⚠ V6 — 구 기대값은 "N" 이었다. 흡수 후 <b>DB 축은 부재를 null 로</b> 표현한다("N" 이 아니다) —
@@ -159,7 +159,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("createManual_은_LBL_SRC_CD_null_(DETECTED_기본)")
     void createManualLblSrcCdNull() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", null, "person", "[]", "99");
 
         assertThat(lbl.getLblSrcCd()).isNull();
     }
@@ -199,7 +199,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("createManual_6arg_는_labelId_저장")
     void createManualWithLabelId() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", "99");
 
         assertThat(lbl.getLabelId()).isEqualTo(5L);
         // V6 — DB 축은 부재를 null 로 표현한다(위 createManualHasNullTrackId 주석 참조).
@@ -220,7 +220,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("updateUserContent_labelId_non_null_시_LABEL_ID_변경")
     void updateUserContentChangesLabelId() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[[1,1],[2,2]]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[[1,1],[2,2]]", "99");
 
         lbl.updateUserContent("BBOX", 10L, "car", "[[3,3],[4,4]]");
 
@@ -231,7 +231,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("updateUserContent_labelId_null_시_기존_LABEL_ID_유지")
     void updateUserContentPreservesLabelIdOnNull() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[[1,1],[2,2]]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[[1,1],[2,2]]", "99");
 
         lbl.updateUserContent("BBOX", null, "person", "[[3,3],[4,4]]");
 
@@ -303,7 +303,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("copyForNewSrcScaled_scale_1이면_copyForNewSrc_등가")
     void copyForNewSrcScaledIdentityEqualsCopyForNewSrc() {
-        LsDataLbl original = LsDataLbl.createManual(1L, "POLYGON", 5L, "car", "[[1,2],[3,4]]", 99L);
+        LsDataLbl original = LsDataLbl.createManual(1L, "POLYGON", 5L, "car", "[[1,2],[3,4]]", "99");
 
         LsDataLbl scaled = LsDataLbl.copyForNewSrcScaled(999L, original, 1.0, 1.0);
         LsDataLbl plain = LsDataLbl.copyForNewSrc(999L, original);
@@ -316,7 +316,7 @@ class LsDataLblTest {
     @DisplayName("copyForNewSrcScaled_SKELETON_가시성값은_불변")
     void copyForNewSrcScaledKeepsVisibility() {
         LsDataLbl original = LsDataLbl.createManual(
-                1L, "SKELETON", 5L, "person", "[[10,20,2],[30,40,0]]", 99L);
+                1L, "SKELETON", 5L, "person", "[[10,20,2],[30,40,0]]", "99");
 
         LsDataLbl copy = LsDataLbl.copyForNewSrcScaled(999L, original, 2.0, 2.0);
 
@@ -334,7 +334,7 @@ class LsDataLblTest {
     @DisplayName("copyForNewSrcScaled_원본_pointCn_null이면_결과도_null_정상전파")
     void copyForNewSrcScaledPropagatesNullPointCn() {
         // given — 좌표(pointCn)가 null 인 원본 라벨
-        LsDataLbl original = LsDataLbl.createManual(1L, "BBOX", 5L, "car", null, 99L);
+        LsDataLbl original = LsDataLbl.createManual(1L, "BBOX", 5L, "car", null, "99");
 
         // when — 스케일 복사
         LsDataLbl copy = LsDataLbl.copyForNewSrcScaled(999L, original, 2.0, 3.0);
@@ -349,7 +349,7 @@ class LsDataLblTest {
     @Test
     @DisplayName("updateUserContent_labelId_null_전달_시_기존_LABEL_ID_유지")
     void updateUserContentNullLabelIdPreservesExisting() {
-        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", 99L);
+        LsDataLbl lbl = LsDataLbl.createManual(1L, "BBOX", 5L, "person", "[]", "99");
 
         lbl.updateUserContent("BBOX", null, "person-v2", "[[1,1]]");
 

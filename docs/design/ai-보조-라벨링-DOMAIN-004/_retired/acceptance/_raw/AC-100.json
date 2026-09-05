@@ -1,0 +1,69 @@
+{
+  "item": {
+    "id": "AC-100",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "짝은 폴더 구조가 아니라 마킹 문서가 적어 둔 영상 이름으로 짓는다",
+    "slug": "짝은-폴더-구조가-아니라-마킹-문서가-적어-둔-영상-이름으로-짓는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "문서와 영상이 서로 다른 하위 자리에 있어도 이름이 같으면 짝이 된다.",
+          "문서가 가리키는 이름의 영상이 없으면 그 항목은 짝을 찾지 못한 것으로 표시되고 적재할 수 없는 상태가 된다.",
+          "같은 이름의 영상이 둘 이상이면 어느 쪽인지 정하지 않고 짝을 찾지 못한 것으로 다룬다.",
+          "어느 마킹 문서도 가리키지 않은 영상은 대상이 아니지만 그 수가 응답에 함께 담긴다.",
+          "문서가 함께 담은 원래 경로는 위치로 쓰이지 않고 파일 이름만 남도록 정제한 값이 쓰인다."
+        ],
+        "when": [
+          "그 폴더의 위치로 검사를 요청한다."
+        ],
+        "given": [
+          "폴더 아래 여러 단계에 마킹 문서와 영상이 흩어져 놓여 있다."
+        ]
+      },
+      "statement": "마킹 문서와 영상이 서로 다른 자리에 놓여 있어도 문서가 적어 둔 영상 파일 이름으로 짝을 찾고, 이름이 겹치거나 없으면 짐작하지 않고 건너뛴다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [
+          {
+            "done": false,
+            "description": "여러 단계에 흩어진 배치로 짝짓기를 시험으로 고정"
+          },
+          {
+            "done": false,
+            "description": "이름 중복과 짝 없음이 각각 건너뜀으로 처리됨을 시험으로 고정"
+          },
+          {
+            "done": false,
+            "description": "문서가 준 경로를 위치로 쓰지 않음을 시험으로 고정"
+          }
+        ],
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-037"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "마킹이 끝난 영상을 폴더에서 일괄로 올리는 흐름의 수용 기준을 신설한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-24T10:35:50.117Z",
+    "created_at": "2026-08-24T10:35:50.117Z"
+  }
+}

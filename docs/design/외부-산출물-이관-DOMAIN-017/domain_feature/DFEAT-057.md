@@ -1,20 +1,21 @@
 ---
 logicraft_item: DFEAT-057
 type: domain_feature
-version: 11
+version: 13
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-20T15:14:02.985Z
+synced_at: 2026-09-01T08:39:58.122Z
 status: CHANGED
-prev_version: 10
-content_hash: c2d249567e67dd0d4511c3820279cbb1caa65df9a4439a85852ba59cccb1015a
+prev_version: 12
+content_hash: 5d1a3cdd1a11be9a2a34bde0acc6b72d3cc6403fca3c9a31ac9a01e34aa74269
 stale: false
 raw: ./_raw/DFEAT-057.json
 links:
+  based_on: ["[[ADR-048]]"]
   belongs_to_domain: ["[[DOMAIN-017]]"]
-  implements: ["[[API-206]]", "[[API-215]]"]
+  implements: ["[[API-206]]", "[[API-215]]", "[[IMPREC-096]]"]
   specializes: ["[[FEAT-010]]"]
-  verifies: ["[[AC-044]]", "[[AC-045]]", "[[AC-046]]", "[[AC-047]]", "[[AC-048]]"]
+  verifies: ["[[AC-1079]]", "[[AC-1080]]", "[[AC-1081]]"]
   realizes_backward: ["[[UC-035]]"]
 ---
 
@@ -54,7 +55,7 @@ ADR-048
 
 ### as
 
-검수자
+관리자
 
 ### i_want
 
@@ -100,6 +101,10 @@ ADR-048
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -112,7 +117,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-096
 
 ### progress
 
@@ -162,7 +167,11 @@ _(empty)_
 
 ### last_updated
 
-2026-08-20T08:58:11.525Z
+2026-08-25T01:21:30.727Z
+
+### module_paths
+
+_(empty)_
 
 ## uses_constants
 
@@ -289,11 +298,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-044
-- AC-045
-- AC-046
-- AC-047
-- AC-048
+- AC-1079
+- AC-1080
+- AC-1081
 
 ## specializes_feature
 

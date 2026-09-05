@@ -1,21 +1,22 @@
 ---
 logicraft_item: DOMAIN-012
 type: domain
-version: 8
+version: 10
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.722Z
-status: NEW
-prev_version: null
-content_hash: 202010adca79b94673d4259b6bb604c67a6b5afe8a9f975ef3b932cd595af587
+synced_at: 2026-09-05T00:43:42.716Z
+status: CHANGED
+prev_version: 9
+content_hash: b5087b2fada56e123e9f281cabdb96f14d2ee1ce0f0f42327d39bcd7714745f8
 stale: false
 raw: ./_raw/DOMAIN-012.json
 links:
-  applies_to_backward: ["[[NFR-008]]", "[[NFR-012]]"]
-  belongs_to_domain_backward: ["[[ADR-006]]", "[[ADR-022]]", "[[ADR-024]]", "[[ADR-025]]", "[[ADR-027]]", "[[API-094]]", "[[API-109]]", "[[API-112]]", "[[API-183]]", "[[API-184]]", "[[API-202]]", "[[CDIAG-003]]", "[[CMP-003]]", "[[DFEAT-041]]", "[[DFEAT-042]]", "[[DFEAT-048]]", "[[ERD-017]]", "[[EVT-007]]", "[[EVT-008]]", "[[INT-004]]", "[[INT-005]]", "[[SCREEN-032]]", "[[UC-011]]", "[[UC-013]]", "[[UC-016]]"]
-  derived_domain_backward: ["[[AC-011]]", "[[AC-013]]", "[[AC-016]]", "[[AC-019]]", "[[AC-023]]"]
+  based_on: ["[[ADR-006]]"]
+  applies_to_backward: ["[[NFR-008]]", "[[NFR-012]]", "[[NFR-031]]", "[[NFR-037]]", "[[NFR-038]]", "[[NFR-047]]"]
+  belongs_to_domain_backward: ["[[AC-1063]]", "[[AC-1064]]", "[[AC-1065]]", "[[AC-1066]]", "[[AC-1067]]", "[[ADR-006]]", "[[ADR-022]]", "[[ADR-024]]", "[[ADR-025]]", "[[ADR-027]]", "[[API-094]]", "[[API-109]]", "[[API-112]]", "[[API-183]]", "[[API-184]]", "[[API-202]]", "[[CDIAG-003]]", "[[CDIAG-032]]", "[[CDIAG-043]]", "[[CMP-003]]", "[[DFEAT-041]]", "[[DFEAT-042]]", "[[DFEAT-048]]", "[[ERD-017]]", "[[EVT-007]]", "[[EVT-008]]", "[[INT-004]]", "[[INT-005]]", "[[REQ-027]]", "[[SCREEN-032]]", "[[UC-011]]", "[[UC-013]]", "[[UC-016]]"]
+  derived_domain_backward: ["[[AC-1063]]", "[[AC-1064]]", "[[AC-1065]]", "[[AC-1066]]", "[[AC-1067]]"]
   implements_in_backward: ["[[MOD-005]]", "[[MOD-049]]"]
-  references_backward: ["[[TEST-001]]"]
+  references_backward: ["[[ADR-006]]", "[[TEST-001]]", "[[TEST-008]]"]
 ---
 
 # 비식별화
@@ -50,7 +51,9 @@ ADR-006
 
 [★결과 수신 = 폴링(콜백 아님)] 구 서술 '외부 콜백(webhook)으로 결과 수신'은 폐기됐다. 위탁 후 주기 폴링(진행조회)으로 완료를 감지하고 산출물 경로를 기록한다. 산출 파일명은 우리가 정하지 않는다 — mock 은 deidentified.mp4, KPST 실연동은 {원본stem}-mask{ext} 라 영상마다 다르므로 반드시 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 읽고 문자열로 조합·추측하지 않는다.
 
-[★제출은 논블로킹] KPST 비식별 제출은 WAITING 원장 행을 선커밋하고 createProject 를 비동기 디스패치한다. 스텝이 확정적으로 말하는 사실은 '제출을 개시했다' 뿐이며 수락(ACK)은 완료 핸들러가 비동기 기록한다. 아무 신호도 없으면 미결 스위퍼가 회수하고, 2노드 Active-Active 에서 같은 후보를 두 번 재위탁하지 않도록 조건부 UPDATE 로 원자 클레임한다.
+[★제출은 논블로킹] KPST 비식별 제출은 WAITING 원장 행을 선커밋하고 createProject 를 비동기 디스패치한다. 스텝이 확정적으로 말하는 사실은 '제출을 개시했다' 뿐이며 수락(ACK)은 완료 핸들러가 비동기 기록한다.
+
+[★회수 경로는 축마다 다르다] [폐기] 구 서술 '아무 신호도 없으면 미결 스위퍼가 회수하고, 2노드 Active-Active 에서 같은 후보를 두 번 재위탁하지 않도록 조건부 UPDATE 로 원자 클레임한다' — 폐기한다. 비식별 축에는 전용 미결 스위퍼가 없고 그 회수는 재위탁도 아니다. 회수 경로는 축마다 다르다. 시계열은 전용 미결 스위퍼가 집어 재위탁하고, 비식별은 전용 스위퍼가 없이 폴링 잡이 ACK 대기 유예 만료로 회수해 실패 코드로 원장을 마감한다(재위탁하지 않는다). 비식별 쪽 회수는 '우리가 ACK 를 관측하지 못했다'는 뜻이지 '외부에서 실패했다'가 아니다 — 외부에는 실제로 작업이 생성돼 있을 수 있다. [폐기] 다만 그 전제에 이어 붙였던 구 결론 '그러므로 영상 비식별 상태를 실패로 내리지 않는다' 는 사실과 반대라 폐기한다. ACK 대기 유예 만료 회수는 제출 확정 실패와 같은 종결 경로를 타고, 그 경로가 영상 비식별 여부(DE_IDNTF_YN)를 'F' 로 내린다. 원장을 FAILED 로 마감하면서 영상을 'F' 로 내리는 종결 계기는 외부 터미널 상태·폴링 경과 만료·불완전 산출물·제출 확정 실패(KPST_SUBMIT_FAILED)·ACK 대기 유예 만료 회수(KPST_ACK_MISSING)이며, 영상 상태가 불변인 예외는 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED) 하나뿐이다 — 외부로 아무것도 나가지 않았기 때문이다. ACK 대기 유예 만료 회수를 별도 사유 코드로 분리하는 근거는 영상 상태가 아니라 운영 조치다 — 그 코드가 남았다는 것은 우리 프로세스가 수락 응답을 관측하지 못했다는 뜻이라 외부에는 프로젝트가 실제로 생성돼 있을 수 있어(노드 사망 등), 사람이 외부 상태를 확인해야 하는 건을 식별하려는 분리다. 제출 신호가 노드와 함께 사라지면 실패 행조차 남지 않아 재시도 큐·실패 회수기가 집지 못하므로, 각 축의 이 회수 경로가 유일하다. 2노드 Active-Active 에서 같은 후보를 두 노드가 동시에 집지 않도록 조건부 UPDATE 로 원자 클레임한다.
 
 [실패·재처리] 실패 시 DE_IDNTF_YN='F' 마킹 + 원본 절대 삭제 금지. 자동 재비식별 큐는 폐기됐고 외부 비식별 프로그램에서 수동 재비식별 후 resolve 로 해소한다.
 
@@ -67,6 +70,10 @@ _(empty)_
 supporting
 
 ## collaborators
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

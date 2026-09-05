@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import resolveConfig from 'tailwindcss/resolveConfig';
+import resolveConfig from 'tailwindcss-v3-compat/resolveConfig';
 import { describe, expect, it } from 'vitest';
 
 // tailwind.config.js 는 타입 선언이 없는 plain JS(ESM default export)
@@ -192,6 +192,14 @@ const CASES: Case[] = [
     file: 'src/pages/TaskListPage.tsx',
     anchor: '개 선택됨',
   },
+  {
+    // [@design SD-004] 비식별 이력의 '진행 중' 배지 — warning(주황)에서 info 로 옮긴 지점.
+    // 계열을 옮기면서 DEFAULT(`text-info`)를 그대로 쓰면 bg-info/10 위에서 4.05:1 로 AA 미달이라
+    // 700 단으로 잡았다(6.72:1). 이 케이스가 그 단계를 되돌리지 못하게 값으로 고정한다.
+    label: 'DeidentHistoryPanel 진행 중 배지',
+    file: 'src/features/video/components/DeidentHistoryPanel.tsx',
+    anchor: "REQUESTED: 'bg-info",
+  },
 ];
 
 describe('대비 회귀 가드 — bg-info/10 위 텍스트는 AA(4.5:1) 이상', () => {
@@ -319,6 +327,16 @@ const DANGER_CASES: Case[] = [
     anchor: "box: 'border-danger-200 bg-danger-50'",
   },
   {
+    label: 'Badge(UI-111) 실패 배지 — error 톤(배치 작업 묶음 「실패」 표식)',
+    file: 'src/components/common/Badge.tsx',
+    // 알파 틴트(`bg-danger/10`)가 아니라 solid `bg-danger-50` 이다. 흰 배경 위 /10 합성색과
+    // 사실상 같은 밝기라(#FDEFEC vs #FCEBE7) 이 가드의 계산 전제가 그대로 성립한다
+    // (위 Alert·아래 success Badge 케이스와 동일한 근거).
+    // ★ UI-111 은 "신규 variant 도 대비를 실측해 기록한다"를 계약으로 갖는다 — 이 케이스가
+    //   그 계약을 산문이 아니라 **값**으로 건다(실측 8.01:1, AAA).
+    anchor: "error: 'bg-danger-50",
+  },
+  {
     label: 'AutolabelResultCard 파이프라인 실패 안내',
     file: 'src/features/dev/components/AutolabelResultCard.tsx',
     anchor: '파이프라인 실행에 실패했습니다',
@@ -379,11 +397,6 @@ const DANGER_CASES: Case[] = [
     anchor: "d.status === 'CREATED' ? (",
   },
   {
-    label: 'PortalUploadPage 업로드 검증 오류 목록',
-    file: 'src/pages/portal/PortalUploadPage.tsx',
-    anchor: 'flex flex-col gap-1 rounded-md border border-danger/30 bg-danger/10',
-  },
-  {
     label: 'DevAutolabelTestPage 파이프라인 에러',
     file: 'src/pages/dev/DevAutolabelTestPage.tsx',
     anchor: 'autolabel-error',
@@ -396,7 +409,13 @@ const DANGER_CASES: Case[] = [
   {
     label: 'PresetListPage 삭제 버튼(hover 상태 포함)',
     file: 'src/pages/manage/PresetListPage.tsx',
-    anchor: 'aria-label="삭제"',
+    // ★앵커는 <b>표시 문구가 아니라 그 버튼이 하는 일</b>로 잡는다. 구 앵커 `aria-label="삭제"` 는
+    //   접근 이름이 고정 문자열이던 시절의 것이라, 프리셋에서 이름 축이 사라져 접근 이름이
+    //   템플릿(`${title} 프리셋 삭제`)으로 바뀌자 리터럴이 통째로 없어져 가드가 깨졌다
+    //   (색상·대비는 그대로였다 — 접근성 회귀가 아니라 앵커가 낡은 것이었다).
+    //   `setPendingDelete(preset)` 는 이 버튼을 삭제 버튼이게 하는 유일한 근거라, 문구·아이콘·
+    //   접근 이름을 어떻게 바꿔도 남는다. 사라진다면 그건 더 이상 삭제 버튼이 아니다.
+    anchor: 'setPendingDelete(preset)',
   },
   {
     label: 'LabelMasterFormModal 제출 에러',
@@ -412,6 +431,12 @@ const DANGER_CASES: Case[] = [
     label: 'DateRangePicker 오류 문구',
     file: 'src/components/common/DateRangePicker.tsx',
     anchor: 'id={errorId} role="alert"',
+  },
+  {
+    // 비식별 이력의 '실패' 배지 — 위 완료 배지와 같은 이유로 함께 올렸다(DEFAULT 3.95 → 700 단 7.77).
+    label: 'DeidentHistoryPanel 실패 배지',
+    file: 'src/features/video/components/DeidentHistoryPanel.tsx',
+    anchor: "FAILED: 'bg-danger",
   },
 ];
 
@@ -499,6 +524,13 @@ const SUCCESS_CASES: Case[] = [
     label: 'HealthStatusList 정상 상태 배지',
     file: 'src/features/sysconfig/components/HealthStatusList.tsx',
     anchor: "status === 'UP') return 'bg-success",
+  },
+  {
+    // 비식별 이력의 '완료' 배지 — 같은 파일의 '진행 중'을 info-700 으로 올리면서, 한 파일 안에
+    // 700단과 DEFAULT 가 섞이지 않도록 함께 올린 지점(DEFAULT 는 4.03 → 700 단은 6.84).
+    label: 'DeidentHistoryPanel 완료 배지',
+    file: 'src/features/video/components/DeidentHistoryPanel.tsx',
+    anchor: "SUCCEEDED: 'bg-success",
   },
 ];
 

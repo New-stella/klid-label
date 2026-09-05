@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="design-main.css">
+  <meta charset="utf-8" />
+  <title>SCREEN-040 관리자 페이지 진입 화면 — 고충실 디자인</title>
+</head>
+<body><main class="screen-root gate-root">
+
+  <div class="gate-stage">
+
+    <section class="card gate-card" aria-labelledby="gate-title">
+
+      
+      <header class="card-header gate-header">
+        <span class="gate-mark" aria-hidden="true">
+          <svg class="icon-lg" viewbox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><path d="M12 14.5v2.5"></path></svg>
+        </span>
+
+        <div class="gate-heading">
+          <h1 class="t-title-lg" id="gate-title">관리자 페이지 진입</h1>
+          <div class="gate-badges">
+            <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>관리자 전용</span>
+            <span class="badge badge-primary">
+              <svg class="icon-sm" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+              관리자 확인 필요
+            </span>
+          </div>
+        </div>
+
+        <p class="t-body-md gate-lead">관리 기능을 이용하려면 관리자 패스워드 확인이 필요합니다.</p>
+
+        <p class="t-body-sm gate-note">
+          <svg class="icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5m0-8.5h.01"></path></svg>
+          <span>확인으로 열리는 것은 잠깐 열리는 유효창이며 역할이 바뀌는 것이 아닙니다. 관리자 역할은 그대로 필요합니다.</span>
+        </p>
+
+        <div class="gate-return">
+          <svg class="icon gate-return-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 6 6v5"></path></svg>
+          <span class="t-body-sm gate-return-text">확인이 끝나면 원래 이용하려던 화면으로 돌아갑니다.</span>
+          <span class="gate-dest t-label">연동 서버 주소 설정</span>
+        </div>
+        <p class="t-caption gate-return-sub">돌아갈 화면을 알 수 없을 때만 관리자 페이지의 기본 화면으로 이동합니다.</p>
+      </header>
+
+      
+      <div class="card-content gate-form">
+        <div class="field">
+          <label class="t-label field-label" for="admin-pw">관리자 패스워드</label>
+          <input class="input" id="admin-pw" type="password" placeholder="관리자 패스워드를 입력하세요" aria-describedby="admin-pw-help" />
+          <p class="t-caption field-help" id="admin-pw-help">4자 이상 100자 이하로 입력합니다. 입력한 값은 화면에도 기록에도 남지 않습니다.</p>
+        </div>
+
+        <div class="gate-actions">
+          <button type="button" class="btn btn-primary btn-block">확인</button>
+          <button type="button" class="btn btn-secondary btn-block">취소</button>
+        </div>
+        <p class="t-caption gate-actions-note">취소하면 진입을 그만두고 직전 업무 화면으로 돌아갑니다.</p>
+      </div>
+
+      
+      <div class="card-content gate-result" aria-live="polite">
+        <div class="window-strip">
+          <svg class="icon window-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5V12l3 2"></path></svg>
+          <span class="window-text">
+            <span class="t-label window-title">관리자 확인 유효창</span>
+            <span class="t-caption text-muted">아직 열려 있지 않습니다. 확인을 통과하면 정해진 시간 동안 열립니다.</span>
+          </span>
+          <span class="countdown countdown-idle" role="timer" aria-live="off">
+            <span class="t-label">남은 유효 시간</span>
+            <span class="cd-time">--:--</span>
+          </span>
+        </div>
+      </div>
+
+    </section>
+
+    <p class="t-caption gate-foot">조회만 하는 화면은 이 확인을 요구하지 않습니다.</p>
+
+  </div>
+
+  
+  <div class="reference-panel gate-reference">
+    <div class="reference-flag">
+      <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
+      <span class="t-body-sm text-muted">확인 결과에 따라 위 카드의 결과 영역이 대신 표시하는 상태입니다 — 실제 화면에는 이 중 하나만 상황에 맞게 나타납니다.</span>
+    </div>
+
+    <div class="reference-grid-2">
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">확인 실패 — 사유를 구분하지 않는 단일 안내</p>
+          <div class="alert alert-error" role="alert">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5m0 3h.01"></path></svg>
+            <span class="alert-body">
+              <span class="t-body-sm alert-title">확인하지 못했습니다. 입력한 내용을 다시 확인해 주세요.</span>
+            </span>
+          </div>
+          <p class="t-caption ref-note">패스워드 불일치 · 권한 없음 · 시도 초과를 하나의 문구로 덮습니다.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">시도가 잦을 때 — 제한 사실만 덧붙이는 안내</p>
+          <div class="alert alert-neutral" role="status">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 1 1-6.4 2.7"></path><path d="M5.6 2.5v3.4h3.4"></path><path d="M12 8v4.2l2.6 1.6"></path></svg>
+            <span class="alert-body">
+              <span class="t-body-sm alert-title">시도가 잦습니다. 잠시 후 다시 시도해 주세요.</span>
+            </span>
+          </div>
+          <p class="t-caption ref-note">남은 횟수 · 제한 기준 · 해제 시각은 알리지 않습니다.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">확인 통과 — 유효창이 열려 있을 때</p>
+          <div class="window-strip window-strip-open">
+            <svg class="icon window-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 7.5-2"></path></svg>
+            <span class="window-text">
+              <span class="t-label window-title">관리자 확인 유효창</span>
+              <span class="t-caption text-muted">유효 시간이 지나면 다시 잠깁니다.</span>
+            </span>
+            <span class="countdown" role="timer" aria-live="off">
+              <span class="t-label">남은 유효 시간</span>
+              <span class="cd-time">09:42</span>
+            </span>
+          </div>
+          <p class="t-caption ref-note">만료 시각은 서버가 알려준 값을 기준으로 표시합니다.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-content">
+          <p class="t-caption ref-caption">유효 시간 만료 — 같은 화면에서 재확인</p>
+          <div class="alert alert-neutral" role="status">
+            <svg class="icon alert-icon" viewbox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M7 3h10M7 21h10"></path><path d="M17 3v3.5L12 12l5 5.5V21"></path><path d="M7 3v3.5L12 12l-5 5.5V21"></path></svg>
+            <span class="alert-body">
+              <span class="t-body-sm alert-title">유효 시간이 끝났습니다. 계속하려면 관리자 패스워드를 다시 확인해 주세요.</span>
+            </span>
+          </div>
+          <p class="t-caption ref-note">만료를 거부 응답으로만 알리지 않고 이 화면이 재확인 자리를 맡습니다.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+</body></html>

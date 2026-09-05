@@ -1,0 +1,72 @@
+{
+  "item": {
+    "id": "AC-1035",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-039 온라인 탐지 분기 — 미매핑 외부호출 안 함·실패/목 자동적용 안 함·추론 뒤 락 충돌 (negative)",
+    "slug": "uc-039-온라인-탐지-분기-미매핑-외부호출-안-함실패목-자동적용-안-함추론-뒤-락-충돌-negative",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [라벨링 /label/{id}] 1) 전부 미매핑/외부 실패·목/추론 뒤 락 · 기대: 미매핑은 외부호출 안 함, 실패는 안내, 목 자동적용 안 함, 추론 뒤 락은 충돌 차단",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "매핑 대상 없으면 외부 추론 미호출·빈 결과와 안내",
+          "외부 실패는 오류 안내·진행 표식 해제, 목 응답은 자동 적용 안 함·빈 결과와 안내",
+          "추론 뒤 락 걸리면 좌표 미반환·충돌 차단·진행 표식 해제로 재요청 가능"
+        ],
+        "when": [
+          "탐지를 요청하거나 외부 호출 후 상태가 바뀐다"
+        ],
+        "given": [
+          "매핑 대상 없음·외부 추론 실패/목·추론 뒤 작업락 중 하나다"
+        ]
+      },
+      "statement": "요청한 분류가 전부 미매핑이거나 매핑된 라벨이 하나도 없으면 외부 추론을 부르지 않고 빈 결과와 안내 문구를 돌려준다. 외부 추론이 실패하면 외부 오류로 알리고 진행 표식을 풀며, 목 응답은 자동 적용하지 않고 빈 결과와 안내만 돌려준다. 외부 호출이 끝난 사이에 그 영상이 잠기면 좌표를 돌려주지 않고 충돌로 막되 진행 표식을 풀어 다시 요청할 수 있게 한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:45.454Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-004"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-039"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:45.454Z",
+    "created_at": "2026-08-31T02:13:44.047Z"
+  }
+}

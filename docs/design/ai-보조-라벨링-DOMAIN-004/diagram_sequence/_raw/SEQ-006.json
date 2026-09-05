@@ -10,22 +10,186 @@
     "data": {
       "theme": "neutral",
       "title": "객체 외곽 경계 자동 밀착 — 시드 송신부터 폴리곤 밀착까지",
-      "source": "sequenceDiagram\n    autonumber\n    actor WK as 라벨링 작업자(WORKER) / 검수자(REVIEWER)\n    participant LC as LabelController\n    participant SSS as Sam2SegmentService\n    participant AG as LabelAccessGuard + DeidentReportGate\n    participant AI as ai-server (SAM2 segment)\n    participant FE as 라벨링 캔버스(FE)\n\n    WK->>LC: POST /v1/frames/{srcSn}/sam2-segment {srcSn, points | box}\n    LC->>LC: path srcSn ≠ body srcSn → 400 (CWE-345)\n    LC->>LC: points/box 배타 위반(둘 다 또는 둘 다 없음) → 400 (@AssertTrue)\n    LC->>SSS: segment(req, actor)\n    SSS->>AG: verifyAccess(srcSn) — 본인 배정만(403, CWE-639) + 신고 구간이면 412\n    SSS->>SSS: 원본 프레임 이미지 로드 → base64 (상한 초과 시 413)\n    SSS->>AI: POST /infer/sam2/segment (시드 프롬프트: 클릭 포인트 또는 드래그 박스)\n    AI-->>SSS: 외곽선 기반 polygon + 신뢰도\n\n    alt 내부 mock 응답 (모델 미로드)\n        SSS-->>LC: 빈 폴리곤\n        LC-->>WK: 200 OK + 안내 message — FE 자동적용 차단 신호\n    else ai-server 실패/잘못된 응답\n        SSS-->>LC: 502\n    else 정상 밀착\n        SSS->>SSS: 응답 검증 — 정점 3개 이상 · [x,y] 쌍 · 이미지 실측 경계 내 (CWE-20)\n        SSS->>SSS: Douglas-Peucker 단순화 (결과가 3점 미만이면 원본 폴리곤 유지 — 형태 보존)\n        SSS-->>LC: Sam2SegmentResponse(polygon, 신뢰도)\n        LC-->>WK: 200 OK\n        Note over SSS,FE: BE 는 DB 저장하지 않는 stateless 프록시다 — 저장은 FE 가 라벨 임시저장(PUT /v1/frames/{srcSn}/labels)으로 수행\n        LC-->>FE: 캔버스 폴리곤으로 적용 (SAM_SEGMENT 도구, 단축키 G)\n    end\n    Note over SSS,AI: SAM2 는 <원본 프레임 이미지에만> 실행하며 좌표는 동일 해상도라 비식별본과 공유한다",
-      "messages": [],
-      "fragments": [],
-      "description": "대략 친 시드(클릭 또는 박스)를 ai-server SAM2 segment 로 프록시해 외곽선 기반 폴리곤 + 신뢰도를 산출하고 경계에 밀착시킨다. 구현은 <POST /v1/frames/{srcSn}/sam2-segment>(LabelController.sam2Segment → Sam2SegmentService.segment)이며, 구 서술이 가리키던 sam2-track(Sam2TrackService)은 객체 자동 추적(UC-004)의 별도 엔드포인트다 — 두 경로를 혼동하지 말 것. 입력 검증은 ①points/box 정확히 1개(@AssertTrue 배타, 위반 400) ②path srcSn ≠ body srcSn → 400(CWE-345) ③본인 배정 아니면 403(CWE-639) ④비식별 누락 신고 구간이면 412 ⑤이미지 상한 초과 413 이다. 응답 폴리곤은 정점 3개 이상·[x,y] 쌍·이미지 실측 경계 내임을 검증한 뒤(CWE-20) Douglas-Peucker 로 단순화하고, 단순화 결과가 3점 미만으로 줄면 원본 응답 폴리곤을 그대로 쓴다(형태 보존). ★BE 는 DB 저장을 하지 않는 stateless 프록시다 — 결과는 FE 가 캔버스 폴리곤으로 적용하고 저장은 라벨 임시저장 흐름(PUT /v1/frames/{srcSn}/labels)이 담당한다(구 서술 'createAutoPolygon(AUTO_LBL_YN=Y) save' 는 sam2-track 의 동작이라 폐기). 내부 mock(모델 미로드) 응답은 좌표를 신뢰할 수 없으므로 빈 폴리곤 + 안내 message 로 내려 FE 자동적용을 차단하며(YOLO 오토라벨·SAM2 Track 과 동일 규약), ai-server 연동 실패는 502 다. SAM2 는 <원본 프레임 이미지에만> 실행하고 좌표는 동일 해상도라 비식별본과 공유한다. FE 는 SAM_SEGMENT 캔버스 도구(단축키 G)이고 MASK↔RLE↔Polygon 변환(CVAT 포팅)을 사용한다. 본 흐름은 SFR-08-01(라벨링 정확도 향상) = VOS(추적+분할) 해석의 <분할> 축이다 — 구 '자석 올가미' 해석은 2026-06-04 재정정으로 폐기됐다.",
+      "source": "sequenceDiagram\n    actor worker as 라벨링 작업자(WORKER) / 검수자(REVIEWER)\n    participant labelCtrl as LabelController\n    participant sam2SegmentSvc as Sam2SegmentService\n    participant accessGuard as LabelAccessGuard\n    participant aiServer as ai-server (SAM2 segment)\n    participant canvas as 라벨링 캔버스(FE)\n\n    worker->>labelCtrl: POST /v1/frames/{srcSn}/sam2-segment {srcSn, points | box}\n    labelCtrl->>labelCtrl: path srcSn ≠ body srcSn → 400 (CWE-345)\n    labelCtrl->>labelCtrl: points/box 배타 위반(둘 다 또는 둘 다 없음) → 400 (@AssertTrue)\n    labelCtrl->>sam2SegmentSvc: segment(req, actor)\n    sam2SegmentSvc->>accessGuard: verifyAccess(srcSn) — 본인 배정만(403, CWE-639) + 신고 구간이면 412\n    sam2SegmentSvc->>sam2SegmentSvc: 원본 프레임 이미지 로드 → base64 (상한 초과 시 413)\n    sam2SegmentSvc->>aiServer: POST /infer/sam2/segment (시드 프롬프트: 클릭 포인트 또는 드래그 박스)\n    aiServer-->>sam2SegmentSvc: 외곽선 기반 polygon + 신뢰도\n    alt 내부 mock 응답 (모델 미로드)\n        sam2SegmentSvc-->>labelCtrl: 빈 폴리곤\n        labelCtrl-->>worker: 200 OK + 안내 message — FE 자동적용 차단 신호\n    end\n    alt ai-server 실패/잘못된 응답\n        sam2SegmentSvc-->>labelCtrl: 502\n    end\n    alt 정상 밀착\n        sam2SegmentSvc->>sam2SegmentSvc: 응답 검증 — 정점 3개 이상 · [x,y] 쌍 · 이미지 실측 경계 내 (CWE-20)\n        sam2SegmentSvc->>sam2SegmentSvc: Douglas-Peucker 단순화 (결과가 3점 미만이면 원본 폴리곤 유지 — 형태 보존)\n        sam2SegmentSvc-->>labelCtrl: Sam2SegmentResponse(polygon, 신뢰도)\n        labelCtrl-->>worker: 200 OK\n        Note over sam2SegmentSvc: BE 는 DB 저장하지 않는 stateless 프록시다 — 저장은 FE 가 라벨 임시저장(PUT /v1/frames/{srcSn}/labels)으로 수행\n        labelCtrl-->>canvas: 캔버스 폴리곤으로 적용 (SAM_SEGMENT 도구, 단축키 G)\n    end\n    Note over sam2SegmentSvc: SAM2 는 <원본 프레임 이미지에만> 실행하며 좌표는 동일 해상도라 비식별본과 공유한다\n",
+      "messages": [
+        {
+          "to": "labelCtrl",
+          "from": "worker",
+          "kind": "sync",
+          "label": "POST /v1/frames/{srcSn}/sam2-segment {srcSn, points | box}"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "labelCtrl",
+          "kind": "self",
+          "label": "path srcSn ≠ body srcSn → 400 (CWE-345)"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "labelCtrl",
+          "kind": "self",
+          "label": "points/box 배타 위반(둘 다 또는 둘 다 없음) → 400 (@AssertTrue)"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "labelCtrl",
+          "kind": "sync",
+          "label": "segment(req, actor)"
+        },
+        {
+          "to": "accessGuard",
+          "from": "sam2SegmentSvc",
+          "kind": "sync",
+          "label": "verifyAccess(srcSn) — 본인 배정만(403, CWE-639) + 신고 구간이면 412"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "sam2SegmentSvc",
+          "kind": "self",
+          "label": "원본 프레임 이미지 로드 → base64 (상한 초과 시 413)"
+        },
+        {
+          "to": "aiServer",
+          "from": "sam2SegmentSvc",
+          "kind": "sync",
+          "label": "POST /infer/sam2/segment (시드 프롬프트: 클릭 포인트 또는 드래그 박스)"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "aiServer",
+          "kind": "return",
+          "label": "외곽선 기반 polygon + 신뢰도"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "sam2SegmentSvc",
+          "kind": "return",
+          "label": "빈 폴리곤"
+        },
+        {
+          "to": "worker",
+          "from": "labelCtrl",
+          "kind": "return",
+          "label": "200 OK + 안내 message — FE 자동적용 차단 신호"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "sam2SegmentSvc",
+          "kind": "return",
+          "label": "502"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "sam2SegmentSvc",
+          "kind": "self",
+          "label": "응답 검증 — 정점 3개 이상 · [x,y] 쌍 · 이미지 실측 경계 내 (CWE-20)"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "sam2SegmentSvc",
+          "kind": "self",
+          "label": "Douglas-Peucker 단순화 (결과가 3점 미만이면 원본 폴리곤 유지 — 형태 보존)"
+        },
+        {
+          "to": "labelCtrl",
+          "from": "sam2SegmentSvc",
+          "kind": "return",
+          "label": "Sam2SegmentResponse(polygon, 신뢰도)"
+        },
+        {
+          "to": "worker",
+          "from": "labelCtrl",
+          "kind": "return",
+          "label": "200 OK"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "sam2SegmentSvc",
+          "kind": "note",
+          "label": "BE 는 DB 저장하지 않는 stateless 프록시다 — 저장은 FE 가 라벨 임시저장(PUT /v1/frames/{srcSn}/labels)으로 수행"
+        },
+        {
+          "to": "canvas",
+          "from": "labelCtrl",
+          "kind": "return",
+          "label": "캔버스 폴리곤으로 적용 (SAM_SEGMENT 도구, 단축키 G)"
+        },
+        {
+          "to": "sam2SegmentSvc",
+          "from": "sam2SegmentSvc",
+          "kind": "note",
+          "label": "SAM2 는 <원본 프레임 이미지에만> 실행하며 좌표는 동일 해상도라 비식별본과 공유한다"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "내부 mock 응답 (모델 미로드)",
+          "end_index": 9,
+          "start_index": 8
+        },
+        {
+          "kind": "alt",
+          "label": "ai-server 실패/잘못된 응답",
+          "end_index": 10,
+          "start_index": 10
+        },
+        {
+          "kind": "alt",
+          "label": "정상 밀착",
+          "end_index": 16,
+          "start_index": 11
+        }
+      ],
+      "description": "대략 친 시드(클릭 또는 박스)를 ai-server SAM2 segment 로 프록시해 외곽선 기반 폴리곤 + 신뢰도를 산출하고 경계에 밀착시킨다. 구현은 <POST /v1/frames/{srcSn}/sam2-segment>(LabelController.sam2Segment → Sam2SegmentService.segment)이며, 구 서술이 가리키던 sam2-track(Sam2TrackService)은 객체 자동 추적(UC-004)의 별도 엔드포인트다 — 두 경로를 혼동하지 말 것. 입력 검증은 ①points/box 정확히 1개(@AssertTrue 배타, 위반 400) ②path srcSn ≠ body srcSn → 400(CWE-345) ③본인 배정 아니면 403(CWE-639) ④비식별 누락 신고 구간이면 412 ⑤이미지 상한 초과 413 이다. 응답 폴리곤은 정점 3개 이상·[x,y] 쌍·이미지 실측 경계 내임을 검증한 뒤(CWE-20) Douglas-Peucker 로 단순화하고, 단순화 결과가 3점 미만으로 줄면 원본 응답 폴리곤을 그대로 쓴다(형태 보존). ★BE 는 DB 저장을 하지 않는 stateless 프록시다 — 결과는 FE 가 캔버스 폴리곤으로 적용하고 저장은 라벨 임시저장 흐름(PUT /v1/frames/{srcSn}/labels)이 담당한다(구 서술 'createAutoPolygon(AUTO_LBL_YN=Y) save' 는 sam2-track 의 동작이라 폐기). 내부 mock(모델 미로드) 응답은 좌표를 신뢰할 수 없으므로 빈 폴리곤 + 안내 message 로 내려 FE 자동적용을 차단하며(YOLO 오토라벨·SAM2 Track 과 동일 규약), ai-server 연동 실패는 502 다. SAM2 는 <원본 프레임 이미지에만> 실행하고 좌표는 동일 해상도라 비식별본과 공유한다. FE 는 SAM_SEGMENT 캔버스 도구(단축키 G)이고 MASK↔RLE↔Polygon 변환(CVAT 포팅)을 사용한다. 본 흐름은 SFR-08-01(라벨링 정확도 향상) = VOS(추적+분할) 해석의 <분할> 축이다 — 구 '자석 올가미' 해석은 2026-06-04 재정정으로 폐기됐다. 추론이 취소로 끝나면 취소 전용 응답으로 종결되며 화면은 이를 오류로 안내하지 않는다 — 취소는 정상 종료다.",
       "invokes_apis": [
         "API-093",
         "API-120"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "worker",
+          "kind": "actor",
+          "name": "라벨링 작업자(WORKER) / 검수자(REVIEWER)"
+        },
+        {
+          "id": "labelCtrl",
+          "kind": "service",
+          "name": "LabelController"
+        },
+        {
+          "id": "sam2SegmentSvc",
+          "kind": "service",
+          "name": "Sam2SegmentService"
+        },
+        {
+          "id": "accessGuard",
+          "kind": "service",
+          "name": "LabelAccessGuard"
+        },
+        {
+          "id": "aiServer",
+          "kind": "system",
+          "name": "ai-server (SAM2 segment)"
+        },
+        {
+          "id": "canvas",
+          "kind": "system",
+          "name": "라벨링 캔버스(FE)"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-377"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:56.168Z",
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -38,12 +202,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 10,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다. 아울러 구 해석에 대해 구현물까지 제거됐다고 적은 대목을 걷어내고 폐기 사실만 남겼다. 설계 결정은 그 해석을 두지 않는다는 것이지 구현물의 존폐가 아니다.",
+    "change_summary": "참가자 이름을 클래스 하나로 좁힌다. 이름 뒤에 붙은 괄호 주석과 화살표 때문에 설계 클래스 목록에서 그 클래스가 개별로 잡히지 않았고, 일괄로 풀면 주석에서 딸려 나온 낱말(스케줄러 이름·트랜잭션 전파 속성·SQL 낱말)이 설계 클래스로 올라간다. 클래스명만 남기고 주석은 뗀다. 우리가 만들지 않은 도구와 별도 프로세스는 종류를 시스템으로 바로잡는다. 메시지와 조각은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:14:52.031Z",
+    "last_updated_at": "2026-09-03T22:42:05.712Z",
     "created_at": "2026-06-02T13:12:02.643Z"
   }
 }

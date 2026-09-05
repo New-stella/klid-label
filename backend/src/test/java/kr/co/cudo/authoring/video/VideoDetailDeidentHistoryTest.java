@@ -15,6 +15,7 @@ import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.video.service.VideoQueryService;
+import kr.co.cudo.authoring.video.service.VideoResolutionResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -52,9 +53,13 @@ class VideoDetailDeidentHistoryTest {
     @Mock private LsTaskAssignmentRepository taskAssignmentRepository;
     @Mock private UserRepository userRepository;
     @Mock private LsDeidentProcLogRepository deidentProcLogRepository;
+    // 프레임 이슈 점 조달 — 이 시험들의 축은 아니지만 상세 조립이 영상당 1회 부른다(미스텁 시 빈 목록).
+    @Mock private kr.co.cudo.authoring.review.repository.IssueRepository issueRepository;
     @Mock private kr.co.cudo.authoring.batch.status.BatchStatusService batchStatusService;
     @Mock private kr.co.cudo.authoring.eventtype.service.EventTypeService eventTypeService;
     @Mock private VideoFpsResolver fpsResolver;
+    // 해상도 표시값 조달(video.resolution) — 미상이면 null 이라 폴백 스텁이 필요 없다.
+    @Mock private VideoResolutionResolver resolutionResolver;
     /** P2b — 영상 상세가 승인 이력을 함께 내린다(화면이 신고·폐기 버튼을 미리 비활성화하는 근거). */
     @Mock private kr.co.cudo.authoring.assignment.service.ReviewApprovalGate approvalGate;
     @Mock private kr.co.cudo.authoring.batch.status.BatchBundleFailureGate bundleFailureGate;

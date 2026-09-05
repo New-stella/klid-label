@@ -60,6 +60,7 @@ import { EventAnnotationPanel } from '@/features/label/components/EventAnnotatio
 import { EnvironmentMetaPanel } from '@/features/label/components/EnvironmentMetaPanel';
 import { FramePrivacyMetaPanel } from '@/features/label/components/FramePrivacyMetaPanel';
 import { VideoPrivacyMetaPanel } from '@/features/label/components/VideoPrivacyMetaPanel';
+import { ImportedMetaPanel } from '@/features/label/components/ImportedMetaPanel';
 import { IssueThreadPanel } from '@/features/review/components/IssueThreadPanel';
 import { useIssueThreads } from '@/features/review/hooks/useIssueThreads';
 import { FrameFilmstrip } from '@/features/label/components/FrameFilmstrip';
@@ -111,6 +112,7 @@ import {
 import { ApiError } from '@/lib/api/errors';
 import { extractBeMessage } from '@/lib/api/extractBeMessage';
 import { Role } from '@/lib/api/types';
+import { roleSatisfies } from '@/lib/authz';
 import { LABEL_KEYS } from '@/lib/queryKeys';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
@@ -162,7 +164,7 @@ export function LabelingPage() {
   const portalMode = useAuthStore((s) => s.claims?.channel === 'PORTAL');
   const role = useAuthStore((s) => s.claims?.role);
   const isWorker = role === Role.WORKER;
-  const isReviewer = role === Role.REVIEWER;
+  const isReviewer = roleSatisfies(role, Role.REVIEWER);
   // INTERNAL 채널 + WORKER/REVIEWER 만 비식별 누락 신고 가능 (포털 회원은 미노출)
   const canReportDeident = !portalMode && (isWorker || isReviewer);
   const pushToast = useUiStore((s) => s.pushToast);
@@ -369,6 +371,15 @@ export function LabelingPage() {
     [resetView],
   );
 
+  // @design SCREEN-029 — 포털 라벨링 화면(포털 채널이 이 컴포넌트를 재사용한다).
+  // 프레임 이동 경로 — 이 화면은 내부(`/label/:id`)와 포털(`/portal/label/:id`) 두 라우트가
+  // **같은 컴포넌트를 재사용**하므로 이동 경로도 채널을 따라가야 한다. 내부 경로로 고정하면
+  // 포털 사용자는 프레임을 넘기는 순간 INTERNAL 채널 가드에 걸려 접근 거부 화면으로 튕기고,
+  // 결과적으로 포털 라벨링이 첫 프레임 한 장으로 제한된다(실제 결함).
+  // 조립은 이 한 곳에만 둔다 — 이동 지점이 늘어날 때 같은 하드코딩이 복제되지 않게 한다.
+  const frameRoute = (srcSn: number) =>
+    portalMode ? `/portal/label/${srcSn}` : `/label/${srcSn}`;
+
   // 다른 프레임으로 실제 이동 — URL 전환 (useLabels 가 재조회).
   // replace=true: history stack 에 push 하지 않음 — X(닫기) 버튼이 뒤로가기 시
   // 이전 프레임이 아닌 진입 이전 경로(작업 목록)로 빠져나가도록 한다.
@@ -378,7 +389,7 @@ export function LabelingPage() {
     const target = frames[idx];
     if (!target || !data) return;
     if (target.srcSn !== data.srcSn) {
-      navigate(`/label/${target.srcSn}`, { replace: true });
+      navigate(frameRoute(target.srcSn), { replace: true });
     }
   };
 
@@ -628,7 +639,11 @@ export function LabelingPage() {
   //   포털은 ADR-013 상 이슈 소통 자체가 미제공이라 탭도 두지 않는다(별개 축).
   const showIssues = !portalMode;
   const issuesReady = showIssues && issueRawSn !== undefined;
-  // 메타 탭(프레임 설명 + 시계열 메타)은 내부 채널만 노출 — 포털은 VLM/메타 미제공(ADR-013).
+  // 메타 탭(프레임 설명 + 시계열 메타). ★포털에 닫혀 있는 것은 아직 만들지 않았기 때문이지
+  //   ADR-013 이 막아서가 아니다 — ADR-013 v10 은 데이터마트 로드분의 메타·이벤트 어노테이션을
+  //   포털에서 표시·수정·추가하는 것을 제공으로 확정했다. 미제공인 것은 외부 시계열 분석 서버로
+  //   나가는 위탁 연동(호출·콜백) 축이다. 포털 메타·어노테이션 API 가 아직 0건이라 이 플래그만
+  //   켜면 전량 403 이 된다 — 화면을 여는 것은 후속 작업이다.
   const showMeta = !portalMode;
   const hasTabs = showMeta || showIssues;
   const { data: issueThreads } = useIssueThreads(issuesReady ? issueRawSn : undefined);
@@ -1234,7 +1249,7 @@ export function LabelingPage() {
   const handleRenameTrack = async (fromTrackId: string, toTrackId: string) => {
     // 목록 패널의 버튼은 차단 중 감춰지지만, 콜백 자체도 막아 둔다(진입점이 늘어나도 새지 않게).
     if (isEditBlockedNow(currentFrame?.srcSn)) return;
-    // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
+    // Phase 10(축소) — 포털은 트랙 번호 변경·병합을 제공하지 않는다.
     // 내부 전용 mergeTracks(/v1/videos/{rawSn}/tracks/merge)는 PORTAL 채널 403 이므로 조기 return.
     // 버튼 숨김(ObjectClassTree portalMode)과 함께 이중 안전 가드.
     if (portalMode) return;
@@ -1981,10 +1996,16 @@ export function LabelingPage() {
               <FrameDescriptionPanel srcSn={data?.srcSn} />
               {/* 개인정보(익명·가명·개인정보 포함여부) — 프레임(srcSn) 단위. export image 블록 원천. */}
               <FramePrivacyMetaPanel srcSn={data?.srcSn} />
-              {/* VLM/시계열 메타는 외부 시스템 책임(ADR-013) — 내부 채널만 렌더. */}
+              {/* 시계열 메타 — 외부 시스템 책임인 것은 외부 분석 서버로 나가는 위탁 연동(호출·
+                  콜백)이지 그 결과물의 표시·편집이 아니다(ADR-013 v10). 포털 렌더가 없는 것은
+                  아직 만들지 않았기 때문이며 ADR 이 막은 것이 아니다. */}
               <TimeseriesSidePanel srcSn={data?.srcSn} />
               {/* event_annotation(외부 VQA/CoT) 수동입력·검토 — 영상(rawSn) 단위, 내부 채널만. */}
               <EventAnnotationPanel rawSn={data?.videoId} currentSrcSn={data?.srcSn} />
+              {/* 참고 정보 — 이관 원문(읽기 전용). ★위 여섯 패널 <b>뒤</b>가 사양 고정 자리이며
+                  여섯의 나열 순서는 바꾸지 않는다. 이관으로 들어온 영상에서만 스스로 렌더한다
+                  (그 밖의 영상에서는 목록이 비어 있는 것이 정상이라 패널째 감춘다). */}
+              <ImportedMetaPanel srcSn={data?.srcSn} />
             </div>
           ) : (
             /* ★'객체' 탭의 세로 구성은 사양 고정이다 — 객체 목록 → (AI 자동 추적) → 속성 →

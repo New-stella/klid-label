@@ -99,7 +99,7 @@ export function HealthStatusList() {
                           </p>
                           {typeof (comp.details as Record<string, unknown> | undefined)?.url ===
                             'string' && (
-                            <p className="text-caption text-gray-400 truncate max-w-[200px]">
+                            <p className="text-caption text-gray-600 truncate max-w-[200px]">
                               {(comp.details as Record<string, string>).url}
                             </p>
                           )}
@@ -154,7 +154,7 @@ export function HealthStatusList() {
               )}
             </div>
 
-            <p className="mt-4 text-caption text-gray-400 flex items-start gap-1.5">
+            <p className="mt-4 text-caption text-gray-600 flex items-start gap-1.5">
               <Eye size={12} className="mt-0.5 shrink-0" />이 항목은 actuator/health에서 실시간
               조회되며 편집할 수 없습니다.
             </p>

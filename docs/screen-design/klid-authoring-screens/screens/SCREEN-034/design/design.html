@@ -2,6 +2,12 @@
 <html lang="ko">
 <head><meta charset="utf-8"><link rel="stylesheet" href="design.css"></head>
 <body>
+<!--
+  ★★ 디자인 시스템 = DS-002 외부 채널 디자인 시스템 (2026-09-02 전환)
+    이 화면은 포털 채널에만 서므로 관제 축(DS-001)이 아니라 그 채널의 시스템으로 그린다.
+    주색 코발트 · 중립 slate · 본문 15 · 굵기 상한 600 · 명령은 캡슐 · 그림자 기본 없음.
+    ⚠ 두 축은 토큰 이름이 같고 값이 다르다 — 이름으로 같은 색이라고 판단하면 틀린다.
+-->
 <main class="screen-root">
 
   <!-- ① 헤더 (role=header) — 파일명 · 프레임 카운트 · 내보내기/다운로드 -->
@@ -136,33 +142,16 @@
     <p class="frame-note t-caption">영상에서 뽑은 24장의 프레임입니다. 프레임마다 라벨을 따로 저장합니다.</p>
   </nav>
 
-  <!-- 참고: 자산 종류·다운로드 진행에 따른 헤더/프레임 이동 변형 -->
+  <!-- 참고: 다운로드 진행·프레임 위치에 따른 헤더/프레임 이동 변형 -->
   <div class="reference-panel">
     <div class="reference-flag">
       <span class="badge badge-neutral"><span class="dot" aria-hidden="true"></span>참고</span>
-      <span class="flag-text t-body-sm">위 헤더와 프레임 이동 줄이 자산 종류·조작 상황에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 그 자리에 표시됩니다.</span>
+      <span class="flag-text t-body-sm">위 헤더와 프레임 이동 줄이 조작 상황과 프레임 위치에 따라 달라지는 모습입니다 — 실제 화면에서는 이 중 하나가 그 자리에 표시됩니다.</span>
     </div>
     <div class="reference-grid">
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">① 이미지 자산 — 프레임 카운트가 '이미지 1장' 이고 프레임 이동 줄이 아예 없다</p>
-        <div class="ref-box">
-          <div class="ref-head-strip">
-            <div class="head-titles">
-              <p class="head-file">고양이_마당.jpg</p>
-              <p class="head-count t-body-sm">이미지 1장</p>
-            </div>
-            <div class="head-actions">
-              <button type="button" class="btn btn-outline btn-sm">내보내기(JSON)</button>
-              <button type="button" class="btn btn-outline btn-sm">원본 다운로드</button>
-            </div>
-          </div>
-          <p class="t-caption text-muted" style="margin-top:16px">프레임이 하나뿐이라 이동할 곳이 없습니다. 이동 버튼을 비활성으로 남겨 두지 않고 줄 자체를 두지 않습니다.</p>
-        </div>
-      </div>
-
-      <div class="ref-variant">
-        <p class="t-label ref-variant-title">② 다운로드 중 — 두 버튼이 함께 잠긴다</p>
+        <p class="t-label ref-variant-title">① 원본을 내려받는 중 — 두 버튼이 잠기고 취소가 나타난다</p>
         <div class="ref-box">
           <div class="ref-head-strip">
             <div class="head-titles">
@@ -175,14 +164,18 @@
                 <span class="spinner" style="border-color:var(--n-3);border-top-color:var(--n-6)" aria-hidden="true"></span>
                 내려받는 중
               </button>
+              <button type="button" class="btn btn-secondary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                원본 다운로드 취소
+              </button>
             </div>
           </div>
-          <p class="t-caption text-muted" style="margin-top:16px">한쪽을 누르면 다른 쪽도 함께 잠깁니다. 큰 파일을 두 번 동시에 받으면 어느 쪽이 진행 중인지 알 수 없기 때문입니다.</p>
+          <p class="t-caption text-muted" style="margin-top:16px">한쪽을 누르면 다른 쪽도 함께 잠깁니다. 큰 파일을 두 번 동시에 받으면 어느 쪽이 진행 중인지 알 수 없기 때문입니다. 취소는 원본을 받는 동안에만 나타나며 함께 잠기지 않습니다 — 눌러야 동작하는 버튼이기 때문입니다. 내보내기(JSON)에는 취소를 두지 않습니다. 작아서 이 버튼이 뜨기 전에 끝납니다.</p>
         </div>
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">③ 첫 프레임 — 이전 버튼이 비활성</p>
+        <p class="t-label ref-variant-title">② 첫 프레임 — 이전 버튼이 비활성</p>
         <div class="ref-box">
           <div class="frame-nav" style="padding:0">
             <button type="button" class="icon-btn" aria-label="이전 프레임" disabled>
@@ -197,7 +190,7 @@
       </div>
 
       <div class="ref-variant">
-        <p class="t-label ref-variant-title">④ 마지막 프레임 — 다음 버튼이 비활성</p>
+        <p class="t-label ref-variant-title">③ 마지막 프레임 — 다음 버튼이 비활성</p>
         <div class="ref-box">
           <div class="frame-nav" style="padding:0">
             <button type="button" class="icon-btn" aria-label="이전 프레임">
@@ -308,7 +301,7 @@
           <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>자동 탐지</li>
           <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>자동 분할</li>
           <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>객체 추적</li>
-          <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>키포인트</li>
+          <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>스켈레톤</li>
           <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>검수 제출</li>
           <li class="absent-item"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg>버전 비교·되돌리기</li>
         </ul>

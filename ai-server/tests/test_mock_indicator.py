@@ -110,7 +110,8 @@ def test_sam2_segment_가중치_없음시_mock_reason은_weights_missing(
     reload_settings()
 
     # 모델 로더가 항상 None 반환하도록 패치 (가중치 부재 시뮬레이션)
-    monkeypatch.setattr(sam2_router, "get_sam2_model", lambda: None)
+    # 슬롯 도입(ADR-056)으로 로더가 슬롯 인자를 받는다 — 인자를 흘려 받아 항상 None.
+    monkeypatch.setattr(sam2_router, "get_sam2_model", lambda *_a, **_kw: None)
     sam2_router.reset_mock_warn_flag()
 
     res = client.post(
@@ -133,7 +134,8 @@ def test_sam2_track_가중치_없음시_mock_reason은_weights_missing(
 
     monkeypatch.setenv("AI_MOCK_MODE", "false")
     reload_settings()
-    monkeypatch.setattr(sam2_router, "get_sam2_model", lambda: None)
+    # 슬롯 도입(ADR-056)으로 로더가 슬롯 인자를 받는다 — 인자를 흘려 받아 항상 None.
+    monkeypatch.setattr(sam2_router, "get_sam2_model", lambda *_a, **_kw: None)
     sam2_router.reset_mock_warn_flag()
 
     res = client.post(

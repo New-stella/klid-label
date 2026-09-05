@@ -189,7 +189,9 @@ describe('ReviewPage Phase 2 — 3분할 레이아웃', () => {
     const rejectBtn = await screen.findByTestId('review-action-reject');
     await user.click(rejectBtn);
 
-    const reasonTextarea = await screen.findByLabelText(/반려 사유/);
+    // ⚠ 정확일치로 찾는다 — 부분일치(/반려 사유/)는 검수 메모 패널의 제목
+    //   「반려 사유에 첨부할 지적」까지 집어 «여러 요소» 오류가 난다.
+    const reasonTextarea = await screen.findByLabelText('반려 사유');
     const submitBtn = screen.getByRole('button', { name: '반려 확정' });
 
     // 사유 미입력이면 제출 불가.

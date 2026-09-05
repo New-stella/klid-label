@@ -11,11 +11,85 @@
 |---|---|---|---|---|
 | `postgresql-16` | 데이터베이스(번들 PG16) | 5432 | `systemctl is-active postgresql-16` | `journalctl -u postgresql-16` |
 | `klid-ai-server` | 내부 추론 서버(YOLO/SAM2) | 9300 | `curl http://127.0.0.1:9300/health` | `journalctl -u klid-ai-server` |
-| `klid-backend` | 애플리케이션(WAS)·배치 스케줄러 | 8080(`/api`) | `curl http://127.0.0.1:8080/api/actuator/health/liveness` | `journalctl -u klid-backend` |
+| **`<WAS 유닛명>`** | **애플리케이션(backend)·배치 스케줄러 — 외부 WAS 가 `api.war` 를 기동** | 8080(`/api`) | `curl http://127.0.0.1:8080/api/actuator/health/liveness` | **WAS 로그**(`journalctl -u <WAS 유닛명>` + `<WAS_LOG_DIR>/server.log`) |
 | `httpd` | 웹서버(Apache httpd·정적 서빙 + `/api` 프록시) | 80 | `curl -o /dev/null -w '%{http_code}' http://127.0.0.1/` | `journalctl -u httpd` |
 
-- 기동 의존 순서: **PostgreSQL → ai-server → backend → frontend** (유닛에 의존성 반영).
-- 설치 경로: `/opt/klid/{app,ai,web,runtime}` · 환경설정 `/etc/klid/*.env` · 데이터 `/var/lib/klid` · 로그 `/var/log/klid`.
+- 기동 의존 순서: **PostgreSQL → ai-server → backend(WAS) → frontend(httpd)**.
+  ⚠ 앞의 셋과 달리 **backend 의 기동 순서는 우리 유닛이 갖고 있지 않다** — WAS 소관이다(0절).
+- 설치 경로: `/opt/klid/{app,ai,web,runtime}` · 환경설정 `/etc/klid/` · 데이터 `/var/lib/klid` · 로그 `/var/log/klid`.
+
+---
+
+## 0. 이 문서를 읽기 전에 — 백엔드만 조작 방식이 다르다
+
+확정 배포 형상은 **외부 WAS(JBoss EAP 8.1, standalone) 에 `api.war` 반입**이다(@design DEPLOY-001 · RUNBOOK-001).
+⚠ 구 서술 폐기(2026-09-04): *"Tomcat 10.1"* — 현장 실측으로 정정. 톰캣 전용 개념(`CATALINA_*`·
+`server.log`·`localhost.*.log`·`webapps/`·`conf/server.xml`)은 EAP 에 **없다**.
+**백엔드에는 `klid-backend.service` 가 없다.** 나머지(PostgreSQL·ai-server·httpd)는 종전대로 systemd 다.
+
+| 구성요소 | 기동 주체 | 재기동 | 로그 |
+|---|---|---|---|
+| PostgreSQL | systemd | `sudo systemctl restart postgresql-16` | `journalctl -u postgresql-16` |
+| **ai-server** | **systemd**(그대로) | `sudo systemctl restart klid-ai-server` | `journalctl -u klid-ai-server` |
+| **httpd** | **systemd**(그대로) | `sudo systemctl restart httpd` | `journalctl -u httpd` |
+| **backend** | **외부 WAS** | `sudo systemctl restart <WAS 유닛명>` | WAS 로그(아래 0-2) |
+
+> ⚠ **셋이 같은 방식이라고 읽지 말 것.** 이 문서의 명령 중 `klid-ai-server`·`httpd`·`postgresql-16`
+> 은 그대로 유효하고, **백엔드에 대한 것만** 아래 규칙으로 치환된다.
+
+### 0-1. 현장값을 먼저 적어 둔다 (`/etc/klid/was.env`)
+
+이 문서의 `<WAS 유닛명>`·`<WAS_HOME>`·`<WAS_BASE>`·`<WAS_LOG_DIR>` 은 **자리표시자**다. WAS 는 고객이
+이미 운영 중인 것이라 우리가 값을 모른다. **설치 시점에 그 값을 한 곳에 적어 두지 않으면, 장애 대응
+때마다 사람이 WAS 를 뒤져 찾아야 한다.**
+
+```bash
+# 설치 담당이 1회 작성한다. 이후 이 문서의 명령은 이 값을 읽어 쓴다.
+sudo tee /etc/klid/was.env >/dev/null <<'EOF'
+WAS_UNIT=<WAS 유닛명>          # systemctl 로 다루는 WAS 서비스 유닛명
+WAS_HOME=<JBOSS_HOME>          # EAP 설치 루트 (실측 예: /GCLOUD/JBOSS/jboss-eap-8.1)
+WAS_BASE=<JBOSS_HOME>/standalone   # 서버 베이스 — deployments/·configuration/·log/ 가 있는 곳
+WAS_LOG_DIR=<JBOSS_HOME>/standalone/log   # server.log 가 있는 곳
+WAS_DEPLOY_DIR=<JBOSS_HOME>/standalone/deployments   # api.war 를 놓는 곳
+WAS_USER=jboss                 # WAS 실행 계정 (2026-09-04 현장 확정)
+WEB_USER=apache                # httpd 실행 계정 (2026-09-04 현장 확정)
+EOF
+sudo chmod 0644 /etc/klid/was.env      # 비밀값 아님 — 경로·유닛명만 적는다. 시크릿을 넣지 말 것
+```
+
+```bash
+# 사용 예 — 이 문서의 backend 조작은 전부 이 형태로 쓸 수 있다
+source /etc/klid/was.env
+sudo systemctl restart "$WAS_UNIT"
+```
+
+> ⚠ **이 파일은 설치 스크립트가 만들지 않는다** — WAS 가 설치 대상이 아니라 전제이기 때문이다.
+> **운영 관례이지 프로그램이 읽는 설정이 아니다**(애플리케이션·`install.sh` 어느 쪽도 참조하지 않는다).
+> 작성돼 있지 않으면 이 문서의 자리표시자를 눈으로 치환해 쓴다.
+> 설치 기록(작업 대장·인수인계 문서)에도 같은 4개 값을 남긴다 — 서버가 재구축되면 이 파일은 사라진다.
+
+### 0-2. 백엔드 로그는 두 군데다
+
+| 무엇 | 어디 |
+|---|---|
+| WAS 자신의 기동·배포 오류 · 애플리케이션 기동 실패 | `<WAS_LOG_DIR>/server.log` (EAP 는 한 파일에 함께 남는다) |
+| 배포 실패 사유 요약 | `<WAS_DEPLOY_DIR>/api.war.failed` — **먼저 볼 것.** 실패 원인이 한 줄로 요약돼 있다 |
+| WAS 유닛이 표준출력을 journald 로 넘기는 구성이면 그쪽에도 | `journalctl -u <WAS 유닛명>` |
+| 애플리케이션 파일 로그(파일 로깅 활성 시) | `/var/log/klid` |
+
+**EAP 는 톰캣과 달리 로그가 한 파일(`server.log`)에 모인다** — 톰캣의 `server.log`/`localhost.*.log`
+분리는 없다. 대신 **배포 실패는 `deployments/api.war.failed` 에 사유가 요약**되므로 그것을 먼저 본다.
+⚠ 구 서술 폐기(2026-09-04): *"기동 실패는 `catalina.*` 가 아니라 `localhost.*` 에 남는다"*.
+
+### 0-3. 베어메탈 토글(`java -jar` + systemd)로 운영하는 경우
+
+`install.sh` 를 `INSTALL_BACKEND_SYSTEMD_UNIT=1` 로 돌린 형상에서는 백엔드가 `klid-backend.service` 로
+뜬다. **그 형상에서는 이 문서의 옛 명령(`systemctl restart klid-backend` · `journalctl -u klid-backend`)이
+그대로 유효**하므로, 아래 각 절에 「베어메탈 토글일 때」로 병기해 보존했다.
+
+> ⚠ 그 형상은 **자바가 따로 필요하다** — 패키지는 2026-08-30 부터 JRE 를 반입하지 않아
+> 유닛의 `ExecStart` 가 가리키는 `/opt/klid/runtime/jre` 가 **없는 경로**다. 되살리는 방법은
+> `config/systemd/klid-backend.service` 헤더 주석 참조.
 
 ---
 
@@ -24,8 +98,12 @@
 ### 1-1. 서비스 상태 한눈에
 
 ```bash
-systemctl status postgresql-16 klid-ai-server klid-backend httpd --no-pager
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+systemctl status postgresql-16 klid-ai-server httpd "$WAS_UNIT" --no-pager
 # 각 유닛이 active (running) 인지 확인. 실패 시 Active: failed / activating 로 표시된다.
+# ★ backend 는 WAS 프로세스 안에 있다 — WAS 유닛이 active 여도 애플리케이션 배포는 실패해 있을 수
+#   있으므로, 1-2 의 liveness 까지 통과해야 backend 가 살아 있다고 판정한다.
+#   (베어메탈 토글일 때는 "$WAS_UNIT" 대신 klid-backend 를 넣는다.)
 ```
 
 ### 1-2. 헬스체크(스모크)
@@ -58,8 +136,14 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 > 스키마를 명시하지 않은 조회는 `relation ... does not exist` 로 실패한다. 이 문서의 모든 조회는
 > `klid_at.` 로 한정하거나, 세션에서 `set search_path to klid_at;` 를 먼저 실행한다.
 > `SPRING_FLYWAY_ENABLED=false`(온프렘 기본) 구성에서는 `flyway_schema_history` 자체가 없다 —
-> 스키마는 설치 시 `db/schema.sql` 로드로 준비되며 앱은 `ddl-auto=validate` 로 검증만 한다.
+> 스키마는 설치 시 `db/schema.sql` 로드로 준비되며 앱은 마이그레이션을 돌리지 않는다.
+> ⚠ `ddl-auto=validate` 는 선언만 돼 있고 **실동작하지 않는다**(§2-5-2 「왜 조용히 실패하나」) —
+> **기동 성공은 스키마 정합의 근거가 아니다.**
 
+> **⚠ 아래는 온프렘 형상의 절차가 아니다** — 온프렘은 Flyway 를 쓰지 않는다(위 문단). Flyway 를 켠
+> 환경(개발·검증 DB)을 다룰 때만 해당하며, 온프렘 운영 중에 이 상태가 나타나면 그 자체가
+> **설정 사고**(끄는 한 줄이 지워졌다는 신호)다.
+>
 > **Flyway 부트스트랩 모드(`SPRING_FLYWAY_ENABLED=true`) 첫 기동 주의** — 앱은 `baseline-on-migrate=true` +
 > **`baseline-version=0`** 으로 동작한다. 관제/인프라가 `MNG_*`·`QRTZ_*` 를 앱보다 먼저 provisioning 한
 > **비어있지 않은(non-empty)·flyway 이력 없는** DB 에 첫 기동해도 `V1` 부터 전부 적용되도록 보장하기 위함이다.
@@ -67,9 +151,13 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 >
 > **★ 2026-08-13 스쿼시 이후 이 값의 의미가 더 커졌다** — 마이그레이션 180개(V0~V185)가 단일
 > **`V1__baseline.sql`(스키마 전량 + 시드 14행)** 로 접혔다. 따라서 baseline-version 을 기본값 1 로 두면
-> 위 상황에서 **스키마가 통째로 생성되지 않은 채** `V2` 만 적용돼, 직후 `ddl-auto=validate` 가 전면 실패한다.
+> 위 상황에서 **스키마가 통째로 생성되지 않은 채** `V2` 만 적용돼, 테이블이 하나도 없는 DB 로 뜬다.
 > - 증상: 첫 기동 로그에 `Migrating schema ... to version "2"` 만 있고 `V1` SQL row 부재 +
->   `flyway_schema_history` 에 `<< Flyway Baseline >>` row(version=1). 이어서 validate 가 "table not found" 로 실패.
+>   `flyway_schema_history` 에 `<< Flyway Baseline >>` row(version=1).
+>   ⚠ **기동은 성공한다** — `ddl-auto=validate` 가 실동작하지 않아(§2-5-2) 부팅이 막히지 않고,
+>   화면·배치가 DB 를 처음 건드릴 때 `relation ... does not exist` 로 드러난다.
+>   구 서술 폐기(2026-08-30): *"직후 `ddl-auto=validate` 가 전면 실패 / validate 가 「table not
+>   found」 로 실패"*.
 > - 이미 잘못된 baseline 이력으로 멈춘 DB 는 설정만으론 복구되지 않는다 → 해당 DB 의
 >   `flyway_schema_history` 를 비우고 재기동(무이력 재적용)하거나 DBA 가 수동 정정한다.
 > - **스쿼시 이전에 만들어진 기존 DB** 는 재기동 전에 §2-5-2 이력 이관을 먼저 수행한다.
@@ -98,7 +186,9 @@ PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
   -c "select instance_name, checkin_interval, to_timestamp(last_checkin_time/1000) as last_checkin from qrtz_scheduler_state;"
 
-# 클러스터 락 행(V76 시드) — TRIGGER_ACCESS / STATE_ACCESS 2행
+# 클러스터 락 행 — TRIGGER_ACCESS / STATE_ACCESS 2행
+#   ★ 시드 위치는 db/schema.sql(및 V1__baseline.sql)이다. 구 주석의 "V76 시드" 는 폐기 —
+#     2026-08-13 스쿼시로 그 번호의 파일 자체가 없다(아카이브에만 있다).
 PGPASSWORD='<앱_비밀번호>' psql -h 127.0.0.1 -U klid_user -d klid_system \
   -c "select sched_name, lock_name from qrtz_locks;"
 
@@ -115,11 +205,26 @@ chronyc tracking       # System time offset 이 1초 이내인지
 ### 1-5. 자원 상태 (CPU/메모리/GPU/디스크)
 
 ```bash
-systemctl status klid-backend --no-pager | grep -E 'Memory|Tasks'   # 프로세스 메모리
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+systemctl status "$WAS_UNIT" --no-pager | grep -E 'Memory|Tasks'    # backend = WAS 프로세스 메모리
+#   ⚠ 이 수치는 WAS 전체다. 같은 WAS 에 다른 애플리케이션이 함께 올라가 있으면 그 몫이 섞인다.
+#   (베어메탈 토글일 때: systemctl status klid-backend --no-pager | grep -E 'Memory|Tasks')
 df -h /opt/klid /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"     # 디스크 여유(앱·DB·로그·저장소)
-# 저장소 경로는 backend.env 의 STORAGE_RAW_PATH 설정값(기본 /nas-storage), DB 데이터는 /var/lib/pgsql/16/data
+# 저장소 경로는 설정값 STORAGE_RAW_PATH(기본 /nas-storage), DB 데이터는 /var/lib/pgsql/16/data
+#   설정 파일은 WAR 형상이 /etc/klid/application.properties, 베어메탈 토글이 /etc/klid/backend.env
 nvidia-smi                                                          # GPU 사용률(추론 서버, 해당 시)
 ```
+
+> ⚠ **저장소 루트는 실경로여야 한다 — 점검 항목.**
+> ```bash
+> for v in STORAGE_RAW_PATH STORAGE_DEIDENTIFIED_PATH; do
+>   printf '%s: 설정=%s 실경로=%s\n' "$v" "${!v}" "$(readlink -f "${!v}")"
+> done   # 두 값이 다르면 설정 파일(application.properties · 베어메탈 토글은 backend.env)을 실경로로 고친다
+> ```
+> 설정값이 심링크면 **외부 산출물 이관의 위치 탐색이 고장 난다** — 「상위로」가 항상 비활성되고,
+> 탐색이 돌려준 폴더를 그대로 입력칸에 넣어도 `허용된 저장소 범위 밖의 경로입니다`(400)로 거부된다.
+> 경로 판정기는 표기 기준으로 먼저 검사하는데 탐색 응답은 실경로를 싣기 때문이며, 판정기를 고치지
+> 않고 운영 규약으로 고정한 항목이다. 상세·대상 4종은 `04-configuration.md` §A 참조.
 
 ---
 
@@ -130,17 +235,38 @@ nvidia-smi                                                          # GPU 사용
 **증상**: `systemctl status` 가 `failed`, 헬스체크 무응답.
 
 ```bash
-# 1) 최근 로그로 원인 확인
-journalctl -u klid-backend -n 200 --no-pager
-# 2) 재기동
-sudo systemctl restart klid-backend        # 또는 klid-ai-server / httpd / postgresql-16
+source /etc/klid/was.env 2>/dev/null || { WAS_UNIT='<WAS 유닛명>'; WAS_LOG_DIR='<WAS_LOG_DIR>'; }
+
+# 1) 최근 로그로 원인 확인 — backend 는 WAS 로그다(0-2). 두 군데를 다 본다.
+sudo tail -n 200 "$WAS_LOG_DIR"/server.log                     # WAS 자신의 기동/배포
+sudo tail -n 200 "$WAS_LOG_DIR"/localhost.$(date +%F).log        # ★ 애플리케이션 컨텍스트 초기화 실패는 이쪽
+journalctl -u "$WAS_UNIT" -n 200 --no-pager                      # WAS 유닛이 journald 로 넘기는 구성일 때
+
+# 2) 재기동 — backend 재기동 = WAS 재기동
+sudo systemctl restart "$WAS_UNIT"                 # 또는 klid-ai-server / httpd / postgresql-16
+#    ⚠ 같은 WAS 에 다른 애플리케이션이 있으면 그것도 함께 내려간다. 그 경우 컨텍스트 단위 재배포
+#      (WAS 관리 콘솔 또는 api.war 재배치)로 좁힐 수 있는지 WAS 운영 주체와 확인한다.
+
 # 3) 반복 실패 시 환경설정·의존 서비스 확인
 systemctl is-active postgresql-16 klid-ai-server   # backend 는 이 둘에 의존
-cat /etc/klid/backend.env                          # DB 접속·JWT 시크릿·연동 주소 확인(비밀번호 노출 주의)
+cat /etc/klid/application.properties               # DB 접속·JWT 시크릿·연동 주소 확인(비밀번호 노출 주의)
 ```
 
-> backend 는 `Requires=klid-ai-server` + `After=postgresql`. **의존 서비스가 죽으면 backend 도 뜨지 않는다** —
-> DB → ai-server → backend 순으로 살린다. 첫 기동은 Flyway 스키마 부트스트랩으로 다소 길다(TimeoutStartSec=180).
+> ⚠ **WAR 형상에는 우리가 건 의존성이 없다.** `Requires=klid-ai-server` + `After=postgresql` 는
+> 베어메탈 유닛의 설정이고, 그 유닛은 이 형상에서 설치되지 않는다. **DB·ai-server 가 죽어 있어도
+> WAS 는 그냥 뜨고**, 애플리케이션이 기동 중 실패하거나 런타임에 오류를 낸다. 기동 순서(DB →
+> ai-server → backend)는 **사람이 지키거나 WAS 유닛에 `After=`/`Requires=` 를 거는 WAS 설정 소관**이다.
+>
+> 기동이 오래 걸릴 수 있다(스프링 컨텍스트 로딩 · 커넥션 풀 · 2노드 동시 기동 시 `QRTZ_LOCKS`
+> 락 조율). WAS 의 배포 타임아웃이 짧으면 정상 기동을 실패로 처리하므로, 컨텍스트 기동 타임아웃
+> 여유를 WAS 쪽에서 확인한다.
+> ⚠ 구 근거 폐기(2026-08-30) — *"스키마 검증"*. 마이그레이션도 `ddl-auto=validate` 도 기동
+> 경로에서 돌지 않으므로(§2-5-2 「왜 조용히 실패하나」) 그 둘은 기동 시간의 요인이 아니다.
+>
+> **베어메탈 토글일 때**: 위 3줄은 `journalctl -u klid-backend -n 200 --no-pager` /
+> `sudo systemctl restart klid-backend` / `cat /etc/klid/backend.env` 이고, 유닛이
+> `Requires=klid-ai-server` + `After=postgresql` 를 걸어 두므로 의존 서비스가 죽으면 backend 도 뜨지 않는다
+> (`TimeoutStartSec=600`).
 
 ### 2-2. 배치 적체 / 정체 (파이프라인이 진행되지 않음)
 
@@ -151,7 +277,9 @@ cat /etc/klid/backend.env                          # DB 접속·JWT 시크릿·�
 - **원인 3 — 추론 서버 병목**: `nvidia-smi` GPU 포화 확인 → ai-server 인스턴스 수평 확장 검토(무상태라 증설 가능).
 
 ```bash
-journalctl -u klid-backend --no-pager | grep -iE 'batch|schedul|retry|pipeline' | tail -50
+source /etc/klid/was.env 2>/dev/null || WAS_LOG_DIR='<WAS_LOG_DIR>'
+sudo grep -iE 'batch|schedul|retry|pipeline' "$WAS_LOG_DIR"/server.log | tail -50
+# (베어메탈 토글일 때: journalctl -u klid-backend --no-pager | grep -iE '...' | tail -50)
 ```
 
 ### 2-3. 외부 연동 실패 / 서킷 브레이커 OPEN
@@ -165,7 +293,9 @@ journalctl -u klid-backend --no-pager | grep -iE 'batch|schedul|retry|pipeline' 
 ```bash
 # 연동 대상 도달 확인(설치값 IP/PORT 로 치환)
 curl -fsS http://<대상_IP>:<PORT>/        # 또는 대상 제공 헬스 경로
-journalctl -u klid-backend --no-pager | grep -iE 'circuit|timeout|resilience|controlnotify|vlm|kpst' | tail -50
+source /etc/klid/was.env 2>/dev/null || WAS_LOG_DIR='<WAS_LOG_DIR>'
+sudo grep -iE 'circuit|timeout|resilience|controlnotify|vlm|kpst' "$WAS_LOG_DIR"/server.log | tail -50
+# (베어메탈 토글일 때: journalctl -u klid-backend --no-pager | grep -iE '...' | tail -50)
 ```
 
 - **관제 통지 실패**: 실패분은 재등록 큐(dead-letter)에 fallback 저장 후 스케줄 재시도(멱등·요청 ID)된다. 상대 복구만 확인하면 별도 수동 조치 불필요.
@@ -213,7 +343,11 @@ sudo systemctl restart postgresql-16
 **전제**: backend(2노드 모두) 정지. 작업 중 앱이 붙어 있으면 안 된다.
 
 ```bash
-sudo systemctl stop klid-backend    # 2노드 모두
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl stop "$WAS_UNIT"     # 2노드 모두. backend 정지 = WAS 정지(0절)
+#   ⚠ WAS 를 통째로 내릴 수 없으면 api.war 컨텍스트만 언디플로이/정지시킨다 —
+#     이 절차의 전제는 "앱이 DB 에 붙어 있지 않다" 이지 "WAS 프로세스가 없다" 가 아니다.
+#   (베어메탈 토글일 때: sudo systemctl stop klid-backend)
 
 # ① 덤프 백업 (되돌릴 수 있는 지점 확보 — 생략 금지)
 sudo -u postgres pg_dump -Fc -d klid_system -f /backup/klid_system.pre-klid_at.dump
@@ -254,16 +388,22 @@ ALTER TABLE IF EXISTS public.flyway_schema_history SET SCHEMA klid_at;
 ```
 
 > **실측 확인(PostgreSQL 16)**: 구 형상(마이그레이션 180건을 `public` 에 전량 적용)에 위 SQL 을 실행하면
-> 테이블 77(= 저작도구 76 + `flyway_schema_history`) · 뷰 4 · 시퀀스 49 · 인덱스 212 가 전부 `klid_at`
+> 테이블 78(+ Flyway 를 쓰는 형상이면 `flyway_schema_history` 1) · 뷰 4 가 전부 `klid_at`
 > 으로 이동하고 `public` 은 0 이 된다. 제약도 함께 이동한다(FK 49 · PK 77 · UNIQUE 26 · CHECK 3,
 > `public` 잔존 0). 위 수치는 **스쿼시 이전 형상 기준**이며 이동 자체는 개수를 바꾸지 않는다.
 >
 > ⚠ **이동 직후에는 아직 신규 설치와 같지 않다** — 이동한 DB 에는 사용처 0 테이블 **7종**
 > (`V3` 대상 `LS_DEADLINE`·`LS_META`·`LS_RAW_DATA_ENROLLMENT` + `V4` 대상 `LS_COM_CD`·
 > `LS_DATA_META_HSTRY`·`LS_DATA_RAW_HSTRY`·`LS_TASK_ASSIGN_HISTORY`)이 남아 있고, 신규 설치본
-> (`db/schema.sql` = 저작도구 **69**개)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3`·`V4` 가
-> 이 7종을 DROP 한 뒤** 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히 동일하며 차이는
-> `flyway_schema_history` 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
+> (`db/schema.sql`)에는 애초에 없다. 두 경로는 §2-5-2 의 ③에서 **`V3`·`V4` 가 이 7종을 DROP 하고
+> 그 뒤 마이그레이션까지 전부 적용한 뒤** 수렴한다. 그 시점의 객체 집합은 신규 설치와 완전히
+> 동일하며 차이는 `flyway_schema_history` 하나뿐이다(덤프에서 의도적으로 제외한 테이블).
+>
+> ⚠ **중간까지만 적용하고 멈추면 수렴하지 않는다.** `V3`·`V4` 이후로도 테이블을 만드는
+> 마이그레이션이 계속 들어왔다(`V14`·`V18`·`V20`·`V21` 등). **현재 `db/schema.sql` 의 실측값은
+> 테이블 78개(`LS_*` 67 + `QRTZ_*` 11) · 뷰 4개**(2026-09-04 V31 실측)이며, 구 수치(73·69)는
+> 는 그 시점 값이라 **폐기**한다. 개수를 인용하기 전에 매체에서 다시 세라 —
+> `grep -c '^CREATE TABLE' db/schema.sql`.
 
 > ### ★★ 복사가 아니라 **이동**이다 — `public` 에 사본을 남기지 마라
 >
@@ -306,11 +446,17 @@ sudo -u postgres psql -d klid_system -c \
           (select count(*) from information_schema.tables where table_schema='public')  as public_left;"
 # klid_at 에 테이블이 모이고 public_left 가 0 이어야 한다(사본이 남으면 위 ★★ 결함이 발생).
 
-sudo systemctl start klid-backend
-journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat'
+sudo systemctl start "$WAS_UNIT"
+sudo grep -iE 'flyway|schema|validat' "$WAS_LOG_DIR"/server.log | tail -100
+# (베어메탈 토글일 때: sudo systemctl start klid-backend
+#                     journalctl -u klid-backend -n 100 --no-pager | grep -iE 'flyway|schema|validat')
 ```
 
-> **롤백**: ①에서 뜬 덤프를 빈 DB 에 `pg_restore` 하고 구 버전 jar 로 되돌린다.
+> **롤백**: ①에서 뜬 덤프를 빈 DB 에 `pg_restore` 하고 **이전 버전 `api.war` 로 되돌린다**
+> (WAS 배포 디렉터리의 `api.war` 를 교체하고 WAS 가 풀어 둔 `<WAS_BASE>/webapps/api/` 를 함께 정리한 뒤
+> 컨텍스트 재기동 — 절차는 `07-uninstall-rollback.md`).
+> ⚠ 구 서술 폐기(2026-08-30) — *"구 버전 jar 로 되돌린다"*. 이 형상의 산출물은 jar 가 아니라 WAR 다.
+> (베어메탈 토글일 때만 구 버전 jar 교체 + `systemctl restart klid-backend` 가 맞다.)
 >
 > **⚠ 관제팀 협의 필요** — 데이터마트 뷰 4종(`V_COMPLETED_VIDEO`/`_FRAME`/`_LABEL_CHANGE`/`_META`)이
 > `public` 에서 `klid_at` 으로 옮겨간다. 관제서버가 이 뷰를 직접 SELECT 하므로 **관제 측 조회도
@@ -407,7 +553,9 @@ sudo -u postgres pg_dump -Fc -d klid_system -n klid_at -f /var/backups/klid_at_$
 **② 앱 정지 → 이력 180행을 베이스라인 1행으로 교체**
 
 ```bash
-sudo systemctl stop klid-backend        # 2노드면 양쪽 모두
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl stop "$WAS_UNIT"         # 2노드면 양쪽 모두. backend 정지 = WAS 정지(0절)
+# (베어메탈 토글일 때: sudo systemctl stop klid-backend)
 ```
 
 ```sql
@@ -445,14 +593,25 @@ COMMIT;
 **③ 현재 배포본으로 기동 → 베이스라인 이후 버전만 적용되는지 확인**
 
 ```bash
-sudo systemctl start klid-backend
-journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseline'
+source /etc/klid/was.env 2>/dev/null || { WAS_UNIT='<WAS 유닛명>'; WAS_LOG_DIR='<WAS_LOG_DIR>'; }
+sudo systemctl start "$WAS_UNIT"
+sudo grep -iE 'flyway|migrating|baseline' "$WAS_LOG_DIR"/server.log | tail -200
+# (베어메탈 토글일 때: sudo systemctl start klid-backend
+#                     journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseline')
 # 기대: Current version of schema "klid_at": 1
 #       → Migrating schema "klid_at" to version "2 - rename cm code to ls com cd"
 #       → Migrating schema "klid_at" to version "3 - drop unused tables"
 #       → Migrating schema "klid_at" to version "4 - drop unused tables round2"
 #       → Migrating schema "klid_at" to version "5 - rename queue outbox columns to std"
+#       → … (베이스라인 이후 전 버전이 번호순으로 이어진다)
+#       → Migrating schema "klid_at" to version "21 - add ls mngr pswd"
 # V1 은 베이스라인 이하라 건너뛴다(로그에 Migrating 이 뜨지 않는 것이 정상).
+#
+# ★ 마지막 번호를 문서에서 읽지 말고 <매체에서 세라> — 마이그레이션은 계속 늘어난다.
+#   2026-08-30 실측: 파일 21개(V1 베이스라인 + 베이스라인 이후 V2~V21 = 20개).
+#     ls backend/src/main/resources/db/migration/ | wc -l
+#   구 주석 폐기(2026-08-30): 기대 목록이 "2·3·4·5" 에서 끝나는 것으로 읽혔다 —
+#   그 뒤 버전이 함께 뜨는 것을 <이상>으로 오인하게 된다.
 #
 # V3·V4 는 무엇을 지웠는지 NOTICE 로 알린다(기존 DB 에서만 뜬다. 신규 설치는 애초에 만들지
 # 않으므로 no-op 이라 한 줄도 뜨지 않는 것이 정상):
@@ -470,7 +629,9 @@ journalctl -u klid-backend -n 200 --no-pager | grep -iE 'flyway|migrating|baseli
 ```
 
 ```sql
--- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다(현재: 2, 3, 4, 5).
+-- 이력은 BASELINE 1행 + 베이스라인 이후 SQL 행들만 남아야 한다
+-- (2026-08-30 기준 V2~V21 = 20행. ★ 이 개수는 늘어난다 — 매체의 db/migration 파일 수와 맞춰 본다).
+-- 구 주석 폐기(2026-08-30): "(현재: 2, 3, 4, 5)".
 SELECT installed_rank, version, description, type, success
   FROM klid_at.flyway_schema_history ORDER BY installed_rank;
 
@@ -578,7 +739,17 @@ df -h /opt/klid /var/lib/pgsql /var/log/klid "$STORAGE_RAW_PATH"   # 앱·DB·�
 du -sh "$STORAGE_RAW_PATH"/* 2>/dev/null | sort -h | tail          # 저장소 상위 용량
 journalctl --disk-usage                                           # journald 사용량
 sudo journalctl --vacuum-time=14d                                 # 오래된 로그 정리(정책에 맞게)
+
+# ★ backend 로그는 journald 가 아니라 WAS 의 파일이다 — 위 vacuum 으로 줄지 않는다(0-2·3절)
+source /etc/klid/was.env 2>/dev/null || WAS_LOG_DIR='<WAS_LOG_DIR>'
+sudo du -sh "$WAS_LOG_DIR" && sudo ls -lhS "$WAS_LOG_DIR" | head
 ```
+
+> ⚠ **`server.log` 는 WAS 설정에 따라 회전 정책이 다르다.** EAP 기본은 일 단위 회전(`server.log.YYYY-MM-DD`)이나
+> 현장 설정이 다를 수 있으므로 `standalone/configuration/logging.properties` 를 확인한다. 디스크 부족의 원인이
+> 저장소가 아니라 이 파일인 경우가 있다. logrotate 또는 WAS 자체 회전 설정이 걸려 있는지
+> WAS 운영 주체와 함께 확인한다. **가동 중 파일을 그냥 지우면 공간이 돌아오지 않는다**(WAS 가 열어
+> 둔 상태라 inode 가 살아 있다) — 비우려면 `: > server.log` 처럼 truncate 하거나 WAS 를 재기동한다.
 
 - 영상/프레임 저장소(`STORAGE_RAW_PATH`·`STORAGE_DEIDENTIFIED_PATH` 설정값, 기본 `/nas-storage` 또는 마운트 NAS)는 용량 산정(이미지 10만 장·영상 5,000건 기준)을 초과하지 않도록 주기 점검한다. 앱 런타임 데이터 `/var/lib/klid`, DB 데이터 `/var/lib/pgsql/16/data` 는 별도 경로다.
 
@@ -586,17 +757,34 @@ sudo journalctl --vacuum-time=14d                                 # 오래된 �
 
 ## 3. 로그 확인 (공통)
 
-```bash
-# 실시간 추적
-journalctl -u klid-backend   -f
-journalctl -u klid-ai-server -f
+**backend 로그는 WAS 로그다**(0-2). ai-server·httpd 는 종전대로 journald 다.
 
-# 특정 시간대 / 에러만
-journalctl -u klid-backend --since '1 hour ago' -p err --no-pager
+```bash
+source /etc/klid/was.env 2>/dev/null || { WAS_UNIT='<WAS 유닛명>'; WAS_LOG_DIR='<WAS_LOG_DIR>'; }
+
+# 실시간 추적
+sudo tail -f "$WAS_LOG_DIR"/server.log                    # backend(WAS)
+sudo tail -f "$WAS_LOG_DIR"/localhost.$(date +%F).log       # backend 컨텍스트(기동 실패는 이쪽)
+journalctl -u klid-ai-server -f                             # ai-server (systemd 그대로)
+journalctl -u httpd -f                                      # httpd     (systemd 그대로)
+
+# WAS 유닛이 표준출력을 journald 로 넘기는 구성이면 backend 도 이쪽에서 보인다
+journalctl -u "$WAS_UNIT" -f
+journalctl -u "$WAS_UNIT" --since '1 hour ago' -p err --no-pager
+
+# 특정 시간대 / 에러만 — 파일 로그에서는 시간 문자열로 좁힌다
+sudo grep -E "$(date '+%Y-%m-%d %H')" "$WAS_LOG_DIR"/server.log | grep -iE 'error|warn' | tail -50
 
 # 앱 파일 로그(파일 로깅 활성 시)
 ls -al /var/log/klid
 ```
+
+> **베어메탈 토글일 때**: `journalctl -u klid-backend -f` ·
+> `journalctl -u klid-backend --since '1 hour ago' -p err --no-pager` 가 그대로 유효하다.
+>
+> ⚠ **WAS 로그는 journald 가 아니라 파일이라 회전 정책이 다르다.** `journalctl --vacuum-time` 은
+> 이 파일들을 줄이지 못한다 — `server.log` 은 WAS 기본 설정에서 무한히 커질 수 있으므로
+> logrotate 또는 WAS 자체 회전 설정을 확인한다(→ 2-6).
 
 > 로그에는 민감정보 마스킹이 적용된다(개인정보·토큰·JWT 평문 미출력). 로그를 외부로 반출할 때도
 > 마스킹 정책을 확인한다. 추적ID(`traceId`)로 하나의 요청 흐름을 로그·외부 호출에 걸쳐 추적할 수 있다.
@@ -606,18 +794,35 @@ ls -al /var/log/klid
 ## 4. 재시작 / 정지 / 설정 반영
 
 ```bash
-# 단일 재시작
-sudo systemctl restart klid-backend
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
 
-# 전체 정지(역순 권장: frontend → backend → ai-server)
-sudo systemctl stop klid-frontend klid-backend klid-ai-server
+# 단일 재시작 — backend 재기동 = WAS 재기동
+sudo systemctl restart "$WAS_UNIT"
 
-# 전체 기동(의존 순서)
-sudo systemctl start klid-ai-server klid-backend klid-frontend
+# 전체 정지(역순 권장: httpd → backend(WAS) → ai-server)
+sudo systemctl stop httpd; sudo systemctl stop "$WAS_UNIT"; sudo systemctl stop klid-ai-server
 
-# 환경설정 변경 반영 — /etc/klid/*.env 수정 후 해당 서비스 재기동
-sudo systemctl restart klid-backend        # 또는 klid-ai-server
+# 전체 기동(의존 순서: ai-server → backend(WAS) → httpd)
+sudo systemctl start klid-ai-server; sudo systemctl start "$WAS_UNIT"; sudo systemctl start httpd
+
+# 환경설정 변경 반영
+#   · backend : /etc/klid/application.properties 수정 후 WAS 재기동
+#   · ai-server: /etc/klid/ai-server.env 수정 후 systemctl restart klid-ai-server
+sudo systemctl restart "$WAS_UNIT"
 ```
+
+> ⚠ **`klid-frontend` 유닛은 없다.** 프론트엔드는 배포판 **httpd** 가 정적 서빙한다
+> (구 서술 폐기 — `systemctl stop klid-frontend`).
+>
+> ⚠ **WAS 를 통째로 재기동하면 같은 WAS 의 다른 애플리케이션도 함께 내려간다.** 설정 반영만
+> 필요하다면 `api.war` **컨텍스트 단위 재기동**으로 좁힐 수 있는지 WAS 운영 주체와 확인한다
+> (스프링 설정 파일은 컨텍스트 기동 시점에 읽히므로 컨텍스트 재기동으로 충분하다).
+> 단 **`JAVA_OPTS`(JVM 옵션·`-Dspring.config.additional-location`·`-Dspring.profiles.active`)를
+> 바꿨다면 컨텍스트 재기동으로는 반영되지 않는다** — JVM 기동 옵션이라 WAS 프로세스를 다시 띄워야 한다.
+>
+> **베어메탈 토글일 때**: `sudo systemctl restart klid-backend` /
+> `sudo systemctl stop httpd klid-backend klid-ai-server` /
+> `sudo systemctl start klid-ai-server klid-backend httpd` 이고, 설정 파일은 `/etc/klid/backend.env` 다.
 
 ### 4-0. V5(배치 큐·메타복제 발신함 컬럼 개명) 배포 시 주의 — 롤링 재기동이 무해하지 않다
 
@@ -648,10 +853,15 @@ sudo systemctl restart klid-backend        # 또는 klid-ai-server
 
 ```bash
 # (a) 정지 후 배포 — 2노드면 양쪽 모두
-sudo systemctl stop klid-frontend klid-backend klid-ai-server
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl stop httpd; sudo systemctl stop "$WAS_UNIT"; sudo systemctl stop klid-ai-server
 #   … 패키지 교체(install.sh) …
-sudo systemctl start klid-ai-server klid-backend klid-frontend
-#   먼저 기동한 노드가 Flyway 로 V5 를 적용한다. 반영 확인은 §2-5-2 ③ 의 「V5 확인」 쿼리.
+#   … ★ api.war 를 WAS 배포 디렉터리로 다시 복사 — install.sh 는 /opt/klid/app 에 두기만 한다 …
+#     (WAS 가 풀어 둔 <WAS_BASE>/webapps/api/ 가 남아 있으면 함께 지워야 새 WAR 가 반영된다)
+sudo systemctl start klid-ai-server; sudo systemctl start "$WAS_UNIT"; sudo systemctl start httpd
+#   ★ DDL(V5)은 <DBA 가 수동 적용>한다 — 온프렘은 Flyway 를 쓰지 않으므로 기동해도 적용되지 않는다.
+#     적용 SQL 은 V5 마이그레이션 파일, 반영 확인은 §2-5-2 ③ 의 「V5 확인」 쿼리.
+#   (베어메탈 토글일 때: stop/start 의 "$WAS_UNIT" 자리에 klid-backend)
 ```
 
 > **롤백(구버전으로 되돌리기)에도 같은 비호환이 있다** — 방향만 반대다. 되돌릴 때는 스키마를 함께
@@ -677,16 +887,21 @@ sudo systemctl start klid-ai-server klid-backend klid-frontend
 
 #### ★ 창을 여는 것은 Flyway 가 아니다 (V5 절과 다른 점)
 
-**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
-(스키마는 `schema.sql` 로드). 반대로 Flyway 가 켜진 구성은 **단일 노드**다. 즉 이 배포 형상에서
-**2노드와 Flyway 는 상호배타**이며, 2노드에서 창을 여는 것은 **DBA 의 수동 DDL** 이다.
+**온프렘은 어떤 구성에서도 Flyway 를 쓰지 않는다**(`SPRING_FLYWAY_ENABLED=false` — 스키마는
+`db/schema.sql` 1회 로드). 노드가 1대든 2대든 마찬가지이므로, 온프렘에서 창을 여는 것은
+**언제나 DBA 의 수동 DDL** 이다.
+
+> ⚠ 구 서술 폐기(2026-08-30) — *"2노드 이중화 구성은 Flyway 가 꺼져 있고 반대로 Flyway 가 켜진
+> 구성은 단일 노드다 / 이 배포 형상에서 2노드와 Flyway 는 상호배타"*. **Flyway 를 켠 온프렘 구성이
+> 있는 것처럼 읽혔다.** Flyway 를 켠 구성은 개발·검증 환경뿐이며 온프렘 반입 형상에는 존재하지
+> 않는다. 노드 수는 이 축과 무관하다.
 
 ⇒ 수동 DDL 적용 시점과 노드 재기동 순서를 맞추는 것이 절차의 핵심이다. 적용 시점에 따라
 **두 노드가 동시에 구 jar 인 구간**이 생길 수 있어 "한 노드만 구 jar" 가정보다 불리하다.
 
-> ⚠ **§4-0(V5) 의 `(a)` 절차에 적힌 *"먼저 기동한 노드가 Flyway 로 V5 를 적용한다"* 는 서술은
-> Flyway 가 켜진 단일 노드 구성에만 해당한다.** 2노드 이중화(권장 구성)에서는 성립하지 않는다 —
-> 그 경우 V5 도 수동 DDL 이다. (선존 서술이라 여기서 고치지 않고 사실만 짚는다.)
+> ⚠ **V5 도 마찬가지다** — 구 서술 *"먼저 기동한 노드가 Flyway 로 V5 를 적용한다"* 는 **폐기**했다
+> (§4-0 `(a)` 를 「DBA 수동 적용」으로 정정). 온프렘은 Flyway 를 쓰지 않으므로 어떤 버전의 DDL 도
+> 기동만으로 적용되지 않는다.
 
 #### 배포 절차
 
@@ -700,10 +915,13 @@ V5 와 달리 **사용자 대면 500 은 없으나**, 위 두 번째 경로가 �
 
 ```bash
 # (a) 정지 후 배포 — 2노드면 양쪽 모두
-sudo systemctl stop klid-frontend klid-backend klid-ai-server
-#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl stop httpd; sudo systemctl stop "$WAS_UNIT"; sudo systemctl stop klid-ai-server
+#   … DDL 적용(온프렘은 Flyway 를 쓰지 않으므로 <DBA 가 수동 적용>) …
 #   … 패키지 교체(install.sh) …
-sudo systemctl start klid-ai-server klid-backend klid-frontend
+#   … ★ api.war 를 WAS 배포 디렉터리로 다시 복사(+ 풀린 webapps/api/ 정리) …
+sudo systemctl start klid-ai-server; sudo systemctl start "$WAS_UNIT"; sudo systemctl start httpd
+#   (베어메탈 토글일 때: stop/start 의 "$WAS_UNIT" 자리에 klid-backend)
 ```
 
 반영 확인:
@@ -755,9 +973,9 @@ SELECT column_name FROM information_schema.columns
 
 #### ★ 창을 여는 것은 Flyway 가 아니다 (§4-0-1 과 동일)
 
-**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
-(스키마는 `schema.sql` 로드). 반대로 Flyway 가 켜진 구성은 **단일 노드**다. 2노드에서 창을 여는 것은
-**DBA 의 수동 DDL** 이며, 적용 시점에 따라 **두 노드가 동시에 구 jar 인 구간**이 생길 수 있다.
+**온프렘은 어떤 구성에서도 Flyway 를 쓰지 않는다**(`SPRING_FLYWAY_ENABLED=false` — 스키마는
+`db/schema.sql` 1회 로드). 노드 수와 무관하게 창을 여는 것은 **언제나 DBA 의 수동 DDL** 이며,
+적용 시점에 따라 **두 노드가 동시에 구 jar 인 구간**이 생길 수 있다.
 
 #### 배포 절차
 
@@ -770,10 +988,13 @@ SELECT column_name FROM information_schema.columns
 
 ```bash
 # (a) 정지 후 배포 — 2노드면 양쪽 모두
-sudo systemctl stop klid-frontend klid-backend klid-ai-server
-#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl stop httpd; sudo systemctl stop "$WAS_UNIT"; sudo systemctl stop klid-ai-server
+#   … DDL 적용(온프렘은 Flyway 를 쓰지 않으므로 <DBA 가 수동 적용>) …
 #   … 패키지 교체(install.sh) …
-sudo systemctl start klid-ai-server klid-backend klid-frontend
+#   … ★ api.war 를 WAS 배포 디렉터리로 다시 복사(+ 풀린 webapps/api/ 정리) …
+sudo systemctl start klid-ai-server; sudo systemctl start "$WAS_UNIT"; sudo systemctl start httpd
+#   (베어메탈 토글일 때: stop/start 의 "$WAS_UNIT" 자리에 klid-backend)
 ```
 
 반영 확인 — **테이블만 보면 안 된다.** `ALTER TABLE ... RENAME TO` 는 시퀀스·제약·인덱스 이름을
@@ -862,10 +1083,9 @@ NOTICE:  고아 댓글 정리(부모 이슈 부재): 12 건 — 되살릴 부모
 
 #### ★ 창을 여는 것은 Flyway 가 아니다 (§4-0-1 · §4-0-2 와 동일)
 
-**2노드 이중화 구성은 `SPRING_FLYWAY_ENABLED=false` 라 어느 노드도 마이그레이션을 적용하지 않는다**
-(스키마는 `schema.sql` 로드 — 그 파일에는 이 FK 가 이미 포함돼 있으므로 **신규 온프렘 설치는 이 절의
-대상이 아니다**). 이 절이 다루는 것은 **이미 운영 중인 DB 에 DBA 가 수동 DDL 을 적용하는 경우**이며,
-반대로 Flyway 가 켜진 구성은 **단일 노드**다.
+**온프렘은 어떤 구성에서도 Flyway 를 쓰지 않는다**(`SPRING_FLYWAY_ENABLED=false` — 스키마는
+`db/schema.sql` 1회 로드. 그 파일에는 이 FK 가 이미 포함돼 있으므로 **신규 온프렘 설치는 이 절의
+대상이 아니다**). 이 절이 다루는 것은 **이미 운영 중인 DB 에 DBA 가 수동 DDL 을 적용하는 경우**다.
 
 #### 구 jar 공존 구간의 유일한 증상 — 장애로 오인하지 말 것
 
@@ -895,9 +1115,11 @@ V9 처럼 사용자 대면 500 이 나지는 않으므로 **다운타임 없이 
 
 ```bash
 # 같은 창에서 DDL + 배포
-#   … DDL 적용(Flyway 가 꺼진 2노드 구성이면 DBA 수동 적용) …
-#   … 패키지 교체(install.sh) → 노드별 재기동 …
-sudo systemctl restart klid-backend
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+#   … DDL 적용(온프렘은 Flyway 를 쓰지 않으므로 <DBA 가 수동 적용>) …
+#   … 패키지 교체(install.sh) → api.war 를 WAS 배포 디렉터리로 복사 → 노드별 재기동 …
+sudo systemctl restart "$WAS_UNIT"        # backend 재기동 = WAS 재기동
+# (베어메탈 토글일 때: sudo systemctl restart klid-backend)
 ```
 
 반영 확인 — 제약 1건이 `RESTRICT`(`confdeltype = 'r'`)로 붙었는지 본다:
@@ -923,6 +1145,81 @@ SELECT count(*) AS orphan_comments_should_be_0
 > 다만 성질 하나만 미리 알아 둘 것: **위에서 삭제된 고아 댓글은 롤백해도 돌아오지 않는다**(부모가 없어
 > 되살릴 대상 자체가 없다). 제약을 떼는 것만으로 되돌아가는 것은 스키마뿐이다.
 
+### 4-0-4. V21(관리자 공유 패스워드 저장소 이관) 배포 시 주의 — 배포 시점엔 무해하고, 첫 교체 이후가 다르다
+
+V21 은 `klid_at.ls_mngr_pswd` **한 행짜리** 테이블을 만든다(`mngr_pswd_sn = 1` 체크 제약). 앞의
+V5·V8·V9 처럼 롤링 재기동을 깨뜨리는 개명이 아니라 **새 테이블 추가**라, 배포 자체는 특별한 순서가
+필요 없다. 배포 직후에는 행이 **비어 있고**, 그동안 쓰던 `ADMIN_CLAIM_PASSWORD_HASH` 가 그대로
+판정을 맡는다 — **설치 작업은 없다.**
+
+★ 달라지는 것은 **운영자가 화면에서 패스워드를 한 번 바꾼 뒤**다. 판정 순서가 이렇게 고정돼 있다:
+
+| 순서 | 상태 | 판정 |
+|---|---|---|
+| 1 | `ls_mngr_pswd` 에 행이 **있다** | **그 값이 판정**한다. 배포 설정값으로 되돌아가지 않는다 |
+| 2 | 행이 **없다** | `ADMIN_CLAIM_PASSWORD_HASH`(배포 설정값)로 판정 |
+| 3 | 둘 다 없다 | **어떤 패스워드도 통과하지 않는다** |
+
+> ★ **3번은 이제 사실상 나오지 않는다(2026-09-01)** — `ADMIN_CLAIM_PASSWORD_HASH` 에 기본값이 생겼다
+> (평문 `admin`). 비워 두면 아무도 관리자가 되지 못하는데 그 상태에 **아무 신호가 없어** 첫 진입이
+> 조용히 막히던 것을 없앤 것이다. 3번은 그 기본값까지 명시적으로 지운 경우에만 남는다.
+>
+> ⚠⚠ **널리 알려진 값이다.** 최초 관리자를 만든 직후 화면에서 반드시 교체하고, 교체하면 1번으로
+> 넘어가 이 설정값은 더 이상 판정에 쓰이지 않는다.
+
+> ⚠ **저장소를 읽지 못하는 장애도 3번과 같다** — 배포 설정값으로 되돌아가지 **않는다**. 되돌아가면
+> DB 를 못 읽게 만들 수 있는 자가 이미 교체된 자격을 옛 배포 설정값으로 되돌리는 것과 같아지기
+> 때문이다. 즉 **DB 장애 = 관리 기능 잠김**이며 이는 의도된 방향이다(→ 2-5).
+
+> ⚠ **패스워드를 바꾸면 그 전에 발급된 관리자 유효창이 전부 무효**가 된다. 유효창 서명 키가 현재
+> 자격 해시에서 유도되기 때문이며, 별도 폐기 목록이 없어도 그렇게 동작한다(→ 4-1).
+
+### 4-0-5. V24(ai-server 노드 대기건수 컬럼 이동) 배포 시 주의 — 이 계열 중 유일하게 **컬럼이 사라진다**
+
+앞의 셋(V5·V8·V9)은 이름이 바뀌는 개명이었고 V10 은 제약 추가, V21 은 저장소 이관이었다. **V24 는 부모 테이블에서 컬럼을 지운다** —
+`LS_AI_SRVR.WTNG_NOCS` 를 노드 × 용도 자식 표(`LS_AI_SRVR_USG`)로 옮겼다.
+
+구 버전 jar 는 그 컬럼을 엔티티에 매핑하고 있어, 컬럼이 사라지면 **기동 검증(`ddl-auto=validate`)에서
+실패한다.** 앞 셋은 특정 경로만 실패했지만 **이건 그 노드가 아예 뜨지 않는다.**
+
+| | 개명 계열(V5·V8·V9) | **V24** |
+|---|---|---|
+| 구 jar 노드의 증상 | 해당 경로만 실패, 프로세스는 산다 | **기동 자체가 실패** |
+| 자기치유 | 재기동이 끝나면 됨 | 해당 없음 — 뜨지 않는다 |
+
+⇒ **롤링 재기동으로 배포할 수 없다.** 전 노드를 교체한 뒤 마이그레이션을 적용한다. 구 버전과 신 버전이
+동시에 뜨는 구간이 있으면 구 버전이 죽는다. 절차는 §4-0 의 **(a) 정지 후 배포**를 그대로 쓰되,
+**DDL 적용 시점이 전 노드 교체 이후**라는 점만 다르다.
+
+> ★ **이 제약은 같은 배포 창의 다른 변경에도 번진다.** 마이그레이션이 없어 단독으로는 무중단이 되는
+> 변경이라도, 이 변경과 **한 창에 묶으면 그 성질을 잃는다** — 제약이 창 전체를 지배하기 때문이다.
+> ⚠ **파일이 안 겹쳐도 배포 창은 겹친다.** 이 구분을 놓치기 쉬우니, 무중단이 필요한 변경은
+> **배포 창을 나눠** 내보낸다.
+
+> 근거: PR #169(`lb-test`) 병합. ⚠ 그 PR 본문과 병합 커밋에는 이 제약이 실려 있지 않다 —
+> 도구로 본문을 고치지 못해 **이 문서가 유일한 기록**이다.
+
+#### 이 배포 창의 마이그레이션 전수 — 셋 중 문제는 하나뿐이다
+
+| | 무엇 | 성질 |
+|---|---|---|
+| **V23** | `LS_AI_SRVR` · `LS_AI_SRVR_ALTMNT` 신설 | 순수 가산 — 구 jar 무해 |
+| **V24** | `LS_AI_SRVR.WTNG_NOCS` → `LS_AI_SRVR_USG` 로 이동 | ★**컬럼 삭제 — 위 제약의 원인** |
+| **V25** | `LS_WEBHOOK_IDEMPOTENCY.SRVR_ID` 컬럼 추가 | 순수 가산 — 구 jar 무해 |
+
+⇒ **V23·V25 만 먼저 적용하는 분할은 의미가 없다.** 셋이 한 배포에 묶여 있고 문제는 V24 하나이므로,
+가르는 축은 마이그레이션이 아니라 **노드 교체 순서**다.
+
+#### dev(단일 노드)에서 먼저 확인했다
+
+2026-09-01 dev 서버에 같은 커밋을 올려 **V23·V24·V25 가 2.1초에 정상 적용**됐고
+(`Successfully applied 3 migrations … now at version v25`), 세 컨테이너 전부 healthy,
+노드 원장에 기존 설정값으로 1건이 자동 등록돼 **기존 동작이 그대로 유지**되는 것까지 확인했다.
+
+⚠ **그것이 이 제약을 무효화하지 않는다.** dev 는 **노드가 하나**라 정지 후 기동이고,
+구 jar 와 신 스키마가 공존하는 창 자체가 없었다. 이 제약은 **2노드 구성에서만** 발현한다.
+
+
 ### 4-1. 관리자 세션 토큰 비상 무효화
 
 연동 서버 주소를 바꿀 때 쓰는 관리자 단기 유효창 토큰(`X-Admin-Session`)은 **무상태 서명 토큰**이라
@@ -932,10 +1229,62 @@ SELECT count(*) AS orphan_comments_should_be_0
 | 수단 | 방법 | 영향 범위 |
 |---|---|---|
 | 토큰 페이로드 버전 상향 | `AdminSessionTokenService` 의 `PAYLOAD_VERSION` 을 올려 재배포 | 관리자 세션 토큰만 무효화 (로그인 세션 영향 없음) |
-| JWT 서명 키 회전 | `/etc/klid/backend.env` 의 `JWT_SECRET` 교체 후 `sudo systemctl restart klid-backend` | 관리자 세션 토큰 + **관제/포털 인계 JWT 전부** 무효화 — 발급 주체와 협의 필요 |
+| JWT 서명 키 회전 | `/etc/klid/application.properties` 의 `JWT_SECRET` 교체 후 **WAS 재기동**(`sudo systemctl restart "$WAS_UNIT"`) | 관리자 세션 토큰 + **관제/포털 인계 JWT 전부** 무효화 — 발급 주체와 협의 필요 |
 
 > 토큰 유효기간이 기본 10분·상한 30분이라 **방치해도 그 시간 안에 자연 만료**된다. 위 조치는
 > 그 시간을 기다릴 수 없을 때만 쓴다. 무효화 후에는 운영자가 관리자 패스워드로 창을 다시 연다.
+
+
+### 4-2. 관리자 자격을 잃었을 때 (패스워드 · 계정)
+
+두 가지가 서로 다른 문제인데 증상이 «관리 화면에 못 들어간다» 로 같아 헷갈린다. **먼저 어느 쪽인지
+가른다.**
+
+```bash
+# ① 자격(패스워드)이 어디에 있는가 — 행이 있으면 .env 값은 이미 무시되고 있다
+sudo -u postgres psql -d klid_system -tAc \
+  "SELECT count(*) AS rows_in_storage, max(pswd_mdfcn_dt) AS last_change
+     FROM klid_at.ls_mngr_pswd;"
+
+# ② 관리자 계정이 몇 명인가 — 0 이면 계정 쪽 문제다
+sudo -u postgres psql -d klid_system -tAc \
+  "SELECT role_cd, count(*) FROM klid_at.ls_user_role GROUP BY role_cd ORDER BY 1;"
+```
+
+**A. 설정 파일의 `ADMIN_CLAIM_PASSWORD_HASH` 를 바꿨는데 반영되지 않는다**
+(WAR 형상은 `/etc/klid/application.properties`, 베어메탈 토글은 `/etc/klid/backend.env`)
+①의 행이 1 이면 정상 동작이다 — 저장소가 우선이라 배포 설정값은 판정에 쓰이지 않는다(→ 4-0-4).
+설정 파일을 고치는 것으로는 되돌릴 수 없고, 아래 B 로 저장소 값을 비우거나 화면에서 다시 바꾼다.
+
+**B. 화면에서 바꾼 패스워드를 잊어 관리 기능에 들어갈 수 없다**
+저장소 행을 지우면 **배포 설정값으로 되돌아간다**. 화면에서 바꿀 수 없는 상태이므로 이때만 DB 를
+직접 고친다.
+
+```bash
+# 되돌리기 전에 현재 값을 남긴다 (해시만 있고 평문은 어디에도 없다)
+sudo -u postgres psql -d klid_system -tAc \
+  "SELECT pswd_hash, mdfr_id, pswd_mdfcn_dt FROM klid_at.ls_mngr_pswd;" \
+  > /var/backups/klid/mngr_pswd-$(date +%Y%m%d-%H%M%S).bak
+
+sudo -u postgres psql -d klid_system -c "DELETE FROM klid_at.ls_mngr_pswd;"
+source /etc/klid/was.env 2>/dev/null || WAS_UNIT='<WAS 유닛명>'
+sudo systemctl restart "$WAS_UNIT"     # backend 재기동 = WAS 재기동
+# (베어메탈 토글일 때: sudo systemctl restart klid-backend)
+```
+
+> ⚠ 지운 뒤에는 설정 파일의 `ADMIN_CLAIM_PASSWORD_HASH` 가 다시 판정한다. **그 값이 비어 있으면
+> 아무 패스워드도 통과하지 않으므로**(4-0-4 의 3번) 지우기 전에 그 값이 설정돼 있는지 확인한다.
+> ⚠ 이 조치로 **발급된 관리자 유효창이 전부 무효**가 된다(→ 4-1).
+
+**C. 관리자(ADMIN) 계정이 0명이라 관리 화면에 아무도 못 들어간다**
+자격이 아니라 **역할**의 문제다. 최초 관리자 등록(정규 경로)과 저장소 직접 복구 SQL은
+[04-configuration.md](04-configuration.md) 의 「G. 최초 관리자(ADMIN) 만들기」 절이 정본이다 — 여기에 옮겨 적지
+않는다(두 번째 진실원을 만들지 않는다). 다만 성질 하나는 알아 둘 것: **관리자가 0명이면 자가부여
+창구가 다시 열려** 정규 경로로 회복할 수 있고, 한 명이라도 생기면 그 창구는 닫힌다.
+
+> ⚠ **DB 를 복원하면 패스워드도 그 시점으로 되돌아간다.** `ls_mngr_pswd` 는 `klid_at` 스키마 안에
+> 있어 스키마 덤프에 함께 담긴다(→ [10-backup-dr.md](10-backup-dr.md)). 복원 뒤 관리자 패스워드가
+> 예전 것으로 돌아가 있어도 결함이 아니다.
 
 ---
 
@@ -943,7 +1292,7 @@ SELECT count(*) AS orphan_comments_should_be_0
 
 | 주기 | 점검 항목 | 명령/방법 |
 |---|---|---|
-| 일 | 4개 서비스 active·헬스 200/UP | 1-1·1-2 |
+| 일 | 4개 구성요소 active·헬스 200/UP (backend 는 **WAS 유닛 + liveness** 두 축) | 0·1-1·1-2 |
 | 일 | 배치 상태별 건수(PENDING/FAILED 적체) | 1-4 |
 | 일 | 디스크 여유(저장소·로그) | 1-5 |
 | 주 | 스케줄러 클러스터 노드 수·노드 간 시계 동기(NTP) | 1-4-1 |

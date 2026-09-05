@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/라벨링-DOMAIN-010/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 개인정보·비식별 신고 규칙의 정본은 `docs/rules/klid-privacy.md` 다** — 차단 범위·응답 코드(412/404/400)·`no-store` 적용 경로·심링크 방어 규약·승인 이력 판정은 **그 파일을 `Read` 해서 확인한다.** 아래 요약은 이 도메인 관점의 발췌이므로 **개수·목록은 stale 될 수 있다** — 판정 근거로 쓰지 말고 정본을 연다.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
@@ -18,7 +20,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-010
 code_root: "backend/src/main/java/kr/co/cudo/authoring/label/ backend/src/main/java/kr/co/cudo/authoring/preset/ backend/src/main/java/kr/co/cudo/authoring/version/ backend/src/main/java/kr/co/cudo/authoring/evntanno/ backend/src/main/java/kr/co/cudo/authoring/meta/ backend/src/main/java/kr/co/cudo/authoring/dataset/export/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>
@@ -119,7 +121,56 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+### 「노출용 목록」과 「등록 여부」는 다른 축이다 — 이름만 보고 고르면 틀린다 (CO-010)
+`EventTypeService` 안에 두 축이 나란히 있다. `validFilterKeys()`(필터 옵션 — 제외 대분류를 감춤)와
+`registeredCodes()`(등록 여부 판정의 단일 원천 — javadoc 이 그렇게 명시). 프리셋 이벤트 검증이
+필터 축에 붙어 있으면 **제외 대분류의 프리셋을 아예 만들 수 없다.**
+- 근거: `PresetServiceTest(createStillRejectsExcludedCategory · updateRejectsRemappingToExcludedCategory)` 구 판이
+  그 차단을 400 으로 단언해 **결함을 「정상 동작」으로 고정**하고 있었다. 축 전환 후 두 시험은 정반대 단언
+  (`createAllowsExcludedClassEventBecauseItIsRegistered` · `updateAllowsRemappingToExcludedClassEvent`)으로 뒤집혔다.
+- 재발조건: 「노출용 목록」과 「등록 여부」를 같은 메서드로 판정하는 곳을 고칠 때.
+
+### Flyway 마이그레이션을 추가하면 `FlywaySquashBaselineIT` 두 곳을 손수 갱신해야 한다 (CO-010)
+안 고치면 **컴파일은 통과하고 그 IT 만 런타임에 깨진다.** `V17` 이 정확히 그 상태였다.
+- 근거: `common/migration/FlywaySquashBaselineIT` 의 적용 버전 목록이 `containsExactly(… "16", "9001")` 이고
+  파일명 목록도 `V16` 에서 끊겨 있었다. **파일명 목록 정렬은 코드포인트 순이라 `V17__` 이 `V1__baseline.sql`
+  보다 앞이다**(`'7' < '_'`) — 순서를 직관대로 넣으면 그 자리에서 또 깨진다.
+- 재발조건: `V19` 이후 마이그레이션을 추가할 때마다. 컴파일로는 절대 안 잡힌다.
+
+### 컬럼을 DROP 할 때는 엔티티가 아니라 **물리 컬럼명 문자열**로 test 트리를 훑는다 (CO-010)
+테스트가 raw JDBC 로 그 테이블에 INSERT 하면 컴파일이 못 잡는다.
+- 근거: `PresetCodeLabelLinkMigrationIT(insertPreset)` 이 `INSERT INTO LS_LABEL_PRESET (PRESET_NM) …` 를,
+  `V168EvntTypeMigrationIT(seedPreset · cleanup)` 이 `PRESET_NM`·`EXPLN` 을 raw SQL 로 쓰고 있었다.
+  **둘 다 `preset` 패키지 밖이라 엔티티 grep 으로는 안 나온다.**
+- 재발조건: 컬럼 DROP 마이그레이션을 낼 때. 대소문자 양쪽으로 전 test 트리 검색.
+
+### 「편집 불가」 판정이 화이트리스트가 아니라 **블랙리스트**다 — 새 키 네임스페이스는 양쪽으로 샌다 (CO-20260827 검수 메타 탭)
+
+새 메타 키 묶음을 추가하면 **조회에서는 여집합으로 흘러 원시 키가 화면에 그대로 노출되고, 저장에서는
+아무 검사도 받지 않아 값이 덮인다.** 두 구멍이 같은 뿌리에서 나온다.
+- 근거: `meta/service/MetaService(rejectUneditableKeys)` 가 읽기 전용 접두와 기술 메타 접두 **둘만** 거부하고,
+  화이트리스트 `EDITABLE_VLM_KEYS` 는 그 네임스페이스 **안에서만** 적용된다. 그래서 이관 원문 키를 PUT 하면
+  **200 으로 통과해 값이 덮였다**(구현 에이전트가 probe 시험으로 실증했고, 추측하지 않고 멈춰 보고했다).
+  조회 쪽은 반대로 `toResponse` 의 여집합인 편집 목록으로 흘러 원시 키가 카드 제목이 되어 있었다.
+- 재발조건: 메타 키 네임스페이스를 새로 만들 때마다. **조회 분류와 저장 거부는 한 세트로 본다** —
+  분류만 하면 화면은 멀쩡한데 값이 조용히 덮이고, 거부만 하면 화면이 원시 키를 그대로 보여준다.
+
+### 분류 사슬의 분기 **순서**는 대개 load-bearing 이 아니다 — 순서 변이 GREEN 을 가드 결함으로 오판하지 마라 (CO-20260827 검수 메타 탭)
+
+- 근거: `MetaService(toResponse)` 의 세 술어가 **서로소 접두**(기술 메타 / 읽기 전용 / 이관 원문)라, 분기 순서를
+  바꾸는 변이가 GREEN 이었다. 이건 가드가 못 잡은 것이 아니라 **행위가 실제로 동등한 것**이다. 변이표에
+  「GREEN = 가드 미비」로 적으면 존재하지 않는 결함을 다음 사람에게 넘긴다.
+- 재발조건: mutation 으로 가드 효력을 증명하는 모든 회차. 변이 결과를 보고하기 전에 **그 변이가 관측 가능한
+  행위를 바꾸는지** 먼저 따진다. 서로소 조건의 순서 변경은 바꾸지 않는다.
+
+### 「FE 가 그 키를 보낼 수 있는가」는 렌더 분기가 아니라 **payload 조립원**을 따라가야 안다 (CO-20260827 검수 메타 탭)
+
+새 400 을 도입할 때 기존 화면을 깨뜨리는지 판정하는 축이다.
+- 근거: 이관 원문 키에 400 을 넣어도 안전하다는 근거는 「화면이 그 값을 그리지 않는다」가 아니라,
+  저장 payload 의 `dirtyItems` 가 **편집 슬롯에서만** 조립된다는 사실이었다 — 다른 목록은 조립에 참여조차
+  하지 않는다. 렌더만 보면 "화면에 보이니 보낼 수도 있겠다"로 정반대 결론이 난다.
+- 재발조건: 서버가 새 거부를 도입할 때. **구조적으로 못 보낸다**를 조립원까지 따라가 확인해야
+  「하위호환 안전」이 성립한다. 렌더 위치는 근거가 아니다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

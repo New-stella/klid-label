@@ -61,8 +61,8 @@ class VlmAsyncSubmitTransactionBoundaryIT {
     }
 
     private LsMarking seedMarkingVlmRequested(Long rawSn) {
-        LsMarking m = LsMarking.createAuto(rawSn, "fire", 5, "/var/deid/vlmtxb.mp4",
-                "[{\"frameIndex\":0,\"timestamp\":0.0}]", 1L);
+        LsMarking m = LsMarking.createAuto(rawSn, 5,
+                "[{\"frameIndex\":0,\"timestamp\":0.0}]", "1");
         m.markVlmRequested();
         return markingRepository.save(m);
     }

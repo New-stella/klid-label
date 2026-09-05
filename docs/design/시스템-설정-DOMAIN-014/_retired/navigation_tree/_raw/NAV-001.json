@@ -33,7 +33,8 @@
               "kind": "link",
               "label": "영상 처리 현황",
               "route": "/video/status",
-              "screen_id": "SCREEN-008"
+              "screen_id": "SCREEN-008",
+              "required_role": "ROLE-001"
             },
             {
               "key": "video-detail",
@@ -41,7 +42,8 @@
               "label": "영상 상세",
               "route": "/video/:id",
               "screen_id": "SCREEN-009",
-              "visible_when": "목록 행 클릭 진입 (LNB 미노출)"
+              "visible_when": "목록 행 클릭 진입 (LNB 미노출)",
+              "required_role": "ROLE-001"
             },
             {
               "key": "marking",
@@ -69,7 +71,7 @@
               "key": "review-list",
               "kind": "link",
               "label": "검수 목록",
-              "route": "/review",
+              "route": "/review/pending",
               "screen_id": "SCREEN-018",
               "required_role": "ROLE-001"
             },
@@ -101,7 +103,7 @@
               "key": "augment-request",
               "kind": "link",
               "label": "증강 요청",
-              "route": "/augment",
+              "route": "/augment/request",
               "screen_id": "SCREEN-022",
               "required_role": "ROLE-001"
             },
@@ -181,18 +183,28 @@
           ]
         },
         {
+          "key": "upload",
+          "kind": "group",
+          "label": "[폐기] 업로드",
+          "children": [
+            {
+              "key": "upload-imports",
+              "kind": "link",
+              "label": "[폐기] 산출물 가져오기",
+              "route": "/manage/imports",
+              "screen_id": "SCREEN-039",
+              "visible_when": "폐기 — 관리자 그룹의 admin-imports 로 옮겨갔다. 주소도 /admin/imports 로 바뀐다",
+              "required_role": "ROLE-001"
+            }
+          ],
+          "visible_when": "폐기 — 유일한 항목이던 산출물 가져오기가 관리자 페이지로 옮겨가 그룹이 비었다. 이동 사실을 남기기 위해 표기만 남기며 메뉴에 두지 않는다",
+          "required_role": "ROLE-001"
+        },
+        {
           "key": "manage",
           "kind": "group",
           "label": "관리",
           "children": [
-            {
-              "key": "manage-users",
-              "kind": "link",
-              "label": "사용자 관리",
-              "route": "/manage/users",
-              "screen_id": "SCREEN-024",
-              "required_role": "ROLE-001"
-            },
             {
               "key": "manage-settings",
               "kind": "link",
@@ -232,32 +244,95 @@
               "route": "/manage/event-types",
               "screen_id": "SCREEN-038",
               "required_role": "ROLE-001"
-            },
-            {
-              "key": "manage-imports",
-              "kind": "link",
-              "label": "외부 산출물 이관",
-              "route": "/manage/imports",
-              "screen_id": "SCREEN-039",
-              "required_role": "ROLE-001"
             }
           ],
           "required_role": "ROLE-001"
+        },
+        {
+          "key": "admin",
+          "kind": "group",
+          "label": "관리자",
+          "children": [
+            {
+              "key": "admin-entry",
+              "kind": "link",
+              "label": "[폐기] 관리자 페이지",
+              "route": "/admin",
+              "screen_id": "SCREEN-040",
+              "visible_when": "폐기 — 진입 화면은 메뉴에 두지 않는다. 눌러서 가는 곳이 아니라 유효창이 없을 때 대신 열리는 자리다. 관리 항목을 감출 축이 역할밖에 없던 시점에 이 링크를 두었으나, 관리자 역할이 생겨 그 이유가 사라졌다. 이동 사실을 남기기 위해 표기만 남긴다",
+              "required_role": "ROLE-004"
+            },
+            {
+              "key": "admin-users",
+              "kind": "link",
+              "label": "사용자 관리",
+              "route": "/admin/users",
+              "screen_id": "SCREEN-024",
+              "visible_when": "관리자에게만 LNB 에 보인다. 유효창이 없는 상태로 열면 진입 화면이 대신 뜨고, 확인을 통과하면 원래 가려던 자리로 되돌아온다",
+              "required_role": "ROLE-004"
+            },
+            {
+              "key": "admin-endpoints",
+              "kind": "link",
+              "label": "연동 서버 주소",
+              "route": "/admin/endpoints",
+              "screen_id": "SCREEN-042",
+              "visible_when": "관리자에게만 LNB 에 보인다. 유효창이 없는 상태로 열면 진입 화면이 대신 뜨고, 확인을 통과하면 원래 가려던 자리로 되돌아온다",
+              "required_role": "ROLE-004"
+            },
+            {
+              "key": "admin-imports",
+              "kind": "link",
+              "label": "산출물 가져오기",
+              "route": "/admin/imports",
+              "screen_id": "SCREEN-039",
+              "visible_when": "관리자에게만 LNB 에 보인다. 유효창이 없는 상태로 열면 진입 화면이 대신 뜨고, 확인을 통과하면 원래 가려던 자리로 되돌아온다",
+              "required_role": "ROLE-004"
+            },
+            {
+              "key": "admin-uploads",
+              "kind": "link",
+              "label": "파일 업로드",
+              "route": "/admin/uploads",
+              "screen_id": "SCREEN-027",
+              "visible_when": "빌드 설정으로 노출이 갈린다 — 이 항목을 포함하지 않은 산출물에는 메뉴에도 주소에도 없다(그 자리와 주소는 같은 판정을 쓴다). 온프렘 표준 배포 산출물에는 포함되어 기본 배포에서는 노출된다. 관리자에게만 LNB 에 보인다. 유효창이 없는 상태로 열면 진입 화면이 대신 뜨고, 확인을 통과하면 원래 가려던 자리로 되돌아온다",
+              "required_role": "ROLE-004"
+            },
+            {
+              "key": "admin-password",
+              "kind": "link",
+              "label": "패스워드 교체",
+              "route": "/admin/password",
+              "screen_id": "SCREEN-041",
+              "visible_when": "관리자에게만 LNB 에 보인다. 유효창이 없는 상태로 열면 진입 화면이 대신 뜨고, 확인을 통과하면 원래 가려던 자리로 되돌아온다",
+              "required_role": "ROLE-004"
+            },
+            {
+              "key": "admin-maintenance",
+              "kind": "link",
+              "label": "위험 액션",
+              "route": "/admin/maintenance",
+              "screen_id": "SCREEN-043",
+              "visible_when": "관리자에게만 LNB 에 보인다. 유효창이 없는 상태로 열면 진입 화면이 대신 뜨고, 확인을 통과하면 원래 가려던 자리로 되돌아온다",
+              "required_role": "ROLE-004"
+            }
+          ],
+          "required_role": "ROLE-004"
         }
       ],
       "title": "저작도구 내부 메뉴 (INTERNAL)",
       "status": "draft",
       "audience": "internal",
-      "description": "관제서버와 동일 도메인 SSO 로 진입하는 저작도구 내부 채널의 LNB 메뉴 트리. 그룹은 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 관리 7개다. '영상' 그룹의 LNB 노출 항목은 영상 처리 현황(SCREEN-008) 하나다 — 영상 목록은 같은 화면을 두 번 기록한 것이라 영상 처리 현황으로 흡수됐고, 그 노드는 폐기 사실을 남기기 위해 표기만 남기며 메뉴에 두지 않는다. 검수 목록은 별도 그룹이 아니라 '작업' 그룹 안의 항목으로 노출하며 REVIEWER 에게만 보인다. '게시판' 그룹의 LNB 노출 항목은 '게시판' 하나다. '관리' 그룹은 사용자 관리·시스템 설정·라벨 관리·프리셋 관리·비식별 신고·이벤트유형 관리·외부 산출물 이관으로 이뤄지며 REVIEWER 에게만 보인다. 노출은 역할(REVIEWER / WORKER) 기반이다. LNB 메뉴로는 노출되지 않지만 경로로 도달하는 화면(마킹·영상 상세·라벨링 캔버스·검수 상세·증강 결과·공지 상세·공지 작성·공지 수정)은 진입 맥락 노드로 보조 포함한다(visible_when = LNB 미노출). 공지 작성·공지 수정은 REVIEWER 만 진입할 수 있다. R1 활성 화면만 포함하며, 개발용·폐기 화면(개발 로그인·오토라벨 테스트·비식별 검토·포털 홈·작업 배정 SCREEN-013·오토라벨 요약 SCREEN-014·VLM 메타 검토 SCREEN-015)은 제외한다."
+      "description": "관제서버와 동일 도메인 SSO 로 진입하는 저작도구 내부 채널의 LNB 메뉴 트리. 그룹은 대시보드 / 영상 / 작업 / 데이터 / 통계 / 게시판 / 관리 / 관리자다. '영상' 그룹의 LNB 노출 항목은 영상 처리 현황(SCREEN-008) 하나이며 REVIEWER 에게만 보인다 — 이 화면과 거기서 행을 눌러 들어가는 영상 상세는 배치 처리 상태를 확인하는 데 그치지 않고 재시도·건너뛰기·재수행 같은 운영 조치를 제공하는 자리다. 파이프라인을 다시 돌리거나 단계를 건너뛰게 하는 것은 운영 행위이고, 라벨 수정과 검수 제출을 맡는 WORKER 의 역할 축이 아니다. 영상 목록은 같은 화면을 두 번 기록한 것이라 영상 처리 현황으로 흡수됐고, 그 노드는 폐기 사실을 남기기 위해 표기만 남기며 메뉴에 두지 않는다. 검수 목록은 별도 그룹이 아니라 '작업' 그룹 안의 항목으로 노출하며 REVIEWER 에게만 보인다. '게시판' 그룹의 LNB 노출 항목은 '게시판' 하나다. '업로드' 그룹은 폐기됐다 — 유일한 항목이던 산출물 가져오기가 관리자 페이지로 옮겨가 그룹이 비었다. 그 화면은 서버에 이미 있는 폴더를 데이터로 들여오면서 적재까지 실행하는 자리라 성격이 관리 행위이고, 내려받아 둔 파일을 올리는 파일 업로드가 이미 관리자 페이지에 있는 것과 같은 축이다. '관리' 그룹은 시스템 설정·라벨 관리·프리셋 관리·비식별 신고·이벤트유형 관리로 이뤄지며 REVIEWER 에게만 보인다. 사용자 관리는 관리자 페이지로 옮겨가 '관리자' 그룹에 있다. '관리자' 그룹은 사용자 관리·연동 서버 주소·산출물 가져오기·파일 업로드·패스워드 교체·위험 액션으로 이뤄지며 ADMIN 에게만 보인다 — 검수자에게는 이 그룹 자체가 나타나지 않는다. 이 화면들은 관리자 역할에 더해 관리자 패스워드를 확인해 연 단기 유효창을 함께 요구한다. 그중 파일 업로드는 빌드 설정으로 노출이 갈리며, 온프렘 표준 배포 산출물에는 포함되어 기본 배포에서는 노출된다. ★유효창을 메뉴 노출 조건으로 쓰지 않는다 — 유효창은 관리자 페이지에 들어가 패스워드를 넣어야 열리는데 그것을 노출 조건으로 삼으면 들어갈 길 자체가 사라진다. 노출을 가르는 축은 역할이다. 진입 화면(/admin)은 메뉴에 두지 않는다 — 눌러서 가는 곳이 아니라 유효창이 없을 때 대신 열리는 자리다. ⚠ 구 기재 폐기: '관리자 그룹은 진입 링크 하나만 두고 하위는 관리자 페이지 안에서 고른다'. 그 구성은 관리 항목을 감출 축이 역할밖에 없던 시점의 것이며, 관리자 역할이 생겨 더 이상 성립하지 않는다. 하위 화면 주소로 곧바로 들어오면 유효창이 없을 때 진입 화면이 대신 열리고, 확인을 마치면 원래 가려던 화면으로 돌아간다. 노출은 역할(ADMIN / REVIEWER / WORKER) 기반이며, 관리자는 검수자 권한을 물려받아 검수자에게 보이는 항목도 함께 본다. LNB 메뉴로는 노출되지 않지만 경로로 도달하는 화면(마킹·영상 상세·라벨링 캔버스·검수 상세·증강 결과·공지 상세·공지 작성·공지 수정)은 진입 맥락 노드로 보조 포함한다(visible_when = LNB 미노출). 공지 작성·공지 수정은 REVIEWER 만 진입할 수 있다. R1 활성 화면만 포함하며, 개발용·폐기 화면(개발 로그인·비식별 검토·포털 홈·작업 배정 SCREEN-013·오토라벨 요약 SCREEN-014·VLM 메타 검토 SCREEN-015)은 제외한다. ⚠ 구 기재 폐기: 제외 목록에 '오토라벨 테스트'가 들어 있었으나 그 화면은 운영에서 쓰는 '파일 업로드'가 되어 '관리자' 그룹에 노출된다 — 이름이 옛 용도에서 온 것이라 제외 대상으로 읽혔다."
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 15,
+    "current_version": 26,
     "stale": true,
-    "stale_reason": "SCREEN-025의 data.sections 변경 — navigates_to",
-    "change_summary": "관리 영역에 외부 산출물 이관 항목을 더한다. 그 화면으로 가는 메뉴가 없어 주소를 직접 치지 않으면 도달할 수 없었다. 이웃 항목과 같은 구성으로 두고 검수자에게만 보이는 역할 조건을 준다 — 그 화면의 사양이 검수자 단독 접근으로 확정돼 있기 때문이다. 관리 영역을 열거하던 설명도 실제 구성에 맞춰 다시 적었다. 이벤트유형 관리가 이미 들어와 있는데 설명이 옛 열거에 머물러 있어 같은 문서 안에서 앞뒤가 어긋나 있었다. 기존 항목의 주소·역할·가시성 조건과 배열은 손대지 않았고 추가만 했다.",
+    "stale_reason": "SCREEN-024의 data.sections 변경 — navigates_to",
+    "change_summary": "검수 목록과 증강 요청 노드의 주소를 메뉴가 실제로 링크하는 곳으로 맞춘다. 두 노드가 각각 더 짧은 주소를 가리키고 있었는데, 그 주소도 같은 화면을 여는 별칭이라 인가나 동작이 달랐던 것은 아니다. 다만 이 트리는 메뉴의 진실원이고 메뉴 노출이 여기서 파생되므로, 노드가 가리키는 곳과 메뉴가 실제로 여는 곳이 갈리면 「한 선언에서 파생한다」가 문면에서만 참이 된다. 두 별칭은 그대로 살아 있으므로 기존 주소로 들어오던 경로는 영향받지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T18:45:36.651Z",
+    "last_updated_at": "2026-08-28T14:47:27.126Z",
     "created_at": "2026-06-02T13:21:11.580Z"
   }
 }

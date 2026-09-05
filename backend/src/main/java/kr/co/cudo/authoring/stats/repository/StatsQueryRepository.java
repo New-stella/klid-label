@@ -3,6 +3,7 @@ package kr.co.cudo.authoring.stats.repository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.InternalWorkScope;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -70,11 +71,20 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     String IN_PROGRESS_PREDICATE = """
             \ss.dataSttsCd <> 'APPROVED'\s""";
 
-    /** 영상(LS_DATA_RAW) 의 EVNT_TYPE_CD 별 건수. NULL 코드는 제외. */
+    /**
+     * 영상(LS_DATA_RAW) 의 EVNT_TYPE_CD 별 건수. NULL 코드는 제외.
+     *
+     * <p><b>채널 축을 명시한다</b>(ADR-058) — 지금까지 이 집계가 포털 업로드 자산을 집지 않은 것은
+     * 막아서가 아니라 <b>포털 자산에 이벤트 유형이 채워지지 않는다는 우연</b> 때문이었다. 그 값이 채워지는
+     * 순간 관제 대시보드 분포에 남의 자산이 섞이는데, 오류가 아니라 <b>건수만 늘어</b> 조용히 틀린다.
+     * 판정은 채널 판별의 단일 소유자 {@link InternalWorkScope#INTERNAL_JPQL} 로만 한다
+     * (별칭 규약 {@code LsDataRaw = r}).
+     */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
               FROM LsDataRaw r
              WHERE r.evntTypeCd IS NOT NULL
+            """ + InternalWorkScope.INTERNAL_JPQL + """
              GROUP BY r.evntTypeCd
             """)
     List<CountRow> countVideoByEventType();
@@ -87,12 +97,17 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *
      * <p>LsDataSrc 와 LsDataRaw 간 관계는 객체 참조가 아닌 ID 참조(rawSn)이므로
      * JPQL 의 명시적 ON 절을 사용한다 (Hibernate 5.1+ ad-hoc JOIN).
+     *
+     * <p><b>채널 축을 명시한다</b> — 근거는 {@link #countVideoByEventType()} 주석과 같다(같은 우연에
+     * 기대고 있었다). 폐기 프레임 술어는 여기 붙이지 않는다 — 이 집계는 <b>전체 기준</b> 축이라 폐기를
+     * 빼면 수집 상황을 알 수 없어진다(위 섹션 주석의 R4 규칙).
      */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
               FROM LsDataSrc s
               JOIN LsDataRaw r ON s.rawSn = r.rawSn
              WHERE r.evntTypeCd IS NOT NULL
+            """ + InternalWorkScope.INTERNAL_JPQL + """
              GROUP BY r.evntTypeCd
             """)
     List<CountRow> countFrameByEventType();
@@ -167,6 +182,11 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * <p><b>폐기 프레임 술어를 붙이지 않는다</b> — 폐기는 프레임 축이라 영상 건수를 바꾸지 않는다
      * (프레임 일부가 폐기돼도 그 영상은 여전히 승인된 영상 1건이다). 이 쿼리에는 {@code LsDataSrc}
      * 조인 자체가 없다.
+     *
+     * <p><b>채널 술어({@link InternalWorkScope#INTERNAL_JPQL})도 붙이지 않는다 — 의도된 것이다</b>(ADR-058).
+     * {@code LsRawDataStatus} 조인이 <b>구조적으로</b> 배제한다: 그 행은 배정 시점에 생기는데 포털에는
+     * 배정·검수가 없어 <b>영영 생기지 않는다</b>. 이미 걸러지는 자리에 술어를 더하면 읽는 사람이 저 조인이
+     * 하는 일을 못 읽게 되고 조회 계획만 무거워진다. 「일관성」을 이유로 붙이지 말 것.
      */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(r) AS cnt
@@ -187,6 +207,10 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      *
      * <p><b>술어 위치</b>: {@code GROUP BY} <b>앞</b>에 붙인다 — 뒤에 붙이면 문법 오류다. 그래서 이
      * 쿼리만 텍스트 블록을 둘로 나눠 사이에 조각을 끼운다.
+     *
+     * <p><b>채널 술어({@link InternalWorkScope#INTERNAL_JPQL})는 붙이지 않는다 — 의도된 것이다</b>(ADR-058).
+     * 근거는 {@link #countVideoByEventTypeAndStatus(String)} 주석과 같다({@code LsRawDataStatus} 조인의
+     * 구조적 배제).
      */
     @Query("""
             SELECT r.evntTypeCd AS code, COUNT(s) AS cnt
@@ -402,10 +426,15 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * SCR-STAT-001 — 최근 N 일간 작업자 일별 완료 row (APPROVED 상태 영상 기준).
      * UPD_DT 가 APPROVED 로 전이된 시점이라고 가정 (review.transitionTo() 가 updDt 갱신).
      *
-     * <p><b>dialect 호환성:</b> 일별 그룹화는 JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 에 없어
-     * 실행 실패하므로, raw 행을 그대로 반환하고 서비스 레이어 Java 측에서 DateTimeFormatter +
-     * groupingBy 로 'YYYY-MM-DD' 키를 만든다. 데이터량은 단일 사용자/30일 윈도 → 수십 ~ 수백 행이라
-     * 메모리 부담 없음.
+     * <p><b>Java 측 그룹화(이 파일의 날짜 그룹화 4곳 공통 — 근거는 여기에만 적는다):</b>
+     * raw 행을 그대로 반환하고 서비스 레이어 Java 측에서 DateTimeFormatter + groupingBy 로
+     * 'YYYY-MM-DD' 키를 만든다. 데이터량은 단일 사용자/30일 윈도 → 수십 ~ 수백 행이라 메모리 부담 없음.
+     *
+     * <p>⚠ <b>구 근거 폐기(2026-08-28)</b> — <i>"JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 에 없어 실행
+     * 실패하므로"</i>. 그건 1차 MariaDB 시절 서술이고 이 프로젝트는 <b>PostgreSQL 확정</b>이다
+     * (ADR-010 전환 · 포털 DB 도 PostgreSQL 이며 이기종 분리 빌드는 기각 — INT-009).
+     * 즉 TO_CHAR 를 쓸 수 있으나 <b>Java 측 키 생성을 그대로 둔다</b> — 이미 정상 동작하고 바꿔서 얻는
+     * 것이 없다. 이 서술을 "이기종 대비"로 읽고 방언 중립 제약을 새로 세우지 말 것.
      */
     @Query("""
             SELECT s.updDt AS updDt
@@ -431,8 +460,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * <p>완료 시각의 기준은 {@code LS_RAW_DATA_STATUS.UPD_DT}(APPROVED 전이 시점)이며
      * 대시보드 "최근 완료 영상" 정렬과 동일 축이다.
      *
-     * <p>dialect 호환성: 일별 그룹화는 JPQL TO_CHAR 가 dialect 종속이라 raw 행만 반환하고
-     * 서비스 레이어에서 'YYYY-MM-DD' 키로 묶는다(작업자 경로와 동일 방식). 데이터량은
+     * <p>Java 측 그룹화: 일별 그룹화 키는 raw 행만 반환해
+     * 서비스 레이어에서 'YYYY-MM-DD' 로 묶는다(작업자 경로와 동일 방식 · 근거는 위 참조). 데이터량은
      * 30일 윈도우의 승인 건수라 목표 규모(영상 5,000건)에서도 수백 행 수준이다.
      */
     @Query("""
@@ -446,8 +475,8 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * SCR-STAT-001 — 최근 N 개월 작업자 월별 완료/반려 raw row.
      *
-     * <p>dialect 호환성: TO_CHAR 제거. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY 하면서
-     * dataSttsCd 에 따라 completed/rejected 분기.
+     * <p>Java 측 그룹화: 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY 하면서
+     * dataSttsCd 에 따라 completed/rejected 분기(근거는 위 참조).
      */
     @Query("""
             SELECT s.updDt AS updDt, s.dataSttsCd AS dataSttsCd
@@ -468,7 +497,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
      * 작업자에게 LABELER 로 배정된 raw 의 모든 LsDataLbl (자동+수동) 을 대상으로
      * regDt timestamp 만 반환한다. 서비스 레이어에서 'YYYY-MM' 키로 GROUP BY.
      *
-     * <p>dialect 호환성: JPQL FUNCTION(TO_CHAR,...) 가 MariaDB 미지원이라 raw 행 반환.
+     * <p>Java 측 그룹화: 키 생성은 서비스 레이어가 하고 여기서는 raw 행만 반환한다(근거는 위 참조).
      * 데이터량: 단일 사용자/12개월 윈도 → 라벨 timestamp 만 select 이므로 N+1 없음.
      */
     @Query("""
@@ -522,7 +551,7 @@ public interface StatsQueryRepository extends JpaRepository<LsDataRaw, Long> {
     /**
      * SCR-STAT-001 일별 완료 raw row projection.
      * <p>서비스 레이어에서 Java DateTimeFormatter 로 'YYYY-MM-DD' 키로 묶어 카운트한다.
-     * (TO_CHAR JPQL FUNCTION 이 MariaDB 미지원이라 dialect 호환을 위해 raw 행을 반환.)
+     * (키 생성을 Java 측이 맡으므로 여기서는 raw 행만 반환한다 — 근거는 이 파일의 날짜 그룹화 첫 메서드 javadoc.)
      */
     interface DailyRawRow {
         java.time.LocalDateTime getUpdDt();

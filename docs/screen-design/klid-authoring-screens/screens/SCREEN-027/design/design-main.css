@@ -48,6 +48,9 @@
   --border: var(--n-2);
   --border-strong: var(--n-4);
 
+  /* design-system.md do_rules 명시값 — "표의 행 hover 표면은 #FFFBEB 를 쓴다" */
+  --row-hover: #fffbeb;
+
   /* spacing (base 4px) */
   --sp-xs: 4px; --sp-sm: 8px; --sp-md: 16px; --sp-lg: 24px; --sp-xl: 40px; --sp-2xl: 64px;
 

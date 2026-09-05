@@ -122,13 +122,18 @@ describe('라벨링 패널 — 공통 컨트롤 override', () => {
   it('override_없는_공통_컨트롤은_라이트_기본값을_유지한다', () => {
     const { container: ta } = render(<Textarea />);
     const taCls = classesOf(ta.querySelector('textarea'));
-    expectKeepsLightDefaults(taCls, 'Textarea', ['bg-white', 'text-gray-900', 'border-gray-300']);
+    // ⚠ 텍스트 입력 계열(Textarea·Input·Select)의 경계는 `gray-400` 이다 — 비텍스트 대비
+    //   (WCAG 1.4.11) 때문에 시안 `--border-strong` 으로 올라갔다(흰 배경 위 gray-300
+    //   2.01:1 → gray-400 3.08:1). 아래 Checkbox 는 아직 gray-300 이라 값이 갈리는데, 이
+    //   테스트가 지키는 것은 «라이트 기본값이 override 에 지워지지 않는가» 이지 «셋이 같은
+    //   단계인가» 가 아니다(Checkbox 는 이번 대비 정합의 범위 밖이다).
+    expectKeepsLightDefaults(taCls, 'Textarea', ['bg-white', 'text-gray-900', 'border-gray-400']);
     // 포커스링(KRDS)도 그대로 살아 있어야 한다.
     expect(taCls).toContain('focus-visible:ring-primary-500');
 
     const { container: se } = render(<TestSelect />);
     const seCls = classesOf(selectTriggerOf(se));
-    expectKeepsLightDefaults(seCls, 'Select', ['bg-white', 'text-gray-900', 'border-gray-300']);
+    expectKeepsLightDefaults(seCls, 'Select', ['bg-white', 'text-gray-900', 'border-gray-400']);
 
     // Checkbox 의 라이트 기본값은 컨트롤(button)이 아니라 그 안의 시각 사각형(span)이 그린다.
     // 히트영역(44px)과 시각 크기를 분리 책임지기 때문이다(UI-024).
@@ -149,8 +154,11 @@ describe('라벨링 패널 — 공통 컨트롤 override', () => {
     const btCls = classesOf(bt.querySelector('button'));
     expectHasFontSizeClass(btCls, 'Button(save)');
     // 라이트 기본 disabled 톤 — 구 다크 override(`disabled:bg-gray-500`)가 덮던 자리.
+    // ⚠ 단수(500)를 여기에 박아 두지만 이 가드의 관심사는 «라이트 기본값이 override 에
+    //   지워지지 않는가» 다. 단수의 진실원은 Button 자신의 테스트
+    //   (`Button_primary_는_시안_btn_primary_단수를_쓴다`)이며, 시안 `--p-5` = primary-500 이다.
     expectKeepsLightDefaults(btCls, 'Button(save)', [
-      'bg-primary-600',
+      'bg-primary-500',
       'w-full',
       'disabled:bg-primary-300',
     ]);
@@ -203,7 +211,7 @@ describe('라벨링 패널 — 공통 컨트롤 override', () => {
     expectKeepsLightDefaults(cls, 'Select(dense)', [
       'bg-white',
       'text-gray-900',
-      'border-gray-300',
+      'border-gray-400',
     ]);
   });
 

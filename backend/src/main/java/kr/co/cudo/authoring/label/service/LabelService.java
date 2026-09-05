@@ -216,8 +216,37 @@ public class LabelService {
         return new HashSet<>(labelRepository.findDistinctSrcSnsWithLabelIn(srcSns));
     }
 
-    /** Phase 3 — actor + raw 요청 여부 → frameImageType 결정 (단일 진실의 원천). */
+    /**
+     * Phase 3 — actor + raw 요청 여부 → frameImageType 결정 (단일 진실의 원천).
+     *
+     * <p>이 값은 라벨 조회 응답의 프레임 이미지 종류 필드로 나가며, {@code RAW} 는 <b>원본
+     * (비-비식별) 프레임을 보고 있다</b>는 선언이다. 따라서 판정 축이 원본 이미지 서빙
+     * ({@code FrameImageService.serveFrame})과 <b>같아야</b> 하며 — 한쪽만 넓어지면 응답은
+     * {@code RAW} 라고 말하는데 실제로는 비식별이 나가는(혹은 그 반대의) 어긋남이 된다.
+     *
+     * <p>{@code RAW} 는 REVIEWER 가 {@code allowRaw=true} 를 명시할 때만이며 WORKER·ADMIN 의
+     * {@code allowRaw=true} 는 무시되어 {@code DEID} 가 나간다.
+     */
     public static String resolveFrameImageType(TokenClaims actor, boolean allowRaw) {
+        // ★★ 이 동등 비교는 <b>의도된 것이다 — {@code hasRole(Role.REVIEWER)} 로 바꾸지 마라.</b>
+        //    [design: ADR-055] [design: ROLE-004] [design: AC-125] [design: API-018]
+        //
+        //    역할 계층(관리자 > 검수자)은 「역할로 갈리는 모든 인가 판정」에 적용되지만, 그 규정에는
+        //    예외가 정확히 하나 있고 <b>그것이 원본(비-비식별) 프레임 이미지 축</b>이다 — 관리자는
+        //    그 축을 물려받지 않는다. 개인정보 열람은 역할 계층과 <b>별개 축</b>이라 계층을 이유로
+        //    자동으로 열지 않는다는 것이 확정 결정이다(2026-08-28).
+        //
+        //    따라서 {@code hasRole} 로 기계적으로 치환하면 개인정보 노출면이 관리자까지 <b>조용히</b>
+        //    넓어진다(CWE-359). 이 주석을 남기는 이유도 ROLE-004 가 명시한 그대로다 — 예외가
+        //    기록돼 있지 않으면 다음 사람이 이 자리를 「빠뜨린 곳」으로 보고 열어 버린다.
+        //
+        //    ⚠ 이 자리는 <b>같은 정책의 두 얼굴 중 하나</b>다. 짝은
+        //    {@code FrameImageService.serveFrame}(실제 바이트 서빙)이며 그쪽에도 같은 예외 주석이
+        //    있다. 한쪽만 고치면 응답이 말하는 종류와 실제로 나가는 벌이 어긋난다 — 둘을 함께 본다.
+        //
+        //    관리자가 {@code raw=true} 를 명시해도 요청은 <b>거부되지 않고 무시</b>되며 응답은
+        //    {@code DEID} 다(WORKER 와 같은 처리). 회귀 가드:
+        //    {@code LabelFrameImageTypeAdminExceptionTest}.
         if (actor != null && actor.role() == Role.REVIEWER && allowRaw) {
             return "RAW";
         }
@@ -632,7 +661,12 @@ public class LabelService {
                 } else {
                     created = labelRepository.save(
                             LsDataLbl.createManual(srcSn, item.lblTypeCd(), item.labelId(),
-                                    item.label(), pointsJson, actorNo));
+                                    item.label(), pointsJson,
+                                    // V28 — 등록자 컬럼이 문자로 넓어졌다(포털 토큰 주체를 담기 위해).
+                                    //   내부 채널의 숫자 식별자는 그대로 문자로 옮긴다(1001 -> "1001").
+                                    //   ⚠ String.valueOf 를 쓰면 null 이 문자열 "null" 이 되어
+                                    //     소유자 없는 라벨이 <있는 것처럼> 저장된다.
+                                    actorNo == null ? null : actorNo.toString()));
                 }
                 result.add(created);
                 changes.add(LabelChange.added(created.getLblSn(), created.getLabelNm(), snapshotOf(created)));

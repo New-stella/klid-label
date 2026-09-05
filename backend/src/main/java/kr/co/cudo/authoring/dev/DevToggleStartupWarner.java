@@ -9,10 +9,17 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * [보안] 기동 시 dev 로그인/업로드 토글이 켜져 있으면 WARN 경고를 남긴다.
+ * [보안] 기동 시 dev 로그인/업로드 토글이 켜져 있으면 WARN 으로 그 사실을 남긴다.
+ *
+ * <h3>꼬리 문장이 토글마다 갈리는 이유 (CO-008, 2026-08-24)</h3>
+ * <p>두 토글의 성격이 더는 같지 않다. dev 로그인은 여전히 <b>bring-up 전용</b>이라 "운영에서는 반드시 OFF"
+ * 가 맞지만, dev 업로드(수동 업로드)는 <b>운영 상시 기능</b>이 됐다(prd 기본 ON). 예전처럼 한 문장으로
+ * 합치면 <b>운영 매 기동마다 상시 기능을 끄라는 지시가 로그에 남아</b>, 그 로그를 따르는 운영자·감리가
+ * 정상 기능을 끄게 된다. 그래서 "켜져 있다"는 <b>사실</b>은 두 토글 모두에 남기되 <b>지시</b>만 갈랐다.
  *
  * <p>관제서버 미기동 폐쇄망 bring-up 용으로 켜는 토글이 그대로 방치되는 사고를 막기 위한 가시성 경고다.
- * 토글 자체는 항상 기본 false(fail-closed) — 이 경고는 켜졌을 때만 발생한다.
+ * 토글 미지정 시에는 켜지지 않는다(fail-closed) — 이 경고는 켜졌을 때만 발생한다.
+ * ⚠ "항상 기본 false" 가 아니다 — <b>기본값은 프로파일이 정한다</b>(dev 업로드는 운영 ON, 그 밖 OFF).
  *
  * <h3>운영 계열(prd/stg) 경고 분기를 두지 않는 이유 (DEV_FIX H-5)</h3>
  * <p>과거에는 "active profile 에 prd 포함" 시 더 강한 문구를 덧붙이는 분기가 있었으나 <b>도달 불가능한
@@ -62,7 +69,16 @@ public class DevToggleStartupWarner implements ApplicationListener<ApplicationRe
         if (devUploadEnabled) {
             sb.append("dev upload ENABLED (/v1/dev/upload 업로드 노출) ");
         }
-        sb.append("— bring-up 전용 토글. 운영에서는 반드시 OFF.");
+        // 꼬리 문장은 토글마다 다르다 — 하나로 합치면 둘 중 하나에 거짓이 된다.
+        if (devLoginEnabled) {
+            sb.append("— dev login 은 bring-up 전용이다. 운영에서는 반드시 OFF.");
+            if (devUploadEnabled) {
+                sb.append(" (dev upload 는 운영 상시 기능이라 이 지시 대상이 아니다.)");
+            }
+        } else {
+            sb.append("— dev upload 는 운영 상시 기능이다. 끄려면 DEV_UPLOAD_ENABLED=false 와 "
+                    + "FE 재빌드(VITE_DEV_UPLOAD_ENABLED=false)를 함께 해야 한다.");
+        }
         return Optional.of(sb.toString());
     }
 }

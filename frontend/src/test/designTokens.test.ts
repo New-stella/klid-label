@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import resolveConfig from 'tailwindcss/resolveConfig';
+import resolveConfig from 'tailwindcss-v3-compat/resolveConfig';
 import { describe, expect, it } from 'vitest';
 
 // tailwind.config.js 는 타입 선언이 없는 plain JS(ESM default export)
@@ -372,21 +372,33 @@ describe('KRDS 디자인 토큰 — 타이포/모양/모션', () => {
 });
 
 describe('폰트 자가호스팅 — CDN 0', () => {
-  it('main_이_pretendard_gov_dynamic_subset_css_를_import_한다', () => {
-    const main = readFileSync(path.join(repoRoot, 'src/main.tsx'), 'utf-8');
+  // ⚠ 검사 지점이 `main.tsx` → `styles/bootstrap.ts` 로 **옮겨졌다**(구 테스트명
+  //   `main_이_pretendard_gov_dynamic_subset_css_를_import_한다` 는 폐기). 진입점이 둘
+  //   (독립 앱 `main.tsx` / 포털 Remote `remote/AuthoringRemote.tsx`)이 되면서 CSS import 를
+  //   한 모듈로 모았기 때문이다 — 검사 자체는 약해지지 않았고 위치만 따라갔다.
+  //   부트스트랩이 유일한 로드 지점이라는 사실은 `styles/__tests__/bootstrapSingleSource.test.ts`
+  //   가 별도로 고정한다.
+  it('부트스트랩이_pretendard_gov_dynamic_subset_css_를_import_한다', () => {
+    const bootstrap = readFileSync(path.join(repoRoot, 'src/styles/bootstrap.ts'), 'utf-8');
     // 공공 배포판(GOV) 경로여야 한다. 구 경로 'pretendard/dist/...' 로 되돌아가면
     // 아래 두 단언이 각각 실패한다(경로 불일치 + 구 패키지 잔존).
-    expect(main).toMatch(/pretendard-gov\/dist\/web\/static\/pretendard-gov-dynamic-subset\.css/);
-    expect(main).not.toMatch(/from\s+'pretendard\/|import\s+'pretendard\//);
-    expect(main).toMatch(/d2coding\/.*\.css/);
+    expect(bootstrap).toMatch(
+      /pretendard-gov\/dist\/web\/static\/pretendard-gov-dynamic-subset\.css/,
+    );
+    expect(bootstrap).not.toMatch(/from\s+'pretendard\/|import\s+'pretendard\//);
+    expect(bootstrap).toMatch(/d2coding\/.*\.css/);
   });
 
   it('소스에_폰트_CDN_링크가_없다', () => {
-    // global.css / main.tsx 에 폰트 CDN URL 이 없어야 함
-    const globalCss = readFileSync(path.join(repoRoot, 'src/styles/global.css'), 'utf-8');
-    const main = readFileSync(path.join(repoRoot, 'src/main.tsx'), 'utf-8');
+    // global.css / 부트스트랩 / 두 진입점 어디에도 폰트 CDN URL 이 없어야 함
     const cdnPattern = /(fastly|jsdelivr|googleapis|gstatic|cdn\.jsdelivr|fonts\.google)/i;
-    expect(globalCss).not.toMatch(cdnPattern);
-    expect(main).not.toMatch(cdnPattern);
+    for (const rel of [
+      'src/styles/global.css',
+      'src/styles/bootstrap.ts',
+      'src/main.tsx',
+      'src/remote/AuthoringRemote.tsx',
+    ]) {
+      expect(readFileSync(path.join(repoRoot, rel), 'utf-8')).not.toMatch(cdnPattern);
+    }
   });
 });

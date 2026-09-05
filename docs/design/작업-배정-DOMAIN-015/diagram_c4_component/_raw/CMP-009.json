@@ -21,7 +21,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -33,7 +34,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -46,19 +48,21 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
           "name": "PortalLabelService",
-          "description": "데이터마트 라벨 Load + 사용자별 적재 (원본 미수정)",
+          "description": "데이터마트 라벨 Load + 사용자별 적재 (원본 미수정). 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르며 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다 — 편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -71,7 +75,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -83,7 +88,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -95,7 +101,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -107,7 +114,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -119,7 +127,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -131,7 +140,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -143,7 +153,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -155,19 +166,21 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "repository",
           "name": "LsPortalUserLabelRepository",
-          "description": "포털 사용자 라벨(LS_PORTAL_USER_LABEL) CRUD",
+          "description": "포털 사용자 라벨(LS_PORTAL_USER_LABEL) CRUD — 라벨 유형·라벨명·좌표에 더해 라벨 마스터 참조와 트랙 식별자를 보유한다. 둘 다 값이 없을 수 있고 외래키를 두지 않으며 참조 무결성은 조회 시점 결합으로 확인한다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -179,7 +192,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -191,7 +205,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -203,20 +218,22 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "controller",
           "name": "PortalUploadController",
           "technology": "/v1/portal/uploads",
-          "description": "포털 본인 자산(이미지) 업로드 엔드포인트",
+          "description": "포털 본인 자산 엔드포인트 — 본인이 올린 영상 자산의 조회·다운로드·삭제를 맡는다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -229,7 +246,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -242,7 +260,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -254,7 +273,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -266,7 +286,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -279,7 +300,8 @@
             "modules": [],
             "records": [],
             "progress": 100,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -291,11 +313,52 @@
             "modules": [],
             "records": [],
             "progress": 100,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "controller",
+          "name": "PortalDatamartDownloadController",
+          "technology": "/v1/portal/datamart",
+          "description": "본인 작업 데이터 묶음 내려받기 엔드포인트(API-203). 데이터마트 노출 여부 → 비식별 신고 구간 → 본인 저장분 유무 순으로 거부하며, 이 순서는 응답이 그 영상의 상태를 알려주는 오라클이 되지 않게 하는 장치라 바꾸지 않는다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "PortalDatamartDownloadTxService",
+          "description": "내려받기의 조회 단계 — 접근 판정과 라벨 병합을 읽기 전용 트랜잭션 안에서 끝내고 값만 넘긴다. 병합 입도는 프레임이라 본인 저장분이 있는 프레임은 본인 것만 담고, 없는 프레임만 데이터마트 원본을 담는다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "PortalDatamartDownloadService",
+          "description": "내려받기의 산출 단계 — 검수 승인 학습데이터 산출물과 같은 구조로 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 낸다. 이미지는 비식별본만 담고 문서가 가리키는 경로도 비식별 기준이며 원본 폴백이 없다. 산출·스트리밍은 트랜잭션 밖에서 한다.",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
-      "description": "소규모 서브시스템 3종 그룹.\n\n(1) 작업배정: AssignmentController(/v1/assignments) → AssignmentService 가 REVIEWER→WORKER 배정·재배정·이력을 처리. 목록은 시간축 단일 정렬이고 필터·집계는 BE 에서 전체 기준으로 처리하며 정렬키는 allowlist 로만 해석한다. ⚠ 미등록 정렬키 응답은 작업목록 strict(400) / 검수목록 lenient(200 폴백) 로 다르며 이는 하위호환 근거에 따른 의도된 비대칭이다.\n\n(2) 포털: ★두 경로다. PortalLabelController(/v1/portal)→PortalLabelService 가 데이터마트 영상 라벨 Load·사용자별 적재(원본 미수정)를 맡고, PortalUploadController/PortalTusUploadController/PortalUploadLabelController(/v1/portal/uploads)가 본인 자산 업로드·프레임 추출·수동 라벨링을 맡는다(ADR-013 예외, LS_PORTAL_* 전용·내부 파이프라인과 분리). 업로드 영상은 PortalVideoUploadedEvent(EVT-012) → PortalFrameExtractBridge 로 프레임을 뽑는다.\n\n(3) 관제 통지: ★export 직렬화가 끼어 있다. ReviewApprovedEvent(EVT-006) → DatasetExportBridge 가 export 전량 재생성 → DatasetExportCompletedEvent(EVT-009) → ControlNotifyEventListener 가 받아 Debouncer→ControlNotifyService→ControlNotifyClient 로 outbound 통지, 실패 시 Fallback 재등록. TaskModifiedEvent 는 TaskModifiedAccumulateListener 가 윈도우에 축적하고, 같은 이벤트가 ReviewRecheckMarkListener 를 통해 재검토 표시(REVLT_YN)를 세워 만료 flush 를 보류시킨다 — 재생성과 수정 통지는 검수자가 그 수정을 다시 승인해 표시가 해제된 뒤 디바운서가 낸다. TaskQueryController(/v1/tasks)는 관제 inbound 조회 API 로, 신고 구간에는 라벨 본문 조회가 412 로 차단된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
+      "description": "소규모 서브시스템 3종 그룹.\n\n(1) 작업배정: AssignmentController(/v1/assignments) → AssignmentService 가 REVIEWER→WORKER 배정·재배정·이력을 처리. 목록은 시간축 단일 정렬이고 필터·집계는 BE 에서 전체 기준으로 처리하며 정렬키는 allowlist 로만 해석한다. ⚠ 미등록 정렬키 응답은 작업목록 strict(400) / 검수목록 lenient(200 폴백) 로 다르며 이는 하위호환 근거에 따른 의도된 비대칭이다.\n\n(2) 포털: ★로드·저장 / 자산 업로드 / 내려받기 축으로 갈린다. PortalLabelController(/v1/portal)→PortalLabelService 가 데이터마트 영상 라벨 Load·사용자별 적재(원본 미수정)를 맡는다 — 조회·저장 응답과 저장 요청이 라벨 마스터 참조와 트랙 식별자를 함께 나르고 화면은 그 둘을 표시하지 않은 채 되돌려 보낸다(편집 수단이 아니라 저장 왕복에서 끊기던 원본 연결을 지키는 장치이며, 트랙 번호 변경·병합은 포털에 두지 않는다). PortalUploadController/PortalTusUploadController/PortalUploadLabelController(/v1/portal/uploads)가 본인 자산 업로드·프레임 추출·수동 라벨링을 맡는다(ADR-013 예외, LS_PORTAL_* 전용·내부 파이프라인과 분리). 프레임 이미지 서빙은 이름에 이미지가 들어가지만 영상에서 추출한 프레임이라 이 축과 무관하다. 업로드 영상은 PortalVideoUploadedEvent(EVT-012) → PortalFrameExtractBridge 로 프레임을 뽑는다. PortalDatamartDownloadController(/v1/portal/datamart)는 본인 작업 데이터 묶음 내려받기를 맡고, 조회 단계(PortalDatamartDownloadTxService)와 산출 단계(PortalDatamartDownloadService)가 트랜잭션 경계로 갈린다 — 산출물은 검수 승인 학습데이터 산출물과 같은 구조라 프레임마다 이미지와 짝을 이루는 어노테이션 문서를 내며, 영상 단위로 라벨을 모아 담던 단일 문서는 두지 않는다. 이미지와 문서가 가리키는 경로는 비식별 기준이고 원본 폴백이 없다.\n\n(3) 관제 통지: ★export 직렬화가 끼어 있다. ReviewApprovedEvent(EVT-006) → DatasetExportBridge 가 export 전량 재생성 → DatasetExportCompletedEvent(EVT-009) → ControlNotifyEventListener 가 받아 ControlNotifyService.sendCompleted→ControlNotifyClient 로 outbound 통지(완료 통지는 디바운스를 거치지 않는다), 실패 시 Fallback 재등록. TaskModifiedEvent 는 TaskModifiedAccumulateListener 가 윈도우에 축적하고, 같은 이벤트가 ReviewRecheckMarkListener 를 통해 재검토 표시(REVLT_YN)를 세워 만료 flush 를 보류시킨다 — 재생성과 수정 통지는 검수자가 그 수정을 다시 승인해 표시가 해제된 뒤 디바운서가 낸다. TaskQueryController(/v1/tasks)는 관제 inbound 조회 API 로, 신고 구간에는 라벨 본문 조회가 412 로 차단된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출.",
       "module_name": "assignment + portal + controlnotify",
       "relationships": [
         {
@@ -359,9 +422,9 @@
           "description": "영상·프레임·라벨·메타 조회"
         },
         {
-          "to": "ControlNotifyDebouncer",
+          "to": "ControlNotifyService",
           "from": "ControlNotifyEventListener",
-          "description": "통지 디바운스"
+          "description": "export 완료 수신 → sendCompleted 직접 호출 (완료 통지는 디바운스 미경유)"
         },
         {
           "to": "ControlNotifyService",
@@ -411,7 +474,7 @@
         {
           "to": "PortalUploadController",
           "from": "PORTAL_USER",
-          "description": "이미지 업로드"
+          "description": "본인 자산 조회·다운로드·삭제"
         },
         {
           "to": "PortalTusUploadController",
@@ -442,8 +505,34 @@
           "to": "LS_MON_NOTI_ACML",
           "from": "ControlNotifyDebouncer",
           "description": "수정 축적 윈도우 영속화(클레임 UPDATE·flush)"
+        },
+        {
+          "to": "PortalDatamartDownloadController",
+          "from": "PORTAL_USER",
+          "description": "작업 데이터 묶음 내려받기"
+        },
+        {
+          "to": "PortalDatamartDownloadTxService",
+          "from": "PortalDatamartDownloadController",
+          "description": "접근 판정·라벨 병합 위임 (읽기 전용 트랜잭션 안)"
+        },
+        {
+          "to": "PortalDatamartDownloadService",
+          "from": "PortalDatamartDownloadController",
+          "description": "산출·스트리밍 위임 (트랜잭션 밖)"
+        },
+        {
+          "to": "LsPortalUserLabelRepository",
+          "from": "PortalDatamartDownloadTxService",
+          "description": "본인 저장 라벨 조회 (프레임 단위 병합)"
+        },
+        {
+          "to": "ExportFileNaming",
+          "from": "PortalDatamartDownloadService",
+          "description": "산출 구조·파일명 규칙 공유"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [
         "DFEAT-006",
         "DFEAT-043",
@@ -452,6 +541,14 @@
         "DFEAT-046",
         "DFEAT-047"
       ],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [
         "EVT-004",
         "EVT-006",
@@ -508,17 +605,22 @@
           "kind": "container",
           "name": "LS_MON_NOTI_ACML",
           "description": "PostgreSQL 테이블 — 수정 통지 디바운스 누적 창(ERD-027)"
+        },
+        {
+          "kind": "container",
+          "name": "ExportFileNaming",
+          "description": "검수 승인 학습데이터 산출물의 산출 구조·파일명 규칙 — 포털 내려받기가 같은 규칙을 공유한다 (dataset.export 패키지)"
         }
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 19,
     "stale": true,
-    "stale_reason": "DFEAT-044의 data.brownfield 변경 — depicts",
-    "change_summary": "이 컴포넌트도가 그리는 도메인 기능을 선언한다. 제목이 세 서브시스템을 밝히고 본문도 그렇게 서술하는데 그리는 대상 축이 비어 있어, 기능이 바뀌어도 이 그림이 낡았다는 신호가 오지 않았다.",
+    "stale_reason": "API-140의 data.attached_files 변경이 depicts로 2-hop 전파",
+    "change_summary": "2026-09-02 확정 — 포털 이미지 자산 접수 폐기에 따라 화면·사양에서 이미지 축 제거. 그룹 개요·포털 업로드 창구 컴포넌트·그 이용 관계에서 이미지 폐기·존치 서술을 걷어내 영상 단일 전제로 정리했다. '프레임 이미지 서빙은 이름에 이미지가 들어가지만 영상에서 추출한 프레임이라 이 축과 무관하다'는 방어 문장과 내려받기 산출 컴포넌트의 프레임 이미지 서술은 축이 달라 그대로 두었다. 데이터 값역 보존은 ERD 가 소유하므로 여기서 반복하지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T09:32:32.571Z",
+    "last_updated_at": "2026-09-02T08:23:28.128Z",
     "created_at": "2026-06-02T13:17:00.252Z"
   }
 }

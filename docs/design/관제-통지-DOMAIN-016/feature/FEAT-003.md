@@ -1,14 +1,14 @@
 ---
 logicraft_item: FEAT-003
 type: feature
-version: 10
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.389Z
-status: NEW
-prev_version: null
+synced_at: 2026-08-26T01:10:30.756Z
+status: CHANGED
+prev_version: 10
 content_hash: 855e443f06b120c13171568fb86af4f5196e492fed07eb6df45b2c6e25626794
-stale: true
+stale: false
 raw: ./_raw/FEAT-003.json
 links:
   implements: ["[[REQ-009]]", "[[REQ-010]]"]

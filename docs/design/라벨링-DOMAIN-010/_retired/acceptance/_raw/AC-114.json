@@ -1,0 +1,57 @@
+{
+  "item": {
+    "id": "AC-114",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "매핑된 라벨이 없는 프리셋도 보류하며 사유를 구분해 기록한다",
+    "slug": "매핑된-라벨이-없는-프리셋도-보류하며-사유를-구분해-기록한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "프리셋이 없는 경우와 같게 보류된다",
+          "기록된 사유가 「프리셋 없음」과 구분된다"
+        ],
+        "when": [
+          "배치가 오토라벨 묶음에 진입한다"
+        ],
+        "given": [
+          "이벤트 유형에 프리셋이 있다",
+          "그 프리셋에 담긴 라벨이 전부 AI 검출 클래스에 매핑돼 있지 않다"
+        ]
+      },
+      "statement": "프리셋은 있으나 담긴 라벨이 전부 AI 검출 클래스에 매핑돼 있지 않은 경우도 프리셋이 없는 경우와 같게 보류되며, 그 사유가 「프리셋 없음」과 구분되어 기록된다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-191"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:01.056Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-032의 4개 필드 변경 — derived_from",
+    "change_summary": "매핑 없는 프리셋의 보류와 사유 구분을 구현했다",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.056Z",
+    "created_at": "2026-08-25T10:32:49.058Z"
+  }
+}

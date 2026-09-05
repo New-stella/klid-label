@@ -8,7 +8,7 @@
 | 항목 | 값 |
 |---|---|
 | Domain | DOMAIN-003 영상·프레임 수집 |
-| last sync | 2026-08-21T09:19:02.280Z (session 9) |
+| last sync | 2026-09-05T01:33:12.608Z (session 19) |
 | 화면 수 | 1개 |
 | ui_component 카탈로그 | populated 144건 |
 | 출력 루트 | docs/screen-design/영상프레임-수집-DOMAIN-003 |
@@ -18,7 +18,7 @@
 
 | SCREEN-ID | 화면명 | 상태 | 와이어프레임 | consumes_apis | required_roles |
 |---|---|---|---|---|---|
-| [[SCREEN-009]] | 영상 상세 화면 | CHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]] | [[ROLE-001]], [[ROLE-002]] |
+| [[SCREEN-009]] | 영상 상세 화면 | CHANGED | ✅ | [[API-021]], [[API-043]], [[API-044]], [[API-167]], [[API-198]], [[API-201]] | [[ROLE-001]] |
 
 ## 공유 자산 인덱스
 
@@ -27,9 +27,9 @@
 | design_system | _shared/design-system.md | 1 |
 | ui_component | _shared/ui-catalog.md | 144 |
 | app_shell + nav | _shared/shell-nav.md | 2 |
-| api_endpoint | _shared/api/ | 7 |
+| api_endpoint | _shared/api/ | 8 |
 | constant | _shared/constant/ | 0 |
-| permission_role | _shared/role/ | 2 |
+| permission_role | _shared/role/ | 4 |
 | implementation_guideline | _shared/guideline/ | 0 |
 
 ## 빌드 순서 (mc-logi-screen-implement 참조)
@@ -52,21 +52,35 @@
 
 | ITEM | type | 상태 |
 |---|---|---|
-| [[AC-051]] | acceptance | NEW |
-| [[API-043]] | api_endpoint | CHANGED (v16→v16) |
-| [[API-198]] | api_endpoint | CHANGED (v7→v7) |
-| [[API-201]] | api_endpoint | CHANGED (v8→v8) |
-| [[SCREEN-009]] | screen_spec | CHANGED (v53→v53) |
+| [[API-112]] | api_endpoint | CHANGED (v5→v6) |
+| [[API-167]] | api_endpoint | NEW |
+| [[API-201]] | api_endpoint | CHANGED (v8→v9) |
+| [[ROLE-001]] | permission_role | CHANGED (v13→v14) |
+| [[ROLE-003]] | permission_role | NEW |
+| [[ROLE-004]] | permission_role | CHANGED (v4→v5) |
+| [[SCREEN-009]] | screen_spec | CHANGED (v75→v76) |
+| [[UI-035]] | ui_component | CHANGED (v6→v7) |
+| [[UI-037]] | ui_component | CHANGED (v4→v6) |
+| [[UI-046]] | ui_component | CHANGED (v7→v8) |
+| [[UI-071]] | ui_component | CHANGED (v4→v5) |
+| [[UI-072]] | ui_component | CHANGED (v4→v5) |
+| [[UI-096]] | ui_component | CHANGED (v5→v6) |
+| [[UI-105]] | ui_component | CHANGED (v1→v3) |
+| [[UI-129]] | ui_component | CHANGED (v1→v4) |
+| [[UI-131]] | ui_component | CHANGED (v1→v2) |
+| [[UI-132]] | ui_component | CHANGED (v1→v2) |
+| [[UI-134]] | ui_component | CHANGED (v1→v2) |
+| [[UI-138]] | ui_component | CHANGED (v1→v2) |
+| [[UI-139]] | ui_component | CHANGED (v1→v2) |
+| [[UI-140]] | ui_component | CHANGED (v1→v2) |
+| [[UC-011]] | use_case | CHANGED (v13→v19) |
+| [[UC-016]] | use_case | CHANGED (v25→v30) |
 
 ## Obsidian 볼트로 보기
 
 이 키트 루트를 볼트로 열면 화면↔API↔ROLE↔UC↔AC 관계가 그래프로 보인다
 (frontmatter `links:` 가 `[[ID]]` wikilink). 그래프뷰 → 필터 → *Existing files only* 를
 켜면 키트 밖 ITEM 의 유령 노드가 사라진다.
-
-> ⚠️ 여러 화면이 공유하는 UC/AC 1건은 화면 폴더마다 같은 파일명으로
-> 복제돼 있어 wikilink 가 어느 사본을 가리킬지 모호하다(구현엔 영향 없음):
-> - AC-019 — SCREEN-009, SCREEN-009
 
 ## git 권장
 

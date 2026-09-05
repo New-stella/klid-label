@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,13 +48,23 @@ import java.util.Optional;
  * 미연결(labelId=null) · 마스터 미존재/비활성(soft-delete) · 미매핑(dtctTypeCd=null) 참조 코드는
  * <b>제외</b>한다(오류 없이 스킵).
  *
+ * <p><b>CO-014 — fail-open 폐기.</b> 구 반환형({@code Optional<Map<...>>})은 "왜 비었는가" 를 담지
+ * 못해 호출자가 빈 값을 {@code AnnotationToggle.BOTH}(전량 저장)로 폴백했다. 그 결과 프리셋이 없거나
+ * 실효하지 않는 상태가 <b>아무 증상 없이</b> 성공으로 종결됐다. 이제 {@link #resolve(String)} 이
+ * 사유({@link PresetResolutionStatus})를 실은 {@link PresetResolution} 을 돌려주고, 호출자가
+ * <b>보류 / 오토라벨 제외 / 수행</b> 을 구분한다. [@design ADR-054]
+ *
  * <ul>
- *   <li>eventTypeCd 가 null/blank → {@link Optional#empty()} (호출자 fail-safe: 필터 미적용)</li>
- *   <li>관제 미등록 EV-코드(categoryKey 변환 실패) → {@link Optional#empty()} (fail-safe)</li>
- *   <li>해당 카테고리에 매핑된 프리셋이 없음 → {@link Optional#empty()} (호출자 fail-safe)</li>
- *   <li>연결·활성 라벨이 하나도 없음 → {@link Optional#empty()} (호출자 fail-safe)</li>
- *   <li>매핑 존재 → 마스터 검출유형(DTCT_TYPE_CD, 정규화) → 토글 맵</li>
+ *   <li>eventTypeCd 가 null/blank 또는 미등록 EV-코드 → {@link PresetResolutionStatus#EVENT_TYPE_UNREGISTERED}</li>
+ *   <li>해당 키에 매핑된 프리셋 없음 → {@link PresetResolutionStatus#PRESET_ABSENT}</li>
+ *   <li>프리셋은 있으나 담긴 라벨 0건 → {@link PresetResolutionStatus#PRESET_EMPTY}(오토라벨 제외 선언)</li>
+ *   <li>담긴 코드가 전부 미연결이거나 활성 마스터 부재 → {@link PresetResolutionStatus#PRESET_UNLINKED}</li>
+ *   <li>연결·활성 라벨은 있으나 전부 검출 클래스 미매핑 → {@link PresetResolutionStatus#PRESET_UNMAPPED}</li>
+ *   <li>매핑 존재 → {@link PresetResolutionStatus#RESOLVED} + 마스터 검출유형(정규화) → 토글 맵</li>
  * </ul>
+ *
+ * <p>★<b>이 판정이 배치·프리셋 화면·이벤트 유형 화면이 공유하는 단일 진실원이다.</b> 다른 곳에서
+ * 프리셋을 다시 조회해 실효성을 재유도하지 말 것.
  */
 @Slf4j
 @Service
@@ -81,31 +90,44 @@ public class PresetLabelLookupService {
     }
 
     /**
-     * 주어진 이벤트 타입에 매핑된 라벨 → 어노테이션 토글 맵을 반환한다 (Phase 1 / Phase 3 재구성).
+     * 주어진 이벤트 타입의 오토라벨 프리셋을 해석한다 — <b>사유를 함께 돌려주는 단일 진실원</b>.
+     * [@design ADR-054] [@design ADR-019] [@design ADR-034]
      *
-     * <p>YoloAutolabelStep / Sam2SegmentStep 이 라벨별로 BBOX/POLYGON 저장 여부를 분기할 때 사용한다.
+     * <p>{@code YoloAutolabelStep} / {@code Sam2SegmentStep} 이 라벨별로 BBOX/POLYGON 저장 여부를 분기할 때,
+     * 그리고 프리셋·이벤트 유형 관리 화면이 연결 상태를 표시할 때 <b>같은 이 메서드</b>를 쓴다.
      * 키는 마스터 검출유형(DTCT_TYPE_CD, COCO 축 정규화), 값은 마스터 형태에서 파생한 토글이다.
      *
-     * @param eventTypeCd 영상의 상세 이벤트 EV-코드 (예: EV01000102). null/blank/미등록/미매핑 시 빈 Optional.
-     * @return 마스터 검출유형(DTCT_TYPE_CD, 정규화) → 토글 매핑. 빈 Optional 이면 필터 미적용 (호출자 default BOTH).
+     * <p>⚠ <b>빈 토글 맵을 「전 라벨 허용」으로 읽지 말 것</b> — 그 폴백이 CO-014 가 없앤 fail-open 이다.
+     * 실효하지 않은 결과는 {@link PresetResolution#isWithheld()}(보류) 또는
+     * {@link PresetResolution#isAutolabelExcluded()}(오토라벨 제외 선언)로 갈린다.
+     *
+     * @param eventTypeCd 영상의 상세 이벤트 EV-코드 (예: EV01000102). null/blank/미등록이면
+     *                    {@link PresetResolutionStatus#EVENT_TYPE_UNREGISTERED}
+     * @return 해석 결과 — 사유 + (실효 시) 마스터 검출유형(정규화) → 토글 매핑
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
-    public Optional<Map<String, AnnotationToggle>> togglesFor(String eventTypeCd) {
+    public PresetResolution resolve(String eventTypeCd) {
         if (eventTypeCd == null || eventTypeCd.isBlank()) {
-            return Optional.empty();
+            return PresetResolution.of(PresetResolutionStatus.EVENT_TYPE_UNREGISTERED);
         }
-        // 영상 EV-코드 → 프리셋 저장 단위인 필터 키로 변환 (미등록 코드는 fail-safe 빈 Optional).
-        //   축이 유형(V168)이라 키와 코드가 같은 값이지만, <등록되지 않은 코드는 매칭 0건> 이라는
-        //   fail-safe 계약은 그대로다 — 미등록 코드로 프리셋을 찾지 않는다.
+        // 영상 EV-코드 → 프리셋 저장 단위인 필터 키로 변환. 축이 유형(V168)이라 키와 코드가 같은 값이지만,
+        //   <등록되지 않은 코드는 매칭 0건> 이라는 계약은 그대로다 — 미등록 코드로 프리셋을 찾지 않는다.
+        //   ★그룹 축 주의: 프리셋은 그룹 대표코드에 걸리므로 EV-코드로 직접 조회하면 같은 표시명 그룹의
+        //   비대표 유형이 전부 미보유로 잘못 판정된다. 변환을 건너뛰지 말 것.
         Optional<String> presetKey = eventTypeService.filterKeyOf(eventTypeCd);
         if (presetKey.isEmpty()) {
-            return Optional.empty();
+            return PresetResolution.of(PresetResolutionStatus.EVENT_TYPE_UNREGISTERED);
         }
         Optional<LsLabelPreset> preset = presetRepository.findByEventTypeCd(presetKey.get());
         if (preset.isEmpty()) {
-            return Optional.empty();
+            return PresetResolution.of(PresetResolutionStatus.PRESET_ABSENT);
         }
         List<LsLabelPresetCode> codes = preset.get().getCodes();
+        if (codes == null || codes.isEmpty()) {
+            // ★라벨을 하나도 담지 않은 프리셋 — 「이 유형은 오토라벨에서 뺀다」는 사람의 선언이다.
+            //   아래 미연결·미매핑(사고)과 반드시 갈라야 한다. [@design AC-119]
+            return PresetResolution.of(PresetResolutionStatus.PRESET_EMPTY);
+        }
 
         // Phase 3: 프리셋 코드의 labelId 를 모아 마스터를 1회 배치 조회한다(N+1 금지).
         // 미연결(labelId=null) 레거시 코드는 매칭 축(마스터 DTCT_TYPE_CD)이 없으므로 제외한다.
@@ -115,12 +137,13 @@ public class PresetLabelLookupService {
                 .distinct()
                 .toList();
         if (labelIds.isEmpty()) {
-            return Optional.empty();
+            return PresetResolution.of(PresetResolutionStatus.PRESET_UNLINKED);
         }
         // findActiveByIds 는 활성(USE_YN='Y') 마스터만 반환 — 미존재/soft-delete 참조는 자연히 제외된다.
         Map<Long, LabelMasterResponse> masters = labelMasterService.findActiveByIds(labelIds);
         if (masters.isEmpty()) {
-            return Optional.empty();
+            // 연결은 있으나 그 연결이 가리키는 활성 마스터가 하나도 없다 — 끊어진 연결이라 미연결로 본다.
+            return PresetResolution.of(PresetResolutionStatus.PRESET_UNLINKED);
         }
 
         // 프리셋 코드 순서(sortOrder ASC)를 보존하며 마스터 검출유형(DTCT_TYPE_CD) 키 토글 맵을 구성한다.
@@ -168,19 +191,20 @@ public class PresetLabelLookupService {
             }
         }
         if (map.isEmpty()) {
-            return Optional.empty();
+            // 라벨은 골랐는데 전부 검출 클래스 미매핑 — 운영자는 필터를 걸었다고 믿는데 실제로는 안 걸린다.
+            //   위 PRESET_EMPTY(선언)와 달리 <b>사고</b>이므로 보류한다. [@design AC-114]
+            return PresetResolution.of(PresetResolutionStatus.PRESET_UNMAPPED);
         }
-        return Optional.of(Collections.unmodifiableMap(map));
+        return PresetResolution.resolved(map);
     }
 
     /**
-     * 라벨별 어노테이션 토글 VO.
+     * 라벨별 어노테이션 토글 VO — 마스터 형태({@code LBL_TYPE_CD})에서 파생한다.
      *
-     * <p>{@link #BOTH} 는 fail-safe 기본값 — 호출자가 옵션 미설정 라벨을 만나면 사용한다.
+     * <p>⚠ 구 상수 {@code BOTH}(=fail-safe 기본값)는 <b>제거됐다</b>. 그것이 프리셋을 특정하지 못했을 때
+     * 전 검출을 저장하게 만든 fail-open 의 실체였다(CO-014). 되살리지 말 것 — 토글 맵에 없는 검출은
+     * 「기본 허용」이 아니라 <b>저장하지 않는다</b>가 계약이다. [@design ADR-054]
      */
     public record AnnotationToggle(boolean bbox, boolean polygon) {
-
-        /** 기본값(BBOX + POLYGON 모두 활성) — fail-safe. */
-        public static final AnnotationToggle BOTH = new AnnotationToggle(true, true);
     }
 }

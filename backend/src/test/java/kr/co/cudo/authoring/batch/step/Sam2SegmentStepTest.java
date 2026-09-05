@@ -8,10 +8,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.batch.entity.LsDataSrc;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.policy.PresetResolutionStatus;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.Sam2Request;
 import kr.co.cudo.authoring.common.client.dto.Sam2Response;
 import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
@@ -41,6 +44,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -113,7 +117,10 @@ class Sam2SegmentStepTest {
         }
 
         when(videoRepository.findById(anyLong())).thenReturn(Optional.empty());
-        when(presetLabelLookup.togglesFor(any())).thenReturn(Optional.empty());
+        // ★CO-014 — 「프리셋 없음」은 더 이상 전 라벨 통과가 아니라 아무 라벨도 통과하지 않는다.
+        //   프리셋 필터가 주제가 아닌 테스트는 실효 프리셋을 기본값으로 둔다.
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(
+                java.util.Map.of("person", new AnnotationToggle(true, true), "car", new AnnotationToggle(true, true))));
 
         // NEW-H1 — 본 클래스는 <b>비배포(local)</b> 환경의 기존 동작을 고정한다. 배포 환경 fail-closed
         //   와 mock 응답 스킵은 Sam2SegmentStepMockGateTest 가 별도로 고정한다.
@@ -183,7 +190,7 @@ class Sam2SegmentStepTest {
         int saved = step.run(1L, List.of());
 
         assertThat(saved).isZero();
-        verify(aiServerClient, never()).segment(any());
+        verify(aiServerClient, never()).segment(any(), any(AiWorkload.class));
         verify(lblRepository, never()).save(any());
     }
 
@@ -195,7 +202,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newSrc(20L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
                 .thenReturn(List.of(newBbox(20L, "person", "[[1.0,2.0],[3.0,4.0]]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
 
         // when
@@ -204,7 +211,7 @@ class Sam2SegmentStepTest {
         // then — nested POINT_CN 도 flat box prompt 로 변환되어 SAM2 가 호출되고 POLYGON 저장
         assertThat(saved).isEqualTo(1);
         ArgumentCaptor<Sam2Request> reqCaptor = ArgumentCaptor.forClass(Sam2Request.class);
-        verify(aiServerClient, times(1)).segment(reqCaptor.capture());
+        verify(aiServerClient, times(1)).segment(reqCaptor.capture(), eq(AiWorkload.BATCH));
         // SAM2 box prompt 는 flat [x1,y1,x2,y2] 여야 한다.
         assertThat(reqCaptor.getValue().box()).containsExactly(1.0, 2.0, 3.0, 4.0);
         ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
@@ -220,7 +227,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newSrc(20L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
                 .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
 
         int saved = step.run(2L, List.of());
@@ -247,7 +254,7 @@ class Sam2SegmentStepTest {
             double t = 2 * Math.PI * i / 4192;
             dense.add(List.of(1000 + Math.cos(t) * 500, 1000 + Math.sin(t) * 500));
         }
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(dense, 0.9)));
 
         int saved = step.run(2L, List.of());
@@ -265,13 +272,34 @@ class Sam2SegmentStepTest {
     }
 
     @Test
+    @DisplayName("★프리셋이_실효하지_않으면_DB_BBOX가_있어도_폴리곤을_만들지_않는다_구_전량통과_폐기")
+    void ineffectivePresetPassesNoLabel() {
+        // 라벨을 하나도 담지 않은 프리셋(오토라벨 제외 선언)이면 탐지 단계가 보류하지 않고 통과하므로
+        //   이 단계가 실제로 돈다. 그때 구 fail-open 이 남아 있으면 DB 에 남은 BBOX 로 폴리곤을 만든다.
+        LsDataRaw raw = rawWithEvent("EVT_FALL");
+        when(videoRepository.findById(3L)).thenReturn(Optional.of(raw));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.of(PresetResolutionStatus.PRESET_EMPTY));
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
+                .thenReturn(List.of(newSrc(30L)));
+        when(lblRepository.findBySrcSnAndAutoLblYn(30L, "Y"))
+                .thenReturn(List.of(newBbox(30L, "person", "[1.0,2.0,3.0,4.0]")));
+
+        int saved = step.run(3L, List.of());
+
+        assertThat(saved).isZero();
+        verify(aiServerClient, never()).segment(any(), any(AiWorkload.class));
+        verify(lblRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Sam2Step_polygonEnabled_false_라벨은_SAM2_호출_안_함_그리고_경고_로그")
     void polygonDisabledLabelSkipsSam2WithWarn() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(3L)).thenReturn(Optional.of(raw));
         // person 은 bbox-only (polygon=false)
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(true, false))));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, false))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(3L))
                 .thenReturn(List.of(newSrc(30L)));
         // YOLO 가 BBOX 를 저장해 둠 (BBOX_ONLY 라벨)
@@ -282,7 +310,7 @@ class Sam2SegmentStepTest {
 
         // SAM2 미호출, POLYGON 미저장
         assertThat(saved).isZero();
-        verify(aiServerClient, never()).segment(any());
+        verify(aiServerClient, never()).segment(any(), any(AiWorkload.class));
         verify(lblRepository, never()).save(any());
 
         // WARN 로그가 출력되어야 함
@@ -300,20 +328,20 @@ class Sam2SegmentStepTest {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(4L)).thenReturn(Optional.of(raw));
         // person 은 polygon-only (bbox=false, polygon=true)
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", new AnnotationToggle(false, true))));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(false, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(4L))
                 .thenReturn(List.of(newSrc(40L)));
         // DB BBOX 없음 (YOLO 가 BBOX 저장을 skip 했기 때문)
         when(lblRepository.findBySrcSnAndAutoLblYn(40L, "Y")).thenReturn(List.of());
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.77)));
 
         List<BbHint> hints = List.of(new BbHint(40L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null));
         int saved = step.run(4L, hints);
 
         assertThat(saved).isEqualTo(1);
-        verify(aiServerClient, times(1)).segment(any());
+        verify(aiServerClient, times(1)).segment(any(), eq(AiWorkload.BATCH));
         ArgumentCaptor<LsDataLbl> captor = ArgumentCaptor.forClass(LsDataLbl.class);
         verify(lblRepository, times(1)).save(captor.capture());
         LsDataLbl saved1 = captor.getValue();
@@ -327,13 +355,13 @@ class Sam2SegmentStepTest {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(5L)).thenReturn(Optional.of(raw));
         // person=BOTH 인 경우 DB BBOX 와 hint 가 동시에 들어옴 (오케스트레이션 일관성)
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(5L))
                 .thenReturn(List.of(newSrc(50L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(50L, "Y"))
                 .thenReturn(List.of(newBbox(50L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.91)));
 
         // 동일 (srcSn=50, label="person") 의 hint 가 별도로 들어옴 — 중복
@@ -342,7 +370,7 @@ class Sam2SegmentStepTest {
 
         // 한 번만 처리되어야 함 (DB BBOX 우선 또는 dedup) — SAM2 1회 호출, POLYGON 1건 저장
         assertThat(saved).isEqualTo(1);
-        verify(aiServerClient, times(1)).segment(any());
+        verify(aiServerClient, times(1)).segment(any(), eq(AiWorkload.BATCH));
         verify(lblRepository, times(1)).save(any());
     }
 
@@ -357,8 +385,8 @@ class Sam2SegmentStepTest {
         // YoloAutolabelStepTest 의 "car 필터링"(evtFallFiltersToPersonOnly)과 대칭 분기.
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(31L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(31L))
                 .thenReturn(List.of(newSrc(30L)));
         // 프리셋 토글 맵에 없는 "car" 라벨의 DB BBOX
@@ -369,7 +397,7 @@ class Sam2SegmentStepTest {
 
         // 미포함 라벨은 SAM2 호출 없이 제거되어야 한다.
         assertThat(saved).isZero();
-        verify(aiServerClient, never()).segment(any());
+        verify(aiServerClient, never()).segment(any(), any(AiWorkload.class));
         verify(lblRepository, never()).save(any());
     }
 
@@ -381,20 +409,20 @@ class Sam2SegmentStepTest {
         // POLYGON 저장이 이뤄진다. (YOLO 에는 대소문자 정규화 경계가 있으나 SAM2 엔 없던 갭.)
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(41L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(41L))
                 .thenReturn(List.of(newSrc(40L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(40L, "Y"))
                 .thenReturn(List.of(newBbox(40L, "  Person ", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
 
         int saved = step.run(41L, List.of());
 
         // 정규화로 토글 매칭 성공 → SAM2 1회 호출, POLYGON 1건 저장.
         assertThat(saved).isEqualTo(1);
-        verify(aiServerClient, times(1)).segment(any());
+        verify(aiServerClient, times(1)).segment(any(), eq(AiWorkload.BATCH));
         verify(lblRepository, times(1)).save(any());
     }
 
@@ -405,8 +433,8 @@ class Sam2SegmentStepTest {
     void dedupKeyIncludesTrackId() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(70L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(70L))
                 .thenReturn(List.of(newSrc(70L)));
         // 같은 srcSn + 같은 라벨 "person" 이지만 trackId 가 1 인 DB BBOX 1건만 존재
@@ -414,7 +442,7 @@ class Sam2SegmentStepTest {
                 BigDecimal.valueOf(0.9), "1");
         when(lblRepository.findBySrcSnAndAutoLblYn(70L, "Y"))
                 .thenReturn(List.of(bboxWithTrack));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
 
         // hint 는 같은 라벨 "person" 이지만 trackId=2 → 별도 객체이므로 별도 처리되어야 함
@@ -423,7 +451,7 @@ class Sam2SegmentStepTest {
 
         // SAM2 2회 호출, POLYGON 2건 저장 (트랙 분리)
         assertThat(saved).isEqualTo(2);
-        verify(aiServerClient, times(2)).segment(any());
+        verify(aiServerClient, times(2)).segment(any(), eq(AiWorkload.BATCH));
         verify(lblRepository, times(2)).save(any());
     }
 
@@ -432,14 +460,14 @@ class Sam2SegmentStepTest {
     void dedupFallbackWhenTrackIdNull() {
         LsDataRaw raw = rawWithEvent("EVT_FALL");
         when(videoRepository.findById(80L)).thenReturn(Optional.of(raw));
-        when(presetLabelLookup.togglesFor("EVT_FALL"))
-                .thenReturn(Optional.of(Map.of("person", AnnotationToggle.BOTH)));
+        when(presetLabelLookup.resolve("EVT_FALL"))
+                .thenReturn(PresetResolution.resolved(Map.of("person", new AnnotationToggle(true, true))));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(80L))
                 .thenReturn(List.of(newSrc(80L)));
         // DB BBOX 는 trackId=null (legacy/저신뢰 fallback)
         when(lblRepository.findBySrcSnAndAutoLblYn(80L, "Y"))
                 .thenReturn(List.of(newBbox(80L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
 
         // hint 도 trackId=null → 같은 (srcSn, label, null) 키로 dedup
@@ -448,7 +476,7 @@ class Sam2SegmentStepTest {
 
         // 한 번만 처리 (트랙 null 이면 라벨 기준 dedup 으로 fallback)
         assertThat(saved).isEqualTo(1);
-        verify(aiServerClient, times(1)).segment(any());
+        verify(aiServerClient, times(1)).segment(any(), eq(AiWorkload.BATCH));
         verify(lblRepository, times(1)).save(any());
     }
 
@@ -458,9 +486,9 @@ class Sam2SegmentStepTest {
         LsDataRaw raw = rawWithEvent("EVT_TRESPASS");
         when(videoRepository.findById(6L)).thenReturn(Optional.of(raw));
         // person=BOTH, car=polygon-only
-        when(presetLabelLookup.togglesFor("EVT_TRESPASS"))
-                .thenReturn(Optional.of(Map.of(
-                        "person", AnnotationToggle.BOTH,
+        when(presetLabelLookup.resolve("EVT_TRESPASS"))
+                .thenReturn(PresetResolution.resolved(Map.of(
+                        "person", new AnnotationToggle(true, true),
                         "car", new AnnotationToggle(false, true)
                 )));
         when(srcRepository.findByRawSnOrderByFrameNoAsc(6L))
@@ -468,7 +496,7 @@ class Sam2SegmentStepTest {
         // DB BBOX: person 만 (BOTH → BBOX 저장됨)
         when(lblRepository.findBySrcSnAndAutoLblYn(60L, "Y"))
                 .thenReturn(List.of(newBbox(60L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.85)));
 
         // car 는 polygon-only → hint 로만 들어옴
@@ -477,7 +505,7 @@ class Sam2SegmentStepTest {
 
         // SAM2 2회 호출, POLYGON 2건 저장
         assertThat(saved).isEqualTo(2);
-        verify(aiServerClient, times(2)).segment(any());
+        verify(aiServerClient, times(2)).segment(any(), eq(AiWorkload.BATCH));
         verify(lblRepository, times(2)).save(any());
     }
 
@@ -490,7 +518,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newSrc(20L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
                 .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.88)));
 
         int saved = step.run(90L, List.of());
@@ -513,7 +541,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newSrc(20L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
                 .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
         when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
 
@@ -532,9 +560,11 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newSrc(20L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
                 .thenReturn(List.of(newBbox(20L, "rare_label_unknown", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
-        // 기본 stub (Optional.empty)
+        // 프리셋에는 담겨 있으나 라벨 마스터 검출 매핑 조회가 비는 라벨 — 저장은 되고 labelId 만 null 이다.
+        when(presetLabelLookup.resolve(any())).thenReturn(PresetResolution.resolved(
+                java.util.Map.of("rare_label_unknown", new AnnotationToggle(true, true))));
 
         step.run(92L, List.of());
 
@@ -550,7 +580,7 @@ class Sam2SegmentStepTest {
                 .thenReturn(List.of(newSrc(20L)));
         when(lblRepository.findBySrcSnAndAutoLblYn(20L, "Y"))
                 .thenReturn(List.of(newBbox(20L, "person", "[1.0,2.0,3.0,4.0]")));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0)), 0.88)));
         when(labelMasterService.findLabelIdByDtctType("person")).thenReturn(Optional.of(1L));
 
@@ -587,13 +617,13 @@ class Sam2SegmentStepTest {
         // upstream hint 로 BBOX 전달 — SAM2 호출 트리거
         List<BbHint> hints = List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, null));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(5.0, 6.0)), 0.88)));
 
         step.run(80L, hints);
 
         ArgumentCaptor<Sam2Request> captor = ArgumentCaptor.forClass(Sam2Request.class);
-        verify(aiServerClient).segment(captor.capture());
+        verify(aiServerClient).segment(captor.capture(), eq(AiWorkload.BATCH));
         byte[] decoded = java.util.Base64.getDecoder().decode(captor.getValue().imageB64());
         // 원본 프레임 내용과 동일해야 함 (비식별 아님)
         assertThat(decoded).isEqualTo(rawContent);
@@ -610,7 +640,7 @@ class Sam2SegmentStepTest {
         List<BbHint> hints = List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
                 new BbHint(10L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, 2));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(5.0, 6.0)), 0.88)));
 
         // when
@@ -633,7 +663,7 @@ class Sam2SegmentStepTest {
         List<BbHint> hints = List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
                 new BbHint(10L, "car", List.of(5.0, 6.0, 7.0, 8.0), 0.81, 2));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(5.0, 6.0)), 0.11)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(7.0, 8.0)), 0.99)));
 
@@ -669,7 +699,7 @@ class Sam2SegmentStepTest {
         when(lblRepository.findBySrcSnAndAutoLblYn(10L, "Y")).thenReturn(List.of());
         List<BbHint> hints = List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1));
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(null, 0.5)));
 
         // when
@@ -695,7 +725,7 @@ class Sam2SegmentStepTest {
         when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(801L, LsDataLbl.SRC_SAM2))
                 .thenReturn(List.of(10L));
         when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.9)));
         List<BbHint> hints = List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
@@ -706,7 +736,7 @@ class Sam2SegmentStepTest {
 
         // then — 외부 추론은 프레임 11 에 대해서만 1회.
         assertThat(saved).isEqualTo(1);
-        verify(aiServerClient, times(1)).segment(any(Sam2Request.class));
+        verify(aiServerClient, times(1)).segment(any(Sam2Request.class), eq(AiWorkload.BATCH));
         // 건너뛴 프레임은 DB BBOX 조회조차 하지 않는다(추론 전 단계에서 끊는다).
         verify(lblRepository, never()).findBySrcSnAndAutoLblYn(org.mockito.ArgumentMatchers.eq(10L), anyString());
         // ★ 사람의 수정 보호 — 삭제 경로가 없어야 한다.
@@ -727,7 +757,7 @@ class Sam2SegmentStepTest {
         when(lblRepository.findDistinctSrcSnsByRawSnAndLblSrcCd(802L, LsDataLbl.SRC_SAM2))
                 .thenReturn(List.of());
         when(lblRepository.findBySrcSnAndAutoLblYn(anyLong(), anyString())).thenReturn(List.of());
-        when(aiServerClient.segment(any(Sam2Request.class)))
+        when(aiServerClient.segment(any(Sam2Request.class), eq(AiWorkload.BATCH)))
                 .thenReturn(Mono.just(new Sam2Response(List.of(List.of(1.0, 2.0), List.of(3.0, 4.0)), 0.9)));
         List<BbHint> hints = List.of(
                 new BbHint(10L, "person", List.of(1.0, 2.0, 3.0, 4.0), 0.92, 1),
@@ -736,6 +766,6 @@ class Sam2SegmentStepTest {
         int saved = step.run(802L, hints);
 
         assertThat(saved).isEqualTo(2);
-        verify(aiServerClient, times(2)).segment(any(Sam2Request.class));
+        verify(aiServerClient, times(2)).segment(any(Sam2Request.class), eq(AiWorkload.BATCH));
     }
 }

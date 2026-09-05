@@ -183,7 +183,7 @@ describe('ObjectClassTree — Phase 5 trackId 시각화', () => {
     }
   });
 
-  // Phase 10(축소) — 포털은 트랙 데이터모델 부재(프레임별 단건)라 rename/머지 미제공.
+  // Phase 10(축소) — 포털은 트랙 번호 변경·병합을 제공하지 않는다.
   // 연필(트랙 번호 변경) 진입 자체를 포털 모드에서 차단한다.
   it('포털모드_트랙_rename_버튼_미노출', () => {
     useLabelStore.getState().reset();

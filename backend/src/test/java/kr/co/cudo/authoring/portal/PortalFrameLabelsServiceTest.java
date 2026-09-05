@@ -62,7 +62,7 @@ class PortalFrameLabelsServiceTest {
                 rawDataStatusRepository, null, deidentGate,
                 new kr.co.cudo.authoring.portal.service.PortalRetentionPolicy(
                         org.mockito.Mockito.mock(kr.co.cudo.authoring.sysconfig.service.SystemConfigService.class)),
-                new ObjectMapper());
+                new ObjectMapper(), null);
     }
 
     private LsDataSrc src(Long srcSn, Long rawSn, int frameNo) {
@@ -170,6 +170,67 @@ class PortalFrameLabelsServiceTest {
         assertThat(resp.labels()).hasSize(1);
         assertThat(resp.labels().get(0).label()).isEqualTo("person");
         assertThat(resp.labels().get(0).points()).containsExactly(List.of(1.0, 2.0), List.of(3.0, 4.0));
+    }
+
+    // ─── 왕복 보존 (API-110) — 화면은 표시하지 않고 저장 요청에 그대로 되돌려 보낸다 ───
+
+    @Test
+    @DisplayName("데이터마트_원본의_마스터연결과_트랙연결이_응답에_실린다")
+    void loadFrameLabels_datamartOrigin_carriesMasterAndTrackLink() {
+        // ★ 이 응답이 두 값을 버리면 화면이 되돌려 보낼 값 자체가 없어져, 사용자가 그 프레임을
+        //   수정해 저장하는 순간 원본이 갖고 있던 연결이 끊긴다.
+        LsDataSrc s = src(10L, 100L, 0);
+        when(srcRepository.findById(10L)).thenReturn(Optional.of(s));
+        approve(100L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(s));
+        LsDataLbl lbl = LsDataLbl.createAutoBbox(10L, 12L, "person", "[[1,2],[3,4]]",
+                BigDecimal.valueOf(0.9), "trk-3");
+        when(lblRepository.findBySrcSn(10L)).thenReturn(List.of(lbl));
+        when(userLabelRepository.findByPortalUserNoAndSrcDataSrcSnOrderByRegDtDesc("alice", 10L))
+                .thenReturn(List.of());
+
+        PortalFrameLabelsResponse resp = service.loadFrameLabels(10L, alice);
+
+        assertThat(resp.labels().get(0).labelId()).isEqualTo(12L);
+        assertThat(resp.labels().get(0).trackId()).isEqualTo("trk-3");
+    }
+
+    @Test
+    @DisplayName("본인_저장분의_마스터연결과_트랙연결도_같은_형태로_실린다")
+    void loadFrameLabels_ownLabel_carriesSameShape() {
+        // 출처(본인 저장분/데이터마트 원본)에 따라 응답 형태가 갈리지 않아야 화면이 두 갈래로 분기하지 않는다.
+        LsDataSrc s = src(10L, 100L, 0);
+        when(srcRepository.findById(10L)).thenReturn(Optional.of(s));
+        approve(100L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(s));
+        LsPortalUserLabel mine = LsPortalUserLabel.create(
+                "alice", 100L, 10L, "BBOX", "car", "[[5,6],[7,8]]", 12L, "trk-3");
+        when(userLabelRepository.findByPortalUserNoAndSrcDataSrcSnOrderByRegDtDesc("alice", 10L))
+                .thenReturn(List.of(mine));
+
+        PortalFrameLabelsResponse resp = service.loadFrameLabels(10L, alice);
+
+        assertThat(resp.labels().get(0).labelId()).isEqualTo(12L);
+        assertThat(resp.labels().get(0).trackId()).isEqualTo("trk-3");
+    }
+
+    @Test
+    @DisplayName("컬럼_신설_이전_저장분은_두_값이_비어_있고_오류가_아니다")
+    void loadFrameLabels_legacyRow_hasEmptyLinks() {
+        // 기존 행은 백필하지 않는다 — null 로 남고 재저장하면 자연 복구된다.
+        LsDataSrc s = src(10L, 100L, 0);
+        when(srcRepository.findById(10L)).thenReturn(Optional.of(s));
+        approve(100L);
+        when(srcRepository.findByRawSnOrderByFrameNoAsc(100L)).thenReturn(List.of(s));
+        LsPortalUserLabel legacy =
+                LsPortalUserLabel.create("alice", 100L, 10L, "BBOX", "car", "[[5,6],[7,8]]");
+        when(userLabelRepository.findByPortalUserNoAndSrcDataSrcSnOrderByRegDtDesc("alice", 10L))
+                .thenReturn(List.of(legacy));
+
+        PortalFrameLabelsResponse resp = service.loadFrameLabels(10L, alice);
+
+        assertThat(resp.labels().get(0).labelId()).isNull();
+        assertThat(resp.labels().get(0).trackId()).isNull();
     }
 
     @Test

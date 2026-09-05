@@ -1,14 +1,14 @@
 ---
 logicraft_item: INTSPEC-005
 type: integration_spec
-version: 1
+version: 3
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T00:04:22.319Z
-status: NEW
-prev_version: null
-content_hash: 65fd9b5a6cfa20643303d3920df5be9dd664b970f6841737f2606babd15f173a
-stale: true
+synced_at: 2026-09-03T07:39:09.021Z
+status: CHANGED
+prev_version: 2
+content_hash: 93cd199289c2af8c10dcb94e3be515ee79dc1737f66704a98c8d36531c5d2f16
+stale: false
 raw: ./_raw/INTSPEC-005.json
 links:
   references: ["[[INT-008]]"]
@@ -28,6 +28,10 @@ draft
 ## spec_kind
 
 markdown
+
+## attached_files
+
+_(empty)_
 
 ## change_summary
 
@@ -131,7 +135,7 @@ markdown
 | terrain | string | N | Y | `ROAD` 도로 \| `UNDERPASS` 지하차도 \| `RIVER` 하천 \| `URBAN` 도심 \| `RESIDENTIAL` 주거지역 \| `RURAL` 시골 \| `MOUNTAIN` 산지 \| `FOREST` 숲 |
 | severity | string | N | Y | `LOW` 낮음 \| `MEDIUM` 보통 \| `HIGH` 높음 |
 
-`mtdt` 객체 자체는 반드시 전달한다. 다만 빈 객체 또는 모든 하위 필드가 `null` 인 요청을 서버가 허용하는지는 계약에서 확정되지 않았으므로, 호출 측은 **최소 1개 이상의 유효한 조건값을 전달하는 것을 원칙**으로 한다.
+`mtdt` 객체 자체는 반드시 전달한다. 다만 빈 객체 또는 모든 하위 필드가 `null` 인 요청을 서버가 허용하는지는 계약에서 확정되지 않았으므로, 호출 측은 **최소 1개 이상의 유효한 조건값을 전달하는 것을 원칙**으로 한다. ⚠ 우리 창구는 다섯 항목을 전부 필수로 받으며 하나라도 비면 400 이다. 외부 계약 자체는 최소 한 항목만 요구하므로 이 창구가 더 엄격하다 — 의도된 선택이다. 이 문단을 계약이 그렇다고 오독해 좁히거나, 반대로 이 창구의 규칙을 계약 탓으로 돌리지 말 것.
 
 ## 8. `prompt` 적용 규칙
 
@@ -222,6 +226,8 @@ markdown
 | request_channel | `AUTHORING` 고정 |
 | operation_type | `AUGMENT` 고정 |
 | generation_mode | `I2I` 고정 — 증강은 영상을 재생성하지 않고 프레임 이미지만 변환한다 |
+| evnt_type | 요청자가 고르지 않고 서버가 중립값 `ETC` 로 고정 송신한다 |
+| evnt_subtype | 항상 전송하지 않는다(키 자체를 보내지 않는다) |
 | Idempotency-Key | 우리가 발급한 `request_id` 와 같은 값을 항상 부착한다(계약상 작업 요청에서 필수) |
 | input_files[].file_path | 비식별 프레임 경로만 싣는다. 원본(비-비식별) 경로는 전송하지 않는다 |
 | 분할 위탁 | 입력 파일이 상한을 넘으면 한 증강 요청을 여러 job 으로 청크 분할하며, 분할된 모든 청크가 같은 생성 조건을 싣는다 |
@@ -229,7 +235,7 @@ markdown
 | 응답 검증 | `request_id` echo 일치 + `status=RECEIVED` + `job_id` 비어 있지 않음. 하나라도 어긋나면 외부 연동 오류로 끊는다 |
 | 4xx | 재시도하지 않는다(요청이 이미 상대에 도달했을 수 있는 결정적 오류를 재시도하면 중복 위탁이 된다) |
 
-`evnt_type`·`evnt_subtype`·`mtdt` 각 항목에 어떤 값을 싣는지는 저작도구 쪽 조달 규칙이 확정되어야 정해진다. 확정 전에는 본 규격이 그 매핑을 정의하지 않는다.
+`evnt_type`·`evnt_subtype`·`mtdt` 각 항목에 어떤 값을 싣는지는 ADR-059 로 확정됐다. 이벤트 유형은 요청자가 고르지 않고 서버가 중립값 `ETC` 로 고정 송신한다. 세부 유형은 항상 전송하지 않는다(키 자체를 보내지 않는다). 우리 증강은 이미 이벤트가 기록된 영상의 프레임 이미지만 바꾸는 것이라 어떤 장면을 만들지 정할 필요가 없고, 그 값은 배경에 장면을 만들어 넣는 외부 규격의 축이기 때문이다. 세부 유형은 침수 전용이라 중립값에서는 성립하지 않는다. `mtdt` 는 요청 본문에서 받은 생성 조건(시간대·계절·날씨·지형·심각도)을 그대로 싣는다.
 
 ## 14. 개발계 배포본 실측 (2026-08-18)
 
@@ -240,6 +246,7 @@ markdown
 - `evnt_type` 은 배포본 스키마에서 길이 20 문자열이며 값 제한은 스키마가 아니라 서버 로직에서 판정된다.
 - `operation_type` 은 배포본 스키마에 `GENERATE`·`AUGMENT`·`TRANSFORM`, `generation_mode` 는 `T2I`·`T2V`·`I2I`·`I2V` 가 열거돼 있다. 규격서의 V0 지원값은 그보다 좁으므로 **스키마 통과가 곧 지원을 뜻하지 않는다.**
 - 네 엔드포인트(작업 요청·상태 조회·결과 조회·취소)의 경로는 규격서와 일치한다.
+- ⚠ `ETC` 는 벤더와 협의가 끝난 값이나 우리가 가진 규격서 판본에는 아직 없다 — 그 판본은 이벤트 유형 허용 코드를 침수·산불 둘로 적고 그 밖의 값에 오류 코드를 규정한다. 개정판을 받으면 값과 오류 코드를 대조한다. 그때까지는 문서가 아니라 합의가 근거다.
 
 ## 15. 본 버전에서 보장하지 않는 것
 

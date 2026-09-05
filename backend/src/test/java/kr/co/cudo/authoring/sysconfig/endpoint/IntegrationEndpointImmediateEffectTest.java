@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
@@ -249,16 +248,14 @@ class IntegrationEndpointImmediateEffectTest {
     }
 
     /**
-     * 운영 등가(엄격) 정책 — {@code prd} 프로파일 + 완화 플래그 off.
+     * 연동 주소 검증 정책 — 프로파일로 갈리지 않는다(2026-08-10 확정 정합).
      *
      * <p>배포 기본값이 <b>비어 있으면 검증 자체를 생략</b>하므로(ADR-049 — 미연동 환경 기동 보장)
-     * 이 인스턴스로도 빈이 만들어진다. 느슨한 정책을 쓰면 "정책이 관대해서 통과한 것"과 구분되지
-     * 않으므로 일부러 엄격 쪽을 쓴다.
+     * 이 인스턴스로도 빈이 만들어진다. ⚠ 구 서술 <i>"운영 등가(prd + 완화 플래그 off) 엄격 정책을
+     * 일부러 쓴다"</i> 는 그 갈림이 폐기되면서 사문화됐다 — 이름만 남았고 인스턴스는 하나뿐이다.
      */
     private static VlmUrlPolicy strictVlmUrlPolicy() {
-        MockEnvironment env = new MockEnvironment();
-        env.setActiveProfiles("prd");
-        return new VlmUrlPolicy(env, false);
+        return new VlmUrlPolicy();
     }
 
     /**

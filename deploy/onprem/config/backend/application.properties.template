@@ -26,9 +26,11 @@
 # ============================================================================
 
 # ============================================================================
-# klid-backend 환경설정 (EnvironmentFile=/etc/klid/backend.env)
+# klid-backend 환경설정
 #
-#   ★ 이 파일은 systemd 의 EnvironmentFile 로 로드된다.
+#   ⚠ 아래 소제목은 원본(backend/env.template)에서 옮겨 온 것이라 systemd 를 전제한다.
+#     이 파일은 <WAS 가 -Dspring.config.additional-location 으로 읽는 설정 파일>이며
+#     systemd 의 EnvironmentFile 이 아니다(위 머리말이 정본).
 #     - 형식: KEY=VALUE (한 줄 1개, 따옴표 불필요, 셸 확장 없음)
 #     - 권한: chmod 640, owner root:klid (비밀번호 포함 → 외부 노출 금지)
 #
@@ -51,37 +53,54 @@
 #   (local/dev 단일 노드 개발 서버에서는 비워 둔다.)
 ENV=prd
 
-# ★ Flyway 부팅 마이그레이션 비활성 (온프렘/이중화 권장 = false)
-#   온프렘은 설치 시 db/schema.sql(전체 통합 DDL)을 1회 로드하고, 앱은 ddl-auto=validate
-#   로 검증만 한다. 이중화(2노드) 동시 기동 시 Flyway advisory lock 경합/최초 부팅 지연이
-#   사라진다. 단일 노드에서 Flyway 로 부트스트랩하려면 true 로 두고 16-load-schema.sh 를 건너뛴다.
+# ★ Flyway 부팅 마이그레이션 비활성 — 온프렘은 Flyway 를 쓰지 않는다(확정, 경로는 하나뿐).
+#   설치 시 db/schema.sql(전체 통합 DDL)을 1회 로드한다(앱은 스키마를 스스로 만들지 않는다).
+#   전체 스키마 SQL 을 따로 만들어 둔 이유가 그것이며, 이중화(2노드) 동시 기동 시의 Flyway
+#   락 경합·최초 부팅 지연도 함께 사라진다.
+#   ⚠ 앱 코드 자체의 기본값은 true(켬)다 — 아래 한 줄이 그것을 끄는 유일한 장치이므로
+#     <지우지 말 것>. 지우면 앱 기본값이 되살아나, DBA 가 선적용한 스키마 위에서 마이그레이션이
+#     그대로 돈다. (형상별 키 표기 규칙은 docs/04-configuration.md 「키 이름 변환 규칙」)
 spring.flyway.enabled=false
 
 # ---- DB: control(klid_system) + portal -----------------------------------
 # prd 프로파일은 HOST/PORT/NAME 분리 변수를 사용해 jdbc-url 을 조립한다.
 #
 # ★ DB 스키마는 설치 단계(16-load-schema.sh)가 db/schema.sql 을 빈 control DB 에 1회
-#   로드해 준비한다 (LS_*·MNG_*·QRTZ_* + 시드 포함). 앱은 ddl-auto=validate 로 검증만 하며
-#   SPRING_FLYWAY_ENABLED=false 다. 따라서 DB 사전요건은 "빈 DB 2개 + 사용자"뿐.
-#   관제가 이미 채운 MNG_*/QRTZ_* 가 있으면 16 단계 로드를 건너뛰고 LS_* 만 별도 준비한다.
+#   로드해 준비한다 — LS_* 62개 · QRTZ_* 11개 · 뷰 4개 + 시드 66행이다(MNG_* 는 들어 있지 않다).
+#   앱은 spring.flyway.enabled=false 로 돌며 스키마를 스스로 만들지 않는다.
+#   따라서 DB 사전요건은 "빈 DB 2개 + 사용자"뿐.
+#   ⚠ 그 로드는 자동이 아니다 — 16 단계는 SCHEMA_LOAD_RUN=1 이고 psql 이 있을 때만 실제로 넣고,
+#     평시엔 수동 절차만 출력한다. 아무도 넣지 않으면 <Flyway 가 없으므로 대신 만들어 주는 것도
+#     없다>. ⚠ 그런데도 앱은 <기동에 성공한다> — ddl-auto=validate 는 선언만 있고 이 앱의
+#     EMF 구성에 도달하지 않는다. 설치 로그에도 기동 로그에도 신호가 없고, 화면·배치가 처음
+#     DB 를 건드릴 때 비로소 터진다. 반드시 테이블 개수를 세어 확인할 것(정상값 73).
+#   ⚠ 대상 스키마에 테이블이 이미 있으면 16 은 멱등 가드로 로드를 생략한다 —
+#     DBA 가 선적용한 DB 에 다시 돌려도 덮어쓰지 않는다.
 #
 # ※ [설치 토글] USE_BUNDLED_POSTGRES — 이 파일(런타임 env)이 아니라 install.sh 인자다.
 #     USE_BUNDLED_POSTGRES=1 (기본): 번들 PG16 을 오프라인 설치(10-install-postgresql.sh).
 #     USE_BUNDLED_POSTGRES=0       : 외부(기존) PG 사용 — 번들 PG 설치 생략. 이때 아래
-#       CONTROL_DB_*/PORTAL_DB_* 가 외부 PG 주소/자격을 가리키게 둔다.
+#       CONTROL_DB_* 가 외부 PG 주소/자격을 가리키게 둔다.
 #   예: sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh  (04-configuration.md D 절 참고)
+# ★ DB 스키마 이름 — 앱·Flyway·Quartz·네이티브 쿼리가 모두 이 한 값을 읽는다.
+#   기본값 klid_at 이며, 바꾸면 db/schema.sql 을 로드하는 설치 16 단계도 같은 값을 써야 한다
+#   (갈리면 앱이 만들어 둔 테이블을 못 본다 — 오류가 아니라 <조용한 분기>가 된다).
+#   ⚠ 기본값 그대로 쓸 것을 권장한다. 바꿀 이유가 없으면 이 줄을 건드리지 말 것.
+#   ⚠ 이것은 스프링 설정 키가 아니라 <자리표시자>다 — application.yml 이 네 곳에서
+#     ${DB_SCHEMA:klid_at} 로 읽는다(커넥션 currentSchema · Flyway schemas·default-schema ·
+#     Quartz tablePrefix). 그래서 이 이름 그대로 두어야 네 곳이 함께 움직인다.
+#     currentSchema 만 따로 지정하면 나머지 세 곳이 기본값으로 남아 <조용한 분기>가 된다.
+DB_SCHEMA=klid_at
 # ★ control DB
 CONTROL_DB_HOST=127.0.0.1
 CONTROL_DB_PORT=5432
 CONTROL_DB_NAME=klid_system
 CONTROL_DB_USERNAME=klid_user
 CONTROL_DB_PASSWORD=
-# ★ portal DB
-PORTAL_DB_HOST=127.0.0.1
-PORTAL_DB_PORT=5432
-PORTAL_DB_NAME=portal
-PORTAL_DB_USERNAME=klid_user
-PORTAL_DB_PASSWORD=
+# ※ 포털 DB 접속 정보는 <더 이상 없다> — 저작도구 → 포털 DB 메타 단방향 복제가 폐기됐다
+#   (2026-08-31). 관제 연동 배포와 포털 연동 배포는 서로 다른 인프라에 있고 <서로의 DB 에
+#   접근하지 않는다>. 포털향 배포본은 관제가 중계한 자산으로 자기 DB 를 채운다.
+#   ⚠ 옛 반입물의 PORTAL_DB_* / META_REPLICATION_ENABLED 를 되살리지 말 것 — 읽는 코드가 없다.
 
 # ---- 보안 시크릿 ----------------------------------------------------------
 # ★ JWT 검증 시크릿(HS256, 32바이트 이상). 관제/포털 발급 토큰을 검증한다.
@@ -95,9 +114,19 @@ JWT_ALLOWED_ISSUERS=klid-auth,klid,klid-portal
 STREAM_SIGN_SECRET=
 # · 서명 URL 유효시간(초, 5~600 클램프)
 STREAM_URL_TTL_SECONDS=60
+# ★ nonce 쿠키(klid_stream_nonce)의 Secure 속성 — 이 쿠키는 서명 검증의 필수 입력이다.
+#    기본 false(부여 안 함). 이 배포는 프런트가 평문 HTTP(:80)로 서비스되므로 false 가 맞다 —
+#    true 면 브라우저가 쿠키를 저장하지 않아 스트림 요청이 전건 401 이 되고 영상이 재생되지 않는다.
+#    앞단에 사내 TLS 종단을 두어 HTTPS 로 서비스한다면 true 로 바꾼다.
+#    ⚠ 빈 값으로 두지 말 것 — 위 STREAM_SIGN_SECRET 관례를 따라 비우면 기동이 실패한다
+#      (Invalid boolean value []). true|false 만 쓴다.
+# ★ 현장은 HTTPS 다 — https://www.aicctv.go.kr/label-studio/ (2026-09-04 확인).
+#   HTTP 로 들어와도 엣지가 301 로 HTTPS 에 넘긴다(실측). 그래서 true 가 안전하다.
+#   ⚠ HTTP 로도 그대로 서빙되는 경로가 생기면 그쪽 영상 스트림이 401 이 된다.
+STREAM_COOKIE_SECURE=true
 # ★ 관리자 공유 패스워드 BCrypt 해시(cost ≥ 12). 평문 금지 — 해시만.
 #    생성 예: htpasswd -bnBC 12 "" '평문' | tr -d ':\n' | sed 's/^\$2y/\$2y/'
-ADMIN_CLAIM_PASSWORD_HASH=
+ADMIN_CLAIM_PASSWORD_HASH=$2y$12$kOprWBcIE8WODqbSHpsaQ.f..9NWLVFSk47Hw2.NN3lopX3MMkHo.
 
 # ---- webhook 콜백 보안 (prd 필수) ----------------------------------------
 # ★ prd 프로파일은 WEBHOOK_HMAC_SECRET_AUGMENT 가 비면 부팅이 차단된다(fail-closed).
@@ -152,8 +181,18 @@ STORAGE_RAW_MOUNT_ROOTS=/nas-storage
 #   ⚠ '/' 등 파일시스템 루트를 지정하면 기동이 차단된다(쓰기 축과 동일).
 STORAGE_EXTERNAL_READ_ROOTS=
 
-# ---- ai-server 연동 -------------------------------------------------------
-# ★ 동일 서버 베어메탈 설치 기준 localhost:9300
+# ---- ai-server 연동 (서버 B 주소) -----------------------------------------
+# ★★ 이 값은 <다른 장비>를 가리킬 수 있다. 대상 장비는 2대이고 ai-server 는 서버 B 에 있다.
+#   - 단일 서버 설치(install.sh 를 --role 없이 실행) → 아래 기본값 그대로 맞다.
+#   - 2대 분리 설치(--role=app / --role=ai)        → ★ 반드시 서버 B 주소로 바꾼다.
+#         예) AI_SERVER_URL=http://10.0.0.12:9300
+# ⚠ 틀려도 <아무 신호가 없다>. 백엔드는 정상 기동하고 헬스체크도 통과하며, 오토라벨링
+#   (YOLO 탐지·SAM2 분할/추적)만 호출 시점에 실패한다. 값이 잘못됐다는 사실이 기동 로그에
+#   남지 않으므로, 설치 직후 서버 A 에서 아래가 200 인지 <직접> 확인한다:
+#         curl -fsS http://<서버 B 주소>:9300/health
+# ⚠ 서버 B 쪽도 함께 열어야 한다 — ai-server 는 기본이 loopback 바인드라 원격에서 닿지 않는다.
+#   서버 B 의 /etc/klid/ai-server.env 에서 AI_BIND_HOST 를 바꾸고 방화벽 9300 을 연다
+#   (config/ai-server/env.template 의 AI_BIND_HOST 주석 참고).
 AI_SERVER_URL=http://127.0.0.1:9300
 
 # ---- CORS -----------------------------------------------------------------
@@ -161,12 +200,14 @@ AI_SERVER_URL=http://127.0.0.1:9300
 #   다른 도메인에서 호출 시 콤마 구분 allowlist(예: https://fe.example.com)
 CORS_ALLOWED_ORIGINS=
 
-# ---- FFmpeg (런타임 의존: 번들 정적 바이너리) -----------------------------
-# · Rocky 9 에는 ffmpeg RPM 이 base/AppStream 에 없어 정적 바이너리를 번들한다.
-#   설치 시 /opt/klid/runtime/ffmpeg/bin/{ffmpeg,ffprobe} 로 배치된다(절대경로 기본값).
-#   (systemd 유닛 PATH 에도 이 경로가 추가되므로 bare 이름으로도 잡히지만, 명확성을 위해 절대경로.)
-FFMPEG_BIN=/opt/klid/runtime/ffmpeg/bin/ffmpeg
-FFPROBE_BIN=/opt/klid/runtime/ffmpeg/bin/ffprobe
+# ---- FFmpeg (런타임 의존: 시스템 RPM 설치본) ------------------------------
+# · ffmpeg 는 base/AppStream 에 없어 EPEL + RPM Fusion + PowerTools(CRB) 에서 받아
+#   오프라인 번들(syspkgs/ffmpeg/*.rpm)로 설치한다 → /usr/bin/{ffmpeg,ffprobe}.
+# ⚠ 구 서술 폐기(2026-08-28) — "Rocky 9 … 정적 바이너리를 번들한다 /
+#   /opt/klid/runtime/ffmpeg/bin/{ffmpeg,ffprobe} 로 배치된다".
+#   타깃이 RHEL 8.9(glibc 2.28)로 확정되어 정적 빌드(glibc 2.31 기반)가 동작하지 않는다.
+FFMPEG_BIN=/usr/bin/ffmpeg
+FFPROBE_BIN=/usr/bin/ffprobe
 FFMPEG_THREADS=2
 
 # ---- 배치 파이프라인 ------------------------------------------------------
@@ -183,11 +224,23 @@ BATCH_INTERVAL_SEC=60
 TRAINING_SCAN_ENABLED=true
 TRAINING_SCAN_INTERVAL_SEC=60
 
-# ── 개발/브링업 토글 (관제서버 미기동 시 임시 로그인·영상수신용) ──
-# ⚠ 운영 정상화 후 반드시 모두 미설정(OFF)로 원복. dev 로그인은 인증 없이 임의 role 토큰을 발급한다.
-# DEV_LOGIN_ENABLED=true        # /v1/dev/tokens 로 테스트 토큰 발급 허용(기본 false)
-# DEV_UPLOAD_ENABLED=true       # /v1/dev/upload 영상 업로드 허용(기본 false)
-# SPRING_SERVLET_MULTIPART_ENABLED=true   # ★ dev 업로드 사용 시 필수 — 안 켜면 업로드 415/파싱불가
+# ── 개발/브링업 토글 ──
+# ⚠ dev 로그인은 인증 없이 임의 role 토큰을 발급한다. 운영 정상화 후 반드시 미설정(OFF)로 원복.
+# DEV_LOGIN_ENABLED=true        # /v1/dev/tokens 로 테스트 토큰 발급 허용(기본 false — 운영은 OFF 가 정상)
+#
+# ── 수동 업로드 (운영 상시 기능 — 2026-08-24 CO-008) ──
+# ★ DEV_UPLOAD_ENABLED 는 이제 **기본 true** 다(구 기재 "기본 false" 는 폐기).
+#   /v1/dev/upload 로 운영자가 영상을 직접 올리는 상시 동선이며 인가는 REVIEWER 로 걸린다.
+#   비노출로 되돌리려면 backend(아래 줄)와 frontend 를 <함께> 꺼야 한다. backend 만 끄면
+#   화면은 보이는데 API 만 404 라 원인을 못 찾는다(04-configuration.md I 절).
+#   ★ frontend 는 <재빌드하지 않는다>(구 기재 "재빌드해야 한다" 는 폐기 — 런타임 설정 주입
+#     도입 전 서술이다). 설정 정본 /etc/klid/frontend.env 에서 VITE_DEV_UPLOAD_ENABLED=false
+#     로 바꾼 뒤 반영 명령 한 줄이면 된다. 웹 서버 재기동도 필요 없다:
+#         sudo /opt/klid/bin/klid-frontend-config
+# DEV_UPLOAD_ENABLED=false      # 수동 업로드를 끈다(기본 true)
+#
+# SPRING_SERVLET_MULTIPART_ENABLED 는 지정하지 않는다 — 공통 설정이 이미 true 다
+#   (구 기재 "dev 업로드 사용 시 필수" 는 사실과 달랐다).
 # DEV_UPLOAD_EXTRACT_TECHNICAL_META=false # 즉시 실행 업로드의 영상 기술메타(video.*) 적재를 끈다(기본 true).
 #                                         #   끄면 그 사실이 기동 로그(INFO)에 남는다. 업로드·비식별은 그대로 진행된다.
 
@@ -197,21 +250,33 @@ TRAINING_SCAN_INTERVAL_SEC=60
 # ============================================================================
 
 # ---- KPST 비식별 위탁(폴링) ── ★ 확정 정책: KPST 동거 연동 -----------------
-# ⚡ 한 줄 요약: 아래 기본값 그대로 두면 부팅 실패 →
-#     ① https 유지 시 KPST_DEID_CA_CERT_PATH 에 CA(ca.crt) 경로 입력, 또는
-#     ② 격리망 평문이면 KPST_DEID_BASE_URL 을 http://... 로 바꾸면 CA 불필요.
+# ⚡ 한 줄 요약: 아래 값은 현장 확정값(평문 http)으로 채워져 있어 그대로 부팅된다.
+#     주소가 다르면 관리자 화면에서 재기동 없이 바꿀 수 있다.
+#     ★ https 로 바꾸는 경우에만 KPST_DEID_CA_CERT_PATH 에 CA(ca.crt) 경로가 함께 필요하다
+#       — 비우면 <부팅은 되고> 비식별 위탁·산출이 거부된다(의도된 fail-closed, CWE-295).
+#         구 서술 「부팅이 막힌다」는 폐기다(2026-09-03) — 아래 그 키 설명 참조.
 # ★ 운영 전제(확정): KPST 비식별 서버를 폐쇄망에 함께 설치하고 backend 가 폴링으로 연동한다.
 #   KPST 서버 자체는 외부 시스템 — 본 설치 패키지에 포함되지 않으며 고객이 별도 설치한다.
 #   본 패키지는 backend ↔ KPST 연동 설정·절차만 제공한다(04-configuration.md B 절).
 # ★ 기본 true 유지. mock/disable 우회는 prd 에서 미지원 — 비식별을 끄면 개인정보(PII)가 노출되고
 #   파이프라인(마킹/프레임추출)이 차단된다. false 이고 mock 도 아니면 DeidentifyStep 이 설정오류로 거부한다.
 KPST_DEID_ENABLED=true
-# ★ 동거 KPST 서버 주소로 반드시 교체. base-url 스키마로 전송 방식이 자동 분기된다.
+# ★ KPST 서버 주소. base-url 스키마로 전송 방식이 자동 분기된다.
+#   - http://IP:PORT   → 격리망 평문. CA 불요(비워둠). ← 이 현장이 여기 해당한다
 #   - https://IP:PORT  → 사설 CA 인증서 경로(KPST_DEID_CA_CERT_PATH)가 필수(아래 참고).
-#   - http://IP:PORT   → 격리망 평문. CA 불요(비워둠).
-KPST_DEID_BASE_URL=https://127.0.0.1:9201
-# ★ https 일 때만 필수: KPST 사설 CA(ca.crt) 파일 경로. https 인데 비었거나 못 읽으면
-#   부팅 시점에 fail-closed 로 기동 실패(CWE-295, KpstWebClientConfig.buildSslContext).
+# ★ 아래 값은 확정 사실이다 — 비식별 서버는 GPU 장비 <첫 번째 대>에만 있고 평문 9989 로 받는다.
+#   ⚠ 호스트 주소는 관제지원 측 장비 대장에서 가져온 값이라 현장에서 한 번 확인할 것.
+#     틀려도 부팅은 되며, 관리자 화면에서 재기동 없이 바꿀 수 있다.
+#   ⚠ backend 는 <앱 서버>에서 도는데 비식별 서버는 <GPU 장비>에 있다 — loopback(127.0.0.1)으로
+#     되돌리면 영원히 닿지 않는다. 기동·상태점검은 정상인데 비식별만 조용히 실패한다.
+KPST_DEID_BASE_URL=http://10.177.33.162:9989
+# ★ https 일 때만 필수: KPST 사설 CA(ca.crt) 파일 경로.
+#   https 인데 비었거나 못 읽으면 <기동은 통과>하고 비식별 위탁·산출이 거부된다
+#   (검증할 수 없으면 보내지 않는다 — CWE-295). 조용히 넘어가지 않고 기동 시 ERROR 로그가 남는다.
+#   ⚠ 구 서술 폐기(2026-09-03) — 「부팅 시점에 fail-closed 로 기동 실패」.
+#     설정 한 줄로 앱 전체가 멈추지 않도록 <막는 자리를 기동 → 전송 시점>으로 옮겼다.
+#     막는 규칙·강도 자체는 그대로다 — 검증 우회는 어느 경우에도 없다.
+#     (KpstWebClientConfig.kpstDeidEndpointAddress · buildSslContext)
 #   http base-url 이면 불필요하므로 비워둔다.
 KPST_DEID_CA_CERT_PATH=
 KPST_DEID_CREATOR_ID=authoring
@@ -234,11 +299,35 @@ CONTROL_NOTIFY_DEBOUNCE_SEC=60
 #   위탁은 조용히 건너뛰지 않고 실패한다.
 # · 벤더 연동이 확정되면 실제 주소를 채운다(운영은 https 필수 — 평문/내부 대역은 부팅 차단).
 #   ⚠ 여기에 http://127.0.0.1 같은 값을 미리 채워 두지 말 것 — 미연동인데 "주소가 있다"로
-#     판정돼 운영 정책(HTTPS 전용 + 사설망 차단)에 걸려 <부팅이 막힌다>.
+#     판정돼 위탁이 아무도 없는 주소로 나가고 그 실패가 벤더 장애처럼 보인다.
+#     ⚠ 구 서술 폐기(2026-09-01): "운영 정책(HTTPS 전용 + 사설망 차단)에 걸려 부팅이 막힌다" 는
+#       더 이상 사실이 아니다. 주소 검증은 스킴(http/https)과 형식만 본다 — 평문 http 도 통과한다.
 # · 주소를 채우기 전 구간에는 시계열 묶음을 사람이 스킵한다(사유가 처리 이력에 남는다).
 #   ⚠ 스킵 없이 그대로 돌리면 마킹이 위탁 실패로 종결되어 이후 재수행해도 표시가 되돌아오지 않는다.
 VLM_SERVICE_URL=
 VLM_SERVICE_TOKEN=
+
+# ---- 외부 생성형 AI 증강 위탁 주소 ----------------------------------------
+# · 이 주소가 곧 <연동 여부>다 (2026-09-03 확정) — 외부 증강을 아직 붙이지 않으면 빈 값으로 둔다.
+#   빈 값이어도 <기동은 정상>이고, 위탁을 시도하는 시점에 실패한다. 요청 접수는 즉시 503 으로
+#   거부되므로 "되지도 않을 요청" 이 접수되지도 않는다.
+# · 실벤더를 붙일 때는 주소만 채운다:
+#         AUGMENT_API_BASE_URL=https://augment.example.internal
+#   ⚠ 구 미연동 모드 토글 AUGMENT_EXTERNAL_MODE 는 <폐기>됐다 — 읽는 코드가 없으므로 넣어도 아무
+#     일도 일어나지 않는다. 되살리지 말 것(그 우회 때문에 위탁이 한 번도 나간 적이 없었다).
+#   ⚠ 주소를 채우면 콜백 IP allowlist(WEBHOOK_GENAI_ALLOWED_IP_CIDRS)도 <함께> 채워야 한다.
+#     짝이 맞지 않으면 <기동은 통과하되 위탁이 거부>된다 — 그대로 두면 위탁은 나가는데 결과 콜백이
+#     전건 403 이 되어 증강이 PENDING 으로 영구 고착되기 때문이다(기동 시 ERROR 로그).
+#     ★ 구 서술 「기동이 차단된다」는 폐기다(2026-09-03 · ADR-062). 조회·취소는 막지 않는다.
+#   ⚠ 구 서술 폐기(2026-09-01): "운영은 HTTPS + 공인망만 허용하며 평문 http·사설 IP 를 넣으면
+#     기동이 차단된다" 는 더 이상 사실이 아니다. 주소 검증은 스킴(http/https)과 형식만 본다 —
+#     평문 http 도 내부망 주소도 그대로 통과한다(외부 시계열 위탁과 같은 공용 URL 정책).
+#     구 완화 플래그(AUGMENT_ALLOW_INSECURE_URL)는 켜든 끄든 결과가 같아져 제거됐다 — 되살리지 말 것.
+#   ⚠ 계속 차단되는 것(=<위탁 시점> 거부): 비허용 스키마 · 파싱 불가 · placeholder 호스트 ·
+#     클라우드 메타데이터/링크로컬 등 예약 대역.
+#     ★ 구 서술 「기동 차단」·「빈 값만 기동에서 걸리지 않는다」는 폐기다(2026-09-03 · ADR-062) —
+#       <빈 값을 포함한 다섯 축 모두> 기동을 막지 않고 위탁 시점에 실패한다(기동 시 ERROR 로그).
+AUGMENT_API_BASE_URL=
 
 # ---- DEIDENTIFY_API_URL (헬스 핑/레거시 WebClient base-url) ---------------
 # · 비식별 단일 경로는 KPST 폴링이라 실 비식별 호출에는 쓰이지 않지만,
@@ -261,17 +350,28 @@ WEBHOOK_CALLBACK_BASE_URL=http://127.0.0.1:8080/api
 # ⚠ 클러스터 모드는 노드 간 시계 동기화(NTP/chrony) 필수 — 클럭 오차 시 misfire/중복 발화.
 #   설치 전 체크리스트: 두 노드 모두 chronyd(또는 ntpd) 활성 + 동일 NTP 서버 + 오차 1초 이내.
 #   확인: chronyc tracking (System time offset) / timedatectl (NTP service: active)
-# ⚠ Flyway 동시 마이그레이션 방지: 첫 기동은 한 노드만 먼저 올려 마이그레이션 완료
-#   (flyway_schema_history 생성) 확인 후 두 번째 노드를 기동하는 것을 권장.
+# ⚠ 첫 기동 전에 스키마가 로드돼 있어야 한다(db/schema.sql 1회 로드 — 위 DB 절 참고).
+#   Flyway 를 쓰지 않으므로 노드 기동 순서를 가릴 필요는 없다. ⚠ 스키마가 없어도 두 노드
+#   모두 <기동에는 성공>하므로, 기동 성공을 스키마 준비의 근거로 쓰지 말 것.
 # · QUARTZ_CHECKIN_MS : 클러스터 체크인 주기(ms). 노드 장애 감지 지연과 직결되므로 20초 권장.
 QUARTZ_CLUSTERED=true
 QUARTZ_CHECKIN_MS=20000
 
-# ---- JVM 옵션 (systemd 유닛에서 사용) -------------------------------------
+# ---- JVM 옵션 — ★ 이 파일에 적어도 <아무 효과가 없다> ----------------------
+#   JVM 옵션은 프로세스 기동 시점에 정해지는데, WAR 반입 형상에서 그 프로세스는 WAS 다.
+#   아래 값은 <WAS 의 JVM 기동 옵션>(JBoss EAP: bin/standalone.conf 의 JAVA_OPTS)으로 옮겨야 한다.
+#   그래서 여기서는 키=값으로 두지 않고 <옮길 내용>만 주석으로 남긴다.
+#
+#     -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul \
+#     -Djava.security.egd=file:/dev/./urandom
+#
 # · -Djava.security.egd=file:/dev/./urandom : 폐쇄망/신규 VM 의 엔트로피 고갈로
 #   SecureRandom 초기화가 수십초~수분 블로킹되는 기동 지연 방지(/./ 는 JDK 알려진
 #   동작 회피용으로 의도된 표기). 추가로 OS 에 haveged/rng-tools 설치 권장.
-JAVA_OPTS=-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Duser.timezone=Asia/Seoul -Djava.security.egd=file:/dev/./urandom
+# ⚠ 구 서술 폐기(2026-08-30) — "JVM 옵션 (systemd 유닛에서 사용)" + JAVA_OPTS= 키.
+#   이 파일은 스프링 설정 파일이라 JAVA_OPTS 라는 키를 스프링이 읽지도, JVM 이 보지도 않는다.
+#   ⚠ WAS 의 JVM 은 이 애플리케이션 전용이 아닐 수 있다 — 같은 WAS 에 다른 앱이 있으면
+#     MaxRAMPercentage 를 그대로 옮기기 전에 그 영향을 확인할 것.
 
 # ============================================================================
 # ★ 비식별 정책 (확정 — KPST 동거 연동):

@@ -4,11 +4,11 @@ type: domain_feature
 version: 9
 domain: DOMAIN-004
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-17T15:39:18.674Z
+synced_at: 2026-08-29T01:27:34.696Z
 status: CHANGED
-prev_version: 8
-content_hash: bf3b197ece26b1efa67c5091965ad4d4cfeb8161604663b1edec318c24511699
-stale: false
+prev_version: 9
+content_hash: 1b9890188231935f9f751c410ab40111d077cb206185c1af387422b1ad389bbe
+stale: true
 raw: ./_raw/DFEAT-019.json
 links:
   belongs_to_domain: ["[[DOMAIN-004]]"]
@@ -17,7 +17,7 @@ links:
   specializes: ["[[FEAT-001]]"]
   depicts_backward: ["[[CDIAG-005]]"]
   realizes_backward: ["[[UC-034]]"]
-  references_backward: ["[[CDIAG-005]]"]
+  references_backward: ["[[ADR-047]]", "[[CDIAG-005]]"]
 ---
 
 # Auto Labeling (YOLO 객체 탐지)
@@ -104,7 +104,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-355
 
 ### progress
 
@@ -116,7 +116,7 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T02:34:39.349Z
+2026-08-29T01:26:20.239Z
 
 ## uses_constants
 

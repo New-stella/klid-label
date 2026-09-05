@@ -1,0 +1,23 @@
+package	version	license	bundled_texts
+cuda_bindings	12.9.7	LicenseRef-NVIDIA-SOFTWARE-LICENSE	LICENSE;licenses
+cuda_pathfinder	1.8.0	Apache-2.0	LICENSE
+cuda_toolkit	12.6.3	UNRESOLVED	(전문 미동봉)
+nvidia_cublas_cu12	12.6.4.1	NVIDIA Proprietary Software	License.txt
+nvidia_cuda_cupti_cu12	12.6.80	NVIDIA Proprietary Software	License.txt
+nvidia_cuda_nvrtc_cu12	12.6.85	NVIDIA Proprietary Software	License.txt
+nvidia_cuda_runtime_cu12	12.6.77	NVIDIA Proprietary Software	License.txt
+nvidia_cudnn_cu12	9.10.2.21	LicenseRef-NVIDIA-Proprietary	License.txt
+nvidia_cufft_cu12	11.3.0.4	NVIDIA Proprietary Software	License.txt
+nvidia_cufile_cu12	1.11.1.6	NVIDIA Proprietary Software	License.txt
+nvidia_curand_cu12	10.3.7.77	NVIDIA Proprietary Software	License.txt
+nvidia_cusolver_cu12	11.7.1.2	NVIDIA Proprietary Software	License.txt
+nvidia_cusparse_cu12	12.5.4.2	NVIDIA Proprietary Software	License.txt
+nvidia_cusparselt_cu12	0.7.1	NVIDIA Proprietary Software	(전문 미동봉)
+nvidia_nccl_cu12	2.29.3	LicenseRef-NVIDIA-Proprietary	License.txt
+nvidia_nvjitlink_cu12	12.6.85	NVIDIA Proprietary Software	License.txt
+nvidia_nvshmem_cu12	3.4.5	LicenseRef-NVIDIA-Proprietary	License.txt
+nvidia_nvtx_cu12	12.6.77	Apache 2.0	License.txt
+onnxruntime_gpu	1.26.0	MIT License	(전문 미동봉)
+torch	2.12.0+cu126	BSD-3-Clause	LICENSE;NOTICE;licenses
+torchvision	0.27.0+cu126	BSD	LICENSE
+triton	3.7.0	UNRESOLVED	LICENSE;licenses

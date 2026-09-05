@@ -118,12 +118,12 @@ class VersionServiceTest {
     }
 
     private void seedLabel(Long frameSn, String label, String pointsJson) {
-        labelRepository.save(LsDataLbl.createManual(frameSn, "BBOX", null, label, pointsJson, 100L));
+        labelRepository.save(LsDataLbl.createManual(frameSn, "BBOX", null, label, pointsJson, "100"));
     }
 
     private void seedSkeletonLabel(Long frameSn, String label, String pointsJson) {
         labelRepository.save(LsDataLbl.createManual(
-                frameSn, LsDataLbl.TYPE_SKELETON, null, label, pointsJson, 100L));
+                frameSn, LsDataLbl.TYPE_SKELETON, null, label, pointsJson, "100"));
     }
 
     /** v 를 지정한 17-keypoint SKELETON 좌표 JSON ([[x,y,v],x17]). */
@@ -1030,7 +1030,7 @@ class VersionServiceTest {
     void diffWithWorkingClassifiesAddedLabel() {
         String v1 = approveWith("person", "[[10.0,10.0],[50.0,50.0]]");
         Long addedSn = labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", 100L)).getLblSn();
+                srcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", "100")).getLblSn();
 
         DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
 
@@ -1201,7 +1201,7 @@ class VersionServiceTest {
         LsDataLbl removed = seeded.get(1);
         labelRepository.delete(removed);
         Long addedSn = labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, "bike", "[[3.0,3.0],[4.0,4.0]]", 100L)).getLblSn();
+                srcSn, "BBOX", null, "bike", "[[3.0,3.0],[4.0,4.0]]", "100")).getLblSn();
 
         DiffResponseDto resp = versionService.diffWithWorking(v1, reviewer);
 
@@ -1319,7 +1319,7 @@ class VersionServiceTest {
         String emptyHash = "0000111122223333444455556666777788889999";
         seed(emptyHash, "", 1, true);
         Long addedSn = labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", 100L)).getLblSn();
+                srcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", "100")).getLblSn();
 
         DiffResponseDto resp = versionService.diffWithWorking(emptyHash, reviewer);
 

@@ -1,12 +1,12 @@
 ---
 logicraft_item: SCREEN-001
 type: screen_spec
-version: 13
-last_updated_at: 2026-08-13T01:02:18.029Z
+version: 16
+last_updated_at: 2026-08-27T08:14:10.280Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:05.283Z
-sync_session: 20
+synced_at: 2026-09-05T02:34:48.332Z
+sync_session: 35
 stale: false
 status: UNCHANGED
 prev_version: null
@@ -34,7 +34,7 @@ draft
 
 ## purpose
 
-저작도구는 독립 로그인 UI 없이 관제서버(내부)/포털(외부) 발급 JWT를 인계받아 진입하는 화면. 접근: 공개.
+저작도구는 독립 로그인 UI 없이 관제서버(내부)가 발급한 JWT를 인계받아 진입하는 관제 채널 진입 화면. 접근: 공개.
 
 ## sections
 
@@ -62,7 +62,7 @@ _(empty)_
 
 - **custom_name**: Spinner
 
-- **description**: 진입 직후 기본 상태. 화면 중앙에 Spinner(size=lg, label='세션을 확인하는 중')만 표시. 진입 시 1회 토큰 인계→디코드→채널별 이동을 처리한다(중복 실행 방지). 토큰은 localStorage(klid-jwt-token) 또는 쿠키(klid_jwt)로만 인계받는다 — URL 쿼리 파라미터(?token=) 방식은 사용하지 않는다. 개발 환경에서는 위 두 경로에 토큰이 없을 때 빌드타임에 설정된 개발용 대체 토큰(VITE_DEV_TOKEN)을 사용하는 경로가 추가로 있다 — 관제서버가 기동되지 않은 환경에서도 이 화면 진입만으로 세션이 성립하게 하는 개발 전용 지원책이며 운영 빌드에는 포함되지 않는다. 수령한 토큰의 payload 를 클라이언트에서 해석해(서버 측 서명검증은 이 화면에서 하지 않음) 만료 여부를 확인한다. 성공 시 채널이 포털이면 포털 홈으로, 그 외에는 대시보드로 화면을 교체 이동(뒤로가기로 이 화면에 남지 않음). API 호출 없음.
+- **description**: 진입 직후 기본 상태. 화면 중앙에 Spinner(size=lg, label='세션을 확인하는 중')만 표시. 진입 시 1회 토큰 인계→디코드→채널별 이동을 처리한다(중복 실행 방지). 관제 채널에서 토큰은 localStorage(klid-jwt-token) 또는 쿠키(klid_jwt)로만 인계받는다 — URL 쿼리 파라미터(?token=) 방식은 사용하지 않는다. 개발 환경에서는 위 두 경로에 토큰이 없을 때 빌드타임에 설정된 개발용 대체 토큰(VITE_DEV_TOKEN)을 사용하는 경로가 추가로 있다 — 관제서버가 기동되지 않은 환경에서도 이 화면 진입만으로 세션이 성립하게 하는 개발 전용 지원책이며 운영 빌드에는 포함되지 않는다. 수령한 토큰의 payload 를 클라이언트에서 해석해(서버 측 서명검증은 이 화면에서 하지 않음) 만료 여부를 확인한다. 성공 시 채널이 포털이면 포털 홈으로, 그 외에는 대시보드로 화면을 교체 이동(뒤로가기로 이 화면에 남지 않음). 이 채널 분기는 이 화면으로 직접 진입하는 경우에 적용되며, 포털 채널이 호스트 화면에 임베딩되어 진입하는 경우에는 호스트가 인증을 먼저 처리해 로그인된 사용자에게만 화면을 로드하므로 이 진입 화면을 거치지 않는다. API 호출 없음.
 
 **references_apis**:
 
@@ -136,13 +136,21 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-104
 
 ### progress
 
 100
 
 ### subtasks
+
+_(empty)_
+
+### last_updated
+
+2026-08-25T01:21:32.704Z
+
+### module_paths
 
 _(empty)_
 
@@ -155,16 +163,17 @@ _(empty)_
 ### main
 
 - **url**: /uploads/screens/4ece2c3f-8e99-46f5-9580-71108a76e578/SCREEN-001/main.html
-- **label**: 세션 인계 진입 화면 — 와이어프레임
+- **label**: 메인 페이지
 - **width**: 1440
 - **surface**: page
+- **platform**: web
 
 **sections**:
 
 _(empty)_
 
-- **source_hash**: 75e3982220563b97af6c6a274c8e7adc91a77481a42014443c93a8796260ce56
-- **generated_at**: 2026-08-13T01:02:18.028Z
+- **source_hash**: 705ba4165a065b5b490ef7f548c44ecc3ca7fdb290ae26ca9ddcf7cbb75f1bdd
+- **generated_at**: 2026-08-27T08:14:10.280Z
 - **generated_by**: sections-deterministic-generator
 
 **triggered_by**:

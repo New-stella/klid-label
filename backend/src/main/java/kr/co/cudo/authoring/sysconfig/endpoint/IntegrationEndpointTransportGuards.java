@@ -46,6 +46,26 @@ public final class IntegrationEndpointTransportGuards {
      * <p>경고에는 <b>토큰 값도 주소 원문도 싣지 않는다</b>(CWE-532) — 대상 이름과 "자격증명을 붙이지
      * 않았다"는 사실만 남긴다. 로그 폭주를 막기 위해 1회만 출력한다.
      *
+     * <h3>★ 예외 — 원장에서 고른 장비로 <b>핀된</b> 요청은 자격증명을 유지한다 (HIGH · PM 결정)</h3>
+     * <p>위 판정은 <b>수신처가 하나</b>라는 전제 위에 있다. 그런데 한 벤더가 <b>여러 장비로 이중화</b>되면
+     * 배포 기본값과 같은 호스트는 <b>최대 하나</b>라, 나머지 장비로 가는 <b>정상 요청이 전부</b>
+     * 자격증명을 잃는다 — 벤더는 401 로 거부하고 그 실패는 <b>비재시도 확정 실패</b>라 그 영상은 결과를
+     * 영영 얻지 못한다. 「운영자가 <b>다른 시스템</b>으로 주소를 바꿨다」에는 맞는 전제가
+     * 「<b>같은 벤더의 두 번째 장비</b>」에는 맞지 않는다.
+     *
+     * <p>그래서 {@link IntegrationEndpointExchangeFilter#EXPLICIT_TARGET_ATTRIBUTE} 표식이 붙은 요청은
+     * <b>의도된 수신처</b>로 보고 헤더를 그대로 둔다. 표식은 <b>노드 원장에서 고른 절대 목적지</b>에만
+     * 붙는다(그 불변식을 무는 시험이 있다 — {@code ExplicitTargetMarkerCallSiteGuardTest}). 표식이 없는
+     * <b>임의의</b> 호스트 변경에는 종전대로 헤더를 뗀다.
+     *
+     * <p>⚠⚠ <b>이 필터를 다른 연동으로 복사할 때 이 예외까지 함께 가져가라</b> — 지금 이 사슬을 갖지
+     * 않은 연동이 실재하고(예: 추론 축 클라이언트는 주소 재작성만 있다), 그쪽에 나중에 인증이 붙으면
+     * 이 코드를 참조할 가능성이 높다. <b>예외 없는 형태(배포 기본값 하나와만 비교)를 복사하면 같은
+     * 결함이 그대로 옮겨붙는다</b> — 장비가 둘 이상인 순간 절반의 요청이 무인증으로 나간다.
+     *
+     * <p>⚠ <b>미해결(별건)</b>: 벤더가 <b>장비마다 다른 토큰</b>을 발급한다면 이 예외로는 부족하다 —
+     * A 장비의 토큰이 B 장비로 간다. 장비별 자격증명은 원장 스키마·설계 변경이 필요한 별개 축이다.
+     *
      * @param endpoint    대상 연동(로그 표기용)
      * @param bootDefault 배포 기본값 — 자격증명이 발급된 원 수신처
      * @param headerName  떼어낼 자격증명 헤더명
@@ -55,6 +75,10 @@ public final class IntegrationEndpointTransportGuards {
                                                                     String headerName) {
         AtomicBoolean warned = new AtomicBoolean(false);
         return (request, next) -> {
+            // 원장에서 고른 장비로 핀된 요청 — 의도된 수신처이므로 자격증명을 유지한다(위 §예외).
+            if (request.attribute(IntegrationEndpointExchangeFilter.EXPLICIT_TARGET_ATTRIBUTE).isPresent()) {
+                return next.exchange(request);
+            }
             if (SafeUrl.sameHost(request.url().toString(), bootDefault)) {
                 return next.exchange(request);
             }
@@ -120,18 +144,71 @@ public final class IntegrationEndpointTransportGuards {
      * <p>메시지·로그에 <b>주소도 경로도 토큰도 싣지 않는다</b>(CWE-209/532) — 대상 이름만 남긴다.
      */
     public static ExchangeFilterFunction requireResolvedHost(IntegrationEndpoint endpoint) {
+        return requireUsableAddress(endpoint, null);
+    }
+
+    /**
+     * ★ <b>배포 설정값이 정책을 위반했으면 그 연동으로 나가지 않는다</b> (2026-09-03 확정, 구속).
+     *
+     * <h3>기동이 아니라 여기서 막는다</h3>
+     * <p>연동 주소 검증은 지금까지 <b>빈 생성 시점</b>에 걸려 있어, 한 연동의 설정 실수가
+     * <b>저작 업무 전체를 세웠다</b>. 온프렘 배포에서 그 대가는 실수보다 크다. 그래서 판정
+     * ({@code ExternalUrlPolicy})은 그대로 두고 <b>적용 시점만</b> 여기로 옮겼다 — 무엇을 막는지는
+     * 그대로이고 <b>언제 막는지</b>만 바뀐다.
+     *
+     * <p>거부된 주소는 {@code ExternalEndpointAddress} 가 <b>빈 base-url</b> 로 낮춰 두므로, 여기
+     * 도달한 요청의 URL 에는 호스트가 없다. 즉 이 가드는 <b>「주소 없음」과 「주소 부적합」을 한
+     * 자리에서</b> 처리한다 — 두 사유 모두 결과는 같다(아무 데도 보내지 않는다).
+     *
+     * <h3>운영 화면 override 는 살린다</h3>
+     * <p>이 필터는 URL 재작성 필터 <b>뒤</b>에 온다. 배포 기본값이 거부됐더라도 운영 화면에 정상
+     * 주소가 저장돼 있으면 재작성 결과에 호스트가 있으므로 <b>그대로 통과</b>한다 — 잘못 배포된
+     * 주소를 재기동 없이 되돌릴 수 있다.
+     *
+     * <h3>실패의 성질·노출</h3>
+     * <p>{@link NonRetryableExternalException} 이다 — 설정을 고쳐야 풀리는 <b>결정적</b> 실패라
+     * 재시도·서킷 집계에서 제외된다(두 축의 {@code ignore-exceptions} 에 이미 등록돼 있다).
+     * 메시지에는 <b>대상 이름과 사유 분류만</b> 싣고 주소·호스트·자격증명은 싣지 않는다
+     * (CWE-209/532). 설정 키는 <b>서버 로그에만</b> 남긴다 — 내부 속성명은 응답에 실을 정보가 아니다.
+     *
+     * @param endpoint       대상 연동
+     * @param rejectionLabel 배포 설정값의 거부 사유({@code ExternalEndpointAddress#rejectionLabel()}).
+     *                       {@code null} 이면 "설정되지 않음" 으로 다룬다.
+     * @design ADR-062
+     */
+    public static ExchangeFilterFunction requireUsableAddress(IntegrationEndpoint endpoint,
+                                                              String rejectionLabel) {
         return (request, next) -> {
             URI url = request.url();
             String host = url == null ? null : url.getHost();
             if (host != null && !host.isBlank()) {
                 return next.exchange(request);
             }
-            log.error("[IntegrationEndpoint] {} 연동 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
-                            + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다.",
-                    endpoint.displayName());
-            return Mono.error(new NonRetryableExternalException(
-                    endpoint.displayName() + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다."));
+            return Mono.error(unusableAddress(endpoint, rejectionLabel));
         };
+    }
+
+    /**
+     * 전송 거부 예외를 만든다 — <b>필터를 걸 수 없는 저수준 경로</b>(reactor-netty {@code HttpClient})도
+     * 같은 실패를 내도록 여기서 소유한다. 문구가 갈리면 같은 사유가 경로마다 다르게 기록된다.
+     *
+     * @design ADR-062
+     */
+    public static NonRetryableExternalException unusableAddress(IntegrationEndpoint endpoint,
+                                                                String rejectionLabel) {
+        if (rejectionLabel == null || rejectionLabel.isBlank()) {
+            log.error("[IntegrationEndpoint] {} 연동 주소가 설정되지 않아 요청을 보내지 않았습니다 — "
+                            + "주소가 비면 상대 URI 가 되어 loopback:80 으로 나가므로 전송 자체를 막는다. 설정키={}",
+                    endpoint.displayName(), endpoint.configKey());
+            return new NonRetryableExternalException(
+                    endpoint.displayName() + " 연동 주소가 설정되지 않아 요청을 보내지 않았습니다.");
+        }
+        log.error("[IntegrationEndpoint] {} 연동 주소 설정값이 유효하지 않아 요청을 보내지 않았습니다 — "
+                        + "설정을 고쳐야 풀리는 실패입니다(재시도 대상 아님). 설정키={} 사유={}",
+                endpoint.displayName(), endpoint.configKey(), rejectionLabel);
+        return new NonRetryableExternalException(
+                endpoint.displayName() + " 연동 주소 설정값이 유효하지 않아 요청을 보내지 않았습니다 ("
+                        + rejectionLabel + ").");
     }
 
     private static String schemeOf(String url) {

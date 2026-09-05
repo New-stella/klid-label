@@ -1,20 +1,21 @@
 ---
 logicraft_item: DFEAT-056
 type: domain_feature
-version: 3
+version: 4
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-20T03:19:22.460Z
+synced_at: 2026-09-01T08:39:58.121Z
 status: CHANGED
-prev_version: 1
-content_hash: dfb543a3d05af3e02118951f4f68591a71f7e3b11fd4b0407cf42882289fe896
-stale: true
+prev_version: 3
+content_hash: 9f2a5413c13feaac85d66ae0cf49cc9a0c91c9feafe0ec79f314e09881caac35
+stale: false
 raw: ./_raw/DFEAT-056.json
 links:
+  based_on: ["[[ADR-048]]"]
   belongs_to_domain: ["[[DOMAIN-017]]"]
   implements: ["[[API-205]]"]
   specializes: ["[[FEAT-010]]"]
-  verifies: ["[[AC-041]]", "[[AC-047]]"]
+  verifies: ["[[AC-1079]]", "[[AC-1080]]", "[[AC-1081]]"]
   realizes_backward: ["[[UC-035]]"]
 ---
 
@@ -76,6 +77,10 @@ ADR-048
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -95,6 +100,10 @@ _(empty)_
 0
 
 ### subtasks
+
+_(empty)_
+
+### module_paths
 
 _(empty)_
 
@@ -140,8 +149,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-041
-- AC-047
+- AC-1079
+- AC-1080
+- AC-1081
 
 ## specializes_feature
 

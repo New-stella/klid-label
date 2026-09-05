@@ -14,6 +14,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -52,13 +53,11 @@ class IntegrationEndpointCredentialGuardTest {
     private final WebClientConfig config = new WebClientConfig();
 
     /**
-     * local 목업 등가(완화) 정책 — 이 테스트의 관심사는 자격증명이지 URL 정책이 아니다.
-     * {@code enabled=false} 로 호출하더라도 평문 http 경고 경로가 이 인스턴스를 쓴다.
+     * 연동 주소 검증 정책 — 이 테스트의 관심사는 자격증명이지 URL 정책이 아니다.
+     * 평문 http 경고 경로가 이 인스턴스를 쓴다(정책은 프로파일로 갈리지 않는다).
      */
     private static VlmUrlPolicy relaxedPolicy() {
-        org.springframework.mock.env.MockEnvironment env = new org.springframework.mock.env.MockEnvironment();
-        env.setActiveProfiles("local");
-        return new VlmUrlPolicy(env, true);
+        return new VlmUrlPolicy();
     }
 
     @BeforeEach
@@ -118,6 +117,69 @@ class IntegrationEndpointCredentialGuardTest {
         assertThat(received).as("새 주소가 요청을 받아야 한다").isNotNull();
         assertThat(received.getHeader("Authorization"))
                 .as("원 수신처에 발급된 토큰이 새 호스트로 따라가면 안 된다(CWE-522)")
+                .isNull();
+    }
+
+    /**
+     * ★ HIGH — <b>원장에서 고른 장비로 핀된 요청은 자격증명을 유지한다</b>.
+     *
+     * <p>구 동작은 최종 URL 의 호스트를 배포 기본값과만 비교했다. 그런데 한 벤더가 <b>여러 장비로
+     * 이중화</b>되면 배포 기본값과 같은 호스트는 <b>최대 하나</b>라, 나머지 장비로 가는 <b>정상 위탁이
+     * 전량 무인증</b>으로 나갔다 — 벤더 401 → 비재시도 확정 실패 → 그 영상은 시계열 결과를 영영 얻지
+     * 못한다. 가드의 전제(「운영자가 다른 시스템으로 주소를 바꿨다」)가 「같은 벤더의 두 번째 장비」에는
+     * 맞지 않는다.
+     *
+     * <p>⚠ 이 축이 지금까지 시험되지 않은 이유: 노드 배선 시험들이 {@code token=""} 으로 빈을 만들어
+     * <b>그 필터를 아예 등록하지 않았다</b>. 그래서 토큰이 설정된 형상으로 세운다.
+     */
+    @Test
+    @DisplayName("★VLM — 원장에서_고른_장비로_핀된_요청에는_인증_헤더가_유지된다")
+    void vlmTokenSurvivesPinnedNodeTarget() throws Exception {
+        // given — 토큰이 설정된 배포 형상 + 배포 기본값과 <b>다른 호스트</b>의 장비를 원장에서 골랐다.
+        String bootDefault = bootServer.url("/").toString();
+        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, relaxedPolicy(), resolver());
+        otherServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        // when — VlmClient 가 붙이는 것과 같은 표식 + 절대 목적지.
+        client.post()
+                .uri(URI.create(differentHostUrlOf(otherServer) + "/v1/videovlm-klid/describe"))
+                .attributes(a -> a.put(IntegrationEndpointExchangeFilter.EXPLICIT_TARGET_ATTRIBUTE,
+                        Boolean.TRUE))
+                .bodyValue("{}")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5));
+
+        // then
+        RecordedRequest received = otherServer.takeRequest(5, TimeUnit.SECONDS);
+        assertThat(received).as("고른 장비가 요청을 받아야 한다").isNotNull();
+        assertThat(received.getHeader("Authorization"))
+                .as("이중화된 두 번째 장비로 가는 정상 위탁이 무인증이 되면 전량 401 로 확정 실패한다")
+                .isEqualTo("Bearer " + VLM_TOKEN);
+    }
+
+    /**
+     * ★ 반대 방향 — <b>표식이 없는 임의의 호스트 변경</b>에는 종전대로 자격증명을 뗀다.
+     *
+     * <p>이 케이스가 없으면 위 예외가 가드를 통째로 무력화한 것인지 구분되지 않는다.
+     */
+    @Test
+    @DisplayName("★VLM — 표식_없는_임의의_호스트_변경에는_여전히_인증_헤더를_뗀다")
+    void vlmTokenStillStrippedWithoutPinMarker() throws Exception {
+        // given — 같은 목적지지만 표식이 없다(운영 화면 override 로 주소만 바뀐 상황).
+        String bootDefault = bootServer.url("/").toString();
+        WebClient client = config.vlmWebClient(bootDefault, VLM_TOKEN, relaxedPolicy(), resolver());
+        otherServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        // when
+        client.post()
+                .uri(URI.create(differentHostUrlOf(otherServer) + "/v1/videovlm-klid/describe"))
+                .bodyValue("{}")
+                .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5));
+
+        // then
+        RecordedRequest received = otherServer.takeRequest(5, TimeUnit.SECONDS);
+        assertThat(received).isNotNull();
+        assertThat(received.getHeader("Authorization"))
+                .as("표식 없는 호스트 변경까지 통과시키면 CWE-522 가 그대로 열린다")
                 .isNull();
     }
 

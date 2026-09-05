@@ -24,7 +24,7 @@ describe('AugmentRequestPage', () => {
     useAuthStore.getState().clear();
   });
 
-  it('처리종류_카드_4종_렌더_단일선택', async () => {
+  it('처리종류_카드_2종_렌더_단일선택', async () => {
     mock.onGet('/augments').reply(200, {
       success: true,
       data: { content: [], totalElements: 0, totalPages: 0, number: 0, size: 6 },
@@ -45,22 +45,20 @@ describe('AugmentRequestPage', () => {
       expect(screen.getByTestId('process-kind-list')).toBeInTheDocument();
     });
 
-    const winter = screen.getByTestId('process-kind-WINTER');
-    const night = screen.getByTestId('process-kind-NIGHT');
-    const rain = screen.getByTestId('process-kind-RAIN');
+    const augment = screen.getByTestId('process-kind-AUGMENT');
     const resolution = screen.getByTestId('process-kind-RESOLUTION');
 
-    expect(winter).toBeInTheDocument();
-    expect(night).toBeInTheDocument();
-    expect(rain).toBeInTheDocument();
+    expect(augment).toBeInTheDocument();
     // 통합 단일 선택 UI 에서는 해상도 변경(RESOLUTION)도 같은 카드 그리드에 포함된다.
     expect(resolution).toBeInTheDocument();
+    // 구 3종(겨울·야간·우천)은 카드가 아니라 생성 조건 프리셋이 됐다(ADR-059).
+    expect(screen.queryByTestId('process-kind-WINTER')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('process-kind-NIGHT')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('process-kind-RAIN')).not.toBeInTheDocument();
 
     // 단일 선택: 한 카드를 고르면 나머지는 해제 상태
-    await user.click(winter);
-    expect(winter).toHaveAttribute('aria-checked', 'true');
-    expect(night).toHaveAttribute('aria-checked', 'false');
-    expect(rain).toHaveAttribute('aria-checked', 'false');
+    await user.click(augment);
+    expect(augment).toHaveAttribute('aria-checked', 'true');
     expect(resolution).toHaveAttribute('aria-checked', 'false');
   });
 

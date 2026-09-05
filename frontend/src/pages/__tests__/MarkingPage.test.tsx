@@ -505,6 +505,7 @@ describe('MarkingPage', () => {
         cctvName: 'CCTV-42',
         deIdntfYn: 'N',
         deidentStatus: 'IN_PROGRESS',
+        status: 'PENDING',
       },
       message: null,
       errorCode: null,
@@ -518,10 +519,17 @@ describe('MarkingPage', () => {
       expect(screen.getByText(/비식별 완료 후 마킹/)).toBeInTheDocument();
     });
     expect(screen.queryByTestId('video-player-stub')).not.toBeInTheDocument();
+    // 두 축(비식별·배치 단계)에 모두 걸린 영상이다. BE MarkingGuards 와 같은 순서로
+    // <b>비식별 축이 먼저</b> 안내돼야 한다 — 순서가 갈리면 화면 안내와 서버 거부 사유가 달라진다.
+    expect(
+      screen.queryByText(/이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다/),
+    ).not.toBeInTheDocument();
   });
 
-  it('비식별_완료_영상_직접진입시_마킹화면_정상_렌더', async () => {
-    // given: 비식별 완료(deIdntfYn='Y') 영상 — 백스톱이 막지 않는다.
+  it('비식별_완료_마킹대기_영상_직접진입시_마킹화면_정상_렌더', async () => {
+    // given: 비식별 완료(deIdntfYn='Y') + 마킹 대기(MARKING_READY) 영상 — 어느 축도 막지 않는다.
+    // ⚠ status 를 반드시 싣는다 — 배치 단계 축 차단이 생긴 뒤로 status 가 없으면 이 테스트가
+    //   "정상 렌더"가 아니라 "단계 축 차단" 화면을 검증하게 된다(제목 단언은 양쪽 모두 참이다).
     setRole('WORKER');
     mock.onGet(/\/videos\/42\/markings/).reply(200, []);
     mock.onGet('/videos/42').reply(200, {
@@ -532,6 +540,7 @@ describe('MarkingPage', () => {
         cctvName: 'CCTV-42',
         deIdntfYn: 'Y',
         deidentStatus: 'DONE',
+        status: 'MARKING_READY',
       },
       message: null,
       errorCode: null,
@@ -543,6 +552,11 @@ describe('MarkingPage', () => {
       expect(screen.getByText(/마킹 — 영상 #42/)).toBeInTheDocument();
     });
     expect(screen.queryByText(/비식별 완료 후 마킹/)).not.toBeInTheDocument();
+    // 차단 화면이 아니라 편집기가 실제로 떴는지까지 본다(제목만으로는 구분되지 않는다).
+    expect(await screen.findByTestId('video-player-stub')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다/),
+    ).not.toBeInTheDocument();
   });
 
   it('마킹_제출_pending_중_Enter_재호출시_추가_POST_미발생', async () => {
@@ -670,47 +684,101 @@ describe('MarkingPage', () => {
     expect(screen.queryByTestId('deident-report-form')).not.toBeInTheDocument();
   });
 
-  it('마킹단계가_아니면_신고버튼이_비활성화된다', async () => {
-    // given — 이미 배치가 돈 영상(COMPLETED). 서버는 412 로 거부하므로 미리 막는다.
+  // ⚠ 구 케이스 폐기 — '마킹단계가_아니면_신고버튼이_비활성화된다'.
+  //   그때는 마킹 단계가 아니어도 화면이 열렸고 신고 버튼만 사유와 함께 비활성이었다. 지금은
+  //   그 축이 <b>진입 자체를 차단</b>하므로 신고 버튼이 아예 렌더되지 않는다(기능 손실 아님 —
+  //   그 경로의 신고는 라벨링 화면이 담당한다). 아래가 그 자리를 대신한다.
+  it('마킹단계가_아니면_편집기가_렌더되지_않고_사유만_안내된다', async () => {
+    // given — 이미 배치가 돈 영상(COMPLETED). 서버도 412 로 거부하는 축이라 미리 막는다.
     setRole('WORKER');
     mock.onGet(/\/videos\/42\/markings/).reply(200, []);
     stubVideoDetail({ derivative: false, status: 'COMPLETED' });
 
     renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
 
-    const button = await screen.findByTestId('deident-report-button');
-    await waitFor(() => expect(button).toBeDisabled());
-    expect(button.getAttribute('title')).toContain('라벨링 화면');
+    // then — 사유 안내만 뜨고 편집기(플레이어·툴바·칩 목록)와 신고 버튼은 렌더되지 않는다.
+    expect(
+      await screen.findByText(/이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('video-player-stub')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /마킹 완료/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('deident-report-button')).not.toBeInTheDocument();
+    // 신고 축 문구('…라벨링 화면에서 신고해 주세요')를 그대로 재사용하지 않는다 — 행위가 다르다.
+    expect(screen.queryByText(/라벨링 화면에서 신고해 주세요/)).not.toBeInTheDocument();
   });
 
-  it('검수승인_영상이라도_마킹단계가_아니면_마킹_사유가_먼저_안내된다', async () => {
-    // given — 검수 승인(APPROVED) 영상은 배치 단계가 COMPLETED 다. BE 는 승인 게이트보다
-    //   <b>마킹 단계 게이트를 먼저</b> 평가하므로 실제 412 사유는 "마킹 단계 아님"이다.
-    //   차단 결과는 어느 쪽이든 같지만 안내 문구가 서버 거부 사유와 갈리면 안 된다.
+  // ⚠ 구 케이스 폐기 — '검수승인_영상이라도_마킹단계가_아니면_마킹_사유가_먼저_안내된다'.
+  //   신고 사유의 우선순위(마킹 단계 > 검수 승인)를 화면에서 관측하던 케이스인데, 검수 승인
+  //   영상은 배치 단계가 COMPLETED 라 이제 진입 자체가 차단되어 신고 버튼이 뜨지 않는다.
+  //   그 우선순위 자체는 코드에 그대로 있고(BE 평가 순서와 동일), 여기서는 차단만 확인한다.
+  it('검수승인_영상도_마킹단계가_아니므로_진입이_차단된다', async () => {
     setRole('WORKER');
     mock.onGet(/\/videos\/42\/markings/).reply(200, []);
     stubVideoDetail({ derivative: false, status: 'COMPLETED', reviewSttsCd: 'APPROVED' });
 
     renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
 
-    const button = await screen.findByTestId('deident-report-button');
-    await waitFor(() => expect(button).toBeDisabled());
-    expect(button.getAttribute('title')).toContain('라벨링 화면');
-    expect(button.getAttribute('title')).not.toContain('검수가 완료된');
+    expect(
+      await screen.findByText(/이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('video-player-stub')).not.toBeInTheDocument();
   });
 
-  it('파생영상이면_마킹단계가_아니어도_파생_사유가_우선한다', async () => {
-    // given — BE 평가 순서(파생 → 마킹 단계 → 승인)의 맨 앞이 파생영상이다. 파생본은 재비식별
-    //   수단 자체가 없어 "라벨링 화면에서 신고해 주세요"가 잘못된 유도가 된다.
+  // ⚠ 구 케이스 폐기 — '파생영상이면_마킹단계가_아니어도_파생_사유가_우선한다'.
+  //   파생 + 마킹 단계 아님 조합은 이제 진입 차단이라 신고 버튼 사유를 화면에서 볼 수 없다.
+  //   파생 사유 우선순위는 마킹 대기 상태의 파생영상 케이스(위)가 계속 지킨다.
+  it('파생영상이라도_마킹단계가_아니면_진입이_차단된다', async () => {
     setRole('WORKER');
     mock.onGet(/\/videos\/42\/markings/).reply(200, []);
     stubVideoDetail({ derivative: true, status: 'COMPLETED', reviewSttsCd: 'APPROVED' });
 
     renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
 
-    const button = await screen.findByTestId('deident-report-button');
-    await waitFor(() => expect(button).toBeDisabled());
-    expect(button.getAttribute('title')).toContain('파생영상');
-    expect(button.getAttribute('title')).not.toContain('라벨링 화면');
+    expect(
+      await screen.findByText(/이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다/),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('deident-report-button')).not.toBeInTheDocument();
+  });
+
+  // ============================================================
+  // CO-011 — 파이프라인 진행 표시 제거 + 배치 단계 축 진입 차단
+  // ============================================================
+
+  it('마킹화면_헤더에_배치단계_진행표시가_없다', async () => {
+    // given — BE 가 단계 목록을 내려주는 마킹 대기 영상. 구 구현은 이때 헤더에 표시기를 그렸다.
+    //   마킹 완료가 잔여 배치의 트리거라 이 화면에 머무는 동안 확인할 진행 자체가 없다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    stubVideoDetail({
+      derivative: false,
+      stages: [
+        { name: 'DEIDENTIFY', status: 'DONE' },
+        { name: 'MARKING', status: 'PENDING' },
+        { name: 'VLM', status: 'PENDING' },
+      ],
+    });
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    // 편집기는 정상 렌더되고(회귀 없음) 표시기만 사라진다.
+    expect(await screen.findByTestId('video-player-stub')).toBeInTheDocument();
+    expect(screen.queryByTestId('batch-stage-indicator')).not.toBeInTheDocument();
+  });
+
+  it('영상상세_로딩중에는_차단안내가_뜨지_않는다', async () => {
+    // given — 영상 상세 응답이 아직 도착하지 않은 구간(never-resolve).
+    //   확정되지 않은 값으로 차단하면 로딩 깜빡임이 정상 마킹을 막는다.
+    setRole('WORKER');
+    mock.onGet(/\/videos\/42\/markings/).reply(200, []);
+    mock.onGet('/videos/42').reply(() => new Promise(() => {}));
+
+    renderWithProviders(<MarkingPage />, { initialEntries: ['/marking/42'] });
+
+    // then — 어느 축의 차단 안내도 뜨지 않고 편집기가 렌더된다.
+    expect(await screen.findByTestId('video-player-stub')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/이미 다음 단계로 넘어간 영상이라 마킹할 수 없습니다/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/비식별 완료 후 마킹/)).not.toBeInTheDocument();
   });
 });

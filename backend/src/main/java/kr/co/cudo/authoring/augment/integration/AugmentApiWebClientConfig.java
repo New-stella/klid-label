@@ -2,9 +2,10 @@ package kr.co.cudo.authoring.augment.integration;
 
 import io.netty.channel.ChannelOption;
 import kr.co.cudo.authoring.common.config.AugmentUrlPolicy;
+import kr.co.cudo.authoring.common.config.ExternalEndpointAddress;
+import kr.co.cudo.authoring.common.config.GenAiIntegrationWiringGuard;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -19,36 +20,70 @@ import java.time.Duration;
  * 외부 증강(생성형 AI) API 연동용 WebClient — Phase 7-A1 신설 / DEV_FIX HIGH-1 정책 정합.
  *
  * <h3>base-url 검증은 공용 정책에 위임한다</h3>
- * <p>과거에는 이 클래스가 <b>스키마만</b> 보는 자체 검증을 갖고 있었다. 그래서 운영에서
- * {@code http://10.0.0.5:9400}(사설망 평문) · {@code http://169.254.169.254/}(클라우드 메타데이터) ·
- * {@code http://your-service.example.com}(미설정 placeholder) 이 모두 <b>기동에 성공</b>했고, 같은 값을
- * VLM 은 차단하는 <b>정책 비대칭</b>이 생겼다. 이제 {@link AugmentUrlPolicy}(→ {@code ProfileGatedUrlPolicy}
- * → {@code ExternalUrlPolicy}) 라는 <b>VLM 과 동일한 판정 원천</b>을 쓴다: prd/stg 는 HTTPS + 공인망 강제,
- * local/dev 는 전용 완화 플래그가 켜졌을 때만 목업(평문/사설) 허용.
+ * <p>과거에는 이 클래스가 <b>스키마만</b> 보는 자체 검증을 갖고 있었다. 그래서 미설정 placeholder
+ * ({@code http://your-service.example.com})나 클라우드 메타데이터 주소({@code http://169.254.169.254/})가
+ * 그대로 기동에 성공했고, 같은 값을 VLM 은 차단하는 <b>정책 비대칭</b>이 생겼다. 이제
+ * {@link AugmentUrlPolicy}(→ {@code ExternalUrlPolicy}) 라는 <b>VLM·KPST 와 동일한 판정 원천</b>을 쓴다.
+ *
+ * <p>★ 그 판정이 보는 것은 <b>스킴({@code http}/{@code https})과 URL 형식뿐</b>이다
+ * (2026-09-01 확정 — [@design ADR-046]).
+ * <b>HTTPS 강제·사설망 차단·프로파일 게이팅·완화 플래그는 폐기</b>됐으므로 평문 http + 내부망 주소는
+ * 전 프로파일에서 그대로 통과한다. 계속 차단되는 것은 비허용 스킴·빈값·placeholder 호스트와
+ * 예약 대역(메타데이터·링크로컬·ULA·CGNAT·멀티캐스트)이다. 상세와 근거는 {@link AugmentUrlPolicy} 참조.
+ *
+ * <h3>★ 주소가 비어 있어도 기동한다 — 막는 것은 기동이 아니라 전송이다 (2026-09-03 확정, 구속)</h3>
+ * <p>구 동작은 {@code base-url} 이 비면 정책의 "빈값 거부" 로 <b>기동을 막았다</b>. 그래서 벤더 주소가
+ * 아직 없다는 이유만으로 개발·스테이징·운영이 전부 <b>미연동 모드로 도망갔고</b>, 그 우회가 「증강
+ * 위탁이 실제로 나간 적이 한 번도 없는」 상태를 굳혔다. <b>fail-closed 를 잘못된 자리에 건 것</b>이다 —
+ * 막아야 할 것은 <b>잘못된 곳으로 나가는 것</b>이지 기동이 아니며, <b>빈 주소는 「아직 안 정해짐」이지
+ * 「위험함」이 아니다</b>.
+ *
+ * <p>그래서 <b>주소가 있을 때만</b> 정책을 태우고, 미주입이면 {@link AugmentTransportGuard} 가
+ * <b>전송 자체를 막는다</b>(시계열 위탁 클라이언트와 같은 형태 — 그쪽이 선례다). 네 축이 어디서
+ * 걸리는지는 아래 표가 정본이다.
+ *
+ * <p>★ <b>2026-09-03 재확정 — 네 축도 기동에서 걷어냈다.</b> 빈값 하나만 옮겼던 것을 <b>전 축</b>으로
+ * 넓혔다. 하나만 고치면 다음 배포에서 다른 축·다른 연동이 같은 일을 낸다.
+ *
+ * <table border="1">
+ *   <caption>주소 판정 축과 걸리는 지점</caption>
+ *   <tr><th>축</th><th>걸리는 지점</th></tr>
+ *   <tr><td>{@code http}/{@code https} 외 스킴</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>파싱 불가</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>placeholder/예제 호스트</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td>예약 대역(메타데이터·링크로컬·ULA·CGNAT·멀티캐스트)</td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ *   <tr><td><b>빈값(미주입)</b></td><td>기동은 정상 · <b>위탁 시도 시점에 실패</b></td></tr>
+ * </table>
  *
  * <h3>기본값에 localhost 를 두지 않는다</h3>
- * <p>{@code base-url} 기본값이 {@code http://localhost:9400} 이면 <b>완화 기본값이 운영 형상에 상주</b>한다
- * (환경변수 미설정 배포가 조용히 기동). 기본값을 빈 문자열로 두고 정책의 "빈값 거부" 로 부팅을 막는다 —
- * local 은 {@code application-local.yml}/compose 가 명시 주입한다.
+ * <p>{@code base-url} 기본값이 {@code http://localhost:9400} 이면 <b>목업 주소가 운영 형상에 상주</b>한다
+ * (환경변수 미설정 배포가 조용히 목업을 향해 기동). 공통 기본값은 빈 문자열이며 목업 주소는
+ * local/dev 프로파일 yml 과 compose 가 <b>명시 주입</b>한다.
  *
- * <h3>{@code mode=noop} 이면 빈을 만들지 않는다</h3>
- * <p>본 WebClient 의 유일한 소비자는 {@link HttpExternalAugmentClient} 이고 그 빈은 {@code mode=http}
- * 에서만 활성이다. 조건 없이 커넥터를 만들면 <b>위탁하지 않는 환경(prd, mode=noop)에서도</b> base-url
- * 설정을 요구하게 되어 무의미한 배포 제약이 된다. 두 빈의 활성 조건을 동일하게 맞춘다.
+ * <h3>★ 조건부 활성이 아니다 — 연동이 유일한 형상이다</h3>
+ * <p>구 동작은 {@code authoring.augment.external.mode=http} 일 때만 이 설정이 활성이었다. 그
+ * <b>미연동 모드 토글 축은 폐기</b>됐다(설정 키·판정기·전용 클라이언트 구현까지). 이제 이 빈은 항상
+ * 만들어지고, 「연동됐는가」는 {@link AugmentExternalLinkPolicy}(= 주소 주입 여부)가 판정한다.
+ *
+ * <h3>★ 주소 축 말고 <b>짝 맞춤 축</b>도 여기서 막는다 (2026-09-03 확정, 구속)</h3>
+ * <p>위탁 주소가 정상이어도 <b>콜백 IP allowlist 가 비어 있으면</b> 결과를 되받을 수 없어 그 증강이
+ * 영구 고착된다. 그 판정({@code GenAiIntegrationWiringGuard})도 <b>기동을 막던 것을 위탁 시점으로</b>
+ * 옮겼다 — 주소 축과 <b>다른 축</b>이지만 「보호가 필요한 순간은 기동이 아니다」라는 근거가 같다.
+ * ⚠ 이 필터를 떼면 <b>되받지 못할 위탁이 실제로 나간다</b>(= 그 가드가 없어진 것과 같다).
  *
  * <p>base-url 은 <b>서버 설정값</b>만 사용하며 사용자 입력으로 호스트를 구성하지 않는다. 인증 헤더는
  * 붙이지 않는다 — 명세서·목 서버 모두 인증 미구현이 확정 계약이다.
+ *
+ * @design ADR-062
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(name = "authoring.augment.external.mode", havingValue = "http",
-        matchIfMissing = true)
 public class AugmentApiWebClientConfig {
 
     /**
      * 응답(JSON) 버퍼 상한. 파일 본문은 주고받지 않으므로(경로만 교환) 작게 잡는다.
      *
-     * <p>Phase 7-A2 재검토 — 최대 응답은 202 ACK 가 아니라 §4.5 결과 조회다. 계약 상한인 100건 ×
+     * <p>Phase 7-A2 재검토 — 최대 응답은 202 ACK 가 아니라 §4.3 결과 조회다. 계약 상한인 100건 ×
      * (generated_data_id 128 + output_file_path 500 + checksum 128 + media_type) ≈ 80KB 이므로 1MB 는
      * 항목당 ~10KB 의 {@code media_metadata} 여유를 남긴다(목은 mime_type/size_bytes 2개뿐). 넉넉하다.
      * 초과 시에는 조용히 절단되지 않고 {@code DataBufferLimitException} 으로 <b>실패</b>하므로,
@@ -65,9 +100,14 @@ public class AugmentApiWebClientConfig {
     @Bean(name = "augmentApiWebClient")
     public WebClient augmentApiWebClient(
             @Value("${authoring.augment.external.base-url:}") String baseUrl,
-            AugmentUrlPolicy urlPolicy) {
-        // 정책 위반이면 IllegalStateException → 빈 생성 실패 → 기동 차단(fail-closed).
-        urlPolicy.validate(baseUrl);
+            AugmentUrlPolicy urlPolicy,
+            GenAiIntegrationWiringGuard wiringGuard) {
+        // ★ 주소가 어떤 상태여도 기동한다 — 판정은 그대로 태우되 결과를 <들고 있다가> 전송 시점에 쓴다.
+        //   구 배선은 여기서 예외를 던져(빈 생성 실패) 기동을 막았다. 규칙은 그대로이고 시점만 옮겼다.
+        ExternalEndpointAddress address = ExternalEndpointAddress.of(
+                AugmentExternalLinkPolicy.KEY_BASE_URL, baseUrl, urlPolicy.inspect(baseUrl));
+        // 거부·미주입은 빈 문자열로 정규화된다 — null 을 그대로 넘기면 실패가 NPE 로 나와 판독이 어렵다.
+        String base = address.baseUrl();
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS)
                 .responseTimeout(RESPONSE_TIMEOUT);
@@ -75,9 +115,18 @@ public class AugmentApiWebClientConfig {
                 .codecs((ClientCodecConfigurer c) -> c.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY_BYTES))
                 .build();
         return WebClient.builder()
-                .baseUrl(baseUrl.trim())
+                .baseUrl(base)
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(strategies)
+                // ★ 미연동(주소 미주입)이면 <전송 자체>를 막는다 — 빈 base-url 은 상대 URI 가 되어
+                //   loopback:80 으로 실제 연결이 나가고, 그 요청 바디에는 비식별 프레임 절대경로와
+                //   콜백 주소가 실린다(온프렘은 같은 호스트에 웹서버가 있어 접근 로그에 남는다).
+                .filter(AugmentTransportGuard.requireUsableAddress(address.rejectionLabel()))
+                // ★ 주소가 멀쩡해도 <결과를 되받을 수 없으면> 위탁을 걸지 않는다 — 위탁은 202 로
+                //   나가는데 콜백이 전건 403 이면 그 증강이 PENDING 으로 영구 고착된다(만료 스윕 없음).
+                //   조회·취소는 대상이 아니다(고착된 job 을 정리할 경로까지 막으면 안 된다).
+                .filter(AugmentTransportGuard.requirePairedCallbackIntake(
+                        wiringGuard.commissionRejectionLabel()))
                 .build();
     }
 }

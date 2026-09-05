@@ -8,10 +8,14 @@ import type { BatchStageItem } from '@/features/video/types';
 
 import {
   BatchStageIndicator,
+  CELL_MIN_WIDTH_PX,
   COLLAPSED_BUNDLE_LABEL,
+  DOT_HALO_PX,
   bundleLabel,
   collapseStages,
   collapsedStatus,
+  haloClassMatchesThickness,
+  maxWidthClassesMatch,
   stageLabel,
 } from '../BatchStageIndicator';
 
@@ -33,6 +37,30 @@ const item = (name: string, status: BatchStageItem['status']): BatchStageItem =>
   progress: null,
 });
 
+/**
+ * `src` 아래 소스 파일 전수(테스트 제외) — 정적 가드가 「어디에도 없다」를 세는 축.
+ *
+ * 런타임 렌더 테스트는 "지금 무엇이 그려지는가"만 보므로, 지운 prop·주장이 **다른 파일에서**
+ * 되살아나는 것을 잡지 못한다. 그 사각을 이 목록이 덮는다.
+ */
+function sourceFiles(): { abs: string; rel: string }[] {
+  const srcDir = path.resolve(__dirname, '../../..');
+  const out: { abs: string; rel: string }[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === '__tests__' || entry.name === 'test') continue;
+        walk(full);
+      } else if (/\.tsx?$/.test(entry.name)) {
+        out.push({ abs: full, rel: path.relative(srcDir, full).split(path.sep).join('/') });
+      }
+    }
+  };
+  walk(srcDir);
+  return out;
+}
+
 /** 렌더된 칸(스텝)의 key 목록 — 접기 결과를 셀 수 있는 유일한 축. */
 function renderedCellKeys(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll('[data-testid^="batch-stage-item-"]')).map((el) =>
@@ -50,7 +78,7 @@ describe('BatchStageIndicator', () => {
     // ★ 구 기대값 'VLM' → 폐기. 기술 모델명 노출 금지(UI-018)로 「시계열」로 표시한다(코드는 유지).
     expect(screen.getByText('시계열')).toBeInTheDocument();
     expect(screen.getByText('프레임추출')).toBeInTheDocument();
-    // ★ 회차 45 정정 — 오토라벨 세 단계(AI 탐지·AI 분할·보간)는 개별 칸이 아니라 한 칸이다.
+    // ★ 회차 45 정정 — 오토라벨 세 단계(AI 탐지·AI 분할·트랙 보간)는 개별 칸이 아니라 한 칸이다.
     //   구 기대값 '보간' 칸 존재 → 폐기(UI-018 v7 이 5칸으로 접으라고 규정).
     expect(screen.getByText(COLLAPSED_BUNDLE_LABEL)).toBeInTheDocument();
   });
@@ -201,7 +229,7 @@ describe('BatchStageIndicator', () => {
           stages={[item('YOLO', 'DONE'), item('SAM2', 'DONE'), item('INTERPOLATE', 'FAIL')]}
         />,
       );
-      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('보간에서 실패');
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('트랙 보간에서 실패');
     });
 
     it('★진행중이면_지금_어느_세부_단계인지_적는다', () => {
@@ -299,7 +327,7 @@ describe('BatchStageIndicator', () => {
     );
     const live = screen.getByTestId('batch-stage-live');
     expect(live).toHaveTextContent(`${COLLAPSED_BUNDLE_LABEL} 실패`);
-    expect(live).toHaveTextContent('보간에서 실패');
+    expect(live).toHaveTextContent('트랙 보간에서 실패');
   });
 
   it('진행_중_단계가_없으면_실패나_마지막_완료_단계를_안내한다', () => {
@@ -453,22 +481,234 @@ describe('BatchStageIndicator', () => {
     });
   });
 
+  // ── SCREEN-009 확정 시안 정합: 점·연결선·캡션 ─────────────────────────────
+  // 기준: `design-main.css` 의 `.stage-dot` / `.stage-line` / `.stage-caption` / `.stage-substep`.
+  // ⚠ jsdom 은 CSS 를 적용하지 않으므로 여기서 고정하는 것은 **선언**(className·inline style)이다.
+  //   실제 픽셀은 브라우저 실측이 짝이다.
+  describe('★확정 시안 표면 정합(@design SCREEN-009 · @design UI-018)', () => {
+    const px = (v: string | number | undefined): number => parseFloat(String(v ?? ''));
+
+    // ★★ E3 ↔ E9 는 한 묶음이다 — 이 가드가 그 묶음을 지킨다.
+    //    구 구현은 「점이 32px 링」이라는 전제를 연결선 쪽에 숫자로 베껴 뒀다(`top: 15` ·
+    //    `left: calc(50% + 18px)`). 점만 시안(16px)으로 줄이면 **선이 점에서 떨어져 공중에 뜬다**.
+    //    그래서 값을 비교하지 않고 **불변식**(선의 중심 = 점의 중심)을 단언한다 — 어느 한쪽만
+    //    바꾸면 상수 값이 무엇이든 즉시 실패한다.
+    it('★연결선의_세로중심이_점의_세로중심과_일치한다_E3E9_묶음', () => {
+      render(<BatchStageIndicator stages={stages} />);
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+      const line = screen.getByTestId('batch-stage-connector-DEIDENTIFY');
+
+      const dotSize = px(dot.style.height);
+      const lineTop = px(line.style.top);
+      const lineHeight = px(line.style.height);
+
+      // 값이 비면 아래 등식이 NaN 비교로 무력해진다 — 먼저 못 박는다.
+      expect(dotSize).toBeGreaterThan(0);
+      expect(lineHeight).toBeGreaterThan(0);
+
+      expect(lineTop + lineHeight / 2).toBe(dotSize / 2);
+    });
+
+    it('★연결선은_이_칸_중심에서_다음_칸_중심까지_간다_점_아래를_지난다', () => {
+      render(<BatchStageIndicator stages={stages} />);
+      const line = screen.getByTestId('batch-stage-connector-DEIDENTIFY');
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+
+      // 칸 폭이 같으므로 «중심(50%) + 칸 하나 폭(100%)» 이 곧 다음 점의 중심이다.
+      expect(line.style.left).toBe('50%');
+      expect(line.style.width).toBe('100%');
+      // 구 좌표 보정(점 바깥에서 끊기)이 되살아나면 실패한다.
+      expect(line.getAttribute('style')).not.toContain('calc');
+      // 점이 선 위에 놓여야 선이 점을 가로지르는 것처럼 보이지 않는다.
+      expect(line.className).toContain('z-0');
+      expect(dot.className).toContain('z-10');
+    });
+
+    it('★마지막_칸에는_연결선이_없다', () => {
+      render(<BatchStageIndicator stages={stages} />);
+      expect(screen.queryByTestId('batch-stage-connector-AUTOLABEL')).not.toBeInTheDocument();
+    });
+
+    // E3 — 점은 **단일 점**이다. 구 «반투명 틴트 링 + 내부 점» 2겹 구조를 되살리지 말 것.
+    it('★점은_단일_점이다_반투명_틴트_링_2겹_구조_폐기', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} />);
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+
+      // 점 안에 또 다른 점이 없다(구 구조는 링 안에 8px 점을 품었다).
+      expect(dot.children).toHaveLength(0);
+      expect(dot.className).toContain('rounded-full');
+      expect(dot.className).toContain('border-2');
+      // 반투명 틴트(`bg-{색}/10`)가 어디에도 남지 않는다 — 남으면 연결선이 점 아래로 비친다.
+      expect(container.innerHTML).not.toMatch(/bg-(success|info|danger|primary)\/\d/);
+    });
+
+    // E4 — 진행 중 점에는 **헤일로**가 있다(시안 `box-shadow: 0 0 0 3px var(--p-1)`).
+    //   ★ 형태(두께 3px)는 시안, 색은 이 화면의 상태색 축이라 `info` 100단이다 — 시안의 primary 로
+    //     바꾸지 말 것(완료=success · 실패=danger · 대기=gray 와 축이 갈린다).
+    //   ★ `ring` 은 box-shadow 라 **레이아웃을 밀지 않는다** — 아래 두 단언이 그 성질을 못 박는다.
+    it('★진행_중_점에만_3px_헤일로가_붙는다_색은_info_축이다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('DEIDENTIFY', 'DONE'), item('MARKING', 'PROGRESS'), item('VLM', 'PENDING')]}
+        />,
+      );
+
+      const progress = screen.getByTestId('batch-stage-dot-MARKING');
+      expect(progress.className).toContain('ring-[3px]');
+      expect(progress.className).toContain('ring-info-100');
+      // 시안이 쓰는 primary 로 갈아타면 상태색 축이 깨진다.
+      expect(progress.className).not.toMatch(/ring-primary/);
+
+      // 나머지 상태에는 붙지 않는다 — 붙으면 「지금 도는 칸」이라는 신호가 죽는다.
+      for (const key of ['DEIDENTIFY', 'VLM']) {
+        expect(screen.getByTestId(`batch-stage-dot-${key}`).className).not.toContain('ring-');
+      }
+    });
+
+    // ★★ E4 ↔ E3E9 는 한 묶음이다 — 헤일로가 **점을 키우면** 연결선 좌표 파생이 어긋난다.
+    //    `ring`(box-shadow) 대신 `border` 나 바깥 래퍼로 헤일로를 만들면 이 단언이 깨진다.
+    it('★헤일로는_점_크기를_바꾸지_않는다_연결선_파생이_그대로_성립한다', () => {
+      render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'PROGRESS'), item('VLM', 'PENDING')]} />);
+      const dot = screen.getByTestId('batch-stage-dot-DEIDENTIFY');
+      const line = screen.getByTestId('batch-stage-connector-DEIDENTIFY');
+
+      const dotSize = px(dot.style.height);
+      expect(dotSize).toBeGreaterThan(0);
+      // 진행 중이어도 점 크기는 다른 상태와 같다(비교 대상: 대기 점).
+      expect(px(screen.getByTestId('batch-stage-dot-VLM').style.height)).toBe(dotSize);
+      // 그래서 선 중심 = 점 중심 불변식이 진행 중 칸에서도 그대로 성립한다.
+      expect(px(line.style.top) + px(line.style.height) / 2).toBe(dotSize / 2);
+    });
+
+    // E5 — 대기는 **흰 채움 + 테두리만**. 회색 채움으로 되돌리면 지나간 단계와 구분이 약해진다.
+    it('★대기_점은_흰_채움에_회색_테두리다', () => {
+      render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'DONE'), item('VLM', 'PENDING')]} />);
+      const pending = screen.getByTestId('batch-stage-dot-VLM');
+      expect(pending.className).toContain('bg-white');
+      expect(pending.className).toContain('border-gray-300');
+      expect(pending.className).not.toContain('bg-gray-200');
+    });
+
+    // E9 — 완료 구간 선은 점(su-5)보다 한 단 옅다(su-4). 점과 같은 단으로 통일하지 말 것.
+    it('★완료_연결선은_점보다_한_단_옅다_그_외는_중립선이다', () => {
+      render(<BatchStageIndicator stages={[item('DEIDENTIFY', 'DONE'), item('VLM', 'PENDING'), item('MARKING', 'PENDING')]} />);
+      expect(screen.getByTestId('batch-stage-connector-DEIDENTIFY').className).toContain(
+        'bg-success-400',
+      );
+      expect(screen.getByTestId('batch-stage-dot-DEIDENTIFY').className).toContain('bg-success-500');
+      expect(screen.getByTestId('batch-stage-connector-VLM').className).toContain('bg-gray-200');
+    });
+
+    // E6 — 캡션도 상태색을 거든다. ⚠ 색은 **보조**이고 상태 문구가 주 수단이라는 불변식은
+    //      위 「캡션이 단계명과 상태를 함께 적는다」 가드가 계속 진다(둘은 짝이다).
+    it('★캡션이_상태별_색을_갖는다_진행중은_info축_유지', () => {
+      render(
+        <BatchStageIndicator
+          stages={[
+            item('DEIDENTIFY', 'DONE'),
+            item('MARKING', 'PROGRESS'),
+            item('VLM', 'PENDING'),
+          ]}
+        />,
+      );
+      const caption = (key: string) =>
+        screen.getByTestId(`batch-stage-name-${key}`).parentElement!.className;
+
+      expect(caption('DEIDENTIFY')).toContain('text-success-600');
+      // 확정 사항 — 진행 중은 info 계열이다(시안의 primary 로 바꾸지 말 것).
+      expect(caption('MARKING')).toContain('text-info-600');
+      expect(caption('MARKING')).not.toContain('text-primary');
+      expect(caption('VLM')).toContain('text-gray-500');
+    });
+
+    it('★실패_캡션은_danger축이며_진행중과_함께_굵어진다', () => {
+      render(<BatchStageIndicator stages={[item('MARKING', 'FAIL')]} />);
+      const caption = screen.getByTestId('batch-stage-name-MARKING').parentElement!.className;
+      expect(caption).toContain('text-danger-600');
+      // `text-caption` ladder 가 싣는 400 을 덮어야 강조가 산다.
+      expect(caption).toContain('font-semibold');
+    });
+
+    // E7 — 보조 표기는 상태색을 따르지 않는 고정 중립색이다(시안 `.stage-substep { color: --n-6 }`).
+    it('★보조_표기는_상태색을_따르지_않고_중립색이다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('YOLO', 'DONE'), item('SAM2', 'DONE'), item('INTERPOLATE', 'FAIL')]}
+        />,
+      );
+      const note = screen.getByTestId('batch-stage-note-AUTOLABEL');
+      expect(note.className).toContain('text-gray-600');
+      expect(note.className).not.toContain('text-danger');
+    });
+
+    // E8 — 시안은 폭을 묶고 낱말 단위로 두 줄을 허용한다. 줄바꿈을 막으면 이웃 칸과 겹친다.
+    it('★캡션은_줄바꿈을_막지_않고_폭으로_묶는다_구_nowrap_폐기', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} />);
+      const line = screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement!;
+      const wrapper = line.parentElement!;
+
+      expect(container.innerHTML).not.toContain('whitespace-nowrap');
+      // 낱말 중간에서 끊기지 않게 한다(한국어 `word-break: keep-all`).
+      expect(wrapper.className).toContain('break-keep');
+      expect(line.className).toContain('max-w-[120px]');
+    });
+
+    it('★보조_표기도_폭으로_묶인다', () => {
+      render(
+        <BatchStageIndicator
+          stages={[item('YOLO', 'DONE'), item('SAM2', 'DONE'), item('INTERPOLATE', 'FAIL')]}
+        />,
+      );
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL').className).toContain(
+        'max-w-[132px]',
+      );
+    });
+  });
+
+  // ── 단계 표시명: 「트랙 보간」 ─────────────────────────────────────────────
+  // ★ 정본 `UI-018` 이 오토라벨 묶음을 «AI 탐지 · AI 분할 · 트랙 보간» 으로 부르고, 시안도
+  //   묶음 멤버 나열(`.group-sub`)·실패 단계 칩(`.fp-stage-chip`)·재수행 안내를 전부
+  //   「트랙 보간」으로 적는다. 구현만 「보간」이라 드리프트였다.
+  //
+  // ⚠ 이 표는 단계 표시명의 **유일한 정의처**이므로 이 이름은 스테퍼 보조 표기 · 라이브 리전 ·
+  //   `StageBadge` · `BatchFailurePanel` 묶음 부제까지 **한꺼번에** 따라간다(그것이 의도다).
+  describe('★단계 표시명 — 트랙 보간(@design UI-018)', () => {
+    it('★INTERPOLATE_표시명은_트랙_보간이다_구_보간_폐기', () => {
+      expect(stageLabel('INTERPOLATE')).toBe('트랙 보간');
+    });
+
+    it('★묶음_부제도_같은_표에서_파생돼_함께_따라간다', () => {
+      // `BatchFailurePanel` 이 조립하는 부제와 같은 식이다 — 표가 갈리면 여기서 실패한다.
+      expect(['YOLO', 'SAM2', 'INTERPOLATE'].map((n) => stageLabel(n)).join(' · ')).toBe(
+        'AI 탐지 · AI 분할 · 트랙 보간',
+      );
+    });
+  });
+
   // ── SCREEN-009 회귀 가드: 전폭 밴드에서 칸을 균등 분산한다 ──────────────────
   // ★ 앞선 라운드가 '처리 단계'를 전폭 밴드로 빼냈는데도 **표시기 자신이 내용 폭**이라
   //   노드가 좌측에 뭉쳤다(브라우저 실측: 886px 밴드에 273px 만 사용). 밴드를 넓히는 것과
   //   칸을 분산하는 것은 **다른 축**이며, 앞의 것만 고치면 원래 고치려던 판독성 저하가 남는다.
   //
   // ⚠ jsdom 은 레이아웃을 계산하지 않아 실제 분산 폭은 여기서 판정할 수 없다(브라우저 실측이
-  //   짝이다). 이 가드가 고정하는 것은 **분산을 만드는 구조**(칸의 flex-1 · 한 줄 캡션)와
-  //   **두 모드가 같은 계약을 유지한다는 사실**이다.
-  describe('★전폭 분산 모드(fill, @design SCREEN-009)', () => {
+  //   짝이다). 이 가드가 고정하는 것은 **분산을 만드는 구조**(칸의 flex-1 · 한 줄 캡션)다.
+  //
+  // ⚠ **[폐기] 구 `fill` prop 과 비-fill 렌더 경로** — 칸을 내용 폭으로 두던 그 경로는 **마킹 화면
+  //   헤더에 인라인으로 놓이는 자리** 하나를 위한 것이었다. 그 자리가 사라져 prop·기본값·분기를
+  //   함께 걷어냈고, 전폭 분산이 **유일한 렌더**가 됐다. 그래서 아래 가드는 "켰을 때"가 아니라
+  //   **언제나** 그런지를 본다. 함께 폐기된 케이스 셋:
+  //     ①`★기본값은_구_동작이라_다른_사용처를_늘리지_않는다` — 관측할 기본 모드가 없다.
+  //     ②`★fill은_표시_계약을_바꾸지_않는다_칸수_문구_라이브안내_동일` — 비교할 두 번째 모드가 없다.
+  //       그 계약(칸수·상태 문구·라이브 안내)은 이 파일의 접기·라이브 리전 케이스가 계속 고정한다.
+  //     ③`★fill을_켜는_사용처는_영상_상세_한_곳뿐이다` — 아래 「prop 이 남아 있지 않다」로 대체.
+  describe('★전폭 분산(@design SCREEN-009 · @design UI-018)', () => {
     const cellsOf = (container: HTMLElement) =>
       Array.from(container.querySelectorAll('[data-testid^="batch-stage-item-"]')).map(
         (el) => el.parentElement as HTMLElement,
       );
 
-    it('★fill이면_칸이_flex-1이라_컨테이너_전폭에_균등_분산된다', () => {
-      const { container } = render(<BatchStageIndicator stages={stages} fill />);
+    it('★칸이_flex-1이라_컨테이너_전폭에_균등_분산된다', () => {
+      const { container } = render(<BatchStageIndicator stages={stages} />);
       const cells = cellsOf(container);
       expect(cells).toHaveLength(5);
       // 칸마다 같은 폭을 갖는 것이 분산의 조건이다 — 하나라도 내용 폭이면 정렬이 어긋난다.
@@ -478,84 +718,135 @@ describe('BatchStageIndicator', () => {
       expect(screen.getByTestId('batch-stage-indicator').className).toContain('w-full');
     });
 
-    it('★기본값은_구_동작이라_다른_사용처를_늘리지_않는다', () => {
-      // 마킹 화면은 이 표시기를 헤더 행에 인라인으로 놓는다 — 늘어나면 옆 요소를 밀어낸다.
-      const { container } = render(<BatchStageIndicator stages={stages} />);
-      cellsOf(container).forEach((cell) => {
-        expect(cell.className).not.toContain('flex-1');
-      });
-      expect(screen.getByTestId('batch-stage-indicator').className).not.toContain('w-full');
-    });
-
-    it('★fill이면_캡션이_한_줄이다_단계명과_상태가_같은_부모_줄에_온다', () => {
-      const { unmount } = render(<BatchStageIndicator stages={stages} fill />);
+    it('★캡션이_한_줄이다_단계명과_상태가_같은_부모_줄에_온다', () => {
+      render(<BatchStageIndicator stages={stages} />);
       const name = screen.getByTestId('batch-stage-name-DEIDENTIFY');
       const status = screen.getByTestId('batch-stage-status-DEIDENTIFY');
       // 한 줄 = 두 조각이 같은 부모 안에 공백으로 이어진다(디자인 캡션 `비식별 완료`).
       expect(name.parentElement).toBe(status.parentElement);
       expect(name.parentElement?.textContent).toBe('비식별 완료');
-      unmount();
-
-      // 기본 모드는 두 줄이라 부모(= flex-col 캡션)의 직계 자식으로 나란히 온다.
-      render(<BatchStageIndicator stages={stages} />);
-      expect(screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement?.className).toContain(
-        'flex-col',
-      );
     });
 
-    it('★fill은_표시_계약을_바꾸지_않는다_칸수_문구_라이브안내_동일', () => {
-      const { container, unmount } = render(<BatchStageIndicator stages={stages} />);
-      const baseKeys = renderedCellKeys(container);
-      const baseLive = screen.getByTestId('batch-stage-live').textContent;
-      unmount();
-
-      const filled = render(<BatchStageIndicator stages={stages} fill />);
-      expect(renderedCellKeys(filled.container)).toEqual(baseKeys);
-      expect(screen.getByTestId('batch-stage-live').textContent).toBe(baseLive);
-      // 상태 문구(색을 대신하는 유일한 구분 수단)가 fill 에서도 빠지지 않는다.
-      baseKeys.forEach((key) => {
-        expect(screen.getByTestId(`batch-stage-status-${key}`).textContent).toBeTruthy();
-      });
-    });
-
-    it('★접은_칸의_보조_표기는_fill에서도_남는다', () => {
+    it('★접은_칸의_보조_표기는_전폭_분산에서도_남는다', () => {
       render(
         <BatchStageIndicator
           stages={[item('DEIDENTIFY', 'DONE'), item('YOLO', 'DONE'), item('INTERPOLATE', 'FAIL')]}
-          fill
         />,
       );
-      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('보간에서 실패');
+      expect(screen.getByTestId('batch-stage-note-AUTOLABEL')).toHaveTextContent('트랙 보간에서 실패');
     });
 
-    // ★ 전폭 밴드가 아닌 사용처가 실수로 켜지는 것을 막는다 — 런타임 테스트는 그 화면을
-    //   렌더할 때만 돌지만, 이 가드는 사용처가 하나 늘어도 즉시 실패한다.
-    it('★fill을_켜는_사용처는_영상_상세_한_곳뿐이다', () => {
-      const srcDir = path.resolve(__dirname, '../../..');
-      const files: string[] = [];
-      const walk = (dir: string) => {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            if (entry.name === '__tests__' || entry.name === 'test') continue;
-            walk(full);
-          } else if (/\.tsx?$/.test(entry.name)) {
-            files.push(full);
-          }
-        }
-      };
-      walk(srcDir);
+    // ★ 되돌림 방지 — 구 분기가 코드로 되살아나면 즉시 실패한다. 런타임 렌더 테스트는 "지금
+    //   무엇이 그려지는가"만 보므로, prop 이 다시 생겨 어느 화면이 그것을 켜는 상황을 못 잡는다.
+    it('★fill_prop과_비-fill_렌더_경로가_소스에_남아_있지_않다', () => {
+      const defPath = path.resolve(__dirname, '../BatchStageIndicator.tsx');
+      // 주석의 폐기 서술(`fill` 이라는 낱말)은 대상이 아니다 — 블록·JSX·줄 주석을 걷어낸
+      // **코드 본문**만 센다. 주석을 안 걷으면 이 파일의 폐기 표기 자체가 가드를 붉게 만든다.
+      const code = fs
+        .readFileSync(defPath, 'utf-8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
 
-      // `<BatchStageIndicator ... fill ... />` 렌더 지점만 센다(정의 파일 제외).
-      const USAGE = /<BatchStageIndicator[^>]*\bfill\b[^>]*\/>/gs;
-      const hits = files.flatMap((f) => {
-        const rel = path.relative(srcDir, f).split(path.sep).join('/');
-        if (rel === 'components/common/BatchStageIndicator.tsx') return [];
-        const count = (fs.readFileSync(f, 'utf-8').match(USAGE) ?? []).length;
-        return count > 0 ? [`${rel} x${count}`] : [];
+      expect(code.match(/\bfill\b/g) ?? []).toEqual([]);
+      // 비-fill 전용 캡션 축소도 함께 사라졌다(전폭 경로로 새면 캡션이 10px 로 줄어든다).
+      expect(code.match(/fontSize/g) ?? []).toEqual([]);
+
+      // 렌더 호출부 어디에도 이 prop 이 남지 않는다.
+      const hits = sourceFiles().flatMap((f) => {
+        const count = (fs.readFileSync(f.abs, 'utf-8').match(/<BatchStageIndicator[^>]*\bfill\b/gs) ?? [])
+          .length;
+        return count > 0 ? [`${f.rel} x${count}`] : [];
       });
-
-      expect(hits).toEqual(['pages/VideoDetailPage.tsx x1']);
+      expect(hits).toEqual([]);
     });
+
+    // ★ 근거가 소멸한 주장을 사실로 남겨 두지 않는다(CO-012). 마킹 화면은 이 표시기를 더 쓰지
+    //   않으므로 "표시기를 마킹 화면과 공유한다"는 서술은 거짓이다. 폐기 표기와 함께 남긴
+    //   **이력**은 허용하고, 표기 없는 **주장**만 막는다.
+    it('★표시기를_마킹_화면과_공유한다는_주장이_남아_있지_않다', () => {
+      const CLAIM = /마킹\s*화면[^\n]{0,20}공유/;
+      const offenders = sourceFiles().flatMap((f) =>
+        fs
+          .readFileSync(f.abs, 'utf-8')
+          .split('\n')
+          .filter((line) => CLAIM.test(line) && !line.includes('폐기'))
+          .map((line) => `${f.rel}: ${line.trim()}`),
+      );
+      expect(offenders).toEqual([]);
+    });
+  });
+});
+
+
+// ── 브라우저 실렌더에서 잡힌 결함의 되돌림 가드 ─────────────────────────────────
+//
+// ⚠ **jsdom 은 레이아웃을 계산하지 않는다** — 아래 항목의 «진짜» 증상(캡션 겹침·헤일로 잘림·
+//   행간 픽셀)은 실브라우저에서만 관측된다. 그래서 여기서 고정하는 것은 **그 증상을 만들던
+//   클래스 조합**이다: 클래스를 되돌리면 이 가드가 실패하고, 증상 자체의 부재는 브라우저
+//   실측이 따로 증언한다. 둘 중 하나만으로는 부족하다(가짜 가드를 만들지 않기 위해 이 한계를
+//   여기 적어 둔다).
+describe('BatchStageIndicator — 실렌더 결함 되돌림 가드', () => {
+  it('★칸이_캡션_아래로_짜부러지지_않는다_min_content_바닥', () => {
+    render(<BatchStageIndicator stages={stages} />);
+
+    // 컨테이너 바닥 — 없으면 좁은 폭에서 칸이 캡션보다 좁아져 이웃과 겹친다(768px 실측:
+    // 칸 42.8px 에 캡션 60.5px). 폭 상수를 px 로 박지 않고 내용에서 파생시킨다.
+    const track = screen.getByTestId('batch-stage-indicator');
+    expect(track.className).toContain('min-w-min');
+
+    // 칸의 `min-w-0` 은 위 바닥을 무효로 만든다(최소 폭 0 인 아이템은 컨테이너 min-content 에
+    // 아무것도 보태지 않는다) — 둘은 한 벌이라 함께 단언한다.
+    const cells = ['DEIDENTIFY', 'MARKING', 'VLM', 'FRAME_EXTRACT', 'AUTOLABEL'].map((k) => {
+      const item = screen.getByTestId(`batch-stage-item-${k}`);
+      const cell = item.parentElement as HTMLElement | null;
+      expect(cell, `${k} 칸`).not.toBeNull();
+      return { k, cls: cell!.className, minWidth: cell!.style.minWidth };
+    });
+    expect(cells.filter((c) => c.cls.includes('min-w-0')).map((c) => c.k)).toEqual([]);
+    // 칸이 여전히 균등 분산이어야 한다(바닥을 넣느라 flex-1 을 잃으면 넓은 폭에서 좌측에 뭉친다).
+    expect(cells.filter((c) => !c.cls.includes('flex-1')).map((c) => c.k)).toEqual([]);
+    // 바닥값은 캡션·보조 표기의 최대 폭에서 계산된다 — 칸마다 같은 값이어야 한다.
+    expect(cells.filter((c) => c.minWidth !== `${CELL_MIN_WIDTH_PX}px`).map((c) => c.k)).toEqual([]);
+  });
+
+  // ★ 바닥값의 **도출 근거**가 실제 렌더 클래스와 같은 값을 말하는가. 캡션·보조 표기의 최대 폭을
+  //   클래스에서만 바꾸면 바닥이 그것을 따라오지 않아 다시 칸 밖으로 삐져나온다.
+  it('★칸_최소폭은_캡션과_보조표기의_최대폭에서_도출된다', () => {
+    // 보조 표기는 접은 칸이 진행 중/실패일 때만 있다 — 그 조건을 만들어 둘을 함께 관측한다.
+    render(
+      <BatchStageIndicator
+        stages={[
+          item('DEIDENTIFY', 'DONE'),
+          item('YOLO', 'FAIL'),
+          item('SAM2', 'PENDING'),
+          item('INTERPOLATE', 'PENDING'),
+        ]}
+      />,
+    );
+
+    const caption = screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement!;
+    const note = screen.getByTestId('batch-stage-note-AUTOLABEL');
+    expect(maxWidthClassesMatch(caption.className, note.className)).toBe(true);
+    // 칸이 «둘 중 더 넓은 것»을 담을 수 있어야 어떤 내용도 칸 밖으로 나가지 못한다.
+    expect(CELL_MIN_WIDTH_PX).toBe(132);
+  });
+
+  it('★캡션_행간을_토큰_위에_덮어쓰지_않는다', () => {
+    render(<BatchStageIndicator stages={stages} />);
+
+    // `text-caption` 토큰이 14px/1.5(=21px)를 싣는다 — 시안 `.t-caption` 과 같은 값이다.
+    // 구 `leading-tight`(1.25) 는 그 위를 덮어써 홀로 17.5px 였다(브라우저 실측).
+    const caption = screen.getByTestId('batch-stage-name-DEIDENTIFY').parentElement?.parentElement;
+    expect(caption).not.toBeNull();
+    expect(caption!.className).toContain('text-caption');
+    // 어떤 `leading-*` 유틸리티도 얹지 않는다(다른 값으로 바꿔 되돌리는 것도 막는다).
+    expect(caption!.className).not.toMatch(/\bleading-/);
+  });
+
+  it('★헤일로_두께_상수와_클래스가_같은_값을_말한다', () => {
+    // 바깥 래퍼가 이 두께만큼 위쪽 자리를 비워 줘야 헤일로가 잘리지 않는다. 두 곳에 숫자를
+    // 각각 적으면 한쪽만 바뀌어 다시 잘린다 — 판정기가 그 어긋남을 잡는다.
+    expect(DOT_HALO_PX).toBeGreaterThan(0);
+    expect(haloClassMatchesThickness()).toBe(true);
   });
 });

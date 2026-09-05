@@ -16,12 +16,15 @@ import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
+import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import kr.co.cudo.authoring.marking.event.MarkingCompletedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -70,6 +73,16 @@ class MarkingServiceTest {
 
     @Mock
     private VideoFpsResolver fpsResolver;
+
+    /**
+     * 검증 이벤트 유형 조달처 — 스텁하지 않으면 {@code null} 행을 돌려주므로 유형 미수신 경로가 되고,
+     * 그 경로에서 마킹은 <b>질문 없이 그대로 저장</b>된다(질문 부재는 거부 사유가 아니다).
+     */
+    @Mock
+    private IngestSourceRepository ingestSourceRepository;
+
+    @Mock
+    private VerificationEventQuestionResolver questionResolver;
 
     @InjectMocks
     private MarkingService markingService;
@@ -181,6 +194,29 @@ class MarkingServiceTest {
         assertThat(result.marks().get(0).frameIndex()).isEqualTo(10);
         assertThat(result.marks().get(1).frameIndex()).isEqualTo(50);
         verify(markingRepository).save(any(LsMarking.class));
+    }
+
+    @Test
+    @DisplayName("★응답의_이벤트유형코드와_영상경로는_마킹_행이_아니라_영상_행에서_조달된다 (V27)")
+    void 응답의_두_값은_영상_행에서_조달된다() {
+        // given — 마킹 원장은 그 두 값을 더 이상 보관하지 않는다(중복 제거). 그럼에도 응답 계약은
+        //         무변경이어야 한다 — 값의 출처만 영상 행으로 옮겼기 때문이다.
+        Long rawSn = 77L;
+        LsDataRaw raw = stubRaw(rawSn, 30);
+        when(videoRepository.findById(rawSn)).thenReturn(Optional.of(raw));
+        when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        MarkingResponse result = markingService.create(rawSn, new MarkingRequest("AUTO", 300, null), reviewer(), 30);
+
+        // then — 영상 행의 EVNT_TYPE_CD · RAW_FILE_PATH_NM 이 그대로 실린다
+        assertThat(result.eventName()).isEqualTo(raw.getEvntTypeCd());
+        assertThat(result.videoPath()).isEqualTo(raw.getRawFilePathNm());
+
+        // and — 저장된 마킹 행에는 그 값이 없다. 생성자 식별자는 토큰 주체를 문자 그대로 담는다.
+        ArgumentCaptor<LsMarking> captor = ArgumentCaptor.forClass(LsMarking.class);
+        verify(markingRepository).save(captor.capture());
+        assertThat(captor.getValue().getCreatedBy()).isEqualTo("1");
     }
 
     @Test

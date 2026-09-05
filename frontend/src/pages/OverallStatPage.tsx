@@ -107,7 +107,7 @@ function ProcessingStackBar({
             <span className="ml-auto tabular-nums font-medium text-gray-800">
               {s.value.toLocaleString('ko-KR')}
             </span>
-            <span className="tabular-nums text-gray-400">
+            <span className="tabular-nums text-gray-600">
               {pct(s.value).toFixed(1)}%
             </span>
           </li>
@@ -209,8 +209,11 @@ export function OverallStatPage() {
             >
               리포트 다운로드
             </Button>
+            {/* 캡션은 받는 내용의 범위를 정확히 말해야 한다 — 리포트는 누적 학습데이터·처리현황·
+                이벤트 유형 분포·작업자별 현황(기간 무관)과 일별 작업량(period='MONTH' → 30일 창)을
+                함께 담는다. "최근 1개월"만 적으면 일별 작업량 한 블록의 범위를 전체로 오해시킨다. */}
             <p className="text-caption text-gray-600" data-testid="download-report-note">
-              최근 1개월 집계를 CSV 파일로 내려받습니다.
+              전체 구축 현황을 CSV 파일로 내려받습니다 (일별 작업량은 최근 1개월).
             </p>
           </div>
         }
@@ -343,7 +346,7 @@ export function OverallStatPage() {
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-title-sm font-semibold text-gray-700">작업자별 현황</h2>
-          <p className="text-caption text-gray-400 mt-0.5">컬럼 헤더 클릭으로 정렬</p>
+          <p className="text-caption text-gray-600 mt-0.5">컬럼 헤더 클릭으로 정렬</p>
         </div>
         <WorkerStatsTable rows={data?.workers ?? []} loading={isLoading} />
       </div>

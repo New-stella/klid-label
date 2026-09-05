@@ -1,16 +1,24 @@
 package kr.co.cudo.authoring.video;
 
 import kr.co.cudo.authoring.auth.JwtTestSupport;
+import kr.co.cudo.authoring.video.entity.LsDataRaw;
+import kr.co.cudo.authoring.video.repository.VideoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.sql.DataSource;
+import java.time.LocalDateTime;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -35,6 +43,16 @@ class VideoContentRoleGateTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private VideoRepository videoRepository;
+
+    /** 기대 건수를 서비스와 <b>독립적으로</b> 세기 위한 직접 조회 통로. */
+    private final JdbcTemplate jdbc;
+
+    VideoContentRoleGateTest(@Qualifier("controlDataSource") DataSource dataSource) {
+        this.jdbc = new JdbcTemplate(dataSource);
+    }
 
     @Value("${authoring.jwt.secret}")
     private String secret;
@@ -92,12 +110,58 @@ class VideoContentRoleGateTest {
     }
 
     @Test
-    @DisplayName("WORKER는_영상목록_200")
+    @DisplayName("WORKER는_영상목록_200_이며_본인_배정분만_담긴다")
     void workerOkOnVideoList() throws Exception {
         // given: LS 시드 sub=100 → WORKER
-        // when/then: 영상 목록 GET → 200 (빈 페이지여도 정상)
-        mockMvc.perform(get("/v1/videos").header("Authorization", "Bearer " + workerToken()))
-                .andExpect(status().isOk());
+        //
+        // ★ 구 단언은 상태코드(200)만 봤고 본문을 보지 않아 "빈 페이지여도 정상" 이라는 주석까지 달려
+        //   있었다. 그 사이 이 창구는 사용자 축 인가가 아예 없어 <미배정 영상까지 전부> 내려주고
+        //   있었는데(CWE-639 IDOR), 이 테스트는 그 동작을 "정상" 으로 고정하고 있었다.
+        //   이제 본문을 단언해 그 축을 고정한다. [design: API-042]
+        //
+        // ★ 미배정 영상을 1건 직접 심는다 — 이 클래스는 @Sql 시드를 적재하지 않아, 공유 컨테이너가
+        //   비어 있는 실행에서는 "기대 0건 · 실제 0건" 으로 <결함 동작에서도 통과>하는 공허한 단언이
+        //   된다(실측으로 확인했다). 심어 두면 어떤 실행에서도 공허해지지 않는다.
+        LsDataRaw unassigned = videoRepository.save(LsDataRaw.createFromIngest(
+                "CLIP-ROLEGATE-UNASSIGNED", "CCTV-ROLEGATE", null, "11680",
+                LsDataRaw.PRVC_TYPE_ANONY, "/var/raw/rolegate.mp4",
+                LocalDateTime.of(2026, 5, 10, 0, 0, 0), 30));
+        try {
+            // 기대 건수는 DB 를 직접 세어 얻는다 — 공유 컨테이너의 잔여 상태에 종속되므로 상수로 박으면
+            // 다른 클래스의 시드에 흔들린다. 술어를 서비스와 독립적으로 다시 쓰는 것도 의도다
+            // (같은 코드를 재사용하면 오라클이 되지 못한다).
+            long expected = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM LS_DATA_RAW v
+                     WHERE v.ORGNL_RAW_SN IS NULL
+                       AND EXISTS (SELECT 1 FROM LS_TASK_ALTMNT a
+                                    WHERE a.RAW_DATA_ID = v.RAW_SN
+                                      AND a.USER_NO = 100
+                                      AND a.TASK_TYPE_CD = 'LABELER')
+                    """, Long.class);
+
+            // when/then: 200 + totalElements 가 본인 LABELER 배정 건수와 일치하고,
+            //            방금 심은 미배정 영상은 본문에 없다(기본 정렬이 등록 역순이라 1페이지에 온다).
+            mockMvc.perform(get("/v1/videos").header("Authorization", "Bearer " + workerToken()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.totalElements").value(expected))
+                    .andExpect(jsonPath("$.data.content[?(@.id == " + unassigned.getRawSn() + ")]")
+                            .doesNotExist());
+        } finally {
+            videoRepository.deleteById(unassigned.getRawSn());
+        }
+    }
+
+    @Test
+    @DisplayName("REVIEWER는_영상목록에서_전체_영상을_본다")
+    void reviewerSeesAllOnVideoList() throws Exception {
+        // 대조군 — 역할 스코핑이 REVIEWER 결과를 건드리지 않았음을 고정한다.
+        //   (WORKER 축을 좁히면서 검수자 범위까지 함께 좁히는 회귀를 잡는다.)
+        long expected = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM LS_DATA_RAW v WHERE v.ORGNL_RAW_SN IS NULL", Long.class);
+
+        mockMvc.perform(get("/v1/videos").header("Authorization", "Bearer " + reviewerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(expected));
     }
 
     @Test

@@ -37,18 +37,19 @@ ARG VITE_TOKEN_INGRESS=localStorage
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_TOKEN_INGRESS=$VITE_TOKEN_INGRESS
 
-# 세션 만료·401 시 이동할 상위 시스템 로그인 페이지(H-ISSUE-02).
-# 저작도구는 자체 로그인 UI 가 없어 이 값이 비면 redirect 가 불가능하고 화면이 막다른 상태가 된다.
-# 기본값을 두지 않는다 — 잘못된 기본값으로 조용히 빌드되는 것보다 비어 있음이 드러나는 게 낫다.
+# 세션 만료·401 시 이동할 상위 시스템 로그인 페이지.
+# ★ 이 값들은 이제 <런타임>에 주입한다 — 이미지/번들에 굽지 않는다. 서빙 문서 루트의
+#   klid-config.js 가 값을 심고(대상 서버에서는 /etc/klid/frontend.env 가 정본), 앱은
+#   런타임 → 빌드 순으로 읽는다(src/lib/runtimeConfig.ts).
+#   컨테이너에서 실제 주소를 쓰려면 그 파일을 볼륨으로 얹는다:
+#     -v ./klid-config.js:/usr/share/nginx/html/klid-config.js:ro
+# ★ 구 fail-closed RUN 가드는 <제거했다>. 값이 비어도 빌드가 성공해야 <환경 무관 산출물>이
+#   되고, 그게 이번 전환의 목적이다. 미설정 방어는 설치 시점(render-frontend-config.sh)에 있다.
+#   여기 남은 ARG 는 런타임 설정이 없을 때의 폴백일 뿐이다.
 ARG VITE_CONTROL_LOGIN_URL=
 ARG VITE_PORTAL_LOGIN_URL=
 ENV VITE_CONTROL_LOGIN_URL=$VITE_CONTROL_LOGIN_URL
 ENV VITE_PORTAL_LOGIN_URL=$VITE_PORTAL_LOGIN_URL
-
-# fail-closed(CWE-1188): 온프렘 빌드 스크립트(require_upstream_login_urls)를 우회해
-# `docker build` 를 직접 호출해도 빈 값으로 조용히 빌드되지 않게 한다.
-RUN test -n "$VITE_CONTROL_LOGIN_URL" && test -n "$VITE_PORTAL_LOGIN_URL" \
-  || (echo "FATAL: VITE_CONTROL_LOGIN_URL/VITE_PORTAL_LOGIN_URL 필수 (--build-arg 로 전달)" >&2 && exit 1)
 
 RUN npm run build
 

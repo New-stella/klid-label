@@ -1,20 +1,21 @@
 ---
 logicraft_item: DFEAT-058
 type: domain_feature
-version: 3
+version: 5
 domain: DOMAIN-017
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-20T03:19:22.461Z
+synced_at: 2026-09-01T08:39:58.123Z
 status: CHANGED
-prev_version: 1
-content_hash: 449f7d2230eea2b5735af6e1ac1ba9d400582be252461b958eab710faeecc3d3
+prev_version: 4
+content_hash: 894c1c88e841d536121ef5e0b716e9fb50980bc242ff2c62fbf0c812334dd103
 stale: false
 raw: ./_raw/DFEAT-058.json
 links:
+  based_on: ["[[ADR-048]]"]
   belongs_to_domain: ["[[DOMAIN-017]]"]
   implements: ["[[API-209]]", "[[API-210]]", "[[API-211]]"]
   specializes: ["[[FEAT-010]]"]
-  verifies: ["[[AC-042]]", "[[AC-043]]"]
+  verifies: ["[[AC-1079]]", "[[AC-1080]]", "[[AC-1081]]"]
   realizes_backward: ["[[UC-035]]"]
 ---
 
@@ -54,7 +55,7 @@ ADR-048
 
 ### as
 
-검수자
+관리자
 
 ### i_want
 
@@ -80,6 +81,10 @@ ADR-048
 
 _(empty)_
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -102,6 +107,10 @@ _(empty)_
 
 _(empty)_
 
+### module_paths
+
+_(empty)_
+
 ## uses_constants
 
 _(empty)_
@@ -111,7 +120,7 @@ _(empty)_
 ### [1]
 
 - **then**: 그 대응이 종류 단위로 보관되고 이후 같은 분류에 자동으로 적용된다
-- **when**: 검수자가 대응을 확정한다
+- **when**: 관리자가 대응을 확정한다
 - **given**: 저작도구의 라벨 또는 이벤트 유형에 연결할 외부 분류가 있다
 
 ### [2]
@@ -129,13 +138,13 @@ _(empty)_
 ### [4]
 
 - **then**: 대응 기록은 남고 사용 여부만 쓰지 않음으로 바뀐다
-- **when**: 검수자가 그 대응을 해제한다
+- **when**: 관리자가 그 대응을 해제한다
 - **given**: 더는 쓰지 않을 대응이 있다
 
 ### [5]
 
 - **then**: 가장 구체적인 최말단 이름 하나만 대응 열쇠가 되고 상위 계층 이름은 대응 목록에 나오지 않는다
-- **when**: 검수자가 그 분류의 대응을 확정한다
+- **when**: 관리자가 그 분류의 대응을 확정한다
 - **given**: 이벤트 축의 외부 분류가 상위 계층 이름과 최말단 이름을 함께 담고 있다
 
 ## persists_in_tables
@@ -144,8 +153,9 @@ _(empty)_
 
 ## related_acceptances
 
-- AC-042
-- AC-043
+- AC-1079
+- AC-1080
+- AC-1081
 
 ## specializes_feature
 

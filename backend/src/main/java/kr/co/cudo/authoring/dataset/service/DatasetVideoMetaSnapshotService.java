@@ -3,11 +3,9 @@ package kr.co.cudo.authoring.dataset.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
-import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRepository;
 import kr.co.cudo.authoring.dataset.repository.DatasetMetaSourceRow;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
-import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnno;
 import kr.co.cudo.authoring.evntanno.entity.LsEvntAnnoReview;
 import kr.co.cudo.authoring.evntanno.repository.LsEvntAnnoRepository;
@@ -30,7 +28,7 @@ import java.util.TreeMap;
  * <b>동결(materialize)</b> 하는 어댑터.
  *
  * <p>{@code ReviewService.approve()} 의 {@code controlTransactionManager} 트랜잭션에 편승(REQUIRED)한다.
- * 따라서 APPROVED 전이 + {@code LS_LABEL_VERSION} 스냅샷 + 통합 메타 동결 + outbox 이벤트가
+ * 따라서 APPROVED 전이 + {@code LS_LABEL_VERSION} 스냅샷 + 통합 메타 동결이
  * <b>하나의 커밋</b>으로 원자 확정된다. materialize 중 예외가 나면 승인 전체가 함께 롤백된다(정합성 우선).
  *
  * <p>동시성/불변식(CWE-362) — "활성 스냅샷은 RAW_SN 당 항상 정확히 1건":
@@ -58,7 +56,6 @@ public class DatasetVideoMetaSnapshotService {
 
     private final DatasetMetaSourceRepository sourceRepository;
     private final LsDatasetVideoMetaRepository metaRepository;
-    private final LsMetaReplOutboxRepository outboxRepository;
     private final LsEvntAnnoRepository evntAnnoRepository;
     private final LsEvntAnnoReviewRepository evntAnnoReviewRepository;
     private final SnapshotHasher snapshotHasher;
@@ -211,13 +208,6 @@ public class DatasetVideoMetaSnapshotService {
             metaRepository.activateByHash(rawSn, hash);
         }
 
-        // 7) outbox 이벤트 insert(같은 트랜잭션 커밋) — 포털 복제(Phase 3)용.
-        //    직전에 같은 rawSn 의 기존 PENDING outbox 를 SUPERSEDED 로 coalescing 한다(주 방어):
-        //    advisory 락으로 직렬화된 이 구간에서 옛(오래된 해시) outbox 재전달을 원천 차단해 포털이
-        //    stale 해시로 되살아나는 순서 역전(CWE-362)을 막는다. rawSn 당 PENDING 최대 1건 보장.
-        outboxRepository.supersedePending(rawSn);
-        outboxRepository.save(LsMetaReplOutbox.create(rawSn, hash, toPayload(snapshot)));
-
         log.info("[Dataset] materialized rawSn={} hashPrefix={} inserted={}",
                 rawSn, hash.substring(0, Math.min(8, hash.length())), inserted == 1);
     }
@@ -271,7 +261,7 @@ public class DatasetVideoMetaSnapshotService {
         // 촬영환경 수동값도 동결 '내용'이라 해시에 포함 — 날씨만 정정 후 재승인해도 새 버전이 append 된다.
         // 단, 미입력(null)이면 <b>키 자체를 생략</b>한다(하위호환): 해시는 null 도 "-1:" 토큰으로 인코딩하므로
         // 키를 넣으면 WTHR_NM 도입 이전에 승인된(내용 무변경) 영상이 재동결될 때 해시가 달라져
-        // 동일 내용 중복 버전 + 불필요한 포털 복제 outbox 가 생긴다("동일 페이로드=동일 해시" 멱등 불변식 위반).
+        // 동일 내용인데도 중복 버전이 생긴다("동일 페이로드=동일 해시" 멱등 불변식 위반).
         if (weather != null) {
             f.put("WTHR_NM", weather);
         }
@@ -320,50 +310,6 @@ public class DatasetVideoMetaSnapshotService {
         return v == null ? null : String.valueOf(v);
     }
 
-    /** 직렬화 페이로드(포털 복제 전달용) — 비식별 메타만. 컬럼형 JSON. */
-    private String toPayload(LsDatasetVideoMeta m) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("rawSn", m.getRawSn());
-        p.put("snpshtHash", m.getSnpshtHash());
-        p.put("orgnlRawSn", m.getOrgnlRawSn());
-        p.put("vmsClipId", m.getVmsClipId());
-        p.put("vmsCctvId", m.getVmsCctvId());
-        p.put("rawFilePathNm", m.getRawFilePathNm());
-        p.put("shtDt", m.getShtDt() == null ? null : m.getShtDt().toString());
-        p.put("vdoLenSec", m.getVdoLenSec());
-        p.put("lclgvCd", m.getLclgvCd());
-        p.put("prvcYn", m.getPrvcYn());
-        p.put("prvcTypeCd", m.getPrvcTypeCd());
-        p.put("deIdentYn", m.getDeIdentYn());
-        p.put("aiCrtYn", m.getAiCrtYn());
-        p.put("evntTypeCd", m.getEvntTypeCd());
-        p.put("cctvNm", m.getCctvNm());
-        p.put("wgs84Lat", m.getWgs84Lat());
-        p.put("wgs84Lot", m.getWgs84Lot());
-        p.put("sidoNm", m.getSidoNm());
-        p.put("sggNm", m.getSggNm());
-        p.put("fileFmt", m.getFileFmt());
-        p.put("evntNm", m.getEvntNm());
-        p.put("vdoCdc", m.getVdoCdc());
-        p.put("fps", m.getFps());
-        p.put("bitRt", m.getBitRt());
-        p.put("asprtRt", m.getAsprtRt());
-        p.put("resl", m.getResl());
-        p.put("vdoWdth", m.getVdoWdth());
-        p.put("vdoHgt", m.getVdoHgt());
-        p.put("fileSz", m.getFileSz());
-        p.put("dayNgtCd", m.getDayNgtCd());
-        p.put("sesnCd", m.getSesnCd());
-        p.put("wthrNm", m.getWthrNm()); // 촬영환경 수동값 — 포털 복제 반영(비식별 메타).
-        p.put("rvwCmplDt", m.getRvwCmplDt() == null ? null : m.getRvwCmplDt().toString());
-        try {
-            return objectMapper.writeValueAsString(p);
-        } catch (JsonProcessingException e) {
-            // 직렬화 실패는 내부 오류 — 승인 전체를 안전하게 롤백(fail-closed)한다. 본문/PII 미출력.
-            log.error("[Dataset] outbox payload serialize failed rawSn={}", m.getRawSn());
-            throw new IllegalStateException("outbox payload 직렬화 실패", e);
-        }
-    }
 
     /** "WIDTHxHEIGHT" 문자열을 (width, height) 로 파싱한다. 형식 불일치/미상 시 (null, null). */
     private static Resolution parseResolution(String resl) {

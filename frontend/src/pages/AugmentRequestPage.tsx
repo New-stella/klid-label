@@ -15,22 +15,29 @@ import { EventTypeBadge } from '@/components/common/EventTypeBadge';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Pagination } from '@/components/common/Pagination';
 import { Skeleton } from '@/components/common/Skeleton';
-import { AugmentPromptFieldset } from '@/features/augment/components/AugmentPromptFieldset';
+import {
+  AugmentPromptFieldset,
+  type AugmentConditionTouched,
+} from '@/features/augment/components/AugmentPromptFieldset';
 import { JobCard } from '@/features/augment/components/JobCard';
 import { ProcessKindCard } from '@/features/augment/components/ProcessKindCard';
 import { TargetResolutionSelect } from '@/features/augment/components/TargetResolutionSelect';
 import { useRequestAugment } from '@/features/augment/hooks/useAugmentDecision';
 import { useAugmentJobs } from '@/features/augment/hooks/useAugmentJobs';
-import { validateAugmentPrompt } from '@/features/augment/promptValidation';
 import {
-  AUGMENT_PROMPT_FIELD_KEYS,
+  augmentConditionBlockReasons,
+  validateAugmentConditions,
+  type AugmentConditionDraft,
+} from '@/features/augment/promptValidation';
+import {
+  AUGMENT_MTDT_FIELD_KEYS,
   PROCESS_KINDS,
   PROCESS_KIND_LABEL,
-  createEmptyAugmentPrompt,
-  createPromptPresetFor,
+  createEmptyAugmentMtdt,
+  createMtdtPresetFor,
   isAugmentKind,
-  type AugmentPromptFieldKey,
-  type AugmentPromptFields,
+  type AugmentConditionPresetId,
+  type AugmentMtdtFieldKey,
   type ProcessKind,
 } from '@/features/augment/types';
 import { useResolutionDerivative } from '@/features/video/hooks/useResolutionDerivative';
@@ -115,8 +122,8 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  * SCR-AUG-001 데이터 증강 요청 (`/augment`) — 통합 단일 선택 UI.
  *
  * UI/UX §4-12 + V1.x (Phase 1 통합 재구성):
- * - 처리 종류 카드 4개(겨울/야간/우천/해상도 변경)를 radiogroup 으로 **단일 선택**.
- *   증강 3종은 외부 위탁 잡, 해상도 변경(RESOLUTION)은 저작도구 직접 수행(SFR-06-03).
+ * - 처리 종류 카드 **2개**(증강 AI / 해상도 변경)를 radiogroup 으로 **단일 선택**.
+ *   증강 AI 는 외부 위탁 잡, 해상도 변경(RESOLUTION)은 저작도구 직접 수행(SFR-06-03).
  * - 해상도 변경 종류를 고른 경우에만 생성할 해상도(1080P/720P/480P) 선택 UI 노출.
  *   3종 고정 기능이라 기본 전체 선택(다중)이며, 선택된 해상도별로 새 파생영상(RAW_SN)을
  *   만들어 검수 파이프라인(검수 대기)에 넣는다(SFR-06-03, export 프레임셋 아님).
@@ -125,14 +132,16 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  * - **검수 완료된 영상만 선택 가능** — 비활성/검색·이벤트 필터·페이징.
  * - 최근 요청 이력 잡 카드 6건 그리드.
  *
- * - 증강 3종을 고르면 **생성 조건(프롬프트) 5필드** 입력 블록이 노출된다(BE 필수 계약).
+ * - 증강 AI 를 고르면 **생성 조건 프리셋 · 생성 조건 5항목 · 자유 지시문** 입력 블록이 노출된다
+ *   (BE 필수 계약 — 연동명세서 v1.3).
  *
  * 보안:
  * - REVIEWER 역할 검증 (라우터 + BE).
  * - videoId 는 number 로 변환 후 전달 — 비숫자 입력 차단.
  * - kind/preset 은 정의된 상수 집합(allowlist)으로만 좁힘 — 임의 문자열 분기 차단.
- * - 프롬프트는 외부 생성형 AI 로 나가는 자유 입력이라 BE 와 **같은 기준**으로 미리 검증한다
- *   (공백·보이지 않는 문자·50자 초과 차단, `validateAugmentPrompt`).
+ * - 생성 조건은 외부 생성형 AI 로 그대로 나가므로 BE 와 **같은 기준**으로 미리 검증한다
+ *   (`validateAugmentConditions` — 허용 코드 밖 값 차단 · 자유 지시문 1000자·보이지 않는 문자 처리).
+ *   드롭다운이라 허용 코드 밖 값을 만들 수단 자체가 화면에 없다.
  *
  * <h3>연타(중복 제출) 방어는 이 화면이 유일한 방어선이다 (Critical)</h3>
  * <p>BE 의 중복 요청 차단(부분 유니크 인덱스·409 가드·속도 제한)은 2026-07-31 사용자 확정으로
@@ -145,7 +154,22 @@ const DEFAULT_FILTERS: VideoFilterValues = {
  *   <li><b>버튼 비활성(`isPendingAny`)</b> — 요청 진행 중에는 버튼 자체를 누를 수 없다(시각적 피드백).</li>
  * </ol>
  * <p>락은 성공/실패와 무관하게 `onSettled` 에서 푼다 — <b>의도적 재요청은 막지 않는다</b>. 같은 이유로
- * 성공 후에도 선택·프롬프트를 지우지 않는다(같은 조건으로 곧바로 다시 요청할 수 있어야 한다).
+ * 성공 후에도 선택·생성 조건을 지우지 않는다(같은 조건으로 곧바로 다시 요청할 수 있어야 한다).
+ *
+ * <h3>생성 조건 축은 연동명세서 v1.3 계약이다 (2026-08-27)</h3>
+ * <p>다섯 항목은 **허용 코드 드롭다운**이고 자유 지시문은 선택(≤1000자)이다.
+ * ★<b>증강 종류와 생성 조건은 서로를 유추하지 않는다</b> — 종류는 단일값 `AUGMENT` 로 고정이고,
+ * 조건의 <b>기본값</b>을 채우는 것은 종류가 아니라 생성 조건 프리셋이며 역방향은 없다.
+ *
+ * <h3>이벤트 유형 축은 걷어냈다 (2026-09-02 · ADR-059)</h3>
+ * <p>구 화면은 **이벤트 유형**(침수/산불, 필수)과 **침수 세부 유형** select 를 함께 받았고,
+ * 미선택이면 제출을 막았다. 그 값은 벤더가 <b>배경 이미지에 무슨 장면을 만들어 넣을지</b> 정하는
+ * 축인데 우리 증강은 이미 이벤트가 담긴 프레임을 변환할 뿐이라 요청자가 고를 자리가 없었다.
+ * 이제 요청 본문에 그 필드 자체가 없고 서버가 중립값을 고정 송신한다.
+ * ⚠ BE 는 모르는 필드를 400 이 아니라 <b>조용히 무시</b>한다 — 되살려도 신호가 오지 않으므로
+ * 화면에만 걷어냈어야 할 입력이 되살아난다. <b>되살리지 말 것.</b>
+ *
+ * [@design SCREEN-022] [@design API-060] [@design INT-008] [@design ADR-059]
  */
 export function AugmentRequestPage() {
   const navigate = useNavigate();
@@ -158,40 +182,90 @@ export function AugmentRequestPage() {
     ...RESOLUTION_PRESETS,
   ]);
 
-  // 생성 조건(프롬프트) 5필드 — 외부 위탁 증강 전용. 원문을 그대로 들고 있다가 전송 직전 정규화한다.
-  const [prompt, setPrompt] = useState<AugmentPromptFields>(createEmptyAugmentPrompt);
-  // 사용자가 건드린 필드만 오류를 표시한다(진입하자마자 빨간 글씨가 뜨지 않게).
-  const [promptTouched, setPromptTouched] = useState<
-    Partial<Record<AugmentPromptFieldKey, boolean>>
-  >({});
   /**
-   * 사용자가 **값을 직접 고친** 필드 — 종류 변경 시 프리필이 덮어쓰지 않을 대상이다.
+   * 증강 요청의 생성 조건 축 초안 — 외부 위탁 증강 전용.
    *
-   * `promptTouched` 와 분리한 이유가 둘 있다.
-   * <ul>
-   *   <li><b>touched 는 blur 만으로도 켜진다</b> — 입력칸을 지나가기만 해도 켜지므로
-   *       "사용자가 정한 값"의 근거가 되지 못한다. touched 의 책임은 오류 표시 시점이다.</li>
-   *   <li><b>빈 값 여부로는 판정할 수 없다</b> — 프리필된 값을 사용자가 **의도적으로 지운**
-   *       상태와 애초에 비어 있던 상태가 값만으로는 구분되지 않는다. 값으로 판정하면
-   *       종류를 바꿀 때 사용자가 지운 값이 되살아난다.</li>
-   * </ul>
-   * 따라서 "편집 행위가 있었는가"를 별도로 기록한다(빈 문자열로 지운 것도 편집이다).
+   * 생성 조건 5항목 · 자유 지시문을 한 객체로 들고 있다가 전송 직전
+   * `validateAugmentConditions` 로 검증·정규화해 페이로드를 만든다.
+   * 미선택은 빈 문자열이며, 전송 타입으로 좁히는 판정은 그 함수 한 곳이 소유한다.
+   *
+   * ⚠ 구 초안에 있던 `evntType`·`evntSubtype` 은 걷어냈다(ADR-059) — 되살리지 말 것.
    */
-  const [promptEdited, setPromptEdited] = useState<
-    Partial<Record<AugmentPromptFieldKey, boolean>>
+  const [conditions, setConditions] = useState<AugmentConditionDraft>(() => ({
+    mtdt: createEmptyAugmentMtdt(),
+    prompt: '',
+  }));
+  /**
+   * 눌러 둔 생성 조건 프리셋(겨울·야간·우천) — **증강 종류가 아니다**(ADR-059).
+   *
+   * 화면 안에서만 살며 전송되지 않는다. 전송되는 것은 프리셋이 채운 생성 조건 값이다.
+   */
+  const [selectedPreset, setSelectedPreset] =
+    useState<AugmentConditionPresetId | null>(null);
+  // 사용자가 건드린 축만 오류를 표시한다(진입하자마자 빨간 글씨가 뜨지 않게).
+  const [conditionTouched, setConditionTouched] = useState<AugmentConditionTouched>({
+    mtdt: {},
+  });
+  /**
+   * 사용자가 **값을 직접 고친** 생성 조건 항목 — 종류 변경 시 프리필이 덮어쓰지 않을 대상이다.
+   *
+   * `conditionTouched` 와 분리한 이유는 <b>빈 값 여부로는 판정할 수 없기</b> 때문이다.
+   * 프리필된 값을 사용자가 **의도적으로 되돌린**(선택 해제) 상태와 애초에 비어 있던 상태가
+   * 값만으로는 구분되지 않는다. 값으로 판정하면 종류를 바꿀 때 사용자가 지운 값이 되살아난다.
+   * 따라서 "편집 행위가 있었는가"를 별도로 기록한다(빈 값으로 되돌린 것도 편집이다).
+   */
+  const [mtdtEdited, setMtdtEdited] = useState<
+    Partial<Record<AugmentMtdtFieldKey, boolean>>
   >({});
-  const promptValidation = useMemo(() => validateAugmentPrompt(prompt), [prompt]);
+  const conditionValidation = useMemo(
+    () => validateAugmentConditions(conditions),
+    [conditions],
+  );
+  /**
+   * 프리셋이 채워 둔(=사용자가 아직 손대지 않은) 항목 — 그 자리에만 "프리셋으로 채워 뒀습니다"
+   * 안내를 띄운다. 어느 값이 시스템이 채운 것인지 보이지 않으면 고쳐도 되는 값인지 알 수 없다.
+   */
+  const presetFilledFields = useMemo(
+    () =>
+      Object.fromEntries(
+        AUGMENT_MTDT_FIELD_KEYS.map((key) => [key, mtdtEdited[key] !== true]),
+      ) as Partial<Record<AugmentMtdtFieldKey, boolean>>,
+    [mtdtEdited],
+  );
 
-  const handlePromptChange = (key: AugmentPromptFieldKey, value: string) => {
-    // 불변성: 새 객체 생성 (mutation 금지).
-    setPrompt((prev) => ({ ...prev, [key]: value }));
-    setPromptTouched((prev) => ({ ...prev, [key]: true }));
-    setPromptEdited((prev) => ({ ...prev, [key]: true }));
+  /**
+   * 생성 조건 프리셋 적용 — 시스템이 채운 값만 프리셋을 따라가고, 사용자가 고친 값은 그대로 둔다.
+   *
+   * 프리셋이 채우지 않는 축까지 빈 값으로 **명시**해 덮는 이유는 이전 프리셋의 잔재를 지우기
+   * 위해서다(부분 병합이면 야간을 골라도 계절=겨울이 남아, 사용자가 고른 적 없는 조건이 나간다).
+   * 같은 프리셋을 다시 누르면 해제(`null`)이며 그때도 같은 규칙으로 손대지 않은 값만 비운다.
+   */
+  const handleSelectPreset = (preset: AugmentConditionPresetId | null) => {
+    setSelectedPreset(preset);
+    const values = createMtdtPresetFor(preset);
+    setConditions((prev) => {
+      const nextMtdt = { ...prev.mtdt };
+      AUGMENT_MTDT_FIELD_KEYS.forEach((key) => {
+        // 사용자가 손댄 항목은 값(빈 값 포함)을 그대로 보존한다.
+        if (!mtdtEdited[key]) nextMtdt[key] = values[key];
+      });
+      return { ...prev, mtdt: nextMtdt };
+    });
   };
 
-  const handlePromptBlur = (key: AugmentPromptFieldKey) => {
-    setPromptTouched((prev) => ({ ...prev, [key]: true }));
+  const handleMtdtChange = (key: AugmentMtdtFieldKey, value: string) => {
+    setConditions((prev) => ({ ...prev, mtdt: { ...prev.mtdt, [key]: value } }));
+    setConditionTouched((prev) => ({ ...prev, mtdt: { ...prev.mtdt, [key]: true } }));
+    setMtdtEdited((prev) => ({ ...prev, [key]: true }));
   };
+
+  const handleFreePromptChange = (value: string) => {
+    setConditions((prev) => ({ ...prev, prompt: value }));
+    setConditionTouched((prev) => ({ ...prev, prompt: true }));
+  };
+
+  /** 무엇이 모자라 제출이 막혔는지 — 하단 고정 바의 요청 불가 사유 안내(사양 SCREEN-022). */
+  const conditionBlockReasons = augmentConditionBlockReasons(conditionValidation);
 
   // 필터: localFilters (입력 중), filters (적용된 값)
   const [localFilters, setLocalFilters] =
@@ -305,7 +379,7 @@ export function AugmentRequestPage() {
     : undefined;
 
   const isResolution = selectedKind === 'RESOLUTION';
-  // 외부 위탁 증강(WINTER/NIGHT/RAIN) 선택 여부 — 생성 조건 입력이 필요한 경로.
+  // 외부 위탁 증강(AUGMENT) 선택 여부 — 생성 조건 입력이 필요한 경로.
   const isAugmentRequest = selectedKind !== null && isAugmentKind(selectedKind);
   const isPendingAny = isPending || resolutionDerivative.isPending;
 
@@ -337,27 +411,16 @@ export function AugmentRequestPage() {
   // radiogroup 로빙 tabindex/화살표 탐색용 카드 ref (a11y WCAG 4.1.2).
   const kindCardRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // 종류 변경: 생성할 해상도(전체 3종)·결과 상태 초기화 (AC4) + 생성 조건 프리필.
+  // 종류 변경: 생성할 해상도(전체 3종)·결과 상태 초기화 (AC4).
   //
-  // 프리필 규칙 — 시스템이 채운 값만 종류를 따라가고, 사용자가 고친 값은 그대로 둔다.
-  // 종류가 생성 조건에 반영되지 않으면 증강 3종이 같은 요청이 되어 종류를 나눈 의미가 없어진다.
-  // 반대로 사용자 입력을 덮으면 검수자가 조건을 조절할 수 있어야 한다는 정책을 깬다.
+  // ⚠ **종류는 생성 조건을 건드리지 않는다**(ADR-059). 구 동작은 카드(겨울·야간·우천)가 곧
+  // 프리필이라 카드를 바꾸면 조건이 함께 움직였다. 이제 그 역할은 생성 조건 프리셋이 갖고,
+  // 종류는 「증강 AI / 해상도 변경」 두 갈래를 가르기만 한다. 여기서 조건을 비우면 해상도로
+  // 갔다 돌아왔을 때 사용자가 골라 둔 조건이 사라진다.
   const handleSelectKind = (kind: ProcessKind) => {
     setSelectedKind(kind);
     setSelectedPresets([...RESOLUTION_PRESETS]);
     resetResolution();
-    // 해상도 변경은 프롬프트 자체가 없다 — 여기서 값을 비우면 증강으로 되돌아왔을 때
-    // 사용자가 입력해 둔 조건이 사라진다.
-    if (!isAugmentKind(kind)) return;
-    const preset = createPromptPresetFor(kind);
-    setPrompt((prev) => {
-      const next = { ...prev };
-      AUGMENT_PROMPT_FIELD_KEYS.forEach((key) => {
-        // 사용자가 손댄 필드는 값(빈 문자열 포함)을 그대로 보존한다.
-        if (!promptEdited[key]) next[key] = preset[key];
-      });
-      return next;
-    });
   };
 
   // 화살표 키로 카드 간 이동 + 선택 + 포커스 이동 (로빙 tabindex 패턴).
@@ -402,10 +465,10 @@ export function AugmentRequestPage() {
     selectedVideoId !== null &&
     // 파생영상은 BE 가 400 으로 영구 거부한다 — 제출 자체를 막는다.
     !isDerivativeVideo &&
-    (isResolution ? selectedPresets.length > 0 : promptValidation.ok) &&
+    (isResolution ? selectedPresets.length > 0 : conditionValidation.ok) &&
     !isPendingAny;
 
-  // 실행 분기 (R4): 증강 3종은 위탁 잡 요청(/augments/request),
+  // 실행 분기 (R4): 증강 AI 는 위탁 잡 요청(/augments/request),
   // 해상도 변경은 저작도구 직접 수행(/videos/{rawSn}/resolution → 파생영상 생성).
   // kind/preset 은 allowlist 상수로만 좁혀(isAugmentKind/RESOLUTION_PRESETS) 임의 분기 차단.
   const handleSubmit = () => {
@@ -413,23 +476,25 @@ export function AugmentRequestPage() {
     if (submitLockRef.current || isPendingAny) return;
     if (!canSubmit || selectedKind === null || selectedVideoId === null) return;
     if (isAugmentKind(selectedKind)) {
-      // 프롬프트 재검증(fail-closed) — 버튼 비활성만 믿지 않는다.
-      const promptValue = promptValidation.value;
-      if (promptValue === null) {
-        // 모든 필드를 touched 로 표시해 어디가 문제인지 즉시 보이게 한다.
-        setPromptTouched(
-          Object.fromEntries(AUGMENT_PROMPT_FIELD_KEYS.map((k) => [k, true])),
-        );
+      // 생성 조건 축 재검증(fail-closed) — 버튼 비활성만 믿지 않는다.
+      const conditionValue = conditionValidation.value;
+      if (conditionValue === null) {
+        // 모든 축을 touched 로 표시해 어디가 문제인지 즉시 보이게 한다.
+        setConditionTouched({
+          mtdt: Object.fromEntries(AUGMENT_MTDT_FIELD_KEYS.map((k) => [k, true])),
+          prompt: true,
+        });
         return;
       }
       // 증강: 성공 시 결과화면 네비게이션(useRequestAugment onSuccess).
+      // 종류(types)는 단일값 AUGMENT 다 — 생성 조건·프리셋 어느 쪽에서도 파생하지 않는다.
+      // 이벤트 유형은 요청자가 고르지 않으며 서버가 중립값을 고정 송신한다(ADR-059).
       submitLockRef.current = true;
       mutate(
         {
           videoIds: [selectedVideoId],
           types: [selectedKind],
-          // 종류(types)는 프롬프트에서 파생하지 않는다 — 사용자가 카드로 고른 값 그대로다.
-          prompt: promptValue,
+          ...conditionValue,
         },
         { onSettled: releaseSubmitLock },
       );
@@ -479,7 +544,7 @@ export function AugmentRequestPage() {
     >
       <PageHeader
         title="데이터 증강 요청"
-        description="검수 완료(승인) 영상 1건에 처리 종류(겨울/야간/우천 증강 또는 해상도 변경) 하나를 선택해 요청합니다."
+        description="검수 완료(승인) 영상 1건에 처리 종류(증강 AI 또는 해상도 변경) 하나를 선택해 요청합니다."
       />
 
       {/* SFR-07 안내 */}
@@ -490,7 +555,7 @@ export function AugmentRequestPage() {
         </p>
       </div>
 
-      {/* Step 1: 처리 종류 선택 (단일 선택 카드 4개) */}
+      {/* Step 1: 처리 종류 선택 (단일 선택 카드 2개 — 증강 AI / 해상도 변경) */}
       <section className="space-y-4" data-testid="process-kind-step">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-600 text-label font-bold text-white">
@@ -507,7 +572,7 @@ export function AugmentRequestPage() {
         <div
           role="radiogroup"
           aria-label="처리 종류"
-          className="grid grid-cols-2 gap-4 md:grid-cols-4"
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
           data-testid="process-kind-list"
         >
           {PROCESS_KINDS.map((kind, index) => (
@@ -545,14 +610,18 @@ export function AugmentRequestPage() {
           </p>
         )}
 
-        {/* 증강 3종 선택 시에만 생성 조건(프롬프트) 입력 노출 — 해상도 변경은 외부 위탁이 아니라 불필요 */}
+        {/* 증강 AI 선택 시에만 생성 조건·자유 지시문 입력 노출 —
+            해상도 변경은 외부 위탁이 아니라 불필요 */}
         {isAugmentRequest && (
           <AugmentPromptFieldset
-            value={prompt}
-            errors={promptValidation.errors}
-            touched={promptTouched}
-            onChange={handlePromptChange}
-            onBlur={handlePromptBlur}
+            value={conditions}
+            errors={conditionValidation.errors}
+            touched={conditionTouched}
+            selectedPreset={selectedPreset}
+            onSelectPreset={handleSelectPreset}
+            presetFilledFields={presetFilledFields}
+            onMtdtChange={handleMtdtChange}
+            onPromptChange={handleFreePromptChange}
             disabled={isPendingAny}
           />
         )}
@@ -945,11 +1014,15 @@ export function AugmentRequestPage() {
                   : '영상 미선택'}
               </span>
             </p>
-            {/* 버튼이 왜 비활성인지 알려준다 — 이유를 숨기면 사용자는 원인을 찾지 못한다. */}
-            {isAugmentRequest && !promptValidation.ok && (
-              <p className="mt-0.5 text-caption text-warning">
-                생성 조건 {AUGMENT_PROMPT_FIELD_KEYS.length}개 항목을 모두 입력해야
-                요청할 수 있습니다.
+            {/* 버튼이 왜 비활성인지 알려준다 — 이유를 숨기면 사용자는 원인을 찾지 못한다.
+                생성 조건은 드롭다운이라 항목마다 오류를 띄울 계기(입력·blur)가 없다 —
+                이 문구가 미선택 사실이 드러나는 유일한 자리다(사양 SCREEN-022). */}
+            {isAugmentRequest && conditionBlockReasons.length > 0 && (
+              <p
+                data-testid="augment-block-reason"
+                className="mt-0.5 text-caption text-warning"
+              >
+                다음을 확인해야 요청할 수 있습니다 — {conditionBlockReasons.join(' · ')}
               </p>
             )}
           </div>

@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+import { useAdminSessionStore } from '@/features/adminSession/store';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useUiStore } from '@/stores/useUiStore';
 
@@ -98,6 +99,9 @@ beforeEach(() => {
   // 차단 안내 dedupe 는 화면 단위 단일 저장소(useUiStore)에 있다. 테스트 간에 남으면 앞 테스트의
   // 안내가 뒤 테스트의 같은 문구를 삼켜 위양성 실패가 난다 — 매 테스트 시작 시 비운다.
   useUiStore.getState().resetBlockNotice();
+  // 관리자 단기 유효창은 모듈 스코프 스토어라 테스트 사이에 남는다. 남으면 앞 테스트가 연 창이
+  // 뒤 테스트의 「잠겨 있다」 단언을 통과시켜, 잠금이 풀려도 초록으로 남는다.
+  useAdminSessionStore.getState().clear();
 });
 
 afterEach(() => {

@@ -2,6 +2,7 @@ package kr.co.cudo.authoring.batch.repository;
 
 import kr.co.cudo.authoring.batch.entity.LsDataLbl;
 import kr.co.cudo.authoring.common.datasource.ControlRepo;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -116,10 +117,16 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
      * {@code null} 로 둔다 — 구 LATERAL 이 {@code AUTO_LBL_YN='Y'} 행만 매칭하고 나머지는 LEFT JOIN
      * miss 로 {@code null} 을 냈던 계약을 그대로 유지한다({@code confScore} 도 같은 조건에서만 실린다).
      * 파라미터 바인딩({@code :rawSn})만 사용 — 문자열 연결 없음(CWE-89 회귀 방지).
+     *
+     * <p>{@code labelId}({@code LBL_ID})는 라벨 마스터 조달용 키다. 여기서 <b>마스터를 조인하지
+     * 않는 이유</b>는 이 쿼리가 라벨 <b>행 단위</b>인 반면 마스터는 <b>라벨 종류 단위</b>라, 같은
+     * 마스터 행이 라벨 수만큼 중복 투영되기 때문이다. 소비자가 이 키를 모아 마스터를 한 번에
+     * 배치 조회한다(라벨 종류 수에 비례하는 조회를 만들지 않는다).
      */
     @Query(value = """
             SELECT l.LBL_SN AS lblSn,
                    l.LBL_NM AS labelNm,
+                   l.LBL_ID AS labelId,
                    CASE WHEN l.AUTO_LBL_YN = 'Y' THEN l.AUTO_LBL_YN END AS autoLblYn,
                    CASE WHEN l.AUTO_LBL_YN = 'Y' THEN l.CONF_SCORE END  AS confScore
               FROM LS_DATA_LBL l
@@ -184,6 +191,52 @@ public interface LsDataLblRepository extends JpaRepository<LsDataLbl, Long>, LsD
             """)
     List<Long> findDistinctSrcSnsByRawSnAndLblSrcCd(@Param("rawSn") Long rawSn,
                                                     @Param("lblSrcCd") String lblSrcCd);
+
+    /**
+     * 영상(rawSn)에 <b>자동 생성 라벨</b>이 있는가 — 존재 확인용(조기 종료). [@design AC-051] [@design API-043]
+     *
+     * <p>판정 술어는 {@code AUTO_LBL_YN='Y'} <b>이면서</b> {@code LBL_SRC_CD} 가 오토라벨 출처인 라벨이다.
+     * 사람이 그린 라벨은 두 컬럼이 모두 {@code null} 이라 걸리지 않는다 — "라벨이 있는가" 로 판정하면
+     * 작업자가 라벨을 하나 그린 순간 오토라벨 산출물이 있는 것으로 오산입된다. 판정의 단일 원천과
+     * 출처 목록은 {@code AutolabelPresence} 가 소유하며, 여기서 출처 문자열을 복제하지 않는다
+     * (호출자가 목록을 넘긴다).
+     *
+     * <p><b>존재 확인은 {@code pageable} 로 한 건만 읽는다</b> — 영상 하나에 프레임이 수천이라
+     * 전건 카운트를 센 뒤 0 과 비교하면 "있다"를 확인하는 데 전량을 훑는다. 카운트가 필요한 호출부는
+     * {@link #countAutoLabelByRawSn} 를 쓴다.
+     *
+     * <p>파라미터 바인딩({@code :rawSn}, {@code :lblSrcCds})만 사용(CWE-89). 결과는 식별자뿐이라 PII 를
+     * 싣지 않는다. {@code LS_DATA_LBL} 에는 {@code RAW_SN} 컬럼이 없어 {@code LS_DATA_SRC} 조인으로
+     * 영상에 도달한다.
+     *
+     * @param lblSrcCds 오토라벨 출처 코드 집합 — 비어 있으면 JPQL {@code IN ()} 이 되므로 호출자가 보장한다
+     */
+    @Query("""
+            SELECT l.lblSn
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.autoLblYn = 'Y'
+               AND l.lblSrcCd IN :lblSrcCds
+            """)
+    List<Long> findAutoLabelLblSnsByRawSn(@Param("rawSn") Long rawSn,
+                                          @Param("lblSrcCds") Collection<String> lblSrcCds,
+                                          Pageable pageable);
+
+    /**
+     * 영상(rawSn)의 자동 생성 라벨 건수 — 판정 근거를 로그에 남기는 호출부용.
+     * 술어는 {@link #findAutoLabelLblSnsByRawSn} 와 <b>같다</b>(둘이 갈리면 "있다는데 0건"이 된다).
+     */
+    @Query("""
+            SELECT COUNT(l)
+              FROM LsDataLbl l
+              JOIN LsDataSrc s ON l.srcSn = s.srcSn
+             WHERE s.rawSn = :rawSn
+               AND l.autoLblYn = 'Y'
+               AND l.lblSrcCd IN :lblSrcCds
+            """)
+    long countAutoLabelByRawSn(@Param("rawSn") Long rawSn,
+                               @Param("lblSrcCds") Collection<String> lblSrcCds);
 
     /**
      * 영상(rawSn)에 속한 모든 프레임의 라벨(자동+수동 전체)을 일괄 삭제 (R1 v1.14 — 비식별 신고 시).

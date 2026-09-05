@@ -1,0 +1,94 @@
+{
+  "item": {
+    "id": "AC-028",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "마킹에서 도출된 VLM 위탁 입력(frame_policy·event_type·질문 선택값)",
+    "slug": "마킹에서-도출된-vlm-위탁-입력framepolicyeventtype",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "notes": "근거: UC-019(VLM 시계열 위탁 절) · DOMAIN-011 정책(논블로킹 제출·frame_policy 도출·event_type 비차단). 판정 지점: 위탁 요청 조립 시점의 frame_policy·event_type 도출 로직과 마킹 단계 신고 접수 조건 가드.\n\n질문 선택값(2026-08-25 확정) — 질문 문구는 저작도구가 검증 이벤트 유형별로 보관·관리하며 마킹은 그중 고른 값을 함께 저장한다. 연동 규격이 질문 문장을 이벤트별로 외부 분석 서버가 관리하고 연동 측이 지정하지 않는 것으로 못 박고 있어 지금 위탁 요청 본문에는 질문을 실을 자리가 없다. 그럼에도 우리가 보관하는 이유는 프롬프트 고정에 문제 소지가 있어 이후 질의를 받는 방향으로 규격이 바뀔 수 있다는 협의가 있었고 그 전환을 미리 준비하기 위해서다. ⚠ 인지·수용한 잔여 위험: 첫 번째가 아닌 질문을 고르면 기록된 질문과 외부 분석 서버가 실제로 쓴 질문이 달라진다. 판정 지점 추가: 마킹 저장 시점의 질문 소속 검증과 첫 번째 질문 폴백.",
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "frame_policy.mode 는 'frame_selected' 이고 selected_frames 는 정렬·중복제거 후 0 이상 최대 600건으로 제한되어 초과분이 절단된다 (음수 프레임 인덱스는 싣지 않는다)",
+          "event_type 은 관제 인입값(LS_DATA_INGEST.VRFC_EVNT_TYPE_CD)을 그대로 실어 위탁하며 화이트리스트 검증으로 사전 차단하지 않는다",
+          "frame_policy 에 framerate 를 두지 않는다 — 추출 간격·장수 세부값은 외부 분석 서버가 관리하고 연동 측은 mode 와 selected_frames 만 지정한다",
+          "위탁은 describe(POST /v1/videovlm-klid/describe)와 describe-sub(POST /v1/videovlm-klid/describe-sub) 두 건으로 제출되며 각 요청에 서로 다른 request_id 가 부여된다",
+          "마킹 저장 시 작업자가 고른 질문이 함께 남는다 — 고르지 않았으면 그 검증 이벤트 유형의 첫 번째 질문이 저장된다",
+          "저장 요청이 그 검증 이벤트 유형에 속하지 않는 질문을 지정하면 서버가 그 유형의 첫 번째 질문으로 교정해 저장한다 — 화면 입력을 신뢰하지 않는다",
+          "마킹을 거치지 않는 경로는 언제나 그 검증 이벤트 유형의 첫 번째 질문을 쓴다",
+          "검증 이벤트 유형이 미수신이면 질문을 고르지 않은 채 진행해 질문 값이 비고, 위탁 자체는 그대로 제출된다 — 질문이 없다는 이유로 위탁을 막지 않는다",
+          "「첫 번째 질문」은 그 검증 이벤트 유형의 정렬 순서가 가장 앞선 한 건으로 결정되며, 유형별 정렬 순서가 유일하므로 조회마다 흔들리지 않는다"
+        ],
+        "when": [
+          "마킹이 완료되어 VLM 시계열 위탁 요청이 조립된다"
+        ],
+        "given": [
+          "수동 마킹으로 620개 프레임이 선택되었다 (중복·비정렬 포함)"
+        ],
+        "and_examples": [
+          {
+            "case": "마킹 본문에서 쓸 수 있는 프레임 인덱스를 하나도 얻지 못하는 경우(마킹 부재·본문 파싱 실패·유효 인덱스 0건)",
+            "result": "frame_policy.mode 는 'frame_interval' 로 내려가고 selected_frames 는 싣지 않는다 — 빈 배열은 규격 위반이라 거부되고, 추출 간격은 외부 분석 서버가 정한다. 마킹 모드(수동·자동)로 가르지 않는다: 모드는 그 인덱스를 누가 골랐는지만 구분하며 도출 방법은 같다"
+          },
+          {
+            "case": "배치 단계가 MARKING_READY 가 아닌 상태에서 마킹 단계 비식별 신고(POST /v1/videos/{rawSn}/deident-report) 시도",
+            "result": "412 PRECONDITION_FAILED 로 거부되고 처리 단계(PROCESSING/COMPLETED/FAILED/PENDING)를 구분해 알리지 않는 단일 문구로 응답한다"
+          },
+          {
+            "case": "위탁 제출 직후 스텝이 반환하는 것",
+            "result": "제출 개시만 확인하고 즉시 반환한다 — 외부 응답을 기다리며 파이프라인 스레드를 점유하지 않으며, 이 시점에 수락 여부는 보장되지 않는다"
+          },
+          {
+            "case": "수락(ACK) 기록 시점",
+            "result": "상관키와 마킹 상태를 선커밋한 뒤 완료 핸들러가 전용 실행 경로에서 원장을 ISSUED 에서 ACCEPTED 로 비동기 전이시킨다"
+          },
+          {
+            "case": "제출 후 수락도 실패도 신호가 오지 않는 경우",
+            "result": "미결 스위퍼가 회수한다 — 수락 응답조차 못 본 건(ISSUED)과 수락 후 콜백이 없는 건(ACCEPTED)에 서로 다른 대기 창을 적용하며, 후보는 처리 전 조건부 갱신으로 원자 선점해 두 노드가 같은 건을 두 번 재위탁하지 않는다"
+          },
+          {
+            "case": "다른 검증 이벤트 유형에 속한 질문을 지정해 마킹을 저장한다",
+            "result": "거부하지 않고 그 영상의 검증 이벤트 유형의 첫 번째 질문으로 교정해 저장한다"
+          },
+          {
+            "case": "검증 이벤트 유형이 미수신인 영상의 마킹을 저장한다",
+            "result": "질문을 고르지 않은 채 저장되고, 질문 값이 빈 상태로 위탁이 그대로 제출된다"
+          }
+        ]
+      },
+      "verifies": [
+        "REQ-014"
+      ],
+      "statement": "마킹 완료 시 frame_policy(마킹 본문에서 프레임 인덱스를 얻으면 frame_selected 모드로 그 인덱스를 정렬·중복제거하여 0 이상 최대 600건으로 제한해 싣고, 하나도 얻지 못하면 frame_interval 모드로 내린다 — 빈 selected_frames 는 규격 위반이라 거부된다)와 event_type(관제 인입값 그대로, 검증·차단 없음)이 도출되어 외부 시계열 분석 위탁의 논블로킹 제출 입력이 되며, 위탁은 describe(POST /v1/videovlm-klid/describe)와 describe-sub(POST /v1/videovlm-klid/describe-sub) 두 건으로 각각 별도 request_id 를 부여해 제출된다. 배치 단계가 MARKING_READY 가 아닌 상태에서의 마킹 단계 비식별 신고는 412 로 거부된다. 마킹 저장 시 작업자가 고른 질문도 함께 남으며, 고르지 않았거나 그 검증 이벤트 유형에 속하지 않는 질문을 지정하면 그 유형의 첫 번째 질문으로 되돌린다 — 마킹을 거치지 않는 경로도 언제나 첫 번째 질문을 쓰고, 검증 이벤트 유형이 미수신이면 질문 없이 위탁을 그대로 제출한다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-011"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-019"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 8,
+    "stale": true,
+    "stale_reason": "UC-019의 data.alternate_flows 변경 — derived_from",
+    "change_summary": "마킹에서 도출되는 위탁 입력에 질문 선택값 축을 더한다. 기존 축(frame_policy 도출·event_type 비차단·논블로킹 제출·마킹 단계 신고 접수 조건)은 한 글자도 바꾸지 않고 그대로 두고 항목만 추가했다. 추가된 단언은 마킹 저장 시 고른 질문이 함께 남고 미선택이면 그 검증 이벤트 유형의 첫 번째 질문이 저장된다는 것, 다른 유형에 속한 질문을 지정하면 서버가 첫 번째로 교정한다는 것(화면 입력 불신뢰), 마킹을 거치지 않는 경로는 언제나 첫 번째를 쓴다는 것, 검증 이벤트 유형이 미수신이면 질문 없이 진행하되 위탁은 그대로 나간다는 것(질문 부재가 위탁을 막지 않는다), 「첫 번째」가 유형별 정렬 순서로 결정되어 조회마다 흔들리지 않는다는 것이다. 질문 문구를 저작도구가 보관하게 된 근거와 인지·수용한 잔여 위험(첫 번째가 아닌 질문을 고르면 기록된 질문과 외부 분석 서버가 실제로 쓴 질문이 달라진다)은 메모 필드에 남겼다. 제목의 축 열거에도 질문 선택값을 더해 본문과 어긋나지 않게 했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T03:48:29.342Z",
+    "created_at": "2026-08-06T16:02:04.140Z"
+  }
+}

@@ -149,7 +149,7 @@ class VersionRollbackRestoreIT {
 
     private LsDataLbl seedLabel(Long frameSn, String label, String pointsJson) {
         return labelRepository.save(
-                LsDataLbl.createManual(frameSn, LsDataLbl.TYPE_BBOX, null, label, pointsJson, 100L));
+                LsDataLbl.createManual(frameSn, LsDataLbl.TYPE_BBOX, null, label, pointsJson, "100"));
     }
 
     /** 지정 payload 를 그대로 담은 active 버전 행을 적재하고 해시를 반환(롤백 입력용). */
@@ -345,7 +345,7 @@ class VersionRollbackRestoreIT {
         // given — 17-keypoint SKELETON 라벨 1건으로 v1 스냅샷 생성.
         String keypoints = skeletonPoints();
         Long id = labelRepository.save(LsDataLbl.createManual(
-                srcSn, LsDataLbl.TYPE_SKELETON, null, "person", keypoints, 100L)).getLblSn();
+                srcSn, LsDataLbl.TYPE_SKELETON, null, "person", keypoints, "100")).getLblSn();
         versionService.commitApproved(rawSn, reviewer);
         String v1Hash = activeSnapshotHash();
 

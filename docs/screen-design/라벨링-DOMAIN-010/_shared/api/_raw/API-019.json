@@ -647,9 +647,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-228"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:37.977Z"
       },
       "uses_constants": [
         "CONST-001"
@@ -663,8 +666,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "응답 목록에 409(저장 충돌)를 추가한다. 요청의 labelVersion 설명과 412 설명이 모두 409 의 존재를 전제하는데 응답 목록에는 409 가 없어 계약이 자기모순이었다. 낙관적 동시성 토큰 불일치·신고와 무관한 일시적 작업락·사용 중지된 라벨 마스터의 신규 부여를 사유로 명시한다. 함께 412 설명의 \"409 는 신고와 무관한 일시적 충돌(트랙 병합 등)에만 쓴다\" 를 \"409 는 신고 게이트가 아닌 충돌에만 쓴다\" 로 좁힌다 — 새 409 사유에 일시적이지 않은 것이 포함되어 옛 문구와 어긋났다. 412 가 신고 게이트 전용이고 락 유무와 무관하게 412 로 통일된다는 취지와 그 근거는 그대로 둔다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-15T08:06:42.330Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:37.977Z",
     "created_at": "2026-05-30T07:19:37.507Z"
   }
 }

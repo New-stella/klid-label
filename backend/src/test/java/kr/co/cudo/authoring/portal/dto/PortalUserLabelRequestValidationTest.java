@@ -48,7 +48,7 @@ class PortalUserLabelRequestValidationTest {
     void oversizedPointsRejected() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(
                 100L, 10L, "POLYGON", "person",
-                pointsJson(PortalUserLabelRequest.MAX_POINTS_LENGTH + 1));
+                pointsJson(PortalUserLabelRequest.MAX_POINTS_LENGTH + 1), null, null);
 
         Set<ConstraintViolation<PortalUserLabelRequest>> violations = validator.validate(req);
 
@@ -60,7 +60,7 @@ class PortalUserLabelRequestValidationTest {
     void withinLimitPointsAccepted() {
         PortalUserLabelRequest req = new PortalUserLabelRequest(
                 100L, 10L, "POLYGON", "person",
-                pointsJson(PortalUserLabelRequest.MAX_POINTS_LENGTH));
+                pointsJson(PortalUserLabelRequest.MAX_POINTS_LENGTH), null, null);
 
         assertThat(validator.validate(req)).isEmpty();
     }
@@ -69,7 +69,7 @@ class PortalUserLabelRequestValidationTest {
     @DisplayName("정상_BBOX_좌표는_위반이_없다")
     void normalBboxAccepted() {
         PortalUserLabelRequest req =
-                new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[[1,2],[3,4]]");
+                new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "[[1,2],[3,4]]", null, null);
 
         assertThat(validator.validate(req)).isEmpty();
     }
@@ -77,7 +77,7 @@ class PortalUserLabelRequestValidationTest {
     @Test
     @DisplayName("points_가_공백이면_NotBlank_위반이다")
     void blankPointsRejected() {
-        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "  ");
+        PortalUserLabelRequest req = new PortalUserLabelRequest(100L, 10L, "BBOX", "person", "  ", null, null);
 
         assertThat(validator.validate(req))
                 .anyMatch(v -> v.getPropertyPath().toString().equals("points"));

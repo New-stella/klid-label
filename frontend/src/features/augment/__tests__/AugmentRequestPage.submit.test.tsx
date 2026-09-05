@@ -22,8 +22,13 @@ vi.mock('react-router-dom', async () => {
 });
 
 /**
- * 증강 생성 조건 5필드 — BE 필수 계약(2026-07-31). 증강 경로 실행 전에 반드시 채워야
- * 제출 버튼이 활성화된다. 해상도 변경 경로는 외부 위탁이 아니라 입력이 필요 없다.
+ * 증강 요청의 생성 조건 축 — BE 필수 계약(연동명세서 v1.3 · ADR-059).
+ *
+ * 생성 조건 5항목이 모두 채워져야 제출 버튼이 활성화된다. 값은 자유 문자열이 아니라
+ * **허용 코드**이며 화면은 드롭다운으로만 고르게 한다. 해상도 변경 경로는 외부 위탁이
+ * 아니라 이 입력이 필요 없다.
+ *
+ * ⚠ 이벤트 유형 입력은 걷어냈다(ADR-059) — 되살리지 말 것.
  */
 const fillPromptFields = () => {
   const values: Record<string, string> = {
@@ -43,7 +48,7 @@ const fillPromptFields = () => {
 /**
  * SCR-AUG-001 통합 단일 선택 UI (Phase 2) — 선택 후 실행 시나리오 분기 검증.
  *
- * - 증강 종류(WINTER/NIGHT/RAIN) 실행 → POST /augments/request (videoIds·types 길이 1)
+ * - 증강 AI(단일값 AUGMENT) 실행 → POST /augments/request (videoIds·types 길이 1)
  * - 해상도 변경(RESOLUTION) 실행 → POST /videos/{rawSn}/resolution (presets 전달)
  * - 미선택 시 실행 버튼 비활성
  * - 증강 성공 시 결과화면 네비게이션
@@ -120,7 +125,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    await user.click(await screen.findByTestId('process-kind-WINTER'));
+    await user.click(await screen.findByTestId('process-kind-AUGMENT'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
     fillPromptFields();
     await user.click(screen.getByTestId('augment-submit'));
@@ -132,7 +137,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     expect(sent.videoIds).toHaveLength(1);
     expect(sent.videoIds).toEqual([1]);
     expect(sent.types).toHaveLength(1);
-    expect(sent.types).toEqual(['WINTER']);
+    expect(sent.types).toEqual(['AUGMENT']);
   });
 
   it('해상도변경_영상_선택후_실행하면_videos_resolution이_presets배열로_호출된다', async () => {
@@ -180,7 +185,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    await user.click(await screen.findByTestId('process-kind-WINTER'));
+    await user.click(await screen.findByTestId('process-kind-AUGMENT'));
     fillPromptFields();
     // 영상 미선택 상태 — 생성 조건을 다 채워도 제출 불가
     expect(screen.getByTestId('augment-submit')).toBeDisabled();
@@ -227,7 +232,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    await user.click(await screen.findByTestId('process-kind-NIGHT'));
+    await user.click(await screen.findByTestId('process-kind-AUGMENT'));
     // CCTV-2 = videoId 2 (RAW_SN). 첫 영상이 아니어야 "우연히 맞음" 을 배제할 수 있다.
     await user.click(await screen.findByRole('radio', { name: /CCTV-2 선택/ }));
     fillPromptFields();
@@ -334,7 +339,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     const user = userEvent.setup();
     renderWithProviders(<AugmentRequestPage />);
 
-    await user.click(await screen.findByTestId('process-kind-WINTER'));
+    await user.click(await screen.findByTestId('process-kind-AUGMENT'));
     await user.click(await screen.findByRole('radio', { name: /CCTV-1 선택/ }));
     fillPromptFields();
     await user.click(screen.getByTestId('augment-submit'));
@@ -375,7 +380,7 @@ describe('AugmentRequestPage 실행 시나리오 분기 (Phase 2)', () => {
     ).toBeInTheDocument();
 
     // 종류를 증강으로 변경 → 해상도 결과 초기화
-    await user.click(screen.getByTestId('process-kind-WINTER'));
+    await user.click(screen.getByTestId('process-kind-AUGMENT'));
     expect(
       screen.queryByTestId('resolution-derivative-result'),
     ).not.toBeInTheDocument();

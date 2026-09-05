@@ -2,31 +2,22 @@ import { Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/common/Button';
-import { Role } from '@/lib/api/types';
+import { CurrentRoleBadge } from '@/components/common/CurrentRoleBadge';
 import { useAuthStore } from '@/stores/useAuthStore';
-
-const ROLE_LABEL: Record<string, string> = {
-  REVIEWER: '검수자',
-  WORKER: '작업자',
-  PORTAL_USER: '포털',
-};
-
-// KRDS 예외: 범주 구분색(역할 구분, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
-const ROLE_COLOR: Record<string, string> = {
-  REVIEWER: 'bg-cyan-100 text-cyan-700',
-  WORKER: 'bg-blue-100 text-blue-700',
-  PORTAL_USER: 'bg-emerald-100 text-emerald-700',
-};
 
 /**
  * 접근 거부 안내 화면 (`/forbidden`).
  *
  * @design SCREEN-003 — 역할 또는 채널 기준 접근 제어를 통과하지 못했을 때 표시되는 공개 화면.
  * 서버를 호출하지 않고 클라이언트 상태의 `claims.role` 만 읽어 표시한다.
+ *
+ * ★역할 배지는 `CurrentRoleBadge` 가 그린다 — 상단 헤더(GNB)와 **같은 컴포넌트**다.
+ *   구 구현은 역할이 없으면 `?? Role.WORKER` 로 작업자를 채웠다. 접근이 거부된 자리에서 없는
+ *   역할을 있는 것처럼 보이면 왜 막혔는지를 오히려 흐린다 — 지금은 **미배정**으로 보인다.
  */
 export function ForbiddenPage() {
   const navigate = useNavigate();
-  const role = useAuthStore((s) => s.claims?.role) ?? Role.WORKER;
+  const role = useAuthStore((s) => s.claims?.role);
 
   return (
     <main
@@ -59,14 +50,7 @@ export function ForbiddenPage() {
           <p className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 p-4">
             {/* 항목명 = ladder `caption`(14px), 역할 배지 = ladder `label`(14px). */}
             <span className="text-caption text-gray-700">현재 역할:</span>
-            <span
-              className={[
-                'text-label font-semibold px-2.5 py-1 rounded-full',
-                ROLE_COLOR[role] ?? 'bg-gray-100 text-gray-600',
-              ].join(' ')}
-            >
-              {ROLE_LABEL[role] ?? role}
-            </span>
+            <CurrentRoleBadge role={role} />
           </p>
           {/* 카드 전폭 버튼(시안 `.btn-block`) — 이 화면의 유일한 액션이라 폭을 줄일 이유가 없다. */}
           <Button variant="primary" fullWidth onClick={() => navigate('/')}>

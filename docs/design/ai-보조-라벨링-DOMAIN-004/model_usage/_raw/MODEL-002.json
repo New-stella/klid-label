@@ -1,0 +1,33 @@
+{
+  "item": {
+    "id": "MODEL-002",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "model_usage",
+    "title": "분할 모델 — Meta SAM2",
+    "slug": "분할-모델-meta-sam2",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "cost": {
+        "currency": "USD"
+      },
+      "title": "분할 모델 — Meta SAM2",
+      "status": "active",
+      "provider": "local",
+      "rationale": "클릭·박스 지목으로 객체 외곽을 따내는 분할과 프레임 간 전파를 맡는다. 탐지 모델과 같은 이유로 허용적 라이선스 계열에서 골랐다.",
+      "model_name": "facebook/sam2-hiera-tiny",
+      "routing_rules": [],
+      "benchmark_notes": "모델은 공개 저장소에서 내려받아 올린다. 목 응답일 때는 화면이 결과를 자동 적용하지 않는다. 호출 한 건의 대기 상한은 60초다.",
+      "used_by_prompts": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "추론 모델을 어느 것으로 쓰고 있는지가 설계에 한 건도 없어, 라이선스 정책이 왜 이 모델을 고르게 했는지 추적할 수 없었다. 추론 서버 설정에서 실제 값을 읽어 적었고 확인되지 않는 값은 비워 둔다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-23T20:55:00.351Z",
+    "created_at": "2026-08-23T20:55:00.351Z"
+  }
+}

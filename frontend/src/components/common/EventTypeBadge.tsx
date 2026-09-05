@@ -21,21 +21,29 @@ interface EventTypeBadgeProps {
 }
 
 // 카테고리 한글명 → 색상 (cosmetic). 미매핑 라벨은 회색 폴백 — 색상은 표시 보조용일 뿐.
-// KRDS 예외: 범주 구분색(이벤트 카테고리 7색, 데이터시각화 성격) — 토큰 획일화 제외(의도적 유지).
+//
+// 범주 구분색 축이다 — 이벤트 유형은 서로 우열이 없는 대등한 분류라 semantic(성패·경고) 이 아니라
+// DS-001 의 **범주 구분색 8슬롯**(`category-N`)에서 고른다. 세 범주 축(이벤트 유형·라벨 형태·역할)이
+// 이 한 팔레트를 공유하며, 축마다 별도 색표를 만들지 않는다. 슬롯 번호는 우열·순서를 뜻하지 않는다.
+//
+// ⚠ semantic 대역(red/rose/amber/orange/emerald/green/yellow)을 이 표에 되돌리지 말 것 —
+//   '폭력'이 red 면 배지가 **오류**로, '유괴'가 amber 면 **경고**로 읽힌다. 이벤트 유형은 그 축이
+//   아니다. 구 표는 red 3 · amber 2 · rose 2 · orange 1 로 semantic 대역을 절반 가까이 쓰고 있었다.
+// [@design DS-001]
 const EVENT_COLORS: Record<string, string> = {
-  쓰러짐: 'bg-purple-100 text-purple-700',
-  폭력: 'bg-red-100 text-red-700',
-  싸움: 'bg-red-100 text-red-700',
-  교통사고: 'bg-blue-100 text-blue-700',
-  '이상행동(유괴)': 'bg-amber-100 text-amber-700',
-  '납치(유괴)': 'bg-amber-100 text-amber-700',
-  침수: 'bg-cyan-100 text-cyan-700',
-  '침수(범람)': 'bg-cyan-100 text-cyan-700',
-  산불: 'bg-rose-100 text-rose-700',
-  화재: 'bg-rose-100 text-rose-700',
-  산사태: 'bg-orange-100 text-orange-700',
-  파손: 'bg-slate-100 text-slate-700',
-  흉기소지: 'bg-red-100 text-red-700',
+  교통사고: 'bg-category-1-100 text-category-1-700',
+  쓰러짐: 'bg-category-2-100 text-category-2-700',
+  침수: 'bg-category-3-100 text-category-3-700',
+  '침수(범람)': 'bg-category-3-100 text-category-3-700',
+  파손: 'bg-category-4-100 text-category-4-700',
+  '이상행동(유괴)': 'bg-category-5-100 text-category-5-700',
+  '납치(유괴)': 'bg-category-5-100 text-category-5-700',
+  폭력: 'bg-category-6-100 text-category-6-700',
+  싸움: 'bg-category-6-100 text-category-6-700',
+  흉기소지: 'bg-category-6-100 text-category-6-700',
+  산사태: 'bg-category-7-100 text-category-7-700',
+  산불: 'bg-category-8-100 text-category-8-700',
+  화재: 'bg-category-8-100 text-category-8-700',
 };
 
 // 배지 = DS-001 ladder `label` 축.

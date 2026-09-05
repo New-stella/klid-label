@@ -1,20 +1,20 @@
 ---
 logicraft_item: TEST-001
 type: test_scenario
-version: 10
+version: 11
 domain: null
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:55.203Z
-status: NEW
-prev_version: null
-content_hash: 4d8ff59703b54aaf64751fdcc2e668475f9fc76d3f8e85582443eebf0ebda155
+synced_at: 2026-09-05T00:43:41.844Z
+status: CHANGED
+prev_version: 10
+content_hash: 0e4983f1d6d6802be1fb47ef5798a24f753de75481d7d6183575e2bef597f86a
 stale: false
 raw: ./_raw/TEST-001.json
 links:
   references: ["[[DOMAIN-003]]", "[[DOMAIN-011]]", "[[DOMAIN-012]]", "[[SCREEN-008]]", "[[UC-011]]", "[[UC-018]]"]
 ---
 
-# 관제 학습용 영상 적재 후 선두 비식별 처리(외부 위탁·폴링) 정상 흐름
+# 관제 학습용 영상 적재 후 선두 비식별 처리(외부 위탁·폴링) 정상 흐름 + 수락 응답 미관측 회수·취소 종결 대비
 
 ## kind
 
@@ -22,7 +22,7 @@ integration
 
 ## notes
 
-시험시나리오 KLID-AT-IT-TS-001. 대외 연동 경계: 비식별 서버(KLID-AT-II-001 위탁·KLID-AT-II-002 진행 폴링) + 관제 인입 원장 픽업 적재(공유 클립 마스터 스캔은 적재 주체 반전으로 폐지). 관련 요구사항 RQ-SFR-09-01·RQ-SFR-11-04. 핵심 테이블 LS_DATA_RAW·LS_DEIDENT_PROC_LOG. 정상 흐름(happy path)만 수록.
+시험시나리오 KLID-AT-IT-TS-001. 대외 연동 경계: 비식별 서버(KLID-AT-II-001 위탁·KLID-AT-II-002 진행 폴링) + 관제 인입 원장 픽업 적재(공유 클립 마스터 스캔은 적재 주체 반전으로 폐지). 관련 요구사항 RQ-SFR-09-01·RQ-SFR-11-04. 핵심 테이블 LS_DATA_RAW·LS_DEIDENT_PROC_LOG. 정상 흐름(순번1~7)에 더해 수락 응답 미관측 건의 수락 대기 유예 만료 회수(순번8)와 그 대비인 취소 종결(순번9)을 수록한다. 유예 값·폴링 주기는 설정값이라 이 문서에 숫자를 두지 않는다. 순번8·9 를 확인하는 자동 시험이 실재하는지는 확인되지 않았다.
 
 ## steps
 
@@ -98,13 +98,33 @@ integration
 - **screen_ref**: SCREEN-008
 - **preconditions**: 순번6 완료 처리
 
+### [8]
+
+- **seq**: 8
+- **note**: TC-004 | 결손 보강 — 정상 흐름에 없던 회수 경로. 배치 연동(화면 없음). 자동 시험이 실재하는지는 확인되지 않았다 — 통과 기록을 만들지 말고 수동 확인 절차로 수행한다. 유예 값은 설정값이므로 시험 전에 설정한 값을 기준으로 만료를 만든다(이 문서에 숫자를 두지 않는다). 두 노드가 동시에 도는 형상에서는 같은 후보를 두 번 집지 않는지(조건부 갱신 원자 선점)도 함께 본다. 「폴링 경과 만료」와 「수락 대기 유예 만료」는 다른 축이므로 혼동하지 않는다.
+- **action**: 수락 응답 미관측 건 회수
+- **expected**: 폴링 잡이 미결 행을 회수해 실패로 종결하고, 재위탁 없이 영상 비식별 여부가 'F'로 내려간다. 【검증】DB: SELECT PROC_STTS_CD, POLL_STTS_CD, FAIL_RSN_CD FROM LS_DEIDENT_PROC_LOG WHERE DATA_RAW_SN=:rawSn → PROC_STTS_CD='FAILED'·종결 사유 'KPST_ACK_MISSING' 1행 · DB: SELECT DE_IDENT_YN FROM LS_DATA_RAW WHERE RAW_SN=:rawSn → DE_IDENT_YN='F' · 재위탁 없음: 외부 비식별 위탁 호출이 추가로 발생하지 않고 LS_DEIDENT_PROC_LOG 에 새 '요청' 이력이 늘지 않는다(행 수 불변)
+- **test_item**: 수락 응답도 결과 회신도 관측되지 않은 위탁 건이 수락 대기 유예 만료 후 회수되어 실패 사유 KPST_ACK_MISSING 으로 마감되고, 재위탁 없이 영상 비식별 여부가 'F'로 내려가는지 확인
+- **input_data**: 【영상 식별자】"1002" 【처리 상태 코드】"REQUESTED" 【폴링 상태 코드】"WAITING" 【비식별 프로젝트 식별자】"(미채움 — 수락 응답을 관측하지 못했다)" 【종결 사유 코드】"KPST_ACK_MISSING"
+- **preconditions**: 위탁 제출은 개시됐으나 수락 응답도 결과 회신도 끝내 관측되지 않은 미결 행이 존재하고, 그 행의 수락 대기 유예가 지났다
+
+### [9]
+
+- **seq**: 9
+- **note**: TC-004 | 순번8과 짝으로 본다 — 같은 종료값인데 영상 상태가 갈리는 유일한 예외다. 트리거가 달라서 단계를 갈랐다(순번8은 제출 후 신호 미관측, 순번9는 호출자 트랜잭션 롤백이라 사전조건이 서로 배타적이다). 이 대비가 없으면 다음 독자가 「모든 종결이 'F'」로 일반화해 유일한 예외를 다시 잃는다. 자동 시험이 실재하는지는 확인되지 않았다 — 통과 기록을 만들지 말고 수동 확인 절차로 수행한다.
+- **action**: 취소 종결 대비 확인
+- **expected**: 원장만 실패로 마감되고 영상 비식별 여부는 그대로다. 【검증】DB: SELECT PROC_STTS_CD, FAIL_RSN_CD FROM LS_DEIDENT_PROC_LOG WHERE DATA_RAW_SN=:rawSn → PROC_STTS_CD='FAILED'·종결 사유 'KPST_SUBMIT_CANCELED' 1행 · DB: SELECT DE_IDENT_YN FROM LS_DATA_RAW WHERE RAW_SN=:rawSn → 직전 값 그대로이며 'F'로 내려가지 않는다 · 그 영상이 신고 게이트(조회 차단·스트리밍 차단·산출 보류)에 들어가지 않는다
+- **test_item**: 호출자 트랜잭션 롤백으로 취소 종결된 건은 원장 종료값이 순번8과 같은데도 영상 비식별 여부가 불변인지 확인 — 외부로 아무것도 나가지 않았다는 것이 상태를 내리지 않는 근거다
+- **input_data**: 【영상 식별자】"1003" 【처리 상태 코드】"FAILED" 【종결 사유 코드】"KPST_SUBMIT_CANCELED" 【시험 전 영상 비식별 여부】"N"
+- **preconditions**: 위탁 제출을 개시한 호출자 트랜잭션이 롤백되어 외부로 아무것도 나가지 않은 행이 존재한다
+
 ## status
 
 draft
 
 ## objective
 
-관제서버가 인입 원장에 직접 등록한 미처리 영상을 주기 배치가 픽업해 저작도구에 적재하고, 적재 직후 외부 비식별 솔루션에 위탁한 뒤 진행 폴링으로 완료를 확인해 비식별 완료·마킹 진입 상태까지 이르는 정상 흐름을 검증한다.
+관제서버가 인입 원장에 직접 등록한 미처리 영상을 주기 배치가 픽업해 저작도구에 적재하고, 적재 직후 외부 비식별 솔루션에 위탁한 뒤 진행 폴링으로 완료를 확인해 비식별 완료·마킹 진입 상태까지 이르는 정상 흐름을 검증한다. 아울러 수락 응답을 끝내 관측하지 못한 건이 수락 대기 유예 만료로 회수되어 실패로 종결되고 영상 비식별 여부가 'F'로 내려가는 경로(순번8)와, 원장 종료값은 같으면서 영상 비식별 여부만 불변인 유일한 예외인 취소 종결(순번9)을 짝으로 검증한다.
 
 ## related_apis
 
@@ -115,6 +135,10 @@ _(empty)_
 _(empty)_
 
 ## verifies_nfrs
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

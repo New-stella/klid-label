@@ -1,0 +1,304 @@
+{
+  "item": {
+    "id": "ERD-033",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "erd",
+    "title": "검증 이벤트 유형·질문 ERD (고도화, PostgreSQL)",
+    "slug": "검증-이벤트-유형질문-erd-고도화-postgresql",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "dbms": "postgresql",
+      "level": "physical",
+      "tables": [
+        {
+          "name": "LS_VRFC_EVNT_TYPE",
+          "columns": [
+            {
+              "name": "VRFC_EVNT_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "code_values": {
+                "fall": "쓰러짐",
+                "fire": "화재",
+                "smoke": "연기",
+                "flooding": "침수",
+                "violence": "폭력",
+                "kidnapping": "납치",
+                "car_accident": "교통사고"
+              },
+              "description": "검증이벤트유형코드(PK). 외부 시계열 분석 위탁이 쓰는 값이며 관제 인입이 실어 보내는 검증이벤트유형코드와 같은 값 공간이다. 소문자·숫자·밑줄 형식의 짧은 문자열이다. 나열한 코드값은 연동 규격서의 지원 이벤트에서 가져온 시드 7종이며 값의 허용 범위가 아니다 — 이 표에 없는 값도 위탁은 그대로 나간다. 표준도메인 코드V20.",
+              "primary_key": true,
+              "logical_column_name": "검증이벤트유형코드"
+            },
+            {
+              "name": "VRFC_EVNT_TYPE_NM",
+              "type": "varchar(300)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "검증이벤트유형명. 사람이 읽는 표시명이며 화면의 선택 목록과 인입 값 대조에 쓰인다. 시드는 화재·연기·쓰러짐·폭력·침수·교통사고·납치다. 표준도메인 명V300.",
+              "primary_key": false,
+              "logical_column_name": "검증이벤트유형명"
+            },
+            {
+              "name": "VRFC_EVNT_TYPE_EXPLN",
+              "type": "varchar(4000)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "검증이벤트유형설명. 이 유형이 어떤 상황을 가리키는지 운영자가 덧붙이는 서술이며 비어 있어도 된다. 표준도메인 내용V4000.",
+              "primary_key": false,
+              "logical_column_name": "검증이벤트유형설명"
+            },
+            {
+              "name": "SORT_SEQ",
+              "type": "numeric(10)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "정렬순서. 화면 선택 목록에 유형이 놓이는 순서다. 이 표에서는 표시 순서만 정하며 값의 결정성과는 무관하다 — 질문의 기본값을 정하는 순서는 질문 표의 정렬순서다. 표준도메인 순서N10.",
+              "primary_key": false,
+              "logical_column_name": "정렬순서"
+            },
+            {
+              "name": "REG_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "이 유형을 등록한 사람.",
+              "primary_key": false,
+              "logical_column_name": "등록자아이디"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "유형이 처음 등록된 시점.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFR_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "이 유형을 마지막으로 고친 사람.",
+              "primary_key": false,
+              "logical_column_name": "수정자아이디"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "유형이 마지막으로 바뀐 시점.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [],
+          "capacity": {
+            "notes": "운영자가 유형을 더할 때만 늘어나는 카탈로그라 증가가 사실상 없다.",
+            "daily_growth": 0,
+            "initial_count": 7,
+            "row_size_bytes": 400
+          },
+          "brownfield": {
+            "status": "new"
+          },
+          "description": "검증 이벤트 유형 카탈로그. 외부 시계열 분석 위탁이 다루는 이벤트 유형의 표시명과 화면 노출 순서를 보관한다. 검증이벤트유형코드는 관제 인입이 실어 보내는 검증이벤트유형코드와 같은 값 공간이다.\n\n★이 표는 허용목록이 아니라 표시·시드 카탈로그다. 위탁 가능 여부를 이 표로 게이팅하지 않는다. 검증 이벤트 유형은 값이 미수신이거나 이 표에 없어도 그대로 실어 위탁하고, 수용 여부는 사업자 응답이 정한다. 사업자가 쓰는 값의 사본을 우리가 판정 기준으로 삼으면 사업자가 값을 넓혔을 때 정상 값을 우리가 먼저 막게 되며, 실제로 그런 결함이 있었다. 이 표에 없는 유형의 영상도 위탁은 그대로 나가고 질문 칸만 비어 있을 뿐이다.\n\n시드는 연동 규격서의 지원 이벤트 목록에서 가져온 7종이다.",
+          "logical_table_name": "검증이벤트유형"
+        },
+        {
+          "name": "LS_VRFC_EVNT_QSTN",
+          "columns": [
+            {
+              "name": "VRFC_EVNT_QSTN_SN",
+              "type": "bigint",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "검증 이벤트 질문 PK. GENERATED BY DEFAULT AS IDENTITY 자동 증가 일련번호. 마킹이 고른 질문을 가리킬 때 이 값을 쓴다.",
+              "primary_key": true,
+              "logical_column_name": "검증이벤트질문일련번호"
+            },
+            {
+              "name": "VRFC_EVNT_TYPE_CD",
+              "type": "varchar(20)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "references": {
+                "table": "LS_VRFC_EVNT_TYPE",
+                "column": "VRFC_EVNT_TYPE_CD",
+                "on_delete": "restrict"
+              },
+              "description": "이 질문이 딸린 검증 이벤트 유형. 질문은 유형 없이 홀로 서지 못하므로 카탈로그 안의 참조 무결성을 지킨다. 이 참조는 카탈로그 두 표 사이에만 있으며, 관제 이벤트유형 마스터로는 잇지 않는다(값 공간이 다르다). 표준도메인 코드V20.",
+              "primary_key": false,
+              "logical_column_name": "검증이벤트유형코드"
+            },
+            {
+              "name": "SORT_SEQ",
+              "type": "numeric(10)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "같은 유형 안에서 이 질문이 놓이는 순서. 순서가 곧 의미이며 가장 앞선 것이 그 유형의 첫 번째 질문, 즉 기본값이다. 유형 안에서 유일해야 하며 그 유일 제약이 첫 번째를 결정적으로 만든다. 표준도메인 순서N10.",
+              "primary_key": false,
+              "logical_column_name": "정렬순서"
+            },
+            {
+              "name": "QSTN_CN",
+              "type": "varchar(4000)",
+              "unique": false,
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "질문 문구 전문. 이벤트 어노테이션의 질문 칸에 이 값이 그대로 들어간다. 시드는 연동 규격서의 이벤트별 질문 문장에서 가져오며, 영상에서 해당 이벤트가 발생하였는지와 이를 뒷받침하는 근거는 무엇인가를 묻는 한 문장 꼴이다. 표준도메인 내용V4000.",
+              "primary_key": false,
+              "logical_column_name": "질문내용"
+            },
+            {
+              "name": "REG_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "이 질문을 등록한 사람.",
+              "primary_key": false,
+              "logical_column_name": "등록자아이디"
+            },
+            {
+              "name": "REG_DT",
+              "type": "timestamp",
+              "unique": false,
+              "default": "CURRENT_TIMESTAMP",
+              "nullable": false,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "질문이 처음 등록된 시점.",
+              "primary_key": false,
+              "logical_column_name": "등록일시"
+            },
+            {
+              "name": "MDFR_ID",
+              "type": "varchar(30)",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "이 질문을 마지막으로 고친 사람.",
+              "primary_key": false,
+              "logical_column_name": "수정자아이디"
+            },
+            {
+              "name": "MDFCN_DT",
+              "type": "timestamp",
+              "unique": false,
+              "nullable": true,
+              "brownfield": {
+                "status": "new"
+              },
+              "description": "질문이 마지막으로 바뀐 시점.",
+              "primary_key": false,
+              "logical_column_name": "수정일시"
+            }
+          ],
+          "indexes": [
+            {
+              "name": "UK_LS_VRFC_EVNT_QSTN_TYPE_SORT",
+              "unique": true,
+              "columns": [
+                "VRFC_EVNT_TYPE_CD",
+                "SORT_SEQ"
+              ]
+            }
+          ],
+          "capacity": {
+            "notes": "유형당 질문 한 건으로 시작하며 운영자가 더할 때만 늘어난다.",
+            "daily_growth": 0,
+            "initial_count": 7,
+            "row_size_bytes": 600
+          },
+          "brownfield": {
+            "status": "new"
+          },
+          "description": "검증 이벤트 유형별 질문 문구. 한 유형이 질문 여러 건을 가지며 정렬순서가 곧 의미다 — 그 유형의 첫 번째 질문, 곧 정렬순서가 가장 앞선 것이 기본값이다.\n\n★(검증이벤트유형코드, 정렬순서) 유일 제약이 「첫 번째 질문」의 결정성 근거다. 이 제약이 없으면 같은 유형에 같은 정렬순서를 가진 질문이 둘 이상 생길 수 있고, 그러면 어느 것이 첫 번째인지가 조회마다 달라진다. 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓰므로, 제약이 없으면 그 경로가 채우는 기본값이 실행마다 흔들린다.\n\n질문 문구는 사업자가 이벤트별로 관리하는 문장과 같은 뜻이며, 시드는 연동 규격서의 이벤트별 질문 문장에서 가져온다.",
+          "logical_table_name": "검증이벤트유형질문"
+        }
+      ],
+      "brownfield": {
+        "notes": "### 2026-08-25\n- 질문 문구 보관·선택을 저작도구가 갖기로 확정(ADR-051)되어 카탈로그 두 표를 신설한다.\n- 1차 시스템에 대응 산출물이 없어 legacy_source 를 두지 않는다.",
+        "status": "new",
+        "decided_by": "ADR-051"
+      },
+      "description": "검증 이벤트 유형과 그 유형별 질문 문구를 저작도구가 보관하는 카탈로그. 이벤트 어노테이션의 질문 칸을 채우는 값의 조달처이며, 유형 한 건이 질문 여러 건을 갖는 두 표로 나뉜다.\n\n[질문 칸 조달 규칙] 마킹에서 작업자가 고른 질문이 있으면 그 값을 쓰고, 값이 없거나 그 값이 해당 유형에 속한 질문이 아니면 그 유형의 첫 번째 질문으로 되돌린다 — 화면 입력을 그대로 신뢰하지 않는다. 마킹을 거치지 않는 경로는 언제나 그 유형의 첫 번째 질문을 쓴다. 한 유형에 질문을 여러 개 둘 수 있고 순서가 곧 의미다.\n\n[문구를 저작도구가 보관하는 근거] 외부 시계열 분석 연동 규격은 질문 문장을 이벤트별로 사업자 서버가 관리하며 연동 시스템이 지정하지 않는다고 못 박고, 콜백에도 질문이 실려 오지 않는다. 그런데 프롬프트를 고정하는 방식에 문제 소지가 있어 이후 연동 시스템이 질의를 지정하는 방향으로 규격이 바뀔 수 있다는 협의가 있어, 그 전환을 미리 준비한다 — 문구를 우리가 보관·선택해 어노테이션 질문 칸을 채우고, 사업자가 요청 필드를 열면 그 값을 그대로 전송한다.\n\n[인지·수용한 잔여 위험] 현행 위탁 요청 본문에는 질문을 실을 자리가 없다. 따라서 첫 번째가 아닌 질문을 고르면 기록된 질문과 사업자가 실제로 쓴 질문이 달라진다. 이 어긋남을 알고 수용했다.\n\n[★관제 이벤트유형 마스터와는 다른 코드 체계다] 이 카탈로그의 검증이벤트유형코드는 외부 시계열 분석 사업자가 쓰는 값이고, 관제 이벤트유형 마스터(LS_EVNT_TYPE)의 이벤트유형코드는 관제가 보내는 별개 코드 체계다. 두 표를 합치거나 참조로 잇지 않는다 — 값 공간이 다르고, 이으면 한쪽에 없는 값이 다른 쪽의 등록을 막는다. 두 코드를 짝지어 보여줘야 하면 관제 인입 원장이 이미 그 짝을 함께 실어 보내므로 그것을 읽으며, 별도 매핑표를 만들지 않는다 — 사본은 두 번째 진실원이 된다.\n\n[물리명] 행정안전부 공통표준단어 조합을 따른다 — 검증(VRFC)·유형(TYPE)·질문(QSTN)·내용(CN)·정렬(SORT)·순서(SEQ)·명(NM)·설명(EXPLN)·일련번호(SN). 이벤트(EVNT)는 사업표준단어다. 도메인은 질문내용 내용V4000·정렬순서 순서N10·유형명 명V300·코드 코드V20 을 따른다.",
+      "relationships": [
+        {
+          "label": "질문이 딸린 검증 이벤트 유형",
+          "to_table": "LS_VRFC_EVNT_TYPE",
+          "from_table": "LS_VRFC_EVNT_QSTN",
+          "via_column": "VRFC_EVNT_TYPE_CD",
+          "cardinality": "N:1"
+        }
+      ],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-208"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:18:02.549Z",
+        "module_paths": []
+      },
+      "uses_constants": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "두 표 엔티티·리포지토리·조달 판정기 구현(V17 적용본 매핑)",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:02.549Z",
+    "created_at": "2026-08-25T03:38:46.680Z"
+  }
+}

@@ -74,7 +74,7 @@ class TaskQueryControllerTest {
 
         // label
         LsDataLbl lbl = LsDataLbl.createManual(srcSn, "BBOX", null, "person",
-                "[[10,10],[50,50]]", 1L);
+                "[[10,10],[50,50]]", "1");
         lblRepository.save(lbl);
 
         // meta

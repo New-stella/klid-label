@@ -92,7 +92,7 @@ class LabelSnapshotPkRestoreGuardIT {
     /** 한 번 존재했다가 삭제되어 <b>지금은 비어 있는</b> PK — 복원 대상이 될 수 있는 유일한 형태다. */
     private Long freedLblSn(Long frameSn) {
         LsDataLbl ghost = labelRepository.save(LsDataLbl.createManual(
-                frameSn, "BBOX", null, "person", "[[10.0,10.0],[50.0,50.0]]", 100L));
+                frameSn, "BBOX", null, "person", "[[10.0,10.0],[50.0,50.0]]", "100"));
         labelRepository.flush();
         Long id = ghost.getLblSn();
         labelRepository.deleteAllByIdInBatch(List.of(id));
@@ -171,9 +171,9 @@ class LabelSnapshotPkRestoreGuardIT {
     void 삭제_델타와_명시PK_삽입이_충돌하지_않는다() {
         // given — 수정될 라벨 / 요청에서 빠져 삭제될 라벨 / 되살아날 옛 PK
         LsDataLbl kept = labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", 100L));
+                srcSn, "BBOX", null, "person", "[[1.0,1.0],[2.0,2.0]]", "100"));
         LsDataLbl dropped = labelRepository.save(LsDataLbl.createManual(
-                srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", 100L));
+                srcSn, "BBOX", null, "car", "[[3.0,3.0],[4.0,4.0]]", "100"));
         labelRepository.flush();
         Long freed = freedLblSn(srcSn);
         Map<Long, LabelService.RestoreHint> hints = Map.of(
@@ -205,7 +205,7 @@ class LabelSnapshotPkRestoreGuardIT {
     void 점유된_PK_는_새_PK_로_폴백한다() {
         // given — 다른 프레임이 그 PK 를 쓰고 있다(회차 스냅샷 id 가 그사이 재사용된 상황).
         LsDataLbl occupant = labelRepository.save(LsDataLbl.createManual(
-                otherSrcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", 100L));
+                otherSrcSn, "BBOX", null, "car", "[[1.0,1.0],[2.0,2.0]]", "100"));
         labelRepository.flush();
         Long occupied = occupant.getLblSn();
         Map<Long, LabelService.RestoreHint> hints = Map.of(

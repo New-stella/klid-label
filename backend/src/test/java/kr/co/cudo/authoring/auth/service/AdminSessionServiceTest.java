@@ -52,10 +52,14 @@ class AdminSessionServiceTest {
         new SecureRandom().nextBytes(pw);
         adminPlaintext = Base64.getUrlEncoder().withoutPadding().encodeToString(pw);
 
+        // 검증기 하나를 두 곳에 물린다 — 실제 배선과 같다. 유효창 서명 키가 현재 자격에서 파생되므로
+        // 서로 다른 자격을 가진 검증기를 물리면 발급한 토큰을 자기 자신도 검증하지 못한다.
+        AdminPasswordVerifier verifier =
+                new AdminPasswordVerifier(new BCryptPasswordEncoder(12).encode(adminPlaintext));
         service = new AdminSessionService(
-                new AdminPasswordVerifier(new BCryptPasswordEncoder(12).encode(adminPlaintext)),
+                verifier,
                 new RoleClaimRateLimiter(null, 5, 50),
-                new AdminSessionTokenService(RESOLVER, 10));
+                new AdminSessionTokenService(RESOLVER, verifier, 10));
 
         logAppender = new ListAppender<>();
         logAppender.start();
@@ -71,8 +75,14 @@ class AdminSessionServiceTest {
                 .getLogger(AdminSessionService.class).detachAppender(logAppender);
     }
 
+    /** 이 창구의 정상 호출자 — 관리자다(ADR-055 · AC-072 · ROLE-004). */
+    private TokenClaims admin() {
+        return new TokenClaims("1001", Role.ADMIN, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+    }
+
+    /** 검수자 — 계층으로 검수자 권한을 물려받는 축과 <반대 방향>이라 이 창구에서 막혀야 한다. */
     private TokenClaims reviewer() {
-        return new TokenClaims("1001", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+        return new TokenClaims("1003", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
     }
 
     private TokenClaims worker() {
@@ -80,9 +90,20 @@ class AdminSessionServiceTest {
     }
 
     @Test
+    @DisplayName("★검수자는_패스워드가_맞아도_403 — 유효창_발급이_실질_경계다")
+    void deniesReviewer() {
+        // ★★enum 동등 비교라 역할 계층이 적용되지 않는다 — 컨트롤러 게이트와 <같은 값>을 유지해야
+        //   한다. 여기가 REVIEWER 로 남으면 관리자 패스워드를 아는 검수자가 유효창을 얻어 관리
+        //   성격의 쓰기(패스워드 교체 포함)에 닿는다.
+        assertThatThrownBy(() -> service.open(new AdminSessionRequest(adminPlaintext), reviewer()))
+                .isInstanceOf(CustomException.class)
+                .satisfies(e -> assertThat(((CustomException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
     @DisplayName("패스워드가_맞으면_토큰과_만료시각을_받는다")
     void issuesTokenOnCorrectPassword() {
-        AdminSessionResponse res = service.open(new AdminSessionRequest(adminPlaintext), reviewer());
+        AdminSessionResponse res = service.open(new AdminSessionRequest(adminPlaintext), admin());
 
         assertThat(res.token()).isNotBlank();
         assertThat(res.expiresAt()).isAfter(Instant.now());
@@ -91,7 +112,7 @@ class AdminSessionServiceTest {
     @Test
     @DisplayName("패스워드가_틀리면_401")
     void rejectsWrongPassword() {
-        assertThatThrownBy(() -> service.open(new AdminSessionRequest("wrong-password"), reviewer()))
+        assertThatThrownBy(() -> service.open(new AdminSessionRequest("wrong-password"), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.UNAUTHORIZED));
@@ -120,11 +141,11 @@ class AdminSessionServiceTest {
     void rateLimitsRepeatedAttempts() {
         // 계정 축 임계 5회/분. 6번째부터 429.
         for (int i = 0; i < 5; i++) {
-            assertThatThrownBy(() -> service.open(new AdminSessionRequest("wrong"), reviewer()))
+            assertThatThrownBy(() -> service.open(new AdminSessionRequest("wrong"), admin()))
                     .isInstanceOf(CustomException.class);
         }
 
-        assertThatThrownBy(() -> service.open(new AdminSessionRequest("wrong"), reviewer()))
+        assertThatThrownBy(() -> service.open(new AdminSessionRequest("wrong"), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.TOO_MANY_REQUESTS));
@@ -134,12 +155,12 @@ class AdminSessionServiceTest {
     @DisplayName("★패스워드가_응답에도_로그에도_남지_않는다 (CWE-522/532)")
     void neverLeaksPassword() {
         // 성공 경로
-        AdminSessionResponse res = service.open(new AdminSessionRequest(adminPlaintext), reviewer());
+        AdminSessionResponse res = service.open(new AdminSessionRequest(adminPlaintext), admin());
         assertThat(res.toString()).doesNotContain(adminPlaintext);
         assertThat(res.token()).doesNotContain(adminPlaintext);
 
         // 실패 경로 — 여기가 더 흔한 유출 지점이다(사유를 자세히 적다가 값을 싣는다).
-        assertThatThrownBy(() -> service.open(new AdminSessionRequest("some-wrong-secret"), reviewer()))
+        assertThatThrownBy(() -> service.open(new AdminSessionRequest("some-wrong-secret"), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(e.getMessage()).doesNotContain("some-wrong-secret"));
 
@@ -154,12 +175,13 @@ class AdminSessionServiceTest {
     @Test
     @DisplayName("해시_미설정이면_항상_401 — 기능이_열리지_않는다 (fail-closed)")
     void deniesWhenHashNotConfigured() {
+        AdminPasswordVerifier unconfiguredVerifier = new AdminPasswordVerifier("");
         AdminSessionService unconfigured = new AdminSessionService(
-                new AdminPasswordVerifier(""),
+                unconfiguredVerifier,
                 new RoleClaimRateLimiter(null, 5, 50),
-                new AdminSessionTokenService(RESOLVER, 10));
+                new AdminSessionTokenService(RESOLVER, unconfiguredVerifier, 10));
 
-        assertThatThrownBy(() -> unconfigured.open(new AdminSessionRequest(adminPlaintext), reviewer()))
+        assertThatThrownBy(() -> unconfigured.open(new AdminSessionRequest(adminPlaintext), admin()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(ErrorCode.UNAUTHORIZED));

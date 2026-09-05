@@ -70,19 +70,25 @@ function groupLabels(labels: LabelItem[]): GroupedLabel[] {
     }));
 }
 
-// KRDS 예외: 범주 구분색(라벨 타입 BBOX/POLYGON/SEGMENT/TRACK/SKELETON, 데이터시각화 성격) —
-// 토큰 획일화 제외(의도적 유지).
+// 범주 구분색 축이다 — 라벨 형태(BBOX/POLYGON/SEGMENT/TRACK/SKELETON)는 서로 우열이 없는 대등한
+// 분류라 semantic 이 아니라 DS-001 의 **범주 구분색 8슬롯**(`category-N`)에서 고른다. 이벤트 유형·
+// 역할 축과 같은 한 팔레트를 공유한다. 슬롯 번호는 우열·순서를 뜻하지 않는다.
 // 라이트 패널 기준 셰이드(50 배경 / 700 전경 / 200 테두리) — 흰 배경에서 WCAG AA 를 만족한다.
 //
 // ★이 표는 **형태(type) 뱃지**이지 라벨 색이 아니다. 라벨 표시 색상의 단일 진실원은 라벨
 //  마스터(LS_LABEL.COLR_VL)이고 판정기는 `getLabelDisplayColor` 한 곳이다 — 여기에 라벨
 //  분류별 색을 넣으면 그 정책을 어기는 두 번째 진실원이 된다.
+//
+// ⚠ TRACK 이 6번(pink)이 아니라 **8번(fuchsia)** 인 것은 의도다 — 6번은 이벤트 축의 폭력·싸움·
+//   흉기소지가 쓴다. 축이 달라 겹쳐도 무방하지만, 두 배지가 나란히 놓이는 화면에서 같은 색이
+//   서로 다른 뜻으로 읽히는 것을 줄인다.
+// [@design DS-001]
 const TYPE_BADGE_CLASS: Record<LabelType, string> = {
-  BBOX: 'bg-blue-50 text-blue-700 border-blue-200',
-  POLYGON: 'bg-purple-50 text-purple-700 border-purple-200',
-  SEGMENT: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  TRACK: 'bg-pink-50 text-pink-700 border-pink-200',
-  SKELETON: 'bg-teal-50 text-teal-700 border-teal-200',
+  BBOX: 'bg-category-1-50 text-category-1-700 border-category-1-200',
+  POLYGON: 'bg-category-2-50 text-category-2-700 border-category-2-200',
+  SEGMENT: 'bg-category-5-50 text-category-5-700 border-category-5-200',
+  TRACK: 'bg-category-8-50 text-category-8-700 border-category-8-200',
+  SKELETON: 'bg-category-4-50 text-category-4-700 border-category-4-200',
 };
 
 function TypeBadge({ type }: { type: LabelType }) {

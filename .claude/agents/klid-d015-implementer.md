@@ -18,7 +18,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-015
 code_root: "backend/src/main/java/kr/co/cudo/authoring/assignment/ frontend/src/features/task/"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>
@@ -63,7 +63,7 @@ target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐
 - **정렬 키는 allowlist 매핑으로만 해석하고 개수 상한을 둔다**(CWE-89 / CWE-770). 근거: `ADR-038` · DOMAIN-015 본문.
 - **목록 API 하위호환 준수**: 신규 파라미터는 전부 optional, **BE 기본값 불변**(화면 진입 기본값은 FE 가 명시 전송), 축이 다른 필터는 별도 파라미터로 신설. 근거: `ADR-038` · 프로젝트 `CLAUDE.md` 「목록 화면 정렬·필터 정책」.
 - **인가 축은 이벤트유형 필터 변경과 무관하게 유지한다** — REVIEWER = board 전체 / WORKER = 본인 배정분. 근거: `ROLE-001`·`ROLE-002` · 프로젝트 `CLAUDE.md`.
-- **ADMIN 역할은 두지 않는다** — 배정·재배정·배정 이력 조회를 포함한 모든 관리 권한이 REVIEWER 에 통합돼 있고, UI 호칭은 '검수자', 관리 화면 URL 은 `/manage/*`. 근거: `ADR-003` · `ROLE-001`.
+- ★**구 서술 폐기 — `ADR-055` 가 `ADR-003` 을 supersede 했다.** *"ADMIN 역할은 두지 않는다"* 는 **더 이상 사실이 아니다. 되살리지 말 것.** 배정·재배정·배정 이력 조회는 **검수자 이상**이며 관리자가 계층으로 물려받는다. 관리 화면 URL 은 관리자 소유가 `/admin/*`, 검수자 소유가 `/manage/*` 로 갈린다. 근거: `ADR-055` · `ROLE-004` · `ROLE-001`.
 - **재배정은 행 갱신 + 이벤트 로그 기록이 한 벌이다** — 로그만 남기고 행을 안 고치거나 그 반대로 하면 조회(이벤트 로그만 읽는다)와 실제 배정이 갈린다. 근거: `DFEAT-006`.
 - **작업 완료 = 검수 승인**이며 그 시점에 완료 통지가 영상 단위로 발행된다(발행 주체는 관제 통지 도메인). 근거: `ADR-001` · `ROLE-001`.
 - **상태 머신 불변식(`STATE-001` invariants — 되돌리지 말 것)**:

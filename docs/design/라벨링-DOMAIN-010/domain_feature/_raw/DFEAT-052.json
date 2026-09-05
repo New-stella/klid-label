@@ -31,9 +31,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-371"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:22.483Z"
       },
       "uses_constants": [],
       "acceptance_rules": [],
@@ -59,10 +62,10 @@
     "schema_version": 1,
     "current_version": 3,
     "stale": true,
-    "stale_reason": "API-031의 data.uses_constants 변경 — implements",
+    "stale_reason": "API-024의 data.responses 변경 — implements",
     "change_summary": "D010 P1(D010-STL-010): 존재하지 않는 식별자 \"SC-036\"(2곳) → 실제 SCREEN-035(sub_id 없어 별칭도 아님). 형제 UC-028 은 이미 정정본 보유.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:24:07.465Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:26:22.483Z",
     "created_at": "2026-07-30T07:07:40.361Z"
   }
 }

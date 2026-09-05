@@ -21,7 +21,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -33,7 +34,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -46,20 +48,22 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "controller",
           "name": "FrameImageController",
           "technology": "/v1/frames",
-          "description": "프레임 이미지 서빙 (접근 권한 검증)",
+          "description": "프레임 이미지 서빙 (FrameImageService 로 위임)",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -71,19 +75,21 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
           "name": "Sam2TrackService",
-          "description": "SAM2 대화형 트랙 세그멘테이션",
+          "description": "SAM2 대화형 트랙 세그멘테이션 (결과 미저장 · FE 자동적용)",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -95,7 +101,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -107,7 +114,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -119,7 +127,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -131,7 +140,21 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
+          }
+        },
+        {
+          "kind": "service",
+          "name": "FrameImageEncoder",
+          "description": "SAM2 프레임 이미지 base64 인코딩",
+          "implementation": {
+            "status": "planned",
+            "modules": [],
+            "records": [],
+            "progress": 0,
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -143,7 +166,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -155,7 +179,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -167,7 +192,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -179,7 +205,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -191,7 +218,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
@@ -229,14 +257,14 @@
           "description": "마스터 코드 위임"
         },
         {
-          "to": "LsDataSrcRepository",
+          "to": "FrameImageService",
           "from": "FrameImageController",
-          "description": "프레임 조회"
+          "description": "프레임 이미지 서빙 위임"
         },
         {
-          "to": "LabelAccessGuard",
-          "from": "FrameImageController",
-          "description": "접근 권한 검증"
+          "to": "FrameImageLookupService",
+          "from": "FrameImageService",
+          "description": "조회·인가·인코딩 (accessGuard·srcRepo 는 이 계층)"
         },
         {
           "to": "LabelAccessGuard",
@@ -279,9 +307,19 @@
           "description": "접근 권한 검증"
         },
         {
-          "to": "LsDataLblRepository",
+          "to": "LsDataSrcRepository",
           "from": "Sam2TrackService",
-          "description": "라벨 저장"
+          "description": "프레임 조회 (결과 미저장)"
+        },
+        {
+          "to": "FrameImageEncoder",
+          "from": "Sam2TrackService",
+          "description": "프레임 이미지 인코딩"
+        },
+        {
+          "to": "SystemConfigService",
+          "from": "Sam2TrackService",
+          "description": "트랙 설정 조회"
         },
         {
           "to": "LsLabelAttrRepository",
@@ -299,7 +337,16 @@
           "description": "마스터 코드 CRUD"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "external_dependencies": [
         {
@@ -323,6 +370,21 @@
           "description": "영상 메타 조회 (video 패키지)"
         },
         {
+          "kind": "container",
+          "name": "FrameImageService",
+          "description": "프레임 이미지 서빙 (video 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "FrameImageLookupService",
+          "description": "프레임 조회·인가·인코딩 (video 패키지)"
+        },
+        {
+          "kind": "container",
+          "name": "SystemConfigService",
+          "description": "시스템 설정 조회 (sysconfig 패키지)"
+        },
+        {
           "kind": "person",
           "name": "WORKER",
           "description": "라벨링 작업자"
@@ -331,12 +393,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 3,
+    "current_version": 5,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "D010 P1(D010-DIAG-002): components[LabelService].description \"임시저장 upsert\" 가 최상위 [저장 시맨틱] \"full-replace 로 영속\"과 자기모순 — 실제 메서드명이 bulkUpsert 이고 SEQ-010 이 이미 \"full-replace upsert\"로 병기하는 선례를 따라 \"full-replace upsert\"로 정정(upsert 어휘 자체는 존치).",
+    "change_summary": "Sam2TrackService→LsDataLblRepository '라벨 저장' 간선은 실제와 다르다 — 트랙 결과는 미저장(FE 자동적용, 코드 'no persist')이라 제거하고 실제 생성자 의존(LsDataSrcRepository·FrameImageEncoder·SystemConfigService)으로 정정. FrameImageController 는 LsDataSrcRepository·LabelAccessGuard 를 직접 잡지 않고 FrameImageService→FrameImageLookupService(video 패키지)로 위임하므로 그 계층으로 교정. FrameImageEncoder 컴포넌트 추가.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T07:30:22.747Z",
+    "last_updated_at": "2026-08-31T04:24:22.726Z",
     "created_at": "2026-06-02T13:12:55.916Z"
   }
 }

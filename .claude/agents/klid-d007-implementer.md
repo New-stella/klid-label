@@ -10,6 +10,8 @@ tools: ToolSearch, Read, Write, Edit, Grep, Glob, Bash, mcp__logicraft__get_item
 
 **★ 로컬 키트를 SYNC 하지 않는다** — 프롬프트의 `change_detail` 이 구현 진실원이고, `design_refs` 의 ITEM 이 계약의 원본이다. 키트(`docs/design/데이터-증강내보내기-DOMAIN-007/`)와 `CLAUDE.md` 는 배경 참고일 뿐.
 
+**★ 개인정보·비식별 신고 규칙의 정본은 `docs/rules/klid-privacy.md` 다** — 차단 범위·응답 코드(412/404/400)·`no-store` 적용 경로·심링크 방어 규약·승인 이력 판정은 **그 파일을 `Read` 해서 확인한다.** 아래 요약은 이 도메인 관점의 발췌이므로 **개수·목록은 stale 될 수 있다** — 판정 근거로 쓰지 말고 정본을 연다.
+
 > ★ 이 프로젝트는 **설계를 먼저 확정하고 코드가 뒤따른다.** 오케스트레이터가 `design_refs` 로 내려준 ITEM 은 **이미 이번 변경에 맞게 확정된 사양**이다. 그 ITEM 과 다르게 구현하지 말고, 다르게 해야 한다고 판단되면 **구현을 멈추고** `notes_for_main.info_gaps` 로 올린다(설계를 먼저 고친 뒤 재개한다).
 
 ## 입력 (오케스트레이터가 프롬프트로 전달)
@@ -18,7 +20,7 @@ project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
 domain_id: DOMAIN-007
 code_root: "backend/src/main/java/kr/co/cudo/authoring/augment/ backend/src/main/java/kr/co/cudo/authoring/video/ (해상도 파생 Resolution* 계열) backend/src/main/java/kr/co/cudo/authoring/webhook/ (증강 콜백 GenAi* 계열)"
 conventions: ".claude/conventions.md"
-change_order: ".claude/change-orders/CO-NNN-*.md"   # 참조용(배경)
+change_order: ".claude/change-orders/CO-*.md"   # 참조용(배경)
 design_refs: [<확정된 ITEM ID>]                      # 계약 근거 + @design 태그 대상
 change_detail: | <이 도메인 변경 상세 = 대상파일·변경·불변·주의·수용기준 — 구현 진실원>
 target_hint: | (선택) <알면 대상 클래스/메서드. 모르면 생략(탐색)>
@@ -107,7 +109,52 @@ cd backend && ./gradlew cleanTest test    # ★ cleanTest 없이는 UP-TO-DATE �
 - `grep` 은 항상 `-a` 를 붙인다 — 정상 UTF-8 소스가 `data` 로 오판돼 조용히 건너뛰어진 사고가 있었다.
 
 ## 노하우 (구현하며 축적 — 새 함정/패턴을 여기 보강)
-- (비어있음 — 첫 구현 후 채운다)
+- **요청 DTO 에서 필드를 지워도 400 이 아니다 — 조용히 무시된다.**
+  Spring 기본 설정상 `FAIL_ON_UNKNOWN_PROPERTIES` 가 꺼져 있어, 요청자가 제거된 키를 계속 실어 보내도
+  200 으로 접수된다. 따라서 **「요청자 주입 차단」을 400 으로 검증하려 들면 시험이 성립하지 않는다.**
+  차단은 400 이 아니라 **「외부 위탁 바디에 안 실림」으로 증명**해야 하고, 계약에서 필드가 사라졌다는
+  사실 자체는 **레코드 컴포넌트 리플렉션 구조 가드**로 고정한다.
+  근거: `AugmentRequestControllerTest(이벤트유형을_실어보내도_무시되고_요청은_접수된다)` —
+  `evntType=WILDFIRE`·`evntSubtype=ROAD_FLOOD` 를 실어 POST 해도 200 + `createdCount=1`.
+  재발 조건: **요청 계약에서 필드를 제거하는 모든 작업.** 제거를 400 으로 고정하려다
+  「시험은 GREEN 인데 계약이 안 지켜지는」 착시가 난다.
+
+- **「요청자 입력 → 서버 고정값」으로 옮기면 검증 지점도 함께 옮겨야 한다.**
+  값을 나르던 커맨드·이벤트에서 필드를 빼면, 그 필드를 `ArgumentCaptor` 로 보던 서비스 단위시험은
+  **컴파일 에러로만 드러나고 「어디서 대신 검증할지」는 알려주지 않는다.** 검증 지점을 옮기지 않으면
+  **상수를 바꿔도 RED 가 나지 않는다.**
+  근거: 구 `AugmentJobSubmitServiceTest(relaysEventTypeFromRequest)` ·
+  구 `AugmentRequestContractTest(eventTypeComesFromRequestNotControlCode)` 가 둘 다 커맨드/이벤트
+  필드를 보고 있어 값 검증 지점이 통째로 사라질 뻔했다 → MockWebServer 바디 검사
+  (`HttpExternalAugmentClientTest`)로 이전해야 실제 전송값이 고정된다.
+  재발 조건: **고정값 전환 전반.**
+
+- **화이트리스트가 게이팅하는 표시값은 「오류」가 아니라 「값 실종」으로 회귀한다.**
+  목록에서 값 하나를 빼도 **예외가 나지 않고 필드만 `null`** 이 되므로, 그 값을 심지 않는 기존 시험은
+  **전부 GREEN 인 채로 지나간다.** 부정 케이스(레거시 → `null`)만 있고 **긍정 케이스가 없는 구간**이
+  이 함정의 서식지다.
+  근거: 독립 QA 가 변이로 실증 — `LsDataAug.CONTRACT_AUG_TYPES` 에서 `AUG_AUGMENT` 만 빼도
+  `*Augment*`·`*TaskBoard*`·`*Assignment*`·`*GenAi*`·`*Derivative*` **910여 건이 전부 GREEN**.
+  기존 케이스가 `RESL_480P`·`WINTER`·`null`·레거시 `RESOLUTION` 넷뿐이라 **현행 값을 한 번도 심지
+  않았다.** 소비처는 `TaskBoardService`·`AssignmentService` 두 곳.
+  재발 조건: **코드값을 추가하는 모든 작업.** 「추가했으니 통과한다」가 아니라 **「그 값을 실제로 심는
+  케이스가 있는가」** 를 봐야 하고, **판정은 변이(값 제거 → RED)로만 확정된다.**
+
+- **`LS_DATA_RAW` 시드를 복사해 케이스를 늘릴 때는 `rawSn` 과 `clipId` 를 함께 바꾼다.**
+  `VMS_CLIP_ID` 에 UNIQUE(`uk_ls_data_raw_vms_clip`)가 있어 `clipId` 를 재사용하면
+  `DuplicateKeyException` 이 나는데, **깨지는 것은 내 신규 시험이 아니라 먼저 도는 기존 시험**이라
+  원인 추적이 한 단계 멀어진다.
+  근거: `seedDerivedVideo(3006L, "TEST-3000-no-marker", …)` 를 추가하자
+  `배정목록_응답의_augType이_컬럼값으로_반환된다`(3001L, 같은 clipId)가 RED 였다.
+  재발 조건: **`LS_DATA_RAW` 시드 복사 전반.**
+
+- **배치 후보 SQL 도 코드값 집합의 소비자다 — 「교체」하면 조용히 고착된다.**
+  만료 스윕의 후보 조회가 증강 종류 목록(`AugmentPrompts.EXTERNAL_AUG_TYPES`)을 `IN` 절로 쓴다.
+  코드값을 **교체**하면 구 코드로 남은 미종결 위탁이 후보에서 빠져 **영원히 PENDING 으로 고착**한다 —
+  FK 위반처럼 시끄럽게 실패하지 않아 더 위험하다. 그래서 신규 값을 **「추가」하고 구 값을 남긴다.**
+  근거: `AugmentJobExpirySweeper` 가 `EXTERNAL_AUG_TYPES` 를 그대로 넘기고
+  `AugmentJobExpiryTxService` 가 `isExternalAugType` 로 재판정한다.
+  재발 조건: **코드값 통합·개명 전반.** 「조회·표시가 견디는가」만 보면 이 축을 놓친다.
 
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 

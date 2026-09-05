@@ -211,9 +211,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-076"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:26.003Z"
       },
       "uses_constants": [],
       "implements_features": [],
@@ -225,8 +228,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "권한을 명시한다. 라벨 속성 정의 조회도 라벨 마스터 조회와 같은 정책이라 인증만 요구한다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-07T02:54:54.756Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-25T01:21:26.003Z",
     "created_at": "2026-05-30T07:20:27.638Z"
   }
 }

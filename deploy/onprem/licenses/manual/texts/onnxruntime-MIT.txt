@@ -1,0 +1,48 @@
+================================================================================
+onnxruntime 1.27.0 — MIT
+================================================================================
+
+[이 파일의 출처]
+
+  ★ 외부에서 받지 않았다 — <반입물 자신>에서 꺼냈다.
+     꺼낸 곳 : vendor/wheels/onnxruntime-1.27.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+               아카이브 내부 경로 `onnxruntime/LICENSE`
+     wheel SHA256 : e4f7b0e90d2d212e2c2deaa6c8291616183ab815d3ec558ea12d3ac8b26d36f4
+     LICENSE SHA256 : 2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c
+
+  ⚠ 자동 수집이 이 파일을 놓친 이유(스캐너 사각 — 기록으로 남긴다):
+    고지 수집기는 wheel 의 `*.dist-info/` 아래만 훑는데, onnxruntime 은 라이선스를
+    <패키지 디렉터리>(`onnxruntime/LICENSE`)에 둔다. 그래서 전문이 매체 안에 있는데도
+    TEXT_MISSING 으로 남았다. 자동 수집 범위를 넓히는 것은 별건이며, 여기서는 사람이
+    같은 파일을 그대로 꺼내 등록한다.
+
+  ⚠ onnxruntime 은 자기 코드가 MIT 이지만 <제3자 구성요소를 다수 안고> 있고, 그 고지는
+    같은 아카이브의 `onnxruntime/ThirdPartyNotices.txt`(325KB)에 있다. 그 전문은
+    이 디렉터리의 `onnxruntime-ThirdPartyNotices.txt` 로 함께 넣었다.
+
+--------------------------------------------------------------------------------
+MIT License (onnxruntime 본체)
+--------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+

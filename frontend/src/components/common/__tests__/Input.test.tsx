@@ -7,6 +7,17 @@ import { Field, FieldError, FieldLabel } from '../Field';
 import { Input } from '../Input';
 
 describe('Input', () => {
+  // 시안 `--border-strong`(= `--n-4` = gray-400). 흰 배경 위 gray-300 은 2.01:1 로
+  // WCAG 1.4.11(비텍스트 3:1) 미달이고 gray-400 은 3.08:1 이다. Textarea·Button secondary 가
+  // 같은 근거로 이미 gray-400 이라, 이 값이 갈리면 한 폼 안에서 테두리 두 종류가 섞인다.
+  it('Input_경계는_시안_border_strong_대비를_따른다', () => {
+    render(<Input aria-label="이름" />);
+    const cls = screen.getByLabelText('이름').className;
+
+    expect(cls, '경계는 --border-strong(gray-400)이다').toMatch(/\bborder-gray-400\b/);
+    expect(cls, '대비 미달인 gray-300 으로 되돌리지 말 것').not.toMatch(/\bborder-gray-300\b/);
+  });
+
   it('Input_에러_메시지_aria_describedby_연결', () => {
     // 조합형 전환 후에도 접근성 연결은 Field 조립부가 자동으로 잇는다.
     render(

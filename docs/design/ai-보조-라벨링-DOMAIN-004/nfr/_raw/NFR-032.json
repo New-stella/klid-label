@@ -1,0 +1,57 @@
+{
+  "item": {
+    "id": "NFR-032",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "연계 대상시스템 연계방안",
+    "slug": "연계-대상시스템-연계방안",
+    "sub_id": "RQ-SIR-08-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "연계 대상시스템 연계방안",
+      "metric": "표준 인터페이스 기반 연계방안 제시 여부",
+      "status": "approved",
+      "target": {
+        "value": "연계 대상별 표준화된 연계방안·규격 제시",
+        "operator": "="
+      },
+      "category": "other",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-SIR-08-01 (담당=공통, RFP p38, 중요도 상).",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 연계방안 기준:\n- 사용자 이용이 편리하도록 웹 기반으로 구축하고, 웹접근성·호환성·보안 관련 지침과 가이드라인을 준수하여 개발한다.\n- 연계 대상 시스템별로 표준화된 연계방안을 제시한다 — 관제 채널은 작업 완료·수정 통지와 조회 인터페이스, 포털 채널은 자산 수신 통지와 조회, 외부 위탁은 요청·콜백 규격이다.\n- 타 시스템이 용이하게 연계할 수 있도록 표준 인터페이스와 그 규격을 제공한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-016",
+        "DOMAIN-013",
+        "DOMAIN-017"
+      ],
+      "measurement_method": "연계 대상 시스템별 연계 규격이 문서로 제시되고 그 규격으로 연계가 가능한 것을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:24.347Z",
+    "created_at": "2026-09-05T00:12:24.347Z"
+  }
+}

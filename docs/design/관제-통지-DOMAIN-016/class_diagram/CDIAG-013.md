@@ -1,19 +1,19 @@
 ---
 logicraft_item: CDIAG-013
 type: class_diagram
-version: 7
+version: 9
 domain: DOMAIN-016
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:49:12.374Z
-status: NEW
-prev_version: null
-content_hash: e0d9f0539fa7996949a7be4a7b3b573fe42ac824b554339e34fcef529109bbe9
-stale: false
+synced_at: 2026-09-01T08:40:04.286Z
+status: CHANGED
+prev_version: 8
+content_hash: 2d524d0db4c199fc62bd7deeb2b7ade513dbb9f379695875a570e8568bedd9c6
+stale: true
 raw: ./_raw/CDIAG-013.json
 links:
   belongs_to_domain: ["[[DOMAIN-016]]"]
   depicts: ["[[DFEAT-046]]", "[[DFEAT-047]]"]
-  references: ["[[DFEAT-046]]", "[[DFEAT-047]]"]
+  references: ["[[DFEAT-046]]", "[[DFEAT-047]]", "[[ERD-021]]", "[[ERD-027]]"]
 ---
 
 # 관제 통지 도메인 모델
@@ -98,6 +98,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### idmpKey
 
 - **type**: String
@@ -124,6 +128,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -156,6 +164,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rawSn
 
 - **type**: Long
@@ -182,6 +194,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -214,6 +230,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rtryCnt
 
 - **type**: Integer
@@ -240,6 +260,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -272,6 +296,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### sttsCd
 
 - **type**: NotifyQueueStatus
@@ -298,6 +326,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -330,6 +362,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### nextRtryDt
 
 - **type**: LocalDateTime
@@ -356,6 +392,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -388,6 +428,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -414,6 +458,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -446,6 +494,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### sendRsltCd
 
 - **type**: String
@@ -473,6 +525,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -545,6 +601,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### chnlCd
 
 - **type**: WebhookChannel
@@ -571,6 +631,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -603,6 +667,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### otsdJobId
 
 - **type**: String
@@ -629,6 +697,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -662,6 +734,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### aplcnDt
 
 - **type**: LocalDateTime
@@ -688,6 +764,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -720,6 +800,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -746,6 +830,44 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
+
+_(empty)_
+
+#### srvrId
+
+- **type**: String
+- **is_static**: false
+- **visibility**: private
+- **description**: 위탁을 보낸 AI 서버(장비) 식별자. 장비별 부하 집계와 결과 출처 추적에 쓴다. 도입 전 행은 미상이며, 미결 회수 경로에는 장비 조건을 걸지 않는다 — 걸면 죽은 장비의 몫이 영영 회수되지 않는다.
+- **is_readonly**: false
+
+**implementation**:
+
+##### status
+
+planned
+
+##### modules
+
+_(empty)_
+
+##### records
+
+_(empty)_
+
+##### progress
+
+0
+
+##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -825,7 +947,7 @@ _(empty)_
 
 - DEIDENTIFY
 - VLM
-- AUGMENT
+- VLM_SUB
 
 **stereotypes**:
 
@@ -843,11 +965,12 @@ _(empty)_
 
 _(empty)_
 
-- **description**: 멱등 처리 상태 코드.
+- **description**: 멱등 처리 상태 코드. ACCEPTED 는 외부가 요청을 받아들였고 결과 통지만 남은 상태로, 수락 응답조차 관측하지 못한 ISSUED 와 미결 판정 임계가 다르다.
 
 **enum_values**:
 
 - ISSUED
+- ACCEPTED
 - PROCESSED
 - FAILED
 
@@ -915,6 +1038,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### rawSn
 
 - **type**: Long
@@ -942,6 +1069,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -975,6 +1106,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### exportRprcsYn
 
 - **type**: String
@@ -1002,6 +1137,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1035,6 +1174,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### regDt
 
 - **type**: LocalDateTime
@@ -1065,6 +1208,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### mdfcnDt
 
 - **type**: LocalDateTime
@@ -1092,6 +1239,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1168,6 +1319,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### eventTypeCd
 
 - **type**: String
@@ -1195,6 +1350,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1228,6 +1387,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### evntCtgryCd
 
 - **type**: String
@@ -1255,6 +1418,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1288,6 +1455,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### lclgvNm
 
 - **type**: String
@@ -1315,6 +1486,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1348,6 +1523,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### imageCount
 
 - **type**: int
@@ -1375,6 +1554,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1408,6 +1591,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### outputVerNo
 
 - **type**: Integer
@@ -1435,6 +1622,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1488,6 +1679,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### changedItems
 
 - **type**: ChangedItems
@@ -1515,6 +1710,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1548,6 +1747,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### outputVerNo
 
 - **type**: Integer
@@ -1575,6 +1778,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1628,6 +1835,10 @@ _(empty)_
 
 _(empty)_
 
+##### module_paths
+
+_(empty)_
+
 #### jsons
 
 - **type**: List<String>
@@ -1655,6 +1866,10 @@ _(empty)_
 0
 
 ##### subtasks
+
+_(empty)_
+
+##### module_paths
 
 _(empty)_
 
@@ -1756,10 +1971,40 @@ ControlNotify
 - **to_multiplicity**: 1
 - **from_multiplicity**: 1
 
+## attached_files
+
+_(empty)_
+
 ## depicts_dfeats
 
 - DFEAT-046
 - DFEAT-047
+
+## implementation
+
+### status
+
+planned
+
+### modules
+
+_(empty)_
+
+### records
+
+_(empty)_
+
+### progress
+
+0
+
+### subtasks
+
+_(empty)_
+
+### module_paths
+
+_(empty)_
 
 ## referenced_items
 

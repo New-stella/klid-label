@@ -30,10 +30,17 @@ import { Checkbox } from '@/components/common/Checkbox';
 import type { YnFlag } from '../api/framePrivacyMeta';
 import { useFramePrivacyMeta, useUpdateFramePrivacyMeta } from '../hooks/useFramePrivacyMeta';
 
-import { MetaSection } from './MetaSection';
+import { MetaReadonlyField, MetaSection, ynLabel } from './MetaSection';
 
 export interface FramePrivacyMetaPanelProps {
   srcSn: number | undefined;
+  /**
+   * 읽기 전용 모드 — 체크박스·저장 버튼을 <b>렌더하지 않고</b> 판정값만 보여준다.
+   *
+   * ★기본값은 <b>편집 가능</b>이다(false). 기본값이 읽기 전용으로 새면 작업자가 개인정보
+   * 판정을 입력하지 못한다. 검수 화면만 명시적으로 켠다.
+   */
+  readOnly?: boolean;
 }
 
 interface PrivacyForm {
@@ -81,7 +88,10 @@ function resolveField(current: boolean, original: boolean): YnFlag {
   return current !== original ? boolToYn(current) : null;
 }
 
-export function FramePrivacyMetaPanel({ srcSn }: FramePrivacyMetaPanelProps) {
+export function FramePrivacyMetaPanel({
+  srcSn,
+  readOnly = false,
+}: FramePrivacyMetaPanelProps) {
   const { data, isLoading } = useFramePrivacyMeta(srcSn);
   const update = useUpdateFramePrivacyMeta(srcSn);
 
@@ -125,6 +135,27 @@ export function FramePrivacyMetaPanel({ srcSn }: FramePrivacyMetaPanelProps) {
       privacyIncluded: resolveField(form.privacyIncluded, original.privacyIncluded),
     });
   };
+
+  // 읽기 전용(검수 화면) — 판정값만 보여준다. 비활성 체크박스를 두지 않고 렌더 자체를 하지 않는다.
+  if (readOnly) {
+    return (
+      <MetaSection title="개인정보(프레임)">
+        <div className="space-y-1.5" data-testid="frame-privacy-meta-readonly">
+          {FIELDS.map((f) => (
+            <MetaReadonlyField
+              key={f.key}
+              label={f.label}
+              // BE 원본값을 그대로 읽는다(편집 폼 상태가 아니다) — 읽기 전용에는 편집이 없다.
+              value={ynLabel(data?.[f.key] ?? null)}
+            />
+          ))}
+        </div>
+        <p className="text-[11px] leading-snug text-gray-500">
+          이 프레임 기준의 판정입니다. 영상 전체 기준 판정은 위 영상 개인정보에서 확인하세요.
+        </p>
+      </MetaSection>
+    );
+  }
 
   return (
     <MetaSection title="개인정보(프레임)">

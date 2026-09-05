@@ -69,12 +69,14 @@
         "REVIEWER 또는 WORKER로 인증되어 있다",
         "WORKER는 본인에게 배정된 작업이 1건 이상 존재할 수 있다(0건이어도 조회는 가능하다)"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
         "records": [],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "목록이 시간축 정렬 + 워크플로 상태·이벤트유형 필터가 적용된 결과로 표시된다",
@@ -121,25 +123,18 @@
         "필터는 REVIEWER·WORKER 공통으로 BE가 전체 데이터 기준으로 처리한다(WORKER는 본인 범위로 고정되며, 현재 페이지 20건 안에서 재필터링하지 않는다). KPI 집계만 REVIEWER 경로에서 BE가 전체 데이터 기준으로 별도 계산한다(WORKER는 요약 API가 없어 현재 페이지로 클라이언트 집계한다)."
       ],
       "covered_by_acceptances": [
-        "AC-062",
-        "AC-063",
-        "AC-064",
-        "AC-065",
-        "AC-066",
-        "AC-067",
-        "AC-068",
-        "AC-069",
-        "AC-070"
+        "AC-1075",
+        "AC-1076"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 11,
+    "current_version": 13,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "작업 목록 조회와 배정 흐름을 검증하는 인수기준을 이 유스케이스에 연결한다. 이 도메인에는 인수기준이 한 건도 없어 흐름이 검증 기준 없이 남아 있었고, 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 27건이 있었는데 그중 27건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 2건(AC-1075, AC-1076)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T09:54:47.338Z",
+    "last_updated_at": "2026-09-01T08:25:53.421Z",
     "created_at": "2026-08-06T16:05:13.891Z"
   }
 }

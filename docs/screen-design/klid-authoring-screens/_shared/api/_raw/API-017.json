@@ -257,9 +257,12 @@
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
+        "records": [
+          "IMPREC-227"
+        ],
         "progress": 100,
-        "subtasks": []
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:23:37.817Z"
       },
       "uses_constants": [],
       "implements_features": [
@@ -273,8 +276,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "요청 계약(request_body)이 선언에서 빠져 있어 채운다. 메타 검토 반려는 사유가 필수다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T23:45:08.987Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:23:37.817Z",
     "created_at": "2026-05-30T06:58:48.780Z"
   }
 }

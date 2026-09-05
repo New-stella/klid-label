@@ -177,7 +177,7 @@ class LabelServiceTaskModifiedGuardTest {
         stubCommon();
         seedStatus(LsRawDataStatus.STTS_APPROVED);
         LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "person",
-                "[[1.0,1.0],[2.0,2.0]]", 1001L);
+                "[[1.0,1.0],[2.0,2.0]]", "1001");
         setField(existing, "lblSn", 7001L);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
 
@@ -197,7 +197,7 @@ class LabelServiceTaskModifiedGuardTest {
         stubCommon();
         seedStatus(LsRawDataStatus.STTS_APPROVED);
         LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "person",
-                "[[1.0,1.0],[2.0,2.0]]", 1001L);
+                "[[1.0,1.0],[2.0,2.0]]", "1001");
         setField(existing, "lblSn", 7003L);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
         LabelItemDto moved = new LabelItemDto(7003L, "BBOX", null, "person",
@@ -219,7 +219,7 @@ class LabelServiceTaskModifiedGuardTest {
         stubCommon();
         seedStatus(LsRawDataStatus.STTS_APPROVED);
         LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "car",
-                "[[3.0,3.0],[4.0,4.0]]", 1001L);
+                "[[3.0,3.0],[4.0,4.0]]", "1001");
         setField(existing, "lblSn", 7002L);
         when(labelRepository.findBySrcSn(SRC_SN)).thenReturn(List.of(existing));
 

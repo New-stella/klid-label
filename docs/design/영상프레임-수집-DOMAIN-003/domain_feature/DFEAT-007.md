@@ -4,13 +4,14 @@ type: domain_feature
 version: 10
 domain: DOMAIN-003
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-16T14:48:51.137Z
-status: NEW
-prev_version: null
-content_hash: 95e6af66be84931819fd794d88ed09bc052122e6a0be612e9182ed1bca0c3176
-stale: false
+synced_at: 2026-08-29T01:27:24.569Z
+status: CHANGED
+prev_version: 10
+content_hash: c2c104d0f9c7765bef8329d31f4a6d1455335220edddea2b3572bb68f84947bf
+stale: true
 raw: ./_raw/DFEAT-007.json
 links:
+  based_on: ["[[ADR-001]]"]
   belongs_to_domain: ["[[DOMAIN-003]]"]
   implements: ["[[API-042]]", "[[API-043]]"]
   migrated_from: ["[[LEGACY-119]]"]
@@ -110,7 +111,7 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-351
 
 ### progress
 
@@ -122,7 +123,7 @@ _(empty)_
 
 ### last_updated
 
-2026-05-30T04:05:03.598Z
+2026-08-29T01:26:19.774Z
 
 ## uses_constants
 

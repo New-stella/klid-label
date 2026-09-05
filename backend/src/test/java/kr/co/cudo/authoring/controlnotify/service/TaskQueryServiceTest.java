@@ -559,7 +559,7 @@ class TaskQueryServiceTest {
     }
 
     private LsDataLbl createLabel(Long srcSn, String type, String label, String points) {
-        return LsDataLbl.createManual(srcSn, type, null, label, points, 1L);
+        return LsDataLbl.createManual(srcSn, type, null, label, points, "1");
     }
 
     private static <T> T newInstance(Class<T> type) {

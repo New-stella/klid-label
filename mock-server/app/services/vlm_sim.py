@@ -27,6 +27,7 @@ from typing import Optional
 
 import httpx
 
+from app.config import get_settings
 from app.schemas.vlm import EventType
 from app.services import media_probe
 from app.state import sanitize_for_log
@@ -84,6 +85,12 @@ def _severity_comment(severity: int) -> str:
     return "관제 요원의 확인이 권고됩니다."
 
 
+def _situation_phrase(index: int, start_sec: int, end_sec: int) -> str:
+    """한 구간의 「상황」 문장. 구간 블록과 영상 1건 전문이 <같은 문장>을 쓰도록 단일 원천으로 둔다."""
+    situation = _SITUATIONS[index % len(_SITUATIONS)]
+    return f"{start_sec}~{end_sec}초 구간에서 {situation} 정황이 관측됨"
+
+
 def _describe_text(index: int, start_sec: int, end_sec: int) -> str:
     """describe 3.4 형식 mock 설명(\\n 포함 단일 문자열).
 
@@ -92,13 +99,12 @@ def _describe_text(index: int, start_sec: int, end_sec: int) -> str:
     """
     place = _PLACES[index % len(_PLACES)]
     weather = _WEATHERS[index % len(_WEATHERS)]
-    situation = _SITUATIONS[index % len(_SITUATIONS)]
     environment = _ENVIRONMENTS[index % len(_ENVIRONMENTS)]
     severity = 3 + (index % 6)  # 3~8 결정적 변화
     return (
         f"- 장소: {place}\n"
         f"- 날씨: {weather}\n"
-        f"- 상황: {start_sec}~{end_sec}초 구간에서 {situation} 정황이 관측됨\n"
+        f"- 상황: {_situation_phrase(index, start_sec, end_sec)}\n"
         f"- 환경: {environment}\n"
         f"- 심각성: {severity}/10점 — {_severity_comment(severity)}"
     )
@@ -255,12 +261,44 @@ def build_describe_callback(request_id: str, duration_sec: object = None) -> dic
     }
 
 
+#: 「상황」 값 안에서 구간 서술을 잇는 구분자.
+#:
+#: 구간을 <줄> 로 나누지 않고 한 줄에 잇는 것은 의도다 — 확정 규칙상 「상황」 값은 **그 줄의
+#: 줄바꿈까지**이고 다음 라벨 줄로 이어붙이지 않는다. 줄로 나누면 두 번째 구간부터는 우리 파서가
+#: 가져가지 않아, 영상이 길수록 서술이 늘어나는 성질이 그 값에 반영되지 않는다.
+_SITUATION_JOIN = " / "
+
+
 def mock_describe_text(duration_sec: object = None) -> str:
-    """구간별 서술을 한 편의 자연어 서술로 이어 붙인다(줄바꿈 구분)."""
-    return "\n".join(
-        f"- {row['start_sec']}~{row['end_sec']}초: {row['description']}"
-        for row in mock_describe_results(duration_sec)
+    """묘사 전문을 규격 형식(``- 라벨: 값`` 줄 단위)으로 <영상 1건당 한 벌> 만든다.
+
+    구 구현은 구간마다 만든 5항목 블록 앞에 ``- 0~8초: `` 를 덧붙여 이어 붙였다. 그 결과
+    ``- 0~8초: - 장소: ...`` 처럼 <첫 줄이 뭉개진> 채로 같은 라벨 블록이 구간 수만큼 반복됐다.
+    실제 사업자는 영상 1건에 블록 하나를 돌려주고, 우리 파서도 「상황」 줄 하나만 찾는다.
+
+    영상 길이에 비례해 내용이 늘어나는 기존 성질은 **「상황」 값 안**에서 유지한다 — 구간이
+    늘면 그 줄이 길어진다. 「상황」 뒤에 다른 라벨 줄을 두는 것도 의도다: 우리 파서가 값 경계를
+    줄바꿈에서 끊는지 실동작으로 드러낸다.
+
+    ``settings.describe_omit_situation`` 이 켜지면 「상황」 줄을 **통째로 뺀다**. 그래야
+    「상황 줄이 없으면 채우지 않는다(빈 값도 넣지 않는다)」는 미채움 분기를 로컬에서 확인할 수 있다.
+    """
+    windows = plan_describe_windows(duration_sec)
+    situation = _SITUATION_JOIN.join(
+        _situation_phrase(index, start, end) for index, (start, end) in enumerate(windows)
     )
+    # 대표 축은 첫 구간 값을 쓴다 — 블록이 하나뿐이므로 구간마다 달랐던 축을 하나로 접는다.
+    place = _PLACES[0 % len(_PLACES)]
+    weather = _WEATHERS[0 % len(_WEATHERS)]
+    environment = _ENVIRONMENTS[0 % len(_ENVIRONMENTS)]
+    severity = 3 + (max(len(windows) - 1, 0) % 6)
+
+    lines = [f"- 장소: {place}", f"- 날씨: {weather}"]
+    if not get_settings().describe_omit_situation:
+        lines.append(f"- 상황: {situation}")
+    lines.append(f"- 환경: {environment}")
+    lines.append(f"- 심각성: {severity}/10점 — {_severity_comment(severity)}")
+    return "\n".join(lines)
 
 
 def build_describe_sub_callback(request_id: str, event_type: object = None) -> dict:

@@ -1,0 +1,97 @@
+{
+  "item": {
+    "id": "AC-035",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "데이터마트 다운로드는 본인 저장 라벨만 담는다",
+    "slug": "데이터마트-다운로드는-본인-저장-라벨만-담는다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "데이터마트 축은 rawSn 단위로 공유되는 자산이라 IDOR 방어 축이 '접근 가능 여부'가 아니라 '내용 격리'임을 명시한다 — loadFrameLabels/listMyLabels 와 같은 병합 정책 축.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "PortalDatamartDownloadServiceTest",
+          "captured_at": "2026-08-23T20:31:32Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "52a3ceb2-e7e3-4fdb-b5e3-7daa531d4772",
+          "captured_at": "2026-08-23T20:31:32Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-23T20:31:32Z"
+      },
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "다운로드 산출물의 프레임별 어노테이션 문서를 열면 그 어노테이션 항목에는 A 의 라벨만 담기고 B 의 저장 라벨은 어느 프레임 문서에도 포함되지 않는다"
+        ],
+        "when": [
+          "A 가 그 영상을 다운로드한다"
+        ],
+        "given": [
+          "사용자 A, B 가 같은 데이터마트 영상의 같은 프레임에 각자 본인 작업 라벨을 저장했다"
+        ],
+        "and_examples": [
+          {
+            "case": "A 가 저장하지 않은 다른 프레임",
+            "result": "데이터마트 원본 라벨로 대체되며 B 의 저장분이 아니다"
+          },
+          {
+            "case": "다른 사용자의 rawSn 을 직접 지정해 다운로드를 시도",
+            "result": "데이터마트 노출 여부만 판단하며(소유권 개념 없음) 그 영상이 APPROVED 면 누구든 다운로드 자체는 가능하다 — 다만 내용은 호출자 본인의 저장분으로만 구성된다(다른 사용자의 작업 내용이 새지 않는다)"
+          }
+        ]
+      },
+      "statement": "포털 사용자의 다운로드 결과에는 본인이 저장한 라벨만 포함되며, 다른 사용자의 저장 라벨은 노출되지 않는다",
+      "brownfield": {
+        "notes": "2026-08 사용자 확정 — 다운로드 API(API-203) 상세 사양.",
+        "status": "new",
+        "decided_by": "ADR-013",
+        "change_kind": [
+          "capability-add"
+        ]
+      },
+      "is_negative": false,
+      "implementation": {
+        "status": "verified",
+        "modules": [],
+        "records": [
+          "IMPREC-012",
+          "IMPREC-137",
+          "IMPREC-142"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-26T07:44:41.628Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalDatamartDownloadService.java",
+          "backend/src/main/java/kr/co/cudo/authoring/portal/service/PortalLabelService.java"
+        ]
+      },
+      "derived_domain_ids": [
+        "DOMAIN-013"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-024"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 6,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "이번 라운드에서 검증 대상을 프레임별 어노테이션 문서의 어노테이션 항목으로 재서술했고, 병합 입도가 프레임 단위로 정확히 적혀 있음을 함께 확인했다. 그 뒤 실현 엔드포인트 목록 변경이 다시 전파된 것이라 추가 수정이 없다.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-26T07:44:41.628Z",
+    "created_at": "2026-08-17T01:10:43.946Z"
+  }
+}

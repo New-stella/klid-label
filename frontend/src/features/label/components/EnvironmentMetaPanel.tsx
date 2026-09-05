@@ -28,10 +28,17 @@ import {
   useUpdateEnvironmentMeta,
 } from '../hooks/useEnvironmentMeta';
 
-import { MetaSection } from './MetaSection';
+import { MetaReadonlyField, MetaSection } from './MetaSection';
 
 export interface EnvironmentMetaPanelProps {
   rawSn: number | undefined;
+  /**
+   * 읽기 전용 모드 — 입력 컨트롤·저장 버튼을 <b>렌더하지 않고</b> 값만 보여준다.
+   *
+   * ★기본값은 <b>편집 가능</b>이다(false). 작업자 화면이 이 패널의 주 사용처이므로, 기본값이
+   * 읽기 전용으로 새면 작업자가 입력을 못 하게 된다. 검수 화면만 명시적으로 켠다.
+   */
+  readOnly?: boolean;
 }
 
 /** 날씨 옵션 — 코드와 표시가 동일한 한글 5종. */
@@ -84,7 +91,27 @@ function resolveField(
   return null;
 }
 
-export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
+/** 코드 → 화면 표시 문구. 미선택(빈 값)이면 null 을 돌려 읽기 전용 행이 미입력 표식을 쓰게 한다. */
+function displayOf(
+  value: string,
+  options: readonly { code: string; label: string }[] | readonly string[],
+): string | null {
+  if (value === '') return null;
+  for (const opt of options) {
+    if (typeof opt === 'string') {
+      if (opt === value) return opt;
+    } else if (opt.code === value) {
+      return opt.label;
+    }
+  }
+  // 코드표에 없는 값이라도 버리지 않고 원문을 보여준다(조용한 손실 금지).
+  return value;
+}
+
+export function EnvironmentMetaPanel({
+  rawSn,
+  readOnly = false,
+}: EnvironmentMetaPanelProps) {
   const { data, isLoading } = useEnvironmentMeta(rawSn);
   const update = useUpdateEnvironmentMeta(rawSn);
 
@@ -123,6 +150,22 @@ export function EnvironmentMetaPanel({ rawSn }: EnvironmentMetaPanelProps) {
       season: resolveField(season, original.season, data?.seasonSource ?? null),
     });
   };
+
+  // 읽기 전용(검수 화면) — 값만 보여준다. 비활성 컨트롤을 두지 않고 렌더 자체를 하지 않는다.
+  if (readOnly) {
+    return (
+      <MetaSection title="촬영환경">
+        <div className="space-y-1.5" data-testid="environment-meta-readonly">
+          <MetaReadonlyField label="날씨" value={displayOf(weather, WEATHER_OPTIONS)} />
+          <MetaReadonlyField
+            label="시간대"
+            value={displayOf(timeOfDay, TIME_OF_DAY_OPTIONS)}
+          />
+          <MetaReadonlyField label="계절" value={displayOf(season, SEASON_OPTIONS)} />
+        </div>
+      </MetaSection>
+    );
+  }
 
   return (
     <MetaSection title="촬영환경">

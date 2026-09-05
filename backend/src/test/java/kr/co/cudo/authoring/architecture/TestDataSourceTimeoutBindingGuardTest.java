@@ -17,9 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 테스트 데이터소스 Hikari 설정이 <b>실제로 바인딩됐는지</b> 고정하는 가드.
  *
  * <h2>막으려는 실패 모드 — "썼는데 조용히 안 먹는다"</h2>
- * <p>{@code controlDataSource}/{@code portalDataSource} 는
+ * <p>{@code controlDataSource} 는
  * {@code DataSourceBuilder.create().type(HikariDataSource.class).build()} +
- * {@code @ConfigurationProperties(prefix = "spring.datasource.{control|portal}")} 조합이라
+ * {@code @ConfigurationProperties(prefix = "spring.datasource.control")} 조합이라
  * Hikari 프로퍼티가 <b>평면(flat)</b> 으로 바인딩된다. 즉 {@code maximum-pool-size} 와 <b>같은 레벨</b>에
  * 둬야 하고, Spring Boot 단일 데이터소스 관습대로 {@code hikari:} 아래에 중첩하면
  * <b>예외 없이 무시</b>된다(이 프로젝트에 실제 전례가 있다). yml 만 보고는 판별할 수 없으므로
@@ -48,34 +48,25 @@ class TestDataSourceTimeoutBindingGuardTest {
     private static final int EXPECTED_MAX_POOL_SIZE = 2;
 
     private final HikariDataSource controlDataSource;
-    private final HikariDataSource portalDataSource;
 
     // 빈 선언 반환 타입이 DataSource 라 HikariDataSource 로 직접 주입받지 않고 unwrap 한다
     // (VideoDurationResolverTxIsolationIT 와 동일 패턴).
     TestDataSourceTimeoutBindingGuardTest(
-            @Autowired @Qualifier("controlDataSource") DataSource controlDataSource,
-            @Autowired @Qualifier("portalDataSource") DataSource portalDataSource) throws SQLException {
+            @Autowired @Qualifier("controlDataSource") DataSource controlDataSource) throws SQLException {
         this.controlDataSource = controlDataSource.unwrap(HikariDataSource.class);
-        this.portalDataSource = portalDataSource.unwrap(HikariDataSource.class);
     }
 
     @Test
-    @DisplayName("control_portal_데이터소스에_테스트용_커넥션_타임아웃과_풀크기가_실제로_바인딩된다")
-    void hikariPropertiesAreActuallyBoundOnBothDataSources() {
+    @DisplayName("control_데이터소스에_테스트용_커넥션_타임아웃과_풀크기가_실제로_바인딩된다")
+    void hikariPropertiesAreActuallyBound() {
         // given / when: 컨테이너가 만든 실제 Hikari 인스턴스의 런타임 값
         // then: yml 에 쓴 값이 그대로 반영돼 있어야 한다(hikari: 중첩이면 기본값 30000 이 나와 실패한다)
         assertThat(controlDataSource.getConnectionTimeout())
                 .as("control 커넥션 타임아웃 — Hikari 기본 30000 이 나오면 yml 키가 바인딩되지 않은 것이다")
                 .isEqualTo(EXPECTED_CONNECTION_TIMEOUT_MS);
-        assertThat(portalDataSource.getConnectionTimeout())
-                .as("portal 커넥션 타임아웃 — Hikari 기본 30000 이 나오면 yml 키가 바인딩되지 않은 것이다")
-                .isEqualTo(EXPECTED_CONNECTION_TIMEOUT_MS);
 
         assertThat(controlDataSource.getMaximumPoolSize())
                 .as("control 풀 크기는 의도적으로 2다(커넥션 기아 노출용) — 늘리면 실제 결함을 가린다")
-                .isEqualTo(EXPECTED_MAX_POOL_SIZE);
-        assertThat(portalDataSource.getMaximumPoolSize())
-                .as("portal 풀 크기는 의도적으로 2다(커넥션 기아 노출용) — 늘리면 실제 결함을 가린다")
                 .isEqualTo(EXPECTED_MAX_POOL_SIZE);
     }
 }

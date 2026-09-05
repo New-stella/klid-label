@@ -47,9 +47,9 @@ function wireHappyPath(mock: MockAdapter) {
   return puts;
 }
 
-/** 「관리자 설정」 → 입력 → 인증까지 진행한다. */
+/** 「관리자 확인」 → 입력 → 인증까지 진행한다. */
 async function authenticate(value = DUMMY_PW) {
-  fireEvent.click(screen.getByRole('button', { name: '관리자 설정' }));
+  fireEvent.click(screen.getByRole('button', { name: '관리자 확인' }));
   const input = await screen.findByLabelText('관리자 패스워드');
   fireEvent.change(input, { target: { value } });
   fireEvent.click(screen.getByRole('button', { name: '인증' }));
@@ -200,7 +200,7 @@ describe('IntegrationEndpointsCard (R11 연동 서버 주소)', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
-    expect(await screen.findByText(/관리자 인증이 만료/)).toBeInTheDocument();
+    expect(await screen.findByText(/관리자 확인이 만료/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('읽기 전용')).toBeInTheDocument());
     expect(screen.getByLabelText('AI 추론 서버')).toHaveAttribute('readonly');
   });
@@ -223,7 +223,7 @@ describe('IntegrationEndpointsCard (R11 연동 서버 주소)', () => {
     wireHappyPath(mock);
     renderWithProviders(<IntegrationEndpointsCard configs={storedConfigs} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '관리자 설정' }));
+    fireEvent.click(screen.getByRole('button', { name: '관리자 확인' }));
     const input = (await screen.findByLabelText('관리자 패스워드')) as HTMLInputElement;
 
     expect(input.type).toBe('password');

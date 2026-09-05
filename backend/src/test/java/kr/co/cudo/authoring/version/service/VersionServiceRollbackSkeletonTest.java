@@ -136,7 +136,7 @@ class VersionServiceRollbackSkeletonTest {
 
     /** DB 작업본 라벨 — SKELETON, 정규(DB) 좌표 표현. */
     private LsDataLbl dbLabel() {
-        LsDataLbl l = LsDataLbl.createManual(SRC_SN, LsDataLbl.TYPE_SKELETON, null, "person", DB_POINTS, 1L);
+        LsDataLbl l = LsDataLbl.createManual(SRC_SN, LsDataLbl.TYPE_SKELETON, null, "person", DB_POINTS, "1");
         ReflectionTestUtils.setField(l, "lblSn", LBL_SN);
         return l;
     }

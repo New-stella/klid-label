@@ -1,0 +1,373 @@
+/* SCREEN-043 위험 작업 화면 — 고충실 디자인
+   DS-001 v9 토큰만 사용. 시각 언어는 SD-015(시스템 설정)의 「위험 구역」을 그대로 승계했다.
+   설계 의도: 다른 일을 하다 실수로 누르는 동선을 없앤다 —
+     · 액션을 세로 목록으로 펼쳐 버튼 사이 거리를 확보한다(밀집 금지)
+     · 무엇이 지워지고 무엇이 남는지 버튼 옆에서 바로 읽힌다(확인 창을 열어야 알면 늦다)
+     · 위험은 면적이 아니라 위계로 표현한다(화면을 붉게 칠하지 않는다) */
+
+:root{
+  /* color: neutral */
+  --n-0: #f4f5f6; --n-1: #e6e8ea; --n-2: #cdd1d5; --n-3: #b1b8be; --n-4: #8a949e;
+  --n-5: #6d7882; --n-6: #58616a; --n-7: #464c53; --n-8: #33363d; --n-9: #1e2124; --n-10: #131416;
+
+  /* color: primary */
+  --p-0: #ecf2fe; --p-1: #d8e5fd; --p-2: #b1cefb; --p-3: #86aff9; --p-4: #4c87f6;
+  --p-5: #256ef4; --p-6: #0b50d0; --p-7: #083891; --p-8: #052561; --p-9: #03163a; --p-10: #020f27;
+
+  /* color: secondary */
+  --s-0: #eef2f7; --s-1: #d6e0eb; --s-2: #bacbde; --s-3: #90b0d5; --s-4: #6b96c7;
+  --s-5: #346fb2; --s-6: #1c589c; --s-7: #063a74; --s-8: #052b57; --s-9: #031f3f; --s-10: #02162c;
+
+  /* color: semantic — info */
+  --i-0: #e7f4fe; --i-1: #d3ebfd; --i-2: #9ed2fa; --i-3: #5fb5f7; --i-4: #2098f3;
+  --i-5: #0b78cb; --i-6: #096ab3; --i-7: #085691; --i-8: #053961; --i-9: #03253f; --i-10: #021a2c;
+
+  /* color: semantic — warn */
+  --w-0: #fff3db; --w-1: #ffe0a3; --w-2: #ffc95c; --w-3: #ffb114; --w-4: #c78500;
+  --w-5: #9e6a00; --w-6: #8a5c00; --w-7: #614100; --w-8: #422c00; --w-9: #2e1f00; --w-10: #241800;
+
+  /* color: semantic — error */
+  --e-0: #fdefec; --e-1: #fcdfd9; --e-2: #f7afa1; --e-3: #f48771; --e-4: #f05f42;
+  --e-5: #de3412; --e-6: #bd2c0f; --e-7: #8a240f; --e-8: #5c180a; --e-9: #390d05; --e-10: #260903;
+
+  /* color: semantic — success */
+  --su-0: #eaf6ec; --su-1: #d8eedd; --su-2: #a9dab4; --su-3: #7ec88e; --su-4: #3fa654;
+  --su-5: #228738; --su-6: #267337; --su-7: #285d33; --su-8: #1f4727; --su-9: #122b18; --su-10: #0e2012;
+
+  /* motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --duration-base: 200ms;
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+
+  /* radius */
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
+  --radius-full: 9999px;
+
+  /* shadow */
+  --shadow-lg: 0 10px 24px rgba(14,21,40,0.12);
+  --shadow-md: 0 4px 10px rgba(14,21,40,0.08);
+  --shadow-sm: 0 1px 2px rgba(14,21,40,0.06);
+
+  /* spacing (4px 배수) */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 16px;
+  --sp-lg: 24px;
+  --sp-xl: 40px;
+  --sp-2xl: 64px;
+
+  /* typography — family */
+  --font-body: 'Pretendard GOV', -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --font-mono: 'D2Coding', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* surface */
+  --bg-page: #ffffff;
+  --bg-alt: var(--n-0);
+  --border: var(--n-2);
+  --border-strong: var(--n-4);
+}
+
+/* ── 1. 리셋 & 베이스 ─────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { color-scheme: only light; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--n-9);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, dt, dd, p, span, li, button, label, output { color: inherit; margin: 0; }
+button, input, select, textarea { font-family: inherit; }
+button { cursor: pointer; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+dl, dd { margin: 0; }
+
+/* focus-visible — DS do_rule: 3px outline + 2px offset */
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+[tabindex]:focus-visible, label.btn:focus-within {
+  outline: 3px solid var(--p-5);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── 2. 타이포그래피 ladder ───────────────────────────────────────── */
+.t-title-lg   { font-size: 22px; font-weight: 700; line-height: 1.4; }
+.t-title-md   { font-size: 18px; font-weight: 600; line-height: 1.45; }
+.t-title-sm   { font-size: 17px; font-weight: 600; line-height: 1.5; }
+.t-body-lg    { font-size: 19px; font-weight: 400; line-height: 1.6; }
+.t-body-md    { font-size: 17px; font-weight: 400; line-height: 1.6; }
+.t-body-sm    { font-size: 15px; font-weight: 400; line-height: 1.6; }
+.t-label      { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.t-caption    { font-size: 14px; font-weight: 400; line-height: 1.5; }
+
+.text-muted  { color: var(--n-7); } /* 회색·틴트 표면에서도 4.5:1 을 넘도록 70단 사용 */
+.text-strong { color: var(--n-9); }
+
+/* ── 3. 레이아웃 셸(화면 본문 컨테이너) ──────────────────────────── */
+.screen-root {
+  max-width: none;
+  padding: var(--sp-lg) var(--sp-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-lg);
+}
+.maint-layout { display: block; }
+
+.page-head { display: flex; flex-direction: column; gap: var(--sp-xs); }
+.breadcrumb { display: flex; align-items: center; gap: var(--sp-sm); }
+.breadcrumb li { display: flex; align-items: center; gap: var(--sp-sm); }
+.breadcrumb a { color: var(--n-7); text-decoration: none; font-size: 15px; }
+.breadcrumb a:hover { color: var(--p-6); text-decoration: underline; }
+.breadcrumb .sep { color: var(--n-5); font-size: 13px; }
+.breadcrumb .current { color: var(--n-8); font-weight: 600; font-size: 15px; }
+.page-head h1 { color: var(--n-10); }
+.page-head .page-sub { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.page-head .page-desc { max-width: 920px; color: var(--n-7); }
+
+/* ── 4. Card (UI-011) ────────────────────────────────────────────── */
+.card {
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card > .card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-md);
+  padding: var(--sp-lg) var(--sp-lg) 0;
+}
+.card > .card-content { padding: var(--sp-lg); }
+.card-title { color: var(--n-10); }
+
+.config-card > .card-header { align-items: center; padding-bottom: var(--sp-md); border-bottom: 1px solid var(--n-1); }
+.config-card .config-heading { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.config-card .config-heading h2 { color: var(--n-10); }
+.config-card > .card-content { display: flex; flex-direction: column; gap: var(--sp-lg); }
+.config-actions { display: flex; align-items: center; gap: var(--sp-sm); flex: 0 0 auto; }
+
+/* ── 5. 버튼 (UI-001 Button variants) ────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 var(--sp-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 17px; font-weight: 500; line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+.btn:disabled { cursor: not-allowed; }
+label.btn { cursor: pointer; }
+.btn-primary { background: var(--p-5); color: var(--bg-page); }
+.btn-primary:hover:not(:disabled) { background: var(--p-6); }
+.btn-secondary { background: var(--bg-page); color: var(--n-9); border-color: var(--border-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--n-0); }
+.btn-danger { background: var(--e-5); color: var(--bg-page); }
+.btn-danger:hover:not(:disabled) { background: var(--e-6); }
+.btn-sm { min-height: 36px; padding: 0 var(--sp-md); font-size: 15px; }
+
+/* ── 6. 배지 (UI-014 StatusBadge) ────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  white-space: nowrap;
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.badge-success { background: var(--su-0); color: var(--su-6); }
+.badge-success .dot { background: var(--su-5); }
+.badge-error { background: var(--e-0); color: var(--e-7); }
+.badge-error .dot { background: var(--e-5); }
+.badge-neutral { background: var(--n-0); color: var(--n-7); }
+.badge-neutral .dot { background: var(--n-6); }
+
+/* ── 7. 폼 필드 (UI-099 Field) ───────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.field-label { color: var(--n-8); }
+.field-help { color: var(--n-7); }
+.input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  color: var(--n-9);
+  font-size: 17px;
+  line-height: 1.4;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.input::placeholder { color: var(--n-7); }
+.input:hover:not(:disabled) { border-color: var(--n-5); }
+
+/* ── 8. 알림 (UI-013 Alert) ──────────────────────────────────────── */
+.alert { display: flex; align-items: flex-start; gap: var(--sp-sm); padding: var(--sp-md); border-radius: var(--radius-md); border: 1px solid; }
+.alert-info  { background: var(--i-0); border-color: var(--i-2); color: var(--i-7); }
+.alert-warn  { background: var(--w-0); border-color: var(--w-2); color: var(--w-7); }
+.alert-error { background: var(--e-0); border-color: var(--e-2); color: var(--e-7); }
+.alert .alert-icon { flex: 0 0 auto; margin-top: 2px; }
+.alert .alert-body { display: flex; flex-direction: column; gap: var(--sp-xs); min-width: 0; }
+.alert .alert-title { font-weight: 600; }
+
+/* 화면 첫 자리 경고 — 들어선 순간 보이는 자리.
+   면적으로 겁주지 않고 좌측 4px 스트립 + 아이콘 + 문구로 위계만 세운다. */
+.page-alert {
+  gap: var(--sp-md);
+  padding: var(--sp-md) var(--sp-lg);
+  border-left-width: 4px;
+  border-left-color: var(--e-5);
+  align-items: center;
+}
+.page-alert .alert-icon { margin-top: 0; }
+
+/* 관리자 유효창 만료 알림 (잠금 상태) */
+.admin-alert { align-items: center; gap: var(--sp-md); }
+.admin-alert .alert-icon { margin-top: 0; color: var(--e-6); }
+.admin-alert .alert-body { flex: 1 1 auto; }
+.admin-alert-act { flex: 0 0 auto; }
+
+/* 관리자 유효창 열림 배너 + 남은 시간 (UI-089 계열) */
+.unlock-banner {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  padding: var(--sp-md);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-md);
+  background: var(--su-0);
+  color: var(--su-7);
+}
+.unlock-banner .icon { flex: 0 0 auto; color: var(--su-6); }
+.unlock-banner .lock-text { flex: 1 1 auto; min-width: 0; }
+.countdown {
+  margin-left: auto;
+  display: inline-flex; align-items: baseline; gap: var(--sp-xs);
+  background: var(--bg-page);
+  border: 1px solid var(--su-2);
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  color: var(--su-7);
+  flex: 0 0 auto;
+}
+.countdown .cd-time { font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 잠금/해제 상태 전환 (CSS-only :checked — 무 JS) */
+.lockstate { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.only-unlocked { display: none; }
+#admin-open:checked ~ .maint-layout .only-locked { display: none; }
+#admin-open:checked ~ .maint-layout .alert.only-unlocked,
+#admin-open:checked ~ .maint-layout .unlock-banner.only-unlocked { display: flex; }
+#admin-open:checked ~ .maint-layout .badge.only-unlocked { display: inline-flex; }
+
+/* ── 9. 위험 구역 (UI-090 DangerActions) ─────────────────────────── */
+.danger-card { border-color: var(--e-2); }
+.danger-card > .card-header { align-items: center; padding-bottom: var(--sp-md); border-bottom: 1px solid var(--e-1); }
+.danger-card .config-heading h2 { color: var(--e-7); }
+.danger-warning { display: flex; align-items: center; gap: 6px; color: var(--e-7); }
+.danger-warning .icon-sm { flex: 0 0 auto; }
+
+/* 액션은 가로로 밀집시키지 않고 세로 목록으로 펼친다 — 이웃 버튼 오클릭 방지 */
+.danger-list { display: flex; flex-direction: column; gap: var(--sp-lg); }
+
+.danger-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2xl);           /* 설명과 실행 버튼 사이를 넓게 벌린다 */
+  padding: var(--sp-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+}
+.danger-row + .danger-row { margin-top: 0; }
+/* 가장 파괴적인 작업만 틴트로 한 단계 올린다 — 나머지는 흰 표면에 둔다 */
+.danger-row.is-severe { border-color: var(--e-2); background: var(--e-0); }
+
+.dr-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-md); }
+.dr-head { display: flex; align-items: center; gap: var(--sp-sm); flex-wrap: wrap; }
+.dr-head h3 { color: var(--n-10); }
+.dr-mark {
+  width: 36px; height: 36px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--e-1);
+  color: var(--e-7);
+}
+
+/* 확인 창을 열지 않고도 무엇이 지워지는지 읽히게 한다 */
+.dr-effect { display: flex; flex-direction: column; gap: var(--sp-sm); }
+.dr-effect-item { display: flex; align-items: baseline; gap: var(--sp-md); }
+.dr-effect-item dt { flex: 0 0 108px; }
+.dr-effect-item dd { flex: 1 1 auto; min-width: 0; color: var(--n-7); }
+.dr-dt-remove { color: var(--e-7); }
+.dr-dt-keep { color: var(--n-7); }
+
+/* 실행 버튼은 별도 열에 격리하고, 그 아래 확인 절차가 있음을 명시한다 */
+.dr-act {
+  flex: 0 0 208px;
+  display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-sm);
+  padding-left: var(--sp-lg);
+  border-left: 1px solid var(--n-1);
+}
+.danger-row.is-severe .dr-act { border-left-color: var(--e-2); }
+.dr-guard { display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--n-7); }
+.dr-guard .icon-sm { flex: 0 0 auto; }
+
+/* ── 10. 모달 (UI-004 Modal / UI-005 ConfirmDialog, :target) ─────── */
+.modal { display: none; position: fixed; inset: 0; z-index: 1000; }
+.modal:target { display: block; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(19,20,22,0.6); }
+.modal-box {
+  position: relative; z-index: 1;
+  width: min(560px, calc(100% - var(--sp-lg) * 2));
+  max-height: calc(100vh - var(--sp-2xl) * 2);
+  margin: var(--sp-2xl) auto 0;
+  background: var(--bg-page);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-lg);
+  display: flex; flex-direction: column; gap: var(--sp-md);
+  overflow-y: auto;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-md); }
+.modal-head h3 { color: var(--n-10); }
+.modal-close {
+  width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-md); color: var(--n-7); text-decoration: none; flex: 0 0 auto;
+}
+.modal-close:hover { background: var(--n-0); color: var(--n-9); }
+.modal-desc { color: var(--n-7); }
+.modal-footer { display: flex; justify-content: flex-end; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+.modal-danger-mark {
+  display: flex; align-items: flex-start; gap: var(--sp-sm);
+  padding: var(--sp-md); border-radius: var(--radius-md);
+  background: var(--e-0); border: 1px solid var(--e-2); color: var(--e-7);
+}
+.modal-danger-mark .icon { flex: 0 0 auto; margin-top: 2px; }
+
+/* ── 11. 아이콘 ──────────────────────────────────────────────────── */
+/* 선 표현은 CSS 로 — 게시 sanitizer 가 SVG 표현 속성을 떨어뜨린다 */
+svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.icon-lg { width: 32px; height: 32px; flex: 0 0 auto; }
+.icon-sm { width: 16px; height: 16px; flex: 0 0 auto; }
+
+/* ── 12. 반응형 (desktop 기준 화면) ──────────────────────────────── */
+@media (max-width: 1279px) {
+  .danger-row { gap: var(--sp-xl); }
+  .dr-act { flex-basis: 184px; }
+}
+@media (max-width: 899px) {
+  .screen-root { padding: var(--sp-lg) var(--sp-md); }
+  .danger-row { flex-direction: column; gap: var(--sp-lg); }
+  .dr-act { flex: 1 1 auto; padding-left: 0; padding-top: var(--sp-md); border-left: none; border-top: 1px solid var(--n-1); }
+  .danger-row.is-severe .dr-act { border-top-color: var(--e-2); border-left-color: transparent; }
+  .dr-effect-item { flex-direction: column; gap: var(--sp-xs); }
+  .dr-effect-item dt { flex: 0 0 auto; }
+  .admin-alert { flex-wrap: wrap; }
+}

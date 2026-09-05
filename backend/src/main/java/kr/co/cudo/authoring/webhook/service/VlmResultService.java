@@ -37,9 +37,10 @@ import java.util.regex.Pattern;
  * <table border="1">
  *   <caption>창구별 적재 대상</caption>
  *   <tr><th>채널</th><th>창구</th><th>적재</th><th>검수큐</th></tr>
- *   <tr><td>{@code VLM}</td><td>묘사</td><td>{@code vlm.description} 시계열 서술 전문(≤2000)</td><td><b>진입</b></td></tr>
+ *   <tr><td>{@code VLM}</td><td>묘사</td><td>{@code vlm.description} 시계열 서술 전문(≤2000)
+ *       <b>+</b> 이벤트 어노테이션 사고 단계 초안({@link IsolatedTimeseriesDraftApplier})</td><td><b>진입</b></td></tr>
  *   <tr><td>{@code VLM_SUB}</td><td>추가 질문</td><td>이벤트 어노테이션 질의응답 축 초안
- *       ({@link TimeseriesSubResultApplier})</td><td>미진입 — 그 도메인이 소유</td></tr>
+ *       ({@link TimeseriesResultApplier})</td><td>미진입 — 그 도메인이 소유</td></tr>
  *   <tr><td>(레거시) {@code 0-8}·{@code 8-16} …</td><td>구 구간 서술</td><td>기존 행</td><td>기존 유지 — <b>보존</b></td></tr>
  * </table>
  *
@@ -117,8 +118,16 @@ public class VlmResultService {
     /** 검수 완료(APPROVED) 여부 판정용 영상 상태 조회 — 재검수·통지 게이트(R13). */
     private final ReviewApprovalGate approvalGate;
     private final ApplicationEventPublisher eventPublisher;
-    /** 추가 질문 결과의 반영 위임처 — 이벤트 어노테이션 시맨틱은 그 도메인이 소유한다. */
-    private final TimeseriesSubResultApplier subResultApplier;
+    /**
+     * 시계열 분석 결과의 어노테이션 초안 반영 위임처 — 이벤트 어노테이션 시맨틱은 그 도메인이 소유한다.
+     *
+     * <p>이름이 축 중립인 이유는 창구가 둘이기 때문이다. 여기서 직접 부르는 것은 <b>추가 질문 축</b>뿐이며
+     * (콜백 트랜잭션에 합류하는 종전 동작), 묘사 축은 격리 경계
+     * ({@link IsolatedTimeseriesDraftApplier})를 거친다.
+     */
+    private final TimeseriesResultApplier resultApplier;
+    /** 묘사 축 초안 반영 — 실패가 시계열 서술 적재를 되돌리지 않도록 별도 트랜잭션으로 격리한다. */
+    private final IsolatedTimeseriesDraftApplier isolatedDraftApplier;
 
     /**
      * verify 콜백 처리 — 벤더 확정 계약(v2.0.1) 정합.
@@ -191,12 +200,14 @@ public class VlmResultService {
         // 7) 창구별 적재 — 위 4)에서 되짚은 채널로 가른다.
         boolean descriptionChanged;
         if (subChannel) {
-            boolean drafted = subResultApplier.applySubDescription(rawSn, req.results().description());
+            boolean drafted = resultApplier.applySubDescription(rawSn, req.results().description());
             log.info("[Webhook][Vlm] sub result routed to event annotation draft rawSn={} drafted={}",
                     rawSn, drafted);
             descriptionChanged = false;
         } else {
             descriptionChanged = applyResults(rawSn, req.results());
+            // 7-1) 같은 결과로 어노테이션 초안도 채운다 — 주 축 적재 <b>뒤</b>, 마킹 전이 <b>앞</b>.
+            draftFromDescription(rawSn, req.results().description());
         }
 
         // 8) 마킹 상태 VLM_COMPLETED 전이
@@ -271,6 +282,37 @@ public class VlmResultService {
             recheckIfApproved(rawSn, outcome.metaSn());
         }
         return changed;
+    }
+
+    /**
+     * 묘사 결과를 이벤트 어노테이션 <b>초안</b>으로도 넘긴다. [design: SEQ-023] [design: CDIAG-014]
+     *
+     * <h3>부르는 자리 — 주 축 적재 뒤, 마킹 전이 앞</h3>
+     * <p>초안 조달 규칙이 <b>그 영상의 활성 마킹에서 고른 질문</b>을 읽으므로, 마킹을
+     * {@code VLM_COMPLETED} 로 전이시킨 뒤에 부르면 활성 마킹이 사라져 조달이 한 단계 어긋난다.
+     * 순서를 바꾸지 말 것.
+     *
+     * <h3>실패는 여기서 끝난다 — 주 축을 되돌리지 않는다</h3>
+     * <p>초안 하나 때문에 시계열 서술 전문과 멱등 마킹을 잃는 것이 더 나쁘다. 그래서 협력자가 던지는
+     * 예외를 여기서 삼킨다. ⚠ <b>삼키기만으로는 성립하지 않는다</b> — 협력자가 이 트랜잭션에 합류한
+     * 채로 실패하면 스프링이 바깥 트랜잭션을 rollback-only 로 표시해 <b>커밋 시점에 통째로 터진다</b>.
+     * 그 함정을 닫는 것이 {@link IsolatedTimeseriesDraftApplier}(새 트랜잭션)이며, 이 catch 는 그
+     * <b>경계 바깥</b>에 있어야 의미가 있다. 둘은 세트라 한쪽만 되돌리면 격리가 깨진다.
+     *
+     * <p><b>false 반환은 정상</b>이다 — 사람이 이미 손댔거나 승인으로 동결됐거나 「상황」 줄이 없어
+     * 채우지 않은 경우이며, 로그만 남기고 그대로 진행한다.
+     */
+    private void draftFromDescription(Long rawSn, String description) {
+        try {
+            boolean drafted = isolatedDraftApplier.applyDescription(rawSn, description);
+            log.info("[Webhook][Vlm] describe result routed to event annotation draft rawSn={} drafted={}",
+                    rawSn, drafted);
+        } catch (RuntimeException e) {
+            // 초안은 잃되 주 축(시계열 서술·멱등 마킹)은 지킨다. 원인 문자열은 외부 유래 값을 담을 수
+            // 있으므로 타입명만 남긴다(CWE-117).
+            log.warn("[Webhook][Vlm] event annotation draft failed — timeseries description kept rawSn={} cause={}",
+                    rawSn, e.getClass().getSimpleName());
+        }
     }
 
     /**

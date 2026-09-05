@@ -1,0 +1,52 @@
+{
+  "item": {
+    "id": "AC-031",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "일별 작업량 30일 0-채움",
+    "slug": "일별-작업량-30일-0-채움",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "일별 작업량은 항상 정확히 30건이며 날짜는 오름차순이고 마지막 항목이 오늘이다",
+          "작업이 없던 날도 0건으로 채워져 누락되지 않는다",
+          "배정 이력이 없는 승인 영상도 이 집계에 포함된다(작업자 귀속과 무관한 전체 기준)"
+        ],
+        "when": [
+          "전체 구축 현황을 조회한다"
+        ],
+        "given": [
+          "최근 30일 중 일부 날짜에만 검수 완료(APPROVED 전이)가 발생했다",
+          "REVIEWER 로 인증되어 있다"
+        ]
+      },
+      "statement": "전체 구축 현황의 일별 작업량은 항상 30일치가 0건 채움으로 반환되고, 날짜는 오름차순이며 마지막 항목이 오늘이다",
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-006"
+      ],
+      "verification_method": "automated_test",
+      "derived_from_use_cases": [
+        "UC-033"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "전파 확인만 기록한다 — 원천 UC-033 v3 의 변경은 이미지와 프레임 분포 집계에서 폐기 프레임을 빼는 축이고, 이 수용기준의 축은 일별 작업량이 항상 삼십일치로 채워져 오름차순으로 오는가다. 두 축이 겹치지 않아 고칠 내용이 없다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-26T00:41:13.828Z",
+    "created_at": "2026-08-17T00:25:55.780Z"
+  }
+}

@@ -1,7 +1,7 @@
 # 학습 규칙 — LogiCraft 연동
 
 > `rule-injector` 훅(UserPromptSubmit)이 프롬프트에 `logicraft` 또는 각 블록의 키워드 2개 이상이
-> 있으면 요약을 자동 주입한다. **정본 상세는 `.claude/rules/logicraft-integration.md`**.
+> 있으면 요약을 자동 주입한다. **정본 상세는 `docs/rules/logicraft-integration.md`**.
 >
 > ⚠️ 각 블록 첫 200자 안의 `키워드:` 줄이 매칭 근거다(훅의 한글 토크나이저가 어절 단위라
 > 본문 산문만으로는 겹침이 안 찬다). **키워드 줄을 지우거나 200자 밖으로 밀지 말 것.**
@@ -33,7 +33,7 @@
 긴급 장애로 코드가 앞섰다면 그건 예외가 아니라 **빚**이라 같은 작업의 마무리로 ITEM 을 맞춘다 ·
 LogiCraft 로 추적되지 않는 변경(빌드·인프라·설정·테스트 하네스)은 대상 아님(CLAUDE.md 위임 선언·제외 목록 확인).
 
-> 상세: `.claude/rules/logicraft-integration.md` §0.5
+> 상세: `docs/rules/logicraft-integration.md` §0.5
 <!-- LEARNED:4c895a6e END -->
 
 <!-- LEARNED:562303cd START -->
@@ -59,7 +59,7 @@ CLAUDE.md가 실사례로 명시한 바로 그 오타를 세 번 반복) · `곧
 
 도구: `python3 docs/screen-design/klid-authoring-screens/bin/verify-items.py hangul <staging>`
 
-> 상세: `.claude/rules/logicraft-integration.md` §3
+> 상세: `docs/rules/logicraft-integration.md` §3
 <!-- LEARNED:562303cd END -->
 
 <!-- LEARNED:9c473464 START -->
@@ -86,7 +86,7 @@ CLAUDE.md가 실사례로 명시한 바로 그 오타를 세 번 반복) · `곧
    diff** 를 떠서 `replace` opcode 가 하나라도 나오는지 본다 — 나오면 의도한 편집인지 손상인지
    확인하기 전엔 넘어가지 않는다.
 
-> 상세: `.claude/rules/logicraft-integration.md` §2
+> 상세: `docs/rules/logicraft-integration.md` §2
 <!-- LEARNED:9c473464 END -->
 
 <!-- LEARNED:694b8024 START -->
@@ -117,7 +117,7 @@ CLAUDE.md가 실사례로 명시한 바로 그 오타를 세 번 반복) · `곧
 미러 stale 은 **`source_hash`(ITEM `sections` 의 sha256) 대조로 확정**한다 — 시각 비교는 오탐·누락이 난다.
 구조 지표(카드 수·음절 수)는 문자 치환을 못 잡는다 → 정규화 후 문자 단위 비교.
 
-> 상세: `.claude/rules/logicraft-integration.md` §5
+> 상세: `docs/rules/logicraft-integration.md` §5
 <!-- LEARNED:694b8024 END -->
 
 <!-- LEARNED:b1ce214d START -->
@@ -138,7 +138,7 @@ CLAUDE.md가 실사례로 명시한 바로 그 오타를 세 번 반복) · `곧
 오염 2건을 만들었다 — `purpose`에 "기준 구현: {레포명}"을 박는 건 설계서가 스스로 자립 불가를
 선언하는 자기모순이다. 프로세스 문제는 리포트·memory·CLAUDE.md에 적는다.
 
-> 상세: `.claude/rules/logicraft-integration.md` §1 · memory `logicraft-item-body-is-spec-only`
+> 상세: `docs/rules/logicraft-integration.md` §1 · memory `logicraft-item-body-is-spec-only`
 <!-- LEARNED:b1ce214d END -->
 
 <!-- LEARNED:27f13a5a START -->
@@ -166,5 +166,5 @@ CLAUDE.md가 실사례로 명시한 바로 그 오타를 세 번 반복) · `곧
 미러는 `sections: []`·`description: ""` 를 **명시**해야 지워진다(생략하면 남는다) /
 용어 검색 API로 "미등록"을 판정하지 말 것(`limit` 상한·`offset` 없음 → CSV grep으로 판정).
 
-> 상세: `.claude/rules/logicraft-integration.md` §4·§6
+> 상세: `docs/rules/logicraft-integration.md` §4·§6
 <!-- LEARNED:27f13a5a END -->

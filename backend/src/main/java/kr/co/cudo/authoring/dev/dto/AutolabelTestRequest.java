@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Pattern;
 import java.time.Instant;
 
 /**
- * [개발/검수 전용] 영상 업로드 + 선두 비식별 파이프라인 트리거 요청.
+ * [개발/검수 전용] 수동 업로드 + 선두 비식별 파이프라인 트리거 요청.
  *
  * <p>dev 업로드는 운영 시나리오 1:1 고정 플로우다 — 업로드 → 비식별(무조건) → MARKING_READY 정지.
  * 따라서 단계 토글({@code enabledStages})·마킹 직접 수행({@code manualMarking}) 같은 분기 필드는
@@ -23,7 +23,7 @@ import java.time.Instant;
  * <p>{@code durationSec} 는 ffprobe 로 업로드된 영상 파일에서 자동 추출하므로 요청 필드에서 제거되었다
  * (사용자 입력 무시 → 위/변조 차단).
  */
-@Schema(description = "[개발/검수 전용] 영상 업로드 + 선두 비식별 파이프라인 트리거 메타데이터")
+@Schema(description = "수동 업로드 + 선두 비식별 파이프라인 트리거 메타데이터")
 public record AutolabelTestRequest(
         @Schema(description = "VMS 시스템 클립 식별자 (UK). 영문/숫자/-/_ 만 허용",
                 example = "TEST-CLIP-001", requiredMode = Schema.RequiredMode.REQUIRED)

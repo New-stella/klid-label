@@ -166,9 +166,9 @@ class FfmpegFrameExtractorDeidPersistIT {
     /** fps pin 을 담은 마킹 시드 — resolveFps(ffprobe) 재조회를 우회한다. */
     private void seedMarking(Long sn, Path rawVideoPath) {
         txTemplate.executeWithoutResult(s -> {
-            LsMarking marking = LsMarking.createAuto(sn, "EVT", 150, rawVideoPath.toString(),
+            LsMarking marking = LsMarking.createAuto(sn, 150,
                     "[{\"frameIndex\":0,\"timestamp\":\"00:00\"},{\"frameIndex\":150,\"timestamp\":\"00:05\"}]",
-                    1L, 30.0);
+                    "1", 30.0);
             markingRepository.save(marking);
         });
     }

@@ -37,12 +37,14 @@
       "preconditions": [
         "REVIEWER로 인증되어 있다"
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "postconditions": [
         "비식별 옵션이 저장되어 이후 요청에 반영된다"
@@ -61,18 +63,17 @@
       "includes_use_cases": [],
       "tech_considerations": [],
       "covered_by_acceptances": [
-        "AC-013",
-        "AC-078"
+        "AC-1065"
       ]
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "시스템 운영 설정 흐름을 검증하는 인수기준을 이 유스케이스에 연결한다. 인수기준 쪽 파생 출처만으로는 추적이 한 방향에서 끊긴다.",
+    "current_version": 12,
+    "stale": true,
+    "stale_reason": "SCREEN-025의 3개 필드 변경 — references",
+    "change_summary": "수용기준 역참조를 살아 있는 것으로 다시 세운다. 이 목록에 7건이 있었는데 그중 7건이 재번호 라운드에서 폐기된 세분 단정 기준이었고, 그것을 대신하도록 만들어진 흐름 단위 기준 1건(AC-1065)은 도리어 목록에 없었다. 판정은 각 기준이 스스로 선언한 파생 출처를 모아 세웠으므로 두 방향이 어긋나지 않는다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-23T10:08:57.829Z",
+    "last_updated_at": "2026-09-01T08:25:51.824Z",
     "created_at": "2026-06-01T06:26:42.837Z"
   }
 }

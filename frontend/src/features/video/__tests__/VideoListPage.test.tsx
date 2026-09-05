@@ -71,7 +71,8 @@ function mockAssignModalUsers(mock: MockAdapter, workers: unknown[] = []) {
   });
 }
 
-function setRole(role: 'REVIEWER' | 'WORKER') {
+/** `null` 은 역할 미부여 — 토큰 해석기가 실제로 만드는 값이다(인증은 살아 있고 권한만 없다). */
+function setRole(role: 'REVIEWER' | 'WORKER' | null) {
   useAuthStore.setState({
     token: 'fake',
     claims: {
@@ -334,6 +335,28 @@ describe('VideoListPage', () => {
     ).not.toBeInTheDocument();
     // 상세 버튼은 역할 무관 항상 노출
     expect(screen.getByRole('button', { name: /상세/ })).toBeInTheDocument();
+  });
+
+  it('역할_미부여로_접속해도_재배정_버튼이_노출되지_않는다', async () => {
+    // 이 화면은 역할이 없으면 `?? Role.WORKER` 로 작업자를 채웠다. 그 폴백을 걷어냈고
+    // `roleSatisfies` 가 fail-closed 라 결과는 작업자와 같다 — 그 동치를 못 박는다.
+    //
+    // ★픽스처는 **배정된** 영상이다. 미배정 영상으로 두면 재배정 버튼은 역할과 무관하게
+    //   안 나와, 게이트를 열어도 통과하는 공허한 부정 단언이 된다(실제로 그렇게 썼다가
+    //   변이 확인에서 살아남는 것을 보고 고쳤다).
+    setRole(null);
+    mockVideosOnce(mock, { content: [ASSIGNED_VIDEO] });
+
+    renderWithProviders(<VideoListPage />, { initialEntries: ['/video/status'] });
+
+    await waitFor(() => {
+      expect(screen.getByText('강남대로 CCTV')).toBeInTheDocument();
+    });
+    // 대조군 — 배정 정보가 실제로 그려진 행이다(그래서 게이트만 열리면 버튼이 뜬다).
+    expect(screen.getByText('김작업')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '강남대로 CCTV 작업자 재배정' }),
+    ).not.toBeInTheDocument();
   });
 
   it('REVIEWER가_영상을_선택하면_일괄_배정_버튼이_노출되고_누르면_일괄_AssignModal이_열린다', async () => {

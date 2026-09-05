@@ -1,9 +1,9 @@
 package kr.co.cudo.authoring.dataset.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.co.cudo.authoring.dataset.entity.LsDatasetVideoMeta;
-import kr.co.cudo.authoring.dataset.entity.LsMetaReplOutbox;
 import kr.co.cudo.authoring.dataset.repository.LsDatasetVideoMetaRepository;
-import kr.co.cudo.authoring.dataset.repository.LsMetaReplOutboxRepository;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Phase 2 materialize 어댑터 <b>실 DB(PostgreSQL Testcontainer) 통합 테스트</b>.
  *
  * <p>native 소스 조인(LS_DATA_RAW + LS_DATA_META video.* + LS_DATA_INGEST + LS_EVNT_TYPE)의 별칭 매핑·서브쿼리 피벗과
- * deactivate-then-insert + outbox 커밋 전 과정을 실 DB 로 검증한다(단위 테스트가 mock 으로 못 잡는
+ * deactivate-then-insert 전 과정을 실 DB 로 검증한다(단위 테스트가 mock 으로 못 잡는
  * SQL/컬럼 정합을 커버).
  */
 @SpringBootTest
@@ -36,14 +36,14 @@ class DatasetVideoMetaSnapshotServiceIT {
     /** 이벤트유형 마스터의 이벤트명(LS_EVNT_TYPE.EVNT_NM) — 동결 EVNT_NM 이 이 값이어야 한다. */
     private static final String CATEGORY_LABEL = "보행자 감지";
 
+    /** 발신함 payload 대조용 — 값 비교는 바이트가 아니라 JSON 의미 동등으로 한다. */
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Autowired
     private DatasetVideoMetaSnapshotService service;
 
     @Autowired
     private LsDatasetVideoMetaRepository metaRepository;
-
-    @Autowired
-    private LsMetaReplOutboxRepository outboxRepository;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate txTemplate;
@@ -176,8 +176,8 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
-    @DisplayName("검수승인시_event_annotation이_스냅샷으로_동결된다")
-    void materialize_freezesApprovedEventAnnotation() {
+    @DisplayName("검수승인시_event_annotation이_스냅샷으로_동결되고_발신함_payload에도_실린다")
+    void materialize_freezesApprovedEventAnnotation() throws Exception {
         // given — 승인(APPROVED) 상태의 event_annotation
         long rawSn = seedSource();
         seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "APPROVED");
@@ -230,7 +230,7 @@ class DatasetVideoMetaSnapshotServiceIT {
 
     @Test
     @DisplayName("승인안된_event_annotation은_동결되지_않는다_null")
-    void materialize_skipsUnapprovedEventAnnotation() {
+    void materialize_skipsUnapprovedEventAnnotation() throws Exception {
         // given — PENDING(미승인) event_annotation
         long rawSn = seedSource();
         seedEventAnnotation(rawSn, EVENT_ANNO_PAYLOAD, "PENDING");
@@ -266,8 +266,8 @@ class DatasetVideoMetaSnapshotServiceIT {
     }
 
     @Test
-    @DisplayName("승인시_통합메타_동결_적재_및_MNG조인_동결_및_outbox")
-    void materialize_freezesJoinedMetaAndEmitsOutbox() {
+    @DisplayName("승인시_통합메타_동결_적재_및_MNG조인_동결")
+    void materialize_freezesJoinedMeta() {
         // given
         long rawSn = seedSource();
 
@@ -300,13 +300,6 @@ class DatasetVideoMetaSnapshotServiceIT {
         assertThat(m.getSesnCd()).isNull();             // 수동 미입력 → 미상(1월 파생 추정 안 함)
         assertThat(m.getAiCrtYn()).isEqualTo("N");      // orgnlRawSn null
         assertThat(m.getSnpshtHash()).hasSize(64);
-
-        // outbox PENDING 1건 발행(같은 트랜잭션 커밋).
-        List<LsMetaReplOutbox> pending = txTemplate.execute(s ->
-                outboxRepository.findBySttsCdOrderByRegDtAsc(
-                        LsMetaReplOutbox.STATUS_PENDING, PageRequest.of(0, 50)));
-        assertThat(pending).anyMatch(o -> o.getRawSn().equals(rawSn)
-                && o.getSnpshtHash().equals(m.getSnpshtHash()));
     }
 
     @Test
@@ -332,38 +325,6 @@ class DatasetVideoMetaSnapshotServiceIT {
                         + "JOIN LS_DATA_RAW r ON r.EVNT_TYPE_CD = et.EVNT_TYPE_CD WHERE r.RAW_SN = ?",
                 String.class, rawSn);
         assertThat(seededName).isEqualTo(CATEGORY_LABEL);
-    }
-
-    @Test
-    @DisplayName("수정_재승인시_옛_PENDING_outbox_SUPERSEDED_coalescing")
-    void materialize_supersedesPriorPendingOutbox() {
-        // given — 1차 승인으로 outbox O1(H1) PENDING 발행(아직 워커 미처리)
-        long rawSn = seedSource();
-        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
-        String h1 = txTemplate.execute(s ->
-                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0).getSnpshtHash());
-
-        // 소스 변경(해상도) → 다른 해시 H2 유도 후 2차 승인(수정)
-        jdbc.update("UPDATE LS_DATA_META SET META_VL = '1280x720' "
-                + "WHERE RAW_SN = ? AND META_KEY = 'video.resolution'", rawSn);
-        txTemplate.executeWithoutResult(s -> service.materialize(rawSn));
-        String h2 = txTemplate.execute(s ->
-                metaRepository.findByRawSnAndActiveYn(rawSn, LsDatasetVideoMeta.ACTIVE_YES).get(0).getSnpshtHash());
-
-        // then — 해시가 실제로 바뀌었고, rawSn 당 PENDING outbox 는 최신(H2) 1건만, 옛(H1)은 SUPERSEDED
-        assertThat(h2).isNotEqualTo(h1);
-        Integer pending = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'PENDING'",
-                Integer.class, rawSn);
-        Integer superseded = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'SUPERSEDED'",
-                Integer.class, rawSn);
-        assertThat(pending).isEqualTo(1);
-        assertThat(superseded).isEqualTo(1);
-        String pendingHash = jdbc.queryForObject(
-                "SELECT SNPSHT_HASH FROM LS_META_REPL_OUTBOX WHERE RAW_SN = ? AND STTS_CD = 'PENDING'",
-                String.class, rawSn);
-        assertThat(pendingHash).isEqualTo(h2);
     }
 
     @Test

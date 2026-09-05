@@ -6,6 +6,13 @@
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="description" content="AI 학습데이터 저작도구" />
     <title>AI 학습데이터 저작도구</title>
+    <!--
+      런타임 설정 — 번들보다 <먼저> 실행되어야 한다(type="module" 은 defer 라 항상 뒤에 온다).
+      환경마다 다른 값(상위 로그인 주소·개발용 화면 토글 등)은 빌드에 굽지 않고 이 파일로 받는다.
+      대상 서버에서는 설치·반영 스크립트가 /etc/klid/frontend.env 를 읽어 이 파일을 생성한다.
+      해석 규칙의 진실원은 src/lib/runtimeConfig.ts 이며, 값이 없으면 빌드 시점 값으로 떨어진다.
+    -->
+    <script src="/klid-config.js"></script>
   </head>
   <body>
     <div id="root"></div>

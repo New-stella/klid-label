@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-012
 type: screen_spec
-version: 46
-last_updated_at: 2026-08-18T06:43:54.352Z
+version: 49
+last_updated_at: 2026-09-02T08:54:03.125Z
 domain: DOMAIN-015
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-08-21T09:19:02.644Z
-sync_session: 9
+synced_at: 2026-09-05T01:33:12.706Z
+sync_session: 16
 stale: false
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 47
 raw: ./_raw/SCREEN-012.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]", "[[ROLE-002]]"]
   realizes_use_cases: ["[[UC-029]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v47 → v49**
+> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (23.0KB)
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 작업 목록 화면
 
@@ -364,7 +368,7 @@ _(empty)_
 
 #### [2]
 
-- **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(WINTER/NIGHT/RAIN 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다).
+- **note**: 작업자 시각은 본인 배정 작업 목록을, 검수자 시각은 처리 완료 영상 + 배정 정보를 조회한다(API-072/API-073). ★검수자 시각에는 촬영일시 컬럼이 추가되며 헤더 클릭으로 서버 정렬 토글이 가능하다(작업자 배정 목록에는 값이 없어 컬럼 자체가 노출되지 않는다). 이벤트 컬럼 아래, 증강·해상도 변경으로 파생된 영상에 한해 파생 유형 배지(증강 축 단일값(AUGMENT) 또는 해상도 프리셋)가 추가로 표시된다(원본 영상에는 표시되지 않는다). 이미 만들어진 파생본에 남아 있는 WINTER/NIGHT/RAIN 값도 배지에 그대로 표시된다.
 - **type**: Table
 - **label**: 선택/영상명/영상 ID/촬영일시/이벤트/상태/작업자/검수자/액션
 
@@ -812,6 +816,10 @@ web
 - API-116
 - API-187
 
+## attached_files
+
+_(empty)_
+
 ## implementation
 
 ### status
@@ -824,13 +832,21 @@ _(empty)_
 
 ### records
 
-_(empty)_
+- IMPREC-333
 
 ### progress
 
 100
 
 ### subtasks
+
+_(empty)_
+
+### last_updated
+
+2026-08-29T01:25:13.851Z
+
+### module_paths
 
 _(empty)_
 
@@ -853,8 +869,8 @@ _(empty)_
 _(empty)_
 
 - **description**: 
-- **source_hash**: a9f41819b27545a12bdb91faddd79aafcb1d5f2011722629336112497e2357f6
-- **generated_at**: 2026-08-18T03:34:49.517Z
+- **source_hash**: b95cdb3e416d39478e2d47c79d69aa8cfe66f4a4c396e5c1877839b6a7b05137
+- **generated_at**: 2026-09-02T08:54:03.125Z
 - **generated_by**: generate-wireframes.py
 
 **triggered_by**:
@@ -862,6 +878,10 @@ _(empty)_
 _(empty)_
 
 ## uses_constants
+
+_(empty)_
+
+## uses_components
 
 _(empty)_
 

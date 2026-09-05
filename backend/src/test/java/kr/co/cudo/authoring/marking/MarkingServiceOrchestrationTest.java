@@ -14,10 +14,13 @@ import kr.co.cudo.authoring.marking.dto.MarkingResponse;
 import kr.co.cudo.authoring.marking.entity.LsMarking;
 import kr.co.cudo.authoring.marking.repository.LsMarkingRepository;
 import kr.co.cudo.authoring.marking.service.MarkingPrecheckReader;
+import kr.co.cudo.authoring.marking.service.MarkingChannel;
 import kr.co.cudo.authoring.marking.service.MarkingService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
 import kr.co.cudo.authoring.video.service.VideoDurationResolver;
+import kr.co.cudo.authoring.sysconfig.service.VerificationEventQuestionResolver;
+import kr.co.cudo.authoring.video.repository.IngestSourceRepository;
 import kr.co.cudo.authoring.video.service.VideoFpsResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -77,6 +81,16 @@ class MarkingServiceOrchestrationTest {
 
     @Mock
     private VideoFpsResolver fpsResolver;
+
+    /**
+     * 검증 이벤트 유형 조달처 — 스텁하지 않으면 {@code null} 행을 돌려주므로 유형 미수신 경로가 되고,
+     * 그 경로에서 마킹은 <b>질문 없이 그대로 저장</b>된다(질문 부재는 거부 사유가 아니다).
+     */
+    @Mock
+    private IngestSourceRepository ingestSourceRepository;
+
+    @Mock
+    private VerificationEventQuestionResolver questionResolver;
 
     @Mock
     private MarkingPrecheckReader precheckReader;
@@ -121,7 +135,7 @@ class MarkingServiceOrchestrationTest {
         Long rawSn = 1L;
         TokenClaims actor = worker();
         doThrow(new CustomException(ErrorCode.FORBIDDEN, "본인에게 배정된 영상의 마킹만 접근할 수 있습니다."))
-                .when(precheckReader).precheck(rawSn, actor);
+                .when(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then — 403, 그리고 ffprobe(리졸버)는 한 번도 호출되지 않는다(리소스 소모 표면 제거).
@@ -140,7 +154,7 @@ class MarkingServiceOrchestrationTest {
         Long rawSn = 2L;
         TokenClaims actor = reviewer();
         doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "비식별이 완료된 영상에서만 마킹할 수 있습니다."))
-                .when(precheckReader).precheck(rawSn, actor);
+                .when(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
@@ -158,7 +172,7 @@ class MarkingServiceOrchestrationTest {
         Long rawSn = 3L;
         TokenClaims actor = reviewer();
         doThrow(new CustomException(ErrorCode.PRECONDITION_FAILED, "이미 처리된 영상은 재마킹할 수 없습니다."))
-                .when(precheckReader).precheck(rawSn, actor);
+                .when(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         MarkingRequest req = new MarkingRequest("AUTO", 300, null);
 
         // when / then
@@ -177,7 +191,7 @@ class MarkingServiceOrchestrationTest {
         // given — 사전확인 통과 → 프로브가 60초 해석 → persist 성공
         Long rawSn = 4L;
         TokenClaims actor = reviewer();
-        doNothing().when(precheckReader).precheck(rawSn, actor);
+        doNothing().when(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         when(durationResolver.resolveDurationSec(rawSn)).thenReturn(60);
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(readyRaw(rawSn, 60)));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -187,7 +201,7 @@ class MarkingServiceOrchestrationTest {
         MarkingResponse result = markingService.create(rawSn, req, actor);
 
         // then — 프로브 호출 + 마킹 생성. 순서: precheck → resolveDurationSec → save.
-        verify(precheckReader).precheck(rawSn, actor);
+        verify(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         verify(durationResolver).resolveDurationSec(rawSn);
         assertThat(result.markingMode()).isEqualTo("AUTO");
         verify(markingRepository).save(any(LsMarking.class));
@@ -199,7 +213,7 @@ class MarkingServiceOrchestrationTest {
         // given — 사전확인 통과. persist 의 방어적 인가 재확인을 위해 배정 stub(defense-in-depth).
         Long rawSn = 5L;
         TokenClaims actor = worker();
-        doNothing().when(precheckReader).precheck(rawSn, actor);
+        doNothing().when(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         when(durationResolver.resolveDurationSec(rawSn)).thenReturn(30);
         when(assignmentRepository.existsByUserNoAndTaskTypeCdAndRawDataId(100L, LsTaskAssignment.TASK_LABELER, rawSn))
                 .thenReturn(true);
@@ -222,7 +236,7 @@ class MarkingServiceOrchestrationTest {
         // given — MANUAL 은 duration 불필요 → 프로브 미호출
         Long rawSn = 6L;
         TokenClaims actor = reviewer();
-        doNothing().when(precheckReader).precheck(rawSn, actor);
+        doNothing().when(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         when(videoRepository.findById(rawSn)).thenReturn(Optional.of(readyRaw(rawSn, 60)));
         when(markingRepository.save(any(LsMarking.class))).thenAnswer(inv -> inv.getArgument(0));
         MarkingRequest req = new MarkingRequest("MANUAL", null, List.of(new MarkItem(0, "00:00")));
@@ -231,7 +245,7 @@ class MarkingServiceOrchestrationTest {
         MarkingResponse result = markingService.create(rawSn, req, actor);
 
         // then — 사전확인은 하되 프로브는 트리거하지 않는다.
-        verify(precheckReader).precheck(rawSn, actor);
+        verify(precheckReader).precheck(eq(rawSn), eq(actor), any(MarkingChannel.class));
         verify(durationResolver, never()).resolveDurationSec(any());
         assertThat(result.markingMode()).isEqualTo("MANUAL");
     }

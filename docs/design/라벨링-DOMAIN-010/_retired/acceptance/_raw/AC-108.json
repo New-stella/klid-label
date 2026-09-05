@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "AC-108",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "이벤트를 고르지 않은 프리셋은 만들 수 없다",
+    "slug": "이벤트를-고르지-않은-프리셋은-만들-수-없다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "이벤트에 걸리지 않은 프리셋은 어느 영상에도 매칭되지 않아 오토라벨에 아무 기여를 하지 않는다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "저장이 거부되고 이벤트를 골라야 한다는 안내를 받는다",
+          "이벤트가 비어 있는 프리셋은 만들어지지 않는다"
+        ],
+        "when": [
+          "대상 이벤트유형을 고르지 않고 저장한다"
+        ],
+        "given": [
+          "검수자가 프리셋을 만들려 한다"
+        ]
+      },
+      "statement": "대상 이벤트유형을 지정하지 않은 프리셋 저장 요청은 거부된다.",
+      "is_negative": true,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T07:48:59.299Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 2,
+    "stale": true,
+    "stale_reason": "UC-032의 5개 필드 변경 — derived_from",
+    "change_summary": "이벤트 미지정 저장 거부 — DTO NotBlank + 서비스 400 두 겹, 회귀 시험 작성(미실행)",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-25T07:48:59.299Z",
+    "created_at": "2026-08-25T07:23:02.658Z"
+  }
+}

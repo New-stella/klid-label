@@ -1,0 +1,48 @@
+# OVERRIDES.tsv — 스캐너가 못 얻은 라이선스 값을 사람이 채우는 곳
+#
+#   ★★ 이 파일이 <자동과 수동의 경계>다.
+#     수집 스크립트는 반입물 안에 실제로 있는 것만 읽는다. 거기 없는 것은 <지어내지 않고>
+#     UNRESOLVED/TEXT_MISSING 으로 남긴다. 그것을 메우는 유일한 자리가 여기다.
+#
+#   ⚠ 생성 산출물(licenses/INVENTORY.md · UNRESOLVED.md · NOTICE)을 손으로 고치지 마라.
+#     다음 수집에서 조용히 사라진다. 반드시 이 파일을 고치고
+#     `bash scripts/package/70-generate-notices.sh` 를 다시 돌린다.
+#
+#   컬럼(탭 구분): group <TAB> component <TAB> license <TAB> notice_source <TAB> status
+#     · group / component 는 INVENTORY.tsv 의 1·2열과 <정확히> 같아야 매칭된다.
+#     · 빈 값 컬럼은 덮어쓰지 않는다(원래 값 유지).
+#     · status 는 OK | TEXT_MISSING | UNRESOLVED 중 하나.
+#     · notice_source 를 MANUAL 로 적을 때는 라이선스 전문을
+#       licenses/manual/texts/<이름>.txt 에 <전문 그대로> 함께 넣어라.
+#       요약·발췌는 이행이 아니다.
+#
+#   ⚠ 값을 추정해서 넣지 마라. 근거는 ①패키지 배포처의 라이선스 표기 ②소스 저장소의
+#     LICENSE 파일 ③배포자 회신 중 하나여야 하며, 근거를 note 로 남길 수 없으므로
+#     확인 경위는 LGPL-SOURCE-OFFER.md 나 커밋 메시지에 적는다.
+#
+# group	component	license	notice_source	status
+#
+# ---- 예시 (실제 항목이 아니다 — 그대로 두면 매칭되지 않는다) ----
+# frontend	victory-vendor	MIT AND ISC	MANUAL	OK
+
+# ============================================================================
+# 2026-08-30 — 반출 전 미해석 8건 해소
+#   근거: 각 항목의 라이선스 전문을 licenses/manual/texts/ 에 <전문 그대로> 넣었고,
+#         그 파일 머리말에 출처(URL·조회일·SHA256) 또는 "반입물 어디에서 꺼냈는지"를 적었다.
+#   ⚠ license 값은 <원 표기 그대로> 둔다(빈 칸이면 덮어쓰지 않는다). SPDX 로 임의 정규화하면
+#     배포자가 실제로 쓴 표기와 갈린다.
+# ----------------------------------------------------------------------------
+# 전문이 <매체 안에> 있었는데 스캐너가 못 본 것 (사각 — 각 텍스트 파일 머리말에 사유 기록)
+#   onnxruntime : 라이선스가 dist-info 가 아니라 패키지 디렉터리에 있다
+#   iopath      : sdist 는 열어 보지 않는다
+#   sam2-hiera-tiny : HF 캐시에는 라이선스 파일이 내려오지 않는다(모델 카드 머리말이 선언)
+python-packages	onnxruntime		MANUAL	OK
+python-packages	iopath-0.1.10	MIT	MANUAL	OK
+python-packages	facebook/sam2-hiera-tiny (HF 모델 캐시)	Apache-2.0	MANUAL	OK
+# ----------------------------------------------------------------------------
+# 전문이 반입물에 <없어> 상류에서 받아 온 것 (URL·조회일은 텍스트 파일 머리말에 기록)
+python-packages	flatbuffers		MANUAL	OK
+python-packages	antlr4-python3-runtime-4.9.3	BSD-3-Clause	MANUAL	OK
+python-packages	yolox_s.onnx (모델 가중치)		MANUAL	OK
+frontend	victory-vendor		MANUAL	OK
+frontend	react-remove-scroll-bar		MANUAL	OK

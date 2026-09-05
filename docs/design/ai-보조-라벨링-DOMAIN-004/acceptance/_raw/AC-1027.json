@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-1027",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "UC-005 밀착 실패 — 외곽 인식 실패 수동 전환·추론 실패 502·시드 유지 (negative)",
+    "slug": "uc-005-밀착-실패-외곽-인식-실패-수동-전환추론-실패-502시드-유지-negative",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "evidence": [
+        {
+          "type": "document",
+          "result": "pass",
+          "reference": "화면 시나리오 — [라벨링 /label/{id}] 1) 외곽 인식 실패/추론 실패 · 기대: 수동 폴리곤 전환, 추론 실패 502·기존 시드 유지",
+          "captured_at": "2026-08-31T03:00:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-31T03:00:00Z",
+        "duration_ms": 0
+      },
+      "priority": "medium",
+      "scenario": {
+        "then": [
+          "밀착 결과가 비면 수동 폴리곤 전환으로 작업한다",
+          "추론 실패는 502로 안내하고 기존 시드를 유지한다"
+        ],
+        "when": [
+          "밀착을 요청한다"
+        ],
+        "given": [
+          "외곽 인식이 실패하거나 추론 호출이 재시도 후 실패한다"
+        ]
+      },
+      "statement": "밀착 결과가 비어 있으면 사용자가 수동 폴리곤으로 전환해 작업하고, 추론 호출이 재시도 후 실패하면 502로 안내하며 기존 시드를 유지한다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "is_negative": true,
+      "attached_files": [],
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-31T14:39:45.065Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-004"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-005"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "코드 대조로 충족을 확인해 구현 완료로 올린다 — 그 단언을 구현하는 코드와 그것을 고정하는 시험을 각각 찾아 근거로 삼았다(2026-08-31 수용기준 전수 판정). 수용기준 전면 재번호로 신규 기준이 전부 0%에서 시작했던 것을 실제 상태에 맞춘 것이며, 추정이 아니라 열어서 확인한 것만 반영했다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-31T14:39:45.065Z",
+    "created_at": "2026-08-31T02:13:43.329Z"
+  }
+}

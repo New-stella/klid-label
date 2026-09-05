@@ -1,0 +1,42 @@
+================================================================================
+iopath 0.1.10 — MIT
+================================================================================
+
+[이 파일의 출처]
+
+  ★ 외부에서 받지 않았다 — <반입물 자신>에서 꺼냈다.
+     꺼낸 곳 : vendor/wheels/iopath-0.1.10.tar.gz
+               아카이브 내부 경로 `iopath-0.1.10/LICENSE`
+     sdist SHA256   : 3311c16a4d9137223e20f141655759933e1eda24f8bff166af834af3c645ef01
+     LICENSE SHA256 : 52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85
+
+  ⚠ 자동 수집이 놓친 이유(사각 — 기록으로 남긴다): 고지 수집기는 wheel 만 열어 보고
+    sdist(.tar.gz)는 "내부 구조가 제각각이라 일반화할 수 없다"는 이유로 이름·버전만
+    인벤토리에 남긴다. 그래서 전문이 매체 안에 있는데도 UNRESOLVED 로 남았다.
+
+--------------------------------------------------------------------------------
+MIT License
+--------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) Facebook, Inc. and its affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+

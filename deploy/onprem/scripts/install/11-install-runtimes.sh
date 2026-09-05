@@ -1,13 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # ============================================================================
-# 11-install-runtimes.sh — [대상 서버 / Rocky Linux 9] 번들 런타임 설치
-#   JRE/Python + ffmpeg 정적 바이너리 + 시스템 RPM(opencv 런타임 의존)
+# 11-install-runtimes.sh — [대상 서버 B / ai 역할] 번들 런타임 설치
+#   Python + 시스템 RPM(opencv 런타임 의존)
+#
+#   ★★ 역할 = ai 전용이다 (2026-08-30 서버 2대 분리). 여기서 설치하는 것은 전부
+#     ai-server 가 쓰는 것이다 — 번들 파이썬과 opencv 런타임 의존(libGL/glib2).
+#     app 역할(프론트+백엔드) 서버에서는 이 단계가 통째로 skip 된다.
 #   ★ 웹 서버(httpd)는 여기서 다루지 않는다 — 14-install-frontend.sh 가 RPM 으로 설치한다.
 #
-#   타깃 OS = Rocky Linux 9 (RHEL 9 계열, x86_64, glibc 2.34, dnf/rpm).
-#     - ffmpeg/ffprobe : syspkgs/ffmpeg/ 의 정적 tarball 을 /opt/klid/runtime/ffmpeg 로 설치.
-#     - RPM(mesa-libGL 등) : syspkgs/rpm/*.rpm 오프라인 설치(dnf 우선, rpm 폴백).
+#   ★★ ffmpeg 는 여기서 설치하지 않는다 (2026-08-30 사용자 확정, 구속).
+#     ffmpeg·ffprobe 는 <서버 A 의 전제조건>이며 관제지원시스템 팀이 설치한다. 이 장비는
+#     관제와 공동 배치라 우리가 자동으로 깔면 관제 설치본을 덮어쓸 수 있다.
+#     · 부재 검증 : 19-verify-ffmpeg.sh (app 역할, 마지막 단계 — 없으면 die)
+#     · 수동 설치 : install-ffmpeg.sh   (사람이 명시적으로 부를 때만)
+#     ⚠ 구 동작 폐기(2026-08-30) — "syspkgs/ffmpeg 로컬 저장소에서 ffmpeg 를 자동 설치하고
+#       설치 여부를 warn 으로만 알린다". 되살리지 말 것(자동 설치가 관제를 깬다).
+#   ★ 자바 런타임은 여기서 설치하지 않는다(2026-08-30 전환) — 백엔드는 <외부 WAS 에 WAR 반입>
+#     형상이고(@design DEPLOY-001), 대상 장비의 WAS(JBoss EAP 8.1)가 이미 Java 17 로 돌고 있다.
+#     ⚠ 구 동작 폐기(2026-08-30) — "runtimes/jdk 의 Temurin JRE tarball 을 /opt/klid/runtime/jre
+#       로 풀고 runtime.env 에 KLID_JAVA 를 기록한다".
+#     ⚠ Python 은 ai-server 전용이라 그대로 설치한다 — 함께 걷어내지 말 것.
+#
+#   타깃 OS = 레드햇 엔터프라이즈 리눅스 8.9 (RHEL 8 계열, x86_64, glibc 2.28, dnf/rpm).
+#   ⚠ 구 서술 폐기(2026-08-28) — "Rocky Linux 9 (RHEL 9 계열, glibc 2.34)".
+#     - RPM(mesa-libGL 등) : syspkgs/rpm/*.rpm 오프라인 설치(로컬 yum 저장소 방식).
 #
 #   외부 네트워크 호출 없음. 모든 산출물은 runtimes/, syspkgs/ 번들에서 사용.
 # ============================================================================
@@ -34,9 +51,20 @@ verify_first_tarball() {
 }
 
 : "${KLID_PREFIX:?install.sh 에서 호출되어야 합니다}"
+
+# ---- 역할 게이트 ----
+#   ai 역할에서만 돈다. app 서버에는 파이썬도 opencv 의존도 필요 없다.
+#   ⚠ 역할 미지정(KLID_ROLE=all)이면 종전대로 실행된다 — 단일 서버 설치 하위호환.
+if ! klid_role_has ai; then
+  info "[runtime] 역할이 ai 가 아니므로 런타임 설치를 건너뜁니다(KLID_ROLE=${KLID_ROLE:-all})."
+  info "          app 서버는 파이썬·opencv 런타임 의존을 쓰지 않습니다."
+  info "          (httpd 는 14-install-frontend.sh 가, ffmpeg 는 관제가 설치합니다)"
+  exit 0
+fi
+
 ONPREM="$(onprem_root)"
 RT="${KLID_PREFIX}/runtime"
-ensure_dir "${RT}/jre" "${RT}/python" "${RT}/ffmpeg/bin"
+ensure_dir "${RT}/python"
 
 # extract_single <src_dir> <dest_dir> — src_dir 의 단일 tar.gz 를 dest 로 풀고
 #                                       최상위 1단계 디렉토리를 평탄화
@@ -60,12 +88,9 @@ extract_tar_flatten() {
   rm -rf "${tmp}"
 }
 
-# ---- JRE ----
-info "[runtime] JRE 설치 → ${RT}/jre"
-verify_first_tarball "${ONPREM}/runtimes/jdk" sha256 "${TEMURIN_JRE_SHA256:-}" "Temurin JRE ${TEMURIN_JRE_VERSION}"
-extract_tar_flatten "${ONPREM}/runtimes/jdk" "${RT}/jre"
-[[ -x "${RT}/jre/bin/java" ]] || die "JRE 설치 실패: ${RT}/jre/bin/java 없음"
-ok "[runtime] java: $("${RT}/jre/bin/java" -version 2>&1 | head -n1)"
+# ---- 자바 런타임: 설치하지 않는다(WAS 가 제공) ----
+#   백엔드는 api.war 로 외부 WAS 에 반입된다. 자바는 그 WAS 의 것을 쓴다.
+info "[runtime] 자바 런타임은 설치하지 않습니다 — 백엔드는 외부 WAS(Java 17)에 WAR 로 반입됩니다."
 
 # ---- Python (standalone) ----
 info "[runtime] Python 설치 → ${RT}/python"
@@ -79,69 +104,36 @@ done
 ok "[runtime] python: $("${PYBIN}" --version 2>&1)"
 
 
-# ---- ffmpeg/ffprobe (정적 바이너리) ----
-# Rocky 9 base/AppStream 에 ffmpeg 가 없으므로 정적 바이너리를 번들·배치한다.
-# BtbN linux64-lgpl tarball(LGPL — 지방정부 납품 GPL 회피, 디코드 전용으로 충분)은 .tar.xz 이며
-# 내부 bin/ 에 ffmpeg·ffprobe 가 있다.
-info "[runtime] ffmpeg 설치 → ${RT}/ffmpeg"
-shopt -s nullglob
-ff_tars=("${ONPREM}/syspkgs/ffmpeg"/*.tar.xz "${ONPREM}/syspkgs/ffmpeg"/*.tar.gz)
-shopt -u nullglob
-if [[ "${#ff_tars[@]}" -ge 1 ]]; then
-  # 공식 SHA256 으로 무결성 검증(fail-closed; 미검증이면 강한 warn 후 진행).
-  verify_file_sha256 "${ff_tars[0]}" "${FFMPEG_STATIC_SHA256:-}" "ffmpeg static ${FFMPEG_STATIC_VERSION:-}"
-  ff_tmp="$(mktemp -d)"
-  trap 'rm -rf "${ff_tmp:-}"' EXIT
-  case "${ff_tars[0]}" in
-    *.tar.xz) tar -xJf "${ff_tars[0]}" -C "${ff_tmp}" ;;
-    *)        tar -xzf "${ff_tars[0]}" -C "${ff_tmp}" ;;
-  esac
-  # tarball 어디에 있든 ffmpeg/ffprobe 실행 파일을 찾아 배치(보통 <root>/bin/).
-  ff_bin="$(find "${ff_tmp}" -type f -name ffmpeg  | head -n1)"
-  fp_bin="$(find "${ff_tmp}" -type f -name ffprobe | head -n1)"
-  [[ -n "${ff_bin}" && -n "${fp_bin}" ]] || die "ffmpeg/ffprobe 바이너리를 tarball 에서 찾지 못했습니다: ${ff_tars[0]}"
-  install -m 0755 "${ff_bin}" "${RT}/ffmpeg/bin/ffmpeg"
-  install -m 0755 "${fp_bin}" "${RT}/ffmpeg/bin/ffprobe"
-  rm -rf "${ff_tmp}"; trap - EXIT
-  ok "[runtime] ffmpeg: $("${RT}/ffmpeg/bin/ffmpeg" -version 2>&1 | head -n1)"
-else
-  warn "[runtime] 번들된 ffmpeg 정적 바이너리 없음(syspkgs/ffmpeg/*.tar.xz)."
-  warn "          backend FFmpegStep(프레임추출·duration) 가 실패할 수 있습니다."
-  warn "          빌드머신에서 50-collect-syspkgs.sh 를 다시 실행해 수집하세요."
-fi
+# ---- 시스템 RPM 오프라인 설치 (opencv 런타임 의존) ----
+#   syspkgs/rpm/ : mesa-libGL·libglvnd-glx·glib2·httpd·policycoreutils-python-utils + 전이 의존 전량
+#
+#   ★ 이 디렉토리는 <로컬 yum 저장소>(repodata 포함)로 반입된다. RPM 파일을 dnf 에 직접
+#     넘기지 않는 이유는 common.sh 의 klid_dnf_install_from_bundle 주석 참조 —
+#     요약하면 --alldeps 로 받은 기반 패키지(glibc 등)가 이미 설치된 버전과 충돌해
+#     <설치가 통째로 실패>하기 때문이다. 저장소로 주면 dnf 가 필요한 것만 고른다.
+#   ⚠ 구 방식 폐기(2026-08-30): `dnf install -y --disablerepo='*' <RPM 파일 목록>`.
+#
+#   ★ mesa-libGL·libglvnd-glx 를 빼지 말 것 — opencv 를 headless 판으로 내려 이 의존을
+#     없애려는 시도는 실패한다. supervision·trackers 가 opencv-python(GUI 판)을 직접
+#     의존해 되끌어오고, 그 판이 libGL.so.1 을 찾는다(2026-08-30 실측).
 
-# ---- 시스템 RPM(opencv 런타임 의존: mesa-libGL/libglvnd-glx/glib2) 오프라인 설치 ----
-shopt -s nullglob
-rpms=("${ONPREM}/syspkgs/rpm"/*.rpm)
-shopt -u nullglob
-if [[ "${#rpms[@]}" -ge 1 ]]; then
-  if command -v dnf >/dev/null 2>&1; then
-    info "[runtime] 시스템 RPM 오프라인 설치(dnf): ${#rpms[@]} 개"
-    # --disablerepo='*' 로 외부 네트워크 미접근. 의존성은 번들된 RPM 들로 로컬 해소.
-    # --setopt=gpgcheck=0: 무결성은 번들 SHA256SUMS 로 이미 검증 — repo/GPG 메타가 부재한
-    #   최소 Rocky 9 폐쇄망 이미지에서 GPG 키 부재로 dnf install 이 실패하지 않도록 비활성.
-    # 폴백 rpm -Uvh 에는 --nodeps 를 쓰지 않는다(의존성 깨짐 위험 — 번들 RPM 로 의존 해소 기대).
-    dnf install -y --disablerepo='*' --setopt=gpgcheck=0 "${rpms[@]}" \
-      || rpm -Uvh --replacepkgs "${rpms[@]}" \
-      || warn "[runtime] RPM 설치 일부 미해결 — 06-troubleshooting.md 참고"
-  elif command -v rpm >/dev/null 2>&1; then
-    info "[runtime] 시스템 RPM 오프라인 설치(rpm): ${#rpms[@]} 개"
-    # 이미 설치돼 있어도 무해하도록 --replacepkgs. 멱등.
-    rpm -Uvh --replacepkgs "${rpms[@]}" \
-      || warn "[runtime] rpm -Uvh 일부 미해결 — 06-troubleshooting.md 참고"
-  else
-    warn "[runtime] dnf/rpm 없음 — RPM 설치 생략. mesa-libGL/glib2 를 수동 설치하세요."
-  fi
-else
-  warn "[runtime] 번들된 RPM 없음 — 대상 OS 에 mesa-libGL/libglvnd-glx/glib2 가 이미 설치돼"
-  warn "          있어야 합니다(없으면 ai-server opencv import: libGL.so.1 가 실패)."
-fi
+# 폐쇄망 타깃에는 배포판 공개키가 없을 수 있다 — 번들 키를 먼저 등록한다.
+klid_import_rpm_gpg_keys "${ONPREM}/syspkgs/gpg" || true
+
+info "[runtime] 시스템 RPM 오프라인 설치(syspkgs/rpm 로컬 저장소)"
+klid_dnf_install_from_bundle syspkgs "${ONPREM}/syspkgs/rpm" mesa-libGL libglvnd-glx glib2 \
+  || warn "[runtime] 시스템 RPM 설치 일부 미해결 — 06-troubleshooting.md 참고"
+# ★ httpd·policycoreutils-python-utils 는 14-install-frontend.sh 가 같은 저장소에서 설치한다
+#   (웹 서버 설정과 SELinux 문맥 부여를 그쪽이 함께 다루므로 설치 시점을 맞춘다).
+#   그래서 syspkgs/rpm 은 <서버 2대 모두>에 필요하다 — 여기서 앞 3개, 14 에서 뒤 2개를 쓴다.
 
 # 런타임 위치 기록(다음 스크립트가 참조)
+#   ⚠ KLID_JAVA 는 더 이상 기록하지 않는다(2026-08-30) — 자바는 WAS 소유다.
+#     소비처는 13-install-ai-server.sh 하나이며 KLID_PYTHON 만 읽는다.
+#   ⚠ KLID_FFMPEG/KLID_FFPROBE 도 기록하지 않는다(2026-08-30) — 이 단계는 ai 역할 전용이고
+#     ffmpeg 는 app 서버 축이다. 읽는 곳이 0건이었고, ai 서버에 남기면 "여기에도 ffmpeg 가
+#     있다"는 잘못된 신호가 된다. backend 가 쓰는 값은 /etc/klid 설정이 단일 출처다.
 {
-  echo "KLID_JAVA=${RT}/jre/bin/java"
   echo "KLID_PYTHON=${PYBIN}"
-  echo "KLID_FFMPEG=${RT}/ffmpeg/bin/ffmpeg"
-  echo "KLID_FFPROBE=${RT}/ffmpeg/bin/ffprobe"
 } > "${KLID_PREFIX}/runtime/runtime.env"
 ok "[runtime] 런타임 경로 기록: ${KLID_PREFIX}/runtime/runtime.env"

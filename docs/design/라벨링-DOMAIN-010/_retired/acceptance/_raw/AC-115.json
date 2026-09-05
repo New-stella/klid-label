@@ -1,0 +1,71 @@
+{
+  "item": {
+    "id": "AC-115",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "실효 프리셋을 등록하면 보류분이 재개되고 재촉발은 멱등이다",
+    "slug": "실효-프리셋을-등록하면-보류분이-재개되고-재촉발은-멱등이다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "보류된 오토라벨 묶음이 재개된다",
+          "라벨이 저장된다",
+          "같은 영상을 다시 촉발해도 중복 적재되지 않는다",
+          "이미 배치가 완료로 마감된 영상은 재개 대상이 아니다"
+        ],
+        "when": [
+          "그 이벤트 유형에 AI 검출 클래스가 매핑된 라벨을 담은 프리셋을 등록한다"
+        ],
+        "given": [
+          "그 이벤트 유형의 영상이 오토라벨 보류 상태다"
+        ]
+      },
+      "statement": "보류된 이벤트 유형에 실효 프리셋을 등록하면 그 영상의 오토라벨 묶음이 재개되어 라벨이 저장되고, 이미 재개된 영상을 다시 촉발해도 중복 적재되지 않는다. 재개는 이미 완주한 영상을 다시 돌리지 않는다 — 「이제 실효하다」는 조건은 한 번 참이 되면 계속 참이라, 그 조건만으로는 프리셋을 저장할 때마다 완주한 영상까지 통째로 다시 추론하게 된다.",
+      "brownfield": {
+        "status": "new"
+      },
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-192"
+        ],
+        "progress": 100,
+        "subtasks": [
+          {
+            "done": true,
+            "description": "보류분 재개 러너와 완주 영상 제외 판정"
+          },
+          {
+            "done": true,
+            "description": "프리셋 등록·수정 시 재개 트리거 발행(삭제는 미발행)"
+          },
+          {
+            "done": true,
+            "description": "프리셋 저장 커밋 → 커밋 후 리스너 → 재개 러너 → 오토라벨 묶음 재진입 사슬의 자동 시험(재촉발 멱등·제외 선언 미재개 포함). 재진입 이후의 추론·라벨 적재는 이 시험 범위 밖이다"
+          }
+        ],
+        "last_updated": "2026-08-29T01:18:01.121Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-032"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "재개 사슬 전 구간을 잇는 자동 시험이 생겨 검증 공백을 닫았다",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-29T01:18:01.121Z",
+    "created_at": "2026-08-25T10:32:49.154Z"
+  }
+}

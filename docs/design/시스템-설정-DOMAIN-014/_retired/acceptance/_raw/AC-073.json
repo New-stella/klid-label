@@ -1,0 +1,77 @@
+{
+  "item": {
+    "id": "AC-073",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "유효창의 길이는 서버가 정하며 상한을 넘지 못한다",
+    "slug": "유효창의-길이는-서버가-정하며-상한을-넘지-못한다",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "notes": "유효 시간을 요청하는 쪽이 정하게 하면 임의로 긴 창을 열 수 있다. 잘못 설정된 값에서 창이 무한정 열리거나 즉시 닫히지 않도록 판정을 서버가 갖는다.",
+      "evidence": [
+        {
+          "type": "test_case",
+          "result": "pass",
+          "reference": "AdminSessionTokenServiceTest",
+          "captured_at": "2026-08-24T03:11:00Z"
+        },
+        {
+          "type": "test_run",
+          "result": "pass",
+          "reference": "66f33cbe-116d-4768-8dc2-eb914e9d1fe0",
+          "captured_at": "2026-08-24T03:11:00Z"
+        }
+      ],
+      "last_run": {
+        "passed": true,
+        "run_at": "2026-08-24T03:11:00Z"
+      },
+      "priority": "high",
+      "scenario": {
+        "then": [
+          "유효 시간은 상한으로 제한된다",
+          "설정이 0 이하였다면 기본값으로 열린다"
+        ],
+        "when": [
+          "관리자 유효창을 연다"
+        ],
+        "given": [
+          "관리자 유효창의 유효 시간이 상한을 넘는 값으로 설정돼 있다"
+        ]
+      },
+      "statement": "관리자 유효창의 유효 시간은 서버 설정이 정하고, 설정이 상한을 넘는 값이면 상한으로 제한되며 0 이하이면 기본값으로 되돌아간다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-073"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-25T01:21:25.375Z",
+        "module_paths": [
+          "backend/src/main/java/kr/co/cudo/authoring/auth/service/AdminSessionTokenService.java"
+        ]
+      },
+      "derived_domain_ids": [
+        "DOMAIN-014"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "passing",
+      "derived_from_use_cases": [
+        "UC-031"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 5,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "본문 변경 없음 — 확인 내역을 기록한다. 상위 흐름이 이번에 더한 두 축은 유효창 요구를 창구가 표식 없이 직접 판정 지점에 묻는다는 배선과 유효창 거부 문구를 사유별로 갈라 안내한다는 것이다. 이 기준의 축은 유효창의 길이를 누가 정하는가이며, 상한 제한과 잘못 설정된 값의 기본값 복귀는 둘 다 그대로다. 판정을 단일 지점이 소유한다는 새 서술은 이 기준이 말하는 서버 소유와 같은 방향이라 충돌하지 않는다. 유효창의 적용 범위가 연동 주소에서 관리 기능 공통 진입으로 넓어진 것도 길이 산정과는 다른 축이다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-08-27T23:15:14.133Z",
+    "created_at": "2026-08-23T10:08:57.102Z"
+  }
+}

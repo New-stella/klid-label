@@ -18,6 +18,7 @@ import kr.co.cudo.authoring.meta.dto.MetaResponse;
 import kr.co.cudo.authoring.meta.dto.MetaUpdateRequest;
 import kr.co.cudo.authoring.meta.entity.LsDataMetaReview;
 import kr.co.cudo.authoring.meta.repository.LsDataMetaReviewRepository;
+import kr.co.cudo.authoring.transfer.ImportMetaKeys;
 import kr.co.cudo.authoring.video.service.VideoMetaService;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import lombok.RequiredArgsConstructor;
@@ -78,20 +79,26 @@ public class MetaService {
     }
 
     /**
-     * 메타 목록을 <b>편집 가능(시계열) / 기술({@code video.*}) / 화면 전용 읽기</b> 세 갈래로 분류한 뒤
-     * 검토상태를 조인해 응답 생성. metaSn 집합으로 검토행을 배치 조회(N+1 금지)하며, 메타가 0건이면
-     * 검토행 조회조차 생략한다. 검토행 없는 메타는 검토 필드 null.
+     * 메타 목록을 <b>편집 가능(시계열) / 기술({@code video.*}) / 화면 전용 읽기 / 이관 원문({@code import.*})</b>
+     * 네 갈래로 분류한 뒤 검토상태를 조인해 응답 생성. metaSn 집합으로 검토행을 배치 조회(N+1 금지)하며,
+     * 메타가 0건이면 검토행 조회조차 생략한다. 검토행 없는 메타는 검토 필드 null. [design: API-066]
      *
-     * <p>분류 술어는 두 개이며 각각 <b>소유자가 하나</b>다 — {@code video.*} 는
+     * <p>분류 술어는 세 개이며 각각 <b>소유자가 하나</b>다 — {@code video.*} 는
      * {@link VideoMetaService#isTechnicalKey}(소유자 {@code VideoMetaService}) 를 재사용하고,
-     * 읽기 전용 판정은 {@link #isReadOnlyKey}(소유자 = 이 서비스)다. 접두 문자열을 DTO·FE 로 복제하면
-     * 소유자가 키를 늘릴 때 조용히 어긋난다.
+     * 읽기 전용 판정은 {@link #isReadOnlyKey}, 이관 원문 판정은 {@link #isImportedKey}(둘 다 소유자 = 이
+     * 서비스)다. 접두 문자열을 DTO·FE 로 복제하면 소유자가 키를 늘릴 때 조용히 어긋난다 — 그래서 이관 접두는
+     * 쓰는 쪽인 {@link ImportMetaKeys#PREFIX} 를 <b>참조</b>하고 여기서 다시 선언하지 않는다.
      *
-     * <p>세 목록 모두 <b>버리지 않고</b> 반환한다(정보 유실 없음). 화면은 {@code items} 만 편집 가능하게 그리고
+     * <p><b>분기 순서</b>: 기존 두 판정({@code video.*} → 읽기 전용)을 <b>앞에 그대로 두고</b> 이관 판정을
+     * 그 뒤·여집합 앞에 넣는다. 현재 세 접두({@code video.} · {@code vlm.} · {@code import.})는 서로 겹치지
+     * 않아 순서를 바꿔도 결과가 같지만, 소유자가 접두를 늘렸을 때 기존 두 판정이 먼저 걸리도록 순서로
+     * 못박아 둔다(기존 계약이 신규 분류에 잠식되지 않는다).
+     *
+     * <p>네 목록 모두 <b>버리지 않고</b> 반환한다(정보 유실 없음). 화면은 {@code items} 만 편집 가능하게 그리고
      * 나머지는 읽기 전용으로 표시한다. [req: R12]
      *
-     * <p>배치 조회 대상은 <b>분류 전 전체 metaSn</b> 이다 — 기술메타·읽기 전용 키에는 통상 검토행이 없지만
-     * (있다면 과거 수동 등록분) 조회 쿼리를 쪼개 왕복을 늘릴 이유가 없다.
+     * <p>배치 조회 대상은 <b>분류 전 전체 metaSn</b> 이다 — 기술메타·읽기 전용·이관 원문 키에는 통상 검토행이
+     * 없지만(있다면 과거 수동 등록분) 조회 쿼리를 쪼개 왕복을 늘릴 이유가 없다.
      */
     private MetaResponse toResponse(List<LsDataMeta> metas) {
         if (metas.isEmpty()) {
@@ -100,12 +107,15 @@ public class MetaService {
         List<LsDataMeta> timeseries = new ArrayList<>();
         List<LsDataMeta> technical = new ArrayList<>();
         List<LsDataMeta> readOnly = new ArrayList<>();
+        List<LsDataMeta> imported = new ArrayList<>();
         for (LsDataMeta meta : metas) {
             String key = meta.getMetaKey();
             if (VideoMetaService.isTechnicalKey(key)) {
                 technical.add(meta);
             } else if (isReadOnlyKey(key)) {
                 readOnly.add(meta);
+            } else if (isImportedKey(key)) {
+                imported.add(meta);
             } else {
                 timeseries.add(meta);
             }
@@ -113,7 +123,7 @@ public class MetaService {
         List<Long> metaSns = metas.stream().map(LsDataMeta::getMetaSn).toList();
         Map<Long, LsDataMetaReview> reviewByMetaSn = metaReviewRepository.findByDataMetaSnIn(metaSns).stream()
                 .collect(Collectors.toMap(LsDataMetaReview::getDataMetaSn, r -> r, (a, b) -> a));
-        return MetaResponse.of(timeseries, technical, readOnly, reviewByMetaSn);
+        return MetaResponse.of(timeseries, technical, readOnly, imported, reviewByMetaSn);
     }
 
     /**
@@ -133,6 +143,27 @@ public class MetaService {
         return metaKey != null
                 && metaKey.startsWith(VLM_KEY_PREFIX)
                 && !EDITABLE_VLM_KEYS.contains(metaKey);
+    }
+
+    /**
+     * <b>이관 원문 키</b> 판정 — 외부 산출물 이관이 저작도구 스키마에 착지할 컬럼이 없어
+     * {@code LS_DATA_META} 에 원문 보관한 값의 열쇠({@link ImportMetaKeys#PREFIX} 접두).
+     * 좌표·위치·카메라 설치 높이/방위/관리번호·데이터 출처·이벤트 기록·이벤트 상위 계층 이름·외부 영상
+     * 식별자·원천 축 개인정보 판정이 여기 담긴다. [design: API-066]
+     *
+     * <p>이 값들은 <b>시계열 분석 결과가 아니다.</b> 분류의 여집합으로 떨어져 {@code items} 로 내려가면
+     * ①화면이 시계열 메타로 표시해 검토 대상이 아닌 값이 검토 대상처럼 보이고 ②학습데이터 산출물의
+     * 상황묘사 조달이 그 값을 서술로 집을 여지가 생긴다.
+     *
+     * <p><b>접두 문자열을 여기서 다시 선언하지 않는다</b> — 쓰는 쪽({@link ImportMetaKeys})이 소유한 상수를
+     * 참조한다. 같은 문자열이 두 벌이 되면 한쪽만 바뀌었을 때 조용히 어긋난다({@code ImportMetaKeys} 가
+     * 개인정보 3필드에서 이미 쓰는 규약과 같다).
+     *
+     * <p>이관으로 들어오지 않은 영상(대다수)에서는 이 술어에 걸리는 키가 하나도 없어 목록이 비지만,
+     * 그 경우에도 {@code null} 이 아니라 <b>빈 배열</b>로 내려간다(화면이 분기 없이 그린다).
+     */
+    private static boolean isImportedKey(String metaKey) {
+        return metaKey != null && metaKey.startsWith(ImportMetaKeys.PREFIX);
     }
 
     /**
@@ -196,7 +227,8 @@ public class MetaService {
 
     /**
      * <b>편집 대상이 아닌 키</b>의 수정 요청을 거부한다(400) — 저장 경로 fail-closed 가드.
-     * 대상은 ①{@code video.*} 기술메타 ②화면 전용 읽기 키({@link #isReadOnlyKey}, 예 {@code vlm.accuracy}) 다.
+     * 대상은 ①{@code video.*} 기술메타 ②화면 전용 읽기 키({@link #isReadOnlyKey}, 예 {@code vlm.accuracy})
+     * ③이관 원문 키({@link #isImportedKey}, {@code import.*}) 다.
      *
      * <p>②는 검수큐에 진입하지 않아 데이터마트·export 로 나가지 않지만, 편집을 허용하면 <b>외부가 산출한
      * 일치도가 사람의 산문으로 덮여</b> 작업자·검수자가 서술의 신뢰도를 판단할 근거가 사라진다. 또 미존재
@@ -209,7 +241,13 @@ public class MetaService {
      * ⓑ미존재 {@code video.*} 키를 보내면 신규 검토행(PENDING)이 생겨 검토 큐와
      * 데이터마트 뷰 {@code V_COMPLETED_META} 에 기술메타가 흘러든다.
      *
-     * <p>조회에서 두 부류를 {@code items} 밖으로 빼는 것만으로도 화면발 요청은 사라지지만,
+     * <p>③은 외부 산출물 이관이 저작도구 스키마에 착지할 컬럼이 없어 <b>원문 그대로 보관</b>한 값이라
+     * (좌표·위치·카메라 설치 정보·데이터 출처·이벤트 기록 등) 사람이 산문으로 고칠 대상이 아니다. 허용하면
+     * ⓐ외부가 준 <b>원문이 덮여</b> 사후 대조·재이관의 근거가 사라지고(되돌릴 수단이 없다)
+     * ⓑ미존재 {@code import.*} 키를 보내면 신규 검토행(PENDING)이 생겨 검토 큐와 데이터마트 뷰
+     * {@code V_COMPLETED_META} 에 이관 원문이 흘러든다. 이관 원문은 <b>검토 대상이 아니다</b>. [design: API-066]
+     *
+     * <p>조회에서 세 부류를 {@code items} 밖으로 빼는 것만으로도 화면발 요청은 사라지지만,
      * <b>그것에 의존하지 않고</b> 서버가 직접 막는다 — 클라이언트가 임의 payload 를 보낼 수 있기 때문
      * (CWE-20/915).
      *
@@ -235,6 +273,13 @@ public class MetaService {
             log.warn("[Meta] rejected read-only meta update count={}", readOnly);
             throw new CustomException(ErrorCode.INVALID_INPUT,
                     "자동 산출된 읽기 전용 항목(일치도 등)은 수정할 수 없습니다.");
+        }
+
+        long imported = keys.stream().filter(MetaService::isImportedKey).count();
+        if (imported > 0) {
+            log.warn("[Meta] rejected imported meta update count={}", imported);
+            throw new CustomException(ErrorCode.INVALID_INPUT,
+                    "외부에서 이관된 원문 항목(좌표·설치 정보 등)은 수정할 수 없습니다.");
         }
     }
 
@@ -378,10 +423,12 @@ public class MetaService {
         }
         LsDataSrc src = srcRepository.findById(srcSn)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOT_FOUND, "프레임을 찾을 수 없습니다."));
-        if (actor.role() == Role.REVIEWER) {
+        // [design: ADR-055] 계층 반영 — 관리자는 검수자에게 열린 이 자리를 그대로 통과한다.
+        //   동등 비교로 두면 관리자가 두 분기 어디에도 안 걸려 메타 접근이 통째로 403 이 된다.
+        if (actor.hasRole(Role.REVIEWER)) {
             return src;
         }
-        if (actor.role() == Role.WORKER) {
+        if (actor.hasRole(Role.WORKER)) {
             Long selfNo = parseUserNo(actor.sub());
             boolean assigned = authrtRepository.existsByUserNoAndTaskTypeCdAndRawDataId(
                     selfNo, LsTaskAssignment.TASK_LABELER, src.getRawSn());
@@ -397,7 +444,8 @@ public class MetaService {
         if (actor == null) {
             throw new CustomException(ErrorCode.UNAUTHORIZED, "인증 토큰이 필요합니다.");
         }
-        if (actor.role() != Role.REVIEWER) {
+        // [design: ADR-055] 창구의 「검수자 전용」은 「검수자 이상」으로 읽는다 — 관리자는 물려받는다.
+        if (!actor.hasRole(Role.REVIEWER)) {
             throw new CustomException(ErrorCode.FORBIDDEN, "REVIEWER 권한이 필요합니다.");
         }
     }

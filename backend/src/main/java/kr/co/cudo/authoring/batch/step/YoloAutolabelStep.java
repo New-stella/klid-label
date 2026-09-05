@@ -8,9 +8,13 @@ import kr.co.cudo.authoring.batch.pipeline.BatchContext;
 import kr.co.cudo.authoring.batch.pipeline.BatchStep;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService;
 import kr.co.cudo.authoring.batch.policy.PresetLabelLookupService.AnnotationToggle;
+import kr.co.cudo.authoring.batch.policy.PresetResolution;
+import kr.co.cudo.authoring.batch.policy.PresetResolutionStatus;
+import kr.co.cudo.authoring.batch.status.BatchStatusService;
 import kr.co.cudo.authoring.batch.repository.LsDataLblRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.AiServerClient;
+import kr.co.cudo.authoring.common.client.AiWorkload;
 import kr.co.cudo.authoring.common.client.dto.YoloResponse;
 import kr.co.cudo.authoring.common.client.dto.YoloTrackRequest;
 import kr.co.cudo.authoring.common.config.DeployedEnvironmentDetector;
@@ -102,6 +106,59 @@ import java.util.Set;
 @Component
 public class YoloAutolabelStep implements BatchStep {
 
+    /**
+     * YOLO 단계 <b>보류</b> 사유 — 영상의 이벤트 유형이 없거나 이벤트 유형 마스터에 등록돼 있지 않다.
+     * [@design AC-113]
+     *
+     * <p>⚠ 이 문자열들은 <b>재개 판정의 키</b>다({@code LS_BATCH_PROC_LOG.ERR_MSG_CN} 정확 일치 조회).
+     * 한 번 적재된 뒤에 문구를 다듬으면 <b>과거 보류분이 영구 고착</b>된다 —
+     * {@code VlmTimeseriesStep.SKIP_REASON_*} 과 같은 관례이며 같은 이유로 건드리지 말 것.
+     */
+    public static final String SKIP_REASON_EVENT_TYPE_UNREGISTERED =
+            "오토라벨 보류 — 영상의 이벤트 유형이 없거나 등록되지 않아 프리셋을 특정할 수 없음";
+
+    /** YOLO 단계 보류 사유 — 그 이벤트 유형에 오토라벨 프리셋이 없다. [@design AC-113] */
+    public static final String SKIP_REASON_PRESET_ABSENT =
+            "오토라벨 보류 — 이벤트 유형에 오토라벨 프리셋이 없음";
+
+    /** YOLO 단계 보류 사유 — 프리셋에 담긴 라벨이 전부 라벨 마스터에 연결돼 있지 않다. [@design AC-114] */
+    public static final String SKIP_REASON_PRESET_UNLINKED =
+            "오토라벨 보류 — 프리셋의 라벨이 라벨 마스터에 연결되지 않음";
+
+    /**
+     * YOLO 단계 보류 사유 — 연결·활성 라벨은 있으나 전부 AI 검출 클래스에 매핑돼 있지 않다.
+     * [@design AC-114]
+     *
+     * <p>{@link #SKIP_REASON_PRESET_ABSENT}(프리셋 없음)와 반드시 구분한다 — 이 코드가 남았다는 것은
+     * 운영자가 프리셋을 <b>등록해 두고도</b> 그것이 실효하지 않는다는 뜻이라 조치가 다르다.
+     */
+    public static final String SKIP_REASON_PRESET_UNMAPPED =
+            "오토라벨 보류 — 프리셋의 라벨이 전부 AI 검출 클래스에 매핑되지 않음";
+
+    /**
+     * YOLO 단계 <b>오토라벨 제외</b> 사유 — 라벨을 하나도 담지 않은 프리셋. [@design AC-119]
+     *
+     * <p>★보류가 아니다. 사람이 그 이벤트 유형을 오토라벨 대상에서 뺀 것이므로 배치는 완료로 마감되고
+     * <b>재개 대상이 아니다</b>({@link #RESUMABLE_SKIP_REASONS} 에 넣지 말 것 — 넣으면 프리셋을 고칠
+     * 때마다 사람이 일부러 뺀 영상이 되살아난다).
+     */
+    public static final String SKIP_REASON_AUTOLABEL_EXCLUDED =
+            "오토라벨 제외 — 프리셋에 담긴 라벨이 없음(사람의 제외 선언)";
+
+    /**
+     * <b>재개 대상</b> 보류 사유 목록 — 프리셋이 채워지면 오토라벨 묶음을 다시 도는 축.
+     * [@design AC-115]
+     *
+     * <p>{@code VlmTimeseriesStep.RESUMABLE_SKIP_REASONS} 와 같은 역할이며 단일 원천은 여기다
+     * (재개 러너가 이 목록을 재정의하지 않는다).
+     *
+     * <p>⚠ {@link #SKIP_REASON_AUTOLABEL_EXCLUDED} 는 <b>의도적으로 빠져 있다</b> — 사람이 일부러 뺀
+     * 것이라 되살릴 것이 없다.
+     */
+    public static final List<String> RESUMABLE_SKIP_REASONS = List.of(
+            SKIP_REASON_EVENT_TYPE_UNREGISTERED, SKIP_REASON_PRESET_ABSENT,
+            SKIP_REASON_PRESET_UNLINKED, SKIP_REASON_PRESET_UNMAPPED);
+
     /** Phase 1 fallback — SystemConfig 미설정/조회 실패 시 사용할 기본값(0.4). */
     static final double DEFAULT_CONF_THRESHOLD = 0.4;
     /** Phase 1 fallback — SystemConfig 미설정/조회 실패 시 사용할 기본 imgsz(1280px). */
@@ -114,6 +171,8 @@ public class YoloAutolabelStep implements BatchStep {
     private final LsDataLblRepository lblRepository;
     private final VideoRepository videoRepository;
     private final PresetLabelLookupService presetLabelLookup;
+    /** 보류·제외 사유의 영속(SKIPPED 감사 행) — 재개 판정이 되읽는 유일한 근거. */
+    private final BatchStatusService batchStatusService;
     private final SystemConfigService systemConfigService;
     private final LabelMasterService labelMasterService;
     /** C-ISSUE-41 — 저장 전 좌표 clamp 기준(프레임 실측 [width, height], 캐시). 측정 실패 시 상한 생략. */
@@ -128,6 +187,7 @@ public class YoloAutolabelStep implements BatchStep {
                              LsDataLblRepository lblRepository,
                              VideoRepository videoRepository,
                              PresetLabelLookupService presetLabelLookup,
+                             BatchStatusService batchStatusService,
                              SystemConfigService systemConfigService,
                              LabelMasterService labelMasterService,
                              FrameBoundsResolver frameBoundsResolver,
@@ -139,6 +199,7 @@ public class YoloAutolabelStep implements BatchStep {
         this.lblRepository = lblRepository;
         this.videoRepository = videoRepository;
         this.presetLabelLookup = presetLabelLookup;
+        this.batchStatusService = batchStatusService;
         this.systemConfigService = systemConfigService;
         this.labelMasterService = labelMasterService;
         this.frameBoundsResolver = frameBoundsResolver;
@@ -170,12 +231,65 @@ public class YoloAutolabelStep implements BatchStep {
     @Override
     @Transactional(value = "controlTransactionManager", propagation = Propagation.REQUIRES_NEW)
     public void execute(BatchContext ctx) {
-        ctx.setHints(run(ctx.getRawSn()));
+        Long rawSn = ctx.getRawSn();
+        if (rawSn == null) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
+        }
+        PresetResolution preset = presetLabelLookup.resolve(eventTypeCdOf(rawSn));
+        if (!preset.isResolved()) {
+            applyNotResolved(ctx, rawSn, preset);
+            return;
+        }
+        ctx.setHints(runResolved(rawSn, preset));
+    }
+
+    /**
+     * 프리셋이 실효하지 않을 때의 종결 — <b>추론·적재를 시작하지 않는다</b>. [@design ADR-054]
+     *
+     * <p>두 갈래로 갈린다.
+     * <ul>
+     *   <li><b>오토라벨 제외 선언</b>({@link PresetResolutionStatus#PRESET_EMPTY}) — 라벨을 하나도 담지
+     *       않은 프리셋은 「그 유형을 오토라벨에서 뺀다」는 사람의 선언이다. 보류 표식을 세우지 않아
+     *       파이프라인이 계속 돌고 배치는 <b>완료로 마감</b>된다. 되살릴 것이 없어 재개 대상도 아니므로
+     *       {@link #RESUMABLE_SKIP_REASONS} 에 넣지 않는다. [@design AC-119]</li>
+     *   <li><b>보류</b>(그 밖 전부) — {@code ctx.withhold} 로 표식을 세워 오케스트레이터가 하류 단계
+     *       (SAM2·INTERPOLATE)를 실행하지 않게 하고, 배치를 완료로 마감하지 않는다.
+     *       [@design AC-113] [@design AC-114]</li>
+     * </ul>
+     *
+     * <p>어느 갈래든 사유를 {@code LS_BATCH_PROC_LOG} 의 SKIPPED 감사 행으로 남긴다 — 인메모리 표식은
+     * 프로세스를 넘지 못하므로 그 행이 <b>재개 판정과 운영 판독의 유일한 근거</b>다.
+     *
+     * <p>⚠ 힌트는 반드시 비운다. 비우지 않으면 하류가 옛 힌트를 들고 돈다.
+     */
+    private void applyNotResolved(BatchContext ctx, Long rawSn, PresetResolution preset) {
+        String reason = skipReasonOf(preset.status());
+        batchStatusService.recordStageSkipped(rawSn, BatchStage.YOLO, reason);
+        ctx.setHints(List.of());
+        if (preset.isAutolabelExcluded()) {
+            log.info("[Batch][Yolo] autolabel excluded by empty preset — bundle skipped, batch completes rawSn={}",
+                    rawSn);
+            return;
+        }
+        ctx.withhold(BatchStage.YOLO, reason);
+        log.info("[Batch][Yolo] withheld — preset not effective rawSn={} status={}", rawSn, preset.status());
+    }
+
+    /** 영상의 이벤트 유형 코드. raw 미존재/이벤트 미정이면 null(= 프리셋을 특정할 수 없다). */
+    private String eventTypeCdOf(Long rawSn) {
+        return videoRepository.findById(rawSn)
+                .map(LsDataRaw::getEvntTypeCd)
+                .orElse(null);
     }
 
     /**
      * 단일 영상의 모든 프레임에 대해 YOLO 자동 라벨링을 수행하고
      * SAM2 단계로 전달할 인메모리 힌트 목록을 반환한다.
+     *
+     * <p>⚠ <b>프리셋 게이트를 여기서 한 번 더 판정한다</b> — 파이프라인 밖에서 이 메서드를 직접 부르는
+     * 경로(개발 트리거·시험)가 게이트를 우회하지 않게 하기 위해서다. 실효하지 않으면 추론 없이 빈 목록을
+     * 돌려준다({@code fail-closed}). 보류 표식·감사 행은 {@code BatchContext} 를 가진
+     * {@link #execute(BatchContext)} 만 남긴다.
      *
      * @param rawSn LS_DATA_RAW.RAW_SN
      * @return {@code polygon=true} 인 라벨의 {@link BbHint} 목록 (불변 보장 위해 새 ArrayList 반환)
@@ -185,11 +299,22 @@ public class YoloAutolabelStep implements BatchStep {
         if (rawSn == null) {
             throw new CustomException(ErrorCode.INVALID_INPUT, "rawSn 이 null 입니다.");
         }
-        // 이벤트 타입별 프리셋 필터 (fail-safe): raw 미존재/이벤트 미정 시 전체 통과.
-        String eventTypeCd = videoRepository.findById(rawSn)
-                .map(LsDataRaw::getEvntTypeCd)
-                .orElse(null);
-        Optional<Map<String, AnnotationToggle>> togglesOpt = presetLabelLookup.togglesFor(eventTypeCd);
+        PresetResolution preset = presetLabelLookup.resolve(eventTypeCdOf(rawSn));
+        if (!preset.isResolved()) {
+            log.info("[Batch][Yolo] skipped — preset not effective rawSn={} status={}", rawSn, preset.status());
+            return List.of();
+        }
+        return runResolved(rawSn, preset);
+    }
+
+    /**
+     * 실효 프리셋이 확정된 뒤의 본체 — 호출자가 이미 게이트를 통과시켰다.
+     *
+     * <p>자기호출이라 트랜잭션 어드바이스가 걸리지 않으므로 호출자({@code execute}/{@code run})의
+     * {@code REQUIRES_NEW} 경계에 그대로 참여한다(스텝 1건 = 트랜잭션 1건).
+     */
+    private List<BbHint> runResolved(Long rawSn, PresetResolution preset) {
+        Map<String, AnnotationToggle> toggles = preset.toggles();
 
         // Phase 1: 운영 UI 로 조정 가능한 YOLO 추론 파라미터를 1회 조회 (Caffeine 캐시 활용).
         double confThreshold = readDoublePercent(ConfigKeys.YOLO_CONF_THRESHOLD, DEFAULT_CONF_THRESHOLD);
@@ -263,9 +388,12 @@ public class YoloAutolabelStep implements BatchStep {
             String imageB64 = readImageAsBase64(relPath);
             YoloResponse resp;
             try {
+                // [design: ADR-056] 용도를 배치로 명시한다 — ai-server 의 배치 전용 실행 슬롯으로 가고 서킷도 배치 축을
+                // 쓴다(ADR-056). 명시하지 않으면 화면 슬롯으로 떨어져 작업자 요청과 한 줄에 선다.
                 resp = aiServerClient.predictYoloTrack(
                                 new YoloTrackRequest(imageB64, clipId, frameIndex,
-                                        confThreshold, imgsz, iou))
+                                        confThreshold, imgsz, iou),
+                                AiWorkload.BATCH)
                         .block(Duration.ofSeconds(70));
             } catch (RuntimeException e) {
                 log.error("[Batch][Yolo] failed srcSn={} frameIndex={} err={}",
@@ -325,7 +453,7 @@ public class YoloAutolabelStep implements BatchStep {
                     ? null : frameBoundsResolver.resolve(src).orElse(null);
             for (YoloResponse.Detection d : resp.detections()) {
                 yoloTotal++;
-                AnnotationToggle toggle = resolveToggle(togglesOpt, d.label());
+                AnnotationToggle toggle = resolveToggle(toggles, d.label());
                 if (toggle == null) {
                     // 매핑 존재 + 허용 라벨에 미포함 → 노이즈 제거
                     continue;
@@ -440,10 +568,10 @@ public class YoloAutolabelStep implements BatchStep {
             srcRepository.bumpLabelVersionIn(labeledFrames);
         }
         // persistSkippedFrames>0 이면 재시도 회차다 — 그 프레임들은 추론·힌트는 정상 수행하고 적재만 건너뛴다.
-        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} eventType={} frames={} persistSkippedFrames={} yoloCount={} bboxSaved={} hintsEmitted={} droppedDegenerate={} droppedMalformed={} preset={} conf={} imgsz={} iou={}",
-                rawSn, clipId, eventTypeCd, frameIndex, persistSkippedFrames, yoloTotal, bboxSaved, hintsEmitted,
-                droppedDegenerate, droppedMalformed,
-                togglesOpt.map(m -> m.keySet().toString()).orElse("(none)"),
+        log.info("[Batch][Yolo] saved labels rawSn={} clipId={} presetStatus={} frames={} persistSkippedFrames={} yoloCount={} bboxSaved={} hintsEmitted={} droppedDegenerate={} droppedMalformed={} preset={} conf={} imgsz={} iou={}",
+                rawSn, clipId, preset.status(), frameIndex, persistSkippedFrames, yoloTotal, bboxSaved,
+                hintsEmitted, droppedDegenerate, droppedMalformed,
+                toggles.keySet(),
                 confThreshold, imgsz, iou);
         return hints;
     }
@@ -519,16 +647,31 @@ public class YoloAutolabelStep implements BatchStep {
      * <p>Phase 4: 토글 맵 키는 마스터 검출유형(DTCT_TYPE_CD, COCO 축) 정규화이며, 검출 라벨({@code d.label()})도
      * 동일 규칙({@link PresetLabelLookupService#normalizeLabelKey(String)})으로 정규화해 축을 일치시킨다.
      */
-    private static AnnotationToggle resolveToggle(Optional<Map<String, AnnotationToggle>> togglesOpt,
-                                                  String rawLabel) {
-        if (togglesOpt.isEmpty()) {
-            return AnnotationToggle.BOTH;
-        }
+    /**
+     * 해석 사유 → {@code LS_BATCH_PROC_LOG} 에 적재할 사유 문자열.
+     *
+     * <p>{@link PresetResolutionStatus#RESOLVED} 는 이 지점에 도달하지 않는다(호출자가 걸러낸다).
+     * 새 사유가 늘면 여기서 <b>컴파일이 깨지도록</b> switch 를 exhaustive 로 둔다 — 기본값으로 뭉개면
+     * 새 사유가 조용히 다른 사유로 기록돼 재개 판정이 어긋난다.
+     */
+    private static String skipReasonOf(PresetResolutionStatus status) {
+        return switch (status) {
+            case EVENT_TYPE_UNREGISTERED -> SKIP_REASON_EVENT_TYPE_UNREGISTERED;
+            case PRESET_ABSENT -> SKIP_REASON_PRESET_ABSENT;
+            case PRESET_EMPTY -> SKIP_REASON_AUTOLABEL_EXCLUDED;
+            case PRESET_UNLINKED -> SKIP_REASON_PRESET_UNLINKED;
+            case PRESET_UNMAPPED -> SKIP_REASON_PRESET_UNMAPPED;
+            case RESOLVED -> throw new IllegalStateException("resolved preset has no skip reason");
+        };
+    }
+
+    private static AnnotationToggle resolveToggle(Map<String, AnnotationToggle> toggles, String rawLabel) {
         if (rawLabel == null) {
             return null;
         }
-        String normalized = PresetLabelLookupService.normalizeLabelKey(rawLabel);
-        return togglesOpt.get().get(normalized);
+        // ⚠ 맵에 없는 검출은 <b>저장하지 않는다</b>. 구 구현의 "맵이 비었으면 전량 허용" 폴백은 폐기됐다
+        //   (실효 프리셋 없이 이 지점에 도달하지 않는다 — 게이트가 앞에 있다). [@design ADR-054]
+        return toggles.get(PresetLabelLookupService.normalizeLabelKey(rawLabel));
     }
 
     /**

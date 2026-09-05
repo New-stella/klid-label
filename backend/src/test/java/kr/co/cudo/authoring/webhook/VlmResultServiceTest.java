@@ -17,7 +17,8 @@ import kr.co.cudo.authoring.webhook.dto.VlmResultRequest;
 import kr.co.cudo.authoring.webhook.idempotency.InMemoryWebhookIdempotencyLedger;
 import kr.co.cudo.authoring.webhook.idempotency.LsWebhookIdempotency;
 import kr.co.cudo.authoring.webhook.idempotency.WebhookIdempotencyLedger;
-import kr.co.cudo.authoring.webhook.service.TimeseriesSubResultApplier;
+import kr.co.cudo.authoring.webhook.service.IsolatedTimeseriesDraftApplier;
+import kr.co.cudo.authoring.webhook.service.TimeseriesResultApplier;
 import kr.co.cudo.authoring.webhook.service.VlmResultService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,7 +62,8 @@ class VlmResultServiceTest {
     @Mock LsMarkingRepository markingRepository;
     @Mock ReviewApprovalGate approvalGate;
     @Mock ApplicationEventPublisher eventPublisher;
-    @Mock TimeseriesSubResultApplier subResultApplier;
+    @Mock TimeseriesResultApplier resultApplier;
+    @Mock IsolatedTimeseriesDraftApplier isolatedDraftApplier;
     private final WebhookIdempotencyLedger ledger = new InMemoryWebhookIdempotencyLedger();
 
     private VlmResultService service;
@@ -72,7 +74,7 @@ class VlmResultServiceTest {
     void setup() {
         service = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, ledger, markingRepository,
-                approvalGate, eventPublisher, subResultApplier);
+                approvalGate, eventPublisher, resultApplier, isolatedDraftApplier);
         ledger.clear();
     }
 
@@ -175,7 +177,7 @@ class VlmResultServiceTest {
 
         // then — 시계열 서술 자리를 건드리지 않는다(두 축이 같은 키를 쓰면 한쪽이 유실된다).
         assertThat(applied).isTrue();
-        verify(subResultApplier).applySubDescription(212L, "네, 근거는 ...");
+        verify(resultApplier).applySubDescription(212L, "네, 근거는 ...");
         verify(metaRepository, org.mockito.Mockito.never())
                 .upsertMetaReturning(org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.anyString(),
@@ -249,7 +251,7 @@ class VlmResultServiceTest {
         WebhookIdempotencyLedger lockingLedger = org.mockito.Mockito.mock(WebhookIdempotencyLedger.class);
         VlmResultService svc = new VlmResultService(
                 metaRepository, reviewRepository, videoRepository, lockingLedger, markingRepository,
-                approvalGate, eventPublisher, subResultApplier);
+                approvalGate, eventPublisher, resultApplier, isolatedDraftApplier);
         when(lockingLedger.lookupForProcessing("REQ-LOCK")).thenReturn(Optional.of(
                 new WebhookIdempotencyLedger.Entry(
                         WebhookIdempotencyLedger.State.ISSUED, "EXT-L", 214L, null)));

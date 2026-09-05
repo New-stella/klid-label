@@ -286,7 +286,7 @@ export function DashboardPage() {
                 retryLabel="재시도"
               />
             ) : (recentPage?.content ?? []).length === 0 ? (
-              <p className="text-center text-gray-400 py-12 text-body-md">
+              <p className="text-center text-gray-600 py-12 text-body-md">
                 완료된 영상이 없습니다.
               </p>
             ) : (
@@ -347,7 +347,7 @@ export function DashboardPage() {
               {myTasksLoading ? (
                 <Skeleton height={120} />
               ) : (myTasksPage?.content ?? []).length === 0 ? (
-                <p className="text-center text-gray-400 py-12 text-body-md">작업이 없습니다.</p>
+                <p className="text-center text-gray-600 py-12 text-body-md">작업이 없습니다.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-body-md">

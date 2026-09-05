@@ -269,7 +269,9 @@ function ThreadCard({ thread, rawSn, mode }: ThreadCardProps) {
             thread.issueSttsCd === ISSUE_STATUS.RESOLVED
               ? 'bg-success/10 text-success-700'
               : thread.issueSttsCd === ISSUE_STATUS.ANSWERED
-                ? 'bg-purple-100 text-purple-700'
+                ? // 같은 '답변됨' 상태 배지다 — 톤 근거는 IssueCard 주석 참조.
+                  // ⚠ 한쪽만 바꾸면 같은 상태가 화면마다 다른 색으로 읽힌다.
+                  'bg-info/10 text-info-700'
                 : 'bg-gray-100 text-gray-600',
           )}
           data-testid={`issue-status-badge-${thread.issueSn}`}

@@ -12,6 +12,7 @@ import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
 import kr.co.cudo.authoring.support.TestVideoFixtures;
 import kr.co.cudo.authoring.label.service.DeidentReportService;
+import kr.co.cudo.authoring.marking.service.MarkingActivationTxService;
 import kr.co.cudo.authoring.notification.NotificationService;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -67,6 +68,9 @@ class KpstDeidentTxServiceTest {
     private StreamMetaCacheEvictor streamMetaCacheEvictor;
     private LsRawDataStatusRepository rawDataStatusRepository;
     private DeidentApprovalHoldReleaser deidentApprovalHoldReleaser;
+    /** ADR-052 — 예약 마킹 활성화·마감의 실제 전이 주체(마킹 도메인 소유). 훅은 실물, 이쪽만 mock 이다. */
+    private MarkingActivationTxService markingActivationTxService;
+    private DeidentReservationHook reservationHook;
     private KpstDeidentTxService tx;
 
     @BeforeEach
@@ -82,9 +86,14 @@ class KpstDeidentTxServiceTest {
         // 해제기는 mock 이 아니라 실물이다 — 기존 완료 경로 테스트가 "보류 해제가 기존 영상에 아무
         //   부작용을 만들지 않는다"를 그대로 통과해야 회귀 가드가 성립한다.
         deidentApprovalHoldReleaser = new DeidentApprovalHoldReleaser(rawDataStatusRepository);
+        // ADR-052 — 훅은 실물을 쓴다. mock 으로 바꾸면 "커밋 이후에만 활성화한다"는 이 배선의 핵심이
+        //   테스트에서 사라진다(훅 내부의 afterCommit 지연이 검증 대상이다).
+        markingActivationTxService = mock(MarkingActivationTxService.class);
+        when(markingActivationTxService.activateReserved(anyLong())).thenReturn(Optional.empty());
+        reservationHook = new DeidentReservationHook(markingActivationTxService);
         tx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                streamMetaCacheEvictor, deidentApprovalHoldReleaser);
+                streamMetaCacheEvictor, deidentApprovalHoldReleaser, reservationHook);
         // B-ISSUE-82 — 완료 처리는 조건부 UPDATE 클레임(1행)을 얻은 호출만 진행한다. 단위 테스트의
         // 기본은 "이 호출이 선점에 성공" 이며, 중복 완료(0행) 시나리오는 개별 테스트가 재정의한다.
         when(procLogRepository.claimDownloadCompletion(anyLong(), anyString(), any(LocalDateTime.class)))
@@ -201,7 +210,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
 
         LsDeidentProcLog p = submitted();
         LsDataRaw raw = newRaw();
@@ -235,7 +244,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
         LsDeidentProcLog p = redeidentSubmitted();
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -266,7 +275,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
         LsDeidentProcLog p = redeidentSubmitted();
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -301,7 +310,7 @@ class KpstDeidentTxServiceTest {
         Cache cache = realCacheManager.getCache(CacheConfig.CACHE_STREAM_META);
         KpstDeidentTxService realTx = new KpstDeidentTxService(videoRepository, procLogRepository,
                 deidentReportService, notificationService, workLockService, deidentFrameAttacher,
-                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser);
+                new StreamMetaCacheEvictor(realCacheManager), deidentApprovalHoldReleaser, reservationHook);
         LsDeidentProcLog p = submitted(); // REQ_KIND null = 배치 경로
         LsDataRaw raw = newRaw();
         when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
@@ -673,6 +682,131 @@ class KpstDeidentTxServiceTest {
         tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
 
         verify(rawDataStatusRepository, never()).findById(anyLong());
+    }
+
+    // ────────── ADR-052 — 예약 마킹 활성화·마감 배선 (KPST 폴링 완료 경로) ──────────
+
+    @Test
+    @DisplayName("KPST_배치_비식별완료시_예약마킹이_활성화된다")
+    void batchCompletionActivatesReservation() {
+        LsDataRaw raw = newRaw();
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        tx.completeDeidentification(9001L, realDeidFile());
+
+        verify(markingActivationTxService).activateReserved(9001L);
+    }
+
+    @Test
+    @DisplayName("KPST_배치_완료의_예약활성화는_커밋_전에는_일어나지_않는다 — 브리지가 skip 으로 종결시킨다")
+    void batchCompletionActivatesOnlyAfterCommit() {
+        // 단위 테스트는 트랜잭션 없이 호출돼 훅의 <b>즉시 실행 폴백</b>만 탄다. 그래서 훅을 그냥
+        // activateReserved 직접 호출로 바꿔도 위 테스트는 GREEN 이다(커밋 전 활성화 회귀에 둔감).
+        // 여기서는 동기화를 실제로 열어 <b>순서</b>를 단언한다.
+        LsDataRaw raw = newRaw();
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+        String deid = realDeidFile();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            tx.completeDeidentification(9001L, deid);
+
+            // 커밋 전 — 아직 활성화하면 안 된다. 이 시점의 DE_IDENT_YN/MARKING_READY 는 다른 트랜잭션에
+            // 보이지 않아, MarkingBatchBridge 가 "비식별 미완료" 로 판정하고 방금 깨운 마킹을 종결시킨다.
+            verify(markingActivationTxService, never()).activateReserved(anyLong());
+
+            TransactionSynchronizationUtils.triggerAfterCommit();
+
+            verify(markingActivationTxService).activateReserved(9001L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    @DisplayName("REDEIDENT완료는_예약마킹을_활성화하지_않는다 — APPROVED 유지 경로(R1)")
+    void redeidentCompletionDoesNotActivateReservation() {
+        LsDeidentProcLog p = redeidentSubmitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        tx.finishDownloadAndComplete(9001L, 1L, 202L, realDeidFile());
+
+        verify(markingActivationTxService, never()).activateReserved(anyLong());
+    }
+
+    @Test
+    @DisplayName("폴링_terminal실패시_예약마킹이_마감된다_적재는_유지")
+    void failPollingClosesReservation() {
+        LsDeidentProcLog p = submitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        tx.failPolling(1L, 9001L);
+
+        assertThat(raw.getDeIdntfYn()).isEqualTo("F");
+        verify(markingActivationTxService).closeReservations(9001L, "DEIDENT_FAILED");
+        // 적재 미롤백 — 영상 행을 지우지 않는다(AC-1033).
+        verify(videoRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("폴링_타임아웃_확정시_예약마킹이_마감된다")
+    void timeoutClosesReservation() {
+        LsDeidentProcLog p = submitted();
+        setField(p, "reqDt", LocalDateTime.now().minusMinutes(500));
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        boolean timedOut = tx.markTimeoutIfExpired(1L, 10, 180);
+
+        assertThat(timedOut).isTrue();
+        verify(markingActivationTxService).closeReservations(9001L, "DEIDENT_FAILED");
+    }
+
+    @Test
+    @DisplayName("타임아웃이_아직_아니면_예약마킹을_마감하지_않는다")
+    void notYetTimedOutKeepsReservation() {
+        LsDeidentProcLog p = submitted();
+        LsDataRaw raw = newRaw();
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(raw));
+
+        boolean timedOut = tx.markTimeoutIfExpired(1L, 10, 180);
+
+        assertThat(timedOut).isFalse();
+        verify(markingActivationTxService, never()).closeReservations(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("제출_확정실패시_예약마킹이_마감된다")
+    void failSubmitClosesReservation() {
+        LsDeidentProcLog p = LsDeidentProcLog.request(9001L, null, "/raw/clip.mp4", "batch");
+        setField(p, "procLogSn", 1L);
+        when(procLogRepository.claimSubmitFailure(eq(1L), anyString(), anyString(),
+                any(LocalDateTime.class))).thenReturn(1);
+        when(procLogRepository.findById(1L)).thenReturn(Optional.of(p));
+        when(videoRepository.findById(9001L)).thenReturn(Optional.of(newRaw()));
+
+        boolean applied = tx.failSubmit(1L, 9001L, "ACK_MISSING", "submit ack not received");
+
+        assertThat(applied).isTrue();
+        verify(markingActivationTxService).closeReservations(9001L, "DEIDENT_FAILED");
+    }
+
+    @Test
+    @DisplayName("이미_종결된_건의_지각_제출실패는_예약마킹을_마감하지_않는다")
+    void lateSubmitFailureDoesNotCloseReservation() {
+        when(procLogRepository.claimSubmitFailure(eq(1L), anyString(), anyString(),
+                any(LocalDateTime.class))).thenReturn(0);
+
+        boolean applied = tx.failSubmit(1L, 9001L, "ACK_MISSING", "late");
+
+        assertThat(applied).isFalse();
+        verify(markingActivationTxService, never()).closeReservations(anyLong(), anyString());
     }
 
     /** 운영과 동일한 캐시 스펙(CacheConfig)으로 실제 Caffeine 캐시매니저를 만든다(초기화 포함). */

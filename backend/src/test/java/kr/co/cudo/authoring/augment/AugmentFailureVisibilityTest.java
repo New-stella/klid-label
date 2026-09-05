@@ -72,6 +72,8 @@ class AugmentFailureVisibilityTest {
     @Mock private kr.co.cudo.authoring.webhook.service.AugmentJobIdOwnerLookup jobIdOwnerLookup;
     /** 조상 체인 신고 판정 — 기본 stub 은 "신고 없음"(false). */
     @Mock private kr.co.cudo.authoring.video.service.DeidentReportGate deidentReportGate;
+    /** 복사 원본 경로 조달의 진실원(V28/ADR-058) — 부모 게이트는 플래그가 아니라 이 경로를 본다. */
+    @Mock private kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository deidentProcLogRepository;
 
     private AugmentResultService resultService;
     private AugmentJobRollup rollup;
@@ -82,8 +84,20 @@ class AugmentFailureVisibilityTest {
 
     @BeforeEach
     void setUp() {
+        var sourceResolver = new kr.co.cudo.authoring.video.service.DerivativeSourceVideoResolver(
+                deidentProcLogRepository, allowedStorageResolver(), null);
+        ReflectionTestUtils.setField(sourceResolver, "storageDeidentifiedPath", DEID_BASE);
         resultService = new AugmentResultService(augRepository, videoRepository, srcRepository,
-                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup);
+                asyncAugmentFrameRunner, allowedStorageResolver(), jobIdOwnerLookup, sourceResolver);
+        // 부모에 복사할 비식별 영상 경로가 적재된 정상 상태(관제).
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(inv -> {
+                    Long rawSn = inv.getArgument(0);
+                    var procLog = kr.co.cudo.authoring.batch.entity.LsDeidentProcLog.request(
+                            rawSn, null, "/storage/raw/" + rawSn + ".mp4", "test");
+                    procLog.succeed(DEID_BASE + "/videos/" + rawSn + "/deidentified.mp4");
+                    return java.util.Optional.of(procLog);
+                });
         ReflectionTestUtils.setField(resultService, "storageDeidentifiedPath", DEID_BASE);
         rollup = new AugmentJobRollup(resultService);
         reviewService = new AugmentReviewService(augRepository, reviewRepository, srcRepository,
@@ -263,11 +277,18 @@ class AugmentFailureVisibilityTest {
      * 반면 부모가 <b>비식별 미완료</b>({@code 'N'})면 복사할 비식별 영상 파일이 없어 파생 생성이
      * 물리적으로 불가능하다. 재개 트리거도 없으므로 보류가 아니라 <b>실패로 확정</b>한다.
      */
+    /**
+     * ★ 판정 축이 <b>플래그에서 경로 조달로</b> 바뀌었다(2026-09-02 확정 · V28/ADR-058) — 구 이름
+     * 「부모가 비식별 미완료면」의 조건은 <b>결과였지 전제가 아니었다</b>. 관제 자산에서는 결과가 같다.
+     */
     @Test
-    @DisplayName("부모가_비식별_미완료면_보류가_아니라_실패로_확정된다")
+    @DisplayName("복사할_원본_영상_경로를_못_구하면_보류가_아니라_실패로_확정된다")
     void notDeidentifiedParentFailsInsteadOfWithholding() {
         LsDataAug aug = pendingAug(808L, 8080L, LsDataAug.AUG_WINTER);
         parentChain(808000L, 8080L, "N");
+        // 비식별을 수행하지 않았으니 성공 처리 이력이 없다 = 복사할 파일이 없다.
+        when(deidentProcLogRepository.findLatestSuccessByDataRawSn(808000L))
+                .thenReturn(java.util.Optional.empty());
         List<LsDataAugJob> jobs = List.of(succeededJob(808L, 1));
 
         AugmentApplyResult result = rollup.rollUpIfAllTerminal(808L, jobs, "J-1");

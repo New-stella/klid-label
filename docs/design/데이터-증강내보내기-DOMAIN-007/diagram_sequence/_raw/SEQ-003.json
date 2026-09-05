@@ -10,21 +10,263 @@
     "data": {
       "theme": "neutral",
       "title": "증강 결과 수신·등록 — 외부 콜백부터 새 영상 생성까지",
-      "source": "sequenceDiagram\n    autonumber\n    participant EX as 외부 생성형 AI (SFR-07)\n    participant ARC as 증강 결과 webhook\n    participant ARS as AugmentResultService\n    participant LG as WebhookIdempotencyLedger\n    participant DB as PostgreSQL\n    participant RN as AsyncAugmentFrameRunner (커밋 후 @Async)\n    participant FS as 스토리지(NAS)\n\n    EX->>ARC: 증강 결과 콜백 (서명 없음 — idempotencyKey, originAugSn, augType, status)\n    ARC->>ARS: handle(outcome)\n    ARS->>LG: isIssued(idempotencyKey)\n    alt 미발급 키\n        ARS-->>ARC: UNAUTHORIZED → 401\n    else 발급된 키\n        ARS->>LG: isProcessed(idempotencyKey)\n        opt 이미 처리됨\n            ARS-->>ARC: applied=false (멱등 스킵)\n        end\n        ARS->>ARS: validateFilePath(resultFilePath) (SSRF/CWE-22)\n        ARS->>DB: LS_DATA_AUG FOR UPDATE 조회 + augType 일치 검증(불일치 409)\n\n        Note over ARS,DB: 부모 게이트는 상태 전이 <앞>에 판정한다 (전이 후 차단하면 ACCEPTED 종결 + 영상 0건)\n        ARS->>DB: evaluateParentGate — parentRaw.hasDeidentArtifact() ('Y' | 'F')\n        alt 부모 DE_IDNTF_YN='N' (비식별 미수행 — 복사할 비식별본 자체가 없음)\n            ARS->>DB: AUG_PROC_STTS_CD=REJECTED (실패 확정, 조용한 폐기 금지)\n        else 부모 'Y' 또는 'F'(신고 구간) — 신고는 파생 생성을 막지 않는다\n            ARS->>DB: AUG_PROC_STTS_CD = ACCEPTED(성공) / REJECTED(실패) — <생성 결과 축> 전용\n            Note over ARS,DB: 사람의 사용/폐기 판단은 LS_DATA_AUG_RVW.RVW_STTS_CD 가 단독 소유 (같은 컬럼에 두 주체 금지)\n            opt 생성 성공\n                ARS->>DB: LsDataRaw.createFromAugment — ORGNL_RAW_SN=부모, SRC_TYPE=AUGMENTED, PENDING, deIdntfYn='N'\n                Note over ARS,DB: VMS_CLIP_ID 유일화는 시각이 아니라 증강 행 PK(DATA_AUG_SN) 기반 — 동시 콜백 UK 충돌 방지\n                ARS->>DB: 촬영환경·개인정보 영상축 판정 부모로부터 1회 계승\n                ARS->>DB: RAW_FILE_PATH_NM = <파생 자신의 비식별 사본 경로> (부모 원본 경로 폴백 금지)\n                ARS->>DB: aug.assignDerivativeRawSn(NEW_RAW_SN) — 등재 게이트 그랜드퍼더링 창 차단(같은 tx)\n            end\n        end\n        ARS->>LG: markProcessed(idempotencyKey)\n        ARS-->>ARC: applied=true → 200 OK\n    end\n\n    Note over RN,FS: 커밋 이후 3-Phase 비동기 확정\n    ARS--)RN: AFTER_COMMIT runAsync(newRawSn, dataAugSn)\n    RN->>DB: Phase A — 멱등 가드 + 경로 스냅샷. 부모 비식별 영상 경로는 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM <값을 읽음>\n    RN->>FS: Phase B — 부모 비식별 영상 실제 복사 + 프레임 재추출 (tx 밖 순수 파일 I/O)\n    RN->>DB: Phase C — 프레임·라벨 복사(해상도 동일 → 좌표 그대로) + LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N') + 메타 영속\n    RN->>DB: COMPLETED 전이 → ffprobe 기술메타 (반드시 파생의 비식별 사본 대상, Phase C 성공 이후에만)\n    Note over RN,FS: 어느 단계든 예외 시 Phase B 산출 아티팩트 cleanup + 재확인",
-      "messages": [],
-      "fragments": [],
+      "source": "sequenceDiagram\n    participant genAiVendor as 외부 생성형 AI (SFR-07)\n    participant callbackEndpoint as GenAiCallbackController\n    participant augmentResultSvc as AugmentResultService\n    participant idempotencyLedger as WebhookIdempotencyLedger\n    participant db as PostgreSQL\n    participant frameRunner as AsyncAugmentFrameRunner\n    participant storage as 스토리지(NAS)\n\n    genAiVendor->>callbackEndpoint: 증강 결과 콜백 (서명 없음 — idempotencyKey, originAugSn, augType, status)\n    callbackEndpoint->>augmentResultSvc: handle(outcome)\n    augmentResultSvc->>idempotencyLedger: isIssued(idempotencyKey)\n    alt 미발급 키\n        augmentResultSvc-->>callbackEndpoint: UNAUTHORIZED → 401\n    end\n    alt 발급된 키\n        augmentResultSvc->>idempotencyLedger: isProcessed(idempotencyKey)\n        opt 이미 처리됨\n            augmentResultSvc-->>callbackEndpoint: applied=false (멱등 스킵)\n        end\n        augmentResultSvc->>augmentResultSvc: validateFilePath(resultFilePath) (SSRF/CWE-22)\n        augmentResultSvc->>db: LS_DATA_AUG FOR UPDATE 조회 + augType 일치 검증(불일치 409)\n        Note over augmentResultSvc: 부모 게이트는 상태 전이 <앞>에 판정한다 (전이 후 차단하면 ACCEPTED 종결 + 영상 0건)\n        augmentResultSvc->>db: evaluateParentGate — parentRaw.hasDeidentArtifact() ('Y' | 'F')\n        alt 부모 DE_IDNTF_YN='N' (비식별 미수행 — 복사할 비식별본 자체가 없음)\n            augmentResultSvc->>db: AUG_PROC_STTS_CD=REJECTED (실패 확정, 조용한 폐기 금지)\n        end\n        alt 부모 'Y' 또는 'F'(신고 구간) — 신고는 파생 생성을 막지 않는다\n            augmentResultSvc->>db: AUG_PROC_STTS_CD = ACCEPTED(성공) / REJECTED(실패) — <생성 결과 축> 전용\n            Note over augmentResultSvc: 사람의 사용/폐기 판단은 LS_DATA_AUG_RVW.RVW_STTS_CD 가 단독 소유 (같은 컬럼에 두 주체 금지)\n            opt 생성 성공\n                augmentResultSvc->>db: LsDataRaw.createFromAugment — ORGNL_RAW_SN=부모, SRC_TYPE=AUGMENTED, PENDING, deIdntfYn='N'\n                Note over augmentResultSvc: VMS_CLIP_ID 유일화는 시각이 아니라 증강 행 PK(DATA_AUG_SN) 기반 — 동시 콜백 UK 충돌 방지\n                augmentResultSvc->>db: 촬영환경·개인정보 영상축 판정 부모로부터 1회 계승\n                augmentResultSvc->>db: RAW_FILE_PATH_NM = <파생 자신의 비식별 사본 경로> (부모 원본 경로 폴백 금지)\n                augmentResultSvc->>db: aug.assignDerivativeRawSn(NEW_RAW_SN) — 등재 게이트 그랜드퍼더링 창 차단(같은 tx)\n            end\n        end\n        augmentResultSvc->>idempotencyLedger: markProcessed(idempotencyKey)\n        augmentResultSvc-->>callbackEndpoint: applied=true → 200 OK\n    end\n    Note over frameRunner: 커밋 이후 3-Phase 비동기 확정\n    augmentResultSvc-)frameRunner: AFTER_COMMIT runAsync(newRawSn, dataAugSn)\n    frameRunner->>db: Phase A — 멱등 가드 + 경로 스냅샷. 부모 비식별 영상 경로는 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM <값을 읽음>\n    frameRunner->>storage: Phase B — 부모 비식별 영상 실제 복사 + 프레임 재추출 (tx 밖 순수 파일 I/O)\n    frameRunner->>db: Phase C — 프레임·라벨 복사(해상도 동일 → 좌표 그대로) + LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N') + 메타 영속\n    frameRunner->>db: COMPLETED 전이 → ffprobe 기술메타 (반드시 파생의 비식별 사본 대상, Phase C 성공 이후에만)\n    Note over frameRunner: 어느 단계든 예외 시 Phase B 산출 아티팩트 cleanup + 재확인\n",
+      "messages": [
+        {
+          "to": "callbackEndpoint",
+          "from": "genAiVendor",
+          "kind": "sync",
+          "label": "증강 결과 콜백 (서명 없음 — idempotencyKey, originAugSn, augType, status)"
+        },
+        {
+          "to": "augmentResultSvc",
+          "from": "callbackEndpoint",
+          "kind": "sync",
+          "label": "handle(outcome)"
+        },
+        {
+          "to": "idempotencyLedger",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "isIssued(idempotencyKey)"
+        },
+        {
+          "to": "callbackEndpoint",
+          "from": "augmentResultSvc",
+          "kind": "return",
+          "label": "UNAUTHORIZED → 401"
+        },
+        {
+          "to": "idempotencyLedger",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "isProcessed(idempotencyKey)"
+        },
+        {
+          "to": "callbackEndpoint",
+          "from": "augmentResultSvc",
+          "kind": "return",
+          "label": "applied=false (멱등 스킵)"
+        },
+        {
+          "to": "augmentResultSvc",
+          "from": "augmentResultSvc",
+          "kind": "self",
+          "label": "validateFilePath(resultFilePath) (SSRF/CWE-22)"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "LS_DATA_AUG FOR UPDATE 조회 + augType 일치 검증(불일치 409)"
+        },
+        {
+          "to": "augmentResultSvc",
+          "from": "augmentResultSvc",
+          "kind": "note",
+          "label": "부모 게이트는 상태 전이 <앞>에 판정한다 (전이 후 차단하면 ACCEPTED 종결 + 영상 0건)"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "evaluateParentGate — parentRaw.hasDeidentArtifact() ('Y' | 'F')"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "AUG_PROC_STTS_CD=REJECTED (실패 확정, 조용한 폐기 금지)"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "AUG_PROC_STTS_CD = ACCEPTED(성공) / REJECTED(실패) — <생성 결과 축> 전용"
+        },
+        {
+          "to": "augmentResultSvc",
+          "from": "augmentResultSvc",
+          "kind": "note",
+          "label": "사람의 사용/폐기 판단은 LS_DATA_AUG_RVW.RVW_STTS_CD 가 단독 소유 (같은 컬럼에 두 주체 금지)"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "LsDataRaw.createFromAugment — ORGNL_RAW_SN=부모, SRC_TYPE=AUGMENTED, PENDING, deIdntfYn='N'"
+        },
+        {
+          "to": "augmentResultSvc",
+          "from": "augmentResultSvc",
+          "kind": "note",
+          "label": "VMS_CLIP_ID 유일화는 시각이 아니라 증강 행 PK(DATA_AUG_SN) 기반 — 동시 콜백 UK 충돌 방지"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "촬영환경·개인정보 영상축 판정 부모로부터 1회 계승"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "RAW_FILE_PATH_NM = <파생 자신의 비식별 사본 경로> (부모 원본 경로 폴백 금지)"
+        },
+        {
+          "to": "db",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "aug.assignDerivativeRawSn(NEW_RAW_SN) — 등재 게이트 그랜드퍼더링 창 차단(같은 tx)"
+        },
+        {
+          "to": "idempotencyLedger",
+          "from": "augmentResultSvc",
+          "kind": "sync",
+          "label": "markProcessed(idempotencyKey)"
+        },
+        {
+          "to": "callbackEndpoint",
+          "from": "augmentResultSvc",
+          "kind": "return",
+          "label": "applied=true → 200 OK"
+        },
+        {
+          "to": "frameRunner",
+          "from": "frameRunner",
+          "kind": "note",
+          "label": "커밋 이후 3-Phase 비동기 확정"
+        },
+        {
+          "to": "frameRunner",
+          "from": "augmentResultSvc",
+          "kind": "async",
+          "label": "AFTER_COMMIT runAsync(newRawSn, dataAugSn)"
+        },
+        {
+          "to": "db",
+          "from": "frameRunner",
+          "kind": "sync",
+          "label": "Phase A — 멱등 가드 + 경로 스냅샷. 부모 비식별 영상 경로는 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM <값을 읽음>"
+        },
+        {
+          "to": "storage",
+          "from": "frameRunner",
+          "kind": "sync",
+          "label": "Phase B — 부모 비식별 영상 실제 복사 + 프레임 재추출 (tx 밖 순수 파일 I/O)"
+        },
+        {
+          "to": "db",
+          "from": "frameRunner",
+          "kind": "sync",
+          "label": "Phase C — 프레임·라벨 복사(해상도 동일 → 좌표 그대로) + LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N') + 메타 영속"
+        },
+        {
+          "to": "db",
+          "from": "frameRunner",
+          "kind": "sync",
+          "label": "COMPLETED 전이 → ffprobe 기술메타 (반드시 파생의 비식별 사본 대상, Phase C 성공 이후에만)"
+        },
+        {
+          "to": "frameRunner",
+          "from": "frameRunner",
+          "kind": "note",
+          "label": "어느 단계든 예외 시 Phase B 산출 아티팩트 cleanup + 재확인"
+        }
+      ],
+      "fragments": [
+        {
+          "kind": "alt",
+          "label": "미발급 키",
+          "end_index": 3,
+          "start_index": 3
+        },
+        {
+          "kind": "alt",
+          "label": "발급된 키",
+          "end_index": 19,
+          "start_index": 4
+        },
+        {
+          "kind": "opt",
+          "label": "이미 처리됨",
+          "end_index": 5,
+          "start_index": 5
+        },
+        {
+          "kind": "alt",
+          "label": "부모 DE_IDNTF_YN='N' (비식별 미수행 — 복사할 비식별본 자체가 없음)",
+          "end_index": 10,
+          "start_index": 10
+        },
+        {
+          "kind": "alt",
+          "label": "부모 'Y' 또는 'F'(신고 구간) — 신고는 파생 생성을 막지 않는다",
+          "end_index": 17,
+          "start_index": 11
+        },
+        {
+          "kind": "opt",
+          "label": "생성 성공",
+          "end_index": 17,
+          "start_index": 13
+        }
+      ],
       "description": "외부 생성형 AI(SFR-07) 가 증강 결과를 webhook 으로 보내면 AugmentResultService 가 멱등 원장(발급 allowlist · 중복 replay 스킵) · resultFilePath SSRF/CWE-22 검증 · augType 일치 검증을 거친 뒤 부모 게이트를 <상태 전이 앞>에서 판정한다(구 순서처럼 전이 후 게이트에 걸리면 aug 는 ACCEPTED 로 종결되고 신규 영상은 0건인데 재콜백도 막힌다). 부모 게이트는 LsDataRaw.hasDeidentArtifact() 단일 헬퍼로 판정하며 DE_IDNTF_YN='N'(비식별 미수행 — 복사할 비식별본이 물리적으로 없음)만 차단하고 'F'(비식별 누락 신고 구간)는 통과시킨다 — 신고가 막는 것은 외부 위탁(요청·전송)뿐이고 파생 생성은 신고와 무관하다. AUG_PROC_STTS_CD 는 <생성 결과 전용>(성공 ACCEPTED / 실패 REJECTED / 취소 CANCELED)이며 웹훅이 소유한다 — REVIEWER 의 사용·폐기 결정은 LS_DATA_AUG_RVW.RVW_STTS_CD 가 단독으로 소유하고 작업목록 등재 게이트도 리뷰 축을 본다(두 축을 한 컬럼에 합치지 말 것). 성공 시 동기 트랜잭션은 <새 영상 RAW + 매핑까지만> 한다 — LsDataRaw.createFromAugment 로 ORGNL_RAW_SN(구 PARENT_RAW_SN, V82 rename)=부모 · SRC_TYPE=AUGMENTED · PENDING · deIdntfYn='N' 으로 생성하고, VMS_CLIP_ID 는 시각이 아니라 증강 행 PK(DATA_AUG_SN)로 유일화하며(중복 요청 허용 이후 동시 콜백이 같은 밀리초에 UK_LS_DATA_RAW_VMS_CLIP 을 위반하면 결과물이 유실된다), 촬영환경·개인정보 영상축 판정을 부모로부터 1회 계승하고(copyShootingEnvironmentFrom/copyPrivacyMetaFrom), NEW_RAW_SN 매핑(V155)을 같은 트랜잭션에서 확정해 등재 게이트 그랜드퍼더링 창을 닫는다. 파생의 RAW_FILE_PATH_NM 은 <파생 자신의 비식별 사본 경로>이며 부모 원본(비-비식별) 경로 폴백은 금지된다(CWE-359). 프레임 재추출·라벨/메타 복사·비식별 불변식 확정은 커밋 이후 AsyncAugmentFrameRunner 의 3-Phase 로 미룬다 — Phase A(짧은 REQUIRES_NEW, 멱등 가드·경로 스냅샷) → Phase B(트랜잭션 밖 순수 파일 I/O — 부모 비식별 영상 실제 복사 + ffmpeg 프레임 재추출) → Phase C(짧은 REQUIRES_NEW, 라벨 좌표를 그대로 복사해 LS_DATA_AUG_LBL_MAP(COORD_RECALC_YN='N')·메타 영속 + COMPLETED 전이) → ffprobe 기술메타. 부모 비식별 영상 경로는 문자열로 조합하지 않고 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 값을 읽는다(mock=deidentified.mp4 / KPST={원본stem}-mask{ext} 로 영상마다 다르다). ffprobe 를 Phase C 성공 이후에만 돌리는 이유는 측정 대상이 부모가 아니라 파생의 비식별 사본이기 때문이다(나란히 기동하면 사본 생성 전 probe 레이스).",
       "invokes_apis": [
         "API-165"
       ],
-      "participants": [],
+      "participants": [
+        {
+          "id": "genAiVendor",
+          "kind": "external",
+          "name": "외부 생성형 AI (SFR-07)",
+          "extsys_ref": "EXTSYS-004"
+        },
+        {
+          "id": "callbackEndpoint",
+          "kind": "service",
+          "name": "GenAiCallbackController"
+        },
+        {
+          "id": "augmentResultSvc",
+          "kind": "service",
+          "name": "AugmentResultService"
+        },
+        {
+          "id": "idempotencyLedger",
+          "kind": "service",
+          "name": "WebhookIdempotencyLedger"
+        },
+        {
+          "id": "db",
+          "kind": "database",
+          "name": "PostgreSQL"
+        },
+        {
+          "id": "frameRunner",
+          "kind": "service",
+          "name": "AsyncAugmentFrameRunner"
+        },
+        {
+          "id": "storage",
+          "kind": "system",
+          "name": "스토리지(NAS)"
+        }
+      ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "implemented",
         "modules": [],
-        "records": [],
-        "progress": 0,
-        "subtasks": []
+        "records": [
+          "IMPREC-374"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-29T01:26:55.780Z",
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -39,12 +281,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 9,
+    "current_version": 15,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "본문 끝에 붙어 있던 출처 문장을 걷어냈다. 그 문장은 외부 지침 문서와 구현 클래스 목록을 이 설계의 진실원으로 지목해, 설계서가 스스로 자립할 수 없다고 선언하는 꼴이었다. 상호작용을 그리는 서술과 참가자 이름은 그대로 두었다.",
+    "change_summary": "이름만 있고 클래스가 아니던 참가자에 실제 클래스명을 준다. 코드에서 그 역할을 맡는 클래스를 찾아 확인한 것만 바꿨고, 찾지 못한 자리는 그대로 두었다. 메시지와 조각은 하나도 바꾸지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T12:14:51.831Z",
+    "last_updated_at": "2026-09-03T22:44:23.882Z",
     "created_at": "2026-06-02T13:10:55.248Z"
   }
 }

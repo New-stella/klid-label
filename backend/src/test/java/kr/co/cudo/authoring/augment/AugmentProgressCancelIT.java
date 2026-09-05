@@ -21,6 +21,10 @@ import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.client.NonRetryableExternalException;
 import kr.co.cudo.authoring.common.exception.CustomException;
 import kr.co.cudo.authoring.common.exception.ErrorCode;
+import kr.co.cudo.authoring.augment.service.AugmentProgressService;
+import kr.co.cudo.authoring.common.security.Channel;
+import kr.co.cudo.authoring.common.security.Role;
+import kr.co.cudo.authoring.common.security.TokenClaims;
 import kr.co.cudo.authoring.common.storage.VideoArtifactRootResolver;
 import kr.co.cudo.authoring.video.entity.LsDataRaw;
 import kr.co.cudo.authoring.video.repository.VideoRepository;
@@ -40,6 +44,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -86,11 +91,20 @@ class AugmentProgressCancelIT {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private LsDataAugRepository augRepository;
+    @Autowired private kr.co.cudo.authoring.batch.repository.LsDeidentProcLogRepository
+            deidentProcLogRepositoryForFixture;
     @Autowired private LsDataAugJobRepository jobRepository;
     @Autowired private LsDataAugJobFileRepository jobFileRepository;
     @Autowired private LsDataSrcRepository srcRepository;
     @Autowired private VideoRepository videoRepository;
     @Autowired private CircuitBreakerRegistry circuitBreakerRegistry;
+    /**
+     * 회수 부작용의 역할 게이트는 <b>서비스 안</b>에 있다 — 관리자 통과를 확인하려면 그 자리를
+     * 직접 불러야 한다. HTTP 경로로 부르면 역할이 인계 토큰이 아니라 역할 저장소에서 해석되어
+     * 관리자 행을 심어야 하고, 그러면 「관리자 0명일 때만 열리는」 부트스트랩 창구가 이 시험이
+     * 도는 동안 닫힌다.
+     */
+    @Autowired private AugmentProgressService progressService;
 
     @MockBean private ExternalAugmentClient externalClient;
     /** 프레임 재추출(ffmpeg·파일 I/O)은 이 Phase 의 검증 대상이 아니다. */
@@ -863,6 +877,36 @@ class AugmentProgressCancelIT {
                 .as("WORKER 의 GET 이 파생영상 생성을 유발하면 안 된다").isEmpty();
     }
 
+    /**
+     * 역할 계층 — 관리자는 검수자 자리를 물려받으므로 <b>회수 부작용도 유발한다</b>.
+     *
+     * <p>이 자리를 역할 동등 비교로 두면 관리자의 폴링은 조회만 되고 회수가 조용히 멈춘다. 그러면
+     * 「진행 중」 표시가 관리자 화면에서만 영영 풀리지 않는다(오류가 나지 않아 더 조용하다).
+     *
+     * <p>바로 위 {@link #workerProgressDoesNotTriggerRecovery} 가 짝이다 — 작업자는 읽되 회수하지
+     * 않는다는 경계가 그대로여야 「관리자가 통과한다」가 의미를 갖는다.
+     *
+     * @design ADR-055
+     * @design ROLE-004
+     * @design AC-125
+     */
+    @Test
+    @DisplayName("ADMIN_의_진행률_조회도_회수를_유발한다_계층으로_검수자_자리를_물려받는다")
+    void adminProgressTriggersRecovery() {
+        Fixture fx = seedRecoverableAugment("ADMINRC");
+        stubRecoverableSuccess(fx, "ADMINRC");
+        TokenClaims admin = new TokenClaims(
+                "9", Role.ADMIN, Channel.INTERNAL, Instant.now().plusSeconds(3600));
+
+        var response = progressService.progress(fx.aug().getDataAugSn(), admin);
+
+        assertThat(response.status()).isEqualTo("SUCCEEDED");
+        verify(externalClient, times(1)).fetchJobResults(fx.externalJobId());
+        assertThat(jobRepository.findById(fx.job().getAugJobSn()).orElseThrow().getJobSttsCd())
+                .as("관리자의 폴링도 종결 청크를 실제로 회수해야 한다")
+                .isEqualTo(LsDataAugJob.STTS_SUCCEEDED);
+    }
+
     @Test
     @DisplayName("REVIEWER_의_진행률_조회는_회수를_유발한다")
     void reviewerProgressTriggersRecovery() throws Exception {
@@ -927,6 +971,7 @@ class AugmentProgressCancelIT {
                 LocalDateTime.now(), 30));
         parent.markDeidentified("Y");
         parent = videoRepository.saveAndFlush(parent);
+        seedParentDeidVideo(parent.getRawSn(), parent.getRawFilePathNm());
 
         LsDataSrc frame = LsDataSrc.create(parent.getRawSn(), 0L, 0L,
                 "/nas/frames/raw/" + suffix + "/f0.jpg", LocalDateTime.now());
@@ -954,4 +999,20 @@ class AugmentProgressCancelIT {
 
     private record Fixture(Long parentRawSn, LsDataAug aug, LsDataAugJob job, String externalJobId) {
     }
+
+    /**
+     * 부모 <b>비식별 영상 산출물</b> 처리 이력 — 파생 복사 원본 경로의 진실원(V28/ADR-058).
+     *
+     * <p>흡수 이전 부모 게이트는 {@code DE_IDENT_YN} <b>플래그</b>만 봤고 실제 경로는 Phase A 에서야
+     * 확인했다. 지금은 게이트가 <b>경로를 직접 조달</b>하므로(「비식별이 끝났나」는 조건이 아니라
+     * 결과였다) 플래그만 세운 부모로는 통과하지 않는다 — 관제 경로가 <b>더 엄격해진</b> 지점이다.
+     * 경로는 상대값으로 둔다: co-locate 디렉터리와 비식별 저장소 서브트리 <b>양쪽</b>에서 해석된다.
+     */
+    private void seedParentDeidVideo(Long parentRawSn, String orgnlFilePath) {
+        var procLog = kr.co.cudo.authoring.batch.entity.LsDeidentProcLog.request(
+                parentRawSn, null, orgnlFilePath, "test");
+        procLog.succeed("videos/" + parentRawSn + "/deidentified.mp4");
+        deidentProcLogRepositoryForFixture.saveAndFlush(procLog);
+    }
+
 }

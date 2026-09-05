@@ -10,62 +10,62 @@
     "data": {
       "theme": "neutral",
       "title": "포털 데이터마트 라벨 작업 — 영상 선택부터 본인 작업 라벨 저장까지",
-      "source": "sequenceDiagram\n    actor U as 포털 회원(PORTAL_USER)\n    participant HOME as 포털 홈 화면\n    participant FE as 포털 라벨링 화면\n    participant C as PortalLabelController\n    participant S as PortalLabelService\n    participant G as LabelAccessGuard(비식별 누락 신고 게이트)\n    participant DB as 저작도구 DB\n\n    U->>HOME: 포털 진입\n    HOME->>C: GET /v1/portal/datamart/videos?page=&size=\n    C->>S: listDatamartVideos(actor, pageable)\n    S->>DB: 검수 승인(APPROVED) 영상만 페이징 조회\n    DB-->>S: 영상 목록\n    S->>DB: 첫 프레임 식별자·프레임 수·마지막 상태 변경 일시 일괄 조회\n    DB-->>S: 영상별 집계\n    S->>S: 프레임이 없는 영상은 목록에서 제외\n    S-->>C: 영상 목록(영상 식별자·첫 프레임 식별자·프레임 수)\n    C-->>HOME: 200 OK\n\n    U->>HOME: 영상 선택\n    HOME->>FE: 선택 영상의 첫 프레임으로 라벨링 화면 진입\n\n    FE->>C: GET /v1/portal/frames/{srcSn}/labels\n    C->>S: loadFrameLabels(srcSn, actor)\n    S->>DB: 프레임(LS_DATA_SRC) 조회\n    DB-->>S: 프레임\n    alt 검수 승인(APPROVED) 영상이 아니거나 미존재\n        S-->>FE: 403 (실재 여부가 응답으로 드러나지 않게 같은 코드)\n    else 노출 대상\n        S->>G: requireNotUnderDeidentReport(rawSn)\n        alt 비식별 누락 신고가 열린 구간(DE_IDENT_YN='F')\n            G-->>S: 412 PRECONDITION_FAILED\n            S-->>FE: 412 (좌표·이미지 모두 차단, 신고 해소로 자동 해제)\n        else 신고 없음\n            G-->>S: 통과\n            S->>DB: 형제 프레임 목록 + 본인 작업 라벨(LS_PORTAL_USER_LABEL) 조회\n            DB-->>S: 형제 프레임 · 본인 작업 라벨\n            alt 본인 작업 라벨 있음\n                S->>S: 본인 작업 라벨만 반환(작업본 우선)\n            else 없음\n                S->>DB: 데이터마트 원본 라벨(LS_DATA_LBL) 조회\n                DB-->>S: 원본 라벨(초기값)\n            end\n            S->>S: 좌표가 비어 있는 라벨은 결과에서 제외\n            S-->>C: 프레임 라벨 응답\n            C-->>FE: 200 OK\n        end\n    end\n\n    FE->>C: GET /v1/portal/frames/{srcSn}/image\n    C->>S: serveFrameImage(srcSn, actor)\n    S->>S: 노출 판정 → 신고 게이트(라벨 조회와 같은 순서·조건)\n    S->>S: 비식별 프레임 경로만 서빙 — 원본 폴백 없음\n    S->>S: 실경로로 서브트리 판정 후 그 실경로를 링크를 따르지 않고 연다\n    S-->>C: 이미지 스트림\n    C-->>FE: 200 OK (Cache-Control: no-store)\n\n    U->>FE: 라벨 확인·수정(BBOX/POLYGON)\n    Note over FE: 오토라벨링·객체 자동 분할/추적·시계열 메타·검수 제출·버전 히스토리 없음\n    loop 화면의 라벨 건수만큼 순차 저장\n        FE->>C: POST /v1/portal/user-labels\n        C->>C: 회원별 저장 허가 획득(초과 시 429)\n        C->>S: saveUserLabel(req, actor)\n        S->>S: 노출 판정 → 신고 게이트\n        S->>S: 형태 허용 목록(BBOX/POLYGON) → 좌표 개수 상한 → 유한성\n        S->>S: 정규형 재직렬화로 적재값 확정\n        S->>DB: LS_PORTAL_USER_LABEL 회원별 적재\n        DB-->>S: 저장 결과\n        S-->>C: 저장된 작업 라벨\n        C-->>FE: 201 Created\n    end\n    Note over S,DB: 원본 라벨(LS_DATA_LBL)·데이터마트는 수정되지 않는다 — 단방향\n\n    FE->>C: GET /v1/portal/user-labels?rawSn=\n    C->>S: listMyLabels(rawSn, actor)\n    S->>S: 노출 판정 → 신고 게이트\n    S->>DB: 토큰의 회원 식별자 스코프로만 조회\n    DB-->>S: 본인 작업 라벨\n    S-->>C: 본인 작업 라벨 목록\n    C-->>FE: 200 OK\n",
+      "source": "sequenceDiagram\n    actor user as 포털 회원(PORTAL_USER)\n    participant host as 포털(Host) 데이터마트 목록 화면\n    participant home as 포털 내 작업 화면\n    participant fe as 포털 라벨링 화면\n    participant ctrl as PortalLabelController\n    participant svc as PortalLabelService\n    participant gate as LabelAccessGuard\n    participant db as 저작도구 DB\n\n    alt 진입 두 갈래 — 앞 2건은 새로쓰기(Host 데이터마트 목록), 나머지는 이어쓰기(내 저장 작업 목록)\n        user->>host: [새로쓰기] 포털(Host) 데이터마트 목록에서 영상 선택 — 목록 화면과 진입 링크는 Host 가 소유한다\n        host->>fe: [새로쓰기] 진입 링크로 라벨링 화면 진입 — 대상 영상 식별자와 열 프레임 식별자를 인계받는다\n        user->>home: [이어쓰기] 저작도구 내 작업 화면 진입 — 「내 저장 작업 목록」을 연다\n        home->>ctrl: GET /v1/portal/user-works?page=&size=\n        ctrl->>svc: listMyWorks(actor, pageable)\n        svc->>db: 본인 저장 작업을 영상 단위로 묶어 페이징 조회 — 토큰의 회원 식별자가 격리 키라 타인의 작업분이 섞이지 않는다\n        db-->>svc: 본인 저장 작업 목록(영상 이름·라벨 건수·저작 최초 저장 시점·마지막 저장 시각·마지막 저장 프레임 식별자) — 최초 저장 시점은 만료 예정일 파생의 기산점이고, 마지막 저장 시각은 정렬과 이어쓰기 진입 축이다\n        svc->>svc: 저작 최초 저장 시점을 기산점으로 보존기간에서 만료 예정일을 파생한다 — 마지막 저장 시각에서 다시 계산하지 않는다. 캐시하지 않는다\n        svc-->>ctrl: 본인 저장 작업 목록 — 행마다 마지막 저장 프레임 식별자와 만료 예정일을 함께 싣는다\n        ctrl-->>home: 200 OK\n        user->>home: [이어쓰기] 이어서 작업하기 선택\n        home->>fe: 마지막 저장 프레임으로 라벨링 화면 진입 — 그 자리는 목록 응답이 알려 주며 화면이 추측하지 않는다\n    end\n    fe->>ctrl: GET /v1/portal/frames/{srcSn}/labels\n    ctrl->>svc: loadFrameLabels(srcSn, actor)\n    svc->>db: 프레임(LS_DATA_SRC) 조회 — 소속 영상 식별자 확인\n    db-->>svc: 프레임\n    svc->>svc: 데이터마트 노출 판정 — 검수 승인(APPROVED) 영상이 아니면 403\n    Note over svc: 미존재 영상도 같은 403 이다 — 응답 코드가 영상의 실재 여부를 알려주는 오라클이 되지 않게 한다\n    svc->>gate: requireNotUnderDeidentReport(rawSn)\n    gate-->>svc: 통과\n    Note over gate: [대안] 비식별 누락 신고가 열린 구간(DE_IDENT_YN='F')이면 412 — 라벨 좌표는 개인정보의 위치를 특정하는 정보라 조회·저장·이미지 서빙 모두 같은 지점에서 막힌다. 신고 해소로 자동 해제된다\n    svc->>db: 같은 영상의 형제 프레임 목록 + 본인 작업 라벨(LS_PORTAL_USER_LABEL) 조회\n    db-->>svc: 형제 프레임 · 본인 작업 라벨\n    alt 본인 작업 라벨이 있는가\n        svc->>svc: 있음 — 본인 작업 라벨만 돌려준다(작업본 우선)\n        svc->>db: 없음 — 데이터마트 원본 라벨(LS_DATA_LBL) 조회\n        db-->>svc: 원본 라벨(초기값)\n    end\n    svc->>svc: 좌표가 비어 있는 라벨은 결과에서 제외한다\n    svc-->>ctrl: 프레임 라벨 응답(프레임 번호·프레임 식별자·영상 식별자·형제 프레임·라벨 목록 — 라벨마다 라벨 마스터 참조·트랙 식별자를 함께 싣는다)\n    ctrl-->>fe: 200 OK\n    fe->>ctrl: GET /v1/portal/frames/{srcSn}/image\n    ctrl->>svc: serveFrameImage(srcSn, actor)\n    svc->>svc: 데이터마트 노출 판정 → 신고 게이트 — 라벨 조회와 같은 순서·같은 조건\n    svc->>svc: 비식별 프레임 경로만 서빙한다 — 원본 프레임으로 되돌아가는 폴백을 두지 않는다\n    svc->>svc: 경로를 실경로로 풀어 비식별 서브트리 안인지 판정하고, 판정에 쓴 그 실경로를 링크를 따르지 않고 연다\n    svc-->>ctrl: 이미지 스트림\n    ctrl-->>fe: 200 OK (Cache-Control: no-store — 게이트가 매 요청 평가되도록 브라우저가 응답을 재사용하지 못하게 한다)\n    user->>fe: 라벨 확인·수정(BBOX/POLYGON)\n    Note over fe: 포털에는 오토라벨링·객체 자동 분할/추적·키포인트·트랙 번호 변경과 병합·검수 제출·버전 히스토리를 두지 않는다. 시계열 메타는 미제공이 아니라 이 시퀀스가 그리는 축 밖이다\n    loop 화면의 라벨 건수만큼 순차 저장\n        fe->>ctrl: POST /v1/portal/user-labels\n        ctrl->>ctrl: 회원별 저장 허가 획득 — 요청량 제한을 넘으면 대기 없이 429\n        ctrl->>svc: saveUserLabel(req, actor) — 요청이 조회에서 받은 라벨 마스터 참조·트랙 식별자를 되돌려 실어 원본의 분류·트랙 연결을 보존한다\n        svc->>svc: 데이터마트 노출 판정 → 신고 게이트 — 조회와 같은 게이트를 저장에도 건다\n        svc->>svc: 라벨 형태 허용 목록 검사(BBOX/POLYGON 만) → 형태별 좌표 개수 상한 → 좌표 유한성 확인\n        svc->>svc: 검증한 좌표를 정규형으로 다시 직렬화해 적재값을 확정한다 — 검증한 값과 적재하는 값이 같아야 상한이 실효를 갖는다\n        svc->>db: LS_PORTAL_USER_LABEL 에 회원별로 적재\n        db-->>svc: 저장 결과\n        svc-->>ctrl: 저장된 작업 라벨 — 서버 판정을 거쳐 실제로 적재된 라벨 마스터 참조·트랙 식별자를 함께 돌려준다\n        ctrl-->>fe: 201 Created\n    end\n    Note over svc: 원본 라벨(LS_DATA_LBL)과 데이터마트는 이 흐름에서 수정되지 않는다 — 포털 작업분은 단방향으로만 쌓인다\n    fe->>ctrl: GET /v1/portal/user-labels?rawSn=\n    ctrl->>svc: listMyLabels(rawSn, actor)\n    svc->>svc: 데이터마트 노출 판정 → 신고 게이트\n    svc->>db: 토큰의 회원 식별자 스코프로만 조회 — 타인의 작업분은 결과에 들어오지 않는다\n    db-->>svc: 본인 작업 라벨\n    svc-->>ctrl: 본인 작업 라벨 목록 — 조회 계열 응답과 같은 형태로 라벨 마스터 참조·트랙 식별자를 함께 담는다\n    ctrl-->>fe: 200 OK\n    Note over home: [폐기] 데이터마트 영상 목록 조회 단계 — 저작도구는 그 목록을 두지 않는다. 목록 화면과 진입 링크는 Host(포털)가 소유하고, 화면·세션 생성·소재 적재·저장·작업 목록·내려받기는 저작도구가 소유한다\n",
       "messages": [
+        {
+          "to": "host",
+          "from": "user",
+          "kind": "sync",
+          "label": "[새로쓰기] 포털(Host) 데이터마트 목록에서 영상 선택 — 목록 화면과 진입 링크는 Host 가 소유한다"
+        },
+        {
+          "to": "fe",
+          "from": "host",
+          "kind": "sync",
+          "label": "[새로쓰기] 진입 링크로 라벨링 화면 진입 — 대상 영상 식별자와 열 프레임 식별자를 인계받는다"
+        },
         {
           "to": "home",
           "from": "user",
           "kind": "sync",
-          "label": "포털 진입"
+          "label": "[이어쓰기] 저작도구 내 작업 화면 진입 — 「내 저장 작업 목록」을 연다"
         },
         {
           "to": "ctrl",
           "from": "home",
           "kind": "sync",
-          "label": "GET /v1/portal/datamart/videos?page=&size=",
-          "item_ref": "API-115"
+          "label": "GET /v1/portal/user-works?page=&size=",
+          "item_ref": "API-225"
         },
         {
           "to": "svc",
           "from": "ctrl",
           "kind": "sync",
-          "label": "listDatamartVideos(actor, pageable)"
+          "label": "listMyWorks(actor, pageable)"
         },
         {
           "to": "db",
           "from": "svc",
           "kind": "sync",
-          "label": "검수 승인(APPROVED) 영상만 페이징 조회"
+          "label": "본인 저장 작업을 영상 단위로 묶어 페이징 조회 — 토큰의 회원 식별자가 격리 키라 타인의 작업분이 섞이지 않는다"
         },
         {
           "to": "svc",
           "from": "db",
           "kind": "return",
-          "label": "영상 목록"
-        },
-        {
-          "to": "db",
-          "from": "svc",
-          "kind": "sync",
-          "label": "첫 프레임 식별자·프레임 수·마지막 상태 변경 일시 일괄 조회"
-        },
-        {
-          "to": "svc",
-          "from": "db",
-          "kind": "return",
-          "label": "영상별 집계"
+          "label": "본인 저장 작업 목록(영상 이름·라벨 건수·저작 최초 저장 시점·마지막 저장 시각·마지막 저장 프레임 식별자) — 최초 저장 시점은 만료 예정일 파생의 기산점이고, 마지막 저장 시각은 정렬과 이어쓰기 진입 축이다"
         },
         {
           "to": "svc",
           "from": "svc",
           "kind": "self",
-          "label": "프레임이 없는 영상은 목록에서 제외(라벨링 진입 대상이 없다)"
+          "label": "저작 최초 저장 시점을 기산점으로 보존기간에서 만료 예정일을 파생한다 — 마지막 저장 시각에서 다시 계산하지 않는다. 캐시하지 않는다"
         },
         {
           "to": "ctrl",
           "from": "svc",
           "kind": "return",
-          "label": "영상 목록(영상 식별자·첫 프레임 식별자·프레임 수)"
+          "label": "본인 저장 작업 목록 — 행마다 마지막 저장 프레임 식별자와 만료 예정일을 함께 싣는다"
         },
         {
           "to": "home",
@@ -77,13 +77,13 @@
           "to": "home",
           "from": "user",
           "kind": "sync",
-          "label": "영상 선택"
+          "label": "[이어쓰기] 이어서 작업하기 선택"
         },
         {
           "to": "fe",
           "from": "home",
           "kind": "sync",
-          "label": "선택 영상의 첫 프레임으로 라벨링 화면 진입"
+          "label": "마지막 저장 프레임으로 라벨링 화면 진입 — 그 자리는 목록 응답이 알려 주며 화면이 추측하지 않는다"
         },
         {
           "to": "ctrl",
@@ -180,7 +180,7 @@
           "to": "ctrl",
           "from": "svc",
           "kind": "return",
-          "label": "프레임 라벨 응답(프레임 번호·프레임 식별자·영상 식별자·형제 프레임·라벨 목록)"
+          "label": "프레임 라벨 응답(프레임 번호·프레임 식별자·영상 식별자·형제 프레임·라벨 목록 — 라벨마다 라벨 마스터 참조·트랙 식별자를 함께 싣는다)"
         },
         {
           "to": "fe",
@@ -241,7 +241,7 @@
           "to": "fe",
           "from": "fe",
           "kind": "note",
-          "label": "포털에는 오토라벨링·객체 자동 분할/추적·시계열 메타·검수 제출·버전 히스토리가 없다"
+          "label": "포털에는 오토라벨링·객체 자동 분할/추적·키포인트·트랙 번호 변경과 병합·검수 제출·버전 히스토리를 두지 않는다. 시계열 메타는 미제공이 아니라 이 시퀀스가 그리는 축 밖이다"
         },
         {
           "to": "ctrl",
@@ -260,7 +260,7 @@
           "to": "svc",
           "from": "ctrl",
           "kind": "sync",
-          "label": "saveUserLabel(req, actor)"
+          "label": "saveUserLabel(req, actor) — 요청이 조회에서 받은 라벨 마스터 참조·트랙 식별자를 되돌려 실어 원본의 분류·트랙 연결을 보존한다"
         },
         {
           "to": "svc",
@@ -296,7 +296,7 @@
           "to": "ctrl",
           "from": "svc",
           "kind": "return",
-          "label": "저장된 작업 라벨"
+          "label": "저장된 작업 라벨 — 서버 판정을 거쳐 실제로 적재된 라벨 마스터 참조·트랙 식별자를 함께 돌려준다"
         },
         {
           "to": "fe",
@@ -345,13 +345,19 @@
           "to": "ctrl",
           "from": "svc",
           "kind": "return",
-          "label": "본인 작업 라벨 목록"
+          "label": "본인 작업 라벨 목록 — 조회 계열 응답과 같은 형태로 라벨 마스터 참조·트랙 식별자를 함께 담는다"
         },
         {
           "to": "fe",
           "from": "ctrl",
           "kind": "return",
           "label": "200 OK"
+        },
+        {
+          "to": "home",
+          "from": "home",
+          "kind": "note",
+          "label": "[폐기] 데이터마트 영상 목록 조회 단계 — 저작도구는 그 목록을 두지 않는다. 목록 화면과 진입 링크는 Host(포털)가 소유하고, 화면·세션 생성·소재 적재·저장·작업 목록·내려받기는 저작도구가 소유한다"
         }
       ],
       "fragments": [
@@ -366,6 +372,12 @@
           "label": "화면의 라벨 건수만큼 순차 저장",
           "end_index": 47,
           "start_index": 38
+        },
+        {
+          "kind": "alt",
+          "label": "진입 두 갈래 — 앞 2건은 새로쓰기(Host 데이터마트 목록), 나머지는 이어쓰기(내 저장 작업 목록)",
+          "end_index": 11,
+          "start_index": 0
         }
       ],
       "brownfield": {
@@ -376,9 +388,9 @@
         ],
         "diff_summary": "2차 신규 — 포털 채널의 데이터마트 영상 선택·간편 라벨링 흐름을 처음으로 시각화한다."
       },
-      "description": "포털 회원(PORTAL_USER)이 데이터마트에 노출된 영상을 골라 기존 라벨을 확인·수정하고 본인 작업 데이터로 저장하는 흐름의 시퀀스 다이어그램. 영상 목록 조회, 프레임 단위 라벨 Load, 비식별 프레임 이미지 서빙, 본인 작업 라벨 저장과 재조회를 그린다.\n\n이 경로에는 모든 조회·저장이 공통으로 통과하는 게이트가 둘 있고 순서가 같다. 첫째는 노출 범위로, 검수 승인(APPROVED)된 영상만 포털에 나가며 미존재 영상도 같은 거부 응답을 받아 실재 여부가 응답 코드로 드러나지 않는다. 둘째는 비식별 누락 신고 게이트로, 신고가 열린 구간에서는 라벨 좌표도 프레임 이미지도 내보내지 않는다 — 좌표는 개인정보의 위치를 특정하는 정보이므로 내부 경로와 같은 단일 판정기를 재사용하고 포털 쪽에서 다시 구현하지 않는다. 게이트가 매 요청 평가되도록 프레임 이미지 응답은 재사용을 허용하지 않는다.\n\n저장은 원본 라벨(LS_DATA_LBL)과 데이터마트를 수정하지 않고 LS_PORTAL_USER_LABEL 에 회원별로 별도 적재하는 단방향이며, 조회는 토큰의 회원 식별자 스코프로만 이뤄져 타인의 작업분이 섞이지 않는다. 프레임 라벨 Load 는 본인 작업분이 있으면 그것만, 없으면 데이터마트 원본 라벨을 초기값으로 돌려준다.\n\n라벨 형태는 BBOX·POLYGON 만 허용한다. 포털에는 오토라벨링·객체 자동 분할과 추적·시계열 메타·검수·버전관리가 없으므로 그 단계들은 이 흐름에 등장하지 않는다.\n\n본인 작업 데이터 다운로드는 이 경로의 API 목록에 대응 엔드포인트가 없어 범위 밖이다. 포털에서 다운로드가 성립하는 것은 회원이 직접 올린 자산 경로이며 그 흐름은 별도 시퀀스가 그린다.",
+      "description": "포털 회원(PORTAL_USER)이 데이터마트 자산의 기존 라벨을 확인·수정하고 본인 작업 데이터로 저장하는 흐름의 시퀀스 다이어그램. 진입, 프레임 단위 라벨 Load, 비식별 프레임 이미지 서빙, 본인 작업 라벨 저장과 재조회를 그린다.\n\n★ 진입이 두 갈래다. 새로쓰기는 Host(포털)가 자기 화면에 그리는 데이터마트 목록에서 영상을 고른 뒤 진입 링크로 라벨링 화면에 들어오고, 이어쓰기는 저작도구 진입 화면의 「내 저장 작업 목록」에서 들어온다. Host 가 소유하는 것은 그 목록 화면과 진입 링크 둘뿐이고, 화면·세션 생성·소재 적재·저장·작업 목록·내려받기는 모두 저작도구가 소유한다. 이어쓰기는 마지막으로 저장한 프레임을 여는데, 그 자리는 본인 저장 작업 목록 조회 응답이 알려 주며 화면이 추측하지 않는다. [폐기] 데이터마트 영상 목록 조회 단계는 저작도구에 두지 않는다 — 그 목록의 소유가 Host 로 이전되면서 조회 창구도 함께 폐기됐다. 보존기간 만료 예정일 고지는 그 창구가 지고 있던 책임이라 본인 저장 작업 목록 조회가 이어받는다.\n\n이 경로에는 모든 조회·저장이 공통으로 통과하는 게이트가 둘 있고 순서가 같다. 첫째는 노출 범위로, 검수 승인(APPROVED)된 영상만 포털에 나가며 미존재 영상도 같은 거부 응답을 받아 실재 여부가 응답 코드로 드러나지 않는다. 둘째는 비식별 누락 신고 게이트로, 신고가 열린 구간에서는 라벨 좌표도 프레임 이미지도 내보내지 않는다 — 좌표는 개인정보의 위치를 특정하는 정보이므로 내부 경로와 같은 단일 판정기를 재사용하고 포털 쪽에서 다시 구현하지 않는다. 게이트가 매 요청 평가되도록 프레임 이미지 응답은 재사용을 허용하지 않는다.\n\n저장은 원본 라벨(LS_DATA_LBL)과 데이터마트를 수정하지 않고 LS_PORTAL_USER_LABEL 에 회원별로 별도 적재하는 단방향이며, 조회는 토큰의 회원 식별자 스코프로만 이뤄져 타인의 작업분이 섞이지 않는다. 프레임 라벨 Load 는 본인 작업분이 있으면 그것만, 없으면 데이터마트 원본 라벨을 초기값으로 돌려준다. ⚠ **[단일 배포 전제 — 재정합 대상]** 「데이터마트 원본 라벨을 초기값으로 돌려준다」에서 그 원본의 조달원은 **저작도구 자신의 DB 에 있는 검수 승인 자산**이며, 이는 저작도구가 **한 벌로 배포되던 전제**다. 2026-08-31 확정(ADR-012)으로 저작도구는 **채널별로 별도 배포**되고 각 배포본이 **자기 별도 DB 에만** 연결하므로 **포털 채널 배포본에는 그 자산이 없다.** 대체 조달은 **관제가 비식별 산출물을 포털로 전달 → 포털이 포털 채널 배포본에 알림 → 그 배포본이 배포물을 자기 DB 에 적재해 서빙**하는 방향이다. ✅ **조회 창구가 확정됐다 (2026-09-03 포털 회신)** — 구 표기 「조회 창구가 포털 회신 대기로 미확정」은 이 회신으로 **해소**됐다. 소재(파일) 조회 창구는 **[포털]API-132** 이며, 그 응답이 알려주는 **NAS 절대경로**로 배포물을 읽는다. 한 건의 소재는 **배포 묶음 파일 한 건과 영상 0건 이상**으로 이루어진다. ⚠ **그 창구의 응답 규격은 포털이 소유하므로 여기에 옮겨 적지 않는다** — 조달처만 가리키고 필드 구성은 [포털]API-132 를 정본으로 본다(복제하면 두 번째 진실원이 되어 한쪽만 낡는다). ⚠ **「포털 DB 를 읽지 않는다」는 그대로 유효**하다 — 우리가 읽는 것은 **NAS 파일**이지 포털 DB 가 아니며, 상호 미접근 확정으로 오히려 강화된다. 본인 작업분(포털 전용 저장소) 축과 게이트 두 겹은 이 변경과 무관하게 유효하다.\n\n라벨 형태는 BBOX·POLYGON 만 허용한다. 포털에는 오토라벨링·객체 자동 분할과 추적·키포인트·트랙 번호 변경과 병합·검수·버전관리를 두지 않고, 외부 분석 서버로 나가는 위탁 연동도 두지 않는다. 다만 위탁 연동을 두지 않는다는 것이 데이터마트에서 불러온 메타의 표시·수정까지 막는다는 뜻은 아니다 — 촬영환경·프레임 설명·개인정보 판정·시계열 메타와 이벤트 어노테이션은 포털 작업 화면이 보여주고 회원이 직접 고치며, 그 결과는 라벨과 같은 축으로 포털 전용 저장소에만 단방향으로 쌓인다. 그 메타 축이 이 시퀀스에 등장하지 않는 것은 미제공이어서가 아니라 이 시퀀스가 라벨 작업 축을 그리기 때문이다.\n\n조회 응답은 라벨마다 라벨 마스터 참조와 트랙 식별자를 함께 싣고, 저장 요청은 그 값을 그대로 되돌려 받아 데이터마트 원본이 갖고 있던 분류·트랙 연결이 저장 왕복에서 끊기지 않게 한다. 저장 응답과 본인 작업 라벨 목록도 같은 형태로 두 값을 돌려주며, 담기는 값은 요청에 실려 온 값이 아니라 서버 판정을 거쳐 실제로 적재된 값이다. 이는 보존 장치이지 편집 수단이 아니다 — 화면은 두 값을 표시하지 않고, 트랙 번호 변경·병합은 포털에 두지 않는다.\n\n본인 작업 데이터 다운로드는 이 시퀀스가 그리지 않는다. 대응 엔드포인트가 없어서가 아니라 — 데이터마트 작업 데이터를 내려받는 전용 경로는 이 채널에 있다 — 이 시퀀스의 범위가 영상 선택부터 본인 작업 라벨 저장까지의 라벨 작업 축이기 때문이다. 내려받는 산출물의 구조는 그 다운로드 경로가 정하며 여기에 옮겨 적지 않는다.",
       "invokes_apis": [
-        "API-115",
+        "API-225",
         "API-110",
         "API-111",
         "API-082",
@@ -391,9 +403,15 @@
           "name": "포털 회원(PORTAL_USER)"
         },
         {
+          "id": "host",
+          "kind": "external",
+          "name": "포털(Host) 데이터마트 목록 화면",
+          "description": "데이터마트 영상 목록과 저작 화면으로 보내는 진입 링크를 소유한다. 화면·세션 생성·소재 적재·저장·작업 목록·내려받기는 저작도구가 소유한다."
+        },
+        {
           "id": "home",
           "kind": "system",
-          "name": "포털 홈 화면",
+          "name": "포털 내 작업 화면",
           "item_ref": "SCREEN-028"
         },
         {
@@ -415,7 +433,7 @@
         {
           "id": "gate",
           "kind": "service",
-          "name": "LabelAccessGuard(비식별 누락 신고 게이트)",
+          "name": "LabelAccessGuard",
           "description": "내부 경로와 같은 단일 판정기를 재사용한다. 판정을 포털 쪽에서 다시 구현하지 않는다."
         },
         {
@@ -426,12 +444,14 @@
         }
       ],
       "scenario_type": "happy_path",
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "publishes_events": [],
       "referenced_items": [],
@@ -444,12 +464,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 1,
-    "stale": true,
-    "stale_reason": "DFEAT-044의 data.brownfield 변경이 realizes로 2-hop 전파",
-    "change_summary": "DOMAIN-013(포털)에 시퀀스 다이어그램이 폐기분을 포함해 한 건도 없어, UC-024(포털 라벨 작업)의 happy path 를 신설한다. 흐름·참여자·분기는 구현 코드를 직접 읽어 그렸다. 두 게이트(데이터마트 노출 판정과 비식별 누락 신고)가 조회 세 경로와 저장 경로에서 같은 순서로 평가되는 점, 본인 작업 라벨이 있으면 그것을 우선 돌려주고 없으면 원본 라벨을 초기값으로 주는 병합 규칙, 원본과 데이터마트를 수정하지 않는 단방향 적재, 회원 식별자 스코프 조회를 담았다. 유스케이스의 마지막 단계인 다운로드는 이 경로에 대응 엔드포인트가 없어 범위 밖임을 설명에 명시했다.",
+    "current_version": 9,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "만료 예정일 파생의 기산점을 확정값으로 바로잡는다. 파생 단계가 저장 시각에서 만료 예정일을 뽑도록 그려져 있어 파생 입력을 저작 최초 저장 시점으로 바꾸고 마지막 저장 시각에서 다시 계산하지 않는다고 명시했다. 그 값이 파생 단계에 있어야 하므로 조회 반환 항목에 저작 최초 저장 시점을 더하고, 마지막 저장 시각은 지우지 않고 정렬과 이어쓰기 진입 축으로 남는다고 밝혔다. 그림 층(Mermaid 소스)과 정형 층(메시지 라벨)을 같은 문구로 함께 고쳐 두 층이 갈리지 않게 했다. 이어쓰기 진입의 마지막 저장 프레임 서술·참가자·조각·status 는 무변경이다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T04:21:01.680Z",
+    "last_updated_at": "2026-09-04T06:00:27.539Z",
     "created_at": "2026-08-16T04:21:01.680Z"
   }
 }

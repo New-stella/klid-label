@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 /**
  * 증강 외부 위탁 작업 (LS_DATA_AUG_JOB, V140) — Phase 7-A1.
  *
- * <p>「생성형 AI API 연동명세서 v1.1」의 {@code POST /api/genai/jobs} 위탁 1건을 나타낸다.
+ * <p>「생성형 AI API 연동명세서 v1.3」의 {@code POST /api/genai/jobs} 위탁 1건을 나타낸다.
  * {@link LsDataAug} 1행(증강 결과 1건)은 {@code input_files} 상한(100장) 때문에 여러 job 으로
  * 분할 위탁될 수 있으므로 1:N 이다.
  *
@@ -241,7 +241,7 @@ public class LsDataAugJob {
     }
 
     /**
-     * <b>취소 종결</b> — 외부 §4.6 취소가 성립했거나(사용자 취소) 조회로 외부 CANCELED 를 회수했을 때.
+     * <b>취소 종결</b> — 외부 §4.4 취소가 성립했거나(사용자 취소) 조회로 외부 CANCELED 를 회수했을 때.
      *
      * <h3>호출 규약 — 증강 행 {@code FOR UPDATE} 안에서 호출한다</h3>
      * <p>콜백 경로도 같은 행을 잠그므로, 잠금 안에서 전이해야 "우리가 CANCELED 로 쓰는 사이 웹훅이

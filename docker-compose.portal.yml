@@ -1,0 +1,182 @@
+# ============================================================================
+# 포털향(포털 연동) 저작도구 배포 — 관제향 스택과 <완전히 분리된 별도 compose 프로젝트>
+#
+#   기동:  docker compose -p klid-portal -f docker-compose.portal.yml up -d
+#   상태:  docker compose -p klid-portal -f docker-compose.portal.yml ps
+#   철거:  docker compose -p klid-portal -f docker-compose.portal.yml down
+#
+# ★ 왜 별도 프로젝트인가
+#   관제향 스택은 <인자 없는> `docker compose up -d` 로만 기동해야 한다 — 그래야 서버 로컬
+#   docker-compose.override.yml(관제 실DB·NAS·관제 통지)이 자동 병합된다. 이 파일을 `-f` 로
+#   같이 얹으면 그 자동 병합이 조용히 꺼져 backend 가 번들 postgres 로 되돌아간다.
+#   프로젝트를 갈라 두면 두 스택이 서로의 기동 방식을 건드리지 않는다.
+#
+# ★ 운영 형상과의 대응 (CLAUDE.md 「저작도구는 2벌 배포」 · CNT-001)
+#   - DB      : 포털향 전용 PostgreSQL(별도 인스턴스, 저작도구가 관리) — 관제향 DB 와 교차 0
+#   - NAS     : 포털 NAS 대역 → 여기서는 /data/klid-portal/storage 로 대체
+#   - ai-server: <없다>. 포털향은 오토라벨(YOLO/SAM2)을 제공하지 않는다
+#   - FE      : VITE_BUILD_CHANNEL=portal — 포털 Host 셸 안에 임베드될 산출물이라 자체 헤더를
+#               숨기고, 인증 실패 시 리다이렉트 대신 그 자리에 안내 문구를 띄운다
+#
+# ⚠ 목(mock) 서버는 관제향 스택의 klid-mock-server 를 <공유>한다(klid-net 경유). 다만 그 목은
+#   /data/klid/storage 만 마운트하므로 <포털향 스토리지의 파일을 볼 수 없다> — 즉 벤더 왕복에서
+#   파일 산출이 필요한 흐름(비식별·증강 결과 반입)은 이 형상에서 성립하지 않는다. 필요해지면
+#   관제향 override 의 mock-server 에 /data/klid-portal/storage 마운트를 추가한다.
+# ============================================================================
+
+services:
+  klid-portal-postgres:
+    image: postgres:16
+    container_name: klid-portal-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PORTAL_FLAVOR_DB_USERNAME:-klid_portal}
+      # ★ 기본값을 두지 않는다 — 커밋된 기본 비밀번호는 곧 공개된 자격증명이다(CWE-798).
+      #   값 생성: openssl rand -hex 24  → /data/klid/.env 에 기록($ 없는 hex 여야 compose
+      #   보간 함정을 피한다).
+      POSTGRES_PASSWORD: ${PORTAL_FLAVOR_DB_PASSWORD:?PORTAL_FLAVOR_DB_PASSWORD 를 .env 에 설정하세요 (openssl rand -hex 24)}
+      POSTGRES_DB: ${PORTAL_FLAVOR_DB_NAME:-klid_portal}
+    volumes:
+      - /data/klid-portal/pgdata:/var/lib/postgresql/data
+    ports:
+      # 루프백 전용 — 서버에 접속한 개발자가 psql 로 들여다보기 위한 용도만 남긴다.
+      - "127.0.0.1:15433:5432"
+    networks:
+      - klid-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PORTAL_FLAVOR_DB_USERNAME:-klid_portal} -d ${PORTAL_FLAVOR_DB_NAME:-klid_portal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # 관제향과 같은 이유 — bind mount 가 root 소유로 생성돼 비루트(uid 999) backend 가 못 쓴다.
+  klid-portal-storage-init:
+    image: busybox:1.36
+    container_name: klid-portal-storage-init
+    command: sh -c "mkdir -p /storage/raw /storage/deidentified /storage/raw/portal && chown -R 999:999 /storage && chmod -R 775 /storage"
+    volumes:
+      - /data/klid-portal/storage:/storage
+    restart: "no"
+
+  klid-portal-backend:
+    # ★ 재빌드하지 않는다 — 관제향과 <같은 산출물>이 두 벌로 나가는 것이 운영 형상이다.
+    #   향을 가르는 것은 이미지가 아니라 아래 설정이다.
+    image: klid-backend:latest
+    container_name: klid-portal-backend
+    restart: unless-stopped
+    depends_on:
+      klid-portal-postgres:
+        condition: service_healthy
+      klid-portal-storage-init:
+        condition: service_completed_successfully
+    # 시크릿(JWT_SECRET·STREAM_SIGN_SECRET·ADMIN_CLAIM_PASSWORD_HASH 등)은 관제향과 같은
+    #   /data/klid/.env 를 쓴다 — 246 은 dev 환경이고 두 향이 같은 발급자 토큰을 인계받는다.
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # ★ 포털향 전용 DB. jdbc-url 을 직접 고정해 yml 의 host/port/name placeholder 가 아예
+      #   해석되지 않게 한다 — .env 에 남은 관제 DB 값이 흘러들어 오는 경로를 닫는다.
+      SPRING_DATASOURCE_CONTROL_JDBC_URL: jdbc:postgresql://klid-portal-postgres:5432/${PORTAL_FLAVOR_DB_NAME:-klid_portal}
+      CONTROL_DB_USERNAME: ${PORTAL_FLAVOR_DB_USERNAME:-klid_portal}
+      CONTROL_DB_PASSWORD: ${PORTAL_FLAVOR_DB_PASSWORD:?PORTAL_FLAVOR_DB_PASSWORD 를 .env 에 설정하세요}
+      DB_SCHEMA: ${DB_SCHEMA:-klid_at}
+
+      # ── 스토리지 ── 관제향(/data/klid/storage)과 <다른 트리>다. 섞으면 두 향이 같은 자산을
+      #   보게 되어 "교차 0" 이라는 배포 전제가 깨진다.
+      STORAGE_RAW_PATH: /app/storage/raw
+      STORAGE_DEIDENTIFIED_PATH: /app/storage/deidentified
+      STORAGE_RAW_MOUNT_ROOTS: /app/storage/raw,/app/storage/deidentified
+      STORAGE_EXTERNAL_READ_ROOTS: /app/genai-out
+
+      # ── 포털향에 없는 것들 ──
+      #   · ai-server : AI_SERVER_URL 을 주지 않는다(오토라벨 미제공). 기본값은 도달 불가한
+      #                 localhost:9300 이며, 포털 경로에서 호출되지 않는다.
+      #   · 관제 인입 폴링 : 포털향 DB 에는 관제 인입 원장이 채워지지 않는다.
+      #   · 배치 파이프라인 : 비식별→마킹→VLM→오토라벨 축은 관제향 소유다.
+      #     ⚠ 포털 업로드 처리(프레임 추출·스윕)는 <자기 전용 스케줄러>라 이 토글과 무관하다.
+      #   · 관제 통지 : 포털향은 관제서버에 통지하지 않는다.
+      BATCH_ENABLED: "false"
+      TRAINING_SCAN_ENABLED: "false"
+      CONTROL_NOTIFY_ENABLED: "false"
+      # 포털 업로드 자산은 본인 데이터라 비식별을 적용하지 않는다. 주소는 목을 가리켜 두되 끈다.
+      KPST_DEID_ENABLED: "false"
+      KPST_DEID_BASE_URL: ${KPST_DEID_BASE_URL:-http://klid-mock-server:9400}
+      VLM_SERVICE_URL: ${VLM_SERVICE_URL:-http://klid-mock-server:9400}
+
+      # 콜백 수신 주소 — 자기 자신을 가리켜야 한다(기본값 localhost:8080 은 호출자 자신).
+      WEBHOOK_CALLBACK_BASE_URL: http://klid-portal-backend:8080/api
+      # 이 스택도 앞단에 프록시가 실제로 없으므로 'none' 이 사실과 일치한다.
+      WEBHOOK_TRUSTED_PROXY_CIDRS: ${WEBHOOK_TRUSTED_PROXY_CIDRS:-none}
+      WEBHOOK_VLM_ALLOWED_IP_CIDRS: ${WEBHOOK_VLM_ALLOWED_IP_CIDRS:-none}
+      # ★ 'none'(전면 차단)에서 바뀌었다 (2026-09-03) — 이 스택도 dev 프로파일이라 증강 위탁이
+      #   활성이고(목업 벤더 서버 주소 주입), 위탁 활성 + 콜백 전면 차단은 기동이 막힌다.
+      #   발신 IP 가 docker 브리지 사설 IP 라 대역 고정이 불가해 전면 허용을 <명시>한다(local 동일).
+      WEBHOOK_GENAI_ALLOWED_IP_CIDRS: ${WEBHOOK_GENAI_ALLOWED_IP_CIDRS:-0.0.0.0/0}
+      WEBHOOK_HMAC_SECRET_AUGMENT: ${WEBHOOK_HMAC_SECRET_AUGMENT:?WEBHOOK_HMAC_SECRET_AUGMENT 를 .env 에 설정하세요 (openssl rand -hex 32)}
+
+      # 포털향 FE(:13005) 오리진 추가. FE 는 Vite 프록시를 거쳐 동일 오리진으로 부르지만,
+      #   BE(:18085)를 브라우저에서 직접 부르는 확인 동선을 막지 않기 위해 함께 허용한다.
+      CORS_ALLOWED_ORIGINS: ${PORTAL_FLAVOR_CORS_ALLOWED_ORIGINS:-http://192.168.102.246:13005,http://localhost:13005,http://localhost:5174}
+    volumes:
+      - /data/klid-portal/storage:/app/storage
+      # 목이 쓰는 생성형AI 산출 트리(관제향과 공유, 읽기 전용).
+      - /data/klid/genai-out:/app/genai-out:ro
+    ports:
+      - "18085:8080"
+    networks:
+      - klid-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/actuator/health/liveness | grep -q UP || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+
+  klid-portal-frontend:
+    # 관제향과 같은 dev 스테이지 이미지를 쓰되 <채널만> 포털로 가른다.
+    image: klid-frontend:dev
+    container_name: klid-portal-frontend
+    restart: unless-stopped
+    depends_on:
+      - klid-portal-backend
+    environment:
+      BACKEND_ORIGIN: http://klid-portal-backend:8080
+      HMR_CLIENT_PORT: "13005"
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+      VITE_TOKEN_INGRESS: ${VITE_TOKEN_INGRESS:-localStorage}
+      # ★ 이 값 하나가 포털향 산출물을 가른다 — 자체 셸(헤더) 미노출 + 인증 실패 시
+      #   /ingress·/forbidden 이동 대신 그 자리에 안내 문구.
+      #   ⚠ 246 에는 포털 Host 가 없으므로 머리 영역 없이 보이는 것이 <정상>이다.
+      VITE_BUILD_CHANNEL: portal
+      VITE_CONTROL_LOGIN_URL: ${VITE_CONTROL_LOGIN_URL:-}
+      VITE_PORTAL_LOGIN_URL: ${VITE_PORTAL_LOGIN_URL:-}
+    networks:
+      - klid-net
+    ports:
+      - "13005:5174"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5174/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+networks:
+  # 관제향 스택이 만든 네트워크에 <참여>만 한다(생성하지 않는다) — 목 서버 공유 경로.
+  klid-net:
+    external: true
+    name: klid-net

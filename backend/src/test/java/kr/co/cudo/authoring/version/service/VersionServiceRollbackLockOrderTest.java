@@ -130,7 +130,7 @@ class VersionServiceRollbackLockOrderTest {
     }
 
     private LsDataLbl existingLabel() {
-        LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "old", "[]", 1L);
+        LsDataLbl existing = LsDataLbl.createManual(SRC_SN, "BBOX", null, "old", "[]", "1");
         ReflectionTestUtils.setField(existing, "lblSn", EXISTING_LBL_SN);
         return existing;
     }

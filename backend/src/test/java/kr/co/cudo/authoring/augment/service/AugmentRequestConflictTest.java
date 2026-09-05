@@ -5,7 +5,8 @@ import kr.co.cudo.authoring.assignment.entity.LsRawDataStatus;
 import kr.co.cudo.authoring.assignment.repository.LsRawDataStatusRepository;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest;
 import kr.co.cudo.authoring.augment.dto.AugmentRequestRequest.AugmentTypeCode;
-import kr.co.cudo.authoring.augment.integration.AugmentExternalModePolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentExternalLinkPolicy;
+import kr.co.cudo.authoring.augment.integration.AugmentPrompts;
 import kr.co.cudo.authoring.augment.repository.LsDataAugRepository;
 import kr.co.cudo.authoring.batch.repository.LsDataSrcRepository;
 import kr.co.cudo.authoring.common.exception.CustomException;
@@ -66,7 +67,7 @@ class AugmentRequestConflictTest {
         AugmentCallbackUrlResolver callbackUrlResolver = mock(AugmentCallbackUrlResolver.class);
         VideoRepository videoRepository = mock(VideoRepository.class);
         // 외부 연동 모드 — 기본 mock(false)은 "연동됨(http)" 이므로 종전 동작 그대로다.
-        AugmentExternalModePolicy externalModePolicy = mock(AugmentExternalModePolicy.class);
+        AugmentExternalLinkPolicy externalLinkPolicy = mock(AugmentExternalLinkPolicy.class);
 
         LsRawDataStatus approved = LsRawDataStatus.initial(RAW_SN);
         approved.transitionTo(LsRawDataStatus.STTS_APPROVED);
@@ -83,7 +84,7 @@ class AugmentRequestConflictTest {
 
         service = new AugmentRequestService(statusRepository, srcRepository, augRepository,
                 videoRepository, eventPublisher, deidentReportGate, callbackUrlResolver,
-                new ObjectMapper(), externalModePolicy);
+                new ObjectMapper(), externalLinkPolicy);
         reviewer = new TokenClaims("1", Role.REVIEWER, Channel.INTERNAL, Instant.now().plusSeconds(3600));
     }
 
@@ -128,7 +129,11 @@ class AugmentRequestConflictTest {
 
     private static AugmentRequestRequest request() {
         return new AugmentRequestRequest(
-                List.of(RAW_SN), List.of(AugmentTypeCode.WINTER),
-                new AugmentRequestRequest.PromptFields("NIGHT", "WINTER", "RAIN", "ROAD", "HIGH"));
+                List.of(RAW_SN), List.of(AugmentTypeCode.AUGMENT),
+                new AugmentRequestRequest.Mtdt(
+                        AugmentPrompts.Time.NIGHT, AugmentPrompts.Season.WINTER,
+                        AugmentPrompts.Weather.RAIN, AugmentPrompts.Terrain.ROAD,
+                        AugmentPrompts.Severity.HIGH),
+                null);
     }
 }

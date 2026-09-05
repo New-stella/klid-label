@@ -56,9 +56,13 @@ class SecurityRoleResolutionPhase3Test {
     }
 
     @Test
-    @DisplayName("LS_역할없는_INTERNAL_사용자는_보호엔드포인트_403")
+    @DisplayName("역할이_해석되지_않는_INTERNAL_사용자는_보호엔드포인트_403")
     void noLsRoleForbidden() throws Exception {
-        // given: LS 미배정 사용자(시드에 없는 번호) — fail-closed
+        // given: 역할 해석이 실패하는 사용자 — fail-closed.
+        //   ★ADR-055 이후 <시드에 없는 숫자 sub> 는 첫 요청에 WORKER 로 자동 등록되므로 더 이상
+        //     role=null 표본이 아니다. 그래서 770001 은 V9002 가 Role enum 밖 코드로 심어 둔다.
+        //     이 시험이 지키는 것은 "매처가 role=null 을 막는가" 이지 "미배정 사용자가 존재하는가"
+        //     가 아니다.
         String token = JwtTestSupport.token(secret, "770001", "REVIEWER", "INTERNAL", issuer, 60);
         // when/then: 무권한 → 403 (인증은 됐으나 역할 없음)
         mockMvc.perform(get("/v1/manage/test").header("Authorization", "Bearer " + token))

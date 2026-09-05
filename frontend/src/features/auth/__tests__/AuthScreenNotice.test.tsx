@@ -146,10 +146,11 @@ describe('RoleClaimPage — 오류 안내(SCREEN-002)', () => {
       errorCode: 'INVALID_INPUT',
     });
 
+    // ⚠ 역할 선택 단계가 없어졌다 — 이 화면은 관리자 부트스트랩이라 부여 역할이 고정이다
+    //   (ADR-055). 패스워드만으로 제출한다.
     renderWithProviders(<RoleClaimPage />);
-    await user.click(screen.getByLabelText('작업자'));
     await user.type(screen.getByLabelText('관리자 패스워드'), 'pw-for-test');
-    await user.click(screen.getByRole('button', { name: '권한 부여 확인' }));
+    await user.click(screen.getByRole('button', { name: '관리자로 등록' }));
 
     // then: 제목이 분류를 말하되 서버 원인 문구를 덮어쓰지 않는다.
     await waitFor(() => {

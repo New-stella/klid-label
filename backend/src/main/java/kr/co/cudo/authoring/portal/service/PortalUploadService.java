@@ -7,11 +7,11 @@ import kr.co.cudo.authoring.portal.config.PortalUploadProperties;
 import kr.co.cudo.authoring.portal.dto.PortalUploadDetailResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUploadFrameResponse;
 import kr.co.cudo.authoring.portal.dto.PortalUploadResponse;
-import kr.co.cudo.authoring.portal.entity.LsPortalUld;
-import kr.co.cudo.authoring.portal.entity.LsPortalUldFrme;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldFrmeRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldLblRepository;
-import kr.co.cudo.authoring.portal.repository.LsPortalUldRepository;
+import kr.co.cudo.authoring.batch.entity.LsDataSrc;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAsset;
+import kr.co.cudo.authoring.portal.upload.PortalUploadAssetRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadFrameRepository;
+import kr.co.cudo.authoring.portal.upload.PortalUploadLedger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import kr.co.cudo.authoring.video.service.FrameImageService;
@@ -33,7 +33,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -43,10 +42,15 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * V107 — 포털 전용 이미지 업로드/자산 관리 서비스 (PORTAL_USER).
+ * 포털 이미지 업로드/자산 관리 서비스 (PORTAL_USER).
  *
- * <p>관제 학습용 적재 파이프라인과 분리된 포털 전용 경로. 모든 조회/서빙/삭제는 소유자 스코프
- * 리포지토리 메서드만 사용해 IDOR(CWE-639)를 차단한다.
+ * <p><b>저장소는 공용 원장이고 처리는 포털 흐름이다</b>(ADR-058 흡수) — 자산은
+ * {@code LS_DATA_RAW}(+{@code LS_DATA_META}), 프레임은 {@code LS_DATA_SRC} 에 앉되 관제 파이프라인
+ * (비식별·마킹·오토라벨·검수)을 타지 않는다. 갈리는 축은 출처 판별자와 소유자 둘이며, 모든
+ * 조회/서빙/삭제는 그 둘을 강제하는 통로만 사용해 IDOR(CWE-639)를 차단한다.
+ *
+ * <p>⚠ <b>신규 이미지 접수는 폐기됐다</b>(영상만 받는다). 이 서비스의 이미지 업로드 경로는 그
+ * 확정 이전에 적재된 자산과의 호환을 위해 남아 있으며, 목록·서빙·삭제는 종전대로 동작한다.
  *
  * <p>HIGH 시나리오 방어:
  * <ol>
@@ -65,19 +69,19 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PortalUploadService {
 
-    /** 이미지 업로드 대표 프레임 순번(단일 프레임). */
-    private static final int IMAGE_FRAME_NO = 0;
+    /**
+     * 이미지 업로드 대표 프레임 순번(단일 프레임). 공용 프레임 원장의 순번 자료형이 더 넓어
+     * {@code long} 으로 둔다 — 좁은 값을 넘기면 오버로드가 갈려 다른 팩토리가 선택된다.
+     */
+    private static final long IMAGE_FRAME_NO = 0L;
     private static final String IMAGE_SUBDIR = "images";
     private static final int ORGNL_FILE_NM_MAX = 255;
     /** JPEG EOI 마커(FF D9) 판독용 말미 바이트 수. */
     private static final int JPEG_EOI_BYTES = 2;
 
-    private final LsPortalUldRepository uldRepository;
-    private final LsPortalUldFrmeRepository frmeRepository;
+    private final PortalUploadAssetRepository assetRepository;
+    private final PortalUploadFrameRepository frmeRepository;
     private final PortalUploadProperties properties;
-
-    /** 자산별 라벨 마지막 저장일(READY 축 기준점 한쪽) 집계 조회용. @design DFEAT-055 */
-    private final LsPortalUldLblRepository lblRepository;
 
     /** 보존기간 만료 예정 시각 <b>단일 판정 지점</b> — 여기서 계산식을 재유도하지 않는다. @design AC-033 */
     private final PortalRetentionPolicy retentionPolicy;
@@ -139,17 +143,22 @@ public class PortalUploadService {
                 writtenThisRequest.add(dst);
 
                 // #6: MIME 은 매직바이트 확정값만 저장(확장자 추정 금지).
-                LsPortalUld uld = LsPortalUld.createImage(
-                        portalUserNo, truncate(v.originalName()), dst.toString(),
-                        v.size(), v.format().mimeType());
-                uld.markReady(null, null, 1);
-                LsPortalUld savedUld = uldRepository.save(uld);
+                Long uldSn = assetRepository.insertUploaded(
+                        portalUserNo, dst.toString(), truncate(v.originalName()),
+                        v.format().mimeType(), v.size());
+                // 이미지는 추출할 프레임이 없어 업로드 즉시 라벨링 가능이다. 여기서는 원자 전이가 아니라
+                // 곧바로 기록해도 된다 — 같은 트랜잭션 안이고 이 자산에는 아직 경쟁하는 러너·스윕이 없다
+                // (스윕은 방치 판정 커트라인 이전 자산만 집는다).
+                assetRepository.upsertMeta(uldSn,
+                        PortalUploadLedger.KEY_UPLOAD_STATUS, PortalUploadLedger.STATUS_READY);
 
                 // #4: DB INSERT 실패 시 아래 catch 가 writtenThisRequest 를 보상 삭제.
-                LsPortalUldFrme frme = frmeRepository.save(
-                        LsPortalUldFrme.create(savedUld.getUldSn(), IMAGE_FRAME_NO, dst.toString()));
+                LsDataSrc frme = frmeRepository.save(
+                        LsDataSrc.create(uldSn, IMAGE_FRAME_NO, dst.toString(), null));
 
-                result.add(PortalUploadResponse.of(savedUld, frme.getUldFrmeSn()));
+                PortalUploadAsset saved = assetRepository.findByOwner(uldSn, portalUserNo)
+                        .orElseThrow(this::forbidden);
+                result.add(PortalUploadResponse.of(saved, frme.getSrcSn()));
             }
         } catch (CustomException e) {
             rollbackFiles(writtenThisRequest);
@@ -177,18 +186,17 @@ public class PortalUploadService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<PortalUploadResponse> listUploads(String portalUserNo, String typeFilter, Pageable pageable) {
         requireOwner(portalUserNo);
-        if (typeFilter == null || typeFilter.isBlank()) {
-            return withExpiry(uldRepository.findAllByPortalUserNo(portalUserNo, pageable), portalUserNo);
+        String normalized = null;
+        if (typeFilter != null && !typeFilter.isBlank()) {
+            // #입력검증(CWE-20): 미지원 타입은 조용히 빈 결과 대신 400 으로 명확히 거부.
+            normalized = typeFilter.toUpperCase(Locale.ROOT);
+            if (!PortalUploadLedger.TYPE_IMAGE.equals(normalized)
+                    && !PortalUploadLedger.TYPE_VIDEO.equals(normalized)) {
+                throw new CustomException(ErrorCode.INVALID_INPUT,
+                        "지원하지 않는 type 입니다. 허용: IMAGE, VIDEO");
+            }
         }
-        // #입력검증(CWE-20): 미지원 타입은 조용히 빈 결과 대신 400 으로 명확히 거부.
-        String normalized = typeFilter.toUpperCase(Locale.ROOT);
-        if (!LsPortalUld.TYPE_IMAGE.equals(normalized) && !LsPortalUld.TYPE_VIDEO.equals(normalized)) {
-            throw new CustomException(ErrorCode.INVALID_INPUT,
-                    "지원하지 않는 type 입니다. 허용: IMAGE, VIDEO");
-        }
-        return withExpiry(
-                uldRepository.findAllByPortalUserNoAndUldTypeCd(portalUserNo, normalized, pageable),
-                portalUserNo);
+        return withExpiry(assetRepository.findPageByOwner(portalUserNo, normalized, pageable), portalUserNo);
     }
 
     /**
@@ -200,13 +208,13 @@ public class PortalUploadService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public PortalUploadDetailResponse getUpload(Long uldSn, String portalUserNo) {
         requireOwner(portalUserNo);
-        LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(uldSn, portalUserNo)
+        PortalUploadAsset uld = assetRepository.findByOwner(uldSn, portalUserNo)
                 .orElseThrow(this::forbidden);
-        List<LsPortalUldFrme> frames = frmeRepository.findAllByUldSnOrderByFrmeNo(uld.getUldSn());
+        List<LsDataSrc> frames = frmeRepository.findAllByRawSnOrderByFrameNoAsc(uld.uldSn());
         LocalDateTime lastLabelSavedAt =
-                lookupLastLabelSavedAt(portalUserNo, List.of(uld.getUldSn())).get(uld.getUldSn());
+                assetRepository.findLastLabelSavedAt(portalUserNo, List.of(uld.uldSn())).get(uld.uldSn());
         LocalDateTime expiresAt = retentionPolicy.uploadExpiry().expiresAt(
-                uld.getUldSttsCd(), uld.getRegDt(), uld.getMdfcnDt(), lastLabelSavedAt);
+                uld.uldSttsCd(), uld.regDt(), uld.sttsChgDt(), lastLabelSavedAt);
         return PortalUploadDetailResponse.of(uld, frames, expiresAt);
     }
 
@@ -217,32 +225,18 @@ public class PortalUploadService {
      * ({@code GROUP BY} + {@code IN}) 1회로 모으고, 보존기간 설정도 페이지당 1회만 읽는다
      * ({@link PortalRetentionPolicy#uploadExpiry()} 스냅샷).
      */
-    private Page<PortalUploadResponse> withExpiry(Page<LsPortalUld> page, String portalUserNo) {
-        List<Long> uldSns = page.getContent().stream().map(LsPortalUld::getUldSn).toList();
+    private Page<PortalUploadResponse> withExpiry(Page<PortalUploadAsset> page, String portalUserNo) {
+        List<Long> uldSns = page.getContent().stream().map(PortalUploadAsset::uldSn).toList();
         if (uldSns.isEmpty()) {
             // 빈 페이지에 집계 쿼리·설정 조회를 태우지 않는다(빈 IN 절도 피한다).
             return page.map(PortalUploadResponse::from);
         }
-        Map<Long, LocalDateTime> lastLabelSavedAt = lookupLastLabelSavedAt(portalUserNo, uldSns);
+        Map<Long, LocalDateTime> lastLabelSavedAt =
+                assetRepository.findLastLabelSavedAt(portalUserNo, uldSns);
         PortalRetentionPolicy.UploadExpiry expiry = retentionPolicy.uploadExpiry();
         return page.map(uld -> PortalUploadResponse.of(uld, null, expiry.expiresAt(
-                uld.getUldSttsCd(), uld.getRegDt(), uld.getMdfcnDt(),
-                lastLabelSavedAt.get(uld.getUldSn()))));
-    }
-
-    /**
-     * 자산별 라벨 마지막 저장일 집계 — 라벨이 없는 자산은 <b>키 자체가 없다</b>(null 로 읽힌다).
-     * 상세 조회도 자산 1건만 담아 이 경로를 그대로 쓴다(판정 경로 단일화).
-     */
-    private Map<Long, LocalDateTime> lookupLastLabelSavedAt(String portalUserNo, List<Long> uldSns) {
-        Map<Long, LocalDateTime> map = new HashMap<>();
-        for (Object[] row : lblRepository.findMaxRegDtGroupedByUldSn(portalUserNo, uldSns)) {
-            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
-                continue;
-            }
-            map.put(((Number) row[0]).longValue(), (LocalDateTime) row[1]);
-        }
-        return map;
+                uld.uldSttsCd(), uld.regDt(), uld.sttsChgDt(),
+                lastLabelSavedAt.get(uld.uldSn()))));
     }
 
     /** 소유자 자산 프레임 목록(페이징). 소유자 스코프 조인 쿼리로 IDOR 차단. */
@@ -250,8 +244,9 @@ public class PortalUploadService {
     public Page<PortalUploadFrameResponse> listFrames(Long uldSn, String portalUserNo, Pageable pageable) {
         requireOwner(portalUserNo);
         // 소유권 사전 검증 — 타 사용자/부재 자산은 403.
-        uldRepository.findByUldSnAndPortalUserNo(uldSn, portalUserNo).orElseThrow(this::forbidden);
-        return frmeRepository.findAllByUldSnAndOwnerOrderByFrmeNo(uldSn, portalUserNo, pageable)
+        assetRepository.findByOwner(uldSn, portalUserNo).orElseThrow(this::forbidden);
+        return frmeRepository
+                .findPageByAssetAndOwner(uldSn, portalUserNo, PortalUploadLedger.SRC_TYPE, pageable)
                 .map(PortalUploadFrameResponse::from);
     }
 
@@ -260,22 +255,24 @@ public class PortalUploadService {
      * 사용하고(확장자 추정 금지), {@code X-Content-Type-Options: nosniff} 로 sniffing 을 차단한다(#6).
      *
      * <p><b>비식별 누락 신고 게이트 대상이 아니다</b> — 여기서 나가는 건 <b>포털 사용자 본인이 업로드한
-     * 자산</b>({@code LS_PORTAL_ULD_FRME})이라 비식별 처리 대상이 아니고 {@code LS_DATA_RAW.DE_IDNTF_YN}
-     * 라이프사이클도 없다(ADR-013 예외, 내부 파이프라인·데이터마트와 완전 분리). 내부 파이프라인의
+     * 자산</b>이라 비식별 처리 대상이 아니다(ADR-013 예외). 흡수(ADR-058)로 프레임이 공용 원장에
+     * 앉았지만 <b>처리는 여전히 갈린다</b> — 포털 자산은 비식별 파이프라인 이벤트를 발행하지 않아
+     * 그 라이프사이클에 들어가지 않는다. 내부 파이프라인의
      * 비식별 프레임을 포털로 내보내는 {@code PortalLabelService#serveFrameImage} 와 혼동 금지 —
      * 그쪽은 게이트 대상이라 응답이 {@code no-store} 이고, 이 경로는 그 캐시 통일 대상이 아니다.
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public ResponseEntity<Resource> serveFrameImage(Long uldFrmeSn, String portalUserNo) {
         requireOwner(portalUserNo);
-        LsPortalUldFrme frme = frmeRepository.findByUldFrmeSnAndOwner(uldFrmeSn, portalUserNo)
+        LsDataSrc frme = frmeRepository
+                .findByOwner(uldFrmeSn, portalUserNo, PortalUploadLedger.SRC_TYPE)
                 .orElseThrow(this::forbidden);
-        // MIME 은 소유 업로드 마스터에 저장된 확정값 사용(확장자 추정 금지).
-        LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(frme.getUldSn(), portalUserNo)
+        // MIME 은 자산에 저장된 확정값 사용(확장자 추정 금지).
+        PortalUploadAsset uld = assetRepository.findByOwner(frme.getRawSn(), portalUserNo)
                 .orElseThrow(this::forbidden);
 
         Path baseDir = baseDir();
-        Path resolved = resolveSafe(baseDir, Paths.get(frme.getFilePathNm()));
+        Path resolved = resolveSafe(baseDir, Paths.get(frme.getSrcFilePathNm()));
         if (!Files.exists(resolved) || !Files.isRegularFile(resolved)) {
             log.warn("[PortalUpload] image file missing uldFrmeSn={}", uldFrmeSn);
             throw new CustomException(ErrorCode.NOT_FOUND, "이미지 파일이 존재하지 않습니다.");
@@ -284,7 +281,7 @@ public class PortalUploadService {
         // frames/raw/**)을 가리키는 경우를 막지 못한다. FileSystemResource·Files.size 는 링크를 따라가므로
         // 그대로 외부 채널로 나간다. 실경로 봉쇄 후 그 실경로를 NOFOLLOW 로 연다(다른 서빙 경로와 동일 규약).
         Path realFile = realWithinBaseOrThrow(baseDir, resolved, "uldFrmeSn=" + uldFrmeSn);
-        MediaType mediaType = resolveStoredMediaType(uld.getMimeTypeNm());
+        MediaType mediaType = resolveStoredMediaType(uld.mimeTypeNm());
         FrameImageService.OpenedFile opened;
         try {
             opened = FrameImageService.openNoFollow(realFile);
@@ -326,28 +323,29 @@ public class PortalUploadService {
     @Transactional("controlTransactionManager")
     public void deleteUpload(Long uldSn, String portalUserNo) {
         requireOwner(portalUserNo);
-        LsPortalUld uld = uldRepository.findByUldSnAndPortalUserNo(uldSn, portalUserNo)
+        PortalUploadAsset uld = assetRepository.findByOwner(uldSn, portalUserNo)
                 .orElseThrow(this::forbidden);
 
-        // 시나리오 #12: 프레임 추출 중(PROCESSING)인 자산은 삭제 불가 → 409. 러너가 쓰는 프레임
-        // 파일/행을 삭제 도중 제거하면 파일-DB 불일치·경합이 생기므로 처리 완료(READY/FAILED) 후 허용.
-        if (LsPortalUld.STTS_PROCESSING.equals(uld.getUldSttsCd())) {
+        // 시나리오 #12: 프레임 추출 중인 자산은 삭제 불가 → 409. 러너가 쓰는 프레임 파일/행을 삭제
+        // 도중 제거하면 파일-DB 불일치·경합이 생기므로 처리가 끝난 뒤(READY/FAILED)에만 허용한다.
+        if (uld.isProcessing()) {
             throw new CustomException(ErrorCode.CONFLICT,
                     "프레임 추출이 진행 중인 자산은 삭제할 수 없습니다. 완료 후 다시 시도하세요.");
         }
 
         // 삭제 대상 물리 경로 수집(중복 제거) — 프레임 파일 + 원본 파일.
         Set<Path> targets = new LinkedHashSet<>();
-        for (LsPortalUldFrme frme : frmeRepository.findAllByUldSnOrderByFrmeNo(uldSn)) {
-            addTarget(targets, frme.getFilePathNm());
+        for (String stored : assetRepository.findFilePaths(uldSn)) {
+            addTarget(targets, stored);
         }
-        addTarget(targets, uld.getFilePathNm());
 
         // 파일 삭제를 DB 삭제보다 먼저 — IOException 시 DB 행 보존(재시도 가능한 5xx).
         for (Path p : targets) {
             deleteFileOrThrow(p);
         }
-        uldRepository.delete(uld);
+        // ★ 소유자 일치를 실행문에 걸고, 외래키 연쇄가 닿지 않는 자식 표(라벨·라벨 속성값·이력·증강)를
+        //   순서대로 함께 지운다 — 그러지 않으면 오류 없이 조용히 고아가 남는다.
+        assetRepository.deleteOwned(uldSn, portalUserNo);
         log.info("[PortalUpload] deleted uldSn={} userNo={} files={}",
                 uldSn, LogSanitizer.sanitize(portalUserNo), targets.size());
     }

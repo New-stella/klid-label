@@ -21,7 +21,7 @@ import kr.co.cudo.authoring.common.security.Role;
 @Schema(description = "[개발/검수 전용] 테스트 JWT 발급 요청")
 public record DevTokenRequest(
         @Schema(description = "역할", example = "REVIEWER",
-                allowableValues = {"REVIEWER", "WORKER", "PORTAL_USER"}, requiredMode = Schema.RequiredMode.REQUIRED)
+                allowableValues = {"ADMIN", "REVIEWER", "WORKER", "PORTAL_USER"}, requiredMode = Schema.RequiredMode.REQUIRED)
         @NotNull
         Role role,
 

@@ -1,0 +1,60 @@
+{
+  "item": {
+    "id": "AC-126",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "acceptance",
+    "title": "역할이 없는 내부 채널 진입자는 작업자로 자동 등록된다",
+    "slug": "역할이-없는-내부-채널-진입자는-작업자로-자동-등록된다",
+    "sub_id": null,
+    "status": "approved",
+    "data": {
+      "notes": "자가부여 창구가 관리자 부트스트랩 전용으로 좁혀지면서, 그 창구는 더 이상 일반 사용자가 등록되는 통로가 아니다. 등록 경로가 없으면 아무도 배정 대상이 되지 못하므로 진입 자체가 등록 시점이 된다.\n\n이 방식은 한때 '역할 없는 허수 행이 쌓이고 모든 요청 경로에 쓰기가 붙는다'는 이유로 기각됐으나 두 근거가 모두 성립하지 않는다 — 작업자 역할을 함께 부여하므로 역할 없는 행이 아니고, 역할이 없을 때만 도는 조건부 쓰기라 사용자당 사실상 한 번이다. 매 요청 쓰기가 되면 이 기준을 충족하지 못한다.\n\n덮어쓰지 않는다는 조건이 절반이다. 덮어쓰면 관리자가 지정한 역할이 그 사람의 다음 요청에 되돌려진다.\n\n부수 효과로 배정 제약이 풀린다 — 종전에는 대상자가 먼저 자가부여를 해야 배정 목록에 떴다.",
+      "priority": "critical",
+      "scenario": {
+        "then": [
+          "사용자 행과 작업자 역할이 만들어진다",
+          "그 사용자가 작업 배정 대상 목록에 나타난다",
+          "같은 사용자가 연속으로 호출해도 쓰기는 되풀이되지 않는다",
+          "관리자가 그 사용자를 검수자로 바꾼 뒤 다시 호출해도 역할이 작업자로 되돌아가지 않는다",
+          "포털 채널 사용자에게는 이 자동 등록이 적용되지 않는다"
+        ],
+        "when": [
+          "아무 창구나 호출한다"
+        ],
+        "given": [
+          "내부 채널 토큰으로 인증을 통과했고 아직 역할이 없는 사용자가 있다"
+        ]
+      },
+      "statement": "인증을 통과한 내부 채널 사용자에게 역할이 없으면 그 시점에 사용자 행과 작업자 역할이 만들어지고, 이미 부여된 역할은 덮어쓰지 않는다.",
+      "is_negative": false,
+      "implementation": {
+        "status": "implemented",
+        "modules": [],
+        "records": [
+          "IMPREC-168"
+        ],
+        "progress": 100,
+        "subtasks": [],
+        "last_updated": "2026-08-28T11:31:10.087Z",
+        "module_paths": []
+      },
+      "derived_domain_ids": [
+        "DOMAIN-001"
+      ],
+      "verification_method": "automated_test",
+      "verification_status": "unverified",
+      "derived_from_use_cases": [
+        "UC-030"
+      ]
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "ADR-055 에 따라 신설.",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-08-28T11:31:10.087Z",
+    "created_at": "2026-08-28T04:23:49.854Z"
+  }
+}

@@ -20,6 +20,36 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
     Optional<LsAcntUser> findByUserNo(Long userNo);
 
     /**
+     * <b>관제 인계 토큰의 {@code userId} 클레임으로 사용자번호를 찾는다 — 단건 매칭일 때만</b>
+     * (@design ADR-063).
+     *
+     * <p>{@code LS_ACNT_USER.USER_ID} 에는 <b>유일 제약이 없다</b>(PK 는 {@code USER_NO} 뿐).
+     * 그래서 조회가 다중 매칭될 수 있고, 어느 행으로 잇는지가 추측이 되면 남의 계정으로 인가될 수
+     * 있다(CWE-639). 따라서 <b>정확히 1건일 때만</b> 그 {@code USER_NO} 를 돌려주고, 0건이거나
+     * 2건 이상이면 {@code empty} 를 돌려 fail-closed(무권한)로 흐르게 한다.
+     *
+     * <p>유일 인덱스로 입구를 좁히는 대신 <b>조회에서 닫는다</b> — 관제 ID 유일성이 보장되지 않은
+     * 상태에서 인덱스를 걸면 기존 중복 때문에 기동이 실패하고, fail-closed 는 되돌릴 것이 없다.
+     *
+     * <p>{@code null}/공백 {@code userId} 는 방어적으로 여기서도 {@code empty} 를 돌린다(빈 조회로
+     * 전 행을 훑지 않는다). {@code userId} 는 파라미터 바인딩만 쓴다(CWE-89).
+     */
+    default Optional<Long> findUserNoByUserId(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return Optional.empty();
+        }
+        List<Long> matches = findUserNosByUserId(userId);
+        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
+    }
+
+    /**
+     * {@code USER_ID} 로 매칭되는 {@code USER_NO} 전부를 반환한다(다중/0건 판정용 — 단건 축약은
+     * {@link #findUserNoByUserId(String)} 가 한다). 유일 제약이 없어 2건 이상일 수 있다.
+     */
+    @Query("SELECT u.userNo FROM LsAcntUser u WHERE u.userId = :userId")
+    List<Long> findUserNosByUserId(@Param("userId") String userId);
+
+    /**
      * 주어진 userNo 목록에 해당하는 사용자 마스터를 한 번에 조회 (N+1 방지).
      * 빈 컬렉션 호출 시 빈 리스트 반환.
      */
@@ -141,12 +171,34 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
     List<WorkerWithTaskCount> findAllWorkersWithTaskCount();
 
     /**
-     * 사용자 마스터 페이징 검색 (REVIEWER 의 /manage/users 화면용).
+     * 사용자 마스터 페이징 검색 (관리자의 /admin/users 화면용).
      * keyword 가 null/빈 문자열이면 전체 검색, 그렇지 않으면 USER_ID/USER_NM/USER_EML_ADDR LIKE.
      * 활성/비활성 모두 포함.
      *
      * <p>자동등록 사용자는 {@code userId}/{@code userEmlAddr} 가 null 일 수 있다 — LIKE 는 null 에
      * 대해 참이 되지 않으므로 그 사용자는 이름으로만 검색된다(오류 아님).
+     *
+     * <h3>★ 역할 필터는 여기서 걸린다 — 서비스가 페이지 안에서 거르지 않는다 (@design AC-1018)</h3>
+     * <p>구 구현은 한 페이지를 먼저 가져온 뒤 그 안에서 역할을 걸렀다. 그러면 결함이 둘이다 —
+     * <b>1페이지 밖의 해당 역할 사용자에게 도달할 수 없고</b>(그 20건에 없으면 결과가 빈다),
+     * <b>총건수가 필터 이전 합계</b>라 "3건 표시 / 총 87건" 같은 상태가 된다. 필터를 이 문장으로
+     * 내리면 페이징·총건수가 모두 <b>서버 전체 기준</b>으로 정확해진다.
+     *
+     * <p>{@code LS_ACNT_USER} 와 {@code LS_USER_ROLE} 은 <b>ID 참조</b>라 연관 매핑이 없다(Aggregate
+     * 간 ID 참조 원칙). 그래서 JOIN 이 아니라 상관 {@code EXISTS} 서브쿼리로 건다 — JOIN 은 역할
+     * 행이 여러 개일 때 사용자를 중복시키지만({@code USER_NO} 단일 PK 라 지금은 1개여도, 그 전제가
+     * 조회 정확성의 근거가 되면 안 된다) {@code EXISTS} 는 구조적으로 중복이 없다.
+     *
+     * <p><b>미배정(역할 행 없음) 사용자는 어떤 역할 필터에도 걸리지 않는다</b> — {@code EXISTS} 가
+     * 거짓이 되어 자연히 빠진다. 기존 성질 그대로다(기본 역할을 부여하지 않으므로 인가와 정합).
+     *
+     * <p><b>count 쿼리를 따로 선언하지 않는다</b> — Spring Data 가 이 술어에서 유도한다. 손으로
+     * 적으면 술어를 한쪽만 고치는 순간 총건수가 조용히 어긋난다(이 저장소에서 실제로 겪은 결함).
+     *
+     * <p>보안: {@code role} 은 Controller 의 {@code @Pattern} 화이트리스트로 사전 검증되고 여기서도
+     * 파라미터 바인딩만 쓴다(CWE-89).
+     *
+     * @param role 역할 코드 필터. null/빈 문자열이면 필터하지 않는다(기존 동선 그대로)
      */
     @Query("""
             SELECT u FROM LsAcntUser u
@@ -154,6 +206,11 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
                     OR LOWER(u.userId)      LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(u.userNm)      LIKE LOWER(CONCAT('%', :keyword, '%'))
                     OR LOWER(u.userEmlAddr) LIKE LOWER(CONCAT('%', :keyword, '%')))
+               AND (:role IS NULL OR :role = ''
+                    OR EXISTS (SELECT 1 FROM LsUserRole r
+                                WHERE r.userNo = u.userNo AND r.roleCd = :role))
             """)
-    Page<LsAcntUser> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    Page<LsAcntUser> searchByKeywordAndRole(@Param("keyword") String keyword,
+                                            @Param("role") String role,
+                                            Pageable pageable);
 }
