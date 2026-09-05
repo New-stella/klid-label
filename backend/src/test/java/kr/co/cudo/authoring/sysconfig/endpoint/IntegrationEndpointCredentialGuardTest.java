@@ -213,7 +213,7 @@ class IntegrationEndpointCredentialGuardTest {
     @DisplayName("★관제_통지 — 호스트가_바뀌면_x-access-token_을_붙이지_않는다")
     void controlNotifyTokenIsStrippedWhenHostChanges() throws Exception {
         String bootDefault = bootServer.url("/").toString();
-        WebClient client = config.controlNotifyWebClient(bootDefault, CONTROL_TOKEN, true, resolver());
+        WebClient client = config.controlNotifyWebClient(bootDefault, CONTROL_TOKEN, true, resolver(), null);
         override(differentHostUrlOf(otherServer));
 
         RecordedRequest received = exchange(client, otherServer);
@@ -226,7 +226,7 @@ class IntegrationEndpointCredentialGuardTest {
     @DisplayName("관제_통지 — 같은_호스트면_토큰은_그대로_붙는다")
     void controlNotifyTokenSurvivesPortOnlyChange() throws Exception {
         String bootDefault = bootServer.url("/").toString();
-        WebClient client = config.controlNotifyWebClient(bootDefault, CONTROL_TOKEN, true, resolver());
+        WebClient client = config.controlNotifyWebClient(bootDefault, CONTROL_TOKEN, true, resolver(), null);
         override(otherServer.url("/").toString());
 
         RecordedRequest received = exchange(client, otherServer);
