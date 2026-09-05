@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "NFR-045",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "데이터 관리체계 수립 (조직·절차·관리기준)",
+    "slug": "데이터-관리체계-수립-조직절차관리기준",
+    "sub_id": "RQ-DAR-07-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "데이터 관리체계 수립 (조직·절차·관리기준)",
+      "metric": "데이터 관리 조직·역할·절차 및 관리기준 수립 여부",
+      "status": "approved",
+      "target": {
+        "value": "관리 조직·역할 정의 + 표준·구조 변경 절차 수립 + 관리기준 제시",
+        "operator": "="
+      },
+      "category": "compliance",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-DAR-07-01 (담당=공통, RFP p57~58, 중요도 상).",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 데이터 관리체계 기준:\n- 운영단계까지 지속 적용 가능한 데이터 관리체계를 정의한다.\n- 데이터 표준·구조·값 등 핵심 요소의 지속 관리를 위한 조직과 역할을 정의한다.\n- 데이터 표준(단어·용어·도메인·코드)의 추가·변경·삭제 절차를 수립한다.\n- 데이터 구조(논리·물리)의 추가·변경·삭제 절차를 수립한다.\n- 관리체계에는 표준 준수율, 구조 현행화율, 값 검증 오류율 등 명확한 관리기준을 제시한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [],
+      "measurement_method": "데이터 관리체계 문서에서 조직·역할, 추가·변경·삭제 절차, 관리기준 지표가 정의된 것을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:27.499Z",
+    "created_at": "2026-09-05T00:12:27.499Z"
+  }
+}

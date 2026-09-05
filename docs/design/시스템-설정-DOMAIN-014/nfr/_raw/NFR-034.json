@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "NFR-034",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "품질 관리 및 보증 방안",
+    "slug": "품질-관리-및-보증-방안",
+    "sub_id": "RQ-QUR-01-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "품질 관리 및 보증 방안",
+      "metric": "품질보증 방안 수립 및 근거 제시 여부",
+      "status": "approved",
+      "target": {
+        "value": "품질보증 방법·절차·목표수준·조직을 포함한 품질보증방안 제시",
+        "operator": "="
+      },
+      "category": "compliance",
+      "priority": "should",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-QUR-01-01~RQ-QUR-01-04 (담당=공통, RFP p45) — 사업 관리 축이며 저작도구는 품질기준·검증 증빙 제공으로 이행에 기여한다.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "품질보증 요구:\n- 품질보증 방법과 절차, 품질 목표 수준, 품질 보증 내용과 보증 조직을 포함한 품질보증방안을 제시한다.\n- 대외적으로 인정받은 품질보증 관련 인증이 있으면 이를 입증할 근거서류를 제시한다.\n- 사업 수행 목적으로 사용한 공식자료와 통계는 서면으로 근거를 제시한다.\n- 도입 소프트웨어는 소프트웨어 진흥법에 따른 인증 제품을 적용한다.\n※ 저작도구 측 이행 수단은 수용기준과 시험 시나리오, 시험 수행 기록, 산출물 품질 점검 결과다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [],
+      "measurement_method": "품질보증 방안 문서와 근거 자료 제출 내역으로 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:24.820Z",
+    "created_at": "2026-09-05T00:12:24.820Z"
+  }
+}

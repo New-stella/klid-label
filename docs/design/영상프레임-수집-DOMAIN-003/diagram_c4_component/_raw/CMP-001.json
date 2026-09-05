@@ -21,7 +21,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -34,7 +35,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -47,7 +49,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -59,7 +62,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -71,19 +75,21 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
           "kind": "service",
           "name": "DeidentifyStep",
-          "description": "1단계(선두, pre-marking) — 외부 비식별 솔루션 위탁. 게이팅 없이 전체 영상(PRVC/PSDO/ANONY)이 대상이며 적재 직후 자동 트리거된다. 결과 경로는 솔루션 통보값을 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 에 그대로 기록한다.",
+          "description": "1단계(선두, pre-marking) — 외부 비식별 솔루션 위탁. 게이팅 없이 전체 영상(PRVC/PSDO/ANONY)이 대상이며 적재 직후 자동 트리거된다. 결과 경로는 솔루션 통보값을 LS_DEIDENT_PROC_LOG.DE_IDNTF_FILE_PATH_NM 에 그대로 기록한다. 제출은 논블로킹이다 — 수락 대기 원장을 선커밋한 뒤 비동기로 보내며 그 구독은 노드가 죽으면 함께 사라져 신호가 유실될 수 있다. 회수는 전용 미결 스위퍼 없이 주기 폴링 잡이 ACK 대기 유예 만료로 집으며, 재위탁하지 않고 KPST_ACK_MISSING 으로 원장을 마감하고 영상의 비식별 여부도 'F' 로 내린다 — 시계열 축이 스위퍼로 재위탁하는 것과 정반대다.",
           "implementation": {
             "status": "planned",
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -95,7 +101,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -107,7 +114,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -119,7 +127,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -131,7 +140,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -143,7 +153,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -155,7 +166,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -167,7 +179,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -179,7 +192,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -191,7 +205,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -203,7 +218,8 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         },
         {
@@ -216,11 +232,12 @@
             "modules": [],
             "records": [],
             "progress": 0,
-            "subtasks": []
+            "subtasks": [],
+            "module_paths": []
           }
         }
       ],
-      "description": "배치 파이프라인 컴포넌트 구조.\n\n[단계 순서] ①비식별(DeidentifyStep, 전체 영상·마킹 선행) → [작업자가 비식별 영상에서 마킹] → ②VLM(VlmTimeseriesStep) → ③프레임추출(마킹위치 원본+비식별 2벌) → ④YOLO(원본만) → ⑤SAM2 → ⑥트랙보간.\n★구 divergence 해소: 이전 본문은 '현재 코드는 구 순서(VlmTimeseriesStep → DeidentifyStep) 구현, 비식별 선두는 planned' 라고 적었으나 재배치가 완료됐다. 단계 구성은 선언적 파이프라인(BatchStep/BatchContext/BatchPipeline/BatchPipelineConfig)이 소유하며 pre-marking=[DEIDENTIFY], post-marking=[MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE] 로 나뉘고 List.of(...) 한 곳에서 재배치된다. 각 단계는 isEnabled(ctx) 조건부 실행을 지원한다.\n\n[트리거] 선두 비식별은 적재 직후 VideoIngestedEvent(EVT-005) → IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner. 잔여 배치는 마킹 완료(MarkingCompletedEvent, EVT-001) → MarkingBatchBridge(AFTER_COMMIT) → AsyncBatchRunner 또는 Quartz(BatchQuartzJob)가 BatchOrchestrator.process(rawSn) 구동. 각 Step 은 REQUIRES_NEW, 실패 시 BatchRetryQueue 재처리.\n\n[★외부 위탁은 논블로킹 제출] VlmTimeseriesStep 은 .block(45s) 로 파이프라인 스레드를 붙잡지 않고 subscribe() 로 제출만 개시한다(구 방식은 외부가 느려지면 core 2 짜리 배치 풀이 통째로 마른다). 수락 여부는 완료 핸들러가 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다. ⚠미결 임계는 ACK 창(기본 30분)과 콜백 창(기본 360분) 두 개이며 하나로 덮으면 정상 위탁을 빼앗는다.\n\n[신고 구간 보류] 비식별 누락 신고 중인 영상은 VLM 위탁을 실패가 아니라 보류(SKIPPED + 사유 적재)하고, 해소 시 DeidentGateReopenedEvent(EVT-007) → VlmResumeBridge 가 재위탁한다. 보류는 스스로 재개되지 않으므로 이 배선이 없으면 시계열 메타가 영구 결손된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출(SEQ-001 시퀀스 참조).",
+      "description": "배치 파이프라인 컴포넌트 구조.\n\n[단계 순서] ①비식별(DeidentifyStep, 전체 영상·마킹 선행) → [작업자가 비식별 영상에서 마킹] → ②VLM(VlmTimeseriesStep) → ③프레임추출(마킹위치 원본+비식별 2벌) → ④YOLO(원본만) → ⑤SAM2 → ⑥트랙보간.\n★구 divergence 해소: 이전 본문은 '현재 코드는 구 순서(VlmTimeseriesStep → DeidentifyStep) 구현, 비식별 선두는 planned' 라고 적었으나 재배치가 완료됐다. 단계 구성은 선언적 파이프라인(BatchStep/BatchContext/BatchPipeline/BatchPipelineConfig)이 소유하며 pre-marking=[DEIDENTIFY], post-marking=[MARKING, VLM, FRAME_EXTRACT, YOLO, SAM2, INTERPOLATE] 로 나뉘고 List.of(...) 한 곳에서 재배치된다. 각 단계는 isEnabled(ctx) 조건부 실행을 지원한다.\n\n[트리거] 선두 비식별은 적재 직후 VideoIngestedEvent(EVT-005) → IngestDeidentifyBridge(AFTER_COMMIT) → AsyncDeidentifyRunner. 잔여 배치는 마킹 완료(MarkingCompletedEvent, EVT-001) → MarkingBatchBridge(AFTER_COMMIT) → AsyncBatchRunner 또는 Quartz(BatchQuartzJob)가 BatchOrchestrator.process(rawSn) 구동. 각 Step 은 REQUIRES_NEW, 실패 시 BatchRetryQueue 재처리.\n\n[★외부 위탁은 논블로킹 제출] VlmTimeseriesStep 은 .block(45s) 로 파이프라인 스레드를 붙잡지 않고 subscribe() 로 제출만 개시한다(구 방식은 외부가 느려지면 core 2 짜리 배치 풀이 통째로 마른다). 수락 여부는 완료 핸들러가 비동기 기록하고, 아무 신호도 없으면 미결 스위퍼가 회수한다. ⚠미결 임계는 ACK 창(기본 30분)과 콜백 창(기본 360분) 두 개이며 하나로 덮으면 정상 위탁을 빼앗는다. ★비식별 제출도 대칭이다 — DeidentifyStep 은 수락 대기 원장 행을 먼저 확정 기록한 뒤 외부 위탁을 비동기로 보내며, 그 구독은 노드가 죽으면 함께 사라져 신호가 통째로 유실될 수 있다. ⚠회수는 정반대다 — 비식별 축에는 전용 미결 스위퍼가 없고 주기 폴링 잡이 ACK 대기 유예 만료로 회수하며, 재위탁하지 않고 KPST_ACK_MISSING 으로 원장을 마감한다(유예 값은 설정값). 그 종결은 영상의 비식별 여부도 'F' 로 내린다 — 제출 확정 실패(KPST_SUBMIT_FAILED)와 같은 종결 경로다. 종결 코드를 따로 두는 이유는 영상 상태가 아니라 운영 조치다. 단 호출자 트랜잭션 롤백에 따른 취소 종결(KPST_SUBMIT_CANCELED)은 영상의 비식별 여부를 바꾸지 않는다. 즉 두 축은 제출이 대칭이고 회수만 갈린다.\n\n[신고 구간 보류] 비식별 누락 신고 중인 영상은 VLM 위탁을 실패가 아니라 보류(SKIPPED + 사유 적재)하고, 해소 시 DeidentGateReopenedEvent(EVT-007) → VlmResumeBridge 가 재위탁한다. 보류는 스스로 재개되지 않으므로 이 배선이 없으면 시계열 메타가 영구 결손된다.\n\n컴포넌트·관계는 실제 생성자 의존성에서 도출(SEQ-001 시퀀스 참조).",
       "module_name": "batch (배치 파이프라인)",
       "relationships": [
         {
@@ -349,7 +366,16 @@
           "description": "보간 라벨 저장"
         }
       ],
+      "attached_files": [],
       "depicts_dfeats": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
       "referenced_items": [],
       "external_dependencies": [
         {
@@ -386,12 +412,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
+    "current_version": 7,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "절 표제에서 구현 상태 표기를 걷어낸다 — 단계 순서 자체가 사양이다.",
+    "change_summary": "결손 보강 — 같은 다이어그램이 소유한 비식별 단계에 논블로킹 제출·신호 유실·회수 경로가 한 줄도 없던 빈칸을 채운다. 비식별도 수락 대기 원장을 선커밋한 뒤 비동기로 보내므로 제출 축은 시계열과 대칭이지만, 회수 축은 정반대다 — 비식별에는 전용 미결 스위퍼가 없고 주기 폴링 잡이 ACK 대기 유예 만료로 집으며 재위탁하지 않고 KPST_ACK_MISSING 으로 원장을 마감하고 영상의 비식별 여부도 'F' 로 내린다(취소 종결 KPST_SUBMIT_CANCELED 만 예외로 영상 상태를 바꾸지 않는다). 형제 다이어그램 CMP-003 v13 과 어휘를 맞췄다. 참인 시계열 축 서술(미결 스위퍼 회수·ACK 창·콜백 창)과 다른 컴포넌트·관계 원소는 한 글자도 건드리지 않았다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-16T13:59:41.008Z",
+    "last_updated_at": "2026-09-03T11:24:34.714Z",
     "created_at": "2026-06-02T13:10:34.994Z"
   }
 }

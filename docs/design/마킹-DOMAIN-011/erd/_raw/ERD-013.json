@@ -319,11 +319,12 @@
         "status": "implemented",
         "modules": [],
         "records": [
-          "IMPREC-119"
+          "IMPREC-119",
+          "IMPREC-390"
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-25T08:17:45.001Z",
+        "last_updated": "2026-09-03T09:15:51.302Z",
         "module_paths": []
       },
       "uses_constants": []
@@ -334,8 +335,8 @@
     "stale": false,
     "stale_reason": null,
     "change_summary": "없는 선례를 있다고 적은 서술을 바로잡고, 두 칸의 미결 서술을 확정으로 닫는다. 라벨 원장의 등록 사용자 번호는 아직 숫자다 — 전용 표 흡수가 계획한 것을 이미 된 것처럼 적었고, 그 서술을 근거로 찾으러 가면 없다. 그리고 컬럼은 폐기로 확정됐는데 표 설명에는 「확정 전에는 쓸 수 없다」가 남아 같은 ITEM 안에서 층이 갈려 있었다.",
-    "last_updated_by": "claude",
-    "last_updated_at": "2026-09-02T10:29:24.396Z",
+    "last_updated_by": "sync",
+    "last_updated_at": "2026-09-03T09:15:51.302Z",
     "created_at": "2026-06-01T02:45:45.194Z"
   }
 }

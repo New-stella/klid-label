@@ -4,14 +4,14 @@
 |---|---|
 | project_id | 4ece2c3f-8e99-46f5-9580-71108a76e578 |
 | Domain | DOMAIN-010 |
-| Last sync | 2026-09-03T07:39:19.252Z |
-| Mode | SYNC — NEW 1 / CHANGED 5 / UNCHANGED 165 |
-| 출력 루트 | docs/design/라벨링-DOMAIN-010/ |
+| Last sync | 2026-09-05T00:45:20.481Z |
+| Mode | SYNC — NEW 2 / CHANGED 0 / UNCHANGED 199 |
+| 출력 루트 | docs/design/라벨링-DOMAIN-010 |
 | 생성 | download-kit.mjs (결정적 다운로드, LLM 0) |
 | 링크 포맷 | wikilink-v1 — frontmatter `links:` 가 `[[ID]]` wikilink |
 | 스코프 | DOMAIN-010 — .kit-scope.json (스킬 LLM 판정) |
 | 전역 수집 | nfr, implementation_guideline, permission_role |
-| ⚠️ 미판정 | 2건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
+| ⚠️ 미판정 | 66건 — 스킬 Phase 2 판정 필요(이번 키트 미포함) |
 
 ## ⚠️ 스코프 밖 ITEM (유실 점검)
 
@@ -19,15 +19,15 @@
 **🚨 = 프로젝트엔 있는데 이번 키트엔 0건** — 구현이 그 설계를 못 본다.
 
 ```
-  ℹ️  domain_feature: 이번 키트 10건 / 스코프 밖 38건
-  ℹ️  api_endpoint: 이번 키트 61건 / 스코프 밖 159건
+  ℹ️  domain_feature: 이번 키트 10건 / 스코프 밖 39건
+  ℹ️  api_endpoint: 이번 키트 61건 / 스코프 밖 162건
   ℹ️  erd: 이번 키트 2건 / 스코프 밖 21건
-  ℹ️  diagram_sequence: 이번 키트 8건 / 스코프 밖 27건 (그중 domain_id 없음 10건)
+  ℹ️  diagram_sequence: 이번 키트 10건 / 스코프 밖 26건 (그중 domain_id 없음 10건)
   ℹ️  screen_spec: 이번 키트 9건 / 스코프 밖 29건
   ℹ️  use_case: 이번 키트 12건 / 스코프 밖 23건
   ℹ️  domain_event: 이번 키트 1건 / 스코프 밖 11건
   ℹ️  acceptance: 이번 키트 11건 / 스코프 밖 71건 (그중 domain_id 없음 2건)
-  ℹ️  adr: 이번 키트 20건 / 스코프 밖 35건 (그중 domain_id 없음 5건)
+  ℹ️  adr: 이번 키트 20건 / 스코프 밖 36건 (그중 domain_id 없음 5건)
   ℹ️  feature: 이번 키트 4건 / 스코프 밖 6건 (그중 domain_id 없음 5건)
 ```
 
@@ -40,12 +40,8 @@
 
 ## Changelog (this run)
 
-- NEW [[ADR-058]]
-- CHANGED [[UC-004]] (prev v17)
-- CHANGED [[UC-005]] (prev v12)
-- CHANGED [[UC-008]] (prev v16)
-- CHANGED [[UC-023]] (prev v29)
-- CHANGED [[UC-039]] (prev v4)
+- NEW [[CDIAG-023]]
+- NEW [[CDIAG-041]]
 
 ## ITEM 표
 
@@ -81,7 +77,7 @@
 | [[ADR-051]] | adr | 5 | UNCHANGED |
 | [[ADR-054]] | adr | 5 | UNCHANGED |
 | [[ADR-055]] | adr | 5 | UNCHANGED |
-| [[ADR-058]] | adr | 8 | NEW |
+| [[ADR-058]] | adr | 8 | UNCHANGED |
 | [[API-012]] | api_endpoint | 6 | UNCHANGED |
 | [[API-018]] | api_endpoint | 5 | UNCHANGED |
 | [[API-019]] | api_endpoint | 8 | UNCHANGED |
@@ -145,6 +141,8 @@
 | [[API-204]] | api_endpoint | 1 | UNCHANGED |
 | [[CDIAG-004]] | class_diagram | 10 | UNCHANGED |
 | [[CDIAG-015]] | class_diagram | 8 | UNCHANGED |
+| [[CDIAG-023]] | class_diagram | 1 | NEW |
+| [[CDIAG-041]] | class_diagram | 1 | NEW |
 | [[CMP-004]] | diagram_c4_component | 5 | UNCHANGED |
 | [[CMP-006]] | diagram_c4_component | 5 | UNCHANGED |
 | [[CONST-001]] | constant | 4 | UNCHANGED |
@@ -169,19 +167,45 @@
 | [[FEAT-009]] | feature | 3 | UNCHANGED |
 | [[NFR-008]] | nfr | 6 | UNCHANGED |
 | [[NFR-009]] | nfr | 6 | UNCHANGED |
-| [[NFR-010]] | nfr | 3 | UNCHANGED |
-| [[NFR-011]] | nfr | 6 | UNCHANGED |
-| [[NFR-012]] | nfr | 5 | UNCHANGED |
+| [[NFR-010]] | nfr | 4 | UNCHANGED |
+| [[NFR-011]] | nfr | 7 | UNCHANGED |
+| [[NFR-012]] | nfr | 6 | UNCHANGED |
 | [[NFR-013]] | nfr | 10 | UNCHANGED |
-| [[NFR-014]] | nfr | 4 | UNCHANGED |
-| [[NFR-015]] | nfr | 5 | UNCHANGED |
+| [[NFR-014]] | nfr | 5 | UNCHANGED |
+| [[NFR-015]] | nfr | 6 | UNCHANGED |
 | [[NFR-016]] | nfr | 4 | UNCHANGED |
 | [[NFR-017]] | nfr | 10 | UNCHANGED |
 | [[NFR-018]] | nfr | 6 | UNCHANGED |
-| [[NFR-019]] | nfr | 2 | UNCHANGED |
+| [[NFR-019]] | nfr | 3 | UNCHANGED |
 | [[NFR-020]] | nfr | 10 | UNCHANGED |
-| [[NFR-021]] | nfr | 1 | UNCHANGED |
-| [[NFR-022]] | nfr | 2 | UNCHANGED |
+| [[NFR-021]] | nfr | 2 | UNCHANGED |
+| [[NFR-022]] | nfr | 3 | UNCHANGED |
+| [[NFR-023]] | nfr | 1 | UNCHANGED |
+| [[NFR-024]] | nfr | 1 | UNCHANGED |
+| [[NFR-025]] | nfr | 1 | UNCHANGED |
+| [[NFR-026]] | nfr | 1 | UNCHANGED |
+| [[NFR-027]] | nfr | 1 | UNCHANGED |
+| [[NFR-028]] | nfr | 1 | UNCHANGED |
+| [[NFR-029]] | nfr | 1 | UNCHANGED |
+| [[NFR-030]] | nfr | 1 | UNCHANGED |
+| [[NFR-031]] | nfr | 1 | UNCHANGED |
+| [[NFR-032]] | nfr | 1 | UNCHANGED |
+| [[NFR-033]] | nfr | 1 | UNCHANGED |
+| [[NFR-034]] | nfr | 1 | UNCHANGED |
+| [[NFR-035]] | nfr | 1 | UNCHANGED |
+| [[NFR-036]] | nfr | 1 | UNCHANGED |
+| [[NFR-037]] | nfr | 1 | UNCHANGED |
+| [[NFR-038]] | nfr | 1 | UNCHANGED |
+| [[NFR-039]] | nfr | 1 | UNCHANGED |
+| [[NFR-040]] | nfr | 1 | UNCHANGED |
+| [[NFR-041]] | nfr | 1 | UNCHANGED |
+| [[NFR-042]] | nfr | 1 | UNCHANGED |
+| [[NFR-043]] | nfr | 1 | UNCHANGED |
+| [[NFR-044]] | nfr | 1 | UNCHANGED |
+| [[NFR-045]] | nfr | 1 | UNCHANGED |
+| [[NFR-046]] | nfr | 1 | UNCHANGED |
+| [[NFR-047]] | nfr | 1 | UNCHANGED |
+| [[NFR-048]] | nfr | 1 | UNCHANGED |
 | [[ROLE-001]] | permission_role | 14 | UNCHANGED |
 | [[ROLE-002]] | permission_role | 9 | UNCHANGED |
 | [[ROLE-003]] | permission_role | 14 | UNCHANGED |
@@ -199,26 +223,28 @@
 | [[SD-006]] | screen_design | 5 | UNCHANGED |
 | [[SD-022]] | screen_design | 4 | UNCHANGED |
 | [[SD-032]] | screen_design | 2 | UNCHANGED |
-| [[SEQ-008]] | diagram_sequence | 9 | UNCHANGED |
-| [[SEQ-009]] | diagram_sequence | 11 | UNCHANGED |
-| [[SEQ-010]] | diagram_sequence | 15 | UNCHANGED |
-| [[SEQ-014]] | diagram_sequence | 13 | UNCHANGED |
+| [[SEQ-008]] | diagram_sequence | 10 | UNCHANGED |
+| [[SEQ-009]] | diagram_sequence | 13 | UNCHANGED |
+| [[SEQ-010]] | diagram_sequence | 18 | UNCHANGED |
+| [[SEQ-014]] | diagram_sequence | 14 | UNCHANGED |
 | [[SEQ-020]] | diagram_sequence | 2 | UNCHANGED |
 | [[SEQ-021]] | diagram_sequence | 1 | UNCHANGED |
-| [[SEQ-022]] | diagram_sequence | 5 | UNCHANGED |
+| [[SEQ-022]] | diagram_sequence | 6 | UNCHANGED |
 | [[SEQ-023]] | diagram_sequence | 9 | UNCHANGED |
+| [[SEQ-028]] | diagram_sequence | 2 | UNCHANGED |
+| [[SEQ-032]] | diagram_sequence | 4 | UNCHANGED |
 | [[TEST-002]] | test_scenario | 15 | UNCHANGED |
 | [[TEST-004]] | test_scenario | 19 | UNCHANGED |
 | [[TEST-007]] | test_scenario | 3 | UNCHANGED |
-| [[UC-004]] | use_case | 18 | CHANGED |
-| [[UC-005]] | use_case | 13 | CHANGED |
+| [[UC-004]] | use_case | 18 | UNCHANGED |
+| [[UC-005]] | use_case | 13 | UNCHANGED |
 | [[UC-006]] | use_case | 11 | UNCHANGED |
 | [[UC-007]] | use_case | 15 | UNCHANGED |
-| [[UC-008]] | use_case | 17 | CHANGED |
+| [[UC-008]] | use_case | 17 | UNCHANGED |
 | [[UC-021]] | use_case | 22 | UNCHANGED |
 | [[UC-022]] | use_case | 24 | UNCHANGED |
-| [[UC-023]] | use_case | 30 | CHANGED |
+| [[UC-023]] | use_case | 30 | UNCHANGED |
 | [[UC-028]] | use_case | 8 | UNCHANGED |
 | [[UC-032]] | use_case | 14 | UNCHANGED |
 | [[UC-034]] | use_case | 7 | UNCHANGED |
-| [[UC-039]] | use_case | 5 | CHANGED |
+| [[UC-039]] | use_case | 5 | UNCHANGED |

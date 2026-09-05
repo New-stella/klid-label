@@ -1,0 +1,57 @@
+{
+  "item": {
+    "id": "NFR-025",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "성능 일반 (이용자 관점별 성능·성능테스트·목표 응답시간)",
+    "slug": "성능-일반-이용자-관점별-성능성능테스트목표-응답시간",
+    "sub_id": "RQ-PER-01-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "성능 일반 (이용자 관점별 성능·성능테스트·목표 응답시간)",
+      "metric": "성능·부하 테스트 수행 및 목표 응답시간 준수 여부",
+      "status": "approved",
+      "target": {
+        "value": "이용자 관점별 성능요구 충족 방안 수립 + 성능·부하 테스트 수행 + 목표 응답시간 준수",
+        "operator": "="
+      },
+      "category": "performance",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-PER-01-01·RQ-PER-01-02·RQ-PER-01-03 (담당=공통, RFP p31, 중요도 상/중) — 화면 응답시간 기준(RQ-PER-02)과 달리 성능 보장 체계 자체를 요구하는 항목이라 별도로 둔다.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 성능 보장 체계:\n- 라벨링 작업자·검수자·관리자 등 이용자 관점별로 성능·운용·사용편의 요구를 구분하고 각각의 충족 방안을 수립한다.\n- 구축 후 성능테스트와 성능개선 작업을 실시하며, 그 계획을 사전에 구체화한다.\n- 확장성·호환성·유연성을 고려한 개발 방안과 안정적 운영지원 방안을 제시한다.\n- 애플리케이션 메트릭과 로그로 성능 상태를 상시 모니터링하여 문제를 사전에 파악·조치한다.\n- 목표 응답시간 기준을 준수하고, 기준 변경이 필요하면 발주기관과 협의 후 적용한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-010",
+        "DOMAIN-005",
+        "DOMAIN-003"
+      ],
+      "measurement_method": "성능테스트 계획과 수행 결과, 성능 모니터링 지표를 대조해 목표 응답시간 준수와 개선 반영을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:22.646Z",
+    "created_at": "2026-09-05T00:12:22.646Z"
+  }
+}

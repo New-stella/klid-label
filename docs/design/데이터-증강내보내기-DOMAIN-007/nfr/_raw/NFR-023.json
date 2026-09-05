@@ -1,0 +1,53 @@
+{
+  "item": {
+    "id": "NFR-023",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "공개 소프트웨어 활용 및 도입 버전 관리",
+    "slug": "공개-소프트웨어-활용-및-도입-버전-관리",
+    "sub_id": "RQ-ECR-03-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "공개 소프트웨어 활용 및 도입 버전 관리",
+      "metric": "시스템 소프트웨어의 공개SW·정품 여부 및 버전 협의 이행",
+      "status": "approved",
+      "target": {
+        "value": "WEB·WAS·DB 등 시스템 소프트웨어 전량 법적·기술적 하자 없음 + 버전 발주기관 협의 확정",
+        "operator": "="
+      },
+      "category": "compliance",
+      "priority": "should",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-ECR-03-01·RQ-ECR-03-04 (담당=공통, RFP p20) — 저작도구도 자체 WEB·WAS·DB 및 AI 추론 런타임을 반입하므로 동일 적용.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구가 반입하는 시스템 소프트웨어의 라이선스·버전 기준:\n- 시스템 소프트웨어(WEB·WAS·DB)는 공개 소프트웨어 활용을 원칙으로 하되, 발주기관이 지정한 상용 제품을 도입하는 경우 정품 라이선스와 관리적·기술적·법적 하자 없음을 확인한다.\n- 응용 의존 라이브러리는 permissive 라이선스(MIT·Apache-2.0)를 채택하고, 배포 시 소스 공개 의무가 발생하는 라이선스(AGPL 계열)는 배제한다. 객체 탐지·분할 모델도 permissive 백엔드로 구성한다.\n- 도입 소프트웨어의 버전은 발주기관과 협의하여 확정하며, 확정 버전은 반입 산출물 명세에 기재한다.\n- 의존성 목록과 라이선스는 반입 시점에 고정하여 재현 가능한 형상으로 관리한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [],
+      "measurement_method": "반입 대상 시스템 소프트웨어 목록과 각 구성요소의 라이선스·버전 근거를 대조해 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:22.147Z",
+    "created_at": "2026-09-05T00:12:22.147Z"
+  }
+}

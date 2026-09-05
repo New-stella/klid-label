@@ -1,11 +1,19 @@
 ---
 logicraft_item: ROLE-001
 type: permission_role
-version: 13
-status: UNCHANGED
-prev_version: null
+version: 14
+status: CHANGED
+prev_version: 13
 raw: ./_raw/ROLE-001.json
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v13 → v14**
+> change_summary: 화면 축과 창구 축을 갈라 적는다 — 관리자 역할로 옮겨간 화면들에 이 역할이 들어오지 못한다는 서술이 화면 축임을 밝히고, 창구 축에는 이 역할 권한으로도 응답하는 자리(사용자 목록·작업자 목록·사용자 단건 조회)와 관리자 역할에 유효창까지 요구하는 자리(역할 지정)가 함께 있음을 적는다. 축을 밝히지 않아 다른 산출물과 어긋난 사양으로 읽히던 것을 해소한다. 어휘는 ROLE-004 의 창구/화면 구분을 그대로 따랐다.
+
+권한 목록에서 SCREEN-024(사용자 관리) 원소를 제거한다. 그 원소는 actions 에 view 를 그대로 둔 채 condition 문자열에만 폐기를 적어, 사람이 읽으면 폐기이고 기계가 읽으면 권한이 부여된 것으로 보였다(granted_on 엣지도 유효했다). 이 타입에는 권한 원소를 폐기로 표시하는 정식 수단이 없어 원소째 제거한다. 제거하며 잃는 서술을 여기 남긴다 — 사용자 관리는 관리자 역할로 옮겨갔고 이 역할에 두지 않는다. 역할 지정은 관리자만 할 수 있으며, 검수자가 스스로 역할을 바꿀 수 있으면 권한 분리가 성립하지 않는다. 그 화면의 권한은 ROLE-004 가 소유한다.
+
+typical_actors 의 '운영 관리자(겸임)' 는 판정 유보로 그대로 둔다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 검수자 (REVIEWER)
 
@@ -45,7 +53,9 @@ ADMIN
 
 검수자. 화면 호칭은 '검수자'다. 관리 권한은 이 역할에 통합돼 있지 않고 관리자 역할이 소유한다 — 관리자는 이 역할을 계층으로 물려받으므로, 관리자가 검수 업무를 겸하되 검수자는 관리 기능에 닿지 않는다.
 
-이 역할이 소유하는 관리 화면은 라벨 마스터 · 오토라벨 프리셋 · 이벤트유형 · 비식별 누락 신고 관리와 배치·추론·정밀도·비식별 설정이다. 사용자 관리 · 연동 서버 주소 · 파일 업로드 · 산출물 가져오기 · 위험 작업 · 관리자 패스워드 교체는 관리자 역할로 옮겨갔다. 그 화면들은 조회조차 이 역할 권한만으로는 되지 않는다.
+이 역할이 소유하는 관리 화면은 라벨 마스터 · 오토라벨 프리셋 · 이벤트유형 · 비식별 누락 신고 관리와 배치·추론·정밀도·비식별 설정이다. 사용자 관리 · 연동 서버 주소 · 파일 업로드 · 산출물 가져오기 · 위험 작업 · 관리자 패스워드 교체는 관리자 역할로 옮겨갔다. 그 화면들에 들어오는 것은 관리자뿐이라 조회조차 이 역할 권한만으로는 되지 않는다 — 이것은 화면 축의 서술이다.
+
+창구 축은 화면 축과 갈린다. 사용자 목록·작업자 목록·사용자 단건 조회처럼 창구 자체는 이 역할 권한으로도 응답하는 자리가 있고, 역할 지정처럼 관리자 역할에 유효창까지 요구하는 자리가 있다. 이 역할이 소유하는 관리 창구는 이 역할을 하한으로 연다. 어느 축의 서술인지를 밝히지 않으면 두 축이 서로 어긋난 사양으로 읽힌다.
 
 **관리** — 라벨 마스터 관리 · 오토라벨 프리셋 관리 · 비식별 누락 신고 관리 · 이벤트유형 관리 · 배치·추론·정밀도·비식별 설정. 사용자 관리는 이 역할에 두지 않는다(관리자 역할이 소유한다).
 
@@ -161,23 +171,13 @@ ADMIN
 **actions**:
 
 - view
-
-- **condition**: [폐기] 사용자 관리는 관리자 역할로 옮겨갔다 — 이 역할에 두지 않는다. 역할 지정은 관리자만 할 수 있으며, 검수자가 스스로 역할을 바꿀 수 있으면 권한 분리가 성립하지 않는다.
-- **target_id**: SCREEN-024
-- **target_kind**: screen_spec
-
-### [10]
-
-**actions**:
-
-- view
 - update
 
 - **condition**: 시스템 설정
 - **target_id**: SCREEN-025
 - **target_kind**: screen_spec
 
-### [11]
+### [10]
 
 **actions**:
 
@@ -190,7 +190,7 @@ ADMIN
 - **target_id**: SCREEN-026
 - **target_kind**: screen_spec
 
-### [12]
+### [11]
 
 **actions**:
 
@@ -203,7 +203,7 @@ ADMIN
 - **target_id**: SCREEN-035
 - **target_kind**: screen_spec
 
-### [13]
+### [12]
 
 **actions**:
 
@@ -214,7 +214,7 @@ ADMIN
 - **target_id**: SCREEN-032
 - **target_kind**: screen_spec
 
-### [14]
+### [13]
 
 **actions**:
 
@@ -224,7 +224,7 @@ ADMIN
 - **target_id**: SCREEN-018
 - **target_kind**: screen_spec
 
-### [15]
+### [14]
 
 **actions**:
 
@@ -236,7 +236,7 @@ ADMIN
 - **target_id**: SCREEN-019
 - **target_kind**: screen_spec
 
-### [16]
+### [15]
 
 **actions**:
 
@@ -246,7 +246,7 @@ ADMIN
 - **target_id**: SCREEN-021
 - **target_kind**: screen_spec
 
-### [17]
+### [16]
 
 **actions**:
 
@@ -256,7 +256,7 @@ ADMIN
 - **target_id**: SCREEN-020
 - **target_kind**: screen_spec
 
-### [18]
+### [17]
 
 **actions**:
 
@@ -267,7 +267,7 @@ ADMIN
 - **target_id**: SCREEN-022
 - **target_kind**: screen_spec
 
-### [19]
+### [18]
 
 **actions**:
 
@@ -278,7 +278,7 @@ ADMIN
 - **target_id**: SCREEN-023
 - **target_kind**: screen_spec
 
-### [20]
+### [19]
 
 **actions**:
 
@@ -289,7 +289,7 @@ ADMIN
 - **target_id**: SCREEN-012
 - **target_kind**: screen_spec
 
-### [21]
+### [20]
 
 **actions**:
 
@@ -300,7 +300,7 @@ ADMIN
 - **target_id**: SCREEN-008
 - **target_kind**: screen_spec
 
-### [22]
+### [21]
 
 **actions**:
 
@@ -310,7 +310,7 @@ ADMIN
 - **target_id**: SCREEN-030
 - **target_kind**: screen_spec
 
-### [23]
+### [22]
 
 **actions**:
 
@@ -322,7 +322,7 @@ ADMIN
 - **target_id**: SCREEN-031
 - **target_kind**: screen_spec
 
-### [24]
+### [23]
 
 **actions**:
 
@@ -333,7 +333,7 @@ ADMIN
 - **target_id**: SCREEN-036
 - **target_kind**: screen_spec
 
-### [25]
+### [24]
 
 **actions**:
 
@@ -345,7 +345,7 @@ ADMIN
 - **target_id**: SCREEN-037
 - **target_kind**: screen_spec
 
-### [26]
+### [25]
 
 **actions**:
 
@@ -357,6 +357,10 @@ ADMIN
 - **target_kind**: screen_spec
 
 ## inherits_from
+
+_(empty)_
+
+## attached_files
 
 _(empty)_
 

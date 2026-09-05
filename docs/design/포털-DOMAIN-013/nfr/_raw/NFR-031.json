@@ -1,0 +1,59 @@
+{
+  "item": {
+    "id": "NFR-031",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "nfr",
+    "title": "개방형 연계모듈 제공",
+    "slug": "개방형-연계모듈-제공",
+    "sub_id": "RQ-SIR-07-01",
+    "status": "approved",
+    "data": {
+      "owner": "저작도구",
+      "title": "개방형 연계모듈 제공",
+      "metric": "개방형 연계 인터페이스 제공 및 연계 부하 통제 여부",
+      "status": "approved",
+      "target": {
+        "value": "연계 대상 전체에 개방형 인터페이스 제공 + 연계로 인한 성능 영향 없음",
+        "operator": "="
+      },
+      "category": "other",
+      "priority": "must",
+      "rationale": "KLID_AN 요구사항정의서(비기능) RQ-SIR-07-01 (담당=공통, RFP p37~38, 중요도 상) — 저작도구는 관제·포털·외부 위탁 서비스와 연계하므로 직접 적용.",
+      "brownfield": {
+        "status": "new",
+        "diff_summary": "2차 RFP 비기능(담당=공통) 요구를 저작도구 기준으로 신규 수용"
+      },
+      "description": "저작도구 연계 제공 기준:\n- 다른 주체에 데이터를 온라인으로 제공할 때는 개방형 연계 기술을 활용한 인터페이스를 제공한다.\n- 발주기관이 지정한 표준 연계모듈이 있으면 그것을 이용해 타 시스템 연계체계를 설계한다.\n- 연계로 인해 본 시스템 성능에 영향을 주지 않도록 설계한다 — 외부 위탁 호출은 비동기로 제출하고, 통지는 축적·병합하여 발송 횟수를 제한하며, 대량 조회는 페이징을 강제한다.\n- 외부 연계 시스템은 해당 시스템 담당과 협의하여 규격을 확정한 뒤 구축한다.",
+      "attached_files": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "applies_to_apis": [],
+      "applies_to_domains": [
+        "DOMAIN-016",
+        "DOMAIN-013",
+        "DOMAIN-017",
+        "DOMAIN-012",
+        "DOMAIN-007"
+      ],
+      "measurement_method": "연계 인터페이스 규격이 공개되고, 연계 수행 중 시스템 성능 지표가 기준을 벗어나지 않는 것을 확인한다.",
+      "applies_to_features": [],
+      "applies_to_pipelines": [],
+      "verified_by_acceptance": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "KLID_AN 요구사항정의서(비기능) 담당='공통' 요구 중 저작도구에 미등재였던 항목을 신규 등재한다. 관제지원시스템과 동일 커버리지 확보 목적이며, 근거 요구사항ID를 rationale 에 명시해 요구사항 추적이 성립하게 한다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-05T00:12:24.114Z",
+    "created_at": "2026-09-05T00:12:24.114Z"
+  }
+}

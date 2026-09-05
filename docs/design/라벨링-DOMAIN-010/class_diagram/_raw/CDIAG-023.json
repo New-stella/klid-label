@@ -1,0 +1,340 @@
+{
+  "item": {
+    "id": "CDIAG-023",
+    "project_id": "4ece2c3f-8e99-46f5-9580-71108a76e578",
+    "type": "class_diagram",
+    "title": "라벨링 표현 계층 — 컨트롤러 오퍼레이션",
+    "slug": "라벨링-표현-계층-컨트롤러-오퍼레이션",
+    "sub_id": null,
+    "status": "draft",
+    "data": {
+      "theme": "neutral",
+      "title": "라벨링 표현 계층 — 컨트롤러 오퍼레이션",
+      "classes": [
+        {
+          "kind": "service",
+          "name": "LabelController",
+          "methods": [
+            {
+              "name": "getLabels",
+              "params": [
+                "프레임 식별번호",
+                "원본 요청 여부",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "그 프레임의 작업 라벨 목록을 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "getLabelHistory",
+              "params": [
+                "프레임 식별번호",
+                "페이지 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "그 프레임의 라벨 변경 이력을 쪽 단위로 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "bulkUpsert",
+              "params": [
+                "프레임 식별번호",
+                "라벨 일괄 저장 요청",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "그 프레임의 라벨을 통째로 저장한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "sam2Track",
+              "params": [
+                "프레임 식별번호",
+                "추적 요청 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "고른 객체 하나를 뒤따르는 프레임 구간으로 따라가게 한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "sam2Segment",
+              "params": [
+                "프레임 식별번호",
+                "분할 요청 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "클릭이나 상자로 객체 외곽을 따 폴리곤을 만든다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "yoloTrack",
+              "params": [
+                "프레임 식별번호",
+                "자동 추적 요청 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "시작 객체 없이 구간에서 여러 객체를 찾아 각각의 이어진 경로를 돌려준다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            }
+          ],
+          "attributes": [],
+          "description": "프레임 라벨 조회·저장·AI 보조 창구",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "service",
+          "name": "LabelAttrController",
+          "methods": [
+            {
+              "name": "listAttrs",
+              "params": [
+                "라벨 마스터 식별번호"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "그 라벨의 속성 정의 목록을 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "createAttr",
+              "params": [
+                "라벨 마스터 식별번호",
+                "속성 정의 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨에 속성 정의를 더한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "updateAttr",
+              "params": [
+                "라벨 마스터 식별번호",
+                "속성 식별번호",
+                "속성 정의 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨 속성 정의를 고친다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "deleteAttr",
+              "params": [
+                "라벨 마스터 식별번호",
+                "속성 식별번호",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨 속성 정의를 지운다",
+              "is_abstract": false,
+              "return_type": "없음"
+            },
+            {
+              "name": "listAttrValues",
+              "params": [
+                "라벨 식별번호",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "그 라벨에 입력된 속성 값을 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "upsertAttrValues",
+              "params": [
+                "라벨 식별번호",
+                "속성 값 저장 요청",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨의 속성 값을 저장한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            }
+          ],
+          "attributes": [],
+          "description": "라벨 속성 정의·값 창구",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "service",
+          "name": "LabelMasterController",
+          "methods": [
+            {
+              "name": "list",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "등록된 라벨 마스터 목록을 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "detectCandidates",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "AI 검출 클래스가 매핑된 라벨 후보를 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "create",
+              "params": [
+                "라벨 마스터 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨 마스터를 등록한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "update",
+              "params": [
+                "라벨 마스터 식별번호",
+                "라벨 마스터 정보",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨 마스터의 이름·형태·색상과 AI 검출 클래스 매핑을 고친다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "delete",
+              "params": [
+                "라벨 마스터 식별번호",
+                "사용자 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "라벨 마스터를 지운다",
+              "is_abstract": false,
+              "return_type": "없음"
+            }
+          ],
+          "attributes": [],
+          "description": "라벨 마스터 관리 창구",
+          "enum_values": [],
+          "stereotypes": []
+        },
+        {
+          "kind": "service",
+          "name": "PresetController",
+          "methods": [
+            {
+              "name": "list",
+              "params": [],
+              "is_static": false,
+              "visibility": "public",
+              "description": "오토라벨 프리셋 목록을 조회한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "create",
+              "params": [
+                "프리셋 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "이벤트 유형에 적용할 오토라벨 프리셋을 등록한다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "update",
+              "params": [
+                "프리셋 식별번호",
+                "프리셋 정보"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "프리셋에 담긴 라벨 구성을 고친다",
+              "is_abstract": false,
+              "return_type": "응답 래퍼"
+            },
+            {
+              "name": "delete",
+              "params": [
+                "프리셋 식별번호"
+              ],
+              "is_static": false,
+              "visibility": "public",
+              "description": "프리셋을 지운다",
+              "is_abstract": false,
+              "return_type": "없음"
+            }
+          ],
+          "attributes": [],
+          "description": "오토라벨 프리셋 관리 창구",
+          "enum_values": [],
+          "stereotypes": []
+        }
+      ],
+      "brownfield": {
+        "status": "new",
+        "change_kind": [
+          "component-add"
+        ],
+        "diff_summary": "2차 신규 — 컨트롤러 오퍼레이션을 설계 산출물에 처음으로 적는다."
+      },
+      "description": "이 도메인의 컨트롤러가 밖으로 여는 오퍼레이션을 적는다. 시퀀스에서 컨트롤러가 받는 메시지는 주소 경로라 메서드 이름과 파라미터가 드러나지 않으므로, 그 자리를 채우기 위해 구현 층에서 옮겨 적은 것이다.\n\n이름과 파라미터와 반환은 구현에서 실측했고 설명은 그 오퍼레이션이 무엇을 하는지 한 문장으로 적었다. 반환은 표를 읽기 쉽도록 추상 이름으로 적는다 — 성공 응답을 감싸는 공통 껍데기는 응답 래퍼, 파일·영상 전송은 각각 파일 응답·스트리밍 응답, 돌려줄 것이 없으면 없음이다.\n\n주입 의존은 여기 적지 않는다 — 시퀀스에서 이미 드러난다. 이 다이어그램은 도메인 객체 모델이 아니라 표현 계층 목록이므로 같은 도메인의 도메인 모델 다이어그램과 축이 다르다.",
+      "module_name": "라벨링 Controller",
+      "relationships": [],
+      "attached_files": [],
+      "depicts_dfeats": [],
+      "implementation": {
+        "status": "planned",
+        "modules": [],
+        "records": [],
+        "progress": 0,
+        "subtasks": [],
+        "module_paths": []
+      },
+      "referenced_items": [],
+      "realizes_features": []
+    },
+    "data_projected_to": null,
+    "schema_version": 1,
+    "current_version": 1,
+    "stale": false,
+    "stale_reason": null,
+    "change_summary": "컨트롤러 오퍼레이션을 적는다. 설계 클래스 정의에서 컨트롤러 칸이 통째로 비어 있었는데, 시퀀스에서 컨트롤러가 받는 메시지는 주소 경로라 메서드 시그니처가 나오지 않기 때문이었다. 이름·파라미터·반환은 구현에서 실측해 옮겨 적었고 설명은 새로 썼다. 주입 의존은 시퀀스에서 이미 나오므로 넣지 않았다.",
+    "last_updated_by": "claude",
+    "last_updated_at": "2026-09-03T11:04:20.191Z",
+    "created_at": "2026-09-03T11:04:20.191Z"
+  }
+}

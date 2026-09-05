@@ -26,7 +26,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "비식별처리로그일련번호"
             },
@@ -47,7 +48,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -63,7 +65,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "내부요청식별자"
             },
@@ -79,7 +82,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "외부작업아이디"
             },
@@ -95,7 +99,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "원본파일경로명"
             },
@@ -111,7 +116,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "비식별파일경로명"
             },
@@ -132,7 +138,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "처리상태코드"
             },
@@ -149,7 +156,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "요청일시"
             },
@@ -165,7 +173,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "응답일시"
             },
@@ -181,7 +190,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "오류코드"
             },
@@ -197,7 +207,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "오류메시지내용"
             },
@@ -213,7 +224,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -230,7 +242,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -246,7 +259,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -262,7 +276,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -290,12 +305,12 @@
               "unique": false,
               "nullable": true,
               "code_values": {
-                "FAILED": "폴링 실패(종결)",
+                "FAILED": "종결(원천 여럿 — 설명 참조)",
                 "POLLING": "폴링중",
                 "WAITING": "대기",
                 "DOWNLOADED": "회수완료"
               },
-              "description": "KPST 폴링 진행 상태 코드. 위탁 후 주기 진행조회 흐름의 단계. 재폴링 대상은 WAITING·POLLING 둘뿐이고 DOWNLOADED·FAILED 는 종결값이다 — FAILED 를 빼면 무한 재폴링과 중복 회수가 열린다. V64 추가.",
+              "description": "KPST 폴링 진행 상태 코드. 위탁 후 주기 진행조회 흐름의 단계. 재폴링 대상은 WAITING·POLLING 둘뿐이고 DOWNLOADED·FAILED 는 종결값이다 — FAILED 를 빼면 무한 재폴링과 중복 회수가 열린다. 종료값을 세우는 계기는 여럿이며 모두 같은 조건부 갱신을 탄다 — ①외부가 돌려준 터미널 상태(중지·삭제중·오류) ②폴링 경과 만료·시도 상한 초과 ③불완전 산출물(파일 부재·빈 파일·모호) ④제출 확정 실패 ⑤수락 응답 미관측에 따른 유예 만료 회수 ⑥호출자 트랜잭션 롤백에 따른 취소 종결. ★이 중 ⑥만 영상의 비식별 여부를 내리지 않는다(외부로 나간 것이 없다) — 나머지 다섯은 내린다. [폐기] 구 서술 「유예 만료 회수만 예외」는 거짓이다. ⑤를 따로 두는 이유는 영상 상태가 아니라 운영 조치다 — 외부에 프로젝트가 실제로 있을 수 있어 사람이 확인한다. 그 회수는 재위탁하지 않고 원장만 마감한다. null 은 폴링 미사용 경로다. V64 추가.",
               "primary_key": false,
               "logical_column_name": "폴링상태코드"
             },
@@ -431,7 +446,7 @@
               "legacy_dbms": "MariaDB"
             }
           },
-          "description": "비식별 단계가 영상 단위로 기록하는 외부 비식별 솔루션 위탁 처리 이력. 요청/성공/실패 상태와 원본·비식별 파일 경로, 외부 작업 ID(OTSD_JOB_ID)를 보관한다. OTSD_JOB_ID UNIQUE 로 동일 작업 재인계 시 단일 row upsert 갱신을 보장한다(CWE-362 차단). KPST 폴링 모델(위탁 → 주기 진행조회 → 다운로드) 컬럼 DE_IDNTF_PJT_ID · DE_IDNTF_DATST_ID · POLL_STTS_CD · POLL_LAST_DT · POLL_ATMPT_CNT 를 보유하며(V64), 구 결과 콜백 수신 경로는 폐기됐다. ⚠ 비식별 결과 영상의 파일명은 고정이 아니다 — 우리가 정하는 것은 디렉터리까지이고 파일명은 외부 솔루션이 정한다(mock=deidentified.mp4 / KPST 실연동={원본stem}-mask{ext}). 따라서 경로를 문자열로 조합·추측하지 말고 DE_IDNTF_FILE_PATH_NM 에 적재된 값을 읽어야 한다.\n이 이력 행이 남는 계기는 갈린다. 저작도구가 비식별 단계를 수행하면 그 처리 결과가 평소대로 이 이력에 남는다. 외부 산출물 이관에서 비식별이 끝난 것으로 지정해 영상 파일과 함께 받은 산출물은 그 영상이 곧 비식별 영상이 되며 그 사실을 이 이력에 남긴다(저작도구가 비식별을 다시 수행하지는 않는다). 원본이라고 지정해 영상 파일과 함께 받은 산출물은 저작도구가 이미 가지고 있는 비식별 단계를 그 영상에 태우므로 그 처리 결과가 평소대로 남는다. 원본이라고 지정했으나 영상 파일 없이 프레임만 받은 산출물은 비식별할 대상 영상이 없어 저작도구가 스스로 처리하지 못하므로, 외부에서 비식별한 산출물을 받아 기록하는 별도 행위가 이력 행을 남긴다. ⚠ 비식별 완료를 기록하는 행위는 비식별 산출물이 실제로 존재하는지 확인한 뒤에만 성립한다 — 확인 없이 기록만 바꾸는 수단이 되면 처리되지 않은 산출물이 검수 승인을 통과한다.",
+          "description": "비식별 단계가 영상 단위로 기록하는 외부 비식별 솔루션 위탁 처리 이력. 요청/성공/실패 상태와 원본·비식별 파일 경로, 외부 작업 ID(OTSD_JOB_ID)를 보관한다. OTSD_JOB_ID UNIQUE 로 동일 작업 재인계 시 단일 row upsert 갱신을 보장한다(CWE-362 차단). KPST 폴링 모델(위탁 → 주기 진행조회 → 다운로드) 컬럼 DE_IDNTF_PJT_ID · DE_IDNTF_DATST_ID · POLL_STTS_CD · POLL_LAST_DT · POLL_ATMPT_CNT 를 보유하며(V64), 구 결과 콜백 수신 경로는 폐기됐다. 아무 신호도 관측하지 못한 건은 전용 스위퍼가 아니라 이 주기 진행조회가 수락 대기 유예 만료로 회수해 종결하며, 재위탁하지 않고 원장만 마감한다. 신호는 오되 끝내 종결에 이르지 못한 건도 폴링 경과 만료·시도 상한 초과로 같은 자리에서 종결한다. ⚠ 비식별 결과 영상의 파일명은 고정이 아니다 — 우리가 정하는 것은 디렉터리까지이고 파일명은 외부 솔루션이 정한다(mock=deidentified.mp4 / KPST 실연동={원본stem}-mask{ext}). 따라서 경로를 문자열로 조합·추측하지 말고 DE_IDNTF_FILE_PATH_NM 에 적재된 값을 읽어야 한다.\n이 이력 행이 남는 계기는 갈린다. 저작도구가 비식별 단계를 수행하면 그 처리 결과가 평소대로 이 이력에 남는다. 외부 산출물 이관에서 비식별이 끝난 것으로 지정해 영상 파일과 함께 받은 산출물은 그 영상이 곧 비식별 영상이 되며 그 사실을 이 이력에 남긴다(저작도구가 비식별을 다시 수행하지는 않는다). 원본이라고 지정해 영상 파일과 함께 받은 산출물은 저작도구가 이미 가지고 있는 비식별 단계를 그 영상에 태우므로 그 처리 결과가 평소대로 남는다. 원본이라고 지정했으나 영상 파일 없이 프레임만 받은 산출물은 비식별할 대상 영상이 없어 저작도구가 스스로 처리하지 못하므로, 외부에서 비식별한 산출물을 받아 기록하는 별도 행위가 이력 행을 남긴다. ⚠ 비식별 완료를 기록하는 행위는 비식별 산출물이 실제로 존재하는지 확인한 뒤에만 성립한다 — 확인 없이 기록만 바꾸는 수단이 되면 처리되지 않은 산출물이 검수 승인을 통과한다.",
           "logical_table_name": "비식별처리로그"
         },
         {
@@ -449,7 +464,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "비식별신고일련번호"
             },
@@ -470,7 +486,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "데이터원시일련번호"
             },
@@ -486,7 +503,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "신고자번호"
             },
@@ -502,7 +520,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "신고사유"
             },
@@ -523,7 +542,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "신고상태코드"
             },
@@ -539,7 +559,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "신고일시"
             },
@@ -555,7 +576,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "해소일시"
             },
@@ -571,7 +593,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록아이디"
             },
@@ -588,7 +611,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "등록일시"
             },
@@ -604,7 +628,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정아이디"
             },
@@ -620,7 +645,8 @@
                 "modules": [],
                 "records": [],
                 "progress": 0,
-                "subtasks": []
+                "subtasks": [],
+                "module_paths": []
               },
               "logical_column_name": "수정일시"
             },
@@ -688,23 +714,25 @@
           "cardinality": "N:1"
         }
       ],
+      "attached_files": [],
       "implementation": {
         "status": "planned",
         "modules": [],
         "records": [],
         "progress": 0,
-        "subtasks": []
+        "subtasks": [],
+        "module_paths": []
       },
       "uses_constants": []
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 22,
+    "current_version": 25,
     "stale": false,
     "stale_reason": null,
-    "change_summary": "외부 산출물 이관이 이 이력의 새 생성 주체가 된 것을 반영해, 행이 남는 계기와 반드시 채워야 하는 값을 적는다.\n\n계기 축 — 저작도구가 비식별 단계를 수행하는 기존 경우에 더해, 이관에서 비식별이 끝난 것으로 지정해 영상 파일과 함께 받은 산출물(그 영상이 곧 비식별 영상이며 저작도구가 다시 수행하지 않는다), 원본이라고 지정해 영상 파일과 함께 받은 산출물(저작도구가 이미 가지고 있는 비식별 단계를 그 영상에 태운다), 원본이라고 지정했으나 영상 파일 없이 프레임만 받은 산출물(외부에서 비식별한 산출물을 받아 기록하는 별도 행위가 행을 남긴다)을 갈라 적었다.\n\n안전 축 — 비식별 완료를 기록하는 행위는 비식별 산출물이 실제로 존재하는지 확인한 뒤에만 성립한다는 전제를 명시했다. 확인 없이 기록만 바꾸는 수단이 되면 처리되지 않은 산출물이 검수 승인을 통과하기 때문이다.\n\n값 축 — 비식별 영상 경로가 하류의 유일한 도달 수단이고 붙는 파일 이름이 처리 주체마다 다르므로 조합·추측하지 않고 이 값을 읽어 쓴다는 기존 규칙을, 어느 계기로 남은 행이든 이 값을 채워야 한다는 요구로 확장했다.\n\n테이블·컬럼·PK·FK·인덱스·코드값은 하나도 더하거나 지우지 않았고 두 곳의 설명만 덧붙였다. 이관 경로의 검수 승인 보류는 이 ERD 소관이 아니라 검수 워크플로 상태를 담는 테이블이 담당하므로 여기에 그 값을 만들지 않았다.",
+    "change_summary": "★보정 — 직전 판이 종료값을 세우는 계기를 셋으로만 적어 「폴링 경과 만료·시도 상한 초과」와 「불완전 산출물」 두 축이 본문에서 빠져 있던 것을 되살리고 전수로 적는다. 두 축 모두 실재하며 같은 자리에서 영상의 비식별 여부를 실패로 내린다는 것이 코드로 확인됐다. 경위를 남긴다 — 앞선 정정 라운드가 실측 3종만 받아 반영하면서 참인 두 항목을 함께 걷어냈고, 그 사실을 보고했기에 이번에 되살린다. 열거는 여섯이다 — ①외부가 돌려준 터미널 상태 ②폴링 경과 만료·시도 상한 초과 ③불완전 산출물 ④제출 확정 실패 ⑤수락 응답 미관측에 따른 유예 만료 회수 ⑥호출자 트랜잭션 롤백에 따른 취소 종결. 「같은 종료값, 다른 결과」 구조와 예외가 취소 종결 하나뿐이라는 핵심은 그대로이며 앞쪽 계기가 셋이 아니라 여럿이라는 것만 바뀐다. 코드값 라벨도 같은 결손이 있어 전수 열거 대신 설명으로 넘기는 문구로 바꿨다 — 라벨은 짧아야 해서 일부만 적으면 이번과 같은 누락이 반복된다. 원장 테이블 설명에 직전 판이 넣은 미결 회수 문장도 수락 응답 미관측 축만 담고 있어, 신호는 오되 끝내 종결에 이르지 못한 건이 경과 만료·시도 상한 초과로 같은 자리에서 종결한다는 문장을 덧붙였다. 컬럼·인덱스·코드값 원소는 지우거나 새로 만들지 않았고 재폴링 대상·종결값의 역할·값이 비어 있는 경우가 폴링 미사용 경로라는 기존 서술은 그대로 유지했다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-08-19T13:55:50.915Z",
+    "last_updated_at": "2026-09-03T08:22:12.429Z",
     "created_at": "2026-06-01T02:46:20.509Z"
   }
 }

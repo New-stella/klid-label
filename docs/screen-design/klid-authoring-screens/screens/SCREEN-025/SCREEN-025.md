@@ -1,13 +1,13 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 47
-last_updated_at: 2026-09-01T08:27:11.309Z
+version: 49
+last_updated_at: 2026-09-01T14:35:14.780Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:39:29.407Z
-sync_session: 37
-stale: false
+synced_at: 2026-09-05T02:34:48.359Z
+sync_session: 35
+stale: true
 status: UNCHANGED
 prev_version: null
 raw: ./_raw/SCREEN-025.json
