@@ -87,7 +87,7 @@ public class PortalLabelService {
 
     /**
      * 보존기간 만료 예정 시각 <b>단일 판정 지점</b> — 계산식을 여기서 재유도하지 않는다.
-     * @design AC-033, DFEAT-055
+     * @design AC-1068, DFEAT-055
      */
     private final PortalRetentionPolicy retentionPolicy;
 
@@ -177,12 +177,12 @@ public class PortalLabelService {
      * 본인 저장 라벨 최초 저장일을 각 1회 IN 쿼리로 조회한다.
      *
      * <p>{@code myLabelExpiresAt} 은 본인 저장 라벨의 보존기간 만료 예정 시각으로,
-     * <b>저장되지 않는 조회 시점 파생값</b>이다(AC-033). 보존기간 설정을 바꾸면 이미 저장된 라벨의
+     * <b>저장되지 않는 조회 시점 파생값</b>이다(AC-1068). 보존기간 설정을 바꾸면 이미 저장된 라벨의
      * 만료 예정도 다음 조회부터 즉시 달라진다 — 판정은 {@link PortalRetentionPolicy} 한 곳에서 하고
      * 설정은 페이지당 1회만 읽는다({@code datamartExpiry()} 스냅샷).
      *
      * <p>기준점은 <b>최초</b> 저장일이라 저장을 반복해도 만료 예정이 뒤로 밀리지 않는다
-     * (DFEAT-055 — 포털 확정 회신 2026-09-03). @design DFEAT-055, AC-1068, AC-033
+     * (DFEAT-055 — 포털 확정 회신 2026-09-03). @design DFEAT-055, AC-1068
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<DatamartVideoResponse> listDatamartVideos(TokenClaims actor, Pageable pageable) {

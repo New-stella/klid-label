@@ -8,13 +8,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
- * 포털 보존기간 만료 예정 시각의 <b>단일 판정 지점</b>. @design DFEAT-055, AC-1068, AC-033
+ * 포털 보존기간의 <b>단일 판정 지점</b> — 읽기 축(만료 예정 시각)과 삭제 축(커트라인)을 함께 소유한다.
+ * @design DFEAT-055, AC-1068, AC-1070
+ *
+ * <h3>두 축은 역함수다 — 한쪽만 여기 두면 갈린다</h3>
+ * <p>읽기 축은 {@code 기준점 + 보존일수}(만료 예정 시각), 삭제 축은 {@code 지금 − 보존일수}(커트라인)로
+ * <b>같은 사실의 두 표현</b>이다({@code 기준점 + N < 지금} ⟺ {@code 기준점 < 지금 − N}). 그래서 삭제
+ * 배치가 자기 클래스에서 {@code now().minusDays(...)} 를 다시 유도하면 <b>화면이 고지한 만료일과 실제
+ * 삭제일이 따로 논다</b>. 커트라인 산술도 이 클래스가 내주고({@link #datamartCutoff()}·
+ * {@link #uploadCutoffs()}) 소비자는 받아 쓰기만 한다.
  *
  * <h3>저장하지 않는다 — 조회 시점 파생값이다</h3>
- * <p>AC-033 이 이 값을 <b>조회 시점 설정값 기준 파생값</b>으로 못박았다. 보존기간을 7일에서 14일로
+ * <p>AC-1068(데이터마트)·AC-1070(업로드)이 이 값을 <b>조회 시점 설정값 기준 파생값</b>으로 함께
+ * 못박았다. 보존기간을 7일에서 14일로
  * 바꾸면 <b>이미 저장된 라벨의 만료 예정도 다음 조회부터 즉시</b> 달라져야 하므로, 엔티티 컬럼으로
  * 굳히거나 계산 결과를 캐시하지 않는다(마이그레이션 대상 아님). 설정값 자체는
  * {@code SystemConfigService} 의 Caffeine 캐시(TTL 60s)를 타지만 그 캐시는 설정 갱신 시
@@ -95,9 +105,70 @@ public class PortalRetentionPolicy {
         return new UploadExpiry(uploadRetentionDays(), uploadFailedRetentionDays());
     }
 
+    // ======================== 삭제 축 — 커트라인 ========================
+
+    /**
+     * 데이터마트 라벨 삭제 커트라인({@code 지금 − 보존일수}). @design DFEAT-055, AC-1068
+     *
+     * <p>설정 부재·0 이하면 <b>값을 만들지 않는다</b>({@code empty}) — 호출자는 그 축을 건너뛴다.
+     * 임의 기본값으로 때우지 않는 이유는 위 클래스 주석 fail-closed 절과 같다.
+     *
+     * @return 이 시각보다 <b>이른</b> 최초 저장을 가진 그룹이 삭제 대상이다(경계는 포함하지 않는다)
+     */
+    public Optional<LocalDateTime> datamartCutoff() {
+        return datamartCutoff(LocalDateTime.now());
+    }
+
+    /** 기준시각을 주입하는 변형 — 한 회차의 기준시각을 굳혀 넘길 때 쓴다. @design DFEAT-055, AC-1068 */
+    public Optional<LocalDateTime> datamartCutoff(LocalDateTime now) {
+        return minusDays(now, datamartRetentionDays());
+    }
+
+    /**
+     * 업로드 두 축의 삭제 커트라인 스냅샷 — <b>기준시각 하나</b>를 READY·FAILED 가 공유한다.
+     * @design DFEAT-055, AC-1070
+     *
+     * <p>★ 두 축이 각자 {@code now()} 를 뜨면 <b>한 회차 안에서 기준시각이 갈린다</b>. 지금은 그
+     * 어긋남이 밀리초라 무해해 보이지만 판정 기준이 둘이 되는 것 자체가 조용한 동작 변경이라,
+     * 스냅샷이 {@code capturedAt} 하나만 들고 두 커트라인을 <b>파생</b>하게 해 구조로 막는다
+     * (규율이 아니라 자료구조가 지킨다).
+     */
+    public UploadCutoffs uploadCutoffs() {
+        return uploadCutoffs(LocalDateTime.now());
+    }
+
+    /** 기준시각을 주입하는 변형. @design DFEAT-055, AC-1070 */
+    public UploadCutoffs uploadCutoffs(LocalDateTime now) {
+        // 읽는 순서는 READY → FAILED 로 고정한다(설정 부재 시 남기는 진단 로그 순서와 맞춘다).
+        return new UploadCutoffs(now, uploadRetentionDays(), uploadFailedRetentionDays());
+    }
+
+    /**
+     * 업로드 두 축 커트라인 — 같은 {@code capturedAt} 에서 각자의 보존일수로 파생된다.
+     * @design DFEAT-055, AC-1070
+     *
+     * @param capturedAt          이 회차의 기준시각 — <b>두 축이 공유한다</b>
+     * @param readyRetentionDays  {@code portal.upload.retention-days}(부재·비정상이면 empty)
+     * @param failedRetentionDays {@code portal.upload.failed-retention-days}(부재·비정상이면 empty)
+     */
+    public record UploadCutoffs(LocalDateTime capturedAt,
+                                OptionalInt readyRetentionDays,
+                                OptionalInt failedRetentionDays) {
+
+        /** READY 축 커트라인. 설정이 없으면 {@code empty}(그 축만 건너뛴다). */
+        public Optional<LocalDateTime> ready() {
+            return minusDays(capturedAt, readyRetentionDays);
+        }
+
+        /** FAILED 축 커트라인 — READY 와 <b>독립</b>이며 보존기간이 더 짧다. */
+        public Optional<LocalDateTime> failed() {
+            return minusDays(capturedAt, failedRetentionDays);
+        }
+    }
+
     /**
      * 데이터마트 라벨 만료 예정 시각 계산기 — 기준점은 <b>최초</b> 저장 시각이다.
-     * @design DFEAT-055, AC-1068, AC-033
+     * @design DFEAT-055, AC-1068
      *
      * @param retentionDays 조회 시점 {@code portal.datamart.retention-days}(부재면 empty)
      */
@@ -119,7 +190,7 @@ public class PortalRetentionPolicy {
     }
 
     /**
-     * 업로드 자산 만료 예정 시각 계산기 — 상태별로 기준점과 보존기간이 다르다. @design AC-033, AC-037
+     * 업로드 자산 만료 예정 시각 계산기 — 상태별로 기준점과 보존기간이 다르다. @design AC-1070, AC-037
      *
      * @param readyRetentionDays  {@code portal.upload.retention-days}(부재면 empty)
      * @param failedRetentionDays {@code portal.upload.failed-retention-days}(부재면 empty)
@@ -150,12 +221,13 @@ public class PortalRetentionPolicy {
 
     /**
      * 보존일수 설정 조회 — <b>부재·타입불일치·파싱실패·0 이하</b> 어느 쪽이든 {@code empty}.
-     * 조회 경로를 500 으로 깨지 않는다. @design DFEAT-055, AC-1068, AC-033
+     * 조회 경로를 500 으로 깨지 않는다. @design DFEAT-055, AC-1068, AC-1070
      *
      * <p>★ 판정은 <b>여기 한 곳</b>이다. {@code plusDays} 에 같은 검사를 겹쳐 두지 않는다 — 두 곳에
      * 두면 한쪽이 망가져도 다른 쪽이 가려 <b>가드가 조용히 죽어도 시험이 알아채지 못한다</b>.
-     * 두 계산기({@link DatamartExpiry}·{@link UploadExpiry})는 전부 이 메서드가 만든 스냅샷만 받으므로
-     * 이 한 곳이 두 축을 모두 덮는다.
+     * 두 계산기({@link DatamartExpiry}·{@link UploadExpiry})와 커트라인 창구({@link #datamartCutoff()}·
+     * {@link #uploadCutoffs()})는 전부 이 메서드가 만든 스냅샷만 받으므로 이 한 곳이 읽기·삭제 두 축을
+     * 모두 덮는다.
      */
     private OptionalInt retentionDays(String key) {
         Integer days;
@@ -191,6 +263,22 @@ public class PortalRetentionPolicy {
             return null;
         }
         return base.plusDays(days.getAsInt());
+    }
+
+    /**
+     * 기준시각 − 보존일수 = 삭제 커트라인. 설정이 없으면 {@code empty}(커트라인을 만들지 않는다).
+     *
+     * <p>{@link #plusDays} 의 <b>역연산</b>이며 같은 {@code days} 스냅샷을 쓴다 — 그래서
+     * 「고지한 만료일이 지났다」와 「삭제 대상이다」가 같은 사실을 가리킨다.
+     *
+     * <p>여기서도 보존일수의 유효성을 <b>다시 판정하지 않는다</b> — 0 이하 차단은
+     * {@link #retentionDays} 단일 지점이 소유한다(가드 중복 = 가드 무력화).
+     */
+    private static Optional<LocalDateTime> minusDays(LocalDateTime now, OptionalInt days) {
+        if (days.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(now.minusDays(days.getAsInt()));
     }
 
     /** null 안전 최댓값 — 둘 다 없으면 {@code null}. */

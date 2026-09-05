@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -239,6 +240,98 @@ class PortalRetentionPolicyTest {
         stub(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS, 1);
 
         assertThat(policy.datamartExpiry().expiresAt(REG_DT)).isEqualTo(REG_DT.plusDays(1));
+    }
+
+
+    // ============ 삭제 커트라인 — 읽기 축의 역함수이며 같은 클래스가 소유한다 (DFEAT-055) ============
+
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 8, 20, 10, 0);
+
+    @Test
+    @DisplayName("★커트라인은_만료예정의_역함수다_고지한_만료가_지났다와_삭제대상이다가_같은_사실이다")
+    void cutoffIsInverseOfExpiry() {
+        // given: 두 산술이 서로 다른 클래스에서 독립 유도되면 고지한 날과 실제 삭제일이 갈린다.
+        stub(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS, 7);
+        LocalDateTime cutoff = policy.datamartCutoff(NOW).orElseThrow();
+        PortalRetentionPolicy.DatamartExpiry expiry = policy.datamartExpiry();
+
+        // when / then: 경계(커트라인과 같은 시각) 양옆을 포함해 두 축의 판정이 항상 일치한다.
+        for (LocalDateTime base : List.of(
+                cutoff.minusDays(30), cutoff.minusSeconds(1), cutoff, cutoff.plusSeconds(1), NOW)) {
+            boolean expiredByReadAxis = expiry.expiresAt(base).isBefore(NOW);
+            boolean expiredByDeleteAxis = base.isBefore(cutoff);
+            assertThat(expiredByDeleteAxis)
+                    .as("기준점=%s 에서 「고지한 만료가 지났다」와 「삭제 대상이다」가 갈렸다", base)
+                    .isEqualTo(expiredByReadAxis);
+        }
+    }
+
+    @Test
+    @DisplayName("데이터마트_커트라인은_기준시각에서_보존일수만큼_과거다")
+    void datamartCutoffIsRetentionDaysBeforeNow() {
+        stub(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS, 7);
+
+        assertThat(policy.datamartCutoff(NOW)).contains(NOW.minusDays(7));
+    }
+
+    @Test
+    @DisplayName("★업로드_두_축_커트라인은_한_기준시각에서_파생된다_각자_now를_뜨지_않는다")
+    void uploadCutoffsShareOneCapturedAt() {
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
+        stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
+
+        PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs(NOW);
+
+        assertThat(cutoffs.capturedAt()).isEqualTo(NOW);
+        assertThat(cutoffs.ready()).contains(NOW.minusDays(7));
+        assertThat(cutoffs.failed()).contains(NOW.minusDays(1));
+    }
+
+    /**
+     * ★ 기준시각을 주입하지 않는 실운영 경로({@code uploadCutoffs()})도 <b>한 회차 기준시각 하나</b>를
+     * 두 축이 공유해야 한다. 축마다 {@code now()} 를 다시 뜨면 이 단언이 깨진다 — 어긋남이 밀리초라
+     * 눈으로는 보이지 않으므로 「각자의 보존일수만큼 되돌리면 한 시각으로 모인다」로 잡는다.
+     */
+    @Test
+    @DisplayName("★no_arg_커트라인_창구도_두_축이_한_회차_기준시각을_공유한다")
+    void uploadCutoffsNoArgSharesOneCapturedAt() {
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
+        stub(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS, 1);
+
+        PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs();
+
+        assertThat(cutoffs.ready().orElseThrow().plusDays(7))
+                .as("두 축이 각자 now() 를 뜨면 한 회차 안에서 판정 기준이 갈린다")
+                .isEqualTo(cutoffs.failed().orElseThrow().plusDays(1));
+    }
+
+    @Test
+    @DisplayName("★보존일수가_0이하거나_설정이_없으면_커트라인_자체를_만들지_않는다_삭제축_fail_closed")
+    void cutoffAbsentWhenSettingInvalid() {
+        // given: 0(즉시 전량 삭제) · 음수(미래 커트라인) · 설정 부재 — 셋 다 값을 만들면 안 된다.
+        stub(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS, 0);
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, -1);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 없음"));
+
+        PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs(NOW);
+
+        assertThat(policy.datamartCutoff(NOW)).isEmpty();
+        assertThat(cutoffs.ready()).isEmpty();
+        assertThat(cutoffs.failed()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("업로드_한쪽_설정만_없으면_그_축_커트라인만_비고_다른_축은_그대로다")
+    void cutoffMissingOneAxisDoesNotDisableTheOther() {
+        stub(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS, 7);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS))
+                .thenThrow(new CustomException(ErrorCode.NOT_FOUND, "설정 없음"));
+
+        PortalRetentionPolicy.UploadCutoffs cutoffs = policy.uploadCutoffs(NOW);
+
+        assertThat(cutoffs.ready()).contains(NOW.minusDays(7));
+        assertThat(cutoffs.failed()).isEmpty();
     }
 
     // ======================== 파생값 성질 (AC-033) ========================

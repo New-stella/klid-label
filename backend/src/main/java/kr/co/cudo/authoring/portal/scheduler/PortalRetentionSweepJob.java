@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 
 /**
- * 포털 보존기간 만료 자동 삭제 잡 (2축). @design DFEAT-055, AC-1068, AC-032, AC-036, AC-037
+ * 포털 보존기간 만료 자동 삭제 잡 (2축). @design DFEAT-055, AC-1068, AC-036, AC-037
  *
  * <ul>
  *   <li><b>축 A — 데이터마트 라벨</b>: 그 (사용자, 영상) 그룹 저장 라벨의 {@code MIN(REG_DT)}
@@ -83,7 +83,7 @@ public class PortalRetentionSweepJob {
         }
     }
 
-    /** 축 A — 데이터마트 저장 라벨 만료 삭제. @design DFEAT-055, AC-1068, AC-032 */
+    /** 축 A — 데이터마트 저장 라벨 만료 삭제. @design DFEAT-055, AC-1068 */
     public int sweepDatamartLabels() {
         return txService.sweepDatamartLabels();
     }

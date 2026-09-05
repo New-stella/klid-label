@@ -49,7 +49,7 @@ public interface LsPortalUserLabelRepository extends JpaRepository<LsPortalUserL
     // ===== 보존기간 만료 자동 삭제 배치 전용 — 사용자 요청 진입점에서 직접 사용 금지 =====
 
     /**
-     * 보존기간이 만료된 (사용자, 영상) 그룹 후보. @design DFEAT-055, AC-1068, AC-032
+     * 보존기간이 만료된 (사용자, 영상) 그룹 후보. @design DFEAT-055, AC-1068
      *
      * <p>기준점은 그 그룹 저장 라벨의 <b>{@code MIN(REG_DT)}(최초 저장)</b> 이며
      * {@link #findMinRegDtGroupedBySrcRawSn} · {@code PortalRetentionPolicy} 와 <b>같은 축</b>이다.
@@ -67,7 +67,7 @@ public interface LsPortalUserLabelRepository extends JpaRepository<LsPortalUserL
     List<Object[]> findExpiredLabelGroups(@Param("cutoff") LocalDateTime cutoff);
 
     /**
-     * 만료 그룹의 저장 라벨을 <b>조건부</b> 벌크 삭제한다. @design DFEAT-055, AC-1068, AC-032
+     * 만료 그룹의 저장 라벨을 <b>조건부</b> 벌크 삭제한다. @design DFEAT-055, AC-1068
      *
      * <p>★ 후보 조회에서 이미 판정했더라도 <b>삭제문 자체에 만료 조건을 다시 건다</b> — 삭제는
      * 비가역이므로 「고른 시점」과 「지우는 시점」 사이의 창을 실행문 안에서 닫는다(DFEAT-055).

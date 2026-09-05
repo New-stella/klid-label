@@ -201,6 +201,34 @@ class PortalRetentionSweepTxServiceTest {
         assertThat(candidates.get(1).cutoff()).isEqualTo(failed.getValue());
     }
 
+    /**
+     * ★ 두 축의 커트라인이 <b>한 회차 기준시각 하나</b>에서 나오는지 고정한다. 축마다
+     * {@code now()} 를 다시 뜨면 어긋남이 밀리초라 눈으로 보이지 않으므로, 각자의 보존일수만큼
+     * 되돌려 한 시각으로 모이는지로 잡는다. 단일 창구({@code PortalRetentionPolicy.uploadCutoffs()})
+     * 를 우회해 여기서 커트라인을 다시 유도하면 이 단언이 깨진다.
+     */
+    @Test
+    @DisplayName("★업로드_두_축의_커트라인이_한_회차_기준시각에서_나온다_회차_안에서_기준이_갈리지_않는다")
+    void uploadAxesShareOneRoundCapturedAt() {
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_RETENTION_DAYS)).thenReturn(7);
+        when(systemConfigService.getInt(ConfigKeys.PORTAL_UPLOAD_FAILED_RETENTION_DAYS)).thenReturn(1);
+        when(assetRepository.findExpired(any(RetentionAxis.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        txService.findExpiredUploads();
+
+        ArgumentCaptor<LocalDateTime> ready = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> failed = ArgumentCaptor.forClass(LocalDateTime.class);
+        org.mockito.Mockito.verify(assetRepository)
+                .findExpired(eq(RetentionAxis.READY), ready.capture());
+        org.mockito.Mockito.verify(assetRepository)
+                .findExpired(eq(RetentionAxis.FAILED), failed.capture());
+
+        assertThat(ready.getValue().plusDays(7))
+                .as("두 축이 각자 now() 를 뜨면 한 회차 안에서 판정 기준이 둘이 된다")
+                .isEqualTo(failed.getValue().plusDays(1));
+    }
+
     @Test
     @DisplayName("후보는_프레임_파일과_원본_파일_경로를_중복없이_모은다")
     void candidateCollectsFrameAndSourceFilePaths() {

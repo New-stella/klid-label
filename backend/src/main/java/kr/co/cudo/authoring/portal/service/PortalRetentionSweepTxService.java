@@ -11,11 +11,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.OptionalInt;
+import java.util.Optional;
 import java.util.Set;
 
 /**
- * 포털 보존기간 만료 자동 삭제의 <b>트랜잭션 경계 전용</b> 서비스. @design DFEAT-055, AC-1068, AC-032, AC-036, AC-037
+ * 포털 보존기간 만료 자동 삭제의 <b>트랜잭션 경계 전용</b> 서비스. @design DFEAT-055, AC-1068, AC-036, AC-037
  *
  * <p>{@link kr.co.cudo.authoring.portal.scheduler.PortalRetentionSweepJob}(스케줄 오케스트레이션)이
  * 조건부 벌크 DELETE 를 별 빈의 실 트랜잭션으로 위임하도록 분리했다. 스윕 잡과 같은 클래스에 두면
@@ -32,8 +32,11 @@ import java.util.Set;
  * 없으면 기능이 죽은 채 배포된다. 「폴백 금지」와 「시드」는 세트다.
  *
  * <h3>커트라인은 정책 한 곳에서만 온다</h3>
- * <p>보존일수는 {@link PortalRetentionPolicy} 가 단독으로 판정한다. 여기서 설정 키를 직접 읽거나
- * 계산식을 재유도하면 화면이 고지하는 만료 예정 시각과 실제 삭제 시점이 <b>따로 논다</b>.
+ * <p>보존일수뿐 아니라 <b>커트라인 산술까지</b> {@link PortalRetentionPolicy} 가 소유한다 — 이 클래스는
+ * {@code datamartCutoff()}/{@code uploadCutoffs()} 가 준 값을 <b>받아 쓰기만</b> 하고 자기 {@code now()}
+ * 를 뜨거나 {@code minusDays} 를 다시 쓰지 않는다. 커트라인({@code 지금 − 보존일수})은 화면이 고지하는
+ * 만료 예정 시각({@code 기준점 + 보존일수})의 <b>역함수</b>라, 두 산술이 서로 다른 클래스에서 독립
+ * 유도되면 고지한 날과 실제 삭제일이 <b>따로 논다</b>. 값이 없으면(설정 부재·0 이하) 그 축을 건너뛴다.
  */
 @Slf4j
 @Service
@@ -47,7 +50,7 @@ public class PortalRetentionSweepTxService {
     // ======================== 축 A — 데이터마트 라벨 ========================
 
     /**
-     * 데이터마트 저장 라벨 축 스윕. @design DFEAT-055, AC-1068, AC-032
+     * 데이터마트 저장 라벨 축 스윕. @design DFEAT-055, AC-1068
      *
      * <p>커트라인은 「그룹의 <b>최초</b> 저장 시각 + 보존일수」다(DFEAT-055 — 포털 확정 회신
      * 2026-09-03). 후보 조회와 조건부 삭제가 <b>같은 축</b>({@code MIN(REG_DT)})을 쓰며, 그 축은
@@ -61,14 +64,14 @@ public class PortalRetentionSweepTxService {
      */
     @Transactional("controlTransactionManager")
     public int sweepDatamartLabels() {
-        OptionalInt days = retentionPolicy.datamartRetentionDays();
-        if (days.isEmpty()) {
+        Optional<LocalDateTime> maybeCutoff = retentionPolicy.datamartCutoff();
+        if (maybeCutoff.isEmpty()) {
             // 폴백하지 않는다 — 위 클래스 주석 참조. 지우지 않는 쪽이 항상 안전하다.
             log.error("[PortalRetention] 데이터마트 보존기간 설정을 읽지 못해 이번 회차를 건너뛴다"
                     + " key=portal.datamart.retention-days");
             return 0;
         }
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days.getAsInt());
+        LocalDateTime cutoff = maybeCutoff.get();
         int deletedGroups = 0;
         for (Object[] row : userLabelRepository.findExpiredLabelGroups(cutoff)) {
             if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
@@ -99,26 +102,28 @@ public class PortalRetentionSweepTxService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<ExpiredUpload> findExpiredUploads() {
         List<ExpiredUpload> candidates = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
+        // ★ 한 회차의 기준시각은 하나다 — 두 축이 각자 now() 를 뜨면 판정 기준이 갈린다.
+        //   그 보장은 여기 규율이 아니라 스냅샷 자료구조(UploadCutoffs.capturedAt)가 진다.
+        PortalRetentionPolicy.UploadCutoffs cutoffs = retentionPolicy.uploadCutoffs();
 
-        OptionalInt readyDays = retentionPolicy.uploadRetentionDays();
-        if (readyDays.isEmpty()) {
+        Optional<LocalDateTime> readyCutoff = cutoffs.ready();
+        if (readyCutoff.isEmpty()) {
             log.error("[PortalRetention] 업로드(READY) 보존기간 설정을 읽지 못해 이번 회차를 건너뛴다"
                     + " key=portal.upload.retention-days");
         } else {
-            LocalDateTime cutoff = now.minusDays(readyDays.getAsInt());
+            LocalDateTime cutoff = readyCutoff.get();
             for (Long uldSn : assetRepository.findExpired(
                     PortalUploadAssetRepository.RetentionAxis.READY, cutoff)) {
                 candidates.add(toCandidate(uldSn, Axis.READY, cutoff));
             }
         }
 
-        OptionalInt failedDays = retentionPolicy.uploadFailedRetentionDays();
-        if (failedDays.isEmpty()) {
+        Optional<LocalDateTime> failedCutoff = cutoffs.failed();
+        if (failedCutoff.isEmpty()) {
             log.error("[PortalRetention] 업로드(FAILED) 보존기간 설정을 읽지 못해 이번 회차를 건너뛴다"
                     + " key=portal.upload.failed-retention-days");
         } else {
-            LocalDateTime cutoff = now.minusDays(failedDays.getAsInt());
+            LocalDateTime cutoff = failedCutoff.get();
             for (Long uldSn : assetRepository.findExpired(
                     PortalUploadAssetRepository.RetentionAxis.FAILED, cutoff)) {
                 candidates.add(toCandidate(uldSn, Axis.FAILED, cutoff));

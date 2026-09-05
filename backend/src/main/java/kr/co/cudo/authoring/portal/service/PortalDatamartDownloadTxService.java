@@ -145,7 +145,7 @@ public class PortalDatamartDownloadTxService {
         accessGuard.requireNotUnderDeidentReport(rawSn);
 
         // ⑤ 본인 저장 라벨 0건이면 410 — 신규 미작업 또는 보존기간 만료 삭제.
-        //    판정 축은 <b>행 존재</b>다(보존기간 삭제 배치의 대상 조건과 같은 사실을 가리켜야 한다 — AC-032).
+        //    판정 축은 <b>행 존재</b>다(보존기간 삭제 배치의 대상 조건과 같은 사실을 가리켜야 한다 — AC-1068).
         List<LsPortalUserLabel> myLabels =
                 userLabelRepository.findByPortalUserNoAndSrcRawSnOrderByRegDtDesc(actor.sub(), rawSn);
         if (myLabels.isEmpty()) {
