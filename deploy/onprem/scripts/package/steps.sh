@@ -31,7 +31,6 @@ package_step_list() {
     "30-collect-ai-server.sh" \
     "40-collect-runtimes.sh" \
     "50-collect-syspkgs.sh" \
-    "55-collect-postgresql.sh"
 
   # 오프라인 빌드 키트(소스 재빌드용) — 기본 제외, WITH_BUILDTOOLS=1 로 켠다.
   if package_step_buildtools_on; then

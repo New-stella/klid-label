@@ -291,28 +291,21 @@ logback 설정이 무시된 채 돌아 **민감정보 마스킹이 사라진다*
 해결: CIDR 오타(`203.0.113.0/33`)·구분자 오타(`;`)·호스트명은 부팅 차단된다(DEV_FIX N-4).
 IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` 을 명시.
 
-## PostgreSQL 번들 설치 (오프라인)
+## PostgreSQL — 현장 제공 (우리가 설치하지 않는다)
 
-번들 PG16(`USE_BUNDLED_POSTGRES=1`, 기본)을 `10-install-postgresql.sh` 가 설치한다. 흔한 실패:
+⚠ **구 절 폐기(2026-09-05)** — *"PostgreSQL 번들 설치 (오프라인) — 번들 PG16
+(`USE_BUNDLED_POSTGRES=1`, 기본)을 `10-install-postgresql.sh` 가 설치한다"*.
+그 스크립트·수집 스크립트(`55-collect-postgresql.sh`)·토글이 **모두 제거**됐다. **되살리지 말 것.**
+initdb·`pg_hba.conf`·`postgresql-16` 유닛에 관한 종전 안내도 함께 폐기다 — 우리가 만들지 않는 것들이다.
 
-- **RPM 누락 / 설치 스킵**: `syspkgs/postgresql/*.rpm` 이 비어 있으면 설치를 건너뛴다(안내 출력).
-  타깃에 이미 PG 가 있으면 `sudo USE_BUNDLED_POSTGRES=0 ./scripts/install.sh`. 번들이 필요하면
-  el8 컨테이너에서 PG16 RPM(+`repodata/`)을 받아 `syspkgs/postgresql/` 에 채운다(55-collect-postgresql.sh).
-- **`GPG check FAILED` / `public key is not installed`**: 폐쇄망 타깃에 PGDG GPG 키가 없을 때.
-  정석은 번들 키 등록이다: `sudo rpm --import syspkgs/gpg/*GPG-KEY*`
-  (`10-install-postgresql.sh` 가 이미 수행). 키가 반입되지 않았다면 `KLID_RPM_GPGCHECK=0` 으로 낮춘다.
-  수동 폴백: `sudo rpm -Uvh --replacepkgs syspkgs/postgresql/*.rpm`.
-- **initdb 위치/실패**: PGDG PG16 의 데이터 디렉토리는 `/var/lib/pgsql/16/data`,
-  초기화는 `/usr/pgsql-16/bin/postgresql-16-setup initdb` 다(base RHEL `postgresql-setup` 과 경로가 다름).
-  이미 초기화돼 있으면(`/var/lib/pgsql/16/data/PG_VERSION` 존재) 스크립트가 건너뛴다. 실패 시 데이터
-  디렉토리 권한(`postgres:postgres`)·디스크 공간을 확인한다.
-- **접속 거부(`no pg_hba.conf entry` / `password authentication failed`)**: `10` 스크립트는
-  `pg_hba.conf` 에 `127.0.0.1/32`·`::1/128` 을 `scram-sha-256` 으로 허용한다. backend 가 다른 대역에서
-  접속하면 `PG_HBA_EXTRA_CIDR=<대역>`·`PG_LISTEN_ADDRESSES='*'` 로 재설치하거나 두 conf 를 직접 수정 후
-  `sudo systemctl reload postgresql-16`. 비밀번호 오류면 `15-init-db.sh` 로 만든 앱 유저 비밀번호와
-  `backend.env` 의 `*_DB_PASSWORD` 일치를 확인한다.
-- **서비스 미기동**: `systemctl status postgresql-16` / `journalctl -u postgresql-16`. 기동 후
-  `sudo systemctl enable --now postgresql-16`.
+데이터베이스는 **현장이 제공한다.** 접속이 안 되면 우리 설치가 아니라 **현장 담당과 확인**한다.
+
+- **접속 실패**: `application.properties` 의 `CONTROL_DB_HOST`/`PORT`/`NAME`/`USERNAME`/`PASSWORD` 확인.
+  이중화 주소를 쉼표로 준 경우 첫 호스트로 붙는다.
+- **`no pg_hba.conf entry` / `password authentication failed`**: WAS 장비 대역에서의 접속 허용과
+  앱 계정 비밀번호를 **현장 데이터베이스 담당**에게 확인한다. 우리가 고칠 수 있는 파일이 아니다.
+- **권한 부족으로 스키마 적재 실패**: 앱 계정에 대상 데이터베이스의 **DDL 권한**(소유자)이 필요하다.
+  빈 데이터베이스와 그 소유자 계정을 만드는 것은 **현장 선행 조건**이다.
 
 ## 스키마 미로드 — 기동은 되는데 DB 를 쓰는 순간 전부 깨진다
 
@@ -333,14 +326,15 @@ IP/CIDR 리터럴만 쉼표로 나열하고, 적용하지 않겠다면 `none` �
 원인/해결:
 - **★ 가장 흔한 원인은 "스키마를 아무도 로드하지 않은 것"이다.** 온프렘은 **Flyway 를 쓰지 않으므로**
   (`spring.flyway.enabled=false`) backend 가 테이블을 만들어 주지 않는다. `db/schema.sql` 을 빈 control
-  DB 에 1회 로드하는 것이 **유일한 경로**이고, 그 로드는 자동이 아니다(`16-load-schema.sh` 는
-  `SCHEMA_LOAD_RUN=1` 일 때만 실제로 넣고 평시엔 안내만 출력한다 — 04-configuration.md D 절).
+  DB 에 1회 적재하는 것이 **유일한 경로**다. `16-load-schema.sh` 가 대상 스키마를 보고 갈린다 —
+  **비었으면 적재**, **이미 있고 개수가 기대와 같으면 건너뜀**, **다르면 덮어쓰지 않고 멈춤**.
+  `SKIP_SCHEMA_LOAD=1` 로 건너뛰었거나 세 번째 갈래에서 멈춘 것을 넘겼다면 비어 있을 수 있다.
   ```bash
   psql ... -c "select count(*) from information_schema.tables where table_schema='klid_at';"
   # 0 이면 로드가 안 된 것이다 → db/schema.sql 을 먼저 넣고 WAS 를 다시 올린다.
   ```
 - 로드 시 오류가 났었는지 확인한다 — 앱 유저에게 **DDL 권한**(해당 DB OWNER)이 있어야 한다.
-  `15-init-db.sh` 는 `CREATE DATABASE ... OWNER <앱유저>` 로 만들어 OWNER 권한을 준다.
+  빈 데이터베이스와 그 소유자 계정 준비는 **현장 선행 조건**이다 — 우리 설치는 만들지 않는다.
 - 테이블은 있는데 **컬럼이 다르다**면 매체의 `db/schema.sql` 판과 배포된 WAR 판이 어긋난 것이다
   (구 스키마 위에 새 WAR 를 올린 경우). 두 산출물의 `VERSION` 을 맞춘다.
 - ⚠ 구 서술 "backend 가 Flyway 로 `MNG_*` 까지 자동 부트스트랩하므로 사전 적재 불필요" 는 **폐기**다 —

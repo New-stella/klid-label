@@ -33,8 +33,8 @@ source "${SELF_DIR}/../lib/common.sh"
 KLID_ETC="${KLID_ETC:-/etc/klid}"
 KLID_PREFIX="${KLID_PREFIX:-/opt/klid}"
 
-if ! klid_role_has app; then
-  info "[frontend-config] 역할이 app 이 아니므로 검증을 건너뜁니다(KLID_ROLE=${KLID_ROLE:-all})."
+if ! klid_role_has web; then
+  info "[frontend-config] 이 역할에는 프론트가 없으므로 검증을 건너뜁니다(KLID_ROLE=${KLID_ROLE:-all})."
   exit 0
 fi
 

@@ -53,12 +53,17 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
 
 - **frontend (httpd)**: React+Vite 정적 빌드(`dist`)를 80포트로 서빙하고, `/api/*` 를 backend 로 리버스프록시. 관제지원시스템 웹 서버와 동일 사양(Apache httpd)이다.
 - **backend (Spring Boot, 외부 WAS 에 `api.war`)**: 인증/DB/오케스트레이션/라벨 CRUD/배치. 포트 8080.
-  컨텍스트 `/api` 는 **WAR 파일명이 정한다** — WAR 배포에서는 `server.servlet.context-path` 가
-  적용되지 않으므로 **`api.war` 라는 이름을 바꾸지 않는다**. 같은 이유로 `server.tomcat.*`(업로드
+  컨텍스트는 **`/label-studio/api`**(두 세그먼트)이며 **WAR 안 `WEB-INF/jboss-web.xml` 이 정한다**.
+  ⚠ 구 서술 폐기(2026-09-05) — *"컨텍스트 `/api` 는 WAR 파일명이 정하므로 `api.war` 라는 이름을
+  바꾸지 않는다"*. EAP 에서는 배포 서술자가 정하므로 **이름과 컨텍스트가 분리된다**.
+  `server.servlet.context-path` 가 WAR 에서 적용되지 않는 것은 그대로다 —
+  그래서 컨트롤러가 컨텍스트 바로 아래 `/v1` 에서 시작하고, 컨텍스트가 두 세그먼트여야
+  현장 웹이 넘기는 `/label-studio/api/v1` 과 맞는다. 같은 이유로 `server.tomcat.*`(업로드
   본문 한도·스레드 예산·비동기 타임아웃)도 적용되지 않아 **WAS 설정으로 옮겨야 한다**
   ([10-was-settings.md](10-was-settings.md) — 빠뜨리면 대용량 업로드만 조용히 깨진다).
-  control DB(klid_system) + portal DB 2개 DataSource. **스키마는 `db/schema.sql` 1회 로드로 준비**하고
-  **온프렘은 Flyway 를 쓰지 않는다**(사전요건은 빈 DB 2개). ⚠ `ddl-auto=validate` 가 선언돼 있으나
+  control DB(klid_system) 단일 DataSource — ⚠ 구 서술 폐기: *"portal DB 2개 DataSource"*
+  (포털 데이터소스는 2026-08-31 철거). **스키마는 `db/schema.sql` 1회 적재로 준비**하고
+  **온프렘은 Flyway 를 쓰지 않는다**(사전요건은 빈 데이터베이스 1개와 앱 계정 — 현장이 준비). ⚠ `ddl-auto=validate` 가 선언돼 있으나
   **실동작하지 않아** 스키마가 비어도 기동은 막히지 않는다 — 01-prerequisites.md 「스키마/테이블」.
 - **ai-server (FastAPI)**: YOLOX(onnxruntime CPU, 탐지 단일 백엔드)/SAM2 추론만. 상태·인증·DB 없음. 포트 9300.
   **서버 B 에 단독 설치**하며 httpd 는 필요 없다. 장비에 파이썬이 없어 런타임까지 전부 반입한다.
@@ -106,7 +111,6 @@ klid-label 은 모노레포의 3개 런타임으로 구성된다. 폐쇄망 **�
 | `syspkgs/ffmpeg-src` | package.sh(el8 `dnf download --source`) | **GPL 대응 소스(SRPM)** — 설치 대상 아님. GPLv3+ ffmpeg 바이너리를 매체로 반입(=재배포)하는 데 따른 소스 제공 의무 충족물(상세: `02-build-package.md` 「왜 소스(SRPM)를 넣나」) |
 | `syspkgs/gpg` | package.sh(el8) | 반입 RPM GPG 공개키 — 타깃에서 `rpm --import` 후 `gpgcheck=1` 검증에 쓴다 |
 | `syspkgs/rpm` | package.sh(el8 `dnf download`) | `mesa-libGL`/`libglvnd-glx`/`glib2`(서버 B, opencv 런타임 의존) + `httpd`/`policycoreutils-python-utils`(서버 A). **양쪽 서버 모두에 필요하다** |
-| `syspkgs/postgresql` | package.sh(옵션, PGDG `dnf download`) | PostgreSQL 16 RPM (번들 PG, `USE_BUNDLED_POSTGRES=1` 시 설치) |
 | `config/*` | (정적) | env 템플릿(`config/backend/` — `application.properties`·`backend.env`·**`was.env`**)·systemd 유닛·프록시 설정·**WAS 설정 예시(`config/was/`)** |
 | `scripts/*` | (정적) | 수집/설치 스크립트 |
 

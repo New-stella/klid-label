@@ -84,7 +84,7 @@ RPM 수집(50·55)과 node_modules populate 는 `dnf`/`npm` 이 없으면 **dock
 | CPU/GPU | **이번 반입은 CPU 전용이며 GPU 는 사용하지 않는다** (torch CPU 휠 + onnxruntime CPU). ⚠ **[B] 장비에는 GPU 가 있다** — "GPU 가 없다"가 아니라 "이번 반입이 GPU 를 쓰지 않는다"이다. 쓰려면 CUDA 휠·드라이버·`onnxruntime-gpu` 로 **재수집**해야 하며 이번 범위가 아니다. 적어 두지 않으면 나중에 "GPU 서버인데 왜 느린가"라는 형태로만 드러난다. ⚠ 구 서술 폐기(2026-08-30): "CPU only (GPU/CUDA **불필요**)" — 장비에 GPU 가 있는 것이 사실이므로 "불필요"는 틀린 서술이 됐다 |
 | 메모리 | backend(JVM, MaxRAMPercentage 75%) + ai-server(torch CPU) 고려해 충분히(권장 ≥ 8GB) |
 | 디스크 | 앱·런타임·모델 + 영상 저장소. 영상 규모에 비례(저장소 별도 산정) |
-| PostgreSQL | **[A]** **16**. ① 번들 PG16 오프라인 설치(`USE_BUNDLED_POSTGRES=1`, 기본) **또는** ② 외부 기존 PG 사용(`=0`)+접속 정보(host/port/db/user/pw). 어느 쪽이든 **빈 DB 2개**(control=klid_system, portal)+사용자만 준비하면 됨. ⚠ **스키마는 설치 단계가 `db/schema.sql` 을 1회 로드해 만든다**(`16-load-schema.sh`) — 앱은 `spring.flyway.enabled=false` 로 마이그레이션을 돌리지 않고 매핑 검증만 한다. 구 서술 "스키마는 backend Flyway 가 자동 생성" 은 **폐기**(2026-08-19) — 설정 템플릿은 이전부터 `false` 였고, WAR 반입 형상에서는 DBA 가 선적용하므로 앱에 스키마 변경 권한이 없다 |
+| PostgreSQL | **[was]** **현장이 제공한다 — 우리가 설치하지 않는다**(2026-09-05 확정). 접속 정보(host/port/db/user/pw)와 **빈 데이터베이스 1개 + 앱 계정**을 현장 담당이 미리 준비한다(현장 실측 판 17.11). ⚠ **스키마는 설치 단계가 `db/schema.sql` 을 1회 로드해 만든다**(`16-load-schema.sh`) — 앱은 `spring.flyway.enabled=false` 로 마이그레이션을 돌리지 않고 매핑 검증만 한다. 구 서술 "스키마는 backend Flyway 가 자동 생성" 은 **폐기**(2026-08-19) — 설정 템플릿은 이전부터 `false` 였고, WAR 반입 형상에서는 DBA 가 선적용하므로 앱에 스키마 변경 권한이 없다 |
 | **KPST 비식별 서버** | **폐쇄망에 별도 설치·접근 가능**해야 함(본 패키지 비포함, 외부 시스템). backend 가 폴링 연동(http 또는 https+사설CA). 비식별은 파이프라인 선두 필수 단계라 prd 에서 끄거나 mock 우회 불가 — 04-configuration.md B 절 참고 |
 | 네트워크 | **[A]** 80/8080/5432 + KPST 비식별 포트(예 9201) 도달, **[A]→[B] 9300 도달**(서버가 나뉘므로 `AI_SERVER_URL` 의 기본값 `127.0.0.1:9300` 을 **반드시 서버 B 주소로 바꾼다**). 외부 인바운드는 [A] 의 80만 노출 권장 |
 
@@ -113,26 +113,42 @@ ai-server/backend 가 런타임에 의존하는 것:
 > **라이선스** — 번들 ffmpeg 는 RPM Fusion 의 **GPLv3+** 빌드다. 매체에 담아 반입하는 것 자체가
 > 재배포이므로 **대응 소스(SRPM)를 `syspkgs/ffmpeg-src/` 에 함께 반입**한다(설치 대상 아님).
 
-### PostgreSQL 준비 — 두 경로
+### PostgreSQL 준비 — 현장 제공 (2026-09-05 확정)
 
-PG 는 **두 경로** 중 하나로 운영한다(설치 토글 `USE_BUNDLED_POSTGRES`):
+**데이터베이스는 우리가 배포하지 않는다.** 장비에 이미 설치된 것을 쓴다.
 
-1. **① 번들 PG16 오프라인 설치(기본, `USE_BUNDLED_POSTGRES=1`)** — 패키지에 PGDG PG16 RPM 을
-   번들하고 `10-install-postgresql.sh` 가 오프라인 설치(initdb + `postgresql.conf`/`pg_hba.conf` +
-   `postgresql-16` 서비스 기동)한다. 별도 PG 준비 불필요. (수집: `55-collect-postgresql.sh`)
-2. **② 외부 기존 PG 사용(`USE_BUNDLED_POSTGRES=0`)** — 타깃에 이미 PostgreSQL 이 있으면 번들 PG 설치를
-   건너뛰고, `backend.env` 의 `CONTROL_DB_*` 가 그 PG 를 가리키게 둔다.
+⚠ **구 서술 폐기(2026-09-05)** — *"PG 는 두 경로 중 하나로 운영한다(설치 토글 `USE_BUNDLED_POSTGRES`):
+① 번들 PG16 오프라인 설치(기본) … ② 외부 기존 PG 사용"*. **되살리지 말 것.**
+번들 경로의 실행 주체(`10-install-postgresql.sh`)·수집 주체(`55-collect-postgresql.sh`)·토글
+(`USE_BUNDLED_POSTGRES`)이 **모두 제거**됐다. 그 경로를 켜면 번들 RPM 이 의존을 풀면서
+**기존 시스템 라이브러리까지 끌어올린다** — 남의 장비에서 가장 피해야 할 일이라 구조적으로 없앴다.
 
-어느 경로든 사전요건은 동일하다:
+**현장 선행 조건**(현장 담당이 준비):
 
-- **빈 DB 2개** — control DB(`klid_system`)와 portal DB(`portal`), 앱 유저(`klid_user` 등)와 비밀번호.
-- **스키마/테이블은 `db/schema.sql` 을 빈 control DB 에 1회 로드해 만든다** — **온프렘은 Flyway 를
-  쓰지 않는다**(`spring.flyway.enabled=false`). 그 파일에
-  `LS_*` 62개 · `QRTZ_*` 11개 · 뷰 4개 + 시드 66행이 들어 있고 `CREATE SCHEMA` 도 포함하므로,
-  **사전요건은 빈 DB 와 앱 유저(DB OWNER)뿐**이고 `klid_at` 스키마를 미리 만들 필요는 없다.
-- ⚠ **그 로드는 사람이 해야 한다** — 설치 단계 `16-load-schema.sh` 는 `SCHEMA_LOAD_RUN=1` 일 때만
-  실제로 넣고 평시엔 수동 절차만 안내한다. **아무도 넣지 않으면 대신 만들어 주는 것이 없다.**
-  구성별로 누가 언제 넣는지는 `03-install.md` 의 표가 정본이다.
+- **빈 데이터베이스 1개**와 **앱 계정**(그 데이터베이스의 소유자). 우리 설치는 데이터베이스도
+  계정도 **만들지 않는다** — 외부 제공 데이터베이스라 그 권한이 우리에게 없다.
+  ⚠ 구 서술 폐기 — *"빈 DB 2개(control·portal)"*. 포털 DB 축은 2026-08-31 에 철거됐다.
+  필요한 것은 **control 하나**뿐이다.
+- `klid_at` 스키마를 미리 만들 필요는 **없다** — `db/schema.sql` 이 `CREATE SCHEMA` 를 포함한다.
+
+**스키마 적재는 조건부다 — 현장 담당 선적용 우선 + 우리가 채움** (2026-09-05 확정):
+
+| 대상 스키마 상태 | 16 단계가 하는 일 |
+|---|---|
+| 비어 있음 | `db/schema.sql` 을 **적재한다** |
+| 이미 있고 개수가 기대와 같음 | **건너뛴다** (현장 담당이 미리 적용해 둔 경우) |
+| 이미 있는데 기대와 다름 | **덮어쓰지 않고 멈춘다** — 현장 데이터가 사라질 수 있다 |
+
+즉 현장 담당의 선적용 관행과 우리 설치의 적재가 **둘 다 성립**하며, 어느 쪽이 먼저 했든 결과가 같다.
+
+- ⚠ **「데이터베이스를 만들지 않는다」를 「스키마도 적재하지 않는다」로 읽지 말 것.** 다른 일이다.
+- ⚠ 구 서술 폐기 — *"그 로드는 사람이 해야 한다 — `16-load-schema.sh` 는 `SCHEMA_LOAD_RUN=1` 일 때만
+  실제로 넣고 평시엔 안내만 한다"*. 기본이 「안 함」이면 **아무도 적재하지 않은 채 넘어간다.**
+  이제 기본이 적재이고, 빠져나갈 문은 `SKIP_SCHEMA_LOAD=1` 하나다.
+- **온프렘은 Flyway 를 쓰지 않는다**(`spring.flyway.enabled=false`) — 이 적재가 테이블을 만드는
+  **유일한 경로**다.
+- 여러 대가 같은 데이터베이스 한 벌을 보므로 **적재는 첫 대에서만** 한다(`--node=first`).
+
 - ⚠⚠ **★ 그런데 기동은 실패하지 않는다 — `ddl-auto=validate` 가 대신 막아 주지 않는다.**
   `application.yml` 에 `validate` 가 선언돼 있지만 이 저장소에서는 **실동작하지 않는다**:
   듀얼 데이터소스라 `JpaBuilderConfig` 가 `EntityManagerFactory` 를 직접 만드는데, 거기에 넘기는

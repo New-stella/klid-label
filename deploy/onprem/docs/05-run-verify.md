@@ -3,7 +3,7 @@
 ## 기동 순서
 
 의존 순서대로 **PostgreSQL → ai-server → backend(WAS) → frontend(httpd)** 로 켠다.
-번들 PG 를 설치했다면 `10-install-postgresql.sh` 가 이미 `postgresql-16` 을 `enable --now` 해 둔다.
+⚠ **PostgreSQL 은 현장이 운영한다** — 우리 설치는 켜지도 끄지도 않는다(2026-09-05).
 
 > ★ **서버가 2대면 이 절의 명령이 장비마다 갈린다** (`--role=app` / `--role=ai`).
 > `klid-ai-server` 는 **서버 B(ai)** 에만, `httpd` 와 WAS 는 **서버 A(app)** 에만 있다.
@@ -51,10 +51,10 @@ sudo systemctl enable --now httpd
 > (`ddl-auto=validate` 가 실동작하지 않는다 — 04-configuration.md D 절). 화면·배치가 DB 를 처음
 > 건드릴 때 깨지므로, 로드 여부는 아래 「스키마 확인」의 카운트 쿼리로 판정한다.
 >
-> ℹ **번들 PG 의 유닛명은 `postgresql-16.service`** 라 backend 유닛의 `After=postgresql.service`
-> (이름 불일치)만으로는 부팅 순서 보장이 안 된다. 이를 위해 **번들 PG 사용 시
-> `10-install-postgresql.sh` 가 설치 말미에 drop-in 을 자동 생성**해 실제 유닛명으로 순서를 묶는다
-> (외부 PG 사용 시엔 생성하지 않는다):
+> ⚠ **구 안내 폐기(2026-09-05)** — *"번들 PG 의 유닛명은 `postgresql-16.service` 라 …
+> `10-install-postgresql.sh` 가 설치 말미에 drop-in 을 자동 생성해 순서를 묶는다"*.
+> 데이터베이스가 **다른 장비**에 있으므로 같은 장비의 부팅 순서로 묶을 대상이 아니다.
+> 참고로 그 drop-in 은 이런 모양이었다:
 >
 > ```ini
 > # /etc/systemd/system/klid-backend.service.d/10-pg16-after.conf  (자동 생성)
