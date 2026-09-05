@@ -184,11 +184,11 @@ class PortalDatamartVideosServiceTest {
     }
 
     @Test
-    @DisplayName("포털_데이터마트_목록_본인_저장_라벨_마지막저장일_기준으로_만료예정시각이_계산된다")
-    void myLabelExpiresAtFromLastSavedAt() {
-        // given: 본인 저장 라벨 마지막 저장일 + 보존기간 7일
+    @DisplayName("포털_데이터마트_목록_본인_저장_라벨_최초저장일_기준으로_만료예정시각이_계산된다")
+    void myLabelExpiresAtFromFirstSavedAt() {
+        // given: 본인 저장 라벨 최초 저장일(MIN) + 보존기간 7일 — 마지막 저장일이 아니다(DFEAT-055)
         givenOneApprovedVideo();
-        when(userLabelRepository.findMaxRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
+        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
                 .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
 
@@ -201,7 +201,7 @@ class PortalDatamartVideosServiceTest {
     void myLabelExpiresAtNullWhenNoSavedLabel() {
         // given: 그 영상에 본인 저장 라벨이 없다(집계 결과 행 자체가 없음)
         givenOneApprovedVideo();
-        when(userLabelRepository.findMaxRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
+        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
                 .thenReturn(List.of());
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
 
@@ -214,7 +214,7 @@ class PortalDatamartVideosServiceTest {
     void myLabelExpiresAtRecomputedOnSettingChange() {
         // given: 7일로 한 번 조회
         givenOneApprovedVideo();
-        when(userLabelRepository.findMaxRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
+        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
                 .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
         assertThat(firstRow().myLabelExpiresAt()).isEqualTo(SAVED_AT.plusDays(7));
@@ -231,7 +231,7 @@ class PortalDatamartVideosServiceTest {
     void missingRetentionConfigNullsOnlyTheField() {
         // given: 설정 행 부재 — getInt 가 예외를 던진다(이 키는 폴백하지 않는다)
         givenOneApprovedVideo();
-        when(userLabelRepository.findMaxRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
+        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
                 .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS))
                 .thenThrow(new CustomException(
@@ -259,7 +259,7 @@ class PortalDatamartVideosServiceTest {
                 .thenReturn(List.<Object[]>of(new Object[]{10L, 3L}, new Object[]{20L, 4L}));
         when(rawDataStatusRepository.findAllById(anyCollection()))
                 .thenReturn(List.of(approved(10L), approved(20L)));
-        when(userLabelRepository.findMaxRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
+        when(userLabelRepository.findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection()))
                 .thenReturn(List.<Object[]>of(new Object[]{10L, SAVED_AT}));
         when(systemConfigService.getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS)).thenReturn(7);
 
@@ -270,7 +270,7 @@ class PortalDatamartVideosServiceTest {
         assertThat(result.getContent()).hasSize(2);
         assertThat(result.getContent().get(0).myLabelExpiresAt()).isEqualTo(SAVED_AT.plusDays(7));
         assertThat(result.getContent().get(1).myLabelExpiresAt()).isNull();
-        verify(userLabelRepository, times(1)).findMaxRegDtGroupedBySrcRawSn(eq("alice"), anyCollection());
+        verify(userLabelRepository, times(1)).findMinRegDtGroupedBySrcRawSn(eq("alice"), anyCollection());
         verify(systemConfigService, times(1)).getInt(ConfigKeys.PORTAL_DATAMART_RETENTION_DAYS);
     }
 

@@ -83,7 +83,7 @@ public class PortalUploadService {
     private final PortalUploadFrameRepository frmeRepository;
     private final PortalUploadProperties properties;
 
-    /** 보존기간 만료 예정 시각 <b>단일 판정 지점</b> — 여기서 계산식을 재유도하지 않는다. @design AC-033 */
+    /** 보존기간 만료 예정 시각 <b>단일 판정 지점</b> — 여기서 계산식을 재유도하지 않는다. @design AC-1070 */
     private final PortalRetentionPolicy retentionPolicy;
 
     /**
@@ -181,7 +181,7 @@ public class PortalUploadService {
     /**
      * 소유자 업로드 목록(페이징) + 선택적 타입 필터. 타입은 IMAGE/VIDEO 만 허용(그 외 400).
      *
-     * <p>각 행에 보존기간 만료 예정 시각({@code expiresAt})을 실어 내린다. @design AC-033
+     * <p>각 행에 보존기간 만료 예정 시각({@code expiresAt})을 실어 내린다. @design AC-1070
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public Page<PortalUploadResponse> listUploads(String portalUserNo, String typeFilter, Pageable pageable) {
@@ -203,7 +203,7 @@ public class PortalUploadService {
      * 소유자 자산 상세 + 프레임 요약. 소유자 아님/부재 → 403(자원 열거 차단).
      *
      * <p>보존기간 만료 예정 시각({@code expiresAt})을 함께 내린다 — 목록과 <b>같은 판정기</b>를 쓴다.
-     * @design AC-033
+     * @design AC-1070
      */
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public PortalUploadDetailResponse getUpload(Long uldSn, String portalUserNo) {
@@ -219,7 +219,7 @@ public class PortalUploadService {
     }
 
     /**
-     * 목록 한 페이지에 보존기간 만료 예정 시각을 채운다. @design AC-033, DFEAT-055
+     * 목록 한 페이지에 보존기간 만료 예정 시각을 채운다. @design AC-1070, DFEAT-055
      *
      * <p><b>N+1 을 만들지 않는다</b> — 라벨 마지막 저장일은 페이지 전체를 단일 집계 쿼리
      * ({@code GROUP BY} + {@code IN}) 1회로 모으고, 보존기간 설정도 페이지당 1회만 읽는다

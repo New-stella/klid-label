@@ -475,9 +475,10 @@ class PortalUploadServiceTest {
     }
 
     @Test
-    @DisplayName("PROCESSING과_UPLOADED_자산은_삭제_대상이_아니므로_만료예정시각이_null이다")
-    void nonDeletableStatusesHaveNoExpiry() {
-        // given
+    @DisplayName("★PROCESSING만_만료예정시각이_null이고_마킹대기는_등록일_기산_값이_실린다")
+    void onlyProcessingHasNoExpiryInResponse() {
+        // given: 2026-09-05 확정으로 마킹 대기(UPLOADED)에도 보존기간이 생겼다(AC-1070).
+        //        응답에 값이 실리는 것이 정상이며, 화면은 값이 오면 표시하는 구조다.
         stubRetentionDays(7, 1);
         stubLastLabelSavedAt();
 
@@ -487,8 +488,12 @@ class PortalUploadServiceTest {
                 asset(2L, PortalUploadLedger.STATUS_UPLOADED, REG_DT, REG_DT));
 
         // then
-        assertThat(res.get(0).expiresAt()).isNull();
-        assertThat(res.get(1).expiresAt()).isNull();
+        assertThat(res.get(0).expiresAt())
+                .as("처리 중은 삭제 대상이 아니므로 고지할 만료도 없다 — 방치 판정이 따로 회수한다")
+                .isNull();
+        assertThat(res.get(1).expiresAt())
+                .as("★마킹 대기를 null 로 되돌리면 그 자산의 자동 삭제 경로가 다시 사라진다")
+                .isEqualTo(REG_DT.plusDays(7));
     }
 
     @Test
