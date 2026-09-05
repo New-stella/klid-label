@@ -509,11 +509,13 @@ public class PortalUploadAssetRepository {
      * <p>그래서 후보를 후처리 중 하나로 좁힌다. 후처리 중은 러너가 하트비트로 갱신 시각을 밀어내므로
      * 「무갱신 경과」 판정이 여전히 성립한다.
      *
-     * <p>⚠ 그 대가로 <b>마킹하지 않은 자산은 어느 스윕에도 걸리지 않는다</b> — 보존기간 축도
-     * 라벨링 가능·처리 실패 둘뿐이라 영원히 남는다. 그 공백을 어떻게 닫을지는 별도 판단이며,
-     * 여기서 임의로 삭제 경로를 넓히지 않는다(비가역 삭제의 판정 지점을 늘리지 않는다).
+     * <p>★ 그때 남았던 공백 — <b>마킹하지 않은 자산은 어느 스윕에도 걸리지 않아 파일째 영구히
+     * 남는다</b> — 은 2026-09-05 확정으로 <b>보존기간 축</b>이 닫았다({@link RetentionAxis#UPLOADED}).
+     * 방치 전이가 아니라 <b>일 단위 정상 만료</b>로 닫은 것이라 <b>이 메서드의 후보는 여전히
+     * 후처리 중 하나</b>다 — 두 경로를 합치지 말 것(타이머 길이도 종착점도 다르다).
      *
      * @design DFEAT-055
+     * @design AC-1070
      * @design API-140
      */
     @SuppressWarnings("unchecked")
@@ -535,12 +537,13 @@ public class PortalUploadAssetRepository {
     // ==================================================================
 
     /**
-     * 만료 후보 조회. @design DFEAT-055, AC-036, AC-037
+     * 만료 후보 조회. @design DFEAT-055, AC-1070, AC-036, AC-037
      *
-     * <p>축별로 <b>기준점과 설정 키가 다르다</b>. 후보 조회와 삭제 실행문이 {@link #expiryPredicate}
-     * 하나를 공유한다 — 한쪽만 고치면 조회는 잡는데 삭제는 못 하거나(고착) 그 반대(과삭제)가 된다.
+     * <p>축별로 <b>기준점이 다르다</b>(설정 키는 마킹 대기·준비 완료가 같다). 후보 조회와 삭제
+     * 실행문이 {@link #expiryPredicate} 하나를 공유한다 — 한쪽만 고치면 조회는 잡는데 삭제는
+     * 못 하거나(고착) 그 반대(과삭제)가 된다.
      *
-     * <p>{@code PROCESSING}·{@code UPLOADED} 는 어느 축에도 없어 구조적으로 후보가 될 수 없다.
+     * <p><b>{@code PROCESSING} 만</b> 어느 축에도 없어 구조적으로 후보가 될 수 없다(AC-1070).
      */
     @SuppressWarnings("unchecked")
     public List<Long> findExpired(RetentionAxis axis, LocalDateTime cutoff) {
@@ -682,6 +685,18 @@ public class PortalUploadAssetRepository {
                 + " AND r.portal_user_no IS NOT NULL"
                 + " AND " + STATUS_EXPR + " = :status";
         return switch (axis) {
+            // 기준점 = 등록일. ★ READY 축의 「커트라인 이후 저장된 라벨이 없다」 조건을 <넣지 않는다>
+            //   — 마킹 대기 자산에는 프레임이 없어 라벨이 존재할 수 없으므로 그 조건은 항상 참이고,
+            //   달아 두면 이 축이 READY 축과 같아 보여 기산점 차이가 지워진다(AC-1070).
+            //
+            // ★★ 이 축만 판별자가 <두 겹>이다 — 다른 축과 비대칭이니 base 를 절대 우회하지 말 것.
+            //   STATUS_EXPR 의 COALESCE 기본값이 하필 'UPLOADED' 라, 상태 행이 아예 없는 관제 영상은
+            //   이 축의 상태 조건을 <그대로 통과>한다. 다른 축(READY·FAILED)에서는 그 기본값이
+            //   리터럴과 달라 상태 조건이 세 번째 판별자로 작동하지만 여기서는 작동하지 않는다.
+            //   그래서 관제 영상을 막는 것은 src_type 과 portal_user_no <둘뿐>이고, 둘 중 하나만
+            //   빠져도 곧바로 관제 영상이 지워진다(비가역). 회귀 가드는 PortalRetentionSweepIT 의
+            //   「출처 판별자만…」·「소유자 보유만…」 두 시험이며 판별자마다 하나씩 짝지어 둔다.
+            case UPLOADED -> base + " AND r.reg_dt < :cutoff";
             // 기준점 = 등록일과 라벨 마지막 저장일 중 늦은 쪽. 「등록일이 커트라인 이전」과
             // 「커트라인 이후에 저장된 라벨이 없다」의 곱으로 표현한다 — 작업 중이면 라벨 저장이
             // 기준점을 계속 밀어내므로 자동으로 후보에서 빠진다.
@@ -794,13 +809,29 @@ public class PortalUploadAssetRepository {
     }
 
     /**
-     * 보존기간 축 — 기준점과 설정 키가 서로 다르며 <b>독립 판정</b>된다. @design AC-037
+     * 보존기간 축 — 기준점이 서로 다르며 <b>독립 판정</b>된다. @design AC-1070, AC-037
      *
-     * <p>{@code PROCESSING}·{@code UPLOADED} 는 여기에 없다 — 삭제 대상이 아니고 고지할 만료도 없다.
-     * 그 공백은 새 삭제 경로가 아니라 <b>방치 판정 → 실패 전이</b>로 닫는다(비가역 삭제의 판정 지점을
-     * 둘로 늘리지 않는다).
+     * <p><b>{@code PROCESSING} 만 여기에 없다</b> — 프레임 추출 러너와 경쟁하면 파일과 원장이
+     * 어긋나기 때문이며, 그 상태는 <b>방치 판정 → 실패 전이</b>가 따로 회수한다.
+     *
+     * <p>★ <b>마킹 대기({@code UPLOADED})는 2026-09-05 확정으로 후보가 됐다</b>(AC-1070). 그전에는
+     * 그 상태가 후보 상태 어느 쪽으로도 스스로 전이하지 않아 <b>자동 삭제 경로가 아예 없었고</b>,
+     * 사람이 마킹하지 않으면 파일째 영구히 남았다. ⚠ 이것을 방치 판정과 혼동하지 말 것 — 2026-09-02
+     * 에 닫은 것은 「분 단위 방치 타이머가 마킹 대기를 <b>실패로 마감</b>하던 것」이고 이것은
+     * 「일 단위 보존기간으로 <b>정상 만료</b>시키는 것」이다.
+     *
+     * <p>설정 키는 마킹 대기·준비 완료가 <b>같고</b>({@code portal.upload.retention-days}) 처리 실패만
+     * 다르다. 같은 설정을 쓰는 두 축을 <b>기산점</b>이 가른다.
      */
     public enum RetentionAxis {
+        /**
+         * 마킹 대기 자산 — 기준점 = 등록일. 프레임이 없어 라벨이 기준점을 밀어낼 수 없다.
+         *
+         * <p>⚠ <b>이 축만 관제 영상 차단이 두 겹이다</b>({@code src_type}·{@code portal_user_no}).
+         * 상태 축의 「부재 = 업로드됨」 기본값이 이 축의 리터럴과 같아 상태 조건이 관제 행을 걸러
+         * 주지 못하기 때문이다 — 상세는 {@code expiryPredicate} 의 {@code case UPLOADED} 주석.
+         */
+        UPLOADED(PortalUploadLedger.STATUS_UPLOADED),
         /** 정상 처리 자산 — 기준점 = 등록일·라벨 최종 저장일 중 늦은 쪽. */
         READY(PortalUploadLedger.STATUS_READY),
         /** 처리 실패 자산 — 기준점 = 실패 전이 시각. */

@@ -51,7 +51,8 @@ export interface PortalUpload {
   failRsnCn?: string | null;
   regDt: string;
   /**
-   * 보존기간 만료 예정 시각. 처리 중(UPLOADED·PROCESSING)이면 삭제 대상이 아니라 `null` 이다.
+   * 보존기간 만료 예정 시각. 값이 비는 것은 **처리 중(`PROCESSING`) 하나**다 — 그 상태만 삭제
+   * 대상이 아니다. 마킹 대기(`UPLOADED`)에도 등록일 기산 만료가 실린다(2026-09-05 서버 확정).
    *
    * ★ 서버가 **조회 시점에 계산하는 파생값**이다(저장되지 않는다) — 보존기간 설정이 바뀌면 다음
    * 조회부터 값이 달라지므로 화면이 보관하거나 스스로 계산하지 않고 받은 값을 그대로 쓴다.
@@ -81,6 +82,6 @@ export interface PortalUploadDetail {
   regDt: string;
   mdfcnDt: string | null;
   frames: PortalUploadFrame[];
-  /** 보존기간 만료 예정 시각 — 목록과 동일 판정(처리 중이면 `null`). */
+  /** 보존기간 만료 예정 시각 — 목록과 동일 판정(`PROCESSING` 하나만 `null`). */
   expiresAt: string | null;
 }

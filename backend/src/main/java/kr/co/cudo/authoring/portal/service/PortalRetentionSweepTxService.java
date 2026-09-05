@@ -90,11 +90,17 @@ public class PortalRetentionSweepTxService {
     // ======================== 축 B — 업로드 자산 ========================
 
     /**
-     * 삭제 대상 업로드 자산 후보 스캔(읽기 전용). @design AC-036, AC-037
+     * 삭제 대상 업로드 자산 후보 스캔(읽기 전용). @design DFEAT-055, AC-1070, AC-036, AC-037
      *
-     * <p>READY·FAILED <b>두 축을 각자의 설정으로 독립 판정</b>한다(AC-037 and_examples[1]) — 한쪽 설정이
-     * 없으면 그 축만 건너뛰고 다른 축은 정상 동작한다. {@code PROCESSING}·{@code UPLOADED} 는 어느
-     * 쿼리에도 등장하지 않으므로 구조적으로 후보가 될 수 없다(AC-036).
+     * <p><b>세 축을 각자의 기산점으로 독립 판정</b>한다(AC-1070) — 마킹 대기(등록일) · 준비 완료
+     * (등록일과 라벨 마지막 저장일 중 늦은 쪽) · 처리 실패(실패 전이 시각). 설정이 없으면 그 축만
+     * 건너뛰고 다른 축은 정상 동작한다. <b>{@code PROCESSING} 만</b> 어느 쿼리에도 등장하지 않아
+     * 구조적으로 후보가 될 수 없다 — 프레임 추출과 경쟁하면 파일과 원장이 어긋나며, 그 상태는
+     * 방치 판정이 따로 회수한다.
+     *
+     * <p>★ 마킹 대기 축을 <b>방치 판정과 혼동하지 말 것</b> — 2026-09-02 에 닫은 것은 「분 단위 방치
+     * 타이머가 마킹 대기를 <b>실패로 마감</b>하던 것」이고, 여기 있는 것은 「일 단위 보존기간으로
+     * <b>정상 만료</b>시키는 것」이다. 이 축이 없으면 마킹하지 않은 자산은 <b>파일째 영구히</b> 남는다.
      *
      * <p>커트라인을 후보에 실어 보내는 것은 의도다 — 뒤이은 조건부 DELETE 가 <b>스캔과 같은 커트라인</b>
      * 으로 재판정해야 한 회차 안에서 판정 기준이 흔들리지 않는다.
@@ -102,34 +108,37 @@ public class PortalRetentionSweepTxService {
     @Transactional(value = "controlTransactionManager", readOnly = true)
     public List<ExpiredUpload> findExpiredUploads() {
         List<ExpiredUpload> candidates = new ArrayList<>();
-        // ★ 한 회차의 기준시각은 하나다 — 두 축이 각자 now() 를 뜨면 판정 기준이 갈린다.
-        //   그 보장은 여기 규율이 아니라 스냅샷 자료구조(UploadCutoffs.capturedAt)가 진다.
+        // ★ 한 회차의 기준시각은 하나다 — 축마다 now() 를 뜨면 판정 기준이 갈린다. 그 보장은 여기
+        //   규율이 아니라 스냅샷 자료구조(UploadCutoffs.capturedAt)가 진다 — 축이 늘어도 그대로다.
+        //   그래서 이 창구는 한 회차에 <한 번만> 부른다.
         PortalRetentionPolicy.UploadCutoffs cutoffs = retentionPolicy.uploadCutoffs();
 
-        Optional<LocalDateTime> readyCutoff = cutoffs.ready();
-        if (readyCutoff.isEmpty()) {
-            log.error("[PortalRetention] 업로드(READY) 보존기간 설정을 읽지 못해 이번 회차를 건너뛴다"
-                    + " key=portal.upload.retention-days");
-        } else {
-            LocalDateTime cutoff = readyCutoff.get();
-            for (Long uldSn : assetRepository.findExpired(
-                    PortalUploadAssetRepository.RetentionAxis.READY, cutoff)) {
-                candidates.add(toCandidate(uldSn, Axis.READY, cutoff));
-            }
+        // 마킹 대기·준비 완료는 같은 설정을 공유하므로 진단 로그도 한 번만 남긴다(같은 키가 두 줄
+        // 찍히면 운영자가 서로 다른 설정 둘이 비었다고 읽는다).
+        if (cutoffs.ready().isEmpty()) {
+            log.error("[PortalRetention] 업로드(마킹 대기·준비 완료) 보존기간 설정을 읽지 못해"
+                    + " 이번 회차를 건너뛴다 key=portal.upload.retention-days");
+        }
+        if (cutoffs.failed().isEmpty()) {
+            log.error("[PortalRetention] 업로드(처리 실패) 보존기간 설정을 읽지 못해 이번 회차를 건너뛴다"
+                    + " key=portal.upload.failed-retention-days");
         }
 
-        Optional<LocalDateTime> failedCutoff = cutoffs.failed();
-        if (failedCutoff.isEmpty()) {
-            log.error("[PortalRetention] 업로드(FAILED) 보존기간 설정을 읽지 못해 이번 회차를 건너뛴다"
-                    + " key=portal.upload.failed-retention-days");
-        } else {
-            LocalDateTime cutoff = failedCutoff.get();
-            for (Long uldSn : assetRepository.findExpired(
-                    PortalUploadAssetRepository.RetentionAxis.FAILED, cutoff)) {
-                candidates.add(toCandidate(uldSn, Axis.FAILED, cutoff));
-            }
-        }
+        collectExpired(candidates, Axis.UPLOADED, cutoffs.uploaded());
+        collectExpired(candidates, Axis.READY, cutoffs.ready());
+        collectExpired(candidates, Axis.FAILED, cutoffs.failed());
         return candidates;
+    }
+
+    /** 축 1개분 후보 수집 — 커트라인이 없으면(설정 부재·0 이하) 조회조차 하지 않는다. */
+    private void collectExpired(List<ExpiredUpload> into, Axis axis, Optional<LocalDateTime> cutoff) {
+        if (cutoff.isEmpty()) {
+            return;
+        }
+        LocalDateTime at = cutoff.get();
+        for (Long uldSn : assetRepository.findExpired(repoAxis(axis), at)) {
+            into.add(toCandidate(uldSn, axis, at));
+        }
     }
 
     /**
@@ -146,10 +155,21 @@ public class PortalRetentionSweepTxService {
      */
     @Transactional("controlTransactionManager")
     public int deleteExpiredUpload(ExpiredUpload target) {
-        PortalUploadAssetRepository.RetentionAxis axis = target.axis() == Axis.READY
-                ? PortalUploadAssetRepository.RetentionAxis.READY
-                : PortalUploadAssetRepository.RetentionAxis.FAILED;
-        return assetRepository.deleteExpired(axis, target.uldSn(), target.cutoff());
+        return assetRepository.deleteExpired(repoAxis(target.axis()), target.uldSn(), target.cutoff());
+    }
+
+    /**
+     * 축 매핑 <b>단일 지점</b> — 후보 조회와 삭제가 같은 표를 쓴다.
+     *
+     * <p>축이 곧 삭제 술어의 상태 조건이라, 조회와 삭제가 서로 다르게 매핑하면 <b>다른 상태의 자산을
+     * 지운다</b>. 삼항 연산으로 두면 축이 늘 때 조용히 「나머지는 전부 FAILED」가 되므로 열거를 다 적는다.
+     */
+    private static PortalUploadAssetRepository.RetentionAxis repoAxis(Axis axis) {
+        return switch (axis) {
+            case UPLOADED -> PortalUploadAssetRepository.RetentionAxis.UPLOADED;
+            case READY -> PortalUploadAssetRepository.RetentionAxis.READY;
+            case FAILED -> PortalUploadAssetRepository.RetentionAxis.FAILED;
+        };
     }
 
     /**
@@ -169,8 +189,14 @@ public class PortalRetentionSweepTxService {
         return new ExpiredUpload(uldSn, axis, cutoff, List.copyOf(paths));
     }
 
-    /** 업로드 보존기간 축 — 기준점과 설정 키가 서로 다르며 독립 판정된다. @design AC-037 */
+    /**
+     * 업로드 보존기간 축 — 기준점이 서로 다르며 독립 판정된다. @design AC-1070, AC-037
+     *
+     * <p>{@code PROCESSING} 은 여기 없다 — 프레임 추출과 경쟁하기 때문이며 방치 판정이 따로 회수한다.
+     */
     public enum Axis {
+        /** 마킹 대기 자산 — 기준점 = 등록일. 설정은 {@link #READY} 축과 공유한다. */
+        UPLOADED,
         /** 정상 처리 자산 — 기준점 = 등록일·라벨 최종 저장일 중 늦은 쪽. */
         READY,
         /** 처리 실패 자산 — 기준점 = FAILED 전이 시각. */

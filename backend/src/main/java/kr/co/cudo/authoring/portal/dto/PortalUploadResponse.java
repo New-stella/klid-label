@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
  * <b>저장되지 않는 파생값</b>으로 조회 시점의 보존기간 설정값(READY 는
  * {@code portal.upload.retention-days}, FAILED 는 {@code portal.upload.failed-retention-days})으로
  * 매번 재계산된다 — 설정이 바뀌면 다음 조회부터 값이 달라지므로 <b>클라이언트는 캐시하지 말 것</b>.
- * 삭제 대상이 아닌 상태(PROCESSING·UPLOADED)이거나 보존기간 설정이 없으면 {@code null}.
+ * 삭제 대상이 아닌 상태({@code PROCESSING})이거나 보존기간 설정이 없으면 {@code null}.
+ * ⚠ <b>마킹 대기({@code UPLOADED})에도 이제 값이 실린다</b> — 등록일 기산 보존기간이 적용된다(AC-1070).
  * 판정은 {@code PortalRetentionPolicy} 한 곳에서만 한다(재유도 금지).
  */
 public record PortalUploadResponse(
