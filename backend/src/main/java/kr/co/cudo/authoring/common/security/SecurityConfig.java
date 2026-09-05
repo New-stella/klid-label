@@ -242,6 +242,14 @@ public class SecurityConfig {
                 // ★ 이름의 단일 진실원은 AdminSessionGate.HEADER 다 — 여기에 리터럴을 두면 이름이 바뀔 때
                 //   허용 목록만 옛 이름으로 남아, 서버 로그에 아무것도 남기지 않고 조용히 막힌다.
                 AdminSessionGate.HEADER,
+                // 포털 채널 전용 인계 헤더 (@design INT-013). Host 화면 안에서 실행되는 임베딩이라
+                // 토큰을 Authorization 이 아니라 이 헤더로 싣는다. CORS safelisted 헤더가 아니라서
+                // 교차 출처에서는 반드시 preflight 를 유발하며, 목록에 없으면 브라우저가 요청 자체를
+                // 막아 <서버 로그에 아무것도 남지 않는다>.
+                // ※ 지금은 allowed-origins 기본값이 비어 교차 출처가 닫혀 있어 증상이 드러나지 않지만,
+                //   API 주소를 절대 주소로 돌리는 순간 포털 인증이 전량 preflight 에서 막힌다.
+                // ★ 이름의 단일 진실원은 JwtAuthenticationFilter.PORTAL_TOKEN_HEADER 다(리터럴 금지).
+                JwtAuthenticationFilter.PORTAL_TOKEN_HEADER,
                 "X-Tus-Resumable", "Upload-Length", "Upload-Offset", "Upload-Metadata",
                 "Tus-Resumable", "Content-Type"
         ));

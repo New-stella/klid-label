@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  BEARER_PREFIX,
   HOST_HANDOFF_METHOD_NAMES,
+  INTERNAL_AUTH_HEADER,
+  PORTAL_ACCESS_TOKEN_HEADER,
+  buildAuthHeader,
   clearHostTokenHandoff,
   getAccessToken,
   internalTokenHandoff,
   registerHostTokenHandoff,
+  resolveAuthHeaderName,
   resolveTokenHandoff,
   portalTokenHandoff,
   type TokenHandoffGateway,
@@ -177,6 +182,91 @@ describe('tokenHandoff — 토큰 인계 창구 어댑터', () => {
 
       expect(gateway.onUnauthorized).toHaveBeenCalledTimes(1);
       expect(gateway.notifyActivity).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * [@design INT-013] 「토큰을 어느 헤더에 어떤 모양으로 싣는가」 축.
+   *
+   * 조달 경로(위)와 **짝**이다 — 조달이 옳아도 싣는 자리가 틀리면 서버가 토큰을 못 찾는다.
+   * 그리고 그 실패는 빌드가 아니라 런타임 401 로만 드러난다.
+   */
+  describe('인증 헤더 계약 — 값 축으로 고정한다', () => {
+    const HEADER_JWT = 'jwt-for-header';
+
+    it('계약값이_포털이_정한_이름_그대로다', () => {
+      // 형식 검사(「문자열이다」)로는 이 축을 못 지킨다 — 이름 자체가 계약이다.
+      expect(PORTAL_ACCESS_TOKEN_HEADER).toBe('x-access-token');
+      expect(INTERNAL_AUTH_HEADER).toBe('Authorization');
+      expect(BEARER_PREFIX).toBe('Bearer ');
+    });
+
+    it('내부_채널은_Authorization_Bearer_그대로다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'control');
+
+      expect(buildAuthHeader(HEADER_JWT)).toEqual({
+        name: 'Authorization',
+        value: `Bearer ${HEADER_JWT}`,
+      });
+    });
+
+    it('채널_미설정도_내부_채널과_같다_기존_빌드_동작_보존', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', '');
+
+      expect(buildAuthHeader(HEADER_JWT)).toEqual({
+        name: 'Authorization',
+        value: `Bearer ${HEADER_JWT}`,
+      });
+    });
+
+    it('포털_채널은_전용_헤더에_토큰_값만_싣는다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+
+      expect(buildAuthHeader(HEADER_JWT)).toEqual({
+        name: 'x-access-token',
+        value: HEADER_JWT,
+      });
+    });
+
+    /**
+     * ★ 서버가 **거부로 강제**하는 축이다. `Authorization` 값을 그대로 복사해 넣는 구현이
+     *   정확히 이 변이이며, 모양이 비슷해 눈으로는 지나간다.
+     *
+     * ⚠ 거부 사유는 둘로 갈린다 — 전용 헤더 **단독**에 접두가 붙으면 그 문자열 **전체가 토큰**이
+     *   되어 **서명 파싱에서 거부**(401), `Authorization` 과 **함께** 오면 **값 충돌**로 거부(401).
+     *   둘 다 401 이지만 사유가 다르므로 「하나만 보내면 접두는 무해하다」로 읽지 말 것.
+     *   근거: 백엔드 `JwtFilterPortalHeaderIngressTest` 의 두 케이스.
+     */
+    it('★포털_채널_전용_헤더_값에_Bearer_접두가_붙지_않는다', () => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', 'portal');
+
+      const { value } = buildAuthHeader(HEADER_JWT);
+
+      expect(value.startsWith(BEARER_PREFIX)).toBe(false);
+      expect(value).not.toContain('Bearer');
+      expect(value).toBe(HEADER_JWT);
+    });
+
+    /**
+     * ★ 이름을 두 곳에 따로 적으면 채널 전환 시 한쪽만 갱신돼도 컴파일·타입이 통과한다.
+     *   그 어긋남은 401 재시도 판정이 영영 발동하지 않는 형태로만 드러난다.
+     */
+    it.each(['control', 'portal', ''])(
+      '★되읽기용_이름과_조립된_헤더_이름이_같다_채널(%s)',
+      (channel) => {
+        vi.stubEnv('VITE_BUILD_CHANNEL', channel);
+
+        expect(resolveAuthHeaderName()).toBe(buildAuthHeader(HEADER_JWT).name);
+      },
+    );
+
+    it.each(['control', 'portal', ''])('한_채널이_고르는_헤더는_하나뿐이다_채널(%s)', (channel) => {
+      vi.stubEnv('VITE_BUILD_CHANNEL', channel);
+
+      // 두 헤더를 함께 실으면 서버가 값 충돌로 401 을 낸다 — 조립기는 한 벌만 돌려준다.
+      const header = buildAuthHeader(HEADER_JWT);
+      expect([PORTAL_ACCESS_TOKEN_HEADER, INTERNAL_AUTH_HEADER]).toContain(header.name);
+      expect(Object.keys(header).sort()).toEqual(['name', 'value']);
     });
   });
 
