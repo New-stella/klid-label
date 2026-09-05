@@ -497,3 +497,104 @@ svg { stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .lock-banner, .unlock-banner { flex-wrap: wrap; }
   .countdown { margin-left: 0; }
 }
+
+/* ── AI 장비 목록 ─────────────────────────────────────────────────────────
+   위 「연동 서버 주소」의 네 칸 중 추론·시계열 둘이 목록으로 펼쳐지는 자리다.
+   색·간격·radius 는 전부 위에서 선언한 토큰만 쓴다 — 임의 hex 를 두지 않는다. */
+
+.node-tabs {
+  display: flex;
+  gap: var(--sp-xs);
+  border-bottom: 1px solid var(--border);
+}
+.node-tab {
+  padding: var(--sp-sm) var(--sp-md);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--n-6);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.node-tab.is-active {
+  color: var(--p-7);
+  border-bottom-color: var(--p-6);
+}
+.node-tab-n {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: var(--sp-xs);
+  padding: 0 6px;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  color: var(--n-7);
+  background: var(--n-1);
+  border-radius: var(--radius-full);
+}
+.node-tab.is-active .node-tab-n {
+  color: var(--p-8);
+  background: var(--p-1);
+}
+
+.node-axis-note,
+.node-src-note { margin: 0; line-height: 1.6; }
+
+/* 넓은 표는 페이지가 아니라 자기 안에서 가로로 흐른다. */
+.node-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.node-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.node-table caption {
+  padding: var(--sp-sm) var(--sp-md);
+  text-align: left;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  /* ★ HTML 의 .text-muted(n-6)가 회색 배경 위에서 4.13:1 로 AA 미달이라 여기서 한 단 올린다.
+     클래스를 빼지 않고 색만 덮는 이유는, 흰 배경의 다른 .text-muted 는 통과라 그쪽을 바꾸면 안 되기 때문이다. */
+  color: var(--n-7);
+}
+.node-table th,
+.node-table td {
+  padding: var(--sp-sm) var(--sp-md);
+  text-align: left;
+  border-bottom: 1px solid var(--n-1);
+}
+.node-table thead th {
+  font-size: 13px;
+  font-weight: 700;
+  /* ★ n-6 은 회색 배경(bg-alt) 위에서 4.13:1 로 AA 미달이라 한 단 진한 n-7 을 쓴다.
+     흰 배경 위 보조 텍스트는 n-6 이 4.51:1 로 통과하므로 그대로 둔다 — 배경이 다르면 판정도 다르다. */
+  color: var(--n-7);
+  background: var(--bg-alt);
+}
+.node-table tbody tr:last-child td { border-bottom: 0; }
+.node-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.node-table .mono { font-family: var(--font-mono); font-size: 14px; }
+.node-table .addr { color: var(--n-7); }
+.node-table .row-actions { text-align: right; }
+
+.node-legend {
+  display: grid;
+  gap: var(--sp-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--n-6);
+}
+.node-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  line-height: 1.6;
+}
+
+.node-guard { margin: 0; line-height: 1.6; }

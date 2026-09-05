@@ -22,6 +22,10 @@ set -euo pipefail
 # ============================================================================
 
 JBOSS_HOME_ARG=""; WAR_ARG=""; CHECK=0
+# ★ 웹 컨텍스트 — WAR 안 jboss-web.xml 이 정하는 값과 같아야 한다(현장: /label-studio).
+#   여기서 갈리면 헬스체크가 404 를 받고 <설치가 실패한 것처럼> 보인다.
+APP_CONTEXT="${APP_CONTEXT:-/label-studio}"
+
 for a in "$@"; do
   case "$a" in
     --jboss-home=*) JBOSS_HOME_ARG="${a#*=}" ;;
@@ -163,7 +167,7 @@ echo
 
 if [[ -f "${D}/${WAR}.deployed" ]]; then
   echo "== 헬스 확인"
-  _c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8080/api/actuator/health/liveness 2>/dev/null || echo 000)"
+  _c="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:8080${APP_CONTEXT}/api/actuator/health/liveness 2>/dev/null || echo 000)"
   echo "   /api/actuator/health/liveness → ${_c}"
   if [[ "${_c}" != "200" ]]; then
     cat <<'EOF'
