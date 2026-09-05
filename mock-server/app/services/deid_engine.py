@@ -459,13 +459,66 @@ def _apply_mask(cv2: Any, frame: Any, box: tuple[int, int, int, int], mask_type:
 # ── ffmpeg 입출력 ─────────────────────────────────────────────────
 
 
+#: 프레임률로 인정할 상한. 이보다 크면 실제 프레임률이 아니라 <b>타임베이스</b>다.
+#: ⚠ 실측 사고(2026-09-05, dev 실 CCTV): 어떤 관제 영상은 ``r_frame_rate`` 가 <b>90000/1</b> 이다.
+#:   그 값을 ffmpeg ``-r`` 에 그대로 넘겨 900 프레임을 인코딩하면 900/90000 = <b>0.01초</b> 짜리
+#:   영상이 나온다. 길이 보존 검증이 이 산출물을 걸러내 원본 복사로 폴백시켰다(조용한 절단은
+#:   막혔지만 실제 마스킹도 함께 버려졌다). 로컬 샘플은 30000/1001 이라 이 결함이 드러나지 않았다.
+MAX_PLAUSIBLE_FPS = 240.0
+DEFAULT_FPS = "30"
+
+
+def _parse_rate(value: str) -> Optional[float]:
+    """``30000/1001`` · ``25/1`` · ``29.97`` 형태를 초당 프레임 수로 바꾼다."""
+    value = (value or "").strip()
+    if not value or value in ("0/0", "N/A"):
+        return None
+    try:
+        if "/" in value:
+            num, den = value.split("/", 1)
+            den_f = float(den)
+            return float(num) / den_f if den_f else None
+        return float(value)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def _choose_fps(r_rate: str, avg_rate: str, nb_frames: str, duration: str) -> str:
+    """인코딩에 쓸 프레임률을 고른다 — <b>타임베이스를 프레임률로 오인하지 않는다</b>.
+
+    우선순위: ①평균 프레임률 ②실 프레임률 ③프레임수/길이 ④기본값. 각 후보는 "0 초과 ·
+    상한 이하"일 때만 채택한다. 분수 문자열을 그대로 돌려주면 정밀도가 보존되므로, 채택한
+    후보가 원문 분수면 원문을 쓴다.
+    """
+    for raw in (avg_rate, r_rate):
+        fps = _parse_rate(raw)
+        if fps is not None and 0 < fps <= MAX_PLAUSIBLE_FPS:
+            return raw.strip()
+    # 프레임수/길이 — 위 둘이 모두 비정상일 때의 마지막 실측 근거
+    try:
+        n, d = float(nb_frames), float(duration)
+        if n > 0 and d > 0:
+            derived = n / d
+            if 0 < derived <= MAX_PLAUSIBLE_FPS:
+                return f"{derived:.6f}"
+    except (TypeError, ValueError):
+        pass
+    logger.warning(
+        "[MOCK][DEID] 프레임률을 판정할 수 없어 기본값(%s)을 쓴다 r=%s avg=%s",
+        DEFAULT_FPS, _short(str(r_rate)), _short(str(avg_rate)),
+    )
+    return DEFAULT_FPS
+
+
 def _probe_video(ffprobe: str, src: Path) -> Optional[tuple[int, int, str]]:
-    """(가로, 세로, 프레임률 분수) — 실패하면 None."""
+    """(가로, 세로, 프레임률) — 실패하면 None. 프레임률은 ``_choose_fps`` 가 판정한다."""
     try:
         completed = subprocess.run(  # noqa: S603 — 고정 인자 리스트, shell 미사용
             [
                 ffprobe, "-v", "error", "-select_streams", "v:0",
-                "-show_entries", "stream=width,height,r_frame_rate",
+                "-show_entries",
+                "stream=width,height,r_frame_rate,avg_frame_rate,nb_frames",
+                "-show_entries", "format=duration",
                 "-of", "default=nw=1:nk=1", os.fspath(src),
             ],
             shell=False, capture_output=True, stdin=subprocess.DEVNULL,
@@ -479,9 +532,14 @@ def _probe_video(ffprobe: str, src: Path) -> Optional[tuple[int, int, str]]:
     if len(lines) < 3:
         return None
     try:
-        return int(lines[0]), int(lines[1]), lines[2]
+        width, height = int(lines[0]), int(lines[1])
     except ValueError:
         return None
+    r_rate = lines[2] if len(lines) > 2 else ""
+    avg_rate = lines[3] if len(lines) > 3 else ""
+    nb_frames = lines[4] if len(lines) > 4 else ""
+    duration = lines[5] if len(lines) > 5 else ""
+    return width, height, _choose_fps(r_rate, avg_rate, nb_frames, duration)
 
 
 def _decode_cmd(ffmpeg: str, src: Path) -> list[str]:

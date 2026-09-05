@@ -62,6 +62,17 @@ class Settings(BaseSettings):
             "실제 생성은 write_output_files=True 그리고 output_base 설정 둘 다일 때만"
         ),
     )
+    deid_watermark_enabled: bool = Field(
+        default=False,
+        description=(
+            "실제 마스킹이 불가능할 때 'MOCK 비식별 완료' 워터마크를 구울지 여부. "
+            "★기본값 False — 실제 비식별 엔진(deid_engine)이 산출물을 만들게 된 뒤로 워터마크는 "
+            "필요 없어졌다(사용자 확정, 2026-09-05). 엔진이 성공하면 애초에 워터마크를 굽지 "
+            "않으므로, 이 값이 바꾸는 것은 <b>엔진이 실패했을 때</b>의 동작뿐이다 — "
+            "False 면 원본을 그대로 복사하고, True 면 예전처럼 워터마크를 굽는다. "
+            "⚠ 끈 상태에서는 모델이 없는 환경의 산출물이 원본과 육안으로 구분되지 않는다"
+        ),
+    )
     output_base: str = Field(
         default="",
         description=(

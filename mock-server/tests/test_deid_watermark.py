@@ -36,6 +36,24 @@ import pytest
 
 from app.services import deid_sim
 
+
+@pytest.fixture(autouse=True)
+def _watermark_on(monkeypatch: pytest.MonkeyPatch):
+    """이 파일은 <b>워터마크 경로 자체</b>를 검증하므로 그 기능을 켜고 돈다.
+
+    ★ 운영 기본값은 <b>꺼짐</b>이다(2026-09-05 사용자 확정) — 실제 비식별 엔진이 산출물을
+    만들게 된 뒤로 'MOCK 비식별 완료' 문구는 필요 없어졌다. 그래도 이 테스트들을 남기는 이유는
+    폴백 경로의 <b>보안·경계 계약</b>(shell 미사용 · 경로순회 차단 · 임시파일 격리 · 길이 검증)이
+    여전히 유효하고, 설정을 다시 켤 때 그것들이 지켜지는지 확인할 근거가 필요하기 때문이다.
+    """
+    from app.config import reload_settings
+
+    monkeypatch.setenv("MOCK_DEID_WATERMARK_ENABLED", "true")
+    reload_settings()
+    yield
+    monkeypatch.delenv("MOCK_DEID_WATERMARK_ENABLED", raising=False)
+    reload_settings()
+
 _FFMPEG = shutil.which("ffmpeg")
 
 

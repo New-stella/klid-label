@@ -1446,8 +1446,19 @@ def _burn_deid_watermark(
                 if summary_out is not None:
                     summary_out.append(summary)
 
-        # ② 워터마크 폴백 — 엔진이 없거나 실패했을 때. 여기서만 폰트를 요구한다.
+        # ② 워터마크 폴백 — 엔진이 없거나 실패했을 때만, 그리고 <b>설정으로 켜져 있을 때만</b>.
+        #    ★기본값은 꺼짐이다(2026-09-05 사용자 확정) — 실제 마스킹이 산출되는 지금
+        #      'MOCK 비식별 완료' 문구는 필요 없다. 꺼져 있으면 원본 복사로 내려간다.
         if not rendered_by_engine:
+            from app.config import get_settings  # noqa: PLC0415 — 순환 import 회피
+
+            if not get_settings().deid_watermark_enabled:
+                logger.info(
+                    "[MOCK][KPST] 실제 마스킹 미산출 + 워터마크 비활성 — 원본 복사로 폴백 "
+                    "file=%s",
+                    sanitize_for_log(src.name),
+                )
+                return False
             # 엔진이 남긴 부분 산출물을 먼저 치운다(ffmpeg -n 은 기존 파일이 있으면 실패한다).
             try:
                 temp.unlink(missing_ok=True)

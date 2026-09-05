@@ -194,3 +194,75 @@ def test_요약은_대상별로_따로_센다() -> None:
     s.add(E.KIND_PERSON, 2)
     s.add(E.KIND_TEXT, 7)
     assert (s.faces, s.vehicles, s.persons, s.texts) == (3, 5, 2, 7)
+
+# ── 프레임률 판정 (실 CCTV 실측 사고) ─────────────────────────────
+def test_타임베이스를_프레임률로_쓰지_않는다() -> None:
+    """★회귀 — dev 실 CCTV 의 ``r_frame_rate`` 가 <b>90000/1</b> 이었다. 그 값을 ffmpeg ``-r`` 로
+    넘기면 900 프레임이 900/90000 = <b>0.01초</b> 영상이 되어, 길이 보존 검증에 걸려 실제 마스킹
+    산출물이 통째로 버려진다(원본 복사 폴백). 로컬 샘플은 30000/1001 이라 드러나지 않았다.
+    """
+    fps = E._choose_fps("90000/1", "30/1", "900", "30.0")
+    assert E._parse_rate(fps) == 30.0
+
+
+def test_평균_프레임률을_먼저_쓴다() -> None:
+    assert E._choose_fps("30000/1001", "25/1", "", "") == "25/1"
+
+
+def test_둘_다_비정상이면_프레임수와_길이로_도출한다() -> None:
+    fps = E._choose_fps("90000/1", "0/0", "900", "30.0")
+    got = E._parse_rate(fps)
+    assert got is not None and abs(got - 30.0) < 0.01
+
+
+def test_판정_근거가_전혀_없으면_기본값으로_떨어진다() -> None:
+    """근거가 없다고 산출을 포기하지는 않는다 — 길이 검증이 뒤를 받친다."""
+    assert E._choose_fps("0/0", "N/A", "", "") == E.DEFAULT_FPS
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [("30/1", 30.0), ("30000/1001", 29.97), ("25", 25.0), ("0/0", None),
+     ("N/A", None), ("", None), ("abc", None), ("1/0", None)],
+)
+def test_프레임률_문자열_파싱(raw: str, expected) -> None:
+    got = E._parse_rate(raw)
+    if expected is None:
+        assert got is None
+    else:
+        assert got is not None and abs(got - expected) < 0.01
+
+# ── 워터마크 기본 비활성 (2026-09-05 사용자 확정) ─────────────────
+def test_워터마크는_기본으로_꺼져_있다() -> None:
+    """★실제 마스킹이 산출되는 지금 'MOCK 비식별 완료' 문구는 필요 없다.
+
+    이 값이 바꾸는 것은 <b>엔진이 실패했을 때</b>의 동작뿐이다 — 엔진이 성공하면 애초에
+    워터마크를 굽지 않는다. 꺼진 상태에서 엔진이 실패하면 원본을 그대로 복사한다.
+    """
+    from app.config import get_settings, reload_settings
+
+    reload_settings()
+    assert get_settings().deid_watermark_enabled is False
+
+
+def test_워터마크가_꺼져_있으면_엔진_실패시_원본복사로_내려간다(tmp_path, monkeypatch) -> None:
+    """엔진도 못 하고 워터마크도 안 하면 ``False`` — 호출측이 원본 복사로 폴백한다."""
+    from app.config import reload_settings
+    from app.services import deid_sim
+
+    monkeypatch.delenv("MOCK_DEID_WATERMARK_ENABLED", raising=False)
+    reload_settings()
+
+    in_dir = tmp_path / "raw"; in_dir.mkdir()
+    out_dir = tmp_path / "deid"; out_dir.mkdir()
+    src = in_dir / "a.mp4"
+    # 컨테이너 시그니처는 있으나 실제 영상이 아니라 엔진이 산출하지 못한다
+    src.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"BODY" * 200)
+    target = out_dir / "a-mask.mp4"
+
+    ok = deid_sim._burn_deid_watermark(
+        src, target, input_path=str(in_dir) + "/", input_base=str(in_dir),
+        output_dir=out_dir, export_path=str(out_dir), output_base=str(out_dir),
+    )
+    assert ok is False
+    assert not target.exists()
