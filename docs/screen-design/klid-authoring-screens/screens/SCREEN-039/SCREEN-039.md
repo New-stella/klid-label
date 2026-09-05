@@ -5,11 +5,11 @@ version: 43
 last_updated_at: 2026-09-02T11:24:48.013Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T01:33:13.480Z
-sync_session: 34
+synced_at: 2026-09-05T02:34:48.374Z
+sync_session: 35
 stale: true
-status: CHANGED
-prev_version: 33
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-039.json
 wireframe: ./wireframe.html
 links:
@@ -18,10 +18,6 @@ links:
   realizes_use_cases: ["[[UC-035]]", "[[UC-036]]", "[[UC-037]]"]
   acceptance: ["[[AC-1032]]", "[[AC-1033]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v33 → v43**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (34.3KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 산출물 가져오기
 

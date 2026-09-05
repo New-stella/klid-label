@@ -5,20 +5,16 @@ version: 28
 last_updated_at: 2026-09-02T11:24:47.732Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T01:33:13.448Z
-sync_session: 34
+synced_at: 2026-09-05T02:34:48.335Z
+sync_session: 35
 stale: true
-status: CHANGED
-prev_version: 26
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-002.json
 wireframe: ./wireframe.html
 links:
   consumes_apis: ["[[API-007]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v26 → v28**
-> change_summary: 정적 HTML 와이어프레임 자동 생성 — 1440×auto (5.8KB)
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 관리자 등록 화면
 

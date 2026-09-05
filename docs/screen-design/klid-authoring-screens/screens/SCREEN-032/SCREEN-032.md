@@ -5,11 +5,11 @@ version: 26
 last_updated_at: 2026-09-01T07:06:24.157Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T01:33:13.475Z
-sync_session: 34
+synced_at: 2026-09-05T02:34:48.367Z
+sync_session: 35
 stale: true
-status: CHANGED
-prev_version: 23
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-032.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-001]]"]
   realizes_use_cases: ["[[UC-016]]", "[[UC-036]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v23 → v26**
-> change_summary: 이 화면이 실현하는 흐름에 이관 이력 조회를 더한다. 이번에 더해진 두 구획은 가져온 산출물 가운데 검수 승인이 보류된 영상을 목록으로 보여주고 그 보류를 푸는 자리인데, 그 목록을 조달하는 곳이 이관 이력이고 보류를 푸는 자리를 여는 단계가 그 흐름 안에 있다. 반대 방향은 이미 이어져 그 흐름이 이 화면을 자기 화면으로 꼽고 있었으므로, 한쪽만 이어진 상태를 메운다. 신고와 해소를 담는 기존 흐름은 그대로 남는다.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 비식별 신고 관리 화면
 

@@ -5,11 +5,11 @@ version: 33
 last_updated_at: 2026-09-02T03:11:15.349Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-05T01:33:13.467Z
-sync_session: 34
+synced_at: 2026-09-05T02:34:48.358Z
+sync_session: 35
 stale: true
-status: CHANGED
-prev_version: 32
+status: UNCHANGED
+prev_version: null
 raw: ./_raw/SCREEN-024.json
 wireframe: ./wireframe.html
 links:
@@ -17,10 +17,6 @@ links:
   required_roles: ["[[ROLE-004]]"]
   realizes_use_cases: ["[[UC-030]]"]
 ---
-
-> ⚠️ **버전 변경 감지 — logicraft v32 → v33**
-> change_summary: brownfield.notes 반전 표기 — ADR-055 가 관리자 역할을 신설해 「새 역할을 만들지 않고」가 뒤집혔음을 명시. 당시 근거와 결론은 보존.
-> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 사용자 관리 화면
 

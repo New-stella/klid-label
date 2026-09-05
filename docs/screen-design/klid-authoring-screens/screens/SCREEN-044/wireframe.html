@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="stylesheet" href="wireframe.css"><meta charset="utf-8" /></head>
+<body>
+  <main class="wf-content">
+    <div class="wf-page-header">
+      <div class="wf-breadcrumb"><span>SCREEN-044</span><span class="sep">/</span><span>포털 증강 화면</span></div>
+      <h1 style="white-space:nowrap">포털 증강 화면</h1>
+    </div>
+    <p class="wf-muted" style="margin:-8px 0 16px">포털 회원(PORTAL_USER)이 본인이 올린 영상에 대해 낸 증강 요청의 현황을 보고, 도착한 결과물을 확인하고, 그 결과물에 라벨링 등 후속 작업을 이어서 하러 가고, 작업을 마친 결과물을 내려받는 화면. 증강은 요청·결과 확인·후속 작업·내려받기 넷이 모두 저작도구 안에서 끝나며 이 화면이 뒤의 세 단계를 담는다. 요청을 거는 자리는 이 화면이 아니라 포털 업로드 화면(SCREEN-033)의 자산별 액션이므로 같은 행위의 진입을 여기에 다시 두지 않고, 대상 영상을 고르러 가는 링크만 둔다. 증강은 서버가 외부로 보내는 비동기 위탁이라 요청한 즉시 결과가 나오지 않는다 — 요청 현황 목록은 결과 대기 중인지, 도착했는지, 실패했는지를 셋으로 구분해 보여 대기 구간이 화면에 드러나게 한다. 셋을 가르는… · route /portal/augment</p>
+    <div class="wf-row" style="align-items:flex-start;gap:12px">
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:0">
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">① 증강 요청 현황</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: list</span>
+            <span class="wf-badge wf-badge-primary">API-232</span>
+            <a href="#wf-sec-1" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><span class="wf-bold">증강 요청 목록</span><table class="wf-table"><thead><tr><th>요청 일시</th><th>대상 영상</th><th>생성 조건</th><th>상태</th><th>결과 확인</th></tr></thead><tbody><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr><tr><td>···</td><td>···</td><td>···</td><td>···</td><td>···</td></tr></tbody></table></div><span class="wf-help">상태 칸은 상태 표시와 실패 사유를 같은 칸에 담는다. 실패 사유를 위한 열을 따로 두지 않는다. 정렬은 요청 일시 내림차순으로 고정이다.</span>
+            <span class="wf-badge">요청 상태 (결과 도착 · 결과 대기 중 · 실패)</span><span class="wf-help">결과 도착 여부가 참이면 결과 도착, 거짓이면서 실패 사유가 비어 있으면 결과 대기 중, 거짓이면서 실패 사유가 차 있으면 실패다. 이 차례대로 판정하고 어느 것에도 해당하지 않으면 결과 대기 중으로 둔다. 서버가 내려주는 요청 상태 값 자체로는 가르지 않는다 — 값역이 열려 있어 모르…</span>
+            <span class="wf-muted">실패 사유 — 상태 표시 옆 같은 칸에 한 줄, 넘치면 줄임표</span><span class="wf-help">실패한 행에만 보인다. 전문은 가리키면 뜨는 말풍선에 담고, 가리켜 볼 수 없는 환경에서는 그 행의 결과 확인으로 들어가 본다. 사유를 위해 열을 따로 두거나 행을 펼치지 않는다 — 별도 열은 실패가 아닌 대다수 행에 빈 칸을 남겨 목록을 넓히고, 펼침은 한 행을 열 때 아래 행이 밀려…</span>
+            <span class="wf-muted">생성 조건 — 시간대 · 계절 · 날씨 · 지형 · 심각도 차례로 한 줄</span><span class="wf-help">조건에 담겨 온 항목을 빠짐없이 보인다. 아는 다섯 항목을 정해진 차례로 놓고 그 밖의 항목은 뒤에 이름과 값을 받은 그대로 이어 붙인다 — 아는 목록에 없다는 이유로 감추지 않는다. 대응하는 우리말 이름을 모르는 값도 받은 값을 그대로 보인다. 표시 문구를 접수 창구 값역의 사본으로 …</span>
+            <span class="wf-muted">요청한 즉시 결과가 나오지 않습니다 — 도착하면 목록의 상태가 바뀝니다</span><span class="wf-help">대기 구간을 숨기지 않기 위한 안내. 기다리는 동안에도 다른 자산의 작업을 이어서 할 수 있다. 결과 도착을 다시 확인하는 대상은 결과 대기 중인 요청뿐이며, 도착한 요청과 실패한 요청은 재조회하지 않는다. 대기 중인 요청이 하나도 없으면 재조회를 멈춘다.</span>
+            <a href="#_" class="wf-btn wf-btn-ghost">증강할 영상 고르러 가기</a><span class="wf-help">포털 업로드 화면(SCREEN-033)으로 이동한다. 증강 요청 진입은 그 화면의 자산별 액션이 갖고 있어 이 화면에 다시 두지 않는다.</span>
+            <div class="wf-pagination"><button class="wf-page-btn active">1</button><button class="wf-page-btn">2</button><button class="wf-page-btn">3</button></div><span class="wf-help">서버가 페이지로 내려주고 페이지 크기에 상한이 걸려 있어, 옮길 수단이 없으면 첫 쪽에 있는 요청에만 도달한다. 정렬은 요청 일시 내림차순으로 고정이라 정렬 수단은 두지 않는다.</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">② 증강 결과 확인</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: detail</span>
+            <span class="wf-badge wf-badge-primary">API-233</span>
+            <a href="#wf-sec-2" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <div class="wf-stack"><div class="wf-row"><span class="wf-muted">요청 정보 (대상 영상 · 생성 조건 · 요청 일시 · 결과 도착 일시)</span><span>···</span></div></div><span class="wf-help">생성 조건은 목록과 같은 규칙으로 보이되 줄이지 않고 전문을 보인다 — 아는 다섯 항목(시간대 · 계절 · 날씨 · 지형 · 심각도)을 그 차례로 놓고, 그 밖의 항목은 뒤에 이름과 값을 받은 그대로 이어 붙인다.</span>
+            <span class="wf-muted">증강 결과물 미리보기</span>
+            <span class="wf-muted">결과가 아직 도착하지 않았습니다</span><span class="wf-help">결과를 기다리는 중인 요청을 골랐을 때만 보인다.</span>
+            <div class="wf-alert wf-alert-info">증강이 실패했습니다 — 사유를 함께 보인다</div>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">③ 결과물 후속 작업 진입</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-3" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <a href="#_" class="wf-btn wf-btn-ghost">라벨링 이어서 하기</a><span class="wf-help">포털 라벨링 화면(SCREEN-029)으로 이동한다. 결과가 도착한 요청에만 노출한다.</span>
+            <span class="wf-muted">후속 작업 범위 안내 (바운딩 박스·폴리곤 수동 라벨링만 제공)</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">④ 결과물 내려받기</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <span class="wf-badge wf-badge-primary">API-157</span>
+            <span class="wf-badge wf-badge-primary">API-159</span>
+            <a href="#wf-sec-4" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <button class="wf-btn wf-btn-primary">라벨 내보내기</button>
+            <button class="wf-btn">원본 파일 내려받기</button>
+            <span class="wf-muted">본인이 낸 요청의 결과물만 내려받을 수 있습니다</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-cluster">
+            <h2 class="wf-card-title">⑤ 요청이 없을 때</h2>
+            <span class="wf-badge">role: main</span>
+            <span class="wf-badge">layout: stack</span>
+            <a href="#wf-sec-5" class="wf-detail-btn">섹션 상세</a>
+          </div>
+          <div class="wf-stack wf-mt">
+            <span class="wf-muted">아직 요청한 증강이 없습니다</span>
+            <a href="#_" class="wf-btn wf-btn-ghost">증강할 영상 고르러 가기</a><span class="wf-help">포털 업로드 화면(SCREEN-033)으로 이동한다.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="wf-sec-1" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">① 증강 요청 현황</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>본인이 낸 증강 요청을 최근 것부터 목록으로 보여 준다. 각 행에는 요청 일시, 대상 영상, 요청할 때 지정한 생성 조건, 요청 상태, 결과 확인 진입이 놓인다.
+
+[셋을 가르는 근거] 행이 함께 나르는 결과 도착 여부와 실패 사유로 판정하며 차례가 있다. 도착 여부가 참이면 결과 도착, 거짓이면서 실패 사유가 비어 있으면 결과 대기 중, 거짓이면서 실패 사유가 차 있으면 실패다. 어느 것에도 해당하지 않으면 결과 대기 중으로 둔다 — 모르는 상태를 도착으로 읽지 않는다. 서버가 내려주는 요청 상태 값 자체로는 가르지 않는다. 그 값역이 열려 있어 화면이 모르는 값이 오면 판정이 무너지기 때문이다.
+
+[목록 하나로 판정한다] 실패를 가려내려고 행마다 결과 확인 창구를 부르지 않는다. 세 구분에 필요한 것이 모두 행에 실려 있으므로 목록 조회 한 번으로 판정이 선다.
+
+[재조회] 결과 도착을 다시 확인하는 대상은 결과 대기 중인 요청뿐이다. 도착한 요청과 실패한 요청은 재조회 대상에서 빠지며, 대기 중인 요청이 하나도 없으면 재조회를 멈춘다.
+
+[실패한 행] 실패한 요청에는 후속 작업 진입과 내려받기를 노출하지 않는다.
+
+목록에 나오는 요청은 본인이 낸 것뿐이며 대상은 본인이 올린 영상에 한정된다 — 데이터마트에서 불러온 영상은 대상이 아니다. 요청을 거는 자리는 이 화면에 두지 않으며, 새로 증강을 걸려면 포털 업로드 화면(SCREEN-033)의 자산별 액션을 쓴다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Table(증강 요청 목록)<p class="wf-help" style="margin:2px 0 0">상태 칸은 상태 표시와 실패 사유를 같은 칸에 담는다. 실패 사유를 위한 열을 따로 두지 않는다. 정렬은 요청 일시 내림차순으로 고정이다.</p></li><li>Badge(요청 상태 (결과 도착 · 결과 대기 중 · 실패))<p class="wf-help" style="margin:2px 0 0">결과 도착 여부가 참이면 결과 도착, 거짓이면서 실패 사유가 비어 있으면 결과 대기 중, 거짓이면서 실패 사유가 차 있으면 실패다. 이 차례대로 판정하고 어느 것에도 해당하지 않으면 결과 대기 중으로 둔다. 서버가 내려주는 요청 상태 값 자체로는 가르지 않는다 — 값역이 열려 있어 모르는 값이 오면 판정이 무너진다.</p></li><li>Text(실패 사유 — 상태 표시 옆 같은 칸에 한 줄, 넘치면 줄임표)<p class="wf-help" style="margin:2px 0 0">실패한 행에만 보인다. 전문은 가리키면 뜨는 말풍선에 담고, 가리켜 볼 수 없는 환경에서는 그 행의 결과 확인으로 들어가 본다. 사유를 위해 열을 따로 두거나 행을 펼치지 않는다 — 별도 열은 실패가 아닌 대다수 행에 빈 칸을 남겨 목록을 넓히고, 펼침은 한 행을 열 때 아래 행이 밀려 목록을 훑는 흐름이 끊긴다. 어떤 행도 두 줄 이상으로 늘어나지 않으며 행 높이는 모든 행이 같다.</p></li><li>Text(생성 조건 — 시간대 · 계절 · 날씨 · 지형 · 심각도 차례로 한 줄)<p class="wf-help" style="margin:2px 0 0">조건에 담겨 온 항목을 빠짐없이 보인다. 아는 다섯 항목을 정해진 차례로 놓고 그 밖의 항목은 뒤에 이름과 값을 받은 그대로 이어 붙인다 — 아는 목록에 없다는 이유로 감추지 않는다. 대응하는 우리말 이름을 모르는 값도 받은 값을 그대로 보인다. 표시 문구를 접수 창구 값역의 사본으로 두면 항목이 늘어난 날 화면이 그 항목을 조용히 감춘다. 칸을 넘치면 줄임표로 자르고 전문은 그 행의 결과 확인에서 본다.</p></li><li>Text(요청한 즉시 결과가 나오지 않습니다 — 도착하면 목록의 상태가 바뀝니다)<p class="wf-help" style="margin:2px 0 0">대기 구간을 숨기지 않기 위한 안내. 기다리는 동안에도 다른 자산의 작업을 이어서 할 수 있다. 결과 도착을 다시 확인하는 대상은 결과 대기 중인 요청뿐이며, 도착한 요청과 실패한 요청은 재조회하지 않는다. 대기 중인 요청이 하나도 없으면 재조회를 멈춘다.</p></li><li>Link(증강할 영상 고르러 가기)<p class="wf-help" style="margin:2px 0 0">포털 업로드 화면(SCREEN-033)으로 이동한다. 증강 요청 진입은 그 화면의 자산별 액션이 갖고 있어 이 화면에 다시 두지 않는다.</p></li><li>Pagination(증강 요청 현황 페이지)<p class="wf-help" style="margin:2px 0 0">서버가 페이지로 내려주고 페이지 크기에 상한이 걸려 있어, 옮길 수단이 없으면 첫 쪽에 있는 요청에만 도달한다. 정렬은 요청 일시 내림차순으로 고정이라 정렬 수단은 두지 않는다.</p></li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-232</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-2" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">② 증강 결과 확인</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>요청 현황 목록에서 고른 요청의 결과물을 확인한다. 결과가 도착한 요청만 내용을 보이며, 아직 결과 대기 중인 요청을 고르면 대기 중임을 알리고 결과 영역을 비워 둔다. 실패한 요청은 실패했다는 사실과 사유를 함께 보인다 — 목록에서 이미 셋이 갈린 뒤 들어오므로 이 구역이 실패를 처음 알리는 자리가 아니며, 여기서 보이는 사유는 목록에서 줄여 보인 것과 같은 값을 줄이지 않고 전문으로 보인 것이다. 생성 조건도 목록과 같은 규칙으로 보이되 줄이지 않는다 — 조건에 담겨 온 항목을 빠짐없이 보이고 화면이 모르는 항목도 이름과 값을 받은 그대로 이어 보인다. 결과물은 요청한 본인에게만 제공되며, 확인하는 것만으로 데이터마트와 원본이 바뀌지 않는다. 이 경로에는 검수가 없으므로 결과물을 채택·반려로 가르는 결정 단계를 두지 않는다 — 확인한 결과물은 그대로 후속 작업과 내려받기로 이어진다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>KeyValue(요청 정보 (대상 영상 · 생성 조건 · 요청 일시 · 결과 도착 일시))<p class="wf-help" style="margin:2px 0 0">생성 조건은 목록과 같은 규칙으로 보이되 줄이지 않고 전문을 보인다 — 아는 다섯 항목(시간대 · 계절 · 날씨 · 지형 · 심각도)을 그 차례로 놓고, 그 밖의 항목은 뒤에 이름과 값을 받은 그대로 이어 붙인다.</p></li><li>Image(증강 결과물 미리보기)</li><li>Text(결과가 아직 도착하지 않았습니다)<p class="wf-help" style="margin:2px 0 0">결과를 기다리는 중인 요청을 골랐을 때만 보인다.</p></li><li>Alert(증강이 실패했습니다 — 사유를 함께 보인다)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-233</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-3" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">③ 결과물 후속 작업 진입</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>확인한 증강 결과물에 라벨링 등 후속 작업을 이어서 하러 가는 자리. 라벨링 자체는 포털 라벨링 화면(SCREEN-029)이 수행하고 이 화면은 그리로 가는 진입만 갖는다 — 같은 작업을 두 화면에서 하지 않는다. 결과가 도착한 요청에만 진입을 노출하고, 결과 대기 중이거나 실패한 요청에는 노출하지 않는다. 목록 행에서도 마찬가지로 결과가 도착한 행에만 이 진입을 낸다 — 목록이 실패를 스스로 가릴 수 있게 되어 행 단위로도 같은 규정이 선다. 후속 작업에서 쓸 수 있는 라벨 도형은 바운딩 박스와 폴리곤 수동 라벨링뿐이며, 오토라벨링·SAM2 인터랙티브 분할·자동추적·키포인트·검수·버전관리는 이 경로에 없다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Link(라벨링 이어서 하기)<p class="wf-help" style="margin:2px 0 0">포털 라벨링 화면(SCREEN-029)으로 이동한다. 결과가 도착한 요청에만 노출한다.</p></li><li>Text(후속 작업 범위 안내 (바운딩 박스·폴리곤 수동 라벨링만 제공))</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-4" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">④ 결과물 내려받기</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>작업을 마친 증강 결과물을 내려받는 자리. 라벨 내보내기와 원본 파일 내려받기를 제공하며 본인이 낸 요청의 결과물만 대상이다. 내려받기는 저작도구 화면에서만 일어난다 — 외부 채널이 요약이나 연계 목적으로 목록을 조회해 가는 것과는 다른 축이다. 결과가 도착한 요청에만 내려받기를 노출하고, 결과 대기 중이거나 실패한 요청에는 노출하지 않는다. 목록 행에서도 마찬가지다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Button(라벨 내보내기)</li><li>Button(원본 파일 내려받기)</li><li>Text(본인이 낸 요청의 결과물만 내려받을 수 있습니다)</li></ul></div>
+      <div class="wf-sec-detail-modal-section"><h4>API</h4><ul><li>API-157</li><li>API-159</li></ul></div>
+    </div>
+  </div>
+  <div id="wf-sec-5" class="wf-sec-detail-modal">
+    <a href="#_" class="wf-sec-detail-modal-backdrop"></a>
+    <div class="wf-sec-detail-modal-box">
+      <a href="#_" class="wf-sec-detail-modal-close">×</a>
+      <h3 class="wf-sec-detail-modal-title">⑤ 요청이 없을 때</h3>
+      <div class="wf-sec-detail-modal-section"><h4>설명</h4><p>증강 요청이 하나도 없을 때 목록 자리에 대신 놓이는 안내. 아직 요청한 증강이 없다는 사실과 증강을 걸려면 어디로 가야 하는지를 함께 보인다 — 요청 진입이 이 화면에 없으므로 빈 화면만 남으면 다음에 무엇을 할지 찾지 못한다. 유도 대상은 포털 업로드 화면(SCREEN-033)이며, 그 화면에서 준비가 끝난 본인 영상을 골라 증강을 요청한다.</p></div>
+      <div class="wf-sec-detail-modal-section"><h4>Components</h4><ul><li>Text(아직 요청한 증강이 없습니다)</li><li>Link(증강할 영상 고르러 가기)<p class="wf-help" style="margin:2px 0 0">포털 업로드 화면(SCREEN-033)으로 이동한다.</p></li></ul></div>
+    </div>
+  </div>
+</body>
+</html>
