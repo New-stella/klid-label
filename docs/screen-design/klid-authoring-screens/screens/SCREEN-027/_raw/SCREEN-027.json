@@ -320,7 +320,7 @@
         ],
         "progress": 100,
         "subtasks": [],
-        "last_updated": "2026-08-27T20:57:54.582Z",
+        "last_updated": "2026-09-01T08:46:28.922Z",
         "module_paths": []
       },
       "required_roles": [
@@ -336,8 +336,8 @@
           "platform": "web",
           "sections": [],
           "description": "",
-          "source_hash": "122d5ff48def28f28831d624d38e928f7941a26be68e3e1ac6e315cc8e9608dc",
-          "generated_at": "2026-09-01T07:34:51.075Z",
+          "source_hash": "8bfe4a20bcf8ce55c3be2fae15a53e3e32b54de28c61b0148a7b130b74fd1e5c",
+          "generated_at": "2026-09-02T11:24:47.923Z",
           "generated_by": "generate-wireframes.py",
           "triggered_by": []
         }
@@ -353,12 +353,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 50,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "출처유형을 필수에서 선택으로 내린다(사용자 판정). 어느 경로에서도 서버가 요구하지 않는 값이었다 — 파이프라인 즉시 실행에서는 전달조차 되지 않고 관제 인입 재현에서도 비우면 기본값이 붙는다. 그런데 화면만 별표를 달고 시작 버튼을 막고 있어, 전달되지 않는 묶음을 화면이 알려 준다는 이 화면의 원칙과 정면으로 어긋났다. 입력칸과 인입 재현에서의 전달은 그대로 두고 강제만 걷는다.",
+    "current_version": 52,
+    "stale": true,
+    "stale_reason": "ROLE-004의 data.attached_files 변경 — requires",
+    "change_summary": "정적 HTML 와이어프레임 자동 생성 — 1440×auto (16.8KB)",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:34:45.256Z",
+    "last_updated_at": "2026-09-02T11:24:47.924Z",
     "created_at": "2026-05-30T07:55:52.978Z"
   }
 }

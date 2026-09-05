@@ -17,7 +17,7 @@
       "security": [
         {
           "jwt": [
-            "REVIEWER"
+            "ADMIN"
           ]
         }
       ],
@@ -141,12 +141,12 @@
     },
     "data_projected_to": null,
     "schema_version": 1,
-    "current_version": 6,
-    "stale": false,
-    "stale_reason": null,
-    "change_summary": "검증한다고 선언한 수용기준 목록을 살아 있는 것으로 다시 세운다. 2건 중 2건이 재번호 라운드에서 폐기된 세분 단정 기준이라 이 축의 검증이 실질 비어 있었다. 그 기준들이 스스로 선언한 파생 출처를 따라 같은 흐름을 덮도록 만들어진 흐름 단위 기준으로 옮긴다(AC-1072, AC-1073, AC-1074). 흐름 단위로 묶이면서 같은 흐름에 속한 창구들이 같은 기준을 가리키게 되는데, 그것이 대체의 성질이라 좁히지 않는다.",
+    "current_version": 7,
+    "stale": true,
+    "stale_reason": "AC-1074의 data.scenario 변경 — verifies",
+    "change_summary": "인가 선언을 구현과 맞춘다 — 본문이 관리자 역할·유효창·현재 패스워드 재확인 셋을 요구하는데 security 만 검수자로 남아 있었다. 자격 교체 창구의 인가가 한 단계 낮게 공표되고 있었다.",
     "last_updated_by": "claude",
-    "last_updated_at": "2026-09-01T08:27:07.067Z",
+    "last_updated_at": "2026-09-02T01:25:45.479Z",
     "created_at": "2026-08-27T09:24:04.580Z"
   }
 }

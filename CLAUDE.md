@@ -1057,6 +1057,26 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 이 레포는 logicraft 화면 설계 기반으로 프론트엔드를 구현한다. **화면 작업 전 아래 키트의 SCREENS.md 를 먼저 읽을 것.**
 
+> ★★★ **2026-09-05 SYNC — 7개 키트 전부 (구현 키트 라운드에 이어 화면 축 따라잡기).**
+> 계기는 **뒤처짐이 실측으로 확인된 것**이다 — 로컬 `_raw` 의 `current_version` 을 서버와 대조해
+> 통합 48 · D010 19 · D003 19 · D005 18 · D001 18 · D009 16 · D015 16 건을 확인하고 돌렸다.
+> **결과: 정본 경로(`screens/`·`_shared/`) 뒤처짐 7키트 전부 0** · 재실행 델타 `변경 0 · 유지 467` 로 수렴 ·
+> 직전 커밋 `version-master.md` 대비 **유실 0** · **`design.html`/`design.css` 로컬 원본 변경·삭제 0**.
+> ★**`--scope-file` 만으로는 pin 이 적용되지 않는다 — `--domain` 이 함께 있어야 한다.**
+> 다운로더가 `scopeByClient = Boolean(domain) && …` 로 판정하므로, `--domain` 을 빼면 pin 분기에
+> 아예 들어가지 않고 **프로젝트 전량(1,646건)** 을 받는다. dry-run 이 그것을 잡았다(pin 468 vs 서버 1,646).
+> 통합 키트의 pin `domain` 값은 **`DOMAIN-000`** 이므로 그 값을 그대로 넘긴다.
+> ★**pending 판정을 「따라잡기」와 「스코프 확대」로 갈랐다** — 기존 pin 화면이 소비하는 API·연결된 UC/AC·
+> 공유자산(ROLE·CONST) **42건만 승격**하고, **새 화면 25건과 그에 딸린 SD 6건은 보류**했다. 도메인별
+> 소형 키트는 담당 화면만 담는 의도적 축소판이라, 그래프로 닿는다고 새 화면을 넣으면 키트 정체성이 바뀐다.
+> ⚠ **`SCREEN-034` 를 통합 pin 에서 걷어냈다**(서버 `deprecated` — `SCREEN-029` 로 통합). `_retired/` 보존, 유실 아님.
+> ⚠ **통합 키트에 아직 없는 화면 2건: `SCREEN-044`(포털 증강) · `SCREEN-045`.** 화면 편입은 폐포(소비 API·UC·AC·렌더)를
+> 함께 승격하는 별도 라운드가 필요하다 — `SCREEN-039` 때와 같은 이유다.
+> ⚠ **키트 루트에 평평한 타입 디렉터리가 남아 있다**(`use_case/`·`api_endpoint/`·`screen_spec/` 등 키트당 8~10개,
+> 추적 파일 1,155개). 과거 `--out` 을 키트 루트로 준 실수(스킬 §함정 1)의 잔재이며 **arranger 가 관리하지 않아
+> 영원히 낡는다.** 실제로 이번에 남은 「뒤처짐」은 전부 여기에 있었다(정본 경로는 0). 정리는 추적 파일 삭제라 별도 판단.
+> ⚠ **`.staging-s1`~`s37c` 옛 스냅샷 7개**가 통합 키트에 있다(미추적). 버전 대조 시 이것까지 세면 뒤처짐이 부풀려진다.
+>
 > ★★ **2026-08-29 SYNC — 7개 키트 전부 · `--ids` 대신 pin(`--scope-file`)으로 돌렸다.** 전 키트 **`서버 건수 = pin 건수`**(통합 539·D010 225·D005 172·D001 168·D009 168·D003 166·D015 163)이고, 직전 커밋 `version-master.md` 대비 **유실 0 · 신규 0**. 통합 키트는 **32 → 36 화면**이 됐다(SCREEN-040~043 편입). 세션은 통합 s33 · 도메인 s15(D003 만 s18)다.
 > 이 라운드가 바꾼 것: **`SCREEN-002` 가 「역할 클레임」에서 「관리자 등록」으로 전면 개정**됐고(역할 선택 라디오가 사양에서 사라졌다), 관리자 화면 6곳의 `검수자 권한`·`검수자 전용` 서술이 실제 인가(`ADMIN_ONLY`)에 맞춰졌으며, `UI-110` 배지 카탈로그에 **관리자·미매핑** 변형이 생겼다. 와이어프레임 7건·시안 9건을 재게시했고 전건 **`replace` opcode 0** 으로 무손상을 증명했다.
 > ⚠ **`검수자 권한` 을 일괄 치환하지 마라** — *"조회도 검수자 권한만으로는 되지 않는다"*(검수자를 **하한**으로 말함)와 *"관리자가 검수자 권한을 계층으로 물려받는다"* 는 **정당한 서술**이다. 실제로 `GET /v1/users` 는 `hasRole('REVIEWER')` 이고 `PATCH` 만 `ADMIN` 이다. 바꿔야 하는 것은 **유효창이 가산되는 밑바탕 권한**을 검수자로 적은 자리뿐이다.
@@ -1085,13 +1105,13 @@ CVAT 원본은 Django + TypeScript, 본 프로젝트는 Spring Boot + TypeScript
 
 | 키트 | 화면 수 | 키트 경로 | ui_component 카탈로그 | last sync | 표 ITEM |
 |---|---|---|---|---|---|
-| **전체 통합 (36화면)** | 36개 (SCREEN-001~043 중 36건) | docs/screen-design/klid-authoring-screens/ | 144건 | **2026-08-28 (s33)** | 539 |
-| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-08-28 (s15) | 225 |
-| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-08-28 (s15) | 172 |
-| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-08-28 (s15) | 163 |
-| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-08-28 (s18) | 166 |
-| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-08-28 (s15) | 168 |
-| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-08-28 (s15) | 168 |
+| **전체 통합 (36화면)** | 36개 (SCREEN-001~043 중 36건) | docs/screen-design/klid-authoring-screens/ | 145건 | **2026-09-05 (s34)** | 467 |
+| DOMAIN-010 라벨링 | 2개 (SCREEN-005, SCREEN-026) | docs/screen-design/라벨링-DOMAIN-010/ | 144건 | 2026-09-05 (s16) | 227 |
+| DOMAIN-005 검수 | 2개 (SCREEN-018, SCREEN-019) | docs/screen-design/검수-DOMAIN-005/ | 144건 | 2026-09-05 (s16) | 180 |
+| DOMAIN-015 작업 배정 | 1개 (SCREEN-012) | docs/screen-design/작업-배정-DOMAIN-015/ | 144건 | 2026-09-05 (s16) | 166 |
+| DOMAIN-003 영상·프레임 수집 | 1개 (SCREEN-009) | docs/screen-design/영상프레임-수집-DOMAIN-003/ | 144건 | 2026-09-05 (s19) | 163 |
+| DOMAIN-009 게시판·공지 | 4개 (SCREEN-030, SCREEN-031, SCREEN-036, SCREEN-037) | docs/screen-design/게시판공지-DOMAIN-009/ | 144건 | 2026-09-05 (s16) | 172 |
+| DOMAIN-001 사용자·권한 | 5개 (SCREEN-001, SCREEN-002, SCREEN-003, SCREEN-004, SCREEN-024) | docs/screen-design/사용자권한-DOMAIN-001/ | 144건 | 2026-09-05 (s16) | 176 |
 
 ## 작업 규칙 (화면 키트 워크플로)
 1. **키트가 설계 진실원** — 화면 규칙·제약·빌드순서는 키트에서 읽는다. 키트 파일은 read-only 산출물 — **직접 수정 금지**.

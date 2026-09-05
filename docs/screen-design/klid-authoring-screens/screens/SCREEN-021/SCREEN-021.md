@@ -5,11 +5,11 @@ version: 29
 last_updated_at: 2026-08-31T12:49:51.348Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:39:29.342Z
-sync_session: 37
+synced_at: 2026-09-05T01:33:13.464Z
+sync_session: 34
 stale: true
-status: UNCHANGED
-prev_version: null
+status: CHANGED
+prev_version: 29
 raw: ./_raw/SCREEN-021.json
 wireframe: ./wireframe.html
 links:
@@ -17,6 +17,10 @@ links:
   required_roles: ["[[ROLE-001]]"]
   acceptance: ["[[AC-1084]]", "[[AC-1085]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v29 → v29**
+> change_summary: 리포트 내려받기를 검증하는 수용기준 두 건을 연결한다. 종전에는 이 화면의 내려받기 기능을 판정하는 기준이 설계에 한 건도 없었다. 화면 구성과 서술은 그대로이고 추적 연결만 더한다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 전체 구축 현황 화면
 

@@ -2853,7 +2853,11 @@ navigation
 
 ## description
 
-전역 상단 네비게이션 바(h-14 fixed). 좌측 로고+제목(학습데이터 저작도구, /dashboard 링크), 우측 역할 배지(검수자/작업자/포털, 역할별 색상 구분) + 사용자 아바타(이름 첫 글자 원형 이니셜) + 이름. SSO 채널이라 역할 변경 불가 — read-only 표시. useAuthStore claims 구독.
+전역 상단 네비게이션 바(h-14 fixed). 좌측 로고+제목(학습데이터 저작도구, /dashboard 링크), 우측 역할 배지(관리자/검수자/작업자/포털, 역할별 색상 구분) + 사용자 아바타(이름 첫 글자 원형 이니셜) + 이름. SSO 채널이라 역할 변경 불가 — read-only 표시. useAuthStore claims 구독.
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -2944,11 +2948,15 @@ layout
 
 ## description
 
-외부 포털 채널 전용 레이아웃 쉘. 상단 sticky 헤더(제목 'AI 학습데이터 포털' + 사용자명, LNB 없음, fixed 가 아니라 sticky라 본문에 별도 오프셋 패딩이 필요 없다) + main(Outlet) + 하단 Footer(AppLayout 과 동일 콘텐츠). 모바일 친화(md:* 분기, WCAG 2.1 AA).
+외부 포털 채널 전용 레이아웃 셸. 이 레이아웃은 자기 머리 영역도 좌측 주 메뉴도 그리지 않는다 — 둘 다 외부 채널(Host)이 제공하며, 제목·사용자명을 여기에 두면 Host 머리 영역과 겹쳐 두 벌이 된다. 구성은 본문(main, Outlet) + 목적지 이동을 위한 본문 상단 탭이다. [폐기] 하단 푸터는 두지 않는다 — 노출 여부와 문안이 확정되지 않아 두 셸 모두 푸터를 내보내지 않기로 했고, 문안이 확정되면 셸 사양을 먼저 되돌린 뒤 다시 마운트한다. 본문 상단 탭은 카탈로그의 Tabs(UI-009)를 그대로 쓰고 새 탭 부품을 만들지 않는다. 목적지 목록은 내비게이션 정의(NAV)가 단일 진실원이라 여기에 나열하지 않는다. 모바일 친화(md:* 분기, WCAG 2.1 AA).
 
 ## usage_example
 
 router 의 /portal 루트 element. PORTAL_USER 전용.
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -2956,7 +2964,7 @@ DS-001
 
 ## accessibility_notes
 
-사용자명은 역할 배지 없이 일반 텍스트로만 노출된다(Gnb 의 역할 배지는 내부 채널 전용).
+이 레이아웃은 머리 영역을 두지 않으므로 사용자명·역할 배지도 두지 않는다 — 외부 채널(Host)이 그 영역을 제공한다. 접근성 책임은 본문 상단 탭에 있으며, 그 탭은 Tabs(UI-009)의 role=tablist/tab/tabpanel, aria-selected/aria-controls, roving tabindex, 화살표 키 이동, 각 탭 최소 44px 터치 타깃을 그대로 따른다.
 
 ## referenced_by_screen_ids
 
@@ -3530,7 +3538,7 @@ display
 
 ## description
 
-react-konva Stage 컨테이너. Layer를 이미지/라벨/오버레이 3겹으로 분리해 이미지는 imageUrl 변경 시에만 재렌더되고 라벨 변경이 이미지 레이어를 다시 그리지 않는다. 도구 모드(선택/바운딩 박스/폴리곤/AI 분할/키포인트)와 라벨 선택·갱신은 공유 라벨 스토어를 통해 이뤄지며, 이 컴포넌트는 프레임 데이터·컨테이너 크기·라벨 목록만 props로 받는다. 화면 표시용 회전(0/90/180/270°, 보기 전용 — 회전 중에는 편집 핸들을 붙이지 않는다), 드래그한 영역으로 확대하는 영역 확대(보기 조작 — 라벨을 만들지 않으며, 아주 작은 드래그는 무시하고, 배율은 기존 확대 한계를 넘지 않으며, 화면 맞춤으로 되돌린다), 격자 오버레이 토글을 지원한다. 밝기/대비 조절과 라벨/작업 레이어 투명도는 화면 표시 전용(저장 대상 아님)이며 공유 상태로 관리된다. 스페이스+드래그 또는 중클릭으로 팬, 휠로 커서 중심 줌을 지원한다. 편집 차단(장시간 작업 진행 중) 구간에는 라벨 레이어의 포인터 이벤트를 꺼 선택·이동·편집 진입 자체를 막는다. 내부 라벨링 캔버스 화면과 포털 업로드 라벨링 화면이 이 컴포넌트를 공유한다.
+react-konva Stage 컨테이너. Layer를 이미지/라벨/오버레이 3겹으로 분리해 이미지는 imageUrl 변경 시에만 재렌더되고 라벨 변경이 이미지 레이어를 다시 그리지 않는다. 도구 모드(선택/바운딩 박스/폴리곤/AI 분할/키포인트)와 라벨 선택·갱신은 공유 라벨 스토어를 통해 이뤄지며, 이 컴포넌트는 프레임 데이터·컨테이너 크기·라벨 목록만 props로 받는다. 화면 표시용 회전(0/90/180/270°, 보기 전용 — 회전 중에는 편집 핸들을 붙이지 않는다), 드래그한 영역으로 확대하는 영역 확대(보기 조작 — 라벨을 만들지 않으며, 아주 작은 드래그는 무시하고, 배율은 기존 확대 한계를 넘지 않으며, 화면 맞춤으로 되돌린다), 격자 오버레이 토글을 지원한다. 밝기/대비 조절과 라벨/작업 레이어 투명도는 화면 표시 전용(저장 대상 아님)이며 공유 상태로 관리된다. 스페이스+드래그 또는 중클릭으로 팬, 휠로 커서 중심 줌을 지원한다. 편집 차단(장시간 작업 진행 중) 구간에는 라벨 레이어의 포인터 이벤트를 꺼 선택·이동·편집 진입 자체를 막는다. 내부 라벨링 캔버스 화면과 포털 라벨링 화면이 이 컴포넌트를 공유한다 — 포털의 라벨링 화면은 자산 출처를 가리지 않는 통합 화면 하나뿐이다.
 
 ## props_schema
 
@@ -3605,6 +3613,10 @@ react-konva Stage 컨테이너. Layer를 이미지/라벨/오버레이 3겹으�
 - **type**: boolean
 - **required**: false
 - **description**: 격자 오버레이 표시 토글(보기 전용)
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -5613,7 +5625,7 @@ input
 
 ## description
 
-증강 요청 화면에서 처리 종류 하나를 고르는 라디오 카드. WINTER/NIGHT/RAIN(외부 위탁 증강) 및 RESOLUTION(해상도 변경, 저작도구 내부 수행) 4종 중 하나를 선택하면 아이콘·제목·설명과 선택 표시(체크)가 뜬다. 부모가 role=radiogroup으로 감싸고 카드 각각은 role=radio + aria-checked로 단일 선택 상태를 표현하며, 로빙 tabIndex(선택된 카드만 0)와 화살표 키 이동(onKeyDown)으로 키보드만으로 탐색·선택할 수 있다. disabled는 제출 처리 중일 때뿐 아니라, 대상 영상이 이미 파생영상(원본이 아닌 증강/해상도 결과물)이라 증강 요청 자체가 영구히 허용되지 않는 경우에도 쓰인다 — 파생 깊이를 1로 고정하는 정책상 재시도 여지가 없는 조건이며, 이때는 요청 진입 자체가 막히고 사유가 툴팁으로 안내된다.
+증강 요청 화면에서 처리 종류 하나를 고르는 라디오 카드. AUGMENT(증강 AI, 외부 위탁 증강)와 RESOLUTION(해상도 변경, 저작도구 내부 수행) 중 하나를 선택하면 아이콘·제목·설명과 선택 표시(체크)가 뜬다. 증강 종류 코드는 단일값 AUGMENT 이며 생성 조건에서 파생하지 않는다 — 무엇으로 바꿀지는 생성 조건이 정한다. 겨울·야간·우천은 처리 종류 카드가 아니라 생성 조건 프리셋으로 제시한다(ADR-059). 부모가 role=radiogroup으로 감싸고 카드 각각은 role=radio + aria-checked로 단일 선택 상태를 표현하며, 로빙 tabIndex(선택된 카드만 0)와 화살표 키 이동(onKeyDown)으로 키보드만으로 탐색·선택할 수 있다. disabled는 제출 처리 중일 때뿐 아니라, 대상 영상이 이미 파생영상(원본이 아닌 증강/해상도 결과물)이라 증강 요청 자체가 영구히 허용되지 않는 경우에도 쓰인다 — 파생 깊이를 1로 고정하는 정책상 재시도 여지가 없는 조건이며, 이때는 요청 진입 자체가 막히고 사유가 툴팁으로 안내된다.
 
 ## props_schema
 
@@ -5621,7 +5633,7 @@ input
 
 - **type**: ProcessKind
 - **required**: true
-- **description**: 카드가 나타내는 처리 종류 — WINTER/NIGHT/RAIN(증강) 또는 RESOLUTION(해상도 변경).
+- **description**: 카드가 나타내는 처리 종류 — AUGMENT(증강 AI) 또는 RESOLUTION(해상도 변경).
 
 ### selected
 
@@ -5655,7 +5667,11 @@ input
 
 ## usage_example
 
-증강 요청 화면에서 처리 종류 4개 카드를 role=radiogroup 컨테이너 안에 그리드로 배치해 단일 선택을 받는다. 선택 후 유형에 따라 증강 생성 조건 입력 폼 또는 해상도 선택 폼이 이어서 나타난다.
+증강 요청 화면에서 증강 AI 와 해상도 변경 처리 종류 카드를 role=radiogroup 컨테이너 안에 그리드로 배치해 단일 선택을 받는다. 선택 후 유형에 따라 증강 생성 조건 입력 폼 또는 해상도 선택 폼이 이어서 나타난다.
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -5693,7 +5709,7 @@ display
 
 ## description
 
-증강 잡 이력 카드. CCTV명 + 상태 배지 + 처리 종류 배지 목록 + 영상 건수 + 요청 일시를 보여주며 카드 전체가 버튼으로 클릭 시 해당 잡의 결과 화면으로 이동한다. 상태 배지는 잡 집계 상태(REQUESTED/IN_PROGRESS/COMPLETED/FAILED)를 표시하는 축으로, 결과 항목별 채택/거부 같은 사람의 활용 결정 축과는 별개다 — 집계 내 모든 항목이 종료 상태(채택/반려/취소)에 도달하면 COMPLETED로 내려오므로 취소로 끝난 잡도 COMPLETED가 되며, 성공을 단정하지 않는 중립 문구('처리 종료')로 보정해 표시한다. 처리 종류 배지는 외부 위탁 증강 3종(겨울/야간/비)과 저작도구 내부 수행인 해상도 파생을 서로 다른 톤으로 구분해 병기하며, 증강 없이 해상도 파생만 있는 잡에는 '파생' 배지를 추가로 붙여 증강 검수 완료로 오인하지 않게 한다. 동일 (영상×처리종류) 재요청이 허용되므로 같은 영상에 대해 여러 잡 카드가 동시에 존재할 수 있다.
+증강 잡 이력 카드. CCTV명 + 상태 배지 + 처리 종류 배지 목록 + 영상 건수 + 요청 일시를 보여주며 카드 전체가 버튼으로 클릭 시 해당 잡의 결과 화면으로 이동한다. 상태 배지는 잡 집계 상태(REQUESTED/IN_PROGRESS/COMPLETED/FAILED)를 표시하는 축으로, 결과 항목별 채택/거부 같은 사람의 활용 결정 축과는 별개다 — 집계 내 모든 항목이 종료 상태(채택/반려/취소)에 도달하면 COMPLETED로 내려오므로 취소로 끝난 잡도 COMPLETED가 되며, 성공을 단정하지 않는 중립 문구('처리 종료')로 보정해 표시한다. 처리 종류 배지는 외부 위탁 증강(단일값 AUGMENT)과 저작도구 내부 수행인 해상도 파생을 서로 다른 톤으로 구분해 병기하며, 증강 없이 해상도 파생만 있는 잡에는 '파생' 배지를 추가로 붙여 증강 검수 완료로 오인하지 않게 한다. 구 WINTER/NIGHT/RAIN 은 이미 만들어진 파생본에 남아 있어 배지는 옛 값과 새 값을 모두 견뎌야 한다(ADR-059). 동일 (영상×처리종류) 재요청이 허용되므로 같은 영상에 대해 여러 잡 카드가 동시에 존재할 수 있다.
 
 ## props_schema
 
@@ -5706,6 +5722,10 @@ display
 ## usage_example
 
 증강 요청/결과 화면의 최근 잡 이력 그리드에서 반복 렌더. 클릭 시 그 잡의 결과 화면으로 이동한다.
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -7031,7 +7051,7 @@ input
 
 ## description
 
-[폐기] 증강 유형 4종(겨울/야간/비/해상도)을 다중 선택하는 체크박스는 두지 않는다. 증강 요청 화면의 처리 종류 선택은 카드 4개를 role=radiogroup 으로 묶은 단일 선택(라디오)이며 한 번에 하나의 종류만 고를 수 있다. 해상도 변경을 고른 뒤에만 별도로 노출되는 타겟 해상도 선택(1080P/720P/480P)은 다중 선택 체크박스이지만, 이것은 '처리 종류' 자체가 아니라 해상도 프리셋 집합을 고르는 별개 축이다. 증강 유형별 체크박스 설계는 실제 코드에 만들어진 적이 없다. 증강 요청 화면.
+[폐기] 증강 유형(증강 AI·해상도 변경)을 다중 선택하는 체크박스는 두지 않는다(ADR-059). 증강 요청 화면의 처리 종류 선택은 증강 AI 와 해상도 변경 카드를 role=radiogroup 으로 묶은 단일 선택(라디오)이며 한 번에 하나의 종류만 고를 수 있다. 해상도 변경을 고른 뒤에만 별도로 노출되는 타겟 해상도 선택(1080P/720P/480P)은 다중 선택 체크박스이지만, 이것은 '처리 종류' 자체가 아니라 해상도 프리셋 집합을 고르는 별개 축이다. 증강 유형별 체크박스 설계는 실제 코드에 만들어진 적이 없다. 증강 요청 화면.
 
 ## props_schema
 
@@ -7054,6 +7074,10 @@ input
 
 - **type**: boolean
 - **required**: false
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -7633,7 +7657,7 @@ display
 
 ## description
 
-파생 영상(증강 WINTER/NIGHT/RAIN, 해상도 프리셋 등)임을 표시하는 배지 — 점선 보더로 EventTypeBadge와 시각적으로 구분해 '원본 아님'을 알린다.
+파생 영상(증강 AUGMENT, 해상도 프리셋 등)임을 표시하는 배지 — 점선 보더로 EventTypeBadge와 시각적으로 구분해 '원본 아님'을 알린다.
 
 ## props_schema
 
@@ -7641,11 +7665,15 @@ display
 
 - **type**: string
 - **required**: true
-- **description**: 파생 유형 표시 텍스트(예: WINTER, 480p)
+- **description**: 파생 유형 표시 텍스트(예: AUGMENT, 480p)
 
 ## usage_example
 
 SCREEN-012 작업 목록 화면(작업 목록 테이블 영상명 옆)
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -9116,7 +9144,7 @@ layout
 
 ## description
 
-포털 채널 진입 화면 최상단의 제목 밴드다. 좌측에 서비스 제목(t-display-lg)과 한 줄 부제(t-body-lg), 우측에 액션 슬롯을 두고 페이지보다 한 단 진한 단색 neutral 면으로 본문과 갈린다. 포털은 좌측 주 메뉴가 없고 깊이가 1단이라 빵부스러기를 두지 않기로 했고, 이 밴드가 내부 채널의 page-head 역할을 대신한다. UI-012 PageHeader 는 빵부스러기를 전제한 내부 채널용이고 UI-037 PortalLayout 은 셸이라 본문 밴드를 담지 않는다.
+[폐기] 포털 채널 진입 화면에 이 제목 밴드를 두지 않는다 — 밴드가 싣던 서비스 제목은 외부 채널(Host)의 머리 영역이 이미 보여 주고, 화면 이름은 본문 상단 이동 탭의 활성 항목이 이미 말한다. 같은 말을 두 번 하게 되므로 두지 않는다. 두던 시절의 구성은 좌측에 서비스 제목(t-display-lg)과 한 줄 부제(t-body-lg), 우측에 액션 슬롯을 두고 페이지보다 한 단 진한 단색 neutral 면으로 본문과 갈리는 것이었다. 저작도구가 좌측 주 메뉴를 그리지 않고(그것은 외부 채널이 그린다) 깊이가 1단이라 빵부스러기를 두지 않는다 — 이 결정과 그 근거는 밴드를 두지 않게 된 뒤에도 그대로 유효하다. UI-012 PageHeader 는 빵부스러기를 전제한 내부 채널용이고 UI-037 PortalLayout 은 셸이라 본문 밴드를 담지 않는다.
 
 ## props_schema
 
@@ -9141,6 +9169,10 @@ layout
 ## usage_example
 
 SCREEN-028 포털 홈 최상단(<header class="hero">). 이 화면에는 제목이 하나뿐이며 hero 아래에 페이지 제목을 다시 두지 않는다
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -9238,7 +9270,7 @@ input
 
 ### multiple
 
-- **description**: 이미지용 — input 에 multiple. 안내 문구가 '이미지를 끌어다 놓거나'
+- **description**: [폐기] 여러 파일을 한 번에 받던 변형이다. 포털이 접수하는 자산이 영상 단건뿐이라 이 변형을 두지 않는다 — 단건 변형이 그 자리를 대신한다.
 
 ### single
 
@@ -9264,19 +9296,19 @@ input
 
 - **type**: boolean
 - **required**: false
-- **description**: 여러 파일 선택 허용 여부. 이미지 업로드는 true, 영상 업로드는 미지정(단건)
+- **description**: 여러 파일 선택 허용 여부. 포털 업로드는 영상 단건이라 미지정으로 둔다
 
 ### accept
 
 - **type**: string
 - **required**: true
-- **description**: 허용 MIME·확장자 목록. 예: image/jpeg,image/png,.jpg,.jpeg,.png
+- **description**: 허용 MIME·확장자 목록. 예: video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi
 
 ### lead
 
 - **type**: string
 - **required**: true
-- **description**: 받침 안 안내 문구. '여기로 이미지를 끌어다 놓거나 눌러서 고르세요'
+- **description**: 받침 안 안내 문구. '여기로 영상을 끌어다 놓거나 눌러서 고르세요'
 
 ### ctaLabel
 
@@ -9298,7 +9330,11 @@ input
 
 ## usage_example
 
-SCREEN-033 포털 자산 업로드 화면의 ① 이미지 업로드(다중) · ② 영상 업로드(단건) 두 폼 필드 안. 업로드가 시작되면 파선 드롭존을 흐리는 대신 실선 파일 표시로 자리를 바꾼다
+SCREEN-033 포털 자산 업로드 화면의 영상 업로드(단건) 폼 필드 안. 업로드가 시작되면 파선 드롭존을 흐리는 대신 실선 파일 표시로 자리를 바꾼다
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -9335,7 +9371,7 @@ display
 
 ### image
 
-- **description**: '이미지' + 사진 아이콘
+- **description**: [폐기] 이미지 자산을 가리키던 변형이다. 포털이 이미지를 접수하지 않아 이 변형을 두지 않는다.
 
 ### video
 
@@ -9343,25 +9379,29 @@ display
 
 ## description
 
-업로드 자산이 이미지인지 영상인지를 표 안에서 알리는 분류 표시 사각칩이다. 아이콘 + 한글 표기를 한 묶음으로 담고, 상태를 나타내는 pill 배지와 형태(사각 --radius-sm, 경계 --n-3)로 갈라 놓아 같은 행에서 분류와 상태가 혼동되지 않게 한다.
+업로드 자산의 종류를 표 안에서 알리는 분류 표시 사각칩이다. 접수하는 자산이 영상뿐이라 값은 '영상' 하나이며, 이미지 접수를 폐기하면서 값역에서 이미지를 뺐다. 아이콘 + 한글 표기를 한 묶음으로 담고, 상태를 나타내는 pill 배지와 형태(사각 --radius-sm, 경계 --n-3)로 갈라 놓아 같은 행에서 분류와 상태가 혼동되지 않게 한다.
 
 ## props_schema
 
 ### type
 
-- **type**: 'image' | 'video'
+- **type**: 'video'
 - **required**: true
-- **description**: 자산 유형. 표기는 각각 '이미지' / '영상'
+- **description**: 자산 유형. 표기는 '영상'
 
 ### icon
 
 - **type**: ReactNode
 - **required**: false
-- **description**: 유형별 아이콘. 영상은 카메라형, 이미지는 사진형 SVG
+- **description**: 유형 아이콘. 영상은 카메라형 SVG
 
 ## usage_example
 
 SCREEN-033 ③ 업로드 자산 목록 표의 '유형' 열 각 셀
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -9465,7 +9505,7 @@ display
 
 ### filled
 
-- **description**: '선택 · [겨울] × 영상 #3187' — 대상명 --n-10 600, 구분자 --n-5
+- **description**: '선택 · [증강 AI] × 영상 #3187' — 대상명 --n-10 600, 구분자 --n-5
 
 ### empty
 
@@ -9487,7 +9527,7 @@ display
 
 - **type**: ReactNode | null
 - **required**: false
-- **description**: 고른 처리 종류 배지(primary). 예: 겨울
+- **description**: 고른 처리 종류 배지(primary). 예: 증강 AI
 
 ### targetText
 
@@ -9504,6 +9544,10 @@ display
 ## usage_example
 
 SCREEN-022 하단 고정 액션 바(.action-bar) 안 좌측. 참고 패널의 정적 액션 바 두 곳에서도 같은 조립으로 반복된다
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -9805,13 +9849,17 @@ data
 
 SCREEN-023 증강 결과 확인 화면의 각 결과 탭 패널 안 '원본 · 증강 프레임 비교' 구획. 격자 아래에 자체 페이저(.grid-foot > .pagination)를 둔다
 
+## attached_files
+
+_(empty)_
+
 ## design_system_id
 
 DS-001
 
 ## accessibility_notes
 
-각 칸이 <a href> 라 키보드로 순회하고 눌러서 확대 비교를 연다. 실패 표시 아이콘은 aria-hidden 이고 '생성 실패' 한글이 함께 있어 색만으로 전달하지 않는다. 자체 페이저에 aria-label('겨울 #1 프레임 쌍 페이지')을 붙여 항목 페이저와 구분한다. 480px 이하에서 1열로 접힌다.
+각 칸이 <a href> 라 키보드로 순회하고 눌러서 확대 비교를 연다. 실패 표시 아이콘은 aria-hidden 이고 '생성 실패' 한글이 함께 있어 색만으로 전달하지 않는다. 자체 페이저에 aria-label('증강 AI #1 프레임 쌍 페이지')을 붙여 항목 페이저와 구분한다. 480px 이하에서 1열로 접힌다.
 
 
 ---
@@ -9862,7 +9910,7 @@ overlay
 
 - **type**: string
 - **required**: false
-- **description**: 대상 식별 줄. 시안: '영상 #3187 · 겨울 #2 · 프레임 0000'
+- **description**: 대상 식별 줄. 시안: '영상 #3187 · 증강 AI #2 · 프레임 0000'
 
 ### originalSrc
 
@@ -9885,6 +9933,10 @@ overlay
 ## usage_example
 
 SCREEN-023 의 FramePairGrid 칸을 누르면 열린다(dialog-wide). 좌측 열 캡션은 neutral 배지 '원본', 우측 열은 secondary 배지 '증강'
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 
@@ -9937,7 +9989,7 @@ display
 
 - **type**: ReactNode
 - **required**: true
-- **description**: 증강 종류 칩(.kind-chip[data-kind=augment]). 예: '겨울 증강' / '야간 증강' / '우천 증강' — 아이콘 동반
+- **description**: 증강 종류 칩(.kind-chip[data-kind=augment]). 예: '증강 AI' — 아이콘 동반
 
 ### title
 
@@ -9960,6 +10012,10 @@ display
 ## usage_example
 
 SCREEN-023 증강 결과 확인 화면의 각 결과 탭 패널 최상단. 채택됨 / 결정 대기 / 생성 중 / 반려됨 네 상태 패널 모두 같은 자리에 반복된다
+
+## attached_files
+
+_(empty)_
 
 ## design_system_id
 

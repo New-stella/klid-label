@@ -1,15 +1,15 @@
 ---
 logicraft_item: SCREEN-025
 type: screen_spec
-version: 47
-last_updated_at: 2026-09-01T08:27:11.309Z
+version: 49
+last_updated_at: 2026-09-01T14:35:14.780Z
 domain: DOMAIN-000
 project_id: 4ece2c3f-8e99-46f5-9580-71108a76e578
-synced_at: 2026-09-01T08:39:29.407Z
-sync_session: 37
-stale: false
-status: UNCHANGED
-prev_version: null
+synced_at: 2026-09-05T01:33:13.468Z
+sync_session: 34
+stale: true
+status: CHANGED
+prev_version: 46
 raw: ./_raw/SCREEN-025.json
 wireframe: ./wireframe.html
 links:
@@ -18,6 +18,10 @@ links:
   realizes_use_cases: ["[[UC-031]]", "[[UC-006]]", "[[UC-013]]"]
   acceptance: ["[[AC-1022]]", "[[AC-1023]]"]
 ---
+
+> ⚠️ **버전 변경 감지 — logicraft v46 → v49**
+> change_summary: AI 장비 목록을 이 화면에서 뺀다 — 배치가 틀렸다. 연동 서버 주소는 관리자 페이지가 소유하고 그 화면에 이미 AI 추론 서버·외부 시계열 분석 벤더 주소 칸이 있다. 장비 목록은 그 칸이 목록으로 바뀌는 것이므로 같은 화면에 있어야 하며, 여기에 두면 주소를 고치는 자리가 두 화면으로 갈린다. SCREEN-042 로 옮긴다.
+> ↳ 요약/구현 노트 재검토 후 작성된 코드에 반영. 직전 요약은 git diff 확인.
 
 # 시스템 설정 화면
 
