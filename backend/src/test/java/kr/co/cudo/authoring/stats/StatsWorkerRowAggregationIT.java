@@ -75,7 +75,7 @@ class StatsWorkerRowAggregationIT {
         // 시드 사용자(1~1000 대)와 겹치지 않는 난수 대역. USER_NO 는 PK 라 충돌하면 upsert 로 흡수된다.
         userNo = ThreadLocalRandom.current().nextLong(900_000_000L, 999_999_999L);
         // upsertUser 는 @Modifying native 문장이라 호출자 트랜잭션이 필요하다.
-        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, "stat-it", "통계작업자"));
+        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, null, "통계작업자"));
     }
 
     // ---------------------------------------------------------------- fixtures

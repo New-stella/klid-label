@@ -3,11 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Alert } from '@/components/common/Alert';
 import { Spinner } from '@/components/common/Spinner';
-import type { Channel } from '@/lib/api/types';
+import type { Channel, Role } from '@/lib/api/types';
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { isDevLoginEnabled } from '@/lib/devLogin';
 
+import { getMe } from './api';
 import { detectChannel, isUpstreamLoginConfigured, redirectToUpstream } from './redirectToUpstream';
 import { getAccessToken } from './tokenHandoff';
 import { UpstreamLoginConfigHint } from './UpstreamLoginConfigHint';
@@ -56,7 +57,10 @@ const ERROR_EXPIRED: IngressError = {
  *      - DEV 빌드 → /dev/login 으로 이동 (관제서버 미연결 환경 막다른 길 방지)
  *      - 운영 → detectChannel 기준 상위 시스템 redirect, 실패 시 에러 메시지
  *   4) JWT decode → 만료 검증 → useAuthStore.setToken
- *   5) 채널별 메인 진입점 navigate (INTERNAL → /dashboard, PORTAL → /portal)
+ *   5) 채널별 메인 진입점 navigate
+ *      - PORTAL → /portal (종전 그대로, 서버 role 조회 안 함)
+ *      - INTERNAL → GET /v1/me 로 <서버 인가 role> 확인 후
+ *          role 있으면 /dashboard, role=null(무권한)이면 /role-claim(권한안내·부트스트랩)
  */
 export function SessionIngressPage() {
   const [params] = useSearchParams();
@@ -135,9 +139,36 @@ export function SessionIngressPage() {
       return;
     }
 
-    // mock 정합 — INTERNAL 채널은 /dashboard 진입
-    const target = claims.channel === 'PORTAL' ? '/portal' : '/dashboard';
-    navigate(target, { replace: true });
+    // 포털 채널은 종전 그대로 /portal — PORTAL_USER 는 토큰 발급 시점에 role 이 확정되므로
+    // 서버 role 을 다시 묻지 않는다. (관제 채널 동작만 이번에 확장한다.)
+    if (claims.channel === 'PORTAL') {
+      navigate('/portal', { replace: true });
+      return;
+    }
+
+    // [@design SCREEN-002] [@design ADR-063] [@design UC-041]
+    // 관제(INTERNAL) 채널: 서버 인가 role 의 진실원은 <토큰 클레임이 아니라 GET /v1/me> 다.
+    // 관제 진입자는 진입 순간 userNo 를 발급받고 role=null(무권한)로 진입하며, 관제 토큰에는
+    // role 클레임이 실리지 않는다(claims.role 로 판정하면 역할 보유자도 무권한으로 오인한다).
+    //   role 있음  → 종전대로 /dashboard
+    //   role=null  → 권한안내·관리자 부트스트랩 화면(/role-claim)
+    // 조회 실패 시에는 토큰 클레임 role 로 폴백해(가드와 같은 판정) 유효 세션이 막다른 길에
+    // 빠지지 않게 한다. 인가 최종 판정은 어차피 서버가 소유한다.
+    const routeInternal = async (fallbackRole: Role | null) => {
+      let serverRole: Role | null;
+      try {
+        const me = await getMe();
+        serverRole = me.role;
+        // 서버 진실원 role 을 claims 에 주입한다 — 이후 RoleGuard(claims.role 을 읽음)가
+        // 서버 LS_USER_ROLE 을 보게 되어 관제 재방문 role 보유자가 정상 진입한다.
+        useAuthStore.getState().setServerRole(serverRole);
+      } catch {
+        // /me 조회 실패 시 토큰 클레임 role 로 폴백(가드와 같은 판정). 주입은 하지 않는다.
+        serverRole = fallbackRole;
+      }
+      navigate(serverRole != null ? '/dashboard' : '/role-claim', { replace: true });
+    };
+    void routeInternal(claims.role);
   }, [params, navigate]);
 
   if (error !== null) {

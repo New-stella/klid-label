@@ -108,6 +108,51 @@ public interface UserRepository extends JpaRepository<LsAcntUser, Long> {
                    @Param("userNm") String userNm);
 
     /**
+     * <b>관제 인계 미등록 진입자 로컬 식별 레코드 발급 — userNo 시퀀스 발급 + USER_ID 원자 upsert</b>
+     * (V32, @design ADR-063 · UC-041 · AC-1016).
+     *
+     * <h3>왜 서버가 userNo 를 발급하는가 (CWE-915)</h3>
+     * <p>관제 인계 토큰은 숫자 {@code userNo} 를 싣지 않고 문자열 로그인 ID 로만 식별한다. 그 로그인
+     * ID 행이 우리 마스터에 없으면 인가가 무권한으로 막히므로, 진입 순간 우리 {@code userNo} 를
+     * 발급한다. userNo 는 반드시 <b>시퀀스({@code ls_acnt_user_no_seq})</b>에서만 뽑는다 —
+     * 요청/토큰의 임의 숫자를 신뢰하면 남의 행을 덮어쓸 수 있다. 시퀀스는 관제가 {@code sub} 에
+     * 싣는 숫자 userNo·dev 시드와 겹치지 않는 <b>높은 disjoint 범위</b>(≥ 9e9)에서 시작한다.
+     *
+     * <h3>왜 조회 후 INSERT 가 아닌가 (CWE-362)</h3>
+     * <p>2노드 Active-Active 라 같은 관제 사용자가 두 노드에서 동시에 진입할 수 있다. "없으면 넣는다"
+     * 를 조회 → INSERT 두 문장으로 쓰면 두 노드가 모두 "없음"을 관측한 뒤 각각 INSERT 해
+     * <b>USER_ID 유니크 위반</b>이 나고, PostgreSQL 은 제약 위반 시 트랜잭션 전체를 abort 한다.
+     * {@code ON CONFLICT (USER_ID) DO NOTHING} 은 충돌을 <b>예외 없이</b> 흡수하므로 두 노드 모두
+     * 성공하며, 진 노드가 뽑은 {@code nextval} 은 버려지고(간극 허용) 호출자가 뒤이어 USER_ID 로
+     * 재조회해 이긴 행의 실제 userNo 를 읽는다.
+     *
+     * <p>{@code ON CONFLICT (USER_ID) WHERE USER_ID IS NOT NULL} — 부분 유니크 인덱스
+     * {@code uk_ls_acnt_user_user_id}(V32, {@code WHERE USER_ID IS NOT NULL})를 arbiter 로 추론하려면
+     * 그 인덱스 술어를 명시해야 한다. {@code USER_ID} 는 호출자가 정규화·컬럼 폭 절단을 마친
+     * non-null 값이다.
+     *
+     * <h3>역할은 만들지 않는다</h3>
+     * <p>이 문장은 {@code LS_ACNT_USER}(식별 마스터)만 만든다. 인가 역할({@code LS_USER_ROLE})은
+     * 건드리지 않는다 — 관제 권한을 우리 역할로 매핑하지 않는 원칙(ADR-021) 그대로다.
+     *
+     * <p>보안: 두 값 모두 파라미터 바인딩이다(CWE-89). {@code USE_YN='Y'} 로 활성 등록하되
+     * {@code USER_EML_ADDR} 는 인계 키에 없어 null 로 둔다(지어내지 않는다).
+     *
+     * <p>{@code clearAutomatically}: native 문장이 영속성 컨텍스트를 우회하므로 직후 재조회가
+     * 옛 스냅샷을 돌려주지 않도록 컨텍스트를 비운다.
+     *
+     * @return 신규 발급됐으면 1, 이미 같은 USER_ID 행이 있어 충돌 흡수됐으면 0
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO LS_ACNT_USER (USER_NO, USER_ID, USER_NM, USE_YN)
+            VALUES (nextval('ls_acnt_user_no_seq'), :userId, COALESCE(:userNm, ''), 'Y')
+            ON CONFLICT (USER_ID) WHERE USER_ID IS NOT NULL DO NOTHING
+            """, nativeQuery = true)
+    int insertWithIssuedUserNo(@Param("userId") String userId,
+                               @Param("userNm") String userNm);
+
+    /**
      * <b>최종로그인일시 기록 — throttle 이 내장된 조건부 UPDATE</b> (V12).
      *
      * <p>저작도구에는 독립 로그인 UI 가 없어 "로그인" 이라는 단일 이벤트가 없다. 기록 지점은 JWT

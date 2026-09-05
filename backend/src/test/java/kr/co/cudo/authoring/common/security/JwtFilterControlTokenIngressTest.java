@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import kr.co.cudo.authoring.auth.jwt.JwtIssuerValidator;
 import kr.co.cudo.authoring.user.service.AutoWorkerRegistrar;
+import kr.co.cudo.authoring.user.service.ControlUserProvisioner;
 import kr.co.cudo.authoring.user.service.LastLoginRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,7 @@ class JwtFilterControlTokenIngressTest {
     private SecretKey key;
     private UserRoleResolver userRoleResolver;
     private AutoWorkerRegistrar autoWorkerRegistrar;
+    private ControlUserProvisioner controlUserProvisioner;
     private LastLoginRecorder lastLoginRecorder;
     private JwtAuthenticationFilter filter;
 
@@ -55,12 +57,13 @@ class JwtFilterControlTokenIngressTest {
 
         userRoleResolver = mock(UserRoleResolver.class);
         autoWorkerRegistrar = mock(AutoWorkerRegistrar.class);
+        controlUserProvisioner = mock(ControlUserProvisioner.class);
         lastLoginRecorder = mock(LastLoginRecorder.class);
         JwtIssuerValidator issuerValidator = mock(JwtIssuerValidator.class);
         when(issuerValidator.isAllowed(any())).thenReturn(true);
 
         filter = new JwtAuthenticationFilter(() -> key, issuerValidator,
-                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar);
+                userRoleResolver, lastLoginRecorder, autoWorkerRegistrar, controlUserProvisioner);
     }
 
     /** subject·userId·name·userNm 를 선택적으로 실은 INTERNAL 토큰으로 필터를 1회 돌린다. */
@@ -118,18 +121,44 @@ class JwtFilterControlTokenIngressTest {
     }
 
     @Test
-    @DisplayName("비숫자_sub_userId가_다중또는0건_매칭이면_무권한이고_자동등록도_없다")
+    @DisplayName("비숫자_sub_userId가_다중_매칭이면_발급없이_무권한이고_자동등록도_없다")
     void nonNumericSubFailsClosedWhenUserIdAmbiguous() throws Exception {
         // repo 가 다중/0건을 empty 로 축약해 resolveUserNoByUserId 가 null 을 돌려준다(CWE-639).
+        //   0건이면 발급으로 이어지지만, 다중 매칭이면 프로비저너가 발급 없이 null 을 돌려
+        //   fail-closed 로 닫는다(AC-1017). 여기서는 그 다중 경로를 고정한다.
         when(userRoleResolver.resolveUserNoByUserId("dup")).thenReturn(null);
+        when(controlUserProvisioner.provision("dup", null)).thenReturn(null);
 
         doFilter("admin", "dup", null, null);
 
         assertThat(hasAuthority("CHANNEL_" + Channel.INTERNAL.name())).isTrue();
         assertThat(hasAuthority("ROLE_" + Role.REVIEWER.name())).isFalse();
         assertThat(hasAuthority("ROLE_" + Role.WORKER.name())).isFalse();
-        // userNo 가 null 이라 역할 조회·자동등록 어느 것도 일어나지 않는다(fail-closed).
+        // 프로비저너는 호출되지만 발급하지 않는다 → userNo null → 역할 조회·자동등록 없음(fail-closed).
+        verify(controlUserProvisioner).provision("dup", null);
         verify(userRoleResolver, never()).resolve(anyLong());
+        verify(autoWorkerRegistrar, never()).registerAsWorker(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("비숫자_sub_userId_0건이면_userNo를_발급받아_역할해석과_principal정규화가_이어진다")
+    void nonNumericSubZeroMatchProvisionsUserNo() throws Exception {
+        // @design ADR-063 ⑤ · UC-041 step5 · AC-1016 — 0건이면 resolveUserNoByUserId 는 null 이지만
+        //   프로비저너가 disjoint 상위 userNo 를 발급하고, 그 userNo 로 역할 조회(발급 직후 무권한)와
+        //   principal 정규화(role-claim 식별 성립)가 이어진다.
+        when(userRoleResolver.resolveUserNoByUserId("newbie")).thenReturn(null);
+        when(controlUserProvisioner.provision("newbie", null)).thenReturn(9_000_000_005L);
+        when(userRoleResolver.resolve(9_000_000_005L)).thenReturn(null);
+
+        doFilter("newbie-login", "newbie", null, null);
+
+        verify(controlUserProvisioner).provision("newbie", null);
+        // 발급 userNo 로 역할 조회가 이어진다(무권한이지만 조회는 발생 = 발급이 식별을 이었다).
+        verify(userRoleResolver).resolve(9_000_000_005L);
+        // 발급 userNo 로 principal 정규화가 이어진다 — 다운스트림 parseLong 이 성립한다.
+        assertThat(principalSub()).isEqualTo("9000000005");
+        assertThat(principalSub()).isNotEqualTo("newbie-login");
+        // 자동등록(WORKER)은 발급 진입자 대상이 아니다 — 숫자 sub 전용이라 호출조차 없다.
         verify(autoWorkerRegistrar, never()).registerAsWorker(anyLong(), any());
     }
 
@@ -193,7 +222,9 @@ class JwtFilterControlTokenIngressTest {
     void ambiguousUserIdKeepsRawPrincipalSub() throws Exception {
         // AC 3 — 해석 실패(userNo==null)면 정규화하지 않고 raw sub 를 유지한다. 이 raw 는
         //   다운스트림 parseUserNo 에서 null 로 떨어져 기존 fail-closed 가 그대로 성립한다.
+        //   다중 매칭 경로라 프로비저너도 발급 없이 null 을 돌린다(AC-1017).
         when(userRoleResolver.resolveUserNoByUserId("dup")).thenReturn(null);
+        when(controlUserProvisioner.provision("dup", null)).thenReturn(null);
 
         doFilter("admin", "dup", null, null);
 

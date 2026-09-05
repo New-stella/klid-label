@@ -51,6 +51,26 @@ public final class JwtTestSupport {
                 .compact();
     }
 
+    /**
+     * 관제 인계 토큰 — 비숫자 {@code sub} + {@code userId}/{@code userNm} 클레임, iss 없이 발급.
+     * 실제 관제 토큰이 문자열 로그인 ID 로 식별하고 iss·role 클레임을 우리 규격대로 싣지 않는 모양을
+     * 재현한다(@design ADR-063). {@code userNm} 이 null 이면 이름 클레임을 싣지 않는다.
+     */
+    public static String controlToken(String secret, String subject, String userId, String userNm,
+                                       String channel, long ttlSeconds) {
+        Instant now = Instant.now();
+        var builder = Jwts.builder()
+                .subject(subject)
+                .claim("channel", channel)
+                .claim("userId", userId)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(ttlSeconds)));
+        if (userNm != null) {
+            builder.claim("userNm", userNm);
+        }
+        return builder.signWith(key(secret)).compact();
+    }
+
     public static String expiredToken(String secret, String subject, String role, String channel, String issuer) {
         Instant now = Instant.now();
         return Jwts.builder()

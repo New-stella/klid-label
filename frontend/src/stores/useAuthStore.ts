@@ -53,6 +53,22 @@ interface AuthState {
    * `setToken` 과 동일 동작이지만 호출 의도(토큰 + 클레임 동시 교체)를 명확히 한다.
    */
   setTokenAndClaims: (token: string) => void;
+  /**
+   * 서버 인가 role 을 claims 에 주입한다(토큰 원본은 유지).
+   *
+   * [@design SCREEN-002] [@design ADR-021] [@design ADR-063]
+   * ★인가의 진실원은 서버 LS_USER_ROLE(=GET /v1/me 응답)이지 <토큰 role 클레임>이 아니다.
+   * 관제 토큰에는 우리 role 이 실리지 않아(authority 만 있고 role 클레임 없음) claims.role 이
+   * 항상 null 이다. 그 상태로 두면 RoleGuard(가 claims.role 을 읽는다)가 관제 재방문 role 보유자를
+   * 무권한으로 오인해 /role-claim 으로 튕긴다. SessionIngress 가 진입 시 /me 로 받은 서버 role 을
+   * 여기로 주입해 가드가 서버 진실원을 보게 한다.
+   *
+   * ⚠ dev·포털 토큰은 role 클레임과 /me 가 같은 원천(userNo→LS_USER_ROLE)이라 주입값이 같아
+   *   회귀가 없다. role=null 을 주입하면 claims.role 도 null 이 되어 가드가 /role-claim 으로
+   *   보낸다(무권한 온보딩 — 의도된 동작).
+   * ⚠ claims 가 아직 없으면(토큰 미적재) no-op. 토큰 원본·채널·exp 는 건드리지 않는다.
+   */
+  setServerRole: (role: Role | null) => void;
   clear: () => void;
   hydrate: () => void;
 }
@@ -123,6 +139,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!claims) return;
     persistToken(token);
     set({ token, claims });
+  },
+  setServerRole: (role: Role | null) => {
+    set((state) => (state.claims ? { claims: { ...state.claims, role } } : {}));
   },
   clear: () => {
     forgetPersistedToken();

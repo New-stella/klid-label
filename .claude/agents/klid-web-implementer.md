@@ -369,6 +369,17 @@ vite 변환을 쓰기 때문이다. 특히 **지연 응답 mock 처럼 콜백 �
 - 재발조건: 빈 상태 안내를 두면서 자식이 자체 데이터 소스를 갖는 모든 화면. 해법은 판정식을 넓히는 것이
   아니라 **배너의 문구·위치를 자기가 실제로 판정한 범위로 좁히는 것**이다.
 
+- **인가 가드가 토큰 role 클레임을 읽는데 발급처가 우리 role 을 안 실으면 role 보유자도 무권한 오인된다 (2026-09-05, 관제 진입).**
+  RoleGuard(`router/guards.tsx`)가 `claims.role`(토큰 디코드)로 인가하는데, 관제 토큰은 authority 만 있고
+  우리 role 클레임이 없다. 그래서 서버에 role 이 있는 관제 사용자가 재로그인하면 `claims.role=null` 로
+  보여 온보딩 화면(/role-claim)으로 튕긴다. **`GET /me` 로 role 을 '확인'만 하고 라우팅해도** 가드는
+  여전히 낡은 claims.role(null)을 보므로 대시보드 착지 직후 다시 튕긴다 — **라우팅과 가드가 서로 다른
+  role 소스를 보는 것이 근본 원인**.
+  - **해법**: 서버 role(/me)을 스토어 claims 에 **주입**(`useAuthStore.setServerRole`)해 라우팅·가드가
+    같은 소스(서버 LS_USER_ROLE, 인가 진실원)를 보게 한다. 토큰 원본·channel·exp 는 보존하고 role 만 갱신.
+  - **또 밟는 때**: 서버가 인가 진실원(DB role)인데 FE 가드가 토큰 클레임으로 판정하고 발급처가 그 role 을
+    토큰에 안 싣는 모든 채널. 근거: guards.tsx:115 `if(!claims.role && channel==='INTERNAL')→/role-claim`.
+
 > ⚠️ **이 섹션을 에이전트가 직접 고치지 않는다.** 새로 알아낸 건 아래 `notes_for_main.learned` 로 올리고, 오케스트레이터가 사용자 동의를 받아 여기에 append 한다.
 
 ### ★「형식만」 보는 검사는 값이 서로 뒤바뀌어도 통과한다 (CO-20260826 COCO 드롭다운)

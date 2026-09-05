@@ -80,7 +80,7 @@ class StatsWorkerApprovedLabelAxisIT {
     void setUp() {
         TransactionTemplate tx = new TransactionTemplate(txManager);
         userNo = ThreadLocalRandom.current().nextLong(900_000_000L, 999_999_999L);
-        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, "stat-appr-it", "승인라벨축작업자"));
+        tx.executeWithoutResult(s -> userRepository.upsertUser(userNo, null, "승인라벨축작업자"));
     }
 
     // ---------------------------------------------------------------- fixtures

@@ -117,4 +117,34 @@ describe('useAuthStore', () => {
     expect(useAuthStore.getState().claims).toBeNull();
     expect(useAuthStore.getState().token).toBeNull();
   });
+
+  it('setServerRole_은_토큰을_유지한_채_claims_role_만_갱신한다', () => {
+    const token = `h.${b64url({ sub: 'u1', channel: 'INTERNAL', exp: 9999999999 })}.s`;
+    useAuthStore.getState().setToken(token);
+    // 관제 토큰: role 클레임이 없어 decode 결과 role=null.
+    expect(useAuthStore.getState().claims?.role).toBeNull();
+
+    useAuthStore.getState().setServerRole('ADMIN');
+    expect(useAuthStore.getState().claims?.role).toBe('ADMIN');
+    // 토큰 원본·채널·exp 는 그대로.
+    expect(useAuthStore.getState().token).toBe(token);
+    expect(useAuthStore.getState().claims?.channel).toBe('INTERNAL');
+    expect(useAuthStore.getState().claims?.exp).toBe(9999999999);
+  });
+
+  it('setServerRole_null_은_claims_role_을_null_로_되돌린다', () => {
+    const token = `h.${b64url({ sub: 'u1', role: 'REVIEWER', channel: 'INTERNAL', exp: 9999999999 })}.s`;
+    useAuthStore.getState().setToken(token);
+    expect(useAuthStore.getState().claims?.role).toBe('REVIEWER');
+
+    useAuthStore.getState().setServerRole(null);
+    expect(useAuthStore.getState().claims?.role).toBeNull();
+  });
+
+  it('setServerRole_은_claims_가_없으면_no_op', () => {
+    useAuthStore.getState().clear();
+    expect(useAuthStore.getState().claims).toBeNull();
+    useAuthStore.getState().setServerRole('ADMIN');
+    expect(useAuthStore.getState().claims).toBeNull();
+  });
 });

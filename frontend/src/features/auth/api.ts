@@ -3,7 +3,8 @@ import type { Channel, Role } from '@/lib/api/types';
 
 export interface MeResponse {
   sub: string;
-  role: Role;
+  /** 서버 인가 role. 무권한(관제 진입 직후 role=null)일 수 있다 — 계약상 nullable. */
+  role: Role | null;
   channel: Channel;
   name?: string;
 }
