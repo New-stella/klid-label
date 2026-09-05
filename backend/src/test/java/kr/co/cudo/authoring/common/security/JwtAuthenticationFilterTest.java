@@ -317,6 +317,83 @@ class JwtAuthenticationFilterTest {
     //   .issuer("") 를 라운드트립에서 null 로 정규화해(getIssuer()==null) 통합 레벨에서 blank
     //   토큰을 만들 수 없다. 실제 blank 는 검증기 단위 경로(isAllowed("")==false)로 닫힌다.
 
+    // ───────── 포털 전용 인계 헤더 inbound 수용 (@design INT-013) — HTTP 레벨 200/401 ─────────
+    // 필터 단위 축(헤더 정규화·충돌·검증 공유)은 JwtFilterPortalHeaderIngressTest 가 고정한다.
+    //   여기서는 "그래서 보호 엔드포인트가 실제로 200/401 을 내는가"만 본다 — 401 은 필터가 직접
+    //   쓰는 것이 아니라 진입점이 내므로 통합 레벨에서만 확인된다.
+
+    /** 유효한 INTERNAL 토큰(sub=1 → V9001 시드로 REVIEWER). */
+    private String internalReviewerToken() {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject("1")
+                .issuer(issuer)
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+    }
+
+    @Test
+    @DisplayName("★x-access-token_헤더만_실린_요청이_보호엔드포인트_200 — 포털_인계_수용")
+    void portalHeaderAloneReturns200() throws Exception {
+        mockMvc.perform(get("/v1/manage/test").header("x-access-token", internalReviewerToken()))
+                .andExpect(status().isOk())
+                .andExpect(content().string("manage-ok"));
+    }
+
+    @Test
+    @DisplayName("★두_헤더가_같은_토큰이면_200 — 무해한_중복은_막지_않는다")
+    void identicalHeadersReturn200() throws Exception {
+        String token = internalReviewerToken();
+        mockMvc.perform(get("/v1/manage/test")
+                        .header("Authorization", "Bearer " + token)
+                        .header("x-access-token", token))
+                .andExpect(status().isOk())
+                .andExpect(content().string("manage-ok"));
+    }
+
+    @Test
+    @DisplayName("★두_헤더의_토큰이_다르면_401 — 모호한_인증상태_거부")
+    void conflictingHeadersReturn401() throws Exception {
+        // 둘 다 <그 자체로는 유효>한 토큰이다(sub=1 · sub=770002). 그런데도 401 이어야 한다 —
+        //   조용히 한쪽을 채택하면 의도치 않은 신원으로 요청이 처리된다.
+        Instant now = Instant.now();
+        String other = Jwts.builder()
+                .subject("770002")
+                .issuer(issuer)
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(key())
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test")
+                        .header("Authorization", "Bearer " + internalReviewerToken())
+                        .header("x-access-token", other))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("★서명이_다른_토큰은_x-access-token으로_와도_401 — 검증_공유")
+    void forgedSignatureOnPortalHeaderReturns401() throws Exception {
+        SecretKey otherKey = Keys.hmacShaKeyFor(
+                "another-secret-different-32bytes-min-len".getBytes(StandardCharsets.UTF_8));
+        Instant now = Instant.now();
+        String forged = Jwts.builder()
+                .subject("1")
+                .issuer(issuer)
+                .claim("channel", "INTERNAL")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(60)))
+                .signWith(otherKey)
+                .compact();
+
+        mockMvc.perform(get("/v1/manage/test").header("x-access-token", forged))
+                .andExpect(status().isUnauthorized());
+    }
+
     @Test
     @DisplayName("관제_토큰_비숫자sub는_userId로_USER_ID조회되어_역할해석_200")
     void controlTokenNonNumericSubResolvesViaUserId() throws Exception {

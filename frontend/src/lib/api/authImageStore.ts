@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 /**
- * 인증(Bearer) 프레임 이미지 blob 로더 — **경로 단위 공유(dedupe) + 즉시 폐기(revoke)**.
+ * 인증 프레임 이미지 blob 로더 — **경로 단위 공유(dedupe) + 즉시 폐기(revoke)**.
  *
  * ## 왜 필요한가
  * 비교 화면(FrameGrid12 12쌍 × 2 슬롯 + 좌우 비교)은 진입 즉시 24개 이상의 XHR 을 발사한다.

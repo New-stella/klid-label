@@ -9,7 +9,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ★ LOW-7 — <b>CORS allowlist 에 관리자 세션 헤더가 있어야 연동 주소 저장이 동작한다</b>.
+ * ★ LOW-7 — <b>CORS allowlist 에 인증·세션 헤더가 있어야 그 기능이 교차 출처에서 동작한다</b>.
  *
  * <p>{@code allowedHeaders} 에 없는 요청 헤더는 preflight 에서 거절된다. 교차 출처 형상
  * (FE 와 BE 가 다른 origin)에서 그 헤더 없이 저장을 시도하면 브라우저가 요청 자체를 보내지 않아
@@ -45,6 +45,19 @@ class CorsAllowedHeadersTest {
                 .contains("Authorization", "X-Trace-Id", "Content-Type",
                         "X-Tus-Resumable", "Upload-Length", "Upload-Offset", "Upload-Metadata",
                         "Tus-Resumable");
+    }
+
+    @Test
+    @DisplayName("★포털_전용_인증헤더가_CORS_허용_목록에_있다 — 없으면_포털_인증이_preflight에서_막힌다")
+    void portalTokenHeaderIsAllowed() {
+        // @design INT-013 — 포털 채널은 토큰을 Authorization 이 아니라 전용 헤더로 싣는다.
+        //   CORS safelisted 헤더가 아니라 교차 출처에서 반드시 preflight 를 유발하며, 목록에 없으면
+        //   <브라우저가 요청 자체를 막아> 서버 로그에 아무것도 남지 않는다.
+        // ★ 이 가드는 「기존 허용 헤더는 그대로다」로 덮이지 않는다 — 그 시험은 <그때 있던> 헤더만
+        //   열거하므로 새 헤더가 빠져도 계속 통과한다. 그래서 값 축 가드를 따로 둔다.
+        // ★ 리터럴이 아니라 상수를 참조한다 — 이름이 바뀌면 여기서 함께 깨져야 한다.
+        assertThat(corsConfig().getAllowedHeaders())
+                .contains(JwtAuthenticationFilter.PORTAL_TOKEN_HEADER);
     }
 
     @Test

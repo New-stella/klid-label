@@ -36,14 +36,19 @@
  * 새로 지으면 **실행 시점에** 창구를 찾지 못한다 — 빌드는 통과하고 타입 오류도 없다.
  * 그래서 이름은 `HOST_HANDOFF_METHOD_NAMES` 로 값 고정하고 회귀 가드가 값 축으로 잡는다.
  *
- * ## 이번 범위 (슬라이스 3a)
- * - 토큰 **조달 경로**만 창구 뒤로 옮긴다. 요청 헤더는 `Authorization: Bearer` 그대로다 —
- *   포털 계약의 전용 헤더(`x-access-token`)로 바꾸는 것은 **백엔드가 그 헤더를 inbound 로
- *   수용하는 것과 함께** 가야 한다(지금 수용 코드가 0건이라 프론트만 바꾸면 전량 401).
+ * ## 범위
+ * - 토큰 **조달 경로**를 창구 뒤로 옮긴다(슬라이스 3a).
+ * - **요청 헤더도 채널별로 갈린다**(2026-09-05 완료 — 아래 `buildAuthHeader`).
+ *   ⚠ 이 자리에는 *"헤더는 `Authorization: Bearer` 그대로다 — 전용 헤더로 바꾸는 것은 백엔드가
+ *   그 헤더를 inbound 로 수용한 뒤"* 라는 대기 사유가 적혀 있었다. **그 조건은 해소됐다** —
+ *   백엔드 `common/security/JwtAuthenticationFilter` 가 `x-access-token` 을 inbound 로 수용한다
+ *   (`CO-20260905-포털-전용인증헤더-inbound-수용`). 그러므로 「백엔드가 아직 안 받는다」를
+ *   근거로 이 전환을 되돌리지 말 것.
  * - `refresh` · `onUnauthorized` · `notifyActivity` 는 **창구만 열어 둔다.** 호출 지점 배선은
  *   후속이다. 특히 401 경로는 이번에 건드리지 않는다 — 근거는 아래 `onUnauthorized` 주석.
  *
- * 회귀 가드: `features/auth/__tests__/tokenHandoff.test.ts`
+ * 회귀 가드: `features/auth/__tests__/tokenHandoff.test.ts` ·
+ *            `lib/api/__tests__/clientTokenHandoff.test.ts`
  */
 import { isPortalEmbedChannel } from '@/lib/buildChannel';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -197,4 +202,72 @@ export function resolveTokenHandoff(): TokenHandoffGateway {
  */
 export function getAccessToken(): string | null {
   return resolveTokenHandoff().getAccessToken();
+}
+
+/* ------------------------------------------------------------------------- *
+ * 「토큰을 어느 헤더에 어떤 모양으로 싣는가」 — 조달 경로와 짝을 이루는 축
+ * ------------------------------------------------------------------------- */
+
+/**
+ * 포털 채널 전용 인증 헤더 이름 — **포털이 정한 계약값**이다(`INT-013` `auth_detail.header_name`).
+ *
+ * ⚠ 우리가 고를 수 있는 이름이 아니다. 바꾸면 백엔드가 토큰을 찾지 못해 포털 채널 전 API 가
+ *   401 이 되고, 그 실패는 빌드가 아니라 **런타임에** 드러난다.
+ */
+export const PORTAL_ACCESS_TOKEN_HEADER = 'x-access-token';
+
+/** 내부(관제) 채널 인증 헤더 이름 — 기존 동작 그대로. */
+export const INTERNAL_AUTH_HEADER = 'Authorization';
+
+/** 내부 채널이 쓰는 스킴 접두. 포털 채널에는 **붙이지 않는다**(아래 참조). */
+export const BEARER_PREFIX = 'Bearer ';
+
+/** 요청에 실을 인증 헤더 한 벌. */
+export interface AuthRequestHeader {
+  name: string;
+  value: string;
+}
+
+/**
+ * 현재 채널이 토큰을 싣는 **헤더 이름**.
+ *
+ * 값 조립 없이 이름만 필요한 자리(이미 실려 나간 헤더를 되읽는 401 재시도 판정)를 위해 분리해
+ * 둔다. 이름을 그쪽에서 따로 적으면 채널 전환 시 한쪽만 갱신돼 **재시도가 영영 발동하지 않는**
+ * 형태로 조용히 어긋난다.
+ */
+export function resolveAuthHeaderName(): string {
+  return isPortalEmbedChannel() ? PORTAL_ACCESS_TOKEN_HEADER : INTERNAL_AUTH_HEADER;
+}
+
+/**
+ * 토큰을 현재 채널의 계약대로 헤더 한 벌로 만든다 — **요청에 인증을 싣는 단일 지점**.
+ *
+ * ## 포털 채널에 `Bearer` 접두를 붙이지 않는 이유 (실측으로 고정된 서버 동작)
+ *
+ * `INT-013` 이 **Bearer 스킴 미사용**을 못박았고(`auth_type = "other"`), 백엔드가 그것을
+ * **거부로 강제**한다. 그러므로 `Authorization` 헤더 값을 그대로 복사해 넣는 식의 구현은
+ * **전량 401** 이 된다. 「일관성」을 이유로 두 채널의 값 모양을 맞추지 말 것.
+ *
+ * ⚠ **거부되는 것은 같은데 사유가 둘이며, 둘을 섞으면 잘못된 역추론이 나온다.**
+ *
+ * | 보낸 모양 | 서버가 하는 일 |
+ * |---|---|
+ * | 전용 헤더 **단독** + `Bearer ` 접두 | 그 문자열 **전체가 토큰**이 되어 **서명 파싱에서 거부**(401) |
+ * | 전용 헤더 + `Authorization` **함께** | 두 값을 비교해 **값 충돌**로 거부(401) |
+ *
+ * 즉 「헤더를 하나만 보내니 접두가 붙어도 괜찮다」는 **틀렸다** — 그때도 401 이고 사유만 다르다.
+ * 근거: 백엔드 `JwtFilterPortalHeaderIngressTest`
+ * (`전용헤더는_Bearer_접두를_요구하지_않는다 — 접두를_붙이면_오히려_거부된다` · 두 헤더 충돌 케이스).
+ *
+ * ## 한 요청에 헤더를 **하나만** 싣는다
+ *
+ * 백엔드는 두 헤더가 함께 오고 **값이 다르면 401**(fail-closed) 로 거부한다. 채널마다 하나만
+ * 실으면 그 **충돌** 판정에 닿을 일이 없다 — 그래서 이 함수는 `{name, value}` 를 **한 벌만**
+ * 돌려준다. 반대 채널 헤더를 「호환을 위해」 함께 붙이려는 시도가 곧 그 401 이다.
+ * ⚠ 다만 이것이 위 접두 금지를 대신하지는 않는다 — 한 벌만 보내도 접두가 붙으면 파싱에서 죽는다.
+ */
+export function buildAuthHeader(token: string): AuthRequestHeader {
+  return isPortalEmbedChannel()
+    ? { name: PORTAL_ACCESS_TOKEN_HEADER, value: token }
+    : { name: INTERNAL_AUTH_HEADER, value: `${BEARER_PREFIX}${token}` };
 }

@@ -117,34 +117,49 @@ describe('포털 채널 단독 구동 — 진입 흐름', () => {
       expect(useAuthStore.getState().claims).toBeNull();
     });
 
-    it('★요청에_Authorization_헤더가_실린다_401이_아니다', async () => {
+    /**
+     * ⚠ 단언 대상이 `Authorization` 에서 **포털 전용 헤더**로 바뀌었다(2026-09-05).
+     *   백엔드가 `x-access-token` 을 inbound 로 수용하게 되면서 포털 채널이 그 계약으로
+     *   전환됐다(`INT-013` · `features/auth/tokenHandoff.buildAuthHeader`). 대역은 창구를
+     *   제공할 뿐 헤더 축을 소유하지 않으므로, 여기서 지키는 것은 「대역이 준 토큰이 요청에
+     *   실려 401 이 아니다」 그대로다.
+     */
+    it('★요청에_전용_인증_헤더가_실린다_401이_아니다', async () => {
       installDevHostTokenHandoff();
       seedDevHostToken(PORTAL_JWT);
 
-      const seen: { auth?: unknown } = {};
+      const seen: { auth?: unknown; xAccessToken?: unknown } = {};
       mock.onGet('/portal/videos').reply((config) => {
-        seen.auth = config.headers?.Authorization;
+        const h = (config.headers ?? {}) as Record<string, unknown>;
+        seen.auth = h['Authorization'];
+        seen.xAccessToken = h['x-access-token'];
         return [200, { success: true, data: [], message: null, errorCode: null }];
       });
 
       await apiClient.get('/portal/videos');
 
-      expect(seen.auth).toBe(`Bearer ${PORTAL_JWT}`);
+      expect(seen.xAccessToken).toBe(PORTAL_JWT);
+      // Bearer 스킴 미사용 — 전용 헤더 단독에 접두가 붙으면 그 문자열 전체가 토큰이 되어
+      // 서명 파싱에서 거부된다(401). `Authorization` 과 함께 올 때의 값 충돌 거부는 별개 경로다.
+      expect(seen.auth).toBeUndefined();
     });
 
     it('대역이_없으면_요청에_헤더가_붙지_않는다_스토어로_폴백하지_않는다', async () => {
       // 본체의 fail-closed 성질은 그대로다 — 대역은 창구를 <제공>할 뿐 폴백을 열지 않는다.
       useAuthStore.getState().setTokenAndClaims(PORTAL_JWT);
 
-      const seen: { auth?: unknown } = {};
+      const seen: { auth?: unknown; xAccessToken?: unknown } = {};
       mock.onGet('/portal/videos').reply((config) => {
-        seen.auth = config.headers?.Authorization;
+        const h = (config.headers ?? {}) as Record<string, unknown>;
+        seen.auth = h['Authorization'];
+        seen.xAccessToken = h['x-access-token'];
         return [200, { success: true, data: [], message: null, errorCode: null }];
       });
 
       await apiClient.get('/portal/videos');
 
       expect(seen.auth).toBeUndefined();
+      expect(seen.xAccessToken).toBeUndefined();
     });
   });
 
